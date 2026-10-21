@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-098t | 已验证 | 2026-10-21 19:35 | 安装集补 `llvm-nm`（342 MB/+3.6%）+ `llvm-readelf` 相对链接（0 B）；builtins 4 次重建同 sha；`check-install-tools` 45 项 PASS |
 | TESTCASES-054t | 已验证 | 2026-10-21 19:08 | 超时预算重标：lua 840→1320、XSBench 新增 720（实测+120 s）、unix-smail 0.11 s 不入表；清过时注记 |
 | INFRA-097t | 已验证 | 2026-10-21 16:49 | ISS-235：L3 载体现场派生 19 册（897 例 886 pass/0 fail/11 deferred）；11 例按 spec 对齐、6 例精确 defer；ISS-235/236 closed |
 | SPEC-154t | 已验证 | 2026-10-21 16:14 | SimRISC 8 版本清单双源派生 + 6 个缺档归档（含 PROVENANCE）+ 19 缺段（2 补段/17 diff=∅）+ `check-spec-archive` 入 L1 |
@@ -64,7 +65,6 @@
 | TESTCASES-052t | 已验证 | 2026-10-20 10:52 | T3 线程 19 例两档 19/19（`QEMU-066t` 后）；`ISS-299` closed；`ISS-252` 仍 open（extra 例受 `ISS-257`） |
 | LLVM-116t | 已验证 | 2026-10-20 09:02 | ext/shl 编码迁移 + rol.o/t/w/b；ROTL 直连 1 条、ROTR 折 2 条；check-instrinfo 0 错、lit 120/120 |
 | QEMU-064t | 已验证 | 2026-10-20 09:02 | 解码 235→243；rol.o/t/w/b 语义；L3 224/224（独立 oracle 64/64）、smoke 90/90；L1 全绿 |
-| INFRA-098t | 待验收 | 2026-10-20 04:55（登记） | 安装集补 `llvm-nm`（342 MB/+3.6%）+ `llvm-readelf` 相对链接（0 B）；builtins 4 次重建同 sha；`check-install-tools` 45 项 PASS |
 | INFRA-099t | 待开始 | 2026-10-20 04:55（登记） | ISS-229：门控/安装根写者互斥（flock 或等价，嵌套不死锁）——注释纪律升级为机械可判 |
 | TESTCASES-053t | 待开始 | 2026-10-20 04:55（登记） | ISS-270/273/282/288：陈旧证据脚本族逐条修或按 `Process-08` 重建；不许放宽断言 |
 

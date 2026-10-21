@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M9
 **依赖**：`INFRA-096t`（`build-builtins` + `check-builtins-freshness` 实现，`待验收`）、`LLVM-100t`（`ISS-301` 登记源，`待验收`）、`INFRA-097t`/`INFRA-099t`（**同改 `Makefile`，须串行**）
-**状态**：待验收
+**状态**：已验证
 
 > **编号（现场取号，2026-10-20）**：`infra` 现存最大 = `INFRA-096t`（本批另占 `097`/`099`）⇒ 取 **`098`**（编写前 `grep -rn 'INFRA-098' .tao/` 零命中）。
 
@@ -104,9 +104,29 @@
 判决：8 项全部 ✅已修，无未修 finding。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**重跑记录（reviewer 亲跑，2026-10-21；快照：验收前后 `git status --porcelain -uall` 均只含本册 1 个 `M`，其余干净）**：
+1. **安装集形态**：`ls -l` 安装根 `bin/` ⇒ `llvm-nm` = 真实文件（342,488,896 B，`-rwxrwxr-x`）；`llvm-readelf -> llvm-readobj` **相对符号链接**（非拷贝）✓。sha 同源：`llvm-nm` 构建树 = 安装根 = `86643de8…`；`llvm-readobj` 双侧 = `00fe26c8…`，`readlink` 双侧同 `llvm-readobj` ✓。
+2. **可用性**：安装根 `llvm-nm --version` rc=0（LLVM 23.1.3）；`llvm-nm <builtins.a>` rc=0，**572** 定义符号行（与完成区一致；总输出 843 行含 271 归档成员头行），构建树/安装根输出 `cmp` rc=0；`llvm-readelf -h rcrt1.o` rc=0 ⇒ `Data: big endian` / `Machine: da0` ✓。
+3. **确定性自验（单轮）**：`make JOBS=8 build-builtins`（自带 `ninja -t clean`，148 文件）rc=0（3.2 s）⇒ 三副本 sha256 全 = **`288bd83ef93fcd179a457d51eada2335c0f14eb6b5da479287e68c391ccf7c1e`**，与完成区一致 ✓。
+4. **路径统一**：`grep Makefile` ⇒ `BUILTINS_RESOURCE_PATH`（Makefile:410）一处定义，`BUILTINS_BUILD_DST`（414）/`BUILTINS_ARCHIVE_DST`（415）派生，`build-builtins`（450-451）/`install-host`（487-488）各引其一；checker 同 `-print-libgcc-file-name` 现场探针拆分（run.sh S6 实测 stage == install == probe rel）✓；`check-builtins-freshness` rc=0（重建后复跑仍 rc=0）、`check-musl-freshness` rc=0 ✓。
+5. **门控**：`make check-install-tools` **PASS（45 check，rc=0，45 `[PASS]`/0 `[FAIL]`）**；`make check`(L1) **rc=0**（`repository checks (L1): PASS`，含 check-patch-tree/check-issues/check-no-residue 等）。
+6. **可达 FAIL（独立注入，真实安装根）**：`mv bin/llvm-nm bin/llvm-nm.preinject` ⇒ `make check-install-tools` **rc=2**（`[FAIL] llvm-nm installed and executable`）⇒ `mv` 还原 + `md5sum -c` **OK**（`adc428db…` 相等，`+x`/mtime 保留）⇒ 复跑 rc=0 回绿 ✓（未用 git 还原）。
+7. **证据脚本**：审读 `run.sh` —— S1–S13 每条断言有可达 FAIL 路径、计数现场派生（S2 grep 计数 / S8 rounds 来自 tsv）、S9/S11 注入用 `cp`/`mv`+md5/readlink 对账、无 `| tee` 吞码；重跑 `run.sh --strict` ⇒ **21/21 PASS, rc=0**（S13 `--rebuild` 未跑，由本审第 3 项单轮自验替代）。
+8. **台账/表述**：`issues.yaml` `ISS-261`/`ISS-301` 均 `status: closed` + `resolved_by: INFRA-098t` ✓；`milestones.md` `fshl`（候选，优先级=中）/`clmul`（候选，优先级=高）/`crc32c`（候选，优先级=高）三条均已改「能力域候选（优先级）」，语料频次只作「今天能否验证」参考、标注「不作否决依据 ✗」，无「零使用⇒不加」残留 ✓。
+9. **文件集**：`git show --stat 6da55558` = Makefile / check_install_tools.py（新）/ Process-07 / issues.yaml / milestones.md / 本册，6 文件与完成区声明对账一致，**无 spec/contracts/components/ADR 越界** ✓。
+
+**披露（非阻塞）**：完成区「`llvm-nm` sha256 `5532aad4…`」为时点值，现盘双侧为 `86643de8…`（构建树 `llvm-nm` 于 2026-10-21 19:15 被重链、安装根随之拷贝）——**同源断言不受影响**（双侧相等已独立验证），仅该历史 sha 不可复现，建议 `/complete` 时按现盘口径备注。
+
+**约束核验**：不改 spec/contracts/components/ADR decision ✓（提交文件集核过）；未 commit/push（本审未提交）✓；未跑 install-host/build-qemu/L2/L3 ✓；临时目录 `/tmp/opencode/REVIEW-098t/` ✓；注入还原全程 `mv`/`cp`+md5 ✓。
+
+**判决：Accepted**（9 项关键断言全部以本审独立重跑证实；唯一披露为非阻塞时点 sha 差异，不影响任何门控或结论）。
 
 #### architect 提交 + 文件集审核（2026-10-21）
 - **档位**：**正常提交**（无 `WIP:`，按主会话派单）。**披露**：本档 `待验收`、reviewer 尚未判定，严格口径应为 `WIP:`；本次依派单原话执行，差异留此备查（同 `LLVM-121t` 例）。
 - **文件集对账**（`git diff --cached --name-only` vs 完成区「修改文件」）：`Makefile` ✓、`tools/infra/check_install_tools.py` ✓（新）、`docs/Process-07-门控分层规范.md` ✓、`.tao/knowledge/issues.yaml` ✓、本册 ✓、`.tao/knowledge/milestones.md` ✓（状态/流水同步）；**无漏提 / 无多提 / 无越界**；`.work/**` 证据不入库。
 - **提交号**：本提交（`git log --oneline -1` 可查）；分支 `INFRA-098t`，落 `master` 由主会话 `merge --squash`，**未 push**。
+
+#### `/complete` 收尾（2026-10-21 19:35）
+- **状态** ⇒ `已验证`（reviewer 第 1 轮 `Accepted`）；`milestones.md` 流水行移入「已验证」段并刷新完成时间。
+- **披露（时点值，非阻塞）**：完成区「`llvm-nm` sha256 `5532aad4…`」现盘双侧为 **`86643de8…`**（构建树 `llvm-nm` 于 2026-10-21 19:15 被重链、安装根随之拷贝）⇒ **同源断言不受影响**（构建树 == 安装根已由 reviewer 独立验证）；该历史 sha 不可复现，只作时点值。
