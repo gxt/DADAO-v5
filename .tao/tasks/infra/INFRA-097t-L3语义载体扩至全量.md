@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M9
 **依赖**：`QEMU-066t`（最新 qemu 语义/解码，`待验收`）、`INFRA-096t`（安装根新鲜度门控，`待验收`——安装根不新鲜会假 FAIL/假绿）、`INFRA-099t`（门控互斥；**同改 `Makefile` 门控区，须串行**）
-**状态**：待验收
+**状态**：已验证
 
 > **编号（现场取号，2026-10-20）**：`infra` 现存最大 = `INFRA-096t`（本批另占 `098`/`099`）⇒ 取 **`097`**（编写前 `grep -rn 'INFRA-097' .tao/` 零命中）。
 
@@ -113,8 +113,22 @@
 | G5 首次 `ctrl-br` 注入未先 `cp` 备份（违反还原纪律） | ✅已修（自曝） | 用生成器重生成恢复，md5 == HEAD `517967f2…`；证据脚本 R2/R3 已改为**先 `cp` 备份**再注入 | 本册「验收结果 4」；`run.sh` R2/R3 |
 | G6 删 5 条后总数 902→897，与主会话预估 902 不符 | ✅披露 | 不补「占位用例」凑数；以现场真值 897 报 | 门控日志 `用例总数: 897` |
 
-#### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+#### 第 1 轮 reviewer 验收（2026-10-21）
+
+**判决：Accepted**（下述全部为 reviewer 亲自重跑/注入的输出，非采信 engineer 转述）
+
+**重跑记录（真实输出/退出码）**
+1. `make check-qemu-semantics` ⇒ **rc=0**，`Results: 897 total, 886 passed, 0 failed, 11 deferred, 0 errors`；`载体册数: 19（现场统计）`；`基线差值: total 897 - ISS-235 旧值 161 = +736`；实测 `real 0m12.970s`（完成区 12.89 s 量级一致）。**载体现场派生核**：`find tests/vectors -name '*.yaml' | wc -l` = 21，其中 `isa` 16 + `rol` 1 + `atomics` 2 = **19 册**（`rev`/`bitcnt` 2 册按范围边界排除，已在 inventory 如实登记）；日志逐册清单与 `ls tests/vectors/isa/*.yaml` 逐名相符。**硬编码核**：`sed -n '/^check-qemu-semantics:/,/^$/p' Makefile | grep -c '\.yaml'` = **0**；`grep -n 'reg-shift-extend\|reg-compare\.yaml\|aip-si\|mem-rd\.yaml' Makefile` 零命中；`EXPECTED_CARRIERS|CARRIER_COUNT|16 册` 零命中。
+2. **真值独立重算**：`python3` 逐册 `yaml.safe_load` 求和 ⇒ **TOTAL = 897**（19 册逐册数与日志逐册行逐条一致）。历史 161 差值 +736 为**展示**，判据仍走「运行 total == 现场派生总数」+ 全绿 ✓。
+3. **spec 抽查 3 例（自己查，非采信）**：① `spec/SimRISC-01-取数存数.md`「`ld` 的 `rdHA` 为 `rd0` 触发 ILLI；**`st` 指令允许 `rdHA` 为 `rd0`**（rd0 作源读出 0）」⇒ 原 `st.{b,w,t,o}_rrii_rd` 期望 ILLI 确为**向量错**；② `contracts/legality_rules.yaml` L75 `dst_rb0`「rb0 作**源**（含 `st.o-rb` 的 rbha、`st.*-rb` 基址）不触发 ILLI」⇒ `st.o_rrii_rb` 期望 ILLI 亦向量错；③ `ctrl-call[10]` = `addr=0 → umon(cfxha 0) 无 RAM → CFXMEM(0x81)`，与**已绿**的 `ctrl-jump[5] jump_rrii_rb` 同 word 形态/同口径，依据 `ADR-0020 D15`（CFXMEM = spec cause；`0x87` unmapped 仅用于**无 cfx 归属**段）成立。**删 5 条有依据、非凑绿**：`git show 337f5175` 证实删 `st.{b,w,t,o}_rrii_rd`+`st.o_rrii_rb`，生成器 `gen_legality_illi` 改按 spec 生成；且覆盖未留缺口 —— 现场核 `mem-rd`/`mem-rb` 仍保有 `st.*` 的 CFXMEM/MALIGN 与 `stm.*` 的 ILLI(`mreg_zero`)/MALIGN/CFXMEM。
+4. **deferred 精确性 + 独立注入**：向量侧 = `ctrl-call[5]`+`ctrl-ret[0,1,2,3,8]`（ISS-098）+ `reg-cond-assign[15-19]`（C-27）共 11 条，**逐条精确 id、原期望全存 `notes`**；门控 `KNOWN_DEFERRED` 为 `(basename, idx)` 元组表，**无通配/正则**。**reviewer 自己注入**：`misc.yaml[0]` active→deferred ⇒ **rc=2**、`deferred 登记: 12/11 条（…不一致）`、`FAIL: 未登记的 deferred 用例（禁批量豁免）: misc.yaml[0]`；`cp` 还原（md5 == `git show HEAD:`）⇒ **rc=0** 回绿。另注入 `mem-rd[3].expected_state` → **rc=2**、`FAIL mem-rd.yaml[3]`；`cp` 还原（md5 == 开工快照 `d551e38e…`）⇒ **rc=0** 回绿。
+5. **S1–S5 与双向量自验**：S1 移走 `rol/rol.yaml` ⇒ rc=1，`载体目录 0 册`+`缺册: git 索引登记但工作树缺失`+覆盖表 2 断言同红；还原 md5 一致 ⇒ rc=0。S5（helper 临时副本固定 `carriers[:4]`）⇒ rc=1、`缺册 … 15 册`（证明「写死册数」可判），真 helper md5 未变、临时副本已删。S2/S3/S4 由重跑 `run.sh` 覆盖（见 6）。**双向量**：inventory 表多登记 `isa/nonexistent.yaml` ⇒ rc=1 红；删 `isa/reserved.yaml` 行 ⇒ rc=1 红；`ctrl-br` L2 列改 ✓ ⇒ rc=1 红（`L2 列 != GATE_VECTORS: 表多 ['ctrl-br.yaml']`）——三向均红并还原。
+6. **证据脚本重跑（不另写等价脚本）**：`bash .work/evidence/INFRA-097t/run.sh` ⇒ **rc=0**、`结构面: 41/41 PASS`、`语义面: GREEN（897 total；0 failed；11 deferred = ISS-098 6 + 既有 C-27 5）`（`real 1m36.9s`）。脚本逐条断言均有可达 FAIL 路径（S1–S5/R2/R3 全为注入→FAIL→`cp`+md5 还原→回绿），计数均现场派生（`$LIVE_ALL`/`EXPECTED_TOTAL` 由 `ls`/`yaml` 现场算出），无恒真/两支同果。
+7. **其余**：`make check-qemu-smoke` ⇒ **rc=0**、`QEMU: total=90 passed=90`（代表集 90 不变）；`validate_vectors` ⇒ rc=0、`156/156 … 16 data files, 706 cases; gaps: 0`；`make check`(L1) ⇒ rc=2，唯一红 = `check-run-artifacts` A2 `…20261021T084507Z-llvm-ts-user-dynamic: missing run.json…`（`ps` 见主会话 `run_llvm_ts_user` 在跑、目录时间戳同步更新 ⇒ **瞬态，不作打回**）；`check-no-residue: PASS`（engineer 自审时的 untracked `semantics_gate.py` 已随提交转绿）。
+
+**约束核验**：仅动任务范围 14 项（`git show --name-only` 逐项命中完成区「修改文件」，漏 0/多 0）；`run_qemu_smoke.py` diff **纯 docstring/注释**（0 行为变更，且为验收 #6 明文要求）；`tests/vectors/**` 仅 4 册重生成 + inventory 登记列；未改 `run_qemu_test.py` 语义/`spec/`/`contracts/`；未改 L2 载体（90 不变）；`ret_riii_ra` semantic 在 `inventory.md:87` **如实降级** `deferred ISS-098`（非静默挂起）；`ISS-235`/`ISS-236` 均 `closed` + `resolved_by: INFRA-097t`；`rev`/`bitcnt` 未纳入已在完成区+inventory 双处登记。注入还原全程 `cp`+md5，**未用** git 还原；**未 commit/push**。
+
+**工作区对账**：开工/收尾 `git status --porcelain -uall` 干净，注入的 5 个文件（`mem-rd`/`misc`/`rol`/`inventory`/临时 helper）md5 全部回到快照值。
 
 #### 第 1 轮 architect 提交 + 文件集审核（2026-10-21）
 - **档位**：**正常提交**（按派单给定信息；本册 `待验收`、reviewer 未判定 ⇒ 不加 `WIP:`）。提交 = **本笔**（同笔自指 ⇒ 不嵌自身号，取 `git log -1`）；分支 `INFRA-097t`、`push` 未做。
