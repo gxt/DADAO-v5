@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| QEMU-069t | 已验证 | 2026-10-22 00:31 | `fcls` 位序重排（10 个位号）；探针改由 spec §7 解析（独立 oracle）；84/84 |
 | SPEC-156t | 已验证 | 2026-10-22 00:12 | `fcls` 10 类位序改为 754/LLVM 顺序；两处逐项一致（脚本机械比对）、锁重算、破坏性已标注 |
 | LLVM-122t | 待开始 | 2026-10-21 23:50（登记） | clmul 后端：`.td` + 三条伪指令 + 通用/私有 intrinsic + clang builtin；`scope` 仍 excluded |
 | LLVM-123t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 后端：`.td` + `llvm.fma`/`fmuladd` 选择；循环形态 0 拷贝 |
@@ -48,7 +49,6 @@
 | LLVM-125t | 待开始 | 2026-10-21 23:50（登记） | 取整后端：7 个 intrinsic → 6 档；`FNEARBYINT` 落 DYN（NX 偏差已登记） |
 | LLVM-126t | 待开始 | 2026-10-21 23:50（登记） | FP 后端接线补齐（`ISS-188` 剩余 8 类：`fcmp`/`fpclass`/`bitcast`/`rounding`）；`frem` 不接 |
 | QEMU-068t | 待开始 | 2026-10-21 23:50（登记） | clmul 执行语义：64×64 无进位乘→128 位、`rd0` 单侧丢弃；`check_qemu_trans` 260/260 |
-| QEMU-069t | 待开始 | 2026-10-21 23:50（登记） | `fcls` 位序重排实现；探针期望改由 spec 解析（独立 oracle） |
 | QEMU-070t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 语义：softfloat mulAdd 单次舍入；探针含 fma≠mul+add 反例 |
 | QEMU-071t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 语义：softfloat `minimum_number`；±0/单 NaN/sNaN/canonical 全覆盖 |
 | QEMU-072t | 待开始 | 2026-10-21 23:50（登记） | 取整语义：静态 5 档只合 NV、DYN 走真实 status；模式敏感 + NX 专测 |

@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M9（FP 完备性）
 **依赖**：`SPEC-156t`（**前置**：位表已改为 754/LLVM 顺序）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -92,12 +92,48 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：探针 84/84 PASS（rc=0；classify 断言 34 条全部 exactly-1-bit + `[63:10]==0`）；`--selftest` PASS；`--oracle` PASS（spec 解析 10 对，位 0..9）。`check_qemu_trans --strict` = 259/260，与改前基线**逐字相同**（rc=1 为既有 clmul 缺失）。`make build-qemu` rc=0；`make check`(L1) rc=0；`make check-modules`(L2) rc=2（BLOCKED：`check-interface` 既有 clmul 259/260；其余 6 个 L2 子目标逐个 rc=0）。
+**修改文件**：实现/探针 2 文件：`components/qemu/patches/target/dadao/insn_trans/trans_fp.c.inc.patch`（仅 10 个位号 + new-file index blob）、`tools/qemu/min_rom_probe_035t.py`（spec §7 解析 oracle、classify 断言、7 个边界例、ILLI 终止符适配）；流程状态另改任务书 `**状态**` + `milestones.md` 一行（L1 状态一致性要求）。
+**验收结果**：`./.work/evidence/QEMU-069t/run.sh` rc=0（OVERALL PASS）；`--inject` rc=0：(a) 实现旧位序 → 探针红 53/84 → cp+md5 还原 → 绿；(b) 7/8 互换 → 红 74/84 → 还原绿；(c) 临时 spec 换行 → 红 74/84（仓库 spec 零改动）。md5：前 `5eddaef2…` → 注入 `f81ef9d2…` → 还原 `5eddaef2…`；注入 `448853e1…` → 还原同前值；两次还原后源树 `git status` 干净。
+**新发现/坑**：035t 探针在改动前的 master 上本已红（73/84）：`fence 0`（0x77000000）自 ADR-0034 起是合法 no-op，原 ROM 终止符不再产生 ILLI；改 `fence fm=1`（0x77801000）恢复 ILLI(0x88)。`trans_fp.c.inc.patch` 是 new-file 补丁，改内容须同步 `index …<blob>`（`check-index-blobs`）；新增 spec 解析默认拒错（缺节/行数≠10/位非 0..9 均显式非零退出）。
+**遗留问题**：L2 无法 rc=0：`check-interface` 的 clmul `trans_*` 缺失为**改前既有**（`259/260`，ISS-307/ADR-0035 另册），不在本册 2 文件范围；`milestones.md` 一行按流程留 `/complete` 收尾。
 
 ## 审阅记录
 
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+### 第 1 轮 reviewer 验收（2026-10-22，提交 `177018aa` 之后重跑）
+
+**重跑记录**（reviewer 亲自执行，均真实 rc）：
+- 位号 diff：`git diff bd142109..177018aa -- <trans_fp patch>` 仅 10 行第三参数 + index blob 变化，`fp_and3(...)` 条件 10 行逐字未变；新位号 0 sNaN/1 qNaN/2 negInf/3 negNormal/4 negSubnormal/5 negZero/6 posZero/7 posSubnormal/8 posNormal/9 posInf 与 `spec §7` 表逐项一致。
+- `--oracle` rc=0：10 对 类别↔位号（bit 0..9）；`load_class_bits_from_spec` 真解析 spec §7（缺节/行数≠10/位非 0..9 显式 FAIL），oracle 非手抄。
+- reviewer 独立注入（cp+md5 纪律，非用工程师脚本）：改仓库 spec 7/8 两行（md5 363b3455→2d078efb）⇒ 全探针红 74/84（CL06/07/16/17/24-30）；`cp` 还原 md5=363b3455 相等 ⇒ 回绿 84/84。`--oracle` 单独仍 PASS 系结构自洽（与 engineer 自审 finding 3 一致，已用全探针补盲）。
+- 全探针 rc=0：84/84；classify 断言 34 条 exactly-1-bit=OK + `[63:10]==0` OK；`--selftest` rc=0。
+- 计数基线独立核：`git archive bd142109 components/qemu/patches` → /tmp 临时树 + `check_qemu_trans --src <临时树> --strict` = 259/260 rc=1；改后同 259/260 rc=1，输出逐字相同 ⇒ 计数不变，红 = clmul 缺 trans（ISS-307）**既有、非本册**。
+- `make build-qemu` rc=0；`make check`(L1) rc=0；`make check-modules`(L2) rc=2：唯一红子目标 `check-interface`（2 FAIL 全为 clmul 259/260），其余 6 个 L2 子目标 rc=0；基线同红 ⇒ **既有，不阻断本册**。
+- `run.sh --inject` rc=0：(a) 旧位序→红 53/84→还原绿；(b) 7/8 互换→红 74/84→绿；(c) 临时 spec 换行→红 74/84→绿；md5 对账全成立。
+- **`./run.sh`（默认模式）rc=1**：`[FAIL] git diff file count expect=2 actual=0`、`[FAIL] git diff is exactly patch+probe expect=0 actual=1`（其余全部 PASS/BLOCKED 正确）。
+- 快照对账：前/后 `git status --porcelain -uall` 均 0 行；patch/probe/spec md5 与开工一致，reviewer 未提交。
+
+**约束核验**：`spec/**`/`contracts/**`/`insn.decode` 零改动 ✓；只动 2 个实现/探针文件（+任务书/milestones 流程文件）✓；未 commit/push ✓。
+
+**判决：Needs Revision**（唯一打回点，产物实质全部达标）：
+`run.sh` L138-142 的 diff-scope 检查用**工作树** `git diff --name-only -- components tools/qemu`，改动已提交（`177018aa`）后必为空 ⇒ 一键重放在当前状态必然红，完成区「run.sh rc=0」不可复现。**修法**：改用 `git diff --name-only bd142109..HEAD -- components tools/qemu`（reviewer 已验证恰输出 patch+探针 2 文件），预期重跑 rc=0；只需修脚本，无需重建 QEMU，修后快速复验。
+
+### 第 1 轮 engineer 自审
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 探针 035t 在 master 上整片红（73/84）：ROM 终止符 `fence 0` 已合法 | ✅已修 | 终止符改 `fence fm=1` 0x77801000，注释指明 ADR-0034 | 探针 84/84；`--inject`(a)(b) 红/绿均按预期 |
+| new-file 补丁改内容后 `check-index-blobs` 红 | ✅已修 | patch 头 `index 00000000..3091b47` → `..71f1cf2` | `make check` rc=0；`check_index_blobs` 132 OK |
+| 仅换 spec 行时 `--oracle` 仍 PASS（结构自洽） | ✅已修 | 证据脚本 (c) 改为跑**全探针**（实现不变、spec 换行），并加 IEEE 位型→类别交叉校验 | `--inject`(c) 红 74/84；仓库 spec md5 不变 |
+| 证据脚本 L2 基线个数误取 260（实际应为 259） | ✅已修 | 基线解析改为取 `259/260` 的分子 | `run.sh` rc=0，`[BLOCKED] actual=259 baseline=259` |
+| 未修 finding | 无 | — | — |
+
+### 第 2 轮 reviewer 验收（2026-10-22，针对第 1 轮唯一打回项复验）
+
+- **脚本改动核验**：`run.sh` L139/144 三处改为提交面 `git -c core.quotepath=false diff --name-only bd142109..HEAD`（范围 + 禁区），已提交后可一键重放；断言仍可达 FAIL（count≠2 / diff 非空 / 禁区非 0 即红）、仍直接捕获 rc、不吞码。
+- **重跑**：`bash .work/evidence/QEMU-069t/run.sh` ⇒ **rc=0**，`[PASS] git diff file count actual=2`、`[PASS] git diff is exactly patch+probe`、`[PASS] spec/contracts/insn.decode diff actual=0`；全脚本 25 PASS / 0 FAIL / 1 BLOCKED（L2 既有 clmul，判定不变，不阻断）。
+- **快照对账**：前/后 `git status --porcelain -uall` 均仅 1 行 `M 任务书`（=第 1 轮审阅记录本身，reviewer 未提交，属预期）；脚本重跑未引入任何新改动，`trans_fp.c.inc.patch`/探针/spec md5 与第 1 轮一致；HEAD 仍为 `177018aa`，reviewer 未 commit/push。
+
+**判决：Accepted**（第 1 轮唯一打回项已修，产物实质与第 1 轮核验结论不变；L2 红属既有 clmul ISS-307，不阻断本册）。

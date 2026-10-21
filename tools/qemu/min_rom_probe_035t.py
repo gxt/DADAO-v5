@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Min ROM probe for QEMU-035t: FP bit-level semantics (sign/classify/compare).
 
-Spec sources (expectations are derived by hand from these, never from QEMU):
+Spec sources (expectations are derived from these, never from QEMU):
   - spec/SimRISC-07 §浮点符号位操作指令 / §浮点比较指令 / §浮点分类指令
   - spec/SimRISC-00 §浮点寄存器
   - .tao/contracts/contract-fp.md §7 / §8 / §9
+The classify category bits are NOT hand-copied: they are parsed at import time
+from the §7 table of spec/SimRISC-07 (`load_class_bits_from_spec`); a missing
+or malformed table is an explicit non-zero FAIL.  `--oracle` prints the parsed
+category↔bit mapping and cross-checks it against all 20 sample values.
 Encodings: contracts/opcodes.yaml.
 Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0x88).
 
@@ -64,7 +68,10 @@ ILLI_EXIT = 0x88
 
 # ── Instruction encoding (op / ha values from contracts/opcodes.yaml) ──
 
-ILLI = 0x77000000                 # fence 0 -> ILLI
+# ROM terminator: `fence` with fm=1 (hb != 0) is ILLI per SimRISC-12 §3.1 /
+# ADR-0034 D1/D2 -> exit 0x88.  (Historically 0x77000000 = fence 0 was used,
+# but since ADR-0034 that is a legal no-op, and 0x00000000 is UNDI 0x89.)
+ILLI = 0x77801000                 # fence fm=1 -> ILLI
 SWYM = 0x77880000                 # swym (padding)
 
 
@@ -318,19 +325,22 @@ def e2e_epilogue(checks, fail_code):
 
 class Case:
     def __init__(self, name, insns, expect_exit=None,
-                 expect_rf=None, expect_rd=None, e2e=False):
+                 expect_rf=None, expect_rd=None, e2e=False, classify=None):
         self.name = name
         self.insns = insns
         self.expect_exit = expect_exit
         self.expect_rf = expect_rf or {}
         self.expect_rd = expect_rd or {}
         self.e2e = e2e
+        # rd index -> category alias: assert exactly that one bit is set and
+        # rd[63:10] == 0 (SimRISC-07 §7: only [9:0] is used).
+        self.classify = classify or {}
 
 
-def value_case(name, insns, expect_rf=None, expect_rd=None):
+def value_case(name, insns, expect_rf=None, expect_rd=None, classify=None):
     body = list(insns) + [br_nz(40, 1)]        # rd40=1 -> taken, target = next, TB split
     return Case(name, body, expect_exit=ILLI_EXIT,
-                expect_rf=expect_rf, expect_rd=expect_rd)
+                expect_rf=expect_rf, expect_rd=expect_rd, classify=classify)
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -354,12 +364,71 @@ FT_SNAN = 0x7F800001
 FO_QNAN = 0x7FF8000000000000
 FO_SNAN = 0x7FF0000000000001
 
-# 10 classification category bits (SimRISC-07 §浮点分类指令)
-CLS = {
-    "negInf": 1 << 0, "negNormal": 1 << 1, "negSubnormal": 1 << 2,
-    "negZero": 1 << 3, "posZero": 1 << 4, "posSubnormal": 1 << 5,
-    "posNormal": 1 << 6, "posInf": 1 << 7, "sNaN": 1 << 8, "qNaN": 1 << 9,
+# 10 classification category bits.  **Independent oracle**: parsed from
+# `spec/SimRISC-07 §7` at import time, never hand-copied here.  A missing /
+# renamed section or a malformed table is a hard FAIL (explicit non-zero exit),
+# never a silent fallback.
+SPEC_FP = (os.environ.get('DADAO_FP_SPEC')
+           or os.path.join(_REPO_ROOT, 'spec', 'SimRISC-07-浮点运算.md'))
+
+# probe category alias -> spec table name (aliases only; **no bit numbers**)
+SPEC_CLASS_NAME = {
+    "sNaN": "signalingNaN",
+    "qNaN": "quietNaN",
+    "negInf": "negativeInfinity",
+    "negNormal": "negativeNormal",
+    "negSubnormal": "negativeSubnormal",
+    "negZero": "negativeZero",
+    "posZero": "positiveZero",
+    "posSubnormal": "positiveSubnormal",
+    "posNormal": "positiveNormal",
+    "posInf": "positiveInfinity",
 }
+
+
+class SpecOracleError(RuntimeError):
+    pass
+
+
+def load_class_bits_from_spec(path=SPEC_FP):
+    """Derive {alias: 1 << bit} from the `| bit | class |` table of spec §7."""
+    try:
+        with open(path, encoding='utf-8') as f:
+            text = f.read()
+    except OSError as e:
+        raise SpecOracleError("cannot read %s: %s" % (path, e))
+    m = re.search(r'^## 7\. 浮点分类指令\s*$(.*?)(?=^## |\Z)',
+                  text, re.M | re.S)
+    if not m:
+        raise SpecOracleError("%s: section '## 7. 浮点分类指令' not found" % path)
+    rows = re.findall(r'^\|\s*(\d+)\s*\|\s*([A-Za-z]+)\s*\|',
+                      m.group(1), re.M)
+    if len(rows) != 10:
+        raise SpecOracleError(
+            "%s §7: expected 10 table rows, parsed %d: %r"
+            % (path, len(rows), rows))
+    by_name = {}
+    for bit, name in rows:
+        if name in by_name:
+            raise SpecOracleError("%s §7: duplicate class %r" % (path, name))
+        by_name[name] = int(bit)
+    if set(by_name) != set(SPEC_CLASS_NAME.values()):
+        raise SpecOracleError(
+            "%s §7: class names %r != expected %r"
+            % (path, sorted(by_name), sorted(SPEC_CLASS_NAME.values())))
+    if sorted(by_name.values()) != list(range(10)):
+        raise SpecOracleError(
+            "%s §7: bits %r are not exactly 0..9"
+            % (path, sorted(by_name.values())))
+    return {alias: 1 << by_name[spec]
+            for alias, spec in SPEC_CLASS_NAME.items()}
+
+
+try:
+    CLS = load_class_bits_from_spec()
+except SpecOracleError as _spec_err:
+    print("ERROR: classify oracle could not be derived from spec: %s" % _spec_err)
+    sys.exit(1)
 
 # ft / fo 10-class sample values
 FT_CLASS_VALS = [
@@ -376,6 +445,83 @@ FO_CLASS_VALS = [
     ("posNormal", 0x3FF0000000000000), ("posInf", 0x7FF0000000000000),
     ("sNaN", 0x7FF0000000000001), ("qNaN", 0x7FF8000000000000),
 ]
+
+
+def ieee_class(value, isdbl):
+    """Classify a raw bit pattern by IEEE-754 rules only (no spec table, no QEMU).
+
+    This is the value-level half of the oracle: it says which category a sample
+    *is*, while the spec table says which bit that category uses."""
+    if isdbl:
+        val, signpos, mantbits, expbits = value & 0xFFFFFFFFFFFFFFFF, 63, 52, 11
+    else:
+        val, signpos, mantbits, expbits = value & 0xFFFFFFFF, 31, 23, 8
+    sign = (val >> signpos) & 1
+    exp = (val >> mantbits) & ((1 << expbits) - 1)
+    man = val & ((1 << mantbits) - 1)
+    if exp == (1 << expbits) - 1:
+        if man == 0:
+            return "negInf" if sign else "posInf"
+        return "qNaN" if (man >> (mantbits - 1)) & 1 else "sNaN"
+    if exp == 0:
+        if man == 0:
+            return "negZero" if sign else "posZero"
+        return "negSubnormal" if sign else "posSubnormal"
+    return "negNormal" if sign else "posNormal"
+
+
+def check_class_oracle():
+    """Cross-check the spec-derived masks against the 20 sample values.
+
+    Two independent halves must agree: (1) the spec §7 table maps category ->
+    bit, (2) IEEE-754 bit-pattern rules map each sample value -> category.
+    Because every expectation is a single bit and the 10 masks are pairwise
+    distinct/disjoint, a swapped spec row, a swapped implementation bit or a
+    mislabelled sample makes this fail."""
+    problems = []
+    if len(CLS) != 10:
+        problems.append("spec oracle has %d categories (expect 10)" % len(CLS))
+    masks = sorted(CLS.values())
+    if masks != [1 << i for i in range(10)]:
+        problems.append("spec oracle masks %r are not the 10 single bits"
+                        % masks)
+    for label, vals, isdbl in (("FT", FT_CLASS_VALS, False),
+                               ("FO", FO_CLASS_VALS, True)):
+        names = [nm for nm, _ in vals]
+        if len(names) != 10 or len(set(names)) != 10:
+            problems.append("%s_CLASS_VALS names not 10 distinct: %r"
+                            % (label, names))
+            continue
+        if set(names) != set(CLS):
+            problems.append("%s_CLASS_VALS names %r != oracle %r"
+                            % (label, sorted(names), sorted(CLS)))
+        for nm, val in vals:
+            derived = ieee_class(val, isdbl)
+            if derived != nm:
+                problems.append(
+                    "%s sample 0x%0*X labelled %s but IEEE rules say %s"
+                    % (label, 16 if isdbl else 8, val, nm, derived))
+        ms = [CLS[nm] for nm in names]
+        for nm, m in zip(names, ms):
+            if m & (m - 1):
+                problems.append("%s mask for %s is not a single bit: 0x%X"
+                                % (label, nm, m))
+        for i in range(len(ms)):
+            for j in range(i + 1, len(ms)):
+                if ms[i] & ms[j]:
+                    problems.append("%s masks overlap: %s/0x%X vs %s/0x%X"
+                                    % (label, names[i], ms[i],
+                                       names[j], ms[j]))
+    return problems
+
+
+def print_class_oracle():
+    """Print the spec -> bit mapping and the oracle cross-check result."""
+    print("classify oracle: %s §7 (parsed, not hand-copied)" % SPEC_FP)
+    for alias in ("sNaN", "qNaN", "negInf", "negNormal", "negSubnormal",
+                  "negZero", "posZero", "posSubnormal", "posNormal", "posInf"):
+        print("  %-13s spec=%-17s bit=%d"
+              % (alias, SPEC_CLASS_NAME[alias], CLS[alias].bit_length() - 1))
 
 CASES = []
 
@@ -478,30 +624,66 @@ for i, (nm, val) in enumerate(FT_CLASS_VALS):
     CASES.append(value_case(
         "CL%02d ftcls %s -> bit%d" % (i + 1, nm, CLS[nm].bit_length() - 1),
         set_rf(8, val) + [ftcls(4, 8, 1)],
-        expect_rd={4: CLS[nm]}))
+        expect_rd={4: CLS[nm]}, classify={4: nm}))
 
 # ── classify: fo all 10 classes ────────────────────────────────────────
 for i, (nm, val) in enumerate(FO_CLASS_VALS):
     CASES.append(value_case(
         "CL%02d focls %s -> bit%d" % (i + 11, nm, CLS[nm].bit_length() - 1),
         set_rf(8, val) + [focls(4, 8, 1)],
-        expect_rd={4: CLS[nm]}))
+        expect_rd={4: CLS[nm]}, classify={4: nm}))
 
 # ── classify: block form, per-element results, [63:10] clear ───────────
 CASES.append(value_case(
     "CL21 ftcls {rd4:rd6},{rf8:rf10} block of 3",
     set_rf(8, 0xFF800000) + set_rf(9, 0x00000000) + set_rf(10, 0x7FC00000) +
     [ftcls(4, 8, 3)],
-    expect_rd={4: CLS["negInf"], 5: CLS["posZero"], 6: CLS["qNaN"]}))
+    expect_rd={4: CLS["negInf"], 5: CLS["posZero"], 6: CLS["qNaN"]},
+    classify={4: "negInf", 5: "posZero", 6: "qNaN"}))
 CASES.append(value_case(
     "CL22 focls {rd4:rd6},{rf8:rf10} block of 3",
     set_rf(8, 0x8000000000000001) + set_rf(9, 0x7FF0000000000000) +
     set_rf(10, 0x7FF0000000000001) + [focls(4, 8, 3)],
-    expect_rd={4: CLS["negSubnormal"], 5: CLS["posInf"], 6: CLS["sNaN"]}))
+    expect_rd={4: CLS["negSubnormal"], 5: CLS["posInf"], 6: CLS["sNaN"]},
+    classify={4: "negSubnormal", 5: "posInf", 6: "sNaN"}))
 CASES.append(value_case(
     "CL23 ftcls {rd4:rd6},{rf8:rf10} single element (immu6=1)",
     set_rf(8, 0x80000000) + [ftcls(4, 8, 1)],
-    expect_rd={4: CLS["negZero"]}))
+    expect_rd={4: CLS["negZero"]}, classify={4: "negZero"}))
+
+# ── classify: format boundaries (same class, different values) ─────────
+# ft float32: max normal 0x7F7FFFFF, min normal 0x00800000,
+#             max subnormal 0x007FFFFF, min normal (negative) 0x80800000
+CASES.append(value_case(
+    "CL24 ftcls max normal 0x7F7FFFFF -> posNormal",
+    set_rf(8, 0x7F7FFFFF) + [ftcls(4, 8, 1)],
+    expect_rd={4: CLS["posNormal"]}, classify={4: "posNormal"}))
+CASES.append(value_case(
+    "CL25 ftcls min normal 0x00800000 -> posNormal",
+    set_rf(8, 0x00800000) + [ftcls(4, 8, 1)],
+    expect_rd={4: CLS["posNormal"]}, classify={4: "posNormal"}))
+CASES.append(value_case(
+    "CL26 ftcls max subnormal 0x007FFFFF -> posSubnormal",
+    set_rf(8, 0x007FFFFF) + [ftcls(4, 8, 1)],
+    expect_rd={4: CLS["posSubnormal"]}, classify={4: "posSubnormal"}))
+CASES.append(value_case(
+    "CL27 ftcls min normal negative 0x80800000 -> negNormal",
+    set_rf(8, 0x80800000) + [ftcls(4, 8, 1)],
+    expect_rd={4: CLS["negNormal"]}, classify={4: "negNormal"}))
+# fo float64: max normal 0x7FEFFFFFFFFFFFFF, min normal 0x0010000000000000,
+#             max subnormal 0x000FFFFFFFFFFFFF
+CASES.append(value_case(
+    "CL28 focls max normal 0x7FEF_FFFFFFFFFFFF -> posNormal",
+    set_rf(8, 0x7FEFFFFFFFFFFFFF) + [focls(4, 8, 1)],
+    expect_rd={4: CLS["posNormal"]}, classify={4: "posNormal"}))
+CASES.append(value_case(
+    "CL29 focls min normal 0x0010_000000000000 -> posNormal",
+    set_rf(8, 0x0010000000000000) + [focls(4, 8, 1)],
+    expect_rd={4: CLS["posNormal"]}, classify={4: "posNormal"}))
+CASES.append(value_case(
+    "CL30 focls max subnormal 0x000F_FFFFFFFFFFFF -> posSubnormal",
+    set_rf(8, 0x000FFFFFFFFFFFFF) + [focls(4, 8, 1)],
+    expect_rd={4: CLS["posSubnormal"]}, classify={4: "posSubnormal"}))
 
 # ── classify: legality ─────────────────────────────────────────────────
 CASES.append(Case("FL1 ftcls immu6=0 -> ILLI",
@@ -660,6 +842,18 @@ def run_case(case):
                 f"RD[{idx:02d}] expect=0x{exp:016X} got="
                 f"{'0x%016X' % got if got is not None else 'MISSING'} "
                 f"{'OK' if good else 'MISMATCH'}")
+        for idx, name in sorted(case.classify.items()):
+            got = last_reg(log, 'RD', idx)
+            bit = CLS[name].bit_length() - 1
+            one = got is not None and got == (1 << bit)
+            upper = got is not None and (got >> 10) == 0
+            good = one and upper
+            ok = ok and good
+            details.append(
+                f"RD[{idx:02d}] classify {name} bit{bit}: "
+                f"exactly-1-bit={'OK' if one else 'FAIL'}, "
+                f"[63:10]==0 {'OK' if upper else 'FAIL'} "
+                f"(got={'0x%016X' % got if got is not None else 'MISSING'})")
         return ok, details
     else:
         if case.e2e:
@@ -727,6 +921,14 @@ def main():
         print(f"ERROR: {QEMU} not found. Run 'make build-qemu' first.")
         return 1
 
+    problems = check_class_oracle()
+    if problems:
+        print("ERROR: classify oracle cross-check failed:")
+        for p in problems:
+            print(f"  - {p}")
+        return 1
+    print_class_oracle()
+
     print("=" * 78)
     print("QEMU-035t Min ROM Probe (FP bit-level: sign/classify/compare, 10 insns)")
     print("=" * 78)
@@ -758,4 +960,13 @@ def main():
 if __name__ == "__main__":
     if "--selftest" in sys.argv:
         sys.exit(selftest())
+    if "--oracle" in sys.argv:
+        print_class_oracle()
+        problems = check_class_oracle()
+        for p in problems:
+            print(f"  [FAIL] {p}")
+        print("Oracle: %s (%d categories, bits %s)"
+              % ("PASS" if not problems else "FAIL", len(CLS),
+                 sorted(CLS[n].bit_length() - 1 for n in CLS)))
+        sys.exit(0 if not problems else 1)
     sys.exit(main())

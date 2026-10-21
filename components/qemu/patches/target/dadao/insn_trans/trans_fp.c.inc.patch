@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..3091b47
+index 0000000..71f1cf2
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
 @@ -0,0 +1,1006 @@
@@ -246,16 +246,16 @@ index 0000000..3091b47
 +
 +    TCGv_i64 acc = tcg_temp_new_i64();
 +    tcg_gen_movi_i64(acc, 0);
-+    fp_set_bit_if(acc, fp_and3(sgn, exp_all, man_zero), 0);   /* negInfinity */
-+    fp_set_bit_if(acc, fp_and3(sgn, nz, na), 1);              /* negNormal   */
-+    fp_set_bit_if(acc, fp_and3(sgn, exp_zero, nmz), 2);       /* negSubnormal*/
-+    fp_set_bit_if(acc, fp_and3(sgn, exp_zero, man_zero), 3);  /* negZero     */
-+    fp_set_bit_if(acc, fp_and3(ns, exp_zero, man_zero), 4);   /* posZero     */
-+    fp_set_bit_if(acc, fp_and3(ns, exp_zero, nmz), 5);        /* posSubnormal*/
-+    fp_set_bit_if(acc, fp_and3(ns, nz, na), 6);               /* posNormal   */
-+    fp_set_bit_if(acc, fp_and3(ns, exp_all, man_zero), 7);    /* posInfinity */
-+    fp_set_bit_if(acc, fp_and3(exp_all, nmz, nmb), 8);        /* signalingNaN*/
-+    fp_set_bit_if(acc, fp_and3(exp_all, nmz, mmsb), 9);       /* quietNaN    */
++    fp_set_bit_if(acc, fp_and3(sgn, exp_all, man_zero), 2);   /* negInfinity */
++    fp_set_bit_if(acc, fp_and3(sgn, nz, na), 3);              /* negNormal   */
++    fp_set_bit_if(acc, fp_and3(sgn, exp_zero, nmz), 4);       /* negSubnormal*/
++    fp_set_bit_if(acc, fp_and3(sgn, exp_zero, man_zero), 5);  /* negZero     */
++    fp_set_bit_if(acc, fp_and3(ns, exp_zero, man_zero), 6);   /* posZero     */
++    fp_set_bit_if(acc, fp_and3(ns, exp_zero, nmz), 7);        /* posSubnormal*/
++    fp_set_bit_if(acc, fp_and3(ns, nz, na), 8);               /* posNormal   */
++    fp_set_bit_if(acc, fp_and3(ns, exp_all, man_zero), 9);    /* posInfinity */
++    fp_set_bit_if(acc, fp_and3(exp_all, nmz, nmb), 0);        /* signalingNaN*/
++    fp_set_bit_if(acc, fp_and3(exp_all, nmz, mmsb), 1);       /* quietNaN    */
 +    return acc;
 +}
 +
