@@ -84,6 +84,11 @@ FMT_BY_CLASS = {
 #     longer in this allow-list and now satisfy the M1 baseline check directly.
 MC_ONLY_EXCLUDED_IDS = frozenset({
     "fence_oiii_imm",
+    # clmul.o (ADR-0035 D7 / LLVM-122t): encoding and semantics are fixed, the
+    # execution side is QEMU-068t, but the record stays scope:excluded until the
+    # SPEC-155t flip; the MC layer assembles/disassembles it (and CodeGen
+    # selects it through the CLMUL_*_PSEUDO pseudos).
+    "clmul.o_rrrr_rd",
     # lr/sc (ADR-0034 D3-D5; LLVM-121t): 24 scope:excluded records that the MC
     # layer assembles/disassembles and that CodeGen selects for the atomic
     # CAS/RMW loops.  List generated from the width x ordering sets of D3/D4

@@ -42,16 +42,32 @@ OBJ_RE = re.compile(
     r"\{\{.*?\}\}([A-Za-z][A-Za-z0-9._]*)")
 
 
-# scope: excluded 但**汇编器实现**的记录（与 generate_lit_vectors.py 同一口径，
-# 但本文件按设计不 import 生成器）：fence（SPEC-039t 起）与 24 条 lr/sc
-# （LLVM-121t；ADR-0034 D3/D4 的 宽度 x 存储序 组合）。其余 excluded
-# （cfxld/cfxst）仍是反例。
-MC_IMPLEMENTED_EXCLUDED = frozenset({"fence"}) | frozenset(
-    "%s.%s.%s" % (op, width, order)
-    for op, orders in (("lr", ("nn", "an", "ar")), ("sc", ("nn", "nr", "ar")))
-    for width in ("b", "w", "t", "o")
-    for order in orders
+# `scope: excluded` 但**汇编器实现**的记录（与 generate_lit_vectors.py 同一口径，
+# 但本文件按设计不 import 生成器）：判据是**机械**的——后端 `.td`（提交物补丁
+# `DADAOInstrInfo.td` / `DADAOInstrInfoFP.td`）里是否有该助记符的 def。曾经的
+# 手写名单（fence + 24 条 lr/sc）会随 `.td` 落地而过期（`clmul.o`，LLVM-122t）。
+TD_PATCHES = (
+    os.path.join(REPO, "components", "llvm-project", "patches", "llvm", "lib",
+                 "Target", "DADAO", "DADAOInstrInfo.td.patch"),
+    os.path.join(REPO, "components", "llvm-project", "patches", "llvm", "lib",
+                 "Target", "DADAO", "DADAOInstrInfoFP.td.patch"),
 )
+_TD_DEF_RE = re.compile(r'^def\s+\w+\s*:\s*DADAO\w+\s*<\s*"([^"]+)"', re.MULTILINE)
+
+
+def _td_mnemonics():
+    """有提交 `.td` def 的助记符集合（⇒ 汇编器受理）。"""
+    mnem = set()
+    for path in TD_PATCHES:
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                patch = fh.read()
+        except OSError:
+            continue
+        body = "\n".join(line[1:] for line in patch.splitlines()
+                         if line.startswith("+") and not line.startswith("+++"))
+        mnem.update(_TD_DEF_RE.findall(body))
+    return frozenset(mnem)
 
 
 class Checker:
@@ -78,7 +94,7 @@ def load_contract():
     negatives = set()
     for r in recs:
         if (r.get("scope") == "excluded"
-                and r["mnemonic"] not in MC_IMPLEMENTED_EXCLUDED):
+                and r["mnemonic"] not in _td_mnemonics()):
             negatives.add(r["id"])
         else:
             positives.add(r["id"])

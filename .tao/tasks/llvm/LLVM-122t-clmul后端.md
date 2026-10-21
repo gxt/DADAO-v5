@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：`ADR-0035`（`Accepted`：编码/语义/`rd0` 规则）、`INFRA-099t`（门控互斥；门控一律串行）。**前置无 QEMU 依赖**：本册**不动** `scope`（仍 `excluded`），翻转归 `SPEC-155t`。
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -121,12 +121,52 @@
 
 ## 完成区
 
-**测试结果**：
+**测试结果**：通过 — `.work/evidence/LLVM-122t/run.sh` default **42/42 rc=0**；注入 `--inject half` / `--inject pair` 各 **7/7 rc=0**（注入→红→`cp`+md5 还原→重建→绿）
 **修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- 组件（**10 改 + 7 新增**，`series` 83→90、`check-patch-tree` 185→192）：`DADAOInstrInfo.td`、`DADAOCodeGen.td`、`DADAOInstrInfo.cpp`、`DADAOISelDAGToDAG.cpp`、`DADAOISelLowering.{h,cpp}`、`AsmParser/DADAOAsmParser.cpp`、`clang/lib/Basic/Targets/DADAO.{h,cpp}`、`clang/lib/CodeGen/Targets/DADAO.cpp`；新增 `clang/include/clang/Basic/BuiltinsDADAO.def`、`clang/include/clang/Basic/TargetBuiltins.h`（patch）、`clang/lib/CodeGen/{CGBuiltin.cpp,CodeGenFunction.h}`（patch）、`llvm/include/llvm/IR/{Intrinsics.td,IntrinsicsDADAO.td,CMakeLists.txt}`（patch）
+- 生成物：`tests/llvm/lit/MC/DADAO-gen/{gen-rrrr.s,gen-excluded.s}`、`tools/llvm/llvm-isa-backend-matrix.{tsv,md}`
+- 工具：`tools/testcases/{generate_lit_vectors.py,check_lit_gen.py}`（判据改机械）、`tools/llvm/validate_instrinfo.py`（allow-list 1 条）
+- 用例：`tests/llvm/lit/CodeGen/DADAO/clmul.ll`、`tests/llvm/lit/MC/DADAO/clmul-legality.s`、`tests/e2e/lit/clmul_builtin.test` + `tests/e2e/clmul_builtin.c`
+- 台账：`components/llvm-project/changelog.md`（1 条）
+**验收结果**：三条路径 `llc -O2` 各 **1** 条（`{rd0, rd8}` / `{rd8, rd0}` / 双半；`mul.uo` 0 条）；builtin `clang -O2 -S` 1 条 `{rd8, rd9}, rd16, rd17`、无 shl/or；MC 三形态 `0x56xxxxxx` + `--disassemble` 回原文；`{rd7,rd7}`/`{rd0,rd0}` rc=1 指名 `dst_dual_same`；`check-instrinfo` 0 errors；`check-scope` excluded **28**（总 260 不变）；`check_qemu_trans --strict` 260/260；`check_lit_gen` 64/64；lit（MC+CodeGen+E2E）130/130；`check-lit-full` 12/12；L1/L2 rc=0；`install-host`+`build-builtins`+`build-musl-shared` PASS
+**新发现/坑**：① `Intrinsics.td` 的 include **不足**以给出 `Intrinsic::dadao_*` —— 须在 `llvm/include/llvm/IR/CMakeLists.txt` 加 `-intrinsic-prefix=dadao` 的 `IntrinsicsDADAO.h`（否则 `IntrinsicImpl.inc` 有名字、枚举缺失，3 个 .cpp 报 “not a member of llvm::Intrinsic”）；② `ISD::CLMUL` 在 `TargetLoweringBase` **默认 `Expand`**（一条摊成 14 条 `mul.uo`+and/or），只加 pattern 不设 `Legal` 是“静默变慢”而非报错；③ 大端 i128 返回部件序为 `rd8=高、rd9=低`（非“先低后高”），半绑定须用「单 i64 返回落 rd8」独立观测，不能凭直觉断言；④ 两结果 target intrinsic 是 `INTRINSIC_WO_CHAIN`（结果列表），TableGen pattern 绑不上 ⇒ 手工 `Select`；⑤ `.td` 一落地「无 def ⇒ UNREC」前提失效，`gen-excluded` 判据必须机械化为「有 `.td` def ⇒ 汇编器受理」
+**遗留问题**：无（`scope` 仍 `excluded` 按派单，翻转归 `SPEC-155t`；向量/运行期语义归 `TESTCASES-057t`/`QEMU-068t`）
 
 ## 审阅记录
 
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+### 第 1 轮 engineer 自审（2026-10-22）
+
+**范围**：组件 10 改 + 7 新增、2 个生成器判据改动、1 个 allow-list、3 个 lit + 1 个 e2e + 1 个 .c、生成物重生成、证据脚本。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `Intrinsic::dadao_*` 不可见（缺 `-intrinsic-prefix` 枚举头；构建红） | ✅已修 | `llvm/IR/CMakeLists.txt` 加 `IntrinsicsDADAO.h`；3 个 .cpp 改 include 该头 | 构建 PASS；lit 130/130 |
+| F2 `ISD::CLMUL` 默认 `Expand`（`clmul_lo` 出 14 条 `mul.uo`，语义对但违“1 条”） | ✅已修 | `setOperationAction(ISD::CLMUL, MVT::i64, Legal)` | `llc-llvm-clmul-1-insn`=1、`llc-generic-no-mul-expansion`=0 |
+| F3 首版把双半/i128 的 `{rd9, rd8}` 当期望（凭“先低后高”直觉，实为大端 `rd8=高`） | ✅已修 | 测试与证据改为经 `rd8` 的 `*_lo`/`*_hi` 探针观测半绑定 | `llc-pair-lo-in-rdhb`/`llc-pair-hi-in-rdha`/`llc-wide-lo-in-rdhb`/`llc-wide-pair-order` 全 PASS |
+| F4 注入② marker 不唯一（`UMUL_LOHI`/`SMUL_LOHI` 同形文本） | ✅已修 | 锚点扩到 `BuildMI(… clmul_o_rd)` 三行 | `--inject pair` 7/7 rc=0 |
+| F5 证据脚本 `chk` 语义误用（“期望非零”的检查传了 rc=1） | ✅已修 | 3 处改 `chk NAME 1 $rc 0` | default 42/42 rc=0 |
+| F6 builtin 类型诊断用例用 `double`（隐式转换合法，不报错 ⇒ 断言空转） | ✅已修(用例) | e2e 改用不可转换的 `struct S` | `clang-builtin-type-diag` expected=1 actual=1 rc=1 |
+| F7 注入“文件是否真变”只靠 md5 事后比对 | ✅加固 | 注入后先比 md5 证“已变”，还原后再比 md5 | `inject-changed-file`/`restore-md5-equal` 均 PASS |
+
+**判决**：已发现的 7 条 finding 全部修复或加固，无未修项；`scope` / `spec/` / `contracts/` 未动 ⇒ 状态置 `待验收`。
+
+### 第 1 轮 reviewer 验收（2026-10-22）
+
+**判决：Accepted**（HEAD=`80c732c6`，工作树 `git status --porcelain -uall` 全程为空）
+
+**重跑记录（reviewer 自跑，非采信完成区）**
+- 三条路径自写最小用例：`llc -O2 -march=dadao` → p1 `clmul.o {rd0, rd8}`、p2 `{rd9, rd8}`、p3(builtin) `{rd8, rd9}`；逐文件现场计数 `clmul.o=1 mul.uo=0 shl/or/=0`（三文件均 `rc=0` 通过比对）。
+- QEMU 实跑（自建 freestanding 管线 + 独立 GF(2) oracle，非采信）：`llvm.dadao.clmul` **54/54 pass**、`__builtin_dadao_clmul` i128 **42/42 pass**；含 `clmul(a,1)==a`、`(1<<63)*2 ⇒ hi=1 lo=0`、随机、全1*全1 ⇒ **rd8=高/rd9=低**闭环。
+- `rd0` 规则：`{rd0,rd9}`/`{rd8,rd0}`/`{rd0,rd63}`/`{rd63,rd0}` **rc=0** 且编码 `0x56xxxxxx`；`{rd7,rc7}`→`{rd7,rd7}`、`{rd0,rd0}` **rc=1**，stderr 指名 `dst_dual_same`（原文两条）。
+- 门控：`check-instrinfo` rc=0 `=== Result: 0 errors ===`；`check-scope` rc=0 `excluded 28` / `total 260`；`check_qemu_trans --strict` rc=0 `260/260`；`check_lit_gen` rc=0 `64 passed, 0 failed`；`make check` rc=0、`make check-modules` rc=0（6m49s）、`make check-lit-full` rc=0 `12/12`、`make check-patch-tree` rc=0 `192 patches OK`。
+- 新鲜度：`check-musl-freshness`/`check-builtins-freshness` **PASS**。
+- 证据脚本：`.work/evidence/LLVM-122t/run.sh` **default 42/42 rc=0**（7m36s）、`--inject pair` **7/7 rc=0**。
+
+**约束核验**：`spec/**`、`contracts/**`、`tests/vectors/**` 零 diff；`opcodes.yaml` md5=`dbfe9829…` == HEAD；`scope` 仍 `excluded`；未 commit/push；注入全程 `cp`+md5（禁 git checkout/restore/stash），无 `| tee`。
+
+**独立注入（reviewer 自做）**：改 `.work/source/…/DADAOInstrInfo.cpp` 的 `CLMUL_LOHI_PSEUDO` `{hi,lo}` 交换（md5 `6c9270c1…`→`a12b0fb9…`）→ `ninja llc` → 形状 `{rd9,rd8}`→`{rd8,rd9}` 红、QEMU **hi.byte0=0(want1)/lo.byte0=1(want0) RED** → `cp` 还原 md5 相等 → 重建 → 形状绿、QEMU **hi=1/lo=0 GREEN**；终态 build llc md5 == 安装根 llc md5 `f5b018eb…`。
+
+**gen-excluded 机械判（临时树注入，未碰仓库）**：判据为正则读 `.td` 补丁 def（非手写名单）；基线生成 `diff` 仓库 `gen-excluded.s` rc=0；删 `clmul_o_rd` def 块后反例集**多出** `clmul.o {rd8,rd9}, rd10, rd11` 的 UNREC 行、正例 `rrrr=17→16`（注入前后 md5 已记）。仓库快照 md5 前后一致、`git status` 空。
+
+**观察（非阻塞）**：① run.sh 的 `qemu-trans-all-covered` 期望串 `260/260` 硬编码，与同段注释「never hardcoded」措辞不符（实际值由被测脚本现场统计）；② 注入模式依赖 `.work/build/llvm` 存在且无前置检查（新克隆会红）；③ reviewer 单独跑 L2 会经 `check-modules → test-semihost → install-host`（Makefile:69）重写安装根工具链 mtime，致其后 `check-musl-freshness` 的 toolchain stamp 过期——首次 `run.sh` 因此 rc=1（`toolchain stamp == current clang/ld.lld: different`），`make build-musl-shared JOBS=8` 刷新后第 2 次 rc=0；系本册既有门控嵌套行为与本次验收动作的环境副作用，非交付物缺陷，重试 1 次（已留现场 `run_default.log`/`musl_fresh.log`）。
+

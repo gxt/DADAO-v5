@@ -1,9 +1,9 @@
 diff --git a/clang/lib/CodeGen/Targets/DADAO.cpp b/clang/lib/CodeGen/Targets/DADAO.cpp
 new file mode 100644
-index 000000000..2242913de
+index 000000000..40c4cf290
 --- /dev/null
 +++ b/clang/lib/CodeGen/Targets/DADAO.cpp
-@@ -0,0 +1,513 @@
+@@ -0,0 +1,542 @@
 +//===--- DADAO.cpp - DADAO ABI Implementation -----------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -36,7 +36,11 @@ index 000000000..2242913de
 +//===----------------------------------------------------------------------===//
 +
 +#include "ABIInfoImpl.h"
++#include "CodeGenFunction.h"
 +#include "TargetInfo.h"
++#include "clang/Basic/TargetBuiltins.h"
++#include "llvm/IR/Intrinsics.h"
++#include "llvm/IR/IntrinsicsDADAO.h"
 +
 +using namespace clang;
 +using namespace clang::CodeGen;
@@ -516,4 +520,29 @@ index 000000000..2242913de
 +std::unique_ptr<TargetCodeGenInfo>
 +CodeGen::createDADAOTargetCodeGenInfo(CodeGenModule &CGM) {
 +  return std::make_unique<DADAOTargetCodeGenInfo>(CGM.getTypes());
++}
++
++//===----------------------------------------------------------------------===//
++// Target builtins (LLVM-122t)
++//===----------------------------------------------------------------------===//
++
++llvm::Value *CodeGenFunction::EmitDADAOBuiltinExpr(unsigned BuiltinID,
++                                                   const CallExpr *E) {
++  switch (BuiltinID) {
++  default:
++    return nullptr;
++  case DADAO::BI__builtin_dadao_clmul: {
++    // GF(2) carry-less multiply (ADR-0035): 64x64 -> 128 bits in one
++    // `clmul.o`.  The value is carried as an i128 and the backend splits it
++    // into the instruction's two destinations (both halves of the same
++    // instruction), so no shifting/joining code is emitted here.  The builtin
++    // prototype is `unsigned __int128(unsigned long long, unsigned long long)`
++    // (BuiltinsDADAO.def), so argument type mismatches are diagnosed by Sema as
++    // usual -- nothing is silently truncated.
++    llvm::Value *A = EmitScalarExpr(E->getArg(0));
++    llvm::Value *B = EmitScalarExpr(E->getArg(1));
++    llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::dadao_clmul_wide);
++    return Builder.CreateCall(F, {A, B}, "clmul");
++  }
++  }
 +}

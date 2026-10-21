@@ -1,0 +1,13 @@
+diff --git a/clang/lib/CodeGen/CGBuiltin.cpp b/clang/lib/CodeGen/CGBuiltin.cpp
+index 37846bbb0..e0ce2f4ff 100644
+--- a/clang/lib/CodeGen/CGBuiltin.cpp
++++ b/clang/lib/CodeGen/CGBuiltin.cpp
+@@ -100,6 +100,8 @@ static Value *EmitTargetArchBuiltinExpr(CodeGenFunction *CGF,
+     return CGF->EmitBPFBuiltinExpr(BuiltinID, E);
+   case llvm::Triple::dxil:
+     return CGF->EmitDirectXBuiltinExpr(BuiltinID, E);
++  case llvm::Triple::dadao:
++    return CGF->EmitDADAOBuiltinExpr(BuiltinID, E);
+   case llvm::Triple::x86:
+   case llvm::Triple::x86_64:
+     return CGF->EmitX86BuiltinExpr(BuiltinID, E);

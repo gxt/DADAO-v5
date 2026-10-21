@@ -23,6 +23,7 @@
 """
 
 import os
+import re
 import sys
 
 try:
@@ -146,7 +147,10 @@ def _build_positive(rec):
                 {f0["name"]: 8, "imms18": 12 >> 2}, "riii-branch")
 
     if fmt == "rrrr":
-        if mn in ("add.uo", "add.so", "sub.uo", "sub.so", "mul.uo", "mul.so"):
+        if mn in ("add.uo", "add.so", "sub.uo", "sub.so", "mul.uo", "mul.so",
+                  # clmul.o (ADR-0035; LLVM-122t): same rrrr dual-destination
+                  # form, two distinct halves `{rdHA(high), rdHB(low)}`.
+                  "clmul.o"):
             a, b, c, d = fields
             return ("%s {%s, %s}, %s, %s" % (mn, _reg(a["bank"], 8),
                                              _reg(b["bank"], 9),
@@ -236,22 +240,42 @@ def _build_positive(rec):
     raise ValueError("unsupported format %s (id=%s)" % (fmt, rec["id"]))
 
 
-# `scope: excluded` 但**汇编器实现**的记录 ⇒ 正例（编码 + 汇编往返），不是反例：
-#   - fence（SPEC-039t 起一直由 MC 层受理）；
-#   - 24 条 lr/sc（LLVM-121t：ADR-0034 D3/D4 的宽度 x 存储序组合，MC + CodeGen）。
-# 其余 excluded 记录（cfxld/cfxst）仍由汇编器显式拒绝，保持反例。
-MC_IMPLEMENTED_EXCLUDED = frozenset({"fence"}) | frozenset(
-    "%s.%s.%s" % (op, width, order)
-    for op, orders in (("lr", ("nn", "an", "ar")), ("sc", ("nn", "nr", "ar")))
-    for width in ("b", "w", "t", "o")
-    for order in orders
+# `scope: excluded` 但**汇编器实现**的记录 ⇒ 正例（编码 + 汇编往返），不是反例。
+#
+# 判据是**机械**的、不写名单：汇编器是否实现某助记符 ⇔ 后端 `.td` 里是否有它的
+# def（`DADAOInstrInfo.td` / `DADAOInstrInfoFP.td`，读其**提交物补丁**，故门控在
+# 干净检出上也能跑）。曾经的名单（fence + 24 条 lr/sc）会随 `.td` 落地而过期：
+# `clmul.o`（ADR-0035 / LLVM-122t）加 def 后「无 `.td` ⇒ UNREC」的前提失效，反例
+# 必然从拒绝变成功——按 def 存在与否判定后，同类问题不会再复发。
+TD_PATCHES = (
+    os.path.join(REPO, "components", "llvm-project", "patches", "llvm", "lib",
+                 "Target", "DADAO", "DADAOInstrInfo.td.patch"),
+    os.path.join(REPO, "components", "llvm-project", "patches", "llvm", "lib",
+                 "Target", "DADAO", "DADAOInstrInfoFP.td.patch"),
 )
+_TD_DEF_RE = re.compile(r'^def\s+\w+\s*:\s*DADAO\w+\s*<\s*"([^"]+)"', re.MULTILINE)
+
+
+def _td_mnemonics():
+    """有提交 `.td` def 的助记符集合（⇒ 汇编器受理）。"""
+    mnem = set()
+    for path in TD_PATCHES:
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                patch = fh.read()
+        except OSError:
+            continue
+        # 新文件补丁：正文行以 '+' 开头；跳过 '+++' 文件头与 '---'/'@@'/'index'。
+        body = "\n".join(line[1:] for line in patch.splitlines()
+                         if line.startswith("+") and not line.startswith("+++"))
+        mnem.update(_TD_DEF_RE.findall(body))
+    return frozenset(mnem)
 
 
 def _is_negative(rec):
-    """scope: excluded 且**汇编器不实现** ⇒ 反例（须显式拒绝）。"""
+    """scope: excluded 且**汇编器不实现**（无 `.td` def）⇒ 反例（须显式拒绝）。"""
     return (rec.get("scope") == "excluded"
-            and rec["mnemonic"] not in MC_IMPLEMENTED_EXCLUDED)
+            and rec["mnemonic"] not in _td_mnemonics())
 
 
 def _negative_text(rec):

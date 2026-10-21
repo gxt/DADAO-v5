@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..49c8244f3
+index 000000000..3ceb5c05a
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,758 @@
+@@ -0,0 +1,803 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -236,6 +236,51 @@ index 000000000..49c8244f3
 +    Register Src1 = MI.getOperand(2).getReg();
 +    Register Src2 = MI.getOperand(3).getReg();
 +    BuildMI(MBB, MI, DL, get(DADAO::mul_so_rd))
++        .addDef(Hi)           // rdha = high 64 bits
++        .addDef(Lo)           // rdhb = low 64 bits
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::CLMUL_PSEUDO: {
++    // GF(2) multiply, low half only (ADR-0035 D6; LLVM-122t):
++    // `clmul.o rd0, dst, a, b` -- rdha = rd0 discards the high 64 bits, rdhb
++    // holds the low ones.
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src1 = MI.getOperand(1).getReg();
++    Register Src2 = MI.getOperand(2).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::clmul_o_rd))
++        .addDef(DADAO::rd0)   // rdha = rd0 (discard the high 64 bits)
++        .addDef(Dst)          // rdhb = low 64 bits of the product
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::CLMULHI_PSEUDO: {
++    // GF(2) multiply, high half only: `clmul.o dst, rd0, a, b` -- the low half
++    // goes to the hardwired-zero rd0 (ADR-0035 D4: `{rdH, rd0}`).
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src1 = MI.getOperand(1).getReg();
++    Register Src2 = MI.getOperand(2).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::clmul_o_rd))
++        .addDef(Dst)          // rdha = high 64 bits of the product
++        .addDef(DADAO::rd0)   // rdhb = rd0 (discard the low 64 bits)
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::CLMUL_LOHI_PSEUDO: {
++    // Both halves (llvm.dadao.clmul / __builtin_dadao_clmul).  The pseudo lists
++    // (lo, hi) while clmul.o's defs are (rdha = high, rdhb = low), so the
++    // destinations are swapped here (mirrors UMUL_LOHI_PSEUDO).
++    Register Lo = MI.getOperand(0).getReg();
++    Register Hi = MI.getOperand(1).getReg();
++    Register Src1 = MI.getOperand(2).getReg();
++    Register Src2 = MI.getOperand(3).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::clmul_o_rd))
 +        .addDef(Hi)           // rdha = high 64 bits
 +        .addDef(Lo)           // rdhb = low 64 bits
 +        .addReg(Src1)         // rdhc = src1

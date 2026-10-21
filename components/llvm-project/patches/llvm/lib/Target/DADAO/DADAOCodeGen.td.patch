@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..a714823d4
+index 000000000..f26841e38
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,769 @@
+@@ -0,0 +1,795 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -289,6 +289,32 @@ index 000000000..a714823d4
 +                                   (ins GPRD:$a, GPRD:$b),
 +                                   [(set GPRD:$lo, GPRD:$hi,
 +                                     (smullohi GPRD:$a, GPRD:$b))]>;
++
++// GF(2) carry-less multiply (ADR-0035; LLVM-122t).  `clmul.o {rdha, rdhb},
++// rdhc, rdhd` has rdha = high 64 bits and rdhb = low 64 bits of the 128-bit
++// product, exactly like mul.uo/mul.so, so the three compiler-visible shapes are
++// the same three shapes the multiply needs:
++//
++//   * low half only -- ISD::CLMUL (`llvm.clmul`, low 64 bits) -> the `rd0`
++//     high destination: `clmul.o rd0, dst, a, b`;
++//   * high half only -- `llvm.dadao.clmul.hi` -> `clmul.o dst, rd0, a, b`;
++//   * both halves -- `llvm.dadao.clmul` -> `clmul.o {hi, lo}, a, b`.
++//
++// Why pseudos: rd0 is not an ordinary virtual register, so no DAG pattern can
++// bind a destination to it (same reasoning as MULHU_PSEUDO above).  The pair
++// form has two results, and TableGen matches target intrinsics through
++// INTRINSIC_WO_CHAIN, where a multi-result pattern is not expressible; it is
++// therefore selected by hand (DADAOISelDAGToDAG.cpp, `int_dadao_clmul` and
++// DADAOISD::CLMUL).
++def CLMUL_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
++                               [(set GPRD:$dst, (clmul GPRD:$a, GPRD:$b))]>;
++def CLMULHI_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
++                                 [(set GPRD:$dst,
++                                   (int_dadao_clmul_hi GPRD:$a, GPRD:$b))]>;
++// (lo, hi) -- the instruction's def order is (rdha = high, rdhb = low), so
++// expandPostRAPseudo reorders, mirroring UMUL_LOHI_PSEUDO.
++def CLMUL_LOHI_PSEUDO : DADAOPseudo<(outs GPRD:$lo, GPRD:$hi),
++                                    (ins GPRD:$a, GPRD:$b), []>;
 +
 +// In-place 18-bit immediate add: `add.si rd, imm18` (contract-isa.md
 +// §6.1.3).  Expanded to a bank copy (rd2rd) into the result followed by

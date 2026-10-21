@@ -1,0 +1,11 @@
+diff --git a/llvm/include/llvm/IR/Intrinsics.td b/llvm/include/llvm/IR/Intrinsics.td
+index 37c9c7834..d21a5ca22 100644
+--- a/llvm/include/llvm/IR/Intrinsics.td
++++ b/llvm/include/llvm/IR/Intrinsics.td
+@@ -3224,5 +3224,6 @@ include "llvm/IR/IntrinsicsSPIRV.td"
+ include "llvm/IR/IntrinsicsVE.td"
+ include "llvm/IR/IntrinsicsDirectX.td"
+ include "llvm/IR/IntrinsicsLoongArch.td"
++include "llvm/IR/IntrinsicsDADAO.td"
+ 
+ #endif // TEST_INTRINSICS_SUPPRESS_DEFS

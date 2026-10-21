@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..44eda05ec
+index 000000000..3d3762be7
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2591 @@
+@@ -0,0 +1,2619 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -2048,7 +2048,8 @@ index 000000000..44eda05ec
 +        if (Operands.size() == 5 &&
 +            (Mnem == "add.uo" || Mnem == "add.so" ||
 +             Mnem == "sub.uo" || Mnem == "sub.so" ||
-+             Mnem == "mul.uo" || Mnem == "mul.so")) {
++             Mnem == "mul.uo" || Mnem == "mul.so" ||
++             Mnem == "clmul.o")) {
 +          return Error(Operands[1]->getStartLoc(),
 +                       "old syntax not accepted; use '{" "}' for dual-purpose "
 +                       "destination registers, e.g., add.uo {rd8, rd9}, rd10, rd11");
@@ -2089,6 +2090,33 @@ index 000000000..44eda05ec
 +                             "1..63");
 +        }
 +      }
++    }
++  }
++
++  // Static legality check for dst_dual_same (ADR-0035 D6; SimRISC-04 §3.1):
++  // `clmul.o {rdHA, rdHB}, rdHC, rdHD` has two destination registers; they may
++  // not both be rd0 (that would discard the whole 128-bit result) and may not
++  // name the same non-rd0 register.  A single rd0 side is legal
++  // (`clmul.o rd0, dst, a, b` = low half, `clmul.o dst, rd0, a, b` = high
++  // half).  Hard error (Error level, never a warning).
++  if (Operands.size() == 4) {
++    auto *TokOp = static_cast<DADAOOperand *>(Operands[0].get());
++    auto *PairOp = static_cast<DADAOOperand *>(Operands[1].get());
++    if (TokOp && TokOp->isToken() &&
++        TokOp->getToken() == "clmul.o" && PairOp &&
++        PairOp->Kind == DADAOOperand::kRegPair &&
++        PairOp->getRegList().size() == 2) {
++      const MCRegister RdHA = PairOp->getRegList()[0];
++      const MCRegister RdHB = PairOp->getRegList()[1];
++      if (RdHA == DADAO::rd0 && RdHB == DADAO::rd0)
++        return Error(PairOp->getStartLoc(),
++                     "invalid 'clmul.o': both destination registers are rd0 "
++                     "(dst_dual_same); one half must be a real destination");
++      if (RdHA == RdHB)
++        return Error(PairOp->getStartLoc(),
++                     "invalid 'clmul.o': both destinations are the same "
++                     "register (dst_dual_same); the two halves need distinct "
++                     "destinations");
 +    }
 +  }
 +

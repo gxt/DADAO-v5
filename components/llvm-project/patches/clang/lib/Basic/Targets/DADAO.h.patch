@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Basic/Targets/DADAO.h b/clang/lib/Basic/Targets/DADAO.h
 new file mode 100644
-index 000000000..86188ec23
+index 000000000..8ba193607
 --- /dev/null
 +++ b/clang/lib/Basic/Targets/DADAO.h
-@@ -0,0 +1,123 @@
+@@ -0,0 +1,121 @@
 +//===--- DADAO.h - Declare DADAO target feature support --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -104,9 +104,7 @@ index 000000000..86188ec23
 +    return Feature == "dadao";
 +  }
 +
-+  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override {
-+    return {};
-+  }
++  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override;
 +
 +  BuiltinVaListKind getBuiltinVaListKind() const override {
 +    return TargetInfo::DADAOBuiltinVaList;

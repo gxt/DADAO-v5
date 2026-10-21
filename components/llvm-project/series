@@ -1,10 +1,14 @@
+clang/include/clang/Basic/BuiltinsDADAO.def.patch
+clang/include/clang/Basic/TargetBuiltins.h.patch
 clang/include/clang/Basic/TargetInfo.h.patch
 clang/lib/AST/ASTContext.cpp.patch
 clang/lib/Basic/CMakeLists.txt.patch
 clang/lib/Basic/Targets.cpp.patch
 clang/lib/Basic/Targets/DADAO.cpp.patch
 clang/lib/Basic/Targets/DADAO.h.patch
+clang/lib/CodeGen/CGBuiltin.cpp.patch
 clang/lib/CodeGen/CMakeLists.txt.patch
+clang/lib/CodeGen/CodeGenFunction.h.patch
 clang/lib/CodeGen/CodeGenModule.cpp.patch
 clang/lib/CodeGen/TargetInfo.h.patch
 clang/lib/CodeGen/Targets/DADAO.cpp.patch
@@ -24,6 +28,9 @@ lld/ELF/Target.h.patch
 llvm/CMakeLists.txt.patch
 llvm/include/llvm/BinaryFormat/ELF.h.patch
 llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def.patch
+llvm/include/llvm/IR/CMakeLists.txt.patch
+llvm/include/llvm/IR/Intrinsics.td.patch
+llvm/include/llvm/IR/IntrinsicsDADAO.td.patch
 llvm/include/llvm/MC/MCTargetOptions.h.patch
 llvm/include/llvm/Object/ELFObjectFile.h.patch
 llvm/include/llvm/TargetParser/Triple.h.patch

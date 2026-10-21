@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Basic/Targets/DADAO.cpp b/clang/lib/Basic/Targets/DADAO.cpp
 new file mode 100644
-index 000000000..29a12aae7
+index 000000000..90c47f1b0
 --- /dev/null
 +++ b/clang/lib/Basic/Targets/DADAO.cpp
-@@ -0,0 +1,72 @@
+@@ -0,0 +1,100 @@
 +//===--- DADAO.cpp - Implement DADAO target feature support ---------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -18,6 +18,7 @@ index 000000000..29a12aae7
 +
 +#include "DADAO.h"
 +#include "clang/Basic/MacroBuilder.h"
++#include "clang/Basic/TargetBuiltins.h"
 +#include "llvm/ADT/StringRef.h"
 +#include "llvm/ADT/Twine.h"
 +
@@ -75,4 +76,31 @@ index 000000000..29a12aae7
 +      {{"rbsp"}, "rb1"},   {{"rbtp"}, "rb3"},    {{"rasp"}, "ra63"},
 +  };
 +  return llvm::ArrayRef(GCCRegAliases);
++}
++
++//===----------------------------------------------------------------------===//
++// Target builtins (LLVM-122t)
++//===----------------------------------------------------------------------===//
++
++// The target-builtin table is BuiltinsDADAO.def, expanded twice with the
++// string-table / info-entry macros (the PPC/LoongArch route).  `DADAO::
++// LastTSBuiltin` (TargetBuiltins.h) is generated from the same file with the
++// enumerator macro, so the counts cannot drift.
++static constexpr int NumDADAOBuiltins =
++    DADAO::LastTSBuiltin - Builtin::FirstTSBuiltin;
++
++static constexpr llvm::StringTable DADAOBuiltinStrings =
++    CLANG_BUILTIN_STR_TABLE_START
++#define BUILTIN CLANG_BUILTIN_STR_TABLE
++#include "clang/Basic/BuiltinsDADAO.def"
++    ;
++
++static constexpr auto DADAOBuiltinInfos = Builtin::MakeInfos<NumDADAOBuiltins>({
++#define BUILTIN CLANG_BUILTIN_ENTRY
++#include "clang/Basic/BuiltinsDADAO.def"
++});
++
++llvm::SmallVector<Builtin::InfosShard>
++DADAOTargetInfo::getTargetBuiltins() const {
++  return {{&DADAOBuiltinStrings, DADAOBuiltinInfos}};
 +}

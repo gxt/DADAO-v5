@@ -1,0 +1,25 @@
+# DADAO clang target builtin `__builtin_dadao_clmul` (LLVM-122t).
+#
+# ADR-0035: `clmul.o {rdHA, rdHB}, rdHC, rdHD` is a GF(2) 64x64 -> 128
+# carry-less multiply.  The builtin takes two `unsigned long long` and returns
+# `unsigned __int128`, and the backend carries the i128 result as the
+# instruction's two destinations directly -- so the emitted code contains
+# exactly one `clmul.o` and no shift/or joining the halves.
+#
+# RUN: %clang -target dadao-unknown-elf -O2 -S -o %t.s %e2e_dir/clmul_builtin.c
+# RUN: %FileCheck %s --check-prefix=ASM < %t.s
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %t.s -o %t.o
+# RUN: %clang -target dadao-unknown-elf -O2 -c -o %t.c.o %e2e_dir/clmul_builtin.c
+#
+# Incompatible argument types are diagnosed by the prototype
+# (`unsigned __int128(unsigned long long, unsigned long long)`); nothing is
+# silently reinterpreted in the backend.
+# RUN: %not %clang -target dadao-unknown-elf -DBAD_ARG -fsyntax-only %e2e_dir/clmul_builtin.c 2>&1 | %FileCheck %s --check-prefix=ERR
+
+# ASM-LABEL: clmul_builtin:
+# ASM: clmul.o {rd8, rd9}, rd16, rd17
+# ASM-NOT: clmul.o
+# ASM-NOT: shl.
+# ASM-NOT: or.
+
+# ERR: error: passing 'struct S' to parameter of incompatible type 'unsigned long long'

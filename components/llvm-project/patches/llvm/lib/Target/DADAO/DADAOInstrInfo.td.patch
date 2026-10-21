@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..58dcf007b
+index 000000000..ef535829a
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1933 @@
+@@ -0,0 +1,1950 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -514,7 +514,7 @@ index 000000000..58dcf007b
 +  let Pattern = [];
 +}
 +
-+// --- rrrr format (11 instructions) ---
++// --- rrrr format (12 instructions) ---
 +
 +def add_uo_rd : DADAORrrr<"add.uo"> {
 +  let OutOperandList = (outs GPRD:$ra, GPRD:$rb);
@@ -555,6 +555,23 @@ index 000000000..58dcf007b
 +  let OutOperandList = (outs GPRD:$ra, GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
 +  let op = 0x55;
++  let Pattern = [];
++}
++
++// GF(2) (carry-less) 64x64 -> 128 multiply (ADR-0035, LLVM-122t).  Same rrrr
++// operand form as mul.uo/mul.so: rdha = high 64 bits, rdhb = low 64 bits of the
++// 128-bit product; there is no signed variant (D3) and no clmulh/clmulr (D4).
++// Only the `.o` width exists (D2).  A single half is written as
++// `clmul.o rd0, dst, a, b` (low) / `clmul.o dst, rd0, a, b` (high); both
++// destinations being rd0, or naming the same non-rd0 register, is ILLI (D6,
++// `dst_dual_same`; enforced by the assembler, DADAOAsmParser.cpp).
++// No TableGen pattern: CodeGen reaches this through the CLMUL_PSEUDO /
++// CLMULHI_PSEUDO / CLMUL_LOHI_PSEUDO pseudos (DADAOCodeGen.td), because rd0 is
++// not an ordinary virtual register and so cannot be bound by a DAG pattern.
++def clmul_o_rd : DADAORrrr<"clmul.o"> {
++  let OutOperandList = (outs GPRD:$ra, GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
++  let op = 0x56;
 +  let Pattern = [];
 +}
 +

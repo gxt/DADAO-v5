@@ -7,7 +7,6 @@
 @@ ======================================================================
 @@ RUN: echo 'cfxld cfx63, [rb2, 1]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
 @@ RUN: echo 'cfxst cfx63, [rb2, 1]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'clmul.o {rd8, rd9}, rd10, rd11' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
 
 .text
 @@ UNREC: error: unrecognized instruction mnemonic
@@ -17,6 +16,3 @@
 
 @@ @src cfxst_crii_cfx | SimRISC-00 §SimRISC QFC
 @@ cfxst cfx63, [rb2, 1]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src clmul.o_rrrr_rd | SimRISC-04 §无进位乘法
-@@ clmul.o {rd8, rd9}, rd10, rd11（scope: excluded，汇编器 MUST 拒绝）

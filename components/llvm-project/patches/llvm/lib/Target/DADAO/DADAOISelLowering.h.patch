@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..c5acc2d08
+index 000000000..8112f5f35
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,345 @@
+@@ -0,0 +1,360 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -137,6 +137,12 @@ index 000000000..c5acc2d08
 +  /// the ATOMIC_CMP_SWAP_PSEUDO_{B,W,T,O} pseudo and the custom inserter emits
 +  /// the lr/sc loop (DADAOCodeGen.td).
 +  ATOMIC_CMP_SWAP,
++
++  /// GF(2) carry-less multiply (ADR-0035; LLVM-122t): (a, b) -> (low 64, high
++  /// 64).  Produced by ReplaceNodeResults when `llvm.dadao.clmul.wide` arrives
++  /// with its i128 result (i128 is not legal, so the type legalizer splits it);
++  /// selected by DADAOISelDAGToDAG to CLMUL_LOHI_PSEUDO -> one `clmul.o`.
++  CLMUL,
 +};
 +
 +} // namespace DADAOISD
@@ -226,6 +232,15 @@ index 000000000..c5acc2d08
 +                    SmallVectorImpl<SDValue> &InVals) const override;
 +
 +  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
++
++  /// Custom result legalization (LLVM-122t).  The only use is
++  /// `llvm.dadao.clmul.wide`: its result is i128, which is not a legal DADAO
++  /// type, and the generic type legalizer has no expansion for an
++  /// INTRINSIC_WO_CHAIN node.  Replaced by a BUILD_PAIR over DADAOISD::CLMUL
++  /// (low, high), so the pair reaches ISel as two i64 values and the whole
++  /// operation stays a single `clmul.o`.
++  void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
++                          SelectionDAG &DAG) const override;
 +
 +  /// Atomic ordering support (LLVM-121t, ADR-0034).  DADAO is a weak memory
 +  /// model whose only atomics are `lr`/`sc`, and the ISA has no AMO: atomic

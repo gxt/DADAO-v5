@@ -21,6 +21,11 @@ add.so {rd8, rd9}, rd10, rd11
 @@ ASM: add.uo {rd8, rd9}, rd10, rd11
 add.uo {rd8, rd9}, rd10, rd11
 
+@@ @src clmul.o_rrrr_rd 5620928b | SimRISC-04 §无进位乘法
+@@ OBJ: {{[0-9a-f]+:}} 56 20 92 8b{{.*}}clmul.o
+@@ ASM: clmul.o {rd8, rd9}, rd10, rd11
+clmul.o {rd8, rd9}, rd10, rd11
+
 @@ @src cs.eq_rrrr_rd 6620928b | SimRISC-02 §条件赋值：Conditional Assignment
 @@ OBJ: {{[0-9a-f]+:}} 66 20 92 8b{{.*}}cs.eq
 @@ ASM: cs.eq {rd8, rd9}?, rd10, rd11

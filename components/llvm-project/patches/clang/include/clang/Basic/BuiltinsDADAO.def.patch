@@ -1,0 +1,23 @@
+diff --git a/clang/include/clang/Basic/BuiltinsDADAO.def b/clang/include/clang/Basic/BuiltinsDADAO.def
+new file mode 100644
+index 000000000..2f393855e
+--- /dev/null
++++ b/clang/include/clang/Basic/BuiltinsDADAO.def
+@@ -0,0 +1,17 @@
++//===--- BuiltinsDADAO.def - DADAO Builtin function database ----*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file defines the DADAO-specific builtin function database.  Users of
++// this file must define the BUILTIN macro to make use of this information.
++//
++//===----------------------------------------------------------------------===//
++
++// GF(2) carry-less multiply (ADR-0035; LLVM-122t): 64x64 -> 128 bits, i.e.
++// `clmul.o {hi, lo}, a, b` -- one instruction, no joining shifts/ors (the
++// backend lowers the i128 result through llvm.dadao.clmul.wide).
++BUILTIN(__builtin_dadao_clmul, "ULLLiULLiULLi", "nc")

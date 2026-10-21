@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..699568e2f
+index 000000000..68661839d
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,723 @@
+@@ -0,0 +1,757 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -39,6 +39,8 @@ index 000000000..699568e2f
 +#include "llvm/CodeGen/SelectionDAGNodes.h"
 +#include "llvm/CodeGen/TargetOpcodes.h"
 +#include "llvm/IR/InlineAsm.h"
++#include "llvm/IR/Intrinsics.h"
++#include "llvm/IR/IntrinsicsDADAO.h"
 +#include "llvm/Support/CodeGen.h"
 +#include "llvm/Support/Debug.h"
 +#include "llvm/Support/ErrorHandling.h"
@@ -86,6 +88,10 @@ index 000000000..699568e2f
 +  void SelectPointerAdd(SDNode *N, SDValue Base, SDValue Offset);
 +  // ptr − ptr selection to sub.o rd, rb, rb (C14 / ADR-0018).
 +  void SelectPointerSub(SDNode *N);
++  // GF(2) multiply, both halves: llvm.dadao.clmul (INTRINSIC_WO_CHAIN) and
++  // DADAOISD::CLMUL (the i128 form after result legalization) -> one
++  // CLMUL_LOHI_PSEUDO (ADR-0035; LLVM-122t).
++  void SelectCLMULPair(SDNode *N);
 +  // True if V is an i64 value currently held in the GPRB (pointer/address)
 +  // bank, i.e. a CopyFromReg of a GPRB virtual register created by
 +  // LowerFormalArguments for a pointer argument, a frame address
@@ -717,11 +723,39 @@ index 000000000..699568e2f
 +      return;
 +    }
 +    break;
++  case ISD::INTRINSIC_WO_CHAIN:
++    // GF(2) carry-less multiply, both halves (ADR-0035; LLVM-122t).  A target
++    // intrinsic with two results cannot be written as a TableGen pattern (its
++    // DAG node is INTRINSIC_WO_CHAIN with a two-value result list, which the
++    // pattern matcher cannot bind), so it is selected here; every other
++    // intrinsic keeps the generic path.
++    if (cast<ConstantSDNode>(Node->getOperand(0))->getZExtValue() ==
++        Intrinsic::dadao_clmul) {
++      SelectCLMULPair(Node);
++      return;
++    }
++    break;
++  case DADAOISD::CLMUL:
++    // i128 form (llvm.dadao.clmul.wide), split by ReplaceNodeResults.
++    SelectCLMULPair(Node);
++    return;
 +  default:
 +    break;
 +  }
 +
 +  SelectCode(Node);
++}
++
++void DADAODAGToDAGISel::SelectCLMULPair(SDNode *Node) {
++  // Operands are (a, b); an INTRINSIC_WO_CHAIN node carries the intrinsic id as
++  // operand 0.  The pseudo's results are (low, high) and expandPostRAPseudo
++  // reorders them to the instruction's (rdha = high, rdhb = low).
++  const unsigned Base = Node->getOpcode() == ISD::INTRINSIC_WO_CHAIN ? 1 : 0;
++  const SDLoc DL(Node);
++  MachineSDNode *M = CurDAG->getMachineNode(
++      DADAO::CLMUL_LOHI_PSEUDO, DL, CurDAG->getVTList(MVT::i64, MVT::i64),
++      {Node->getOperand(Base), Node->getOperand(Base + 1)});
++  ReplaceNode(Node, M);
 +}
 +
 +FunctionPass *llvm::createDADAOISelDag(DADAOTargetMachine &TM) {

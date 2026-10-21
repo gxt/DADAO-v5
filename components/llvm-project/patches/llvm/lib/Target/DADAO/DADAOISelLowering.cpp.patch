@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..045d406dc
+index 000000000..75c1e8dea
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,2412 @@
+@@ -0,0 +1,2456 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -47,6 +47,7 @@ index 000000000..045d406dc
 +#include "llvm/IR/DerivedTypes.h"
 +#include "llvm/IR/Instructions.h"
 +#include "llvm/IR/Intrinsics.h"
++#include "llvm/IR/IntrinsicsDADAO.h"
 +#include "llvm/MC/MCRegister.h"
 +#include "llvm/Support/ErrorHandling.h"
 +#include "llvm/Support/MathExtras.h"
@@ -456,6 +457,15 @@ index 000000000..045d406dc
 +  setOperationAction(ISD::ROTL, MVT::i64, Legal);
 +  setOperationAction(ISD::ROTR, MVT::i64, Custom);
 +
++  // GF(2) carry-less multiply (ADR-0035; LLVM-122t).  `TargetLoweringBase`
++  // defaults ISD::CLMUL to `Expand` (a generic bit-by-bit sequence: 14 mul.uo
++  // + and/or for one i64 product), so mark i64 Legal: `llvm.clmul` then selects
++  // the CLMUL_PSEUDO pattern and becomes one `clmul.o rd0, dst, a, b`.  Narrow
++  // widths (i32/i16/i8) are promoted to i64 by the type legalizer first, so
++  // they reach the same pattern (and only their low bits are meaningful, which
++  // is exactly the `clmul.o` low half).
++  setOperationAction(ISD::CLMUL, MVT::i64, Legal);
++
 +  // i128 shifts by a variable amount (INFRA-079t; ADR-0027 D3).  i128 is split
 +  // into two i64 halves, and DAGTypeLegalizer::ExpandIntRes_Shift produces
 +  // ISD::SHL_PARTS/SRL_PARTS/SRA_PARTS when the shift amount is not a
@@ -521,6 +531,15 @@ index 000000000..045d406dc
 +  setOperationAction(ISD::ATOMIC_LOAD, MVT::i64, Custom);
 +  setOperationAction(ISD::ATOMIC_STORE, MVT::i64, Custom);
 +  setOperationAction(ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS, MVT::i64, Custom);
++
++  // GF(2) carry-less multiply (ADR-0035; LLVM-122t).  `llvm.dadao.clmul.wide`
++  // returns i128, which is not a legal DADAO type and has no generic expansion
++  // as an INTRINSIC_WO_CHAIN result, so mark it Custom for the type legalizer:
++  // ReplaceNodeResults below turns it into DADAOISD::CLMUL (two i64 results)
++  // plus a BUILD_PAIR, and the pair is what reaches ISel.  The i64-result
++  // intrinsics need nothing here: their results are already legal and are
++  // selected by patterns / the custom DAG-to-DAG selector.
++  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::i128, Custom);
 +}
 +
 +EVT DADAOTargetLowering::getSetCCResultType(const DataLayout &DL,
@@ -591,6 +610,8 @@ index 000000000..045d406dc
 +    return "DADAOISD::FENCE";
 +  case DADAOISD::ATOMIC_CMP_SWAP:
 +    return "DADAOISD::ATOMIC_CMP_SWAP";
++  case DADAOISD::CLMUL:
++    return "DADAOISD::CLMUL";
 +  default:
 +    return nullptr;
 +  }
@@ -1789,6 +1810,29 @@ index 000000000..045d406dc
 +  if (Op.getConstantOperandVal(0) != Intrinsic::thread_pointer)
 +    return SDValue(); // Not custom lowered: keep the generic path.
 +  return getThreadPointer(SDLoc(Op), DAG);
++}
++
++void DADAOTargetLowering::ReplaceNodeResults(
++    SDNode *N, SmallVectorImpl<SDValue> &Results, SelectionDAG &DAG) const {
++  if (N->getOpcode() != ISD::INTRINSIC_WO_CHAIN)
++    return;
++  // llvm.dadao.clmul.wide (LLVM-122t; ADR-0035): the i128 result is not legal
++  // and the generic type legalizer cannot expand an intrinsic node, so produce
++  // the value the type legalizer wants as a pair: DADAOISD::CLMUL yields the
++  // two 64-bit halves (low, high) directly from `clmul.o`, and BUILD_PAIR then
++  // makes them the i128's low/high halves without any joining instruction
++  // (DAGTypeLegalizer::ExpandIntRes_BUILD_PAIR just unpacks the operands).
++  if (N->getConstantOperandVal(0) != Intrinsic::dadao_clmul_wide)
++    return;
++  assert(N->getValueType(0) == MVT::i128 &&
++         "expected the i128 result of llvm.dadao.clmul.wide");
++  const SDLoc DL(N);
++  SDValue Pair = DAG.getNode(DADAOISD::CLMUL, DL,
++                             DAG.getVTList(MVT::i64, MVT::i64),
++                             N->getOperand(1), N->getOperand(2));
++  Results.push_back(
++      DAG.getNode(ISD::BUILD_PAIR, DL, MVT::i128, Pair.getValue(0),
++                  Pair.getValue(1)));
 +}
 +
 +SDValue DADAOTargetLowering::LowerBR_CC(SDValue Chain, ISD::CondCode CC,
