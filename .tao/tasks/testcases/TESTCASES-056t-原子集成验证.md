@@ -198,3 +198,9 @@
 - 已删除 `.work/log/llvm/LLVM-121t-complete-L1.EXIT`（其 `EXIT=0` 已由同目录同名 `.log` 与提交 `c679457f` 记录覆盖）✓；本册引用的该路径同步改为不带 `.work/` 前缀的写法（**只改引用写法，不改判决与结论** ✓）。
 - 复验：`check-run-artifacts` **PASS** ✓、`make check`(L1) **rc=0** ✓（`/tmp/opencode/056t-GATE/`）。
 - 遗留裁定（交 architect）：`check-run-artifacts` A3 的白名单与 `AGENTS.md` 的 `XXX_EXIT=$rc` 落盘惯例**冲突** ⇒ 应统一（要么允许 `<任务号>-<用途>.EXIT`，要么把 `EXIT` 标记一律放 `/tmp` 任务目录）。
+
+#### architect 提交 + 文件集审核（2026-10-21 14:26，`/complete` 收尾）
+- **档位**：**正常提交**（reviewer 第 2 轮 `Accepted` ⇒ 不加 `WIP:`）。分支 `056t-complete`（起点 `c679457f`，工作树带入的 1 个 `M` 即本册）；**未 push**。
+- **提交号**：内容提交 `e7a96e4c`（4 files, +41/−8）；本段为随后一笔留痕。
+- **文件集对账**（`git diff --cached --name-only` 4 项 vs 派单清单）：本册（`**状态**` 待验收→已验证 + 两轮审阅段/残留处置段，未改既有内容）✓；`milestones.md`（流水行置 `已验证` 并移至表首 + 原子链 4 册现状）✓；`issues.yaml`（`ISS-307` `closed` + `resolved_by` + ④ 段；`ISS-294` 前笔已 closed）✓；`lessons.md`（新增 §2.43）✓ —— **漏提 0 / 多提 0 / 越界 0**。
+- **门控**：`make check`（L1）**rc=0**（`repository checks (L1): PASS`；含 `check-milestones-fresh` 24 行 PASS / `check-knowledge-refs` 0 悬空 / `check-run-artifacts` 860 文件 0 illegal / `check_issues` 55 open·30 closed、`resolved_by` 约束 OK）；日志 `/tmp/opencode/056t-complete/L1.log`。未跑 `install-host`/`build-*`/L2/L3。
