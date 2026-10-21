@@ -784,3 +784,11 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 = 用户 2026-10-21 原话「扫描 .cache/refs/DADAO.wiki 中的仓库提交记录，补充spec中确实的老版本的 版本变更与记录」+「wiki历史里应该有0.4.1之前的版本，也做个备份保留」+「根据 SimRISC 的版本号，在 `.tao/archive/` 目录下分别保留一个副本」；architect 立册时登记）】**现象（现场，architect 2026-10-21 实测）**：`.tao/archive/` 只有 `SimRISC-0.4.1/`（5 文件，与 wiki HEAD `9f378f4` 五文件 sha256 一致）与 `SimRISC-0.5.3/`（5 文件，`SPEC-111t` 归档）⇒ **缺** `0.4.0`、`0.5.0`、`0.5.1`、`0.5.2`、`0.5.4`、`0.5.5-rc` 六个版本；`0.3` 及更早无版本标记（wiki 早期单文件 `SimRISC.md`）⇒ 不可按版本重建。**同源缺陷**：13 册附录「版本与变更记录」缺 19 段（`0.5.0` 4 册、`0.5.1` 9 册、`0.5.3` 6 册，实测矩阵），且 `0.5.1` 段日期有 `2026-07-16`/`2026-07-16/17`/`2026-07-17` 三口径（升号提交 `dc07f25a` = 2026-07-17）。**根因**：升版无「同笔落归档」的机械约束（无门控）⇒ 历史快照逐版漏落。**处置**：`SPEC-154t`（已立册，`待开始`）= 版本清单两源独立派生 + 6 个缺档归档 + 19 缺段补全/订正 + `docs/Process-06 §8` 规则固化 + `check-spec-archive` 门控入 L1。**非阻断**：不影响任何门控与实现（历史留档/文档完整性）。**证据指针**：`.tao/tasks/spec/SPEC-154t-SimRISC版本变更记录补全与按版本归档.md`「现场事实」1–9；`.cache/refs/DADAO.wiki`（HEAD `9f378f4`）；本仓升号提交 `73205574`/`dc07f25a`/`fecad7e9`/`eb4eff43`/`890038e2`/`0f769100`。**边界**：本笔**只登记** ⇒ 未建归档目录 ✗、未改 `spec/` ✗、未加门控 ✗。"
+
+- id: ISS-315
+  title: "【P3】`contracts/opcodes.yaml` 25 条 `spec_cite` 仍指迁册前的 `SimRISC-12 §fence指令`/`§LR-SC指令`，需批量改指 `SimRISC-11 §fence指令`/`§LR-SC指令`"
+  status: open
+  scope: [spec, infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = `SPEC-153t` 完成区「遗留问题 ①」，2026-10-21；engineer 登记）】**现象（现场）**：原子指令章（`fence` + 24 条 `lr/sc`）已由 `SimRISC-12` 逐字迁入 `SimRISC-11 §6`（`§6.1 fence指令` / `§6.2 LR-SC指令`），但 `contracts/opcodes.yaml` 的 25 条记录 `spec_cite` 仍写 `SimRISC-12 §fence指令`/`SimRISC-12 §LR-SC指令` —— 生成器 `tools/spec/generate_opcodes.py` 的 `S12_FENCE`/`S12_LRSC` 常量硬编码，改它须重生成 `contracts/opcodes.yaml`。**影响**：`spec_cite` 是溯源指针，不改则指向已删除的章节（读者按指针找不到正文）；**无门控依赖**（`check_scope`/`check_isa_coverage` 不校验 `spec_cite` 的可解析性）⇒ 不阻断任何门控，故 P3。**修法方向**：`generate_opcodes.py` 两常量改 `SimRISC-11 §fence指令`/`§LR-SC指令` + 重生成 `contracts/opcodes.yaml`（并复核 `git diff` 仅 `spec_cite` 字段变化）；建议随下次 `contracts/` 变更同笔落地。**证据指针**：`.tao/tasks/spec/SPEC-153t-原子指令自SimRISC-12迁入SimRISC-11.md` 完成区「遗留问题 ①」；`contracts/opcodes.yaml`（25 条 `spec_cite`）；`tools/spec/generate_opcodes.py:256-257`。**边界**：本笔按派单边界**不改** `contracts/**` ✗（机器可读数据须单独授权），只登记。"

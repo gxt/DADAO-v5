@@ -1,18 +1,43 @@
 # SimRISC其它指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：其它**（5 条）— cfx2rc/cfx2rd/escape/swym/trap
+> **分类：其它**（30 条）— cfx2rc/cfx2rd/escape/swym/trap/fence/lr.*/sc.*
 
 <!-- ASSEMBLY_LIST_START -->
 ## 1. 汇编指令速查
 
-### 1.1 其它（5 条）
+### 1.1 其它（30 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `cfx2rc` | `crrr` | `cfx` | `cfx2rc cfxHA, cgHB, rcHC, rdHD` | `cfx2rc_crrr_cfx` |
 | `cfx2rd` | `crrr` | `cfx` | `cfx2rd cfxHA, cgHB, rcHC, rdHD` | `cfx2rd_crrr_cfx` |
 | `escape` | `ciii` | `cfx` | `escape cfxHA, [excp_cause_ip, imms20]` | `escape_ciii_cfx` |
+| `fence` | `oiii` | `imm` | `fence immu18` | `fence_oiii_imm` |
+| `lr.b.an` | `orrr` | `rd` | `lr.b.an rdHC, [rbHD]` | `lr.b.an_orrr_rd` |
+| `lr.b.ar` | `orrr` | `rd` | `lr.b.ar rdHC, [rbHD]` | `lr.b.ar_orrr_rd` |
+| `lr.b.nn` | `orrr` | `rd` | `lr.b.nn rdHC, [rbHD]` | `lr.b.nn_orrr_rd` |
+| `lr.o.an` | `orrr` | `rd` | `lr.o.an rdHC, [rbHD]` | `lr.o.an_orrr_rd` |
+| `lr.o.ar` | `orrr` | `rd` | `lr.o.ar rdHC, [rbHD]` | `lr.o.ar_orrr_rd` |
+| `lr.o.nn` | `orrr` | `rd` | `lr.o.nn rdHC, [rbHD]` | `lr.o.nn_orrr_rd` |
+| `lr.t.an` | `orrr` | `rd` | `lr.t.an rdHC, [rbHD]` | `lr.t.an_orrr_rd` |
+| `lr.t.ar` | `orrr` | `rd` | `lr.t.ar rdHC, [rbHD]` | `lr.t.ar_orrr_rd` |
+| `lr.t.nn` | `orrr` | `rd` | `lr.t.nn rdHC, [rbHD]` | `lr.t.nn_orrr_rd` |
+| `lr.w.an` | `orrr` | `rd` | `lr.w.an rdHC, [rbHD]` | `lr.w.an_orrr_rd` |
+| `lr.w.ar` | `orrr` | `rd` | `lr.w.ar rdHC, [rbHD]` | `lr.w.ar_orrr_rd` |
+| `lr.w.nn` | `orrr` | `rd` | `lr.w.nn rdHC, [rbHD]` | `lr.w.nn_orrr_rd` |
+| `sc.b.ar` | `orrr` | `rd` | `sc.b.ar rdHB, rdHC, [rbHD]` | `sc.b.ar_orrr_rd` |
+| `sc.b.nn` | `orrr` | `rd` | `sc.b.nn rdHB, rdHC, [rbHD]` | `sc.b.nn_orrr_rd` |
+| `sc.b.nr` | `orrr` | `rd` | `sc.b.nr rdHB, rdHC, [rbHD]` | `sc.b.nr_orrr_rd` |
+| `sc.o.ar` | `orrr` | `rd` | `sc.o.ar rdHB, rdHC, [rbHD]` | `sc.o.ar_orrr_rd` |
+| `sc.o.nn` | `orrr` | `rd` | `sc.o.nn rdHB, rdHC, [rbHD]` | `sc.o.nn_orrr_rd` |
+| `sc.o.nr` | `orrr` | `rd` | `sc.o.nr rdHB, rdHC, [rbHD]` | `sc.o.nr_orrr_rd` |
+| `sc.t.ar` | `orrr` | `rd` | `sc.t.ar rdHB, rdHC, [rbHD]` | `sc.t.ar_orrr_rd` |
+| `sc.t.nn` | `orrr` | `rd` | `sc.t.nn rdHB, rdHC, [rbHD]` | `sc.t.nn_orrr_rd` |
+| `sc.t.nr` | `orrr` | `rd` | `sc.t.nr rdHB, rdHC, [rbHD]` | `sc.t.nr_orrr_rd` |
+| `sc.w.ar` | `orrr` | `rd` | `sc.w.ar rdHB, rdHC, [rbHD]` | `sc.w.ar_orrr_rd` |
+| `sc.w.nn` | `orrr` | `rd` | `sc.w.nn rdHB, rdHC, [rbHD]` | `sc.w.nn_orrr_rd` |
+| `sc.w.nr` | `orrr` | `rd` | `sc.w.nr rdHB, rdHC, [rbHD]` | `sc.w.nr_orrr_rd` |
 | `swym` | `oiii` | `imm` | `swym immu18` | `swym_oiii_imm` |
 | `trap` | `ciii` | `cfx` | `trap cfxHA, immu18` | `trap_ciii_cfx` |
 
@@ -21,7 +46,33 @@
 <!-- LEGALITY_START -->
 ## 2. 合法性检查
 
-（本章无适用规则）
+
+**scope: excluded（decode ILLI）：**
+* `fence_oiii_imm`：decode ILLI
+* `lr.b.an_orrr_rd`：decode ILLI
+* `lr.b.ar_orrr_rd`：decode ILLI
+* `lr.b.nn_orrr_rd`：decode ILLI
+* `lr.o.an_orrr_rd`：decode ILLI
+* `lr.o.ar_orrr_rd`：decode ILLI
+* `lr.o.nn_orrr_rd`：decode ILLI
+* `lr.t.an_orrr_rd`：decode ILLI
+* `lr.t.ar_orrr_rd`：decode ILLI
+* `lr.t.nn_orrr_rd`：decode ILLI
+* `lr.w.an_orrr_rd`：decode ILLI
+* `lr.w.ar_orrr_rd`：decode ILLI
+* `lr.w.nn_orrr_rd`：decode ILLI
+* `sc.b.ar_orrr_rd`：decode ILLI
+* `sc.b.nn_orrr_rd`：decode ILLI
+* `sc.b.nr_orrr_rd`：decode ILLI
+* `sc.o.ar_orrr_rd`：decode ILLI
+* `sc.o.nn_orrr_rd`：decode ILLI
+* `sc.o.nr_orrr_rd`：decode ILLI
+* `sc.t.ar_orrr_rd`：decode ILLI
+* `sc.t.nn_orrr_rd`：decode ILLI
+* `sc.t.nr_orrr_rd`：decode ILLI
+* `sc.w.ar_orrr_rd`：decode ILLI
+* `sc.w.nn_orrr_rd`：decode ILLI
+* `sc.w.nr_orrr_rd`：decode ILLI
 <!-- LEGALITY_END -->
 
 
@@ -131,6 +182,100 @@ cfx2rc  cfx_power, cg8, rc1, rd2
 
 这种简化写法使代码更具可读性，程序员无需记忆每个寄存器的cg和rc编号，直接通过寄存器名称即可定位目标寄存器。
 
+## 6. 原子指令
+
+### 6.1 fence指令
+
+fence 指令对外部可见的访存请求,如设备 I/O 和内存访问等进行串行化。
+
+操作数类型为：`oiii`
+
+```simrisc
+fence   immu18
+```
+
+`fence immu18` 的 18 位立即数**不拆成三段操作数**，汇编层仍书写一个 18 位无符号立即数；其位域为：
+
+| 字段 | 位 | 含义 |
+| --- | --- | --- |
+| `fm` | `immu18[17:12]` | 屏障模式（fence mode） |
+| `pred` | `immu18[11:6]` | 前序（predecessor）访问类型集合 |
+| `succ` | `immu18[5:0]` | 后序（successor）访问类型集合 |
+
+`pred`/`succ` 的位含义为 R/W/I/O 四类访问（`R` 读、`W` 写、`I`/`O` 为设备 I/O 访问，RISC-V `fence` 口径）；汇编层提供八个符号常量，按位或（`|`）组合：
+
+| 访问类型 | `pred` 常量（值） | `succ` 常量（值） |
+| --- | --- | --- |
+| R | `PRED_R = 1<<6` | `SUCC_R = 1<<0` |
+| W | `PRED_W = 1<<7` | `SUCC_W = 1<<1` |
+| I | `PRED_I = 1<<8` | `SUCC_I = 1<<2` |
+| O | `PRED_O = 1<<9` | `SUCC_O = 1<<3` |
+
+例：`fence PRED_R|PRED_W|SUCC_R|SUCC_W`（= `immu18` 的 `0x00C3`，即 `pred = 000011`、`succ = 000011`）。
+
+`fm` 取值：
+
+| `fm` | 含义 |
+| --- | --- |
+| `0` | 已定义（常规屏障） |
+| `8` | TSO 预留（当前未定义） |
+| 其余 | 保留 |
+
+保留编码 ⇒ ILLI：
+
+- `fm ≠ 0`（其中 `fm = 8` 标注为「TSO 预留、当前未定义」）；
+- `pred` 的 `immu18[11:10]` 与 `succ` 的 `immu18[5:4]` 为 SBZ，非零即保留。
+
+### 6.2 LR-SC指令
+
+LR 指令是 Load Reserved 的缩写，读取保留；SC 指令是 Store Conditional 的缩写，条件存储。设计参考 RISC-V RV64A 扩展（A 扩展）。
+
+操作数类型为：`orrr`。lr 指令的 hb（rdHB）固定为 rd0，汇编代码仅需两个操作数。若手工编码时 hb ≠ 0，触发 ILLI 异常。
+
+指令名形如 `<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`——**数据宽度在前、存储序在后**，以 `.` 分隔：
+
+```simrisc
+lr.o.nn   rdHC, [rbHD]
+lr.t.nn   rdHC, [rbHD]
+lr.w.nn   rdHC, [rbHD]
+lr.b.nn   rdHC, [rbHD]
+lr.o.an   rdHC, [rbHD]
+lr.t.an   rdHC, [rbHD]
+lr.w.an   rdHC, [rbHD]
+lr.b.an   rdHC, [rbHD]
+lr.o.ar   rdHC, [rbHD]
+lr.t.ar   rdHC, [rbHD]
+lr.w.ar   rdHC, [rbHD]
+lr.b.ar   rdHC, [rbHD]
+
+sc.o.nn   rdHB, rdHC, [rbHD]
+sc.t.nn   rdHB, rdHC, [rbHD]
+sc.w.nn   rdHB, rdHC, [rbHD]
+sc.b.nn   rdHB, rdHC, [rbHD]
+sc.o.nr   rdHB, rdHC, [rbHD]
+sc.t.nr   rdHB, rdHC, [rbHD]
+sc.w.nr   rdHB, rdHC, [rbHD]
+sc.b.nr   rdHB, rdHC, [rbHD]
+sc.o.ar   rdHB, rdHC, [rbHD]
+sc.t.ar   rdHB, rdHC, [rbHD]
+sc.w.ar   rdHB, rdHC, [rbHD]
+sc.b.ar   rdHB, rdHC, [rbHD]
+```
+
+o是 octa 的缩写，表示存取的数据是64位；t是 tetra 的缩写（32位）；w是 wyde 的缩写（16位）；b是 byte 的缩写（8位）。
+
+`lr` 仅有 `nn`/`an`/`ar` 三种存储序（无 `nr`）；`sc` 仅有 `nn`/`nr`/`ar` 三种存储序（无 `an`）。其余组合的助记符不存在（汇编器拒绝），对应编码为 reserved。
+a是 acquire 的缩写，表示该指令后序所有访问存储的指令不得被重排到该指令之前执行。
+r是 release 的缩写，表示该指令前序所有访问存储的指令不得被重排到该指令之后执行。
+n表示没有对应的a或r的顺序限制。
+
+lr 指令是从内存地址 rbHD 中加载内容到 rdHC 寄存器，然后在 rbHD 对应地址上设置保留标记（reservation set）。
+sc 指令会先判断 rbHD 内存地址是否有设置保留标记，如果设置了，则把 rdHC 值正常写入到 rbHD 内存地址里，并把 rdHB 寄存器设置成 0，表示写入成功；如果 rbHD 内存地址没有设置保留标记，则不执行写入操作，并把 rdHB 寄存器设置成 1， 表示写入失败；不管成功还是失败，sc 指令都会把当前 hart 上的所有保留标记全部清除。
+
+对于 lr/sc 指令，要求 rbHD 寄存器中的地址**按数据宽度自然对齐**（`.b`=1 / `.w`=2 / `.t`=4 / `.o`=8 字节），否则触发 **MALIGN** 异常。
+
+> **保留机制**（参考 RISC-V RV64A）：一条 lr 指令在 hart 上设置保留标记。sc 指令在保留标记仍在时写入内存并返回 0，否则不写入并返回非 0 值。sc 可能偶发性失败（spurious failure），软件应在循环中重试。以下事件清除 hart 上的保留标记：另一 hart 对保留地址的 store（或另一 hart 对保留地址所在 cache line 的 store，取决于平台实现的保留粒度）、当前 hart 执行另一条 lr 指令、异常或中断进入。如果 hart 在 lr 和 sc 之间执行了异常处理程序，sc 必定失败。保留标记的粒度由平台定义（可实现为精确地址或 cache line）。
+
 ---
 
 ## 附录：版本与变更记录
@@ -150,6 +295,7 @@ cfx2rc  cfx_power, cg8, rc1, rd2
 - 正文术语 `PC` 统一为 **`IP`**（`swym 0` 条：`IP` = 当前正在执行的指令的地址；见 SimRISC-00 §基址寄存器）。
 - cfx 系列记法约定；cfx 字段重命名（`cfxha`/`cghb`/`rchc`/`rdhd`）。
 - 新增「汇编指令速查」章（生成区）。
+- 新增「原子指令」章（`fence` / `lr`·`sc`），由 `SimRISC-12` 原样迁入；汇编速查与合法性检查生成区随之纳入（分类由「待定」改为「其它」）。
 
 ### 0.5.4（2026-09-28）
 

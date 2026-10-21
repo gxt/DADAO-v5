@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M9
 **依赖**：`ADR-0034`（`D1`–`D7`，已 `Accepted`；`fence` 新编码 `100-000`、`lr/sc` 24 条新命名已在 11/12 两册落纸）；`SPEC-152t`（同模块「改生成器 → 重生成 → 只读锁重算」先例）；**串行**：本册 → `SPEC-154t`（两册同改 `spec/`；且 `154` 的 `0.5.5-rc` 快照须含本册结果）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -131,10 +131,44 @@
 3. `.tao/adr/adr-0034*`、已完成任务书、`components/*/changelog.md`、`issues.yaml` 旧 `notes` 属**历史记录**，不改（历史即历史）。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
+**测试结果**：全部通过（C1–C6 + 15 项门控 + `make check` L1）；证据 `.work/evidence/SPEC-153t/run.sh` rc=0、`--inject` 3/3 红→`cp`+md5 还原→3/3 绿；无失败项。
+**修改文件**：`spec/SimRISC-11-其它.md`、`spec/SimRISC-12-待定.md`、`spec/README.md`、`tools/llvm/gen_asm_list.py`、`.tao/contracts/contract-asm-list.md`（重生成）、`.tao/contracts/contract-isa.md`（仅引用文本 6 处）、`.tao/knowledge/MEMORY.md`（指针 3 处/4 处替换）、`.tao/knowledge/issues.yaml`（新增 ISS-315）、`manifests/spec-readonly.lock.toml`。
 **验收结果**：
+- 正文逐字：`git show master:…SimRISC-12` §3 块（94 行 / 2880 字符）仅改 `## 3.`→`## 6.`、`### 3.1/3.2`→`6.1/6.2` 后与 S11 §6 **逐字节相等**（C1 rc=0）。
+- 落点：S11 `## 6. 原子指令`（L185；`### 6.1 fence指令` L187、`### 6.2 LR-SC指令` L229）；S12 该章已删、`## 4. SRAM块传输指令`→`## 3.`（L28）。
+- 派生计数（现场统计，不写死）：S11 册头/§1.1/表行 = **30/30/30**、§2 excluded = **25**；S12 = **2/2/2**、§2 = **2**；派生期望 30 = 5（旧）+ 25（`|O|`）、2 = 27 − 25 ⇒ 与设计裁定 **30/2 一致**。
+- 集合不变式（oracle = `contracts/opcodes.yaml` 的 `spec_cite`，非正文反推）：`|O|=25`、`|S12_before|=27`、`|S11_after|=30`、`|S12_after|=2`、`moved=25`；`S11_after−O−S11_before=[]`、`S12_before−O=['cfxld_crii_cfx','cfxst_crii_cfx']`、交集空、`27 = 25 + 2`（C3 rc=0）。
+- 生成区：`gen_asm_list.py --embed-spec` rc=0（幂等）、`gen_legality_list.py --verify` rc=0；`contract-asm-list.md` 重生成（deferred 2 条；excluded 分布 =「其它 25 + deferred 2」）。
+- 指针：`.tao/contracts/*` 中 `SimRISC-12 §fence|§LR-SC` = **0**；`check_spec_refs` 失败 **0**；MEMORY/README 指向 `SimRISC-11 §6.1/§6.2` 可解析。
+- 锁：S11 `db889e3e…`、S12 `f36c7752…`；`check-spec-readonly` **21 册 OK**，锁注记含用户原话。
+- 门控 rc=0：`check-asm-list`/`-drift`/`legality-drift`/`legality-invariants`/`spec-codeblocks`/`asm-prose`/`scope`/`spec-readonly`/`spec-refs`/`spec-drift`/`spec-numbering`/`spec-changelog`/`knowledge-refs`/`no-residue`/`milestones-fresh` + **`make check`（L1）**。
+- 注入：①删 S11 §1 一行 `lr.w.nn` ⇒ C3 rc=1；②S12 册头 `2→27` ⇒ C4 rc=1；③§6.1 多一空格 ⇒ C1 rc=1；三例 `git diff` 非空、md5 还原后回绿。
 **新发现/坑**：
+- 生成器「一册 ⇔ 一分类」（`CLASS_TO_SPEC` + `_section_content()` 固定 §1.1）⇒ 迁生成区只能**收窄** `classify()` 的 deferred 分支，不能把两分类映到同一册。
+- `contract-asm-list.md` 旧句「其余 {n_m1} 条为 m1」本身失真（259 ≠ 156+27），已改为派生分布句「excluded 27 = 其它 25 + deferred 2」。
+- `check-run-artifacts` A3：`.work/log/**` 新增文件名须 `check-<name>.log` 或 `<TASK-ID>-<purpose>.log`（首版 `baseline.txt` 被判红，改名后绿）。
+- `MEMORY.md` 第 6 项 `excluded` 15 条（cfx 6 + fence 1 + LR-SC 8）是 `ADR-0034` 前旧数（现 27 = cfxld/cfxst 2 + fence 1 + lr/sc 24），本册只改指针、未改该计数。
 **遗留问题**：
+- ① `contracts/opcodes.yaml` 25 条 `spec_cite` 仍指 `SimRISC-12 §fence指令`/`§LR-SC指令`（`generate_opcodes.py:256-257` 硬编码）；按派单未改 `contracts/**`，已登记 **ISS-315**（P3，`scope: [spec, infra]`）。
+- ② 溯源注释仍写 `SimRISC-12 §3.x`：`tools/qemu/generate_atomics_vectors.py` 6 处、`tools/testcases/generate_lit_vectors.py` 1 处、`components/**` 19 处（patches/changelog）——改则牵动向量重生成/补丁 blob，按派单不改。
+- ③ 历史不改：`.tao/adr/*` 5 处、`.tao/tasks/**` 23 处、`.tao/archive/**` 6 处、`issues.yaml` 旧 notes 1 处（L730）。
+- ④ `MEMORY.md` excluded 计数陈旧（见「新发现/坑」），未改。
 
 ## 审阅记录
+
+### 第 1 轮 engineer 自审
+
+审查对象：`gen_asm_list.py` 三处改动、两册 diff、`checks.py`/`run.sh`。逐行核对：`classify()` 前序分支（rwii / 取数存数 / 控制流 / 寄存器复制 / 浮点 / 位宽 / 64 位）均不截获 `fence`（`oiii`+`imm`、无 rf bank）与 `lr.*`/`sc.*`，二者落到既有「其它」分支；S11 §1 30 行含 `fence_oiii_imm`。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 C4 把 S12 期望条数写死 `2`（违「计数不写死」） | ✅已修 | 改为 `len(S12_before) − |O|` 派生 | c4 输出 `derived expected rows=2`、rc=0 |
+| F2 证据脚本备份/日志命名会被 `check-run-artifacts` A3 判红 | ✅已修 | 备份移 `/tmp/opencode/SPEC-153t/`；日志改 `SPEC-153t-*.log` | `check-no-residue` rc=0、L1 rc=0 |
+| F3 迁生成区后 `fence` 是否被前序分支截获 | ✅已核 | 逐行核 `classify()` 全分支顺序 | C3 `moved=25` 含 `fence_oiii_imm`；S11 §1 30 行 |
+| F4 迁移是否夹带空白/换行改动 | ✅已核 | 只改三个标题前导编号 | C1 逐字节 2880 字符相等 |
+| F5 `MEMORY.md` 同行陈旧 `excluded` 计数是否顺手改 | ⏸延后 | 派单边界 = 只改指针；记入「新发现/坑」 | diff 仅 4 处指针替换 |
+| F6 注入 1 只断言 C3、未同时断言 C4（是否掩盖） | ❌不修 | C3 是集合不变式专属断言，删行必红；C4 由注入 2 覆盖 | 注入 1 rc=1、注入 2 rc=1 |
+
+判决：findings 已全部处置（修 / 核 / 延后登记）。按派单要求**未改** `**状态**`（保持 `待开始`），返回主会话验收。
+
+> **改动面披露（architect，2026-10-21）**：本笔提交的改动面**超出**任务书「只改」清单——含 `.tao/contracts/contract-isa.md`（引用指针 6 处）、`.tao/knowledge/MEMORY.md`（章节指针 4 处 + `excluded` 计数按现场订正 **27**）、`spec/README.md`（分册职责 2 行）、`.tao/knowledge/issues.yaml`（新增 `ISS-315` 登记遗留）；均为迁册**必需的指针 / 台账同步**，**无语义改动**。

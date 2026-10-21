@@ -1211,17 +1211,17 @@ MISC-AMO 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 
 ## §14 deferred 指令（原「待定」）— scope: excluded｜分类依据 = `ADR-0012` D1、`ADR-0014`
 
-> 范围：fence 指令、LR-SC 原子指令、特权 cfx 系统指令中的 `cfxld`/`cfxst`。均 **`scope: excluded`**（未实现，decode ILLI），本合约不提取其完整规范内容。[SimRISC-12 §fence指令]（`trap`/`escape`/`cfx2rd`/`cfx2rc` 已 re-scope 为 `m1`，见 §13.6。）
+> 范围：fence 指令、LR-SC 原子指令、特权 cfx 系统指令中的 `cfxld`/`cfxst`。均 **`scope: excluded`**（未实现，decode ILLI），本合约不提取其完整规范内容。[SimRISC-11 §fence指令]（`trap`/`escape`/`cfx2rd`/`cfx2rc` 已 re-scope 为 `m1`，见 §13.6。）
 
 ### §14.1 fence 指令（oiii 格式）
 
-`fence` 指令对外部可见的访存请求（如设备 I/O 和内存访问）进行串行化。[SimRISC-12 §fence指令]
+`fence` 指令对外部可见的访存请求（如设备 I/O 和内存访问）进行串行化。[SimRISC-11 §fence指令]
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| `fence immu18` | 内存序屏障，低 4 位编码屏障类型 | [SimRISC-12 §fence指令] |
+| `fence immu18` | 内存序屏障，低 4 位编码屏障类型 | [SimRISC-11 §fence指令] |
 
-低 4 位屏障类型编码：[SimRISC-12 §fence指令]
+低 4 位屏障类型编码：[SimRISC-11 §fence指令]
 
 | 位 | 含义 | 说明 |
 |----|------|------|
@@ -1230,11 +1230,11 @@ MISC-AMO 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 | bit2 | R | 读屏障：前序读对后序读/写可见 |
 | bit3 | RW | 读写屏障：前序读写对后序读写可见（全屏障） |
 
-- bits[17:4] 应为零（SBZ），非零值行为保留。[SimRISC-12 §fence指令]
+- bits[17:4] 应为零（SBZ），非零值行为保留。[SimRISC-11 §fence指令]
 
 ### §14.2 LR-SC 原子指令 — scope: excluded
 
-`lr`/`sc` 原子指令（`<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`，共 24 条：`lr` 仅 `nn`/`an`/`ar`、`sc` 仅 `nn`/`nr`/`ar`；`ADR-0034`）**`scope: excluded`**（未实现，decode ILLI），本合约不提取其规范内容。[SimRISC-12 §LR-SC指令]
+`lr`/`sc` 原子指令（`<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`，共 24 条：`lr` 仅 `nn`/`an`/`ar`、`sc` 仅 `nn`/`nr`/`ar`；`ADR-0034`）**`scope: excluded`**（未实现，decode ILLI），本合约不提取其规范内容。[SimRISC-11 §LR-SC指令]
 
 - 完整语义/编码/保留机制留后续阶段（见 `.tao/knowledge/issues.yaml`）。[spec-decision]
 - 编码位置：`MISC-AMO` 子表 ha = 010-xxx（lr）与 011-xxx（sc）。[SimRISC-00 §MISC-AMO 指令编码]
