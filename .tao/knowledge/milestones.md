@@ -36,16 +36,16 @@
 > - 缺陷修复批（2026-10-20 立册，`ISS-302`；`LLVM-118t`/`119t`/`120t`、`INFRA-096t` 已 `已验证`）：`INFRA-097t`（`ISS-235` L3 载体全量）、`INFRA-098t`（`ISS-261` + `ISS-301`）、`INFRA-099t`（`ISS-229` 门控互斥）、`TESTCASES-053t`（`ISS-270`/`273`/`282`/`288` 陈旧证据脚本族）
 > - `TESTCASES-054t`：`M9` 超时预算重标（`lua` 840→1320、`XSBench` 300→660；`unix-smail` 疑已随 `QEMU-063t` 修复；`待开始`）
 > - `SPEC-141t`：`M9` / ISA 扩展预研 —— **结册未执行**（2026-10-21；未定项见下「ISA 扩展预研遗留」）
-> - `ADR-0034`（2026-10-20 定案 / 2026-10-21 转正）：原子编码定案（`fence` `0x20`、`lr/sc` 24 条），规范面/合约/生成面已落；**实现待 4 册**（`ISS-307`）
-> - **原子链 4 册（`ISS-307`）现状**：① `LLVM-121t`（返工修复 `ISS-312`/`ISS-313`，reviewer 第 3/4 轮 `Accepted`，20 条 XFAIL 已转 PASS）、② `QEMU-067t`、③ `INFRA-100t` = `已验证`；**④ `TESTCASES-056t` = `待验收`**（已摘除 20 条 XFAIL 登记，两档 711/711、0 xfail），待 reviewer 复核。
+> - `ADR-0034`（2026-10-20 定案 / 2026-10-21 转正）：原子编码定案（`fence` `0x20`、`lr/sc` 24 条），规范面/合约/生成面已落；**实现 4 册全部 `已验证`**（`ISS-307` `closed`，2026-10-21）
+> - **原子链 4 册（`ISS-307`）现状**：① `LLVM-121t`（返工修复 `ISS-312`/`ISS-313`，reviewer 第 3/4 轮 `Accepted`，20 条 XFAIL 已转 PASS）、② `QEMU-067t`、③ `INFRA-100t`、④ `TESTCASES-056t`（reviewer 第 2 轮 `Accepted`；两档 711/711、0 xfail）= **全部 `已验证`** ⇒ `ISS-307` `closed`，`ISS-294` 随 ③/④ 收口。
 > - 说明：`M8` 已于 2026-10-19 达成；`LLVM-116t`/`QEMU-064t`/`SPEC-152t` = `已验证`（ISA 链收口）、`INFRA-095t`/`TESTCASES-052t` = `已验证`（线程链 T1/T3 收口，19 目标两档 19/19）；未解 `issue` 见 `issues.yaml`（不在此重复）。
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-056t | 已验证 | 2026-10-21 14:26 | C11 全类型/`__atomic_*`/计数/ABA 两档 711/711（0 xfail）；关 `ISS-294`；摘除 20 条 XFAIL |
 | LLVM-121t | 已验证 | 2026-10-21 13:53 | `fence`+24 条 `lr/sc`+CAS 环；零 libcall；返工修 ISS-312/313，20 XFAIL 转 PASS、711/711 |
 | INFRA-100t | 已验证 | 2026-10-21 11:03 | musl `a_cas`/`a_cas_p`/`a_barrier` 落 `lr/sc`+`fence`；4×250000 计数精确 5/5、047t 19/19、证据 164/164 |
 | QEMU-067t | 已验证 | 2026-10-21 10:21 | `fence` fm/SBZ 校验 + pred/succ→TCG_MO；`lr/sc` 保留 + 8B 字 CAS + 按宽度 MALIGN；L3 +127 ⇒ semantics 351/351；并发 40000/40000 |
-| TESTCASES-056t | 待验收 | 2026-10-21 00:20（登记） | C11 全类型/`__atomic_*`/计数/ABA 两档 711/711（0 xfail）；关 `ISS-294`；摘除 20 条 XFAIL |
 | SPEC-141t | 已验证 | 2026-10-21 00:15 | 结册未执行：未定项转入遗留段 |
 | TESTCASES-055t | 已验证 | 2026-10-20 17:11 | ansibench 接入第一步：pin `ef90abd0`、7/8 构建成功、9 次运行、CoreMark/STREAM 自校验 PASS；基线对比=部分可行 |
 | INFRA-096t | 已验证 | 2026-10-20 15:26 | ISS-293 真根因 = builtins 归档陈旧：clean 重建 + 三份副本同源 + 新鲜度门控 + `libc.so` 重链戳记 |

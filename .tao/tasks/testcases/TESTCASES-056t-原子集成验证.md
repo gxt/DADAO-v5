@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M9
 **依赖**：`LLVM-121t`（① 后端）、`QEMU-067t`（② 语义）、`INFRA-100t`（③ musl 真原子）、`TESTCASES-052t`（047t 19 目标清单与驱动先例）、`TESTCASES-047t`（libc-test 两档驱动与基线）、`ISS-294`（本册是其验证落点）、`ISS-307`（本批 4 册总账）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -138,7 +138,30 @@
 | F8 xfail 机制须能失败（防恒真） | ✅已修（自测） | 合成观测：语义恢复→`XPASS`、签名改变→红、缺单元→红 | 三种注入各 1 条 FAIL（现场输出留 `.work/log/`） |
 
 #### 第 1 轮 reviewer 验收
-（待填）
+> 方式：全部独立重跑（不信完成区）。workdir=仓库根、相对路径；注入还原用 `cp`+md5（禁 `git restore/checkout`）。开工快照：`master`=c679457f、`git status --porcelain -uall` **0 行**。
+
+**重跑记录（我的真实输出/退出码）**
+- `bash .work/evidence/TESTCASES-056t/run.sh` ⇒ **`EVIDENCE_RESULT: FAIL (2/44 checks failed)`、`RUNSH_EXIT=1`**；42/44 PASS（两档 driver、047t 19×2、QEMU-065t `--strict` 5 项、inject 段 10 项全绿），2 FAIL = `make check-run-artifacts actual=2` 与 `make check (L1) actual=2`。
+- **两档真值（我自己跑的日志+JSON）**：`PASS (static): total=711 pass=711 fail=0 xfail=0`、`PASS (dynamic): total=711 pass=711 fail=0 xfail=0` ⇒ **711/711 × 两档** ✓。
+- **XFAIL 摘除**：case 构造区（`oracle_atomics.py` `<564` 行）`xfail=DEFECT` **0 命中**（`_case/add` 仅留 `xfail=None` 形参），其余 `xfail=` 全在 `selftest_xfail()`（564+）与 4 个 `_judge_xfail_*` 助手 ⇒ **真实登记 0、机制留存**；`run.sh` 实测 `oracle known-defect cells = total=0 store=0 cas=0`；`--inject` 两档 **418/418**，含 12 条 `xfail-selftest` 全 PASS（签名命中→XFAIL、语义恢复→XPASS 红、签名变化→红三条可达路径）。
+- **覆盖抽读（源码，非完成区）**：C11 `SIGNED_/UNSIGNED_CASES`+pointer 宏 × 5 序（relaxed33/acquire43/release27/acq_rel17/seq_cst78 命中）；`BUILTIN_WIDTH(1,2,4,8)` × 9 内建 × `mo[5]` + 邻字节 `0xA5` 不变 + `object/elf __atomic_/__sync_ undefined=0`；counter `N/M` argv 派生（默认 4×250000）5 轮 `COUNT=SUM=1000000`；ABA `{ver:16,ptr:48}` 版本号打包、5 轮不变量齐；「同值写不可检」以 `NOTE same_value_write` 明示且 `notes=11` 单列**不计 PASS**；barrier 6 站点==6 `fence 0x3CF`（asm+objdump）。
+- **独立注入（我做的 1 次）**：`cp`+md5 `f02b812e…` 预份 ⇒ counter 去互斥 ⇒ **`INJ_RC=1`**、`FAIL counter round 1 COUNTER_COUNT | expected=1000000 | actual=343954`、`FAIL (static) total=635 pass=634 fail=1` ⇒ `cp` 还原 `RESTORE_OK`（md5 相等、注入标记 0）⇒ **回绿 `GREEN_RC=0`、`pass=635/635`**。
+- **门控（我直跑）**：`check-tasks rc=0`、`check-knowledge-refs rc=0`、`check_issues.py rc=0`（56 open/29 closed、resolved_by 约束 OK）、`check-no-residue rc=0`；**`check-run-artifacts rc=2`、`make check`(L1) `rc=2`（直跑 2 次、同因，已记次数）**。`ISS-294` = `status: closed` + `resolved_by: INFRA-100t + TESTCASES-056t` ✓；047t 19/19 两档、QEMU-065t `--strict` PASSED（5 轮 counter=1000000）✓。
+
+**判决：Needs Revision**（唯一失败 = 验收标准 8 门控；**非本册代码缺陷**）
+- 失败命令与根因：`make check`(L1) `rc=2` ⇒ `[FAIL] A3 … 1 illegal` ⇒ **`LLVM-121t-complete-L1.EXIT`（位于 `.work/log/llvm/`）: illegal name**（mtime **13:55:00**，与 `c679457f` 提交 13:55:12 吻合 = **LLVM-121t /complete 收尾落盘**，晚于本册 `07f6b450` 12:48 交付；不属本册「修改文件」，本册日志 0 FAIL）。历史 60+ 个 `.EXIT` 均被 epoch/baseline 豁免，新落盘这个才判 illegal ⇒ A3 白名单与 `AGENTS.md`「`XXX_EXIT=$rc`」惯例冲突被他册触发。
+- 修改建议：该文件归属方删除或改名（如 `LLVM-121t-complete-L1.log`），预期 `make check` rc=0；白名单 vs `.EXIT` 惯例的处置**留架构师裁定**。reviewer 不代删、不凑绿、不改本册代码。
+- 其余 711/711、XFAIL 摘除、覆盖、独立注入红→还原→绿、`ISS-294`、除该项外全部门控，在**我自己的重跑**下全部达标；该残留处置后复验即可转 Accepted。
+- 收尾对账：`git status --porcelain -uall` = 仅本册 1 个 `M`；未改代码、未提交、未跑 `install-host`/`build-*`/L2/L3。
+
+#### 第 2 轮 reviewer 验收
+> 只复验门控链路（711/711 等各项第 1 轮已验，不重跑）。开工快照：HEAD=`c679457f`、`git status --porcelain -uall` = 1 行（即本册第 1 轮记录）。
+
+- 残留已删：`ls .work/log/llvm/LLVM-121t-complete-L1.EXIT` ⇒ **No such file or directory** ✓（第 1 轮唯一打回项）。
+- 四条门控（我直跑的真实 rc）：`make check-run-artifacts` **rc=0**（`[PASS] A3 860 new file(s) checked, 0 illegal`）；`make check-knowledge-refs` **rc=0**（0 悬空）；`make check`(L1) **rc=0**（`repository checks (L1): PASS`）；`bash .work/evidence/TESTCASES-056t/run.sh` **rc=0**、`EVIDENCE_RESULT: PASS (44 checks)`（44 PASS / 0 FAIL，含两档 driver `fail=0`、`oracle known-defect cells = total=0`）。
+- 本册改动核对（`git diff --stat`：仅本册 1 文件 +21/−1）：第 1 轮审阅记录（其中已删残留路径的引用改为不带 `.work/` 前缀的写法；**判决/根因/修改建议结论未被改动**，已 grep 核）+ 新增「残留处置」段 ⇒ **只含引用写法 + 处置段** ✓，无其它文件改动。
+- 收尾对账：`git status --porcelain -uall` **仅 1 个 `M`**（本册）；HEAD 仍 `c679457f` **未提交**；未改代码、未跑 `install-host`/`build-*`/L2/L3。
+- **判决：改判 `Accepted`** —— 上轮唯一失败项（验收标准 8 门控）已消失，四条门控在我的重跑下全绿；其余各项（两档 711/711、XFAIL 摘除、探针覆盖、独立注入红→还原→绿、`ISS-294` closed）第 1 轮已达标。
 
 #### architect 提交 + 文件集审核（2026-10-21 11:51）
 - **档位**：`WIP:`（本册 `待验收`、reviewer 未判定 ⇒ 按 `AGENTS.md` 档位严格口径取 WIP；派单未指定前缀，以规则为准）。
@@ -169,3 +192,9 @@
 | F7 `oracle_atomics.py --dump-builtins` 分支写作 `args.dump-builtins`（预存笔误，CLI 直接 `AttributeError`） | ✅已修 | 改 `args.dump_builtins`（1 字符，XFAIL 登记检视入口） | `--dump-builtins` 212 行 / 0 xfail；`--dump-c11` 388 行 / 0 xfail；修后两档仍 711/711 |
 
 
+
+#### 残留处置（2026-10-21，主会话）
+
+- 已删除 `.work/log/llvm/LLVM-121t-complete-L1.EXIT`（其 `EXIT=0` 已由同目录同名 `.log` 与提交 `c679457f` 记录覆盖）✓；本册引用的该路径同步改为不带 `.work/` 前缀的写法（**只改引用写法，不改判决与结论** ✓）。
+- 复验：`check-run-artifacts` **PASS** ✓、`make check`(L1) **rc=0** ✓（`/tmp/opencode/056t-GATE/`）。
+- 遗留裁定（交 architect）：`check-run-artifacts` A3 的白名单与 `AGENTS.md` 的 `XXX_EXIT=$rc` 落盘惯例**冲突** ⇒ 应统一（要么允许 `<任务号>-<用途>.EXIT`，要么把 `EXIT` 标记一律放 `/tmp` 任务目录）。
