@@ -8,13 +8,17 @@
 - A1：`spec/SimRISC-*.md` 册头版本 ∪ 附录三级标题版本 ⇒ 每个
   `.tao/archive/SimRISC-<ver>/` 目录存在；
 - A2：每个归档目录含 ≥1 个 `SimRISC-*.md`，且必有 `SimRISC-00*`（指令系统设计册）；
-- A3：目录内 `SimRISC-*.md` 个数 = `gen_spec_archive.py --list` 清单里该版本的文件数
-  （清单派生失败 ⇒ 只查 A1/A2，并打印跳过原因）。
+- A3：目录内 `SimRISC-*.md` 个数 = `gen_spec_archive.py --list` 清单里该版本的文件数；
+  清单里的每个版本也必须有目录（清单 ⊆ 磁盘）；
+- A4（**反向**）：磁盘上每个 `.tao/archive/SimRISC-*/` 目录都必须出现在派生清单里，
+  即「磁盘 ⊆ 清单」；与 A1/A3 合为**双向**（清单 ⇔ 磁盘）。
+  A3/A4 依赖清单派生，派生失败 ⇒ 跳过并打印原因。
 
 **只校验存在性与文件集，不校验内容**：`-rc` 目录是升号时点快照，会随工作树演进自然分叉
 （见 §8）。
 
-`--self-test`：内置反例（目录缺失 / 目录空 / 册头版本新于目录）各自须 FAIL，正向样例须 PASS。
+`--self-test`：内置反例（目录缺失 / 目录空 / 册头版本新于目录 / 文件数不符 / 磁盘多出
+清单元）各自须 FAIL，正向样例须 PASS。
 """
 
 from __future__ import annotations
@@ -51,10 +55,16 @@ def versions_from_spec(spec_dir: Path) -> set[str]:
 
 def check_tree(archive_root: Path, required: set[str], counts: dict[str, int] | None) -> list[str]:
     errors: list[str] = []
-    for version in sorted(required):
+    versions = set(required) | (set(counts) if counts is not None else set())
+    for version in sorted(versions):
         dest = archive_root / f"SimRISC-{version}"
         if not dest.is_dir():
-            errors.append(f"A1 目录缺失：{dest.name}（版本 {version} 已被 spec 声明）")
+            if version in required:
+                errors.append(f"A1 目录缺失：{dest.name}（版本 {version} 已被 spec 声明）")
+            else:
+                errors.append(
+                    f"A3 清单版本缺目录：{dest.name}（清单文件数 {counts[version]}）"
+                )
             continue
         files = sorted(p.name for p in dest.glob("SimRISC-*.md"))
         if not files:
@@ -69,14 +79,38 @@ def check_tree(archive_root: Path, required: set[str], counts: dict[str, int] | 
     return errors
 
 
-def counts_from_manifest() -> tuple[dict[str, int] | None, str]:
+def counts_from_manifest() -> tuple[dict[str, int] | None, set[str] | None, str]:
     try:
         import gen_spec_archive as gen
 
         data = gen.derive()
-        return {e["version"]: e["count"] for e in data["versions"]}, "ok"
+        entries = data["versions"]
+        return (
+            {e["version"]: e["count"] for e in entries},
+            {e["version"] for e in entries},
+            "ok",
+        )
     except Exception as exc:  # noqa: BLE001 - 清单派生失败只降级，不阻断 A1/A2
-        return None, f"{type(exc).__name__}: {exc}"
+        return None, None, f"{type(exc).__name__}: {exc}"
+
+
+def disk_versions(archive_root: Path) -> set[str]:
+    """磁盘上 `.tao/archive/SimRISC-<ver>/` 的版本集合（现场扫描，不写死）。"""
+    prefix = "SimRISC-"
+    return {
+        p.name[len(prefix) :]
+        for p in archive_root.glob(f"{prefix}*")
+        if p.is_dir() and p.name.startswith(prefix)
+    }
+
+
+def reverse_errors(archive_root: Path, listed: set[str]) -> list[str]:
+    """A4：磁盘 ⊆ 清单（目录多出清单未声明的版本 ⇒ 红）。"""
+    disk = disk_versions(archive_root)
+    return [
+        f"A4 目录不在清单：SimRISC-{version}（磁盘 {len(disk)} 个 / 清单 {len(listed)} 个）"
+        for version in sorted(disk - listed)
+    ]
 
 
 def self_test() -> int:
@@ -129,6 +163,15 @@ def self_test() -> int:
         hit = any("A3 文件数不符" in e for e in errs)
         print(f"[self-test] 反例④文件数不符：{errs} → {'FAIL(预期)' if hit else '未触发'}")
         rc |= 0 if hit else 1
+
+        # 反例 ⑤：磁盘多出清单未声明的目录（A4 反向断言；独立临时根，避免与前几例耦合）
+        rev_root = root / "_rev"
+        rev_root.mkdir()
+        (rev_root / "SimRISC-1.0.9").mkdir()
+        errs = reverse_errors(rev_root, {"1.0.0", "1.0.1"})
+        hit = any("A4 目录不在清单" in e and "1.0.9" in e for e in errs)
+        print(f"[self-test] 反例⑤磁盘多出清单元：{errs} → {'FAIL(预期)' if hit else '未触发'}")
+        rc |= 0 if hit else 1
     finally:
         shutil.rmtree(root, ignore_errors=True)
     print(f"check-spec-archive --self-test: {'PASS' if rc == 0 else 'FAIL'}")
@@ -145,19 +188,23 @@ def main(argv: list[str]) -> int:
         return self_test()
 
     required = versions_from_spec(SPEC)
-    counts, note = counts_from_manifest()
+    counts, listed, note = counts_from_manifest()
     errors = check_tree(ARCHIVE, required, counts)
+    if listed is not None:
+        errors += reverse_errors(ARCHIVE, listed)
     if args.verbose or errors:
         print(f"required versions（册头 ∪ 附录）={sorted(required)}")
-        print(f"清单文件数={counts if counts is not None else f'不可用（{note}）'}")
+        print(f"清单版本={sorted(listed) if listed is not None else f'不可用（{note}）'}")
+        print(f"磁盘版本={sorted(disk_versions(ARCHIVE))}")
     for err in errors:
         print(f"FAIL {err}", file=sys.stderr)
     if errors:
         print(f"check-spec-archive: FAIL（{len(errors)} 条）", file=sys.stderr)
         return 1
     print(
-        f"check-spec-archive: PASS（{len(required)} 个版本目录"
-        f"，A3 {'启用' if counts is not None else f'跳过：{note}'}）"
+        f"check-spec-archive: PASS（声明 {len(required)} 个版本目录"
+        f"，磁盘 {len(disk_versions(ARCHIVE))} 个"
+        f"，A3/A4 {'启用' if listed is not None else f'跳过：{note}'}）"
     )
     return 0
 

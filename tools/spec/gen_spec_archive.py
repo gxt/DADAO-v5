@@ -28,6 +28,8 @@
 
 `--verify` 以归档目录内 `PROVENANCE.md` 的 `快照提交` 为锚（`-rc` 目录为时点快照，随
 工作树演进属正常）；无 `PROVENANCE.md` 的既有目录（0.4.1 / 0.5.3）回落到派生快照。
+有 `PROVENANCE.md` 时**逐文件精确比对**：其「逐文件 sha256」表须与快照内容全等，其
+「版本组合 sha256」须等于按该表重算的值（不接受子串/前缀匹配）。
 """
 
 from __future__ import annotations
@@ -375,6 +377,44 @@ def provenance_snapshot(dest: Path) -> str | None:
     return m.group(1) if m else None
 
 
+PROV_COMPOSITE_RE = re.compile(r"版本组合 sha256：`([0-9a-f]{64})`")
+PROV_TABLE_RE = re.compile(r"## 逐文件 sha256\s*\n+```\n(.*?)\n```", re.S)
+PROV_FILE_RE = re.compile(r"^([0-9a-f]{64})  (.+)$")
+
+
+def provenance_pairs(dest: Path) -> tuple[str | None, list[tuple[str, str]] | None, list[str]]:
+    """解析 `PROVENANCE.md`：返回（声明的组合 sha256, 逐文件表 [(name, sha)], 问题清单）。
+
+    无 `PROVENANCE.md` ⇒ (None, None, [])。格式不符即记问题（绝不降级为「跳过」）。
+    """
+    prov = dest / "PROVENANCE.md"
+    if not prov.is_file():
+        return None, None, []
+    text = prov.read_text()
+    problems: list[str] = []
+    m = PROV_COMPOSITE_RE.search(text)
+    declared = m.group(1) if m else None
+    if declared is None:
+        problems.append("PROVENANCE 缺「版本组合 sha256」行或格式不符")
+    block = PROV_TABLE_RE.search(text)
+    pairs: list[tuple[str, str]] | None = None
+    if block is None:
+        problems.append("PROVENANCE 缺「逐文件 sha256」表")
+        return declared, pairs, problems
+    pairs = []
+    for ln in block.group(1).splitlines():
+        fm = PROV_FILE_RE.match(ln)
+        if not fm:
+            problems.append(f"PROVENANCE 逐文件表行格式不符：{ln!r}")
+            continue
+        pairs.append((fm.group(2), fm.group(1)))
+    names = [n for n, _ in pairs]
+    dup = sorted({n for n in names if names.count(n) > 1})
+    if dup:
+        problems.append(f"PROVENANCE 逐文件表重复条目：{dup}")
+    return declared, pairs, problems
+
+
 def verify_one(e: dict, dest: Path) -> tuple[bool, list[str]]:
     msgs: list[str] = []
     if not dest.is_dir():
@@ -409,6 +449,28 @@ def verify_one(e: dict, dest: Path) -> tuple[bool, list[str]]:
         if want != got:
             ok = False
             msgs.append(f"组合 sha256 不符：期望 {want[:16]}… 实际 {got[:16]}…")
+    # PROVENANCE 自洽：逐文件表 == 快照内容；声明的组合 sha256 == 按该表重算（精确相等）
+    declared, table_pairs, problems = provenance_pairs(dest)
+    for problem in problems:
+        ok = False
+        msgs.append(problem)
+    if table_pairs is not None:
+        if sorted(table_pairs) != sorted(expected_pairs):
+            ok = False
+            missing = sorted(set(expected_pairs) - set(table_pairs))
+            extra = sorted(set(table_pairs) - set(expected_pairs))
+            msgs.append(
+                f"PROVENANCE 逐文件表与快照不符（缺 {len(missing)} / 多 {len(extra)}）："
+                f"缺={missing} 多={extra}"
+            )
+        if declared is not None:
+            recomputed = composite(table_pairs)
+            if declared != recomputed:
+                ok = False
+                msgs.append(
+                    f"PROVENANCE 组合 sha256 与逐文件表重算不符："
+                    f"声明 {declared[:16]}… 重算 {recomputed[:16]}…"
+                )
     return ok, msgs
 
 

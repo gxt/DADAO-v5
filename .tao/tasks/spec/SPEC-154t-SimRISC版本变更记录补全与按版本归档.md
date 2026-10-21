@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M9
 **依赖**：`SPEC-153t`（**必须先完成**：两册同改 `spec/`，且本册的 `0.5.5-rc` 快照须含 153 的迁移结果）；`SPEC-111t`（`SimRISC-0.5.3` 归档体例先例）；`docs/Process-06`（`spec/` 保护 + 只读锁）；`docs/Process-04`（归档体例）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -171,3 +171,42 @@
 | `.work/log` 文件名违规（`.tsv`/`run-default.log`） | ✅已修 | 统一 `<TASK-ID>-<purpose>.{log,txt}` | `make check-run-artifacts` rc=0 |
 | 新门控只进了 `.PHONY`/help，漏进 `check:` 依赖链 | ✅已修 | `Makefile check:` 加 `check-spec-archive` | `make check` 日志含 `check-spec-archive: PASS`，rc=0 |
 
+### 第 1 轮 reviewer 验收（2026-10-21，独立重跑；**判决：Needs Revision**）
+
+- **重跑（我方命令 + 真实退出码）**：`python3 tools/spec/gen_spec_archive.py --list` 跑 2 次 + `cmp` **rc=0**（8 行；文件数 5/5/5/5/5/5/5/13；日志 `/tmp/opencode/REVIEW-154t/list{1,2}.tsv`）；`gen --verify` **rc=0**（8/8 OK）；`./.work/evidence/SPEC-154t/run.sh` **rc=0**（22 步全 `expect rc=0 actual rc=0 OK`，含 `make check (L1)` 与 14 个门控、`--self-test` 4 反例 FAIL(预期)，`MISMATCH` 计数 0）；`run.sh --inject` **rc=0**（I1/I2/I3 各 rc=1 → md5 `MATCH` → rc=0）；`--self-test` 单跑 rc=0。完成区转述与我方输出一致。
+- **清单复现（两源各抽 1–2 版，组合 sha 由我按 §8 定义独立重算）**：wiki 源 `0.4.1`（首 `624fcbc` 2026-06-28、末 `9f378f4`、5 文件、组合 `a019d006…`）与 `0.4.0`（首 `85ba32a`、快照 `624fcbc^`=`c8861ec`、组合 `51ae2247…`）；本仓源 `0.5.0`（首 `73205574` 2026-07-15、快照 `dc07f25a^`=`fc3d814`、5 文件、组合 `ab82f65f…`）⇒ commit/日期/文件数/sha 与清单**逐项一致**；两次运行逐字节相同。
+- **归档逐目录**：8 目录文件数 5/5/5/5/5/5/5/13；6 个新目录**逐文件** sha256 == `git show <PROV 快照>:<源路径>` 内容、PROV 逐文件表 == 实际文件；`0.4.1`/`0.5.3`：`git status --porcelain -uall` 空、`git log -- <两目录>` 最新仍为 `1d6ce0e2`/`6487758a`（无本笔）、`487d1673 --name-status` 对二者**无 M/D** ⇒ **未被改动 ✓**。
+- **附录可追溯（抽 3 条真取到 diff）**：`SimRISC-04` `0.5.1`→`68ceb3f8`（diff 第 322→323 行 rd0 约定收窄）、`SimRISC-04` `0.5.3`→`aba64274`（`add.si rrii→riii`、`imms12→imms18`）、`SimRISC-11` `0.5.1`→`55230e29`（`RASUP→RASUF`）。**`diff=∅` 抽 2 段**：0.5.0×12（`3f69139c..73205574` 旧04 仅 1 个 hunk、`grep SRAM`=0）、0.5.1×09（`73205574..dc07f25a` 旧01 只动「(pre) rd0」与「存取RD寄存器」，映射章节未动）⇒ **确无变更，非偷懒**；`### 0.5.1（` 5 册全为 `2026-07-17`。
+- **规则/门控 + 我方独立注入（红→还原→绿）**：`docs/Process-06 §8` = **+12/−0**（§1–§7 未动），含「升版必落归档」+ 门控结论与两条被否方案；`Makefile check:` 依赖链确含 `check-spec-archive`（L1）。我方注入：`mv .tao/archive/SimRISC-0.5.4` 出树 ⇒ 门控 `FAIL A1 目录缺失` **rc=1**、`checks.py c5` **rc=1** ⇒ `mv` 还原 + 目录 md5 `cmp` **rc=0** ⇒ 门控 **rc=0**、c5 **rc=0**。
+- **门控 (a) 判定：可接受（不阻断），缺口如实记录**。实测注入 B（造未声明目录 `SimRISC-0.9.9/`）⇒ 门控 **rc=0**、`gen --verify` **rc=0**、**仅 c5 报 FAIL**；注入 C（改仅在清单的 `0.4.0` 文件）⇒ 门控 **rc=0**、`--verify` **rc=1**；即 A1 确为**单向**（打印「7 个版本目录」而磁盘 8）。**理由**：§8 规则本身是「升版必落归档」，缺档方向已被 A1 覆盖且可红（注入 A 证实）；`0.4.0` 属 wiki 早期、现行附录未声明属正常；「归档集=清单集」是验收 2 的一次性机械项、由 c5 承担（我方核 **8==8**）。**建议**（供 architect 定夺，非阻断）：门控补「磁盘 ⊆ 清单」断言，当前 8==8 可即绿。
+- **⚠ Needs Revision（唯一阻断项；验收标准 1「sha256 可复核」/ 阶段 A.2「脚本与门控同一实现」+ 证据脚本可达 FAIL）**：`.tao/archive/SimRISC-0.4.0/PROVENANCE.md:9`「版本组合 sha256」= `549f5ba96340…` **算错**——按 §8 定义用**该文件自己列的逐文件表**重算 = `51ae22475ce3…`（= 目录实际组合 = `--list`/`SPEC-154t-manifest.txt` 行）；`549f5ba9…` 恰为**未归一 U+2010 文件名**的旧值，即 engineer 自审 finding#1 只修了 `enrich`、未重写已落盘 PROV（`--apply` 对已存在目录 skip）。其余 5 个新目录 PROV 组合自洽 ✓、8 目录逐文件 sha 全对 ✓。
+- **为何全绿没抓到（可达 FAIL 缺失）**：`gen --verify` 只读 PROV 的「快照提交」、不校验其 composite；`checks.py:281` 的 PROV 断言是子串存在式 `"版本组合 sha256" in text` ⇒ 我把该值改成全 0 后 `c5` 仍 **PASS rc=0**、`--verify` 仍 **rc=0**（已 `cp`+md5 还原，`cmp`=0）。**必改**：① 该行改为 `51ae22475ce3085affedc2afdd5f80eaf39c88b585289bb1be60a547fbe890e9`（本目录系本笔新增，属修正自身产出：`cp` 备份 + 单行替换 + md5 对账）；② `verify_one` 与 `c5` 增「PROV composite == 按其逐文件表重算」断言并给出**可达 FAIL**（反例注入证明）；③ 重跑 `run.sh`（default + `--inject`）回绿。
+- **0.5.3 口径披露：✅ 如实**——册内遗留②与「口径披露」明写「末次声明 `86fdcc8` vs 发布快照 `640b879`」「⇒ **待用户裁定**、本笔未改既有归档」，**未**当成已裁定；commit message 同口径；`0.5.3`/`0.4.1` 目录未动。
+- **另一处口径（非阻断，记录在案）**：`0.5.5-rc` 目录 pin = `a04d34ee`（含 153 迁移 ✓、**不含**本笔 3 处附录改动），目录组合 `a0a27cbc…`；清单行随 HEAD 漂移为 `487d1673`/`883388a1…` ⇒ `--verify` 对 -rc 实为「目录↔PROV」两向（脚本 docstring、§8、README `a04d34e` 均已写明 -rc 时点语义）。此为任务书「-rc 快照=当前 HEAD」与「只增不改」的固有张力，**不判缺陷**；若须严格三向一致，需 architect 定 -rc 口径。
+- **约束逐条**：快照取法唯一定义 ✓；只新增不改旧 ✓；不以当前 `spec/` 冒充历史 ✓（8 目录内容 == `git show` 快照）；`-rc` 只查存在性与文件集且已写入 §8 ✓；附录条目无任务号/ADR/ISS（`check-spec-changelog` rc=0）、追溯统一 7 位 sha ✓；未碰 `contracts/**`、`components/**`、`.tao/adr/**`、`.tao/archive/M*/**` ✓（本笔 64 个改动路径逐一对账，与完成区「修改文件」一致；`milestones.md`/两册任务文件为 architect 状态与台账变更）。
+- **快照对账与声明**：验收前、后 `git status --porcelain -uall` 均 **0 行**（我方共 4 次注入全部还原，无 `.inject-bak-*`/`SimRISC-0.9.9` 残留，`check-no-residue` rc=0；写入本段后应恰为 1 个 `M`=本册）。我本会话**只写本段**、**未改任何代码/数据/门控**、**未 commit/push**。
+
+### 返工（2026-10-21，第 1 轮 reviewer Needs Revision 三项）
+
+- **① 0.4.0 组合 sha 订正**：`PROVENANCE.md:9` `549f5ba9…`（未归一 U+2010 文件名旧值）→ **`51ae2247…`**（`cp` 备份 `/tmp/opencode/SPEC-154t-rework/bak/`，md5 `e8db9d3e→4358284b`，diff 仅此 1 行）。8 目录逐个按 §8 算法重算：磁盘 == `git show <PROV 快照>` == PROV 表 == 组合值；**0.4.1/0.5.3 无 PROV**，磁盘 == 快照 == 清单值；**除 0.4.0 外无同类错**（8 条逐项见返工 `c5` 输出）。
+- **② c5 改精确比对**：解析 PROV「逐文件 sha256」表 + 「版本组合 sha256」，与 `git show <快照>` 实算**全等**（`==`，无 `in`/前缀/子串）；`gen verify_one` 增「表 == 快照」「声明 == 按表重算」两条断言。反例 I4：0.5.2 表内 sha 末位改 1 位 ⇒ `c5`/`--verify` **rc=1**，`cp`+md5 `MATCH` 回绿；旧错值回归亦红（写回 `549f5ba9…` ⇒ `--verify` rc=1）。
+- **③ 门控补 A4（磁盘 ⊆ 清单）**：`check_spec_archive` 增反向断言（当前 8==8 即绿；`--self-test` 增反例⑤）；`Process-06 §8` 写明「**双向**（清单 ⊆ 磁盘 且 磁盘 ⊆ 清单）」。反例 I5：造 `.tao/archive/SimRISC-0.9.9/` ⇒ `FAIL A4 目录不在清单` rc=1，清理后 rc=0。
+- **证据真值**：`run.sh` default **rc=0**（22 步，0 MISMATCH）、`--inject` **rc=0**（5/5 变红 + 5/5 还原回绿）、`--self-test` rc=0（5 类反例）、`make check-spec-archive` 与 L1 `make check` rc=0；未改 `spec/`、归档内容（仅上述 1 行）、`**状态**` 未改、未 commit。
+- **③ 附**：为使「双向」字面成立，A3 同时要求清单里每个版本都有目录（临时移走 `0.4.0/` ⇒ `A3 清单版本缺目录` rc=1，还原 rc=0）。
+- **自审（第 2 轮 engineer，逐行）**：`provenance_pairs` 无「解析失败即跳过」分支（格式不符必红）；`verify_one` 三条精确比对（表↔快照、声明↔重算、磁盘↔快照）；`check_spec_archive` 的 A3/A4 计数均现场派生、不写死；`inject4/inject5` 各有可达 FAIL 且 run.sh 捕获真实 rc（无 `tee`）。判决：无未修 finding。
+
+### 第 2 轮 reviewer 验收（2026-10-21，仅复验三项；**判决：Accepted**）
+
+- **① 组合 sha**：`0.4.0/PROVENANCE.md:9` 现为 `51ae22475ce3085affedc2afdd5f80eaf39c88b585289bb1be60a547fbe890e9`；我按 §8 算法（按文件名排序拼 `<sha256>  <basename>\n` 再取 sha256）独立重算 **3 个目录**：`0.4.0`（按 PROV 自身逐文件表、按目录实际文件两种算法）、`0.5.0`=`ab82f65f…`、`0.5.4`=`2a983b4b…` ⇒ **PROV 声明 == PROV 表重算 == 目录重算 == `--list` 行**（全等 True）；`gen --verify` rc=0。
+- **② `c5`/`--verify` 可失败（我方注入，改 1 位）**：`0.4.0` PROV 组合 sha 末位 `9→8` ⇒ `checks.py c5` **rc=1**（`[FAIL] SimRISC-0.4.0 组合 sha256 == 按快照重算（精确）`）、`gen --verify` **rc=1**（`PROVENANCE 组合 sha256 与逐文件表重算不符`）⇒ `cp`+md5 还原（记录值 `4358284b…`，`cmp`=0）⇒ c5 **rc=0**、`--verify` **rc=0**。
+- **③ 双向门控（两向各红一次）**：(a) 造临时件 `.tao/archive/SimRISC-0.9.9/` ⇒ `FAIL A4 目录不在清单（磁盘 9 个 / 清单 8 个）` **rc=1** ⇒ 删除 ⇒ **rc=0**；(b) 移走仅在清单的 `0.4.0/` ⇒ `FAIL A3 清单版本缺目录（清单文件数 5）` **rc=1** ⇒ `mv` 还原 + md5 `cmp`=0 ⇒ **rc=0**；`--self-test` **5 类反例全 FAIL(预期)** rc=0，PASS 行 =「声明 7、磁盘 8、A3/A4 启用」。
+- **④ 证据与 L1**：`run.sh` **rc=0**（22/22 `expect rc=0 actual rc=0 OK`、`MISMATCH`=0，含 `C5 PROV 精确比对`、14 门控、`make check (L1)` rc=0）；`run.sh --inject` **rc=0**（I1–I5 共 14 步全 OK，5/5 红→md5 还原→绿，`.tao/archive` 无 `inject`/`0.9.9` 残留）。
+- **约束/范围**：返工只落我上轮点名处（`0.4.0/PROVENANCE.md` **+1/−1** 单行值改、`checks.py` 逐文件表与组合 sha 改**精确全等**比对并覆盖 `0.4.1`/`0.5.3`、`check_spec_archive.py` A3 反向 + **A4** + self-test⑤、`gen --verify` 校验 PROV 组合、`Process-06 §8` 措辞、`run.sh` 增 I4/I5）；**未碰** `spec/**`、既有 `0.4.1`/`0.5.3` 归档、`contracts/**`、`Makefile`；**未 commit/push**。
+- **⚠异常披露**：`git status --porcelain -uall` 实为 **5 个 M** = engineer 返工 4 件（PROV / `check_spec_archive.py` / `gen_spec_archive.py` / `Process-06`，**尚未提交**，提交权归 architect）+ 本册（含第 1、2 轮记录），**非**「只有 1 个 M」⇒ 请 architect 先 `commit` 返工再处置本册；另 `c5`/`--verify` 失败信息中 expect/actual 同截 16 位、改 1 位时两串显示相同（以 rc=1 为准），纯显示问题、不阻断。
+- **声明**：本会话只写本段；4 次注入（PROV 改 1 位、造多余目录、移走 `0.4.0`、及 run.sh 内 5 例）全部 `cp`/`mv`+md5 还原并 `cmp`=0；**未改任何代码/数据/门控**、**未 commit/push**。
+
+### 提交（architect，2026-10-21）
+- **档位**：正常提交（reviewer 第 2 轮 `Accepted`）⇒ 分支 `spec154t-complete` **唯一提交**（本册所在提交；本段追加前为 `3c7e25bf`，`--amend` 后号更新，`git log -1 --stat` 可验 8 项文件集）；经 `merge --squash` 一次落地 `master`；**未 push**。
+- **文件集对账（`git -c core.quotepath=false diff --cached --name-only` = 8 项）**：返工 4 件 = `.tao/archive/SimRISC-0.4.0/PROVENANCE.md`（组合 sha 1 行）、`tools/spec/check_spec_archive.py`（A3 反向 + A4 + self-test⑤）、`tools/spec/gen_spec_archive.py`（PROV 精确比对）、`docs/Process-06`（§8 双向措辞）—— 均在本册「修改文件」声明内；收尾 4 件 = 本册（`**状态**` → `已验证` + 两轮审阅/返工段）、`.tao/knowledge/milestones.md`（流水行转 `已验证`/16:14、按时间倒序上移）、`.tao/knowledge/lessons.md`（§2.44）、`.tao/knowledge/issues.yaml`（`ISS-314` → `closed`、`resolved_by: SPEC-154t`）⇒ **无漏提 / 无多提 / 无越界**（未含 `spec/**`、`contracts/**`、`Makefile`、既有归档 `0.4.1`/`0.5.3`）。
+- **门控**：`make check-spec-archive` **rc=0**（`声明 7 个版本目录，磁盘 8 个，A3/A4 启用`）；`make check`(L1) **rc=0**（`check_issues: 57 open, 31 closed`、`resolved_by 约束 OK`、`repository checks (L1): PASS`）。日志 `/tmp/opencode/SPEC-154t-complete/{check-spec-archive,make-check}.log`。
+- **保留待裁**：`0.5.3` 归档口径（`86fdcc8` vs `640b879`）披露仍在（本册「口径披露」+「遗留问题 ②」），**未改**归档。

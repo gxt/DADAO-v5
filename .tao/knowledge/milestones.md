@@ -42,8 +42,8 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-154t | 已验证 | 2026-10-21 16:14 | SimRISC 8 版本清单双源派生 + 6 个缺档归档（含 PROVENANCE）+ 19 缺段（2 补段/17 diff=∅）+ `check-spec-archive` 入 L1 |
 | SPEC-153t | 已验证 | 2026-10-21 15:11 | 原子指令章（`fence`+24 条 `lr/sc`）自 `SimRISC-12` 逐字迁入 `SimRISC-11 §6`；生成区分类改判、两册只读锁重算 |
-| SPEC-154t | 待验收 | 2026-10-21 14:33（登记） | SimRISC 8 版本清单双源派生 + 6 个缺档归档（含 PROVENANCE）+ 19 缺段（2 补段/17 diff=∅）+ `check-spec-archive` 入 L1 |
 | TESTCASES-056t | 已验证 | 2026-10-21 14:26 | C11 全类型/`__atomic_*`/计数/ABA 两档 711/711（0 xfail）；关 `ISS-294`；摘除 20 条 XFAIL |
 | LLVM-121t | 已验证 | 2026-10-21 13:53 | `fence`+24 条 `lr/sc`+CAS 环；零 libcall；返工修 ISS-312/313，20 XFAIL 转 PASS、711/711 |
 | INFRA-100t | 已验证 | 2026-10-21 11:03 | musl `a_cas`/`a_cas_p`/`a_barrier` 落 `lr/sc`+`fence`；4×250000 计数精确 5/5、047t 19/19、证据 164/164 |
