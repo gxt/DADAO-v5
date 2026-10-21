@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M9
 **依赖**：`QEMU-067t`（②；`lr/sc`/`fence` 执行语义）、`LLVM-121t`（①；clang 须能产出 `lr/sc`/`fence` 且不落 libcall）、`INFRA-095t`（musl `__clone` + TP；`src/thread/dadao/*.s` 与 `REPLACED_OBJS` 先例）、`ISS-294`（假原子根因，本册为其实现落点）、`ISS-307`（本批 4 册总账）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -156,4 +156,14 @@ __asm__ __volatile__("fence <imm>" : : : "memory");
 | F6 `components/musl/README.md` 的「无真原子」表述过期 | ⏸延后（越界） | 无改动（任务交付清单不含 README） | 已写入「新发现」④，交主会话决定是否另立文档任务 |
 
 #### 第 1 轮 reviewer 验收
-（待填）
+> 方式：独立重跑（`run.sh --all` reviewer 执行 1 次）+ 三原语汇编抽验 + 独立注入 1 次 + 门控重跑；判决全部基于我方命令输出，不采信完成区转述。快照对账：验收前 `git status --porcelain -uall` = 空、补丁 md5 `f3c2b3d0…`；验收后 = 空（仅本记录）、musl 工作树 `git diff` 空、`atomic_arch.h` md5 回 `e1e38a2d…`（注入均 `cp`+md5 还原 ✓）。
+
+**重跑记录（真实输出/退出码）**：`bash .work/evidence/INFRA-100t/run.sh --all` ⇒ **164/164 passed、`EVIDENCE_RESULT: PASS`、rc=0**（与完成区 164/164 一致）。`mt_count` 4×250000（oracle = `$((4*250000))` + 源码 `NTHREADS*NITER`）：静态 5/5、动态 5/5 全 `COUNT=1000000` rc=0；`spin_count` 回绿 3+3 轮均 1000000；`sync_stress` 两档 mutex 200000 / cond 100000（order_errors=0）/ sem 100000（final 0）。`047t` 我方重跑（json 现场读）：static/dynamic 均 `total=19 pass=19 fail=0 blocked=0` ⇒ 两档 19/19 ✓。注入 4 例（我方重跑逐例真红→`cp`+md5→回绿）：`cas_plain` 红 `COUNT=431238` rc=1；`cas_no_retry` 红 `COUNT=712053` rc=1；`cas_p_width` 红 7 FAIL 行（计数器 8，见披露）；`cas_p_bank` 汇编期 rc=2（4 条诊断）；每例 restore md5 相等、`git diff` 空、重建 rc=0、回绿。
+**独立注入（reviewer 自选，异于 engineer 4 例）**：`a_cas` 删 `br.ne`（CAS 退化为无条件写）⇒ `make build-musl` rc=0、spin 探针 **rc=139 段错误（红）** ⇒ `cp` 还原 md5 `e1e38a2d…` 相等、`git -C .work/source/musl diff` 空 ⇒ 重建后 `COUNT=1000000` rc=0（回绿）。副作用处置：静态重建清构建树 `libc.so` 致 `check-musl-freshness` 红 1 次（rc=2），补跑 `build-musl-shared` rc=0 后 PASS——musl 静/动态配置切换的固有行为，非本册缺陷（run.sh 末尾跑 shared 即为此）。
+**门控（我方重跑）**：`check-patch-tree` rc=0（5 components/185 patches OK）、`check-musl-freshness` rc=0 PASS、`make check`（L1）rc=0（"repository checks (L1): PASS"）。证据脚本审核：每条断言有可达 FAIL 路径、无恒真/两支同果、注入断言"恰 1 处"防静默空转、退出码直取未被管道吞 ⇒ **脚本合格**。
+**三原语自验（我方 `clang -O2 -S` 抽汇编）**：`a_cas` = `ext.uo rd11,31` → `lr.t.an rd10,[rb9]` → `br.ne{rd10,rd11}→2f` → `sc.t.ar rd13,rd12,[rb9]` → `br.nz{rd13}→1b` 重试环 ✓、返回 `rd10`=旧值（musl 契约）✓；`a_cas_p` = `lr.o.an`/`sc.o.ar` 8 B ✓，指针基址 `rb2rb rb9←rb16`（**指针走 rb**）、值侧 `rb2rd`、返回 `rd2rb rb8←rd10` ✓；`a_barrier` = `fence 975`（`llvm-mc` 编码 `[0x77,0x80,0x03,0xcf]`=`0x3CF` 全类型 = 任务书 §C 的 `0x03CF` 档）+ `"memory"` clobber ✓。**文件头**：补丁与应用侧 `grep -c 'SINGLE-THREADED\|NOT REAL ATOMICS'` 均 **0**；84 行真原子描述头（语义/对齐/8 B 粒度/ABA/bank/防御项）在场 ⇒ 非只删不写 ✓；无 `a_ll`/`a_sc`、无 `__atomic_*`/`__sync_*` 代码 ✓；补丁与 `.work/source/musl` 应用文件逐行一致 ✓。
+**ISS-310 复核（我方独立现场）**：`ext(x,-1,5)` → 汇编 `set.zw rd17,wp0,0xffff`+`or.w rd17,wp1,0xffff` = `0x00000000FFFFFFFF`（零扩展）；IR `declare @ext(i32 noundef,…)` **无 `signext`**（返回路径有 `signext i32`）；`contract-abi.md §4.2` 原文要求窄参数「保持符号位不变」「按类型符号性扩展为 canonical 64 位」且由 caller 完成 ⇒ **真缺陷（契约偏差），ISS-310 登记正确、应保持 open**；P2 合理（无实测错值，`a_cas` 的 `ext.uo` 使其不依赖本项）。
+**约束逐条**：不改 `spec/`/`contracts/**`/llvm/qemu（WIP 提交文件清单核过）✓；未降并发/跳用例/改 047t 分类 ✓；独立 oracle = 乘法手算 ✓；模板无 `%N` ✓。**披露（不阻断）**：`cas_p_width` 红时 FAIL 行 7 vs 计数器 8，完成区写「7 条」略低估，红向与结论无碍。**判决：Accepted**。未改任何代码、未提交 git。
+
+#### 提交（architect）
+- 档位：**正常提交**（reviewer 判决 Accepted）⇒ `INFRA-100t 验收收尾（reviewer Accepted；ISS-310 经复核确认为真缺陷）`；`--cached` 对账 = 本册 + `milestones.md` + `issues.yaml` + `lessons.md`，与收尾范围一致（无漏提 / 多提 / 越界）；**未 `push`**。

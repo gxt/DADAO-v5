@@ -41,9 +41,9 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-100t | 已验证 | 2026-10-21 11:03 | musl `a_cas`/`a_cas_p`/`a_barrier` 落 `lr/sc`+`fence`；4×250000 计数精确 5/5、047t 19/19、证据 164/164 |
 | QEMU-067t | 已验证 | 2026-10-21 10:21 | `fence` fm/SBZ 校验 + pred/succ→TCG_MO；`lr/sc` 保留 + 8B 字 CAS + 按宽度 MALIGN；L3 +127 ⇒ semantics 351/351；并发 40000/40000 |
 | LLVM-121t | 已验证 | 2026-10-21 09:25 | `fence` 立即数映射 + 24 条 `lr/sc`（def 173→197）+ CAS 环；`__atomic_*` 零 libcall（lr 40/sc 40/fence 98）；lit 125/125、isa 257/2 |
-| INFRA-100t | 待验收 | 2026-10-21 00:20（登记） | musl `a_cas`/`a_cas_p`/`a_barrier` 落 `lr/sc`+`fence`；4×250000 计数精确 5/5、047t 19/19、证据 164/164 |
 | TESTCASES-056t | 待开始 | 2026-10-21 00:20（登记） | C11 全类型/`__atomic_*`/并发计数/ABA 探针两档验证；关 `ISS-294`（实现落 INFRA-100t） |
 | SPEC-141t | 已验证 | 2026-10-21 00:15 | 结册未执行：未定项转入遗留段 |
 | TESTCASES-055t | 已验证 | 2026-10-20 17:11 | ansibench 接入第一步：pin `ef90abd0`、7/8 构建成功、9 次运行、CoreMark/STREAM 自校验 PASS；基线对比=部分可行 |
