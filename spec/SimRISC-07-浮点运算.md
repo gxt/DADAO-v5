@@ -221,16 +221,16 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 
 | 类别位 | 含义 |
 | ---   | ---               |
-| 0     | negativeInfinity  |
-| 1     | negativeNormal    |
-| 2     | negativeSubnormal |
-| 3     | negativeZero      |
-| 4     | positiveZero      |
-| 5     | positiveSubnormal |
-| 6     | positiveNormal    |
-| 7     | positiveInfinity  |
-| 8     | signalingNaN      |
-| 9     | quietNaN          |
+| 0     | signalingNaN      |
+| 1     | quietNaN          |
+| 2     | negativeInfinity  |
+| 3     | negativeNormal    |
+| 4     | negativeSubnormal |
+| 5     | negativeZero      |
+| 6     | positiveZero      |
+| 7     | positiveSubnormal |
+| 8     | positiveNormal    |
+| 9     | positiveInfinity  |
 
 限制如下：
 
@@ -254,6 +254,7 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 - 删除 `ftlog`/`folog`；`ftroot`/`foroot` 仅保留 n=2。
 - `rf0` 位域与访问规则调整。
 - 正文改用新汇编格式；`cls` 浮点分类指令改多寄存器渲染；新增「汇编指令速查」章（生成区）。
+- `focls`/`ftcls` 分类位序改为 IEEE 754-2019 `class` 的类别顺序（bit0 sNaN、1 qNaN、2 -∞、3 -normal、4 -subnormal、5 -0、6 +0、7 +subnormal、8 +normal、9 +∞，与 LLVM `is.fpclass` 的 `FPClassTest` 一致）；**破坏性**：与 RISC-V `fclass` 位序不兼容。
 
 ### 0.5.4（2026-09-28）
 

@@ -90,7 +90,7 @@
 
 - 指令：`ftcls`/`focls`（orri：`rdHB` 目的、`rfHC` 源、`immu6` 连续个数 1–63）。[SimRISC-07 §浮点分类指令]
 - 对每个源寄存器浮点数据设置对应目的寄存器相应位，其余位清零：`[63:10]` 全部清零，结果仅用 `[9:0]`。[SimRISC-07 §浮点分类指令]
-- 10 类位：0 negativeInfinity、1 negativeNormal、2 negativeSubnormal、3 negativeZero、4 positiveZero、5 positiveSubnormal、6 positiveNormal、7 positiveInfinity、8 signalingNaN、9 quietNaN。[SimRISC-07 §浮点分类指令]
+- 10 类位：0 signalingNaN、1 quietNaN、2 negativeInfinity、3 negativeNormal、4 negativeSubnormal、5 negativeZero、6 positiveZero、7 positiveSubnormal、8 positiveNormal、9 positiveInfinity。[SimRISC-07 §浮点分类指令]
 - 来源 `rf`、目的 `rd` 分属不同寄存器组、结构性不可能重叠；分类按序号递增逐对进行，**先读后写**。[SimRISC-07 §浮点分类指令]
 - `immu6 = 0` 或任一起始寄存器 + `immu6 > 64` → ILLI。[SimRISC-07 §浮点分类指令]
 - 目的为 rd 组（非 rf），不受 rf0 目的约束；但受 `dst_rd0` 约束（目的 `rdHB` 为 `rd0` → ILLI）。[SimRISC-00 §浮点寄存器][SimRISC-00 §数据寄存器]

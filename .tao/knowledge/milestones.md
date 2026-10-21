@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-156t | 已验证 | 2026-10-22 00:12 | `fcls` 10 类位序改为 754/LLVM 顺序；两处逐项一致（脚本机械比对）、锁重算、破坏性已标注 |
 | LLVM-122t | 待开始 | 2026-10-21 23:50（登记） | clmul 后端：`.td` + 三条伪指令 + 通用/私有 intrinsic + clang builtin；`scope` 仍 excluded |
 | LLVM-123t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 后端：`.td` + `llvm.fma`/`fmuladd` 选择；循环形态 0 拷贝 |
 | LLVM-124t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 后端：`FMINNUM_IEEE`/`FMINIMUMNUM` Legal；`FMINIMUM` 保持 Expand |
@@ -52,7 +53,6 @@
 | QEMU-071t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 语义：softfloat `minimum_number`；±0/单 NaN/sNaN/canonical 全覆盖 |
 | QEMU-072t | 待开始 | 2026-10-21 23:50（登记） | 取整语义：静态 5 档只合 NV、DYN 走真实 status；模式敏感 + NX 专测 |
 | SPEC-155t | 待开始 | 2026-10-21 23:50（登记） | clmul 解除 `excluded`（`scope → m9`）；生成物/计数/只读锁同步 |
-| SPEC-156t | 待开始 | 2026-10-21 23:50（登记） | `fcls` 10 类位序改为 754/LLVM 顺序（`SimRISC-07 §7` + 契约 + 只读锁） |
 | SPEC-157t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 立册（点积型、`orrr`、`op=0x44`、opx `0x22`/`0x2A`；excluded） |
 | SPEC-158t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 解除 `excluded`（`scope → fp`，新族 `fma`） |
 | SPEC-159t | 待开始 | 2026-10-21 23:50（登记） | `ftmin`/`ftmax`/`fomin`/`fomax` 立册（754 `minimumNumber`、`orrr`、opx `0x26/0x27/0x2E/0x2F`） |

@@ -153,7 +153,12 @@ sha256 = "a26f50d753b454f1c8c58b680a1531e675fcc5fe3cbce3950503baccea14ed3b"
 path = "spec/SimRISC-07-浮点运算.md"
 group = "simrisc-00..12"
 # 2026-10-21（SPEC-154t，同授权）：0.5.1 段日期统一为 2026-07-17 并补 diff 指针；sha256 同笔重算。
-sha256 = "ccdb57953aaeeb2c9e1ab5702a9adf5815c069cc4319e681fbe0a75b29c11384"
+# 2026-10-21（SPEC-156t，用户原话「刚查看了 754-2019 标准，虽然没定义具体编码，但其顺序和 llvm 的 is_fpclass
+#   一致；定一个任务，修改 focls/ftcls 的编码，与 llvm 的 is_fpclass 一致」；授权原话落纸于
+#   `.tao/tasks/spec/SPEC-156t-位序对齐.md`）：§7 分类位表 10 类位序改为 754-2019 `class` 顺序（bit0 sNaN、
+#   1 qNaN、2 -∞ … 9 +∞）+ `0.5.5-rc` 段追加一条（**破坏性**：与 RISC-V `fclass` 位序不兼容）；
+#   指令编码不变。sha256 于同一变更内重算（其余只读册不变）。
+sha256 = "6bab72ceebaef3c3348fa83cae1973994e673fb8c941b529b4d3a906a03b2c7e"
 
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"

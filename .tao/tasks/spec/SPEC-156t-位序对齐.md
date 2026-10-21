@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M9（FP 完备性）
 **依赖**：无（纯规范面）；后续实现 = `QEMU-069t`。`ISS-188`（FP 完备性缺口）中的 `fpclass` 项因此**解锁**（后端可零重排直接接 `llvm.is.fpclass`）。
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -114,12 +114,44 @@ bit8 positiveNormal  bit9 positiveInfinity
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：`./.work/evidence/SPEC-156t/run.sh` rc=0（c1-c5 全 OK，41 条断言）；`run.sh --inject` rc=0（4/4 变红、4/4 回绿）。
+**修改文件**：`spec/SimRISC-07-浮点运算.md`（§7 位表 10 行 + `0.5.5-rc` 追加 1 行）；`.tao/contracts/contract-fp.md`（§9 `10 类位` 行）；`manifests/spec-readonly.lock.toml`（SimRISC-07 sha256 重算）；`.tao/knowledge/milestones.md`（本行状态→待验收）；本任务书（状态/完成区/审阅记录）；新增 `.work/evidence/SPEC-156t/{run.sh,checks.py}`。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- 位表（两处逐字一致，脚本解析后打印 10 对）：`0 signalingNaN / 1 quietNaN / 2 negativeInfinity / 3 negativeNormal / 4 negativeSubnormal / 5 negativeZero / 6 positiveZero / 7 positiveSubnormal / 8 positiveNormal / 9 positiveInfinity`；`[63..10] 清零、结果仅 [9..0]` 表述保留（c5 OK）。
+- `git diff --stat master`：3 个规范文件 + 里程碑行 + 任务书；`contracts/`、`tests/` `--stat` 输出为空（零改动）。
+- 门控 rc：`check-spec-readonly`/`check-spec-changelog`/`check-spec-numbering`/`check-spec-drift`/`check-spec-codeblocks`/`check-fp-contract` = 0；`make check`（L1）rc=0（`repository checks (L1): PASS`）。
+- 可达 FAIL（cp+md5 还原）：I1 只改 spec 位表（漏改 contract）⇒ `c2` rc=1，10 对全 FAIL；I2 锁 sha256 回退⇒`check_spec_readonly.py` rc=1 / `make` rc=2；I3 追加 `contracts/fp_semantics.yaml` ⇒ `c4` rc=1；I4 位号 0→7 ⇒ `c1` rc=1。4 例还原后 md5 均 MATCH、复验 rc=0。
+**新发现/坑**：① `make` 包装下门控失败 rc=2（非 1），断言须按「脚本 rc=1 / make rc=2」分别写；② 路径含中文时 `git status/diff` 会转义（`\346...`），须 `git -c core.quotepath=false`（`lessons §2.19`）；③ 证据脚本若用**工作树** diff，architect 的 WIP 提交后即假红 ⇒ 改用 `git diff master`。
+**遗留问题**：① `contract-fp.md` 册头版本仍为 `0.5.4`（spec 已 `0.5.5-rc`）——**既有**不一致、非本册引入，未改（越界）；② QEMU `fp_classify_one` 仍为旧位号，归 `QEMU-069t`；③ 「两处位表一致性」未并入 `check-fp-contract`（任务书 §A 明示另议）。
 
 ## 审阅记录
 
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+### 第 1 轮 engineer 自审
+
+逐行审查 `run.sh`/`checks.py` 与三处改动；实现已跑通（见完成区真实输出）。finding 与处置：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `git status` 输出中文路径被转义 ⇒ c4 假红（rc=1） | ✅已修 | `git()` 加 `-c core.quotepath=false` | `checks.py all` rc=0（41 OK） |
+| F2 I2 断言写 `make` rc=1，实际 make 包装返回 2 | ✅已修 | I2 改为「脚本 rc=1 + make rc=2」两条断言 | `--inject` I2 两行均 OK |
+| F3 证据用工作树 diff：architect WIP 提交后会假红/失断言 | ✅已修 | c4/c5 改 `git diff master`，`--stat` 同步 | `run.sh` rc=0；`--stat master` 列出 5 文件 |
+| F4 c1（结构断言）无已演示的 FAIL 路径 | ✅已修 | 新增 `inject_d`（位号 0→7）+ I4 流程 | I4 `c1` rc=1（`位号 0..9 各一` FAIL）→ 还原 rc=0 |
+| F5 c5「只追加」判据依赖空格对齐（脆） | ✅已修 | 删除行按 `re.sub(r"\s+"," ")` 归一后比对 | 默认跑 c5 OK（删除行恰 10 行） |
+| F6 `contract-fp.md` 册头 `0.5.4` vs spec `0.5.5-rc` | ⏸延后 | 未改（非本册引入、越界） | 已记入「遗留问题」①；`check-fp-contract` rc=0 |
+| F7 变更记录措辞是否覆盖「破坏性 + RISC-V 不兼容」 | ✅已修/确认 | 追加行含 `**破坏性**：与 RISC-V fclass 位序不兼容` | c5 `变更记录 1 行` OK |
+
+判决：所有 finding 已处置（仅 F6 依「不改范围外文件」延后并披露）⇒ 状态 `待验收`。
+
+### 第 1 轮 reviewer 验收（2026-10-22，commit `2b1df032`，分支 `SPEC-156t`）
+
+**独立核验（不采信完成区，逐项自跑）**：
+1. 位表语义：亲读 `SimRISC-07 §7` 与 `contract-fp.md:93`，两处均为 `0 sNaN / 1 qNaN / 2 negInf / 3 negNormal / 4 negSubnormal / 5 negZero / 6 posZero / 7 posSubnormal / 8 posNormal / 9 posInf`；spec:220 `[63..10] 全部清零、仅 [9..0]` 与 contract:92 `[63:10]` 表述均在。
+2. 独立比对（reviewer 自写 `/tmp/opencode/SPEC-156t-review/cmp.py`，不看 checks.py）：10 对逐项 OK、`RESULT: PASS rc=0`。独立注入（spec bit0→quietNaN）：`bit0 FAIL、rc=1`；`cp` 还原后 md5=363b3455… MATCH、回绿 rc=0。
+3. 零改动面：`git diff --stat 24bc6e94..2b1df032` = 5 文件（contract-fp/milestones/任务书/锁/SimRISC-07）；`--stat master -- contracts/ tests/` 输出为空；diff 内容核对：仅位表 10 行 + 变更记录 1 行 + 锁 sha256，无 op/format/字段改动（编码不变）。
+4. 门控自跑（各取自身 rc）：`check-spec-readonly`/`changelog`/`numbering`/`drift`/`codeblocks`/`fp-contract` = 0/0/0/0/0/0；`python3 tools/infra/check_spec_readonly.py` rc=0（`21 volume(s) OK`）；`make check`(L1) rc=0（重跑 run.sh 默认模式全 OK）。注：任务提示路径 `tools/spec/` 有误，实际 `tools/infra/`。
+5. 只读锁：亲跑 `sha256sum spec/SimRISC-07` = `6bab72ce…` 与锁内值逐字一致。
+6. 证据脚本审核：`run_step` 直捕 rc 无 `tee` 吞码（仅注释提及）；断言均有可达 FAIL；重跑默认 rc=0、`--inject` rc=0：I1 c2 红（10 对全 FAIL）/I2 脚本 rc=1+make rc=2/I3 c4 红/I4 c1 红，4/4 注入 CHANGED 非空、4/4 md5 MATCH 还原回绿。
+7. 授权面：用户原话已落任务书 §已裁定（2026-10-21）+ 锁注释引用；变更记录 c5 验「只追加」（git diff 删除行恰为旧位表 10 行）；含「**破坏性**：与 RISC-V `fclass` 位序不兼容」。
+
+**快照对账**：验收前后 `git status --porcelain -uall` 均空（干净）；3 个被测文件 md5 前后一致（MATCH）。注入还原全程 `cp`+md5，未用 git checkout/restore。
+**判决：Accepted**（验收 1-7 全过、硬约束无违反；`contract-fp.md` 册头版本 0.5.4 遗留为既有不一致、已披露，不阻塞）。
