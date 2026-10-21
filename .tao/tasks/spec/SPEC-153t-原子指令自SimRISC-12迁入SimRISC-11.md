@@ -131,7 +131,7 @@
 3. `.tao/adr/adr-0034*`、已完成任务书、`components/*/changelog.md`、`issues.yaml` 旧 `notes` 属**历史记录**，不改（历史即历史）。
 
 ## 完成区
-**测试结果**：全部通过（C1–C6 + 15 项门控 + `make check` L1）；证据 `.work/evidence/SPEC-153t/run.sh` rc=0、`--inject` 3/3 红→`cp`+md5 还原→3/3 绿；无失败项。
+**测试结果**：全部通过（C1–C6 + 15 项门控 + `make check` L1）；证据脚本按 `.work/evidence/<任务ID>/run.sh` 生成，rc=0、`--inject` 3/3 红→`cp`+md5 还原→3/3 绿；无失败项。
 **修改文件**：`spec/SimRISC-11-其它.md`、`spec/SimRISC-12-待定.md`、`spec/README.md`、`tools/llvm/gen_asm_list.py`、`.tao/contracts/contract-asm-list.md`（重生成）、`.tao/contracts/contract-isa.md`（仅引用文本 6 处）、`.tao/knowledge/MEMORY.md`（指针 3 处/4 处替换）、`.tao/knowledge/issues.yaml`（新增 ISS-315）、`manifests/spec-readonly.lock.toml`。
 **验收结果**：
 - 正文逐字：`git show master:…SimRISC-12` §3 块（94 行 / 2880 字符）仅改 `## 3.`→`## 6.`、`### 3.1/3.2`→`6.1/6.2` 后与 S11 §6 **逐字节相等**（C1 rc=0）。

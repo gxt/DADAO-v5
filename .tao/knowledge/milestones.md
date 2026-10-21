@@ -28,7 +28,7 @@
 
 **M7 模块里程碑**（**均 `里程碑`**：`INFRA-072m`/`SPEC-136m`/`LLVM-090m`/`QEMU-059m`/`TESTCASES-043m`/`INTEG-034m`〔整体收敛点〕）：`INFRA-072m` / `SPEC-136m` / `LLVM-090m` / `QEMU-059m` / `TESTCASES-043m` / `INTEG-034m`（整体收敛点）+ `INTEG-035m`（M7 收尾归档，`Process-04`；任务书**已自归档**入 `.tao/archive/M7/integ/`）。
 
-**M8 实施（gem5 裸机闭环，与 M7 并行）**：`GEM5-001k` 路线与分解、`GEM5-002t` 基线构建、`GEM5-003t` ISA 骨架、`GEM5-004t` 标量语义、`GEM5-005t` 测试机、`GEM5-006t` FP/剩余 ISA 和 `GEM5-007t` 集成回归均已复核（`已验证`）；仅 `008m` 待开始。004 实核 current 517/517；005 加入 Machine-01 ELF/PT_LOAD、cfx 与 25 项 semihosting，机器门控 47/47、真实工具链 1/1；006–007 补齐 RF/FCSR、60 条 FP、M3/M8 与 `aip.si`，11 条 excluded 保持 `ILLI`，覆盖表 235/235、remaining 548、独立 FP 329；适用 E2E 20/20、Embench 正确性档 38/38，代表/完整门控已接 L2/L3，三类反例均按预期失败。`ADR-0035`（基线）和 `ADR-0036`（gem5 测试机接入）均已逐条确认并 Accepted。M8 目标为 `AtomicSimpleCPU` 运行现有 DADAO ELF 并对齐 `Machine-01`，证据见 `components/gem5/evidence/GEM5-004t.md`–`GEM5-007t.md`。M7 的任务和验收范围不变。
+**M8 实施（gem5 裸机闭环，与 M7 并行）**：`GEM5-001k` 路线与分解、`GEM5-002t`–`007t` 均为 `已验证`，`GEM5-008m` 已置 `里程碑`。最终 opcode 259/259、current 510、Machine-01 47、remaining 620、独立 FP 329、程序代表 9/9、完整 58/58，六类反例均按预期失败；L1/L2/L3 与 gem5 专项完整门控均 rc=0。`ADR-0035`（基线）和 `ADR-0036`（gem5 测试机接入）均已逐条确认并 Accepted。M8 gem5 目标已达成：`AtomicSimpleCPU` 可运行现有 DADAO ELF 并对齐 `Machine-01`，证据见 `components/gem5/evidence/GEM5-004t.md`–`GEM5-008m.md`。M7 的任务和验收范围不变。
 
 ## 任务流水
 
@@ -99,7 +99,7 @@
   - `ISS-108`（`DADAOInstrInfo.td` 1502 行 / `DADAOAsmParser.cpp` 2349 行）未拆分——**M7**（用户 2026-10-09 裁定推迟；**非功能性重构**）。
   - `ISS-164`（cfx mask 屏蔽路径不可观测）、`ISS-074`（`cs.*` 条件赋值 overlap 语义未定）、`ISS-167`（`DADAO-12 §5` prose 与伪代码张力，须授权改上游只读册）——**挂账**（按既有裁定，待相应实现/授权时定）。
   - **台账待收敛**：`ISS-043`/`045`/`138`/`148`/`156`/`159`/`162` 七条由 M6 任务完成区**声称已修/已收口**，但 `issues.yaml` 中 `resolved_by` 未回填、仍 `open`——**M7** 归档前置 `Process-04 §3` 梳理时回填 `closed`（或经用户裁定）；指针 `.tao/archive/M6/issues-closed.md`「待收敛」。
-    - **已收敛（`INTEG-028t`，2026-10-11）**：7 条已逐条独立核实为「已修（可关）」并回填 `resolved_by` + `closed`（活台账 17 open / 7 closed，`check_issues` rc=0）；指针 `.work/log/integ/ISS-reconcile.md`、`.tao/archive/M6/integ/INTEG-028t-待收敛issue核实回填.md`。
+    - **已收敛（`INTEG-028t`，2026-10-11）**：7 条已逐条独立核实为「已修（可关）」并回填 `resolved_by` + `closed`（活台账 17 open / 7 closed，`check_issues` rc=0）；稳定指针 `.tao/archive/M6/integ/INTEG-028t-待收敛issue核实回填.md`。
 - **规划中（M7 起，跨里程碑）**：
   - **门控分层（用户 2026-10-09 裁定）——推迟到 M7**：三层 = **L1 完整性/可用性**（默认 `make check`，秒~几十秒）/ **L2 各模块功能代表集**（几十~几百秒）/ **L3 较完整**（几百~几千秒）+ **模块完整按需**；落地要点 = `check` 收缩为 L1（`check-qemu-semantics` 移出 + 新增 `check-qemu-smoke` 机械派生代表集）、每层须「能失败 + 结构断言」、触发点写 `AGENTS.md`；**第 0 步 = 逐门控计时**。**已立项 `INFRA-058t`**（收口核对，2026-10-11；原计划号未立册）。**追加（用户 2026-10-11「认 + 并入 `INFRA-058t`」）**：`.work/log/` **四分类判据**（`spec/`=规范正文／`.tao/knowledge/`=结论·设计·口径〔含长文〕／`.work/log/`=一次性过程〔可删〕／**被引用材料不得只放 `.work/`**）落 `AGENTS.md` + 新增门控 **`check-knowledge-refs`**（扫 `.work/**` 引用、悬空即红）+ **被引用材料搬迁升格**（详见 `INFRA-058t §追加范围`，原计划号未立册）。**分层明细**见 `docs/Process-07-门控分层规范.md`（`INFRA-070t` 落地；原设计稿已归档 `.tao/archive/M7/notes/gate-tiering-design.md`）。
   - **`GOLDEN-*` 里程碑候选（M7 起，用户 2026-10-09 裁定）**：为 **golden model（结果级 / FP 独立 oracle）另立** `golden` 模块专用里程碑——承载 `ISS-019`（结果级 / FP 独立 oracle）、`ISS-026`（encoding `imm` 语义守卫依赖 golden）二者整体，以及 `ISS-081` 拆分后的 FP 独立 oracle 部分（`ISS-081` 的 FP 向量 / harness RF 部分**已在 M6 交付**：`LLVM-066t`/`TESTCASES-036t`/`041t`）。**仅登记归属，不在本轮立项**。
@@ -238,7 +238,7 @@
 
 1. **达成**：项目里程碑 **M8 = 达成（2026-10-19）**；`INTEG-036m` 置 `里程碑`，判据 1–5 全满足（见其「完成区」）。M8 期 **68 册**任务全部终态（`已验证` 67 + `里程碑` 1）。
 2. **口径（M8 收口时生效）**：`long double` = **IEEE binary128**（`ADR-0030`；16 B、RF 双槽、高半在偶号）；汇编注释符 **`@@`**（`;` = 语句分隔符；`Toolchain-01` 0.5.3）；`rb2` = **帧指针**、无条件保留（删 `rbfp`/`rbgp`）；调用点 **SP 16 B 对齐**（`ADR-0018 C9 D3`，`ADR-0031 D7` 无条件）；变参 = **七字段三游标 + callee 快照**（`ADR-0031`）。
-3. **三套测试（两档，权威跑 `.work/tests/authoritative/`）**：`046t` **38/38 + 38/38**；`047t` 静态 **309/0/4/24**、动态 **312/0/4/21**（excluded 30；`known-fail 4` = TLS 3 + `strptime` 1；5 个 `long double` 已 pass）；`048t` 两档 **201/0/3/16/2**（discovered 222；**下一轮全量跑前按 `ISS-265` 逐例准入重算的预期 = `fail 0` / `known-fail 3`**〔准入前实测 `201/3/0/16/2`；静态 3 例 + 动态 `ft` 已抽验 `known-fail`，全量复跑待下一轮〕；`blocked 16` 逐条有根因）。
+3. **三套测试（两档；权威结果见 `.tao/archive/M8/m8-retrospective.md §3`）**：`046t` **38/38 + 38/38**；`047t` 静态 **309/0/4/24**、动态 **312/0/4/21**（excluded 30；`known-fail 4` = TLS 3 + `strptime` 1；5 个 `long double` 已 pass）；`048t` 两档 **201/0/3/16/2**（discovered 222；**下一轮全量跑前按 `ISS-265` 逐例准入重算的预期 = `fail 0` / `known-fail 3`**〔准入前实测 `201/3/0/16/2`；静态 3 例 + 动态 `ft` 已抽验 `known-fail`，全量复跑待下一轮〕；`blocked 16` 逐条有根因）。
 4. **门控**：L1 rc=0、L2 rc=0、L3 rc=0；`check-patch-tree` **181**；收口秒级门控 rc 见 `INTEG-036m` 审阅记录。
 5. **未处置项（均不阻断 M8）**：`ISS-261`（`llvm-nm`）、`ISS-278`/`282`（日志存量搬迁/门控小遗留）、`ISS-288`/`289`（stale 证据/进程纪律）、`ISS-265`（`known-fail` 分类迁移）、`ISS-266`/`255`/`257`（qemu 宿主信号族）、`ISS-193`（picolibc 过滤表 stale 1 条）；**`M9` 面** = `ISS-252`/`246`/`260`、`LLVM-100t`。
 6. **归档**：`.tao/archive/M8/`（68 册 + `README.md` + `m8-retrospective.md` + `issues-closed.md` 52 条）；`SPEC-141t`（M9 标签、只读预研、未开工）留活。

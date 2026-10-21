@@ -246,3 +246,30 @@ exclude:
   - ir: tests/llvm/lit/CodeGen/DADAO/f128-round-to-int-libcall.ll
     class: no-value-entry
     reason: "FileCheck structural test (f128 integer-rounding libcalls); no `@main` value channel."
+  # (i) M9 LLVM tasks added structural atomic, inline-asm, and rotate tests.
+  #     They exercise llc diagnostics/instruction selection only and provide no
+  #     standalone `i64 @main()` value channel for the host-vs-DADAO driver.
+  - ir: tests/llvm/lit/CodeGen/DADAO/atomics-cas-narrow-sext.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (narrow atomic CAS operand canonicalization); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/atomics-cas.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (atomic CAS lowering); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/atomics-fence.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (atomic load/store fence lowering); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/atomics-store.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (atomic store source-register lowering); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/inline-asm-m-reject.ll
+    class: no-value-entry
+    reason: "FileCheck diagnostic test (`not llc` for unsupported constraint); no executable `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/inline-asm-m.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (inline-asm memory constraints); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/inline-asm-operands.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (inline-asm operand lowering); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/rol.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (rotate lowering); no `@main` value channel."

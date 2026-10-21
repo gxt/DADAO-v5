@@ -34,8 +34,9 @@ RF/FCSR、60 条 FP、M3 `sub.o`、7 条 M8 指令；007 又同步实现 `aip.si
 并保持 27 条 excluded（含 `fence` + 24 条 `lr/sc`）触发 `ILLI`；
 静态覆盖为 259/259，完整门控包含 329 条独立 FP oracle、620 条 remaining、20 条适用 E2E
 和 38 条 Embench 正确性用例。代表程序集接入 L2，完整程序集接入 L3；
-Machine-00 的 gem5 能力逐格附证。任务 008 的里程碑收口仍未完成。状态和复现
+Machine-00 的 gem5 能力逐格附证。008 专项代表/完整档与反例已复验，
+仓库级 L1/L2/L3 与专项完整门控均通过，裸机闭环已置为 `里程碑`。状态和复现
 证据见 `evidence/GEM5-003t.md`、`evidence/GEM5-004t.md`、
 `evidence/GEM5-005t.md`、`evidence/GEM5-006t.md`、
-`evidence/GEM5-007t.md`；早期 50 条阶段结果保留在
+`evidence/GEM5-007t.md`、`evidence/GEM5-008m.md`；早期 50 条阶段结果保留在
 `evidence/GEM5-004t-checkpoint.md`。

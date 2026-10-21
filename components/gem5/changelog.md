@@ -14,6 +14,8 @@
   - 摘要：实现 RF/FCSR、60 条 FP、M3 `sub.o` 和 7 条 M8 位操作；11 条 excluded 编码保持 `ILLI`，234/234 opcode 覆盖、329 条 FP oracle 与 541 条 remaining 用例通过。
 - **2026-10-19 `GEM5-007t`**
   - 摘要：同步新增 `aip.si` 及其 IP 相对语义；建立裸机 E2E/Embench 清单、代表档与全量档，记录退出码和最终状态差分，并将 gem5 代表/完整门控接入 L2/L3。
+- **2026-10-21 `GEM5-008m`**
+  - 摘要：完成裸机闭环核验；opcode 259/259、current 510、Machine-01 47、remaining 620、FP 329、程序 58/58，L1/L2/L3 与反例门控全绿。
 
 ## M9
 

@@ -23,7 +23,7 @@ spec/ + contracts/ → 独立向量 ───────┤→ gem5 DADAO ISA +
 ```
 
 - gem5 上游基线采用官方 `v25.1.0.1`，完整 commit `c8222cc67a399bfc01e8658dd14b30d5bfd634f9`；`ADR-0035` D1–D3 已逐条确认并 Accepted，组件启用仍须通过 `GEM5-002t` 的基线实核。源码只在 `.work/source/gem5`，定制以 `components/gem5/` 树形补丁集入库。
-- 测试机接口以 `spec/Machine-01`、`.tao/knowledge/contract-elf.md`、`contract-isa.md`、`contract-fp.md` 和 `contract-semihosting.md` 为真源；`ADR-0036` D1–D4 已逐条确认并 Accepted。
+- 测试机接口以 `spec/Machine-01`、`.tao/contracts/contract-elf.md`、`.tao/contracts/contract-isa.md`、`.tao/contracts/contract-fp.md` 和 `.tao/contracts/contract-semihosting.md` 为真源；`ADR-0036` D1–D4 已逐条确认并 Accepted。
 - 指令字与数据大端、32 位定长取指、RD/RB/RA/RF 各 64×64 位及 `rb0` 当前 PC、RA 栈语义均按合约实现。`contracts/opcodes.yaml` 的当前有效范围是覆盖清单；`scope: excluded` 维持规定的非法指令行为。
 - 使用 gem5 ISA 描述生成译码；单核 `AtomicSimpleCPU`、全系统裸机配置。`make build-gem5` 构建 `build/DADAO/gem5.opt`；`test-gem5` 跑代表集，`check-gem5-full` 跑完整适用集。运行产物经 `manifests/install-dirs.lock.toml` 与 `tools/infra/paths.py` 落测试产物目录。
 
@@ -59,9 +59,9 @@ spec/ + contracts/ → 独立向量 ───────┤→ gem5 DADAO ISA +
 
 规划复核（2026-10-12）：独立审查发现并修正空补丁集门控、最小执行 fixture、ADR 状态标题、里程碑对 `k` 状态的核验和构建目标任务归属；修订后无剩余 finding。此处的 `已验证` 只表示路线和分解经过复核，不表示 `GEM5-002t`–`008m` 已执行。
 
-## 2026-10-19 实施快照
+## 2026-10-21 实施快照
 
-- `GEM5-002t`–`007t` 已验证；下一项为 `GEM5-008m` 裸机闭环核验。
-- 当前门控：ISA current 517/517、Machine-01 47/47、remaining 548/548、FP 329/329、opcode 覆盖 235/235；程序集代表 9/9、完整 58/58。
-- gem5 组件保持官方基线 `c8222cc...` 上 base+1 单提交 `a5cfbfd...`，40 份逐文件补丁可重放。
-- 余下路线仅 `GEM5-008m`（M8 核验）。
+- `GEM5-002t`–`007t` 已验证，`GEM5-008m` 已置为 `里程碑`；gem5 裸机闭环路线完成。
+- 当前门控：ISA current 510/510、Machine-01 47/47、remaining 620/620、FP 329/329、opcode 覆盖 259/259；程序集代表 9/9、完整 58/58。
+- gem5 组件保持官方基线 `c8222cc...` 上 base+1 单提交，40 份逐文件补丁可重放。
+- `GEM5-008m` 专项门控、反例与 L1/L2/L3 均已复验通过；证据见 `components/gem5/evidence/GEM5-008m.md`。

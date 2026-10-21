@@ -11,6 +11,8 @@
 (A) 检查（**悬空即红**）：
   扫描 `AGENTS.md` / `spec/**/*.md` / `.tao/knowledge/**/*.md` / `.tao/tasks/**/*.md`
   / `.tao/contracts/**/*.md` 中对 `.work/**` 的引用；对**可判定的具体路径**做存在性检查，不存在即 FAIL。
+  已终态（`已验证` / `里程碑`）任务书中的路径按归档任务同等处理为历史记录；
+  知识页和非终态任务仍严格检查。
 
 引用形态口径（详见 AGENTS.md「文档分层与单一真源」与 lessons §3.16）：
   - `<>` / `*` / `$` 形（占位或通配，如 `.work/log/<模块>/`、`.work/log/**`、
@@ -67,6 +69,8 @@ _DELETION_MARKERS = ("已删", "删旧", "删除", "删掉", "deleted", "removed
 
 # 构建/源码树豁免（`clean-work` 即清；risk B）。
 _EXEMPT_PREFIXES = (".work/build", ".work/source")
+_TERMINAL_TASK_STATES = ("已验证", "里程碑")
+_TASK_STATUS_RE = re.compile(r"^\*\*状态\*\*：(.+)$", re.MULTILINE)
 
 
 def _is_exempt(path: str) -> bool:
@@ -89,6 +93,18 @@ def _classify(raw: str) -> str:
         return "exempt"
     # path used for existence check is the cleaned token
     return "check"
+
+
+def _is_terminal_task(root: Path, path: Path, text: str) -> bool:
+    """Treat terminal active task records like archived task history."""
+    try:
+        rel = path.relative_to(root)
+    except ValueError:
+        return False
+    if rel.parts[:2] != (".tao", "tasks"):
+        return False
+    match = _TASK_STATUS_RE.search(text)
+    return bool(match and match.group(1).strip() in _TERMINAL_TASK_STATES)
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +178,7 @@ def _adr_labels(text: str) -> tuple[set[str], set[str]]:
             for m in _ADR_HEADING_DESIG_RE.finditer(title):
                 decisions.add(m.group(1))
             # 命名小节名 = 标题首词（切在空白 / 全角/半角括号 / 冒号），兼容 `Consequences（影响）`。
-            name = re.split(r"[（(：:\s]", title, 1)[0]
+            name = re.split(r"[（(：:\s]", title, maxsplit=1)[0]
             if name:
                 sections.add(name)
     return decisions, sections
@@ -360,12 +376,14 @@ def audit(root: Path) -> int:
     n_prefix = 0
     n_exempt = 0
     n_deleted = 0
+    n_terminal_task = 0
 
     for f in files:
         try:
             text = f.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
+        terminal_task = _is_terminal_task(root, f, text)
         for lineno, line in enumerate(text.splitlines(), 1):
             for m in _REF_RE.finditer(line):
                 found += 1
@@ -384,6 +402,9 @@ def audit(root: Path) -> int:
                 if any(mk in line for mk in _DELETION_MARKERS):
                     n_deleted += 1
                     continue
+                if terminal_task:
+                    n_terminal_task += 1
+                    continue
                 checked += 1
                 tok = raw.rstrip(".")
                 if not (root / tok).exists():
@@ -398,6 +419,7 @@ def audit(root: Path) -> int:
     print(f"    前缀截断 (跳过): {n_prefix}")
     print(f"    构建/源码 (豁免): {n_exempt}")
     print(f"    删除语境 (历史): {n_deleted}")
+    print(f"    终态任务书 (历史): {n_terminal_task}")
     print(f"    具体路径 (校验): {checked}")
     print(f"  悬空: {len(dangling)}")
     if dangling:
