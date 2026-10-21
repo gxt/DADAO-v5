@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M9
 **依赖**：`ADR-0034`（`D1`–`D7`，已 `Accepted`；`fence` 新编码 `100-000`、`lr/sc` 24 条新命名已在 11/12 两册落纸）；`SPEC-152t`（同模块「改生成器 → 重生成 → 只读锁重算」先例）；**串行**：本册 → `SPEC-154t`（两册同改 `spec/`；且 `154` 的 `0.5.5-rc` 快照须含本册结果）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -153,6 +153,7 @@
 - ② 溯源注释仍写 `SimRISC-12 §3.x`：`tools/qemu/generate_atomics_vectors.py` 6 处、`tools/testcases/generate_lit_vectors.py` 1 处、`components/**` 19 处（patches/changelog）——改则牵动向量重生成/补丁 blob，按派单不改。
 - ③ 历史不改：`.tao/adr/*` 5 处、`.tao/tasks/**` 23 处、`.tao/archive/**` 6 处、`issues.yaml` 旧 notes 1 处（L730）。
 - ④ `MEMORY.md` excluded 计数陈旧（见「新发现/坑」），未改。
+- ⑤ `tests/**` 内 **162 处**溯源引用仍指旧原子章（现场计数：`git grep -c 'SimRISC-12' -- tests/` 逐文件求和 = 162 处 / 10 个 tracked 文件；形态 `§3.2` 113 + `§LR-SC指令` 26 + `§3.1` 21 + `§fence指令` 2，最大来源 `tests/vectors/atomics/atomics-lrsc.yaml` 109）——性质同 ②「溯源注释，改则重生成向量」，按派单不改；已登记 **ISS-316**（P3，`scope: [testcases, spec]`）。〔补记 2026-10-21：reviewer 第 1 轮指本项漏列；reviewer 记 161，本笔现场 162，差 1 = `tests/scripts/build_test_binary.py:346`（docstring），数量以现场 `git grep` 为准。〕
 
 ## 审阅记录
 
@@ -172,3 +173,58 @@
 判决：findings 已全部处置（修 / 核 / 延后登记）。按派单要求**未改** `**状态**`（保持 `待开始`），返回主会话验收。
 
 > **改动面披露（architect，2026-10-21）**：本笔提交的改动面**超出**任务书「只改」清单——含 `.tao/contracts/contract-isa.md`（引用指针 6 处）、`.tao/knowledge/MEMORY.md`（章节指针 4 处 + `excluded` 计数按现场订正 **27**）、`spec/README.md`（分册职责 2 行）、`.tao/knowledge/issues.yaml`（新增 `ISS-315` 登记遗留）；均为迁册**必需的指针 / 台账同步**，**无语义改动**。
+
+### 第 1 轮 reviewer 验收
+
+**重跑现场**：`master = origin/master = 9f49a3ca`；开工快照 `git status --porcelain -uall` = **空**。以下全部为我本人执行的真实 rc。
+
+- **正文逐字**：`git show 4cbafbfc:spec/SimRISC-12-待定.md` 抽 `## 3.`–`## 4.` 前（**94 行 / 4652 B**），仅改三处标题编号后与 `spec/SimRISC-11-其它.md` L185–278 `cmp` ⇒ **rc=0**（逐字节相等）。S12 现 `## 1./2./3. SRAM块传输指令/附录` 编号连续，正文无 `fence`/`lr.`/`sc.` 指令行（`grep` 7 处命中全在附录 L57–77，历史条目）。
+- **集合不变式（我自写脚本，oracle = `contracts/opcodes.yaml` 的 `spec_cite`，基线钉 `4cbafbfc`）**：`|O|=25`、`|S12_before|=27`、`|S11_before|=5`、`|S11_after|=30`、`|S12_after|=2`、`moved=25`；`S11_after−O−S11_before = []`、`O−S11_after = []`、`S12_before−O = [cfxld_crii_cfx, cfxst_crii_cfx]`、交集 `[]`、`27 = 25 + 2`；§2 `decode ILLI` 25 + 2 = **27** 与 `scope: excluded` **27 条集合相等**（差集双向空）。
+- **计数（现场派生）**：S11 册头/§1.1/表行 = **30/30/30**、§2 = **25**；S12 = **2/2/2**、§2 = **2**。
+- **指针 / 锁 / 附录**：`.tao/contracts/` 陈旧 `SimRISC-12 §fence|§LR-SC` = **0**；`check_spec_refs` = **PASS (0 violations)**；`contract-isa.md` 6 处已指 S11、`§SRAM块传输指令` 未动；MEMORY 3 处 / `spec/README.md` 2 行指 S11，`### 6.1/6.2` 可解析。锁 S11 `db889e3e…`、S12 `f36c7752…` 与实测 sha 一致，`check-spec-readonly` **21 册 OK**、注记含用户原话。两册 `0.5.5-rc` 各 **+1 条**。生成区：`gen_legality_list --verify` **rc=0**、`gen_asm_list --embed-spec` **rc=0**（该脚本**无** `--verify` 参数，试跑 rc=2；生成物一致性由 `check-asm-list-drift` 覆盖，rc=0）；`classify()` 已收窄为 `m in ("cfxld","cfxst")`。
+- **门控（我本人重跑，取自 `run.sh` default 逐条）**：15 项 `make check-*` **全部 rc=0**，`make check`(L1) **rc=0**。
+- **证据脚本 ✗**：`./.work/evidence/SPEC-153t/run.sh` ⇒ **rc=1**（C1 `StopIteration` rc=1；C3 `|S12_before|=2 != 25+2` rc=1；C4 `30 != 55`、`2 != -23` rc=1；C2/C5/C6 + 15 门控 + L1 均 OK）。`run.sh --inject` ⇒ **rc=1**（3/3 注入后 rc=1、md5 `MATCH`，但 `check-*-after-restore` **3/3 = 1 不回绿**）。
+- **独立注入（我自做，`cp` + md5，未用 git checkout）**：① 删 S11 §1 一行 `lr.w.nn` ⇒ 我的集合脚本 **rc=1**（`missing=['lr.w.nn_orrr_rd']`、`moved=24`）⇒ 还原 md5 `match=YES` ⇒ **rc=0**；② S12 正文插 `fence rw, rw` ⇒ `checks.py c2` **rc=1** ⇒ 还原 ⇒ **rc=0**。结束时 `git status --porcelain -uall` 空。
+
+**根因**：`checks.py::master()` 用 `git show master:<rel>` 取「迁移前」状态，而 architect 已把本册改动提交为 `9f49a3ca`（= `master`）⇒ 取到的是**迁移后**文件（S12 §3 已删、S12=2、S11=30），C1 的 `next()` 抛 `StopIteration`、C3/C4 派生基线错算。脚本仅在「改动未提交」时才绿，与「提交后才验收」的流程时序冲突；完成区「证据 rc=0、--inject 3/3 绿」在**当前盘上不成立**。
+
+**约束核验**：语义/编码/命名一字未改（`cmp` 证）✓；`contracts/**`、`.tao/archive/**`、`.tao/adr/**`、`components/**` 零改动（`git diff 4cbafbfc 9f49a3ca -- <路径>` 为空）✓；生成区未手改 ✓；本册之外我只写了本段 ✓。
+
+**披露**：完成区遗留 ② 漏列 `tests/**` 陈旧 `SimRISC-12 §3.x/§fence/§LR-SC` 引用 **161 处**（`tests/vectors/atomics/*.yaml` 的 `spec_cite`、`tests/llvm/lit/**` 的 `@src`、`tests/scripts/build_test_binary.py`），性质同「溯源注释，改则重生成」，**须补登记**（这些文件未被改动，不违「不改」约束）。
+
+**判决：Needs Revision** —— 失败项 = 验收 9 与派单断言 9：`.work/evidence/SPEC-153t/run.sh` default **rc=1**、`--inject` **rc=1**（还原后不回绿），完成区相应声明与真实输出不符。
+**修改建议（不改契约、只修脚本）**：`checks.py` 的 `master()` 将 ref 由 `master` 改为**固定基线 `4cbafbfc`**（立册提交；脚本头注明「基线 = 立册提交，不随 `master` 前移失效」），`c4` 的 `exp11/exp12` 随之恢复 `5+25=30` / `27−25=2`；改后重跑 `run.sh`（预期 **rc=0**）与 `run.sh --inject`（预期 3/3 红 → `cp`+md5 还原 → 3/3 绿 **rc=0**），并把 `tests/**` 161 处补进遗留 ②。**我未改任何代码、未提交 git。**
+
+## 证据脚本返工（2026-10-21）
+
+旧基线为何失效：`checks.py::master()` 用 `git show master:<rel>` 取「迁移前」状态，而本册改动已落在 `master`（`9f49a3ca`）⇒ 取到**迁移后**文件，C1 `StopIteration`、C3/C4 派生基线错乱、`--inject` 还原后 3/3 不回绿；脚本只在「改动未提交」时才绿，与「提交后验收」时序冲突。
+改法：基线钉固定提交 `PRE_REF`（默认 `4cbafbfc` = 迁移前最后一个提交，`PRE_REF=<sha>` 可覆盖），`run.sh` 开头打印 `PRE_REF=<ref> -> <full sha>`（不可解析即 rc=1 早退）；新增 `C0` 校验钉定确为迁移前状态（对 `master` 显式 FAIL 而非 traceback），`master()` 更名 `pre()`，异常归一为 `CheckError`（rc=1 带说明）。
+复验（2026-10-21）：`run.sh` rc=0（C0–C6 + 15 门控 + L1）；`run.sh --inject` rc=0（3/3 注入红 → `cp`+md5 `MATCH` 还原 → 3/3 回绿）；额外反例 `PRE_REF=master` ⇒ C0 rc=1、`PRE_REF=deadbeef` ⇒ rc=1 早退。
+`tests/**` 陈旧引用现场 **162** 处（`git grep -c` 求和）⇒ 完成区遗留 ⑤ + **ISS-316**（P3，`scope: [testcases, spec]`）。
+
+### 自审（engineer，证据脚本返工，逐行）
+
+审查对象：`checks.py` 全文（`git`/`resolve_pre`/`pre`/`_index_of`/`c0`/`c1`/`c3`/`c4`/`main` 异常路径）+ `run.sh` 全文（`PRE_REF` 解析/早退、`run_step` 退出码、注入/还原、informational 段）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 「迁移前」仍靠会移动的 ref ⇒ 提交后必红 | ✅已修 | `master()`→`pre()`，ref = `PRE_REF`（默认 `4cbafbfc`）；新增 `c0` 校验基线确为迁移前 | `run.sh` rc=0；`PRE_REF=master` ⇒ c0 rc=1（4 条 FAIL 明细） |
+| F2 `atomics_chapter` 取全文件首个 `---`（可能在 §6 之前） | ✅已修 | 加 `start=a` 只从 §6 标题后找分隔符 | C1 `2880 chars` 逐字节相等、rc=0 |
+| F3 缺锚点/ref 不可解析原抛 `StopIteration`/traceback（reader 看不出原因） | ✅已修 | 新增 `CheckError`/`BaselineError` + `_index_of`，`main` 统一捕获 ⇒ rc=1 带说明 | `PRE_REF=master` c1 打印「baseline is post-move?」rc=1 |
+| F4 `PRE_REF` 是否真传进子进程 | ✅已核 | `export PRE_REF` + 脚本头打印解析后 sha；不可解析即 rc=1 早退 | `PRE_REF=8681b7a5` c0 打印该 sha、rc=0；`PRE_REF=deadbeef` run.sh rc=1 |
+| F5 `tests/**` 计数若干（161 vs 现场） | ✅已核 | 结论：现场 162（`git grep -c` 求和 / 10 文件），差额 = `build_test_binary.py:346`；按现场数登记 | `run.sh` informational 行：`162 occurrence(s) in 10 tracked file(s)` |
+| F6 informational 段是否污染判决 | ✅已核 | 仅打印，不置 `FAIL`；计数现场派生（不写死） | default rc=0 且末行 `PASS` |
+| F7 还原纪律 | ✅已核 | `cp`+md5（不用 git 还原）；备份落 `/tmp/opencode/SPEC-153t-rework` | `--inject` 3/3 md5 `MATCH`；`git status` 仅本册 + `issues.yaml` |
+
+判决：findings 全部处置；`**状态**` 按派单**不改**（仍 `待验收`）。未改 `spec/**`（`git diff --stat master -- spec/` 空）、未 commit。
+
+### 第 2 轮 reviewer 验收
+
+**重跑现场**（我本人执行，真实 rc；迁移本身上轮已验，本轮只验脚本与新增登记）：
+- **基线钉定**：`checks.py` `PRE_REF = os.environ.get("PRE_REF", "4cbafbfc")`、`pre()` 取 `git show ${PRE_REF}:<rel>`，全文件**无**以 `master` 取基线的调用（仅注释提及）；`run.sh` 首行打印 `PRE_REF=4cbafbfc -> 4cbafbfc7d90…`。**反例 `PRE_REF=master ./run.sh` ⇒ rc=1**，C0 报 4 条 FAIL（缺 `## 3. 原子指令` / 缺 §3.1·§3.2 / S11 已有 §6 / baseline == working tree），并连带 C1·C3·C4 红 —— 「拿错 ref 必红」成立。
+- **`./run.sh` default ⇒ rc=0**：C0–C6 + 2 生成器 + 15 项 `make check-*` + **`make check`(L1) rc=0**，共 25 步全 `OK`、末行 `PASS`。
+- **`./run.sh --inject` ⇒ rc=0**：3/3 注入后 rc=1、md5 `MATCH`、**3/3 `after-restore` = rc=0 回绿**，末行 `PASS`；还原后 `git status` 无产物残留（两册 md5 与开工快照一致）。
+- **`tests/**` 陈旧引用（我自算）**：总数 **162 / 10 文件**（`git grep -n` 行数 = `git grep -c` 求和 = `git grep -o` 计数 = 162，三口径一致）；**形态真值 `§3.2` 112 + `§3.1` 22 + `§LR-SC指令` 26 + `§fence指令` 2**。`ISS-316` + 完成区遗留 ⑤ 的**总数 162 正确、登记恰当**（属测试资产且多由 `generate_atomics_vectors.py`/`generate_lit_vectors.py` 产出，**改指须先改生成器再重生成向量，宜独立成任务**，不据此阻断）；但其**形态明细 `113/21` 与现场 `112/22` 各差 1**（总数不受影响），**须订正这两个数字**（P3 台账文字，无门控依赖，随下笔修）。
+- **`git status --porcelain` = 2 个 `M`**（`.tao/knowledge/issues.yaml` = engineer 新增 ISS-316 **尚未提交**的返工改动；本册任务文件 = engineer 返工段 + 本段）——比派单预期多 1 个，**如实披露**，`spec/**`、`contracts/**`、`components/**` 对 `master` **零改动**。本轮 L1 共跑 2 次（default 1 次 + `PRE_REF=master` 反例 1 次），均 rc=0/预期红，未跑 `install-host`/`build`/L2/L3。
+
+**判决：Accepted** —— 上轮唯一阻断（证据脚本基线取 `master` 致 rc=1）已由 `PRE_REF` 钉定 + `C0` 自证修复，`default`/`--inject` 在我自己的重跑下均 rc=0 且 3/3 回绿；`ISS-316` 登记正确（总数符现场）。**遗留订正项**（不阻断）：ISS-316 / 遗留 ⑤ 形态明细 `113/21` → `112/22`。**我未改任何代码/产物、未提交 git。**
