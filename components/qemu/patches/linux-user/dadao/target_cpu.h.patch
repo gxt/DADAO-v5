@@ -1,9 +1,9 @@
 diff --git a/linux-user/dadao/target_cpu.h b/linux-user/dadao/target_cpu.h
 new file mode 100644
-index 0000000..0ad0f77
+index 0000000..d7d11de
 --- /dev/null
 +++ b/linux-user/dadao/target_cpu.h
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,40 @@
 +/*
 + * DADAO CPU ABI for linux-user (P3).
 + *
@@ -23,6 +23,10 @@ index 0000000..0ad0f77
 +
 +    /* The child sees a 0 return value in rd8 (contract-syscall.md §3). */
 +    env->rd[8] = 0;
++
++    /* A new hart starts with no LR/SC reservation (QEMU-067t): env is copied
++     * from the parent, whose reservation must not leak into the child. */
++    env->lock_valid = 0;
 +}
 +
 +static inline void cpu_clone_regs_parent(CPUDADAOState *env, unsigned flags)

@@ -3,7 +3,8 @@
 
 Binary layout (loaded at BINARY_BASE = 0xFC00_0000_0000, the single RAM segment):
   [section 1] loader   - Set rd/rb/ra registers from input_state, write memory
-  [section 2] test     - Raw encoding word (struct.pack('>I', word))
+  [section 2] test     - Raw encoding word(s) (struct.pack('>I', w); the
+                         optional `sequence:` emits several in order)
   [section 3] dumper   - Dump state to state-dump region (diagnostics only)
   [section 4] exit     - Compare expected_state with actual, write exit code
 
@@ -181,16 +182,25 @@ _ST_WIDTH_MAP = {
 }
 
 def derive_width_from_mnemonic(mnemonic):
-    """Derive memory access width from mnemonic (ld/st/ldm/stm).
+    """Derive memory access width from mnemonic (ld/st/ldm/stm/lr/sc).
 
-    Uses the last character of the mnemonic suffix to determine width:
+    Uses the last character of the width suffix to determine width:
     b->1, w->2, t->4, o->8. Handles ld.ub/uw/ut/sb/sw/st, st.b/w/t/o,
     ldm.ub/uw/ut/sb/sw/st, stm.b/w/t/o.
 
+    `lr`/`sc` carry the width as the SECOND dot-separated segment
+    (`lr.o.nn`, `sc.t.ar`; ADR-0034 D3: width first, storage order second), so
+    their width token is not the last segment.  Everything else keeps the
+    existing last-segment rule (default path unchanged).
+
     Returns (byte_width, encode_ld_fn, encode_st_fn).
     """
-    suffix = mnemonic.rsplit('.', 1)[-1]
-    width_char = suffix[-1]  # last char: b/w/t/o
+    parts = mnemonic.split('.')
+    if parts[0] in ("lr", "sc") and len(parts) >= 2:
+        width_token = parts[1]
+    else:
+        width_token = parts[-1]
+    width_char = width_token[-1]  # last char: b/w/t/o
     if width_char not in _LD_WIDTH_MAP:
         raise ValueError(f"Unknown mnemonic suffix for width derivation: {mnemonic}")
     byte_width, encode_ld_fn = _LD_WIDTH_MAP[width_char]
@@ -326,7 +336,21 @@ def build_loader(vector_case):
 
 
 def build_test_section(vector_case):
-    """Build test section: raw encoding word."""
+    """Build test section: the instruction(s) under test.
+
+    Default (unchanged, byte-identical): exactly one raw encoding word from
+    ``encoding.word``.
+
+    Optional ``sequence: [word, word, ...]`` emits several raw encoding words
+    back to back.  It exists for `sc`, whose success path is only reachable
+    after a same-address `lr` (SimRISC-12 §3.2) and therefore cannot be
+    expressed by a single instruction (QEMU-067t; see the task book's
+    "已知边界").  When ``sequence`` is absent the behaviour is byte-identical
+    to before.
+    """
+    sequence = vector_case.get("sequence")
+    if sequence:
+        return [int(w, 16) if isinstance(w, str) else w for w in sequence]
     word_str = vector_case["encoding"]["word"]
     instr_word = int(word_str, 16)
     return [instr_word]

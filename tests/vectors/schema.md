@@ -31,6 +31,7 @@
 | `status` | string | 可选，默认 `active` | `active` / `deferred` |
 | `deferred_reason` | string | `status=deferred` 时必填（非空） | 暂缓原因（如 `"C-27"`） |
 | `notes` | string | 可选 | 人类可读备注（如 `shamt = rd<k>`、PC 地址来源） |
+| `sequence` | list of string | 可选 | 多条原始编码字，按序连发（QEMU-067t）。用于单条指令无法表达其语义的场景——`sc` 只有在同址 `lr` 之后才可能成功，「失败清保留」需要 `lr → 失败的 sc → sc`。缺省（不写该字段）时 harness 走原单字路径，生成二进制与旧行为**逐字节一致**。当前由 `tests/vectors/atomics/*.yaml` 使用 |
 
 ### `encoding` 子结构
 

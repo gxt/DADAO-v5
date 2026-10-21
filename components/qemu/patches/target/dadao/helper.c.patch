@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..d7b6ea6
+index 0000000..95d3a4a
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,1001 @@
+@@ -0,0 +1,1008 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -72,6 +72,15 @@ index 0000000..d7b6ea6
 +
 +void dadao_cpu_do_interrupt(CPUState *cs)
 +{
++    CPUDADAOState *env = cpu_env(cs);
++
++    /*
++     * Exception/interrupt entry clears this hart's LR/SC reservation
++     * (SimRISC-12 §3.2: "异常或中断进入" is one of the clearing events, so an
++     * sc executed after a handler ran can never succeed -- QEMU-067t).
++     */
++    env->lock_valid = 0;
++
 +    /*
 +     * Semihosting short-circuit (ADR-0020 D4/D5/D10; Machine-01 §5): the trap
 +     * tag immu18[17:16] == 2'b11 is raised from the decode layer
@@ -82,8 +91,6 @@ index 0000000..d7b6ea6
 +     * env->pc to the trapping instruction, so += 4 is the return step.
 +     */
 +    if (cs->exception_index == DADAO_EXCP_SEMIHOST) {
-+        CPUDADAOState *env = cpu_env(cs);
-+
 +        do_common_semihosting(cs);
 +        env->pc += 4;       /* no `escape`; return by stepping past the trap */
 +        env->rb[0] = env->pc;

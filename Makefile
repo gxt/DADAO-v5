@@ -1039,8 +1039,11 @@ check-fp-contract:
 # through QEMU. The QEMU binary is taken from the install root (ADR-0016 D9;
 # INFRA-047t): run 'make install-host' first.
 # Runs all cases in isa/reg-shift-extend + isa/reg-compare + isa/aip-si + rol/rol
+# + atomics/atomics-lrsc + atomics/atomics-fence
 # (ISS-233: aip.si must be in the L3 carrier set, not only the L2 smoke set;
-#  QEMU-064t: rol.* is scope m9, so it lives outside isa/ and is carried here).
+#  QEMU-064t: rol.* is scope m9, so it lives outside isa/ and is carried here;
+#  QEMU-067t: fence/lr/sc are the implemented atomic semantics, carried here for
+#  the same reason -- they are not M1 identities, so not under isa/).
 # Uses symlinked temp dir + --batch for full coverage; cases run in parallel
 # via --jobs $(JOBS) (JOBS defaults to 8; never nproc/full-core).
 # Exit code propagates correctly (no pipe; shell rc capture per AGENTS.md).
@@ -1054,7 +1057,7 @@ QEMU_SEM_VEC_DIR = $(CURDIR)/tests/vectors
 check-qemu-semantics:
 	@mkdir -p .work/log/qemu || { echo "check-qemu-semantics: ERROR: cannot create .work/log/qemu"; exit 1; }; \
 	  mkdir -p $(QEMU_SEM_DIR) || { echo "check-qemu-semantics: ERROR: cannot create gate dir $(QEMU_SEM_DIR) (path occupied?)"; exit 1; }; \
-	  for v in isa/reg-shift-extend.yaml isa/reg-compare.yaml isa/aip-si.yaml rol/rol.yaml; do \
+	  for v in isa/reg-shift-extend.yaml isa/reg-compare.yaml isa/aip-si.yaml rol/rol.yaml atomics/atomics-lrsc.yaml atomics/atomics-fence.yaml; do \
 	    [ -e $(QEMU_SEM_VEC_DIR)/$$v ] || { echo "check-qemu-semantics: ERROR: vector $(QEMU_SEM_VEC_DIR)/$$v not found"; exit 1; }; \
 	    ln -sf $(QEMU_SEM_VEC_DIR)/$$v $(QEMU_SEM_DIR)/$$(basename $$v) || { echo "check-qemu-semantics: ERROR: failed to symlink $$v into $(QEMU_SEM_DIR)"; exit 1; }; \
 	    [ -L $(QEMU_SEM_DIR)/$$(basename $$v) ] || { echo "check-qemu-semantics: ERROR: $(QEMU_SEM_DIR)/$$(basename $$v) is not a symlink (stale/occupied path?)"; exit 1; }; \

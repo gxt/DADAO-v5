@@ -43,7 +43,7 @@
 | --- | --- | --- | --- |
 | LLVM-121t | 已验证 | 2026-10-21 09:25 | `fence` 立即数映射 + 24 条 `lr/sc`（def 173→197）+ CAS 环；`__atomic_*` 零 libcall（lr 40/sc 40/fence 98）；lit 125/125、isa 257/2 |
 | INFRA-100t | 待开始 | 2026-10-21 00:20（登记） | `ISS-294`：`a_cas`/`a_cas_p`/`a_barrier` 落 `lr/sc`+`fence`；4×250000 计数精确、047t 19 目标不回退 |
-| QEMU-067t | 待开始 | 2026-10-21 00:20（登记） | `fence` 顺序语义 + `lr/sc` 保留与宿主 CAS；向量覆盖成功/失败/MALIGN/ILLI + 端到端并发计数 |
+| QEMU-067t | 待验收 | 2026-10-21 00:20（登记） | `fence` fm/SBZ 校验 + pred/succ→TCG_MO；`lr/sc` 保留 + 8B 字 CAS + 按宽度 MALIGN；L3 +127 ⇒ semantics 351/351；并发 40000/40000 |
 | TESTCASES-056t | 待开始 | 2026-10-21 00:20（登记） | C11 全类型/`__atomic_*`/并发计数/ABA 探针两档验证；关 `ISS-294`（实现落 INFRA-100t） |
 | SPEC-141t | 已验证 | 2026-10-21 00:15 | 结册未执行：未定项转入遗留段 |
 | TESTCASES-055t | 已验证 | 2026-10-20 17:11 | ansibench 接入第一步：pin `ef90abd0`、7/8 构建成功、9 次运行、CoreMark/STREAM 自校验 PASS；基线对比=部分可行 |

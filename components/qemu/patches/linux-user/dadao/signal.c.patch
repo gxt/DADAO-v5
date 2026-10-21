@@ -1,9 +1,9 @@
 diff --git a/linux-user/dadao/signal.c b/linux-user/dadao/signal.c
 new file mode 100644
-index 0000000..4a28cea
+index 0000000..b977617
 --- /dev/null
 +++ b/linux-user/dadao/signal.c
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,234 @@
 +/*
 + * DADAO signal frames for linux-user (P3).
 + *
@@ -146,6 +146,13 @@ index 0000000..4a28cea
 +{
 +    abi_ulong frame_addr;
 +    struct target_rt_sigframe *frame;
++
++    /*
++     * Entering a signal handler is "exception/interrupt entry" for LR/SC
++     * purposes (SimRISC-12 §3.2): the reservation is gone, so an `sc` after
++     * the handler returns can never succeed (QEMU-067t).
++     */
++    env->lock_valid = 0;
 +
 +    frame_addr = get_sigframe(ka, env, sizeof(*frame));
 +    trace_user_setup_rt_frame(env, frame_addr);

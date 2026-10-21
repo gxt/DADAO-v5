@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M9
 **依赖**：`LLVM-121t`（①；安装根 `clang`/`llvm-mc` 须已能产出 `lr/sc`/`fence` 编码 —— 本册端到端要用）、`ADR-0034`（`Accepted`：编码/命名/语义定案）、`QEMU-064t`（上一轮解码/`trans_*` 迁移先例，`已验证`）、`QEMU-065t`/`QEMU-066t`（qemu-user 线程语义先例）、`ISS-307`（本批 4 册总账）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -152,16 +152,27 @@ else  tcg_gen_mb(<按 pred/succ 派生> ｜ TCG_BAR_SC)
 - **`lr/sc` 的保留清除**对「异常/中断进入」若实现成本过高 ⇒ 记限制 + 排除对应向量，**不得**静默算过。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`check-qemu-semantics` **351/351**（224 基线 + 127 新增，计数现场派生；`QEMU_BIN=.work/build/qemu/qemu-system-dadao`）；`check-qemu-smoke` **90/90** 不回归；`check_qemu_trans --strict` **259/259（M1 156/156）**；`validate_decodetree` PASS；`build-qemu` rc=0（增量 11 s）；端到端两线程 `__atomic_add_fetch` CAS 环 5/5 轮 **40000/40000** 精确（`nm -u` 无 `__atomic_*`）；注入 3/3（`run.sh --inject 1/2/3` 各 5–7 项全 rc=0）。
+**修改文件**：`components/qemu/patches/{target/dadao/{cpu.h,cpu.c,helper.c,translate.c,insn_trans/trans_ctrl.c.inc,insn_trans/trans_mem.c.inc},linux-user/dadao/{signal.c,target_cpu.h}}.patch`（8 份改，`series` 仍 60）；`components/qemu/changelog.md`（M9 +1 条）；`Makefile`（载体 +`atomics/atomics-{lrsc,fence}.yaml` 两行 + 注释）；`tests/scripts/build_test_binary.py`（可选 `sequence:` + `lr/sc` 宽度映射）；`tests/vectors/schema.md`（`sequence` 字段说明）；新增 `tests/vectors/atomics/atomics-{lrsc,fence}.yaml`（127 例）、`tools/qemu/generate_atomics_vectors.py`、`.work/evidence/QEMU-067t/{run.sh,atomic_counter.c}`、`.work/log/qemu/QEMU-067t/*.log`。
+**验收结果**：`check-patch-tree` **185 patches OK**（5 组件，断言①–⑨过）；`check-source-state` qemu `HEAD=528f2fe count=1 clean=True`；`check-index-blobs`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-run-artifacts`/`check-component-changelog`/`make check`(L1) 全 rc=0；证据脚本默认 **22/22 PASS**、`--inject 1` 5/5、`--inject 2` 6/6、`--inject 3` 5/5。
+**新发现/坑**：① **ISS-210 现场**：门控默认读安装根 ⇒ 未 `install-host` 前 `make check-qemu-semantics` 直接跑是 **FAIL**（新增向量全报 `ILLI`），本册一律用 `QEMU_BIN=<构建树>`；主会话须先 `install-host` 再复跑门控。② harness 既有缺陷（**非本册引入、未改**）：`build_exit_section` 的 `br.nz` 偏移按 `PC+4` 基准算，而 v5 语义是 `PC+imm*4` ⇒ 用例**失败**时跳过头落到 pass 段的 semihosting trap，表现为宿主 SIGABRT（rc=-6）而非干净 `exit 1`（门控仍 fail-closed）。③ 全屏障在 `-d op` 里打印 `mb seq:all`（非 `rr+rw+wr+ww`）。
+**遗留问题**：① 上②的 harness 失败路径偏移未修（超出本册允许的 `tests/scripts` 改动面，只影响 FAIL 时的报错形态）。② **语义取舍（披露，非缺陷）**：`sc` 的「地址匹配」按保留粒度 **8 B 字**比对（`lock_addr` = 对齐后字地址，同 task 设计要点 B）⇒ 同一字内不同偏移/宽度的 `sc` 也判成功；另一 hart 写**同值**检不出（ABA）；保留粒度 = 精确 8 B 字（非 cache line）；设备/非一致内存（`I`/`O`）无模型（按两内存类保守处理，只强不弱）；本实现不产生 spurious failure（比规范更严格，允许）。③ 异常/中断清保留已落三处（`do_interrupt` / user-mode `setup_rt_frame` / `cpu_clone_regs_child` + 复位），故**无**排除向量。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填）
+范围：8 份补丁源改动（`translate.c` 的 `gen_{lr,sc,be_shift,check_align_malign}`、`trans_ctrl` 的 `fence`、`cpu.h/cpu.c` 保留字段、`helper.c`/`signal.c`/`target_cpu.h` 清保留）、harness 的 `sequence:`/宽度映射、生成器与证据脚本逐行审查。判决：可实现、可达 FAIL 路径真实。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `lr` 语义用例把地址写成 `WORD_A` 而非 `WORD_A+k`，期望值/内存全错 | ✅已修 | 生成器 `rb4=addr` | 127/127 PASS（修前 18 FAIL/SIGABRT） |
+| F2 `sc` 清保留用例 `rd2` 期望按 k=0 算，而 `lr` 在 `WORD_A+k` | ✅已修 | `be_extract(...,k,...)` | 127/127 PASS |
+| F3 `sc` 的 CAS 前后寄存器读写顺序：目的 `rdHB` 可能与数据 `rdHC` 同号 | ✅无需改 | `load_rd(a->hc)` 在 `store_rd(a->hb,flag)` 之前生成 | 代码级核对（先读后写），向量 127/127 |
+| F4 `fence` 全屏障 op 匹配串写错（实际 `mb seq:all`）+ 可能「未翻译⇒0 mb」假绿 | ✅已修 | 断言改 `seq:all`；新增「op 转储 ≥50 行」非空洞守卫；新增 acquire 非全屏障反例 | 22/22 PASS；`--inject 3` 5/5 |
+| F5 证据脚本 `--inject 3` 锚错文件 + `SRC` 未定义 | ✅已修 | 按注入号选 `INJ_FILE`，备份/md5/回滚同一变量 | `--inject 3` 5/5 rc=0 |
+| F6 `lr.b`/`sc.b` 读整 8 B 字是否跨页 | ✅无需改 | 8 B 字按 `addr & ~7` 对齐 ⇒ 与目标字节同页（页≥4 KiB）；RAM 16 MiB | 代码级推导；向量/端到端全绿 |
+| F7 门控默认读安装根、当前安装根滞后 | ✅披露 | 验收统一 `QEMU_BIN=<构建树>`；完成区记录 `install-host` 前置 | 安装根直跑 FAIL 日志 vs 构建树 351/351 |
+| F8 注入改造后 RESTORE 只做 `cp`+md5 未验证构建树回绿 | ✅已修 | `inject-rebuild-green` + `inject<N>-back-to-green` 双检查 | `--inject 1/2/3` 各含两项全 rc=0 |
 
 #### 第 1 轮 reviewer 验收
 （待填）
