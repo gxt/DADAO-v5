@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M9
 **依赖**：`QEMU-063t`（宿主信号/卡死根因批次，已收口；本册复核其遗留注记）、`TESTCASES-053t`（同模块改 `tools/testcases/**`，**串行**）、`TESTCASES-052t`（当前全量跑口径，`待验收`）
-**状态**：待开始
+**状态**：待验收
 
 > **编号（现场取号，2026-10-20）**：`testcases` 现存最大 = `TESTCASES-053t` ⇒ 取 **`054`**（编写前 `find .tao -name 'TESTCASES-054t*'` = 0 命中）。
 
@@ -58,16 +58,34 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：证据脚本 `.work/evidence/TESTCASES-054t/run.sh`（full）**0 failed / RUN_EXIT=0**（13 节全绿）；`--inject`（廉价自检）rc=0。**可达 FAIL 3 处**（真实输出）：
+- (a) `lua` 表值临时 1320→840 ⇒ `klass=blocked run_seconds=840.01 run_timeout=840`、`reason` 含 `timeout after 840s`、driver rc=1；`cp`+md5 还原（`c334075b…`）后该例 **PASS**。
+- (b) 删 `XSBench` 表项 ⇒ `klass=blocked run_seconds=300.0 run_timeout=300`、`timeout after 300s`、rc=1；还原后 **PASS**。
+- (c) `CASE_NOTES[unix-smail]` 旧卡死文案临时恢复 ⇒ 文本断言 rc=1；还原后回绿。
+**收口两档真值（默认 timeout）**：`lua` 静态 **1135.37 s** / 动态 **1150.98 s**，`run_timeout=1320`，md5 命中（`6badfbeedd84d040f153876007407785`）；`XSBench` 静态 **522.61 s** / 动态 **534.52 s**，`run_timeout=720`，stdout byte-exact；`unix-smail` 两档 **0.11 s / 0.11 s**，stdout 35 B byte-exact（`run_timeout=300`，不入表）。全部 `pass`、`oracle_kind ∈ {md5,stdout}`、`pass_exit_only=0`（全量基线 = 2，未增）。
+
+**修改文件**：`tools/testcases/run_llvm_ts_user.py`（`CASE_TIMEOUTS`/`CASE_TIMEOUT_BASIS`/`QEMU_SIGNAL_ISSUES`/`CASE_NOTES`/三处 `DEFAULT_TIMEOUT` 注释）；本册。证据（`.work/`，gitignored）：`evidence/TESTCASES-054t/run.sh` + `results/*.json|run.log`、`log/testcases/TESTCASES-054t-run.log`。
+
+**验收结果**：`CASE_TIMEOUTS` 改后 = lua **1320**、XSBench **720**（新增），其余四条未动（lemon 480 / SimpleMOC 480 / mafft 1620 / nbench 480），`unix-smail` 不在表；`CASE_TIMEOUT_BASIS["lua"]` = 本次实测 `1141.74 s (static) / 1167.14 s (dynamic)+120 → 1287.14 → 1320`（旧 670.52/`SIGSEGV`/`QEMU-063t` 叙述删净），`XSBench` = `533.44/541.58 → 661.58 → 720`，与册内公式逐例复算一致；`QEMU_SIGNAL_ISSUES` 已空（lua 条目删）；`CASE_NOTES[unix-smail]` 条删、三处注释改为「实测 0.11 s 完成，不入表因 ≪300 s」。门控：`make check`(L1) rc=0、`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check-run-artifacts`/`check-milestones-fresh`/`check_issues` 全 rc=0（`check_issues` 无 make 目标，直接 `python3 tools/infra/check_issues.py`）。
+
+**新发现/坑**：① `unix-smail` 实测两档 0.11 s 跑完且 byte-exact；`QEMU-063t` 归档诊断的「`/bin/sh` 缺失 ⇒ 10×`sleep(60)` 重试」现不复现（无 600 s 等待），卡死面按实测闭合——建议主会话回填 `ISS-266`（lua 宿主 SIGSEGV 本次两档均不复现）+ `unix-smail` 卡死面。② `pass_exit_only` 是**轮级计数**（`counts`），逐例记录无此字段；断言须用 `oracle_kind` 判「非 exit-only」。③ 驱动 `--link-mode both` 会给 `--json-out` 词干追加 `-static/-dynamic`，单档不追加 ⇒ 断言取路径须两支回退。④ 中途被杀的第一版证据脚本留下**空运行目录** `.dadao/tests/llvm-ts-user/<UTC>-llvm-ts-user-static`（仅目录、无三件套）⇒ `check-run-artifacts` A2 红；`rmdir` 后回绿（进程终止即清理不完整产物）。⑤ `lua` 本次实测 1135.37/1150.98 s，比主会话测量（1141.74/1167.14）快约 6–16 s（机器抖动），预算与公式结论不变。
+
+**遗留问题**：① `**状态**` 按本笔指令**未改**（仍 `待开始`；`check-milestones-fresh` A1 要求表行与册内状态一致，单改本册会破门控）⇒ 请 architect 在 `/complete` 时把本册 `待验收`/`已验证` 与 `milestones.md` 表行**同步**改写。② `issues.yaml` 未改（下发范围限定为驱动 + 本册）⇒ `ISS-266` 回填建议见「新发现」。③ 未跑 L2/L3（本册只动预算与注释，按册约定）。④ 未 commit/push。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+审查范围：`git diff tools/testcases/run_llvm_ts_user.py` 全 46 行改动 + 证据脚本 13 节断言。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 证据脚本 `assert_json`/`assert_pass_official` 只认 `<tag>-<mode>.json`，单档跑写的是 `<tag>.json` ⇒ 断言必假红 | ✅已修 | 两函数加「文件存在则用 `<tag>-<mode>`，否则 `<tag>`」回退 | full 跑第 4/6/7/8/9 节全 PASS；第 3/5 节注入态亦按同一路径取到 JSON |
+| F2 依据串含 3 个浮点（实测两档 + 推导值），`len(vals)!=2` 恒假红 | ✅已修 | 取前两个浮点 `[:2]` | 第 10 节：`lua … 1141.74/1167.14 → 1287.14 → 1320 [PASS]`、`xsbench … → 720 [PASS]` |
+| F3 逐例记录无 `pass_exit_only` 字段，原断言 `not c.get(...)` 恒真（假绿） | ✅已修 | 改用 `oracle_kind ∈ {md5,stdout,raw}` 判「参考 oracle」 | 第 11 节逐轮打印 `pass_exit_only=0` + `oracle_counts`；第 4/6/7/8/9 节 oracle 打印 `md5/stdout` |
+| F4 第一版脚本中途被杀，残留空运行目录 ⇒ `check-run-artifacts` A2 红 | ✅已修 | `rmdir` 该空目录（无三件套、非仓库跟踪区） | `make -s check-run-artifacts` 复跑 PASS；空注入检查（注入前后 md5 比对）在脚本内生效 |
+| F5 自己改动是否夹带判定逻辑（把 blocked 改 pass 的风险） | ❌不修（无此改动） | 未动 `klass`/oracle/阈值 | 证据第 12 节：diff 中 0 行命中 `klass=`/`expected_hash`/`oracle_kind=`；`pass_exit_only` 全 0；注入态仍是 `blocked` 而非 pass |
+
+判决：findings 全部 ✅已修/❌无此改动，无未修项。**状态处置**：按本笔指令未改 `**状态**`（见「遗留问题 ①」），返回主会话由 architect 与 `milestones.md` 同步。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
@@ -76,3 +94,9 @@
 - 档位：`待开始`（立册，按主会话指令正常提交）
 - 提交：`f261fef`（同上分支）⇒ `master` squash `84a5231`
 - 文件集对账：2 文件 = 本册（新建）+ `milestones.md`（流水行 + 未完成块）；号唯一（`find .tao -name 'TESTCASES-054t*'` 立册前 0 命中）
+
+#### 提交记录（architect，2026-10-21，实现落盘）
+- 档位：`待验收`（reviewer 尚未判决；按主会话指定信息**原样**提交、未加 `WIP:` 前缀——与立册笔同一授权口径，偏差在此披露）
+- 提交：`aecd9418`（`TESTCASES-054t` 分支）
+- 文件集对账：`--cached` 3 文件 = 本册（`**状态**` 待开始→待验收）+ `tools/testcases/run_llvm_ts_user.py` + `.tao/knowledge/milestones.md`（流水行状态 + 未完成块同步）⇒ 完成区「修改文件」声明的 2 项全覆盖，`milestones.md` 为主会话指定的同步项；**无漏提 / 无多提 / 无越界**（`issues.yaml` 未动，`ISS-266` 回填留 `/complete`）
+- 门控：`make -s check`（L1）**rc=0**（含 `check-milestones-fresh` A1/A2/A4 26 行、`check-run-artifacts`、`check-knowledge-refs` 0 悬空、`check-no-residue`）

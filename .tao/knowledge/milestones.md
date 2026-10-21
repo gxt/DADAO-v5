@@ -34,7 +34,7 @@
 
 > **未完成任务册（现场派生，清单见下）**
 > - 缺陷修复批（2026-10-20 立册，`ISS-302`；`LLVM-118t`/`119t`/`120t`、`INFRA-096t`/`INFRA-097t` 已 `已验证`）：`INFRA-098t`（`ISS-261` + `ISS-301`）、`INFRA-099t`（`ISS-229` 门控互斥）、`TESTCASES-053t`（`ISS-270`/`273`/`282`/`288` 陈旧证据脚本族）
-> - `TESTCASES-054t`：`M9` 超时预算重标（`lua` 840→1320、`XSBench` 300→660；`unix-smail` 疑已随 `QEMU-063t` 修复；`待开始`）
+> - `TESTCASES-054t`：`M9` 超时预算重标（`lua` 840→1320、`XSBench` 新增 720；`unix-smail` 0.11 s 不入表、卡死面不复现；`待验收`）
 > - `SPEC-141t`：`M9` / ISA 扩展预研 —— **结册未执行**（2026-10-21；未定项见下「ISA 扩展预研遗留」）
 > - `ADR-0034`（2026-10-20 定案 / 2026-10-21 转正）：原子编码定案（`fence` `0x20`、`lr/sc` 24 条），规范面/合约/生成面已落；**实现 4 册全部 `已验证`**（`ISS-307` `closed`，2026-10-21）
 > - **原子链 4 册（`ISS-307`）现状**：① `LLVM-121t`（返工修复 `ISS-312`/`ISS-313`，reviewer 第 3/4 轮 `Accepted`，20 条 XFAIL 已转 PASS）、② `QEMU-067t`、③ `INFRA-100t`、④ `TESTCASES-056t`（reviewer 第 2 轮 `Accepted`；两档 711/711、0 xfail）= **全部 `已验证`** ⇒ `ISS-307` `closed`，`ISS-294` 随 ③/④ 收口。
@@ -64,7 +64,7 @@
 | TESTCASES-052t | 已验证 | 2026-10-20 10:52 | T3 线程 19 例两档 19/19（`QEMU-066t` 后）；`ISS-299` closed；`ISS-252` 仍 open（extra 例受 `ISS-257`） |
 | LLVM-116t | 已验证 | 2026-10-20 09:02 | ext/shl 编码迁移 + rol.o/t/w/b；ROTL 直连 1 条、ROTR 折 2 条；check-instrinfo 0 错、lit 120/120 |
 | QEMU-064t | 已验证 | 2026-10-20 09:02 | 解码 235→243；rol.o/t/w/b 语义；L3 224/224（独立 oracle 64/64）、smoke 90/90；L1 全绿 |
-| TESTCASES-054t | 待开始 | 2026-10-20 07:52（登记） | 超时预算重标：lua/XSBench/unix-smail 两档实测；`CASE_TIMEOUTS` 按实测+120 s 重标，清过时注记 |
+| TESTCASES-054t | 待验收 | 2026-10-20 07:52（登记） | 超时预算重标：lua 840→1320、XSBench 新增 720（实测+120 s）、unix-smail 0.11 s 不入表；清过时注记 |
 | INFRA-098t | 待开始 | 2026-10-20 04:55（登记） | ISS-261 安装集补 `llvm-nm`/`llvm-readelf`；ISS-301 builtins stage 路径三处同源 + 归档确定性查清 |
 | INFRA-099t | 待开始 | 2026-10-20 04:55（登记） | ISS-229：门控/安装根写者互斥（flock 或等价，嵌套不死锁）——注释纪律升级为机械可判 |
 | TESTCASES-053t | 待开始 | 2026-10-20 04:55（登记） | ISS-270/273/282/288：陈旧证据脚本族逐条修或按 `Process-08` 重建；不许放宽断言 |

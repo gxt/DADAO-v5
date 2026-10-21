@@ -226,9 +226,10 @@ Per-case run timeouts (TESTCASES-050t item 2) are the ``CASE_TIMEOUTS`` table:
 values measured on this host (``run_seconds`` in the JSON) plus a 120 s
 margin, rounded up to the next minute, applied in addition to ``--timeout``
 (effective timeout = ``max``).  ``DEFAULT_TIMEOUT`` stays at the baseline
-300 s; raising it globally would make the hanging ``unix-smail`` burn the whole
-budget in every full run.  ``unix-smail`` is not in the table: it hangs
-(QEMU-063t) and a longer timeout would only hide that.
+300 s; it is not raised globally because only a handful of programs need more,
+and every other case would then be able to burn that budget before a hang is
+reported.  ``unix-smail`` is not in the table because it completes: measured
+0.11 s in both link modes (TESTCASES-054t), far below the 300 s baseline.
 
 Every case record keeps: compile command lines, link command, run argv, work
 directory, oracle file, stdout sha256 + size, min ``PT_LOAD``, ``PT_INTERP``
@@ -285,28 +286,32 @@ DEFAULT_SRC = ".work/source/llvm-test-suite"
 DEFAULT_MUSL = ".work/source/musl"
 DEFAULT_WORK_DIR = str(_paths.test_artifacts_dir() / "llvm-ts-user")
 # Baseline budget (the value TESTCASES-048t's full runs used).  It is *not*
-# raised globally: doing so would make the hanging ``unix-smail`` burn the whole
-# budget in every full run (QEMU-063t).  The genuinely slow programs get their
-# own measured budgets in ``CASE_TIMEOUTS`` instead.
+# raised globally: only the few genuinely slow programs need more, and a global
+# raise would let every other case burn that time before a hang is reported.
+# The genuinely slow programs get their own measured budgets in
+# ``CASE_TIMEOUTS`` instead.  ``unix-smail`` is not one of them: it completes in
+# 0.11 s in both link modes (TESTCASES-054t), well inside this baseline.
 DEFAULT_TIMEOUT = 300
 DEFAULT_JOBS = 4
 BUILD_TIMEOUT = 300
 
-# Per-case run timeouts (TESTCASES-050t): five programs need more than the
-# default on this host; their 300 s truncation in TESTCASES-048t was a timeout
-# *setting*, not a property of the program.  Formula (documented, not guessed):
+# Per-case run timeouts (TESTCASES-050t, re-measured in TESTCASES-054t): six
+# programs need more than the default on this host; their 300 s truncation in
+# TESTCASES-048t was a timeout *setting*, not a property of the program.
+# Formula (documented, not guessed):
 #
 #     value = ceil((measured run_seconds + 120 s margin) / 60) * 60
 #
 # with ``run_seconds`` measured at jobs=1 on this host (recorded per case in
 # the run JSON and in CASE_TIMEOUT_BASIS below).  ``--timeout`` stays a floor:
 # the effective timeout is ``max(--timeout, table value)``.  ``unix-smail`` is
-# deliberately absent: it hangs after one line (QEMU-063t), so it keeps the
-# default budget and is reported ``blocked`` with that pointer.
+# deliberately absent because it completes in 0.11 s (both link modes,
+# TESTCASES-054t), far below the 300 s baseline, so it needs no entry.
 CASE_TIMEOUTS = {
     "MultiSource/Applications/lemon": 480,      # 331.43 -> 451.43 -> 480
-    "MultiSource/Applications/lua": 840,        # 670.52 -> 790.52 -> 840
+    "MultiSource/Applications/lua": 1320,       # 1141.74/1167.14 -> 1320
     "MultiSource/Benchmarks/DOE-ProxyApps-C/SimpleMOC": 480,  # 349.54 -> 480
+    "MultiSource/Benchmarks/DOE-ProxyApps-C/XSBench": 720,  # 533.44/541.58 -> 720
     "MultiSource/Benchmarks/mafft": 1620,       # 1452.82 -> 1572.82 -> 1620
     "MultiSource/Benchmarks/nbench": 480,       # 312.20 -> 432.20 -> 480
 }
@@ -318,12 +323,16 @@ CASE_TIMEOUT_BASIS = {
         "measured run 331.43 s (guest children die of SIGSEGV; see "
         "PLATFORM_GAP_SIGNATURES) + 120 s margin, rounded up to 60 s -> 480 s",
     "MultiSource/Applications/lua":
-        "measured run 670.52 s up to the qemu host SIGSEGV (static round: "
-        "bench/process.lua) + 120 s margin, rounded up to 60 s -> 840 s; the "
-        "value is kept so a later crash point is still observable",
+        "measured complete run 1141.74 s (static) / 1167.14 s (dynamic) at "
+        "jobs=1 + 120 s margin -> 1287.14 s, rounded up to 60 s -> 1320 s "
+        "(TESTCASES-054t; both rounds PASS with the md5 oracle)",
     "MultiSource/Benchmarks/DOE-ProxyApps-C/SimpleMOC":
         "measured complete run 349.54 s + 120 s margin, rounded up to 60 s "
         "-> 480 s",
+    "MultiSource/Benchmarks/DOE-ProxyApps-C/XSBench":
+        "measured complete run 533.44 s (static) / 541.58 s (dynamic) at "
+        "jobs=1 + 120 s margin -> 661.58 s, rounded up to 60 s -> 720 s "
+        "(TESTCASES-054t; both rounds PASS, stdout byte-exact)",
     "MultiSource/Benchmarks/mafft":
         "measured complete run 1452.82 s + 120 s margin, rounded up to 60 s "
         "-> 1620 s",
@@ -535,12 +544,6 @@ CASE_PREPARE_DIRS = {
 # Root-cause notes for non-pass cases (documentation only -- the class is still
 # decided by the oracle/classification rules above).
 CASE_NOTES = {
-    "MultiSource/Benchmarks/Prolangs-C/unix-smail":
-        "hangs after printing \"resolve 'ALL' = 'ALL' @ '' (LOCAL)\" -- the "
-        "defect belongs to QEMU-063t.  Deliberately absent from CASE_TIMEOUTS: "
-        "a longer per-case timeout would only mask the hang, so it keeps "
-        "DEFAULT_TIMEOUT (300 s) and is reported blocked (reason: timeout "
-        "after 300 s; see QEMU-063t), never pass/fail.",
     "MultiSource/Benchmarks/Prolangs-C/archie-client":
         "upstream guards both llvm_multisource(archie) and the "
         "target_include_directories() that provides <copyright.h> behind "
@@ -607,7 +610,6 @@ PLATFORM_GAP_SIGNATURES = {
 
 # Cases whose host-signal death is a known qemu defect (reason pointer).
 QEMU_SIGNAL_ISSUES = {
-    "MultiSource/Applications/lua": "QEMU-063t",
 }
 
 # Machine-fault exits (ADR-0004 D5.8): the guest left through a machine fault.
