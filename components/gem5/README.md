@@ -1,7 +1,7 @@
 # gem5 组件
 
 gem5 DADAO 裸机全系统目标，基线为官方 `v25.1.0.1` 的完整提交
-`c8222cc67a399bfc01e8658dd14b30d5bfd634f9`（`ADR-0024`）。
+`c8222cc67a399bfc01e8658dd14b30d5bfd634f9`（`ADR-0035`）。
 
 `make fetch-gem5` 只取该组件并核对 tag 与锁定 SHA；
 `make apply-gem5` 只重放 gem5 补丁，重复调用保持 base+1 的干净工作树。源码位于

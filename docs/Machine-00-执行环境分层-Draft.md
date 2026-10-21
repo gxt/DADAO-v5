@@ -49,10 +49,10 @@
 | ③ 内存映射可控（RAM/ROM） | ✓ RAM `0xFC00_0000_0000`（16 MiB）+ ROM 64 KiB（`Machine-01 §1`） | ✓ 同一 RAM/ROM 地址图（`tests/gem5/machine_fixture.py`；`GEM5-005t`） | 待定 | 待定 |
 | ④ 异常/中断注入 | 部分：fault 码 `0x81`–`0x8D` 可用；**外部中断注入未定义**（待核） | 部分：同步异常、trap/escape 可实测；外部中断注入待定（`GEM5-005t`） | 待定 | 待定 |
 | ⑤ 可观测性（dump/回读） | ✓ 探针/harness（`tools/qemu/min_rom_probe_*`） | ✓ 寄存器/内存/IP/模式/CFX 回读与 JSON 状态差分（`tests/gem5/*_fixture.py`；`components/gem5/evidence/GEM5-007t.md`） | 待定 | 待定 |
-| ⑥ 时序精度（周期/时间） | ✗ **非周期精确**（近似） | ✗ 首版 `AtomicSimpleCPU` 仅作功能正确性，未承诺周期精度（`adr-0025-gem5-test-machine-integration.md` D1 及 Consequences） | 待定 | 待定 |
+| ⑥ 时序精度（周期/时间） | ✗ **非周期精确**（近似） | ✗ 首版 `AtomicSimpleCPU` 仅作功能正确性，未承诺周期精度（`adr-0036-gem5-test-machine-integration.md` D1 及 Consequences） | 待定 | 待定 |
 | ⑦ 吞吐/速度 | 快（本机仿真） | 待定（未建立跨主机性能基线；`GEM5-007t` 只验正确性） | 待定 | 待定 |
 | ⑧ 确定性（可复现） | ✓ 确定可复现 | ✓ 同一程序集重复运行的退出事件/IP/模式/CFX 全等（`components/gem5/evidence/GEM5-007t.md`） | 待定 | 待定 |
-| ⑨ 能否跑内核/Linux | ✗ M7 无内核（`hypv` 裸机 + semihosting） | ✗ 首版仅裸机全系统，无内核/MMU 验收（`adr-0025-gem5-test-machine-integration.md` D1 及 Consequences） | 待定 | 待定 |
+| ⑨ 能否跑内核/Linux | ✗ M7 无内核（`hypv` 裸机 + semihosting） | ✗ 首版仅裸机全系统，无内核/MMU 验收（`adr-0036-gem5-test-machine-integration.md` D1 及 Consequences） | 待定 | 待定 |
 | ⑩ 动态加载能力 | ✗ 无 loader（动态链接后置） | ✗ 仅加载静态 ELF `PT_LOAD`，无 `PT_INTERP`/动态链接器路径（`GEM5-005t`） | 待定 | 待定 |
 
 **填表规则**：每格须能给**依据**（文档/合约/实测）；给不出 ⇒ `待定（依据待补）`（**禁猜**）。

@@ -8,7 +8,7 @@
 
 ## 核验
 
-- `ADR-0024`、`ADR-0025` 的 decision 已逐条确认且状态为 Accepted；关联 `GEM5-001k` 为 `已验证`，所有关联 `t` 任务均为 `已验证`。
+- `ADR-0035`、`ADR-0036` 的 decision 已逐条确认且状态为 Accepted；关联 `GEM5-001k` 为 `已验证`，所有关联 `t` 任务均为 `已验证`。
 - 组件锁、构建目标、补丁集、向量、脚本、能力矩阵与证据文件存在且引用可解析。
 - `make check`、`make check-modules`、`make check-full`、`make check-gem5-full` 全绿；检查反例注入证据与真实退出码。
 - 跨模块影响已处置；gem5 与 M7 并行实施，里程碑只按 gem5 自身交付及实际跨模块依赖验收，不以 M7 完成为形式前置。

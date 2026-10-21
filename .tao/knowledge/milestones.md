@@ -28,7 +28,7 @@
 
 **M7 模块里程碑**（**均 `里程碑`**：`INFRA-072m`/`SPEC-136m`/`LLVM-090m`/`QEMU-059m`/`TESTCASES-043m`/`INTEG-034m`〔整体收敛点〕）：`INFRA-072m` / `SPEC-136m` / `LLVM-090m` / `QEMU-059m` / `TESTCASES-043m` / `INTEG-034m`（整体收敛点）+ `INTEG-035m`（M7 收尾归档，`Process-04`；任务书**已自归档**入 `.tao/archive/M7/integ/`）。
 
-**M8 实施（gem5 裸机闭环，与 M7 并行）**：`GEM5-001k` 路线与分解、`GEM5-002t` 基线构建、`GEM5-003t` ISA 骨架、`GEM5-004t` 标量语义、`GEM5-005t` 测试机、`GEM5-006t` FP/剩余 ISA 和 `GEM5-007t` 集成回归均已复核（`已验证`）；仅 `008m` 待开始。004 实核 current 517/517；005 加入 Machine-01 ELF/PT_LOAD、cfx 与 25 项 semihosting，机器门控 47/47、真实工具链 1/1；006–007 补齐 RF/FCSR、60 条 FP、M3/M8 与 `aip.si`，11 条 excluded 保持 `ILLI`，覆盖表 235/235、remaining 548、独立 FP 329；适用 E2E 20/20、Embench 正确性档 38/38，代表/完整门控已接 L2/L3，三类反例均按预期失败。`ADR-0024`（基线）和 gem5 测试机接入 ADR 均已逐条确认并 Accepted。M8 目标为 `AtomicSimpleCPU` 运行现有 DADAO ELF 并对齐 `Machine-01`，证据见 `components/gem5/evidence/GEM5-004t.md`–`GEM5-007t.md`。M7 的任务和验收范围不变。
+**M8 实施（gem5 裸机闭环，与 M7 并行）**：`GEM5-001k` 路线与分解、`GEM5-002t` 基线构建、`GEM5-003t` ISA 骨架、`GEM5-004t` 标量语义、`GEM5-005t` 测试机、`GEM5-006t` FP/剩余 ISA 和 `GEM5-007t` 集成回归均已复核（`已验证`）；仅 `008m` 待开始。004 实核 current 517/517；005 加入 Machine-01 ELF/PT_LOAD、cfx 与 25 项 semihosting，机器门控 47/47、真实工具链 1/1；006–007 补齐 RF/FCSR、60 条 FP、M3/M8 与 `aip.si`，11 条 excluded 保持 `ILLI`，覆盖表 235/235、remaining 548、独立 FP 329；适用 E2E 20/20、Embench 正确性档 38/38，代表/完整门控已接 L2/L3，三类反例均按预期失败。`ADR-0035`（基线）和 `ADR-0036`（gem5 测试机接入）均已逐条确认并 Accepted。M8 目标为 `AtomicSimpleCPU` 运行现有 DADAO ELF 并对齐 `Machine-01`，证据见 `components/gem5/evidence/GEM5-004t.md`–`GEM5-007t.md`。M7 的任务和验收范围不变。
 
 ## 任务流水
 
@@ -70,7 +70,6 @@
 | INFRA-098t | 待开始 | 2026-10-20 04:55（登记） | ISS-261 安装集补 `llvm-nm`/`llvm-readelf`；ISS-301 builtins stage 路径三处同源 + 归档确定性查清 |
 | INFRA-099t | 待开始 | 2026-10-20 04:55（登记） | ISS-229：门控/安装根写者互斥（flock 或等价，嵌套不死锁）——注释纪律升级为机械可判 |
 | TESTCASES-053t | 待开始 | 2026-10-20 04:55（登记） | ISS-270/273/282/288：陈旧证据脚本族逐条修或按 `Process-08` 重建；不许放宽断言 |
-| GEM5-005t | 已验证 | 2026-10-15 16:33 | Machine-01 ELF/PT_LOAD、cfx trap/escape、25 项 semihosting；ISA 517/517、machine 47/47、工具链 1/1 |
 
 > **三套测试口径（2026-10-17，`TESTCASES-046t`/`047t`/`048t` 建册）**：三套 = **`embench-iot` / `libc-test` / `llvm-test-suite`**，每套**两轮 = 静态档 → 动态档**（用户 2026-10-15 原话「**先测静态链接，再测动态链接**」）；**golden 对照（RISC-V + musl）归 `P4`**（`ADR-0025 D7`）⇒ 三册本批**只做自跑 + 失败分类 + 证据**。（2026-10-18 更新：用户裁定 `P4` 交叉对照 `不作`，判据③ 改「两档如实分类 + 失败逐条归因」；见「M8 规划区」首条与 `INTEG-036m`。）
 
