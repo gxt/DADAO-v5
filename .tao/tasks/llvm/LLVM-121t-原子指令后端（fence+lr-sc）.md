@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：`ADR-0034`（`Accepted`：编码/命名定案）、`contracts/opcodes.yaml`（259 条真源）、`LLVM-116t`（上一轮 ISA 编码迁移的 llvm 册先例，`已验证`）、`ISS-307`（本批 4 册总账）；**下游串行**：`QEMU-067t`（②）→ `INFRA-100t`（③）→ `TESTCASES-056t`（④）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -216,4 +216,69 @@ L_done:
 - **门控**：`check-patch-tree` = 185 patches OK（rc=0）；`check-milestones-fresh` PASS（24 行；含 ≤120 字符断言）；`make check`（L1）**EXIT=0**。
 
 #### 第 1 轮 reviewer 验收
-（待填）
+
+**判决：Needs Revision**（唯一打回项 = 证据脚本 `run.sh` 的 C13；后端/lit/门控/编码/零 libcall 自查全部通过，**不必改**）
+
+**重跑记录**（HEAD=62e8533f=origin/master；验收前/后 `git status --porcelain -uall` 皆空）：
+- 门控：`make check-lit` rc=0（125/125）、`make check-instrinfo` rc=0（197 defs / 0 errors）、`make check-isa-coverage` rc=0（259；accept 257/reject 2；编码复核 0 不符）、`check_lit_gen` rc=0（64/64）、`make check-patch-tree` rc=0（185 patches）、`make check`(L1) rc=0（isa-coverage 257/2、builtins-freshness 均已 PASS）。
+- 证据脚本：`run.sh` default rc=0（15/15）、`--inject` rc=0（21/21；INJ-1/2/3 均「预期红 → `cp`+md5 还原对账（626fa7c1…/3e225e38… 相等）→ 回绿」）。
+- 24 条编码抽查（llvm-mc 实测）：`lr.o.nn rd9,[rb1]`=`77 00 02 41`、`lr.b.an`=`77 1c 02 41`、`sc.w.nr rd8,rd9,[rb1]`=`77 58 82 41`；与 `contracts/opcodes.yaml` 逐字段相同（ha=0x00/0x07/0x16；value 0x77000000/0x771C0000/0x77580000 = `(0x77<<24)|(ha<<18)` 手算复核 ✓）；`lr` 编码 hb=0（rd0）✓。
+- fence 自验（自制 IR）：`fence acquire`→`fence 67`(0x043)、`release`→`fence 194`(0x0C2)、`acq_rel`/`seq_cst`→`fence 975`(0x3CF)；monotonic load/store 不发射 fence、unordered 不发射 ✓。
+- CAS 抽样（自制 IR，`llc -O2`）：cas64 `lr.o.an→br.ne→sc.o.ar→br.nz`、cas32 `lr.t.an/sc.t.ar`、cas16 `lr.w.an/sc.w.ar`、cas8 `lr.b.an/sc.b.ar`（子字宽原生宽度、无整字掩码 ✓）；atomicrmw add/xor 归约同一环 ✓。
+- 零 libcall（自制探针：add/and/or/xor/sub/nand/exchange/cmpxchg/load/store × {i32,i64,指针} × 5 序）：`clang -O2 -c` rc=0、`llvm-nm -u` **0** 条未定义（对照探针 `U ext_fn` 证明探测非恒空）、objdump 含 `lr.o.an/lr.t.an/sc.o.ar/sc.t.ar` 各 18、`fence`×44 ✓。
+- 独立注入（自选，临时树 + `validate_instrinfo.py --td`）：`lr_b_ar` ha 0x0B→0x0C ⇒ rc=1（`orphan 1 / non-m1 超出 allow-list`，2 errors）→ `cp`+md5（488750bf… 相等）还原 ⇒ rc=0（0 errors）✓，仓库/组件源码树未动。
+
+**约束核验**：不改 `spec//contracts//qemu/musl/archive` ✓（`git diff bd661b2..62e8533f` 文件集与完成区一致）；不新增指令/不改编码 ✓；一文件一补丁+series/changelog ✓（185 patches OK）；计数现场派生 ✓；独立 oracle ✓（期望值取自 contracts/ADR，未从 llc 回填）；B1 **BLOCKED-by-② 未写成 PASS** ✓（遗留(1)/C14 注记如实）。册 L41「现状·D6」仍写「8 字节」= 2026-10-20 现场快照，按派单判「可接受」，此处点出。
+
+**打回原因（证据脚本 C13 唯一）**：`run.sh:281` 基线探测 `llc --triple=dadao -filetype=obj probe.s` **恒失败**——`llc` 无 `--triple`（实测两条 .s 均 `Unknown command line argument '--triple=dadao'`，flag 层即拒，与输入无关）且 `llc` 不吃 `.s`；⇒ 注释声称的「install-host 后自动 SKIP」**永不可达**；实测两支 llc **同一二进制**（md5 `db3372d6…` 全等）⇒ C13 现为「同源自比」，`identical=33 diff=0 PASS` 是**恒真绿**，冒充「与改前逐字节不回归」（我本轮两条重跑里的 C13 PASS 均为无效证据）。
+**要求（只改 `run.sh` C13 + 完成区措辞，其余不必动）**：① 探测改用 `llvm-mc --triple=dadao` 汇编 `lr.o.nn`（或比两支 llc md5），同源 ⇒ SKIP 并注明；② 「改前 vs 改后」基线须留非易失证据（改前 33 份 .s 或 llc 版本标识），无法留存则完成区改述为「2026-10-20 pre-install-host A/B identical=33（log: `.work/log/llvm/LLVM-121t/`）」并注明当前不可重演；③ 重跑 default+`--inject` 更新计数行。
+**旁证（无回归，供复核）**：10 份后端补丁 diff **纯新增**（仅 `index`/`@@` 头行变更，0 既有行删除/改写）；`tests/llvm/codegen` 33 例输入未改；抽 3 例（arith_add_sub_neg/branch_loop_sum/call_multiarg_stack）`git show bd661b2:` 旧输入 vs 现输入过现 llc 逐字节一致（仅 `.file` 行名不同）。
+
+**声明**：未改任何代码/测试/契约、未提交 git；本轮写入仅本段 + `/tmp/opencode/REVIEW-121t/`。
+
+#### 证据脚本返工（2026-10-21，engineer）
+
+**① C13 改 golden 基线（reviewer 选项 a）**：33 例非原子输入的输出落 `.work/evidence/LLVM-121t/golden/nonatomic/tests/llvm/codegen/*.ll.s` + `golden/MANIFEST.tsv`（逐行记输入/输出 sha256；表头记生产者 llc md5 `db3372d6…`、`LLVM 23.1.3`、flags、生成时刻）。**C13a 断言** = 当前 llc 输出与 golden `cmp` 逐字节相同 + 输入未被偷改 + 无新增输入未入基线 + 无陈旧行；更新方式 `run.sh --regen-golden`（显式）。
+**② 基线来源（如实披露）**：golden 由**改后**（含 lr/sc）llc 生成 ⇒ 断言的是「自此（llc md5 `db3372d6…`）之后不漂移」，**不是**「与改前逐字节相同」——改前二进制已被 `install-host` 覆盖（安装根 llc md5 与构建树全等），故旧完成区「非原子 codegen 与改前安装根 llc 逐字节相同（33/33）」一句**当前不可重演**，以本段为准；「改前 codegen 未变」的旁证仅剩 reviewer 第 1 轮所列（10 份补丁纯新增、33 例输入未改）。
+**③ SKIP 探测**：删掉恒失败的 `llc --triple=dadao … probe.s`（llc 无 `--triple` 且不吃 `.s`）。**C13b** 改用正确入口：`.ll` 走 `llc`（看是否吐 `lr.`）、`.s` 走 `llvm-mc --triple`（看能否汇编 `lr.o.nn`）；缺工具 / 两支 llc md5 全等（同源）/ 该 llc 已含 lr/sc ⇒ **SKIP 并写明原因**（SKIP 不计 PASS，不冒充绿）。
+**④ 真实输出**：default **15 pass / 0 fail / 1 skipped（rc=0）**；`--inject` **30 pass / 0 fail / 1 skipped（rc=0，8m45s）**；日志 `.work/log/llvm/LLVM-121t/LLVM-121t-evidence-{default,inject}-rework.log`。
+**⑤ 可达 FAIL（均真实注入 → 红 → `cp`+md5 还原 → 绿）**：INJ-4 改 golden 一行 ⇒ `identical=32 diff=1` 红 ⇒ 还原 `1768a72e…` ⇒ 绿；INJ-5 **真改后端**（`AsmPrinter` 每条指令插注释 + 重建 llc）⇒ `identical=0 diff=33` 红 ⇒ 还原 `52cc028f…` ⇒ 绿；INJ-7 篡改 manifest（删行+死行）⇒ `gone=1 new-input=1` 红 ⇒ 还原 `00b7faa1…` ⇒ 绿。**SKIP 分支实跑**：INJ-6a 缺工具、INJ-6b 同源、INJ-6c 伪改前 llc 走 A/B（`identical=33`）。
+**⑥ 门控（返工后重跑）**：`check-instrinfo` **0 errors**（197 defs）、`check-lit` **125/125**、`make check`（L1）**rc=0**；`components/**` 零改动、未 commit。`**状态**` 仍 `待验收`。
+
+#### 第 2 轮 engineer 自审（返工：证据脚本 C13）
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F10 `gen_golden` 的 `local` 列表里有未用变量 `rc`（自造孤儿） | ✅已修 | 删除该局部名 | `bash -n` OK；`--regen-golden` 不在最终证据链（golden 已生成且 C13a `identical=33`） |
+| F11 C13b A/B：仅一侧 llc 失败时沿用上一轮残留 `.old/.new` 做 `cmp` ⇒ 可能假同/假异 | ✅已修 | 每轮先 `rm -f` 两侧输出；一侧失败计入 `one-fail` 并跳过比较（PASS 要求 `one-fail=0`） | `--inject` 重跑 INJ-6c：`identical=33 diff=0 one-fail=0 both-failed=0 total=33` |
+| F12 golden 生产者与当前是同一二进制（md5 全等）⇒ 不能证明「与改前相同」 | ⏸延后（披露） | 不修，改述口径（见返工②）；非恒真由 INJ-4/INJ-5 证明 | INJ-5 真改后端 ⇒ `identical=0 diff=33` 红 |
+
+自审判定：可修项（F10/F11）已修并重跑；F12 属不可重演的历史证据缺口，已在返工②如实披露，无「遗留:无」式表述。
+
+#### 第 2 轮 reviewer 验收（2026-10-21，只验上轮唯一打回项 C13；后端/lit/编码上轮已 Accepted 不重验）
+
+**判决：Accepted**（三验项全过）
+
+**重跑记录**（workdir=仓库根，本人真实执行；日志 `/tmp/opencode/REVIEW-121t-r2/`）
+- `run.sh` default：**rc=0**（28s）；C13a `identical=33 diff=0 total=33`；C13b SKIP「同源：安装根 llc==构建树 llc(md5 db3372d6…)」；summary `15 passed, 0 failed, 1 skipped`。
+- `run.sh --inject`：**rc=0**（529s）；summary `30 passed, 0 failed, 1 skipped`。
+
+**验① C13 现在能否失败（非恒真）**
+- 结构核对：C13a= golden 基线（`golden/MANIFEST.tsv` 33 行 + 逐例 `nonatomic/**.ll.s`）✓；断言 `cmp -s "$g" "$tmp"`（run.sh:354）**逐字节**，比「golden 存档」vs「现 llc 新产出 $tmp」，**非自比** ✓；`--regen-golden` 仅 `main` 显式分支（run.sh:691），无隐式重生 ✓。
+- **我自己注入**（不抄册内 INJ-4）：改 golden `arith_add_sub_neg.ll.s` 一行 `add.si rb1,-16→-15` ⇒ 跑同一 `run.sh` **rc=1**、C13a `identical=32 diff=1`、`DIFF tests/llvm/codegen/arith_add_sub_neg.ll`（真红）。
+- `cp`+md5 还原（`1768a72e…`，`cmp` 逐字节同 preinject）⇒ 再跑 **rc=0**、C13a `identical=33 diff=0`（回绿）。
+- 判：**非恒真**（旁证 INJ-5 真改后端 ⇒ `identical=0 diff=33` 红）；非自比、非只比 sha（`cmp` 内容比对）✓。
+
+**验② SKIP 分支真可达且可见 + 不误计 PASS**
+- 三支真实日志：INJ-6a 缺工具⇒SKIP「改前 llc 缺失/不可执行：/nonexistent/llc…」；INJ-6b 同源⇒SKIP「同源…md5 db3372d6…」；INJ-6c 伪改前 llc⇒A/B 真跑 `identical=33 diff=0 one-fail=0 total=33`（非 SKIP、走 A/B）✓。
+- SKIP 时 rc 仍 0 ✓（default/`--inject` 各 1 SKIP、rc 均 0）。
+- **SKIP 不误计 PASS** ✓：独立 `grep -c '^PASS'|'^SKIP'` = 30/1（inject）、15/1（default），与 summary `30 passed…1 skipped`/`15 passed…1 skipped` 逐一对齐；`skip()`（run.sh:42）只累 SKIPS、不入 `passed=CHECKS-FAILS`（run.sh:738）。
+
+**验③ golden 落点判定：Accepted（可接受）**
+- 事实：golden 在 `.work/evidence/LLVM-121t/golden/`，`.gitignore:2 .work/` ⇒ 不入版本；**无任何持久门控**（`make check`/L1/L2/L3）引用它，仅本册一次性 `run.sh` 消费。
+- 理由：① **实际角色 = 本册点时间「原子改动未回归非原子 codegen」的一次性证据**（未接任何 gate，非长期门控）；② 可 `--regen-golden` 从 `tests/llvm/codegen/**`+现 llc 完全重建 ⇒ `.work` 清空不损失不可复现物；③ 与本仓 `evidence/**`（`.work/evidence/<task>/` gitignore）惯例一致；④ 逐字节 asm golden 脆（任一良性 llc/格式变动即红），本不宜常驻；长期非原子 codegen 守护已由 `check-lit`(47 FileCheck)+`test-codegen` 承担。
+- 备注（非阻断，供架构师）：run.sh 注释「不回归基线/一漂移就红」略高过其一次性实质，宜改述「一次性 no-regression 快照证据」；若确要常驻逐字节 codegen 门控，属架构决策（须同时迁 git + 接门控），不作本册打回项。
+
+**门控（交付⑥）**：`check-instrinfo` rc=0（0 errors）；`check-lit` rc=0（125/125）；`make check`(L1) rc=0（PASS）。
+**快照对账**：`git status --porcelain` 仅 1 `M`（本册）；golden `1768a72e…`/MANIFEST `00b7faa1…`/run.sh `edfe2be6…` 还原如初；`git diff` 仅本册。
+**声明**：未改任何代码/脚本/golden（还原后 md5 对账一致）、未 commit/push；仅写本段。
