@@ -215,11 +215,11 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 
 > **机械可核**：本表是覆盖**登记**，`tools/qemu/semantics_gate.py`（`make check-qemu-semantics`）
 > 解析它并与现场**双向**比对 —— L3 列 ✓ 的册 == 现场派生载体集
-> （`isa/*.yaml` 全量 + `rol/*.yaml` + `atomics/*.yaml`），L2 列 ✓ 的册 ==
+> （`isa/*.yaml` 全量 + `rol/*.yaml` + `atomics/*.yaml` + `clmul/*.yaml`），L2 列 ✓ 的册 ==
 > `tests/scripts/run_qemu_smoke.py:GATE_VECTORS`；**任一方向多/少即 FAIL**
 > （新增向量册须同步本表与门控载体，否则 L3 红）。`ISS-235` 处置：L3 载体由 3/16 册扩至全量。
 >
-> **范围**：`isa/` 全量 + 非 M1 的 `rol`/`atomics` 既有载体（`QEMU-064t`/`QEMU-067t`）；
+> **范围**：`isa/` 全量 + 非 M1 的 `rol`/`atomics`/`clmul` 载体（`QEMU-064t`/`QEMU-067t`/`QEMU-068t`）；
 > `rev`/`bitcnt`（M8 scope，2 册）**未纳入 L2/L3** —— 后续任务指针：评估其入门控（同 `rol`/`atomics` 口径）。
 
 | 册 | L2（代表集） | L3（全量） |
@@ -243,5 +243,6 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `rol/rol.yaml` | — | ✓ |
 | `atomics/atomics-fence.yaml` | — | ✓ |
 | `atomics/atomics-lrsc.yaml` | — | ✓ |
+| `clmul/clmul.yaml` | — | ✓ |
 | `rev/rev.yaml` | — | — |
 | `bitcnt/bitcnt.yaml` | — | — |

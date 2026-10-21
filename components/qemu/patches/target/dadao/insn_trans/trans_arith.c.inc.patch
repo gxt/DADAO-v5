@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_arith.c.inc b/target/dadao/insn_trans/trans_arith.c.inc
 new file mode 100644
-index 0000000..355f65b
+index 0000000..eee9585
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_arith.c.inc
-@@ -0,0 +1,666 @@
+@@ -0,0 +1,710 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* §3.1.1 add.uo/add.so/sub.uo/sub.so (rrrr): 128-bit add/sub */
@@ -107,6 +107,50 @@ index 0000000..355f65b
 +    TCGv_i64 lo = tcg_temp_new_i64();
 +    TCGv_i64 hi = tcg_temp_new_i64();
 +    tcg_gen_muls2_i64(lo, hi, rdhc, rdhd);
++    store_rd(a->hb, lo);
++    store_rd(a->ha, hi);
++    return true;
++}
++
++/* §3.5 clmul.o (rrrr): 64x64 carry-less (GF(2)) multiply -> 128-bit result,
++ * high 64 bits in rdHA, low 64 bits in rdHB (same layout as mul.uo).
++ *
++ * Naive per-bit algorithm: for every set bit i of rdHD, XOR (rdHC << i) into
++ * the 128-bit accumulator.  Each contribution is XORed, so there are no
++ * carries between bit positions (GF(2) polynomial multiplication).  The
++ * shift is done as a 128-bit shift: low half = rdHC << i, high half (i > 0)
++ * = rdHC >> (64 - i).
++ *
++ * rd0 on one side discards that half (store_rd(0, ...) is a no-op).
++ * ILLI: both destinations rd0, or the same non-rd0 destination. */
++static bool trans_clmul_o_rrrr_rd(DisasContext *ctx, arg_main *a)
++{
++    if (!check_dual_dest_legal(ctx, a->ha, a->hb)) {
++        return true;
++    }
++    TCGv_i64 op_a = load_rd(a->hc);
++    TCGv_i64 op_b = load_rd(a->hd);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    TCGv_i64 hi = tcg_temp_new_i64();
++    TCGv_i64 bit = tcg_temp_new_i64();
++    TCGv_i64 mask = tcg_temp_new_i64();
++    TCGv_i64 part = tcg_temp_new_i64();
++
++    tcg_gen_movi_i64(lo, 0);
++    tcg_gen_movi_i64(hi, 0);
++    for (int i = 0; i < 64; i++) {
++        tcg_gen_shri_i64(bit, op_b, i);
++        tcg_gen_andi_i64(bit, bit, 1);
++        tcg_gen_neg_i64(mask, bit);             /* 0 or all-ones */
++        tcg_gen_shli_i64(part, op_a, i);
++        tcg_gen_and_i64(part, part, mask);
++        tcg_gen_xor_i64(lo, lo, part);
++        if (i > 0) {
++            tcg_gen_shri_i64(part, op_a, 64 - i);
++            tcg_gen_and_i64(part, part, mask);
++            tcg_gen_xor_i64(hi, hi, part);
++        }
++    }
 +    store_rd(a->hb, lo);
 +    store_rd(a->ha, hi);
 +    return true;

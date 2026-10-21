@@ -6,7 +6,9 @@
     `Makefile` 与本脚本**均不写死册名/册数**）；
   - 非 `isa/` 的既有载体目录：`tests/vectors/rol/*.yaml`（`QEMU-064t`：`rol.*`
     scope = m9，故不在 `isa/`）与 `tests/vectors/atomics/*.yaml`
-    （`QEMU-067t`：`fence`/`lr`/`sc` 已实现原子语义，非 M1 身份）。
+    （`QEMU-067t`：`fence`/`lr`/`sc` 已实现原子语义，非 M1 身份）与
+    `tests/vectors/clmul/*.yaml`（`QEMU-068t`：`clmul.o` 语义已实现，scope
+    翻转归 `SPEC-155t`，故暂不在 `isa/`）。
   - **不在**本门控：`tests/vectors/rev/`、`tests/vectors/bitcnt/`（M8 scope，
     2 册；见 `tests/vectors/inventory.md`「非 M1 向量」）。
 
@@ -46,8 +48,8 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "tests", "scripts"))
 # 复用现有 harness（构建 + 运行 + 批量聚合），不另造轮子。
 import run_qemu_test as harness  # noqa: E402
 
-# 载体目录（相对 --vectors）。`isa` = 全量现场派生；另两个为既有非 isa 载体。
-CARRIER_DIRS = ("isa", "rol", "atomics")
+# 载体目录（相对 --vectors）。`isa` = 全量现场派生；其余为非 isa 载体。
+CARRIER_DIRS = ("isa", "rol", "atomics", "clmul")
 
 # ── 历史常量（仅用于「增量展示」，**不作**通过判据）──────────────────────
 # `ISS-235` 登记时的 L3 现场 total（当时的 3 册载体集）。本轮打印与它的差值；

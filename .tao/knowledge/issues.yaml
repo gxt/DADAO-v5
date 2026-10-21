@@ -804,11 +804,11 @@
 
 - id: ISS-317
   title: "【P2】`clmul.o` 已定编码（`ADR-0035`），**实现待落**（LLVM 选择/`ISel`、qemu 语义、L3 向量）"
-  status: open
+  status: closed
   scope: [llvm, qemu, testcases]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（源 = `ADR-0035`（2026-10-21 用户裁定「可以，添加 clmul.o rrrr 格式，编码放在 mul.so 后面」）+ 本笔现场核实，architect 登记）】**已定面（`Accepted`）**：`clmul.o`（GF(2) 无进位乘）= `rrrr` 双目的 `clmul.o {rdHA, rdHB}, rdHC, rdHD`，`rdHA` 高 / `rdHB` 低；`op = 0x56`（`value 0x56000000` / `mask 0xFF000000`，紧跟 `mul.so` 的 `0x55`）；`rd0` 规则同 `mul.uo`（单侧允许、同时 `rd0` 或同寄存器 ⇒ ILLI）；`scope: excluded`（执行 ILLI）；`opcodes.yaml` 259→260（`excluded` 27→28）。**未落面（本笔只定规范面，实现归后续册）**：① **LLVM 后端** —— `DADAOInstrInfo.td` 无 `clmul` def（`check-instrinfo` 对 excluded 不要求；`llvm-mc` 现拒绝该助记符），ISel/`ISelLowering` 无 `llvm.x86.*`/GF(2) 乘的 lowering；② **QEMU** —— `target/dadao/insn.decode` 无 pattern、无 `trans_clmul_o_rrrr_rd` 桩（`check_qemu_trans --strict` 现为 259/260）；③ **向量** —— 无 L1 编码正例 / L3 语义向量。**判据顺序**：`.td` def + `install-host` ⇒ `gen_isa_coverage` ⇒ QEMU 补丁集（decode + 桩，`Process-01` 组件流）⇒ L3 向量。**等级 = P2**（`scope: excluded` ⇒ 当前行为 = ILLI，无错误码风险；不阻断任何 L1 门控）。**证据指针**：`.tao/adr/adr-0035-clmul.md`（`D1`–`D7`）、`contracts/opcodes.yaml`（`clmul.o_rrrr_rd`）、`spec/SimRISC-04 §3.5`、`tools/llvm/llvm-isa-backend-matrix.tsv`（该行 `L1_assembler = reject`）。**交叉引用**：`ADR-0035`（决策源）、`ADR-0012 D10`（新增 ISA 指令不绑里程碑）、`ISS-307`（同型「编码已定、实现待落」先例）。**边界**：本笔只登记/定编码 ⇒ 未改 `.td` ✗、未改 QEMU 补丁集 ✗、未立实现册 ✗。"
+  resolved_by: QEMU-068t
+  notes: "【正式登记（源 = `ADR-0035`（2026-10-21 用户裁定「可以，添加 clmul.o rrrr 格式，编码放在 mul.so 后面」）+ 本笔现场核实，architect 登记）】**已定面（`Accepted`）**：`clmul.o`（GF(2) 无进位乘）= `rrrr` 双目的 `clmul.o {rdHA, rdHB}, rdHC, rdHD`，`rdHA` 高 / `rdHB` 低；`op = 0x56`（`value 0x56000000` / `mask 0xFF000000`，紧跟 `mul.so` 的 `0x55`）；`rd0` 规则同 `mul.uo`（单侧允许、同时 `rd0` 或同寄存器 ⇒ ILLI）；`scope: excluded`（执行 ILLI）；`opcodes.yaml` 259→260（`excluded` 27→28）。**未落面（本笔只定规范面，实现归后续册）**：① **LLVM 后端** —— `DADAOInstrInfo.td` 无 `clmul` def（`check-instrinfo` 对 excluded 不要求；`llvm-mc` 现拒绝该助记符），ISel/`ISelLowering` 无 `llvm.x86.*`/GF(2) 乘的 lowering；② **QEMU** —— `target/dadao/insn.decode` 无 pattern、无 `trans_clmul_o_rrrr_rd` 桩（`check_qemu_trans --strict` 现为 259/260）；③ **向量** —— 无 L1 编码正例 / L3 语义向量。**判据顺序**：`.td` def + `install-host` ⇒ `gen_isa_coverage` ⇒ QEMU 补丁集（decode + 桩，`Process-01` 组件流）⇒ L3 向量。**等级 = P2**（`scope: excluded` ⇒ 当前行为 = ILLI，无错误码风险；不阻断任何 L1 门控）。**证据指针**：`.tao/adr/adr-0035-clmul.md`（`D1`–`D7`）、`contracts/opcodes.yaml`（`clmul.o_rrrr_rd`）、`spec/SimRISC-04 §3.5`、`tools/llvm/llvm-isa-backend-matrix.tsv`（该行 `L1_assembler = reject`）。**交叉引用**：`ADR-0035`（决策源）、`ADR-0012 D10`（新增 ISA 指令不绑里程碑）、`ISS-307`（同型「编码已定、实现待落」先例）。**边界**：本笔只登记/定编码 ⇒ 未改 `.td` ✗、未改 QEMU 补丁集 ✗、未立实现册 ✗。 〔✅ 已修（2026-10-22，`QEMU-068t`；范围 = QEMU 执行面 + L3 向量）〕`insn.decode` 增 `clmul_o_rrrr_rd`（op `0x56`，四字段 `@main`）+ `trans_clmul_o_rrrr_rd` 真语义（逐位 carry-less 乘，`rdHA`=高 / `rdHB`=低；`rd0` 单侧丢弃、双侧 / 同非 `rd0` 寄存器 ⇒ ILLI）；L3 向量 `tests/vectors/clmul/clmul.yaml` 81 例（独立 Python 逐位 oracle，含 `a*1==a`、`(1<<k)*(1<<m)==1<<(k+m)`、交换 / 结合自检 + 64 组固定种子随机 + 2 例源/目的重叠）入 `check-qemu-semantics`（载体 20 册 / 978 例：967 pass / 11 既有 deferred）；`check_qemu_trans --strict` **259/260 → 260/260**；`build-qemu` / `check`(L1) / `check-modules`(L2) / `check-qemu-semantics`(L3 单跑) 全 rc=0；两例真注入（高 / 低半写反、trans 降 ILLI 桩）向量红、`cp`+md5 还原回绿。**边界（不冒充）**：LLVM `.td` / ISel / clang builtin 归 `LLVM-122t`（待开始）、`scope: excluded → m9` 翻转归 `SPEC-155t`。证据：`.work/evidence/QEMU-068t/`、`.work/log/qemu/QEMU-068t-*.log`。"
 - id: ISS-318
   title: "【P3】FP 异常语义措辞缺口：`UF` 未写「tiny 且 inexact」、tininess 检测点未声明、标志 sticky 未明示（`SimRISC-07`/`SimRISC-00`）"
   status: open
@@ -816,3 +816,10 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（2026-10-21，用户原话「可以」；源 = FP 指令册编写时的核对发现）】**现象（规范措辞层面，非实现缺陷）**：① `SimRISC-07 §3` 写「浮点→整数转换中 NaN/Inf/超出范围返回整型饱和值」与「下溢按舍入模式处理（设置 UF）」，**未写** IEEE 754-2019 §7.5 的 `UF = 结果 tiny **且** inexact`，也未声明 tininess 检测点是「舍入前」还是「舍入后」（标准要求实现二者择一并文档化）；② `SimRISC-00 §2.3.1` 把 `rf0[4:0]` 记为「异常状态（Accured exception）」，**未明示 sticky 语义**（置位后保持到软件清零）与「`NX` 与 `UF` 独立、不得互相蕴含」。**影响**：读规范实现 QEMU/后端时可能把 UF 实现成「tiny 即置」（不合 754），或把 `NX` 当 `UF` 的副产物；**无门控可判** ⇒ P3。**修法方向**：`SPEC` 小册补三句（`SimRISC-07 §3` 的 UF 条件 + tininess 检测点声明；`SimRISC-00 §2.3.1` 的 sticky 与 NX/UF 独立），**不改编码、不改 `rf0` 布局、不改 5 位**。**交叉引用**：`SPEC-161t`（取整册，涉及 NX 语义）、`SPEC-157t`/`SPEC-159t`（FMA/minmax 册，涉及标志一次置位）、`ADR-0035`（`clmul`）。**边界**：本笔**只登记**，未改 `spec/**` ✗。"
+- id: ISS-319
+  title: "【P3】harness 超时路径打印 `Unknown exit code: 0x-6`（负数 `%x` 格式化），诊断信息不可读"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（2026-10-21，源 = `QEMU-068t` reviewer 第 1 轮非阻塞观察）】**现象**：值不匹配导致 harness 走 TIMEOUT 时，输出 `Unsupported SemiHosting SWI 0x00` 与 `Unknown exit code: 0x-6`；`0x-6` 是 `-6`（或未初始化）按 `%x` 格式化的结果，属**诊断可读性缺陷**（不影响判定，超时仍按 FAIL 计）。**归属**：测试 harness（`tools/qemu/**` 或 `tools/testcases/**` 的 min-rom/semihost 驱动），非本册交付面。**修法方向**：超时/异常分支显式区分「TIMEOUT」与「未知退出码」，负数按有符号打印并附 errno/信号；补一条注入（构造超时）验证输出可读且判定仍 FAIL。**交叉引用**：`ISS-098` 族（同属 harness 诊断面）。**边界**：本笔只登记。"
