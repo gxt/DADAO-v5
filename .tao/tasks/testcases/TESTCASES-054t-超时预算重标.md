@@ -100,3 +100,4 @@
 - 提交：`aecd9418`（`TESTCASES-054t` 分支）
 - 文件集对账：`--cached` 3 文件 = 本册（`**状态**` 待开始→待验收）+ `tools/testcases/run_llvm_ts_user.py` + `.tao/knowledge/milestones.md`（流水行状态 + 未完成块同步）⇒ 完成区「修改文件」声明的 2 项全覆盖，`milestones.md` 为主会话指定的同步项；**无漏提 / 无多提 / 无越界**（`issues.yaml` 未动，`ISS-266` 回填留 `/complete`）
 - 门控：`make -s check`（L1）**rc=0**（含 `check-milestones-fresh` A1/A2/A4 26 行、`check-run-artifacts`、`check-knowledge-refs` 0 悬空、`check-no-residue`）
+- 落地：`master` **squash `c3353d5e`**（分支 `74f0978b` 已删；本条留痕为纯追加，故 master 上的记录补记自身父提交 hash）
