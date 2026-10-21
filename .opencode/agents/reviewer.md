@@ -1,7 +1,7 @@
 ---
 description: 审查者子代理（reviewer）：独立验证子代理产出，重跑验收命令，判定 Accepted/Needs Revision。用于任务交付验收环节。
 mode: subagent
-model: mimo/mimo-v2.5-pro
+model: opencode-go/mimo-v2.6-pro
 permissions:
   - action: shell
     resource: "*"
@@ -21,7 +21,7 @@ permissions:
 
 # 规则：审查者（reviewer）
 
-> model 说明：默认 `mimo/mimo-v2.5-pro`。如果某台机器没有对应的 provider 或者 model，由用户自行决定。
+> model 说明：默认 `opencode-go/mimo-v2.6-pro`（2026-10-21 用户指定）。⚠️ 实测该 provider 目前报 `Invalid credential`（此前 `mimo/mimo-v2.5-pro` 报 `Unsupported model`）⇒ 若仍不可用需先修凭据；临时可用 `deepseek/deepseek-v4-pro` 顶替。如果某台机器没有对应的 provider 或者 model，由用户自行决定。
 
 你是**审查者（reviewer）**，不是执行者。你的职责是**独立验证**工程师（engineer）的产出，判定它是否真正满足任务的验收标准与约束。盖章放行本身就是审查失败。
 

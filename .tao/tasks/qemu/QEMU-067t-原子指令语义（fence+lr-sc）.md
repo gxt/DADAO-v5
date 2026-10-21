@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M9
 **依赖**：`LLVM-121t`（①；安装根 `clang`/`llvm-mc` 须已能产出 `lr/sc`/`fence` 编码 —— 本册端到端要用）、`ADR-0034`（`Accepted`：编码/命名/语义定案）、`QEMU-064t`（上一轮解码/`trans_*` 迁移先例，`已验证`）、`QEMU-065t`/`QEMU-066t`（qemu-user 线程语义先例）、`ISS-307`（本批 4 册总账）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -175,4 +175,31 @@ else  tcg_gen_mb(<按 pred/succ 派生> ｜ TCG_BAR_SC)
 | F8 注入改造后 RESTORE 只做 `cp`+md5 未验证构建树回绿 | ✅已修 | `inject-rebuild-green` + `inject<N>-back-to-green` 双检查 | `--inject 1/2/3` 各含两项全 rc=0 |
 
 #### 第 1 轮 reviewer 验收
-（待填）
+
+**重跑记录**（workdir=仓库根，构建树二进制现场核，未改代码/未提交）：
+
+| 命令 | 真实输出 / 退出码 |
+|---|---|
+| `make check-qemu-semantics QEMU_BIN=.work/build/qemu/qemu-system-dadao` | `351 total, 351 passed, 0 failed, 0 errors`；rc=0 |
+| `make check-qemu-smoke QEMU_BIN=...` | `total=90 passed=90 failed=0`；rc=0 |
+| `python3 tools/qemu/check_qemu_trans.py --strict` | `259/259 (M1 156/156)`；rc=0 |
+| `python3 tools/qemu/generate_atomics_vectors.py --check` | `PASS (108 lr/sc + 19 fence, byte-identical)`；rc=0 |
+| `bash .work/evidence/QEMU-067t/run.sh`（default） | `22/22 checks passed`；rc=0 |
+| `bash .work/evidence/QEMU-067t/run.sh --inject 1` | `5/5`（红→cp+md5 还原→绿）；rc=0 |
+| `make check`（L1，一次） | `repository checks (L1): PASS`；rc=0 |
+
+**关键断言自验**：
+1. **fence no-op 自证**：`-d op` 转储 `pred=succ=0` 用例，`grep -c '^ *mb '` = **0**（dump 87 行非空洞）；acquire(0x043)=`mb seq:rr+rw`、acq_rel(0x3CF)=`mb seq:all`；`fm≠0`/SBZ 非零 → ILLI（向量全绿）。immu18=0x00043/0x000C2/0x003CF 与 LLVM 一致。
+2. **sc 四点**：保留匹配才写（成功 rdHB=0、失败 1）；`label_done` 两路径均 `lock_valid=0`；`gen_check_align_malign` 按 width（.b=1/.w=2/.t=4/.o=8）MALIGN；`lock_valid` 复位核源码三处 helper.c:76(`do_interrupt`)、signal.c:149(`setup_rt_frame`)、target_cpu.h:23(`cpu_clone_regs_child`)+cpu.c 复位。
+3. **向量真值**：semantics **351/351**、smoke **90/90**、trans --strict **259/259**、atomics **127/127**。
+4. **端到端**：`atomic_counter.c` THREADS=2×ITERS=20000，`__atomic_add_fetch` CAS 环 **5/5** 轮 `counter=40000 expected=40000`，`llvm-nm -u` 无 `__atomic_*`。
+5. **独立注入**（自选，非册内三条）：改 `gen_lr` 的 `lock_valid` 存 `1`→`0`（lr 不设保留）⇒ 127 中 **24 FAIL**（sc 成功/lr 语义类，SIGABRT rc=-6，fail-closed）⇒ `cp`+md5 还原（c61874b7…）⇒ 重建 ⇒ **127/127 绿**。
+
+**三条限制如实性**：① 8 B 字粒度匹配（同字不同偏移/宽度也成功）② 同值写检不出(ABA) ③ 无 spurious failure —— 完成区「遗留问题②」均如实披露并标「语义取舍（披露，非缺陷）」，未当作实现正确证据；ADR-0034/SimRISC-12 允许行级(≤64 B)粒度 ⇒ ①可接受；②③属平台简化、差异已写清。
+
+**约束核验**：`insn.decode` 259 pattern 未动（现场核）；未改 `spec/`/`contracts/**`/`llvm-project`/`musl`；`check-patch-tree` 185 patches OK/5 组件；向量独立 oracle（生成器手算大端抽取/合并，`--check` 字节一致）；smoke 90 上升属预期；可达 FAIL 真实（注入 3/3 + 我自注入 1 次均红→绿）。
+
+**判决**：**Accepted**（工程师达标证据；最终接受由架构师终审）。git status 仅 `M .opencode/agents/reviewer.md`（模型切换，非交付）；无异常。
+
+#### 收尾提交（architect，2026-10-21 10:21）
+档位 = **正常提交**（reviewer 判决 `Accepted`）。文件集对账：`--cached` = 本册（状态 `已验证` + 上列 reviewer 段）+ `milestones.md`（行置 `已验证`/10:21/上移）+ `issues.yaml`（`ISS-307` notes 补 ②；`status` 保持 `open`）+ `lessons.md`（§2.4 并入 1 条 + 新增 §2.40）+ `.opencode/agents/reviewer.md`（用户指定的模型改动）；**无漏提/多提/越界**——完成区「修改文件」的 15 项交付物已全在 `b9a4d475`（逐项 `git cat-file -e HEAD:<path>` 核过）。
