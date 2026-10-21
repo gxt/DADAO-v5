@@ -56,6 +56,58 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive check-contracts-dir \
         check-component-changelog check-syscall-abi
 
+# ── 工作树互斥锁 (INFRA-099t / ISS-229) ─────────────────────────────────────────
+# 同一工作树内会写共享状态的目标 —— 构建树 `.work/build/**`、安装根 $(SDK_DIR)、
+# SDK 产物目录 $(TEST_ARTIFACTS_DIR) —— 以及跑这些写者的门控，全部**串行化**：
+# `GATE_LOCKED_TARGETS` 里每个名字都是**门控目标**（目标体 + 其前置在
+# `_locked-<name>`），由 tools/infra/gate_lock.py 在一个 flock(2) 上运行，锁文件
+# = $(GATE_LOCK)。这是 `ISS-229` 的机械化：L2 与 L3 并发曾读到瞬态不完整的安装根
+# ⇒ Embench 假 FAIL（`stddef.h not found`）；手动 `build-mc` 与 L2 内
+# `install-host` 并发 ⇒ 构建树写坏。规范见 docs/Process-07 §2。
+#
+# 语义（细节 + 自测见 tools/infra/gate_lock.py）：
+#   * **嵌套放行**：同一 make 树内 `check-modules → test-semihost → install-host →
+#     build-mc` 通过 DADAO_GATE_LOCK_HELD 直接通过（并由「持有者 pid 是本进程祖先」
+#     校验，环境标记本身不能关掉互斥），不会自锁。
+#   * **独立进程等待有上界**：GATE_LOCK_WAIT 秒（默认 3600，够一次 L3 持有）；
+#     超时打印「锁文件 + 持有者 pid/开始时间/目标/命令」，rc=75。
+#   * **fail-fast**：`GATE_LOCK_FAILFAST=1` ⇒ 一次非阻塞尝试失败即 rc=75 + 提示。
+#   * **锁不可用**（父目录不可写 / 无 flock(2)）⇒ rc=69 且**不运行**目标（不静默跳过）。
+#   * 锁文件 `.dadao/gate.lock` 在 .gitignore 的 `.dadao/` 下，不入库。
+GATE_LOCK          ?= $(REPO_ROOT)/.dadao/gate.lock
+GATE_LOCK_WAIT     ?= 3600
+GATE_LOCK_FAILFAST ?= 0
+GATE_LOCK_TOOL      = $(PYTHON) tools/infra/gate_lock.py
+
+# 互斥面的**单一真源**（文档只指这里，不另列清单，避免漂移）。
+GATE_LOCKED_TARGETS = install-host clean-work \
+                      build-mc build-mc-lite build-mc-reconfig build-lld build-qemu build-qemu-reconfig \
+                      build-builtins build-bootrom build-picolibc build-musl build-musl-shared \
+                      test-codegen test-elf test-semihost test-m6 test-picolibc-smoke \
+                      check-lit check-lit-full check-qemu-semantics check-qemu-smoke \
+                      check-picolibc-tests check-picolibc-tests-full \
+                      check-testcases-suites check-testcases-suites-full \
+                      check check-modules check-full
+
+# $(call gate-locked,<target>): 在锁下重入 make 跑 `_locked-<target>`。
+# 必须重入而不能只锁 recipe：`install-host: build-mc build-lld ...` 的**前置**
+# 才是写者，而前置在 recipe 之前执行。`-f $(firstword $(MAKEFILE_LIST))` 让重入
+# 读同一个 makefile（`make -f`/探针 makefile 亦然）。一行（不用 `\` 续行，避免
+# recipe 被拆行）。
+gate-locked = $(GATE_LOCK_TOOL) run --lock "$(GATE_LOCK)" --wait $(GATE_LOCK_WAIT) --failfast $(GATE_LOCK_FAILFAST) --target $(1) -- $(MAKE) -f $(firstword $(MAKEFILE_LIST)) --no-print-directory _locked-$(1)
+
+# 每个被锁目标 = 一条只做「进锁 + 重入」的门控规则；`_locked-<name>` 是原规则。
+# `+` = make 的「recursive invocation」标记：把 jobserver 交给重入的 make，否则
+# `make -jN` 会在子 make 里退化成 `-j1` 并打印 "jobserver unavailable"（本仓库
+# `make -n` 本就不可用，见 Process-07 §1，`+` 使其在 -n 下也执行此行，同任何含
+# $(MAKE) 的行）。
+define gate-locked-rule
+$(1):
+	+@$$(call gate-locked,$(1))
+endef
+$(foreach t,$(GATE_LOCKED_TARGETS),$(eval $(call gate-locked-rule,$(t))))
+.PHONY: $(GATE_LOCKED_TARGETS) $(addprefix _locked-,$(GATE_LOCKED_TARGETS))
+
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
 # they built a component whose upstream commit is still pending.
@@ -189,7 +241,7 @@ LLVM_CONFIGURE = echo '$(LLVM_BUILD_CONFIG)' | cmp -s - $(LLVM_BUILD)/.dadao-llv
 LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm llvm-readelf FileCheck not LLVMDADAOCodeGen llc lli clang
 LLVM_MC_LITE_TARGETS = llvm-mc llvm-objdump FileCheck not
 
-build-mc: manifest-check
+_locked-build-mc: manifest-check
 	@$(call component-enabled,llvm-project) || { \
 	  echo "build-mc: component 'llvm-project' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
@@ -201,7 +253,7 @@ build-mc: manifest-check
 # build-mc-lite: same as build-mc but omits llvm-objcopy, llvm-readobj,
 # LLVMDADAOCodeGen, lli and clang.  Sufficient for lit MC tests + encoding
 # oracle + FileCheck.  Shares the one-shot configuration above.
-build-mc-lite: manifest-check
+_locked-build-mc-lite: manifest-check
 	@$(call component-enabled,llvm-project) || { \
 	  echo "build-mc-lite: component 'llvm-project' is not enabled / commit pending; refusing to fake success"; \
 	  exit 1; \
@@ -211,7 +263,7 @@ build-mc-lite: manifest-check
 	@echo "build-mc-lite: PASS"
 
 # build-mc-reconfig: force a cmake re-run (drops the config stamp first).
-build-mc-reconfig: manifest-check
+_locked-build-mc-reconfig: manifest-check
 	@$(call component-enabled,llvm-project) || { \
 	  echo "build-mc-reconfig: component 'llvm-project' is not enabled / commit pending; refusing to fake success"; \
 	  exit 1; \
@@ -234,7 +286,7 @@ build-mc-reconfig: manifest-check
 # target named ld.lld exists.  Building `lld` writes bin/ld.lld.
 LLD_TARGETS = lld
 
-build-lld: manifest-check
+_locked-build-lld: manifest-check
 	@$(call component-enabled,llvm-project) || { \
 	  echo "build-lld: component 'llvm-project' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
@@ -248,7 +300,7 @@ build-lld: manifest-check
 # the incremental path compiles only changed objects (~3s for one file).
 # Use build-qemu-reconfig to force a full configure (e.g. after changing
 # meson.build or configure options).
-build-qemu: manifest-check
+_locked-build-qemu: manifest-check
 	@$(call component-enabled,qemu) || { \
 	  echo "build-qemu: component 'qemu' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
@@ -266,7 +318,7 @@ build-qemu: manifest-check
 	@echo "build-qemu: PASS"
 
 # build-qemu-reconfig: always re-run configure (for when meson.build changes).
-build-qemu-reconfig: manifest-check
+_locked-build-qemu-reconfig: manifest-check
 	@$(call component-enabled,qemu) || { \
 	  echo "build-qemu-reconfig: component 'qemu' is not enabled / commit pending; refusing to fake success"; \
 	  exit 1; \
@@ -317,11 +369,15 @@ build-gem5: manifest-check
 # O_CREAT|O_EXCL (a non-atomic pair): the loser's O_EXCL open fails EEXIST when
 # the winner recreates the destination in between (ISS-172).
 #
-# NOTE (concurrency): only install-host's *writes* are made race-safe here.
-# Running *gate* targets (test-elf / test-semihost / check / …) concurrently in
-# one worktree remains UNSUPPORTED — they share the build trees and the SDK
-# artifact dirs under $(TEST_ARTIFACTS_DIR); see AGENTS.md ("并行任务上限").
-# Run them serially.
+# NOTE (concurrency): install-host's *writes* are race-safe (INFRA-053t above),
+# and concurrent runs of the writers/gates in one worktree are now *serialized*
+# mechanically rather than by convention (INFRA-099t / ISS-229): every target in
+# $(GATE_LOCKED_TARGETS) — install-host and the build-*/test-*/check* targets
+# that share the build trees, this install root and $(TEST_ARTIFACTS_DIR) — runs
+# under one flock(2) on $(GATE_LOCK) via tools/infra/gate_lock.py.  Independent
+# processes wait (bounded by GATE_LOCK_WAIT, rc=75 with the holder's pid/target
+# on timeout) or are refused at once with GATE_LOCK_FAILFAST=1; nested calls
+# from the same make tree pass through.  See docs/Process-07 §2.
 HOST_LLVM_TOOLS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm FileCheck not llc clang
 # Zero-copy aliases, `<link>:<target>` (both live in $(HOST_TOOLCHAIN_BIN)).
 # Single source of truth for the install aliases: the install recipe creates
@@ -436,7 +492,7 @@ BUILTINS_ARCHIVE_SRC   = $(if $(BUILTINS_BUILD_REL),$(COMPILER_RT_BUILD)/$(BUILT
 # It depends on build-mc so `make -j install-host` cannot run the rebuild
 # before the compiler exists (the recipe probe would fail); with the tree
 # already built that prerequisite is a no-op.
-build-builtins: manifest-check build-mc
+_locked-build-builtins: manifest-check build-mc
 	@$(call component-enabled,llvm-project) || { \
 	  echo "build-builtins: component 'llvm-project' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
@@ -461,7 +517,7 @@ build-builtins: manifest-check build-mc
 # to llvm-readobj, so it must not be copied as a 319 MB standalone file.
 # All three aliases are enumerated in $(HOST_LLVM_TOOL_SYMLINKS) (one variable,
 # consumed by the recipe below and by tools/infra/check_install_tools.py).
-install-host: build-mc build-lld build-qemu build-builtins
+_locked-install-host: build-mc build-lld build-qemu build-builtins
 	@mkdir -p $(HOST_TOOLCHAIN_BIN) $(HOST_TOOLS_BIN)
 	@for t in $(HOST_LLVM_TOOLS); do \
 	  $(call atomic-install,$(LLVM_BUILD)/bin/$$t,$(HOST_TOOLCHAIN_BIN)/$$t) || exit 1; \
@@ -500,7 +556,7 @@ install-host: build-mc build-lld build-qemu build-builtins
 # test-artifacts root (ADR-0016 D6, resolved via paths.py):
 #   $(BOOTROM_DIR)/{bootrom.o,bootrom.elf,bootrom.bin,bootrom_app.o,bootrom_app.bin}
 BOOTROM_DIR = $(TEST_ARTIFACTS_DIR)/bootrom
-build-bootrom:
+_locked-build-bootrom:
 	@test -x $(LLVM_MC_BIN) || { echo "build-bootrom: ERROR: $(LLVM_MC_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLD_BIN) || { echo "build-bootrom: ERROR: $(LLD_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "build-bootrom: ERROR: $(LLVM_OBJCOPY_BIN) not found — run 'make install-host' first"; exit 1; }
@@ -519,7 +575,7 @@ build-bootrom:
 # (components/picolibc/patches/**); run 'make fetch apply-series' first.
 # The target is idempotent (Meson reconfigure + incremental Ninja + install).
 # Requires the install-root clang (run 'make install-host' first).
-build-picolibc:
+_locked-build-picolibc:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-picolibc: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
 	@$(PYTHON) tools/infra/build_picolibc.py --jobs $(JOBS)
 
@@ -527,7 +583,7 @@ build-picolibc:
 # program is compiled against the installed picolibc, linked with the project
 # crt0/linker script and run under QEMU via semihosting; the guest must print
 # "hi" and exit 0.  Needs 'make build-picolibc' + 'make install-host' first.
-test-picolibc-smoke: build-picolibc
+_locked-test-picolibc-smoke: build-picolibc
 	@$(PYTHON) tools/infra/test_picolibc_smoke.py
 
 # check-picolibc-tests (TESTCASES-042t, L2): the picolibc upstream self-test
@@ -537,12 +593,12 @@ test-picolibc-smoke: build-picolibc
 # test under qemu-system-dadao -machine dadao-m1 + semihosting.  Fails if any
 # representative reports a genuine test failure (fail=0); backend/library gaps
 # are reported separately as `blocked`, never as silent skips.
-check-picolibc-tests: build-picolibc
+_locked-check-picolibc-tests: build-picolibc
 	@$(PYTHON) tools/testcases/picolibc_tests.py --stage fast --jobs $(JOBS)
 
 # check-picolibc-tests-full (TESTCASES-042t): the full picolibc self-test set
 # (opt-in; L3-like — hundreds of compile/link/QEMU runs, several minutes).
-check-picolibc-tests-full: build-picolibc
+_locked-check-picolibc-tests-full: build-picolibc
 	@$(PYTHON) tools/testcases/picolibc_tests.py --stage full --jobs $(JOBS)
 
 # check-testcases-suites (TESTCASES-045t stage 1): drive the two upstream
@@ -564,7 +620,7 @@ check-picolibc-tests-full: build-picolibc
 # `timeout` (a genuine wrong result / hang).  `enosys`, `compile-error` and
 # `unsupported` are counted and listed, never silently skipped, and do not turn
 # the target red -- they are the documented state of an unfinished port.
-check-testcases-suites:
+_locked-check-testcases-suites:
 	@$(PYTHON) tools/testcases/run_suite.py --stage fast \
 		--json-out .work/log/testcases/runs/fast.json
 
@@ -573,7 +629,7 @@ check-testcases-suites:
 # helper TUs without main() are counted as `unsupported` with their reason).
 # Opt-in, L3-like: hundreds of compile/link/QEMU runs; `--timeout` is raised for
 # the benchmarks whose default problem size exceeds the fast-stage budget.
-check-testcases-suites-full:
+_locked-check-testcases-suites-full:
 	@$(PYTHON) tools/testcases/run_suite.py --stage full --timeout 300 \
 		--json-out .work/log/testcases/runs/full.json
 
@@ -591,7 +647,7 @@ check-testcases-suites-full:
 # tree without a stamp runs 'make clean' before building; the decision
 # ("... => 'make clean'" / "... => incremental build") is printed.  Applies to
 # build-musl-shared too (same script, same in-tree build directory).
-build-musl:
+_locked-build-musl:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-musl: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
 	@$(PYTHON) tools/infra/build_musl.py --jobs $(JOBS)
 
@@ -608,7 +664,7 @@ build-musl:
 # interpreter passed explicitly (-dynamic-linker /lib/ld-musl-dadao.so.1,
 # contract-dynlink.md §6.1 / ADR-0026 D2) and checks PT_INTERP + DT_NEEDED.
 # Running/loading it is P3 (qemu-user) and is not done here.
-build-musl-shared:
+_locked-build-musl-shared:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-musl-shared: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
 	@$(PYTHON) tools/infra/build_musl.py --jobs $(JOBS) --shared
 
@@ -618,7 +674,7 @@ docker-image:
 docker-shell:
 	docker run --rm -it -v "$(PWD):/workspace" $(DOCKER_TAG) /bin/bash
 
-clean-work:
+_locked-clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
 # ── 门控分层 (INFRA-058t；用户 2026-10-09 裁定，落 milestones「规划中」) ─────────
@@ -627,18 +683,18 @@ clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-spec-archive check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-components
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-spec-archive check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
 
 # L2 各模块功能代表集 (INFRA-058t). 注: test-semihost 自带对 `check`(L1) 的无回归前置
 # （by design，见 INTEG-020t），故 `make check-modules` 会顺带跑 L1。
-check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost check-picolibc-tests
+_locked-check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost check-picolibc-tests
 	@echo "module checks (L2): PASS"
 
 # L3 较完整 (INFRA-058t). check-lit-full 由 test-m6 步骤 [1/3] 承载（不在本目标重复列出）。
-check-full: check-qemu-semantics test-m6
+_locked-check-full: check-qemu-semantics test-m6
 	@echo "full checks (L3): PASS"
 
 # Vector schema/inventory/coverage gate (TESTCASES-002t). Requires the M1
@@ -847,7 +903,7 @@ check-spec-codeblocks:
 # INFRA-047t (ADR-0016 D9): tools are taken from the install root, not .work/build.
 # INFRA-058t: L2 成员（功能代表集，受控子集）——已从 L1 `make check` 移出。
 LIT_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-lit
-check-lit:
+_locked-check-lit:
 	@test -x $(LIT_BIN) || { echo "check-lit: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
 	$(LIT_BIN) tests/llvm/lit/MC/DADAO tests/llvm/lit/CodeGen/DADAO tests/e2e/lit -v
 
@@ -856,7 +912,7 @@ check-lit:
 # INFRA-058t: 归 **L3**（经 `check-full` → `test-m6` 步骤 [1/3] 承载；本目标亦可单独调）。
 # 先跑结构+编码检查器，再跑 lit。
 # 计数不写死：由 check_lit_gen.py / llvm-lit **现场统计**；本目标不设硬编码门限。
-check-lit-full:
+_locked-check-lit-full:
 	@test -x $(LIT_BIN) || { echo "check-lit-full: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
 	@$(PYTHON) tools/testcases/check_lit_gen.py
 	$(LIT_BIN) tests/llvm/lit/MC/DADAO-gen -v
@@ -878,7 +934,7 @@ QEMU_BIN = $(HOST_TOOLCHAIN_BIN)/qemu-system-dadao
 # paths.py (D7) — never the source tree.
 CODEGEN_E2E_WORK = $(TEST_ARTIFACTS_DIR)/codegen-e2e
 CODEGEN_E2E_LOG = .work/log/integ/test-codegen.log
-test-codegen: install-host
+_locked-test-codegen: install-host
 	@test -x $(LLC_BIN) || { echo "test-codegen: ERROR: $(LLC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_MC_BIN) || { echo "test-codegen: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "test-codegen: ERROR: $(LLVM_OBJCOPY_BIN) not found"; exit 1; }
@@ -911,7 +967,7 @@ LLD_BIN = $(HOST_TOOLCHAIN_BIN)/ld.lld
 # paths.py (D7); coexists with test-codegen's dir.
 CODEGEN_ELF_WORK = $(TEST_ARTIFACTS_DIR)/elf-e2e
 CODEGEN_ELF_LOG = .work/log/integ/test-elf.log
-test-elf: install-host
+_locked-test-elf: install-host
 	@test -x $(LLC_BIN) || { echo "test-elf: ERROR: $(LLC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_MC_BIN) || { echo "test-elf: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
 	@test -x $(LLD_BIN) || { echo "test-elf: ERROR: $(LLD_BIN) not found"; exit 1; }
@@ -952,7 +1008,7 @@ SEMIHOST_E2E_LOG = .work/log/integ/test-semihost.log
 SEMIHOST_PROBE_LOG = .work/log/integ/test-semihost-probe.log
 MIN_ROM_PROBE = tools/qemu/min_rom_probe_046t.py
 
-test-semihost: install-host build-bootrom test-elf test-codegen check
+_locked-test-semihost: install-host build-bootrom test-elf test-codegen check
 	@test -x $(LLVM_MC_BIN) || { echo "test-semihost: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "test-semihost: ERROR: $(LLVM_OBJCOPY_BIN) not found"; exit 1; }
 	@test -x $(QEMU_BIN) || { echo "test-semihost: ERROR: $(QEMU_BIN) not found"; exit 1; }
@@ -996,7 +1052,7 @@ EMBENCH_E2E_WORK = $(TEST_ARTIFACTS_DIR)/m6-embench
 IR_LLI_LOG = .work/log/integ/test-m6-ir-lli.log
 EMBENCH_E2E_LOG = .work/log/integ/test-m6-embench.log
 LIT_FULL_LOG = .work/log/integ/test-m6-lit-full.log
-test-m6: install-host
+_locked-test-m6: install-host
 	@test -x $(HOST_TOOLS_BIN)/lli || { echo "test-m6: ERROR: $(HOST_TOOLS_BIN)/lli not found — run 'make install-host'"; exit 1; }
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "test-m6: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
 	@test -d $(EMBENCH_SRC) || { echo "test-m6: ERROR: $(EMBENCH_SRC) not found — run 'make fetch'"; exit 1; }
@@ -1088,7 +1144,7 @@ check-fp-contract:
 QEMU_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
 QEMU_SEM_LOG = .work/log/qemu/check-qemu-semantics.log
 QEMU_SEM_VEC_DIR = $(CURDIR)/tests/vectors
-check-qemu-semantics:
+_locked-check-qemu-semantics:
 	@mkdir -p .work/log/qemu || { echo "check-qemu-semantics: ERROR: cannot create .work/log/qemu"; exit 1; }
 	@$(PYTHON) tools/qemu/semantics_gate.py \
 	    --vectors $(QEMU_SEM_VEC_DIR) --gate-dir $(QEMU_SEM_DIR) \
@@ -1107,7 +1163,7 @@ check-qemu-semantics:
 # 全量留在 L3 (`check-full` → check-qemu-semantics)。
 QEMU_SMOKE_WORK = $(TEST_ARTIFACTS_DIR)/harness/smoke
 QEMU_SMOKE_LOG = .work/log/qemu/check-qemu-smoke.log
-check-qemu-smoke:
+_locked-check-qemu-smoke:
 	@mkdir -p .work/log/qemu
 	@test -x $(QEMU_BIN) || { echo "check-qemu-smoke: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
 	@$(PYTHON) tests/scripts/run_qemu_smoke.py --qemu $(QEMU_BIN) \

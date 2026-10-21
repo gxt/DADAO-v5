@@ -63,6 +63,7 @@ DADAO-v5/
 ## 门控分层与触发点
 - **分层**：L1 `make check`（完整性静态 + 可用性冒烟）/ L2 `make check-modules`（模块功能代表集）/ L3 `make check-full`（较完整）；某模块全量按需单独调。
 - **触发点**：**任务收尾跑 L2**；**里程碑 / `/complete` 跑 L3**。分层明细与「新检查进哪层」见 `docs/Process-07-门控分层规范.md`。
+- **同工作树互斥**：`Makefile` 的 `GATE_LOCKED_TARGETS`（写者 + 门控）由 `.dadao/gate.lock` 的 `flock` 串行化（`GATE_LOCK_WAIT`/`GATE_LOCK_FAILFAST`），嵌套自动放行；见 `docs/Process-07 §2`。
 
 ## 临时目录
 - 临时/合成/一次性产物一律放 `/tmp/opencode/<任务ID>/`，**不另起** `/tmp/<其它名>`，不得放仓库内或 `~/`。
