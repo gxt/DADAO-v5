@@ -146,4 +146,26 @@
 - **文件集对账**（`git diff --cached --name-only` 12 项 vs 完成区「修改文件」）：8 新文件 = `tests/atomics/{counter,c11_alltypes,atomic_builtins,aba_treiber,barrier_probe}.c` + `tools/testcases/{run_atomics_probe.py,oracle_atomics.py,README.md}` ✓；`issues.yaml`（`ISS-294` closed + 新增 `ISS-312`/`ISS-313`）✓；本册 ✓。**派单明列的范围外 2 项**：`LLVM-121t` 册（撤回 + 返工要求段）、`milestones.md`（4 行同步）—— 属主会话派单 ②③，非本册交付面。**漏提 0 / 多提 0**。`.work/evidence|log/**` 不入 git（完成区已声明为证据路径）。
 - **门控**：`make check`（L1）**rc=0**（`repository checks (L1): PASS`，日志 `/tmp/opencode/056t-land/L1.log`）；`check-milestones-fresh` PASS（24 行）；`check_issues.py` rc=0（58 open / 27 closed）。
 
+#### XFAIL 摘除（2026-10-21）
+- 摘除 20 条 xfail 登记（`oracle_atomics.py`）：11 条 `atomic-store-address` = c11 `store_shared` 7 + builtins `store_n_shared` 4；9 条 `narrow-cas-sext` = c11 `compare_exchange_edge_ok` 6 + builtins `compare_exchange_edge` 3；对应 `ISS-312`/`ISS-313`，已随 `LLVM-121t` 返工修复。
+- 摘除前实测（安装根、两档各一轮）：`total=711 pass=691 fail=20 xfail=0`，20 条 `FAIL` 全为精确 `XPASS`（缺陷签名不再出现）⇒ 证明修复到位、摘除时机正确。
+- 摘除后实测（两档各一轮、`--rounds 5`）：**static 711/711、dynamic 711/711，0 fail、0 xfail，rc=0**（日志 `TESTCASES-056t-driver-{static,dynamic}.log`）。
+- 机制保留：判据抽为 4 个 `_judge_xfail_*` 助手（行为不变）；`oracle.selftest_xfail()` 以合成观测在 `--inject` 下验 12 条（签名命中→XFAIL / 语义恢复→XPASS 红 / 签名变化→红），三类各做一次真红注入（各 rc=1、1 条 FAIL）后 `cp`+md5 还原回绿（`--inject` 两档 418/418）。
+- 未改断言强度（仅删“已知缺陷”标记，20 条转为语义断言）；`run_libc_test_user_suite.py` 未动；`**状态**` 仍 `待验收`。
+- 证据 `run.sh` 未改（期望值现场派生）：default **44/44 rc=0**、`--inject` **13/13 rc=0**，`oracle known-defect cells = total=0 store=0 cas=0`；门控 `check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check-run-artifacts`/`check_issues.py`/L1 全 rc=0。
+- 注：本分支起点 `a01451f9` 携带 `LLVM-121t-rework2` 未提交改动（5 M + 2 ??，属 `LLVM-121t` 交付面），本册未触碰。
+
+#### 第 2 轮 engineer 自审
+> 方式：自主逐行审查（`subagent_depth=1`）。范围：`oracle_atomics.py` 摘除/抽取、`run_atomics_probe.py` `--inject` 自测接入；真实重跑两档 + 三次注入 + 证据脚本 + 门控。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 编辑残留：`value = SHARED_STORE_VALUE[tag]` 重复赋值 | ✅已修 | 删重复行 | 600 cells / 0 xfail；两档 711/711 |
+| F2 摘除后 xfail 机制成死代码、无自测 | ✅已修 | 抽 `_judge_xfail_*`（行为不变）+ `oracle.selftest_xfail()`（12 条合成观测），接入 `injection_mode` | `--inject` 两档 418/418，12 PASS |
+| F3 自测须有可达 FAIL（防恒真） | ✅已验 | 三个行为类各注入一次：XPASS 判真 / changed 判 xfail / exact 丢 xfail kind | 三次均 rc=1 且各 1 条 `FAIL xfail-selftest`；`cp` 还原后 md5 `4e09219d…` 一致、再跑 rc=0 |
+| F4 证据脚本是否写死 20 条 | ✅已验（未改） | 无（`EXPECT_XFAIL` 现场从 oracle 派生） | `known-defect cells total=0`；default 44/44 |
+| F5 `tools/testcases/README.md`「已知缺陷」段仍按两缺陷**未修**叙述 | ✅已修 | 改为「机制保留、登记清空（711/711）」+ 原缺陷存档段 | grep 无“不计 PASS”旧口径；`check-knowledge-refs` rc=0 |
+| F6 `tests/atomics/*.c` 注释仍称「oracle marks them XFAIL」 | ⏸延后 | 无（派单限定 `tools/testcases/**` + 本册，探针源码不在范围） | 已在回报披露；注释不影响判据，待主会话决定是否另派 |
+| F7 `oracle_atomics.py --dump-builtins` 分支写作 `args.dump-builtins`（预存笔误，CLI 直接 `AttributeError`） | ✅已修 | 改 `args.dump_builtins`（1 字符，XFAIL 登记检视入口） | `--dump-builtins` 212 行 / 0 xfail；`--dump-c11` 388 行 / 0 xfail；修后两档仍 711/711 |
+
 

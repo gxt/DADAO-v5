@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：`ADR-0034`（`Accepted`：编码/命名定案）、`contracts/opcodes.yaml`（259 条真源）、`LLVM-116t`（上一轮 ISA 编码迁移的 llvm 册先例，`已验证`）、`ISS-307`（本批 4 册总账）；**下游串行**：`QEMU-067t`（②）→ `INFRA-100t`（③）→ `TESTCASES-056t`（④）
-**状态**：待返工
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -303,3 +303,27 @@ L_done:
 - **档位 / 提交号**：同批内容提交 `e7387088`（`WIP:` 前缀，因同批 ④ 为 `待验收`；本册返工另计）；本段为随后一笔留痕。分支 `TESTCASES-056t`，**未 push**。
 - **文件集对账**：本册 1 项 + `milestones.md`（行内状态/时间同步）；**范围外** = `TESTCASES-056t` 交付 8 文件 + `issues.yaml` + 其本册（派单 ①）。**漏提 0 / 多提 0**。
 
+
+### 返工（`ISS-312` / `ISS-313`，2026-10-21，engineer）
+
+**A 修法（`ISS-312`，P1）**：`LowerATOMIC_STORE` 的 `SDValue Val = Op.getOperand(2)` → `AN->getVal()`（`getTruncStore` 分支共用同一 `Val`，无需另改）。依据 = `SelectionDAGNodes.h` 的 `AtomicSDNode::getBasePtr()/getVal()`（`ATOMIC_STORE`：ptr=op2、value=op1）与 `SelectionDAGBuilder` 的 `(chain, ptr, cmp, new)`。**同族操作数下标审计**（逐条对源码）：`ATOMIC_LOAD` 用 `getChain()/getBasePtr()/getMemoryVT()` ✓；`ATOMIC_FENCE` 的 ordering 在 op1、scope 在 op2 ✓；`ATOMIC_CMP_SWAP_WITH_SUCCESS` 的 `(chain,ptr,cmp,new)` = op0..op3 ✓；伪指令展开读 `MI` 的 `(dst,ptr,cmp,new)` ✓；`DADAOISD::ATOMIC_CMP_SWAP` 的 `[chain,ptr,cmp,new,width]` ✓ ⇒ **仅 store 一处错位，其余无同类错**。
+**B 修法（`ISS-313`，P2）**：**比较口径统一到访问宽度** —— `LowerATOMIC_CMP_SWAP_WITH_SUCCESS` 对 `MemVT < 64` 的期望值先 `AND ((1<<W)-1)`，该规范化值**同时**作为伪指令操作数（环内 `br.ne`）与 `SETEQ` 的比较对象（**单点规范化**，两处不可能再各自漂移）。依据 = C11 7.17.7.4（比较的是对象表示的 W 字节）+ `lr` 零扩展（`QEMU-067t` 的 `gen_lr` 对提取字节做 `andi`；`contract-abi §4.2` 的「按符号性扩展」只约束**参数**，CAS 操作数不是参数）。效果：常量 expected 时掩码被折叠进常量物化（`set.zw …, 0x8000`，修前是 `set.ow`+`andn.w` = 符号扩展形态），运行期 expected 时落 1 条 `and.o`；i64 不掩码。**与 `ISS-310` 的关系**：同向（都朝「按宽度/符号性规范化」），但本修**不依赖**它——掩码对「符号扩展」「零扩展」两种来源都成立，故 `ISS-310` 仍按自身缺口（实参 ABI `signext`）独立修，本册未动参数扩展路径。
+**新增用例**：`tests/llvm/lit/CodeGen/DADAO/atomics-store.ll`（i8/i16/i32/i64：`st.*` 的源寄存器 = 值计算指令的目的 + `CHECK-NOT: rb2rd` 反对「地址副本」；monotonic/seq_cst/release 各一）、`atomics-cas-narrow-sext.ll`（i32 运行期 expected 的 `and.o`、i8/i16/i32 高位为 1 常量的零扩展物化、`cmp.so` 复用同一规范化操作数、i64 无掩码）。运行期：证据脚本用 **volatile 指针 + 跨 TU** 的 store 探针与 i8/i16/i32 高位 CAS 探针，**-O0/-O2 各一档**，两套 clang 各建一次。
+**20 个 XFAIL 复核真值（构建树 clang；未 `install-host`）**：`run_atomics_probe.py` static/dynamic 各 **711 单元：pass 691 / fail 20（= 20 条 XPASS；缺陷签名命中 0）**；20 条 = 11 `atomic-store-address` + 9 `narrow-cas-sext`（条数由 `oracle_atomics` **现场派生**）。原始观测（同一探针两套 clang 各建一次）：`SCASE * store_shared` 修前 `fin` = 自身地址（`0x56ac4`→355012；指针 `fin=addr=0x56ae8`）→ 修后 = 值（42/4321/424242/4242424242/2100000000/3100000000/`&pb`）；`SBUILTIN w=4 store_n` 修前 `fin=340284`（`0x5313c`）→ 修后 `1432778632`；窄 CAS `ret` 0→1、`fin` 初值→写入 0（8 B 对照组修前即 ret=1）。
+**不回归**：lit（构建树 overlay）**127/127**（原 125 + 2 新）；`check-instrinfo` **0 errors**（197 defs）；`check_lit_gen` **64/64**；`check-isa-coverage` 构建树 llvm-mc **PASS**（259；accept 257/reject 2；编码不符 0），**安装根 llvm-mc 上同样 PASS**；`check-patch-tree` **185 patches OK**；非原子 codegen golden **33/33 逐字节相同**。
+**修改文件**：`components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOISelLowering.cpp.patch`（+28/−1）、`components/llvm-project/changelog.md`（M9 追加一条）、新增两个 lit `.ll`；（**范围外但门控必需，已披露**）`tools/llvm/llvm-isa-backend-matrix.{tsv,md}` 重生成——差异仅 `DADAOISelLowering.cpp.patch` 行号 +27 的引用漂移（10 行 × 2 文件）。组件源码树 `commit --amend` 收敛（`f9ee808ef`，E1 OK，worktree 干净）。证据 `.work/evidence/LLVM-121t/run-rework2.sh`：default **17/17 rc=0**、`--inject` **3 处注入全部「注入→红→cp+md5 还原→绿」rc=0**；日志 `.work/log/llvm/LLVM-121t/`。
+**遗留**：① 安装根未刷新 ⇒ `make check-lit` 仍读**修前** llc（新增 2 例按预期红），待主会话 `install-host` 后转绿；`check-builtins-freshness` 同理。② **B 修假设 `lr.b/.w/.t` 零扩展**（`QEMU-067t` 实现口径，`spec/SimRISC-12` 未写明）；若日后改符号扩展须同步本掩码（已写入代码注释）。③ `-O0` 下 CAS 缺陷不显现（expected 经 alloca 零扩展载入）⇒ 修前对照只取 `-O2`，修后两档都须绿。④ 未 `install-host`、未跑 L2/L3、未 commit/push；`**状态**` **未改**（仍 `待返工`）。
+
+#### 第 3 轮 engineer 自审（返工 `ISS-312`/`ISS-313`）
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F13 常量 expected 的 `AND` 掩码被 DAG 折叠，担心「掩码没生效」 | ⏸无需修（合流为**零扩展**常量物化，语义正确且有结构可断言） | 无 | `cas32_top_bit`：修后 `set.zw …, 0x8000`；修前对照 `set.ow`+`andn.w`（真·符号扩展） |
+| F14 只掩码 `Cmp`、不掩码 `lr` 结果（依赖 `lr` 零扩展） | ⏸延后（披露）：`QEMU-067t` 的 `gen_lr` 对提取字节 `andi` 后再写 rd；代码注释写明该依赖 | 无（靠注释 + 完成区遗留②） | `c11`/`builtins` 窄 CAS 9/9 运行通过；`lr` 零扩展口径见 `LLVM-121t` 已知边界 |
+| F15 `c15_values.py` 的 `shared_store_*` 正则把**函数定义**当调用点 ⇒ 期望值解析崩溃 | ✅已修 | 限定 `\(\d+\);` 调用形态；指针单元用探针自打的 `PTR_B` | 脚本 `store=7/7`；首轮实际崩过（`invalid literal … 'char v'`） |
+| F16 指针单元的 `fin` 是无 `0x` 前缀的十六进制，按十进制解析失败 | ✅已修 | 按 `tag == pointer` 选择 `int(s,16)` | `store=7/7`（含 pointer） |
+| F17 证据脚本首稿 `c9_golden` 定义了两次（前一份为死代码，helper 写在函数之间） | ✅已修 | 删重复定义，helper 统一由 `gen_helpers` 生成 | `bash -n` OK；default 17/17 |
+| F18 `build_run` 构建失败原本只 `return 90` 不回显 ⇒ 调用方拿到空 rc，会把「构建失败」误判成未知值 | ✅已修 | 两个失败分支改为 `{ echo 90/91; return; }` | 修前/修后 8 次构建全部拿到整型 rc |
+| F19 补丁行号变化使 `check-isa-coverage` 红（矩阵 `isel-cpp:…:<行号>` 引用漂移） | ✅已修 | 按真源重生成 `tools/llvm/llvm-isa-backend-matrix.{tsv,md}` | `--check` PASS（259/accept 257/reject 2）；diff 仅行号 |
+
+自审判定：可修项（F15–F19）已修并重跑；F13/F14 为「已核实/已披露」项，完成区有对应条目，无「遗留:无」式表述。

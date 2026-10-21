@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..080e55ae8
+index 000000000..045d406dc
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,2385 @@
+@@ -0,0 +1,2412 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -2241,7 +2241,12 @@ index 000000000..080e55ae8
 +  const SDLoc DL(Op);
 +  auto *AN = cast<AtomicSDNode>(Op.getNode());
 +  EVT MemVT = AN->getMemoryVT();
-+  SDValue Val = Op.getOperand(2);
++  // `ATOMIC_STORE` operands are (chain, value, ptr): the *value* is operand 1
++  // (`getVal()`), operand 2 / `getBasePtr()` is the address.  Taking operand 2
++  // here stored the address of the object instead of the stored value -- it
++  // went unnoticed for as long as only local `_Atomic` variables were probed,
++  // because those are usually promoted out of memory (ISS-312).
++  SDValue Val = AN->getVal();
 +  if (MemVT == Val.getValueType())
 +    return DAG.getStore(AN->getChain(), DL, Val, AN->getBasePtr(),
 +                        AN->getMemOperand());
@@ -2271,6 +2276,28 @@ index 000000000..080e55ae8
 +  SDValue Ptr = Op.getOperand(1);
 +  SDValue Cmp = Op.getOperand(2);
 +  SDValue New = Op.getOperand(3);
++
++  // The comparison is over the W bytes of memory, not over the whole 64-bit
++  // register: a compare-exchange succeeds iff the object's representation
++  // equals the expected one (C11 7.17.7.4), and the canonical 64-bit form of
++  // a narrow value is width-defined, not extension-defined (contract-abi
++  // §4.2 keeps the *signedness* extension as a caller duty for arguments, but
++  // a CAS operand is not an argument).  Concretely, the `lr` result enters the
++  // 64-bit register zero-extended (SimRISC-12 §3.2 as implemented by the
++  // batch: `gen_lr` masks the extracted bytes), while `Cmp` arrives promoted
++  // from the memory type with the high bits whatever the type legalizer chose
++  // (an `int -1` expected value is sign-extended to 0xFFFF...FFFF), so a
++  // plain 64-bit `br.ne` never matched a top-bit-set expected value on the
++  // 1/2/4-byte widths (ISS-313).  Masking the expected value down to the
++  // access width makes both sides of every comparison -- the SETCC below and
++  // the `br.ne` inside EmitInstrWithCustomInserter, which receives this very
++  // value as the pseudo's operand -- agree on the width, and it stays correct
++  // for either extension convention of the source operand.
++  if (MemVT.getSizeInBits() < 64) {
++    APInt Mask = APInt::getLowBitsSet(64, MemVT.getSizeInBits());
++    Cmp = DAG.getNode(ISD::AND, DL, MVT::i64, Cmp,
++                      DAG.getConstant(Mask, DL, MVT::i64));
++  }
 +
 +  // Width class: 0 = byte, 1 = wyde, 2 = tetra, 3 = octa (lr/sc suffixes).
 +  unsigned Width = Log2_64(MemVT.getSizeInBits() / 8);

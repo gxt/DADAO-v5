@@ -15,17 +15,25 @@ implementation:
     (``N*M``, ``T*K``) and state predicates (empty stack, every node popped
     exactly once, tagged ABA rejected).
 
-Measured component defects
---------------------------
-The suite *measures* two backend defects instead of hiding them.  A cell that
-is listed here as ``xfail`` is checked against the exact defective observation
-(not against "anything goes"), and a cell that starts matching the semantic
-expectation again is reported as ``xpass`` -- i.e. the defect is gone and the
-expectation list must be updated.  Nothing xfail is ever counted as a pass.
+XFAIL machinery (kept, currently unused)
+----------------------------------------
+Two backend defects (``ISS-312`` / ``ISS-313``) used to be *measured* here:
+a cell listed as ``xfail`` was checked against the exact defective observation
+(not against "anything goes"), a cell that recovered the semantic expectation
+was reported as ``XPASS`` (red: the defect is gone, delete the entry), and any
+other observation was reported as a changed signature (also red).  Nothing
+xfail is ever counted as a pass.
+
+Both defects were fixed by the ``LLVM-121t`` rework, so the expectation table
+below carries **no** xfail cell any more and every cell is asserted against
+the published semantics.  The machinery itself is retained and is still
+exercised by :func:`selftest_xfail` (synthetic observations, run by the driver
+in ``--inject`` mode): exact defect signature -> XFAIL, recovered value ->
+XPASS red, changed signature -> red.
 
   DEFECT_ATOMIC_STORE  every ``atomic_store``/``__atomic_store_n`` to a shared
       object stores the object's *address* instead of the value
-      (DADAO LowerATOMIC_STORE reads ATOMIC_STORE operand 2, which is the
+      (DADAO LowerATOMIC_STORE read ATOMIC_STORE operand 2, which is the
       pointer: LLVM's AtomicSDNode keeps ``(chain, value, ptr)`` for stores).
   DEFECT_NARROW_CAS    ``compare_exchange`` on a 1/2/4-byte object whose
       compared value has its top bit set never succeeds: the promoted i64
@@ -175,11 +183,8 @@ def c11_expect():
             cases.append(_case(cid, tag, "compare_exchange_edge_control",
                                "seq_cst", 1, 0, v))
         else:
-            cases.append(_case(
-                cid, tag, "compare_exchange_edge_ok", "seq_cst",
-                ret=1, fin=0, exp=v,
-                xfail=DEFECT_NARROW_CAS,
-                defect=dict(ret=0, fin=v, exp=v)))
+            cases.append(_case(cid, tag, "compare_exchange_edge_ok", "seq_cst",
+                               ret=1, fin=0, exp=v))
 
     # Shared-object cells (the real cross-thread path).
     for tag in ("char", "short", "int", "long", "unsigned", "size_t",
@@ -188,14 +193,10 @@ def c11_expect():
         value = SHARED_STORE_VALUE[tag]
         cid = "%s store_shared release" % tag
         if tag == "pointer":
-            cases.append(_case(cid, tag, "store_shared", "release", NA, value,
-                               xfail=DEFECT_ATOMIC_STORE,
-                               defect=dict(ret=NA, fin=("addr",))))
+            cases.append(_case(cid, tag, "store_shared", "release", NA, value))
         else:
             cases.append(_case(cid, tag, "store_shared", "release", NA,
-                               _wrap(value, width, kind),
-                               xfail=DEFECT_ATOMIC_STORE,
-                               defect=dict(ret=NA, fin=("addr",))))
+                               _wrap(value, width, kind)))
     for op, ret, fin in SHARED_RMW_EXPECT:
         cases.append(_case("int %s seq_cst" % op, "int", op, "seq_cst", ret,
                            fin))
@@ -254,19 +255,15 @@ def builtins_expect():
             cases.append(_case(cid, "w%d" % width, "compare_exchange_edge",
                                "seq_cst", 1, 0, top))
         else:
-            cases.append(_case(
-                cid, "w%d" % width, "compare_exchange_edge", "seq_cst",
-                ret=1, fin=0, exp=top,
-                xfail=DEFECT_NARROW_CAS,
-                defect=dict(ret=0, fin=top, exp=top)))
+            cases.append(_case(cid, "w%d" % width, "compare_exchange_edge",
+                               "seq_cst", ret=1, fin=0, exp=top))
     for width, init, _arg in BUILTIN_WIDTHS:
         m = _mask(width)
         cases.append(_case("%d load_n shared" % width, "w%d" % width,
                            "load_n_shared", "none", init, init))
         cases.append(_case(
             "%d store_n shared" % width, "w%d" % width, "store_n_shared",
-            "none", NA, BUILTIN_SHARED_VALUE[width],
-            xfail=DEFECT_ATOMIC_STORE, defect=dict(ret=NA, fin=("addr",))))
+            "none", NA, BUILTIN_SHARED_VALUE[width]))
         del m
     return cases
 
@@ -408,6 +405,78 @@ def _check(name, expected, actual, ok, kind="check", detail=""):
             "kind": kind, "detail": detail}
 
 
+def _judge_xfail_store(c, o, ptrs):
+    """Judge an ``atomic-store-address`` xfail cell (C11 producer).
+
+    XFAIL only when the observed value is exactly the object address cut to
+    the object width; a recovered semantic value is an XPASS (red), anything
+    else is a changed signature (red).
+    """
+    addr = o.get("addr")
+    if addr is None:
+        return _check(c["id"], "addr field", "missing", False)
+    bad = _store_defect_value(addr, c["tag"])
+    if o["ret"] == NA and _same_value(c["fin"], o["fin"], ptrs):
+        return _check(c["id"], "defect signature", "semantic value", False,
+                      detail="XPASS: %s is fixed -- remove the xfail entry"
+                             % c["xfail"])
+    if (int(o["fin"], 16) == bad) if c["tag"] == "pointer" \
+            else _same_int(bad, o["fin"]):
+        return _check(c["id"], "stored == address (defect)", "match", True,
+                      kind="xfail", detail=c["xfail"])
+    return _check(c["id"], "stored == address (defect)", o["fin"], False,
+                  detail="defect signature changed")
+
+
+def _judge_xfail_narrow_cas(c, o, ptrs):
+    """Judge a ``narrow-cas-sext`` xfail cell (C11 producer)."""
+    sig = c["defect"]
+    got = (o["ret"], o["fin"], o["exp"])
+    want = (str(sig["ret"]), _norm(sig["fin"]), _norm(sig["exp"]))
+    if o["ret"] == "1" and _same_value(c["fin"], o["fin"], ptrs):
+        return _check(c["id"], "defect signature", "semantic value", False,
+                      detail="XPASS: %s is fixed -- remove the xfail entry"
+                             % c["xfail"])
+    if got == want:
+        return _check(c["id"], "cas fails on top-bit value", "match", True,
+                      kind="xfail", detail=c["xfail"])
+    return _check(c["id"], "cas fails on top-bit value", str(got), False,
+                  detail="defect signature changed")
+
+
+def _judge_xfail_store_builtins(c, o):
+    """Judge an ``atomic-store-address`` xfail cell (``__atomic_*`` producer)."""
+    addr = o.get("addr")
+    if addr is None:
+        return _check(c["id"], "addr field", "missing", False)
+    bad = int(addr, 16) & _mask(int(c["tag"][1:]))
+    if o["fin"] == str(c["fin"]):
+        return _check(c["id"], "defect signature", "semantic value", False,
+                      detail="XPASS: %s is fixed -- remove the xfail entry"
+                             % c["xfail"])
+    if int(o["fin"]) == bad:
+        return _check(c["id"], "stored == address (defect)", "match", True,
+                      kind="xfail", detail=c["xfail"])
+    return _check(c["id"], "stored == address (defect)", o["fin"], False,
+                  detail="defect signature changed")
+
+
+def _judge_xfail_narrow_cas_builtins(c, o):
+    """Judge a ``narrow-cas-sext`` xfail cell (``__atomic_*`` producer)."""
+    sig = c["defect"]
+    got = (o["ret"], o["fin"], o["exp"])
+    want = (str(sig["ret"]), str(sig["fin"]), str(sig["exp"]))
+    if o["ret"] == "1" and o["fin"] == str(c["fin"]):
+        return _check(c["id"], "defect signature", "semantic value", False,
+                      detail="XPASS: %s is fixed -- remove the xfail entry"
+                             % c["xfail"])
+    if got == want:
+        return _check(c["id"], "cas fails on top-bit value", "match", True,
+                      kind="xfail", detail=c["xfail"])
+    return _check(c["id"], "cas fails on top-bit value", str(got), False,
+                  detail="defect signature changed")
+
+
 def compare_c11(obs, ptrs):
     checks = []
     expected = c11_expect()
@@ -423,49 +492,10 @@ def compare_c11(obs, ptrs):
         if c["exp"] is not None:
             fields.append(("exp", c["exp"]))
         if c["xfail"] == DEFECT_ATOMIC_STORE:
-            # The defect signature: the address was stored instead of VALUE.
-            addr = o.get("addr")
-            if addr is None:
-                checks.append(_check(cid, "addr field", "missing", False))
-                continue
-            bad = _store_defect_value(addr, c["tag"])
-            semantic = (
-                o["ret"] == NA
-                and _same_value(c["fin"], o["fin"], ptrs))
-            if semantic:
-                checks.append(_check(cid, "defect signature", "semantic value",
-                                     False,
-                                     detail="XPASS: %s is fixed -- remove "
-                                            "the xfail entry" % c["xfail"]))
-            elif ((int(o["fin"], 16) == bad) if c["tag"] == "pointer"
-                  else _same_int(bad, o["fin"])):
-                checks.append(_check(cid, "stored == address (defect)", "match",
-                                     True, kind="xfail", detail=c["xfail"]))
-            else:
-                checks.append(_check(cid, "stored == address (defect)",
-                                     o["fin"], False,
-                                     detail="defect signature changed"))
+            checks.append(_judge_xfail_store(c, o, ptrs))
             continue
         if c["xfail"] == DEFECT_NARROW_CAS:
-            sig = c["defect"]
-            got = (o["ret"], o["fin"], o["exp"])
-            want = (str(sig["ret"]),
-                    _norm(sig["fin"]),
-                    _norm(sig["exp"]))
-            semantics = (o["ret"] == "1" and _same_value(c["fin"], o["fin"], ptrs))
-            if semantics:
-                checks.append(_check(cid, "defect signature", "semantic value",
-                                     False,
-                                     detail="XPASS: %s is fixed -- remove "
-                                            "the xfail entry" % c["xfail"]))
-            elif got == want:
-                checks.append(_check(cid, "cas fails on top-bit value",
-                                     "match", True, kind="xfail",
-                                     detail=c["xfail"]))
-            else:
-                checks.append(_check(cid, "cas fails on top-bit value",
-                                     str(got), False,
-                                     detail="defect signature changed"))
+            checks.append(_judge_xfail_narrow_cas(c, o, ptrs))
             continue
         detail = []
         ok = True
@@ -509,41 +539,10 @@ def compare_builtins(obs):
                                  detail="cell not emitted by the probe"))
             continue
         if c["xfail"] == DEFECT_ATOMIC_STORE:
-            addr = o.get("addr")
-            if addr is None:
-                checks.append(_check(cid, "addr field", "missing", False))
-                continue
-            bad = int(addr, 16) & _mask(width)
-            if o["fin"] == str(c["fin"]):
-                checks.append(_check(cid, "defect signature", "semantic value",
-                                     False,
-                                     detail="XPASS: %s is fixed -- remove "
-                                            "the xfail entry" % c["xfail"]))
-            elif int(o["fin"]) == bad:
-                checks.append(_check(cid, "stored == address (defect)", "match",
-                                     True, kind="xfail", detail=c["xfail"]))
-            else:
-                checks.append(_check(cid, "stored == address (defect)",
-                                     o["fin"], False,
-                                     detail="defect signature changed"))
+            checks.append(_judge_xfail_store_builtins(c, o))
             continue
         if c["xfail"] == DEFECT_NARROW_CAS:
-            sig = c["defect"]
-            got = (o["ret"], o["fin"], o["exp"])
-            want = (str(sig["ret"]), str(sig["fin"]), str(sig["exp"]))
-            if o["ret"] == "1" and o["fin"] == str(c["fin"]):
-                checks.append(_check(cid, "defect signature", "semantic value",
-                                     False,
-                                     detail="XPASS: %s is fixed -- remove "
-                                            "the xfail entry" % c["xfail"]))
-            elif got == want:
-                checks.append(_check(cid, "cas fails on top-bit value",
-                                     "match", True, kind="xfail",
-                                     detail=c["xfail"]))
-            else:
-                checks.append(_check(cid, "cas fails on top-bit value",
-                                     str(got), False,
-                                     detail="defect signature changed"))
+            checks.append(_judge_xfail_narrow_cas_builtins(c, o))
             continue
         ok = o["ret"] == _norm(c["ret"]) and o["fin"] == str(c["fin"])
         detail = "ret exp=%s got=%s; fin exp=%s got=%s" % (
@@ -559,6 +558,102 @@ def compare_builtins(obs):
         if key not in keys:
             checks.append(_check("w%d %s %s" % key, "known cell",
                                  "unexpected", False))
+    return checks
+
+
+def selftest_xfail():
+    """Exercise the xfail machinery with synthetic observations.
+
+    Called by the driver in ``--inject`` mode.  The expectation table no longer
+    lists an xfail cell (both defects were fixed by the ``LLVM-121t`` rework),
+    but the machinery must still be able to (a) accept the exact defect
+    signature as XFAIL, (b) reject a recovered semantic value as XPASS, and
+    (c) reject a changed signature as red.  Every check here has a reachable
+    FAIL path: break the corresponding judge and the driver goes red.
+    """
+    checks = []
+
+    def record(label, got, want_ok, want_kind, want_detail):
+        ok = (got["ok"] == want_ok and got["kind"] == want_kind
+              and want_detail in (got["detail"] or ""))
+        checks.append(_check(
+            "xfail-selftest %s" % label,
+            "ok=%s kind=%s detail~%s" % (want_ok, want_kind, want_detail),
+            "ok=%s kind=%s detail=%s" % (got["ok"], got["kind"],
+                                         got["detail"]),
+            ok))
+
+    # --- atomic-store-address, C11 producer (int, width 4) ----------------
+    addr = "7f0000"
+    bad = _store_defect_value(addr, "int")
+    store = _case("selftest store_shared", "int", "store_shared", "release",
+                  NA, 424242, xfail=DEFECT_ATOMIC_STORE,
+                  defect=dict(ret=NA, fin=("addr",)))
+    record("store/c11 exact signature",
+           _judge_xfail_store(store, {"ret": NA, "fin": str(bad),
+                                      "addr": addr, "kind": "scase"}, {}),
+           True, "xfail", DEFECT_ATOMIC_STORE)
+    record("store/c11 semantic value -> XPASS red",
+           _judge_xfail_store(store, {"ret": NA, "fin": "424242",
+                                      "addr": addr, "kind": "scase"}, {}),
+           False, "check", "XPASS")
+    record("store/c11 changed signature -> red",
+           _judge_xfail_store(store, {"ret": NA, "fin": "123",
+                                      "addr": addr, "kind": "scase"}, {}),
+           False, "check", "changed")
+
+    # --- atomic-store-address, __atomic_* producer (width 4) --------------
+    storeb = _case("selftest 4 store_n shared", "w4", "store_n_shared",
+                   "none", NA, 0x55667788, xfail=DEFECT_ATOMIC_STORE,
+                   defect=dict(ret=NA, fin=("addr",)))
+    badb = int(addr, 16) & _mask(4)
+    record("store/builtins exact signature",
+           _judge_xfail_store_builtins(
+               storeb, {"ret": NA, "fin": str(badb), "addr": addr}),
+           True, "xfail", DEFECT_ATOMIC_STORE)
+    record("store/builtins semantic value -> XPASS red",
+           _judge_xfail_store_builtins(
+               storeb, {"ret": NA, "fin": str(0x55667788), "addr": addr}),
+           False, "check", "XPASS")
+    record("store/builtins changed signature -> red",
+           _judge_xfail_store_builtins(
+               storeb, {"ret": NA, "fin": "123", "addr": addr}),
+           False, "check", "changed")
+
+    # --- narrow-cas-sext, C11 producer (char, top bit set) ----------------
+    cas = _case("selftest char compare_exchange_edge_ok seq_cst", "char",
+                "compare_exchange_edge_ok", "seq_cst", ret=1, fin=0, exp=-1,
+                xfail=DEFECT_NARROW_CAS, defect=dict(ret=0, fin=-1, exp=-1))
+    record("narrow-cas/c11 exact signature",
+           _judge_xfail_narrow_cas(cas, {"ret": "0", "fin": "-1",
+                                         "exp": "-1"}, {}),
+           True, "xfail", DEFECT_NARROW_CAS)
+    record("narrow-cas/c11 semantic value -> XPASS red",
+           _judge_xfail_narrow_cas(cas, {"ret": "1", "fin": "0",
+                                         "exp": "-1"}, {}),
+           False, "check", "XPASS")
+    record("narrow-cas/c11 changed signature -> red",
+           _judge_xfail_narrow_cas(cas, {"ret": "0", "fin": "0",
+                                         "exp": "-1"}, {}),
+           False, "check", "changed")
+
+    # --- narrow-cas-sext, __atomic_* producer (width 1) -------------------
+    casb = _case("selftest 1 compare_exchange_edge seq_cst", "w1",
+                 "compare_exchange_edge", "seq_cst", ret=1, fin=0, exp=0xAB,
+                 xfail=DEFECT_NARROW_CAS,
+                 defect=dict(ret=0, fin=0xAB, exp=0xAB))
+    record("narrow-cas/builtins exact signature",
+           _judge_xfail_narrow_cas_builtins(
+               casb, {"ret": "0", "fin": "171", "exp": "171"}),
+           True, "xfail", DEFECT_NARROW_CAS)
+    record("narrow-cas/builtins semantic value -> XPASS red",
+           _judge_xfail_narrow_cas_builtins(
+               casb, {"ret": "1", "fin": "0", "exp": "171"}),
+           False, "check", "XPASS")
+    record("narrow-cas/builtins changed signature -> red",
+           _judge_xfail_narrow_cas_builtins(
+               casb, {"ret": "0", "fin": "7", "exp": "171"}),
+           False, "check", "changed")
     return checks
 
 
@@ -620,7 +715,7 @@ def main(argv=None):
     if args.dump_c11:
         for c in c11_expect():
             print(c["id"], c["ret"], c["fin"], c["exp"], c["xfail"])
-    if args.dump-builtins:
+    if args.dump_builtins:
         for c in builtins_expect():
             print(c["id"], c["ret"], c["fin"], c["exp"], c["xfail"])
     if args.dump_aba:

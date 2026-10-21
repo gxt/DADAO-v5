@@ -15,7 +15,10 @@ What it does NOT do
 * It never turns a known component defect into a pass: a cell listed as
   ``xfail`` in the oracle must match the *defect's exact signature*; a cell
   that recovers the semantic value is reported as ``XPASS`` and fails the run
-  (that is the signal to delete the xfail entry after the fix).
+  (that is the signal to delete the xfail entry after the fix).  Both defects
+  measured here (``ISS-312``/``ISS-313``) are fixed by the ``LLVM-121t``
+  rework, so the expectation table now carries no xfail cell; the machinery is
+  kept and exercised by ``oracle.selftest_xfail()`` in ``--inject`` mode.
 
 Checks per probe
 ----------------
@@ -465,6 +468,13 @@ def injection_mode(ctx):
     for name, ok in red:
         ctx.add("injection %s went red" % name, "red", "red" if ok
                 else "stayed green", ok)
+    # The xfail machinery must stay verifiable now that no cell is xfail:
+    # synthetic observations (exact signature -> XFAIL, semantic value ->
+    # XPASS red, changed signature -> red) are judged by the same helpers the
+    # real comparison path uses.
+    for c in oracle.selftest_xfail():
+        ctx.add(c["name"], c["expected"], c["actual"], c["ok"],
+                detail=c["detail"])
 
 
 # ---------------------------------------------------------------------------

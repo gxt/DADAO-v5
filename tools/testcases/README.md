@@ -33,11 +33,17 @@ bash .work/evidence/TESTCASES-056t/run.sh --inject
 | `tests/atomics/aba_treiber.c` | 版本号打包的 Treiber 栈（`{ver:16,ptr:48}`），不变量 + 确定性 ABA 重放 |
 | `tests/atomics/barrier_probe.c` | `a_barrier()` 结构断言（`fence` 计数 == 源码站点数，立即数 0x3CF） |
 
-## 已知缺陷（XFAIL，不计 PASS）
+## 已知缺陷（XFAIL 机制保留，登记已清空）
 
-驱动把下列单元按**精确缺陷签名**判 `XFAIL`；一旦恢复语义值即报 `XPASS` 并判红，
-提示删除对应 xfail 条目。语义面细节见 `tests/atomics/*.c` 文件头与任务书完成区。
+驱动把登记为 `xfail` 的单元按**精确缺陷签名**判 `XFAIL`；一旦恢复语义值即报 `XPASS`
+并判红，提示删除对应 xfail 条目。语义面细节见 `tests/atomics/*.c` 文件头与任务书完成区。
 
+`ISS-312`（`atomic-store-address`）与 `ISS-313`（`narrow-cas-sext`）已随 `LLVM-121t`
+返工修复，**登记表已清空**（20 条转为普通语义断言，两档 711/711 PASS）。机制本身仍保留：
+`oracle_atomics.selftest_xfail()` 用合成观测在 `--inject` 下验证「签名命中→XFAIL /
+语义恢复→XPASS 红 / 签名变化→红」。
+
+原缺陷（存档）：
 - `atomic-store-address`：`atomic_store`/`__atomic_store_n` 写共享对象时写入**对象地址**
   （后端 `LowerATOMIC_STORE` 取错 ATOMIC_STORE 操作数）。
 - `narrow-cas-sext`：1/2/4 字节对象的 `compare_exchange`，比较值最高位置 1 时永不成功
