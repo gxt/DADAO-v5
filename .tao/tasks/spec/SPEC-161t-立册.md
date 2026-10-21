@@ -15,7 +15,7 @@
 > 「不增加 nearbyint，只实现 754-2019 中的六种取整，按顺序，immu6 用 one-hot 对应上」
 > 「ftrnd/fornd 的 opx：000-011/001-011」
 
-补充裁定（同批问答）：`nearbyint` 落 **DYN** 档（会置 NX），**登记为已知偏差**（SimRISC 的 NX 只是 `rf0[4:0]` 状态位、不产生异常，值与 IEEE 一致）。
+补充裁定（同批问答）：**`rf0[33:32]` 不扩充**（不加入第 5 种模式 RMM/`roundTiesToAway`）——用户 2026-10-21 原话「不扩充 round mode」；后果：C23 `fesetround(FE_TONEARESTFROMZERO)` **不支持**（允许返回失败，符合 C 标准），登记为已知边界；RMM 仅由本册 `immu6=0x02` 在"取整到整数"场景提供。另：`nearbyint` 落 **DYN** 档（会置 NX），**登记为已知偏差**（SimRISC 的 NX 只是 `rf0[4:0]` 状态位、不产生异常，值与 IEEE 一致）。
 
 ### 语义真源（IEEE 754-2019 §5.3.1 + §5.9）
 
