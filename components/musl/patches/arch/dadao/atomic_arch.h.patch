@@ -1,76 +1,144 @@
 diff --git a/arch/dadao/atomic_arch.h b/arch/dadao/atomic_arch.h
 new file mode 100644
-index 0000000..640f910
+index 0000000..478acd9
 --- /dev/null
 +++ b/arch/dadao/atomic_arch.h
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,138 @@
 +/*
-+ * DADAO atomic primitives -- SINGLE-THREADED, NOT REAL ATOMICS.
++ * DADAO atomic primitives -- real atomics built from lr/sc + fence.
 + *
 + * ---------------------------------------------------------------------------
-+ * Why there is no real atomic here (facts, both verifiable in-tree)
++ * What the machine provides
 + * ---------------------------------------------------------------------------
-+ * The DADAO instruction set has atomics -- `lr_nn/lr_nr/lr_an/lr_ar` and
-+ * `sc_nn/sc_nr/sc_an/sc_ar` (MISC-AMO) -- but they are outside the implemented
-+ * machine, together with `fence`:
++ * The DADAO ISA has a load-reserved / store-conditional pair (SimRISC-12 §3.2,
++ * MISC-AMO) and a hardware barrier (SimRISC-12 §3.1); both are implemented by
++ * the machine (QEMU-067t) and emitted by the backend (LLVM-121t, ADR-0034):
 + *
-+ *   * .tao/contracts/contract-isa.md §14 (and §11): "LR-SC 原子指令" and
-+ *     "fence" are `scope: excluded` -- "未实现，decode ILLI";
-+ *   * the test machine agrees: components/qemu's trans_mem.c.inc
-+ *     (trans_lr_nn_o_orrr_rd / trans_sc_nn_o_orrr_rd) and trans_ctrl.c.inc
-+ *     (trans_fence_oiii_imm) raise ILLI with a "stub" comment.
++ *   lr.<w>.an  rdold, [rb]        load reserved (acquire): returns the old
++ *                                 value and sets the reservation on the
++ *                                 naturally aligned 8-byte word holding the
++ *                                 address;
++ *   sc.<w>.ar  rdok, rdval, [rb]  store conditional (release): stores only if
++ *                                 the reservation is still held for that word
++ *                                 AND the guarded word still holds the value
++ *                                 `lr` observed; rdok = 0 on success, 1 on
++ *                                 failure.  The reservation is consumed on
++ *                                 both paths, so a failure just loops back to
++ *                                 `lr` (spurious failures are allowed).
 + *
-+ * So this port cannot express a real read-modify-write or a hardware barrier;
-+ * there is no instruction that would make one.  `__sync_*`/`__atomic_*`
-+ * builtins are not an alternative either -- the backend does not lower them
-+ * (atomics are `scope: excluded`, and this milestone must not change the
-+ * backend).
++ * These are used directly rather than through __atomic_* builtins: the point
++ * of the port is the instruction-level primitive.  Every other musl atomic
++ * (a_swap, a_fetch_add, a_fetch_and, a_fetch_or, a_inc, a_dec, a_store,
++ * a_spin, ...) is derived from a_cas by src/internal/atomic.h's generic
++ * fallbacks, so only a_cas / a_cas_p / a_barrier are defined here.
 + *
-+ * ---------------------------------------------------------------------------
-+ * Consequence, and why it is stated up front rather than hidden
-+ * ---------------------------------------------------------------------------
-+ * P1 is the STATIC SINGLE-THREADED subset (ADR-0025 D2/D6: no kernel, and
-+ * src/thread/dadao has no working __clone -- the generic src/thread/clone.c
-+ * returns -ENOSYS, so pthread_create() fails loudly instead of silently
-+ * running without real atomics).  In a single execution flow nothing can race
-+ * with these operations, so a plain load / compare / store IS the correct
-+ * semantics for this milestone -- it is not a "pretend success" stub for a
-+ * feature that is reachable.
-+ *
-+ * The moment multithreading becomes reachable (P2+), this file MUST be
-+ * replaced by real atomics -- either the machine implements LR-SC/fence, or a
-+ * serializing mechanism is specified.  Do not reuse these implementations past
-+ * that point.
++ * Threads are real on this port (TP = rb3 in arch/dadao/pthread_arch.h,
++ * __clone in src/thread/dadao/clone.s), so these primitives are reachable from
++ * the multithreaded path, not only from a single-threaded subset.
 + *
 + * ---------------------------------------------------------------------------
-+ * Revisit trigger (registered, see the INFRA-082t task book)
++ * Inline-asm style (same as every inline asm in this port)
 + * ---------------------------------------------------------------------------
-+ * a_barrier() below is a COMPILER barrier only (empty asm with a "memory"
-+ * clobber).  It stops the compiler from moving accesses across it; it emits no
-+ * hardware fence.  In a single-threaded flow there is nothing else to order.
++ * The backend cannot substitute an operand reference into an inline-asm
++ * template (`%0` is printed as an empty string; see arch/dadao/pthread_arch.h),
++ * so the templates spell the registers literally and the C side binds the same
++ * physical registers with the local-register-variable idiom
++ * (`register int old __asm__("rd10")` + `"=r"(old)`).  The retry loop uses
++ * numeric local labels (1:/2f/1b) so that several expansions of the same
++ * inline block in one function still assemble.  Every register the templates
++ * touch is declared as an operand: the templates must not clobber anything
++ * else (the "memory" clobber covers the memory side effect of sc).
++ *
++ * ---------------------------------------------------------------------------
++ * Prerequisites and known limits (disclosed, not hidden)
++ * ---------------------------------------------------------------------------
++ * 1. Alignment: lr/sc require natural alignment for the access width (user
++ *    ruling 2026-10-21, ADR-0034 D6: .b=1/.w=2/.t=4/.o=8), otherwise MALIGN.
++ *    a_cas uses .t on an `int` (4-byte object => 4-byte aligned); a_cas_p uses
++ *    .o on a pointer slot (8-byte aligned).  No masked 8-byte synthesis is
++ *    done: a misaligned pointer slot faults instead of silently working,
++ *    which is the intended explicit failure.
++ * 2. Reservation granularity is the exact naturally aligned 8-byte word
++ *    (QEMU-067t; the spec leaves granularity to the platform).  Two `int`s in
++ *    the same 8-byte word can invalidate each other's reservation => spurious
++ *    sc failures => extra retries only, never a lost update.
++ * 3. ABA is not detected: sc compares the whole guarded word with the value
++ *    observed by lr, so a concurrent write that restores the same value is
++ *    invisible.  This is the limit of the machine's own reservation.
++ * 4. a_barrier is a full hardware fence -- pred = succ = R|W|I|O, i.e.
++ *    immu18 = 0x3CF (fm = 0) -- plus the compiler "memory" clobber.  The
++ *    immediate is the one the backend uses for acquire-release/seq-cst
++ *    (tests/llvm/lit/CodeGen/DADAO/atomics-fence.ll: `fence 975`), keeping
++ *    inline asm and compiler-generated barriers identical.  The I/O bits are
++ *    set in the encoding as SimRISC-12 §3.1 requires; device I/O ordering
++ *    itself has no execution surface on this machine (QEMU-067t's "no device
++ *    I/O" premise).
++ * 5. `lr.t` zero-extends the loaded 32-bit value, so the compare value is
++ *    canonicalized to the same representation (ext.uo ..., 31) before the
++ *    branch.  Measured with the current backend, an `int` argument is already
++ *    materialized zero-extended, so this is a guard rather than a fix -- but
++ *    contract-abi.md §4.2 tells the caller to sign-extend narrow arguments to
++ *    canonical 64-bit, and a sign-extended compare value would never match a
++ *    zero-extended `lr.t` result (silently losing the store).  The single
++ *    instruction keeps the CAS correct under either convention.
 + */
 +
 +#define a_cas a_cas
 +static inline int a_cas(volatile int *p, int t, int s)
 +{
-+	/* see the file header: single-threaded compare-and-store */
-+	int old = *p;
-+	if (old == t) *p = s;
++	register int *addr __asm__("rb9") = (int *)p;
++	register int old __asm__("rd10");
++	register int want __asm__("rd11") = t;
++	register int new __asm__("rd12") = s;
++	register long fail __asm__("rd13");
++
++	__asm__ __volatile__(
++		"ext.uo {rd11}, {rd11}, 31\n\t"	/* canonical zero-extended t */
++		"1:\n\t"
++		"lr.t.an {rd10}, {rb9}\n\t"
++		"br.ne {rd10, rd11}?, [rb0, 2f]\n\t"
++		"sc.t.ar {rd13}, {rd12}, {rb9}\n\t"
++		"br.nz {rd13}?, [rb0, 1b]\n\t"
++		"2:"
++		: "=r"(old), "=r"(fail), "+r"(want)
++		: "r"(addr), "r"(new)
++		: "memory");
++	(void)fail;
 +	return old;
 +}
 +
 +#define a_cas_p a_cas_p
 +static inline void *a_cas_p(volatile void *p, void *t, void *s)
 +{
-+	/* see the file header: single-threaded compare-and-store */
-+	void *old = *(void *volatile *)p;
-+	if (old == t) *(void *volatile *)p = s;
++	register void **addr __asm__("rb9") = (void **)p;
++	register void *old __asm__("rd10");
++	register void *want __asm__("rd11") = t;
++	register void *new __asm__("rd12") = s;
++	register long fail __asm__("rd13");
++
++	/* `addr` is an RB-bank value: binding (void **)p to "rb9" makes the
++	 * backend emit the rd2rb copy that lr/sc need.  `old` comes back in the
++	 * RD bank (lr's destination is an rd register) and is returned as a
++	 * pointer, so the backend emits the rd2rb copy into rb8 at the call
++	 * boundary.  No manual bank conversion is written here; the register
++	 * constraints are the conversion. */
++	__asm__ __volatile__(
++		"1:\n\t"
++		"lr.o.an {rd10}, {rb9}\n\t"
++		"br.ne {rd10, rd11}?, [rb0, 2f]\n\t"
++		"sc.o.ar {rd13}, {rd12}, {rb9}\n\t"
++		"br.nz {rd13}?, [rb0, 1b]\n\t"
++		"2:"
++		: "=r"(old), "=r"(fail)
++		: "r"(addr), "r"(want), "r"(new)
++		: "memory");
++	(void)fail;
 +	return old;
 +}
 +
 +#define a_barrier a_barrier
 +static inline void a_barrier(void)
 +{
-+	/* compiler barrier only -- no hardware fence exists (see the header) */
-+	__asm__ __volatile__ ("" : : : "memory");
++	/* full hardware fence: fm = 0, pred = succ = R|W|I|O => immu18 = 0x3CF */
++	__asm__ __volatile__("fence 975" : : : "memory");
 +}

@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M9
 **依赖**：`QEMU-067t`（②；`lr/sc`/`fence` 执行语义）、`LLVM-121t`（①；clang 须能产出 `lr/sc`/`fence` 且不落 libcall）、`INFRA-095t`（musl `__clone` + TP；`src/thread/dadao/*.s` 与 `REPLACED_OBJS` 先例）、`ISS-294`（假原子根因，本册为其实现落点）、`ISS-307`（本批 4 册总账）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -134,16 +134,26 @@ __asm__ __volatile__("fence <imm>" : : : "memory");
 - `a_ll`/`a_sc` 不提供（musl 通用回退足够）；若 `047t` 出现需要它们的用例 ⇒ **停下报告**，不得默默加。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`build-musl` rc=0（12.2 s，10/10 ELF 检查）、`build-musl-shared` rc=0（13.5 s）、`check-musl-freshness` PASS。核心硬指标（独立 oracle = 乘法手算 `4×250000`）：**静态 5/5 轮、动态 5/5 轮 `COUNT=1000000`**，全部 rc=0。直接 `a_cas` 自旋锁 4×250000：静态 3/3、动态 3/3 均 `COUNT=1000000`（另单独记录 `SPINS` 静态 106195、动态 161011）。`sync_stress` 两档：mutex `200000`、cond `consumed=100000/order_errors=0`、sem `100000/final value=0`。`047t` 19 例：静态 **19/19 pass**、动态 **19/19 pass**（`--filter` + 必填 `--json-out`；`fail=0`、`blocked=0`）。`cas_values` 两档 34 项单线程契约全 PASS（含 `-1`/`INT_MIN`、offset-4 的 int、`0xdeadbeefcafebabe` 宽指针）。证据脚本 `run.sh --all`：**164/164 checks、`EVIDENCE_RESULT: PASS`、rc=0**。
+**修改文件**：`components/musl/patches/arch/dadao/atomic_arch.h.patch`（new-file 重写 70→138 行，index blob `640f910`→`478acd9`）；`components/musl/changelog.md`（M9 条目）；`series` **24 不变**（无新增补丁）；组件工作树 `.work/source/musl/arch/dadao/atomic_arch.h`（E1：base+1 且干净，HEAD 见 `git -C .work/source/musl log`）；`.work/evidence/INFRA-100t/{run.sh,inject.py,cas_values.c,spin_count.c,mt_count.c,sync_stress.c}`；本册完成区/自审。
+**验收结果**：`check-patch-tree` rc=0（**5 components / 185 patches OK**；同一文件重写 ⇒ 计数 185 不变）；`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-musl-freshness`/`check_issues.py` 均 rc=0；`make check`（L1）rc=0（"repository checks (L1): PASS"）。头部声明核对：`grep -c 'SINGLE-THREADED\|NOT REAL ATOMICS'` = **0**；`fence 975`/`lr.t.an`/`sc.t.ar`/`lr.o.an`/`sc.o.ar`/`ext.uo …,31` 各 1 处；无 `a_ll`/`a_sc` 定义；代码无 `__atomic_*`/`__sync_*`（唯一命中是注释里"不使用"的说明）。**注入 4 处（≥2 要求，全部真红→`cp`+md5 还原→回绿）**：① `a_cas` 退回普通 load/store ⇒ 自旋计数 `COUNT=436431`（rc=1）；② `sc` 失败不重试 ⇒ `COUNT=704421`（rc=1）；③ `a_cas_p` 落 32 位 `.t` ⇒ 宽指针 `0xdeadbeef…` 截成 `0xdeadbeef`（7 条 FAIL，rc=1）；④ `a_cas_p` 基址改 RD bank（丢 `rd2rb`）⇒ 汇编期 `invalid operand`（build rc=2，4 条诊断）。
+**新发现/坑**：① `lr.t` **零扩展** 32 位，而 `contract-abi §4.2` 要求 caller 对 `int` 实参**符号扩展**；两套约定混用会让"符号扩展的比较值 vs 零扩展的 `lr.t`"永不相等并静默丢写 ⇒ 比较前统一 `ext.uo {rd11},{rd11},31`。**实测当前后端把 `int` 实参实例化为零扩展**（`set.zw`+`or.w` = `0x00000000FFFFFFFF`，非 canonical 有符号），故该指令是**防御项**而非修复项（删掉它 4 处注入/probe 仍全绿，已实测）；但后端与 `contract-abi §4.2` 的这一偏差值得单独登记（疑为 LLVM 侧 ABI 缺口，非本册范围）。② LLVM 全屏障 = **`fence 975` = `0x3CF`**（pred=succ=R|W|I|O），非任务书 §C 举例的 `0x00C3`；取 975 与后端 `getDADAOFenceImm` 一致，已写进文件头。③ 注入脚本首版写 `ld.ut rd,[rb]` 被汇编拒绝（ld/st 的地址形如 `[rb, imm]`），改 `[rb9, 0]`。④ `components/musl/README.md`「原子」段仍写"机器没有可用原子"——**本册未改**（不在交付清单），属文档漂移，建议后续同步。⑤ 保留粒度 8 B：同 8 B 字内两个 int 互致 spurious failure，实测 `SPINS` 非零但计数精确（仅重试，不丢更新）。
+**遗留问题**：无（`install-host` 按分工由主会话执行；README 漂移见「新发现」④）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填）
+> 方式：自主逐行审查（全局 `subagent_depth=1`，engineer 不能起嵌套子代理）。范围：新增 `atomic_arch.h` 全文、导出补丁、`inject.py`/`run.sh`。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 比较寄存器 `t` 的 64 位表示可能与 `lr.t` 的零扩展不一致（契约 §4.2 允许/要求符号扩展） | ✅已修（防御） | `a_cas` 比较前加 `ext.uo {rd11},{rd11},31`（`"+r"(want)` 允许写回），文件头据实说明"当前后端已零扩展 ⇒ 本指令是防御" | `cas_values` 的 `-1`/`-2`/`INT_MIN`/`load-fed` 两档全 PASS；**反例实测**：删该指令后 4 处 probe 仍绿（后端零扩展）⇒ 不谎称它是 load-bearing，改登记后端与契约 §4.2 的偏差 |
+| F7 后端把 `int` 实参实例化为零扩展（`set.zw`+`or.w`），与 `contract-abi §4.2`「caller 按符号性扩展为 canonical 64 位」不符 | ⏸延后（越界） | 无改动（不在本册边界：`components/llvm-project/**` 禁改） | `clang -O2 -S` 现场：`ext(&x, -1, 5)` → `set.zw rd16, wp0, 0xffff` + `or.w rd16, wp1, 0xffff` = `0x00000000FFFFFFFF`；已写入「新发现」①，交主会话决定是否立 issue/任务 |
+| F2 任务书 §C 的 `0x00C3` 与后端全屏障不一致 | ✅已修（按后端/规范取 975） | `fence 975`，文件头写明 `0x3CF` 与 `atomics-fence.ll` 一致 | `llvm-mc -show-encoding` = `[0x77,0x80,0x03,0xcf]`；`grep -c 'fence 975" : : :'`=1 |
+| F3 证据脚本 `grep -c 'fence 975'` 把注释算进去（=2） | ✅已修 | 改为匹配 `fence 975" : : :` | `run.sh` 该项 PASS（164/164） |
+| F4 注入脚本对 `br.nz` 的全局唯一性假设不成立（两处 lr/sc 环）且 `ld.ut rd,[rb]` 语法非法 | ✅已修 | `inject.py` 改为按 `#define a_cas` / `a_cas_p` / `a_barrier` 分块替换；地址写 `[rb9, 0]`；每处替换断言"恰好 1 次" | 4 个注入模式均"applied"且 `git diff --name-only` 非空；`cas_plain` 编过并跑出 `COUNT=436431`（终跑） |
+| F5 内联汇编是否声明了全部被写寄存器（未声明 clobber 会踩 live 值） | ✅不修（已正确） | 无改动 | 模板只触碰 `rd10/rd11/rd12/rd13/rb9`，全部为操作数（`=r`/`+r`/`r`）；`-O2` 反汇编确认输入被搬到指定物理寄存器，且 4 线程压测 5/5 精确 |
+| F6 `components/musl/README.md` 的「无真原子」表述过期 | ⏸延后（越界） | 无改动（任务交付清单不含 README） | 已写入「新发现」④，交主会话决定是否另立文档任务 |
 
 #### 第 1 轮 reviewer 验收
 （待填）
