@@ -2,12 +2,12 @@
 # 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md
 # M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统
 # scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；
-# scope: excluded 为特权 cfx / LR-SC / fence / clmul.o，尚未实现，
+# scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，
 #   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
 # scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份
-# scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b），非 M1 身份
-# 共 260 条：M1 156 条 + scope fp 60 条 + scope excluded 28 条 + scope m3 1 条 + scope m8 7 条 + scope m9 8 条
+# scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b + ADR-0035 GF(2) 无进位乘 clmul.o），非 M1 身份
+# 共 260 条：M1 156 条 + scope fp 60 条 + scope excluded 27 条 + scope m3 1 条 + scope m8 7 条 + scope m9 9 条
 # 有 rule_refs 的指令：208 条
 
 - id: ld.ub_rrii_rd
@@ -1555,8 +1555,7 @@
     bank: rd
   legality: *id001
   spec_cite: SimRISC-04 §无进位乘法
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs:
   - dst_dual_same
 - id: add.si_riii_rd

@@ -30,7 +30,7 @@ cfx2rc_crrr_cfx	cfx2rc	crrr	m1	cfx2rc_crrr	accept	ok	cfx2rc cfx63, cg8, rc1, rd8
 cfx2rd_crrr_cfx	cfx2rd	crrr	m1	cfx2rd_crrr	accept	ok	cfx2rd cfx63, cg8, rc1, rd8	no		
 cfxld_crii_cfx	cfxld	crii	excluded		reject	—	cfxld cfx63, [rb2, 1]	no		
 cfxst_crii_cfx	cfxst	crii	excluded		reject	—	cfxst cfx63, [rb2, 1]	no		
-clmul.o_rrrr_rd	clmul.o	rrrr	excluded	clmul_o_rd	accept	ok	clmul.o {rd8, rd9}, rd10, rd11	no		DADAOInstrInfo.cpp.patch:253;DADAOInstrInfo.cpp.patch:267;DADAOInstrInfo.cpp.patch:283
+clmul.o_rrrr_rd	clmul.o	rrrr	m9	clmul_o_rd	accept	ok	clmul.o {rd8, rd9}, rd10, rd11	no		DADAOInstrInfo.cpp.patch:253;DADAOInstrInfo.cpp.patch:267;DADAOInstrInfo.cpp.patch:283
 cmp.sb_orrr_rd	cmp.sb	orrr	m1	cmp_sb	accept	ok	cmp.sb rd8, rd9, rd10	no		
 cmp.si_rrii_rd	cmp.si	rrii	m1	cmp_si_rd	accept	ok	cmp.si rd8, rd9, 1	yes	pat:DADAOCodeGen.td.patch:564:cmp_si_rd;pat:DADAOCodeGen.td.patch:696:cmp_si_rd;pat:DADAOCodeGen.td.patch:698:cmp_si_rd;pat:DADAOCodeGen.td.patch:700:cmp_si_rd;pat:DADAOCodeGen.td.patch:704:cmp_si_rd	
 cmp.so_orrr_rd	cmp.so	orrr	m1	cmp_so	accept	ok	cmp.so rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:563:cmp_so	

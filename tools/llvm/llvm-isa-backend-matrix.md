@@ -1,7 +1,7 @@
 # ISA↔后端覆盖矩阵（生成式，两层分列）
 
 > **生成器**：`tools/llvm/gen_isa_coverage.py`（生成物，勿手工编辑；改生成器或真源后重跑）
-> **真源**：`contracts/opcodes.yaml`（**260** 条 = `m1` 156 + `fp` 60 + `excluded` 28 + `m3` 1 + `m8` 7 + `m9` 8；计数由脚本现场统计，不写死）
+> **真源**：`contracts/opcodes.yaml`（**260** 条 = `m1` 156 + `fp` 60 + `excluded` 27 + `m3` 1 + `m8` 7 + `m9` 9；计数由脚本现场统计，不写死）
 > **重跑**：`python3 tools/llvm/gen_isa_coverage.py`　**门控（反例可失败）**：`python3 tools/llvm/gen_isa_coverage.py --check`
 > **机器可读**：`tools/llvm/llvm-isa-backend-matrix.tsv`（同源同批生成）
 
@@ -74,7 +74,7 @@
 | `cfx2rd_crrr_cfx` | `cfx2rd` | `crrr` | `m1` | accept | no | — |
 | `cfxld_crii_cfx` | `cfxld` | `crii` | `excluded` | reject | no | — |
 | `cfxst_crii_cfx` | `cfxst` | `crii` | `excluded` | reject | no | — |
-| `clmul.o_rrrr_rd` | `clmul.o` | `rrrr` | `excluded` | accept | no | — |
+| `clmul.o_rrrr_rd` | `clmul.o` | `rrrr` | `m9` | accept | no | — |
 | `cmp.sb_orrr_rd` | `cmp.sb` | `orrr` | `m1` | accept | no | — |
 | `cmp.si_rrii_rd` | `cmp.si` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:564:cmp_si_rd;pat:DADAOCodeGen.td.patch:696:cmp_si_rd;pat:DADAOCodeGen.td.patch:698:cmp_si_rd;pat:DADAOCodeGen.td.patch:700:cmp_si_rd;pat:DADAOCodeGen.td.patch:704:cmp_si_rd |
 | `cmp.so_orrr_rd` | `cmp.so` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:563:cmp_so |
@@ -310,8 +310,8 @@
 
 1. **真缺口·候补优化面**（`scope != excluded`，且后端 ISel/post-ISel 均未引用，且非汇编层/特权族）：**113** 条 —— ISA 有、后端一次都没发射，最有价值。
 2. **真缺口·汇编层/特权族**（同上但 `format ∈ {crrr, ciii, crii}` 或助记符 ∈ {fence, swym}，机械判据）：**5** 条 —— 经 cfx 访问/内联汇编/占位语义使用，不经 ISel 选入属预期。
-3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**22** 条。
-4. **`scope: excluded` 未实现**（汇编器拒绝、执行 ILLI）：**19** 条 —— 不在本期范围。
+3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**23** 条。
+4. **`scope: excluded` 未实现**（汇编器拒绝、执行 ILLI）：**18** 条 —— 不在本期范围。
 
 ### 3.1 真缺口·候补优化面（113 条）
 
@@ -441,7 +441,7 @@
 | `swym_oiii_imm` | `swym` | `oiii` | `m1` |
 | `trap_ciii_cfx` | `trap` | `ciii` | `m1` |
 
-### 3.3 仅 post-ISel 引用（22 条）
+### 3.3 仅 post-ISel 引用（23 条）
 
 | id | mnemonic | format | scope |
 |---|---|---|---|
@@ -450,6 +450,7 @@
 | `add.uo_rrrr_rd` | `add.uo` | `rrrr` | `m1` |
 | `aip.si_riii_rb` | `aip.si` | `riii` | `m1` |
 | `andn.w_rwii_rd` | `andn.w` | `rwii` | `m1` |
+| `clmul.o_rrrr_rd` | `clmul.o` | `rrrr` | `m9` |
 | `fo2fo_orri_rf` | `fo2fo` | `orri` | `fp` |
 | `ldm.o_rrri_rb` | `ldm.o` | `rrri` | `m1` |
 | `ldm.o_rrri_rd` | `ldm.o` | `rrri` | `m1` |
@@ -468,13 +469,12 @@
 | `sub.so_rrrr_rd` | `sub.so` | `rrrr` | `m1` |
 | `sub.uo_rrrr_rd` | `sub.uo` | `rrrr` | `m1` |
 
-### 3.4 scope: excluded（未实现）（19 条）
+### 3.4 scope: excluded（未实现）（18 条）
 
 | id | mnemonic | format | scope |
 |---|---|---|---|
 | `cfxld_crii_cfx` | `cfxld` | `crii` | `excluded` |
 | `cfxst_crii_cfx` | `cfxst` | `crii` | `excluded` |
-| `clmul.o_rrrr_rd` | `clmul.o` | `rrrr` | `excluded` |
 | `lr.b.ar_orrr_rd` | `lr.b.ar` | `orrr` | `excluded` |
 | `lr.b.nn_orrr_rd` | `lr.b.nn` | `orrr` | `excluded` |
 | `lr.o.ar_orrr_rd` | `lr.o.ar` | `orrr` | `excluded` |

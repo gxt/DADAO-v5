@@ -5,16 +5,17 @@
   - `scope: m1`（156 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统 + 特权 cfx `trap`/`escape`/`cfx2rd`/`cfx2rc`）；
   - `scope: fp`（60 条）——原生浮点范围（RF 存取/搬移/条件赋值 + MISC-RF 运算/转换/比较），
     独立于 M1，**已实现**（LLVM-029t/030t、QEMU-034t–037t）；
-  - `scope: excluded`（28 条）——特权 cfx（仅 `cfxld`/`cfxst`）/ LR-SC（24 条，四宽度 ×
-    三存储序）/ fence / `clmul.o`（`ADR-0035`），暂未归类（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc`
+  - `scope: excluded`（27 条）——特权 cfx（仅 `cfxld`/`cfxst`）/ LR-SC（24 条，四宽度 ×
+    三存储序）/ fence，暂未归类（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc`
     re-scope 为 `m1`；`ADR-0034` 将 `lr/sc` 由 8 条重排为 24 条）；
   - `scope: m3`（1 条）——M3 CodeGen 新增指令（ADR-0012 D9.1 `sub.o_orrr_dbb`），
     **非 M1 身份**，不要求 M1 向量覆盖；
   - `scope: m8`（7 条）——新增 ISA 指令（ADR-0012 D10 逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`
     + D11 位扫描/计数 `ctlz`/`cttz`/`ctpop`），
     **非 M1 身份**，与里程碑无绑定（用户 2026-10-14：新增指令与里程碑无绑定关系），不要求 M1 向量覆盖。
-  - `scope: m9`（8 条）——新增 ISA 指令 `rol.o`/`rol.t`/`rol.w`/`rol.b`（逻辑循环左移，
-    `orrr`/`orri` 两种格式；`ADR-0032` `D4`/`SPEC-152t`），**非 M1 身份**，不要求 M1 向量覆盖。
+  - `scope: m9`（9 条）——新增 ISA 指令 `rol.o`/`rol.t`/`rol.w`/`rol.b`（逻辑循环左移，
+    `orrr`/`orri` 两种格式；`ADR-0032` `D4`/`SPEC-152t`）+ `clmul.o`（GF(2) 无进位乘，`rrrr`；
+    `ADR-0035`，实现落地后由 `excluded` 转入），**非 M1 身份**，不要求 M1 向量覆盖。
 约定 `scope == "excluded"` ⇒ `decode: ILLI`——编码已定义但尚未实现，执行即非法指令；
 `m1`/`fp`/`m3`/`m8`/`m9` 不携带 `decode`（已实现或按各自里程碑实现）；UNDI 仅用于架构显式留空的编码（空白单元格）。
 
@@ -188,8 +189,8 @@ def _infer_feature(fields, fmt=None):
 def rec(insn, mnemonic, fmt, op, fields, legality, spec_cite, ha=None, scope="m1"):
     """构造一条编码记录。ha 为 None 时为主表指令，否则为 MISC 子表指令。
 
-    scope ∈ {"m1", "fp", "excluded", "m3", "m8"}（必填语义，缺省 m1）。scope == "excluded" 时附
-    `decode: ILLI`（编码已定义但尚未实现）；`m1`/`fp`/`m3`/`m8` 不携带 `decode`。
+    scope ∈ {"m1", "fp", "excluded", "m3", "m8", "m9"}（必填语义，缺省 m1）。scope == "excluded" 时附
+    `decode: ILLI`（编码已定义但尚未实现）；`m1`/`fp`/`m3`/`m8`/`m9` 不携带 `decode`。
     对于 orrr/orri/oiii 格式，ha 并入 op（op 变为14位）。
     对于其余格式，ha 作为独立操作数 field（由调用方加入 fields 列表）。
     """
@@ -430,11 +431,11 @@ def build_main_table(records):
 
     # ADR-0035 D5（用户 2026-10-21 原话「添加 clmul.o rrrr 格式，编码放在 mul.so 后面」）：
     # GF(2) 无进位乘，紧跟 mul.so（0x55）落 0x56；双目的/rd0 规则与 mul.* 同型；
-    # scope = excluded（D7：只定编码与语义，执行仍 ILLI，实现归后续册）。
+    # scope 由 excluded 转为 m9（ADR-0035 D7「实现后落」：LLVM 后端与 QEMU 执行语义均已落地）。
     records.append(rec("clmul.o-rd", "clmul.o", "rrrr", 0x56,
                        f_rrrr("rdha", "rdhb", "rdhc", "rdhd",
                               roles=("dst", "dst", "src", "src")),
-                       dual_leg, S04_CLMUL, scope="excluded"))
+                       dual_leg, S04_CLMUL, scope="m9"))
 
     # ── 0101-1xxx：自增/相对/比较 ──
     records.append(rec("add.si-rd", "add.si", "riii", 0x59,
@@ -837,12 +838,6 @@ EXPR_TO_RULE = OrderedDict([
     ("immu6 == 1 || immu6 == 2 || immu6 == 4",    "encode_onehot"),
 ])
 
-# `scope: excluded` 中仍保留 rule_refs 的记录（例外，需 ADR 依据）。
-# `clmul.o`（ADR-0035 D6）：双目的 rd0 约束是编码级契约，须出现在
-# SimRISC-04 §2 的 `dst_dual_same` 清单（该章由 rule_refs 生成）。
-EXCLUDED_KEEP_RULE_REFS = frozenset({"clmul.o_rrrr_rd"})
-
-
 def _compute_rule_refs(records):
     """为每条记录计算 rule_refs 字段（list[str]，去重保序）。
 
@@ -850,13 +845,9 @@ def _compute_rule_refs(records):
     - scope == "excluded" ⇒ rule_refs: []（未实现指令不进规则清单，含 fence）
     - legality 为空 ⇒ rule_refs: []
     - 否则按 EXPR_TO_RULE 映射每条 legality 表达式；未知表达式触发 RuntimeError。
-
-    例外（ADR-0035 D6）：`EXCLUDED_KEEP_RULE_REFS` 中的 excluded 记录仍映射规则 ——
-    `clmul.o` 的双目的 `rd0` 约束属**编码级**契约，且 `SimRISC-04 §2` 的
-    `dst_dual_same` 清单由 rule_refs 派生，须列明本条。
     """
     for r in records:
-        if r.get("scope") == "excluded" and r["id"] not in EXCLUDED_KEEP_RULE_REFS:
+        if r.get("scope") == "excluded":
             r["rule_refs"] = []
             continue
         if not r.get("legality"):
@@ -902,12 +893,13 @@ def main():
         f.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md\n")
         f.write("# M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统\n")
         f.write("# scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；\n")
-        f.write("# scope: excluded 为特权 cfx / LR-SC / fence / clmul.o，尚未实现，\n")
+        f.write("# scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，\n")
         f.write("#   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
         f.write("# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份\n")
         f.write("# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + "
                 "D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份\n")
-        f.write("# scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b），非 M1 身份\n")
+        f.write("# scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b"
+                " + ADR-0035 GF(2) 无进位乘 clmul.o），非 M1 身份\n")
         f.write(f"# 共 {len(records)} 条：M1 {n_m1} 条 + scope fp {n_fp} 条"
                 f" + scope excluded {n_ex} 条 + scope m3 {n_m3} 条 + scope m8 {n_m8} 条"
                 f" + scope m9 {n_m9} 条\n")

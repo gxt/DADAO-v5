@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-155t | 待验收 | 2026-10-22 05:51（登记） | clmul 解除 `excluded`（`scope → m9`）；生成物/计数/只读锁、`SimRISC-00` 追加 1 行 |
 | LLVM-122t | 已验证 | 2026-10-22 05:20 | clmul 后端：`.td` + 低/高/双半伪指令 + `llvm.clmul`/`llvm.dadao.clmul` + `__builtin_dadao_clmul`（各 1 条）；scope 仍 excluded |
 | QEMU-068t | 已验证 | 2026-10-22 00:52 | `clmul.o` 语义（高/低 128 位、`rd0` 单侧、ILLI）；向量 81/81；`check_qemu_trans` 260/260，`ISS-317` closed |
 | QEMU-069t | 已验证 | 2026-10-22 00:31 | `fcls` 位序重排（10 个位号）；探针改由 spec §7 解析（独立 oracle）；84/84 |
@@ -52,7 +53,6 @@
 | QEMU-070t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 语义：softfloat mulAdd 单次舍入；探针含 fma≠mul+add 反例 |
 | QEMU-071t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 语义：softfloat `minimum_number`；±0/单 NaN/sNaN/canonical 全覆盖 |
 | QEMU-072t | 待开始 | 2026-10-21 23:50（登记） | 取整语义：静态 5 档只合 NV、DYN 走真实 status；模式敏感 + NX 专测 |
-| SPEC-155t | 待开始 | 2026-10-21 23:50（登记） | clmul 解除 `excluded`（`scope → m9`）；生成物/计数/只读锁同步 |
 | SPEC-157t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 立册（点积型、`orrr`、`op=0x44`、opx `0x22`/`0x2A`；excluded） |
 | SPEC-158t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 解除 `excluded`（`scope → fp`，新族 `fma`） |
 | SPEC-159t | 待开始 | 2026-10-21 23:50（登记） | `ftmin`/`ftmax`/`fomin`/`fomax` 立册（754 `minimumNumber`、`orrr`、opx `0x26/0x27/0x2E/0x2F`） |

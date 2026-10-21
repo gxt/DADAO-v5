@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M9
 **依赖**：`LLVM-122t`（**前置 1**：`check-instrinfo` 的 coverage 要求 `m9` 记录必须有 `.td`）与 `QEMU-068t`（**前置 2**：`check_qemu_trans` 是 L2 成员，缺 trans 时翻转会让 L2 红 ⇒ 先落 trans 再翻）、`ADR-0035`（`D5` 编码 / `D6` rd0 / `D7` 实现后落）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -100,12 +100,55 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`./.work/evidence/SPEC-155t/run.sh` rc=0（c1–c22 全 OK，22/22；含 L1/L2）；`run.sh --inject` rc=0（12/12：3 例注入变红 → `cp`+md5 还原 → 回绿）；`--quick` rc=0（20/20）。
+**修改文件**：`tools/spec/generate_opcodes.py`（`scope="m9"` + 删 `EXCLUDED_KEEP_RULE_REFS` 及其 docstring + 注释/头文案计数同步）；`tools/spec/check_scope.py`（`excluded 27`/`m9 9` + 判据来源追加 ADR-0035 D7 一行 + 文件头计数）；`contracts/opcodes.yaml`（重生成）；`spec/SimRISC-00-指令系统设计.md`（0.5.5-rc **追加** 1 条，历史行不改）；`spec/SimRISC-04-64位数据运算.md`（`gen_legality_list --apply`：移除 clmul 的 excluded 区块 3 行）；`.tao/contracts/contract-asm-list.md`、`tools/llvm/llvm-isa-backend-matrix.{md,tsv}`（重生成）；`manifests/spec-readonly.lock.toml`（00/04 sha256 重算 + 注释）；`.tao/knowledge/milestones.md`（1 行）；本任务书；新增 `.work/evidence/SPEC-155t/{run.sh,checks.py}`。
+**验收结果**（真实输出，日志 `.work/log/spec/SPEC-155t/`）：
+- 计数现场：`excluded 计数: 期望=27 实际=27`、`m9 计数: 期望=9 实际=9`、`total 计数: 期望=260 实际=260`（`check-scope: PASS`）。
+- `clmul.o_rrrr_rd`：`scope: m9`、**无** `decode`、`rule_refs: [dst_dual_same]`；`op 0x56`/`format rrrr`/`mask 0xFF000000`/`value 0x56000000`/`fields`/`legality`/`spec_cite` 与基线逐字节相同；其余 **259 条整条 dict 逐条相同**（c1/c2 PASS）。
+- `validate-encoding` 260 OK；`check-rule-refs` PASS（335 引用）；`check-instrinfo` 0 errors（allow-list `clmul_o_rd → m9`）；`check-isa-coverage --check` PASS（**accept 258 / reject 2**，现场派生；翻转前同为 258/2 —— `.td` 已由 `LLVM-122t` 落地；变化体现在缺口分桶 `excluded 19→18`、`仅 post-ISel 22→23`）；`check_qemu_trans --strict` **260/260**；`check-fp-contract`/`check-spec-{readonly,changelog,numbering,drift}`/`check-asm-list{,-drift}`/`check_lit_gen` 全 rc=0。
+- 可达 FAIL（cp 备份 + md5 对账，禁 git checkout）：I1 `check_scope` 计数回退 28/8 ⇒ rc=1（`check-scope: FAIL — excluded 计数: 期望 28，实际 27`）→ 还原 md5 MATCH → rc=0；I2 锁内 SimRISC-00 sha 回退 ⇒ `check-spec-readonly` rc=1 → 还原 → rc=0；I3 生成物塞回 `decode: ILLI` ⇒ `checks.py record` rc=1 → 还原 → rc=0。
+- `make check`（L1）rc=0（`repository checks (L1): PASS`）；`make check-modules`（L2）rc=0（`module checks (L2): PASS`，picolibc fast 18/20 pass、fail 0）。
+- `git status --porcelain -uall`：10 个已跟踪文件（上列）+ 本任务书，无越界文件；`.work/**` 为 gitignore 证据目录。
+**新发现/坑**：① L2 首跑红在 `check-musl-freshness`（`toolchain stamp == current clang/ld.lld: different`——仅 clang/lld **mtime** 变、size/version/git commit 全同，系 `LLVM-122t` 的 `install-host` 重装；按门控提示 `make build-musl-shared JOBS=8` 重建后转绿）⇒ **非本册引入**，属既有「工具链重装 ⇒ musl 过期」面；② `check-run-artifacts` 对 `.work/log/**` 有机械命名约束（`<TASK-ID>-<purpose>.log`，purpose **仅 ASCII**）⇒ 证据脚本日志名须合规，否则 L1 红；③ `check-milestones-fresh` 要求 milestones 行与任务书 `**状态**` 一致、按时间**倒序**、且未完成态时间须带 `（登记）`（待验收也算未完成）；④ 生成器模块 docstring/头文案里的分区计数（28→27、8→9）也是"写死计数"，须同笔同步（本次已改）。
+**遗留问题**：① `.tao/contracts/contract-isa.md` 的 `scope: m9`（`8 条`）与 excluded 口径文案仍按翻转前表述——**非生成物、非本册授权面**，未改（建议另册同步）；② `Makefile` 的 `check-scope` 注释仍写「counts 152/60/15/227」（**既有**陈旧，本册未扩面）；③ `ISS-317` 现场为 `closed`（`resolved_by: QEMU-068t`），本册未触碰；④ 未改 `SimRISC-04 §3.5` 的 `rd0` ILLI 规则（仍成立）；⑤ `ADR-0035 D6` 文本仍写「以 `EXCLUDED_KEEP_RULE_REFS` 显式例外保留」（机制句随翻转失效，decision 本体 `rd0` 规则不变）——改 `Accepted` ADR 需用户逐条确认，未动。
 
 ## 审阅记录
 
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+### 第 1 轮 engineer 自审
+
+逐行审查 `generate_opcodes.py`（`scope="m9"`、删 `EXCLUDED_KEEP_RULE_REFS` 及其 docstring、`_compute_rule_refs` 化简、头文案计数）、`check_scope.py`（两处常量 + 判据来源）、`spec/SimRISC-00`（仅追加 1 条）、锁（00/04 sha256 + 注释）、以及证据脚本 `run.sh`/`checks.py`。finding 与处置：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `checks.py record` 的「键集合」断言误把 `scope` 也从不变量里剔除 ⇒ c1 恒 FAIL（首跑 1/20） | ✅已修 | 期望键集合改 `set(base) - {"decode"}`；删未用常量 `ALLOWED_DIFF_KEYS` | `run.sh --quick` c1 rc=0（20/20） |
+| F2 证据日志名不合 `check-run-artifacts`（要求 `<TASK-ID>-<purpose>`、purpose 仅 ASCII）⇒ L1 首跑 rc=2 | ✅已修 | `step` 改 `$TASK-cNN.log`；注入日志改 `$TASK-inject-<I1/I2/I3>[-restored].log`；清理旧非法名日志 | `make check` L1 rc=0；full 22/22 |
+| F3 summary 读 `"$LOGDIR"/*.log`，而调用方把 stdout 重定向进同目录 ⇒ 自我增长（现场 291 GB） | ✅已修 | 只读 `$TASK-c[0-9][0-9].log`；去掉会命中超长 routing 行的 `accept` grep | 复跑 quick 20/20、full 22/22；`du` 892K |
+| F4 milestones 行未带 `（登记）` 且落在 23:50 区块 ⇒ `check-milestones-fresh` 3 项 VIOLATION（L1/L2 双红） | ✅已修 | 该行置顶 + `2026-10-22 05:51（登记）` + 与任务书 `待验收` 一致 | `make check-milestones-fresh` PASS（48 行）；full 22/22 |
+| F5 `checks.py gen` 把 `generate_lit_vectors` 连跑两次（冗余、无新覆盖） | ✅已修 | 删重复步骤 | c20 rc=0；生成物逐字节不变 |
+| F6 L2 首跑红于 `check-musl-freshness`（clang/lld 仅 mtime 变，size/version/commit 全同） | ⏸延后/环境处置 | 按门控提示 `make build-musl-shared JOBS=8` 重建（非本册代码改动） | `check-musl-freshness` PASS；L2 rc=0；已记「新发现/坑」① |
+| F7 `ADR-0035 D6` 仍写「以 `EXCLUDED_KEEP_RULE_REFS` 显式例外保留」——机制句随翻转失效（`D6` 本体 `rd0` 规则不变） | ⏸延后 | 未改：`Accepted` ADR 的 decision 改动须用户逐条确认 | 已记「遗留问题」⑤；`check-scope`/`check-rule-refs` 均 rc=0 |
+| F8 生成器模块 docstring 与生成头文案的写死计数（`excluded 28`/`m9 8`）会与产物矛盾 | ✅已修 | docstring 28→27、8→9；生成头 m9/excluded 文案同步；`rec()` docstring 的 scope 集合补 `m9` | 重跑生成器逐字节不变（c20）；`check-scope` PASS |
+
+判决：全部 finding 已处置（F6 为环境面已按门控处方闭环并披露、F7 属跨册授权面已披露）⇒ 状态 `待验收`。
+
+### 第 1 轮 reviewer 验收（2026-10-22，独立重跑，不信完成区）
+
+**重跑记录（rc 均为本人退出码）**
+- `check_scope.py` rc=0：`excluded 期望=27 实际=27`、`m9 期望=9 实际=9`、`total 期望=260 实际=260`；本人独立 yaml 统计 260 = m1 156 / fp 60 / excluded 27 / m3 1 / m8 7 / m9 9。
+- `clmul.o_rrrr_rd`：`scope: m9`、无 `decode`、`rule_refs: [dst_dual_same]`；自写比对（`git show c7b14fa1:contracts/opcodes.yaml`，未复用证据脚本）：**仅该条差异且仅 scope/decode 两键**，其余 **259 条整条 dict 相同**；`op/mask/value/fields/legality/spec_cite` 逐字节同基线。
+- `grep -c EXCLUDED_KEEP_RULE_REFS tools/spec/generate_opcodes.py` = **0**（含 docstring）；仓库内仅 `ADR-0035`/任务书残留提及。
+- 门控逐条 rc=0：validate-encoding（260 OK）/ check-rule-refs（335 处）/ validate_instrinfo（0 errors）/ check-fp-contract / gen_isa_coverage --check（**accept 258 / reject 2** 现场派生）/ check_qemu_trans --strict（**260/260**）/ check-spec-{readonly,changelog,numbering,drift} / check-asm-list{,-drift} / check_lit_gen（64 passed）。
+- L1 `make check` **rc=0**（`repository checks (L1): PASS`）；L2 `make check-modules` **rc=0**（picolibc 18/20 pass、fail 0）。
+- 只读锁：本人 `sha256sum` SimRISC-00=`68f414a5…`、SimRISC-04=`134d7349…`，与锁内值一致；`check-spec-readonly` 21 册 OK。
+- 生成物幂等（本人 md5 快照→重跑 generate_opcodes / gen_asm_list --embed-spec / gen_legality_list --apply / generate_lit_vectors / gen_isa_coverage→复查）：39 文件全部无漂移。（注：`gen_asm_list --drift` 非该脚本旗标 rc=2；漂移由 `check-asm-list-drift` PASS 覆盖，等价达成）
+- 独立注入（`cp`+md5，未用 git checkout/restore）：① `EXPECTED_EXCLUDED 27→28` ⇒ check-scope **rc=1**（`FAIL — excluded 计数: 期望 28，实际 27`）→ 还原 md5 MATCH → rc=0；② 锁内 SimRISC-00 sha 回退 ⇒ check-spec-readonly **rc=1** → 还原 MATCH → rc=0。
+- 证据脚本审毕（断言均有可达 FAIL、`$?` 直捕不吞码、日志名合规）；本人重跑 `run.sh` rc=0（**22/22**）、`run.sh --inject` rc=0（**12/12**，3 例注入红→还原绿）。
+
+**约束核验**：改动 = commit `02e52679` 共 11 文件，与完成区声明逐一相符、无越界、无契约/测试弱化；check_scope 只改计数常量 + changelog（判定语义未动）；`SimRISC-00` **仅追加 1 行**（0 删除，历史 `:418` 行原文仍在）；`SimRISC-04` 仅删 excluded 区块 3 行、`dst_dual_same` 仍列 clmul.o；验收前/后 `git status --porcelain -uall` 均 0 行 + 5 目标文件 md5 复查全 OK（注入完全还原）；完成区 11 行 ≤30、与真实输出对齐；milestones 行含`（登记）`且状态一致；ISS-317 现场 `closed`（QEMU-068t 关闭）本册未触碰。
+
+**遗留（只记录，不改）**：① `.tao/contracts/contract-isa.md` §11/§A.10 仍写 `m9`（8 条）——非生成物、任务书输入/输出清单未列、无机械门控覆盖，且该文件另有**既有**陈旧口径（§A.7 仍写 excluded 11 条，早于 ADR-0034 即过时）⇒ **不属本册验收面**，建议另册统一同步 m9/excluded 口径；② `ADR-0035` `D6` 的 `EXCLUDED_KEEP_RULE_REFS` 机制句与 `D7`「scope = excluded」随翻转失效——decision 本体（`rd0` 规则/编码）不变；改 `Accepted` ADR 须用户逐条确认，建议由 architect 提请用户裁定（加状态注记或就地修订机制句）。
+
+**判决：Accepted**（验收标准 8 条在本人重跑下全过、硬约束无违反；两处遗留均属文案/授权面，不阻断本册）。
+
