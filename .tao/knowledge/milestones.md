@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-128t | 已验证 | 2026-10-23 06:10 | `ctlz/cttz/ctpop` + `rev.o/.t` 各 1 条（原 10/7 条）；零值运行期 64/0；lit 132/132 |
 | TESTCASES-061t | 已验证 | 2026-10-23 05:24 | harness 失败路径可信化（`br.nz` 偏移）+ 6 条工具去陈；978 全量 0 failed |
 | SPEC-164t | 已验证 | 2026-10-23 02:17 | `OPC-MISC` 迁 `op 0x47`（29 条，含 `ct*` 并入）+ 25 条解 `excluded`；264/264、实机全通 |
 | INFRA-102t | 已验证 | 2026-10-23 00:55 | 门控去写死计数（改不变量）+ 7 项缺口；L1 增量 <1 s；8 注入全红 |
@@ -48,7 +49,6 @@
 | SPEC-165t | 已验证 | 2026-10-22 23:30 | spec 净化+附录归位+重编号+`MISC-`→`OPC-`（485 处）；语义零漂移；关 ISS-192/315/316 |
 | SPEC-160t | 已验证 | 2026-10-22 21:43 | `min/max` 解 excluded：`fp` 60→64 / 14 族、`excluded` 31→27；264/264、lit 131/131；注入两例双红 |
 | LLVM-127t | 待开始 | 2026-10-22 21:10（登记） | 窄位 `i8/i16/i32` 合法化 + canonical 扩展（含 `ISS-310`） |
-| LLVM-128t | 待开始 | 2026-10-22 21:10（登记） | `ctlz`/`cttz`/`ctpop` + `rev` 后端 pattern（clz/bswap 各 1 条） |
 | LLVM-124t | 已验证 | 2026-10-22 21:00 | `min/max` 后端：`minnum`/`minimumnum`/C `fmin` 各 1 条；`minimum` 9 条无 libcall；`FMINNUM` 改 Custom（「≤4」裁定放宽） |
 | QEMU-071t | 已验证 | 2026-10-22 19:30 | `min/max` 语义：softfloat `minimum_number`；探针 111/111（值+NV/NX）；`check_qemu_trans` 264/264，`ISS-324` closed |
 | SPEC-159t | 已验证 | 2026-10-22 16:50 | `ftmin/ftmax/fomin/fomax` 立册（754 `minimumNumber`、`orrr`）；264/31/60；`ISS-324`/`325` 登记 |

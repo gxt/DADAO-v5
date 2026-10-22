@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..650c24c9a
+index 000000000..87d592ab7
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,2534 @@
+@@ -0,0 +1,2564 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -463,28 +463,40 @@ index 000000000..650c24c9a
 +                      ISD::UINT_TO_FP},
 +                     MVT::i64, Legal);
 +
-+  // Bit-manipulation builtins (LLVM-079t).  The ISA has no bit-scan / population
-+  // count instruction (`contracts/opcodes.yaml` carries no cttz/ctlz/ctpop op),
-+  // so the *generic* software expansions are used: they bottom out in ordinary
-+  // i64 shift/and/or/sub/mul/not operations that this backend already selects
-+  // (TargetLowering::expandCTTZ/expandCTLZ/expandCTPOP) and need no libcall or
-+  // constant pool.  Without this a surviving `llvm.cttz`/`ctlz`/`ctpop` aborts
-+  // ISel with "Cannot select: ... cttz" (the ISS-188 picolibc gap).
++  // Bit-manipulation builtins (LLVM-128t; supersedes the LLVM-079t `Expand`
++  // decision, whose premise -- "the ISA has no bit-scan / population-count
++  // instruction" -- no longer holds: `ctlz`/`cttz`/`ctpop` exist since
++  // SPEC-143t/ADR-0012 D11, contract-isa.md §6.4.4).  Each is one instruction
++  // (patterns in DADAOCodeGen.td) with `hd = 63`, i.e. bits [63:0]:
++  //   * ctlz(0) = 64 and cttz(0) = 64 (an all-zero `hd` field counts hd+1),
++  //     exactly the *defined* LLVM results, so the defined `CTLZ`/`CTTZ`
++  //     nodes are Legal rather than expanded; the `*_ZERO_POISON` flavours
++  //     (what `__builtin_clzll`/`ctzll` emit) map to the same instruction --
++  //     any value is allowed there and 64 is one of them;
++  //   * ctpop counts all 64 bits.
++  // The former generic expansion (10 instructions for clz, mul.uo-based for
++  // cttz/ctpop) is gone.  Narrow widths are promoted by the type legalizer
++  // and reuse these i64 instructions (see DADAOCodeGen.td).
 +  setOperationAction({ISD::CTTZ, ISD::CTTZ_ZERO_POISON, ISD::CTLZ,
 +                      ISD::CTLZ_ZERO_POISON, ISD::CTPOP},
-+                     MVT::i64, Expand);
++                     MVT::i64, Legal);
 +
-+  // Byte swap (LLVM-097t; ISS-222 ③ / ISS-193 (c)).  The ISA implements a
-+  // 64-bit byte swap as `rev.o rd, rs, 8` (ADR-0012 D10, contract-isa.md
-+  // §6.4.3), but there is no i64 BSWAP ISel pattern, so the operation must be
-+  // `Expand`: the generic expansion (TargetLowering::expandBSWAP, the
-+  // Mips/RISCV-without-rev8 route) bottoms out in shift/and/or ops this
-+  // backend already selects.  Leaving it at the default `Legal` is what broke
-+  // `-O1`+ builds of musl's ldso/dynlink.c: DAGTypeLegalizer promotes an i32
-+  // bswap to `SRL(bswap i64, 32)` (PromoteIntRes_BSWAP, which only calls
-+  // expandBSWAP when the wider BSWAP is *not* legal/custom/promote) and ISel
-+  // then aborts with "Cannot select: i64 = bswap".
-+  setOperationAction(ISD::BSWAP, MVT::i64, Expand);
++  // Byte swap (LLVM-128t; supersedes LLVM-097t's `Expand`).  `rev.o rd, rs, 8`
++  // is a 64-bit byte swap (ADR-0012 D10, contract-isa.md §6.4.3: reverse the
++  // eight 8-bit elements of the block), so ISD::BSWAP i64 is Legal and matched
++  // by a pattern.  i32 is not a legal type: the type legalizer would promote
++  // `bswap i32` to `SRL(bswap i64, 32)` (two instructions).  Marking it Custom
++  // makes PromoteIntegerResult call ReplaceNodeResults, which emits the native
++  // `rev.t rd, rs, 8` (reverse the byte pairs of the low 32-bit block) and
++  // truncates, so a 32-bit byte swap stays one instruction.  The high half of
++  // the extended source is don't-care: rev.t reverses each 32-bit block
++  // independently and only the low block is kept.
++  setOperationAction(ISD::BSWAP, MVT::i64, Legal);
++  setOperationAction(ISD::BSWAP, MVT::i32, Custom);
++
++  // 64-bit bit reversal (LLVM-128t): `rev.o rd, rs, 1` reverses the bit order
++  // of the whole 64-bit block (ADR-0012 D10).  Default action is Expand.
++  setOperationAction(ISD::BITREVERSE, MVT::i64, Legal);
 +
 +  // Rotates (ADR-0032 D4, amended 2026-10-19: `ror` -> `rol`; LLVM-116t;
 +  // supersedes the LLVM-099t `Expand` decision, whose premise -- "the ISA has
@@ -1892,6 +1904,24 @@ index 000000000..650c24c9a
 +
 +void DADAOTargetLowering::ReplaceNodeResults(
 +    SDNode *N, SmallVectorImpl<SDValue> &Results, SelectionDAG &DAG) const {
++  // ISD::BSWAP i32 (LLVM-128t): i32 is not a legal DADAO type, so the type
++  // legalizer promotes the node -- generically to `SRL(bswap i64, 32)`, i.e.
++  // two instructions.  `rev.t rd, rs, 8` reverses the byte pairs of every
++  // 32-bit block (ADR-0012 D10), so the low block of the (any-extended) source
++  // gives the byte-swapped i32 in one instruction; only the low block is kept,
++  // hence the don't-care high half of the promoted operand is harmless.  The
++  // i64 form is a plain pattern (DADAOCodeGen.td).
++  if (N->getOpcode() == ISD::BSWAP && N->getValueType(0) == MVT::i32) {
++    const SDLoc DL(N);
++    SDValue Src = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, N->getOperand(0));
++    SDValue Rev = SDValue(
++        DAG.getMachineNode(DADAO::rev_t_orri_rd, DL, MVT::i64, Src,
++                           DAG.getTargetConstant(8, DL, MVT::i64)),
++        0);
++    Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Rev));
++    return;
++  }
++
 +  if (N->getOpcode() != ISD::INTRINSIC_WO_CHAIN)
 +    return;
 +  // llvm.dadao.clmul.wide (LLVM-122t; ADR-0035): the i128 result is not legal

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..f716ab881
+index 000000000..d697efe74
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1950 @@
+@@ -0,0 +1,1955 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1583,8 +1583,11 @@ index 000000000..f716ab881
 +// rev.o/rev.t/rev.w/rev.b rdHB, rdHC, immu6: reverse the order of the S/k
 +// k-bit elements inside every 64-bit block (block size S = 64/32/16/8 by
 +// suffix; k = immu6 must be a power of two and k < S, see
-+// contracts/legality_rules.yaml `encode_onehot`).  MC layer only for now:
-+// no ISel patterns, so they never reach CodeGen.
++// contracts/legality_rules.yaml `encode_onehot`).  CodeGen (LLVM-128t): the
++// patterns in DADAOCodeGen.td select `bswap64` as rev.o + k = 8,
++// `bitreverse64` as rev.o + k = 1 and `bswap32` as rev.t + k = 8 (through
++// ReplaceNodeResults, i32 not being a legal type); rev.w/rev.b have no LLVM
++// node to map and stay MC-only.
 +
 +def rev_o_orri_rd : DADAOOrri<"rev.o"> {
 +  let OutOperandList = (outs GPRD:$rb);
@@ -1627,8 +1630,10 @@ index 000000000..f716ab881
 +// illegal hd value, so the MC layer adds no assembly-time legality check
 +// (contracts/legality_rules.yaml is unchanged; the dst_rd0 rule is
 +// enforced at execution time, see ISS-211).  An all-zero field yields hd+1
-+// for ctlz/cttz and 0 for ctpop (contracts/opcodes.yaml).  MC layer only for
-+// now: no ISel patterns, so they never reach CodeGen.
++// for ctlz/cttz and 0 for ctpop (contracts/opcodes.yaml).  CodeGen (LLVM-128t):
++// i64 `ctlz`/`cttz`/`ctpop` are Legal and select this instruction with
++// hd = 63 (patterns in DADAOCodeGen.td), so an all-zero field yields 64/64/0
++// -- exactly the LLVM *defined* results.
 +
 +def ctpop_orri_rd : DADAOOrri<"ctpop"> {
 +  let OutOperandList = (outs GPRD:$rb);

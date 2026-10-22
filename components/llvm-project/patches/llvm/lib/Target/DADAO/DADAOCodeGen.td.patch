@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..9aabdd09e
+index 000000000..1af1e3f17
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,854 @@
+@@ -0,0 +1,887 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -445,6 +445,39 @@ index 000000000..9aabdd09e
 +// ROTL in DADAOISelLowering (rotr(x,n) = rol(x, (-n) mod 64)).
 +def : Pat<(rotl GPRD:$a, immu6imm:$b), (rol_o_orri GPRD:$a, immu6imm:$b)>;
 +def : Pat<(rotl GPRD:$a, GPRD:$b), (rol_o_orrr GPRD:$a, GPRD:$b)>;
++
++// Bit scan / population count / whole-word reversal (LLVM-128t; ADR-0012
++// D10/D11, contract-isa.md §6.4.3/§6.4.4).  These seven instructions have
++// `immu6 hd` as a *width parameter*, not a shift amount:
++//
++//   ctlz/cttz/ctpop rd, rs, hd   -- valid-bit upper bound rdHC[hd:0]; an
++//        all-zero field yields hd+1 for ctlz/cttz and 0 for ctpop.
++//   rev.o/t/w/b rd, rs, k        -- k is a one-hot element size; k = 8 gives
++//        the byte swap (bswap64/32/16) and rev.o k = 1 the 64-bit bitreverse.
++//
++// i64 is the only legal integer type, so one pattern per operation at full
++// width is enough: hd = 63 selects bits [63:0], which makes the ISA result
++// identical to the LLVM node, zero included (ctlz(0) = cttz(0) = 64, the
++// *defined* variants; the *_ZERO_POISON nodes are mapped too, since a poison
++// result may be any value and 64 is one of them).  Narrow i32/i16/i8 values
++// are promoted by the type legalizer and reuse these patterns plus one
++// subtraction (ctlz(zext x) - 32) or an OR of the bit just above the narrow
++// type (cttz), which reproduces the narrow ISA result; their 1-instruction
++// `hd = 31/15/7` forms would need Custom result legalization with no
++// acceptance case behind it, so they are left out (disclosed in LLVM-128t).
++def : Pat<(ctlz GPRD:$x), (ctlz_orri_rd GPRD:$x, 63)>;
++def : Pat<(ctlz_zero_poison GPRD:$x), (ctlz_orri_rd GPRD:$x, 63)>;
++def : Pat<(cttz GPRD:$x), (cttz_orri_rd GPRD:$x, 63)>;
++def : Pat<(cttz_zero_poison GPRD:$x), (cttz_orri_rd GPRD:$x, 63)>;
++def : Pat<(ctpop GPRD:$x), (ctpop_orri_rd GPRD:$x, 63)>;
++
++// bswap64 = rev.o with k = 8 (reverse the eight 8-bit elements of the block);
++// bitreverse64 = rev.o with k = 1.  bswap32 is `rev.t` k = 8 and cannot be a
++// pattern (i32 is not a legal type); its promotion would produce
++// `srl (bswap i64), 32`, so ISD::BSWAP i32 is Custom and ReplaceNodeResults
++// emits `rev.t` directly (DADAOISelLowering.cpp).
++def : Pat<(bswap GPRD:$x), (rev_o_orri_rd GPRD:$x, 8)>;
++def : Pat<(bitreverse GPRD:$x), (rev_o_orri_rd GPRD:$x, 1)>;
 +
 +// 64-bit div/rem (orrr): rdhb = rdhc / rdhb ... (contract-isa.md §6.1.5).
 +// DADAO returns defined values for the div-by-zero / INT_MIN/-1 cases that are

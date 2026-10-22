@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..66b6e39f5
+index 000000000..fcea7f73b
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,368 @@
+@@ -0,0 +1,380 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -233,14 +233,26 @@ index 000000000..66b6e39f5
 +
 +  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
 +
-+  /// Custom result legalization (LLVM-122t).  The only use is
-+  /// `llvm.dadao.clmul.wide`: its result is i128, which is not a legal DADAO
-+  /// type, and the generic type legalizer has no expansion for an
-+  /// INTRINSIC_WO_CHAIN node.  Replaced by a BUILD_PAIR over DADAOISD::CLMUL
-+  /// (low, high), so the pair reaches ISel as two i64 values and the whole
-+  /// operation stays a single `clmul.o`.
++  /// Custom result legalization (LLVM-122t / LLVM-128t).  Two uses:
++  ///   - `llvm.dadao.clmul.wide`: its result is i128, which is not a legal
++  ///     DADAO type, and the generic type legalizer has no expansion for an
++  ///     INTRINSIC_WO_CHAIN node.  Replaced by a BUILD_PAIR over
++  ///     DADAOISD::CLMUL (low, high), so the pair reaches ISel as two i64
++  ///     values and the whole operation stays a single `clmul.o`.
++  ///   - `bswap i32`: i32 is not a legal type either; emitting the native
++  ///     `rev.t` here keeps a 32-bit byte swap at one instruction instead of
++  ///     the promoted `srl(bswap i64, 32)` pair.
 +  void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
 +                          SelectionDAG &DAG) const override;
++
++  /// Bit scans define the zero input in hardware (LLVM-128t): `ctlz`/`cttz`
++  /// with `hd = 63` return 64 for 0 (contract-isa.md §6.4.4), so speculating
++  /// one is always cheap.  Without this override CodeGenPrepare's
++  /// `despeculateCountZeros` wraps every *defined* `ctlz`/`cttz` in a
++  /// `x == 0 ? 64 : ctlz_zero_poison(x)` check -- three extra instructions
++  /// for a case the ISA already answers.
++  bool isCheapToSpeculateCttz(Type *) const override { return true; }
++  bool isCheapToSpeculateCtlz(Type *) const override { return true; }
 +
 +  /// Atomic ordering support (LLVM-121t, ADR-0034).  DADAO is a weak memory
 +  /// model whose only atomics are `lr`/`sc`, and the ISA has no AMO: atomic

@@ -176,9 +176,12 @@ exclude:
   #     `llc | FileCheck` CodeGen tests under the corpus root without value
   #     channels; registered here so the structural-closure invariant stays green
   #     (lessons §2.21).  Maintained during INTEG-034m milestone verification.
-  - ir: tests/llvm/lit/CodeGen/DADAO/p0-cttz.ll
+  - ir: tests/llvm/lit/CodeGen/DADAO/bitops.ll
     class: no-value-entry
-    reason: "FileCheck structural test (cttz count-trailing-zeros lowering, LLVM-079t); no `@main` value channel."
+    reason: "FileCheck structural test (ctlz/cttz/ctpop + rev.o/rev.t selection, LLVM-128t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/bitops-narrow.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (narrow i32/i16/i8 bit-count promotion, LLVM-128t); no `@main` value channel."
   - ir: tests/llvm/lit/CodeGen/DADAO/p0-fp-bitcast.ll
     class: no-value-entry
     reason: "FileCheck structural test (FP bitcast f64<->i64, LLVM-079t); no `@main` value channel."
