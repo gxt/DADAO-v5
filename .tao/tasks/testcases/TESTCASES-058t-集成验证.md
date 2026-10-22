@@ -1,4 +1,4 @@
-# TESTCASES-058t: `fma` 集成验证（单次舍入对拍 / 点积与 GEMM / Horner 代价）
+# TESTCASES-058t: `fma` 集成验证（单次舍入对拍 / 点积与 GEMM / Horner 零拷贝）
 
 **模块**：testcases
 **项目里程碑**：M9（FP 完备性）
@@ -19,7 +19,7 @@
 
 - 集成范式：`tools/testcases/run_atomics_probe.py` + `oracle_atomics.py`（probe + 独立 oracle + 两档）；本册照此结构。
 - 目标上 `double`/`float` 已完整（`fo`/`ft`）；`unsigned __int128` 可用。
-- 点积型语义 ⇒ **循环累加形态零拷贝**、3-address `fma(a,b,c)` 允许 1 条 `rf2rf`（`LLVM-123t` 已在 lit 断言，本册做端到端复核）。
+- 四操作数语义 ⇒ **所有形态零拷贝**（`acc += a*b`、`fma(a,b,c)`、Horner 均 1 条、无 `rf2rf`）；`LLVM-123t` 已在 lit 断言，本册做端到端复核。
 - `check-testcases-suites`（L2 fast）耗时预算须现场测后定层（`Process-07 §3`）。
 
 ## 目标

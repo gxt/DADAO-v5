@@ -13,7 +13,7 @@
 ### 语义真源
 
 - `spec/SimRISC-07 §4.x`（`SPEC-157t` 新增）：`ftfma rfHB, rfHC, rfHD` = `rfHB ← rfHC × rfHD + rfHB`（单精度）；`fofma` 同（双精度）。
-- **点积型**：目的 `rfHB` 兼加数 ⇒ 先读全部源（含旧 `rfHB`）再写；**单次舍入**。
+- **四操作数**：`rfHA ← rfHB × rfHC + rfHD`；目的与源**允许重叠** ⇒ **先读全部源再写**；**单次舍入**。
 - 异常：sNaN ⇒ NV + qNaN；OF/UF/NX 按 IEEE，一次运算只置一次；舍入模式由 `rf0[33:32]` 控制。
 
 ### 现场事实（2026-10-21 核，执行前须复核）
@@ -21,7 +21,7 @@
 - QEMU FP 实现分两层：`insn_trans/trans_fp.c.inc.patch`（位级/简单运算，纯 TCG）与 `helper.c.patch`（softfloat）。FMA **必须走 softfloat**（单次舍入无法用 TCG 位运算拼）。
 - softfloat 已提供融合乘加入口（名称以现场源码为准，典型为 `float32_muladd` / `float64_muladd`，含 `flags` 与舍入模式参数）；**须现场确认本仓库 qemu 版本的函数名/签名**。
 - 现有 helper 调用范式（`gen_convert_f2i` 等）已处理：从 `rf0` 取舍入模式、把 `flags` 合回 `rf0[4:0]` ⇒ **复用该范式**，不自造。
-- `insn.decode`：FP 族为 `01000100` + `opx`；新增 `ftfma`（`0x22`）/`fofma`（`0x2A`）两条 pattern。
+- `insn.decode`：新增 `ftfma`（`0x5E`）/ `fofma`（`0x5F`）两条**整 op 字节** pattern（`rrrr` 四寄存器，**无 opx**）。
 - `check_qemu_trans --strict` 现有计数 = 262-1（`SPEC-157t` 新记录缺 trans；issue 已登记）⇒ 本册收口后应为 **262/262**。
 
 ## 目标
@@ -33,7 +33,7 @@
 ## 接口规范
 
 - **输入**：`components/qemu/patches/target/dadao/insn.decode.patch`、`insn_trans/trans_fp.c.inc.patch`、`helper.c.patch`、`tools/qemu/*`（探针）。
-- **输出**：两条 `insn.decode` pattern；`trans_ftfma_orrr_rf`/`trans_fofma_orrr_rf`（或统一 `gen_fp_muladd`）；helper 侧调用 softfloat 的 mulAdd；探针 `.work/evidence/<任务ID>/run.sh`。
+- **输出**：两条 `insn.decode` pattern；`trans_ftfma_rrrr_rf`/`trans_fofma_rrrr_rf`（或统一 `gen_fp_muladd`，读 3 源写 1 目的）；helper 侧调用 softfloat 的 mulAdd；探针 `.work/evidence/<任务ID>/run.sh`。
 - **约束**：不改 `spec/`/`contracts/`（本册不翻 scope）；不改其它 FP 族；不改门控判定语义；不 commit/push。
 
 ## 设计要点（**不预设唯一实现**，但下列各点必须覆盖）

@@ -55,7 +55,7 @@
 | QEMU-070t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 语义：softfloat mulAdd 单次舍入；探针含 fma≠mul+add 反例 |
 | QEMU-071t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 语义：softfloat `minimum_number`；±0/单 NaN/sNaN/canonical 全覆盖 |
 | QEMU-072t | 待开始 | 2026-10-21 23:50（登记） | 取整语义：静态 5 档只合 NV、DYN 走真实 status；模式敏感 + NX 专测 |
-| SPEC-157t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 立册（点积型、`orrr`、`op=0x44`、opx `0x22`/`0x2A`；excluded） |
+| SPEC-157t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 立册（四操作数 `rrrr`、`op 0x5E/0x5F`；excluded） |
 | SPEC-158t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 解除 `excluded`（`scope → fp`，新族 `fma`） |
 | SPEC-159t | 待开始 | 2026-10-21 23:50（登记） | `ftmin`/`ftmax`/`fomin`/`fomax` 立册（754 `minimumNumber`、`orrr`、opx `0x26/0x27/0x2E/0x2F`） |
 | SPEC-160t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 解除 `excluded`（`scope → fp`，新族 `minmax`） |

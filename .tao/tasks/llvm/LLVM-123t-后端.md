@@ -1,4 +1,4 @@
-# LLVM-123t: `ftfma`/`fofma` 后端（`.td` + `llvm.fma`/`fmuladd` 选择 + 拷贝代价断言）
+# LLVM-123t: `ftfma`/`fofma` 后端（`.td` + `llvm.fma`/`fmuladd` 选择，四操作数零拷贝）
 
 **模块**：llvm
 **项目里程碑**：M9（FP 完备性）
@@ -12,30 +12,29 @@
 
 ### 真源
 
-- `spec/SimRISC-07 §4.x` + `contract-fp.md §fma`：`fofma rfHB, rfHC, rfHD` = `rfHB ← rfHC × rfHD + rfHB`（**点积型**，目的兼加数），单次舍入。
-- 编码：`op = 0x44`、`orrr`、`ftfma ha=0x22`、`fofma ha=0x2A`；`scope: excluded`（`SPEC-158t` 翻转）。
+- `spec/SimRISC-07 §4.x` + `contract-fp.md §fma`：`fofma rfHA, rfHB, rfHC, rfHD` = `rfHA ← rfHB × rfHC + rfHD`（**四操作数**），单次舍入。
+- 编码：`op = 0x5E`（`ftfma`）/ `0x5F`（`fofma`）、`rrrr`（1 目的 + 3 源）；`scope: excluded`（`SPEC-158t` 翻转）。
 
 ### 现场事实（2026-10-21 核，执行前须复核）
 
-- 后端已有 `orrr` FP 先例（`ftadd_orrr_rf`/`foadd_orrr_rf` 等）⇒ `.td` 定义照抄形态即可，`(outs RF:$hb), (ins RF:$hc, RF:$hd)`。
+- 后端已有 `rrrr` 先例（`mul_uo_rd` 等，但那是 **2 目的**）⇒ `.td` 定为 `(outs RF:$ha), (ins RF:$hb, RF:$hc, RF:$hd)`；**不得**套 `dst_dual_same`。
 - **LLVM 侧无需新 intrinsic**：`llvm.fma`（必融合）与 `llvm.fmuladd`（可融合）都是通用 intrinsic；`__builtin_fma` 由 clang 直接发 `llvm.fma` ⇒ **本册只做选择**。
-- **点积型的代价（本册必须如实断言）**：
-  - `llvm.fmuladd` 在循环里的自然形态是 `acc = acc + a*b` ⇒ 目的 = 累加器 = 加数 ⇒ **零拷贝**；
-  - `llvm.fma(a,b,c)` 是 3-address，加数 `c` 不一定在目的寄存器 ⇒ 需 **1 条 `rf2rf` 搬入**（寄存器分配若能合并则消失，**不保证**）；
-  - ⇒ 验收须同时给出"循环形态 0 拷贝"与"3-address 形态 ≤1 拷贝"的 `llc` 输出。
+- **四操作数的收益（本册必须如实断言）**：
+  - `llvm.fma(a,b,c)` 与 `llvm.fmuladd`（循环 `acc += a*b`）**都是零拷贝**：目的独立，**无需 `rf2rf`**；
+  - ⇒ `llc` 输出须为**恰好 1 条** `fofma`，且**不得**出现 `rf2rf`/`fomul`/`foadd`。
 - `excluded` 允许有 `.td`（`fence` 先例，`validate_instrinfo.py` 第 34 行）；`gen-excluded.s` 的"UNREC"反例前提需按 `LLVM-122t` 已落地的「`.td` 感知」逻辑处理（若该逻辑尚未落地，本册须先补）。
 
 ## 目标
 
 1. `.td` 定义两条（不设 `Pattern`，由伪指令/自定义选择）；
 2. `llvm.fma` → 单条 `fofma`/`ftfma`（必要时 +1 搬入）；
-3. `llvm.fmuladd` → 同（循环形态 0 拷贝）；
+3. `llvm.fmuladd` → 同（**零拷贝**）；
 4. 不回归既有 `fomul`+`foadd` 序列（无 FMA 的路径仍可用）。
 
 ## 接口规范
 
 - **输入**：`components/llvm-project/patches/llvm/lib/Target/DADAO/**`（`DADAOInstrInfoFP.td`、`DADAOCodeGen.td`、`DADAOISelLowering.cpp`）、`tests/llvm/lit/**`。
-- **输出**：`ftfma_orrr_rf`/`fofma_orrr_rf` 定义；选择路径（伪指令或 `FMA` 伪指令 + `expandPostRAPseudo`，视是否需要固定目的=加数）；lit 用例；证据 `.work/evidence/<任务ID>/run.sh`。
+- **输出**：`ftfma_rrrr_rf`/`fofma_rrrr_rf` 定义；`llvm.fma`/`llvm.fmuladd` **直接 pattern 选中**（无需伪指令）；lit 用例；证据 `.work/evidence/<任务ID>/run.sh`。
 - **约束**：不改 `spec/`/`contracts/`（翻转归 `SPEC-158t`）；不改判定语义；不 commit/push。
 
 ## 设计要点（**不预设唯一实现**，但下列各点必须覆盖）

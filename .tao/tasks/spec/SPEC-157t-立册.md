@@ -1,4 +1,4 @@
-# SPEC-157t: `ftfma`/`fofma` 立册（点积型 FMA，MISC-RF，`opx 100-010 / 101-010`）
+# SPEC-157t: `ftfma`/`fofma` 立册（四操作数 FMA，`rrrr`，`op 0x5E/0x5F`）
 
 **模块**：spec
 **项目里程碑**：M9（FP 完备性）
@@ -13,22 +13,23 @@
 ### 用户裁定（2026-10-21，原话）
 
 > 「增加任务：ftfma/fofma指令，orrr格式，点积型，MISC-RF，opx为100-010/101-010」
+> 「格式改为rrrr，即4个操作数；编码改为ftfma/fofma：0100-0110/0100-0111」（2026-10-22 修订，**以本条为准**）
 
 助记符经确认为 **`fma`**（非 `madd`/`fla`）：FMA 是 IEEE 754 `fusedMultiplyAdd`、LLVM `llvm.fma`、C `fma()` 的通用名；`madd` 会与"`fomul` 再 `foadd`"混淆，`fla` 不表意。
 
 ### 现场事实（2026-10-21 核，执行前须复核）
 
-- FP 族 = `op = 0x44`（`0100-0xxx` 行第 5 格 = MISC-RF），`ha` 即 6 位 opx；**`ft` 组在前、`fo` 组固定 +8**：`ftadd=0x10`/`foadd=0x18`、`ftqcmp=0x20`/`foqcmp=0x28`。
-- **`0x22`（`100-010`）与 `0x2A`（`101-010`）现场均为空** ⇒ 正好构成一对（ft/fo +8），符合既有约定。
-- `orrr` = opx + 3 个寄存器（`hb`=目的、`hc`/`hd`=源）⇒ **只能 2-address**（目的兼一个源）。
-- 4 槽方案（`rrrr`，1 目的 + 3 源）被否：`rrrr` 无 opx，必须占**主编码表** op 字节，且 `0101` 行仅剩 `0x57`/`0x58` 两格 ⇒ 与「浮点不落主表」冲突。
+- **`rrrr` = 4 个寄存器槽**（`ha`/`hb`/`hc`/`hd`），本册用作 **1 目的 + 3 源**：`rfHA ← rfHB × rfHC + rfHD`；**`dst_dual_same` 不适用**（那是 `add.uo`/`mul.uo` 等 2 目的形态的规则）。
+- 编码落 **`0101-1xxx` 行**：原 `cs.eq_rrrr_rf = 0x5E`（`0101-1110`）、`cs.ne_rrrr_rf = 0x5F`（`0101-1111`）**已由 `SPEC-163t` 删除腾出** ⇒ 取 **`ftfma = 0x5E`、`fofma = 0x5F`**。
+- `rrrr` 无 opx ⇒ 每条占一个整 op 字节（这是选主表的代价）；MISC-RF 的 `0x22`/`0x2A` **不再占用**（留空）。
+- 汇编形态为**四个普通寄存器**（不是 `{rdA,rdB}` 双目的写法）⇒ `gen_asm_list` **不得**按双目的渲染。
 - 现有 `SimRISC-07 §1.1` 速查 = **44 条**（`scope: fp（已实现）`）；加两条 ⇒ 46 条。
 - `check_fp_contract.py` 把 FP 分 **12 族**并写死 `fp` 计数 **60**；`scope: excluded` 的记录**不**进 `fp_semantics.yaml` ⇒ 本册**不动**族表/计数（族 `fma` 与 `fp 60→62` 留到 `SPEC-158t` 翻转时）。
 
 ## 目标
 
 1. 立 `ftfma`/`fofma` 两条记录（`scope: excluded`、`decode: ILLI`），编码/semantic/合法性/异常齐备；
-2. 规范正文写清**点积型**语义（目的兼加数）与"先读后写"；
+2. 规范正文写清**四操作数**语义（`rfHA ← rfHB × rfHC + rfHD`）与"目的与源重叠时先读后写"；
 3. 生成物与计数同步；`check-instrinfo` 不因"excluded 无 `.td`"报错（`fence` 先例）。
 
 ## 接口规范
@@ -39,16 +40,16 @@
 
 ## 设计要点（**不预设唯一实现**，但下列各点必须覆盖）
 
-### A. 语义（点积型，**目的兼加数**）
+### A. 语义（四操作数：`rfHA ← rfHB × rfHC + rfHD`）
 
 ```
-ftfma rfHB, rfHC, rfHD      @ rfHB ← rfHC × rfHD + rfHB（单精度，单次舍入）
-fofma rfHB, rfHC, rfHD      @ rfHB ← rfHC × rfHD + rfHB（双精度，单次舍入）
+ftfma rfHA, rfHB, rfHC, rfHD      @ rfHA ← rfHB × rfHC + rfHD（单精度，单次舍入）
+fofma rfHA, rfHB, rfHC, rfHD      @ rfHA ← rfHB × rfHC + rfHD（双精度，单次舍入）
 ```
 
-- **必须写清**：「目的 `rfHB` 同时是加数 ⇒ 硬件**先读**全部源（含旧 `rfHB`）再写结果，行为确定」——现有 §4.1 只写了"先读全部源操作数"，需补"目的作源"的情形。
+- **必须写清**：「目的 `rfHA` **允许**与任一源重叠 ⇒ 硬件**先读**全部源再写结果，行为确定」。
 - **单次舍入**：`a×b` 的精确积只舍入一次（`fma` 的核心；与 `fomul`+`foadd` 两条不等价，须给出反例例子）。
-- **`×` 可交换**：`rfHC`/`rfHD` 互换结果不变（加数恒为 `rfHB`）。
+- **`×` 可交换**：`rfHB`/`rfHC` 互换结果不变；`rfHA` 与源重叠时按"先读后写"。
 - **异常**：sNaN 输入 ⇒ NV + qNaN；结果溢出/下溢按 IEEE 置 OF/UF；**一次运算只置一次**。
 
 ### B. 合法性
@@ -59,7 +60,7 @@ fofma rfHB, rfHC, rfHD      @ rfHB ← rfHC × rfHD + rfHB（双精度，单次�
 
 ### C. 编码与生成物
 
-- `format = orrr`、`op = 0x44`、`ftfma ha = 0x22`、`fofma ha = 0x2A`；`scope = excluded`、`decode = ILLI`；
+- `format = rrrr`、`op = 0x5E`（`ftfma`）/ `0x5F`（`fofma`）、**无 `ha`**（整 op 字节选格）；`scope = excluded`、`decode = ILLI`；
 - `check_scope.py`：`excluded 28→29`、`total 260→262`（`fp` 仍 60）+ changelog 一行；
 - `generate_opcodes.py`：`rec(...)` 两条 + 文件头计数注释；`docstring` 的 scope 说明补 `fma`；
 - 生成物：`gen_asm_list --embed-spec`（速查 44→46）、`gen_legality_list --apply`（`dst_rf0` 清单 + excluded 区块）、`gen_isa_coverage`、`.tao/contracts/contract-asm-list.md`；
@@ -76,9 +77,9 @@ fofma rfHB, rfHC, rfHD      @ rfHB ← rfHC × rfHD + rfHB（双精度，单次�
 
 ## 做（阶段）
 
-1. 现场复核（`0x22`/`0x2A` 空闲、`rec()` 形态、速查表结构、`contract-fp.md` 锚点风格）。
+1. 现场复核（`0x5E`/`0x5F` 空闲、`rec()` 形态、`rrrr` 在速查表与 `gen_asm_list` 的渲染、`contract-fp.md` 锚点风格）。
 2. 生成器加两条（`excluded`）+ 计数 + `check_scope` 计数。
-3. 写 `SimRISC-07 §4.x`（点积型语义、先读后写、单次舍入、异常）与 `contract-fp.md §fma`。
+3. 写 `SimRISC-07 §4.x`（四操作数语义、先读后写、单次舍入、异常）与 `contract-fp.md §fma`。
 4. 重生成全部产物 → 门控；只读锁重算；变更记录 1 行。
 5. 反例注入 + L1 + 完成区 + 登记缺口 issue。
 
@@ -91,7 +92,7 @@ fofma rfHB, rfHC, rfHD      @ rfHB ← rfHC × rfHD + rfHB（双精度，单次�
 
 - 本册**不**实现（QEMU/LLVM 各一册）；**不**翻转 `scope`（`SPEC-158t`）。
 - 不做 `fmsub`/`fnmadd`/`fnmsub`（负号用 `fosgnn` 或后续另立 opx）。
-- 不做 Horner 形态的第二个 opx（将来若热点，另立）。
+- 不做 `fmsub`/`fnmadd` 的硬件版（负号用 `fosgnn` 组合，结果逐位精确）。
 - 不引入 `dst_dual_same`；不改 `rf0` 语义。
 
 ## 完成区
