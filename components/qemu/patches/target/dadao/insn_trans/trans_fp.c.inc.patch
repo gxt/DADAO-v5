@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..5435aa8
+index 0000000..4f966d7
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
-@@ -0,0 +1,1018 @@
+@@ -0,0 +1,1071 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/*
 + * DADAO FP (rf) instruction translation routines.
@@ -1021,4 +1021,57 @@ index 0000000..5435aa8
 +static bool trans_fornd_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
 +    return gen_fp_round_to_int(ctx, a, true);
++}
++
++/* ── QEMU-071t: minimumNumber / maximumNumber (S2D1) ─────────────────── */
++/*
++ * ftmin/ftmax/fomin/fomax (orrr): rfHB destination, rfHC/rfHD sources
++ * (simrisc ftmin rfHB, rfHC, rfHD).  Semantics = IEEE 754-2019 §9.6
++ * minimumNumber/maximumNumber, strict form (SimRISC-07 §4.4,
++ * contract-fp.md §19):
++ *   - ordered ⇒ the smaller/larger operand;
++ *   - −0 < +0, so min(+0,−0) = −0 and max(+0,−0) = +0;
++ *   - x == y with the same sign ⇒ either operand (identical bit patterns);
++ *   - exactly one NaN (q or s) ⇒ the numeric operand; NV only for sNaN;
++ *   - two NaNs ⇒ canonical qNaN (0x7FC00000 / 0x7FF8000000000000);
++ *   - no rounding ⇒ NX/OF/UF never set.
++ * All of this lives in softfloat's minimum_number/maximum_number; the helper
++ * only adds the FCSR flag merge.  A naive (a < b) ? a : b must NOT be used:
++ * it returns the second operand for a single NaN and never raises NV.
++ */
++static bool gen_fp_minmax(DisasContext *ctx, arg_misc *a, bool isdbl,
++                          bool ismax)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    /* S2D1: read both sources before writing the result (dest may alias a
++     * source; both loads are emitted first). */
++    TCGv_i64 src1 = load_rf(a->hc);
++    TCGv_i64 src2 = load_rf(a->hd);
++    TCGv_i64 res = tcg_temp_new_i64();
++    gen_helper_fp_minmax(res, tcg_env, src1, src2,
++                         tcg_constant_i32(isdbl), tcg_constant_i32(ismax));
++    store_rf(a->hb, res);
++    return true;
++}
++
++static bool trans_ftmin_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_minmax(ctx, a, false, false);
++}
++
++static bool trans_ftmax_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_minmax(ctx, a, false, true);
++}
++
++static bool trans_fomin_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_minmax(ctx, a, true, false);
++}
++
++static bool trans_fomax_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_minmax(ctx, a, true, true);
 +}

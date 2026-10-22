@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..88ef740
+index 0000000..ae40b34
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,1067 @@
+@@ -0,0 +1,1098 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -689,6 +689,37 @@ index 0000000..88ef740
 +        env->rf[0] |= (uint64_t)(get_float_exception_flags(&st)
 +                                 & float_flag_invalid);
 +    }
++    return res;
++}
++
++/* minimumNumber/maximumNumber (QEMU-071t, IEEE 754-2019 §9.6 strict form).
++ *   source: spec/SimRISC-07 §4.4, contract-fp.md §19
++ * The whole boundary behaviour lives in upstream softfloat's
++ * float{32,64}_{min,maximum}_number(): ordered comparison with −0 < +0, the
++ * numeric operand for a single NaN (q or s), and NV for any sNaN input.
++ * Two NaNs go through pick_nan(); default-NaN mode turns that into the
++ * canonical qNaN required by the contract (sign 0, payload 0), independent of
++ * which input NaN softfloat would otherwise propagate.  No rounding takes
++ * place, so NX/OF/UF stay clear; fp_status_commit() merges NV as usual.
++ */
++uint64_t helper_fp_minmax(CPUDADAOState *env, uint64_t a, uint64_t b,
++                          uint32_t isdbl, uint32_t ismax)
++{
++    float_status st;
++    uint64_t res;
++
++    fp_status_init(env, &st);
++    set_default_nan_mode(1, &st);
++    if (isdbl) {
++        res = (uint64_t)(ismax
++                         ? float64_maximum_number((float64)a, (float64)b, &st)
++                         : float64_minimum_number((float64)a, (float64)b, &st));
++    } else {
++        res = (uint64_t)(uint32_t)(ismax
++                         ? float32_maximum_number((float32)a, (float32)b, &st)
++                         : float32_minimum_number((float32)a, (float32)b, &st));
++    }
++    fp_status_commit(env, &st);
 +    return res;
 +}
 +
