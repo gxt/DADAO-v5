@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..ddd56480f
+index 000000000..164e4bdbc
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2647 @@
+@@ -0,0 +1,2650 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1414,8 +1414,8 @@ index 000000000..ddd56480f
 +}
 +
 +// FP instructions subject to the `dst_rf0` rule (SPEC-088t) whose destination
-+// operand immediately follows the mnemonic: the 16 scalar orrr arith/sign
-+// instructions plus the 16 orri RF-destination convert/root/round
++// operand immediately follows the mnemonic: the 20 scalar orrr arith/sign/
++// minmax instructions plus the 16 orri RF-destination convert/root/round
 +// instructions.
 +// `rd2rf` and the RF loads/stores (ld.*/ldm.*/stm.*) are intentionally NOT
 +// listed: there rf0 as a destination is legal (FCSR write mask).  The
@@ -1426,6 +1426,9 @@ index 000000000..ddd56480f
 +         M == "ftrem" || M == "ftsclb" || M == "ftsgnj" || M == "ftsgnn" ||
 +         M == "foadd" || M == "fosub" || M == "fomul" || M == "fodiv" ||
 +         M == "forem" || M == "fosclb" || M == "fosgnj" || M == "fosgnn" ||
++         // minimumNumber/maximumNumber (SPEC-159t; contract-fp.md §minmax):
++         // RF destination + two RF sources, same `dst_rf0` rule (LLVM-124t).
++         M == "ftmin" || M == "ftmax" || M == "fomin" || M == "fomax" ||
 +         M == "ft2fo" || M == "fo2ft" || M == "ft2ft" || M == "fo2fo" ||
 +         M == "it2ft" || M == "io2ft" || M == "ut2ft" || M == "uo2ft" ||
 +         M == "it2fo" || M == "io2fo" || M == "ut2fo" || M == "uo2fo" ||

@@ -1,6 +1,8 @@
 @@ RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %s -o %t
 @@ RUN: %llvm_mc --triple=dadao-unknown-elf -show-encoding %s 2>&1 | %FileCheck %s --check-prefix=OK
 @@ RUN: echo 'ftadd rf0, rf2, rf3' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
+@@ RUN: echo 'ftmin rf0, rf2, rf3' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
+@@ RUN: echo 'fomax rf0, rf2, rf3' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
 @@ RUN: echo 'it2ft {rf0}, {rd2}' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
 @@ RUN: echo 'cs.n {rd1}?, rf0, rf2, rf3' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
 @@ RUN: echo 'ft2fo {rf3:rf4}, {rf2:rf3}' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-OVL
@@ -16,7 +18,9 @@
 @@                           (rf0 as a *source* is legal).  35 instructions
 @@                           (16 scalar orrr + 16 orri convert/root/round + 3 cs_rf).
 @@                           ftrnd/fornd (LLVM-125t) are covered by
-@@                           fp-round-encoding.s together with encode_onehot.
+@@                           fp-round-encoding.s together with encode_onehot;
+@@                           ftmin/ftmax/fomin/fomax (LLVM-124t) carry the same
+@@                           rule (4 more scalar orrr forms).
 @@   mreg_range_overlap   -- the two same-bank RF `{start:end}` groups of a
 @@                           convert_ff instruction must be disjoint (any
 @@                           intersection, including complete coincidence, is

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
 new file mode 100644
-index 000000000..0376bacff
+index 000000000..0e8581ad5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
-@@ -0,0 +1,514 @@
+@@ -0,0 +1,553 @@
 +//===-- DADAOInstrInfoFP.td - DADAO FP instruction defs ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,12 +12,15 @@ index 000000000..0376bacff
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// DADAO FP instruction definitions (60 instructions).
++// DADAO FP instruction definitions (64 instructions).
 +//
-+// 58 are `scope: fp`; `ftrnd`/`fornd` (roundToIntegral, SPEC-161t) are still
-+// `scope: excluded` and therefore decode to ILLI until SPEC-162t flips them --
-+// they are defined here so the MC layer can assemble/disassemble them and so
-+// CodeGen can select them (LLVM-125t; patterns in DADAOCodeGen.td).
++// 60 are `scope: fp`; four are still `scope: excluded` and therefore decode to
++// ILLI until a SPEC flips them:
++//   * `ftrnd`/`fornd` (roundToIntegral, SPEC-161t; LLVM-125t) -- flip = SPEC-162t;
++//   * `ftmin`/`ftmax`/`fomin`/`fomax` (minimumNumber/maximumNumber,
++//     contract-fp.md §minmax; LLVM-124t) -- flip = SPEC-160t.
++// They are defined here so the MC layer can assemble/disassemble them and so
++// CodeGen can select them (patterns in DADAOCodeGen.td).
 +//
 +// Hand-written (NOT generated): the `op`/`ha` (opx) values below are taken
 +// verbatim from contracts/opcodes.yaml, which is the single source of truth
@@ -122,7 +125,7 @@ index 000000000..0376bacff
 +  let Pattern = [];
 +}
 +
-+// --- orrr format (20 instructions; op=0x44, ha=opx) ---
++// --- orrr format (24 instructions; op=0x44, ha=opx) ---
 +
 +def ftadd_orrr_rf : DADAOOrrr<"ftadd"> {
 +  let OutOperandList = (outs GPRF:$rb);
@@ -268,6 +271,26 @@ index 000000000..0376bacff
 +  let Pattern = [];
 +}
 +
++// minimumNumber/maximumNumber (LLVM-124t; contract-fp.md §minmax =
++// SimRISC-07 §4.4): RF destination + two RF sources, no rounding and no
++// exception beyond the sNaN->NV rule, so the operand shape is the plain orrr
++// one (`dst_rf0` applies: an rf0 destination is an ILLI form).
++def ftmin_orrr_rf : DADAOOrrr<"ftmin"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x26;
++  let Pattern = [];
++}
++
++def ftmax_orrr_rf : DADAOOrrr<"ftmax"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x27;
++  let Pattern = [];
++}
++
 +def foqcmp_orrr_rf : DADAOOrrr<"foqcmp"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
@@ -281,6 +304,22 @@ index 000000000..0376bacff
 +  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
 +  let op = 0x44;
 +  let ha = 0x29;
++  let Pattern = [];
++}
++
++def fomin_orrr_rf : DADAOOrrr<"fomin"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x2E;
++  let Pattern = [];
++}
++
++def fomax_orrr_rf : DADAOOrrr<"fomax"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x2F;
 +  let Pattern = [];
 +}
 +

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..7ad0ac84f
+index 000000000..c9eab2d3f
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,2465 @@
+@@ -0,0 +1,2534 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -360,9 +360,10 @@ index 000000000..7ad0ac84f
 +
 +  // Floating point (M6, LLVM-066t).  Natively supported (Legal; patterns in
 +  // DADAOCodeGen.td): + - * /, sqrt, negate, absolute value, roundToIntegral
-+  // (LLVM-125t: ftrnd/fornd) and the int<->fp / fp<->fp conversions.  Every
-+  // other FP op is expanded; a few of those expansions are libcalls (e.g.
-+  // frem -> fmod), which a freestanding program must avoid or supply itself.
++  // (LLVM-125t: ftrnd/fornd), min/max (LLVM-124t: ftmin/ftmax/fomin/fomax) and
++  // the int<->fp / fp<->fp conversions.  Every other FP op is expanded; a few
++  // of those expansions are libcalls (e.g. frem -> fmod), which a freestanding
++  // program must avoid or supply itself.
 +  for (MVT VT : {MVT::f32, MVT::f64}) {
 +    setOperationAction(
 +        {ISD::FADD, ISD::FSUB, ISD::FMUL, ISD::FDIV, ISD::FSQRT, ISD::FNEG},
@@ -372,7 +373,6 @@ index 000000000..7ad0ac84f
 +         ISD::FTAN, ISD::FASIN, ISD::FACOS, ISD::FATAN, ISD::FATAN2,
 +         ISD::FSINH, ISD::FCOSH, ISD::FTANH, ISD::FPOW, ISD::FPOWI, ISD::FEXP,
 +         ISD::FEXP2, ISD::FEXP10, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
-+         ISD::FMINNUM, ISD::FMAXNUM,
 +         ISD::FMINIMUM, ISD::FMAXIMUM, ISD::FCANONICALIZE, ISD::FLDEXP,
 +         ISD::FFREXP, ISD::FGETSIGN, ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT},
 +        VT, Expand);
@@ -385,6 +385,43 @@ index 000000000..7ad0ac84f
 +    setOperationAction({ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FROUND,
 +                        ISD::FROUNDEVEN, ISD::FRINT, ISD::FNEARBYINT},
 +                       VT, Legal);
++    // Min/max (LLVM-124t; contract-fp.md §minmax = SimRISC-07 §4.4).  The ISA
++    // instructions `ftmin`/`ftmax`/`fomin`/`fomax` ARE IEEE 754-2019
++    // minimumNumber/maximumNumber (single NaN -> the other operand, double NaN
++    // -> canonical qNaN, sNaN raises NV, -0 < +0, no rounding), so both node
++    // flavours with exactly that semantics are Legal and map 1:1
++    // (patterns in DADAOCodeGen.td):
++    //   * FMINNUM_IEEE / FMAXNUM_IEEE   -- the well-defined number nodes;
++    //   * FMINIMUMNUM / FMAXIMUMNUM     -- 2019 minimumNumber/maximumNumber.
++    //
++    // FMINNUM / FMAXNUM are Custom (LowerMinMaxNum below) rather than Expand:
++    // LLVM's generic expansion (TargetLowering::expandFMINNUM_FMAXNUM) wraps
++    // both operands in FCANONICALIZE, and on this target FCANONICALIZE is
++    // Expand, whose lowering is `x * 1.0` (a constant materialisation plus a
++    // `fomul`) -- measured, not assumed: `llvm.canonicalize.f64` compiles to
++    // `set.zw; rd2rf; fomul`, so the expanded form of `llvm.minnum` would be
++    // 2x3+1 = 7 instructions instead of the single `fomin` the ISA affords.
++    // Dropping that canonicalisation is *more* faithful, not less:
++    //   * LangRef (Floating-point min/max intrinsics comparison): "llvm.minnum
++    //     ... For signaling NaNs, non-deterministically returns NaN or the
++    //     other operand", and the NaN section allows an FP math operation to
++    //     "treat all NaNs as if they were quiet NaNs" -- so returning the other
++    //     operand for an sNaN input is one of the permitted outcomes;
++    //   * contract-fp.md §minmax requires an sNaN *input* to raise NV, which
++    //     the instruction does on its own; the canonicalised form would quiet
++    //     the sNaN first and thereby *lose* that flag.
++    // `minimumnum` therefore selects the very same instruction; the two
++    // intrinsics differ only in the sNaN latitude LangRef grants minnum.
++    // FMINIMUM / FMAXIMUM stay Expand (left in the list above): the ISA has no
++    // NaN-propagating form (contract-fp.md §minmax 负向约束), so LLVM derives
++    // them from FMINNUM_IEEE plus a SETUO NaN select -- and because
++    // FMINNUM_IEEE is Legal, expandFMINIMUM_FMAXIMUM also learns that the
++    // instruction already orders -0 < +0 (MinMaxMustRespectOrderedZero), so it
++    // emits no SETOEQ +/-0 fixup.
++    setOperationAction({ISD::FMINNUM_IEEE, ISD::FMAXNUM_IEEE, ISD::FMINIMUMNUM,
++                        ISD::FMAXIMUMNUM},
++                       VT, Legal);
++    setOperationAction({ISD::FMINNUM, ISD::FMAXNUM}, VT, Custom);
 +  }
 +  // P1 (LLVM-080t; INTEG-033k §裁定汇总 #6) -- double-precision copysign/fabs
 +  // use the ISA sign-injection instruction `fosgnj` (contract-fp.md §7:
@@ -400,11 +437,12 @@ index 000000000..7ad0ac84f
 +  // straight back to `fabs(x)` -- an infinite legalize/combine loop (observed
 +  // hanging codegen).  Matching both directly avoids it.
 +  //
-+  // The other P1 operations: fmin/fmax have no ISA instruction
-+  // (contracts/opcodes.yaml scope `fp`), so they stay `Expand` and lower to the
-+  // out-of-line calls registered in DADAOSubtarget (initLibcallLoweringInfo).
-+  // The rounding family is Legal now (LLVM-125t, ftrnd/fornd -- see the loop
-+  // above); this block's comment used to list it here as a libcall class.
++  // The other P1 operations: fmin/fmax used to be libcalls (LLVM-080t) because
++  // the ISA had no instruction; since LLVM-124t `ftmin`/`ftmax`/`fomin`/`fomax`
++  // exist and both min/max node flavours are Legal/Custom (see the loop above),
++  // so no `fmin`/`fmax` libcall is emitted any more.  The rounding family is
++  // Legal too (LLVM-125t, ftrnd/fornd -- see the loop above); this block's
++  // comment used to list it here as a libcall class.
 +  // f32 copysign/fabs stay Expand (P1 sign-injection is double precision).
 +  setOperationAction(ISD::FCOPYSIGN, MVT::f64, Legal);
 +  setOperationAction(ISD::FABS, MVT::f64, Legal);
@@ -1486,6 +1524,11 @@ index 000000000..7ad0ac84f
 +    return LowerGlobalTLSAddress(Op, DAG);
 +  case ISD::INTRINSIC_WO_CHAIN:
 +    return LowerINTRINSIC_WO_CHAIN(Op, DAG);
++  // Min/max (LLVM-124t, contract-fp.md §minmax): the custom action is declared
++  // in the constructor.
++  case ISD::FMINNUM:
++  case ISD::FMAXNUM:
++    return LowerMinMaxNum(Op, DAG);
 +  // Atomics (LLVM-121t; ADR-0034).  The IR-level AtomicExpandPass has already
 +  // turned every atomic load/store into a monotonic access plus `fence`, and
 +  // every RMW into a cmpxchg loop, so these four hooks are the whole backend
@@ -1819,6 +1862,32 @@ index 000000000..7ad0ac84f
 +  if (Op.getConstantOperandVal(0) != Intrinsic::thread_pointer)
 +    return SDValue(); // Not custom lowered: keep the generic path.
 +  return getThreadPointer(SDLoc(Op), DAG);
++}
++
++SDValue DADAOTargetLowering::LowerMinMaxNum(SDValue Op,
++                                            SelectionDAG &DAG) const {
++  // LLVM-124t (contract-fp.md §minmax = SimRISC-07 §4.4).  FMINNUM/FMAXNUM are
++  // the *legacy* pair; they carry the same minimumNumber/maximumNumber
++  // semantics as FMINNUM_IEEE/FMAXNUM_IEEE except for the sNaN result, which
++  // LangRef leaves non-deterministic ("either NaN or the other operand").  Both
++  // nodes therefore map to the same single instruction:
++  //
++  //   FMINNUM  -> FMINNUM_IEEE -> fomin / ftmin
++  //   FMAXNUM  -> FMAXNUM_IEEE -> fomax / ftmax
++  //
++  // Writing the rewrite here (rather than letting LegalizeDAG call
++  // TargetLowering::expandFMINNUM_FMAXNUM) is what keeps it to one instruction:
++  // that generic expansion wraps each operand in FCANONICALIZE, and this target
++  // expands FCANONICALIZE into `x * 1.0` (constant materialisation + `fomul`),
++  // i.e. 3 instructions per operand.  The canonicalisation is not wanted here
++  // anyway: quieting an sNaN first would drop the NV that contract-fp.md §minmax
++  // requires for an sNaN input, while the instruction raises it by itself.
++  const SDLoc DL(Op);
++  const EVT VT = Op.getValueType();
++  const unsigned NewOp =
++      Op.getOpcode() == ISD::FMINNUM ? ISD::FMINNUM_IEEE : ISD::FMAXNUM_IEEE;
++  return DAG.getNode(NewOp, DL, VT, Op.getOperand(0), Op.getOperand(1),
++                     Op->getFlags());
 +}
 +
 +void DADAOTargetLowering::ReplaceNodeResults(

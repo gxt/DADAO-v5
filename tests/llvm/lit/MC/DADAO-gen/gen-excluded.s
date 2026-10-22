@@ -7,10 +7,6 @@
 @@ ======================================================================
 @@ RUN: echo 'cfxld cfx63, [rb2, 1]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
 @@ RUN: echo 'cfxst cfx63, [rb2, 1]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'fomax rf8, rf9, rf10' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'fomin rf8, rf9, rf10' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'ftmax rf8, rf9, rf10' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'ftmin rf8, rf9, rf10' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
 
 .text
 @@ UNREC: error: unrecognized instruction mnemonic
@@ -20,15 +16,3 @@
 
 @@ @src cfxst_crii_cfx | SimRISC-00 §SimRISC QFC
 @@ cfxst cfx63, [rb2, 1]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src fomax_orrr_rf | SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
-@@ fomax rf8, rf9, rf10（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src fomin_orrr_rf | SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
-@@ fomin rf8, rf9, rf10（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src ftmax_orrr_rf | SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
-@@ ftmax rf8, rf9, rf10（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src ftmin_orrr_rf | SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
-@@ ftmin rf8, rf9, rf10（scope: excluded，汇编器 MUST 拒绝）

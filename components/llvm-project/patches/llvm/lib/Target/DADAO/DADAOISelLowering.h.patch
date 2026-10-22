@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..8112f5f35
+index 000000000..66b6e39f5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,360 @@
+@@ -0,0 +1,368 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -355,6 +355,14 @@ index 000000000..8112f5f35
 +  SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
 +  SDValue LowerVAARG(SDValue Op, SelectionDAG &DAG) const;
 +  SDValue LowerVACOPY(SDValue Op, SelectionDAG &DAG) const;
++
++  /// ISD::FMINNUM / ISD::FMAXNUM (LLVM-124t, contract-fp.md §minmax): rewrite to
++  /// the well-defined FMINNUM_IEEE / FMAXNUM_IEEE, which the ISA instructions
++  /// `ftmin`/`ftmax`/`fomin`/`fomax` implement exactly.  Unlike LLVM's generic
++  /// expansion this inserts no FCANONICALIZE (LangRef leaves minnum's sNaN
++  /// result non-deterministic, and canonicalising would suppress the NV flag
++  /// that contract-fp.md §minmax requires on an sNaN input).
++  SDValue LowerMinMaxNum(SDValue Op, SelectionDAG &DAG) const;
 +
 +  /// True if V is an i64 value held in the GPRB (pointer/address) bank, i.e. a
 +  /// CopyFromReg of a GPRB virtual register created by LowerFormalArguments.

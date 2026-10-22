@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-124t | 已验证 | 2026-10-22 21:00 | `min/max` 后端：`minnum`/`minimumnum`/C `fmin` 各 1 条；`minimum` 9 条无 libcall；`FMINNUM` 改 Custom（「≤4」裁定放宽） |
 | QEMU-071t | 已验证 | 2026-10-22 19:30 | `min/max` 语义：softfloat `minimum_number`；探针 111/111（值+NV/NX）；`check_qemu_trans` 264/264，`ISS-324` closed |
 | SPEC-159t | 已验证 | 2026-10-22 16:50 | `ftmin/ftmax/fomin/fomax` 立册（754 `minimumNumber`、`orrr`）；264/31/60；`ISS-324`/`325` 登记 |
 | TESTCASES-060t | 已验证 | 2026-10-22 16:20 | 取整集成：6 档矩阵 + 模式敏感 + 标志；两档 805/805；独立 oracle 284/284；L2 边际 ≈6 s |
@@ -56,7 +57,6 @@
 | QEMU-069t | 已验证 | 2026-10-22 00:31 | `fcls` 位序重排（10 个位号）；探针改由 spec §7 解析（独立 oracle）；84/84 |
 | SPEC-156t | 已验证 | 2026-10-22 00:12 | `fcls` 10 类位序改为 754/LLVM 顺序；两处逐项一致（脚本机械比对）、锁重算、破坏性已标注 |
 | LLVM-123t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 后端：`.td` + `llvm.fma`/`fmuladd` 选择；循环形态 0 拷贝 |
-| LLVM-124t | 待验收 | 2026-10-21 23:50（登记） | `min/max` 后端：`minnum`/`minimumnum`/C `fmin` 各 1 条；`minimum` 展开 9 条无 libcall；`FMINNUM` 改 Custom（LangRef sNaN 非确定） |
 | LLVM-126t | 待开始 | 2026-10-21 23:50（登记） | FP 后端接线补齐（`ISS-188` 剩余 8 类：`fcmp`/`fpclass`/`bitcast`/`rounding`）；`frem` 不接 |
 | QEMU-070t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 语义：softfloat mulAdd 单次舍入；探针含 fma≠mul+add 反例 |
 | SPEC-157t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 立册（四操作数 `rrrr`、`op 0x5E/0x5F`；excluded） |

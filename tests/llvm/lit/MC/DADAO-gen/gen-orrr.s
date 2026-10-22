@@ -156,6 +156,16 @@ foadd rf8, rf9, rf10
 @@ ASM: fodiv rf8, rf9, rf10
 fodiv rf8, rf9, rf10
 
+@@ @src fomax_orrr_rf 44bc824a | SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
+@@ OBJ: {{[0-9a-f]+:}} 44 bc 82 4a{{.*}}fomax
+@@ ASM: fomax rf8, rf9, rf10
+fomax rf8, rf9, rf10
+
+@@ @src fomin_orrr_rf 44b8824a | SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
+@@ OBJ: {{[0-9a-f]+:}} 44 b8 82 4a{{.*}}fomin
+@@ ASM: fomin rf8, rf9, rf10
+fomin rf8, rf9, rf10
+
 @@ @src fomul_orrr_rf 4468824a | SimRISC-00 §MISC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 68 82 4a{{.*}}fomul
 @@ ASM: fomul rf8, rf9, rf10
@@ -205,6 +215,16 @@ ftadd rf8, rf9, rf10
 @@ OBJ: {{[0-9a-f]+:}} 44 4c 82 4a{{.*}}ftdiv
 @@ ASM: ftdiv rf8, rf9, rf10
 ftdiv rf8, rf9, rf10
+
+@@ @src ftmax_orrr_rf 449c824a | SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
+@@ OBJ: {{[0-9a-f]+:}} 44 9c 82 4a{{.*}}ftmax
+@@ ASM: ftmax rf8, rf9, rf10
+ftmax rf8, rf9, rf10
+
+@@ @src ftmin_orrr_rf 4498824a | SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
+@@ OBJ: {{[0-9a-f]+:}} 44 98 82 4a{{.*}}ftmin
+@@ ASM: ftmin rf8, rf9, rf10
+ftmin rf8, rf9, rf10
 
 @@ @src ftmul_orrr_rf 4448824a | SimRISC-00 §MISC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 48 82 4a{{.*}}ftmul

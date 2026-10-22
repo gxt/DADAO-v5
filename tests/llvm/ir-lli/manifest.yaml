@@ -194,9 +194,9 @@ exclude:
   - ir: tests/llvm/lit/CodeGen/DADAO/p0-fp-trunc-store.ll
     class: no-value-entry
     reason: "FileCheck structural test (truncating store f64->f32, LLVM-088t); no `@main` value channel."
-  - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-minmax-libcall.ll
+  - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-minmax.ll
     class: no-value-entry
-    reason: "FileCheck structural test (FP min/max libcall fmin/fmax, LLVM-080t); no `@main` value channel."
+    reason: "FileCheck structural test (FP min/max selection: fomin/fomax/ftmin/ftmax, LLVM-124t); no `@main` value channel."
   - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-round-libcall.ll
     class: no-value-entry
     reason: "FileCheck structural test (FP rounding libcall floor/ceil/trunc/round/rint/nearbyint, LLVM-080t); no `@main` value channel."
@@ -209,9 +209,6 @@ exclude:
   - ir: tests/llvm/lit/CodeGen/DADAO/inline-asm-r.ll
     class: no-value-entry
     reason: "FileCheck structural test (inline asm \"r\" constraint / GPRD, LLVM-086t); no `@main` value channel."
-  - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-libcall-f32.ll
-    class: no-value-entry
-    reason: "FileCheck structural test (f32 rounding/extremum libcall registration, LLVM-087t); no `@main` value channel."
   - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-libcall-logf.ll
     class: no-value-entry
     reason: "FileCheck structural test (f32 log libcall LOG_F32->logf, LLVM-089t); no `@main` value channel."

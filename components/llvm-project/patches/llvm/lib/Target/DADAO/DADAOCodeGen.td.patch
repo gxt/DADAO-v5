@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..596e10757
+index 000000000..7428837fe
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,830 @@
+@@ -0,0 +1,854 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -649,6 +649,30 @@ index 000000000..596e10757
 +def : Pat<(fdiv f32:$a, f32:$b), (ftdiv_orrr_rf f32:$a, f32:$b)>;
 +def : Pat<(fsqrt f32:$a), (ftroot_orri_rf f32:$a, 2)>;
 +def : Pat<(fneg f32:$a), (ftsgnn_orrr_rf f32:$a, f32:$a)>;
++
++// --- min/max: minimumNumber/maximumNumber (ftmin/ftmax/fomin/fomax) ---
++// LLVM-124t (M9; contract-fp.md §minmax = SimRISC-07 §4.4).  The ISA's
++// `fomin`/`fomax` (`ftmin`/`ftmax` for f32) ARE IEEE 754-2019
++// minimumNumber/maximumNumber, so the DAG nodes with exactly those semantics
++// map 1:1:
++//   * FMINNUM_IEEE / FMAXNUM_IEEE  -> fomin / fomax (and ftmin / ftmax);
++//   * FMINIMUMNUM / FMAXIMUMNUM    -> the same instructions (2019
++//     minimumNumber/maximumNumber, sNaN raises NV and yields the number).
++// Single NaN (qNaN or sNaN) returns the other operand, double NaN returns the
++// canonical qNaN and -0 < +0 -- all per contract-fp.md §minmax, i.e. the whole
++// `MinMaxMustRespectOrderedZero` burden is already met by the instruction.
++// NOT matched here: FMINNUM/FMAXNUM (lowered Custom -> the *_IEEE nodes
++// below, DADAOISelLowering.cpp) and FMINIMUM/FMAXIMUM (still Expand: LLVM
++// derives them from FMINNUM_IEEE + a SETUO NaN select; there is no
++// NaN-propagating hardware form, contract-fp.md §minmax 负向约束).
++def : Pat<(fminnum_ieee f64:$a, f64:$b), (fomin_orrr_rf f64:$a, f64:$b)>;
++def : Pat<(fmaxnum_ieee f64:$a, f64:$b), (fomax_orrr_rf f64:$a, f64:$b)>;
++def : Pat<(fminimumnum f64:$a, f64:$b), (fomin_orrr_rf f64:$a, f64:$b)>;
++def : Pat<(fmaximumnum f64:$a, f64:$b), (fomax_orrr_rf f64:$a, f64:$b)>;
++def : Pat<(fminnum_ieee f32:$a, f32:$b), (ftmin_orrr_rf f32:$a, f32:$b)>;
++def : Pat<(fmaxnum_ieee f32:$a, f32:$b), (ftmax_orrr_rf f32:$a, f32:$b)>;
++def : Pat<(fminimumnum f32:$a, f32:$b), (ftmin_orrr_rf f32:$a, f32:$b)>;
++def : Pat<(fmaximumnum f32:$a, f32:$b), (ftmax_orrr_rf f32:$a, f32:$b)>;
 +
 +// --- Rounding family: roundToIntegral (ftrnd/fornd, orri) ---
 +// LLVM-125t (M9; contract-fp.md §roundint = SimRISC-07 §4.3).  One ISA
