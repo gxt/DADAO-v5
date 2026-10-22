@@ -7,20 +7,21 @@
     + 取整 `ftrnd`/`fornd` + 最小最大值 `ftmin`/`ftmax`/`fomin`/`fomax`），独立于 M1，
     **已实现**（LLVM-029t/030t、QEMU-034t–037t；取整见 `QEMU-072t`/`LLVM-125t`；
     最小最大值见 `QEMU-071t`/`LLVM-124t`）；
-  - `scope: excluded`（27 条）——特权 cfx（仅 `cfxld`/`cfxst`）/ LR-SC（24 条，四宽度 ×
-    三存储序）/ fence，暂未归类
+  - `scope: excluded`（2 条）——特权 cfx（仅 `cfxld`/`cfxst`），暂未归类
     （`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`；
     `ADR-0034` 将 `lr/sc` 由 8 条重排为 24 条；`SPEC-161t` 立取整 2 条、
     `SPEC-162t` 实现落地后将其由 `excluded` 转入 `fp`；`SPEC-159t` 立最小最大值 4 条、
-    `SPEC-160t` 实现落地后将其由 `excluded` 转入 `fp`）；
+    `SPEC-160t` 实现落地后将其由 `excluded` 转入 `fp`；`SPEC-164t` 将 `fence` 与 24 条
+    `lr/sc` 由 `excluded` 转入 `m9`）；
   - `scope: m3`（1 条）——M3 CodeGen 新增指令（ADR-0012 D9.1 `sub.o_orrr_dbb`），
     **非 M1 身份**，不要求 M1 向量覆盖；
   - `scope: m8`（7 条）——新增 ISA 指令（ADR-0012 D10 逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`
-    + D11 位扫描/计数 `ctlz`/`cttz`/`ctpop`），
+    + D11 位扫描/计数 `ctlz`/`cttz`/`ctpop`，其中 `ct*` 位于 `OPC-MISC`），
     **非 M1 身份**，与里程碑无绑定（用户 2026-10-14：新增指令与里程碑无绑定关系），不要求 M1 向量覆盖。
-  - `scope: m9`（9 条）——新增 ISA 指令 `rol.o`/`rol.t`/`rol.w`/`rol.b`（逻辑循环左移，
+  - `scope: m9`（34 条）——新增 ISA 指令 `rol.o`/`rol.t`/`rol.w`/`rol.b`（逻辑循环左移，
     `orrr`/`orri` 两种格式；`ADR-0032` `D4`/`SPEC-152t`）+ `clmul.o`（GF(2) 无进位乘，`rrrr`；
-    `ADR-0035`，实现落地后由 `excluded` 转入），**非 M1 身份**，不要求 M1 向量覆盖。
+    `ADR-0035`，实现落地后由 `excluded` 转入）+ `fence` 与 24 条 `lr/sc`（实现已落地，
+    `SPEC-164t` 由 `excluded` 转入），**非 M1 身份**，不要求 M1 向量覆盖。
 约定 `scope == "excluded"` ⇒ `decode: ILLI`——编码已定义但尚未实现，执行即非法指令；
 `m1`/`fp`/`m3`/`m8`/`m9` 不携带 `decode`（已实现或按各自里程碑实现）；UNDI 仅用于架构显式留空的编码（空白单元格）。
 
@@ -567,19 +568,21 @@ def build_main_table(records):
 # ────────────────────────────── OPC-MISC ──────────────────────────────
 
 def build_misc_amo(records):
-    op = 0x77
+    # 用户 2026-10-22 裁定「OPC-MISC 的编码改为：0100-0111」⇒ op 0x77 → 0x47。
+    op = 0x47
     # ADR-0034 D1/D2（用户 2026-10-20）：fence 由 000-000 迁至 100-000（ha=0x20）；
     # immu18 = fm[17:12] / pred[11:6] / succ[5:0]（书写仍是 18 位无符号立即数，不拆三段）；
     # fm=0 为唯一已定义值，pred/succ 的高 2 位（[11:10]/[5:4]）SBZ ⇒ 其余保留（ILLI）。
+    # scope：SPEC-164t（用户 2026-10-22 同意）由 excluded 转 m9 —— QEMU/LLVM 已实现。
     records.append(rec("fence", "fence", "oiii", op, f_oiii("immu18"),
                        ["immu18[17:12] == 0", "immu18[11:10] == 0", "immu18[5:4] == 0"],
-                       S12_FENCE, ha=0x20, scope="excluded"))
+                       S12_FENCE, ha=0x20, scope="m9"))
     # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 OPC-MISC 100-010（ha=0x22）
     records.append(rec("swym-oiii", "swym", "oiii", op, f_oiii("immu18"),
                        [], S11_SWYM, ha=0x22))
     # ADR-0034 D3/D4/D5（方案 A）：命名 `<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`（宽度在前）；
     # lr 占 000/001 两行（nn/an/ar，`lr.*.nr` 删除）、sc 占 010/011 两行（nn/nr/ar，
-    # `sc.*.an` 删除）；组内宽度顺序 .o → .t → .w → .b。scope 仍 excluded（D7）。
+    # `sc.*.an` 删除）；组内宽度顺序 .o → .t → .w → .b。scope：SPEC-164t 由 excluded 转 m9。
     for prefix, order_ha in (("lr", {"nn": 0x00, "an": 0x04, "ar": 0x08}),
                              ("sc", {"nn": 0x10, "nr": 0x14, "ar": 0x18})):
         for order, base_ha in order_ha.items():
@@ -587,7 +590,15 @@ def build_misc_amo(records):
                 mnem = f"{prefix}.{width}.{order}"
                 records.append(rec(mnem, mnem, "orrr", op,
                                    f_orrr("rdhb", "rdhc", "rbhd"), [],
-                                   S12_LRSC, ha=base_ha + i, scope="excluded"))
+                                   S12_LRSC, ha=base_ha + i, scope="m9"))
+    # 用户 2026-10-22 裁定「ctpop/ctlz/cttz 从 OPC-octa 改为 OPC-MISC，opx 100-101/100-110/100-111」
+    # ⇒ op 0x47、ha 0x25/0x26/0x27（原 0x40 / 0x1D/0x1E/0x1F）。三条**无位宽后缀**，
+    # 有效位宽由操作数的 `hd` 字段在运行时给出（见 SimRISC-04）。
+    # scope: m8（新增 ISA 指令，与里程碑无绑定；非 M1 身份，不要求 M1 向量覆盖）
+    # 合法性：hd ∈ 0..63 全部合法 ⇒ 不新增规则；沿用 dst_rd0（rdhb != rd0）。
+    for mnem, ha in (("ctpop", 0x25), ("ctlz", 0x26), ("cttz", 0x27)):
+        records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
+                           ["rdhb != rd0"], S04_BIT, ha=ha, scope="m8"))
 
 
 # ────────────────────────────── OPC-octa ──────────────────────────────
@@ -673,14 +684,7 @@ def build_misc_octa(records):
     records.append(rec("rev.o", "rev.o", "orri", op, f_orri("rdhb", "rdhc", "immu6"),
                        ["rdhb != rd0", onehot_expr(64)], S04_BIT,
                        ha=0x0C, scope="m8"))
-    # ADR-0012 D11：新增 ctlz/cttz/ctpop（位扫描 / 位计数；orri，ha=0x1D/0x1E/0x1F →
-    # opx `011-101`/`011-110`/`011-111`）。**无位宽后缀** ⇒ 借用 OPC-octa 格位，是
-    # 「子表 ⇔ 位宽后缀」规则的**例外**（见 spec/SimRISC-00: OPC-octa指令编码 表下说明）。
-    # scope: m8（新增 ISA 指令，与里程碑无绑定；非 M1 身份，不要求 M1 向量覆盖）
-    # 合法性：hd ∈ 0..63 全部合法 ⇒ 不新增规则；沿用 dst_rd0（rdhb != rd0）。
-    for mnem, ha in (("ctpop", 0x1D), ("ctlz", 0x1E), ("cttz", 0x1F)):
-        records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
-                           ["rdhb != rd0"], S04_BIT, ha=ha, scope="m8"))
+    # ADR-0012 D11 的 ctlz/cttz/ctpop 已由 SPEC-164t 迁入 `OPC-MISC`（见 build_misc_amo）。
 
 
 # ────────────────────────────── MISC 固定位宽子表 ──────────────────────────────
@@ -943,13 +947,13 @@ def main():
         f.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md\n")
         f.write("# M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统\n")
         f.write("# scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；\n")
-        f.write("# scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，\n")
+        f.write("# scope: excluded 为特权 cfx（cfxld/cfxst），尚未实现，\n")
         f.write("#   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
         f.write("# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份\n")
         f.write("# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + "
                 "D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份\n")
         f.write("# scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b"
-                " + ADR-0035 GF(2) 无进位乘 clmul.o），非 M1 身份\n")
+                " + ADR-0035 GF(2) 无进位乘 clmul.o + fence/lr/sc 原子），非 M1 身份\n")
         f.write(f"# 共 {len(records)} 条：M1 {n_m1} 条 + scope fp {n_fp} 条"
                 f" + scope excluded {n_ex} 条 + scope m3 {n_m3} 条 + scope m8 {n_m8} 条"
                 f" + scope m9 {n_m9} 条\n")

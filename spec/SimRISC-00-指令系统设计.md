@@ -278,13 +278,13 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0010-1xxx     | ldm.ub_rrri_rd       | ldm.uw_rrri_rd       | ldm.ut_rrri_rd       | ldm.sb_rrri_rd       | ldm.sw_rrri_rd       | ldm.st_rrri_rd       | ldm.t_rrri_rf        | stm.t_rrri_rf   |
 | 0011-0xxx     | stm.b_rrri_rd        | stm.w_rrri_rd        | stm.t_rrri_rd        |                      |                      |                      |                      |                  |
 | 0011-1xxx     | ldm.o_rrri_rd        | stm.o_rrri_rd        | ldm.o_rrri_rb        | stm.o_rrri_rb        | ldm.o_rrri_ra        | stm.o_rrri_ra        | ldm.o_rrri_rf        | stm.o_rrri_rf   |
-| 0100-0xxx     | OPC-octa            | OPC-tetra           | OPC-wyde            | OPC-byte            | OPC-RF              |                      |                      |                  |
+| 0100-0xxx     | OPC-octa            | OPC-tetra           | OPC-wyde            | OPC-byte            | OPC-RF              |                      |                      | OPC-MISC        |
 | 0100-1xxx     | or.w_rwii_rd         | andn.w_rwii_rd       | or.w_rwii_rb         | andn.w_rwii_rb       | set.zw_rwii_rd       | set.ow_rwii_rd       | set.zw_rwii_rb       | set.w_rwii_rf   |
 | 0101-0xxx     | add.uo_rrrr_rd       | add.so_rrrr_rd       | sub.uo_rrrr_rd       | sub.so_rrrr_rd       | mul.uo_rrrr_rd       | mul.so_rrrr_rd       | clmul.o_rrrr_rd      |                  |
 | 0101-1xxx     |                      | add.si_riii_rd       | aip.si_riii_rb       | add.si_riii_rb       | cmp.ui_rrii_rd       | cmp.si_rrii_rd       | cs.eq_rrrr_rf        | cs.ne_rrrr_rf   |
 | 0110-0xxx     | cs.n_rrrr_rd         | cs.n_rrrr_rf         | cs.z_rrrr_rd         | cs.z_rrrr_rf         | cs.p_rrrr_rd         | cs.p_rrrr_rf         | cs.eq_rrrr_rd        | cs.ne_rrrr_rd   |
 | 0110-1xxx     | br.n_riii_rd         | br.nn_riii_rd        | br.z_riii_rd         | br.nz_riii_rd        | br.p_riii_rd         | br.np_riii_rd        | br.eq_rrii_rd        | br.ne_rrii_rd   |
-| 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          | OPC-MISC        |
+| 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          |                 |
 | 0111-1xxx     |                      |                      | cfx2rd_crrr_cfx      | cfx2rc_crrr_cfx      | cfxld_crii_cfx       | cfxst_crii_cfx       | escape_ciii_cfx      | trap_ciii_cfx   |
 
 ### 4.1 OPC-MISC 指令编码
@@ -297,7 +297,7 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 001-xxx   | lr.o.ar_orrr_rd | lr.t.ar_orrr_rd | lr.w.ar_orrr_rd | lr.b.ar_orrr_rd |              |              |              |              |
 | 010-xxx   | sc.o.nn_orrr_rd | sc.t.nn_orrr_rd | sc.w.nn_orrr_rd | sc.b.nn_orrr_rd | sc.o.nr_orrr_rd | sc.t.nr_orrr_rd | sc.w.nr_orrr_rd | sc.b.nr_orrr_rd |
 | 011-xxx   | sc.o.ar_orrr_rd | sc.t.ar_orrr_rd | sc.w.ar_orrr_rd | sc.b.ar_orrr_rd |              |              |              |              |
-| 100-xxx   | fence_oiii_imm |              | swym_oiii_imm |              |              |              |              |              |
+| 100-xxx   | fence_oiii_imm |              | swym_oiii_imm |              |              | ctpop_orri_rd | ctlz_orri_rd | cttz_orri_rd |
 | 101-xxx   |              |              |              |              |              |              |              |              |
 | 110-xxx   |              |              |              |              |              |              |              |              |
 | 111-xxx   |              |              |              |              |              |              |              |              |
@@ -312,13 +312,11 @@ octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 | 000-xxx   |                 |                 |               |               |               |               |               |               |
 | 001-xxx   | and.o_orrr_rd      | or.o_orrr_rd       | xor.o_orrr_rd    | xnor.o_orrr_rd   | rev.o_orri_rd  |               |               |               |
 | 010-xxx   | shl.o_orrr_rd      | rol.o_orrr_rd      | shr.uo_orrr_rd   | shr.so_orrr_rd   |                 |               |               |               |
-| 011-xxx   | shl.o_orri_rd      | rol.o_orri_rd      | shr.uo_orri_rd   | shr.so_orri_rd   |                 | ctpop_orri_rd | ctlz_orri_rd  | cttz_orri_rd  |
+| 011-xxx   | shl.o_orri_rd      | rol.o_orri_rd      | shr.uo_orri_rd   | shr.so_orri_rd   |                 |               |               |               |
 | 100-xxx   | ext.uo_orrr_rd     | ext.so_orrr_rd     |               |               |               |               |               |               |
 | 101-xxx   | ext.uo_orri_rd     | ext.so_orri_rd     | cmp.uo_orrr_rd   | cmp.so_orrr_rd   | rd2rd_orri_rd    | rd2ra_orri_ra    | ra2rd_orri_ra    |               |
 | 110-xxx   | add.o_orrr_bbd   | sub.o_orrr_bbd   | cmp.uo_orrr_dbb | sub.o_orrr_dbb | rb2rb_orri_rb    | rd2rb_orri_rb    | rb2rd_orri_rb    |               |
 | 111-xxx   | div.uo_orrr_rd     | div.so_orrr_rd     | rem.uo_orrr_rd   | rem.so_orrr_rd   |               | rd2rf_orri_rf    | rf2rd_orri_rf    |               |
-
-> **无位宽后缀指令的例外**：`ctpop`/`ctlz`/`cttz`（位计数 / 位扫描）**不带位宽后缀**，其指令名不指示位宽；它们**借用本 `OPC-octa` 子表的格位**（`011-101`/`011-110`/`011-111`），是本手册「**子表 ⇔ 位宽后缀**」规则的**例外**——**有效位宽**由操作数的 `hd` 字段（**有效位上界** `[hd:0]`，共 `hd+1` 位）在运行时给出（同子表中 `rd2rd`/`rb2rb` 等寄存器组复制指令亦无后缀，但其位宽**恒为整寄存器 64 位**，不随操作数变化）。逐条语义见 SimRISC-04。
 
 ### 4.3 OPC-tetra指令编码
 
@@ -414,10 +412,10 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 - `shl` 的四个位宽变体去掉 `u` 后缀（`shl.o`/`shl.t`/`shl.w`/`shl.b`），编码迁至 `010-000`（`orrr`）/`011-000`（`orri`）。
 - 新增 `rol.o`/`rol.t`/`rol.w`/`rol.b`（逻辑循环左移，`orrr`/`orri`），编码 `010-001`/`011-001`；符号无关、不带 `u`/`s` 后缀。
 - 新增 `rev.o`/`rev.t`/`rev.w`/`rev.b`（逐块反转），占 `OPC-octa`/`OPC-tetra`/`OPC-wyde`/`OPC-byte` 四子表的 `001-100`（`opx = 001100`）。
-- 新增 `ctlz`/`cttz`/`ctpop`（位扫描 / 位计数）3 条**无位宽后缀**指令，借 `OPC-octa` 子表格位 `011-101`/`011-110`/`011-111`（「子表 ⇔ 位宽后缀」规则的例外）。
+- 新增 `ctlz`/`cttz`/`ctpop`（位扫描 / 位计数）3 条**无位宽后缀**指令，位于 `OPC-MISC` 子表格位 `100-101`/`100-110`/`100-111`（`op = 0x47`）。
 - 新增 `sub.o`（RB−RB→RD）；RB 算术三条指令改名并调整编码槽。
 - `cmp.uo-rb` 改为整 64 位比较；RB / 控制流地址语义修正。
-- 窄位宽指令精简、高位处理统一为值语义；`OPC-MISC` 编码移至 `0111-0111`。
+- 窄位宽指令精简、高位处理统一为值语义；`OPC-MISC` 编码移至 `0100-0111`。
 - 删除 `ftlog`/`folog`；`ftroot`/`foroot` 仅保留 n=2。
 - 浮点状态寄存器 `rf0` 位域与访问规则调整；0 号寄存器作源操作数语义澄清；各寄存器组 0 号寄存器用途措辞定稿。
 - 删除 `illi` 指令；`fence` 编码改 `0x00`、`swym` 编码改 `0x22`。

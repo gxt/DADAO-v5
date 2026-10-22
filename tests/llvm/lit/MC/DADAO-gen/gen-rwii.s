@@ -11,42 +11,42 @@
 
 .text
 
-@@ @src andn.w_rwii_rb 4b211234 | SimRISC-03 §立即数常数赋值：Immediate constant
+@@ @src andn.w_rwii_rb 4b211234 | SimRISC-03: andn.w
 @@ OBJ: {{[0-9a-f]+:}} 4b 21 12 34{{.*}}andn.w
 @@ ASM: andn.w rb8, wp1, 0x1234
 andn.w rb8, wp1, 0x1234
 
-@@ @src andn.w_rwii_rd 49211234 | SimRISC-03 §立即数常数赋值：Immediate constant
+@@ @src andn.w_rwii_rd 49211234 | SimRISC-03: andn.w
 @@ OBJ: {{[0-9a-f]+:}} 49 21 12 34{{.*}}andn.w
 @@ ASM: andn.w rd8, wp1, 0x1234
 andn.w rd8, wp1, 0x1234
 
-@@ @src or.w_rwii_rb 4a211234 | SimRISC-03 §立即数常数赋值：Immediate constant
+@@ @src or.w_rwii_rb 4a211234 | SimRISC-03: or.w
 @@ OBJ: {{[0-9a-f]+:}} 4a 21 12 34{{.*}}or.w
 @@ ASM: or.w rb8, wp1, 0x1234
 or.w rb8, wp1, 0x1234
 
-@@ @src or.w_rwii_rd 48211234 | SimRISC-03 §立即数常数赋值：Immediate constant
+@@ @src or.w_rwii_rd 48211234 | SimRISC-03: or.w
 @@ OBJ: {{[0-9a-f]+:}} 48 21 12 34{{.*}}or.w
 @@ ASM: or.w rd8, wp1, 0x1234
 or.w rd8, wp1, 0x1234
 
-@@ @src set.ow_rwii_rd 4d211234 | SimRISC-03 §立即数常数赋值：Immediate constant
+@@ @src set.ow_rwii_rd 4d211234 | SimRISC-03: set.ow
 @@ OBJ: {{[0-9a-f]+:}} 4d 21 12 34{{.*}}set.ow
 @@ ASM: set.ow rd8, wp1, 0x1234
 set.ow rd8, wp1, 0x1234
 
-@@ @src set.w_rwii_rf 4f211234 | SimRISC-00 §SimRISC QFC
+@@ @src set.w_rwii_rf 4f211234 | SimRISC-03: set.w
 @@ OBJ: {{[0-9a-f]+:}} 4f 21 12 34{{.*}}set.w
 @@ ASM: set.w rf8, wp1, 0x1234
 set.w rf8, wp1, 0x1234
 
-@@ @src set.zw_rwii_rb 4e211234 | SimRISC-03 §立即数常数赋值：Immediate constant
+@@ @src set.zw_rwii_rb 4e211234 | SimRISC-03: set.zw
 @@ OBJ: {{[0-9a-f]+:}} 4e 21 12 34{{.*}}set.zw
 @@ ASM: set.zw rb8, wp1, 0x1234
 set.zw rb8, wp1, 0x1234
 
-@@ @src set.zw_rwii_rd 4c211234 | SimRISC-03 §立即数常数赋值：Immediate constant
+@@ @src set.zw_rwii_rd 4c211234 | SimRISC-03: set.zw
 @@ OBJ: {{[0-9a-f]+:}} 4c 21 12 34{{.*}}set.zw
 @@ ASM: set.zw rd8, wp1, 0x1234
 set.zw rd8, wp1, 0x1234

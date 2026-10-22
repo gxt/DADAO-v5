@@ -9,29 +9,45 @@ contracts/opcodes.yaml, .tao/contracts/contract-isa.md §13,
 contracts/legality_rules.yaml (encode_sbz rule), and
 .tao/adr/adr-0004-test-machine.md.
 
-Encoding derivations (ADR-0012 D3.5: OPC-MISC 子表调整):
-  - swym 0: op=0x77, ha=0x22, immu18=0 → word=0x77880000
-    mask=0xFFFC0000, value=0x77880000 → (0x77880000 & 0xFFFC0000)==0x77880000 ✓
+Encoding derivations（**不写死编码**，现场取自 `contracts/opcodes.yaml`）:
+  - swym 0: word = `swym_oiii_imm` 的 `value`（immu18 = 0）
+    mask=0xFFFC0000 → (value & mask) == value ✓
 
 Note: 原专门非法指令已于 ADR-0012 D3.5 删除（ILLI 异常保留）；
-fence (oiii) is scope: excluded per SPEC-039t (decode: ILLI)。
+fence 现为 `scope: m9`（SPEC-164t 由 excluded 转入，已实现）。
 """
 
 import os
 import sys
 
+import yaml
+
 # REPO derived from this file's location (tools/testcases/generate_misc.py)
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT_DIR = os.path.join(REPO, "tests", "vectors", "isa")
 OUT_FILE = os.path.join(OUT_DIR, "misc.yaml")
+OPCODES = os.path.join(REPO, "contracts", "opcodes.yaml")
 
 GENERATOR_PATH = "tools/testcases/generate_misc.py"
 
-# ── Encoding words (ADR-0012 D3.5: swym ha 0x02→0x22) ────────────────
-SWYM_WORD0 = 0x77880000       # swym 0 (nop): op=0x77, ha=0x22, immu18=0
 
-MASK_SWYM = 0xFFFC0000
-VALUE_SWYM = 0x77880000
+def _int(v):
+    return v if isinstance(v, int) else int(str(v).strip(), 0)
+
+
+def _swym_encoding():
+    """从 opcodes.yaml 现场取 swym 的 mask/value（swym 0 即 value 本身）。"""
+    with open(OPCODES, encoding="utf-8") as f:
+        records = yaml.safe_load(f)
+    rec = next(r for r in records if r["id"] == "swym_oiii_imm")
+    mask = _int(rec["mask"])
+    value = _int(rec["value"])
+    word = value  # immu18 = 0
+    return word, mask, value
+
+
+# ── Encoding words（现场派生；SPEC-164t：OPC-MISC 迁 op 0x47）──────────
+SWYM_WORD0, MASK_SWYM, VALUE_SWYM = _swym_encoding()
 
 
 def _hex8(w):
@@ -83,9 +99,10 @@ def generate():
         expected_fault=None,
         expected_pc=None,
         spec_cite="SimRISC-11: 占位指令",
-        notes="encoding: swym 0 (nop), word=0x77880000; "
-              "opcodes.yaml mask=0xFFFC0000 value=0x77880000; "
-              "no fault, no architectural state change",
+        notes="encoding: swym 0 (nop), word=%s; "
+              "opcodes.yaml mask=0x%08X value=0x%08X; "
+              "no fault, no architectural state change"
+              % (_hex8(SWYM_WORD0), MASK_SWYM, VALUE_SWYM),
     ))
 
     # F10: semantic case — nop-like, no state change
@@ -122,7 +139,7 @@ def write_yaml(cases):
         "# Covers: swym_oiii_imm (oiii) — 1 M1 identity\n"
         "# ADR-0012 D3.5: 原专门非法指令删除（ILLI 异常保留）→ 无对应向量\n"
         "# F10: swym encoding words verified against opcodes.yaml mask/value\n"
-        "# Note: fence is scope: excluded per SPEC-039t (decode: ILLI)\n"
+        "# Note: fence is scope: m9 (SPEC-164t; implemented)\n"
     ) % GENERATOR_PATH
 
     os.makedirs(OUT_DIR, exist_ok=True)

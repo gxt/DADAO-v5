@@ -11,582 +11,582 @@
 
 .text
 
-@@ @src add.o_orrr_bbd 40c0824a | SimRISC-05 §加减操作
+@@ @src add.o_orrr_bbd 40c0824a | SimRISC-05: add.o
 @@ OBJ: {{[0-9a-f]+:}} 40 c0 82 4a{{.*}}add.o
 @@ ASM: add.o rb8, rb9, rd10
 add.o rb8, rb9, rd10
 
-@@ @src add.sb_orrr_rd 4384824a | SimRISC-10 §加减操作
+@@ @src add.sb_orrr_rd 4384824a | SimRISC-10: add.sb
 @@ OBJ: {{[0-9a-f]+:}} 43 84 82 4a{{.*}}add.sb
 @@ ASM: add.sb rd8, rd9, rd10
 add.sb rd8, rd9, rd10
 
-@@ @src add.st_orrr_rd 4184824a | SimRISC-08 §加减操作
+@@ @src add.st_orrr_rd 4184824a | SimRISC-08: add.st
 @@ OBJ: {{[0-9a-f]+:}} 41 84 82 4a{{.*}}add.st
 @@ ASM: add.st rd8, rd9, rd10
 add.st rd8, rd9, rd10
 
-@@ @src add.sw_orrr_rd 4284824a | SimRISC-09 §加减操作
+@@ @src add.sw_orrr_rd 4284824a | SimRISC-09: add.sw
 @@ OBJ: {{[0-9a-f]+:}} 42 84 82 4a{{.*}}add.sw
 @@ ASM: add.sw rd8, rd9, rd10
 add.sw rd8, rd9, rd10
 
-@@ @src add.ub_orrr_rd 4380824a | SimRISC-10 §加减操作
+@@ @src add.ub_orrr_rd 4380824a | SimRISC-10: add.ub
 @@ OBJ: {{[0-9a-f]+:}} 43 80 82 4a{{.*}}add.ub
 @@ ASM: add.ub rd8, rd9, rd10
 add.ub rd8, rd9, rd10
 
-@@ @src add.ut_orrr_rd 4180824a | SimRISC-08 §加减操作
+@@ @src add.ut_orrr_rd 4180824a | SimRISC-08: add.ut
 @@ OBJ: {{[0-9a-f]+:}} 41 80 82 4a{{.*}}add.ut
 @@ ASM: add.ut rd8, rd9, rd10
 add.ut rd8, rd9, rd10
 
-@@ @src add.uw_orrr_rd 4280824a | SimRISC-09 §加减操作
+@@ @src add.uw_orrr_rd 4280824a | SimRISC-09: add.uw
 @@ OBJ: {{[0-9a-f]+:}} 42 80 82 4a{{.*}}add.uw
 @@ ASM: add.uw rd8, rd9, rd10
 add.uw rd8, rd9, rd10
 
-@@ @src and.o_orrr_rd 4020824a | SimRISC-04 §Logic operators：逻辑运算
+@@ @src and.o_orrr_rd 4020824a | SimRISC-04: and.o
 @@ OBJ: {{[0-9a-f]+:}} 40 20 82 4a{{.*}}and.o
 @@ ASM: and.o rd8, rd9, rd10
 and.o rd8, rd9, rd10
 
-@@ @src cmp.sb_orrr_rd 43ac824a | SimRISC-10 §比较操作
+@@ @src cmp.sb_orrr_rd 43ac824a | SimRISC-10: cmp.sb
 @@ OBJ: {{[0-9a-f]+:}} 43 ac 82 4a{{.*}}cmp.sb
 @@ ASM: cmp.sb rd8, rd9, rd10
 cmp.sb rd8, rd9, rd10
 
-@@ @src cmp.so_orrr_rd 40ac824a | SimRISC-04 §比较操作
+@@ @src cmp.so_orrr_rd 40ac824a | SimRISC-04: cmp.so
 @@ OBJ: {{[0-9a-f]+:}} 40 ac 82 4a{{.*}}cmp.so
 @@ ASM: cmp.so rd8, rd9, rd10
 cmp.so rd8, rd9, rd10
 
-@@ @src cmp.st_orrr_rd 41ac824a | SimRISC-08 §比较操作
+@@ @src cmp.st_orrr_rd 41ac824a | SimRISC-08: cmp.st
 @@ OBJ: {{[0-9a-f]+:}} 41 ac 82 4a{{.*}}cmp.st
 @@ ASM: cmp.st rd8, rd9, rd10
 cmp.st rd8, rd9, rd10
 
-@@ @src cmp.sw_orrr_rd 42ac824a | SimRISC-09 §比较操作
+@@ @src cmp.sw_orrr_rd 42ac824a | SimRISC-09: cmp.sw
 @@ OBJ: {{[0-9a-f]+:}} 42 ac 82 4a{{.*}}cmp.sw
 @@ ASM: cmp.sw rd8, rd9, rd10
 cmp.sw rd8, rd9, rd10
 
-@@ @src cmp.ub_orrr_rd 43a8824a | SimRISC-10 §比较操作
+@@ @src cmp.ub_orrr_rd 43a8824a | SimRISC-10: cmp.ub
 @@ OBJ: {{[0-9a-f]+:}} 43 a8 82 4a{{.*}}cmp.ub
 @@ ASM: cmp.ub rd8, rd9, rd10
 cmp.ub rd8, rd9, rd10
 
-@@ @src cmp.uo_orrr_dbb 40c8824a | SimRISC-05 §比较操作
+@@ @src cmp.uo_orrr_dbb 40c8824a | SimRISC-05: cmp.uo
 @@ OBJ: {{[0-9a-f]+:}} 40 c8 82 4a{{.*}}cmp.uo
 @@ ASM: cmp.uo rd8, rb9, rb10
 cmp.uo rd8, rb9, rb10
 
-@@ @src cmp.uo_orrr_rd 40a8824a | SimRISC-04 §比较操作
+@@ @src cmp.uo_orrr_rd 40a8824a | SimRISC-04: cmp.uo
 @@ OBJ: {{[0-9a-f]+:}} 40 a8 82 4a{{.*}}cmp.uo
 @@ ASM: cmp.uo rd8, rd9, rd10
 cmp.uo rd8, rd9, rd10
 
-@@ @src cmp.ut_orrr_rd 41a8824a | SimRISC-08 §比较操作
+@@ @src cmp.ut_orrr_rd 41a8824a | SimRISC-08: cmp.ut
 @@ OBJ: {{[0-9a-f]+:}} 41 a8 82 4a{{.*}}cmp.ut
 @@ ASM: cmp.ut rd8, rd9, rd10
 cmp.ut rd8, rd9, rd10
 
-@@ @src cmp.uw_orrr_rd 42a8824a | SimRISC-09 §比较操作
+@@ @src cmp.uw_orrr_rd 42a8824a | SimRISC-09: cmp.uw
 @@ OBJ: {{[0-9a-f]+:}} 42 a8 82 4a{{.*}}cmp.uw
 @@ ASM: cmp.uw rd8, rd9, rd10
 cmp.uw rd8, rd9, rd10
 
-@@ @src div.sb_orrr_rd 43e4824a | SimRISC-10 §乘除操作
+@@ @src div.sb_orrr_rd 43e4824a | SimRISC-10: div.sb
 @@ OBJ: {{[0-9a-f]+:}} 43 e4 82 4a{{.*}}div.sb
 @@ ASM: div.sb rd8, rd9, rd10
 div.sb rd8, rd9, rd10
 
-@@ @src div.so_orrr_rd 40e4824a | SimRISC-04 §乘除操作
+@@ @src div.so_orrr_rd 40e4824a | SimRISC-04: div.so
 @@ OBJ: {{[0-9a-f]+:}} 40 e4 82 4a{{.*}}div.so
 @@ ASM: div.so rd8, rd9, rd10
 div.so rd8, rd9, rd10
 
-@@ @src div.st_orrr_rd 41e4824a | SimRISC-08 §乘除操作
+@@ @src div.st_orrr_rd 41e4824a | SimRISC-08: div.st
 @@ OBJ: {{[0-9a-f]+:}} 41 e4 82 4a{{.*}}div.st
 @@ ASM: div.st rd8, rd9, rd10
 div.st rd8, rd9, rd10
 
-@@ @src div.sw_orrr_rd 42e4824a | SimRISC-09 §乘除操作
+@@ @src div.sw_orrr_rd 42e4824a | SimRISC-09: div.sw
 @@ OBJ: {{[0-9a-f]+:}} 42 e4 82 4a{{.*}}div.sw
 @@ ASM: div.sw rd8, rd9, rd10
 div.sw rd8, rd9, rd10
 
-@@ @src div.ub_orrr_rd 43e0824a | SimRISC-10 §乘除操作
+@@ @src div.ub_orrr_rd 43e0824a | SimRISC-10: div.ub
 @@ OBJ: {{[0-9a-f]+:}} 43 e0 82 4a{{.*}}div.ub
 @@ ASM: div.ub rd8, rd9, rd10
 div.ub rd8, rd9, rd10
 
-@@ @src div.uo_orrr_rd 40e0824a | SimRISC-04 §乘除操作
+@@ @src div.uo_orrr_rd 40e0824a | SimRISC-04: div.uo
 @@ OBJ: {{[0-9a-f]+:}} 40 e0 82 4a{{.*}}div.uo
 @@ ASM: div.uo rd8, rd9, rd10
 div.uo rd8, rd9, rd10
 
-@@ @src div.ut_orrr_rd 41e0824a | SimRISC-08 §乘除操作
+@@ @src div.ut_orrr_rd 41e0824a | SimRISC-08: div.ut
 @@ OBJ: {{[0-9a-f]+:}} 41 e0 82 4a{{.*}}div.ut
 @@ ASM: div.ut rd8, rd9, rd10
 div.ut rd8, rd9, rd10
 
-@@ @src div.uw_orrr_rd 42e0824a | SimRISC-09 §乘除操作
+@@ @src div.uw_orrr_rd 42e0824a | SimRISC-09: div.uw
 @@ OBJ: {{[0-9a-f]+:}} 42 e0 82 4a{{.*}}div.uw
 @@ ASM: div.uw rd8, rd9, rd10
 div.uw rd8, rd9, rd10
 
-@@ @src ext.so_orrr_rd 4084824a | SimRISC-04 §Bit manipulating：位操作指令
+@@ @src ext.so_orrr_rd 4084824a | SimRISC-04: ext.so
 @@ OBJ: {{[0-9a-f]+:}} 40 84 82 4a{{.*}}ext.so
 @@ ASM: ext.so rd8, rd9, rd10
 ext.so rd8, rd9, rd10
 
-@@ @src ext.uo_orrr_rd 4080824a | SimRISC-04 §Bit manipulating：位操作指令
+@@ @src ext.uo_orrr_rd 4080824a | SimRISC-04: ext.uo
 @@ OBJ: {{[0-9a-f]+:}} 40 80 82 4a{{.*}}ext.uo
 @@ ASM: ext.uo rd8, rd9, rd10
 ext.uo rd8, rd9, rd10
 
-@@ @src foadd_orrr_rf 4460824a | SimRISC-00 §OPC-RF指令编码
+@@ @src foadd_orrr_rf 4460824a | SimRISC-07: foadd
 @@ OBJ: {{[0-9a-f]+:}} 44 60 82 4a{{.*}}foadd
 @@ ASM: foadd rf8, rf9, rf10
 foadd rf8, rf9, rf10
 
-@@ @src fodiv_orrr_rf 446c824a | SimRISC-00 §OPC-RF指令编码
+@@ @src fodiv_orrr_rf 446c824a | SimRISC-07: fodiv
 @@ OBJ: {{[0-9a-f]+:}} 44 6c 82 4a{{.*}}fodiv
 @@ ASM: fodiv rf8, rf9, rf10
 fodiv rf8, rf9, rf10
 
-@@ @src fomax_orrr_rf 44bc824a | SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
+@@ @src fomax_orrr_rf 44bc824a | SimRISC-07: fomax
 @@ OBJ: {{[0-9a-f]+:}} 44 bc 82 4a{{.*}}fomax
 @@ ASM: fomax rf8, rf9, rf10
 fomax rf8, rf9, rf10
 
-@@ @src fomin_orrr_rf 44b8824a | SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
+@@ @src fomin_orrr_rf 44b8824a | SimRISC-07: fomin
 @@ OBJ: {{[0-9a-f]+:}} 44 b8 82 4a{{.*}}fomin
 @@ ASM: fomin rf8, rf9, rf10
 fomin rf8, rf9, rf10
 
-@@ @src fomul_orrr_rf 4468824a | SimRISC-00 §OPC-RF指令编码
+@@ @src fomul_orrr_rf 4468824a | SimRISC-07: fomul
 @@ OBJ: {{[0-9a-f]+:}} 44 68 82 4a{{.*}}fomul
 @@ ASM: fomul rf8, rf9, rf10
 fomul rf8, rf9, rf10
 
-@@ @src foqcmp_orrr_rf 44a0824a | SimRISC-00 §OPC-RF指令编码
+@@ @src foqcmp_orrr_rf 44a0824a | SimRISC-07: foqcmp
 @@ OBJ: {{[0-9a-f]+:}} 44 a0 82 4a{{.*}}foqcmp
 @@ ASM: foqcmp rd8, rf9, rf10
 foqcmp rd8, rf9, rf10
 
-@@ @src forem_orrr_rf 4470824a | SimRISC-00 §OPC-RF指令编码
+@@ @src forem_orrr_rf 4470824a | SimRISC-07: forem
 @@ OBJ: {{[0-9a-f]+:}} 44 70 82 4a{{.*}}forem
 @@ ASM: forem rf8, rf9, rf10
 forem rf8, rf9, rf10
 
-@@ @src fosclb_orrr_rf 4474824a | SimRISC-00 §OPC-RF指令编码
+@@ @src fosclb_orrr_rf 4474824a | SimRISC-07: fosclb
 @@ OBJ: {{[0-9a-f]+:}} 44 74 82 4a{{.*}}fosclb
 @@ ASM: fosclb rf8, rf9, rf10
 fosclb rf8, rf9, rf10
 
-@@ @src foscmp_orrr_rf 44a4824a | SimRISC-00 §OPC-RF指令编码
+@@ @src foscmp_orrr_rf 44a4824a | SimRISC-07: foscmp
 @@ OBJ: {{[0-9a-f]+:}} 44 a4 82 4a{{.*}}foscmp
 @@ ASM: foscmp rd8, rf9, rf10
 foscmp rd8, rf9, rf10
 
-@@ @src fosgnj_orrr_rf 447c824a | SimRISC-00 §OPC-RF指令编码
+@@ @src fosgnj_orrr_rf 447c824a | SimRISC-07: fosgnj
 @@ OBJ: {{[0-9a-f]+:}} 44 7c 82 4a{{.*}}fosgnj
 @@ ASM: fosgnj rf8, rf9, rf10
 fosgnj rf8, rf9, rf10
 
-@@ @src fosgnn_orrr_rf 4478824a | SimRISC-00 §OPC-RF指令编码
+@@ @src fosgnn_orrr_rf 4478824a | SimRISC-07: fosgnn
 @@ OBJ: {{[0-9a-f]+:}} 44 78 82 4a{{.*}}fosgnn
 @@ ASM: fosgnn rf8, rf9, rf10
 fosgnn rf8, rf9, rf10
 
-@@ @src fosub_orrr_rf 4464824a | SimRISC-00 §OPC-RF指令编码
+@@ @src fosub_orrr_rf 4464824a | SimRISC-07: fosub
 @@ OBJ: {{[0-9a-f]+:}} 44 64 82 4a{{.*}}fosub
 @@ ASM: fosub rf8, rf9, rf10
 fosub rf8, rf9, rf10
 
-@@ @src ftadd_orrr_rf 4440824a | SimRISC-00 §OPC-RF指令编码
+@@ @src ftadd_orrr_rf 4440824a | SimRISC-07: ftadd
 @@ OBJ: {{[0-9a-f]+:}} 44 40 82 4a{{.*}}ftadd
 @@ ASM: ftadd rf8, rf9, rf10
 ftadd rf8, rf9, rf10
 
-@@ @src ftdiv_orrr_rf 444c824a | SimRISC-00 §OPC-RF指令编码
+@@ @src ftdiv_orrr_rf 444c824a | SimRISC-07: ftdiv
 @@ OBJ: {{[0-9a-f]+:}} 44 4c 82 4a{{.*}}ftdiv
 @@ ASM: ftdiv rf8, rf9, rf10
 ftdiv rf8, rf9, rf10
 
-@@ @src ftmax_orrr_rf 449c824a | SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
+@@ @src ftmax_orrr_rf 449c824a | SimRISC-07: ftmax
 @@ OBJ: {{[0-9a-f]+:}} 44 9c 82 4a{{.*}}ftmax
 @@ ASM: ftmax rf8, rf9, rf10
 ftmax rf8, rf9, rf10
 
-@@ @src ftmin_orrr_rf 4498824a | SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
+@@ @src ftmin_orrr_rf 4498824a | SimRISC-07: ftmin
 @@ OBJ: {{[0-9a-f]+:}} 44 98 82 4a{{.*}}ftmin
 @@ ASM: ftmin rf8, rf9, rf10
 ftmin rf8, rf9, rf10
 
-@@ @src ftmul_orrr_rf 4448824a | SimRISC-00 §OPC-RF指令编码
+@@ @src ftmul_orrr_rf 4448824a | SimRISC-07: ftmul
 @@ OBJ: {{[0-9a-f]+:}} 44 48 82 4a{{.*}}ftmul
 @@ ASM: ftmul rf8, rf9, rf10
 ftmul rf8, rf9, rf10
 
-@@ @src ftqcmp_orrr_rf 4480824a | SimRISC-00 §OPC-RF指令编码
+@@ @src ftqcmp_orrr_rf 4480824a | SimRISC-07: ftqcmp
 @@ OBJ: {{[0-9a-f]+:}} 44 80 82 4a{{.*}}ftqcmp
 @@ ASM: ftqcmp rd8, rf9, rf10
 ftqcmp rd8, rf9, rf10
 
-@@ @src ftrem_orrr_rf 4450824a | SimRISC-00 §OPC-RF指令编码
+@@ @src ftrem_orrr_rf 4450824a | SimRISC-07: ftrem
 @@ OBJ: {{[0-9a-f]+:}} 44 50 82 4a{{.*}}ftrem
 @@ ASM: ftrem rf8, rf9, rf10
 ftrem rf8, rf9, rf10
 
-@@ @src ftsclb_orrr_rf 4454824a | SimRISC-00 §OPC-RF指令编码
+@@ @src ftsclb_orrr_rf 4454824a | SimRISC-07: ftsclb
 @@ OBJ: {{[0-9a-f]+:}} 44 54 82 4a{{.*}}ftsclb
 @@ ASM: ftsclb rf8, rf9, rf10
 ftsclb rf8, rf9, rf10
 
-@@ @src ftscmp_orrr_rf 4484824a | SimRISC-00 §OPC-RF指令编码
+@@ @src ftscmp_orrr_rf 4484824a | SimRISC-07: ftscmp
 @@ OBJ: {{[0-9a-f]+:}} 44 84 82 4a{{.*}}ftscmp
 @@ ASM: ftscmp rd8, rf9, rf10
 ftscmp rd8, rf9, rf10
 
-@@ @src ftsgnj_orrr_rf 445c824a | SimRISC-00 §OPC-RF指令编码
+@@ @src ftsgnj_orrr_rf 445c824a | SimRISC-07: ftsgnj
 @@ OBJ: {{[0-9a-f]+:}} 44 5c 82 4a{{.*}}ftsgnj
 @@ ASM: ftsgnj rf8, rf9, rf10
 ftsgnj rf8, rf9, rf10
 
-@@ @src ftsgnn_orrr_rf 4458824a | SimRISC-00 §OPC-RF指令编码
+@@ @src ftsgnn_orrr_rf 4458824a | SimRISC-07: ftsgnn
 @@ OBJ: {{[0-9a-f]+:}} 44 58 82 4a{{.*}}ftsgnn
 @@ ASM: ftsgnn rf8, rf9, rf10
 ftsgnn rf8, rf9, rf10
 
-@@ @src ftsub_orrr_rf 4444824a | SimRISC-00 §OPC-RF指令编码
+@@ @src ftsub_orrr_rf 4444824a | SimRISC-07: ftsub
 @@ OBJ: {{[0-9a-f]+:}} 44 44 82 4a{{.*}}ftsub
 @@ ASM: ftsub rf8, rf9, rf10
 ftsub rf8, rf9, rf10
 
-@@ @src lr.b.an_orrr_rd 771c0241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 1c 02 41{{.*}}lr.b.an
+@@ @src lr.b.an_orrr_rd 471c0241 | SimRISC-11: lr.b.an
+@@ OBJ: {{[0-9a-f]+:}} 47 1c 02 41{{.*}}lr.b.an
 @@ ASM: lr.b.an rd9, [rb1]
 lr.b.an rd9, [rb1]
 
-@@ @src lr.b.ar_orrr_rd 772c0241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 2c 02 41{{.*}}lr.b.ar
+@@ @src lr.b.ar_orrr_rd 472c0241 | SimRISC-11: lr.b.ar
+@@ OBJ: {{[0-9a-f]+:}} 47 2c 02 41{{.*}}lr.b.ar
 @@ ASM: lr.b.ar rd9, [rb1]
 lr.b.ar rd9, [rb1]
 
-@@ @src lr.b.nn_orrr_rd 770c0241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 0c 02 41{{.*}}lr.b.nn
+@@ @src lr.b.nn_orrr_rd 470c0241 | SimRISC-11: lr.b.nn
+@@ OBJ: {{[0-9a-f]+:}} 47 0c 02 41{{.*}}lr.b.nn
 @@ ASM: lr.b.nn rd9, [rb1]
 lr.b.nn rd9, [rb1]
 
-@@ @src lr.o.an_orrr_rd 77100241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 10 02 41{{.*}}lr.o.an
+@@ @src lr.o.an_orrr_rd 47100241 | SimRISC-11: lr.o.an
+@@ OBJ: {{[0-9a-f]+:}} 47 10 02 41{{.*}}lr.o.an
 @@ ASM: lr.o.an rd9, [rb1]
 lr.o.an rd9, [rb1]
 
-@@ @src lr.o.ar_orrr_rd 77200241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 20 02 41{{.*}}lr.o.ar
+@@ @src lr.o.ar_orrr_rd 47200241 | SimRISC-11: lr.o.ar
+@@ OBJ: {{[0-9a-f]+:}} 47 20 02 41{{.*}}lr.o.ar
 @@ ASM: lr.o.ar rd9, [rb1]
 lr.o.ar rd9, [rb1]
 
-@@ @src lr.o.nn_orrr_rd 77000241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 00 02 41{{.*}}lr.o.nn
+@@ @src lr.o.nn_orrr_rd 47000241 | SimRISC-11: lr.o.nn
+@@ OBJ: {{[0-9a-f]+:}} 47 00 02 41{{.*}}lr.o.nn
 @@ ASM: lr.o.nn rd9, [rb1]
 lr.o.nn rd9, [rb1]
 
-@@ @src lr.t.an_orrr_rd 77140241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 14 02 41{{.*}}lr.t.an
+@@ @src lr.t.an_orrr_rd 47140241 | SimRISC-11: lr.t.an
+@@ OBJ: {{[0-9a-f]+:}} 47 14 02 41{{.*}}lr.t.an
 @@ ASM: lr.t.an rd9, [rb1]
 lr.t.an rd9, [rb1]
 
-@@ @src lr.t.ar_orrr_rd 77240241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 24 02 41{{.*}}lr.t.ar
+@@ @src lr.t.ar_orrr_rd 47240241 | SimRISC-11: lr.t.ar
+@@ OBJ: {{[0-9a-f]+:}} 47 24 02 41{{.*}}lr.t.ar
 @@ ASM: lr.t.ar rd9, [rb1]
 lr.t.ar rd9, [rb1]
 
-@@ @src lr.t.nn_orrr_rd 77040241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 04 02 41{{.*}}lr.t.nn
+@@ @src lr.t.nn_orrr_rd 47040241 | SimRISC-11: lr.t.nn
+@@ OBJ: {{[0-9a-f]+:}} 47 04 02 41{{.*}}lr.t.nn
 @@ ASM: lr.t.nn rd9, [rb1]
 lr.t.nn rd9, [rb1]
 
-@@ @src lr.w.an_orrr_rd 77180241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 18 02 41{{.*}}lr.w.an
+@@ @src lr.w.an_orrr_rd 47180241 | SimRISC-11: lr.w.an
+@@ OBJ: {{[0-9a-f]+:}} 47 18 02 41{{.*}}lr.w.an
 @@ ASM: lr.w.an rd9, [rb1]
 lr.w.an rd9, [rb1]
 
-@@ @src lr.w.ar_orrr_rd 77280241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 28 02 41{{.*}}lr.w.ar
+@@ @src lr.w.ar_orrr_rd 47280241 | SimRISC-11: lr.w.ar
+@@ OBJ: {{[0-9a-f]+:}} 47 28 02 41{{.*}}lr.w.ar
 @@ ASM: lr.w.ar rd9, [rb1]
 lr.w.ar rd9, [rb1]
 
-@@ @src lr.w.nn_orrr_rd 77080241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 08 02 41{{.*}}lr.w.nn
+@@ @src lr.w.nn_orrr_rd 47080241 | SimRISC-11: lr.w.nn
+@@ OBJ: {{[0-9a-f]+:}} 47 08 02 41{{.*}}lr.w.nn
 @@ ASM: lr.w.nn rd9, [rb1]
 lr.w.nn rd9, [rb1]
 
-@@ @src mul.sb_orrr_rd 43c4824a | SimRISC-10 §乘除操作
+@@ @src mul.sb_orrr_rd 43c4824a | SimRISC-10: mul.sb
 @@ OBJ: {{[0-9a-f]+:}} 43 c4 82 4a{{.*}}mul.sb
 @@ ASM: mul.sb rd8, rd9, rd10
 mul.sb rd8, rd9, rd10
 
-@@ @src mul.st_orrr_rd 41c4824a | SimRISC-08 §乘除操作
+@@ @src mul.st_orrr_rd 41c4824a | SimRISC-08: mul.st
 @@ OBJ: {{[0-9a-f]+:}} 41 c4 82 4a{{.*}}mul.st
 @@ ASM: mul.st rd8, rd9, rd10
 mul.st rd8, rd9, rd10
 
-@@ @src mul.sw_orrr_rd 42c4824a | SimRISC-09 §乘除操作
+@@ @src mul.sw_orrr_rd 42c4824a | SimRISC-09: mul.sw
 @@ OBJ: {{[0-9a-f]+:}} 42 c4 82 4a{{.*}}mul.sw
 @@ ASM: mul.sw rd8, rd9, rd10
 mul.sw rd8, rd9, rd10
 
-@@ @src mul.ub_orrr_rd 43c0824a | SimRISC-10 §乘除操作
+@@ @src mul.ub_orrr_rd 43c0824a | SimRISC-10: mul.ub
 @@ OBJ: {{[0-9a-f]+:}} 43 c0 82 4a{{.*}}mul.ub
 @@ ASM: mul.ub rd8, rd9, rd10
 mul.ub rd8, rd9, rd10
 
-@@ @src mul.ut_orrr_rd 41c0824a | SimRISC-08 §乘除操作
+@@ @src mul.ut_orrr_rd 41c0824a | SimRISC-08: mul.ut
 @@ OBJ: {{[0-9a-f]+:}} 41 c0 82 4a{{.*}}mul.ut
 @@ ASM: mul.ut rd8, rd9, rd10
 mul.ut rd8, rd9, rd10
 
-@@ @src mul.uw_orrr_rd 42c0824a | SimRISC-09 §乘除操作
+@@ @src mul.uw_orrr_rd 42c0824a | SimRISC-09: mul.uw
 @@ OBJ: {{[0-9a-f]+:}} 42 c0 82 4a{{.*}}mul.uw
 @@ ASM: mul.uw rd8, rd9, rd10
 mul.uw rd8, rd9, rd10
 
-@@ @src or.o_orrr_rd 4024824a | SimRISC-04 §Logic operators：逻辑运算
+@@ @src or.o_orrr_rd 4024824a | SimRISC-04: or.o
 @@ OBJ: {{[0-9a-f]+:}} 40 24 82 4a{{.*}}or.o
 @@ ASM: or.o rd8, rd9, rd10
 or.o rd8, rd9, rd10
 
-@@ @src rem.sb_orrr_rd 43ec824a | SimRISC-10 §乘除操作
+@@ @src rem.sb_orrr_rd 43ec824a | SimRISC-10: rem.sb
 @@ OBJ: {{[0-9a-f]+:}} 43 ec 82 4a{{.*}}rem.sb
 @@ ASM: rem.sb rd8, rd9, rd10
 rem.sb rd8, rd9, rd10
 
-@@ @src rem.so_orrr_rd 40ec824a | SimRISC-04 §乘除操作
+@@ @src rem.so_orrr_rd 40ec824a | SimRISC-04: rem.so
 @@ OBJ: {{[0-9a-f]+:}} 40 ec 82 4a{{.*}}rem.so
 @@ ASM: rem.so rd8, rd9, rd10
 rem.so rd8, rd9, rd10
 
-@@ @src rem.st_orrr_rd 41ec824a | SimRISC-08 §乘除操作
+@@ @src rem.st_orrr_rd 41ec824a | SimRISC-08: rem.st
 @@ OBJ: {{[0-9a-f]+:}} 41 ec 82 4a{{.*}}rem.st
 @@ ASM: rem.st rd8, rd9, rd10
 rem.st rd8, rd9, rd10
 
-@@ @src rem.sw_orrr_rd 42ec824a | SimRISC-09 §乘除操作
+@@ @src rem.sw_orrr_rd 42ec824a | SimRISC-09: rem.sw
 @@ OBJ: {{[0-9a-f]+:}} 42 ec 82 4a{{.*}}rem.sw
 @@ ASM: rem.sw rd8, rd9, rd10
 rem.sw rd8, rd9, rd10
 
-@@ @src rem.ub_orrr_rd 43e8824a | SimRISC-10 §乘除操作
+@@ @src rem.ub_orrr_rd 43e8824a | SimRISC-10: rem.ub
 @@ OBJ: {{[0-9a-f]+:}} 43 e8 82 4a{{.*}}rem.ub
 @@ ASM: rem.ub rd8, rd9, rd10
 rem.ub rd8, rd9, rd10
 
-@@ @src rem.uo_orrr_rd 40e8824a | SimRISC-04 §乘除操作
+@@ @src rem.uo_orrr_rd 40e8824a | SimRISC-04: rem.uo
 @@ OBJ: {{[0-9a-f]+:}} 40 e8 82 4a{{.*}}rem.uo
 @@ ASM: rem.uo rd8, rd9, rd10
 rem.uo rd8, rd9, rd10
 
-@@ @src rem.ut_orrr_rd 41e8824a | SimRISC-08 §乘除操作
+@@ @src rem.ut_orrr_rd 41e8824a | SimRISC-08: rem.ut
 @@ OBJ: {{[0-9a-f]+:}} 41 e8 82 4a{{.*}}rem.ut
 @@ ASM: rem.ut rd8, rd9, rd10
 rem.ut rd8, rd9, rd10
 
-@@ @src rem.uw_orrr_rd 42e8824a | SimRISC-09 §乘除操作
+@@ @src rem.uw_orrr_rd 42e8824a | SimRISC-09: rem.uw
 @@ OBJ: {{[0-9a-f]+:}} 42 e8 82 4a{{.*}}rem.uw
 @@ ASM: rem.uw rd8, rd9, rd10
 rem.uw rd8, rd9, rd10
 
-@@ @src rol.b_orrr_rd 4344824a | SimRISC-10 §Bit manipulating：位操作指令
+@@ @src rol.b_orrr_rd 4344824a | SimRISC-10: rol.b
 @@ OBJ: {{[0-9a-f]+:}} 43 44 82 4a{{.*}}rol.b
 @@ ASM: rol.b rd8, rd9, rd10
 rol.b rd8, rd9, rd10
 
-@@ @src rol.o_orrr_rd 4044824a | SimRISC-04 §Bit manipulating：位操作指令
+@@ @src rol.o_orrr_rd 4044824a | SimRISC-04: rol.o
 @@ OBJ: {{[0-9a-f]+:}} 40 44 82 4a{{.*}}rol.o
 @@ ASM: rol.o rd8, rd9, rd10
 rol.o rd8, rd9, rd10
 
-@@ @src rol.t_orrr_rd 4144824a | SimRISC-08 §Bit manipulating：位操作指令
+@@ @src rol.t_orrr_rd 4144824a | SimRISC-08: rol.t
 @@ OBJ: {{[0-9a-f]+:}} 41 44 82 4a{{.*}}rol.t
 @@ ASM: rol.t rd8, rd9, rd10
 rol.t rd8, rd9, rd10
 
-@@ @src rol.w_orrr_rd 4244824a | SimRISC-09 §Bit manipulating：位操作指令
+@@ @src rol.w_orrr_rd 4244824a | SimRISC-09: rol.w
 @@ OBJ: {{[0-9a-f]+:}} 42 44 82 4a{{.*}}rol.w
 @@ ASM: rol.w rd8, rd9, rd10
 rol.w rd8, rd9, rd10
 
-@@ @src sc.b.ar_orrr_rd 776c8241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 6c 82 41{{.*}}sc.b.ar
+@@ @src sc.b.ar_orrr_rd 476c8241 | SimRISC-11: sc.b.ar
+@@ OBJ: {{[0-9a-f]+:}} 47 6c 82 41{{.*}}sc.b.ar
 @@ ASM: sc.b.ar rd8, rd9, [rb1]
 sc.b.ar rd8, rd9, [rb1]
 
-@@ @src sc.b.nn_orrr_rd 774c8241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 4c 82 41{{.*}}sc.b.nn
+@@ @src sc.b.nn_orrr_rd 474c8241 | SimRISC-11: sc.b.nn
+@@ OBJ: {{[0-9a-f]+:}} 47 4c 82 41{{.*}}sc.b.nn
 @@ ASM: sc.b.nn rd8, rd9, [rb1]
 sc.b.nn rd8, rd9, [rb1]
 
-@@ @src sc.b.nr_orrr_rd 775c8241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 5c 82 41{{.*}}sc.b.nr
+@@ @src sc.b.nr_orrr_rd 475c8241 | SimRISC-11: sc.b.nr
+@@ OBJ: {{[0-9a-f]+:}} 47 5c 82 41{{.*}}sc.b.nr
 @@ ASM: sc.b.nr rd8, rd9, [rb1]
 sc.b.nr rd8, rd9, [rb1]
 
-@@ @src sc.o.ar_orrr_rd 77608241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 60 82 41{{.*}}sc.o.ar
+@@ @src sc.o.ar_orrr_rd 47608241 | SimRISC-11: sc.o.ar
+@@ OBJ: {{[0-9a-f]+:}} 47 60 82 41{{.*}}sc.o.ar
 @@ ASM: sc.o.ar rd8, rd9, [rb1]
 sc.o.ar rd8, rd9, [rb1]
 
-@@ @src sc.o.nn_orrr_rd 77408241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 40 82 41{{.*}}sc.o.nn
+@@ @src sc.o.nn_orrr_rd 47408241 | SimRISC-11: sc.o.nn
+@@ OBJ: {{[0-9a-f]+:}} 47 40 82 41{{.*}}sc.o.nn
 @@ ASM: sc.o.nn rd8, rd9, [rb1]
 sc.o.nn rd8, rd9, [rb1]
 
-@@ @src sc.o.nr_orrr_rd 77508241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 50 82 41{{.*}}sc.o.nr
+@@ @src sc.o.nr_orrr_rd 47508241 | SimRISC-11: sc.o.nr
+@@ OBJ: {{[0-9a-f]+:}} 47 50 82 41{{.*}}sc.o.nr
 @@ ASM: sc.o.nr rd8, rd9, [rb1]
 sc.o.nr rd8, rd9, [rb1]
 
-@@ @src sc.t.ar_orrr_rd 77648241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 64 82 41{{.*}}sc.t.ar
+@@ @src sc.t.ar_orrr_rd 47648241 | SimRISC-11: sc.t.ar
+@@ OBJ: {{[0-9a-f]+:}} 47 64 82 41{{.*}}sc.t.ar
 @@ ASM: sc.t.ar rd8, rd9, [rb1]
 sc.t.ar rd8, rd9, [rb1]
 
-@@ @src sc.t.nn_orrr_rd 77448241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 44 82 41{{.*}}sc.t.nn
+@@ @src sc.t.nn_orrr_rd 47448241 | SimRISC-11: sc.t.nn
+@@ OBJ: {{[0-9a-f]+:}} 47 44 82 41{{.*}}sc.t.nn
 @@ ASM: sc.t.nn rd8, rd9, [rb1]
 sc.t.nn rd8, rd9, [rb1]
 
-@@ @src sc.t.nr_orrr_rd 77548241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 54 82 41{{.*}}sc.t.nr
+@@ @src sc.t.nr_orrr_rd 47548241 | SimRISC-11: sc.t.nr
+@@ OBJ: {{[0-9a-f]+:}} 47 54 82 41{{.*}}sc.t.nr
 @@ ASM: sc.t.nr rd8, rd9, [rb1]
 sc.t.nr rd8, rd9, [rb1]
 
-@@ @src sc.w.ar_orrr_rd 77688241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 68 82 41{{.*}}sc.w.ar
+@@ @src sc.w.ar_orrr_rd 47688241 | SimRISC-11: sc.w.ar
+@@ OBJ: {{[0-9a-f]+:}} 47 68 82 41{{.*}}sc.w.ar
 @@ ASM: sc.w.ar rd8, rd9, [rb1]
 sc.w.ar rd8, rd9, [rb1]
 
-@@ @src sc.w.nn_orrr_rd 77488241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 48 82 41{{.*}}sc.w.nn
+@@ @src sc.w.nn_orrr_rd 47488241 | SimRISC-11: sc.w.nn
+@@ OBJ: {{[0-9a-f]+:}} 47 48 82 41{{.*}}sc.w.nn
 @@ ASM: sc.w.nn rd8, rd9, [rb1]
 sc.w.nn rd8, rd9, [rb1]
 
-@@ @src sc.w.nr_orrr_rd 77588241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 58 82 41{{.*}}sc.w.nr
+@@ @src sc.w.nr_orrr_rd 47588241 | SimRISC-11: sc.w.nr
+@@ OBJ: {{[0-9a-f]+:}} 47 58 82 41{{.*}}sc.w.nr
 @@ ASM: sc.w.nr rd8, rd9, [rb1]
 sc.w.nr rd8, rd9, [rb1]
 
-@@ @src shl.b_orrr_rd 4340824a | SimRISC-10 §Bit manipulating：位操作指令
+@@ @src shl.b_orrr_rd 4340824a | SimRISC-10: shl.b
 @@ OBJ: {{[0-9a-f]+:}} 43 40 82 4a{{.*}}shl.b
 @@ ASM: shl.b rd8, rd9, rd10
 shl.b rd8, rd9, rd10
 
-@@ @src shl.o_orrr_rd 4040824a | SimRISC-04 §Bit manipulating：位操作指令
+@@ @src shl.o_orrr_rd 4040824a | SimRISC-04: shl.o
 @@ OBJ: {{[0-9a-f]+:}} 40 40 82 4a{{.*}}shl.o
 @@ ASM: shl.o rd8, rd9, rd10
 shl.o rd8, rd9, rd10
 
-@@ @src shl.t_orrr_rd 4140824a | SimRISC-08 §Bit manipulating：位操作指令
+@@ @src shl.t_orrr_rd 4140824a | SimRISC-08: shl.t
 @@ OBJ: {{[0-9a-f]+:}} 41 40 82 4a{{.*}}shl.t
 @@ ASM: shl.t rd8, rd9, rd10
 shl.t rd8, rd9, rd10
 
-@@ @src shl.w_orrr_rd 4240824a | SimRISC-09 §Bit manipulating：位操作指令
+@@ @src shl.w_orrr_rd 4240824a | SimRISC-09: shl.w
 @@ OBJ: {{[0-9a-f]+:}} 42 40 82 4a{{.*}}shl.w
 @@ ASM: shl.w rd8, rd9, rd10
 shl.w rd8, rd9, rd10
 
-@@ @src shr.sb_orrr_rd 434c824a | SimRISC-10 §Bit manipulating：位操作指令
+@@ @src shr.sb_orrr_rd 434c824a | SimRISC-10: shr.sb
 @@ OBJ: {{[0-9a-f]+:}} 43 4c 82 4a{{.*}}shr.sb
 @@ ASM: shr.sb rd8, rd9, rd10
 shr.sb rd8, rd9, rd10
 
-@@ @src shr.so_orrr_rd 404c824a | SimRISC-04 §Bit manipulating：位操作指令
+@@ @src shr.so_orrr_rd 404c824a | SimRISC-04: shr.so
 @@ OBJ: {{[0-9a-f]+:}} 40 4c 82 4a{{.*}}shr.so
 @@ ASM: shr.so rd8, rd9, rd10
 shr.so rd8, rd9, rd10
 
-@@ @src shr.st_orrr_rd 414c824a | SimRISC-08 §Bit manipulating：位操作指令
+@@ @src shr.st_orrr_rd 414c824a | SimRISC-08: shr.st
 @@ OBJ: {{[0-9a-f]+:}} 41 4c 82 4a{{.*}}shr.st
 @@ ASM: shr.st rd8, rd9, rd10
 shr.st rd8, rd9, rd10
 
-@@ @src shr.sw_orrr_rd 424c824a | SimRISC-09 §Bit manipulating：位操作指令
+@@ @src shr.sw_orrr_rd 424c824a | SimRISC-09: shr.sw
 @@ OBJ: {{[0-9a-f]+:}} 42 4c 82 4a{{.*}}shr.sw
 @@ ASM: shr.sw rd8, rd9, rd10
 shr.sw rd8, rd9, rd10
 
-@@ @src shr.ub_orrr_rd 4348824a | SimRISC-10 §Bit manipulating：位操作指令
+@@ @src shr.ub_orrr_rd 4348824a | SimRISC-10: shr.ub
 @@ OBJ: {{[0-9a-f]+:}} 43 48 82 4a{{.*}}shr.ub
 @@ ASM: shr.ub rd8, rd9, rd10
 shr.ub rd8, rd9, rd10
 
-@@ @src shr.uo_orrr_rd 4048824a | SimRISC-04 §Bit manipulating：位操作指令
+@@ @src shr.uo_orrr_rd 4048824a | SimRISC-04: shr.uo
 @@ OBJ: {{[0-9a-f]+:}} 40 48 82 4a{{.*}}shr.uo
 @@ ASM: shr.uo rd8, rd9, rd10
 shr.uo rd8, rd9, rd10
 
-@@ @src shr.ut_orrr_rd 4148824a | SimRISC-08 §Bit manipulating：位操作指令
+@@ @src shr.ut_orrr_rd 4148824a | SimRISC-08: shr.ut
 @@ OBJ: {{[0-9a-f]+:}} 41 48 82 4a{{.*}}shr.ut
 @@ ASM: shr.ut rd8, rd9, rd10
 shr.ut rd8, rd9, rd10
 
-@@ @src shr.uw_orrr_rd 4248824a | SimRISC-09 §Bit manipulating：位操作指令
+@@ @src shr.uw_orrr_rd 4248824a | SimRISC-09: shr.uw
 @@ OBJ: {{[0-9a-f]+:}} 42 48 82 4a{{.*}}shr.uw
 @@ ASM: shr.uw rd8, rd9, rd10
 shr.uw rd8, rd9, rd10
 
-@@ @src sub.o_orrr_bbd 40c4824a | SimRISC-05 §加减操作
+@@ @src sub.o_orrr_bbd 40c4824a | SimRISC-05: sub.o
 @@ OBJ: {{[0-9a-f]+:}} 40 c4 82 4a{{.*}}sub.o
 @@ ASM: sub.o rb8, rb9, rd10
 sub.o rb8, rb9, rd10
 
-@@ @src sub.o_orrr_dbb 40cc824a | SimRISC-05 §加减操作
+@@ @src sub.o_orrr_dbb 40cc824a | SimRISC-05: sub.o
 @@ OBJ: {{[0-9a-f]+:}} 40 cc 82 4a{{.*}}sub.o
 @@ ASM: sub.o rd8, rb9, rb10
 sub.o rd8, rb9, rb10
 
-@@ @src sub.sb_orrr_rd 43a4824a | SimRISC-10 §加减操作
+@@ @src sub.sb_orrr_rd 43a4824a | SimRISC-10: sub.sb
 @@ OBJ: {{[0-9a-f]+:}} 43 a4 82 4a{{.*}}sub.sb
 @@ ASM: sub.sb rd8, rd9, rd10
 sub.sb rd8, rd9, rd10
 
-@@ @src sub.st_orrr_rd 41a4824a | SimRISC-08 §加减操作
+@@ @src sub.st_orrr_rd 41a4824a | SimRISC-08: sub.st
 @@ OBJ: {{[0-9a-f]+:}} 41 a4 82 4a{{.*}}sub.st
 @@ ASM: sub.st rd8, rd9, rd10
 sub.st rd8, rd9, rd10
 
-@@ @src sub.sw_orrr_rd 42a4824a | SimRISC-09 §加减操作
+@@ @src sub.sw_orrr_rd 42a4824a | SimRISC-09: sub.sw
 @@ OBJ: {{[0-9a-f]+:}} 42 a4 82 4a{{.*}}sub.sw
 @@ ASM: sub.sw rd8, rd9, rd10
 sub.sw rd8, rd9, rd10
 
-@@ @src sub.ub_orrr_rd 43a0824a | SimRISC-10 §加减操作
+@@ @src sub.ub_orrr_rd 43a0824a | SimRISC-10: sub.ub
 @@ OBJ: {{[0-9a-f]+:}} 43 a0 82 4a{{.*}}sub.ub
 @@ ASM: sub.ub rd8, rd9, rd10
 sub.ub rd8, rd9, rd10
 
-@@ @src sub.ut_orrr_rd 41a0824a | SimRISC-08 §加减操作
+@@ @src sub.ut_orrr_rd 41a0824a | SimRISC-08: sub.ut
 @@ OBJ: {{[0-9a-f]+:}} 41 a0 82 4a{{.*}}sub.ut
 @@ ASM: sub.ut rd8, rd9, rd10
 sub.ut rd8, rd9, rd10
 
-@@ @src sub.uw_orrr_rd 42a0824a | SimRISC-09 §加减操作
+@@ @src sub.uw_orrr_rd 42a0824a | SimRISC-09: sub.uw
 @@ OBJ: {{[0-9a-f]+:}} 42 a0 82 4a{{.*}}sub.uw
 @@ ASM: sub.uw rd8, rd9, rd10
 sub.uw rd8, rd9, rd10
 
-@@ @src xnor.o_orrr_rd 402c824a | SimRISC-04 §Logic operators：逻辑运算
+@@ @src xnor.o_orrr_rd 402c824a | SimRISC-04: xnor.o
 @@ OBJ: {{[0-9a-f]+:}} 40 2c 82 4a{{.*}}xnor.o
 @@ ASM: xnor.o rd8, rd9, rd10
 xnor.o rd8, rd9, rd10
 
-@@ @src xor.o_orrr_rd 4028824a | SimRISC-04 §Logic operators：逻辑运算
+@@ @src xor.o_orrr_rd 4028824a | SimRISC-04: xor.o
 @@ OBJ: {{[0-9a-f]+:}} 40 28 82 4a{{.*}}xor.o
 @@ ASM: xor.o rd8, rd9, rd10
 xor.o rd8, rd9, rd10

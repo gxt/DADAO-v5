@@ -6,9 +6,10 @@
 `spec/SimRISC-00` 的四张子表文本**双向**比对（缺格 / 多格 / 内容不符 均 FAIL）。
 **禁**任何字面网格（同一病根教训：`validate_instrinfo --self-test`）。
 
-结构性映射（编码布局，非格内容；ISS-325 起含 OPC-RF）：
+结构性映射（编码布局，非格内容；ISS-325 起含 OPC-RF；SPEC-164t 起含 OPC-MISC）：
   * `op 0x40` = `OPC-octa`（64 位）、`0x41` = `OPC-tetra`、`0x42` = `OPC-wyde`、`0x43` = `OPC-byte`
   * `op 0x44` = `OPC-RF`（浮点寄存器运算子表；SPEC-159t/SPEC-161t 的新增格在此）
+  * `op 0x47` = `OPC-MISC`（`fence`/`swym`/`lr`/`sc`/`ct*`；SPEC-164t 由 `0111-0111` 迁来）
   * `ha` 6 位：行 = `ha[5:3]`（表 `AAA-xxx`），列 = `ha[2:0]`（表 `xxx-BBB`）
 因此表内格位总数 / 非空格数 / 记录数一律**现场统计并打印**，不写死。
 
@@ -35,9 +36,9 @@ DEFAULT_SPEC = ROOT / "spec" / "SimRISC-00-指令系统设计.md"
 
 # op → 子表（编码布局常量；格内容一律不写死）
 OP_TABLE = {0x40: "OPC-octa", 0x41: "OPC-tetra", 0x42: "OPC-wyde",
-            0x43: "OPC-byte", 0x44: "OPC-RF"}
+            0x43: "OPC-byte", 0x44: "OPC-RF", 0x47: "OPC-MISC"}
 
-SECTION_RE = re.compile(r"^###\s+4\.\d+\s+(OPC-(?:octa|tetra|wyde|byte|RF))\s*指令编码")
+SECTION_RE = re.compile(r"^###\s+4\.\d+\s+(OPC-(?:octa|tetra|wyde|byte|RF|MISC))\s*指令编码")
 HEADER_CELL_RE = re.compile(r"^xxx-([01]{3})$")
 ROW_CELL_RE = re.compile(r"^([01]{3})-xxx$")
 
@@ -81,7 +82,7 @@ def expected_grid(records: list[dict]) -> tuple[dict[tuple[str, int, int], str],
 
 
 def parse_spec(text: str) -> tuple[dict[tuple[str, int, int], str], dict[str, int], list[str]]:
-    """解析 SimRISC-00 四张 MISC 子表（列顺序按表头现场读取，不假定顺序）。"""
+    """解析 SimRISC-00 各 OPC 子表（列顺序按表头现场读取，不假定顺序）。"""
     cells: dict[tuple[str, int, int], str] = {}
     grid_size: dict[str, int] = {}
     problems: list[str] = []
@@ -185,6 +186,9 @@ def self_test() -> int:
     rf_sample = next(r for r in records if _as_int(r["op"], "op") == 0x44 and "ha" in r)
     rf_id, rf_ha = rf_sample["id"], _as_int(rf_sample["ha"], "ha")
     rf_other = f"0x{(rf_ha ^ 0x1):02X}"
+    # OPC-MISC（SPEC-164t）单独取一条，验证迁移后的 MISC 子表真的被纳入双向比对。
+    misc_sample = next(r for r in records if _as_int(r["op"], "op") == 0x47 and "ha" in r)
+    misc_id = misc_sample["id"]
 
     cases = [
         ("baseline", yaml_text, spec_text, True, "未注入 ⇒ 期望 rc=0"),
@@ -202,6 +206,9 @@ def self_test() -> int:
         ("rf-spec-cell-deleted", yaml_text,
          _replace_cell(spec_text, f"| {rf_id}", "| " + " " * len(rf_id)), False,
          f"删 OPC-RF 表一格（{rf_id}）⇒ 期望 rc!=0"),
+        ("misc-spec-cell-deleted", yaml_text,
+         _replace_cell(spec_text, f"| {misc_id}", "| " + " " * len(misc_id)), False,
+         f"删 OPC-MISC 表一格（{misc_id}）⇒ 期望 rc!=0"),
     ]
 
     ok = True

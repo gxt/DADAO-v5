@@ -142,16 +142,18 @@ def encode_ld_o(rdha, rbhb, imms12):
     return (0x20 << 24) | (rdha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
 
 def encode_swym():
-    """swym (oiii, op=0x77, ha=0x22). No-op / placeholder. word=0x77880000."""
-    return 0x77880000
+    """swym (oiii, op=0x47, ha=0x22). No-op / placeholder. word=0x47880000."""
+    return 0x47880000
 
-def encode_fence():
-    """fence 0 (oiii, op=0x77, ha=0x00). scope: excluded → ILLI fault (0x88).
+def encode_illi_poison():
+    """ILLI 毒饵：`cfxld`（crii, op=0x7C, ha=0x00），word=0x7C000000。
 
-    0x77000000 现为 `fence 0`（ADR-0012 D3.5 删除了原专门非法指令、
-    `fence` 由 ha=0x01 移至 0x00）；`scope: excluded`，decode ILLI，用作 ILLI poison。
+    `cfxld` 为 `scope: excluded`（唯一剩余的非实现族），QEMU `trans_cfxld_crii_cfx`
+    直接 `gen_exception_illegal` ⇒ ILLI(0x88)；汇编器侧拒绝（见 gen-excluded.s）。
+    SPEC-164t 前本函数用过 `fence 0`(0x77000000)，但 `fence` 已实现、且 0x77 已成
+    空白主表 op（decode 失败 ⇒ UNDI 0x89，非 ILLI），故改用 `cfxld`。
     """
-    return 0x77000000
+    return 0x7C000000
 
 def encode_jump_iiii(imms24):
     """jump imms24 (iiii, op=0x70). PC = rb0 + (imms24 << 2).
@@ -531,12 +533,12 @@ def build_branch_test_binary(vector_case, dump_mode=False):
     delta = expected_pc - BINARY_BASE (ADR-0009 D6).
 
     TAKEN layout (delta=8):
-      [loader] [branch] [fence→ILLI poison] [exit section]
+      [loader] [branch] [cfxld→ILLI poison] [exit section]
       - branch target (imm=2, PC+8) = poison+1 = exit section start → PASS
       - if branch wrongly NOT taken → falls into poison → ILLI(0x88) → FAIL
 
     NOT-TAKEN layout (delta=4):
-      [loader] [branch] [trampoline jump→exit] [fence→ILLI poison] [exit section]
+      [loader] [branch] [trampoline jump→exit] [cfxld→ILLI poison] [exit section]
       - branch target (imm=2, PC+8) = poison → ILLI(0x88) if wrongly taken
       - if branch correctly NOT taken → falls through to trampoline → jumps
         over poison to exit section → PASS
@@ -577,15 +579,15 @@ def build_branch_test_binary(vector_case, dump_mode=False):
     words.extend(build_test_section(vector_case))
 
     if delta == 8:
-        # TAKEN: [branch] [fence→ILLI poison] [exit section]
+        # TAKEN: [branch] [cfxld→ILLI poison] [exit section]
         # branch jumps over poison to exit; not-taken falls into poison
-        words.append(encode_fence())
+        words.append(encode_illi_poison())
     elif delta == 4:
-        # NOT-TAKEN: [branch] [trampoline] [fence→ILLI poison] [exit section]
+        # NOT-TAKEN: [branch] [trampoline] [cfxld→ILLI poison] [exit section]
         # branch target = PC+8 = poison
         # falls through → trampoline jumps over poison to exit
         words.append(encode_jump_iiii(2))  # PC + (2<<2) = PC+8 = exit section
-        words.append(encode_fence())
+        words.append(encode_illi_poison())
     else:
         raise ValueError(f"Unexpected delta={delta} (expected_pc={expected_pc}, BINARY_BASE=0x{BINARY_BASE:X})")
 

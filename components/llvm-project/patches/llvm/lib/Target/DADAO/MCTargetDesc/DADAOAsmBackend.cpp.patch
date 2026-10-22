@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 new file mode 100644
-index 000000000..88bbe7daa
+index 000000000..bdf9474e8
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 @@ -0,0 +1,381 @@
@@ -351,7 +351,7 @@ index 000000000..88bbe7daa
 +
 +  bool writeNopData(raw_ostream &OS, uint64_t Count,
 +                    const MCSubtargetInfo *STI) const override {
-+    // The canonical DADAO nop is `swym 0` = 0x77880000 (oiii, big-endian;
++    // The canonical DADAO nop is `swym 0` = 0x47880000 (oiii, big-endian;
 +    // contract-isa.md §13.1/§13.3).  DADAO instructions are fixed 4-byte words,
 +    // so a whole word of padding is exactly one `swym 0`.
 +    //
@@ -372,7 +372,7 @@ index 000000000..88bbe7daa
 +      --Count;
 +    }
 +    for (; Count != 0; Count -= 4)
-+      OS.write("\x77\x88\x00\x00", 4);
++      OS.write("\x47\x88\x00\x00", 4);
 +    return true;
 +  }
 +};

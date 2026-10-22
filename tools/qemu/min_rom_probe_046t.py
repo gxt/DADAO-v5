@@ -118,7 +118,7 @@ def st_o(rd, rb, off):      return (0x21 << 24) | (rd << 18) | (rb << 12) | (off
 def cfx2rc(ha, cg, rc, rd): return (0x7B << 24) | (ha << 18) | (cg << 12) | (rc << 6) | rd
 def trap(ha, immu18):       return (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF)
 def jump_iiii(imms24):      return (0x70 << 24) | (imms24 & 0xFFFFFF)
-def swym():                 return 0x77880000
+def swym():                 return 0x47880000  # OPC-MISC op=0x47, ha=0x22
 
 
 def load_rd(rd, val):

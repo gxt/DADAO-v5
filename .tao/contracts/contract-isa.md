@@ -254,16 +254,16 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | 0010-1xxx | ldm.ub-rd | ldm.uw-rd | ldm.ut-rd | ldm.sb-rd | ldm.sw-rd | ldm.st-rd | ldm.t-rf Excl. | stm.t-rf Excl. |
 | 0011-0xxx | stm.b-rd | stm.w-rd | stm.t-rd | — | — | — | — | — |
 | 0011-1xxx | ldm.o-rd | stm.o-rd | ldm.o-rb | stm.o-rb | ldm.o-ra | stm.o-ra | ldm.o-rf Excl. | stm.o-rf Excl. |
-| 0100-0xxx | OPC-octa | OPC-tetra | OPC-wyde | OPC-byte | OPC-RF Excl. | — | — | — |
+| 0100-0xxx | OPC-octa | OPC-tetra | OPC-wyde | OPC-byte | OPC-RF Excl. | — | — | OPC-MISC |
 | 0100-1xxx | or.w-rd | andn.w-rd | or.w-rb | andn.w-rb | set.zw-rd | set.ow-rd | set.zw-rb | set.w-rf Excl. |
 | 0101-0xxx | add.uo-rd | add.so-rd | sub.uo-rd | sub.so-rd | mul.uo-rd | mul.so-rd | | |
 | 0101-1xxx | — | add.si-rd | aip.si-rb | add.si-rb | cmp.ui-rd | cmp.si-rd | — | — |
 | 0110-0xxx | cs.n-rd | cs.n-rf Excl. | cs.z-rd | cs.z-rf Excl. | cs.p-rd | cs.p-rf Excl. | cs.eq-rd | cs.ne-rd |
 | 0110-1xxx | br.n-rd | br.nn-rd | br.z-rd | br.nz-rd | br.p-rd | br.np-rd | br.eq-rd | br.ne-rd |
-| 0111-0xxx | jump-iiii | jump-rrii | br.z-rb | br.nz-rb | call-iiii | call-rrii | ret | OPC-MISC |
+| 0111-0xxx | jump-iiii | jump-rrii | br.z-rb | br.nz-rb | call-iiii | call-rrii | ret | — |
 | 0111-1xxx | — | — | cfx2rd | cfx2rc | cfxld Excl. | cfxst Excl. | escape | trap |
 
-> Excl. = `Excluded from M1`。`OPC-MISC` 子表中的 LR-SC 条目同属 Excluded from M1（见 §14.2）。[SimRISC-00 §SimRISC QFC]
+> Excl. = `Excluded from M1`。`OPC-MISC` 子表承载 `fence`、`swym`、LR-SC 原子与 `ct*`（均非 M1）。[SimRISC-00 §SimRISC QFC]
 
 ### §2.8 MISC 子表机制
 
@@ -277,11 +277,11 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | `OPC-octa` | 0100-0000 | octa |
 
 - 各子表指令的 opx 在 `ha[5:0]`，与 op 共同确定指令。[SimRISC-00 §指令域说明]
-- `OPC-MISC`（op = 0111-0111）承载 `fence`、`swym` 与 LR-SC 原子指令。[SimRISC-00 §OPC-MISC 指令编码]
+- `OPC-MISC`（op = 0100-0111）承载 `fence`、`swym`、LR-SC 原子指令与位扫描/位计数 `ct*`。[SimRISC-00 §OPC-MISC 指令编码]
 - `OPC-RF`（op = 0100-0100）承载浮点指令，Excluded from M1。[SimRISC-00 §OPC-RF指令编码]
 - 各子表的 `001-100`（opx = `001100`）承载逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`（`scope: m8`，非 M1，见 §6.4.3）。[SimRISC-00 §OPC-octa指令编码]
 - 各子表的 `010-000`（orrr）/`011-000`（orri）承载 `shl.o`/`shl.t`/`shl.w`/`shl.b`（符号无关、不带 `u` 后缀，`ADR-0032 D2/D3`）；`010-001`/`011-001` 承载 `rol.*`（`scope: m9`，见 §6.4.5）。`ext.uo`/`ext.so` 位于 `100-000`/`100-001`（orrr）与 `101-000`/`101-001`（orri）（`ADR-0032 D1`）。[SimRISC-00 §OPC-octa指令编码]
-- **例外**：位扫描 / 位计数 `ctlz`/`cttz`/`ctpop` **无位宽后缀**（指令名不指示位宽），却借用 `OPC-octa` 子表的 `011-101`/`011-110`/`011-111`（opx = `011101`/`011110`/`011111`）——这是「子表 ⇔ 位宽后缀」规则的**例外**（同子表 `rd2rd`/`rb2rb` 等寄存器组复制指令亦无后缀，但位宽恒为整寄存器 64 位）；这三条的**有效位宽**由立即数 `hd`（**有效位上界**）在运行时给出（`scope: m8`，非 M1，见 §6.4.4）。[SimRISC-00 §OPC-octa指令编码]
+- 位扫描 / 位计数 `ctlz`/`cttz`/`ctpop` **无位宽后缀**（指令名不指示位宽），位于 `OPC-MISC` 的 `100-101`/`100-110`/`100-111`（opx = `100101`/`100110`/`100111`）；这三条的**有效位宽**由立即数 `hd`（**有效位上界**）在运行时给出（`scope: m8`，非 M1，见 §6.4.4）。[SimRISC-00 §OPC-MISC 指令编码]
 
 ### §2.9 保留编码
 
@@ -1187,7 +1187,7 @@ shr.sb:  rdhb[7:0]   = (rdhc[7:0] >> shamt) with sign(7)
 
 - 硬件可设时延上限，N 超过阈值后时延不再增加。[SimRISC-11 §占位指令]
 - 无论 N 取何值，指令仍为单条 32 位指令，不占用额外指令带宽。[SimRISC-11 §占位指令]
-- `swym` 的 op = `0111-0111`（0x77）、`ha` = `100-010`（0x22），`swym 0` 的编码为 **0x77880000**。[SimRISC-11 §占位指令][SimRISC-00 §OPC-MISC 指令编码]
+- `swym` 的 op = `0100-0111`（0x47）、`ha` = `100-010`（0x22），`swym 0` 的编码为 **0x47880000**。[SimRISC-11 §占位指令][SimRISC-00 §OPC-MISC 指令编码]
 
 ### §13.2 非法指令异常（ILLI）
 
@@ -1306,7 +1306,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 - 扩展起始位 `hd > N`。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
 - `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 中 `rdha` 与 `rdhb` 同时为 `rd0`，或为同一非 `rd0` 寄存器。[SimRISC-04 §加减操作][SimRISC-04 §乘除操作]
 - 固定位宽算术/比较/乘除余指令 `rdhb` 为 `rd0`。[SimRISC-04/08/09/10 §加减操作][SimRISC-04/08/09/10 §比较操作][SimRISC-04/08/09/10 §乘除操作]
-- `scope: excluded` 的已定义编码（`cfxld`/`cfxst`、LR-SC 原子、`fence`）在本机器执行时触发 ILLI（原专门非法指令已于 0.5.4 删除）。[SimRISC-11 §非法指令]
+- `scope: excluded` 的已定义编码（`cfxld`/`cfxst`）在本机器执行时触发 ILLI（原专门非法指令已于 0.5.4 删除）。[SimRISC-11 §非法指令]
 
 ### §15.2 精确异常承诺
 
@@ -1322,7 +1322,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 | op (hex) | op (bits) | 格式 | insn | 助记符 | 来源 |
 |----------|-----------|------|------|--------|------|
-| 0x77 | 0111-0111 | — | OPC-MISC | （见 A.6） | [SimRISC-00 §SimRISC QFC] |
+| 0x47 | 0100-0111 | — | OPC-MISC | （见 A.6） | [SimRISC-00 §SimRISC QFC] |
 | 0x10 | 0001-0000 | rrii | ld.ub-rd | `ld.ub` | [SimRISC-00 §SimRISC QFC] |
 | 0x11 | 0001-0001 | rrii | ld.uw-rd | `ld.uw` | [SimRISC-00 §SimRISC QFC] |
 | 0x12 | 0001-0010 | rrii | ld.ut-rd | `ld.ut` | [SimRISC-00 §SimRISC QFC] |
@@ -1525,18 +1525,22 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 > **SPEC-069t / `ADR-0032` D2**：已删除 opx 0x08–0x0B（`and.b`/`or.b`/`xor.b`/`xnor.b`）与 0x10–0x11/0x18–0x19（`ext.ub`/`ext.sb`），共 8 条；`shl.b` 迁至 0x10/0x18、`rol.b` 占 0x11/0x19（`SPEC-152t`）。`010-100`/`011-100` 因 `shl` 迁出而保留（UNDI）。
 
-### A.6 OPC-MISC 子表（op = 0x77，M1 条目）
+### A.6 OPC-MISC 子表（op = 0x47）
 
 | opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
+| 100-000 | `fence` | oiii | [SimRISC-00 §OPC-MISC 指令编码] |
 | 100-010 | `swym` | oiii | [SimRISC-00 §OPC-MISC 指令编码] |
+| 100-101 | `ctpop` | orri | [SimRISC-00 §OPC-MISC 指令编码] |
+| 100-110 | `ctlz` | orri | [SimRISC-00 §OPC-MISC 指令编码] |
+| 100-111 | `cttz` | orri | [SimRISC-00 §OPC-MISC 指令编码] |
 
-> `fence`（000-000）与 LR-SC 条目（010-xxx / 011-xxx）为 `scope: excluded`，见 A.7。[SimRISC-00 §OPC-MISC 指令编码]
+> `fence`（100-000）为 `scope: m9`；LR-SC 条目（`lr` = 000/001-xxx、`sc` = 010/011-xxx，共 24 条）亦为 `scope: m9`（`SPEC-164t` 由 `excluded` 转入）。`ct*` 为 `scope: m8`（见 A.9）。[SimRISC-00 §OPC-MISC 指令编码]
 
 ### A.7 `scope: fp` / `scope: excluded` 编码清单
 
 > `scope: fp`（共 60 条）：RF 存取（8）、`set.w-rf`（1）、`cs.*-rf`（5）、`rd2rf`/`rf2rd`（2）、OPC-RF 子表（44）。
-> `scope: excluded`（共 11 条）：特权 cfx（2：`cfxld`/`cfxst`）、fence（1）、LR-SC（8）。（`cfx2rd`/`cfx2rc`/`escape`/`trap` 已 re-scope 为 `m1`，见 A.1/§13.6。）
+> `scope: excluded`（共 2 条）：特权 cfx（`cfxld`/`cfxst`）。（`cfx2rd`/`cfx2rc`/`escape`/`trap` 已 re-scope 为 `m1`，见 A.1/§13.6；`fence` 与 24 条 LR-SC 已由 `SPEC-164t` 转入 `scope: m9`。）
 
 | op (hex) / 位置 | insn | 助记符 | 类别 | 来源 |
 |-----------------|------|--------|------|------|
@@ -1557,9 +1561,6 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x7D | cfxst | `cfxst` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
 | OPC-octa 111-101 | rd2rf | `rd2rf` | RF 块赋值 | [SimRISC-00 §OPC-octa指令编码] |
 | OPC-octa 111-110 | rf2rd | `rf2rd` | RF 块赋值 | [SimRISC-00 §OPC-octa指令编码] |
-| OPC-MISC 100-000 | fence | `fence` | deferred 指令（`ADR-0014`；编码迁 `100-000`，`ADR-0034`） | [SimRISC-00 §OPC-MISC 指令编码] |
-| OPC-MISC 000/001-xxx | lr.*.nn/an/ar（12 条） | `lr.<b|w|t|o>.<序>` | LR-SC 原子（`ADR-0034`） | [SimRISC-00 §OPC-MISC 指令编码] |
-| OPC-MISC 010/011-xxx | sc.*.nn/nr/ar（12 条） | `sc.<b|w|t|o>.<序>` | LR-SC 原子（`ADR-0034`） | [SimRISC-00 §OPC-MISC 指令编码] |
 
 ### A.8 `scope: m8` 编码清单（逐块反转 `rev.*`，非 M1）
 
@@ -1576,15 +1577,15 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 ### A.9 `scope: m8` 编码清单（位扫描 / 位计数 `ctlz`/`cttz`/`ctpop`，非 M1）
 
-> `scope: m8`（3 条；与 A.8 的 `rev.*` 合计 7 条）：`OPC-octa` 子表的 `011-101`/`011-110`/`011-111`（opx = `011101`/`011110`/`011111`）。三条**无位宽后缀**（「子表 ⇔ 位宽后缀」规则的**例外**；**有效位宽**由立即数 `hd` 在运行时给出）。语义见 §6.4.4；**非 M1 身份**（与里程碑无绑定）。[SimRISC-00 §OPC-octa指令编码]
+> `scope: m8`（3 条；与 A.8 的 `rev.*` 合计 7 条）：`OPC-MISC` 的 `100-101`/`100-110`/`100-111`（opx = `100101`/`100110`/`100111`）。三条**无位宽后缀**（**有效位宽**由立即数 `hd` 在运行时给出）。语义见 §6.4.4；**非 M1 身份**（与里程碑无绑定）。[SimRISC-00 §OPC-MISC 指令编码]
 
 | 指令 | op (hex) | opx | 格式 | mask | 字段 | 来源 |
 |------|----------|-----|------|------|------|------|
-| `ctpop` | 0x40 | 011-101 | orri | 0xFFFC0000 | `rdhb`(dst) / `rdhc`(src) / `immu6`(= hd) | [SimRISC-00 §OPC-octa指令编码] |
-| `ctlz` | 0x40 | 011-110 | orri | 0xFFFC0000 | 同上 | [SimRISC-00 §OPC-octa指令编码] |
-| `cttz` | 0x40 | 011-111 | orri | 0xFFFC0000 | 同上 | [SimRISC-00 §OPC-octa指令编码] |
+| `ctpop` | 0x47 | 100-101 | orri | 0xFFFC0000 | `rdhb`(dst) / `rdhc`(src) / `immu6`(= hd) | [SimRISC-00 §OPC-MISC 指令编码] |
+| `ctlz` | 0x47 | 100-110 | orri | 0xFFFC0000 | 同上 | [SimRISC-00 §OPC-MISC 指令编码] |
+| `cttz` | 0x47 | 100-111 | orri | 0xFFFC0000 | 同上 | [SimRISC-00 §OPC-MISC 指令编码] |
 
-> `value = op << 24 | opx << 18`（opx 域占 `bits[23:18]`，与 A.2~A.8 同惯例）；**不在本表复写派生值**，以 `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py` 产出）为唯一真源。三条见 A.2 的 `011-101`/`011-110`/`011-111` 单元格。
+> `value = op << 24 | opx << 18`（opx 域占 `bits[23:18]`，与 A.2~A.8 同惯例）；**不在本表复写派生值**，以 `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py` 产出）为唯一真源。三条见 A.6 的 `100-101`/`100-110`/`100-111` 单元格。
 
 ### A.10 `scope: m9` 编码清单（逻辑循环左移 `rol.*`，非 M1）
 
@@ -1602,6 +1603,8 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | `rol.b` | 0x43 | 011-001 | orri | 0x43640000 | 0xFFFC0000 | [SimRISC-00 §OPC-byte指令编码] |
 
 > `value = op << 24 | opx << 18`（opx 域占 `bits[23:18]`）。表中 value 由 `contracts/opcodes.yaml` 现场核出，**唯一真源**仍是 `contracts/opcodes.yaml`。
+
+> `scope: m9` 现共 **34** 条：本表 8 条 + `clmul.o`（1 条，`ADR-0035`）+ `fence`（1 条）+ `lr`/`sc`（24 条，`SPEC-164t` 由 `excluded` 转入，编码见 A.6 注）。
 
 ---
 

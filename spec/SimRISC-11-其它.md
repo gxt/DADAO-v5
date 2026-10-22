@@ -235,30 +235,5 @@ sc 指令会先判断 rbHD 内存地址是否有设置保留标记，如果设�
 <!-- LEGALITY_START -->
 ## 附录 B：合法性检查
 
-**decode ILLI（未实现该语义的机器）：**
-* `fence_oiii_imm`：decode ILLI
-* `lr.b.an_orrr_rd`：decode ILLI
-* `lr.b.ar_orrr_rd`：decode ILLI
-* `lr.b.nn_orrr_rd`：decode ILLI
-* `lr.o.an_orrr_rd`：decode ILLI
-* `lr.o.ar_orrr_rd`：decode ILLI
-* `lr.o.nn_orrr_rd`：decode ILLI
-* `lr.t.an_orrr_rd`：decode ILLI
-* `lr.t.ar_orrr_rd`：decode ILLI
-* `lr.t.nn_orrr_rd`：decode ILLI
-* `lr.w.an_orrr_rd`：decode ILLI
-* `lr.w.ar_orrr_rd`：decode ILLI
-* `lr.w.nn_orrr_rd`：decode ILLI
-* `sc.b.ar_orrr_rd`：decode ILLI
-* `sc.b.nn_orrr_rd`：decode ILLI
-* `sc.b.nr_orrr_rd`：decode ILLI
-* `sc.o.ar_orrr_rd`：decode ILLI
-* `sc.o.nn_orrr_rd`：decode ILLI
-* `sc.o.nr_orrr_rd`：decode ILLI
-* `sc.t.ar_orrr_rd`：decode ILLI
-* `sc.t.nn_orrr_rd`：decode ILLI
-* `sc.t.nr_orrr_rd`：decode ILLI
-* `sc.w.ar_orrr_rd`：decode ILLI
-* `sc.w.nn_orrr_rd`：decode ILLI
-* `sc.w.nr_orrr_rd`：decode ILLI
+* `encode_sbz`：SBZ 非零 → ILLI — `fence_oiii_imm`（1 条）
 <!-- LEGALITY_END -->

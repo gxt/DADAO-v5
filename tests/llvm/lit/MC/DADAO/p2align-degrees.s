@@ -13,7 +13,7 @@
 @@   .dd.b08 3                       -> 03 at 4
 @@   .p2align 3  (align 8)  5..8   -> 00 00 00 at 5..7
 @@   .dd.b08 4                       -> 04 at 8
-@@   .p2align 4  (align 16) 9..16  -> 00 00 00 + swym 0 (0x77880000) at 9..15
+@@   .p2align 4  (align 16) 9..16  -> 00 00 00 + swym 0 (0x47880000) at 9..15
 @@   .dd.b08 5                       -> 05 at 16
 @@ Section size = 17 = 0x11; the `.dd.b08 5` lands exactly on the 16-byte boundary.
 @@
@@ -31,5 +31,5 @@
 	.dd.b08	5
 
 @@ SIZE: .text 00000011
-@@ BYTES: 01000200 03000000 04000000 77880000
+@@ BYTES: 01000200 03000000 04000000 47880000
 @@ BYTES: 05

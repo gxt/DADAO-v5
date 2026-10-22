@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..8569a413c
+index 000000000..f716ab881
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 @@ -0,0 +1,1950 @@
@@ -1633,24 +1633,24 @@ index 000000000..8569a413c
 +def ctpop_orri_rd : DADAOOrri<"ctpop"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x40;
-+  let ha = 0x1D;
++  let op = 0x47;
++  let ha = 0x25;
 +  let Pattern = [];
 +}
 +
 +def ctlz_orri_rd : DADAOOrri<"ctlz"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x40;
-+  let ha = 0x1E;
++  let op = 0x47;
++  let ha = 0x26;
 +  let Pattern = [];
 +}
 +
 +def cttz_orri_rd : DADAOOrri<"cttz"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x40;
-+  let ha = 0x1F;
++  let op = 0x47;
++  let ha = 0x27;
 +  let Pattern = [];
 +}
 +
@@ -1659,7 +1659,7 @@ index 000000000..8569a413c
 +def fence : DADAOOiii<"fence"> {
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins immu18:$imm18);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x20;
 +  // A barrier must never be deleted, duplicated or moved (LLVM-121t: the
 +  // instruction is now reachable from CodeGen as ISD::ATOMIC_FENCE).
@@ -1670,12 +1670,12 @@ index 000000000..8569a413c
 +def swym_oiii : DADAOOiii<"swym"> {
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins immu18:$imm18);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x22;
 +  let Pattern = [];
 +}
 +
-+// --- lr/sc (orrr; scope: excluded; ADR-0034 D3-D6; LLVM-121t) ---
++// --- lr/sc (orrr; scope: m9; ADR-0034 D3-D6; LLVM-121t) ---
 +//
 +// Load-reserved / store-conditional are the only atomic primitives: there is
 +// no AMO in the ISA (ISS-294), so every RMW / cmpxchg is a lr/sc retry loop
@@ -1685,7 +1685,7 @@ index 000000000..8569a413c
 +// first, memory ordering second.  `lr` only has nn/an/ar and `sc` only has
 +// nn/nr/ar, so `lr.*.nr` / `sc.*.an` have no def and the assembler rejects
 +// them.  Field layout is `orrr`: rdhb = rdHB, rdhc = rdHC, rbhd = rbHD
-+// (op 0x77, mask 0xFFFC0000); `lr` fixes hb = rd0 and is written with two
++// (op 0x47, mask 0xFFFC0000); `lr` fixes hb = rd0 and is written with two
 +// operands (SimRISC-11 §4.2).
 +//
 +// Semantics: `lr` loads from [rbHD] into rdHC and sets the hart's reservation;
@@ -1702,7 +1702,7 @@ index 000000000..8569a413c
 +def lr_o_nn : DADAOLROrrr<"lr.o.nn"> {
 +  let OutOperandList = (outs GPRD:$rc);
 +  let InOperandList = (ins GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x00;
 +  let mayLoad = 1;
 +  let hasSideEffects = 1;
@@ -1711,7 +1711,7 @@ index 000000000..8569a413c
 +def lr_t_nn : DADAOLROrrr<"lr.t.nn"> {
 +  let OutOperandList = (outs GPRD:$rc);
 +  let InOperandList = (ins GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x01;
 +  let mayLoad = 1;
 +  let hasSideEffects = 1;
@@ -1720,7 +1720,7 @@ index 000000000..8569a413c
 +def lr_w_nn : DADAOLROrrr<"lr.w.nn"> {
 +  let OutOperandList = (outs GPRD:$rc);
 +  let InOperandList = (ins GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x02;
 +  let mayLoad = 1;
 +  let hasSideEffects = 1;
@@ -1729,7 +1729,7 @@ index 000000000..8569a413c
 +def lr_b_nn : DADAOLROrrr<"lr.b.nn"> {
 +  let OutOperandList = (outs GPRD:$rc);
 +  let InOperandList = (ins GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x03;
 +  let mayLoad = 1;
 +  let hasSideEffects = 1;
@@ -1738,7 +1738,7 @@ index 000000000..8569a413c
 +def lr_o_an : DADAOLROrrr<"lr.o.an"> {
 +  let OutOperandList = (outs GPRD:$rc);
 +  let InOperandList = (ins GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x04;
 +  let mayLoad = 1;
 +  let hasSideEffects = 1;
@@ -1747,7 +1747,7 @@ index 000000000..8569a413c
 +def lr_t_an : DADAOLROrrr<"lr.t.an"> {
 +  let OutOperandList = (outs GPRD:$rc);
 +  let InOperandList = (ins GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x05;
 +  let mayLoad = 1;
 +  let hasSideEffects = 1;
@@ -1756,7 +1756,7 @@ index 000000000..8569a413c
 +def lr_w_an : DADAOLROrrr<"lr.w.an"> {
 +  let OutOperandList = (outs GPRD:$rc);
 +  let InOperandList = (ins GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x06;
 +  let mayLoad = 1;
 +  let hasSideEffects = 1;
@@ -1765,7 +1765,7 @@ index 000000000..8569a413c
 +def lr_b_an : DADAOLROrrr<"lr.b.an"> {
 +  let OutOperandList = (outs GPRD:$rc);
 +  let InOperandList = (ins GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x07;
 +  let mayLoad = 1;
 +  let hasSideEffects = 1;
@@ -1774,7 +1774,7 @@ index 000000000..8569a413c
 +def lr_o_ar : DADAOLROrrr<"lr.o.ar"> {
 +  let OutOperandList = (outs GPRD:$rc);
 +  let InOperandList = (ins GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x08;
 +  let mayLoad = 1;
 +  let hasSideEffects = 1;
@@ -1783,7 +1783,7 @@ index 000000000..8569a413c
 +def lr_t_ar : DADAOLROrrr<"lr.t.ar"> {
 +  let OutOperandList = (outs GPRD:$rc);
 +  let InOperandList = (ins GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x09;
 +  let mayLoad = 1;
 +  let hasSideEffects = 1;
@@ -1792,7 +1792,7 @@ index 000000000..8569a413c
 +def lr_w_ar : DADAOLROrrr<"lr.w.ar"> {
 +  let OutOperandList = (outs GPRD:$rc);
 +  let InOperandList = (ins GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x0A;
 +  let mayLoad = 1;
 +  let hasSideEffects = 1;
@@ -1801,7 +1801,7 @@ index 000000000..8569a413c
 +def lr_b_ar : DADAOLROrrr<"lr.b.ar"> {
 +  let OutOperandList = (outs GPRD:$rc);
 +  let InOperandList = (ins GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x0B;
 +  let mayLoad = 1;
 +  let hasSideEffects = 1;
@@ -1810,7 +1810,7 @@ index 000000000..8569a413c
 +def sc_o_nn : DADAOOrrr<"sc.o.nn"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x10;
 +  let mayStore = 1;
 +  let hasSideEffects = 1;
@@ -1819,7 +1819,7 @@ index 000000000..8569a413c
 +def sc_t_nn : DADAOOrrr<"sc.t.nn"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x11;
 +  let mayStore = 1;
 +  let hasSideEffects = 1;
@@ -1828,7 +1828,7 @@ index 000000000..8569a413c
 +def sc_w_nn : DADAOOrrr<"sc.w.nn"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x12;
 +  let mayStore = 1;
 +  let hasSideEffects = 1;
@@ -1837,7 +1837,7 @@ index 000000000..8569a413c
 +def sc_b_nn : DADAOOrrr<"sc.b.nn"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x13;
 +  let mayStore = 1;
 +  let hasSideEffects = 1;
@@ -1846,7 +1846,7 @@ index 000000000..8569a413c
 +def sc_o_nr : DADAOOrrr<"sc.o.nr"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x14;
 +  let mayStore = 1;
 +  let hasSideEffects = 1;
@@ -1855,7 +1855,7 @@ index 000000000..8569a413c
 +def sc_t_nr : DADAOOrrr<"sc.t.nr"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x15;
 +  let mayStore = 1;
 +  let hasSideEffects = 1;
@@ -1864,7 +1864,7 @@ index 000000000..8569a413c
 +def sc_w_nr : DADAOOrrr<"sc.w.nr"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x16;
 +  let mayStore = 1;
 +  let hasSideEffects = 1;
@@ -1873,7 +1873,7 @@ index 000000000..8569a413c
 +def sc_b_nr : DADAOOrrr<"sc.b.nr"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x17;
 +  let mayStore = 1;
 +  let hasSideEffects = 1;
@@ -1882,7 +1882,7 @@ index 000000000..8569a413c
 +def sc_o_ar : DADAOOrrr<"sc.o.ar"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x18;
 +  let mayStore = 1;
 +  let hasSideEffects = 1;
@@ -1891,7 +1891,7 @@ index 000000000..8569a413c
 +def sc_t_ar : DADAOOrrr<"sc.t.ar"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x19;
 +  let mayStore = 1;
 +  let hasSideEffects = 1;
@@ -1900,7 +1900,7 @@ index 000000000..8569a413c
 +def sc_w_ar : DADAOOrrr<"sc.w.ar"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x1A;
 +  let mayStore = 1;
 +  let hasSideEffects = 1;
@@ -1909,7 +1909,7 @@ index 000000000..8569a413c
 +def sc_b_ar : DADAOOrrr<"sc.b.ar"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x1B;
 +  let mayStore = 1;
 +  let hasSideEffects = 1;

@@ -11,12 +11,12 @@
 
 .text
 
-@@ @src call_iiii_ra 74000003 | SimRISC-06 §函数调用
+@@ @src call_iiii_ra 74000003 | SimRISC-06: call
 @@ OBJ: {{[0-9a-f]+:}} 74 00 00 03{{.*}}call
 @@ ASM: call [rb0, 12]
 call [rb0, 12]
 
-@@ @src jump_iiii_rb 70000003 | SimRISC-06 §无条件跳转指令
+@@ @src jump_iiii_rb 70000003 | SimRISC-06: jump
 @@ OBJ: {{[0-9a-f]+:}} 70 00 00 03{{.*}}jump
 @@ ASM: jump [rb0, 12]
 jump [rb0, 12]

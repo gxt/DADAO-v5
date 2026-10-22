@@ -4,13 +4,13 @@
 # Covers: swym_oiii_imm (oiii) — 1 M1 identity
 # ADR-0012 D3.5: 原专门非法指令删除（ILLI 异常保留）→ 无对应向量
 # F10: swym encoding words verified against opcodes.yaml mask/value
-# Note: fence is scope: excluded per SPEC-039t (decode: ILLI)
+# Note: fence is scope: m9 (SPEC-164t; implemented)
 - mnemonic: swym
   id: swym_oiii_imm
   format: oiii
   class: encoding
   encoding:
-    word: '0x77880000'
+    word: '0x47880000'
   input_state: {}
   expected_state: null
   expected_pc: null
@@ -18,14 +18,14 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-11: 占位指令'
-  notes: 'encoding: swym 0 (nop), word=0x77880000; opcodes.yaml mask=0xFFFC0000 value=0x77880000; no fault, no architectural
+  notes: 'encoding: swym 0 (nop), word=0x47880000; opcodes.yaml mask=0xFFFC0000 value=0x47880000; no fault, no architectural
     state change'
 - mnemonic: swym
   id: swym_oiii_imm
   format: oiii
   class: semantic
   encoding:
-    word: '0x77880000'
+    word: '0x47880000'
   input_state: {}
   expected_state: {}
   expected_pc: null

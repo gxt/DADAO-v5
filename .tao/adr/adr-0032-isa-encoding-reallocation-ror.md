@@ -186,3 +186,13 @@
 - **理由**：`ROTL` 可直连 `rol`（无需 `W−n` 反向）；`rol`/`ror` 语义等价（`ror(x,n) = rol(x,(W−n) mod W)`），只需实现一个；编码槽保持不变 ⇒ 不影响 `D1`/`D2` 的再分配结果。
 - **历史层不改**：`## Context` 中用户既往原话（含「增加ror.ux指令」）与 `## 状态说明` 为历史记录，保持原样；`SPEC-141t` 的 `ror` 预研记录亦不改。本次同步落点 = `spec/SimRISC-00/04/08/09/10`、`.tao/contracts/contract-isa.md`、`contracts/{opcodes,legality_rules}.yaml`、`manifests/spec-readonly.lock.toml`。
 - `**状态**` 保持 **Accepted**。
+
+### 2026-10-22 — `ctlz`/`cttz`/`ctpop` 迁出 `OPC-octa`（只注记；`D1`–`D6` 不变）
+
+**用户原话（逐字引录，渠道 = 经主会话问答，2026-10-22）**：
+
+> 「修改编码：`ctpop_orri_rd` `ctlz_orri_rd` `cttz_orri_rd` 从 `OPC-octa` 改为 `OPC-MISC`，opx：`100-101`/`100-110`/`100-111`」
+
+- 三条由 `OPC-octa` 的 `011-101`/`011-110`/`011-111` 迁至 `OPC-MISC` 同列（`op = 0x47`）；`OPC-octa` 的 `011` 行至此只剩 `shl`/`rol`/`shr.u`/`shr.s`（与 `D2`/`D4` 的落位一致）。
+- `D4` 的 `rol` 落位（`010-001`/`011-001`）、`D1`/`D2` 的 `ext`/`shl` 落位均**不受影响**；「符号无关指令不带 `u`/`s` 后缀」的命名规则不变（`D3`）。
+- 本 ADR 的 `D1`–`D6` 正文不改写（以本注记为准）；决策依据 = 上引用户原话 + `ADR-0012 D11` 的 `## 修订`。

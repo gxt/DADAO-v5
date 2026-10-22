@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M9（收尾前）
 **依赖**：`SPEC-166t`（已验证）、`INFRA-102t`（已验证，`master 9fd5974e`；门控已无写死常量）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -64,6 +64,44 @@
 - 逐条比对 `insn.decode.patch` 的 26 条 mask/pattern，禁批量正则一把梭。
 
 ## 完成区
-（执行后填写，≤30 行）
+
+**测试结果**：`evidence run.sh` 默认 **47/47 rc=0**；`--inject all` **60/60 rc=0**（4 类注入均「红→cp+md5 还原→绿」）；L1 `make check` rc=0、L2 `make check-modules` rc=0；`check-lit` **131/131**、`check-lit-full` **12/12**；`check-qemu-semantics` **967/978 passed / 0 failed / 11 deferred（登记名单一致）PASS**；`check_qemu_trans --strict` **264/264（M1 156/156）**；`validate_decodetree` 264/264。
+**修改文件**：`contracts/opcodes.yaml`（重生成；26 条 op 0x77→0x47 + ct* 3 条迁 MISC）+ `tools/spec/generate_opcodes.py`、`tools/spec/check_tables.py`（+OPC-MISC 表/注入）、`tools/spec/validate_encoding.py`（补 value==op/ha 校验）；`spec/SimRISC-00/04/11`（主表迁 `0100-0111`、§4.1 加/§4.2 删 ct*、删例外注、生成区重生成）+ `manifests/spec-readonly.lock.toml`；QEMU `insn.decode.patch`（重生成）+ `trans_ctrl/trans_bitcnt` 注释；LLVM `DADAOInstrInfo.td.patch`（26+3）+ `DADAOAsmBackend.cpp.patch`（nop 字节）；生成物 `tests/vectors/{atomics,bitcnt,isa/misc}`、`tests/llvm/lit/MC/DADAO{,-gen}/*`、`tests/case-ledger.tsv`、`tools/llvm/llvm-isa-backend-matrix.{tsv,md}`、`.tao/contracts/contract-asm-list.md`；载体 `tests/scripts/build_test_binary.py`（毒饵改 cfxld）、`verify_harness_dump.py`、`tools/qemu/{generate_atomics_vectors,check_harness_ops,min_rom_probe_046t/071t/072t,smoke-dadao-m1.sh}`、`tools/testcases/generate_misc.py`、`tools/llvm/test_encoding_oracle.py`；账面 `contract-isa.md`、`components/*/changelog.md`、`ADR-0012/0032/0034`（`## 修订`）、`MEMORY.md` 第 6 项。
+**验收结果**：`grep -c "op: 0x77" contracts/opcodes.yaml` ⇒ **0**；29 条 `op: 0x47`（fence/swym/lr12/sc12/ct3），计数 **excluded 2 / m9 34 / m8 7 / total 264**；QEMU 实机：`swym 0` 仍 no-op、`fence`、`lr`/`sc`（`__atomic_add_fetch` 静态 musl：rc=0、无 `__atomic_*` 未定义、反汇编 `fence 975`/`lr.t.an`/`sc.t.ar`）、`ctpop`/`ctlz`/`cttz` 各 1 例 PASS；LLVM：`fence 0`=`47 80 00 00`、`swym 0`=`47 88 00 00`、`ctpop/ctlz/cttz`=`47 94/98/9c 82 7f`、`lr.o.nn`=`47 00 02 02`、`sc.o.nn`=`47 40 82 42`，`objdump` 7/7 显示 `0x47`；`check_tables` **6 表 177 条 / 384 格 0 不符**；`check-isa-coverage --check` PASS（accept 262/reject 2）；`check-instrinfo` 0 errors（262 defs，M9 34/34）。
+**新发现/坑**：① `validate_encoding` 原不校验 `value == (op<<24)|(ha<<18)` ⇒ 只改 op/ha 漏改 value 无门控可判；本册补该校验（注入①④的 FAIL 载体）。② `check_qemu_trans` 只看 trans 函数、不看 decode pattern，`validate_decodetree` 未入 L1/L2 ⇒ 删一条 decode 无门控可判（本册以 evidence 载体覆盖，建议另立 INFRA 接入）。③ `fence` 实现后旧 ILLI 毒饵 `0x77000000` 变空白 op ⇒ QEMU 报 **UNDI 0x89**（非 ILLI），分支 harness 毒饵改用 `cfxld` `0x7C000000`。④ `generate_atomics_vectors.fence_word`/`generate_misc.py` 曾硬编码 `0x77`，首轮重生成只改注释；已改为 opcodes.yaml 现场派生。⑤ lit 重生成顺带刷新 `@src`（SPEC-165t 后陈旧，13 文件 322 行）。⑥ `tests/llvm/test_encoding_oracle.py` 有 3 条**既存**失效用例（`ext.uo` 旧 ha、已删 `cs.eq/ne-rf`），非本册引入、非门控。⑦ 历史探针 005t–061t 仍含旧编码（非门控，ISS 已登记漂移），本册只改 live 的 046t 与近期 071t/072t。
+**遗留问题**：`test_encoding_oracle.py` 3 条既存红（未修，非门控）；历史 `min_rom_probe_005t–061t` 未追改（非门控）；建议另立任务把 `validate_decodetree`/`check_tables` 接入门控。
 
 ## 审阅记录
+
+### 第 1 轮 engineer 自审（自主逐行审查）
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 `build_misc_amo` 新增 ct* 后 yaml 记录顺序前移，decode patch 行位移动 | ✅已修（确认预期） | 生成器/解码均由记录派生；逐 id 断言而非行号断言 | evidence「26+3 decode patterns per-id」29/29；`validate_decodetree` PASS |
+| F2 `fence` 转 `m9` 后 `rule_refs` 由空变 `encode_sbz`，是否触发 rule_refs 门控 | ✅已修（复验） | 无额外改动 | `check_rule_refs` PASS（342 处引用）；`validate_instrinfo` M9 34/34 |
+| F3 越界改动：`.tao/contracts/contract-isa.md`、`components/*/changelog.md` 不在任务「输入」清单 | ✅已修（披露保留） | 仅同步编码/计数/变更记录（`op 0x47`、A.6/A.7/A.9、excluded 2 / m9 34；两条 changelog） | `check_contracts_pending`/`check_component_changelog`/`check_spec_drift` PASS |
+| F4 为让注入①④可达 FAIL，新增 `validate_encoding` 的 `value == op/ha` 断言（门控加强，非任务原文） | ✅已修（披露保留） | `tools/spec/validate_encoding.py` 新增 `check_op_ha_value` | 注入①④ rc=1；正常 rc=0；L1 PASS |
+| F5 手写 lit/harness/oracle 硬编码旧编码，属「禁手改」但非生成物 | ✅已修（逐处机械替换+复验） | 7 个 MC lit、`build_test_binary.py`（毒饵改 cfxld）、`verify_harness_dump.py`、`test_encoding_oracle.py`（swym/fence 3 例） | `check-lit` 131/131；`check_case_ledger` PASS；`check_harness_ops` 22/22 |
+| F6 生成器自身硬编码 `0x77`（fence_word/generate_misc）导致重生成不彻底 | ✅已修 | 两处改为从 `contracts/opcodes.yaml` 现场派生 | 重生成后 `atomics-fence.yaml` 19/19 = `0x47…`；misc `0x47880000`；L3 127 例 atomics 全过 |
+| F7 证据脚本首版 `tr -d 'encoding: []'` 误删 hex 字符 `c` | ✅已修 | 改 `sed` 去 `0x`/逗号 | 默认 47/47 PASS（修复前 7 FAIL） |
+
+### 第 1 轮 reviewer 验收（2026-10-22，独立重跑）
+
+**重跑记录（判决全部基于本人命令，工作树干净、快照前后 0 行一致）**
+
+- **编码 29 条**：自建脚本现场重算（`yaml.safe_load` 全量）：`op==0x47` **恰 29**（fence+swym+lr12+sc12+ct3），`op==0x77` **0**；每条 `value == (0x47<<24)|(ha<<18)` 29/29 相符；`ctpop/ctlz/cttz` 的 `ha=0x25/0x26/0x27`、`scope=m8` 均 OK。
+- **decode 一致性**：自建脚本逐 id 比对 `insn.decode.patch` 29 个 pattern 的 `op`/`ha` 与 yaml（非抽样）：**29/29 OK**；旧前缀 `01110111` 在新增行 **残留 0**。
+- **scope 账面**：`total 264 / m1 156 / fp 64 / m9 34 / excluded 2 / m8 7 / m3 1` 全对；`excluded` 仅 `cfxld_crii_cfx`/`cfxst_crii_cfx`；`swym` scope 改前(`4d821836~1`)/改后均 `m1`，**未被顺手改动**。
+- **实机（本人自编自跑）**：`rt2.c`（`__atomic_add_fetch` + `ctpop/ctlz/cttz` 内联 asm + 独立参考实现比对）clang+musl 静态链接 ⇒ `qemu-dadao` **rc=0**；反汇编 `swym 0=47 88 00 00`、`ctpop/ctlz/cttz=47 94/98/9c`、`fence 975=47 80`、`lr.t.an`/`sc.t.ar` 全 `0x47`；`swym 0` no-op 用例 rc=0。
+- **LLVM**：`llvm-mc -show-encoding` 7 条全 `47 …`（fence `47 80 00 00`、swym `47 88 00 00`、ct* `47 94/98/9c 82 7f`、lr/sc `47 00/40 …`）；`objdump` 7/7 显示 `0x47`；`check-lit` **131/131 rc=0**。
+- **生成物门控**：`check_tables` **6 表 177 条/384 格 0 不符**（含新增 OPC-MISC 29 条）、`validate-vectors` **156/156 rc=0**、`check-isa-coverage --check` PASS（accept 262/reject 2）、`check_qemu_trans --strict` **264/264 rc=0**、`validate_encoding`/`check_scope`/`validate_decodetree`/`check-instrinfo` 全 rc=0；向量旧编码残留 0（clmul 的 `0x77…` 为随机数据高位，非编码）。
+- **ADR/MEMORY**：`ADR-0034/0032/0012` 各有 `## 修订`，`git diff --numstat` = **18/0、10/0、15/0 纯增**（决策正文未改），0034 修订含用户原话逐字；`MEMORY.md` 第 6 项已同步为「fence + lr/sc 24 条已实现（m9）；excluded 2 条」。
+- **注入（cp+md5，本人独立执行）**：① `fence op` 改回 `0x77` ⇒ `validate_encoding` **rc=1** + `check-isa-coverage` **rc=1** 双红；② `ctlz ha` 改回 `0x1E` ⇒ `validate_encoding` **rc=1** 红。两次还原 md5 相等、回绿 rc=0，工作树干净。
+- **遗留核实（既存非本册引入）**：`test_encoding_oracle.py` 现 **3 红**（`ext.uo`/`cs.eq`/`cs.ne`）；以 `4d821836~1` 临时 worktree 复跑为 **6 红**（另 3 条 `swym 0`/`fence 0xf`/`swym 42` 本册已修绿）⇒ 剩余 3 条改前已红。历史探针 `005t–061t` 仍含 `0x77`，本册 diff 只改 `046t/071t/072t`，其余改前改后一致 ⇒ 既存。
+- **L1**：`make check` **rc=0**；**L2 采信日志** `.work/log/spec/SPEC-164t-check-L2.log`（`L2_EXIT=0`），另采信 `check-qemu-semantics` **967/978 PASS**、`check-lit-full` **12/12**。
+- **无凑绿**：`check_scope.py`/`check_qemu_trans.py` **零改动**；`validate_encoding.py` 为纯增量加强（新增 `check_op_ha_value`），未删任何断言。
+
+**约束核验**：29 条编码逐条相符 ✅；decode 逐 id 一致、旧前缀 0 ✅；scope 账面 6 项全对、`swym` 未动 ✅；实机 6 族全过 ✅；ADR 只注记未改正文 ✅；注入 2 次均红+还原 ✅；遗留 2 项确认既存 ✅。
+
+**判决：Accepted**（29 条一条不差、decode 逐 id 全对、实机通过、门控全绿、注入可达红、遗留非本册引入；注入②下 `check-isa-coverage` 仍绿属预期——该门控看覆盖矩阵不看位级编码，编码门控已红，符合验收口径 6④）。
+

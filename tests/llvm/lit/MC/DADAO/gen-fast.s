@@ -11,122 +11,122 @@
 
 .text
 
-@@ @src escape_ciii_cfx 7efc0002 | SimRISC-00 §SimRISC QFC
+@@ @src escape_ciii_cfx 7efc0002 | SimRISC-11: escape
 @@ OBJ: {{[0-9a-f]+:}} 7e fc 00 02{{.*}}escape
 @@ ASM: escape cfx63, [excp_cause_ip, 8]
 escape cfx63, [excp_cause_ip, 8]
 
-@@ @src trap_ciii_cfx 7ffc0001 | SimRISC-00 §SimRISC QFC
+@@ @src trap_ciii_cfx 7ffc0001 | SimRISC-11: trap
 @@ OBJ: {{[0-9a-f]+:}} 7f fc 00 01{{.*}}trap
 @@ ASM: trap cfx63, 1
 trap cfx63, 1
 
-@@ @src cfx2rc_crrr_cfx 7bfc8048 | SimRISC-00 §SimRISC QFC
+@@ @src cfx2rc_crrr_cfx 7bfc8048 | SimRISC-11: cfx2rc
 @@ OBJ: {{[0-9a-f]+:}} 7b fc 80 48{{.*}}cfx2rc
 @@ ASM: cfx2rc cfx63, cg8, rc1, rd8
 cfx2rc cfx63, cg8, rc1, rd8
 
-@@ @src call_iiii_ra 74000003 | SimRISC-06 §函数调用
+@@ @src call_iiii_ra 74000003 | SimRISC-06: call
 @@ OBJ: {{[0-9a-f]+:}} 74 00 00 03{{.*}}call
 @@ ASM: call [rb0, 12]
 call [rb0, 12]
 
-@@ @src fence_oiii_imm 77800000 | SimRISC-11 §fence指令
-@@ OBJ: {{[0-9a-f]+:}} 77 80 00 00{{.*}}fence
+@@ @src fence_oiii_imm 47800000 | SimRISC-11: fence
+@@ OBJ: {{[0-9a-f]+:}} 47 80 00 00{{.*}}fence
 @@ ASM: fence 0
 fence 0
 
-@@ @src swym_oiii_imm 77880008 | SimRISC-11 §占位指令
-@@ OBJ: {{[0-9a-f]+:}} 77 88 00 08{{.*}}swym
+@@ @src swym_oiii_imm 47880008 | SimRISC-11: swym
+@@ OBJ: {{[0-9a-f]+:}} 47 88 00 08{{.*}}swym
 @@ ASM: swym 8
 swym 8
 
-@@ @src ctlz_orri_rd 40788241 | SimRISC-04 §Bit manipulating：位操作指令
-@@ OBJ: {{[0-9a-f]+:}} 40 78 82 41{{.*}}ctlz
+@@ @src ctlz_orri_rd 47988241 | SimRISC-04: ctlz
+@@ OBJ: {{[0-9a-f]+:}} 47 98 82 41{{.*}}ctlz
 @@ ASM: ctlz rd8, rd9, 1
 ctlz rd8, rd9, 1
 
-@@ @src fo2fo_orri_rf 44288241 | SimRISC-00 §OPC-RF指令编码
+@@ @src fo2fo_orri_rf 44288241 | SimRISC-07: fo2fo
 @@ OBJ: {{[0-9a-f]+:}} 44 28 82 41{{.*}}fo2fo
 @@ ASM: fo2fo {rf8}, {rf9}
 fo2fo {rf8}, {rf9}
 
-@@ @src foroot_orri_rf 44388242 | SimRISC-00 §OPC-RF指令编码
+@@ @src foroot_orri_rf 44388242 | SimRISC-07: foroot
 @@ OBJ: {{[0-9a-f]+:}} 44 38 82 42{{.*}}foroot
 @@ ASM: foroot rf8, rf9, 2
 foroot rf8, rf9, 2
 
-@@ @src add.o_orrr_bbd 40c0824a | SimRISC-05 §加减操作
+@@ @src add.o_orrr_bbd 40c0824a | SimRISC-05: add.o
 @@ OBJ: {{[0-9a-f]+:}} 40 c0 82 4a{{.*}}add.o
 @@ ASM: add.o rb8, rb9, rd10
 add.o rb8, rb9, rd10
 
-@@ @src lr.b.an_orrr_rd 771c0241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 1c 02 41{{.*}}lr.b.an
+@@ @src lr.b.an_orrr_rd 471c0241 | SimRISC-11: lr.b.an
+@@ OBJ: {{[0-9a-f]+:}} 47 1c 02 41{{.*}}lr.b.an
 @@ ASM: lr.b.an rd9, [rb1]
 lr.b.an rd9, [rb1]
 
-@@ @src sc.b.ar_orrr_rd 776c8241 | SimRISC-11 §LR-SC指令
-@@ OBJ: {{[0-9a-f]+:}} 77 6c 82 41{{.*}}sc.b.ar
+@@ @src sc.b.ar_orrr_rd 476c8241 | SimRISC-11: sc.b.ar
+@@ OBJ: {{[0-9a-f]+:}} 47 6c 82 41{{.*}}sc.b.ar
 @@ ASM: sc.b.ar rd8, rd9, [rb1]
 sc.b.ar rd8, rd9, [rb1]
 
-@@ @src add.si_riii_rb 5b200008 | SimRISC-05 §自增自减
+@@ @src add.si_riii_rb 5b200008 | SimRISC-05: add.si
 @@ OBJ: {{[0-9a-f]+:}} 5b 20 00 08{{.*}}add.si
 @@ ASM: add.si rb8, 8
 add.si rb8, 8
 
-@@ @src br.n_riii_rd 68200003 | SimRISC-06 §条件跳转指令
+@@ @src br.n_riii_rd 68200003 | SimRISC-06: br.n
 @@ OBJ: {{[0-9a-f]+:}} 68 20 00 03{{.*}}br.n
 @@ ASM: br.n {rd8}?, [rb0, 12]
 br.n {rd8}?, [rb0, 12]
 
-@@ @src ret_riii_ra 76200008 | SimRISC-06 §函数返回
+@@ @src ret_riii_ra 76200008 | SimRISC-06: ret
 @@ OBJ: {{[0-9a-f]+:}} 76 20 00 08{{.*}}ret
 @@ ASM: ret rd8, 8
 ret rd8, 8
 
-@@ @src br.eq_rrii_rd 6e209004 | SimRISC-06 §条件跳转指令
+@@ @src br.eq_rrii_rd 6e209004 | SimRISC-06: br.eq
 @@ OBJ: {{[0-9a-f]+:}} 6e 20 90 04{{.*}}br.eq
 @@ ASM: br.eq {rd8, rd9}?, [rb0, 16]
 br.eq {rd8, rd9}?, [rb0, 16]
 
-@@ @src call_rrii_ra 75209018 | SimRISC-06 §函数调用
+@@ @src call_rrii_ra 75209018 | SimRISC-06: call
 @@ OBJ: {{[0-9a-f]+:}} 75 20 90 18{{.*}}call
 @@ ASM: call [rb8, rd9, 96]
 call [rb8, rd9, 96]
 
-@@ @src cmp.si_rrii_rd 5d209001 | SimRISC-04 §比较操作
+@@ @src cmp.si_rrii_rd 5d209001 | SimRISC-04: cmp.si
 @@ OBJ: {{[0-9a-f]+:}} 5d 20 90 01{{.*}}cmp.si
 @@ ASM: cmp.si rd8, rd9, 1
 cmp.si rd8, rd9, 1
 
-@@ @src ld.o_rrii_ra 24209008 | SimRISC-01 §存取RA寄存器
+@@ @src ld.o_rrii_ra 24209008 | SimRISC-01: ld.o
 @@ OBJ: {{[0-9a-f]+:}} 24 20 90 08{{.*}}ld.o
 @@ ASM: ld.o ra8, [rb9, 8]
 ld.o ra8, [rb9, 8]
 
-@@ @src ldm.o_rrri_ra 3c200241 | SimRISC-01 §存取RA寄存器
+@@ @src ldm.o_rrri_ra 3c200241 | SimRISC-01: ldm.o
 @@ OBJ: {{[0-9a-f]+:}} 3c 20 02 41{{.*}}ldm.o
 @@ ASM: ldm.o {ra8}, [rb0, rd9]
 ldm.o {ra8}, [rb0, rd9]
 
-@@ @src add.so_rrrr_rd 5120928b | SimRISC-04 §加减操作
+@@ @src add.so_rrrr_rd 5120928b | SimRISC-04: add.so
 @@ OBJ: {{[0-9a-f]+:}} 51 20 92 8b{{.*}}add.so
 @@ ASM: add.so {rd8, rd9}, rd10, rd11
 add.so {rd8, rd9}, rd10, rd11
 
-@@ @src cs.eq_rrrr_rd 6620928b | SimRISC-02 §条件赋值：Conditional Assignment
+@@ @src cs.eq_rrrr_rd 6620928b | SimRISC-02: cs.eq
 @@ OBJ: {{[0-9a-f]+:}} 66 20 92 8b{{.*}}cs.eq
 @@ ASM: cs.eq {rd8, rd9}?, rd10, rd11
 cs.eq {rd8, rd9}?, rd10, rd11
 
-@@ @src cs.n_rrrr_rd 6020928b | SimRISC-02 §条件赋值：Conditional Assignment
+@@ @src cs.n_rrrr_rd 6020928b | SimRISC-02: cs.n
 @@ OBJ: {{[0-9a-f]+:}} 60 20 92 8b{{.*}}cs.n
 @@ ASM: cs.n {rd8}?, rd9, rd10, rd11
 cs.n {rd8}?, rd9, rd10, rd11
 
-@@ @src andn.w_rwii_rb 4b211234 | SimRISC-03 §立即数常数赋值：Immediate constant
+@@ @src andn.w_rwii_rb 4b211234 | SimRISC-03: andn.w
 @@ OBJ: {{[0-9a-f]+:}} 4b 21 12 34{{.*}}andn.w
 @@ ASM: andn.w rb8, wp1, 0x1234
 andn.w rb8, wp1, 0x1234

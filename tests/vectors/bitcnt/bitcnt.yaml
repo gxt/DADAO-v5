@@ -10,21 +10,21 @@
   format: orri
   class: encoding
   encoding:
-    word: '0x407410BF'
+    word: '0x479410BF'
   input_state: {}
   expected_state: null
   expected_pc: null
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'encoding: word 与 opcodes.yaml mask/value 一致；rdhb=rd1（非 rd0）、rdhc=rd2、hd=63（合法：hd ∈ 0..63 全部合法）'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741080'
+    word: '0x47941080'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -38,14 +38,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=0（有效位 [0:0]，宽 1），rd2=0x7FFFFFFFFFFFFFFF → rd1=1'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741081'
+    word: '0x47941081'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -59,14 +59,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=1（有效位 [1:0]，宽 2），rd2=0x7FFFFFFFFFFFFFFF → rd1=2'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741082'
+    word: '0x47941082'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -80,14 +80,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=2（有效位 [2:0]，宽 3），rd2=0x7FFFFFFFFFFFFFFF → rd1=3'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741083'
+    word: '0x47941083'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -101,14 +101,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=3（有效位 [3:0]，宽 4），rd2=0x7FFFFFFFFFFFFFFF → rd1=4'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741084'
+    word: '0x47941084'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -122,14 +122,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=4（有效位 [4:0]，宽 5），rd2=0x7FFFFFFFFFFFFFFF → rd1=5'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741085'
+    word: '0x47941085'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -143,14 +143,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=5（有效位 [5:0]，宽 6），rd2=0x7FFFFFFFFFFFFFFF → rd1=6'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741086'
+    word: '0x47941086'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -164,14 +164,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=6（有效位 [6:0]，宽 7），rd2=0x7FFFFFFFFFFFFFFF → rd1=7'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741087'
+    word: '0x47941087'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -185,14 +185,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=7（有效位 [7:0]，宽 8），rd2=0x7FFFFFFFFFFFFFFF → rd1=8'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741088'
+    word: '0x47941088'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -206,14 +206,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=8（有效位 [8:0]，宽 9），rd2=0x7FFFFFFFFFFFFFFF → rd1=9'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741089'
+    word: '0x47941089'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -227,14 +227,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=9（有效位 [9:0]，宽 10），rd2=0x7FFFFFFFFFFFFFFF → rd1=10'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4074108A'
+    word: '0x4794108A'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -248,14 +248,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=10（有效位 [10:0]，宽 11），rd2=0x7FFFFFFFFFFFFFFF → rd1=11'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4074108B'
+    word: '0x4794108B'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -269,14 +269,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=11（有效位 [11:0]，宽 12），rd2=0x7FFFFFFFFFFFFFFF → rd1=12'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4074108C'
+    word: '0x4794108C'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -290,14 +290,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=12（有效位 [12:0]，宽 13），rd2=0x7FFFFFFFFFFFFFFF → rd1=13'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4074108D'
+    word: '0x4794108D'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -311,14 +311,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=13（有效位 [13:0]，宽 14），rd2=0x7FFFFFFFFFFFFFFF → rd1=14'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4074108E'
+    word: '0x4794108E'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -332,14 +332,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=14（有效位 [14:0]，宽 15），rd2=0x7FFFFFFFFFFFFFFF → rd1=15'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4074108F'
+    word: '0x4794108F'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -353,14 +353,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=15（有效位 [15:0]，宽 16），rd2=0x7FFFFFFFFFFFFFFF → rd1=16'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741090'
+    word: '0x47941090'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -374,14 +374,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=16（有效位 [16:0]，宽 17），rd2=0x7FFFFFFFFFFFFFFF → rd1=17'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741091'
+    word: '0x47941091'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -395,14 +395,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=17（有效位 [17:0]，宽 18），rd2=0x7FFFFFFFFFFFFFFF → rd1=18'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741092'
+    word: '0x47941092'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -416,14 +416,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=18（有效位 [18:0]，宽 19），rd2=0x7FFFFFFFFFFFFFFF → rd1=19'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741093'
+    word: '0x47941093'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -437,14 +437,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=19（有效位 [19:0]，宽 20），rd2=0x7FFFFFFFFFFFFFFF → rd1=20'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741094'
+    word: '0x47941094'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -458,14 +458,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=20（有效位 [20:0]，宽 21），rd2=0x7FFFFFFFFFFFFFFF → rd1=21'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741095'
+    word: '0x47941095'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -479,14 +479,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=21（有效位 [21:0]，宽 22），rd2=0x7FFFFFFFFFFFFFFF → rd1=22'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741096'
+    word: '0x47941096'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -500,14 +500,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=22（有效位 [22:0]，宽 23），rd2=0x7FFFFFFFFFFFFFFF → rd1=23'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741097'
+    word: '0x47941097'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -521,14 +521,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=23（有效位 [23:0]，宽 24），rd2=0x7FFFFFFFFFFFFFFF → rd1=24'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741098'
+    word: '0x47941098'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -542,14 +542,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=24（有效位 [24:0]，宽 25），rd2=0x7FFFFFFFFFFFFFFF → rd1=25'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40741099'
+    word: '0x47941099'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -563,14 +563,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=25（有效位 [25:0]，宽 26），rd2=0x7FFFFFFFFFFFFFFF → rd1=26'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4074109A'
+    word: '0x4794109A'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -584,14 +584,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=26（有效位 [26:0]，宽 27），rd2=0x7FFFFFFFFFFFFFFF → rd1=27'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4074109B'
+    word: '0x4794109B'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -605,14 +605,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=27（有效位 [27:0]，宽 28），rd2=0x7FFFFFFFFFFFFFFF → rd1=28'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4074109C'
+    word: '0x4794109C'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -626,14 +626,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=28（有效位 [28:0]，宽 29），rd2=0x7FFFFFFFFFFFFFFF → rd1=29'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4074109D'
+    word: '0x4794109D'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -647,14 +647,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=29（有效位 [29:0]，宽 30），rd2=0x7FFFFFFFFFFFFFFF → rd1=30'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4074109E'
+    word: '0x4794109E'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -668,14 +668,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=30（有效位 [30:0]，宽 31），rd2=0x7FFFFFFFFFFFFFFF → rd1=31'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4074109F'
+    word: '0x4794109F'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -689,14 +689,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=31（有效位 [31:0]，宽 32），rd2=0x7FFFFFFFFFFFFFFF → rd1=32'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410A0'
+    word: '0x479410A0'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -710,14 +710,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=32（有效位 [32:0]，宽 33），rd2=0x7FFFFFFFFFFFFFFF → rd1=33'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410A1'
+    word: '0x479410A1'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -731,14 +731,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=33（有效位 [33:0]，宽 34），rd2=0x7FFFFFFFFFFFFFFF → rd1=34'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410A2'
+    word: '0x479410A2'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -752,14 +752,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=34（有效位 [34:0]，宽 35），rd2=0x7FFFFFFFFFFFFFFF → rd1=35'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410A3'
+    word: '0x479410A3'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -773,14 +773,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=35（有效位 [35:0]，宽 36），rd2=0x7FFFFFFFFFFFFFFF → rd1=36'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410A4'
+    word: '0x479410A4'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -794,14 +794,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=36（有效位 [36:0]，宽 37），rd2=0x7FFFFFFFFFFFFFFF → rd1=37'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410A5'
+    word: '0x479410A5'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -815,14 +815,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=37（有效位 [37:0]，宽 38），rd2=0x7FFFFFFFFFFFFFFF → rd1=38'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410A6'
+    word: '0x479410A6'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -836,14 +836,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=38（有效位 [38:0]，宽 39），rd2=0x7FFFFFFFFFFFFFFF → rd1=39'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410A7'
+    word: '0x479410A7'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -857,14 +857,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=39（有效位 [39:0]，宽 40），rd2=0x7FFFFFFFFFFFFFFF → rd1=40'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410A8'
+    word: '0x479410A8'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -878,14 +878,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=40（有效位 [40:0]，宽 41），rd2=0x7FFFFFFFFFFFFFFF → rd1=41'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410A9'
+    word: '0x479410A9'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -899,14 +899,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=41（有效位 [41:0]，宽 42），rd2=0x7FFFFFFFFFFFFFFF → rd1=42'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410AA'
+    word: '0x479410AA'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -920,14 +920,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=42（有效位 [42:0]，宽 43），rd2=0x7FFFFFFFFFFFFFFF → rd1=43'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410AB'
+    word: '0x479410AB'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -941,14 +941,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=43（有效位 [43:0]，宽 44），rd2=0x7FFFFFFFFFFFFFFF → rd1=44'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410AC'
+    word: '0x479410AC'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -962,14 +962,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=44（有效位 [44:0]，宽 45），rd2=0x7FFFFFFFFFFFFFFF → rd1=45'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410AD'
+    word: '0x479410AD'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -983,14 +983,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=45（有效位 [45:0]，宽 46），rd2=0x7FFFFFFFFFFFFFFF → rd1=46'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410AE'
+    word: '0x479410AE'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1004,14 +1004,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=46（有效位 [46:0]，宽 47），rd2=0x7FFFFFFFFFFFFFFF → rd1=47'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410AF'
+    word: '0x479410AF'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1025,14 +1025,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=47（有效位 [47:0]，宽 48），rd2=0x7FFFFFFFFFFFFFFF → rd1=48'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410B0'
+    word: '0x479410B0'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1046,14 +1046,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=48（有效位 [48:0]，宽 49），rd2=0x7FFFFFFFFFFFFFFF → rd1=49'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410B1'
+    word: '0x479410B1'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1067,14 +1067,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=49（有效位 [49:0]，宽 50），rd2=0x7FFFFFFFFFFFFFFF → rd1=50'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410B2'
+    word: '0x479410B2'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1088,14 +1088,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=50（有效位 [50:0]，宽 51），rd2=0x7FFFFFFFFFFFFFFF → rd1=51'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410B3'
+    word: '0x479410B3'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1109,14 +1109,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=51（有效位 [51:0]，宽 52），rd2=0x7FFFFFFFFFFFFFFF → rd1=52'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410B4'
+    word: '0x479410B4'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1130,14 +1130,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=52（有效位 [52:0]，宽 53），rd2=0x7FFFFFFFFFFFFFFF → rd1=53'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410B5'
+    word: '0x479410B5'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1151,14 +1151,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=53（有效位 [53:0]，宽 54），rd2=0x7FFFFFFFFFFFFFFF → rd1=54'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410B6'
+    word: '0x479410B6'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1172,14 +1172,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=54（有效位 [54:0]，宽 55），rd2=0x7FFFFFFFFFFFFFFF → rd1=55'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410B7'
+    word: '0x479410B7'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1193,14 +1193,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=55（有效位 [55:0]，宽 56），rd2=0x7FFFFFFFFFFFFFFF → rd1=56'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410B8'
+    word: '0x479410B8'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1214,14 +1214,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=56（有效位 [56:0]，宽 57），rd2=0x7FFFFFFFFFFFFFFF → rd1=57'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410B9'
+    word: '0x479410B9'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1235,14 +1235,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=57（有效位 [57:0]，宽 58），rd2=0x7FFFFFFFFFFFFFFF → rd1=58'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410BA'
+    word: '0x479410BA'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1256,14 +1256,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=58（有效位 [58:0]，宽 59），rd2=0x7FFFFFFFFFFFFFFF → rd1=59'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410BB'
+    word: '0x479410BB'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1277,14 +1277,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=59（有效位 [59:0]，宽 60），rd2=0x7FFFFFFFFFFFFFFF → rd1=60'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410BC'
+    word: '0x479410BC'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1298,14 +1298,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=60（有效位 [60:0]，宽 61），rd2=0x7FFFFFFFFFFFFFFF → rd1=61'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410BD'
+    word: '0x479410BD'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1319,14 +1319,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=61（有效位 [61:0]，宽 62），rd2=0x7FFFFFFFFFFFFFFF → rd1=62'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410BE'
+    word: '0x479410BE'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1340,14 +1340,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=62（有效位 [62:0]，宽 63），rd2=0x7FFFFFFFFFFFFFFF → rd1=63'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407410BF'
+    word: '0x479410BF'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -1361,14 +1361,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 'ctpop: hd=63（有效位 [63:0]，宽 64），rd2=0x7FFFFFFFFFFFFFFF → rd1=63'
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741080'
+    word: '0x47941080'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1382,14 +1382,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=0：rdHC[0:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741081'
+    word: '0x47941081'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1403,14 +1403,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=1：rdHC[1:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741082'
+    word: '0x47941082'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1424,14 +1424,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=2：rdHC[2:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741083'
+    word: '0x47941083'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1445,14 +1445,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=3：rdHC[3:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741084'
+    word: '0x47941084'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1466,14 +1466,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=4：rdHC[4:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741085'
+    word: '0x47941085'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1487,14 +1487,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=5：rdHC[5:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741086'
+    word: '0x47941086'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1508,14 +1508,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=6：rdHC[6:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741087'
+    word: '0x47941087'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1529,14 +1529,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=7：rdHC[7:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741088'
+    word: '0x47941088'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1550,14 +1550,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=8：rdHC[8:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741089'
+    word: '0x47941089'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1571,14 +1571,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=9：rdHC[9:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4074108A'
+    word: '0x4794108A'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1592,14 +1592,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=10：rdHC[10:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4074108B'
+    word: '0x4794108B'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1613,14 +1613,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=11：rdHC[11:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4074108C'
+    word: '0x4794108C'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1634,14 +1634,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=12：rdHC[12:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4074108D'
+    word: '0x4794108D'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1655,14 +1655,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=13：rdHC[13:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4074108E'
+    word: '0x4794108E'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1676,14 +1676,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=14：rdHC[14:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4074108F'
+    word: '0x4794108F'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1697,14 +1697,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=15：rdHC[15:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741090'
+    word: '0x47941090'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1718,14 +1718,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=16：rdHC[16:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741091'
+    word: '0x47941091'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1739,14 +1739,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=17：rdHC[17:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741092'
+    word: '0x47941092'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1760,14 +1760,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=18：rdHC[18:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741093'
+    word: '0x47941093'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1781,14 +1781,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=19：rdHC[19:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741094'
+    word: '0x47941094'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1802,14 +1802,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=20：rdHC[20:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741095'
+    word: '0x47941095'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1823,14 +1823,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=21：rdHC[21:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741096'
+    word: '0x47941096'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1844,14 +1844,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=22：rdHC[22:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741097'
+    word: '0x47941097'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1865,14 +1865,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=23：rdHC[23:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741098'
+    word: '0x47941098'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1886,14 +1886,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=24：rdHC[24:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741099'
+    word: '0x47941099'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1907,14 +1907,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=25：rdHC[25:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4074109A'
+    word: '0x4794109A'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1928,14 +1928,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=26：rdHC[26:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4074109B'
+    word: '0x4794109B'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1949,14 +1949,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=27：rdHC[27:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4074109C'
+    word: '0x4794109C'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1970,14 +1970,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=28：rdHC[28:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4074109D'
+    word: '0x4794109D'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -1991,14 +1991,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=29：rdHC[29:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4074109E'
+    word: '0x4794109E'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2012,14 +2012,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=30：rdHC[30:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4074109F'
+    word: '0x4794109F'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2033,14 +2033,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=31：rdHC[31:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410A0'
+    word: '0x479410A0'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2054,14 +2054,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=32：rdHC[32:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410A1'
+    word: '0x479410A1'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2075,14 +2075,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=33：rdHC[33:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410A2'
+    word: '0x479410A2'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2096,14 +2096,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=34：rdHC[34:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410A3'
+    word: '0x479410A3'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2117,14 +2117,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=35：rdHC[35:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410A4'
+    word: '0x479410A4'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2138,14 +2138,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=36：rdHC[36:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410A5'
+    word: '0x479410A5'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2159,14 +2159,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=37：rdHC[37:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410A6'
+    word: '0x479410A6'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2180,14 +2180,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=38：rdHC[38:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410A7'
+    word: '0x479410A7'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2201,14 +2201,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=39：rdHC[39:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410A8'
+    word: '0x479410A8'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2222,14 +2222,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=40：rdHC[40:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410A9'
+    word: '0x479410A9'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2243,14 +2243,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=41：rdHC[41:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410AA'
+    word: '0x479410AA'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2264,14 +2264,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=42：rdHC[42:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410AB'
+    word: '0x479410AB'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2285,14 +2285,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=43：rdHC[43:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410AC'
+    word: '0x479410AC'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2306,14 +2306,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=44：rdHC[44:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410AD'
+    word: '0x479410AD'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2327,14 +2327,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=45：rdHC[45:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410AE'
+    word: '0x479410AE'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2348,14 +2348,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=46：rdHC[46:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410AF'
+    word: '0x479410AF'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2369,14 +2369,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=47：rdHC[47:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410B0'
+    word: '0x479410B0'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2390,14 +2390,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=48：rdHC[48:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410B1'
+    word: '0x479410B1'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2411,14 +2411,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=49：rdHC[49:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410B2'
+    word: '0x479410B2'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2432,14 +2432,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=50：rdHC[50:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410B3'
+    word: '0x479410B3'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2453,14 +2453,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=51：rdHC[51:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410B4'
+    word: '0x479410B4'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2474,14 +2474,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=52：rdHC[52:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410B5'
+    word: '0x479410B5'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2495,14 +2495,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=53：rdHC[53:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410B6'
+    word: '0x479410B6'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2516,14 +2516,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=54：rdHC[54:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410B7'
+    word: '0x479410B7'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2537,14 +2537,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=55：rdHC[55:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410B8'
+    word: '0x479410B8'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2558,14 +2558,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=56：rdHC[56:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410B9'
+    word: '0x479410B9'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2579,14 +2579,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=57：rdHC[57:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410BA'
+    word: '0x479410BA'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2600,14 +2600,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=58：rdHC[58:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410BB'
+    word: '0x479410BB'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2621,14 +2621,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=59：rdHC[59:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410BC'
+    word: '0x479410BC'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2642,14 +2642,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=60：rdHC[60:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410BD'
+    word: '0x479410BD'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2663,14 +2663,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=61：rdHC[61:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410BE'
+    word: '0x479410BE'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2684,14 +2684,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=62：rdHC[62:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410BF'
+    word: '0x479410BF'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2705,14 +2705,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 定值 ctpop hd=63：rdHC[63:0] 全 0 ⇒ 结果 0（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741087'
+    word: '0x47941087'
   input_state:
     rd:
       rd2: '0xFFFFFFFFFFFFFFFF'
@@ -2726,14 +2726,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 掩码 %s hd=7：源 bit63..8 全 1 但有效位 rdHC[7:0]=0xFF ⇒ 与 hd 以上无关
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741080'
+    word: '0x47941080'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -2747,14 +2747,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 边界 ctpop hd=0（宽 1）：rdHC[0]=0 ⇒ 结果 0
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40741080'
+    word: '0x47941080'
   input_state:
     rd:
       rd2: '0x0000000000000001'
@@ -2768,14 +2768,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 边界 ctpop hd=0（宽 1）：rdHC[0]=1 ⇒ 结果 1
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410BF'
+    word: '0x479410BF'
   input_state:
     rd:
       rd2: '0xFFFFFFFFFFFFFFFF'
@@ -2789,14 +2789,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 边界 %s hd=63：源全 1 ⇒ ctlz=cttz=0、ctpop=64
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410BF'
+    word: '0x479410BF'
   input_state:
     rd:
       rd2: '0x0000000000000001'
@@ -2810,14 +2810,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 位编号 %s hd=63：仅 bit0=1 ⇒ ctlz 数到 63、cttz=0、ctpop=1
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407410BF'
+    word: '0x479410BF'
   input_state:
     rd:
       rd2: '0x8000000000000000'
@@ -2831,14 +2831,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 位编号 %s hd=63：仅 bit63=1 ⇒ ctlz=0、cttz=63、ctpop=1
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4074101F'
+    word: '0x4794101F'
   input_state: {}
   expected_state:
     rd:
@@ -2850,14 +2850,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 边界 ctpop hd=31：rdhc=rd0（源读出 0，合法）⇒ 结果 0；不得触发 ILLI
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407430CF'
+    word: '0x479430CF'
   input_state:
     rd:
       rd3: '0x000000000000FFFF'
@@ -2871,42 +2871,42 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctpop'
   notes: 边界 ctpop hd=15：rdhb == rdhc == rd3（原地运算，允许）
 - mnemonic: ctpop
   id: ctpop_orri_rd
   format: orri
   class: legality
   encoding:
-    word: '0x407400BF'
+    word: '0x479400BF'
   input_state: {}
   expected_state: null
   expected_pc: null
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.4; legality_rules.yaml :: dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa §6.4.4; legality_rules.yaml :: dst_rd0'
   notes: 'legality ctpop: rdhb=rd0（目的）⇒ ILLI（dst_rd0）；hd=63 本身合法'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: encoding
   encoding:
-    word: '0x407810BF'
+    word: '0x479810BF'
   input_state: {}
   expected_state: null
   expected_pc: null
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'encoding: word 与 opcodes.yaml mask/value 一致；rdhb=rd1（非 rd0）、rdhc=rd2、hd=63（合法：hd ∈ 0..63 全部合法）'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781080'
+    word: '0x47981080'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -2920,14 +2920,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=0（有效位 [0:0]，宽 1），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781081'
+    word: '0x47981081'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -2941,14 +2941,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=1（有效位 [1:0]，宽 2），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781082'
+    word: '0x47981082'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -2962,14 +2962,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=2（有效位 [2:0]，宽 3），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781083'
+    word: '0x47981083'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -2983,14 +2983,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=3（有效位 [3:0]，宽 4），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781084'
+    word: '0x47981084'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3004,14 +3004,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=4（有效位 [4:0]，宽 5），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781085'
+    word: '0x47981085'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3025,14 +3025,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=5（有效位 [5:0]，宽 6），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781086'
+    word: '0x47981086'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3046,14 +3046,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=6（有效位 [6:0]，宽 7），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781087'
+    word: '0x47981087'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3067,14 +3067,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=7（有效位 [7:0]，宽 8），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781088'
+    word: '0x47981088'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3088,14 +3088,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=8（有效位 [8:0]，宽 9），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781089'
+    word: '0x47981089'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3109,14 +3109,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=9（有效位 [9:0]，宽 10），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4078108A'
+    word: '0x4798108A'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3130,14 +3130,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=10（有效位 [10:0]，宽 11），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4078108B'
+    word: '0x4798108B'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3151,14 +3151,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=11（有效位 [11:0]，宽 12），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4078108C'
+    word: '0x4798108C'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3172,14 +3172,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=12（有效位 [12:0]，宽 13），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4078108D'
+    word: '0x4798108D'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3193,14 +3193,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=13（有效位 [13:0]，宽 14），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4078108E'
+    word: '0x4798108E'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3214,14 +3214,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=14（有效位 [14:0]，宽 15），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4078108F'
+    word: '0x4798108F'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3235,14 +3235,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=15（有效位 [15:0]，宽 16），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781090'
+    word: '0x47981090'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3256,14 +3256,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=16（有效位 [16:0]，宽 17），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781091'
+    word: '0x47981091'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3277,14 +3277,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=17（有效位 [17:0]，宽 18），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781092'
+    word: '0x47981092'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3298,14 +3298,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=18（有效位 [18:0]，宽 19），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781093'
+    word: '0x47981093'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3319,14 +3319,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=19（有效位 [19:0]，宽 20），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781094'
+    word: '0x47981094'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3340,14 +3340,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=20（有效位 [20:0]，宽 21），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781095'
+    word: '0x47981095'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3361,14 +3361,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=21（有效位 [21:0]，宽 22），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781096'
+    word: '0x47981096'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3382,14 +3382,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=22（有效位 [22:0]，宽 23），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781097'
+    word: '0x47981097'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3403,14 +3403,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=23（有效位 [23:0]，宽 24），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781098'
+    word: '0x47981098'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3424,14 +3424,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=24（有效位 [24:0]，宽 25），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x40781099'
+    word: '0x47981099'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3445,14 +3445,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=25（有效位 [25:0]，宽 26），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4078109A'
+    word: '0x4798109A'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3466,14 +3466,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=26（有效位 [26:0]，宽 27），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4078109B'
+    word: '0x4798109B'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3487,14 +3487,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=27（有效位 [27:0]，宽 28），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4078109C'
+    word: '0x4798109C'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3508,14 +3508,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=28（有效位 [28:0]，宽 29），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4078109D'
+    word: '0x4798109D'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3529,14 +3529,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=29（有效位 [29:0]，宽 30），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4078109E'
+    word: '0x4798109E'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3550,14 +3550,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=30（有效位 [30:0]，宽 31），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x4078109F'
+    word: '0x4798109F'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3571,14 +3571,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=31（有效位 [31:0]，宽 32），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810A0'
+    word: '0x479810A0'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3592,14 +3592,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=32（有效位 [32:0]，宽 33），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810A1'
+    word: '0x479810A1'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3613,14 +3613,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=33（有效位 [33:0]，宽 34），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810A2'
+    word: '0x479810A2'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3634,14 +3634,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=34（有效位 [34:0]，宽 35），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810A3'
+    word: '0x479810A3'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3655,14 +3655,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=35（有效位 [35:0]，宽 36），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810A4'
+    word: '0x479810A4'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3676,14 +3676,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=36（有效位 [36:0]，宽 37），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810A5'
+    word: '0x479810A5'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3697,14 +3697,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=37（有效位 [37:0]，宽 38），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810A6'
+    word: '0x479810A6'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3718,14 +3718,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=38（有效位 [38:0]，宽 39），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810A7'
+    word: '0x479810A7'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3739,14 +3739,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=39（有效位 [39:0]，宽 40），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810A8'
+    word: '0x479810A8'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3760,14 +3760,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=40（有效位 [40:0]，宽 41），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810A9'
+    word: '0x479810A9'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3781,14 +3781,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=41（有效位 [41:0]，宽 42），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810AA'
+    word: '0x479810AA'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3802,14 +3802,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=42（有效位 [42:0]，宽 43），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810AB'
+    word: '0x479810AB'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3823,14 +3823,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=43（有效位 [43:0]，宽 44），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810AC'
+    word: '0x479810AC'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3844,14 +3844,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=44（有效位 [44:0]，宽 45），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810AD'
+    word: '0x479810AD'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3865,14 +3865,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=45（有效位 [45:0]，宽 46），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810AE'
+    word: '0x479810AE'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3886,14 +3886,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=46（有效位 [46:0]，宽 47），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810AF'
+    word: '0x479810AF'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3907,14 +3907,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=47（有效位 [47:0]，宽 48），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810B0'
+    word: '0x479810B0'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3928,14 +3928,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=48（有效位 [48:0]，宽 49），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810B1'
+    word: '0x479810B1'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3949,14 +3949,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=49（有效位 [49:0]，宽 50），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810B2'
+    word: '0x479810B2'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3970,14 +3970,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=50（有效位 [50:0]，宽 51），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810B3'
+    word: '0x479810B3'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -3991,14 +3991,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=51（有效位 [51:0]，宽 52），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810B4'
+    word: '0x479810B4'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -4012,14 +4012,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=52（有效位 [52:0]，宽 53），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810B5'
+    word: '0x479810B5'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -4033,14 +4033,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=53（有效位 [53:0]，宽 54），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810B6'
+    word: '0x479810B6'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -4054,14 +4054,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=54（有效位 [54:0]，宽 55），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810B7'
+    word: '0x479810B7'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -4075,14 +4075,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=55（有效位 [55:0]，宽 56），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810B8'
+    word: '0x479810B8'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -4096,14 +4096,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=56（有效位 [56:0]，宽 57），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810B9'
+    word: '0x479810B9'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -4117,14 +4117,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=57（有效位 [57:0]，宽 58），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810BA'
+    word: '0x479810BA'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -4138,14 +4138,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=58（有效位 [58:0]，宽 59），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810BB'
+    word: '0x479810BB'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -4159,14 +4159,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=59（有效位 [59:0]，宽 60），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810BC'
+    word: '0x479810BC'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -4180,14 +4180,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=60（有效位 [60:0]，宽 61），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810BD'
+    word: '0x479810BD'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -4201,14 +4201,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=61（有效位 [61:0]，宽 62），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810BE'
+    word: '0x479810BE'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -4222,14 +4222,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=62（有效位 [62:0]，宽 63），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407810BF'
+    word: '0x479810BF'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -4243,14 +4243,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 'ctlz: hd=63（有效位 [63:0]，宽 64），rd2=0x7FFFFFFFFFFFFFFF → rd1=1'
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781080'
+    word: '0x47981080'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4264,14 +4264,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=0：rdHC[0:0] 全 0 ⇒ 结果 1（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781081'
+    word: '0x47981081'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4285,14 +4285,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=1：rdHC[1:0] 全 0 ⇒ 结果 2（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781082'
+    word: '0x47981082'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4306,14 +4306,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=2：rdHC[2:0] 全 0 ⇒ 结果 3（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781083'
+    word: '0x47981083'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4327,14 +4327,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=3：rdHC[3:0] 全 0 ⇒ 结果 4（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781084'
+    word: '0x47981084'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4348,14 +4348,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=4：rdHC[4:0] 全 0 ⇒ 结果 5（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781085'
+    word: '0x47981085'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4369,14 +4369,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=5：rdHC[5:0] 全 0 ⇒ 结果 6（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781086'
+    word: '0x47981086'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4390,14 +4390,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=6：rdHC[6:0] 全 0 ⇒ 结果 7（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781087'
+    word: '0x47981087'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4411,14 +4411,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=7：rdHC[7:0] 全 0 ⇒ 结果 8（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781088'
+    word: '0x47981088'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4432,14 +4432,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=8：rdHC[8:0] 全 0 ⇒ 结果 9（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781089'
+    word: '0x47981089'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4453,14 +4453,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=9：rdHC[9:0] 全 0 ⇒ 结果 10（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4078108A'
+    word: '0x4798108A'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4474,14 +4474,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=10：rdHC[10:0] 全 0 ⇒ 结果 11（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4078108B'
+    word: '0x4798108B'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4495,14 +4495,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=11：rdHC[11:0] 全 0 ⇒ 结果 12（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4078108C'
+    word: '0x4798108C'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4516,14 +4516,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=12：rdHC[12:0] 全 0 ⇒ 结果 13（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4078108D'
+    word: '0x4798108D'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4537,14 +4537,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=13：rdHC[13:0] 全 0 ⇒ 结果 14（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4078108E'
+    word: '0x4798108E'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4558,14 +4558,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=14：rdHC[14:0] 全 0 ⇒ 结果 15（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4078108F'
+    word: '0x4798108F'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4579,14 +4579,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=15：rdHC[15:0] 全 0 ⇒ 结果 16（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781090'
+    word: '0x47981090'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4600,14 +4600,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=16：rdHC[16:0] 全 0 ⇒ 结果 17（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781091'
+    word: '0x47981091'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4621,14 +4621,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=17：rdHC[17:0] 全 0 ⇒ 结果 18（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781092'
+    word: '0x47981092'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4642,14 +4642,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=18：rdHC[18:0] 全 0 ⇒ 结果 19（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781093'
+    word: '0x47981093'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4663,14 +4663,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=19：rdHC[19:0] 全 0 ⇒ 结果 20（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781094'
+    word: '0x47981094'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4684,14 +4684,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=20：rdHC[20:0] 全 0 ⇒ 结果 21（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781095'
+    word: '0x47981095'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4705,14 +4705,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=21：rdHC[21:0] 全 0 ⇒ 结果 22（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781096'
+    word: '0x47981096'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4726,14 +4726,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=22：rdHC[22:0] 全 0 ⇒ 结果 23（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781097'
+    word: '0x47981097'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4747,14 +4747,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=23：rdHC[23:0] 全 0 ⇒ 结果 24（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781098'
+    word: '0x47981098'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4768,14 +4768,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=24：rdHC[24:0] 全 0 ⇒ 结果 25（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781099'
+    word: '0x47981099'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4789,14 +4789,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=25：rdHC[25:0] 全 0 ⇒ 结果 26（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4078109A'
+    word: '0x4798109A'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4810,14 +4810,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=26：rdHC[26:0] 全 0 ⇒ 结果 27（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4078109B'
+    word: '0x4798109B'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4831,14 +4831,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=27：rdHC[27:0] 全 0 ⇒ 结果 28（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4078109C'
+    word: '0x4798109C'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4852,14 +4852,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=28：rdHC[28:0] 全 0 ⇒ 结果 29（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4078109D'
+    word: '0x4798109D'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4873,14 +4873,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=29：rdHC[29:0] 全 0 ⇒ 结果 30（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4078109E'
+    word: '0x4798109E'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4894,14 +4894,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=30：rdHC[30:0] 全 0 ⇒ 结果 31（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4078109F'
+    word: '0x4798109F'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4915,14 +4915,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=31：rdHC[31:0] 全 0 ⇒ 结果 32（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810A0'
+    word: '0x479810A0'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4936,14 +4936,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=32：rdHC[32:0] 全 0 ⇒ 结果 33（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810A1'
+    word: '0x479810A1'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4957,14 +4957,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=33：rdHC[33:0] 全 0 ⇒ 结果 34（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810A2'
+    word: '0x479810A2'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4978,14 +4978,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=34：rdHC[34:0] 全 0 ⇒ 结果 35（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810A3'
+    word: '0x479810A3'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -4999,14 +4999,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=35：rdHC[35:0] 全 0 ⇒ 结果 36（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810A4'
+    word: '0x479810A4'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5020,14 +5020,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=36：rdHC[36:0] 全 0 ⇒ 结果 37（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810A5'
+    word: '0x479810A5'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5041,14 +5041,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=37：rdHC[37:0] 全 0 ⇒ 结果 38（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810A6'
+    word: '0x479810A6'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5062,14 +5062,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=38：rdHC[38:0] 全 0 ⇒ 结果 39（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810A7'
+    word: '0x479810A7'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5083,14 +5083,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=39：rdHC[39:0] 全 0 ⇒ 结果 40（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810A8'
+    word: '0x479810A8'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5104,14 +5104,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=40：rdHC[40:0] 全 0 ⇒ 结果 41（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810A9'
+    word: '0x479810A9'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5125,14 +5125,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=41：rdHC[41:0] 全 0 ⇒ 结果 42（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810AA'
+    word: '0x479810AA'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5146,14 +5146,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=42：rdHC[42:0] 全 0 ⇒ 结果 43（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810AB'
+    word: '0x479810AB'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5167,14 +5167,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=43：rdHC[43:0] 全 0 ⇒ 结果 44（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810AC'
+    word: '0x479810AC'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5188,14 +5188,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=44：rdHC[44:0] 全 0 ⇒ 结果 45（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810AD'
+    word: '0x479810AD'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5209,14 +5209,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=45：rdHC[45:0] 全 0 ⇒ 结果 46（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810AE'
+    word: '0x479810AE'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5230,14 +5230,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=46：rdHC[46:0] 全 0 ⇒ 结果 47（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810AF'
+    word: '0x479810AF'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5251,14 +5251,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=47：rdHC[47:0] 全 0 ⇒ 结果 48（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810B0'
+    word: '0x479810B0'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5272,14 +5272,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=48：rdHC[48:0] 全 0 ⇒ 结果 49（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810B1'
+    word: '0x479810B1'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5293,14 +5293,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=49：rdHC[49:0] 全 0 ⇒ 结果 50（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810B2'
+    word: '0x479810B2'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5314,14 +5314,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=50：rdHC[50:0] 全 0 ⇒ 结果 51（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810B3'
+    word: '0x479810B3'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5335,14 +5335,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=51：rdHC[51:0] 全 0 ⇒ 结果 52（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810B4'
+    word: '0x479810B4'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5356,14 +5356,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=52：rdHC[52:0] 全 0 ⇒ 结果 53（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810B5'
+    word: '0x479810B5'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5377,14 +5377,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=53：rdHC[53:0] 全 0 ⇒ 结果 54（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810B6'
+    word: '0x479810B6'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5398,14 +5398,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=54：rdHC[54:0] 全 0 ⇒ 结果 55（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810B7'
+    word: '0x479810B7'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5419,14 +5419,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=55：rdHC[55:0] 全 0 ⇒ 结果 56（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810B8'
+    word: '0x479810B8'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5440,14 +5440,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=56：rdHC[56:0] 全 0 ⇒ 结果 57（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810B9'
+    word: '0x479810B9'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5461,14 +5461,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=57：rdHC[57:0] 全 0 ⇒ 结果 58（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810BA'
+    word: '0x479810BA'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5482,14 +5482,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=58：rdHC[58:0] 全 0 ⇒ 结果 59（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810BB'
+    word: '0x479810BB'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5503,14 +5503,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=59：rdHC[59:0] 全 0 ⇒ 结果 60（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810BC'
+    word: '0x479810BC'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5524,14 +5524,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=60：rdHC[60:0] 全 0 ⇒ 结果 61（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810BD'
+    word: '0x479810BD'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5545,14 +5545,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=61：rdHC[61:0] 全 0 ⇒ 结果 62（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810BE'
+    word: '0x479810BE'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5566,14 +5566,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=62：rdHC[62:0] 全 0 ⇒ 结果 63（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810BF'
+    word: '0x479810BF'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5587,14 +5587,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 定值 ctlz hd=63：rdHC[63:0] 全 0 ⇒ 结果 64（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781087'
+    word: '0x47981087'
   input_state:
     rd:
       rd2: '0xFFFFFFFFFFFFFFFF'
@@ -5608,14 +5608,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 掩码 %s hd=7：源 bit63..8 全 1 但有效位 rdHC[7:0]=0xFF ⇒ 与 hd 以上无关
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781080'
+    word: '0x47981080'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -5629,14 +5629,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 边界 ctlz hd=0（宽 1）：rdHC[0]=0 ⇒ 结果 1
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x40781080'
+    word: '0x47981080'
   input_state:
     rd:
       rd2: '0x0000000000000001'
@@ -5650,14 +5650,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 边界 ctlz hd=0（宽 1）：rdHC[0]=1 ⇒ 结果 0
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810BF'
+    word: '0x479810BF'
   input_state:
     rd:
       rd2: '0xFFFFFFFFFFFFFFFF'
@@ -5671,14 +5671,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 边界 %s hd=63：源全 1 ⇒ ctlz=cttz=0、ctpop=64
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810BF'
+    word: '0x479810BF'
   input_state:
     rd:
       rd2: '0x0000000000000001'
@@ -5692,14 +5692,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 位编号 %s hd=63：仅 bit0=1 ⇒ ctlz 数到 63、cttz=0、ctpop=1
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407810BF'
+    word: '0x479810BF'
   input_state:
     rd:
       rd2: '0x8000000000000000'
@@ -5713,14 +5713,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 位编号 %s hd=63：仅 bit63=1 ⇒ ctlz=0、cttz=63、ctpop=1
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x4078101F'
+    word: '0x4798101F'
   input_state: {}
   expected_state:
     rd:
@@ -5732,14 +5732,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 边界 ctlz hd=31：rdhc=rd0（源读出 0，合法）⇒ 结果 32；不得触发 ILLI
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407830CF'
+    word: '0x479830CF'
   input_state:
     rd:
       rd3: '0x000000000000FFFF'
@@ -5753,42 +5753,42 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: ctlz'
   notes: 边界 ctlz hd=15：rdhb == rdhc == rd3（原地运算，允许）
 - mnemonic: ctlz
   id: ctlz_orri_rd
   format: orri
   class: legality
   encoding:
-    word: '0x407800BF'
+    word: '0x479800BF'
   input_state: {}
   expected_state: null
   expected_pc: null
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.4; legality_rules.yaml :: dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa §6.4.4; legality_rules.yaml :: dst_rd0'
   notes: 'legality ctlz: rdhb=rd0（目的）⇒ ILLI（dst_rd0）；hd=63 本身合法'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: encoding
   encoding:
-    word: '0x407C10BF'
+    word: '0x479C10BF'
   input_state: {}
   expected_state: null
   expected_pc: null
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'encoding: word 与 opcodes.yaml mask/value 一致；rdhb=rd1（非 rd0）、rdhc=rd2、hd=63（合法：hd ∈ 0..63 全部合法）'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1080'
+    word: '0x479C1080'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -5802,14 +5802,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=0（有效位 [0:0]，宽 1），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1081'
+    word: '0x479C1081'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -5823,14 +5823,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=1（有效位 [1:0]，宽 2），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1082'
+    word: '0x479C1082'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -5844,14 +5844,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=2（有效位 [2:0]，宽 3），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1083'
+    word: '0x479C1083'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -5865,14 +5865,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=3（有效位 [3:0]，宽 4），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1084'
+    word: '0x479C1084'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -5886,14 +5886,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=4（有效位 [4:0]，宽 5），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1085'
+    word: '0x479C1085'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -5907,14 +5907,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=5（有效位 [5:0]，宽 6），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1086'
+    word: '0x479C1086'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -5928,14 +5928,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=6（有效位 [6:0]，宽 7），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1087'
+    word: '0x479C1087'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -5949,14 +5949,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=7（有效位 [7:0]，宽 8），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1088'
+    word: '0x479C1088'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -5970,14 +5970,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=8（有效位 [8:0]，宽 9），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1089'
+    word: '0x479C1089'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -5991,14 +5991,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=9（有效位 [9:0]，宽 10），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C108A'
+    word: '0x479C108A'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6012,14 +6012,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=10（有效位 [10:0]，宽 11），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C108B'
+    word: '0x479C108B'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6033,14 +6033,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=11（有效位 [11:0]，宽 12），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C108C'
+    word: '0x479C108C'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6054,14 +6054,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=12（有效位 [12:0]，宽 13），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C108D'
+    word: '0x479C108D'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6075,14 +6075,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=13（有效位 [13:0]，宽 14），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C108E'
+    word: '0x479C108E'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6096,14 +6096,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=14（有效位 [14:0]，宽 15），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C108F'
+    word: '0x479C108F'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6117,14 +6117,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=15（有效位 [15:0]，宽 16），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1090'
+    word: '0x479C1090'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6138,14 +6138,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=16（有效位 [16:0]，宽 17），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1091'
+    word: '0x479C1091'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6159,14 +6159,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=17（有效位 [17:0]，宽 18），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1092'
+    word: '0x479C1092'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6180,14 +6180,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=18（有效位 [18:0]，宽 19），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1093'
+    word: '0x479C1093'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6201,14 +6201,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=19（有效位 [19:0]，宽 20），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1094'
+    word: '0x479C1094'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6222,14 +6222,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=20（有效位 [20:0]，宽 21），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1095'
+    word: '0x479C1095'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6243,14 +6243,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=21（有效位 [21:0]，宽 22），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1096'
+    word: '0x479C1096'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6264,14 +6264,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=22（有效位 [22:0]，宽 23），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1097'
+    word: '0x479C1097'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6285,14 +6285,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=23（有效位 [23:0]，宽 24），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1098'
+    word: '0x479C1098'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6306,14 +6306,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=24（有效位 [24:0]，宽 25），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C1099'
+    word: '0x479C1099'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6327,14 +6327,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=25（有效位 [25:0]，宽 26），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C109A'
+    word: '0x479C109A'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6348,14 +6348,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=26（有效位 [26:0]，宽 27），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C109B'
+    word: '0x479C109B'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6369,14 +6369,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=27（有效位 [27:0]，宽 28），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C109C'
+    word: '0x479C109C'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6390,14 +6390,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=28（有效位 [28:0]，宽 29），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C109D'
+    word: '0x479C109D'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6411,14 +6411,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=29（有效位 [29:0]，宽 30），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C109E'
+    word: '0x479C109E'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6432,14 +6432,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=30（有效位 [30:0]，宽 31），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C109F'
+    word: '0x479C109F'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6453,14 +6453,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=31（有效位 [31:0]，宽 32），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10A0'
+    word: '0x479C10A0'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6474,14 +6474,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=32（有效位 [32:0]，宽 33），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10A1'
+    word: '0x479C10A1'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6495,14 +6495,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=33（有效位 [33:0]，宽 34），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10A2'
+    word: '0x479C10A2'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6516,14 +6516,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=34（有效位 [34:0]，宽 35），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10A3'
+    word: '0x479C10A3'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6537,14 +6537,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=35（有效位 [35:0]，宽 36），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10A4'
+    word: '0x479C10A4'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6558,14 +6558,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=36（有效位 [36:0]，宽 37），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10A5'
+    word: '0x479C10A5'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6579,14 +6579,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=37（有效位 [37:0]，宽 38），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10A6'
+    word: '0x479C10A6'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6600,14 +6600,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=38（有效位 [38:0]，宽 39），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10A7'
+    word: '0x479C10A7'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6621,14 +6621,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=39（有效位 [39:0]，宽 40），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10A8'
+    word: '0x479C10A8'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6642,14 +6642,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=40（有效位 [40:0]，宽 41），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10A9'
+    word: '0x479C10A9'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6663,14 +6663,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=41（有效位 [41:0]，宽 42），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10AA'
+    word: '0x479C10AA'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6684,14 +6684,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=42（有效位 [42:0]，宽 43），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10AB'
+    word: '0x479C10AB'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6705,14 +6705,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=43（有效位 [43:0]，宽 44），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10AC'
+    word: '0x479C10AC'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6726,14 +6726,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=44（有效位 [44:0]，宽 45），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10AD'
+    word: '0x479C10AD'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6747,14 +6747,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=45（有效位 [45:0]，宽 46），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10AE'
+    word: '0x479C10AE'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6768,14 +6768,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=46（有效位 [46:0]，宽 47），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10AF'
+    word: '0x479C10AF'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6789,14 +6789,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=47（有效位 [47:0]，宽 48），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10B0'
+    word: '0x479C10B0'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6810,14 +6810,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=48（有效位 [48:0]，宽 49），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10B1'
+    word: '0x479C10B1'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6831,14 +6831,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=49（有效位 [49:0]，宽 50），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10B2'
+    word: '0x479C10B2'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6852,14 +6852,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=50（有效位 [50:0]，宽 51），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10B3'
+    word: '0x479C10B3'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6873,14 +6873,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=51（有效位 [51:0]，宽 52），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10B4'
+    word: '0x479C10B4'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6894,14 +6894,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=52（有效位 [52:0]，宽 53），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10B5'
+    word: '0x479C10B5'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6915,14 +6915,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=53（有效位 [53:0]，宽 54），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10B6'
+    word: '0x479C10B6'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6936,14 +6936,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=54（有效位 [54:0]，宽 55），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10B7'
+    word: '0x479C10B7'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6957,14 +6957,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=55（有效位 [55:0]，宽 56），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10B8'
+    word: '0x479C10B8'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6978,14 +6978,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=56（有效位 [56:0]，宽 57），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10B9'
+    word: '0x479C10B9'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -6999,14 +6999,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=57（有效位 [57:0]，宽 58），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10BA'
+    word: '0x479C10BA'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -7020,14 +7020,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=58（有效位 [58:0]，宽 59），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10BB'
+    word: '0x479C10BB'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -7041,14 +7041,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=59（有效位 [59:0]，宽 60），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10BC'
+    word: '0x479C10BC'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -7062,14 +7062,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=60（有效位 [60:0]，宽 61），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10BD'
+    word: '0x479C10BD'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -7083,14 +7083,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=61（有效位 [61:0]，宽 62），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10BE'
+    word: '0x479C10BE'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -7104,14 +7104,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=62（有效位 [62:0]，宽 63），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: semantic
   encoding:
-    word: '0x407C10BF'
+    word: '0x479C10BF'
   input_state:
     rd:
       rd2: '0x7FFFFFFFFFFFFFFF'
@@ -7125,14 +7125,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 'cttz: hd=63（有效位 [63:0]，宽 64），rd2=0x7FFFFFFFFFFFFFFF → rd1=0'
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1080'
+    word: '0x479C1080'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7146,14 +7146,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=0：rdHC[0:0] 全 0 ⇒ 结果 1（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1081'
+    word: '0x479C1081'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7167,14 +7167,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=1：rdHC[1:0] 全 0 ⇒ 结果 2（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1082'
+    word: '0x479C1082'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7188,14 +7188,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=2：rdHC[2:0] 全 0 ⇒ 结果 3（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1083'
+    word: '0x479C1083'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7209,14 +7209,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=3：rdHC[3:0] 全 0 ⇒ 结果 4（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1084'
+    word: '0x479C1084'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7230,14 +7230,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=4：rdHC[4:0] 全 0 ⇒ 结果 5（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1085'
+    word: '0x479C1085'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7251,14 +7251,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=5：rdHC[5:0] 全 0 ⇒ 结果 6（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1086'
+    word: '0x479C1086'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7272,14 +7272,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=6：rdHC[6:0] 全 0 ⇒ 结果 7（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1087'
+    word: '0x479C1087'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7293,14 +7293,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=7：rdHC[7:0] 全 0 ⇒ 结果 8（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1088'
+    word: '0x479C1088'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7314,14 +7314,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=8：rdHC[8:0] 全 0 ⇒ 结果 9（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1089'
+    word: '0x479C1089'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7335,14 +7335,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=9：rdHC[9:0] 全 0 ⇒ 结果 10（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C108A'
+    word: '0x479C108A'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7356,14 +7356,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=10：rdHC[10:0] 全 0 ⇒ 结果 11（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C108B'
+    word: '0x479C108B'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7377,14 +7377,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=11：rdHC[11:0] 全 0 ⇒ 结果 12（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C108C'
+    word: '0x479C108C'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7398,14 +7398,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=12：rdHC[12:0] 全 0 ⇒ 结果 13（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C108D'
+    word: '0x479C108D'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7419,14 +7419,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=13：rdHC[13:0] 全 0 ⇒ 结果 14（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C108E'
+    word: '0x479C108E'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7440,14 +7440,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=14：rdHC[14:0] 全 0 ⇒ 结果 15（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C108F'
+    word: '0x479C108F'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7461,14 +7461,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=15：rdHC[15:0] 全 0 ⇒ 结果 16（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1090'
+    word: '0x479C1090'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7482,14 +7482,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=16：rdHC[16:0] 全 0 ⇒ 结果 17（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1091'
+    word: '0x479C1091'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7503,14 +7503,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=17：rdHC[17:0] 全 0 ⇒ 结果 18（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1092'
+    word: '0x479C1092'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7524,14 +7524,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=18：rdHC[18:0] 全 0 ⇒ 结果 19（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1093'
+    word: '0x479C1093'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7545,14 +7545,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=19：rdHC[19:0] 全 0 ⇒ 结果 20（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1094'
+    word: '0x479C1094'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7566,14 +7566,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=20：rdHC[20:0] 全 0 ⇒ 结果 21（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1095'
+    word: '0x479C1095'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7587,14 +7587,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=21：rdHC[21:0] 全 0 ⇒ 结果 22（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1096'
+    word: '0x479C1096'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7608,14 +7608,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=22：rdHC[22:0] 全 0 ⇒ 结果 23（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1097'
+    word: '0x479C1097'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7629,14 +7629,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=23：rdHC[23:0] 全 0 ⇒ 结果 24（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1098'
+    word: '0x479C1098'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7650,14 +7650,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=24：rdHC[24:0] 全 0 ⇒ 结果 25（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1099'
+    word: '0x479C1099'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7671,14 +7671,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=25：rdHC[25:0] 全 0 ⇒ 结果 26（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C109A'
+    word: '0x479C109A'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7692,14 +7692,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=26：rdHC[26:0] 全 0 ⇒ 结果 27（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C109B'
+    word: '0x479C109B'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7713,14 +7713,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=27：rdHC[27:0] 全 0 ⇒ 结果 28（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C109C'
+    word: '0x479C109C'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7734,14 +7734,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=28：rdHC[28:0] 全 0 ⇒ 结果 29（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C109D'
+    word: '0x479C109D'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7755,14 +7755,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=29：rdHC[29:0] 全 0 ⇒ 结果 30（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C109E'
+    word: '0x479C109E'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7776,14 +7776,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=30：rdHC[30:0] 全 0 ⇒ 结果 31（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C109F'
+    word: '0x479C109F'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7797,14 +7797,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=31：rdHC[31:0] 全 0 ⇒ 结果 32（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10A0'
+    word: '0x479C10A0'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7818,14 +7818,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=32：rdHC[32:0] 全 0 ⇒ 结果 33（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10A1'
+    word: '0x479C10A1'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7839,14 +7839,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=33：rdHC[33:0] 全 0 ⇒ 结果 34（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10A2'
+    word: '0x479C10A2'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7860,14 +7860,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=34：rdHC[34:0] 全 0 ⇒ 结果 35（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10A3'
+    word: '0x479C10A3'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7881,14 +7881,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=35：rdHC[35:0] 全 0 ⇒ 结果 36（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10A4'
+    word: '0x479C10A4'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7902,14 +7902,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=36：rdHC[36:0] 全 0 ⇒ 结果 37（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10A5'
+    word: '0x479C10A5'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7923,14 +7923,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=37：rdHC[37:0] 全 0 ⇒ 结果 38（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10A6'
+    word: '0x479C10A6'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7944,14 +7944,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=38：rdHC[38:0] 全 0 ⇒ 结果 39（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10A7'
+    word: '0x479C10A7'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7965,14 +7965,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=39：rdHC[39:0] 全 0 ⇒ 结果 40（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10A8'
+    word: '0x479C10A8'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -7986,14 +7986,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=40：rdHC[40:0] 全 0 ⇒ 结果 41（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10A9'
+    word: '0x479C10A9'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8007,14 +8007,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=41：rdHC[41:0] 全 0 ⇒ 结果 42（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10AA'
+    word: '0x479C10AA'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8028,14 +8028,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=42：rdHC[42:0] 全 0 ⇒ 结果 43（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10AB'
+    word: '0x479C10AB'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8049,14 +8049,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=43：rdHC[43:0] 全 0 ⇒ 结果 44（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10AC'
+    word: '0x479C10AC'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8070,14 +8070,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=44：rdHC[44:0] 全 0 ⇒ 结果 45（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10AD'
+    word: '0x479C10AD'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8091,14 +8091,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=45：rdHC[45:0] 全 0 ⇒ 结果 46（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10AE'
+    word: '0x479C10AE'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8112,14 +8112,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=46：rdHC[46:0] 全 0 ⇒ 结果 47（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10AF'
+    word: '0x479C10AF'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8133,14 +8133,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=47：rdHC[47:0] 全 0 ⇒ 结果 48（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10B0'
+    word: '0x479C10B0'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8154,14 +8154,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=48：rdHC[48:0] 全 0 ⇒ 结果 49（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10B1'
+    word: '0x479C10B1'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8175,14 +8175,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=49：rdHC[49:0] 全 0 ⇒ 结果 50（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10B2'
+    word: '0x479C10B2'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8196,14 +8196,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=50：rdHC[50:0] 全 0 ⇒ 结果 51（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10B3'
+    word: '0x479C10B3'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8217,14 +8217,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=51：rdHC[51:0] 全 0 ⇒ 结果 52（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10B4'
+    word: '0x479C10B4'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8238,14 +8238,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=52：rdHC[52:0] 全 0 ⇒ 结果 53（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10B5'
+    word: '0x479C10B5'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8259,14 +8259,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=53：rdHC[53:0] 全 0 ⇒ 结果 54（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10B6'
+    word: '0x479C10B6'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8280,14 +8280,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=54：rdHC[54:0] 全 0 ⇒ 结果 55（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10B7'
+    word: '0x479C10B7'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8301,14 +8301,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=55：rdHC[55:0] 全 0 ⇒ 结果 56（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10B8'
+    word: '0x479C10B8'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8322,14 +8322,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=56：rdHC[56:0] 全 0 ⇒ 结果 57（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10B9'
+    word: '0x479C10B9'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8343,14 +8343,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=57：rdHC[57:0] 全 0 ⇒ 结果 58（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10BA'
+    word: '0x479C10BA'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8364,14 +8364,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=58：rdHC[58:0] 全 0 ⇒ 结果 59（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10BB'
+    word: '0x479C10BB'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8385,14 +8385,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=59：rdHC[59:0] 全 0 ⇒ 结果 60（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10BC'
+    word: '0x479C10BC'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8406,14 +8406,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=60：rdHC[60:0] 全 0 ⇒ 结果 61（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10BD'
+    word: '0x479C10BD'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8427,14 +8427,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=61：rdHC[61:0] 全 0 ⇒ 结果 62（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10BE'
+    word: '0x479C10BE'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8448,14 +8448,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=62：rdHC[62:0] 全 0 ⇒ 结果 63（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10BF'
+    word: '0x479C10BF'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8469,14 +8469,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 定值 cttz hd=63：rdHC[63:0] 全 0 ⇒ 结果 64（ctlz/cttz = hd+1，ctpop = 0）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1087'
+    word: '0x479C1087'
   input_state:
     rd:
       rd2: '0xFFFFFFFFFFFFFFFF'
@@ -8490,14 +8490,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 掩码 %s hd=7：源 bit63..8 全 1 但有效位 rdHC[7:0]=0xFF ⇒ 与 hd 以上无关
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1080'
+    word: '0x479C1080'
   input_state:
     rd:
       rd2: '0x0000000000000000'
@@ -8511,14 +8511,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 边界 cttz hd=0（宽 1）：rdHC[0]=0 ⇒ 结果 1
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C1080'
+    word: '0x479C1080'
   input_state:
     rd:
       rd2: '0x0000000000000001'
@@ -8532,14 +8532,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 边界 cttz hd=0（宽 1）：rdHC[0]=1 ⇒ 结果 0
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10BF'
+    word: '0x479C10BF'
   input_state:
     rd:
       rd2: '0xFFFFFFFFFFFFFFFF'
@@ -8553,14 +8553,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 边界 %s hd=63：源全 1 ⇒ ctlz=cttz=0、ctpop=64
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10BF'
+    word: '0x479C10BF'
   input_state:
     rd:
       rd2: '0x0000000000000001'
@@ -8574,14 +8574,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 位编号 %s hd=63：仅 bit0=1 ⇒ ctlz 数到 63、cttz=0、ctpop=1
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C10BF'
+    word: '0x479C10BF'
   input_state:
     rd:
       rd2: '0x8000000000000000'
@@ -8595,14 +8595,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 位编号 %s hd=63：仅 bit63=1 ⇒ ctlz=0、cttz=63、ctpop=1
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C101F'
+    word: '0x479C101F'
   input_state: {}
   expected_state:
     rd:
@@ -8614,14 +8614,14 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 边界 cttz hd=31：rdhc=rd0（源读出 0，合法）⇒ 结果 32；不得触发 ILLI
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: boundary
   encoding:
-    word: '0x407C30CF'
+    word: '0x479C30CF'
   input_state:
     rd:
       rd3: '0x000000000000FFFF'
@@ -8635,19 +8635,19 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
+  spec_cite: 'SimRISC-04: cttz'
   notes: 边界 cttz hd=15：rdhb == rdhc == rd3（原地运算，允许）
 - mnemonic: cttz
   id: cttz_orri_rd
   format: orri
   class: legality
   encoding:
-    word: '0x407C00BF'
+    word: '0x479C00BF'
   input_state: {}
   expected_state: null
   expected_pc: null
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.4; legality_rules.yaml :: dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa §6.4.4; legality_rules.yaml :: dst_rd0'
   notes: 'legality cttz: rdhb=rd0（目的）⇒ ILLI（dst_rd0）；hd=63 本身合法'

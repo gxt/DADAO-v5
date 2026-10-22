@@ -2,13 +2,13 @@
 # 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md
 # M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统
 # scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；
-# scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，
+# scope: excluded 为特权 cfx（cfxld/cfxst），尚未实现，
 #   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
 # scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份
-# scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b + ADR-0035 GF(2) 无进位乘 clmul.o），非 M1 身份
-# 共 264 条：M1 156 条 + scope fp 64 条 + scope excluded 27 条 + scope m3 1 条 + scope m8 7 条 + scope m9 9 条
-# 有 rule_refs 的指令：212 条
+# scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b + ADR-0035 GF(2) 无进位乘 clmul.o + fence/lr/sc 原子），非 M1 身份
+# 共 264 条：M1 156 条 + scope fp 64 条 + scope excluded 2 条 + scope m3 1 条 + scope m8 7 条 + scope m9 34 条
+# 有 rule_refs 的指令：213 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -2365,10 +2365,10 @@
 - id: fence_oiii_imm
   mnemonic: fence
   format: oiii
-  op: '0x77'
+  op: '0x47'
   ha: '0x20'
   mask: '0xFFFC0000'
-  value: '0x77800000'
+  value: '0x47800000'
   fields:
   - name: immu18
     bits: '[17:0]'
@@ -2380,16 +2380,16 @@
   - immu18[11:10] == 0
   - immu18[5:4] == 0
   spec_cite: 'SimRISC-11: fence'
-  scope: excluded
-  decode: ILLI
-  rule_refs: []
+  scope: m9
+  rule_refs:
+  - encode_sbz
 - id: swym_oiii_imm
   mnemonic: swym
   format: oiii
-  op: '0x77'
+  op: '0x47'
   ha: '0x22'
   mask: '0xFFFC0000'
-  value: '0x77880000'
+  value: '0x47880000'
   fields:
   - name: immu18
     bits: '[17:0]'
@@ -2403,10 +2403,10 @@
 - id: lr.o.nn_orrr_rd
   mnemonic: lr.o.nn
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x00'
   mask: '0xFFFC0000'
-  value: '0x77000000'
+  value: '0x47000000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2422,16 +2422,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: lr.o.nn'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: lr.t.nn_orrr_rd
   mnemonic: lr.t.nn
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x01'
   mask: '0xFFFC0000'
-  value: '0x77040000'
+  value: '0x47040000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2447,16 +2446,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: lr.t.nn'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: lr.w.nn_orrr_rd
   mnemonic: lr.w.nn
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x02'
   mask: '0xFFFC0000'
-  value: '0x77080000'
+  value: '0x47080000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2472,16 +2470,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: lr.w.nn'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: lr.b.nn_orrr_rd
   mnemonic: lr.b.nn
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x03'
   mask: '0xFFFC0000'
-  value: '0x770C0000'
+  value: '0x470C0000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2497,16 +2494,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: lr.b.nn'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: lr.o.an_orrr_rd
   mnemonic: lr.o.an
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x04'
   mask: '0xFFFC0000'
-  value: '0x77100000'
+  value: '0x47100000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2522,16 +2518,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: lr.o.an'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: lr.t.an_orrr_rd
   mnemonic: lr.t.an
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x05'
   mask: '0xFFFC0000'
-  value: '0x77140000'
+  value: '0x47140000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2547,16 +2542,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: lr.t.an'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: lr.w.an_orrr_rd
   mnemonic: lr.w.an
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x06'
   mask: '0xFFFC0000'
-  value: '0x77180000'
+  value: '0x47180000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2572,16 +2566,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: lr.w.an'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: lr.b.an_orrr_rd
   mnemonic: lr.b.an
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x07'
   mask: '0xFFFC0000'
-  value: '0x771C0000'
+  value: '0x471C0000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2597,16 +2590,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: lr.b.an'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: lr.o.ar_orrr_rd
   mnemonic: lr.o.ar
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x08'
   mask: '0xFFFC0000'
-  value: '0x77200000'
+  value: '0x47200000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2622,16 +2614,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: lr.o.ar'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: lr.t.ar_orrr_rd
   mnemonic: lr.t.ar
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x09'
   mask: '0xFFFC0000'
-  value: '0x77240000'
+  value: '0x47240000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2647,16 +2638,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: lr.t.ar'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: lr.w.ar_orrr_rd
   mnemonic: lr.w.ar
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x0A'
   mask: '0xFFFC0000'
-  value: '0x77280000'
+  value: '0x47280000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2672,16 +2662,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: lr.w.ar'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: lr.b.ar_orrr_rd
   mnemonic: lr.b.ar
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x0B'
   mask: '0xFFFC0000'
-  value: '0x772C0000'
+  value: '0x472C0000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2697,16 +2686,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: lr.b.ar'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: sc.o.nn_orrr_rd
   mnemonic: sc.o.nn
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x10'
   mask: '0xFFFC0000'
-  value: '0x77400000'
+  value: '0x47400000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2722,16 +2710,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: sc.o.nn'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: sc.t.nn_orrr_rd
   mnemonic: sc.t.nn
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x11'
   mask: '0xFFFC0000'
-  value: '0x77440000'
+  value: '0x47440000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2747,16 +2734,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: sc.t.nn'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: sc.w.nn_orrr_rd
   mnemonic: sc.w.nn
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x12'
   mask: '0xFFFC0000'
-  value: '0x77480000'
+  value: '0x47480000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2772,16 +2758,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: sc.w.nn'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: sc.b.nn_orrr_rd
   mnemonic: sc.b.nn
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x13'
   mask: '0xFFFC0000'
-  value: '0x774C0000'
+  value: '0x474C0000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2797,16 +2782,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: sc.b.nn'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: sc.o.nr_orrr_rd
   mnemonic: sc.o.nr
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x14'
   mask: '0xFFFC0000'
-  value: '0x77500000'
+  value: '0x47500000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2822,16 +2806,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: sc.o.nr'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: sc.t.nr_orrr_rd
   mnemonic: sc.t.nr
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x15'
   mask: '0xFFFC0000'
-  value: '0x77540000'
+  value: '0x47540000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2847,16 +2830,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: sc.t.nr'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: sc.w.nr_orrr_rd
   mnemonic: sc.w.nr
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x16'
   mask: '0xFFFC0000'
-  value: '0x77580000'
+  value: '0x47580000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2872,16 +2854,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: sc.w.nr'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: sc.b.nr_orrr_rd
   mnemonic: sc.b.nr
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x17'
   mask: '0xFFFC0000'
-  value: '0x775C0000'
+  value: '0x475C0000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2897,16 +2878,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: sc.b.nr'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: sc.o.ar_orrr_rd
   mnemonic: sc.o.ar
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x18'
   mask: '0xFFFC0000'
-  value: '0x77600000'
+  value: '0x47600000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2922,16 +2902,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: sc.o.ar'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: sc.t.ar_orrr_rd
   mnemonic: sc.t.ar
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x19'
   mask: '0xFFFC0000'
-  value: '0x77640000'
+  value: '0x47640000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2947,16 +2926,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: sc.t.ar'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: sc.w.ar_orrr_rd
   mnemonic: sc.w.ar
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x1A'
   mask: '0xFFFC0000'
-  value: '0x77680000'
+  value: '0x47680000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2972,16 +2950,15 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: sc.w.ar'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
 - id: sc.b.ar_orrr_rd
   mnemonic: sc.b.ar
   format: orrr
-  op: '0x77'
+  op: '0x47'
   ha: '0x1B'
   mask: '0xFFFC0000'
-  value: '0x776C0000'
+  value: '0x476C0000'
   fields:
   - name: rdhb
     bits: '[17:12]'
@@ -2997,9 +2974,89 @@
     bank: rb
   legality: []
   spec_cite: 'SimRISC-11: sc.b.ar'
-  scope: excluded
-  decode: ILLI
+  scope: m9
   rule_refs: []
+- id: ctpop_orri_rd
+  mnemonic: ctpop
+  format: orri
+  op: '0x47'
+  ha: '0x25'
+  mask: '0xFFFC0000'
+  value: '0x47940000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  spec_cite: 'SimRISC-04: ctpop'
+  scope: m8
+  rule_refs:
+  - dst_rd0
+- id: ctlz_orri_rd
+  mnemonic: ctlz
+  format: orri
+  op: '0x47'
+  ha: '0x26'
+  mask: '0xFFFC0000'
+  value: '0x47980000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  spec_cite: 'SimRISC-04: ctlz'
+  scope: m8
+  rule_refs:
+  - dst_rd0
+- id: cttz_orri_rd
+  mnemonic: cttz
+  format: orri
+  op: '0x47'
+  ha: '0x27'
+  mask: '0xFFFC0000'
+  value: '0x479C0000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  spec_cite: 'SimRISC-04: cttz'
+  scope: m8
+  rule_refs:
+  - dst_rd0
 - id: and.o_orrr_rd
   mnemonic: and.o
   format: orrr
@@ -3968,87 +4025,6 @@
   rule_refs:
   - dst_rd0
   - encode_onehot
-- id: ctpop_orri_rd
-  mnemonic: ctpop
-  format: orri
-  op: '0x40'
-  ha: '0x1D'
-  mask: '0xFFFC0000'
-  value: '0x40740000'
-  fields:
-  - name: rdhb
-    bits: '[17:12]'
-    role: dst
-    bank: rd
-  - name: rdhc
-    bits: '[11:6]'
-    role: src
-    bank: rd
-  - name: immu6
-    bits: '[5:0]'
-    role: imm
-    bank: imm
-    signed: false
-  legality:
-  - rdhb != rd0
-  spec_cite: 'SimRISC-04: ctpop'
-  scope: m8
-  rule_refs:
-  - dst_rd0
-- id: ctlz_orri_rd
-  mnemonic: ctlz
-  format: orri
-  op: '0x40'
-  ha: '0x1E'
-  mask: '0xFFFC0000'
-  value: '0x40780000'
-  fields:
-  - name: rdhb
-    bits: '[17:12]'
-    role: dst
-    bank: rd
-  - name: rdhc
-    bits: '[11:6]'
-    role: src
-    bank: rd
-  - name: immu6
-    bits: '[5:0]'
-    role: imm
-    bank: imm
-    signed: false
-  legality:
-  - rdhb != rd0
-  spec_cite: 'SimRISC-04: ctlz'
-  scope: m8
-  rule_refs:
-  - dst_rd0
-- id: cttz_orri_rd
-  mnemonic: cttz
-  format: orri
-  op: '0x40'
-  ha: '0x1F'
-  mask: '0xFFFC0000'
-  value: '0x407C0000'
-  fields:
-  - name: rdhb
-    bits: '[17:12]'
-    role: dst
-    bank: rd
-  - name: rdhc
-    bits: '[11:6]'
-    role: src
-    bank: rd
-  - name: immu6
-    bits: '[5:0]'
-    role: imm
-    bank: imm
-    signed: false
-  legality:
-  - rdhb != rd0
-  spec_cite: 'SimRISC-04: cttz'
-  scope: m8
-  rule_refs:
-  - dst_rd0
 - id: shl.t_orrr_rd
   mnemonic: shl.t
   format: orrr

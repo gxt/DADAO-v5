@@ -11,8 +11,8 @@
 .text
 @@ UNREC: error: unrecognized instruction mnemonic
 
-@@ @src cfxld_crii_cfx | SimRISC-00 §SimRISC QFC
+@@ @src cfxld_crii_cfx | SimRISC-12: cfxld
 @@ cfxld cfx63, [rb2, 1]（scope: excluded，汇编器 MUST 拒绝）
 
-@@ @src cfxst_crii_cfx | SimRISC-00 §SimRISC QFC
+@@ @src cfxst_crii_cfx | SimRISC-12: cfxst
 @@ cfxst cfx63, [rb2, 1]（scope: excluded，汇编器 MUST 拒绝）

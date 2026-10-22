@@ -155,8 +155,10 @@ def sc_word(rec, flag_rd, data_rd, addr_rb):
     return build_word(rec, flag_rd, data_rd, addr_rb)
 
 
-def fence_word(immu18):
-    return (0x77 << 24) | (0x20 << 18) | (immu18 & 0x3FFFF)
+def fence_word(rec, immu18):
+    """Fence word: op/ha come from opcodes.yaml (no hardcoded encoding)."""
+    return ((_int(rec["op"]) << 24) | (_int(rec["ha"]) << 18)
+            | (immu18 & 0x3FFFF))
 
 
 # ---------------------------------------------------------------------------
@@ -378,7 +380,7 @@ def gen_fence_cases(rec):
     for name, (pred, succ) in pred_ok.items():
         immu18 = fence_fields(pred, succ)
         out.append(case(
-            rec, "semantic", fence_word(immu18),
+            rec, "semantic", fence_word(rec, immu18),
             state(rd={"rd1": SENTINEL}), state(rd={"rd1": SENTINEL}),
             None, SPEC_FENCE,
             "fence fm=0 pred=0x%02X succ=0x%02X (%s): legal, no architecture "
@@ -397,7 +399,7 @@ def gen_fence_cases(rec):
     }
     for name, immu18 in bad.items():
         out.append(case(
-            rec, "legality", fence_word(immu18), state(), None, "ILLI",
+            rec, "legality", fence_word(rec, immu18), state(), None, "ILLI",
             SPEC_FENCE + "; ADR-0034 D2",
             "legality fence %s -> ILLI" % name))
 

@@ -5,8 +5,11 @@
 
 检查：
   1. (value & mask) == value 对每条记录
-  2. 记录内的字段不重叠且覆盖 [mask] 中所有为 1 的位
-  3. 没有两条指令共享相同的 (mask, value) 编码空间
+  2. value 与编码字段自洽：`value == (op << 24) | (ha << 18)`（MISC 子表）
+     或无 `ha` 的主表记录 `value == op << 24`（SPEC-164t 补位：只写 op/ha 而
+     忘改 value 的漂移此前无门控可判）
+  3. 记录内的字段不重叠且覆盖 [mask] 中所有为 1 的位
+  4. 没有两条指令共享相同的 (mask, value) 编码空间
    4. 保留编码（reserved）未被意外分配
    5. 字段 bank 标记与指令名称一致
    6. legality 引用的标识符都是该记录的字段名（或允许的常量/函数）
@@ -69,6 +72,20 @@ def check_value_mask(rec):
     if (val & msk) != val:
         return (False, f"{tag}: (value & mask) != value: "
                 f"0x{val:08X} & 0x{msk:08X} = 0x{val & msk:08X}")
+    return (True, "")
+
+
+def check_op_ha_value(rec):
+    """`value` 必须由 `op`（+ `ha`）现场算出：value == (op << 24) | (ha << 18)。"""
+    tag = f"{rec.get('id', '?')}({rec.get('mnemonic', '?')}/{rec.get('format', '?')})"
+    op = _to_int(rec["op"])
+    expected = op << 24
+    if "ha" in rec:
+        expected |= _to_int(rec["ha"]) << 18
+    value = _to_int(rec["value"])
+    if value != expected:
+        return (False, f"{tag}: value=0x{value:08X} 与 op/ha 不自洽 "
+                       f"(期望 0x{expected:08X})")
     return (True, "")
 
 
@@ -198,6 +215,11 @@ def main():
 
         # 检查 mask/value 算术
         ok, msg = check_value_mask(rec)
+        if not ok:
+            errors.append(f"ERROR: {msg}")
+
+        # 检查 value 与 op/ha 自洽（SPEC-164t）
+        ok, msg = check_op_ha_value(rec)
         if not ok:
             errors.append(f"ERROR: {msg}")
 

@@ -11,77 +11,77 @@
 
 .text
 
-@@ @src add.so_rrrr_rd 5120928b | SimRISC-04 §加减操作
+@@ @src add.so_rrrr_rd 5120928b | SimRISC-04: add.so
 @@ OBJ: {{[0-9a-f]+:}} 51 20 92 8b{{.*}}add.so
 @@ ASM: add.so {rd8, rd9}, rd10, rd11
 add.so {rd8, rd9}, rd10, rd11
 
-@@ @src add.uo_rrrr_rd 5020928b | SimRISC-04 §加减操作
+@@ @src add.uo_rrrr_rd 5020928b | SimRISC-04: add.uo
 @@ OBJ: {{[0-9a-f]+:}} 50 20 92 8b{{.*}}add.uo
 @@ ASM: add.uo {rd8, rd9}, rd10, rd11
 add.uo {rd8, rd9}, rd10, rd11
 
-@@ @src clmul.o_rrrr_rd 5620928b | SimRISC-04 §无进位乘法
+@@ @src clmul.o_rrrr_rd 5620928b | SimRISC-04: clmul.o
 @@ OBJ: {{[0-9a-f]+:}} 56 20 92 8b{{.*}}clmul.o
 @@ ASM: clmul.o {rd8, rd9}, rd10, rd11
 clmul.o {rd8, rd9}, rd10, rd11
 
-@@ @src cs.eq_rrrr_rd 6620928b | SimRISC-02 §条件赋值：Conditional Assignment
+@@ @src cs.eq_rrrr_rd 6620928b | SimRISC-02: cs.eq
 @@ OBJ: {{[0-9a-f]+:}} 66 20 92 8b{{.*}}cs.eq
 @@ ASM: cs.eq {rd8, rd9}?, rd10, rd11
 cs.eq {rd8, rd9}?, rd10, rd11
 
-@@ @src cs.n_rrrr_rd 6020928b | SimRISC-02 §条件赋值：Conditional Assignment
+@@ @src cs.n_rrrr_rd 6020928b | SimRISC-02: cs.n
 @@ OBJ: {{[0-9a-f]+:}} 60 20 92 8b{{.*}}cs.n
 @@ ASM: cs.n {rd8}?, rd9, rd10, rd11
 cs.n {rd8}?, rd9, rd10, rd11
 
-@@ @src cs.n_rrrr_rf 6120928b | SimRISC-00 §SimRISC QFC
+@@ @src cs.n_rrrr_rf 6120928b | SimRISC-02: cs.n
 @@ OBJ: {{[0-9a-f]+:}} 61 20 92 8b{{.*}}cs.n
 @@ ASM: cs.n {rd8}?, rf9, rf10, rf11
 cs.n {rd8}?, rf9, rf10, rf11
 
-@@ @src cs.ne_rrrr_rd 6720928b | SimRISC-02 §条件赋值：Conditional Assignment
+@@ @src cs.ne_rrrr_rd 6720928b | SimRISC-02: cs.ne
 @@ OBJ: {{[0-9a-f]+:}} 67 20 92 8b{{.*}}cs.ne
 @@ ASM: cs.ne {rd8, rd9}?, rd10, rd11
 cs.ne {rd8, rd9}?, rd10, rd11
 
-@@ @src cs.p_rrrr_rd 6420928b | SimRISC-02 §条件赋值：Conditional Assignment
+@@ @src cs.p_rrrr_rd 6420928b | SimRISC-02: cs.p
 @@ OBJ: {{[0-9a-f]+:}} 64 20 92 8b{{.*}}cs.p
 @@ ASM: cs.p {rd8}?, rd9, rd10, rd11
 cs.p {rd8}?, rd9, rd10, rd11
 
-@@ @src cs.p_rrrr_rf 6520928b | SimRISC-00 §SimRISC QFC
+@@ @src cs.p_rrrr_rf 6520928b | SimRISC-02: cs.p
 @@ OBJ: {{[0-9a-f]+:}} 65 20 92 8b{{.*}}cs.p
 @@ ASM: cs.p {rd8}?, rf9, rf10, rf11
 cs.p {rd8}?, rf9, rf10, rf11
 
-@@ @src cs.z_rrrr_rd 6220928b | SimRISC-02 §条件赋值：Conditional Assignment
+@@ @src cs.z_rrrr_rd 6220928b | SimRISC-02: cs.z
 @@ OBJ: {{[0-9a-f]+:}} 62 20 92 8b{{.*}}cs.z
 @@ ASM: cs.z {rd8}?, rd9, rd10, rd11
 cs.z {rd8}?, rd9, rd10, rd11
 
-@@ @src cs.z_rrrr_rf 6320928b | SimRISC-00 §SimRISC QFC
+@@ @src cs.z_rrrr_rf 6320928b | SimRISC-02: cs.z
 @@ OBJ: {{[0-9a-f]+:}} 63 20 92 8b{{.*}}cs.z
 @@ ASM: cs.z {rd8}?, rf9, rf10, rf11
 cs.z {rd8}?, rf9, rf10, rf11
 
-@@ @src mul.so_rrrr_rd 5520928b | SimRISC-04 §乘除操作
+@@ @src mul.so_rrrr_rd 5520928b | SimRISC-04: mul.so
 @@ OBJ: {{[0-9a-f]+:}} 55 20 92 8b{{.*}}mul.so
 @@ ASM: mul.so {rd8, rd9}, rd10, rd11
 mul.so {rd8, rd9}, rd10, rd11
 
-@@ @src mul.uo_rrrr_rd 5420928b | SimRISC-04 §乘除操作
+@@ @src mul.uo_rrrr_rd 5420928b | SimRISC-04: mul.uo
 @@ OBJ: {{[0-9a-f]+:}} 54 20 92 8b{{.*}}mul.uo
 @@ ASM: mul.uo {rd8, rd9}, rd10, rd11
 mul.uo {rd8, rd9}, rd10, rd11
 
-@@ @src sub.so_rrrr_rd 5320928b | SimRISC-04 §加减操作
+@@ @src sub.so_rrrr_rd 5320928b | SimRISC-04: sub.so
 @@ OBJ: {{[0-9a-f]+:}} 53 20 92 8b{{.*}}sub.so
 @@ ASM: sub.so {rd8, rd9}, rd10, rd11
 sub.so {rd8, rd9}, rd10, rd11
 
-@@ @src sub.uo_rrrr_rd 5220928b | SimRISC-04 §加减操作
+@@ @src sub.uo_rrrr_rd 5220928b | SimRISC-04: sub.uo
 @@ OBJ: {{[0-9a-f]+:}} 52 20 92 8b{{.*}}sub.uo
 @@ ASM: sub.uo {rd8, rd9}, rd10, rd11
 sub.uo {rd8, rd9}, rd10, rd11

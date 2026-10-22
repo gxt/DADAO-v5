@@ -8,16 +8,13 @@ lit	tests/llvm/lit/MC/DADAO-gen/gen-crrr.s	7afc8048	cfx2rd	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-crrr.s	7bfc8048	cfx2rc	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-iiii.s	70000003	jump	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-iiii.s	74000003	call	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-oiii.s	77800000	fence	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-oiii.s	77880008	swym	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-oiii.s	47800000	fence	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-oiii.s	47880008	swym	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	40308241	rev.o	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	40608241	shl.o	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	40648241	rol.o	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	40688241	shr.uo	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	406c8241	shr.so	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	40748241	ctpop	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	40788241	ctlz	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	407c8241	cttz	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	40a08241	ext.uo	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	40a48241	ext.so	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	40b08241	rd2rd	1
@@ -69,6 +66,9 @@ lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	44f08241	it2fo	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	44f48241	io2fo	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	44f88241	ut2fo	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	44fc8241	uo2fo	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	47948241	ctpop	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	47988241	ctlz	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orri.s	479c8241	cttz	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	4020824a	and.o	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	4024824a	or.o	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	4028824a	xor.o	1
@@ -161,30 +161,30 @@ lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	44a0824a	foqcmp	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	44a4824a	foscmp	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	44b8824a	fomin	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	44bc824a	fomax	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77000241	lr.o.nn	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77040241	lr.t.nn	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77080241	lr.w.nn	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	770c0241	lr.b.nn	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77100241	lr.o.an	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77140241	lr.t.an	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77180241	lr.w.an	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	771c0241	lr.b.an	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77200241	lr.o.ar	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77240241	lr.t.ar	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77280241	lr.w.ar	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	772c0241	lr.b.ar	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77408241	sc.o.nn	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77448241	sc.t.nn	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77488241	sc.w.nn	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	774c8241	sc.b.nn	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77508241	sc.o.nr	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77548241	sc.t.nr	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77588241	sc.w.nr	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	775c8241	sc.b.nr	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77608241	sc.o.ar	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77648241	sc.t.ar	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	77688241	sc.w.ar	1
-lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	776c8241	sc.b.ar	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47000241	lr.o.nn	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47040241	lr.t.nn	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47080241	lr.w.nn	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	470c0241	lr.b.nn	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47100241	lr.o.an	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47140241	lr.t.an	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47180241	lr.w.an	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	471c0241	lr.b.an	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47200241	lr.o.ar	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47240241	lr.t.ar	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47280241	lr.w.ar	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	472c0241	lr.b.ar	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47408241	sc.o.nn	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47448241	sc.t.nn	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47488241	sc.w.nn	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	474c8241	sc.b.nn	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47508241	sc.o.nr	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47548241	sc.t.nr	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47588241	sc.w.nr	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	475c8241	sc.b.nr	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47608241	sc.o.ar	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47648241	sc.t.ar	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	47688241	sc.w.ar	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-orrr.s	476c8241	sc.b.ar	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-riii.s	59200008	add.si	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-riii.s	5a200008	aip.si	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-riii.s	5b200008	add.si	1
@@ -264,35 +264,35 @@ lit	tests/llvm/lit/MC/DADAO-gen/gen-rwii.s	4c211234	set.zw	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-rwii.s	4d211234	set.ow	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-rwii.s	4e211234	set.zw	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-rwii.s	4f211234	set.w	1
-lit	tests/llvm/lit/MC/DADAO/atomics-fence-imm.s	77800000	fence	1
-lit	tests/llvm/lit/MC/DADAO/atomics-fence-imm.s	77800043	fence	1
-lit	tests/llvm/lit/MC/DADAO/atomics-fence-imm.s	778000c2	fence	1
-lit	tests/llvm/lit/MC/DADAO/atomics-fence-imm.s	778000c3	fence	1
-lit	tests/llvm/lit/MC/DADAO/atomics-fence-imm.s	778003cf	fence	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77000241	lr.o.nn	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77040241	lr.t.nn	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77080241	lr.w.nn	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	770c0241	lr.b.nn	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77100241	lr.o.an	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77140241	lr.t.an	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77180241	lr.w.an	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	771c0241	lr.b.an	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77200241	lr.o.ar	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77240241	lr.t.ar	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77280241	lr.w.ar	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	772c0241	lr.b.ar	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77408241	sc.o.nn	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77448241	sc.t.nn	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77488241	sc.w.nn	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	774c8241	sc.b.nn	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77508241	sc.o.nr	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77548241	sc.t.nr	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77588241	sc.w.nr	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	775c8241	sc.b.nr	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77608241	sc.o.ar	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77648241	sc.t.ar	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	77688241	sc.w.ar	1
-lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	776c8241	sc.b.ar	1
+lit	tests/llvm/lit/MC/DADAO/atomics-fence-imm.s	47800000	fence	1
+lit	tests/llvm/lit/MC/DADAO/atomics-fence-imm.s	47800043	fence	1
+lit	tests/llvm/lit/MC/DADAO/atomics-fence-imm.s	478000c2	fence	1
+lit	tests/llvm/lit/MC/DADAO/atomics-fence-imm.s	478000c3	fence	1
+lit	tests/llvm/lit/MC/DADAO/atomics-fence-imm.s	478003cf	fence	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47000241	lr.o.nn	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47040241	lr.t.nn	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47080241	lr.w.nn	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	470c0241	lr.b.nn	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47100241	lr.o.an	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47140241	lr.t.an	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47180241	lr.w.an	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	471c0241	lr.b.an	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47200241	lr.o.ar	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47240241	lr.t.ar	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47280241	lr.w.ar	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	472c0241	lr.b.ar	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47408241	sc.o.nn	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47448241	sc.t.nn	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47488241	sc.w.nn	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	474c8241	sc.b.nn	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47508241	sc.o.nr	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47548241	sc.t.nr	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47588241	sc.w.nr	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	475c8241	sc.b.nr	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47608241	sc.o.ar	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47648241	sc.t.ar	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	47688241	sc.w.ar	1
+lit	tests/llvm/lit/MC/DADAO/atomics-lrsc.s	476c8241	sc.b.ar	1
 lit	tests/llvm/lit/MC/DADAO/basic-encoding.s	59200001	add.si	1
 lit	tests/llvm/lit/MC/DADAO/basic-encoding.s	5923ffff	add.si	1
 lit	tests/llvm/lit/MC/DADAO/basic-encoding.s	5b040001	add.si	1
@@ -380,10 +380,14 @@ lit	tests/llvm/lit/MC/DADAO/fp-round-encoding.s	442c9290	fornd	1
 lit	tests/llvm/lit/MC/DADAO/fp-round-encoding.s	442cb320	fornd	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	24209008	ld.o	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	3c200241	ldm.o	1
-lit	tests/llvm/lit/MC/DADAO/gen-fast.s	40788241	ctlz	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	40c0824a	add.o	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	44288241	fo2fo	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	44388242	foroot	1
+lit	tests/llvm/lit/MC/DADAO/gen-fast.s	471c0241	lr.b.an	1
+lit	tests/llvm/lit/MC/DADAO/gen-fast.s	476c8241	sc.b.ar	1
+lit	tests/llvm/lit/MC/DADAO/gen-fast.s	47800000	fence	1
+lit	tests/llvm/lit/MC/DADAO/gen-fast.s	47880008	swym	1
+lit	tests/llvm/lit/MC/DADAO/gen-fast.s	47988241	ctlz	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	4b211234	andn.w	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	5120928b	add.so	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	5b200008	add.si	1
@@ -395,10 +399,6 @@ lit	tests/llvm/lit/MC/DADAO/gen-fast.s	6e209004	br.eq	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	74000003	call	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	75209018	call	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	76200008	ret	1
-lit	tests/llvm/lit/MC/DADAO/gen-fast.s	771c0241	lr.b.an	1
-lit	tests/llvm/lit/MC/DADAO/gen-fast.s	776c8241	sc.b.ar	1
-lit	tests/llvm/lit/MC/DADAO/gen-fast.s	77800000	fence	1
-lit	tests/llvm/lit/MC/DADAO/gen-fast.s	77880008	swym	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	7bfc8048	cfx2rc	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	7efc0002	escape	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	7ffc0001	trap	1
@@ -415,9 +415,9 @@ lit	tests/llvm/lit/MC/DADAO/m6-callconv.s	68200000	br.n	1
 lit	tests/llvm/lit/MC/DADAO/m6-callconv.s	6e209000	br.eq	1
 lit	tests/llvm/lit/MC/DADAO/m6-callconv.s	70000000	jump	1
 lit	tests/llvm/lit/MC/DADAO/m6-callconv.s	74000000	call	1
-lit	tests/llvm/lit/MC/DADAO/oiii.s	77800000	fence	1
-lit	tests/llvm/lit/MC/DADAO/oiii.s	77880000	swym	1
-lit	tests/llvm/lit/MC/DADAO/oiii.s	7788002a	swym	1
+lit	tests/llvm/lit/MC/DADAO/oiii.s	47800000	fence	1
+lit	tests/llvm/lit/MC/DADAO/oiii.s	47880000	swym	1
+lit	tests/llvm/lit/MC/DADAO/oiii.s	4788002a	swym	1
 lit	tests/llvm/lit/MC/DADAO/orri.s	40a08001	ext.uo	1
 lit	tests/llvm/lit/MC/DADAO/orrr.s	4024824a	or.o	1
 lit	tests/llvm/lit/MC/DADAO/orrr.s	40cc824a	sub.o	1
@@ -499,547 +499,547 @@ lit	tests/llvm/lit/MC/DADAO/wpn_operand.s	4e0600ff	set.zw	1
 lit	tests/llvm/lit/MC/DADAO/wpn_operand.s	4e06ffff	set.zw	1
 lit	tests/llvm/lit/MC/DADAO/wpn_operand.s	4e0700ff	set.zw	1
 lit	tests/llvm/lit/MC/DADAO/wpn_operand.s	4e07ffff	set.zw	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x77800060	ILLI	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x77800070	ILLI	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x77800801	ILLI	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x77800c01	ILLI	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x77801041	ILLI	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x77808041	ILLI	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x7783f000	ILLI	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x77800000	None	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x77800001	None	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x77800040	None	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x77800041	None	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x77800042	None	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x77800043	None	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x77800081	None	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x77800082	None	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x778000c2	None	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x778000c3	None	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x77800304	None	active	1
-vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x778003cf	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.an_orrr_rd	boundary	0x771c0085	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.an_orrr_rd	legality	0x771c2084	ILLI	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.an_orrr_rd	semantic	0x771c0084	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.ar_orrr_rd	boundary	0x772c0085	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.ar_orrr_rd	legality	0x772c2084	ILLI	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.ar_orrr_rd	semantic	0x772c0084	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.nn_orrr_rd	boundary	0x770c0085	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.nn_orrr_rd	legality	0x770c2084	ILLI	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.nn_orrr_rd	semantic	0x770c0084	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.an_orrr_rd	legality	0x77100084	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.an_orrr_rd	legality	0x77102084	ILLI	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.an_orrr_rd	semantic	0x77100084	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.ar_orrr_rd	legality	0x77200084	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.ar_orrr_rd	legality	0x77202084	ILLI	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.ar_orrr_rd	semantic	0x77200084	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.nn_orrr_rd	legality	0x77000084	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.nn_orrr_rd	legality	0x77002084	ILLI	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.nn_orrr_rd	semantic	0x77000084	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.an_orrr_rd	boundary	0x77140085	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.an_orrr_rd	legality	0x77140084	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.an_orrr_rd	legality	0x77142084	ILLI	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.an_orrr_rd	semantic	0x77140084	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.ar_orrr_rd	boundary	0x77240085	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.ar_orrr_rd	legality	0x77240084	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.ar_orrr_rd	legality	0x77242084	ILLI	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.ar_orrr_rd	semantic	0x77240084	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.nn_orrr_rd	boundary	0x77040085	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.nn_orrr_rd	legality	0x77040084	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.nn_orrr_rd	legality	0x77042084	ILLI	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.nn_orrr_rd	semantic	0x77040084	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.an_orrr_rd	boundary	0x77180085	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.an_orrr_rd	legality	0x77180084	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.an_orrr_rd	legality	0x77182084	ILLI	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.an_orrr_rd	semantic	0x77180084	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.ar_orrr_rd	boundary	0x77280085	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.ar_orrr_rd	legality	0x77280084	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.ar_orrr_rd	legality	0x77282084	ILLI	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.ar_orrr_rd	semantic	0x77280084	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.nn_orrr_rd	boundary	0x77080085	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.nn_orrr_rd	legality	0x77080084	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.nn_orrr_rd	legality	0x77082084	ILLI	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.nn_orrr_rd	semantic	0x77080084	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.ar_orrr_rd	semantic	0x776c5184	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.ar_orrr_rd	semantic	0x776c5184	None	active	2
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.ar_orrr_rd	semantic	0x776c5184	None	active	3
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.ar_orrr_rd	semantic	0x776c5185	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nn_orrr_rd	semantic	0x774c5184	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nn_orrr_rd	semantic	0x774c5184	None	active	2
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nn_orrr_rd	semantic	0x774c5184	None	active	3
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nn_orrr_rd	semantic	0x774c5185	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nr_orrr_rd	semantic	0x775c5184	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nr_orrr_rd	semantic	0x775c5184	None	active	2
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nr_orrr_rd	semantic	0x775c5184	None	active	3
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nr_orrr_rd	semantic	0x775c5185	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.ar_orrr_rd	legality	0x77605184	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.ar_orrr_rd	legality	0x77605185	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.ar_orrr_rd	semantic	0x77605184	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.ar_orrr_rd	semantic	0x77605184	None	active	2
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.ar_orrr_rd	semantic	0x77605184	None	active	3
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.ar_orrr_rd	semantic	0x77605185	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nn_orrr_rd	legality	0x77405184	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nn_orrr_rd	legality	0x77405185	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nn_orrr_rd	semantic	0x77405184	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nn_orrr_rd	semantic	0x77405184	None	active	2
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nn_orrr_rd	semantic	0x77405184	None	active	3
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nn_orrr_rd	semantic	0x77405185	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nr_orrr_rd	legality	0x77505184	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nr_orrr_rd	legality	0x77505185	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nr_orrr_rd	semantic	0x77505184	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nr_orrr_rd	semantic	0x77505184	None	active	2
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nr_orrr_rd	semantic	0x77505184	None	active	3
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nr_orrr_rd	semantic	0x77505185	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.ar_orrr_rd	legality	0x77645184	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.ar_orrr_rd	legality	0x77645185	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.ar_orrr_rd	semantic	0x77645184	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.ar_orrr_rd	semantic	0x77645184	None	active	2
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.ar_orrr_rd	semantic	0x77645184	None	active	3
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.ar_orrr_rd	semantic	0x77645185	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nn_orrr_rd	legality	0x77445184	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nn_orrr_rd	legality	0x77445185	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nn_orrr_rd	semantic	0x77445184	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nn_orrr_rd	semantic	0x77445184	None	active	2
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nn_orrr_rd	semantic	0x77445184	None	active	3
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nn_orrr_rd	semantic	0x77445185	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nr_orrr_rd	legality	0x77545184	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nr_orrr_rd	legality	0x77545185	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nr_orrr_rd	semantic	0x77545184	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nr_orrr_rd	semantic	0x77545184	None	active	2
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nr_orrr_rd	semantic	0x77545184	None	active	3
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nr_orrr_rd	semantic	0x77545185	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.ar_orrr_rd	legality	0x77685184	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.ar_orrr_rd	legality	0x77685185	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.ar_orrr_rd	semantic	0x77685184	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.ar_orrr_rd	semantic	0x77685184	None	active	2
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.ar_orrr_rd	semantic	0x77685184	None	active	3
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.ar_orrr_rd	semantic	0x77685185	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nn_orrr_rd	legality	0x77485184	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nn_orrr_rd	legality	0x77485185	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nn_orrr_rd	semantic	0x77485184	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nn_orrr_rd	semantic	0x77485184	None	active	2
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nn_orrr_rd	semantic	0x77485184	None	active	3
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nn_orrr_rd	semantic	0x77485185	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nr_orrr_rd	legality	0x77585184	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nr_orrr_rd	legality	0x77585185	MALIGN	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nr_orrr_rd	semantic	0x77585184	None	active	1
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nr_orrr_rd	semantic	0x77585184	None	active	2
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nr_orrr_rd	semantic	0x77585184	None	active	3
-vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nr_orrr_rd	semantic	0x77585185	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4078101f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781080	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781080	None	active	2
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781080	None	active	3
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781081	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781082	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781083	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781084	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781085	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781086	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781087	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781087	None	active	2
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781088	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781089	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4078108a	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4078108b	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4078108c	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4078108d	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4078108e	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4078108f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781090	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781091	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781092	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781093	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781094	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781095	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781096	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781097	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781098	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x40781099	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4078109a	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4078109b	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4078109c	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4078109d	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4078109e	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4078109f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810a0	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810a1	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810a2	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810a3	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810a4	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810a5	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810a6	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810a7	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810a8	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810a9	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810aa	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810ab	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810ac	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810ad	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810ae	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810af	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810b0	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810b1	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810b2	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810b3	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810b4	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810b5	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810b6	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810b7	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810b8	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810b9	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810ba	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810bb	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810bc	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810bd	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810be	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810bf	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810bf	None	active	2
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810bf	None	active	3
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407810bf	None	active	4
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x407830cf	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	encoding	0x407810bf	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	legality	0x407800bf	ILLI	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781080	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781081	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781082	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781083	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781084	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781085	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781086	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781087	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781088	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781089	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4078108a	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4078108b	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4078108c	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4078108d	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4078108e	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4078108f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781090	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781091	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781092	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781093	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781094	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781095	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781096	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781097	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781098	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x40781099	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4078109a	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4078109b	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4078109c	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4078109d	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4078109e	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4078109f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810a0	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810a1	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810a2	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810a3	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810a4	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810a5	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810a6	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810a7	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810a8	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810a9	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810aa	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810ab	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810ac	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810ad	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810ae	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810af	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810b0	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810b1	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810b2	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810b3	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810b4	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810b5	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810b6	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810b7	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810b8	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810b9	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810ba	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810bb	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810bc	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810bd	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810be	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x407810bf	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4074101f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741080	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741080	None	active	2
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741080	None	active	3
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741081	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741082	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741083	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741084	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741085	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741086	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741087	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741087	None	active	2
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741088	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741089	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4074108a	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4074108b	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4074108c	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4074108d	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4074108e	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4074108f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741090	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741091	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741092	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741093	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741094	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741095	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741096	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741097	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741098	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x40741099	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4074109a	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4074109b	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4074109c	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4074109d	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4074109e	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4074109f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410a0	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410a1	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410a2	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410a3	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410a4	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410a5	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410a6	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410a7	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410a8	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410a9	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410aa	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410ab	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410ac	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410ad	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410ae	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410af	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410b0	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410b1	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410b2	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410b3	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410b4	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410b5	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410b6	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410b7	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410b8	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410b9	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410ba	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410bb	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410bc	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410bd	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410be	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410bf	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410bf	None	active	2
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410bf	None	active	3
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407410bf	None	active	4
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x407430cf	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	encoding	0x407410bf	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	legality	0x407400bf	ILLI	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741080	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741081	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741082	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741083	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741084	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741085	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741086	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741087	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741088	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741089	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4074108a	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4074108b	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4074108c	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4074108d	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4074108e	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4074108f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741090	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741091	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741092	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741093	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741094	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741095	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741096	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741097	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741098	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x40741099	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4074109a	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4074109b	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4074109c	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4074109d	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4074109e	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4074109f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410a0	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410a1	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410a2	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410a3	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410a4	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410a5	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410a6	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410a7	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410a8	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410a9	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410aa	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410ab	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410ac	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410ad	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410ae	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410af	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410b0	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410b1	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410b2	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410b3	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410b4	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410b5	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410b6	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410b7	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410b8	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410b9	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410ba	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410bb	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410bc	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410bd	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410be	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x407410bf	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c101f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1080	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1080	None	active	2
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1080	None	active	3
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1081	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1082	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1083	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1084	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1085	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1086	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1087	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1087	None	active	2
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1088	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1089	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c108a	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c108b	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c108c	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c108d	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c108e	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c108f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1090	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1091	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1092	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1093	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1094	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1095	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1096	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1097	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1098	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c1099	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c109a	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c109b	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c109c	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c109d	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c109e	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c109f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10a0	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10a1	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10a2	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10a3	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10a4	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10a5	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10a6	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10a7	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10a8	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10a9	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10aa	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10ab	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10ac	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10ad	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10ae	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10af	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10b0	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10b1	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10b2	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10b3	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10b4	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10b5	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10b6	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10b7	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10b8	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10b9	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10ba	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10bb	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10bc	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10bd	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10be	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10bf	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10bf	None	active	2
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10bf	None	active	3
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c10bf	None	active	4
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x407c30cf	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	encoding	0x407c10bf	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	legality	0x407c00bf	ILLI	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1080	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1081	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1082	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1083	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1084	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1085	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1086	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1087	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1088	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1089	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c108a	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c108b	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c108c	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c108d	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c108e	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c108f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1090	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1091	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1092	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1093	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1094	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1095	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1096	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1097	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1098	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c1099	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c109a	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c109b	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c109c	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c109d	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c109e	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c109f	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10a0	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10a1	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10a2	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10a3	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10a4	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10a5	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10a6	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10a7	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10a8	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10a9	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10aa	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10ab	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10ac	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10ad	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10ae	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10af	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10b0	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10b1	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10b2	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10b3	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10b4	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10b5	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10b6	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10b7	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10b8	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10b9	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10ba	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10bb	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10bc	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10bd	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10be	None	active	1
-vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x407c10bf	None	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x47800060	ILLI	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x47800070	ILLI	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x47800801	ILLI	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x47800c01	ILLI	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x47801041	ILLI	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x47808041	ILLI	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x4783f000	ILLI	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800000	None	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800001	None	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800040	None	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800041	None	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800042	None	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800043	None	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800081	None	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800082	None	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x478000c2	None	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x478000c3	None	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800304	None	active	1
+vector	tests/vectors/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x478003cf	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.an_orrr_rd	boundary	0x471c0085	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.an_orrr_rd	legality	0x471c2084	ILLI	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.an_orrr_rd	semantic	0x471c0084	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.ar_orrr_rd	boundary	0x472c0085	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.ar_orrr_rd	legality	0x472c2084	ILLI	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.ar_orrr_rd	semantic	0x472c0084	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.nn_orrr_rd	boundary	0x470c0085	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.nn_orrr_rd	legality	0x470c2084	ILLI	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.b.nn_orrr_rd	semantic	0x470c0084	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.an_orrr_rd	legality	0x47100084	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.an_orrr_rd	legality	0x47102084	ILLI	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.an_orrr_rd	semantic	0x47100084	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.ar_orrr_rd	legality	0x47200084	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.ar_orrr_rd	legality	0x47202084	ILLI	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.ar_orrr_rd	semantic	0x47200084	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.nn_orrr_rd	legality	0x47000084	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.nn_orrr_rd	legality	0x47002084	ILLI	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.o.nn_orrr_rd	semantic	0x47000084	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.an_orrr_rd	boundary	0x47140085	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.an_orrr_rd	legality	0x47140084	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.an_orrr_rd	legality	0x47142084	ILLI	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.an_orrr_rd	semantic	0x47140084	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.ar_orrr_rd	boundary	0x47240085	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.ar_orrr_rd	legality	0x47240084	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.ar_orrr_rd	legality	0x47242084	ILLI	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.ar_orrr_rd	semantic	0x47240084	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.nn_orrr_rd	boundary	0x47040085	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.nn_orrr_rd	legality	0x47040084	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.nn_orrr_rd	legality	0x47042084	ILLI	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.t.nn_orrr_rd	semantic	0x47040084	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.an_orrr_rd	boundary	0x47180085	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.an_orrr_rd	legality	0x47180084	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.an_orrr_rd	legality	0x47182084	ILLI	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.an_orrr_rd	semantic	0x47180084	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.ar_orrr_rd	boundary	0x47280085	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.ar_orrr_rd	legality	0x47280084	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.ar_orrr_rd	legality	0x47282084	ILLI	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.ar_orrr_rd	semantic	0x47280084	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.nn_orrr_rd	boundary	0x47080085	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.nn_orrr_rd	legality	0x47080084	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.nn_orrr_rd	legality	0x47082084	ILLI	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	lr.w.nn_orrr_rd	semantic	0x47080084	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.ar_orrr_rd	semantic	0x476c5184	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.ar_orrr_rd	semantic	0x476c5184	None	active	2
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.ar_orrr_rd	semantic	0x476c5184	None	active	3
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.ar_orrr_rd	semantic	0x476c5185	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nn_orrr_rd	semantic	0x474c5184	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nn_orrr_rd	semantic	0x474c5184	None	active	2
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nn_orrr_rd	semantic	0x474c5184	None	active	3
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nn_orrr_rd	semantic	0x474c5185	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nr_orrr_rd	semantic	0x475c5184	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nr_orrr_rd	semantic	0x475c5184	None	active	2
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nr_orrr_rd	semantic	0x475c5184	None	active	3
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.b.nr_orrr_rd	semantic	0x475c5185	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.ar_orrr_rd	legality	0x47605184	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.ar_orrr_rd	legality	0x47605185	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.ar_orrr_rd	semantic	0x47605184	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.ar_orrr_rd	semantic	0x47605184	None	active	2
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.ar_orrr_rd	semantic	0x47605184	None	active	3
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.ar_orrr_rd	semantic	0x47605185	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nn_orrr_rd	legality	0x47405184	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nn_orrr_rd	legality	0x47405185	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nn_orrr_rd	semantic	0x47405184	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nn_orrr_rd	semantic	0x47405184	None	active	2
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nn_orrr_rd	semantic	0x47405184	None	active	3
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nn_orrr_rd	semantic	0x47405185	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nr_orrr_rd	legality	0x47505184	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nr_orrr_rd	legality	0x47505185	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nr_orrr_rd	semantic	0x47505184	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nr_orrr_rd	semantic	0x47505184	None	active	2
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nr_orrr_rd	semantic	0x47505184	None	active	3
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.o.nr_orrr_rd	semantic	0x47505185	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.ar_orrr_rd	legality	0x47645184	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.ar_orrr_rd	legality	0x47645185	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.ar_orrr_rd	semantic	0x47645184	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.ar_orrr_rd	semantic	0x47645184	None	active	2
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.ar_orrr_rd	semantic	0x47645184	None	active	3
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.ar_orrr_rd	semantic	0x47645185	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nn_orrr_rd	legality	0x47445184	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nn_orrr_rd	legality	0x47445185	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nn_orrr_rd	semantic	0x47445184	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nn_orrr_rd	semantic	0x47445184	None	active	2
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nn_orrr_rd	semantic	0x47445184	None	active	3
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nn_orrr_rd	semantic	0x47445185	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nr_orrr_rd	legality	0x47545184	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nr_orrr_rd	legality	0x47545185	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nr_orrr_rd	semantic	0x47545184	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nr_orrr_rd	semantic	0x47545184	None	active	2
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nr_orrr_rd	semantic	0x47545184	None	active	3
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.t.nr_orrr_rd	semantic	0x47545185	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.ar_orrr_rd	legality	0x47685184	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.ar_orrr_rd	legality	0x47685185	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.ar_orrr_rd	semantic	0x47685184	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.ar_orrr_rd	semantic	0x47685184	None	active	2
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.ar_orrr_rd	semantic	0x47685184	None	active	3
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.ar_orrr_rd	semantic	0x47685185	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nn_orrr_rd	legality	0x47485184	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nn_orrr_rd	legality	0x47485185	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nn_orrr_rd	semantic	0x47485184	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nn_orrr_rd	semantic	0x47485184	None	active	2
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nn_orrr_rd	semantic	0x47485184	None	active	3
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nn_orrr_rd	semantic	0x47485185	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nr_orrr_rd	legality	0x47585184	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nr_orrr_rd	legality	0x47585185	MALIGN	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nr_orrr_rd	semantic	0x47585184	None	active	1
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nr_orrr_rd	semantic	0x47585184	None	active	2
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nr_orrr_rd	semantic	0x47585184	None	active	3
+vector	tests/vectors/atomics/atomics-lrsc.yaml	sc.w.nr_orrr_rd	semantic	0x47585185	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4798101f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981080	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981080	None	active	2
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981080	None	active	3
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981081	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981082	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981083	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981084	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981085	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981086	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981087	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981087	None	active	2
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981088	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981089	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4798108a	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4798108b	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4798108c	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4798108d	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4798108e	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4798108f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981090	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981091	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981092	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981093	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981094	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981095	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981096	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981097	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981098	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981099	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4798109a	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4798109b	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4798109c	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4798109d	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4798109e	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4798109f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810a0	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810a1	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810a2	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810a3	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810a4	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810a5	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810a6	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810a7	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810a8	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810a9	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810aa	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810ab	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810ac	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810ad	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810ae	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810af	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810b0	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810b1	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810b2	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810b3	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810b4	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810b5	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810b6	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810b7	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810b8	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810b9	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810ba	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810bb	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810bc	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810bd	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810be	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810bf	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810bf	None	active	2
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810bf	None	active	3
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479810bf	None	active	4
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x479830cf	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	encoding	0x479810bf	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	legality	0x479800bf	ILLI	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981080	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981081	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981082	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981083	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981084	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981085	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981086	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981087	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981088	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981089	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4798108a	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4798108b	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4798108c	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4798108d	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4798108e	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4798108f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981090	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981091	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981092	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981093	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981094	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981095	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981096	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981097	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981098	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x47981099	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4798109a	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4798109b	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4798109c	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4798109d	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4798109e	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x4798109f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810a0	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810a1	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810a2	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810a3	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810a4	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810a5	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810a6	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810a7	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810a8	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810a9	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810aa	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810ab	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810ac	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810ad	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810ae	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810af	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810b0	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810b1	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810b2	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810b3	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810b4	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810b5	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810b6	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810b7	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810b8	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810b9	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810ba	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810bb	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810bc	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810bd	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810be	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctlz_orri_rd	semantic	0x479810bf	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4794101f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941080	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941080	None	active	2
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941080	None	active	3
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941081	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941082	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941083	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941084	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941085	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941086	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941087	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941087	None	active	2
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941088	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941089	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4794108a	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4794108b	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4794108c	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4794108d	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4794108e	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4794108f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941090	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941091	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941092	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941093	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941094	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941095	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941096	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941097	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941098	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x47941099	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4794109a	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4794109b	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4794109c	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4794109d	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4794109e	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x4794109f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410a0	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410a1	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410a2	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410a3	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410a4	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410a5	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410a6	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410a7	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410a8	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410a9	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410aa	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410ab	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410ac	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410ad	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410ae	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410af	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410b0	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410b1	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410b2	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410b3	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410b4	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410b5	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410b6	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410b7	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410b8	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410b9	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410ba	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410bb	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410bc	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410bd	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410be	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410bf	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410bf	None	active	2
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410bf	None	active	3
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479410bf	None	active	4
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	boundary	0x479430cf	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	encoding	0x479410bf	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	legality	0x479400bf	ILLI	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941080	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941081	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941082	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941083	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941084	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941085	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941086	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941087	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941088	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941089	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4794108a	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4794108b	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4794108c	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4794108d	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4794108e	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4794108f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941090	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941091	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941092	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941093	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941094	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941095	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941096	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941097	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941098	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x47941099	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4794109a	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4794109b	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4794109c	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4794109d	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4794109e	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x4794109f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410a0	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410a1	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410a2	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410a3	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410a4	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410a5	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410a6	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410a7	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410a8	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410a9	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410aa	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410ab	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410ac	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410ad	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410ae	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410af	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410b0	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410b1	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410b2	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410b3	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410b4	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410b5	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410b6	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410b7	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410b8	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410b9	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410ba	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410bb	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410bc	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410bd	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410be	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	ctpop_orri_rd	semantic	0x479410bf	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c101f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1080	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1080	None	active	2
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1080	None	active	3
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1081	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1082	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1083	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1084	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1085	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1086	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1087	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1087	None	active	2
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1088	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1089	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c108a	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c108b	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c108c	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c108d	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c108e	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c108f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1090	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1091	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1092	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1093	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1094	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1095	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1096	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1097	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1098	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c1099	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c109a	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c109b	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c109c	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c109d	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c109e	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c109f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10a0	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10a1	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10a2	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10a3	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10a4	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10a5	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10a6	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10a7	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10a8	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10a9	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10aa	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10ab	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10ac	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10ad	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10ae	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10af	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10b0	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10b1	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10b2	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10b3	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10b4	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10b5	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10b6	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10b7	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10b8	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10b9	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10ba	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10bb	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10bc	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10bd	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10be	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10bf	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10bf	None	active	2
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10bf	None	active	3
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c10bf	None	active	4
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	boundary	0x479c30cf	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	encoding	0x479c10bf	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	legality	0x479c00bf	ILLI	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1080	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1081	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1082	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1083	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1084	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1085	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1086	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1087	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1088	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1089	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c108a	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c108b	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c108c	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c108d	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c108e	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c108f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1090	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1091	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1092	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1093	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1094	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1095	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1096	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1097	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1098	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c1099	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c109a	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c109b	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c109c	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c109d	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c109e	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c109f	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10a0	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10a1	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10a2	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10a3	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10a4	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10a5	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10a6	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10a7	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10a8	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10a9	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10aa	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10ab	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10ac	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10ad	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10ae	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10af	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10b0	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10b1	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10b2	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10b3	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10b4	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10b5	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10b6	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10b7	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10b8	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10b9	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10ba	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10bb	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10bc	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10bd	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10be	None	active	1
+vector	tests/vectors/bitcnt/bitcnt.yaml	cttz_orri_rd	semantic	0x479c10bf	None	active	1
 vector	tests/vectors/clmul/clmul.yaml	clmul.o_rrrr_rd	boundary	0x560420c4	None	active	1
 vector	tests/vectors/clmul/clmul.yaml	clmul.o_rrrr_rd	boundary	0x560420c4	None	active	2
 vector	tests/vectors/clmul/clmul.yaml	clmul.o_rrrr_rd	boundary	0x560420c4	None	active	3
@@ -1366,8 +1366,8 @@ vector	tests/vectors/isa/mem-rd.yaml	stm.w_rrri_rd	legality	0x31043080	ILLI	acti
 vector	tests/vectors/isa/mem-rd.yaml	stm.w_rrri_rd	legality	0x31043081	CFXMEM	active	1
 vector	tests/vectors/isa/mem-rd.yaml	stm.w_rrri_rd	legality	0x31043081	MALIGN	active	1
 vector	tests/vectors/isa/mem-rd.yaml	stm.w_rrri_rd	semantic	0x31043081	None	active	1
-vector	tests/vectors/isa/misc.yaml	swym_oiii_imm	encoding	0x77880000	None	active	1
-vector	tests/vectors/isa/misc.yaml	swym_oiii_imm	semantic	0x77880000	None	active	1
+vector	tests/vectors/isa/misc.yaml	swym_oiii_imm	encoding	0x47880000	None	active	1
+vector	tests/vectors/isa/misc.yaml	swym_oiii_imm	semantic	0x47880000	None	active	1
 vector	tests/vectors/isa/reg-arith.yaml	add.o_orrr_bbd	boundary	0x40c01083	None	active	1
 vector	tests/vectors/isa/reg-arith.yaml	add.o_orrr_bbd	encoding	0x40c01000	None	active	1
 vector	tests/vectors/isa/reg-arith.yaml	add.o_orrr_bbd	legality	0x40c00000	ILLI	active	1

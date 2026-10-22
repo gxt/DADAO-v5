@@ -11,12 +11,12 @@
 
 .text
 
-@@ @src escape_ciii_cfx 7efc0002 | SimRISC-00 §SimRISC QFC
+@@ @src escape_ciii_cfx 7efc0002 | SimRISC-11: escape
 @@ OBJ: {{[0-9a-f]+:}} 7e fc 00 02{{.*}}escape
 @@ ASM: escape cfx63, [excp_cause_ip, 8]
 escape cfx63, [excp_cause_ip, 8]
 
-@@ @src trap_ciii_cfx 7ffc0001 | SimRISC-00 §SimRISC QFC
+@@ @src trap_ciii_cfx 7ffc0001 | SimRISC-11: trap
 @@ OBJ: {{[0-9a-f]+:}} 7f fc 00 01{{.*}}trap
 @@ ASM: trap cfx63, 1
 trap cfx63, 1
