@@ -3,12 +3,13 @@
 
 职责（可执行、可失败；SPEC-086t §5.3）：
   1. 每条记录**恰有** 1 个合法 `scope` ∈ {m1, fp, excluded, m3, m8, m9}（缺失/非法 ⇒ FAIL）。
-  2. 分区计数：m1 == 156、fp == 58、excluded == 29、m3 == 1、m8 == 7、m9 == 9、total == 260。
+  2. 分区计数：m1 == 156、fp == 60、excluded == 27、m3 == 1、m8 == 7、m9 == 9、total == 260。
   3. `scope == "excluded"` ⇔ `decode == "ILLI"`；`scope ∈ {m1, fp, m3, m8, m9}` ⇒ 无 `decode`
      且无旧字段（防回退）。
   4. `_rf`（RF 银行目的）的 scope 约束：`scope == "fp"` ⇒ `id.endswith("_rf")`；
-     `id.endswith("_rf")` ⇒ `scope ∈ {fp, excluded}`（SPEC-161t：`ftrnd`/`fornd`
-     为 RF 目的但 `scope: excluded`；其余 scope 不得出现 RF 记录）。
+     `id.endswith("_rf")` ⇒ `scope ∈ {fp, excluded}`（其余 scope 不得出现 RF 记录）。
+     `excluded` 分支是 SPEC-161t 立册期留下的防线（`ftrnd`/`fornd` 当时为 RF 目的且
+     `scope: excluded`）；SPEC-162t 翻转后已无此类记录，判据保留以**防回退**。
   5. 旧 M1 排除布尔字段（见 OLD_FIELD）在非历史文件中已消失。
   6. 输出「检查名 + 期望/实际 + 退出码」；任一失败非零退出。
 
@@ -35,6 +36,8 @@
      fp 60→58、total 260→258；M1/excluded/m3/m8/m9 不变；0x5E/0x5F 腾空给 SPEC-157t FMA）
    * SPEC-161t（`ftrnd`/`fornd` 立册：754-2019 六种取整，`immu6` one-hot 六档 ⇒
      excluded 27→29、total 258→260；M1/fp/m3/m8/m9 不变）
+   * SPEC-162t（`ftrnd`/`fornd` 实现落地后翻转：excluded→fp ⇒ fp 58→60、excluded 29→27、
+     total 260 不变；M1/m3/m8/m9 不变）
 
 Usage: python3 tools/spec/check_scope.py [--yaml contracts/opcodes.yaml] [--repo-root .]
 """
@@ -50,8 +53,8 @@ import yaml
 OLD_FIELD = "excluded" + "_m1"
 
 EXPECTED_M1 = 156
-EXPECTED_FP = 58
-EXPECTED_EXCLUDED = 29
+EXPECTED_FP = 60
+EXPECTED_EXCLUDED = 27
 EXPECTED_M3 = 1
 EXPECTED_M8 = 7
 EXPECTED_M9 = 9

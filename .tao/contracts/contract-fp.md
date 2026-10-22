@@ -2,10 +2,10 @@
 
 > **版本：0.5.4** [SimRISC-00 §浮点寄存器][SimRISC-07 §版本]
 
-本合约归一化 `scope: fp` **58 条**指令的语义（IEEE754 浮点运算、FCSR 环境、合法性），供后续 golden oracle / LLVM / QEMU / testcases 消费。另在 §18 登记取整（`ftrnd`/`fornd`，当前 `scope: excluded`、decode ILLI）的语义，**不计入** 58 条。[SimRISC-07 §取整（roundToIntegral）]
+本合约归一化 `scope: fp` **60 条**指令的语义（IEEE754 浮点运算、FCSR 环境、合法性），供后续 golden oracle / LLVM / QEMU / testcases 消费。§18 的取整（`ftrnd`/`fornd`）在实现落地后已由 `excluded` 转入 `fp`（`SPEC-162t`），计入 60 条。[SimRISC-07 §取整（roundToIntegral）]
 
 - **编码唯一真源**为 `contracts/opcodes.yaml`（本合约不复制编码）。
-- **机器可读投影**为 `contracts/fp_semantics.yaml`（58 条 `id→family→spec_cite→semantics_ref→legality_refs`）。
+- **机器可读投影**为 `contracts/fp_semantics.yaml`（60 条 `id→family→spec_cite→semantics_ref→legality_refs`）。
 - **合法性规则**见 `contracts/legality_rules.yaml`。
 - 本合约**不含任何期望值**；oracle 方案见 `docs/fp-oracle-design.md`。
 - 所有语义断言均标注 spec/ 依据（Spec-first，不从 LLVM/QEMU 反推）。
@@ -122,15 +122,16 @@
 - 只设置 `wpN` 指定的 16 位，其余 48 位不变。[SimRISC-03 §立即数常数赋值：Immediate constant]
 - `set.w rf0` **合法**：`wp2` 命中舍入模式、`wp0` 命中异常状态、`wp1`/`wp3` 完全写无效（遵 FCSR 写掩码）。[SimRISC-03 §立即数常数赋值：Immediate constant]
 
-## §14 伪指令（非 58 条 id，仅说明）<a id="pseudo"></a>
+## §14 伪指令（非 60 条 id，仅说明）<a id="pseudo"></a>
 
 - `set.ft`/`set.fo` 不是硬件指令，由汇编器展开为 `set.w` 组合：全零 → `rd2rf {rf}, {rd0}`；寄存器传值 → `rd2rf`/`ft2ft`/`fo2fo`。[SimRISC-03 §set.ft / set.fo 伪指令]
-- 伪指令属汇编器展开，**不进** `contracts/opcodes.yaml` 的 58 条。[SimRISC-03 §set.ft / set.fo 伪指令]
+- 伪指令属汇编器展开，**不进** `contracts/opcodes.yaml` 的 60 条。[SimRISC-03 §set.ft / set.fo 伪指令]
 
 ## §15 合法性规则映射
 
-- `dst_rf0`（FP 专属）：浮点运算指令**目的**为 `rf0` → ILLI（33 条：convert_ff 4 + convert_i2f 8 + arith 12 + root 2 + sign 4 + cs_rf 3）；`rf0` 作源合法。`rf2rd`/`st.*`/`stm.*`（rf 仅作源、无 rf 目的字段）不适用本规则。[SimRISC-00 §浮点寄存器][SimRISC-01 §存取RF寄存器][SimRISC-02 §浮点条件赋值]
+- `dst_rf0`（FP 专属）：浮点运算指令**目的**为 `rf0` → ILLI（35 条：convert_ff 4 + convert_i2f 8 + arith 12 + root 2 + sign 4 + cs_rf 3 + roundint 2）；`rf0` 作源合法。`rf2rd`/`st.*`/`stm.*`（rf 仅作源、无 rf 目的字段）不适用本规则。[SimRISC-00 §浮点寄存器][SimRISC-01 §存取RF寄存器][SimRISC-02 §浮点条件赋值]
 - `encode_fp_root_n`（FP 专属）：`ftroot`/`foroot` 仅 n=2，其他 n → ILLI（2 条）。[SimRISC-07 §S1D1]
+- `encode_onehot`（与 `rev.*` 共享）：`roundint` 两条的 `immu6` 非 one-hot（含 `0x00`）→ ILLI（2 条）；六档 one-hot 与 754-2019 六种 `roundToIntegral` 按位序一一对应，复用既有规则、不新增规则。[SimRISC-07 §取整（roundToIntegral）]
 - `mreg_zero`（与 M1 共享，同时服务 RD/RB/RA 多寄存器）：FP `immu6` 连续个数形式 `immu6 = 0` → ILLI（28 条）。[SimRISC-07 §格式转换指令][SimRISC-01 §存取RF寄存器][SimRISC-02 §寄存器组之间块赋值]
 - `mreg_range_overflow`（与 M1 共享）：FP `immu6` 连续个数形式起始 + `immu6 > 64` → ILLI，不环绕、不截断（28 条）；**源与目的起始寄存器均检查**。[SimRISC-07 §格式转换指令][SimRISC-01 §存取RF寄存器][SimRISC-02 §寄存器组之间块赋值]
 - `mreg_range_overlap`（与 M1 共享，M1 侧为 rd2rd/rb2rb）：FP `convert_ff` 四条源范围与目的范围有任何交集（含完全重合）→ ILLI（4 条）；跨组指令（convert_f2i/convert_i2f/classify/rd2rf/rf2rd）结构性不可能重叠。[SimRISC-07 §格式转换指令][SimRISC-02 §寄存器组之间块赋值]
@@ -152,7 +153,7 @@
 
 ## §18 `roundint`（取整：roundToIntegral 六档）<a id="roundint"></a>
 
-> **范围**：本节 2 条当前为 `scope: excluded`（编码已定义、执行触发 ILLI），**不属于** `scope: fp` 58 条，故不进 `contracts/fp_semantics.yaml`；语义在此冻结，供实现（QEMU/LLVM/oracle）消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。[SimRISC-07 §取整（roundToIntegral）]
+> **范围**：本节 2 条为 `scope: fp`（`QEMU-072t`/`LLVM-125t` 落地后由 `SPEC-162t` 解除 `excluded`、撤销 `decode: ILLI`），计入 `scope: fp` 60 条并投影为 `contracts/fp_semantics.yaml` 的 `family: roundint`；语义在此冻结，供 oracle / LLVM / QEMU / testcases 消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。[SimRISC-07 §取整（roundToIntegral）]
 
 - 指令：`ftrnd`/`fornd`（orri：`rfHB` 目的、`rfHC` 源、`immu6` = 取整模式）。`ftrnd` 作用于 ft（32 位，p = 24）、`fornd` 作用于 fo（64 位，p = 53）。[SimRISC-07 §取整（roundToIntegral）]
 - `immu6` 为 **one-hot 六档**（恰一位为 1），与 IEEE 754-2019 §5.3.1 的 `roundToIntegral` 六种操作**按位序一一对应**。[SimRISC-07 §取整（roundToIntegral）]

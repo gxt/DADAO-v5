@@ -1,9 +1,9 @@
-# contracts/fp_semantics.yaml — DADAO SimRISC 0.5.4 FP 语义投影（scope: fp，58 条）
+# contracts/fp_semantics.yaml — DADAO SimRISC 0.5.4 FP 语义投影（scope: fp，60 条）
 #
 # 来源（Spec-first，不从 LLVM/QEMU 反推）：
 #   spec/SimRISC-00 §浮点寄存器 / §浮点状态寄存器
 #   spec/SimRISC-07 §格式转换指令 / §S2D1 / §S1D1 / §浮点符号位操作指令 /
-#                   §浮点比较指令 / §浮点分类指令
+#                   §浮点比较指令 / §浮点分类指令 / §取整（roundToIntegral）
 #   spec/SimRISC-01 §存取RF寄存器
 #   spec/SimRISC-02 §寄存器组之间块赋值 / §浮点条件赋值
 #   spec/SimRISC-03 §立即数常数赋值：Immediate constant
@@ -17,7 +17,7 @@
 
 version: "0.5.4"
 scope: fp
-count: 58
+count: 60
 
 # ── FCSR（rf0）环境 ─────────────────────────────────────────────────────────
 fcsr:
@@ -57,7 +57,7 @@ fcsr:
     "4": NX
   no_trap: true
 
-# ── 12 个语义族（计数见 §1.3；required_keys 为每条记录必须携带的键）──────────
+# ── 13 个语义族（计数见 §1.3；required_keys 为每条记录必须携带的键）──────────
 families:
   convert_ff:
     spec_cite: "SimRISC-07 §格式转换指令"
@@ -107,8 +107,12 @@ families:
     spec_cite: "SimRISC-03 §立即数常数赋值：Immediate constant"
     semantics_ref: "contract-fp.md#set_w_rf"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
+  roundint:
+    spec_cite: "SimRISC-07 §取整（roundToIntegral）"
+    semantics_ref: "contract-fp.md#roundint"
+    required_keys: [family, spec_cite, semantics_ref, legality_refs]
 
-# ── 58 条指令（id 集合须与 opcodes.yaml 中 scope=="fp" 双向一致）──────────────
+# ── 60 条指令（id 集合须与 opcodes.yaml 中 scope=="fp" 双向一致）──────────────
 instructions:
   # convert_ff（4）
   - id: ft2fo_orri_rf
@@ -423,3 +427,15 @@ instructions:
     spec_cite: "SimRISC-03 §立即数常数赋值：Immediate constant"
     semantics_ref: "contract-fp.md#set_w_rf"
     legality_refs: []
+
+  # roundint（2，SPEC-162t）
+  - id: ftrnd_orri_rf
+    family: roundint
+    spec_cite: "SimRISC-07 §取整（roundToIntegral）"
+    semantics_ref: "contract-fp.md#roundint"
+    legality_refs: [dst_rf0, encode_onehot]
+  - id: fornd_orri_rf
+    family: roundint
+    spec_cite: "SimRISC-07 §取整（roundToIntegral）"
+    semantics_ref: "contract-fp.md#roundint"
+    legality_refs: [dst_rf0, encode_onehot]

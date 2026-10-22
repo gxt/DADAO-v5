@@ -1,7 +1,7 @@
 # ISA↔后端覆盖矩阵（生成式，两层分列）
 
 > **生成器**：`tools/llvm/gen_isa_coverage.py`（生成物，勿手工编辑；改生成器或真源后重跑）
-> **真源**：`contracts/opcodes.yaml`（**260** 条 = `m1` 156 + `fp` 58 + `excluded` 29 + `m3` 1 + `m8` 7 + `m9` 9；计数由脚本现场统计，不写死）
+> **真源**：`contracts/opcodes.yaml`（**260** 条 = `m1` 156 + `fp` 60 + `excluded` 27 + `m3` 1 + `m8` 7 + `m9` 9；计数由脚本现场统计，不写死）
 > **重跑**：`python3 tools/llvm/gen_isa_coverage.py`　**门控（反例可失败）**：`python3 tools/llvm/gen_isa_coverage.py --check`
 > **机器可读**：`tools/llvm/llvm-isa-backend-matrix.tsv`（同源同批生成）
 
@@ -123,7 +123,7 @@
 | `fomul_orrr_rf` | `fomul` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:627:fomul_orrr_rf |
 | `foqcmp_orrr_rf` | `foqcmp` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:689:foqcmp_orrr_rf;pat-args:DADAOCodeGen.td.patch:745:foqcmp_orrr_rf |
 | `forem_orrr_rf` | `forem` | `orrr` | `fp` | accept | no | — |
-| `fornd_orri_rf` | `fornd` | `orri` | `excluded` | accept | yes | pat:DADAOCodeGen.td.patch:673:fornd_orri_rf;pat:DADAOCodeGen.td.patch:674:fornd_orri_rf;pat:DADAOCodeGen.td.patch:675:fornd_orri_rf;pat:DADAOCodeGen.td.patch:676:fornd_orri_rf;pat:DADAOCodeGen.td.patch:677:fornd_orri_rf;pat:DADAOCodeGen.td.patch:678:fornd_orri_rf;pat:DADAOCodeGen.td.patch:679:fornd_orri_rf |
+| `fornd_orri_rf` | `fornd` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:673:fornd_orri_rf;pat:DADAOCodeGen.td.patch:674:fornd_orri_rf;pat:DADAOCodeGen.td.patch:675:fornd_orri_rf;pat:DADAOCodeGen.td.patch:676:fornd_orri_rf;pat:DADAOCodeGen.td.patch:677:fornd_orri_rf;pat:DADAOCodeGen.td.patch:678:fornd_orri_rf;pat:DADAOCodeGen.td.patch:679:fornd_orri_rf |
 | `foroot_orri_rf` | `foroot` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:630:foroot_orri_rf |
 | `fosclb_orrr_rf` | `fosclb` | `orrr` | `fp` | accept | no | — |
 | `foscmp_orrr_rf` | `foscmp` | `orrr` | `fp` | accept | no | — |
@@ -142,7 +142,7 @@
 | `ftmul_orrr_rf` | `ftmul` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:648:ftmul_orrr_rf |
 | `ftqcmp_orrr_rf` | `ftqcmp` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:690:ftqcmp_orrr_rf;pat-args:DADAOCodeGen.td.patch:748:ftqcmp_orrr_rf |
 | `ftrem_orrr_rf` | `ftrem` | `orrr` | `fp` | accept | no | — |
-| `ftrnd_orri_rf` | `ftrnd` | `orri` | `excluded` | accept | yes | pat:DADAOCodeGen.td.patch:680:ftrnd_orri_rf;pat:DADAOCodeGen.td.patch:681:ftrnd_orri_rf;pat:DADAOCodeGen.td.patch:682:ftrnd_orri_rf;pat:DADAOCodeGen.td.patch:683:ftrnd_orri_rf;pat:DADAOCodeGen.td.patch:684:ftrnd_orri_rf;pat:DADAOCodeGen.td.patch:685:ftrnd_orri_rf;pat:DADAOCodeGen.td.patch:686:ftrnd_orri_rf |
+| `ftrnd_orri_rf` | `ftrnd` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:680:ftrnd_orri_rf;pat:DADAOCodeGen.td.patch:681:ftrnd_orri_rf;pat:DADAOCodeGen.td.patch:682:ftrnd_orri_rf;pat:DADAOCodeGen.td.patch:683:ftrnd_orri_rf;pat:DADAOCodeGen.td.patch:684:ftrnd_orri_rf;pat:DADAOCodeGen.td.patch:685:ftrnd_orri_rf;pat:DADAOCodeGen.td.patch:686:ftrnd_orri_rf |
 | `ftroot_orri_rf` | `ftroot` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:650:ftroot_orri_rf |
 | `ftsclb_orrr_rf` | `ftsclb` | `orrr` | `fp` | accept | no | — |
 | `ftscmp_orrr_rf` | `ftscmp` | `orrr` | `fp` | accept | no | — |

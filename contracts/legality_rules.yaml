@@ -88,7 +88,8 @@ rules:
       convert_i2f 8（it2ft/io2ft/ut2ft/uo2ft/it2fo/io2fo/ut2fo/uo2fo）、
       arith 12（ftadd/ftsub/ftmul/ftdiv/ftrem/ftsclb/foadd/fosub/fomul/fodiv/forem/fosclb）、
       root 2（ftroot/foroot）、sign 4（ftsgnj/ftsgnn/fosgnj/fosgnn）、
-      cs_rf 5（cs.n/z/p/eq/ne 的目的 rfHB 或 rfHC）。
+      cs_rf 3（cs.n/z/p 的目的 rfHB 或 rfHC；`cs.eq/ne` 的 rf 变体已由 `SPEC-163t` 删除）、
+      roundint 2（ftrnd/fornd 的目的 rfHB，`SPEC-162t` 翻转）。
       **不适用（该指令无 rf 目的字段，rf 仅作源）**：rf2rd、st.t/st.o、stm.t/stm.o（-rf）；
       只读类 14 条（convert_f2i 8、classify 2、compare 4，目的均为 rd）亦无 rf 目的字段，不涉及。
       **例外（rf0 作目的合法）**：rd2rf（含 {rf0:rf0+immu6-1}，immu6≥2 允许）、
@@ -196,7 +197,8 @@ rules:
       .w {1,2,4,8}、.b {1,2,4}；即 k 须为 2 的幂且 k < S（S = 该后缀块大小：
       .o 64 / .t 32 / .w 16 / .b 8），排除 k = S 恒等档。
       非 one-hot（0/3/5/6/…/63）或 k ≥ S 时触发 ILLI 异常（静态）。
-      本规则 active；由 scope: m8 记录的 rule_refs 覆盖（4 条）。
+      本规则 active；由 rule_refs 覆盖（6 条：`rev.o/.t/.w/.b` 4 条，`scope: m8`；
+      `ftrnd`/`fornd` 2 条，`scope: fp`，`SPEC-162t` 起）。
       来源：ADR-0012 D10（用户 2026-10-14 裁定 Q3：「ILLI；需要增加 encode_onehot
       合法性规则，配合 encode_sbz 合法性规则；此外，还有 dst_rd0」）。
 

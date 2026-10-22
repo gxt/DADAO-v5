@@ -287,7 +287,7 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          | MISC-AMO        |
 | 0111-1xxx     |                      |                      | cfx2rd_crrr_cfx      | cfx2rc_crrr_cfx      | cfxld_crii_cfx       | cfxst_crii_cfx       | escape_ciii_cfx      | trap_ciii_cfx   |
 
-> **`scope` 分区**（用户裁定 2026-10-03；2026-10-05 按实现状态更新）：`scope: fp`（主表 `MISC-RF` 子表 op=0x44 的 RF 运算/转换/比较/分类，及散见各表的 RF 存取形态，共 58 条）**语义已归一化于 `contract-fp.md`、执行层 58/58 已实现**（`QEMU-034t`~`038t`），不触发 decode ILLI。
+> **`scope` 分区**（用户裁定 2026-10-03；2026-10-05 按实现状态更新）：`scope: fp`（主表 `MISC-RF` 子表 op=0x44 的 RF 运算/转换/比较/分类/取整，及散见各表的 RF 存取形态，共 60 条）**语义已归一化于 `contract-fp.md`、执行层 60/60 已实现**（`QEMU-034t`~`038t`、取整见 `QEMU-072t`），不触发 decode ILLI。
 > `scope: excluded`（特权 cfx：cfx2rd/cfx2rc/cfxld/cfxst/escape/trap）**未实现，decode ILLI**。
 
 ### 4.1 MISC-AMO 指令编码
@@ -379,7 +379,7 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 
 ### 4.6 MISC-RF指令编码
 
-> 本子表 46 条 = 44 条 `scope: fp`（已实现；语义归一化于 `contract-fp.md`，执行层落地，不触发 decode ILLI）+ 2 条 `scope: excluded`（`ftrnd_orri_rf`/`fornd_orri_rf`，编码已定义、执行触发 ILLI；语义见 SimRISC-07 §取整（roundToIntegral））。`scope: fp` 共 58 条。
+> 本子表 46 条全部为 `scope: fp`（已实现；语义归一化于 `contract-fp.md`，执行层落地，不触发 decode ILLI；取整 `ftrnd_orri_rf`/`fornd_orri_rf` 见 SimRISC-07 §取整（roundToIntegral））。`scope: fp` 共 60 条。
 
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
 
@@ -440,6 +440,7 @@ v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成�
 - ISA 指令 `rela.si` 改名 **`aip.si`**（`riii` / 编码 `0101-1010` 不变；零撞名、长度不变、与 `rbip` 同术语）。
 - 正文术语 `PC` 统一为 **`IP`**（`rb0`/`rbip`）：**`IP` = 当前正在执行的指令的地址**，**不是**主流 ISA 的「下一条指令地址」口径；本 ISA **无 `±4` 流水偏移**，I 形态指令的立即数基址即 `IP`。
 - `clmul.o` 解除 `excluded`（`scope` → `m9`；M9 新增 ISA 指令，与 `rol.*` 同档），执行语义见 `SimRISC-04 §3.5`。
+- `ftrnd`/`fornd` 解除 `excluded`（`scope` → `fp`；实现落地后执行语义生效，不触发 decode ILLI），语义见 `SimRISC-07 §4.3`。
 
 ### 0.5.4（2026-09-28）
 

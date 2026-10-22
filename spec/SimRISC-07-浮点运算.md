@@ -1,14 +1,14 @@
 # SimRISC浮点运算指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：浮点运算**（46 条）— `scope: fp` 44 条（已实现）+ `scope: excluded` 2 条（`ftrnd`/`fornd`，decode ILLI）；fo/ft 运算、格式转换、比较、符号位操作、条件赋值、分类、取整
+> **分类：浮点运算**（46 条）— `scope: fp` 46 条（已实现）；fo/ft 运算、格式转换、比较、符号位操作、条件赋值、分类、取整
 >
-> **FP 范围总账（`scope: fp` 共 58 条）**：本册 44 条（MISC-RF 子表）+ SimRISC-01 取数存数 8 条（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ SimRISC-02 寄存器复制 5 条（`cs.n`/`cs.z`/`cs.p` 的 `-rf` 与 `rd2rf`/`rf2rd`）+ SimRISC-03 16位立即数操作 1 条（`set.w-rf`）。`scope` 表范围、`deferred` 表状态，二者正交（用户裁定 2026-10-03）。
+> **FP 范围总账（`scope: fp` 共 60 条）**：本册 46 条（MISC-RF 子表）+ SimRISC-01 取数存数 8 条（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ SimRISC-02 寄存器复制 5 条（`cs.n`/`cs.z`/`cs.p` 的 `-rf` 与 `rd2rf`/`rf2rd`）+ SimRISC-03 16位立即数操作 1 条（`set.w-rf`）。`scope` 表范围、`deferred` 表状态，二者正交（用户裁定 2026-10-03）。
 
 <!-- ASSEMBLY_LIST_START -->
 ## 1. 汇编指令速查
 
-### 1.1 浮点运算（46 条）｜ `scope: fp`（44 条，已实现） + `scope: excluded`（2 条，decode ILLI）
+### 1.1 浮点运算（46 条）｜ `scope: fp`（46 条，已实现）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -65,15 +65,12 @@
 ## 2. 合法性检查
 
 * `dst_rd0`：目的 rd0 → ILLI — `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `focls_orri_rf`, `foqcmp_orrr_rf`, `foscmp_orrr_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftcls_orri_rf`, `ftqcmp_orrr_rf`, `ftscmp_orrr_rf`（14 条）
-* `dst_rf0`：浮点目的 rf0 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `foadd_orrr_rf`, `fodiv_orrr_rf`, `fomul_orrr_rf`, `forem_orrr_rf`, `foroot_orri_rf`, `fosclb_orrr_rf`, `fosgnj_orrr_rf`, `fosgnn_orrr_rf`, `fosub_orrr_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`, `ftadd_orrr_rf`, `ftdiv_orrr_rf`, `ftmul_orrr_rf`, `ftrem_orrr_rf`, `ftroot_orri_rf`, `ftsclb_orrr_rf`, `ftsgnj_orrr_rf`, `ftsgnn_orrr_rf`, `ftsub_orrr_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（30 条）
+* `dst_rf0`：浮点目的 rf0 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `foadd_orrr_rf`, `fodiv_orrr_rf`, `fomul_orrr_rf`, `forem_orrr_rf`, `fornd_orri_rf`, `foroot_orri_rf`, `fosclb_orrr_rf`, `fosgnj_orrr_rf`, `fosgnn_orrr_rf`, `fosub_orrr_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`, `ftadd_orrr_rf`, `ftdiv_orrr_rf`, `ftmul_orrr_rf`, `ftrem_orrr_rf`, `ftrnd_orri_rf`, `ftroot_orri_rf`, `ftsclb_orrr_rf`, `ftsgnj_orrr_rf`, `ftsgnn_orrr_rf`, `ftsub_orrr_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（32 条）
 * `mreg_zero`：immu6=0 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `focls_orri_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftcls_orri_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（22 条）
 * `mreg_range_overflow`：起始+immu6>64 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `focls_orri_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftcls_orri_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（22 条）
 * `mreg_range_overlap`：源/目的范围交集 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`（4 条）
+* `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `fornd_orri_rf`, `ftrnd_orri_rf`（2 条）
 * `encode_fp_root_n`：ftroot/foroot n≠2 → ILLI — `foroot_orri_rf`, `ftroot_orri_rf`（2 条）
-
-**scope: excluded（decode ILLI）：**
-* `fornd_orri_rf`：decode ILLI
-* `ftrnd_orri_rf`：decode ILLI
 <!-- LEGALITY_END -->
 
 
@@ -210,7 +207,7 @@ fornd   rfHB, rfHC, immu6
 > 「平局远离 0」仅由静态档 `0x02` 提供。另：请求方向已在 `rf0[33:32]` 内的 `nearbyint`
 > 变体仍落 `0x20`，其 NX 置位与 IEEE 的 `nearbyint`（不置）不同，属同一偏差。
 
-> **范围**：本节的 2 条当前为 `scope: excluded`（编码已定义、执行触发 ILLI）；语义按本节冻结。
+> **范围**：本节 2 条为 `scope: fp`（`QEMU-072t`/`LLVM-125t` 落地后由 `SPEC-162t` 翻转）；语义按本节冻结。
 
 ## 5. 浮点符号位操作指令
 
@@ -301,6 +298,7 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
 - 新增取整指令 `ftrnd`/`fornd`（MISC-RF，`immu6` one-hot 六档：TiesToEven/TiesToAway/TowardZero/TowardPositive/TowardNegative/Exact；`scope: excluded`，执行 ILLI）；misc-RF 子表 44→46 条（`scope: fp` 仍 44 条）；登记 `nearbyint` 无硬件变体（落动态档，NX 可能被置位）与 `rf0[33:32]` 不扩充（RMM 不支持）两项已知偏差。
 - 浮点合法性规则（`rule_refs`）回填、归并与重叠禁则。
+- `ftrnd`/`fornd` 执行语义与后端落地（QEMU/LLVM）后解除暂缓登记：`scope: excluded` → `scope: fp`（`decode: ILLI` 撤销，合法性 `dst_rf0` + `encode_onehot` 生效）；misc-RF 子表 46 条全部为 `scope: fp`，FP 范围总账 58 → 60 条（本册 44 → 46 条）。
 - 引入 `scope: fp` 标注；本册 44 条 + 分布取数存数 / 寄存器复制 / 16 位立即数的 16 条，`scope: fp` 共 60 条。
 - 新增「合法性检查」章（生成区）。
 - 删除 `ftlog`/`folog`；`ftroot`/`foroot` 仅保留 n=2。

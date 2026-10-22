@@ -126,7 +126,12 @@ group = "simrisc-00..12"
 #   §4.6 MISC-RF 子表 `000-011`/`001-011` 填 `ftrnd_orri_rf`/`fornd_orri_rf` + 表下范围注记（46 条 = 44 `scope: fp`
 #   + 2 `scope: excluded`）；§4 子表 `scope` 分区注记的 `scope: fp` 计数按现场订正（60→58，`SPEC-163t` 删 2 条后的
 #   残留）；附录 0.5.5-rc 补一条；sha256 同笔重算。
-sha256 = "2093ddbf6eb88e9551910815449ed7a05c71600d10624ebafe7465b88a2c8a73"
+# 2026-10-22（SPEC-162t，授权 = 用户 2026-10-21 关于该指令的裁定原话「不增加 nearbyint，只实现 754-2019 中的六种取整，
+#   按顺序，immu6 用 one-hot 对应上」+「ftrnd/fornd 的 opx：000-011/001-011」（原话落纸于
+#   `.tao/tasks/spec/SPEC-161t-立册.md` §「用户裁定（2026-10-21，原话）」）；本册订正为该裁定的**现行陈述落地**，非新决策）：`ftrnd`/`fornd` 解除 `excluded`（`scope` → `fp`）后**现行陈述**订正 ——
+#   §4 子表 `scope` 分区注记（`scope: fp` 58 → 60、执行层 58/58 → 60/60）、§4.6 表下范围注记（46 条全部为
+#   `scope: fp`，不再有 `excluded` 2 条）+ 附录 0.5.5-rc 段**追加** 1 条（历史行不改写）；QFC 格位不改；sha256 同笔重算。
+sha256 = "733423c188172a89eb6c8bcde2a16172388ed837167a8395ec7a47802f2dbc87"
 
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -184,7 +189,10 @@ group = "simrisc-00..12"
 # 2026-10-22（SPEC-161t，同授权）：新增 §4.3「取整（roundToIntegral）」（6 档 one-hot 表 + 边界 + `nearbyint`
 #   落动态档（NX 可能置位）/`rf0[33:32]` 不扩充（RMM 不支持）两项已知偏差）；册头分类与 FP 范围总账、§1.1 速查
 #   计数同步（46 条 = 44 `scope: fp` + 2 `scope: excluded`；`scope: fp` 共 58 条）；附录 0.5.5-rc 补一条；sha256 同笔重算。
-sha256 = "ca21be54b608fa99b20a2fc2de81220a42fb530da0e97cce8ac6354b36f76fd6"
+# 2026-10-22（SPEC-162t，同授权）：`ftrnd`/`fornd` 实现落地（QEMU/LLVM）后解除 `excluded` ⇒ 册头分类行与
+#   FP 范围总账（58 → 60 条；本册 44 → 46 条）、§4.3 范围注、生成区（§1.1 速查 46 条全为 `scope: fp`；§2 合法性
+#   由 excluded 区块改列 `dst_rf0`/`encode_onehot`）、附录 0.5.5-rc 各补一条；sha256 同笔重算。
+sha256 = "94b0fb91c4f274adeb77bb4662d9739b311c6ee96917cc079fa5420fa09cd449"
 
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"
