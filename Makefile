@@ -317,7 +317,7 @@ _locked-build-qemu: manifest-check
 	    --enable-tcg \
 	    --disable-werror; \
 	fi
-	$(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
+	PYTHONHASHSEED=0 $(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
 	@echo "build-qemu: PASS"
 
 # build-qemu-reconfig: always re-run configure (for when meson.build changes).
@@ -331,7 +331,7 @@ _locked-build-qemu-reconfig: manifest-check
 	  --target-list=dadao-softmmu,dadao-linux-user \
 	  --enable-tcg \
 	  --disable-werror
-	$(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
+	PYTHONHASHSEED=0 $(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
 	@echo "build-qemu-reconfig: PASS"
 
 # gem5 is a v5 addition and has no build command yet (the gem5 module owns it).
@@ -717,7 +717,7 @@ _locked-clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-spec-archive check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-components
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-case-ledger check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-spec-archive check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1158,9 +1158,26 @@ check-instrinfo:
 check-isa-coverage:
 	@$(PYTHON) tools/llvm/gen_isa_coverage.py --check
 
-# Scope partition gate (SPEC-086t/089t): opcodes.yaml scope ∈ {m1,fp,excluded},
-# counts 152/60/15/227, excluded <=> decode ILLI (m1/fp carry none),
-# fp <=> id endswith _rf, and the old M1-exclusion boolean field has disappeared.
+# 逐条用例/pattern 删除哨兵 (INFRA-102t; ISS-102+ISS-118 合并, L1):
+# 由现场语料重派生「身份清单」并与入库的 tests/case-ledger.tsv 逐字节比对；
+# 删任一 vector 用例 / 任一 lit @@ OBJ: pattern ⇒ 少一行 ⇒ FAIL。
+# 清单是生成物（--write 重生成），不含任何计数，无手写期望。
+check-case-ledger:
+	@$(PYTHON) tools/infra/check_case_ledger.py
+
+# decodetree 可复现性 (ISS-058, L1): build-qemu recipe 必须固定 PYTHONHASHSEED=0；
+# .work/source/qemu 在盘时实跑 decodetree 两种 seed，确认「敏感 ⇒ 已固定」。
+check-decodetree-repro:
+	@$(PYTHON) tools/qemu/check_decodetree_repro.py
+
+# QEMU 形态哨兵 (ISS-225, L1): dadao-m1 的 umon syscall 接管实现符号 0 命中
+# （helper.c.patch 必须存在且被扫描）。无需 qemu 二进制。
+check-qemu-forms:
+	@$(PYTHON) tools/qemu/semantics_gate.py --form-check
+
+# Scope partition gate (SPEC-086t/089t; INFRA-102t 去计数): scope ∈
+# {m1,fp,excluded,m3,m8,m9}；并集==全量、两两不交、每 scope 非空、
+# excluded <=> decode ILLI (m1/fp/m3/m8/m9 carry none)、fp => id endswith _rf。
 check-scope:
 	@$(PYTHON) tools/spec/check_scope.py
 
@@ -1169,8 +1186,9 @@ check-scope:
 check-rule-refs: contracts/opcodes.yaml
 	@$(PYTHON) tools/spec/check_rule_refs.py
 
-# FP semantics contract gate (SPEC-087t): scope: fp 60 条语义投影完备性
-# (id 双向覆盖/12 族计数/spec_cite/required_keys/legality 双向/锚点/版本头)。
+# FP semantics contract gate (SPEC-087t; INFRA-102t 去计数): scope: fp 语义投影
+# 完备性（id 集合双向/族集合现场双向/spec_cite/required_keys/规则引用由 legality
+# 表达式现场派生/legality 双源/锚点/版本头）——不写死条数或族计数。
 check-fp-contract:
 	@$(PYTHON) tools/spec/check_fp_contract.py
 

@@ -16,7 +16,14 @@
    - ``pat-args``：``def``/``defm`` 实例化的 Pat 类实参（含 ``multiclass``
      经 ``defm`` 传入的指令）；
    - ``isel-cpp``：``DADAOISelDAGToDAG.cpp`` / ``DADAOISelLowering.cpp`` 中以
-     ``DADAO::<def>`` 显式引用的指令。
+     ``DADAO::<def>`` 显式引用的指令；
+   - ``pseudo``：伪指令展开路径（``DADAOInstrInfo::expandPostRAPseudo`` 的
+     ``case DADAO::<PSEUDO>:`` 块内 ``BuildMI(... DADAO::<def>)``），
+     把 ``Pat`` 里的 ``*_PSEUDO`` 引用解析到实际发射的指令（ISS-327 ①）；
+   - ``buildmi``：**任意**后端 C++ 补丁中 ``BuildMI(...)`` 调用里的
+     ``DADAO::<def>`` 常量（含 post-ISel：帧处理/寄存器分配等）（ISS-327 ③）；
+   - ``synonym``：``.td`` def 与 opcodes 记录**编码身份相同但助记符不同**时，
+     证据按编码身份互认（ISS-327 ②，防改名导致假「未用」）。
    每条证据给出 **补丁文件物理行号**（可直接 ``sed -n '<N>p'`` 复核）。
 
 输出（随产物入库、可重跑、幂等；计数一律现场统计）：
@@ -211,9 +218,25 @@ def build_def_map(defs: list[dict], recs: list[dict]) -> dict[str, list[str]]:
 # ---------------------------------------------------------------------------
 # 第②层证据提取
 # ---------------------------------------------------------------------------
-def extract_evidence(defnames: set[str], patches: dict[str, tuple[str, list[int]]]) -> dict[str, set]:
-    """返回 def 名 → {(kind, 文件名, 补丁物理行号)}。"""
+def extract_evidence(defnames: set[str], patches: dict[str, tuple[str, list[int]]],
+                     pseudo_map: dict[str, set[str]] | None = None) -> dict[str, set]:
+    """返回 def 名 → {(kind, 文件名, 补丁物理行号)}。
+
+    `pseudo_map` 非空时，Pat 体/实参里的 ``*_PSEUDO`` 引用按其展开体解析到实际
+    指令 def，证据类型记 ``pseudo``（ISS-327 ①）。
+    """
+    pseudo_map = pseudo_map or {}
     ev: dict[str, set] = collections.defaultdict(set)
+
+    def add(tok: str, kind: str, fname: str, offset: int) -> None:
+        if tok in defnames:
+            ev[tok].add((kind, fname, line_of(text, offset, raw), tok))
+            return
+        for target in pseudo_map.get(tok, ()):
+            if target in defnames:
+                # 5 元组：末位记「经哪条伪指令解析」（证据回读时该行含伪指令名）。
+                ev[target].add(("pseudo", fname, line_of(text, offset, raw),
+                                target, tok))
 
     # (a) Pat<...> DAG 体； (b) Pat 类实例化的**类实参**（含 defm 的 multiclass 实参）
     for fname in TD_FILES:
@@ -225,8 +248,7 @@ def extract_evidence(defnames: set[str], patches: dict[str, tuple[str, list[int]
                 continue
             base = lt + 1
             for tm in TOKEN_RE.finditer(body):
-                if tm.group(0) in defnames:
-                    ev[tm.group(0)].add(("pat", fname, line_of(text, base + tm.start(), raw)))
+                add(tm.group(0), "pat", fname, base + tm.start())
         statements = [(m, m.group(0)) for m in re.finditer(r"^[ \t]*def\b[^;{]*;", text, re.M)]
         statements += [(m, m.group(0)) for m in re.finditer(r"^[ \t]*defm\b.*?;", text, re.M | re.S)]
         for m, seg in statements:
@@ -248,9 +270,7 @@ def extract_evidence(defnames: set[str], patches: dict[str, tuple[str, list[int]
                     continue
                 base = m.start() + tm.start() + 1
                 for tk in TOKEN_RE.finditer(body):
-                    if tk.group(0) in defnames:
-                        ev[tk.group(0)].add(("pat-args", fname,
-                                             line_of(text, base + tk.start(), raw)))
+                    add(tk.group(0), "pat-args", fname, base + tk.start())
 
     # (c) ISel C++ 显式引用
     for fname in ISEL_CPP_FILES:
@@ -258,7 +278,88 @@ def extract_evidence(defnames: set[str], patches: dict[str, tuple[str, list[int]
         for m in CPP_REF_RE.finditer(text):
             tok = m.group(1)
             if tok in defnames:
-                ev[tok].add(("isel-cpp", fname, line_of(text, m.start(), raw)))
+                ev[tok].add(("isel-cpp", fname, line_of(text, m.start(), raw), tok))
+    return ev
+
+
+def extract_pseudo_pattern_evidence(pseudo_map: dict[str, set[str]],
+                                    defnames: set[str],
+                                    patches: dict[str, tuple[str, list[int]]]) -> dict[str, set]:
+    """伪指令自身带 TableGen 选择模式（`DADAOPseudo<... [(set ...)]>`）⇒ 被 ISel 选中。
+
+    `ADD_PSEUDO`/`MUL_PSEUDO` 等 def 的模式写在 def 体内（不是 `Pat<`），旧提取
+    规则看不到，导致其展开后的真实指令被误判「未用」（ISS-327 ①）。
+    """
+    ev: dict[str, set] = collections.defaultdict(set)
+    for fname in TD_FILES:
+        text, raw = patches[fname]
+        for pseudo, targets in pseudo_map.items():
+            m = re.search(r"^[ \t]*def\s+" + re.escape(pseudo)
+                          + r"\s*:\s*DADAOPseudo<", text, re.M)
+            if not m:
+                continue
+            semi = text.find(";", m.end())
+            if semi == -1:
+                continue
+            span = text[m.end():semi]
+            pat = re.search(r"\[(.*?)\]\s*>\s*$", span, re.S)
+            if not pat or not pat.group(1).strip():
+                continue  # 模式为空：由 C++ BuildMI 路径覆盖
+            for tgt in targets:
+                if tgt in defnames:
+                    ev[tgt].add(("pseudo", fname, line_of(text, m.start(), raw),
+                                 tgt, pseudo))
+    return ev
+
+
+def extract_pseudo_map(patches: dict[str, tuple[str, list[int]]]) -> dict[str, set[str]]:
+    """从 expandPostRAPseudo 的 `case DADAO::<PSEUDO>:` 块解析伪指令 → 实际 def。
+
+    伪指令 def（``*_PSEUDO``）不是 ISA 记录，但 ``Pat`` 会引用它们；其展开体
+    里的 ``DADAO::<def>`` 才是真正发射的指令（ISS-327 ①）。
+    """
+    text, _raw = patches["DADAOInstrInfo.cpp.patch"]
+    cases = list(re.finditer(r"case\s+DADAO::(\w+)\s*:", text))
+    blocks: list[set[str]] = []
+    for i, m in enumerate(cases):
+        end = cases[i + 1].start() if i + 1 < len(cases) else len(text)
+        block = text[m.end():end]
+        # 展开体里既可能有 `BuildMI(... DADAO::x)`，也可能先算 `Opc = ... DADAO::x`
+        # 再 `TII.get(Opc)`（ADD_PSEUDO/SUB_PSEUDO 合并展开），故收块内**全部**引用。
+        blocks.append(set(CPP_REF_RE.findall(block)))
+    mapping: dict[str, set[str]] = {}
+    # `case A:` 无 body 直接落到 `case B:` ⇒ 共享 B 的展开体（fall-through）。
+    for i in range(len(cases) - 1, -1, -1):
+        real = blocks[i]
+        if not real and i + 1 < len(blocks):
+            real = blocks[i + 1]
+            blocks[i] = real  # 多级 fall-through（ADD/SUB/MUL 共享一个 body）
+        if real:
+            mapping[cases[i].group(1)] = set(real)
+    return mapping
+
+
+def extract_buildmi(defnames: set[str], pseudo_map: dict[str, set[str]],
+                    patches: dict[str, tuple[str, list[int]]],
+                    files: list[str]) -> dict[str, set]:
+    """任意后端 C++ 补丁：`BuildMI(...)` 调用内的 `DADAO::<def>` 常量（ISS-327 ③）。"""
+    ev: dict[str, set] = collections.defaultdict(set)
+    for fname in files:
+        text, raw = patches[fname]
+        for m in re.finditer(r"BuildMI\s*\(", text):
+            semi = text.find(";", m.end())
+            span = text[m.start(): semi if semi != -1 else m.end() + 400]
+            for tm in CPP_REF_RE.finditer(span):
+                tok = tm.group(1)
+                if tok in defnames:
+                    ev[tok].add(("buildmi", fname,
+                                 line_of(text, m.start() + tm.start(), raw), tok))
+                    continue
+                for tgt in pseudo_map.get(tok, ()):
+                    if tgt in defnames:
+                        ev[tgt].add(("buildmi", fname,
+                                     line_of(text, m.start() + tm.start(), raw),
+                                     tgt, tok))
     return ev
 
 
@@ -395,18 +496,45 @@ def load_cases(recs: list[dict]) -> dict[str, dict]:
     return {r["id"]: glv.build_case(r) for r in recs}
 
 
+def build_synonym_map(defs: list[dict], recs: list[dict]) -> dict[str, list[str]]:
+    """编码身份（format, op, ha）相同但助记符不同的 def → 记录 id（ISS-327 ②）。
+
+    例：opcodes 记录 `it2ft` 若被后端以 `io2fo` 名字引用（同一编码），证据应
+    记到该记录上，而不是因助记符不同判「未用」。
+    """
+    idx: dict[tuple, list[dict]] = collections.defaultdict(list)
+    for r in recs:
+        idx[(r["format"], int(r["op"], 16), rec_ha(r))].append(r)
+    out: dict[str, list[str]] = {}
+    for d in defs:
+        key = (d["format"], int(d["op"], 16) if d["op"] else None,
+               int(d["ha"], 16) if d["ha"] else None)
+        hits = idx.get(key, [])
+        if len(hits) == 1 and d["mnemonic"] != hits[0]["mnemonic"]:
+            out.setdefault(hits[0]["id"], []).append(d["name"])
+    return out
+
+
 def build_matrix(opcodes: Path, llvm_mc: Path) -> tuple[list[dict], dict]:
     recs = yaml.safe_load(opcodes.read_text(encoding="utf-8"))
     if not isinstance(recs, list) or not recs:
         raise SystemExit(f"ERROR: {opcodes}: 顶层必须是列表且非空")
 
+    cpp_files = sorted({p.name for p in BACKEND_DIR.glob("*.cpp.patch")}
+                       | set(ISEL_CPP_FILES) | set(POST_ISEL_FILES))
     patches = {f: reconstruct_patch((BACKEND_DIR / f).read_text(encoding="utf-8"))
-               for f in TD_FILES + ISEL_CPP_FILES + POST_ISEL_FILES}
+               for f in TD_FILES + cpp_files}
 
     defs = [d for f in TD_DEF_FILES for d in parse_instr_defs(*patches[f])]
     defnames = {d["name"] for d in defs}
+    pseudo_map = extract_pseudo_map(patches)
     id2defs = build_def_map(defs, recs)
-    ev_by_def = extract_evidence(defnames, patches)
+    synonym_by_id = build_synonym_map(defs, recs)
+    ev_by_def = extract_evidence(defnames, patches, pseudo_map)
+    for extra in (extract_buildmi(defnames, pseudo_map, patches, cpp_files),
+                  extract_pseudo_pattern_evidence(pseudo_map, defnames, patches)):
+        for defname, ev in extra.items():
+            ev_by_def.setdefault(defname, set()).update(ev)
     post_by_def = extract_post_isel(defnames, patches)
     cases = load_cases(recs)
     l1 = run_layer1(recs, cases, llvm_mc)
@@ -415,11 +543,12 @@ def build_matrix(opcodes: Path, llvm_mc: Path) -> tuple[list[dict], dict]:
     for rec in recs:
         rid = rec["id"]
         ds = id2defs.get(rid, [])
+        synonym_defs = synonym_by_id.get(rid, [])
         evidence = set()
         post = set()
-        for d in ds:
-            for (kind, fname, ln) in ev_by_def.get(d, ()):
-                evidence.add((kind, fname, ln, d))
+        for d in ds + synonym_defs:
+            for item in ev_by_def.get(d, ()):
+                evidence.add(item)
             post |= post_by_def.get(d, set())
         rows.append({
             "id": rid,
@@ -431,9 +560,10 @@ def build_matrix(opcodes: Path, llvm_mc: Path) -> tuple[list[dict], dict]:
             "L1_encoding": l1[rid]["encoding"],
             "L1_asm": l1[rid]["asm"],
             "L2_isel": "yes" if evidence else "no",
-            "L2_evidence": ";".join("%s:%s:%d:%s" % (k, f, ln, d)
-                                    for (k, f, ln, d) in sorted(evidence)) if evidence else "",
+            "L2_evidence": ";".join(":".join(str(x) for x in item)
+                                    for item in sorted(evidence)) if evidence else "",
             "_evidence": sorted(evidence),
+            "_synonym": sorted(synonym_defs),
             "backend_post_isel": ";".join("%s:%d" % (f, ln) for f, ln in sorted(post)) if post else "",
         })
     rows.sort(key=lambda r: r["id"])
@@ -534,6 +664,9 @@ def render_md(rows: list[dict], st: dict) -> str:
     a("| `pat` | TableGen `Pat<...>` DAG 体内出现的指令 def 名（自动生成的 ISel 选入表） | `DADAOCodeGen.td.patch` 等 |")
     a("| `pat-args` | `def`/`defm` 的 Pat 类实参（含 `multiclass` 经 `defm` 传入的指令） | `DADAOCodeGen.td.patch` |")
     a("| `isel-cpp` | `DADAO::<def>` 显式引用（自定义选择器 / lowering 发射） | `DADAOISelDAGToDAG.cpp.patch`、`DADAOISelLowering.cpp.patch` |")
+    a("| `pseudo` | 伪指令（`*_PSEUDO`）的 TableGen 选择模式 / 展开体（`expandPostRAPseudo`）解析到的**实际发射指令**（ISS-327 ①） | `DADAOCodeGen.td.patch`、`DADAOInstrInfo.cpp.patch` |")
+    a("| `buildmi` | 任意后端 C++ 补丁中 `BuildMI(...)` 调用里的 `DADAO::<def>` 常量（含帧处理/寄存器分配等 post-ISel 发射，ISS-327 ③） | `DADAO*.cpp.patch` |")
+    a("| `synonym` | `.td` def 与记录**编码身份相同但助记符不同**时按编码身份互认（ISS-327 ②） | 全 `.td` 补丁 |")
     a("")
     a(f"现场统计：证据条数 = " +
       " + ".join(f"{k} {v}" for k, v in sorted(st["evidence_kinds"].items())) +
@@ -544,22 +677,26 @@ def render_md(rows: list[dict], st: dict) -> str:
     a("- **纯静态**：只读已入库补丁源码，不看构建产物（`.inc`）与运行期；"
       "`multiclass`/类继承经人工写了机械展开规则（`Pat<` 体 + 实例化实参），"
       "若日后新增其它间接引用形式，须同步扩充提取规则。")
-    a("- **post-ISel 不计入第②层**：伪指令展开（`DADAOInstrInfo::expandPostRAPseudo`）、"
-      "分支松弛、帧处理、寄存器分配 `copyPhysReg` 等发射的指令，其引用点在 "
-      "`DADAOInstrInfo.cpp` / `DADAOFrameLowering.cpp` / `DADAORegisterInfo.cpp`——"
-      "**不属于 ISel**，单列为辅助列 `backend_post_isel`（仅作背景，不参与第②层判定）。")
+    a("- **post-ISel 发射计入 `buildmi`/`pseudo`（ISS-327）**：伪指令展开、帧处理、"
+      "寄存器分配等 `BuildMI` 常量也证明「后端确实发射该指令」；辅助列 "
+      "`backend_post_isel` 仅保留 `DADAO::<def>` 的普通引用背景，不再作为排除条件。")
+    a("- **伪指令展开体共享**：`ADD_PSEUDO`/`SUB_PSEUDO`/`MUL_PSEUDO` 等多条 case 共享"
+      "一个展开体（fall-through + 运行期 `Opc` 三元选择），静态提取无法逐条区分 ⇒ "
+      "同一展开体覆盖的指令**都**记 `pseudo` 证据（保守：宁多认，不假报「未用」）。")
+    a("- **同义名（`synonym`）**：仅当 `.td` def 与记录 `(format, op, ha)` 编码身份相同、"
+      "助记符不同时才互认；当前后端未出现此类改名（现场为 0 组，属正常）。")
     a("- **间接引用已覆盖**：`DAG.getNode(DADAOISD::…)` 自定义节点本身不是指令名，"
       "其落地指令由 `Pat` 覆盖（如 `cs.*` / `br.*`）；若某自定义节点的落地指令"
       "**只在 C++ 里 `BuildMI`**，则由 `isel-cpp` 捕获。")
     a("- **`.td` def 无真源记录者不入选**：CodeGen-only 伪指令（`*_PSEUDO`/`GLOBAL_ADDR`/"
-      "`JT_ADDR`/`tailjmp_*`）不是 ISA 记录；`tailjmp_*` 与 `jump` 同编码，"
-      "归入 `jump` 记录的证据。")
+      "`JT_ADDR`/`tailjmp_*`）不是 ISA 记录；其证据经 `pseudo`/`synonym` 解析到实际指令；"
+      "`tailjmp_*` 与 `jump` 同编码，归入 `jump` 记录的证据。")
     a("- **MC-only 指令**：`fence` 汇编可得但无 ISel 模式 ⇒ 第②层 `no`（属正常，非缺陷）。")
     a("")
     a(f"## 2. 矩阵（全量 {st['total']} 条，按 id 排序）")
     a("")
     a("列：`id` ｜ `mnemonic` ｜ `format` ｜ `scope` ｜ **①汇编器** ｜ **②ISel** ｜ 证据")
-    a("（证据格式 `kind:文件:补丁物理行号:def名`，可直接 `sed -n '<行号>p' <文件>` 复核；"
+    a("（证据格式 `kind:文件:补丁物理行号:def名[:伪指令名]`，可直接 `sed -n '<行号>p' <文件>` 复核；"
       "完整形态行见 TSV 的 `L1_asm` 列）")
     a("")
     a("| id | mnemonic | format | scope | ①汇编器 | ②ISel | 证据 |")
@@ -617,7 +754,9 @@ def verify_evidence(rows: list[dict], errors: list[str]) -> int:
         if not r["L2_evidence"]:
             continue
         for item in r["L2_evidence"].split(";"):
-            kind, fname, line_s, defname = item.split(":")
+            parts = item.split(":")
+            kind, fname, line_s, defname = parts[:4]
+            via = parts[4] if len(parts) > 4 else None
             line = int(line_s)
             if fname not in cache:
                 cache[fname] = (BACKEND_DIR / fname).read_text(encoding="utf-8").split("\n")
@@ -626,8 +765,9 @@ def verify_evidence(rows: list[dict], errors: list[str]) -> int:
             if not (1 <= line <= len(src)):
                 errors.append(f"证据行越界: {item}")
                 continue
-            if defname not in src[line - 1]:
-                errors.append(f"证据行不含 def 名 {defname}: {item} → {src[line - 1].strip()[:80]}")
+            if defname not in src[line - 1] and not (via and via in src[line - 1]):
+                errors.append(f"证据行不含 def 名 {defname}/伪指令 {via}: {item} "
+                              f"→ {src[line - 1].strip()[:80]}")
     return n
 
 
@@ -697,6 +837,58 @@ def cmd_check(args) -> int:
 
 
 # ---------------------------------------------------------------------------
+# --self-test：三类新增证据源（ISS-327）——每条断言均有可达 FAIL 的构造反例。
+# ---------------------------------------------------------------------------
+def self_test() -> int:
+    ok = True
+
+    def check(name: str, cond: bool, detail: str = "") -> None:
+        nonlocal ok
+        print(f"[{'PASS' if cond else 'FAIL'}] self-test {name}"
+              + (f": {detail}" if detail else ""))
+        ok = ok and cond
+
+    # ① 伪指令展开映射（真实补丁，现场解析）：ADD_PSEUDO → add_uo_rd
+    patches = {f: reconstruct_patch((BACKEND_DIR / f).read_text(encoding="utf-8"))
+               for f in TD_FILES + sorted({p.name for p in BACKEND_DIR.glob("*.cpp.patch")})}
+    pmap = extract_pseudo_map(patches)
+    check("pseudo-map ADD_PSEUDO→add_uo_rd",
+          "add_uo_rd" in pmap.get("ADD_PSEUDO", set()),
+          str(sorted(pmap.get("ADD_PSEUDO", set()))[:4]))
+    # 反例可判性：把 case 名改掉 ⇒ 映射为空
+    fake = {"DADAOInstrInfo.cpp.patch": ("case DADAO::NOT_A_PSEUDO: { return true; }", [1])}
+    check("pseudo-map 反例（无展开体 ⇒ 空）",
+          extract_pseudo_map(fake) == {})
+    defs = [d for f in TD_DEF_FILES for d in parse_instr_defs(*patches[f])]
+    defnames = {d["name"] for d in defs}
+
+    # ② 同义名：编码身份相同、助记符不同 ⇒ 记到记录上
+    recs = [{"id": "it2ft_orri_rf", "mnemonic": "it2ft", "format": "orri",
+             "op": "0x44", "mask": "0xFFFC0000", "value": "0x44040000"}]
+    syn_defs = [{"name": "io2fo_orri_rf", "mnemonic": "io2fo", "format": "orri",
+                 "op": "0x44", "ha": "0x01"}]
+    recs[0]["ha"] = "0x01"
+    syn = build_synonym_map(syn_defs, recs)
+    check("synonym（同编码不同名 ⇒ 互认）",
+          syn.get("it2ft_orri_rf") == ["io2fo_orri_rf"], str(syn))
+    bad_defs = [dict(syn_defs[0], ha="0x02")]
+    check("synonym 反例（编码不同 ⇒ 不互认）",
+          build_synonym_map(bad_defs, recs) == {})
+
+    # ③ BuildMI opcode 常量（真实补丁）：clmul_o_rd 出现在 InstrInfo.cpp 的 BuildMI
+    cpp = sorted({p.name for p in BACKEND_DIR.glob("*.cpp.patch")})
+    bmi = extract_buildmi(defnames, pmap, patches, cpp)
+    check("buildmi clmul_o_rd", "clmul_o_rd" in bmi,
+          str(sorted(bmi.get("clmul_o_rd", set()))[:1]))
+    check("buildmi 反例（无 BuildMI 文本 ⇒ 空）",
+          extract_buildmi(defnames, pmap,
+                          {"x.cpp.patch": ("int f(){return 0;}", [1])}, ["x.cpp.patch"]) == {})
+
+    print(f"self-test: {'PASS' if ok else 'FAIL'}")
+    return 0 if ok else 1
+
+
+# ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
 def main(argv: list[str] | None = None) -> int:
@@ -709,8 +901,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--md", default=str(MD_DEFAULT))
     ap.add_argument("--check", action="store_true",
                     help="由真源重派生并与已入库产物比对；不一致即非零退出")
+    ap.add_argument("--self-test", action="store_true",
+                    help="三类证据源（pseudo/synonym/buildmi）的单元自检")
     args = ap.parse_args(argv)
 
+    if args.self_test:
+        return self_test()
     if args.check:
         return cmd_check(args)
 

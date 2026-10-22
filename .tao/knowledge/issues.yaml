@@ -1,10 +1,3 @@
-# Issue registry — DADAO-v5
-#
-# 字段：id / title / status(open|closed) / scope[] / blocks[] / resolved_by / notes。
-#   规则：closed 必须带 resolved_by（任务号）；open 必须为 null（check_issues 校验）。
-#   notes 只写「现象 / 根因 / 修法 / 边界 / 证据指针」；长叙事进任务书，不在此复述。
-# 里程碑历史见 `.tao/archive/M*/README.md`；进度见 `.tao/knowledge/milestones.md`。
-
 - id: ISS-054
   title: "探针手算分支偏移易错 → 建议标签化框架（tools/qemu/ 基于标签的探针框架）"
   status: open
@@ -13,10 +6,10 @@
   resolved_by: null
 - id: ISS-058
   title: "scripts/decodetree.py 输出依赖 PYTHONHASHSEED——非 bit-reproducible"
-  status: open
+  status: closed
   scope: [qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: INFRA-102t
 - id: ISS-064
   title: "cpu_loop_exit 的 longjmp 泄漏 MMIO re-entrancy 守卫——engaged_in_io 未复位"
   status: open
@@ -49,13 +42,6 @@
   blocks: []
   resolved_by: null
   notes: "原 backlog L92。根因 build_test_binary.py:625 将 ret 路由到 build_call_ret_binary（剥离 RA）+ loader 对 call 的宽度推导 ValueError；与 ret rd0 无关。建议由 TESTCASES-022t 或专门 harness 任务处置。"
-- id: ISS-102
-  title: "覆盖门控为 (id,class) 粒度，删单条 legality 用例不触发报错"
-  status: open
-  scope: [testcases]
-  blocks: []
-  resolved_by: null
-  notes: "原 backlog L126。归属：validator 增强或接受该粒度并以 harness 兜底。"
 - id: ISS-108
   title: "LLVM 侧 2 个新增文件 >1000 行（DADAOInstrInfo.td 1304 / DADAOAsmParser.cpp 1091）"
   status: open
@@ -63,13 +49,6 @@
   blocks: []
   resolved_by: null
   notes: "原 backlog L145。建议性跟踪（Process-01 §11 非强制）；如出现维护痛点再评估拆分。"
-- id: ISS-118
-  title: "lit 覆盖断言粒度限制：同族内删多条 pattern 之一无法检出（INTEG-007t）"
-  status: open
-  scope: [integ]
-  blocks: []
-  resolved_by: null
-  notes: "原 backlog L213。无「基线条数」参照，属不可解；由后续任务评估。"
 - id: ISS-120
   title: "min_rom_probe_{006t,008t,009t,010t,013t,028t}.py 群 FAIL 与 009t-audit FAIL（pre-existing 漂移）"
   status: open
@@ -224,11 +203,11 @@
   notes: "【正式登记（源 = `QEMU-060t` 完成区「新发现/坑 ①」；architect 提交/文件集审核时立项并**现场复跑复核**，2026-10-15）】**现象（现场复现，rc=2）**：`tools/infra/apply_series.py` 的组件循环**先取补丁路径、后无 `patchless` 判断**，而 `patchless` 组件按 `manifests/components.lock.toml` 约定**只许缺省 `patch_dir`/`patch_series`**（`tools/infra/manifest_check.py:45-53` 显式拒绝二者与该标记并存）⇒ 循环走到**首个 enabled 的 `patchless` 组件（现场 = `chipyard`；`linux`/`llvm-test-suite`/`libc-test` 同类）**时 `component['patch_dir']` 抛 `KeyError`（**现场定位 = `tools/infra/apply_series.py:108`**；紧随的第 109 行 `patch_series` 同病）。**rc=2**；`make` 报错点 = `Makefile:151` 目标 `apply-series`（依赖 `manifest-check`），现场报 `make: *** [Makefile:151: apply-series] Error 1`。**复现命令（现场，2026-10-15）**：`make apply-series` ⇒ 前 4 个非 `patchless` 组件（llvm-project/qemu/embench-iot/picolibc）打印 `already applied (base+1, matches patches); skipped`（**幂等无副作用**）后即崩于 `chipyard`，traceback 终点 `KeyError: 'patch_dir'`、**rc=2**（输出留 `.work/log/qemu/QEMU-060t-apply-series.log`）；**隔离复现**（`LLVM-091t` 已做）= 仅 `chipyard` 的临时 manifest ⇒ 同一 `KeyError`（rc=1）。**首次有记录遇到 = 2026-10-14（`LLVM-091t` 升级期间）**：其任务书「完成区·遗留问题①」与「第 1 轮 reviewer 验收」已如实登记（该脚本不在改动集 ⇒ 判**既有缺陷、与本升级无关**，并给修法建议）；现场日志 `.work/log/llvm/LLVM-091t-apply-series.log`（2026-10-14 12:13）与 `.work/log/llvm/apply-series.log`（2026-10-14 17:22）为同一 traceback。**旁证（非「首次」）**：更早的 `QEMU-040t`/`QEMU-053t`/`LLVM-064t` apply-series 日志**无**该 traceback（当时 enabled 集内尚无 `patchless` 组件）⇒ 缺陷随 `patchless` 组件进入 enabled 集而暴露。**影响**：① 组件按序落补丁的**统一入口**（`make apply-series`）在**任一** `patchless` 组件 enabled 时**不可用**；② `make prepare` = `fetch apply-series`（`Makefile:154`）⇒ **同崩**，从零准备源树的主路径须绕过（`docs/Process-01 §7` 文档化恢复步骤）；③ **但不阻断** —— `patchless` 组件**本就无补丁可应用**（`ADR-0024 D1`），绕过无损失：现场重放（`git -C .work/source/qemu reset --hard <base>` → `make apply-series` → 36 项全落地 → `--source-state` 绿）已闭环。**同型对照（修复样板，均已带守卫）**：`tools/infra/check_patch_tree.py:359-364`（`if component.get('patchless'): continue` 后 `continue`）与 `:310`（`--source-state` 路径同判）⇒ **`apply_series.py` 是唯一缺该守卫者**（现场逐文件核：`check_index_blobs.py` / `make_patch.py` 用 `.get()`，`manifest_check.py` 已判 `patchless`）。**处置建议**：在组件循环首部加 `if component.get('patchless'): continue`（对齐 `check_patch_tree.py:360` 样板；可附一行 `print` 说明跳过原因，与 `--source-state` 的 `patchless; skipped` 形态一致）⇒ 修后对纯 `patchless` 集 `make apply-series` 应 rc=0。**性质 = 既有缺陷（非本任务引入、非交付物缺陷）+ 纯 `infra` 修复面（`tools/infra/apply_series.py` 单文件）+ 不涉契约语义** ⇒ **不经用户语义裁定**、可另立 `infra` 小任务（**本笔只登记、不改代码**）。**`status` 取 `open`（architect 判断）**：① 缺陷**仍在**（现场 `make apply-series` rc=2 复现）；② **可复发**（任一含 `patchless` 的 enabled 集 × 任一走 `apply-series`/`prepare` 的任务）；③ **有机械门控可判** ⇒ 修复后可直接以 `make apply-series` 的 rc 作判据。**边界**：本笔**未改** `tools/**`、未改 `manifests/**`、未改 `Makefile`。证据指针：`.tao/archive/M8/qemu/QEMU-060t-回退dadao-m1-syscall服务.md`「完成区·新发现/坑 ①」；`.tao/archive/M8/llvm/LLVM-091t-llvm-project23.1.3升级.md`「完成区·遗留问题①」+「第 1 轮 reviewer 验收」；`.work/log/qemu/QEMU-060t-apply-series.log`、`.work/log/llvm/LLVM-091t-apply-series.log`、`.work/log/llvm/LLVM-091t-reviewer-apply-series.log`、`.work/log/llvm/apply-series.log`（本机留档，不入库）；`tools/infra/apply_series.py:108`；`tools/infra/check_patch_tree.py:310,360`；`manifests/components.lock.toml`（`chipyard`/`linux`/`llvm-test-suite`/`libc-test` = `patchless`）。"
 - id: ISS-225
   title: "【P3】`dadao-m1` 服务撤回后**无回归哨兵**：日后若有人重新引入 `SYS_UMON_SYSCALL` 类服务，现有 L1 门控**无形态断言**可查"
-  status: open
+  status: closed
   scope: [qemu, infra]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（源 = `QEMU-060t`「第 1 轮 reviewer 验收」§「『行为面无强断言』独立判定」+ 完成区「遗留问题 ⑤」；engineer 返工第 2 轮登记，2026-10-15）】**现象（缺口）**：`QEMU-060t` 把 `dadao-m1` 撤回为 semihosting-only 后，仓库内**没有任何机械信号**会在「同类服务被重新引入」时变红 —— ① `check-qemu-semantics` 对该路由**不敏感**（`INFRA-082t` 阶段 A1 加服务前后**均 149/149**，其完成区已记）；② 唯一覆盖该路由的两个专用产物（探针 `tools/qemu/min_rom_probe_082t.py`、测试 `tools/infra/test_musl_static.py`）**随撤回一并删除**（`QEMU-060t` §范围 2）；③ L1 现有形态门控各守其界、均不涉该路由：`check-patch-tree`（补丁树 vs 落地源一致性）、`check-index-blobs`（blob 索引）、`check-component-changelog`（changelog 形态）、`check-qemu-semantics`（指令语义向量）——**无一**断言「`helper.c.patch` 里不存在 umon 接管分支」。**风险**：用户 2026-10-15 已裁定「**我不需要在 dadao-m1 上实现另外一套 syscall 的模拟**」（原话见 `QEMU-060t` §立项来源）⇒ 「不再引入该服务」现为**已裁定结论**，却**无哨兵守护**；日后任一任务（如 `P3` 或路径迁移类改动）若顺手在 `dadao-m1` 加回同类接管，**CI/门控全绿**、只能靠人读 diff 发现 ⇒ 裁定结论**可静默回退**。**建议（择一，落点 = L1）**：ⓐ 在既有 QEMU 面门控内（或新增一条轻量检查）断言 **形态**——代码面 `git grep` 实现符号（`umon_serve_syscall`/`is_umon_user_syscall`/`DADAO_NR_write`/`umon_sys_*`/`umon_host_*`/`umon_set_*`）在 `components/qemu` + `tools` **0 命中**；ⓑ **或**断言 `components/qemu/patches/target/dadao/helper.c.patch` 的 md5 == `2b1665e99ed4736fc6579c386a3850f1`（`761dfa3` 基线）。**取 ⓐ**（更稳：不因该文件无关外观改动误红；ⓑ 会随任何合法改动该文件的任务产生「改基线」噪声；`ISS-210` 类教训亦指向「断言行为/形态而非字节」）。**可达 FAIL 样板（现成）**：`QEMU-060t` 证据脚本 `.work/evidence/QEMU-060t/run.sh` B 节（`git grep` 实现符号 0 命中）+ G 节（注入 1 行 `DADAO_NR_write_INJECTED` ⇒ `check-index-blobs`/`check-patch-tree` rc=1、grep>0 ⇒ FAIL；`cp`+md5 还原 ⇒ 回绿）⇒ 断言**非恒真**、有可达 FAIL 路径。**`status` 取 `open`（architect 判断，engineer 本笔只登记）**：① 缺口**仍在**（无哨兵）；② **可复发**（任何重新引入该服务的任务均无门控拦截，且裁定结论会被静默推翻）；③ **有机械门控可判**（建议 ⓐ 可直接实现为一条 `git grep` 断言）。**性质** = 覆盖边界 / 已裁定结论的可回归性缺口（**非** `QEMU-060t` 交付物缺陷——其验收判据内无此项）。**边界**：本笔**未改** `tools/**`、**未改** `Makefile`、**未改** `components/**`（只登记 + 给可套用判据）。证据指针：`.tao/archive/M8/qemu/QEMU-060t-回退dadao-m1-syscall服务.md`「第 1 轮 reviewer 验收」§「『行为面无强断言』独立判定」+ 完成区「遗留问题 ⑤」；`.work/evidence/QEMU-060t/run.sh`（B 节 + G 节）；`.tao/archive/M8/infra/INFRA-082t-musl静态最小集移植.md`「完成区·阶段 A1」（149/149 对服务不敏感）。**交叉引用**：`ISS-224`（同批由 `QEMU-060t` 牵连登记的既有缺陷）、`QEMU-060t`（撤回执行者）。"
+  resolved_by: INFRA-102t
+  notes: "【正式登记（源 = `QEMU-060t`「第 1 轮 reviewer 验收」§「『行为面无强断言』独立判定」+ 完成区「遗留问题 ⑤」；engineer 返工第 2 轮登记，2026-10-15）】**现象（缺口）**：`QEMU-060t` 把 `dadao-m1` 撤回为 semihosting-only 后，仓库内**没有任何机械信号**会在「同类服务被重新引入」时变红 —— ① `check-qemu-semantics` 对该路由**不敏感**（`INFRA-082t` 阶段 A1 加服务前后**均 149/149**，其完成区已记）；② 唯一覆盖该路由的两个专用产物（探针 `tools/qemu/min_rom_probe_082t.py`、测试 `tools/infra/test_musl_static.py`）**随撤回一并删除**（`QEMU-060t` §范围 2）；③ L1 现有形态门控各守其界、均不涉该路由：`check-patch-tree`（补丁树 vs 落地源一致性）、`check-index-blobs`（blob 索引）、`check-component-changelog`（changelog 形态）、`check-qemu-semantics`（指令语义向量）——**无一**断言「`helper.c.patch` 里不存在 umon 接管分支」。**风险**：用户 2026-10-15 已裁定「**我不需要在 dadao-m1 上实现另外一套 syscall 的模拟**」（原话见 `QEMU-060t` §立项来源）⇒ 「不再引入该服务」现为**已裁定结论**，却**无哨兵守护**；日后任一任务（如 `P3` 或路径迁移类改动）若顺手在 `dadao-m1` 加回同类接管，**CI/门控全绿**、只能靠人读 diff 发现 ⇒ 裁定结论**可静默回退**。**建议（择一，落点 = L1）**：ⓐ 在既有 QEMU 面门控内（或新增一条轻量检查）断言 **形态**——代码面 `git grep` 实现符号（`umon_serve_syscall`/`is_umon_user_syscall`/`DADAO_NR_write`/`umon_sys_*`/`umon_host_*`/`umon_set_*`）在 `components/qemu` + `tools` **0 命中**；ⓑ **或**断言 `components/qemu/patches/target/dadao/helper.c.patch` 的 md5 == `2b1665e99ed4736fc6579c386a3850f1`（`761dfa3` 基线）。**取 ⓐ**（更稳：不因该文件无关外观改动误红；ⓑ 会随任何合法改动该文件的任务产生「改基线」噪声；`ISS-210` 类教训亦指向「断言行为/形态而非字节」）。**可达 FAIL 样板（现成）**：`QEMU-060t` 证据脚本 `.work/evidence/QEMU-060t/run.sh` B 节（`git grep` 实现符号 0 命中）+ G 节（注入 1 行 `DADAO_NR_write_INJECTED` ⇒ `check-index-blobs`/`check-patch-tree` rc=1、grep>0 ⇒ FAIL；`cp`+md5 还原 ⇒ 回绿）⇒ 断言**非恒真**、有可达 FAIL 路径。**`status` 取 `open`（architect 判断，engineer 本笔只登记）**：① 缺口**仍在**（无哨兵）；② **可复发**（任何重新引入该服务的任务均无门控拦截，且裁定结论会被静默推翻）；③ **有机械门控可判**（建议 ⓐ 可直接实现为一条 `git grep` 断言）。**性质** = 覆盖边界 / 已裁定结论的可回归性缺口（**非** `QEMU-060t` 交付物缺陷——其验收判据内无此项）。**边界**：本笔**未改** `tools/**`、**未改** `Makefile`、**未改** `components/**`（只登记 + 给可套用判据）。证据指针：`.tao/archive/M8/qemu/QEMU-060t-回退dadao-m1-syscall服务.md`「第 1 轮 reviewer 验收」§「『行为面无强断言』独立判定」+ 完成区「遗留问题 ⑤」；`.work/evidence/QEMU-060t/run.sh`（B 节 + G 节）；`.tao/archive/M8/infra/INFRA-082t-musl静态最小集移植.md`「完成区·阶段 A1」（149/149 对服务不敏感）。**交叉引用**：`ISS-224`（同批由 `QEMU-060t` 牵连登记的既有缺陷）、`QEMU-060t`（撤回执行者）。 **关闭（2026-10-23，`INFRA-102t`）**：新增 L1 `check-qemu-forms`：`helper.c.patch` 出现 umon 接管符号即红（209 文件 0 命中）。"
 - id: ISS-226
   title: "【P3】证据脚本的白名单/判据曾为适配新产物而放宽（「凑绿」）——规范 = 改产物满足断言，**不得**改断言/白名单去适配产物（本次已还原）"
   status: closed
@@ -648,18 +627,18 @@
   notes: "【正式登记（2026-10-21，源 = `QEMU-068t` reviewer 第 1 轮非阻塞观察）】**现象**：值不匹配导致 harness 走 TIMEOUT 时，输出 `Unsupported SemiHosting SWI 0x00` 与 `Unknown exit code: 0x-6`；`0x-6` 是 `-6`（或未初始化）按 `%x` 格式化的结果，属**诊断可读性缺陷**（不影响判定，超时仍按 FAIL 计）。**归属**：测试 harness（`tools/qemu/**` 或 `tools/testcases/**` 的 min-rom/semihost 驱动），非本册交付面。**修法方向**：超时/异常分支显式区分「TIMEOUT」与「未知退出码」，负数按有符号打印并附 errno/信号；补一条注入（构造超时）验证输出可读且判定仍 FAIL。**交叉引用**：`ISS-098` 族（同属 harness 诊断面）。**边界**：本笔只登记。"
 - id: ISS-320
   title: "【P2】`check-instrinfo`（`validate_instrinfo.py`）不覆盖 FP 的 `.td`（`DADAOInstrInfoFP.td`），FP 记录的 def 缺失/残留无法被机械发现"
-  status: open
+  status: closed
   scope: [infra, llvm]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（2026-10-22，源 = `SPEC-163t` engineer 披露 + reviewer 独立注入复核）】**现象**：`tools/llvm/validate_instrinfo.py` 只解析 `DADAOInstrInfo.td.patch`；把 `def cs_eq_rrrr_rf` 加回 `DADAOInstrInfoFP.td.patch` 后，`check-instrinfo` **仍 rc=0**、`gen_isa_coverage --check` 亦 rc=0 ⇒ 该差异**无门控可见**。**影响**：`SPEC-163t` 删除两条 FP 记录时，若漏删 `.td` def，`check-instrinfo` 不会报红（本册靠证据脚本的文本断言兜底，非门控）；反向（fp 记录无 def）同样不可判。**修法方向**：把 `validate_instrinfo.py` 的解析面扩到 `*InstrInfo*.td.patch`（或按 fnmatch 收全部 `DADAOInstrInfo*.td`），并对 `m1/fp/m3/m8/m9` 记录统一做 def 覆盖双向校验；补注入自测（fp 记录删 def / 加 orphan def 各一例）。**交叉引用**：`SPEC-163t`（现场）、`ADR-0035`（fp 记录来源）、`check_isa_coverage`（同侧）。**边界**：本笔只登记。"
+  resolved_by: INFRA-102t
+  notes: "【正式登记（2026-10-22，源 = `SPEC-163t` engineer 披露 + reviewer 独立注入复核）】**现象**：`tools/llvm/validate_instrinfo.py` 只解析 `DADAOInstrInfo.td.patch`；把 `def cs_eq_rrrr_rf` 加回 `DADAOInstrInfoFP.td.patch` 后，`check-instrinfo` **仍 rc=0**、`gen_isa_coverage --check` 亦 rc=0 ⇒ 该差异**无门控可见**。**影响**：`SPEC-163t` 删除两条 FP 记录时，若漏删 `.td` def，`check-instrinfo` 不会报红（本册靠证据脚本的文本断言兜底，非门控）；反向（fp 记录无 def）同样不可判。**修法方向**：把 `validate_instrinfo.py` 的解析面扩到 `*InstrInfo*.td.patch`（或按 fnmatch 收全部 `DADAOInstrInfo*.td`），并对 `m1/fp/m3/m8/m9` 记录统一做 def 覆盖双向校验；补注入自测（fp 记录删 def / 加 orphan def 各一例）。**交叉引用**：`SPEC-163t`（现场）、`ADR-0035`（fp 记录来源）、`check_isa_coverage`（同侧）。**边界**：本笔只登记。 **关闭（2026-10-23，`INFRA-102t`）**：FP `.td` 覆盖落地（`validate_instrinfo` 解析 `DADAOInstrInfoFP.td.patch`，删 def 即红）。"
 - id: ISS-321
   title: "【P3】`check_qemu_trans --strict` 只查「记录缺 trans」，不查「trans 残留（orphan）」"
-  status: open
+  status: closed
   scope: [infra, qemu]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（2026-10-22，源 = `SPEC-163t` reviewer 独立注入）】**现象**：临时保留一条 `trans_cs_*_rrrr_rf`（记录已删）时，`check_qemu_trans --strict` **仍 rc=0**（其口径是 `found/total` 的缺失方向）；真正捕获它的是 `check_interface`（259≠258）。**影响**：删除指令的册子若漏删 trans，只有 `check_interface` 报「数目不符」，定位信息弱；若 `check_interface` 被跳过则该残留不可见。**修法方向**：`check_qemu_trans.py` 增加 orphan 方向（`trans_*` 定义的 mnemonic 必须存在于 `opcodes.yaml`），`--strict` 时双向判；补注入自测（残留一条 trans ⇒ 红）。**交叉引用**：`SPEC-163t`（现场）、`ISS-320`（同类门控缺口）。**边界**：本笔只登记。"
+  resolved_by: INFRA-102t
+  notes: "【正式登记（2026-10-22，源 = `SPEC-163t` reviewer 独立注入）】**现象**：临时保留一条 `trans_cs_*_rrrr_rf`（记录已删）时，`check_qemu_trans --strict` **仍 rc=0**（其口径是 `found/total` 的缺失方向）；真正捕获它的是 `check_interface`（259≠258）。**影响**：删除指令的册子若漏删 trans，只有 `check_interface` 报「数目不符」，定位信息弱；若 `check_interface` 被跳过则该残留不可见。**修法方向**：`check_qemu_trans.py` 增加 orphan 方向（`trans_*` 定义的 mnemonic 必须存在于 `opcodes.yaml`），`--strict` 时双向判；补注入自测（残留一条 trans ⇒ 红）。**交叉引用**：`SPEC-163t`（现场）、`ISS-320`（同类门控缺口）。**边界**：本笔只登记。 **关闭（2026-10-23，`INFRA-102t`）**：`check_qemu_trans --strict` 增 orphan 方向（注入残留 trans 即红，现 orphan 0）。"
 
 - id: ISS-322
   title: "【P2】`ftrnd`/`fornd` 已立册（`scope: excluded`），QEMU 缺 2 条 `trans_*`：`check_qemu_trans` 258/260、`check_interface` 交叉核对红"
@@ -684,11 +663,11 @@
   notes: "【正式登记（2026-10-22，源 = `SPEC-159t` 完成区「遗留问题」+ 现场重跑；engineer 登记）】**现象（现场）**：`contracts/opcodes.yaml` 已立 `ftmin_orrr_rf`（`op 0x44` / `ha 0x26`）/`ftmax_orrr_rf`（`0x27`）/`fomin_orrr_rf`（`0x2E`）/`fomax_orrr_rf`（`0x2F`），`scope: excluded`、`decode: ILLI`（264 条 / excluded 31）；QEMU 侧无对应 `insn.decode` pattern 与 `trans_*` ⇒ `python3 tools/qemu/check_qemu_trans.py --strict` 报 **260/264**（缺 4，rc=1），`check_interface` 的「QEMU trans_* ↔ opcodes」交叉核对同步红。**本册边界**：L2 不在验收面（`make check`(L1) rc=0；上述两项红为**预期**），语义实现归 `QEMU-071t`（softfloat `minimum_number`/`maximum_number`；±0/单 NaN/sNaN/canonical 全覆盖），LLVM 后端归 `LLVM-124t`，`excluded → fp` 翻转归 `SPEC-160t`。**关闭判据**：`QEMU-071t` 落 4 条 `insn.decode` + 4 条 `trans_*` 后 `check_qemu_trans` 264/264、`check_interface` 绿。**证据指针**：`.tao/tasks/spec/SPEC-159t-立册.md` 完成区；`contracts/opcodes.yaml`（4 条记录）；`spec/SimRISC-07 §最小最大值（minimumNumber / maximumNumber）`；`.work/evidence/SPEC-159t/run.sh`。**交叉引用**：`ISS-322`（同型「编码已定、实现待落」先例）。**边界**：本笔只登记 ⇒ 未改 `components/qemu/**` ✗；`tests/**` 仅按既有生成器重生成反例文件（`gen-excluded.s`，机械派生）✗ 无语义向量改动。 **关闭（2026-10-22，`QEMU-071t`；关闭判据现场实测）**：`insn.decode` 落 `ftmin_orrr_rf`/`ftmax_orrr_rf`/`fomin_orrr_rf`/`fomax_orrr_rf` 四条 pattern，`trans_fp.c.inc` 落 `gen_fp_minmax` + 四条 `trans_*`，语义直接调用 softfloat `minimum/maximum_number`（`set_default_nan_mode(1)` 保证双 NaN ⇒ canonical qNaN；单 NaN 返回数字、sNaN 另置 NV；`−0 < +0`；不置 NX）⇒ `check_qemu_trans --strict` **264/264 rc=0**、`make check-modules`(L2，含 `check_interface`) **rc=0**、`make check`(L1) rc=0；探针 **111/111**、反例注入 **26/18 红**后 `cp`+md5 还原回绿；证据 `.work/evidence/QEMU-071t/run.sh`（rc=0）。`scope` 仍 `excluded`（翻转归 `SPEC-160t`）、LLVM 后端归 `LLVM-124t`。"
 - id: ISS-325
   title: "【P3】`check_tables.py` 只覆盖 4 张 MISC 子表（octa/tetra/wyde/byte），OPC-RF（`op 0x44`）编码表格位无机械门控"
-  status: open
+  status: closed
   scope: [spec, infra]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（2026-10-22，源 = `SPEC-159t` engineer 自审发现）】**现象**：`tools/spec/check_tables.py` 的 `OP_TABLE` 仅含 `0x40/0x41/0x42/0x43`，`spec/SimRISC-00 §4.6 OPC-RF`（`op 0x44`，46→50 格）未被双向比对 ⇒ 该表的空格/错格/漏格**无门控可见**（本册新增 4 格若无证据脚本断言，L1 仍全绿）。**影响**：`ftrnd`/`fornd`（`SPEC-161t`）、`ftmin`/`ftmax`/`fomin`/`fomax`（`SPEC-159t`）等 OPC-RF 立册时，编码表与 `opcodes.yaml` 可能漂移而无人察觉；`check_tables.py` 的 `--self-test` 也只覆盖 4 表。**修法方向**：把 `OP_TABLE` 扩到 `0x44: OPC-RF`（表名的 `SECTION_RE` 同步），把 OPC-RF 的「表下范围注记/条数」也纳入现场派生断言（条数不写死）；补一条注入（删一格 / 改错格 ⇒ 红）。**交叉引用**：`SPEC-161t`/`SPEC-159t`（现场）、`ISS-324`（同批立册的 L2 缺口）。**边界**：本笔只登记 ⇒ 未改 `tools/spec/check_tables.py` ✗。"
+  resolved_by: INFRA-102t
+  notes: "【正式登记（2026-10-22，源 = `SPEC-159t` engineer 自审发现）】**现象**：`tools/spec/check_tables.py` 的 `OP_TABLE` 仅含 `0x40/0x41/0x42/0x43`，`spec/SimRISC-00 §4.6 OPC-RF`（`op 0x44`，46→50 格）未被双向比对 ⇒ 该表的空格/错格/漏格**无门控可见**（本册新增 4 格若无证据脚本断言，L1 仍全绿）。**影响**：`ftrnd`/`fornd`（`SPEC-161t`）、`ftmin`/`ftmax`/`fomin`/`fomax`（`SPEC-159t`）等 OPC-RF 立册时，编码表与 `opcodes.yaml` 可能漂移而无人察觉；`check_tables.py` 的 `--self-test` 也只覆盖 4 表。**修法方向**：把 `OP_TABLE` 扩到 `0x44: OPC-RF`（表名的 `SECTION_RE` 同步），把 OPC-RF 的「表下范围注记/条数」也纳入现场派生断言（条数不写死）；补一条注入（删一格 / 改错格 ⇒ 红）。**交叉引用**：`SPEC-161t`/`SPEC-159t`（现场）、`ISS-324`（同批立册的 L2 缺口）。**边界**：本笔只登记 ⇒ 未改 `tools/spec/check_tables.py` ✗。 **关闭（2026-10-23，`INFRA-102t`）**：`check_tables` 覆盖 MISC-RF（`op 0x44`，5 表 151 条）。"
 - id: ISS-326
   title: "【P3】`tests/llvm/ir-lli/manifest.yaml` 11 个未分类 `*.ll` + 1 个悬空项"
   status: open
@@ -698,11 +677,11 @@
   notes: "【正式登记（2026-10-22，源 = `LLVM-124t` 完成区「新发现/坑」；architect 登记）】**现象**：`ir-lli` 用例集有 11 个 `.ll` 未被 manifest 分类（无 `expect`/`tags`），另有 1 个 manifest 条目指向不存在的文件（悬空）。**影响**：`ir-lli` 跑批对这些用例判定不可靠（无期望值 ⇒ 只验不崩），且悬空项不会让门控变红。**修法方向**：逐条补分类（pass/fail + 依据），删悬空项；若可机械判定，加一条「manifest ↔ 文件集合双向一致」断言。**边界**：本笔只登记 ⇒ 未改 `tests/llvm/ir-lli/**` ✗（LLVM-124t 明确未代修）。"
 - id: ISS-327
   title: "【P3】`gen_isa_coverage.py` 的 `L2_isel` 漏认：`ret`/`rol.o`/`clmul.o`/`add.uo`/`io2fo` 家族实际在用却记 `no` ⇒ 假「未用」报告"
-  status: open
+  status: closed
   scope: [llvm, infra]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（2026-10-22，源 = 主会话窄位/位操作盘点实测；architect 登记）】**现象**：`tools/llvm/llvm-isa-backend-matrix.tsv` 中 `add.uo_rrrr_rd`、`mul.uo`、`ret_riii_ra`、`rol.o`、`clmul.o`、`it2ft/ut2ft/ft2it/ft2ut` 等均记 `L2_isel=no`，但安装根 clang `-O2` 实测**确有发射**（`ret` 来自伪指令展开；`io2fo`/`uo2fo`/`fo2io`/`fo2uo` 为同义不同名；`clmul`/`rol` 经 `DADAO::` 显式引用但匹配规则未覆盖）。**影响**：矩阵给出的「未用清单」含假阳性，据此立项会重复劳动/误判缺口（本次盘点已因此改用实测）。**修法方向**：`L2_isel` 判定补三类来源 —— ① 伪指令/展开路径（`Pseudo*` → 实际助记符映射表）；② `opcodes.yaml` 与 `.td`/转义名的同义映射（`it2ft` ↔ `io2fo` 等）；③ `BuildMI` 的 opcode 常量扫描。**交叉引用**：`ISS-187`（窄位，实测确认）、`LLVM-128t`（ctlz/rev 立项依据来自实测非矩阵）。**边界**：本笔只登记 ⇒ 未改 `tools/llvm/gen_isa_coverage.py` ✗。"
+  resolved_by: INFRA-102t
+  notes: "【正式登记（2026-10-22，源 = 主会话窄位/位操作盘点实测；architect 登记）】**现象**：`tools/llvm/llvm-isa-backend-matrix.tsv` 中 `add.uo_rrrr_rd`、`mul.uo`、`ret_riii_ra`、`rol.o`、`clmul.o`、`it2ft/ut2ft/ft2it/ft2ut` 等均记 `L2_isel=no`，但安装根 clang `-O2` 实测**确有发射**（`ret` 来自伪指令展开；`io2fo`/`uo2fo`/`fo2io`/`fo2uo` 为同义不同名；`clmul`/`rol` 经 `DADAO::` 显式引用但匹配规则未覆盖）。**影响**：矩阵给出的「未用清单」含假阳性，据此立项会重复劳动/误判缺口（本次盘点已因此改用实测）。**修法方向**：`L2_isel` 判定补三类来源 —— ① 伪指令/展开路径（`Pseudo*` → 实际助记符映射表）；② `opcodes.yaml` 与 `.td`/转义名的同义映射（`it2ft` ↔ `io2fo` 等）；③ `BuildMI` 的 opcode 常量扫描。**交叉引用**：`ISS-187`（窄位，实测确认）、`LLVM-128t`（ctlz/rev 立项依据来自实测非矩阵）。**边界**：本笔只登记 ⇒ 未改 `tools/llvm/gen_isa_coverage.py` ✗。 **关闭（2026-10-23，`INFRA-102t`）**：`gen_isa_coverage` 的 `L2_isel` 补三类来源（伪指令/同义名/`BuildMI`），L2 yes 107→126。"
 - id: ISS-328
   title: "【P2】`fence` + 24 条 `lr/sc` 已由 QEMU 实现且 LLVM 发射，但 `opcodes.yaml` 仍 `scope: excluded` + `decode: ILLI`（25 条账面落后于实现）"
   status: open

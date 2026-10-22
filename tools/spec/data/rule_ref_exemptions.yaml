@@ -1,0 +1,25 @@
+# 孤儿规则豁免清单（INFRA-102t）
+#
+# 语义：`legality_rules.yaml` 中 `status: active` 且**不由任何 opcodes
+# rule_refs 引用**的规则，必须是本文件显式登记的「运行时/兜底」规则。
+# 本文件是**唯一真源**（此前写死在 `tools/spec/check_rule_refs.py` 里）。
+#
+# 门控断言（tools/spec/check_rule_refs.py）：
+#   * 本文件存在、可解析、`exemptions` 非空（空清单 ⇒ FAIL，防「清空即放行」）；
+#   * 每条含非空 `id` + `reason`，id 唯一；
+#   * 每个 id 存在于 legality_rules.yaml 且 status == active；
+#   * 现场孤儿集合 == 本文件 id 集合（多/少 ⇒ FAIL，双向）。
+#
+# 何时加条目：新增**动态异常**（运行时才触发，编码合法性表达式无法表达）或
+# 「兜底」规则且确实无编码引用时。**不得**为让门控变绿而加入。
+
+version: 1
+exemptions:
+  - id: excp_ialign
+    reason: 取指对齐为动态异常（IP[1:0] ≠ 00），无编码 legality 表达式可触发
+  - id: excp_rasof
+    reason: 返回地址栈上溢为动态异常（取决于调用深度），无编码表达式可触发
+  - id: excp_rasuf
+    reason: 返回地址栈下溢为动态异常（取决于运行时栈状态），无编码表达式可触发
+  - id: excp_undi
+    reason: 保留编码兜底（空白单元格/保留 opx），由 decode 层触发而非 rule_refs

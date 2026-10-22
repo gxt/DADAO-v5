@@ -22,6 +22,14 @@
     占用 ⇒ FAIL，不静默覆盖）；
   - 运行 `total` == 现场派生用例总数（gate 目录漏/多载体 ⇒ FAIL）。
 
+形态门控（ISS-225，`--form-check` 可单独跑、无需 qemu 二进制）：
+  - `components/qemu/patches/target/dadao/helper.c.patch` 必须存在且可读
+    （「文件被引用」断言；缺文件 ⇒ FAIL，不得静默跳过）；
+  - 该补丁与 `components/qemu/patches/**`、`tools/**` 中**不得**出现
+    `dadao-m1` 的 umon syscall 接管实现符号（用户 2026-10-15 已裁定
+    「不在 dadao-m1 上实现另一套 syscall 模拟」⇒ 需要形态哨兵）。
+    符号名在代码中以拼接构造，避免本文件自身命中被扫。
+
 日志自证（`ISS-236`）：默认档打印载体清单 + 载体数 + 用例总数 + 逐册用例数
 （相对改造前载体集的增量）+ `total/passed/failed` + 与 `ISS-235` 旧值 161 的差值；
 全部现场统计（`lessons §2`）。
@@ -83,6 +91,64 @@ KNOWN_DEFERRED = {
     ("reg-cond-assign.yaml", 18): "C-27: overlap 快照 deferred（inventory 既有声明）",
     ("reg-cond-assign.yaml", 19): "C-27: overlap 快照 deferred（inventory 既有声明）",
 }
+
+
+# ── ISS-225：dadao-m1 服务撤回后的形态哨兵 ──────────────────────────────────
+# 用户 2026-10-15 裁定「我不需要在 dadao-m1 上实现另外一套 syscall 的模拟」。
+# 符号名以拼接构造：本文件自身不会命中被扫文本（同时保证 grep 静态搜索为 0）。
+_UMON_FORBIDDEN = (
+    "umon" + "_serve_syscall",
+    "is_umon" + "_user_syscall",
+    "DADAO_NR" + "_write",
+    "umon" + "_sys_",
+    "umon" + "_host_",
+    "umon" + "_set_",
+)
+_UMON_SCAN_DIRS = ("components/qemu/patches", "tools")
+_UMON_TEXT_SUFFIXES = {".patch", ".py", ".sh", ".c", ".h", ".inc"}
+# 必须存在的「被引用」文件（形态断言的落点）。
+_UMON_REQUIRED_FILE = "components/qemu/patches/target/dadao/helper.c.patch"
+
+
+def check_no_umon_takeover(repo_root: str) -> tuple[str, list[str]]:
+    """断言 dadao-m1 的 umon syscall 接管实现不复存在（形态，不跑语义）。
+
+    返回 (结论串, 错误列表)。缺 `helper.c.patch` ⇒ FAIL（文件被引用断言）。
+    """
+    errs: list[str] = []
+    required = os.path.join(repo_root, _UMON_REQUIRED_FILE)
+    scanned = 0
+    hits: list[str] = []
+    if not os.path.isfile(required):
+        errs.append(f"形态：缺少被断言文件 {_UMON_REQUIRED_FILE}")
+    for rel in _UMON_SCAN_DIRS:
+        root = os.path.join(repo_root, rel)
+        if not os.path.isdir(root):
+            errs.append(f"形态：扫描目录缺失 {rel}（无法校验 ⇒ FAIL）")
+            continue
+        for dirpath, _dirnames, filenames in os.walk(root):
+            if any(part in ("__pycache__", ".git") for part in dirpath.split(os.sep)):
+                continue
+            for name in filenames:
+                if os.path.splitext(name)[1] not in _UMON_TEXT_SUFFIXES:
+                    continue
+                path = os.path.join(dirpath, name)
+                try:
+                    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                        text = fh.read()
+                except OSError as exc:
+                    errs.append(f"形态：文件不可读 {path}: {exc}")
+                    continue
+                scanned += 1
+                for token in _UMON_FORBIDDEN:
+                    if token in text:
+                        hits.append(f"{os.path.relpath(path, repo_root)}:{token}")
+    for hit in hits:
+        errs.append(f"形态：出现 umon 接管实现符号 {hit}")
+    verdict = (f"OK（扫描 {scanned} 文件，0 命中；断言文件 "
+               f"{_UMON_REQUIRED_FILE} 已读）" if not errs else
+               f"FAIL（{len(errs)} 项）")
+    return verdict, errs
 
 
 def _fail(errs: list, msg: str) -> None:
@@ -277,7 +343,8 @@ def live_deferred(gate_dir: str) -> set:
 def main() -> int:
     ap = argparse.ArgumentParser(description="L3 semantic gate carrier derivation")
     ap.add_argument("--vectors", default=os.path.join(_REPO_ROOT, "tests", "vectors"))
-    ap.add_argument("--gate-dir", required=True)
+    ap.add_argument("--gate-dir", default=None,
+                    help="gate 目录（--form-check 时可省）")
     ap.add_argument("--qemu", default=harness.DEFAULT_QEMU)
     ap.add_argument("--trampoline",
                     default=os.path.join(_REPO_ROOT, "tests", "scripts",
@@ -285,9 +352,25 @@ def main() -> int:
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--check-only", action="store_true",
                     help="只跑结构断言/派生（不执行用例；供证据脚本注入用）")
+    ap.add_argument("--form-check", action="store_true",
+                    help="只跑形态断言（ISS-225；无需 qemu 二进制，供 L1 门控用）")
     args = ap.parse_args()
 
     errs: list = []
+    form_verdict, form_errs = check_no_umon_takeover(_REPO_ROOT)
+    if args.form_check:
+        print("check-qemu-forms: QEMU 形态断言（ISS-225）")
+        print(f"  umon 接管形态: {form_verdict}")
+        for e in form_errs:
+            print(f"  FAIL: {e}")
+        print("check-qemu-forms: " + ("PASS" if not form_errs else "FAIL (rc=1)"))
+        return 0 if not form_errs else 1
+    errs.extend(form_errs)
+    if args.gate_dir is None:
+        print("semantics_gate: ERROR: --gate-dir 必填（除 --form-check 外）",
+              file=sys.stderr)
+        return 1
+
     if not os.path.isfile(args.qemu):
         print(f"semantics_gate: ERROR: qemu binary not found: {args.qemu} "
               f"— run 'make install-host' first", file=sys.stderr)
@@ -323,6 +406,7 @@ def main() -> int:
     new_case_count = sum(counts[c] for c in new_carriers)
 
     print("check-qemu-semantics: L3 语义载体（现场派生；册名/册数不写死）")
+    print(f"  umon 接管形态（ISS-225）: {form_verdict}")
     print(f"  载体目录: {', '.join(os.path.join(args.vectors, d) for d in CARRIER_DIRS)}")
     print(f"  缺册断言（git 索引）: {tracked_verdict}")
     print(f"  覆盖登记（inventory.md ↔ 现场）: {coverage_verdict}")
