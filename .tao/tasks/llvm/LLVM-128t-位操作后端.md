@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M9（后端指令利用）
-**依赖**：无（ISA 与 QEMU 均已就绪）
+**依赖**：`SPEC-164t`（已验证：`OPC-MISC` 迁 `op 0x47`，`ct*` 已并入）
 **状态**：待开始
 
 ## 执行环境
@@ -14,7 +14,7 @@
 用户要求盘点「SimRISC 已支持、LLVM 未用」并落实；本轮实测确认 `ctlz`/`cttz`/`ctpop`/`rev.*` 七条**从未被 LLVM 发射**（`__builtin_clzll` → 10 条位运算；`__builtin_bswap64` → 7 条组合）。
 
 ### 真源
-- `contracts/opcodes.yaml`：`ctlz`（`op 0x40 ha 0x1E`）、`cttz`（`0x1F`）、`ctpop`（`0x1D`）、`rev.o/.t/.w/.b`（`op 0x40/0x41/0x42/0x43 ha 0x0C`），均 `orri`、`scope: m8`。
+- `contracts/opcodes.yaml`：`ctpop`/`ctlz`/`cttz` 已于 `SPEC-164t` 迁入 **`OPC-MISC`（`op 0x47`）**，`ha = 0x25/0x26/0x27`；`rev.o/.t/.w/.b` 在 `op 0x40/0x41/0x42/0x43 ha 0x0C`；均 `orri`、`scope: m8`。
 - `contracts/qemu` 侧已实现：`trans_bitcnt.c.inc.patch`（ctlz/cttz/ctpop）、`trans_rev.c.inc.patch`（rev）。
 
 ### 语义要点（**与实现强相关**）
