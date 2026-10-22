@@ -710,3 +710,10 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（2026-10-22，源 = 主会话盘点实测；architect 登记）】**现象**：`contracts/opcodes.yaml` 中 `fence_oiii_imm` 与 24 条 `lr/sc` 记 `scope: excluded`、`decode: ILLI`（`check_scope` 规则 3 强制二者等价），但 —— ① QEMU 已实现：`trans_ctrl.c.inc.patch:529` 的 `trans_fence_oiii_imm` 有完整 pred/succ barrier 逻辑（SBZ 非零才 ILLI），`trans_mem.c.inc.patch:481+` 有 lr/sc 全变体；② LLVM 实际发射：`__atomic_add_fetch`（`-O2`）生成 `fence` + `lr.o.an` + `sc.o.ar`。**影响**：账面 `excluded` 计数（现 31 = cfxld/cfxst 2 + fence 1 + lr/sc 24 + min/max 4）与实际实现不符，`MEMORY.md` 第 6 项「fence/lr/sc 未实现、decode ILLI」亦为过期表述；任何按 `decode: ILLI` 推导「执行必 trap」的读者会得出错误结论。**修法方向**：按 `SPEC-155t`（clmul 解 excluded → m9）先例立册翻转 25 条（`scope: m9`、去 `decode`），同步 `MEMORY` 第 6 项与 `contract-isa.md` 分桶计数；翻转前先确认 `SimRISC-11 §6` 的规范口径（ADR-0034 D1/D2）。**边界**：本笔只登记 ⇒ 未改 `contracts/**`、`spec/**` ✗。"
+- id: ISS-329
+  title: "【P3】`contract-isa.md §6.6` 仍列已删除伪指令 `not.o`/`neg.o`（与 `ADR-0013 D11` 及 `Toolchain-01 §6.2` 不一致）"
+  status: open
+  scope: [spec, infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（2026-10-23，源 = SPEC-166t 第 1 轮 reviewer 验收「非阻断观察 ④」）】**现象**：SPEC-166t 已把 spec/SimRISC-* 正文里的「（已删除）」小节与 SimRISC-00 §5 的已删助记符块删除，Toolchain-01 §6.2 保留替代写法；但 .tao/contracts/contract-isa.md §6.6 仍把 not.o/neg.o 当现役伪指令列出。**影响**：人读契约与规范正文/ADR 口径不一致，读者会以为仍可用。**修法方向**：§6.6 删除这两条（或改为指向 Toolchain-01 §6.2 的替代写法）；check_contracts_pending/check_spec_refs 复核。**边界**：本笔只登记 ⇒ 未改 .tao/contracts/** ✗。"
