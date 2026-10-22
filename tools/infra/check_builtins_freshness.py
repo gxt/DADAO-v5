@@ -31,32 +31,44 @@ Checks (each printed with expected/actual and its own verdict):
                                            clang resource dir at all)
   4. build-tree clang copy sha256 == build product
   5. installed copy     sha256 == build product
-  6. build archive not older than the build-tree clang binary
-  7. no object in the builtins target dir older than that clang   (catches a
-     partial rebuild, where the archive mtime alone looks fresh)
+  6. the **sidecar** ``<build-dir>/.dadao-builtins-toolchain`` (written by
+     ``make build-builtins``) records the clang/ld.lld *content identity* the
+     archive was built by, and that identity == the tools on disk now
+     (GNU build-id; ``sha256`` fallback).  mtime is NOT a criterion
+     (INFRA-101t: a deterministic relink keeps the bytes and moves the mtime).
+  7. the build product still is the archive whose sha256 the sidecar recorded
+  8. every archive member's bytes == its ``.c.o`` in the build tree (catches a
+     partial rebuild, where the archive looks fresh but some members were
+     produced by the older compiler -- content, not member mtimes, ISS-210)
 
 Applicability: L1 must stay usable on a fresh checkout, so a missing clang /
 build tree with no builtins product anywhere prints SKIP and exits 0.  Once a
-product exists, every check above is enforced (: an unprovable product must not
-pass).
+product exists, every check above is enforced: an unprovable product must not
+pass, and an archive without a sidecar (built before INFRA-101t) is stale once.
 
-Cost: ~0.1 s (one ``-print-libgcc-file-name`` probe + a few stats/hashes).
+Cost: ~0.2 s (one ``-print-libgcc-file-name`` probe + a few hashes + two ELF
+note reads).
 
 Remedy: ``make build-builtins`` (rebuild with the current clang + re-stage into
 the build-tree resource dir), then ``make install-host`` for the install root.
+
+``--self-test`` drives the same ``run_checks`` on a temp tree with synthetic
+ELF tools (real build-id notes): tool mtime-only change => green, tool content
+change => red, tampered sidecar => red, tampered copy / member => red, and every
+mutation is restored with ``cp``/md5 accounting (no git).
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import paths  # noqa: E402
+import toolchain_id  # noqa: E402
 
 DEFAULT_BUILD_DIR = ".work/build/compiler-rt-builtins"
 LLVM_BUILD_REL = Path(".work") / "build" / "llvm"
@@ -64,6 +76,9 @@ TARGET = "dadao-unknown-elf"
 # The CMake target name of the builtins archive inside the compiler-rt
 # standalone build tree (upstream naming; the directory holds every .c.o).
 BUILTINS_OBJ_DIR = Path("CMakeFiles") / "clang_rt.builtins-dadao.dir"
+# Sidecar written by Makefile::build-builtins next to the build product: the
+# producer identity of *this* archive (INFRA-101t).
+SIDECAR_NAME = ".dadao-builtins-toolchain"
 
 REMEDY = ("run 'make build-builtins' (rebuild with the current clang + stage "
           "into the LLVM build tree), then 'make install-host'")
@@ -100,18 +115,18 @@ def clang_resource_paths(clang: Path) -> tuple[str, str] | None:
     return parts[0], parts[1]
 
 
-def archive_members(archive: Path) -> list[str]:
-    """Member file names of a SysV/GNU ``ar`` archive (symbol table skipped).
+def archive_entries(archive: Path) -> list[tuple[str, bytes]]:
+    """``(member name, member bytes)`` of a SysV/GNU ``ar`` archive.
 
     The archive is written in *deterministic* mode (``ar D``, LLVM's default),
-    so member header timestamps are 0 and cannot be used for staleness; only
-    the names matter -- they map back to the ``.c.o`` files in the build tree.
+    so member header timestamps are 0 and cannot be used for staleness; the
+    bytes can (they are the ``.c.o`` files the compiler wrote).
     """
     data = archive.read_bytes()
     if not data.startswith(b"!<arch>\n"):
         raise ValueError("not an ar archive")
     longnames = b""
-    names: list[str] = []
+    entries: list[tuple[str, bytes]] = []
     pos = 8
     while pos + 60 <= len(data):
         hdr = data[pos:pos + 60]
@@ -126,16 +141,18 @@ def archive_members(archive: Path) -> list[str]:
             if raw.startswith("/") and raw[1:].isdigit():
                 off = int(raw[1:])
                 end = longnames.find(b"\n", off)
-                names.append(longnames[off:end].decode("ascii", "replace")
-                             .rstrip("/"))
+                name = (longnames[off:end].decode("ascii", "replace")
+                        .rstrip("/"))
             else:
-                names.append(raw)
+                name = raw.rstrip("/")
+            entries.append((name, body))
         pos += 60 + size + (size & 1)
-    return names
+    return entries
 
 
 def run_checks(clang: Path, build_archive: Path, res_archive: Path | None,
-               inst_archive: Path | None, obj_dir: Path | None) -> int:
+               inst_archive: Path | None, obj_dir: Path | None,
+               ld_lld: Path | None, sidecar: Path) -> int:
     """Print every check and return the number of failures.
 
     All paths are explicit so ``--self-test`` can drive this on a temp tree
@@ -183,29 +200,48 @@ def run_checks(clang: Path, build_archive: Path, res_archive: Path | None,
             check("installed copy == build product (sha256)", build_hash,
                   inst_hash, inst_hash == build_hash)
 
-    # 6: the archive must not predate the compiler that (re)built the objects.
-    clang_ns = clang.stat().st_mtime_ns
-    arch_ns = build_archive.stat().st_mtime_ns
-    check("build archive not older than build-tree clang",
-          f"mtime >= {clang_ns}", f"mtime {arch_ns}", arch_ns >= clang_ns)
+    # 6: the archive must have been produced by the compiler/linker on disk now.
+    #    Criterion = content identity (build-id), recorded by build-builtins in
+    #    the sidecar.  mtime is deliberately excluded (INFRA-101t).
+    recorded, recorded_archive = toolchain_id.read_sidecar(sidecar)
+    check("producer sidecar recorded", "present",
+          "present" if recorded else f"missing ({sidecar})", bool(recorded))
+    for tool, tool_path in (("clang", clang), ("ld.lld", ld_lld)):
+        if tool_path is None or not tool_path.is_file():
+            check(f"{tool} identity recordable", "present",
+                  f"missing ({tool_path})", False)
+            continue
+        kind, value = toolchain_id.content_id(tool_path)
+        got = recorded.get(tool)
+        check(f"recorded {tool} identity == current", f"{kind}={value}",
+              "=".join(got) if got else "missing",
+              got == (kind, value))
 
-    # 7: per-object staleness -- a partial rebuild can leave the archive newer
-    # than clang while some of its members were produced by the older compiler
-    # (the ISS-210 shape).  Members are resolved back to the build-tree .c.o
-    # files; objects that are not members of the archive are irrelevant.
+    # 7: the archive still is the one the sidecar describes (content, not mtime).
+    check("build product == sha256 recorded when built",
+          recorded_archive or "missing", build_hash,
+          recorded_archive == build_hash)
+
+    # 8: per-member content -- a partial rebuild can leave the archive "fresh"
+    #    while some members were produced by the older compiler (ISS-210).
+    #    Members are resolved back to the build-tree .c.o files; objects that
+    #    are not members of the archive are irrelevant.
     try:
-        members = archive_members(build_archive)
+        entries = archive_entries(build_archive)
     except ValueError as exc:
         check("archive member list readable", "readable",
               f"unreadable ({exc})", False)
         return failed
-    resolved = [(m, obj_dir / m) for m in members] if obj_dir else []
-    resolved = [(m, p) for m, p in resolved if p.is_file()]
+    members = [name for name, _ in entries]
+    resolved = [(name, obj_dir / name) for name in members] if obj_dir else []
+    resolved = [(name, p) for name, p in resolved if p.is_file()]
     if not resolved:
-        skip("per-object staleness", "no builtins object files in the build tree")
+        skip("per-member content", "no builtins object files in the build tree")
     else:
-        stale = [m for m, p in resolved if p.stat().st_mtime_ns < clang_ns]
-        check(f"every archive member object newer than clang "
+        live = {name: hashlib.sha256(body).hexdigest() for name, body in entries}
+        stale = [name for name, p in resolved
+                 if live.get(name) != sha256_of(p)]
+        check(f"every archive member == its .c.o bytes "
               f"({len(resolved)}/{len(members)} members live)",
               "0 stale", f"{len(stale)} stale", not stale)
         if stale:
@@ -215,25 +251,27 @@ def run_checks(clang: Path, build_archive: Path, res_archive: Path | None,
 
 
 def self_test() -> int:
-    """Baseline PASS + four injections, each with its own reachable FAIL.
+    """Baseline + injections, each with its own reachable FAIL.
 
-    The temp tree lives outside the repository; every mutation is restored by
-    ``cp``/``utime`` + md5 accounting (no git), and the "only the mtime moved"
-    case must stay green (ISS-263: a byte-identical copy is not staleness).
+    The temp tree lives outside the repository; the tools are synthetic ELFs
+    carrying real ``NT_GNU_BUILD_ID`` notes, so ``content_id`` takes the build-id
+    path (not the sha256 fallback).  Every mutation is restored by ``cp``/md5
+    accounting (no git), and the "only the mtime moved" case must stay green.
     """
+    import os
     import shutil
-    import subprocess
     import tempfile
     import time
 
-    print("check-builtins-freshness --self-test (baseline + 4 injections)")
-    tmp_root = Path("/tmp/opencode/builtins-freshness")
+    print("check-builtins-freshness --self-test (baseline + 6 injections, "
+          "build-id criterion)")
+    tmp_root = Path("/tmp/opencode/INFRA-101t")
     tmp_root.mkdir(parents=True, exist_ok=True)
     root = Path(tempfile.mkdtemp(prefix="builtins-freshness-selftest-",
                                  dir=str(tmp_root)))
     total_fail = 0
     try:
-        clang = root / "bin" / "clang"
+        tool_dir = root / "bin"
         objdir = root / "build" / BUILTINS_OBJ_DIR
         build = root / "build" / "lib" / "dadao-unknown-unknown-elf" / \
             "libclang_rt.builtins.a"
@@ -241,25 +279,33 @@ def self_test() -> int:
             "dadao-unknown-unknown-elf" / "libclang_rt.builtins.a"
         inst = root / "inst" / "lib" / "clang" / "23" / "lib" / \
             "dadao-unknown-unknown-elf" / "libclang_rt.builtins.a"
-        for d in (clang.parent, build.parent, objdir, res.parent, inst.parent):
+        for d in (tool_dir, build.parent, objdir, res.parent, inst.parent):
             d.mkdir(parents=True, exist_ok=True)
-        clang.write_bytes(b"fake clang\n")
+        bid_a = bytes.fromhex("de2e20d7e585817e19924fa5b26746ca5099cb59")
+        bid_b = bytes.fromhex("585596725c4908cd13d42a9b4303dbfc77ec6a55")
+        clang = tool_dir / "clang"
+        ld_lld = tool_dir / "ld.lld"
+        clang.write_bytes(toolchain_id.test_elf_with_build_id(bid_a))
+        ld_lld.write_bytes(toolchain_id.test_elf_with_build_id(bid_b))
         for name in ("a.c.o", "b.c.o"):
             (objdir / name).write_bytes(b"OBJECT-" + name.encode())
         subprocess.run(["ar", "rcs", str(build), "a.c.o", "b.c.o"],
                        cwd=objdir, check=True)
         shutil.copyfile(build, res)
         shutil.copyfile(build, inst)
+        sidecar = root / "build" / SIDECAR_NAME
+        toolchain_id.write_sidecar(sidecar, tool_dir, ("clang", "ld.lld"), build)
 
         t0 = time.time_ns() - 10_000_000_000
         os.utime(clang, ns=(t0, t0))
+        os.utime(ld_lld, ns=(t0, t0))
         for p in (build, objdir / "a.c.o", objdir / "b.c.o"):
             os.utime(p, ns=(t0 + 1_000_000_000, t0 + 1_000_000_000))
         os.utime(res, ns=(t0 + 2_000_000_000, t0 + 2_000_000_000))
         os.utime(inst, ns=(t0 + 2_000_000_000, t0 + 2_000_000_000))
 
         def run() -> int:
-            return run_checks(clang, build, res, inst, objdir)
+            return run_checks(clang, build, res, inst, objdir, ld_lld, sidecar)
 
         def md5(p: Path) -> str:
             return hashlib.md5(p.read_bytes()).hexdigest()
@@ -271,38 +317,61 @@ def self_test() -> int:
             print(f"[{'PASS' if ok else 'FAIL'}] self-test {name}: "
                   f"expected={expected_rc} actual={rc}")
 
+        def restore(name: str, p: Path, backup: bytes, want: str) -> None:
+            nonlocal total_fail
+            p.write_bytes(backup)
+            ok = md5(p) == want
+            total_fail += 0 if ok else 1
+            print(f"[{'PASS' if ok else 'FAIL'}] self-test {name} restore: "
+                  f"expected=md5 {want} actual={md5(p)}")
+
         # 0: clean baseline must be green.
         verdict("baseline", "0 failures", run())
 
-        # 1: tampered installed copy (content) must be red.
-        backup = inst.read_bytes()
-        backup_md5 = md5(inst)
-        inst.write_bytes(backup + b"tamper\n")
-        verdict("inject-1 (tampered installed copy)", ">=1 failure", run())
-        inst.write_bytes(backup)
-        restored = md5(inst) == backup_md5
-        total_fail += 0 if restored else 1
-        print(f"[{'PASS' if restored else 'FAIL'}] self-test inject-1 restore: "
-              f"expected=md5 {backup_md5} actual={md5(inst)}")
-
-        # 2: only the mtime of the installed copy moves (byte-identical) =>
-        #    must NOT turn red (ISS-263).
-        os.utime(inst, ns=(t0 + 5_000_000_000, t0 + 5_000_000_000))
-        verdict("inject-2 (mtime-only bump on installed copy)", "0 failures",
-                run())
-
-        # 3: clang newer than the archive and its members => red.
+        # 1: clang mtime moves past every archive/member while the bytes stay
+        #    => must stay green (the old mtime ordering is gone, INFRA-101t).
         os.utime(clang, ns=(t0 + 3_000_000_000, t0 + 3_000_000_000))
-        verdict("inject-3 (clang newer than archive)", ">=1 failure", run())
-
-        # 4a: clang back to the baseline instant => green again.
+        verdict("inject-1 (clang mtime newer, bytes same)", "0 failures", run())
         os.utime(clang, ns=(t0, t0))
-        verdict("inject-4a (archive + members fresh again)", "0 failures",
-                run())
-        # 4b: one *member* object older than clang while the archive itself is
-        #     newer => exactly one stale member.
-        os.utime(objdir / "b.c.o", ns=(t0 - 1_000_000_000, t0 - 1_000_000_000))
-        verdict("inject-4b (one stale member object)", ">=1 failure", run())
+
+        # 2: clang content changes (different build-id) => red.
+        backup = clang.read_bytes()
+        backup_md5 = md5(clang)
+        clang.write_bytes(toolchain_id.test_elf_with_build_id(bid_b))
+        verdict("inject-2 (clang content changed)", ">=1 failure", run())
+        restore("inject-2", clang, backup, backup_md5)
+
+        # 3: sidecar records a different build-id => red, then restore.
+        sc_backup = sidecar.read_bytes()
+        sc_md5 = md5(sidecar)
+        text = sidecar.read_text().replace(f"build-id={bid_a.hex()}",
+                                           f"build-id={bid_b.hex()}")
+        sidecar.write_text(text)
+        verdict("inject-3 (sidecar build-id tampered)", ">=1 failure", run())
+        restore("inject-3", sidecar, sc_backup, sc_md5)
+
+        # 4: tampered installed copy (content) must be red.
+        inst_backup = inst.read_bytes()
+        inst_md5 = md5(inst)
+        inst.write_bytes(inst_backup + b"tamper\n")
+        verdict("inject-4 (tampered installed copy)", ">=1 failure", run())
+        restore("inject-4", inst, inst_backup, inst_md5)
+
+        # 5: one member's content differs from its .c.o (partial rebuild shape).
+        obj_backup = (objdir / "b.c.o").read_bytes()
+        obj_md5 = md5(objdir / "b.c.o")
+        (objdir / "b.c.o").write_bytes(b"OBJECT-b.c.o-RETIRED-ENCODING")
+        verdict("inject-5 (member bytes != .c.o)", ">=1 failure", run())
+        restore("inject-5", objdir / "b.c.o", obj_backup, obj_md5)
+
+        # 6: legacy archive with no sidecar => stale (one rebuild).
+        sidecar.unlink()
+        verdict("inject-6 (no sidecar)", ">=1 failure", run())
+        sidecar.write_bytes(sc_backup)
+        ok = md5(sidecar) == sc_md5
+        total_fail += 0 if ok else 1
+        print(f"[{'PASS' if ok else 'FAIL'}] self-test inject-6 restore: "
+              f"expected=md5 {sc_md5} actual={md5(sidecar)}")
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -326,6 +395,7 @@ def main() -> int:
     root = paths.repo_root()
     llvm_build = root / LLVM_BUILD_REL
     clang = llvm_build / "bin" / "clang"
+    ld_lld = llvm_build / "bin" / "ld.lld"
     build_dir = root / args.build_dir
 
     if not clang.is_file():
@@ -354,11 +424,14 @@ def main() -> int:
 
     print(f"check-builtins-freshness: build product {build_archive}")
     print(f"                            build-tree clang {clang}")
+    print(f"                            producer sidecar "
+          f"{build_dir / SIDECAR_NAME}")
     print(f"                            resource rel   {ver}/{resource_rel}")
     if inst_archive is not None:
         print(f"                            installed copy {inst_archive}")
     failed = run_checks(clang, build_archive, res_archive, inst_archive,
-                        build_dir / BUILTINS_OBJ_DIR)
+                        build_dir / BUILTINS_OBJ_DIR, ld_lld,
+                        build_dir / SIDECAR_NAME)
     if failed:
         print(f"check-builtins-freshness: FAIL ({failed} check(s)) -- {REMEDY}")
         return 1

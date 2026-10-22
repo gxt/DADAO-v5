@@ -142,7 +142,7 @@ help:
 	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
 	@echo "  make check-testcases-suites  Run the two upstream reference suites (libc-test + llvm-test-suite) fast subset (opt-in, not L2; TESTCASES-045t)"
 	@echo "  make check-testcases-suites-full  Run every enumerable C case with main() from both suites (opt-in/L3-like; TESTCASES-045t)"
-	@echo "  make check-builtins-freshness  compiler-rt builtins archive must be the one the current clang built, in every consumer copy (L1; ISS-293)"
+	@echo "  make check-builtins-freshness  compiler-rt builtins archive must be the one the current clang built (build-id sidecar), in every consumer copy (L1; ISS-293/INFRA-101t)"
 	@echo "  make install-host    Install needed tools: cross toolchain (clang/llc/ld.lld …) into \$$(HOST_TOOLCHAIN_BIN) + host lli into \$$(HOST_TOOLS_BIN); adr-0016 D3/D4/D5/D11"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
@@ -489,6 +489,13 @@ BUILTINS_ARCHIVE_SRC   = $(if $(BUILTINS_BUILD_REL),$(COMPILER_RT_BUILD)/$(BUILT
 # that copy -- it is a third consumer beside the build product and the install
 # root.  `make install-host` stages the same archive into the install root.
 #
+# Why a producer sidecar (INFRA-101t): the gate used to order mtimes (archive
+# >= clang).  A deterministic relink after `touch one .td` moves clang's mtime
+# without changing its bytes, so the proxy demanded a full builtins rebuild
+# (LLVM-122t).  `tools/infra/toolchain_id.py --write` records the clang/ld.lld
+# **content identity** (GNU build-id) + the archive sha256 next to the build
+# product; `check-builtins-freshness` compares identity, not time.
+#
 # It depends on build-mc so `make -j install-host` cannot run the rebuild
 # before the compiler exists (the recipe probe would fail); with the tree
 # already built that prerequisite is a no-op.
@@ -498,6 +505,7 @@ _locked-build-builtins: manifest-check build-mc
 	  exit 1; \
 	}
 	@test -f $(LLVM_BUILD)/bin/clang || { echo "build-builtins: ERROR: $(LLVM_BUILD)/bin/clang not found -- run 'make build-mc' first"; exit 1; }
+	@test -f $(LLVM_BUILD)/bin/ld.lld || { echo "build-builtins: ERROR: $(LLVM_BUILD)/bin/ld.lld not found -- run 'make build-lld' first (the producer sidecar records clang and ld.lld content identity)"; exit 1; }
 	@test -f $(COMPILER_RT_BUILD)/build.ninja || { echo "build-builtins: ERROR: no configured compiler-rt build tree at $(COMPILER_RT_BUILD) -- configure it once (INFRA-079t) first"; exit 1; }
 	@test -n "$(BUILTINS_BUILD_DST)" || { echo "build-builtins: ERROR: cannot resolve the builtins path from '$(LLVM_BUILD)/bin/clang --target=dadao-unknown-elf -rtlib=compiler-rt -print-libgcc-file-name'"; exit 1; }
 	ninja -C $(COMPILER_RT_BUILD) -t clean
@@ -505,6 +513,7 @@ _locked-build-builtins: manifest-check build-mc
 	@test -f $(BUILTINS_ARCHIVE_SRC) || { echo "build-builtins: ERROR: archive not produced at $(BUILTINS_ARCHIVE_SRC)"; exit 1; }
 	@mkdir -p $(dir $(BUILTINS_BUILD_DST))
 	@$(call atomic-install,$(BUILTINS_ARCHIVE_SRC),$(BUILTINS_BUILD_DST))
+	@$(PYTHON) tools/infra/toolchain_id.py --write $(COMPILER_RT_BUILD)/.dadao-builtins-toolchain --tool-dir $(LLVM_BUILD)/bin --archive $(BUILTINS_ARCHIVE_SRC)
 	@echo "build-builtins: PASS"
 
 # clang++ (INFRA-056t): the C++ driver is the *same binary* as the C driver
@@ -808,16 +817,19 @@ check-syscall-abi:
 
 # musl 产物新鲜度 (ISS-258): 安装根 libc.so 必须由当前 musl 源 + 工具链构建
 # （build_musl.py 成功构建后在 obj/ 落 toolchain/source 戳记；源 digest 变即
-# 强制 make clean；安装副本与构建产物逐字节一致）。无构建树 / 无共享产物 ⇒
+# 强制 make clean；安装副本与构建产物逐字节一致）。工具链判据 = clang/ld.lld
+# 的**内容标识**（GNU build-id，退路 sha256；INFRA-101t，mtime/size 不参与）；
+# 旧 `mtime=` 格式戳记判一次 stale 并打印 `migrated`。无构建树 / 无共享产物 ⇒
 # SKIP；有产物则缺戳记即 FAIL。成本 ~1.2 s（内容摘要），按 docs/Process-07
 # §1.1 归 L1（静态溯源，不跑被测语义）。
 check-musl-freshness:
 	@$(PYTHON) tools/infra/check_musl_freshness.py
 
 # compiler-rt builtins 归档新鲜度 (ISS-293, L1): 工具链消费的三份归档（构建树产物 /
-# 构建树 clang 资源目录副本 / 安装根副本）必须同一内容，且不旧于构建树 clang
-# （归档 mtime + 逐成员 .c.o mtime）。旧编码残留 → 新 qemu 按 ILLI 打 SIGILL。
-# `--self-test` 内置「篡改安装副本 ⇒ 红」与「仅 mtime 变 ⇒ 不假红」(ISS-263)。
+# 构建树 clang 资源目录副本 / 安装根副本）必须同一内容，且其**生产者标识**
+# （build-builtins 写的 sidecar：clang/ld.lld build-id + 归档 sha256）等于当前
+# 工具链；逐成员按**内容**对 .c.o，不看 mtime（INFRA-101t）。旧编码残留 → 新
+# qemu 按 ILLI 打 SIGILL。`--self-test`：内容变必红 / 仅 mtime 变不假红。
 check-builtins-freshness:
 	@$(PYTHON) tools/infra/check_builtins_freshness.py --build-dir $(COMPILER_RT_BUILD)
 

@@ -41,7 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| INFRA-101t | 待开始 | 2026-10-22 07:15（登记） | 新鲜度门控改用 build-id（替代 mtime 代理）；两处门控 + 迁移 + 四类注入 |
+| INFRA-101t | 已验证 | 2026-10-22 09:52 | 新鲜度门控改用 build-id（替代 mtime）；两门控 + 旧 stamp 迁移；touch 绿 / 内容变红 / relink 后免重建 |
 | SPEC-155t | 已验证 | 2026-10-22 07:12 | clmul 解除 `excluded`（`scope → m9`）；其余 259 条零改动、`accept 258/reject 2`、锁重算 |
 | LLVM-122t | 已验证 | 2026-10-22 05:20 | clmul 后端：`.td` + 低/高/双半伪指令 + `llvm.clmul`/`llvm.dadao.clmul` + `__builtin_dadao_clmul`（各 1 条）；scope 仍 excluded |
 | QEMU-068t | 已验证 | 2026-10-22 00:52 | `clmul.o` 语义（高/低 128 位、`rd0` 单侧、ILLI）；向量 81/81；`check_qemu_trans` 260/260，`ISS-317` closed |

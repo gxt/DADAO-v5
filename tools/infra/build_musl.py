@@ -59,10 +59,15 @@ has no dependency on the compiler binaries, so after ``make install-host`` the
 existing objects would be reused by an unchanged ``make`` (LLVM-098t: 12
 objects from 08:04 survived the 10:19 install and resurfaced an already fixed
 code-gen bug).  The stamp records, for the two binaries that decide the object
-code and the link result (``clang``, ``ld.lld``), their resolved path, size,
-mtime, ctime and ``--version`` line in ``obj/.dadao-toolchain-stamp``; a
-mismatch -- or a missing stamp -- runs ``make clean`` first and records the new
-stamp before building, and the decision is always logged.
+code and the link result (``clang``, ``ld.lld``), their resolved path, **content
+identity** (GNU ELF build-id, ``sha256`` when a tool carries none) and
+``--version`` line in ``obj/.dadao-toolchain-stamp``; a mismatch -- or a missing
+stamp -- runs ``make clean`` first and records the new stamp before building,
+and the decision is always logged.  ``mtime``/``ctime``/``size`` are *not* part
+of it (INFRA-101t, ``ISS-263``): ``make install-host`` re-links ``clang``
+deterministically, so a byte-identical binary with a new mtime must stay green.
+A stamp written in the retired ``mtime=`` format is treated as stale once (and
+the log says ``stamp format migrated``), which rewrites it in the new format.
 
 A second **source stamp** (``obj/.dadao-musl-source-stamp``) records a sha256
 over every musl input file on disk, written after a successful build.  It
@@ -95,6 +100,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import paths  # noqa: E402
+import toolchain_id as tid  # noqa: E402
 
 REPO_ROOT = paths.repo_root()
 TOOLCHAIN_BIN = paths.host_toolchain_bin()
@@ -232,21 +238,19 @@ def config_records(shared: bool) -> bool:
 # so the source tree stays clean for check-source-state, and `make clean`
 # (which removes obj/) both invalidates it and is itself the remedy.
 #
-# Why not a sha256 of the binaries: the installed clang is 4.0 GB and lld
-# 2.1 GB, i.e. >6 GB of I/O on every single build for a guard that has to be
-# cheap enough to run unconditionally.  The stamp therefore records only
-# *stable content attributes*: size + mtime + the version line (which carries
-# the upstream revision the binaries were built from).
+# Why not a sha256 of the binaries by default: the installed clang is 4.0 GB and
+# lld 2.1 GB, i.e. >6 GB of I/O on every single build for a guard that has to be
+# cheap enough to run unconditionally.  The stamp therefore records the *content
+# identity* the linker already put inside each binary: the GNU ELF build-id (a
+# KB-sized note; INFRA-101t).  A tool without a build-id falls back to sha256,
+# with a one-time warning about that cost.
 #
-# ctime is deliberately NOT part of it (ISS-263, 2026-10-17): ctime is inode
-# metadata, not content.  `make install-host` re-copies the same bytes with
-# `cp -aL` + rename(2), which preserves size and mtime but always lands a new
-# ctime, so including ctime turned a byte-identical reinstall into a false
-# "toolchain changed" (check-musl-freshness went red while size, mtime, the
-# version line and every libc sha256 were unchanged).  A toolchain that really
-# changed is rebuilt/relinked (mtime moves) or replaced from a different build
-# tree (mtime and/or version line differ); a content-only change that keeps
-# size and mtime is not reachable through the supported install path.
+# ctime is deliberately NOT part of it (ISS-263, 2026-10-17) and neither is
+# mtime any more (INFRA-101t, 2026-10-22): both are inode metadata, not content.
+# `make install-host` re-copies the same bytes with `cp -aL` + rename(2) (new
+# ctime) and re-links clang deterministically (new mtime), so either attribute
+# turned a byte-identical reinstall into a false "toolchain changed"
+# (check-musl-freshness went red while every libc sha256 was unchanged).
 STAMP_TOOLS = ("clang", "ld.lld")
 STAMP_REL = Path("obj") / ".dadao-toolchain-stamp"
 # A second stamp records WHAT the library was built FROM: a digest over every
@@ -273,19 +277,19 @@ BUILTINS_STAMP_REL = Path("obj") / ".dadao-builtins-stamp"
 SOURCE_STAMP_SKIP_TOP = {".git", "obj", "lib", "config.mak"}
 
 
-def toolchain_stamp() -> str:
-    """One line per code-deciding toolchain binary: what the objects were built by."""
-    lines = []
-    for tool in STAMP_TOOLS:
-        path = TOOLCHAIN_BIN / tool
-        real = path.resolve()
-        st = real.stat()
-        res = run([str(path), "--version"])
-        version = ((res.stdout.splitlines() or [""])[0] if res.returncode == 0
-                   else f"rc={res.returncode}")
-        lines.append(f"{tool} -> {real} size={st.st_size} "
-                     f"mtime={st.st_mtime_ns} {version}")
-    return "\n".join(lines) + "\n"
+def toolchain_stamp(tool_dir: Path = TOOLCHAIN_BIN) -> str:
+    """One line per code-deciding toolchain binary: what the objects were built by.
+
+    The criterion is the tool's *content* identity (GNU build-id, ``sha256``
+    fallback), never mtime/size -- see the comment above ``STAMP_TOOLS``.
+    ``tool_dir`` is a parameter so ``--self-test`` can drive a temp toolchain.
+    """
+    return tid.stamp_text(tool_dir, STAMP_TOOLS)
+
+
+def stamp_is_legacy(text: str) -> bool:
+    """Was this stamp written with the retired ``mtime=`` proxy (INFRA-101t)?"""
+    return tid.is_legacy_stamp(text)
 
 
 def read_stamp() -> str | None:
@@ -311,9 +315,15 @@ def stamp_decision() -> tuple[bool, str, str]:
     stored = read_stamp()
     if stored is None:
         return True, "no toolchain stamp recorded for this build tree", current
+    if stamp_is_legacy(stored):
+        # One rebuild pays for the migration: the old stamp proves nothing about
+        # content, and a byte-identical toolchain is exactly what the retired
+        # mtime proxy used to reject.
+        return (True, "stamp format migrated (legacy mtime= stamp; one rebuild "
+                      "records build-id)", current)
     if stored.strip() == current.strip():
         return False, "toolchain stamp unchanged (objects are up to date)", current
-    return True, "toolchain stamp changed", current
+    return True, "toolchain stamp changed (build-id/sha256 of clang or ld.lld)", current
 
 
 # ── source stamp (ISS-258) ──────────────────────────────────────────────────
