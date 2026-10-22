@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-125t | 已验证 | 2026-10-22 14:20 | 取整后端：7 个 intrinsic → 6 档、各 1 条；`FNEARBYINT` 落 0x20（NX 偏差已注明）；lit 132/132 |
 | QEMU-072t | 已验证 | 2026-10-22 13:40 | 取整语义：静态 5 档只合 NV、DYN 读 rf0；探针 413/413；`check_qemu_trans` 260/260，`ISS-322` closed |
 | SPEC-161t | 已验证 | 2026-10-22 13:10 | `ftrnd`/`fornd` 立册（754 六种取整、`immu6` one-hot `0x03`/`0x0B`）；260/29/58；证据 79/79 |
 | SPEC-163t | 已验证 | 2026-10-22 12:42 | 删 `cs.eq/ne_rrrr_rf`（258 条 / fp 58）；`.td`+trans+lit 原子删除，0x5E/0x5F 腾空 |
@@ -52,7 +53,6 @@
 | SPEC-156t | 已验证 | 2026-10-22 00:12 | `fcls` 10 类位序改为 754/LLVM 顺序；两处逐项一致（脚本机械比对）、锁重算、破坏性已标注 |
 | LLVM-123t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 后端：`.td` + `llvm.fma`/`fmuladd` 选择；循环形态 0 拷贝 |
 | LLVM-124t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 后端：`FMINNUM_IEEE`/`FMINIMUMNUM` Legal；`FMINIMUM` 保持 Expand |
-| LLVM-125t | 待开始 | 2026-10-21 23:50（登记） | 取整后端：7 个 intrinsic → 6 档；`FNEARBYINT` 落 DYN（NX 偏差已登记） |
 | LLVM-126t | 待开始 | 2026-10-21 23:50（登记） | FP 后端接线补齐（`ISS-188` 剩余 8 类：`fcmp`/`fpclass`/`bitcast`/`rounding`）；`frem` 不接 |
 | QEMU-070t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 语义：softfloat mulAdd 单次舍入；探针含 fma≠mul+add 反例 |
 | QEMU-071t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 语义：softfloat `minimum_number`；±0/单 NaN/sNaN/canonical 全覆盖 |

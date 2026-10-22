@@ -71,6 +71,11 @@ fo2ut {rd8}, {rf9}
 @@ ASM: focls {rd8}, {rf9}
 focls {rd8}, {rf9}
 
+@@ @src fornd_orri_rf 442c8241 | SimRISC-07 §取整（roundToIntegral）
+@@ OBJ: {{[0-9a-f]+:}} 44 2c 82 41{{.*}}fornd
+@@ ASM: fornd rf8, rf9, 1
+fornd rf8, rf9, 1
+
 @@ @src foroot_orri_rf 44388242 | SimRISC-00 §MISC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 38 82 42{{.*}}foroot
 @@ ASM: foroot rf8, rf9, 2
@@ -110,6 +115,11 @@ ft2ut {rd8}, {rf9}
 @@ OBJ: {{[0-9a-f]+:}} 44 00 82 41{{.*}}ftcls
 @@ ASM: ftcls {rd8}, {rf9}
 ftcls {rd8}, {rf9}
+
+@@ @src ftrnd_orri_rf 440c8241 | SimRISC-07 §取整（roundToIntegral）
+@@ OBJ: {{[0-9a-f]+:}} 44 0c 82 41{{.*}}ftrnd
+@@ ASM: ftrnd rf8, rf9, 1
+ftrnd rf8, rf9, 1
 
 @@ @src ftroot_orri_rf 44188242 | SimRISC-00 §MISC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 18 82 42{{.*}}ftroot

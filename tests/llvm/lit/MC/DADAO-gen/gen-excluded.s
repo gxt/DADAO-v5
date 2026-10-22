@@ -7,8 +7,6 @@
 @@ ======================================================================
 @@ RUN: echo 'cfxld cfx63, [rb2, 1]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
 @@ RUN: echo 'cfxst cfx63, [rb2, 1]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'fornd rf8, rf9, 1' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'ftrnd rf8, rf9, 1' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
 
 .text
 @@ UNREC: error: unrecognized instruction mnemonic
@@ -18,9 +16,3 @@
 
 @@ @src cfxst_crii_cfx | SimRISC-00 §SimRISC QFC
 @@ cfxst cfx63, [rb2, 1]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src fornd_orri_rf | SimRISC-07 §取整（roundToIntegral）
-@@ fornd rf8, rf9, 1（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src ftrnd_orri_rf | SimRISC-07 §取整（roundToIntegral）
-@@ ftrnd rf8, rf9, 1（scope: excluded，汇编器 MUST 拒绝）

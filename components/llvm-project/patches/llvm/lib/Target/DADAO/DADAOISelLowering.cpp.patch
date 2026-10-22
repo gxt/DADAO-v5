@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..75c1e8dea
+index 000000000..7ad0ac84f
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,2456 @@
+@@ -0,0 +1,2465 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -359,10 +359,10 @@ index 000000000..75c1e8dea
 +  setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i64, Expand);
 +
 +  // Floating point (M6, LLVM-066t).  Natively supported (Legal; patterns in
-+  // DADAOCodeGen.td): + - * /, sqrt, negate, absolute value, and the
-+  // int<->fp / fp<->fp conversions.  Every other FP op is expanded; a few of
-+  // those expansions are libcalls (e.g. frem -> fmod), which a freestanding
-+  // program must avoid or supply itself.
++  // DADAOCodeGen.td): + - * /, sqrt, negate, absolute value, roundToIntegral
++  // (LLVM-125t: ftrnd/fornd) and the int<->fp / fp<->fp conversions.  Every
++  // other FP op is expanded; a few of those expansions are libcalls (e.g.
++  // frem -> fmod), which a freestanding program must avoid or supply itself.
 +  for (MVT VT : {MVT::f32, MVT::f64}) {
 +    setOperationAction(
 +        {ISD::FADD, ISD::FSUB, ISD::FMUL, ISD::FDIV, ISD::FSQRT, ISD::FNEG},
@@ -372,11 +372,19 @@ index 000000000..75c1e8dea
 +         ISD::FTAN, ISD::FASIN, ISD::FACOS, ISD::FATAN, ISD::FATAN2,
 +         ISD::FSINH, ISD::FCOSH, ISD::FTANH, ISD::FPOW, ISD::FPOWI, ISD::FEXP,
 +         ISD::FEXP2, ISD::FEXP10, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
-+         ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FRINT, ISD::FNEARBYINT,
-+         ISD::FROUND, ISD::FROUNDEVEN, ISD::FMINNUM, ISD::FMAXNUM,
++         ISD::FMINNUM, ISD::FMAXNUM,
 +         ISD::FMINIMUM, ISD::FMAXIMUM, ISD::FCANONICALIZE, ISD::FLDEXP,
 +         ISD::FFREXP, ISD::FGETSIGN, ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT},
 +        VT, Expand);
++    // Rounding family (LLVM-125t): one `fornd`/`ftrnd` each, `immu6` = one-hot
++    // rounding mode (patterns in DADAOCodeGen.td; contract-fp.md §roundint).
++    // `FNEARBYINT` takes the dynamic mode 0x20 like `FRINT`, so it may set the
++    // inexact status bit -- the ISA has no flag-suppressing variant.  Values
++    // are identical and the flag is unobservable in non-strict LLVM, so the
++    // deviation is accepted (SPEC-161t).
++    setOperationAction({ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FROUND,
++                        ISD::FROUNDEVEN, ISD::FRINT, ISD::FNEARBYINT},
++                       VT, Legal);
 +  }
 +  // P1 (LLVM-080t; INTEG-033k §裁定汇总 #6) -- double-precision copysign/fabs
 +  // use the ISA sign-injection instruction `fosgnj` (contract-fp.md §7:
@@ -392,11 +400,12 @@ index 000000000..75c1e8dea
 +  // straight back to `fabs(x)` -- an infinite legalize/combine loop (observed
 +  // hanging codegen).  Matching both directly avoids it.
 +  //
-+  // The other P1 operations -- the rounding family (floor/ceil/trunc/round/
-+  // rint/nearbyint) and fmin/fmax -- have no ISA instruction
-+  // (contracts/opcodes.yaml scope `fp`), so they stay `Expand`: the resulting
-+  // out-of-line calls are registered in DADAOSubtarget (initLibcallLoweringInfo).
-+  // f32 stays Expand (P1 is double precision).
++  // The other P1 operations: fmin/fmax have no ISA instruction
++  // (contracts/opcodes.yaml scope `fp`), so they stay `Expand` and lower to the
++  // out-of-line calls registered in DADAOSubtarget (initLibcallLoweringInfo).
++  // The rounding family is Legal now (LLVM-125t, ftrnd/fornd -- see the loop
++  // above); this block's comment used to list it here as a libcall class.
++  // f32 copysign/fabs stay Expand (P1 sign-injection is double precision).
 +  setOperationAction(ISD::FCOPYSIGN, MVT::f64, Legal);
 +  setOperationAction(ISD::FABS, MVT::f64, Legal);
 +  // f64 <-> f32 conversions (ft2fo / fo2ft).  FP_ROUND is keyed on the smaller

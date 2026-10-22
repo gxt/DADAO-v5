@@ -13,8 +13,10 @@
 
 @@ FP assemble-time static legality checks (SPEC-088t; contracts/legality_rules.yaml):
 @@   dst_rf0              -- rf0 is the FCSR and cannot be an FP destination
-@@                           (rf0 as a *source* is legal).  33 instructions
-@@                           (16 scalar orrr + 14 orri convert/root + 3 cs_rf).
+@@                           (rf0 as a *source* is legal).  35 instructions
+@@                           (16 scalar orrr + 16 orri convert/root/round + 3 cs_rf).
+@@                           ftrnd/fornd (LLVM-125t) are covered by
+@@                           fp-round-encoding.s together with encode_onehot.
 @@   mreg_range_overlap   -- the two same-bank RF `{start:end}` groups of a
 @@                           convert_ff instruction must be disjoint (any
 @@                           intersection, including complete coincidence, is

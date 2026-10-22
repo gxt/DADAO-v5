@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..f26841e38
+index 000000000..596e10757
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,795 @@
+@@ -0,0 +1,830 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -649,6 +649,41 @@ index 000000000..f26841e38
 +def : Pat<(fdiv f32:$a, f32:$b), (ftdiv_orrr_rf f32:$a, f32:$b)>;
 +def : Pat<(fsqrt f32:$a), (ftroot_orri_rf f32:$a, 2)>;
 +def : Pat<(fneg f32:$a), (ftsgnn_orrr_rf f32:$a, f32:$a)>;
++
++// --- Rounding family: roundToIntegral (ftrnd/fornd, orri) ---
++// LLVM-125t (M9; contract-fp.md §roundint = SimRISC-07 §4.3).  One ISA
++// instruction per DAG node; `immu6` is a six-way one-hot *mode selector*, NOT
++// an element count:
++//   0x01 roundToIntegralTiesToEven   (llvm.roundeven / C23 roundeven)
++//   0x02 roundToIntegralTiesToAway   (llvm.round)
++//   0x04 roundToIntegralTowardZero   (llvm.trunc)
++//   0x08 roundToIntegralTowardPositive (llvm.ceil)
++//   0x10 roundToIntegralTowardNegative (llvm.floor)
++//   0x20 roundToIntegralExact        (llvm.rint / llvm.nearbyint)
++// The 5 static modes ignore rf0[33:32]; only 0x20 reads it (RNE/RTZ/RDN/RUP).
++// KNOWN DEVIATION: the ISA has no nearbyint variant that suppresses the
++// inexact flag, so llvm.nearbyint takes 0x20 like llvm.rint and may set NX
++// (rf0[4]) when the result differs from the input.  Values are identical:
++// DADAO FP raises no exceptions/traps, NX is only an FCSR status bit, and in
++// LLVM's non-strict mode both intrinsics are IntrNoMem+IntrSpeculatable, so
++// the flag is not observable (SPEC-161t; contract-fp.md §roundint).
++// These instructions are still `scope: excluded` in contracts/opcodes.yaml, so
++// execution ILLIs until SPEC-162t flips them; selection is implemented here so
++// the flip needs no CodeGen change.
++def : Pat<(froundeven f64:$a), (fornd_orri_rf f64:$a, 1)>;
++def : Pat<(fround f64:$a), (fornd_orri_rf f64:$a, 2)>;
++def : Pat<(ftrunc f64:$a), (fornd_orri_rf f64:$a, 4)>;
++def : Pat<(fceil f64:$a), (fornd_orri_rf f64:$a, 8)>;
++def : Pat<(ffloor f64:$a), (fornd_orri_rf f64:$a, 16)>;
++def : Pat<(frint f64:$a), (fornd_orri_rf f64:$a, 32)>;
++def : Pat<(fnearbyint f64:$a), (fornd_orri_rf f64:$a, 32)>;
++def : Pat<(froundeven f32:$a), (ftrnd_orri_rf f32:$a, 1)>;
++def : Pat<(fround f32:$a), (ftrnd_orri_rf f32:$a, 2)>;
++def : Pat<(ftrunc f32:$a), (ftrnd_orri_rf f32:$a, 4)>;
++def : Pat<(fceil f32:$a), (ftrnd_orri_rf f32:$a, 8)>;
++def : Pat<(ffloor f32:$a), (ftrnd_orri_rf f32:$a, 16)>;
++def : Pat<(frint f32:$a), (ftrnd_orri_rf f32:$a, 32)>;
++def : Pat<(fnearbyint f32:$a), (ftrnd_orri_rf f32:$a, 32)>;
 +
 +// --- FP compare: DADAOISD::FCMP -> foqcmp / ftqcmp (orrr; result in GPRD) ---
 +def : Pat<(DADAOFCmp f64:$l, f64:$r), (foqcmp_orrr_rf f64:$l, f64:$r)>;

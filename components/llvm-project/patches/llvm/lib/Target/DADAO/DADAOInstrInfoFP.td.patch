@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
 new file mode 100644
-index 000000000..dfc550006
+index 000000000..0376bacff
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
-@@ -0,0 +1,493 @@
+@@ -0,0 +1,514 @@
 +//===-- DADAOInstrInfoFP.td - DADAO FP instruction defs ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,7 +12,12 @@ index 000000000..dfc550006
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// DADAO FP (scope: fp) instruction definitions (58 instructions).
++// DADAO FP instruction definitions (60 instructions).
++//
++// 58 are `scope: fp`; `ftrnd`/`fornd` (roundToIntegral, SPEC-161t) are still
++// `scope: excluded` and therefore decode to ILLI until SPEC-162t flips them --
++// they are defined here so the MC layer can assemble/disassemble them and so
++// CodeGen can select them (LLVM-125t; patterns in DADAOCodeGen.td).
 +//
 +// Hand-written (NOT generated): the `op`/`ha` (opx) values below are taken
 +// verbatim from contracts/opcodes.yaml, which is the single source of truth
@@ -279,7 +284,7 @@ index 000000000..dfc550006
 +  let Pattern = [];
 +}
 +
-+// --- orri format (26 instructions) ---
++// --- orri format (28 instructions) ---
 +
 +def ftcls_orri_rf : DADAOOrri<"ftcls"> {
 +  let OutOperandList = (outs GPRD:$rb);
@@ -309,6 +314,14 @@ index 000000000..dfc550006
 +  let Constraints = "@earlyclobber $rb"; // convert_ff: dst range must not overlap src
 +  let op = 0x44;
 +  let ha = 0x02;
++  let Pattern = [];
++}
++
++def ftrnd_orri_rf : DADAOOrri<"ftrnd"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x03;
 +  let Pattern = [];
 +}
 +
@@ -343,6 +356,14 @@ index 000000000..dfc550006
 +  let Constraints = "@earlyclobber $rb"; // convert_ff: dst range must not overlap src
 +  let op = 0x44;
 +  let ha = 0x0A;
++  let Pattern = [];
++}
++
++def fornd_orri_rf : DADAOOrri<"fornd"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x0B;
 +  let Pattern = [];
 +}
 +

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..3d3762be7
+index 000000000..ddd56480f
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2619 @@
+@@ -0,0 +1,2647 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1415,7 +1415,8 @@ index 000000000..3d3762be7
 +
 +// FP instructions subject to the `dst_rf0` rule (SPEC-088t) whose destination
 +// operand immediately follows the mnemonic: the 16 scalar orrr arith/sign
-+// instructions plus the 14 orri RF-destination convert/root instructions.
++// instructions plus the 16 orri RF-destination convert/root/round
++// instructions.
 +// `rd2rf` and the RF loads/stores (ld.*/ldm.*/stm.*) are intentionally NOT
 +// listed: there rf0 as a destination is legal (FCSR write mask).  The
 +// convert_f2i / classify / compare groups have an RD destination and are not
@@ -1428,7 +1429,18 @@ index 000000000..3d3762be7
 +         M == "ft2fo" || M == "fo2ft" || M == "ft2ft" || M == "fo2fo" ||
 +         M == "it2ft" || M == "io2ft" || M == "ut2ft" || M == "uo2ft" ||
 +         M == "it2fo" || M == "io2fo" || M == "ut2fo" || M == "uo2fo" ||
-+         M == "ftroot" || M == "foroot";
++         M == "ftroot" || M == "foroot" ||
++         // roundToIntegral (SPEC-161t; contract-fp.md §roundint): single RF
++         // destination, same `dst_rf0` rule as the other RF-destination forms.
++         M == "ftrnd" || M == "fornd";
++}
++
++// roundToIntegral mnemonics (SPEC-161t; SimRISC-07 §4.3): the orri `immu6` is
++// a six-way one-hot rounding-mode selector, not an element count -- exactly one
++// of 0x01/0x02/0x04/0x08/0x10/0x20.  Any other value (including 0x00) is a
++// static ILLI (`encode_onehot` family, SimRISC-07 §4.3).
++static bool isFPRoundMnemonic(StringRef M) {
++  return M == "ftrnd" || M == "fornd";
 +}
 +
 +// FP instructions subject to the `dst_rd0` rule (SPEC-089t) whose destination
@@ -2507,10 +2519,11 @@ index 000000000..3d3762be7
 +  }
 +
 +  // Static legality checks for FP instructions (SPEC-088t): `dst_rf0` (rf0 is
-+  // the FCSR and cannot be an FP destination; rf0 as a source is legal) and
-+  // `encode_fp_root_n` (ftroot/foroot only support n == 2).  Operand positions
-+  // follow the assembly operand order:
-+  //   scalar orrr / orri convert / root : destination = Flat[1];
++  // the FCSR and cannot be an FP destination; rf0 as a source is legal),
++  // `encode_fp_root_n` (ftroot/foroot only support n == 2) and `encode_onehot`
++  // (ftrnd/fornd immu6 is a one-hot rounding mode, SPEC-161t).  Operand
++  // positions follow the assembly operand order:
++  //   scalar orrr / orri convert / root / round : destination = Flat[1];
 +  //   cs.n/cs.z/cs.p (one condition reg) : destination = Flat[2];
 +  //   cs.eq/cs.ne (two condition regs)   : destination = Flat[3].
 +  if (isFPDstRfMnemonic(Mnemonic) && Flat.size() >= 2 && Flat[1]->isReg() &&
@@ -2555,6 +2568,21 @@ index 000000000..3d3762be7
 +                   "invalid '" + Mnemonic.str() +
 +                       "': root order n must be the constant 2 "
 +                       "(encode_fp_root_n)");
++  }
++
++  // `encode_onehot` (SPEC-161t; SimRISC-07 §4.3 roundToIntegral): the orri
++  // immu6 of ftrnd/fornd is a one-hot rounding-mode selector.  A non-constant
++  // operand (symbol/relocation) cannot be proven one-hot, so it is rejected too.
++  if (isFPRoundMnemonic(Mnemonic) && Flat.size() >= 4 && Flat[3]->isImm()) {
++    auto *NOp = static_cast<DADAOOperand *>(Flat[3].get());
++    int64_t Mode = NOp->getImm();
++    if (NOp->getImmExpr() != nullptr ||
++        (Mode != 0x01 && Mode != 0x02 && Mode != 0x04 && Mode != 0x08 &&
++         Mode != 0x10 && Mode != 0x20))
++      return Error(Flat[3]->getStartLoc(),
++                   "invalid '" + Mnemonic.str() +
++                       "': rounding mode must be one of the one-hot constants "
++                       "0x01/0x02/0x04/0x08/0x10/0x20 (encode_onehot)");
 +  }
 +
 +  // Static legality check for `ret` (SPEC-083t; SimRISC-06 §函数返回):
