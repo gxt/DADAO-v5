@@ -379,7 +379,7 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 
 ### 4.6 MISC-RF指令编码
 
-> 本子表 46 条全部为 `scope: fp`（已实现；语义归一化于 `contract-fp.md`，执行层落地，不触发 decode ILLI；取整 `ftrnd_orri_rf`/`fornd_orri_rf` 见 SimRISC-07 §取整（roundToIntegral））。`scope: fp` 共 60 条。
+> 本子表 50 条 = `scope: fp` 46 条（已实现；语义归一化于 `contract-fp.md`，执行层落地，不触发 decode ILLI；取整 `ftrnd_orri_rf`/`fornd_orri_rf` 见 SimRISC-07 §取整（roundToIntegral））+ `scope: excluded` 4 条（`ftmin_orrr_rf`/`ftmax_orrr_rf`/`fomin_orrr_rf`/`fomax_orrr_rf`，最小/最大值，编码已定义、执行 ILLI；语义见 SimRISC-07 §最小最大值（minimumNumber / maximumNumber））。`scope: fp` 共 60 条。
 
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
 
@@ -389,8 +389,8 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 | 001-xxx   | focls_orri_rf  | fo2ft_orri_rf  | fo2fo_orri_rf  | fornd_orri_rf  |             |             | foroot_orri_rf |  |
 | 010-xxx   | ftadd_orrr_rf  | ftsub_orrr_rf  | ftmul_orrr_rf  | ftdiv_orrr_rf  | ftrem_orrr_rf  | ftsclb_orrr_rf | ftsgnn_orrr_rf | ftsgnj_orrr_rf |
 | 011-xxx   | foadd_orrr_rf  | fosub_orrr_rf  | fomul_orrr_rf  | fodiv_orrr_rf  | forem_orrr_rf  | fosclb_orrr_rf | fosgnn_orrr_rf | fosgnj_orrr_rf |
-| 100-xxx   | ftqcmp_orrr_rf | ftscmp_orrr_rf |             |             |             |             |             |             |
-| 101-xxx   | foqcmp_orrr_rf | foscmp_orrr_rf |             |             |             |             |             |             |
+| 100-xxx   | ftqcmp_orrr_rf | ftscmp_orrr_rf |             |             |             |             | ftmin_orrr_rf | ftmax_orrr_rf |
+| 101-xxx   | foqcmp_orrr_rf | foscmp_orrr_rf |             |             |             |             | fomin_orrr_rf | fomax_orrr_rf |
 | 110-xxx   | ft2it_orri_rf  | ft2io_orri_rf  | ft2ut_orri_rf  | ft2uo_orri_rf  | it2ft_orri_rf  | io2ft_orri_rf  | ut2ft_orri_rf  | uo2ft_orri_rf  |
 | 111-xxx   | fo2it_orri_rf  | fo2io_orri_rf  | fo2ut_orri_rf  | fo2uo_orri_rf  | it2fo_orri_rf  | io2fo_orri_rf  | ut2fo_orri_rf  | uo2fo_orri_rf  |
 
@@ -441,6 +441,7 @@ v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成�
 - 正文术语 `PC` 统一为 **`IP`**（`rb0`/`rbip`）：**`IP` = 当前正在执行的指令的地址**，**不是**主流 ISA 的「下一条指令地址」口径；本 ISA **无 `±4` 流水偏移**，I 形态指令的立即数基址即 `IP`。
 - `clmul.o` 解除 `excluded`（`scope` → `m9`；M9 新增 ISA 指令，与 `rol.*` 同档），执行语义见 `SimRISC-04 §3.5`。
 - `ftrnd`/`fornd` 解除 `excluded`（`scope` → `fp`；实现落地后执行语义生效，不触发 decode ILLI），语义见 `SimRISC-07 §4.3`。
+- 新增 `ftmin`/`ftmax`/`fomin`/`fomax`（最小/最大值，IEEE 754-2019 `minimumNumber`/`maximumNumber`；`orrr`），编码 `100-110`/`100-111`/`101-110`/`101-111`（`ha = 0x26`/`0x27`/`0x2E`/`0x2F`，MISC-RF）；`scope` 为 `excluded`（执行 ILLI），语义见 `SimRISC-07 §4.4`。
 
 ### 0.5.4（2026-09-28）
 

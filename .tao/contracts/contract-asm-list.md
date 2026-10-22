@@ -1,10 +1,10 @@
 # DADAO 汇编指令表（新语法）
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
-> **源**：`contracts/opcodes.yaml`（260 条 = M1 156 + `scope: fp` 60 + `scope: excluded` 27 + `scope: m3` 1 + `scope: m8` 7 + `scope: m9` 9）
+> **源**：`contracts/opcodes.yaml`（264 条 = M1 156 + `scope: fp` 60 + `scope: excluded` 31 + `scope: m3` 1 + `scope: m8` 7 + `scope: m9` 9）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
 > **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **deferred**（原「待定」；暂不归类：`cfxld`/`cfxst`）
-> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（46 条）：`scope: fp` 46 条（已实现）；**deferred（原「待定」）**（2 条）为暂不归类状态（分类依据 = `ADR-0012` D1）；`scope: m1` 156 条为当前有效书写形式；`scope: excluded` 共 27 条，按章分布为 其它 25 条 + deferred 2 条
+> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（50 条）：`scope: fp` 46 条（已实现） + `scope: excluded` 4 条（decode ILLI）；**deferred（原「待定」）**（2 条）为暂不归类状态（分类依据 = `ADR-0012` D1）；`scope: m1` 156 条为当前有效书写形式；`scope: excluded` 共 31 条，按章分布为 浮点运算 4 条 + 其它 25 条 + deferred 2 条
 > **注（`scope: fp` 范围总账 = 60 条）**：浮点运算章 46 条（MISC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 5 条（`cs.n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{rdHA:rdHA+immu6-1}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `spec/Toolchain-01-汇编语言.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
@@ -176,7 +176,7 @@
 | `jump` | `rrii` | `rb` | `jump [rbHA, rdHB, imms14]` | `jump_rrii_rb` |
 | `ret` | `riii` | `ra` | `ret rdHA, imms18` | `ret_riii_ra` |
 
-### 浮点运算（46 条）｜ `scope: fp`（46 条，已实现）
+### 浮点运算（50 条）｜ `scope: fp`（46 条，已实现） + `scope: excluded`（4 条，decode ILLI）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -189,6 +189,8 @@
 | `foadd` | `orrr` | `rf` | `foadd rfHB, rfHC, rfHD` | `foadd_orrr_rf` |
 | `focls` | `orri` | `rf` | `focls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `focls_orri_rf` |
 | `fodiv` | `orrr` | `rf` | `fodiv rfHB, rfHC, rfHD` | `fodiv_orrr_rf` |
+| `fomax` | `orrr` | `rf` | `fomax rfHB, rfHC, rfHD` | `fomax_orrr_rf` |
+| `fomin` | `orrr` | `rf` | `fomin rfHB, rfHC, rfHD` | `fomin_orrr_rf` |
 | `fomul` | `orrr` | `rf` | `fomul rfHB, rfHC, rfHD` | `fomul_orrr_rf` |
 | `foqcmp` | `orrr` | `rf` | `foqcmp rdHB, rfHC, rfHD` | `foqcmp_orrr_rf` |
 | `forem` | `orrr` | `rf` | `forem rfHB, rfHC, rfHD` | `forem_orrr_rf` |
@@ -208,6 +210,8 @@
 | `ftadd` | `orrr` | `rf` | `ftadd rfHB, rfHC, rfHD` | `ftadd_orrr_rf` |
 | `ftcls` | `orri` | `rf` | `ftcls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ftcls_orri_rf` |
 | `ftdiv` | `orrr` | `rf` | `ftdiv rfHB, rfHC, rfHD` | `ftdiv_orrr_rf` |
+| `ftmax` | `orrr` | `rf` | `ftmax rfHB, rfHC, rfHD` | `ftmax_orrr_rf` |
+| `ftmin` | `orrr` | `rf` | `ftmin rfHB, rfHC, rfHD` | `ftmin_orrr_rf` |
 | `ftmul` | `orrr` | `rf` | `ftmul rfHB, rfHC, rfHD` | `ftmul_orrr_rf` |
 | `ftqcmp` | `orrr` | `rf` | `ftqcmp rdHB, rfHC, rfHD` | `ftqcmp_orrr_rf` |
 | `ftrem` | `orrr` | `rf` | `ftrem rfHB, rfHC, rfHD` | `ftrem_orrr_rf` |

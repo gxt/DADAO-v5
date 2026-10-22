@@ -131,7 +131,12 @@ group = "simrisc-00..12"
 #   `.tao/tasks/spec/SPEC-161t-立册.md` §「用户裁定（2026-10-21，原话）」）；本册订正为该裁定的**现行陈述落地**，非新决策）：`ftrnd`/`fornd` 解除 `excluded`（`scope` → `fp`）后**现行陈述**订正 ——
 #   §4 子表 `scope` 分区注记（`scope: fp` 58 → 60、执行层 58/58 → 60/60）、§4.6 表下范围注记（46 条全部为
 #   `scope: fp`，不再有 `excluded` 2 条）+ 附录 0.5.5-rc 段**追加** 1 条（历史行不改写）；QFC 格位不改；sha256 同笔重算。
-sha256 = "733423c188172a89eb6c8bcde2a16172388ed837167a8395ec7a47802f2dbc87"
+# 2026-10-22（SPEC-159t，用户原话「1、同意 ftmin/fomin/ftmax/fomax（number 语义）；2、按 IEEE 规定，并参考
+#   RISC-V 实现…」「同意；opx：ftmin/ftmax：100-110/100111；fomin/fomax: 101-110/101-111」；原话落纸于
+#   `.tao/tasks/spec/SPEC-159t-立册.md` §用户裁定）：§4.6 MISC-RF 子表 `100-110`/`100-111`/`101-110`/`101-111`
+#   填 `ftmin_orrr_rf`/`ftmax_orrr_rf`/`fomin_orrr_rf`/`fomax_orrr_rf` + 表下范围注记（50 条 = 46 `scope: fp`
+#   + 4 `scope: excluded`）；附录 0.5.5-rc 段**追加** 1 条（历史行不改写）；sha256 同笔重算。
+sha256 = "a89039b8de0afe5b0de8cad30045adcad7e1ff0fd6006e5de73ecf7cb2aa700a"
 
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -192,7 +197,13 @@ group = "simrisc-00..12"
 # 2026-10-22（SPEC-162t，同授权）：`ftrnd`/`fornd` 实现落地（QEMU/LLVM）后解除 `excluded` ⇒ 册头分类行与
 #   FP 范围总账（58 → 60 条；本册 44 → 46 条）、§4.3 范围注、生成区（§1.1 速查 46 条全为 `scope: fp`；§2 合法性
 #   由 excluded 区块改列 `dst_rf0`/`encode_onehot`）、附录 0.5.5-rc 各补一条；sha256 同笔重算。
-sha256 = "94b0fb91c4f274adeb77bb4662d9739b311c6ee96917cc079fa5420fa09cd449"
+# 2026-10-22（SPEC-159t，用户原话「1、同意 ftmin/fomin/ftmax/fomax（number 语义）；2、按 IEEE 规定，并参考
+#   RISC-V 实现…」「同意；opx：ftmin/ftmax：100-110/100111；fomin/fomax: 101-110/101-111」；原话落纸于
+#   `.tao/tasks/spec/SPEC-159t-立册.md` §用户裁定）：新增 §4.4「最小最大值（minimumNumber / maximumNumber）」
+#   （754-2019 §9.6 严格版：单 NaN 返回数字、双 NaN ⇒ canonical qNaN、`−0 < +0`、sNaN ⇒ NV、不涉舍入不置 NX）
+#   + 册头分类（50 条 = 46 `scope: fp` + 4 `scope: excluded`）、§1.1 速查与 §2 合法性生成区、附录 0.5.5-rc 补一条；
+#   FP 范围总账（60 条）不变。sha256 同笔重算（其余只读册不变）。
+sha256 = "6e5421f9b8932957a0bf0970dae202d7b03b2234f65d8f09dd17c3918ed52a86"
 
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"

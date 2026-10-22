@@ -282,6 +282,9 @@ def _negative_text(rec):
     fmt = rec["format"]
     mn = rec["mnemonic"]
     if fmt == "orrr":          # lr（rd, [rb, imm]）/ sc（rd, rd, [rb, imm]）——spec §5
+        if mn.startswith(("ft", "fo")):
+            # ftmin/ftmax/fomin/fomax（最小最大值：rf 目的 + 2 个 rf 源，SPEC-159t）
+            return "%s rf8, rf9, rf10" % mn
         if mn.startswith(("sc_", "sc.")):
             return "%s rd8, rd9, [rb1, 0]" % mn
         return "%s rd9, [rb1, 0]" % mn

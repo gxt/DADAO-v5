@@ -2,7 +2,7 @@
 
 > **版本：0.5.4** [SimRISC-00 §浮点寄存器][SimRISC-07 §版本]
 
-本合约归一化 `scope: fp` **60 条**指令的语义（IEEE754 浮点运算、FCSR 环境、合法性），供后续 golden oracle / LLVM / QEMU / testcases 消费。§18 的取整（`ftrnd`/`fornd`）在实现落地后已由 `excluded` 转入 `fp`（`SPEC-162t`），计入 60 条。[SimRISC-07 §取整（roundToIntegral）]
+本合约归一化 `scope: fp` **60 条**指令的语义（IEEE754 浮点运算、FCSR 环境、合法性），供后续 golden oracle / LLVM / QEMU / testcases 消费。§18 的取整（`ftrnd`/`fornd`）在实现落地后已由 `excluded` 转入 `fp`（`SPEC-162t`），计入 60 条。[SimRISC-07 §取整（roundToIntegral）] 另在 §19 登记最小/最大值（`ftmin`/`ftmax`/`fomin`/`fomax`，当前 `scope: excluded`、decode ILLI）的语义，**不计入** 60 条。[SimRISC-07 §最小最大值]
 
 - **编码唯一真源**为 `contracts/opcodes.yaml`（本合约不复制编码）。
 - **机器可读投影**为 `contracts/fp_semantics.yaml`（60 条 `id→family→spec_cite→semantics_ref→legality_refs`）。
@@ -166,3 +166,17 @@
 - 目的 `rfHB = rf0` ⇒ ILLI（`dst_rf0`）；源可为 `rf0`。`immu6` 非 one-hot（含 `0x00`）⇒ ILLI（`encode_onehot` 口径，复用既有规则、不新增规则）。[SimRISC-07 §取整（roundToIntegral）][SimRISC-00 §浮点寄存器]
 - **已知偏差（`nearbyint`）**：本 ISA **不提供** `nearbyint`（取整但不置 inexact）的硬件变体 ⇒ 后端落 `0x20`（DYN）：**值正确**，但结果 ≠ 输入时 **NX 可能被置位**。可接受性：本 ISA 浮点指令不产生异常/陷阱，NX 仅 `rf0[4:0]` 状态位（软件可忽略）；`roundToIntegral` 族与 `nearbyint` 的**值**语义一致。[SimRISC-07 §取整（roundToIntegral）]
 - **`rf0[33:32]` 不扩充**：仅 4 档、无 `roundTiesToAway` ⇒ C23 `fesetround(FE_TONEARESTFROMZERO)` **不支持**（可返回失败，符合 C 标准）；「平局远离 0」仅由静态档 `0x02` 提供。[SimRISC-07 §取整（roundToIntegral）][SimRISC-00 §浮点状态寄存器]
+
+## §19 `minmax`（最小/最大值：`minimumNumber` / `maximumNumber`）<a id="minmax"></a>
+
+> **范围**：本节 4 条当前为 `scope: excluded`（编码已定义、执行触发 ILLI），**不属于** `scope: fp` 60 条，故不进 `contracts/fp_semantics.yaml`；语义在此冻结，供实现（QEMU/LLVM/oracle）与测试消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。[SimRISC-07 §最小最大值]
+
+- 指令：`ftmin`/`ftmax`/`fomin`/`fomax`（orrr：`rfHB` 目的、`rfHC`/`rfHD` 源）；`ft*` 作用于 ft（32 位）、`fo*` 作用于 fo（64 位）。硬件先读全部源再写结果，源与目的允许重叠。[SimRISC-07 §最小最大值]
+- 语义 = IEEE 754-2019 §9.6 `minimumNumber`/`maximumNumber`（**严格版**，与 RISC-V `FMIN.S`/`FMAX.S` 逐条一致）：`x < y` ⇒ `min` 取 x、`max` 取 y；`y < x` ⇒ 反之。[SimRISC-07 §最小最大值]
+- `−0 < +0`：`min(+0, −0) = −0`、`max(+0, −0) = +0`；**不得**把 `±0` 视为"相等而任选"。[SimRISC-07 §最小最大值]
+- `x == y` 且同号（含 `+0/+0`、`−0/−0`、相同位型）⇒ 返回任一操作数（位型相同，结果唯一）。[SimRISC-07 §最小最大值]
+- 单 NaN（一个为 NaN、另一个为数；qNaN 与 **sNaN** 同论）⇒ 返回**那个数**（不传播 NaN）。[SimRISC-07 §最小最大值]
+- 双 NaN（任意 qNaN/sNaN 组合）⇒ 返回 **canonical quiet NaN**（IEEE 754-2019 §6.2：符号位 0、payload 全零 ⇒ ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）。[SimRISC-07 §最小最大值]
+- 标志：**sNaN** 作输入 ⇒ 置 **NV**（即使结果为数字）；qNaN 作输入不置；**不涉舍入、不置 NX**；不置 OF/UF。Inf 按数值序参与比较（`min(+Inf, x) = x`、`max(−Inf, x) = x`）。[SimRISC-07 §最小最大值]
+- 目的 `rfHB = rf0` ⇒ ILLI（`dst_rf0`）；源可为 `rf0`（读出 FCSR 中的 qNaN）。[SimRISC-07 §最小最大值][SimRISC-00 §浮点寄存器]
+- **负向约束**：不得实现为「返回第二操作数」（x86 `minss`/`maxss` 遗留语义），也不得按 754-2008 `minNum`/`maxNum` 的宽松处实现；不提供 NaN 传播版 `minimum`/`maximum` 硬件形态（由 LLVM 从本条展开，`LLVM-124t`），不做 `*mag` 变体、不做整数 min/max。[SimRISC-07 §最小最大值]

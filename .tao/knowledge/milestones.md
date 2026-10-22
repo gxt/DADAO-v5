@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-159t | 已验证 | 2026-10-22 16:50 | `ftmin/ftmax/fomin/fomax` 立册（754 `minimumNumber`、`orrr`）；264/31/60；`ISS-324`/`325` 登记 |
 | TESTCASES-060t | 已验证 | 2026-10-22 16:20 | 取整集成：6 档矩阵 + 模式敏感 + 标志；两档 805/805；独立 oracle 284/284；L2 边际 ≈6 s |
 | SPEC-162t | 已验证 | 2026-10-22 15:40 | 取整解除 `excluded`（`scope → fp`，新族 `roundint`）；fp 60 / excluded 27 / 260；13 族；规则明细同步 |
 | LLVM-125t | 已验证 | 2026-10-22 14:20 | 取整后端：7 个 intrinsic → 6 档、各 1 条；`FNEARBYINT` 落 0x20（NX 偏差已注明）；lit 132/132 |
@@ -60,7 +61,6 @@
 | QEMU-071t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 语义：softfloat `minimum_number`；±0/单 NaN/sNaN/canonical 全覆盖 |
 | SPEC-157t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 立册（四操作数 `rrrr`、`op 0x5E/0x5F`；excluded） |
 | SPEC-158t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 解除 `excluded`（`scope → fp`，新族 `fma`） |
-| SPEC-159t | 待开始 | 2026-10-21 23:50（登记） | `ftmin`/`ftmax`/`fomin`/`fomax` 立册（754 `minimumNumber`、`orrr`、opx `0x26/0x27/0x2E/0x2F`） |
 | SPEC-160t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 解除 `excluded`（`scope → fp`，新族 `minmax`） |
 | TESTCASES-057t | 待开始 | 2026-10-21 23:50（登记） | clmul 集成：指令级 + GHASH + CRC-32C，独立 oracle、两档 |
 | TESTCASES-058t | 待开始 | 2026-10-21 23:50（登记） | `fma` 集成：单次舍入反例 + 点积/GEMM/Horner，独立 oracle、两档 |

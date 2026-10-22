@@ -1,14 +1,14 @@
 # SimRISC浮点运算指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：浮点运算**（46 条）— `scope: fp` 46 条（已实现）；fo/ft 运算、格式转换、比较、符号位操作、条件赋值、分类、取整
+> **分类：浮点运算**（50 条）— `scope: fp` 46 条（已实现）+ `scope: excluded` 4 条（`ftmin`/`ftmax`/`fomin`/`fomax`，decode ILLI）；fo/ft 运算、格式转换、比较、符号位操作、条件赋值、分类、取整、最小最大值
 >
 > **FP 范围总账（`scope: fp` 共 60 条）**：本册 46 条（MISC-RF 子表）+ SimRISC-01 取数存数 8 条（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ SimRISC-02 寄存器复制 5 条（`cs.n`/`cs.z`/`cs.p` 的 `-rf` 与 `rd2rf`/`rf2rd`）+ SimRISC-03 16位立即数操作 1 条（`set.w-rf`）。`scope` 表范围、`deferred` 表状态，二者正交（用户裁定 2026-10-03）。
 
 <!-- ASSEMBLY_LIST_START -->
 ## 1. 汇编指令速查
 
-### 1.1 浮点运算（46 条）｜ `scope: fp`（46 条，已实现）
+### 1.1 浮点运算（50 条）｜ `scope: fp`（46 条，已实现） + `scope: excluded`（4 条，decode ILLI）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -21,6 +21,8 @@
 | `foadd` | `orrr` | `rf` | `foadd rfHB, rfHC, rfHD` | `foadd_orrr_rf` |
 | `focls` | `orri` | `rf` | `focls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `focls_orri_rf` |
 | `fodiv` | `orrr` | `rf` | `fodiv rfHB, rfHC, rfHD` | `fodiv_orrr_rf` |
+| `fomax` | `orrr` | `rf` | `fomax rfHB, rfHC, rfHD` | `fomax_orrr_rf` |
+| `fomin` | `orrr` | `rf` | `fomin rfHB, rfHC, rfHD` | `fomin_orrr_rf` |
 | `fomul` | `orrr` | `rf` | `fomul rfHB, rfHC, rfHD` | `fomul_orrr_rf` |
 | `foqcmp` | `orrr` | `rf` | `foqcmp rdHB, rfHC, rfHD` | `foqcmp_orrr_rf` |
 | `forem` | `orrr` | `rf` | `forem rfHB, rfHC, rfHD` | `forem_orrr_rf` |
@@ -40,6 +42,8 @@
 | `ftadd` | `orrr` | `rf` | `ftadd rfHB, rfHC, rfHD` | `ftadd_orrr_rf` |
 | `ftcls` | `orri` | `rf` | `ftcls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ftcls_orri_rf` |
 | `ftdiv` | `orrr` | `rf` | `ftdiv rfHB, rfHC, rfHD` | `ftdiv_orrr_rf` |
+| `ftmax` | `orrr` | `rf` | `ftmax rfHB, rfHC, rfHD` | `ftmax_orrr_rf` |
+| `ftmin` | `orrr` | `rf` | `ftmin rfHB, rfHC, rfHD` | `ftmin_orrr_rf` |
 | `ftmul` | `orrr` | `rf` | `ftmul rfHB, rfHC, rfHD` | `ftmul_orrr_rf` |
 | `ftqcmp` | `orrr` | `rf` | `ftqcmp rdHB, rfHC, rfHD` | `ftqcmp_orrr_rf` |
 | `ftrem` | `orrr` | `rf` | `ftrem rfHB, rfHC, rfHD` | `ftrem_orrr_rf` |
@@ -71,6 +75,12 @@
 * `mreg_range_overlap`：源/目的范围交集 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`（4 条）
 * `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `fornd_orri_rf`, `ftrnd_orri_rf`（2 条）
 * `encode_fp_root_n`：ftroot/foroot n≠2 → ILLI — `foroot_orri_rf`, `ftroot_orri_rf`（2 条）
+
+**scope: excluded（decode ILLI）：**
+* `fomax_orrr_rf`：decode ILLI
+* `fomin_orrr_rf`：decode ILLI
+* `ftmax_orrr_rf`：decode ILLI
+* `ftmin_orrr_rf`：decode ILLI
 <!-- LEGALITY_END -->
 
 
@@ -209,6 +219,57 @@ fornd   rfHB, rfHC, immu6
 
 > **范围**：本节 2 条为 `scope: fp`（`QEMU-072t`/`LLVM-125t` 落地后由 `SPEC-162t` 翻转）；语义按本节冻结。
 
+### 4.4 最小最大值（minimumNumber / maximumNumber）
+
+最小/最大值指令从两个同格式浮点操作数中选出较小/较大者，操作数类型为 `orrr`：
+
+```simrisc
+ftmin   rfHB, rfHC, rfHD
+ftmax   rfHB, rfHC, rfHD
+fomin   rfHB, rfHC, rfHD
+fomax   rfHB, rfHC, rfHD
+```
+
+`ftmin`/`ftmax` 作用于 ft（32 位）、`fomin`/`fomax` 作用于 fo（64 位）；`rfHB` 为目的操作数，
+`rfHC` 为第一个源操作数、`rfHD` 为第二个源操作数。硬件先读全部源操作数再写结果，源被目的覆盖前
+其值已捕获，行为确定（`rfHB` 可与 `rfHC`/`rfHD` 相同）。
+
+语义为 IEEE 754-2019 §9.6 的 **`minimumNumber`/`maximumNumber`**（**严格版**，与 RISC-V
+`FMIN.S`/`FMAX.S` 逐条一致；RISC-V 2.2 起由 754-2008 的 `minNum` 改为 201x 的 `minimumNumber`）。
+六条边界如下（`min` 指 `ftmin`/`fomin`，`max` 指 `ftmax`/`fomax`）：
+
+1. **有序**（`x < y` 或 `x > y`，按数值序比较）：`min` 返回较小者、`max` 返回较大者。
+2. **`−0 < +0`**（IEEE 754-2019 §9.6 对 `±0` 的定序：两者符号不同时 `min` 为 `−0`、`max` 为 `+0`）：
+   `min(+0, −0) = −0`、`max(+0, −0) = +0`——**不得**把 `±0` 视为"相等而任选"，也不得返回 `+0`
+   作为 `min` 的结果。
+3. **相等**（`x == y` 且同号；含 `+0/+0`、`−0/−0`、相同位型）：返回任一操作数（两者位型相同，
+   结果唯一）。
+4. **单 NaN**（一个操作数为 NaN、另一个为数；qNaN 与 **sNaN** 同论）：返回**那个数**（不传播
+   NaN）。qNaN 作输入**不置**标志；**sNaN 作输入置 NV**（即使结果为数字）。
+5. **双 NaN**（两个操作数均为 NaN，任意 qNaN/sNaN 组合）：返回 **canonical quiet NaN**
+   （IEEE 754-2019 §6.2：符号位 0、payload 全零 ⇒ ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`，
+   与 `rf0` 的复位 qNaN 位同源）；任一输入为 sNaN ⇒ 置 NV。
+6. **标志与舍入**：本族**不涉舍入**（结果取某一输入的位型或其 canonical 化，不重新舍入），
+   **不置 NX**；除「sNaN 作输入 ⇒ NV」外**不置**任何标志，也不置 OF/UF。Inf 按数值序参与比较
+   （`min(+Inf, x) = x`、`max(−Inf, x) = x`）。
+
+**禁止的实现（负向约束）**：
+
+- **不得**实现为「返回第二个源操作数」（x86 `minss`/`maxss` 的遗留语义：单 NaN 返回第二源、
+  双 NaN 返回第二源）——本族单 NaN 必须返回**数**、双 NaN 必须返回 **canonical qNaN**。
+- **不得**按 IEEE 754-2008 `minNum`/`maxNum` 的宽松处实现（NaN 传播位置未定、可任选）。
+- 不提供「NaN 传播版」`minimum`/`maximum`（IEEE 754-2019 §9.6 的另一函数）的硬件形态；需要时由
+  软件/编译器以本族加显式 NaN 判断合成（后端见 `LLVM-124t`）。也不提供 `minNumMag` 类变体，
+  也不涉及整数 min/max。
+
+合法性：
+
+- 目的 `rfHB = rf0` ⇒ ILLI（`dst_rf0`）；源可为 `rf0`（读出 FCSR 中的 qNaN，见 §1）。
+- `orrr` 单目的，源与目的允许重叠（先读后写，结果确定）。
+
+> **范围**：本节 4 条当前为 `scope: excluded`（编码已定义、执行触发 ILLI）；语义按本节冻结，
+> 供 `QEMU-071t`（执行语义）、`LLVM-124t`（后端）消费，解除 `excluded` 归 `SPEC-160t`。
+
 ## 5. 浮点符号位操作指令
 
 该类指令实现了浮点sign-injection指令，操作数类型为 `orrr`。
@@ -296,6 +357,7 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 ### 0.5.5-rc（未发布）
 
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
+- 新增最小/最大值指令 `ftmin`/`ftmax`/`fomin`/`fomax`（MISC-RF，`orrr`，opx `100-110`/`100-111`/`101-110`/`101-111`，`ha = 0x26`/`0x27`/`0x2E`/`0x2F`；语义 = IEEE 754-2019 §9.6 `minimumNumber`/`maximumNumber` 严格版：单 NaN 返回数字、双 NaN ⇒ canonical qNaN、`−0 < +0`、sNaN ⇒ NV、不涉舍入不置 NX）；`scope: excluded`（执行 ILLI）；misc-RF 子表 46→50 条（`scope: fp` 仍 46 条）。
 - 新增取整指令 `ftrnd`/`fornd`（MISC-RF，`immu6` one-hot 六档：TiesToEven/TiesToAway/TowardZero/TowardPositive/TowardNegative/Exact；`scope: excluded`，执行 ILLI）；misc-RF 子表 44→46 条（`scope: fp` 仍 44 条）；登记 `nearbyint` 无硬件变体（落动态档，NX 可能被置位）与 `rf0[33:32]` 不扩充（RMM 不支持）两项已知偏差。
 - 浮点合法性规则（`rule_refs`）回填、归并与重叠禁则。
 - `ftrnd`/`fornd` 执行语义与后端落地（QEMU/LLVM）后解除暂缓登记：`scope: excluded` → `scope: fp`（`decode: ILLI` 撤销，合法性 `dst_rf0` + `encode_onehot` 生效）；misc-RF 子表 46 条全部为 `scope: fp`，FP 范围总账 58 → 60 条（本册 44 → 46 条）。

@@ -3,7 +3,7 @@
 
 职责（可执行、可失败；SPEC-086t §5.3）：
   1. 每条记录**恰有** 1 个合法 `scope` ∈ {m1, fp, excluded, m3, m8, m9}（缺失/非法 ⇒ FAIL）。
-  2. 分区计数：m1 == 156、fp == 60、excluded == 27、m3 == 1、m8 == 7、m9 == 9、total == 260。
+  2. 分区计数：m1 == 156、fp == 60、excluded == 31、m3 == 1、m8 == 7、m9 == 9、total == 264。
   3. `scope == "excluded"` ⇔ `decode == "ILLI"`；`scope ∈ {m1, fp, m3, m8, m9}` ⇒ 无 `decode`
      且无旧字段（防回退）。
   4. `_rf`（RF 银行目的）的 scope 约束：`scope == "fp"` ⇒ `id.endswith("_rf")`；
@@ -38,6 +38,9 @@
      excluded 27→29、total 258→260；M1/fp/m3/m8/m9 不变）
    * SPEC-162t（`ftrnd`/`fornd` 实现落地后翻转：excluded→fp ⇒ fp 58→60、excluded 29→27、
      total 260 不变；M1/m3/m8/m9 不变）
+   * SPEC-159t（`ftmin`/`ftmax`/`fomin`/`fomax` 立册：IEEE 754-2019 §9.6
+     `minimumNumber`/`maximumNumber`，`orrr`、`op 0x44`、`ha 0x26/0x27/0x2E/0x2F` ⇒
+     excluded 27→31、total 260→264；M1/fp/m3/m8/m9 不变）
 
 Usage: python3 tools/spec/check_scope.py [--yaml contracts/opcodes.yaml] [--repo-root .]
 """
@@ -54,11 +57,11 @@ OLD_FIELD = "excluded" + "_m1"
 
 EXPECTED_M1 = 156
 EXPECTED_FP = 60
-EXPECTED_EXCLUDED = 27
+EXPECTED_EXCLUDED = 31
 EXPECTED_M3 = 1
 EXPECTED_M8 = 7
 EXPECTED_M9 = 9
-EXPECTED_TOTAL = 260
+EXPECTED_TOTAL = 264
 
 ALLOWED_SCOPES = ("m1", "fp", "excluded", "m3", "m8", "m9")
 
