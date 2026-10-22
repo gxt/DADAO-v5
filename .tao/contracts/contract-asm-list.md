@@ -1,11 +1,11 @@
 # DADAO 汇编指令表（新语法）
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
-> **源**：`contracts/opcodes.yaml`（260 条 = M1 156 + `scope: fp` 60 + `scope: excluded` 27 + `scope: m3` 1 + `scope: m8` 7 + `scope: m9` 9）
+> **源**：`contracts/opcodes.yaml`（258 条 = M1 156 + `scope: fp` 58 + `scope: excluded` 27 + `scope: m3` 1 + `scope: m8` 7 + `scope: m9` 9）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
 > **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **deferred**（原「待定」；暂不归类：`cfxld`/`cfxst`）
 > **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（44 条）为 `scope: fp`（已实现）；**deferred（原「待定」）**（2 条）为暂不归类状态（分类依据 = `ADR-0012` D1）；`scope: m1` 156 条为当前有效书写形式；`scope: excluded` 共 27 条，按章分布为其它 25 条 + deferred 2 条
-> **注（`scope: fp` 范围总账 = 60 条）**：浮点运算章 44 条（MISC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 7 条（`cs.eq/ne/n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
+> **注（`scope: fp` 范围总账 = 58 条）**：浮点运算章 44 条（MISC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 5 条（`cs.n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{rdHA:rdHA+immu6-1}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `spec/Toolchain-01-汇编语言.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
 
@@ -70,16 +70,14 @@
 | `stm.t` | `rrri` | `rf` | `stm.t {rfHA:rfHA+immu6-1}, [rbHB, rdHC]` | `stm.t_rrri_rf` |
 | `stm.w` | `rrri` | `rd` | `stm.w {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `stm.w_rrri_rd` |
 
-### 寄存器复制（18 条）
+### 寄存器复制（16 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `cs.eq` | `rrrr` | `rd` | `cs.eq {rdHA, rdHB}?, rdHC, rdHD` | `cs.eq_rrrr_rd` |
-| `cs.eq` | `rrrr` | `rf` | `cs.eq {rdHA, rdHB}?, rfHC, rfHD` | `cs.eq_rrrr_rf` |
 | `cs.n` | `rrrr` | `rd` | `cs.n {rdHA}?, rdHB, rdHC, rdHD` | `cs.n_rrrr_rd` |
 | `cs.n` | `rrrr` | `rf` | `cs.n {rdHA}?, rfHB, rfHC, rfHD` | `cs.n_rrrr_rf` |
 | `cs.ne` | `rrrr` | `rd` | `cs.ne {rdHA, rdHB}?, rdHC, rdHD` | `cs.ne_rrrr_rd` |
-| `cs.ne` | `rrrr` | `rf` | `cs.ne {rdHA, rdHB}?, rfHC, rfHD` | `cs.ne_rrrr_rf` |
 | `cs.p` | `rrrr` | `rd` | `cs.p {rdHA}?, rdHB, rdHC, rdHD` | `cs.p_rrrr_rd` |
 | `cs.p` | `rrrr` | `rf` | `cs.p {rdHA}?, rfHB, rfHC, rfHD` | `cs.p_rrrr_rf` |
 | `cs.z` | `rrrr` | `rd` | `cs.z {rdHA}?, rdHB, rdHC, rdHD` | `cs.z_rrrr_rd` |

@@ -3,7 +3,7 @@
 
 每条记录带 `scope` 字段（互斥、穷尽，用户裁定 2026-10-03）：
   - `scope: m1`（156 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统 + 特权 cfx `trap`/`escape`/`cfx2rd`/`cfx2rc`）；
-  - `scope: fp`（60 条）——原生浮点范围（RF 存取/搬移/条件赋值 + MISC-RF 运算/转换/比较），
+  - `scope: fp`（58 条）——原生浮点范围（RF 存取/搬移/条件赋值 + MISC-RF 运算/转换/比较），
     独立于 M1，**已实现**（LLVM-029t/030t、QEMU-034t–037t）；
   - `scope: excluded`（27 条）——特权 cfx（仅 `cfxld`/`cfxst`）/ LR-SC（24 条，四宽度 ×
     三存储序）/ fence，暂未归类（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc`
@@ -452,14 +452,9 @@ def build_main_table(records):
                        f_rrii("rdha", "rdhb", "immu12"), [LEG_RD_DST], S04_CMP))
     records.append(rec("cmp.si-rd", "cmp.si", "rrii", 0x5D,
                        f_rrii("rdha", "rdhb", "imms12"), [LEG_RD_DST], S04_CMP))
-    records.append(rec("cs.eq-rf", "cs.eq", "rrrr", 0x5E,
-                       f_rrrr("rdha", "rdhb", "rfhc", "rfhd",
-                              roles=("src", "src", "dst", "src")),
-                       ["rfhc != rf0"], S00_QFC, scope="fp"))
-    records.append(rec("cs.ne-rf", "cs.ne", "rrrr", 0x5F,
-                       f_rrrr("rdha", "rdhb", "rfhc", "rfhd",
-                              roles=("src", "src", "dst", "src")),
-                       ["rfhc != rf0"], S00_QFC, scope="fp"))
+    # SPEC-163t（用户 2026-10-22 裁定「删除cs.eq/ne-rrrr-rf，两条指令；然后把ftfma/fofma
+    # 的编码移动到这两条指令的位置」）：0x5E/0x5F 已腾空，留给 SPEC-157t 的 FMA；
+    # cs.eq/ne 仅保留 rd 形态（0x66/0x67）。
 
     # ── 0110-0xxx：条件赋值（rrrr）──
     records.append(rec("cs.n-rd", "cs.n", "rrrr", 0x60,

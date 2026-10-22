@@ -105,6 +105,11 @@ policy = "readonly-requires-authorization"
 #   （LLVM 后端与 QEMU 执行语义均已落地）——SimRISC-00 附录 0.5.5-rc 段**追加** 1 条（历史行不改写）；
 #   SimRISC-04 §2 合法性清单的生成区由 `gen_legality_list --apply` 重生成（`clmul.o` 移出 excluded 区块）。
 #   上述 2 册 sha256 于同一变更内同步重算（其余 19 册不变）。
+# 2026-10-22（SPEC-163t；用户原话「删除cs.eq/ne-rrrr-rf，两条指令；然后把ftfma/fofma的编码移动到
+#   这两条指令的位置」；原话落纸于 .tao/tasks/spec/SPEC-163t-删除cs-eq-ne-rf.md §用户裁定）：
+#   SimRISC-02 删除两条 FP 条件赋值的 rf 变体（0x5E/0x5F 腾空给 SPEC-157t FMA）+ 附录（破坏性）。
+#   SimRISC-00/07 的 QFC 格位与 FP 总账**本册不动**（FMA 落位时由 SPEC-157t 一并同步）。
+#   仅 SimRISC-02 一册 sha256 于同一变更内重算（其余 20 册不变）。
 
 [[spec]]
 path = "spec/SimRISC-00-指令系统设计.md"
@@ -126,7 +131,12 @@ sha256 = "0b142635e462c2bc774630434d54da578e06d3965fb8009d88cc308f0fa54f1f"
 [[spec]]
 path = "spec/SimRISC-02-寄存器复制.md"
 group = "simrisc-00..12"
-sha256 = "ecce63bea40283e9067b4dde7de89b29cbc436ca056c54668e42641e4d29b1d2"
+# 2026-10-22（SPEC-163t，用户原话「删除cs.eq/ne-rrrr-rf，两条指令；然后把ftfma/fofma的编码移动到
+#   这两条指令的位置」；原话落纸于 .tao/tasks/spec/SPEC-163t-删除cs-eq-ne-rf.md §用户裁定）：
+#   删除 `cs.eq_rrrr_rf`/`cs.ne_rrrr_rf`（0x5E/0x5F 腾空给 SPEC-157t FMA）——§1.1 删 2 行 /
+#   分类计数 18→16、§2 合法性 `dst_rf0` 5→3、§3.3 删第二类浮点条件赋值并改「sub + cs.z」指引、
+#   附录 `0.5.5-rc` 追加 1 条（**破坏性**）；sha256 同笔重算。
+sha256 = "3a58a931e2eb98cccbbf2e817162b6883626823eadb6cfb116eb4e4610c65938"
 
 [[spec]]
 path = "spec/SimRISC-03-16位立即数操作.md"

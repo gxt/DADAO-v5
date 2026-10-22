@@ -1,4 +1,4 @@
-# contracts/fp_semantics.yaml — DADAO SimRISC 0.5.4 FP 语义投影（scope: fp，60 条）
+# contracts/fp_semantics.yaml — DADAO SimRISC 0.5.4 FP 语义投影（scope: fp，58 条）
 #
 # 来源（Spec-first，不从 LLVM/QEMU 反推）：
 #   spec/SimRISC-00 §浮点寄存器 / §浮点状态寄存器
@@ -17,7 +17,7 @@
 
 version: "0.5.4"
 scope: fp
-count: 60
+count: 58
 
 # ── FCSR（rf0）环境 ─────────────────────────────────────────────────────────
 fcsr:
@@ -108,7 +108,7 @@ families:
     semantics_ref: "contract-fp.md#set_w_rf"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
 
-# ── 60 条指令（id 集合须与 opcodes.yaml 中 scope=="fp" 双向一致）──────────────
+# ── 58 条指令（id 集合须与 opcodes.yaml 中 scope=="fp" 双向一致）──────────────
 instructions:
   # convert_ff（4）
   - id: ft2fo_orri_rf
@@ -358,16 +358,6 @@ instructions:
     semantics_ref: "contract-fp.md#cs_rf"
     legality_refs: [dst_rf0]
   - id: cs.p_rrrr_rf
-    family: cs_rf
-    spec_cite: "SimRISC-02 §浮点条件赋值"
-    semantics_ref: "contract-fp.md#cs_rf"
-    legality_refs: [dst_rf0]
-  - id: cs.eq_rrrr_rf
-    family: cs_rf
-    spec_cite: "SimRISC-02 §浮点条件赋值"
-    semantics_ref: "contract-fp.md#cs_rf"
-    legality_refs: [dst_rf0]
-  - id: cs.ne_rrrr_rf
     family: cs_rf
     spec_cite: "SimRISC-02 §浮点条件赋值"
     semantics_ref: "contract-fp.md#cs_rf"

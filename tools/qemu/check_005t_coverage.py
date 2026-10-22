@@ -27,7 +27,7 @@ VECTOR_FILES = {
 # Instructions that should remain ILLI (not in 005t scope)
 ILLI_INSTRUCTIONS = {
     # RF conditional assign (scope: fp)
-    "cs.n_rrrr_rf", "cs.z_rrrr_rf", "cs.p_rrrr_rf", "cs.eq_rrrr_rf", "cs.ne_rrrr_rf",
+    "cs.n_rrrr_rf", "cs.z_rrrr_rf", "cs.p_rrrr_rf",
     # RF immediate set (scope: fp)
     "set.w_rwii_rf",
 }

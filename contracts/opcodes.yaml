@@ -7,8 +7,8 @@
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
 # scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份
 # scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b + ADR-0035 GF(2) 无进位乘 clmul.o），非 M1 身份
-# 共 260 条：M1 156 条 + scope fp 60 条 + scope excluded 27 条 + scope m3 1 条 + scope m8 7 条 + scope m9 9 条
-# 有 rule_refs 的指令：208 条
+# 共 258 条：M1 156 条 + scope fp 58 条 + scope excluded 27 条 + scope m3 1 条 + scope m8 7 条 + scope m9 9 条
+# 有 rule_refs 的指令：206 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -1676,64 +1676,6 @@
   scope: m1
   rule_refs:
   - dst_rd0
-- id: cs.eq_rrrr_rf
-  mnemonic: cs.eq
-  format: rrrr
-  op: '0x5E'
-  mask: '0xFF000000'
-  value: '0x5E000000'
-  fields:
-  - name: rdha
-    bits: '[23:18]'
-    role: src
-    bank: rd
-  - name: rdhb
-    bits: '[17:12]'
-    role: src
-    bank: rd
-  - name: rfhc
-    bits: '[11:6]'
-    role: dst
-    bank: rf
-  - name: rfhd
-    bits: '[5:0]'
-    role: src
-    bank: rf
-  legality:
-  - rfhc != rf0
-  spec_cite: SimRISC-00 §SimRISC QFC
-  scope: fp
-  rule_refs:
-  - dst_rf0
-- id: cs.ne_rrrr_rf
-  mnemonic: cs.ne
-  format: rrrr
-  op: '0x5F'
-  mask: '0xFF000000'
-  value: '0x5F000000'
-  fields:
-  - name: rdha
-    bits: '[23:18]'
-    role: src
-    bank: rd
-  - name: rdhb
-    bits: '[17:12]'
-    role: src
-    bank: rd
-  - name: rfhc
-    bits: '[11:6]'
-    role: dst
-    bank: rf
-  - name: rfhd
-    bits: '[5:0]'
-    role: src
-    bank: rf
-  legality:
-  - rfhc != rf0
-  spec_cite: SimRISC-00 §SimRISC QFC
-  scope: fp
-  rule_refs:
-  - dst_rf0
 - id: cs.n_rrrr_rd
   mnemonic: cs.n
   format: rrrr

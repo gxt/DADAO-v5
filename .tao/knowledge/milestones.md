@@ -41,7 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| SPEC-163t | 待开始 | 2026-10-22 09:55（登记） | 删 `cs.eq/ne_rrrr_rf`（2 条）；records+`.td`+trans+lit 原子删除，腾出 0x5E/0x5F |
+| SPEC-163t | 已验证 | 2026-10-22 12:42 | 删 `cs.eq/ne_rrrr_rf`（258 条 / fp 58）；`.td`+trans+lit 原子删除，0x5E/0x5F 腾空 |
 | INFRA-101t | 已验证 | 2026-10-22 09:52 | 新鲜度门控改用 build-id（替代 mtime）；两门控 + 旧 stamp 迁移；touch 绿 / 内容变红 / relink 后免重建 |
 | SPEC-155t | 已验证 | 2026-10-22 07:12 | clmul 解除 `excluded`（`scope → m9`）；其余 259 条零改动、`accept 258/reject 2`、锁重算 |
 | LLVM-122t | 已验证 | 2026-10-22 05:20 | clmul 后端：`.td` + 低/高/双半伪指令 + `llvm.clmul`/`llvm.dadao.clmul` + `__builtin_dadao_clmul`（各 1 条）；scope 仍 excluded |

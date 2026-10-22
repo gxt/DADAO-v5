@@ -37,7 +37,7 @@ from pathlib import Path
 
 import yaml
 
-EXPECTED_TOTAL = 60
+EXPECTED_TOTAL = 58
 
 # 12 族枚举与计数（SPEC-087t §1.3）
 FAMILY_COUNTS = {
@@ -49,7 +49,7 @@ FAMILY_COUNTS = {
     "sign": 4,
     "compare": 4,
     "classify": 2,
-    "cs_rf": 5,
+    "cs_rf": 3,
     "rf_mem": 8,
     "rf_move": 2,
     "set_w_rf": 1,
@@ -64,7 +64,7 @@ FP_RULES = ("dst_rf0", "encode_fp_root_n", "mreg_zero",
 # 每条 FP 规则须被 FP id 引用的精确条数（SPEC-088t §2.6；收紧后才可对
 # 「漏一条 / 漏源侧」判 FAIL）。
 FP_RULE_EXACT = {
-    "dst_rf0": 35,
+    "dst_rf0": 33,
     "encode_fp_root_n": 2,
     "mreg_zero": 28,
     "mreg_range_overflow": 28,

@@ -3,7 +3,6 @@
 @@ RUN: echo 'ftadd rf0, rf2, rf3' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
 @@ RUN: echo 'it2ft {rf0}, {rd2}' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
 @@ RUN: echo 'cs.n {rd1}?, rf0, rf2, rf3' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
-@@ RUN: echo 'cs.eq {rd1, rd2}?, rf0, rf3' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
 @@ RUN: echo 'ft2fo {rf3:rf4}, {rf2:rf3}' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-OVL
 @@ RUN: echo 'ft2ft {rf3:rf3}, {rf3:rf3}' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-OVL
 @@ RUN: echo 'fo2fo {rf2:rf3}, {rf3:rf4}' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-OVL
@@ -14,8 +13,8 @@
 
 @@ FP assemble-time static legality checks (SPEC-088t; contracts/legality_rules.yaml):
 @@   dst_rf0              -- rf0 is the FCSR and cannot be an FP destination
-@@                           (rf0 as a *source* is legal).  35 instructions
-@@                           (16 scalar orrr + 14 orri convert/root + 5 cs_rf).
+@@                           (rf0 as a *source* is legal).  33 instructions
+@@                           (16 scalar orrr + 14 orri convert/root + 3 cs_rf).
 @@   mreg_range_overlap   -- the two same-bank RF `{start:end}` groups of a
 @@                           convert_ff instruction must be disjoint (any
 @@                           intersection, including complete coincidence, is
@@ -52,7 +51,6 @@
 @@ OK: encoding: [0x44,0x00,0x42,0x03]
 @@ OK: encoding: [0x44,0x80,0x40,0x83]
 @@ OK: encoding: [0x61,0x04,0x40,0x08]
-@@ OK: encoding: [0x5e,0x04,0x21,0x03]
 @@ OK-NOT: error
 ftadd rf1, rf2, rf3
 ftadd rf1, rf0, rf3
@@ -75,10 +73,9 @@ ft2it {rd4:rd6}, {rf8:rf10}
 ftcls {rd4:rd6}, {rf8:rf10}
 ftqcmp rd4, rf2, rf3
 cs.n {rd1}?, rf4, rf0, rf8
-cs.eq {rd1, rd2}?, rf4, rf3
 
 @@ Negative cases (checked independently via the echo-piped RUN lines above).
-@@ dst_rf0: FT op / convert_i2f / cs.n / cs.eq with rf0 as the destination.
+@@ dst_rf0: FT op / convert_i2f / cs.n with rf0 as the destination.
 @@ ERR-DST: error: invalid '{{[a-z0-9.]+}}': rf0 is the FCSR and cannot be a floating-point destination (dst_rf0)
 @@
 @@ mreg_range_overlap: partial, complete-coincidence and destination-first overlap.

@@ -2,10 +2,10 @@
 
 > **版本：0.5.4** [SimRISC-00 §浮点寄存器][SimRISC-07 §版本]
 
-本合约归一化 `scope: fp` **60 条**指令的语义（IEEE754 浮点运算、FCSR 环境、合法性），供后续 golden oracle / LLVM / QEMU / testcases 消费。
+本合约归一化 `scope: fp` **58 条**指令的语义（IEEE754 浮点运算、FCSR 环境、合法性），供后续 golden oracle / LLVM / QEMU / testcases 消费。
 
 - **编码唯一真源**为 `contracts/opcodes.yaml`（本合约不复制编码）。
-- **机器可读投影**为 `contracts/fp_semantics.yaml`（60 条 `id→family→spec_cite→semantics_ref→legality_refs`）。
+- **机器可读投影**为 `contracts/fp_semantics.yaml`（58 条 `id→family→spec_cite→semantics_ref→legality_refs`）。
 - **合法性规则**见 `contracts/legality_rules.yaml`。
 - 本合约**不含任何期望值**；oracle 方案见 `docs/fp-oracle-design.md`。
 - 所有语义断言均标注 spec/ 依据（Spec-first，不从 LLVM/QEMU 反推）。
@@ -97,10 +97,9 @@
 
 ## §10 `cs_rf`（浮点条件赋值）<a id="cs_rf"></a>
 
-- 指令：`cs.n`/`cs.z`/`cs.p`/`cs.eq`/`cs.ne` 的 rf 变体（rrrr）。[SimRISC-02 §浮点条件赋值]
+- 指令：`cs.n`/`cs.z`/`cs.p` 的 rf 变体（rrrr）。[SimRISC-02 §浮点条件赋值]
 - 第一类 `cs.n`/`cs.z`/`cs.p`：`rdHA` 为负/零/正 ⇒ `rfHB = rfHC`，否则 `rfHB = rfHD`。[SimRISC-02 §浮点条件赋值]
-- 第二类 `cs.eq`/`cs.ne`：`rdHA == / != rdHB` ⇒ `rfHC = rfHD`。[SimRISC-02 §浮点条件赋值]
-- 目的（`rfHB`/`rfHC`）为 `rf0` → ILLI；源（`rfHC`/`rfHD`）为 `rf0` 合法（读出完整 64 位）。[SimRISC-02 §浮点条件赋值]
+- 目的（`rfHB`）为 `rf0` → ILLI；源（`rfHC`/`rfHD`）为 `rf0` 合法（读出完整 64 位）。[SimRISC-02 §浮点条件赋值]
 
 ## §11 `rf_mem`（RF 存取）<a id="rf_mem"></a>
 
@@ -123,14 +122,14 @@
 - 只设置 `wpN` 指定的 16 位，其余 48 位不变。[SimRISC-03 §立即数常数赋值：Immediate constant]
 - `set.w rf0` **合法**：`wp2` 命中舍入模式、`wp0` 命中异常状态、`wp1`/`wp3` 完全写无效（遵 FCSR 写掩码）。[SimRISC-03 §立即数常数赋值：Immediate constant]
 
-## §14 伪指令（非 60 条 id，仅说明）<a id="pseudo"></a>
+## §14 伪指令（非 58 条 id，仅说明）<a id="pseudo"></a>
 
 - `set.ft`/`set.fo` 不是硬件指令，由汇编器展开为 `set.w` 组合：全零 → `rd2rf {rf}, {rd0}`；寄存器传值 → `rd2rf`/`ft2ft`/`fo2fo`。[SimRISC-03 §set.ft / set.fo 伪指令]
-- 伪指令属汇编器展开，**不进** `contracts/opcodes.yaml` 的 60 条。[SimRISC-03 §set.ft / set.fo 伪指令]
+- 伪指令属汇编器展开，**不进** `contracts/opcodes.yaml` 的 58 条。[SimRISC-03 §set.ft / set.fo 伪指令]
 
 ## §15 合法性规则映射
 
-- `dst_rf0`（FP 专属）：浮点运算指令**目的**为 `rf0` → ILLI（35 条：convert_ff 4 + convert_i2f 8 + arith 12 + root 2 + sign 4 + cs_rf 5）；`rf0` 作源合法。`rf2rd`/`st.*`/`stm.*`（rf 仅作源、无 rf 目的字段）不适用本规则。[SimRISC-00 §浮点寄存器][SimRISC-01 §存取RF寄存器][SimRISC-02 §浮点条件赋值]
+- `dst_rf0`（FP 专属）：浮点运算指令**目的**为 `rf0` → ILLI（33 条：convert_ff 4 + convert_i2f 8 + arith 12 + root 2 + sign 4 + cs_rf 3）；`rf0` 作源合法。`rf2rd`/`st.*`/`stm.*`（rf 仅作源、无 rf 目的字段）不适用本规则。[SimRISC-00 §浮点寄存器][SimRISC-01 §存取RF寄存器][SimRISC-02 §浮点条件赋值]
 - `encode_fp_root_n`（FP 专属）：`ftroot`/`foroot` 仅 n=2，其他 n → ILLI（2 条）。[SimRISC-07 §S1D1]
 - `mreg_zero`（与 M1 共享，同时服务 RD/RB/RA 多寄存器）：FP `immu6` 连续个数形式 `immu6 = 0` → ILLI（28 条）。[SimRISC-07 §格式转换指令][SimRISC-01 §存取RF寄存器][SimRISC-02 §寄存器组之间块赋值]
 - `mreg_range_overflow`（与 M1 共享）：FP `immu6` 连续个数形式起始 + `immu6 > 64` → ILLI，不环绕、不截断（28 条）；**源与目的起始寄存器均检查**。[SimRISC-07 §格式转换指令][SimRISC-01 §存取RF寄存器][SimRISC-02 §寄存器组之间块赋值]

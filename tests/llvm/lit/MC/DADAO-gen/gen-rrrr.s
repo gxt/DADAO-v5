@@ -31,11 +31,6 @@ clmul.o {rd8, rd9}, rd10, rd11
 @@ ASM: cs.eq {rd8, rd9}?, rd10, rd11
 cs.eq {rd8, rd9}?, rd10, rd11
 
-@@ @src cs.eq_rrrr_rf 5e20928b | SimRISC-00 §SimRISC QFC
-@@ OBJ: {{[0-9a-f]+:}} 5e 20 92 8b{{.*}}cs.eq
-@@ ASM: cs.eq {rd8, rd9}?, rf10, rf11
-cs.eq {rd8, rd9}?, rf10, rf11
-
 @@ @src cs.n_rrrr_rd 6020928b | SimRISC-02 §条件赋值：Conditional Assignment
 @@ OBJ: {{[0-9a-f]+:}} 60 20 92 8b{{.*}}cs.n
 @@ ASM: cs.n {rd8}?, rd9, rd10, rd11
@@ -50,11 +45,6 @@ cs.n {rd8}?, rf9, rf10, rf11
 @@ OBJ: {{[0-9a-f]+:}} 67 20 92 8b{{.*}}cs.ne
 @@ ASM: cs.ne {rd8, rd9}?, rd10, rd11
 cs.ne {rd8, rd9}?, rd10, rd11
-
-@@ @src cs.ne_rrrr_rf 5f20928b | SimRISC-00 §SimRISC QFC
-@@ OBJ: {{[0-9a-f]+:}} 5f 20 92 8b{{.*}}cs.ne
-@@ ASM: cs.ne {rd8, rd9}?, rf10, rf11
-cs.ne {rd8, rd9}?, rf10, rf11
 
 @@ @src cs.p_rrrr_rd 6420928b | SimRISC-02 §条件赋值：Conditional Assignment
 @@ OBJ: {{[0-9a-f]+:}} 64 20 92 8b{{.*}}cs.p

@@ -2,7 +2,7 @@
 @@ RUN: %llvm_objdump -d --triple=dadao-unknown-elf %t | %FileCheck %s --check-prefix=OBJ
 @@ RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=asm %s | %FileCheck %s --check-prefix=ASM
 
-@@ FP (scope: fp) encoding round-trip: all 60 instructions.
+@@ FP (scope: fp) encoding round-trip: all 58 instructions.
 @@ Bytes are hand-computed from contracts/opcodes.yaml:
 @@   32-bit big-endian word = (op<<24)|(ha<<18)|(hb<<12)|(hc<<6)|hd
 @@   rrii : ha=ra, hb=rb, [11:0]=imm12
@@ -67,18 +67,6 @@ stm.o {rf16:rf18}, [rb8, rd9]
 @@ OBJ: {{[0-9a-f]+:}} 4f 10 12 34{{.*}}set.w{{.*}}rf4, wp0, 0x1234
 @@ ASM: set.w rf4, wp0, 0x1234
 set.w rf4, wp0, 0x1234
-
-@@ cs.eq {rd8, rd0}?, rf4, rf6
-@@ op=0x5E  word = 0x5E200106  bytes = 5e 20 01 06
-@@ OBJ: {{[0-9a-f]+:}} 5e 20 01 06{{.*}}cs.eq{{.*}}{rd8, rd0}?, rf4, rf6
-@@ ASM: cs.eq {rd8, rd0}?, rf4, rf6
-cs.eq {rd8, rd0}?, rf4, rf6
-
-@@ cs.ne {rd10, rd2}?, rf8, rf10
-@@ op=0x5F  word = 0x5F28220A  bytes = 5f 28 22 0a
-@@ OBJ: {{[0-9a-f]+:}} 5f 28 22 0a{{.*}}cs.ne{{.*}}{rd10, rd2}?, rf8, rf10
-@@ ASM: cs.ne {rd10, rd2}?, rf8, rf10
-cs.ne {rd10, rd2}?, rf8, rf10
 
 @@ cs.n {rd12}?, rf4, rf6, rf8
 @@ op=0x61  word = 0x61304188  bytes = 61 30 41 88

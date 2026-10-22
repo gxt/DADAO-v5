@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
 new file mode 100644
-index 000000000..f9e135c16
+index 000000000..dfc550006
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
-@@ -0,0 +1,507 @@
+@@ -0,0 +1,493 @@
 +//===-- DADAOInstrInfoFP.td - DADAO FP instruction defs ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,7 +12,7 @@ index 000000000..f9e135c16
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// DADAO FP (scope: fp) instruction definitions (60 instructions).
++// DADAO FP (scope: fp) instruction definitions (58 instructions).
 +//
 +// Hand-written (NOT generated): the `op`/`ha` (opx) values below are taken
 +// verbatim from contracts/opcodes.yaml, which is the single source of truth
@@ -94,21 +94,7 @@ index 000000000..f9e135c16
 +  let Pattern = [];
 +}
 +
-+// --- rrrr format (5 instructions) ---
-+
-+def cs_eq_rrrr_rf : DADAORrrr<"cs.eq"> {
-+  let OutOperandList = (outs GPRF:$rc);
-+  let InOperandList = (ins GPRD:$ra, GPRD:$rb, GPRF:$rd);
-+  let op = 0x5E;
-+  let Pattern = [];
-+}
-+
-+def cs_ne_rrrr_rf : DADAORrrr<"cs.ne"> {
-+  let OutOperandList = (outs GPRF:$rc);
-+  let InOperandList = (ins GPRD:$ra, GPRD:$rb, GPRF:$rd);
-+  let op = 0x5F;
-+  let Pattern = [];
-+}
++// --- rrrr format (3 instructions) ---
 +
 +def cs_n_rrrr_rf : DADAORrrr<"cs.n"> {
 +  let OutOperandList = (outs GPRF:$rb);

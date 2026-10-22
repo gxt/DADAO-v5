@@ -823,3 +823,17 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（2026-10-21，源 = `QEMU-068t` reviewer 第 1 轮非阻塞观察）】**现象**：值不匹配导致 harness 走 TIMEOUT 时，输出 `Unsupported SemiHosting SWI 0x00` 与 `Unknown exit code: 0x-6`；`0x-6` 是 `-6`（或未初始化）按 `%x` 格式化的结果，属**诊断可读性缺陷**（不影响判定，超时仍按 FAIL 计）。**归属**：测试 harness（`tools/qemu/**` 或 `tools/testcases/**` 的 min-rom/semihost 驱动），非本册交付面。**修法方向**：超时/异常分支显式区分「TIMEOUT」与「未知退出码」，负数按有符号打印并附 errno/信号；补一条注入（构造超时）验证输出可读且判定仍 FAIL。**交叉引用**：`ISS-098` 族（同属 harness 诊断面）。**边界**：本笔只登记。"
+- id: ISS-320
+  title: "【P2】`check-instrinfo`（`validate_instrinfo.py`）不覆盖 FP 的 `.td`（`DADAOInstrInfoFP.td`），FP 记录的 def 缺失/残留无法被机械发现"
+  status: open
+  scope: [infra, llvm]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（2026-10-22，源 = `SPEC-163t` engineer 披露 + reviewer 独立注入复核）】**现象**：`tools/llvm/validate_instrinfo.py` 只解析 `DADAOInstrInfo.td.patch`；把 `def cs_eq_rrrr_rf` 加回 `DADAOInstrInfoFP.td.patch` 后，`check-instrinfo` **仍 rc=0**、`gen_isa_coverage --check` 亦 rc=0 ⇒ 该差异**无门控可见**。**影响**：`SPEC-163t` 删除两条 FP 记录时，若漏删 `.td` def，`check-instrinfo` 不会报红（本册靠证据脚本的文本断言兜底，非门控）；反向（fp 记录无 def）同样不可判。**修法方向**：把 `validate_instrinfo.py` 的解析面扩到 `*InstrInfo*.td.patch`（或按 fnmatch 收全部 `DADAOInstrInfo*.td`），并对 `m1/fp/m3/m8/m9` 记录统一做 def 覆盖双向校验；补注入自测（fp 记录删 def / 加 orphan def 各一例）。**交叉引用**：`SPEC-163t`（现场）、`ADR-0035`（fp 记录来源）、`check_isa_coverage`（同侧）。**边界**：本笔只登记。"
+- id: ISS-321
+  title: "【P3】`check_qemu_trans --strict` 只查「记录缺 trans」，不查「trans 残留（orphan）」"
+  status: open
+  scope: [infra, qemu]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（2026-10-22，源 = `SPEC-163t` reviewer 独立注入）】**现象**：临时保留一条 `trans_cs_*_rrrr_rf`（记录已删）时，`check_qemu_trans --strict` **仍 rc=0**（其口径是 `found/total` 的缺失方向）；真正捕获它的是 `check_interface`（259≠258）。**影响**：删除指令的册子若漏删 trans，只有 `check_interface` 报「数目不符」，定位信息弱；若 `check_interface` 被跳过则该残留不可见。**修法方向**：`check_qemu_trans.py` 增加 orphan 方向（`trans_*` 定义的 mnemonic 必须存在于 `opcodes.yaml`），`--strict` 时双向判；补注入自测（残留一条 trans ⇒ 红）。**交叉引用**：`SPEC-163t`（现场）、`ISS-320`（同类门控缺口）。**边界**：本笔只登记。"

@@ -43,11 +43,9 @@ cmp.uo_orrr_rd	cmp.uo	orrr	m1	cmp_uo	accept	ok	cmp.uo rd8, rd9, rd10	yes	pat:DAD
 cmp.ut_orrr_rd	cmp.ut	orrr	m1	cmp_ut	accept	ok	cmp.ut rd8, rd9, rd10	no		
 cmp.uw_orrr_rd	cmp.uw	orrr	m1	cmp_uw	accept	ok	cmp.uw rd8, rd9, rd10	no		
 cs.eq_rrrr_rd	cs.eq	rrrr	m1	cs_eq_rd	accept	ok	cs.eq {rd8, rd9}?, rd10, rd11	no		
-cs.eq_rrrr_rf	cs.eq	rrrr	fp	cs_eq_rrrr_rf	accept	ok	cs.eq {rd8, rd9}?, rf10, rf11	no		
 cs.n_rrrr_rd	cs.n	rrrr	m1	cs_n_rd	accept	ok	cs.n {rd8}?, rd9, rd10, rd11	yes	pat:DADAOCodeGen.td.patch:590:cs_n_rd	
 cs.n_rrrr_rf	cs.n	rrrr	fp	cs_n_rrrr_rf	accept	ok	cs.n {rd8}?, rf9, rf10, rf11	yes	pat:DADAOCodeGen.td.patch:600:cs_n_rrrr_rf;pat:DADAOCodeGen.td.patch:606:cs_n_rrrr_rf;pat-args:DADAOCodeGen.td.patch:710:cs_n_rrrr_rf;pat-args:DADAOCodeGen.td.patch:713:cs_n_rrrr_rf	
 cs.ne_rrrr_rd	cs.ne	rrrr	m1	cs_ne_rd	accept	ok	cs.ne {rd8, rd9}?, rd10, rd11	no		
-cs.ne_rrrr_rf	cs.ne	rrrr	fp	cs_ne_rrrr_rf	accept	ok	cs.ne {rd8, rd9}?, rf10, rf11	no		
 cs.p_rrrr_rd	cs.p	rrrr	m1	cs_p_rd	accept	ok	cs.p {rd8}?, rd9, rd10, rd11	yes	pat:DADAOCodeGen.td.patch:592:cs_p_rd;pat:DADAOCodeGen.td.patch:700:cs_p_rd;pat:DADAOCodeGen.td.patch:704:cs_p_rd	
 cs.p_rrrr_rf	cs.p	rrrr	fp	cs_p_rrrr_rf	accept	ok	cs.p {rd8}?, rf9, rf10, rf11	yes	pat:DADAOCodeGen.td.patch:604:cs_p_rrrr_rf;pat:DADAOCodeGen.td.patch:610:cs_p_rrrr_rf;pat-args:DADAOCodeGen.td.patch:711:cs_p_rrrr_rf;pat-args:DADAOCodeGen.td.patch:714:cs_p_rrrr_rf	
 cs.z_rrrr_rd	cs.z	rrrr	m1	cs_z_rd	accept	ok	cs.z {rd8}?, rd9, rd10, rd11	yes	pat:DADAOCodeGen.td.patch:591:cs_z_rd;pat:DADAOCodeGen.td.patch:701:cs_z_rd;pat:DADAOCodeGen.td.patch:705:cs_z_rd	
