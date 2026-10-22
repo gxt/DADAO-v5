@@ -108,12 +108,12 @@ def ld_o_rd(rdha, rbhb, imms12):
     return encode_rrii(0x20, rdha, rbhb, hc, hd)
 
 def cmp_uo(rdhb, rbhc, rbhd):
-    """cmp.uo rdhb, rbhc, rbhd (MISC-octa, op=0x40, ha=0x2A, orrr)
+    """cmp.uo rdhb, rbhc, rbhd (OPC-octa, op=0x40, ha=0x2A, orrr)
     NOTE: This compares RD operands. For RB operands, use cmp_uo_dbb."""
     return encode_rrii(0x40, 0x2A, rdhb, rbhc, rbhd)
 
 def cmp_uo_dbb(rdhb, rbhc, rbhd):
-    """cmp.uo rdhb, rbhc, rbhd (MISC-octa, op=0x40, ha=0x32, orrr)
+    """cmp.uo rdhb, rbhc, rbhd (OPC-octa, op=0x40, ha=0x32, orrr)
     Compares RB operands and returns result in RD."""
     return encode_rrii(0x40, 0x32, rdhb, rbhc, rbhd)
 

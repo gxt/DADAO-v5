@@ -210,7 +210,7 @@ def gen_encoding(rec):
 def gen_legality_illi(rec):
     """Legality ILLI case.
 
-    spec/SimRISC-01 §2（L101 / L127）：`ld`/`ldm` 的 `rdHA`/RB 目的为 rd0/rb0
+    spec/SimRISC-01 附录 B（L101 / L127）：`ld`/`ldm` 的 `rdHA`/RB 目的为 rd0/rb0
     ⇒ ILLI；**`st`/`stm` 允许 rdHA=rd0**（rd0 作源读出 0），且
     `contracts/legality_rules.yaml`「rb0 作源（含 st.*-rb/stm.*-rb 的 rbha、
     st.* 的基址）不触发 ILLI」。

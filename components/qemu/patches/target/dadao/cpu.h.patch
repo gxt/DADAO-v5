@@ -1,6 +1,6 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..29a87ae
+index 0000000..dfa8e4f
 --- /dev/null
 +++ b/target/dadao/cpu.h
 @@ -0,0 +1,251 @@
@@ -191,7 +191,7 @@ index 0000000..29a87ae
 +    uint64_t ras_tmp;   /* Temp storage for ras_pop return value (hidden) */
 +    uint64_t pc;        /* Program counter (alias for rb0 read) */
 +
-+    /* ── LR/SC reservation (QEMU-067t; SimRISC-12 §3.2, ADR-0034 D6) ──
++    /* ── LR/SC reservation (QEMU-067t; SimRISC-11 §4.2, ADR-0034 D6) ──
 +     * Per guest thread ("hart").  Granularity = the exact naturally aligned
 +     * 8-byte word that contains the address observed by `lr`: `sc` succeeds
 +     * only while the reservation is still held for that word AND the whole

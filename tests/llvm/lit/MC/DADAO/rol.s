@@ -12,7 +12,7 @@
 @@ slots unchanged at 010-001 orrr / 011-001 orri): logical rotate left.
 @@ The register form takes rdHD[log2(W)-1:0] (amount modulo W); the immediate
 @@ form takes immu6, and amounts outside 0..W-1 are an execution-time ILLI
-@@ (SimRISC-04/08/09/10 §2), so the MC layer only enforces the generic immu6
+@@ (SimRISC-04/08/09/10 附录 B), so the MC layer only enforces the generic immu6
 @@ field range [0, 63].
 @@
 @@ `shl.o/t/w/b` (ADR-0032 D2/D3) no longer accept the removed `shl.u*`
@@ -62,7 +62,7 @@ rol.b rd8, rd9, rd10
 rol.b rd8, rd9, 7
 
 @@ rol.b rd8, rd9, 8 is still encodable (immu6 = 8); rol.b's width check is an
-@@ execution-time ILLI (SimRISC-10 §2), not an assembler error.
+@@ execution-time ILLI (SimRISC-10 附录 B), not an assembler error.
 rol.b rd8, rd9, 8
 
 @@ ERR-OLD: error: unrecognized instruction mnemonic

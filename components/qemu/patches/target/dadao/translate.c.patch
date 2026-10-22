@@ -1,6 +1,6 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000..ef43c34
+index 0000000..8a848fa
 --- /dev/null
 +++ b/target/dadao/translate.c
 @@ -0,0 +1,643 @@
@@ -133,7 +133,7 @@ index 0000000..ef43c34
 +    return true;
 +}
 +
-+/* ── Fixed-width helpers (orrr MISC-byte/wyde/tetra/octa) ────────────── */
++/* ── Fixed-width helpers (orrr OPC-byte/wyde/tetra/octa) ────────────── */
 +
 +/* Sign-extend a value from bit 'bit' (0-indexed) to 64 bits. */
 +static TCGv_i64 gen_sign_extend(TCGv_i64 src, int bit)
@@ -418,7 +418,7 @@ index 0000000..ef43c34
 +    }
 +}
 +
-+/* ── LR/SC reservation helpers (QEMU-067t; SimRISC-12 §3.2, ADR-0034 D6) ──
++/* ── LR/SC reservation helpers (QEMU-067t; SimRISC-11 §4.2, ADR-0034 D6) ──
 + *
 + * The reservation is per guest thread and its granularity is the exact
 + * naturally aligned 8-byte word that contains the `lr` address (ADR-0034 D6
@@ -431,7 +431,7 @@ index 0000000..ef43c34
 + */
 +
 +/* Runtime MALIGN check for lr/sc: raise MALIGN unless `addr` is naturally
-+ * aligned for `width` bytes (SimRISC-12 §3.2 + user ruling 2026-10-21 「甲」:
++ * aligned for `width` bytes (SimRISC-11 §4.2 + user ruling 2026-10-21 「甲」:
 + * .b=1 / .w=2 / .t=4 / .o=8).  The aligned path continues in the same TB. */
 +static void gen_check_align_malign(DisasContext *ctx, TCGv_i64 addr, int width)
 +{
@@ -517,7 +517,7 @@ index 0000000..ef43c34
 +    addr = load_rb(ctx, a->hd);
 +    tcg_gen_andi_i64(addr, addr, 0x0000FFFFFFFFFFFFULL);
 +    /* Alignment is checked before anything else: a misaligned sc faults with
-+     * MALIGN whether or not a reservation is held (SimRISC-12 §3.2). */
++     * MALIGN whether or not a reservation is held (SimRISC-11 §4.2). */
 +    gen_check_align_malign(ctx, addr, width);
 +
 +    word_addr = tcg_temp_new_i64();

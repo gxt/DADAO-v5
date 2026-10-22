@@ -92,7 +92,7 @@ def add_si(rd, imms18):
     return encode_riii(0x59, rd, imms18 & 0x3FFFF)
 
 # div/rem encoding (from opcodes.yaml)
-# MISC-octa: op=0x40, MISC-tetra: op=0x41, MISC-wyde: op=0x42, MISC-byte: op=0x43
+# OPC-octa: op=0x40, OPC-tetra: op=0x41, OPC-wyde: op=0x42, OPC-byte: op=0x43
 # ha: div.u=0x38, div.s=0x39, rem.u=0x3A, rem.s=0x3B
 
 def div_uo(rdhb, rdhc, rdhd): return encode_orrr(0x40, 0x38, rdhb, rdhc, rdhd)

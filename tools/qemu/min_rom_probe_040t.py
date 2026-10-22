@@ -12,7 +12,7 @@ Cases (encodings taken from contracts/opcodes.yaml, not from QEMU):
   T3 sub.o rd18, rb2, rb3   rb2=0x2_0000_0000,
                             rb3=0x1_0000_0000    -> rd18=0x1_0000_0000  (full 64-bit, PASS)
   T4 sub.o rd0,  rb2, rb3   destination rd0      -> ILLI 0x88
-  T5 reserved MISC-octa slot (110-111, ha=0x37)  -> UNDI 0x89 (decode still open)
+  T5 reserved OPC-octa slot (110-111, ha=0x37)  -> UNDI 0x89 (decode still open)
   T6 sub.o rd18, rb0, rb3   rb0 as source (legal) -> rd18 = instr_addr - 4  (PASS)
 
 Reverse gate: reverting trans_sub_o_orrr_dbb to an ILLI stub makes T1/T2/T3/T6
@@ -136,7 +136,7 @@ def sub_o_dbb(rdhb, rbhc, rbhd):
 
 
 def reserved_octa_neighbor(rdhb, rbhc, rbhd):
-    """Reserved MISC-octa slot 110-111 (ha=0x37) — must decode to UNDI."""
+    """Reserved OPC-octa slot 110-111 (ha=0x37) — must decode to UNDI."""
     return encode_orri(0x40, 0x37, rdhb, rbhc, rbhd)
 
 
@@ -264,7 +264,7 @@ def case_t4_rd0_illi():
 
 
 def case_t5_reserved_neighbor_undi():
-    """Reserved MISC-octa slot 110-111 (ha=0x37) → UNDI."""
+    """Reserved OPC-octa slot 110-111 (ha=0x37) → UNDI."""
     return [reserved_octa_neighbor(18, 2, 3)], UNDI_EXIT
 
 

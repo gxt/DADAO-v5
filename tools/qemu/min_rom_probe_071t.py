@@ -2,7 +2,7 @@
 """Min ROM probe for QEMU-071t: ftmin/ftmax/fomin/fomax (754-2019 min/maxNumber).
 
 Spec sources (expectations derived from these, never from QEMU):
-  - spec/SimRISC-07 §4.4 最小最大值（minimumNumber / maximumNumber）
+  - spec/SimRISC-07 §2.4 最小最大值（minimumNumber / maximumNumber）
   - .tao/contracts/contract-fp.md §19 `minmax`
   - spec/SimRISC-00 §浮点状态寄存器 (rf0[33:32] mode, rf0[4:0] flags)
   - contracts/opcodes.yaml (encoding; op 0x44, ha 0x26/0x27/0x2E/0x2F)

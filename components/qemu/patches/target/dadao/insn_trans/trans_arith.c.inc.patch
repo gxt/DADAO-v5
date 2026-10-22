@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn_trans/trans_arith.c.inc b/target/dadao/insn_trans/trans_arith.c.inc
 new file mode 100644
-index 0000000..eee9585
+index 0000000..8f78153
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_arith.c.inc
 @@ -0,0 +1,710 @@
@@ -234,7 +234,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §7.1 sub.o rdhb, rbhc, rbhd (orrr, MISC-octa): 64-bit RB − RB → RD
++/* §7.1 sub.o rdhb, rbhc, rbhd (orrr, OPC-octa): 64-bit RB − RB → RD
 + * result = rbhc - rbhd (full 64-bit two's-complement), written to rdhb.
 + * ILLI: rdhb == 0 */
 +static bool trans_sub_o_orrr_dbb(DisasContext *ctx, arg_misc *a)
@@ -248,7 +248,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.5 div.uo/div.so/rem.uo/rem.so (orrr, MISC-octa)
++/* §3.1.5 div.uo/div.so/rem.uo/rem.so (orrr, OPC-octa)
 + * ILLI: rdhb==0. divisor==0 / signed overflow → defined values (no ILLI). */
 +static bool trans_div_uo_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
@@ -306,7 +306,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.2 add.ut/sub.ut (orrr, MISC-tetra): N=31, zero-extend result */
++/* §3.1.2 add.ut/sub.ut (orrr, OPC-tetra): N=31, zero-extend result */
 +static bool trans_add_ut_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -319,7 +319,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.2 add.st (orrr, MISC-tetra): N=31, sign-extend result */
++/* §3.1.2 add.st (orrr, OPC-tetra): N=31, sign-extend result */
 +static bool trans_add_st_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -356,7 +356,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.5 mul.ut (orrr, MISC-tetra): N=31, zero-extend result */
++/* §3.1.5 mul.ut (orrr, OPC-tetra): N=31, zero-extend result */
 +static bool trans_mul_ut_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -373,7 +373,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.5 mul.st (orrr, MISC-tetra): N=31, sign-extend result */
++/* §3.1.5 mul.st (orrr, OPC-tetra): N=31, sign-extend result */
 +static bool trans_mul_st_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -390,7 +390,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.5 div.ut/div.st/rem.ut/rem.st (orrr, MISC-tetra) */
++/* §3.1.5 div.ut/div.st/rem.ut/rem.st (orrr, OPC-tetra) */
 +static bool trans_div_ut_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
@@ -447,7 +447,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.2 add.uw/add.sw/sub.uw/sub.sw (orrr, MISC-wyde): N=15 */
++/* §3.1.2 add.uw/add.sw/sub.uw/sub.sw (orrr, OPC-wyde): N=15 */
 +static bool trans_add_uw_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -498,7 +498,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.5 mul.uw (orrr, MISC-wyde): N=15, zero-extend result */
++/* §3.1.5 mul.uw (orrr, OPC-wyde): N=15, zero-extend result */
 +static bool trans_mul_uw_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -515,7 +515,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.5 mul.sw (orrr, MISC-wyde): N=15, sign-extend result */
++/* §3.1.5 mul.sw (orrr, OPC-wyde): N=15, sign-extend result */
 +static bool trans_mul_sw_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -534,7 +534,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.5 div.uw/div.sw/rem.uw/rem.sw (orrr, MISC-wyde) */
++/* §3.1.5 div.uw/div.sw/rem.uw/rem.sw (orrr, OPC-wyde) */
 +static bool trans_div_uw_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -579,7 +579,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.2 add.ub/sub.ub (orrr, MISC-byte): N=7, zero-extend result */
++/* §3.1.2 add.ub/sub.ub (orrr, OPC-byte): N=7, zero-extend result */
 +static bool trans_add_ub_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -592,7 +592,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.2 add.sb (orrr, MISC-byte): N=7, sign-extend result */
++/* §3.1.2 add.sb (orrr, OPC-byte): N=7, sign-extend result */
 +static bool trans_add_sb_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -606,7 +606,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.2 sub.ub (orrr, MISC-byte): N=7, zero-extend result */
++/* §3.1.2 sub.ub (orrr, OPC-byte): N=7, zero-extend result */
 +static bool trans_sub_ub_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -619,7 +619,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.2 sub.sb (orrr, MISC-byte): N=7, sign-extend result */
++/* §3.1.2 sub.sb (orrr, OPC-byte): N=7, sign-extend result */
 +static bool trans_sub_sb_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -633,7 +633,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.5 mul.ub (orrr, MISC-byte): N=7, zero-extend result */
++/* §3.1.5 mul.ub (orrr, OPC-byte): N=7, zero-extend result */
 +static bool trans_mul_ub_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -650,7 +650,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.5 mul.sb (orrr, MISC-byte): N=7, sign-extend result */
++/* §3.1.5 mul.sb (orrr, OPC-byte): N=7, sign-extend result */
 +static bool trans_mul_sb_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -669,7 +669,7 @@ index 0000000..eee9585
 +    return true;
 +}
 +
-+/* §3.1.5 div.ub/div.sb/rem.ub/rem.sb (orrr, MISC-byte) */
++/* §3.1.5 div.ub/div.sb/rem.ub/rem.sb (orrr, OPC-byte) */
 +static bool trans_div_ub_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }

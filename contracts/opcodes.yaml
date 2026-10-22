@@ -2379,7 +2379,7 @@
   - immu18[17:12] == 0
   - immu18[11:10] == 0
   - immu18[5:4] == 0
-  spec_cite: SimRISC-12 §fence指令
+  spec_cite: SimRISC-11 §fence指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2421,7 +2421,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2446,7 +2446,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2471,7 +2471,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2496,7 +2496,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2521,7 +2521,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2546,7 +2546,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2571,7 +2571,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2596,7 +2596,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2621,7 +2621,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2646,7 +2646,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2671,7 +2671,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2696,7 +2696,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2721,7 +2721,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2746,7 +2746,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2771,7 +2771,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2796,7 +2796,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2821,7 +2821,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2846,7 +2846,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2871,7 +2871,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2896,7 +2896,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2921,7 +2921,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2946,7 +2946,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2971,7 +2971,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2996,7 +2996,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-12 §LR-SC指令
+  spec_cite: SimRISC-11 §LR-SC指令
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -3901,7 +3901,7 @@
   - immu6 != 0
   - rfhb + immu6 <= 64
   - rdhc + immu6 <= 64
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - mreg_zero
@@ -3932,7 +3932,7 @@
   - immu6 != 0
   - rdhb + immu6 <= 64
   - rfhc + immu6 <= 64
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0
@@ -5758,7 +5758,7 @@
   - immu6 != 0
   - rdhb + immu6 <= 64
   - rfhc + immu6 <= 64
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0
@@ -5791,7 +5791,7 @@
   - rfhb + immu6 <= 64
   - rfhc + immu6 <= 64
   - no_overlap(rfhb, rfhc, immu6)
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -5820,7 +5820,7 @@
     bank: imm
     signed: false
   legality: *id002
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -5851,7 +5851,7 @@
   legality: &id004
   - rfhb != rf0
   - immu6 == 2
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -5878,7 +5878,7 @@
     bank: imm
     signed: false
   legality: *id003
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0
@@ -5906,7 +5906,7 @@
     bank: imm
     signed: false
   legality: *id002
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -5935,7 +5935,7 @@
     bank: imm
     signed: false
   legality: *id002
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -5964,7 +5964,7 @@
     bank: imm
     signed: false
   legality: *id004
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -5995,7 +5995,7 @@
   - immu6 != 0
   - rdhb + immu6 <= 64
   - rfhc + immu6 <= 64
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6023,7 +6023,7 @@
     bank: imm
     signed: false
   legality: *id005
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6051,7 +6051,7 @@
     bank: imm
     signed: false
   legality: *id005
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6079,7 +6079,7 @@
     bank: imm
     signed: false
   legality: *id005
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6111,7 +6111,7 @@
   - immu6 != 0
   - rfhb + immu6 <= 64
   - rdhc + immu6 <= 64
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6139,7 +6139,7 @@
     bank: imm
     signed: false
   legality: *id006
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6167,7 +6167,7 @@
     bank: imm
     signed: false
   legality: *id006
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6195,7 +6195,7 @@
     bank: imm
     signed: false
   legality: *id006
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6223,7 +6223,7 @@
     bank: imm
     signed: false
   legality: *id005
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6251,7 +6251,7 @@
     bank: imm
     signed: false
   legality: *id005
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6279,7 +6279,7 @@
     bank: imm
     signed: false
   legality: *id005
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6307,7 +6307,7 @@
     bank: imm
     signed: false
   legality: *id005
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6335,7 +6335,7 @@
     bank: imm
     signed: false
   legality: *id006
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6363,7 +6363,7 @@
     bank: imm
     signed: false
   legality: *id006
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6391,7 +6391,7 @@
     bank: imm
     signed: false
   legality: *id006
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6419,7 +6419,7 @@
     bank: imm
     signed: false
   legality: *id006
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6507,7 +6507,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6533,7 +6533,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6559,7 +6559,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6585,7 +6585,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6611,7 +6611,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6637,7 +6637,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6663,7 +6663,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6689,7 +6689,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6715,7 +6715,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6741,7 +6741,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6767,7 +6767,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6793,7 +6793,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6819,7 +6819,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6845,7 +6845,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6871,7 +6871,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6897,7 +6897,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6923,7 +6923,7 @@
     bank: rf
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6949,7 +6949,7 @@
     bank: rf
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6975,7 +6975,7 @@
     bank: rf
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0
@@ -7001,7 +7001,7 @@
     bank: rf
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-00 §MISC-RF指令编码
+  spec_cite: SimRISC-00 §OPC-RF指令编码
   scope: fp
   rule_refs:
   - dst_rd0

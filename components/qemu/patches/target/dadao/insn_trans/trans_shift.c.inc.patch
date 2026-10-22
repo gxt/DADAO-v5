@@ -1,12 +1,12 @@
 diff --git a/target/dadao/insn_trans/trans_shift.c.inc b/target/dadao/insn_trans/trans_shift.c.inc
 new file mode 100644
-index 0000000..965cbb5
+index 0000000..14c693d
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_shift.c.inc
 @@ -0,0 +1,599 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
-+/* §3.4.1 shr.uo/shr.so/shl.o (orrr, MISC-octa): shift
++/* §3.4.1 shr.uo/shr.so/shl.o (orrr, OPC-octa): shift
 + * shamt = rdhd[5:0] (mask to 6 bits for octa)
 + * ILLI: rdhb == 0, shamt > 63 (impossible after mask for octa)
 + * rdhb[63:0] = shifted result; high bits unchanged (N=63, all 64 bits) */
@@ -58,7 +58,7 @@ index 0000000..965cbb5
 +    return true;
 +}
 +
-+/* §3.4.1 shr.uo/shr.so/shl.o (orri, MISC-octa): immediate shift
++/* §3.4.1 shr.uo/shr.so/shl.o (orri, OPC-octa): immediate shift
 + * shamt = immu6, ILLI if shamt > 63 (impossible: 6-bit field) */
 +static bool trans_shr_uo_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
@@ -99,7 +99,7 @@ index 0000000..965cbb5
 +    return true;
 +}
 +
-+/* §3.4.1 shr.ut/shr.st/shl.t (orrr, MISC-tetra): shift
++/* §3.4.1 shr.ut/shr.st/shl.t (orrr, OPC-tetra): shift
 + * shamt = rdhd[4:0] (mask to 5 bits for tetra), ILLI if shamt > 31 */
 +static bool trans_shr_ut_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
@@ -163,7 +163,7 @@ index 0000000..965cbb5
 +    return true;
 +}
 +
-+/* §3.4.1 shr.ut/shr.st/shl.t (orri, MISC-tetra): immediate shift */
++/* §3.4.1 shr.ut/shr.st/shl.t (orri, OPC-tetra): immediate shift */
 +static bool trans_shr_ut_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
@@ -225,7 +225,7 @@ index 0000000..965cbb5
 +    return true;
 +}
 +
-+/* §3.4.1 shr.uw/shr.sw/shl.w (orrr, MISC-wyde): N=15, shamt=hd[3:0] */
++/* §3.4.1 shr.uw/shr.sw/shl.w (orrr, OPC-wyde): N=15, shamt=hd[3:0] */
 +static bool trans_shr_uw_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -321,7 +321,7 @@ index 0000000..965cbb5
 +    return true;
 +}
 +
-+/* §3.4.1 shr.ub/shr.sb/shl.b (orrr, MISC-byte): N=7, shamt=hd[2:0] */
++/* §3.4.1 shr.ub/shr.sb/shl.b (orrr, OPC-byte): N=7, shamt=hd[2:0] */
 +static bool trans_shr_ub_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
@@ -417,7 +417,7 @@ index 0000000..965cbb5
 +    return true;
 +}
 +
-+/* §4.2.3 rol.o (orrr, MISC-octa): logical rotate left
++/* §4.2.3 rol.o (orrr, OPC-octa): logical rotate left
 + * amount = rdhd[5:0] (mod 64); rdhb[63:0] = rol(rdhc[63:0], amount)
 + * Value semantics: all 64 bits written. */
 +static bool trans_rol_o_orrr_rd(DisasContext *ctx, arg_misc *a)
@@ -436,7 +436,7 @@ index 0000000..965cbb5
 +    return true;
 +}
 +
-+/* §4.2.3 rol.o (orri, MISC-octa): immediate logical rotate left
++/* §4.2.3 rol.o (orri, OPC-octa): immediate logical rotate left
 + * immu6 is 6 bits => 0..63 all legal (no out-of-range value) */
 +static bool trans_rol_o_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
@@ -451,7 +451,7 @@ index 0000000..965cbb5
 +    return true;
 +}
 +
-+/* §4.2.2 rol.t (orrr, MISC-tetra): 32-bit logical rotate left
++/* §4.2.2 rol.t (orrr, OPC-tetra): 32-bit logical rotate left
 + * amount = rdhd[4:0] (mod 32); rdhb[31:0] = rol(rdhc[31:0], amount),
 + * rdhb[63:32] = 0 (value semantics). */
 +static bool trans_rol_t_orrr_rd(DisasContext *ctx, arg_misc *a)
@@ -477,7 +477,7 @@ index 0000000..965cbb5
 +    return true;
 +}
 +
-+/* §4.2.2 rol.t (orri, MISC-tetra): ILLI if immu6 > 31 */
++/* §4.2.2 rol.t (orri, OPC-tetra): ILLI if immu6 > 31 */
 +static bool trans_rol_t_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
@@ -502,7 +502,7 @@ index 0000000..965cbb5
 +    return true;
 +}
 +
-+/* §4.2.2 rol.w (orrr, MISC-wyde): 16-bit logical rotate left
++/* §4.2.2 rol.w (orrr, OPC-wyde): 16-bit logical rotate left
 + * amount = rdhd[3:0] (mod 16); rdhb[15:0] = rol(rdhc[15:0], amount),
 + * rdhb[63:16] = 0 (value semantics). */
 +static bool trans_rol_w_orrr_rd(DisasContext *ctx, arg_misc *a)
@@ -528,7 +528,7 @@ index 0000000..965cbb5
 +    return true;
 +}
 +
-+/* §4.2.2 rol.w (orri, MISC-wyde): ILLI if immu6 > 15 */
++/* §4.2.2 rol.w (orri, OPC-wyde): ILLI if immu6 > 15 */
 +static bool trans_rol_w_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
@@ -553,7 +553,7 @@ index 0000000..965cbb5
 +    return true;
 +}
 +
-+/* §4.2.2 rol.b (orrr, MISC-byte): 8-bit logical rotate left
++/* §4.2.2 rol.b (orrr, OPC-byte): 8-bit logical rotate left
 + * amount = rdhd[2:0] (mod 8); rdhb[7:0] = rol(rdhc[7:0], amount),
 + * rdhb[63:8] = 0 (value semantics). */
 +static bool trans_rol_b_orrr_rd(DisasContext *ctx, arg_misc *a)
@@ -579,7 +579,7 @@ index 0000000..965cbb5
 +    return true;
 +}
 +
-+/* §4.2.2 rol.b (orri, MISC-byte): ILLI if immu6 > 7 */
++/* §4.2.2 rol.b (orri, OPC-byte): ILLI if immu6 > 7 */
 +static bool trans_rol_b_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {

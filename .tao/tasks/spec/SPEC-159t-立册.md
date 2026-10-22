@@ -1,4 +1,4 @@
-# SPEC-159t: `ftmin`/`fomin`/`ftmax`/`fomax` 立册（IEEE 754-2019 `minimumNumber`，MISC-RF）
+# SPEC-159t: `ftmin`/`fomin`/`ftmax`/`fomax` 立册（IEEE 754-2019 `minimumNumber`，OPC-RF）
 
 **模块**：spec
 **项目里程碑**：M9（FP 完备性）
@@ -26,7 +26,7 @@
 
 ### 现场事实（2026-10-21 核，执行前须复核）
 
-- FP 族：`op = 0x44`（MISC-RF），`ha` = 6 位 opx；`ft` 组在前、`fo` 组 +8。
+- FP 族：`op = 0x44`（OPC-RF），`ha` = 6 位 opx；`ft` 组在前、`fo` 组 +8。
 - **`0x26`/`0x27`/`0x2E`/`0x2F` 现场均为空** ✓（`0x22`/`0x2A` 归 FMA）。
 - `check_fp_contract.py`：12 族、`fp` 计数 60（FMA 链落地后为 13 族 / 62）⇒ 本册仍**不动**族表（记录为 `excluded`）。
 - `SimRISC-07 §1.1` 速查条数现场派生（FMA 落地后为 46）；本册 +4。
@@ -103,14 +103,14 @@ fomax rfHB, rfHC, rfHD   @ op=0x44, ha=0x2F (101-111)
 **测试结果**：一键证据 `bash .work/evidence/SPEC-159t/run.sh --inject` = **146/146 PASS（rc=0）**，含 L1 `make check` rc=0（末轮现场）。注入 2 例均「注入→红→`cp`+md5 还原→回绿」：① `check_scope` 计数回退 31/264→27/260 ⇒ rc=1（命中 excluded/total 两断言）；② 只读锁 SimRISC-07 sha256 回退上一版 ⇒ `check-spec-readonly` rc=1（MISMATCH spec/SimRISC-07）。日志 `.work/evidence/SPEC-159t/log/`。
 **修改文件**：`contracts/opcodes.yaml`（260→264）；`spec/SimRISC-07-浮点运算.md`（册头/§1.1/§2 合法性/§4.4/附录）；`spec/SimRISC-00-指令系统设计.md`（§4.6 四格+注记、附录）**越界（披露见坑④）**；`.tao/contracts/contract-fp.md`（§19 `minmax` + `<a id="minmax">` + 首段）；生成物 `.tao/contracts/contract-asm-list.md`、`tools/llvm/llvm-isa-backend-matrix.{md,tsv}`、`tests/llvm/lit/MC/DADAO-gen/gen-excluded.s`；生成器/门控 `tools/spec/{generate_opcodes,check_scope}.py`、`tools/testcases/generate_lit_vectors.py`；`manifests/spec-readonly.lock.toml`（SimRISC-00/07 两册 sha）；`.tao/knowledge/{issues.yaml,milestones.md}`；本任务书；`.work/evidence/SPEC-159t/run.sh`。
 **验收结果**：现场 `total=264 / excluded=31 / fp=60 / m1=156 / m3=1 / m8=7 / m9=9`；四条 `op=0x44`、`ha=0x26/0x27/0x2E/0x2F`、`orrr`、`value=0x44980000/0x449C0000/0x44B80000/0x44BC0000`、`legality=['rfhb != rf0']`、`scope=excluded`、`decode=ILLI`、`rule_refs=[]`；其余 260 条**逐字段不变**（证据 A2）。`check_scope`（excluded 31/total 264）PASS；`validate-encoding` 264 条 OK；`check_rule_refs`/`check_instrinfo`/`check_isa_coverage --check`（accept 258/reject 6）/`check_fp_contract`（60 条/13 族/`dst_rf0`=35 全不变）/`check_lit_gen`（258+ / 6−，64/64）/`check-asm-list{,-drift}`/`check-legality-{drift,invariants}`/`check-spec-{refs,drift,codeblocks,numbering,changelog,archive,readonly}`/`check_contracts_pending`/`check_milestones_fresh`/`check_issues` 全 rc=0；L1 rc=0。**预期红（L2 非验收面）**：`check_qemu_trans --strict` 260/264（缺本 4 条 trans，`ISS-324`）。
-**新发现/坑**：① 任务书「total 现场派生：266」与现场不符——`SPEC-157t`（FMA 4 条）**未落** ⇒ 基线 260，本册 **260→264**（按现场派生，不按 266 凑数）。② 「不改 `tests/**`」与「生成物 lit-gen」冲突：按**生成物**处理（`gen-excluded.s` 机械派生、无语义向量），并给 `generate_lit_vectors._negative_text` 补 rf-orrr 反例形态——否则会生成 `ftmin rd9, [rb1, 0]` 错形反例，llvm-mc 因**语法错**而拒绝 ⇒ 反例「假绿」。③ `check_tables.py` 只覆盖 4 张 MISC 子表、**不覆盖 MISC-RF** ⇒ SimRISC-00 §4.6 格位无机械门控（本册靠证据 C3 断言 100/101 行 110/111 四格；已登记 `ISS-325`）。④ SimRISC-00 §4.6 **不在**任务书文件清单内，但它是编码唯一真源（空格=reserved/UNDI，与新增 ILLI 记录矛盾）⇒ 按 `SPEC-161t` 先例补四格+注记+附录+锁 sha（越界已在此披露）。
-**遗留问题**：① QEMU 缺 4 条 trans（`ISS-324`，`resolved_by: null`，由 `QEMU-071t` 关闭）；② `.td`/ISel 归 `LLVM-124t`；③ `excluded → fp` 翻转 + 新族 `minmax`（4 条）归 `SPEC-160t`；④ `check_tables` 未覆盖 MISC-RF（`ISS-325`，P3）。无其它未完成项。
+**新发现/坑**：① 任务书「total 现场派生：266」与现场不符——`SPEC-157t`（FMA 4 条）**未落** ⇒ 基线 260，本册 **260→264**（按现场派生，不按 266 凑数）。② 「不改 `tests/**`」与「生成物 lit-gen」冲突：按**生成物**处理（`gen-excluded.s` 机械派生、无语义向量），并给 `generate_lit_vectors._negative_text` 补 rf-orrr 反例形态——否则会生成 `ftmin rd9, [rb1, 0]` 错形反例，llvm-mc 因**语法错**而拒绝 ⇒ 反例「假绿」。③ `check_tables.py` 只覆盖 4 张 MISC 子表、**不覆盖 OPC-RF** ⇒ SimRISC-00 §4.6 格位无机械门控（本册靠证据 C3 断言 100/101 行 110/111 四格；已登记 `ISS-325`）。④ SimRISC-00 §4.6 **不在**任务书文件清单内，但它是编码唯一真源（空格=reserved/UNDI，与新增 ILLI 记录矛盾）⇒ 按 `SPEC-161t` 先例补四格+注记+附录+锁 sha（越界已在此披露）。
+**遗留问题**：① QEMU 缺 4 条 trans（`ISS-324`，`resolved_by: null`，由 `QEMU-071t` 关闭）；② `.td`/ISel 归 `LLVM-124t`；③ `excluded → fp` 翻转 + 新族 `minmax`（4 条）归 `SPEC-160t`；④ `check_tables` 未覆盖 OPC-RF（`ISS-325`，P3）。无其它未完成项。
 
 ## 审阅记录
 
 ### 第 1 轮 engineer 自审（自主逐行审查）
 
-**审查面**：`generate_opcodes.py`（4 条记录/`S07_MINMAX`/docstring）、`check_scope.py`（计数+changelog）、`SimRISC-07 §4.4`（6 条边界语义）、`contract-fp.md §19`、`SimRISC-00 §4.6` 四格与注记、`generate_lit_vectors.py` 反例分支、重生成产物、只读锁、证据脚本断言（逐条可失败性）。
+**审查面**：`generate_opcodes.py`（4 条记录/`S07_MINMAX`/docstring）、`check_scope.py`（计数+changelog）、`SimRISC-07 §2.4`（6 条边界语义）、`contract-fp.md §19`、`SimRISC-00 §4.6` 四格与注记、`generate_lit_vectors.py` 反例分支、重生成产物、只读锁、证据脚本断言（逐条可失败性）。
 
 | finding | 处置 | 改了什么 | 复验证据 |
 |---|---|---|---|
@@ -135,6 +135,6 @@ fomax rfHB, rfHC, rfHD   @ op=0x44, ha=0x2F (101-111)
 - **生成物幂等**（5 项全跑、各 ≤3 s）：`generate_opcodes`/`gen_asm_list -o`+`--embed-spec`/`gen_legality_list --apply`/`generate_lit_vectors`/`gen_isa_coverage` 全 rc=0，跑后 `git status` 无 diff、关键产物 md5 与跑前一致。
 - **独立注入 1 次**：`check_scope.py` `EXPECTED_EXCLUDED 31→27`（注入前 `cp` 备份、md5=1ac28fc1…）⇒ `check-scope: FAIL — excluded 计数: 期望 27，实际 31` rc=1；`cp` 还原、md5 相等、重跑 rc=0 回绿。禁用 git 还原，终态 `git status --porcelain -uall` 干净。
 
-**约束核验**：① 语义面——SimRISC-07 §4.4 六边界 + `contract-fp.md §19` 与 754-2019 §9.6/§6.2 逐条一致（单 NaN 含 sNaN ⇒ 数字、sNaN 置 NV、双 NaN ⇒ canonical qNaN（ft `0x7FC0_0000`/fo `0x7FF8_0000_0000_0000`）、`−0<+0`、等值同号任一、不置 NX），并明文禁 x86「返回第二操作数」与 2008 `minNum` 宽松口径 ✓；② 越界——SimRISC-00 §4.6 四格+注记+附录为编码真源必需（对照 SPEC-161t 先例），锁 sha256 自对 MATCH（00=a89039b8…、07=6e5421f9…）✓；③ `ISS-325` 描述与现场一致（`check_tables.OP_TABLE` 仅 `0x40–0x43`，无 `0x44` MISC-RF）✓；④ 「修改文件」15 文件与 `git show --stat` 逐一对账一致、完成区 ≤30 行、验收前/后快照均干净 ✓。注：「`rule_refs` 含 `dst_rf0`」不能字面成立——31 条 excluded 的 `rule_refs` 均空、`check_fp_contract` 禁非 fp 引用 FP 规则；`dst_rf0` 由 legality `rfhb != rf0` 映射（`generate_opcodes.py:843`），实质满足。证据脚本按用户裁定未整份重跑，抽查断言（计数/预期红/I1 注入）均具可达 FAIL 且与本人重跑输出一致。
+**约束核验**：① 语义面——SimRISC-07 §2.4 六边界 + `contract-fp.md §19` 与 754-2019 §9.6/§6.2 逐条一致（单 NaN 含 sNaN ⇒ 数字、sNaN 置 NV、双 NaN ⇒ canonical qNaN（ft `0x7FC0_0000`/fo `0x7FF8_0000_0000_0000`）、`−0<+0`、等值同号任一、不置 NX），并明文禁 x86「返回第二操作数」与 2008 `minNum` 宽松口径 ✓；② 越界——SimRISC-00 §4.6 四格+注记+附录为编码真源必需（对照 SPEC-161t 先例），锁 sha256 自对 MATCH（00=a89039b8…、07=6e5421f9…）✓；③ `ISS-325` 描述与现场一致（`check_tables.OP_TABLE` 仅 `0x40–0x43`，无 `0x44` OPC-RF）✓；④ 「修改文件」15 文件与 `git show --stat` 逐一对账一致、完成区 ≤30 行、验收前/后快照均干净 ✓。注：「`rule_refs` 含 `dst_rf0`」不能字面成立——31 条 excluded 的 `rule_refs` 均空、`check_fp_contract` 禁非 fp 引用 FP 规则；`dst_rf0` 由 legality `rfhb != rf0` 映射（`generate_opcodes.py:843`），实质满足。证据脚本按用户裁定未整份重跑，抽查断言（计数/预期红/I1 注入）均具可达 FAIL 且与本人重跑输出一致。
 
 **判决：Accepted**（验收命令在本人重跑下全绿、预期红属实、注入→FAIL→还原→回绿真实、无未披露越界）。

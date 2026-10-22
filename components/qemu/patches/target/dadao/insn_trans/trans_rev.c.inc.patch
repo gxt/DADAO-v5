@@ -1,13 +1,13 @@
 diff --git a/target/dadao/insn_trans/trans_rev.c.inc b/target/dadao/insn_trans/trans_rev.c.inc
 new file mode 100644
-index 0000000..3b675dc
+index 0000000..c3f1a1a
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_rev.c.inc
 @@ -0,0 +1,105 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* §Bit manipulating: rev.o / rev.t / rev.w / rev.b (orri, MISC octa/tetra/
-+ * wyde/byte) — 逐块反转 (ADR-0012 D10; SimRISC-04 §4.2.1 总述, 08/09/10 引用).
++ * wyde/byte) — 逐块反转 (ADR-0012 D10; SimRISC-04 §2.2.1 总述, 08/09/10 引用).
 + *
 + * 后缀定块大小 S：.o=64 / .t=32 / .w=16 / .b=8 ⇒ 64/S 个块；一个块是寄存器
 + * 中 S 个连续位（bit b*S .. b*S+S-1，LSB 起算）。

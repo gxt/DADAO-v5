@@ -3,7 +3,7 @@
 
 每条记录带 `scope` 字段（互斥、穷尽，用户裁定 2026-10-03）：
   - `scope: m1`（156 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统 + 特权 cfx `trap`/`escape`/`cfx2rd`/`cfx2rc`）；
-  - `scope: fp`（64 条）——原生浮点范围（RF 存取/搬移/条件赋值 + MISC-RF 运算/转换/比较
+  - `scope: fp`（64 条）——原生浮点范围（RF 存取/搬移/条件赋值 + OPC-RF 运算/转换/比较
     + 取整 `ftrnd`/`fornd` + 最小最大值 `ftmin`/`ftmax`/`fomin`/`fomax`），独立于 M1，
     **已实现**（LLVM-029t/030t、QEMU-034t–037t；取整见 `QEMU-072t`/`LLVM-125t`；
     最小最大值见 `QEMU-071t`/`LLVM-124t`）；
@@ -260,12 +260,12 @@ S06_RET = "SimRISC-06 §函数返回"
 S11_SWYM = "SimRISC-11 §占位指令"
 
 # 待定（SimRISC-12）
-S12_FENCE = "SimRISC-12 §fence指令"
-S12_LRSC = "SimRISC-12 §LR-SC指令"
+S12_FENCE = "SimRISC-11 §fence指令"
+S12_LRSC = "SimRISC-11 §LR-SC指令"
 
-# QFC/MISC-RF（SimRISC-00）
+# QFC/OPC-RF（SimRISC-00）
 S00_QFC = "SimRISC-00 §SimRISC QFC"
-S00_MISCRF = "SimRISC-00 §MISC-RF指令编码"
+S00_MISCRF = "SimRISC-00 §OPC-RF指令编码"
 
 # 浮点运算（SimRISC-07）：取整（IEEE 754-2019 roundToIntegral 六档，SPEC-161t）
 S07_ROUND = "SimRISC-07 §取整（roundToIntegral）"
@@ -546,7 +546,7 @@ def build_main_table(records):
                        f_ciii("immu18"), [], S00_QFC, scope="m1"))
 
 
-# ────────────────────────────── MISC-AMO ──────────────────────────────
+# ────────────────────────────── OPC-MISC ──────────────────────────────
 
 def build_misc_amo(records):
     op = 0x77
@@ -556,7 +556,7 @@ def build_misc_amo(records):
     records.append(rec("fence", "fence", "oiii", op, f_oiii("immu18"),
                        ["immu18[17:12] == 0", "immu18[11:10] == 0", "immu18[5:4] == 0"],
                        S12_FENCE, ha=0x20, scope="excluded"))
-    # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 MISC-AMO 100-010（ha=0x22）
+    # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 OPC-MISC 100-010（ha=0x22）
     records.append(rec("swym-oiii", "swym", "oiii", op, f_oiii("immu18"),
                        [], S11_SWYM, ha=0x22))
     # ADR-0034 D3/D4/D5（方案 A）：命名 `<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`（宽度在前）；
@@ -572,7 +572,7 @@ def build_misc_amo(records):
                                    S12_LRSC, ha=base_ha + i, scope="excluded"))
 
 
-# ────────────────────────────── MISC-octa ──────────────────────────────
+# ────────────────────────────── OPC-octa ──────────────────────────────
 
 def build_misc_octa(records):
     op = 0x40
@@ -656,7 +656,7 @@ def build_misc_octa(records):
                        ["rdhb != rd0", onehot_expr(64)], S04_BIT,
                        ha=0x0C, scope="m8"))
     # ADR-0012 D11：新增 ctlz/cttz/ctpop（位扫描 / 位计数；orri，ha=0x1D/0x1E/0x1F →
-    # opx `011-101`/`011-110`/`011-111`）。**无位宽后缀** ⇒ 借用 MISC-octa 格位，是
+    # opx `011-101`/`011-110`/`011-111`）。**无位宽后缀** ⇒ 借用 OPC-octa 格位，是
     # 「子表 ⇔ 位宽后缀」规则的**例外**（见 spec/SimRISC-00 §4.2 表下说明）。
     # scope: m8（新增 ISA 指令，与里程碑无绑定；非 M1 身份，不要求 M1 向量覆盖）
     # 合法性：hd ∈ 0..63 全部合法 ⇒ 不新增规则；沿用 dst_rd0（rdhb != rd0）。
@@ -719,7 +719,7 @@ def build_misc_fixed_width(records, op, suffix, nbits, sdoc):
                        ha=0x0C, scope="m8"))
 
 
-# ────────────────────────────── MISC-RF（scope: fp）──────────────────────────────
+# ────────────────────────────── OPC-RF（scope: fp）──────────────────────────────
 
 def build_misc_rf(records):
     op = 0x44
@@ -769,7 +769,7 @@ def build_misc_rf(records):
     # ↔ immu6 0x01/0x02/0x04/0x08/0x10/0x20）。immu6 复用 `encode_onehot` 口径
     #  ⇒ 非 one-hot 即 ILLI，无需新增合法性规则。SPEC-161t 先立为 `scope: excluded`
     # （decode ILLI）；SPEC-162t 在 QEMU-072t/LLVM-125t 落地后翻转为 `scope: fp`。
-    # 语义见 SimRISC-07 §4.3 / contract-fp.md §roundint。
+    # 语义见 SimRISC-07 §2.3 / contract-fp.md §roundint。
     for ha, mnem in ((0x03, "ftrnd"), (0x0B, "fornd")):
         records.append(rec(mnem, mnem, "orri", op,
                            f_orri("rfhb", "rfhc", "immu6"),
@@ -797,7 +797,7 @@ def build_misc_rf(records):
     # 最小/最大值 = IEEE 754-2019 §9.6 `minimumNumber`/`maximumNumber`（严格版：单 NaN
     # 返回数字、双 NaN ⇒ canonical qNaN、−0 < +0；**不是** `minNum` 宽松版、也不是
     # 「返回第二操作数」的 x86 遗留语义）。orrr 单目的（`rfhb` 目的、`rfhc`/`rfhd` 源；
-    # 源可为 rf0、目的 rf0 ⇒ ILLI `dst_rf0`）。语义见 SimRISC-07 §4.4 /
+    # 源可为 rf0、目的 rf0 ⇒ ILLI `dst_rf0`）。语义见 SimRISC-07 §2.4 /
     # contract-fp.md §minmax；SPEC-160t 在 QEMU-071t/LLVM-124t 落地后翻转为 scope: fp。
     for ha, mnem in ((0x26, "ftmin"), (0x27, "ftmax"),
                      (0x2E, "fomin"), (0x2F, "fomax")):

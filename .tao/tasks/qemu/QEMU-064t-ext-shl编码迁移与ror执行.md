@@ -29,7 +29,7 @@
 
 ## 接口规范
 
-- **输入**：`contracts/opcodes.yaml`（`SPEC-152t` 后）；`spec/SimRISC-04 §4.2` + `08/09/10 §4.2`（`ror` 语义）；`tools/qemu/generate_decodetree.py`；现有 `trans_shift.c.inc.patch`；`.work/source/qemu/**`（**只读参照**，交付只走 `patches/**`）。
+- **输入**：`contracts/opcodes.yaml`（`SPEC-152t` 后）；`spec/SimRISC-04 §2.2` + `08/09/10 §4.2`（`ror` 语义）；`tools/qemu/generate_decodetree.py`；现有 `trans_shift.c.inc.patch`；`.work/source/qemu/**`（**只读参照**，交付只走 `patches/**`）。
 - **输出**：
   1. `components/qemu/patches/target/dadao/insn.decode.patch`（重生成/重导出）；
   2. `components/qemu/patches/target/dadao/insn_trans/trans_shift.c.inc.patch`（改名 + `ror` 实现）；

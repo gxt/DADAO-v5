@@ -199,8 +199,8 @@ def classify(entry: dict) -> str:
     if re.search(r"\.(ut|st|t)$", m):
         return "32位数据运算"
     if m in ("ctlz", "cttz", "ctpop"):
-        # 位扫描 / 位计数（ADR-0012 D11）：**无位宽后缀**，借 MISC-octa 格位；
-        # 按「64位数据运算」归类，与正文 SimRISC-04 §4.2.2 同处。
+        # 位扫描 / 位计数（ADR-0012 D11）：**无位宽后缀**，借 OPC-octa 格位；
+        # 按「64位数据运算」归类，与正文 SimRISC-04 §2.2.2 同处。
         return "64位数据运算"
     if m == "aip.si":
         # IP 相对寻址（ADR-0029 D1；指令名 `rela.si` → `aip.si`）：`riii`，与前一行
@@ -500,17 +500,12 @@ ASSEMBLY_LIST_END = "<!-- ASSEMBLY_LIST_END -->"
 
 
 def _section_content(cls: str, entries: list[dict]) -> str:
-    """Return the markdown table content for one category.
+    """Return the markdown table content for one category (SPEC-165t).
 
-    SPEC-133t: the embedded block's headings carry the section numbers of their
-    fixed position inside every ``spec/SimRISC-XX`` chapter — ``## 1. 汇编指令速查``
-    is always chapter §1 and its single ``###`` child is §1.1.
+    The embedded block is the per-volume ``## 附录 A：汇编指令速查``: **一张表**，
+    不再有 ``###`` 子标题、不带分类列（册名已表明分类）。
     """
-    if cls in SECTION_BADGES:
-        header = f"### 1.1 {cls}（{len(entries)} 条）｜ {section_badge(cls, entries)}"
-    else:
-        header = f"### 1.1 {cls}（{len(entries)} 条）"
-    lines = [header, ""]
+    lines: list[str] = []
     lines.append("| 助记符 | format | feature | 汇编形式 | id |")
     lines.append("|---|---|---|---|---|")
     body = []
@@ -529,7 +524,11 @@ def _section_content(cls: str, entries: list[dict]) -> str:
 
 
 def embed_spec(entries: list[dict]) -> int:
-    """Embed assembly tables into spec files, one per category."""
+    """Embed assembly tables into spec files, one appendix per volume.
+
+    SPEC-165t: the table is the volume's ``## 附录 A：汇编指令速查`` and sits at
+    the **end** of the volume (fixed order: 附录 A → 附录 B).
+    """
     by_class: dict[str, list[dict]] = {}
     for entry in entries:
         by_class.setdefault(classify(entry), []).append(entry)
@@ -550,16 +549,16 @@ def embed_spec(entries: list[dict]) -> int:
         content = spec_path.read_text(encoding="utf-8")
         lines = content.split("\n")
 
-        # Build the new section block (with surrounding blank lines)
+        # Build the new appendix block (with surrounding blank lines)
         section = section_contents.get(cls, "")
         new_block = (
             f"{ASSEMBLY_LIST_START}\n"
-            f"## 1. 汇编指令速查\n\n"
+            f"## 附录 A：汇编指令速查\n\n"
             f"{section}\n"
             f"{ASSEMBLY_LIST_END}"
         )
 
-        # If markers already exist, replace the existing block (idempotent)
+        # Drop the existing block wherever it sits (idempotent, position-independent)
         start_idx = None
         end_idx = None
         for i, line in enumerate(lines):
@@ -568,28 +567,14 @@ def embed_spec(entries: list[dict]) -> int:
             if line.strip() == ASSEMBLY_LIST_END:
                 end_idx = i
                 break
-
         if start_idx is not None and end_idx is not None:
-            # Replace existing block (preserve lines before and after)
-            before_lines = lines[:start_idx]
-            after_lines = lines[end_idx + 1:]
-            new_content = "\n".join(before_lines) + "\n" + new_block + "\n" + "\n".join(after_lines)
-        else:
-            # First insertion: find the end of the header block (consecutive '>' lines
-            # at the top, possibly preceded by title/blank lines).
-            header_end = 0
-            in_header = False
-            for i, line in enumerate(lines):
-                if line.startswith(">"):
-                    header_end = i + 1
-                    in_header = True
-                elif in_header:
-                    # First non-'>' line after a '>' line = end of header block
-                    break
-            # Insert right after the last '>' line, preserving all content
-            before = "\n".join(lines[:header_end])
-            after = "\n".join(lines[header_end:])
-            new_content = before + "\n\n" + new_block + "\n" + after
+            lines = lines[:start_idx] + lines[end_idx + 1:]
+
+        # Append at the end of the volume (fixed position: before 附录 B / changelog
+        # if not yet generated, hence the explicit trailing-strip).
+        while lines and lines[-1].strip() == "":
+            lines.pop()
+        new_content = "\n".join(lines) + "\n\n" + new_block + "\n"
 
         spec_path.write_text(new_content, encoding="utf-8")
         count = len(by_class.get(cls, []))
@@ -736,7 +721,7 @@ def main() -> int:
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
 > **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **deferred**（原「待定」；暂不归类：`cfxld`/`cfxst`）
 > **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（{_fp_chapter} 条）：{_fp_status}；**deferred（原「待定」）**（{_pending_chapter} 条）为暂不归类状态（分类依据 = `ADR-0012` D1）；`scope: m1` {n_m1} 条为当前有效书写形式；`scope: excluded` 共 {n_excluded} 条，按章分布为 {_excluded_dist}
-> **注（`scope: fp` 范围总账 = {n_fp} 条）**：浮点运算章 {_fp_chapter_fp} 条（MISC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 5 条（`cs.n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
+> **注（`scope: fp` 范围总账 = {n_fp} 条）**：浮点运算章 {_fp_chapter_fp} 条（OPC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 5 条（`cs.n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{{rdHA:rdHA+immu6-1}}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `spec/Toolchain-01-汇编语言.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
 

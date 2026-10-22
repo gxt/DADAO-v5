@@ -30,7 +30,7 @@ from gen_asm_list import (  # noqa: E402
 
 EXPECTED_START = "<!-- ASSEMBLY_LIST_START -->"
 EXPECTED_END = "<!-- ASSEMBLY_LIST_END -->"
-SECTION_HEADER = "## 1. 汇编指令速查"
+SECTION_HEADER = "## 附录 A：汇编指令速查"
 
 
 def extract_embedded(spec_text: str) -> str | None:
@@ -67,7 +67,7 @@ def main() -> int:
             errors.append(f"{cls}: no ASSEMBLY_LIST markers in {spec_path.name}")
             continue
 
-        # Build expected content: "## 汇编指令速查\n\n" + table
+        # Build expected content: "## 附录 A：汇编指令速查\n\n" + table
         expected = f"{SECTION_HEADER}\n\n{_section_content(cls, by_class.get(cls, []))}".rstrip("\n")
 
         if embedded.rstrip("\n") != expected:

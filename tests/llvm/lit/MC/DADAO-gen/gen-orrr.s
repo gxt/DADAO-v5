@@ -146,12 +146,12 @@ ext.so rd8, rd9, rd10
 @@ ASM: ext.uo rd8, rd9, rd10
 ext.uo rd8, rd9, rd10
 
-@@ @src foadd_orrr_rf 4460824a | SimRISC-00 §MISC-RF指令编码
+@@ @src foadd_orrr_rf 4460824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 60 82 4a{{.*}}foadd
 @@ ASM: foadd rf8, rf9, rf10
 foadd rf8, rf9, rf10
 
-@@ @src fodiv_orrr_rf 446c824a | SimRISC-00 §MISC-RF指令编码
+@@ @src fodiv_orrr_rf 446c824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 6c 82 4a{{.*}}fodiv
 @@ ASM: fodiv rf8, rf9, rf10
 fodiv rf8, rf9, rf10
@@ -166,52 +166,52 @@ fomax rf8, rf9, rf10
 @@ ASM: fomin rf8, rf9, rf10
 fomin rf8, rf9, rf10
 
-@@ @src fomul_orrr_rf 4468824a | SimRISC-00 §MISC-RF指令编码
+@@ @src fomul_orrr_rf 4468824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 68 82 4a{{.*}}fomul
 @@ ASM: fomul rf8, rf9, rf10
 fomul rf8, rf9, rf10
 
-@@ @src foqcmp_orrr_rf 44a0824a | SimRISC-00 §MISC-RF指令编码
+@@ @src foqcmp_orrr_rf 44a0824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 a0 82 4a{{.*}}foqcmp
 @@ ASM: foqcmp rd8, rf9, rf10
 foqcmp rd8, rf9, rf10
 
-@@ @src forem_orrr_rf 4470824a | SimRISC-00 §MISC-RF指令编码
+@@ @src forem_orrr_rf 4470824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 70 82 4a{{.*}}forem
 @@ ASM: forem rf8, rf9, rf10
 forem rf8, rf9, rf10
 
-@@ @src fosclb_orrr_rf 4474824a | SimRISC-00 §MISC-RF指令编码
+@@ @src fosclb_orrr_rf 4474824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 74 82 4a{{.*}}fosclb
 @@ ASM: fosclb rf8, rf9, rf10
 fosclb rf8, rf9, rf10
 
-@@ @src foscmp_orrr_rf 44a4824a | SimRISC-00 §MISC-RF指令编码
+@@ @src foscmp_orrr_rf 44a4824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 a4 82 4a{{.*}}foscmp
 @@ ASM: foscmp rd8, rf9, rf10
 foscmp rd8, rf9, rf10
 
-@@ @src fosgnj_orrr_rf 447c824a | SimRISC-00 §MISC-RF指令编码
+@@ @src fosgnj_orrr_rf 447c824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 7c 82 4a{{.*}}fosgnj
 @@ ASM: fosgnj rf8, rf9, rf10
 fosgnj rf8, rf9, rf10
 
-@@ @src fosgnn_orrr_rf 4478824a | SimRISC-00 §MISC-RF指令编码
+@@ @src fosgnn_orrr_rf 4478824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 78 82 4a{{.*}}fosgnn
 @@ ASM: fosgnn rf8, rf9, rf10
 fosgnn rf8, rf9, rf10
 
-@@ @src fosub_orrr_rf 4464824a | SimRISC-00 §MISC-RF指令编码
+@@ @src fosub_orrr_rf 4464824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 64 82 4a{{.*}}fosub
 @@ ASM: fosub rf8, rf9, rf10
 fosub rf8, rf9, rf10
 
-@@ @src ftadd_orrr_rf 4440824a | SimRISC-00 §MISC-RF指令编码
+@@ @src ftadd_orrr_rf 4440824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 40 82 4a{{.*}}ftadd
 @@ ASM: ftadd rf8, rf9, rf10
 ftadd rf8, rf9, rf10
 
-@@ @src ftdiv_orrr_rf 444c824a | SimRISC-00 §MISC-RF指令编码
+@@ @src ftdiv_orrr_rf 444c824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 4c 82 4a{{.*}}ftdiv
 @@ ASM: ftdiv rf8, rf9, rf10
 ftdiv rf8, rf9, rf10
@@ -226,102 +226,102 @@ ftmax rf8, rf9, rf10
 @@ ASM: ftmin rf8, rf9, rf10
 ftmin rf8, rf9, rf10
 
-@@ @src ftmul_orrr_rf 4448824a | SimRISC-00 §MISC-RF指令编码
+@@ @src ftmul_orrr_rf 4448824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 48 82 4a{{.*}}ftmul
 @@ ASM: ftmul rf8, rf9, rf10
 ftmul rf8, rf9, rf10
 
-@@ @src ftqcmp_orrr_rf 4480824a | SimRISC-00 §MISC-RF指令编码
+@@ @src ftqcmp_orrr_rf 4480824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 80 82 4a{{.*}}ftqcmp
 @@ ASM: ftqcmp rd8, rf9, rf10
 ftqcmp rd8, rf9, rf10
 
-@@ @src ftrem_orrr_rf 4450824a | SimRISC-00 §MISC-RF指令编码
+@@ @src ftrem_orrr_rf 4450824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 50 82 4a{{.*}}ftrem
 @@ ASM: ftrem rf8, rf9, rf10
 ftrem rf8, rf9, rf10
 
-@@ @src ftsclb_orrr_rf 4454824a | SimRISC-00 §MISC-RF指令编码
+@@ @src ftsclb_orrr_rf 4454824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 54 82 4a{{.*}}ftsclb
 @@ ASM: ftsclb rf8, rf9, rf10
 ftsclb rf8, rf9, rf10
 
-@@ @src ftscmp_orrr_rf 4484824a | SimRISC-00 §MISC-RF指令编码
+@@ @src ftscmp_orrr_rf 4484824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 84 82 4a{{.*}}ftscmp
 @@ ASM: ftscmp rd8, rf9, rf10
 ftscmp rd8, rf9, rf10
 
-@@ @src ftsgnj_orrr_rf 445c824a | SimRISC-00 §MISC-RF指令编码
+@@ @src ftsgnj_orrr_rf 445c824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 5c 82 4a{{.*}}ftsgnj
 @@ ASM: ftsgnj rf8, rf9, rf10
 ftsgnj rf8, rf9, rf10
 
-@@ @src ftsgnn_orrr_rf 4458824a | SimRISC-00 §MISC-RF指令编码
+@@ @src ftsgnn_orrr_rf 4458824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 58 82 4a{{.*}}ftsgnn
 @@ ASM: ftsgnn rf8, rf9, rf10
 ftsgnn rf8, rf9, rf10
 
-@@ @src ftsub_orrr_rf 4444824a | SimRISC-00 §MISC-RF指令编码
+@@ @src ftsub_orrr_rf 4444824a | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 44 82 4a{{.*}}ftsub
 @@ ASM: ftsub rf8, rf9, rf10
 ftsub rf8, rf9, rf10
 
-@@ @src lr.b.an_orrr_rd 771c0241 | SimRISC-12 §LR-SC指令
+@@ @src lr.b.an_orrr_rd 771c0241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 1c 02 41{{.*}}lr.b.an
 @@ ASM: lr.b.an rd9, [rb1]
 lr.b.an rd9, [rb1]
 
-@@ @src lr.b.ar_orrr_rd 772c0241 | SimRISC-12 §LR-SC指令
+@@ @src lr.b.ar_orrr_rd 772c0241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 2c 02 41{{.*}}lr.b.ar
 @@ ASM: lr.b.ar rd9, [rb1]
 lr.b.ar rd9, [rb1]
 
-@@ @src lr.b.nn_orrr_rd 770c0241 | SimRISC-12 §LR-SC指令
+@@ @src lr.b.nn_orrr_rd 770c0241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 0c 02 41{{.*}}lr.b.nn
 @@ ASM: lr.b.nn rd9, [rb1]
 lr.b.nn rd9, [rb1]
 
-@@ @src lr.o.an_orrr_rd 77100241 | SimRISC-12 §LR-SC指令
+@@ @src lr.o.an_orrr_rd 77100241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 10 02 41{{.*}}lr.o.an
 @@ ASM: lr.o.an rd9, [rb1]
 lr.o.an rd9, [rb1]
 
-@@ @src lr.o.ar_orrr_rd 77200241 | SimRISC-12 §LR-SC指令
+@@ @src lr.o.ar_orrr_rd 77200241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 20 02 41{{.*}}lr.o.ar
 @@ ASM: lr.o.ar rd9, [rb1]
 lr.o.ar rd9, [rb1]
 
-@@ @src lr.o.nn_orrr_rd 77000241 | SimRISC-12 §LR-SC指令
+@@ @src lr.o.nn_orrr_rd 77000241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 00 02 41{{.*}}lr.o.nn
 @@ ASM: lr.o.nn rd9, [rb1]
 lr.o.nn rd9, [rb1]
 
-@@ @src lr.t.an_orrr_rd 77140241 | SimRISC-12 §LR-SC指令
+@@ @src lr.t.an_orrr_rd 77140241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 14 02 41{{.*}}lr.t.an
 @@ ASM: lr.t.an rd9, [rb1]
 lr.t.an rd9, [rb1]
 
-@@ @src lr.t.ar_orrr_rd 77240241 | SimRISC-12 §LR-SC指令
+@@ @src lr.t.ar_orrr_rd 77240241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 24 02 41{{.*}}lr.t.ar
 @@ ASM: lr.t.ar rd9, [rb1]
 lr.t.ar rd9, [rb1]
 
-@@ @src lr.t.nn_orrr_rd 77040241 | SimRISC-12 §LR-SC指令
+@@ @src lr.t.nn_orrr_rd 77040241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 04 02 41{{.*}}lr.t.nn
 @@ ASM: lr.t.nn rd9, [rb1]
 lr.t.nn rd9, [rb1]
 
-@@ @src lr.w.an_orrr_rd 77180241 | SimRISC-12 §LR-SC指令
+@@ @src lr.w.an_orrr_rd 77180241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 18 02 41{{.*}}lr.w.an
 @@ ASM: lr.w.an rd9, [rb1]
 lr.w.an rd9, [rb1]
 
-@@ @src lr.w.ar_orrr_rd 77280241 | SimRISC-12 §LR-SC指令
+@@ @src lr.w.ar_orrr_rd 77280241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 28 02 41{{.*}}lr.w.ar
 @@ ASM: lr.w.ar rd9, [rb1]
 lr.w.ar rd9, [rb1]
 
-@@ @src lr.w.nn_orrr_rd 77080241 | SimRISC-12 §LR-SC指令
+@@ @src lr.w.nn_orrr_rd 77080241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 08 02 41{{.*}}lr.w.nn
 @@ ASM: lr.w.nn rd9, [rb1]
 lr.w.nn rd9, [rb1]
@@ -421,62 +421,62 @@ rol.t rd8, rd9, rd10
 @@ ASM: rol.w rd8, rd9, rd10
 rol.w rd8, rd9, rd10
 
-@@ @src sc.b.ar_orrr_rd 776c8241 | SimRISC-12 §LR-SC指令
+@@ @src sc.b.ar_orrr_rd 776c8241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 6c 82 41{{.*}}sc.b.ar
 @@ ASM: sc.b.ar rd8, rd9, [rb1]
 sc.b.ar rd8, rd9, [rb1]
 
-@@ @src sc.b.nn_orrr_rd 774c8241 | SimRISC-12 §LR-SC指令
+@@ @src sc.b.nn_orrr_rd 774c8241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 4c 82 41{{.*}}sc.b.nn
 @@ ASM: sc.b.nn rd8, rd9, [rb1]
 sc.b.nn rd8, rd9, [rb1]
 
-@@ @src sc.b.nr_orrr_rd 775c8241 | SimRISC-12 §LR-SC指令
+@@ @src sc.b.nr_orrr_rd 775c8241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 5c 82 41{{.*}}sc.b.nr
 @@ ASM: sc.b.nr rd8, rd9, [rb1]
 sc.b.nr rd8, rd9, [rb1]
 
-@@ @src sc.o.ar_orrr_rd 77608241 | SimRISC-12 §LR-SC指令
+@@ @src sc.o.ar_orrr_rd 77608241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 60 82 41{{.*}}sc.o.ar
 @@ ASM: sc.o.ar rd8, rd9, [rb1]
 sc.o.ar rd8, rd9, [rb1]
 
-@@ @src sc.o.nn_orrr_rd 77408241 | SimRISC-12 §LR-SC指令
+@@ @src sc.o.nn_orrr_rd 77408241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 40 82 41{{.*}}sc.o.nn
 @@ ASM: sc.o.nn rd8, rd9, [rb1]
 sc.o.nn rd8, rd9, [rb1]
 
-@@ @src sc.o.nr_orrr_rd 77508241 | SimRISC-12 §LR-SC指令
+@@ @src sc.o.nr_orrr_rd 77508241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 50 82 41{{.*}}sc.o.nr
 @@ ASM: sc.o.nr rd8, rd9, [rb1]
 sc.o.nr rd8, rd9, [rb1]
 
-@@ @src sc.t.ar_orrr_rd 77648241 | SimRISC-12 §LR-SC指令
+@@ @src sc.t.ar_orrr_rd 77648241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 64 82 41{{.*}}sc.t.ar
 @@ ASM: sc.t.ar rd8, rd9, [rb1]
 sc.t.ar rd8, rd9, [rb1]
 
-@@ @src sc.t.nn_orrr_rd 77448241 | SimRISC-12 §LR-SC指令
+@@ @src sc.t.nn_orrr_rd 77448241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 44 82 41{{.*}}sc.t.nn
 @@ ASM: sc.t.nn rd8, rd9, [rb1]
 sc.t.nn rd8, rd9, [rb1]
 
-@@ @src sc.t.nr_orrr_rd 77548241 | SimRISC-12 §LR-SC指令
+@@ @src sc.t.nr_orrr_rd 77548241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 54 82 41{{.*}}sc.t.nr
 @@ ASM: sc.t.nr rd8, rd9, [rb1]
 sc.t.nr rd8, rd9, [rb1]
 
-@@ @src sc.w.ar_orrr_rd 77688241 | SimRISC-12 §LR-SC指令
+@@ @src sc.w.ar_orrr_rd 77688241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 68 82 41{{.*}}sc.w.ar
 @@ ASM: sc.w.ar rd8, rd9, [rb1]
 sc.w.ar rd8, rd9, [rb1]
 
-@@ @src sc.w.nn_orrr_rd 77488241 | SimRISC-12 §LR-SC指令
+@@ @src sc.w.nn_orrr_rd 77488241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 48 82 41{{.*}}sc.w.nn
 @@ ASM: sc.w.nn rd8, rd9, [rb1]
 sc.w.nn rd8, rd9, [rb1]
 
-@@ @src sc.w.nr_orrr_rd 77588241 | SimRISC-12 §LR-SC指令
+@@ @src sc.w.nr_orrr_rd 77588241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 58 82 41{{.*}}sc.w.nr
 @@ ASM: sc.w.nr rd8, rd9, [rb1]
 sc.w.nr rd8, rd9, [rb1]

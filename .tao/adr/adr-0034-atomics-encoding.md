@@ -3,7 +3,7 @@
 **状态**：Accepted（2026-10-20；`D1`–`D7` 由用户裁定原话逐条定向，见 `## 状态说明`）
 **日期**：2026-10-20
 **决策者**：用户（2026-10-20 裁定，原话见 `## Context`）
-**关联**：`ADR-0014`（`fence` 首次列入 `excluded`）、`ADR-0012 D3.5`（`fence` 移入 `000-000`、`swym` 移 `100-010`）、`ADR-0032`（ISA 编码再分配先例：`spec/` 授权 + 只读锁重算 + 生成物重生成）、`spec/SimRISC-00 §4.1`（MISC-AMO 子表）、`spec/SimRISC-12 §3`（原子指令）、`spec/SimRISC-11`（`excluded` 清单）、`contracts/opcodes.yaml`、`manifests/spec-readonly.lock.toml`；issue = `ISS-307`
+**关联**：`ADR-0014`（`fence` 首次列入 `excluded`）、`ADR-0012 D3.5`（`fence` 移入 `000-000`、`swym` 移 `100-010`）、`ADR-0032`（ISA 编码再分配先例：`spec/` 授权 + 只读锁重算 + 生成物重生成）、`spec/SimRISC-00 §4.1`（OPC-MISC 子表）、`spec/SimRISC-12 §3`（原子指令）、`spec/SimRISC-11`（`excluded` 清单）、`contracts/opcodes.yaml`、`manifests/spec-readonly.lock.toml`；issue = `ISS-307`
 
 > **边界（本笔）**：本 ADR 只定**编码与命名**（`docs/Process-03`「ADR 不承载规范正文」）。
 > `fence`/`lr`/`sc` 的 `scope` **仍为 `excluded`**（执行 ⇒ ILLI），**未实现**任何执行语义；
@@ -23,11 +23,11 @@
 
 ### 现场事实（2026-10-20 核）
 
-1. **MISC-AMO（`op = 0x77`）现状**：`fence` = `000-000`（`ha=0x00`，`oiii`）；`lr_{nn,nr,an,ar}.o` = `010-000`…`010-011`（`ha=0x10`…`0x13`）；`sc_{nn,nr,an,ar}.o` = `011-000`…`011-011`（`ha=0x18`…`0x1B`）；`swym` = `100-010`（`ha=0x22`），均为 `orrr`/`oiii`。
+1. **OPC-MISC（`op = 0x77`）现状**：`fence` = `000-000`（`ha=0x00`，`oiii`）；`lr_{nn,nr,an,ar}.o` = `010-000`…`010-011`（`ha=0x10`…`0x13`）；`sc_{nn,nr,an,ar}.o` = `011-000`…`011-011`（`ha=0x18`…`0x1B`）；`swym` = `100-010`（`ha=0x22`），均为 `orrr`/`oiii`。
 2. **三条指令族均 `scope: excluded`**（`cfxld`/`cfxst`/`fence`/`lr`/`sc` 共 11 条）⇒ **无实现、无执行面**，改编码的迁移成本只在规范/合约/生成物层（无旧二进制/旧汇编源兼容包袱），故可一次重排。
-3. **`lr`/`sc` 的语义已按 RISC-V RV64A 口径写定**（`SimRISC-12 §3.2`）：`lr` 的 `hb` 恒为 `rd0`（`hb ≠ rd0` ⇒ ILLI）；`sc` 成功写 `rdHB=0`、失败写 `1` 并清本 hart 全部保留；地址须**按数据宽度自然对齐**（`.b`=1 / `.w`=2 / `.t`=4 / `.o`=8），否则 **MALIGN**（见 `D6`）。
+3. **`lr`/`sc` 的语义已按 RISC-V RV64A 口径写定**（`SimRISC-11 §4.2`）：`lr` 的 `hb` 恒为 `rd0`（`hb ≠ rd0` ⇒ ILLI）；`sc` 成功写 `rdHB=0`、失败写 `1` 并清本 hart 全部保留；地址须**按数据宽度自然对齐**（`.b`=1 / `.w`=2 / `.t`=4 / `.o`=8），否则 **MALIGN**（见 `D6`）。
    > 订正（2026-10-21）：与 D6 修订同步（原「8 字节」为单宽度时期表述）。
-4. **`fence` 的现渲染面**：`SimRISC-12 §3.1` 现按「低 4 位 = IO/W/R/RW、`[17:4]` SBZ」描述单个屏障类型位图，与 `D2` 的 `fm/pred/succ` 三段位域**不一致**，须改写。
+4. **`fence` 的现渲染面**：`SimRISC-11 §4.1` 现按「低 4 位 = IO/W/R/RW、`[17:4]` SBZ」描述单个屏障类型位图，与 `D2` 的 `fm/pred/succ` 三段位域**不一致**，须改写。
 5. **`fence` 已在 LLVM/QEMU 生成面留下痕迹**：LLVM `DADAOInstrInfo.td` 有 `fence`（仅 MC 层、`Pattern = []`、`ha = 0x00`）；QEMU `insn.decode` 有 `fence_oiii_imm` 与 8 条 `lr/sc`（`@misc`，`trans_*` 桩 = ILLI）。**改 `ha`/改名必须同步这些生成面**，否则门控与补丁集漂移（见 `D7` 与 `Consequences`）。
 
 ### 命中 ADR 判据（`docs/Process-03`）
@@ -40,7 +40,7 @@
 
 `fence` 由 `000-000`（`ha=0x00`）迁至 **`100-000`**（`ha=0x20`）；`op` 仍为 `0x77`；格式仍 `oiii`；`value = 0x77800000`、`mask = 0xFFFC0000`；`id` 保持 **`fence_oiii_imm`**（不改名）。语义面不变的只有「屏障」这一职责本身，位域解释见 `D2`。
 
-**理由**：用户原话「fence指令的opx编码改为100_000」；`100-000` 在 MISC-AMO 子表现场为空，且 `swym` 已在 `100-010`，同族相邻。
+**理由**：用户原话「fence指令的opx编码改为100_000」；`100-000` 在 OPC-MISC 子表现场为空，且 `swym` 已在 `100-010`，同族相邻。
 
 **被否**：保留 `000-000` —— `D5` 方案 A 需要 `000-000`…`001-011` 共 12 个连续格位给 `lr`，`fence` 占着首格则整族必须错位或跨行断开。
 

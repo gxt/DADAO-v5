@@ -93,7 +93,7 @@ def st_o_rd(rdha, rbhb, imms12):
     return encode_rrii(0x21, rdha, rbhb, hc, hd)
 
 def cmp_uo_rd(rdhb, rdhc, rdhd):
-    """cmp.uo rdhb, rdhc, rdhd (MISC-octa, ha=0x2A)"""
+    """cmp.uo rdhb, rdhc, rdhd (OPC-octa, ha=0x2A)"""
     return encode_orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
 
 def br_nz(rdha, imms18):

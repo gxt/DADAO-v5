@@ -5,7 +5,7 @@
 ; W bytes of memory, not the whole 64-bit register.
 ;
 ; `lr.b/.w/.t` zero-extends the loaded bytes into the 64-bit result register
-; (SimRISC-12 §3.2 as implemented for this batch), while the expected value is
+; (SimRISC-11 §4.2 as implemented for this batch), while the expected value is
 ; promoted from i8/i16/i32 by the type legalizer and may be sign-extended.  A
 ; raw 64-bit `br.ne` therefore never matched a top-bit-set expected value:
 ;

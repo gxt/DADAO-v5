@@ -65,7 +65,7 @@ SRC_PATTERN = 0x0123456789ABCDEF
 def rev_block(src: int, S: int, k: int) -> int:
     """逐块反转：64 位值切成 64/S 个 S 位块，每块内部 S/k 个 k 位单元倒序，单元内位序不变。
 
-    `k` 必须整除 `S` 且 ≥ 1（合法档位见 spec/SimRISC-04 §4.2.1）；否则显式报错
+    `k` 必须整除 `S` 且 ≥ 1（合法档位见 spec/SimRISC-04 §2.2.1）；否则显式报错
     （不静默返回恒等值）。
     """
     if k < 1 or S % k:

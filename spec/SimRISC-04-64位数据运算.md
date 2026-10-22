@@ -3,64 +3,9 @@
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
 > **分类：64位数据运算**（36 条）— .so/.uo + add.si/cmp.si/cmp.ui + and.o/or.o/xor.o/xnor.o + rev.o（逐块反转）+ ctlz/cttz/ctpop（位扫描/位计数）+ shl.o/rol.o（移位/循环移位）+ clmul.o（无进位乘）
 
-<!-- ASSEMBLY_LIST_START -->
-## 1. 汇编指令速查
+## 1. 算术运算类指令
 
-### 1.1 64位数据运算（36 条）
-
-| 助记符 | format | feature | 汇编形式 | id |
-|---|---|---|---|---|
-| `add.si` | `riii` | `rd` | `add.si rdHA, imms18` | `add.si_riii_rd` |
-| `add.so` | `rrrr` | `rd` | `add.so {rdHA, rdHB}, rdHC, rdHD` | `add.so_rrrr_rd` |
-| `add.uo` | `rrrr` | `rd` | `add.uo {rdHA, rdHB}, rdHC, rdHD` | `add.uo_rrrr_rd` |
-| `and.o` | `orrr` | `rd` | `and.o rdHB, rdHC, rdHD` | `and.o_orrr_rd` |
-| `clmul.o` | `rrrr` | `rd` | `clmul.o {rdHA, rdHB}, rdHC, rdHD` | `clmul.o_rrrr_rd` |
-| `cmp.si` | `rrii` | `rd` | `cmp.si rdHA, rdHB, imms12` | `cmp.si_rrii_rd` |
-| `cmp.so` | `orrr` | `rd` | `cmp.so rdHB, rdHC, rdHD` | `cmp.so_orrr_rd` |
-| `cmp.ui` | `rrii` | `rd` | `cmp.ui rdHA, rdHB, immu12` | `cmp.ui_rrii_rd` |
-| `cmp.uo` | `orrr` | `rd` | `cmp.uo rdHB, rdHC, rdHD` | `cmp.uo_orrr_rd` |
-| `ctlz` | `orri` | `rd` | `ctlz rdHB, rdHC, immu6` | `ctlz_orri_rd` |
-| `ctpop` | `orri` | `rd` | `ctpop rdHB, rdHC, immu6` | `ctpop_orri_rd` |
-| `cttz` | `orri` | `rd` | `cttz rdHB, rdHC, immu6` | `cttz_orri_rd` |
-| `div.so` | `orrr` | `rd` | `div.so rdHB, rdHC, rdHD` | `div.so_orrr_rd` |
-| `div.uo` | `orrr` | `rd` | `div.uo rdHB, rdHC, rdHD` | `div.uo_orrr_rd` |
-| `ext.so` | `orri` | `rd` | `ext.so rdHB, rdHC, immu6` | `ext.so_orri_rd` |
-| `ext.so` | `orrr` | `rd` | `ext.so rdHB, rdHC, rdHD` | `ext.so_orrr_rd` |
-| `ext.uo` | `orri` | `rd` | `ext.uo rdHB, rdHC, immu6` | `ext.uo_orri_rd` |
-| `ext.uo` | `orrr` | `rd` | `ext.uo rdHB, rdHC, rdHD` | `ext.uo_orrr_rd` |
-| `mul.so` | `rrrr` | `rd` | `mul.so {rdHA, rdHB}, rdHC, rdHD` | `mul.so_rrrr_rd` |
-| `mul.uo` | `rrrr` | `rd` | `mul.uo {rdHA, rdHB}, rdHC, rdHD` | `mul.uo_rrrr_rd` |
-| `or.o` | `orrr` | `rd` | `or.o rdHB, rdHC, rdHD` | `or.o_orrr_rd` |
-| `rem.so` | `orrr` | `rd` | `rem.so rdHB, rdHC, rdHD` | `rem.so_orrr_rd` |
-| `rem.uo` | `orrr` | `rd` | `rem.uo rdHB, rdHC, rdHD` | `rem.uo_orrr_rd` |
-| `rev.o` | `orri` | `rd` | `rev.o rdHB, rdHC, immu6` | `rev.o_orri_rd` |
-| `rol.o` | `orri` | `rd` | `rol.o rdHB, rdHC, immu6` | `rol.o_orri_rd` |
-| `rol.o` | `orrr` | `rd` | `rol.o rdHB, rdHC, rdHD` | `rol.o_orrr_rd` |
-| `shl.o` | `orri` | `rd` | `shl.o rdHB, rdHC, immu6` | `shl.o_orri_rd` |
-| `shl.o` | `orrr` | `rd` | `shl.o rdHB, rdHC, rdHD` | `shl.o_orrr_rd` |
-| `shr.so` | `orri` | `rd` | `shr.so rdHB, rdHC, immu6` | `shr.so_orri_rd` |
-| `shr.so` | `orrr` | `rd` | `shr.so rdHB, rdHC, rdHD` | `shr.so_orrr_rd` |
-| `shr.uo` | `orri` | `rd` | `shr.uo rdHB, rdHC, immu6` | `shr.uo_orri_rd` |
-| `shr.uo` | `orrr` | `rd` | `shr.uo rdHB, rdHC, rdHD` | `shr.uo_orrr_rd` |
-| `sub.so` | `rrrr` | `rd` | `sub.so {rdHA, rdHB}, rdHC, rdHD` | `sub.so_rrrr_rd` |
-| `sub.uo` | `rrrr` | `rd` | `sub.uo {rdHA, rdHB}, rdHC, rdHD` | `sub.uo_rrrr_rd` |
-| `xnor.o` | `orrr` | `rd` | `xnor.o rdHB, rdHC, rdHD` | `xnor.o_orrr_rd` |
-| `xor.o` | `orrr` | `rd` | `xor.o rdHB, rdHC, rdHD` | `xor.o_orrr_rd` |
-
-<!-- ASSEMBLY_LIST_END -->
-
-<!-- LEGALITY_START -->
-## 2. 合法性检查
-
-* `dst_rd0`：目的 rd0 → ILLI — `add.si_riii_rd`, `and.o_orrr_rd`, `cmp.si_rrii_rd`, `cmp.so_orrr_rd`, `cmp.ui_rrii_rd`, `cmp.uo_orrr_rd`, `ctlz_orri_rd`, `ctpop_orri_rd`, `cttz_orri_rd`, `div.so_orrr_rd`, `div.uo_orrr_rd`, `ext.so_orri_rd`, `ext.so_orrr_rd`, `ext.uo_orri_rd`, `ext.uo_orrr_rd`, `or.o_orrr_rd`, `rem.so_orrr_rd`, `rem.uo_orrr_rd`, `rev.o_orri_rd`, `rol.o_orri_rd`, `rol.o_orrr_rd`, `shl.o_orri_rd`, `shl.o_orrr_rd`, `shr.so_orri_rd`, `shr.so_orrr_rd`, `shr.uo_orri_rd`, `shr.uo_orrr_rd`, `xnor.o_orrr_rd`, `xor.o_orrr_rd`（29 条）
-* `dst_dual_same`：双目的同为 rd0 或同寄存器 → ILLI — `add.so_rrrr_rd`, `add.uo_rrrr_rd`, `clmul.o_rrrr_rd`, `mul.so_rrrr_rd`, `mul.uo_rrrr_rd`, `sub.so_rrrr_rd`, `sub.uo_rrrr_rd`（7 条）
-* `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `rev.o_orri_rd`（1 条）
-<!-- LEGALITY_END -->
-
-
-## 3. 算术运算类指令
-
-### 3.1 加减操作
+### 1.1 加减操作
 
 加减操作需要两个源操作数，一个目的操作数。
 操作数类型为 `rrrr`。
@@ -82,7 +27,7 @@ sub.so  {rdHA, rdHB}, rdHC, rdHD    @@ SX，rdHA = 高64位
 
 `rdHA` 和 `rdHB` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
 
-### 3.2 自增自减
+### 1.2 自增自减
 
 自增自减指令需要一个寄存器和一个立即数，操作数类型为 `riii`。
 立即数为18位有符号数，经过符号扩展后与寄存器执行加法，结果写回同一寄存器。
@@ -95,7 +40,7 @@ add.si  rdHA, imms18
 
 `add.si` 为全 64 位运算，无法单独通过结果判断溢出，用户可结合 `add.uo`/`add.so` 的 rrrr 形式获取进位/符号信息。
 
-### 3.3 比较操作
+### 1.3 比较操作
 
 比较操作需要通过指令编码区分数据类型，对于整型，主要区分的是有符号数和无符号数。
 比较操作会根据两个源操作数的比较结果，小于、等于、大于，分别设置目的操作数为-1、0、1。
@@ -118,7 +63,7 @@ cmp.so  rdHB, rdHC, rdHD
 
 源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
 
-### 3.4 乘除操作
+### 1.4 乘除操作
 
 乘除运算都是四个操作数，操作数类型为 `rrrr`。
 
@@ -162,7 +107,7 @@ rem.so  rdHB, rdHC, rdHD
 | `rem.sb`/`rem.sw`/`rem.st`/`rem.so` | 被除数（符号扩展写满 64 位） | `0` |
 | `rem.ub`/`rem.uw`/`rem.ut`/`rem.uo` | 被除数（零扩展写满 64 位） | 不适用 |
 
-### 3.5 无进位乘法
+### 1.5 无进位乘法
 
 无进位乘法（carry-less multiplication，GF(2) 多项式乘）操作数类型为 `rrrr`，与 `mul.*` 同型：`rdHC`、`rdHD` 为源操作数，结果 128 位写入 `rdHA`（高 64 位）与 `rdHB`（低 64 位）。硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 
@@ -178,11 +123,11 @@ clmul.o  {rdHA, rdHB}, rdHC, rdHD
 
 单取高半或低半写 `{rdH, rd0}` / `{rd0, rdL}`（与 `mul.uo {rdH, rd0}` 取 `mulhu` 同型）；「反向」无进位乘 `clmulr(a, b) = rev(clmul(rev(a), rev(b)))` 用 `rev.o` 组合，不单设指令。
 
-## 4. 逻辑运算类指令
+## 2. 逻辑运算类指令
 
-### 4.1 Logic operators：逻辑运算
+### 2.1 Logic operators：逻辑运算
 
-逻辑运算指令需要两个源操作数，一个目的操作数。MISC-octa 子表中的 `and`/`or`/`xor`/`xnor`（后缀 `.o`）提供 64 位逻辑运算。操作数格式为 `orrr`。
+逻辑运算指令需要两个源操作数，一个目的操作数。OPC-octa 子表中的 `and`/`or`/`xor`/`xnor`（后缀 `.o`）提供 64 位逻辑运算。操作数格式为 `orrr`。
 
 | 指令 | 位宽 | 汇编语法 | 操作范围 |
 |------|------|---------|---------|
@@ -195,17 +140,17 @@ clmul.o  {rdHA, rdHB}, rdHC, rdHD
 
 无需提供专门的not指令，可以采用xnor指令实现相同的功能。当rdHC或rdHD为rd0时，xnor指令实现了另一操作数的取反操作，即逻辑非运算。逻辑非的运算规则：一变零，零变一。即操作数为1时结果为0，操作数为0时结果为1。
 
-#### 4.1.1 not 伪指令（已删除）
+#### 2.1.1 not 伪指令（已删除）
 
-上游 `SimRISC-0.5.4` 曾定义 `not.{b,w,t,o}` 伪指令；v5 **删除**（`ADR-0013 D11`），**1:1 别名一律不保留**。64 位按位取反**直接书写真实指令 `xnor.o rd, rs, rd0`**（`rdHC`/`rdHD` 之一为 `rd0` 时 `xnor` 即取反；源与目的可为同一寄存器、原地取反）。窄位宽 `not.b`/`not.w`/`not.t` **无等宽替代**（`xnor.b/w/t` 已随 `SPEC-069t` 删除）。
+`SimRISC-0.5.4` 曾定义 `not.{b,w,t,o}` 伪指令；本版**删除**，**1:1 别名一律不保留**。64 位按位取反**直接书写真实指令 `xnor.o rd, rs, rd0`**（`rdHC`/`rdHD` 之一为 `rd0` 时 `xnor` 即取反；源与目的可为同一寄存器、原地取反）。窄位宽 `not.b`/`not.w`/`not.t` **无等宽替代**（窄位宽 `xnor` 已删除）。
 
 ```simrisc
 xnor.o  rd3, rd4, rd0     @@ rd3 = ~rd4（64 位按位取反）
 ```
 
-#### 4.1.2 neg 伪指令（已删除）
+#### 2.1.2 neg 伪指令（已删除）
 
-上游 `SimRISC-0.5.4` 曾定义 `neg.{b,w,t,o}` 伪指令；v5 **删除**（`ADR-0013 D11`）。按位宽取负**直接书写真实指令 `sub.sX`**：`neg.b`→`sub.sb`、`neg.w`→`sub.sw`、`neg.t`→`sub.st`、`neg.o`→`sub.so`。
+`SimRISC-0.5.4` 曾定义 `neg.{b,w,t,o}` 伪指令；本版**删除**。按位宽取负**直接书写真实指令 `sub.sX`**：`neg.b`→`sub.sb`、`neg.w`→`sub.sw`、`neg.t`→`sub.st`、`neg.o`→`sub.so`。
 
 ```simrisc
 sub.so  {rd0, rd3}, rd0, rd4     @@ rd3 = -rd4（64 位取负，双目的写回 rd3）
@@ -213,11 +158,11 @@ sub.so  {rd0, rd3}, rd0, rd4     @@ rd3 = -rd4（64 位取负，双目的写回 
 
 > **注**：`neg.b`/`neg.w`/`neg.t` 的对应 `sub.sb`/`sub.sw`/`sub.st` 分别见 SimRISC-10、SimRISC-09、SimRISC-08。
 
-### 4.2 Bit manipulating：位操作指令
+### 2.2 Bit manipulating：位操作指令
 
 移位/扩展指令需要两个源操作数，一个目的操作数。
 
-`shl` 是左移，`shr` 是右移，`rol` 是逻辑循环左移。`shr` 后缀中的 `s` 表示算术移位（符号扩展）、`u` 表示逻辑移位（零扩展）；`shl`/`rol` **符号无关**，不带 `u`/`s` 后缀（`ADR-0032 D3`）。MISC-octa 子表中的 `shl.o`/`rol.o`/`shr.uo`/`shr.so` 提供 64 位移位/循环移位操作。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
+`shl` 是左移，`shr` 是右移，`rol` 是逻辑循环左移。`shr` 后缀中的 `s` 表示算术移位（符号扩展）、`u` 表示逻辑移位（零扩展）；`shl`/`rol` **符号无关**，不带 `u`/`s` 后缀。OPC-octa 子表中的 `shl.o`/`rol.o`/`shr.uo`/`shr.so` 提供 64 位移位/循环移位操作。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
 
 ```
 shl.o: rdHB[N:0]   = (rdHC[N:0] << shamt)                // 左移，低位补零
@@ -226,7 +171,7 @@ shr.s: rdHB[N:0]   = (rdHC[N:0] >> shamt) with sign(N)   // 算术右移，高�
 rol.o: rdHB[N:0]   = rol(rdHC[N:0], shamt)               // 逻辑循环左移，位串旋转
 ```
 
-**SPEC-069t 值语义通则**：所有移位/比较指令的结果均写满64位（零扩展或符号扩展），此前的「高位保留」语义已被值语义取代。64 位操作 N=63 自然写满；32/16/8 位操作的高位扩展规则见 SimRISC-08/09/10。
+**值语义通则**：所有移位/比较指令的结果均写满64位（零扩展或符号扩展），此前的「高位保留」语义已被值语义取代。64 位操作 N=63 自然写满；32/16/8 位操作的高位扩展规则见 SimRISC-08/09/10。
 
 其中 N 由位宽决定。shamt 和 N 的对应关系如下：
 
@@ -236,14 +181,14 @@ rol.o: rdHB[N:0]   = rol(rdHC[N:0], shamt)               // 逻辑循环左移�
 
 `shamt > N` 触发 ILLI。
 
-`ext.s` 是符号扩展，`ext.u` 是零扩展。MISC-octa 子表中的 `ext.s`/`ext.u`（后缀 `.so`/`.uo`）提供 64 位扩展操作。操作数格式为 `orrr`（寄存器形式，hd=扩展起始位）和 `orri`（立即数形式，hd=immu6 扩展起始位）。语义如下：
+`ext.s` 是符号扩展，`ext.u` 是零扩展。OPC-octa 子表中的 `ext.s`/`ext.u`（后缀 `.so`/`.uo`）提供 64 位扩展操作。操作数格式为 `orrr`（寄存器形式，hd=扩展起始位）和 `orri`（立即数形式，hd=immu6 扩展起始位）。语义如下：
 
 ```
 rdHB[hd:0]   = rdHC[hd:0]                               // 复制源低位
 rdHB[63:hd+1] = sign/zero_extend(rdHC[hd])               // 符号/零扩展（N=63，自然写满64位）
 ```
 
-> **SPEC-069t**：64位 ext（N=63）自然写满64位；32/16/8 位 ext 已从指令集中删除（见 SimRISC-08/09/10）。
+> **注**：64位 ext（N=63）自然写满64位；32/16/8 位 ext 已从指令集中删除（见 SimRISC-08/09/10）。
 
 其中 N 由位宽决定（octa→63），hd 为扩展起始位，须满足 `hd ≤ N`，否则 ILLI。
 
@@ -274,7 +219,7 @@ xor.o   rdHB, rdHC, rdHD        @@ 逻辑异或
 xnor.o  rdHB, rdHC, rdHD        @@ 逻辑同或
 ```
 
-#### 4.2.1 逐块反转 rev.o/rev.t/rev.w/rev.b（orri 格式）
+#### 2.2.1 逐块反转 rev.o/rev.t/rev.w/rev.b（orri 格式）
 
 `rev` 提供**逐块反转**能力，指令名后缀决定块大小 `S`：把 64 位源寄存器切成 `64/S`
 个块，每块内部再按 `k` 位切分成 `S/k` 个**单元**，然后**反转单元顺序**
@@ -319,9 +264,9 @@ rev.w   rdHB, rdHC, immu6       @@ 16 位块内反转（k=8 → bswap16，须源
 rev.b   rdHB, rdHC, immu6       @@ 8 位块内反转（k ∈ {1,2,4}）
 ```
 
-`rev.t`/`rev.w`/`rev.b` 分册语义见 SimRISC-08/09/10 §4.2.1；本节为逐块反转的总述。
+`rev.t`/`rev.w`/`rev.b` 分册语义见 SimRISC-08/09/10 §2.2.1；本节为逐块反转的总述。
 
-#### 4.2.2 位扫描与位计数 ctlz/cttz/ctpop（orri 格式）
+#### 2.2.2 位扫描与位计数 ctlz/cttz/ctpop（orri 格式）
 
 `ctlz`/`cttz`/`ctpop` 提供**位扫描与位计数**。三条指令**没有位宽后缀**（指令名不指示
 8/16/32/64 位）——有效位宽由操作数给出的**有效位上界 `hd`** 在运行时确定：参与运算的
@@ -365,15 +310,15 @@ cttz    rdHB, rdHC, immu6       @@ 末尾零（immu6=63 → 64 位；全 0 → i
 ctpop   rdHB, rdHC, immu6       @@ 1 的个数（immu6=63 → 64 位）
 ```
 
-**编码**：三条为 `orri` 格式但**无位宽后缀**，借用 `MISC-octa` 子表的格位
+**编码**：三条为 `orri` 格式但**无位宽后缀**，借用 `OPC-octa` 子表的格位
 （`011-101`/`011-110`/`011-111`，opx = `011101`/`011110`/`011111`），是本手册
-「**子表 ⇔ 位宽后缀**」规则的**例外**（见 SimRISC-00 §MISC-octa指令编码）。
+「**子表 ⇔ 位宽后缀**」规则的**例外**（见 SimRISC-00 §OPC-octa指令编码）。
 
-#### 4.2.3 逻辑循环左移 rol.o（`orrr` / `orri` 格式）
+#### 2.2.3 逻辑循环左移 rol.o（`orrr` / `orri` 格式）
 
 `rol.o` 提供 **64 位逻辑循环左移**（把寄存器当作 64 位位串循环旋转）：
 `rdHB[63:0] = rol(rdHC[63:0], amount)`。**只有一个方向**（左），**不分有符号/无符号**，
-因此**不带 `u`/`s` 后缀**（`ADR-0032 D3`/`D4`）。
+因此**不带 `u`/`s` 后缀**。
 
 | 格式 | 旋转量 `amount` | 取值 |
 |------|----------------|------|
@@ -385,60 +330,68 @@ rol(x, n) = (x << n) | (x >> ((64 - n) & 63))     // n = 0 时结果为 x 本身
 rdHB[63:0] = rol(rdHC[63:0], amount)
 ```
 
-- **值语义**：结果写满 64 位（沿用 `SPEC-069t`）；不存在「高位保留」。
+- **值语义**：结果写满 64 位；不存在「高位保留」。
 - **旋转量取模（仅寄存器形态）**：`orrr` 的 `rdHD` 只有低 6 位参与，天然等价于 `amount mod 64`。
   `orri` 的 `immu6` 为 6 位，`0..63` 全部合法；**无越界值**（`immu6` 装不下 `≥64`）。
 - **合法性**：目的 `rdHB` 为 `rd0` ⇒ **ILLI**（规则 `dst_rd0`）；源 `rdHC` 可为 `rd0`（读出 0，
   结果恒为 0）；`rdHB == rdHC` 允许（原地旋转）。
 - **不另设反向指令**：`rol(x, (64 - n) mod 64)` 即反向旋转 ⇒ 一个方向足以表达双向。
-- **编码**：`rol.o` `orrr` = `010-001`、`orri` = `011-001`（`MISC-octa`，见 SimRISC-00 §4.2）。
-- `rol.t`/`rol.w`/`rol.b` 的位宽/取模/越界口径分别见 SimRISC-08/09/10 §4.2。
+- **编码**：`rol.o` `orrr` = `010-001`、`orri` = `011-001`（`OPC-octa`，见 SimRISC-00 §4.2）。
+- `rol.t`/`rol.w`/`rol.b` 的位宽/取模/越界口径分别见 SimRISC-08/09/10 §2.2。
 
 ```simrisc
 rol.o   rdHB, rdHC, rdHD        @@ 循环左移（旋转量 = rdHD[5:0]）
 rol.o   rdHB, rdHC, immu6       @@ 循环左移（旋转量 = immu6，0..63）
 ```
 
----
+<!-- ASSEMBLY_LIST_START -->
+## 附录 A：汇编指令速查
 
-## 附录：版本与变更记录
+| 助记符 | format | feature | 汇编形式 | id |
+|---|---|---|---|---|
+| `add.si` | `riii` | `rd` | `add.si rdHA, imms18` | `add.si_riii_rd` |
+| `add.so` | `rrrr` | `rd` | `add.so {rdHA, rdHB}, rdHC, rdHD` | `add.so_rrrr_rd` |
+| `add.uo` | `rrrr` | `rd` | `add.uo {rdHA, rdHB}, rdHC, rdHD` | `add.uo_rrrr_rd` |
+| `and.o` | `orrr` | `rd` | `and.o rdHB, rdHC, rdHD` | `and.o_orrr_rd` |
+| `clmul.o` | `rrrr` | `rd` | `clmul.o {rdHA, rdHB}, rdHC, rdHD` | `clmul.o_rrrr_rd` |
+| `cmp.si` | `rrii` | `rd` | `cmp.si rdHA, rdHB, imms12` | `cmp.si_rrii_rd` |
+| `cmp.so` | `orrr` | `rd` | `cmp.so rdHB, rdHC, rdHD` | `cmp.so_orrr_rd` |
+| `cmp.ui` | `rrii` | `rd` | `cmp.ui rdHA, rdHB, immu12` | `cmp.ui_rrii_rd` |
+| `cmp.uo` | `orrr` | `rd` | `cmp.uo rdHB, rdHC, rdHD` | `cmp.uo_orrr_rd` |
+| `ctlz` | `orri` | `rd` | `ctlz rdHB, rdHC, immu6` | `ctlz_orri_rd` |
+| `ctpop` | `orri` | `rd` | `ctpop rdHB, rdHC, immu6` | `ctpop_orri_rd` |
+| `cttz` | `orri` | `rd` | `cttz rdHB, rdHC, immu6` | `cttz_orri_rd` |
+| `div.so` | `orrr` | `rd` | `div.so rdHB, rdHC, rdHD` | `div.so_orrr_rd` |
+| `div.uo` | `orrr` | `rd` | `div.uo rdHB, rdHC, rdHD` | `div.uo_orrr_rd` |
+| `ext.so` | `orri` | `rd` | `ext.so rdHB, rdHC, immu6` | `ext.so_orri_rd` |
+| `ext.so` | `orrr` | `rd` | `ext.so rdHB, rdHC, rdHD` | `ext.so_orrr_rd` |
+| `ext.uo` | `orri` | `rd` | `ext.uo rdHB, rdHC, immu6` | `ext.uo_orri_rd` |
+| `ext.uo` | `orrr` | `rd` | `ext.uo rdHB, rdHC, rdHD` | `ext.uo_orrr_rd` |
+| `mul.so` | `rrrr` | `rd` | `mul.so {rdHA, rdHB}, rdHC, rdHD` | `mul.so_rrrr_rd` |
+| `mul.uo` | `rrrr` | `rd` | `mul.uo {rdHA, rdHB}, rdHC, rdHD` | `mul.uo_rrrr_rd` |
+| `or.o` | `orrr` | `rd` | `or.o rdHB, rdHC, rdHD` | `or.o_orrr_rd` |
+| `rem.so` | `orrr` | `rd` | `rem.so rdHB, rdHC, rdHD` | `rem.so_orrr_rd` |
+| `rem.uo` | `orrr` | `rd` | `rem.uo rdHB, rdHC, rdHD` | `rem.uo_orrr_rd` |
+| `rev.o` | `orri` | `rd` | `rev.o rdHB, rdHC, immu6` | `rev.o_orri_rd` |
+| `rol.o` | `orri` | `rd` | `rol.o rdHB, rdHC, immu6` | `rol.o_orri_rd` |
+| `rol.o` | `orrr` | `rd` | `rol.o rdHB, rdHC, rdHD` | `rol.o_orrr_rd` |
+| `shl.o` | `orri` | `rd` | `shl.o rdHB, rdHC, immu6` | `shl.o_orri_rd` |
+| `shl.o` | `orrr` | `rd` | `shl.o rdHB, rdHC, rdHD` | `shl.o_orrr_rd` |
+| `shr.so` | `orri` | `rd` | `shr.so rdHB, rdHC, immu6` | `shr.so_orri_rd` |
+| `shr.so` | `orrr` | `rd` | `shr.so rdHB, rdHC, rdHD` | `shr.so_orrr_rd` |
+| `shr.uo` | `orri` | `rd` | `shr.uo rdHB, rdHC, immu6` | `shr.uo_orri_rd` |
+| `shr.uo` | `orrr` | `rd` | `shr.uo rdHB, rdHC, rdHD` | `shr.uo_orrr_rd` |
+| `sub.so` | `rrrr` | `rd` | `sub.so {rdHA, rdHB}, rdHC, rdHD` | `sub.so_rrrr_rd` |
+| `sub.uo` | `rrrr` | `rd` | `sub.uo {rdHA, rdHB}, rdHC, rdHD` | `sub.uo_rrrr_rd` |
+| `xnor.o` | `orrr` | `rd` | `xnor.o rdHB, rdHC, rdHD` | `xnor.o_orrr_rd` |
+| `xor.o` | `orrr` | `rd` | `xor.o rdHB, rdHC, rdHD` | `xor.o_orrr_rd` |
 
-> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+<!-- ASSEMBLY_LIST_END -->
 
-### 0.5.5-rc（未发布）
+<!-- LEGALITY_START -->
+## 附录 B：合法性检查
 
-- 新增 `clmul.o`（无进位乘 / GF(2) 多项式乘，`rrrr` 双目的，`rdHA` 高 / `rdHB` 低，`op = 0x56`）及 §3.5 语义。
-- `shl` 去掉 `u` 后缀（`shl.o`，符号无关）并迁编码 `010-000`/`011-000`；`ext.uo`/`ext.so` 编码迁至 `100-000`/`100-001`、`101-000`/`101-001`（助记符不变）。
-- 新增 `rol.o`（逻辑循环左移，`orrr`/`orri`，编码 `010-001`/`011-001`）及 §4.2.3 语义。
-- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
-- 新增 `rev.o`（逐块反转，orri）及逐块反转语义总述（`§4.2.1`）。
-- 新增 `ctlz`/`cttz`/`ctpop`（位扫描 / 位计数，orri，**无位宽后缀**）及语义（`§4.2.2`）。
-- 伪指令集收缩：删除 `not.*`/`neg.*` 1:1 别名（改由 `xnor`/`sub.sX` 展开）。
-- 合法性生成器真空约束修正（`.o` orri 的 `immu6 <= 63`）。
-- 新增「合法性检查」章（生成区）。
-- 窄位宽指令精简、高位规则统一为值语义；`div`/`rem` 定值语义。
-- 正文改用新汇编格式；新增「汇编指令速查」章（生成区）。
-
-### 0.5.4（2026-09-28）
-
-- 本册自原《SimRISC 数据类指令》的算术 / 逻辑运算部分按 64 位拆出，独立成「64 位数据运算」分册。
-
-### 0.5.3（2026-07-19）
-
-- `add.si` 由 `rrii`（`imms12`）改为 `riii`（`imms18`），目的与源为同一寄存器（`aba64274`）。
-
-### 0.5.2（2026-07-18）
-
-- `add`/`sub` rrrr 拆分为 `add.uo`/`add.so`/`sub.uo`/`sub.so`；`addi`→`add.si`；`cmps`/`cmpu`→`cmp.si`/`cmp.ui`；`orr`→`or`；`mul`/`div`/`rem`、`ext`/`sh` 后缀统一。
-
-### 0.5.1（2026-07-17）
-
-- `rd0` 为目的寄存器的约定收窄：仅 `add`/`sub`/`mul` 的 `rrrr` 双目的格式允许其中一个为 `rd0`（`68ceb3f8`）。
-
-### 0.5.0（2026-07-15）
-
-- 引入位掩码 `brrr` 格式（`add`/`sub`/`muls`/`mulu`）；`divs`/`divu` 改为 `rem` 余数语义；位掩码 `bN`→`bmN`→`bpN`。
-
-### 0.4.1（2026-07-14）
-
-- 初版：同步上游算术运算类与逻辑运算类指令。
+* `dst_rd0`：目的 rd0 → ILLI — `add.si_riii_rd`, `and.o_orrr_rd`, `cmp.si_rrii_rd`, `cmp.so_orrr_rd`, `cmp.ui_rrii_rd`, `cmp.uo_orrr_rd`, `ctlz_orri_rd`, `ctpop_orri_rd`, `cttz_orri_rd`, `div.so_orrr_rd`, `div.uo_orrr_rd`, `ext.so_orri_rd`, `ext.so_orrr_rd`, `ext.uo_orri_rd`, `ext.uo_orrr_rd`, `or.o_orrr_rd`, `rem.so_orrr_rd`, `rem.uo_orrr_rd`, `rev.o_orri_rd`, `rol.o_orri_rd`, `rol.o_orrr_rd`, `shl.o_orri_rd`, `shl.o_orrr_rd`, `shr.so_orri_rd`, `shr.so_orrr_rd`, `shr.uo_orri_rd`, `shr.uo_orrr_rd`, `xnor.o_orrr_rd`, `xor.o_orrr_rd`（29 条）
+* `dst_dual_same`：双目的同为 rd0 或同寄存器 → ILLI — `add.so_rrrr_rd`, `add.uo_rrrr_rd`, `clmul.o_rrrr_rd`, `mul.so_rrrr_rd`, `mul.uo_rrrr_rd`, `sub.so_rrrr_rd`, `sub.uo_rrrr_rd`（7 条）
+* `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `rev.o_orri_rd`（1 条）
+<!-- LEGALITY_END -->

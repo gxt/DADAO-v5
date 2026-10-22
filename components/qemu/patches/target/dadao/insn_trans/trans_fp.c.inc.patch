@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..4f966d7
+index 0000000..8499b8e
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
 @@ -0,0 +1,1071 @@
@@ -1027,7 +1027,7 @@ index 0000000..4f966d7
 +/*
 + * ftmin/ftmax/fomin/fomax (orrr): rfHB destination, rfHC/rfHD sources
 + * (simrisc ftmin rfHB, rfHC, rfHD).  Semantics = IEEE 754-2019 §9.6
-+ * minimumNumber/maximumNumber, strict form (SimRISC-07 §4.4,
++ * minimumNumber/maximumNumber, strict form (SimRISC-07 §2.4,
 + * contract-fp.md §19):
 + *   - ordered ⇒ the smaller/larger operand;
 + *   - −0 < +0, so min(+0,−0) = −0 and max(+0,−0) = +0;

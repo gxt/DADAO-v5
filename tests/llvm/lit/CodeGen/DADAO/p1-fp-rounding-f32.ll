@@ -3,7 +3,7 @@
 ;
 ; LLVM-125t (M9): f32 counterpart of p1-fp-rounding.ll.  The f32 rounding
 ; intrinsics select `ftrnd` (tetra float, p = 24) with the same one-hot immu6
-; mode encoding as `fornd` (contract-fp.md §roundint = SimRISC-07 §4.3):
+; mode encoding as `fornd` (contract-fp.md §roundint = SimRISC-07 §2.3):
 ;
 ;   0x01 TiesToEven      -> llvm.roundeven
 ;   0x02 TiesToAway      -> llvm.round

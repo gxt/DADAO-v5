@@ -31,7 +31,7 @@ cfx2rc cfx63, cg8, rc1, rd8
 @@ ASM: call [rb0, 12]
 call [rb0, 12]
 
-@@ @src fence_oiii_imm 77800000 | SimRISC-12 §fence指令
+@@ @src fence_oiii_imm 77800000 | SimRISC-11 §fence指令
 @@ OBJ: {{[0-9a-f]+:}} 77 80 00 00{{.*}}fence
 @@ ASM: fence 0
 fence 0
@@ -46,12 +46,12 @@ swym 8
 @@ ASM: ctlz rd8, rd9, 1
 ctlz rd8, rd9, 1
 
-@@ @src fo2fo_orri_rf 44288241 | SimRISC-00 §MISC-RF指令编码
+@@ @src fo2fo_orri_rf 44288241 | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 28 82 41{{.*}}fo2fo
 @@ ASM: fo2fo {rf8}, {rf9}
 fo2fo {rf8}, {rf9}
 
-@@ @src foroot_orri_rf 44388242 | SimRISC-00 §MISC-RF指令编码
+@@ @src foroot_orri_rf 44388242 | SimRISC-00 §OPC-RF指令编码
 @@ OBJ: {{[0-9a-f]+:}} 44 38 82 42{{.*}}foroot
 @@ ASM: foroot rf8, rf9, 2
 foroot rf8, rf9, 2
@@ -61,12 +61,12 @@ foroot rf8, rf9, 2
 @@ ASM: add.o rb8, rb9, rd10
 add.o rb8, rb9, rd10
 
-@@ @src lr.b.an_orrr_rd 771c0241 | SimRISC-12 §LR-SC指令
+@@ @src lr.b.an_orrr_rd 771c0241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 1c 02 41{{.*}}lr.b.an
 @@ ASM: lr.b.an rd9, [rb1]
 lr.b.an rd9, [rb1]
 
-@@ @src sc.b.ar_orrr_rd 776c8241 | SimRISC-12 §LR-SC指令
+@@ @src sc.b.ar_orrr_rd 776c8241 | SimRISC-11 §LR-SC指令
 @@ OBJ: {{[0-9a-f]+:}} 77 6c 82 41{{.*}}sc.b.ar
 @@ ASM: sc.b.ar rd8, rd9, [rb1]
 sc.b.ar rd8, rd9, [rb1]

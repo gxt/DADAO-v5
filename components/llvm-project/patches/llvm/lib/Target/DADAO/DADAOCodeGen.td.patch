@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..7428837fe
+index 000000000..9aabdd09e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 @@ -0,0 +1,854 @@
@@ -651,7 +651,7 @@ index 000000000..7428837fe
 +def : Pat<(fneg f32:$a), (ftsgnn_orrr_rf f32:$a, f32:$a)>;
 +
 +// --- min/max: minimumNumber/maximumNumber (ftmin/ftmax/fomin/fomax) ---
-+// LLVM-124t (M9; contract-fp.md §minmax = SimRISC-07 §4.4).  The ISA's
++// LLVM-124t (M9; contract-fp.md §minmax = SimRISC-07 §2.4).  The ISA's
 +// `fomin`/`fomax` (`ftmin`/`ftmax` for f32) ARE IEEE 754-2019
 +// minimumNumber/maximumNumber, so the DAG nodes with exactly those semantics
 +// map 1:1:
@@ -675,7 +675,7 @@ index 000000000..7428837fe
 +def : Pat<(fmaximumnum f32:$a, f32:$b), (ftmax_orrr_rf f32:$a, f32:$b)>;
 +
 +// --- Rounding family: roundToIntegral (ftrnd/fornd, orri) ---
-+// LLVM-125t (M9; contract-fp.md §roundint = SimRISC-07 §4.3).  One ISA
++// LLVM-125t (M9; contract-fp.md §roundint = SimRISC-07 §2.3).  One ISA
 +// instruction per DAG node; `immu6` is a six-way one-hot *mode selector*, NOT
 +// an element count:
 +//   0x01 roundToIntegralTiesToEven   (llvm.roundeven / C23 roundeven)

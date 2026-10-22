@@ -5,7 +5,7 @@
  * (00 RNE, 01 RTZ, 10 RDN, 11 RUP) on 2.5, -2.5, 1.5, -0.5 -- inputs chosen
  * to distinguish the directions under IEEE 754 roundToIntegral.
  * Group B: the five static directions under the same four rf0 values: a static
- * code must ignore rf0[33:32] (SimRISC-07 §4.3) -- the oracle asserts the four
+ * code must ignore rf0[33:32] (SimRISC-07 §2.3) -- the oracle asserts the four
  * observations are identical.
  *
  * After every rf0-programmed group the probe restores rf0 to the value read at

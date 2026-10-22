@@ -5,7 +5,7 @@
  * Matrix inputs (per format): ±0.0, ±0.4, ±0.5, ±1.0, ±1.5, ±2.5, ±3.5, ±Inf,
  * qNaN, sNaN, the minimum subnormal and 2^53 (fo) / 2^24 (ft).  The five
  * static directions are executed with rf0[33:32] = RUP on purpose: a static
- * code must ignore the dynamic direction (SimRISC-07 §4.3).  The dynamic code
+ * code must ignore the dynamic direction (SimRISC-07 §2.3).  The dynamic code
  * 0x20 runs under all four rf0 directions.
  *
  * The probe prints observations only; `tools/testcases/oracle_rnd.py` computes

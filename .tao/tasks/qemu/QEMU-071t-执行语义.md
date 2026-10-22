@@ -110,7 +110,7 @@
 
 ### 第 1 轮 engineer 自审（2026-10-22）
 
-范围：4 个 qemu patch + 探针 + 证据脚本；逐行比对 `spec/SimRISC-07 §4.4` 与 `contract-fp.md §19`；真跑日志 `.work/log/qemu/QEMU-071t-*.log`。
+范围：4 个 qemu patch + 探针 + 证据脚本；逐行比对 `spec/SimRISC-07 §2.4` 与 `contract-fp.md §19`；真跑日志 `.work/log/qemu/QEMU-071t-*.log`。
 
 | finding | 处置 | 改了什么 | 复验证据 |
 | --- | --- | --- | --- |

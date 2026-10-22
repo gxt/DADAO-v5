@@ -11,7 +11,7 @@
 @@   word = (op<<24) | (ha<<18) | (hb<<12) | (hc<<6) | hd
 @@   lr.*: hb = 0（rd0 固定），hc = rd9 = 9，hd = rb1 = 1
 @@   sc.*: hb = rd8 = 8，hc = rd9 = 9，hd = rb1 = 1
-@@ 汇编书写形态亦为规范形态：lr 两个操作数（SimRISC-12 §3.2）、sc 三个。
+@@ 汇编书写形态亦为规范形态：lr 两个操作数（SimRISC-11 §4.2）、sc 三个。
 
 @@ NOCOMBO: unrecognized instruction mnemonic
 @@ FORM: invalid operand for instruction

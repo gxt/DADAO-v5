@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""check_tables.py — `spec/SimRISC-00` 四张 MISC 子表 ⇔ `contracts/opcodes.yaml` 逐格一致性。
+"""check_tables.py — `spec/SimRISC-00` 四张 OPC 子表 ⇔ `contracts/opcodes.yaml` 逐格一致性。
 
 **独立 oracle**：期望网格**现场派生**自机器可读真源 `contracts/opcodes.yaml`
 （每条记录的 `(op, ha)` → `(子表, 行, 列)`，格内容 = 记录 `id`），再与
@@ -7,7 +7,7 @@
 **禁**任何字面网格（同一病根教训：`validate_instrinfo --self-test`）。
 
 结构性映射（编码布局，非格内容；4 条）：
-  * `op 0x40` = `MISC-octa`（64 位）、`0x41` = `MISC-tetra`、`0x42` = `MISC-wyde`、`0x43` = `MISC-byte`
+  * `op 0x40` = `OPC-octa`（64 位）、`0x41` = `OPC-tetra`、`0x42` = `OPC-wyde`、`0x43` = `OPC-byte`
   * `ha` 6 位：行 = `ha[5:3]`（表 `AAA-xxx`），列 = `ha[2:0]`（表 `xxx-BBB`）
 因此表内格位总数 / 非空格数 / 记录数一律**现场统计并打印**，不写死。
 
@@ -33,9 +33,9 @@ DEFAULT_YAML = ROOT / "contracts" / "opcodes.yaml"
 DEFAULT_SPEC = ROOT / "spec" / "SimRISC-00-指令系统设计.md"
 
 # op → 子表（编码布局常量；格内容一律不写死）
-OP_TABLE = {0x40: "MISC-octa", 0x41: "MISC-tetra", 0x42: "MISC-wyde", 0x43: "MISC-byte"}
+OP_TABLE = {0x40: "OPC-octa", 0x41: "OPC-tetra", 0x42: "OPC-wyde", 0x43: "OPC-byte"}
 
-SECTION_RE = re.compile(r"^###\s+4\.\d+\s+(MISC-(?:octa|tetra|wyde|byte))指令编码")
+SECTION_RE = re.compile(r"^###\s+4\.\d+\s+(OPC-(?:octa|tetra|wyde|byte))\s*指令编码")
 HEADER_CELL_RE = re.compile(r"^xxx-([01]{3})$")
 ROW_CELL_RE = re.compile(r"^([01]{3})-xxx$")
 
@@ -215,7 +215,7 @@ def self_test() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="四张 MISC 子表 ⇔ opcodes.yaml 逐格一致性")
+    ap = argparse.ArgumentParser(description="四张 OPC 子表 ⇔ opcodes.yaml 逐格一致性")
     ap.add_argument("--yaml", type=Path, default=DEFAULT_YAML)
     ap.add_argument("--spec", type=Path, default=DEFAULT_SPEC)
     ap.add_argument("--self-test", action="store_true", help="3 类注入自检（临时树）")

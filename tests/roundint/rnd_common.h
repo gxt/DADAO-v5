@@ -2,7 +2,7 @@
  * TESTCASES-060t shared probe support: ftrnd/fornd (roundToIntegral).
  *
  * Spec sources (semantics, never QEMU/LLVM output):
- *   spec/SimRISC-07 §4.3  -- six one-hot immu6 modes, rf0[33:32] only for 0x20
+ *   spec/SimRISC-07 §2.3  -- six one-hot immu6 modes, rf0[33:32] only for 0x20
  *   .tao/contracts/contract-fp.md §18 -- frozen roundint contract
  *   spec/SimRISC-00 §浮点状态寄存器 -- rf0 write mask: only [33:32] and [4:0]
  *

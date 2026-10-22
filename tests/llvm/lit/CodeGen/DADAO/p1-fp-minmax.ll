@@ -1,7 +1,7 @@
 ;
 ; RUN: %llc -march=dadao -O2 -filetype=asm %s -o - | %FileCheck %s
 ;
-; LLVM-124t (M9; contract-fp.md §minmax = SimRISC-07 §4.4): the ISA's
+; LLVM-124t (M9; contract-fp.md §minmax = SimRISC-07 §2.4): the ISA's
 ; `ftmin`/`ftmax`/`fomin`/`fomax` ARE IEEE 754-2019
 ; minimumNumber/maximumNumber -- single NaN (qNaN or sNaN) returns the other
 ; operand, double NaN returns the canonical qNaN, an sNaN input raises NV,

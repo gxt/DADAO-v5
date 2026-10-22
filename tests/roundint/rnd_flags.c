@@ -1,7 +1,7 @@
 /*
  * TESTCASES-060t -- ftrnd/fornd exception flags (rf0[4:0]).
  *
- * Assertions (SimRISC-07 §4.3 / contract-fp.md §18):
+ * Assertions (SimRISC-07 §2.3 / contract-fp.md §18):
  *   1. the five static directions NEVER set NX, even for inexact inputs;
  *   2. the dynamic code 0x20 sets NX iff the input is not already integral
  *      (finite); an integral input sets no flag;

@@ -68,7 +68,7 @@ ILLI_EXIT = 0x88
 
 # ── Instruction encoding (op / ha values from contracts/opcodes.yaml) ──
 
-# ROM terminator: `fence` with fm=1 (hb != 0) is ILLI per SimRISC-12 §3.1 /
+# ROM terminator: `fence` with fm=1 (hb != 0) is ILLI per SimRISC-11 §4.1 /
 # ADR-0034 D1/D2 -> exit 0x88.  (Historically 0x77000000 = fence 0 was used,
 # but since ADR-0034 that is a legal no-op, and 0x00000000 is UNDI 0x89.)
 ILLI = 0x77801000                 # fence fm=1 -> ILLI
@@ -333,7 +333,7 @@ class Case:
         self.expect_rd = expect_rd or {}
         self.e2e = e2e
         # rd index -> category alias: assert exactly that one bit is set and
-        # rd[63:10] == 0 (SimRISC-07 §7: only [9:0] is used).
+        # rd[63:10] == 0 (SimRISC-07 §5: only [9:0] is used).
         self.classify = classify or {}
 
 
@@ -365,7 +365,7 @@ FO_QNAN = 0x7FF8000000000000
 FO_SNAN = 0x7FF0000000000001
 
 # 10 classification category bits.  **Independent oracle**: parsed from
-# `spec/SimRISC-07 §7` at import time, never hand-copied here.  A missing /
+# `spec/SimRISC-07 §5` at import time, never hand-copied here.  A missing /
 # renamed section or a malformed table is a hard FAIL (explicit non-zero exit),
 # never a silent fallback.
 SPEC_FP = (os.environ.get('DADAO_FP_SPEC')

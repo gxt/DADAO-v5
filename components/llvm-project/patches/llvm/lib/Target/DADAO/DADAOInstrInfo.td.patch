@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..ef535829a
+index 000000000..8569a413c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 @@ -0,0 +1,1950 @@
@@ -628,7 +628,7 @@ index 000000000..ef535829a
 +// register of the pair below (`aip.si rbX, hi` + `ld.o rbX, [rbX, lo]`).
 +// A destination of rb0 is ILLI at execution time (contracts/legality_rules.yaml
 +// dst_rb0); the MC layer does not reject it (no static MC legality for GPR
-+// destinations -- contracts/legality_rules.yaml + SimRISC-05 §3.4 IP 相对寻址).
++// destinations -- contracts/legality_rules.yaml + SimRISC-05 §1.4 IP 相对寻址).
 +// The assembler-level operand is in BYTES (imms30; Toolchain-01 §3.2/§5) and
 +// the encoded field is the 4 KiB block count (field = bytes >> 12, i.e. the
 +// x4096 group of the x4 jump/branch fields): the AsmParser converts the byte
@@ -1415,7 +1415,7 @@ index 000000000..ef535829a
 +}
 +
 +// rol.o rdHB, rdHC, immu6: immediate rotate; immu6 outside 0..W-1 is an
-+// execution-time ILLI (contract-isa.md §6.4.1 / SimRISC-08/09/10 §2), so the
++// execution-time ILLI (contract-isa.md §6.4.1 / SimRISC-08/09/10 附录 B), so the
 +// MC layer only enforces the generic immu6 field range [0, 63].
 +def rol_o_orri : DADAOOrri<"rol.o"> {
 +  let OutOperandList = (outs GPRD:$rb);
@@ -1498,7 +1498,7 @@ index 000000000..ef535829a
 +}
 +
 +// rol.t rdHB, rdHC, immu6: immediate rotate; immu6 outside 0..W-1 is an
-+// execution-time ILLI (contract-isa.md §6.4.1 / SimRISC-08/09/10 §2), so the
++// execution-time ILLI (contract-isa.md §6.4.1 / SimRISC-08/09/10 附录 B), so the
 +// MC layer only enforces the generic immu6 field range [0, 63].
 +def rol_t_orri : DADAOOrri<"rol.t"> {
 +  let OutOperandList = (outs GPRD:$rb);
@@ -1533,7 +1533,7 @@ index 000000000..ef535829a
 +}
 +
 +// rol.w rdHB, rdHC, immu6: immediate rotate; immu6 outside 0..W-1 is an
-+// execution-time ILLI (contract-isa.md §6.4.1 / SimRISC-08/09/10 §2), so the
++// execution-time ILLI (contract-isa.md §6.4.1 / SimRISC-08/09/10 附录 B), so the
 +// MC layer only enforces the generic immu6 field range [0, 63].
 +def rol_w_orri : DADAOOrri<"rol.w"> {
 +  let OutOperandList = (outs GPRD:$rb);
@@ -1568,7 +1568,7 @@ index 000000000..ef535829a
 +}
 +
 +// rol.b rdHB, rdHC, immu6: immediate rotate; immu6 outside 0..W-1 is an
-+// execution-time ILLI (contract-isa.md §6.4.1 / SimRISC-08/09/10 §2), so the
++// execution-time ILLI (contract-isa.md §6.4.1 / SimRISC-08/09/10 附录 B), so the
 +// MC layer only enforces the generic immu6 field range [0, 63].
 +def rol_b_orri : DADAOOrri<"rol.b"> {
 +  let OutOperandList = (outs GPRD:$rb);
@@ -1686,7 +1686,7 @@ index 000000000..ef535829a
 +// nn/nr/ar, so `lr.*.nr` / `sc.*.an` have no def and the assembler rejects
 +// them.  Field layout is `orrr`: rdhb = rdHB, rdhc = rdHC, rbhd = rbHD
 +// (op 0x77, mask 0xFFFC0000); `lr` fixes hb = rd0 and is written with two
-+// operands (SimRISC-12 §3.2).
++// operands (SimRISC-11 §4.2).
 +//
 +// Semantics: `lr` loads from [rbHD] into rdHC and sets the hart's reservation;
 +// `sc` stores rdHC to [rbHD] when the reservation is still valid and writes

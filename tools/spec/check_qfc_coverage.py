@@ -17,10 +17,10 @@ QFC 表结构（SimRISC 0.5.3）：
       ha[5:3] = int("RRR", 2)
       ha[2:0] = int("CCC", 2)
       ha = (ha[5:3] << 3) | ha[2:0]
-      op 由主表中指向该子表的 `MISC-*` 单元格决定（不硬编码）
+      op 由主表中指向该子表的 `OPC-*` 单元格决定（不硬编码）
   - 单元格语义：
       空白       → reserved（UNDI 保留），不计入指令集合
-      `MISC-*`   → 子表指针，不是具体指令，不计入指令集合
+      `OPC-*`    → 子表指针，不是具体指令，不计入指令集合
       `名称-格式` → 一条具体指令
 
 比对逻辑：
@@ -131,14 +131,14 @@ COL_MAIN = re.compile(r"^xxxx-x(\d{3})$")
 ROW_SUB = re.compile(r"^(\d{3})-xxx$")
 COL_SUB = re.compile(r"^xxx-(\d{3})$")
 
-MISC_PTR = re.compile(r"^MISC-(.+)$")
+OPC_PTR = re.compile(r"^OPC-(.+)$")
 
 # QFC 主表区段标题（SPEC-133t：标题已带章节号 `N. `，故作前导号容忍）
 _QFC_HEAD_RE = re.compile(r"^##\s+(?:\d+(?:\.\d+)*[\.、]?\s+)?SimRISC QFC")
 
 
 def _split_sections(lines):
-    """按 markdown 标题切分主表与 MISC 子表区段。
+    """按 markdown 标题切分主表与 OPC 子表区段。
 
     返回 (main_lines, {sub_name: sub_lines})。
     """
@@ -159,7 +159,7 @@ def _split_sections(lines):
         main_end = len(lines)
 
     sub_starts = [(i, line.strip()) for i, line in enumerate(lines)
-                  if line.startswith("###") and "MISC-" in line]
+                  if line.startswith("###") and "OPC-" in line]
     subs = {}
     for j, (i, title) in enumerate(sub_starts):
         if j + 1 < len(sub_starts):
@@ -170,7 +170,7 @@ def _split_sections(lines):
                 if lines[k].startswith("## "):
                     end = k
                     break
-        m = re.search(r"MISC-[A-Za-z0-9_]+", title)
+        m = re.search(r"OPC-[A-Za-z0-9_]+", title)
         name = m.group(0) if m else title
         subs[name] = lines[i:end]
 
@@ -182,7 +182,7 @@ def parse_spec(spec_path):
 
     返回 dict：
       qfc_opids   — set((op, ha_or_None))，仅具体指令
-      pointers    — {op: 'MISC-xxx'} 主表子表指针
+      pointers    — {op: 'OPC-xxx'} 主表子表指针
       sub_stats   — [(name, op, count)] 各子表指令数
       reserved    — 空白（reserved）单元格总数
       errors      — 结构性错误（指针/子表对不上）
@@ -205,7 +205,7 @@ def parse_spec(spec_path):
 
     for (row_val, col_val), text in main_cells.items():
         op = (row_val << 3) | col_val
-        m = MISC_PTR.match(text)
+        m = OPC_PTR.match(text)
         if m:
             result["pointers"][op] = text
         else:
@@ -267,20 +267,20 @@ def classify_m1(op, ha, name, misc_name=None):
     """判断一条编码是否属于 M1 范围外，并给出类别。
 
     M1 外类别（contracts/opcodes.yaml 头部 + contract-isa.md）：
-      - 浮点 RF：MISC-RF 子表，或名称含 -rf / ft*/fo* / rd2rf / rf2rd
+      - 浮点 RF：OPC-RF 子表，或名称含 -rf / ft*/fo* / rd2rf / rf2rd
       - 特权 cfx：cfx2rd/cfx2rc/cfxld/cfxst/escape/trap
-      - LR-SC 原子：MISC-AMO 子表的 lr_*/sc_*
-      - fence：MISC-AMO 子表的 fence（Excluded from M1，SPEC-039t）
+      - LR-SC 原子：OPC-MISC 子表的 lr_*/sc_*
+      - fence：OPC-MISC 子表的 fence（Excluded from M1，SPEC-039t）
 
     misc_name 是该 (op) 对应的 MISC 子表名（由主表指针给出，不硬编码）；
     主表指令为 None。返回 (in_m1: bool, category: str)。
     """
     n = _strip_format(name or "")
-    if misc_name == "MISC-RF":
-        return False, "浮点（MISC-RF）"
-    if misc_name == "MISC-AMO" and re.match(r"^(lr_|sc_)", n):
+    if misc_name == "OPC-RF":
+        return False, "浮点（OPC-RF）"
+    if misc_name == "OPC-MISC" and re.match(r"^(lr_|sc_)", n):
         return False, "LR-SC 原子"
-    if misc_name == "MISC-AMO" and (n == "fence" or n.startswith("fence_")):
+    if misc_name == "OPC-MISC" and (n == "fence" or n.startswith("fence_")):
         return False, "待定指令（fence excluded）"
     if (re.match(r"^(ft|fo)", n) or "-rf-" in n or n.endswith("-rf")
             or "2rf" in n or "rf2" in n):

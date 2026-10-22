@@ -1,7 +1,7 @@
 ;
 ; RUN: %llc -march=dadao -O2 -filetype=asm %s -o - | %FileCheck %s
 ;
-; LLVM-121t (ADR-0034 D2; SimRISC-12 §3.1): ordering -> `fence` lowering.
+; LLVM-121t (ADR-0034 D2; SimRISC-11 §4.1): ordering -> `fence` lowering.
 ;
 ; DADAO has no atomic load/store instruction forms and no `__atomic_*`
 ; runtime, so AtomicExpandPass (enabled by the DADAO pass config) splits every

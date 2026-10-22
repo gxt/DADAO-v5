@@ -149,11 +149,11 @@ def build_rom(prog):
 
 
 # ---------------------------------------------------------------------------
-# Independent oracle (host side, from spec/SimRISC-05 §3.4 + the ROM layout)
+# Independent oracle (host side, from spec/SimRISC-05 §1.4 + the ROM layout)
 # ---------------------------------------------------------------------------
 
 def sext18(v):
-    """Sign-extend an 18-bit immediate (spec/SimRISC-05 §3.4)."""
+    """Sign-extend an 18-bit immediate (spec/SimRISC-05 §1.4)."""
     v &= 0x3FFFF
     return v - 0x40000 if v & 0x20000 else v
 

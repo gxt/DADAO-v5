@@ -3,81 +3,16 @@
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
 > **分类：取数存数**（38 条）— ld/st/ldm/stm（RD/RB/RA/RF 各形式）
 
-<!-- ASSEMBLY_LIST_START -->
-## 1. 汇编指令速查
-
-### 1.1 取数存数（38 条）
-
-| 助记符 | format | feature | 汇编形式 | id |
-|---|---|---|---|---|
-| `ld.o` | `rrii` | `ra` | `ld.o raHA, [rbHB, imms12]` | `ld.o_rrii_ra` |
-| `ld.o` | `rrii` | `rb` | `ld.o rbHA, [rbHB, imms12]` | `ld.o_rrii_rb` |
-| `ld.o` | `rrii` | `rd` | `ld.o rdHA, [rbHB, imms12]` | `ld.o_rrii_rd` |
-| `ld.o` | `rrii` | `rf` | `ld.o rfHA, [rbHB, imms12]` | `ld.o_rrii_rf` |
-| `ld.sb` | `rrii` | `rd` | `ld.sb rdHA, [rbHB, imms12]` | `ld.sb_rrii_rd` |
-| `ld.st` | `rrii` | `rd` | `ld.st rdHA, [rbHB, imms12]` | `ld.st_rrii_rd` |
-| `ld.sw` | `rrii` | `rd` | `ld.sw rdHA, [rbHB, imms12]` | `ld.sw_rrii_rd` |
-| `ld.t` | `rrii` | `rf` | `ld.t rfHA, [rbHB, imms12]` | `ld.t_rrii_rf` |
-| `ld.ub` | `rrii` | `rd` | `ld.ub rdHA, [rbHB, imms12]` | `ld.ub_rrii_rd` |
-| `ld.ut` | `rrii` | `rd` | `ld.ut rdHA, [rbHB, imms12]` | `ld.ut_rrii_rd` |
-| `ld.uw` | `rrii` | `rd` | `ld.uw rdHA, [rbHB, imms12]` | `ld.uw_rrii_rd` |
-| `ldm.o` | `rrri` | `ra` | `ldm.o {raHA:raHA+immu6-1}, [rbHB, rdHC]` | `ldm.o_rrri_ra` |
-| `ldm.o` | `rrri` | `rb` | `ldm.o {rbHA:rbHA+immu6-1}, [rbHB, rdHC]` | `ldm.o_rrri_rb` |
-| `ldm.o` | `rrri` | `rd` | `ldm.o {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.o_rrri_rd` |
-| `ldm.o` | `rrri` | `rf` | `ldm.o {rfHA:rfHA+immu6-1}, [rbHB, rdHC]` | `ldm.o_rrri_rf` |
-| `ldm.sb` | `rrri` | `rd` | `ldm.sb {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.sb_rrri_rd` |
-| `ldm.st` | `rrri` | `rd` | `ldm.st {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.st_rrri_rd` |
-| `ldm.sw` | `rrri` | `rd` | `ldm.sw {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.sw_rrri_rd` |
-| `ldm.t` | `rrri` | `rf` | `ldm.t {rfHA:rfHA+immu6-1}, [rbHB, rdHC]` | `ldm.t_rrri_rf` |
-| `ldm.ub` | `rrri` | `rd` | `ldm.ub {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.ub_rrri_rd` |
-| `ldm.ut` | `rrri` | `rd` | `ldm.ut {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.ut_rrri_rd` |
-| `ldm.uw` | `rrri` | `rd` | `ldm.uw {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.uw_rrri_rd` |
-| `st.b` | `rrii` | `rd` | `st.b rdHA, [rbHB, imms12]` | `st.b_rrii_rd` |
-| `st.o` | `rrii` | `ra` | `st.o raHA, [rbHB, imms12]` | `st.o_rrii_ra` |
-| `st.o` | `rrii` | `rb` | `st.o rbHA, [rbHB, imms12]` | `st.o_rrii_rb` |
-| `st.o` | `rrii` | `rd` | `st.o rdHA, [rbHB, imms12]` | `st.o_rrii_rd` |
-| `st.o` | `rrii` | `rf` | `st.o rfHA, [rbHB, imms12]` | `st.o_rrii_rf` |
-| `st.t` | `rrii` | `rd` | `st.t rdHA, [rbHB, imms12]` | `st.t_rrii_rd` |
-| `st.t` | `rrii` | `rf` | `st.t rfHA, [rbHB, imms12]` | `st.t_rrii_rf` |
-| `st.w` | `rrii` | `rd` | `st.w rdHA, [rbHB, imms12]` | `st.w_rrii_rd` |
-| `stm.b` | `rrri` | `rd` | `stm.b {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `stm.b_rrri_rd` |
-| `stm.o` | `rrri` | `ra` | `stm.o {raHA:raHA+immu6-1}, [rbHB, rdHC]` | `stm.o_rrri_ra` |
-| `stm.o` | `rrri` | `rb` | `stm.o {rbHA:rbHA+immu6-1}, [rbHB, rdHC]` | `stm.o_rrri_rb` |
-| `stm.o` | `rrri` | `rd` | `stm.o {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `stm.o_rrri_rd` |
-| `stm.o` | `rrri` | `rf` | `stm.o {rfHA:rfHA+immu6-1}, [rbHB, rdHC]` | `stm.o_rrri_rf` |
-| `stm.t` | `rrri` | `rd` | `stm.t {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `stm.t_rrri_rd` |
-| `stm.t` | `rrri` | `rf` | `stm.t {rfHA:rfHA+immu6-1}, [rbHB, rdHC]` | `stm.t_rrri_rf` |
-| `stm.w` | `rrri` | `rd` | `stm.w {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `stm.w_rrri_rd` |
-
-<!-- ASSEMBLY_LIST_END -->
-
-<!-- LEGALITY_START -->
-## 2. 合法性检查
-
-* `dst_rd0`：目的 rd0 → ILLI — `ld.o_rrii_rd`, `ld.sb_rrii_rd`, `ld.st_rrii_rd`, `ld.sw_rrii_rd`, `ld.ub_rrii_rd`, `ld.ut_rrii_rd`, `ld.uw_rrii_rd`, `ldm.o_rrri_rd`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`（14 条）
-* `dst_rb0`：目的 rb0 → ILLI — `ld.o_rrii_rb`, `ldm.o_rrri_rb`（2 条）
-* `mreg_zero`：immu6=0 → ILLI — `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.o_rrri_rf`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.t_rrri_rf`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `stm.b_rrri_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.o_rrri_rf`, `stm.t_rrri_rd`, `stm.t_rrri_rf`, `stm.w_rrri_rd`（19 条）
-* `mreg_range_overflow`：起始+immu6>64 → ILLI — `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.o_rrri_rf`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.t_rrri_rf`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `stm.b_rrri_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.o_rrri_rf`, `stm.t_rrri_rd`, `stm.t_rrri_rf`, `stm.w_rrri_rd`（19 条）
-* `excp_malign`（动态）：未对齐访问 → MALIGN — `ld.o_rrii_ra`, `ld.o_rrii_rb`, `ld.o_rrii_rd`, `ld.st_rrii_rd`, `ld.sw_rrii_rd`, `ld.ut_rrii_rd`, `ld.uw_rrii_rd`, `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `st.o_rrii_ra`, `st.o_rrii_rb`, `st.o_rrii_rd`, `st.t_rrii_rd`, `st.w_rrii_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.t_rrri_rd`, `stm.w_rrri_rd`（24 条）
-
-**scope: fp（无附加合法性规则）：**
-* `ld.o_rrii_rf`
-* `ld.t_rrii_rf`
-* `st.o_rrii_rf`
-* `st.t_rrii_rf`
-<!-- LEGALITY_END -->
-
-
 用户态指令
 
-## 3. 存取类指令
+## 1. 存取类指令
 
 装入指令是把数据从存储器带进寄存器中，进行零扩展或符号扩展。存储指令是把寄存器中的数据放入存储器中。
 
 操作数类型有两种，一种为：`rrii`，属于单load/store类型，地址计算公式为基址寄存器 + 立即数。
 另一种操作数类型为：`rrri`，属于多load/store类型，地址计算公式为基址寄存器 + 数据寄存器。
 
-### 3.1 存取RD寄存器
+### 1.1 存取RD寄存器
 
 单load/store类指令如下：
 
@@ -131,7 +66,7 @@ stm.o    {rdHA:rdHA+immu6-1}, [rbHB, rdHC]
 - 当多寄存器读写的范围包括`rdHC`时，地址计算仍然按照原始的`rdHC`中的数据进行
 - 装入类指令的源寄存器范围与目的寄存器范围可以重叠。硬件按序号递增逐对处理，每对先读后写。重叠时行为依赖顺序，使用者应避免在同一寄存器同时出现在源和目的中
 
-### 3.2 存取RB寄存器
+### 1.2 存取RB寄存器
 
 RB寄存器都是64位，因此不需要指定数据长度，共有4条指令如下：
 
@@ -152,7 +87,7 @@ stm.o    {rbHA:rbHA+immu6-1}, [rbHB, rdHC]
 - 源和目的寄存器范围可以重叠。硬件按序号递增逐对处理，每对先读后写。重叠时行为依赖顺序，使用者应避免在同一寄存器同时出现在源和目的中
 - 当多寄存器读写的范围包括`rbHB`时，地址计算仍然按照原始的`rbHB`中的数据进行
 
-### 3.3 存取RA寄存器
+### 1.3 存取RA寄存器
 
 RA寄存器都是64位，共有4条指令如下：
 
@@ -171,7 +106,7 @@ stm.o    {raHA:raHA+immu6-1}, [rbHB, rdHC]
 - `immu6` = 0 时触发 ILLI 异常
 - `raHA + immu6 > 64` 时触发 ILLI 异常（超出 ra63）
 
-### 3.4 存取RF寄存器
+### 1.4 存取RF寄存器
 
 RF寄存器分为tetra和octa两种情况，tetra为32位，octa为64位，对应单精和双精两种情况，共有8条指令如下：
 
@@ -197,35 +132,64 @@ stm.o   {rfHA:rfHA+immu6-1}, [rbHB, rdHC]
 
 > **注**：`rf0` 作**目的**合法（`ld.o`/`ldm.o`/`ld.t`/`ldm.t`），写入按 SimRISC-00 的写语义（`ld.t`/`ldm.t` 的 `[63:32]` 不变）；`rf0` 作**源**（`st.o`/`st.t`/`stm.o`/`stm.t`）读出完整 64 位。
 
----
+<!-- ASSEMBLY_LIST_START -->
+## 附录 A：汇编指令速查
 
-## 附录：版本与变更记录
+| 助记符 | format | feature | 汇编形式 | id |
+|---|---|---|---|---|
+| `ld.o` | `rrii` | `ra` | `ld.o raHA, [rbHB, imms12]` | `ld.o_rrii_ra` |
+| `ld.o` | `rrii` | `rb` | `ld.o rbHA, [rbHB, imms12]` | `ld.o_rrii_rb` |
+| `ld.o` | `rrii` | `rd` | `ld.o rdHA, [rbHB, imms12]` | `ld.o_rrii_rd` |
+| `ld.o` | `rrii` | `rf` | `ld.o rfHA, [rbHB, imms12]` | `ld.o_rrii_rf` |
+| `ld.sb` | `rrii` | `rd` | `ld.sb rdHA, [rbHB, imms12]` | `ld.sb_rrii_rd` |
+| `ld.st` | `rrii` | `rd` | `ld.st rdHA, [rbHB, imms12]` | `ld.st_rrii_rd` |
+| `ld.sw` | `rrii` | `rd` | `ld.sw rdHA, [rbHB, imms12]` | `ld.sw_rrii_rd` |
+| `ld.t` | `rrii` | `rf` | `ld.t rfHA, [rbHB, imms12]` | `ld.t_rrii_rf` |
+| `ld.ub` | `rrii` | `rd` | `ld.ub rdHA, [rbHB, imms12]` | `ld.ub_rrii_rd` |
+| `ld.ut` | `rrii` | `rd` | `ld.ut rdHA, [rbHB, imms12]` | `ld.ut_rrii_rd` |
+| `ld.uw` | `rrii` | `rd` | `ld.uw rdHA, [rbHB, imms12]` | `ld.uw_rrii_rd` |
+| `ldm.o` | `rrri` | `ra` | `ldm.o {raHA:raHA+immu6-1}, [rbHB, rdHC]` | `ldm.o_rrri_ra` |
+| `ldm.o` | `rrri` | `rb` | `ldm.o {rbHA:rbHA+immu6-1}, [rbHB, rdHC]` | `ldm.o_rrri_rb` |
+| `ldm.o` | `rrri` | `rd` | `ldm.o {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.o_rrri_rd` |
+| `ldm.o` | `rrri` | `rf` | `ldm.o {rfHA:rfHA+immu6-1}, [rbHB, rdHC]` | `ldm.o_rrri_rf` |
+| `ldm.sb` | `rrri` | `rd` | `ldm.sb {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.sb_rrri_rd` |
+| `ldm.st` | `rrri` | `rd` | `ldm.st {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.st_rrri_rd` |
+| `ldm.sw` | `rrri` | `rd` | `ldm.sw {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.sw_rrri_rd` |
+| `ldm.t` | `rrri` | `rf` | `ldm.t {rfHA:rfHA+immu6-1}, [rbHB, rdHC]` | `ldm.t_rrri_rf` |
+| `ldm.ub` | `rrri` | `rd` | `ldm.ub {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.ub_rrri_rd` |
+| `ldm.ut` | `rrri` | `rd` | `ldm.ut {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.ut_rrri_rd` |
+| `ldm.uw` | `rrri` | `rd` | `ldm.uw {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.uw_rrri_rd` |
+| `st.b` | `rrii` | `rd` | `st.b rdHA, [rbHB, imms12]` | `st.b_rrii_rd` |
+| `st.o` | `rrii` | `ra` | `st.o raHA, [rbHB, imms12]` | `st.o_rrii_ra` |
+| `st.o` | `rrii` | `rb` | `st.o rbHA, [rbHB, imms12]` | `st.o_rrii_rb` |
+| `st.o` | `rrii` | `rd` | `st.o rdHA, [rbHB, imms12]` | `st.o_rrii_rd` |
+| `st.o` | `rrii` | `rf` | `st.o rfHA, [rbHB, imms12]` | `st.o_rrii_rf` |
+| `st.t` | `rrii` | `rd` | `st.t rdHA, [rbHB, imms12]` | `st.t_rrii_rd` |
+| `st.t` | `rrii` | `rf` | `st.t rfHA, [rbHB, imms12]` | `st.t_rrii_rf` |
+| `st.w` | `rrii` | `rd` | `st.w rdHA, [rbHB, imms12]` | `st.w_rrii_rd` |
+| `stm.b` | `rrri` | `rd` | `stm.b {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `stm.b_rrri_rd` |
+| `stm.o` | `rrri` | `ra` | `stm.o {raHA:raHA+immu6-1}, [rbHB, rdHC]` | `stm.o_rrri_ra` |
+| `stm.o` | `rrri` | `rb` | `stm.o {rbHA:rbHA+immu6-1}, [rbHB, rdHC]` | `stm.o_rrri_rb` |
+| `stm.o` | `rrri` | `rd` | `stm.o {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `stm.o_rrri_rd` |
+| `stm.o` | `rrri` | `rf` | `stm.o {rfHA:rfHA+immu6-1}, [rbHB, rdHC]` | `stm.o_rrri_rf` |
+| `stm.t` | `rrri` | `rd` | `stm.t {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `stm.t_rrri_rd` |
+| `stm.t` | `rrri` | `rf` | `stm.t {rfHA:rfHA+immu6-1}, [rbHB, rdHC]` | `stm.t_rrri_rf` |
+| `stm.w` | `rrri` | `rd` | `stm.w {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `stm.w_rrri_rd` |
 
-> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+<!-- ASSEMBLY_LIST_END -->
 
-### 0.5.5-rc（未发布）
+<!-- LEGALITY_START -->
+## 附录 B：合法性检查
 
-- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
-- 浮点合法性规则（`rule_refs`）回填与口径收口。
-- 引入 `scope` 标注；本册 8 条 `-rf` 存取归入 `scope: fp`。
-- 新增「合法性检查」章（生成区）。
-- `rf0` 位域与访问规则调整；0 号寄存器作源操作数语义澄清。
-- 正文改用新汇编格式（`ld.*`/`st.*` 统一后缀形）。
-- 新增「汇编指令速查」章（生成区）。
+* `dst_rd0`：目的 rd0 → ILLI — `ld.o_rrii_rd`, `ld.sb_rrii_rd`, `ld.st_rrii_rd`, `ld.sw_rrii_rd`, `ld.ub_rrii_rd`, `ld.ut_rrii_rd`, `ld.uw_rrii_rd`, `ldm.o_rrri_rd`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`（14 条）
+* `dst_rb0`：目的 rb0 → ILLI — `ld.o_rrii_rb`, `ldm.o_rrri_rb`（2 条）
+* `mreg_zero`：immu6=0 → ILLI — `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.o_rrri_rf`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.t_rrri_rf`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `stm.b_rrri_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.o_rrri_rf`, `stm.t_rrri_rd`, `stm.t_rrri_rf`, `stm.w_rrri_rd`（19 条）
+* `mreg_range_overflow`：起始+immu6>64 → ILLI — `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.o_rrri_rf`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.t_rrri_rf`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `stm.b_rrri_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.o_rrri_rf`, `stm.t_rrri_rd`, `stm.t_rrri_rf`, `stm.w_rrri_rd`（19 条）
+* `excp_malign`（动态）：未对齐访问 → MALIGN — `ld.o_rrii_ra`, `ld.o_rrii_rb`, `ld.o_rrii_rd`, `ld.st_rrii_rd`, `ld.sw_rrii_rd`, `ld.ut_rrii_rd`, `ld.uw_rrii_rd`, `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `st.o_rrii_ra`, `st.o_rrii_rb`, `st.o_rrii_rd`, `st.t_rrii_rd`, `st.w_rrii_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.t_rrri_rd`, `stm.w_rrri_rd`（24 条）
 
-### 0.5.4（2026-09-28）
-
-- 本册自原《SimRISC 数据类指令》《SimRISC 地址类指令》的存取部分拆出，独立成「取数存数」分册。
-
-### 0.5.2（2026-07-18）
-
-- 存取指令名统一为 `ld.ub`/`ld.sb`/`st.b`/`st.w` 等后缀格式；`ld.o`/`st.o` 用于 RB/RA/RF 全 64 位存取。
-
-### 0.5.1（2026-07-17）
-
-- 新增 `ld.o`/`st.o`-ra 形式，RA 存取对齐补全；`ld`/`st` 宽度对齐、`ldm`/`stm` 连续排列。
-- 存取对齐要求（`ldm`/`stm`）移入限制列表。
-
-### 0.4.1（2026-07-14）
-
-- 初版：同步上游存取类指令（RD/RB/RA/RF 存取）。
+**无附加合法性规则：**
+* `ld.o_rrii_rf`
+* `ld.t_rrii_rf`
+* `st.o_rrii_rf`
+* `st.t_rrii_rf`
+<!-- LEGALITY_END -->

@@ -18,7 +18,7 @@
 
 ### 现状位序（RISC-V `fclass` 式）
 
-`spec/SimRISC-07 §7` 表格 + `.tao/contracts/contract-fp.md`（`classify` 条）：
+`spec/SimRISC-07 §5` 表格 + `.tao/contracts/contract-fp.md`（`classify` 条）：
 
 ```
 bit0 negativeInfinity  bit1 negativeNormal  bit2 negativeSubnormal  bit3 negativeZero
@@ -47,7 +47,7 @@ bit8 positiveNormal  bit9 positiveInfinity
 
 ## 目标
 
-1. `SimRISC-07 §7` 的 10 行位表改为目标顺序（含 `[63:10]` 清零表述不变）；
+1. `SimRISC-07 §5` 的 10 行位表改为目标顺序（含 `[63:10]` 清零表述不变）；
 2. `.tao/contracts/contract-fp.md` 的 `classify` 条同步（**两处必须逐字一致**）；
 3. `SimRISC-07` 变更记录**追加** 1 行（不改写历史）；只读锁 `sha256` 重算；
 4. 不改任何指令编码、不改 `contracts/opcodes.yaml`、不改 `contracts/fp_semantics.yaml`（其只引用 `contract-fp.md#classify` 锚点）。
@@ -66,7 +66,7 @@ bit8 positiveNormal  bit9 positiveInfinity
 ### A. 位表必须机械一致（本册唯一的"漂移风险"）
 
 - 现状：位表只有**人工**抄写（spec 与 contract 各一份），**没有门控**校验两者一致 ⇒ 极易改一处漏一处。
-- 本册要求：证据脚本**解析** `spec/SimRISC-07 §7` 的表格（行 `| 位 | 类别 |`）与 `contract-fp.md` 的 `10 类位：...` 行，**逐项比对** 10 个"位号↔类别"对；不一致即 FAIL。
+- 本册要求：证据脚本**解析** `spec/SimRISC-07 §5` 的表格（行 `| 位 | 类别 |`）与 `contract-fp.md` 的 `10 类位：...` 行，**逐项比对** 10 个"位号↔类别"对；不一致即 FAIL。
 - 建议（可选、非验收前提）：若实现成本低，可把该比对并入既有 `check-fp-contract`（**须另册**，本册不做，避免扩面）。
 
 ### B. 变更记录与只读锁
@@ -82,7 +82,7 @@ bit8 positiveNormal  bit9 positiveInfinity
 
 ## 验收标准
 
-1. `spec/SimRISC-07 §7` 位表 = 目标顺序（10 行，位号 0..9 各一）；`[63:10]` 清零表述保留。
+1. `spec/SimRISC-07 §5` 位表 = 目标顺序（10 行，位号 0..9 各一）；`[63:10]` 清零表述保留。
 2. `.tao/contracts/contract-fp.md` 的 `classify` 条与新位表**逐项一致**（证据脚本自动比对，输出 10 对）。
 3. `check-spec-readonly` / `check-spec-changelog` / `check-spec-numbering` / `check-spec-drift` / `check-spec-codeblocks` / `check-fp-contract` 全绿。
 4. `git diff` 显示 `contracts/opcodes.yaml`、`contracts/fp_semantics.yaml`、`tests/**` **零改动**（粘真实 `git diff --stat`）。
@@ -145,7 +145,7 @@ bit8 positiveNormal  bit9 positiveInfinity
 ### 第 1 轮 reviewer 验收（2026-10-22，commit `2b1df032`，分支 `SPEC-156t`）
 
 **独立核验（不采信完成区，逐项自跑）**：
-1. 位表语义：亲读 `SimRISC-07 §7` 与 `contract-fp.md:93`，两处均为 `0 sNaN / 1 qNaN / 2 negInf / 3 negNormal / 4 negSubnormal / 5 negZero / 6 posZero / 7 posSubnormal / 8 posNormal / 9 posInf`；spec:220 `[63..10] 全部清零、仅 [9..0]` 与 contract:92 `[63:10]` 表述均在。
+1. 位表语义：亲读 `SimRISC-07 §5` 与 `contract-fp.md:93`，两处均为 `0 sNaN / 1 qNaN / 2 negInf / 3 negNormal / 4 negSubnormal / 5 negZero / 6 posZero / 7 posSubnormal / 8 posNormal / 9 posInf`；spec:220 `[63..10] 全部清零、仅 [9..0]` 与 contract:92 `[63:10]` 表述均在。
 2. 独立比对（reviewer 自写 `/tmp/opencode/SPEC-156t-review/cmp.py`，不看 checks.py）：10 对逐项 OK、`RESULT: PASS rc=0`。独立注入（spec bit0→quietNaN）：`bit0 FAIL、rc=1`；`cp` 还原后 md5=363b3455… MATCH、回绿 rc=0。
 3. 零改动面：`git diff --stat 24bc6e94..2b1df032` = 5 文件（contract-fp/milestones/任务书/锁/SimRISC-07）；`--stat master -- contracts/ tests/` 输出为空；diff 内容核对：仅位表 10 行 + 变更记录 1 行 + 锁 sha256，无 op/format/字段改动（编码不变）。
 4. 门控自跑（各取自身 rc）：`check-spec-readonly`/`changelog`/`numbering`/`drift`/`codeblocks`/`fp-contract` = 0/0/0/0/0/0；`python3 tools/infra/check_spec_readonly.py` rc=0（`21 volume(s) OK`）；`make check`(L1) rc=0（重跑 run.sh 默认模式全 OK）。注：任务提示路径 `tools/spec/` 有误，实际 `tools/infra/`。

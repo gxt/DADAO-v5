@@ -11,7 +11,7 @@
 
 .text
 
-@@ @src fence_oiii_imm 77800000 | SimRISC-12 §fence指令
+@@ @src fence_oiii_imm 77800000 | SimRISC-11 §fence指令
 @@ OBJ: {{[0-9a-f]+:}} 77 80 00 00{{.*}}fence
 @@ ASM: fence 0
 fence 0

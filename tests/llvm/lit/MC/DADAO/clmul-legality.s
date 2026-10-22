@@ -14,7 +14,7 @@
 @@   clmul.o {rd8, rd0}, rd10, rd11   -> 0x56_20_02_8B  (high half only, D6)
 @@
 @@ Illegal forms (checked independently via echo-piped RUN lines above), rule
-@@ `dst_dual_same` (ADR-0035 D6; SimRISC-04 §3.1): the two destination fields
+@@ `dst_dual_same` (ADR-0035 D6; SimRISC-04 §1.1): the two destination fields
 @@ may not name the same register and may not both be rd0.
 
 @@ OBJ: {{[0-9a-f]+:}} 56 20 92 8b{{.*}}clmul.o{{.*}}{rd8, rd9}, rd10, rd11

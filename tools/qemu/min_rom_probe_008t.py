@@ -86,23 +86,23 @@ def add_si_rb(rb, imms18):
     return encode_riii(0x5B, rb, imms18 & 0x3FFFF)
 
 def add_o_bbd(rbhb, rbhc, rdhd):
-    """add.o rbhb, rbhc, rdhd (MISC-octa, ha=0x30)"""
+    """add.o rbhb, rbhc, rdhd (OPC-octa, ha=0x30)"""
     return encode_orrr(0x40, 0x30, rbhb, rbhc, rdhd)
 
 def sub_o_bbd(rbhb, rbhc, rdhd):
-    """sub.o rbhb, rbhc, rdhd (MISC-octa, ha=0x31)"""
+    """sub.o rbhb, rbhc, rdhd (OPC-octa, ha=0x31)"""
     return encode_orrr(0x40, 0x31, rbhb, rbhc, rdhd)
 
 def cmp_uo_rd(rdhb, rdhc, rdhd):
-    """cmp.uo rdhb, rdhc, rdhd (MISC-octa, ha=0x2A)"""
+    """cmp.uo rdhb, rdhc, rdhd (OPC-octa, ha=0x2A)"""
     return encode_orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
 
 def cmp_uo_dbb(rdhb, rbhc, rbhd):
-    """cmp.uo rdhb, rbhc, rbhd (MISC-octa, ha=0x32)"""
+    """cmp.uo rdhb, rbhc, rbhd (OPC-octa, ha=0x32)"""
     return encode_orrr(0x40, 0x32, rdhb, rbhc, rbhd)
 
 def xor_o(rdhb, rdhc, rdhd):
-    """xor.o rdhb, rdhc, rdhd (MISC-octa, ha=0x0A)"""
+    """xor.o rdhb, rdhc, rdhd (OPC-octa, ha=0x0A)"""
     return encode_orrr(0x40, 0x0A, rdhb, rdhc, rdhd)
 
 def ld_o_rd(rdha, rbhb, imms12):
@@ -142,15 +142,15 @@ def st_o_rb(rbha, rbhb, imms12):
     return encode_rrii(0x23, rbha, rbhb, hc, hd)
 
 def rb2rd(rdhb, rbhc, immu6):
-    """rb2rd rdhb, rbhc, immu6 (MISC-octa, ha=0x36)"""
+    """rb2rd rdhb, rbhc, immu6 (OPC-octa, ha=0x36)"""
     return encode_orrr(0x40, 0x36, rdhb, rbhc, immu6)
 
 def rd2rb(rbhb, rdhc, immu6):
-    """rd2rb rbhb, rdhc, immu6 (MISC-octa, ha=0x35)"""
+    """rd2rb rbhb, rdhc, immu6 (OPC-octa, ha=0x35)"""
     return encode_orrr(0x40, 0x35, rbhb, rdhc, immu6)
 
 def rb2rb(rbhb, rbhc, immu6):
-    """rb2rb rbhb, rbhc, immu6 (MISC-octa, ha=0x34)"""
+    """rb2rb rbhb, rbhc, immu6 (OPC-octa, ha=0x34)"""
     return encode_orrr(0x40, 0x34, rbhb, rbhc, immu6)
 
 def jump_iiii(imms24):

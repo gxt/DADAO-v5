@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/atomic_arch.h b/arch/dadao/atomic_arch.h
 new file mode 100644
-index 0000000..478acd9
+index 0000000..56f01b3
 --- /dev/null
 +++ b/arch/dadao/atomic_arch.h
 @@ -0,0 +1,138 @@
@@ -10,8 +10,8 @@ index 0000000..478acd9
 + * ---------------------------------------------------------------------------
 + * What the machine provides
 + * ---------------------------------------------------------------------------
-+ * The DADAO ISA has a load-reserved / store-conditional pair (SimRISC-12 §3.2,
-+ * MISC-AMO) and a hardware barrier (SimRISC-12 §3.1); both are implemented by
++ * The DADAO ISA has a load-reserved / store-conditional pair (SimRISC-11 §4.2,
++ * OPC-MISC) and a hardware barrier (SimRISC-11 §4.1); both are implemented by
 + * the machine (QEMU-067t) and emitted by the backend (LLVM-121t, ADR-0034):
 + *
 + *   lr.<w>.an  rdold, [rb]        load reserved (acquire): returns the old
@@ -70,7 +70,7 @@ index 0000000..478acd9
 + *    immediate is the one the backend uses for acquire-release/seq-cst
 + *    (tests/llvm/lit/CodeGen/DADAO/atomics-fence.ll: `fence 975`), keeping
 + *    inline asm and compiler-generated barriers identical.  The I/O bits are
-+ *    set in the encoding as SimRISC-12 §3.1 requires; device I/O ordering
++ *    set in the encoding as SimRISC-11 §4.1 requires; device I/O ordering
 + *    itself has no execution surface on this machine (QEMU-067t's "no device
 + *    I/O" premise).
 + * 5. `lr.t` zero-extends the loaded 32-bit value, so the compare value is

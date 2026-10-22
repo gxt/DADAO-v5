@@ -1,7 +1,7 @@
 ;
 ; RUN: %llc -march=dadao -O2 -filetype=asm %s -o - | %FileCheck %s
 ;
-; LLVM-125t (M9; contract-fp.md §roundint = SimRISC-07 §4.3): roundToIntegral.
+; LLVM-125t (M9; contract-fp.md §roundint = SimRISC-07 §2.3): roundToIntegral.
 ; Every rounding intrinsic lowers to exactly ONE `fornd rfHB, rfHC, immu6` --
 ; no libcall and no compare sequence.  `immu6` is the six-way one-hot rounding
 ; mode (NOT an element count):

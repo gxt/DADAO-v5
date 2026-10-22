@@ -54,7 +54,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-musl-freshness check-builtins-freshness check-install-tools check-milestones-fresh \
         check-tasks check-spec-codeblocks check-legality-invariants \
         check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive check-contracts-dir \
-        check-component-changelog check-syscall-abi
+        check-component-changelog check-syscall-abi check-spec-purity check-spec-cite-targets
 
 # ── 工作树互斥锁 (INFRA-099t / ISS-229) ─────────────────────────────────────────
 # 同一工作树内会写共享状态的目标 —— 构建树 `.work/build/**`、安装根 $(SDK_DIR)、
@@ -172,6 +172,8 @@ help:
 	@echo "  make check-spec-numbering  Check 21-volume heading numbering structure (L1; SPEC-133t/INFRA-069t)"
 	@echo "  make check-spec-changelog  Check 21-volume appendix changelog structure (L1; SPEC-134t/INFRA-069t)"
 	@echo "  make check-spec-archive  Check SimRISC per-version archives exist (L1; SPEC-154t)"
+	@echo "  make check-spec-purity  spec/SimRISC-* must not carry scope/task-id/ADR/ISS/contract refs (L1; SPEC-165t)"
+	@echo "  make check-spec-cite-targets  Every spec_cite book+section must exist in spec/ (L1; SPEC-165t)"
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
 	@echo "  make check-spec-codeblocks  Check spec prose \`\`\`simrisc blocks vs opcodes.yaml (ISS-077)"
@@ -715,7 +717,7 @@ _locked-clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-spec-archive check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-components
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-spec-archive check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -748,6 +750,17 @@ check-spec-numbering:
 # no table rows / task-ids.  Counts are recomputed live, never hardcoded.
 check-spec-changelog:
 	@$(PYTHON) tools/spec/check_spec_changelog.py
+
+# spec 纯净度门控 (SPEC-165t, L1): `spec/SimRISC-*` 只写规范内容——禁用词表
+# （scope / 里程碑 / 任务号 / ADR- / ISS- / contract-*.md / .tao/ / 旧表名 / v5）
+# 任一命中即红；`--self-test` 含 ≥3 类注入。
+check-spec-purity:
+	@$(PYTHON) tools/spec/check_spec_purity.py
+
+# spec_cite 目标存在性 (SPEC-165t, L1): `contracts/*.yaml` + `tests/**/*.yaml` 的
+# `spec_cite` 必须指向 `spec/` 中真实存在的「书 + 节」（数字节号或节标题）。
+check-spec-cite-targets:
+	@$(PYTHON) tools/spec/check_spec_cite_targets.py
 
 # SimRISC 版本归档门控 (SPEC-154t; 规则见 docs/Process-06 §8): 册头 ∪ 附录声明的
 # 每个版本须有 `.tao/archive/SimRISC-<ver>/`（非空、含 SimRISC-00*、文件数与派生清单一致）。

@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..c9eab2d3f
+index 000000000..650c24c9a
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 @@ -0,0 +1,2534 @@
@@ -385,7 +385,7 @@ index 000000000..c9eab2d3f
 +    setOperationAction({ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FROUND,
 +                        ISD::FROUNDEVEN, ISD::FRINT, ISD::FNEARBYINT},
 +                       VT, Legal);
-+    // Min/max (LLVM-124t; contract-fp.md §minmax = SimRISC-07 §4.4).  The ISA
++    // Min/max (LLVM-124t; contract-fp.md §minmax = SimRISC-07 §2.4).  The ISA
 +    // instructions `ftmin`/`ftmax`/`fomin`/`fomax` ARE IEEE 754-2019
 +    // minimumNumber/maximumNumber (single NaN -> the other operand, double NaN
 +    // -> canonical qNaN, sNaN raises NV, -0 < +0, no rounding), so both node
@@ -1866,7 +1866,7 @@ index 000000000..c9eab2d3f
 +
 +SDValue DADAOTargetLowering::LowerMinMaxNum(SDValue Op,
 +                                            SelectionDAG &DAG) const {
-+  // LLVM-124t (contract-fp.md §minmax = SimRISC-07 §4.4).  FMINNUM/FMAXNUM are
++  // LLVM-124t (contract-fp.md §minmax = SimRISC-07 §2.4).  FMINNUM/FMAXNUM are
 +  // the *legacy* pair; they carry the same minimumNumber/maximumNumber
 +  // semantics as FMINNUM_IEEE/FMAXNUM_IEEE except for the sNaN result, which
 +  // LangRef leaves non-deterministic ("either NaN or the other operand").  Both
@@ -2250,7 +2250,7 @@ index 000000000..c9eab2d3f
 +}
 +
 +//===----------------------------------------------------------------------===//
-+// Atomics (LLVM-121t; ADR-0034 D2/D6; SimRISC-12 §3.1/§3.2)
++// Atomics (LLVM-121t; ADR-0034 D2/D6; SimRISC-11 §4.1/§3.2)
 +//
 +// The ISA has one atomic primitive family -- `lr`/`sc` -- and no AMO (ISS-294),
 +// and the toolchain ships no `__atomic_*` runtime, so the whole atomic surface
@@ -2405,7 +2405,7 @@ index 000000000..c9eab2d3f
 +  // a narrow value is width-defined, not extension-defined (contract-abi
 +  // §4.2 keeps the *signedness* extension as a caller duty for arguments, but
 +  // a CAS operand is not an argument).  Concretely, the `lr` result enters the
-+  // 64-bit register zero-extended (SimRISC-12 §3.2 as implemented by the
++  // 64-bit register zero-extended (SimRISC-11 §4.2 as implemented by the
 +  // batch: `gen_lr` masks the extracted bytes), while `Cmp` arrives promoted
 +  // from the memory type with the high bits whatever the type legalizer chose
 +  // (an `int -1` expected value is sign-extended to 0xFFFF...FFFF), so a

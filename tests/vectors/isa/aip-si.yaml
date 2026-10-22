@@ -1,7 +1,7 @@
-# 手写向量（无生成器）：`aip.si`（IP 相对寻址，RISC-V `auipc` 式；ADR-0029 D1 + §修订注记 / SimRISC-05 §3.4）
+# 手写向量（无生成器）：`aip.si`（IP 相对寻址，RISC-V `auipc` 式；ADR-0029 D1 + §修订注记 / SimRISC-05 §1.4）
 # 指令名 `rela.si` → `aip.si`（用户 2026-10-16 裁定：与 ELF `.rela`/`RELA` 族零撞名、与 `rbip` 同术语）。
 # 覆盖 **L1**（编码往返 + legality，SPEC-145t 冻结）+ **L3**（语义 / 边界，QEMU-061t 执行层落地；
-#   期望值 host 侧按 SimRISC-05 §3.4 独立派生，不从 QEMU 反推）。
+#   期望值 host 侧按 SimRISC-05 §1.4 独立派生，不从 QEMU 反推）。
 # 手写理由：`tools/testcases/generate_isa_vectors.py` 的 `_classify()` 对 `aip.si_riii_rb`
 #   （fmt=riii 且 op 非 add）返回 None ⇒ 不由 reg-*.yaml 生成器产出（与 `reserved.yaml` 同为手写件）。
 # 编码字段（真源 `contracts/opcodes.yaml`）：op=0x5A / mask=0xFF000000 / value=0x5A000000
@@ -10,7 +10,7 @@
 # 汇编层 vs 编码层（真源 Toolchain-01 §3.2/§5）：汇编层操作数按**字节**书写、字段名 `imms30`
 #   （须为 4 KiB 整数倍、范围 ±512 MiB）；编码层 `imms18 = imms30 >> 12`（4 KiB 块）。
 #   ⇒ 本文件是**编码层**向量（真源 = `encoding.word`），故 notes 同时给出等价的汇编层字节写法。
-# 语义（真源 SimRISC-05 §3.4）：`rbHA = IP + (sign_extend(imms18) << 12)`；
+# 语义（真源 SimRISC-05 §1.4）：`rbHA = IP + (sign_extend(imms18) << 12)`；
 #   `IP` = **该指令自身地址**（不清低位，非下一条；本 ISA 无 ±4 流水偏移）；`imms18` **有符号**、
 #   单位为 **4 KiB 块**（`<<12`、无 `<<2`）；可寻址 ±512 MiB；目的 `rb0` ⇒ **ILLI**（`dst_rb0`）。
 # L3 期望值的 host 侧派生（harness 布局，真源 `tests/scripts/build_test_binary.py`）：

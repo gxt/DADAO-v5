@@ -9,7 +9,7 @@ contracts/opcodes.yaml, .tao/contracts/contract-isa.md §13,
 contracts/legality_rules.yaml (encode_sbz rule), and
 .tao/adr/adr-0004-test-machine.md.
 
-Encoding derivations (ADR-0012 D3.5: MISC-AMO 子表调整):
+Encoding derivations (ADR-0012 D3.5: OPC-MISC 子表调整):
   - swym 0: op=0x77, ha=0x22, immu18=0 → word=0x77880000
     mask=0xFFFC0000, value=0x77880000 → (0x77880000 & 0xFFFC0000)==0x77880000 ✓
 

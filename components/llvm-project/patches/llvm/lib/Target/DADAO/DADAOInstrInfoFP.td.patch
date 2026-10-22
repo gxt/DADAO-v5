@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
 new file mode 100644
-index 000000000..0e8581ad5
+index 000000000..40f2ceba2
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
 @@ -0,0 +1,553 @@
@@ -272,7 +272,7 @@ index 000000000..0e8581ad5
 +}
 +
 +// minimumNumber/maximumNumber (LLVM-124t; contract-fp.md §minmax =
-+// SimRISC-07 §4.4): RF destination + two RF sources, no rounding and no
++// SimRISC-07 §2.4): RF destination + two RF sources, no rounding and no
 +// exception beyond the sNaN->NV rule, so the operand shape is the plain orrr
 +// one (`dst_rf0` applies: an rf0 destination is an ILLI form).
 +def ftmin_orrr_rf : DADAOOrrr<"ftmin"> {

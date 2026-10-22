@@ -2,7 +2,7 @@
 @@ RUN: %llvm_objdump -d --triple=dadao-unknown-elf %t | %FileCheck %s --check-prefix=OBJ
 @@ RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=asm %s | %FileCheck %s --check-prefix=ASM
 
-@@ orrr format: MISC-octa register operations
+@@ orrr format: OPC-octa register operations
 @@ Encoding: word = (op<<24)|(ha<<18)|(hb<<12)|(hc<<6)|hd
 @@ ha = opx
 

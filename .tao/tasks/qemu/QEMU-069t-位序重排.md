@@ -12,7 +12,7 @@
 
 ### 语义真源
 
-- `spec/SimRISC-07 §7`（`SPEC-156t` 之后的位表）：bit0 sNaN、1 qNaN、2 negativeInfinity、3 negativeNormal、4 negativeSubnormal、5 negativeZero、6 positiveZero、7 positiveSubnormal、8 positiveNormal、9 positiveInfinity；`[63:10]` 清零。
+- `spec/SimRISC-07 §5`（`SPEC-156t` 之后的位表）：bit0 sNaN、1 qNaN、2 negativeInfinity、3 negativeNormal、4 negativeSubnormal、5 negativeZero、6 positiveZero、7 positiveSubnormal、8 positiveNormal、9 positiveInfinity；`[63:10]` 清零。
 - 语义不变：`focls/ftcls` 为 `orri` **块形态**（`immu6` = 1..63，先读后写），源 `rf`、目的 `rd`，不重叠。
 
 ### 现场实现（2026-10-21 核，执行前须复核）
@@ -28,7 +28,7 @@
 ## 目标
 
 1. `fp_classify_one` 的 10 个位号改为新顺序（条件表达式**逐字不动**，避免"顺手改语义"）；
-2. 探针的期望掩码**从 `spec/SimRISC-07 §7` 解析派生**（不再手抄常量），并覆盖 ft/fo 各 10 类；
+2. 探针的期望掩码**从 `spec/SimRISC-07 §5` 解析派生**（不再手抄常量），并覆盖 ft/fo 各 10 类；
 3. 改后 `check_qemu_trans` 计数不变；L1/L2 绿。
 
 ## 接口规范
@@ -51,7 +51,7 @@
 ### B. 探针 oracle 必须独立于实现
 
 - **禁止**把 `CLS` 继续手抄（否则实现与期望可以一起错，测不出）。
-- 做法：证据脚本**解析** `spec/SimRISC-07 §7` 的表格（`| 0 | signalingNaN |` 这类行）得到 `类别→位号`；探针用该映射生成期望；若 spec 缺失/格式变化 ⇒ 显式 FAIL（**不得**静默跳过）。
+- 做法：证据脚本**解析** `spec/SimRISC-07 §5` 的表格（`| 0 | signalingNaN |` 这类行）得到 `类别→位号`；探针用该映射生成期望；若 spec 缺失/格式变化 ⇒ 显式 FAIL（**不得**静默跳过）。
 - 交叉自检：对 `FT_CLASS_VALS` 的 10 个样本，期望掩码两两不同、且互不包含。
 
 ### C. 覆盖面

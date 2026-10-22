@@ -120,7 +120,7 @@ def _classify(insn, fmt):
     parts = base.split('.')
     op = parts[0] if len(parts) > 1 else base
 
-    # Check if this is a MISC-octa/tetra/wyde/byte instruction
+    # Check if this is a OPC-octa/tetra/wyde/byte instruction
     # These are opcodes 0x40-0x43 with orrr/orri format
     is_misc = fmt in ("orrr", "orri")
 

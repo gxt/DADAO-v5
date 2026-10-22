@@ -2,7 +2,7 @@
 
 **模块**：spec
 **项目里程碑**：M9
-**依赖**：`ADR-0032`（**`Accepted`**，`D1`–`D6` 已于 2026-10-19 逐条确认；**开工前置 = `spec/` 改动授权原话落纸**）、`SPEC-141t`（`ror` 预研：候选 A 形态/收益/六环代价）、`SPEC-142t` / `SPEC-143t`（MISC-octa 子表补格 + 只读锁重算先例）、`SPEC-145t` / `SPEC-149t` / `SPEC-150t`（用户授权 + 只读册 `sha256` 同步先例）、`docs/Process-06`（`spec/` 目录保护）
+**依赖**：`ADR-0032`（**`Accepted`**，`D1`–`D6` 已于 2026-10-19 逐条确认；**开工前置 = `spec/` 改动授权原话落纸**）、`SPEC-141t`（`ror` 预研：候选 A 形态/收益/六环代价）、`SPEC-142t` / `SPEC-143t`（OPC-octa 子表补格 + 只读锁重算先例）、`SPEC-145t` / `SPEC-149t` / `SPEC-150t`（用户授权 + 只读册 `sha256` 同步先例）、`docs/Process-06`（`spec/` 目录保护）
 **状态**：已验证
 
 ## 执行环境
@@ -37,14 +37,14 @@
 在不改任何实现的前提下，把**编码真源**改到位并让**规范面门控全绿**：
 
 1. **四张表**（基表 + `SimRISC-08/09/10`）：`ext` 迁 `100/101` 的 `000/001`；`shl` 迁 `010/011` 的 `000` 并去 `u`；`ror` 占 `010/011` 的 `001`（四宽度）。
-2. **语义条文**：`SimRISC-04 §4.2` 与 `SimRISC-08/09/10 §4.2` 增补 `ror` 定义（逻辑循环右移、单向、无 `u/s`、窄位宽取模/越界 ILLI、目的 `rd0` ⇒ ILLI）。
+2. **语义条文**：`SimRISC-04 §2.2` 与 `SimRISC-08/09/10 §2.2` 增补 `ror` 定义（逻辑循环右移、单向、无 `u/s`、窄位宽取模/越界 ILLI、目的 `rd0` ⇒ ILLI）。
 3. **编码投影**：`contracts/opcodes.yaml` 重生成（新增 `scope: m9` 8 条；`check_scope.py` 白名单/计数同步）；`.tao/contracts/contract-isa.md` / `contract-asm-list.md` 同步。
 4. **助记符改名落纸**：`spec/`、契约、生成器、语料/向量/生成 lit 的**机械改名**（语义不动）；引用面**逐条清单**留证据。
 5. **只读锁**：仅对改动册重算 `sha256`，授权原话落本册。
 
 ## 接口规范
 
-- **输入（真源）**：`ADR-0032` `D1`–`D6`（确认后）；`spec/SimRISC-00 §4.2` 四表、`SimRISC-04 §4.2`、`SimRISC-08/09/10 §4.2`；`tools/spec/generate_opcodes.py`；`tools/spec/check_scope.py`；`tools/llvm/gen_asm_list.py`；`tools/testcases/generate_isa_vectors.py`、`generate_lit_vectors.py`；`manifests/spec-readonly.lock.toml`。
+- **输入（真源）**：`ADR-0032` `D1`–`D6`（确认后）；`spec/SimRISC-00 §4.2` 四表、`SimRISC-04 §2.2`、`SimRISC-08/09/10 §2.2`；`tools/spec/generate_opcodes.py`；`tools/spec/check_scope.py`；`tools/llvm/gen_asm_list.py`；`tools/testcases/generate_isa_vectors.py`、`generate_lit_vectors.py`；`manifests/spec-readonly.lock.toml`。
 - **输出**：
   1. `spec/SimRISC-00-指令系统设计.md`（四张表 + 表下例外/说明 + 附录变更记录）；
   2. `spec/SimRISC-04-64位数据运算.md`（`§4.2` 语义 + 逐条表 + 生成区 + 册头分类计数 + 附录）；
@@ -71,7 +71,7 @@
 
 ### 阶段 A：表格（先 `ext` 迁出 → 再 `shl` 迁入 → 再 `ror` 占位）
 
-1. `SimRISC-00` 基表（`MISC-octa`）：
+1. `SimRISC-00` 基表（`OPC-octa`）：
    - `100-000` = `ext.uo`（orrr）、`100-001` = `ext.so`（orrr）；`101-000` = `ext.uo`（orri）、`101-001` = `ext.so`（orri）；
    - `010-000` = `shl.o`（orrr）、`010-001` = `ror.o`（orrr）；`011-000` = `shl.o`（orri）、`011-001` = `ror.o`（orri）；
    - 其余（`shr.uo/so`、`ctpop`/`ctlz`/`cttz`、`cmp` 等）**格位不变**。
@@ -80,11 +80,11 @@
 
 ### 阶段 B：语义条文
 
-1. `SimRISC-04 §4.2`：把 `shl.u` 改 `shl`（含公式块与逐条表）；新增 `ror` 语义块与逐条表：
+1. `SimRISC-04 §2.2`：把 `shl.u` 改 `shl`（含公式块与逐条表）；新增 `ror` 语义块与逐条表：
    - `ror.o: rdHB[63:0] = ror64(rdHC[63:0], amount)`；`amount` = `rdHD[5:0]`（orrr）或 `immu6`（orri，`0..63`）；
    - 窄变体：`ror.t/w/b` 的 `amount` = 源低位 `log2(W)` 位；orri 的 `immu6` 有效 `0..W-1`，越界 ⇒ ILLI；
    - 目的 `rd0` ⇒ ILLI；结果写满（`SPEC-069t` 值语义）。
-2. `SimRISC-08/09/10 §4.2`：同步 `shl` 改名与 `ror` 条文（各自位宽 `W=64/32/16/8`；上位界 `N=W-1`）。
+2. `SimRISC-08/09/10 §2.2`：同步 `shl` 改名与 `ror` 条文（各自位宽 `W=64/32/16/8`；上位界 `N=W-1`）。
 3. 生成区（`<!-- ASSEMBLY_LIST_START -->` …）由 `tools/llvm/gen_asm_list.py` 重生成，**不手改**。
 
 ### 阶段 C：生成器与投影
@@ -112,7 +112,7 @@
 1. **前置**：`ADR-0032` = `Accepted` 且 `D1`–`D6` 逐条确认；本册含用户 `spec/` 授权**原话**；未满足则本册不得报 `待验收`。
 2. **四表逐格**：基表 8 个目标格位（`010-000/001`、`011-000/001`、`100-000/001`、`101-000/001`）与三宽度表的 `010-000/001`、`011-000/001` 与 `ADR-0032` 完全一致；无重复格、无 `ext`/`shl` 残留旧格；`shr`/`cmp`/`ctpop` 等格位不变。逐格证据落盘。
 3. **助记符改名**：活树（排除 `.git`/`.cache`/`.work`/`.tao/archive`/`.dadao`）`shl.u[otwb]` **0 命中**；`shl.s*` 仍 **0**；`shr.s*` 仍 **8**（现场重数，不符须解释）。
-4. **`ror` 语义**：`SimRISC-04 §4.2` 与三宽度册条文含：单向、无 `u/s`、`orrr`/`orri`、`rd` 银行、`0..W-1`（orri 越界 ILLI）、`dst_rd0` ILLI、窄位宽寄存器量取模；与 `ADR-0032 D4` 逐条对齐。
+4. **`ror` 语义**：`SimRISC-04 §2.2` 与三宽度册条文含：单向、无 `u/s`、`orrr`/`orri`、`rd` 银行、`0..W-1`（orri 越界 ILLI）、`dst_rd0` ILLI、窄位宽寄存器量取模；与 `ADR-0032 D4` 逐条对齐。
 5. **门控（本册范围）**：
    - `make validate-encoding` rc=0；
    - `make check-scope` rc=0（`m9` = 8、总数现场派生 = 243）；
@@ -223,7 +223,7 @@
 
 **必改② 独立 oracle（两独立来源）** ✓ 闭合 + **reviewer 独立注入**：
 - 来源 A = `contracts/opcodes.yaml`（机器可读真源）派生网格；来源 B = `spec/` 四表文本；互不派生 ✓。
-- 我的独立注入（改 `opcodes.yaml` 一格，非复用其 self-test）：`cp` 备份 + md5 `4a63ef1f…`；`and.o_orrr_rd` 的 `ha '0x08'→'0x0A'`（diff 恰 1 行）⇒ `check_tables` rc=**1**（`MISC-octa 行001 列010 撞格 xor.o_orrr_rd` + `行001 列000 期望=<无记录>`）；`cp` 还原后 md5 **逐字节一致** `4a63ef1f…` ⇒ rc=**0** 回绿；`git status --porcelain -uall` 空（无残留）。
+- 我的独立注入（改 `opcodes.yaml` 一格，非复用其 self-test）：`cp` 备份 + md5 `4a63ef1f…`；`and.o_orrr_rd` 的 `ha '0x08'→'0x0A'`（diff 恰 1 行）⇒ `check_tables` rc=**1**（`OPC-octa 行001 列010 撞格 xor.o_orrr_rd` + `行001 列000 期望=<无记录>`）；`cp` 还原后 md5 **逐字节一致** `4a63ef1f…` ⇒ rc=**0** 回绿；`git status --porcelain -uall` 空（无残留）。
 
 **必改③ 假红 / 日志名** ✓ 闭合：
 - `bash .work/evidence/SPEC-152t/run.sh`（我自跑）rc=**0**，**25/25 PASS**：`check-instrinfo`/`check-isa-coverage`/`check-interface` 已是**必绿断言**（`期望=0 实际=0`），`grep -nE '预期红|expect_red|XFAIL|allow_fail|rc=2'` **0 命中**（rc=1）⇒ 无假红残留。

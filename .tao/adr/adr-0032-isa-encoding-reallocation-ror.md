@@ -4,7 +4,7 @@
 **日期**：2026-10-19
 **修订**：2026-10-19 —— `D4` 就地修订：新增指令由 `ror`（循环右移）改为 **`rol`（循环左移）**，**编码槽不变**（见文末 `## 修订`）
 **决策者**：用户（`D1`–`D6` 2026-10-19 逐条确认，原话见 `## 状态说明`）
-**关联**：`ADR-0012`（`D4` `spec/` 只读策略、`D10`/`D11` 新增指令先例）、`ADR-0029`（改名 + `spec/` 授权 + 只读锁重算先例）、`SPEC-141t`（`ror` 预研：候选 A 形态/收益/六环代价）、`SPEC-142t`/`SPEC-143t`（MISC-octa 子表改格先例）、`spec/SimRISC-00 §4.2` / `SimRISC-04 §4.2` / `SimRISC-08/09/10 §4.2`、`contracts/opcodes.yaml`、`.tao/contracts/contract-isa.md`、`manifests/spec-readonly.lock.toml`；落点三册 = `SPEC-152t` / `LLVM-116t` / `QEMU-064t`；issue = `ISS-291`
+**关联**：`ADR-0012`（`D4` `spec/` 只读策略、`D10`/`D11` 新增指令先例）、`ADR-0029`（改名 + `spec/` 授权 + 只读锁重算先例）、`SPEC-141t`（`ror` 预研：候选 A 形态/收益/六环代价）、`SPEC-142t`/`SPEC-143t`（OPC-octa 子表改格先例）、`spec/SimRISC-00 §4.2` / `SimRISC-04 §2.2` / `SimRISC-08/09/10 §2.2`、`contracts/opcodes.yaml`、`.tao/contracts/contract-isa.md`、`manifests/spec-readonly.lock.toml`；落点三册 = `SPEC-152t` / `LLVM-116t` / `QEMU-064t`；issue = `ISS-291`
 
 > **边界（本笔）**：**未改** `spec/` ✗、**未改** `contracts/**` 或 `.tao/contracts/**` ✗、**未改** `components/**` / 任何实现 ✗、**未改**任何任务书 `**状态**` ✗。本 ADR 只记**决策 / 理由 / 被否 / 落点**（`docs/Process-03`「ADR 不承载规范正文」）。**`spec/` 改动须用户原话授权**（`docs/Process-06`）；本 ADR 起草时为 `Proposed`（2026-10-19 已转 `Accepted`），**确认后才动**。
 
@@ -24,7 +24,7 @@
 
 ### 现场事实（主会话 2026-10-19 已核；本 ADR 引录，执行册仍须现场复核）
 
-1. **基表（MISC-octa，`op = 0x40`）现状**：`010-000` = `ext.uo`（orrr）、`010-001` = `ext.so`（orrr）、`010-010/011` = `shr.uo/so`（orrr）、`010-100` = `shl.uo`（orrr）；`011-000/001` = `ext.uo/so`（orri）、`011-010/011` = `shr.uo/so`（orri）、`011-100` = `shl.uo`（orri）。
+1. **基表（OPC-octa，`op = 0x40`）现状**：`010-000` = `ext.uo`（orrr）、`010-001` = `ext.so`（orrr）、`010-010/011` = `shr.uo/so`（orrr）、`010-100` = `shl.uo`（orrr）；`011-000/001` = `ext.uo/so`（orri）、`011-010/011` = `shr.uo/so`（orri）、`011-100` = `shl.uo`（orri）。
 2. **三个宽度子表（`SimRISC-08/09/10`，`op = 0x41/0x42/0x43`）现状**：`010-000/001` **空**；`010-010/011` = `shr.u*/s*`；`010-100` = `shl.u*`；`011-000/001` **空**；`011-010/011` = `shr.u*/s*`；`011-100` = `shl.u*`。
 3. **目标格位空闲**：基表 `100-000` / `100-001` / `101-000` / `101-001` **全空** ⇒ `ext` 可整体迁入；宽度子表的 `010-000/001`、`011-000/001` **空** ⇒ `shl`/`ror` 可放入。
 4. **`shl` 只有 `u` 变体**：`spec/` 内 `shl.s*` 命中 **0**；`shr.s*` 命中 **8**（`shr` 确实分 `u/s`）⇒ `shl` 的 `u` 后缀不承载信息。
@@ -124,7 +124,7 @@
 
 **决定**：
 
-- **规范面（`SPEC-152t`）**：`spec/SimRISC-00` 四张表（基表 + `08/09/10` 三宽度表）；`SimRISC-04 §4.2` 语义/逐条表 + 生成区（汇编速查）；`SimRISC-08/09/10 §4.2` 同步；`Toolchain-01` 现场核（若出现 `shl.u*`/编码示例则改，否则不改并留证据）；`contracts/opcodes.yaml` 重生成；`.tao/contracts/contract-isa.md`（`§2.8`/附录 A、`§6.4.1`、`§6.4.5`）与 `contract-asm-list.md` 重生成；`tools/spec/generate_opcodes.py`（`ha`/助记符/`scope: m9`）、`tools/spec/check_scope.py`（白名单 + 计数）、语料/向量的**机械改名**；`manifests/spec-readonly.lock.toml` 仅对改动册重算 `sha256`。
+- **规范面（`SPEC-152t`）**：`spec/SimRISC-00` 四张表（基表 + `08/09/10` 三宽度表）；`SimRISC-04 §2.2` 语义/逐条表 + 生成区（汇编速查）；`SimRISC-08/09/10 §2.2` 同步；`Toolchain-01` 现场核（若出现 `shl.u*`/编码示例则改，否则不改并留证据）；`contracts/opcodes.yaml` 重生成；`.tao/contracts/contract-isa.md`（`§2.8`/附录 A、`§6.4.1`、`§6.4.5`）与 `contract-asm-list.md` 重生成；`tools/spec/generate_opcodes.py`（`ha`/助记符/`scope: m9`）、`tools/spec/check_scope.py`（白名单 + 计数）、语料/向量的**机械改名**；`manifests/spec-readonly.lock.toml` 仅对改动册重算 `sha256`。
 - **后端面（`LLVM-116t`）**：`.td` 编码/助记符/id、MC/AsmParser、`ISD::ROTL` 直配 `rol.o`（`ROTR` 以 `rol(x, W-n)` 表达）；**`ISD::ROTL`/`ROTR` 的 `Expand` 口径重新判定**（`LLVM-099t` 的注释与动作以「无 rotate 指令」为前提，现已失效）——**现场判并给依据**（合法/自定义/展开三选一，含常量/变量两条路径的指令数证据）；`make install-host`。
 - **模拟器面（`QEMU-064t`）**：`insn.decode` 重生成 + `trans_*` 改名/新增 + L3 语义向量（**独立 oracle**：期望值按 `rol` 定义手算，不从 QEMU/LLVM 反推）+ `build-qemu`/`install-host`。
 - **验证面**：`validate-encoding` / `check-scope` / `check-rule-refs` / `check-legality-invariants` / `check-spec-*` / `check-asm-list*` / `check-lit-gen` / `validate-vectors`（规范面）；`check-instrinfo` / `check-isa-coverage` / `check-lit`（后端面）；`check-interface` / `check-qemu-smoke` / `check-qemu-semantics` / L1·L2·L3（模拟器面收口）。**每条断言须有可达 FAIL 路径**（`--self-test` 或注入）。

@@ -30,7 +30,7 @@ M1 测试机（`dadao-m1`）地址图采用 spec 的**核内地址空间模型**
 - 所有区域地址均为 48-bit 核内有效地址：`bits[63:48] = 0`，高 16 位在地址计算时被硬件忽略 [contract-isa §1.5]。三个区域与 unmapped 判定均按有效地址低 48 位进行。
 - **boot ROM 起址 `0xffff_ffff_0000` 即 spec 的 `cfx_power_hypv_excp_vector`**（cfxha 63 / power，64 KiB）[DADAO-12 §2.1][DADAO-23 §3]。M1 **仅借用该复位地址**作为 boot ROM，**不复现** spec 的复位运行模式（`inner_run_mode=hypv`、`inner_cfx_code=cfx_power`、`inner_cfx_mask=全 1`）等 HBI/SEE 语义（M1 无 SEE/HBI/hypv）。
 - RAM 与 Exit port 亦位于 cfxha 63 段内（`bits[47:42]=63`）。`spec/` 的核内地址空间属 cfx 访问域，而 RAM 属 64-bit 物理地址空间；M1 无 MMU（VA=PA）、无 cfx，故测试机把这些地址统一作裸机地址使用——属**测试机约定**，非 spec 的 cfx 语义。
-- boot ROM 64 KiB 足以容纳最小 trampoline（D6，实际约 5 条指令）；未使用 ROM 读为零（**全零字现为保留编码**：`MISC-AMO` 子表的 op 为 `0111-0111`（`0x77`）⇒ 全零字若被执行触发 **UNDI**，但 trampoline 会在越过有效代码前跳转离开，见 D6）。（2026-10-01 就地修订：依据 `SPEC-068t`，`MISC-AMO` 编码 `0000-0000`→`0111-0111`；**已经用户逐条确认**）（2026-10-06 注记同步：依据 `ADR-0012 D3.5`，MISC-AMO 子表编码调整——原 `000-000` 指令删除、`fence` 移至 `000-000`（`0x77000000`）、`swym` 移至 `100-010`（`0x77880000`））
+- boot ROM 64 KiB 足以容纳最小 trampoline（D6，实际约 5 条指令）；未使用 ROM 读为零（**全零字现为保留编码**：`OPC-MISC` 子表的 op 为 `0111-0111`（`0x77`）⇒ 全零字若被执行触发 **UNDI**，但 trampoline 会在越过有效代码前跳转离开，见 D6）。（2026-10-01 就地修订：依据 `SPEC-068t`，`OPC-MISC` 编码 `0000-0000`→`0111-0111`；**已经用户逐条确认**）（2026-10-06 注记同步：依据 `ADR-0012 D3.5`，OPC-MISC 子表编码调整——原 `000-000` 指令删除、`fence` 移至 `000-000`（`0x77000000`）、`swym` 移至 `100-010`（`0x77880000`））
 - RAM 16 MiB 提供测试程序 + 栈 + scratch 空间；栈位于 RAM 高地址端、向下增长（`SP = rb1`）[contract-abi §2.1]。
 - 所有区域边界均 8 B 对齐，因此**任何自然对齐的访问都不会跨越区域边界**（跨边界只可能发生在未对齐访问上，按 D4 归 MALIGN）。
 - 「无 spec 依据，架构自定义」：RAM/Exit port 的具体地址、以及「测试机整体占用 cfxha 63 段」均为测试机约定；`spec/` 只规定 cfxha 63 的复位向量 `0xffff_ffff_0000`。

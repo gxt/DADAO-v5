@@ -42,7 +42,7 @@
 
 **裁定原话**：「甲」= **按数据宽度对齐**：`.b`=1 / `.w`=2 / `.t`=4 / `.o`=8 字节自然对齐；不满足 ⇒ **MALIGN**。
 
-> **标签对照（勿混）**：用户裁定编号「甲」= 按数据宽度对齐（即本册旧文「乙」项）；旧文「甲」（全族 8 B）作废。`ADR-0034 D6` 已就地修订、`spec/SimRISC-12 §3.2` 已订正（编码/lowering 不变）。
+> **标签对照（勿混）**：用户裁定编号「甲」= 按数据宽度对齐（即本册旧文「乙」项）；旧文「甲」（全族 8 B）作废。`ADR-0034 D6` 已就地修订、`spec/SimRISC-11 §4.2` 已订正（编码/lowering 不变）。
 
 **对向量与实现的具体影响**：
 
@@ -63,7 +63,7 @@
 ## 接口规范
 
 **输入**（只读）：
-- `ADR-0034`（`D1`–`D7`）+ `spec/SimRISC-12 §3.1/§3.2`（语义正文）、`contracts/opcodes.yaml`（259 条，`lr/sc` 的 `ha`/`fields` 与编码）。
+- `ADR-0034`（`D1`–`D7`）+ `spec/SimRISC-11 §4.1/§4.2`（语义正文）、`contracts/opcodes.yaml`（259 条，`lr/sc` 的 `ha`/`fields` 与编码）。
 - 现有补丁树 `components/qemu/patches/target/dadao/**`；`.work/source/qemu/**`（**只读参照**，交付只走 `patches/**`）。
 - 向量 schema 先例 `tests/vectors/isa/mem-rd.yaml`、运行器 `tests/scripts/run_qemu_test.py`（`build_binary`/`interpret_exit_code`）、二进制构造 `tests/scripts/build_test_binary.py`。
 

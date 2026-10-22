@@ -1,6 +1,6 @@
 diff --git a/linux-user/dadao/signal.c b/linux-user/dadao/signal.c
 new file mode 100644
-index 0000000..b977617
+index 0000000..b36108c
 --- /dev/null
 +++ b/linux-user/dadao/signal.c
 @@ -0,0 +1,234 @@
@@ -149,7 +149,7 @@ index 0000000..b977617
 +
 +    /*
 +     * Entering a signal handler is "exception/interrupt entry" for LR/SC
-+     * purposes (SimRISC-12 §3.2): the reservation is gone, so an `sc` after
++     * purposes (SimRISC-11 §4.2): the reservation is gone, so an `sc` after
 +     * the handler returns can never succeed (QEMU-067t).
 +     */
 +    env->lock_valid = 0;

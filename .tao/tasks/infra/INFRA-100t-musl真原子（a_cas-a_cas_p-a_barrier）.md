@@ -35,7 +35,7 @@
 
 **裁定原话**：「甲」= **按数据宽度对齐**：`.b`=1 / `.w`=2 / `.t`=4 / `.o`=8 字节自然对齐；不满足 ⇒ **MALIGN**。
 
-> **标签对照（勿混）**：用户裁定编号「甲」= 按数据宽度对齐（即本册旧文「乙」项）；旧文「甲」（全族 8 B）作废。`ADR-0034 D6` 已就地修订、`spec/SimRISC-12 §3.2` 已订正。
+> **标签对照（勿混）**：用户裁定编号「甲」= 按数据宽度对齐（即本册旧文「乙」项）；旧文「甲」（全族 8 B）作废。`ADR-0034 D6` 已就地修订、`spec/SimRISC-11 §4.2` 已订正。
 
 **对本册的具体影响**：
 
@@ -46,7 +46,7 @@
 
 1. `a_cas`（32 位）改为**真**原子（`lr/sc` 环；形态按上节裁定）。
 2. `a_cas_p`（64 位指针）改为真原子：`lr.o.an`+`sc.o.ar` 环，**指针（`rd` bank 值）→ 地址（`rb` bank）用 `rd2rb`**，返回原值（`rd` bank）。
-3. `a_barrier` 改为硬件 `fence`（full barrier：`PRED_R|PRED_W|SUCC_R|SUCC_W`，即 `immu18 = 0x00C3`，见 `SimRISC-12 §3.1` 例）。
+3. `a_barrier` 改为硬件 `fence`（full barrier：`PRED_R|PRED_W|SUCC_R|SUCC_W`，即 `immu18 = 0x00C3`，见 `SimRISC-11 §4.1` 例）。
 4. **删掉**文件头「SINGLE-THREADED, NOT REAL ATOMICS」整块与「多线程可达后必须替换」的过期论证；改成「真原子 + 依赖 `lr/sc`/`fence` + 保留粒度/对齐前提」的真实描述（**不得**只删不写）。
 5. `build-musl` / `build-musl-shared` / `check-musl-freshness` 绿；`4×250000` 互斥计数**精确** = `1,000,000`；`TESTCASES-047t` 19 目标用例**不回退**。
 
@@ -54,7 +54,7 @@
 
 **输入**（只读）：
 - `components/musl/patches/arch/dadao/atomic_arch.h.patch`（现状）、`src/internal/atomic.h`（通用回退契约：**只要 3 个原语**）、`arch/dadao/pthread_arch.h`（`register ... __asm__("rdN")` 惯用法先例）、`arch/dadao/syscall_arch.h`（多寄存器绑定先例）。
-- `SimRISC-12 §3.1/§3.2`（`fence` 立即数常量与 `lr/sc` 语义）、`contract-asm`（`rd2rb`/`rb2rd` 记法）、`contract-abi §1.3`（`rd`/`rb` bank 职责）。
+- `SimRISC-11 §4.1/§4.2`（`fence` 立即数常量与 `lr/sc` 语义）、`contract-asm`（`rd2rb`/`rb2rd` 记法）、`contract-abi §1.3`（`rd`/`rb` bank 职责）。
 - `Makefile` 的 `build-musl` / `build-musl-shared` / `install-host` / `check-musl-freshness`。
 
 **输出**（交付物）：
@@ -96,7 +96,7 @@
 ```
 __asm__ __volatile__("fence <imm>" : : : "memory");
 ```
-`imm = PRED_R|PRED_W|SUCC_R|SUCC_W = 0x00C3`（full barrier；`SimRISC-12 §3.1` 的示例值，编码 `0x778000C3`）。**保留** `"memory"` clobber（编译器侧仍需）。若用户/实现需要更强（含 I/O），可用 `0x03CF`（`pred/succ` 全类型）——须在完成区记录所选值。
+`imm = PRED_R|PRED_W|SUCC_R|SUCC_W = 0x00C3`（full barrier；`SimRISC-11 §4.1` 的示例值，编码 `0x778000C3`）。**保留** `"memory"` clobber（编译器侧仍需）。若用户/实现需要更强（含 I/O），可用 `0x03CF`（`pred/succ` 全类型）——须在完成区记录所选值。
 
 ### D. 文件头改写（**不是删了就算**）
 

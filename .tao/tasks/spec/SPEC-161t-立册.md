@@ -1,4 +1,4 @@
-# SPEC-161t: `ftrnd`/`fornd` 立册（754-2019 六种取整，one-hot `immu6`，MISC-RF）
+# SPEC-161t: `ftrnd`/`fornd` 立册（754-2019 六种取整，one-hot `immu6`，OPC-RF）
 
 **模块**：spec
 **项目里程碑**：M9（FP 完备性）
@@ -41,7 +41,7 @@
 ### 现场事实（2026-10-21 核，执行前须复核）
 
 - `rf0[33:32]` 仅 4 档：`00 RNE / 01 RTZ / 10 RDN / 11 RUP` —— **没有 RMM** ⇒ `round`（远离 0）**无法**用 `rf0` 表达，必须编码静态方向（本册因此需要 `0x02`）。
-- FP 族：`op=0x44`（MISC-RF），`ha`=opx；`ft` 组在前、`fo` 组 +8；**`0x03`/`0x0B` 现场为空** ✓。
+- FP 族：`op=0x44`（OPC-RF），`ha`=opx；`ft` 组在前、`fo` 组 +8；**`0x03`/`0x0B` 现场为空** ✓。
 - `encode_onehot` 规则已存在（`rev.o_orri_rd`）：**immu6 非 one-hot ⇒ ILLI** ⇒ 6 位内恰好只有 6 个 one-hot 值，与本节 6 种操作**一一对应**，**无需新增合法性规则** ✓。
 - `check_fp_contract.py`：12 族 / `fp` 60（FMA、minmax 链落地后为 14 族 / 66）⇒ 本册记录为 `excluded`，**不动族表**。
 
@@ -126,7 +126,7 @@ fornd rfHB, rfHC, immu6     @ op=0x44, ha=0x0B (001-011)
 
 **重跑记录（reviewer 自跑，rc=各命令自身）**：`check-scope` rc=0（fp=58/excluded=29/total=260/m1=156/m3=1/m8=7/m9=9，新增两向判据均 0 条违例）；`validate-encoding` rc=0（260 条 OK）；`check-rule-refs`/`check-instrinfo`/`check-isa-coverage`/`check-fp-contract` rc=0；`check-spec-{refs,drift,numbering,changelog,archive,readonly,codeblocks}` rc=0；`check-asm-list{,-drift,-prose}`/`check-legality-{drift,invariants}`/`validate-vectors`/`check-contracts-pending`/`check-milestones-fresh` rc=0；`check_lit_gen.py` rc=0（64/64）；`check_issues.py` rc=0（57 open/37 closed）；**`make check`(L1) rc=0（38 s）**。生成物幂等：`generate_opcodes`/`gen_asm_list --embed-spec`/`gen_legality_list --apply`/`generate_lit_vectors`/`gen_isa_coverage` 逐个 rc=0 且 `git status --porcelain` 前后无变化。
 
-**约束核验**：① 记录字段逐条核对 —— `ftrnd` op=0x44/ha=0x03/value=0x440C0000、`fornd` ha=0x0B/value=0x442C0000，`orri`、`scope: excluded`、`decode: ILLI`、legality = `rfhb != rf0` + 6 值 one-hot 表达式；`op=0x44` 族内 46 条 ha 现场分布无重复，`0x03/0x0B` 原空位（§4.6 两格与表一致）。② 独立重算 Counter：m1 156/fp 58/excluded 29/m9 9/m8 7/m3 1，total 260。③ 语义面：`SimRISC-07 §4.3` 六档表 6 行、与 754-2019 六操作位序对应；`0x20` 读 `rf0[33:32]` 且**只有它置 NX**；`nearbyint` 偏差 + `rf0[33:32]` 不扩充两项在 `SimRISC-07 §4.3` 与 `contract-fp.md §18 roundint`（锚点在）均可见；`check_fp_contract` id=58、12 族不变（fp 未受污染）。④ 越界披露复核：`SimRISC-00` §4.6 两格 + §4 `fp 60→58` 残留订正**必要且正确**（`SPEC-163t` 删 `cs.eq/ne` 后的残留，锁注释已落授权指针）；`gen-excluded.s` 为 `generate_lit_vectors.py` **生成物重生成**（reviewer 重跑幂等），非手改，`_negative_text` 补 orri 反例形态系 `check_lit_gen` 全集覆盖要求所致，已披露。⑤ `rule_refs: []` 与 fence/lr/sc 29 条 excluded 口径一致。⑥ 未提交/未 push、未落 `.EXIT`、临时产物在 `/tmp/opencode/SPEC-161t-review/`。
+**约束核验**：① 记录字段逐条核对 —— `ftrnd` op=0x44/ha=0x03/value=0x440C0000、`fornd` ha=0x0B/value=0x442C0000，`orri`、`scope: excluded`、`decode: ILLI`、legality = `rfhb != rf0` + 6 值 one-hot 表达式；`op=0x44` 族内 46 条 ha 现场分布无重复，`0x03/0x0B` 原空位（§4.6 两格与表一致）。② 独立重算 Counter：m1 156/fp 58/excluded 29/m9 9/m8 7/m3 1，total 260。③ 语义面：`SimRISC-07 §2.3` 六档表 6 行、与 754-2019 六操作位序对应；`0x20` 读 `rf0[33:32]` 且**只有它置 NX**；`nearbyint` 偏差 + `rf0[33:32]` 不扩充两项在 `SimRISC-07 §2.3` 与 `contract-fp.md §18 roundint`（锚点在）均可见；`check_fp_contract` id=58、12 族不变（fp 未受污染）。④ 越界披露复核：`SimRISC-00` §4.6 两格 + §4 `fp 60→58` 残留订正**必要且正确**（`SPEC-163t` 删 `cs.eq/ne` 后的残留，锁注释已落授权指针）；`gen-excluded.s` 为 `generate_lit_vectors.py` **生成物重生成**（reviewer 重跑幂等），非手改，`_negative_text` 补 orri 反例形态系 `check_lit_gen` 全集覆盖要求所致，已披露。⑤ `rule_refs: []` 与 fence/lr/sc 29 条 excluded 口径一致。⑥ 未提交/未 push、未落 `.EXIT`、临时产物在 `/tmp/opencode/SPEC-161t-review/`。
 
 **独立注入**（`cp`+md5，禁 checkout）：`check_scope.py` `EXPECTED_EXCLUDED 29→27` ⇒ md5 `123fab30…→a453f16a…`，`check-scope` **rc=1**（`[FAIL] excluded 计数: 期望=27 实际=29`）；`cp` 还原 ⇒ md5 相等、rc=0。**L2 预期红确认**：`check_qemu_trans --strict` rc=1、`258/260`，MISSING 恰为 `trans_ftrnd_orri_rf`/`trans_fornd_orri_rf` —— 与任务书口径及 `ISS-322` 登记（resolved_by: null，`QEMU-072t` 关闭）一致，**不计本册失败**。
 

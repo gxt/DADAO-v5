@@ -1,6 +1,6 @@
 @@ smoke_add: E2E smoke test — RD arithmetic + XOR+ORR comparison
 @@ Tests: set.zw (RD immediate), add.si (riii add-immediate),
-@@        xor.o (orrr XOR — MISC-octa), or.o (orrr OR — MISC-octa)
+@@        xor.o (orrr XOR — OPC-octa), or.o (orrr OR — OPC-octa)
 @@ Comparison pattern: XOR+ORR (ADR-0009 D2)
 @@ Exit channel: semihosting SYS_EXIT (ADR-0020 D8; replaces the legacy MMIO halt device).
 @@   rd16 = service number 0x18 (SYS_EXIT); rb16 = argument-block pointer.

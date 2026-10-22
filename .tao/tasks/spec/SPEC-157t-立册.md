@@ -12,7 +12,7 @@
 
 ### 用户裁定（2026-10-21，原话）
 
-> 「增加任务：ftfma/fofma指令，orrr格式，点积型，MISC-RF，opx为100-010/101-010」
+> 「增加任务：ftfma/fofma指令，orrr格式，点积型，OPC-RF，opx为100-010/101-010」
 > 「格式改为rrrr，即4个操作数；编码改为ftfma/fofma：0100-0110/0100-0111」（2026-10-22 修订，**以本条为准**）
 
 助记符经确认为 **`fma`**（非 `madd`/`fla`）：FMA 是 IEEE 754 `fusedMultiplyAdd`、LLVM `llvm.fma`、C `fma()` 的通用名；`madd` 会与"`fomul` 再 `foadd`"混淆，`fla` 不表意。
@@ -21,7 +21,7 @@
 
 - **`rrrr` = 4 个寄存器槽**（`ha`/`hb`/`hc`/`hd`），本册用作 **1 目的 + 3 源**：`rfHA ← rfHB × rfHC + rfHD`；**`dst_dual_same` 不适用**（那是 `add.uo`/`mul.uo` 等 2 目的形态的规则）。
 - 编码落 **`0101-1xxx` 行**：原 `cs.eq_rrrr_rf = 0x5E`（`0101-1110`）、`cs.ne_rrrr_rf = 0x5F`（`0101-1111`）**已由 `SPEC-163t` 删除腾出** ⇒ 取 **`ftfma = 0x5E`、`fofma = 0x5F`**。
-- `rrrr` 无 opx ⇒ 每条占一个整 op 字节（这是选主表的代价）；MISC-RF 的 `0x22`/`0x2A` **不再占用**（留空）。
+- `rrrr` 无 opx ⇒ 每条占一个整 op 字节（这是选主表的代价）；OPC-RF 的 `0x22`/`0x2A` **不再占用**（留空）。
 - 汇编形态为**四个普通寄存器**（不是 `{rdA,rdB}` 双目的写法）⇒ `gen_asm_list` **不得**按双目的渲染。
 - 现有 `SimRISC-07 §1.1` 速查 = **44 条**（`scope: fp（已实现）`）；加两条 ⇒ 46 条。
 - `check_fp_contract.py` 把 FP 分 **12 族**并写死 `fp` 计数 **60**；`scope: excluded` 的记录**不**进 `fp_semantics.yaml` ⇒ 本册**不动**族表/计数（族 `fma` 与 `fp 60→62` 留到 `SPEC-158t` 翻转时）。

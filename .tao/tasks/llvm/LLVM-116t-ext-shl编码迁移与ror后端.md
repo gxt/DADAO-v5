@@ -31,7 +31,7 @@
 
 ## 接口规范
 
-- **输入**：`contracts/opcodes.yaml`（`SPEC-152t` 后）；`spec/SimRISC-04 §4.2`（`ror` 语义）；`.td` 现有定义与 `DADAOOrrr`/`DADAOOrri` 类；`DADAOISelLowering` 的 `LLVM-099t` 段；`llvm-mc`/`llc`/`clang` 安装根（`ADR-0016`，路径从 `manifests/` 取，不硬编码）。
+- **输入**：`contracts/opcodes.yaml`（`SPEC-152t` 后）；`spec/SimRISC-04 §2.2`（`ror` 语义）；`.td` 现有定义与 `DADAOOrrr`/`DADAOOrri` 类；`DADAOISelLowering` 的 `LLVM-099t` 段；`llvm-mc`/`llc`/`clang` 安装根（`ADR-0016`，路径从 `manifests/` 取，不硬编码）。
 - **输出**：
   1. `components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOInstrInfo.td.patch`（编码/助记符/def 名 + `ror` 定义）；
   2. `DADAOCodeGen.td.patch`（`shl_o_*` 改名 + `ror` pattern；`ROTL` 若归一则加 pattern）；

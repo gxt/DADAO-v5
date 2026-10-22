@@ -35,7 +35,7 @@
 ### 现场事实（2026-10-21 核）
 
 1. **QFC 主表 `0101-0xxx` 现状**：`add.uo`=0x50、`add.so`=0x51、`sub.uo`=0x52、`sub.so`=0x53、`mul.uo`=0x54、`mul.so`=0x55（均 `rrrr`，双目的）；第 7 格（`xxx=110` ⇒ **op `0x56`**）与第 8 格（`0x57`）为空（reserved）。
-2. **`rrrr` 双目的语义已定**（`SimRISC-04 §3.1`/`§3.4`）：`rdHA` 存结果高 64 位、`rdHB` 存低 64 位；`rdHA`/`rdHB` 可单侧为 `rd0`（丢弃该半），**不得同时为 `rd0`**、**不得为同一非 `rd0` 寄存器** ⇒ 违者 ILLI（规则 `dst_dual_same`）。
+2. **`rrrr` 双目的语义已定**（`SimRISC-04 §1.1`/`§3.4`）：`rdHA` 存结果高 64 位、`rdHB` 存低 64 位；`rdHA`/`rdHB` 可单侧为 `rd0`（丢弃该半），**不得同时为 `rd0`**、**不得为同一非 `rd0` 寄存器** ⇒ 违者 ILLI（规则 `dst_dual_same`）。
 3. **`opcodes.yaml` 现 259 条**（`excluded` 27 条）；`scope: excluded` ⇔ `decode: ILLI`，与「编码已定、尚未实现」口径一致（`ADR-0034` 同型）。
 
 ### 命中 ADR 判据（`docs/Process-03`）
@@ -85,11 +85,11 @@ ISA 候选的取舍判据 = **目标应用域的能力需求 + 软硬件代价�
 
 ### D6 — `rd0` 规则：与 `mul.uo` 同
 
-`rdHA`/`rdHB` **允许单侧为 `rd0`**（丢弃对应半结果）；**不得同时为 `rd0`**、**不得为同一非 `rd0` 寄存器** ⇒ 违者 **ILLI**（规则 `dst_dual_same`，`SimRISC-04 §3.1` 同口径）。
+`rdHA`/`rdHB` **允许单侧为 `rd0`**（丢弃对应半结果）；**不得同时为 `rd0`**、**不得为同一非 `rd0` 寄存器** ⇒ 违者 **ILLI**（规则 `dst_dual_same`，`SimRISC-04 §1.1` 同口径）。
 
 **理由**：`rrrr` 双目的的既有合法性契约对本条同样适用（`contracts/opcodes.yaml` 的 `dst_dual_same` 表达式复用）。
 生成器侧 `scope: excluded` 默认清空 `rule_refs`，本条以**显式例外**保留该引用（`EXCLUDED_KEEP_RULE_REFS`），
-以便 `SimRISC-04 §2` 的 `dst_dual_same` 清单（由 `rule_refs` 派生）列明 `clmul.o`。
+以便 `SimRISC-04 附录 B` 的 `dst_dual_same` 清单（由 `rule_refs` 派生）列明 `clmul.o`。
 
 ### D7 — 实现状态：本轮只定编码与语义，`scope = excluded`
 

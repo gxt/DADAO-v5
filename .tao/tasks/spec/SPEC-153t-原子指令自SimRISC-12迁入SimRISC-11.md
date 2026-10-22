@@ -18,8 +18,8 @@
   4. **生成器结构硬约束（关键，决定了本册的做法）**：`tools/llvm/gen_asm_list.py` 与 `tools/spec/gen_legality_list.py` 共用 `classify()` + `CLASS_TO_SPEC`，**一册 ⇔ 一分类**（`_section_content()` 固定输出 `### 1.1`；`check_asm_list_consistency.py` 按分类整块比对）。⇒ **不能**把两个分类映射到同一册（后写者覆盖前块）。故迁移生成区的唯一自洽改法 = **`classify()` 的「待定」分支收窄为 `cfxld`/`cfxst`**，`fence` 与 `lr.*`/`sc.*` 落入既有 `其它` 分支（`gen_asm_list.py` 里已有 `lr_/sc_` → `其它` 的兜底行，`fence` 落到末行兜底 ⇒ 同为 `其它`）。
   5. **静态文案陷阱（门控不会报，必须手改）**：`tools/llvm/gen_asm_list.py` 生成 `contract-asm-list.md` 的册头两条静态句——「**分章**：… / **deferred**（原「待定」；暂不归类：`cfxld`/`cfxst`/`fence`/`lr.*`/`sc.*`）」与「**范围与状态**：… 其余 `{n_m1}` 条为 `scope: m1`」。迁走后 `deferred` 只剩 2 条而 `scope: excluded` 仍 27 条，「其余 = m1」变成**假命题**；须同笔订正（`check-asm-list-drift` 只比生成器 ↔ 生成物，两边同错仍绿 ⇒ 靠本册验收兜住）。
   6. `check_numbering` 要求 `##` 编号**连续**：`SimRISC-12` 删 §3 后，原 `## 4. SRAM块传输指令` **必须重编为 `## 3.`**。
-  7. `check_spec_refs` 只审计 `.tao/contracts/contract-*.md`：`contract-isa.md §14` 现有多处 `[SimRISC-12 §fence指令]`、`[SimRISC-12 §LR-SC指令]`；迁走后这两类引用**悬空** ⇒ 必须把引用文本改指 `SimRISC-11`（**只改指针，正文语义一字不动**）。`[SimRISC-12 §SRAM块传输指令]` **保持不动**。
-  8. **`contracts/opcodes.yaml` 的 `spec_cite` 不在本册**：25 条记录仍写 `SimRISC-12 §fence指令`/`§LR-SC指令`（生成器 `tools/spec/generate_opcodes.py::S12_FENCE/S12_LRSC` 硬编码），改它须重生成 `contracts/opcodes.yaml` ⇒ **本册按派单边界不改 `contracts/`**，登记为遗留（见「不留白的边界」）。
+  7. `check_spec_refs` 只审计 `.tao/contracts/contract-*.md`：`contract-isa.md §14` 现有多处 `[SimRISC-11 §fence指令]`、`[SimRISC-11 §LR-SC指令]`；迁走后这两类引用**悬空** ⇒ 必须把引用文本改指 `SimRISC-11`（**只改指针，正文语义一字不动**）。`[SimRISC-12 §SRAM块传输指令]` **保持不动**。
+  8. **`contracts/opcodes.yaml` 的 `spec_cite` 不在本册**：25 条记录仍写 `SimRISC-11 §fence指令`/`§LR-SC指令`（生成器 `tools/spec/generate_opcodes.py::S12_FENCE/S12_LRSC` 硬编码），改它须重生成 `contracts/opcodes.yaml` ⇒ **本册按派单边界不改 `contracts/`**，登记为遗留（见「不留白的边界」）。
   9. 只读锁：`manifests/spec-readonly.lock.toml` 覆盖 `SimRISC-11`（`80a10eda…`）与 `SimRISC-12`（`53418495…`），改册同笔须重算（`docs/Process-06 §5`）。
 
 ## 用户授权（`spec/` 改动，逐字）
@@ -43,13 +43,13 @@
 - **输入（真源）**：
   - `spec/SimRISC-12-待定.md`（迁移源，`master` 版本 = `git show master:spec/SimRISC-12-待定.md`）；
   - `spec/SimRISC-11-其它.md`（迁入目标）；
-  - `contracts/opcodes.yaml`（**只读**：25 条 `spec_cite ∈ {SimRISC-12 §fence指令, SimRISC-12 §LR-SC指令}` 的 `id` 集合 = 集合不变式的**独立 oracle**）；
+  - `contracts/opcodes.yaml`（**只读**：25 条 `spec_cite ∈ {SimRISC-11 §fence指令, SimRISC-11 §LR-SC指令}` 的 `id` 集合 = 集合不变式的**独立 oracle**）；
   - `tools/llvm/gen_asm_list.py`（`classify()`/`CLASS_TO_SPEC`/`SECTION_BADGES`/册头文案）、`tools/spec/gen_legality_list.py`（复用 `classify`）。
 - **输出**：
   1. `spec/SimRISC-11-其它.md`（新增 `## 6.` + 册头第 4 行 + §1/§2 生成区 + 附录 `0.5.5-rc` 一条）；
   2. `spec/SimRISC-12-待定.md`（删 §3、`## 4.`→`## 3.`、册头第 4 行、§1/§2 生成区、附录 `0.5.5-rc` 一条）；
   3. `tools/llvm/gen_asm_list.py`（`classify()` 分支收窄 + 注释 + `contract-asm-list.md` 册头两句文案）；
-  4. `.tao/contracts/contract-asm-list.md`（**重生成**，禁手改）、`.tao/contracts/contract-isa.md`（**仅引用文本** `[SimRISC-12 §fence指令]`/`[SimRISC-12 §LR-SC指令]` → `[SimRISC-11 §…]`）；
+  4. `.tao/contracts/contract-asm-list.md`（**重生成**，禁手改）、`.tao/contracts/contract-isa.md`（**仅引用文本** `[SimRISC-11 §fence指令]`/`[SimRISC-11 §LR-SC指令]` → `[SimRISC-11 §…]`）；
   5. `.tao/knowledge/MEMORY.md`（3 处章节指针）、`spec/README.md`（`SimRISC-11`/`SimRISC-12` 分册职责各一句）；
   6. `manifests/spec-readonly.lock.toml`（两册 `sha256` + 授权注记）；
   7. `.work/evidence/SPEC-153t/**`（default + `--inject`）、日志 `.work/log/spec/SPEC-153t/**`。
@@ -91,7 +91,7 @@
 
 ### 阶段 D：活指针同步
 
-1. `.tao/contracts/contract-isa.md §14`：`[SimRISC-12 §fence指令]`、`[SimRISC-12 §LR-SC指令]` → `SimRISC-11`（`sed` 逐处，禁批量误伤 `§SRAM块传输指令`）；改后 `grep -c "SimRISC-12 §fence\|SimRISC-12 §LR-SC"` 必须为 **0**。
+1. `.tao/contracts/contract-isa.md §14`：`[SimRISC-11 §fence指令]`、`[SimRISC-11 §LR-SC指令]` → `SimRISC-11`（`sed` 逐处，禁批量误伤 `§SRAM块传输指令`）；改后 `grep -c "SimRISC-12 §fence\|SimRISC-12 §LR-SC"` 必须为 **0**。
 2. `.tao/knowledge/MEMORY.md` 3 处（`fence SBZ`、`M1/M2 排除口径`、章节订正段）改指 `SimRISC-11`。
 3. `spec/README.md` 分册职责两行：`SimRISC-11` → 「其它类指令（占位/非法/特权/原子）」、`SimRISC-12` → 「待定类指令（SRAM 块传输 `cfxld`/`cfxst`）」。
 4. `grep -rn "SimRISC-12 §3\|SimRISC-12 §fence\|SimRISC-12 §LR-SC"` 在全仓（除 `.tao/archive/**`、`.cache/**`、`.work/**`）应 **0 命中**——历史记录（ADR/任务书/changelog/issues 旧 notes）**豁免**，命中须逐条说明「历史，不改」。
@@ -110,7 +110,7 @@
 
 1. **改动面**：`git diff --stat master -- spec/` 只含 `SimRISC-11-其它.md`、`SimRISC-12-待定.md`；`git diff --stat master` 不含 `contracts/**`、`.tao/archive/**`、`.tao/adr/**`、`.tao/tasks/**`、`components/**`。
 2. **正文逐字迁移**：`git show master:spec/SimRISC-12-待定.md | sed -n '/^## 3\. 原子指令/,/^## 4\. /p'`（去掉末行）经 `sed 's/^## 3\./## 6./;s/^### 3\.1/### 6.1/;s/^### 3\.2/### 6.2/'` 后，与 `spec/SimRISC-11-其它.md` 的 `## 6.` 段**逐字节 `diff` 为空**（rc=0）。
-3. **集合不变式（独立 oracle）**：令 `S12_before` = `master` 版 `SimRISC-12` §1 表的 `id` 集合（27）、`O` = `contracts/opcodes.yaml` 中 `spec_cite ∈ {SimRISC-12 §fence指令, SimRISC-12 §LR-SC指令}` 的 `id` 集合（**25**）、`S11_after` = 迁后 `SimRISC-11` §1 表内与 `O` 同名 mnemonics 的 `id`、`S12_after` = 迁后 `SimRISC-12` §1 表 `id` 集合。断言：`S11_after == O`、`S12_after == S12_before − O`、`S11_after ∩ S12_after == ∅`、`|S12_before| = |S11_after| + |S12_after|`（27 = 25 + 2）；逐 `id` 打印差集（空才算过）。
+3. **集合不变式（独立 oracle）**：令 `S12_before` = `master` 版 `SimRISC-12` §1 表的 `id` 集合（27）、`O` = `contracts/opcodes.yaml` 中 `spec_cite ∈ {SimRISC-11 §fence指令, SimRISC-11 §LR-SC指令}` 的 `id` 集合（**25**）、`S11_after` = 迁后 `SimRISC-11` §1 表内与 `O` 同名 mnemonics 的 `id`、`S12_after` = 迁后 `SimRISC-12` §1 表 `id` 集合。断言：`S11_after == O`、`S12_after == S12_before − O`、`S11_after ∩ S12_after == ∅`、`|S12_before| = |S11_after| + |S12_after|`（27 = 25 + 2）；逐 `id` 打印差集（空才算过）。
 4. **计数/列表为真**：`SimRISC-11` §1.1 = **30 条**、§2 `decode ILLI` = **25 条**；`SimRISC-12` §1.1 = **2 条**、§2 = **2 条**；两册册头第 4 行条数与表内行数**现场比对一致**；`SimRISC-12` 全文不再出现 `fence`/`lr.`/`sc.` 的指令行（历史附录段除外，须 `grep -n` 逐条说明）。
 5. **门控全绿（rc 现场记录）**：`check-asm-list`、`check-asm-list-drift`、`check-legality-drift`、`check-legality-invariants`、`check-spec-codeblocks`、`check-asm-prose`、`check-scope`、`check-spec-readonly`、`check-spec-refs`、`check-spec-drift`、`check-numbering`、`check-spec-changelog`、`check-knowledge-refs`、`check-no-residue`、`check-milestones-fresh` + **`make check`（L1，一次）rc=0**。
 6. **指针无悬空**：`check_spec_refs.py` 输出「失败: 0」；`grep -c "SimRISC-12 §fence\|SimRISC-12 §LR-SC"` 在 `.tao/contracts/*.md` = 0；`MEMORY.md`/`README.md` 的指向在 `SimRISC-11` 中可解析（`grep -n "^### 6.1 fence指令"`/`"^### 6.2 LR-SC指令"` 命中）。
@@ -126,7 +126,7 @@
 
 ## 不留白的边界（写进完成区「遗留问题」）
 
-1. `contracts/opcodes.yaml` 25 条 `spec_cite` 仍指 `SimRISC-12 §fence指令`/`§LR-SC指令`（生成器 `tools/spec/generate_opcodes.py::S12_FENCE/S12_LRSC` 硬编码）；改它须重生成 `contracts/`，**不在本册授权面** ⇒ 登记为遗留（建议随下次 `contracts/` 变更同笔改，无门控依赖，不阻断）。
+1. `contracts/opcodes.yaml` 25 条 `spec_cite` 仍指 `SimRISC-11 §fence指令`/`§LR-SC指令`（生成器 `tools/spec/generate_opcodes.py::S12_FENCE/S12_LRSC` 硬编码）；改它须重生成 `contracts/`，**不在本册授权面** ⇒ 登记为遗留（建议随下次 `contracts/` 变更同笔改，无门控依赖，不阻断）。
 2. `tools/qemu/generate_atomics_vectors.py`、`tools/testcases/generate_lit_vectors.py` 等**代码注释/向量 `# Source:` 头**仍写 `SimRISC-12 §3.x`——属**溯源注释**，改它要重生成向量（换编译/门控面），**不改**，逐条披露。
 3. `.tao/adr/adr-0034*`、已完成任务书、`components/*/changelog.md`、`issues.yaml` 旧 `notes` 属**历史记录**，不改（历史即历史）。
 
@@ -149,7 +149,7 @@
 - `check-run-artifacts` A3：`.work/log/**` 新增文件名须 `check-<name>.log` 或 `<TASK-ID>-<purpose>.log`（首版 `baseline.txt` 被判红，改名后绿）。
 - `MEMORY.md` 第 6 项 `excluded` 15 条（cfx 6 + fence 1 + LR-SC 8）是 `ADR-0034` 前旧数（现 27 = cfxld/cfxst 2 + fence 1 + lr/sc 24），本册只改指针、未改该计数。
 **遗留问题**：
-- ① `contracts/opcodes.yaml` 25 条 `spec_cite` 仍指 `SimRISC-12 §fence指令`/`§LR-SC指令`（`generate_opcodes.py:256-257` 硬编码）；按派单未改 `contracts/**`，已登记 **ISS-315**（P3，`scope: [spec, infra]`）。
+- ① `contracts/opcodes.yaml` 25 条 `spec_cite` 仍指 `SimRISC-11 §fence指令`/`§LR-SC指令`（`generate_opcodes.py:256-257` 硬编码）；按派单未改 `contracts/**`，已登记 **ISS-315**（P3，`scope: [spec, infra]`）。
 - ② 溯源注释仍写 `SimRISC-12 §3.x`：`tools/qemu/generate_atomics_vectors.py` 6 处、`tools/testcases/generate_lit_vectors.py` 1 处、`components/**` 19 处（patches/changelog）——改则牵动向量重生成/补丁 blob，按派单不改。
 - ③ 历史不改：`.tao/adr/*` 5 处、`.tao/tasks/**` 23 处、`.tao/archive/**` 6 处、`issues.yaml` 旧 notes 1 处（L730）。
 - ④ `MEMORY.md` excluded 计数陈旧（见「新发现/坑」），未改。

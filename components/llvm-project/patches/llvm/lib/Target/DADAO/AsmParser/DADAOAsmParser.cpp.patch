@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..164e4bdbc
+index 000000000..fb2253b08
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 @@ -0,0 +1,2650 @@
@@ -393,7 +393,7 @@ index 000000000..164e4bdbc
 +  }
 +
 +  /// Define the fence bit-name constants before any statement is parsed
-+  /// (LLVM-121t; ADR-0034 D2 / SimRISC-12 §3.1).  `fence` takes ONE 18-bit
++  /// (LLVM-121t; ADR-0034 D2 / SimRISC-11 §4.1).  `fence` takes ONE 18-bit
 +  /// unsigned immediate -- not three operands -- so the R/W/I/O sets are
 +  /// written as `PRED_R|PRED_W|SUCC_R|SUCC_W` style bit-name expressions.  The
 +  /// eight names are predefined absolute symbols, which makes the expression
@@ -1438,10 +1438,10 @@ index 000000000..164e4bdbc
 +         M == "ftrnd" || M == "fornd";
 +}
 +
-+// roundToIntegral mnemonics (SPEC-161t; SimRISC-07 §4.3): the orri `immu6` is
++// roundToIntegral mnemonics (SPEC-161t; SimRISC-07 §2.3): the orri `immu6` is
 +// a six-way one-hot rounding-mode selector, not an element count -- exactly one
 +// of 0x01/0x02/0x04/0x08/0x10/0x20.  Any other value (including 0x00) is a
-+// static ILLI (`encode_onehot` family, SimRISC-07 §4.3).
++// static ILLI (`encode_onehot` family, SimRISC-07 §2.3).
 +static bool isFPRoundMnemonic(StringRef M) {
 +  return M == "ftrnd" || M == "fornd";
 +}
@@ -2108,7 +2108,7 @@ index 000000000..164e4bdbc
 +    }
 +  }
 +
-+  // Static legality check for dst_dual_same (ADR-0035 D6; SimRISC-04 §3.1):
++  // Static legality check for dst_dual_same (ADR-0035 D6; SimRISC-04 §1.1):
 +  // `clmul.o {rdHA, rdHB}, rdHC, rdHD` has two destination registers; they may
 +  // not both be rd0 (that would discard the whole 128-bit result) and may not
 +  // name the same non-rd0 register.  A single rd0 side is legal
@@ -2314,7 +2314,7 @@ index 000000000..164e4bdbc
 +      }
 +  }
 +
-+  // fence immediate legality (ADR-0034 D2 / SimRISC-12 §3.1; LLVM-121t).  The
++  // fence immediate legality (ADR-0034 D2 / SimRISC-11 §4.1; LLVM-121t).  The
 +  // 18-bit immediate is `fm[17:12] | pred[11:6] | succ[5:0]`; only fm = 0 is
 +  // defined (fm = 8 is the TSO reservation and is currently undefined) and the
 +  // top two bits of pred ([11:10]) / succ ([5:4]) are SBZ.  A reserved
@@ -2336,7 +2336,7 @@ index 000000000..164e4bdbc
 +        if ((Imm & 0x00C00) != 0 || (Imm & 0x00030) != 0)
 +          return Error(Flat[1]->getStartLoc(),
 +                       "fence: reserved encoding (pred[11:10] and succ[5:4] "
-+                       "are SBZ and must be zero; see SimRISC-12 §3.1)");
++                       "are SBZ and must be zero; see SimRISC-11 §4.1)");
 +      }
 +    }
 +  }
@@ -2573,7 +2573,7 @@ index 000000000..164e4bdbc
 +                       "(encode_fp_root_n)");
 +  }
 +
-+  // `encode_onehot` (SPEC-161t; SimRISC-07 §4.3 roundToIntegral): the orri
++  // `encode_onehot` (SPEC-161t; SimRISC-07 §2.3 roundToIntegral): the orri
 +  // immu6 of ftrnd/fornd is a one-hot rounding-mode selector.  A non-constant
 +  // operand (symbol/relocation) cannot be proven one-hot, so it is rejected too.
 +  if (isFPRoundMnemonic(Mnemonic) && Flat.size() >= 4 && Flat[3]->isImm()) {

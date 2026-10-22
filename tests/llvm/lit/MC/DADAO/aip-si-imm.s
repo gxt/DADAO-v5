@@ -6,7 +6,7 @@
 @@ RUN: echo 'aip.si rb2, -537395200' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-RANGE
 
 @@ `aip.si` operand units (ADR-0029 §修订注记 ④; Toolchain-01 §3.2/§5;
-@@ SimRISC-05 §3.4): the assembler-level operand is a BYTE count (field name
+@@ SimRISC-05 §1.4): the assembler-level operand is a BYTE count (field name
 @@ `imms30`) while the encoded 18-bit field is the 4 KiB block count
 @@ (`imms18 = imms30 >> 12`, the x4096 group of the x4 jump/branch fields).
 @@ Therefore:

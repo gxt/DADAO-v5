@@ -3,46 +3,11 @@
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
 > **分类：控制流**（15 条）— br.*/call/jump/ret
 
-<!-- ASSEMBLY_LIST_START -->
-## 1. 汇编指令速查
-
-### 1.1 控制流（15 条）
-
-| 助记符 | format | feature | 汇编形式 | id |
-|---|---|---|---|---|
-| `br.eq` | `rrii` | `rd` | `br.eq {rdHA, rdHB}?, [rb0, imms14]` | `br.eq_rrii_rd` |
-| `br.n` | `riii` | `rd` | `br.n {rdHA}?, [rb0, imms20]` | `br.n_riii_rd` |
-| `br.ne` | `rrii` | `rd` | `br.ne {rdHA, rdHB}?, [rb0, imms14]` | `br.ne_rrii_rd` |
-| `br.nn` | `riii` | `rd` | `br.nn {rdHA}?, [rb0, imms20]` | `br.nn_riii_rd` |
-| `br.np` | `riii` | `rd` | `br.np {rdHA}?, [rb0, imms20]` | `br.np_riii_rd` |
-| `br.nz` | `riii` | `rb` | `br.nz {rbHA}?, [rb0, imms20]` | `br.nz_riii_rb` |
-| `br.nz` | `riii` | `rd` | `br.nz {rdHA}?, [rb0, imms20]` | `br.nz_riii_rd` |
-| `br.p` | `riii` | `rd` | `br.p {rdHA}?, [rb0, imms20]` | `br.p_riii_rd` |
-| `br.z` | `riii` | `rb` | `br.z {rbHA}?, [rb0, imms20]` | `br.z_riii_rb` |
-| `br.z` | `riii` | `rd` | `br.z {rdHA}?, [rb0, imms20]` | `br.z_riii_rd` |
-| `call` | `iiii` | `ra` | `call [rb0, imms26]` | `call_iiii_ra` |
-| `call` | `rrii` | `ra` | `call [rbHA, rdHB, imms14]` | `call_rrii_ra` |
-| `jump` | `iiii` | `rb` | `jump [rb0, imms26]` | `jump_iiii_rb` |
-| `jump` | `rrii` | `rb` | `jump [rbHA, rdHB, imms14]` | `jump_rrii_rb` |
-| `ret` | `riii` | `ra` | `ret rdHA, imms18` | `ret_riii_ra` |
-
-<!-- ASSEMBLY_LIST_END -->
-
-<!-- LEGALITY_START -->
-## 2. 合法性检查
-
-* `dst_rd0_nonzero`：ret 目的 rd0 时 imms18≠0 → ILLI — `ret_riii_ra`（1 条）
-* `excp_ialign`（动态）：IP[1:0]≠0 → IALIGN
-* `excp_rasof`（动态）：RAS 上溢 → RASOF
-* `excp_rasuf`（动态）：RAS 下溢 → RASUF
-<!-- LEGALITY_END -->
-
-
-## 3. 控制流指令
+## 1. 控制流指令
 
 由于SimRISC的指令都是4字节，并且4字节对齐，因此，当采用立即数作为偏移地址参与计算时，都会将其左移2位，以增大该指令可跳转到的地址范围。`rb0` 以 **64 位**全宽参与地址计算；计算结果（64 位）**写回 `rb0`**，随后取 **`rb0[47:0]`（低 48 位）**作为下一条待执行指令的地址。
 
-### 3.1 条件跳转指令
+### 1.1 条件跳转指令
 
 条件跳转指令采用的都是相对地址。
 
@@ -81,7 +46,7 @@ br.nz    {rbHA}?, [rb0, imms20]
 
 跳转地址计算方式与第二类一致。
 
-### 3.2 无条件跳转指令
+### 1.2 无条件跳转指令
 
 无条件跳转指令既支持相对地址，也支持绝对地址。
 
@@ -104,7 +69,7 @@ jump    [rbHA, rdHB, imms14]
 
 一个重要的特例是：当ha为rb0时，rdHB + (imms12 << 2)仍然是相对地址跳转。
 
-### 3.3 函数调用
+### 1.3 函数调用
 
 函数调用指令与无条件跳转指令类似，既支持相对地址，也支持绝对地址；区别在于函数调用指令会计算返回地址，并压入 `ra63`（RegRAS 栈顶）。`[63:48]` 为递归计数（首次压栈设为 1，递归调用递增），`[47:0]` 为返回地址。压/弹栈判定与 `RACNT`/`MRPTR` 的完整流程见 SimRISC-00 §返回地址栈。
 
@@ -127,7 +92,7 @@ call    [rbHA, rdHB, imms14]
 
 一个重要的特例是：当ha为rb0时，rdHB + (imms12 << 2)实际上也是相对地址跳转。
 
-### 3.4 函数返回
+### 1.4 函数返回
 
 函数返回指令 `ret` 从返回地址栈（RAS）弹出返回地址并跳转过去。返回地址来源**可能不是 `ra63`**（取决于 RAS 状态），可能触发 **RASUF** 异常。弹栈判定与 `RACNT`/`MRPTR` 的完整流程见 SimRISC-00 §返回地址栈。
 
@@ -143,43 +108,42 @@ ret指令增加了返回值的赋值功能，操作数类型为 `riii` ，即在
 ret     rdHA, imms18
 ```
 
-#### 3.4.1 return 伪指令（已删除）
+#### 1.4.1 return 伪指令（已删除）
 
-上游 `SimRISC-0.5.4` 曾定义 `return` 伪指令；v5 **删除**（`ADR-0013 D11`），不再作为伪指令。需要「无需设置返回值的返回」时，**直接书写真实指令 `ret rd0, 0`**——`rd0` 恒为 0，`imms18` 写回 `rd0` 无副作用，等价于普通函数返回（见上「（硬约束）」）。`ret` 保持显式两操作数 `ret rdHA, imms18`，**不加无参形态**。
+`SimRISC-0.5.4` 曾定义 `return` 伪指令；本版**删除**，不再作为伪指令。需要「无需设置返回值的返回」时，**直接书写真实指令 `ret rd0, 0`**——`rd0` 恒为 0，`imms18` 写回 `rd0` 无副作用，等价于普通函数返回（见上「（硬约束）」）。`ret` 保持显式两操作数 `ret rdHA, imms18`，**不加无参形态**。
 
 ```simrisc
 ret     rd0, 0          @@ 无返回值返回（旧 `return`）
 ```
 
----
+<!-- ASSEMBLY_LIST_START -->
+## 附录 A：汇编指令速查
 
-## 附录：版本与变更记录
+| 助记符 | format | feature | 汇编形式 | id |
+|---|---|---|---|---|
+| `br.eq` | `rrii` | `rd` | `br.eq {rdHA, rdHB}?, [rb0, imms14]` | `br.eq_rrii_rd` |
+| `br.n` | `riii` | `rd` | `br.n {rdHA}?, [rb0, imms20]` | `br.n_riii_rd` |
+| `br.ne` | `rrii` | `rd` | `br.ne {rdHA, rdHB}?, [rb0, imms14]` | `br.ne_rrii_rd` |
+| `br.nn` | `riii` | `rd` | `br.nn {rdHA}?, [rb0, imms20]` | `br.nn_riii_rd` |
+| `br.np` | `riii` | `rd` | `br.np {rdHA}?, [rb0, imms20]` | `br.np_riii_rd` |
+| `br.nz` | `riii` | `rb` | `br.nz {rbHA}?, [rb0, imms20]` | `br.nz_riii_rb` |
+| `br.nz` | `riii` | `rd` | `br.nz {rdHA}?, [rb0, imms20]` | `br.nz_riii_rd` |
+| `br.p` | `riii` | `rd` | `br.p {rdHA}?, [rb0, imms20]` | `br.p_riii_rd` |
+| `br.z` | `riii` | `rb` | `br.z {rbHA}?, [rb0, imms20]` | `br.z_riii_rb` |
+| `br.z` | `riii` | `rd` | `br.z {rdHA}?, [rb0, imms20]` | `br.z_riii_rd` |
+| `call` | `iiii` | `ra` | `call [rb0, imms26]` | `call_iiii_ra` |
+| `call` | `rrii` | `ra` | `call [rbHA, rdHB, imms14]` | `call_rrii_ra` |
+| `jump` | `iiii` | `rb` | `jump [rb0, imms26]` | `jump_iiii_rb` |
+| `jump` | `rrii` | `rb` | `jump [rbHA, rdHB, imms14]` | `jump_rrii_rb` |
+| `ret` | `riii` | `ra` | `ret rdHA, imms18` | `ret_riii_ra` |
 
-> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+<!-- ASSEMBLY_LIST_END -->
 
-### 0.5.5-rc（未发布）
+<!-- LEGALITY_START -->
+## 附录 B：合法性检查
 
-- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
-- 伪指令集收缩：删除 `return`/`nop` 等 1:1 别名伪指令。
-- 规范 / 文档一致性清理；汇编规范文档更新。
-- `ret rd0` ⇒ `imms18 = 0` 合法性约束。
-- `cmp.uo-rb` 改为整 64 位比较；RB / 控制流地址语义修正。
-- 新增「合法性检查」章（生成区）；删 `rela.si`。
-- 正文改用新汇编格式；新增「汇编指令速查」章（生成区）。
-- 合法性检查章（生成区）术语 `PC` → **`IP`**（`excp_ialign` 条：取指时 `IP[1:0] ≠ 00` 触发 IALIGN；见 SimRISC-00 §基址寄存器）。
-
-### 0.5.4（2026-09-28）
-
-- 本册自原《SimRISC 地址类指令》的控制流部分拆出，独立成「控制流」分册（条件跳转 / 无条件跳转 / 函数调用 / 函数返回）。
-
-### 0.5.3（2026-07-19）
-
-- `jump`/`call`/`ret` 编码 +2、`trap`/`escape` 对调（编码表相关调整）。
-
-### 0.5.2（2026-07-18）
-
-- `br.` 指令名加点、条件后缀统一（`{...}?` 条件形）。
-
-### 0.4.1（2026-07-14）
-
-- 初版：同步上游控制流指令（条件跳转 / 无条件跳转 / 函数调用 / 函数返回）。
+* `dst_rd0_nonzero`：ret 目的 rd0 时 imms18≠0 → ILLI — `ret_riii_ra`（1 条）
+* `excp_ialign`（动态）：IP[1:0]≠0 → IALIGN
+* `excp_rasof`（动态）：RAS 上溢 → RASOF
+* `excp_rasuf`（动态）：RAS 下溢 → RASUF
+<!-- LEGALITY_END -->

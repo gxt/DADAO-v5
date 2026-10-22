@@ -3,49 +3,11 @@
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
 > **分类：寄存器复制**（16 条）— cs.*/ra2rd/rb2rb/rb2rd/rd2ra/rd2rb/rd2rd/rd2rf/rf2rd
 
-<!-- ASSEMBLY_LIST_START -->
-## 1. 汇编指令速查
-
-### 1.1 寄存器复制（16 条）
-
-| 助记符 | format | feature | 汇编形式 | id |
-|---|---|---|---|---|
-| `cs.eq` | `rrrr` | `rd` | `cs.eq {rdHA, rdHB}?, rdHC, rdHD` | `cs.eq_rrrr_rd` |
-| `cs.n` | `rrrr` | `rd` | `cs.n {rdHA}?, rdHB, rdHC, rdHD` | `cs.n_rrrr_rd` |
-| `cs.n` | `rrrr` | `rf` | `cs.n {rdHA}?, rfHB, rfHC, rfHD` | `cs.n_rrrr_rf` |
-| `cs.ne` | `rrrr` | `rd` | `cs.ne {rdHA, rdHB}?, rdHC, rdHD` | `cs.ne_rrrr_rd` |
-| `cs.p` | `rrrr` | `rd` | `cs.p {rdHA}?, rdHB, rdHC, rdHD` | `cs.p_rrrr_rd` |
-| `cs.p` | `rrrr` | `rf` | `cs.p {rdHA}?, rfHB, rfHC, rfHD` | `cs.p_rrrr_rf` |
-| `cs.z` | `rrrr` | `rd` | `cs.z {rdHA}?, rdHB, rdHC, rdHD` | `cs.z_rrrr_rd` |
-| `cs.z` | `rrrr` | `rf` | `cs.z {rdHA}?, rfHB, rfHC, rfHD` | `cs.z_rrrr_rf` |
-| `ra2rd` | `orri` | `ra` | `ra2rd {rdHB:rdHB+immu6-1}, {raHC:raHC+immu6-1}` | `ra2rd_orri_ra` |
-| `rb2rb` | `orri` | `rb` | `rb2rb {rbHB:rbHB+immu6-1}, {rbHC:rbHC+immu6-1}` | `rb2rb_orri_rb` |
-| `rb2rd` | `orri` | `rb` | `rb2rd {rdHB:rdHB+immu6-1}, {rbHC:rbHC+immu6-1}` | `rb2rd_orri_rb` |
-| `rd2ra` | `orri` | `ra` | `rd2ra {raHB:raHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2ra_orri_ra` |
-| `rd2rb` | `orri` | `rb` | `rd2rb {rbHB:rbHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2rb_orri_rb` |
-| `rd2rd` | `orri` | `rd` | `rd2rd {rdHB:rdHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2rd_orri_rd` |
-| `rd2rf` | `orri` | `rf` | `rd2rf {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2rf_orri_rf` |
-| `rf2rd` | `orri` | `rf` | `rf2rd {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `rf2rd_orri_rf` |
-
-<!-- ASSEMBLY_LIST_END -->
-
-<!-- LEGALITY_START -->
-## 2. 合法性检查
-
-* `dst_rd0`：目的 rd0 → ILLI — `cs.eq_rrrr_rd`, `cs.n_rrrr_rd`, `cs.ne_rrrr_rd`, `cs.p_rrrr_rd`, `cs.z_rrrr_rd`, `ra2rd_orri_ra`, `rb2rd_orri_rb`, `rd2rd_orri_rd`, `rf2rd_orri_rf`（9 条）
-* `dst_rb0`：目的 rb0 → ILLI — `rb2rb_orri_rb`, `rd2rb_orri_rb`（2 条）
-* `dst_rf0`：浮点目的 rf0 → ILLI — `cs.n_rrrr_rf`, `cs.p_rrrr_rf`, `cs.z_rrrr_rf`（3 条）
-* `mreg_zero`：immu6=0 → ILLI — `ra2rd_orri_ra`, `rb2rb_orri_rb`, `rb2rd_orri_rb`, `rd2ra_orri_ra`, `rd2rb_orri_rb`, `rd2rd_orri_rd`, `rd2rf_orri_rf`, `rf2rd_orri_rf`（8 条）
-* `mreg_range_overflow`：起始+immu6>64 → ILLI — `ra2rd_orri_ra`, `rb2rb_orri_rb`, `rb2rd_orri_rb`, `rd2ra_orri_ra`, `rd2rb_orri_rb`, `rd2rd_orri_rd`, `rd2rf_orri_rf`, `rf2rd_orri_rf`（8 条）
-* `mreg_range_overlap`：源/目的范围交集 → ILLI — `rb2rb_orri_rb`, `rd2rd_orri_rd`（2 条）
-<!-- LEGALITY_END -->
-
-
-## 3. 赋值类指令
+## 1. 赋值类指令
 
 > **立即数常数赋值**（rwii 格式：set.zw/set.ow/set.w/or.w/andn.w 的 rd/rb/rf 形式，以及 set.rd/set.rb/set.ft/set.fo 伪指令）详见 SimRISC-03（16位立即数操作）。
 
-### 3.1 寄存器组之间块赋值
+### 1.1 寄存器组之间块赋值
 
 不同寄存器组或相同寄存器组之间，可以互相进行块传输，块传输过程中不进行数据类型的转换，保持64位二进制不变，但是必需是多个连续的寄存器。
 操作数类型为 `orri`，指令如下：
@@ -77,7 +39,7 @@ immu6为立即数，存在hd位域中，用来指定寄存器的个数，有效�
 
 > **注**：`rd2rf` 中 `rf0` 可作目的（含 `{rf0:rf0+immu6-1}`，immu6≥2 允许），写入按 SimRISC-00 写语义（只更新舍入模式与异常状态，其余位写无效）；`rf2rd` 中 `rf0` 可作源，读出完整 64 位。
 
-### 3.2 条件赋值：Conditional Assignment
+### 1.2 条件赋值：Conditional Assignment
 
 第一类条件赋值指令需要先根据`rdHA`的内容进行条件判断，然后分别将`rdHC`或`rdHD`赋值给`rdHB`，即 `if (rdHA is negative/zero/positive) rdHB = rdHC; else rdHB = rdHD`。
 操作数类型为 `rrrr`，指令如下：
@@ -98,7 +60,7 @@ cs.ne   {rdHA, rdHB}?, rdHC, rdHD
 
 > **注**：rd0 目的寄存器约定见 SimRISC-00。
 
-### 3.3 浮点条件赋值
+### 1.3 浮点条件赋值
 
 第一类浮点条件赋值指令需要先根据`rdHA`的内容进行条件判断，然后分别将`rfHC`或`rfHD`赋值给`rfHB`，即 `if (rdHA is negative/zero/positive) rfHB = rfHC; else rfHB = rfHD`。
 操作数类型为 `rrrr`，指令如下：
@@ -113,35 +75,37 @@ cs.p    {rdHA}?, rfHB, rfHC, rfHD
 
 > **注**：`cs.n`/`cs.z`/`cs.p` 的 rf 变体中，**目的**（`rfHB`）为 `rf0` → ILLI；**源**（`rfHC`/`rfHD`）为 `rf0` 合法（`rf0` 作源读出完整 64 位）。
 
----
+<!-- ASSEMBLY_LIST_START -->
+## 附录 A：汇编指令速查
 
-## 附录：版本与变更记录
+| 助记符 | format | feature | 汇编形式 | id |
+|---|---|---|---|---|
+| `cs.eq` | `rrrr` | `rd` | `cs.eq {rdHA, rdHB}?, rdHC, rdHD` | `cs.eq_rrrr_rd` |
+| `cs.n` | `rrrr` | `rd` | `cs.n {rdHA}?, rdHB, rdHC, rdHD` | `cs.n_rrrr_rd` |
+| `cs.n` | `rrrr` | `rf` | `cs.n {rdHA}?, rfHB, rfHC, rfHD` | `cs.n_rrrr_rf` |
+| `cs.ne` | `rrrr` | `rd` | `cs.ne {rdHA, rdHB}?, rdHC, rdHD` | `cs.ne_rrrr_rd` |
+| `cs.p` | `rrrr` | `rd` | `cs.p {rdHA}?, rdHB, rdHC, rdHD` | `cs.p_rrrr_rd` |
+| `cs.p` | `rrrr` | `rf` | `cs.p {rdHA}?, rfHB, rfHC, rfHD` | `cs.p_rrrr_rf` |
+| `cs.z` | `rrrr` | `rd` | `cs.z {rdHA}?, rdHB, rdHC, rdHD` | `cs.z_rrrr_rd` |
+| `cs.z` | `rrrr` | `rf` | `cs.z {rdHA}?, rfHB, rfHC, rfHD` | `cs.z_rrrr_rf` |
+| `ra2rd` | `orri` | `ra` | `ra2rd {rdHB:rdHB+immu6-1}, {raHC:raHC+immu6-1}` | `ra2rd_orri_ra` |
+| `rb2rb` | `orri` | `rb` | `rb2rb {rbHB:rbHB+immu6-1}, {rbHC:rbHC+immu6-1}` | `rb2rb_orri_rb` |
+| `rb2rd` | `orri` | `rb` | `rb2rd {rdHB:rdHB+immu6-1}, {rbHC:rbHC+immu6-1}` | `rb2rd_orri_rb` |
+| `rd2ra` | `orri` | `ra` | `rd2ra {raHB:raHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2ra_orri_ra` |
+| `rd2rb` | `orri` | `rb` | `rd2rb {rbHB:rbHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2rb_orri_rb` |
+| `rd2rd` | `orri` | `rd` | `rd2rd {rdHB:rdHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2rd_orri_rd` |
+| `rd2rf` | `orri` | `rf` | `rd2rf {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2rf_orri_rf` |
+| `rf2rd` | `orri` | `rf` | `rf2rd {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `rf2rd_orri_rf` |
 
-> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+<!-- ASSEMBLY_LIST_END -->
 
-### 0.5.5-rc（未发布）
+<!-- LEGALITY_START -->
+## 附录 B：合法性检查
 
-- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
-- 浮点合法性规则（`rule_refs`）回填与口径收口；引入 `scope` 标注。
-- 新增「合法性检查」章（生成区）。
-- 0 号寄存器口径修正；`rf0` 位域与访问规则调整；浮点条件赋值描述修正。
-- 正文改用新汇编格式。
-- 新增「汇编指令速查」章（生成区）。
-- **破坏性**：删除 `cs.eq_rrrr_rf`/`cs.ne_rrrr_rf`（`0x5E`/`0x5F` 腾空）；浮点条件赋值仅保留 `cs.n`/`cs.z`/`cs.p` 的 rf 变体，判「比较结果是否为 1」改用 `sub` + `cs.z`。
-
-### 0.5.4（2026-09-28）
-
-- 本册自原《SimRISC 数据类指令》的赋值部分拆出，独立成「寄存器复制」分册（块赋值 / 条件赋值）。
-- `set.rd`/`set.rb` 伪指令的寄存器传值展开（`rb2rd` 等）随伪指令迁回。
-
-### 0.5.3（2026-07-19）
-
-- `setrd`/`setrb`/`setrf` 改名为 `set.rd`/`set.rb`/`set.rf`。
-
-### 0.5.2（2026-07-18）
-
-- 新增 `setrd`/`setrb`/`setrf` 伪指令定义；`cs.` 指令名加点、条件后缀统一。
-
-### 0.4.1（2026-07-14）
-
-- 初版：同步上游赋值类指令（寄存器组之间块赋值 / 条件赋值）。
+* `dst_rd0`：目的 rd0 → ILLI — `cs.eq_rrrr_rd`, `cs.n_rrrr_rd`, `cs.ne_rrrr_rd`, `cs.p_rrrr_rd`, `cs.z_rrrr_rd`, `ra2rd_orri_ra`, `rb2rd_orri_rb`, `rd2rd_orri_rd`, `rf2rd_orri_rf`（9 条）
+* `dst_rb0`：目的 rb0 → ILLI — `rb2rb_orri_rb`, `rd2rb_orri_rb`（2 条）
+* `dst_rf0`：浮点目的 rf0 → ILLI — `cs.n_rrrr_rf`, `cs.p_rrrr_rf`, `cs.z_rrrr_rf`（3 条）
+* `mreg_zero`：immu6=0 → ILLI — `ra2rd_orri_ra`, `rb2rb_orri_rb`, `rb2rd_orri_rb`, `rd2ra_orri_ra`, `rd2rb_orri_rb`, `rd2rd_orri_rd`, `rd2rf_orri_rf`, `rf2rd_orri_rf`（8 条）
+* `mreg_range_overflow`：起始+immu6>64 → ILLI — `ra2rd_orri_ra`, `rb2rb_orri_rb`, `rb2rd_orri_rb`, `rd2ra_orri_ra`, `rd2rb_orri_rb`, `rd2rd_orri_rd`, `rd2rf_orri_rf`, `rf2rd_orri_rf`（8 条）
+* `mreg_range_overlap`：源/目的范围交集 → ILLI — `rb2rb_orri_rb`, `rd2rd_orri_rd`（2 条）
+<!-- LEGALITY_END -->

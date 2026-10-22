@@ -1,12 +1,12 @@
 diff --git a/target/dadao/insn_trans/trans_extend.c.inc b/target/dadao/insn_trans/trans_extend.c.inc
 new file mode 100644
-index 0000000000..02162a779c
+index 0000000..44fea70
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_extend.c.inc
 @@ -0,0 +1,86 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
-+/* §3.4.2 ext.uo/ext.so (orrr, MISC-octa): zero/sign extend
++/* §3.4.2 ext.uo/ext.so (orrr, OPC-octa): zero/sign extend
 + * pos = VALUE of rdhd register (masked to 6 bits), not register number
 + * rdhb[63:0] = zero/sign_extend(rdhc[pos:0])  (all 64 bits for octa) */
 +static bool trans_ext_uo_orrr_rd(DisasContext *ctx, arg_misc *a)
@@ -49,7 +49,7 @@ index 0000000000..02162a779c
 +    return true;
 +}
 +
-+/* §3.4.2 ext.uo/ext.so (orri, MISC-octa): immediate extend
++/* §3.4.2 ext.uo/ext.so (orri, OPC-octa): immediate extend
 + * hd = immu6 (ext bit position), ILLI if immu6 > 63
 + * rdhb[63:0] = zero/sign_extend(rdhc[pos:0])  (all 64 bits for octa) */
 +static bool trans_ext_uo_orri_rd(DisasContext *ctx, arg_misc *a)

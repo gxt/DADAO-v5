@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrFormats.td b/llvm/lib/Target/DADAO/DADAOInstrFormats.td
 new file mode 100644
-index 000000000..6548d1914
+index 000000000..8ff22080d
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrFormats.td
 @@ -0,0 +1,295 @@
@@ -194,7 +194,7 @@ index 000000000..6548d1914
 +// Format: orrr — opx + three registers (§2.3)
 +//
 +//   ha = opx (set by 'let ha = 0xNN' in def), hb = rb, hc = rc, hd = rd
-+//   Examples: MISC-byte/wyde/tetra/octa logic/shift/add/sub/cmp/div/rem
++//   Examples: OPC-byte/wyde/tetra/octa logic/shift/add/sub/cmp/div/rem
 +//===----------------------------------------------------------------------===//
 +
 +class DADAOOrrr<string mnemonic> : DADAOInst<mnemonic # "\t$rb, $rc, $rd"> {
@@ -213,7 +213,7 @@ index 000000000..6548d1914
 +//
 +//   ha = opx, hb = 0 (rd0, fixed), hc = rc, hd = rd
 +//   The encoded format is still `orrr` (fields rdhb/rdhc/rbhd); the only
-+//   difference is that `lr` fixes hb to rd0 -- SimRISC-12 §3.2: `lr`'s hb
++//   difference is that `lr` fixes hb to rd0 -- SimRISC-11 §4.2: `lr`'s hb
 +//   (rdHB) must be rd0, and a hand-encoded hb != 0 raises ILLI -- so the
 +//   assembler writes two operands: `lr.o.nn rdHC, [rbHD]`.
 +//   Examples: lr.o.nn / lr.t.an / lr.b.ar (ADR-0034 D3/D5; LLVM-121t)

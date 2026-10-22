@@ -24,7 +24,7 @@
 - `tools/spec/generate_opcodes.py` 的 `EXCLUDED_KEEP_RULE_REFS = frozenset({"clmul.o_rrrr_rd"})` 是 `ADR-0035 D6` 的**显式例外**（excluded 默认清空 `rule_refs`）⇒ 翻转后须**撤销**，否则留下「accepted 也走例外」的隐性规则。
 - `tools/spec/check_scope.py` 把分区计数**写死**断言（文件头：`m1 156 / fp 60 / excluded 28 / m3 1 / m8 7 / m9 8 → 260`）+ changelog 段落 ⇒ 须同步为 `excluded 27 / m9 9`（总数仍 260）并追加一行 changelog。
 - `spec/SimRISC-00` 变更记录里有一行（`:418` 附近）写「新增 `clmul.o` … `scope` 为 `excluded`（执行 ILLI）」—— 属**历史记录**，**不改写**，改为**追加**一条 M9 记录。
-- `spec/SimRISC-04 §3.5` 里的 ILLI 是 **`rd0` 合法性规则**（仍成立），**不动**。
+- `spec/SimRISC-04 §1.5` 里的 ILLI 是 **`rd0` 合法性规则**（仍成立），**不动**。
 - 只读锁 `manifests/spec-readonly.lock.toml` 记录 `spec/**` 的 `sha256`；改 `SimRISC-00` 即须重算（`check-spec-readonly` 门控）。
 
 ## ✅ 已裁定（2026-10-21）
@@ -65,7 +65,7 @@
 
 ### C. spec 文本与只读锁
 
-- 只在 `SimRISC-00` 变更记录**末尾追加** 1 行（格式照既有条目：日期 + M9 + 「`clmul.o` 解除 `excluded`（`scope → m9`），执行语义见 `SimRISC-04 §3.5`」）；**不得**改写 `:418` 那行历史。
+- 只在 `SimRISC-00` 变更记录**末尾追加** 1 行（格式照既有条目：日期 + M9 + 「`clmul.o` 解除 `excluded`（`scope → m9`），执行语义见 `SimRISC-04 §1.5`」）；**不得**改写 `:418` 那行历史。
 - 重算 `manifests/spec-readonly.lock.toml` 的 `sha256`（脚本/流程照既有做法），`check-spec-readonly` rc=0。
 
 ## 验收标准
@@ -95,7 +95,7 @@
 ## 已知边界（**披露，不自行扩面**）
 
 - 不实现执行语义（`QEMU-068t`）、不做 LLVM 选择（`LLVM-122t`）。
-- 不改 `SimRISC-04 §3.5` 的 `rd0` ILLI 规则（仍成立）。
+- 不改 `SimRISC-04 §1.5` 的 `rd0` ILLI 规则（仍成立）。
 - 不顺手清理其它 27 条 `excluded` 记录的陈旧文案（另议/另册）。
 
 ## 完成区
@@ -110,7 +110,7 @@
 - `make check`（L1）rc=0（`repository checks (L1): PASS`）；`make check-modules`（L2）rc=0（`module checks (L2): PASS`，picolibc fast 18/20 pass、fail 0）。
 - `git status --porcelain -uall`：10 个已跟踪文件（上列）+ 本任务书，无越界文件；`.work/**` 为 gitignore 证据目录。
 **新发现/坑**：① L2 首跑红在 `check-musl-freshness`（`toolchain stamp == current clang/ld.lld: different`——仅 clang/lld **mtime** 变、size/version/git commit 全同，系 `LLVM-122t` 的 `install-host` 重装；按门控提示 `make build-musl-shared JOBS=8` 重建后转绿）⇒ **非本册引入**，属既有「工具链重装 ⇒ musl 过期」面；② `check-run-artifacts` 对 `.work/log/**` 有机械命名约束（`<TASK-ID>-<purpose>.log`，purpose **仅 ASCII**）⇒ 证据脚本日志名须合规，否则 L1 红；③ `check-milestones-fresh` 要求 milestones 行与任务书 `**状态**` 一致、按时间**倒序**、且未完成态时间须带 `（登记）`（待验收也算未完成）；④ 生成器模块 docstring/头文案里的分区计数（28→27、8→9）也是"写死计数"，须同笔同步（本次已改）。
-**遗留问题**：① `.tao/contracts/contract-isa.md` 的 `scope: m9`（`8 条`）与 excluded 口径文案仍按翻转前表述——**非生成物、非本册授权面**，未改（建议另册同步）；② `Makefile` 的 `check-scope` 注释仍写「counts 152/60/15/227」（**既有**陈旧，本册未扩面）；③ `ISS-317` 现场为 `closed`（`resolved_by: QEMU-068t`），本册未触碰；④ 未改 `SimRISC-04 §3.5` 的 `rd0` ILLI 规则（仍成立）；⑤ `ADR-0035 D6` 文本仍写「以 `EXCLUDED_KEEP_RULE_REFS` 显式例外保留」（机制句随翻转失效，decision 本体 `rd0` 规则不变）——改 `Accepted` ADR 需用户逐条确认，未动。
+**遗留问题**：① `.tao/contracts/contract-isa.md` 的 `scope: m9`（`8 条`）与 excluded 口径文案仍按翻转前表述——**非生成物、非本册授权面**，未改（建议另册同步）；② `Makefile` 的 `check-scope` 注释仍写「counts 152/60/15/227」（**既有**陈旧，本册未扩面）；③ `ISS-317` 现场为 `closed`（`resolved_by: QEMU-068t`），本册未触碰；④ 未改 `SimRISC-04 §1.5` 的 `rd0` ILLI 规则（仍成立）；⑤ `ADR-0035 D6` 文本仍写「以 `EXCLUDED_KEEP_RULE_REFS` 显式例外保留」（机制句随翻转失效，decision 本体 `rd0` 规则不变）——改 `Accepted` ADR 需用户逐条确认，未动。
 
 ## 审阅记录
 

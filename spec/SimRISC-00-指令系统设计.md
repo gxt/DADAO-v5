@@ -233,12 +233,12 @@ SimRISC没有在编码上进行过多的拆分，操作数类型简单而规整�
 
 SimRISC 提供四种固定数据位宽，通过指令名后缀 `.b`/`.w`/`.t`/`.o` 区分，分别对应 byte（8 位）、wyde（16 位）、tetra（32 位）、octa（64 位）。这四种位宽的指令分布在以下四个 opx 子表中：
 
-- `MISC-byte`：byte 位宽指令
-- `MISC-wyde`：wyde 位宽指令
-- `MISC-tetra`：tetra 位宽指令
-- `MISC-octa`：octa 位宽指令
+- `OPC-byte`：byte 位宽指令
+- `OPC-wyde`：wyde 位宽指令
+- `OPC-tetra`：tetra 位宽指令
+- `OPC-octa`：octa 位宽指令
 
-各子表内使用 `orrr`/`orri`/`oiii` 操作数格式。指令名后缀 `.b`/`.w`/`.t`/`.o` 与已有的存取指令后缀（`ldb`/`ldw`/`ld.t`/`ld.o`）一致。对有符号/无符号区分的指令（mul/div/rem/cmp/ext/shr），后缀扩展为 `.ub`/`.sb`（byte）、`.uw`/`.sw`（wyde）、`.ut`/`.st`（tetra）、`.uo`/`.so`（octa），其中 `s` 表示有符号、`u` 表示无符号。**符号无关**的指令（`shl`/`rol`/`rev`/`ctpop`/`ctlz`/`cttz`）**不带 `u`/`s` 后缀**（`ADR-0032 D3`）。
+各子表内使用 `orrr`/`orri`/`oiii` 操作数格式。指令名后缀 `.b`/`.w`/`.t`/`.o` 与已有的存取指令后缀（`ldb`/`ldw`/`ld.t`/`ld.o`）一致。对有符号/无符号区分的指令（mul/div/rem/cmp/ext/shr），后缀扩展为 `.ub`/`.sb`（byte）、`.uw`/`.sw`（wyde）、`.ut`/`.st`（tetra）、`.uo`/`.so`（octa），其中 `s` 表示有符号、`u` 表示无符号。**符号无关**的指令（`shl`/`rol`/`rev`/`ctpop`/`ctlz`/`cttz`）**不带 `u`/`s` 后缀**。
 
 以下三种格式含 `c`（cfxha，6 位核芯功能扩展编码），cfxha 始终在 `ha[5:0]`：
 
@@ -278,19 +278,16 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0010-1xxx     | ldm.ub_rrri_rd       | ldm.uw_rrri_rd       | ldm.ut_rrri_rd       | ldm.sb_rrri_rd       | ldm.sw_rrri_rd       | ldm.st_rrri_rd       | ldm.t_rrri_rf        | stm.t_rrri_rf   |
 | 0011-0xxx     | stm.b_rrri_rd        | stm.w_rrri_rd        | stm.t_rrri_rd        |                      |                      |                      |                      |                  |
 | 0011-1xxx     | ldm.o_rrri_rd        | stm.o_rrri_rd        | ldm.o_rrri_rb        | stm.o_rrri_rb        | ldm.o_rrri_ra        | stm.o_rrri_ra        | ldm.o_rrri_rf        | stm.o_rrri_rf   |
-| 0100-0xxx     | MISC-octa            | MISC-tetra           | MISC-wyde            | MISC-byte            | MISC-RF              |                      |                      |                  |
+| 0100-0xxx     | OPC-octa            | OPC-tetra           | OPC-wyde            | OPC-byte            | OPC-RF              |                      |                      |                  |
 | 0100-1xxx     | or.w_rwii_rd         | andn.w_rwii_rd       | or.w_rwii_rb         | andn.w_rwii_rb       | set.zw_rwii_rd       | set.ow_rwii_rd       | set.zw_rwii_rb       | set.w_rwii_rf   |
 | 0101-0xxx     | add.uo_rrrr_rd       | add.so_rrrr_rd       | sub.uo_rrrr_rd       | sub.so_rrrr_rd       | mul.uo_rrrr_rd       | mul.so_rrrr_rd       | clmul.o_rrrr_rd      |                  |
 | 0101-1xxx     |                      | add.si_riii_rd       | aip.si_riii_rb       | add.si_riii_rb       | cmp.ui_rrii_rd       | cmp.si_rrii_rd       | cs.eq_rrrr_rf        | cs.ne_rrrr_rf   |
 | 0110-0xxx     | cs.n_rrrr_rd         | cs.n_rrrr_rf         | cs.z_rrrr_rd         | cs.z_rrrr_rf         | cs.p_rrrr_rd         | cs.p_rrrr_rf         | cs.eq_rrrr_rd        | cs.ne_rrrr_rd   |
 | 0110-1xxx     | br.n_riii_rd         | br.nn_riii_rd        | br.z_riii_rd         | br.nz_riii_rd        | br.p_riii_rd         | br.np_riii_rd        | br.eq_rrii_rd        | br.ne_rrii_rd   |
-| 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          | MISC-AMO        |
+| 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          | OPC-MISC        |
 | 0111-1xxx     |                      |                      | cfx2rd_crrr_cfx      | cfx2rc_crrr_cfx      | cfxld_crii_cfx       | cfxst_crii_cfx       | escape_ciii_cfx      | trap_ciii_cfx   |
 
-> **`scope` 分区**（用户裁定 2026-10-03；2026-10-05 按实现状态更新）：`scope: fp`（主表 `MISC-RF` 子表 op=0x44 的 RF 运算/转换/比较/分类/取整，及散见各表的 RF 存取形态，共 64 条）**语义已归一化于 `contract-fp.md`、执行层 64/64 已实现**（`QEMU-034t`~`038t`、取整见 `QEMU-072t`、最小最大值见 `QEMU-071t`），不触发 decode ILLI。
-> `scope: excluded`（特权 cfx：cfx2rd/cfx2rc/cfxld/cfxst/escape/trap）**未实现，decode ILLI**。
-
-### 4.1 MISC-AMO 指令编码
+### 4.1 OPC-MISC 指令编码
 
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
 
@@ -305,7 +302,7 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 110-xxx   |              |              |              |              |              |              |              |              |
 | 111-xxx   |              |              |              |              |              |              |              |              |
 
-### 4.2 MISC-octa指令编码
+### 4.2 OPC-octa指令编码
 
 octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
@@ -321,9 +318,9 @@ octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 | 110-xxx   | add.o_orrr_bbd   | sub.o_orrr_bbd   | cmp.uo_orrr_dbb | sub.o_orrr_dbb | rb2rb_orri_rb    | rd2rb_orri_rb    | rb2rd_orri_rb    |               |
 | 111-xxx   | div.uo_orrr_rd     | div.so_orrr_rd     | rem.uo_orrr_rd   | rem.so_orrr_rd   |               | rd2rf_orri_rf    | rf2rd_orri_rf    |               |
 
-> **无位宽后缀指令的例外（`ADR-0012 D11`）**：`ctpop`/`ctlz`/`cttz`（位计数 / 位扫描）**不带位宽后缀**，其指令名不指示位宽；它们**借用本 `MISC-octa` 子表的格位**（`011-101`/`011-110`/`011-111`），是本手册「**子表 ⇔ 位宽后缀**」规则的**例外**——**有效位宽**由操作数的 `hd` 字段（**有效位上界** `[hd:0]`，共 `hd+1` 位）在运行时给出（同子表中 `rd2rd`/`rb2rb` 等寄存器组复制指令亦无后缀，但其位宽**恒为整寄存器 64 位**，不随操作数变化）。逐条语义见 SimRISC-04 §Bit manipulating：位操作指令。
+> **无位宽后缀指令的例外**：`ctpop`/`ctlz`/`cttz`（位计数 / 位扫描）**不带位宽后缀**，其指令名不指示位宽；它们**借用本 `OPC-octa` 子表的格位**（`011-101`/`011-110`/`011-111`），是本手册「**子表 ⇔ 位宽后缀**」规则的**例外**——**有效位宽**由操作数的 `hd` 字段（**有效位上界** `[hd:0]`，共 `hd+1` 位）在运行时给出（同子表中 `rd2rd`/`rb2rb` 等寄存器组复制指令亦无后缀，但其位宽**恒为整寄存器 64 位**，不随操作数变化）。逐条语义见 SimRISC-04 §Bit manipulating：位操作指令。
 
-### 4.3 MISC-tetra指令编码
+### 4.3 OPC-tetra指令编码
 
 tetra 位宽（32 位）指令。指令名后缀 `.t` 表示 tetra 位宽。
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
@@ -339,9 +336,9 @@ tetra 位宽（32 位）指令。指令名后缀 `.t` 表示 tetra 位宽。
 | 110-xxx   | mul.ut_orrr_rd   | mul.st_orrr_rd   |               |               |               |               |               |               |
 | 111-xxx   | div.ut_orrr_rd   | div.st_orrr_rd   | rem.ut_orrr_rd   | rem.st_orrr_rd   |               |               |               |               |
 
-> **SPEC-069t / `ADR-0032` D2**：上表空单元格为已删除条目（4 逻辑 + 2 ext×2 格式）与 `shl` 迁出的旧格位（`010-100`/`011-100`），其 opx 现为 reserved（UNDI）；`010-000`/`010-001` 与 `011-000`/`011-001` 已由 `shl.*`/`rol.*` 占用（`SPEC-152t`）。
+> **注**：上表空单元格为已删除条目（4 逻辑 + 2 ext×2 格式）与 `shl` 迁出的旧格位（`010-100`/`011-100`），其 opx 现为 reserved（UNDI）；`010-000`/`010-001` 与 `011-000`/`011-001` 已由 `shl.*`/`rol.*` 占用。
 
-### 4.4 MISC-wyde指令编码
+### 4.4 OPC-wyde指令编码
 
 wyde 位宽（16 位）指令。指令名后缀 `.w` 表示 wyde 位宽。
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
@@ -357,9 +354,9 @@ wyde 位宽（16 位）指令。指令名后缀 `.w` 表示 wyde 位宽。
 | 110-xxx   | mul.uw_orrr_rd   | mul.sw_orrr_rd   |               |               |               |               |               |               |
 | 111-xxx   | div.uw_orrr_rd   | div.sw_orrr_rd   | rem.uw_orrr_rd   | rem.sw_orrr_rd   |               |               |               |               |
 
-> **SPEC-069t / `ADR-0032` D2**：上表空单元格为已删除条目（4 逻辑 + 2 ext×2 格式）与 `shl` 迁出的旧格位（`010-100`/`011-100`），其 opx 现为 reserved（UNDI）；`010-000`/`010-001` 与 `011-000`/`011-001` 已由 `shl.*`/`rol.*` 占用（`SPEC-152t`）。
+> **注**：上表空单元格为已删除条目（4 逻辑 + 2 ext×2 格式）与 `shl` 迁出的旧格位（`010-100`/`011-100`），其 opx 现为 reserved（UNDI）；`010-000`/`010-001` 与 `011-000`/`011-001` 已由 `shl.*`/`rol.*` 占用。
 
-### 4.5 MISC-byte指令编码
+### 4.5 OPC-byte指令编码
 
 byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较、乘除等操作。指令名后缀 `.b` 表示 byte 位宽。
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
@@ -375,11 +372,11 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 | 110-xxx   | mul.ub_orrr_rd   | mul.sb_orrr_rd   |               |               |               |               |               |               |
 | 111-xxx   | div.ub_orrr_rd   | div.sb_orrr_rd   | rem.ub_orrr_rd   | rem.sb_orrr_rd   |               |               |               |               |
 
-> **SPEC-069t / `ADR-0032` D2**：上表空单元格为已删除条目（4 逻辑 + 2 ext×2 格式）与 `shl` 迁出的旧格位（`010-100`/`011-100`），其 opx 现为 reserved（UNDI）；`010-000`/`010-001` 与 `011-000`/`011-001` 已由 `shl.*`/`rol.*` 占用（`SPEC-152t`）。
+> **注**：上表空单元格为已删除条目（4 逻辑 + 2 ext×2 格式）与 `shl` 迁出的旧格位（`010-100`/`011-100`），其 opx 现为 reserved（UNDI）；`010-000`/`010-001` 与 `011-000`/`011-001` 已由 `shl.*`/`rol.*` 占用。
 
-### 4.6 MISC-RF指令编码
+### 4.6 OPC-RF指令编码
 
-> 本子表 50 条全部为 `scope: fp`（已实现；语义归一化于 `contract-fp.md`，执行层落地，不触发 decode ILLI；取整 `ftrnd_orri_rf`/`fornd_orri_rf` 见 SimRISC-07 §取整（roundToIntegral）、最小/最大值 `ftmin_orrr_rf`/`ftmax_orrr_rf`/`fomin_orrr_rf`/`fomax_orrr_rf` 见 SimRISC-07 §最小最大值（minimumNumber / maximumNumber））。`scope: fp` 共 64 条。
+> 取整 `ftrnd_orri_rf`/`fornd_orri_rf` 见 SimRISC-07 §取整（roundToIntegral）；最小/最大值 `ftmin_orrr_rf`/`ftmax_orrr_rf`/`fomin_orrr_rf`/`fomax_orrr_rf` 见 SimRISC-07 §最小最大值（minimumNumber / maximumNumber）。
 
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
 
@@ -396,18 +393,16 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 
 ## 5. 伪指令
 
-> **伪指令集的权威定义在 `spec/Toolchain-01-汇编语言.md §6`**（决策 `ADR-0013 D11`）。伪指令**不是**硬件指令，由汇编器在前端展开为一条或多条真实硬件指令；**反汇编器只输出真实硬件指令**，不输出伪指令。
+> **伪指令集的权威定义在 `spec/Toolchain-01-汇编语言.md §6`**。伪指令**不是**硬件指令，由汇编器在前端展开为一条或多条真实硬件指令；**反汇编器只输出真实硬件指令**，不输出伪指令。
 
-v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成型**伪指令（`set.rd`/`set.rb`/`set.ft`/`set.fo`，各有「立即数」与「寄存器」两种源形式）；逐条语法、展开规则与示例见 `Toolchain-01 §6`（`set.*` 的 wyde 级展开示例见 SimRISC-03）。
+本版仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成型**伪指令（`set.rd`/`set.rb`/`set.ft`/`set.fo`，各有「立即数」与「寄存器」两种源形式）；逐条语法、展开规则与示例见 `Toolchain-01 §6`（`set.*` 的 wyde 级展开示例见 SimRISC-03）。
 
-**已删除助记符（不再作为伪指令）**：上游 `SimRISC-0.5.4` 定义的 `nop`、`return`、`not.{b,w,t,o}`、`neg.{b,w,t,o}`（共 10 条）**1:1 别名一律不保留**（`ADR-0013 D11`）。需要相应功能时**直接书写真实指令**：
+**已删除助记符（不再作为伪指令）**：`SimRISC-0.5.4` 定义的 `nop`、`return`、`not.{b,w,t,o}`、`neg.{b,w,t,o}`（共 10 条）**1:1 别名一律不保留**。需要相应功能时**直接书写真实指令**：
 
 - `nop` → `swym 0`（空操作 / 对齐）；
 - `return` → `ret rd0, 0`（无返回值返回；`ret` 保持显式两操作数，**无无参形态**）；
-- `not.o` → `xnor.o rd, rs, rd0`（64 位按位取反）；`not.b`/`not.w`/`not.t` 无等宽替代（窄位宽 `xnor.b/w/t` 已随 `SPEC-069t` 删除，需要时用 `xnor.o` 做 64 位取反）；
+- `not.o` → `xnor.o rd, rs, rd0`（64 位按位取反）；`not.b`/`not.w`/`not.t` 无等宽替代（窄位宽 `xnor` 已删除，需要时用 `xnor.o` 做 64 位取反）；
 - `neg.b`/`neg.w`/`neg.t`/`neg.o` → `sub.sX`（`sub.sb`/`sub.sw`/`sub.st`/`sub.so`）。
-
----
 
 ## 附录：版本与变更记录
 
@@ -415,65 +410,73 @@ v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成�
 
 ### 0.5.5-rc（未发布）
 
-- 新增 `ftrnd`/`fornd`（取整，IEEE 754-2019 `roundToIntegral` 六档，`immu6` one-hot；orri），编码 `000-011`/`001-011`（`ha = 0x03`/`0x0B`，MISC-RF）；`scope` 为 `excluded`（执行 ILLI）。
-- 新增 `clmul.o`（GF(2) 无进位乘，`rrrr` 双目的，`rdHA` 高 / `rdHB` 低），编码 `0101-0110`（`op = 0x56`，紧跟 `mul.so`）；`scope` 为 `excluded`（执行 ILLI）。
-- 编码再分配：`ext.uo`/`ext.so` 编码迁至 `100-000`/`100-001`（orrr）与 `101-000`/`101-001`（orri），助记符与语义不变。
+- 新增 `ftrnd`/`fornd`（取整，IEEE 754-2019 `roundToIntegral` 六档，`immu6` one-hot；`orri`），编码 `000-011`/`001-011`（`ha = 0x03`/`0x0B`，`OPC-RF`）。
+- 新增 `ftmin`/`ftmax`/`fomin`/`fomax`（最小/最大值，IEEE 754-2019 `minimumNumber`/`maximumNumber`；`orrr`），编码 `100-110`/`100-111`/`101-110`/`101-111`（`ha = 0x26`/`0x27`/`0x2E`/`0x2F`，`OPC-RF`）；单 NaN 返回数字、双 NaN ⇒ canonical qNaN、`−0 < +0`、sNaN ⇒ NV、不涉舍入不置 NX。
+- `ftrnd`/`fornd`、`ftmin`/`ftmax`/`fomin`/`fomax` 的执行语义生效（不再 decode ILLI），合法性 `dst_rf0` 与 `encode_onehot` 生效。
+- 新增 `clmul.o`（GF(2) 无进位乘，`rrrr` 双目的，`rdHA` 高 / `rdHB` 低），编码 `0101-0110`（`op = 0x56`，紧跟 `mul.so`）。
+- 编码再分配：`ext.uo`/`ext.so` 编码迁至 `100-000`/`100-001`（`orrr`）与 `101-000`/`101-001`（`orri`），助记符与语义不变。
 - `fence` 编码由 `000-000` 迁至 `100-000`（`ha = 0x20`），`immu18` 位域改为 `fm`/`pred`/`succ`；`swym` 仍在 `100-010`。
-- `lr`/`sc` 原子指令改名并重排编码：`lr` = `000`/`001` 两行（`nn`/`an`/`ar`）、`sc` = `010`/`011` 两行（`nn`/`nr`/`ar`），助记符为 `<lr|sc>.<b|w|t|o>.<序>`（24 条；删除 `lr.*.nr` 与 `sc.*.an`）；`scope` 仍为 `excluded`。
-- `shl` 的四个位宽变体去掉 `u` 后缀（`shl.o`/`shl.t`/`shl.w`/`shl.b`），编码迁至 `010-000`（orrr）/`011-000`（orri）。
+- `lr`/`sc` 原子指令改名并重排编码：`lr` = `000`/`001` 两行（`nn`/`an`/`ar`）、`sc` = `010`/`011` 两行（`nn`/`nr`/`ar`），助记符为 `<lr|sc>.<b|w|t|o>.<序>`（24 条；删除 `lr.*.nr` 与 `sc.*.an`）。
+- `lr`/`sc` 对齐口径订正：地址按数据宽度自然对齐（`.b`=1 / `.w`=2 / `.t`=4 / `.o`=8 字节），不满足 ⇒ MALIGN。
+- `shl` 的四个位宽变体去掉 `u` 后缀（`shl.o`/`shl.t`/`shl.w`/`shl.b`），编码迁至 `010-000`（`orrr`）/`011-000`（`orri`）。
 - 新增 `rol.o`/`rol.t`/`rol.w`/`rol.b`（逻辑循环左移，`orrr`/`orri`），编码 `010-001`/`011-001`；符号无关、不带 `u`/`s` 后缀。
-- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
-- 伪指令集收缩：删除 `nop`/`return`/`not.*`/`neg.*` 等 1:1 别名伪指令，仅保留需多指令合成的伪指令。
-- 删除 `illi` 指令；`fence` 编码改 `0x00`、`swym` 编码改 `0x22`。
+- 新增 `rev.o`/`rev.t`/`rev.w`/`rev.b`（逐块反转），占 `OPC-octa`/`OPC-tetra`/`OPC-wyde`/`OPC-byte` 四子表的 `001-100`（`opx = 001100`）。
+- 新增 `ctlz`/`cttz`/`ctpop`（位扫描 / 位计数）3 条**无位宽后缀**指令，借 `OPC-octa` 子表格位 `011-101`/`011-110`/`011-111`（「子表 ⇔ 位宽后缀」规则的例外）。
 - 新增 `sub.o`（RB−RB→RD）；RB 算术三条指令改名并调整编码槽。
-- 新增 `rev.o`/`rev.t`/`rev.w`/`rev.b`（逐块反转）4 条指令，占 `MISC-octa`/`tetra`/`wyde`/`byte` 四子表的 `001-100`（opx = `001100`）。
-- 新增 `ctlz`/`cttz`/`ctpop`（位扫描 / 位计数）3 条**无位宽后缀**指令，借 `MISC-octa` 子表格位 `011-101`/`011-110`/`011-111`（「子表 ⇔ 位宽后缀」规则的例外）。
-- 浮点范围口径引入 `scope`（`m1` / `fp` / `excluded`）标注。
 - `cmp.uo-rb` 改为整 64 位比较；RB / 控制流地址语义修正。
-- 窄位宽指令精简、高位处理统一为值语义；`MISC-AMO` 编码移至 `0111-0111`。
+- 窄位宽指令精简、高位处理统一为值语义；`OPC-MISC` 编码移至 `0111-0111`。
 - 删除 `ftlog`/`folog`；`ftroot`/`foroot` 仅保留 n=2。
-- 浮点状态寄存器 `rf0` 位域与访问规则调整。
-- 术语统一：`major-op`→`opc`、`minor-op`→`opx`（删 `minor_op` 死代码）；全量删除 `rela.si`。
-- 恢复 `rela.si`（64 位 PC 相对寻址，`riii`，编码 `0101-1010`；语义参照 `auipc`：`rbHA = PC + (imms18 << 12)`，`PC` 取该指令自身地址、不清低位）——**取代**本段上方「全量删除 `rela.si`」一条。
-- 0 号寄存器作源操作数语义澄清；各寄存器组 0 号寄存器用途措辞定稿。
-- 伪指令表改用新汇编格式；cfx 系列记法约定。
-- ISA 指令 `rela.si` 改名 **`aip.si`**（`riii` / 编码 `0101-1010` 不变；零撞名、长度不变、与 `rbip` 同术语）。
-- 正文术语 `PC` 统一为 **`IP`**（`rb0`/`rbip`）：**`IP` = 当前正在执行的指令的地址**，**不是**主流 ISA 的「下一条指令地址」口径；本 ISA **无 `±4` 流水偏移**，I 形态指令的立即数基址即 `IP`。
-- `clmul.o` 解除 `excluded`（`scope` → `m9`；M9 新增 ISA 指令，与 `rol.*` 同档），执行语义见 `SimRISC-04 §3.5`。
-- `ftrnd`/`fornd` 解除 `excluded`（`scope` → `fp`；实现落地后执行语义生效，不触发 decode ILLI），语义见 `SimRISC-07 §4.3`。
-- 新增 `ftmin`/`ftmax`/`fomin`/`fomax`（最小/最大值，IEEE 754-2019 `minimumNumber`/`maximumNumber`；`orrr`），编码 `100-110`/`100-111`/`101-110`/`101-111`（`ha = 0x26`/`0x27`/`0x2E`/`0x2F`，MISC-RF）；`scope` 为 `excluded`（执行 ILLI），语义见 `SimRISC-07 §4.4`。
-- `ftmin`/`ftmax`/`fomin`/`fomax` 解除 `excluded`（`scope` → `fp`；实现落地后执行语义生效，不触发 decode ILLI）；MISC-RF 子表 50 条全部为 `scope: fp`，FP 范围总账 60 → 64 条；语义见 `SimRISC-07 §4.4`。
+- 浮点状态寄存器 `rf0` 位域与访问规则调整；0 号寄存器作源操作数语义澄清；各寄存器组 0 号寄存器用途措辞定稿。
+- 删除 `illi` 指令；`fence` 编码改 `0x00`、`swym` 编码改 `0x22`。
+- 术语统一：`major-op`→`opc`、`minor-op`→`opx`。
+- 全量删除 `rela.si`；随后恢复 `rela.si`（64 位 IP 相对寻址，`riii`，编码 `0101-1010`；`rbHA = IP + (imms18 << 12)`，`IP` 取该指令自身地址、不清低位）——取代删除条目。
+- ISA 指令 `rela.si` 改名 **`aip.si`**（`riii` / 编码 `0101-1010` 不变）；正文术语 `PC` 统一为 **`IP`**（`rb0`/`rbip`）：**`IP` = 当前正在执行的指令的地址**，非「下一条指令地址」口径；本 ISA **无 `±4` 流水偏移**。
+- `aip.si` 补「与 `auipc` 的三点差异」：① 操作数以字节为单位（汇编层 `imms30`，编码层 `imms18 = imms30 >> 12`）② 结果写入 RB 银行 ③ 可达 ±512 MiB。
+- `focls`/`ftcls` 分类位序改为 IEEE 754-2019 `class` 的类别顺序（bit0 sNaN、1 qNaN、2 -∞、3 -normal、4 -subnormal、5 -0、6 +0、7 +subnormal、8 +normal、9 +∞）；**破坏性**：与 RISC-V `fclass` 位序不兼容。
+- **破坏性**：删除 `cs.eq_rrrr_rf`/`cs.ne_rrrr_rf`（`0x5E`/`0x5F` 腾空）；浮点条件赋值仅保留 `cs.n`/`cs.z`/`cs.p` 的 rf 变体，判「比较结果是否为 1」改用 `sub` + `cs.z`。
+- `trap`/`escape`/`cfx2rc`/`cfx2rd` 重新划分编码归属；`ret rd0` ⇒ `imms18 = 0` 合法性约束。
+- 伪指令集收缩：删除 `nop`/`return`/`not.*`/`neg.*` 等 1:1 别名伪指令，仅保留需多指令合成的伪指令。
+- 标题章节号统一为 `N` / `N.M` / `N.M.K`；正文改用新汇编格式；新增「汇编指令速查」「合法性检查」两个附录（生成区）。
+- 新增「原子指令」章（`fence` / `lr`·`sc`），由 `SimRISC-12` 迁入；该册仅余 SRAM 块传输（`cfxld`/`cfxst`）。
 
 ### 0.5.4（2026-09-28）
 
-- 手册重组为 12 分册（`SimRISC-00`…`SimRISC-12`）；本册保留指令系统设计（数据表示 / 寄存器 / 指令设计 / QFC 主表 / 伪指令汇总）。
+- 手册重组为 13 分册（`SimRISC-00`…`SimRISC-12`）：指令系统设计 / 取数存数 / 寄存器复制 / 16 位立即数操作 / 64 位数据运算 / 64 位地址运算 / 控制流 / 浮点运算 / 32 位数据运算 / 16 位数据运算 / 8 位数据运算 / 其它 / 待定。
 - 伪指令自 ABI 迁回 SimRISC 各册，并新增伪指令汇总表；新增 `neg.b/w/t/o`（取负）与 `not.b/w/t/o`（取反）伪指令。
 - 删除 FPEXCP 异常（浮点按 IEEE 754 执行、经 `rf0` 轮询异常状态）。
-- 职责边界调整：数据表示 / 寄存器 / 返回地址栈移入本册。
+- 职责边界调整：数据表示 / 寄存器 / 返回地址栈移入 `SimRISC-00`。
 - 目录 `wiki/` 重命名为 `spec/`。
 
 ### 0.5.3（2026-07-19）
 
-- QFC 重排：MISC-AMO 移到 `x000`、MISC-RF 位于 `0100-0100`；`jump`/`call`/`ret` 编码 +2、`trap`/`escape` 对调；`illi` 移入 MISC-octa。
+- QFC 重排：`OPC-MISC` 移到 `x000`、`OPC-RF` 位于 `0100-0100`；`jump`/`call`/`ret` 编码 +2、`trap`/`escape` 对调；`illi` 移入 `OPC-octa`。
 - `setrd`/`setrb`/`setrf` 改名为 `set.rd`/`set.rb`/`set.rf`。
+- `add.si` 改为 `riii` 格式、立即数 18 位、源=目的；`opc` 调整。
 
 ### 0.5.2（2026-07-18）
 
-- 删除 `bpN`/`brrr`/`brri`，改用 `MISC-byte`/`wyde`/`tetra`/`octa` 四种固定位宽子表。
-- 指令名后缀统一为 `.ub`/`.sb`/`.uw`/`.sw`/`.ut`/`.st`/`.uo`/`.so`。
-- `add`/`sub` rrrr 拆分为 `add.uo`/`add.so`/`sub.uo`/`sub.so`；`addi`→`add.si`；`cmps`/`cmpu`→`cmp.si`/`cmp.ui`；`orr`→`or`。
-- `cs.`/`br.` 指令名加点、条件后缀统一。
+- 删除 `bpN`/`brrr`/`brri`，改用 `OPC-byte`/`OPC-wyde`/`OPC-tetra`/`OPC-octa` 四种固定位宽子表。
+- 指令名后缀统一为 `.ub`/`.sb`/`.uw`/`.sw`/`.ut`/`.st`/`.uo`/`.so`；存取指令名统一为 `ld.*`/`st.*` 后缀形。
+- `add`/`sub` `rrrr` 拆分为 `add.uo`/`add.so`/`sub.uo`/`sub.so`；`addi`→`add.si`；`cmps`/`cmpu`→`cmp.si`/`cmp.ui`；`orr`→`or`。
+- `cs.`/`br.` 指令名加点、条件后缀统一；浮点存取 / 立即数 / 条件赋值指令名后缀统一。
+- `rwii` 指令名改为 `or.w`/`andn.w`/`set.ow`/`set.zw`/`set.w`；新增 `setrd`/`setrb`/`setrf` 伪指令定义。
+- `ld.o`/`st.o` 用于 RB/RA/RF 全 64 位存取；`swym` 改 `iiii` 格式、`unimp`→`illi`。
+- 修复 `lr`/`sc` 描述不一致；`fence` 编码整理。
 
 ### 0.5.1（2026-07-17）
 
-- 编码表重排（MISC-Norm / `jump` / `call` / `ret` / MISC-AMO 移入新表）；`ld`/`st` 宽度对齐、`stm`/`ldm` 连续排列。
-- QFC 重构：MISC-AMO 并入 MISC-Norm、`exts`/`extz` 移 `0001` 行、`swym` 移 `0111`。
+- 编码表重排（常规表 / `jump` / `call` / `ret` / `OPC-MISC` 移入新表）；`ld`/`st` 宽度对齐、`stm`/`ldm` 连续排列。
+- QFC 重构：`OPC-MISC` 并入常规表、`exts`/`extz` 移 `0001` 行、`swym` 移 `0111`。
+- 新增 `ld.o`/`st.o`-ra 形式，RA 存取对齐补全；存取对齐要求（`ldm`/`stm`）移入限制列表。
+- `RASUP`→`RASUF`；特权模型与 SEE 对齐，删冗余 ILLI 声明。
+- `rd0` 为目的寄存器的约定收窄：仅 `add`/`sub`/`mul` 的 `rrrr` 双目的格式允许其中一个为 `rd0`。
 
 ### 0.5.0（2026-07-15）
 
-- 新增 `brrr` 格式（`cmps`/`cmpu`/`add`/`sub`/`muls`/`mulu`）；删除 `cmps`/`cmpu`-orrr。
-- 位掩码 `bN`→`bmN`→`bpN`（bit position）重命名；`ww`→`wpN`（wyde position）重命名。
-- 格式分组整理（r/rw/o/b/c 分类）；删除 `orii`、`oiii` 补 18 位分配；`swym` 改 iiii 格式、`unimp`→`illi`。
+- 新增 `brrr` 格式（`cmps`/`cmpu`/`add`/`sub`/`muls`/`mulu`）；删除 `cmps`/`cmpu`-`orrr`。
+- 位掩码 `bN`→`bmN`→`bpN`（bit position）重命名；`ww`→`wpN`（wyde position）重命名，16 位立即数按 `wp0`–`wp3` 定位。
+- 格式分组整理（r/rw/o/b/c 分类）；删除 `orii`、`oiii` 补 18 位分配；`swym` 改 `iiii` 格式、`unimp`→`illi`。
+- `divs`/`divu` 改为 `rem` 余数语义；浮点运算指令编码整理。
 
 ### 0.4.1（2026-07-14）
 
