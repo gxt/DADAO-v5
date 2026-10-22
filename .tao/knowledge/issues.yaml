@@ -51,18 +51,18 @@
   notes: "原 backlog L145。建议性跟踪（Process-01 §11 非强制）；如出现维护痛点再评估拆分。"
 - id: ISS-120
   title: "min_rom_probe_{006t,008t,009t,010t,013t,028t}.py 群 FAIL 与 009t-audit FAIL（pre-existing 漂移）"
-  status: open
+  status: closed
   scope: [qemu, testcases]
   blocks: []
-  resolved_by: null
-  notes: "原 backlog L215/L216/L231。009t-audit 现 EXIT=1、18 条 mismatch（ctrl-br/mem-ra/mem-rb/reg-compare/reg-shift-extend），与 HEAD 逐行相同。归属后续清理任务。"
+  resolved_by: TESTCASES-061t
+  notes: "原 backlog L215/L216/L231。009t-audit 现 EXIT=1、18 条 mismatch（ctrl-br/mem-ra/mem-rb/reg-compare/reg-shift-extend），与 HEAD 逐行相同。归属后续清理任务。 **关闭（2026-10-23，`TESTCASES-061t`）**：6 个探针（006t/008t/009t/010t/013t/028t）按现行口径对齐，逐个 rc=0。"
 - id: ISS-125
   title: "生成器↔向量预存漂移（全量重跑会破坏 5 文件）"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
-  notes: "原 backlog L226/L227。TESTCASES-023t 已部分修（scoped 过滤 + reg-imm-block 忠实复现）；余 4 文件（reg-arith/reg-compare/reg-logic/reg-shift-extend）债务未清。归属 testcases 专任务。"
+  resolved_by: TESTCASES-061t
+  notes: "原 backlog L226/L227。TESTCASES-023t 已部分修（scoped 过滤 + reg-imm-block 忠实复现）；余 4 文件（reg-arith/reg-compare/reg-logic/reg-shift-extend）债务未清。归属 testcases 专任务。 **关闭（2026-10-23，`TESTCASES-061t`）**：生成器重生成后二轮零 diff；新增 4 组规则（div/rem 除零、INT_MIN/-1、cmp.uo-rb 边界），978 全量 0 缺 0 增。"
 - id: ISS-160
   title: "SPEC-106t 范围外残留：contract-isa 投影层仍列已删伪指令 + impact-matrix 悬空 + check_spec_codeblocks PSEUDO_INSTRUCTIONS 陈旧"
   status: open
@@ -97,11 +97,11 @@
   notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；原待登记稿 §R4 随 `INFRA-070t` 收拢删除，内容以本 issue 为准）】**M7**。**实测**：`fcmp` **取值**（含 ordered `oeq`）⇒ `Cannot select setcc`；`fabs`/`frem`/`copysign` ⇒ `Cannot select bitcast`；`fma`/`fminnum`/`fmaxnum`/`floor`/`ceil`/`round`/`trunc` ⇒ `no libcall`；`fpclass` ⇒ `setcc setuo`；`f16` ⇒ `fp_to_fp16`；`bitcast double→i64`（FP↔RD）**缺 ISel 模式**（指令 `rf2rd`/`rd2rf` **已在**）。**全部显式失败、不产错码**（非静默降级）。**只登记，不建任务。** **衍生待办（`INFRA-057t`，2026-10-11）**：该缺口的**消费侧变通** = picolibc `meson.build` 显式**源过滤表**（整个 `libm/` + 20 条 libc 浮点/换字节源）以换取构建确定成功；**`LLVM-079t`/`080t` 落地后须删表恢复全量**（切 `io-float-exact=false` engine 变体后 ryu 4 条为惰性条目、随之一并删）。细节指针：`.tao/tasks/infra/INFRA-057t-*.md` 完成区「遗留问题①②③」。 **【收口进展（`LLVM-079t`，2026-10-11）】P0 五类已由 `LLVM-079t` 收口**（探针 `BACKEND_CANNOT_SELECT` **64→0**：`f32→f64 anyext 载入`/FP `setcc`/`f64↔i64 bitcast`/`f64 select_cc`/`i64 cttz`）；**剩余 P1 归 `LLVM-080t`**（取整/min-max/`fabs`/`copysign`）；**无序族 FP 谓词（`SETUO`/`isnan`）与 `dcvt.c` `BACKEND_OTHER` 仍缺**。 **【收口进展（`LLVM-080t`，2026-10-12）】P1 类已收口**（取整六项 + `fmin`/`fmax` ⇒ RTLIB libcall；`fabs`/`copysign`(f64) ⇒ ISA `fosgnj`；探针 O0/O1/O2 全 OK；`check-lit` 99/99）。 **跨任务缺口（实测）**：sysroot `libm.a` = **876 B 空壳**（仅 `empty.c.o`），根因 = `INFRA-057t` 显式源过滤表**整目录排除 `libm/`** ⇒ **恢复 `libm`（删过滤表并重建）为 `TESTCASES-042t` 前置**；恢复后须 `nm` 复核 8 符号（`floor`/`ceil`/`trunc`/`round`/`rint`/`nearbyint`/`fmin`/`fmax`）。 P0（`LLVM-079t`）/P1（`LLVM-080t`）均已收口 ⇒ **该前置可执行**；指针 = `LLVM-080t` 任务书「遗留问题」+ `.work/evidence/<任务ID>/run.sh`。 **【收口进展（`INFRA-066t`，2026-10-12）】过滤表已删/最小化，`libm` 主体已恢复**：实测**更正**上文口径——`libm.a` = **876 B 空壳是 picolibc 上游设计**（`empty-libs/meson.build` 生成 `libm.a`/`libg.a`/`libnosys.a` 空壳以兼容 `-lm`；上游 README「Picolibc version 1.7 §1」：libc 与 libm **合并为单一库**），**非**过滤表产物；真正的恢复目标是 **`libc.a`**（数学对象并入其中）。现状：`libc.a` 1,241,616 → **1,686,214 B**，8 符号（`floor`/`ceil`/`trunc`/`round`/`rint`/`nearbyint`/`fmin`/`fmax`）**全命中**；`TESTCASES-042t` 前置满足。**剩余缺口另立 `ISS-193`**（6 类 41 源：`SETO`/`SETUO`/`SETUNO` 谓词 30、f32 `frint`/`flog`/`ftrunc` 5、i64 `bswap` 1、截断存储 2、`\"r\"` 约束 2、`long double` strtod 1）⇒ **`pow`/`hypot`/`j0`/`y0`/复数/`scanf` 族仍不可链接**。证据指针：`.tao/tasks/infra/INFRA-066t-*.md` 完成区。"
 - id: ISS-190
   title: "生成器 ↔ 已提交向量语义漂移（`st.*` 源 = `rd0`）——既有问题，非 QEMU-056t 引入"
-  status: open
+  status: closed
   scope: [testcases, spec]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（源 `QEMU-056t` 完成区「遗留问题」+ reviewer 第 1 轮「遗留 st.*/rd0 判定」）】**既有问题、非 `QEMU-056t` 引入**（reviewer 已核该任务生成器重跑产物与已提交向量 **IDENTICAL**，不存在该任务引入的漂移）。**冲突**：`tools/testcases/generate_mem_vectors.py` 把 `st.*` 源 = `rd0` 作 **ILLI** 用例（`store_src_rd0`）并据以重派生已提交向量；而 `tools/testcases/validate_vectors.py` 按 `ADR-0012 D3.1/D5`（承 `ADR-0015 D3`：`st.*`/`stm.*` 的**源**为 `rd0`/`rb0` **MAY**（读出 0 / 当前指令地址）、**MUST NOT** 触发 ILLI）判其**合法** ⇒ 生成器 / 向量与合约口径**不一致**。**待裁定**：以合约（合法）为准修生成器并重派生相关向量，还是改契约口径；并明确是否需在 `spec`/`contract-*` 增显式引用。**性质 = 语义口径冲突（非缺陷）**。**只登记，不建任务**。证据指针：`QEMU-056t` 任务书「遗留问题」+ reviewer「遗留 st.*/rd0 判定」。"
+  resolved_by: TESTCASES-061t
+  notes: "【正式登记（源 `QEMU-056t` 完成区「遗留问题」+ reviewer 第 1 轮「遗留 st.*/rd0 判定」）】**既有问题、非 `QEMU-056t` 引入**（reviewer 已核该任务生成器重跑产物与已提交向量 **IDENTICAL**，不存在该任务引入的漂移）。**冲突**：`tools/testcases/generate_mem_vectors.py` 把 `st.*` 源 = `rd0` 作 **ILLI** 用例（`store_src_rd0`）并据以重派生已提交向量；而 `tools/testcases/validate_vectors.py` 按 `ADR-0012 D3.1/D5`（承 `ADR-0015 D3`：`st.*`/`stm.*` 的**源**为 `rd0`/`rb0` **MAY**（读出 0 / 当前指令地址）、**MUST NOT** 触发 ILLI）判其**合法** ⇒ 生成器 / 向量与合约口径**不一致**。**待裁定**：以合约（合法）为准修生成器并重派生相关向量，还是改契约口径；并明确是否需在 `spec`/`contract-*` 增显式引用。**性质 = 语义口径冲突（非缺陷）**。**只登记，不建任务**。证据指针：`QEMU-056t` 任务书「遗留问题」+ reviewer「遗留 st.*/rd0 判定」。 **关闭（2026-10-23，`TESTCASES-061t`）**：`st.*`/`stm.*` 的 `rd0` 源口径统一（0 条误判 ILLI 向量）。"
 - id: ISS-192
   title: "spec_cite 悬挂（24 条）：SimRISC-08/09/10 的「比较操作」/「Bit manipulating：位操作指令」标题带「 — 值语义」后缀，而 `contracts/opcodes.yaml` 的 `spec_cite` 省略该后缀——既有问题，非 SPEC-133t 引入"
   status: closed
@@ -246,11 +246,11 @@
   notes: "【正式登记（源 = `LLVM-095t`「遗留① 修复」完成区「新发现②」+ 收尾复核块 ②；architect 提交/文件集审核时立项并**现场复现复核**，2026-10-16）】**现象（现场复现，rc=134）**：`echo 'ld.o rb4, [rb4, %pcrel_lo(.Lhi0)]' | llvm-mc --triple=dadao-unknown-elf --show-encoding` ⇒ **SIGABRT**（signal=6，**rc=134**）；文案**逐字** = `llvm-mc: …/llvm/lib/MC/MCAsmStreamer.cpp:134: void llvm::MCAsmBaseStreamer::addEncodingComment(…): Assertion `Bit == 0 && \"Encoder wrote into fixed up bit!\"' failed.`。**触发条件**：低半（`%pcrel_lo`）且目的 `rbha ≥ 4`（`clang` 默认的 `rb4` 即命中）；同文本换 `rb1`（`rbha < 4`）⇒ **rc=0** 且正常打印 `… fixup A - offset: 0, value: %pcrel_lo(.Lhi0), kind: DADAO_FK_PCREL_LO`。**只影响该显示模式** ✗：`-filetype=obj` 同内容 **rc=0**，且 `llvm-readobj -r --expand-relocs` 得**两条**记录（`R_DADAO_PCREL_HI (14)` @`0x0` + `R_DADAO_PCREL_LO (15)` @`0x4`，LO symbol = `.text` 节符号）⇒ 目标文件产出**不受影响**。**根因（现场判据）**：`MCFixupKindInfo` 的 `{Offset 0, TargetSize 12}` 与 streamer 在**大端**下的 **MSB-first** `FixupMap` 位序不符 —— 映射落到 opcode / `rbha` 位（需在已设 `Bit` 处再写 ⇒ 断言）。**修法触及被钉住的载体**：须动 `components/llvm-project/patches/…/DADAOAsmBackend.cpp` 的 fixup 元数据表，而该表被 `check_mc.py` 的 `A7`（「字段宽 18/12」）与 `.tao/contracts/contract-elf.md §2.2` 引用同时钉住 ⇒ **须架构师 / 用户裁定**（可能连带改 `A7` 断言与契约叙述），**不擅自改** ✗。**`status` 取 `open`（architect 判断）**：① 缺陷**仍在**（现场 rc=134 复现）；② **可复发**（任一 `rbha ≥ 4` 的低半 `--show-encoding`，含 `clang -S` 打印文本回流）；③ **须裁定**（修法跨 `A7` 门控 + 契约引用）。**性质** = 显示模式缺陷（**非** `LLVM-095t` 交付面缺陷 —— 其交付判据 = `%pcrel_*` 可解析 + 文本往返逐字节 + 对象两条记录，均已交付并留证；本项为**同笔发现、按裁定不修**）。**边界**：本笔**未改** `components/**`、未改 `contracts/`、未改 `.tao/contracts/**`（只登记 + 给触发条件 / 影响面 / 修法边界）。证据指针：`.tao/archive/M8/llvm/LLVM-095t-REL32与PLT内联.md`「遗留① 修复 完成记录」→「新发现/坑 ②」+「遗留问题 ②」+「收尾遗留处置 完成记录」§②；`.tao/archive/M8/qemu/QEMU-061t-rela-si解码与语义.md`「收尾遗留处置…」§④；`.work/log/llvm/QEMU-061t-show-encoding-recheck.log`（本机留档，不入库）；`tests/llvm/lit/MC/DADAO/pcrel-specifier.s` L19–24（注释明写该显示模式缺陷 + 低半改走 `-filetype=obj`）；现场工具 = `.dadao/cross-toolchain/bin/llvm-mc`（md5 `59f5b7f20780bcc0618880aaebcb0b75`）。**交叉引用**：`ISS-210`（安装根 × 构建树一致性：本项判定以**已安装根**为准）、`LLVM-095t`（发现者）、`contract-elf.md §2.2`（`14`/`15` 两行 + `imms18`/`imms12` 字段）。"
 - id: ISS-234
   title: "【P3】`tools/qemu/min_rom_probe_009t.py` 顶注 / 公式仍按已废止口径（称 `0x5A`=UNDI、`PC & ~0xFFF`）+ `tools/testcases/009t-audit.py` 对 `aip.si` 无 oracle（两件均非门控）"
-  status: open
+  status: closed
   scope: [qemu, testcases]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（源 = `QEMU-061t` 完成区「遗留问题③④」；architect 提交/文件集审核时立项并**现场复核**，2026-10-16）】**现象（现场核，两件均非门控）**：① `tools/qemu/min_rom_probe_009t.py` 顶部 docstring 仍写 `OBSOLETE: rela.si has been deleted (ADR-0012 D5) … op=0x5A is now UNDI … DO NOT RUN — all tests will fail with UNDI`，且其记录的公式仍是**已废止的页对齐口径** `rbha = (PC & ~0xFFF) + sign_extend(imms18 << 12)` —— 与现状（`0x5A` = 合法 `aip.si`（`ADR-0029`）、`IP` **不清低位**）**矛盾** ✗。该册**不在任何门控目标**（现场 `grep min_rom_probe Makefile` 仅 `:743` 的 `MIN_ROM_PROBE = tools/qemu/min_rom_probe_046t.py`）⇒ 误跑不会红色、但会**按废止口径误判**。② `tools/testcases/009t-audit.py` 对 `aip.si` **无独立 oracle**（现场 `grep -c -iE 'aip|rela' tools/testcases/009t-audit.py` = **0**）⇒ 该族无 host 侧独立核算（本任务以 `.work/evidence/QEMU-061t/oracle_aip.py` 补该缺口，但 audit 侧仍缺）；该件亦**无 Makefile / 门控引用**（`grep 009t-audit Makefile tools/infra/check_*.py` = NONE）⇒ **非门控**。**处置建议（未实施 ✗）**：① 给 `min_rom_probe_009t.py` 顶注加「**历史留档 · 口径已废止**（`aip.si` 恢复 + `IP` 口径；真源 = `ADR-0029`）」的一行指针（**不改**其历史测试正文 —— 保留 `QEMU-009t` 现场），或直接标注 superseded by `min_rom_probe_061t.py`；② `009t-audit.py` 增 `aip.si` oracle（可复用 `oracle_aip.py` 的字段/公式派生）或明确声明其覆盖边界。两件均**非门控** ⇒ 属**登记 / 卫生**面，不阻塞。**`status` 取 `open`（architect 判断）**：① 缺口**仍在**（顶注陈旧、audit 无 oracle）；② **可复发**（后人读到 009t 探针的 OBSOLETE 注记会得到相反结论）；③ **部分可机械判**（audit oracle 可加断言；探针顶注靠评审）。**性质** = 历史产物卫生 / 工具覆盖缺口（**非** `QEMU-061t` 交付面缺陷 —— 其「不做项 2」**明令不改** `min_rom_probe_009t.py`）。**边界**：本笔**未改** `tools/**`（只登记 + 给建议）。证据指针：`.tao/archive/M8/qemu/QEMU-061t-rela-si解码与语义.md`「完成区·遗留问题 ③④」+「第 1 轮 engineer 自审」F5/F6 +「收尾遗留处置…」§「遗留问题 ③」；`.tao/archive/M8/llvm/LLVM-095t-REL32与PLT内联.md`「阶段 ② 补 完成记录」→「遗留问题 ⑥」（跟名波及登记）；`tools/qemu/min_rom_probe_009t.py`（顶注 + 公式）；`tools/testcases/009t-audit.py`；`Makefile:743`（`MIN_ROM_PROBE`）。**交叉引用**：`ADR-0029`（`aip.si` 恢复 + `IP` 口径）、`ADR-0012 D5`（被取代的解码项）、`QEMU-061t`（登记源）。"
+  resolved_by: TESTCASES-061t
+  notes: "【正式登记（源 = `QEMU-061t` 完成区「遗留问题③④」；architect 提交/文件集审核时立项并**现场复核**，2026-10-16）】**现象（现场核，两件均非门控）**：① `tools/qemu/min_rom_probe_009t.py` 顶部 docstring 仍写 `OBSOLETE: rela.si has been deleted (ADR-0012 D5) … op=0x5A is now UNDI … DO NOT RUN — all tests will fail with UNDI`，且其记录的公式仍是**已废止的页对齐口径** `rbha = (PC & ~0xFFF) + sign_extend(imms18 << 12)` —— 与现状（`0x5A` = 合法 `aip.si`（`ADR-0029`）、`IP` **不清低位**）**矛盾** ✗。该册**不在任何门控目标**（现场 `grep min_rom_probe Makefile` 仅 `:743` 的 `MIN_ROM_PROBE = tools/qemu/min_rom_probe_046t.py`）⇒ 误跑不会红色、但会**按废止口径误判**。② `tools/testcases/009t-audit.py` 对 `aip.si` **无独立 oracle**（现场 `grep -c -iE 'aip|rela' tools/testcases/009t-audit.py` = **0**）⇒ 该族无 host 侧独立核算（本任务以 `.work/evidence/QEMU-061t/oracle_aip.py` 补该缺口，但 audit 侧仍缺）；该件亦**无 Makefile / 门控引用**（`grep 009t-audit Makefile tools/infra/check_*.py` = NONE）⇒ **非门控**。**处置建议（未实施 ✗）**：① 给 `min_rom_probe_009t.py` 顶注加「**历史留档 · 口径已废止**（`aip.si` 恢复 + `IP` 口径；真源 = `ADR-0029`）」的一行指针（**不改**其历史测试正文 —— 保留 `QEMU-009t` 现场），或直接标注 superseded by `min_rom_probe_061t.py`；② `009t-audit.py` 增 `aip.si` oracle（可复用 `oracle_aip.py` 的字段/公式派生）或明确声明其覆盖边界。两件均**非门控** ⇒ 属**登记 / 卫生**面，不阻塞。**`status` 取 `open`（architect 判断）**：① 缺口**仍在**（顶注陈旧、audit 无 oracle）；② **可复发**（后人读到 009t 探针的 OBSOLETE 注记会得到相反结论）；③ **部分可机械判**（audit oracle 可加断言；探针顶注靠评审）。**性质** = 历史产物卫生 / 工具覆盖缺口（**非** `QEMU-061t` 交付面缺陷 —— 其「不做项 2」**明令不改** `min_rom_probe_009t.py`）。**边界**：本笔**未改** `tools/**`（只登记 + 给建议）。证据指针：`.tao/archive/M8/qemu/QEMU-061t-rela-si解码与语义.md`「完成区·遗留问题 ③④」+「第 1 轮 engineer 自审」F5/F6 +「收尾遗留处置…」§「遗留问题 ③」；`.tao/archive/M8/llvm/LLVM-095t-REL32与PLT内联.md`「阶段 ② 补 完成记录」→「遗留问题 ⑥」（跟名波及登记）；`tools/qemu/min_rom_probe_009t.py`（顶注 + 公式）；`tools/testcases/009t-audit.py`；`Makefile:743`（`MIN_ROM_PROBE`）。**交叉引用**：`ADR-0029`（`aip.si` 恢复 + `IP` 口径）、`ADR-0012 D5`（被取代的解码项）、`QEMU-061t`（登记源）。 **关闭（2026-10-23，`TESTCASES-061t`）**：009t 顶注/公式改现行 `aip.si` 口径（并修 005t NameError、013t landing 偏移）。"
 - id: ISS-235
   title: "【P3】L3 语义门控 `check-qemu-semantics` 的载体 **≠** 「全量」：现列 **3/16** 册（`Makefile:881` 硬编码三文件），其余 **13** 册在任何 L1/L2/L3 门控内**零执行**；而注释 / docstring 仍称「**全量**留在 L3」⇒ 覆盖声明与载体脱钩"
   status: closed
@@ -542,11 +542,11 @@
 
 - id: ISS-309
   title: "【P2】测试 harness `build_exit_section` 的 `br.nz` 偏移按 `PC+4` 计（本 ISA 是 `PC + imm*4`）⇒ 用例失败时落到 semihosting trap（宿主 SIGABRT / -6），而非干净 `exit 1`"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（源 = `QEMU-067t` 完成区「新发现/坑 ②」+「遗留问题 ①」，2026-10-21；architect 提交时登记）】**现象（现场）**：`tests/scripts/build_test_binary.py:520` 用 `encode_br_nz_rd(ACCUM_RD, len(pass_block))` 发失败跳转，即把 `len(pass_block)` 当作「PASS 块字数」而**隐含 `PC+4` 基准**（同函数注释 `:512-516` 的布局 `[here] br.nz` / `[here+1] PASS` / `[here+1+N] FAIL` 也是这个口径）；但 v5 分支基准 = **指令自身 PC + `imm*4`**（`SimRISC` 分支语义，`build_branch_test_binary` docstring `:536` 已写「v5 branch base = instruction's own PC」）⇒ `br.nz imm=N` 实际落到 `[here+N]`，比 FAIL 块入口 `[here+N+1]` **早一个字**。该字 = PASS 块末字 `trap(0, SEMIHOST_TAG)`（`emit_sys_exit` `:273`）⇒ 在 **`rb16` 未指向 `EXIT_BLOCK`、`rd16` 未置 `SYS_EXIT`** 的状态下打 semihosting trap，宿主侧表现为 **SIGABRT（`$?` = 134 / 内部 rc = -6）**，而**不是**设计的干净 `exit 1`（`QEMU-067t` 首轮 F1/F2 期望错例现场即此形态：18 FAIL 全 SIGABRT）。**影响**：① **失败用例的退出码语义不可靠**（期望 `1`、实得信号），逐例归因全靠人工看日志；② 门控 **仍 fail-closed**（非 0 即红，不会假绿）⇒ **不阻断任何门控判据**，属可维护性/可诊断性缺陷；③ 判据写「失败 ⇒ rc=1」的向量只能断言「非 0」。**修法方向（未实施 ✗）**：偏移改 `len(pass_block) + 1`，或按 `(fail_block 起点 − br 自身) / 4` 从 `words` 索引**现场派生**（后者对块长变化免疫，优先）；修后须补一条**必失败**向量的反例证据（期望 rc=1、实得 1，且注入改回旧偏移时必须是 SIGABRT）——按 `lessons §2`「验证脚本必须能失败」。**等级 = P2**（不阻断 `QEMU-067t` 验收：`semantics 351/351`、`smoke 90/90`、`L1` 全绿均已成立；但每次真失败都需人肉读日志）。**证据指针**：`tests/scripts/build_test_binary.py:512-520`（布局注释 + `br.nz` 发射）、`:253-274`（`emit_sys_exit` 的 trap 尾字）、`:536`（v5 分支基准说明）；`QEMU-067t` 任务书完成区「新发现/坑 ②」「遗留问题 ①」。**交叉引用**：`QEMU-067t`（登记源，**现场发现**）、`ADR-0020 D8`（semihosting SYS_EXIT 退出通道）、`ISS-308`（同册 `build_test_binary.py` 的另处陈留）。**边界**：本笔**只登记** ⇒ 未改 `tests/scripts/build_test_binary.py` ✗、未重跑任何向量 ✗；**既有缺陷、未修** ✗（`QEMU-067t` 的改动面只含 `lr/sc` 宽度映射与 `sequence:`，不含本项）。"
+  resolved_by: TESTCASES-061t
+  notes: "【正式登记（源 = `QEMU-067t` 完成区「新发现/坑 ②」+「遗留问题 ①」，2026-10-21；architect 提交时登记）】**现象（现场）**：`tests/scripts/build_test_binary.py:520` 用 `encode_br_nz_rd(ACCUM_RD, len(pass_block))` 发失败跳转，即把 `len(pass_block)` 当作「PASS 块字数」而**隐含 `PC+4` 基准**（同函数注释 `:512-516` 的布局 `[here] br.nz` / `[here+1] PASS` / `[here+1+N] FAIL` 也是这个口径）；但 v5 分支基准 = **指令自身 PC + `imm*4`**（`SimRISC` 分支语义，`build_branch_test_binary` docstring `:536` 已写「v5 branch base = instruction's own PC」）⇒ `br.nz imm=N` 实际落到 `[here+N]`，比 FAIL 块入口 `[here+N+1]` **早一个字**。该字 = PASS 块末字 `trap(0, SEMIHOST_TAG)`（`emit_sys_exit` `:273`）⇒ 在 **`rb16` 未指向 `EXIT_BLOCK`、`rd16` 未置 `SYS_EXIT`** 的状态下打 semihosting trap，宿主侧表现为 **SIGABRT（`$?` = 134 / 内部 rc = -6）**，而**不是**设计的干净 `exit 1`（`QEMU-067t` 首轮 F1/F2 期望错例现场即此形态：18 FAIL 全 SIGABRT）。**影响**：① **失败用例的退出码语义不可靠**（期望 `1`、实得信号），逐例归因全靠人工看日志；② 门控 **仍 fail-closed**（非 0 即红，不会假绿）⇒ **不阻断任何门控判据**，属可维护性/可诊断性缺陷；③ 判据写「失败 ⇒ rc=1」的向量只能断言「非 0」。**修法方向（未实施 ✗）**：偏移改 `len(pass_block) + 1`，或按 `(fail_block 起点 − br 自身) / 4` 从 `words` 索引**现场派生**（后者对块长变化免疫，优先）；修后须补一条**必失败**向量的反例证据（期望 rc=1、实得 1，且注入改回旧偏移时必须是 SIGABRT）——按 `lessons §2`「验证脚本必须能失败」。**等级 = P2**（不阻断 `QEMU-067t` 验收：`semantics 351/351`、`smoke 90/90`、`L1` 全绿均已成立；但每次真失败都需人肉读日志）。**证据指针**：`tests/scripts/build_test_binary.py:512-520`（布局注释 + `br.nz` 发射）、`:253-274`（`emit_sys_exit` 的 trap 尾字）、`:536`（v5 分支基准说明）；`QEMU-067t` 任务书完成区「新发现/坑 ②」「遗留问题 ①」。**交叉引用**：`QEMU-067t`（登记源，**现场发现**）、`ADR-0020 D8`（semihosting SYS_EXIT 退出通道）、`ISS-308`（同册 `build_test_binary.py` 的另处陈留）。**边界**：本笔**只登记** ⇒ 未改 `tests/scripts/build_test_binary.py` ✗、未重跑任何向量 ✗；**既有缺陷、未修** ✗（`QEMU-067t` 的改动面只含 `lr/sc` 宽度映射与 `sequence:`，不含本项）。 **关闭（2026-10-23，`TESTCASES-061t`）**：`br.nz` 偏移改为 `PC + imm*4`；故意失败用例改前 rc=-6（trap）→ 改后 rc=1（FAIL 标签）。"
 
 - id: ISS-310
   title: "【P2】clang DADAO 的 `int` 实参未按 `contract-abi §4.2` 符号扩展为 canonical 64 位（生成 `set.zw`+`or.w` 零扩展）"
@@ -620,11 +620,11 @@
   notes: "【正式登记（2026-10-21，用户原话「可以」；源 = FP 指令册编写时的核对发现）】**现象（规范措辞层面，非实现缺陷）**：① `SimRISC-07 §1` 写「浮点→整数转换中 NaN/Inf/超出范围返回整型饱和值」与「下溢按舍入模式处理（设置 UF）」，**未写** IEEE 754-2019 §7.5 的 `UF = 结果 tiny **且** inexact`，也未声明 tininess 检测点是「舍入前」还是「舍入后」（标准要求实现二者择一并文档化）；② `SimRISC-00 §2.3.1` 把 `rf0[4:0]` 记为「异常状态（Accured exception）」，**未明示 sticky 语义**（置位后保持到软件清零）与「`NX` 与 `UF` 独立、不得互相蕴含」。**影响**：读规范实现 QEMU/后端时可能把 UF 实现成「tiny 即置」（不合 754），或把 `NX` 当 `UF` 的副产物；**无门控可判** ⇒ P3。**修法方向**：`SPEC` 小册补三句（`SimRISC-07 §1` 的 UF 条件 + tininess 检测点声明；`SimRISC-00 §2.3.1` 的 sticky 与 NX/UF 独立），**不改编码、不改 `rf0` 布局、不改 5 位**。**交叉引用**：`SPEC-161t`（取整册，涉及 NX 语义）、`SPEC-157t`/`SPEC-159t`（FMA/minmax 册，涉及标志一次置位）、`ADR-0035`（`clmul`）。**边界**：本笔**只登记**，未改 `spec/**` ✗。"
 - id: ISS-319
   title: "【P3】harness 超时路径打印 `Unknown exit code: 0x-6`（负数 `%x` 格式化），诊断信息不可读"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（2026-10-21，源 = `QEMU-068t` reviewer 第 1 轮非阻塞观察）】**现象**：值不匹配导致 harness 走 TIMEOUT 时，输出 `Unsupported SemiHosting SWI 0x00` 与 `Unknown exit code: 0x-6`；`0x-6` 是 `-6`（或未初始化）按 `%x` 格式化的结果，属**诊断可读性缺陷**（不影响判定，超时仍按 FAIL 计）。**归属**：测试 harness（`tools/qemu/**` 或 `tools/testcases/**` 的 min-rom/semihost 驱动），非本册交付面。**修法方向**：超时/异常分支显式区分「TIMEOUT」与「未知退出码」，负数按有符号打印并附 errno/信号；补一条注入（构造超时）验证输出可读且判定仍 FAIL。**交叉引用**：`ISS-098` 族（同属 harness 诊断面）。**边界**：本笔只登记。"
+  resolved_by: TESTCASES-061t
+  notes: "【正式登记（2026-10-21，源 = `QEMU-068t` reviewer 第 1 轮非阻塞观察）】**现象**：值不匹配导致 harness 走 TIMEOUT 时，输出 `Unsupported SemiHosting SWI 0x00` 与 `Unknown exit code: 0x-6`；`0x-6` 是 `-6`（或未初始化）按 `%x` 格式化的结果，属**诊断可读性缺陷**（不影响判定，超时仍按 FAIL 计）。**归属**：测试 harness（`tools/qemu/**` 或 `tools/testcases/**` 的 min-rom/semihost 驱动），非本册交付面。**修法方向**：超时/异常分支显式区分「TIMEOUT」与「未知退出码」，负数按有符号打印并附 errno/信号；补一条注入（构造超时）验证输出可读且判定仍 FAIL。**交叉引用**：`ISS-098` 族（同属 harness 诊断面）。**边界**：本笔只登记。 **关闭（2026-10-23，`TESTCASES-061t`）**：信号/超时路径输出可读（`host signal SIGABRT (rc=-6, 2's-complement 0xFFFFFFFA)`、`INCONCLUSIVE/Timeout`）。"
 - id: ISS-320
   title: "【P2】`check-instrinfo`（`validate_instrinfo.py`）不覆盖 FP 的 `.td`（`DADAOInstrInfoFP.td`），FP 记录的 def 缺失/残留无法被机械发现"
   status: closed
@@ -649,11 +649,11 @@
   notes: "【正式登记（2026-10-22，源 = `SPEC-161t` 完成区「遗留问题」+ 现场重跑；engineer 登记）】**现象（现场）**：`contracts/opcodes.yaml` 已立 `ftrnd_orri_rf`（`op 0x44` / `ha 0x03`）/`fornd_orri_rf`（`ha 0x0B`），`scope: excluded`、`decode: ILLI`（260 条 / excluded 29）；QEMU 侧无对应 `insn.decode` pattern 与 `trans_ftrnd_*`/`trans_fornd_*` ⇒ `check_qemu_trans --strict` 报 **258/260**（缺 2），`check_interface` 的「QEMU trans_* ↔ opcodes」交叉核对同步红。**本册边界**：L2 不在验收面（`make check`(L1) 全绿；上述两项红为**预期**），语义实现归 `QEMU-072t`（静态 5 档只合 NV、DYN 走真实 status；模式敏感 + NX 专测），LLVM 后端归 `LLVM-125t`，`excluded → fp` 翻转归 `SPEC-162t`。**关闭判据**：`QEMU-072t` 落 2 条 trans（`immu6` one-hot 六档；NX 只对 `0x20`）后 `check_qemu_trans` 260/260、`check_interface` 绿。**证据指针**：`.tao/tasks/spec/SPEC-161t-立册.md` 完成区；`contracts/opcodes.yaml`（两条记录）；`spec/SimRISC-07 §取整（roundToIntegral）`。**交叉引用**：`ISS-317`（同型「编码已定、实现待落」先例）、`ISS-318`（NX/UF 措辞）。**边界**：本笔只登记 ⇒ 未改 `components/qemu/**` ✗；`tests/**` 仅按既有生成器重生成反例文件（`gen-excluded.s`，机械派生）✗ 无语义向量改动。 **关闭（2026-10-22，`QEMU-072t`；关闭判据现场实测）**：`insn.decode` 落 `ftrnd_orri_rf`/`fornd_orri_rf` 两条 pattern，`trans_fp.c.inc` 落 `gen_fp_round_to_int` + 两条 `trans_*`（helper `fp_round_to_int`：静态 5 档临时 status 只合 NV、DYN 走真实 status 合 NV|NX）⇒ `check_qemu_trans --strict` **260/260 rc=0**，`make check-modules`(L2，含 `check_interface`) **rc=0**；探针 413/413、反例注入 135/34 红后还原回绿；证据 `.work/evidence/QEMU-072t/run.sh`。`scope` 仍 `excluded`（翻转归 `SPEC-162t`）、LLVM 归 `LLVM-125t`。"
 - id: ISS-323
   title: "【P3】`run_rnd_probe.py` 静态不可感性检查重复计数（`seen` 在 `for fmt` 内重置）⇒ 805 含 20 条重复；完成区「10 组 RESTORE」实测为 27 组"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（2026-10-22，源 = `TESTCASES-060t` reviewer 第 1 轮非阻塞 finding F-R1/F-R2）】**现象**：`check_aggregates` 的 `seen` 集合在 `for fmt` 循环内重置、`static` 未按 fmt 过滤 ⇒ 同一组 20 条「静态档不可感性」检查被两个格式各判一次（同名同值）；故 `total=805` 实含 20 条重复，去重后 **785**。断言未减弱（重复只会加强），**无假绿**；但计数口径失真。另：完成区写「10 组 RESTORE」而实测 **27 组**（叙述偏差，实际更强）。**修法方向**：把 `seen` 与 `static` 集合提到 fmt 循环外（或按 fmt 派生键），重跑两档并更新计数与完成区；补一条「重复检测」自测（同名同值只计一次）。**交叉引用**：`TESTCASES-060t`（登记源）、`docs/Process-08`（运行产物/计数口径）。**边界**：本笔只登记。"
+  resolved_by: TESTCASES-061t
+  notes: "【正式登记（2026-10-22，源 = `TESTCASES-060t` reviewer 第 1 轮非阻塞 finding F-R1/F-R2）】**现象**：`check_aggregates` 的 `seen` 集合在 `for fmt` 循环内重置、`static` 未按 fmt 过滤 ⇒ 同一组 20 条「静态档不可感性」检查被两个格式各判一次（同名同值）；故 `total=805` 实含 20 条重复，去重后 **785**。断言未减弱（重复只会加强），**无假绿**；但计数口径失真。另：完成区写「10 组 RESTORE」而实测 **27 组**（叙述偏差，实际更强）。**修法方向**：把 `seen` 与 `static` 集合提到 fmt 循环外（或按 fmt 派生键），重跑两档并更新计数与完成区；补一条「重复检测」自测（同名同值只计一次）。**交叉引用**：`TESTCASES-060t`（登记源）、`docs/Process-08`（运行产物/计数口径）。**边界**：本笔只登记。 **关闭（2026-10-23，`TESTCASES-061t`）**：`seen` 移出 `for fmt`；O0/O2 去重后 total=785（原 805 含 20 重复），判次=distinct。"
 - id: ISS-324
   title: "【P3】`ftmin`/`ftmax`/`fomin`/`fomax` 已立编码但缺 QEMU trans ⇒ `check_qemu_trans --strict` 260/264（预期红，`QEMU-071t` 关闭）"
   status: closed
@@ -670,11 +670,11 @@
   notes: "【正式登记（2026-10-22，源 = `SPEC-159t` engineer 自审发现）】**现象**：`tools/spec/check_tables.py` 的 `OP_TABLE` 仅含 `0x40/0x41/0x42/0x43`，`spec/SimRISC-00 §4.6 OPC-RF`（`op 0x44`，46→50 格）未被双向比对 ⇒ 该表的空格/错格/漏格**无门控可见**（本册新增 4 格若无证据脚本断言，L1 仍全绿）。**影响**：`ftrnd`/`fornd`（`SPEC-161t`）、`ftmin`/`ftmax`/`fomin`/`fomax`（`SPEC-159t`）等 OPC-RF 立册时，编码表与 `opcodes.yaml` 可能漂移而无人察觉；`check_tables.py` 的 `--self-test` 也只覆盖 4 表。**修法方向**：把 `OP_TABLE` 扩到 `0x44: OPC-RF`（表名的 `SECTION_RE` 同步），把 OPC-RF 的「表下范围注记/条数」也纳入现场派生断言（条数不写死）；补一条注入（删一格 / 改错格 ⇒ 红）。**交叉引用**：`SPEC-161t`/`SPEC-159t`（现场）、`ISS-324`（同批立册的 L2 缺口）。**边界**：本笔只登记 ⇒ 未改 `tools/spec/check_tables.py` ✗。 **关闭（2026-10-23，`INFRA-102t`）**：`check_tables` 覆盖 MISC-RF（`op 0x44`，5 表 151 条）。"
 - id: ISS-326
   title: "【P3】`tests/llvm/ir-lli/manifest.yaml` 11 个未分类 `*.ll` + 1 个悬空项"
-  status: open
+  status: closed
   scope: [llvm, testcases]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（2026-10-22，源 = `LLVM-124t` 完成区「新发现/坑」；architect 登记）】**现象**：`ir-lli` 用例集有 11 个 `.ll` 未被 manifest 分类（无 `expect`/`tags`），另有 1 个 manifest 条目指向不存在的文件（悬空）。**影响**：`ir-lli` 跑批对这些用例判定不可靠（无期望值 ⇒ 只验不崩），且悬空项不会让门控变红。**修法方向**：逐条补分类（pass/fail + 依据），删悬空项；若可机械判定，加一条「manifest ↔ 文件集合双向一致」断言。**边界**：本笔只登记 ⇒ 未改 `tests/llvm/ir-lli/**` ✗（LLVM-124t 明确未代修）。"
+  resolved_by: TESTCASES-061t
+  notes: "【正式登记（2026-10-22，源 = `LLVM-124t` 完成区「新发现/坑」；architect 登记）】**现象**：`ir-lli` 用例集有 11 个 `.ll` 未被 manifest 分类（无 `expect`/`tags`），另有 1 个 manifest 条目指向不存在的文件（悬空）。**影响**：`ir-lli` 跑批对这些用例判定不可靠（无期望值 ⇒ 只验不崩），且悬空项不会让门控变红。**修法方向**：逐条补分类（pass/fail + 依据），删悬空项；若可机械判定，加一条「manifest ↔ 文件集合双向一致」断言。**边界**：本笔只登记 ⇒ 未改 `tests/llvm/ir-lli/**` ✗（LLVM-124t 明确未代修）。 **关闭（2026-10-23，`TESTCASES-061t`）**：`ir-lli` manifest 78 = include19+exclude59，双向一致，悬空注入 rc=1。"
 - id: ISS-327
   title: "【P3】`gen_isa_coverage.py` 的 `L2_isel` 漏认：`ret`/`rol.o`/`clmul.o`/`add.uo`/`io2fo` 家族实际在用却记 `no` ⇒ 假「未用」报告"
   status: closed

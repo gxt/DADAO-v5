@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
-"""Min ROM probe for QEMU-009t: rela.si base address verification.
+"""Min ROM probe for op 0x5A: `aip.si rbha, imms18` (formerly `rela.si`).
 
-.. OBSOLETE: rela.si has been deleted (ADR-0012 D5, SPEC-057t).
-   op=0x5A is now UNDI. This file is retained as historical artifact
-   of QEMU-009t verification. DO NOT RUN — all tests will fail with UNDI.
+History: QEMU-009t verified `rela.si` (page-aligned base `PC & ~0xFFF`).  That
+instruction was deleted and op 0x5A was re-assigned to `aip.si`
+(ADR-0029 D1; SPEC-164t does not touch it).  The probe body is kept, but the
+oracle is now the *current* contract:
 
-Architecture: test code runs from ROM (same as 005t/006t/008t probe pattern).
-Kernel binary provides test data (loaded at RAM base).
-
-Tests cover:
-- rela.si base address is rb[0] (PC), NOT rb[ha] (self-reference)
-- Formula: rbha = (PC & ~0xFFF) + sign_extend(imms18 << 12)
-- High 16 bits preserved (not 48-bit truncation)
-- ha==0 → ILLI (0x88)
-- Negative offset (imms18 < 0)
+- `rbha = IP + (sign_extend(imms18) << 12)`, full 64-bit arithmetic
+- `IP` = address of the executing instruction itself (= `rb0` read value),
+  no `±4` pipeline bias and **no page masking**
+- `ha==0` (rb0 destination) → ILLI (0x88)
+- the destination's previous high 16 bits are ignored (full 64-bit result)
 
 Exit codes (ADR-0004 D5.8):
   0x00 = PASS, 0x88 = ILLI, 0x89 = UNDI, 0x8A = RASOF, 0x8B = RASUF
@@ -159,8 +156,8 @@ def rb2rb(rbha, rbhb, immu6):
     """rb2rb rbha, rbhb, immu6 (OPC-octa, ha=0x34)"""
     return encode_orrr(0x40, 0x34, rbha, rbhb, immu6)
 
-def rela_si_rb(rbha, imms18):
-    """rela.si rbha, imms18 (op=0x5A)"""
+def aip_si_rb(rbha, imms18):
+    """aip.si rbha, imms18 (op=0x5A; formerly rela.si, ADR-0029 D1)."""
     return encode_riii(0x5A, rbha, imms18 & 0x3FFFF)
 
 def br_ne(rdha, rdhb, imms12):
@@ -173,19 +170,25 @@ def br_ne(rdha, rdhb, imms12):
     return encode_rrii(0x6F, rdha, rdhb, hc, hd)
 
 def fence():
-    return encode_oiii(0x77, 0x00, 0)
+    """fence 0 (op=0x47, ha=0x20; SPEC-164t: OPC-MISC migrated to op 0x47)."""
+    return encode_oiii(0x47, 0x20, 0)
 
 def swym():
-    return encode_oiii(0x77, 0x22, 0)
+    return encode_oiii(0x47, 0x22, 0)
+
+def illi_poison():
+    """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison after fence
+    became an implemented instruction (SPEC-164t)."""
+    return encode_oiii(0x7C, 0x00, 0)
 
 def trap_sys_exit():
     """trap cfx_umon, 0x30000 — semihosting tag (immu18[17:16]==2'b11)."""
     return encode_oiii(0x7F, 0x00, SEMIHOST_TAG)
 
 # ── Semihosting SYS_EXIT (ADR-0020 D8: exit port removed) ──────────────
-# NOTE: this probe is OBSOLETE (rela.si deleted, ADR-0012 D5 / SPEC-057t);
-# every case faults UNDI before its terminal runs.  The exit channel is still
-# migrated off the (deleted) exit port to semihosting SYS_EXIT for consistency.
+# The exit channel is the semihosting SYS_EXIT service.  `aip.si` (op 0x5A) is
+# a live M1 instruction (ADR-0029), so this probe now runs against the current
+# contract (see the module docstring).
 
 SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
 SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
@@ -266,13 +269,13 @@ SETUP_RB18 = [
     encode_rwii(0x4A, 18, 0, 0x0100),  # or.w rb18, wp0, 0x0100 → RAM+0x100
 ]
 
-# ── Exact-value rela checker (rework: assert the value, not just "no crash") ──
-# 期望值由 Python 按 contract-isa §4.7 独立算出（不从实现反推）：
-#   result = (dest_high16 << 48) | (((PC & ~0xFFF) + sext(imms18 << 12)) & 0xFFFFFFFFFFFF)
-# PC = ROM_BASE + (TRAMPOLINE_LEN + rela_idx) * 4（rela 在本测试内的下标）
+# ── Exact-value aip.si checker (rework: assert the value, not just "no crash") ──
+# 期望值由 Python 按 contract-isa §7（aip.si）+ ADR-0029 D1 独立算出（不从实现反推）：
+#   result = (IP + (sext(imms18) << 12)) mod 2^64      （整 64 位，无页对齐）
+# IP = ROM_BASE + (TRAMPOLINE_LEN + aip_idx) * 4（aip 在本测试内的下标）
 
 ROM_BASE = 0xFFFFFFFF0000
-TRAMPOLINE_LEN = 11         # see build_rom()
+TRAMPOLINE_LEN = 13         # len(build_rom()'s trampoline list)
 EXACT_EXP_RB = 20           # scratch RB holding the expected value
 EXACT_RD_CMP = 21           # scratch RD holding the cmp result
 EXACT_RD_ZERO = 22          # scratch RD holding 0
@@ -286,8 +289,8 @@ def load_rb64(rb, value):
         encode_rwii(0x4A, rb, 0, value & 0xFFFF),
     ]
 
-def rela_exact_test(dest_rb, imm_signed, dest_high16, dest_low48=None):
-    """set dest -> rela.si dest, imm -> compare dest against the §4.7 expectation."""
+def aip_exact_test(dest_rb, imm_signed, dest_high16=0, dest_low48=None):
+    """set dest -> aip.si dest, imm -> compare dest against the §7 expectation."""
     seq = [encode_rwii(0x4E, dest_rb, 3, dest_high16 & 0xFFFF)]   # set.zw dest, wp3, high16
     if dest_low48 is not None:
         seq += [
@@ -295,16 +298,15 @@ def rela_exact_test(dest_rb, imm_signed, dest_high16, dest_low48=None):
             encode_rwii(0x4A, dest_rb, 1, (dest_low48 >> 16) & 0xFFFF),
             encode_rwii(0x4A, dest_rb, 0, dest_low48 & 0xFFFF),
         ]
-    rela_idx = len(seq)
-    pc = ROM_BASE + (TRAMPOLINE_LEN + rela_idx) * 4
-    low48 = ((pc & ~0xFFF) + (imm_signed << 12)) & 0xFFFFFFFFFFFF
-    expected = ((dest_high16 & 0xFFFF) << 48) | low48
-    seq.append(rela_si_rb(dest_rb, imm_signed & 0x3FFFF))
+    aip_idx = len(seq)
+    pc = ROM_BASE + (TRAMPOLINE_LEN + aip_idx) * 4
+    expected = (pc + (imm_signed << 12)) & 0xFFFFFFFFFFFFFFFF
+    seq.append(aip_si_rb(dest_rb, imm_signed & 0x3FFFF))
     seq += load_rb64(EXACT_EXP_RB, expected)
     seq += [
         cmp_uo_dbb(EXACT_RD_CMP, dest_rb, EXACT_EXP_RB),   # 0 if equal
         set_zw_rd(EXACT_RD_ZERO, 0x0000),
-        br_ne(EXACT_RD_CMP, EXACT_RD_ZERO, 3),            # != 0 (not equal) -> branch to FAIL
+        br_ne(EXACT_RD_CMP, EXACT_RD_ZERO, 4),            # != 0 (mismatch) -> FAIL
         set_zw_rd(18, 0x0000), *semi_exit(18),        # equal: PASS (fall-through)
         set_zw_rd(18, 0x0001), *semi_exit(18),        # not-equal: FAIL (branch target)
     ]
@@ -313,156 +315,110 @@ def rela_exact_test(dest_rb, imm_signed, dest_high16, dest_low48=None):
 # ── Test cases ────────────────────────────────────────────────────────
 
 TESTS = [
-    # ── rela.si base address verification ─────────────────────────────
+    # ── aip.si exact-value verification (IP-relative, ADR-0029 D1) ────
 
-    # T1: rela.si rb1, imms18=0 → rb1 = (PC & ~0xFFF) + 0
-    # PC is around ROM_BASE (0xFFFFFFFF0000), so (PC & ~0xFFF) = 0xFFFFFFFF0000
-    # If base were rb[ha] (self-reference), rb1=0 → result=0 (wrong)
-    # If base is rb[0] (PC), result = 0xFFFFFFFF0000 (correct)
-    # We can't easily verify the exact address, but we can verify it doesn't crash
-    # and the result is non-zero (proving it's not self-reference from rb1=0)
-    ("T1 rela.si rb1 imms18=0 (exact value)",
-     rela_exact_test(1, 0, 0xABCD),
+    # T1: aip.si rb1, imms18=0 → rb1 = IP (the aip instruction's own address)
+    ("T1 aip.si rb1 imms18=0 (exact value)",
+     aip_exact_test(1, 0, 0xABCD),
      PASS_EXIT,
-     "rela.si rb1 value wrong (base/offset/high16)"),
+     "aip.si rb1 value wrong (base/offset)"),
 
-    # T2: rela.si rb2, imms18=1 → rb2 = (PC & ~0xFFF) + (1 << 12)
-    # = 0xFFFFFFFF0000 + 0x1000 = 0xFFFFFFFF1000
-    # If base were rb[ha] (self-reference), rb2=0x0000FFFF00000000 → result different
-    ("T2 rela.si rb2 imms18=1 (exact value, +1 page)",
-     rela_exact_test(2, 1, 0xABCD),
+    # T2: aip.si rb2, imms18=1 → rb2 = IP + 0x1000
+    ("T2 aip.si rb2 imms18=1 (exact value, +1 page)",
+     aip_exact_test(2, 1, 0xABCD),
      PASS_EXIT,
-     "rela.si rb2 value wrong (offset <<12 not applied?)"),
+     "aip.si rb2 value wrong (offset <<12 not applied?)"),
 
-    # T3: rela.si rb3, imms18=-1 → rb3 = (PC & ~0xFFF) + (-1 << 12)
-    # = 0xFFFFFFFF0000 - 0x1000 = 0xFFFFFFFEF000
-    # Negative offset: imms18=0x3FFFF (18-bit -1)
-    ("T3 rela.si rb3 imms18=-1 (exact value, -1 page)",
-     rela_exact_test(3, -1, 0xABCD),
+    # T3: aip.si rb3, imms18=-1 → rb3 = IP - 0x1000 (18-bit signed)
+    ("T3 aip.si rb3 imms18=-1 (exact value, -1 page)",
+     aip_exact_test(3, -1, 0xABCD),
      PASS_EXIT,
-     "rela.si rb3 value wrong (negative offset sign?)"),
+     "aip.si rb3 value wrong (negative offset sign?)"),
 
-    # T4: rela.si rb0 → ILLI (ha==0 is illegal)
-    ("T4 rela.si rb0 → ILLI",
-     [rela_si_rb(0, 0)],
+    # T4: aip.si rb0 → ILLI (destination rb0 illegal, rule dst_rb0)
+    ("T4 aip.si rb0 → ILLI",
+     [aip_si_rb(0, 0)],
      ILLI_EXIT,
-     "rela.si rb0 not ILLI"),
+     "aip.si rb0 not ILLI"),
 
-    # T5: Verify base is PC, not self-reference
-    # Strategy: Set rb5 to a known value (e.g., 0x123456789ABCDEF0),
-    # then rela.si rb5, imms18=0
-    # If base were rb[ha], result = rb5 + 0 = rb5 (unchanged)
-    # If base is PC, result = (PC & ~0xFFF) + 0 = PC-aligned
-    # We can verify by storing rb5 to memory and checking it's NOT the original value
-    # (since PC is around 0xFFFFFFFF0000, not 0x123456789ABCDEF0)
-    ("T5 rela.si base=PC not self-ref (exact, dest preloaded low48)",
-     rela_exact_test(5, 0, 0x1234, 0x56789ABC),
+    # T5: destination preloaded with a full 64-bit value → result is IP, not
+    # that value (IP is not the destination register).
+    ("T5 aip.si base=IP not dest self-ref (exact, dest preloaded)",
+     aip_exact_test(5, 0, 0x1234, 0x56789ABC),
      PASS_EXIT,
-     "rela.si rb5 value wrong (base is self-reference rb[ha]?)"),
+     "aip.si rb5 value wrong (base is destination self-reference?)"),
 
-    # T6: Verify formula with specific offset
-    # rela.si rb6, imms18=2 → rb6 = (PC & ~0xFFF) + (2 << 12) = PC_aligned + 0x2000
-    # We can't verify exact value without knowing PC, but we can verify
-    # the result is different from what self-reference would give
-    ("T6 rela.si rb6 imms18=2 (exact value, offset applied)",
-     rela_exact_test(6, 2, 0xAAAA),
+    # T6: offset 2 pages, exact value
+    ("T6 aip.si rb6 imms18=2 (exact value, offset applied)",
+     aip_exact_test(6, 2, 0xAAAA),
      PASS_EXIT,
-     "rela.si rb6 value wrong (offset formula)"),
+     "aip.si rb6 value wrong (offset formula)"),
 
-    # T7: Verify high 16 bits preserved
-    # Set rb7 to have non-zero high 16 bits, then rela.si rb7, 0
-    # Result should have same high 16 bits as original rb7
-    # We can verify by storing rb7 and checking high bits
-    ("T7 rela.si preserves high 16 bits (exact, high16=0xFFFF)",
-     rela_exact_test(7, 0, 0xFFFF, 0x12345678),
+    # T7: destination high 16 bits are ignored (full 64-bit result, no
+    # page masking and no high-half preservation)
+    ("T7 aip.si ignores dest high 16 bits (exact, dest high16=0xFFFF)",
+     aip_exact_test(7, 0, 0xFFFF, 0x12345678),
      PASS_EXIT,
-     "rela.si rb7 high 16 bits not preserved (48-bit truncation?)"),
+     "aip.si rb7 result is not the full 64-bit IP+offset"),
 
-    # T8: Verify rela.si result is usable (store to RAM via rb8)
-    # After rela.si, rb8 points to ROM_BASE. We can't write to ROM,
-    # but we can verify the instruction doesn't crash.
-    ("T8 rela.si rb8 imms18=0 (exact value, dest preloaded)",
-     rela_exact_test(8, 0, 0x1111, 0x222233334444),
+    # T8: full 64-bit result with a preloaded destination
+    ("T8 aip.si rb8 imms18=0 (exact value, dest preloaded)",
+     aip_exact_test(8, 0, 0x1111, 0x222233334444),
      PASS_EXIT,
-     "rela.si rb8 value wrong"),
+     "aip.si rb8 value wrong"),
 
-    # T9: Verify negative offset doesn't wrap incorrectly
-    # rela.si rb9, imms18=0x3FFFE (18-bit -2)
-    # = (PC & ~0xFFF) + (-2 << 12) = PC_aligned - 0x2000
-    ("T9 rela.si negative offset -2 (exact value)",
-     rela_exact_test(9, -2, 0xABCD),
+    # T9: negative offset -2 pages, exact value
+    ("T9 aip.si negative offset -2 (exact value)",
+     aip_exact_test(9, -2, 0xABCD),
      PASS_EXIT,
-     "rela.si rb9 value wrong (negative offset)"),
+     "aip.si rb9 value wrong (negative offset)"),
 
-    # T10: Verify large positive offset
-    # rela.si rb10, imms18=0x1FFFF (18-bit max positive = 262143)
-    # = (PC & ~0xFFF) + (262143 << 12) = PC_aligned + 0x7FFFF000
-    ("T10 rela.si large positive offset (exact value, imms18=0x1FFFF)",
-     rela_exact_test(10, 0x1FFFF, 0xABCD),
+    # T10: large positive offset (imms18 = 0x1FFFF, 18-bit max positive)
+    ("T10 aip.si large positive offset (exact value, imms18=0x1FFFF)",
+     aip_exact_test(10, 0x1FFFF, 0xABCD),
      PASS_EXIT,
-     "rela.si rb10 value wrong (large offset / sign extension)"),
+     "aip.si rb10 value wrong (large offset / sign extension)"),
 
-    # T11: Verify base is PC, NOT self-reference (strong check)
-    # Set rb11 to a known value (0x123456789ABCDEF0),
-    # then rela.si rb11, 0
-    # If base were self-reference: result = rb11 + 0 = 0x123456789ABCDEF0
-    # If base is PC: result = (PC & ~0xFFF) + 0 = 0xFFFFFFFF0000
-    # We can verify by comparing rb11 with expected PC-aligned value
-    ("T11 rela.si base=PC not self-ref (strong check)",
+    # T11: base is IP, not the destination's old value (strong check)
+    ("T11 aip.si base=IP not dest old value (strong check)",
      [set_zw_rb(11, 0x1234),     # rb11 = 0x0000123400000000
       or_w_rb(11, 1, 0x5678),    # rb11 = 0x0000123456780000
       or_w_rb(11, 0, 0x9ABC),    # rb11 = 0x0000123456789ABC
-      rela_si_rb(11, 0),         # rb11 = (PC & ~0xFFF) + 0
-      # Now rb11 should be 0xFFFFFFFF0000 (PC-aligned), NOT 0x123456789ABC
-      # Verify by storing to RAM and loading to rd
+      aip_si_rb(11, 0),          # rb11 = IP
       st_o_rb(11, 17, 0),        # store rb11 to RAM base
       ld_o_rd(12, 17, 0),        # load to rd12
-      # rd12 should be 0xFFFFFFFF0000, not 0x123456789ABC
-      # We can't easily compare, but we can verify it's not the original value
-      # by checking if rd12 != 0x123456789ABC
       set_zw_rd(13, 0x1234),     # rd13 = 0x1234
       or_w_rd(13, 1, 0x5678),    # rd13 = 0x12345678
       or_w_rd(13, 0, 0x9ABC),    # rd13 = 0x123456789ABC
-      cmp_uo_rd(14, 12, 13),     # rd14 = cmp(rd12, rd13)
-      set_zw_rd(15, 0x0000),     # expected: not equal (0)
-      br_ne(14, 15, 3),          # if not equal, skip 3 → PASS
-      set_zw_rd(18, 0x0001),     # equal: FAIL (self-reference detected!)
+      cmp_uo_rd(14, 12, 13),     # rd14 = cmp(rd12, old value)
+      set_zw_rd(15, 0x0000),
+      br_ne(14, 15, 4),          # not equal (correct) → skip FAIL → PASS
+      set_zw_rd(18, 0x0001),     # equal: FAIL (dest self-reference)
       *semi_exit(18),
       set_zw_rd(18, 0x0000),     # not-equal: PASS
       *semi_exit(18)],
      PASS_EXIT,
-     "rela.si base is self-reference (should be PC)"),
+     "aip.si base is the destination's old value (should be IP)"),
 
-    # T12: Verify high 16 bits preserved (strong check)
-    # Set rb12 high 16 bits to 0x1234, then rela.si rb12, 0
-    # If high 16 bits preserved: result high 16 = 0x1234
-    # If high 16 bits truncated: result high 16 = 0x0000
-    # We can verify by comparing result with result AND 0x0000FFFFFFFFFFFF
-    ("T12 rela.si preserves high 16 bits (strong check)",
+    # T12: full 64-bit result equals IP (no 48-bit truncation, no high-half
+    # preservation).  The old "high 16 preserved" check is obsolete: aip.si is
+    # a full 64-bit operation.
+    ("T12 aip.si full 64-bit result equals IP (strong check)",
      [set_zw_rb(12, 0x1234),     # rb12 = 0x0000000000001234 (wp0 = 0x1234)
-      or_w_rb(12, 3, 0x1234),    # rb12[63:48] |= 0x1234 → rb12 = 0x1234000000001234
-      rela_si_rb(12, 0),         # rb12 = (PC & ~0xFFF) + 0, high 16 should be preserved
-      # Now rb12 should have high 16 = 0x1234 (preserved from original)
-      # Use rb2rd to copy rb12 to rd13 for verification
-      rb2rd(13, 12, 1),          # rd13 = rb12
-      # rd13 should have high 16 = 0x1234
-      # Verify by comparing rd13 with rd13 AND 0x0000FFFFFFFFFFFF
-      # Build mask 0x0000FFFFFFFFFFFF in rd14
-      set_ow_rd(14, 3, 0x0000),  # rd14 = 0x0000FFFFFFFFFFFFFFFF (all ones except wp3=0)
-      # set.ow sets one wyde to the value, rest to all ones
-      # With wp3=0x0000, rd14 = 0x0000FFFFFFFFFFFFFFFF... wait that's 48 bits of ones plus wp3=0
-      # Actually: set.ow rd14, wp3, 0x0000 → rd14[63:48]=0x0000, rd14[47:0]=all ones
-      # = 0x0000FFFFFFFFFFFF ← exactly what we want!
-      and_o(15, 13, 14),         # rd15 = rd13 & 0x0000FFFFFFFFFFFF
-      cmp_uo_rd(16, 13, 15),     # rd16 = cmp(rd13, rd15)
-      set_zw_rd(17, 0x0000),     # expected: not equal → cmp result ≠ 0
-      br_ne(16, 17, 3),          # if rd16≠0 (not equal), skip 3 → PASS
-      set_zw_rd(18, 0x0001),     # rd16==0 (equal): FAIL (high bits truncated!)
+      or_w_rb(12, 3, 0x1234),    # rb12 = 0x1234000000001234
+      aip_si_rb(12, 0),          # rb12 = IP (full 64-bit)
+      rb2rd(13, 12, 1),          # rd13 = actual
+      *load_rb64(20, ROM_BASE + (TRAMPOLINE_LEN + 2) * 4),  # expected IP
+      rb2rd(14, 20, 1),          # rd14 = expected
+      cmp_uo_rd(15, 13, 14),     # 0 if equal
+      set_zw_rd(17, 0x0000),
+      br_ne(15, 17, 4),          # not equal → FAIL
+      set_zw_rd(18, 0x0000),     # equal: PASS
       *semi_exit(18),
-      set_zw_rd(18, 0x0000),     # rd16≠0 (not-equal): PASS
+      set_zw_rd(18, 0x0001),     # not-equal: FAIL
       *semi_exit(18)],
      PASS_EXIT,
-     "rela.si high 16 bits truncated (should be preserved)"),
+     "aip.si full 64-bit result != IP"),
 ]
 
 # ── CTL self-check ────────────────────────────────────────────────────
@@ -473,7 +429,7 @@ CTL_CHECKS = [
      ILLI_EXIT,
      "Self-check FAILED: probe cannot detect wrong values"),
     ("CTL: ILLI but expect PASS (wrong)",
-     [fence()],
+     [illi_poison()],
      PASS_EXIT,
      "Self-check FAILED: probe cannot detect ILLI"),
 ]

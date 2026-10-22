@@ -68,11 +68,12 @@ ILLI_EXIT = 0x88
 
 # ── Instruction encoding (op / ha values from contracts/opcodes.yaml) ──
 
-# ROM terminator: `fence` with fm=1 (hb != 0) is ILLI per SimRISC-11: fence指令 /
-# ADR-0034 D1/D2 -> exit 0x88.  (Historically 0x77000000 = fence 0 was used,
-# but since ADR-0034 that is a legal no-op, and 0x00000000 is UNDI 0x89.)
-ILLI = 0x77801000                 # fence fm=1 -> ILLI
-SWYM = 0x77880000                 # swym (padding)
+# ROM terminator: a deterministic ILLI word.  `fence` used to be the poison,
+# but since SPEC-164t it is an implemented legal instruction (and its old op is
+# no longer decoded), so the poison is the remaining excluded family `cfxld`
+# (op=0x7C, ha=0x00, scope=excluded) -> exit 0x88.
+ILLI = 0x7C000000                 # cfxld -> ILLI (exit 0x88)
+SWYM = 0x47880000                 # swym (padding, op=0x47 ha=0x22)
 
 
 def encode_rwii(op, ha, wpN, immu16):

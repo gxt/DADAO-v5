@@ -17,6 +17,7 @@ import argparse
 import concurrent.futures
 import json
 import os
+import signal
 import socket
 import subprocess
 import sys
@@ -430,6 +431,24 @@ def _qmp_connect_and_cont(qmp_socket, timeout=10):
     qmp.close()
 
 
+def format_exit_code(exit_code):
+    """Readable exit-code rendering (ISS-319).
+
+    A negative Python return code means QEMU was killed by a host signal (e.g.
+    -6 = SIGABRT), not that the guest returned a negative value.  Printing it
+    with ``%X`` used to produce the unreadable ``0x-6``; render the signal name
+    and the two's-complement form instead.
+    """
+    if exit_code >= 0:
+        return f"0x{exit_code:02X}"
+    signum = -exit_code
+    try:
+        signame = signal.Signals(signum).name
+    except ValueError:
+        signame = "UNKNOWN"
+    return f"host signal {signame} (rc={exit_code}, 2's-complement 0x{exit_code & 0xFFFFFFFF:08X})"
+
+
 def interpret_exit_code(exit_code, expected_fault=None, dump_mode=False):
     """Interpret QEMU exit code.
 
@@ -439,6 +458,12 @@ def interpret_exit_code(exit_code, expected_fault=None, dump_mode=False):
         if dump_mode:
             return "INCONCLUSIVE", "Timeout (guest may be spinning in dump mode)"
         return "INCONCLUSIVE", "Timeout (harness error)"
+
+    if exit_code < 0:
+        # Host signal (SIGABRT/SIGSEGV/...), never a guest exit code.  This is
+        # the dirty-failure path: the guest never reached SYS_EXIT.
+        return "FAIL", (f"QEMU killed by {format_exit_code(exit_code)} — "
+                        f"guest did not reach SYS_EXIT (dirty failure)")
 
     if exit_code == EXIT_PASS:
         if expected_fault:
@@ -464,7 +489,7 @@ def interpret_exit_code(exit_code, expected_fault=None, dump_mode=False):
             else:
                 return "FAIL", f"Test failed with code 0x{exit_code:02X}"
 
-    return "FAIL", f"Unknown exit code: 0x{exit_code:02X}"
+    return "FAIL", f"Unknown exit code: {format_exit_code(exit_code)}"
 
 
 def run_single_test(qemu_bin, trampoline_path, vector_file, case_idx=None,
@@ -497,7 +522,8 @@ def run_single_test(qemu_bin, trampoline_path, vector_file, case_idx=None,
             insn = case.get("id", "?")
             mnemonic = case.get("mnemonic", "?")
             print(f"  Case: {case_class} {mnemonic} ({insn})")
-            print(f"  Exit code: 0x{exit_code:02X}" if exit_code >= 0 else f"  Exit code: TIMEOUT")
+            print(f"  Exit code: TIMEOUT" if timed_out
+                  else f"  Exit code: {format_exit_code(exit_code)}")
             print(f"  Status: {status} - {desc}")
             if stderr and status != "PASS":
                 print(f"  Stderr: {stderr[:500]}")

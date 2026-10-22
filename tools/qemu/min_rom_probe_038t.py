@@ -55,8 +55,8 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 PASS_EXIT = 0x00
 ILLI_EXIT = 0x88
 
-ILLI = 0x77000000
-SWYM = 0x77880000
+ILLI = 0x7C000000
+SWYM = 0x47880000
 
 # ft / fo operand bit patterns (used only to give executed controls a value)
 F0 = 0x00000000

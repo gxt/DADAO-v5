@@ -97,7 +97,7 @@ def _rrii(op, ha, hb, off):
 def st_o(rd, rb, off):   return _rrii(0x21, rd, rb, off)
 def jump_iiii(imms24):   return (0x70 << 24) | (imms24 & 0xFFFFFF)
 def trap(ha, immu18):    return (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF)
-def swym():              return 0x77880000
+def swym():              return 0x47880000
 
 
 def aip_si(rbha, imms18):

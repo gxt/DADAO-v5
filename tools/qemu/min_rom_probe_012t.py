@@ -142,10 +142,15 @@ def ret_riii(rdha, imms18):
     return encode_riii(0x76, rdha, imms18 & 0x3FFFF)
 
 def fence():
-    return encode_oiii(0x77, 0x00, 0)
+    return encode_oiii(0x47, 0x20, 0)
+
+def illi_poison():
+    """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison after fence
+    became an implemented instruction (SPEC-164t)."""
+    return encode_oiii(0x7C, 0x00, 0)
 
 def swym():
-    return encode_oiii(0x77, 0x22, 0)
+    return encode_oiii(0x47, 0x22, 0)
 
 def trap_sys_exit():
     """trap cfx_umon, 0x30000 — semihosting tag (immu18[17:16]==2'b11)."""
@@ -444,7 +449,7 @@ CTL_CHECKS = [
      ILLI_EXIT,                  # wrong expectation
      "Self-check FAILED: probe cannot detect br.nz rd0 behavior"),
     ("CTL: ILLI but expect PASS (wrong)",
-     [fence()],
+     [illi_poison()],
      PASS_EXIT,
      "Self-check FAILED: probe cannot detect ILLI"),
 ]

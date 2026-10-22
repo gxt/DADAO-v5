@@ -110,8 +110,8 @@ def br_ne(rdha, rdhb, imms12):
     if imms12 < 0: hc |= 0x20
     return encode_orrr(0x6F, rdha, rdhb, hc, hd)
 
-def fence(): return encode_oiii(0x77, 0x00, 0)
-def swym(): return encode_oiii(0x77, 0x22, 0)
+def fence(): return encode_oiii(0x47, 0x20, 0)
+def swym(): return encode_oiii(0x47, 0x22, 0)
 
 # ── Terminators / ROM ────────────────────────────────────────────────
 
@@ -281,7 +281,7 @@ TESTS = [
     ("V1 shl.ut 0xFF<<4: high bits zeroed (rd1 had 0xDEADBEEF...)",
      [set_zw(2, 0xFF),
       set_zw(1, 0), or_w_rwii(1, 2, 0xBEEF), or_w_rwii(1, 3, 0xDEAD),
-      shl_ut_orri(1, 2, 4)],
+      shl_t_orri(1, 2, 4)],
      "shl.ut did not zero high bits"),
     ("V2 shr.ut 0xFF00>>4: high bits zeroed (rd1 had 0xDEADBEEF...)",
      [set_zw(2, 0xFF00),

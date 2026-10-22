@@ -126,7 +126,13 @@ def ret_riii(rdha, imms18):
     return encode_riii(0x76, rdha, imms18 & 0x3FFFF)
 
 def fence():
-    return encode_orri(0x77, 0x00, 0, 0, 0)
+    """fence 0 (op=0x47, ha=0x20; SPEC-164t: OPC-MISC migrated to op 0x47)."""
+    return encode_orri(0x47, 0x20, 0, 0, 0)
+
+def illi_poison():
+    """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison after fence
+    became an implemented instruction (SPEC-164t)."""
+    return encode_orri(0x7C, 0x00, 0, 0, 0)
 
 # ── RA instruction mnemonics ──────────────────────────────────────────
 
@@ -422,9 +428,9 @@ TESTS = [
     # call0 jumps 3 instructions forward (into the chain). Subsequent calls chain with call+3,ret,fence.
     # Each call pushes a distinct return address. The chain of rets unwinds.
     ("R1 MemRAS round-trip (65 calls, no RASOF)",
-     [encode_rwii(0x4C, 18, 0, 0x0000),  # set.zw rd18, wp0, 0x0000 → 0xFFFF_0000_0000_0000
-      encode_rwii(0x48, 18, 0, 0x8000),  # or.w rd18, wp0, 0x8000 → 0x8000 (RAM+0x8000)
-      rd2ra(0, 18, 1),                    # ra0 = rd18 = 0xFFFF_0000_8000
+     [encode_rwii(0x4C, 18, 2, 0xFC00),  # set.zw rd18, wp2, 0xFC00 → RAM domain
+      encode_rwii(0x48, 18, 0, 0x8000),  # or.w rd18, wp0, 0x8000 → RAM+0x8000
+      rd2ra(0, 18, 1),                    # ra0 = rd18 = 0x0000_FC00_0000_8000
       call_iiii(4),                       # call → first chain call (offset +1 terminal)
       set_zw_rd(18, 0), *st_o_rd_pass(),  # return point → PASS
      ] +
@@ -474,18 +480,19 @@ TESTS = [
     # entry with refcount 1 and jump to the entry's low48 (the PASS sequence).
     # Layout: idx0-3 = entry value, idx4 = rd2ra(ra5), idx5 = st.o-ra to MemRAS[0],
     #         idx6-8 = ra0 value, idx9 = rd2ra(ra0), idx10 = ret,
-    #         idx11 = PASS setup (landing = ROM 0xffff_ffff_0018 + 11*4 = 0x...0044)
+    #         idx11 = landing (compare ra63), idx18 = PASS terminal.
+    #         Landing = ROM 0xffff_ffff_0000 + (13 + 11)*4 = 0x...0060.
     ("X4 MemRAS pop entry hi16>1 → ra63 store-back + PC=lo",
-     words((3, 0x0002), (2, 0xFFFF), (1, 0xFFFF), (0, 0x0058)) +  # entry = 0x0002_FFFF_FFFF_0044
+     words((3, 0x0002), (2, 0xFFFF), (1, 0xFFFF), (0, 0x0060)) +  # entry = 0x0002_FFFF_FFFF_0060
      [rd2ra(5, 18, 1),          # ra5 = entry
       st_o_ra(5, 17, 0x7F8),    # MemRAS[0] (RAM+0x7F8, fits imms12) = entry
      ] +
      words((3, 0x0000), (2, 0xFC00), (0, 0x07F8)) +   # ra0: count=0, ptr=RAM+0x7F8 (D4b)
      [rd2ra(0, 18, 1),          # ra0 = MemRAS pointer/count
-      ret_riii(0, 0),           # pop → ra63 = 0x0001_FFFF_FFFF_0044, PC = lo = 0x...0044
+      ret_riii(0, 0),           # pop → ra63 = 0x0001_FFFF_FFFF_0060, PC = lo = 0x...0060
       ra2rd(18, 63, 1),         # read ra63 back (makes the store-back observable)
-      set_zw_rd(20, 0x0058), or_w_rd(20, 1, 0xFFFF),
-      or_w_rd(20, 2, 0xFFFF), or_w_rd(20, 3, 0x0001),   # rd20 = 0x0001_FFFF_FFFF_0044
+      set_zw_rd(20, 0x0060), or_w_rd(20, 1, 0xFFFF),
+      or_w_rd(20, 2, 0xFFFF), or_w_rd(20, 3, 0x0001),   # rd20 = 0x0001_FFFF_FFFF_0060
       cmp_uo_rd(22, 18, 20), br_nz(22, 4),
       set_zw_rd(18, 0), *st_o_rd_pass(),
       set_zw_rd(19, 0x0001), *st_o_rd_fail()],
@@ -503,7 +510,7 @@ CTL_CHECKS = [
      [set_zw_rd(18, 0), *st_o_rd_pass()],
      ILLI_EXIT, "Self-check FAILED: probe cannot detect wrong values"),
     ("CTL: fence but expect PASS (wrong)",
-     [fence()],
+     [illi_poison()],
      PASS_EXIT, "Self-check FAILED: probe cannot detect ILLI"),
 ]
 

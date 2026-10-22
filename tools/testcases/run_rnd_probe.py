@@ -274,21 +274,29 @@ def check_coverage(ctx, probe, parsed, expected_groups=("matrix", "cmap")):
 
 
 def check_aggregates(ctx, probe, parsed):
-    """Cross-case checks: mode sensitivity and static insensitivity."""
+    """Cross-case checks: mode sensitivity and static insensitivity.
+
+    ISS-323: one static cell is identified by ``(fmt, mode, label)``.  The
+    dedup set lives OUTSIDE the per-format loop, so every cell is judged
+    exactly once (previously the same cell was judged once per format).
+    A duplicated raw cell still makes the oracle's shape check red
+    (``judge_static_insensitive`` requires exactly 4 rf0 rows per cell), so
+    the dedup cannot hide a duplicated observation.
+    """
     mode = group(parsed, "mode")
     if mode:
         for fmt in oracle.FMT:
             for label in MODE_LABELS:
                 add_judged(ctx, oracle.judge_distinct(mode, fmt, label))
-            static = [r for r in mode if int(r["mode"], 0) != 0x20]
-            seen = set()
-            for rec in static:
-                key = (rec["fmt"], int(rec["mode"], 0), rec["label"])
-                if key in seen:
-                    continue
-                seen.add(key)
-                add_judged(ctx, oracle.judge_static_insensitive(
-                    static, key[0], key[1], key[2]))
+        static = [r for r in mode if int(r["mode"], 0) != 0x20]
+        seen = set()
+        for rec in static:
+            key = (rec["fmt"], int(rec["mode"], 0), rec["label"])
+            if key in seen:
+                continue
+            seen.add(key)
+            add_judged(ctx, oracle.judge_static_insensitive(
+                static, key[0], key[1], key[2]))
 
 
 def disasm_symbols(ctx, obj):
@@ -459,6 +467,37 @@ def injection_mode(ctx):
                 ">= 1 red NX cell", "%d red / %d total"
                 % (len(nxf), len(reds)), len(nxf) >= 1,
                 detail="; ".join(c["name"] for c in nxf[:4]))
+
+    # ── injection 3: duplicate one static observation cell ──
+    # ISS-323: the dedup key must collapse the duplicate (judged once) and the
+    # uniqueness assertion must go red, proving the assertion is reachable.
+    obj, elf, rc, log = compile_probe(ctx, "rnd_mode", source_of("rnd_mode"),
+                                      tag="-inject-dup")
+    ctx.add("inject 3: build", 0, rc, rc == 0, detail=log[-600:])
+    if rc == 0:
+        rc, out, _ = run_elf(ctx, elf)
+        parsed = oracle.parse(out)
+        static = [r for r in parsed["obs"]
+                  if r["group"] == "mode" and int(r["mode"], 0) != 0x20]
+        ctx.add("inject 3: static rows present", "> 0", len(static),
+                len(static) > 0)
+        if static:
+            parsed["obs"].append(dict(static[0]))
+            scratch = Ctx(ctx.args)
+            check_aggregates(scratch, "inject-dup", parsed)
+            red = [c for c in scratch.checks if not c["ok"]
+                   and c["name"].startswith("static insensitivity ")]
+            judged = [c for c in scratch.checks
+                      if c["name"].startswith("static insensitivity ")]
+            unique = len({(r["fmt"], int(r["mode"], 0), r["label"])
+                          for r in parsed["obs"]
+                          if r["group"] == "mode" and int(r["mode"], 0) != 0x20})
+            ctx.add("inject 3 (duplicate static cell): judged once, check goes red",
+                    "1 red static-insensitivity check, judged == distinct cells",
+                    "%d red, %d distinct cells judged %d"
+                    % (len(red), unique, len(judged)),
+                    len(red) >= 1 and len(judged) == unique,
+                    detail="the extra row violates the oracle's 4-rows-per-cell shape")
 
     # ── the repository sources were never touched ──
     for name in SOURCES:

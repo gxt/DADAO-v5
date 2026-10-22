@@ -65,7 +65,12 @@ def st_o_rd(rdha, rbhb, imms12):
     return encode_rrii(0x21, rdha, rbhb, hc, hd)
 
 def fence():
-    return encode_orri(0x77, 0x00, 0, 0, 0)
+    return encode_orri(0x47, 0x20, 0, 0, 0)
+
+def illi_poison():
+    """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison after fence
+    became an implemented instruction (SPEC-164t)."""
+    return encode_orri(0x7C, 0x00, 0, 0, 0)
 
 
 # ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──
@@ -199,7 +204,7 @@ CTL_CHECKS = [
      TIMEOUT_EXIT,
      "Self-check FAILED: probe cannot detect PASS vs TIMEOUT"),
     ("CTL2: fence but expect PASS (wrong)",
-     [fence()],
+     [illi_poison()],
      PASS_EXIT,
      "Self-check FAILED: probe cannot detect ILLI"),
 ]

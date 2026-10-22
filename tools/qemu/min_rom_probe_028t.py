@@ -123,8 +123,19 @@ def div_uo(rdhb, rdhc, rdhd):
     return encode_orrr(0x40, 0x38, rdhb, rdhc, rdhd)
 
 def fence():
-    """fence — trigger ILLI exception (exit=136)"""
-    return encode_oiii(0x77, 0x00, 0)
+    """fence 0 (op=0x47, ha=0x20; SPEC-164t: OPC-MISC migrated to op 0x47)."""
+    return encode_oiii(0x47, 0x20, 0)
+
+
+def illi_poison():
+    """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison after fence
+    became an implemented instruction (SPEC-164t)."""
+    return encode_oiii(0x7C, 0x00, 0)
+
+
+def br_nz(rdha, imms18):
+    """br.nz rdha, imms18 (op=0x6B, riii); target = own PC + imm*4."""
+    return struct.pack('>I', (0x6B << 24) | (rdha << 18) | (imms18 & 0x3FFFF))
 
 
 # ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──
@@ -220,52 +231,55 @@ def _set_rd_to_val(insns, rd, val):
         if wp1 != 0: insns.append(or_w(rd, 1, wp1))
         if wp0 != 0: insns.append(or_w(rd, 0, wp0))
 
-def _exact_cmp(insns, rd_result, rd_expected, rd_cmp, rd_div, val_expected):
-    """Compare rd_result with val_expected; ILLI=match, UNDI=mismatch."""
-    _set_rd_to_val(insns, rd_expected, val_expected)
-    insns.append(cmp_uo(rd_cmp, rd_result, rd_expected))
-    insns.append(set_zw(rd_div, 1))
-    insns.append(div_uo(rd_div, rd_div, rd_cmp))
+def _emit_pass_fail(insns, rd_cmp, pass_on_zero=True):
+    """Append a reachable PASS/FAIL terminal pair.
+
+    br.nz target = own PC + imm*4 (ISS-309 rule); the offset is derived from
+    len(pass_block) so it stays correct if the epilogue changes.
+    pass_on_zero=True : cmp==0 → PASS, cmp!=0 → FAIL
+    pass_on_zero=False: cmp==0 → FAIL, cmp!=0 → PASS
+    """
+    pass_block = [set_zw(18, 0)] + semi_exit(18)
+    fail_block = [set_zw(19, 1)] + semi_exit(19)
+    if pass_on_zero:
+        insns.append(br_nz(rd_cmp, 1 + len(pass_block)))   # !=0 -> FAIL
+        insns.extend(pass_block)
+        insns.extend(fail_block)
+    else:
+        insns.append(br_nz(rd_cmp, 1 + len(fail_block)))   # !=0 -> PASS
+        insns.extend(fail_block)
+        insns.extend(pass_block)
 
 # ── Test case builders ────────────────────────────────────────────────
 
 def make_t1_st_b_rd0():
     """T1: st.b rd0, [rb17, 0] → stores 0 to RAM (rd0 reads as 0).
-    Read back with ld.o and compare with 0 → ILLI if equal (PASS).
-
-    Branch: no conditional branches. The div.uo is the comparison.
-    Two outcomes:
-      - st.b rd0 stores 0 → ld.o reads 0 → cmp.uo=0 → div 1/0 → ILLI(136)=PASS
-      - st.b rd0 stores non-zero → ld.o reads non-zero → cmp.uo≠0 → div 1/nz → reaches UNDI(137)=FAIL
+    Read back with ld.o and compare with 0 → PASS iff equal.
     """
     insns = [
         st_b(0, 17, 0),              # st.b rd0, [rb17, 0] → writes 0
         ld_o(3, 17, 0),              # rd3 = mem64[rb17+0] (only byte 0 = 0)
     ]
-    _exact_cmp(insns, 3, 4, 5, 6, 0)
+    _set_rd_to_val(insns, 4, 0)
+    insns.append(cmp_uo(5, 3, 4))    # 0 if readback == 0
+    _emit_pass_fail(insns, 5, pass_on_zero=True)
     return ("T1: st.b rd0 stores 0 → readback==0",
-            insns, ILLI_EXIT,
+            insns, PASS_EXIT,
             "st.b rd0 should store 0 (rd0 reads as 0)")
 
 def make_t2_st_o_rb0():
     """T2: st.o rb0, [rb17, 0] → stores non-zero address (rb0 = current insn addr).
     Read back and verify it's non-zero.
-
-    Branch: no conditional branches. Two outcomes:
-      - stored value != 0 → cmp.uo ≠ 0 → div 1/nz → UNDI(137)=PASS
-      - stored value == 0 → cmp.uo = 0 → div 1/0 → ILLI(136)=FAIL
     """
     insns = [
         st_o_rb(0, 17, 0),           # st.o rb0, [rb17, 0] → stores current insn addr
         ld_o(3, 17, 0),              # rd3 = stored value
     ]
     _set_rd_to_val(insns, 4, 0)      # rd4 = 0
-    insns.append(cmp_uo(5, 3, 4))    # rd5 = 0 if stored==0 (BAD)
-    insns.append(set_zw(6, 1))
-    insns.append(div_uo(6, 6, 5))    # div 1/0 → ILLI if stored==0 (FAIL)
-    # div 1/1 → reaches UNDI (PASS: stored addr is non-zero)
+    insns.append(cmp_uo(5, 3, 4))    # 0 if stored==0 (BAD)
+    _emit_pass_fail(insns, 5, pass_on_zero=False)  # non-zero -> PASS
     return ("T2: st.o rb0 stores non-zero address",
-            insns, UNDI_EXIT,
+            insns, PASS_EXIT,
             "st.o rb0 should store current insn addr (non-zero)")
 
 def make_t3_ld_rd0_illi():
@@ -332,10 +346,9 @@ def make_t4_st_o_rb0_addr_order():
     ]
     _set_rd_to_val(insns, 6, 1)      # rd6 = 1
     insns.append(cmp_uo(7, 5, 6))    # rd7 = 0 if rd5==1 (correct)
-    insns.append(set_zw(8, 1))
-    insns.append(div_uo(8, 8, 7))    # div 1/0 → ILLI if rd7=0 (PASS)
+    _emit_pass_fail(insns, 7, pass_on_zero=True)
     return ("T4: st.o rb0 addr order (second > first)",
-            insns, ILLI_EXIT,
+            insns, PASS_EXIT,
             "st.o rb0 should store increasing addresses")
 
 def make_t5_ld_rb0_base():
@@ -382,9 +395,11 @@ def make_t5_ld_rb0_base():
     # Now the key test: ld.ub rd5, [rb0, 0]
     insns.append(ld_ub(5, 0, 0))     # ld.ub rd5, [rb0, 0] — loads first byte at rb0 addr
     # rd5 should be 0x10 (first byte of this ld.ub instruction)
-    _exact_cmp(insns, 5, 6, 7, 8, 0x10)
+    _set_rd_to_val(insns, 6, 0x10)
+    insns.append(cmp_uo(7, 5, 6))
+    _emit_pass_fail(insns, 7, pass_on_zero=True)
     return ("T5: ld.ub rdX, [rb0, 0] loads insn byte = 0x10",
-            insns, ILLI_EXIT,
+            insns, PASS_EXIT,
             "ld.ub [rb0, 0] should load first byte of ld.ub insn (0x10)")
 
 # ── Test definitions ──────────────────────────────────────────────────
@@ -422,7 +437,7 @@ CTL_CHECKS = [
      ILLI_EXIT,
      "Self-check FAILED: probe cannot detect st.o rd0 PASS vs ILLI"),
     ("CTL2: fence expects PASS (wrong)",
-     [fence()],
+     [illi_poison()],
      PASS_EXIT,
      "Self-check FAILED: probe cannot detect ILLI"),
 ]

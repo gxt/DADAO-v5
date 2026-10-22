@@ -110,10 +110,11 @@ def trap(ha, immu18):
 
 
 def swym():
-    return 0x77880000
+    return 0x47880000
 
-def fence():
-    return 0x77000000
+def illi_poison():
+    """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison."""
+    return 0x7C000000
 
 def imm64_rd(rd, val):
     words = [set_zw_rd(rd, 0, val & 0xFFFF)]
@@ -225,7 +226,7 @@ DATA_BYTES = (p64(RODATA0) + p64(RODATA1) + p64(DATA0) + p64(DATA1))
 
 def text_with_entry(code_words):
     pre = ENTRY_OFF // 4
-    words = [fence()] + [swym()] * (pre - 1) + code_words
+    words = [illi_poison()] + [swym()] * (pre - 1) + code_words
     blob = words_to_bytes(words)
     assert len(blob) <= TEXT_VADDR_OFF, len(blob)
     return blob + b"\x00" * (TEXT_VADDR_OFF - len(blob))

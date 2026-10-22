@@ -88,8 +88,9 @@ def cmp_uo_rd(rdhb, rdhc, rdhd): return encode_orri(0x40, 0x2A, rdhb, rdhc, rdhd
 def br_nz(rdha, imms18): return encode_riii(0x6B, rdha, imms18 & 0x3FFFF)
 def call_iiii(imms24): return encode_iiii(0x74, imms24 & 0xFFFFFF)
 def ret_riii(rdha, imms18): return encode_riii(0x76, rdha, imms18 & 0x3FFFF)
-def fence(): return encode_orri(0x77, 0x00, 0, 0, 0)
-def swym(): return struct.pack('>I', 0x77880000)
+def fence(): return encode_orri(0x47, 0x20, 0, 0, 0)
+def swym(): return struct.pack(">I", 0x47880000)
+def illi_poison(): return struct.pack(">I", 0x7C000000)  # cfxld
 def st_o_ra(raha, rbhb, imms12):
     imm = imms12 & 0xFFF; hc = (imm >> 6) & 0x3F; hd = imm & 0x3F
     if imms12 < 0: hc |= 0x20
@@ -593,7 +594,7 @@ CTL_CHECKS = [
     ("CTL: st.o PASS but expect ILLI",
      [set_zw_rd(18, 0), *st_o_rd_pass()], ILLI_EXIT, "CTL broken"),
     ("CTL: fence but expect PASS",
-     [fence()], PASS_EXIT, "CTL broken"),
+     [illi_poison()], PASS_EXIT, "CTL broken"),
 ]
 
 # ── Test runner ────────────────────────────────────────────────────────

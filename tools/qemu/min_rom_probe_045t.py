@@ -110,7 +110,7 @@ def cfx2rc(ha, cg, rc, rd): return (0x7B << 24) | (ha << 18) | (cg << 12) | (rc 
 def trap(ha, immu18):       return (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF)
 def escape(ha, imms18):     return (0x7E << 24) | (ha << 18) | (imms18 & 0x3FFFF)
 def jump_iiii(imms24):      return (0x70 << 24) | (imms24 & 0xFFFFFF)
-def swym():                 return 0x77880000
+def swym():                 return 0x47880000
 
 
 def load_rd(rd, val):

@@ -150,7 +150,7 @@ def encode_illi_poison():
 
     `cfxld` 为 `scope: excluded`（唯一剩余的非实现族），QEMU `trans_cfxld_crii_cfx`
     直接 `gen_exception_illegal` ⇒ ILLI(0x88)；汇编器侧拒绝（见 gen-excluded.s）。
-    SPEC-164t 前本函数用过 `fence 0`(0x77000000)，但 `fence` 已实现、且 0x77 已成
+    SPEC-164t 前本函数用过 `fence 0` 的旧编码，但 `fence` 已实现、且旧 op 已成
     空白主表 op（decode 失败 ⇒ UNDI 0x89，非 ILLI），故改用 `cfxld`。
     """
     return 0x7C000000
@@ -513,13 +513,17 @@ def build_exit_section(vector_case, dump_mode=False, loader_words=0, relocate_ra
         words.append(encode_jump_rrii(0, 0, 0))
     else:
         # Normal mode: compare and exit via SYS_EXIT
-        # Layout:
-        #   [here]    br.nz rd61, N   -> if != 0, jump to FAIL block
-        #   [here+1]  PASS block: EXIT_RD = 0; SYS_EXIT
-        #   [here+1+N] FAIL block: EXIT_RD = 1; SYS_EXIT
+        # Layout (word indices from the br.nz itself):
+        #   [b]                 br.nz rd61, N  -> if != 0, jump to FAIL block
+        #   [b+1 .. b+P]        PASS block: EXIT_RD = 0; SYS_EXIT  (P words)
+        #   [b+P+1 ..]          FAIL block: EXIT_RD = 1; SYS_EXIT
+        # v5 branch base = the br.nz instruction's own PC (ISS-309): the offset
+        # is derived from the word indices, so `N = (fail start) - (br index)`.
         pass_block = emit_load_imm64_rd(EXIT_RD, 0) + emit_sys_exit(EXIT_RD)
         fail_block = emit_load_imm64_rd(EXIT_RD, 1) + emit_sys_exit(EXIT_RD)
-        words.append(encode_br_nz_rd(ACCUM_RD, len(pass_block)))
+        br_index = len(words)
+        fail_index = br_index + 1 + len(pass_block)
+        words.append(encode_br_nz_rd(ACCUM_RD, fail_index - br_index))
         words.extend(pass_block)
         words.extend(fail_block)
 

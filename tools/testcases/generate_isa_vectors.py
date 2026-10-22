@@ -261,14 +261,22 @@ def _logic_result(insn, rdhc_val, rdhd_val, rdhb_old, bits):
     return (rdhb_old & high_mask) | (res & mask)
 
 def _cmp_result(a, b, bits, signed=False):
-    """Compare result: -1/0/1 as64-bit."""
+    """Compare result (−1/0/+1) written into the full 64-bit destination.
+
+    SPEC-069t high-bit rule: a narrow compare extends its result to 64 bits by
+    the suffix — `.s*` sign-extends (−1 → 0xFFFF...), `.u*` zero-extends within
+    the operand width (`.ut` −1 → 0xFFFFFFFF, `.uw` → 0xFFFF, `.ub` → 0xFF).
+    """
     mask = (1 << bits) - 1
     a, b = a & mask, b & mask
     if signed:
         a, b = _sext(a, bits), _sext(b, bits)
-    if a < b: return -1 & 0xFFFFFFFFFFFFFFFF
-    elif a == b: return 0
-    else: return 1
+    if a < b:
+        return (mask if not signed else 0xFFFFFFFFFFFFFFFF)
+    elif a == b:
+        return 0
+    else:
+        return 1
 
 def _shl_result(src_val, shamt, N, rdhb_old):
     """Left shift: rdhb[N:0] = (src[N:0] << shamt), high unchanged."""
@@ -604,6 +612,81 @@ def gen_compare_semantic(rec, a_val, b_val, rdha_old=0):
 
     return _case(mnem, insn, fmt, "semantic", word, inp, out, None,
                  "active", None, None, sc, notes)
+
+
+def gen_cmp_uo_rb_boundaries(rec):
+    """SPEC-081t D8.2: cmp.uo-rb compares all 64 bits (bits[63:48] participate).
+
+    Three cases distinguish the full-64-bit view from a 48-bit view (all give
+    +1).  They guard the D8.2 boundary contract and must stay in the generator.
+    """
+    out = []
+    for a_val, b_val in (
+        (0x0001000000000001, 0x0000000000000002),
+        (0x0001000000000001, 0x0000000000000001),
+        (0x0001000000000000, 0x0000FFFFFFFFFFFF),
+    ):
+        c = gen_compare_semantic(rec, a_val, b_val)
+        if c:
+            c["notes"] = ("cmp.uo-rb 64-bit D8.2 boundary: rb2=%s, rb3=%s; "
+                          "bits[63:48] participate" % (_hex64(a_val), _hex64(b_val)))
+            out.append(c)
+    return out
+
+
+# ── div/rem defined-value coverage (SPEC-066t) ─────────────────────────
+# Division/remainder by zero and signed INT_MIN / -1 are *defined values*
+# (no ILLI).  These three passes restore the coverage the generator used to
+# emit: zero-divisor encoding, by-zero semantics, signed-overflow semantics.
+
+def gen_divrem_zero_encoding(rec):
+    """Encoding case with rdhd=rd0 (divisor 0) — legal, must not be dropped."""
+    mnem = rec["mnemonic"]
+    insn = rec["id"]
+    fmt = rec["format"]
+    sc = rec.get("spec_cite", "")
+    word = _build_word_orrr(rec, 1, 2, 0)       # rdhd=0 (divisor = rd0)
+    inp = {"rd": {"rd1": "0x0000000000000001", "rd2": "0x0000000000000064"}}
+    notes = "encoding %s: rdhd=rd0 (divisor=0) is legal, no ILLI" % mnem
+    return _case(mnem, insn, fmt, "encoding", word, inp, None, None,
+                 "active", None, None, sc, notes)
+
+
+def gen_divrem_by_zero(rec):
+    """Semantic case for a zero divisor (SPEC-066t defined value)."""
+    mnem = rec["mnemonic"]
+    insn = rec["id"]
+    fmt = rec["format"]
+    sc = rec.get("spec_cite", "")
+    bits = _get_bits(mnem)
+    signed = ".s" in mnem
+    word = _build_word_orrr(rec, 1, 2, 0)       # rdhd=0 (divisor = rd0)
+    dividend = 0x64
+    kind = "signed" if signed else "unsigned"
+    if _base_mnem(insn) == "div":
+        # signed: -1 sign-extended; unsigned: width mask (zero-extended)
+        expected = 0xFFFFFFFFFFFFFFFF if signed else (1 << bits) - 1
+        notes = ("%s div-by-zero: rd2=0x64, rd0(divisor)=0 -> rd1=%s "
+                 "(%s div by zero defined value)" % (mnem, _hex64(expected), kind))
+    else:
+        expected = dividend
+        notes = ("%s rem-by-zero: rd2=0x64, rd0(divisor)=0 -> rd1=%s "
+                 "(%s rem by zero defined value)" % (mnem, _hex64(expected), kind))
+    inp = {"rd": {"rd1": "0x0000000000000000", "rd2": _hex64(dividend)}}
+    out = {"rd": {"rd1": _hex64(expected)}, "rb": {}, "ra": {}, "memory": []}
+    return _case(mnem, insn, fmt, "semantic", word, inp, out, None,
+                 "active", None, None, sc, notes)
+
+
+def gen_divrem_signed_overflow(rec):
+    """Semantic case INT_MIN / -1 (defined value; no overflow trap)."""
+    bits = _get_bits(rec["mnemonic"])
+    int_min = _sext(1 << (bits - 1), bits) & 0xFFFFFFFFFFFFFFFF
+    c = gen_semantic_orrr_arith(rec, int_min, 0xFFFFFFFFFFFFFFFF, 0)
+    if c:
+        c["notes"] = ("%s signed overflow: INT_MIN/-1 -> %s (defined value)"
+                      % (rec["mnemonic"], c["expected_state"]["rd"]["rd1"]))
+    return c
 
 def gen_compare_encoding(rec):
     """Encoding case for cmp."""
@@ -1337,6 +1420,9 @@ def generate_file(filename, recs):
             else:
                 c = gen_compare_semantic(rec, 10, 5)
             if c: cases.append(c)
+            if insn == "cmp.uo_orrr_dbb":
+                # SPEC-081t D8.2: full-64-bit (bits[63:48]) boundary coverage
+                cases.extend(gen_cmp_uo_rb_boundaries(rec))
         elif is_cond:
             if mnem == "cs.n":
                 cases.append(gen_cs_semantic(rec, 0xFFFFFFFFFFFFFFFF, 0xAAAA, 0xBBBB, True))
@@ -1500,6 +1586,25 @@ def generate_file(filename, recs):
             bank = _bank_from_id(insn) or "rd"
             c = gen_riii_boundary_overflow(rec, bank)
             if c: cases.append(c)
+
+    # SPEC-066t coverage: div/rem by zero (encoding + semantic) and signed
+    # INT_MIN / -1 are defined values, not ILLI.  These were emitted by the
+    # pre-TESTCASES-061t generator in separate passes; keep the rules so a
+    # regeneration cannot silently drop them (reviewer Needs-Revision).
+    if filename == "reg-arith.yaml":
+        dr = [r for r in recs
+              if r.get("format") == "orrr" and _base_mnem(r["id"]) in ("div", "rem")]
+        for rec in dr:
+            cases.append(gen_divrem_zero_encoding(rec))
+        for rec in dr:
+            cases.append(gen_divrem_by_zero(rec))
+        signed_dr = [r for r in dr if ".s" in r["mnemonic"]]
+        signed_dr.sort(key=lambda r: (_get_bits(r["mnemonic"]),
+                                      _base_mnem(r["id"])))
+        for rec in signed_dr:
+            c = gen_divrem_signed_overflow(rec)
+            if c:
+                cases.append(c)
 
     # Append deferred overlap cases at end (ordering: encoding/semantic first, then overlap)
     cases.extend(deferred_overlap)

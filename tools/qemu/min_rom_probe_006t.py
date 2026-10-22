@@ -145,10 +145,19 @@ def br_nz(rdha, imms18):
     return encode_riii(0x6B, rdha, imms18 & 0x3FFFF)
 
 def fence():
-    return encode_oiii(0x77, 0x00, 0)
+    """fence 0 (op=0x47, ha=0x20; SPEC-164t: OPC-MISC migrated to op 0x47)."""
+    return encode_oiii(0x47, 0x20, 0)
 
 def swym():
-    return encode_oiii(0x77, 0x22, 0)
+    return encode_oiii(0x47, 0x22, 0)
+
+def illi_poison():
+    """ILLI 毒饵：cfxld（op=0x7C, ha=0x00, scope=excluded）。
+
+    `fence` used to be the ILLI poison before SPEC-164t; it is now implemented
+    (scope m9), so the poison moved to the only remaining excluded family.
+    """
+    return encode_oiii(0x7C, 0x00, 0)
 
 def trap_sys_exit():
     """trap cfx_umon, 0x30000 — semihosting tag (immu18[17:16]==2'b11)."""
@@ -206,7 +215,9 @@ def build_rom(test_insns):
 
 def run_test(rom_data, kernel_data=None, timeout=10):
     if kernel_data is None:
-        kernel_data = fence() * 4
+        # ILLI poison at the RAM base: T23 jumps there and must fault cleanly
+        # (fence is implemented since SPEC-164t, cfxld is the remaining poison).
+        kernel_data = illi_poison() * 4
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data); rom_path = f.name
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
@@ -317,12 +328,15 @@ TESTS = [
      "Legal ldm.o crashed"),
 
     # T12: stm.o+ldm.o round-trip (exact value)
-    # Use rb18 = RAM+0x100 for data area
+    # Use rb18 = RAM+0x100 for data area (set.zw only writes one wyde, so the
+    # RAM wyde wp2 must be set as well — the old code left rb18 = 0x100).
     # NOTE (ISS-120 drift): the old "div-by-zero if equal → ILLI" trick is
     # obsolete (SPEC-066t: div-by-zero yields a defined value, no fault), so the
     # match is now reported with a br.nz/FAIL arm (present-ISA equivalent).
     ("T12 stm.o+ldm.o round-trip",
-     [set_zw_rb(18, 0x0100),             # rb18 = RAM+0x100 (RAM)
+     [set_zw_rb(18, 0x0000),             # rb18 = 0
+      or_w_rb(18, 2, 0xFC00),            # rb18 = RAM base
+      or_w_rb(18, 0, 0x0100),            # rb18 = RAM+0x100
       set_zw_rd(20, 0x0042),             # rd20 = 0x42
       set_zw_rd(19, 0),                  # rd19 = 0 (offset)
       stm_o(20, 18, 19, 1),              # stm.o rd20, rb18, rd19, 1
@@ -417,10 +431,10 @@ TESTS = [
 
     # T23: jump-rrii e2e (J1 fix, should not SIGABRT)
     # jump rb2, rd0, 0 → PC = rb2 + rd0 + 0 = RAM base
-    # RAM base has kernel = fence() → ILLI exit (not crash)
+    # RAM base has kernel = cfxld (ILLI poison) → ILLI exit (not crash)
     ("T23 jump-rrii → no crash (ILLI)",
      [jump_rrii(2, 0, 0)],               # jump to RAM base (trampoline set rb2=RAM base)
-     ILLI_EXIT,                           # kernel is fence → 0x88
+     ILLI_EXIT,                           # kernel is cfxld → 0x88
      "jump-rrii crashed (SIGABRT)"),
 
     # T24: br.nz taken with correct PC target (J2 fix)

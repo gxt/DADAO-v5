@@ -132,7 +132,7 @@ def br_ne(rdha, rdhb, imms12):
     return encode_orrr(0x6F, rdha, rdhb, hc, hd)
 
 def fence():
-    return encode_oiii(0x77, 0x00, 0)
+    return encode_oiii(0x47, 0x20, 0)
 
 # ── Terminators / ROM ────────────────────────────────────────────────
 
