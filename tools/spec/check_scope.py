@@ -3,10 +3,12 @@
 
 职责（可执行、可失败；SPEC-086t §5.3）：
   1. 每条记录**恰有** 1 个合法 `scope` ∈ {m1, fp, excluded, m3, m8, m9}（缺失/非法 ⇒ FAIL）。
-  2. 分区计数：m1 == 156、fp == 58、excluded == 27、m3 == 1、m8 == 7、m9 == 9、total == 258。
+  2. 分区计数：m1 == 156、fp == 58、excluded == 29、m3 == 1、m8 == 7、m9 == 9、total == 260。
   3. `scope == "excluded"` ⇔ `decode == "ILLI"`；`scope ∈ {m1, fp, m3, m8, m9}` ⇒ 无 `decode`
      且无旧字段（防回退）。
-  4. `scope == "fp"` ⇔ `id.endswith("_rf")`（结构性判据，源自 spec/契约）。
+  4. `_rf`（RF 银行目的）的 scope 约束：`scope == "fp"` ⇒ `id.endswith("_rf")`；
+     `id.endswith("_rf")` ⇒ `scope ∈ {fp, excluded}`（SPEC-161t：`ftrnd`/`fornd`
+     为 RF 目的但 `scope: excluded`；其余 scope 不得出现 RF 记录）。
   5. 旧 M1 排除布尔字段（见 OLD_FIELD）在非历史文件中已消失。
   6. 输出「检查名 + 期望/实际 + 退出码」；任一失败非零退出。
 
@@ -31,6 +33,8 @@
     scope excluded→m9 ⇒ excluded 28→27、m9 8→9、total 260 不变；M1/fp/m3/m8 不变）
    * SPEC-163t（用户 2026-10-22 裁定：删除 `cs.eq_rrrr_rf`/`cs.ne_rrrr_rf` 两条死指令 ⇒
      fp 60→58、total 260→258；M1/excluded/m3/m8/m9 不变；0x5E/0x5F 腾空给 SPEC-157t FMA）
+   * SPEC-161t（`ftrnd`/`fornd` 立册：754-2019 六种取整，`immu6` one-hot 六档 ⇒
+     excluded 27→29、total 258→260；M1/fp/m3/m8/m9 不变）
 
 Usage: python3 tools/spec/check_scope.py [--yaml contracts/opcodes.yaml] [--repo-root .]
 """
@@ -47,11 +51,11 @@ OLD_FIELD = "excluded" + "_m1"
 
 EXPECTED_M1 = 156
 EXPECTED_FP = 58
-EXPECTED_EXCLUDED = 27
+EXPECTED_EXCLUDED = 29
 EXPECTED_M3 = 1
 EXPECTED_M8 = 7
 EXPECTED_M9 = 9
-EXPECTED_TOTAL = 258
+EXPECTED_TOTAL = 260
 
 ALLOWED_SCOPES = ("m1", "fp", "excluded", "m3", "m8", "m9")
 
@@ -180,12 +184,25 @@ def main() -> int:
         failures.append("m1/fp/m3/m8/m9 记录含 decode/旧字段: "
                         + ", ".join(bad_plain[:10]))
 
-    # 4. scope == fp ⇔ id.endswith("_rf")
+    # 4. `_rf`（RF 银行目的）记录的 scope 只允许 fp / excluded
+    #    SPEC-161t：原判据为 `scope == fp ⇔ id.endswith("_rf")`——该等价式在引入
+    #    「已定义编码但未实现」的 RF 目的指令（`ftrnd`/`fornd`，scope: excluded）后不再
+    #    成立。保留原判据的**双向防线**并显式列出第三类：
+    #      a) scope == fp ⇒ id 以 `_rf` 结尾（防非 RF 记录混入 fp）；
+    #      b) id 以 `_rf` 结尾 ⇒ scope ∈ {fp, excluded}（防 M1/m3/m8/m9 出现 RF 记录）。
     fp_bad = [r.get("id", "?") for r in records
-              if (r.get("scope") == "fp") != str(r.get("id", "")).endswith("_rf")]
-    if not record("scope:fp ⇔ id 以 _rf 结尾", "0 条",
+              if r.get("scope") == "fp" and not str(r.get("id", "")).endswith("_rf")]
+    if not record("scope:fp ⇒ id 以 _rf 结尾", "0 条",
                   f"{len(fp_bad)} 条") or fp_bad:
-        failures.append("fp ∉ _rf 或 _rf ∉ fp: " + ", ".join(fp_bad[:10]))
+        failures.append("fp 记录 id 不以 _rf 结尾: " + ", ".join(fp_bad[:10]))
+
+    rf_bad = [r.get("id", "?") for r in records
+              if str(r.get("id", "")).endswith("_rf")
+              and r.get("scope") not in ("fp", "excluded")]
+    if not record("id 以 _rf 结尾 ⇒ scope∈{fp,excluded}", "0 条",
+                  f"{len(rf_bad)} 条") or rf_bad:
+        failures.append("_rf 记录的 scope 非 fp/excluded: "
+                        + ", ".join(rf_bad[:10]))
 
     # 5. 旧字段在非历史文件中消失
     hits = scan_old_field(repo)

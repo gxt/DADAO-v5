@@ -221,6 +221,25 @@ SECTION_BADGES = {
     "待定": "**deferred** — 暂不归类，待必须启用时",
 }
 
+
+def section_badge(cls: str, entries: list[dict]) -> str | None:
+    """章节标题的「范围/状态」标（按本章条目的**实际 scope** 现场派生）。
+
+    `scope` 表范围、`deferred` 表状态，二者正交。一章可同时含 `scope: fp` 与
+    `scope: excluded`（已定义编码、执行 ILLI，如 `ftrnd`/`fornd`）⇒ 须逐类列出，
+    不得把整章标成单一 scope（否则标题与表格内容不符）。
+    """
+    if cls == "待定":
+        return SECTION_BADGES["待定"]
+    if cls == "浮点运算":
+        n_fp = sum(1 for e in entries if e.get("scope") == "fp")
+        n_ex = sum(1 for e in entries if e.get("scope") == "excluded")
+        parts = [f"`scope: fp`（{n_fp} 条，已实现）"]
+        if n_ex:
+            parts.append(f"`scope: excluded`（{n_ex} 条，decode ILLI）")
+        return " + ".join(parts)
+    return None
+
 # 人读契约（`contract-asm-list.md`）的定案表述覆盖：内部键仍是分类名「待定」，
 # 但输出须表明这是**已定案**的 deferred 分类（用户裁定 2026-10-03，`ADR-0012` D1），
 # 不是「待裁决」（`check-contracts-pending` B4）。**spec/ 内嵌块不动**（只读册）⇒
@@ -488,7 +507,7 @@ def _section_content(cls: str, entries: list[dict]) -> str:
     is always chapter §1 and its single ``###`` child is §1.1.
     """
     if cls in SECTION_BADGES:
-        header = f"### 1.1 {cls}（{len(entries)} 条）｜ {SECTION_BADGES[cls]}"
+        header = f"### 1.1 {cls}（{len(entries)} 条）｜ {section_badge(cls, entries)}"
     else:
         header = f"### 1.1 {cls}（{len(entries)} 条）"
     lines = [header, ""]
@@ -657,11 +676,25 @@ def main() -> int:
         _by_class_tmp.setdefault(classify(entry), []).append(entry)
     _fp_chapter = len(_by_class_tmp.get("浮点运算", []))
     _pending_chapter = len(_by_class_tmp.get("待定", []))
-    # `scope: excluded` 条目按章分布（`fence`/`lr.*`/`sc.*` 归其它、`cfxld`/`cfxst` 归 deferred）
-    _excluded_other = sum(
-        1 for e in entries
-        if e.get("scope") == "excluded" and classify(e) != "待定"
+    _fp_chapter_entries = _by_class_tmp.get("浮点运算", [])
+    _fp_chapter_fp = sum(1 for e in _fp_chapter_entries if e.get("scope") == "fp")
+    _fp_chapter_ex = sum(1 for e in _fp_chapter_entries
+                         if e.get("scope") == "excluded")
+    # `scope: excluded` 条目按章分布（`fence`/`lr.*`/`sc.*` 归其它、`cfxld`/`cfxst`
+    # 归 deferred、`ftrnd`/`fornd` 归浮点运算）—— 现场派生，不写死。
+    _excluded_by_class: dict[str, int] = {}
+    for e in entries:
+        if e.get("scope") == "excluded":
+            cls = classify(e)
+            _excluded_by_class[cls] = _excluded_by_class.get(cls, 0) + 1
+    _excluded_dist = " + ".join(
+        f"{SECTION_TITLES.get(cls, cls)} {n} 条"
+        for cls in SECTION_ORDER
+        if (n := _excluded_by_class.get(cls))
     )
+    _fp_status = (f"`scope: fp` {_fp_chapter_fp} 条（已实现）"
+                  + (f" + `scope: excluded` {_fp_chapter_ex} 条（decode ILLI）"
+                     if _fp_chapter_ex else ""))
 
     by_format: dict[str, list[dict]] = {}
     for entry in entries:
@@ -674,8 +707,8 @@ def main() -> int:
     for cls in SECTION_ORDER:
         if cls not in by_class:
             continue
-        if cls in SECTION_BADGES or cls in CONTRACT_BADGES:
-            badge = CONTRACT_BADGES.get(cls, SECTION_BADGES.get(cls))
+        badge = CONTRACT_BADGES.get(cls) or section_badge(cls, by_class[cls])
+        if badge:
             rows.append(
                 f"\n### {SECTION_TITLES.get(cls, cls)}（{len(by_class[cls])} 条）｜ {badge}\n"
             )
@@ -702,8 +735,8 @@ def main() -> int:
 > **源**：`contracts/opcodes.yaml`（{total} 条 = M1 {n_m1} + `scope: fp` {n_fp} + `scope: excluded` {n_excluded} + `scope: m3` {n_m3} + `scope: m8` {n_m8} + `scope: m9` {n_m9}）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
 > **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **deferred**（原「待定」；暂不归类：`cfxld`/`cfxst`）
-> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（{_fp_chapter} 条）为 `scope: fp`（已实现）；**deferred（原「待定」）**（{_pending_chapter} 条）为暂不归类状态（分类依据 = `ADR-0012` D1）；`scope: m1` {n_m1} 条为当前有效书写形式；`scope: excluded` 共 {n_excluded} 条，按章分布为其它 {_excluded_other} 条 + deferred {_pending_chapter} 条
-> **注（`scope: fp` 范围总账 = {n_fp} 条）**：浮点运算章 {_fp_chapter} 条（MISC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 5 条（`cs.n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
+> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（{_fp_chapter} 条）：{_fp_status}；**deferred（原「待定」）**（{_pending_chapter} 条）为暂不归类状态（分类依据 = `ADR-0012` D1）；`scope: m1` {n_m1} 条为当前有效书写形式；`scope: excluded` 共 {n_excluded} 条，按章分布为 {_excluded_dist}
+> **注（`scope: fp` 范围总账 = {n_fp} 条）**：浮点运算章 {_fp_chapter_fp} 条（MISC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 5 条（`cs.n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{{rdHA:rdHA+immu6-1}}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `spec/Toolchain-01-汇编语言.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
 

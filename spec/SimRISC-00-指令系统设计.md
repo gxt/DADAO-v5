@@ -287,7 +287,7 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          | MISC-AMO        |
 | 0111-1xxx     |                      |                      | cfx2rd_crrr_cfx      | cfx2rc_crrr_cfx      | cfxld_crii_cfx       | cfxst_crii_cfx       | escape_ciii_cfx      | trap_ciii_cfx   |
 
-> **`scope` 分区**（用户裁定 2026-10-03；2026-10-05 按实现状态更新）：`scope: fp`（主表 `MISC-RF` 子表 op=0x44 的 RF 运算/转换/比较/分类，及散见各表的 RF 存取形态，共 60 条）**语义已归一化于 `contract-fp.md`、执行层 60/60 已实现**（`QEMU-034t`~`038t`），不触发 decode ILLI。
+> **`scope` 分区**（用户裁定 2026-10-03；2026-10-05 按实现状态更新）：`scope: fp`（主表 `MISC-RF` 子表 op=0x44 的 RF 运算/转换/比较/分类，及散见各表的 RF 存取形态，共 58 条）**语义已归一化于 `contract-fp.md`、执行层 58/58 已实现**（`QEMU-034t`~`038t`），不触发 decode ILLI。
 > `scope: excluded`（特权 cfx：cfx2rd/cfx2rc/cfxld/cfxst/escape/trap）**未实现，decode ILLI**。
 
 ### 4.1 MISC-AMO 指令编码
@@ -379,14 +379,14 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 
 ### 4.6 MISC-RF指令编码
 
-> 本子表 44 条均为 `scope: fp`——语义已归一化于 `contract-fp.md`，执行层已实现（`scope: fp` 共 60 条，`QEMU-034t`~`038t` 全部落地），不触发 decode ILLI。
+> 本子表 46 条 = 44 条 `scope: fp`（已实现；语义归一化于 `contract-fp.md`，执行层落地，不触发 decode ILLI）+ 2 条 `scope: excluded`（`ftrnd_orri_rf`/`fornd_orri_rf`，编码已定义、执行触发 ILLI；语义见 SimRISC-07 §取整（roundToIntegral））。`scope: fp` 共 58 条。
 
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
 
 |           | xxx-000     | xxx-001     | xxx-010     | xxx-011     | xxx-100     | xxx-101     | xxx-110     | xxx-111     |
 | ---       | ---         | ---         | ---         | ---         | ---         | ---         | ---         | ---         |
-| 000-xxx   | ftcls_orri_rf  | ft2fo_orri_rf  | ft2ft_orri_rf  |             |             |             | ftroot_orri_rf |  |
-| 001-xxx   | focls_orri_rf  | fo2ft_orri_rf  | fo2fo_orri_rf  |             |             |             | foroot_orri_rf |  |
+| 000-xxx   | ftcls_orri_rf  | ft2fo_orri_rf  | ft2ft_orri_rf  | ftrnd_orri_rf  |             |             | ftroot_orri_rf |  |
+| 001-xxx   | focls_orri_rf  | fo2ft_orri_rf  | fo2fo_orri_rf  | fornd_orri_rf  |             |             | foroot_orri_rf |  |
 | 010-xxx   | ftadd_orrr_rf  | ftsub_orrr_rf  | ftmul_orrr_rf  | ftdiv_orrr_rf  | ftrem_orrr_rf  | ftsclb_orrr_rf | ftsgnn_orrr_rf | ftsgnj_orrr_rf |
 | 011-xxx   | foadd_orrr_rf  | fosub_orrr_rf  | fomul_orrr_rf  | fodiv_orrr_rf  | forem_orrr_rf  | fosclb_orrr_rf | fosgnn_orrr_rf | fosgnj_orrr_rf |
 | 100-xxx   | ftqcmp_orrr_rf | ftscmp_orrr_rf |             |             |             |             |             |             |
@@ -415,6 +415,7 @@ v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成�
 
 ### 0.5.5-rc（未发布）
 
+- 新增 `ftrnd`/`fornd`（取整，IEEE 754-2019 `roundToIntegral` 六档，`immu6` one-hot；orri），编码 `000-011`/`001-011`（`ha = 0x03`/`0x0B`，MISC-RF）；`scope` 为 `excluded`（执行 ILLI）。
 - 新增 `clmul.o`（GF(2) 无进位乘，`rrrr` 双目的，`rdHA` 高 / `rdHB` 低），编码 `0101-0110`（`op = 0x56`，紧跟 `mul.so`）；`scope` 为 `excluded`（执行 ILLI）。
 - 编码再分配：`ext.uo`/`ext.so` 编码迁至 `100-000`/`100-001`（orrr）与 `101-000`/`101-001`（orri），助记符与语义不变。
 - `fence` 编码由 `000-000` 迁至 `100-000`（`ha = 0x20`），`immu18` 位域改为 `fm`/`pred`/`succ`；`swym` 仍在 `100-010`。

@@ -7,7 +7,7 @@
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
 # scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份
 # scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b + ADR-0035 GF(2) 无进位乘 clmul.o），非 M1 身份
-# 共 258 条：M1 156 条 + scope fp 58 条 + scope excluded 27 条 + scope m3 1 条 + scope m8 7 条 + scope m9 9 条
+# 共 260 条：M1 156 条 + scope fp 58 条 + scope excluded 29 条 + scope m3 1 条 + scope m8 7 条 + scope m9 9 条
 # 有 rule_refs 的指令：206 条
 
 - id: ld.ub_rrii_rd
@@ -6425,6 +6425,64 @@
   - dst_rf0
   - mreg_zero
   - mreg_range_overflow
+- id: ftrnd_orri_rf
+  mnemonic: ftrnd
+  format: orri
+  op: '0x44'
+  ha: '0x03'
+  mask: '0xFFFC0000'
+  value: '0x440C0000'
+  fields:
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rf
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rf
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rfhb != rf0
+  - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 ==
+    32
+  spec_cite: SimRISC-07 §取整（roundToIntegral）
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: fornd_orri_rf
+  mnemonic: fornd
+  format: orri
+  op: '0x44'
+  ha: '0x0B'
+  mask: '0xFFFC0000'
+  value: '0x442C0000'
+  fields:
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rf
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rf
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rfhb != rf0
+  - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 ==
+    32
+  spec_cite: SimRISC-07 §取整（roundToIntegral）
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
 - id: ftadd_orrr_rf
   mnemonic: ftadd
   format: orrr

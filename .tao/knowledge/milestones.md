@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-161t | 已验证 | 2026-10-22 13:10 | `ftrnd`/`fornd` 立册（754 六种取整、`immu6` one-hot `0x03`/`0x0B`）；260/29/58；证据 79/79 |
 | SPEC-163t | 已验证 | 2026-10-22 12:42 | 删 `cs.eq/ne_rrrr_rf`（258 条 / fp 58）；`.td`+trans+lit 原子删除，0x5E/0x5F 腾空 |
 | INFRA-101t | 已验证 | 2026-10-22 09:52 | 新鲜度门控改用 build-id（替代 mtime）；两门控 + 旧 stamp 迁移；touch 绿 / 内容变红 / relink 后免重建 |
 | SPEC-155t | 已验证 | 2026-10-22 07:12 | clmul 解除 `excluded`（`scope → m9`）；其余 259 条零改动、`accept 258/reject 2`、锁重算 |
@@ -59,7 +60,6 @@
 | SPEC-158t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 解除 `excluded`（`scope → fp`，新族 `fma`） |
 | SPEC-159t | 待开始 | 2026-10-21 23:50（登记） | `ftmin`/`ftmax`/`fomin`/`fomax` 立册（754 `minimumNumber`、`orrr`、opx `0x26/0x27/0x2E/0x2F`） |
 | SPEC-160t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 解除 `excluded`（`scope → fp`，新族 `minmax`） |
-| SPEC-161t | 待开始 | 2026-10-21 23:50（登记） | `ftrnd`/`fornd` 立册（754 六种取整、`immu6` one-hot、opx `0x03`/`0x0B`） |
 | SPEC-162t | 待开始 | 2026-10-21 23:50（登记） | 取整解除 `excluded`（`scope → fp`，新族 `roundint`） |
 | TESTCASES-057t | 待开始 | 2026-10-21 23:50（登记） | clmul 集成：指令级 + GHASH + CRC-32C，独立 oracle、两档 |
 | TESTCASES-058t | 待开始 | 2026-10-21 23:50（登记） | `fma` 集成：单次舍入反例 + 点积/GEMM/Horner，独立 oracle、两档 |

@@ -289,6 +289,8 @@ def _negative_text(rec):
         return "%s cfx63, [rb2, 1]" % mn
     if fmt == "rrrr":          # clmul.o（ADR-0035；双目的与 mul.* 同形）
         return "%s {rd8, rd9}, rd10, rd11" % mn
+    if fmt == "orri":          # ftrnd/fornd（取整：rf 目的 + 6 位模式立即数）
+        return "%s rf8, rf9, 1" % mn
     raise ValueError("no negative form for %s" % rec["id"])
 
 

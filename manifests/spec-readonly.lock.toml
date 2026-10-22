@@ -121,7 +121,12 @@ group = "simrisc-00..12"
 # 2026-10-20（ADR-0034，用户原话「fence指令的opx编码改为100_000…」「lr/sc 四种数据宽度…opx 从000-000 排到 011-111」→「A」；渠道 = 经主会话问答）：§4.1 MISC-AMO 子表 `fence` 迁 `100-000`、`lr`/`sc` 重排为 24 条（`<lr|sc>.<b|w|t|o>.<序>`）；附录 0.5.5-rc 补两条；sha256 同笔重算。
 # 2026-10-21（ADR-0035，用户原话「可以，添加 clmul.o rrrr 格式，编码放在 mul.so 后面」；渠道 = 经主会话派发）：§4 QFC 主表 `0101-0xxx` 第 7 格填 `clmul.o_rrrr_rd`（`op = 0x56`）；附录 0.5.5-rc 补一条；sha256 同笔重算。
 # 2026-10-22（SPEC-155t，授权原话见文件头注释）：附录 0.5.5-rc 段**追加** 1 条（`clmul.o` 解除 `excluded`，`scope` → `m9`；历史条目不改写）；sha256 同笔重算。
-sha256 = "68f414a5f8b4c0fdbe2d9d4d3717cb164d61bdd8afd56bebb15f56615107fa69"
+# 2026-10-22（SPEC-161t，用户原话「不增加 nearbyint，只实现 754-2019 中的六种取整，按顺序，immu6 用 one-hot 对应上」
+#   「ftrnd/fornd 的 opx：000-011/001-011」；原话落纸于 `.tao/tasks/spec/SPEC-161t-立册.md` §用户裁定）：
+#   §4.6 MISC-RF 子表 `000-011`/`001-011` 填 `ftrnd_orri_rf`/`fornd_orri_rf` + 表下范围注记（46 条 = 44 `scope: fp`
+#   + 2 `scope: excluded`）；§4 子表 `scope` 分区注记的 `scope: fp` 计数按现场订正（60→58，`SPEC-163t` 删 2 条后的
+#   残留）；附录 0.5.5-rc 补一条；sha256 同笔重算。
+sha256 = "2093ddbf6eb88e9551910815449ed7a05c71600d10624ebafe7465b88a2c8a73"
 
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -176,7 +181,10 @@ group = "simrisc-00..12"
 #   `.tao/tasks/spec/SPEC-156t-位序对齐.md`）：§7 分类位表 10 类位序改为 754-2019 `class` 顺序（bit0 sNaN、
 #   1 qNaN、2 -∞ … 9 +∞）+ `0.5.5-rc` 段追加一条（**破坏性**：与 RISC-V `fclass` 位序不兼容）；
 #   指令编码不变。sha256 于同一变更内重算（其余只读册不变）。
-sha256 = "6bab72ceebaef3c3348fa83cae1973994e673fb8c941b529b4d3a906a03b2c7e"
+# 2026-10-22（SPEC-161t，同授权）：新增 §4.3「取整（roundToIntegral）」（6 档 one-hot 表 + 边界 + `nearbyint`
+#   落动态档（NX 可能置位）/`rf0[33:32]` 不扩充（RMM 不支持）两项已知偏差）；册头分类与 FP 范围总账、§1.1 速查
+#   计数同步（46 条 = 44 `scope: fp` + 2 `scope: excluded`；`scope: fp` 共 58 条）；附录 0.5.5-rc 补一条；sha256 同笔重算。
+sha256 = "ca21be54b608fa99b20a2fc2de81220a42fb530da0e97cce8ac6354b36f76fd6"
 
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"

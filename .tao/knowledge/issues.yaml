@@ -837,3 +837,11 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（2026-10-22，源 = `SPEC-163t` reviewer 独立注入）】**现象**：临时保留一条 `trans_cs_*_rrrr_rf`（记录已删）时，`check_qemu_trans --strict` **仍 rc=0**（其口径是 `found/total` 的缺失方向）；真正捕获它的是 `check_interface`（259≠258）。**影响**：删除指令的册子若漏删 trans，只有 `check_interface` 报「数目不符」，定位信息弱；若 `check_interface` 被跳过则该残留不可见。**修法方向**：`check_qemu_trans.py` 增加 orphan 方向（`trans_*` 定义的 mnemonic 必须存在于 `opcodes.yaml`），`--strict` 时双向判；补注入自测（残留一条 trans ⇒ 红）。**交叉引用**：`SPEC-163t`（现场）、`ISS-320`（同类门控缺口）。**边界**：本笔只登记。"
+
+- id: ISS-322
+  title: "【P2】`ftrnd`/`fornd` 已立册（`scope: excluded`），QEMU 缺 2 条 `trans_*`：`check_qemu_trans` 258/260、`check_interface` 交叉核对红"
+  status: open
+  scope: [qemu, spec]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（2026-10-22，源 = `SPEC-161t` 完成区「遗留问题」+ 现场重跑；engineer 登记）】**现象（现场）**：`contracts/opcodes.yaml` 已立 `ftrnd_orri_rf`（`op 0x44` / `ha 0x03`）/`fornd_orri_rf`（`ha 0x0B`），`scope: excluded`、`decode: ILLI`（260 条 / excluded 29）；QEMU 侧无对应 `insn.decode` pattern 与 `trans_ftrnd_*`/`trans_fornd_*` ⇒ `check_qemu_trans --strict` 报 **258/260**（缺 2），`check_interface` 的「QEMU trans_* ↔ opcodes」交叉核对同步红。**本册边界**：L2 不在验收面（`make check`(L1) 全绿；上述两项红为**预期**），语义实现归 `QEMU-072t`（静态 5 档只合 NV、DYN 走真实 status；模式敏感 + NX 专测），LLVM 后端归 `LLVM-125t`，`excluded → fp` 翻转归 `SPEC-162t`。**关闭判据**：`QEMU-072t` 落 2 条 trans（`immu6` one-hot 六档；NX 只对 `0x20`）后 `check_qemu_trans` 260/260、`check_interface` 绿。**证据指针**：`.tao/tasks/spec/SPEC-161t-立册.md` 完成区；`contracts/opcodes.yaml`（两条记录）；`spec/SimRISC-07 §取整（roundToIntegral）`。**交叉引用**：`ISS-317`（同型「编码已定、实现待落」先例）、`ISS-318`（NX/UF 措辞）。**边界**：本笔只登记 ⇒ 未改 `components/qemu/**` ✗；`tests/**` 仅按既有生成器重生成反例文件（`gen-excluded.s`，机械派生）✗ 无语义向量改动。"

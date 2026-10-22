@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M9（FP 完备性）
 **依赖**：无（本册只立记录与语义）；后续 `QEMU-072t` → `LLVM-125t` → `SPEC-162t`（翻转）→ `TESTCASES-060t`
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -110,12 +110,41 @@ fornd rfHB, rfHC, immu6     @ op=0x44, ha=0x0B (001-011)
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：一键证据 `bash .work/evidence/SPEC-161t/run.sh --inject` = **79/79 PASS（rc=0）**，含 L1 `make check` rc=0。注入 3 例均「注入→红→`cp`+md5 还原→回绿」：① `check_scope` 计数回退 29/260→27/258 ⇒ `check-scope` rc=1；② 只读锁回退 SimRISC-07 sha256 ⇒ `check-spec-readonly` rc=1；③ 删除 `ftrnd` 记录 ⇒ 数据断言 + `check-scope` rc=1。日志 `.work/evidence/SPEC-161t/log/`。
+**修改文件**：`contracts/opcodes.yaml`（258→260）；`spec/SimRISC-07-浮点运算.md`（册头/§1.1/§4.3/附录）；`spec/SimRISC-00-指令系统设计.md`（§4.6 两格 + 范围注记、§4 `scope` 分区计数 60→58、附录）；`.tao/contracts/contract-fp.md`（§18 `roundint` + `<a id="roundint">`）；生成物 `.tao/contracts/contract-asm-list.md`、`tools/llvm/llvm-isa-backend-matrix.{md,tsv}`、`tests/llvm/lit/MC/DADAO-gen/gen-excluded.s`；生成器/门控 `tools/spec/{generate_opcodes,check_scope}.py`、`tools/llvm/gen_asm_list.py`、`tools/testcases/generate_lit_vectors.py`；`manifests/spec-readonly.lock.toml`；`.tao/knowledge/{issues.yaml,milestones.md}`；`.tao/tasks/spec/SPEC-161t-立册.md`。
+**验收结果**：现场 `total=260 / excluded=29 / fp=58`；`check_scope`（excluded 29、total 260、fp 58）PASS；`validate-encoding` 260 条 OK；`check_fp_contract` 58 条 + 12 族不变；`check_isa_coverage --check` PASS（accept 256/reject 4、复核不符 0）；`check_lit_gen` 64/64；`check_rule_refs`/`check_instrinfo`/`check-asm-list{,-drift}`/`check-legality-{drift,invariants}`/`validate-vectors`/`check-spec-{refs,drift,codeblocks,numbering,changelog,archive,readonly}`/`check-contracts-pending`/`check-milestones-fresh`/`check_issues` 全 rc=0；L1 rc=0。**预期红（非本册验收面）**：`check_qemu_trans --strict` 258/260、`check_interface` 2 项 FAIL（缺 2 条 trans，`ISS-322`）。两记录 `legality` = `rfhb != rf0`（`dst_rf0`）+ 6 值 one-hot 表达式（`encode_onehot`）；`rule_refs` 按既有「excluded ⇒ []」口径为空（与 fence/lr/sc 一致）。
+**新发现/坑**：① 原 `check_scope` 判据 `scope:fp ⇔ id 以 _rf 结尾` 与「excluded 的 RF 目的记录」不相容 ⇒ 拆为 `fp⇒_rf` + `_rf⇒scope∈{fp,excluded}`（对 M1/m3/m8/m9 的防线不变；门控判据细化已披露）。② `check_lit_gen` 要求 `gen-excluded.s` 的 @src 集合 ==「excluded 且无 `.td` def」全集 ⇒ 必须重生成该生成物，并给 `generate_lit_vectors._negative_text` 补 orri 反例形态；与任务书「不改 `tests/**`」冲突，按**生成物**处理（无语义向量改动，已披露）。③ 任务书「速查表 46→48」以 FMA（`SPEC-157t`）已落为前提；现场基线 44 ⇒ 本册 **44→46**。④ `SimRISC-07` 册头「fp 60 / SimRISC-02 7 条」与 `SimRISC-00 §4`「fp 60」为 `SPEC-163t` 残留，随册订正为 58 / 5（附录历史行不改写）。⑤ `check_qfc_coverage`（informational）仍报 2 条 M1 内 QFC-only（`cs.eq`/`cs.ne` 0x5E/0x5F 仍在 SimRISC-00 主表）——`SPEC-163t` 残留，未处置（不阻断 L1）。⑥ `gen_isa_coverage` md 静态说明仍把 `clmul.o` 列为 reject 例（`SPEC-155t` 后已 accept），非本册引入、未修。
+**遗留问题**：① L2：QEMU 缺 `trans_ftrnd_orri_rf`/`trans_fornd_orri_rf`（已登记 `ISS-322`，`resolved_by: null`，由 `QEMU-072t` 关闭）；② LLVM `.td`/ISel 归 `LLVM-125t`；③ `excluded → fp` 翻转归 `SPEC-162t`。无其它未完成项。
 
 ## 审阅记录
 
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+### 第 1 轮 reviewer 验收
+
+**判决：Accepted**（工作树快照前后一致、注入已还原；L2 红为预期且已登记 `ISS-322`）
+
+**重跑记录（reviewer 自跑，rc=各命令自身）**：`check-scope` rc=0（fp=58/excluded=29/total=260/m1=156/m3=1/m8=7/m9=9，新增两向判据均 0 条违例）；`validate-encoding` rc=0（260 条 OK）；`check-rule-refs`/`check-instrinfo`/`check-isa-coverage`/`check-fp-contract` rc=0；`check-spec-{refs,drift,numbering,changelog,archive,readonly,codeblocks}` rc=0；`check-asm-list{,-drift,-prose}`/`check-legality-{drift,invariants}`/`validate-vectors`/`check-contracts-pending`/`check-milestones-fresh` rc=0；`check_lit_gen.py` rc=0（64/64）；`check_issues.py` rc=0（57 open/37 closed）；**`make check`(L1) rc=0（38 s）**。生成物幂等：`generate_opcodes`/`gen_asm_list --embed-spec`/`gen_legality_list --apply`/`generate_lit_vectors`/`gen_isa_coverage` 逐个 rc=0 且 `git status --porcelain` 前后无变化。
+
+**约束核验**：① 记录字段逐条核对 —— `ftrnd` op=0x44/ha=0x03/value=0x440C0000、`fornd` ha=0x0B/value=0x442C0000，`orri`、`scope: excluded`、`decode: ILLI`、legality = `rfhb != rf0` + 6 值 one-hot 表达式；`op=0x44` 族内 46 条 ha 现场分布无重复，`0x03/0x0B` 原空位（§4.6 两格与表一致）。② 独立重算 Counter：m1 156/fp 58/excluded 29/m9 9/m8 7/m3 1，total 260。③ 语义面：`SimRISC-07 §4.3` 六档表 6 行、与 754-2019 六操作位序对应；`0x20` 读 `rf0[33:32]` 且**只有它置 NX**；`nearbyint` 偏差 + `rf0[33:32]` 不扩充两项在 `SimRISC-07 §4.3` 与 `contract-fp.md §18 roundint`（锚点在）均可见；`check_fp_contract` id=58、12 族不变（fp 未受污染）。④ 越界披露复核：`SimRISC-00` §4.6 两格 + §4 `fp 60→58` 残留订正**必要且正确**（`SPEC-163t` 删 `cs.eq/ne` 后的残留，锁注释已落授权指针）；`gen-excluded.s` 为 `generate_lit_vectors.py` **生成物重生成**（reviewer 重跑幂等），非手改，`_negative_text` 补 orri 反例形态系 `check_lit_gen` 全集覆盖要求所致，已披露。⑤ `rule_refs: []` 与 fence/lr/sc 29 条 excluded 口径一致。⑥ 未提交/未 push、未落 `.EXIT`、临时产物在 `/tmp/opencode/SPEC-161t-review/`。
+
+**独立注入**（`cp`+md5，禁 checkout）：`check_scope.py` `EXPECTED_EXCLUDED 29→27` ⇒ md5 `123fab30…→a453f16a…`，`check-scope` **rc=1**（`[FAIL] excluded 计数: 期望=27 实际=29`）；`cp` 还原 ⇒ md5 相等、rc=0。**L2 预期红确认**：`check_qemu_trans --strict` rc=1、`258/260`，MISSING 恰为 `trans_ftrnd_orri_rf`/`trans_fornd_orri_rf` —— 与任务书口径及 `ISS-322` 登记（resolved_by: null，`QEMU-072t` 关闭）一致，**不计本册失败**。
+
+**非阻塞观察**（供 architect 知悉，不返工）：① `check_scope` 判据由 `fp ⇔ _rf` 拆为 `fp⇒_rf` + `_rf⇒{fp,excluded}` —— 属判据细化（原式与 excluded RF 记录不相容），M1/m3/m8/m9 防线未弱化，完成区已披露；② 任务书「不改 `tests/**`」与 `gen-excluded.s`（生成物）冲突，按生成物处理口径可接受，建议后续册对「生成物除外」写明例外。
+
+### 第 1 轮 engineer 自审
+
+逐行审查（生成器 / 门控 / spec / 合约 / 证据脚本）后的 finding 与处置：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| `check_scope` 双向判据与 excluded RF 记录不相容 | ✅已修 | 拆为 `fp⇒_rf` + `_rf⇒{fp,excluded}` | `check_scope` PASS（13 断言） |
+| 第二方向是否漏检 `_rf` 记录落入 m1/m3/m8/m9 | ✅已修 | 新增该方向判据 | 正常绿；G3 删记录注入红 |
+| 浮点章标题 badge 与混入 excluded 记录不符 | ✅已修 | `section_badge()` 按实际 scope 现场派生 | `check-asm-list{,-drift}` PASS；标题「46 条 = 44 fp + 2 excluded」 |
+| 合约注「浮点运算章 46 条」误用章条数（应为 fp 44） | ✅已修 | 改用 `_fp_chapter_fp` | 生成物注记 44；drift PASS |
+| `check_lit_gen` 需 `gen-excluded.s` 覆盖新反例 | ✅已修 | `_negative_text` 补 orri 形态 + 重生成 | `check_lit_gen` 64/64 |
+| 只读册改动缺授权落纸 | ✅已修 | 锁注释写入用户原话 + 任务书指针 | `check-spec-readonly` 21/21 |
+| 证据脚本 G2 断言串与实际日志不符 | ✅已修 | 改匹配 `MISMATCH spec/SimRISC-07` | 注入自检复跑 79/79 |
+| `SimRISC-00 §4`「fp 60 条」残留 | ✅已修 | 订正 58 并同步锁哈希 | `check-spec-readonly` PASS；qfc lint 无新增差异 |
+| `gen_isa_coverage` md 的 `clmul` reject 旧文案 | ⏸延后 | 非本册引入，不扩面 | 完成区「新发现⑥」 |
+| `check_qfc_coverage` 2 条 QFC-only（`cs.eq/ne`） | ⏸延后 | `SPEC-163t` 残留，L1 不阻断 | 完成区「新发现⑤」 |

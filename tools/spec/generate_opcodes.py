@@ -5,9 +5,10 @@
   - `scope: m1`（156 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统 + 特权 cfx `trap`/`escape`/`cfx2rd`/`cfx2rc`）；
   - `scope: fp`（58 条）——原生浮点范围（RF 存取/搬移/条件赋值 + MISC-RF 运算/转换/比较），
     独立于 M1，**已实现**（LLVM-029t/030t、QEMU-034t–037t）；
-  - `scope: excluded`（27 条）——特权 cfx（仅 `cfxld`/`cfxst`）/ LR-SC（24 条，四宽度 ×
-    三存储序）/ fence，暂未归类（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc`
-    re-scope 为 `m1`；`ADR-0034` 将 `lr/sc` 由 8 条重排为 24 条）；
+  - `scope: excluded`（29 条）——特权 cfx（仅 `cfxld`/`cfxst`）/ LR-SC（24 条，四宽度 ×
+    三存储序）/ fence / `ftrnd`+`fornd`（取整，`immu6` one-hot 六档），暂未归类
+    （`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`；
+    `ADR-0034` 将 `lr/sc` 由 8 条重排为 24 条；`SPEC-161t` 新增取整 2 条）；
   - `scope: m3`（1 条）——M3 CodeGen 新增指令（ADR-0012 D9.1 `sub.o_orrr_dbb`），
     **非 M1 身份**，不要求 M1 向量覆盖；
   - `scope: m8`（7 条）——新增 ISA 指令（ADR-0012 D10 逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`
@@ -261,6 +262,9 @@ S12_LRSC = "SimRISC-12 §LR-SC指令"
 # QFC/MISC-RF（SimRISC-00）
 S00_QFC = "SimRISC-00 §SimRISC QFC"
 S00_MISCRF = "SimRISC-00 §MISC-RF指令编码"
+
+# 浮点运算（SimRISC-07）：取整（IEEE 754-2019 roundToIntegral 六档，SPEC-161t）
+S07_ROUND = "SimRISC-07 §取整（roundToIntegral）"
 
 # 常见 legality 片段
 LEG_RD_DST = "rdha != rd0"
@@ -752,6 +756,17 @@ def build_misc_rf(records):
     for ha, mnem, dst, src, leg in orri_entries:
         records.append(rec(mnem, mnem, "orri", op, f_orri(dst, src, "immu6"),
                            leg, S00_MISCRF, ha=ha, scope="fp"))
+    # SPEC-161t（用户 2026-10-21 原话「不增加 nearbyint，只实现 754-2019 中的六种取整，
+    # 按顺序，immu6 用 one-hot 对应上」「ftrnd/fornd 的 opx：000-011/001-011」）：
+    # 取整六档（TiesToEven/TiesToAway/TowardZero/TowardPositive/TowardNegative/Exact
+    # ↔ immu6 0x01/0x02/0x04/0x08/0x10/0x20）。immu6 复用 `encode_onehot` 口径
+    #  ⇒ 非 one-hot 即 ILLI，无需新增合法性规则。本册只立记录（scope: excluded，
+    # decode ILLI）；语义见 SimRISC-07 §4.3 / contract-fp.md §roundint。
+    for ha, mnem in ((0x03, "ftrnd"), (0x0B, "fornd")):
+        records.append(rec(mnem, mnem, "orri", op,
+                           f_orri("rfhb", "rfhc", "immu6"),
+                           ["rfhb != rf0", onehot_expr(64)], S07_ROUND,
+                           ha=ha, scope="excluded"))
     # orrr 双目运算/符号位操作类（目的 rfHB；无 immu6）
     orrr_entries = [
         (0x10, "ftadd"), (0x11, "ftsub"), (0x12, "ftmul"), (0x13, "ftdiv"),

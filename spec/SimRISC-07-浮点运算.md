@@ -1,14 +1,14 @@
 # SimRISC浮点运算指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：浮点运算 [scope: fp]**（44 条，已实现）— fo/ft 运算、格式转换、比较、符号位操作、条件赋值、分类
+> **分类：浮点运算**（46 条）— `scope: fp` 44 条（已实现）+ `scope: excluded` 2 条（`ftrnd`/`fornd`，decode ILLI）；fo/ft 运算、格式转换、比较、符号位操作、条件赋值、分类、取整
 >
-> **FP 范围总账（`scope: fp` 共 60 条）**：本册 44 条（MISC-RF 子表）+ SimRISC-01 取数存数 8 条（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ SimRISC-02 寄存器复制 7 条（`cs.eq`/`cs.ne`/`cs.n`/`cs.z`/`cs.p` 的 `-rf` 与 `rd2rf`/`rf2rd`）+ SimRISC-03 16位立即数操作 1 条（`set.w-rf`）。`scope` 表范围、`deferred` 表状态，二者正交（用户裁定 2026-10-03）。
+> **FP 范围总账（`scope: fp` 共 58 条）**：本册 44 条（MISC-RF 子表）+ SimRISC-01 取数存数 8 条（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ SimRISC-02 寄存器复制 5 条（`cs.n`/`cs.z`/`cs.p` 的 `-rf` 与 `rd2rf`/`rf2rd`）+ SimRISC-03 16位立即数操作 1 条（`set.w-rf`）。`scope` 表范围、`deferred` 表状态，二者正交（用户裁定 2026-10-03）。
 
 <!-- ASSEMBLY_LIST_START -->
 ## 1. 汇编指令速查
 
-### 1.1 浮点运算（44 条）｜ **scope: fp（已实现）**
+### 1.1 浮点运算（46 条）｜ `scope: fp`（44 条，已实现） + `scope: excluded`（2 条，decode ILLI）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -24,6 +24,7 @@
 | `fomul` | `orrr` | `rf` | `fomul rfHB, rfHC, rfHD` | `fomul_orrr_rf` |
 | `foqcmp` | `orrr` | `rf` | `foqcmp rdHB, rfHC, rfHD` | `foqcmp_orrr_rf` |
 | `forem` | `orrr` | `rf` | `forem rfHB, rfHC, rfHD` | `forem_orrr_rf` |
+| `fornd` | `orri` | `rf` | `fornd rfHB, rfHC, immu6` | `fornd_orri_rf` |
 | `foroot` | `orri` | `rf` | `foroot rfHB, rfHC, immu6` | `foroot_orri_rf` |
 | `fosclb` | `orrr` | `rf` | `fosclb rfHB, rfHC, rfHD` | `fosclb_orrr_rf` |
 | `foscmp` | `orrr` | `rf` | `foscmp rdHB, rfHC, rfHD` | `foscmp_orrr_rf` |
@@ -42,6 +43,7 @@
 | `ftmul` | `orrr` | `rf` | `ftmul rfHB, rfHC, rfHD` | `ftmul_orrr_rf` |
 | `ftqcmp` | `orrr` | `rf` | `ftqcmp rdHB, rfHC, rfHD` | `ftqcmp_orrr_rf` |
 | `ftrem` | `orrr` | `rf` | `ftrem rfHB, rfHC, rfHD` | `ftrem_orrr_rf` |
+| `ftrnd` | `orri` | `rf` | `ftrnd rfHB, rfHC, immu6` | `ftrnd_orri_rf` |
 | `ftroot` | `orri` | `rf` | `ftroot rfHB, rfHC, immu6` | `ftroot_orri_rf` |
 | `ftsclb` | `orrr` | `rf` | `ftsclb rfHB, rfHC, rfHD` | `ftsclb_orrr_rf` |
 | `ftscmp` | `orrr` | `rf` | `ftscmp rdHB, rfHC, rfHD` | `ftscmp_orrr_rf` |
@@ -68,6 +70,10 @@
 * `mreg_range_overflow`：起始+immu6>64 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `focls_orri_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftcls_orri_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（22 条）
 * `mreg_range_overlap`：源/目的范围交集 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`（4 条）
 * `encode_fp_root_n`：ftroot/foroot n≠2 → ILLI — `foroot_orri_rf`, `ftroot_orri_rf`（2 条）
+
+**scope: excluded（decode ILLI）：**
+* `fornd_orri_rf`：decode ILLI
+* `ftrnd_orri_rf`：decode ILLI
 <!-- LEGALITY_END -->
 
 
@@ -161,6 +167,51 @@ ftroot和foroot指令用来实现`rootn(x, n)`运算，其中 n 的值存放在 
 
 S1D1 指令硬件先读源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 
+### 4.3 取整（roundToIntegral）
+
+取整指令把浮点值取整为整数值（仍以同格式浮点表示），操作数类型为 `orri`；此处 `immu6`
+**不是**连续寄存器个数，而是**取整模式**（6 位 one-hot：恰一位为 1）：
+
+```simrisc
+ftrnd   rfHB, rfHC, immu6
+fornd   rfHB, rfHC, immu6
+```
+
+`ftrnd` 作用于 ft（32 位）、`fornd` 作用于 fo（64 位）；`rfHB` 为目的操作数、`rfHC` 为源操作数。
+六种操作与 IEEE 754-2019 §5.3.1 的 `roundToIntegral` 六档**按位序一一对应**：
+
+| `immu6` | IEEE 754-2019 操作 | 取整方向 | 置 NX |
+|---|---|---|---|
+| `0x01` | `roundToIntegralTiesToEven` | 就近取偶（静态） | 不置 |
+| `0x02` | `roundToIntegralTiesToAway` | 就近、平局远离 0（静态） | 不置 |
+| `0x04` | `roundToIntegralTowardZero` | 向 0（静态） | 不置 |
+| `0x08` | `roundToIntegralTowardPositive` | 向 +∞（静态） | 不置 |
+| `0x10` | `roundToIntegralTowardNegative` | 向 −∞（静态） | 不置 |
+| `0x20` | `roundToIntegralExact` | 读 `rf0[33:32]`（RNE/RTZ/RDN/RUP） | **结果 ≠ 输入时置 NX** |
+
+共同规则（IEEE 754-2019 §5.9）：
+
+- 5 个静态方向**不受** `rf0[33:32]` 影响；只有 `0x20` 读 `rf0[33:32]`（`00` RNE / `01` RTZ / `10` RDN / `11` RUP）。
+- **只有 `0x20` 置 NX**（且仅当结果 ≠ 输入）；其余 5 档**不得**置 NX。
+- sNaN 作输入 ⇒ 置 NV、返回 qNaN；qNaN 作输入 ⇒ 返回 qNaN（canonical 化）。
+- `|x| ≥ 2^p`（ft: p = 24；fo: p = 53）⇒ **原样返回**（此时 x 已为整数；不得用「转整数再转回」实现）。
+- `±0` 的符号位保留：`trunc(-0.5) = -0`、`floor(-0.0) = -0`（取整结果为 0 时沿用输入的符号）。
+- Inf 原样返回；取整**不置** OF/UF。
+- 结果格式与输入相同（不做 ft↔fo 转换）。
+- 目的 `rfHB = rf0` ⇒ ILLI（`dst_rf0`）；源可为 `rf0`（读出 FCSR 中的 qNaN）。
+- `immu6` 必须 one-hot（`0x01`/`0x02`/`0x04`/`0x08`/`0x10`/`0x20` 之一）；其他取值（含 `0x00`）⇒ ILLI。
+
+> **已知偏差（`nearbyint`）**：IEEE 754 的 `nearbyint`（取整但不置 inexact）本 ISA **不提供**硬件变体
+> ⇒ 后端只能落 `0x20`（动态方向）：**值正确**，但结果 ≠ 输入时 **NX 可能被置位**。可接受性依据：本 ISA
+> 浮点指令不产生异常/陷阱，NX 仅为 `rf0[4:0]` 的**状态位**（软件可忽略）；`roundToIntegral` 族与
+> `nearbyint` 的**值**语义一致，差异仅在 inexact 标志。
+> **`rf0[33:32]` 不扩充**：只有 4 档（RNE/RTZ/RDN/RUP），**无** `roundTiesToAway`
+> ⇒ C23 `fesetround(FE_TONEARESTFROMZERO)` **不支持**（可返回失败，符合 C 标准）；
+> 「平局远离 0」仅由静态档 `0x02` 提供。另：请求方向已在 `rf0[33:32]` 内的 `nearbyint`
+> 变体仍落 `0x20`，其 NX 置位与 IEEE 的 `nearbyint`（不置）不同，属同一偏差。
+
+> **范围**：本节的 2 条当前为 `scope: excluded`（编码已定义、执行触发 ILLI）；语义按本节冻结。
+
 ## 5. 浮点符号位操作指令
 
 该类指令实现了浮点sign-injection指令，操作数类型为 `orrr`。
@@ -248,6 +299,7 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 ### 0.5.5-rc（未发布）
 
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
+- 新增取整指令 `ftrnd`/`fornd`（MISC-RF，`immu6` one-hot 六档：TiesToEven/TiesToAway/TowardZero/TowardPositive/TowardNegative/Exact；`scope: excluded`，执行 ILLI）；misc-RF 子表 44→46 条（`scope: fp` 仍 44 条）；登记 `nearbyint` 无硬件变体（落动态档，NX 可能被置位）与 `rf0[33:32]` 不扩充（RMM 不支持）两项已知偏差。
 - 浮点合法性规则（`rule_refs`）回填、归并与重叠禁则。
 - 引入 `scope: fp` 标注；本册 44 条 + 分布取数存数 / 寄存器复制 / 16 位立即数的 16 条，`scope: fp` 共 60 条。
 - 新增「合法性检查」章（生成区）。

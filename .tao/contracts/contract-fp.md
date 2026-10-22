@@ -2,7 +2,7 @@
 
 > **版本：0.5.4** [SimRISC-00 §浮点寄存器][SimRISC-07 §版本]
 
-本合约归一化 `scope: fp` **58 条**指令的语义（IEEE754 浮点运算、FCSR 环境、合法性），供后续 golden oracle / LLVM / QEMU / testcases 消费。
+本合约归一化 `scope: fp` **58 条**指令的语义（IEEE754 浮点运算、FCSR 环境、合法性），供后续 golden oracle / LLVM / QEMU / testcases 消费。另在 §18 登记取整（`ftrnd`/`fornd`，当前 `scope: excluded`、decode ILLI）的语义，**不计入** 58 条。[SimRISC-07 §取整（roundToIntegral）]
 
 - **编码唯一真源**为 `contracts/opcodes.yaml`（本合约不复制编码）。
 - **机器可读投影**为 `contracts/fp_semantics.yaml`（58 条 `id→family→spec_cite→semantics_ref→legality_refs`）。
@@ -149,3 +149,19 @@
 - FP 测试期望值**必须独立派生自 spec/**，**不得**由 LLVM/QEMU 生成或校准。[SimRISC-07 §版本]
 - oracle 只实现 spec 明文语义；spec 未明处（§16）标 `UNSPECIFIED`，不臆造。[SimRISC-07 §版本]
 - 本合约（本文）与 `contracts/fp_semantics.yaml` 为 oracle 的稳定输入；oracle 方案见 `docs/fp-oracle-design.md`（本任务不含实现、不含期望值）。[SimRISC-07 §版本]
+
+## §18 `roundint`（取整：roundToIntegral 六档）<a id="roundint"></a>
+
+> **范围**：本节 2 条当前为 `scope: excluded`（编码已定义、执行触发 ILLI），**不属于** `scope: fp` 58 条，故不进 `contracts/fp_semantics.yaml`；语义在此冻结，供实现（QEMU/LLVM/oracle）消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。[SimRISC-07 §取整（roundToIntegral）]
+
+- 指令：`ftrnd`/`fornd`（orri：`rfHB` 目的、`rfHC` 源、`immu6` = 取整模式）。`ftrnd` 作用于 ft（32 位，p = 24）、`fornd` 作用于 fo（64 位，p = 53）。[SimRISC-07 §取整（roundToIntegral）]
+- `immu6` 为 **one-hot 六档**（恰一位为 1），与 IEEE 754-2019 §5.3.1 的 `roundToIntegral` 六种操作**按位序一一对应**。[SimRISC-07 §取整（roundToIntegral）]
+- 档位：`0x01` = `roundToIntegralTiesToEven`（就近取偶，静态）、`0x02` = `roundToIntegralTiesToAway`（就近、平局远离 0，静态）、`0x04` = `roundToIntegralTowardZero`、`0x08` = `roundToIntegralTowardPositive`、`0x10` = `roundToIntegralTowardNegative`、`0x20` = `roundToIntegralExact`（方向读 `rf0[33:32]`）。[SimRISC-07 §取整（roundToIntegral）]
+- 5 个静态方向**不受** `rf0[33:32]` 影响；只有 `0x20` 读 `rf0[33:32]`（`00` RNE / `01` RTZ / `10` RDN / `11` RUP）。[SimRISC-07 §取整（roundToIntegral）][SimRISC-00 §浮点状态寄存器]
+- **只有 `0x20` 置 NX**（且仅当结果 ≠ 输入）；其余 5 档**不得**置 NX。[SimRISC-07 §取整（roundToIntegral）]
+- sNaN 作输入 ⇒ 置 NV、返回 qNaN；qNaN 作输入 ⇒ 返回 qNaN（canonical 化）。[SimRISC-07 §取整（roundToIntegral）]
+- `|x| ≥ 2^p` ⇒ **原样返回**（x 已为整数）；**禁止**用「转整数再转回」实现。[SimRISC-07 §取整（roundToIntegral）]
+- `±0` 符号位保留（`trunc(-0.5) = -0`、`floor(-0.0) = -0`）；Inf 原样返回；取整**不置** OF/UF；结果格式与输入相同。[SimRISC-07 §取整（roundToIntegral）]
+- 目的 `rfHB = rf0` ⇒ ILLI（`dst_rf0`）；源可为 `rf0`。`immu6` 非 one-hot（含 `0x00`）⇒ ILLI（`encode_onehot` 口径，复用既有规则、不新增规则）。[SimRISC-07 §取整（roundToIntegral）][SimRISC-00 §浮点寄存器]
+- **已知偏差（`nearbyint`）**：本 ISA **不提供** `nearbyint`（取整但不置 inexact）的硬件变体 ⇒ 后端落 `0x20`（DYN）：**值正确**，但结果 ≠ 输入时 **NX 可能被置位**。可接受性：本 ISA 浮点指令不产生异常/陷阱，NX 仅 `rf0[4:0]` 状态位（软件可忽略）；`roundToIntegral` 族与 `nearbyint` 的**值**语义一致。[SimRISC-07 §取整（roundToIntegral）]
+- **`rf0[33:32]` 不扩充**：仅 4 档、无 `roundTiesToAway` ⇒ C23 `fesetround(FE_TONEARESTFROMZERO)` **不支持**（可返回失败，符合 C 标准）；「平局远离 0」仅由静态档 `0x02` 提供。[SimRISC-07 §取整（roundToIntegral）][SimRISC-00 §浮点状态寄存器]
