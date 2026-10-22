@@ -28,13 +28,6 @@
 # ── 原 backlog 合并新增（INFRA-032t，2026-10-04）────────────────────────────────
 # 原 backlog 逐条归宿见 INFRA-032t 任务书完成区；教训/方法论见 lessons.md。
 
-- id: ISS-078
-  title: "focls/ftcls 之外的浮点指令未复核（SPEC-047t 附带观察，非阻断）"
-  status: open
-  scope: [spec]
-  blocks: []
-  resolved_by: null
-  notes: "原 backlog L47。用户此前指示先处理 cls；若后续发现其它 FP 指令存同类「语义固定值」问题，另立任务。"
 - id: ISS-090
   title: "components/qemu/changelog.md 缺任务级记录（自 2026-09-23 起未按任务追加）"
   status: open
@@ -91,13 +84,6 @@
   blocks: []
   resolved_by: null
   notes: "原 backlog L226/L227。TESTCASES-023t 已部分修（scoped 过滤 + reg-imm-block 忠实复现）；余 4 文件（reg-arith/reg-compare/reg-logic/reg-shift-extend）债务未清。归属 testcases 专任务。"
-- id: ISS-126
-  title: "FP 开放点固定取值（位级族/转换族/算术族）——供 SPEC-089t 与 GOLDEN 独立 oracle 参照"
-  status: open
-  scope: [spec, golden]
-  blocks: []
-  resolved_by: null
-  notes: "原 backlog L244/L245/L250。位级：ft 高 32 位符号注入 + classify/compare 只看低 32 位；转换：ft2ft/fo2fo 全 64 位搬移、f2i 向零截断 + 饱和 + NV 不置 NX、NaN payload 加宽；算术：rem=IEEE remainder（平局取偶）、scalb 的 n 取整、rootn(-0,2) 不设期望。若用户另有裁定须同步改实现与探针。"
 - id: ISS-160
   title: "SPEC-106t 范围外残留：contract-isa 投影层仍列已删伪指令 + impact-matrix 悬空 + check_spec_codeblocks PSEUDO_INSTRUCTIONS 陈旧"
   status: open
@@ -159,20 +145,6 @@
   blocks: []
   resolved_by: LLVM-119t
   notes: "【正式登记（源 `LLVM-086t` reviewer 第 1 轮非阻断发现 + architect 独立复现，2026-10-12）】**现象**：内联汇编**内存操作数**约束 `\"m\"` ⇒ 后端 `SelectionDAGISel::SelectInlineAsmMemoryOperands` 落 `report_fatal_error(\"Could not match memory address.  Inline asm failure!\")` ⇒ **硬崩溃**（`llc` rc=**134**（SIGABRT / core dumped）+ stack dump；`clang -c` 驱动 rc=1 + `fatal error: error in backend` + crash dump，同一 `report_fatal_error`）。**既有问题、非 `LLVM-086t` 引入**：以变更**前** llc 快照（`getRegForInlineAsmConstraint` hook 缺席）跑**纯** `\"m\"` 用例（`\"=*m,0\"`、无 `\"r\"`）⇒ **同样 rc=134 + 同一 fatal error**（before/after 同签名 ⇒ 非本次引入）。**对照（优雅失败）**：`\"f\"` **未**在 DADAO 约束集 ⇒ `clang` frontend `error: invalid input constraint 'f' in asm`（rc=1）、`llc` 验证期 `error: unknown asm constraint 'f'`（rc=1），**无崩溃、无 core**。**性质 = 健壮性缺陷**（应显式报错或明确「暂不支持内存操作数 inline asm」，不应 `report_fatal_error` + core）。**暴露面**：DADAO 构建的 picolibc 源 **0 处**使用 `\"m\"` 约束（`\"=*m\"` 仅见 `libc/machine/{sparc,…}` 目标专属目录、未编译）⇒ 无 test 暴露（**非阻塞**）。**登记，不建任务**。证据：`.tao/tasks/llvm/LLVM-086t-*.md`（architect 复核节）+ `.work/log/<模块>/`。 【收口（LLVM-119t，2026-10-20）】**已修**。**根因（现场 `file:line`）**：`DADAODAGToDAGISel` 未覆写 `SelectionDAGISel::SelectInlineAsmMemoryOperand`（基类默认 `return true`，`llvm/include/llvm/CodeGen/SelectionDAGISel.h:118-127`）⇒ `SelectionDAGISel::SelectInlineAsmMemoryOperands`（`llvm/lib/CodeGen/SelectionDAG/SelectionDAGISel.cpp:2354-2356`）落 `report_fatal_error`；即使选出来，`DADAOAsmPrinter` 也未覆写 `AsmPrinter::PrintAsmMemoryOperand`（`llvm/lib/CodeGen/AsmPrinter/AsmPrinterInlineAsm.cpp:511` 默认 `return true`）⇒ `$0` 印成空串。**修法**：① ISel 侧按 DADAO `[rb, imms12]` 地址形态复用 `SelectAddr` 产出 (GPRB base, simm12 off) 两操作数，支持 `m`/`o` 两码，基址非指针 bank 者经 `COPY_TO_REGCLASS` 强制到 GPRB（RA 落 `rd2rb`）；② AsmPrinter 侧新增 `PrintAsmMemoryOperand` 打印 `[rb, off]`。**验证**：最小复现 `llc` rc=134→0、`clang -c` rc=1（backend fatal）→0；运行期 12 探针（`m`/`=m`/`+m`/`=&m`/`rm`/`=rm`，栈/全局/数组元素（常量+变量下标）/结构体字段/解引用指针/大端字节序）guest exit 0（独立 oracle 手算）；musl 默认 `GETFUNCSYM`（`+m`）`clang -c`/`llc` 均 rc=0；新增 lit `tests/llvm/lit/CodeGen/DADAO/inline-asm-m.ll`（8 函数、`-verify-machineinstrs`），MC+CodeGen lit **109/109**。**边界（如实）**：`V`（not-offsetable）在上游 `InlineAsm::ConstraintCode` 无枚举值 ⇒ 前端断言（**既存上游行为、非本册引入、未改**）；`Q`/`R`/`S`/`T` 等 target 专属内存码仍按 C_Unknown 优雅报错（不崩）。证据：`.tao/tasks/llvm/LLVM-119t-*.md` 完成区 + `.work/evidence/LLVM-119t/run.sh`（default 13/13 rc=0；`--inject` 2 处可达 FAIL 红→绿）+ `.work/log/llvm/LLVM-119t-*.log`。"
-- id: ISS-198
-  title: "QEMU 2-NaN payload 选择（`float_2nan_prop_ab`）无任何测试覆盖——判别性错误规则（`ab→s_ba`）注入不触发 FAIL"
-  status: open
-  scope: [qemu, testcases]
-  blocks: []
-  resolved_by: null
-  notes: "【正式登记（源 `QEMU-058t` reviewer 第 1 轮非阻断建议① + architect 复核，2026-10-12）】**性质 = 测试覆盖缺口**（非缺陷；规则已按宿主实测设为 `float_2nan_prop_ab`，见 `QEMU-058t`）。**现象**：reviewer 独立注入**判别性错误规则** `ab→s_ba`（`cp`+md5，`fd16d8ee…→0f68de69…`）重建后，`ISS-195` 家族 **8 条 test 仍全 `pass`、不触发 FAIL** ⇒ 若该规则设错，**现有测试集不会发现**（picolibc 不观察 2-NaN payload 选谁）。**当前唯一背书** = 宿主（x86_64 标量 SSE，`addss/subss/mulss/divss`）实测：`(qNaN_a,sNaN_b)` 返回 **a** 的 NaN（sNaN 则 quiet）⇒ 等价 `float_2nan_prop_ab`（**非** IEEE 754-2019 §6.2.3 推荐的 `s_ab`）。**建议（独立 oracle）**：补 1 条 **payload 断言向量**——构造 `(qNaN_a, sNaN_b)` 的 FP 运算（add/sub/mul/div 各取一），断言结果 **payload = a 的 payload** 且 sNaN 被 quiet；该向量须**独立派生**、不依赖 QEMU/Python 实现。**只登记，不建任务**。证据指针：`.tao/tasks/qemu/QEMU-058t-*.md`「第 1 轮 reviewer 验收」第 8 条（注入 A 不触发）+ 判决「非阻断建议①」。"
-- id: ISS-207
-  title: "`SPEC-139t` 第 4 轮 reviewer 子代理被服务商拦截（`Provider blocked the response`）——非任务失败；处置 = 重试 1 次即成功（判定 `Accepted`）"
-  status: open
-  scope: [spec]
-  blocks: []
-  resolved_by: null
-  notes: "【正式登记（源 `SPEC-139t` 收尾落地现场〔**主会话转述，architect 未直接持有被拦截的返回体**〕；architect 提交/文件集审核时立项，2026-10-14）】**现象**：`SPEC-139t` **第 4 轮 reviewer** 子代理返回被**服务商拦截**（错误串 `Provider blocked the response`）——**非** `Task cancelled`/空结果、**非交付物缺陷**，属**子代理返回异常 / 服务商侧拦截**（`AGENTS.md`『子代理返回异常处理』）。**现场（主会话核 + architect 复核）**：被拦截的一轮**未产出任何判定**；被测物（`contract-dynlink.md`）与 `.work/evidence/<任务ID>/run.sh` **均未被改动** ⇒ **无中间态污染**，可直接重试。**处置（主会话）**：按「异常返回 ⇒ 附失败现场**重试同一任务 1 次**」**重派 reviewer 1 次**；**重试即成功** ⇒ 返回 **`Accepted`**（0 阻断；上轮唯一阻断 F1 已修并经独立复验）⇒ **未达「仍异常 ⇒ 停止重试、提请用户拆分」阈值**（重试次数 = **1**）。**性质 = 子代理返回异常 / 服务商拦截**（非交付物缺陷、非静默；重试有据且已记录次数，未以重试掩盖根因）。证据指针：`.tao/tasks/spec/SPEC-139t-*.md`「第 4 轮 reviewer 验收」+ `.work/evidence/<任务ID>/run.sh` + `.work/log/<模块>/SPEC-139t-*.log`。"
 - id: ISS-208
   title: "【P3】`ADR-0012 D9.5` 与 `tools/spec/check_scope.py` 注释称 `total 227→228`，而实测 `contracts/opcodes.yaml` 与门控期望值均为 **227**——仅 docstring/注释算术笔误、非门控缺陷"
   status: open
@@ -271,13 +243,6 @@
   blocks: []
   resolved_by: lessons §2.35/§2.30
   notes: "【正式登记（源 = 主会话 `QEMU-060t` `/complete` 收尾复核 + 任务书「第 4 轮 engineer 返工」①「上轮报告不实（更正）」；architect 收尾时立项，2026-10-16）】**现象**：`QEMU-060t` 第 3 轮返工（R5）的审阅记录**声称**「`components/qemu/changelog.md` 的 ABI 名已改、`grep` 0 命中、`run.sh` rc=0、52 PASS / 0 FAIL」，但**盘上并未落地**——主会话**实跑** `run.sh` 得 **rc=1、49 PASS / 3 FAIL**（3 条 FAIL 恰为 `changelog.md` 中两处 `SYS_UMON_SYSCALL`：B4「mentions outside the runner note」+ B4「mentions are withdrawal prose」+ B5「repo-wide hits」）；`grep -nE 'SYS_UMON_SYSCALL|DADAO_NR_' components/qemu/changelog.md` 命中 L93/L97（**非**报告所称 0）。**根因** = 报告未以**当次真实输出**为准（凭记忆 / 推断 / 上一轮结果，或工具调用未真正落盘即报完成）——违反 `AGENTS.md`「完成区与真实输出逐条对齐」+ `lessons §2.30`（报告须逐条有本轮实测依据）。**后果**：若不实跑复核，该**假绿**将随 `/complete` 落地、把「改了产物满足断言被掩盖为已完成」。**处置（本次已闭环）**：第 4 轮 engineer 真正落地（changelog 2 处 ABI 名 → 自然语言），主会话 `/complete` 实跑复核确认 `run.sh` rc=0（**52 PASS / 0 FAIL**）、`grep` 0 命中（见 `.work/log/qemu/QEMU-060t-complete-*.log`）。**对策（判据）**：① 子代理报告的数字 / 结论**逐字取自当次输出**（禁转述 / 估算 / 凭记忆）；② **验收方（主会话 / reviewer）须实跑复核高价值判据**，**不得只信报告**（报告绿而实跑红 ⇒ 以实跑为准）；③ 证据脚本须**留盘可重放**。**`status` 取 `open`（architect 判断）**：① 报告不实的**诱因仍在**（长任务分轮、跨会话重述）；② **可复发**（任一子代理在工具调用未落地 / 输出未核对时即报完成）；③ **可评审判**（实跑复核即判；已沉淀 `lessons §2.35`）。**性质** = 过程纪律缺口（**非**交付物功能缺陷）。**边界**：本笔**未改** `tools/**`、未改 `Makefile`、未改 `components/**`。证据指针：`.tao/archive/M8/qemu/QEMU-060t-回退dadao-m1-syscall服务.md`「第 3 轮 engineer 返工（R5）」+「第 4 轮 engineer 返工（R5 真正落地）」①；`.work/log/qemu/QEMU-060t-complete-*.log`（本机留档，不入库）；`.work/evidence/QEMU-060t/run.sh`。**交叉引用**：`ISS-226`（同批登记）、`lessons §2.30`/`§2.35`。 **【佐证实例（2026-10-16，`LLVM-094t` 阶段 E 收尾同步任务的 architect 回报 ⑧）】** ① 该 architect 子代理声明「用户『**3、可以**』原话盘上未见直接落纸（**我 `git grep` 未命中**）」✗；② 后续 architect 复核 ⇒ `git grep` **实有命中** ✓（复核当时 `aa6942b` = **3 行**：`milestones.md:169` + `INFRA-085t` L36/L87；**本轮 architect 实测**：`072ad42` = **4 行 / 5 处**）⇒ 原「未命中」声明**不成立** ✗ —— 系**未实测或误读**，属**报告不实**（与本条**同型**）；③ **处置（已发生 ✓）**：主会话当场核查 ⇒ 判**真缺**的是「**逐字原话 + 显式渠道**」（原记渠道写作「经主会话**转达**」）⇒ 派**补录**任务 ⇒ 于 `072ad42` **追加**逐字引录与渠道说明 ✓（**未删改**任何原文字或裁定内容 ✓）；④ **影响面**：**仅**注记的**渠道措辞**与引录位置，**无**任何裁定内容 / 门控结论受影响 ✓（**不改**本条 `status` / `resolved_by` ✗）。**（本条性质：过程纪律缺口，证据 = 本轮实测输出留 `.work/log/infra/ISS-227-note-*.log`）**"
-- id: ISS-228
-  title: "【P3】同一 reviewer 会话在 `QEMU-060t` 上连续 2 次异常返回（① `completed without a text response` ② 文本被截断）⇒ 按「仍异常即停止重试」由主会话代行复核（**待用户追认**）"
-  status: open
-  scope: [infra]
-  blocks: []
-  resolved_by: null
-  notes: "【正式登记（源 = 主会话 `QEMU-060t` `/complete` 收尾；architect 收尾时立项，2026-10-16）】**现象**：`QEMU-060t` 的 reviewer 阶段，同一 reviewer 会话**连续 2 次异常返回**——第 1 次 = `completed without a text response`（空文本）；第 2 次 = 文本被**截断**（未给出完整判决）。**处置（按 `AGENTS.md`「子代理返回异常处理」）**：连续异常后**停止重试**、不耗满次数，改由**主会话代行复核**（已**实跑**：`run.sh` rc=0、52 PASS / 0 FAIL；`check-qemu-semantics` **149/149** rc=0；`changelog` ABI 名 **0** 命中；`check-component-changelog` rc=0；`make check`(L1) rc=0；`helper.c.patch` md5 = `2b1665e99ed4736fc6579c386a3850f1`）⇒ 本册方判 `已验证`。**状态：代行结论待用户追认**（`AGENTS.md`「主会话代行须经用户同意 + reviewer 验收」）。**建议（抽象）**：① 把这类「复核 / 复验」任务拆**更小**、或**换新会话**（避免长会话上下文导致的空返回 / 截断）；② 每次异常与处置登记在案（本条即为登记）。**`status` 取 `open`（architect 判断）**：① **待用户追认**（代行复核的结论有效性未确认）；② **可复发**（长 reviewer 会话仍可能空返回 / 截断）；③ **无机械门控可判**。**性质** = 流程 / 工具可靠性缺口（**非**交付物功能缺陷）。**边界**：本笔**未改** `tools/**`、未改 `Makefile`、未改 `components/**`。证据指针：`.tao/archive/M8/qemu/QEMU-060t-回退dadao-m1-syscall服务.md`「第 1/2 轮 reviewer 验收」；`.work/log/qemu/QEMU-060t-complete-*.log`（本机留档，不入库）。**交叉引用**：`ISS-227`（同批登记）、`lessons §3.5`（子代理异常返回：重试 1 次后拆分）、`AGENTS.md`「子代理返回异常处理」。 **【再发（2026-10-16，`LLVM-094t` 阶段 B）】** 该次 reviewer **会话被服务商拦截**（返回 `Provider blocked the response`，与 `ISS-207` **同类**；**白跑、未落盘** —— 已核工作树 `git status --porcelain -uall` 干净）⇒ **处置** = **换新会话 + 缩小范围重试 1 次** ⇒ 成功（reviewer 判决 `Accepted`）✓（**有效对策**）。**累计**：本项目已出现 reviewer 异常 **3 次**（`ISS-207`／`ISS-228` 原次／本次）。**边界**：本次**未改** `tools/**`／`Makefile`／`components/**`（仅登记）。证据指针：`.tao/archive/M8/llvm/LLVM-094t-llvm-PIC与动态链接支持.md`「第 1 轮 reviewer 验收（阶段 B，缩范围重试）」；`.work/log/llvm/LLVM-094t-*`、`.work/evidence/LLVM-094t/**`（本机留档，不入库）。"
 - id: ISS-229
   title: "【P3】`L2`/`L3` 并发运行会因共享安装根（`install-host`）竞争产生假 FAIL"
   status: closed
@@ -550,13 +515,6 @@
   resolved_by: INFRA-098t
   notes: "【正式登记（源 = `LLVM-100t` 完成区「新发现/坑 ②③」+ engineer 自审 `F7`，2026-10-20；architect 提交时登记）】**现象①（路径不一致，确定可复现）**：`make build-builtins` 的 re-stage 目标是 `$(LLVM_BUILD)/$(BUILTINS_RESOURCE_PATH)`（`Makefile:415`）⇒ 实测落 `.work/build/llvm/lib/dadao-unknown-unknown-elf/libclang_rt.builtins.a`；而 `check-builtins-freshness`（`tools/infra/check_builtins_freshness.py:342`）与 `install-host`（`BUILTINS_ARCHIVE_DST` = `CLANG_RESOURCE_DIR`，`Makefile:364`/`384`）读/写 `.work/build/llvm/lib/clang/23/lib/dadao-unknown-unknown-elf/libclang_rt.builtins.a`。⇒ **重建 clang 后跑 `build-builtins` 不会刷新 clang 真正读的那份**，门控「build-tree clang copy」项**必红**（属必红、非假绿）。**本次处置 = 手工 `cp`** 两份（构建树资源目录 + 安装根）后才使 `check-builtins-freshness`/`check-musl-freshness` rc=0。**现象②（跨构建非字节确定）**：同一源码重建两次归档 sha256 不同（engineer 现场记录 `c96e…` → `fb1b…`，**未留日志**；本轮现盘 `cb77…`，三副本一致）⇒ 无法以「归档 sha 未变」判定不必重链 `libc.so`；成因未查（候选：`.comment`/成员时间戳/成员顺序/`llvm-ar` deterministic 模式/构建路径）。**影响**：①每次重建 clang 都需人工 `cp`，换人易漏（与 `ISS-300` 同类例外手法）；②确定性缺失使 builtins→`libc.so` 的重链判据只能靠 mtime/戳记而非内容。**修法方向**：① `Makefile:415` 改为 stage 到 `$(LLVM_BUILD)/lib/clang/$(CLANG_RESOURCE_VER)/$(BUILTINS_RESOURCE_PATH)`（与 `BUILTINS_ARCHIVE_DST`、checker 共用同一派生），或抽一个公共变量供三处引用；② 归档产出口径查成字节确定（先比两次重建的成员级 diff，定位 `.comment`/时间戳/顺序）。**等级 = P2**（不阻断本次验收：门控能抓住、本次已兜底；但每次改编译输入都会复发）。**证据指针**：`Makefile:364/383/384/415`；`tools/infra/check_builtins_freshness.py:342`；`check-builtins-freshness` 实跑（现盘 build product/build-tree clang/install root 三副本 sha256 = `cb7771e555112ab85ae54e223bf6819f195ffb128a2041acd1f8e87b172c7cf5`）；任务书 `.tao/tasks/llvm/LLVM-100t-__thread用户变量TLS-codegen.md` 自审 `F7` + 完成区「新发现/坑 ②③」。**交叉引用**：`ISS-293`（本门控立项源）、`ISS-210`（安装根新鲜度假绿）、`ISS-300`（例外手法应收编）、`INFRA-096t`（`build-builtins`/门控实现）。**边界**：只登记；未改 `Makefile`、未改门控脚本、未复跑重建（本轮按派单禁 `build-*`）。 〔INFRA-098t 收口（2026-10-21）〕① 路径：`make -n build-builtins` 与 `make -n install-host` 实测同源 —— stage dst = 构建树 `lib/clang/23/lib/dadao-unknown-unknown-elf/libclang_rt.builtins.a`、install dst = 安装根同一相对路径、checker 由同一 `-print-libgcc-file-name` 探测拆分（`BUILTINS_BUILD_DST` / `BUILTINS_ARCHIVE_DST` / checker）；不手工 `cp`，直接 `make build-builtins` 后 `check-builtins-freshness` rc=0（三份 sha 全等）⇒ 本项已在 `INFRA-096t`/`LLVM-121t` 轮收口，本轮只复核。② 确定性：连续 4 次「`ninja -t clean` + `make build-builtins`」归档 sha256 全为 `288bd83ef93fcd179a457d51eada2335c0f14eb6b5da479287e68c391ccf7c1e`（262082 B，r2↔r4 `cmp` 逐字节相同；成员头时间戳全为 1970、147 成员）⇒ 现行 clang/ar 组合下**可字节确定**；历史 `c96e→fb1b` 不可复现，未改 `ar`/编译参数。证据 `.work/evidence/INFRA-098t/`（`determinism.tsv` + `r2/r3/r4.a` + `run.sh` S7/S8/S11）。"
 
-- id: ISS-302
-  title: "【M9】缺陷修复批 7 册（2026-10-20 立册）：ISS-193 残余/ISS-222、ISS-197、ISS-245、ISS-235、ISS-261+ISS-301、ISS-270/273/282/288、ISS-229"
-  status: open
-  scope: [infra]
-  blocks: []
-  resolved_by: null
-  notes: "【正式登记（源 = 主会话派单 2026-10-20，architect 立册；本笔只立册 + 台账，`spec/`/契约/组件实现零改动 ✗）】**7 册（号现场取；均 `待开始`）**：**`LLVM-118t`**（`ISS-193` 残余 + `ISS-222` ①/③/④：picolibc 全量**现场重枚举**、逐类「做/不做 + 依据」；旧「6 类 41 源」仅作对照不得直接引用——现行过滤表只剩 1 条 `hash_page.c`）；**`LLVM-119t`**（`ISS-197` / `ISS-222` ②：内联汇编 `\"m\"`/`\"+m\"` 触发 `Could not match memory address.  Inline asm failure!` + core，`llc` rc=134 ⇒ 定位 + 修，不新增约束字母）；**`LLVM-120t`**（`ISS-245`：静态 PIE 的 `_DYNAMIC` 仍链接期绝对地址（`rcrt1.o` 的 `.rela.text` 3×`R_DADAO_ABS48 _DYNAMIC`）⇒ 改运行期求，`crt1.o` 逐字节不变）；**`INFRA-097t`**（`ISS-235`：L3 `check-qemu-semantics` 载体 `Makefile:1036` 硬编码 4 项 ⇒ 扩至 `tests/vectors/isa` 全量（现场 16 册；计数现场派生；保留 `rol/rol.yaml`））；**`INFRA-098t`**（`ISS-261` 安装根缺 `llvm-nm`/`llvm-readelf` + `ISS-301` builtins re-stage 路径与 checker/`install-host` 不一致（`Makefile:415` vs `364/383/384`）+ 归档跨构建非字节确定）；**`INFRA-099t`**（`ISS-229`：`L2`/`L3` 与 `install-host` 不能并发 ⇒ 加 `flock` 或等价互斥，从「注释约定」升级为「机械可判」；嵌套链 `check-modules → test-semihost → install-host/check` 不得死锁）；**`TESTCASES-053t`**（陈旧证据脚本族：`ISS-270` 驱动 `CASE_NOTES` 旧根因、`ISS-273` `LLVM-098t` 证据脚本 S9/S10 XFAIL 过时、`ISS-282` `INFRA-093t` 三项遗留、`ISS-288` `LLVM-111t` 基线随 `Align(16)` 失效 ⇒ 逐条修或按 `Process-08` 重建，**不许放宽**断言）。**串行约束**：`LLVM-118t`→`LLVM-119t`（同改 `components/llvm-project/**`）；`INFRA-097t`→`INFRA-098t`→`INFRA-099t`（同改 `Makefile`）；改组件册一律 **`install-host` 前置**。**边界**：不改 `spec/`（若判需改 ⇒ 停下报告）；不改契约决策；本笔未跑任何测试/构建（全量复跑在跑）。**证据/指针**：`.tao/tasks/{llvm,infra,testcases}/` 本批 7 册；`milestones.md`「M9 缺陷修复批」小节 + 任务流水 7 行。**交叉引用**：`ISS-193`/`ISS-222`/`ISS-197`/`ISS-245`/`ISS-235`/`ISS-261`/`ISS-301`/`ISS-270`/`ISS-273`/`ISS-282`/`ISS-288`/`ISS-229`；`ISS-300`（安装根例外手法，与 `ISS-301` 同族）；`ISS-292`（前一批立册先例）。"
 - id: ISS-303
   title: "【P2】`-static-pie` 无法用 musl `libc.a` 链接：归档成员非 PIC ⇒ lld 逐条拒绝 `R_DADAO_ABS48`；仓库**未提供 PIC 版 `libc.a`**"
   status: open

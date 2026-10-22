@@ -36,6 +36,7 @@
 | `make check-run-artifacts` | **L1** | 三个 user-mode 驱动的 `--json-out` 必填且无 `DEFAULT_LOG_DIR` 固定回落（A1）；`.work/tests/**` 与 test-artifacts 根下每个 `^\d{8}T\d{6}Z-` 运行目录须有 `run.json`/`run.log`/`meta.json`，meta 含非空 `command`/`started_utc`/`toolchain.{clang,qemu,libc}` sha256（A2）；`.work/log/**` 新增文件名须为 `check-<name>.log` 或 `<任务号>-<用途>.(log|json|txt)`，存量按 `.run-artifacts-epoch` + `.run-artifacts-baseline` 豁免（A3）。无扫描面 ⇒ SKIP 并打印；`--self-test` 逐条注入可达 FAIL。规则 = `docs/Process-08`。 |
 | `make check-install-tools` | **按需（`install-host` 收尾断言；不入 L1）** | 安装根须带齐 `Makefile` 的 `HOST_LLVM_TOOLS` + `HOST_LLVM_TOOL_SYMLINKS`（脚本**解析 Makefile**，不另立第二份清单）：逐个存在、可执行、运行探针 rc=0（`not` 用 `not false`）、尺寸 == 构建树；`--sha`/`--sha-tools` 另比 sha256；别名须为**相对符号链接**、目标可执行且同源；`llvm-readelf -h` 须解析大端 DADAO 探针对象（`ELFDATA2MSB` + `EM_DADAO`）。未跑 `install-host` 的新克隆**必然红** ⇒ 不入 L1（同 `check-milestone` 理由）；挂载点 = `install-host` 收尾。`--self-test` 五类注入。成本 ~0.2 s（`--sha` ≈1.8 s/342 MB）。源 = `ISS-261`。 |
 
+- **计数类文档的同步时点**（2026-10-22 用户裁定）：`contract-isa.md` 等**分桶计数**（`m9`/`excluded`/`fp` 的条数与族数）**不随单任务改**，一律在**里程碑收尾**统一同步；单任务只同步其机械门控的期望值（`check_scope.py` / `check_fp_contract.py`），避免同一数字反复返工。
 - 各检查均 **fail-closed**（扫描面为空 / 无 `m` 册 / 表被删空 ⇒ FAIL），可达 FAIL 见各脚本 `--self-test`。
 - `check-milestone` 的层归属按 §3 判据定位：它**不跑被测语义**，但**只在里程碑收尾时成立**（`m` 册未建前必然红），故登记为 **L2 层 / 收尾专项**、不并入日常 `check-modules`（否则 L2 常态红）；触发点 = 里程碑 / 模块 `m` 册核验前。
 
