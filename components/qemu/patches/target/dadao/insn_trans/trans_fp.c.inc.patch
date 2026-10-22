@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..1303e14
+index 0000000..5435aa8
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
-@@ -0,0 +1,976 @@
+@@ -0,0 +1,1018 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/*
 + * DADAO FP (rf) instruction translation routines.
@@ -26,6 +26,8 @@ index 0000000..1303e14
 + *       arith  (12): ftadd/ftsub/ftmul/ftdiv/ftrem/ftsclb
 + *                    foadd/fosub/fomul/fodiv/forem/fosclb
 + *       root    (2): ftroot/foroot (rootn(x, 2) == sqrt; other n ⇒ ILLI)
++ *   - QEMU-072t implements roundToIntegral:
++ *       round   (2): ftrnd/fornd (immu6 = one-hot six-mode rounding code)
 + *
 + * rf0 is the FCSR: reads expose the full 64 bits, writes go through
 + * store_rf() which applies RF0_WRITE_MASK for rf0.
@@ -979,4 +981,44 @@ index 0000000..1303e14
 +    }
 +    gen_fp_cmp(a, true, FP_FO_SNAN);
 +    return true;
++}
++
++/* ── QEMU-072t: roundToIntegral (S1D1) ───────────────────────────────── */
++/*
++ * ftrnd/fornd (orri): rfHB destination, rfHC source, immu6 = one-hot rounding
++ * code (SimRISC-07 §取整（roundToIntegral）, contract-fp.md §18):
++ *   0x01 ties-to-even / 0x02 ties-away / 0x04 toward-zero /
++ *   0x08 toward-+inf / 0x10 toward--inf  ⇒ static directions;
++ *   0x20 roundToIntegralExact ⇒ direction from rf0[33:32] (NX accrued).
++ * The helper owns the status-copy / flag-merge split; translate only enforces
++ * the static legality rules (dst_rf0, encode_onehot).
++ */
++static bool gen_fp_round_to_int(DisasContext *ctx, arg_misc *a, bool isdbl)
++{
++    const uint32_t code = a->hd;
++
++    if (!fp_check_dst_rf0(ctx, a->hb)) {           /* dst_rf0 */
++        return true;
++    }
++    if (code == 0 || (code & (code - 1)) != 0) {   /* encode_onehot (6 bits) */
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    /* S1D1: read the source before writing the destination (src may alias). */
++    TCGv_i64 src = load_rf(a->hc);
++    TCGv_i64 res = tcg_temp_new_i64();
++    gen_helper_fp_round_to_int(res, tcg_env, src, tcg_constant_i32(code),
++                               tcg_constant_i32(isdbl));
++    store_rf(a->hb, res);
++    return true;
++}
++
++static bool trans_ftrnd_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_round_to_int(ctx, a, false);
++}
++
++static bool trans_fornd_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_round_to_int(ctx, a, true);
 +}

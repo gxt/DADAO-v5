@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..95d3a4a
+index 0000000..88ef740
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,1008 @@
+@@ -0,0 +1,1067 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -630,6 +630,65 @@ index 0000000..95d3a4a
 +        res = (uint64_t)(uint32_t)float32_sqrt((float32)x, &st);
 +    }
 +    fp_status_commit(env, &st);
++    return res;
++}
++
++/* ── roundToIntegral 六档 (QEMU-072t) ────────────────────────────────── */
++/*
++ * ftrnd/fornd: immu6 is a one-hot *rounding code*, not a register count
++ * (SimRISC-07 §取整（roundToIntegral）, contract-fp.md §18):
++ *   0x01 ties-to-even / 0x02 ties-away / 0x04 toward-zero /
++ *   0x08 toward-+inf / 0x10 toward--inf  ⇒ static directions;
++ *   0x20 roundToIntegralExact ⇒ direction from rf0[33:32].
++ * The translate layer has already rejected every other immu6 value.
++ *
++ * Static directions must be independent of rf0[33:32] *and* must not accrue
++ * NX, so the call runs on a status copy with the static mode and only NV is
++ * merged back.  The dynamic code runs on the rf0-derived status and merges
++ * NV|NX (roundToIntegralExact semantics).
++ */
++static FloatRoundMode fp_round_code_mode(uint32_t code)
++{
++    switch (code) {
++    case 0x01:
++        return float_round_nearest_even;
++    case 0x02:
++        return float_round_ties_away;
++    case 0x04:
++        return float_round_to_zero;
++    case 0x08:
++        return float_round_up;
++    default:                    /* 0x10, enforced by the translate layer */
++        return float_round_down;
++    }
++}
++
++uint64_t helper_fp_round_to_int(CPUDADAOState *env, uint64_t x,
++                                uint32_t code, uint32_t isdbl)
++{
++    float_status st;
++    uint64_t res;
++
++    fp_status_init(env, &st);
++    /* contract-fp.md §18: every NaN result is a qNaN and the contract fixes
++     * the canonical form (qNaN input ⇒ canonical qNaN; sNaN ⇒ NV + canonical
++     * qNaN), so request the FCSR default qNaN pattern for NaN results. */
++    set_default_nan_mode(1, &st);
++    if (code != 0x20) {
++        set_float_rounding_mode(fp_round_code_mode(code), &st);
++    }
++    if (isdbl) {
++        res = (uint64_t)float64_round_to_int((float64)x, &st);
++    } else {
++        res = (uint64_t)(uint32_t)float32_round_to_int((float32)x, &st);
++    }
++    if (code == 0x20) {
++        env->rf[0] |= (uint64_t)(get_float_exception_flags(&st)
++                                 & (float_flag_invalid | float_flag_inexact));
++    } else {
++        env->rf[0] |= (uint64_t)(get_float_exception_flags(&st)
++                                 & float_flag_invalid);
++    }
 +    return res;
 +}
 +

@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M9（FP 完备性）
 **依赖**：`SPEC-161t`（记录已立，`scope: excluded`）、`INFRA-099t`（门控串行）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -90,12 +90,57 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：探针 **413/413**（`Main: 413/413 passed, 0 failed`）；oracle PASS（22 ft + 22 fo 样本、26 组模式敏感）；selftest 4/4；`check_qemu_trans --strict` **260/260** rc=0；注入①静态档置 NX ⇒ 278/413（**135 红**）、注入②DYN 写死 RNE ⇒ 379/413（**34 红**），cp+md5 还原后均回绿 413/413；L1 rc=0（38s）/ L2 rc=0（416s，含 `check_interface`）。
+**修改文件**：`components/qemu/patches/target/dadao/insn.decode.patch`（2 条 pattern，260 计数）、`helper.c.patch`（`helper_fp_round_to_int`）、`helper.h.patch`（`DEF_HELPER_4`）、`insn_trans/trans_fp.c.inc.patch`（`gen_fp_round_to_int` + 2 条 trans）；`tools/qemu/min_rom_probe_072t.py`；`.work/evidence/QEMU-072t/run.sh`；`.tao/tasks/qemu/QEMU-072t-执行语义.md`、`.tao/knowledge/issues.yaml`（`ISS-322` closed）、`.tao/knowledge/milestones.md`（一行）。
+**验收结果**：`check_qemu_trans: 260/260 insns have trans impl (M1 156/156)`；探针 `Main: 413/413 passed, 0 failed`（413 = 220 静态矩阵 + 176 DYN 矩阵 + 10 NX/NV + 4 别名/rf0 源 + 3 ILLI，计数由脚本现场派生）；注入日志 `QEMU-072t-inject-{a,b}-probe.log`（rc=1）+ `...-restore-probe.log`（rc=0）；`run.sh` rc=0（落盘 `.work/evidence/QEMU-072t/run.rc` = 0）。
+**新发现/坑**：① `make apply-series` 现报 `KeyError: 'patch_dir'`（enabled `patchless` 组件、既有缺陷）⇒ 改补丁后按 `docs/Process-01 §7` 以单组件重放（`reset --hard base` → 逐 patch `git apply` → commit）落地；证据脚本只依赖「已应用源树」并在首步自检（helper 在、源树 clean）。② NaN 口径：任务书摘要写「qNaN 原样」，`contract-fp.md §18`/spec 写「canonical 化」⇒ 按 Spec-first 取 canonical（`set_default_nan_mode(1)`；sNaN 另置 NV），AL4 固定 `−qNaN→+qNaN`；若要 payload 保留需改任务书口径。③ L2（416s）>5min，证据脚本前台运行并打印 elapsed，未转后台。④ L1 `check-milestones-fresh` A5：未完成任务时间列须为登记时间并带 `（登记）`、表状态须等于册状态（本次已按 `待验收` + `（登记）` 修正）。
+**遗留问题**：无（`scope` 翻转归 `SPEC-162t`、LLVM 后端归 `LLVM-125t`、集成归 `TESTCASES-060t`，均非本册）。
 
 ## 审阅记录
 
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+### 第 1 轮 engineer 自审（2026-10-22）
+
+代码级逐行审查（`helper_fp_round_to_int` 四段 / `gen_fp_round_to_int` 四段 / decode 2 行 / patch 生成），findings 与处置：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| 静态 5 档是否真独立于 `rf0[33:32]`（易误用真实 status） | ✅已修 | helper 用本地 `float_status` 副本 + 静态模式覆盖；探针静态矩阵刻意用**另一** rf0 模式（`0x08`→RDN、其余→RUP） | 220 个静态例全绿；注入① 135 红 |
+| NaN 口径（册摘要「原样」vs 合约 §18「canonical 化」） | ✅已修 | `set_default_nan_mode(1)` ⇒ 统一 canonical qNaN；sNaN 另置 NV | NX5/NX6/NX7/NX10/AL3/AL4 |
+| one-hot 判据边界（6 位：0/0x03/0x21…） | ✅已修 | `code == 0 \|\| (code & (code-1)) != 0` ⇒ ILLI；`0x21` 超 6 位不可编码 | IL1/IL2 真跑 exit=0x88 |
+| S1D1 别名（src==dst）与源为 `rf0` | ✅已修 | 先 `load_rf` 后 `store_rf`（与 `gen_fp_root` 同范式） | AL1/AL2/AL3 全绿 |
+| NX 仅 `0x20`、NV 仅 sNaN | ✅已修 | 静态合 `float_flag_invalid`；DYN 合 `invalid\|inexact` | NX1–NX10；注入① 静态 NX 135 红 |
+| 探针断言恒真/计数写死 | ✅已修 | selftest 4 类断言各带可达 FAIL；`run.sh` 以 `probe_meta` 现场派生计数（409→413 自动跟随） | `--selftest` PASS；run.sh 断言全 PASS |
+| 注入还原纪律（禁 git 还原） | ✅已修 | `cp` 备份 + md5 前后一致 + 重建后回绿；`trap` 兜底还原 | `inject-*-restore-probe.log` rc=0 |
+| patch 手工改 hunk 计数/`index` 易错 | ✅已修 | 由 `/tmp/opencode/QEMU-072t/patchtool.py` 从重建文件重生成（blob 用 `git hash-object`，计数自动）；decode 由 `generate_decodetree.py` 从 yaml 机械派生 | 源树重放 60 patch rc=0，应用后内容与重建文件逐字节一致 |
+
+判决：全部 finding 已处置（✅），无未修项 ⇒ 状态 `待验收`。
+
+### 第 1 轮 reviewer 验收（2026-10-22）
+
+**重跑记录（均 reviewer 亲跑，workdir=仓库根）**：
+- `python3 tools/qemu/check_qemu_trans.py --strict` ⇒ `260/260 insns have trans impl (M1 156/156)`，rc=0。
+- `python3 tools/qemu/min_rom_probe_072t.py` ⇒ `Main: 413/413 passed, 0 failed`，rc=0（6s）；计数现场派生 cases=413（静态 220 + DYN 176[模式 0/1/2/3] + NX/NV 10 + AL 4 + ILLI 3）。
+- `--selftest` ⇒ 4/4 类断言均可 FAIL，rc=0；`--oracle` ⇒ `PASS (22 ft + 22 fo, 26 mode-sensitive groups)`，rc=0。
+- `make check`(L1) ⇒ rc=0（39s，`check_issues: resolved_by 约束 OK`）；L2 未重跑（用户约束），读日志：check-interface 83 项 FAIL: 0、`module checks (L2): PASS`。
+- ILLI 三例独立真跑（模块内单跑）：`immu6=0x03`/`immu6=0`/目的 rf0 ⇒ 均 `exit=0x88`。
+- 独立注入（cp+md5，禁 checkout）：静态合标志改 `& 0x1F`（NX 泄漏）⇒ 重建 6s ⇒ 探针 `278/413, 135 failed` rc=1（`rf0[4:0] expect=0x00 got=0x10 MISMATCH` ×135，NX1 红）；cp 还原 ⇒ md5 `5428370b…` 相等、二进制 md5 复原 `c3d7a6c7…` ⇒ 回绿 `413/413` rc=0。
+
+**约束核验**：静态 5 档用临时 status 副本、只合 `float_flag_invalid`（helper.c.patch 逐行核）✓；DYN 走 rf0 派生 status、合 NV|NX ✓；首读后写（先 `load_rf(hc)` 后 `store_rf(hb)`，AL1/AL2 别名例绿）✓；`spec/**`、`contracts/**` 对 HEAD 零 diff ✓；ISS-322 `closed`+`resolved_by: QEMU-072t` ✓；快照对账 pre/post `git status` 均 0 行一致、`.work/source/qemu` clean、无 `.EXIT` ✓；NaN 口径披露成立：代码 `set_default_nan_mode(1)` ⇒ qNaN→canonical（不置 NV，NX5/AL4 绿）、sNaN→NV+canonical（NX6/NX7 绿），与 `contract-fp.md §18`/spec §4.3「canonical 化」一致（任务书摘要「原样」为过时措辞，已披露，spec-first 取 canonical 正确）。
+
+**不符项（唯一）**：`milestones.md` 一行与 `ISS-322` 关闭注记写「探针 409/409、注入 133/34 红」（`run.sh` 头注释亦写 409），与现场不符：真实 413/413、注入① 135 红（完成区/commit message 正确，工程师日志 inject-a 亦 135）。
+
+**判决：Needs Revision**（仅文档数字更正，无代码/探针改动）：① `milestones.md` QEMU-072t 行改「探针 413/413，注入 135/34 红」；② `issues.yaml` ISS-322 关闭注记同步改 413/413、135/34；③ `run.sh` 头注释 409→413。改后可直接 Accepted（其余验收项全部通过）。
+
+### 第 2 轮 reviewer 验收（2026-10-22，只核第 1 轮唯一打回项）
+
+**重跑记录（reviewer 亲跑，workdir=仓库根）**：
+- `git show --stat 77cfe233` ⇒ 仅 2 受跟踪文件：`.tao/knowledge/issues.yaml`、`.tao/knowledge/milestones.md`（各 1 行改）✓；`run.sh` 在 `.work`（gitignore）不入 git ✓。
+- `grep "409/409" milestones.md issues.yaml run.sh` ⇒ 零命中（rc=1）；`grep "\b133\b" run.sh` ⇒ 零命中（rc=1）。（全局 `409`/`133` 残留命中均为无关既有内容：`4096`、`SPEC-133t`/`SPEC-135t` 等。）
+- `grep "413\|135"` 三处就位：`milestones.md:58`「探针 413/413，注入 135/34 红」；`issues.yaml` ISS-322 关闭注记「探针 413/413、反例注入 135/34 红」；`run.sh:4`「413 cases, live count」✓。
+- `make check`(L1) ⇒ rc=0（`repository checks (L1): PASS`；日志 `/tmp/opencode/QEMU-072t-review/l1-round2.log`）。
+- `git status --porcelain -uall` ⇒ 唯一 ` M` = 本任务书（即第 1 轮审阅记录本身，reviewer 无提交权、归 architect 入库）；无 untracked 残留、`.work/log` 无 `.EXIT` ✓。未跑长门控（用户约束）。
+
+**判决：Accepted** —— 唯一打回项（文档数字 409/133 → 413/135）三处均已更正且经我亲验；改动集恰为 2 文件、无越界；第 1 轮其余通过项无回归面（本轮仅文档 diff）。
+
