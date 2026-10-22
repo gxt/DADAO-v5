@@ -731,3 +731,24 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（2026-10-22，源 = `SPEC-159t` engineer 自审发现）】**现象**：`tools/spec/check_tables.py` 的 `OP_TABLE` 仅含 `0x40/0x41/0x42/0x43`，`spec/SimRISC-00 §4.6 MISC-RF`（`op 0x44`，46→50 格）未被双向比对 ⇒ 该表的空格/错格/漏格**无门控可见**（本册新增 4 格若无证据脚本断言，L1 仍全绿）。**影响**：`ftrnd`/`fornd`（`SPEC-161t`）、`ftmin`/`ftmax`/`fomin`/`fomax`（`SPEC-159t`）等 MISC-RF 立册时，编码表与 `opcodes.yaml` 可能漂移而无人察觉；`check_tables.py` 的 `--self-test` 也只覆盖 4 表。**修法方向**：把 `OP_TABLE` 扩到 `0x44: MISC-RF`（表名的 `SECTION_RE` 同步），把 MISC-RF 的「表下范围注记/条数」也纳入现场派生断言（条数不写死）；补一条注入（删一格 / 改错格 ⇒ 红）。**交叉引用**：`SPEC-161t`/`SPEC-159t`（现场）、`ISS-324`（同批立册的 L2 缺口）。**边界**：本笔只登记 ⇒ 未改 `tools/spec/check_tables.py` ✗。"
+- id: ISS-326
+  title: "【P3】`tests/llvm/ir-lli/manifest.yaml` 11 个未分类 `*.ll` + 1 个悬空项"
+  status: open
+  scope: [llvm, testcases]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（2026-10-22，源 = `LLVM-124t` 完成区「新发现/坑」；architect 登记）】**现象**：`ir-lli` 用例集有 11 个 `.ll` 未被 manifest 分类（无 `expect`/`tags`），另有 1 个 manifest 条目指向不存在的文件（悬空）。**影响**：`ir-lli` 跑批对这些用例判定不可靠（无期望值 ⇒ 只验不崩），且悬空项不会让门控变红。**修法方向**：逐条补分类（pass/fail + 依据），删悬空项；若可机械判定，加一条「manifest ↔ 文件集合双向一致」断言。**边界**：本笔只登记 ⇒ 未改 `tests/llvm/ir-lli/**` ✗（LLVM-124t 明确未代修）。"
+- id: ISS-327
+  title: "【P3】`gen_isa_coverage.py` 的 `L2_isel` 漏认：`ret`/`rol.o`/`clmul.o`/`add.uo`/`io2fo` 家族实际在用却记 `no` ⇒ 假「未用」报告"
+  status: open
+  scope: [llvm, infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（2026-10-22，源 = 主会话窄位/位操作盘点实测；architect 登记）】**现象**：`tools/llvm/llvm-isa-backend-matrix.tsv` 中 `add.uo_rrrr_rd`、`mul.uo`、`ret_riii_ra`、`rol.o`、`clmul.o`、`it2ft/ut2ft/ft2it/ft2ut` 等均记 `L2_isel=no`，但安装根 clang `-O2` 实测**确有发射**（`ret` 来自伪指令展开；`io2fo`/`uo2fo`/`fo2io`/`fo2uo` 为同义不同名；`clmul`/`rol` 经 `DADAO::` 显式引用但匹配规则未覆盖）。**影响**：矩阵给出的「未用清单」含假阳性，据此立项会重复劳动/误判缺口（本次盘点已因此改用实测）。**修法方向**：`L2_isel` 判定补三类来源 —— ① 伪指令/展开路径（`Pseudo*` → 实际助记符映射表）；② `opcodes.yaml` 与 `.td`/转义名的同义映射（`it2ft` ↔ `io2fo` 等）；③ `BuildMI` 的 opcode 常量扫描。**交叉引用**：`ISS-187`（窄位，实测确认）、`LLVM-128t`（ctlz/rev 立项依据来自实测非矩阵）。**边界**：本笔只登记 ⇒ 未改 `tools/llvm/gen_isa_coverage.py` ✗。"
+- id: ISS-328
+  title: "【P2】`fence` + 24 条 `lr/sc` 已由 QEMU 实现且 LLVM 发射，但 `opcodes.yaml` 仍 `scope: excluded` + `decode: ILLI`（25 条账面落后于实现）"
+  status: open
+  scope: [spec, qemu, llvm]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（2026-10-22，源 = 主会话盘点实测；architect 登记）】**现象**：`contracts/opcodes.yaml` 中 `fence_oiii_imm` 与 24 条 `lr/sc` 记 `scope: excluded`、`decode: ILLI`（`check_scope` 规则 3 强制二者等价），但 —— ① QEMU 已实现：`trans_ctrl.c.inc.patch:529` 的 `trans_fence_oiii_imm` 有完整 pred/succ barrier 逻辑（SBZ 非零才 ILLI），`trans_mem.c.inc.patch:481+` 有 lr/sc 全变体；② LLVM 实际发射：`__atomic_add_fetch`（`-O2`）生成 `fence` + `lr.o.an` + `sc.o.ar`。**影响**：账面 `excluded` 计数（现 31 = cfxld/cfxst 2 + fence 1 + lr/sc 24 + min/max 4）与实际实现不符，`MEMORY.md` 第 6 项「fence/lr/sc 未实现、decode ILLI」亦为过期表述；任何按 `decode: ILLI` 推导「执行必 trap」的读者会得出错误结论。**修法方向**：按 `SPEC-155t`（clmul 解 excluded → m9）先例立册翻转 25 条（`scope: m9`、去 `decode`），同步 `MEMORY` 第 6 项与 `contract-isa.md` 分桶计数；翻转前先确认 `SimRISC-11 §6` 的规范口径（ADR-0034 D1/D2）。**边界**：本笔只登记 ⇒ 未改 `contracts/**`、`spec/**` ✗。"

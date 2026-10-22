@@ -41,6 +41,8 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-127t | 待开始 | 2026-10-22 21:10（登记） | 窄位 `i8/i16/i32` 合法化 + canonical 扩展（含 `ISS-310`） |
+| LLVM-128t | 待开始 | 2026-10-22 21:10（登记） | `ctlz`/`cttz`/`ctpop` + `rev` 后端 pattern（clz/bswap 各 1 条） |
 | LLVM-124t | 已验证 | 2026-10-22 21:00 | `min/max` 后端：`minnum`/`minimumnum`/C `fmin` 各 1 条；`minimum` 9 条无 libcall；`FMINNUM` 改 Custom（「≤4」裁定放宽） |
 | QEMU-071t | 已验证 | 2026-10-22 19:30 | `min/max` 语义：softfloat `minimum_number`；探针 111/111（值+NV/NX）；`check_qemu_trans` 264/264，`ISS-324` closed |
 | SPEC-159t | 已验证 | 2026-10-22 16:50 | `ftmin/ftmax/fomin/fomax` 立册（754 `minimumNumber`、`orrr`）；264/31/60；`ISS-324`/`325` 登记 |
