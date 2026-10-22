@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-059t | 已验证 | 2026-10-23 07:58 | `min/max` 集成：O0/O2 各 3102 PASS、值+标志双断言 1502+1502；无 libcall；注入三类红 |
 | LLVM-128t | 已验证 | 2026-10-23 06:10 | `ctlz/cttz/ctpop` + `rev.o/.t` 各 1 条（原 10/7 条）；零值运行期 64/0；lit 132/132 |
 | TESTCASES-061t | 已验证 | 2026-10-23 05:24 | harness 失败路径可信化（`br.nz` 偏移）+ 6 条工具去陈；978 全量 0 failed |
 | SPEC-164t | 已验证 | 2026-10-23 02:17 | `OPC-MISC` 迁 `op 0x47`（29 条，含 `ct*` 并入）+ 25 条解 `excluded`；264/264、实机全通 |
@@ -71,7 +72,6 @@
 | SPEC-158t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 解除 `excluded`（`scope → fp`，新族 `fma`） |
 | TESTCASES-057t | 待开始 | 2026-10-21 23:50（登记） | clmul 集成：指令级 + GHASH + CRC-32C，独立 oracle、两档 |
 | TESTCASES-058t | 待开始 | 2026-10-21 23:50（登记） | `fma` 集成：单次舍入反例 + 点积/GEMM/Horner，独立 oracle、两档 |
-| TESTCASES-059t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 集成：NaN/±0 矩阵（值+NV 双断言）+ clamp/矩阵；C23 展开无 libcall |
 | INFRA-099t | 已验证 | 2026-10-21 23:43 | ISS-229：29 个写者/门控由 `flock` 串行（嵌套放行、有界等待、rc=69/75）；真并发验证串行、L1/L2 绿 |
 | INFRA-098t | 已验证 | 2026-10-21 19:35 | 安装集补 `llvm-nm`（342 MB/+3.6%）+ `llvm-readelf` 相对链接（0 B）；builtins 4 次重建同 sha；`check-install-tools` 45 项 PASS |
 | TESTCASES-054t | 已验证 | 2026-10-21 19:08 | 超时预算重标：lua 840→1320、XSBench 新增 720（实测+120 s）、unix-smail 0.11 s 不入表；清过时注记 |
