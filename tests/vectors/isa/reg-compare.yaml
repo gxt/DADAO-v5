@@ -10,7 +10,7 @@
   input_state: {}
   mnemonic: cmp.ui
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-04 §比较操作
+  spec_cite: 'SimRISC-04: 比较操作'
   status: active
 - class: semantic
   deferred_reason: null
@@ -31,7 +31,7 @@
       rd2: '0x000000000000000A'
   mnemonic: cmp.ui
   notes: 'cmp.ui: rd2=0xa, imm=5, bits=64, signed=False'
-  spec_cite: SimRISC-04 §比较操作
+  spec_cite: 'SimRISC-04: 比较操作'
   status: active
 - class: legality
   deferred_reason: null
@@ -45,7 +45,7 @@
   input_state: {}
   mnemonic: cmp.ui
   notes: 'legality cmp.ui: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §比较操作; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-04: 比较操作; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -59,7 +59,7 @@
   input_state: {}
   mnemonic: cmp.si
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-04 §比较操作
+  spec_cite: 'SimRISC-04: 比较操作'
   status: active
 - class: semantic
   deferred_reason: null
@@ -80,7 +80,7 @@
       rd2: '0x000000000000000A'
   mnemonic: cmp.si
   notes: 'cmp.si: rd2=0xa, imm=5, bits=64, signed=True'
-  spec_cite: SimRISC-04 §比较操作
+  spec_cite: 'SimRISC-04: 比较操作'
   status: active
 - class: legality
   deferred_reason: null
@@ -94,7 +94,7 @@
   input_state: {}
   mnemonic: cmp.si
   notes: 'legality cmp.si: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §比较操作; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-04: 比较操作; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -108,7 +108,7 @@
   input_state: {}
   mnemonic: cmp.uo
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-05 §比较操作
+  spec_cite: 'SimRISC-05: 比较操作'
   status: active
 - class: semantic
   deferred_reason: null
@@ -130,7 +130,7 @@
       rb3: '0x0000000000000014'
   mnemonic: cmp.uo
   notes: 'cmp.uo: rb2=0xa, rb3=0x14, bits=64 (D8.2 revised), signed=False'
-  spec_cite: SimRISC-05 §比较操作
+  spec_cite: 'SimRISC-05: 比较操作'
   status: active
 - class: semantic
   deferred_reason: null
@@ -153,7 +153,7 @@
   mnemonic: cmp.uo
   notes: 'cmp.uo-rb 64-bit D8.2 boundary: rb2=0x0001_0000_0000_0001, rb3=0x0002;
     64-bit: 0x0001…0001 > 0x0002 → result=+1; bits[63:48] participate'
-  spec_cite: SimRISC-05 §比较操作; ADR-0012 D8.2
+  spec_cite: 'SimRISC-05: 比较操作; ADR-0012 D8.2'
   status: active
 - class: semantic
   deferred_reason: null
@@ -176,7 +176,7 @@
   mnemonic: cmp.uo
   notes: 'cmp.uo-rb 64-bit D8.2 boundary: rb2=0x0001_0000_0000_0001, rb3=0x0001;
     64-bit: 0x0001…0001 > 0x0001 → result=+1; bits[63:48] participate'
-  spec_cite: SimRISC-05 §比较操作; ADR-0012 D8.2
+  spec_cite: 'SimRISC-05: 比较操作; ADR-0012 D8.2'
   status: active
 - class: semantic
   deferred_reason: null
@@ -199,7 +199,7 @@
   mnemonic: cmp.uo
   notes: 'cmp.uo-rb 64-bit D8.2 bits[63:48] participate: rb2=0x0001_0000_0000_0000, rb3=0x0000_FFFF_FFFF_FFFF;
     64-bit: 0x0001… > 0x0000_FFFF… → result=+1; 48-bit view would give −1 (0 < 0xFFFF…)'
-  spec_cite: SimRISC-05 §比较操作; ADR-0012 D8.2
+  spec_cite: 'SimRISC-05: 比较操作; ADR-0012 D8.2'
   status: active
 - class: legality
   deferred_reason: null
@@ -213,7 +213,7 @@
   input_state: {}
   mnemonic: cmp.uo
   notes: 'legality cmp.uo: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-05 §比较操作; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-05: 比较操作; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -227,7 +227,7 @@
   input_state: {}
   mnemonic: cmp.uo
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-04 §比较操作
+  spec_cite: 'SimRISC-04: 比较操作'
   status: active
 - class: semantic
   deferred_reason: null
@@ -249,7 +249,7 @@
       rd3: '0x0000000000000014'
   mnemonic: cmp.uo
   notes: 'cmp.uo: rd2=0xa, rd3=0x14, bits=64, signed=False'
-  spec_cite: SimRISC-04 §比较操作
+  spec_cite: 'SimRISC-04: 比较操作'
   status: active
 - class: legality
   deferred_reason: null
@@ -263,7 +263,7 @@
   input_state: {}
   mnemonic: cmp.uo
   notes: 'legality cmp.uo: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §比较操作; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-04: 比较操作; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -277,7 +277,7 @@
   input_state: {}
   mnemonic: cmp.so
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-04 §比较操作
+  spec_cite: 'SimRISC-04: 比较操作'
   status: active
 - class: semantic
   deferred_reason: null
@@ -299,7 +299,7 @@
       rd3: '0x0000000000000014'
   mnemonic: cmp.so
   notes: 'cmp.so: rd2=0xa, rd3=0x14, bits=64, signed=True'
-  spec_cite: SimRISC-04 §比较操作
+  spec_cite: 'SimRISC-04: 比较操作'
   status: active
 - class: legality
   deferred_reason: null
@@ -313,7 +313,7 @@
   input_state: {}
   mnemonic: cmp.so
   notes: 'legality cmp.so: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §比较操作; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-04: 比较操作; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -327,7 +327,7 @@
   input_state: {}
   mnemonic: cmp.ut
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-08 §比较操作
+  spec_cite: 'SimRISC-08: 比较操作'
   status: active
 - class: semantic
   deferred_reason: null
@@ -349,7 +349,7 @@
       rd3: '0x0000000000000014'
   mnemonic: cmp.ut
   notes: 'cmp.ut: rd2=0xa, rd3=0x14, bits=32, signed=False'
-  spec_cite: SimRISC-08 §比较操作
+  spec_cite: 'SimRISC-08: 比较操作'
   status: active
 - class: legality
   deferred_reason: null
@@ -363,7 +363,7 @@
   input_state: {}
   mnemonic: cmp.ut
   notes: 'legality cmp.ut: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-08 §比较操作; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-08: 比较操作; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -377,7 +377,7 @@
   input_state: {}
   mnemonic: cmp.st
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-08 §比较操作
+  spec_cite: 'SimRISC-08: 比较操作'
   status: active
 - class: semantic
   deferred_reason: null
@@ -399,7 +399,7 @@
       rd3: '0x0000000000000014'
   mnemonic: cmp.st
   notes: 'cmp.st: rd2=0xa, rd3=0x14, bits=32, signed=True'
-  spec_cite: SimRISC-08 §比较操作
+  spec_cite: 'SimRISC-08: 比较操作'
   status: active
 - class: legality
   deferred_reason: null
@@ -413,7 +413,7 @@
   input_state: {}
   mnemonic: cmp.st
   notes: 'legality cmp.st: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-08 §比较操作; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-08: 比较操作; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -427,7 +427,7 @@
   input_state: {}
   mnemonic: cmp.uw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-09 §比较操作
+  spec_cite: 'SimRISC-09: 比较操作'
   status: active
 - class: semantic
   deferred_reason: null
@@ -449,7 +449,7 @@
       rd3: '0x0000000000000014'
   mnemonic: cmp.uw
   notes: 'cmp.uw: rd2=0xa, rd3=0x14, bits=16, signed=False'
-  spec_cite: SimRISC-09 §比较操作
+  spec_cite: 'SimRISC-09: 比较操作'
   status: active
 - class: legality
   deferred_reason: null
@@ -463,7 +463,7 @@
   input_state: {}
   mnemonic: cmp.uw
   notes: 'legality cmp.uw: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-09 §比较操作; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-09: 比较操作; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -477,7 +477,7 @@
   input_state: {}
   mnemonic: cmp.sw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-09 §比较操作
+  spec_cite: 'SimRISC-09: 比较操作'
   status: active
 - class: semantic
   deferred_reason: null
@@ -499,7 +499,7 @@
       rd3: '0x0000000000000014'
   mnemonic: cmp.sw
   notes: 'cmp.sw: rd2=0xa, rd3=0x14, bits=16, signed=True'
-  spec_cite: SimRISC-09 §比较操作
+  spec_cite: 'SimRISC-09: 比较操作'
   status: active
 - class: legality
   deferred_reason: null
@@ -513,7 +513,7 @@
   input_state: {}
   mnemonic: cmp.sw
   notes: 'legality cmp.sw: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-09 §比较操作; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-09: 比较操作; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -527,7 +527,7 @@
   input_state: {}
   mnemonic: cmp.ub
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-10 §比较操作
+  spec_cite: 'SimRISC-10: 比较操作'
   status: active
 - class: semantic
   deferred_reason: null
@@ -549,7 +549,7 @@
       rd3: '0x0000000000000014'
   mnemonic: cmp.ub
   notes: 'cmp.ub: rd2=0xa, rd3=0x14, bits=8, signed=False'
-  spec_cite: SimRISC-10 §比较操作
+  spec_cite: 'SimRISC-10: 比较操作'
   status: active
 - class: legality
   deferred_reason: null
@@ -563,7 +563,7 @@
   input_state: {}
   mnemonic: cmp.ub
   notes: 'legality cmp.ub: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-10 §比较操作; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-10: 比较操作; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -577,7 +577,7 @@
   input_state: {}
   mnemonic: cmp.sb
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-10 §比较操作
+  spec_cite: 'SimRISC-10: 比较操作'
   status: active
 - class: semantic
   deferred_reason: null
@@ -599,7 +599,7 @@
       rd3: '0x0000000000000014'
   mnemonic: cmp.sb
   notes: 'cmp.sb: rd2=0xa, rd3=0x14, bits=8, signed=True'
-  spec_cite: SimRISC-10 §比较操作
+  spec_cite: 'SimRISC-10: 比较操作'
   status: active
 - class: legality
   deferred_reason: null
@@ -613,5 +613,5 @@
   input_state: {}
   mnemonic: cmp.sb
   notes: 'legality cmp.sb: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-10 §比较操作; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-10: 比较操作; SimRISC-00: 数据寄存器'
   status: active

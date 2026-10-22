@@ -298,7 +298,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 
 #### §3.1.1 单 load/store（rrii 格式）
 
-地址计算公式为基址寄存器 + 立即数。[SimRISC-01 §存取类指令]
+地址计算公式为基址寄存器 + 立即数。[SimRISC-01 §存取RD寄存器]
 
 | 指令 | 语义 | 对齐要求 | 来源 |
 |------|------|---------|------|
@@ -321,7 +321,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 
 #### §3.1.2 多 load/store（rrri 格式）
 
-多 load/store 类指令地址计算公式为基址寄存器 + 数据寄存器。[SimRISC-01 §存取类指令]
+多 load/store 类指令地址计算公式为基址寄存器 + 数据寄存器。[SimRISC-01 §存取RD寄存器]
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
@@ -750,8 +750,8 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 | 伪指令 | 展开形式 | 说明 | 来源 |
 |--------|----------|------|------|
-| `not.o rdhb, rdhc` | `xnor.o rdhb, rdhc, rd0` | 64 位按位取反 | [SimRISC-04 §not 伪指令] |
-| `neg.o rdhb, rdhc` | `sub.so rd0, rdhb, rd0, rdhc` | 64 位取负 | [SimRISC-04 §neg 伪指令] |
+| `not.o rdhb, rdhc` | `xnor.o rdhb, rdhc, rd0` | 64 位按位取反 | [SimRISC-04 §Logic operators：逻辑运算] |
+| `neg.o rdhb, rdhc` | `sub.so rd0, rdhb, rd0, rdhc` | 64 位取负 | [SimRISC-04 §加减操作] |
 
 ---
 
@@ -808,7 +808,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 ### §8.1 通用约定
 
-- SimRISC 指令都是 4 字节且 4 字节对齐；采用立即数作为偏移地址参与计算时，均将其左移 2 位以增大跳转范围。[SimRISC-06 §控制流指令]
+- SimRISC 指令都是 4 字节且 4 字节对齐；采用立即数作为偏移地址参与计算时，均将其左移 2 位以增大跳转范围。[SimRISC-06 §条件跳转指令]
 - `rb0` 以 **64 位**参与地址计算；计算结果（64 位）**写回 `rb0`**，随后取 **`rb0[47:0]`（低 48 位）**作为下一条待执行指令的地址。[ADR-0012 D8.3]
 - 条件跳转均采用相对地址。[SimRISC-06 §条件跳转指令]
 - 跳转/调用地址计算按 64 位全宽进行；结果写回 `rb0`，取低 48 位为下一条地址；rrii 格式的 `rbHA` 仅读（不修改）。[ADR-0012 D8.3]
@@ -914,7 +914,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 | 伪指令 | 展开形式 | 说明 | 来源 |
 |--------|----------|------|------|
-| `return` | `ret rd0, 0` | 无返回值的函数返回 | [SimRISC-06 §return 伪指令] |
+| `return` | `ret rd0, 0` | 无返回值的函数返回 | [SimRISC-06 §函数返回] |
 
 ---
 
@@ -1004,7 +1004,7 @@ shr.st:  rdhb[31:0]  = (rdhc[31:0] >> shamt) with sign(31) // 算术右移，高
 
 | 伪指令 | 展开形式 | 说明 | 来源 |
 |--------|----------|------|------|
-| `neg.t rdhb, rdhc` | `sub.st rdhb, rd0, rdhc` | 32 位取负，符号扩展 | [SimRISC-08 §neg 伪指令] |
+| `neg.t rdhb, rdhc` | `sub.st rdhb, rd0, rdhc` | 32 位取负，符号扩展 | [SimRISC-08 §加减操作] |
 
 > **SPEC-069t**：`not.t` 已删除（窄位宽逻辑指令 `xnor.t` 已不存在）；仅保留 `not.o`（§6.6）。
 
@@ -1085,7 +1085,7 @@ shr.sw:  rdhb[15:0]  = (rdhc[15:0] >> shamt) with sign(15)
 
 | 伪指令 | 展开形式 | 说明 | 来源 |
 |--------|----------|------|------|
-| `neg.w rdhb, rdhc` | `sub.sw rdhb, rd0, rdhc` | 16 位取负，符号扩展 | [SimRISC-09 §neg 伪指令] |
+| `neg.w rdhb, rdhc` | `sub.sw rdhb, rd0, rdhc` | 16 位取负，符号扩展 | [SimRISC-09 §加减操作] |
 
 > **SPEC-069t**：`not.w` 已删除（窄位宽逻辑指令 `xnor.w` 已不存在）；仅保留 `not.o`（§6.6）。
 
@@ -1166,7 +1166,7 @@ shr.sb:  rdhb[7:0]   = (rdhc[7:0] >> shamt) with sign(7)
 
 | 伪指令 | 展开形式 | 说明 | 来源 |
 |--------|----------|------|------|
-| `neg.b rdhb, rdhc` | `sub.sb rdhb, rd0, rdhc` | 8 位取负，符号扩展 | [SimRISC-10 §neg 伪指令] |
+| `neg.b rdhb, rdhc` | `sub.sb rdhb, rd0, rdhc` | 8 位取负，符号扩展 | [SimRISC-10 §加减操作] |
 
 > **SPEC-069t**：`not.b` 已删除（窄位宽逻辑指令 `xnor.b` 已不存在）；仅保留 `not.o`（§6.6）。
 
@@ -1200,7 +1200,7 @@ SimRISC 0.5.4 **不再**提供专门的非法指令助记符（原 `op=0x77, ha=
 
 | 伪指令 | 展开形式 | 说明 | 来源 |
 |--------|----------|------|------|
-| `nop` | `swym 0` | 空操作，占位或对齐 | [SimRISC-11 §nop 伪指令] |
+| `nop` | `swym 0` | 空操作，占位或对齐 | [SimRISC-11 §占位指令] |
 
 ### §13.4 保留编码（UNDI）
 

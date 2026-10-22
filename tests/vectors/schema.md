@@ -19,7 +19,7 @@
 | `class` | string | 向量类别：`encoding` / `legality` / `semantic` / `boundary` / `overlap` |
 | `encoding` | object | 见下「`encoding` 子结构」 |
 | `input_state` | object | 执行前的寄存器/内存状态（仅列相关字段；可为空对象 `{}`） |
-| `spec_cite` | string | 语义/合法性来源（规范章节；测试机约定引用 ADR-0004 章节）。**非空字符串** |
+| `spec_cite` | string | 语义/合法性来源：`<手册>: <助记符>`（指令类）或 `<手册>: <小节标题>`（非指令类，不带 `§`/节号）；测试机约定引用 ADR-0004 章节。**非空字符串** |
 
 ### 可选 / 条件字段
 
@@ -59,7 +59,7 @@
   expected_pc: null
   expected_fault: UNDI
   status: active
-  spec_cite: "SimRISC-00 §SimRISC QFC; contract-isa §2.9/§8.2"
+  spec_cite: "SimRISC-00: SimRISC QFC; contract-isa: 2.9/8.2"
   notes: "QFC 主表 op=0x08（0000-1xxx 整行 reserved）"
 ```
 
@@ -74,7 +74,7 @@
 | `mnemonic` / `id` 为 `null` | 无已定义身份 |
 | `format` 可为 `null` 或字符串 | 可选，用于定位子表 |
 | `notes` 非空 | 须给出该 word 在 QFC/子表中的具体位置作为 reserved 依据 |
-| `spec_cite` 非空 | 须引用 SimRISC-00 QFC / contract-isa §2.9/§8.2 |
+| `spec_cite` 非空 | 须引用 `SimRISC-00: SimRISC QFC` / `contract-isa: 2.9/8.2` |
 
 **与 ILLI 的区分**：
 
@@ -127,7 +127,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: "SimRISC-01 §存取RD寄存器"
+  spec_cite: "SimRISC-01: 存取RD寄存器"
   notes: ""
 ```
 

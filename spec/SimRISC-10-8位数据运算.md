@@ -1,7 +1,7 @@
 # SimRISC8位数据运算指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：8位数据运算**（21 条）— .sb/.ub 运算 + rev.b（逐块反转）+ shl.b/rol.b（移位/循环移位）
+> **分类：8位数据运算** — .sb/.ub 运算 + rev.b（逐块反转）+ shl.b/rol.b（移位/循环移位）
 
 ## 1. 算术运算类指令
 
@@ -41,14 +41,6 @@ shr.sb  rdHB, rdHC, rdHD
 shr.sb  rdHB, rdHC, immu6
 ```
 
-#### 1.1.1 neg 伪指令（已删除）
-
-上游 `SimRISC-0.5.4` 曾定义 `neg.b` 伪指令；本版**删除**。8 位取负（符号扩展至 64 位）**直接书写真实指令 `sub.sb rdHB, rd0, rdHC`**：
-
-```simrisc
-sub.sb  rd1, rd0, rd2        @@ rd1 = -rd2（低 8 位取负，符号扩展）
-```
-
 ### 1.2 比较操作 — 值语义
 
 OPC-byte 子表中的 `cmp.s`/`cmp.u`（后缀 `.sb`/`.ub`）提供 8 位比较运算。源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
@@ -71,22 +63,12 @@ OPC-byte 子表中的 `mul`/`div`/`rem` 提供 8 位乘除余运算。`mul` 后�
 
 除法指令附加规则（适用于 `div.s`/`div.u`/`rem.s`/`rem.u` 全部格式）：
 
-- **除数为零 → 定值**（不触发异常）：见 §乘除操作定值表（SimRISC-04）。
+- **除数为零 → 定值**（不触发异常）：定值表见 SimRISC-04。
 - **截断方向**：`div.s`/`rem.s` 采用 truncate-toward-zero（C99 标准），余数符号 = 被除数符号。
 - **溢出 → 定值**（不触发异常）：`div.s` 中 byte 对应的 −128 ÷ −1 见定值表。`div.u`/`rem.u` 不存在溢出。
-- **定值表**：详见 SimRISC-04 §乘除操作定值表。
+- **定值表**：详见 SimRISC-04。
 
-## 2. 逻辑运算类指令 — 已删除
-
-### 2.1 Logic operators：逻辑运算 — 已删除
-
-**注**：`and.b`/`or.b`/`xor.b`/`xnor.b` 已从指令集中删除。64 位逻辑运算见 SimRISC-04。
-
-#### 2.1.1 not 伪指令（已删除）
-
-**注**：`not.b` 已删除（窄位宽逻辑指令 `xnor.b` 已不存在）；本版亦**不保留** `not.o`。按位取反**直接书写真实指令 `xnor.o rd, rs, rd0`**（64 位）。
-
-### 2.2 Bit manipulating：位操作指令 — 值语义
+## 2. Bit manipulating：位操作指令 — 值语义
 
 OPC-byte 子表中的 `shl.b`/`rol.b`/`shr.ub`/`shr.sb` 提供 8 位移位/循环移位操作。`shr` 分 `u`（逻辑）/`s`（算术）变体；`shl`/`rol` 符号无关、不带 `u`/`s` 后缀。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
 
@@ -112,7 +94,7 @@ shr.sb:  rdHB[7:0]   = (rdHC[7:0] >> shamt) with sign(7),  rdHB[63:8] = sign_ext
 
 > **注**：rd0 目的寄存器约定见 SimRISC-00。
 
-#### 2.2.1 逐块反转 rev.b（orri 格式）
+### 2.1 逐块反转 rev.b（orri 格式）
 
 `rev.b` 对 64 位源寄存器**按 8 位块逐块反转**：每块（S = 8）按 `k` 位切成
 `8/k` 个单元，反转单元顺序（单元内部位序不变），八个块一律同样处理。
@@ -120,9 +102,9 @@ shr.sb:  rdHB[7:0]   = (rdHC[7:0] >> shamt) with sign(7),  rdHB[63:8] = sign_ext
 
 - 合法 `k` = `{1,2,4}`（one-hot 且 `k < S = 8`）；非 one-hot 或 `k ≥ 8`（含 `k = 8` 恒等档）触发 **ILLI**（规则 `encode_onehot`）。
 - `rev.b` 无 `bswap` 对应档（`k=8` 即恒等，**非法**）；`k=1` 只反转**块内**位序，**不是** 64 位整体位反序。
-- 逐块反转的总述与伪代码见 SimRISC-04 §2.2.1。
+- 逐块反转的总述与伪代码见 SimRISC-04。
 
-#### 2.2.2 逻辑循环左移 rol.b（`orrr` / `orri` 格式）
+### 2.2 逻辑循环左移 rol.b（`orrr` / `orri` 格式）
 
 `rol.b` 对源寄存器的 **低 8 位**做逻辑循环左移：`rdHB[7:0] = rol(rdHC[7:0], amount)`；
 结果按值语义零扩展写满 64 位（`rdHB[63:8] = 0`）。符号无关、只有一个方向、不带 `u`/`s`
@@ -135,8 +117,8 @@ shr.sb:  rdHB[7:0]   = (rdHC[7:0] >> shamt) with sign(7),  rdHB[63:8] = sign_ext
 
 - `orrr` 的 `rdHD` 只有低 3 位参与（天然取模 8）；`orri` 的 `immu6` 是 6 位，**越界（`8..63`）触发 ILLI**（与 `shl.b` 的 `immu6 <= 7` 同口径）。
 - 目的 `rdHB` 为 `rd0` ⇒ **ILLI**（规则 `dst_rd0`）；源 `rdHC` 可为 `rd0`（结果恒为 0）；`rdHB == rdHC` 允许。
-- 编码：`rol.b` `orrr` = `010-001`、`orri` = `011-001`（`OPC-byte`）。
-- 64 位语义与总述见 SimRISC-04 §2.2.3。
+- 格式：`orrr`（寄存器旋转量）/ `orri`（立即数旋转量），属 `OPC-byte` 子表。
+- 64 位语义与总述见 SimRISC-04。
 
 ```simrisc
 rol.b   rdHB, rdHC, rdHD        @@ 8 位循环左移（旋转量 = rdHD[2:0]）

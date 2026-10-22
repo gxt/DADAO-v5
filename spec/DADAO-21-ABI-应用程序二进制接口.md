@@ -38,7 +38,7 @@ RB寄存器的约定如下：
 | rb16 - rb31   | rba0 - rba15  | temporary regs        | No                |
 | rb32 - rb63   |               | callee saved regs     | Yes               |
 
-`rb0`（ABI 名 `rbip`）即 **`IP`**：读出为**当前正在执行的指令的地址**（**非**主流 ISA 的「下一条指令地址」口径；本 ISA **无 `±4` 流水偏移**），只读，任何指令以其为显式目的时触发 ILLI（见 `SimRISC-00 §基址寄存器`）。
+`rb0`（ABI 名 `rbip`）即 **`IP`**：读出为**当前正在执行的指令的地址**（**非**主流 ISA 的「下一条指令地址」口径；本 ISA **无 `±4` 流水偏移**），只读，任何指令以其为显式目的时触发 ILLI（见 `SimRISC-00`）。
 
 `rb2` 是**帧指针（frame pointer）**，**无条件保留**：`hasFP` 为真时由 prologue 保存其旧值、
 epilogue 恢复，并作为帧基址；`hasFP` 为假时不参与寄存器分配。

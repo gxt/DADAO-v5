@@ -47,13 +47,13 @@ MASK64 = (1 << 64) - 1
 
 # 四条指令：id → (块大小 S, 合法 k 集, spec_cite)
 REV_INSNS = {
-    "rev.o_orri_rd": (64, (1, 2, 4, 8, 16, 32), "SimRISC-04 §Bit manipulating：位操作指令"),
-    "rev.t_orri_rd": (32, (1, 2, 4, 8, 16), "SimRISC-08 §Bit manipulating：位操作指令"),
-    "rev.w_orri_rd": (16, (1, 2, 4, 8), "SimRISC-09 §Bit manipulating：位操作指令"),
-    "rev.b_orri_rd": (8, (1, 2, 4), "SimRISC-10 §Bit manipulating：位操作指令"),
+    "rev.o_orri_rd": (64, (1, 2, 4, 8, 16, 32), "SimRISC-04: Bit manipulating：位操作指令"),
+    "rev.t_orri_rd": (32, (1, 2, 4, 8, 16), "SimRISC-08: Bit manipulating：位操作指令"),
+    "rev.w_orri_rd": (16, (1, 2, 4, 8), "SimRISC-09: Bit manipulating：位操作指令"),
+    "rev.b_orri_rd": (8, (1, 2, 4), "SimRISC-10: Bit manipulating：位操作指令"),
 }
 
-LEGALITY_CITE = ("SimRISC-04 §Bit manipulating：位操作指令; "
+LEGALITY_CITE = ("SimRISC-04: Bit manipulating：位操作指令; "
                  "contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0")
 
 # 语义输入：bit 分布显著的 64 位图案（各块 / 各单元互不相同）
@@ -65,7 +65,7 @@ SRC_PATTERN = 0x0123456789ABCDEF
 def rev_block(src: int, S: int, k: int) -> int:
     """逐块反转：64 位值切成 64/S 个 S 位块，每块内部 S/k 个 k 位单元倒序，单元内位序不变。
 
-    `k` 必须整除 `S` 且 ≥ 1（合法档位见 spec/SimRISC-04 §2.2.1）；否则显式报错
+    `k` 必须整除 `S` 且 ≥ 1（合法档位见 spec/SimRISC-04: 逐块反转 rev.o/rev.t/rev.w/rev.b（orri 格式））；否则显式报错
     （不静默返回恒等值）。
     """
     if k < 1 or S % k:

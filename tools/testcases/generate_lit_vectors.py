@@ -132,7 +132,7 @@ def _build_positive(rec):
             return ("add.si %s, 8" % _reg(f0["bank"], 8),
                     {f0["name"]: 8, "imms18": 8}, "riii-alu")
         if mn == "aip.si":
-            # IP 相对寻址（ADR-0029 D1 / SimRISC-05 §1.4）：`riii` 的「dst, imm」
+            # IP 相对寻址（ADR-0029 D1 / SimRISC-05: IP 相对寻址）：`riii` 的「dst, imm」
             # 形态（非分支形态）；指令名 `rela.si` → `aip.si`（用户 2026-10-16 裁定）。
             # 汇编层操作数按**字节**书写（字段名 `imms30`，须为 4 KiB 整数倍，
             # 范围 ±512 MiB；Toolchain-01 §3.2/§5）⇒ 编码层 `imms18 = bytes >> 12`
@@ -208,7 +208,7 @@ def _build_positive(rec):
     if fmt == "orrr":
         a, b, c = fields
         # lr/sc（ADR-0034 D3-D6；LLVM-121t）：地址写成 `[rb]`——lr/sc 的编码没有
-        # 偏移字段，地址就是 rbHD 本身。`lr` 的 hb 固定 rd0（SimRISC-11 §4.2），
+        # 偏移字段，地址就是 rbHD 本身。`lr` 的 hb 固定 rd0（SimRISC-11: LR-SC指令），
         # 汇编只写两个操作数；`sc` 三个（状态/值/地址）。
         if mn.startswith("lr."):
             return ("%s %s, [%s]" % (mn, _reg(b["bank"], 9),

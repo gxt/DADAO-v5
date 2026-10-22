@@ -14,7 +14,7 @@
   input_state: {}
   mnemonic: cs.n
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: active
 - class: semantic
   deferred_reason: null
@@ -38,7 +38,7 @@
       rd4: '0x000000000000BBBB'
   mnemonic: cs.n
   notes: 'cs.n: rd1=0xffffffffffffffff → taken, rd3/rd4→rd2'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: active
 - class: legality
   deferred_reason: null
@@ -52,7 +52,7 @@
   input_state: {}
   mnemonic: cs.n
   notes: 'legality cs.n: dest=rd0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -66,7 +66,7 @@
   input_state: {}
   mnemonic: cs.z
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: active
 - class: semantic
   deferred_reason: null
@@ -90,7 +90,7 @@
       rd4: '0x000000000000BBBB'
   mnemonic: cs.z
   notes: 'cs.z: rd1=0x0 → taken, rd3/rd4→rd2'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: active
 - class: legality
   deferred_reason: null
@@ -104,7 +104,7 @@
   input_state: {}
   mnemonic: cs.z
   notes: 'legality cs.z: dest=rd0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -118,7 +118,7 @@
   input_state: {}
   mnemonic: cs.p
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: active
 - class: semantic
   deferred_reason: null
@@ -142,7 +142,7 @@
       rd4: '0x000000000000BBBB'
   mnemonic: cs.p
   notes: 'cs.p: rd1=0x1 → taken, rd3/rd4→rd2'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: active
 - class: legality
   deferred_reason: null
@@ -156,7 +156,7 @@
   input_state: {}
   mnemonic: cs.p
   notes: 'legality cs.p: dest=rd0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -170,7 +170,7 @@
   input_state: {}
   mnemonic: cs.eq
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: active
 - class: semantic
   deferred_reason: null
@@ -194,7 +194,7 @@
       rd4: '0x000000000000BBBB'
   mnemonic: cs.eq
   notes: 'cs.eq: rd1=0x2a, rd2=0x2a → taken, rd4→rd3'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: active
 - class: legality
   deferred_reason: null
@@ -208,7 +208,7 @@
   input_state: {}
   mnemonic: cs.eq
   notes: 'legality cs.eq: dest=rd0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -222,7 +222,7 @@
   input_state: {}
   mnemonic: cs.ne
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: active
 - class: semantic
   deferred_reason: null
@@ -246,7 +246,7 @@
       rd4: '0x000000000000BBBB'
   mnemonic: cs.ne
   notes: 'cs.ne: rd1=0x2a, rd2=0x63 → taken, rd4→rd3'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: active
 - class: legality
   deferred_reason: null
@@ -260,7 +260,7 @@
   input_state: {}
   mnemonic: cs.ne
   notes: 'legality cs.ne: dest=rd0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment; SimRISC-00: 数据寄存器'
   status: active
 - class: overlap
   deferred_reason: C-27
@@ -279,7 +279,7 @@
       rd4: '0x000000000000BBBB'
   mnemonic: cs.n
   notes: 'overlap C-27: cs.n snapshot — condition & source register aliasing deferred'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: deferred
 - class: overlap
   deferred_reason: C-27
@@ -298,7 +298,7 @@
       rd4: '0x000000000000BBBB'
   mnemonic: cs.z
   notes: 'overlap C-27: cs.z snapshot — condition & source register aliasing deferred'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: deferred
 - class: overlap
   deferred_reason: C-27
@@ -317,7 +317,7 @@
       rd4: '0x000000000000BBBB'
   mnemonic: cs.p
   notes: 'overlap C-27: cs.p snapshot — condition & source register aliasing deferred'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: deferred
 - class: overlap
   deferred_reason: C-27
@@ -336,7 +336,7 @@
       rd4: '0x000000000000BBBB'
   mnemonic: cs.eq
   notes: 'overlap C-27: cs.eq snapshot — condition & source register aliasing deferred'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: deferred
 - class: overlap
   deferred_reason: C-27
@@ -355,5 +355,5 @@
       rd4: '0x000000000000BBBB'
   mnemonic: cs.ne
   notes: 'overlap C-27: cs.ne snapshot — condition & source register aliasing deferred'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: 条件赋值：Conditional Assignment'
   status: deferred

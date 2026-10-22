@@ -2,8 +2,8 @@
 """Min ROM probe for QEMU-038t: FP runtime `dst_rd0` ILLI (15 rd-destination insns).
 
 Spec sources (expectations derived by hand from these, never from QEMU/LLVM):
-  - spec/SimRISC-00 §数据寄存器 / §浮点寄存器
-  - spec/SimRISC-07 §格式转换指令 / §浮点比较指令 / §浮点分类指令
+  - spec/SimRISC-00: 数据寄存器 / 浮点寄存器
+  - spec/SimRISC-07: 格式转换指令 / 浮点比较指令 / 浮点分类指令
   - .tao/contracts/contract-fp.md §3 / §8 / §9 / §12 / §15
   - contracts/legality_rules.yaml `dst_rd0` (active)
   - contracts/fp_semantics.yaml (legality_refs include dst_rd0 for these 15)

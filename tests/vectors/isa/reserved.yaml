@@ -15,7 +15,7 @@
   expected_pc: null
   expected_fault: UNDI
   status: active
-  spec_cite: "SimRISC-00 §SimRISC QFC; contract-isa §2.9/§8.2"
+  spec_cite: "SimRISC-00: SimRISC QFC; contract-isa: 2.9/8.2"
   notes: "QFC 主表 op=0x08（0000-1xxx 整行 reserved，8 个单元格均空白）。word=0x08040001: op[7:0]=0x08, ha=0x01, 非全零。"
 
 # ── Case 1: QFC 主表 op=0x1B（0001-1xxx row, column 011 = reserved）──
@@ -31,7 +31,7 @@
   expected_pc: null
   expected_fault: UNDI
   status: active
-  spec_cite: "SimRISC-00 §SimRISC QFC; contract-isa §2.9/§8.2"
+  spec_cite: "SimRISC-00: SimRISC QFC; contract-isa: 2.9/8.2"
   notes: "QFC 主表 op=0x1B（0001-1xxx row, column 011）。该行 op=0x18~0x1F: 0x18=st.b-rd, 0x19=st.w-rd, 0x1A=st.t-rd, 0x1B~0x1F 均为 reserved 空白单元格。"
 
 # ── Case 2: QFC 主表 op=0x58（0101-1xxx row, column 000 = reserved）──
@@ -47,5 +47,5 @@
   expected_pc: null
   expected_fault: UNDI
   status: active
-  spec_cite: "SimRISC-00 §SimRISC QFC; contract-isa §2.9"
+  spec_cite: "SimRISC-00: SimRISC QFC; contract-isa: 2.9"
   notes: "QFC 主表 op=0x58（0101-1xxx row, column 000）。该行 op=0x58 为空白单元格；0x59=add.si_riii_rd、0x5A=aip.si_riii_rb、0x5B=add.si_riii_rb、0x5C=cmp.ui_rrii_rd、0x5D=cmp.si_rrii_rd、0x5E/0x5F 亦为空白（原 cs.eq/ne_rrrr_rf 已随 SPEC-163t 删除，编码腾空；现场自 SimRISC-00 QFC 表逐格派生）。word=0x58040001: op[7:0]=0x58, ha=0x01, 非全零。（本 Case 原为 op=0x5A：该编码已随 `rela.si` → `aip.si` 成为合法指令，故改指向本仍为 blank 的格位。）"

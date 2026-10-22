@@ -127,7 +127,7 @@
 
 > 本节只写 **`spec/` 目录特有**约定（标题编号 / 版本与变更记录）；**通用规范**（组件/合约/ADR/归档/TDD 等）见 `docs/Process-0x`，**不在此重复**。
 
-- **标题编号**：`##`→`N`、`###`→`N.M`、`####`→`N.M.K`（最深 `####`）；同册**唯一、连续、父节逐级**。**引用**可写 `§N.M` 或 `§<标题文本>`，两者等价（解析器剥离前导编号）。门控：`tools/spec/check_numbering.py`。
+- **标题编号**：`##`→`N`、`###`→`N.M`、`####`→`N.M.K`（最深 `####`）；同册**唯一、连续、父节逐级**；**禁单包装层**（正文 `##` 恰 1 个且其下 `###` ≥2 ⇒ 应拍平）。**册内引用**只写 `§<标题文本>`（不带节号）；**跨册引用只写手册名**（不带 `§`、不带节号）。机器可读数据（`contracts/*.yaml`、`tests/**`）的 `spec_cite` 用 `手册: 助记符`（指令类）或 `手册: 小节标题`（非指令类）。门控：`tools/spec/check_numbering.py` / `tools/spec/check_spec_cite_targets.py`。
 - **无编号尾段（固定顺序）**：`## 附录 A：汇编指令速查` → `## 附录 B：合法性检查` → `## 附录：版本与变更记录`。A/B 为 `SimRISC-01`…`12` 的生成区（A 单表、无 `###` 子标题、无分类列；B 落合法性清单），**必在册尾**且 A 在 B 前；`SimRISC-00` 无 A/B。门控：`check_numbering.py` / `check-asm-list-consistency` / `check-legality-drift`。
 - **纯净化**：`spec/SimRISC-*` 只写规范内容（指令定义 / 编码 / 格式 / 语义 / 异常 / revision）；**禁** `scope` 范围标注、里程碑号、任务号、`ADR-`/`ISS-` 号、`contract-*.md` 指针、`.tao/` 路径、按范围的条数总账、旧表名前缀。项目侧记账归 `.tao/contracts/contract-isa.md §0`「范围表」。门控：`tools/spec/check_spec_purity.py`。
 - **`附录：版本与变更记录`**：二级标题、**不加编号**、**逆序**（最新在上）；三级标题 = `### <版本>（<发布日期>）`；顶部累积段 = `### <上一发布版本 z+1>-rc（未发布）`。**不用表格**；**变更记录集中于 `SimRISC-00`**（13 册条目按版本合并去重），`SimRISC-01`…`12` 不再单列；DADAO / Toolchain / Machine 各册仍各有一条。门控：`tools/spec/check_spec_changelog.py`。

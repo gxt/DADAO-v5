@@ -58,7 +58,7 @@ from tools.spec.check_asm_prose import (  # noqa: E402
 
 SPEC_DIR = ROOT / "spec"
 
-# Assembler pseudo-instructions (SimRISC-00 §伪指令 / spec/Toolchain-01 §6).
+# Assembler pseudo-instructions (SimRISC-00: 伪指令 / spec/Toolchain-01: 伪指令).
 # These are expanded by the assembler into real instructions, so they are
 # exempt from the opcodes.yaml lookup and the operand-count check.
 PSEUDO_INSTRUCTIONS = frozenset({

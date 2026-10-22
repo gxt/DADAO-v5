@@ -22,7 +22,7 @@
   notes: 'semantic D2 (count>1): ra0=0x0002000000000000, ra63=[count=3, addr=0xFC0000000004]; ret → PC=ra63[47:0]=0xFC0000000004;
     count 3→2, RACNT unchanged (2); ra63=[count=2, addr=0xFC0000000004]；【deferred】原期望: expected_state={"ra": {"ra63": "0x0002FC0000000004"}}
     expected_pc=0xFC0000000004'
-  spec_cite: SimRISC-00 §返回地址栈 §D2; SimRISC-06 §函数返回
+  spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回'
   status: deferred
 - class: semantic
   deferred_reason: 'ISS-098: harness 对 `ret` 路由 build_call_ret_binary 剥离 RA ⇒ QEMU SIGABRT (Unknown exit code 0x-6)，用例不可执行'
@@ -42,7 +42,7 @@
   notes: 'semantic D3 (count=1, pop): ra0=0x0002000000000000, ra63=[count=1, addr=0xFC0000000004], ra62=[count=1, addr=0xAAAA00000000];
     ret → PC=0xFC0000000004; count=1 → pop: shift-down, ra62→ra63=[count=1, addr=0xAAAA00000000]; RACNT→1, ra0=0x0001000000000000；【deferred】原期望:
     expected_state={"ra": {"ra0": "0x0001000000000000", "ra63": "0x0001AAAA00000000"}} expected_pc=0xFC0000000004'
-  spec_cite: SimRISC-00 §返回地址栈 §D3; SimRISC-06 §函数返回
+  spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回'
   status: deferred
 - class: semantic
   deferred_reason: 'ISS-098: harness 对 `ret` 路由 build_call_ret_binary 剥离 RA ⇒ QEMU SIGABRT (Unknown exit code 0x-6)，用例不可执行'
@@ -63,7 +63,7 @@
   notes: 'semantic D4b (MemRAS count>1): ra0=0x0000FC0000F00000 (RACNT=0, MRPTR=0xFC0000F00000); MemRAS[MRPTR]=[count=3, addr=0xBBBB00000000];
     ret → PC=条目[47:0]=0xBBBB00000000; count>1→push to stack: ra63=[count=2, addr=0xBBBB00000000], MRPTR+=8→0xFC0000F00008,
     RACNT=1；【deferred】原期望: expected_state={"ra": {"ra0": "0x0001FC0000F00008", "ra63": "0x0002BBBB00000000"}} expected_pc=0xBBBB00000000'
-  spec_cite: SimRISC-00 §返回地址栈 §D4b; SimRISC-06 §函数返回
+  spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回'
   status: deferred
 - class: semantic
   deferred_reason: 'ISS-098: harness 对 `ret` 路由 build_call_ret_binary 剥离 RA ⇒ QEMU SIGABRT (Unknown exit code 0x-6)，用例不可执行'
@@ -84,7 +84,7 @@
   notes: 'semantic D4b (MemRAS count=1): ra0=0x0000FC0000F00000 (RACNT=0, MRPTR=0xFC0000F00000); MemRAS[MRPTR]=[count=1, addr=0xCCCC00000000];
     ret → PC=条目[47:0]=0xCCCC00000000; count=1→consume: MRPTR+=8→0xFC0000F00008, RACNT stays 0; no RegRAS change；【deferred】原期望:
     expected_state={"ra": {"ra0": "0x0000FC0000F00008"}} expected_pc=0xCCCC00000000'
-  spec_cite: SimRISC-00 §返回地址栈 §D4b; SimRISC-06 §函数返回
+  spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回'
   status: deferred
 - class: legality
   deferred_reason: null
@@ -104,7 +104,7 @@
   mnemonic: ret
   notes: 'legality D4b RASUF (MemRAS count=0): ra0=0x0000FC0000F00000 (RACNT=0, MRPTR=0xFC0000F00000); MemRAS[MRPTR]=[count=0,
     addr=0xEEEE00000000]; ret → read MemRAS: count=0 → RASUF (0x8B)'
-  spec_cite: SimRISC-00 §返回地址栈 §D4b; SimRISC-06 §函数返回; ADR-0004 D5.5
+  spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; ADR-0004 D5.5'
   status: active
 - class: legality
   deferred_reason: null
@@ -120,7 +120,7 @@
       ra0: '0x0000000000000000'
   mnemonic: ret
   notes: 'legality D4a RASUF: ra0=0x0000000000000000 (RACNT=0, MRPTR=0); ret → D4: RACNT==0, MRPTR==0 → RASUF (0x8B)'
-  spec_cite: SimRISC-00 §返回地址栈 §D4a; SimRISC-06 §函数返回; ADR-0004 D5.5
+  spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; ADR-0004 D5.5'
   status: active
 - class: legality
   deferred_reason: null
@@ -134,7 +134,7 @@
   input_state: {}
   mnemonic: ret
   notes: 'legality dst_rd0_nonzero: rdha=rd0, imms18=1 (≠0) → ILLI (0x88); word=0x76<<24|0<<18|1=0x76000001'
-  spec_cite: SimRISC-06 §函数返回; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-06: 函数返回; SimRISC-00: 数据寄存器'
   status: active
 - class: legality
   deferred_reason: null
@@ -148,7 +148,7 @@
   input_state: {}
   mnemonic: ret
   notes: 'legality dst_rd0_nonzero: rdha=rd0, imms18=-1 (0x3FFFF, ≠0) → ILLI (0x88); word=0x76<<24|0<<18|0x3FFFF=0x7603FFFF'
-  spec_cite: SimRISC-06 §函数返回; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-06: 函数返回; SimRISC-00: 数据寄存器'
   status: active
 - class: semantic
   deferred_reason: 'ISS-098: harness 对 `ret` 路由 build_call_ret_binary 剥离 RA ⇒ QEMU SIGABRT (Unknown exit code 0x-6)，用例不可执行'
@@ -169,5 +169,5 @@
     ra62=[count=1, addr=0xAAAA00000000]; ret → PC=0xFC0000000004; count=1 → pop: ra62→ra63=[count=1, addr=0xAAAA00000000],
     RACNT→1 (ra0=0x0001000000000000); rd1 = sign_extend(42) = 0x2A；【deferred】原期望: expected_state={"ra": {"ra0": "0x0001000000000000",
     "ra63": "0x0001AAAA00000000"}, "rd": {"rd1": "0x000000000000002A"}} expected_pc=0xFC0000000004'
-  spec_cite: SimRISC-06 §函数返回; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-06: 函数返回; SimRISC-00: 数据寄存器'
   status: deferred

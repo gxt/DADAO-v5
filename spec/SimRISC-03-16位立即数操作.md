@@ -1,7 +1,7 @@
 # SimRISC16位立即数操作指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：16位立即数操作**（8 条）— set.zw/set.ow/set.w/or.w/andn.w（rwii 格式）
+> **分类：16位立即数操作** — set.zw/set.ow/set.w/or.w/andn.w（rwii 格式）
 
 ## 1. 立即数常数赋值：Immediate constant
 
@@ -43,7 +43,7 @@ set.w    rfHA, wpN, immu16
 
 > **注**：`set.w rf0, wpN, immu16` 合法；写入按 SimRISC-00 写语义（`wp2` 命中舍入模式、`wp0` 命中异常状态、`wp1`/`wp3` 完全写无效）。
 
-### 1.1 set.rd 伪指令
+## 2. set.rd 伪指令
 
 `set.rd` 不是硬件指令，而是汇编器提供的伪指令，用于将任意 64 位立即数加载到 rd 寄存器。汇编器将 `set.rd` 展开为 1~4 条 rwii 格式指令。
 
@@ -98,7 +98,7 @@ set.rd   rd8, rd3       @@ 展开为 rd2rd {rd8}, {rd3}
 set.rd   rd4, ra10      @@ 展开为 ra2rd {rd4}, {ra10}
 ```
 
-### 1.2 set.rb 伪指令
+## 3. set.rb 伪指令
 
 `set.rb` 是汇编器提供的伪指令，用于将立即数加载到 rb 寄存器，展开为 `set.zw-rb` 和 `or.w-rb` 的组合（rb 无 `set.ow` 变体，无需 `andn.w`）。
 
@@ -124,7 +124,7 @@ set.rb   rb2, rb7       @@ 展开为 rb2rb {rb2}, {rb7}
 
 **注**：rb 高 16 位（bits[63:48]）可用于地址溢出检测。汇编器应优先通过 `set.zw` 加载地址值，利用其清零其余位的特性自动处理高 16 位。
 
-### 1.3 set.ft / set.fo 伪指令
+## 4. set.ft / set.fo 伪指令
 
 `set.ft` 和 `set.fo` 是汇编器提供的伪指令，用于将立即数加载到 rf 寄存器，分别对应单精（tetra，32 位）和双精（octa，64 位）浮点格式。伪指令展开为 `set.w` 的组合。
 

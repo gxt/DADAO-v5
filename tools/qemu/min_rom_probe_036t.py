@@ -2,8 +2,8 @@
 """Min ROM probe for QEMU-036t: FP conversion family (20 insns, softfloat).
 
 Spec sources (expectations derived by hand from these, never from QEMU):
-  - spec/SimRISC-07 §格式转换指令
-  - spec/SimRISC-00 §浮点寄存器 / §浮点状态寄存器
+  - spec/SimRISC-07: 格式转换指令
+  - spec/SimRISC-00: 浮点寄存器 / 浮点状态寄存器
   - .tao/contracts/contract-fp.md §1 / §2 / §3 / §4
 Encodings: contracts/opcodes.yaml.  Exit codes: ADR-0004 D5.8 (PASS=0x00,
 ILLI=0x88).
@@ -78,7 +78,7 @@ FLAG_UF_NX = UF | NX
 ILLI = 0x77000000
 SWYM = 0x77880000
 
-# rf0[33:32] rounding mode selectors (SimRISC-00 §浮点状态寄存器)
+# rf0[33:32] rounding mode selectors (SimRISC-00: 浮点状态寄存器)
 RNE, RTZ, RDN, RUP = 0, 1, 2, 3
 
 

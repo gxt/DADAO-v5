@@ -200,11 +200,11 @@ def classify(entry: dict) -> str:
         return "32位数据运算"
     if m in ("ctlz", "cttz", "ctpop"):
         # 位扫描 / 位计数（ADR-0012 D11）：**无位宽后缀**，借 OPC-octa 格位；
-        # 按「64位数据运算」归类，与正文 SimRISC-04 §2.2.2 同处。
+        # 按「64位数据运算」归类，与正文 SimRISC-04: 位扫描与位计数 ctlz/cttz/ctpop（orri 格式） 同处。
         return "64位数据运算"
     if m == "aip.si":
         # IP 相对寻址（ADR-0029 D1；指令名 `rela.si` → `aip.si`）：`riii`，与前一行
-        # 同族的 `add.si` 一样按目的 bank（rb）归「64位地址运算」（正文 SimRISC-05 §IP 相对寻址）。
+        # 同族的 `add.si` 一样按目的 bank（rb）归「64位地址运算」（正文 SimRISC-05: IP 相对寻址）。
         return "64位地址运算"
     if re.search(r"\.(uo|so|o)$", m) or m == "add.si" or m.startswith("cmp."):
         # 64 位运算按寄存器组分：rb（地址）→ 地址运算；其余 → 数据运算

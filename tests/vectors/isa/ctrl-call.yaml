@@ -18,7 +18,7 @@
   input_state: {}
   mnemonic: call
   notes: 'encoding: word matches opcodes.yaml mask/value, imms24=2 (non-zero, non-self-call)'
-  spec_cite: SimRISC-06 §函数调用; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 函数调用; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -36,7 +36,7 @@
   mnemonic: call
   notes: 'semantic C1: rb0=0xFC0000000000, imms24=2, Addr=0xFC0000000008; cold RA (RACNT=0, MRPTR=0); push: ra63=[count=1,
     ret_addr=0xFC0000000004], RACNT→1; ra0=0x0001000000000000'
-  spec_cite: SimRISC-00 §返回地址栈 §C1; SimRISC-06 §函数调用; ADR-0004 D2.1
+  spec_cite: 'SimRISC-00: 压栈流程; SimRISC-06: 函数调用; ADR-0004 D2.1'
   status: active
 - class: semantic
   deferred_reason: null
@@ -56,7 +56,7 @@
   mnemonic: call
   notes: 'semantic C2 (recursive fold): ra0=0x0001000000000000, ra63 input [count=1, addr=0xFC0000000004]; PC+4=0xFC0000000004
     == ra63[47:0] → count+1: ra63=[count=2, addr=0xFC0000000004]; RACNT unchanged (1)'
-  spec_cite: SimRISC-00 §返回地址栈 §C2; SimRISC-06 §函数调用
+  spec_cite: 'SimRISC-00: 压栈流程; SimRISC-06: 函数调用'
   status: active
 - class: semantic
   deferred_reason: null
@@ -78,7 +78,7 @@
   mnemonic: call
   notes: 'semantic C3a (shift-push): ra0=0x0001000000000000, ra63 input [count=1, addr=0xAAAA00000000]; PC+4=0xFC0000000004
     ≠ ra63[47:0] → shift-push: new ra63=[1, 0xFC0000000004], old ra63→ra62=[1, 0xAAAA00000000]; RACNT→2, ra0=0x0002000000000000'
-  spec_cite: SimRISC-00 §返回地址栈 §C3a; SimRISC-06 §函数调用
+  spec_cite: 'SimRISC-00: 压栈流程; SimRISC-06: 函数调用'
   status: active
 - class: legality
   deferred_reason: null
@@ -96,7 +96,7 @@
   mnemonic: call
   notes: 'legality RASOF: ra0=0x003F000000000000 (RACNT=63, MRPTR=0); ra63=[count=1, addr=0xCCCC00000000]; PC+4=0xFC0000000004
     ≠ ra63[47:0] → C3b: RACNT==63, MRPTR==0 → RASOF (0x8A)'
-  spec_cite: SimRISC-00 §返回地址栈 §C3b; SimRISC-06 §函数调用; ADR-0004 D5.5
+  spec_cite: 'SimRISC-00: 压栈流程; SimRISC-06: 函数调用; ADR-0004 D5.5'
   status: active
 - class: semantic
   deferred_reason: 'ISS-098: harness 对 `call` 无语义宽度可推导 (build_test_binary.py:205 ValueError)，用例不可执行'
@@ -118,7 +118,7 @@
     spill ra1→MemRAS[0xFC0000EFFFF8], push new ra63=[1, 0xFC0000000004]; RACNT stays 63；【deferred】原期望: expected_state={"memory":
     [{"address": "0xFC0000EFFFF8", "value": "0x0005DDDD00000000"}], "ra": {"ra0": "0x003FFC0000EFFFF8", "ra63": "0x0001FC0000000004"}}
     expected_pc=0xFC0000000008'
-  spec_cite: SimRISC-00 §返回地址栈 §C3b; SimRISC-06 §函数调用
+  spec_cite: 'SimRISC-00: 压栈流程; SimRISC-06: 函数调用'
   status: deferred
 - class: encoding
   deferred_reason: null
@@ -132,7 +132,7 @@
   input_state: {}
   mnemonic: call
   notes: 'encoding: word matches opcodes.yaml mask/value, rbha=rb0 (index 0), rdhb=rd0 (index 0), imms12=2'
-  spec_cite: SimRISC-06 §函数调用; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 函数调用; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -150,7 +150,7 @@
   mnemonic: call
   notes: 'semantic C1: rb0=0xFC0000000000, rd0=0, imms12=2, Addr=0xFC0000000008; cold RA (RACNT=0, MRPTR=0); push: ra63=[count=1,
     ret_addr=0xFC0000000004], RACNT→1; ra0=0x0001000000000000'
-  spec_cite: SimRISC-00 §返回地址栈 §C1; SimRISC-06 §函数调用; ADR-0004 D2.1
+  spec_cite: 'SimRISC-00: 压栈流程; SimRISC-06: 函数调用; ADR-0004 D2.1'
   status: active
 - class: semantic
   deferred_reason: null
@@ -170,7 +170,7 @@
   mnemonic: call
   notes: 'semantic C2 (recursive fold): ra0=0x0001000000000000, ra63 input [count=1, addr=0xFC0000000004]; PC+4=0xFC0000000004
     == ra63[47:0] → count+1: ra63=[count=2, addr=0xFC0000000004]; RACNT unchanged (1)'
-  spec_cite: SimRISC-00 §返回地址栈 §C2; SimRISC-06 §函数调用
+  spec_cite: 'SimRISC-00: 压栈流程; SimRISC-06: 函数调用'
   status: active
 - class: semantic
   deferred_reason: null
@@ -192,7 +192,7 @@
   mnemonic: call
   notes: 'semantic C3a (shift-push): ra0=0x0001000000000000, ra63 input [count=1, addr=0xAAAA00000000]; PC+4=0xFC0000000004
     ≠ ra63[47:0] → shift-push: new ra63=[1, 0xFC0000000004], old ra63→ra62=[1, 0xAAAA00000000]; RACNT→2, ra0=0x0002000000000000'
-  spec_cite: SimRISC-00 §返回地址栈 §C3a; SimRISC-06 §函数调用
+  spec_cite: 'SimRISC-00: 压栈流程; SimRISC-06: 函数调用'
   status: active
 - class: legality
   deferred_reason: null
@@ -209,5 +209,5 @@
   mnemonic: call
   notes: 'legality CFXMEM: rbha=rb3=0, rdhb=rd0=0, imms12=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM (0x81), ADR-0020
     D15 / ADR-0004 D5.8'
-  spec_cite: SimRISC-06 §函数调用; ADR-0020 D15 / ADR-0004 D5.8
+  spec_cite: 'SimRISC-06: 函数调用; ADR-0020 D15 / ADR-0004 D5.8'
   status: active

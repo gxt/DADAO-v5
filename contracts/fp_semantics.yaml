@@ -24,7 +24,7 @@ count: 64
 fcsr:
   register: rf0
   width: 64
-  spec_cite: "SimRISC-00 §浮点状态寄存器"
+  spec_cite: "SimRISC-00: 浮点状态寄存器"
   fields:
     - name: qnan_fo
       bits: "[63:51]"
@@ -61,59 +61,59 @@ fcsr:
 # ── 14 个语义族（计数见 §1.3；required_keys 为每条记录必须携带的键）──────────
 families:
   convert_ff:
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_ff"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   convert_f2i:
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   convert_i2f:
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   arith:
-    spec_cite: "SimRISC-07 §S2D1"
+    spec_cite: "SimRISC-07: S2D1"
     semantics_ref: "contract-fp.md#arith"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   root:
-    spec_cite: "SimRISC-07 §S1D1"
+    spec_cite: "SimRISC-07: S1D1"
     semantics_ref: "contract-fp.md#root"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   sign:
-    spec_cite: "SimRISC-07 §浮点符号位操作指令"
+    spec_cite: "SimRISC-07: 浮点符号位操作指令"
     semantics_ref: "contract-fp.md#sign"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   compare:
-    spec_cite: "SimRISC-07 §浮点比较指令"
+    spec_cite: "SimRISC-07: 浮点比较指令"
     semantics_ref: "contract-fp.md#compare"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   classify:
-    spec_cite: "SimRISC-07 §浮点分类指令"
+    spec_cite: "SimRISC-07: 浮点分类指令"
     semantics_ref: "contract-fp.md#classify"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   cs_rf:
-    spec_cite: "SimRISC-02 §浮点条件赋值"
+    spec_cite: "SimRISC-02: 浮点条件赋值"
     semantics_ref: "contract-fp.md#cs_rf"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   rf_mem:
-    spec_cite: "SimRISC-01 §存取RF寄存器"
+    spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   rf_move:
-    spec_cite: "SimRISC-02 §寄存器组之间块赋值"
+    spec_cite: "SimRISC-02: 寄存器组之间块赋值"
     semantics_ref: "contract-fp.md#rf_move"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   set_w_rf:
-    spec_cite: "SimRISC-03 §立即数常数赋值：Immediate constant"
+    spec_cite: "SimRISC-03: 立即数常数赋值：Immediate constant"
     semantics_ref: "contract-fp.md#set_w_rf"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   roundint:
-    spec_cite: "SimRISC-07 §取整（roundToIntegral）"
+    spec_cite: "SimRISC-07: 取整（roundToIntegral）"
     semantics_ref: "contract-fp.md#roundint"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   minmax:
-    spec_cite: "SimRISC-07 §最小最大值（minimumNumber / maximumNumber）"
+    spec_cite: "SimRISC-07: 最小最大值（minimumNumber / maximumNumber）"
     semantics_ref: "contract-fp.md#minmax"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
 
@@ -122,347 +122,347 @@ instructions:
   # convert_ff（4）
   - id: ft2fo_orri_rf
     family: convert_ff
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_ff"
     legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow, mreg_range_overlap]
   - id: ft2ft_orri_rf
     family: convert_ff
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_ff"
     legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow, mreg_range_overlap]
   - id: fo2ft_orri_rf
     family: convert_ff
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_ff"
     legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow, mreg_range_overlap]
   - id: fo2fo_orri_rf
     family: convert_ff
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_ff"
     legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow, mreg_range_overlap]
 
   # convert_f2i（8）
   - id: ft2it_orri_rf
     family: convert_f2i
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
     legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
   - id: ft2io_orri_rf
     family: convert_f2i
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
     legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
   - id: ft2ut_orri_rf
     family: convert_f2i
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
     legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
   - id: ft2uo_orri_rf
     family: convert_f2i
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
     legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
   - id: fo2it_orri_rf
     family: convert_f2i
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
     legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
   - id: fo2io_orri_rf
     family: convert_f2i
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
     legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
   - id: fo2ut_orri_rf
     family: convert_f2i
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
     legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
   - id: fo2uo_orri_rf
     family: convert_f2i
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
     legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
 
   # convert_i2f（8）
   - id: it2ft_orri_rf
     family: convert_i2f
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
     legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
   - id: io2ft_orri_rf
     family: convert_i2f
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
     legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
   - id: ut2ft_orri_rf
     family: convert_i2f
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
     legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
   - id: uo2ft_orri_rf
     family: convert_i2f
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
     legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
   - id: it2fo_orri_rf
     family: convert_i2f
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
     legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
   - id: io2fo_orri_rf
     family: convert_i2f
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
     legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
   - id: ut2fo_orri_rf
     family: convert_i2f
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
     legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
   - id: uo2fo_orri_rf
     family: convert_i2f
-    spec_cite: "SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
     legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
 
   # arith（12）
   - id: ftadd_orrr_rf
     family: arith
-    spec_cite: "SimRISC-07 §S2D1"
+    spec_cite: "SimRISC-07: S2D1"
     semantics_ref: "contract-fp.md#arith"
     legality_refs: [dst_rf0]
   - id: ftsub_orrr_rf
     family: arith
-    spec_cite: "SimRISC-07 §S2D1"
+    spec_cite: "SimRISC-07: S2D1"
     semantics_ref: "contract-fp.md#arith"
     legality_refs: [dst_rf0]
   - id: ftmul_orrr_rf
     family: arith
-    spec_cite: "SimRISC-07 §S2D1"
+    spec_cite: "SimRISC-07: S2D1"
     semantics_ref: "contract-fp.md#arith"
     legality_refs: [dst_rf0]
   - id: ftdiv_orrr_rf
     family: arith
-    spec_cite: "SimRISC-07 §S2D1"
+    spec_cite: "SimRISC-07: S2D1"
     semantics_ref: "contract-fp.md#arith"
     legality_refs: [dst_rf0]
   - id: ftrem_orrr_rf
     family: arith
-    spec_cite: "SimRISC-07 §S2D1"
+    spec_cite: "SimRISC-07: S2D1"
     semantics_ref: "contract-fp.md#arith"
     legality_refs: [dst_rf0]
   - id: ftsclb_orrr_rf
     family: arith
-    spec_cite: "SimRISC-07 §S2D1"
+    spec_cite: "SimRISC-07: S2D1"
     semantics_ref: "contract-fp.md#arith"
     legality_refs: [dst_rf0]
   - id: foadd_orrr_rf
     family: arith
-    spec_cite: "SimRISC-07 §S2D1"
+    spec_cite: "SimRISC-07: S2D1"
     semantics_ref: "contract-fp.md#arith"
     legality_refs: [dst_rf0]
   - id: fosub_orrr_rf
     family: arith
-    spec_cite: "SimRISC-07 §S2D1"
+    spec_cite: "SimRISC-07: S2D1"
     semantics_ref: "contract-fp.md#arith"
     legality_refs: [dst_rf0]
   - id: fomul_orrr_rf
     family: arith
-    spec_cite: "SimRISC-07 §S2D1"
+    spec_cite: "SimRISC-07: S2D1"
     semantics_ref: "contract-fp.md#arith"
     legality_refs: [dst_rf0]
   - id: fodiv_orrr_rf
     family: arith
-    spec_cite: "SimRISC-07 §S2D1"
+    spec_cite: "SimRISC-07: S2D1"
     semantics_ref: "contract-fp.md#arith"
     legality_refs: [dst_rf0]
   - id: forem_orrr_rf
     family: arith
-    spec_cite: "SimRISC-07 §S2D1"
+    spec_cite: "SimRISC-07: S2D1"
     semantics_ref: "contract-fp.md#arith"
     legality_refs: [dst_rf0]
   - id: fosclb_orrr_rf
     family: arith
-    spec_cite: "SimRISC-07 §S2D1"
+    spec_cite: "SimRISC-07: S2D1"
     semantics_ref: "contract-fp.md#arith"
     legality_refs: [dst_rf0]
 
   # root（2）
   - id: ftroot_orri_rf
     family: root
-    spec_cite: "SimRISC-07 §S1D1"
+    spec_cite: "SimRISC-07: S1D1"
     semantics_ref: "contract-fp.md#root"
     legality_refs: [dst_rf0, encode_fp_root_n]
   - id: foroot_orri_rf
     family: root
-    spec_cite: "SimRISC-07 §S1D1"
+    spec_cite: "SimRISC-07: S1D1"
     semantics_ref: "contract-fp.md#root"
     legality_refs: [dst_rf0, encode_fp_root_n]
 
   # sign（4）
   - id: ftsgnj_orrr_rf
     family: sign
-    spec_cite: "SimRISC-07 §浮点符号位操作指令"
+    spec_cite: "SimRISC-07: 浮点符号位操作指令"
     semantics_ref: "contract-fp.md#sign"
     legality_refs: [dst_rf0]
   - id: ftsgnn_orrr_rf
     family: sign
-    spec_cite: "SimRISC-07 §浮点符号位操作指令"
+    spec_cite: "SimRISC-07: 浮点符号位操作指令"
     semantics_ref: "contract-fp.md#sign"
     legality_refs: [dst_rf0]
   - id: fosgnj_orrr_rf
     family: sign
-    spec_cite: "SimRISC-07 §浮点符号位操作指令"
+    spec_cite: "SimRISC-07: 浮点符号位操作指令"
     semantics_ref: "contract-fp.md#sign"
     legality_refs: [dst_rf0]
   - id: fosgnn_orrr_rf
     family: sign
-    spec_cite: "SimRISC-07 §浮点符号位操作指令"
+    spec_cite: "SimRISC-07: 浮点符号位操作指令"
     semantics_ref: "contract-fp.md#sign"
     legality_refs: [dst_rf0]
 
   # compare（4）
   - id: ftqcmp_orrr_rf
     family: compare
-    spec_cite: "SimRISC-07 §浮点比较指令"
+    spec_cite: "SimRISC-07: 浮点比较指令"
     semantics_ref: "contract-fp.md#compare"
     legality_refs: [dst_rd0]
   - id: ftscmp_orrr_rf
     family: compare
-    spec_cite: "SimRISC-07 §浮点比较指令"
+    spec_cite: "SimRISC-07: 浮点比较指令"
     semantics_ref: "contract-fp.md#compare"
     legality_refs: [dst_rd0]
   - id: foqcmp_orrr_rf
     family: compare
-    spec_cite: "SimRISC-07 §浮点比较指令"
+    spec_cite: "SimRISC-07: 浮点比较指令"
     semantics_ref: "contract-fp.md#compare"
     legality_refs: [dst_rd0]
   - id: foscmp_orrr_rf
     family: compare
-    spec_cite: "SimRISC-07 §浮点比较指令"
+    spec_cite: "SimRISC-07: 浮点比较指令"
     semantics_ref: "contract-fp.md#compare"
     legality_refs: [dst_rd0]
 
   # classify（2）
   - id: ftcls_orri_rf
     family: classify
-    spec_cite: "SimRISC-07 §浮点分类指令"
+    spec_cite: "SimRISC-07: 浮点分类指令"
     semantics_ref: "contract-fp.md#classify"
     legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
   - id: focls_orri_rf
     family: classify
-    spec_cite: "SimRISC-07 §浮点分类指令"
+    spec_cite: "SimRISC-07: 浮点分类指令"
     semantics_ref: "contract-fp.md#classify"
     legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
 
   # cs_rf（5）
   - id: cs.n_rrrr_rf
     family: cs_rf
-    spec_cite: "SimRISC-02 §浮点条件赋值"
+    spec_cite: "SimRISC-02: 浮点条件赋值"
     semantics_ref: "contract-fp.md#cs_rf"
     legality_refs: [dst_rf0]
   - id: cs.z_rrrr_rf
     family: cs_rf
-    spec_cite: "SimRISC-02 §浮点条件赋值"
+    spec_cite: "SimRISC-02: 浮点条件赋值"
     semantics_ref: "contract-fp.md#cs_rf"
     legality_refs: [dst_rf0]
   - id: cs.p_rrrr_rf
     family: cs_rf
-    spec_cite: "SimRISC-02 §浮点条件赋值"
+    spec_cite: "SimRISC-02: 浮点条件赋值"
     semantics_ref: "contract-fp.md#cs_rf"
     legality_refs: [dst_rf0]
 
   # rf_mem（8）：单寄存器 ld/st 无 immu6；多寄存器 ldm/stm 有 immu6
   - id: ld.t_rrii_rf
     family: rf_mem
-    spec_cite: "SimRISC-01 §存取RF寄存器"
+    spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
     legality_refs: []
   - id: st.t_rrii_rf
     family: rf_mem
-    spec_cite: "SimRISC-01 §存取RF寄存器"
+    spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
     legality_refs: []
   - id: ld.o_rrii_rf
     family: rf_mem
-    spec_cite: "SimRISC-01 §存取RF寄存器"
+    spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
     legality_refs: []
   - id: st.o_rrii_rf
     family: rf_mem
-    spec_cite: "SimRISC-01 §存取RF寄存器"
+    spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
     legality_refs: []
   - id: ldm.t_rrri_rf
     family: rf_mem
-    spec_cite: "SimRISC-01 §存取RF寄存器"
+    spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
     legality_refs: [mreg_zero, mreg_range_overflow]
   - id: stm.t_rrri_rf
     family: rf_mem
-    spec_cite: "SimRISC-01 §存取RF寄存器"
+    spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
     legality_refs: [mreg_zero, mreg_range_overflow]
   - id: ldm.o_rrri_rf
     family: rf_mem
-    spec_cite: "SimRISC-01 §存取RF寄存器"
+    spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
     legality_refs: [mreg_zero, mreg_range_overflow]
   - id: stm.o_rrri_rf
     family: rf_mem
-    spec_cite: "SimRISC-01 §存取RF寄存器"
+    spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
     legality_refs: [mreg_zero, mreg_range_overflow]
 
   # rf_move（2）
   - id: rd2rf_orri_rf
     family: rf_move
-    spec_cite: "SimRISC-02 §寄存器组之间块赋值"
+    spec_cite: "SimRISC-02: 寄存器组之间块赋值"
     semantics_ref: "contract-fp.md#rf_move"
     legality_refs: [mreg_zero, mreg_range_overflow]
   - id: rf2rd_orri_rf
     family: rf_move
-    spec_cite: "SimRISC-02 §寄存器组之间块赋值"
+    spec_cite: "SimRISC-02: 寄存器组之间块赋值"
     semantics_ref: "contract-fp.md#rf_move"
     legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
 
   # set_w_rf（1）
   - id: set.w_rwii_rf
     family: set_w_rf
-    spec_cite: "SimRISC-03 §立即数常数赋值：Immediate constant"
+    spec_cite: "SimRISC-03: 立即数常数赋值：Immediate constant"
     semantics_ref: "contract-fp.md#set_w_rf"
     legality_refs: []
 
   # roundint（2，SPEC-162t）
   - id: ftrnd_orri_rf
     family: roundint
-    spec_cite: "SimRISC-07 §取整（roundToIntegral）"
+    spec_cite: "SimRISC-07: 取整（roundToIntegral）"
     semantics_ref: "contract-fp.md#roundint"
     legality_refs: [dst_rf0, encode_onehot]
   - id: fornd_orri_rf
     family: roundint
-    spec_cite: "SimRISC-07 §取整（roundToIntegral）"
+    spec_cite: "SimRISC-07: 取整（roundToIntegral）"
     semantics_ref: "contract-fp.md#roundint"
     legality_refs: [dst_rf0, encode_onehot]
 
   # minmax（4，SPEC-160t）
   - id: ftmin_orrr_rf
     family: minmax
-    spec_cite: "SimRISC-07 §最小最大值（minimumNumber / maximumNumber）"
+    spec_cite: "SimRISC-07: 最小最大值（minimumNumber / maximumNumber）"
     semantics_ref: "contract-fp.md#minmax"
     legality_refs: [dst_rf0]
   - id: ftmax_orrr_rf
     family: minmax
-    spec_cite: "SimRISC-07 §最小最大值（minimumNumber / maximumNumber）"
+    spec_cite: "SimRISC-07: 最小最大值（minimumNumber / maximumNumber）"
     semantics_ref: "contract-fp.md#minmax"
     legality_refs: [dst_rf0]
   - id: fomin_orrr_rf
     family: minmax
-    spec_cite: "SimRISC-07 §最小最大值（minimumNumber / maximumNumber）"
+    spec_cite: "SimRISC-07: 最小最大值（minimumNumber / maximumNumber）"
     semantics_ref: "contract-fp.md#minmax"
     legality_refs: [dst_rf0]
   - id: fomax_orrr_rf
     family: minmax
-    spec_cite: "SimRISC-07 §最小最大值（minimumNumber / maximumNumber）"
+    spec_cite: "SimRISC-07: 最小最大值（minimumNumber / maximumNumber）"
     semantics_ref: "contract-fp.md#minmax"
     legality_refs: [dst_rf0]

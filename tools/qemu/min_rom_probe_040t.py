@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Min ROM probe for QEMU-040t: `sub.o rdhb, rbhc, rbhd` (RB − RB → RD) semantics.
 
-Spec: ADR-0012 D9.1 / SimRISC-05 §加减操作.
+Spec: ADR-0012 D9.1 / SimRISC-05: 加减操作.
 Encoding (contracts/opcodes.yaml): op=0x40, ha=0x33, mask=0xFFFC0000, value=0x40CC0000.
 Semantics: rdhb = rbhc − rbhd (full 64-bit two's-complement). ILLI: rdhb == rd0.
 Exit codes (ADR-0004 D5.8): ILLI = 0x88 (136), UNDI = 0x89 (137).

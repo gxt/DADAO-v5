@@ -2,10 +2,10 @@
 """Min ROM probe for QEMU-034t: FP execution-layer base + RF data-movement family.
 
 Spec sources (expectations are derived by hand from these, never from QEMU):
-  - spec/SimRISC-00 §浮点寄存器 / §浮点状态寄存器
-  - spec/SimRISC-01 §存取RF寄存器
-  - spec/SimRISC-02 §寄存器组之间块赋值 / §浮点条件赋值
-  - spec/SimRISC-03 §立即数常数赋值：Immediate constant
+  - spec/SimRISC-00: 浮点寄存器 / 浮点状态寄存器
+  - spec/SimRISC-01: 存取RF寄存器
+  - spec/SimRISC-02: 寄存器组之间块赋值 / 浮点条件赋值
+  - spec/SimRISC-03: 立即数常数赋值：Immediate constant
   - .tao/contracts/contract-fp.md §1 / §10 / §11 / §12 / §13
 Encodings: contracts/opcodes.yaml.
 Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0x88, MALIGN=0x8C).
@@ -48,7 +48,7 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 
 ROM_BASE = 0xFFFFFFFF0000
 
-# FCSR reset value (target/dadao/cpu.h::DADAO_RESET_RF0, SimRISC-00 §浮点状态寄存器)
+# FCSR reset value (target/dadao/cpu.h::DADAO_RESET_RF0, SimRISC-00: 浮点状态寄存器)
 RESET0 = 0x7FF800007FC00000
 # FCSR write mask: [33:32] rounding mode + [4:0] exception status
 FCSR_MASK = 0x000000030000001F

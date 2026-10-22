@@ -52,8 +52,8 @@ TARGET_BOUNDARY_RIII = "0x%012X" % ((RB0 + (_imm18_s << 2)) & 0xFFFFFFFFFFFF)
 _imm12_s = IMM_BOUNDARY_RRII - (1 << 12) if IMM_BOUNDARY_RRII & (1 << 11) else IMM_BOUNDARY_RRII
 TARGET_BOUNDARY_RRII = "0x%012X" % ((RB0 + (_imm12_s << 2)) & 0xFFFFFFFFFFFF)
 
-SPEC_CITE_RD = "SimRISC-06 §条件跳转指令; ADR-0004 D6.5"
-SPEC_CITE_RB = "SimRISC-06 §条件跳转指令; ADR-0004 D6.5"
+SPEC_CITE_RD = "SimRISC-06: 条件跳转指令; ADR-0004 D6.5"
+SPEC_CITE_RB = "SimRISC-06: 条件跳转指令; ADR-0004 D6.5"
 
 # ── Encoding word builders ────────────────────────────────────────────
 def _build_word_riii(op, ha, imm18):
@@ -299,7 +299,7 @@ def _gen_boundary_riii(identity, mnem, op, is_rb):
     """Generate boundary case for riii branch: target in unmapped address → UNMAPPED.
     Condition must be TRUE so the branch is TAKEN and reaches the unmapped target."""
     cases = []
-    sc = "SimRISC-06 §条件跳转指令; ADR-0004 D5"
+    sc = "SimRISC-06: 条件跳转指令; ADR-0004 D5"
     if is_rb:
         reg = 3
         word = _build_word_riii(op, reg, IMM_BOUNDARY_RIII)
@@ -344,7 +344,7 @@ def _gen_boundary_riii(identity, mnem, op, is_rb):
 def _gen_boundary_rrii(identity, mnem, op):
     """Generate boundary case for rrii branch: target in unmapped address → UNMAPPED."""
     cases = []
-    sc = "SimRISC-06 §条件跳转指令; ADR-0004 D5"
+    sc = "SimRISC-06: 条件跳转指令; ADR-0004 D5"
     # br.eq/br.ne: rdha=1, rdhb=1 → br.eq taken (equal), br.ne not-taken
     # Use rdha=1, rdhb=1 → br.eq always taken, br.ne always not-taken
     # For boundary, we need taken → use rdha=1, rdhb=1 for br.eq; rdha=1, rdhb=2 for br.ne

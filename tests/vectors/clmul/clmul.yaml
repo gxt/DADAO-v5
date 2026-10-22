@@ -16,7 +16,7 @@
   input_state: {}
   mnemonic: clmul.o
   notes: 'encoding: op=0x56, fields rd1/rd2/rd3/rd4 legal; no ILLI'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: boundary
   deferred_reason: null
@@ -45,7 +45,7 @@
   mnemonic: clmul.o
   notes: 'clmul.o: rd3=0x0000000000000000 rd4=0x0000000000000000 -> hi=0x0000000000000000 lo=0x0000000000000000 (GF(2), no
     carries)'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: boundary
   deferred_reason: null
@@ -74,7 +74,7 @@
   mnemonic: clmul.o
   notes: 'clmul.o: rd3=0x0000000000000000 rd4=0xFFFFFFFFFFFFFFFF -> hi=0x0000000000000000 lo=0x0000000000000000 (GF(2), no
     carries)'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: boundary
   deferred_reason: null
@@ -103,7 +103,7 @@
   mnemonic: clmul.o
   notes: 'clmul.o: rd3=0x0000000000000001 rd4=0xA5C396F1DEADBEEF -> hi=0x0000000000000000 lo=0xA5C396F1DEADBEEF (GF(2), no
     carries)'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: boundary
   deferred_reason: null
@@ -132,7 +132,7 @@
   mnemonic: clmul.o
   notes: 'clmul.o: rd3=0x0000000000000001 rd4=0x8000000000000000 -> hi=0x0000000000000000 lo=0x8000000000000000 (GF(2), no
     carries)'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -161,7 +161,7 @@
   mnemonic: clmul.o
   notes: 'clmul.o: rd3=0x8000000000000000 rd4=0x8000000000000000 -> hi=0x4000000000000000 lo=0x0000000000000000 (GF(2), no
     carries)'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: boundary
   deferred_reason: null
@@ -190,7 +190,7 @@
   mnemonic: clmul.o
   notes: 'clmul.o: rd3=0xFFFFFFFFFFFFFFFF rd4=0xFFFFFFFFFFFFFFFF -> hi=0x5555555555555555 lo=0x5555555555555555 (GF(2), no
     carries)'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: boundary
   deferred_reason: null
@@ -219,7 +219,7 @@
   mnemonic: clmul.o
   notes: 'clmul.o: rd3=0x8000000000000000 rd4=0xFFFFFFFFFFFFFFFF -> hi=0x7FFFFFFFFFFFFFFF lo=0x8000000000000000 (GF(2), no
     carries)'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: boundary
   deferred_reason: null
@@ -248,7 +248,7 @@
   mnemonic: clmul.o
   notes: 'clmul.o: rd3=0xFFFFFFFFFFFFFFFF rd4=0x0123456789ABCDEF -> hi=0x00E13CDD789944A5 lo=0x00E13CDD789944A5 (GF(2), no
     carries)'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -276,7 +276,7 @@
       rd4: '0x6A11AF6271A240DF'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xE0C2EB3BF5679582 rd4=0x6A11AF6271A240DF -> hi=0x22E1F032C3C94BEC lo=0x5C9E0CB300783D3E'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -304,7 +304,7 @@
       rd4: '0xCC8977404FEDF8CA'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x54076FAF1FE0B2F5 rd4=0xCC8977404FEDF8CA -> hi=0x3CDAA60C0ADA7122 lo=0xD8AE9BE9F179AD82'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -332,7 +332,7 @@
       rd4: '0x7B64055E21C31567'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xA3C18D89F5D22C00 rd4=0x7B64055E21C31567 -> hi=0x327001AD25AD4B9D lo=0xAA6F1EC6CBAC4400'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -360,7 +360,7 @@
       rd4: '0x7A819AE0123635AB'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xDECC5AFB522DB886 rd4=0x7A819AE0123635AB -> hi=0x26A27F4F12CE67F5 lo=0xFAEEF651A406607A'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -388,7 +388,7 @@
       rd4: '0x0C982FF44F241119'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x84ADFA4D466D53BE rd4=0x0C982FF44F241119 -> hi=0x0679F620089CF23F lo=0x4CD2C55CD882ABAE'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -416,7 +416,7 @@
       rd4: '0x795B4AB3A1FF6C49'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xFB3103FB13E3342C rd4=0x795B4AB3A1FF6C49 -> hi=0x290C5AA666C15045 lo=0xA8AD7592112CCE4C'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -444,7 +444,7 @@
       rd4: '0x9799201AB09073AD'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x9069B01692868E8F rd4=0x9799201AB09073AD -> hi=0x42866C7CBB6D998D lo=0x28A629CAF14717AB'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -472,7 +472,7 @@
       rd4: '0x3B8C7399EA868FBD'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x4DEE9059D6353369 rd4=0x3B8C7399EA868FBD -> hi=0x0FFFCD54F55D1A2F lo=0xF991E6DD5E655DB5'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -500,7 +500,7 @@
       rd4: '0x881412A6B7597C25'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x999AD66CE600386A rd4=0x881412A6B7597C25 -> hi=0x480A4AB54D683441 lo=0x2C7A0EEC24AE4C82'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -528,7 +528,7 @@
       rd4: '0x5D3AC5E3F23C6355'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x4A7CADC232EC9975 rd4=0x5D3AC5E3F23C6355 -> hi=0x15079367DC3E8644 lo=0x0393FFCB21E549B1'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -556,7 +556,7 @@
       rd4: '0x770754B3453795ED'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x937A64B6324F0A40 rd4=0x770754B3453795ED -> hi=0x3C7DC35FB4D955C5 lo=0xAB16B6FB09CAC940'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -584,7 +584,7 @@
       rd4: '0x1FF7DF6EF4C9CB1D'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xDB31A3CC3C100954 rd4=0x1FF7DF6EF4C9CB1D -> hi=0x0924D15CA03CDB7C lo=0x5C1DF3DD778AAFE4'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -612,7 +612,7 @@
       rd4: '0x26B1FB8E6403797C'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x8A1577F088674956 rd4=0x26B1FB8E6403797C -> hi=0x1222C979E0B31138 lo=0x3D21509220FB43C8'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -640,7 +640,7 @@
       rd4: '0xC0C97C7B4A6B162C'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x325F12F0C5565190 rd4=0xC0C97C7B4A6B162C -> hi=0x15AC5D84716E396D lo=0x598A4DFA8DED98C0'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -668,7 +668,7 @@
       rd4: '0xE005A147FA68972F'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x865D8E3A4E11F515 rd4=0xE005A147FA68972F -> hi=0x7270D93E1B2603A0 lo=0xD846BFA6359C7A63'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -696,7 +696,7 @@
       rd4: '0xE8AE1FD819484878'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x3BA5D95B408BE906 rd4=0xE8AE1FD819484878 -> hi=0x1589EF6B0D505874 lo=0xDF283CB4C5DF0910'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -724,7 +724,7 @@
       rd4: '0x1C66E708C67D684F'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xC117326B8F58A911 rd4=0x1C66E708C67D684F -> hi=0x09373D89BCF45502 lo=0x8BCC2A12EEE7BBBF'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -752,7 +752,7 @@
       rd4: '0xAFD8696B9E607A93'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x35D65976834C45D8 rd4=0xAFD8696B9E607A93 -> hi=0x1D6311E3C0BB5F6A lo=0xA4942412ED078FE8'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -780,7 +780,7 @@
       rd4: '0x616F335DE0A8D1AF'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xDA99FCA4439C253C rd4=0x616F335DE0A8D1AF -> hi=0x2D06EAA8B25358B2 lo=0x38D6BB48BE6417D4'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -808,7 +808,7 @@
       rd4: '0x42CA240FA0009F4F'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x93CC4AC7837FA144 rd4=0x42CA240FA0009F4F -> hi=0x25BC36D8F8A0CD86 lo=0xEB2E18E765B181FC'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -836,7 +836,7 @@
       rd4: '0xE8CCC84096421D51'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x957FA2B0A41207F3 rd4=0xE8CCC84096421D51 -> hi=0x798D45E35A29ED21 lo=0x820CFF3562CD1303'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -864,7 +864,7 @@
       rd4: '0xF1FD43C9B519B187'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x9A1F08D7315E6DF4 rd4=0xF1FD43C9B519B187 -> hi=0x7187274BC69B8F1E lo=0x5BDA8643434FCFCC'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -892,7 +892,7 @@
       rd4: '0x1A671C5532E0BE42'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x44DAD557780F76AD rd4=0x1A671C5532E0BE42 -> hi=0x06FABAD2874246E8 lo=0x3F43F0750BC8301A'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -920,7 +920,7 @@
       rd4: '0x889451BB253A264C'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xF1657F7B0647E967 rd4=0x889451BB253A264C -> hi=0x7F4DC6EA8C5450DF lo=0x41EE3BFAEFE70564'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -948,7 +948,7 @@
       rd4: '0xE05F3F32EF921DFF'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xB9C252A3EB574A39 rd4=0xE05F3F32EF921DFF -> hi=0x658AE21B5E057015 lo=0x12BD4D5E03065417'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -976,7 +976,7 @@
       rd4: '0xFA822D692EE02D8C'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x7BE6E1CDDD17CE72 rd4=0xFA822D692EE02D8C -> hi=0x28DD89E595E97D48 lo=0x6C269E838F8C1958'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1004,7 +1004,7 @@
       rd4: '0x6BFB039592FD1833'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x2152654EADFA9B1C rd4=0x6BFB039592FD1833 -> hi=0x0D081BAAA87D5B4C lo=0x8685A62CA7505F64'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1032,7 +1032,7 @@
       rd4: '0xD815446CE5FFD3A7'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x3DA1EC418FCA3F30 rd4=0xD815446CE5FFD3A7 -> hi=0x138C823904760F96 lo=0xB1044A2B2BD89390'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1060,7 +1060,7 @@
       rd4: '0x54B4A990E9F77431'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x6739D686F0BA2DA6 rd4=0x54B4A990E9F77431 -> hi=0x1E19A7288578CC3C lo=0x0B8228B5AABEFB06'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1088,7 +1088,7 @@
       rd4: '0xCCECF243C75C7786'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x8FFEABB87C7515AB rd4=0xCCECF243C75C7786 -> hi=0x623333D980BBBC2F lo=0x17BF450C14DDE97A'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1116,7 +1116,7 @@
       rd4: '0x6026BDA22D63E242'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x3944380D77E2B8E8 rd4=0x6026BDA22D63E242 -> hi=0x097E2F0E313E06AF lo=0xB93807D291719BD0'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1144,7 +1144,7 @@
       rd4: '0xC35D00D7043406C6'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xA406E9D82185B429 rd4=0xC35D00D7043406C6 -> hi=0x7ACA902CA70E3977 lo=0xC4ADD6A9C8065036'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1172,7 +1172,7 @@
       rd4: '0xEB10C2523F8186BB'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x91232B20249F18AC rd4=0xEB10C2523F8186BB -> hi=0x7BCE39FDB1002256 lo=0x5362247B386ECDD4'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1200,7 +1200,7 @@
       rd4: '0x8957A2566ECB7F37'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x5976DD857F5AE994 rd4=0x8957A2566ECB7F37 -> hi=0x2E3BCD5CE3C8F9FA lo=0xC5CEA18CF975BB2C'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1228,7 +1228,7 @@
       rd4: '0xA8746E808DF3EF62'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x351C14EDBE0E5F3D rd4=0xA8746E808DF3EF62 -> hi=0x1D8D039204279055 lo=0x9E0570CC1165AD9A'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1256,7 +1256,7 @@
       rd4: '0x06CFC7573F080A3C'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x139CF56976FEF841 rd4=0x06CFC7573F080A3C -> hi=0x0064881FCE29F34D lo=0x36F7EECAEB06253C'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1284,7 +1284,7 @@
       rd4: '0x891C6550BBB8FA0F'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xDB0A1975A53693D4 rd4=0x891C6550BBB8FA0F -> hi=0x6B8E7C9EDA82F7A8 lo=0x2ED60024F2B4AD8C'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1312,7 +1312,7 @@
       rd4: '0xF5EECA221D163470'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x39E95C15021E94FD rd4=0xF5EECA221D163470 -> hi=0x16E7F0BAF875836F lo=0xA969D201A0C36B30'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1340,7 +1340,7 @@
       rd4: '0xAE5AB85E9182C362'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xFE9A46F1F251B9BC rd4=0xAE5AB85E9182C362 -> hi=0x655BCA62D4B28D78 lo=0xA7FD2E20ABF9EFF8'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1368,7 +1368,7 @@
       rd4: '0xE320C4611B789DEC'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x84A58E4BCB91D350 rd4=0xE320C4611B789DEC -> hi=0x72720E057D5D8EE7 lo=0xB6952980E17751C0'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1396,7 +1396,7 @@
       rd4: '0x3C7E3FA6B7DF46A8'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x8DD33DA74289FDC3 rd4=0x3C7E3FA6B7DF46A8 -> hi=0x1F03CE618BA7EC27 lo=0x16B329AC81D3FDF8'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1424,7 +1424,7 @@
       rd4: '0x1879C630DF80BADB'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x2586F12EA0A70F53 rd4=0x1879C630DF80BADB -> hi=0x037AC35EB9B52879 lo=0xEC0E8D140CB70D1D'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1452,7 +1452,7 @@
       rd4: '0x345FFD7DF900CF83'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xE74A5B0345D95C0A rd4=0x345FFD7DF900CF83 -> hi=0x1132B3AF4C06C137 lo=0x07AFC42225B6071E'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1480,7 +1480,7 @@
       rd4: '0x2BA51DE31E01C2AD'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x608FBB6F0E19E629 rd4=0x2BA51DE31E01C2AD -> hi=0x0F89AA2A4334583E lo=0x05BAE2DEF8050C65'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1508,7 +1508,7 @@
       rd4: '0x5EA01870788F82F6'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x8528E64578E6B9A9 rd4=0x5EA01870788F82F6 -> hi=0x2E7D3FBF1E5D00CB lo=0x41009827D6295686'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1536,7 +1536,7 @@
       rd4: '0x4828DA31CC5AF432'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xC0E0932B558FCC88 rd4=0x4828DA31CC5AF432 -> hi=0x3621609155A18EE0 lo=0x293551C41AC76090'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1564,7 +1564,7 @@
       rd4: '0xD7364A8074CC3D91'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xF5986A281F4F5351 rd4=0xD7364A8074CC3D91 -> hi=0x4A288CABC08D0C0D lo=0xD793515FC4C463C1'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1592,7 +1592,7 @@
       rd4: '0x3A18819124F8BC4A'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x9CCC386F9BF560E9 rd4=0x3A18819124F8BC4A -> hi=0x1F87D9271B2DF34D lo=0x74FABE10FFC220DA'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1620,7 +1620,7 @@
       rd4: '0x4F8EA704A43BD455'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x697BA76636631044 rd4=0x4F8EA704A43BD455 -> hi=0x183DEF0C8D2C984F lo=0x4132C093CE401414'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1648,7 +1648,7 @@
       rd4: '0x084780EDA946887A'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xD0D902D99D535AA3 rd4=0x084780EDA946887A -> hi=0x06B0A476D76E4680 lo=0xD35A0D51E03AAECE'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1676,7 +1676,7 @@
       rd4: '0x66475B90E21494A5'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x20CB44FC1FE3874B rd4=0x66475B90E21494A5 -> hi=0x0CE1D9D07A367C44 lo=0x792AB8E6C78ECA87'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1704,7 +1704,7 @@
       rd4: '0x9EDE493EB1C1ED4B'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x1B6DA99C21A2BE7D rd4=0x9EDE493EB1C1ED4B -> hi=0x0C8A5393CCE00BB0 lo=0x22B0D2060F3AAF2F'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1732,7 +1732,7 @@
       rd4: '0x1FFD44534DDBBA14'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xEEA9EE7A3C39656A rd4=0x1FFD44534DDBBA14 -> hi=0x0B4D54552B57AE8E lo=0xCD743068AD12A708'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1760,7 +1760,7 @@
       rd4: '0xDC9689D7B41C082F'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x5E8939334CE6132F rd4=0xDC9689D7B41C082F -> hi=0x3EAB6A80617FDDCC lo=0x7BB8B234E6EDFD55'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1788,7 +1788,7 @@
       rd4: '0xA5832F9166F13CA2'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x6437C6656CF85F6D rd4=0xA5832F9166F13CA2 -> hi=0x3F5B4A357AD3DC0E lo=0x8FA390D3309449FA'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1816,7 +1816,7 @@
       rd4: '0x106E2A8128C08070'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xFE86C1A7E232CB6D rd4=0x106E2A8128C08070 -> hi=0x0FCDF7F4EDF05625 lo=0x5798836F29B18030'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1844,7 +1844,7 @@
       rd4: '0x04FEE0A2F53FD6DD'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x9FF8B55D4A2E8433 rd4=0x04FEE0A2F53FD6DD -> hi=0x020A24494A97AF39 lo=0x2152322476F43917'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1872,7 +1872,7 @@
       rd4: '0xD8EDE2C6AE1F1728'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xC5978A93035646AF rd4=0xD8EDE2C6AE1F1728 -> hi=0x59954A75160B6B10 lo=0x70F8D132C3045D98'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1900,7 +1900,7 @@
       rd4: '0x85D034B31B2CF455'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0xF03AC1B261786997 rd4=0x85D034B31B2CF455 -> hi=0x7B66B3CEFAAE684B lo=0x9DF0C17340A2BF7B'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1928,7 +1928,7 @@
       rd4: '0xCFD6515B13BCEF15'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x6C3265F003AD1860 rd4=0xCFD6515B13BCEF15 -> hi=0x2F5A040F477F6217 lo=0x68404543CDE6DFE0'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1956,7 +1956,7 @@
       rd4: '0x75E6C36E276651F1'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x21FF9CFF943039D4 rd4=0x75E6C36E276651F1 -> hi=0x0EE58FB4DC0BB1F8 lo=0xE24963E60F8F9514'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1984,7 +1984,7 @@
       rd4: '0x735EA5F4E7251D79'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x0C793A390ECB10B7 rd4=0x735EA5F4E7251D79 -> hi=0x0241E5ACA19A88DC lo=0xBC26953610D3065F'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -2012,7 +2012,7 @@
       rd4: '0x1733EB9AD87D1134'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x0443FCE01463788B rd4=0x1733EB9AD87D1134 -> hi=0x005937291F31AE22 lo=0x73F727F782CA40FC'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -2040,7 +2040,7 @@
       rd4: '0x77CDBBBA472954C7'
   mnemonic: clmul.o
   notes: 'clmul.o random (seed 0xc1a0): rd3=0x6D255BB023DD505B rd4=0x77CDBBBA472954C7 -> hi=0x111307C699E1BBFA lo=0x346818489E5F96C1'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -2067,7 +2067,7 @@
       rd4: '0xFEDCBA9876543210'
   mnemonic: clmul.o
   notes: 'clmul.o {rd0,rd5},rd3,rd4: high half discarded, rd5=lo=0x40A0789828C810F0; sentinel rd1 unchanged'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -2094,7 +2094,7 @@
       rd4: '0x0000000000000003'
   mnemonic: clmul.o
   notes: 'clmul.o {rd0,rd5},rd3,rd4: high half discarded, rd5=lo=0x8000000000000000; sentinel rd1 unchanged'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -2121,7 +2121,7 @@
       rd4: '0xFEDCBA9876543210'
   mnemonic: clmul.o
   notes: 'clmul.o {rd5,rd0},rd3,rd4: low half discarded, rd5=hi=0x00E038D8688850B0; sentinel rd1 unchanged'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: semantic
   deferred_reason: null
@@ -2148,7 +2148,7 @@
       rd4: '0x0000000000000003'
   mnemonic: clmul.o
   notes: 'clmul.o {rd5,rd0},rd3,rd4: low half discarded, rd5=hi=0x0000000000000001; sentinel rd1 unchanged'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: overlap
   deferred_reason: null
@@ -2175,7 +2175,7 @@
       rd4: '0xFEDCBA9876543210'
   mnemonic: clmul.o
   notes: 'clmul.o {rd1,rd2},rd1,rd4: high dest == source rd1; sources read before write -> hi=0x00E038D8688850B0 lo=0x40A0789828C810F0'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: overlap
   deferred_reason: null
@@ -2202,7 +2202,7 @@
       rd3: '0x0123456789ABCDEF'
   mnemonic: clmul.o
   notes: 'clmul.o {rd1,rd2},rd3,rd1: low dest == source rd1; sources read before write -> hi=0x00E038D8688850B0 lo=0x40A0789828C810F0'
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: legality
   deferred_reason: null
@@ -2216,7 +2216,7 @@
   input_state: {}
   mnemonic: clmul.o
   notes: clmul.o {rd0,rd0},rd3,rd4 -> ILLI (both destinations rd0)
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active
 - class: legality
   deferred_reason: null
@@ -2230,5 +2230,5 @@
   input_state: {}
   mnemonic: clmul.o
   notes: clmul.o {rd5,rd5},rd3,rd4 -> ILLI (same non-rd0 destination)
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: 无进位乘法'
   status: active

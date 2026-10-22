@@ -1,7 +1,7 @@
 # SimRISC待定指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：待定**（2 条）— cfxld/cfxst
+> **分类：待定** — cfxld/cfxst
 
 ## 1. SRAM块传输指令
 

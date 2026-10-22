@@ -9,7 +9,7 @@ What this driver does NOT do
 ----------------------------
 * It never invents an expectation: the C probes print raw observations only
   (``in``/``out``/``pre``/``post`` bit patterns); every expected value comes
-  from ``oracle_rnd.py``, which derives it from ``spec/SimRISC-07 §2.3`` +
+  from ``oracle_rnd.py``, which derives it from ``spec/SimRISC-07: 取整（roundToIntegral）`` +
   ``contract-fp.md §18`` with exact ``Fraction`` arithmetic.
 * It never reads a value back from QEMU/LLVM to build an expectation: the
   disassembly check only asserts *which* instruction the backend selected and

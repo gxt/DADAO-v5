@@ -17,7 +17,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-11 §占位指令
+  spec_cite: 'SimRISC-11: 占位指令'
   notes: 'encoding: swym 0 (nop), word=0x77880000; opcodes.yaml mask=0xFFFC0000 value=0x77880000; no fault, no architectural
     state change'
 - mnemonic: swym
@@ -32,5 +32,5 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-11 §占位指令
+  spec_cite: 'SimRISC-11: 占位指令'
   notes: 'semantic: swym 0 (nop); 除 PC 自增外无任何架构副作用（§7.1）; expected_state={}: no registers/memory changed'

@@ -7,7 +7,10 @@
 3. 同册内编号全局唯一；
 4. 层级连续：每个父节下的子号自 1 起、逐一递增（含根：正文自 `## 1.` 起）；
 5. **父节存在（层级逐级）**：每个 ≥3 级标题的父号须作为其上一级（`L-1`）标题出现
-   （禁 `##` 直挂 `####` 的"孤儿父节"）。
+   （禁 `##` 直挂 `####` 的"孤儿父节"）；
+5b. **单包装层（SPEC-166t）**：正文 `##` 恰 1 个、且其下 `###` ≥2 ⇒ 该 `##` 是纯包装层
+   （册名已表明分类，无再套一级的必要）⇒ FAIL。判据只认**结构**，不看标题文字；
+   计数现场统计（不写死册名）。
 
 结构尾段断言（SPEC-165t）：
 6. 尾段 = 三个**无编号**二级段：`## 附录 A：汇编指令速查`、`## 附录 B：合法性检查`、
@@ -119,6 +122,18 @@ def check_body(p: Path, lines: list[str], end: int, errors: list[str], stats: di
                 f"（无 {lvl-1} 级标题 {up}；禁跳级）"
             )
 
+    # 单包装层（SPEC-166t）：正文 `##` 恰 1 个且其下 `###` ≥2
+    h2 = [(num, ln) for lvl, num, ln in seq if lvl == 2]
+    if len(h2) == 1:
+        root = h2[0][0]
+        kids = [(_n, _ln) for lvl, _n, _ln in seq if lvl == 3 and _n[:-1] == root]
+        if len(kids) >= 2:
+            stats["wrapper"] += 1
+            errors.append(
+                f"{p.name}:L{h2[0][1]}: 单包装层：正文仅 1 个 `## {'.'.join(map(str,root))}.`，"
+                f"其下却有 {len(kids)} 个 `###`（应删包装层，把 `###` 升为 `##`）"
+            )
+
 
 def check_tail(p: Path, lines: list[str], tail: list[str], errors: list[str], stats: dict) -> None:
     is_simrisc = p.name.startswith("SimRISC-")
@@ -169,7 +184,7 @@ def check_tail(p: Path, lines: list[str], tail: list[str], errors: list[str], st
 def main():
     files = lock_paths()
     errors: list[str] = []
-    stats = {"h2": 0, "h3": 0, "h4": 0, "h5plus": 0,
+    stats = {"h2": 0, "h3": 0, "h4": 0, "h5plus": 0, "wrapper": 0,
              "with_a": 0, "with_b": 0, "changelog": 0}
     for p in files:
         lines = p.read_text(encoding="utf-8").splitlines()
@@ -179,14 +194,14 @@ def main():
 
     total = stats["h2"] + stats["h3"] + stats["h4"]
     print(f"files={len(files)}  h2={stats['h2']}  h3={stats['h3']}  h4={stats['h4']}  "
-          f"h5+={stats['h5plus']}  total={total}  appendixA={stats['with_a']}  "
+          f"h5+={stats['h5plus']}  wrapper={stats['wrapper']}  total={total}  appendixA={stats['with_a']}  "
           f"appendixB={stats['with_b']}  changelog={stats['changelog']}")
     if errors:
         print(f"check-numbering: FAIL ({len(errors)} violation(s))")
         for e in errors:
             print("  " + e)
         return 1
-    print("check-numbering: PASS (正文编号唯一连续、父节逐级、深度 ≤ 4；附录 A→B 顺序、"
+    print("check-numbering: PASS (正文编号唯一连续、父节逐级、无单包装层、深度 ≤ 4；附录 A→B 顺序、"
           "变更记录仅 SimRISC-00 且为末段)")
     return 0
 

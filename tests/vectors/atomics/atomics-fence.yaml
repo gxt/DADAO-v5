@@ -30,7 +30,7 @@
   mnemonic: fence
   notes: 'fence fm=0 pred=0x00 succ=0x00 (noop (pred=succ=0)): legal, no architecture state changes (bar ordering itself is
     asserted by the evidence script via -d op; pred=succ=0 emits no barrier at all)'
-  spec_cite: SimRISC-11 §4.1
+  spec_cite: 'SimRISC-11: fence指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -55,7 +55,7 @@
   mnemonic: fence
   notes: 'fence fm=0 pred=0x00 succ=0x01 (succ-only R): legal, no architecture state changes (bar ordering itself is asserted
     by the evidence script via -d op; pred=succ=0 emits no barrier at all)'
-  spec_cite: SimRISC-11 §4.1
+  spec_cite: 'SimRISC-11: fence指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -80,7 +80,7 @@
   mnemonic: fence
   notes: 'fence fm=0 pred=0x01 succ=0x00 (pred-only R): legal, no architecture state changes (bar ordering itself is asserted
     by the evidence script via -d op; pred=succ=0 emits no barrier at all)'
-  spec_cite: SimRISC-11 §4.1
+  spec_cite: 'SimRISC-11: fence指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -105,7 +105,7 @@
   mnemonic: fence
   notes: 'fence fm=0 pred=0x01 succ=0x01 (R->R): legal, no architecture state changes (bar ordering itself is asserted by
     the evidence script via -d op; pred=succ=0 emits no barrier at all)'
-  spec_cite: SimRISC-11 §4.1
+  spec_cite: 'SimRISC-11: fence指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -130,7 +130,7 @@
   mnemonic: fence
   notes: 'fence fm=0 pred=0x02 succ=0x02 (W->W): legal, no architecture state changes (bar ordering itself is asserted by
     the evidence script via -d op; pred=succ=0 emits no barrier at all)'
-  spec_cite: SimRISC-11 §4.1
+  spec_cite: 'SimRISC-11: fence指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -155,7 +155,7 @@
   mnemonic: fence
   notes: 'fence fm=0 pred=0x01 succ=0x02 (R->W): legal, no architecture state changes (bar ordering itself is asserted by
     the evidence script via -d op; pred=succ=0 emits no barrier at all)'
-  spec_cite: SimRISC-11 §4.1
+  spec_cite: 'SimRISC-11: fence指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -180,7 +180,7 @@
   mnemonic: fence
   notes: 'fence fm=0 pred=0x02 succ=0x01 (W->R): legal, no architecture state changes (bar ordering itself is asserted by
     the evidence script via -d op; pred=succ=0 emits no barrier at all)'
-  spec_cite: SimRISC-11 §4.1
+  spec_cite: 'SimRISC-11: fence指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -205,7 +205,7 @@
   mnemonic: fence
   notes: 'fence fm=0 pred=0x03 succ=0x03 (R|W->R|W): legal, no architecture state changes (bar ordering itself is asserted
     by the evidence script via -d op; pred=succ=0 emits no barrier at all)'
-  spec_cite: SimRISC-11 §4.1
+  spec_cite: 'SimRISC-11: fence指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -230,7 +230,7 @@
   mnemonic: fence
   notes: 'fence fm=0 pred=0x01 succ=0x03 (acquire (R -> R|W, LLVM 0x043)): legal, no architecture state changes (bar ordering
     itself is asserted by the evidence script via -d op; pred=succ=0 emits no barrier at all)'
-  spec_cite: SimRISC-11 §4.1
+  spec_cite: 'SimRISC-11: fence指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -255,7 +255,7 @@
   mnemonic: fence
   notes: 'fence fm=0 pred=0x03 succ=0x02 (release (R|W -> W, LLVM 0x0C2)): legal, no architecture state changes (bar ordering
     itself is asserted by the evidence script via -d op; pred=succ=0 emits no barrier at all)'
-  spec_cite: SimRISC-11 §4.1
+  spec_cite: 'SimRISC-11: fence指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -280,7 +280,7 @@
   mnemonic: fence
   notes: 'fence fm=0 pred=0x0F succ=0x0F (acq_rel (R|W|I|O -> R|W|I|O, LLVM 0x3CF)): legal, no architecture state changes
     (bar ordering itself is asserted by the evidence script via -d op; pred=succ=0 emits no barrier at all)'
-  spec_cite: SimRISC-11 §4.1
+  spec_cite: 'SimRISC-11: fence指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -305,7 +305,7 @@
   mnemonic: fence
   notes: 'fence fm=0 pred=0x0C succ=0x04 (I/O classes (pred=I|O -> succ=I)): legal, no architecture state changes (bar ordering
     itself is asserted by the evidence script via -d op; pred=succ=0 emits no barrier at all)'
-  spec_cite: SimRISC-11 §4.1
+  spec_cite: 'SimRISC-11: fence指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -323,7 +323,7 @@
     rd: {}
   mnemonic: fence
   notes: legality fence fm=1 (reserved) -> ILLI
-  spec_cite: SimRISC-11 §4.1; ADR-0034 D2
+  spec_cite: 'SimRISC-11: fence指令; ADR-0034 D2'
   status: active
 - class: legality
   deferred_reason: null
@@ -341,7 +341,7 @@
     rd: {}
   mnemonic: fence
   notes: legality fence fm=8 (TSO-reserved, undefined) -> ILLI
-  spec_cite: SimRISC-11 §4.1; ADR-0034 D2
+  spec_cite: 'SimRISC-11: fence指令; ADR-0034 D2'
   status: active
 - class: legality
   deferred_reason: null
@@ -359,7 +359,7 @@
     rd: {}
   mnemonic: fence
   notes: legality fence fm=63 (reserved) -> ILLI
-  spec_cite: SimRISC-11 §4.1; ADR-0034 D2
+  spec_cite: 'SimRISC-11: fence指令; ADR-0034 D2'
   status: active
 - class: legality
   deferred_reason: null
@@ -377,7 +377,7 @@
     rd: {}
   mnemonic: fence
   notes: legality fence pred[11:10] SBZ != 0 (bit 4) -> ILLI
-  spec_cite: SimRISC-11 §4.1; ADR-0034 D2
+  spec_cite: 'SimRISC-11: fence指令; ADR-0034 D2'
   status: active
 - class: legality
   deferred_reason: null
@@ -395,7 +395,7 @@
     rd: {}
   mnemonic: fence
   notes: legality fence pred[11:10] SBZ != 0 (bit 5) -> ILLI
-  spec_cite: SimRISC-11 §4.1; ADR-0034 D2
+  spec_cite: 'SimRISC-11: fence指令; ADR-0034 D2'
   status: active
 - class: legality
   deferred_reason: null
@@ -413,7 +413,7 @@
     rd: {}
   mnemonic: fence
   notes: legality fence succ[5:4] SBZ != 0 (bit 4) -> ILLI
-  spec_cite: SimRISC-11 §4.1; ADR-0034 D2
+  spec_cite: 'SimRISC-11: fence指令; ADR-0034 D2'
   status: active
 - class: legality
   deferred_reason: null
@@ -431,5 +431,5 @@
     rd: {}
   mnemonic: fence
   notes: legality fence succ[5:4] SBZ != 0 (bit 5) -> ILLI
-  spec_cite: SimRISC-11 §4.1; ADR-0034 D2
+  spec_cite: 'SimRISC-11: fence指令; ADR-0034 D2'
   status: active

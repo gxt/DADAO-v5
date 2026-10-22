@@ -1,13 +1,11 @@
 # SimRISC寄存器复制指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：寄存器复制**（16 条）— cs.*/ra2rd/rb2rb/rb2rd/rd2ra/rd2rb/rd2rd/rd2rf/rf2rd
+> **分类：寄存器复制** — cs.*/ra2rd/rb2rb/rb2rd/rd2ra/rd2rb/rd2rd/rd2rf/rf2rd
 
-## 1. 赋值类指令
+立即数常数赋值（rwii 格式：set.zw/set.ow/set.w/or.w/andn.w 的 rd/rb/rf 形式，以及 set.rd/set.rb/set.ft/set.fo 伪指令）详见 SimRISC-03（16位立即数操作）。
 
-> **立即数常数赋值**（rwii 格式：set.zw/set.ow/set.w/or.w/andn.w 的 rd/rb/rf 形式，以及 set.rd/set.rb/set.ft/set.fo 伪指令）详见 SimRISC-03（16位立即数操作）。
-
-### 1.1 寄存器组之间块赋值
+## 1. 寄存器组之间块赋值
 
 不同寄存器组或相同寄存器组之间，可以互相进行块传输，块传输过程中不进行数据类型的转换，保持64位二进制不变，但是必需是多个连续的寄存器。
 操作数类型为 `orri`，指令如下：
@@ -33,13 +31,13 @@ immu6为立即数，存在hd位域中，用来指定寄存器的个数，有效�
 
 - 根据语义，rb/rf/ra之间不能进行直接赋值，ra与ra之间不能进行相互赋值
 - `immu6` = 0 时触发 ILLI 异常
-- 目的寄存器**不可为 `rd0`/`rb0`**时触发 ILLI 异常；`ra0`（`RACNT` + `MRPTR`，见 D7）与 `rf0`（FCSR，见 D6）作目的**合法**（见 SimRISC-01 §存取RA寄存器、SimRISC-00 §浮点状态寄存器）。
+- 目的寄存器**不可为 `rd0`/`rb0`**时触发 ILLI 异常；`ra0`（`RACNT` + `MRPTR`，见 D7）与 `rf0`（FCSR，见 D6）作目的**合法**（见 SimRISC-01、SimRISC-00）。
 - 任一起始寄存器 + immu6 > 64 时触发 ILLI 异常
 - 源范围与目的范围有交集时触发 ILLI 异常（即不允许源和目的寄存器范围有任何重叠）
 
 > **注**：`rd2rf` 中 `rf0` 可作目的（含 `{rf0:rf0+immu6-1}`，immu6≥2 允许），写入按 SimRISC-00 写语义（只更新舍入模式与异常状态，其余位写无效）；`rf2rd` 中 `rf0` 可作源，读出完整 64 位。
 
-### 1.2 条件赋值：Conditional Assignment
+## 2. 条件赋值：Conditional Assignment
 
 第一类条件赋值指令需要先根据`rdHA`的内容进行条件判断，然后分别将`rdHC`或`rdHD`赋值给`rdHB`，即 `if (rdHA is negative/zero/positive) rdHB = rdHC; else rdHB = rdHD`。
 操作数类型为 `rrrr`，指令如下：
@@ -60,7 +58,7 @@ cs.ne   {rdHA, rdHB}?, rdHC, rdHD
 
 > **注**：rd0 目的寄存器约定见 SimRISC-00。
 
-### 1.3 浮点条件赋值
+## 3. 浮点条件赋值
 
 第一类浮点条件赋值指令需要先根据`rdHA`的内容进行条件判断，然后分别将`rfHC`或`rfHD`赋值给`rfHB`，即 `if (rdHA is negative/zero/positive) rfHB = rfHC; else rfHB = rfHD`。
 操作数类型为 `rrrr`，指令如下：
@@ -71,7 +69,7 @@ cs.z    {rdHA}?, rfHB, rfHC, rfHD
 cs.p    {rdHA}?, rfHB, rfHC, rfHD
 ```
 
-此类指令与浮点比较指令配合使用（比较结果编码见 SimRISC-07 §浮点比较指令）。浮点比较结果存放在 rd 寄存器中：`1`（大于）、`0`（等于）、`-1`（小于）、NaN（unordered）。浮点比较结果为 NaN 时，其值按整型解读是**正数**，且**不等于 1**。若要检测比较结果是否为 1（大于），先用 `sub` 将比较结果减 1（常数 1 由 `set.*` 物化），再用 `cs.z` 选择；若要检测是否非零（不相等），需分别用 `cs.p`/`cs.n` 处理正负两侧。若在已确认结果为正数（通过 `cs.p` 排除 0 和 -1）的前提下需进一步区分正数 1 与 NaN，检查结果是否为 1（bits[63:1]=0 且 bit0=1），否则为 NaN。
+此类指令与浮点比较指令配合使用（比较结果编码见 SimRISC-07）。浮点比较结果存放在 rd 寄存器中：`1`（大于）、`0`（等于）、`-1`（小于）、NaN（unordered）。浮点比较结果为 NaN 时，其值按整型解读是**正数**，且**不等于 1**。若要检测比较结果是否为 1（大于），先用 `sub` 将比较结果减 1（常数 1 由 `set.*` 物化），再用 `cs.z` 选择；若要检测是否非零（不相等），需分别用 `cs.p`/`cs.n` 处理正负两侧。若在已确认结果为正数（通过 `cs.p` 排除 0 和 -1）的前提下需进一步区分正数 1 与 NaN，检查结果是否为 1（bits[63:1]=0 且 bit0=1），否则为 NaN。
 
 > **注**：`cs.n`/`cs.z`/`cs.p` 的 rf 变体中，**目的**（`rfHB`）为 `rf0` → ILLI；**源**（`rfHC`/`rfHD`）为 `rf0` 合法（`rf0` 作源读出完整 64 位）。
 

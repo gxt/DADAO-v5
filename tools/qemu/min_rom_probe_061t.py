@@ -4,7 +4,7 @@
 
 Spec sources (expectations derived by hand from spec/ + ADRs, never from the
 QEMU implementation):
-  - spec/SimRISC-05-64位地址运算.md §3.4 (IP-relative addressing):
+  - spec/SimRISC-05-64位地址运算.md 「IP 相对寻址」:
         rbHA = IP + (sign_extend(imms18) << 12)
     * IP = the address of the instruction ITSELF (= the rb0 read value; this ISA
       has no ±4 pipeline offset) and its low 12 bits are NOT cleared
@@ -149,11 +149,11 @@ def build_rom(prog):
 
 
 # ---------------------------------------------------------------------------
-# Independent oracle (host side, from spec/SimRISC-05 §1.4 + the ROM layout)
+# Independent oracle (host side, from spec/SimRISC-05: IP 相对寻址 + the ROM layout)
 # ---------------------------------------------------------------------------
 
 def sext18(v):
-    """Sign-extend an 18-bit immediate (spec/SimRISC-05 §1.4)."""
+    """Sign-extend an 18-bit immediate (spec/SimRISC-05: IP 相对寻址)."""
     v &= 0x3FFFF
     return v - 0x40000 if v & 0x20000 else v
 

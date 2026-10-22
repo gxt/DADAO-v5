@@ -30,11 +30,23 @@
 """
 
 import os
+import re
+import sys
 import yaml
 from collections import OrderedDict
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT_PATH = os.path.join(REPO_ROOT, "contracts", "opcodes.yaml")
+
+sys.path.insert(0, REPO_ROOT)
+from tools.llvm.gen_asm_list import classify, CLASS_TO_SPEC  # noqa: E402  (册归属单一真源)
+
+
+def _spec_book(entry):
+    """记录所属手册（`SimRISC-NN`）——与附录 A（汇编速查）同源：`classify()` → 册。"""
+    name = os.path.basename(CLASS_TO_SPEC[classify(entry)])
+    m = re.match(r"(SimRISC-\d+)", name)
+    return m.group(1) if m else name
 
 
 # ────────────────────────────── 字段构造 ──────────────────────────────
@@ -212,7 +224,13 @@ def rec(insn, mnemonic, fmt, op, fields, legality, spec_cite, ha=None, scope="m1
     r["value"] = f"0x{value:08X}"
     r["fields"] = fields
     r["legality"] = legality
-    r["spec_cite"] = spec_cite
+    # SPEC-166t：`spec_cite` 用「手册: 助记符」形态（指令类），册由 classify() 决定（与附录 A
+    # 同源）。传入的 spec_cite 记录**该族正文来源小节**（`SimRISC-00` = 编码出自 QFC 表，
+    # 语义册由 classify 决定），此处以断言对账，防止两者无声漂移。
+    src_book = spec_cite.split(":")[0].strip()
+    cite_book = _spec_book(r)
+    assert src_book in (cite_book, "SimRISC-00"), (insn_id, src_book, cite_book)
+    r["spec_cite"] = f"{cite_book}: {mnemonic}"
     r["scope"] = scope
     if scope == "excluded":
         r["decode"] = "ILLI"
@@ -222,56 +240,56 @@ def rec(insn, mnemonic, fmt, op, fields, legality, spec_cite, ha=None, scope="m1
 # ────────────────────────────── spec 引用 ──────────────────────────────
 
 # 存储（SimRISC-01）
-S01_LD = "SimRISC-01 §存取RD寄存器"
-S01_RB_LD = "SimRISC-01 §存取RB寄存器"
-S01_RA_LD = "SimRISC-01 §存取RA寄存器"
+S01_LD = "SimRISC-01: 存取RD寄存器"
+S01_RB_LD = "SimRISC-01: 存取RB寄存器"
+S01_RA_LD = "SimRISC-01: 存取RA寄存器"
 
 # 寄存器复制（SimRISC-02）
-S02_BLK = "SimRISC-02 §寄存器组之间块赋值"
-S02_CS = "SimRISC-02 §条件赋值：Conditional Assignment"
+S02_BLK = "SimRISC-02: 寄存器组之间块赋值"
+S02_CS = "SimRISC-02: 条件赋值：Conditional Assignment"
 
 # 16位立即数操作（SimRISC-03）
-S03_IMM = "SimRISC-03 §立即数常数赋值：Immediate constant"
+S03_IMM = "SimRISC-03: 立即数常数赋值：Immediate constant"
 
 # 64位数据运算（SimRISC-04）
-S04_ADD = "SimRISC-04 §加减操作"
-S04_INC = "SimRISC-04 §自增自减"
-S04_CMP = "SimRISC-04 §比较操作"
-S04_MUL = "SimRISC-04 §乘除操作"
-S04_CLMUL = "SimRISC-04 §无进位乘法"
-S04_LOG = "SimRISC-04 §Logic operators：逻辑运算"
-S04_BIT = "SimRISC-04 §Bit manipulating：位操作指令"
+S04_ADD = "SimRISC-04: 加减操作"
+S04_INC = "SimRISC-04: 自增自减"
+S04_CMP = "SimRISC-04: 比较操作"
+S04_MUL = "SimRISC-04: 乘除操作"
+S04_CLMUL = "SimRISC-04: 无进位乘法"
+S04_LOG = "SimRISC-04: Logic operators：逻辑运算"
+S04_BIT = "SimRISC-04: Bit manipulating：位操作指令"
 
 # 64位地址运算（SimRISC-05）
-S05_ADD = "SimRISC-05 §加减操作"
-S05_INC = "SimRISC-05 §自增自减"
-S05_CMP = "SimRISC-05 §比较操作"
+S05_ADD = "SimRISC-05: 加减操作"
+S05_INC = "SimRISC-05: 自增自减"
+S05_CMP = "SimRISC-05: 比较操作"
 # ADR-0029 D1：恢复 aip.si（IP 相对寻址，auipc 式；0x5A 原为 ADR-0012 D5 保留位）
 # 指令名 `rela.si` → `aip.si`、正文术语 `PC` → `IP`（用户 2026-10-16 裁定）
-S05_PCREL = "SimRISC-05 §IP 相对寻址"
+S05_PCREL = "SimRISC-05: IP 相对寻址"
 
 # 控制流（SimRISC-06）
-S06_BR = "SimRISC-06 §条件跳转指令"
-S06_JMP = "SimRISC-06 §无条件跳转指令"
-S06_CALL = "SimRISC-06 §函数调用"
-S06_RET = "SimRISC-06 §函数返回"
+S06_BR = "SimRISC-06: 条件跳转指令"
+S06_JMP = "SimRISC-06: 无条件跳转指令"
+S06_CALL = "SimRISC-06: 函数调用"
+S06_RET = "SimRISC-06: 函数返回"
 
 # 其它（SimRISC-11）
-S11_SWYM = "SimRISC-11 §占位指令"
+S11_SWYM = "SimRISC-11: 占位指令"
 
 # 待定（SimRISC-12）
-S12_FENCE = "SimRISC-11 §fence指令"
-S12_LRSC = "SimRISC-11 §LR-SC指令"
+S12_FENCE = "SimRISC-11: fence指令"
+S12_LRSC = "SimRISC-11: LR-SC指令"
 
 # QFC/OPC-RF（SimRISC-00）
-S00_QFC = "SimRISC-00 §SimRISC QFC"
-S00_MISCRF = "SimRISC-00 §OPC-RF指令编码"
+S00_QFC = "SimRISC-00: SimRISC QFC"
+S00_MISCRF = "SimRISC-00: OPC-RF指令编码"
 
 # 浮点运算（SimRISC-07）：取整（IEEE 754-2019 roundToIntegral 六档，SPEC-161t）
-S07_ROUND = "SimRISC-07 §取整（roundToIntegral）"
+S07_ROUND = "SimRISC-07: 取整（roundToIntegral）"
 
 # 浮点运算（SimRISC-07）：最小/最大值（IEEE 754-2019 §9.6 minimumNumber/maximumNumber，SPEC-159t）
-S07_MINMAX = "SimRISC-07 §最小最大值（minimumNumber / maximumNumber）"
+S07_MINMAX = "SimRISC-07: 最小最大值（minimumNumber / maximumNumber）"
 
 # 常见 legality 片段
 LEG_RD_DST = "rdha != rd0"
@@ -657,7 +675,7 @@ def build_misc_octa(records):
                        ha=0x0C, scope="m8"))
     # ADR-0012 D11：新增 ctlz/cttz/ctpop（位扫描 / 位计数；orri，ha=0x1D/0x1E/0x1F →
     # opx `011-101`/`011-110`/`011-111`）。**无位宽后缀** ⇒ 借用 OPC-octa 格位，是
-    # 「子表 ⇔ 位宽后缀」规则的**例外**（见 spec/SimRISC-00 §4.2 表下说明）。
+    # 「子表 ⇔ 位宽后缀」规则的**例外**（见 spec/SimRISC-00: OPC-octa指令编码 表下说明）。
     # scope: m8（新增 ISA 指令，与里程碑无绑定；非 M1 身份，不要求 M1 向量覆盖）
     # 合法性：hd ∈ 0..63 全部合法 ⇒ 不新增规则；沿用 dst_rd0（rdhb != rd0）。
     for mnem, ha in (("ctpop", 0x1D), ("ctlz", 0x1E), ("cttz", 0x1F)):
@@ -673,10 +691,10 @@ def build_misc_fixed_width(records, op, suffix, nbits, sdoc):
     SPEC-069t：窄位宽逻辑（and/or/xor/xnor）与窄位宽扩展（ext）已删除（24 条），
     仅保留 shr/shl（位操作）、add/sub（算术）、cmp（比较）、mul/div/rem（乘除余）。
     """
-    cite_add = f"{sdoc} §加减操作"
-    cite_cmp = f"{sdoc} §比较操作"
-    cite_mul = f"{sdoc} §乘除操作"
-    cite_bit = f"{sdoc} §Bit manipulating：位操作指令"
+    cite_add = f"{sdoc}: 加减操作"
+    cite_cmp = f"{sdoc}: 比较操作"
+    cite_mul = f"{sdoc}: 乘除操作"
+    cite_bit = f"{sdoc}: Bit manipulating：位操作指令"
     # shr/shl/rol orrr（ADR-0032 D2/D4：shl 010-000、rol 010-001、shr 010-010/011）
     for i, mnem in enumerate([f"shl.{suffix}", f"rol.{suffix}",
                               f"shr.u{suffix}", f"shr.s{suffix}"]):
@@ -769,7 +787,7 @@ def build_misc_rf(records):
     # ↔ immu6 0x01/0x02/0x04/0x08/0x10/0x20）。immu6 复用 `encode_onehot` 口径
     #  ⇒ 非 one-hot 即 ILLI，无需新增合法性规则。SPEC-161t 先立为 `scope: excluded`
     # （decode ILLI）；SPEC-162t 在 QEMU-072t/LLVM-125t 落地后翻转为 `scope: fp`。
-    # 语义见 SimRISC-07 §2.3 / contract-fp.md §roundint。
+    # 语义见 SimRISC-07: 取整（roundToIntegral） / contract-fp.md §roundint。
     for ha, mnem in ((0x03, "ftrnd"), (0x0B, "fornd")):
         records.append(rec(mnem, mnem, "orri", op,
                            f_orri("rfhb", "rfhc", "immu6"),
@@ -797,7 +815,7 @@ def build_misc_rf(records):
     # 最小/最大值 = IEEE 754-2019 §9.6 `minimumNumber`/`maximumNumber`（严格版：单 NaN
     # 返回数字、双 NaN ⇒ canonical qNaN、−0 < +0；**不是** `minNum` 宽松版、也不是
     # 「返回第二操作数」的 x86 遗留语义）。orrr 单目的（`rfhb` 目的、`rfhc`/`rfhd` 源；
-    # 源可为 rf0、目的 rf0 ⇒ ILLI `dst_rf0`）。语义见 SimRISC-07 §2.4 /
+    # 源可为 rf0、目的 rf0 ⇒ ILLI `dst_rf0`）。语义见 SimRISC-07: 最小最大值（minimumNumber / maximumNumber） /
     # contract-fp.md §minmax；SPEC-160t 在 QEMU-071t/LLVM-124t 落地后翻转为 scope: fp。
     for ha, mnem in ((0x26, "ftmin"), (0x27, "ftmax"),
                      (0x2E, "fomin"), (0x2F, "fomax")):

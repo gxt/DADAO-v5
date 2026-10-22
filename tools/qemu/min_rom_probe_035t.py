@@ -2,8 +2,8 @@
 """Min ROM probe for QEMU-035t: FP bit-level semantics (sign/classify/compare).
 
 Spec sources (expectations are derived from these, never from QEMU):
-  - spec/SimRISC-07 §浮点符号位操作指令 / §浮点比较指令 / §浮点分类指令
-  - spec/SimRISC-00 §浮点寄存器
+  - spec/SimRISC-07: 浮点符号位操作指令 / 浮点比较指令 / 浮点分类指令
+  - spec/SimRISC-00: 浮点寄存器
   - .tao/contracts/contract-fp.md §7 / §8 / §9
 The classify category bits are NOT hand-copied: they are parsed at import time
 from the §7 table of spec/SimRISC-07 (`load_class_bits_from_spec`); a missing
@@ -60,7 +60,7 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 
 ROM_BASE = 0xFFFFFFFF0000
 
-# FCSR reset value (target/dadao/cpu.h::DADAO_RESET_RF0, SimRISC-00 §浮点状态寄存器)
+# FCSR reset value (target/dadao/cpu.h::DADAO_RESET_RF0, SimRISC-00: 浮点状态寄存器)
 RESET0 = 0x7FF800007FC00000
 
 PASS_EXIT = 0x00
@@ -68,7 +68,7 @@ ILLI_EXIT = 0x88
 
 # ── Instruction encoding (op / ha values from contracts/opcodes.yaml) ──
 
-# ROM terminator: `fence` with fm=1 (hb != 0) is ILLI per SimRISC-11 §4.1 /
+# ROM terminator: `fence` with fm=1 (hb != 0) is ILLI per SimRISC-11: fence指令 /
 # ADR-0034 D1/D2 -> exit 0x88.  (Historically 0x77000000 = fence 0 was used,
 # but since ADR-0034 that is a legal no-op, and 0x00000000 is UNDI 0x89.)
 ILLI = 0x77801000                 # fence fm=1 -> ILLI
@@ -333,7 +333,7 @@ class Case:
         self.expect_rd = expect_rd or {}
         self.e2e = e2e
         # rd index -> category alias: assert exactly that one bit is set and
-        # rd[63:10] == 0 (SimRISC-07 §5: only [9:0] is used).
+        # rd[63:10] == 0 (SimRISC-07: 浮点分类指令: only [9:0] is used).
         self.classify = classify or {}
 
 
@@ -365,7 +365,7 @@ FO_QNAN = 0x7FF8000000000000
 FO_SNAN = 0x7FF0000000000001
 
 # 10 classification category bits.  **Independent oracle**: parsed from
-# `spec/SimRISC-07 §5` at import time, never hand-copied here.  A missing /
+# `spec/SimRISC-07: 浮点分类指令` at import time, never hand-copied here.  A missing /
 # renamed section or a malformed table is a hard FAIL (explicit non-zero exit),
 # never a silent fallback.
 SPEC_FP = (os.environ.get('DADAO_FP_SPEC')

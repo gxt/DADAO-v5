@@ -983,13 +983,13 @@ _ILLI_RULES = {
     # intentionally narrowed to its RD sub-section anchor; do NOT edit here without
     # updating that file).
     # orrr single-dest (rdhb) / orri/rrii/riii/rwii rd-dest / ra2rd rdhb=rd0: dst_rd0
-    "dst_rd0": "SimRISC-00 §数据寄存器",
+    "dst_rd0": "SimRISC-00: 数据寄存器",
     # rrrr dual-dest (rdha, rdhb): dst_dual_same
-    "dst_dual_same": "SimRISC-04 §加减操作",
+    "dst_dual_same": "SimRISC-04: 加减操作",
     # orrr rb-dest (rbhb): dst_rb0
-    "dst_rb0": "SimRISC-00 §基址寄存器",
+    "dst_rb0": "SimRISC-00: 基址寄存器",
     # orri block move immu6=0 (RD/RB + RA): mreg_zero
-    "mreg_zero": "SimRISC-01 §存取RD寄存器",
+    "mreg_zero": "SimRISC-01: 存取RD寄存器",
 }
 
 
@@ -1084,7 +1084,7 @@ def gen_block_legality_mreg_zero(rec):
     # RA-involved block moves cite the RA sections (manual correction tracked
     # as pre-existing generator↔vector drift, issues.yaml; reproduce verbatim).
     if mnem in ("ra2rd", "rd2ra"):
-        rule_cite = "SimRISC-02 §存取RA寄存器、§寄存器组之间块赋值"
+        rule_cite = "SimRISC-01: 存取RA寄存器; SimRISC-02: 寄存器组之间块赋值"
     sc = rec.get("spec_cite", "")
     word = _build_word_orri(rec, 1, 3, 0)
     notes = "legality %s: immu6=0 → ILLI (%s)" % (mnem, rule_id)
@@ -1100,7 +1100,7 @@ def gen_ra2rd_legality_dest_rd0(rec):
     rule_id = "dst_rd0"
     # Manual spec_cite correction tracked as pre-existing generator↔vector
     # drift (issues.yaml); reproduce verbatim so regeneration is faithful.
-    rule_cite = "SimRISC-02 §寄存器组之间块赋值"
+    rule_cite = "SimRISC-02: 寄存器组之间块赋值"
     sc = rec.get("spec_cite", "")
     word = _build_word_orri(rec, 0, 3, 1)
     notes = "legality %s: rdhb=rd0 → ILLI (%s)" % (mnem, rule_id)
@@ -1141,7 +1141,7 @@ def gen_block_overlap(rec):
 
     Same-bank (rd2rd, rb2rb): the source range [src, src+count) and the
     destination range [dst, dst+count) share at least one register (partial
-    overlap here) ⇒ ILLI (mreg_range_overlap, SimRISC-02 §寄存器组之间块赋值).
+    overlap here) ⇒ ILLI (mreg_range_overlap, SimRISC-02: 寄存器组之间块赋值).
     Cross-bank (rb2rd, rd2rb, ra2rd, rd2ra): source and destination belong to
     different register banks, so they structurally cannot overlap; the case
     verifies basic block move semantics (ascending order, read-before-write).
@@ -1218,7 +1218,7 @@ def gen_block_overlap_complete(rec):
 
     rd2rd/rb2rb with identical single-register source and destination
     ({rdN:rdN}, {rdN:rdN}, count=1): the two ranges fully coincide
-    ⇒ ILLI (mreg_range_overlap, SimRISC-02 §寄存器组之间块赋值).
+    ⇒ ILLI (mreg_range_overlap, SimRISC-02: 寄存器组之间块赋值).
     Cross-bank instructions structurally cannot overlap ⇒ returns None.
     """
     mnem = rec["mnemonic"]

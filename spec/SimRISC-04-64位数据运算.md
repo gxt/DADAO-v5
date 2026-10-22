@@ -1,7 +1,7 @@
 # SimRISC64位数据运算指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：64位数据运算**（36 条）— .so/.uo + add.si/cmp.si/cmp.ui + and.o/or.o/xor.o/xnor.o + rev.o（逐块反转）+ ctlz/cttz/ctpop（位扫描/位计数）+ shl.o/rol.o（移位/循环移位）+ clmul.o（无进位乘）
+> **分类：64位数据运算** — .so/.uo + add.si/cmp.si/cmp.ui + and.o/or.o/xor.o/xnor.o + rev.o（逐块反转）+ ctlz/cttz/ctpop（位扫描/位计数）+ shl.o/rol.o（移位/循环移位）+ clmul.o（无进位乘）
 
 ## 1. 算术运算类指令
 
@@ -140,24 +140,6 @@ clmul.o  {rdHA, rdHB}, rdHC, rdHD
 
 无需提供专门的not指令，可以采用xnor指令实现相同的功能。当rdHC或rdHD为rd0时，xnor指令实现了另一操作数的取反操作，即逻辑非运算。逻辑非的运算规则：一变零，零变一。即操作数为1时结果为0，操作数为0时结果为1。
 
-#### 2.1.1 not 伪指令（已删除）
-
-`SimRISC-0.5.4` 曾定义 `not.{b,w,t,o}` 伪指令；本版**删除**，**1:1 别名一律不保留**。64 位按位取反**直接书写真实指令 `xnor.o rd, rs, rd0`**（`rdHC`/`rdHD` 之一为 `rd0` 时 `xnor` 即取反；源与目的可为同一寄存器、原地取反）。窄位宽 `not.b`/`not.w`/`not.t` **无等宽替代**（窄位宽 `xnor` 已删除）。
-
-```simrisc
-xnor.o  rd3, rd4, rd0     @@ rd3 = ~rd4（64 位按位取反）
-```
-
-#### 2.1.2 neg 伪指令（已删除）
-
-`SimRISC-0.5.4` 曾定义 `neg.{b,w,t,o}` 伪指令；本版**删除**。按位宽取负**直接书写真实指令 `sub.sX`**：`neg.b`→`sub.sb`、`neg.w`→`sub.sw`、`neg.t`→`sub.st`、`neg.o`→`sub.so`。
-
-```simrisc
-sub.so  {rd0, rd3}, rd0, rd4     @@ rd3 = -rd4（64 位取负，双目的写回 rd3）
-```
-
-> **注**：`neg.b`/`neg.w`/`neg.t` 的对应 `sub.sb`/`sub.sw`/`sub.st` 分别见 SimRISC-10、SimRISC-09、SimRISC-08。
-
 ### 2.2 Bit manipulating：位操作指令
 
 移位/扩展指令需要两个源操作数，一个目的操作数。
@@ -188,7 +170,7 @@ rdHB[hd:0]   = rdHC[hd:0]                               // 复制源低位
 rdHB[63:hd+1] = sign/zero_extend(rdHC[hd])               // 符号/零扩展（N=63，自然写满64位）
 ```
 
-> **注**：64位 ext（N=63）自然写满64位；32/16/8 位 ext 已从指令集中删除（见 SimRISC-08/09/10）。
+> **注**：64位 ext（N=63）自然写满64位。
 
 其中 N 由位宽决定（octa→63），hd 为扩展起始位，须满足 `hd ≤ N`，否则 ILLI。
 
@@ -264,7 +246,7 @@ rev.w   rdHB, rdHC, immu6       @@ 16 位块内反转（k=8 → bswap16，须源
 rev.b   rdHB, rdHC, immu6       @@ 8 位块内反转（k ∈ {1,2,4}）
 ```
 
-`rev.t`/`rev.w`/`rev.b` 分册语义见 SimRISC-08/09/10 §2.2.1；本节为逐块反转的总述。
+`rev.t`/`rev.w`/`rev.b` 的分册语义见 SimRISC-08/09/10；本节为逐块反转的总述。
 
 #### 2.2.2 位扫描与位计数 ctlz/cttz/ctpop（orri 格式）
 
@@ -310,9 +292,8 @@ cttz    rdHB, rdHC, immu6       @@ 末尾零（immu6=63 → 64 位；全 0 → i
 ctpop   rdHB, rdHC, immu6       @@ 1 的个数（immu6=63 → 64 位）
 ```
 
-**编码**：三条为 `orri` 格式但**无位宽后缀**，借用 `OPC-octa` 子表的格位
-（`011-101`/`011-110`/`011-111`，opx = `011101`/`011110`/`011111`），是本手册
-「**子表 ⇔ 位宽后缀**」规则的**例外**（见 SimRISC-00 §OPC-octa指令编码）。
+**格式**：三条为 `orri` 格式但**无位宽后缀**，借用 `OPC-octa` 子表的格位，是本手册
+「**子表 ⇔ 位宽后缀**」规则的**例外**（见 SimRISC-00）。
 
 #### 2.2.3 逻辑循环左移 rol.o（`orrr` / `orri` 格式）
 
@@ -336,8 +317,8 @@ rdHB[63:0] = rol(rdHC[63:0], amount)
 - **合法性**：目的 `rdHB` 为 `rd0` ⇒ **ILLI**（规则 `dst_rd0`）；源 `rdHC` 可为 `rd0`（读出 0，
   结果恒为 0）；`rdHB == rdHC` 允许（原地旋转）。
 - **不另设反向指令**：`rol(x, (64 - n) mod 64)` 即反向旋转 ⇒ 一个方向足以表达双向。
-- **编码**：`rol.o` `orrr` = `010-001`、`orri` = `011-001`（`OPC-octa`，见 SimRISC-00 §4.2）。
-- `rol.t`/`rol.w`/`rol.b` 的位宽/取模/越界口径分别见 SimRISC-08/09/10 §2.2。
+- **格式**：`orrr`（寄存器旋转量）/ `orri`（立即数旋转量），属 `OPC-octa` 子表（见 SimRISC-00）。
+- `rol.t`/`rol.w`/`rol.b` 的位宽/取模/越界口径分别见 SimRISC-08/09/10。
 
 ```simrisc
 rol.o   rdHB, rdHC, rdHD        @@ 循环左移（旋转量 = rdHD[5:0]）

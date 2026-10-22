@@ -16,7 +16,7 @@
   input_state: {}
   mnemonic: jump
   notes: 'encoding: word matches opcodes.yaml mask/value, imms24=2 (non-zero, non-self-jump)'
-  spec_cite: SimRISC-06 §无条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 无条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -31,7 +31,7 @@
   mnemonic: jump
   notes: 'semantic: rb0=0xFC0000000000 (RAM entry, ADR-0004 D2.2), imms24=2, Addr=rb0+(imms24<<2)=0xFC0000000000+8=0xFC0000000008;
     no state change'
-  spec_cite: SimRISC-06 §无条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 无条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: boundary
   deferred_reason: null
@@ -46,7 +46,7 @@
   mnemonic: jump
   notes: 'boundary UNMAPPED: imms24=-0x1000, target=rb0+(imms24<<2)=0xFC0000000000+(-0x4000)=0xFBFFFFFFC000 → beyond RAM (0xFFFF_00FF_FFFF)
     → UNMAPPED (0x87)'
-  spec_cite: SimRISC-06 §无条件跳转指令; ADR-0004 D5.6
+  spec_cite: 'SimRISC-06: 无条件跳转指令; ADR-0004 D5.6'
   status: active
 - class: encoding
   deferred_reason: null
@@ -60,7 +60,7 @@
   input_state: {}
   mnemonic: jump
   notes: 'encoding: word matches opcodes.yaml mask/value, rbha=rb0 (index 0), rdhb=rd0 (index 0), imms12=2'
-  spec_cite: SimRISC-06 §无条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 无条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -75,7 +75,7 @@
   mnemonic: jump
   notes: 'semantic: rb0=0xFC0000000000, rd0=0, imms12=2, Addr=rb0+rd0+(imms12<<2)=0xFC0000000000+0+8=0xFC0000000008; no state
     change'
-  spec_cite: SimRISC-06 §无条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 无条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: legality
   deferred_reason: null
@@ -92,5 +92,5 @@
   mnemonic: jump
   notes: 'legality CFXMEM: rbha=rb3=0, rdhb=rd0=0, imms12=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM (0x81), ADR-0020
     D15 / ADR-0004 D5.8'
-  spec_cite: SimRISC-06 §无条件跳转指令; ADR-0004 D5.6
+  spec_cite: 'SimRISC-06: 无条件跳转指令; ADR-0004 D5.6'
   status: active

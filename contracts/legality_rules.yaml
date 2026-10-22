@@ -26,7 +26,7 @@ rules:
   - id: dst_rd0
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-00 §数据寄存器"
+    spec_cite: "SimRISC-00: 数据寄存器"
     status: active
     description: >
       写 rd0 为目的寄存器时触发 ILLI 异常。
@@ -45,7 +45,7 @@ rules:
   - id: dst_rd0_nonzero
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-06 §函数返回"
+    spec_cite: "SimRISC-06: 函数返回"
     status: active
     description: >
       仅 ret 适用：ret rdHA, imms18 中 rdha == rd0 且 imms18 != 0 时触发 ILLI 异常。
@@ -57,7 +57,7 @@ rules:
   - id: dst_dual_same
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-04 §加减操作"
+    spec_cite: "SimRISC-04: 加减操作"
     status: active
     description: >
       add.uo/add.so/sub.uo/sub.so/mul.uo/mul.so 的 rrrr 格式有两个目的寄存器（rdha, rdhb），
@@ -66,7 +66,7 @@ rules:
   - id: dst_rb0
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-00 §基址寄存器"
+    spec_cite: "SimRISC-00: 基址寄存器"
     status: active
     description: >
       rb0 读出为当前指令的地址（只读），任何指令以 rb0 为**显式目的**时触发 ILLI 异常。
@@ -77,7 +77,7 @@ rules:
   - id: dst_rf0
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-00 §浮点寄存器; SimRISC-01 §存取RF寄存器; SimRISC-02 §寄存器组之间块赋值; SimRISC-02 §浮点条件赋值; SimRISC-03 §立即数常数赋值：Immediate constant"
+    spec_cite: "SimRISC-00: 浮点寄存器; SimRISC-01: 存取RF寄存器; SimRISC-02: 寄存器组之间块赋值; SimRISC-02: 浮点条件赋值; SimRISC-03: 立即数常数赋值：Immediate constant"
     status: active
     description: >
       浮点运算指令的**目的**操作数为 rf0 时触发 ILLI 异常
@@ -103,7 +103,7 @@ rules:
   - id: mreg_zero
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-01 §存取RD寄存器; SimRISC-01 §存取RF寄存器; SimRISC-02 §寄存器组之间块赋值; SimRISC-07 §格式转换指令; SimRISC-07 §浮点分类指令"
+    spec_cite: "SimRISC-01: 存取RD寄存器; SimRISC-01: 存取RF寄存器; SimRISC-02: 寄存器组之间块赋值; SimRISC-07: 格式转换指令; SimRISC-07: 浮点分类指令"
     status: active
     description: >
       多寄存器与块赋值指令 immu6=0 时触发 ILLI 异常。覆盖寄存器组：
@@ -121,7 +121,7 @@ rules:
   - id: mreg_range_overflow
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-01 §存取RD寄存器; SimRISC-01 §存取RF寄存器; SimRISC-02 §寄存器组之间块赋值; SimRISC-07 §格式转换指令; SimRISC-07 §浮点分类指令"
+    spec_cite: "SimRISC-01: 存取RD寄存器; SimRISC-01: 存取RF寄存器; SimRISC-02: 寄存器组之间块赋值; SimRISC-07: 格式转换指令; SimRISC-07: 浮点分类指令"
     status: active
     description: >
       多寄存器/块赋值指令中任一起始寄存器 + immu6 > 64 时触发 ILLI 异常，不环绕、不截断；
@@ -137,7 +137,7 @@ rules:
   - id: mreg_range_overlap
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-02 §寄存器组之间块赋值; SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-02: 寄存器组之间块赋值; SimRISC-07: 格式转换指令"
     status: active
     description: >
       同寄存器组块赋值指令中，源范围与目的范围有任何交集（**含完全重合**）时触发 ILLI 异常。
@@ -150,7 +150,7 @@ rules:
   - id: excp_malign
     fault: MALIGN
     kind: dynamic
-    spec_cite: "SimRISC-01 §存取RD寄存器"
+    spec_cite: "SimRISC-01: 存取RD寄存器"
     status: active
     description: >
       数据访问未对齐触发 MALIGN 异常（动态，取决于运行时有效地址）。
@@ -163,7 +163,7 @@ rules:
   - id: excp_ialign
     fault: IALIGN
     kind: dynamic
-    spec_cite: "SimRISC-00 §指令设计"
+    spec_cite: "SimRISC-00: 指令设计"
     status: active
     description: >
       取指时若 IP[1:0] ≠ 00，触发 IALIGN 异常（动态，取决于控制流目标地址）。
@@ -173,7 +173,7 @@ rules:
   - id: encode_sbz
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-00 §指令域说明"
+    spec_cite: "SimRISC-00: 指令域说明"
     status: active
     description: >
       SBZ（Should Be Zero）字段非零时触发 ILLI 异常（静态）。
@@ -190,7 +190,7 @@ rules:
   - id: encode_onehot
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-04 §Bit manipulating：位操作指令"
+    spec_cite: "SimRISC-04: Bit manipulating：位操作指令"
     status: active
     description: >
       逐块反转指令 rev.o/rev.t/rev.w/rev.b 的 immu6（块内单元位数 k）须为 one-hot
@@ -206,7 +206,7 @@ rules:
   - id: excp_undi
     fault: UNDI
     kind: static
-    spec_cite: "SimRISC-00 §SimRISC QFC"
+    spec_cite: "SimRISC-00: SimRISC QFC"
     status: active
     description: >
       执行保留编码触发 UNDI 异常：QFC 主表与各 MISC 子表的空白单元格
@@ -216,7 +216,7 @@ rules:
   - id: encode_fp_root_n
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-07 §S1D1"
+    spec_cite: "SimRISC-07: S1D1"
     status: active
     description: >
       ftroot/foroot 指令仅支持 n=2（平方根）；其他 n 值触发 ILLI 异常。
@@ -226,7 +226,7 @@ rules:
   - id: excp_rasof
     fault: RASOF
     kind: dynamic
-    spec_cite: "SimRISC-00 §压栈流程"
+    spec_cite: "SimRISC-00: 压栈流程"
     status: active
     description: >
       返回地址栈上溢触发 RASOF 异常（动态，取决于调用深度）。
@@ -237,7 +237,7 @@ rules:
   - id: excp_rasuf
     fault: RASUF
     kind: dynamic
-    spec_cite: "SimRISC-00 §弹栈流程"
+    spec_cite: "SimRISC-00: 弹栈流程"
     status: active
     description: >
       返回地址栈下溢触发 RASUF 异常（动态，取决于调用深度）。

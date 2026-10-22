@@ -2,11 +2,11 @@
 """Independent oracle for TESTCASES-060t: ``ftrnd``/``fornd`` (roundToIntegral).
 
 Spec sources (expectations are derived from these, NEVER from QEMU/LLVM):
-  * ``spec/SimRISC-07 §2.3`` -- six one-hot ``immu6`` modes, common rules
+  * ``spec/SimRISC-07: 取整（roundToIntegral）`` -- six one-hot ``immu6`` modes, common rules
     (``±0`` sign kept, ``|x| >= 2^p`` returned unchanged, Inf unchanged, no
     OF/UF, only ``0x20`` sets NX, sNaN -> NV, qNaN canonicalised);
   * ``.tao/contracts/contract-fp.md §18`` (``roundint``) -- the same, frozen;
-  * ``spec/SimRISC-00 §浮点状态寄存器`` / ``contract-fp.md §1`` -- rf0 bit
+  * ``spec/SimRISC-00: 浮点状态寄存器`` / ``contract-fp.md §1`` -- rf0 bit
     layout: ``[33:32]`` round mode, ``[4:0]`` accrued flags (NV DZ OF UF NX),
     writes to rf0 update only ``[33:32]`` and ``[4:0]``;
   * ADR-0004 D2 -- rf0 reset value ``0x7FF8_0000_7FC0_0000``.
@@ -57,7 +57,7 @@ RF0_READONLY = RF0_RESET & ~RF0_WRITABLE
 
 FLAG_NV, FLAG_DZ, FLAG_OF, FLAG_UF, FLAG_NX = 0x01, 0x02, 0x04, 0x08, 0x10
 
-# ── six one-hot modes (SimRISC-07 §2.3) ────────────────────────────────────
+# ── six one-hot modes (SimRISC-07: 取整（roundToIntegral）) ────────────────────────────────────
 STATIC_MODES = (0x01, 0x02, 0x04, 0x08, 0x10)
 DYN_MODE = 0x20
 ALL_MODES = STATIC_MODES + (DYN_MODE,)
@@ -470,7 +470,7 @@ def judge_static_insensitive(records, fmt, mode, label):
 # ── self proof ────────────────────────────────────────────────────────────
 HAND_TIES = [
     # (label, mode, expected integer)  -- written out by hand from
-    # SimRISC-07 §2.3; independent of round_int()'s implementation.
+    # SimRISC-07: 取整（roundToIntegral）; independent of round_int()'s implementation.
     ("2.5", 0x01, 2), ("2.5", 0x02, 3), ("2.5", 0x04, 2),
     ("2.5", 0x08, 3), ("2.5", 0x10, 2),
     ("-2.5", 0x01, -2), ("-2.5", 0x02, -3), ("-2.5", 0x04, -2),

@@ -32,7 +32,7 @@
     signed: true
   legality:
   - rdha != rd0
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: ld.ub'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -59,7 +59,7 @@
   legality:
   - rdha != rd0
   - aligned(2)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: ld.uw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -87,7 +87,7 @@
   legality:
   - rdha != rd0
   - aligned(4)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: ld.ut'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -114,7 +114,7 @@
     signed: true
   legality:
   - rdha != rd0
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: ld.sb'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -141,7 +141,7 @@
   legality:
   - rdha != rd0
   - aligned(2)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: ld.sw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -169,7 +169,7 @@
   legality:
   - rdha != rd0
   - aligned(4)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: ld.st'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -195,7 +195,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-01: ld.t'
   scope: fp
   rule_refs: []
 - id: st.t_rrii_rf
@@ -219,7 +219,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-01: st.t'
   scope: fp
   rule_refs: []
 - id: st.b_rrii_rd
@@ -243,7 +243,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: st.b'
   scope: m1
   rule_refs: []
 - id: st.w_rrii_rd
@@ -268,7 +268,7 @@
     signed: true
   legality:
   - aligned(2)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: st.w'
   scope: m1
   rule_refs:
   - excp_malign
@@ -294,7 +294,7 @@
     signed: true
   legality:
   - aligned(4)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: st.t'
   scope: m1
   rule_refs:
   - excp_malign
@@ -321,7 +321,7 @@
   legality:
   - rdha != rd0
   - aligned(8)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: ld.o'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -348,7 +348,7 @@
     signed: true
   legality:
   - aligned(8)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: st.o'
   scope: m1
   rule_refs:
   - excp_malign
@@ -375,7 +375,7 @@
   legality:
   - rbha != rb0
   - aligned(8)
-  spec_cite: SimRISC-01 §存取RB寄存器
+  spec_cite: 'SimRISC-01: ld.o'
   scope: m1
   rule_refs:
   - dst_rb0
@@ -402,7 +402,7 @@
     signed: true
   legality:
   - aligned(8)
-  spec_cite: SimRISC-01 §存取RB寄存器
+  spec_cite: 'SimRISC-01: st.o'
   scope: m1
   rule_refs:
   - excp_malign
@@ -428,7 +428,7 @@
     signed: true
   legality:
   - aligned(8)
-  spec_cite: SimRISC-01 §存取RA寄存器
+  spec_cite: 'SimRISC-01: ld.o'
   scope: m1
   rule_refs:
   - excp_malign
@@ -454,7 +454,7 @@
     signed: true
   legality:
   - aligned(8)
-  spec_cite: SimRISC-01 §存取RA寄存器
+  spec_cite: 'SimRISC-01: st.o'
   scope: m1
   rule_refs:
   - excp_malign
@@ -479,7 +479,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-01: ld.o'
   scope: fp
   rule_refs: []
 - id: st.o_rrii_rf
@@ -503,7 +503,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-01: st.o'
   scope: fp
   rule_refs: []
 - id: ldm.ub_rrri_rd
@@ -534,7 +534,7 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: ldm.ub'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -569,7 +569,7 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   - aligned(2)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: ldm.uw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -605,7 +605,7 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   - aligned(4)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: ldm.ut'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -640,7 +640,7 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: ldm.sb'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -675,7 +675,7 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   - aligned(2)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: ldm.sw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -711,7 +711,7 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   - aligned(4)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: ldm.st'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -745,7 +745,7 @@
   legality:
   - immu6 != 0
   - rfha + immu6 <= 64
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-01: ldm.t'
   scope: fp
   rule_refs:
   - mreg_zero
@@ -777,7 +777,7 @@
   legality:
   - immu6 != 0
   - rfha + immu6 <= 64
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-01: stm.t'
   scope: fp
   rule_refs:
   - mreg_zero
@@ -809,7 +809,7 @@
   legality:
   - immu6 != 0
   - rdha + immu6 <= 64
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: stm.b'
   scope: m1
   rule_refs:
   - mreg_zero
@@ -842,7 +842,7 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   - aligned(2)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: stm.w'
   scope: m1
   rule_refs:
   - mreg_zero
@@ -876,7 +876,7 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   - aligned(4)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: stm.t'
   scope: m1
   rule_refs:
   - mreg_zero
@@ -911,7 +911,7 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   - aligned(8)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: ldm.o'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -946,7 +946,7 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   - aligned(8)
-  spec_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: 'SimRISC-01: stm.o'
   scope: m1
   rule_refs:
   - mreg_zero
@@ -981,7 +981,7 @@
   - immu6 != 0
   - rbha + immu6 <= 64
   - aligned(8)
-  spec_cite: SimRISC-01 §存取RB寄存器
+  spec_cite: 'SimRISC-01: ldm.o'
   scope: m1
   rule_refs:
   - dst_rb0
@@ -1016,7 +1016,7 @@
   - immu6 != 0
   - rbha + immu6 <= 64
   - aligned(8)
-  spec_cite: SimRISC-01 §存取RB寄存器
+  spec_cite: 'SimRISC-01: stm.o'
   scope: m1
   rule_refs:
   - mreg_zero
@@ -1050,7 +1050,7 @@
   - immu6 != 0
   - raha + immu6 <= 64
   - aligned(8)
-  spec_cite: SimRISC-01 §存取RA寄存器
+  spec_cite: 'SimRISC-01: ldm.o'
   scope: m1
   rule_refs:
   - mreg_zero
@@ -1084,7 +1084,7 @@
   - immu6 != 0
   - raha + immu6 <= 64
   - aligned(8)
-  spec_cite: SimRISC-01 §存取RA寄存器
+  spec_cite: 'SimRISC-01: stm.o'
   scope: m1
   rule_refs:
   - mreg_zero
@@ -1117,7 +1117,7 @@
   legality:
   - immu6 != 0
   - rfha + immu6 <= 64
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-01: ldm.o'
   scope: fp
   rule_refs:
   - mreg_zero
@@ -1149,7 +1149,7 @@
   legality:
   - immu6 != 0
   - rfha + immu6 <= 64
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-01: stm.o'
   scope: fp
   rule_refs:
   - mreg_zero
@@ -1176,7 +1176,7 @@
     signed: false
   legality:
   - rdha != rd0
-  spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant
+  spec_cite: 'SimRISC-03: or.w'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -1202,7 +1202,7 @@
     signed: false
   legality:
   - rdha != rd0
-  spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant
+  spec_cite: 'SimRISC-03: andn.w'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -1228,7 +1228,7 @@
     signed: false
   legality:
   - rbha != rb0
-  spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant
+  spec_cite: 'SimRISC-03: or.w'
   scope: m1
   rule_refs:
   - dst_rb0
@@ -1254,7 +1254,7 @@
     signed: false
   legality:
   - rbha != rb0
-  spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant
+  spec_cite: 'SimRISC-03: andn.w'
   scope: m1
   rule_refs:
   - dst_rb0
@@ -1280,7 +1280,7 @@
     signed: false
   legality:
   - rdha != rd0
-  spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant
+  spec_cite: 'SimRISC-03: set.zw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -1306,7 +1306,7 @@
     signed: false
   legality:
   - rdha != rd0
-  spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant
+  spec_cite: 'SimRISC-03: set.ow'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -1332,7 +1332,7 @@
     signed: false
   legality:
   - rbha != rb0
-  spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant
+  spec_cite: 'SimRISC-03: set.zw'
   scope: m1
   rule_refs:
   - dst_rb0
@@ -1357,7 +1357,7 @@
     bank: imm
     signed: false
   legality: []
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-03: set.w'
   scope: fp
   rule_refs: []
 - id: add.uo_rrrr_rd
@@ -1386,7 +1386,7 @@
   legality: &id001
   - '!(rdha == rd0 && rdhb == rd0)'
   - '!(rdha == rdhb && rdha != rd0)'
-  spec_cite: SimRISC-04 §加减操作
+  spec_cite: 'SimRISC-04: add.uo'
   scope: m1
   rule_refs:
   - dst_dual_same
@@ -1414,7 +1414,7 @@
     role: src
     bank: rd
   legality: *id001
-  spec_cite: SimRISC-04 §加减操作
+  spec_cite: 'SimRISC-04: add.so'
   scope: m1
   rule_refs:
   - dst_dual_same
@@ -1442,7 +1442,7 @@
     role: src
     bank: rd
   legality: *id001
-  spec_cite: SimRISC-04 §加减操作
+  spec_cite: 'SimRISC-04: sub.uo'
   scope: m1
   rule_refs:
   - dst_dual_same
@@ -1470,7 +1470,7 @@
     role: src
     bank: rd
   legality: *id001
-  spec_cite: SimRISC-04 §加减操作
+  spec_cite: 'SimRISC-04: sub.so'
   scope: m1
   rule_refs:
   - dst_dual_same
@@ -1498,7 +1498,7 @@
     role: src
     bank: rd
   legality: *id001
-  spec_cite: SimRISC-04 §乘除操作
+  spec_cite: 'SimRISC-04: mul.uo'
   scope: m1
   rule_refs:
   - dst_dual_same
@@ -1526,7 +1526,7 @@
     role: src
     bank: rd
   legality: *id001
-  spec_cite: SimRISC-04 §乘除操作
+  spec_cite: 'SimRISC-04: mul.so'
   scope: m1
   rule_refs:
   - dst_dual_same
@@ -1554,7 +1554,7 @@
     role: src
     bank: rd
   legality: *id001
-  spec_cite: SimRISC-04 §无进位乘法
+  spec_cite: 'SimRISC-04: clmul.o'
   scope: m9
   rule_refs:
   - dst_dual_same
@@ -1576,7 +1576,7 @@
     signed: true
   legality:
   - rdha != rd0
-  spec_cite: SimRISC-04 §自增自减
+  spec_cite: 'SimRISC-04: add.si'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -1598,7 +1598,7 @@
     signed: true
   legality:
   - rbha != rb0
-  spec_cite: SimRISC-05 §IP 相对寻址
+  spec_cite: 'SimRISC-05: aip.si'
   scope: m1
   rule_refs:
   - dst_rb0
@@ -1620,7 +1620,7 @@
     signed: true
   legality:
   - rbha != rb0
-  spec_cite: SimRISC-05 §自增自减
+  spec_cite: 'SimRISC-05: add.si'
   scope: m1
   rule_refs:
   - dst_rb0
@@ -1646,7 +1646,7 @@
     signed: false
   legality:
   - rdha != rd0
-  spec_cite: SimRISC-04 §比较操作
+  spec_cite: 'SimRISC-04: cmp.ui'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -1672,7 +1672,7 @@
     signed: true
   legality:
   - rdha != rd0
-  spec_cite: SimRISC-04 §比较操作
+  spec_cite: 'SimRISC-04: cmp.si'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -1701,7 +1701,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: cs.n'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -1730,7 +1730,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-02: cs.n'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -1759,7 +1759,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: cs.z'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -1788,7 +1788,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-02: cs.z'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -1817,7 +1817,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: cs.p'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -1846,7 +1846,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-02: cs.p'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -1875,7 +1875,7 @@
     bank: rd
   legality:
   - rdhc != rd0
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: cs.eq'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -1904,7 +1904,7 @@
     bank: rd
   legality:
   - rdhc != rd0
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  spec_cite: 'SimRISC-02: cs.ne'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -1925,7 +1925,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-06 §条件跳转指令
+  spec_cite: 'SimRISC-06: br.n'
   scope: m1
   rule_refs: []
 - id: br.nn_riii_rd
@@ -1945,7 +1945,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-06 §条件跳转指令
+  spec_cite: 'SimRISC-06: br.nn'
   scope: m1
   rule_refs: []
 - id: br.z_riii_rd
@@ -1965,7 +1965,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-06 §条件跳转指令
+  spec_cite: 'SimRISC-06: br.z'
   scope: m1
   rule_refs: []
 - id: br.nz_riii_rd
@@ -1985,7 +1985,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-06 §条件跳转指令
+  spec_cite: 'SimRISC-06: br.nz'
   scope: m1
   rule_refs: []
 - id: br.p_riii_rd
@@ -2005,7 +2005,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-06 §条件跳转指令
+  spec_cite: 'SimRISC-06: br.p'
   scope: m1
   rule_refs: []
 - id: br.np_riii_rd
@@ -2025,7 +2025,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-06 §条件跳转指令
+  spec_cite: 'SimRISC-06: br.np'
   scope: m1
   rule_refs: []
 - id: br.eq_rrii_rd
@@ -2049,7 +2049,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-06 §条件跳转指令
+  spec_cite: 'SimRISC-06: br.eq'
   scope: m1
   rule_refs: []
 - id: br.ne_rrii_rd
@@ -2073,7 +2073,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-06 §条件跳转指令
+  spec_cite: 'SimRISC-06: br.ne'
   scope: m1
   rule_refs: []
 - id: jump_iiii_rb
@@ -2089,7 +2089,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-06 §无条件跳转指令
+  spec_cite: 'SimRISC-06: jump'
   scope: m1
   rule_refs: []
 - id: jump_rrii_rb
@@ -2113,7 +2113,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-06 §无条件跳转指令
+  spec_cite: 'SimRISC-06: jump'
   scope: m1
   rule_refs: []
 - id: br.z_riii_rb
@@ -2133,7 +2133,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-06 §条件跳转指令
+  spec_cite: 'SimRISC-06: br.z'
   scope: m1
   rule_refs: []
 - id: br.nz_riii_rb
@@ -2153,7 +2153,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-06 §条件跳转指令
+  spec_cite: 'SimRISC-06: br.nz'
   scope: m1
   rule_refs: []
 - id: call_iiii_ra
@@ -2169,7 +2169,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-06 §函数调用
+  spec_cite: 'SimRISC-06: call'
   scope: m1
   rule_refs: []
 - id: call_rrii_ra
@@ -2193,7 +2193,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-06 §函数调用
+  spec_cite: 'SimRISC-06: call'
   scope: m1
   rule_refs: []
 - id: ret_riii_ra
@@ -2214,7 +2214,7 @@
     signed: true
   legality:
   - '!(rdha == rd0 && imms18 != 0)'
-  spec_cite: SimRISC-06 §函数返回
+  spec_cite: 'SimRISC-06: ret'
   scope: m1
   rule_refs:
   - dst_rd0_nonzero
@@ -2242,7 +2242,7 @@
     role: dst
     bank: rd
   legality: []
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-11: cfx2rd'
   scope: m1
   rule_refs: []
 - id: cfx2rc_crrr_cfx
@@ -2269,7 +2269,7 @@
     role: dst
     bank: rd
   legality: []
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-11: cfx2rc'
   scope: m1
   rule_refs: []
 - id: cfxld_crii_cfx
@@ -2293,7 +2293,7 @@
     bank: imm
     signed: false
   legality: []
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-12: cfxld'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2318,7 +2318,7 @@
     bank: imm
     signed: false
   legality: []
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-12: cfxst'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2339,7 +2339,7 @@
     bank: imm
     signed: true
   legality: []
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-11: escape'
   scope: m1
   rule_refs: []
 - id: trap_ciii_cfx
@@ -2359,7 +2359,7 @@
     bank: imm
     signed: false
   legality: []
-  spec_cite: SimRISC-00 §SimRISC QFC
+  spec_cite: 'SimRISC-11: trap'
   scope: m1
   rule_refs: []
 - id: fence_oiii_imm
@@ -2379,7 +2379,7 @@
   - immu18[17:12] == 0
   - immu18[11:10] == 0
   - immu18[5:4] == 0
-  spec_cite: SimRISC-11 §fence指令
+  spec_cite: 'SimRISC-11: fence'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2397,7 +2397,7 @@
     bank: imm
     signed: false
   legality: []
-  spec_cite: SimRISC-11 §占位指令
+  spec_cite: 'SimRISC-11: swym'
   scope: m1
   rule_refs: []
 - id: lr.o.nn_orrr_rd
@@ -2421,7 +2421,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: lr.o.nn'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2446,7 +2446,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: lr.t.nn'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2471,7 +2471,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: lr.w.nn'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2496,7 +2496,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: lr.b.nn'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2521,7 +2521,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: lr.o.an'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2546,7 +2546,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: lr.t.an'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2571,7 +2571,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: lr.w.an'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2596,7 +2596,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: lr.b.an'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2621,7 +2621,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: lr.o.ar'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2646,7 +2646,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: lr.t.ar'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2671,7 +2671,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: lr.w.ar'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2696,7 +2696,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: lr.b.ar'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2721,7 +2721,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: sc.o.nn'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2746,7 +2746,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: sc.t.nn'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2771,7 +2771,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: sc.w.nn'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2796,7 +2796,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: sc.b.nn'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2821,7 +2821,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: sc.o.nr'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2846,7 +2846,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: sc.t.nr'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2871,7 +2871,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: sc.w.nr'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2896,7 +2896,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: sc.b.nr'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2921,7 +2921,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: sc.o.ar'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2946,7 +2946,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: sc.t.ar'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2971,7 +2971,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: sc.w.ar'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2996,7 +2996,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: SimRISC-11 §LR-SC指令
+  spec_cite: 'SimRISC-11: sc.b.ar'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -3022,7 +3022,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Logic operators：逻辑运算
+  spec_cite: 'SimRISC-04: and.o'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3048,7 +3048,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Logic operators：逻辑运算
+  spec_cite: 'SimRISC-04: or.o'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3074,7 +3074,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Logic operators：逻辑运算
+  spec_cite: 'SimRISC-04: xor.o'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3100,7 +3100,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Logic operators：逻辑运算
+  spec_cite: 'SimRISC-04: xnor.o'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3126,7 +3126,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: shl.o'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3152,7 +3152,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: rol.o'
   scope: m9
   rule_refs:
   - dst_rd0
@@ -3178,7 +3178,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: shr.uo'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3204,7 +3204,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: shr.so'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3231,7 +3231,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: shl.o'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3258,7 +3258,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: rol.o'
   scope: m9
   rule_refs:
   - dst_rd0
@@ -3285,7 +3285,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: shr.uo'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3312,7 +3312,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: shr.so'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3338,7 +3338,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: ext.uo'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3364,7 +3364,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: ext.so'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3391,7 +3391,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: ext.uo'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3418,7 +3418,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: ext.so'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3444,7 +3444,7 @@
     bank: rd
   legality:
   - rbhb != rb0
-  spec_cite: SimRISC-05 §加减操作
+  spec_cite: 'SimRISC-05: add.o'
   scope: m1
   rule_refs:
   - dst_rb0
@@ -3470,7 +3470,7 @@
     bank: rd
   legality:
   - rbhb != rb0
-  spec_cite: SimRISC-05 §加减操作
+  spec_cite: 'SimRISC-05: sub.o'
   scope: m1
   rule_refs:
   - dst_rb0
@@ -3496,7 +3496,7 @@
     bank: rb
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-05 §比较操作
+  spec_cite: 'SimRISC-05: cmp.uo'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3522,7 +3522,7 @@
     bank: rb
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-05 §加减操作
+  spec_cite: 'SimRISC-05: sub.o'
   scope: m3
   rule_refs:
   - dst_rd0
@@ -3548,7 +3548,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §比较操作
+  spec_cite: 'SimRISC-04: cmp.uo'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3574,7 +3574,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §比较操作
+  spec_cite: 'SimRISC-04: cmp.so'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3605,7 +3605,7 @@
   - rdhb + immu6 <= 64
   - rdhc + immu6 <= 64
   - no_overlap(rdhb, rdhc, immu6)
-  spec_cite: SimRISC-02 §寄存器组之间块赋值
+  spec_cite: 'SimRISC-02: rd2rd'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3637,7 +3637,7 @@
   - immu6 != 0
   - rahb + immu6 <= 64
   - rdhc + immu6 <= 64
-  spec_cite: SimRISC-02 §寄存器组之间块赋值
+  spec_cite: 'SimRISC-02: rd2ra'
   scope: m1
   rule_refs:
   - mreg_zero
@@ -3668,7 +3668,7 @@
   - immu6 != 0
   - rdhb + immu6 <= 64
   - rahc + immu6 <= 64
-  spec_cite: SimRISC-02 §寄存器组之间块赋值
+  spec_cite: 'SimRISC-02: ra2rd'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3701,7 +3701,7 @@
   - rbhb + immu6 <= 64
   - rbhc + immu6 <= 64
   - no_overlap(rbhb, rbhc, immu6)
-  spec_cite: SimRISC-02 §寄存器组之间块赋值
+  spec_cite: 'SimRISC-02: rb2rb'
   scope: m1
   rule_refs:
   - dst_rb0
@@ -3734,7 +3734,7 @@
   - immu6 != 0
   - rbhb + immu6 <= 64
   - rdhc + immu6 <= 64
-  spec_cite: SimRISC-02 §寄存器组之间块赋值
+  spec_cite: 'SimRISC-02: rd2rb'
   scope: m1
   rule_refs:
   - dst_rb0
@@ -3766,7 +3766,7 @@
   - immu6 != 0
   - rdhb + immu6 <= 64
   - rbhc + immu6 <= 64
-  spec_cite: SimRISC-02 §寄存器组之间块赋值
+  spec_cite: 'SimRISC-02: rb2rd'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3794,7 +3794,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §乘除操作
+  spec_cite: 'SimRISC-04: div.uo'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3820,7 +3820,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §乘除操作
+  spec_cite: 'SimRISC-04: div.so'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3846,7 +3846,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §乘除操作
+  spec_cite: 'SimRISC-04: rem.uo'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3872,7 +3872,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §乘除操作
+  spec_cite: 'SimRISC-04: rem.so'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -3901,7 +3901,7 @@
   - immu6 != 0
   - rfhb + immu6 <= 64
   - rdhc + immu6 <= 64
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-02: rd2rf'
   scope: fp
   rule_refs:
   - mreg_zero
@@ -3932,7 +3932,7 @@
   - immu6 != 0
   - rdhb + immu6 <= 64
   - rfhc + immu6 <= 64
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-02: rf2rd'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -3963,7 +3963,7 @@
   - rdhb != rd0
   - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 ==
     32
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: rev.o'
   scope: m8
   rule_refs:
   - dst_rd0
@@ -3991,7 +3991,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: ctpop'
   scope: m8
   rule_refs:
   - dst_rd0
@@ -4018,7 +4018,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: ctlz'
   scope: m8
   rule_refs:
   - dst_rd0
@@ -4045,7 +4045,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: cttz'
   scope: m8
   rule_refs:
   - dst_rd0
@@ -4071,7 +4071,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: shl.t'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4097,7 +4097,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: rol.t'
   scope: m9
   rule_refs:
   - dst_rd0
@@ -4123,7 +4123,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: shr.ut'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4149,7 +4149,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: shr.st'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4177,7 +4177,7 @@
   legality:
   - rdhb != rd0
   - immu6 <= 31
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: shl.t'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4206,7 +4206,7 @@
   legality:
   - rdhb != rd0
   - immu6 <= 31
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: rol.t'
   scope: m9
   rule_refs:
   - dst_rd0
@@ -4235,7 +4235,7 @@
   legality:
   - rdhb != rd0
   - immu6 <= 31
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: shr.ut'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4264,7 +4264,7 @@
   legality:
   - rdhb != rd0
   - immu6 <= 31
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: shr.st'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4291,7 +4291,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §加减操作
+  spec_cite: 'SimRISC-08: add.ut'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4317,7 +4317,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §加减操作
+  spec_cite: 'SimRISC-08: add.st'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4343,7 +4343,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §加减操作
+  spec_cite: 'SimRISC-08: sub.ut'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4369,7 +4369,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §加减操作
+  spec_cite: 'SimRISC-08: sub.st'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4395,7 +4395,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §比较操作
+  spec_cite: 'SimRISC-08: cmp.ut'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4421,7 +4421,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §比较操作
+  spec_cite: 'SimRISC-08: cmp.st'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4447,7 +4447,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §乘除操作
+  spec_cite: 'SimRISC-08: mul.ut'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4473,7 +4473,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §乘除操作
+  spec_cite: 'SimRISC-08: mul.st'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4499,7 +4499,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §乘除操作
+  spec_cite: 'SimRISC-08: div.ut'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4525,7 +4525,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §乘除操作
+  spec_cite: 'SimRISC-08: div.st'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4551,7 +4551,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §乘除操作
+  spec_cite: 'SimRISC-08: rem.ut'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4577,7 +4577,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-08 §乘除操作
+  spec_cite: 'SimRISC-08: rem.st'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4605,7 +4605,7 @@
   legality:
   - rdhb != rd0
   - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: rev.t'
   scope: m8
   rule_refs:
   - dst_rd0
@@ -4632,7 +4632,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: shl.w'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4658,7 +4658,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: rol.w'
   scope: m9
   rule_refs:
   - dst_rd0
@@ -4684,7 +4684,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: shr.uw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4710,7 +4710,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: shr.sw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4738,7 +4738,7 @@
   legality:
   - rdhb != rd0
   - immu6 <= 15
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: shl.w'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4767,7 +4767,7 @@
   legality:
   - rdhb != rd0
   - immu6 <= 15
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: rol.w'
   scope: m9
   rule_refs:
   - dst_rd0
@@ -4796,7 +4796,7 @@
   legality:
   - rdhb != rd0
   - immu6 <= 15
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: shr.uw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4825,7 +4825,7 @@
   legality:
   - rdhb != rd0
   - immu6 <= 15
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: shr.sw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4852,7 +4852,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §加减操作
+  spec_cite: 'SimRISC-09: add.uw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4878,7 +4878,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §加减操作
+  spec_cite: 'SimRISC-09: add.sw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4904,7 +4904,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §加减操作
+  spec_cite: 'SimRISC-09: sub.uw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4930,7 +4930,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §加减操作
+  spec_cite: 'SimRISC-09: sub.sw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4956,7 +4956,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §比较操作
+  spec_cite: 'SimRISC-09: cmp.uw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -4982,7 +4982,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §比较操作
+  spec_cite: 'SimRISC-09: cmp.sw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5008,7 +5008,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §乘除操作
+  spec_cite: 'SimRISC-09: mul.uw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5034,7 +5034,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §乘除操作
+  spec_cite: 'SimRISC-09: mul.sw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5060,7 +5060,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §乘除操作
+  spec_cite: 'SimRISC-09: div.uw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5086,7 +5086,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §乘除操作
+  spec_cite: 'SimRISC-09: div.sw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5112,7 +5112,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §乘除操作
+  spec_cite: 'SimRISC-09: rem.uw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5138,7 +5138,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-09 §乘除操作
+  spec_cite: 'SimRISC-09: rem.sw'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5166,7 +5166,7 @@
   legality:
   - rdhb != rd0
   - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: rev.w'
   scope: m8
   rule_refs:
   - dst_rd0
@@ -5193,7 +5193,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: shl.b'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5219,7 +5219,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: rol.b'
   scope: m9
   rule_refs:
   - dst_rd0
@@ -5245,7 +5245,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: shr.ub'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5271,7 +5271,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: shr.sb'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5299,7 +5299,7 @@
   legality:
   - rdhb != rd0
   - immu6 <= 7
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: shl.b'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5328,7 +5328,7 @@
   legality:
   - rdhb != rd0
   - immu6 <= 7
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: rol.b'
   scope: m9
   rule_refs:
   - dst_rd0
@@ -5357,7 +5357,7 @@
   legality:
   - rdhb != rd0
   - immu6 <= 7
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: shr.ub'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5386,7 +5386,7 @@
   legality:
   - rdhb != rd0
   - immu6 <= 7
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: shr.sb'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5413,7 +5413,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §加减操作
+  spec_cite: 'SimRISC-10: add.ub'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5439,7 +5439,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §加减操作
+  spec_cite: 'SimRISC-10: add.sb'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5465,7 +5465,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §加减操作
+  spec_cite: 'SimRISC-10: sub.ub'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5491,7 +5491,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §加减操作
+  spec_cite: 'SimRISC-10: sub.sb'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5517,7 +5517,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §比较操作
+  spec_cite: 'SimRISC-10: cmp.ub'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5543,7 +5543,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §比较操作
+  spec_cite: 'SimRISC-10: cmp.sb'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5569,7 +5569,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §乘除操作
+  spec_cite: 'SimRISC-10: mul.ub'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5595,7 +5595,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §乘除操作
+  spec_cite: 'SimRISC-10: mul.sb'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5621,7 +5621,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §乘除操作
+  spec_cite: 'SimRISC-10: div.ub'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5647,7 +5647,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §乘除操作
+  spec_cite: 'SimRISC-10: div.sb'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5673,7 +5673,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §乘除操作
+  spec_cite: 'SimRISC-10: rem.ub'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5699,7 +5699,7 @@
     bank: rd
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-10 §乘除操作
+  spec_cite: 'SimRISC-10: rem.sb'
   scope: m1
   rule_refs:
   - dst_rd0
@@ -5727,7 +5727,7 @@
   legality:
   - rdhb != rd0
   - immu6 == 1 || immu6 == 2 || immu6 == 4
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: rev.b'
   scope: m8
   rule_refs:
   - dst_rd0
@@ -5758,7 +5758,7 @@
   - immu6 != 0
   - rdhb + immu6 <= 64
   - rfhc + immu6 <= 64
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ftcls'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -5791,7 +5791,7 @@
   - rfhb + immu6 <= 64
   - rfhc + immu6 <= 64
   - no_overlap(rfhb, rfhc, immu6)
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ft2fo'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -5820,7 +5820,7 @@
     bank: imm
     signed: false
   legality: *id002
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ft2ft'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -5851,7 +5851,7 @@
   legality: &id004
   - rfhb != rf0
   - immu6 == 2
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ftroot'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -5878,7 +5878,7 @@
     bank: imm
     signed: false
   legality: *id003
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: focls'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -5906,7 +5906,7 @@
     bank: imm
     signed: false
   legality: *id002
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: fo2ft'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -5935,7 +5935,7 @@
     bank: imm
     signed: false
   legality: *id002
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: fo2fo'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -5964,7 +5964,7 @@
     bank: imm
     signed: false
   legality: *id004
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: foroot'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -5995,7 +5995,7 @@
   - immu6 != 0
   - rdhb + immu6 <= 64
   - rfhc + immu6 <= 64
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ft2it'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6023,7 +6023,7 @@
     bank: imm
     signed: false
   legality: *id005
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ft2io'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6051,7 +6051,7 @@
     bank: imm
     signed: false
   legality: *id005
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ft2ut'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6079,7 +6079,7 @@
     bank: imm
     signed: false
   legality: *id005
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ft2uo'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6111,7 +6111,7 @@
   - immu6 != 0
   - rfhb + immu6 <= 64
   - rdhc + immu6 <= 64
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: it2ft'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6139,7 +6139,7 @@
     bank: imm
     signed: false
   legality: *id006
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: io2ft'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6167,7 +6167,7 @@
     bank: imm
     signed: false
   legality: *id006
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ut2ft'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6195,7 +6195,7 @@
     bank: imm
     signed: false
   legality: *id006
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: uo2ft'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6223,7 +6223,7 @@
     bank: imm
     signed: false
   legality: *id005
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: fo2it'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6251,7 +6251,7 @@
     bank: imm
     signed: false
   legality: *id005
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: fo2io'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6279,7 +6279,7 @@
     bank: imm
     signed: false
   legality: *id005
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: fo2ut'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6307,7 +6307,7 @@
     bank: imm
     signed: false
   legality: *id005
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: fo2uo'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6335,7 +6335,7 @@
     bank: imm
     signed: false
   legality: *id006
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: it2fo'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6363,7 +6363,7 @@
     bank: imm
     signed: false
   legality: *id006
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: io2fo'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6391,7 +6391,7 @@
     bank: imm
     signed: false
   legality: *id006
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ut2fo'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6419,7 +6419,7 @@
     bank: imm
     signed: false
   legality: *id006
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: uo2fo'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6450,7 +6450,7 @@
   - rfhb != rf0
   - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 ==
     32
-  spec_cite: SimRISC-07 §取整（roundToIntegral）
+  spec_cite: 'SimRISC-07: ftrnd'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6480,7 +6480,7 @@
   - rfhb != rf0
   - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 ==
     32
-  spec_cite: SimRISC-07 §取整（roundToIntegral）
+  spec_cite: 'SimRISC-07: fornd'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6507,7 +6507,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ftadd'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6533,7 +6533,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ftsub'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6559,7 +6559,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ftmul'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6585,7 +6585,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ftdiv'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6611,7 +6611,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ftrem'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6637,7 +6637,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ftsclb'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6663,7 +6663,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ftsgnn'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6689,7 +6689,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ftsgnj'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6715,7 +6715,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: foadd'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6741,7 +6741,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: fosub'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6767,7 +6767,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: fomul'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6793,7 +6793,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: fodiv'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6819,7 +6819,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: forem'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6845,7 +6845,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: fosclb'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6871,7 +6871,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: fosgnn'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6897,7 +6897,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: fosgnj'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -6923,7 +6923,7 @@
     bank: rf
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ftqcmp'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6949,7 +6949,7 @@
     bank: rf
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: ftscmp'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -6975,7 +6975,7 @@
     bank: rf
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: foqcmp'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -7001,7 +7001,7 @@
     bank: rf
   legality:
   - rdhb != rd0
-  spec_cite: SimRISC-00 §OPC-RF指令编码
+  spec_cite: 'SimRISC-07: foscmp'
   scope: fp
   rule_refs:
   - dst_rd0
@@ -7027,7 +7027,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
+  spec_cite: 'SimRISC-07: ftmin'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -7053,7 +7053,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
+  spec_cite: 'SimRISC-07: ftmax'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -7079,7 +7079,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
+  spec_cite: 'SimRISC-07: fomin'
   scope: fp
   rule_refs:
   - dst_rf0
@@ -7105,7 +7105,7 @@
     bank: rf
   legality:
   - rfhb != rf0
-  spec_cite: SimRISC-07 §最小最大值（minimumNumber / maximumNumber）
+  spec_cite: 'SimRISC-07: fomax'
   scope: fp
   rule_refs:
   - dst_rf0

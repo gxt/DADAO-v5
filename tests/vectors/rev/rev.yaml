@@ -16,7 +16,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   notes: 'encoding: word 与 opcodes.yaml mask/value 一致；rdhb=rd1（非 rd0）、rdhc=rd2、immu6=8（合法 one-hot 档）'
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -37,7 +37,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   notes: 'rev.o: S=64, k=1, rd2=0x0123456789ABCDEF → rd1=0xF7B3D591E6A2C480（oracle 大整数独立派生）'
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -58,7 +58,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   notes: 'rev.o: S=64, k=2, rd2=0x0123456789ABCDEF → rd1=0xFB73EA62D951C840（oracle 大整数独立派生）'
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -79,7 +79,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   notes: 'rev.o: S=64, k=4, rd2=0x0123456789ABCDEF → rd1=0xFEDCBA9876543210（oracle 大整数独立派生）'
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -100,7 +100,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   notes: 'rev.o: S=64, k=8, rd2=0x0123456789ABCDEF → rd1=0xEFCDAB8967452301（oracle 大整数独立派生）'
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -121,7 +121,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   notes: 'rev.o: S=64, k=16, rd2=0x0123456789ABCDEF → rd1=0xCDEF89AB45670123（oracle 大整数独立派生）'
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -142,7 +142,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   notes: 'rev.o: S=64, k=32, rd2=0x0123456789ABCDEF → rd1=0x89ABCDEF01234567（oracle 大整数独立派生）'
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -163,7 +163,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   notes: 端序敏感（大端 k=8）：rd2 的大端字节序 01 02 03 04 05 06 07 08 → 每个 64 位块内反转字节序 → rd1=0x0807060504030201
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -184,7 +184,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   notes: 'boundary rev.o k=1: rdHC=0 ⇒ rdHB=0'
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -205,7 +205,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   notes: 'boundary rev.o k=1: rdHC 全 1 ⇒ rdHB 全 1（全 1 图案逐块逆序不变）'
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -226,7 +226,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   notes: 'boundary rev.o k=1: rdHB == rdHC == rd3（原地反转，允许）'
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -245,7 +245,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   notes: 'boundary rev.o k=1: rdHC=rd0（源读出 0，合法）⇒ rdHB=0'
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -259,7 +259,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.o: k=0 非 one-hot ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -273,7 +273,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.o: k=3 非 one-hot ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -287,7 +287,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.o: k=5 非 one-hot ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.o
   id: rev.o_orri_rd
@@ -301,7 +301,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.o: rdhb=rd0（目的）⇒ ILLI（dst_rd0）'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -315,7 +315,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   notes: 'encoding: word 与 opcodes.yaml mask/value 一致；rdhb=rd1（非 rd0）、rdhc=rd2、immu6=8（合法 one-hot 档）'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -336,7 +336,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   notes: 'rev.t: S=32, k=1, rd2=0x0123456789ABCDEF → rd1=0xE6A2C480F7B3D591（oracle 大整数独立派生）'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -357,7 +357,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   notes: 'rev.t: S=32, k=2, rd2=0x0123456789ABCDEF → rd1=0xD951C840FB73EA62（oracle 大整数独立派生）'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -378,7 +378,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   notes: 'rev.t: S=32, k=4, rd2=0x0123456789ABCDEF → rd1=0x76543210FEDCBA98（oracle 大整数独立派生）'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -399,7 +399,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   notes: 'rev.t: S=32, k=8, rd2=0x0123456789ABCDEF → rd1=0x67452301EFCDAB89（oracle 大整数独立派生）'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -420,7 +420,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   notes: 'rev.t: S=32, k=16, rd2=0x0123456789ABCDEF → rd1=0x45670123CDEF89AB（oracle 大整数独立派生）'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -441,7 +441,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   notes: 端序敏感（大端 k=8）：rd2 的大端字节序 01 02 03 04 05 06 07 08 → 每个 32 位块内反转字节序 → rd1=0x0403020108070605
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -462,7 +462,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   notes: 'boundary rev.t k=8: 源高 32 位为 0 ⇒ 结果高 32 位亦为 0（bswap 前提）'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -483,7 +483,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   notes: 'boundary rev.t k=1: rdHC=0 ⇒ rdHB=0'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -504,7 +504,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   notes: 'boundary rev.t k=1: rdHC 全 1 ⇒ rdHB 全 1（全 1 图案逐块逆序不变）'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -525,7 +525,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   notes: 'boundary rev.t k=1: rdHB == rdHC == rd3（原地反转，允许）'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -544,7 +544,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   notes: 'boundary rev.t k=1: rdHC=rd0（源读出 0，合法）⇒ rdHB=0'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -558,7 +558,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.t: k=0 非 one-hot ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -572,7 +572,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.t: k=3 非 one-hot ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -586,7 +586,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.t: k=5 非 one-hot ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -600,7 +600,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.t: k=32 == S（恒等档） ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.t
   id: rev.t_orri_rd
@@ -614,7 +614,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.t: rdhb=rd0（目的）⇒ ILLI（dst_rd0）'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -628,7 +628,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   notes: 'encoding: word 与 opcodes.yaml mask/value 一致；rdhb=rd1（非 rd0）、rdhc=rd2、immu6=8（合法 one-hot 档）'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -649,7 +649,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   notes: 'rev.w: S=16, k=1, rd2=0x0123456789ABCDEF → rd1=0xC480E6A2D591F7B3（oracle 大整数独立派生）'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -670,7 +670,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   notes: 'rev.w: S=16, k=2, rd2=0x0123456789ABCDEF → rd1=0xC840D951EA62FB73（oracle 大整数独立派生）'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -691,7 +691,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   notes: 'rev.w: S=16, k=4, rd2=0x0123456789ABCDEF → rd1=0x32107654BA98FEDC（oracle 大整数独立派生）'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -712,7 +712,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   notes: 'rev.w: S=16, k=8, rd2=0x0123456789ABCDEF → rd1=0x23016745AB89EFCD（oracle 大整数独立派生）'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -733,7 +733,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   notes: 端序敏感（大端 k=8）：rd2 的大端字节序 01 02 03 04 05 06 07 08 → 每个 16 位块内反转字节序 → rd1=0x0201040306050807
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -754,7 +754,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   notes: 'boundary rev.w k=8: 源高 48 位为 0 ⇒ 结果高 48 位亦为 0（bswap 前提）'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -775,7 +775,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   notes: 'boundary rev.w k=1: rdHC=0 ⇒ rdHB=0'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -796,7 +796,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   notes: 'boundary rev.w k=1: rdHC 全 1 ⇒ rdHB 全 1（全 1 图案逐块逆序不变）'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -817,7 +817,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   notes: 'boundary rev.w k=1: rdHB == rdHC == rd3（原地反转，允许）'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -836,7 +836,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   notes: 'boundary rev.w k=1: rdHC=rd0（源读出 0，合法）⇒ rdHB=0'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -850,7 +850,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.w: k=0 非 one-hot ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -864,7 +864,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.w: k=3 非 one-hot ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -878,7 +878,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.w: k=5 非 one-hot ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -892,7 +892,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.w: k=16 == S（恒等档） ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.w
   id: rev.w_orri_rd
@@ -906,7 +906,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.w: rdhb=rd0（目的）⇒ ILLI（dst_rd0）'
 - mnemonic: rev.b
   id: rev.b_orri_rd
@@ -920,7 +920,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   notes: 'encoding: word 与 opcodes.yaml mask/value 一致；rdhb=rd1（非 rd0）、rdhc=rd2、immu6=4（合法 one-hot 档）'
 - mnemonic: rev.b
   id: rev.b_orri_rd
@@ -941,7 +941,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   notes: 'rev.b: S=8, k=1, rd2=0x0123456789ABCDEF → rd1=0x80C4A2E691D5B3F7（oracle 大整数独立派生）'
 - mnemonic: rev.b
   id: rev.b_orri_rd
@@ -962,7 +962,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   notes: 'rev.b: S=8, k=2, rd2=0x0123456789ABCDEF → rd1=0x40C851D962EA73FB（oracle 大整数独立派生）'
 - mnemonic: rev.b
   id: rev.b_orri_rd
@@ -983,7 +983,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   notes: 'rev.b: S=8, k=4, rd2=0x0123456789ABCDEF → rd1=0x1032547698BADCFE（oracle 大整数独立派生）'
 - mnemonic: rev.b
   id: rev.b_orri_rd
@@ -1004,7 +1004,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   notes: 'boundary rev.b k=1: rdHC=0 ⇒ rdHB=0'
 - mnemonic: rev.b
   id: rev.b_orri_rd
@@ -1025,7 +1025,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   notes: 'boundary rev.b k=1: rdHC 全 1 ⇒ rdHB 全 1（全 1 图案逐块逆序不变）'
 - mnemonic: rev.b
   id: rev.b_orri_rd
@@ -1046,7 +1046,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   notes: 'boundary rev.b k=1: rdHB == rdHC == rd3（原地反转，允许）'
 - mnemonic: rev.b
   id: rev.b_orri_rd
@@ -1065,7 +1065,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   notes: 'boundary rev.b k=1: rdHC=rd0（源读出 0，合法）⇒ rdHB=0'
 - mnemonic: rev.b
   id: rev.b_orri_rd
@@ -1079,7 +1079,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.b: k=0 非 one-hot ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.b
   id: rev.b_orri_rd
@@ -1093,7 +1093,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.b: k=3 非 one-hot ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.b
   id: rev.b_orri_rd
@@ -1107,7 +1107,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.b: k=5 非 one-hot ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.b
   id: rev.b_orri_rd
@@ -1121,7 +1121,7 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.b: k=8 == S（恒等档） ⇒ ILLI（encode_onehot）'
 - mnemonic: rev.b
   id: rev.b_orri_rd
@@ -1135,5 +1135,5 @@
   expected_fault: ILLI
   status: active
   deferred_reason: null
-  spec_cite: 'SimRISC-04 §Bit manipulating：位操作指令; contract-isa §6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; contract-isa: 6.4.3; legality_rules.yaml :: encode_onehot / dst_rd0'
   notes: 'legality rev.b: rdhb=rd0（目的）⇒ ILLI（dst_rd0）'

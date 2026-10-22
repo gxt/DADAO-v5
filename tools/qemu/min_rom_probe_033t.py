@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Min ROM probe for QEMU-033t: mreg_range_overlap run-time ILLI 0x88.
 
-Spec: SimRISC-02 §寄存器组之间块赋值.
+Spec: SimRISC-02: 寄存器组之间块赋值.
 Rule: contracts/legality_rules.yaml `mreg_range_overlap` (kind: static, fault: ILLI).
       Same-group block copies (rd2rd / rb2rb) whose source range and destination
       range intersect (complete coincidence included) are illegal.

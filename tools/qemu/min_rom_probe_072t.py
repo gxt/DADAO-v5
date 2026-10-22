@@ -2,9 +2,9 @@
 """Min ROM probe for QEMU-072t: ftrnd/fornd roundToIntegral (six modes).
 
 Spec sources (expectations derived from these, never from QEMU):
-  - spec/SimRISC-07 §2.3 取整（roundToIntegral）  (one-hot immu6 table)
+  - spec/SimRISC-07: 取整（roundToIntegral） 取整（roundToIntegral）  (one-hot immu6 table)
   - .tao/contracts/contract-fp.md §18 `roundint`
-  - spec/SimRISC-00 §浮点状态寄存器 (rf0[33:32] mode, rf0[4:0] flags)
+  - spec/SimRISC-00: 浮点状态寄存器 (rf0[33:32] mode, rf0[4:0] flags)
   - contracts/opcodes.yaml (encoding; ha 0x03 = ftrnd, 0x0B = fornd)
 
 Independent oracle: every expected value is computed here from the IEEE-754

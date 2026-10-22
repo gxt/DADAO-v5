@@ -51,7 +51,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 `hypv`（超管模式）的 cg3 寄存器（含 `cfx_⟨cfxname⟩_hypv_global_cfx_mask`、`cfx_⟨cfxname⟩_hypv_switch_run_mode`、`cfx_⟨cfxname⟩_hypv_excp_vector`）定义见 HEE。[DADAO-13 §1. cg3 - hypv mode 寄存器]
 
-`trap`/`escape`/`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst` 可在**任意运行模式**下执行；是否允许由各核芯功能扩展的 cfx mask 与指令类型 cfx mask 控制。[SimRISC-11 §特权指令]
+`trap`/`escape`/`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst` 可在**任意运行模式**下执行；是否允许由各核芯功能扩展的 cfx mask 与指令类型 cfx mask 控制。[SimRISC-11]
 
 异常进入后，硬件把运行模式与核芯功能扩展掩码改为 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 与 `cfx_⟨cfxname⟩_<mode>_switch_cfx_mask` 的值（异常进入流程步骤 8）。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3. 共有寄存器设计规范]
 
@@ -85,7 +85,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 ### 4.2 `escape` → 异常退出流程
 
-`escape` 指令完成异常退出：恢复 `excp_prev_cfx_mask`/`excp_prev_run_mode`、递增 `escape_num`，并以 `escape` 的 `imms18`（指令字偏移）计算返回地址并跳转——`Addr = excp_cause_ip + (imms18 << 2)`。[DADAO-12 §异常退出流程] 汇编层写 `escape cfxha, [excp_cause_ip, imms20]`，`imms20` 以字节为单位且须 `%4==0`。[SimRISC-11 §退出指令]
+`escape` 指令完成异常退出：恢复 `excp_prev_cfx_mask`/`excp_prev_run_mode`、递增 `escape_num`，并以 `escape` 的 `imms18`（指令字偏移）计算返回地址并跳转——`Addr = excp_cause_ip + (imms18 << 2)`。[DADAO-12 §异常退出流程] 汇编层写 `escape cfxha, [excp_cause_ip, imms20]`，`imms20` 以字节为单位且须 `%4==0`。[SimRISC-11]
 
 被调方通过 `escape cfxha, [excp_cause_ip, 4]` 返回 trap 指令的下一条指令（`excp_cause_ip + 4`）。[DADAO-22 §1. 调用约定]
 
@@ -107,7 +107,7 @@ semihosting 是 v5 测试机提供的「guest 经 `trap` 请求宿主 I/O」机�
 ### 5.1 判定（入口 tag）
 
 - **判定**：`trap cfxHA, immu18` 中 **`immu18[17:16] == 2'b11`** ⇒ 该 `trap` 为 **semihosting 调用**（**与 `cfxha` 无关**）。[ADR-0020 D1]
-- **`D1` 语义/理由说明（架构自定义）**：该 tag 判定**无上游 spec 依据、属 v5 架构自定义**——`spec/DADAO-22` 只规定 `cfxha` 为服务提供者、`immu18` 为功能编号；`spec/SimRISC-11 §陷入指令` 只规定 `immu18` 为功能编号；二者**均无 semihosting 语义**。故本机制在 v5 中由测试机定义，guest/实现共同遵守此 tag。[ADR-0020 D1][DADAO-22 §1. 调用约定][SimRISC-11 §陷入指令]
+- **`D1` 语义/理由说明（架构自定义）**：该 tag 判定**无上游 spec 依据、属 v5 架构自定义**——`spec/DADAO-22` 只规定 `cfxha` 为服务提供者、`immu18` 为功能编号；`spec/SimRISC-11` 只规定 `immu18` 为功能编号；二者**均无 semihosting 语义**。故本机制在 v5 中由测试机定义，guest/实现共同遵守此 tag。[ADR-0020 D1][DADAO-22 §1. 调用约定][SimRISC-11]
 - **两条路**：`immu18[17:16] == 2'b11` 走 semihosting 短路（本节）；`≠ 2'b11` 走一般 trap 进入向量（见 `§4.1`）。[ADR-0020 D10]
 
 ### 5.2 调用约定（传参/返回寄存器）
@@ -202,7 +202,7 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 
 ### 0.3.1（2026-10-16）
 
-- 正文术语 `PC` 统一为 **`IP`**（`IP` = 当前正在执行的指令的地址，见 SimRISC-00 §基址寄存器）：§4.3 两条路对照与 §5.4 返回机制（semihosting 走 `IP += 4`）。
+- 正文术语 `PC` 统一为 **`IP`**（`IP` = 当前正在执行的指令的地址，见 SimRISC-00）：§4.3 两条路对照与 §5.4 返回机制（semihosting 走 `IP += 4`）。
 
 ### 0.3.0（2026-10-11）
 

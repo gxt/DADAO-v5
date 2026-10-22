@@ -14,7 +14,7 @@
   input_state: {}
   mnemonic: shl.o
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -37,7 +37,7 @@
       rd3: '0x0000000000000002'
   mnemonic: shl.o
   notes: 'shl.o: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -60,7 +60,7 @@
       rd3: '0x000000000000003F'
   mnemonic: shl.o
   notes: 'boundary shl.o: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=63=N, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -74,7 +74,7 @@
   input_state: {}
   mnemonic: shl.o
   notes: 'legality shl.o: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -88,7 +88,7 @@
   input_state: {}
   mnemonic: shr.uo
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -111,7 +111,7 @@
       rd3: '0x0000000000000002'
   mnemonic: shr.uo
   notes: 'shr.uo: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -134,7 +134,7 @@
       rd3: '0x000000000000003F'
   mnemonic: shr.uo
   notes: 'boundary shr.uo: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=63=N, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -148,7 +148,7 @@
   input_state: {}
   mnemonic: shr.uo
   notes: 'legality shr.uo: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -162,7 +162,7 @@
   input_state: {}
   mnemonic: shr.so
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -185,7 +185,7 @@
       rd3: '0x0000000000000002'
   mnemonic: shr.so
   notes: 'shr.so: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -208,7 +208,7 @@
       rd3: '0x000000000000003F'
   mnemonic: shr.so
   notes: 'boundary shr.so: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=63=N, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -222,7 +222,7 @@
   input_state: {}
   mnemonic: shr.so
   notes: 'legality shr.so: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -236,7 +236,7 @@
   input_state: {}
   mnemonic: shl.o
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -258,7 +258,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shl.o
   notes: 'shl.o orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -280,7 +280,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shl.o
   notes: 'boundary shl.o orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=63=N, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -294,7 +294,7 @@
   input_state: {}
   mnemonic: shl.o
   notes: 'legality shl.o: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -308,7 +308,7 @@
   input_state: {}
   mnemonic: shr.uo
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -330,7 +330,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.uo
   notes: 'shr.uo orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -352,7 +352,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.uo
   notes: 'boundary shr.uo orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=63=N, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -366,7 +366,7 @@
   input_state: {}
   mnemonic: shr.uo
   notes: 'legality shr.uo: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -380,7 +380,7 @@
   input_state: {}
   mnemonic: shr.so
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -402,7 +402,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.so
   notes: 'shr.so orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -424,7 +424,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.so
   notes: 'boundary shr.so orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=63=N, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -438,7 +438,7 @@
   input_state: {}
   mnemonic: shr.so
   notes: 'legality shr.so: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -452,7 +452,7 @@
   input_state: {}
   mnemonic: ext.uo
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -475,7 +475,7 @@
       rd3: '0x0000000000000002'
   mnemonic: ext.uo
   notes: 'ext.uo: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -498,7 +498,7 @@
       rd3: '0x000000000000003F'
   mnemonic: ext.uo
   notes: 'boundary ext.uo: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=63=N, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -512,7 +512,7 @@
   input_state: {}
   mnemonic: ext.uo
   notes: 'legality ext.uo: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -526,7 +526,7 @@
   input_state: {}
   mnemonic: ext.so
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -549,7 +549,7 @@
       rd3: '0x0000000000000002'
   mnemonic: ext.so
   notes: 'ext.so: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -572,7 +572,7 @@
       rd3: '0x000000000000003F'
   mnemonic: ext.so
   notes: 'boundary ext.so: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=63=N, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -586,7 +586,7 @@
   input_state: {}
   mnemonic: ext.so
   notes: 'legality ext.so: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -600,7 +600,7 @@
   input_state: {}
   mnemonic: ext.uo
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -622,7 +622,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: ext.uo
   notes: 'ext.uo orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -644,7 +644,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: ext.uo
   notes: 'boundary ext.uo orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=63=N, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -658,7 +658,7 @@
   input_state: {}
   mnemonic: ext.uo
   notes: 'legality ext.uo: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -672,7 +672,7 @@
   input_state: {}
   mnemonic: ext.so
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -694,7 +694,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: ext.so
   notes: 'ext.so orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -716,7 +716,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: ext.so
   notes: 'boundary ext.so orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=63=N, N=63'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -730,7 +730,7 @@
   input_state: {}
   mnemonic: ext.so
   notes: 'legality ext.so: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-04: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -744,7 +744,7 @@
   input_state: {}
   mnemonic: shl.t
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -767,7 +767,7 @@
       rd3: '0x0000000000000002'
   mnemonic: shl.t
   notes: 'shl.t: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=31'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -790,7 +790,7 @@
       rd3: '0x000000000000001F'
   mnemonic: shl.t
   notes: 'boundary shl.t: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=31=N, N=31'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -804,7 +804,7 @@
   input_state: {}
   mnemonic: shl.t
   notes: 'legality shl.t: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -818,7 +818,7 @@
   input_state: {}
   mnemonic: shr.ut
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -841,7 +841,7 @@
       rd3: '0x0000000000000002'
   mnemonic: shr.ut
   notes: 'shr.ut: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=31'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -864,7 +864,7 @@
       rd3: '0x000000000000001F'
   mnemonic: shr.ut
   notes: 'boundary shr.ut: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=31=N, N=31'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -878,7 +878,7 @@
   input_state: {}
   mnemonic: shr.ut
   notes: 'legality shr.ut: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -892,7 +892,7 @@
   input_state: {}
   mnemonic: shr.st
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -915,7 +915,7 @@
       rd3: '0x0000000000000002'
   mnemonic: shr.st
   notes: 'shr.st: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=31'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -938,7 +938,7 @@
       rd3: '0x000000000000001F'
   mnemonic: shr.st
   notes: 'boundary shr.st: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=31=N, N=31'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -952,7 +952,7 @@
   input_state: {}
   mnemonic: shr.st
   notes: 'legality shr.st: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -966,7 +966,7 @@
   input_state: {}
   mnemonic: shl.t
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -988,7 +988,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shl.t
   notes: 'shl.t orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=31'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -1010,7 +1010,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shl.t
   notes: 'boundary shl.t orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=31=N, N=31'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -1024,7 +1024,7 @@
   input_state: {}
   mnemonic: shl.t
   notes: 'legality shl.t: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -1038,7 +1038,7 @@
   input_state: {}
   mnemonic: shr.ut
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1060,7 +1060,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.ut
   notes: 'shr.ut orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=31'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -1082,7 +1082,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.ut
   notes: 'boundary shr.ut orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=31=N, N=31'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -1096,7 +1096,7 @@
   input_state: {}
   mnemonic: shr.ut
   notes: 'legality shr.ut: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -1110,7 +1110,7 @@
   input_state: {}
   mnemonic: shr.st
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1132,7 +1132,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.st
   notes: 'shr.st orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=31'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -1154,7 +1154,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.st
   notes: 'boundary shr.st orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=31=N, N=31'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -1168,7 +1168,7 @@
   input_state: {}
   mnemonic: shr.st
   notes: 'legality shr.st: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-08 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-08: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -1182,7 +1182,7 @@
   input_state: {}
   mnemonic: shl.w
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1205,7 +1205,7 @@
       rd3: '0x0000000000000002'
   mnemonic: shl.w
   notes: 'shl.w: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=15'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -1228,7 +1228,7 @@
       rd3: '0x000000000000000F'
   mnemonic: shl.w
   notes: 'boundary shl.w: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=15=N, N=15'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -1242,7 +1242,7 @@
   input_state: {}
   mnemonic: shl.w
   notes: 'legality shl.w: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -1256,7 +1256,7 @@
   input_state: {}
   mnemonic: shr.uw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1279,7 +1279,7 @@
       rd3: '0x0000000000000002'
   mnemonic: shr.uw
   notes: 'shr.uw: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=15'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -1302,7 +1302,7 @@
       rd3: '0x000000000000000F'
   mnemonic: shr.uw
   notes: 'boundary shr.uw: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=15=N, N=15'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -1316,7 +1316,7 @@
   input_state: {}
   mnemonic: shr.uw
   notes: 'legality shr.uw: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -1330,7 +1330,7 @@
   input_state: {}
   mnemonic: shr.sw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1353,7 +1353,7 @@
       rd3: '0x0000000000000002'
   mnemonic: shr.sw
   notes: 'shr.sw: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=15'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -1376,7 +1376,7 @@
       rd3: '0x000000000000000F'
   mnemonic: shr.sw
   notes: 'boundary shr.sw: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=15=N, N=15'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -1390,7 +1390,7 @@
   input_state: {}
   mnemonic: shr.sw
   notes: 'legality shr.sw: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -1404,7 +1404,7 @@
   input_state: {}
   mnemonic: shl.w
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1426,7 +1426,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shl.w
   notes: 'shl.w orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=15'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -1448,7 +1448,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shl.w
   notes: 'boundary shl.w orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=15=N, N=15'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -1462,7 +1462,7 @@
   input_state: {}
   mnemonic: shl.w
   notes: 'legality shl.w: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -1476,7 +1476,7 @@
   input_state: {}
   mnemonic: shr.uw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1498,7 +1498,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.uw
   notes: 'shr.uw orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=15'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -1520,7 +1520,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.uw
   notes: 'boundary shr.uw orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=15=N, N=15'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -1534,7 +1534,7 @@
   input_state: {}
   mnemonic: shr.uw
   notes: 'legality shr.uw: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -1548,7 +1548,7 @@
   input_state: {}
   mnemonic: shr.sw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1570,7 +1570,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.sw
   notes: 'shr.sw orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=15'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -1592,7 +1592,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.sw
   notes: 'boundary shr.sw orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=15=N, N=15'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -1606,7 +1606,7 @@
   input_state: {}
   mnemonic: shr.sw
   notes: 'legality shr.sw: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-09 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-09: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -1620,7 +1620,7 @@
   input_state: {}
   mnemonic: shl.b
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1643,7 +1643,7 @@
       rd3: '0x0000000000000002'
   mnemonic: shl.b
   notes: 'shl.b: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=7'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -1666,7 +1666,7 @@
       rd3: '0x0000000000000007'
   mnemonic: shl.b
   notes: 'boundary shl.b: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=7=N, N=7'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -1680,7 +1680,7 @@
   input_state: {}
   mnemonic: shl.b
   notes: 'legality shl.b: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -1694,7 +1694,7 @@
   input_state: {}
   mnemonic: shr.ub
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1717,7 +1717,7 @@
       rd3: '0x0000000000000002'
   mnemonic: shr.ub
   notes: 'shr.ub: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=7'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -1740,7 +1740,7 @@
       rd3: '0x0000000000000007'
   mnemonic: shr.ub
   notes: 'boundary shr.ub: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=7=N, N=7'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -1754,7 +1754,7 @@
   input_state: {}
   mnemonic: shr.ub
   notes: 'legality shr.ub: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -1768,7 +1768,7 @@
   input_state: {}
   mnemonic: shr.sb
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1791,7 +1791,7 @@
       rd3: '0x0000000000000002'
   mnemonic: shr.sb
   notes: 'shr.sb: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=7'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -1814,7 +1814,7 @@
       rd3: '0x0000000000000007'
   mnemonic: shr.sb
   notes: 'boundary shr.sb: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=7=N, N=7'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -1828,7 +1828,7 @@
   input_state: {}
   mnemonic: shr.sb
   notes: 'legality shr.sb: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -1842,7 +1842,7 @@
   input_state: {}
   mnemonic: shl.b
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1864,7 +1864,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shl.b
   notes: 'shl.b orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=7'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -1886,7 +1886,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shl.b
   notes: 'boundary shl.b orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=7=N, N=7'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -1900,7 +1900,7 @@
   input_state: {}
   mnemonic: shl.b
   notes: 'legality shl.b: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -1914,7 +1914,7 @@
   input_state: {}
   mnemonic: shr.ub
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -1936,7 +1936,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.ub
   notes: 'shr.ub orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=7'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -1958,7 +1958,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.ub
   notes: 'boundary shr.ub orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=7=N, N=7'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -1972,7 +1972,7 @@
   input_state: {}
   mnemonic: shr.ub
   notes: 'legality shr.ub: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active
 - class: encoding
   deferred_reason: null
@@ -1986,7 +1986,7 @@
   input_state: {}
   mnemonic: shr.sb
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: semantic
   deferred_reason: null
@@ -2008,7 +2008,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.sb
   notes: 'shr.sb orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=7'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: boundary
   deferred_reason: null
@@ -2030,7 +2030,7 @@
       rd2: '0x0F0F0F0F0F0F0F0F'
   mnemonic: shr.sb
   notes: 'boundary shr.sb orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=7=N, N=7'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令'
   status: active
 - class: legality
   deferred_reason: null
@@ -2044,5 +2044,5 @@
   input_state: {}
   mnemonic: shr.sb
   notes: 'legality shr.sb: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-10 §Bit manipulating：位操作指令; SimRISC-00 §数据寄存器
+  spec_cite: 'SimRISC-10: Bit manipulating：位操作指令; SimRISC-00: 数据寄存器'
   status: active

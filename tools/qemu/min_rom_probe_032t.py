@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Min ROM probe for QEMU-032t: ret rd0 with imms18 != 0 → ILLI 0x88.
 
-Spec: SimRISC-06 §函数返回 / contract-isa §1.3.1 / §8.5.
+Spec: SimRISC-06: 函数返回 / contract-isa: 1.3.1 / §8.5.
 Rule: contracts/legality_rules.yaml `dst_rd0_nonzero` (kind: static, fault: ILLI).
 Exit code: ADR-0004 D5.8 — ILLI = 0x88.
 
