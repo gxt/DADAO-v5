@@ -3,15 +3,15 @@
 
 职责（可执行、可失败；SPEC-087t §5.1）：
   1. 覆盖双向一致：fp_semantics.yaml 的 id 集合 == opcodes.yaml 中
-     scope=="fp" 的 id 集合；计数 == 60（缺/多/重复 ⇒ FAIL）。
-  2. 族合法且计数：每条 family ∈ 13 族枚举；每族计数 == 约定值。
+     scope=="fp" 的 id 集合；计数 == 64（缺/多/重复 ⇒ FAIL）。
+  2. 族合法且计数：每条 family ∈ 14 族枚举；每族计数 == 约定值。
   3. spec_cite 非空且匹配 ^SimRISC-0[0-7]\\b。
   4. 族完备：families 段为每族声明 required_keys（须 == 预期键集）；
      每条记录的族 required_keys 均存在（缺失 ⇒ FAIL）。
   5. legality 双向：每条 legality_refs ∈ legality_rules.yaml 的 id 集合；
      6 条 FP 规则（dst_rf0/encode_fp_root_n/mreg_zero/mreg_range_overflow/
      mreg_range_overlap/dst_rd0）各被**精确条数**条 FP id 引用
-     （35/2/28/28/4/15，SPEC-088t + SPEC-089t）；仅 FP 专属规则
+     （39/2/28/28/4/15，SPEC-088t + SPEC-089t + SPEC-160t）；仅 FP 专属规则
      （dst_rf0/encode_fp_root_n）不得被 scope != fp 的 opcodes 记录引用
      （mreg_*/dst_rd0 同时服务 M1，被非 fp 记录引用是预期）。
   6. 叙述锚点可达：每条 semantics_ref = contract-fp.md#<anchor>，且
@@ -37,9 +37,9 @@ from pathlib import Path
 
 import yaml
 
-EXPECTED_TOTAL = 60
+EXPECTED_TOTAL = 64
 
-# 13 族枚举与计数（SPEC-087t §1.3；SPEC-162t 新增 roundint）
+# 14 族枚举与计数（SPEC-087t §1.3；SPEC-162t 新增 roundint；SPEC-160t 新增 minmax）
 FAMILY_COUNTS = {
     "convert_ff": 4,
     "convert_f2i": 8,
@@ -54,6 +54,7 @@ FAMILY_COUNTS = {
     "rf_move": 2,
     "set_w_rf": 1,
     "roundint": 2,
+    "minmax": 4,
 }
 
 # FP 相关合法性规则（6 条，SPEC-088t §2.5 + SPEC-089t）：各须被精确条数条 FP id 引用。
@@ -62,10 +63,11 @@ FAMILY_COUNTS = {
 FP_RULES = ("dst_rf0", "encode_fp_root_n", "mreg_zero",
             "mreg_range_overflow", "mreg_range_overlap", "dst_rd0")
 
-# 每条 FP 规则须被 FP id 引用的精确条数（SPEC-088t §2.6；SPEC-162t 起 dst_rf0 33→35；收紧后才可对
+# 每条 FP 规则须被 FP id 引用的精确条数（SPEC-088t §2.6；SPEC-162t 起 dst_rf0 33→35、
+# SPEC-160t 35→39；收紧后才可对
 # 「漏一条 / 漏源侧」判 FAIL）。
 FP_RULE_EXACT = {
-    "dst_rf0": 35,
+    "dst_rf0": 39,
     "encode_fp_root_n": 2,
     "mreg_zero": 28,
     "mreg_range_overflow": 28,
@@ -143,7 +145,7 @@ def main() -> int:
     families = sem.get("families") or {}
     bad_family = sorted({i.get("family") for i in insns
                          if i.get("family") not in FAMILY_COUNTS})
-    if not record("family ∈ 13 族", 0, len(bad_family)):
+    if not record("family ∈ 14 族", 0, len(bad_family)):
         failures.append("非法族: " + ", ".join(str(b) for b in bad_family[:10]))
 
     declared = sorted(families.keys())

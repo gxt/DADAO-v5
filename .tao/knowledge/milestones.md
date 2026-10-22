@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-160t | 已验证 | 2026-10-22 21:43 | `min/max` 解 excluded：`fp` 60→64 / 14 族、`excluded` 31→27；264/264、lit 131/131；注入两例双红 |
 | LLVM-127t | 待开始 | 2026-10-22 21:10（登记） | 窄位 `i8/i16/i32` 合法化 + canonical 扩展（含 `ISS-310`） |
 | LLVM-128t | 待开始 | 2026-10-22 21:10（登记） | `ctlz`/`cttz`/`ctpop` + `rev` 后端 pattern（clz/bswap 各 1 条） |
 | LLVM-124t | 已验证 | 2026-10-22 21:00 | `min/max` 后端：`minnum`/`minimumnum`/C `fmin` 各 1 条；`minimum` 9 条无 libcall；`FMINNUM` 改 Custom（「≤4」裁定放宽） |
@@ -63,7 +64,6 @@
 | QEMU-070t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 语义：softfloat mulAdd 单次舍入；探针含 fma≠mul+add 反例 |
 | SPEC-157t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 立册（四操作数 `rrrr`、`op 0x5E/0x5F`；excluded） |
 | SPEC-158t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 解除 `excluded`（`scope → fp`，新族 `fma`） |
-| SPEC-160t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 解除 `excluded`（`scope → fp`，新族 `minmax`） |
 | TESTCASES-057t | 待开始 | 2026-10-21 23:50（登记） | clmul 集成：指令级 + GHASH + CRC-32C，独立 oracle、两档 |
 | TESTCASES-058t | 待开始 | 2026-10-21 23:50（登记） | `fma` 集成：单次舍入反例 + 点积/GEMM/Horner，独立 oracle、两档 |
 | TESTCASES-059t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 集成：NaN/±0 矩阵（值+NV 双断言）+ clamp/矩阵；C23 展开无 libcall |

@@ -76,8 +76,8 @@ fo2ut_orri_rf	fo2ut	orri	fp	fo2ut_orri_rf	accept	ok	fo2ut {rd8}, {rf9}	no
 foadd_orrr_rf	foadd	orrr	fp	foadd_orrr_rf	accept	ok	foadd rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:625:foadd_orrr_rf	
 focls_orri_rf	focls	orri	fp	focls_orri_rf	accept	ok	focls {rd8}, {rf9}	no		
 fodiv_orrr_rf	fodiv	orrr	fp	fodiv_orrr_rf	accept	ok	fodiv rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:628:fodiv_orrr_rf	
-fomax_orrr_rf	fomax	orrr	excluded	fomax_orrr_rf	accept	ok	fomax rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:669:fomax_orrr_rf;pat:DADAOCodeGen.td.patch:671:fomax_orrr_rf	
-fomin_orrr_rf	fomin	orrr	excluded	fomin_orrr_rf	accept	ok	fomin rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:668:fomin_orrr_rf;pat:DADAOCodeGen.td.patch:670:fomin_orrr_rf	
+fomax_orrr_rf	fomax	orrr	fp	fomax_orrr_rf	accept	ok	fomax rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:669:fomax_orrr_rf;pat:DADAOCodeGen.td.patch:671:fomax_orrr_rf	
+fomin_orrr_rf	fomin	orrr	fp	fomin_orrr_rf	accept	ok	fomin rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:668:fomin_orrr_rf;pat:DADAOCodeGen.td.patch:670:fomin_orrr_rf	
 fomul_orrr_rf	fomul	orrr	fp	fomul_orrr_rf	accept	ok	fomul rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:627:fomul_orrr_rf	
 foqcmp_orrr_rf	foqcmp	orrr	fp	foqcmp_orrr_rf	accept	ok	foqcmp rd8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:713:foqcmp_orrr_rf;pat-args:DADAOCodeGen.td.patch:769:foqcmp_orrr_rf	
 forem_orrr_rf	forem	orrr	fp	forem_orrr_rf	accept	ok	forem rf8, rf9, rf10	no		
@@ -97,8 +97,8 @@ ft2ut_orri_rf	ft2ut	orri	fp	ft2ut_orri_rf	accept	ok	ft2ut {rd8}, {rf9}	no
 ftadd_orrr_rf	ftadd	orrr	fp	ftadd_orrr_rf	accept	ok	ftadd rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:646:ftadd_orrr_rf	
 ftcls_orri_rf	ftcls	orri	fp	ftcls_orri_rf	accept	ok	ftcls {rd8}, {rf9}	no		
 ftdiv_orrr_rf	ftdiv	orrr	fp	ftdiv_orrr_rf	accept	ok	ftdiv rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:649:ftdiv_orrr_rf	
-ftmax_orrr_rf	ftmax	orrr	excluded	ftmax_orrr_rf	accept	ok	ftmax rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:673:ftmax_orrr_rf;pat:DADAOCodeGen.td.patch:675:ftmax_orrr_rf	
-ftmin_orrr_rf	ftmin	orrr	excluded	ftmin_orrr_rf	accept	ok	ftmin rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:672:ftmin_orrr_rf;pat:DADAOCodeGen.td.patch:674:ftmin_orrr_rf	
+ftmax_orrr_rf	ftmax	orrr	fp	ftmax_orrr_rf	accept	ok	ftmax rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:673:ftmax_orrr_rf;pat:DADAOCodeGen.td.patch:675:ftmax_orrr_rf	
+ftmin_orrr_rf	ftmin	orrr	fp	ftmin_orrr_rf	accept	ok	ftmin rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:672:ftmin_orrr_rf;pat:DADAOCodeGen.td.patch:674:ftmin_orrr_rf	
 ftmul_orrr_rf	ftmul	orrr	fp	ftmul_orrr_rf	accept	ok	ftmul rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:648:ftmul_orrr_rf	
 ftqcmp_orrr_rf	ftqcmp	orrr	fp	ftqcmp_orrr_rf	accept	ok	ftqcmp rd8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:714:ftqcmp_orrr_rf;pat-args:DADAOCodeGen.td.patch:772:ftqcmp_orrr_rf	
 ftrem_orrr_rf	ftrem	orrr	fp	ftrem_orrr_rf	accept	ok	ftrem rf8, rf9, rf10	no		

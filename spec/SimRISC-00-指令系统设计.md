@@ -287,7 +287,7 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          | MISC-AMO        |
 | 0111-1xxx     |                      |                      | cfx2rd_crrr_cfx      | cfx2rc_crrr_cfx      | cfxld_crii_cfx       | cfxst_crii_cfx       | escape_ciii_cfx      | trap_ciii_cfx   |
 
-> **`scope` 分区**（用户裁定 2026-10-03；2026-10-05 按实现状态更新）：`scope: fp`（主表 `MISC-RF` 子表 op=0x44 的 RF 运算/转换/比较/分类/取整，及散见各表的 RF 存取形态，共 60 条）**语义已归一化于 `contract-fp.md`、执行层 60/60 已实现**（`QEMU-034t`~`038t`、取整见 `QEMU-072t`），不触发 decode ILLI。
+> **`scope` 分区**（用户裁定 2026-10-03；2026-10-05 按实现状态更新）：`scope: fp`（主表 `MISC-RF` 子表 op=0x44 的 RF 运算/转换/比较/分类/取整，及散见各表的 RF 存取形态，共 64 条）**语义已归一化于 `contract-fp.md`、执行层 64/64 已实现**（`QEMU-034t`~`038t`、取整见 `QEMU-072t`、最小最大值见 `QEMU-071t`），不触发 decode ILLI。
 > `scope: excluded`（特权 cfx：cfx2rd/cfx2rc/cfxld/cfxst/escape/trap）**未实现，decode ILLI**。
 
 ### 4.1 MISC-AMO 指令编码
@@ -379,7 +379,7 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 
 ### 4.6 MISC-RF指令编码
 
-> 本子表 50 条 = `scope: fp` 46 条（已实现；语义归一化于 `contract-fp.md`，执行层落地，不触发 decode ILLI；取整 `ftrnd_orri_rf`/`fornd_orri_rf` 见 SimRISC-07 §取整（roundToIntegral））+ `scope: excluded` 4 条（`ftmin_orrr_rf`/`ftmax_orrr_rf`/`fomin_orrr_rf`/`fomax_orrr_rf`，最小/最大值，编码已定义、执行 ILLI；语义见 SimRISC-07 §最小最大值（minimumNumber / maximumNumber））。`scope: fp` 共 60 条。
+> 本子表 50 条全部为 `scope: fp`（已实现；语义归一化于 `contract-fp.md`，执行层落地，不触发 decode ILLI；取整 `ftrnd_orri_rf`/`fornd_orri_rf` 见 SimRISC-07 §取整（roundToIntegral）、最小/最大值 `ftmin_orrr_rf`/`ftmax_orrr_rf`/`fomin_orrr_rf`/`fomax_orrr_rf` 见 SimRISC-07 §最小最大值（minimumNumber / maximumNumber））。`scope: fp` 共 64 条。
 
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
 
@@ -442,6 +442,7 @@ v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成�
 - `clmul.o` 解除 `excluded`（`scope` → `m9`；M9 新增 ISA 指令，与 `rol.*` 同档），执行语义见 `SimRISC-04 §3.5`。
 - `ftrnd`/`fornd` 解除 `excluded`（`scope` → `fp`；实现落地后执行语义生效，不触发 decode ILLI），语义见 `SimRISC-07 §4.3`。
 - 新增 `ftmin`/`ftmax`/`fomin`/`fomax`（最小/最大值，IEEE 754-2019 `minimumNumber`/`maximumNumber`；`orrr`），编码 `100-110`/`100-111`/`101-110`/`101-111`（`ha = 0x26`/`0x27`/`0x2E`/`0x2F`，MISC-RF）；`scope` 为 `excluded`（执行 ILLI），语义见 `SimRISC-07 §4.4`。
+- `ftmin`/`ftmax`/`fomin`/`fomax` 解除 `excluded`（`scope` → `fp`；实现落地后执行语义生效，不触发 decode ILLI）；MISC-RF 子表 50 条全部为 `scope: fp`，FP 范围总账 60 → 64 条；语义见 `SimRISC-07 §4.4`。
 
 ### 0.5.4（2026-09-28）
 
