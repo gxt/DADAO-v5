@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-060t | 已验证 | 2026-10-22 16:20 | 取整集成：6 档矩阵 + 模式敏感 + 标志；两档 805/805；独立 oracle 284/284；L2 边际 ≈6 s |
 | SPEC-162t | 已验证 | 2026-10-22 15:40 | 取整解除 `excluded`（`scope → fp`，新族 `roundint`）；fp 60 / excluded 27 / 260；13 族；规则明细同步 |
 | LLVM-125t | 已验证 | 2026-10-22 14:20 | 取整后端：7 个 intrinsic → 6 档、各 1 条；`FNEARBYINT` 落 0x20（NX 偏差已注明）；lit 132/132 |
 | QEMU-072t | 已验证 | 2026-10-22 13:40 | 取整语义：静态 5 档只合 NV、DYN 读 rf0；探针 413/413；`check_qemu_trans` 260/260，`ISS-322` closed |
@@ -64,7 +65,6 @@
 | TESTCASES-057t | 待开始 | 2026-10-21 23:50（登记） | clmul 集成：指令级 + GHASH + CRC-32C，独立 oracle、两档 |
 | TESTCASES-058t | 待开始 | 2026-10-21 23:50（登记） | `fma` 集成：单次舍入反例 + 点积/GEMM/Horner，独立 oracle、两档 |
 | TESTCASES-059t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 集成：NaN/±0 矩阵（值+NV 双断言）+ clamp/矩阵；C23 展开无 libcall |
-| TESTCASES-060t | 待开始 | 2026-10-21 23:50（登记） | 取整集成：6 档×值矩阵（位模式）+ 模式敏感 + 标志三类 |
 | INFRA-099t | 已验证 | 2026-10-21 23:43 | ISS-229：29 个写者/门控由 `flock` 串行（嵌套放行、有界等待、rc=69/75）；真并发验证串行、L1/L2 绿 |
 | INFRA-098t | 已验证 | 2026-10-21 19:35 | 安装集补 `llvm-nm`（342 MB/+3.6%）+ `llvm-readelf` 相对链接（0 B）；builtins 4 次重建同 sha；`check-install-tools` 45 项 PASS |
 | TESTCASES-054t | 已验证 | 2026-10-21 19:08 | 超时预算重标：lua 840→1320、XSBench 新增 720（实测+120 s）、unix-smail 0.11 s 不入表；清过时注记 |

@@ -845,3 +845,10 @@
   blocks: []
   resolved_by: QEMU-072t
   notes: "【正式登记（2026-10-22，源 = `SPEC-161t` 完成区「遗留问题」+ 现场重跑；engineer 登记）】**现象（现场）**：`contracts/opcodes.yaml` 已立 `ftrnd_orri_rf`（`op 0x44` / `ha 0x03`）/`fornd_orri_rf`（`ha 0x0B`），`scope: excluded`、`decode: ILLI`（260 条 / excluded 29）；QEMU 侧无对应 `insn.decode` pattern 与 `trans_ftrnd_*`/`trans_fornd_*` ⇒ `check_qemu_trans --strict` 报 **258/260**（缺 2），`check_interface` 的「QEMU trans_* ↔ opcodes」交叉核对同步红。**本册边界**：L2 不在验收面（`make check`(L1) 全绿；上述两项红为**预期**），语义实现归 `QEMU-072t`（静态 5 档只合 NV、DYN 走真实 status；模式敏感 + NX 专测），LLVM 后端归 `LLVM-125t`，`excluded → fp` 翻转归 `SPEC-162t`。**关闭判据**：`QEMU-072t` 落 2 条 trans（`immu6` one-hot 六档；NX 只对 `0x20`）后 `check_qemu_trans` 260/260、`check_interface` 绿。**证据指针**：`.tao/tasks/spec/SPEC-161t-立册.md` 完成区；`contracts/opcodes.yaml`（两条记录）；`spec/SimRISC-07 §取整（roundToIntegral）`。**交叉引用**：`ISS-317`（同型「编码已定、实现待落」先例）、`ISS-318`（NX/UF 措辞）。**边界**：本笔只登记 ⇒ 未改 `components/qemu/**` ✗；`tests/**` 仅按既有生成器重生成反例文件（`gen-excluded.s`，机械派生）✗ 无语义向量改动。 **关闭（2026-10-22，`QEMU-072t`；关闭判据现场实测）**：`insn.decode` 落 `ftrnd_orri_rf`/`fornd_orri_rf` 两条 pattern，`trans_fp.c.inc` 落 `gen_fp_round_to_int` + 两条 `trans_*`（helper `fp_round_to_int`：静态 5 档临时 status 只合 NV、DYN 走真实 status 合 NV|NX）⇒ `check_qemu_trans --strict` **260/260 rc=0**，`make check-modules`(L2，含 `check_interface`) **rc=0**；探针 413/413、反例注入 135/34 红后还原回绿；证据 `.work/evidence/QEMU-072t/run.sh`。`scope` 仍 `excluded`（翻转归 `SPEC-162t`）、LLVM 归 `LLVM-125t`。"
+- id: ISS-323
+  title: "【P3】`run_rnd_probe.py` 静态不可感性检查重复计数（`seen` 在 `for fmt` 内重置）⇒ 805 含 20 条重复；完成区「10 组 RESTORE」实测为 27 组"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（2026-10-22，源 = `TESTCASES-060t` reviewer 第 1 轮非阻塞 finding F-R1/F-R2）】**现象**：`check_aggregates` 的 `seen` 集合在 `for fmt` 循环内重置、`static` 未按 fmt 过滤 ⇒ 同一组 20 条「静态档不可感性」检查被两个格式各判一次（同名同值）；故 `total=805` 实含 20 条重复，去重后 **785**。断言未减弱（重复只会加强），**无假绿**；但计数口径失真。另：完成区写「10 组 RESTORE」而实测 **27 组**（叙述偏差，实际更强）。**修法方向**：把 `seen` 与 `static` 集合提到 fmt 循环外（或按 fmt 派生键），重跑两档并更新计数与完成区；补一条「重复检测」自测（同名同值只计一次）。**交叉引用**：`TESTCASES-060t`（登记源）、`docs/Process-08`（运行产物/计数口径）。**边界**：本笔只登记。"
