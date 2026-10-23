@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..0f8de4acd
+index 000000000..647556c97
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,2761 @@
+@@ -0,0 +1,3004 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -454,12 +454,12 @@ index 000000000..0f8de4acd
 +    // twice and silently breaks `llvm.fma` semantics.
 +    setOperationAction(ISD::FMA, VT, Legal);
 +    setOperationAction(
-+        {ISD::FABS, ISD::FREM, ISD::FCOPYSIGN, ISD::FSIN, ISD::FCOS,
++        {ISD::FREM, ISD::FSIN, ISD::FCOS,
 +         ISD::FTAN, ISD::FASIN, ISD::FACOS, ISD::FATAN, ISD::FATAN2,
 +         ISD::FSINH, ISD::FCOSH, ISD::FTANH, ISD::FPOW, ISD::FPOWI, ISD::FEXP,
 +         ISD::FEXP2, ISD::FEXP10, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
-+         ISD::FMINIMUM, ISD::FMAXIMUM, ISD::FCANONICALIZE, ISD::FLDEXP,
-+         ISD::FFREXP, ISD::FGETSIGN, ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT},
++         ISD::FMINIMUM, ISD::FMAXIMUM,
++         ISD::FFREXP, ISD::FGETSIGN},
 +        VT, Expand);
 +    // Rounding family (LLVM-125t): one `fornd`/`ftrnd` each, `immu6` = one-hot
 +    // rounding mode (patterns in DADAOCodeGen.td; contract-fp.md §roundint).
@@ -528,9 +528,43 @@ index 000000000..0f8de4acd
 +  // so no `fmin`/`fmax` libcall is emitted any more.  The rounding family is
 +  // Legal too (LLVM-125t, ftrnd/fornd -- see the loop above); this block's
 +  // comment used to list it here as a libcall class.
-+  // f32 copysign/fabs stay Expand (P1 sign-injection is double precision).
-+  setOperationAction(ISD::FCOPYSIGN, MVT::f64, Legal);
-+  setOperationAction(ISD::FABS, MVT::f64, Legal);
++  // f32 copysign/fabs use the same sign-injection instruction in its ft form
++  // (`ftsgnj`; LLVM-126t); before that only the double forms were wired.
++  setOperationAction({ISD::FCOPYSIGN, ISD::FABS}, MVT::f64, Legal);
++  setOperationAction({ISD::FCOPYSIGN, ISD::FABS}, MVT::f32, Legal);
++
++  // Remaining FP nodes wired directly to hardware (LLVM-126t, ISS-188):
++  //   * ISD::FCANONICALIZE is the identity -- the target has no x87-style
++  //     excess precision and every arithmetic instruction produces an IEEE
++  //     canonical result, so `x * 1.0` (the generic expansion, which also
++  //     quietens an sNaN and can raise NV/NX) is both larger and less faithful.
++  //     Custom lowering returns the operand unchanged.
++  //   * ISD::IS_FPCLASS -> focls/ftcls + mask (contract-fp.md §9).
++  //   * ISD::FLDEXP -> io2fo/it2ft + fosclb/ftsclb (contract-fp.md §5).
++  //   * ISD::GET_ROUNDING / ISD::SET_ROUNDING -> rf0[33:32]
++  //     (contract-fp.md §1).  GET_ROUNDING is keyed on its i32 result,
++  //     SET_ROUNDING on MVT::Other (it is a chain node).
++  setOperationAction(ISD::FCANONICALIZE, MVT::f64, Custom);
++  setOperationAction(ISD::FCANONICALIZE, MVT::f32, Custom);
++  setOperationAction(ISD::IS_FPCLASS, MVT::f64, Custom);
++  setOperationAction(ISD::IS_FPCLASS, MVT::f32, Custom);
++  setOperationAction(ISD::FLDEXP, MVT::f64, Custom);
++  setOperationAction(ISD::FLDEXP, MVT::f32, Custom);
++  setOperationAction(ISD::GET_ROUNDING, MVT::i32, Custom);
++  setOperationAction(ISD::SET_ROUNDING, MVT::Other, Custom);
++
++  // Saturating float->int (LLVM-126t; contract-fp.md §3).  These nodes are
++  // keyed on the *integer result* type.  i64/i32 use the hardware conversion
++  // (fo2io/fo2uo/fo2it/fo2ut, which saturates and raises NV); i8/i16 have no
++  // hardware form, so they keep the generic, libcall-free expansion.
++  setOperationAction({ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT}, MVT::i64,
++                     Custom);
++  setOperationAction({ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT}, MVT::i32,
++                     Custom);
++  setOperationAction({ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT}, MVT::i16,
++                     Expand);
++  setOperationAction({ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT}, MVT::i8,
++                     Expand);
 +  // f64 <-> f32 conversions (ft2fo / fo2ft).  FP_ROUND is keyed on the smaller
 +  // (result) type, FP_EXTEND on the larger (result) type.
 +  setOperationAction(ISD::FP_ROUND, MVT::f32, Legal);
@@ -750,6 +784,16 @@ index 000000000..0f8de4acd
 +    return "DADAOISD::ATOMIC_CMP_SWAP";
 +  case DADAOISD::CLMUL:
 +    return "DADAOISD::CLMUL";
++  case DADAOISD::FCLASS:
++    return "DADAOISD::FCLASS";
++  case DADAOISD::SCALB:
++    return "DADAOISD::SCALB";
++  case DADAOISD::CVT_SAT:
++    return "DADAOISD::CVT_SAT";
++  case DADAOISD::WRITE_FCSR_RM:
++    return "DADAOISD::WRITE_FCSR_RM";
++  case DADAOISD::WRITE_FCSR:
++    return "DADAOISD::WRITE_FCSR";
 +  default:
 +    return nullptr;
 +  }
@@ -1644,6 +1688,25 @@ index 000000000..0f8de4acd
 +  case ISD::FMINNUM:
 +  case ISD::FMAXNUM:
 +    return LowerMinMaxNum(Op, DAG);
++  // FP completeness wiring (LLVM-126t; the custom actions are declared in the
++  // constructor): classification, scaleB, saturating conversion, the FCSR
++  // rounding-mode accessors and the identity canonicalisation.
++  case ISD::IS_FPCLASS:
++    return LowerIS_FPCLASS(Op, DAG);
++  case ISD::FLDEXP:
++    return LowerFLDEXP(Op, DAG);
++  case ISD::FP_TO_SINT_SAT:
++  case ISD::FP_TO_UINT_SAT:
++    return LowerFP_TO_INT_SAT(Op, DAG);
++  case ISD::GET_ROUNDING:
++    return LowerGET_ROUNDING(Op, DAG);
++  case ISD::SET_ROUNDING:
++    return LowerSET_ROUNDING(Op, DAG);
++  case ISD::FCANONICALIZE:
++    // Identity: no excess precision and no non-canonical results on this
++    // target, so canonicalisation must not touch the value (x * 1.0 would
++    // quieten an sNaN and can raise NV/NX for no semantic reason).
++    return Op.getOperand(0);
 +  // Atomics (LLVM-121t; ADR-0034).  The IR-level AtomicExpandPass has already
 +  // turned every atomic load/store into a monotonic access plus `fence`, and
 +  // every RMW into a cmpxchg loop, so these four hooks are the whole backend
@@ -2005,6 +2068,164 @@ index 000000000..0f8de4acd
 +      Op.getOpcode() == ISD::FMINNUM ? ISD::FMINNUM_IEEE : ISD::FMAXNUM_IEEE;
 +  return DAG.getNode(NewOp, DL, VT, Op.getOperand(0), Op.getOperand(1),
 +                     Op->getFlags());
++}
++
++SDValue DADAOTargetLowering::LowerIS_FPCLASS(SDValue Op,
++                                             SelectionDAG &DAG) const {
++  // LLVM-126t (contract-fp.md §9).  `focls`/`ftcls` write a 10-bit one-hot
++  // class mask whose bit order is exactly LLVM's FPClassTest (SPEC-156t):
++  //   0 sNaN, 1 qNaN, 2 -Inf, 3 -Normal, 4 -Subnormal, 5 -Zero,
++  //   6 +Zero, 7 +Subnormal, 8 +Normal, 9 +Inf.
++  // So is.fpclass(x, M) is (class(x) & M) != 0 with no bit permutation; a
++  // one-hot M needs no AND at all -- comparing the class word against M is
++  // already the != 0 test for that single class.
++  const SDLoc DL(Op);
++  SDValue Src = Op.getOperand(0);
++  const uint64_t Mask = Op.getConstantOperandVal(1);
++  const EVT VT = Op.getValueType();
++  // The SETCC/cs.* machinery produces the canonical i64 0/1 boolean (i1 was
++  // promoted to the smallest legal integer, i8, by the type legalizer), so the
++  // mask test is built as i64 and truncated to the node's type.
++  const EVT BoolVT = getSetCCResultType(DAG.getDataLayout(),
++                                        *DAG.getContext(), MVT::i64);
++
++  SDValue Class = DAG.getNode(DADAOISD::FCLASS, DL, MVT::i64, Src);
++  SDValue Test;
++  if (isPowerOf2_64(Mask)) {
++    // Single class: the one-hot class word IS the test result, so compare it
++    // with the mask directly -- no AND.
++    Test = DAG.getSetCC(DL, BoolVT, Class, DAG.getConstant(Mask, DL, MVT::i64),
++                        ISD::SETEQ);
++  } else {
++    SDValue And = DAG.getNode(ISD::AND, DL, MVT::i64, Class,
++                              DAG.getConstant(Mask, DL, MVT::i64));
++    Test = DAG.getSetCC(DL, BoolVT, And, DAG.getConstant(0, DL, MVT::i64),
++                        ISD::SETNE);
++  }
++  return BoolVT == VT ? Test : DAG.getNode(ISD::TRUNCATE, DL, VT, Test);
++}
++
++SDValue DADAOTargetLowering::LowerFLDEXP(SDValue Op, SelectionDAG &DAG) const {
++  // LLVM-126t (contract-fp.md §5): `fosclb`/`ftsclb` compute rfHC * 2^rfHD
++  // with rfHD taken as an integer value, so the i32 exponent is converted to
++  // FP (io2fo / io2ft) and fed to the scalb instruction.  ISD::FLDEXP's node is
++  // (x, i32 n); the signed conversion is the right one -- a negative exponent
++  // scales down.
++  const SDLoc DL(Op);
++  const EVT VT = Op.getValueType();
++  SDValue Exp = Op.getOperand(1);
++  if (Exp.getValueType() != MVT::i64)
++    Exp = DAG.getNode(ISD::SIGN_EXTEND, DL, MVT::i64, Exp);
++  SDValue ExpFP = DAG.getNode(ISD::SINT_TO_FP, DL, VT, Exp);
++  return DAG.getNode(DADAOISD::SCALB, DL, VT, Op.getOperand(0), ExpFP);
++}
++
++SDValue DADAOTargetLowering::LowerFP_TO_INT_SAT(SDValue Op,
++                                                SelectionDAG &DAG) const {
++  // LLVM-126t (contract-fp.md §3).  The hardware conversions saturate:
++  //   * NaN/Inf/out of range -> the saturated extreme + NV (QEMU-0xx softfloat)
++  // LangRef additionally requires NaN -> 0, which the hardware does not do, so
++  // a SETUO select adds the zero (the RISC-V approach).  The SatVT operand says
++  // which width the saturation must use; only the hardware widths (32/64) are
++  // customised, and the 8/16-bit forms fall back to the (libcall-free) generic
++  // expansion in the legalizer.
++  const SDLoc DL(Op);
++  const EVT DstVT = Op.getValueType();
++  const EVT SatVT = cast<VTSDNode>(Op.getOperand(1))->getVT();
++  const bool IsSigned = Op.getOpcode() == ISD::FP_TO_SINT_SAT;
++  const bool IsF32 = Op.getOperand(0).getValueType() == MVT::f32;
++
++  if (SatVT != MVT::i32 && SatVT != MVT::i64)
++    return SDValue(); // Not custom lowered: the legalizer expands it.
++
++  // kind: 0 fo2io/ft2io (signed 64), 1 fo2uo/ft2uo (unsigned 64),
++  //       2 fo2it/ft2it (signed 32), 3 fo2ut/ft2ut (unsigned 32).
++  unsigned Kind = (IsSigned ? 0u : 1u) + (SatVT == MVT::i32 ? 2u : 0u);
++  if (IsF32)
++    Kind |= 4u; // bit 2: ft source format (see DADAOISelDAGToDAG)
++  SDValue Conv = DAG.getNode(
++      DADAOISD::CVT_SAT, DL, MVT::i64, Op.getOperand(0),
++      DAG.getTargetConstant(Kind, DL, MVT::i64));
++  if (DstVT != MVT::i64)
++    Conv = DAG.getNode(ISD::TRUNCATE, DL, DstVT, Conv);
++
++  // NaN -> 0 (LangRef); the hardware returns the saturated extreme + NV.
++  SDValue Zero = DAG.getConstant(0, DL, DstVT);
++  return DAG.getSelectCC(DL, Op.getOperand(0), Op.getOperand(0), Zero, Conv,
++                         ISD::SETUO);
++}
++
++SDValue DADAOTargetLowering::LowerGET_ROUNDING(SDValue Op,
++                                               SelectionDAG &DAG) const {
++  // LLVM-126t (contract-fp.md §1).  rf0[33:32] holds the hardware mode
++  // (00 RNE, 01 RTZ, 10 RDN, 11 RUP); FLT_ROUNDS is 0 RTZ, 1 RNE, 2 RUP,
++  // 3 RDN, i.e. exactly the hardware mode with bit 0 inverted.
++  //   rf2rd {rd}, {rf0}   (CopyFromReg + BITCAST)
++  //   shr  rd, rd, 32
++  //   and  rd, rd, 3
++  //   xor  rd, rd, 1
++  const SDLoc DL(Op);
++  SDValue Chain = Op.getOperand(0);
++  SDValue CFR = DAG.getCopyFromReg(Chain, DL, DADAO::rf0, MVT::f64);
++  Chain = CFR.getValue(1);
++  SDValue FCSR = DAG.getNode(ISD::BITCAST, DL, MVT::i64, CFR);
++  SDValue Mode = DAG.getNode(ISD::SRL, DL, MVT::i64, FCSR,
++                             DAG.getConstant(32, DL, MVT::i64));
++  Mode = DAG.getNode(ISD::AND, DL, MVT::i64, Mode,
++                     DAG.getConstant(3, DL, MVT::i64));
++  Mode = DAG.getNode(ISD::XOR, DL, MVT::i64, Mode,
++                     DAG.getConstant(1, DL, MVT::i64));
++  SDValue Result = DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Mode);
++  return DAG.getMergeValues({Result, Chain}, DL);
++}
++
++SDValue DADAOTargetLowering::LowerSET_ROUNDING(SDValue Op,
++                                               SelectionDAG &DAG) const {
++  // LLVM-126t (contract-fp.md §1, §13).  The FCSR write mask lets `set.w rf0`
++  // rewrite only [33:32] (wp2) and [4:0] (wp0), so a *constant* mode is one
++  // instruction: `set.w {rf0}, wp2, hw` with hw = FLT ^ 1.  The accrued flags
++  // in wp0 are untouched by a wp2 write.  A dynamic mode cannot be an
++  // immediate, so it becomes a read-modify-write of a copy of the FCSR
++  // (`rf2rd`, clear [33:32], merge the new mode, `rd2rf {rf0}`); the FCSR write
++  // mask then drops everything outside [33:32]/[4:0].
++  const SDLoc DL(Op);
++  SDValue Chain = Op.getOperand(0);
++  SDValue Mode = Op.getOperand(1);
++
++  if (auto *C = dyn_cast<ConstantSDNode>(Mode)) {
++    uint64_t FLT = C->getZExtValue();
++    if (FLT > 3) {
++      // FLT_ROUNDS 4 is "nearest, ties away from zero"; rf0[33:32] only defines
++      // 00 RNE, 01 RTZ, 10 RDN, 11 RUP.  Fail loudly instead of silently
++      // programming a different mode.
++      DAG.getContext()->emitError(
++          "DADAO: llvm.set.rounding with FLT_ROUNDS=4 (nearest, ties away) is "
++          "not representable (rf0[33:32] defines RTZ/RNE/RDN/RUP only)");
++      return Chain;
++    }
++    uint64_t HW = FLT ^ 1;
++    return DAG.getNode(DADAOISD::WRITE_FCSR_RM, DL, MVT::Other, Chain,
++                       DAG.getTargetConstant(HW, DL, MVT::i64));
++  }
++
++  // Dynamic mode: hw = (mode & 3) ^ 1; merge into a copy of the FCSR so the
++  // accrued exception flags survive.
++  SDValue HWMask = DAG.getNode(ISD::AND, DL, MVT::i32, Mode,
++                               DAG.getConstant(3, DL, MVT::i32));
++  SDValue HW = DAG.getNode(ISD::XOR, DL, MVT::i32, HWMask,
++                           DAG.getConstant(1, DL, MVT::i32));
++  SDValue HW64 = DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i64, HW);
++  SDValue CFR = DAG.getCopyFromReg(Chain, DL, DADAO::rf0, MVT::f64);
++  Chain = CFR.getValue(1);
++  SDValue Old = DAG.getNode(ISD::BITCAST, DL, MVT::i64, CFR);
++  // Clear the two mode bits, keep everything else (including [4:0]), then OR in
++  // the new mode.
++  SDValue Keep = DAG.getNode(ISD::AND, DL, MVT::i64, Old,
++                             DAG.getConstant(~(3ULL << 32), DL, MVT::i64));
++  SDValue NewMode = DAG.getNode(ISD::SHL, DL, MVT::i64, HW64,
++                                DAG.getConstant(32, DL, MVT::i64));
++  SDValue New = DAG.getNode(ISD::OR, DL, MVT::i64, Keep, NewMode);
++  return DAG.getNode(DADAOISD::WRITE_FCSR, DL, MVT::Other, Chain, New);
 +}
 +
 +void DADAOTargetLowering::ReplaceNodeResults(
@@ -2670,6 +2891,28 @@ index 000000000..0f8de4acd
 +
 +MachineBasicBlock *DADAOTargetLowering::EmitInstrWithCustomInserter(
 +    MachineInstr &MI, MachineBasicBlock *MBB) const {
++  // FCSR rounding-mode writes (LLVM-126t): the pseudo only exists to bind the
++  // destination to rf0 (no DAG pattern can); expanding it is a single real
++  // instruction.  `wp2` is bits [47:32], i.e. the word containing the rounding
++  // mode rf0[33:32] (contract-fp.md §1/§13; the write mask ignores the rest).
++  if (MI.getOpcode() == DADAO::SET_FCSR_RM_PSEUDO ||
++      MI.getOpcode() == DADAO::SET_FCSR_PSEUDO) {
++    const TargetInstrInfo *TII =
++        MI.getParent()->getParent()->getSubtarget().getInstrInfo();
++    const DebugLoc &DL = MI.getDebugLoc();
++    if (MI.getOpcode() == DADAO::SET_FCSR_RM_PSEUDO) {
++      BuildMI(*MBB, MI, DL, TII->get(DADAO::set_w_rwii_rf), DADAO::rf0)
++          .addImm(2) // wp2
++          .addImm(MI.getOperand(0).getImm());
++    } else {
++      BuildMI(*MBB, MI, DL, TII->get(DADAO::rd2rf_orri_rf), DADAO::rf0)
++          .addReg(MI.getOperand(0).getReg())
++          .addImm(1);
++    }
++    MI.eraseFromParent();
++    return MBB;
++  }
++
 +  // Expand one of the ATOMIC_CMP_SWAP_PSEUDO_{B,W,T,O} pseudos into the lr/sc
 +  // retry loop (DADAOCodeGen.td has the full shape).  This hook runs in
 +  // FinalizeISel, i.e. after instruction selection and before register

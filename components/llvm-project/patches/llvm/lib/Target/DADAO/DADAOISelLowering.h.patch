@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..5a25f958a
+index 000000000..439b84da5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,390 @@
+@@ -0,0 +1,448 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -143,6 +143,36 @@ index 000000000..5a25f958a
 +  /// with its i128 result (i128 is not legal, so the type legalizer splits it);
 +  /// selected by DADAOISelDAGToDAG to CLMUL_LOHI_PSEUDO -> one `clmul.o`.
 +  CLMUL,
++
++  /// Floating-point classification (LLVM-126t; contract-fp.md §9): (fp) -> i64,
++  /// the 10-bit one-hot class mask `focls`/`ftcls` write.  Produced by
++  /// LowerIS_FPCLASS; selected by a direct pattern in DADAOCodeGen.td.
++  FCLASS,
++
++  /// IEEE 754 scaleB (LLVM-126t; contract-fp.md §5): (x, n) -> x * 2^n with the
++  /// integer-valued FP exponent `n`.  Produced by LowerFLDEXP (`n` is already
++  /// an io2fo/it2ft result); selected to `fosclb`/`ftsclb`.
++  SCALB,
++
++  /// Saturating float->int conversion (LLVM-126t; contract-fp.md §3):
++  /// (fp, TargetConstant kind) -> i64.  The hardware conversion saturates and
++  /// raises NV; LowerFP_TO_INT_SAT adds the LangRef NaN -> 0 fixup on top.
++  /// `kind` picks fo2io/fo2uo/fo2it/fo2ut (or the ft equivalents) and is
++  /// decoded in DADAOISelDAGToDAG (the instruction has no value-type-visible
++  /// operand to key a pattern on).
++  CVT_SAT,
++
++  /// Write FCSR (rf0) rounding mode from a *constant* (LLVM-126t): (chain,
++  /// TargetConstant FLT_ROUNDS-mapped 2-bit mode) -> chain.  Selected to one
++  /// `set.w {rf0}, wp2, imm16`, which the FCSR write mask restricts to
++  /// rf0[33:32] -- the accrued flag bits [4:0] are left untouched.
++  WRITE_FCSR_RM,
++
++  /// Dynamic (non-constant) FCSR rounding-mode write (LLVM-126t): (chain, i64
++  /// full FCSR value) -> chain.  Selected to `rd2rf {rf0}, {rd}`; the lowering
++  /// has already merged the new mode into a copy of the old FCSR so the accrued
++  /// flags survive.
++  WRITE_FCSR,
 +};
 +
 +} // namespace DADAOISD
@@ -385,6 +415,34 @@ index 000000000..5a25f958a
 +  /// result non-deterministic, and canonicalising would suppress the NV flag
 +  /// that contract-fp.md §minmax requires on an sNaN input).
 +  SDValue LowerMinMaxNum(SDValue Op, SelectionDAG &DAG) const;
++
++  /// ISD::IS_FPCLASS (LLVM-126t, contract-fp.md §9): `focls`/`ftcls` already
++  /// produce exactly the 10-bit one-hot mask of LLVM's FPClassTest (SPEC-156t
++  /// aligned the bit order), so `is.fpclass(x, M)` is the class word AND the
++  /// mask, tested != 0.  A single-class mask skips the AND and compares the
++  /// class word against the one-hot constant directly.
++  SDValue LowerIS_FPCLASS(SDValue Op, SelectionDAG &DAG) const;
++
++  /// ISD::FLDEXP (LLVM-126t, contract-fp.md §5): `ldexp(x, n)` is `fosclb` with
++  /// an FP exponent, so convert the integer exponent with `io2fo`/`io2ft`
++  /// (signed, the exponent may be negative) and select `fosclb`/`ftsclb`.
++  SDValue LowerFLDEXP(SDValue Op, SelectionDAG &DAG) const;
++
++  /// ISD::FP_TO_SINT_SAT / ISD::FP_TO_UINT_SAT (LLVM-126t): the hardware
++  /// conversion saturates to the result width and raises NV, which is exactly
++  /// the saturating conversion -- except that LangRef defines NaN -> 0 while
++  /// the hardware returns the saturated extreme, so a SETUO select adds the
++  /// zero.  Wider-than-supported saturating types fall back to the generic
++  /// (libcall-free) expansion.
++  SDValue LowerFP_TO_INT_SAT(SDValue Op, SelectionDAG &DAG) const;
++
++  /// ISD::GET_ROUNDING / ISD::SET_ROUNDING (LLVM-126t, contract-fp.md §1):
++  /// read/write `rf0[33:32]`.  The hardware encoding is 00 RNE, 01 RTZ,
++  /// 10 RDN, 11 RUP; FLT_ROUNDS is 0 RTZ, 1 RNE, 2 RUP, 3 RDN, so the two
++  /// differ by bit 0 (FLT = hw ^ 1).  A constant mode is one `set.w`; a dynamic
++  /// mode is a read-modify-write of the FCSR that keeps the accrued flags.
++  SDValue LowerGET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerSET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
 +
 +  /// True if V is an i64 value held in the GPRB (pointer/address) bank, i.e. a
 +  /// CopyFromReg of a GPRB virtual register created by LowerFormalArguments.

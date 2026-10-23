@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..a280c9eb9
+index 000000000..b60b54f87
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,1143 @@
+@@ -0,0 +1,1202 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -123,6 +123,17 @@ index 000000000..a280c9eb9
 +// same FP type (f64 -> foqcmp, f32 -> ftqcmp).
 +def SDT_DADAOFCmp : SDTypeProfile<1, 2, [SDTCisVT<0, i64>, SDTCisSameAs<1, 2>]>;
 +def DADAOFCmp : SDNode<"DADAOISD::FCMP", SDT_DADAOFCmp>;
++
++// Floating-point classification (LLVM-126t, contract-fp.md §9): the result is
++// the 10-bit one-hot class word in GPRD; the operand is f32/f64.
++def SDT_DADAOFClass : SDTypeProfile<1, 1, [SDTCisVT<0, i64>, SDTCisFP<1>]>;
++def DADAOFClass : SDNode<"DADAOISD::FCLASS", SDT_DADAOFClass>;
++
++// IEEE 754 scaleB (LLVM-126t, contract-fp.md §5): both operands are the same FP
++// type, and the second is an integer-valued FP number.
++def SDT_DADAOScalb : SDTypeProfile<1, 2,
++    [SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>]>;
++def DADAOScalb : SDNode<"DADAOISD::SCALB", SDT_DADAOScalb>;
 +
 +def DADAOBrz  : SDNode<"DADAOISD::BRZ",  SDT_DADAOBr1, [SDNPHasChain]>;
 +def DADAOBrnz : SDNode<"DADAOISD::BRNZ", SDT_DADAOBr1, [SDNPHasChain]>;
@@ -323,6 +334,25 @@ index 000000000..a280c9eb9
 +// expandPostRAPseudo reorders, mirroring UMUL_LOHI_PSEUDO.
 +def CLMUL_LOHI_PSEUDO : DADAOPseudo<(outs GPRD:$lo, GPRD:$hi),
 +                                    (ins GPRD:$a, GPRD:$b), []>;
++
++// FCSR rounding-mode writes (LLVM-126t; contract-fp.md §1/§13).  Writing rf0
++// needs a *fixed* destination (the FCSR), which no DAG pattern can bind -- rf0
++// is not an ordinary virtual register, the same reason rd0 needs a pseudo -- so
++// both forms are pseudos with an implicit rf0 def, expanded in FinalizeISel:
++//   * constant mode: one `set.w {rf0}, wp2, hw`.  The FCSR write mask limits a
++//     wp2 write to rf0[33:32], so the accrued flags in wp0 are untouched;
++//   * dynamic mode: one `rd2rf {rf0}, {rd}`, where the lowering already merged
++//     the new mode into a copy of the old FCSR (flags preserved).
++def SET_FCSR_RM_PSEUDO : DADAOPseudo<(outs), (ins immu16:$imm), []> {
++  let Defs = [rf0];
++  let hasSideEffects = 1;
++  let usesCustomInserter = 1;
++}
++def SET_FCSR_PSEUDO : DADAOPseudo<(outs), (ins GPRD:$val), []> {
++  let Defs = [rf0];
++  let hasSideEffects = 1;
++  let usesCustomInserter = 1;
++}
 +
 +// In-place 18-bit immediate add: `add.si rd, imm18` (contract-isa.md
 +// §6.1.3).  Expanded to a bank copy (rd2rd) into the result followed by
@@ -938,6 +968,12 @@ index 000000000..a280c9eb9
 +def : Pat<(fdiv f32:$a, f32:$b), (ftdiv_orrr_rf f32:$a, f32:$b)>;
 +def : Pat<(fsqrt f32:$a), (ftroot_orri_rf f32:$a, 2)>;
 +def : Pat<(fneg f32:$a), (ftsgnn_orrr_rf f32:$a, f32:$a)>;
++// f32 sign injection (LLVM-126t): same mapping as the f64 block -- copysign is
++// `ftsgnj(a, b)`, fabs is `ftsgnj(x, +0.0)` with the all-zero bit pattern moved
++// RD->RF by rd2rf (rd0 is hardwired zero, so the sign source is +0.0).
++def : Pat<(fcopysign f32:$a, f32:$b), (ftsgnj_orrr_rf f32:$a, f32:$b)>;
++def : Pat<(fabs f32:$a),
++          (ftsgnj_orrr_rf f32:$a, (rd2rf_orri_rf (i64 rd0), 1))>;
 +
 +// --- min/max: minimumNumber/maximumNumber (ftmin/ftmax/fomin/fomax) ---
 +// LLVM-124t (M9; contract-fp.md §minmax = SimRISC-07 §2.4).  The ISA's
@@ -1001,6 +1037,29 @@ index 000000000..a280c9eb9
 +// --- FP compare: DADAOISD::FCMP -> foqcmp / ftqcmp (orrr; result in GPRD) ---
 +def : Pat<(DADAOFCmp f64:$l, f64:$r), (foqcmp_orrr_rf f64:$l, f64:$r)>;
 +def : Pat<(DADAOFCmp f32:$l, f32:$r), (ftqcmp_orrr_rf f32:$l, f32:$r)>;
++
++// --- FP classification: is.fpclass -> focls / ftcls (orri, result in GPRD) ---
++// LLVM-126t (contract-fp.md §9).  The instruction writes a 10-bit one-hot class
++// mask with exactly LLVM's FPClassTest bit order (SPEC-156t), so the lowering
++// only has to AND the mask (or compare the word for a single-class test).
++def : Pat<(DADAOFClass f64:$a), (focls_orri_rf f64:$a, 1)>;
++def : Pat<(DADAOFClass f32:$a), (ftcls_orri_rf f32:$a, 1)>;
++
++// --- FP scaleB: ldexp -> fosclb / ftsclb (orrr) ---
++// LLVM-126t (contract-fp.md §5): the exponent is an integer-valued FP operand,
++// so the lowering converts the i32 exponent with io2fo/it2ft first.
++def : Pat<(DADAOScalb f64:$x, f64:$n), (fosclb_orrr_rf f64:$x, f64:$n)>;
++def : Pat<(DADAOScalb f32:$x, f32:$n), (ftsclb_orrr_rf f32:$x, f32:$n)>;
++
++// --- IEEE remainder: __builtin_dadao_remainder -> forem / ftrem (orrr) ---
++// LLVM-126t / user ruling 2026-10-23.  `forem`/`ftrem` are IEEE 754 remainder
++// (quotient to nearest, ties to even), which is NOT `frem` (libm fmod: the
++// remainder takes the dividend's sign), so the intrinsic is the only way to
++// reach the instruction; ISD::FREM stays Expand -> fmod libcall.
++def : Pat<(int_dadao_remainder_f64 f64:$a, f64:$b),
++          (forem_orrr_rf f64:$a, f64:$b)>;
++def : Pat<(int_dadao_remainder_f32 f32:$a, f32:$b),
++          (ftrem_orrr_rf f32:$a, f32:$b)>;
 +
 +// --- FP select_cc -> DADAO cs.* conditional assign (contract-isa.md §6.5) ---
 +// A `select` on an FP condition *whose result is FP* reaches ISel as SELECT_CC

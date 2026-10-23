@@ -1,9 +1,9 @@
 diff --git a/clang/lib/CodeGen/Targets/DADAO.cpp b/clang/lib/CodeGen/Targets/DADAO.cpp
 new file mode 100644
-index 000000000..bdb643b09
+index 000000000..9f0429aa4
 --- /dev/null
 +++ b/clang/lib/CodeGen/Targets/DADAO.cpp
-@@ -0,0 +1,556 @@
+@@ -0,0 +1,569 @@
 +//===--- DADAO.cpp - DADAO ABI Implementation -----------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -557,6 +557,19 @@ index 000000000..bdb643b09
 +    llvm::Value *B = EmitScalarExpr(E->getArg(1));
 +    llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::dadao_clmul_wide);
 +    return Builder.CreateCall(F, {A, B}, "clmul");
++  }
++  case DADAO::BI__builtin_dadao_remainder: {
++    // IEEE 754 remainder (LLVM-126t): one `forem`/`ftrem` for f64/f32, no
++    // libcall.  The overload is chosen from the (already type-checked) first
++    // argument; the intrinsic operand type is the same as the result type, so
++    // a float call cannot silently widen to double.
++    llvm::Value *A = EmitScalarExpr(E->getArg(0));
++    llvm::Value *B = EmitScalarExpr(E->getArg(1));
++    llvm::Intrinsic::ID ID = A->getType()->isFloatTy()
++                                 ? llvm::Intrinsic::dadao_remainder_f32
++                                 : llvm::Intrinsic::dadao_remainder_f64;
++    llvm::Function *F = CGM.getIntrinsic(ID);
++    return Builder.CreateCall(F, {A, B}, "rem");
 +  }
 +  }
 +}

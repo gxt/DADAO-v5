@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..7a86d921e
+index 000000000..502bd06de
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,823 @@
+@@ -0,0 +1,864 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -805,6 +805,47 @@ index 000000000..7a86d921e
 +    // i128 form (llvm.dadao.clmul.wide), split by ReplaceNodeResults.
 +    SelectCLMULPair(Node);
 +    return;
++  case DADAOISD::CVT_SAT: {
++    // Saturating float->int (LLVM-126t): [0] fp source, [1] TargetConstant
++    // kind.  Bits [1:0] select the saturation width and signedness, bit 2 the
++    // source format: 0 fo2io, 1 fo2uo, 2 fo2it, 3 fo2ut, 4 ft2io, 5 ft2uo,
++    // 6 ft2it, 7 ft2ut (contract-fp.md §3; the conversion writes a full rd).
++    const SDLoc DL(Node);
++    const unsigned Kind =
++        cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();
++    static const unsigned Opcodes[] = {
++        DADAO::fo2io_orri_rf, DADAO::fo2uo_orri_rf, DADAO::fo2it_orri_rf,
++        DADAO::fo2ut_orri_rf, DADAO::ft2io_orri_rf, DADAO::ft2uo_orri_rf,
++        DADAO::ft2it_orri_rf, DADAO::ft2ut_orri_rf};
++    assert(Kind < 8 && "DADAO: bad saturating-conversion kind");
++    CurDAG->SelectNodeTo(Node, Opcodes[Kind], MVT::i64, Node->getOperand(0),
++                         CurDAG->getTargetConstant(1, DL, MVT::i64));
++    return;
++  }
++  case DADAOISD::WRITE_FCSR_RM: {
++    // Constant rounding-mode write (LLVM-126t): [0] chain, [1] TargetConstant
++    // hardware mode.  Select the pseudo that carries the implicit rf0 def; the
++    // custom inserter turns it into `set.w {rf0}, wp2, imm`.
++    const SDLoc DL(Node);
++    SDValue Chain = Node->getOperand(0);
++    SDValue Mode = Node->getOperand(1);
++    MachineSDNode *M = CurDAG->getMachineNode(
++        DADAO::SET_FCSR_RM_PSEUDO, DL, MVT::Other, {Mode, Chain});
++    ReplaceNode(Node, M);
++    return;
++  }
++  case DADAOISD::WRITE_FCSR: {
++    // Dynamic rounding-mode write (LLVM-126t): [0] chain, [1] the full new
++    // FCSR value.  The custom inserter expands the pseudo to
++    // `rd2rf {rf0}, {val}`.
++    const SDLoc DL(Node);
++    SDValue Chain = Node->getOperand(0);
++    SDValue Val = Node->getOperand(1);
++    MachineSDNode *M = CurDAG->getMachineNode(DADAO::SET_FCSR_PSEUDO, DL,
++                                             MVT::Other, {Val, Chain});
++    ReplaceNode(Node, M);
++    return;
++  }
 +  default:
 +    break;
 +  }

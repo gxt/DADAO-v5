@@ -1,9 +1,9 @@
 diff --git a/clang/include/clang/Basic/BuiltinsDADAO.def b/clang/include/clang/Basic/BuiltinsDADAO.def
 new file mode 100644
-index 000000000..2f393855e
+index 000000000..3aae358a9
 --- /dev/null
 +++ b/clang/include/clang/Basic/BuiltinsDADAO.def
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,26 @@
 +//===--- BuiltinsDADAO.def - DADAO Builtin function database ----*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -21,3 +21,12 @@ index 000000000..2f393855e
 +// `clmul.o {hi, lo}, a, b` -- one instruction, no joining shifts/ors (the
 +// backend lowers the i128 result through llvm.dadao.clmul.wide).
 +BUILTIN(__builtin_dadao_clmul, "ULLLiULLiULLi", "nc")
++
++// IEEE 754 remainder (LLVM-126t; contract-fp.md §5): `forem`/`ftrem`, one
++// instruction, no libcall.  Overloaded on the argument type (double or float);
++// the prototype below is a placeholder -- Sema's custom check
++// (CheckTSBuiltinFunctionCall, Triple::dadao) sets the real result type from
++// the argument, and CodeGen picks llvm.dadao.remainder.f32/f64 from it.
++// Semantics: x - n*y with n the nearest integer (ties to even).  This is NOT
++// `frem`; use `remainder()`/`__builtin_dadao_remainder`, never fmod.
++BUILTIN(__builtin_dadao_remainder, "d.", "nct")

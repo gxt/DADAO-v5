@@ -279,3 +279,27 @@ exclude:
   - ir: tests/llvm/lit/CodeGen/DADAO/rol.ll
     class: no-value-entry
     reason: "FileCheck structural test (rol.o selection / rotr custom lowering, LLVM-116t); no `@main` value channel."
+  # (j) LLVM-126t: FP backend wiring (fcmp / sign f32 / classify / ldexp /
+  #     rounding mode / saturating conversion / canonicalize / remainder).
+  #     Structural `llc | FileCheck` tests only, no `@main` value channel.
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-fcmp.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (12 fcmp predicates -> foqcmp/ftqcmp, LLVM-126t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-classify.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (is.fpclass -> focls/ftcls + mask, LLVM-126t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-ldexp.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (ldexp -> io2fo/it2ft + fosclb/ftsclb, LLVM-126t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-rounding-mode.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (get/set.rounding -> rf0[33:32], LLVM-126t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-sat.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (fptosi.sat/fptoui.sat -> fo2io/fo2uo/fo2it/fo2ut, LLVM-126t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-canonicalize.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (llvm.canonicalize is the identity, LLVM-126t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-remainder.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (llvm.dadao.remainder -> forem/ftrem; frem stays Expand, LLVM-126t); no `@main` value channel."

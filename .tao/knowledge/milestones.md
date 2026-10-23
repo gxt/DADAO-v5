@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-126t | 已验证 | 2026-10-24 04:50 | FP 接线：fcmp 12 条/符号/分类/位转/缩放/舍入模式/饱和 + `__builtin_dadao_remainder`；`FREM` 仍不接 |
 | TESTCASES-058t | 已验证 | 2026-10-23 22:00 | FMA 集成：O0/O2 各 626 PASS；单次舍入 6 组判别；无 libcall；覆盖 +3/删 0 |
 | SPEC-158t | 已验证 | 2026-10-23 21:30 | FMA 解 excluded：`fp` 64→66、15 族、`excluded` 4→2；其余 264 条零改动 |
 | LLVM-123t | 已验证 | 2026-10-23 19:05 | FMA 后端：`fma`/`fmuladd`/C `fma` 各 1 条，零拷贝；单次舍入实跑成立 |
@@ -70,7 +71,6 @@
 | QEMU-068t | 已验证 | 2026-10-22 00:52 | `clmul.o` 语义（高/低 128 位、`rd0` 单侧、ILLI）；向量 81/81；`check_qemu_trans` 260/260，`ISS-317` closed |
 | QEMU-069t | 已验证 | 2026-10-22 00:31 | `fcls` 位序重排（10 个位号）；探针改由 spec §7 解析（独立 oracle）；84/84 |
 | SPEC-156t | 已验证 | 2026-10-22 00:12 | `fcls` 10 类位序改为 754/LLVM 顺序；两处逐项一致（脚本机械比对）、锁重算、破坏性已标注 |
-| LLVM-126t | 待开始 | 2026-10-21 23:50（登记） | FP 后端接线补齐（`ISS-188` 剩余 8 类：`fcmp`/`fpclass`/`bitcast`/`rounding`）；`frem` 不接 |
 | TESTCASES-057t | 待开始 | 2026-10-21 23:50（登记） | clmul 集成：指令级 + GHASH + CRC-32C，独立 oracle、两档 |
 | INFRA-099t | 已验证 | 2026-10-21 23:43 | ISS-229：29 个写者/门控由 `flock` 串行（嵌套放行、有界等待、rc=69/75）；真并发验证串行、L1/L2 绿 |
 | INFRA-098t | 已验证 | 2026-10-21 19:35 | 安装集补 `llvm-nm`（342 MB/+3.6%）+ `llvm-readelf` 相对链接（0 B）；builtins 4 次重建同 sha；`check-install-tools` 45 项 PASS |

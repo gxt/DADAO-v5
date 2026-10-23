@@ -17,6 +17,7 @@ clang/lib/Driver/CMakeLists.txt.patch
 clang/lib/Driver/Driver.cpp.patch
 clang/lib/Driver/ToolChains/DADAO.cpp.patch
 clang/lib/Driver/ToolChains/DADAO.h.patch
+clang/lib/Sema/SemaChecking.cpp.patch
 compiler-rt/cmake/builtin-config-ix.cmake.patch
 compiler-rt/lib/builtins/CMakeLists.txt.patch
 lld/ELF/Arch/DADAO.cpp.patch

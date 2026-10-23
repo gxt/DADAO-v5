@@ -1,9 +1,9 @@
 diff --git a/llvm/include/llvm/IR/IntrinsicsDADAO.td b/llvm/include/llvm/IR/IntrinsicsDADAO.td
 new file mode 100644
-index 000000000..a66e16ba0
+index 000000000..28dee8640
 --- /dev/null
 +++ b/llvm/include/llvm/IR/IntrinsicsDADAO.td
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,72 @@
 +//===- IntrinsicsDADAO.td - Defines DADAO intrinsics ------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -48,5 +48,31 @@ index 000000000..a66e16ba0
 +                                                 [llvm_i64_ty, llvm_i64_ty],
 +                                                 [IntrNoMem, IntrSpeculatable,
 +                                                  IntrWillReturn]>;
++
++//===----------------------------------------------------------------------===//
++// IEEE 754 remainder (LLVM-126t, user ruling 2026-10-23)
++//===----------------------------------------------------------------------===//
++
++// `forem`/`ftrem` compute `x - n*y` with n the nearest integer (ties to even),
++// i.e. IEEE 754 remainder.  That is NOT LLVM `frem` (libm fmod: n truncates
++// toward zero, so the result keeps the dividend's sign -- fmod(5,3)=2 vs
++// remainder(5,3)=-1), and LLVM has no `llvm.remainder` intrinsic, so the only
++// way to reach the instruction is a target builtin.  `__builtin_dadao_remainder`
++// lowers to one of these two intrinsics (chosen from its argument type);
++// `frem` itself stays Expand (-> fmod libcall) and must never be mapped here.
++//
++// Two concrete intrinsics instead of one `llvm_anyfloat_ty` overload: a DAG
++// pattern for an unconstrained overload cannot infer the result type, and the
++// instruction defs are concrete f64/f32 anyway (DADAOCodeGen.td).
++def int_dadao_remainder_f64 : DefaultAttrsIntrinsic<[llvm_double_ty],
++                                                    [llvm_double_ty,
++                                                     llvm_double_ty],
++                                                    [IntrNoMem, IntrSpeculatable,
++                                                     IntrWillReturn]>;
++def int_dadao_remainder_f32 : DefaultAttrsIntrinsic<[llvm_float_ty],
++                                                    [llvm_float_ty,
++                                                     llvm_float_ty],
++                                                    [IntrNoMem, IntrSpeculatable,
++                                                     IntrWillReturn]>;
 +
 +} // TargetPrefix = "dadao"
