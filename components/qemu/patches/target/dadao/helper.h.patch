@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.h b/target/dadao/helper.h
 new file mode 100644
-index 0000000..416b65b
+index 0000000..c22b0d4
 --- /dev/null
 +++ b/target/dadao/helper.h
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,49 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -41,6 +41,9 @@ index 0000000..416b65b
 +/* QEMU-071t: minimumNumber/maximumNumber; isdbl selects ft/fo, ismax 0/1
 + * selects min/max; see trans_fp.c.inc. */
 +DEF_HELPER_5(fp_minmax, i64, env, i64, i64, i32, i32)
++/* QEMU-070t: fused multiply-add (single rounding); isdbl selects ft/fo.
++ * flags are the FCSR-derived rounding mode/status inside the helper. */
++DEF_HELPER_5(fp_muladd, i64, env, i64, i64, i64, i32)
 +
 +/* QEMU-044t: SEE/HEE run mode + cfx register file + exception flow.
 + * trap/escape/cfx2rd/cfx2rc decode routes into these helpers, which run the

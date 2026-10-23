@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..015eb40
+index 0000000..3dc5c47
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,1098 @@
+@@ -0,0 +1,1128 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -718,6 +718,36 @@ index 0000000..015eb40
 +        res = (uint64_t)(uint32_t)(ismax
 +                         ? float32_maximum_number((float32)a, (float32)b, &st)
 +                         : float32_minimum_number((float32)a, (float32)b, &st));
++    }
++    fp_status_commit(env, &st);
++    return res;
++}
++
++/* fusedMultiplyAdd (QEMU-070t, IEEE 754-2019 fusedMultiplyAdd).
++ *   source: spec/SimRISC-07 §融合乘加（fusedMultiplyAdd）,
++ *           contract-fp.md §20
++ * Single rounding is delegated to upstream softfloat's float{32,64}_muladd()
++ * with muladd flags 0 (no negation, no zero-product suppression) — the fused
++ * a*b+c operation, never a separate mul followed by an add.
++ * default-NaN mode canonicalizes every NaN result (contract §20); softfloat's
++ * default infzero-NaN rule keeps 0×Inf raising NV even when the addend is a
++ * NaN.  fp_status_commit() merges the flags once, so NX/OF/UF are raised at
++ * most once for the whole operation.
++ */
++uint64_t helper_fp_muladd(CPUDADAOState *env, uint64_t a, uint64_t b,
++                          uint64_t c, uint32_t isdbl)
++{
++    float_status st;
++    uint64_t res;
++
++    fp_status_init(env, &st);
++    set_default_nan_mode(1, &st);
++    if (isdbl) {
++        res = (uint64_t)float64_muladd((float64)a, (float64)b, (float64)c,
++                                       0, &st);
++    } else {
++        res = (uint64_t)(uint32_t)float32_muladd((float32)a, (float32)b,
++                                                 (float32)c, 0, &st);
 +    }
 +    fp_status_commit(env, &st);
 +    return res;
