@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..68661839d
+index 000000000..7a86d921e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,757 @@
+@@ -0,0 +1,823 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -184,10 +184,14 @@ index 000000000..68661839d
 +void DADAODAGToDAGISel::SelectConstant(SDNode *Node) {
 +  const auto *C = cast<ConstantSDNode>(Node);
 +  const SDLoc DL(Node);
-+  // Materialize any i64 constant through CONST_WYDE (C12: set.zw/set.ow +
++  // Materialize any integer constant through CONST_WYDE (C12: set.zw/set.ow +
 +  // or.w/andn.w, no constant pool).  The pseudo is expanded post-RA.
++  // Since LLVM-127t the result may be a narrow legal type (i8/i16/i32); the
++  // expansion writes the full 64 bits from the sign-extended value, which is
++  // exact for the IR-width low bits (narrow values have no defined upper half).
 +  SDValue Val = CurDAG->getTargetConstant(C->getSExtValue(), DL, MVT::i64);
-+  SDNode *M = CurDAG->getMachineNode(DADAO::CONST_WYDE, DL, MVT::i64, Val);
++  SDNode *M =
++      CurDAG->getMachineNode(DADAO::CONST_WYDE, DL, Node->getValueType(0), Val);
 +  ReplaceNode(Node, M);
 +}
 +
@@ -301,12 +305,17 @@ index 000000000..68661839d
 +  }
 +
 +  switch (Node->getOpcode()) {
-+  case ISD::Constant:
-+    if (Node->getValueType(0) == MVT::i64) {
++  case ISD::Constant: {
++    // All legal integer widths: i64 plus the narrow i8/i16/i32 of LLVM-127t.
++    // (i1 never reaches ISel -- it is promoted to i8 -- so it is not listed.)
++    const EVT CVT = Node->getValueType(0);
++    if (CVT == MVT::i8 || CVT == MVT::i16 || CVT == MVT::i32 ||
++        CVT == MVT::i64) {
 +      SelectConstant(Node);
 +      return;
 +    }
 +    break;
++  }
 +  case ISD::ConstantFP: {
 +    // Floating-point constants (M6, LLVM-066t).  There is no constant pool in
 +    // this backend (M3/M4 have no .rodata pool path), so an f64/f32 constant is
@@ -392,6 +401,44 @@ index 000000000..68661839d
 +    ReplaceNode(Node, M);
 +    return;
 +  }
++  case ISD::SHL:
++  case ISD::SRL:
++  case ISD::SRA: {
++    // Narrow constant shift (LLVM-127t): fold to the one-instruction orri form.
++    // A TableGen immediate leaf cannot express this -- the DAG shift amount has
++    // the narrow operand type while the `immu6` operand is i64 -- so it is done
++    // here.  `immu6 >= W` is an ILLI in hardware, so only in-range amounts are
++    // folded; an out-of-range amount is poison in LLVM IR and falls through to
++    // the register form (which reduces the amount modulo W).
++    const EVT VT = Node->getValueType(0);
++    const auto *Amt = dyn_cast<ConstantSDNode>(Node->getOperand(1));
++    if (!Amt || (VT != MVT::i8 && VT != MVT::i16 && VT != MVT::i32))
++      break;
++    const unsigned W = VT.getSizeInBits();
++    const uint64_t Sh = Amt->getZExtValue();
++    if (Sh >= W)
++      break;
++    const bool IsT = VT == MVT::i32, IsW = VT == MVT::i16;
++    unsigned Opc;
++    switch (Node->getOpcode()) {
++    default:
++      llvm_unreachable("unexpected shift opcode");
++    case ISD::SHL:
++      Opc = IsT ? DADAO::shl_t_orri : IsW ? DADAO::shl_w_orri : DADAO::shl_b_orri;
++      break;
++    case ISD::SRL:
++      Opc = IsT ? DADAO::shr_ut_orri : IsW ? DADAO::shr_uw_orri : DADAO::shr_ub_orri;
++      break;
++    case ISD::SRA:
++      Opc = IsT ? DADAO::shr_st_orri : IsW ? DADAO::shr_sw_orri : DADAO::shr_sb_orri;
++      break;
++    }
++    SDValue Imm = CurDAG->getTargetConstant(Sh, SDLoc(Node), MVT::i64);
++    SDNode *M = CurDAG->getMachineNode(Opc, SDLoc(Node), VT, Node->getOperand(0),
++                                       Imm);
++    ReplaceNode(Node, M);
++    return;
++  }
 +  case ISD::ADD:
 +    // Bank-aware ptr + offset (C14 D1 / ADR-0018): add.o rb, rb, rd is exactly
 +    // base(rb) + offset(rd) -> rb (contract-isa.md §7.1; ADR-0012 D9.3).  When
@@ -412,17 +459,36 @@ index 000000000..68661839d
 +      }
 +    }
 +    break;
-+  case ISD::SUB:
++  case ISD::SUB: {
++    const EVT SubVT = Node->getValueType(0);
 +    // Bank-aware ptr − ptr (C14 / ADR-0018): when both operands are still in
 +    // the GPRB bank, select the single sub.o rd, rb, rb.  A plain i64
 +    // subtraction falls through to the SUB_PSEUDO pattern.
-+    if (Node->getValueType(0) == MVT::i64 &&
-+        isPointerBankValue(Node->getOperand(0)) &&
++    if (SubVT == MVT::i64 && isPointerBankValue(Node->getOperand(0)) &&
 +        isPointerBankValue(Node->getOperand(1))) {
 +      SelectPointerSub(Node);
 +      return;
 +    }
++    // Narrow negation `0 - x` (LLVM-127t): the narrow sub has no immediate
++    // form, so materialising the zero would cost an extra instruction; rd0 is
++    // hardwired zero, hence `sub.s{b,w,t} dst, rd0, src` is the one-instruction
++    // negation (contract-isa.md §10.5/§11.5/§12.5 `neg.*`).
++    if ((SubVT == MVT::i32 || SubVT == MVT::i16 || SubVT == MVT::i8)) {
++      const auto *Z = dyn_cast<ConstantSDNode>(Node->getOperand(0));
++      if (Z && Z->isZero()) {
++        unsigned Opc = SubVT == MVT::i32 ? DADAO::sub_st
++                     : SubVT == MVT::i16 ? DADAO::sub_sw
++                                         : DADAO::sub_sb;
++        const SDLoc DL(Node);
++        SDNode *M = CurDAG->getMachineNode(
++            Opc, DL, SubVT, CurDAG->getRegister(DADAO::rd0, MVT::i64),
++            Node->getOperand(1));
++        ReplaceNode(Node, M);
++        return;
++      }
++    }
 +    break;
++  }
 +  case DADAOISD::TLS_ADDR: {
 +    // Local-exec TLS address (LLVM-100t): address = TP + TPOFF, TP = rb3
 +    // (contract-abi.md §1.3).  Operand [0] is the TargetGlobalAddress of the

@@ -1,9 +1,9 @@
 diff --git a/clang/lib/CodeGen/Targets/DADAO.cpp b/clang/lib/CodeGen/Targets/DADAO.cpp
 new file mode 100644
-index 000000000..40c4cf290
+index 000000000..bdb643b09
 --- /dev/null
 +++ b/clang/lib/CodeGen/Targets/DADAO.cpp
-@@ -0,0 +1,542 @@
+@@ -0,0 +1,556 @@
 +//===--- DADAO.cpp - DADAO ABI Implementation -----------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -268,6 +268,20 @@ index 000000000..40c4cf290
 +      llvm::Type *BlockTy = llvm::Type::getInt64Ty(CGT.getLLVMContext());
 +      return ABIArgInfo::getDirect(llvm::ArrayType::get(BlockTy, Blocks));
 +    }
++    // contract-abi.md §4.2 (C4 D2 / ISS-310): a scalar narrower than 8 bytes is
++    // passed canonicalised to 64 bits with its *sign bit preserved*, i.e.
++    // sign-extended for signed types and zero-extended for unsigned ones.  The
++    // IR `signext`/`zeroext` attribute is how the extension is requested from
++    // the backend (CC_DADAO turns it into a SExt/ZExt LocInfo).  DefaultABIInfo
++    // only does this for the types that are promotable to `int` (bool/char/
++    // short); a 32-bit `int` and a 32-bit enum are not promotable, so without
++    // this branch they reach the caller as a bare i32 and the caller
++    // zero-extends it -- generating `set.zw`+`or.w` for `int -1` instead of
++    // `ext.so`.  Mirror classifyReturnType (C5 D2) here.
++    if (Ty->isIntegralOrEnumerationType() &&
++        getContext().getTypeSize(Ty) < 64 &&
++        !isPromotableIntegerTypeForABI(Ty))
++      return ABIArgInfo::getExtend(Ty, CGT.ConvertType(Ty));
 +    return DefaultABIInfo::classifyArgumentType(Ty);
 +  }
 +

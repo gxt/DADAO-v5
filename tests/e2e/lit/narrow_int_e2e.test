@@ -1,0 +1,34 @@
+# Narrow integer codegen end-to-end (LLVM-127t).
+#
+# Compiles tests/e2e/narrow_int_e2e.c, assembles the ABI probe
+# tests/e2e/narrow_int_e2e_abi.s, links both against the project crt0 + linker
+# script and runs the result on qemu dadao-m1 with semihosting.  The guest exit
+# code is the test result: 0 only when every i8/i16/i32 arithmetic, shift,
+# compare and extension case (including the ISS-310 canonical argument
+# extension) computes the C-defined value.
+# RUN: %clang -target dadao-unknown-elf -nostdlib -Oz -x c -c %e2e_dir/narrow_int_e2e.c -o %t.o
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %e2e_dir/narrow_int_e2e_abi.s -o %t.abi.o
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %crt0 -o %t.crt0.o
+# RUN: %ld -T %linker_script %t.crt0.o %t.abi.o %t.o -o %t.elf
+# RUN: timeout 30 %qemu -M dadao-m1 -kernel %t.elf -semihosting-config enable=on,target=native -display none -nographic
+#
+# The emitted instruction shapes (one add.st/mul.st/div.st/..., one ext.uo per
+# zero extension, ...) are pinned *exactly* by the llc tests
+# tests/llvm/lit/CodeGen/DADAO/narrow-int.ll, bitops-narrow.ll and
+# abi-narrow-extend.ll.  Here only the ABI extension at a real C call site is
+# checked, because that is what ISS-310 was about and what qemu exercises.
+# RUN: %clang -target dadao-unknown-elf -nostdlib -Oz -x c -S %e2e_dir/narrow_int_e2e.c -o %t.s
+# RUN: %FileCheck %s --check-prefix=ASM < %t.s
+
+# ISS-310: an `int` parameter passed straight on is sign-extended at the call
+# site and an `unsigned int` one zero-extended (contract-abi.md §4.2), never the
+# old `set.zw ... 0xffff`+`or.w` zero-extension of a signed value.  The constant
+# and memory cases in main canonicalise through the materialisation/load
+# instead (also legal); the parameter case is the one that needs a real `ext.*`
+# because the backend does not know the register's upper half.
+# ASM-LABEL: pass_s:
+# ASM: ext.so rd{{[0-9]+}}, rd{{[0-9]+}}, 31
+# ASM: {{call|jump}} [rb0, ext_reg]
+# ASM-LABEL: pass_u:
+# ASM: ext.uo rd{{[0-9]+}}, rd{{[0-9]+}}, 31
+# ASM: {{call|jump}} [rb0, ext_reg_u]

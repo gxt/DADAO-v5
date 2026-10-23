@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-127t | 已验证 | 2026-10-23 15:46 | 窄位 `i8/i16/i32` 全做：各 1 条指令、`ext.uo` 首用、`ISS-310` 修复；lit 135、libc-test 0 fail |
 | TESTCASES-059t | 已验证 | 2026-10-23 07:58 | `min/max` 集成：O0/O2 各 3102 PASS、值+标志双断言 1502+1502；无 libcall；注入三类红 |
 | LLVM-128t | 已验证 | 2026-10-23 06:10 | `ctlz/cttz/ctpop` + `rev.o/.t` 各 1 条（原 10/7 条）；零值运行期 64/0；lit 132/132 |
 | TESTCASES-061t | 已验证 | 2026-10-23 05:24 | harness 失败路径可信化（`br.nz` 偏移）+ 6 条工具去陈；978 全量 0 failed |
@@ -49,7 +50,6 @@
 | SPEC-166t | 已验证 | 2026-10-23 00:17 | 规范收尾：拍平 5 册、删 15 个"已删除"节、断 27 处跨册引用、`spec_cite` 改手册+助记符（264/264 命中） |
 | SPEC-165t | 已验证 | 2026-10-22 23:30 | spec 净化+附录归位+重编号+`MISC-`→`OPC-`（485 处）；语义零漂移；关 ISS-192/315/316 |
 | SPEC-160t | 已验证 | 2026-10-22 21:43 | `min/max` 解 excluded：`fp` 60→64 / 14 族、`excluded` 31→27；264/264、lit 131/131；注入两例双红 |
-| LLVM-127t | 待开始 | 2026-10-22 21:10（登记） | 窄位 `i8/i16/i32` 合法化 + canonical 扩展（含 `ISS-310`） |
 | LLVM-124t | 已验证 | 2026-10-22 21:00 | `min/max` 后端：`minnum`/`minimumnum`/C `fmin` 各 1 条；`minimum` 9 条无 libcall；`FMINNUM` 改 Custom（「≤4」裁定放宽） |
 | QEMU-071t | 已验证 | 2026-10-22 19:30 | `min/max` 语义：softfloat `minimum_number`；探针 111/111（值+NV/NX）；`check_qemu_trans` 264/264，`ISS-324` closed |
 | SPEC-159t | 已验证 | 2026-10-22 16:50 | `ftmin/ftmax/fomin/fomax` 立册（754 `minimumNumber`、`orrr`）；264/31/60；`ISS-324`/`325` 登记 |

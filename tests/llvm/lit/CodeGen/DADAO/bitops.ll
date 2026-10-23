@@ -90,11 +90,12 @@ define i64 @bswap64(i64 %x) {
   ret i64 %r
 }
 
-; i32 is not a legal DADAO type: a pattern-less lowering would promote this to
-; `srl(bswap i64), 32` (rev.o + shr.uo).  ReplaceNodeResults emits `rev.t`
-; straight away, so both of those must be absent.
+; Since LLVM-127t i32 is a legal type, `bswap i32` is selected directly by the
+; `rev.t k = 8` pattern (one instruction); the following `ext.uo` is only the
+; i32 -> i64 canonical zero-extension of the returned value.  Neither `rev.o`
+; nor `shr.uo` may appear.
 ; CHECK-LABEL: bswap32:
-; CHECK:         rev.t rd8, rd16, 8
+; CHECK:         rev.t rd{{[0-9]+}}, rd16, 8
 ; CHECK-NOT:     rev.t
 ; CHECK-NOT:     rev.o
 ; CHECK-NOT:     shr.uo

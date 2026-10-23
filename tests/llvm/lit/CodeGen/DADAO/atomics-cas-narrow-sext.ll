@@ -5,20 +5,19 @@
 ; W bytes of memory, not the whole 64-bit register.
 ;
 ; `lr.b/.w/.t` zero-extends the loaded bytes into the 64-bit result register
-; (SimRISC-11 §4.2 as implemented for this batch), while the expected value is
-; promoted from i8/i16/i32 by the type legalizer and may be sign-extended.  A
-; raw 64-bit `br.ne` therefore never matched a top-bit-set expected value:
+; (SimRISC-11 §4.2), so the expected value must be normalised to the same
+; width-width zero-extended form.  Since LLVM-127t the cmpxchg operands are
+; legal i8/i16/i32 values rather than promoted i64 values, so that
+; normalisation is a single `ext.uo cx, src, 7/15/31` of the expected value
+; (DADAOTargetLowering::LowerATOMIC_CMP_SWAP_WITH_SUCCESS); the very same
+; register then feeds both the `br.ne` inside the machine loop and the SETCC
+; that computes the success flag, so the two comparisons cannot drift apart.
 ;
-;   WRONG: lr.t.an rd, [rb] ; br.ne {rd, rd_arg}?      (arg high bits = all 1s)
-;   RIGHT: and.o cmp, rd_arg, 0xFFFFFFFF ; lr.t.an ... ; br.ne {rd, cmp}?
-;
-; The lowering normalises the expected value to the access width once
-; (DADAOTargetLowering::LowerATOMIC_CMP_SWAP_WITH_SUCCESS); that single value
-; feeds both the `br.ne` inside the machine loop and the SETCC that computes
-; the success flag, so the two comparisons cannot drift apart again.
+;   WRONG: lr.t.an rd, [rb] ; br.ne {rd, rd_arg}?   (arg high bits all 1s)
+;   RIGHT: ext.uo cmp, rd_arg, 31 ; lr.t.an ... ; br.ne {rd, cmp}?
 ;
 ; Every check below fails with the defective lowering: the runtime case has no
-; `and.o` (it compares the raw sign-extended argument), and the constant cases
+; normalising `ext.uo` (it compares the raw argument), and the constant cases
 ; materialise the compare word with the all-ones high pattern (`set.ow` /
 ; `andn.w`) instead of the width-width zero-extended form.
 ;
@@ -26,9 +25,9 @@
 ; i32, expected value arrives at run time: the mask must be applied explicitly.
 define i32 @cas32_runtime_expected(ptr %p, i32 %c, i32 %n) {
 ; CHECK-LABEL: cas32_runtime_expected:
-; CHECK: set.zw [[M:rd[0-9]+]], wp0, 0xffff
-; CHECK: or.w [[M]], wp1, 0xffff
-; CHECK: and.o [[CMP:rd[0-9]+]], rd{{[0-9]+}}, [[M]]
+; CHECK: ext.uo [[CMP:rd[0-9]+]], rd{{[0-9]+}}, 31
+; CHECK-NOT: set.ow
+; CHECK-NOT: andn.w
 ; CHECK: lr.t.an [[OLD:rd[0-9]+]], [rb{{[0-9]+}}]
 ; CHECK-NEXT: br.ne {[[OLD]], [[CMP]]}?, [rb0,
 ; CHECK: sc.t.ar
@@ -83,10 +82,11 @@ define i8 @cas8_top_bit(ptr %p, i8 %n) {
 }
 
 ; The success flag is computed from the *same* normalised operand: `cmp.so`
-; must compare the lr result against the register the loop compared against.
+; must compare the lr result against the very register the loop compared
+; against (the zero-extended expected value).
 define i1 @cas32_flag_uses_mask(ptr %p, i32 %c, i32 %n) {
 ; CHECK-LABEL: cas32_flag_uses_mask:
-; CHECK: and.o [[CMP:rd[0-9]+]], rd{{[0-9]+}}, rd{{[0-9]+}}
+; CHECK: ext.uo [[CMP:rd[0-9]+]], rd{{[0-9]+}}, 31
 ; CHECK: lr.t.an [[OLD:rd[0-9]+]], [rb{{[0-9]+}}]
 ; CHECK-NEXT: br.ne {[[OLD]], [[CMP]]}?, [rb0,
 ; CHECK: sc.t.ar

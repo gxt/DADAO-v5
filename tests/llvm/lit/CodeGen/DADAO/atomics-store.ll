@@ -13,9 +13,13 @@
 ;   WRONG (stored the address):   <materialise &g> ; rb2rd rd, {rb} ; st.t rd, [rb]
 ;   RIGHT (stored the value):     rd2rd rd, {rd arg} ; add.si rd, N ; st.t rd, [rb]
 ;
-; The "add.si <V>" + "st.* <V>" pair is what makes this reachable:
-; with the defective lowering the `add` is dead, so the instruction is gone and
-; the first CHECK fails (see .work/evidence/LLVM-121t-rework2/run.sh, check A*).
+; The "add <V>" + "st.* <V>" pair is what makes this reachable: with the
+; defective lowering the `add` is dead, so the instruction is gone and the first
+; CHECK fails (see .work/evidence/LLVM-121t-rework2/run.sh, check A*).
+;
+; Since LLVM-127t i8/i16/i32 are legal types, the value of a narrow atomic store
+; is computed at its own width (`add.sb/sw/st`) instead of being promoted to an
+; i64 `add.si`; the store itself is the same width-specific st.b/w/t.
 ;
 @g8  = global i8 0
 @g16 = global i16 0
@@ -25,7 +29,7 @@
 ; 1-byte truncating store (the getTruncStore() branch of the lowering).
 define void @store_atomic_i8(i8 %v) {
 ; CHECK-LABEL: store_atomic_i8:
-; CHECK: add.si [[V:rd[0-9]+]], 3
+; CHECK: add.sb [[V:rd[0-9]+]], rd{{[0-9]+}}, rd{{[0-9]+}}
 ; CHECK: st.b [[V]], [rb{{[0-9]+}}, {{-?[0-9]+}}]
 ; CHECK-NOT: rb2rd
   %x = add i8 %v, 3
@@ -33,11 +37,11 @@ define void @store_atomic_i8(i8 %v) {
   ret void
 }
 
-; 2-byte truncating store (value promoted to i64 in the DAG).
+; 2-byte store (the value stays at its own width).
 define void @store_atomic_i16(i16 %v) {
 ; CHECK-LABEL: store_atomic_i16:
+; CHECK: add.sw [[V:rd[0-9]+]], rd{{[0-9]+}}, rd{{[0-9]+}}
 ; CHECK: fence 975
-; CHECK: add.si [[V:rd[0-9]+]], 5
 ; CHECK: st.w [[V]], [rb{{[0-9]+}}, {{-?[0-9]+}}]
 ; CHECK: fence 975
 ; CHECK-NOT: rb2rd
@@ -49,8 +53,8 @@ define void @store_atomic_i16(i16 %v) {
 ; 4-byte store: the same width the ISS-312 probe caught on a shared object.
 define void @store_atomic_i32(i32 %v) {
 ; CHECK-LABEL: store_atomic_i32:
+; CHECK: add.st [[V:rd[0-9]+]], rd{{[0-9]+}}, rd{{[0-9]+}}
 ; CHECK: fence 975
-; CHECK: add.si [[V:rd[0-9]+]], 7
 ; CHECK: st.t [[V]], [rb{{[0-9]+}}, {{-?[0-9]+}}]
 ; CHECK: fence 975
 ; CHECK-NOT: rb2rd

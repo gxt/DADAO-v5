@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..1af1e3f17
+index 000000000..7ee9b8184
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,887 @@
+@@ -0,0 +1,1130 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -107,8 +107,16 @@ index 000000000..1af1e3f17
 +def SDT_DADAOBr2 : SDTypeProfile<0, 3,
 +    [SDTCisVT<0, i64>, SDTCisVT<1, i64>, SDTCisVT<2, OtherVT>]>;
 +
-+def DADAOCmp  : SDNode<"DADAOISD::CMP",  SDTIntBinOp>;
-+def DADAOCmpU : SDNode<"DADAOISD::CMPU", SDTIntBinOp>;
++// Integer compare: result is always the 64-bit {-1,0,1} value (getSetCCResultType
++// returns i64, and the branch tests it), while the two operands share one
++// integer type -- i64 for the octa cmp.si/cmp.ui/cmp.so/cmp.uo forms, or a
++// narrow i8/i16/i32 since LLVM-127t (cmp.{sb,sw,st,ub,uw,ut}).  The narrow cmp
++// instructions truncate their sources to their own width, so the operand type
++// is what selects the instruction.
++def SDT_DADAOCmp : SDTypeProfile<1, 2,
++    [SDTCisVT<0, i64>, SDTCisSameAs<1, 2>, SDTCisInt<1>]>;
++def DADAOCmp  : SDNode<"DADAOISD::CMP",  SDT_DADAOCmp>;
++def DADAOCmpU : SDNode<"DADAOISD::CMPU", SDT_DADAOCmp>;
 +
 +// Floating-point compare (M6, LLVM-066t): result i64 in {-1, 0, 1} ordered, or a
 +// positive NaN value for unordered (contract-fp.md §8).  Operands share the
@@ -231,9 +239,9 @@ index 000000000..1af1e3f17
 +def simm18imm : ImmLeaf<i64, [{ return isInt<18>(Imm); }]>;
 +
 +def ADD_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
-+                             [(set GPRD:$dst, (add GPRD:$a, GPRD:$b))]>;
++                             [(set GPRD:$dst, (add (i64 GPRD:$a), (i64 GPRD:$b)))]>;
 +def SUB_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
-+                             [(set GPRD:$dst, (sub GPRD:$a, GPRD:$b))]>;
++                             [(set GPRD:$dst, (sub (i64 GPRD:$a), (i64 GPRD:$b)))]>;
 +
 +// Negation (ISS-159): `neg x` (i64) must lower to the real `sub.so {rd0, dst},
 +// rd0, src` (contract-isa.md §6.6), not `sub.uo` + narrow extension.  sub.so is
@@ -242,7 +250,7 @@ index 000000000..1af1e3f17
 +// matched and expanded post-RA (the high half goes to the hardwired-zero rd0).
 +def NEG_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$src), []>;
 +def MUL_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
-+                             [(set GPRD:$dst, (mul GPRD:$a, GPRD:$b))]>;
++                             [(set GPRD:$dst, (mul (i64 GPRD:$a), (i64 GPRD:$b)))]>;
 +
 +// High half of a 64x64 unsigned product (LLVM-073t, ISS-176 / G2).  `mulhu`
 +// reaches ISel because i64 MULHU is Legal by default, but the backend had no
@@ -254,7 +262,7 @@ index 000000000..1af1e3f17
 +// two-result rrrr instruction is not expressible as a single-result TableGen
 +// pattern, hence the pseudo indirection (mirrors MUL_PSEUDO).
 +def MULHU_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
-+                               [(set GPRD:$dst, (mulhu GPRD:$a, GPRD:$b))]>;
++                               [(set GPRD:$dst, (mulhu (i64 GPRD:$a), (i64 GPRD:$b)))]>;
 +
 +// Full 64x64 -> 128 unsigned product (ISD::UMUL_LOHI), e.g. the `unsigned
 +// __int128` multiply in aha-mont64's mulul64.  The node's results are
@@ -265,7 +273,7 @@ index 000000000..1af1e3f17
 +def UMUL_LOHI_PSEUDO : DADAOPseudo<(outs GPRD:$lo, GPRD:$hi),
 +                                   (ins GPRD:$a, GPRD:$b),
 +                                   [(set GPRD:$lo, GPRD:$hi,
-+                                     (umullohi GPRD:$a, GPRD:$b))]>;
++                                     (umullohi (i64 GPRD:$a), (i64 GPRD:$b)))]>;
 +
 +// High half of a 64x64 signed product (LLVM-076t, ISS-185).  `mulhs` reaches
 +// ISel because i64 MULHS is Legal by default, but the backend had no pattern
@@ -277,7 +285,7 @@ index 000000000..1af1e3f17
 +// two-result rrrr instruction is not expressible as a single-result TableGen
 +// pattern, hence the pseudo indirection (mirrors MULHU_PSEUDO).
 +def MULHS_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
-+                               [(set GPRD:$dst, (mulhs GPRD:$a, GPRD:$b))]>;
++                               [(set GPRD:$dst, (mulhs (i64 GPRD:$a), (i64 GPRD:$b)))]>;
 +
 +// Full 64x64 -> 128 signed product (ISD::SMUL_LOHI), e.g. the `__int128`
 +// multiply.  Like UMUL_LOHI the node's results are (low, high) --
@@ -288,7 +296,7 @@ index 000000000..1af1e3f17
 +def SMUL_LOHI_PSEUDO : DADAOPseudo<(outs GPRD:$lo, GPRD:$hi),
 +                                   (ins GPRD:$a, GPRD:$b),
 +                                   [(set GPRD:$lo, GPRD:$hi,
-+                                     (smullohi GPRD:$a, GPRD:$b))]>;
++                                     (smullohi (i64 GPRD:$a), (i64 GPRD:$b)))]>;
 +
 +// GF(2) carry-less multiply (ADR-0035; LLVM-122t).  `clmul.o {rdha, rdhb},
 +// rdhc, rdhd` has rdha = high 64 bits and rdhb = low 64 bits of the 128-bit
@@ -307,10 +315,10 @@ index 000000000..1af1e3f17
 +// therefore selected by hand (DADAOISelDAGToDAG.cpp, `int_dadao_clmul` and
 +// DADAOISD::CLMUL).
 +def CLMUL_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
-+                               [(set GPRD:$dst, (clmul GPRD:$a, GPRD:$b))]>;
++                               [(set GPRD:$dst, (clmul (i64 GPRD:$a), (i64 GPRD:$b)))]>;
 +def CLMULHI_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
 +                                 [(set GPRD:$dst,
-+                                   (int_dadao_clmul_hi GPRD:$a, GPRD:$b))]>;
++                                   (int_dadao_clmul_hi (i64 GPRD:$a), (i64 GPRD:$b)))]>;
 +// (lo, hi) -- the instruction's def order is (rdha = high, rdhb = low), so
 +// expandPostRAPseudo reorders, mirroring UMUL_LOHI_PSEUDO.
 +def CLMUL_LOHI_PSEUDO : DADAOPseudo<(outs GPRD:$lo, GPRD:$hi),
@@ -409,33 +417,38 @@ index 000000000..1af1e3f17
 +// handled bank-aware in DADAOISelDAGToDAG (ptr − ptr -> sub.o rd, rb, rb).
 +//===----------------------------------------------------------------------===//
 +
-+def : Pat<(and GPRD:$a, GPRD:$b), (and_o GPRD:$a, GPRD:$b)>;
-+def : Pat<(or GPRD:$a, GPRD:$b), (or_o GPRD:$a, GPRD:$b)>;
-+def : Pat<(xor GPRD:$a, GPRD:$b), (xor_o GPRD:$a, GPRD:$b)>;
++def : Pat<(and (i64 GPRD:$a), (i64 GPRD:$b)), (and_o (i64 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(or (i64 GPRD:$a), (i64 GPRD:$b)), (or_o (i64 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(xor (i64 GPRD:$a), (i64 GPRD:$b)), (xor_o (i64 GPRD:$a), (i64 GPRD:$b))>;
++
++// Narrow AND/OR/XOR never reach ISel: the operations stay Promote for i8/i16/
++// i32 (there is no narrow logical instruction since SPEC-069t), so the
++// legalizer widens them to i64 and the patterns above select.
 +
 +// Bitwise NOT (ISS-159): `not x` = `xor x, -1` lowers to `xnor.o rd, rc, rd0`
 +// (contract-isa.md §6.3: a source of rd0 turns xnor into a one's complement),
 +// not `xor.o` + a materialized -1 constant.
-+def : Pat<(not GPRD:$a), (xnor_o GPRD:$a, rd0)>;
++def : Pat<(not (i64 GPRD:$a)), (xnor_o (i64 GPRD:$a), (i64 rd0))>;
 +
 +// Integer negation (ISS-159): `sub 0, x` (i64) lowers to the real
-+// `sub.so {rd0, dst}, rd0, src` via NEG_PSEUDO (expanded post-RA).  Narrow
-+// `neg iN` is the sign-extended narrow subtraction `sub.sb/sw/st dst, rd0, src`
-+// (contract-isa.md §10.6/§11.6/§12.6), matched through the sign_extend_inreg
-+// that legalization wraps around the promoted sub.
-+def : Pat<(i64 (sub 0, GPRD:$a)), (NEG_PSEUDO GPRD:$a)>;
-+def : Pat<(i64 (sext_inreg (sub 0, GPRD:$a), i8)), (sub_sb rd0, GPRD:$a)>;
-+def : Pat<(i64 (sext_inreg (sub 0, GPRD:$a), i16)), (sub_sw rd0, GPRD:$a)>;
-+def : Pat<(i64 (sext_inreg (sub 0, GPRD:$a), i32)), (sub_st rd0, GPRD:$a)>;
++// `sub.so {rd0, dst}, rd0, src` via NEG_PSEUDO (expanded post-RA).  Since
++// LLVM-127t a narrow `neg iN` is a legal iN subtraction with a zero constant
++// and is folded by the custom selector to `sub.sb/sw/st dst, rd0, src`
++// (contract-isa.md §10.5/§11.5/§12.5); the patterns below keep covering the
++// promoted `sign_extend_inreg (sub 0, x)` shape used by i64 code.
++def : Pat<(i64 (sub 0, GPRD:$a)), (NEG_PSEUDO (i64 GPRD:$a))>;
++def : Pat<(i64 (sext_inreg (sub 0, GPRD:$a), i8)), (sub_sb (i64 rd0), (i64 GPRD:$a))>;
++def : Pat<(i64 (sext_inreg (sub 0, GPRD:$a), i16)), (sub_sw (i64 rd0), (i64 GPRD:$a))>;
++def : Pat<(i64 (sext_inreg (sub 0, GPRD:$a), i32)), (sub_st (i64 rd0), (i64 GPRD:$a))>;
 +
 +// Unsigned 6-bit immediate matching the `immu6` operand (shift/rotate amount;
 +// 0..63).  Used by the immediate (orri) rotate pattern below.
 +def immu6imm : ImmLeaf<i64, [{ return isUInt<6>(Imm); }]>;
 +
 +// Variable shift amount (orrr): shamt is rdhc low 6 bits (§6.4.1).
-+def : Pat<(shl GPRD:$a, GPRD:$b), (shl_o_orrr GPRD:$a, GPRD:$b)>;
-+def : Pat<(srl GPRD:$a, GPRD:$b), (shr_uo_orrr GPRD:$a, GPRD:$b)>;
-+def : Pat<(sra GPRD:$a, GPRD:$b), (shr_so_orrr GPRD:$a, GPRD:$b)>;
++def : Pat<(shl (i64 GPRD:$a), (i64 GPRD:$b)), (shl_o_orrr (i64 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(srl (i64 GPRD:$a), (i64 GPRD:$b)), (shr_uo_orrr (i64 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(sra (i64 GPRD:$a), (i64 GPRD:$b)), (shr_so_orrr (i64 GPRD:$a), (i64 GPRD:$b))>;
 +
 +// Rotate left (ADR-0032 D4 as amended 2026-10-19 / LLVM-116t): the ISA's
 +// single-direction rotate is `rol`, and ISD::ROTL selects it directly.  The
@@ -443,8 +456,8 @@ index 000000000..1af1e3f17
 +// register form (orrr) takes rdHD[5:0], i.e. the amount modulo 64 -- the same
 +// low-6-bit convention as the shifts above.  ISD::ROTR is custom-lowered to
 +// ROTL in DADAOISelLowering (rotr(x,n) = rol(x, (-n) mod 64)).
-+def : Pat<(rotl GPRD:$a, immu6imm:$b), (rol_o_orri GPRD:$a, immu6imm:$b)>;
-+def : Pat<(rotl GPRD:$a, GPRD:$b), (rol_o_orrr GPRD:$a, GPRD:$b)>;
++def : Pat<(rotl (i64 GPRD:$a), immu6imm:$b), (rol_o_orri (i64 GPRD:$a), immu6imm:$b)>;
++def : Pat<(rotl (i64 GPRD:$a), (i64 GPRD:$b)), (rol_o_orrr (i64 GPRD:$a), (i64 GPRD:$b))>;
 +
 +// Bit scan / population count / whole-word reversal (LLVM-128t; ADR-0012
 +// D10/D11, contract-isa.md §6.4.3/§6.4.4).  These seven instructions have
@@ -455,37 +468,173 @@ index 000000000..1af1e3f17
 +//   rev.o/t/w/b rd, rs, k        -- k is a one-hot element size; k = 8 gives
 +//        the byte swap (bswap64/32/16) and rev.o k = 1 the 64-bit bitreverse.
 +//
-+// i64 is the only legal integer type, so one pattern per operation at full
-+// width is enough: hd = 63 selects bits [63:0], which makes the ISA result
-+// identical to the LLVM node, zero included (ctlz(0) = cttz(0) = 64, the
++// i64 is the full-width case: hd = 63 selects bits [63:0], which makes the ISA
++// result identical to the LLVM node, zero included (ctlz(0) = cttz(0) = 64, the
 +// *defined* variants; the *_ZERO_POISON nodes are mapped too, since a poison
-+// result may be any value and 64 is one of them).  Narrow i32/i16/i8 values
-+// are promoted by the type legalizer and reuse these patterns plus one
-+// subtraction (ctlz(zext x) - 32) or an OR of the bit just above the narrow
-+// type (cttz), which reproduces the narrow ISA result; their 1-instruction
-+// `hd = 31/15/7` forms would need Custom result legalization with no
-+// acceptance case behind it, so they are left out (disclosed in LLVM-128t).
-+def : Pat<(ctlz GPRD:$x), (ctlz_orri_rd GPRD:$x, 63)>;
-+def : Pat<(ctlz_zero_poison GPRD:$x), (ctlz_orri_rd GPRD:$x, 63)>;
-+def : Pat<(cttz GPRD:$x), (cttz_orri_rd GPRD:$x, 63)>;
-+def : Pat<(cttz_zero_poison GPRD:$x), (cttz_orri_rd GPRD:$x, 63)>;
-+def : Pat<(ctpop GPRD:$x), (ctpop_orri_rd GPRD:$x, 63)>;
++// result may be any value and 64 is one of them).  The narrow widths have their
++// own `hd = 31/15/7` patterns right below (LLVM-127t).
++def : Pat<(i64 (ctlz (i64 GPRD:$x))), (ctlz_orri_rd (i64 GPRD:$x), 63)>;
++def : Pat<(i64 (ctlz_zero_poison (i64 GPRD:$x))), (ctlz_orri_rd (i64 GPRD:$x), 63)>;
++def : Pat<(i64 (cttz (i64 GPRD:$x))), (cttz_orri_rd (i64 GPRD:$x), 63)>;
++def : Pat<(i64 (cttz_zero_poison (i64 GPRD:$x))), (cttz_orri_rd (i64 GPRD:$x), 63)>;
++def : Pat<(i64 (ctpop (i64 GPRD:$x))), (ctpop_orri_rd (i64 GPRD:$x), 63)>;
++
++// Narrow bit counts (LLVM-127t; ISS-187): `hd` is the valid-bit upper bound, so
++// hd = 31/15/7 is exactly the i32/i16/i8 operation -- one instruction, and the
++// defined all-zero result is W (ctlz/cttz) / 0 (ctpop).
++def : Pat<(i32 (ctlz (i32 GPRD:$x))), (ctlz_orri_rd (i32 GPRD:$x), 31)>;
++def : Pat<(i16 (ctlz (i16 GPRD:$x))), (ctlz_orri_rd (i16 GPRD:$x), 15)>;
++def : Pat<(i8 (ctlz (i8 GPRD:$x))), (ctlz_orri_rd (i8 GPRD:$x), 7)>;
++def : Pat<(i32 (ctlz_zero_poison (i32 GPRD:$x))),
++          (ctlz_orri_rd (i32 GPRD:$x), 31)>;
++def : Pat<(i16 (ctlz_zero_poison (i16 GPRD:$x))),
++          (ctlz_orri_rd (i16 GPRD:$x), 15)>;
++def : Pat<(i8 (ctlz_zero_poison (i8 GPRD:$x))),
++          (ctlz_orri_rd (i8 GPRD:$x), 7)>;
++def : Pat<(i32 (cttz (i32 GPRD:$x))), (cttz_orri_rd (i32 GPRD:$x), 31)>;
++def : Pat<(i16 (cttz (i16 GPRD:$x))), (cttz_orri_rd (i16 GPRD:$x), 15)>;
++def : Pat<(i8 (cttz (i8 GPRD:$x))), (cttz_orri_rd (i8 GPRD:$x), 7)>;
++def : Pat<(i32 (cttz_zero_poison (i32 GPRD:$x))),
++          (cttz_orri_rd (i32 GPRD:$x), 31)>;
++def : Pat<(i16 (cttz_zero_poison (i16 GPRD:$x))),
++          (cttz_orri_rd (i16 GPRD:$x), 15)>;
++def : Pat<(i8 (cttz_zero_poison (i8 GPRD:$x))),
++          (cttz_orri_rd (i8 GPRD:$x), 7)>;
++def : Pat<(i32 (ctpop (i32 GPRD:$x))), (ctpop_orri_rd (i32 GPRD:$x), 31)>;
++def : Pat<(i16 (ctpop (i16 GPRD:$x))), (ctpop_orri_rd (i16 GPRD:$x), 15)>;
++def : Pat<(i8 (ctpop (i8 GPRD:$x))), (ctpop_orri_rd (i8 GPRD:$x), 7)>;
 +
 +// bswap64 = rev.o with k = 8 (reverse the eight 8-bit elements of the block);
-+// bitreverse64 = rev.o with k = 1.  bswap32 is `rev.t` k = 8 and cannot be a
-+// pattern (i32 is not a legal type); its promotion would produce
-+// `srl (bswap i64), 32`, so ISD::BSWAP i32 is Custom and ReplaceNodeResults
-+// emits `rev.t` directly (DADAOISelLowering.cpp).
-+def : Pat<(bswap GPRD:$x), (rev_o_orri_rd GPRD:$x, 8)>;
-+def : Pat<(bitreverse GPRD:$x), (rev_o_orri_rd GPRD:$x, 1)>;
++// bitreverse64 = rev.o with k = 1.  Since LLVM-127t i32/i16 are legal types, so
++// bswap32 is a direct `rev.t` pattern and bswap16 a direct `rev.w` one (below).
++def : Pat<(i64 (bswap (i64 GPRD:$x))), (rev_o_orri_rd (i64 GPRD:$x), 8)>;
++def : Pat<(i64 (bitreverse (i64 GPRD:$x))), (rev_o_orri_rd (i64 GPRD:$x), 1)>;
 +
 +// 64-bit div/rem (orrr): rdhb = rdhc / rdhb ... (contract-isa.md §6.1.5).
 +// DADAO returns defined values for the div-by-zero / INT_MIN/-1 cases that are
 +// UB in LLVM IR, so the mapping is safe.
-+def : Pat<(udiv GPRD:$a, GPRD:$b), (div_uo GPRD:$a, GPRD:$b)>;
-+def : Pat<(sdiv GPRD:$a, GPRD:$b), (div_so GPRD:$a, GPRD:$b)>;
-+def : Pat<(urem GPRD:$a, GPRD:$b), (rem_uo GPRD:$a, GPRD:$b)>;
-+def : Pat<(srem GPRD:$a, GPRD:$b), (rem_so GPRD:$a, GPRD:$b)>;
++def : Pat<(udiv (i64 GPRD:$a), (i64 GPRD:$b)), (div_uo (i64 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(sdiv (i64 GPRD:$a), (i64 GPRD:$b)), (div_so (i64 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(urem (i64 GPRD:$a), (i64 GPRD:$b)), (rem_uo (i64 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(srem (i64 GPRD:$a), (i64 GPRD:$b)), (rem_so (i64 GPRD:$a), (i64 GPRD:$b))>;
++
++//===----------------------------------------------------------------------===//
++// Narrow integer patterns (LLVM-127t; contract-isa.md §10/§11/§12)
++//
++// The narrow add/sub/mul/div/rem instructions take one destination and write
++// the 64-bit canonical extension themselves: `.s*` sign-extends, `.u*`
++// zero-extends (contract-isa.md §10.1.1/§11.1.1/§12.1.1, §6.1.5).  LLVM's
++// ADD/SUB/MUL are sign-agnostic, so the `.s*` form is used: the low N bits are
++// the result and the upper half is the canonical sign extension; a consumer
++// that needs the unsigned value extends explicitly (ext.uo below).  DIV/REM do
++// carry signedness, so UDIV/UREM use the `.u*` and SDIV/SREM the `.s*` form.
++//===----------------------------------------------------------------------===//
++
++def : Pat<(i32 (add (i32 GPRD:$a), (i32 GPRD:$b))), (add_st GPRD:$a, GPRD:$b)>;
++def : Pat<(i16 (add (i16 GPRD:$a), (i16 GPRD:$b))), (add_sw GPRD:$a, GPRD:$b)>;
++def : Pat<(i8 (add (i8 GPRD:$a), (i8 GPRD:$b))), (add_sb GPRD:$a, GPRD:$b)>;
++def : Pat<(i32 (sub (i32 GPRD:$a), (i32 GPRD:$b))), (sub_st GPRD:$a, GPRD:$b)>;
++def : Pat<(i16 (sub (i16 GPRD:$a), (i16 GPRD:$b))), (sub_sw GPRD:$a, GPRD:$b)>;
++def : Pat<(i8 (sub (i8 GPRD:$a), (i8 GPRD:$b))), (sub_sb GPRD:$a, GPRD:$b)>;
++def : Pat<(i32 (mul (i32 GPRD:$a), (i32 GPRD:$b))), (mul_st GPRD:$a, GPRD:$b)>;
++def : Pat<(i16 (mul (i16 GPRD:$a), (i16 GPRD:$b))), (mul_sw GPRD:$a, GPRD:$b)>;
++def : Pat<(i8 (mul (i8 GPRD:$a), (i8 GPRD:$b))), (mul_sb GPRD:$a, GPRD:$b)>;
++
++def : Pat<(i32 (udiv (i32 GPRD:$a), (i32 GPRD:$b))), (div_ut GPRD:$a, GPRD:$b)>;
++def : Pat<(i16 (udiv (i16 GPRD:$a), (i16 GPRD:$b))), (div_uw GPRD:$a, GPRD:$b)>;
++def : Pat<(i8 (udiv (i8 GPRD:$a), (i8 GPRD:$b))), (div_ub GPRD:$a, GPRD:$b)>;
++def : Pat<(i32 (sdiv (i32 GPRD:$a), (i32 GPRD:$b))), (div_st GPRD:$a, GPRD:$b)>;
++def : Pat<(i16 (sdiv (i16 GPRD:$a), (i16 GPRD:$b))), (div_sw GPRD:$a, GPRD:$b)>;
++def : Pat<(i8 (sdiv (i8 GPRD:$a), (i8 GPRD:$b))), (div_sb GPRD:$a, GPRD:$b)>;
++def : Pat<(i32 (urem (i32 GPRD:$a), (i32 GPRD:$b))), (rem_ut GPRD:$a, GPRD:$b)>;
++def : Pat<(i16 (urem (i16 GPRD:$a), (i16 GPRD:$b))), (rem_uw GPRD:$a, GPRD:$b)>;
++def : Pat<(i8 (urem (i8 GPRD:$a), (i8 GPRD:$b))), (rem_ub GPRD:$a, GPRD:$b)>;
++def : Pat<(i32 (srem (i32 GPRD:$a), (i32 GPRD:$b))), (rem_st GPRD:$a, GPRD:$b)>;
++def : Pat<(i16 (srem (i16 GPRD:$a), (i16 GPRD:$b))), (rem_sw GPRD:$a, GPRD:$b)>;
++def : Pat<(i8 (srem (i8 GPRD:$a), (i8 GPRD:$b))), (rem_sb GPRD:$a, GPRD:$b)>;
++
++// Narrow shifts, register form.  The orrr form takes rdHD[log2(W)-1:0], i.e.
++// the shift amount modulo the width.  A *constant* amount is folded to the
++// one-instruction orri form in DADAOISelDAGToDAG::Select (a TableGen immediate
++// leaf cannot be used: the DAG shift amount has the narrow type while the
++// `immu6` operand is i64).  The orri form requires immu6 <= W-1 (else ILLI), so
++// the selector only folds amounts in range; LLVM shifts by >= W are poison
++// anyway.  `shl.*` zero-extends its result, `shr.s*` sign-extends, `shr.u*`
++// zero-extends (contract-isa.md §10.4.1/§11.4.1/§12.4.1).
++def : Pat<(i32 (shl (i32 GPRD:$a), (i64 GPRD:$b))), (shl_t_orrr (i32 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i16 (shl (i16 GPRD:$a), (i64 GPRD:$b))), (shl_w_orrr (i16 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i8 (shl (i8 GPRD:$a), (i64 GPRD:$b))), (shl_b_orrr (i8 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i32 (srl (i32 GPRD:$a), (i64 GPRD:$b))), (shr_ut_orrr (i32 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i16 (srl (i16 GPRD:$a), (i64 GPRD:$b))), (shr_uw_orrr (i16 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i8 (srl (i8 GPRD:$a), (i64 GPRD:$b))), (shr_ub_orrr (i8 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i32 (sra (i32 GPRD:$a), (i64 GPRD:$b))), (shr_st_orrr (i32 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i16 (sra (i16 GPRD:$a), (i64 GPRD:$b))), (shr_sw_orrr (i16 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i8 (sra (i8 GPRD:$a), (i64 GPRD:$b))), (shr_sb_orrr (i8 GPRD:$a), (i64 GPRD:$b))>;
++
++// Narrow byte swaps (bswap.i8 is an identity and never reaches ISel).
++def : Pat<(i32 (bswap (i32 GPRD:$x))), (rev_t_orri_rd GPRD:$x, 8)>;
++def : Pat<(i16 (bswap (i16 GPRD:$x))), (rev_w_orri_rd GPRD:$x, 8)>;
++
++//===----------------------------------------------------------------------===//
++// Explicit narrow extensions and truncations (LLVM-127t; contract-abi.md §4.2)
++//
++// `ext.uo rdhb, rdhc, hd` copies bits [hd:0] and zero-fills [63:hd+1];
++// `ext.so` sign-fills instead (contract-isa.md §6.4.2).  Both therefore also
++// perform a truncation to hd+1 bits when the result type is narrower.  One
++// instruction per extend/truncate, and the zero-extending form is what makes a
++// `uint32_t` argument canonical (contract-abi §4.2 "保持符号位不变" for signed,
++// zero extension for unsigned).
++//
++// extend: every narrow -> wider combination (the result may be i64 or a wider
++// narrow type).  ANY_EXTEND needs no defined upper half, so the zero-extending
++// form is a valid implementation.
++//===----------------------------------------------------------------------===//
++
++def : Pat<(i64 (zext (i8 GPRD:$s))),  (ext_uo_orri GPRD:$s, 7)>;
++def : Pat<(i64 (zext (i16 GPRD:$s))), (ext_uo_orri GPRD:$s, 15)>;
++def : Pat<(i64 (zext (i32 GPRD:$s))), (ext_uo_orri GPRD:$s, 31)>;
++def : Pat<(i32 (zext (i8 GPRD:$s))),  (ext_uo_orri GPRD:$s, 7)>;
++def : Pat<(i32 (zext (i16 GPRD:$s))), (ext_uo_orri GPRD:$s, 15)>;
++def : Pat<(i16 (zext (i8 GPRD:$s))),  (ext_uo_orri GPRD:$s, 7)>;
++
++def : Pat<(i64 (anyext (i8 GPRD:$s))),  (ext_uo_orri GPRD:$s, 7)>;
++def : Pat<(i64 (anyext (i16 GPRD:$s))), (ext_uo_orri GPRD:$s, 15)>;
++def : Pat<(i64 (anyext (i32 GPRD:$s))), (ext_uo_orri GPRD:$s, 31)>;
++def : Pat<(i32 (anyext (i8 GPRD:$s))),  (ext_uo_orri GPRD:$s, 7)>;
++def : Pat<(i32 (anyext (i16 GPRD:$s))), (ext_uo_orri GPRD:$s, 15)>;
++def : Pat<(i16 (anyext (i8 GPRD:$s))),  (ext_uo_orri GPRD:$s, 7)>;
++
++def : Pat<(i64 (sext (i8 GPRD:$s))),  (ext_so_orri GPRD:$s, 7)>;
++def : Pat<(i64 (sext (i16 GPRD:$s))), (ext_so_orri GPRD:$s, 15)>;
++def : Pat<(i64 (sext (i32 GPRD:$s))), (ext_so_orri GPRD:$s, 31)>;
++def : Pat<(i32 (sext (i8 GPRD:$s))),  (ext_so_orri GPRD:$s, 7)>;
++def : Pat<(i32 (sext (i16 GPRD:$s))), (ext_so_orri GPRD:$s, 15)>;
++def : Pat<(i16 (sext (i8 GPRD:$s))),  (ext_so_orri GPRD:$s, 7)>;
++
++// truncate: `ext.uo` keeps the low bits and zero-fills the rest, which is a
++// valid iN value (no defined upper half).
++def : Pat<(i32 (trunc (i64 GPRD:$s))), (ext_uo_orri GPRD:$s, 31)>;
++def : Pat<(i16 (trunc (i64 GPRD:$s))), (ext_uo_orri GPRD:$s, 15)>;
++def : Pat<(i8 (trunc (i64 GPRD:$s))),  (ext_uo_orri GPRD:$s, 7)>;
++def : Pat<(i16 (trunc (i32 GPRD:$s))), (ext_uo_orri GPRD:$s, 15)>;
++def : Pat<(i8 (trunc (i32 GPRD:$s))),  (ext_uo_orri GPRD:$s, 7)>;
++def : Pat<(i8 (trunc (i16 GPRD:$s))),  (ext_uo_orri GPRD:$s, 7)>;
++
++// `(zext (trunc X))` is folded by DAGCombine into an AND with a width mask;
++// selecting it as one ext.uo keeps a `(uint32_t)` cast to one instruction
++// instead of materialising the mask and AND-ing.
++def : Pat<(i64 (and (i64 GPRD:$s), (i64 255))),
++          (ext_uo_orri GPRD:$s, 7)>;
++def : Pat<(i64 (and (i64 GPRD:$s), (i64 65535))),
++          (ext_uo_orri GPRD:$s, 15)>;
++def : Pat<(i64 (and (i64 GPRD:$s), (i64 4294967295))),
++          (ext_uo_orri GPRD:$s, 31)>;
++
++// FP <-> i32 bitcasts: the bank block moves copy 64 bits unchanged, and only
++// the low 32 bits of an f32 are significant (contract-fp.md §12), so one
++// rd2rf / rf2rd is the whole bitcast.  (i64 <-> f64 is handled above.)
++def : Pat<(f32 (bitconvert i32:$a)), (rd2rf_orri_rf i32:$a, 1)>;
++def : Pat<(i32 (bitconvert f32:$a)), (rf2rd_orri_rf f32:$a, 1)>;
 +
 +//===----------------------------------------------------------------------===//
 +// Signed narrow-integer extension: sign_extend_inreg (LLVM-047t; C4/C13)
@@ -510,6 +659,24 @@ index 000000000..1af1e3f17
 +// and an explicit `sext i1` also lands here.  hd = 0 sign-extends from bit 0,
 +// i.e. the low bit selects 0 / -1, exactly a signed boolean.
 +def : Pat<(i64 (sext_inreg GPRD:$src, i1)), (ext_so_orri GPRD:$src, 0)>;
++// The narrow-result forms of the same i1 case: a 0/1 boolean used as an i8/i16/
++// i32 (e.g. `(a > 0) - (b > 0)` in wcwidth), selected as `ext.so hd = 0`.
++def : Pat<(i32 (sext_inreg (i32 GPRD:$src), i1)),
++          (ext_so_orri (i32 GPRD:$src), 0)>;
++def : Pat<(i16 (sext_inreg (i16 GPRD:$src), i1)),
++          (ext_so_orri (i16 GPRD:$src), 0)>;
++def : Pat<(i8 (sext_inreg (i8 GPRD:$src), i1)),
++          (ext_so_orri (i8 GPRD:$src), 0)>;
++
++// Narrow-result sign_extend_inreg (LLVM-127t): DAGCombine produces these on an
++// i8/i16/i32 value, and `ext.so` sign-fills the whole register, which includes
++// the correct iN result.  (The i64-result forms above stay the common case.)
++def : Pat<(i32 (sext_inreg (i32 GPRD:$src), i8)),
++          (ext_so_orri (i32 GPRD:$src), 7)>;
++def : Pat<(i32 (sext_inreg (i32 GPRD:$src), i16)),
++          (ext_so_orri (i32 GPRD:$src), 15)>;
++def : Pat<(i16 (sext_inreg (i16 GPRD:$src), i8)),
++          (ext_so_orri (i16 GPRD:$src), 7)>;
 +
 +//===----------------------------------------------------------------------===//
 +// Scalar load/store (LLVM-036t; C13/C14, ADR-0018; frame indices LLVM-038t)
@@ -542,36 +709,69 @@ index 000000000..1af1e3f17
 +// well, so the load/store carries an MO_FrameIndex that PEI rewrites.
 +def DADAOAddr : ComplexPattern<i64, 2, "SelectAddr">;
 +
-+class DADAOLdPat<PatFrag LoadOp, Instruction Inst>
-+    : Pat<(i64 (LoadOp (DADAOAddr GPRB:$base, simm12imm:$off))),
++class DADAOLdPat<PatFrag LoadOp, Instruction Inst, ValueType VT = i64>
++    : Pat<(VT (LoadOp (DADAOAddr GPRB:$base, simm12imm:$off))),
 +          (Inst GPRB:$base, simm12imm:$off)>;
 +
-+class DADAOStPat<PatFrag StoreOp, Instruction Inst>
-+    : Pat<(StoreOp GPRD:$val, (DADAOAddr GPRB:$base, simm12imm:$off)),
++// The value type is explicit: since LLVM-127t four integer widths are legal, so
++// an untyped GPRD operand no longer determines the store's value type.  A
++// truncating store may still see a *wider* value (i64 -> i32, i32 -> i8, ...),
++// hence one instance per (value type, memory type) pair that can occur.
++class DADAOStPat<PatFrag StoreOp, Instruction Inst, ValueType VT>
++    : Pat<(StoreOp (VT GPRD:$val), (DADAOAddr GPRB:$base, simm12imm:$off)),
 +          (Inst GPRD:$val, GPRB:$base, simm12imm:$off)>;
 +
-+// 64-bit load/store (ld.o / st.o, RD variants).
++// 64-bit load/store (ld.o / st.o, RD variants) and the extloads to i64.
 +def : DADAOLdPat<load, ld_o_rd>;
-+def : DADAOStPat<store, st_o_rd>;
++def : DADAOStPat<store, st_o_rd, i64>;
 +
 +// i8: zero/any extension -> ld.ub, sign extension -> ld.sb, truncating store
 +// -> st.b.
 +def : DADAOLdPat<extloadi8, ld_ub_rd>;
 +def : DADAOLdPat<zextloadi8, ld_ub_rd>;
 +def : DADAOLdPat<sextloadi8, ld_sb_rd>;
-+def : DADAOStPat<truncstorei8, st_b_rd>;
++def : DADAOStPat<truncstorei8, st_b_rd, i64>;
++def : DADAOStPat<truncstorei8, st_b_rd, i32>;
++def : DADAOStPat<truncstorei8, st_b_rd, i16>;
 +
 +// i16 (wyde): ld.uw / ld.sw / st.w.
 +def : DADAOLdPat<extloadi16, ld_uw_rd>;
 +def : DADAOLdPat<zextloadi16, ld_uw_rd>;
 +def : DADAOLdPat<sextloadi16, ld_sw_rd>;
-+def : DADAOStPat<truncstorei16, st_w_rd>;
++def : DADAOStPat<truncstorei16, st_w_rd, i64>;
++def : DADAOStPat<truncstorei16, st_w_rd, i32>;
 +
 +// i32 (tetra): ld.ut / ld.st / st.t.
 +def : DADAOLdPat<extloadi32, ld_ut_rd>;
 +def : DADAOLdPat<zextloadi32, ld_ut_rd>;
 +def : DADAOLdPat<sextloadi32, ld_st_rd>;
-+def : DADAOStPat<truncstorei32, st_t_rd>;
++def : DADAOStPat<truncstorei32, st_t_rd, i64>;
++
++// --- narrow-result accesses (LLVM-127t) ------------------------------------
++// With i8/i16/i32 legal, an access whose result stays narrow -- a plain load or
++// a narrowing load extension -- has to be selected at that width:
++//   ld.ub / ld.uw / ld.ut  zero-extend (used for load/zextload/any-extload),
++//   ld.sb / ld.sw / ld.st  sign-extend (sextload),
++//   st.b / st.w / st.t     write the low 8/16/32 bits (plain stores).
++// The chosen instruction writes all 64 bits, so the (undefined) upper half of
++// a narrow value is harmless.
++def : DADAOLdPat<load, ld_ub_rd, i8>;
++def : DADAOLdPat<load, ld_uw_rd, i16>;
++def : DADAOLdPat<load, ld_ut_rd, i32>;
++def : DADAOStPat<store, st_b_rd, i8>;
++def : DADAOStPat<store, st_w_rd, i16>;
++def : DADAOStPat<store, st_t_rd, i32>;
++
++def : DADAOLdPat<extloadi8, ld_ub_rd, i16>;
++def : DADAOLdPat<extloadi8, ld_ub_rd, i32>;
++def : DADAOLdPat<zextloadi8, ld_ub_rd, i16>;
++def : DADAOLdPat<zextloadi8, ld_ub_rd, i32>;
++def : DADAOLdPat<sextloadi8, ld_sb_rd, i16>;
++def : DADAOLdPat<sextloadi8, ld_sb_rd, i32>;
++
++def : DADAOLdPat<extloadi16, ld_uw_rd, i32>;
++def : DADAOLdPat<zextloadi16, ld_uw_rd, i32>;
++def : DADAOLdPat<sextloadi16, ld_sw_rd, i32>;
 +
 +//===----------------------------------------------------------------------===//
 +// Compare / branch selection (LLVM-037t; C17/C14, ADR-0018)
@@ -593,16 +793,37 @@ index 000000000..1af1e3f17
 +def immu12imm : ImmLeaf<i64, [{ return isUInt<12>(Imm); }]>;
 +
 +// Signed compares -> cmp.so (reg,reg) / cmp.si (reg,imm).
-+def : Pat<(DADAOCmp GPRD:$l, GPRD:$r), (cmp_so GPRD:$l, GPRD:$r)>;
-+def : Pat<(DADAOCmp GPRD:$l, simm12imm:$r), (cmp_si_rd GPRD:$l, simm12imm:$r)>;
++def : Pat<(DADAOCmp (i64 GPRD:$l), (i64 GPRD:$r)),
++          (cmp_so GPRD:$l, GPRD:$r)>;
++def : Pat<(DADAOCmp (i64 GPRD:$l), simm12imm:$r),
++          (cmp_si_rd GPRD:$l, simm12imm:$r)>;
 +
 +// Unsigned compares -> cmp.uo (reg,reg) / cmp.ui (reg,imm).
 +// Pointer compares (cmp.uo rd, rb, rb; C14 D2) and the RB-variant zero-test
 +// branches (br.z/nz {rb}; C17) are selected bank-aware in DADAOISelDAGToDAG
 +// (the TableGen matcher does not discriminate register classes for i64
 +// operands -- it would insert a GPRB->GPRD copy, as LLVM-035t found).
-+def : Pat<(DADAOCmpU GPRD:$l, GPRD:$r), (cmp_uo GPRD:$l, GPRD:$r)>;
-+def : Pat<(DADAOCmpU GPRD:$l, immu12imm:$r), (cmp_ui_rd GPRD:$l, immu12imm:$r)>;
++def : Pat<(DADAOCmpU (i64 GPRD:$l), (i64 GPRD:$r)),
++          (cmp_uo GPRD:$l, GPRD:$r)>;
++def : Pat<(DADAOCmpU (i64 GPRD:$l), immu12imm:$r),
++          (cmp_ui_rd GPRD:$l, immu12imm:$r)>;
++
++// Narrow compares (LLVM-127t): cmp.{st,sw,sb} / cmp.{ut,uw,ub}.  The
++// instructions have no immediate form, so a constant operand is materialised
++// into a GPRD register like any other value.  The result is still the i64
++// {-1,0,1} value consumed by br.*/cs.*.
++def : Pat<(DADAOCmp (i32 GPRD:$l), (i32 GPRD:$r)),
++          (cmp_st GPRD:$l, GPRD:$r)>;
++def : Pat<(DADAOCmp (i16 GPRD:$l), (i16 GPRD:$r)),
++          (cmp_sw GPRD:$l, GPRD:$r)>;
++def : Pat<(DADAOCmp (i8 GPRD:$l), (i8 GPRD:$r)),
++          (cmp_sb GPRD:$l, GPRD:$r)>;
++def : Pat<(DADAOCmpU (i32 GPRD:$l), (i32 GPRD:$r)),
++          (cmp_ut GPRD:$l, GPRD:$r)>;
++def : Pat<(DADAOCmpU (i16 GPRD:$l), (i16 GPRD:$r)),
++          (cmp_uw GPRD:$l, GPRD:$r)>;
++def : Pat<(DADAOCmpU (i8 GPRD:$l), (i8 GPRD:$r)),
++          (cmp_ub GPRD:$l, GPRD:$r)>;
 +
 +// Zero-test branches on a GPRD value.
 +def : Pat<(DADAOBrz  GPRD:$v, bb:$d), (br_z_rd  GPRD:$v, bb:$d)>;
@@ -623,6 +844,28 @@ index 000000000..1af1e3f17
 +def : Pat<(DADAOCSN i64:$c, i64:$t, i64:$f), (cs_n_rd i64:$c, i64:$t, i64:$f)>;
 +def : Pat<(DADAOCSZ i64:$c, i64:$t, i64:$f), (cs_z_rd i64:$c, i64:$t, i64:$f)>;
 +def : Pat<(DADAOCSP i64:$c, i64:$t, i64:$f), (cs_p_rd i64:$c, i64:$t, i64:$f)>;
++
++// Narrow integer arms (LLVM-127t): a `select` / `select_cc` on i8/i16/i32
++// values uses the same cs.*_rd instruction; the arm type is the node's result
++// type, so one pattern per width.
++def : Pat<(DADAOCSN i64:$c, (i32 GPRD:$t), (i32 GPRD:$f)),
++          (cs_n_rd i64:$c, GPRD:$t, GPRD:$f)>;
++def : Pat<(DADAOCSZ i64:$c, (i32 GPRD:$t), (i32 GPRD:$f)),
++          (cs_z_rd i64:$c, GPRD:$t, GPRD:$f)>;
++def : Pat<(DADAOCSP i64:$c, (i32 GPRD:$t), (i32 GPRD:$f)),
++          (cs_p_rd i64:$c, GPRD:$t, GPRD:$f)>;
++def : Pat<(DADAOCSN i64:$c, (i16 GPRD:$t), (i16 GPRD:$f)),
++          (cs_n_rd i64:$c, GPRD:$t, GPRD:$f)>;
++def : Pat<(DADAOCSZ i64:$c, (i16 GPRD:$t), (i16 GPRD:$f)),
++          (cs_z_rd i64:$c, GPRD:$t, GPRD:$f)>;
++def : Pat<(DADAOCSP i64:$c, (i16 GPRD:$t), (i16 GPRD:$f)),
++          (cs_p_rd i64:$c, GPRD:$t, GPRD:$f)>;
++def : Pat<(DADAOCSN i64:$c, (i8 GPRD:$t), (i8 GPRD:$f)),
++          (cs_n_rd i64:$c, GPRD:$t, GPRD:$f)>;
++def : Pat<(DADAOCSZ i64:$c, (i8 GPRD:$t), (i8 GPRD:$f)),
++          (cs_z_rd i64:$c, GPRD:$t, GPRD:$f)>;
++def : Pat<(DADAOCSP i64:$c, (i8 GPRD:$t), (i8 GPRD:$f)),
++          (cs_p_rd i64:$c, GPRD:$t, GPRD:$f)>;
 +
 +// FP arms (LLVM-079t): the same cs.n/z/p tests but selecting an rf destination
 +// from two rf sources (cs.*_rrrr_rf; contract-isa.md §6.5).  The condition is
@@ -673,7 +916,7 @@ index 000000000..1af1e3f17
 +// instruction (LLVM-080t P1) instead of the generic bit-manipulation sequence.
 +def : Pat<(fcopysign f64:$a, f64:$b), (fosgnj_orrr_rf f64:$a, f64:$b)>;
 +def : Pat<(fabs f64:$a),
-+          (fosgnj_orrr_rf f64:$a, (rd2rf_orri_rf rd0, 1))>;
++          (fosgnj_orrr_rf f64:$a, (rd2rf_orri_rf (i64 rd0), 1))>;
 +
 +// --- f32 (ft): arithmetic / sqrt / neg / abs ---
 +def : Pat<(fadd f32:$a, f32:$b), (ftadd_orrr_rf f32:$a, f32:$b)>;
@@ -789,12 +1032,12 @@ index 000000000..1af1e3f17
 +  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETO),
 +            (CsP (cmp_si_rd (Cmp CmpVT:$a, CmpVT:$b), 1), ValVT:$f, ValVT:$t)>;
 +  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETONE),
-+            (CsZ (and_o (cs_p_rd (cmp_si_rd (Cmp CmpVT:$a, CmpVT:$b), 1), 0, 1),
-+                       (cs_z_rd (Cmp CmpVT:$a, CmpVT:$b), 0, 1)),
++            (CsZ (and_o (cs_p_rd (cmp_si_rd (Cmp CmpVT:$a, CmpVT:$b), 1), (i64 0), (i64 1)),
++                       (cs_z_rd (Cmp CmpVT:$a, CmpVT:$b), (i64 0), (i64 1))),
 +                 ValVT:$f, ValVT:$t)>;
 +  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETUEQ),
-+            (CsZ (or_o (cs_p_rd (cmp_si_rd (Cmp CmpVT:$a, CmpVT:$b), 1), 1, 0),
-+                      (cs_z_rd (Cmp CmpVT:$a, CmpVT:$b), 1, 0)),
++            (CsZ (or_o (cs_p_rd (cmp_si_rd (Cmp CmpVT:$a, CmpVT:$b), 1), (i64 1), (i64 0)),
++                      (cs_z_rd (Cmp CmpVT:$a, CmpVT:$b), (i64 1), (i64 0))),
 +                 ValVT:$f, ValVT:$t)>;
 +}
 +
@@ -831,10 +1074,10 @@ index 000000000..1af1e3f17
 +// sint_to_fp / uint_to_fp <- i octa (io2fo/uo2fo).  A narrower integer source
 +// is promoted to i64 before the conversion, so only the i64 patterns are
 +// reachable.
-+def : Pat<(f64 (sint_to_fp GPRD:$a)), (io2fo_orri_rf GPRD:$a, 1)>;
-+def : Pat<(f32 (sint_to_fp GPRD:$a)), (io2ft_orri_rf GPRD:$a, 1)>;
-+def : Pat<(f64 (uint_to_fp GPRD:$a)), (uo2fo_orri_rf GPRD:$a, 1)>;
-+def : Pat<(f32 (uint_to_fp GPRD:$a)), (uo2ft_orri_rf GPRD:$a, 1)>;
++def : Pat<(f64 (sint_to_fp (i64 GPRD:$a))), (io2fo_orri_rf (i64 GPRD:$a), 1)>;
++def : Pat<(f32 (sint_to_fp (i64 GPRD:$a))), (io2ft_orri_rf (i64 GPRD:$a), 1)>;
++def : Pat<(f64 (uint_to_fp (i64 GPRD:$a))), (uo2fo_orri_rf (i64 GPRD:$a), 1)>;
++def : Pat<(f32 (uint_to_fp (i64 GPRD:$a))), (uo2ft_orri_rf (i64 GPRD:$a), 1)>;
 +
 +// --- FP <-> integer bitcast (LLVM-079t) ---
 +// `rd2rf` / `rf2rd` are the RD<->RF block moves (contract-fp.md §12): they copy
@@ -842,7 +1085,7 @@ index 000000000..1af1e3f17
 +// is what `double`<->`uint64_t` type punning lowers to -- and also the middle
 +// step of the *generic* fabs/copysign/... expansions (bitcast to i64, mask,
 +// bitcast back).
-+def : Pat<(f64 (bitconvert i64:$a)), (rd2rf_orri_rf GPRD:$a, 1)>;
++def : Pat<(f64 (bitconvert i64:$a)), (rd2rf_orri_rf i64:$a, 1)>;
 +def : Pat<(i64 (bitconvert f64:$a)), (rf2rd_orri_rf f64:$a, 1)>;
 +
 +//===----------------------------------------------------------------------===//

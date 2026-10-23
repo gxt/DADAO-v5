@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..87d592ab7
+index 000000000..97d272f2c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,2564 @@
+@@ -0,0 +1,2739 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -193,6 +193,82 @@ index 000000000..87d592ab7
 +  // 64-bit GPRF class (an ft value occupies the low 32 bits).
 +  addRegisterClass(MVT::f64, &DADAO::GPRFRegClass);
 +  addRegisterClass(MVT::f32, &DADAO::GPRFRegClass);
++
++  // M9 (LLVM-127t): narrow integer types are legal.  The ISA has 8/16/32-bit
++  // arithmetic, compare and shift instructions that operate on the low N bits
++  // and write the canonical 64-bit extension themselves (contract-isa.md
++  // §10/§11/§12: `*.st` sign-extends, `*.ut` zero-extends), so a narrow value
++  // lives directly in a 64-bit GPRD register.  A narrow value does not carry a
++  // defined upper half -- every 64-bit consumer extends it explicitly
++  // (SIGN_EXTEND/ZERO_EXTEND select ext.so/ext.uo, contract-abi.md §4.2), and
++  // the ABI boundary extensions stay in LowerCall/LowerReturn/LowerCallResult.
++  //
++  // Only the operations the ISA can perform at these widths become Legal;
++  // everything else keeps Promote/Expand so it is widened to i64 first.  In
++  // particular AND/OR/XOR have no narrow form (SPEC-069t deleted
++  // and.b/and.w/and.t), so they must stay promoted -- making them legal would
++  // leave the selector with no instruction to pick.
++  for (MVT VT : {MVT::i8, MVT::i16, MVT::i32}) {
++    addRegisterClass(VT, &DADAO::GPRDRegClass);
++
++    // Narrow arithmetic and shifts (single-destination orrr forms):
++    //   add/sub/mul.{sb,sw,st}, div/rem.{ub,uw,ut,sb,sw,st},
++    //   shl.{b,w,t}, shr.{ub,uw,ut,sb,sw,st}
++    setOperationAction({ISD::ADD, ISD::SUB, ISD::MUL, ISD::SDIV, ISD::UDIV,
++                        ISD::SREM, ISD::UREM, ISD::SHL, ISD::SRL, ISD::SRA},
++                       VT, Legal);
++
++    // Narrow compares (cmp.{sb,sw,st,ub,uw,ut}).  Custom, not Legal: the cmp
++    // result is {-1,0,1} and the SETCC result type is i64, so the outcome has
++    // to be normalised to a 0/1 boolean through cs.* (LowerCmpSelect).
++    // BR_CC is keyed by the *compared* type (LegalizeDAG uses operand 2), so
++    // the narrow types need their own Custom entry as well.
++    setOperationAction(ISD::SETCC, VT, Custom);
++    setOperationAction(ISD::BR_CC, VT, Custom);
++    setOperationAction(ISD::SELECT_CC, VT, Custom);
++    setOperationAction(ISD::SELECT, VT, Custom);
++
++    // No narrow instruction: widen to i64 and reuse the i64 patterns.
++    //   * AND/OR/XOR: the narrow logical forms were deleted (SPEC-069t);
++    //   * rotates/bitreverse: the generic narrow expansion is used;
++    //   * MULHS/MULHU + *MUL_LOHI: the ISA's narrow mul is low-half only.
++    setOperationAction({ISD::AND, ISD::OR, ISD::XOR}, VT, Promote);
++    // Narrow bit counts are one instruction each: the `immu6 hd` operand is
++    // the valid-bit upper bound, so hd = 7/15/31 makes ctlz/cttz/ctpop operate
++    // exactly on an i8/i16/i32 (including the defined 0 -> W result).  This is
++    // the `hd = 31/15/7` half of ISS-187 that LLVM-128t deferred.
++    setOperationAction({ISD::CTTZ, ISD::CTTZ_ZERO_POISON, ISD::CTLZ,
++                        ISD::CTLZ_ZERO_POISON, ISD::CTPOP},
++                       VT, Legal);
++    setOperationAction({ISD::BITREVERSE, ISD::ROTL, ISD::ROTR}, VT, Expand);
++    // SIGN_EXTEND_INREG is *not* set here: its action is keyed by the inner
++    // (sign-extended-from) type, so an Expand there would also cover the
++    // i64 <- i32 case that the backend selects with `ext.so` (and that the
++    // unsigned-compare canonicalisation relies on).  The few narrow-result
++    // forms have their own `ext.so` patterns in DADAOCodeGen.td.
++    setOperationAction({ISD::MULHS, ISD::MULHU, ISD::SMUL_LOHI,
++                        ISD::UMUL_LOHI},
++                       VT, Expand);
++
++    // Conversions the ISA only provides at 64 bits (fo2it/it2fo/...).
++    setOperationAction({ISD::FP_TO_SINT, ISD::FP_TO_UINT, ISD::SINT_TO_FP,
++                        ISD::UINT_TO_FP},
++                       VT, Promote);
++
++    // Narrow atomics: the IR-level AtomicExpandPass has already turned every
++    // RMW into a cmpxchg loop, and the custom lowering below re-lowers the
++    // load/store and builds the lr/sc loop for the CAS (ADR-0034 D3-D6).
++    // These must be Custom now that the types are legal: left at the default
++    // (Legal) the selector would have no pattern, and the Expand path would
++    // turn a plain atomic load into a libcall.
++    setOperationAction({ISD::ATOMIC_LOAD, ISD::ATOMIC_STORE,
++                        ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS},
++                       VT, Custom);
++  }
++  // Narrow byte swap: `rev.t k = 8` is bswap32 and `rev.w k = 8` is bswap16
++  // (contract-isa.md §6.4.3).  bswap.i8 is an identity and never reaches ISel.
++  setOperationAction(ISD::BSWAP, MVT::i32, Legal);
++  setOperationAction(ISD::BSWAP, MVT::i16, Legal);
 +
 +  // SP = rb1: needed by the calling convention (LowerCall reads it for the
 +  // outgoing stack-argument area) and the call-frame pseudos (LLVM-039t).
@@ -484,15 +560,11 @@ index 000000000..87d592ab7
 +  // Byte swap (LLVM-128t; supersedes LLVM-097t's `Expand`).  `rev.o rd, rs, 8`
 +  // is a 64-bit byte swap (ADR-0012 D10, contract-isa.md §6.4.3: reverse the
 +  // eight 8-bit elements of the block), so ISD::BSWAP i64 is Legal and matched
-+  // by a pattern.  i32 is not a legal type: the type legalizer would promote
-+  // `bswap i32` to `SRL(bswap i64, 32)` (two instructions).  Marking it Custom
-+  // makes PromoteIntegerResult call ReplaceNodeResults, which emits the native
-+  // `rev.t rd, rs, 8` (reverse the byte pairs of the low 32-bit block) and
-+  // truncates, so a 32-bit byte swap stays one instruction.  The high half of
-+  // the extended source is don't-care: rev.t reverses each 32-bit block
-+  // independently and only the low block is kept.
++  // by a pattern.  Since LLVM-127t i32 and i16 are legal too, so bswap32 is
++  // the single `rev.t k = 8` and bswap16 the single `rev.w k = 8` (patterns in
++  // DADAOCodeGen.td; the old ReplaceNodeResults hook is gone with the
++  // promotion it compensated for).
 +  setOperationAction(ISD::BSWAP, MVT::i64, Legal);
-+  setOperationAction(ISD::BSWAP, MVT::i32, Custom);
 +
 +  // 64-bit bit reversal (LLVM-128t): `rev.o rd, rs, 1` reverses the bit order
 +  // of the whole 64-bit block (ADR-0012 D10).  Default action is Expand.
@@ -581,12 +653,10 @@ index 000000000..87d592ab7
 +  //   * ATOMIC_FENCE is Custom: ordering -> `fm`/`pred`/`succ` immediate.
 +  setMaxAtomicSizeInBitsSupported(64);
 +  setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Custom);
-+  // Keyed on i64 only: i8/i16/i32 atomic nodes always reach operation
-+  // legalization with i64 value/operand types (the type legalizer promotes
-+  // them and keeps the *memory* type narrow, see PromoteIntRes_Atomic0 /
-+  // PromoteIntRes_AtomicCmpSwap).  Declaring Custom for the narrow types would
-+  // instead make the type legalizer call ReplaceNodeResults, which this target
-+  // does not implement.
++  // ATOMIC_LOAD/ATOMIC_STORE/ATOMIC_CMP_SWAP_WITH_SUCCESS are Custom for i64
++  // here and for the narrow types in the LLVM-127t loop above (where the types
++  // became legal).  There is deliberately no Custom entry for ATOMIC_* on an
++  // illegal type: that would route through ReplaceNodeResults instead.
 +  setOperationAction(ISD::ATOMIC_LOAD, MVT::i64, Custom);
 +  setOperationAction(ISD::ATOMIC_STORE, MVT::i64, Custom);
 +  setOperationAction(ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS, MVT::i64, Custom);
@@ -1012,6 +1082,16 @@ index 000000000..87d592ab7
 +          "DADAO: only scalar/pointer/floating-point arguments are supported");
 +
 +    SDValue ArgValue;
++    // Since LLVM-127t a narrow (<8B) integer is a legal type, so a register
++    // argument is read straight at its own width: the caller has already
++    // canonicalised it (C4 D2), a narrow value carries no defined upper half,
++    // and the later uses extend it explicitly.  A stack slot still holds the
++    // full 8-byte canonical value (big-endian: the narrow value is part of a
++    // 64-bit store), so that path loads LocVT and truncates below.
++    const bool IsNarrowInt = VA.getValVT() == MVT::i8 ||
++                             VA.getValVT() == MVT::i16 ||
++                             VA.getValVT() == MVT::i32;
++    bool NarrowReadDirect = false;
 +    if (VA.isRegLoc()) {
 +      // Bank comes from the register CC_DADAO actually assigned (rb* for
 +      // pointers, rd* for scalars, rf* for floating point); the vreg class must
@@ -1028,7 +1108,9 @@ index 000000000..87d592ab7
 +                                                               : &DADAO::GPRDRegClass;
 +      Register VReg = RegInfo.createVirtualRegister(RC);
 +      RegInfo.addLiveIn(VA.getLocReg(), VReg);
-+      ArgValue = DAG.getCopyFromReg(Chain, DL, VReg, LocVT);
++      NarrowReadDirect = IsNarrowInt && LocVT == MVT::i64;
++      ArgValue = DAG.getCopyFromReg(Chain, DL, VReg,
++                                    NarrowReadDirect ? VA.getValVT() : LocVT);
 +      Chain = ArgValue.getValue(1);
 +    } else {
 +      assert(VA.isMemLoc() && "expected a register or stack argument");
@@ -1043,16 +1125,18 @@ index 000000000..87d592ab7
 +      ArgValue = L.getValue(0);
 +    }
 +
-+    // The caller canonicalised a narrow (<8B) argument; record the asserted
-+    // extension and truncate back to the IR type (C4 D2).
-+    if (VA.getLocInfo() == CCValAssign::SExt)
-+      ArgValue = DAG.getNode(ISD::AssertSext, DL, LocVT, ArgValue,
-+                             DAG.getValueType(VA.getValVT()));
-+    else if (VA.getLocInfo() == CCValAssign::ZExt)
-+      ArgValue = DAG.getNode(ISD::AssertZext, DL, LocVT, ArgValue,
-+                             DAG.getValueType(VA.getValVT()));
-+    if (VA.getLocInfo() != CCValAssign::Full)
-+      ArgValue = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), ArgValue);
++    if (!NarrowReadDirect) {
++      // The caller canonicalised a narrow (<8B) argument; record the asserted
++      // extension and truncate back to the IR type (C4 D2).
++      if (VA.getLocInfo() == CCValAssign::SExt)
++        ArgValue = DAG.getNode(ISD::AssertSext, DL, LocVT, ArgValue,
++                               DAG.getValueType(VA.getValVT()));
++      else if (VA.getLocInfo() == CCValAssign::ZExt)
++        ArgValue = DAG.getNode(ISD::AssertZext, DL, LocVT, ArgValue,
++                               DAG.getValueType(VA.getValVT()));
++      if (VA.getLocInfo() != CCValAssign::Full)
++        ArgValue = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), ArgValue);
++    }
 +
 +    InVals.push_back(ArgValue);
 +  }
@@ -1474,8 +1558,17 @@ index 000000000..87d592ab7
 +    if (!VA.isRegLoc())
 +      report_fatal_error(
 +          "DADAO: only register call results are supported in M3");
++    // A narrow (<8B) integer result is read at its own width (LLVM-127t): the
++    // callee canonicalised it (C5 D2) but the caller only needs the IR-width
++    // value, and a narrow value has no defined upper half.  Everything else
++    // (f128 halves are the marker case) keeps the 64-bit read + truncate.
++    const bool IsNarrowInt = VA.getValVT() == MVT::i8 ||
++                             VA.getValVT() == MVT::i16 ||
++                             VA.getValVT() == MVT::i32;
++    const EVT CopyVT =
++        IsNarrowInt && VA.getLocVT() == MVT::i64 ? VA.getValVT() : VA.getLocVT();
 +    SDValue Copy =
-+        DAG.getCopyFromReg(Chain, DL, VA.getLocReg(), VA.getLocVT(), InGlue);
++        DAG.getCopyFromReg(Chain, DL, VA.getLocReg(), CopyVT, InGlue);
 +    Chain = Copy.getValue(1);
 +    InGlue = Copy.getValue(2);
 +    SDValue Val = Copy.getValue(0);
@@ -1483,7 +1576,8 @@ index 000000000..87d592ab7
 +    // truncates to the IR type (C5 D2: caller does not re-extend).  A
 +    // binary128 half is a 64-bit integer part (ValVT is only the marker); the
 +    // generic getCopyFromParts below reassembles the two halves into f128.
-+    if (VA.getValVT() != VA.getLocVT() && VA.getValVT() != MVT::f128)
++    if (!IsNarrowInt && VA.getValVT() != VA.getLocVT() &&
++        VA.getValVT() != MVT::f128)
 +      Val = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), Val);
 +    InVals.push_back(Val);
 +  }
@@ -1680,11 +1774,13 @@ index 000000000..87d592ab7
 +
 +  // `br (icmp ...)` / `br (fcmp ...)` reaches us as SETCC + BRCOND
 +  // (SelectionDAGBuilder no longer builds BR_CC directly).  Fold the setcc back
-+  // into a compare + branch.  The integer path (i64) and the FP path
-+  // (f32/f64, M6/LLVM-066t) are both handled by LowerBR_CC.
++  // into a compare + branch.  The integer paths (i64, and the narrow i8/i16/i32
++  // since LLVM-127t) and the FP path (f32/f64, M6/LLVM-066t) are all handled by
++  // LowerBR_CC.
 +  if (CondV.getOpcode() == ISD::SETCC) {
 +    const EVT OpVT = CondV.getOperand(0).getValueType();
-+    if (OpVT == MVT::i64 || OpVT == MVT::f32 || OpVT == MVT::f64) {
++    if (OpVT == MVT::i64 || OpVT == MVT::i32 || OpVT == MVT::i16 ||
++        OpVT == MVT::i8 || OpVT == MVT::f32 || OpVT == MVT::f64) {
 +      ISD::CondCode CC = cast<CondCodeSDNode>(CondV.getOperand(2))->get();
 +      return LowerBR_CC(Chain, CC, CondV.getOperand(0), CondV.getOperand(1),
 +                        Dest, DL, DAG);
@@ -1904,24 +2000,8 @@ index 000000000..87d592ab7
 +
 +void DADAOTargetLowering::ReplaceNodeResults(
 +    SDNode *N, SmallVectorImpl<SDValue> &Results, SelectionDAG &DAG) const {
-+  // ISD::BSWAP i32 (LLVM-128t): i32 is not a legal DADAO type, so the type
-+  // legalizer promotes the node -- generically to `SRL(bswap i64, 32)`, i.e.
-+  // two instructions.  `rev.t rd, rs, 8` reverses the byte pairs of every
-+  // 32-bit block (ADR-0012 D10), so the low block of the (any-extended) source
-+  // gives the byte-swapped i32 in one instruction; only the low block is kept,
-+  // hence the don't-care high half of the promoted operand is harmless.  The
-+  // i64 form is a plain pattern (DADAOCodeGen.td).
-+  if (N->getOpcode() == ISD::BSWAP && N->getValueType(0) == MVT::i32) {
-+    const SDLoc DL(N);
-+    SDValue Src = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, N->getOperand(0));
-+    SDValue Rev = SDValue(
-+        DAG.getMachineNode(DADAO::rev_t_orri_rd, DL, MVT::i64, Src,
-+                           DAG.getTargetConstant(8, DL, MVT::i64)),
-+        0);
-+    Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Rev));
-+    return;
-+  }
-+
++  // (The i32 BYTESWAP hook that used to live here is gone: since LLVM-127t i32
++  // is a legal type, so bswap32 is selected directly by the `rev.t` pattern.)+
 +  if (N->getOpcode() != ISD::INTRINSIC_WO_CHAIN)
 +    return;
 +  // llvm.dadao.clmul.wide (LLVM-122t; ADR-0035): the i128 result is not legal
@@ -2057,6 +2137,75 @@ index 000000000..87d592ab7
 +      report_fatal_error(
 +          "DADAO: unsupported floating-point branch condition");
 +    }
++  }
++
++  // --- Narrow integer compare + branch (LLVM-127t) ---
++  // The operands are i8/i16/i32, so the 64-bit shortcuts below are not valid:
++  // the upper bits of a narrow value are unspecified, so neither a zero test of
++  // the raw register, nor a two-register br.eq/ne, nor a 12-bit cmp.si/cmp.ui
++  // immediate can be used.  Always compare with the width-specific
++  // cmp.{s,u}{b,w,t} (the instruction truncates both sources to its width and
++  // writes -1/0/1) and branch on that result.  ==/!= are sign-agnostic; a
++  // constant RHS is materialised into a register by the selector (the narrow
++  // cmp has no immediate form).
++  const EVT IntVT = LHS.getValueType();
++  if (IntVT == MVT::i8 || IntVT == MVT::i16 || IntVT == MVT::i32) {
++    bool Unsigned;
++    DADAOISD::NodeType BrOp;
++    switch (CC) {
++    default:
++      report_fatal_error("DADAO: unsupported narrow integer branch condition");
++    case ISD::SETEQ:
++      Unsigned = false;
++      BrOp = DADAOISD::BRZ;
++      break;
++    case ISD::SETNE:
++      Unsigned = false;
++      BrOp = DADAOISD::BRNZ;
++      break;
++    case ISD::SETLT:
++      Unsigned = false;
++      BrOp = DADAOISD::BRN;
++      break;
++    case ISD::SETLE:
++      Unsigned = false;
++      BrOp = DADAOISD::BRNP;
++      break;
++    case ISD::SETGT:
++      Unsigned = false;
++      BrOp = DADAOISD::BRP;
++      break;
++    case ISD::SETGE:
++      Unsigned = false;
++      BrOp = DADAOISD::BRNN;
++      break;
++    case ISD::SETULT:
++      Unsigned = true;
++      BrOp = DADAOISD::BRN;
++      break;
++    case ISD::SETULE:
++      Unsigned = true;
++      BrOp = DADAOISD::BRNP;
++      break;
++    case ISD::SETUGT:
++      Unsigned = true;
++      BrOp = DADAOISD::BRP;
++      break;
++    case ISD::SETUGE:
++      Unsigned = true;
++      BrOp = DADAOISD::BRNN;
++      break;
++    }
++    // An unsigned narrow cmp writes its -1 result *zero-extended* by the width
++    // (contract-isa.md §10.2/§11.2/§12.2: `.u*` zero-extends), i.e. "less"
++    // appears as +0xFFFFFFFF instead of -1, and every sign/zero test below
++    // would misfire.  Sign-extend the result from bit W-1 back to a canonical
++    // {-1,0,1} (one `ext.so`), so br.n/np/p/nn mean what they say.
++    SDValue CmpRes = Cmp(Unsigned);
++    if (Unsigned)
++      CmpRes = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i64, CmpRes,
++                           DAG.getValueType(IntVT));
++    return BrOn(BrOp, CmpRes);
 +  }
 +
 +  switch (CC) {
@@ -2200,7 +2349,12 @@ index 000000000..87d592ab7
 +    }
 +  }
 +
-+  if (LHS.getValueType() != MVT::i64)
++  // Integer compare (i64, or a narrow i8/i16/i32 since LLVM-127t).  The
++  // narrow types use the width-specific cmp.{s,u}{b,w,t} nodes; the CMP node's
++  // operand type selects the instruction (see DADAOCodeGen.td).
++  const EVT CmpVT = LHS.getValueType();
++  if (CmpVT != MVT::i64 && CmpVT != MVT::i32 && CmpVT != MVT::i16 &&
++      CmpVT != MVT::i8)
 +    report_fatal_error("DADAO: unsupported setcc/select_cc operand type");
 +
 +  // Canonicalise so a constant is on the right (the cmp* immediate formats
@@ -2224,6 +2378,13 @@ index 000000000..87d592ab7
 +
 +  SDValue Cmp = DAG.getNode(Unsigned ? DADAOISD::CMPU : DADAOISD::CMP, DL,
 +                            MVT::i64, LHS, RHS);
++  // A narrow unsigned cmp writes -1 zero-extended by its width (contract-isa.md
++  // §10.2/§11.2/§12.2), i.e. a positive 0xFFFFFFFF; sign-extend it from bit W-1
++  // so cs.n/cs.p see the canonical {-1,0,1} (one `ext.so`, i64 compares already
++  // come back full-width).
++  if (Unsigned && CmpVT.getSizeInBits() < 64)
++    Cmp = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i64, Cmp,
++                      DAG.getValueType(CmpVT));
 +  switch (CC) {
 +  case ISD::SETEQ: // == : rc == 0
 +    return Select(DADAOISD::CS_Z, Cmp, True, False);
@@ -2408,10 +2569,10 @@ index 000000000..87d592ab7
 +
 +SDValue DADAOTargetLowering::LowerATOMIC_CMP_SWAP_WITH_SUCCESS(
 +    SDValue Op, SelectionDAG &DAG) const {
-+  // ATOMIC_CMP_SWAP_WITH_SUCCESS values: (old value, success, chain).  The
-+  // type legalizer promotes the memory-type derived results to i64, so the
-+  // node seen here always has i64 operands and i64 result 0/1; the access
-+  // width is the *memory* type (i8/i16/i32/i64).
++  // ATOMIC_CMP_SWAP_WITH_SUCCESS values: (old value, success, chain).  Since
++  // LLVM-127t the value/result type is the IR width (i8/i16/i32/i64); the
++  // access width is the *memory* type, and the lr/sc pseudo works on the
++  // 64-bit register (the expected value is widened below).
 +  //
 +  // The lr/sc loop returns the value loaded by `lr`; the success flag of a
 +  // CAS is exactly "the compared value was still there", i.e. old == cmp, so
@@ -2421,6 +2582,7 @@ index 000000000..87d592ab7
 +  const SDLoc DL(Op);
 +  auto *AN = cast<AtomicSDNode>(Op.getNode());
 +  EVT MemVT = AN->getMemoryVT();
++  const EVT VT = Op.getValueType();
 +  if (!MemVT.isInteger() || MemVT.getSizeInBits() > 64)
 +    report_fatal_error("DADAO: unsupported atomic cmpxchg memory type");
 +
@@ -2428,6 +2590,15 @@ index 000000000..87d592ab7
 +  SDValue Ptr = Op.getOperand(1);
 +  SDValue Cmp = Op.getOperand(2);
 +  SDValue New = Op.getOperand(3);
++
++  // The lr/sc loop works on 64-bit registers.  Since LLVM-127t the cmpxchg
++  // value/result type is the narrow IR type (i8/i16/i32) instead of the
++  // promoted i64, so the expected value is widened first; zero-extension is
++  // the correct widening here because the low `MemVT` bits are all that is
++  // compared (the mask below normalises both sides to the access width).
++  SDValue Cmp64 = Cmp;
++  if (Cmp64.getValueType() != MVT::i64)
++    Cmp64 = DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i64, Cmp64);
 +
 +  // The comparison is over the W bytes of memory, not over the whole 64-bit
 +  // register: a compare-exchange succeeds iff the object's representation
@@ -2447,8 +2618,8 @@ index 000000000..87d592ab7
 +  // for either extension convention of the source operand.
 +  if (MemVT.getSizeInBits() < 64) {
 +    APInt Mask = APInt::getLowBitsSet(64, MemVT.getSizeInBits());
-+    Cmp = DAG.getNode(ISD::AND, DL, MVT::i64, Cmp,
-+                      DAG.getConstant(Mask, DL, MVT::i64));
++    Cmp64 = DAG.getNode(ISD::AND, DL, MVT::i64, Cmp64,
++                        DAG.getConstant(Mask, DL, MVT::i64));
 +  }
 +
 +  // Width class: 0 = byte, 1 = wyde, 2 = tetra, 3 = octa (lr/sc suffixes).
@@ -2462,13 +2633,17 @@ index 000000000..87d592ab7
 +  // (the DAG combiner must not touch an atomic sequence anyway).
 +  SDVTList VTs = DAG.getVTList(MVT::i64, MVT::Other);
 +  SDValue CmpSwap = DAG.getNode(DADAOISD::ATOMIC_CMP_SWAP, DL, VTs, Chain, Ptr,
-+                                Cmp, New, WidthV);
++                                Cmp64, New, WidthV);
 +
 +  SDValue Success =
 +      DAG.getSetCC(DL, Op.getNode()->getValueType(1), CmpSwap.getValue(0),
-+                   Cmp, ISD::SETEQ);
-+  return DAG.getMergeValues({CmpSwap.getValue(0), Success, CmpSwap.getValue(1)},
-+                            DL);
++                   Cmp64, ISD::SETEQ);
++  // The pseudo yields a 64-bit old value; hand back the IR width (a truncation
++  // is a register copy for these types, see DADAOISelDAGToDAG::Select).
++  SDValue Old = VT == MVT::i64
++                    ? CmpSwap.getValue(0)
++                    : DAG.getNode(ISD::TRUNCATE, DL, VT, CmpSwap.getValue(0));
++  return DAG.getMergeValues({Old, Success, CmpSwap.getValue(1)}, DL);
 +}
 +
 +MachineBasicBlock *DADAOTargetLowering::EmitInstrWithCustomInserter(
