@@ -66,6 +66,16 @@ cs.z {rd8}?, rd9, rd10, rd11
 @@ ASM: cs.z {rd8}?, rf9, rf10, rf11
 cs.z {rd8}?, rf9, rf10, rf11
 
+@@ @src fofma_rrrr_rf 5f20928b | SimRISC-07: fofma
+@@ OBJ: {{[0-9a-f]+:}} 5f 20 92 8b{{.*}}fofma
+@@ ASM: fofma rf8, rf9, rf10, rf11
+fofma rf8, rf9, rf10, rf11
+
+@@ @src ftfma_rrrr_rf 5e20928b | SimRISC-07: ftfma
+@@ OBJ: {{[0-9a-f]+:}} 5e 20 92 8b{{.*}}ftfma
+@@ ASM: ftfma rf8, rf9, rf10, rf11
+ftfma rf8, rf9, rf10, rf11
+
 @@ @src mul.so_rrrr_rd 5520928b | SimRISC-04: mul.so
 @@ OBJ: {{[0-9a-f]+:}} 55 20 92 8b{{.*}}mul.so
 @@ ASM: mul.so {rd8, rd9}, rd10, rd11

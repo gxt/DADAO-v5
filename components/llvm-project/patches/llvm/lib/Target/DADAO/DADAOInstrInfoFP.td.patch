@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
 new file mode 100644
-index 000000000..40f2ceba2
+index 000000000..041d2923c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
-@@ -0,0 +1,553 @@
+@@ -0,0 +1,590 @@
 +//===-- DADAOInstrInfoFP.td - DADAO FP instruction defs ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,13 +12,14 @@ index 000000000..40f2ceba2
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// DADAO FP instruction definitions (64 instructions).
++// DADAO FP instruction definitions (66 instructions).
 +//
-+// 60 are `scope: fp`; four are still `scope: excluded` and therefore decode to
++// 64 are `scope: fp`; two are still `scope: excluded` and therefore decode to
 +// ILLI until a SPEC flips them:
-+//   * `ftrnd`/`fornd` (roundToIntegral, SPEC-161t; LLVM-125t) -- flip = SPEC-162t;
-+//   * `ftmin`/`ftmax`/`fomin`/`fomax` (minimumNumber/maximumNumber,
-+//     contract-fp.md §minmax; LLVM-124t) -- flip = SPEC-160t.
++//   * `ftfma`/`fofma` (fused multiply-add, SPEC-157t; LLVM-123t) --
++//     flip = SPEC-158t.
++// (`ftrnd`/`fornd` and `ftmin`/`ftmax`/`fomin`/`fomax` were flipped to
++// `scope: fp` by SPEC-162t / SPEC-160t and are ordinary FP instructions now.)
 +// They are defined here so the MC layer can assemble/disassemble them and so
 +// CodeGen can select them (patterns in DADAOCodeGen.td).
 +//
@@ -102,7 +103,43 @@ index 000000000..40f2ceba2
 +  let Pattern = [];
 +}
 +
-+// --- rrrr format (3 instructions) ---
++// --- rrrr format (5 instructions) ---
++
++// Fused multiply-add (LLVM-123t; contract-fp.md §fma = SimRISC-07 §2.5):
++//   `fofma rfHA, rfHB, rfHC, rfHD` == rfHA <- rfHB * rfHC + rfHD
++//   (`ftfma` is the f32 form), one destination + three sources, ONE rounding.
++// `rrrr` (op 0x5E/0x5F, mask 0xFF000000) is a whole `op` byte, so unlike the
++// `orrr` family there is no `ha` opx.  The destination is an RF register that
++// must not be rf0 (the FCSR): `contracts/opcodes.yaml` legality `rfha != rf0`
++// (`dst_rf0`).  rf0 stays a legal *source*, so the inputs keep GPRF and only
++// the output uses the rf0-less subclass -- the register allocator can never
++// pick rf0 for the result and the MC assembler rejects an `{rf0}` destination
++// (the generated matcher reports "invalid operand"; the disassembler's
++// DecodeGPRF_NoRF0RegisterClass rejects such an encoded word as well).
++def GPRF_NoRF0 : RegisterClass<"DADAO", [f64, f32], 64,
++    (add rf1, rf2, rf3, rf4, rf5, rf6, rf7,
++         rf8, rf9, rf10, rf11, rf12, rf13, rf14, rf15,
++         rf16, rf17, rf18, rf19, rf20, rf21, rf22, rf23,
++         rf24, rf25, rf26, rf27, rf28, rf29, rf30, rf31,
++         rf32, rf33, rf34, rf35, rf36, rf37, rf38, rf39,
++         rf40, rf41, rf42, rf43, rf44, rf45, rf46, rf47,
++         rf48, rf49, rf50, rf51, rf52, rf53, rf54, rf55,
++         rf56, rf57, rf58, rf59, rf60, rf61, rf62, rf63
++    )>;
++
++def ftfma_rrrr_rf : DADAORrrr<"ftfma"> {
++  let OutOperandList = (outs GPRF_NoRF0:$ra);
++  let InOperandList = (ins GPRF:$rb, GPRF:$rc, GPRF:$rd);
++  let op = 0x5E;
++  let Pattern = [];
++}
++
++def fofma_rrrr_rf : DADAORrrr<"fofma"> {
++  let OutOperandList = (outs GPRF_NoRF0:$ra);
++  let InOperandList = (ins GPRF:$rb, GPRF:$rc, GPRF:$rd);
++  let op = 0x5F;
++  let Pattern = [];
++}
 +
 +def cs_n_rrrr_rf : DADAORrrr<"cs.n"> {
 +  let OutOperandList = (outs GPRF:$rb);

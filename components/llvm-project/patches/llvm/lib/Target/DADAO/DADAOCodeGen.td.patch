@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..7ee9b8184
+index 000000000..a280c9eb9
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,1130 @@
+@@ -0,0 +1,1143 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -901,6 +901,17 @@ index 000000000..7ee9b8184
 +def : Pat<(fadd f64:$a, f64:$b), (foadd_orrr_rf f64:$a, f64:$b)>;
 +def : Pat<(fsub f64:$a, f64:$b), (fosub_orrr_rf f64:$a, f64:$b)>;
 +def : Pat<(fmul f64:$a, f64:$b), (fomul_orrr_rf f64:$a, f64:$b)>;
++// Fused multiply-add (LLVM-123t; contract-fp.md §fma = SimRISC-07 §2.5):
++// `fofma dst, a, b, c` is `dst = a * b + c` with ONE rounding, so ISD::FMA --
++// which is exactly "a*b+c rounded once" -- maps 1:1 onto it, four operands and
++// all.  There is no 2-address tie: the destination is a fourth register, so
++// neither an independent fma(a,b,c) nor a loop accumulator needs a copy.
++// `ISD::FMA` is Legal in DADAOISelLowering.cpp; `llvm.fmuladd` reaches the same
++// node because isFMAFasterThanFMulAndFAdd() is true (see there).  Do NOT
++// replace this with fomul+foadd: that double-rounds and is not `llvm.fma`
++// semantics (if a future subtarget switch ever disables FMA, `llvm.fma` must
++// become a libm `fma` call, never this two-step sequence).
++def : Pat<(fma f64:$a, f64:$b, f64:$c), (fofma_rrrr_rf f64:$a, f64:$b, f64:$c)>;
 +def : Pat<(fdiv f64:$a, f64:$b), (fodiv_orrr_rf f64:$a, f64:$b)>;
 +// rootn(x, 2): the only legal n (contract-fp.md §6).
 +def : Pat<(fsqrt f64:$a), (foroot_orri_rf f64:$a, 2)>;
@@ -922,6 +933,8 @@ index 000000000..7ee9b8184
 +def : Pat<(fadd f32:$a, f32:$b), (ftadd_orrr_rf f32:$a, f32:$b)>;
 +def : Pat<(fsub f32:$a, f32:$b), (ftsub_orrr_rf f32:$a, f32:$b)>;
 +def : Pat<(fmul f32:$a, f32:$b), (ftmul_orrr_rf f32:$a, f32:$b)>;
++// f32 fused multiply-add: same 1:1 ISD::FMA mapping as the f64 block above.
++def : Pat<(fma f32:$a, f32:$b, f32:$c), (ftfma_rrrr_rf f32:$a, f32:$b, f32:$c)>;
 +def : Pat<(fdiv f32:$a, f32:$b), (ftdiv_orrr_rf f32:$a, f32:$b)>;
 +def : Pat<(fsqrt f32:$a), (ftroot_orri_rf f32:$a, 2)>;
 +def : Pat<(fneg f32:$a), (ftsgnn_orrr_rf f32:$a, f32:$a)>;

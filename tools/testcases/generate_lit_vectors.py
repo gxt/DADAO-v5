@@ -166,6 +166,16 @@ def _build_positive(rec):
                                               _reg(d["bank"], 11)),
                     {a["name"]: 8, b["name"]: 9, c["name"]: 10, d["name"]: 11},
                     "rrrr-cs2")
+        if mn in ("ftfma", "fofma"):
+            # Fused multiply-add (LLVM-123t; SPEC-157t): one destination +
+            # three sources, written without grouping braces.
+            a, b, c, d = fields
+            return ("%s %s, %s, %s, %s" % (mn, _reg(a["bank"], 8),
+                                           _reg(b["bank"], 9),
+                                           _reg(c["bank"], 10),
+                                           _reg(d["bank"], 11)),
+                    {a["name"]: 8, b["name"]: 9, c["name"]: 10, d["name"]: 11},
+                    "rrrr-fma")
         if mn in ("cs.n", "cs.z", "cs.p"):
             a, b, c, d = fields
             return ("%s {%s}?, %s, %s, %s" % (mn, _reg(a["bank"], 8),

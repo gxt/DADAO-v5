@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..fcea7f73b
+index 000000000..5a25f958a
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,380 @@
+@@ -0,0 +1,390 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -253,6 +253,16 @@ index 000000000..fcea7f73b
 +  /// for a case the ISA already answers.
 +  bool isCheapToSpeculateCttz(Type *) const override { return true; }
 +  bool isCheapToSpeculateCtlz(Type *) const override { return true; }
++
++  /// `llvm.fmuladd` fusion (LLVM-123t).  SelectionDAGBuilder turns the
++  /// `llvm.fmuladd` intrinsic (and `fmuladd`-contracted `a*b+c`) into a single
++  /// ISD::FMA exactly when this hook says fusing is profitable/equally cheap.
++  /// The ISA's `fofma`/`ftfma` ARE one instruction (four operands, single
++  /// rounding), so fusing is strictly better than fmul+fadd on both counts --
++  /// and `llvm.fmuladd` explicitly permits it.  `llvm.fma` does not depend on
++  /// this hook (it is always ISD::FMA).
++  bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
++                                  EVT VT) const override;
 +
 +  /// Atomic ordering support (LLVM-121t, ADR-0034).  DADAO is a weak memory
 +  /// model whose only atomics are `lr`/`sc`, and the ISA has no AMO: atomic

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp b/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp
 new file mode 100644
-index 000000000..5968e8470
+index 000000000..9bb5c9272
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp
-@@ -0,0 +1,277 @@
+@@ -0,0 +1,294 @@
 +//===-- DADAODisassembler.cpp - DADAO Disassembler ------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -64,7 +64,8 @@ index 000000000..5968e8470
 +//
 +// Register class decoders: TableGen generates calls to
 +//   DecodeGPRDRegisterClass, DecodeGPRBRegisterClass,
-+//   DecodeGPRARegisterClass, DecodeGPRFRegisterClass.
++//   DecodeGPRARegisterClass, DecodeGPRFRegisterClass,
++//   DecodeGPRF_NoRF0RegisterClass (the fma destination, which excludes rf0).
 +//
 +// Immediate decoders: match DecoderMethod in DADAOInstrInfo.td
 +//   DecodeSImm12, DecodeUImm12, DecodeSImm18, DecodeUImm18,
@@ -80,6 +81,9 @@ index 000000000..5968e8470
 +static DecodeStatus DecodeGPRFRegisterClass(MCInst &MI, uint64_t RegNo,
 +                                            uint64_t Address,
 +                                            const void *Decoder);
++static DecodeStatus DecodeGPRF_NoRF0RegisterClass(MCInst &MI, uint64_t RegNo,
++                                                  uint64_t Address,
++                                                  const void *Decoder);
 +static DecodeStatus DecodeGPRARegisterClass(MCInst &MI, uint64_t RegNo,
 +                                            uint64_t Address,
 +                                            const void *Decoder);
@@ -168,6 +172,19 @@ index 000000000..5968e8470
 +  if (RegNo > 63)
 +    return MCDisassembler::Fail;
 +  MI.addOperand(MCOperand::createReg(DADAO::ra0 + RegNo));
++  return MCDisassembler::Success;
++}
++
++// fma destination (LLVM-123t): an RF register other than rf0.  rf0 is the FCSR
++// and cannot be an FP destination (`dst_rf0`; contracts/opcodes.yaml legality
++// `rfha != rf0`), so an encoding that names it in the destination field is not
++// a valid instruction -- decode as invalid, mirroring the runtime ILLI.
++static DecodeStatus DecodeGPRF_NoRF0RegisterClass(MCInst &MI, uint64_t RegNo,
++                                                  uint64_t Address,
++                                                  const void *Decoder) {
++  if (RegNo == 0 || RegNo > 63)
++    return MCDisassembler::Fail;
++  MI.addOperand(MCOperand::createReg(DADAO::rf0 + RegNo));
 +  return MCDisassembler::Success;
 +}
 +

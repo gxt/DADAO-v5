@@ -2,6 +2,7 @@ clang/include/clang/Basic/BuiltinsDADAO.def.patch
 clang/include/clang/Basic/TargetBuiltins.h.patch
 clang/include/clang/Basic/TargetInfo.h.patch
 clang/lib/AST/ASTContext.cpp.patch
+clang/lib/Basic/Builtins.cpp.patch
 clang/lib/Basic/CMakeLists.txt.patch
 clang/lib/Basic/Targets.cpp.patch
 clang/lib/Basic/Targets/DADAO.cpp.patch

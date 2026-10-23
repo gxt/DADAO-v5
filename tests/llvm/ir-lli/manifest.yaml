@@ -200,6 +200,9 @@ exclude:
   - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-minmax.ll
     class: no-value-entry
     reason: "FileCheck structural test (FP min/max selection: fomin/fomax/ftmin/ftmax, LLVM-124t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fma.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (fused multiply-add selection: fofma/ftfma from llvm.fma/llvm.fmuladd, LLVM-123t); no `@main` value channel."
   - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-sign.ll
     class: no-value-entry
     reason: "FileCheck structural test (FP sign ops fabs/copysign, LLVM-080t); no `@main` value channel."

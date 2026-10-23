@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..97d272f2c
+index 000000000..0f8de4acd
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,2739 @@
+@@ -0,0 +1,2761 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -435,17 +435,26 @@ index 000000000..97d272f2c
 +  setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i64, Expand);
 +
 +  // Floating point (M6, LLVM-066t).  Natively supported (Legal; patterns in
-+  // DADAOCodeGen.td): + - * /, sqrt, negate, absolute value, roundToIntegral
-+  // (LLVM-125t: ftrnd/fornd), min/max (LLVM-124t: ftmin/ftmax/fomin/fomax) and
-+  // the int<->fp / fp<->fp conversions.  Every other FP op is expanded; a few
-+  // of those expansions are libcalls (e.g. frem -> fmod), which a freestanding
-+  // program must avoid or supply itself.
++  // DADAOCodeGen.td): + - * /, fused multiply-add (LLVM-123t), sqrt, negate,
++  // absolute value, roundToIntegral (LLVM-125t: ftrnd/fornd), min/max
++  // (LLVM-124t: ftmin/ftmax/fomin/fomax) and the int<->fp / fp<->fp
++  // conversions.  Every other FP op is expanded; a few of those expansions are
++  // libcalls (e.g. frem -> fmod), which a freestanding program must avoid or
++  // supply itself.
 +  for (MVT VT : {MVT::f32, MVT::f64}) {
 +    setOperationAction(
 +        {ISD::FADD, ISD::FSUB, ISD::FMUL, ISD::FDIV, ISD::FSQRT, ISD::FNEG},
 +        VT, Legal);
++    // Fused multiply-add (LLVM-123t; contract-fp.md §fma = SimRISC-07 §2.5).
++    // `ISD::FMA` is exactly "a*b+c with a single rounding", which is what
++    // `fofma`/`ftfma` do (one destination + three sources, no 2-address tie),
++    // so it is Legal and selected 1:1 by DADAOCodeGen.td.  `llvm.fma` maps to
++    // this node; `llvm.fmuladd` too, because isFMAFasterThanFMulAndFAdd()
++    // returns true (see below).  NEVER expand it to FMUL+FADD: that rounds
++    // twice and silently breaks `llvm.fma` semantics.
++    setOperationAction(ISD::FMA, VT, Legal);
 +    setOperationAction(
-+        {ISD::FABS, ISD::FREM, ISD::FMA, ISD::FCOPYSIGN, ISD::FSIN, ISD::FCOS,
++        {ISD::FABS, ISD::FREM, ISD::FCOPYSIGN, ISD::FSIN, ISD::FCOS,
 +         ISD::FTAN, ISD::FASIN, ISD::FACOS, ISD::FATAN, ISD::FATAN2,
 +         ISD::FSINH, ISD::FCOSH, ISD::FTANH, ISD::FPOW, ISD::FPOWI, ISD::FEXP,
 +         ISD::FEXP2, ISD::FEXP10, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
@@ -2488,6 +2497,19 @@ index 000000000..97d272f2c
 +    break;
 +  }
 +  llvm_unreachable("DADAO: fence with an unexpected atomic ordering");
++}
++
++bool DADAOTargetLowering::isFMAFasterThanFMulAndFAdd(
++    const MachineFunction &MF, EVT VT) const {
++  // LLVM-123t (contract-fp.md §fma = SimRISC-07 §2.5): `fofma`/`ftfma` fuse
++  // a*b+c in one instruction with a single rounding, so fusing is never worse
++  // than fmul+fadd (one instruction instead of two, and more accurate).
++  // Returning true here is what turns the `llvm.fmuladd` intrinsic into a
++  // single ISD::FMA (SelectionDAGBuilder, Intrinsic::fmuladd); with the default
++  // (false) LLVM would split it into fmul+fadd even though the ISA can fuse.
++  // Both scalar FP types have a native form; anything else stays unfused.
++  (void)MF;
++  return VT == MVT::f32 || VT == MVT::f64;
 +}
 +
 +bool DADAOTargetLowering::shouldInsertFencesForAtomic(

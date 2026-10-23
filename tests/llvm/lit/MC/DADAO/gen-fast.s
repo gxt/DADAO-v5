@@ -126,6 +126,11 @@ cs.eq {rd8, rd9}?, rd10, rd11
 @@ ASM: cs.n {rd8}?, rd9, rd10, rd11
 cs.n {rd8}?, rd9, rd10, rd11
 
+@@ @src fofma_rrrr_rf 5f20928b | SimRISC-07: fofma
+@@ OBJ: {{[0-9a-f]+:}} 5f 20 92 8b{{.*}}fofma
+@@ ASM: fofma rf8, rf9, rf10, rf11
+fofma rf8, rf9, rf10, rf11
+
 @@ @src andn.w_rwii_rb 4b211234 | SimRISC-03: andn.w
 @@ OBJ: {{[0-9a-f]+:}} 4b 21 12 34{{.*}}andn.w
 @@ ASM: andn.w rb8, wp1, 0x1234

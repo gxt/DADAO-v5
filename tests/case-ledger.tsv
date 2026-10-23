@@ -248,6 +248,8 @@ lit	tests/llvm/lit/MC/DADAO-gen/gen-rrrr.s	5320928b	sub.so	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-rrrr.s	5420928b	mul.uo	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-rrrr.s	5520928b	mul.so	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-rrrr.s	5620928b	clmul.o	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-rrrr.s	5e20928b	ftfma	1
+lit	tests/llvm/lit/MC/DADAO-gen/gen-rrrr.s	5f20928b	fofma	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-rrrr.s	6020928b	cs.n	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-rrrr.s	6120928b	cs.n	1
 lit	tests/llvm/lit/MC/DADAO-gen/gen-rrrr.s	6220928b	cs.z	1
@@ -392,6 +394,7 @@ lit	tests/llvm/lit/MC/DADAO/gen-fast.s	4b211234	andn.w	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	5120928b	add.so	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	5b200008	add.si	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	5d209001	cmp.si	1
+lit	tests/llvm/lit/MC/DADAO/gen-fast.s	5f20928b	fofma	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	6020928b	cs.n	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	6620928b	cs.eq	1
 lit	tests/llvm/lit/MC/DADAO/gen-fast.s	68200003	br.n	1

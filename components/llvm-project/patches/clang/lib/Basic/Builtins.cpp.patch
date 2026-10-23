@@ -1,0 +1,22 @@
+diff --git a/clang/lib/Basic/Builtins.cpp b/clang/lib/Basic/Builtins.cpp
+index 06fba04eb..4a06ee812 100644
+--- a/clang/lib/Basic/Builtins.cpp
++++ b/clang/lib/Basic/Builtins.cpp
+@@ -230,6 +230,17 @@ static bool isBuiltinConstForTriple(unsigned BuiltinID, llvm::Triple Trip) {
+   case Builtin::BIfmal: {
+     if (Trip.isGNUEnvironment() || Trip.isOSMSVCRT())
+       return true;
++    // DADAO (LLVM-123t): a freestanding ELF target has no errno contract, and
++    // `fofma`/`ftfma` compute x*y+z in ONE instruction with a single rounding
++    // (contract-fp.md §fma).  Without this, the frontend keeps `fma`/`fmaf` as
++    // an out-of-line libm call and the native fused instruction is unreachable
++    // from C (`__builtin_fma` would become `call fma`).  Only the f64/f32
++    // forms are native on this target.
++    if (Trip.getArch() == llvm::Triple::dadao &&
++        (BuiltinID == Builtin::BI__builtin_fma ||
++         BuiltinID == Builtin::BI__builtin_fmaf || BuiltinID == Builtin::BIfma ||
++         BuiltinID == Builtin::BIfmaf))
++      return true;
+     break;
+   }
+   default:

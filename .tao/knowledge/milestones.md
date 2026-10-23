@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-123t | 已验证 | 2026-10-23 19:05 | FMA 后端：`fma`/`fmuladd`/C `fma` 各 1 条，零拷贝；单次舍入实跑成立 |
 | QEMU-070t | 已验证 | 2026-10-23 18:10 | `ftfma`/`fofma` 语义：softfloat `muladd` 单次舍入；探针 122/122（含真判别例）；266/266 |
 | SPEC-157t | 已验证 | 2026-10-23 16:50 | `ftfma`/`fofma` 立册（`rrrr` 四操作数、`0x5E/0x5F`、excluded）；total 266 |
 | LLVM-127t | 已验证 | 2026-10-23 15:46 | 窄位 `i8/i16/i32` 全做：各 1 条指令、`ext.uo` 首用、`ISS-310` 修复；lit 135、libc-test 0 fail |
@@ -67,7 +68,6 @@
 | QEMU-068t | 已验证 | 2026-10-22 00:52 | `clmul.o` 语义（高/低 128 位、`rd0` 单侧、ILLI）；向量 81/81；`check_qemu_trans` 260/260，`ISS-317` closed |
 | QEMU-069t | 已验证 | 2026-10-22 00:31 | `fcls` 位序重排（10 个位号）；探针改由 spec §7 解析（独立 oracle）；84/84 |
 | SPEC-156t | 已验证 | 2026-10-22 00:12 | `fcls` 10 类位序改为 754/LLVM 顺序；两处逐项一致（脚本机械比对）、锁重算、破坏性已标注 |
-| LLVM-123t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 后端：`.td` + `llvm.fma`/`fmuladd` 选择；循环形态 0 拷贝 |
 | LLVM-126t | 待开始 | 2026-10-21 23:50（登记） | FP 后端接线补齐（`ISS-188` 剩余 8 类：`fcmp`/`fpclass`/`bitcast`/`rounding`）；`frem` 不接 |
 | SPEC-158t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 解除 `excluded`（`scope → fp`，新族 `fma`） |
 | TESTCASES-057t | 待开始 | 2026-10-21 23:50（登记） | clmul 集成：指令级 + GHASH + CRC-32C，独立 oracle、两档 |
