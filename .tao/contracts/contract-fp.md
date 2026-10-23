@@ -180,3 +180,18 @@
 - 标志：**sNaN** 作输入 ⇒ 置 **NV**（即使结果为数字）；qNaN 作输入不置；**不涉舍入、不置 NX**；不置 OF/UF。Inf 按数值序参与比较（`min(+Inf, x) = x`、`max(−Inf, x) = x`）。[SimRISC-07 §最小最大值]
 - 目的 `rfHB = rf0` ⇒ ILLI（`dst_rf0`）；源可为 `rf0`（读出 FCSR 中的 qNaN）。[SimRISC-07 §最小最大值][SimRISC-00 §浮点寄存器]
 - **负向约束**：不得实现为「返回第二操作数」（x86 `minss`/`maxss` 遗留语义），也不得按 754-2008 `minNum`/`maxNum` 的宽松处实现；不提供 NaN 传播版 `minimum`/`maximum` 硬件形态（由 LLVM 从本条展开，`LLVM-124t`），不做 `*mag` 变体、不做整数 min/max。[SimRISC-07 §最小最大值]
+
+## §20 `fma`（融合乘加：`fusedMultiplyAdd`）<a id="fma"></a>
+
+> **范围**：本节 2 条（`ftfma`/`fofma`）当前为 `scope: excluded`（`decode: ILLI`），**尚不**计入 `contracts/fp_semantics.yaml` 的投影；`QEMU-070t`/`LLVM-123t` 落地后由 `SPEC-158t` 翻转为 `scope: fp` 并新增族 `fma`。语义在此冻结，供 oracle / LLVM / QEMU / testcases 消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。`spec_cite`：`SimRISC-07: ftfma`、`SimRISC-07: fofma`。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
+
+- 指令：`ftfma`/`fofma`（`rrrr`：`rfHA` 目的、`rfHB`/`rfHC`/`rfHD` 源）；`ftfma` 作用于 ft（32 位，p = 24）、`fofma` 作用于 fo（64 位，p = 53）。语义 = IEEE 754-2019 `fusedMultiplyAdd(rfHB, rfHC, rfHD)`，即 `rfHA ← rfHB × rfHC + rfHD`。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
+- **单次舍入**：精确积 `rfHB × rfHC`（不先舍入）与 `rfHD` 相加，精确和**只舍入一次**（舍入模式 `rf0[33:32]`）；**不等价于** `ftmul`/`fomul` + `ftadd`/`foadd`（后者在积处多舍入一次）。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
+- 反例（ft）：`a = 1 + 2⁻²³`、`b = 1 − 2⁻²³`、`c = −1` ⇒ `fma(a,b,c) = −2⁻⁴⁶`（`0xA880_0000`），而 `mul` 后 `add` 得 `+0`。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
+- 硬件**先读**三个源再写结果；目的 `rfHA` 允许与任一源重叠（行为确定）。乘法可交换（`rfHB`/`rfHC` 互换结果不变），`rfHD` 不可互换。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
+- NaN：qNaN ⇒ 返回 qNaN（canonical 化）；**sNaN ⇒ 置 NV**、返回 qNaN。`0 × ±Inf` ⇒ **NV** + qNaN（即使 `rfHD` 为 qNaN 也置 NV）。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
+- Inf：`±Inf × 有限非零数` ⇒ 同号 Inf；`Inf + (−Inf)`（积与加数异号）⇒ **NV** + qNaN；同号 ⇒ 该 Inf。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
+- 精确和为零 ⇒ 依 IEEE 754-2019 §6.3 零符号规则（RDN ⇒ `−0`，其余 ⇒ `+0`）。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
+- 标志：溢出 ⇒ `±Inf` + **OF**；下溢 ⇒ 次正规数或 `±0` + **UF**；**NX 最多置一次**；不触发陷阱，只累积 `rf0[4:0]`。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
+- 目的 `rfHA = rf0` ⇒ ILLI（`dst_rf0`）；源可为 `rf0`（读出 FCSR 中的 qNaN）；**不采用**双目的形态（无 `dst_dual_same`）。[SimRISC-07 §融合乘加（fusedMultiplyAdd）][SimRISC-00 §浮点寄存器]
+- **负向约束**：不提供 `fmsub`/`fnmadd`/`fnmsub` 独立编码；`a × b − c` 等形态用 `ftsgnn`/`fosgnn` 对 `rfHD` 取负后执行本族（符号位取反逐位精确、不涉舍入）。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]

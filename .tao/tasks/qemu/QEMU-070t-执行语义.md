@@ -12,7 +12,7 @@
 
 ### 语义真源
 
-- `spec/SimRISC-07 §4.x`（`SPEC-157t` 新增）：`ftfma rfHB, rfHC, rfHD` = `rfHB ← rfHC × rfHD + rfHB`（单精度）；`fofma` 同（双精度）。
+- `spec/SimRISC-07 §4.x`（`SPEC-157t` 新增）：`ftfma rfHA, rfHB, rfHC, rfHD` = `rfHA ← rfHB × rfHC + rfHD`（单精度）；`fofma` 同（双精度）。
 - **四操作数**：`rfHA ← rfHB × rfHC + rfHD`；目的与源**允许重叠** ⇒ **先读全部源再写**；**单次舍入**。
 - 异常：sNaN ⇒ NV + qNaN；OF/UF/NX 按 IEEE，一次运算只置一次；舍入模式由 `rf0[33:32]` 控制。
 
@@ -45,7 +45,7 @@
 
 ### B. 读序与写回
 
-- 三个源（`rfHC`、`rfHD`、旧 `rfHB`）**先全部读出**再写 `rfHB`；目的与源同寄存器时行为确定（规范要求）。
+- 三个源（`rfHB`、`rfHC`、`rfHD`）**先全部读出**再写 `rfHA`；目的与源同寄存器时行为确定（规范要求）。
 - 目的 `rf0` ⇒ ILLI（`dst_rf0`），沿用 `fp_check_dst_rf0`。
 
 ### C. 标志与舍入模式

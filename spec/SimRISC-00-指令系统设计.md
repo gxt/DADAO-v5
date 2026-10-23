@@ -281,7 +281,7 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0100-0xxx     | OPC-octa            | OPC-tetra           | OPC-wyde            | OPC-byte            | OPC-RF              |                      |                      | OPC-MISC        |
 | 0100-1xxx     | or.w_rwii_rd         | andn.w_rwii_rd       | or.w_rwii_rb         | andn.w_rwii_rb       | set.zw_rwii_rd       | set.ow_rwii_rd       | set.zw_rwii_rb       | set.w_rwii_rf   |
 | 0101-0xxx     | add.uo_rrrr_rd       | add.so_rrrr_rd       | sub.uo_rrrr_rd       | sub.so_rrrr_rd       | mul.uo_rrrr_rd       | mul.so_rrrr_rd       | clmul.o_rrrr_rd      |                  |
-| 0101-1xxx     |                      | add.si_riii_rd       | aip.si_riii_rb       | add.si_riii_rb       | cmp.ui_rrii_rd       | cmp.si_rrii_rd       | cs.eq_rrrr_rf        | cs.ne_rrrr_rf   |
+| 0101-1xxx     |                      | add.si_riii_rd       | aip.si_riii_rb       | add.si_riii_rb       | cmp.ui_rrii_rd       | cmp.si_rrii_rd       | ftfma_rrrr_rf        | fofma_rrrr_rf   |
 | 0110-0xxx     | cs.n_rrrr_rd         | cs.n_rrrr_rf         | cs.z_rrrr_rd         | cs.z_rrrr_rf         | cs.p_rrrr_rd         | cs.p_rrrr_rf         | cs.eq_rrrr_rd        | cs.ne_rrrr_rd   |
 | 0110-1xxx     | br.n_riii_rd         | br.nn_riii_rd        | br.z_riii_rd         | br.nz_riii_rd        | br.p_riii_rd         | br.np_riii_rd        | br.eq_rrii_rd        | br.ne_rrii_rd   |
 | 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          |                 |
@@ -401,6 +401,7 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 
 ### 0.5.5-rc（未发布）
 
+- 新增 `ftfma`/`fofma`（融合乘加，IEEE 754-2019 `fusedMultiplyAdd`；`rrrr` 四操作数 = 1 目的 + 3 源），编码 `0101-1110`/`0101-1111`（`op = 0x5E`/`0x5F`）；乘法不先舍入，只舍入一次。
 - 新增 `ftrnd`/`fornd`（取整，IEEE 754-2019 `roundToIntegral` 六档，`immu6` one-hot；`orri`），编码 `000-011`/`001-011`（`ha = 0x03`/`0x0B`，`OPC-RF`）。
 - 新增 `ftmin`/`ftmax`/`fomin`/`fomax`（最小/最大值，IEEE 754-2019 `minimumNumber`/`maximumNumber`；`orrr`），编码 `100-110`/`100-111`/`101-110`/`101-111`（`ha = 0x26`/`0x27`/`0x2E`/`0x2F`，`OPC-RF`）；单 NaN 返回数字、双 NaN ⇒ canonical qNaN、`−0 < +0`、sNaN ⇒ NV、不涉舍入不置 NX。
 - `ftrnd`/`fornd`、`ftmin`/`ftmax`/`fomin`/`fomax` 的执行语义生效（不再 decode ILLI），合法性 `dst_rf0` 与 `encode_onehot` 生效。

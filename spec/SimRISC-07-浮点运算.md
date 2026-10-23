@@ -188,6 +188,50 @@ fomax   rfHB, rfHC, rfHD
 
 > **范围**：语义按本节冻结。
 
+### 2.5 融合乘加（fusedMultiplyAdd）
+
+融合乘加把一次乘法与一次加法合并为**一次**运算，操作数类型为 `rrrr`（四个寄存器槽：一个目的、三个源）。
+书写形式为 `ftfma rfHA, rfHB, rfHC, rfHD` 与 `fofma rfHA, rfHB, rfHC, rfHD`——四个操作数均为普通寄存器，
+**不**使用花括号（本形态只有一个目的，与双目的/条件赋值的 `rrrr` 写法不同）。
+
+`ftfma` 作用于 ft（32 位）、`fofma` 作用于 fo（64 位）；`rfHA` 为目的操作数，
+`rfHB`/`rfHC` 为乘数与被乘数，`rfHD` 为加数。语义为 IEEE 754-2019 的
+`fusedMultiplyAdd(rfHB, rfHC, rfHD)`。
+
+**单次舍入**：`rfHB × rfHC` 的**精确积**（不先舍入）与 `rfHD` 相加，所得精确和
+**只在最后舍入一次**，舍入模式由 `rf0[33:32]` 控制。因此本族**不等价于**「先
+`ftmul`/`fomul` 再 `ftadd`/`foadd`」——后者在乘法结果处多舍入一次，可能给出不同结果。
+
+> **反例（ft）**：`a = 1 + 2⁻²³`（`0x3F80_0001`）、`b = 1 − 2⁻²³`（`0x3F7F_FFFE`）、
+> `c = −1`。精确积 `a × b = 1 − 2⁻⁴⁶`。`ftfma rf1, rf2, rf3, rf4`（`rf2 = a`、`rf3 = b`、
+> `rf4 = c`）得 `−2⁻⁴⁶`（`0xA880_0000`，在 ft 中精确可表示）；而 `ftmul` 先把积舍入为
+> `1`（`0x3F80_0000`），再 `ftadd` 得 `+0`。两者之差即「积被提前舍入」的损失。
+
+**读写在先后**：目的 `rfHA` **允许**与任一源重叠（含与 `rfHB`/`rfHC`/`rfHD` 相同）；
+硬件**先读**全部三个源操作数、再写结果，源被目的覆盖前其值已捕获，行为确定。
+乘法可交换：`rfHB` 与 `rfHC` 互换结果不变；`rfHD` 是加数，**不可**与二者互换。
+
+**特例与标志**（IEEE 754-2019 §7.2）：
+
+- NaN：任一操作数为 qNaN ⇒ 返回 qNaN（canonical 化）；任一操作数为 **sNaN** ⇒ 置 **NV**、返回 qNaN。
+- `0 × ±Inf`：即使加数 `rfHD` 为 qNaN，仍置 **NV**、返回 qNaN（「零乘无穷」无效运算优先于 NaN 传播）。
+- `±Inf × 有限非零数` ⇒ 积为同号 Inf；与加数异号 Inf 相加（`Inf + (−Inf)`）⇒ 置 **NV**、返回 qNaN；同号 ⇒ 该 Inf。
+- `±Inf` 作乘数、另一乘数为 `±0` 的情形按上一条 `0 × ±Inf` 处理；`Inf × Inf` ⇒ 积的符号按乘法符号规则取 `Inf`，再与加数按上一条合成。
+- 精确和为零（积与加数互为相反数、`0 × 有限数 + ±0` 等）⇒ 依 IEEE 754-2019 §6.3 的零符号规则：舍入模式为 RDN 时取 `−0`，其余取 `+0`。
+- 溢出 ⇒ 返回 `±Inf` 并置 **OF**；下溢 ⇒ 返回次正规数或 `±0` 并置 **UF**；单次舍入，故 **NX 最多置一次**。
+- 本族**不触发陷阱**，只累积 `rf0[4:0]` 状态位；结果恒为 IEEE 754 值（含 NaN/Inf）。
+
+合法性：
+
+- 目的 `rfHA = rf0` ⇒ ILLI（`dst_rf0`）；源可为 `rf0`（读出 FCSR 中的 qNaN）。
+- `rrrr` 单目的，三个源与目的允许重叠（先读后写，结果确定）；本族**不采用**双目的形态。
+
+> **注**：本 ISA 不提供 `fmsub`/`fnmadd`/`fnmsub` 的独立编码；需要 `a × b − c` 等形态时，
+> 先用 `ftsgnn`/`fosgnn` 对 `rfHD` 取负（符号位取反，逐位精确、不涉舍入）再执行本族，
+> 结果与单条融合乘减逐位一致。
+
+> **范围**：语义按本节冻结。
+
 ## 3. 浮点符号位操作指令
 
 该类指令实现了浮点sign-injection指令，操作数类型为 `orrr`。
@@ -280,6 +324,7 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 | `foadd` | `orrr` | `rf` | `foadd rfHB, rfHC, rfHD` | `foadd_orrr_rf` |
 | `focls` | `orri` | `rf` | `focls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `focls_orri_rf` |
 | `fodiv` | `orrr` | `rf` | `fodiv rfHB, rfHC, rfHD` | `fodiv_orrr_rf` |
+| `fofma` | `rrrr` | `rf` | `fofma rfHA, rfHB, rfHC, rfHD` | `fofma_rrrr_rf` |
 | `fomax` | `orrr` | `rf` | `fomax rfHB, rfHC, rfHD` | `fomax_orrr_rf` |
 | `fomin` | `orrr` | `rf` | `fomin rfHB, rfHC, rfHD` | `fomin_orrr_rf` |
 | `fomul` | `orrr` | `rf` | `fomul rfHB, rfHC, rfHD` | `fomul_orrr_rf` |
@@ -301,6 +346,7 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 | `ftadd` | `orrr` | `rf` | `ftadd rfHB, rfHC, rfHD` | `ftadd_orrr_rf` |
 | `ftcls` | `orri` | `rf` | `ftcls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ftcls_orri_rf` |
 | `ftdiv` | `orrr` | `rf` | `ftdiv rfHB, rfHC, rfHD` | `ftdiv_orrr_rf` |
+| `ftfma` | `rrrr` | `rf` | `ftfma rfHA, rfHB, rfHC, rfHD` | `ftfma_rrrr_rf` |
 | `ftmax` | `orrr` | `rf` | `ftmax rfHB, rfHC, rfHD` | `ftmax_orrr_rf` |
 | `ftmin` | `orrr` | `rf` | `ftmin rfHB, rfHC, rfHD` | `ftmin_orrr_rf` |
 | `ftmul` | `orrr` | `rf` | `ftmul rfHB, rfHC, rfHD` | `ftmul_orrr_rf` |
@@ -334,4 +380,8 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 * `mreg_range_overlap`：源/目的范围交集 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`（4 条）
 * `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `fornd_orri_rf`, `ftrnd_orri_rf`（2 条）
 * `encode_fp_root_n`：ftroot/foroot n≠2 → ILLI — `foroot_orri_rf`, `ftroot_orri_rf`（2 条）
+
+**decode ILLI（未实现该语义的机器）：**
+* `fofma_rrrr_rf`：decode ILLI
+* `ftfma_rrrr_rf`：decode ILLI
 <!-- LEGALITY_END -->

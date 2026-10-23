@@ -1,7 +1,7 @@
 # ISA↔后端覆盖矩阵（生成式，两层分列）
 
 > **生成器**：`tools/llvm/gen_isa_coverage.py`（生成物，勿手工编辑；改生成器或真源后重跑）
-> **真源**：`contracts/opcodes.yaml`（**264** 条 = `m1` 156 + `fp` 64 + `excluded` 2 + `m3` 1 + `m8` 7 + `m9` 34；计数由脚本现场统计，不写死）
+> **真源**：`contracts/opcodes.yaml`（**266** 条 = `m1` 156 + `fp` 64 + `excluded` 4 + `m3` 1 + `m8` 7 + `m9` 34；计数由脚本现场统计，不写死）
 > **重跑**：`python3 tools/llvm/gen_isa_coverage.py`　**门控（反例可失败）**：`python3 tools/llvm/gen_isa_coverage.py --check`
 > **机器可读**：`tools/llvm/llvm-isa-backend-matrix.tsv`（同源同批生成）
 
@@ -13,8 +13,8 @@
 
 - 形态来源：`tools/testcases/generate_lit_vectors.py` 的 `build_case()`（与现有 lit 全量档 `tests/llvm/lit/MC/DADAO-gen/gen-*.s` **同一口径、同一行文本**；本工具不另立操作数拼装逻辑）。
 - 受理后**另做编码复核**：由对象 `.text` 取 4 字节大端字，要求「按真源 `(word & mask) == value` 唯一命中本记录」且等于真源派生编码（`L1_encoding = ok / mismatch`）。这一列把第①层钉在真源上，而非只看 `llvm-mc` 自洽。
-- 现场统计：`accept` **262** / `reject` **2**；编码复核不符 **0**。
-- `scope: excluded` 且后端未实现者（`cfxld`/`cfxst`，现场派生）由汇编器**显式拒绝**（`reject`）；其余 `scope: excluded` 记录（MC 层已受理、执行侧仍 ILLI）与 `tests/llvm/lit/MC/DADAO-gen/gen-excluded.s` 的反例同口径。
+- 现场统计：`accept` **262** / `reject` **4**；编码复核不符 **0**。
+- `scope: excluded` 且后端未实现者（`cfxld`/`cfxst`/`fofma`/`ftfma`，现场派生）由汇编器**显式拒绝**（`reject`）；其余 `scope: excluded` 记录（MC 层已受理、执行侧仍 ILLI）与 `tests/llvm/lit/MC/DADAO-gen/gen-excluded.s` 的反例同口径。
 
 ### 第②层「ISel 用得上」（机械提取，非人工判读）
 
@@ -41,7 +41,7 @@
 - **`.td` def 无真源记录者不入选**：CodeGen-only 伪指令（`*_PSEUDO`/`GLOBAL_ADDR`/`JT_ADDR`/`tailjmp_*`）不是 ISA 记录；其证据经 `pseudo`/`synonym` 解析到实际指令；`tailjmp_*` 与 `jump` 同编码，归入 `jump` 记录的证据。
 - **MC-only 指令**：`fence` 汇编可得但无 ISel 模式 ⇒ 第②层 `no`（属正常，非缺陷）。
 
-## 2. 矩阵（全量 264 条，按 id 排序）
+## 2. 矩阵（全量 266 条，按 id 排序）
 
 列：`id` ｜ `mnemonic` ｜ `format` ｜ `scope` ｜ **①汇编器** ｜ **②ISel** ｜ 证据
 （证据格式 `kind:文件:补丁物理行号:def名[:伪指令名]`，可直接 `sed -n '<行号>p' <文件>` 复核；完整形态行见 TSV 的 `L1_asm` 列）
@@ -125,6 +125,7 @@
 | `foadd_orrr_rf` | `foadd` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:901:foadd_orrr_rf |
 | `focls_orri_rf` | `focls` | `orri` | `fp` | accept | no | — |
 | `fodiv_orrr_rf` | `fodiv` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:904:fodiv_orrr_rf |
+| `fofma_rrrr_rf` | `fofma` | `rrrr` | `excluded` | reject | no | — |
 | `fomax_orrr_rf` | `fomax` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:945:fomax_orrr_rf;pat:DADAOCodeGen.td.patch:947:fomax_orrr_rf |
 | `fomin_orrr_rf` | `fomin` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:944:fomin_orrr_rf;pat:DADAOCodeGen.td.patch:946:fomin_orrr_rf |
 | `fomul_orrr_rf` | `fomul` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:903:fomul_orrr_rf |
@@ -146,6 +147,7 @@
 | `ftadd_orrr_rf` | `ftadd` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:922:ftadd_orrr_rf |
 | `ftcls_orri_rf` | `ftcls` | `orri` | `fp` | accept | no | — |
 | `ftdiv_orrr_rf` | `ftdiv` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:925:ftdiv_orrr_rf |
+| `ftfma_rrrr_rf` | `ftfma` | `rrrr` | `excluded` | reject | no | — |
 | `ftmax_orrr_rf` | `ftmax` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:949:ftmax_orrr_rf;pat:DADAOCodeGen.td.patch:951:ftmax_orrr_rf |
 | `ftmin_orrr_rf` | `ftmin` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:948:ftmin_orrr_rf;pat:DADAOCodeGen.td.patch:950:ftmin_orrr_rf |
 | `ftmul_orrr_rf` | `ftmul` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:924:ftmul_orrr_rf |
@@ -313,14 +315,14 @@
 | `xnor.o_orrr_rd` | `xnor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:431:xnor_o |
 | `xor.o_orrr_rd` | `xor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:422:xor_o |
 
-## 3. 缺口汇总（未被 ISel 使用，89 条）
+## 3. 缺口汇总（未被 ISel 使用，91 条）
 
 候选优化面（供后续里程碑参考）。按性质分四类（现场统计）：
 
 1. **真缺口·候补优化面**（`scope != excluded`，且后端 ISel/post-ISel 均未引用，且非汇编层/特权族）：**78** 条 —— ISA 有、后端一次都没发射，最有价值。
 2. **真缺口·汇编层/特权族**（同上但 `format ∈ {crrr, ciii, crii}` 或助记符 ∈ {fence, swym}，机械判据）：**5** 条 —— 经 cfx 访问/内联汇编/占位语义使用，不经 ISel 选入属预期。
 3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**4** 条。
-4. **`scope: excluded` 未实现**（汇编器拒绝、执行 ILLI）：**2** 条 —— 不在本期范围。
+4. **`scope: excluded` 未实现**（汇编器拒绝、执行 ILLI）：**4** 条 —— 不在本期范围。
 
 ### 3.1 真缺口·候补优化面（78 条）
 
@@ -424,10 +426,12 @@
 | `ldm.o_rrri_rd` | `ldm.o` | `rrri` | `m1` |
 | `rd2rb_orri_rb` | `rd2rb` | `orri` | `m1` |
 
-### 3.4 scope: excluded（未实现）（2 条）
+### 3.4 scope: excluded（未实现）（4 条）
 
 | id | mnemonic | format | scope |
 |---|---|---|---|
 | `cfxld_crii_cfx` | `cfxld` | `crii` | `excluded` |
 | `cfxst_crii_cfx` | `cfxst` | `crii` | `excluded` |
+| `fofma_rrrr_rf` | `fofma` | `rrrr` | `excluded` |
+| `ftfma_rrrr_rf` | `ftfma` | `rrrr` | `excluded` |
 

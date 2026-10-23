@@ -20,23 +20,23 @@
 
 > **为什么在本表**：`spec/SimRISC-*` 只承载规范内容（指令定义 / 编码 / 格式 / 语义 / 异常 / revision）。
 > **范围分桶、实现状态、决策与合约指针**属项目侧记账，统一归本表（`SPEC-165t`，用户裁定「方案 A 彻底清理」）。
-> **计数口径**：全部由 `contracts/opcodes.yaml` 现场派生（2026-10-22 实测 **264** 条），下表不写死来源之外的数。
+> **计数口径**：全部由 `contracts/opcodes.yaml` 现场派生（2026-10-23 实测 **266** 条），下表不写死来源之外的数。
 
 | 范围 | 条数 | 含义 | 指针 |
 |---|---|---|---|
 | `scope: m1` | 156 | 已实现（含 `trap`/`escape`/`cfx2rd`/`cfx2rc`） | §13.6 |
 | `scope: fp` | 64 | 浮点已实现，不触发 decode ILLI。分布：`SimRISC-07` 50（`OPC-RF` 子表）+ `SimRISC-01` 8（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ `SimRISC-02` 5（`cs.n`/`cs.z`/`cs.p` 的 `-rf`、`rd2rf`/`rf2rd`）+ `SimRISC-03` 1（`set.w-rf`） | `contract-fp.md`；`ADR-0012 §D3.1` |
-| `scope: excluded` | 27 | 已定义编码、未实现该语义的机器 decode ILLI：`cfxld`/`cfxst` 2 + `fence` 1 + `lr`/`sc` 24 | `ADR-0014`（fence）；`ADR-0034`（fence/lr/sc 编码重排）；`contracts/opcodes.yaml::decode` |
+| `scope: excluded` | 4 | 已定义编码、未实现该语义的机器 decode ILLI：`cfxld`/`cfxst` 2 + 融合乘加 `ftfma`/`fofma` 2 | `ADR-0014`（fence）；`ADR-0034`（fence/lr/sc 编码重排）；`contracts/opcodes.yaml::decode` |
 | `scope: m3` | 1 | `sub.o_orrr_dbb`（RB 算术，非 M1 身份） | `ADR-0012 §D9.1` |
 | `scope: m8` | 7 | `rev.*` 4 + `ctlz`/`cttz`/`ctpop` 3（**无位宽后缀**，借 `OPC-octa` 格位） | `ADR-0012 §D10/D11` |
-| `scope: m9` | 9 | `rol.*`（8 条记录）+ `clmul.o` | `ADR-0032 §D4`；`ADR-0035 §D5` |
+| `scope: m9` | 34 | `rol.*`（8 条记录）+ `clmul.o` + `fence` + `lr`/`sc` 24 | `ADR-0032 §D4`；`ADR-0035 §D5`；`ADR-0034`（fence/lr/sc） |
 
 **编码例外与删格指针**（自 `SimRISC-00` 子表注记迁出）：
 
 - `ctpop`/`ctlz`/`cttz` 无位宽后缀、借 `OPC-octa` 格位 `011-101`/`011-110`/`011-111`（「子表 ⇔ 位宽后缀」的例外）——`ADR-0012 §D11`。
 - `OPC-tetra`/`OPC-wyde`/`OPC-byte` 的空格为已删除条目（4 逻辑 + 2 `ext`×2 格式）与 `shl` 迁出的旧格位（`010-100`/`011-100`），其 `opx` 现为 reserved（UNDI）——`ADR-0032 §D2`；`010-000`/`010-001` 与 `011-000`/`011-001` 由 `shl.*`/`rol.*` 占用（`SPEC-152t`）。
 - 伪指令集收缩（删 `nop`/`return`/`not.*`/`neg.*` 等 1:1 别名）：`ADR-0013 §D11`；权威定义见 `spec/Toolchain-01 §6`。
-- `cs.eq_rrrr_rf`/`cs.ne_rrrr_rf` 已删除（`0x5E`/`0x5F` 腾空给 FMA）：`SPEC-163t`。
+- `cs.eq_rrrr_rf`/`cs.ne_rrrr_rf` 已删除；`0x5E`/`0x5F` 现为 `ftfma`/`fofma`（融合乘加，四操作数，未实现 ⇒ decode ILLI）：`SPEC-163t` / `SPEC-157t`。
 
 ## §1 寄存器模型
 

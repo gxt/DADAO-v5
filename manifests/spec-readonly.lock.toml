@@ -160,7 +160,11 @@ group = "simrisc-00..12"
 #   （`scope: fp` 60 → 64、执行层 60/60 → 64/64）、§4.6 表下范围注记（50 条全部为 `scope: fp`，不再有
 #   `excluded` 4 条）+ 附录 0.5.5-rc 段**追加** 1 条（历史行不改写）；QFC 格位不改；sha256 同笔重算。
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：删「已删除助记符」块；三处子表注改中性（空白 = reserved/UNDI）；§5 去计数；断跨册引用；sha256 同笔重算。
-sha256 = "0249d30da9f9a822e821eb40c986db50a004fefed24c005b14ace080b9ed6f4f"
+# 2026-10-23（SPEC-157t，用户原话「格式改为rrrr，即4个操作数」+「删除cs.eq/ne-rrrr-rf，两条指令；然后把ftfma/fofma
+#   的编码移动到这两条指令的位置」（原话落纸于 `.tao/tasks/spec/SPEC-157t-立册.md` §立项来源 / SPEC-163t §用户裁定））：
+#   §4 QFC 主表 `0101-1xxx` 的 `110`/`111` 两格改填 `ftfma_rrrr_rf`/`fofma_rrrr_rf`（`op = 0x5E`/`0x5F`；原格残留的
+#   `cs.eq_rrrr_rf`/`cs.ne_rrrr_rf` 文本随删格清除）；附录 0.5.5-rc 段**追加** 1 条（历史行不改写）；sha256 同笔重算。
+sha256 = "0c72723084d908c924a23548f8f0cdea5f143e82120c26ee0935ad79be682269"
 # 2026-10-22（SPEC-164t，授权原话见 `.tao/tasks/spec/SPEC-164t-OPC-MISC迁移与解excluded.md` §立项来源：「还有一个编码改动过：OPC-MISC的编码改为：0100-0111」「修改编码：ctpop_orri_rd ctlz_orri_rd cttz_orri_rd 从 OPC-octa 改为 OPC-MISC，opx：100-101/100-110/100-111」）：§4 QFC 主表 `OPC-MISC` 由 `0111-0111` 迁 `0100-0111`（原格置空）；§4.1 `100-101/110/111` 填 `ctpop`/`ctlz`/`cttz`；§4.2 删同三格与「借用 OPC-octa 格位」例外说明；附录 0.5.5-rc 两条同步；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -237,7 +241,10 @@ group = "simrisc-00..12"
 #   册头分类行与 FP 范围总账（60 → 64 条；本册 46 → 50 条）、§4.4 范围注、生成区（§1.1 速查 50 条全为
 #   `scope: fp`；§2 合法性由 excluded 区块改列 `dst_rf0`）、附录 0.5.5-rc 补一条；sha256 同笔重算。
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：去「本节 N 条」计数；sha256 同笔重算。
-sha256 = "cedbf1dfa3a63f7eaad280a11b3e5f4e41c665d7bb9d0b601320ca8e347c879e"
+# 2026-10-23（SPEC-157t，同授权；用户 2026-10-22「格式改为rrrr，即4个操作数」）：新增 §2.5「融合乘加
+#   （fusedMultiplyAdd）」（`ftfma`/`fofma`：`rrrr` 四操作数、精确积只舍入一次、先读后写、NaN/Inf/±0/OF/UF/NX、
+#   `dst_rf0`）+ 附录 A/B 生成区重生成；sha256 同笔重算（其余只读册不变）。
+sha256 = "5a96be74175af67492b987f6bfaca3ca5a91ec0aa2a1669103fd2d27dea4a30f"
 
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"

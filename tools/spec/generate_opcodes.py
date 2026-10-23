@@ -7,12 +7,14 @@
     + 取整 `ftrnd`/`fornd` + 最小最大值 `ftmin`/`ftmax`/`fomin`/`fomax`），独立于 M1，
     **已实现**（LLVM-029t/030t、QEMU-034t–037t；取整见 `QEMU-072t`/`LLVM-125t`；
     最小最大值见 `QEMU-071t`/`LLVM-124t`）；
-  - `scope: excluded`（2 条）——特权 cfx（仅 `cfxld`/`cfxst`），暂未归类
+  - `scope: excluded`（4 条）——编码已定义、尚未实现：特权 cfx `cfxld`/`cfxst` 2 条
+    + 融合乘加 `ftfma`/`fofma` 2 条（`SPEC-157t` 立册；实现落地后由 `SPEC-158t` 转入 `fp`）
     （`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`；
     `ADR-0034` 将 `lr/sc` 由 8 条重排为 24 条；`SPEC-161t` 立取整 2 条、
     `SPEC-162t` 实现落地后将其由 `excluded` 转入 `fp`；`SPEC-159t` 立最小最大值 4 条、
     `SPEC-160t` 实现落地后将其由 `excluded` 转入 `fp`；`SPEC-164t` 将 `fence` 与 24 条
-    `lr/sc` 由 `excluded` 转入 `m9`）；
+    `lr/sc` 由 `excluded` 转入 `m9`；`SPEC-163t` 删 `cs.eq`/`cs.ne` 的 `rf` 变体，腾出
+    `0x5E`/`0x5F`）；
   - `scope: m3`（1 条）——M3 CodeGen 新增指令（ADR-0012 D9.1 `sub.o_orrr_dbb`），
     **非 M1 身份**，不要求 M1 向量覆盖；
   - `scope: m8`（7 条）——新增 ISA 指令（ADR-0012 D10 逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`
@@ -292,6 +294,9 @@ S07_ROUND = "SimRISC-07: 取整（roundToIntegral）"
 # 浮点运算（SimRISC-07）：最小/最大值（IEEE 754-2019 §9.6 minimumNumber/maximumNumber，SPEC-159t）
 S07_MINMAX = "SimRISC-07: 最小最大值（minimumNumber / maximumNumber）"
 
+# 浮点运算（SimRISC-07）：融合乘加（IEEE 754-2019 fusedMultiplyAdd，SPEC-157t）
+S07_FMA = "SimRISC-07: 融合乘加（fusedMultiplyAdd）"
+
 # 常见 legality 片段
 LEG_RD_DST = "rdha != rd0"
 LEG_RB_DST = "rbha != rb0"
@@ -483,8 +488,16 @@ def build_main_table(records):
     records.append(rec("cmp.si-rd", "cmp.si", "rrii", 0x5D,
                        f_rrii("rdha", "rdhb", "imms12"), [LEG_RD_DST], S04_CMP))
     # SPEC-163t（用户 2026-10-22 裁定「删除cs.eq/ne-rrrr-rf，两条指令；然后把ftfma/fofma
-    # 的编码移动到这两条指令的位置」）：0x5E/0x5F 已腾空，留给 SPEC-157t 的 FMA；
-    # cs.eq/ne 仅保留 rd 形态（0x66/0x67）。
+    # 的编码移动到这两条指令的位置」）：0x5E/0x5F 已腾空；cs.eq/ne 仅保留 rd 形态（0x66/0x67）。
+    # SPEC-157t（用户 2026-10-22 裁定「格式改为rrrr，即4个操作数」）：落 `ftfma`/`fofma` 两条，
+    # `rrrr` = 1 目的（`rfHA`）+ 3 源（`rfHB`/`rfHC`/`rfHD`），语义
+    # `rfHA ← rfHB × rfHC + rfHD`（IEEE 754-2019 `fusedMultiplyAdd`，单次舍入）。
+    # `rrrr` 无 opx ⇒ 每条占一个整 op 字节。`dst_rf0` 合法性与既有 FP 族同型；
+    # 先立为 `scope: excluded`（decode ILLI），实现落地后由 SPEC-158t 翻转为 `fp`。
+    for op, mnem in ((0x5E, "ftfma"), (0x5F, "fofma")):
+        records.append(rec(mnem, mnem, "rrrr", op,
+                           f_rrrr("rfha", "rfhb", "rfhc", "rfhd"),
+                           ["rfha != rf0"], S07_FMA, scope="excluded"))
 
     # ── 0110-0xxx：条件赋值（rrrr）──
     records.append(rec("cs.n-rd", "cs.n", "rrrr", 0x60,
@@ -947,7 +960,7 @@ def main():
         f.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md\n")
         f.write("# M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统\n")
         f.write("# scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；\n")
-        f.write("# scope: excluded 为特权 cfx（cfxld/cfxst），尚未实现，\n")
+        f.write("# scope: excluded 为特权 cfx（cfxld/cfxst）与融合乘加（ftfma/fofma），尚未实现，\n")
         f.write("#   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
         f.write("# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份\n")
         f.write("# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + "

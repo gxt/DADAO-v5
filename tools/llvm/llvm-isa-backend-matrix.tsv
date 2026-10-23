@@ -76,6 +76,7 @@ fo2ut_orri_rf	fo2ut	orri	fp	fo2ut_orri_rf	accept	ok	fo2ut {rd8}, {rf9}	no
 foadd_orrr_rf	foadd	orrr	fp	foadd_orrr_rf	accept	ok	foadd rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:901:foadd_orrr_rf	
 focls_orri_rf	focls	orri	fp	focls_orri_rf	accept	ok	focls {rd8}, {rf9}	no		
 fodiv_orrr_rf	fodiv	orrr	fp	fodiv_orrr_rf	accept	ok	fodiv rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:904:fodiv_orrr_rf	
+fofma_rrrr_rf	fofma	rrrr	excluded		reject	—	fofma {rd8, rd9}, rd10, rd11	no		
 fomax_orrr_rf	fomax	orrr	fp	fomax_orrr_rf	accept	ok	fomax rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:945:fomax_orrr_rf;pat:DADAOCodeGen.td.patch:947:fomax_orrr_rf	
 fomin_orrr_rf	fomin	orrr	fp	fomin_orrr_rf	accept	ok	fomin rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:944:fomin_orrr_rf;pat:DADAOCodeGen.td.patch:946:fomin_orrr_rf	
 fomul_orrr_rf	fomul	orrr	fp	fomul_orrr_rf	accept	ok	fomul rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:903:fomul_orrr_rf	
@@ -97,6 +98,7 @@ ft2ut_orri_rf	ft2ut	orri	fp	ft2ut_orri_rf	accept	ok	ft2ut {rd8}, {rf9}	no
 ftadd_orrr_rf	ftadd	orrr	fp	ftadd_orrr_rf	accept	ok	ftadd rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:922:ftadd_orrr_rf	
 ftcls_orri_rf	ftcls	orri	fp	ftcls_orri_rf	accept	ok	ftcls {rd8}, {rf9}	no		
 ftdiv_orrr_rf	ftdiv	orrr	fp	ftdiv_orrr_rf	accept	ok	ftdiv rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:925:ftdiv_orrr_rf	
+ftfma_rrrr_rf	ftfma	rrrr	excluded		reject	—	ftfma {rd8, rd9}, rd10, rd11	no		
 ftmax_orrr_rf	ftmax	orrr	fp	ftmax_orrr_rf	accept	ok	ftmax rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:949:ftmax_orrr_rf;pat:DADAOCodeGen.td.patch:951:ftmax_orrr_rf	
 ftmin_orrr_rf	ftmin	orrr	fp	ftmin_orrr_rf	accept	ok	ftmin rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:948:ftmin_orrr_rf;pat:DADAOCodeGen.td.patch:950:ftmin_orrr_rf	
 ftmul_orrr_rf	ftmul	orrr	fp	ftmul_orrr_rf	accept	ok	ftmul rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:924:ftmul_orrr_rf	
