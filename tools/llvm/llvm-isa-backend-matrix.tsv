@@ -1,7 +1,7 @@
 id	mnemonic	format	scope	td_def	L1_assembler	L1_encoding	L1_asm	L2_isel	L2_evidence	backend_post_isel
 add.o_orrr_bbd	add.o	orrr	m1	add_o_bbd	accept	ok	add.o rb8, rb9, rd10	yes	buildmi:DADAORegisterInfo.cpp.patch:191:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:167:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:203:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:514:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:541:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:595:add_o_bbd	DADAORegisterInfo.cpp.patch:191
 add.sb_orrr_rd	add.sb	orrr	m1	add_sb	accept	ok	add.sb rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:565:add_sb	
-add.si_riii_rb	add.si	riii	m1	add_si_rb	accept	ok	add.si rb8, 8	yes	buildmi:DADAOFrameLowering.cpp.patch:192:add_si_rb;buildmi:DADAOFrameLowering.cpp.patch:369:add_si_rb;buildmi:DADAOFrameLowering.cpp.patch:494:add_si_rb;buildmi:DADAORegisterInfo.cpp.patch:210:add_si_rb;buildmi:DADAORegisterInfo.cpp.patch:260:add_si_rb	DADAOFrameLowering.cpp.patch:76;DADAOFrameLowering.cpp.patch:192;DADAOFrameLowering.cpp.patch:369;DADAOFrameLowering.cpp.patch:494;DADAORegisterInfo.cpp.patch:31;DADAORegisterInfo.cpp.patch:210;DADAORegisterInfo.cpp.patch:260
+add.si_riii_rb	add.si	riii	m1	add_si_rb	accept	ok	add.si rb8, 8	yes	buildmi:DADAOFrameLowering.cpp.patch:193:add_si_rb;buildmi:DADAOFrameLowering.cpp.patch:372:add_si_rb;buildmi:DADAOFrameLowering.cpp.patch:497:add_si_rb;buildmi:DADAOLoadStoreOptimizer.cpp.patch:273:add_si_rb;buildmi:DADAORegisterInfo.cpp.patch:210:add_si_rb;buildmi:DADAORegisterInfo.cpp.patch:260:add_si_rb	DADAOFrameLowering.cpp.patch:77;DADAOFrameLowering.cpp.patch:193;DADAOFrameLowering.cpp.patch:372;DADAOFrameLowering.cpp.patch:497;DADAORegisterInfo.cpp.patch:31;DADAORegisterInfo.cpp.patch:210;DADAORegisterInfo.cpp.patch:260
 add.si_riii_rd	add.si	riii	m1	add_si_rd	accept	ok	add.si rd8, 8	yes	buildmi:DADAOInstrInfo.cpp.patch:314:add_si_rd;pseudo:DADAOCodeGen.td.patch:360:add_si_rd:ADD_IMM_PSEUDO	DADAOInstrInfo.cpp.patch:314
 add.so_rrrr_rd	add.so	rrrr	m1	add_so_rd	accept	ok	add.so {rd8, rd9}, rd10, rd11	no		
 add.st_orrr_rd	add.st	orrr	m1	add_st	accept	ok	add.st rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:563:add_st	
@@ -118,7 +118,7 @@ it2ft_orri_rf	it2ft	orri	fp	it2ft_orri_rf	accept	ok	it2ft {rf8}, {rd9}	no
 jump_iiii_rb	jump	iiii	m1	jump_iiii;tailjmp_iiii	accept	ok	jump [rb0, 12]	yes	buildmi:DADAOInstrInfo.cpp.patch:733:jump_iiii;buildmi:DADAOInstrInfo.cpp.patch:753:jump_iiii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:716:tailjmp_iiii;pat:DADAOCodeGen.td.patch:919:jump_iiii	DADAOInstrInfo.cpp.patch:733;DADAOInstrInfo.cpp.patch:753;DADAOInstrInfo.cpp.patch:798
 jump_rrii_rb	jump	rrii	m1	jump_rrii;tailjmp_rrii	accept	ok	jump [rb8, rd9, 96]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:604:jump_rrii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:626:jump_rrii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:716:tailjmp_rrii	
 ld.o_rrii_ra	ld.o	rrii	m1	ld_o_ra	accept	ok	ld.o ra8, [rb9, 8]	no		
-ld.o_rrii_rb	ld.o	rrii	m1	ld_o_rb	accept	ok	ld.o rb8, [rb9, 8]	yes	buildmi:DADAOFrameLowering.cpp.patch:462:ld_o_rb;buildmi:DADAOInstrInfo.cpp.patch:483:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:175:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:597:ld_o_rb	DADAOFrameLowering.cpp.patch:462;DADAOInstrInfo.cpp.patch:483;DADAOInstrInfo.cpp.patch:545
+ld.o_rrii_rb	ld.o	rrii	m1	ld_o_rb	accept	ok	ld.o rb8, [rb9, 8]	yes	buildmi:DADAOFrameLowering.cpp.patch:465:ld_o_rb;buildmi:DADAOInstrInfo.cpp.patch:483:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:175:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:597:ld_o_rb	DADAOFrameLowering.cpp.patch:465;DADAOInstrInfo.cpp.patch:483;DADAOInstrInfo.cpp.patch:545
 ld.o_rrii_rd	ld.o	rrii	m1	ld_o_rd	accept	ok	ld.o rd8, [rb9, 8]	yes	pat:DADAOCodeGen.td.patch:755:ld_o_rd	DADAOInstrInfo.cpp.patch:543
 ld.o_rrii_rf	ld.o	rrii	fp	ld_o_rrii_rf	accept	ok	ld.o rf8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:1125:ld_o_rrii_rf	DADAOInstrInfo.cpp.patch:547
 ld.sb_rrii_rd	ld.sb	rrii	m1	ld_sb_rd	accept	ok	ld.sb rd8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:762:ld_sb_rd;pat:DADAOCodeGen.td.patch:799:ld_sb_rd;pat:DADAOCodeGen.td.patch:800:ld_sb_rd	
@@ -129,8 +129,8 @@ ld.ub_rrii_rd	ld.ub	rrii	m1	ld_ub_rd	accept	ok	ld.ub rd8, [rb9, 1]	yes	pat:DADAO
 ld.ut_rrii_rd	ld.ut	rrii	m1	ld_ut_rd	accept	ok	ld.ut rd8, [rb9, 4]	yes	pat:DADAOCodeGen.td.patch:775:ld_ut_rd;pat:DADAOCodeGen.td.patch:776:ld_ut_rd;pat:DADAOCodeGen.td.patch:790:ld_ut_rd	
 ld.uw_rrii_rd	ld.uw	rrii	m1	ld_uw_rd	accept	ok	ld.uw rd8, [rb9, 2]	yes	pat:DADAOCodeGen.td.patch:768:ld_uw_rd;pat:DADAOCodeGen.td.patch:769:ld_uw_rd;pat:DADAOCodeGen.td.patch:789:ld_uw_rd;pat:DADAOCodeGen.td.patch:802:ld_uw_rd;pat:DADAOCodeGen.td.patch:803:ld_uw_rd	
 ldm.o_rrri_ra	ldm.o	rrri	m1	ldm_o_ra	accept	ok	ldm.o {ra8}, [rb0, rd9]	no		
-ldm.o_rrri_rb	ldm.o	rrri	m1	ldm_o_rb	accept	ok	ldm.o {rb8}, [rb0, rd9]	no		DADAOFrameLowering.cpp.patch:356;DADAOFrameLowering.cpp.patch:387
-ldm.o_rrri_rd	ldm.o	rrri	m1	ldm_o_rd	accept	ok	ldm.o {rd8}, [rb0, rd9]	no		DADAOFrameLowering.cpp.patch:356;DADAOFrameLowering.cpp.patch:389
+ldm.o_rrri_rb	ldm.o	rrri	m1	ldm_o_rb	accept	ok	ldm.o {rb8}, [rb0, rd9]	yes	buildmi:DADAOLoadStoreOptimizer.cpp.patch:284:ldm_o_rb	DADAOFrameLowering.cpp.patch:359;DADAOFrameLowering.cpp.patch:390
+ldm.o_rrri_rd	ldm.o	rrri	m1	ldm_o_rd	accept	ok	ldm.o {rd8}, [rb0, rd9]	yes	buildmi:DADAOLoadStoreOptimizer.cpp.patch:283:ldm_o_rd	DADAOFrameLowering.cpp.patch:359;DADAOFrameLowering.cpp.patch:392
 ldm.o_rrri_rf	ldm.o	rrri	fp	ldm_o_rrri_rf	accept	ok	ldm.o {rf8}, [rb0, rd9]	no		
 ldm.sb_rrri_rd	ldm.sb	rrri	m1	ldm_sb_rd	accept	ok	ldm.sb {rd8}, [rb0, rd9]	no		
 ldm.st_rrri_rd	ldm.st	rrri	m1	ldm_st_rd	accept	ok	ldm.st {rd8}, [rb0, rd9]	no		
@@ -163,7 +163,7 @@ or.o_orrr_rd	or.o	orrr	m1	or_o	accept	ok	or.o rd8, rd9, rd10	yes	pat:DADAOCodeGe
 or.w_rwii_rb	or.w	rwii	m1	or_w_rb	accept	ok	or.w rb8, wp1, 0x1234	yes	buildmi:DADAOInstrInfo.cpp.patch:391:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:392:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:429:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:430:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:448:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:449:or_w_rb	DADAOInstrInfo.cpp.patch:391;DADAOInstrInfo.cpp.patch:392;DADAOInstrInfo.cpp.patch:429;DADAOInstrInfo.cpp.patch:430;DADAOInstrInfo.cpp.patch:448;DADAOInstrInfo.cpp.patch:449
 or.w_rwii_rd	or.w	rwii	m1	or_w_rd	accept	ok	or.w rd8, wp1, 0x1234	yes	buildmi:DADAOInstrInfo.cpp.patch:131:or_w_rd;buildmi:DADAOInstrInfo.cpp.patch:370:or_w_rd;buildmi:DADAOInstrInfo.cpp.patch:410:or_w_rd;buildmi:DADAOInstrInfo.cpp.patch:411:or_w_rd	DADAOInstrInfo.cpp.patch:131;DADAOInstrInfo.cpp.patch:370;DADAOInstrInfo.cpp.patch:410;DADAOInstrInfo.cpp.patch:411
 ra2rd_orri_ra	ra2rd	orri	m1	ra2rd	accept	ok	ra2rd {rd8}, {ra9}	no		
-rb2rb_orri_rb	rb2rb	orri	m1	rb2rb	accept	ok	rb2rb {rb8}, {rb9}	yes	buildmi:DADAOFrameLowering.cpp.patch:365:rb2rb;buildmi:DADAOFrameLowering.cpp.patch:427:rb2rb;buildmi:DADAOFrameLowering.cpp.patch:458:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:206:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:215:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:257:rb2rb	DADAOFrameLowering.cpp.patch:76;DADAOFrameLowering.cpp.patch:365;DADAOFrameLowering.cpp.patch:427;DADAOFrameLowering.cpp.patch:458;DADAOInstrInfo.cpp.patch:35;DADAOInstrInfo.cpp.patch:96;DADAORegisterInfo.cpp.patch:31;DADAORegisterInfo.cpp.patch:206;DADAORegisterInfo.cpp.patch:215;DADAORegisterInfo.cpp.patch:257
+rb2rb_orri_rb	rb2rb	orri	m1	rb2rb	accept	ok	rb2rb {rb8}, {rb9}	yes	buildmi:DADAOFrameLowering.cpp.patch:368:rb2rb;buildmi:DADAOFrameLowering.cpp.patch:430:rb2rb;buildmi:DADAOFrameLowering.cpp.patch:461:rb2rb;buildmi:DADAOLoadStoreOptimizer.cpp.patch:270:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:206:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:215:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:257:rb2rb	DADAOFrameLowering.cpp.patch:77;DADAOFrameLowering.cpp.patch:368;DADAOFrameLowering.cpp.patch:430;DADAOFrameLowering.cpp.patch:461;DADAOInstrInfo.cpp.patch:35;DADAOInstrInfo.cpp.patch:96;DADAORegisterInfo.cpp.patch:31;DADAORegisterInfo.cpp.patch:206;DADAORegisterInfo.cpp.patch:215;DADAORegisterInfo.cpp.patch:257
 rb2rd_orri_rb	rb2rd	orri	m1	rb2rd	accept	ok	rb2rd {rd8}, {rb9}	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:538:rb2rd	DADAOInstrInfo.cpp.patch:102
 rd2ra_orri_ra	rd2ra	orri	m1	rd2ra	accept	ok	rd2ra {ra8}, {rd9}	no		
 rd2rb_orri_rb	rd2rb	orri	m1	rd2rb	accept	ok	rd2rb {rb8}, {rd9}	no		DADAOInstrInfo.cpp.patch:100
@@ -233,7 +233,7 @@ shr.uw_orri_rd	shr.uw	orri	m1	shr_uw_orri	accept	ok	shr.uw rd8, rd9, 1	yes	isel-
 shr.uw_orrr_rd	shr.uw	orrr	m1	shr_uw_orrr	accept	ok	shr.uw rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:598:shr_uw_orrr	
 st.b_rrii_rd	st.b	rrii	m1	st_b_rd	accept	ok	st.b rd8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:763:st_b_rd;pat:DADAOCodeGen.td.patch:764:st_b_rd;pat:DADAOCodeGen.td.patch:765:st_b_rd;pat:DADAOCodeGen.td.patch:791:st_b_rd	
 st.o_rrii_ra	st.o	rrii	m1	st_o_ra	accept	ok	st.o ra8, [rb9, 8]	no		
-st.o_rrii_rb	st.o	rrii	m1	st_o_rb	accept	ok	st.o rb8, [rb9, 8]	yes	buildmi:DADAOFrameLowering.cpp.patch:414:st_o_rb	DADAOFrameLowering.cpp.patch:76;DADAOFrameLowering.cpp.patch:414;DADAOInstrInfo.cpp.patch:510
+st.o_rrii_rb	st.o	rrii	m1	st_o_rb	accept	ok	st.o rb8, [rb9, 8]	yes	buildmi:DADAOFrameLowering.cpp.patch:417:st_o_rb	DADAOFrameLowering.cpp.patch:77;DADAOFrameLowering.cpp.patch:417;DADAOInstrInfo.cpp.patch:510
 st.o_rrii_rd	st.o	rrii	m1	st_o_rd	accept	ok	st.o rd8, [rb9, 8]	yes	pat:DADAOCodeGen.td.patch:756:st_o_rd	DADAOInstrInfo.cpp.patch:508
 st.o_rrii_rf	st.o	rrii	fp	st_o_rrii_rf	accept	ok	st.o rf8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:1127:st_o_rrii_rf	DADAOInstrInfo.cpp.patch:512
 st.t_rrii_rd	st.t	rrii	m1	st_t_rd	accept	ok	st.t rd8, [rb9, 4]	yes	pat:DADAOCodeGen.td.patch:778:st_t_rd;pat:DADAOCodeGen.td.patch:793:st_t_rd	
@@ -241,8 +241,8 @@ st.t_rrii_rf	st.t	rrii	fp	st_t_rrii_rf	accept	ok	st.t rf8, [rb9, 1]	yes	pat:DADA
 st.w_rrii_rd	st.w	rrii	m1	st_w_rd	accept	ok	st.w rd8, [rb9, 2]	yes	pat:DADAOCodeGen.td.patch:771:st_w_rd;pat:DADAOCodeGen.td.patch:772:st_w_rd;pat:DADAOCodeGen.td.patch:792:st_w_rd	
 stm.b_rrri_rd	stm.b	rrri	m1	stm_b_rd	accept	ok	stm.b {rd8}, [rb0, rd9]	no		
 stm.o_rrri_ra	stm.o	rrri	m1	stm_o_ra	accept	ok	stm.o {ra8}, [rb0, rd9]	no		
-stm.o_rrri_rb	stm.o	rrri	m1	stm_o_rb	accept	ok	stm.o {rb8}, [rb0, rd9]	yes	isel-cpp:DADAOISelLowering.cpp.patch:1258:stm_o_rb	DADAOFrameLowering.cpp.patch:357;DADAOFrameLowering.cpp.patch:381
-stm.o_rrri_rd	stm.o	rrri	m1	stm_o_rd	accept	ok	stm.o {rd8}, [rb0, rd9]	yes	isel-cpp:DADAOISelLowering.cpp.patch:1256:stm_o_rd	DADAOFrameLowering.cpp.patch:357;DADAOFrameLowering.cpp.patch:383
+stm.o_rrri_rb	stm.o	rrri	m1	stm_o_rb	accept	ok	stm.o {rb8}, [rb0, rd9]	yes	buildmi:DADAOLoadStoreOptimizer.cpp.patch:287:stm_o_rb;isel-cpp:DADAOISelLowering.cpp.patch:1258:stm_o_rb	DADAOFrameLowering.cpp.patch:360;DADAOFrameLowering.cpp.patch:384
+stm.o_rrri_rd	stm.o	rrri	m1	stm_o_rd	accept	ok	stm.o {rd8}, [rb0, rd9]	yes	buildmi:DADAOLoadStoreOptimizer.cpp.patch:286:stm_o_rd;isel-cpp:DADAOISelLowering.cpp.patch:1256:stm_o_rd	DADAOFrameLowering.cpp.patch:360;DADAOFrameLowering.cpp.patch:386
 stm.o_rrri_rf	stm.o	rrri	fp	stm_o_rrri_rf	accept	ok	stm.o {rf8}, [rb0, rd9]	yes	isel-cpp:DADAOISelLowering.cpp.patch:1260:stm_o_rrri_rf	
 stm.t_rrri_rd	stm.t	rrri	m1	stm_t_rd	accept	ok	stm.t {rd8}, [rb0, rd9]	no		
 stm.t_rrri_rf	stm.t	rrri	fp	stm_t_rrri_rf	accept	ok	stm.t {rf8}, [rb0, rd9]	no		

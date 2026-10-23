@@ -1,0 +1,382 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOLoadStoreOptimizer.cpp b/llvm/lib/Target/DADAO/DADAOLoadStoreOptimizer.cpp
+new file mode 100644
+index 000000000..24e52b6d6
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOLoadStoreOptimizer.cpp
+@@ -0,0 +1,376 @@
++//===-- DADAOLoadStoreOptimizer.cpp - form ldm/stm from bursts --*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// Post-RA formation of `ldm.o` / `stm.o` (LLVM-129t).
++//
++// The ISA addresses a multi-register transfer with
++//   ldm.o {rdHA : rdHA+immu6-1}, [rbHB, rdHC]
++//   stm.o  rdHA, rbHB, rdHC, immu6
++// i.e. register `rdHA+i` is loaded from / stored to `rbHB + rdHC + 8*i`
++// (spec/SimRISC-01 §存取RD寄存器, §存取RB寄存器).  The register range is a
++// *contiguous* run of the same bank and `immu6` counts it (`start + immu6 <=
++// 64`, `immu6 != 0`; contracts/legality_rules.yaml::mreg_zero / mreg_range_*).
++//
++// Why post-RA: the addresses and — decisively — the *physical* register numbers
++// only exist after register allocation.  Whether two adjacent accesses land in
++// consecutive registers is decided by the allocator, so a pre-RA transformation
++// can at best raise the probability (ARM's ARMLoadStoreOptimizer does its
++// address-sorting pre-RA and the real merging post-RA for exactly this reason).
++// This pass therefore runs in addPreEmitPass, after PEI has eliminated frame
++// indices and inserted the prologue/epilogue, so every access is a concrete
++// `[base, imm]` and the merged instruction can be emitted directly.
++//
++// Merging rules (all must hold; anything else is left untouched):
++//   * same basic block, *strictly adjacent* memory instructions (only debug
++//     instructions may sit between them).  This is what makes the pass safe
++//     against reordering: no other access, call or barrier can end up between
++//     the merged elements, so no intra-run aliasing is possible.
++//   * same direction (all loads or all stores), same bank (RD or RB — the two
++//     banks are separate register files and must never be mixed), same base
++//     register, and immediate offsets ascending by exactly 8 per element.
++//   * physical registers ascending by exactly 1 per element.
++//   * count >= 2.  A non-zero first offset needs an extra base recomputation
++//     (`rb2rb` + `add.si`, 2 instructions), so it is only profitable at
++//     count >= 4; that path additionally needs a caller-saved RB register that
++//     the whole function never uses (see findScratchRB).
++//   * no volatile/atomic access, and no instruction carrying a
++//     FrameSetup/FrameDestroy flag (prologue/epilogue emission is the frame
++//     lowering's business).
++//
++// Deliberately NOT covered: `memset` (one value replicated into N registers has
++// no multi-register transfer to exploit) and the memory intrinsics' inline
++// expansion beyond the above pattern (their load/store pairs alternate, so the
++// run never reaches count 2 with consecutive destination registers).
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAO.h"
++#include "DADAOInstrInfo.h"
++#include "DADAORegisterInfo.h"
++#include "DADAOSubtarget.h"
++
++#include "llvm/ADT/ArrayRef.h"
++#include "llvm/ADT/SmallVector.h"
++#include "llvm/ADT/Statistic.h"
++#include "llvm/CodeGen/MachineBasicBlock.h"
++#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineFunctionPass.h"
++#include "llvm/CodeGen/MachineInstrBuilder.h"
++#include "llvm/CodeGen/MachineMemOperand.h"
++#include "llvm/CodeGen/MachineRegisterInfo.h"
++#include "llvm/CodeGen/TargetRegisterInfo.h"
++#include "llvm/Pass.h"
++#include "llvm/Support/CommandLine.h"
++#include "llvm/Support/Debug.h"
++#include "llvm/Support/MathExtras.h"
++
++#define GET_INSTRINFO_ENUM
++#include "DADAOGenInstrInfo.inc"
++#undef GET_INSTRINFO_ENUM
++
++using namespace llvm;
++
++#define DEBUG_TYPE "dadao-ldst-opt"
++
++// -dadao-disable-ldm-stm: turn every multi-register transfer off.  This is the
++// single switch that also disables the callee-saved batching in
++// DADAOFrameLowering (via DADAO::ldmStmDisabled), so a test can assert the
++// batched assembly form and prove that the assertion is reachable
++// (evidence: .work/evidence/LLVM-129t/run.sh).
++static cl::opt<bool> DisableLdmStm(
++    "dadao-disable-ldm-stm", cl::Hidden, cl::init(false),
++    cl::desc("DADAO: disable all ldm/stm formation (prologue batching and "
++             "post-RA load/store merging)"));
++
++// -dadao-ldst-opt-allow-call: DIAGNOSTIC ONLY.  Pretends a `call` between two
++// accesses is not a barrier, i.e. emits the injected miscompile that the
++// cross-call negative test forbids.  It exists so that the negative test has a
++// reachable FAIL path; it is never meant for production use.
++static cl::opt<bool> AllowCrossCall(
++    "dadao-ldst-opt-allow-call", cl::Hidden, cl::init(false),
++    cl::desc("DADAO: DIAGNOSTIC ONLY -- allow ldm/stm merging across a call"));
++
++bool DADAO::ldmStmDisabled() { return DisableLdmStm; }
++
++STATISTIC(NumBatches, "Number of ldm/stm batches formed from single accesses");
++
++namespace {
++
++// One mergeable single-register 8-byte access.
++struct MemOp {
++  bool IsLoad = false;
++  unsigned Bank = 0; // 0 = RD (data in the RD bank), 1 = RB.
++  Register Reg;      // data register
++  Register Base;     // address base
++  int64_t Off = 0;   // immediate offset
++};
++
++class DADAOLoadStoreOpt : public MachineFunctionPass {
++public:
++  static char ID;
++
++  DADAOLoadStoreOpt() : MachineFunctionPass(ID) {}
++
++  StringRef getPassName() const override {
++    return "DADAO load/store optimizer (ldm/stm formation)";
++  }
++
++  void getAnalysisUsage(AnalysisUsage &AU) const override {
++    AU.setPreservesCFG();
++    MachineFunctionPass::getAnalysisUsage(AU);
++  }
++
++  bool runOnMachineFunction(MachineFunction &MF) override;
++
++private:
++  bool parseMemOp(const MachineInstr &MI, MemOp &Op) const;
++  Register findScratchRB(const MachineFunction &MF,
++                         const TargetRegisterInfo &TRI) const;
++  bool mergeRun(MachineBasicBlock &MBB, MachineBasicBlock::iterator First,
++                ArrayRef<MachineInstr *> Run, const MemOp &Head,
++                const TargetRegisterInfo &TRI, const DADAOInstrInfo &TII);
++};
++
++char DADAOLoadStoreOpt::ID = 0;
++
++bool DADAOLoadStoreOpt::parseMemOp(const MachineInstr &MI, MemOp &Op) const {
++  switch (MI.getOpcode()) {
++  case DADAO::ld_o_rd:
++  case DADAO::st_o_rd:
++    Op.Bank = 0;
++    break;
++  case DADAO::ld_o_rb:
++  case DADAO::st_o_rb:
++    Op.Bank = 1;
++    break;
++  default:
++    return false;
++  }
++  Op.IsLoad = MI.getOpcode() == DADAO::ld_o_rd ||
++              MI.getOpcode() == DADAO::ld_o_rb;
++
++  // The four forms above are all `<reg>, <base>, <imm12>`.
++  if (MI.getNumExplicitOperands() != 3)
++    return false;
++  const MachineOperand &D = MI.getOperand(0);
++  const MachineOperand &B = MI.getOperand(1);
++  const MachineOperand &O = MI.getOperand(2);
++  if (!D.isReg() || !B.isReg() || !O.isImm())
++    return false;
++
++  // Never touch volatile/atomic accesses: `ldm`/`stm` perform one indivisible
++  // multi-register transfer, which is not the same memory model as a sequence
++  // of independently observable accesses.
++  for (const MachineMemOperand *MMO : MI.memoperands())
++    if (MMO->isVolatile() || MMO->isAtomic())
++      return false;
++
++  // Prologue/epilogue emission is owned by DADAOFrameLowering.
++  if (MI.getFlag(MachineInstr::FrameSetup) ||
++      MI.getFlag(MachineInstr::FrameDestroy))
++    return false;
++
++  Op.Reg = D.getReg();
++  Op.Base = B.getReg();
++  Op.Off = O.getImm();
++  return Op.Reg.isPhysical() && Op.Base.isPhysical();
++}
++
++// A caller-saved RB register that this function never mentions at all.  The
++// merged batch needs an RB register to hold `base + first_offset`
++// (`rb2rb` + `add.si`) when that offset is non-zero; post-RA no register
++// scavenger is available, so the scratch is taken from the set of registers
++// whose value provably cannot be observed:
++//   * caller-saved => the caller does not expect it to survive the function;
++//   * never used   => no instruction in this function reads or defines it, so
++//                     clobbering it cannot change this function's behaviour
++//                     (rb3..rb31 excludes PC/SP/FP/TP and the callee-saved pool).
++static constexpr unsigned ScratchFirst = DADAO::rb3;
++static constexpr unsigned ScratchLast = DADAO::rb31;
++
++Register DADAOLoadStoreOpt::findScratchRB(
++    const MachineFunction &MF, const TargetRegisterInfo & /*TRI*/) const {
++  const MachineRegisterInfo &MRI = MF.getRegInfo();
++  for (unsigned R = ScratchFirst; R <= ScratchLast; ++R) {
++    Register Reg(R);
++    if (MRI.isReserved(Reg))
++      continue;
++    if (MRI.isPhysRegUsed(Reg))
++      continue;
++    return Reg;
++  }
++  return Register();
++}
++
++bool DADAOLoadStoreOpt::mergeRun(MachineBasicBlock &MBB,
++                                 MachineBasicBlock::iterator First,
++                                 ArrayRef<MachineInstr *> Run,
++                                 const MemOp &Head,
++                                 const TargetRegisterInfo &TRI,
++                                 const DADAOInstrInfo &TII) {
++  const unsigned Count = Run.size();
++  if (Count < 2)
++    return false;
++
++  // ISA range rule (mreg_zero / mreg_range_overflow): 1 <= immu6 and
++  // start + immu6 <= 64 in *bank-relative* register numbers (the hardware
++  // encoding, not the TableGen enum value), and a load may not target
++  // register 0.  Within one bank the enum values ascend contiguously, so the
++  // partner operands below can be formed with plain `+r`.
++  const unsigned FirstReg = Head.Reg.id();
++  const unsigned FirstEnc = TRI.getEncodingValue(Head.Reg);
++  if (FirstEnc + Count > 64)
++    return false;
++  if (Head.IsLoad && FirstEnc == 0)
++    return false;
++  const MachineRegisterInfo &MRI = Run.front()->getMF()->getRegInfo();
++  if (MRI.isReserved(Head.Reg) || MRI.isReserved(FirstReg + Count - 1))
++    return false;
++
++  // A multi-register load writes every register of the range.  When the range
++  // is in the RB bank (the bank that holds addresses) and contains the base
++  // register itself, the sequential code would compute the *later* addresses
++  // from the freshly loaded value while the batch uses the old one, so the two
++  // are not semantically equal.  (`stm` only reads the range, so a store burst
++  // over its own base is fine.)
++  if (Head.IsLoad && Head.Bank == 1 && Head.Base.id() >= FirstReg &&
++      Head.Base.id() < FirstReg + Count)
++    return false;
++
++  Register Base = Head.Base;
++  Register OffReg = DADAO::rd0;
++
++  if (Head.Off != 0) {
++    // Not profitable below four accesses: two setup instructions plus the
++    // batch would replace three accesses one-for-one.
++    if (Count < 4)
++      return false;
++    if (!isInt<18>(Head.Off))
++      return false;
++    Register Scratch = findScratchRB(*MBB.getParent(), TRI);
++    if (!Scratch)
++      return false;
++    Base = Scratch;
++  }
++
++  const DebugLoc DL = Run.front()->getDebugLoc();
++
++  if (Head.Off != 0) {
++    BuildMI(MBB, First, DL, TII.get(DADAO::rb2rb), Base)
++        .addReg(Head.Base)
++        .addImm(1);
++    BuildMI(MBB, First, DL, TII.get(DADAO::add_si_rb), Base).addImm(Head.Off);
++  }
++
++  // The four batch opcodes are named literally inside the BuildMI calls: the
++  // ISA<->backend coverage gate derives its "backend uses this instruction"
++  // evidence from those references (tools/llvm/gen_isa_coverage.py).
++  const RegState DefState = getDefRegState(Head.IsLoad);
++  MachineInstrBuilder MIB =
++      Head.IsLoad
++          ? BuildMI(MBB, First, DL,
++                    TII.get(Head.Bank == 0 ? DADAO::ldm_o_rd
++                                           : DADAO::ldm_o_rb))
++          : BuildMI(MBB, First, DL,
++                    TII.get(Head.Bank == 0 ? DADAO::stm_o_rd
++                                           : DADAO::stm_o_rb));
++  MIB.addReg(Head.Reg, DefState);
++  MIB.addReg(Base);
++  MIB.addReg(OffReg);
++  MIB.addImm(Count);
++  for (unsigned I = 1; I < Count; ++I)
++    MIB.addReg(FirstReg + I, RegState::Implicit | DefState);
++
++  // Keep the alias information of every merged access on the batch.
++  SmallVector<const MachineInstr *, 8> Srcs(Run.begin(), Run.end());
++  MIB->cloneMergedMemRefs(*MBB.getParent(), Srcs);
++
++  return true;
++}
++
++bool DADAOLoadStoreOpt::runOnMachineFunction(MachineFunction &MF) {
++  if (DADAO::ldmStmDisabled())
++    return false;
++
++  const DADAOInstrInfo &TII = *MF.getSubtarget<DADAOSubtarget>().getInstrInfo();
++  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
++  bool Changed = false;
++
++  for (MachineBasicBlock &MBB : MF) {
++    for (auto I = MBB.begin(), E = MBB.end(); I != E;) {
++      MemOp Head;
++      if (!parseMemOp(*I, Head) || !Head.Reg.isPhysical()) {
++        ++I;
++        continue;
++      }
++
++      const Register FirstReg = Head.Reg;
++      SmallVector<MachineInstr *, 8> Run;
++      Run.push_back(&*I);
++
++      auto Scan = std::next(I);
++      while (Scan != E) {
++        if (Scan->isDebugInstr()) {
++          ++Scan;
++          continue;
++        }
++        // DIAGNOSTIC (see -dadao-ldst-opt-allow-call): the production path
++        // stops at the call because the next instruction is not a matching
++        // access; the flag lazily skips it and lets the (unsafe) run continue.
++        if (AllowCrossCall && Scan->isCall()) {
++          ++Scan;
++          continue;
++        }
++        MemOp Next;
++        if (!parseMemOp(*Scan, Next))
++          break;
++        if (Next.IsLoad != Head.IsLoad || Next.Bank != Head.Bank ||
++            Next.Base != Head.Base || !Next.Reg.isPhysical())
++          break;
++        if (Next.Reg.id() != FirstReg.id() + Run.size())
++          break;
++        if (Next.Off != Head.Off + (int64_t)Run.size() * 8)
++          break;
++        Run.push_back(&*Scan);
++        ++Scan;
++      }
++
++      if (Run.size() < 2) {
++        ++I;
++        continue;
++      }
++      LLVM_DEBUG(dbgs() << "dadao-ldst-opt: candidate run of " << Run.size()
++                        << " at " << *I);
++
++      MachineBasicBlock::iterator AfterRun = std::next(Run.back()->getIterator());
++      if (!mergeRun(MBB, I, Run, Head, TRI, TII)) {
++        LLVM_DEBUG(dbgs() << "dadao-ldst-opt: rejected\n");
++        ++I;
++        continue;
++      }
++      ++NumBatches;
++
++      // Erase the merged-away accesses.  `AfterRun` stays valid (intrusive
++      // list) and is the position to continue scanning from.
++      for (MachineInstr *MI : Run)
++        MI->eraseFromParent();
++      Changed = true;
++      I = AfterRun;
++    }
++  }
++  return Changed;
++}
++
++} // end anonymous namespace
++
++INITIALIZE_PASS(DADAOLoadStoreOpt, "dadao-ldst-opt",
++                "DADAO ldm/stm formation", false, false)
++
++FunctionPass *llvm::createDADAOLoadStoreOptimizerPass() {
++  return new DADAOLoadStoreOpt();
++}

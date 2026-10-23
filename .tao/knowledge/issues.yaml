@@ -710,3 +710,10 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（2026-10-23，源 = `SPEC-157t` 现场：新增 §2.5 时 `make check-asm-prose --strict` 报 `R6(rrrr缺{})` 2 处）】**现象**：`check_asm_prose.py` R6 的判据是「助记符含 `rrrr` 变体 ⇒ 操作数须带 `{…}`」（其注释把 `rrrr` 等同于双目的/条件赋值两种形态）。融合乘加 `ftfma`/`fofma` 是第三种形态（`rrrr` = 1 目的 `rfHA` + 3 源），书写为四个普通寄存器、**不带**花括号；`spec/Toolchain-01-汇编语言.md §6` 的格式表同样只列前两种。**影响**：① 该形态的操作数形状只能靠生成区（附录 A 表）与人读正文约束，无字面量门控；② 若把四寄存器写法放进 ```simrisc 代码块会直接判红（本册为守「不改门控判定语义」的边界，§2.5 改用行内代码书写，未改门控）。**修法方向**：`Toolchain-01 §6` 增 `rrrr`（单目的四寄存器）行；R6 改数据驱动（按 `opcodes.yaml` 的 `fields[].role` 判是否需要 `{}`，不按 format 名硬判），并补一条「四寄存器单目的形态 ⇒ 不报 R6」的自检注入。**交叉引用**：`SPEC-157t`（登记源）、`LLVM-123t`（汇编器/后端需按此形态实现）。**同源观察**：`tools/testcases/generate_lit_vectors.build_case` 对 `rrrr` 也按双目的渲染，故覆盖矩阵 `L1_asm` 列对这两条显示为 `ftfma {rd8, rd9}, rd10, rd11`（`gen_asm_list` 的表格反而是正确的四操作数形态）——`SPEC-158t` 翻转为 `scope: fp` 前须一并修正，否则生成的 lit MC 行会与规范写法不符。**边界**：本笔只登记 ⇒ 未改 `tools/spec/check_asm_prose.py`、`spec/Toolchain-01-汇编语言.md` ✗（后者属只读册，需单独授权）。"
+- id: ISS-332
+  title: "【P2】libc-test `math/yn` 由 0 fail 变为 3 ulp fail（疑 `LLVM-123t` 启用 FMA 收缩；musl 构建缺 `-ffp-contract=off`）"
+  status: open
+  scope: [infra, llvm, testcases]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（2026-10-24，源 = `LLVM-129t` 回归现场 + 该册自证非本册引入）】**现象**：libc-test 静态档由 `LLVM-127t` 时的 **331 pass / 0 fail** 变为 **330 pass / 1 fail**，唯一 fail = `math/yn`（差 3 ulp）。`LLVM-129t` 已排除自身（关 `-dadao-ldm-stm` 开关仍 fail；失败 TU 零 `ldm/stm`；`jn/j0/j1` 目标码开关前后逐条一致）。**时间窗**：`LLVM-123t`（`ISD::FMA` Legal + `isFMAFasterThanFMulAndFAdd` 启用，使 `a*b+c` 可收缩为 FMA）与 `LLVM-126t`（FP 接线）之间。**根因假设（待验）**：musl 交叉构建未传 `-ffp-contract=off`（上游 musl `configure` 会尝试该 flag；本仓 `tools/infra/build_musl.py` 与 `components/musl/` 均无此 flag）⇒ `yn` 的多项式在 FMA 收缩下结果变 1–3 ulp，超出 libc-test 的严格期望。**修法方向（按序）**：① 给 musl 构建加 `-ffp-contract=off`（与上游意图一致），重建后跑 `math/yn`；② 若仍 fail，再逐项排查 `LLVM-126t` 的 FP 接线是否改变 libm 结果；③ 禁止用「放宽期望/跳过用例」收口。**边界**：本笔只登记 ⇒ 未改 `tools/infra/build_musl.py` ✗。"

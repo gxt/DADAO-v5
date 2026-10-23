@@ -303,3 +303,20 @@ exclude:
   - ir: tests/llvm/lit/CodeGen/DADAO/fp-remainder.ll
     class: no-value-entry
     reason: "FileCheck structural test (llvm.dadao.remainder -> forem/ftrem; frem stays Expand, LLVM-126t); no `@main` value channel."
+  # (g) LLVM-127t / LLVM-129t structural CodeGen tests added under the corpus
+  #     root without value channels; registered here so the structural-closure
+  #     invariant stays green (lessons §2.21).  LLVM-129t review (Needs Revision):
+  #     the two earlier files were already unclassified before that task and are
+  #     registered in the same place instead of being relabelled or deleted.
+  - ir: tests/llvm/lit/CodeGen/DADAO/abi-narrow-extend.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (narrow ABI extend/trunc register shape, LLVM-127t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/narrow-int.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (narrow i8/i16/i32 promotion + canonical extend, LLVM-127t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/m9-ldm-stm-prologue.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (callee-saved prologue/epilogue `stm.o`/`ldm.o`, LLVM-129t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/m9-ldst-opt.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (post-RA `stm.o`/`ldm.o` merge, LLVM-129t); no `@main` value channel."

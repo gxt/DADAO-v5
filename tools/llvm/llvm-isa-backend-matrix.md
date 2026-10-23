@@ -29,7 +29,7 @@
 | `buildmi` | 任意后端 C++ 补丁中 `BuildMI(...)` 调用里的 `DADAO::<def>` 常量（含帧处理/寄存器分配等 post-ISel 发射，ISS-327 ③） | `DADAO*.cpp.patch` |
 | `synonym` | `.td` def 与记录**编码身份相同但助记符不同**时按编码身份互认（ISS-327 ②） | 全 `.td` 补丁 |
 
-现场统计：证据条数 = buildmi 53 + isel-cpp 56 + pat 254 + pat-args 8 + pseudo 19；判「用得上」的记录 **189** 条。
+现场统计：证据条数 = buildmi 59 + isel-cpp 56 + pat 254 + pat-args 8 + pseudo 19；判「用得上」的记录 **191** 条。
 
 ### 提取方法的局限（盲区披露）
 
@@ -50,7 +50,7 @@
 |---|---|---|---|---|---|---|
 | `add.o_orrr_bbd` | `add.o` | `orrr` | `m1` | accept | yes | buildmi:DADAORegisterInfo.cpp.patch:191:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:167:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:203:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:514:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:541:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:595:add_o_bbd |
 | `add.sb_orrr_rd` | `add.sb` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:565:add_sb |
-| `add.si_riii_rb` | `add.si` | `riii` | `m1` | accept | yes | buildmi:DADAOFrameLowering.cpp.patch:192:add_si_rb;buildmi:DADAOFrameLowering.cpp.patch:369:add_si_rb;buildmi:DADAOFrameLowering.cpp.patch:494:add_si_rb;buildmi:DADAORegisterInfo.cpp.patch:210:add_si_rb;buildmi:DADAORegisterInfo.cpp.patch:260:add_si_rb |
+| `add.si_riii_rb` | `add.si` | `riii` | `m1` | accept | yes | buildmi:DADAOFrameLowering.cpp.patch:193:add_si_rb;buildmi:DADAOFrameLowering.cpp.patch:372:add_si_rb;buildmi:DADAOFrameLowering.cpp.patch:497:add_si_rb;buildmi:DADAOLoadStoreOptimizer.cpp.patch:273:add_si_rb;buildmi:DADAORegisterInfo.cpp.patch:210:add_si_rb;buildmi:DADAORegisterInfo.cpp.patch:260:add_si_rb |
 | `add.si_riii_rd` | `add.si` | `riii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:314:add_si_rd;pseudo:DADAOCodeGen.td.patch:360:add_si_rd:ADD_IMM_PSEUDO |
 | `add.so_rrrr_rd` | `add.so` | `rrrr` | `m1` | accept | no | — |
 | `add.st_orrr_rd` | `add.st` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:563:add_st |
@@ -167,7 +167,7 @@
 | `jump_iiii_rb` | `jump` | `iiii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:733:jump_iiii;buildmi:DADAOInstrInfo.cpp.patch:753:jump_iiii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:716:tailjmp_iiii;pat:DADAOCodeGen.td.patch:919:jump_iiii |
 | `jump_rrii_rb` | `jump` | `rrii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:604:jump_rrii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:626:jump_rrii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:716:tailjmp_rrii |
 | `ld.o_rrii_ra` | `ld.o` | `rrii` | `m1` | accept | no | — |
-| `ld.o_rrii_rb` | `ld.o` | `rrii` | `m1` | accept | yes | buildmi:DADAOFrameLowering.cpp.patch:462:ld_o_rb;buildmi:DADAOInstrInfo.cpp.patch:483:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:175:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:597:ld_o_rb |
+| `ld.o_rrii_rb` | `ld.o` | `rrii` | `m1` | accept | yes | buildmi:DADAOFrameLowering.cpp.patch:465:ld_o_rb;buildmi:DADAOInstrInfo.cpp.patch:483:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:175:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:597:ld_o_rb |
 | `ld.o_rrii_rd` | `ld.o` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:755:ld_o_rd |
 | `ld.o_rrii_rf` | `ld.o` | `rrii` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:1125:ld_o_rrii_rf |
 | `ld.sb_rrii_rd` | `ld.sb` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:762:ld_sb_rd;pat:DADAOCodeGen.td.patch:799:ld_sb_rd;pat:DADAOCodeGen.td.patch:800:ld_sb_rd |
@@ -178,8 +178,8 @@
 | `ld.ut_rrii_rd` | `ld.ut` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:775:ld_ut_rd;pat:DADAOCodeGen.td.patch:776:ld_ut_rd;pat:DADAOCodeGen.td.patch:790:ld_ut_rd |
 | `ld.uw_rrii_rd` | `ld.uw` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:768:ld_uw_rd;pat:DADAOCodeGen.td.patch:769:ld_uw_rd;pat:DADAOCodeGen.td.patch:789:ld_uw_rd;pat:DADAOCodeGen.td.patch:802:ld_uw_rd;pat:DADAOCodeGen.td.patch:803:ld_uw_rd |
 | `ldm.o_rrri_ra` | `ldm.o` | `rrri` | `m1` | accept | no | — |
-| `ldm.o_rrri_rb` | `ldm.o` | `rrri` | `m1` | accept | no | — |
-| `ldm.o_rrri_rd` | `ldm.o` | `rrri` | `m1` | accept | no | — |
+| `ldm.o_rrri_rb` | `ldm.o` | `rrri` | `m1` | accept | yes | buildmi:DADAOLoadStoreOptimizer.cpp.patch:284:ldm_o_rb |
+| `ldm.o_rrri_rd` | `ldm.o` | `rrri` | `m1` | accept | yes | buildmi:DADAOLoadStoreOptimizer.cpp.patch:283:ldm_o_rd |
 | `ldm.o_rrri_rf` | `ldm.o` | `rrri` | `fp` | accept | no | — |
 | `ldm.sb_rrri_rd` | `ldm.sb` | `rrri` | `m1` | accept | no | — |
 | `ldm.st_rrri_rd` | `ldm.st` | `rrri` | `m1` | accept | no | — |
@@ -212,7 +212,7 @@
 | `or.w_rwii_rb` | `or.w` | `rwii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:391:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:392:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:429:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:430:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:448:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:449:or_w_rb |
 | `or.w_rwii_rd` | `or.w` | `rwii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:131:or_w_rd;buildmi:DADAOInstrInfo.cpp.patch:370:or_w_rd;buildmi:DADAOInstrInfo.cpp.patch:410:or_w_rd;buildmi:DADAOInstrInfo.cpp.patch:411:or_w_rd |
 | `ra2rd_orri_ra` | `ra2rd` | `orri` | `m1` | accept | no | — |
-| `rb2rb_orri_rb` | `rb2rb` | `orri` | `m1` | accept | yes | buildmi:DADAOFrameLowering.cpp.patch:365:rb2rb;buildmi:DADAOFrameLowering.cpp.patch:427:rb2rb;buildmi:DADAOFrameLowering.cpp.patch:458:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:206:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:215:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:257:rb2rb |
+| `rb2rb_orri_rb` | `rb2rb` | `orri` | `m1` | accept | yes | buildmi:DADAOFrameLowering.cpp.patch:368:rb2rb;buildmi:DADAOFrameLowering.cpp.patch:430:rb2rb;buildmi:DADAOFrameLowering.cpp.patch:461:rb2rb;buildmi:DADAOLoadStoreOptimizer.cpp.patch:270:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:206:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:215:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:257:rb2rb |
 | `rb2rd_orri_rb` | `rb2rd` | `orri` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:538:rb2rd |
 | `rd2ra_orri_ra` | `rd2ra` | `orri` | `m1` | accept | no | — |
 | `rd2rb_orri_rb` | `rd2rb` | `orri` | `m1` | accept | no | — |
@@ -282,7 +282,7 @@
 | `shr.uw_orrr_rd` | `shr.uw` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:598:shr_uw_orrr |
 | `st.b_rrii_rd` | `st.b` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:763:st_b_rd;pat:DADAOCodeGen.td.patch:764:st_b_rd;pat:DADAOCodeGen.td.patch:765:st_b_rd;pat:DADAOCodeGen.td.patch:791:st_b_rd |
 | `st.o_rrii_ra` | `st.o` | `rrii` | `m1` | accept | no | — |
-| `st.o_rrii_rb` | `st.o` | `rrii` | `m1` | accept | yes | buildmi:DADAOFrameLowering.cpp.patch:414:st_o_rb |
+| `st.o_rrii_rb` | `st.o` | `rrii` | `m1` | accept | yes | buildmi:DADAOFrameLowering.cpp.patch:417:st_o_rb |
 | `st.o_rrii_rd` | `st.o` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:756:st_o_rd |
 | `st.o_rrii_rf` | `st.o` | `rrii` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:1127:st_o_rrii_rf |
 | `st.t_rrii_rd` | `st.t` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:778:st_t_rd;pat:DADAOCodeGen.td.patch:793:st_t_rd |
@@ -290,8 +290,8 @@
 | `st.w_rrii_rd` | `st.w` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:771:st_w_rd;pat:DADAOCodeGen.td.patch:772:st_w_rd;pat:DADAOCodeGen.td.patch:792:st_w_rd |
 | `stm.b_rrri_rd` | `stm.b` | `rrri` | `m1` | accept | no | — |
 | `stm.o_rrri_ra` | `stm.o` | `rrri` | `m1` | accept | no | — |
-| `stm.o_rrri_rb` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:1258:stm_o_rb |
-| `stm.o_rrri_rd` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:1256:stm_o_rd |
+| `stm.o_rrri_rb` | `stm.o` | `rrri` | `m1` | accept | yes | buildmi:DADAOLoadStoreOptimizer.cpp.patch:287:stm_o_rb;isel-cpp:DADAOISelLowering.cpp.patch:1258:stm_o_rb |
+| `stm.o_rrri_rd` | `stm.o` | `rrri` | `m1` | accept | yes | buildmi:DADAOLoadStoreOptimizer.cpp.patch:286:stm_o_rd;isel-cpp:DADAOISelLowering.cpp.patch:1256:stm_o_rd |
 | `stm.o_rrri_rf` | `stm.o` | `rrri` | `fp` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:1260:stm_o_rrri_rf |
 | `stm.t_rrri_rd` | `stm.t` | `rrri` | `m1` | accept | no | — |
 | `stm.t_rrri_rf` | `stm.t` | `rrri` | `fp` | accept | no | — |
@@ -315,13 +315,13 @@
 | `xnor.o_orrr_rd` | `xnor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:461:xnor_o |
 | `xor.o_orrr_rd` | `xor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:452:xor_o |
 
-## 3. 缺口汇总（未被 ISel 使用，77 条）
+## 3. 缺口汇总（未被 ISel 使用，75 条）
 
 候选优化面（供后续里程碑参考）。按性质分四类（现场统计）：
 
 1. **真缺口·候补优化面**（`scope != excluded`，且后端 ISel/post-ISel 均未引用，且非汇编层/特权族）：**66** 条 —— ISA 有、后端一次都没发射，最有价值。
 2. **真缺口·汇编层/特权族**（同上但 `format ∈ {crrr, ciii, crii}` 或助记符 ∈ {fence, swym}，机械判据）：**5** 条 —— 经 cfx 访问/内联汇编/占位语义使用，不经 ISel 选入属预期。
-3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**4** 条。
+3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**2** 条。
 4. **`scope: excluded` 未实现**（汇编器拒绝、执行 ILLI）：**2** 条 —— 不在本期范围。
 
 ### 3.1 真缺口·候补优化面（66 条）
@@ -405,13 +405,11 @@
 | `swym_oiii_imm` | `swym` | `oiii` | `m1` |
 | `trap_ciii_cfx` | `trap` | `ciii` | `m1` |
 
-### 3.3 仅 post-ISel 引用（4 条）
+### 3.3 仅 post-ISel 引用（2 条）
 
 | id | mnemonic | format | scope |
 |---|---|---|---|
 | `fo2fo_orri_rf` | `fo2fo` | `orri` | `fp` |
-| `ldm.o_rrri_rb` | `ldm.o` | `rrri` | `m1` |
-| `ldm.o_rrri_rd` | `ldm.o` | `rrri` | `m1` |
 | `rd2rb_orri_rb` | `rd2rb` | `orri` | `m1` |
 
 ### 3.4 scope: excluded（未实现）（2 条）

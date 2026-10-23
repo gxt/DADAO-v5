@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
 new file mode 100644
-index 000000000..07c20b65f
+index 000000000..b7e7cf429
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
-@@ -0,0 +1,156 @@
+@@ -0,0 +1,164 @@
 +//===-- DADAOTargetMachine.cpp - Define TargetMachine for DADAO ---------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -42,6 +42,7 @@ index 000000000..07c20b65f
 +  auto *PR = PassRegistry::getPassRegistry();
 +  initializeDADAODAGToDAGISelLegacyPass(*PR);
 +  initializeDADAOAsmPrinterPass(*PR);
++  initializeDADAOLoadStoreOptPass(*PR);
 +}
 +
 +namespace {
@@ -109,6 +110,13 @@ index 000000000..07c20b65f
 +  }
 +
 +  void addPreEmitPass() override {
++    // Merge runs of adjacent single-register loads/stores into one `ldm`/`stm`
++    // (LLVM-129t).  Runs after PEI: the frame indices are gone and the physical
++    // registers (hence their consecutiveness) are final.  Optimization-only, so
++    // -O0 keeps the one-access-per-instruction form.
++    if (getOptLevel() != CodeGenOptLevel::None)
++      addPass(createDADAOLoadStoreOptimizerPass());
++
 +    // Relax conditional branches whose target does not fit the branch
 +    // immediate (LLVM-071t).  A br.eq/br.ne reaches only a 12-bit word offset,
 +    // so a large function body (e.g. Embench nsichneu -O2) can push the target

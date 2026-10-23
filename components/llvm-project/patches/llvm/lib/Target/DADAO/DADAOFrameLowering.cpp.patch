@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
 new file mode 100644
-index 000000000..8c8d25e78
+index 000000000..1ef1d8db7
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
-@@ -0,0 +1,494 @@
+@@ -0,0 +1,497 @@
 +//===-- DADAOFrameLowering.cpp - DADAO Frame Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -55,6 +55,7 @@ index 000000000..8c8d25e78
 +//
 +//===----------------------------------------------------------------------===//
 +
++#include "DADAO.h"
 +#include "DADAOFrameLowering.h"
 +#include "DADAOInstrInfo.h"
 +#include "DADAORegisterInfo.h"
@@ -273,13 +274,15 @@ index 000000000..8c8d25e78
 +        ++j;
 +
 +      // A batch needs a run of >= 2 registers with ascending consecutive
-+      // 8-byte slots.  With a nonzero base offset a run of exactly 2 would
-+      // leave a single register in the range once the top becomes the offset
-+      // holder, so only runs of >= 3 batch that way.  A GPRB batch with a
-+      // nonzero offset additionally needs an add.si-representable offset for
-+      // the RB offset-holder setup.  RF runs are always spilled per-register
-+      // (there is no ldm/stm RF batch path here).
-+      bool CanRun = (j > i) && !IsRF;
++      // 8-byte slots, and -dadao-disable-ldm-stm must not have turned the
++      // multi-register form off (LLVM-129t diagnostic switch).  With a nonzero
++      // base offset a run of exactly 2 would leave a single register in the
++      // range once the top becomes the offset holder, so only runs of >= 3
++      // batch that way.  A GPRB batch with a nonzero offset additionally needs
++      // an add.si-representable offset for the RB offset-holder setup.  RF runs
++      // are always spilled per-register (there is no ldm/stm RF batch path
++      // here).
++      bool CanRun = (j > i) && !IsRF && !DADAO::ldmStmDisabled();
 +      int64_t Off0 = 0;
 +      if (CanRun) {
 +        Off0 = getFrameIndexReference(MF, Regs[i].second, FrameReg).getFixed();

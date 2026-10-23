@@ -50,10 +50,11 @@ define void @f128_store(fp128 %a, ptr %p) {
 }
 
 ; ... and a load feeds rf8 (high, offset 0) then rf9 (low, offset 8).
+; LLVM-129t: the two adjacent 8-byte loads are one `ldm.o` (consecutive rd4/rd5,
+; offsets 0/8).
 define fp128 @f128_load(ptr %p) {
 ; CHECK-LABEL: f128_load:
-; CHECK: ld.o {{rd[0-9]+}}, [rb16, 0]
-; CHECK: ld.o {{rd[0-9]+}}, [rb16, 8]
+; CHECK: ldm.o {rd4:rd5}, [rb16, rd0]
 ; CHECK: rd2rf {rf8}, {rd4}
 ; CHECK: rd2rf {rf9}, {rd5}
   %a = load fp128, ptr %p, align 16

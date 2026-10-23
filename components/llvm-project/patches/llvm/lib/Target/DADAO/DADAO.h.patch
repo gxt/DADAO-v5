@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAO.h b/llvm/lib/Target/DADAO/DADAO.h
 new file mode 100644
-index 000000000..efe11abf4
+index 000000000..9f7f9c28e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAO.h
-@@ -0,0 +1,99 @@
+@@ -0,0 +1,109 @@
 +//===-- DADAO.h - Top-level interface for DADAO representation --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -30,8 +30,13 @@ index 000000000..efe11abf4
 +
 +FunctionPass *createDADAOISelDag(DADAOTargetMachine &TM);
 +
++/// Post-RA formation of `ldm.o`/`stm.o` from runs of consecutive
++/// single-register loads/stores (LLVM-129t).
++FunctionPass *createDADAOLoadStoreOptimizerPass();
++
 +void initializeDADAODAGToDAGISelLegacyPass(PassRegistry &);
 +void initializeDADAOAsmPrinterPass(PassRegistry &);
++void initializeDADAOLoadStoreOptPass(PassRegistry &);
 +
 +} // namespace llvm
 +
@@ -43,6 +48,11 @@ index 000000000..efe11abf4
 +
 +namespace llvm {
 +namespace DADAO {
++
++/// True when `-dadao-disable-ldm-stm` turned every multi-register transfer
++/// (`ldm`/`stm`) off: the callee-saved batching in DADAOFrameLowering and the
++/// post-RA load/store merge both consult this single switch (LLVM-129t).
++bool ldmStmDisabled();
 +
 +//===----------------------------------------------------------------------===//
 +// Target flags carried on a symbol operand (LLVM-094t; ADR-0029 for the pair).
