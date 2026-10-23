@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M9（FP 完备性）
-**依赖**：`SPEC-156t`（`fcls` 位序已对齐 754/LLVM ⇒ `is.fpclass` 零重排）、`LLVM-124t`（min/max）、`LLVM-125t`（取整）
+**依赖**：`SPEC-156t`、`LLVM-124t`（min/max）、`LLVM-125t`（取整）、`SPEC-158t`（`fp 66 / 15 族`，已收）
 **状态**：待开始
 
 ## 执行环境
@@ -33,7 +33,7 @@
 
 ## 目标
 
-1. 上表 8 类（比较/符号/分类/位转/缩放/舍入模式/饱和/恒等）全部**有线可落**：每类 **1–3 条**指令，**零 libcall**；`frem` 经核对**不接**（见 §E）；
+1. 上表 8 类（比较/符号/分类/位转/缩放/舍入模式/饱和/恒等）全部**有线可落**：每类 **1–3 条**指令，**零 libcall**；`FREM` 不接（`fmod` 语义），但 **`forem` 经 `__builtin_dadao_remainder` 接硬件**（见 §E）；
 2. `fcmp` 全部 12 种条件（quiet/signaling）行为正确；
 3. `is_fpclass`/`fpclassify` 直接由 `fcls` + 掩码实现（零重排）；
 4. `get/set.rounding` 读写 `rf0[33:32]`；
@@ -79,7 +79,7 @@
 - **我们的 `forem`/`ftrem` = IEEE remainder**（`SimRISC-07 §4.1`：`rfHC − n × rfHD`，n 取最近整数、平局取偶）；
 - **数值反例**：`fmod(5,3)=2` vs `remainder(5,3)=−1`；`fmod(−5,3)=−2` vs `remainder(−5,3)=1`；
 - LLVM **无** `llvm.remainder` intrinsic（`grep int_remainder` = 0）⇒ `frem` **保持 `Expand`**（落 musl `fmod`），**禁止**接 `forem`；
-- `forem` 目前仅经内联汇编可达；若要服务 C 的 `remainder()/remainderf()`，应在 **musl 侧**改造（`INFRA` 另册，低频）；
+- **用户 2026-10-22 裁定：「`forem` 接硬件」**。但 `remainder()` 在 LLVM 没有 intrinsic（Clang 直接发 libcall）⇒ 落地方式定为：新增 **`__builtin_dadao_remainder`**（`double`/`float` 两形态）→ 直接选 `forem`/`ftrem`（**1 条、零 libcall**），先例 = `__builtin_dadao_clmul`（`LLVM-122t`）。`FREM` 仍保持 `Expand`（= `fmod`），**两者语义不同，禁止互接**。
 - `ISS-188` 中"`frem` 缺 ISel 模式"一条按此改为**"不接（语义不一致）"**，不是补 pattern。
 
 ## 验收标准
@@ -88,7 +88,7 @@
 2. `fcmp` 12 种条件全覆盖（含 `UNO`/`ORD` 与 `±0`）。
 3. `is_fpclass`/`fpclassify`：`fcls` 后掩码**零重排**（掩码常量与 `FPClassTest` 一致）。
 4. C 层抽查：`fabs/fabsf`、`copysign`、`fmin`、`rint/nearbyint`（已由 `LLVM-125t`）、`isnan/isinf/isfinite/fpclassify`、`ldexp`、`bit cast`（`union`/`memcpy` 不适用时用 `__builtin_bit_cast`）。
-5. **`frem` 已核对为"不接"**：`FREM` 保持 `Expand`（libcall `fmod`）；完成区须粘 `git grep` 证据证明未新增 `FREM`→`forem` 映射；不得静默错接。
+5. **`FREM` 不接**（保持 `Expand`，libcall `fmod`）；**`forem`/`ftrem` 经 `__builtin_dadao_remainder` 各 1 条**（C 层实测）；完成区须粘 `git grep` 证据证明 `FREM` 未被映射到 `forem`。
 6. `check-instrinfo` 0 errors；`check-lit`/`check-lit-full` 绿。
 7. 改 `.td` 后 `make install-host` + `build-builtins` + `build-musl-shared`。
 8. `make check`（L1）rc=0；`make check-modules`（L2）rc=0。
