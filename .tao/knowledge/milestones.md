@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-058t | 已验证 | 2026-10-23 22:00 | FMA 集成：O0/O2 各 626 PASS；单次舍入 6 组判别；无 libcall；覆盖 +3/删 0 |
 | SPEC-158t | 已验证 | 2026-10-23 21:30 | FMA 解 excluded：`fp` 64→66、15 族、`excluded` 4→2；其余 264 条零改动 |
 | LLVM-123t | 已验证 | 2026-10-23 19:05 | FMA 后端：`fma`/`fmuladd`/C `fma` 各 1 条，零拷贝；单次舍入实跑成立 |
 | QEMU-070t | 已验证 | 2026-10-23 18:10 | `ftfma`/`fofma` 语义：softfloat `muladd` 单次舍入；探针 122/122（含真判别例）；266/266 |
@@ -71,7 +72,6 @@
 | SPEC-156t | 已验证 | 2026-10-22 00:12 | `fcls` 10 类位序改为 754/LLVM 顺序；两处逐项一致（脚本机械比对）、锁重算、破坏性已标注 |
 | LLVM-126t | 待开始 | 2026-10-21 23:50（登记） | FP 后端接线补齐（`ISS-188` 剩余 8 类：`fcmp`/`fpclass`/`bitcast`/`rounding`）；`frem` 不接 |
 | TESTCASES-057t | 待开始 | 2026-10-21 23:50（登记） | clmul 集成：指令级 + GHASH + CRC-32C，独立 oracle、两档 |
-| TESTCASES-058t | 待开始 | 2026-10-21 23:50（登记） | `fma` 集成：单次舍入反例 + 点积/GEMM/Horner，独立 oracle、两档 |
 | INFRA-099t | 已验证 | 2026-10-21 23:43 | ISS-229：29 个写者/门控由 `flock` 串行（嵌套放行、有界等待、rc=69/75）；真并发验证串行、L1/L2 绿 |
 | INFRA-098t | 已验证 | 2026-10-21 19:35 | 安装集补 `llvm-nm`（342 MB/+3.6%）+ `llvm-readelf` 相对链接（0 B）；builtins 4 次重建同 sha；`check-install-tools` 45 项 PASS |
 | TESTCASES-054t | 已验证 | 2026-10-21 19:08 | 超时预算重标：lua 840→1320、XSBench 新增 720（实测+120 s）、unix-smail 0.11 s 不入表；清过时注记 |

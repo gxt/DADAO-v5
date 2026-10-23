@@ -41,7 +41,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         build-builtins build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
         build-musl build-musl-shared test-picolibc-smoke install-host docker-image docker-shell check \
         check-picolibc-tests check-picolibc-tests-full check-rnd-probe \
-        check-minmax-probe \
+        check-minmax-probe check-fma-probe \
         check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
@@ -87,7 +87,7 @@ GATE_LOCKED_TARGETS = install-host clean-work \
                       test-codegen test-elf test-semihost test-m6 test-picolibc-smoke \
                       check-lit check-lit-full check-qemu-semantics check-qemu-smoke \
                       check-picolibc-tests check-picolibc-tests-full check-rnd-probe \
-                      check-minmax-probe \
+                      check-minmax-probe check-fma-probe \
                       check-testcases-suites check-testcases-suites-full \
                       check check-modules check-full
 
@@ -144,6 +144,7 @@ help:
 	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
 	@echo "  make check-rnd-probe  Run the ftrnd/fornd roundToIntegral probes at -O0 and -O2 (L2; TESTCASES-060t)"
 	@echo "  make check-minmax-probe  Run the ftmin/ftmax/fomin/fomax min/max probes at -O0 and -O2 (L2; TESTCASES-059t)"
+	@echo "  make check-fma-probe  Run the ftfma/fofma single-rounding / dot / GEMM / Horner probes at -O0 and -O2 (L2; TESTCASES-058t)"
 	@echo "  make check-testcases-suites  Run the two upstream reference suites (libc-test + llvm-test-suite) fast subset (opt-in, not L2; TESTCASES-045t)"
 	@echo "  make check-testcases-suites-full  Run every enumerable C case with main() from both suites (opt-in/L3-like; TESTCASES-045t)"
 	@echo "  make check-builtins-freshness  compiler-rt builtins archive must be the one the current clang built (build-id sidecar), in every consumer copy (L1; ISS-293/INFRA-101t)"
@@ -660,6 +661,32 @@ _locked-check-minmax-probe: install-host build-musl
 	  if [ $$rc -ne 0 ]; then echo "check-minmax-probe: FAIL (-O2 rc=$$rc)"; exit $$rc; fi
 	@echo "check-minmax-probe: PASS (O0 + O2)"
 
+# check-fma-probe (TESTCASES-058t): ftfma/fofma integration -- single-rounding
+# discriminators (C path + asm path + the two-step value, all three judged on
+# value and rf0[4:0]), NaN/Inf/±0, four rounding directions, overflow /
+# underflow, dot products (16/64/256, exact-fma and contracted `acc += a*b`),
+# 4x4 GEMM and Horner (every intermediate accumulator hashed).  Expectations
+# come from tools/testcases/oracle_fma.py (exact Fraction arithmetic + ONE
+# rounding from spec/SimRISC-07 §2.5, never from QEMU/softfloat/host fma).
+# Also asserts the per-symbol instruction mix (fused kernels: one fofma/ftfma,
+# no fomul/foadd/rf2rf) and that no fma libcall reaches the object/image.
+# Two optimisation levels, measured ~1 s => L2 (Process-07 §3 rule 2).
+_locked-check-fma-probe: install-host build-musl
+	@mkdir -p .work/log/testcases
+	@$(PYTHON) tools/testcases/run_fma_probe.py --opt O0 \
+	    --json-out .work/log/testcases/TESTCASES-058t-O0.json \
+	    > .work/log/testcases/TESTCASES-058t-O0.log 2>&1; \
+	  rc=$$?; \
+	  tail -2 .work/log/testcases/TESTCASES-058t-O0.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-fma-probe: FAIL (-O0 rc=$$rc)"; exit $$rc; fi
+	@$(PYTHON) tools/testcases/run_fma_probe.py --opt O2 \
+	    --json-out .work/log/testcases/TESTCASES-058t-O2.json \
+	    > .work/log/testcases/TESTCASES-058t-O2.log 2>&1; \
+	  rc=$$?; \
+	  tail -2 .work/log/testcases/TESTCASES-058t-O2.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-fma-probe: FAIL (-O2 rc=$$rc)"; exit $$rc; fi
+	@echo "check-fma-probe: PASS (O0 + O2)"
+
 # check-testcases-suites (TESTCASES-045t stage 1): drive the two upstream
 # *reference* suites -- libc-test and llvm-test-suite -- through the static musl
 # flow (compile -> ld.lld -T dadao.lds -> flat image -> qemu-system-dadao
@@ -749,7 +776,7 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 
 # L2 各模块功能代表集 (INFRA-058t). 注: test-semihost 自带对 `check`(L1) 的无回归前置
 # （by design，见 INTEG-020t），故 `make check-modules` 会顺带跑 L1。
-_locked-check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost check-picolibc-tests check-rnd-probe check-minmax-probe
+_locked-check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost check-picolibc-tests check-rnd-probe check-minmax-probe check-fma-probe
 	@echo "module checks (L2): PASS"
 
 # L3 较完整 (INFRA-058t). check-lit-full 由 test-m6 步骤 [1/3] 承载（不在本目标重复列出）。
