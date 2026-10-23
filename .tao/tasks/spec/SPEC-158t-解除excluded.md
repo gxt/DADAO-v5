@@ -19,7 +19,7 @@
 ### 现场事实（2026-10-21 核，执行前须复核）
 
 - `scope` 真源在生成器：`tools/spec/generate_opcodes.py` 的 `rec("ftfma-...", ..., scope="excluded")` / `fofma`。
-- `check_fp_contract.py`：FP 分 **12 族**、`fp` 计数写死 **60**；翻转后必须 **13 族 / 62 条**（新族 `fma` = 2）。
+- `check_fp_contract.py`：族与计数由现场派生（`INFRA-102t` 后无写死常量）；现场 **14 族 / 64 条**；翻转后必须 **15 族 / 66 条**（新族 `fma` = 2）。
 - `contracts/fp_semantics.yaml` 由生成器产出、只收 `scope == "fp"` 的记录；每条需 `family`、`spec_cite`（`^SimRISC-0[0-7]`）、`semantics_ref = contract-fp.md#<anchor>`、`legality_refs`。
 - `.tao/contracts/contract-fp.md` 的 `fma` 段与 `<a id="fma">` 锚点由 `SPEC-157t` 提供（本册只引用，不新建）。
 - `check_scope.py` 的分区计数为**写死断言**（`excluded`、`fp`、`total` 均需同步）+ changelog 段。
@@ -27,13 +27,13 @@
 ## 目标
 
 1. `ftfma`/`fofma` 由 `excluded` 转 **`fp`**（移除 `decode: ILLI`），`dst_rf0` 仍生效；
-2. FP 族表新增 `fma`（2 条），`fp` 计数 60→62；
+2. FP 族表新增 `fma`（2 条），`fp` 计数 **64→66**、`excluded` **4→2**；
 3. 全部派生生成物与门控计数现场派生后一致；只读锁重算。
 
 ## 接口规范
 
 - **输入**：`tools/spec/generate_opcodes.py`、`tools/spec/check_scope.py`、`tools/spec/check_fp_contract.py`、`tools/spec/gen_asm_list.py`、`tools/spec/gen_legality_list.py`、`tools/llvm/gen_isa_coverage.py`、`spec/SimRISC-07`（追加 1 行变更记录）、`manifests/spec-readonly.lock.toml`。
-- **输出**：`opcodes.yaml`（`fp 62`、`excluded` 相应减 1、total 262）、`fp_semantics.yaml`（+2 条 `family: fma`）、`check_fp_contract` 族枚举 12→13 与计数、`check_scope` 计数与 changelog、速查表/合法性清单/ISA 矩阵/`contract-asm-list` 重生成、只读锁 sha。
+- **输出**：`opcodes.yaml`（`fp 66`、`excluded 2`、total 266 不变）、`fp_semantics.yaml`（+2 条 `family: fma`）、`check_fp_contract` 族集合现场派生（14→15，不写死）、`check_scope`（无写死常量，现场派生）与 changelog、速查表/合法性清单/ISA 矩阵/`contract-asm-list` 重生成、只读锁 sha。
 - **约束**：**只**改 `ftfma`/`fofma` 相关记录与本册必需的计数/族表；其它记录**逐字节不变**；不改判定语义（只改计数常量与族枚举）；不 commit/push。
 
 ## 设计要点（**不预设唯一实现**，但下列各点必须覆盖）
