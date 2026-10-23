@@ -244,7 +244,10 @@ group = "simrisc-00..12"
 # 2026-10-23（SPEC-157t，同授权；用户 2026-10-22「格式改为rrrr，即4个操作数」）：新增 §2.5「融合乘加
 #   （fusedMultiplyAdd）」（`ftfma`/`fofma`：`rrrr` 四操作数、精确积只舍入一次、先读后写、NaN/Inf/±0/OF/UF/NX、
 #   `dst_rf0`）+ 附录 A/B 生成区重生成；sha256 同笔重算（其余只读册不变）。
-sha256 = "5a96be74175af67492b987f6bfaca3ca5a91ec0aa2a1669103fd2d27dea4a30f"
+# 2026-10-23（SPEC-158t，用户 2026-10-23 口径「纯账面迁移」）：`ftfma`/`fofma` 解除 `excluded`（`scope` → `fp`，
+#   语义/编码均不变）⇒ 附录 B 生成区重生成（`dst_rf0` 清单 +2、删 decode ILLI 区块）；sha256 同笔重算
+#   （其余只读册不变）。
+sha256 = "28b1474b1f758bff1e53452842c5c0b2d703c9abc6bead595e144e7a8ffb0a26"
 
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"

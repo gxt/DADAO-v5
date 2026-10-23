@@ -1,10 +1,11 @@
-# contracts/fp_semantics.yaml — DADAO SimRISC 0.5.4 FP 语义投影（scope: fp，64 条）
+# contracts/fp_semantics.yaml — DADAO SimRISC 0.5.4 FP 语义投影（scope: fp，66 条）
 #
 # 来源（Spec-first，不从 LLVM/QEMU 反推）：
 #   spec/SimRISC-00 §浮点寄存器 / §浮点状态寄存器
 #   spec/SimRISC-07 §格式转换指令 / §S2D1 / §S1D1 / §浮点符号位操作指令 /
 #                   §浮点比较指令 / §浮点分类指令 / §取整（roundToIntegral） /
-#                   §最小最大值（minimumNumber / maximumNumber）
+#                   §最小最大值（minimumNumber / maximumNumber） /
+#                   §融合乘加（fusedMultiplyAdd）
 #   spec/SimRISC-01 §存取RF寄存器
 #   spec/SimRISC-02 §寄存器组之间块赋值 / §浮点条件赋值
 #   spec/SimRISC-03 §立即数常数赋值：Immediate constant
@@ -18,7 +19,7 @@
 
 version: "0.5.4"
 scope: fp
-count: 64
+count: 66
 
 # ── FCSR（rf0）环境 ─────────────────────────────────────────────────────────
 fcsr:
@@ -58,7 +59,7 @@ fcsr:
     "4": NX
   no_trap: true
 
-# ── 14 个语义族（计数见 §1.3；required_keys 为每条记录必须携带的键）──────────
+# ── 15 个语义族（计数见 §1.3；required_keys 为每条记录必须携带的键）──────────
 families:
   convert_ff:
     spec_cite: "SimRISC-07: 格式转换指令"
@@ -116,8 +117,12 @@ families:
     spec_cite: "SimRISC-07: 最小最大值（minimumNumber / maximumNumber）"
     semantics_ref: "contract-fp.md#minmax"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
+  fma:
+    spec_cite: "SimRISC-07: 融合乘加（fusedMultiplyAdd）"
+    semantics_ref: "contract-fp.md#fma"
+    required_keys: [family, spec_cite, semantics_ref, legality_refs]
 
-# ── 64 条指令（id 集合须与 opcodes.yaml 中 scope=="fp" 双向一致）──────────────
+# ── 66 条指令（id 集合须与 opcodes.yaml 中 scope=="fp" 双向一致）──────────────
 instructions:
   # convert_ff（4）
   - id: ft2fo_orri_rf
@@ -465,4 +470,16 @@ instructions:
     family: minmax
     spec_cite: "SimRISC-07: 最小最大值（minimumNumber / maximumNumber）"
     semantics_ref: "contract-fp.md#minmax"
+    legality_refs: [dst_rf0]
+
+  # fma（2，SPEC-158t）
+  - id: ftfma_rrrr_rf
+    family: fma
+    spec_cite: "SimRISC-07: ftfma"
+    semantics_ref: "contract-fp.md#fma"
+    legality_refs: [dst_rf0]
+  - id: fofma_rrrr_rf
+    family: fma
+    spec_cite: "SimRISC-07: fofma"
+    semantics_ref: "contract-fp.md#fma"
     legality_refs: [dst_rf0]

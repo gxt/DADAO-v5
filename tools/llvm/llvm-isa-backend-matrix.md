@@ -1,7 +1,7 @@
 # ISA↔后端覆盖矩阵（生成式，两层分列）
 
 > **生成器**：`tools/llvm/gen_isa_coverage.py`（生成物，勿手工编辑；改生成器或真源后重跑）
-> **真源**：`contracts/opcodes.yaml`（**266** 条 = `m1` 156 + `fp` 64 + `excluded` 4 + `m3` 1 + `m8` 7 + `m9` 34；计数由脚本现场统计，不写死）
+> **真源**：`contracts/opcodes.yaml`（**266** 条 = `m1` 156 + `fp` 66 + `excluded` 2 + `m3` 1 + `m8` 7 + `m9` 34；计数由脚本现场统计，不写死）
 > **重跑**：`python3 tools/llvm/gen_isa_coverage.py`　**门控（反例可失败）**：`python3 tools/llvm/gen_isa_coverage.py --check`
 > **机器可读**：`tools/llvm/llvm-isa-backend-matrix.tsv`（同源同批生成）
 
@@ -125,7 +125,7 @@
 | `foadd_orrr_rf` | `foadd` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:901:foadd_orrr_rf |
 | `focls_orri_rf` | `focls` | `orri` | `fp` | accept | no | — |
 | `fodiv_orrr_rf` | `fodiv` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:915:fodiv_orrr_rf |
-| `fofma_rrrr_rf` | `fofma` | `rrrr` | `excluded` | accept | yes | pat:DADAOCodeGen.td.patch:914:fofma_rrrr_rf |
+| `fofma_rrrr_rf` | `fofma` | `rrrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:914:fofma_rrrr_rf |
 | `fomax_orrr_rf` | `fomax` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:958:fomax_orrr_rf;pat:DADAOCodeGen.td.patch:960:fomax_orrr_rf |
 | `fomin_orrr_rf` | `fomin` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:957:fomin_orrr_rf;pat:DADAOCodeGen.td.patch:959:fomin_orrr_rf |
 | `fomul_orrr_rf` | `fomul` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:903:fomul_orrr_rf |
@@ -147,7 +147,7 @@
 | `ftadd_orrr_rf` | `ftadd` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:933:ftadd_orrr_rf |
 | `ftcls_orri_rf` | `ftcls` | `orri` | `fp` | accept | no | — |
 | `ftdiv_orrr_rf` | `ftdiv` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:938:ftdiv_orrr_rf |
-| `ftfma_rrrr_rf` | `ftfma` | `rrrr` | `excluded` | accept | yes | pat:DADAOCodeGen.td.patch:937:ftfma_rrrr_rf |
+| `ftfma_rrrr_rf` | `ftfma` | `rrrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:937:ftfma_rrrr_rf |
 | `ftmax_orrr_rf` | `ftmax` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:962:ftmax_orrr_rf;pat:DADAOCodeGen.td.patch:964:ftmax_orrr_rf |
 | `ftmin_orrr_rf` | `ftmin` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:961:ftmin_orrr_rf;pat:DADAOCodeGen.td.patch:963:ftmin_orrr_rf |
 | `ftmul_orrr_rf` | `ftmul` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:935:ftmul_orrr_rf |

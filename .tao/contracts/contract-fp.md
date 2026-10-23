@@ -2,10 +2,10 @@
 
 > **版本：0.5.4** [SimRISC-00 §浮点寄存器][SimRISC-07 §版本]
 
-本合约归一化 `scope: fp` **64 条**指令的语义（IEEE754 浮点运算、FCSR 环境、合法性），供后续 golden oracle / LLVM / QEMU / testcases 消费。§18 的取整（`ftrnd`/`fornd`）在实现落地后已由 `excluded` 转入 `fp`（`SPEC-162t`），§19 的最小/最大值（`ftmin`/`ftmax`/`fomin`/`fomax`）同样在实现落地后转入 `fp`（`SPEC-160t`），均计入 64 条。[SimRISC-07 §取整（roundToIntegral）][SimRISC-07 §最小最大值]
+本合约归一化 `scope: fp` **66 条**指令的语义（IEEE754 浮点运算、FCSR 环境、合法性），供后续 golden oracle / LLVM / QEMU / testcases 消费。§18 的取整（`ftrnd`/`fornd`）在实现落地后已由 `excluded` 转入 `fp`（`SPEC-162t`），§19 的最小/最大值（`ftmin`/`ftmax`/`fomin`/`fomax`）同样在实现落地后转入 `fp`（`SPEC-160t`），§20 的融合乘加（`ftfma`/`fofma`）亦在实现落地后转入 `fp`（`SPEC-158t`），均计入 66 条。[SimRISC-07 §取整（roundToIntegral）][SimRISC-07 §最小最大值][SimRISC-07 §融合乘加（fusedMultiplyAdd）]
 
 - **编码唯一真源**为 `contracts/opcodes.yaml`（本合约不复制编码）。
-- **机器可读投影**为 `contracts/fp_semantics.yaml`（64 条 `id→family→spec_cite→semantics_ref→legality_refs`）。
+- **机器可读投影**为 `contracts/fp_semantics.yaml`（66 条 `id→family→spec_cite→semantics_ref→legality_refs`）。
 - **合法性规则**见 `contracts/legality_rules.yaml`。
 - 本合约**不含任何期望值**；oracle 方案见 `docs/fp-oracle-design.md`。
 - 所有语义断言均标注 spec/ 依据（Spec-first，不从 LLVM/QEMU 反推）。
@@ -122,14 +122,14 @@
 - 只设置 `wpN` 指定的 16 位，其余 48 位不变。[SimRISC-03 §立即数常数赋值：Immediate constant]
 - `set.w rf0` **合法**：`wp2` 命中舍入模式、`wp0` 命中异常状态、`wp1`/`wp3` 完全写无效（遵 FCSR 写掩码）。[SimRISC-03 §立即数常数赋值：Immediate constant]
 
-## §14 伪指令（非 64 条 id，仅说明）<a id="pseudo"></a>
+## §14 伪指令（非 66 条 id，仅说明）<a id="pseudo"></a>
 
 - `set.ft`/`set.fo` 不是硬件指令，由汇编器展开为 `set.w` 组合：全零 → `rd2rf {rf}, {rd0}`；寄存器传值 → `rd2rf`/`ft2ft`/`fo2fo`。[SimRISC-03 §set.ft / set.fo 伪指令]
-- 伪指令属汇编器展开，**不进** `contracts/opcodes.yaml` 的 64 条。[SimRISC-03 §set.ft / set.fo 伪指令]
+- 伪指令属汇编器展开，**不进** `contracts/opcodes.yaml` 的 66 条。[SimRISC-03 §set.ft / set.fo 伪指令]
 
 ## §15 合法性规则映射
 
-- `dst_rf0`（FP 专属）：浮点运算指令**目的**为 `rf0` → ILLI（39 条：convert_ff 4 + convert_i2f 8 + arith 12 + root 2 + sign 4 + cs_rf 3 + roundint 2 + minmax 4）；`rf0` 作源合法。`rf2rd`/`st.*`/`stm.*`（rf 仅作源、无 rf 目的字段）不适用本规则。[SimRISC-00 §浮点寄存器][SimRISC-01 §存取RF寄存器][SimRISC-02 §浮点条件赋值]
+- `dst_rf0`（FP 专属）：浮点运算指令**目的**为 `rf0` → ILLI（41 条：convert_ff 4 + convert_i2f 8 + arith 12 + root 2 + sign 4 + cs_rf 3 + roundint 2 + minmax 4 + fma 2）；`rf0` 作源合法。`rf2rd`/`st.*`/`stm.*`（rf 仅作源、无 rf 目的字段）不适用本规则。[SimRISC-00 §浮点寄存器][SimRISC-01 §存取RF寄存器][SimRISC-02 §浮点条件赋值]
 - `encode_fp_root_n`（FP 专属）：`ftroot`/`foroot` 仅 n=2，其他 n → ILLI（2 条）。[SimRISC-07 §S1D1]
 - `encode_onehot`（与 `rev.*` 共享）：`roundint` 两条的 `immu6` 非 one-hot（含 `0x00`）→ ILLI（2 条）；六档 one-hot 与 754-2019 六种 `roundToIntegral` 按位序一一对应，复用既有规则、不新增规则。[SimRISC-07 §取整（roundToIntegral）]
 - `mreg_zero`（与 M1 共享，同时服务 RD/RB/RA 多寄存器）：FP `immu6` 连续个数形式 `immu6 = 0` → ILLI（28 条）。[SimRISC-07 §格式转换指令][SimRISC-01 §存取RF寄存器][SimRISC-02 §寄存器组之间块赋值]
@@ -153,7 +153,7 @@
 
 ## §18 `roundint`（取整：roundToIntegral 六档）<a id="roundint"></a>
 
-> **范围**：本节 2 条为 `scope: fp`（`QEMU-072t`/`LLVM-125t` 落地后由 `SPEC-162t` 解除 `excluded`、撤销 `decode: ILLI`），计入 `scope: fp` 64 条并投影为 `contracts/fp_semantics.yaml` 的 `family: roundint`；语义在此冻结，供 oracle / LLVM / QEMU / testcases 消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。[SimRISC-07 §取整（roundToIntegral）]
+> **范围**：本节 2 条为 `scope: fp`（`QEMU-072t`/`LLVM-125t` 落地后由 `SPEC-162t` 解除 `excluded`、撤销 `decode: ILLI`），计入 `scope: fp` 66 条并投影为 `contracts/fp_semantics.yaml` 的 `family: roundint`；语义在此冻结，供 oracle / LLVM / QEMU / testcases 消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。[SimRISC-07 §取整（roundToIntegral）]
 
 - 指令：`ftrnd`/`fornd`（orri：`rfHB` 目的、`rfHC` 源、`immu6` = 取整模式）。`ftrnd` 作用于 ft（32 位，p = 24）、`fornd` 作用于 fo（64 位，p = 53）。[SimRISC-07 §取整（roundToIntegral）]
 - `immu6` 为 **one-hot 六档**（恰一位为 1），与 IEEE 754-2019 §5.3.1 的 `roundToIntegral` 六种操作**按位序一一对应**。[SimRISC-07 §取整（roundToIntegral）]
@@ -169,7 +169,7 @@
 
 ## §19 `minmax`（最小/最大值：`minimumNumber` / `maximumNumber`）<a id="minmax"></a>
 
-> **范围**：本节 4 条为 `scope: fp`（`QEMU-071t`/`LLVM-124t` 落地后由 `SPEC-160t` 解除 `excluded`、撤销 `decode: ILLI`），计入 `scope: fp` 64 条并投影为 `contracts/fp_semantics.yaml` 的 `family: minmax`；语义在此冻结，供 oracle / LLVM / QEMU / testcases 消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。[SimRISC-07 §最小最大值]
+> **范围**：本节 4 条为 `scope: fp`（`QEMU-071t`/`LLVM-124t` 落地后由 `SPEC-160t` 解除 `excluded`、撤销 `decode: ILLI`），计入 `scope: fp` 66 条并投影为 `contracts/fp_semantics.yaml` 的 `family: minmax`；语义在此冻结，供 oracle / LLVM / QEMU / testcases 消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。[SimRISC-07 §最小最大值]
 
 - 指令：`ftmin`/`ftmax`/`fomin`/`fomax`（orrr：`rfHB` 目的、`rfHC`/`rfHD` 源）；`ft*` 作用于 ft（32 位）、`fo*` 作用于 fo（64 位）。硬件先读全部源再写结果，源与目的允许重叠。[SimRISC-07 §最小最大值]
 - 语义 = IEEE 754-2019 §9.6 `minimumNumber`/`maximumNumber`（**严格版**，与 RISC-V `FMIN.S`/`FMAX.S` 逐条一致）：`x < y` ⇒ `min` 取 x、`max` 取 y；`y < x` ⇒ 反之。[SimRISC-07 §最小最大值]
@@ -183,7 +183,7 @@
 
 ## §20 `fma`（融合乘加：`fusedMultiplyAdd`）<a id="fma"></a>
 
-> **范围**：本节 2 条（`ftfma`/`fofma`）当前为 `scope: excluded`（`decode: ILLI`），**尚不**计入 `contracts/fp_semantics.yaml` 的投影；`QEMU-070t`/`LLVM-123t` 落地后由 `SPEC-158t` 翻转为 `scope: fp` 并新增族 `fma`。语义在此冻结，供 oracle / LLVM / QEMU / testcases 消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。`spec_cite`：`SimRISC-07: ftfma`、`SimRISC-07: fofma`。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
+> **范围**：本节 2 条（`ftfma`/`fofma`）为 `scope: fp`（`QEMU-070t`/`LLVM-123t` 落地后由 `SPEC-158t` 解除 `excluded`、撤销 `decode: ILLI`），计入 `scope: fp` 66 条并投影为 `contracts/fp_semantics.yaml` 的 `family: fma`。语义在此冻结，供 oracle / LLVM / QEMU / testcases 消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。`spec_cite`：`SimRISC-07: ftfma`、`SimRISC-07: fofma`。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
 
 - 指令：`ftfma`/`fofma`（`rrrr`：`rfHA` 目的、`rfHB`/`rfHC`/`rfHD` 源）；`ftfma` 作用于 ft（32 位，p = 24）、`fofma` 作用于 fo（64 位，p = 53）。语义 = IEEE 754-2019 `fusedMultiplyAdd(rfHB, rfHC, rfHD)`，即 `rfHA ← rfHB × rfHC + rfHD`。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
 - **单次舍入**：精确积 `rfHB × rfHC`（不先舍入）与 `rfHD` 相加，精确和**只舍入一次**（舍入模式 `rf0[33:32]`）；**不等价于** `ftmul`/`fomul` + `ftadd`/`foadd`（后者在积处多舍入一次）。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]

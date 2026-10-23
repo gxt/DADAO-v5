@@ -83,21 +83,22 @@ rules:
       浮点运算指令的**目的**操作数为 rf0 时触发 ILLI 异常
       （rf0 为控制和状态寄存器 FCSR，不可作为浮点运算的目的操作数）；
       rf0 作**源**操作数合法（读出完整 64 位，含 ftsgnj/fosgnj + rfHD=rf0 的 abs() 特例）。
-      **适用（目的 rf0 → ILLI，共 39 条）**：
+      **适用（目的 rf0 → ILLI，共 41 条）**：
       convert_ff 4（ft2ft/ft2fo/fo2ft/fo2fo）、
       convert_i2f 8（it2ft/io2ft/ut2ft/uo2ft/it2fo/io2fo/ut2fo/uo2fo）、
       arith 12（ftadd/ftsub/ftmul/ftdiv/ftrem/ftsclb/foadd/fosub/fomul/fodiv/forem/fosclb）、
       root 2（ftroot/foroot）、sign 4（ftsgnj/ftsgnn/fosgnj/fosgnn）、
       cs_rf 3（cs.n/z/p 的目的 rfHB 或 rfHC；`cs.eq/ne` 的 rf 变体已由 `SPEC-163t` 删除）、
       roundint 2（ftrnd/fornd 的目的 rfHB，`SPEC-162t` 翻转）、
-      minmax 4（ftmin/ftmax/fomin/fomax 的目的 rfHB，`SPEC-160t` 翻转）。
+      minmax 4（ftmin/ftmax/fomin/fomax 的目的 rfHB，`SPEC-160t` 翻转）、
+      fma 2（ftfma/fofma 的目的 rfHA，`SPEC-158t` 翻转）。
       **不适用（该指令无 rf 目的字段，rf 仅作源）**：rf2rd、st.t/st.o、stm.t/stm.o（-rf）；
       只读类 14 条（convert_f2i 8、classify 2、compare 4，目的均为 rd）亦无 rf 目的字段，不涉及。
       **例外（rf0 作目的合法）**：rd2rf（含 {rf0:rf0+immu6-1}，immu6≥2 允许）、
       ld.t/ld.o/ldm.t/ldm.o（按 FCSR 写掩码）、set.w。
       **源 rf0 合法（不触发本规则）**：上述各指令及 cs.*-rf 的 rf0-源角色（读出完整 64 位）。
       本规则 active（FP 已实现，LLVM-029t/030t、QEMU-034t–037t）；由 scope: fp 记录的
-      rule_refs 覆盖（39 条）。
+      rule_refs 覆盖（41 条）。
 
   # ── 多寄存器范围规则 ─────────────────────────────────────────────────────────
   - id: mreg_zero

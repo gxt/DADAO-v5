@@ -3,12 +3,12 @@
 
 每条记录带 `scope` 字段（互斥、穷尽，用户裁定 2026-10-03）：
   - `scope: m1`（156 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统 + 特权 cfx `trap`/`escape`/`cfx2rd`/`cfx2rc`）；
-  - `scope: fp`（64 条）——原生浮点范围（RF 存取/搬移/条件赋值 + OPC-RF 运算/转换/比较
-    + 取整 `ftrnd`/`fornd` + 最小最大值 `ftmin`/`ftmax`/`fomin`/`fomax`），独立于 M1，
+  - `scope: fp`（66 条）——原生浮点范围（RF 存取/搬移/条件赋值 + OPC-RF 运算/转换/比较
+    + 取整 `ftrnd`/`fornd` + 最小最大值 `ftmin`/`ftmax`/`fomin`/`fomax`
+    + 融合乘加 `ftfma`/`fofma`），独立于 M1，
     **已实现**（LLVM-029t/030t、QEMU-034t–037t；取整见 `QEMU-072t`/`LLVM-125t`；
-    最小最大值见 `QEMU-071t`/`LLVM-124t`）；
-  - `scope: excluded`（4 条）——编码已定义、尚未实现：特权 cfx `cfxld`/`cfxst` 2 条
-    + 融合乘加 `ftfma`/`fofma` 2 条（`SPEC-157t` 立册；实现落地后由 `SPEC-158t` 转入 `fp`）
+    最小最大值见 `QEMU-071t`/`LLVM-124t`；融合乘加见 `QEMU-070t`/`LLVM-123t`）；
+  - `scope: excluded`（2 条）——编码已定义、尚未实现：特权 cfx `cfxld`/`cfxst` 2 条
     （`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`；
     `ADR-0034` 将 `lr/sc` 由 8 条重排为 24 条；`SPEC-161t` 立取整 2 条、
     `SPEC-162t` 实现落地后将其由 `excluded` 转入 `fp`；`SPEC-159t` 立最小最大值 4 条、
@@ -493,11 +493,12 @@ def build_main_table(records):
     # `rrrr` = 1 目的（`rfHA`）+ 3 源（`rfHB`/`rfHC`/`rfHD`），语义
     # `rfHA ← rfHB × rfHC + rfHD`（IEEE 754-2019 `fusedMultiplyAdd`，单次舍入）。
     # `rrrr` 无 opx ⇒ 每条占一个整 op 字节。`dst_rf0` 合法性与既有 FP 族同型；
-    # 先立为 `scope: excluded`（decode ILLI），实现落地后由 SPEC-158t 翻转为 `fp`。
+    # SPEC-157t 先立为 `scope: excluded`（decode ILLI），QEMU-070t/LLVM-123t 落地后由
+    # SPEC-158t 翻转为 `fp`（rule_refs 由 legality 表达式派生为 dst_rf0）。
     for op, mnem in ((0x5E, "ftfma"), (0x5F, "fofma")):
         records.append(rec(mnem, mnem, "rrrr", op,
                            f_rrrr("rfha", "rfhb", "rfhc", "rfhd"),
-                           ["rfha != rf0"], S07_FMA, scope="excluded"))
+                           ["rfha != rf0"], S07_FMA, scope="fp"))
 
     # ── 0110-0xxx：条件赋值（rrrr）──
     records.append(rec("cs.n-rd", "cs.n", "rrrr", 0x60,
@@ -876,6 +877,7 @@ EXPR_TO_RULE = OrderedDict([
     ("no_overlap(rdhb, rdhc, immu6)",             "mreg_range_overlap"),
     ("no_overlap(rbhb, rbhc, immu6)",             "mreg_range_overlap"),
     # ── FP（scope: fp）目的/范围（SPEC-089t；来源 contract-fp.md §15 + fp_semantics.yaml）──
+    ("rfha != rf0",                               "dst_rf0"),
     ("rfhb != rf0",                               "dst_rf0"),
     ("rfhc != rf0",                               "dst_rf0"),
     ("rfha + immu6 <= 64",                        "mreg_range_overflow"),
@@ -960,7 +962,7 @@ def main():
         f.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md\n")
         f.write("# M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统\n")
         f.write("# scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；\n")
-        f.write("# scope: excluded 为特权 cfx（cfxld/cfxst）与融合乘加（ftfma/fofma），尚未实现，\n")
+        f.write("# scope: excluded 为特权 cfx（cfxld/cfxst），尚未实现，\n")
         f.write("#   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
         f.write("# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份\n")
         f.write("# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + "
