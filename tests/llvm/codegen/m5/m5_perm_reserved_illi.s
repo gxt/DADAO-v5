@@ -3,7 +3,7 @@
 @@ Capability / permission counter-example: a general `trap` whose cfxha is a
 @@ reserved code (7-14, 19-61) must fail with ILLI, redirected to the current-mode
 @@ monitor (contract-see.md §3 "reserved cfxha (7-14, 19-61) 触发 ILLI";
-@@ DADAO-12 §5; SimRISC-11 §特权指令).  cfxha 7 is reserved (contract-cfx-aliases
+@@ DADAO-12 §5; SimRISC-11 指令域与执行条件).  cfxha 7 is reserved (contract-cfx-aliases
 @@ §1 lists only umon/jmon/smon/hmon/ptw/tlb/cache/hart/llc/pmem/timer/uart/power).
 @@
 @@ The application runs in user mode after the SEE bootrom handoff; the bootrom

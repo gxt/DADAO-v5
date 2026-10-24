@@ -277,12 +277,14 @@ S06_JMP = "SimRISC-06: 无条件跳转指令"
 S06_CALL = "SimRISC-06: 函数调用"
 S06_RET = "SimRISC-06: 函数返回"
 
-# 其它（SimRISC-11）
-S11_SWYM = "SimRISC-11: 占位指令"
+# 核芯功能扩展（SimRISC-11）：`trap`/`escape`/`cfx2rd`/`cfx2rc` 编码出自 QFC 主表（SimRISC-00）；
+# `cfxld`/`cfxst` 的语义待定，正文同册。
 
-# 待定（SimRISC-12）
-S12_FENCE = "SimRISC-11: fence指令"
-S12_LRSC = "SimRISC-11: LR-SC指令"
+# 其它指令（SimRISC-12）
+S12_FENCE = "SimRISC-12: fence指令"
+S12_LRSC = "SimRISC-12: LR-SC指令"
+S12_SWYM = "SimRISC-12: 空转指令"
+S12_BIT = "SimRISC-12: 位扫描与位计数"
 
 # QFC/OPC-RF（SimRISC-00）
 S00_QFC = "SimRISC-00: SimRISC QFC"
@@ -564,7 +566,7 @@ def build_main_table(records):
 
     # ── 0111-1xxx：特权 cfx ──
     # SPEC-115t：trap/escape/cfx2rd/cfx2rc re-scope excluded → m1（已实现，MC 可汇编）。
-    # cfxld/cfxst 保持 scope: excluded（SimRISC-12 待定，decode ILLI）。
+    # cfxld/cfxst 保持 scope: excluded（SimRISC-11 SRAM块传输指令（待定），decode ILLI）。
     records.append(rec("cfx2rd-crrr", "cfx2rd", "crrr", 0x7A,
                        f_crrr(), [], S00_QFC, scope="m1"))
     records.append(rec("cfx2rc-crrr", "cfx2rc", "crrr", 0x7B,
@@ -593,7 +595,7 @@ def build_misc_amo(records):
                        S12_FENCE, ha=0x20, scope="m9"))
     # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 OPC-MISC 100-010（ha=0x22）
     records.append(rec("swym-oiii", "swym", "oiii", op, f_oiii("immu18"),
-                       [], S11_SWYM, ha=0x22))
+                       [], S12_SWYM, ha=0x22))
     # ADR-0034 D3/D4/D5（方案 A）：命名 `<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`（宽度在前）；
     # lr 占 000/001 两行（nn/an/ar，`lr.*.nr` 删除）、sc 占 010/011 两行（nn/nr/ar，
     # `sc.*.an` 删除）；组内宽度顺序 .o → .t → .w → .b。scope：SPEC-164t 由 excluded 转 m9。
@@ -612,7 +614,7 @@ def build_misc_amo(records):
     # 合法性：hd ∈ 0..63 全部合法 ⇒ 不新增规则；沿用 dst_rd0（rdhb != rd0）。
     for mnem, ha in (("ctpop", 0x25), ("ctlz", 0x26), ("cttz", 0x27)):
         records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
-                           ["rdhb != rd0"], S04_BIT, ha=ha, scope="m8"))
+                           ["rdhb != rd0"], S12_BIT, ha=ha, scope="m8"))
 
 
 # ────────────────────────────── OPC-octa ──────────────────────────────
@@ -962,7 +964,7 @@ def main():
         f.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md\n")
         f.write("# M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统\n")
         f.write("# scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；\n")
-        f.write("# scope: excluded 为特权 cfx（cfxld/cfxst），尚未实现，\n")
+        f.write("# scope: excluded 为核芯功能扩展（cfxld/cfxst），尚未实现，\n")
         f.write("#   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
         f.write("# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份\n")
         f.write("# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + "

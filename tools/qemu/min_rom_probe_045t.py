@@ -10,7 +10,7 @@ the QEMU implementation):
     exception table: cause ids), §5 异常进入流程 steps 1-10 + 异常退出流程
     steps 0-4 (escape: escape_cfx_mask / prev_cfx_mask / prev_run_mode /
     escape_num++ / PC = excp_cause_ip + (imms18<<2)).
-  - spec/SimRISC-11-其它.md 「特权指令」 (trap ciii; escape ciii with
+  - spec/SimRISC-11-核芯功能扩展指令.md 「指令域与执行条件」 (trap ciii; escape ciii with
     `imms20` byte offset, `%4==0`, addr = excp_cause_ip + imms20, encoding
     imms18<<2, N may be negative; cfx2rd/cfx2rc crrr; reserved cfxha 7-14,
     19-61 => ILLI; non-existent register combination / RO-write => CFXREG).

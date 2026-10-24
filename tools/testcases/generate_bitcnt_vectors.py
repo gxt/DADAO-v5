@@ -8,7 +8,7 @@
 （M1-only，`scope == "m1"` 过滤）生成；本脚本把向量落到独立的
 `tests/vectors/bitcnt/bitcnt.yaml`。
 
-语义（真源 = `spec/SimRISC-04: Bit manipulating：位操作指令` 的「位扫描与位计数」 + `.tao/contracts/contract-isa.md`）
+语义（真源 = `spec/SimRISC-12: 位扫描与位计数` + `.tao/contracts/contract-isa.md`）
 --------------------------------------------------------------------------------------------
 `hd`（= `orri` 的 6 位立即数 `immu6`，`0..63`）是**有效位上界**：参与运算的是
 `rdHC[hd:0]`（共 `hd+1` 位），`hd` 以上的位**不参与**。
@@ -67,12 +67,12 @@ OUT = ROOT / "tests" / "vectors" / "bitcnt" / "bitcnt.yaml"
 
 MASK64 = (1 << 64) - 1
 
-S04_BIT = "SimRISC-04: Bit manipulating：位操作指令"
+SPEC_BIT = "SimRISC-12: 位扫描与位计数"
 
 # 三条指令：id → mnemonic（语义同一套，`hd` = 有效位上界）
 BITCNT_INSNS = ("ctpop_orri_rd", "ctlz_orri_rd", "cttz_orri_rd")
 
-LEGALITY_CITE = ("SimRISC-04: Bit manipulating：位操作指令; "
+LEGALITY_CITE = ("SimRISC-12: 位扫描与位计数; "
                  "contract-isa §6.4.4; legality_rules.yaml :: dst_rd0")
 
 # 语义输入：低 63 位全 1、bit63 = 0 —— 使「hd 以上的位不参与」可观测

@@ -2,7 +2,7 @@
 @@
 @@ Capability / permission counter-example: reading a non-existent / over-count
 @@ cfx register combination must fail with CFXREG.  contract-see.md §3 (SimRISC-11
-@@ §特权指令: 不存在寄存器组合 => CFXREG); DADAO-12 §3 (rc >= scratch_regs_num =>
+@@ SimRISC-11 指令域与执行条件: 不存在寄存器组合 => CFXREG); DADAO-12 §3 (rc >= scratch_regs_num =>
 @@ CFXREG).  Every cfx has scratch_regs_num = 4 (cg6 rc0..3); asking for
 @@ cfx_umon.cg6.rc63 is outside the register file, so `cfx2rd` raises CFXREG.
 @@

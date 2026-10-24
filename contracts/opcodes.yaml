@@ -2,7 +2,7 @@
 # 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md
 # M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统
 # scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；
-# scope: excluded 为特权 cfx（cfxld/cfxst），尚未实现，
+# scope: excluded 为核芯功能扩展（cfxld/cfxst），尚未实现，
 #   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
 # scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份
@@ -2351,7 +2351,7 @@
     bank: imm
     signed: false
   legality: []
-  spec_cite: 'SimRISC-12: cfxld'
+  spec_cite: 'SimRISC-11: cfxld'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2376,7 +2376,7 @@
     bank: imm
     signed: false
   legality: []
-  spec_cite: 'SimRISC-12: cfxst'
+  spec_cite: 'SimRISC-11: cfxst'
   scope: excluded
   decode: ILLI
   rule_refs: []
@@ -2437,7 +2437,7 @@
   - immu18[17:12] == 0
   - immu18[11:10] == 0
   - immu18[5:4] == 0
-  spec_cite: 'SimRISC-11: fence'
+  spec_cite: 'SimRISC-12: fence'
   scope: m9
   rule_refs:
   - encode_sbz
@@ -2455,7 +2455,7 @@
     bank: imm
     signed: false
   legality: []
-  spec_cite: 'SimRISC-11: swym'
+  spec_cite: 'SimRISC-12: swym'
   scope: m1
   rule_refs: []
 - id: lr.o.nn_orrr_rd
@@ -2479,7 +2479,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: lr.o.nn'
+  spec_cite: 'SimRISC-12: lr.o.nn'
   scope: m9
   rule_refs: []
 - id: lr.t.nn_orrr_rd
@@ -2503,7 +2503,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: lr.t.nn'
+  spec_cite: 'SimRISC-12: lr.t.nn'
   scope: m9
   rule_refs: []
 - id: lr.w.nn_orrr_rd
@@ -2527,7 +2527,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: lr.w.nn'
+  spec_cite: 'SimRISC-12: lr.w.nn'
   scope: m9
   rule_refs: []
 - id: lr.b.nn_orrr_rd
@@ -2551,7 +2551,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: lr.b.nn'
+  spec_cite: 'SimRISC-12: lr.b.nn'
   scope: m9
   rule_refs: []
 - id: lr.o.an_orrr_rd
@@ -2575,7 +2575,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: lr.o.an'
+  spec_cite: 'SimRISC-12: lr.o.an'
   scope: m9
   rule_refs: []
 - id: lr.t.an_orrr_rd
@@ -2599,7 +2599,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: lr.t.an'
+  spec_cite: 'SimRISC-12: lr.t.an'
   scope: m9
   rule_refs: []
 - id: lr.w.an_orrr_rd
@@ -2623,7 +2623,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: lr.w.an'
+  spec_cite: 'SimRISC-12: lr.w.an'
   scope: m9
   rule_refs: []
 - id: lr.b.an_orrr_rd
@@ -2647,7 +2647,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: lr.b.an'
+  spec_cite: 'SimRISC-12: lr.b.an'
   scope: m9
   rule_refs: []
 - id: lr.o.ar_orrr_rd
@@ -2671,7 +2671,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: lr.o.ar'
+  spec_cite: 'SimRISC-12: lr.o.ar'
   scope: m9
   rule_refs: []
 - id: lr.t.ar_orrr_rd
@@ -2695,7 +2695,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: lr.t.ar'
+  spec_cite: 'SimRISC-12: lr.t.ar'
   scope: m9
   rule_refs: []
 - id: lr.w.ar_orrr_rd
@@ -2719,7 +2719,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: lr.w.ar'
+  spec_cite: 'SimRISC-12: lr.w.ar'
   scope: m9
   rule_refs: []
 - id: lr.b.ar_orrr_rd
@@ -2743,7 +2743,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: lr.b.ar'
+  spec_cite: 'SimRISC-12: lr.b.ar'
   scope: m9
   rule_refs: []
 - id: sc.o.nn_orrr_rd
@@ -2767,7 +2767,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: sc.o.nn'
+  spec_cite: 'SimRISC-12: sc.o.nn'
   scope: m9
   rule_refs: []
 - id: sc.t.nn_orrr_rd
@@ -2791,7 +2791,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: sc.t.nn'
+  spec_cite: 'SimRISC-12: sc.t.nn'
   scope: m9
   rule_refs: []
 - id: sc.w.nn_orrr_rd
@@ -2815,7 +2815,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: sc.w.nn'
+  spec_cite: 'SimRISC-12: sc.w.nn'
   scope: m9
   rule_refs: []
 - id: sc.b.nn_orrr_rd
@@ -2839,7 +2839,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: sc.b.nn'
+  spec_cite: 'SimRISC-12: sc.b.nn'
   scope: m9
   rule_refs: []
 - id: sc.o.nr_orrr_rd
@@ -2863,7 +2863,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: sc.o.nr'
+  spec_cite: 'SimRISC-12: sc.o.nr'
   scope: m9
   rule_refs: []
 - id: sc.t.nr_orrr_rd
@@ -2887,7 +2887,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: sc.t.nr'
+  spec_cite: 'SimRISC-12: sc.t.nr'
   scope: m9
   rule_refs: []
 - id: sc.w.nr_orrr_rd
@@ -2911,7 +2911,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: sc.w.nr'
+  spec_cite: 'SimRISC-12: sc.w.nr'
   scope: m9
   rule_refs: []
 - id: sc.b.nr_orrr_rd
@@ -2935,7 +2935,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: sc.b.nr'
+  spec_cite: 'SimRISC-12: sc.b.nr'
   scope: m9
   rule_refs: []
 - id: sc.o.ar_orrr_rd
@@ -2959,7 +2959,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: sc.o.ar'
+  spec_cite: 'SimRISC-12: sc.o.ar'
   scope: m9
   rule_refs: []
 - id: sc.t.ar_orrr_rd
@@ -2983,7 +2983,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: sc.t.ar'
+  spec_cite: 'SimRISC-12: sc.t.ar'
   scope: m9
   rule_refs: []
 - id: sc.w.ar_orrr_rd
@@ -3007,7 +3007,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: sc.w.ar'
+  spec_cite: 'SimRISC-12: sc.w.ar'
   scope: m9
   rule_refs: []
 - id: sc.b.ar_orrr_rd
@@ -3031,7 +3031,7 @@
     role: src
     bank: rb
   legality: []
-  spec_cite: 'SimRISC-11: sc.b.ar'
+  spec_cite: 'SimRISC-12: sc.b.ar'
   scope: m9
   rule_refs: []
 - id: ctpop_orri_rd
@@ -3057,7 +3057,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  spec_cite: 'SimRISC-04: ctpop'
+  spec_cite: 'SimRISC-12: ctpop'
   scope: m8
   rule_refs:
   - dst_rd0
@@ -3084,7 +3084,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  spec_cite: 'SimRISC-04: ctlz'
+  spec_cite: 'SimRISC-12: ctlz'
   scope: m8
   rule_refs:
   - dst_rd0
@@ -3111,7 +3111,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  spec_cite: 'SimRISC-04: cttz'
+  spec_cite: 'SimRISC-12: cttz'
   scope: m8
   rule_refs:
   - dst_rd0

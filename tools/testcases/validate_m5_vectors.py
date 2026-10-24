@@ -92,7 +92,7 @@ CAUSE_ID = {
 #   mask_forbidden     : "cfxha 合法但指令 cfx mask 禁止亦触发 ILLI"     [DADAO-12 §3/§5]
 #   unimplemented_cfx  : "访问未实现的核芯功能扩展 ... 触发 CFXREG"       [DADAO-22 §3]
 #   bad_register_combo : non-existent / over-count register combination => CFXREG
-#                        [DADAO-12: 共有寄存器设计规范 rc >= scratch_regs_num; SimRISC-11: 特权指令]
+#                        [DADAO-12: 共有寄存器设计规范 rc >= scratch_regs_num; SimRISC-11: 指令域与执行条件]
 RULE_CAUSE = {
     "reserved_cfxha": "ILLI",
     "mask_forbidden": "ILLI",

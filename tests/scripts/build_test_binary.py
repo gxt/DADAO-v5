@@ -345,7 +345,7 @@ def build_test_section(vector_case):
 
     Optional ``sequence: [word, word, ...]`` emits several raw encoding words
     back to back.  It exists for `sc`, whose success path is only reachable
-    after a same-address `lr` (SimRISC-11 §4.2) and therefore cannot be
+    after a same-address `lr` (SimRISC-12 原子指令) and therefore cannot be
     expressed by a single instruction (QEMU-067t; see the task book's
     "已知边界").  When ``sequence`` is absent the behaviour is byte-identical
     to before.

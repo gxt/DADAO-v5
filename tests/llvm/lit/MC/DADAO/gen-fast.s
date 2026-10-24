@@ -31,17 +31,17 @@ cfx2rc cfx63, cg8, rc1, rd8
 @@ ASM: call [rb0, 12]
 call [rb0, 12]
 
-@@ @src fence_oiii_imm 47800000 | SimRISC-11: fence
+@@ @src fence_oiii_imm 47800000 | SimRISC-12: fence
 @@ OBJ: {{[0-9a-f]+:}} 47 80 00 00{{.*}}fence
 @@ ASM: fence 0
 fence 0
 
-@@ @src swym_oiii_imm 47880008 | SimRISC-11: swym
+@@ @src swym_oiii_imm 47880008 | SimRISC-12: swym
 @@ OBJ: {{[0-9a-f]+:}} 47 88 00 08{{.*}}swym
 @@ ASM: swym 8
 swym 8
 
-@@ @src ctlz_orri_rd 47988241 | SimRISC-04: ctlz
+@@ @src ctlz_orri_rd 47988241 | SimRISC-12: ctlz
 @@ OBJ: {{[0-9a-f]+:}} 47 98 82 41{{.*}}ctlz
 @@ ASM: ctlz rd8, rd9, 1
 ctlz rd8, rd9, 1
@@ -61,12 +61,12 @@ foroot rf8, rf9, 2
 @@ ASM: add.o rb8, rb9, rd10
 add.o rb8, rb9, rd10
 
-@@ @src lr.b.an_orrr_rd 471c0241 | SimRISC-11: lr.b.an
+@@ @src lr.b.an_orrr_rd 471c0241 | SimRISC-12: lr.b.an
 @@ OBJ: {{[0-9a-f]+:}} 47 1c 02 41{{.*}}lr.b.an
 @@ ASM: lr.b.an rd9, [rb1]
 lr.b.an rd9, [rb1]
 
-@@ @src sc.b.ar_orrr_rd 476c8241 | SimRISC-11: sc.b.ar
+@@ @src sc.b.ar_orrr_rd 476c8241 | SimRISC-12: sc.b.ar
 @@ OBJ: {{[0-9a-f]+:}} 47 6c 82 41{{.*}}sc.b.ar
 @@ ASM: sc.b.ar rd8, rd9, [rb1]
 sc.b.ar rd8, rd9, [rb1]

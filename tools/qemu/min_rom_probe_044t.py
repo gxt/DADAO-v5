@@ -8,7 +8,7 @@ the QEMU implementation):
     §3 (cg0-cg7 shared registers, reset values), §4 (per-cfx regs / monitor
     exception tables), §5 (exception entry steps 1-10 + exception exit).
   - spec/DADAO-13-HEE-超管系统运行环境.md §1 (cg3/hypv reset values).
-  - spec/SimRISC-11-其它.md 「特权指令」 (trap/escape/cfx2rd/cfx2rc; reserved => ILLI;
+  - spec/SimRISC-11-核芯功能扩展指令.md 「指令域与执行条件」 (trap/escape/cfx2rd/cfx2rc; reserved => ILLI;
     non-existent register combination => CFXREG).
   - spec/Machine-01-测试机运行环境.md §2/§3 (test-machine cfx set cfx0/1/2/3/63;
     unimplemented cfx => CFXREG).

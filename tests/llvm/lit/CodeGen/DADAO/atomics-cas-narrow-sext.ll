@@ -5,7 +5,7 @@
 ; W bytes of memory, not the whole 64-bit register.
 ;
 ; `lr.b/.w/.t` zero-extends the loaded bytes into the 64-bit result register
-; (SimRISC-11 §4.2), so the expected value must be normalised to the same
+; (SimRISC-12 原子指令), so the expected value must be normalised to the same
 ; width-width zero-extended form.  Since LLVM-127t the cmpxchg operands are
 ; legal i8/i16/i32 values rather than promoted i64 values, so that
 ; normalisation is a single `ext.uo cx, src, 7/15/31` of the expected value

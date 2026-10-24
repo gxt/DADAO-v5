@@ -11,17 +11,17 @@
 
 .text
 
-@@ @src ctlz_orri_rd 47988241 | SimRISC-04: ctlz
+@@ @src ctlz_orri_rd 47988241 | SimRISC-12: ctlz
 @@ OBJ: {{[0-9a-f]+:}} 47 98 82 41{{.*}}ctlz
 @@ ASM: ctlz rd8, rd9, 1
 ctlz rd8, rd9, 1
 
-@@ @src ctpop_orri_rd 47948241 | SimRISC-04: ctpop
+@@ @src ctpop_orri_rd 47948241 | SimRISC-12: ctpop
 @@ OBJ: {{[0-9a-f]+:}} 47 94 82 41{{.*}}ctpop
 @@ ASM: ctpop rd8, rd9, 1
 ctpop rd8, rd9, 1
 
-@@ @src cttz_orri_rd 479c8241 | SimRISC-04: cttz
+@@ @src cttz_orri_rd 479c8241 | SimRISC-12: cttz
 @@ OBJ: {{[0-9a-f]+:}} 47 9c 82 41{{.*}}cttz
 @@ ASM: cttz rd8, rd9, 1
 cttz rd8, rd9, 1

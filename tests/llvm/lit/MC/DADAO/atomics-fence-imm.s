@@ -7,7 +7,7 @@
 @@ RUN: echo 'fence 262144' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=RANGE
 @@ RUN: echo 'fence -1'    | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=RANGE
 
-@@ fence 立即数（ADR-0034 D2 / SimRISC-11 §4.1；LLVM-121t）。
+@@ fence 立即数（ADR-0034 D2 / SimRISC-12 原子指令；LLVM-121t）。
 @@ 18 位立即数 = fm[17:12] | pred[11:6] | succ[5:0]，汇编层写一个无符号立即数；
 @@ PRED_R/W/I/O = 1<<6..1<<9，SUCC_R/W/I/O = 1<<0..1<<3，按 | 组合。
 @@ 合法编码的期望值独立派生自 ADR-0034 D2 的常量表（不从 llvm-mc 反填）：

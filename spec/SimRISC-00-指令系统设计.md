@@ -266,7 +266,7 @@ SimRISC不提供专门的标识位寄存器，而是根据数据寄存器所存�
 
 ## 4. SimRISC QFC
 
-SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved（保留未分配），执行保留编码触发 UNDI 异常。
+SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved（保留未分配）。
 
 |               | xxxx-x000            | xxxx-x001            | xxxx-x010            | xxxx-x011            | xxxx-x100            | xxxx-x101            | xxxx-x110            | xxxx-x111        |
 | ---           | ---                  | ---                  | ---                  | ---                  | ---                  | ---                  | ---                  | ---              |
@@ -289,7 +289,7 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 
 ### 4.1 OPC-MISC 指令编码
 
-空白单元格为 reserved，执行保留编码触发 UNDI 异常。
+空白单元格为 reserved（保留未分配）。
 
 |           | xxx-000      | xxx-001      | xxx-010      | xxx-011      | xxx-100      | xxx-101      | xxx-110      | xxx-111      |
 | ---       | ---          | ---          | ---          | ---          | ---          | ---          | ---          | ---          |
@@ -305,7 +305,7 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 ### 4.2 OPC-octa指令编码
 
 octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
-空白单元格为 reserved，执行保留编码触发 UNDI 异常。
+空白单元格为 reserved（保留未分配）。
 
 |           | xxx-000         | xxx-001         | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---             | ---             | ---           | ---           | ---           | ---           | ---           | ---           |
@@ -321,7 +321,7 @@ octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 ### 4.3 OPC-tetra指令编码
 
 tetra 位宽（32 位）指令。指令名后缀 `.t` 表示 tetra 位宽。
-空白单元格为 reserved，执行保留编码触发 UNDI 异常。
+空白单元格为 reserved（保留未分配）。
 
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
@@ -334,12 +334,12 @@ tetra 位宽（32 位）指令。指令名后缀 `.t` 表示 tetra 位宽。
 | 110-xxx   | mul.ut_orrr_rd   | mul.st_orrr_rd   |               |               |               |               |               |               |
 | 111-xxx   | div.ut_orrr_rd   | div.st_orrr_rd   | rem.ut_orrr_rd   | rem.st_orrr_rd   |               |               |               |               |
 
-> **注**：上表空白单元格 = reserved（UNDI）。
+> **注**：上表空白单元格 = reserved（保留未分配）。
 
 ### 4.4 OPC-wyde指令编码
 
 wyde 位宽（16 位）指令。指令名后缀 `.w` 表示 wyde 位宽。
-空白单元格为 reserved，执行保留编码触发 UNDI 异常。
+空白单元格为 reserved（保留未分配）。
 
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
@@ -352,12 +352,12 @@ wyde 位宽（16 位）指令。指令名后缀 `.w` 表示 wyde 位宽。
 | 110-xxx   | mul.uw_orrr_rd   | mul.sw_orrr_rd   |               |               |               |               |               |               |
 | 111-xxx   | div.uw_orrr_rd   | div.sw_orrr_rd   | rem.uw_orrr_rd   | rem.sw_orrr_rd   |               |               |               |               |
 
-> **注**：上表空白单元格 = reserved（UNDI）。
+> **注**：上表空白单元格 = reserved（保留未分配）。
 
 ### 4.5 OPC-byte指令编码
 
 byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较、乘除等操作。指令名后缀 `.b` 表示 byte 位宽。
-空白单元格为 reserved，执行保留编码触发 UNDI 异常。
+空白单元格为 reserved（保留未分配）。
 
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
@@ -370,13 +370,13 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 | 110-xxx   | mul.ub_orrr_rd   | mul.sb_orrr_rd   |               |               |               |               |               |               |
 | 111-xxx   | div.ub_orrr_rd   | div.sb_orrr_rd   | rem.ub_orrr_rd   | rem.sb_orrr_rd   |               |               |               |               |
 
-> **注**：上表空白单元格 = reserved（UNDI）。
+> **注**：上表空白单元格 = reserved（保留未分配）。
 
 ### 4.6 OPC-RF指令编码
 
 > 取整 `ftrnd_orri_rf`/`fornd_orri_rf` 与最小/最大值 `ftmin_orrr_rf`/`ftmax_orrr_rf`/`fomin_orrr_rf`/`fomax_orrr_rf` 见 SimRISC-07。
 
-空白单元格为 reserved，执行保留编码触发 UNDI 异常。
+空白单元格为 reserved（保留未分配）。
 
 |           | xxx-000     | xxx-001     | xxx-010     | xxx-011     | xxx-100     | xxx-101     | xxx-110     | xxx-111     |
 | ---       | ---         | ---         | ---         | ---         | ---         | ---         | ---         | ---         |
@@ -394,6 +394,19 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 > **伪指令集的权威定义在 `spec/Toolchain-01-汇编语言.md`**。伪指令**不是**硬件指令，由汇编器在前端展开为一条或多条真实硬件指令；**反汇编器只输出真实硬件指令**，不输出伪指令。
 
 本版仅保留「ISA 无法直接表达、需多指令合成」的合成型伪指令（`set.rd`/`set.rb`/`set.ft`/`set.fo`，各有「立即数」与「寄存器」两种源形式）；逐条语法、展开规则与示例见 `Toolchain-01`（`set.*` 的 wyde 级展开示例见 SimRISC-03）。
+
+## 6. 异常规则
+
+### 6.1 非法指令（ILLI）
+
+ILLI（illegal instruction，非法指令）异常由**非法操作数、非法条件**或**已定义但本机器未实现的编码**触发；SimRISC 0.5.4 **不再**提供专门的非法指令助记符。
+
+- 已定义编码但操作数/字段非法时触发 ILLI，例如很多指令不允许目的操作数为 `rd0`、SBZ 字段非零、多寄存器指令 `immu6 = 0` 等。
+- `cfxld`/`cfxst`、LR-SC 原子（`lr`/`sc`）与 `fence` 的已定义编码，在未实现该语义的机器上执行时触发 ILLI。
+
+### 6.2 保留编码（UNDI）
+
+保留编码（QFC 主表 / MISC 子表空白单元格）触发 UNDI 异常，而非 ILLI；32 位全零指令字亦为保留编码，触发 UNDI 异常。
 
 ## 附录：版本与变更记录
 
@@ -430,6 +443,7 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 - 伪指令集收缩：删除 `nop`/`return`/`not.*`/`neg.*` 等 1:1 别名伪指令，仅保留需多指令合成的伪指令。
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`；正文改用新汇编格式；新增「汇编指令速查」「合法性检查」两个附录（生成区）。
 - 新增「原子指令」章（`fence` / `lr`·`sc`），由 `SimRISC-12` 迁入；该册仅余 SRAM 块传输（`cfxld`/`cfxst`）。
+- 分册重组：本册并入非法指令（ILLI）与保留编码（UNDI）的总规则；原「其它指令 / 待定指令」两册改为「核芯功能扩展指令」（`trap`/`escape`/`cfx2rd`/`cfx2rc`，`cfxld`/`cfxst` 待定）与「其它指令」（原子 / 空转 / 位扫描与位计数）。
 
 ### 0.5.4（2026-09-28）
 

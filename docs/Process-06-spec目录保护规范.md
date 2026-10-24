@@ -40,7 +40,7 @@
 |-------|----|
 | `dadao-1x` | `spec/DADAO-11-AEE-应用程序运行环境.md`、`spec/DADAO-12-SEE-主管系统运行环境.md`、`spec/DADAO-13-HEE-超管系统运行环境.md` |
 | `dadao-2x` | `spec/DADAO-21-ABI-应用程序二进制接口.md`、`spec/DADAO-22-SBI-主管系统二进制接口.md`、`spec/DADAO-23-HBI-超管系统二进制接口.md` |
-| `simrisc-00..12` | `spec/SimRISC-00-指令系统设计.md` … `spec/SimRISC-12-待定.md`（共 13 册） |
+| `simrisc-00..12` | `spec/SimRISC-00-指令系统设计.md` … `spec/SimRISC-12-其它指令.md`（共 13 册） |
 | `toolchain-01` | `spec/Toolchain-01-汇编语言.md` |
 | `machine-01` | `spec/Machine-01-测试机运行环境.md` |
 

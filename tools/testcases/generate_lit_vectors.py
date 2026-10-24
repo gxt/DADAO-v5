@@ -218,7 +218,7 @@ def _build_positive(rec):
     if fmt == "orrr":
         a, b, c = fields
         # lr/sc（ADR-0034 D3-D6；LLVM-121t）：地址写成 `[rb]`——lr/sc 的编码没有
-        # 偏移字段，地址就是 rbHD 本身。`lr` 的 hb 固定 rd0（SimRISC-11: LR-SC指令），
+        # 偏移字段，地址就是 rbHD 本身。`lr` 的 hb 固定 rd0（SimRISC-12: LR-SC指令），
         # 汇编只写两个操作数；`sc` 三个（状态/值/地址）。
         if mn.startswith("lr."):
             return ("%s %s, [%s]" % (mn, _reg(b["bank"], 9),

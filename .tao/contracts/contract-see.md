@@ -16,7 +16,7 @@
 
 - DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`（`0b01`）、`supv`（`0b10`）、`hypv`（`0b11`）。[DADAO-12 §1. 运行模式与核芯功能扩展]
 - `hypv`（超管模式）的 cg3 寄存器定义见 HEE（含 `hypv_switch_run_mode`/`hypv_excp_vector`）。[DADAO-13 §1. cg3 - hypv mode 寄存器]
-- `trap`/`escape`/`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst` 可在**任意运行模式**下执行；是否允许由 cfx mask 与指令类型 cfx mask 控制。[SimRISC-11 §特权指令]
+- `trap`/`escape`/`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst` 可在**任意运行模式**下执行；是否允许由 cfx mask 与指令类型 cfx mask 控制。[SimRISC-11 §指令域与执行条件]
 - 异常进入时运行模式/掩码切换为 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 与 `switch_cfx_mask`（异常进入流程步骤 8）。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3. 共有寄存器设计规范]
 - v5 测试机只启用 `hypv`/`user`，**本版不启用 `supv`**、不涉及 `smon`。[ADR-0020 D12][ADR-0004 R1][Machine-01 §2]
 
@@ -61,7 +61,7 @@
 
 | 本合约 § | 内容 | spec/ 来源 |
 |----------|------|-----------|
-| §1 | 运行模式（四模式）、任意模式执行特权指令、switch_run_mode | `DADAO-12 §1. 运行模式与核芯功能扩展`、`§5. 异常进入与异常退出`；`DADAO-13 §1. cg3 - hypv mode 寄存器`；`SimRISC-11 §特权指令` |
+| §1 | 运行模式（四模式）、任意模式执行核芯功能扩展指令、switch_run_mode | `DADAO-12 §1. 运行模式与核芯功能扩展`、`§5. 异常进入与异常退出`；`DADAO-13 §1. cg3 - hypv mode 寄存器`；`SimRISC-11 §指令域与执行条件` |
 | §2 | 核内地址空间 / 复位向量 / CFXMEM / 测试机划分 | `DADAO-12 §2.1 核内地址空间`、`§4. 专有寄存器设计规范`；`ADR-0020 D15`、`ADR-0004 D5.8`/`R3` |
 | §3 | cfx 共有寄存器 / mask / PERM 层次 / 未实现 cfx | `DADAO-12 §3. 共有寄存器设计规范`、`§5. 异常进入与异常退出`、`§2.2.1 超页的地址转换`、`§2.2.2 普通页的地址转换`；`DADAO-22 §3. 系统信息（smon）`；`ADR-0020 D9` |
 | §4 | trap/escape 路由、异常进入/退出 | `DADAO-12 §5. 异常进入与异常退出`、`§异常退出流程`；`DADAO-22 §1. 调用约定`；`SimRISC-11 §退出指令`；`ADR-0020 D10` |

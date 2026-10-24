@@ -3,7 +3,7 @@
 @@ Capability / permission counter-example: accessing an allocated-but-unimplemented
 @@ core function extension must fail with CFXREG (not ILLI).  contract-see.md §3:
 @@ "访问未实现的核芯功能扩展（其 cfx 寄存器）触发 CFXREG"; DADAO-22 §3;
-@@ SimRISC-11 §特权指令.  The M5 test machine implements only cfx0/1/2/3/63
+@@ SimRISC-11 指令域与执行条件.  The M5 test machine implements only cfx0/1/2/3/63
 @@ (ADR-0020 D9 / Machine-01 §3); cfx_ptw (cfxha 4) is allocated by the spec but
 @@ not implemented here, so a `trap` to it raises CFXREG.
 @@

@@ -172,11 +172,11 @@ def primary_feature(entry: dict, ops: list[dict]) -> str:
 
 
 def classify(entry: dict) -> str:
-    """章节分类（优先级：rwii > 取数存数 > 控制流 > 寄存器复制 > 浮点运算 > 位宽 > 64位运算 > 其它）。"""
+    """章节分类（优先级：cfx > rwii > 取数存数 > 控制流 > 寄存器复制 > 浮点运算 > 位宽 > 64位运算 > 其它）。"""
     m = entry["mnemonic"]
-    # 待定 = SRAM 块传输（`cfxld`/`cfxst`），用户裁定 2026-10-21 原子指令归 `其它`
-    if m in ("cfxld", "cfxst"):
-        return "待定"
+    # 核芯功能扩展 = 带 cfx 的 6 条（`cfxld`/`cfxst` 语义待定，同册）
+    if m in ("trap", "escape", "cfx2rd", "cfx2rc", "cfxld", "cfxst"):
+        return "核芯功能扩展"
     if entry["format"] == "rwii":
         return "16位立即数操作"
     if m.startswith(("ld.", "st.", "ldm.", "stm.")):
@@ -191,7 +191,7 @@ def classify(entry: dict) -> str:
             or re.search(r"2f|2rf", m)):
         return "浮点运算"
     if m.startswith(("lr_", "sc_", "lr.", "sc.")):
-        return "其它"
+        return "其它指令"
     if re.search(r"\.(ub|sb|b)$", m):
         return "8位数据运算"
     if re.search(r"\.(uw|sw|w)$", m) or m in ("set.zw", "set.ow"):
@@ -199,9 +199,9 @@ def classify(entry: dict) -> str:
     if re.search(r"\.(ut|st|t)$", m):
         return "32位数据运算"
     if m in ("ctlz", "cttz", "ctpop"):
-        # 位扫描 / 位计数（ADR-0012 D11）：**无位宽后缀**，借 OPC-octa 格位；
-        # 按「64位数据运算」归类，与正文 SimRISC-04: 位扫描与位计数 ctlz/cttz/ctpop（orri 格式） 同处。
-        return "64位数据运算"
+        # 位扫描 / 位计数（ADR-0012 D11）：**无位宽后缀**；正文见
+        # SimRISC-12: 位扫描与位计数 ctlz/cttz/ctpop（orri 格式）。
+        return "其它指令"
     if m == "aip.si":
         # IP 相对寻址（ADR-0029 D1；指令名 `rela.si` → `aip.si`）：`riii`，与前一行
         # 同族的 `add.si` 一样按目的 bank（rb）归「64位地址运算」（正文 SimRISC-05: IP 相对寻址）。
@@ -209,16 +209,18 @@ def classify(entry: dict) -> str:
     if re.search(r"\.(uo|so|o)$", m) or m == "add.si" or m.startswith("cmp."):
         # 64 位运算按寄存器组分：rb（地址）→ 地址运算；其余 → 数据运算
         return "64位地址运算" if any(f.get("bank") == "rb" for f in entry["fields"]) else "64位数据运算"
-    return "其它"
+    return "其它指令"
 
 
-SECTION_ORDER = ["取数存数", "寄存器复制", "16位立即数操作", "64位数据运算", "64位地址运算", "控制流", "浮点运算", "32位数据运算", "16位数据运算", "8位数据运算", "其它", "待定"]
+SECTION_ORDER = ["取数存数", "寄存器复制", "16位立即数操作", "64位数据运算", "64位地址运算", "控制流", "浮点运算", "32位数据运算", "16位数据运算", "8位数据运算", "核芯功能扩展", "其它指令"]
+
+# 语义待定的条目（`cfxld`/`cfxst`，见 SimRISC-11: SRAM块传输指令（待定））。
+DEFERRED_MNEMONICS = frozenset({"cfxld", "cfxst"})
 
 # 章节「范围/状态」标（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）。
 # 章节名 → 标题后缀（含 `｜` 之后的内容）。
 SECTION_BADGES = {
     "浮点运算": "**scope: fp（已实现）**",
-    "待定": "**deferred** — 暂不归类，待必须启用时",
 }
 
 
@@ -229,8 +231,6 @@ def section_badge(cls: str, entries: list[dict]) -> str | None:
     `scope: excluded`（已定义编码、执行 ILLI，如 `ftrnd`/`fornd`）⇒ 须逐类列出，
     不得把整章标成单一 scope（否则标题与表格内容不符）。
     """
-    if cls == "待定":
-        return SECTION_BADGES["待定"]
     if cls == "浮点运算":
         n_fp = sum(1 for e in entries if e.get("scope") == "fp")
         n_ex = sum(1 for e in entries if e.get("scope") == "excluded")
@@ -240,16 +240,6 @@ def section_badge(cls: str, entries: list[dict]) -> str | None:
         return " + ".join(parts)
     return None
 
-# 人读契约（`contract-asm-list.md`）的定案表述覆盖：内部键仍是分类名「待定」，
-# 但输出须表明这是**已定案**的 deferred 分类（用户裁定 2026-10-03，`ADR-0012` D1），
-# 不是「待裁决」（`check-contracts-pending` B4）。**spec/ 内嵌块不动**（只读册）⇒
-# `_section_content()` 仍用 `SECTION_BADGES`，本表只服务契约生成。
-CONTRACT_BADGES = {
-    "待定": "暂不归类（原「待定」章），待必须启用时；分类依据 = `ADR-0012` D1",
-}
-
-# 契约章节显示名（内部键仍是分类名「待定」）。
-SECTION_TITLES = {"待定": "deferred"}
 
 
 def template(entry: dict, ops: list[dict]) -> str:
@@ -491,8 +481,8 @@ CLASS_TO_SPEC = {
     "32位数据运算":  "spec/SimRISC-08-32位数据运算.md",
     "16位数据运算":  "spec/SimRISC-09-16位数据运算.md",
     "8位数据运算":   "spec/SimRISC-10-8位数据运算.md",
-    "其它":         "spec/SimRISC-11-其它.md",
-    "待定":         "spec/SimRISC-12-待定.md",
+    "核芯功能扩展":  "spec/SimRISC-11-核芯功能扩展指令.md",
+    "其它指令":     "spec/SimRISC-12-其它指令.md",
 }
 
 ASSEMBLY_LIST_START = "<!-- ASSEMBLY_LIST_START -->"
@@ -660,20 +650,20 @@ def main() -> int:
     for entry in entries:
         _by_class_tmp.setdefault(classify(entry), []).append(entry)
     _fp_chapter = len(_by_class_tmp.get("浮点运算", []))
-    _pending_chapter = len(_by_class_tmp.get("待定", []))
+    _pending_chapter = sum(1 for e in entries if e["mnemonic"] in DEFERRED_MNEMONICS)
     _fp_chapter_entries = _by_class_tmp.get("浮点运算", [])
     _fp_chapter_fp = sum(1 for e in _fp_chapter_entries if e.get("scope") == "fp")
     _fp_chapter_ex = sum(1 for e in _fp_chapter_entries
                          if e.get("scope") == "excluded")
-    # `scope: excluded` 条目按章分布（`fence`/`lr.*`/`sc.*` 归其它、`cfxld`/`cfxst`
-    # 归 deferred、`ftrnd`/`fornd` 归浮点运算）—— 现场派生，不写死。
+    # `scope: excluded` 条目按章分布（`cfxld`/`cfxst` 归核芯功能扩展、`ftrnd`/`fornd`
+    # 归浮点运算）—— 现场派生，不写死。
     _excluded_by_class: dict[str, int] = {}
     for e in entries:
         if e.get("scope") == "excluded":
             cls = classify(e)
             _excluded_by_class[cls] = _excluded_by_class.get(cls, 0) + 1
     _excluded_dist = " + ".join(
-        f"{SECTION_TITLES.get(cls, cls)} {n} 条"
+        f"{cls} {n} 条"
         for cls in SECTION_ORDER
         if (n := _excluded_by_class.get(cls))
     )
@@ -692,13 +682,13 @@ def main() -> int:
     for cls in SECTION_ORDER:
         if cls not in by_class:
             continue
-        badge = CONTRACT_BADGES.get(cls) or section_badge(cls, by_class[cls])
+        badge = section_badge(cls, by_class[cls])
         if badge:
             rows.append(
-                f"\n### {SECTION_TITLES.get(cls, cls)}（{len(by_class[cls])} 条）｜ {badge}\n"
+                f"\n### {cls}（{len(by_class[cls])} 条）｜ {badge}\n"
             )
         else:
-            rows.append(f"\n### {SECTION_TITLES.get(cls, cls)}（{len(by_class[cls])} 条）\n")
+            rows.append(f"\n### {cls}（{len(by_class[cls])} 条）\n")
         rows.append("| 助记符 | format | feature | 汇编形式 | id |")
         rows.append("|---|---|---|---|---|")
         body = []
@@ -719,8 +709,8 @@ def main() -> int:
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
 > **源**：`contracts/opcodes.yaml`（{total} 条 = M1 {n_m1} + `scope: fp` {n_fp} + `scope: excluded` {n_excluded} + `scope: m3` {n_m3} + `scope: m8` {n_m8} + `scope: m9` {n_m9}）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
-> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **deferred**（原「待定」；暂不归类：`cfxld`/`cfxst`）
-> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（{_fp_chapter} 条）：{_fp_status}；**deferred（原「待定」）**（{_pending_chapter} 条）为暂不归类状态（分类依据 = `ADR-0012` D1）；`scope: m1` {n_m1} 条为当前有效书写形式；`scope: excluded` 共 {n_excluded} 条，按章分布为 {_excluded_dist}
+> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 核芯功能扩展（`trap`/`escape`/`cfx2rd`/`cfx2rc`；`cfxld`/`cfxst` 见 `deferred`） / 其它指令（原子 / 空转 / 位扫描与位计数）
+> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（{_fp_chapter} 条）：{_fp_status}；**deferred**（{_pending_chapter} 条：`cfxld`/`cfxst`）为语义待定状态（分类依据 = `ADR-0012` D1）；`scope: m1` {n_m1} 条为当前有效书写形式；`scope: excluded` 共 {n_excluded} 条，按章分布为 {_excluded_dist}
 > **注（`scope: fp` 范围总账 = {n_fp} 条）**：浮点运算章 {_fp_chapter_fp} 条（OPC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 5 条（`cs.n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{{rdHA:rdHA+immu6-1}}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `spec/Toolchain-01-汇编语言.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
