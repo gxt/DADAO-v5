@@ -2,7 +2,7 @@
 """Generate the L3 atomic vectors — `fence` + the 24 `lr`/`sc` identities.
 
 Source of truth (Spec-first; nothing is read back from QEMU or LLVM):
-  * contracts/opcodes.yaml          — encoding (op/ha/mask/value), id, format
+  * contracts/opcodes.yaml          — encoding (opc/ha/mask/value), id, format
   * spec/SimRISC-12: fence指令 / LR-SC指令     — fence bit fields, lr/sc semantics
   * .tao/adr/adr-0034-atomics-encoding.md — `D2` (fence fields), `D6`
     (alignment per data width, reservation rules)
@@ -140,7 +140,7 @@ def state(rd=None, rb=None, memory=None):
 # ---------------------------------------------------------------------------
 
 def build_word(rec, hb, hc, hd):
-    return ((_int(rec["op"]) << 24) | (_int(rec["ha"]) << 18)
+    return ((_int(rec["opc"]) << 24) | (_int(rec["ha"]) << 18)
             | ((hb & 0x3F) << 12) | ((hc & 0x3F) << 6) | (hd & 0x3F))
 
 
@@ -157,7 +157,7 @@ def sc_word(rec, flag_rd, data_rd, addr_rb):
 
 def fence_word(rec, immu18):
     """Fence word: op/ha come from opcodes.yaml (no hardcoded encoding)."""
-    return ((_int(rec["op"]) << 24) | (_int(rec["ha"]) << 18)
+    return ((_int(rec["opc"]) << 24) | (_int(rec["ha"]) << 18)
             | (immu18 & 0x3FFFF))
 
 

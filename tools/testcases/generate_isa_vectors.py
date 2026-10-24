@@ -162,29 +162,29 @@ for key, rec in BY_KEY.items():
 
 # ── Encoding word construction helpers ─────────────────────────────────
 def _build_word_rrrr(rec, rdha, rdhb, rdhc, rdhd):
-    op = _int(rec["op"])
+    op = _int(rec["opc"])
     return (op << 24) | (rdha << 18) | (rdhb << 12) | (rdhc << 6) | rdhd
 
 def _build_word_orrr(rec, rdhb, rdhc, rdhd):
-    op = _int(rec["op"])
+    op = _int(rec["opc"])
     ha = _int(rec["ha"])
     return (op << 24) | (ha << 18) | (rdhb << 12) | (rdhc << 6) | rdhd
 
 def _build_word_orri(rec, rdhb, rdhc, immu6):
-    op = _int(rec["op"])
+    op = _int(rec["opc"])
     ha = _int(rec["ha"])
     return (op << 24) | (ha << 18) | (rdhb << 12) | (rdhc << 6) | immu6
 
 def _build_word_rrii(rec, rdha, rdhb, imm12):
-    op = _int(rec["op"])
+    op = _int(rec["opc"])
     return (op << 24) | (rdha << 18) | (rdhb << 12) | (imm12 & 0xFFF)
 
 def _build_word_riii(rec, rdha, imm18):
-    op = _int(rec["op"])
+    op = _int(rec["opc"])
     return (op << 24) | (rdha << 18) | (imm18 & 0x3FFFF)
 
 def _build_word_rwii(rec, rdha, wpN, immu16):
-    op = _int(rec["op"])
+    op = _int(rec["opc"])
     hi4 = (immu16 >> 12) & 0xF
     mid6 = (immu16 >> 6) & 0x3F
     lo6 = immu16 & 0x3F

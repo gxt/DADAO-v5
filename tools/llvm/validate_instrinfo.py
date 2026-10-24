@@ -219,7 +219,7 @@ def join_key(mnemonic: str | None, fmt: str | None,
 
 def rec_key(rec: dict) -> tuple:
     return join_key(rec.get("mnemonic"), rec.get("format"),
-                    rec.get("op"), rec.get("ha"))
+                    rec.get("opc"), rec.get("ha"))
 
 
 def def_key(d: dict) -> tuple:

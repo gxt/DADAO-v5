@@ -731,14 +731,14 @@ def check_opcodes_cross():
     # --- 结构完整性 ---
     missing = []
     for i, rec in enumerate(records):
-        for key in ("id", "mnemonic", "format", "op", "mask", "value"):
+        for key in ("id", "mnemonic", "format", "opc", "mask", "value"):
             if key not in rec:
                 missing.append(f"  [{i}] {rec.get('id','?')}: 缺少 {key}")
     if missing:
         record(cat, "opcodes.yaml 结构完整性", "FAIL", "\n".join(missing[:5]))
     else:
         record(cat, "opcodes.yaml 结构完整性", "PASS",
-               f"全部 {total} 条均有 id/mnemonic/format/op/mask/value")
+               f"全部 {total} 条均有 id/mnemonic/format/opc/mask/value")
 
     # --- 内部 mask/value 自洽 ---
     mask_errors = []

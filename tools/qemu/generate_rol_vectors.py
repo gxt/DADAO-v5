@@ -2,7 +2,7 @@
 """Generate tests/vectors/rol/rol.yaml — L3 semantic vectors for `rol.{o,t,w,b}`.
 
 Source of truth (Spec-first, no QEMU/LLVM reverse-engineering):
-  * contracts/opcodes.yaml            — encoding (op/ha/mask/value), id, format
+  * contracts/opcodes.yaml            — encoding (opc/ha/mask/value), id, format
   * spec/SimRISC-04: 逻辑循环左移 rol.o（`orrr` / `orri` 格式）            — rol.o definition
   * spec/SimRISC-08/09/10 「逻辑循环左移」 — rol.t/.w/.b width/mod/ILLI rules
   * contracts/legality_rules.yaml     — dst_rd0 / encode_sbz
@@ -79,7 +79,7 @@ def src_for(width):
 
 
 def build_word(rec, hb, hc, hd):
-    op = _int(rec["op"])
+    op = _int(rec["opc"])
     ha = _int(rec["ha"])
     return (op << 24) | (ha << 18) | (hb << 12) | (hc << 6) | hd
 

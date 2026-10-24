@@ -59,7 +59,7 @@ def expected_grid(records: list[dict]) -> tuple[dict[tuple[str, int, int], str],
     problems: list[str] = []
     per_table: dict[str, int] = {name: 0 for name in OP_TABLE.values()}
     for rec in records:
-        op = _as_int(rec["op"], f"{rec.get('id')}.op")
+        op = _as_int(rec["opc"], f"{rec.get('id')}.opc")
         table = OP_TABLE.get(op)
         if table is None:
             continue
@@ -179,15 +179,15 @@ def self_test() -> int:
     spec_text = DEFAULT_SPEC.read_text(encoding="utf-8")
     # 自检取真实记录 id 现场派生（不写死任何网格；取第一条四表记录与第一条带 ha 记录）。
     records = yaml.safe_load(yaml_text)
-    sample = next(r for r in records if _as_int(r["op"], "op") in OP_TABLE and "ha" in r)
+    sample = next(r for r in records if _as_int(r["opc"], "opc") in OP_TABLE and "ha" in r)
     sample_id, sample_ha = sample["id"], _as_int(sample["ha"], "ha")
     other_ha = f"0x{(sample_ha ^ 0x1):02X}"  # 同行相邻列 ⇒ 必撞/必偏格
     # OPC-RF（ISS-325）单独取一条，验证该表真的被纳入双向比对。
-    rf_sample = next(r for r in records if _as_int(r["op"], "op") == 0x44 and "ha" in r)
+    rf_sample = next(r for r in records if _as_int(r["opc"], "opc") == 0x44 and "ha" in r)
     rf_id, rf_ha = rf_sample["id"], _as_int(rf_sample["ha"], "ha")
     rf_other = f"0x{(rf_ha ^ 0x1):02X}"
     # OPC-MISC（SPEC-164t）单独取一条，验证迁移后的 MISC 子表真的被纳入双向比对。
-    misc_sample = next(r for r in records if _as_int(r["op"], "op") == 0x47 and "ha" in r)
+    misc_sample = next(r for r in records if _as_int(r["opc"], "opc") == 0x47 and "ha" in r)
     misc_id = misc_sample["id"]
 
     cases = [

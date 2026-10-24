@@ -13,7 +13,7 @@
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
   format: rrii
-  op: '0x10'
+  opc: '0x10'
   mask: '0xFF000000'
   value: '0x10000000'
   fields:
@@ -39,7 +39,7 @@
 - id: ld.uw_rrii_rd
   mnemonic: ld.uw
   format: rrii
-  op: '0x11'
+  opc: '0x11'
   mask: '0xFF000000'
   value: '0x11000000'
   fields:
@@ -67,7 +67,7 @@
 - id: ld.ut_rrii_rd
   mnemonic: ld.ut
   format: rrii
-  op: '0x12'
+  opc: '0x12'
   mask: '0xFF000000'
   value: '0x12000000'
   fields:
@@ -95,7 +95,7 @@
 - id: ld.sb_rrii_rd
   mnemonic: ld.sb
   format: rrii
-  op: '0x13'
+  opc: '0x13'
   mask: '0xFF000000'
   value: '0x13000000'
   fields:
@@ -121,7 +121,7 @@
 - id: ld.sw_rrii_rd
   mnemonic: ld.sw
   format: rrii
-  op: '0x14'
+  opc: '0x14'
   mask: '0xFF000000'
   value: '0x14000000'
   fields:
@@ -149,7 +149,7 @@
 - id: ld.st_rrii_rd
   mnemonic: ld.st
   format: rrii
-  op: '0x15'
+  opc: '0x15'
   mask: '0xFF000000'
   value: '0x15000000'
   fields:
@@ -177,7 +177,7 @@
 - id: ld.t_rrii_rf
   mnemonic: ld.t
   format: rrii
-  op: '0x16'
+  opc: '0x16'
   mask: '0xFF000000'
   value: '0x16000000'
   fields:
@@ -201,7 +201,7 @@
 - id: st.t_rrii_rf
   mnemonic: st.t
   format: rrii
-  op: '0x17'
+  opc: '0x17'
   mask: '0xFF000000'
   value: '0x17000000'
   fields:
@@ -225,7 +225,7 @@
 - id: st.b_rrii_rd
   mnemonic: st.b
   format: rrii
-  op: '0x18'
+  opc: '0x18'
   mask: '0xFF000000'
   value: '0x18000000'
   fields:
@@ -249,7 +249,7 @@
 - id: st.w_rrii_rd
   mnemonic: st.w
   format: rrii
-  op: '0x19'
+  opc: '0x19'
   mask: '0xFF000000'
   value: '0x19000000'
   fields:
@@ -275,7 +275,7 @@
 - id: st.t_rrii_rd
   mnemonic: st.t
   format: rrii
-  op: '0x1A'
+  opc: '0x1A'
   mask: '0xFF000000'
   value: '0x1A000000'
   fields:
@@ -301,7 +301,7 @@
 - id: ld.o_rrii_rd
   mnemonic: ld.o
   format: rrii
-  op: '0x20'
+  opc: '0x20'
   mask: '0xFF000000'
   value: '0x20000000'
   fields:
@@ -329,7 +329,7 @@
 - id: st.o_rrii_rd
   mnemonic: st.o
   format: rrii
-  op: '0x21'
+  opc: '0x21'
   mask: '0xFF000000'
   value: '0x21000000'
   fields:
@@ -355,7 +355,7 @@
 - id: ld.o_rrii_rb
   mnemonic: ld.o
   format: rrii
-  op: '0x22'
+  opc: '0x22'
   mask: '0xFF000000'
   value: '0x22000000'
   fields:
@@ -383,7 +383,7 @@
 - id: st.o_rrii_rb
   mnemonic: st.o
   format: rrii
-  op: '0x23'
+  opc: '0x23'
   mask: '0xFF000000'
   value: '0x23000000'
   fields:
@@ -409,7 +409,7 @@
 - id: ld.o_rrii_ra
   mnemonic: ld.o
   format: rrii
-  op: '0x24'
+  opc: '0x24'
   mask: '0xFF000000'
   value: '0x24000000'
   fields:
@@ -435,7 +435,7 @@
 - id: st.o_rrii_ra
   mnemonic: st.o
   format: rrii
-  op: '0x25'
+  opc: '0x25'
   mask: '0xFF000000'
   value: '0x25000000'
   fields:
@@ -461,7 +461,7 @@
 - id: ld.o_rrii_rf
   mnemonic: ld.o
   format: rrii
-  op: '0x26'
+  opc: '0x26'
   mask: '0xFF000000'
   value: '0x26000000'
   fields:
@@ -485,7 +485,7 @@
 - id: st.o_rrii_rf
   mnemonic: st.o
   format: rrii
-  op: '0x27'
+  opc: '0x27'
   mask: '0xFF000000'
   value: '0x27000000'
   fields:
@@ -509,7 +509,7 @@
 - id: ldm.ub_rrri_rd
   mnemonic: ldm.ub
   format: rrri
-  op: '0x28'
+  opc: '0x28'
   mask: '0xFF000000'
   value: '0x28000000'
   fields:
@@ -543,7 +543,7 @@
 - id: ldm.uw_rrri_rd
   mnemonic: ldm.uw
   format: rrri
-  op: '0x29'
+  opc: '0x29'
   mask: '0xFF000000'
   value: '0x29000000'
   fields:
@@ -579,7 +579,7 @@
 - id: ldm.ut_rrri_rd
   mnemonic: ldm.ut
   format: rrri
-  op: '0x2A'
+  opc: '0x2A'
   mask: '0xFF000000'
   value: '0x2A000000'
   fields:
@@ -615,7 +615,7 @@
 - id: ldm.sb_rrri_rd
   mnemonic: ldm.sb
   format: rrri
-  op: '0x2B'
+  opc: '0x2B'
   mask: '0xFF000000'
   value: '0x2B000000'
   fields:
@@ -649,7 +649,7 @@
 - id: ldm.sw_rrri_rd
   mnemonic: ldm.sw
   format: rrri
-  op: '0x2C'
+  opc: '0x2C'
   mask: '0xFF000000'
   value: '0x2C000000'
   fields:
@@ -685,7 +685,7 @@
 - id: ldm.st_rrri_rd
   mnemonic: ldm.st
   format: rrri
-  op: '0x2D'
+  opc: '0x2D'
   mask: '0xFF000000'
   value: '0x2D000000'
   fields:
@@ -721,7 +721,7 @@
 - id: ldm.t_rrri_rf
   mnemonic: ldm.t
   format: rrri
-  op: '0x2E'
+  opc: '0x2E'
   mask: '0xFF000000'
   value: '0x2E000000'
   fields:
@@ -753,7 +753,7 @@
 - id: stm.t_rrri_rf
   mnemonic: stm.t
   format: rrri
-  op: '0x2F'
+  opc: '0x2F'
   mask: '0xFF000000'
   value: '0x2F000000'
   fields:
@@ -785,7 +785,7 @@
 - id: stm.b_rrri_rd
   mnemonic: stm.b
   format: rrri
-  op: '0x30'
+  opc: '0x30'
   mask: '0xFF000000'
   value: '0x30000000'
   fields:
@@ -817,7 +817,7 @@
 - id: stm.w_rrri_rd
   mnemonic: stm.w
   format: rrri
-  op: '0x31'
+  opc: '0x31'
   mask: '0xFF000000'
   value: '0x31000000'
   fields:
@@ -851,7 +851,7 @@
 - id: stm.t_rrri_rd
   mnemonic: stm.t
   format: rrri
-  op: '0x32'
+  opc: '0x32'
   mask: '0xFF000000'
   value: '0x32000000'
   fields:
@@ -885,7 +885,7 @@
 - id: ldm.o_rrri_rd
   mnemonic: ldm.o
   format: rrri
-  op: '0x38'
+  opc: '0x38'
   mask: '0xFF000000'
   value: '0x38000000'
   fields:
@@ -921,7 +921,7 @@
 - id: stm.o_rrri_rd
   mnemonic: stm.o
   format: rrri
-  op: '0x39'
+  opc: '0x39'
   mask: '0xFF000000'
   value: '0x39000000'
   fields:
@@ -955,7 +955,7 @@
 - id: ldm.o_rrri_rb
   mnemonic: ldm.o
   format: rrri
-  op: '0x3A'
+  opc: '0x3A'
   mask: '0xFF000000'
   value: '0x3A000000'
   fields:
@@ -991,7 +991,7 @@
 - id: stm.o_rrri_rb
   mnemonic: stm.o
   format: rrri
-  op: '0x3B'
+  opc: '0x3B'
   mask: '0xFF000000'
   value: '0x3B000000'
   fields:
@@ -1025,7 +1025,7 @@
 - id: ldm.o_rrri_ra
   mnemonic: ldm.o
   format: rrri
-  op: '0x3C'
+  opc: '0x3C'
   mask: '0xFF000000'
   value: '0x3C000000'
   fields:
@@ -1059,7 +1059,7 @@
 - id: stm.o_rrri_ra
   mnemonic: stm.o
   format: rrri
-  op: '0x3D'
+  opc: '0x3D'
   mask: '0xFF000000'
   value: '0x3D000000'
   fields:
@@ -1093,7 +1093,7 @@
 - id: ldm.o_rrri_rf
   mnemonic: ldm.o
   format: rrri
-  op: '0x3E'
+  opc: '0x3E'
   mask: '0xFF000000'
   value: '0x3E000000'
   fields:
@@ -1125,7 +1125,7 @@
 - id: stm.o_rrri_rf
   mnemonic: stm.o
   format: rrri
-  op: '0x3F'
+  opc: '0x3F'
   mask: '0xFF000000'
   value: '0x3F000000'
   fields:
@@ -1157,7 +1157,7 @@
 - id: or.w_rwii_rd
   mnemonic: or.w
   format: rwii
-  op: '0x48'
+  opc: '0x48'
   mask: '0xFF000000'
   value: '0x48000000'
   fields:
@@ -1183,7 +1183,7 @@
 - id: andn.w_rwii_rd
   mnemonic: andn.w
   format: rwii
-  op: '0x49'
+  opc: '0x49'
   mask: '0xFF000000'
   value: '0x49000000'
   fields:
@@ -1209,7 +1209,7 @@
 - id: or.w_rwii_rb
   mnemonic: or.w
   format: rwii
-  op: '0x4A'
+  opc: '0x4A'
   mask: '0xFF000000'
   value: '0x4A000000'
   fields:
@@ -1235,7 +1235,7 @@
 - id: andn.w_rwii_rb
   mnemonic: andn.w
   format: rwii
-  op: '0x4B'
+  opc: '0x4B'
   mask: '0xFF000000'
   value: '0x4B000000'
   fields:
@@ -1261,7 +1261,7 @@
 - id: set.zw_rwii_rd
   mnemonic: set.zw
   format: rwii
-  op: '0x4C'
+  opc: '0x4C'
   mask: '0xFF000000'
   value: '0x4C000000'
   fields:
@@ -1287,7 +1287,7 @@
 - id: set.ow_rwii_rd
   mnemonic: set.ow
   format: rwii
-  op: '0x4D'
+  opc: '0x4D'
   mask: '0xFF000000'
   value: '0x4D000000'
   fields:
@@ -1313,7 +1313,7 @@
 - id: set.zw_rwii_rb
   mnemonic: set.zw
   format: rwii
-  op: '0x4E'
+  opc: '0x4E'
   mask: '0xFF000000'
   value: '0x4E000000'
   fields:
@@ -1339,7 +1339,7 @@
 - id: set.w_rwii_rf
   mnemonic: set.w
   format: rwii
-  op: '0x4F'
+  opc: '0x4F'
   mask: '0xFF000000'
   value: '0x4F000000'
   fields:
@@ -1363,7 +1363,7 @@
 - id: add.uo_rrrr_rd
   mnemonic: add.uo
   format: rrrr
-  op: '0x50'
+  opc: '0x50'
   mask: '0xFF000000'
   value: '0x50000000'
   fields:
@@ -1393,7 +1393,7 @@
 - id: add.so_rrrr_rd
   mnemonic: add.so
   format: rrrr
-  op: '0x51'
+  opc: '0x51'
   mask: '0xFF000000'
   value: '0x51000000'
   fields:
@@ -1421,7 +1421,7 @@
 - id: sub.uo_rrrr_rd
   mnemonic: sub.uo
   format: rrrr
-  op: '0x52'
+  opc: '0x52'
   mask: '0xFF000000'
   value: '0x52000000'
   fields:
@@ -1449,7 +1449,7 @@
 - id: sub.so_rrrr_rd
   mnemonic: sub.so
   format: rrrr
-  op: '0x53'
+  opc: '0x53'
   mask: '0xFF000000'
   value: '0x53000000'
   fields:
@@ -1477,7 +1477,7 @@
 - id: mul.uo_rrrr_rd
   mnemonic: mul.uo
   format: rrrr
-  op: '0x54'
+  opc: '0x54'
   mask: '0xFF000000'
   value: '0x54000000'
   fields:
@@ -1505,7 +1505,7 @@
 - id: mul.so_rrrr_rd
   mnemonic: mul.so
   format: rrrr
-  op: '0x55'
+  opc: '0x55'
   mask: '0xFF000000'
   value: '0x55000000'
   fields:
@@ -1533,7 +1533,7 @@
 - id: clmul.o_rrrr_rd
   mnemonic: clmul.o
   format: rrrr
-  op: '0x56'
+  opc: '0x56'
   mask: '0xFF000000'
   value: '0x56000000'
   fields:
@@ -1561,7 +1561,7 @@
 - id: add.si_riii_rd
   mnemonic: add.si
   format: riii
-  op: '0x59'
+  opc: '0x59'
   mask: '0xFF000000'
   value: '0x59000000'
   fields:
@@ -1583,7 +1583,7 @@
 - id: aip.si_riii_rb
   mnemonic: aip.si
   format: riii
-  op: '0x5A'
+  opc: '0x5A'
   mask: '0xFF000000'
   value: '0x5A000000'
   fields:
@@ -1605,7 +1605,7 @@
 - id: add.si_riii_rb
   mnemonic: add.si
   format: riii
-  op: '0x5B'
+  opc: '0x5B'
   mask: '0xFF000000'
   value: '0x5B000000'
   fields:
@@ -1627,7 +1627,7 @@
 - id: cmp.ui_rrii_rd
   mnemonic: cmp.ui
   format: rrii
-  op: '0x5C'
+  opc: '0x5C'
   mask: '0xFF000000'
   value: '0x5C000000'
   fields:
@@ -1653,7 +1653,7 @@
 - id: cmp.si_rrii_rd
   mnemonic: cmp.si
   format: rrii
-  op: '0x5D'
+  opc: '0x5D'
   mask: '0xFF000000'
   value: '0x5D000000'
   fields:
@@ -1679,7 +1679,7 @@
 - id: ftfma_rrrr_rf
   mnemonic: ftfma
   format: rrrr
-  op: '0x5E'
+  opc: '0x5E'
   mask: '0xFF000000'
   value: '0x5E000000'
   fields:
@@ -1708,7 +1708,7 @@
 - id: fofma_rrrr_rf
   mnemonic: fofma
   format: rrrr
-  op: '0x5F'
+  opc: '0x5F'
   mask: '0xFF000000'
   value: '0x5F000000'
   fields:
@@ -1737,7 +1737,7 @@
 - id: cs.n_rrrr_rd
   mnemonic: cs.n
   format: rrrr
-  op: '0x60'
+  opc: '0x60'
   mask: '0xFF000000'
   value: '0x60000000'
   fields:
@@ -1766,7 +1766,7 @@
 - id: cs.n_rrrr_rf
   mnemonic: cs.n
   format: rrrr
-  op: '0x61'
+  opc: '0x61'
   mask: '0xFF000000'
   value: '0x61000000'
   fields:
@@ -1795,7 +1795,7 @@
 - id: cs.z_rrrr_rd
   mnemonic: cs.z
   format: rrrr
-  op: '0x62'
+  opc: '0x62'
   mask: '0xFF000000'
   value: '0x62000000'
   fields:
@@ -1824,7 +1824,7 @@
 - id: cs.z_rrrr_rf
   mnemonic: cs.z
   format: rrrr
-  op: '0x63'
+  opc: '0x63'
   mask: '0xFF000000'
   value: '0x63000000'
   fields:
@@ -1853,7 +1853,7 @@
 - id: cs.p_rrrr_rd
   mnemonic: cs.p
   format: rrrr
-  op: '0x64'
+  opc: '0x64'
   mask: '0xFF000000'
   value: '0x64000000'
   fields:
@@ -1882,7 +1882,7 @@
 - id: cs.p_rrrr_rf
   mnemonic: cs.p
   format: rrrr
-  op: '0x65'
+  opc: '0x65'
   mask: '0xFF000000'
   value: '0x65000000'
   fields:
@@ -1911,7 +1911,7 @@
 - id: cs.eq_rrrr_rd
   mnemonic: cs.eq
   format: rrrr
-  op: '0x66'
+  opc: '0x66'
   mask: '0xFF000000'
   value: '0x66000000'
   fields:
@@ -1940,7 +1940,7 @@
 - id: cs.ne_rrrr_rd
   mnemonic: cs.ne
   format: rrrr
-  op: '0x67'
+  opc: '0x67'
   mask: '0xFF000000'
   value: '0x67000000'
   fields:
@@ -1969,7 +1969,7 @@
 - id: br.n_riii_rd
   mnemonic: br.n
   format: riii
-  op: '0x68'
+  opc: '0x68'
   mask: '0xFF000000'
   value: '0x68000000'
   fields:
@@ -1989,7 +1989,7 @@
 - id: br.nn_riii_rd
   mnemonic: br.nn
   format: riii
-  op: '0x69'
+  opc: '0x69'
   mask: '0xFF000000'
   value: '0x69000000'
   fields:
@@ -2009,7 +2009,7 @@
 - id: br.z_riii_rd
   mnemonic: br.z
   format: riii
-  op: '0x6A'
+  opc: '0x6A'
   mask: '0xFF000000'
   value: '0x6A000000'
   fields:
@@ -2029,7 +2029,7 @@
 - id: br.nz_riii_rd
   mnemonic: br.nz
   format: riii
-  op: '0x6B'
+  opc: '0x6B'
   mask: '0xFF000000'
   value: '0x6B000000'
   fields:
@@ -2049,7 +2049,7 @@
 - id: br.p_riii_rd
   mnemonic: br.p
   format: riii
-  op: '0x6C'
+  opc: '0x6C'
   mask: '0xFF000000'
   value: '0x6C000000'
   fields:
@@ -2069,7 +2069,7 @@
 - id: br.np_riii_rd
   mnemonic: br.np
   format: riii
-  op: '0x6D'
+  opc: '0x6D'
   mask: '0xFF000000'
   value: '0x6D000000'
   fields:
@@ -2089,7 +2089,7 @@
 - id: br.eq_rrii_rd
   mnemonic: br.eq
   format: rrii
-  op: '0x6E'
+  opc: '0x6E'
   mask: '0xFF000000'
   value: '0x6E000000'
   fields:
@@ -2113,7 +2113,7 @@
 - id: br.ne_rrii_rd
   mnemonic: br.ne
   format: rrii
-  op: '0x6F'
+  opc: '0x6F'
   mask: '0xFF000000'
   value: '0x6F000000'
   fields:
@@ -2137,7 +2137,7 @@
 - id: jump_iiii_rb
   mnemonic: jump
   format: iiii
-  op: '0x70'
+  opc: '0x70'
   mask: '0xFF000000'
   value: '0x70000000'
   fields:
@@ -2153,7 +2153,7 @@
 - id: jump_rrii_rb
   mnemonic: jump
   format: rrii
-  op: '0x71'
+  opc: '0x71'
   mask: '0xFF000000'
   value: '0x71000000'
   fields:
@@ -2177,7 +2177,7 @@
 - id: br.z_riii_rb
   mnemonic: br.z
   format: riii
-  op: '0x72'
+  opc: '0x72'
   mask: '0xFF000000'
   value: '0x72000000'
   fields:
@@ -2197,7 +2197,7 @@
 - id: br.nz_riii_rb
   mnemonic: br.nz
   format: riii
-  op: '0x73'
+  opc: '0x73'
   mask: '0xFF000000'
   value: '0x73000000'
   fields:
@@ -2217,7 +2217,7 @@
 - id: call_iiii_ra
   mnemonic: call
   format: iiii
-  op: '0x74'
+  opc: '0x74'
   mask: '0xFF000000'
   value: '0x74000000'
   fields:
@@ -2233,7 +2233,7 @@
 - id: call_rrii_ra
   mnemonic: call
   format: rrii
-  op: '0x75'
+  opc: '0x75'
   mask: '0xFF000000'
   value: '0x75000000'
   fields:
@@ -2257,7 +2257,7 @@
 - id: ret_riii_ra
   mnemonic: ret
   format: riii
-  op: '0x76'
+  opc: '0x76'
   mask: '0xFF000000'
   value: '0x76000000'
   fields:
@@ -2279,7 +2279,7 @@
 - id: cfx2rd_crrr_cfx
   mnemonic: cfx2rd
   format: crrr
-  op: '0x7A'
+  opc: '0x7A'
   mask: '0xFF000000'
   value: '0x7A000000'
   fields:
@@ -2306,7 +2306,7 @@
 - id: cfx2rc_crrr_cfx
   mnemonic: cfx2rc
   format: crrr
-  op: '0x7B'
+  opc: '0x7B'
   mask: '0xFF000000'
   value: '0x7B000000'
   fields:
@@ -2333,7 +2333,7 @@
 - id: cfxld_crii_cfx
   mnemonic: cfxld
   format: crii
-  op: '0x7C'
+  opc: '0x7C'
   mask: '0xFF000000'
   value: '0x7C000000'
   fields:
@@ -2358,7 +2358,7 @@
 - id: cfxst_crii_cfx
   mnemonic: cfxst
   format: crii
-  op: '0x7D'
+  opc: '0x7D'
   mask: '0xFF000000'
   value: '0x7D000000'
   fields:
@@ -2383,7 +2383,7 @@
 - id: escape_ciii_cfx
   mnemonic: escape
   format: ciii
-  op: '0x7E'
+  opc: '0x7E'
   mask: '0xFF000000'
   value: '0x7E000000'
   fields:
@@ -2403,7 +2403,7 @@
 - id: trap_ciii_cfx
   mnemonic: trap
   format: ciii
-  op: '0x7F'
+  opc: '0x7F'
   mask: '0xFF000000'
   value: '0x7F000000'
   fields:
@@ -2423,7 +2423,7 @@
 - id: fence_oiii_imm
   mnemonic: fence
   format: oiii
-  op: '0x47'
+  opc: '0x47'
   ha: '0x20'
   mask: '0xFFFC0000'
   value: '0x47800000'
@@ -2444,7 +2444,7 @@
 - id: swym_oiii_imm
   mnemonic: swym
   format: oiii
-  op: '0x47'
+  opc: '0x47'
   ha: '0x22'
   mask: '0xFFFC0000'
   value: '0x47880000'
@@ -2461,7 +2461,7 @@
 - id: lr.o.nn_orrr_rd
   mnemonic: lr.o.nn
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x00'
   mask: '0xFFFC0000'
   value: '0x47000000'
@@ -2485,7 +2485,7 @@
 - id: lr.t.nn_orrr_rd
   mnemonic: lr.t.nn
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x01'
   mask: '0xFFFC0000'
   value: '0x47040000'
@@ -2509,7 +2509,7 @@
 - id: lr.w.nn_orrr_rd
   mnemonic: lr.w.nn
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x02'
   mask: '0xFFFC0000'
   value: '0x47080000'
@@ -2533,7 +2533,7 @@
 - id: lr.b.nn_orrr_rd
   mnemonic: lr.b.nn
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x03'
   mask: '0xFFFC0000'
   value: '0x470C0000'
@@ -2557,7 +2557,7 @@
 - id: lr.o.an_orrr_rd
   mnemonic: lr.o.an
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x04'
   mask: '0xFFFC0000'
   value: '0x47100000'
@@ -2581,7 +2581,7 @@
 - id: lr.t.an_orrr_rd
   mnemonic: lr.t.an
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x05'
   mask: '0xFFFC0000'
   value: '0x47140000'
@@ -2605,7 +2605,7 @@
 - id: lr.w.an_orrr_rd
   mnemonic: lr.w.an
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x06'
   mask: '0xFFFC0000'
   value: '0x47180000'
@@ -2629,7 +2629,7 @@
 - id: lr.b.an_orrr_rd
   mnemonic: lr.b.an
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x07'
   mask: '0xFFFC0000'
   value: '0x471C0000'
@@ -2653,7 +2653,7 @@
 - id: lr.o.ar_orrr_rd
   mnemonic: lr.o.ar
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x08'
   mask: '0xFFFC0000'
   value: '0x47200000'
@@ -2677,7 +2677,7 @@
 - id: lr.t.ar_orrr_rd
   mnemonic: lr.t.ar
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x09'
   mask: '0xFFFC0000'
   value: '0x47240000'
@@ -2701,7 +2701,7 @@
 - id: lr.w.ar_orrr_rd
   mnemonic: lr.w.ar
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x0A'
   mask: '0xFFFC0000'
   value: '0x47280000'
@@ -2725,7 +2725,7 @@
 - id: lr.b.ar_orrr_rd
   mnemonic: lr.b.ar
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x0B'
   mask: '0xFFFC0000'
   value: '0x472C0000'
@@ -2749,7 +2749,7 @@
 - id: sc.o.nn_orrr_rd
   mnemonic: sc.o.nn
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x10'
   mask: '0xFFFC0000'
   value: '0x47400000'
@@ -2773,7 +2773,7 @@
 - id: sc.t.nn_orrr_rd
   mnemonic: sc.t.nn
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x11'
   mask: '0xFFFC0000'
   value: '0x47440000'
@@ -2797,7 +2797,7 @@
 - id: sc.w.nn_orrr_rd
   mnemonic: sc.w.nn
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x12'
   mask: '0xFFFC0000'
   value: '0x47480000'
@@ -2821,7 +2821,7 @@
 - id: sc.b.nn_orrr_rd
   mnemonic: sc.b.nn
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x13'
   mask: '0xFFFC0000'
   value: '0x474C0000'
@@ -2845,7 +2845,7 @@
 - id: sc.o.nr_orrr_rd
   mnemonic: sc.o.nr
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x14'
   mask: '0xFFFC0000'
   value: '0x47500000'
@@ -2869,7 +2869,7 @@
 - id: sc.t.nr_orrr_rd
   mnemonic: sc.t.nr
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x15'
   mask: '0xFFFC0000'
   value: '0x47540000'
@@ -2893,7 +2893,7 @@
 - id: sc.w.nr_orrr_rd
   mnemonic: sc.w.nr
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x16'
   mask: '0xFFFC0000'
   value: '0x47580000'
@@ -2917,7 +2917,7 @@
 - id: sc.b.nr_orrr_rd
   mnemonic: sc.b.nr
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x17'
   mask: '0xFFFC0000'
   value: '0x475C0000'
@@ -2941,7 +2941,7 @@
 - id: sc.o.ar_orrr_rd
   mnemonic: sc.o.ar
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x18'
   mask: '0xFFFC0000'
   value: '0x47600000'
@@ -2965,7 +2965,7 @@
 - id: sc.t.ar_orrr_rd
   mnemonic: sc.t.ar
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x19'
   mask: '0xFFFC0000'
   value: '0x47640000'
@@ -2989,7 +2989,7 @@
 - id: sc.w.ar_orrr_rd
   mnemonic: sc.w.ar
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x1A'
   mask: '0xFFFC0000'
   value: '0x47680000'
@@ -3013,7 +3013,7 @@
 - id: sc.b.ar_orrr_rd
   mnemonic: sc.b.ar
   format: orrr
-  op: '0x47'
+  opc: '0x47'
   ha: '0x1B'
   mask: '0xFFFC0000'
   value: '0x476C0000'
@@ -3037,7 +3037,7 @@
 - id: ctpop_orri_rd
   mnemonic: ctpop
   format: orri
-  op: '0x47'
+  opc: '0x47'
   ha: '0x25'
   mask: '0xFFFC0000'
   value: '0x47940000'
@@ -3064,7 +3064,7 @@
 - id: ctlz_orri_rd
   mnemonic: ctlz
   format: orri
-  op: '0x47'
+  opc: '0x47'
   ha: '0x26'
   mask: '0xFFFC0000'
   value: '0x47980000'
@@ -3091,7 +3091,7 @@
 - id: cttz_orri_rd
   mnemonic: cttz
   format: orri
-  op: '0x47'
+  opc: '0x47'
   ha: '0x27'
   mask: '0xFFFC0000'
   value: '0x479C0000'
@@ -3118,7 +3118,7 @@
 - id: and.o_orrr_rd
   mnemonic: and.o
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x08'
   mask: '0xFFFC0000'
   value: '0x40200000'
@@ -3144,7 +3144,7 @@
 - id: or.o_orrr_rd
   mnemonic: or.o
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x09'
   mask: '0xFFFC0000'
   value: '0x40240000'
@@ -3170,7 +3170,7 @@
 - id: xor.o_orrr_rd
   mnemonic: xor.o
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x0A'
   mask: '0xFFFC0000'
   value: '0x40280000'
@@ -3196,7 +3196,7 @@
 - id: xnor.o_orrr_rd
   mnemonic: xnor.o
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x0B'
   mask: '0xFFFC0000'
   value: '0x402C0000'
@@ -3222,7 +3222,7 @@
 - id: shl.o_orrr_rd
   mnemonic: shl.o
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x10'
   mask: '0xFFFC0000'
   value: '0x40400000'
@@ -3248,7 +3248,7 @@
 - id: rol.o_orrr_rd
   mnemonic: rol.o
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x11'
   mask: '0xFFFC0000'
   value: '0x40440000'
@@ -3274,7 +3274,7 @@
 - id: shr.uo_orrr_rd
   mnemonic: shr.uo
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x12'
   mask: '0xFFFC0000'
   value: '0x40480000'
@@ -3300,7 +3300,7 @@
 - id: shr.so_orrr_rd
   mnemonic: shr.so
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x13'
   mask: '0xFFFC0000'
   value: '0x404C0000'
@@ -3326,7 +3326,7 @@
 - id: shl.o_orri_rd
   mnemonic: shl.o
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x18'
   mask: '0xFFFC0000'
   value: '0x40600000'
@@ -3353,7 +3353,7 @@
 - id: rol.o_orri_rd
   mnemonic: rol.o
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x19'
   mask: '0xFFFC0000'
   value: '0x40640000'
@@ -3380,7 +3380,7 @@
 - id: shr.uo_orri_rd
   mnemonic: shr.uo
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x1A'
   mask: '0xFFFC0000'
   value: '0x40680000'
@@ -3407,7 +3407,7 @@
 - id: shr.so_orri_rd
   mnemonic: shr.so
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x1B'
   mask: '0xFFFC0000'
   value: '0x406C0000'
@@ -3434,7 +3434,7 @@
 - id: ext.uo_orrr_rd
   mnemonic: ext.uo
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x20'
   mask: '0xFFFC0000'
   value: '0x40800000'
@@ -3460,7 +3460,7 @@
 - id: ext.so_orrr_rd
   mnemonic: ext.so
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x21'
   mask: '0xFFFC0000'
   value: '0x40840000'
@@ -3486,7 +3486,7 @@
 - id: ext.uo_orri_rd
   mnemonic: ext.uo
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x28'
   mask: '0xFFFC0000'
   value: '0x40A00000'
@@ -3513,7 +3513,7 @@
 - id: ext.so_orri_rd
   mnemonic: ext.so
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x29'
   mask: '0xFFFC0000'
   value: '0x40A40000'
@@ -3540,7 +3540,7 @@
 - id: add.o_orrr_bbd
   mnemonic: add.o
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x30'
   mask: '0xFFFC0000'
   value: '0x40C00000'
@@ -3566,7 +3566,7 @@
 - id: sub.o_orrr_bbd
   mnemonic: sub.o
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x31'
   mask: '0xFFFC0000'
   value: '0x40C40000'
@@ -3592,7 +3592,7 @@
 - id: cmp.uo_orrr_dbb
   mnemonic: cmp.uo
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x32'
   mask: '0xFFFC0000'
   value: '0x40C80000'
@@ -3618,7 +3618,7 @@
 - id: sub.o_orrr_dbb
   mnemonic: sub.o
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x33'
   mask: '0xFFFC0000'
   value: '0x40CC0000'
@@ -3644,7 +3644,7 @@
 - id: cmp.uo_orrr_rd
   mnemonic: cmp.uo
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x2A'
   mask: '0xFFFC0000'
   value: '0x40A80000'
@@ -3670,7 +3670,7 @@
 - id: cmp.so_orrr_rd
   mnemonic: cmp.so
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x2B'
   mask: '0xFFFC0000'
   value: '0x40AC0000'
@@ -3696,7 +3696,7 @@
 - id: rd2rd_orri_rd
   mnemonic: rd2rd
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x2C'
   mask: '0xFFFC0000'
   value: '0x40B00000'
@@ -3730,7 +3730,7 @@
 - id: rd2ra_orri_ra
   mnemonic: rd2ra
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x2D'
   mask: '0xFFFC0000'
   value: '0x40B40000'
@@ -3760,7 +3760,7 @@
 - id: ra2rd_orri_ra
   mnemonic: ra2rd
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x2E'
   mask: '0xFFFC0000'
   value: '0x40B80000'
@@ -3792,7 +3792,7 @@
 - id: rb2rb_orri_rb
   mnemonic: rb2rb
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x34'
   mask: '0xFFFC0000'
   value: '0x40D00000'
@@ -3826,7 +3826,7 @@
 - id: rd2rb_orri_rb
   mnemonic: rd2rb
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x35'
   mask: '0xFFFC0000'
   value: '0x40D40000'
@@ -3858,7 +3858,7 @@
 - id: rb2rd_orri_rb
   mnemonic: rb2rd
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x36'
   mask: '0xFFFC0000'
   value: '0x40D80000'
@@ -3890,7 +3890,7 @@
 - id: div.uo_orrr_rd
   mnemonic: div.uo
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x38'
   mask: '0xFFFC0000'
   value: '0x40E00000'
@@ -3916,7 +3916,7 @@
 - id: div.so_orrr_rd
   mnemonic: div.so
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x39'
   mask: '0xFFFC0000'
   value: '0x40E40000'
@@ -3942,7 +3942,7 @@
 - id: rem.uo_orrr_rd
   mnemonic: rem.uo
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x3A'
   mask: '0xFFFC0000'
   value: '0x40E80000'
@@ -3968,7 +3968,7 @@
 - id: rem.so_orrr_rd
   mnemonic: rem.so
   format: orrr
-  op: '0x40'
+  opc: '0x40'
   ha: '0x3B'
   mask: '0xFFFC0000'
   value: '0x40EC0000'
@@ -3994,7 +3994,7 @@
 - id: rd2rf_orri_rf
   mnemonic: rd2rf
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x3D'
   mask: '0xFFFC0000'
   value: '0x40F40000'
@@ -4024,7 +4024,7 @@
 - id: rf2rd_orri_rf
   mnemonic: rf2rd
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x3E'
   mask: '0xFFFC0000'
   value: '0x40F80000'
@@ -4056,7 +4056,7 @@
 - id: rev.o_orri_rd
   mnemonic: rev.o
   format: orri
-  op: '0x40'
+  opc: '0x40'
   ha: '0x0C'
   mask: '0xFFFC0000'
   value: '0x40300000'
@@ -4086,7 +4086,7 @@
 - id: shl.t_orrr_rd
   mnemonic: shl.t
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x10'
   mask: '0xFFFC0000'
   value: '0x41400000'
@@ -4112,7 +4112,7 @@
 - id: rol.t_orrr_rd
   mnemonic: rol.t
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x11'
   mask: '0xFFFC0000'
   value: '0x41440000'
@@ -4138,7 +4138,7 @@
 - id: shr.ut_orrr_rd
   mnemonic: shr.ut
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x12'
   mask: '0xFFFC0000'
   value: '0x41480000'
@@ -4164,7 +4164,7 @@
 - id: shr.st_orrr_rd
   mnemonic: shr.st
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x13'
   mask: '0xFFFC0000'
   value: '0x414C0000'
@@ -4190,7 +4190,7 @@
 - id: shl.t_orri_rd
   mnemonic: shl.t
   format: orri
-  op: '0x41'
+  opc: '0x41'
   ha: '0x18'
   mask: '0xFFFC0000'
   value: '0x41600000'
@@ -4219,7 +4219,7 @@
 - id: rol.t_orri_rd
   mnemonic: rol.t
   format: orri
-  op: '0x41'
+  opc: '0x41'
   ha: '0x19'
   mask: '0xFFFC0000'
   value: '0x41640000'
@@ -4248,7 +4248,7 @@
 - id: shr.ut_orri_rd
   mnemonic: shr.ut
   format: orri
-  op: '0x41'
+  opc: '0x41'
   ha: '0x1A'
   mask: '0xFFFC0000'
   value: '0x41680000'
@@ -4277,7 +4277,7 @@
 - id: shr.st_orri_rd
   mnemonic: shr.st
   format: orri
-  op: '0x41'
+  opc: '0x41'
   ha: '0x1B'
   mask: '0xFFFC0000'
   value: '0x416C0000'
@@ -4306,7 +4306,7 @@
 - id: add.ut_orrr_rd
   mnemonic: add.ut
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x20'
   mask: '0xFFFC0000'
   value: '0x41800000'
@@ -4332,7 +4332,7 @@
 - id: add.st_orrr_rd
   mnemonic: add.st
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x21'
   mask: '0xFFFC0000'
   value: '0x41840000'
@@ -4358,7 +4358,7 @@
 - id: sub.ut_orrr_rd
   mnemonic: sub.ut
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x28'
   mask: '0xFFFC0000'
   value: '0x41A00000'
@@ -4384,7 +4384,7 @@
 - id: sub.st_orrr_rd
   mnemonic: sub.st
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x29'
   mask: '0xFFFC0000'
   value: '0x41A40000'
@@ -4410,7 +4410,7 @@
 - id: cmp.ut_orrr_rd
   mnemonic: cmp.ut
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x2A'
   mask: '0xFFFC0000'
   value: '0x41A80000'
@@ -4436,7 +4436,7 @@
 - id: cmp.st_orrr_rd
   mnemonic: cmp.st
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x2B'
   mask: '0xFFFC0000'
   value: '0x41AC0000'
@@ -4462,7 +4462,7 @@
 - id: mul.ut_orrr_rd
   mnemonic: mul.ut
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x30'
   mask: '0xFFFC0000'
   value: '0x41C00000'
@@ -4488,7 +4488,7 @@
 - id: mul.st_orrr_rd
   mnemonic: mul.st
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x31'
   mask: '0xFFFC0000'
   value: '0x41C40000'
@@ -4514,7 +4514,7 @@
 - id: div.ut_orrr_rd
   mnemonic: div.ut
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x38'
   mask: '0xFFFC0000'
   value: '0x41E00000'
@@ -4540,7 +4540,7 @@
 - id: div.st_orrr_rd
   mnemonic: div.st
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x39'
   mask: '0xFFFC0000'
   value: '0x41E40000'
@@ -4566,7 +4566,7 @@
 - id: rem.ut_orrr_rd
   mnemonic: rem.ut
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x3A'
   mask: '0xFFFC0000'
   value: '0x41E80000'
@@ -4592,7 +4592,7 @@
 - id: rem.st_orrr_rd
   mnemonic: rem.st
   format: orrr
-  op: '0x41'
+  opc: '0x41'
   ha: '0x3B'
   mask: '0xFFFC0000'
   value: '0x41EC0000'
@@ -4618,7 +4618,7 @@
 - id: rev.t_orri_rd
   mnemonic: rev.t
   format: orri
-  op: '0x41'
+  opc: '0x41'
   ha: '0x0C'
   mask: '0xFFFC0000'
   value: '0x41300000'
@@ -4647,7 +4647,7 @@
 - id: shl.w_orrr_rd
   mnemonic: shl.w
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x10'
   mask: '0xFFFC0000'
   value: '0x42400000'
@@ -4673,7 +4673,7 @@
 - id: rol.w_orrr_rd
   mnemonic: rol.w
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x11'
   mask: '0xFFFC0000'
   value: '0x42440000'
@@ -4699,7 +4699,7 @@
 - id: shr.uw_orrr_rd
   mnemonic: shr.uw
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x12'
   mask: '0xFFFC0000'
   value: '0x42480000'
@@ -4725,7 +4725,7 @@
 - id: shr.sw_orrr_rd
   mnemonic: shr.sw
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x13'
   mask: '0xFFFC0000'
   value: '0x424C0000'
@@ -4751,7 +4751,7 @@
 - id: shl.w_orri_rd
   mnemonic: shl.w
   format: orri
-  op: '0x42'
+  opc: '0x42'
   ha: '0x18'
   mask: '0xFFFC0000'
   value: '0x42600000'
@@ -4780,7 +4780,7 @@
 - id: rol.w_orri_rd
   mnemonic: rol.w
   format: orri
-  op: '0x42'
+  opc: '0x42'
   ha: '0x19'
   mask: '0xFFFC0000'
   value: '0x42640000'
@@ -4809,7 +4809,7 @@
 - id: shr.uw_orri_rd
   mnemonic: shr.uw
   format: orri
-  op: '0x42'
+  opc: '0x42'
   ha: '0x1A'
   mask: '0xFFFC0000'
   value: '0x42680000'
@@ -4838,7 +4838,7 @@
 - id: shr.sw_orri_rd
   mnemonic: shr.sw
   format: orri
-  op: '0x42'
+  opc: '0x42'
   ha: '0x1B'
   mask: '0xFFFC0000'
   value: '0x426C0000'
@@ -4867,7 +4867,7 @@
 - id: add.uw_orrr_rd
   mnemonic: add.uw
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x20'
   mask: '0xFFFC0000'
   value: '0x42800000'
@@ -4893,7 +4893,7 @@
 - id: add.sw_orrr_rd
   mnemonic: add.sw
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x21'
   mask: '0xFFFC0000'
   value: '0x42840000'
@@ -4919,7 +4919,7 @@
 - id: sub.uw_orrr_rd
   mnemonic: sub.uw
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x28'
   mask: '0xFFFC0000'
   value: '0x42A00000'
@@ -4945,7 +4945,7 @@
 - id: sub.sw_orrr_rd
   mnemonic: sub.sw
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x29'
   mask: '0xFFFC0000'
   value: '0x42A40000'
@@ -4971,7 +4971,7 @@
 - id: cmp.uw_orrr_rd
   mnemonic: cmp.uw
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x2A'
   mask: '0xFFFC0000'
   value: '0x42A80000'
@@ -4997,7 +4997,7 @@
 - id: cmp.sw_orrr_rd
   mnemonic: cmp.sw
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x2B'
   mask: '0xFFFC0000'
   value: '0x42AC0000'
@@ -5023,7 +5023,7 @@
 - id: mul.uw_orrr_rd
   mnemonic: mul.uw
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x30'
   mask: '0xFFFC0000'
   value: '0x42C00000'
@@ -5049,7 +5049,7 @@
 - id: mul.sw_orrr_rd
   mnemonic: mul.sw
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x31'
   mask: '0xFFFC0000'
   value: '0x42C40000'
@@ -5075,7 +5075,7 @@
 - id: div.uw_orrr_rd
   mnemonic: div.uw
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x38'
   mask: '0xFFFC0000'
   value: '0x42E00000'
@@ -5101,7 +5101,7 @@
 - id: div.sw_orrr_rd
   mnemonic: div.sw
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x39'
   mask: '0xFFFC0000'
   value: '0x42E40000'
@@ -5127,7 +5127,7 @@
 - id: rem.uw_orrr_rd
   mnemonic: rem.uw
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x3A'
   mask: '0xFFFC0000'
   value: '0x42E80000'
@@ -5153,7 +5153,7 @@
 - id: rem.sw_orrr_rd
   mnemonic: rem.sw
   format: orrr
-  op: '0x42'
+  opc: '0x42'
   ha: '0x3B'
   mask: '0xFFFC0000'
   value: '0x42EC0000'
@@ -5179,7 +5179,7 @@
 - id: rev.w_orri_rd
   mnemonic: rev.w
   format: orri
-  op: '0x42'
+  opc: '0x42'
   ha: '0x0C'
   mask: '0xFFFC0000'
   value: '0x42300000'
@@ -5208,7 +5208,7 @@
 - id: shl.b_orrr_rd
   mnemonic: shl.b
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x10'
   mask: '0xFFFC0000'
   value: '0x43400000'
@@ -5234,7 +5234,7 @@
 - id: rol.b_orrr_rd
   mnemonic: rol.b
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x11'
   mask: '0xFFFC0000'
   value: '0x43440000'
@@ -5260,7 +5260,7 @@
 - id: shr.ub_orrr_rd
   mnemonic: shr.ub
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x12'
   mask: '0xFFFC0000'
   value: '0x43480000'
@@ -5286,7 +5286,7 @@
 - id: shr.sb_orrr_rd
   mnemonic: shr.sb
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x13'
   mask: '0xFFFC0000'
   value: '0x434C0000'
@@ -5312,7 +5312,7 @@
 - id: shl.b_orri_rd
   mnemonic: shl.b
   format: orri
-  op: '0x43'
+  opc: '0x43'
   ha: '0x18'
   mask: '0xFFFC0000'
   value: '0x43600000'
@@ -5341,7 +5341,7 @@
 - id: rol.b_orri_rd
   mnemonic: rol.b
   format: orri
-  op: '0x43'
+  opc: '0x43'
   ha: '0x19'
   mask: '0xFFFC0000'
   value: '0x43640000'
@@ -5370,7 +5370,7 @@
 - id: shr.ub_orri_rd
   mnemonic: shr.ub
   format: orri
-  op: '0x43'
+  opc: '0x43'
   ha: '0x1A'
   mask: '0xFFFC0000'
   value: '0x43680000'
@@ -5399,7 +5399,7 @@
 - id: shr.sb_orri_rd
   mnemonic: shr.sb
   format: orri
-  op: '0x43'
+  opc: '0x43'
   ha: '0x1B'
   mask: '0xFFFC0000'
   value: '0x436C0000'
@@ -5428,7 +5428,7 @@
 - id: add.ub_orrr_rd
   mnemonic: add.ub
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x20'
   mask: '0xFFFC0000'
   value: '0x43800000'
@@ -5454,7 +5454,7 @@
 - id: add.sb_orrr_rd
   mnemonic: add.sb
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x21'
   mask: '0xFFFC0000'
   value: '0x43840000'
@@ -5480,7 +5480,7 @@
 - id: sub.ub_orrr_rd
   mnemonic: sub.ub
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x28'
   mask: '0xFFFC0000'
   value: '0x43A00000'
@@ -5506,7 +5506,7 @@
 - id: sub.sb_orrr_rd
   mnemonic: sub.sb
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x29'
   mask: '0xFFFC0000'
   value: '0x43A40000'
@@ -5532,7 +5532,7 @@
 - id: cmp.ub_orrr_rd
   mnemonic: cmp.ub
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x2A'
   mask: '0xFFFC0000'
   value: '0x43A80000'
@@ -5558,7 +5558,7 @@
 - id: cmp.sb_orrr_rd
   mnemonic: cmp.sb
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x2B'
   mask: '0xFFFC0000'
   value: '0x43AC0000'
@@ -5584,7 +5584,7 @@
 - id: mul.ub_orrr_rd
   mnemonic: mul.ub
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x30'
   mask: '0xFFFC0000'
   value: '0x43C00000'
@@ -5610,7 +5610,7 @@
 - id: mul.sb_orrr_rd
   mnemonic: mul.sb
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x31'
   mask: '0xFFFC0000'
   value: '0x43C40000'
@@ -5636,7 +5636,7 @@
 - id: div.ub_orrr_rd
   mnemonic: div.ub
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x38'
   mask: '0xFFFC0000'
   value: '0x43E00000'
@@ -5662,7 +5662,7 @@
 - id: div.sb_orrr_rd
   mnemonic: div.sb
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x39'
   mask: '0xFFFC0000'
   value: '0x43E40000'
@@ -5688,7 +5688,7 @@
 - id: rem.ub_orrr_rd
   mnemonic: rem.ub
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x3A'
   mask: '0xFFFC0000'
   value: '0x43E80000'
@@ -5714,7 +5714,7 @@
 - id: rem.sb_orrr_rd
   mnemonic: rem.sb
   format: orrr
-  op: '0x43'
+  opc: '0x43'
   ha: '0x3B'
   mask: '0xFFFC0000'
   value: '0x43EC0000'
@@ -5740,7 +5740,7 @@
 - id: rev.b_orri_rd
   mnemonic: rev.b
   format: orri
-  op: '0x43'
+  opc: '0x43'
   ha: '0x0C'
   mask: '0xFFFC0000'
   value: '0x43300000'
@@ -5769,7 +5769,7 @@
 - id: ftcls_orri_rf
   mnemonic: ftcls
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x00'
   mask: '0xFFFC0000'
   value: '0x44000000'
@@ -5801,7 +5801,7 @@
 - id: ft2fo_orri_rf
   mnemonic: ft2fo
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x01'
   mask: '0xFFFC0000'
   value: '0x44040000'
@@ -5835,7 +5835,7 @@
 - id: ft2ft_orri_rf
   mnemonic: ft2ft
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x02'
   mask: '0xFFFC0000'
   value: '0x44080000'
@@ -5864,7 +5864,7 @@
 - id: ftroot_orri_rf
   mnemonic: ftroot
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x06'
   mask: '0xFFFC0000'
   value: '0x44180000'
@@ -5893,7 +5893,7 @@
 - id: focls_orri_rf
   mnemonic: focls
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x08'
   mask: '0xFFFC0000'
   value: '0x44200000'
@@ -5921,7 +5921,7 @@
 - id: fo2ft_orri_rf
   mnemonic: fo2ft
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x09'
   mask: '0xFFFC0000'
   value: '0x44240000'
@@ -5950,7 +5950,7 @@
 - id: fo2fo_orri_rf
   mnemonic: fo2fo
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x0A'
   mask: '0xFFFC0000'
   value: '0x44280000'
@@ -5979,7 +5979,7 @@
 - id: foroot_orri_rf
   mnemonic: foroot
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x0E'
   mask: '0xFFFC0000'
   value: '0x44380000'
@@ -6006,7 +6006,7 @@
 - id: ft2it_orri_rf
   mnemonic: ft2it
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x30'
   mask: '0xFFFC0000'
   value: '0x44C00000'
@@ -6038,7 +6038,7 @@
 - id: ft2io_orri_rf
   mnemonic: ft2io
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x31'
   mask: '0xFFFC0000'
   value: '0x44C40000'
@@ -6066,7 +6066,7 @@
 - id: ft2ut_orri_rf
   mnemonic: ft2ut
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x32'
   mask: '0xFFFC0000'
   value: '0x44C80000'
@@ -6094,7 +6094,7 @@
 - id: ft2uo_orri_rf
   mnemonic: ft2uo
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x33'
   mask: '0xFFFC0000'
   value: '0x44CC0000'
@@ -6122,7 +6122,7 @@
 - id: it2ft_orri_rf
   mnemonic: it2ft
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x34'
   mask: '0xFFFC0000'
   value: '0x44D00000'
@@ -6154,7 +6154,7 @@
 - id: io2ft_orri_rf
   mnemonic: io2ft
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x35'
   mask: '0xFFFC0000'
   value: '0x44D40000'
@@ -6182,7 +6182,7 @@
 - id: ut2ft_orri_rf
   mnemonic: ut2ft
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x36'
   mask: '0xFFFC0000'
   value: '0x44D80000'
@@ -6210,7 +6210,7 @@
 - id: uo2ft_orri_rf
   mnemonic: uo2ft
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x37'
   mask: '0xFFFC0000'
   value: '0x44DC0000'
@@ -6238,7 +6238,7 @@
 - id: fo2it_orri_rf
   mnemonic: fo2it
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x38'
   mask: '0xFFFC0000'
   value: '0x44E00000'
@@ -6266,7 +6266,7 @@
 - id: fo2io_orri_rf
   mnemonic: fo2io
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x39'
   mask: '0xFFFC0000'
   value: '0x44E40000'
@@ -6294,7 +6294,7 @@
 - id: fo2ut_orri_rf
   mnemonic: fo2ut
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x3A'
   mask: '0xFFFC0000'
   value: '0x44E80000'
@@ -6322,7 +6322,7 @@
 - id: fo2uo_orri_rf
   mnemonic: fo2uo
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x3B'
   mask: '0xFFFC0000'
   value: '0x44EC0000'
@@ -6350,7 +6350,7 @@
 - id: it2fo_orri_rf
   mnemonic: it2fo
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x3C'
   mask: '0xFFFC0000'
   value: '0x44F00000'
@@ -6378,7 +6378,7 @@
 - id: io2fo_orri_rf
   mnemonic: io2fo
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x3D'
   mask: '0xFFFC0000'
   value: '0x44F40000'
@@ -6406,7 +6406,7 @@
 - id: ut2fo_orri_rf
   mnemonic: ut2fo
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x3E'
   mask: '0xFFFC0000'
   value: '0x44F80000'
@@ -6434,7 +6434,7 @@
 - id: uo2fo_orri_rf
   mnemonic: uo2fo
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x3F'
   mask: '0xFFFC0000'
   value: '0x44FC0000'
@@ -6462,7 +6462,7 @@
 - id: ftrnd_orri_rf
   mnemonic: ftrnd
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x03'
   mask: '0xFFFC0000'
   value: '0x440C0000'
@@ -6492,7 +6492,7 @@
 - id: fornd_orri_rf
   mnemonic: fornd
   format: orri
-  op: '0x44'
+  opc: '0x44'
   ha: '0x0B'
   mask: '0xFFFC0000'
   value: '0x442C0000'
@@ -6522,7 +6522,7 @@
 - id: ftadd_orrr_rf
   mnemonic: ftadd
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x10'
   mask: '0xFFFC0000'
   value: '0x44400000'
@@ -6548,7 +6548,7 @@
 - id: ftsub_orrr_rf
   mnemonic: ftsub
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x11'
   mask: '0xFFFC0000'
   value: '0x44440000'
@@ -6574,7 +6574,7 @@
 - id: ftmul_orrr_rf
   mnemonic: ftmul
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x12'
   mask: '0xFFFC0000'
   value: '0x44480000'
@@ -6600,7 +6600,7 @@
 - id: ftdiv_orrr_rf
   mnemonic: ftdiv
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x13'
   mask: '0xFFFC0000'
   value: '0x444C0000'
@@ -6626,7 +6626,7 @@
 - id: ftrem_orrr_rf
   mnemonic: ftrem
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x14'
   mask: '0xFFFC0000'
   value: '0x44500000'
@@ -6652,7 +6652,7 @@
 - id: ftsclb_orrr_rf
   mnemonic: ftsclb
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x15'
   mask: '0xFFFC0000'
   value: '0x44540000'
@@ -6678,7 +6678,7 @@
 - id: ftsgnn_orrr_rf
   mnemonic: ftsgnn
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x16'
   mask: '0xFFFC0000'
   value: '0x44580000'
@@ -6704,7 +6704,7 @@
 - id: ftsgnj_orrr_rf
   mnemonic: ftsgnj
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x17'
   mask: '0xFFFC0000'
   value: '0x445C0000'
@@ -6730,7 +6730,7 @@
 - id: foadd_orrr_rf
   mnemonic: foadd
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x18'
   mask: '0xFFFC0000'
   value: '0x44600000'
@@ -6756,7 +6756,7 @@
 - id: fosub_orrr_rf
   mnemonic: fosub
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x19'
   mask: '0xFFFC0000'
   value: '0x44640000'
@@ -6782,7 +6782,7 @@
 - id: fomul_orrr_rf
   mnemonic: fomul
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x1A'
   mask: '0xFFFC0000'
   value: '0x44680000'
@@ -6808,7 +6808,7 @@
 - id: fodiv_orrr_rf
   mnemonic: fodiv
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x1B'
   mask: '0xFFFC0000'
   value: '0x446C0000'
@@ -6834,7 +6834,7 @@
 - id: forem_orrr_rf
   mnemonic: forem
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x1C'
   mask: '0xFFFC0000'
   value: '0x44700000'
@@ -6860,7 +6860,7 @@
 - id: fosclb_orrr_rf
   mnemonic: fosclb
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x1D'
   mask: '0xFFFC0000'
   value: '0x44740000'
@@ -6886,7 +6886,7 @@
 - id: fosgnn_orrr_rf
   mnemonic: fosgnn
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x1E'
   mask: '0xFFFC0000'
   value: '0x44780000'
@@ -6912,7 +6912,7 @@
 - id: fosgnj_orrr_rf
   mnemonic: fosgnj
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x1F'
   mask: '0xFFFC0000'
   value: '0x447C0000'
@@ -6938,7 +6938,7 @@
 - id: ftqcmp_orrr_rf
   mnemonic: ftqcmp
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x20'
   mask: '0xFFFC0000'
   value: '0x44800000'
@@ -6964,7 +6964,7 @@
 - id: ftscmp_orrr_rf
   mnemonic: ftscmp
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x21'
   mask: '0xFFFC0000'
   value: '0x44840000'
@@ -6990,7 +6990,7 @@
 - id: foqcmp_orrr_rf
   mnemonic: foqcmp
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x28'
   mask: '0xFFFC0000'
   value: '0x44A00000'
@@ -7016,7 +7016,7 @@
 - id: foscmp_orrr_rf
   mnemonic: foscmp
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x29'
   mask: '0xFFFC0000'
   value: '0x44A40000'
@@ -7042,7 +7042,7 @@
 - id: ftmin_orrr_rf
   mnemonic: ftmin
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x26'
   mask: '0xFFFC0000'
   value: '0x44980000'
@@ -7068,7 +7068,7 @@
 - id: ftmax_orrr_rf
   mnemonic: ftmax
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x27'
   mask: '0xFFFC0000'
   value: '0x449C0000'
@@ -7094,7 +7094,7 @@
 - id: fomin_orrr_rf
   mnemonic: fomin
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x2E'
   mask: '0xFFFC0000'
   value: '0x44B80000'
@@ -7120,7 +7120,7 @@
 - id: fomax_orrr_rf
   mnemonic: fomax
   format: orrr
-  op: '0x44'
+  opc: '0x44'
   ha: '0x2F'
   mask: '0xFFFC0000'
   value: '0x44BC0000'

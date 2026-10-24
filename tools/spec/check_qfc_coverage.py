@@ -242,7 +242,7 @@ def load_yaml(yaml_path):
         data = _yaml.safe_load(f)
     records = {}
     for rec in data:
-        op = _to_int(rec["op"])
+        op = _to_int(rec["opc"])
         ha = rec.get("ha")
         ha = _to_int(ha) if ha is not None else None
         records[(op, ha)] = rec

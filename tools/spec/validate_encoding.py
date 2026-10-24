@@ -76,9 +76,9 @@ def check_value_mask(rec):
 
 
 def check_op_ha_value(rec):
-    """`value` 必须由 `op`（+ `ha`）现场算出：value == (op << 24) | (ha << 18)。"""
+    """`value` 必须由 `opc`（+ `ha`）现场算出：value == (op << 24) | (ha << 18)。"""
     tag = f"{rec.get('id', '?')}({rec.get('mnemonic', '?')}/{rec.get('format', '?')})"
-    op = _to_int(rec["op"])
+    op = _to_int(rec["opc"])
     expected = op << 24
     if "ha" in rec:
         expected |= _to_int(rec["ha"]) << 18
@@ -197,7 +197,7 @@ def main():
             errors.append(f"ERROR: {tag}: 记录不是字典")
             continue
 
-        required_keys = {"id", "mnemonic", "format", "op", "mask", "value", "fields"}
+        required_keys = {"id", "mnemonic", "format", "opc", "mask", "value", "fields"}
         missing = required_keys - set(rec.keys())
         if missing:
             errors.append(f"ERROR: {tag} {mnem}({fmt}): "
@@ -205,7 +205,7 @@ def main():
             continue
 
         # 检查 (op, ha, mnemonic, format) 的唯一性
-        op = rec.get("op")
+        op = rec.get("opc")
         ha = rec.get("ha")
         op_ha_key = (op, ha, mnem, fmt)
         if op_ha_key in seen_keys:

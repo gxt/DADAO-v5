@@ -156,11 +156,11 @@ HEADER_RET = """\
 SC_JUMP = "SimRISC-06: 无条件跳转指令; ADR-0004 D6.5"
 SC_JUMP_LEG = "SimRISC-06: 无条件跳转指令; ADR-0004 D5.6"
 SC_CALL = "SimRISC-06: 函数调用; ADR-0004 D6.5"
-SC_CALL_C1 = "SimRISC-00: 返回地址栈 §C1; SimRISC-06: 函数调用; ADR-0004 D2.1"
-SC_CALL_C2 = "SimRISC-00: 返回地址栈 §C2; SimRISC-06: 函数调用"
-SC_CALL_C3a = "SimRISC-00: 返回地址栈 §C3a; SimRISC-06: 函数调用"
-SC_CALL_RASOF = "SimRISC-00: 返回地址栈 §C3b; SimRISC-06: 函数调用; ADR-0004 D5.5"
-SC_CALL_C3b_MEM = "SimRISC-00: 返回地址栈 §C3b; SimRISC-06: 函数调用"
+SC_CALL_C1 = "SimRISC-00: 压栈流程; SimRISC-06: 函数调用; ADR-0004 D2.1"
+SC_CALL_C2 = "SimRISC-00: 压栈流程; SimRISC-06: 函数调用"
+SC_CALL_C3a = "SimRISC-00: 压栈流程; SimRISC-06: 函数调用"
+SC_CALL_RASOF = "SimRISC-00: 压栈流程; SimRISC-06: 函数调用; ADR-0004 D5.5"
+SC_CALL_C3b_MEM = "SimRISC-00: 压栈流程; SimRISC-06: 函数调用"
 SC_CALL_LEG = "SimRISC-06: 函数调用; ADR-0020 D15 / ADR-0004 D5.8"
 
 # ── ISS-098 已知 harness 缺陷（精确到用例；禁按类/正则批量豁免）──────────
@@ -171,18 +171,18 @@ DEFER_CALL_C3B = ("ISS-098: harness 对 `call` 无语义宽度可推导 "
 DEFER_RET = ("ISS-098: harness 对 `ret` 路由 build_call_ret_binary 剥离 RA ⇒ "
              "QEMU SIGABRT (Unknown exit code 0x-6)，用例不可执行")
 SC_RET = "SimRISC-06: 函数返回; SimRISC-00: 返回地址栈; ADR-0004 D6.5"
-SC_RET_D2 = "SimRISC-00: 返回地址栈 §D2; SimRISC-06: 函数返回"
-SC_RET_D3 = "SimRISC-00: 返回地址栈 §D3; SimRISC-06: 函数返回"
-SC_RET_D4b = "SimRISC-00: 返回地址栈 §D4b; SimRISC-06: 函数返回"
-SC_RET_RASUF = "SimRISC-00: 返回地址栈 §D4a; SimRISC-06: 函数返回; ADR-0004 D5.5"
-SC_RET_D4B_RASUF = "SimRISC-00: 返回地址栈 §D4b; SimRISC-06: 函数返回; ADR-0004 D5.5"
+SC_RET_D2 = "SimRISC-00: 弹栈流程; SimRISC-06: 函数返回"
+SC_RET_D3 = "SimRISC-00: 弹栈流程; SimRISC-06: 函数返回"
+SC_RET_D4b = "SimRISC-00: 弹栈流程; SimRISC-06: 函数返回"
+SC_RET_RASUF = "SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; ADR-0004 D5.5"
+SC_RET_D4B_RASUF = "SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; ADR-0004 D5.5"
 # TESTCASES-022t: ret rd0 ⇒ imms18 MUST be 0 (dst_rd0_nonzero); rd != rd0 unconstrained
 SC_RET_RD0_IMMS18 = "SimRISC-06: 函数返回; SimRISC-00: 数据寄存器"
 
 
 # ── jump-iiii (unchanged) ─────────────────────────────────────────────
 def _gen_jump_iiii():
-    op = int(BY_KEY[("jump_iiii_rb", "iiii")]["op"], 16)
+    op = int(BY_KEY[("jump_iiii_rb", "iiii")]["opc"], 16)
     word = _build_word_iiii(op, IMM)
     boundary_imm = (-0x1000) & 0xFFFFFF
     boundary_word = _build_word_iiii(op, boundary_imm)
@@ -209,7 +209,7 @@ def _gen_jump_iiii():
 
 # ── jump-rrii (unchanged) ─────────────────────────────────────────────
 def _gen_jump_rrii():
-    op = int(BY_KEY[("jump_rrii_rb", "rrii")]["op"], 16)
+    op = int(BY_KEY[("jump_rrii_rb", "rrii")]["opc"], 16)
     enc_word = _build_word_rrii(op, 0, 0, IMM)
     unmapped_word = _build_word_rrii(op, 3, 0, 0)
     return [
@@ -233,7 +233,7 @@ def _gen_jump_rrii():
 
 # ── call-iiii (D7 rewrite) ───────────────────────────────────────────
 def _gen_call_iiii():
-    op = int(BY_KEY[("call_iiii_ra", "iiii")]["op"], 16)
+    op = int(BY_KEY[("call_iiii_ra", "iiii")]["opc"], 16)
     word = _build_word_iiii(op, IMM)
 
     # C1: cold RA → push new entry, RACNT=1
@@ -352,7 +352,7 @@ def _gen_call_iiii():
 
 # ── call-rrii (D7 rewrite) ───────────────────────────────────────────
 def _gen_call_rrii():
-    op = int(BY_KEY[("call_rrii_ra", "rrii")]["op"], 16)
+    op = int(BY_KEY[("call_rrii_ra", "rrii")]["opc"], 16)
     enc_word = _build_word_rrii(op, 0, 0, IMM)
     unmapped_word = _build_word_rrii(op, 3, 0, 0)
 
@@ -419,7 +419,7 @@ def _gen_call_rrii():
 
 # ── ret-riii (D7 rewrite) ────────────────────────────────────────────
 def _gen_ret_riii():
-    op = int(BY_KEY[("ret_riii_ra", "riii")]["op"], 16)
+    op = int(BY_KEY[("ret_riii_ra", "riii")]["opc"], 16)
     word = _build_word_riii(op, 0, 0)  # rdha=rd0, imms18=0
 
     # D2: RACNT>0, count>1 → decrement count, RACNT unchanged

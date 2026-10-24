@@ -200,7 +200,7 @@ def def_key(d: dict) -> tuple:
 
 
 def rec_key(r: dict) -> tuple:
-    return (r["mnemonic"], r["format"], int(r["op"], 16), rec_ha(r))
+    return (r["mnemonic"], r["format"], int(r["opc"], 16), rec_ha(r))
 
 
 def build_def_map(defs: list[dict], recs: list[dict]) -> dict[str, list[str]]:
@@ -504,7 +504,7 @@ def build_synonym_map(defs: list[dict], recs: list[dict]) -> dict[str, list[str]
     """
     idx: dict[tuple, list[dict]] = collections.defaultdict(list)
     for r in recs:
-        idx[(r["format"], int(r["op"], 16), rec_ha(r))].append(r)
+        idx[(r["format"], int(r["opc"], 16), rec_ha(r))].append(r)
     out: dict[str, list[str]] = {}
     for d in defs:
         key = (d["format"], int(d["op"], 16) if d["op"] else None,
@@ -864,7 +864,7 @@ def self_test() -> int:
 
     # ② 同义名：编码身份相同、助记符不同 ⇒ 记到记录上
     recs = [{"id": "it2ft_orri_rf", "mnemonic": "it2ft", "format": "orri",
-             "op": "0x44", "mask": "0xFFFC0000", "value": "0x44040000"}]
+             "opc": "0x44", "mask": "0xFFFC0000", "value": "0x44040000"}]
     syn_defs = [{"name": "io2fo_orri_rf", "mnemonic": "io2fo", "format": "orri",
                  "op": "0x44", "ha": "0x01"}]
     recs[0]["ha"] = "0x01"

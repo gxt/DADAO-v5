@@ -6,7 +6,7 @@ Source of truth (Spec-first; no QEMU/LLVM reverse-engineering):
                                   polynomials; 128-bit product, rdHA = high 64,
                                   rdHB = low 64; rd0 on one side discards that
                                   half; both rd0 or same non-rd0 dest => ILLI.
-  * contracts/opcodes.yaml      — encoding (op 0x56, fields rdha/rdhb/rdhc/rdhd)
+  * contracts/opcodes.yaml      — encoding (opc 0x56, fields rdha/rdhb/rdhc/rdhd)
   * ADR-0035 D2/D4/D6           — layout and rd0 rules
 
 The expected product is derived from the definition itself, independently of
@@ -125,7 +125,7 @@ def _hex64(val: int) -> str:
 
 
 def build_word(rec, ha: int, hb: int, hc: int, hd: int) -> int:
-    op = _int(rec["op"])
+    op = _int(rec["opc"])
     return (op << 24) | (ha << 18) | (hb << 12) | (hc << 6) | hd
 
 

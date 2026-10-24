@@ -220,7 +220,7 @@ def rec(insn, mnemonic, fmt, op, fields, legality, spec_cite, ha=None, scope="m1
         # ha 并入 op：op(8位) + ha(6位) = 14位
         mask, value = 0xFFFC0000, (op << 24) | (ha << 18)
     insn_id = _get_id(insn, fmt, fields)
-    r = {"id": insn_id, "mnemonic": mnemonic, "format": fmt, "op": f"0x{op:02X}"}
+    r = {"id": insn_id, "mnemonic": mnemonic, "format": fmt, "opc": f"0x{op:02X}"}
     if ha is not None:
         r["ha"] = f"0x{ha:02X}"
     r["mask"] = f"0x{mask:08X}"
