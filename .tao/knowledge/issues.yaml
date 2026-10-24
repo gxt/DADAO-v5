@@ -71,4 +71,10 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 = `TESTCASES-055t` 完成区「归因 ①」+「新发现/坑 ②」，2026-10-20；architect 提交时登记）】**现象（ansibench 实测，非语料问题）**：ansibench `mk/gcc/stdflags.mk` 默认带 `-g` ⇒ `coremark` 等基准构建失败，汇编器报 `relocatable operand in a 1/2/4-byte data field` 并指明 `48-bit DADAO address`；命令行改 `-g0` 后 7/8 基准构建 rc=0 ⇒ **不阻塞任何基准**。**根因方向**：调试信息里落地址的重定位目标是 4 字节字段（32 位口径），而 DADAO 地址 48 位 ⇒ 装不下；需为调试信息的地址字段提供 8 字节通道（或按目标端宽发对应 DWARF form）。**影响**：`-g` 下调试信息面**当前不可用**（任何带 `-g` 的构建都会撞上），属**真实缺陷**。**等级 = P2**（不阻断本册判据：`-g0` 绕行后构建/运行/CRC PASS 均已成立）。**证据指针**：`.tao/tasks/testcases/TESTCASES-055t-ansibench语料接入.md` 完成区「验收结果 · 归因」「新发现/坑 ②」；`.work/log/testcases/TESTCASES-055t-*.log`（构建失败原文）、`.work/evidence/TESTCASES-055t/run.sh`（`-g0` 对照）。**交叉引用**：`TESTCASES-055t`（登记源）、`ADR-0033 D4`（三类归因 ①）、`LLVM-118t`/`LLVM-119t`/`LLVM-120t`（同批 llvm 面，本项**未**排期）。**边界**：本笔只登记 ⇒ 未改 `components/llvm-project/**`/汇编器 ✗、未改语料 ✗。"
-
+- id: ISS-333
+  title: "【P3】`gen_spec_archive --verify` 对 `SimRISC-0.5.3` 报 PROVENANCE 缺版本组合 sha 与逐文件表（L1 门控不查此细节）"
+  status: open
+  scope: [spec, infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（2026-10-25，源 = `SPEC-172t` 发布 0.5.5 时 `gen_spec_archive.py --verify` 实测）】**现象**：`python3 tools/spec/gen_spec_archive.py --verify` rc=1，唯一失败项 = `SimRISC-0.5.3`（5 文件）——其 `PROVENANCE.md` 缺「版本组合 sha256」行与「逐文件 sha256」表；`0.5.4`/`0.5.5`/`0.5.5-rc` 均 OK。**影响**：`check_spec_archive.py`（L1）只校验存在性与文件数、不校验内容 ⇒ 该缺陷长期不可见；`--verify` 的清单级可信度被削弱。**修法方向**：按 0.5.4/0.5.5 的 PROVENANCE 格式补写 0.5.3 的组合 sha 与逐文件表（内容仍取原快照提交，禁改归档文件本体，符合 `Process-06 §8` 只增不改）；或让 `--verify` 对历史缺表项显式标注为 known-legacy。**边界**：本笔只登记 ⇒ 未改 `.tao/archive/SimRISC-0.5.3/**` ✗。"

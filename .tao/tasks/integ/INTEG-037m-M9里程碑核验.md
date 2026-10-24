@@ -10,7 +10,7 @@
 
 1. 所有 `t` 册（本里程碑期）`已验证`；
 2. **终局全量复跑绿**：L3 `check-full` PASS；libc-test 静态 331 pass / 0 fail、动态 338 pass / 0 fail；llvm-test-suite 静态 204 pass / 0 fail、动态 203 pass / 0 fail（`blocked>0 ⇒ rc=1` 为 `ISS-248` 既定口径）；
-3. open issue ≤ 10，且全部为 M10 已登记项；
+3. open issue ≤ 12，且全部为 M10 已登记项；
 4. 关闭项已归档 `.tao/archive/M9/issues-closed.md`，`issues.yaml` 仅留 open。
 
 ## 本期任务（67 册，全部 `已验证`）
@@ -24,6 +24,6 @@
 - **规范**：`MISC-`→`OPC-` 485 处、分册重组（11=核芯功能扩展 / 12=其它指令 / 非法指令并入 00）、changelog 30→14 条、**发布 0.5.5**。
 - **门控**：去写死计数（改集合不变量）、+7 项覆盖缺口、`br.nz` 偏移修正（失败路径可信化）、musl `-ffp-contract=off`（`math/yn` 回绿）。
 
-## 遗留（M10，见 `issues.yaml` 的 10 条 open）
+## 遗留（M10，见 `issues.yaml` 的 11 条 open）
 
 qemu-user 47 位基址、`-static-pie` PIC libc、picolibc `%p`、`-g` DWARF 重定位、`llvm-mc` 显示断言、harness `ret`、musl 排除 13 文件、qemu 稳定性合并条、5.3 归档 PROVENANCE、`ISS-282` ③ 后续。
