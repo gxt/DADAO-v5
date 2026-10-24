@@ -174,7 +174,8 @@ group = "simrisc-00..12"
 #   §4 QFC 主表 `0101-1xxx` 的 `110`/`111` 两格改填 `ftfma_rrrr_rf`/`fofma_rrrr_rf`（`op = 0x5E`/`0x5F`；原格残留的
 #   `cs.eq_rrrr_rf`/`cs.ne_rrrr_rf` 文本随删格清除）；附录 0.5.5-rc 段**追加** 1 条（历史行不改写）；sha256 同笔重算。
 # 2026-10-24（SPEC-167t，同授权）：并入非法指令（ILLI）/ 保留编码（UNDI）总规则为 §异常规则；各 QFC 子表只留 `reserved` 说明；sha256 同笔重算。
-sha256 = "b44c9adfc55b6fbdcc51c845c690cd5eb05f471b18ed822a4b6602c5ff898a10"
+# 2026-10-24（SPEC-168t，用户原话见 `.tao/tasks/spec/SPEC-168t-00清理.md` §用户裁定）：§2.2 删「高 16 位处理规则」表及其后「控制流指令硬件…溢出检测」句（保留存储模型段）；§4 七张编码表列对齐；`op`/`opcode` → `opc`、去「I 形态」；sha256 同笔重算。
+sha256 = "39b8f634227d6eed539196be8dc71315c15f6c6f35e8d950bb703dfed32316c4"
 # 2026-10-22（SPEC-164t，授权原话见 `.tao/tasks/spec/SPEC-164t-OPC-MISC迁移与解excluded.md` §立项来源：「还有一个编码改动过：OPC-MISC的编码改为：0100-0111」「修改编码：ctpop_orri_rd ctlz_orri_rd cttz_orri_rd 从 OPC-octa 改为 OPC-MISC，opx：100-101/100-110/100-111」）：§4 QFC 主表 `OPC-MISC` 由 `0111-0111` 迁 `0100-0111`（原格置空）；§4.1 `100-101/110/111` 填 `ctpop`/`ctlz`/`cttz`；§4.2 删同三格与「借用 OPC-octa 格位」例外说明；附录 0.5.5-rc 两条同步；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
