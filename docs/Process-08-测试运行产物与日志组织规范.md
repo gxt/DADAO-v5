@@ -98,7 +98,7 @@
 
 - **存量豁免**：落地时在 `.work/log/` 写 `.run-artifacts-epoch`（内容 = 创建时刻 UTC）。`mtime <= epoch` 的文件豁免；落地时另写 `.run-artifacts-baseline`（当时全部相对路径的快照），快照内路径一律豁免（防止**正在被改写**的旧文件因 mtime 变新而误判）。标记不存在 ⇒ **SKIP**。
 - 新增文件**必须**是 `check-<name>.log` 或 `<任务号>-<用途>.(log|json|txt)`；其余 ⇒ **FAIL**。
-- 过渡豁免：本册落地时仍在写的 `llvm-ts-user-*` 旧固定名（当前动态跑）不判红；搬迁任务完成后删除该豁免。删除的**机械判据**：`python3 tools/infra/check_run_artifacts.py --legacy-status` 返回 `0`（= `.work/log/**` 已无 `llvm-ts-user-*` 文件）⇒ 连同 `--legacy-status` 子命令一起删除 `INFLIGHT_LEGACY`；返回 `1` ⇒ 搬迁未完成，保留且**不得**扩大范围（`ISS-282 ③`）。
+- 过渡豁免**已删除**（`ISS-282 ③`）：`llvm-ts-user-*` 旧固定名已于 `TESTCASES-062t` 搬入 `.work/tests/archive/ISS-282/`（26 件、逐字节不变、只移不删），门控的 `INFLIGHT_LEGACY` 与 `--legacy-status` 子命令随之移除；此后该形状的新文件按普通命名规则判定。
 - 不得把豁免写成「只查某个目录」。
 
 ### 退出码

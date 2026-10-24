@@ -20,11 +20,9 @@ A3  files added to ``.work/log/**`` after the epoch marker
     ``check-<name>.log`` or ``<TASK-ID>-<purpose>.(log|json|txt)``.
     Files present at landing (snapshot in ``.run-artifacts-baseline``) and
     files with ``mtime <= epoch`` are exempt.  No marker => SKIP, printed.
-    The in-flight legacy ``llvm-ts-user-*`` files of the current dynamic run
-    are explicitly exempt until the separate migration task moves them.
-    ``--legacy-status`` is the mechanical criterion for deleting that
-    exemption: rc=0 (no legacy files left) => delete ``INFLIGHT_LEGACY``;
-    rc=1 (files remain) => keep it (ISS-282 ③).
+    The former in-flight ``llvm-ts-user-*`` exemption was deleted once the
+    migration moved those files (``ISS-282`` ③, ``TESTCASES-062t``): such names
+    are now judged like any other new name.
 
 Exit: 0 = PASS (or documented SKIP), 1 = FAIL.  ``--self-test`` runs each
 assertion's injection: baseline green, then one injected counter-example per
@@ -56,10 +54,6 @@ LEGAL_LOG_NAMES = (
     re.compile(r"^check-[A-Za-z0-9][A-Za-z0-9._-]*\.log$"),
     re.compile(rf"^{TASK_ID}-[A-Za-z0-9][A-Za-z0-9._-]*\.(?:log|json|txt)$"),
 )
-# Temporary exemption: the dynamic run that was already in flight when this
-# gate landed writes these legacy fixed names.  Removed by the migration task.
-INFLIGHT_LEGACY = re.compile(
-    r"^llvm-ts-user-[A-Za-z0-9._-]+\.(?:json|log|stdout|stderr)$")
 LOG_MARKER = ".run-artifacts-epoch"
 LOG_BASELINE = ".run-artifacts-baseline"
 EPOCH_FORMATS = ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z")
@@ -314,7 +308,6 @@ def check_a3(root: str | None, out) -> list[str]:
         baseline = {line.strip() for line in
                     _read(baseline_path).splitlines() if line.strip()}
     checked = exempt = bad = 0
-    legacy = 0
     for dirpath, _dirnames, filenames in os.walk(base):
         for name in filenames:
             path = os.path.join(dirpath, name)
@@ -331,10 +324,6 @@ def check_a3(root: str | None, out) -> list[str]:
             if mtime <= epoch:
                 exempt += 1
                 continue
-            if INFLIGHT_LEGACY.match(name):
-                exempt += 1
-                legacy += 1
-                continue
             checked += 1
             if not any(rx.match(name) for rx in LEGAL_LOG_NAMES):
                 bad += 1
@@ -343,40 +332,11 @@ def check_a3(root: str | None, out) -> list[str]:
                     "check-<name>.log or <TASK-ID>-<purpose>.(log|json|txt))")
     if bad:
         out(f"[FAIL] A3 {checked} new file(s) checked, {bad} illegal, "
-            f"{exempt} exempt (epoch/baseline/legacy; legacy={legacy})")
+            f"{exempt} exempt (epoch/baseline)")
     else:
         out(f"[PASS] A3 {checked} new file(s) checked, {bad} illegal, "
-            f"{exempt} exempt (epoch/baseline/legacy; legacy={legacy})")
+            f"{exempt} exempt (epoch/baseline)")
     return problems
-
-
-def legacy_status(root: str | None = None) -> int:
-    """Mechanical criterion for deleting the ``INFLIGHT_LEGACY`` exemption.
-
-    ``rc=0``: no ``llvm-ts-user-*`` file is left under ``.work/log/**`` => the
-    migration (ISS-278 second step) is complete and ``INFLIGHT_LEGACY`` must
-    be deleted together with this subcommand.  ``rc=1``: files remain => the
-    exemption is still load-bearing; keep it and do not widen it.
-    """
-    base = (os.path.join(root, ".work", "log") if root
-            else os.path.join(REPO_ROOT, ".work", "log"))
-    remaining = []
-    for dirpath, _dirnames, filenames in os.walk(base):
-        for name in filenames:
-            if INFLIGHT_LEGACY.match(name):
-                remaining.append(os.path.relpath(
-                    os.path.join(dirpath, name), base))
-    if remaining:
-        print(f"legacy-status: FAIL ({len(remaining)} llvm-ts-user-* file(s) "
-              "remain; keep INFLIGHT_LEGACY)")
-        for rel in remaining[:10]:
-            print(f"  .work/log/{rel}")
-        if len(remaining) > 10:
-            print(f"  ... and {len(remaining) - 10} more")
-        return 1
-    print("legacy-status: PASS (no llvm-ts-user-* file left; delete "
-          "INFLIGHT_LEGACY and this subcommand)")
-    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -530,13 +490,7 @@ def main() -> int:
     ap.add_argument("--self-test", action="store_true",
                     help="run baseline + one injected counter-example per "
                          "assertion")
-    ap.add_argument("--legacy-status", action="store_true",
-                    help="mechanical criterion for the INFLIGHT_LEGACY "
-                         "exemption (ISS-282 ③): rc=0 => no llvm-ts-user-* "
-                         "file left, delete the exemption; rc=1 => keep it")
     args = ap.parse_args()
-    if args.legacy_status:
-        return legacy_status(args.root)
     if args.self_test:
         base = os.environ.get("DADAO_TMP",
                               "/tmp/opencode/INFRA-093t")
