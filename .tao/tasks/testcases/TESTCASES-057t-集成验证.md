@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M9
 **依赖**：`QEMU-068t`（执行语义 + 解除 `excluded`）、`LLVM-122t`（`llvm.clmul` / `llvm.dadao.clmul` / `__builtin_dadao_clmul`）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -99,12 +99,46 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：两档各 **627 PASS / 0 FAIL**（O0 compile 0.24 s / run 0.06 s；O2 compile 0.61 s / run 0.08 s）；`--inject` 档 641 PASS（9 类注入全红 + 源未变 + 复原回绿）；oracle 自证 **51/51**（GF(2) 恒等式 + GCM 规范附录 B 的 H/X_i/GHASH + CRC-32C 四组发布向量）。全部期望值由 oracle 现场派生、计数现场统计（无写死）。
+**修改文件**：新增 `tests/clmul/{clmul_edges.c,clmul_ghash.c,clmul_crc32c.c,clmul_ir.ll}`、`tools/testcases/{oracle_clmul.py,run_clmul_probe.py}`、`.work/evidence/TESTCASES-057t/run.sh`（`.work/` 不入库）；改 `Makefile`（新增 `check-clmul-probe`：L2 `check-modules` + 门控锁 + help）、`.tao/knowledge/milestones.md`（流水行状态 `待开始`→`待验收` + 一句改动，L1 `check-milestones-fresh` 要求）；本册。**覆盖披露**：新增用例文件 **4**（3 个 C 探针 + 1 个 IR 包裹 → 84 个 clmul 单元、9 个 GHASH 向量、17 个 CRC 向量）、新增工具 **2**、证据脚本 **1**、L2 目标 **1**；修改既有用例 **0**、删除 **0**。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- 两档全绿 `PASS (O0): total=627 pass=627 fail=0` / `PASS (O2): total=627 pass=627 fail=0`；分组 oracle 51 / edges 431 / ghash 63 / crc 58 / asm 9 / build 8 / run 3（两档计数现场派生一致）。
+- 指令级：84 单元 × 3 出口（通用 `llvm.clmul` 低半、`llvm.dadao.clmul.hi` 高半、`__builtin_dadao_clmul` 的 i128）+ 84 个 `{lo,hi}` pair；含 `0/1/(1<<63)²⇒hi=1<<62/全1/1<<k×1<<m`、64 个 splitmix64 随机单元（种子 0xC1A50577）。
+- GHASH 与 NIST 一致（GCM 规范 App.B tc2）：`C1·H = 5e2ec746917062882c85b0685353deb7`、`GHASH(H,A,C) = f38cbb1ad69223dcc3457ae5b6b0f885`；tc3（4 块）/tc4（AAD 20 B + C 60 B）的 X1…X6 与发布值逐项相等；另含 H=0、H=全1、单块、两块链、AAD+半块。
+- CRC-32C：`crc32c("123456789") = e3069283`；`32×0x00 → 8a9136aa`、`32×0xff → 62a8ab43`、`00..1f → 46dd794e`、反向 `→ 113fdb5c`（发布向量）；长度 0/1/7/8/9/15/16/17/63/64/65/1000 与位串行参考逐例相等。
+- 可达 FAIL（两档同值，均真实注入）：① GHASH 期望翻 1 位 ⇒ **9/63 红**；② CRC 换 IEEE 多项式 ⇒ **21/58 红**；③ clmul 高低半互换 ⇒ **316/424 红**；④ clmul 换普通乘 ⇒ **338/424 红**；⑤ `rev` 记作恒等 ⇒ **4/7 红**；⑥ C 侧 `clmul`→`*`：GHASH **14/63**、CRC **16/58** 红且对象 `clmul.o` 归零（结构性断言可达 FAIL）；⑦ 探针副本注入高低半互换 ⇒ driver **rc=1**（159 FAIL），删副本后 rc=0。
+- 门控：`make check-clmul-probe` **PASS(O0+O2)**；`validate-vectors` OK（706 cases）；`check_qemu_trans --strict` **266/266**；`make check`(L1) rc=0；`make check-modules`(L2，含 check-clmul-probe) rc=0；证据 `.work/evidence/TESTCASES-057t/run.sh` **19/19 PASS**（rc 落盘 `run.rc`=0；全程 `; rc=$?` 不吞码）。实测 ≈0.7 s/档 ⇒ 定层 **L2**。
+**新发现/坑**：① GCM 位序桥（`rev128` + 自然多项式序）是唯一易错点，oracle 用「位串行 vs rev+clmul」双形式互证并以发布 X1 钉住；② u128 内用 `0x87 << i` 折叠高位会在 x^255 处**静默丢 7 位**（实测 X1 首字节 `2e` vs `5e`）⇒ 须两段折叠；③ Barrett 商 66 位，用 `clmul` 低 64 位截断会丢 bit64/65（实测 8 B/32 B 末位错）⇒ 须保留 u128 再移位；④ `-O0` 下静态 kernel 只有 out-of-line wrapper 含 1 条 `clmul.o`（4 处调用）⇒ 结构性断言只取下界，另用「GHASH 对象 `mul.uo`==0」钉住未被展开成 64 位乘。
+**遗留问题**：`milestones.md` 的 `已验证` + 完成时间留给 `/complete`（工程师只按 L1 门控要求同步到 `待验收`）；其余无（未改 ISA/QEMU/LLVM；性能基准按边界不做）。
 
 ## 审阅记录
 
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+### 第 1 轮 engineer 自审（2026-10-24，自主逐行审查）
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `barrett32` 用 `clmul_lo` 取 66 位商积 ⇒ 丢 bit64/65（8 B/32 B 末位错：`40795c73` vs `40795c72`） | ✅已修 | `clmul_wide` + u128 右移 33 得商 | `crc_eight_ramp=40795c72`、`ff32=62a8ab43`、`seqr32=113fdb5c` 与位串行参考相等 |
+| F2 GHASH 用 `0x87<<i` 折叠 x^(128+i) 在 i>120 时溢出 u128（X1 首字节 `2e` vs 发布 `5e`） | ✅已修 | `gf128_reduce`：一次折叠 + 7 位 `spill` 二次折叠 | `C1·H=5e2ec746…`、tc1–tc4 GHASH/链全等于发布值 |
+| F3 探针数据生成按首字母分派：`string` 落入 `seqr` 分支 ⇒ `crc32c("123456789")` 错 | ✅已修 | 按 `kind[1]`（`t`=string / `e`=seq）分派 | `crc_check123456789 = e3069283` |
+| F4 oracle 把 CRC 长度与 CHAIN 下标按十六进制解析（`15`→21） | ✅已修 | 两者改 `int(x)` 十进制 | 长度断言与 17 例 CRC 全绿 |
+| F5 `_ck()` 位置参数误用（`ok` 落到 `detail`）⇒ 覆盖类断言 TypeError | ✅已修 | `_ck(..., ok=None)` 关键字，覆盖类断言显式传 `ok=` | 两档 627/627 无异常 |
+| F6 边界表含 `1<<64`（超出 64 位操作数） | ✅已修 | 改为 `bit_62_63`（`1<<62 × 1<<63`） | `edges: boundary cells present` 0 missing |
+| F7 探针表里的操作数写错时 oracle 会"按错的值算期望"而仍绿 | ✅已修 | 新增 `edges: boundary operands match the oracle table`（逐 label 比对 a,b） | 新断言绿；注入高低半互换时该组同时红 |
+| F8 `ASM_OBJ` 初版要求 ghash 对象 `clmul.o ≥ 4`（把指令数当调用数）⇒ -O0 假红（实测 1） | ✅已修 | 取下界 1，另加 `mul.uo ≤ 0`（GHASH 无普通乘，展开成 64 位乘即红） | O0 `clmul.o=1 mul.uo=0`、O2 `12/0`；C 侧注入后 `clmul.o=0` |
+
+判决：F1–F8 全部修复并复验；无未修缺陷，无降级/跳过项。状态置 `待验收`。
+
+### 第 1 轮 reviewer 验收（2026-10-24，独立重跑）
+
+- **重跑（本人执行）**：`./.work/evidence/TESTCASES-057t/run.sh` → `EVIDENCE_RC=0`、`run.rc=0`、`PASS (19 checks)`；其中 `check-clmul-probe`(O0+O2)、`validate-vectors`(706 cases)、`check_qemu_trans --strict`(266/266)、`make check`(L1)、`make check-modules`(L2) 的 rc 均由脚本直取为 0。另单跑 `make check-clmul-probe` → `MAKE_CLMUL_RC=0`。
+- **计数现场统计（不采信 627）**：O0/O2 均 `total=627 pass=627 fail=0`；分组 oracle=51、edges=431、ghash=63、crc=58、asm=9、build=8、run=3、objdump=1、探针组×3=1（合计 627，两档一致）。分项：clmul 单元 84（20 边界 + 64 splitmix64 随机）×3 出口 + 84 pair + rev 6 + 覆盖 4 = 431；GHASH 9 向量 = 63；CRC 17 向量 = 58；oracle 自证 51（恒等式 + 双形式 + 发布向量）。
+- **标准向量独立核对**：本人另写 `/tmp/opencode/TESTCASES-057t-review/indep_check.py`（**与 oracle 不同的算法形态**：GHASH 用自然序 Horner + 128 位反转，CRC 用 MSB-first 反射等价形；不 import 仓库 oracle、不碰 QEMU/LLVM）→ **20/20 PASS, rc=0**：tc2 `C1·H=5e2ec746917062882c85b0685353deb7`、`GHASH(H,A,C)=f38cbb1ad69223dcc3457ae5b6b0f885`；tc3 X1–X4 + GHASH、tc4 X1–X6 + GHASH；`crc32c("123456789")=e3069283`、`32×0x00=8a9136aa`、`32×0xff=62a8ab43`、`00..1f=46dd794e`、`1f..00=113fdb5c` —— 与用例表、探针实测输出逐位相等。
+- **oracle 独立性**：`oracle_clmul.py` 零 import、无 subprocess/QEMU/LLVM 调用；`clmul()` 是 GF(2) 位移异或**定义**；CRC 为位串行（非表、非 clmul）。三个探针只观察（打印输入/中间值），期望值全部由 oracle 现场派生；KAT 只用于钉参考，不作唯一真值。
+- **注入 3 次（均在 `/tmp` 临时树，仓库文件零改动，md5 前后一致）**：① GHASH 期望翻 1 位 → driver rc=**1**、2 FAIL（`f38c…884` vs 实测 `…885`）；② CRC 多项式换 IEEE `0xEDB88320` → rc=**1**、26 FAIL（check 值变 `cbf43926`）；③ C 探针 EDGE 高低半互换 → rc=**1**、159 FAIL。未注入树复跑 `PASS (O2): total=627 pass=627 fail=0` rc=0（回绿）。engineer 侧 9 类注入签名本人重跑全红：9/63、21/58、316/424、338/424、4/7、14/63、16/58、structural 0×2。
+- **覆盖披露核验**：`git diff --name-status d15d1906~1..d15d1906 -- tests/` = 4 `A`、0 M、0 D；工具 2 `A`；与完成区声明一致。
+- **约束**：`git diff -- components/ spec/ contracts/` 空（rc=0，未改实现/规范/契约）；Makefile 仅新增 `check-clmul-probe`（+ 门控锁 + help + L2 接线），未改既有门控判定语义；`.work/` 不入库。
+- **证据脚本审读**：无 `| tee`（仅注释提及）、`step()` 以 `rc=$?` 直取、`run.rc` 落盘；各断言有可达 FAIL（注入签名含 `red>0` 且 `total>0` 双守卫、探针源 md5 基线、两档计数比对）；计数全部现场派生，无写死。
+- **快照对账**：验收前/后 `git status --porcelain -uall` 均 0 行且一致；7 个目标文件 `md5sum -c` 全 OK（`run.sh` 与审读副本逐字节相同）。
+- **判决：Accepted** —— 标准向量正确、oracle 无循环、注入全红且可回绿、覆盖未删、门控全绿；无阻断项，无降级/跳过项。

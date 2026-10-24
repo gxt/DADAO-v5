@@ -41,6 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-057t | 已验证 | 2026-10-24 10:05 | clmul 集成：两档各 627 checks；GHASH/CRC-32C 标准向量 + 独立 oracle；注入 5 类红 |
 | INFRA-104t | 已验证 | 2026-10-24 09:05 | musl 加 `-ffp-contract=off`：libc-test 331 pass/0 fail（`math/yn` 回绿），用户 FMA 无损 |
 | LLVM-129t | 已验证 | 2026-10-24 06:10 | `ldm`/`stm` post-RA 合并（10 寄存器 → 1+1）；反例 5 类活；lit 148、embench 38/38 |
 | LLVM-126t | 已验证 | 2026-10-24 04:50 | FP 接线：fcmp 12 条/符号/分类/位转/缩放/舍入模式/饱和 + `__builtin_dadao_remainder`；`FREM` 仍不接 |
@@ -73,7 +74,6 @@
 | QEMU-068t | 已验证 | 2026-10-22 00:52 | `clmul.o` 语义（高/低 128 位、`rd0` 单侧、ILLI）；向量 81/81；`check_qemu_trans` 260/260，`ISS-317` closed |
 | QEMU-069t | 已验证 | 2026-10-22 00:31 | `fcls` 位序重排（10 个位号）；探针改由 spec §7 解析（独立 oracle）；84/84 |
 | SPEC-156t | 已验证 | 2026-10-22 00:12 | `fcls` 10 类位序改为 754/LLVM 顺序；两处逐项一致（脚本机械比对）、锁重算、破坏性已标注 |
-| TESTCASES-057t | 待开始 | 2026-10-21 23:50（登记） | clmul 集成：指令级 + GHASH + CRC-32C，独立 oracle、两档 |
 | INFRA-099t | 已验证 | 2026-10-21 23:43 | ISS-229：29 个写者/门控由 `flock` 串行（嵌套放行、有界等待、rc=69/75）；真并发验证串行、L1/L2 绿 |
 | INFRA-098t | 已验证 | 2026-10-21 19:35 | 安装集补 `llvm-nm`（342 MB/+3.6%）+ `llvm-readelf` 相对链接（0 B）；builtins 4 次重建同 sha；`check-install-tools` 45 项 PASS |
 | TESTCASES-054t | 已验证 | 2026-10-21 19:08 | 超时预算重标：lua 840→1320、XSBench 新增 720（实测+120 s）、unix-smail 0.11 s 不入表；清过时注记 |
