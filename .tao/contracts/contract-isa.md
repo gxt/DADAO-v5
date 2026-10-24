@@ -744,14 +744,9 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 | `cs.eq rdha, rdhb, rdhc, rdhd` | `if (rdha == rdhb) rdhc = rdhd` | [SimRISC-02 §条件赋值：Conditional Assignment] |
 | `cs.ne rdha, rdhb, rdhc, rdhd` | `if (rdha != rdhb) rdhc = rdhd` | [SimRISC-02 §条件赋值：Conditional Assignment] |
 
-### §6.6 伪指令（64 位数据运算）
+### §6.6 伪指令（64 位数据运算）— 已删除
 
-伪指令不是硬件指令，汇编器将其展开为一条或多条硬件指令。[SimRISC-00 §伪指令]
-
-| 伪指令 | 展开形式 | 说明 | 来源 |
-|--------|----------|------|------|
-| `not.o rdhb, rdhc` | `xnor.o rdhb, rdhc, rd0` | 64 位按位取反 | [SimRISC-04 §Logic operators：逻辑运算] |
-| `neg.o rdhb, rdhc` | `sub.so rd0, rdhb, rd0, rdhc` | 64 位取负 | [SimRISC-04 §加减操作] |
+**SPEC-069t / `ADR-0013 D11`**：`not.o`/`neg.o` 等 1:1 助记符别名已删除；伪指令权威定义见 `spec/Toolchain-01 §6`。需要时直接书写真实指令：`not.o rd, rs` → `xnor.o rd, rs, rd0`；`neg.o rd, rs` → `sub.so {rd0, rd}, rd0, rs`。[SimRISC-04 §Logic operators：逻辑运算][SimRISC-04 §加减操作]
 
 ---
 
@@ -910,11 +905,9 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 - **D3** `RACNT > 0` 且 `ra63[63:48] == 1` → 弹出栈顶，`RACNT − 1`。
 - **D4** `RACNT == 0` → **D4a** `MRPTR == 0` → **RASUF**；**D4b** 读 `MRPTR` 处条目（`MRPTR` 暂不修改）：递归计数 = 0 → **RASUF**、= 1 → 返回地址 = 条目低 48 且 `MRPTR += 8`、> 1 → 该条目压入成为栈顶（计数 −1）且 `MRPTR += 8`、`RACNT = 1`。
 
-### §8.7 伪指令（控制流）
+### §8.7 伪指令（控制流）— 已删除
 
-| 伪指令 | 展开形式 | 说明 | 来源 |
-|--------|----------|------|------|
-| `return` | `ret rd0, 0` | 无返回值的函数返回 | [SimRISC-06 §函数返回] |
+**SPEC-069t / `ADR-0013 D11`**：`return` 已删除（1:1 助记符别名）；伪指令权威定义见 `spec/Toolchain-01 §6`。需要无返回值返回时直接书写 `ret rd0, 0`（`ret` 保持显式两操作数，无无参形态）。[SimRISC-06 §函数返回]
 
 ---
 
@@ -1000,13 +993,9 @@ shr.st:  rdhb[31:0]  = (rdhc[31:0] >> shamt) with sign(31) // 算术右移，高
 
 **SPEC-069t**：`ext.ut`/`ext.st` 已从指令集中删除。64 位扩展见 §6.4.2。
 
-### §10.5 伪指令（32 位数据运算）
+### §10.5 伪指令（32 位数据运算）— 已删除
 
-| 伪指令 | 展开形式 | 说明 | 来源 |
-|--------|----------|------|------|
-| `neg.t rdhb, rdhc` | `sub.st rdhb, rd0, rdhc` | 32 位取负，符号扩展 | [SimRISC-08 §加减操作] |
-
-> **SPEC-069t**：`not.t` 已删除（窄位宽逻辑指令 `xnor.t` 已不存在）；仅保留 `not.o`（§6.6）。
+**SPEC-069t / `ADR-0013 D11`**：`neg.t`（及 `not.t`）等 1:1 助记符别名已删除；伪指令权威定义见 `spec/Toolchain-01 §6`。需要时直接书写真实指令：`neg.t rd, rs` → `sub.st rd, rd0, rs`；窄位宽逻辑运算无等宽替代（`xnor.t` 已随 `SPEC-069t` 删除，需要 32 位取反时用 `xnor.o` 后取低 32 位）。[SimRISC-08 §加减操作]
 
 ---
 
@@ -1081,13 +1070,9 @@ shr.sw:  rdhb[15:0]  = (rdhc[15:0] >> shamt) with sign(15)
 
 **SPEC-069t**：`ext.uw`/`ext.sw` 已从指令集中删除。64 位扩展见 §6.4.2。
 
-### §11.5 伪指令（16 位数据运算）
+### §11.5 伪指令（16 位数据运算）— 已删除
 
-| 伪指令 | 展开形式 | 说明 | 来源 |
-|--------|----------|------|------|
-| `neg.w rdhb, rdhc` | `sub.sw rdhb, rd0, rdhc` | 16 位取负，符号扩展 | [SimRISC-09 §加减操作] |
-
-> **SPEC-069t**：`not.w` 已删除（窄位宽逻辑指令 `xnor.w` 已不存在）；仅保留 `not.o`（§6.6）。
+**SPEC-069t / `ADR-0013 D11`**：`neg.w`（及 `not.w`）等 1:1 助记符别名已删除；伪指令权威定义见 `spec/Toolchain-01 §6`。需要时直接书写真实指令：`neg.w rd, rs` → `sub.sw rd, rd0, rs`；窄位宽逻辑运算无等宽替代（`xnor.w` 已随 `SPEC-069t` 删除，需要 16 位取反时用 `xnor.o` 后取低 16 位）。[SimRISC-09 §加减操作]
 
 ---
 
@@ -1162,19 +1147,15 @@ shr.sb:  rdhb[7:0]   = (rdhc[7:0] >> shamt) with sign(7)
 
 **SPEC-069t**：`ext.ub`/`ext.sb` 已从指令集中删除。64 位扩展见 §6.4.2。
 
-### §12.5 伪指令（8 位数据运算）
+### §12.5 伪指令（8 位数据运算）— 已删除
 
-| 伪指令 | 展开形式 | 说明 | 来源 |
-|--------|----------|------|------|
-| `neg.b rdhb, rdhc` | `sub.sb rdhb, rd0, rdhc` | 8 位取负，符号扩展 | [SimRISC-10 §加减操作] |
-
-> **SPEC-069t**：`not.b` 已删除（窄位宽逻辑指令 `xnor.b` 已不存在）；仅保留 `not.o`（§6.6）。
+**SPEC-069t / `ADR-0013 D11`**：`neg.b`（及 `not.b`）等 1:1 助记符别名已删除；伪指令权威定义见 `spec/Toolchain-01 §6`。需要时直接书写真实指令：`neg.b rd, rs` → `sub.sb rd, rd0, rs`；窄位宽逻辑运算无等宽替代（`xnor.b` 已随 `SPEC-069t` 删除，需要 8 位取反时用 `xnor.o` 后取低 8 位）。[SimRISC-10 §加减操作]
 
 ---
 
 ## §13 其它指令
 
-> 范围：空转指令 `swym`、核芯功能扩展（cfx）系统指令（`cfx2rd`/`cfx2rc`/`trap`/`escape`，见 §13.6）、ILLI 非法指令异常、NOP 伪指令、保留编码与全零指令。`cfxld`/`cfxst` 与 LR-SC 原子指令见 §14（Excluded from M1）。[SimRISC-00 §非法指令][SimRISC-00 §SimRISC QFC]
+> 范围：空转指令 `swym`、核芯功能扩展（cfx）系统指令（`cfx2rd`/`cfx2rc`/`trap`/`escape`，见 §13.6）、ILLI 非法指令异常、NOP 伪指令（已删除，见 §13.3）、保留编码与全零指令。`cfxld`/`cfxst` 与 LR-SC 原子指令见 §14（Excluded from M1）。[SimRISC-00 §非法指令][SimRISC-00 §SimRISC QFC]
 
 ### §13.1 空转指令 swym（oiii 格式）
 
@@ -1196,11 +1177,9 @@ SimRISC 0.5.4 **不再**提供专门的非法指令助记符（原 `op=0x77, ha=
 - 已定义编码但操作数/字段非法时触发 ILLI（如目的寄存器为 `rd0`、SBZ 字段非零、多寄存器指令 `immu6 = 0` 等）。[SimRISC-00 §非法指令]
 - `scope: excluded` 的已定义编码（`cfxld`/`cfxst`、LR-SC 原子、`fence`）在未实现该语义的机器上执行时触发 ILLI。[SimRISC-00 §非法指令]
 
-### §13.3 伪指令 nop
+### §13.3 伪指令 nop — 已删除
 
-| 伪指令 | 展开形式 | 说明 | 来源 |
-|--------|----------|------|------|
-| `nop` | `swym 0` | 空操作，空转或对齐 | [SimRISC-12 §空转指令] |
+**SPEC-069t / `ADR-0013 D11`**：`nop` 已删除（1:1 助记符别名）；伪指令权威定义见 `spec/Toolchain-01 §6`。需要空操作/对齐时直接书写 `swym 0`。[SimRISC-12 §空转指令]
 
 ### §13.4 保留编码（UNDI）
 

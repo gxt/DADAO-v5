@@ -2,6 +2,11 @@ format = 1
 # 只读册（上游 20 册 + v5 自定 1 册）：sha256 锁。修改须用户事先明确允许（授权原话落盘），并在
 # 同一变更内更新此处哈希。见 docs/Process-06-spec目录保护规范.md。
 policy = "readonly-requires-authorization"
+# 2026-10-24（INFRA-103t / ISS-318；用户 2026-10-21 原话「可以」，落纸于 `.tao/knowledge/issues.yaml`
+#   `ISS-318` 登记条 + 本册任务书）：FP 异常措辞补齐——`UF` 仅「结果 tiny 且 inexact」时置位、
+#   tininess 检测点 = **舍入后**、标志 **sticky**、`UF ⇒ NX` 且反向不成立。`SimRISC-00 §2.3.1`
+#   与 `SimRISC-07 §1` 各补一段；**编码、`rf0` 布局、5 位宽度、指令语义均不变**。
+#   上述 2 册 sha256 于同一变更内同步重算（其余 19 册不变）。
 # 2026-10-24（SPEC-167t，用户原话：「`SimRISC-11` 改为核芯功能扩展指令分册，就放带 cfx 的 6 条指令；
 #   `SimRISC-12` 改为其它指令，把 `ct*` 指令移动到该分册，新开一节；`cfxld`/`cfxst` 移动到新的
 #   `SimRISC-11` 中，注明待定」「可以」「`swym` 叫占位指令并不合适」；原话落纸于
@@ -175,7 +180,7 @@ group = "simrisc-00..12"
 #   `cs.eq_rrrr_rf`/`cs.ne_rrrr_rf` 文本随删格清除）；附录 0.5.5-rc 段**追加** 1 条（历史行不改写）；sha256 同笔重算。
 # 2026-10-24（SPEC-167t，同授权）：并入非法指令（ILLI）/ 保留编码（UNDI）总规则为 §异常规则；各 QFC 子表只留 `reserved` 说明；sha256 同笔重算。
 # 2026-10-24（SPEC-168t，用户原话见 `.tao/tasks/spec/SPEC-168t-00清理.md` §用户裁定）：§2.2 删「高 16 位处理规则」表及其后「控制流指令硬件…溢出检测」句（保留存储模型段）；§4 七张编码表列对齐；`op`/`opcode` → `opc`、去「I 形态」；sha256 同笔重算。
-sha256 = "39b8f634227d6eed539196be8dc71315c15f6c6f35e8d950bb703dfed32316c4"
+sha256 = "d8f61028d2e68f632b37b4f5e909f2fbed022bbb204e79ae26733c8027fc2201"
 # 2026-10-22（SPEC-164t，授权原话见 `.tao/tasks/spec/SPEC-164t-OPC-MISC迁移与解excluded.md` §立项来源：「还有一个编码改动过：OPC-MISC的编码改为：0100-0111」「修改编码：ctpop_orri_rd ctlz_orri_rd cttz_orri_rd 从 OPC-octa 改为 OPC-MISC，opx：100-101/100-110/100-111」）：§4 QFC 主表 `OPC-MISC` 由 `0111-0111` 迁 `0100-0111`（原格置空）；§4.1 `100-101/110/111` 填 `ctpop`/`ctlz`/`cttz`；§4.2 删同三格与「借用 OPC-octa 格位」例外说明；附录 0.5.5-rc 两条同步；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -259,7 +264,7 @@ group = "simrisc-00..12"
 # 2026-10-23（SPEC-158t，用户 2026-10-23 口径「纯账面迁移」）：`ftfma`/`fofma` 解除 `excluded`（`scope` → `fp`，
 #   语义/编码均不变）⇒ 附录 B 生成区重生成（`dst_rf0` 清单 +2、删 decode ILLI 区块）；sha256 同笔重算
 #   （其余只读册不变）。
-sha256 = "28b1474b1f758bff1e53452842c5c0b2d703c9abc6bead595e144e7a8ffb0a26"
+sha256 = "39167a2eb61b996b1d4168973f36b0aaa25c27e8007b4c18093a84a6e30692b9"
 
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"

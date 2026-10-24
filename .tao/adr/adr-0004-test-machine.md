@@ -404,3 +404,5 @@ jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
 - **不改规范正文**：地址图正文归 `spec/Machine-01 §1`，其同步（含 `sha256` 锁）归 `QEMU-056t`（`Process-03`：ADR 不承载规范正文）。
 - **配套与下游**：`QEMU-056t`（QEMU 机器映射 + `dadao.lds`/`crt0`/异常向量/harness/`check-interface` 断言 + `Machine-01` 与锁同步）；`R3` 中「C1 双映射两步」**已收口**（`QEMU-053t`：RAM@0 为唯一 RAM 段），本次只是**把唯一 RAM 段的基址**从 `0` 移到 `0xFC00_0000_0000`。
 - **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-10-11`）。
+
+**修订（2026-10-24，`INFRA-103t`；仅订正事实性陈述，`D1`–`D6` 决策正文不改）**：本 ADR 中 `0x77000000` 的语义已两次迁移——`ADR-0034 D1/D5` 把 `fence` 迁至 `0x77800000`、并把 `0x77000000` 分给 `lr.o.nn`；`SPEC-164t` 再把 `OPC-MISC` 迁至 `op 0x47`（`fence` = `0x47800000`）。因此 `D1` 的注记、`D5.1` 末句与 `D5.6` 的 ILLI 示例中「`0x77000000` 现为 `fence`（`scope: excluded`）」均属**历史快照**；**现行口径** = `fence`/`lr`/`sc` 均已实现（`scope: m9`，执行非 ILLI），测试侧 ILLI 毒饵改用 `cfxld`（`0x7C000000`，唯一剩余 `scope: excluded` 族）。源 = `ISS-308`；历史正文保留（`Process-03`）。

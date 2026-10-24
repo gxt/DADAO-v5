@@ -46,6 +46,7 @@
 - **里程碑 / `/complete`**：跑 **L3**（`make check-full`）。
 - **某模块全量**：按需**单独调**该模块目标（不进 L1/L2）。
 - **同工作树互斥（MUST）**：写共享状态的目标（构建树 `.work/build/**`、安装根 `.dadao/**`、SDK 产物目录 `.dadao/tests/**`）与跑这些写者的门控**串行化**——`Makefile` 的 `GATE_LOCKED_TARGETS`（**单一真源**，文档不另列清单）经 `tools/infra/gate_lock.py` 在 `.dadao/gate.lock` 上取 `flock(2)`，独立进程**排队**或 fail-fast，嵌套（同一 make 树）放行。语义：等待上界 `GATE_LOCK_WAIT`（默认 3600 s，超时 rc=75 并打印持有者 pid/开始时间/目标/命令，**不得**无限阻塞）；`GATE_LOCK_FAILFAST=1` ⇒ 立即 rc=75；锁不可用（父目录不可写 / 无 `flock`）⇒ rc=69 且**不运行**目标（禁静默跳过）。`--self-test` 覆盖「嵌套放行 / 独立进程拒绝 / 锁不可用报错」三类。源 = `ISS-229`（L2/L3 与 `install-host` 并发读到瞬态不完整的安装根 ⇒ Embench 假 FAIL；手动 `build-mc` 与 L2 内 `install-host` 并发 ⇒ 构建树写坏）。
+- **安装根的工具链二进制只由 `install-host` 写入（MUST）**：`make install-host` 管理的二进制（`HOST_TOOLCHAIN_BIN` / `HOST_TOOLS_BIN` 等）不得手工替换。手工 `cp`/替换安装根属**例外手法**（`QEMU-066t` 先例），仅限「重建不可行或紧急兜底」，且必须：① 完成区写明理由与来源（构建树路径）；② 逐件核对 md5/sha256 与构建树一致；③ 之后补跑 `make install-host` 回归正轨。**例外手法不改变新鲜度判据**（`check-install-tools`/`check-builtins-freshness`/`check-musl-freshness` 比的是「安装根 vs 构建树」，副本不一致照样红）⇒ 只能兜底、不能替代重建。源 = `ISS-300`。
 - **理由**：分层后「L1 绿、L2/L3 红」会成为常态 ⇒ **触发点缺失则"按需层"必然腐烂**（设计稿已识别此风险）。
 
 ## 3. 「新检查进哪一层」的归属规则（MUST）

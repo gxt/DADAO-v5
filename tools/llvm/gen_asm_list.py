@@ -487,6 +487,8 @@ CLASS_TO_SPEC = {
 
 ASSEMBLY_LIST_START = "<!-- ASSEMBLY_LIST_START -->"
 ASSEMBLY_LIST_END = "<!-- ASSEMBLY_LIST_END -->"
+# 附录 B（合法性）标记，由 `tools/spec/gen_legality_list.py` 生成；附录 A 必须排在它之前。
+LEGALITY_START = "<!-- LEGALITY_START -->"
 
 
 def _section_content(cls: str, entries: list[dict]) -> str:
@@ -517,7 +519,9 @@ def embed_spec(entries: list[dict]) -> int:
     """Embed assembly tables into spec files, one appendix per volume.
 
     SPEC-165t: the table is the volume's ``## 附录 A：汇编指令速查`` and sits at
-    the **end** of the volume (fixed order: 附录 A → 附录 B).
+    the **end** of the volume, but always **before** ``## 附录 B：合法性检查``
+    (fixed order: 附录 A → 附录 B; enforced by ``check-legality-drift`` /
+    ``tools/spec/check_legality_drift.py``).
     """
     by_class: dict[str, list[dict]] = {}
     for entry in entries:
@@ -560,11 +564,25 @@ def embed_spec(entries: list[dict]) -> int:
         if start_idx is not None and end_idx is not None:
             lines = lines[:start_idx] + lines[end_idx + 1:]
 
-        # Append at the end of the volume (fixed position: before 附录 B / changelog
-        # if not yet generated, hence the explicit trailing-strip).
+        # Fixed order: 附录 A (this block) → 附录 B (LEGALITY_*).  The A block is
+        # inserted **before** LEGALITY_START when present; otherwise it goes to
+        # the end of the volume.  Blindly appending at the end would move A past
+        # B on every run (non-idempotent, and breaks check-legality-drift).
+        legality_idx = next(
+            (i for i, line in enumerate(lines) if line.strip() == LEGALITY_START),
+            None,
+        )
+        block_lines = new_block.split("\n")
+        if legality_idx is not None:
+            head = lines[:legality_idx]
+            while head and head[-1].strip() == "":
+                head.pop()
+            lines = head + [""] + block_lines + [""] + lines[legality_idx:]
+        else:
+            lines = lines + ["", *block_lines]
         while lines and lines[-1].strip() == "":
             lines.pop()
-        new_content = "\n".join(lines) + "\n\n" + new_block + "\n"
+        new_content = "\n".join(lines) + "\n"
 
         spec_path.write_text(new_content, encoding="utf-8")
         count = len(by_class.get(cls, []))

@@ -9,6 +9,33 @@
 
 ## M2
 
+- **2026-09-29 `QEMU-025t`**
+  - 摘要：**`trans_*` 命名同步到 0.5.4 id**（QEMU 侧函数名与 `contracts/opcodes.yaml` 的 id 对齐）。
+
+- **2026-09-29 `QEMU-026t`**
+  - 摘要：**QEMU 11.1.1 / GCC 15 构建修复**。
+
+- **2026-09-29 `QEMU-027t`**
+  - 摘要：**模块小修 / lint**（deferred 遗留项）。
+
+- **2026-09-30 `QEMU-028t`**
+  - 摘要：**`st.*` 源为 0 号寄存器被误判 ILLI 的修复**（0 号寄存器作源合法）。
+
+- **2026-09-30 `QEMU-029t`**
+  - 摘要：**`cpu.c.patch` 的 `rf0` 位布局注释同步**（`ADR-0012 D6`）。
+
+- **2026-09-30 `QEMU-030t`**
+  - 摘要：**RAS 压/弹栈重写**（`ADR-0012 D7`）+ MemRAS 台账关闭。
+
+- **2026-10-02 `QEMU-031t`**
+  - 摘要：**`ADR-0012 D8` 地址语义实现**：`cmp.uo-rb` 取 48 位地址；控制流 64 位地址写回 `rb0`。
+
+- **2026-10-03 `QEMU-032t`**
+  - 摘要：**`ret rd0` 运行期 ILLI**（`imms18` 非零时非法）。
+
+- **2026-10-03 `QEMU-033t`**
+  - 摘要：**`mreg_range_overlap` 运行期实现**（translate 期判定 ILLI）。
+
 - **2026-10-03 `QEMU-034t`**
   - 摘要：**FP 执行层基础设施 + RF 数据搬运族（16 条）从 ILLI 桩换为真实 TCG**。新建 `target/dadao/insn_trans/trans_fp.c.inc`（60 条 `scope:fp` trans：16 真实 + 44 保留 ILLI 桩），并从 `trans_arith`（42 个）/`trans_compare`（2）/`trans_block`（2）/`trans_mem`（8）/`trans_cond_assign`（5）/`trans_imm`（1）删除对应 FP 桩；`translate.c` 新增 `RF0_WRITE_MASK`/`load_rf`/`store_rf`（rf0=FCSR，写掩码 `[33:32]+[4:0]`）并 include 新文件。实现家族：`rf_mem`（`ld.t/st.t/ld.o/st.o/ldm.t/stm.t/ldm.o/stm.o` 的 `-rf`）、`rf_move`（`rd2rf`/`rf2rd`）、`set.w-rf`、`cs.n/z/p/eq/ne-rf`；translate 期合法性 `dst_rf0`/`mreg_zero`/`mreg_range_overflow`。补丁 **31 → 32**（qemu），全仓 **68 → 69**；`check_qemu_trans` **227/227 (M1 152/152)** 不变。
   - 执行者：engineer
@@ -119,6 +146,10 @@
   - 摘要：**`ext` 迁 `100/101`、`shl` 迁 `010/011-000` 并去 `u`；新增 `rol.o/t/w/b`（逻辑循环左移，`orrr`/`orri`）的 decode + trans（`ADR-0032 D1/D2/D3/D4`）**。`insn.decode` 由 `tools/qemu/generate_decodetree.py` 从 `contracts/opcodes.yaml` 重生成（pattern **235 → 243**，计数从记录派生）：`ext.uo/so` orrr `100-000/001`、orri `101-000/001`；`shl.{o,t,w,b}` orrr `010-000`、orri `011-000`；`rol.{o,t,w,b}` orrr `010-001`、orri `011-001`；既有格（`swym` `0x77880000`、`aip.si` `0x5A` 等）未动。`trans_shift.c.inc`：`trans_shl_u{otwb}_{orrr,orri}_rd` → `trans_shl_{otwb}_{orrr,orri}_rd`（8 条改名，语义不变）；新增 8 条 `trans_rol_{o,t,w,b}_{orrr,orri}_rd`——`rol.o` 全 64 位（`tcg_gen_rotl_i64` / `tcg_gen_rotli_i64`）；`rol.t/w/b` 取源低 `W` 位、旋转量 `rdhd & (W-1)`（orrr，mod W）、`W-k` 双移位合成环移后按值语义零扩展写满 64 位；`orri` 的 `immu6 > W-1` ⇒ ILLI（`encode_sbz`）；目的 `rdhb == rd0` ⇒ ILLI（`dst_rd0`）。诊断工具机械同步（`min_rom_probe_005t.py` 的 `shl`/`ext` 编码、`check_005t_coverage.py` 的 id 清单）。L3 语义向量新增 `tests/vectors/rol/rol.yaml`（**64 条**，独立 oracle = Python 按 `rol(x,n,W)=((x<<(n%W))|(x>>(W-n%W)))&(2^W-1)` 重算；覆盖 4 宽度 × orrr/orri × `n=0/1/W-1`、`rol.o` 的 31/32/63、`mod W`、orri 越界 ILLI、每宽度 `rd0` ILLI），并挂入 `check-qemu-semantics` 载体清单（`isa/*.yaml` 之外的 `rol/` 目录，因 `validate_vectors` 要求 `tests/vectors/isa/*.yaml` 的 id 必须是 M1）。L3 `check-qemu-semantics` **224/224**（新增 64）、L2 `check-qemu-smoke` **90/90** 不回归。补丁**无新增**（qemu 59 = 2 份修改：`insn.decode.patch` + `insn_trans/trans_shift.c.inc.patch`）。
   - 执行者：engineer
 
+- **2026-10-20 `QEMU-065t`**
+  - 摘要：**qemu-user 线程语义（线程链 T2）**：`clone`/TLS/futex/`exit`/信号路径打通；并发互斥出现丢更新时归因到 musl `a_cas` 的假原子实现（另立 `ISS-294`）。
+  - 执行者：engineer
+
 - **2026-10-20 `QEMU-066t`**
   - 摘要：**qemu-user 线程缺口三条（`ISS-296`/`ISS-297`/`ISS-298`）**。① `ISS-296`（PI futex）：`do_futex` 把 guest 地址直接交给宿主内核，而 PI futex 字**存的就是 owner TID**；DADAO 大端 + 宿主小端 ⇒ 内核查到的 tid 被字节颠倒、找不到任务 ⇒ `FUTEX_LOCK_PI` 恒 `ESRCH`（musl 落到 100 ms `__timedwait` 兜底，`pthread_mutex_pi` 报 "got deadlock"）。修法 = 对 `LOCK_PI`/`LOCK_PI2`/`TRYLOCK_PI`/`UNLOCK_PI` 四个 op 在宿主调用前后做**保值的字节序转换**（`pi_futex_word_to_host`/`pi_futex_word_to_target`；整字转换使 `FUTEX_WAITERS`/`OWNER_DIED`/`TID_MASK` 数值位不变）。`WAIT_REQUEUE_PI`/`CMP_REQUEUE_PI` 不动（musl `src/` 0 处使用，PI 条件变量不存在消费者；requeue 需 PI 字在**阻塞等待**期间保持宿主序，会破坏 owner 视角）。已知边界已在注释显式登记：真正阻塞在 `LOCK_PI` 期间字面处于宿主序。② `ISS-297`（robust list）：`set_robust_list`/`get_robust_list` 由恒 `ENOSYS` 改为**注册/查询一致**（`TaskState.robust_list_head`；`len != 3*sizeof(long)` ⇒ `EINVAL`、`head==0` 注销、`pid ∉ {0, 自身 tid}` ⇒ `ESRCH` 的显式口径）——musl 在用户态自己遍历 robust 链表（`pthread_create.c:119-137`），平台侧只需 ABI 形状一致。③ `ISS-298`（取消被重启）：根因**不是** `SA_RESTART` 传播，而是 DADAO 的 `struct target_ucontext` 把 `uc_mcontext` 加了 `QEMU_ALIGNED(16)` ⇒ 帧内 `uc_mcontext` 落在 176 而 musl `ucontext_t` 期望 168 ⇒ handler 读到的 `MC_PC` 是 8 字节对齐填充（恒 `0`）⇒ `[__cp_begin,__cp_end)` 判定永假、`cancel_handler` 只能 `tkill` 重投，取消被吞。修法 = 去掉该对齐属性（帧与 guest `ucontext_t` 逐字节一致）。验证：`functional/pthread_mutex_pi`、`functional/pthread_robust`、`regression/pthread-robust-detach`、`regression/pthread_cond_wait-cancel_ignored` 两档全 pass；T3 的 19 例两档 **19/19**；`check-qemu-semantics` **224/224**、`check-qemu-smoke` **90/90** 不回归。补丁 **59 → 60**（+`linux-user/qemu.h.patch`，改 `linux-user/syscall.c.patch`/`linux-user/dadao/signal.c.patch`）。
   - 执行者：engineer
@@ -135,3 +166,22 @@
   - 摘要：**`OPC-MISC` 编码迁 `op 0x47`（原 `0x77`）；`ctpop`/`ctlz`/`cttz` 并入 MISC**（用户 2026-10-22 裁定「OPC-MISC的编码改为：0100-0111」「ctpop_orri_rd ctlz_orri_rd cttz_orri_rd 从 OPC-octa 改为 OPC-MISC，opx：100-101/100-110/100-111」；`ADR-0034`/`ADR-0012` 的 `## 修订`）。`insn.decode` 由 `tools/qemu/generate_decodetree.py` 从 `contracts/opcodes.yaml` 重生成（pattern 仍 **264**，计数从记录派生）：26 条 MISC pattern 前缀 `01110111 → 01000111`；`ctpop/ctlz/cttz` 由 `0100000001110x/1x` 改为 `01000111100101/10/11`（即 `op 0x47`、`ha 0x25/0x26/0x27`）；trans 函数名与语义不变。附带注释同步（`trans_ctrl.c.inc` 的 `op=0x47`、`trans_bitcnt.c.inc` 的 `OPC-MISC 100-101/110/111`）。`check_qemu_trans --strict` **264/264（M1 156/156）**；`validate_decodetree` 264/264 错误 0。补丁 **3 份改**（`series` 仍 **60**、`check-patch-tree` **192 不变**）。
   - 执行者：engineer
 
+- **2026-10-22 `QEMU-069t`**
+  - 摘要：**`fcls`（FP classify）位序重排**（`SPEC-156t`：位序改为 754/LLVM 顺序）：`trans_fp.c.inc` 的 `fp_classify_one` 10 个位号同步；`min_rom_probe_035t.py` 改为**按 `spec §7` 现场解析**（独立 oracle）并补 7 个边界例，84/84。
+  - 执行者：engineer
+
+- **2026-10-22 `QEMU-068t`**
+  - 摘要：**`clmul.o` 执行语义**（64×64 无进位乘 → 128 位，`rdHB` 高 / `rdHA` 低；`rd0` 单侧丢弃、双侧或同非 `rd0` 寄存器 ⇒ ILLI）：`insn.decode` + `trans_clmul_o_rrrr_rd`；L3 向量 `tests/vectors/clmul/clmul.yaml`（81 例，独立逐位 oracle）；`check_qemu_trans --strict` **260/260**。
+  - 执行者：engineer
+
+- **2026-10-22 `QEMU-072t`**
+  - 摘要：**`ftrnd`/`fornd` 执行语义**（softfloat `round_to_int`；静态 5 档用临时 `float_status` 只合 NV，DYN 走真实 `rf0` 合 NV|NX）：2 条 `insn.decode` pattern + `helper_fp_round_to_int` + `gen_fp_round_to_int` + 2 条 `trans_*`；探针 413/413；`check_qemu_trans --strict` **260/260**。
+  - 执行者：engineer
+
+- **2026-10-22 `QEMU-071t`**
+  - 摘要：**`ftmin`/`fomin`/`ftmax`/`fomax` 执行语义**（softfloat `minimum_number`/`maximum_number`：sNaN ⇒ NV，结果 canonical qNaN）：4 条 `insn.decode` pattern（`0x26/0x27/0x2E/0x2F`）+ `helper_fp_minmax` + `gen_fp_minmax` + 4 条 `trans_*`；`check_qemu_trans --strict` **264/264**。
+  - 执行者：engineer
+
+- **2026-10-23 `QEMU-070t`**
+  - 摘要：**`ftfma`/`fofma` 执行语义**（softfloat `float{32,64}_muladd` 单次舍入；canonical qNaN；`0×Inf + qNaN` 仍置 NV）：2 条 `insn.decode` pattern + `helper_fp_muladd` + `gen_fp_muladd` + 2 条 `trans_*`；探针 122/122；`check_qemu_trans --strict` **266/266**。
+  - 执行者：engineer

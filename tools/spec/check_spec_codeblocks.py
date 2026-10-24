@@ -25,6 +25,13 @@ Checks (per instruction line in a ```simrisc block)
 * the operand count MUST match at least one ``format`` variant of that
   instruction (reusing the format→count table from ``check_asm_prose``).
 
+Contract projection check (INFRA-103t)
+--------------------------------------
+``.tao/contracts/contract-isa.md`` 的「伪指令」小节表格只允许保留的 8 条
+合成型伪指令（``PSEUDO_INSTRUCTIONS``）；把已删除的 1:1 别名（``not.o`` /
+``neg.o`` / ``return`` / ``nop`` …）塞回表格 ⇒ FAIL（标题带「已删除」的小节按
+历史注记处理）。这是 ``ISS-160``/``ISS-329`` 的可达 FAIL 路径。
+
 Scan scope
 ----------
 ``spec/**/*.md``.  Generated
@@ -61,14 +68,54 @@ SPEC_DIR = ROOT / "spec"
 # Assembler pseudo-instructions (SimRISC-00: 伪指令 / spec/Toolchain-01: 伪指令).
 # These are expanded by the assembler into real instructions, so they are
 # exempt from the opcodes.yaml lookup and the operand-count check.
+# 合法伪指令（权威定义 = `spec/Toolchain-01 §6`；`ADR-0013 D11` 只保留 8 条合成型
+# = 4 个助记符 × 2 种形态）。`nop`/`return`/`not.*`/`neg.*` 已删除，不再放行。
 PSEUDO_INSTRUCTIONS = frozenset({
-    "nop", "return",
-    "not.b", "not.w", "not.t", "not.o",
-    "neg.b", "neg.w", "neg.t", "neg.o",
     "set.rd", "set.rb", "set.ft", "set.fo",
 })
 
 _MNEMONIC_RE = re.compile(r"^[a-z][a-z0-9_.]*$")
+
+# `contract-isa.md` 的「伪指令」小节表格：第一列必须是保留的伪指令。
+CONTRACT_ISA = ROOT / ".tao/contracts/contract-isa.md"
+_PSEUDO_HEADING_RE = re.compile(r"^(#{2,6})\s+.*伪指令")
+_TABLE_ROW_RE = re.compile(r"^\|\s*`([a-z][a-z0-9_.]*)[\s`{]")
+
+
+def scan_contract_pseudo_instructions(
+    contract: Path | None = None,
+) -> list[str]:
+    """契约「伪指令」表格只能列保留的 8 条（`ADR-0013 D11`）。
+
+    这是 `ISS-160`/`ISS-329` 的可达 FAIL 路径：把已删除的 1:1 别名（`not.o`/
+    `neg.o`/`return`/`nop` …）塞回 `contract-isa` 的「伪指令」小节 ⇒ FAIL。
+    标题带「已删除」的小节按历史注记处理（不解析表格）。
+    """
+    path = contract if contract is not None else CONTRACT_ISA
+    if not path.is_file():
+        return [f"{path}: 契约文件缺失（fail-closed）"]
+    violations: list[str] = []
+    in_pseudo = False
+    heading_level = 0
+    for lineno, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
+        m = _PSEUDO_HEADING_RE.match(line)
+        if m:
+            in_pseudo = "已删除" not in line
+            heading_level = len(m.group(1))
+            continue
+        if not in_pseudo:
+            continue
+        h = re.match(r"^(#{1,6})\s+", line)
+        if h and len(h.group(1)) <= heading_level:
+            in_pseudo = False
+            continue
+        row = _TABLE_ROW_RE.match(line)
+        if row and row.group(1) not in PSEUDO_INSTRUCTIONS:
+            violations.append(
+                f"{path}:{lineno}: 伪指令表中的 '{row.group(1)}' 不在保留集合 "
+                f"{sorted(PSEUDO_INSTRUCTIONS)}（`ADR-0013 D11` 已删除该别名）"
+            )
+    return violations
 
 
 def collect_files(root: Path | None = None) -> list[Path]:
@@ -192,6 +239,10 @@ def main() -> int:
         return 1
 
     violations, scanned = scan(opcode_formats, root_override)
+    if root_override is None:
+        # 契约投影层（非 fixture 模式）：伪指令表不得列已删除别名。
+        contract_violations = scan_contract_pseudo_instructions()
+        violations.extend(contract_violations)
     if violations:
         for v in violations:
             print(f"FAIL: {v}", file=sys.stderr)

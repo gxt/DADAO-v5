@@ -100,6 +100,14 @@ HA_RE = re.compile(r"let ha = (0x[0-9A-Fa-f]+)")
 TOKEN_RE = re.compile(r"[A-Za-z_]\w*")
 CPP_REF_RE = re.compile(r"DADAO::(\w+)")
 
+# `frem`（= libm `fmod`，余数符号随被除数）与 `forem`/`ftrem`（IEEE remainder，
+# 商取最近/平局取偶）**语义不同** ⇒ 后端禁止把 `frem` 直接接到 `forem`/`ftrem`
+# （`LLVM-126t` 用户 2026-10-22 裁定；`forem` 只经 `__builtin_dadao_remainder` 接）。
+# 取证面 = **已跟踪**的补丁树（`components/llvm-project/patches`）；不使用
+# `.work/source/**`（未跟踪树，`git grep` 恒空 ⇒ 死断言，INFRA-103t）。
+FREM_WIRED_RE = re.compile(r"\(frem\b[^)]*\)\s*,\s*\(([a-z]+rem\w*)")
+REMAINDER_INTRINSIC_RE = re.compile(r"int_dadao_remainder_f(?:32|64)")
+
 # TSV 列（顺序即真源；机器可读）。
 TSV_COLUMNS = [
     "id", "mnemonic", "format", "scope", "td_def",
@@ -790,6 +798,33 @@ def cross_check_lit(rows: list[dict], errors: list[str]) -> int:
     return n
 
 
+def load_backend_patches() -> dict[str, tuple[str, list[int]]]:
+    """重建后端补丁树全部 ``*.patch``（键 = 相对 DADAO 目录的路径）。
+
+    取证只走**已跟踪**的补丁源；``.work/source/**`` 是未跟踪检出，不能作证据面。
+    """
+    return {
+        str(p.relative_to(BACKEND_DIR)): reconstruct_patch(p.read_text(encoding="utf-8"))
+        for p in sorted(BACKEND_DIR.rglob("*.patch"))
+    }
+
+
+def frem_proof(patches: dict[str, tuple[str, list[int]]]) -> tuple[list[str], int]:
+    """``frem`` 未接 ``forem``/``ftrem`` 的现场证明（INFRA-103t）。
+
+    返回 ``(接线证据列表, remainder intrinsic 模式行数)``；空列表 = 未接线。
+    证据项形如 ``<补丁文件>:<补丁物理行号>``，可直接 ``sed -n '<N>p'`` 复核。
+    """
+    hits: list[str] = []
+    n_intr = 0
+    for fname, (text, raw_map) in sorted(patches.items()):
+        for m in FREM_WIRED_RE.finditer(text):
+            hits.append(f"{fname}:{line_of(text, m.start(), raw_map)} -> {m.group(1)}")
+        n_intr += sum(1 for line in text.split("\n")
+                      if REMAINDER_INTRINSIC_RE.search(line))
+    return hits, n_intr
+
+
 def cmd_check(args) -> int:
     rows, st = build_matrix(Path(args.opcodes), resolve_llvm_mc(args.llvm_mc))
     errors: list[str] = []
@@ -804,6 +839,20 @@ def cmd_check(args) -> int:
         errors.append(f"{len(bad)} 条记录缺两层取值: {bad[:5]}")
     n_ev = verify_evidence(rows, errors)
     n_lit = cross_check_lit(rows, errors)
+
+    # `frem` ↔ `forem`/`ftrem` 边界（INFRA-103t）：取证面 = 已跟踪补丁树，
+    # 注入 `(frem ...) -> (forem ...)` 即红（可达 FAIL）。
+    frem_hits, n_intr = frem_proof(load_backend_patches())
+    if frem_hits:
+        errors.append(
+            "`frem` 被接到 `forem`/`ftrem`（语义不同，禁止；见 LLVM-126t）: "
+            + ", ".join(frem_hits[:5])
+        )
+    if n_intr != 2:
+        errors.append(
+            f"`int_dadao_remainder_f32/f64` 模式行数 {n_intr} != 2"
+            "（`forem`/`ftrem` 只能经该 intrinsic 触达）"
+        )
 
     want_tsv = render_tsv(rows)
     want_md = render_md(rows, st)
@@ -883,6 +932,15 @@ def self_test() -> int:
     check("buildmi 反例（无 BuildMI 文本 ⇒ 空）",
           extract_buildmi(defnames, pmap,
                           {"x.cpp.patch": ("int f(){return 0;}", [1])}, ["x.cpp.patch"]) == {})
+
+    # ④ `frem` 不得接 `forem`/`ftrem`（INFRA-103t）：真实补丁树为空 + 反例必中
+    real_hits, real_intr = frem_proof(load_backend_patches())
+    check("frem 未接 forem/ftrem（已跟踪补丁树）", not real_hits, str(real_hits[:3]))
+    check("remainder intrinsic 模式 = 2（f32/f64）", real_intr == 2, str(real_intr))
+    fake_wire = {"DADAOCodeGen.td.patch": (
+        "def : Pat<(frem f64:$a, f64:$b), (forem_orrr_rf f64:$a, f64:$b)>;", [1])}
+    fake_hits, _ = frem_proof(fake_wire)
+    check("frem 接线反例（注入 forem ⇒ 命中）", len(fake_hits) == 1, str(fake_hits))
 
     print(f"self-test: {'PASS' if ok else 'FAIL'}")
     return 0 if ok else 1

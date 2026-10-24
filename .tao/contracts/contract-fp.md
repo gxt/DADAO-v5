@@ -21,7 +21,7 @@
 - FCSR 位布局：`[63:51]` 只读 qNaN(fo)、`[50:34]` SBZ、`[33:32]` 舍入模式、`[31:22]` 只读 qNaN(ft)、`[21:5]` SBZ、`[4:0]` 异常状态。[SimRISC-00 §浮点状态寄存器]
 - 写 `rf0` 只更新 `[33:32]` 与 `[4:0]`；其余位（只读 qNaN 位、SBZ）写无效、保持原值。[SimRISC-00 §浮点状态寄存器]
 - 舍入模式 `rf0[33:32]`：`00` RNE（就近取偶）、`01` RTZ（向零）、`10` RDN（向下）、`11` RUP（向上）。[SimRISC-00 §浮点状态寄存器]
-- 异常标志 `rf0[4:0]` 按 IEEE754 累积（accrued）：bit0 NV、bit1 DZ、bit2 OF、bit3 UF、bit4 NX。[SimRISC-00 §浮点状态寄存器]
+- 异常标志 `rf0[4:0]` 按 IEEE754 累积（accrued、**sticky**：置位后保持到软件清零）：bit0 NV、bit1 DZ、bit2 OF、bit3 UF、bit4 NX；`UF` 仅在结果 **tiny 且 inexact** 时置位（**tininess 检测点 = 舍入后**），`UF ⇒ NX`，反之不成立。[SimRISC-00 §浮点状态寄存器][SimRISC-07 §格式转换指令]
 - 浮点格式符合 IEEE754；浮点指令**不触发异常**，始终按 IEEE754 返回结果（NaN/Inf 等）。[SimRISC-00 §浮点状态寄存器]
 - `immu6` 双重语义：作**连续个数**（1–63）用于格式转换 / 分类 / RF 多寄存器；作 **n** 用于 `root`（仅 2）。[SimRISC-07 §格式转换指令][SimRISC-07 §S1D1]
 - 浮点寄存器只能用于浮点类指令（RF 组）。[SimRISC-00 §浮点寄存器]
@@ -33,7 +33,7 @@
 - 指令：`ft2ft`/`ft2fo`/`fo2ft`/`fo2fo`（orri：`rfHB` 目的、`rfHC` 源、`immu6` 连续个数 1–63）。[SimRISC-07 §格式转换指令]
 - 源范围与目的范围不可有任何交集（含完全重合），否则 → ILLI（见 `mreg_range_overlap`）；无交集时按序号递增逐对进行，**先读后写**。[SimRISC-07 §格式转换指令]
 - 舍入模式由 `rf0[33:32]` 控制。[SimRISC-07 §格式转换指令]
-- 浮点→浮点溢出返回 ±Inf 并置 OF；下溢按舍入模式处理并置 UF；NaN 传播 payload；sNaN 作为算术输入置 NV 并返回 qNaN。[SimRISC-07 §格式转换指令]
+- 浮点→浮点溢出返回 ±Inf 并置 OF；下溢（结果 tiny 且 inexact）按舍入模式处理并置 UF（并置 NX）；NaN 传播 payload；sNaN 作为算术输入置 NV 并返回 qNaN。[SimRISC-07 §格式转换指令]
 - `immu6 = 0` 或任一起始寄存器 + `immu6 > 64` → ILLI。[SimRISC-07 §格式转换指令]
 - 目的 `rfHB` 为 `rf0` → ILLI。[SimRISC-00 §浮点寄存器]
 
