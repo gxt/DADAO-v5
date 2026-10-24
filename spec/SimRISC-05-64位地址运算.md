@@ -1,6 +1,6 @@
 # SimRISC64位地址运算指令
 
-> **版本：0.5.5-rc**（与 SimRISC-00 一致）
+> **版本：0.5.5**（与 SimRISC-00 一致）
 > **分类：64位地址运算** — add.si-rb/aip.si-rb/add.o/cmp.uo-rb/sub.o(bbd)/sub.o(dbb)
 
 ## 1. 加减操作

@@ -43,8 +43,10 @@
 | `0.5.2` | `640b879` | 2026-07-18 | 5 | `.tao/archive/SimRISC-0.5.2/` |
 | `0.5.3` | `86fdcc8` | 2026-07-19 | 5 | `.tao/archive/SimRISC-0.5.3/` |
 | `0.5.4` | `7804abb` | 2026-09-28 | 13 | `.tao/archive/SimRISC-0.5.4/` |
-| `0.5.5-rc` | `a04d34e`（升号时点快照） | 2026-10-12 | 13 | `.tao/archive/SimRISC-0.5.5-rc/` |
+| `0.5.5` | `e5182dcf` | 2026-10-24 | 13 | `.tao/archive/SimRISC-0.5.5/` |
 
+> `0.5.5` 升号时点的 rc 过程快照（提交 `a04d34e`，2026-10-12）另存于 `SimRISC-<版本>-rc` 归档目录（名称见上表下方约定），**按 `Process-06 §8` 只增不改**，不列为已发布版本。
+>
 > `0.3` 及更早**无版本标记**（wiki 早期为单文件 `SimRISC.md`），无法按版本重建，不伪造快照。`0.4.0`/`0.4.1` 取自 `.cache/refs/DADAO.wiki`（锚点 `9f378f4`），其余取自本仓历史。机器可读清单：`python3 tools/spec/gen_spec_archive.py --list`；门控：`make check-spec-archive`。
 >
 > **同号冲突（只记录、不合并）**：`0.4.1` 在 wiki（`9f378f4`，归档采用）与本仓（`7dde864`，含 0.4.1 号期间的本地修订）内容不同；本仓该段修订随 `0.5.0` 一并发布，故 `0.5.0` 附录段覆盖其改动。
@@ -131,7 +133,7 @@
 - **无编号尾段（固定顺序）**：`## 附录 A：汇编指令速查` → `## 附录 B：合法性检查` → `## 附录：版本与变更记录`。A/B 为 `SimRISC-01`…`12` 的生成区（A 单表、无 `###` 子标题、无分类列；B 落合法性清单），**必在册尾**且 A 在 B 前；`SimRISC-00` 无 A/B。门控：`check_numbering.py` / `check-asm-list-consistency` / `check-legality-drift`。
 - **纯净化**：`spec/SimRISC-*` 只写规范内容（指令定义 / 编码 / 格式 / 语义 / 异常 / revision）；**禁** `scope` 范围标注、里程碑号、任务号、`ADR-`/`ISS-` 号、`contract-*.md` 指针、`.tao/` 路径、按范围的条数总账、旧表名前缀。项目侧记账归 `.tao/contracts/contract-isa.md §0`「范围表」。门控：`tools/spec/check_spec_purity.py`。
 - **`附录：版本与变更记录`**：二级标题、**不加编号**、**逆序**（最新在上）；三级标题 = `### <版本>（<发布日期>）`；顶部累积段 = `### <上一发布版本 z+1>-rc（未发布）`。**不用表格**；**变更记录集中于 `SimRISC-00`**（13 册条目按版本合并去重），`SimRISC-01`…`12` 不再单列；DADAO / Toolchain / Machine 各册仍各有一条。门控：`tools/spec/check_spec_changelog.py`。
-- **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方**新开空 `-rc` 段**。
+- **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 - **版本号语义**：`x.y.z`——**`x=0` 表示尚未正式发布**（正式发布后 `x≥1`）；大改动 `y+1`、有影响的小改 `z+1`。
 - **互锁组**：`SimRISC-00`…`SimRISC-12` 一组，`AEE↔ABI`、`SEE↔SBI`、`HEE↔HBI` 各一组；**组内版本必须一致**。
 - **只读册纪律**：21 册以 `sha256` 锁定（`manifests/spec-readonly.lock.toml`）；改册须**用户事先授权原话** + **同一变更内更新锁**（见 `docs/Process-06`）。

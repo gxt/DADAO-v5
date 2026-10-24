@@ -1,6 +1,6 @@
 # SimRISC64位数据运算指令
 
-> **版本：0.5.5-rc**（与 SimRISC-00 一致）
+> **版本：0.5.5**（与 SimRISC-00 一致）
 > **分类：64位数据运算** — .so/.uo + add.si/cmp.si/cmp.ui + and.o/or.o/xor.o/xnor.o + rev.o（逐块反转）+ ctlz/cttz/ctpop（位扫描/位计数）+ shl.o/rol.o（移位/循环移位）+ clmul.o（无进位乘）
 
 ## 1. 算术运算类指令

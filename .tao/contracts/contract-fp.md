@@ -1,6 +1,6 @@
-# DADAO SimRISC 0.5.4 — 浮点（FP）语义合约（scope: fp）
+# DADAO SimRISC 0.5.5 — 浮点（FP）语义合约（scope: fp）
 
-> **版本：0.5.4** [SimRISC-00 §浮点寄存器][SimRISC-07 §版本]
+> **版本：0.5.5** [SimRISC-00 §浮点寄存器][SimRISC-07 §版本]
 
 本合约归一化 `scope: fp` **66 条**指令的语义（IEEE754 浮点运算、FCSR 环境、合法性），供后续 golden oracle / LLVM / QEMU / testcases 消费。§18 的取整（`ftrnd`/`fornd`）在实现落地后已由 `excluded` 转入 `fp`（`SPEC-162t`），§19 的最小/最大值（`ftmin`/`ftmax`/`fomin`/`fomax`）同样在实现落地后转入 `fp`（`SPEC-160t`），§20 的融合乘加（`ftfma`/`fofma`）亦在实现落地后转入 `fp`（`SPEC-158t`），均计入 66 条。[SimRISC-07 §取整（roundToIntegral）][SimRISC-07 §最小最大值][SimRISC-07 §融合乘加（fusedMultiplyAdd）]
 

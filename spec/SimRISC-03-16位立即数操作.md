@@ -1,6 +1,6 @@
 # SimRISC16位立即数操作指令
 
-> **版本：0.5.5-rc**（与 SimRISC-00 一致）
+> **版本：0.5.5**（与 SimRISC-00 一致）
 > **分类：16位立即数操作** — set.zw/set.ow/set.w/or.w/andn.w（rwii 格式）
 
 ## 1. 立即数常数赋值：Immediate constant

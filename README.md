@@ -1,4 +1,4 @@
-# DADAO for SimRISC 0.5.4
+# DADAO for SimRISC 0.5.5
 
 基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Machine-01`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**当前进度见 `.tao/knowledge/milestones.md`**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
 
@@ -6,7 +6,7 @@
 
 | 组件 | 已发布版本 | 在研版本（`-rc`） |
 |------|-----------|------------------|
-| SimRISC | 0.5.4 | 0.5.5-rc |
+| SimRISC | 0.5.5 | 0.5.5 |
 | AEE / ABI | 0.9.2 | 0.9.3-rc |
 | SEE / SBI | 0.7.1 | 0.7.2-rc |
 | HEE / HBI | 0.1.2 | 0.1.3-rc |
@@ -38,7 +38,7 @@
 
 ### M2（2026-10-04）规范与接口冻结（Normative Freeze）
 
-- `spec/`（0.5.4）→ 投影（`contracts/*`、`contract-*.md`）→ checker 三层机械一致；投影表缺口清零 / 显式 deferred（4 项）。
+- `spec/`（0.5.5）→ 投影（`contracts/*`、`contract-*.md`）→ checker 三层机械一致；投影表缺口清零 / 显式 deferred（4 项）。
 - FP 实现侧冻结：执行层 60/60 + `dst_rd0@FP` + 最小 FP smoke。
 - 上游 ↔ v5 偏离台账成型（6 项）。
 

@@ -192,7 +192,8 @@ def scan(repo: Path, anchor: str, source: str) -> dict:
 
 def version_key(ver: str) -> tuple:
     m = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?(-rc)?$", ver)
-    return (int(m.group(1)), int(m.group(2)), int(m.group(3) or 0), 1 if m.group(4) else 0)
+    # `-rc` 是**预发布**，须排在正式版之前（否则正式版的快照会被算成 rc 首现提交的父提交）
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3) or 0), 0 if m.group(4) else 1)
 
 
 def file_sha(repo: Path, commit: str, path: str) -> str:

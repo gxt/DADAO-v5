@@ -1,6 +1,6 @@
 # SimRISC核芯功能扩展指令
 
-> **版本：0.5.5-rc**（与 SimRISC-00 一致）
+> **版本：0.5.5**（与 SimRISC-00 一致）
 > **分类：核芯功能扩展** — trap/escape/cfx2rd/cfx2rc/cfxld/cfxst
 
 ## 1. 指令域与执行条件

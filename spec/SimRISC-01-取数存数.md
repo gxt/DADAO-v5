@@ -1,6 +1,6 @@
 # SimRISC取数存数指令
 
-> **版本：0.5.5-rc**（与 SimRISC-00 一致）
+> **版本：0.5.5**（与 SimRISC-00 一致）
 > **分类：取数存数** — ld/st/ldm/stm（RD/RB/RA/RF 各形式）
 
 用户态指令
