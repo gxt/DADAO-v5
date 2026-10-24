@@ -1,0 +1,84 @@
+diff --git a/system/memory.c b/system/memory.c
+index 5fc3670..7009f89 100644
+--- a/system/memory.c
++++ b/system/memory.c
+@@ -513,6 +513,53 @@ static MemTxResult memory_region_write_with_attrs_accessor(MemoryRegion *mr,
+     return mr->ops->write_with_attrs(mr->opaque, addr, tmp, size, attrs);
+ }
+ 
++/*
++ * MMIO re-entrancy guards engaged by the current thread, innermost first.
++ *
++ * A cpu_loop_exit()/longjmp out of a device callback abandons every frame
++ * between the callback and the sigsetjmp() landing site, so the "normal"
++ * release at the end of access_with_adjusted_size() never runs and the device
++ * stays marked engaged_in_io.  The next access to that device would then be
++ * rejected as a (bogus) re-entrant one (ISS-064).  cpu_loop_exit() therefore
++ * calls mem_reentrancy_guard_abort() *before* jumping, while the nodes below
++ * are still on the live stack, to release every guard of this thread.
++ */
++typedef struct MemReentrancyGuardNode {
++    MemReentrancyGuard *guard;
++    struct MemReentrancyGuardNode *prev;
++} MemReentrancyGuardNode;
++
++static __thread MemReentrancyGuardNode *engaged_guards;
++
++void mem_reentrancy_guard_abort(void)
++{
++    MemReentrancyGuardNode *node = engaged_guards;
++
++    while (node) {
++        node->guard->engaged_in_io = false;
++        node = node->prev;
++    }
++    engaged_guards = NULL;
++}
++
++static void mem_reentrancy_guard_release(MemReentrancyGuardNode *node)
++{
++    MemReentrancyGuardNode **link = &engaged_guards;
++
++    /*
++     * Access frames nest LIFO on a thread, so @node is normally the head.  Walk
++     * the chain anyway: a device callback that yields to another coroutine
++     * which performs MMIO would interleave the chain, and unlinking must not
++     * abort the emulator.
++     */
++    while (*link && *link != node) {
++        link = &(*link)->prev;
++    }
++    if (*link) {
++        *link = node->prev;
++    }
++}
++
+ static MemTxResult access_with_adjusted_size(hwaddr addr,
+                                       uint64_t *value,
+                                       unsigned size,
+@@ -533,6 +580,7 @@ static MemTxResult access_with_adjusted_size(hwaddr addr,
+     unsigned access_size;
+     unsigned i;
+     MemTxResult r = MEMTX_OK;
++    MemReentrancyGuardNode guard_node = { 0 };
+     bool reentrancy_guard_applied = false;
+ 
+     if (!access_size_min) {
+@@ -552,6 +600,9 @@ static MemTxResult access_with_adjusted_size(hwaddr addr,
+             return MEMTX_ACCESS_ERROR;
+         }
+         mr->dev->mem_reentrancy_guard.engaged_in_io = true;
++        guard_node.guard = &mr->dev->mem_reentrancy_guard;
++        guard_node.prev = engaged_guards;
++        engaged_guards = &guard_node;
+         reentrancy_guard_applied = true;
+     }
+ 
+@@ -571,6 +622,7 @@ static MemTxResult access_with_adjusted_size(hwaddr addr,
+     }
+     if (mr->dev && reentrancy_guard_applied) {
+         mr->dev->mem_reentrancy_guard.engaged_in_io = false;
++        mem_reentrancy_guard_release(&guard_node);
+     }
+     return r;
+ }

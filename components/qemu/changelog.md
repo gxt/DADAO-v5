@@ -185,3 +185,7 @@
 - **2026-10-23 `QEMU-070t`**
   - 摘要：**`ftfma`/`fofma` 执行语义**（softfloat `float{32,64}_muladd` 单次舍入；canonical qNaN；`0×Inf + qNaN` 仍置 NV）：2 条 `insn.decode` pattern + `helper_fp_muladd` + `gen_fp_muladd` + 2 条 `trans_*`；探针 122/122；`check_qemu_trans --strict` **266/266**。
   - 执行者：engineer
+
+- **2026-10-24 `QEMU-073t`**
+  - 摘要：**`cpu_loop_exit` longjmp 泄漏 MMIO 重入守卫（`ISS-064`）结构化复位**：`system/memory.c` 在 `access_with_adjusted_size` 置位 `engaged_in_io` 时把该守卫压入**线程级链**（栈上节点，正常路径出栈），新增 `mem_reentrancy_guard_abort()`（声明在 `include/system/memory.h`）；`accel/tcg/cpu-exec-common.c::cpu_loop_exit` 在**唯一** `siglongjmp(cpu->jmp_env)` 之前调用它——跳转时被放弃的访问帧仍在栈上，可安全遍历整条链复位（两个 `sigsetjmp` 落点共用此唯一 longjmp 产生点）。现场：`dadao_cpu_tlb_fill` 只映射 RAM/ROM，非 RAM/ROM 一律 UNMAPPED（0x87）⇒ 现机无 MMIO 可达路径，原载体 exit-port 已删（ADR-0020 D8），用户裁定「**不做复现，只修**」；本地临时实验（设备 + tlb_fill 放行，均未入交付物、cp+md5 还原）给出修复前 `rc=2` + `Blocked re-entrant IO on MemoryRegion: dadao-testio`、修复后 `rc=0` 无告警。补丁 **60 → 63**（新增 `accel/tcg/cpu-exec-common.c.patch`、`include/system/memory.h.patch`、`system/memory.c.patch`）；`check_patch_tree` **198** 绿、`check_qemu_trans --strict` **266/266**、L1/L2 rc=0。
+  - 执行者：engineer

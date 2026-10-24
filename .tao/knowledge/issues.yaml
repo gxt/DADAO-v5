@@ -12,10 +12,10 @@
   resolved_by: INFRA-102t
 - id: ISS-064
   title: "cpu_loop_exit 的 longjmp 泄漏 MMIO re-entrancy 守卫——engaged_in_io 未复位"
-  status: open
+  status: closed
   scope: [qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: QEMU-073t
 # ── 内联提及项（原 backlog 非独立 bullet，但用户裁定/代码库明确引用）────────
 
 # ── 原 backlog 合并新增（INFRA-032t，2026-10-04）────────────────────────────────

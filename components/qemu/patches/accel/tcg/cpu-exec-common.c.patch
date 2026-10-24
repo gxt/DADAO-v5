@@ -1,0 +1,30 @@
+diff --git a/accel/tcg/cpu-exec-common.c b/accel/tcg/cpu-exec-common.c
+index 44e8434..1933ce0 100644
+--- a/accel/tcg/cpu-exec-common.c
++++ b/accel/tcg/cpu-exec-common.c
+@@ -20,6 +20,9 @@
+ #include "qemu/osdep.h"
+ #include "exec/log.h"
+ #include "system/tcg.h"
++#if !defined(CONFIG_USER_ONLY)
++#include "system/memory.h"
++#endif
+ #include "qemu/plugin.h"
+ #include "accel/tcg/cpu-loop.h"
+ #include "internal-common.h"
+@@ -71,6 +74,15 @@ void cpu_loop_exit(CPUState *cpu)
+     cpu->neg.can_do_io = true;
+     /* Undo any setting in generated code.  */
+     qemu_plugin_disable_mem_helpers(cpu);
++#if !defined(CONFIG_USER_ONLY)
++    /*
++     * The longjmp abandons every frame between here and the sigsetjmp()
++     * landing site in cpu_exec(), including device callbacks that engaged an
++     * MMIO re-entrancy guard.  Their normal release is skipped, so release
++     * them now, while those frames are still live (ISS-064).
++     */
++    mem_reentrancy_guard_abort();
++#endif
+     siglongjmp(cpu->jmp_env, 1);
+ }
+ 

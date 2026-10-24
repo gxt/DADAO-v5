@@ -1,3 +1,4 @@
+accel/tcg/cpu-exec-common.c.patch
 configs/devices/dadao-softmmu/default.mak.patch
 configs/targets/dadao-linux-user.mak.patch
 configs/targets/dadao-softmmu.mak.patch
@@ -7,6 +8,7 @@ hw/dadao/dadao-machine.c.patch
 hw/dadao/meson.build.patch
 hw/meson.build.patch
 include/qemu/base-arch-defs.h.patch
+include/system/memory.h.patch
 linux-user/dadao/cpu_loop.c.patch
 linux-user/dadao/elfload.c.patch
 linux-user/dadao/meson.build.patch
@@ -32,6 +34,7 @@ linux-user/syscall.c.patch
 linux-user/syscall_defs.h.patch
 qapi/machine.json.patch
 qemu-options.hx.patch
+system/memory.c.patch
 target/Kconfig.patch
 target/dadao/Kconfig.patch
 target/dadao/common-semi-target.c.patch
