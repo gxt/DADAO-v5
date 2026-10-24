@@ -371,10 +371,6 @@ CASE_NOTES = {
         "known-fail basis ADR-0030 (Accepted; long double -> binary128 in M9): "
         "target declares long double == double (LDBL_MANT_DIG=53); "
         "musl's tgammal deviates from the corpus' double tgamma vectors.",
-    "functional/setjmp":
-        "root cause: declared port gap -- sigsetjmp is not implemented "
-        "(INFRA-082t 遗留 ⑧: src/signal/sigsetjmp.c is an upstream empty slot; "
-        "using it fails at link time).",
     "functional/tgmath":
         "root cause (TESTCASES-047t static round, fixed by TESTCASES-050t): "
         "the static link line carried no compiler-rt builtins, so __muldc3 "
@@ -1205,7 +1201,14 @@ def attribute_port_gaps(case, mode):
     ``__clone`` landed, so a failing thread case is a real failure, not a case
     that "cannot reach its verdict".  Demoting it would hide the root cause
     behind a stale "no __clone" sentence.
+
+    A ``pass`` carries no note at all: these tables document why a case did
+    *not* pass.  Appending unconditionally was how ISS-270's stale
+    ``functional/setjmp`` sentence ("sigsetjmp is not implemented") kept
+    printing after INFRA-089t made that case pass.
     """
+    if case.klass == "pass":
+        return
     if case.cid in CASE_NOTES:
         case.notes.append(CASE_NOTES[case.cid])
     if (mode, case.cid) in MODE_CASE_NOTES:
@@ -1235,6 +1238,13 @@ def main() -> int:
                     help="human-readable report (default: same path as "
                          "--json-out with a .log extension)")
     args = ap.parse_args()
+    # docs/Process-08 §1.2: a subset run (--filter) must never land in
+    # authoritative/.  Reject before any directory is created.
+    subset = f"--filter {args.filter!r}" if args.filter else None
+    guard = _run_artifacts.subset_authoritative_error(subset, args.work_dir)
+    if guard:
+        sys.stderr.write(f"ERROR: {guard}\n")
+        return 2
     started_utc = _run_artifacts.iso_utc()
     json_out = abspath(args.json_out)
     report_out = (abspath(args.report_out) if args.report_out else

@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M9
 **依赖**：`INFRA-093t`（运行产物/日志规矩 + `check-run-artifacts`，已验证）、`TESTCASES-052t`（libc-test 驱动现状，`待验收`）、`LLVM-117t`（最新工具链，`待验收`）、`INFRA-098t`（安装根 `llvm-nm`/`llvm-readelf`；本册可能需要它们取证，**按现状用构建树工具并披露**）
-**状态**：待开始
+**状态**：已验证
 
 > **编号（现场取号，2026-10-20）**：`testcases` 现存最大 = `TESTCASES-052t` ⇒ 取 **`053`**（编写前 `grep -rn 'TESTCASES-053' .tao/` 零命中）。
 
@@ -53,16 +53,47 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：`./.work/evidence/TESTCASES-053t/run.sh --with-gates` rc=0（35/35 CHECK rc=0）；L1 `make check` rc=0、L2 `make check-modules` rc=0（日志 `.work/log/testcases/TESTCASES-053t-{l1,l2,evidence}.log`）；`check-run-artifacts --self-test` 6/6 PASS。
+**修改文件**：`tools/testcases/run_artifacts.py`、`run_libc_test_user_suite.py`、`run_llvm_ts_user.py`、`tools/infra/check_run_artifacts.py`、`docs/Process-08-…md`、`.tao/knowledge/{issues.yaml,milestones.md}`、本册；证据目录不入 git：`.work/evidence/{LLVM-098t,LLVM-111t,TESTCASES-053t}/**`。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- `ISS-270` 修前：`--filter ^functional/setjmp$` 报告 `PASS functional/setjmp` 同时打印「sigsetjmp is not implemented」（`/tmp/opencode/TESTCASES-053t/setjmp-before.log:10-11`）；修后同命令无该 note（`setjmp-green.json` notes=[]）。两处根因：删 `CASE_NOTES` 旧条目 + `attribute_port_gaps()` 对 `pass` 早退。注入（旧条目+去早退）⇒ 断言红；`cp`+md5 还原 ⇒ 绿。
+- `ISS-273` 修前：098t default 27 PASS/6 FAIL（S9 基线 size 75336 vs 79784、S10 四条 XFAIL 反向、S7「6 条 .text ABS48」）；修后 35 PASS/0 FAIL。S9 改「同源同参数当前工具链基线逐字节一致」（`--regen` 双次一致，sha256 `0d5623…a13a`）；S10 改 rc=0+产物非空+ET_DYN+无 `-fPIC` 错+确实发生链接（先删受管产物，测后 `cp` 还原）；S7 改契约不变式「0 非可写段 ABS48/≥1 可写」。
+- `ISS-282①`：`--filter`+`.work/tests/authoritative` ⇒ rc=2 且目录数不变（6→6），llvm-ts `--only` 同；去掉 guard（monkeypatch）⇒ rc=0 且把运行目录写进 `authoritative/`（断言可达 FAIL）。② `_meta_problems()` 增 `finished_utc`；临时树缺字段 ⇒ rc=1 并报 `missing finished_utc`，补齐 ⇒ rc=0；`--self-test` 新增该注入。③ 搬迁未做 ⇒ 不删豁免；新增 `--legacy-status`（现 rc=1，26 个 `llvm-ts-user-*` 仍在），rc=0 即删除判据。
+- `ISS-288` 修前：111t `P3-asm-identical` FAIL（其余绿）；修后 22/22 rc=0。基线按当前工具链 `--regen` 重生成（差异仅 `Align(16)` 帧大小与 `shl.uo→shl.o`），`P3.out`/`P3-stdout-identical` 保留为语义 oracle；`--inject` 1 字节翻转 ⇒ 红。
+- 覆盖披露：用例分类 0 增 0 删；判定类断言改：098t S7/S9/S10 与 111t P3 基线（替换+刷新）；新增可达 FAIL 注入 10 条、gate 注入 1 条；驱动行为改动仅「拒子集写 authoritative」与「pass 不带 note」。
+**新发现/坑**：① S7 同族 stale（`dlstart.lo` 现为 `REL26`+`.got` ABS48），旧「6 条 .text」只是代码生成快照，一并修；② `make lib/libc.so` 用 musl Makefile 自身 flags（无 DT_SONAME），会覆盖 `build_musl.py` 的受管产物 ⇒ S10 加 `cp` 备份/还原+EXIT trap（曾把 L1 `check-musl-freshness` 弄红，已用安装副本恢复并复验）；③ 「逐字节基线」= 编译器版本快照，跨工具链改动必须显式 `--regen` 且双次一致；④ `check-milestones-fresh` 要求 `待验收` 行保留登记时间并带 `（登记）`。
+**遗留问题**：`ISS-282③` 搬迁未做（保持 open；判据 `--legacy-status`）；未 commit/push（提交归 architect）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+**逐行审查**（两驱动 / `run_artifacts` / gate / 两份证据脚本）：guard 在任何 `makedirs` 之前 rc=2；`is_authoritative_root` 按路径组件精确匹配（不误伤 `xxx-authoritative`）；`attribute_port_gaps` 早退只影响 note、不改 klass；`legacy_status` 无 `.work/log` 时为空集=rc=0，与「可删除」语义一致；证据脚本全部 `cp`+md5 还原并带 `trap EXIT` 兜底，rc 直接捕获、无 `| tee`。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 098t S10 重建覆盖受管 libc.so（L1 freshness 红） | ✅已修 | S10 `cp` 备份+测后还原+EXIT trap；注入段同 | `check-musl-freshness` PASS；再跑 098t 后两副本 sha256 均 `c69f…` |
+| 098t 脚本缺 `check_eq/check_ne/md5`（inject iii 全 `command not found`） | ✅已修 | 顶部补 3 个 helper | `--inject iii` 全部 rc=0 |
+| 证据脚本 green 断言方向反（`json_note` 返回 1 = 无 note） | ✅已修 | expect `0`→`1` | `no stale note ... expect=1 actual=1 rc=0` |
+| 证据脚本注入计数把 work-dir 子目录算进去（4≠1） | ✅已修 | 只数运行目录 `-name '2*T*Z-*'` | `writes authoritative/ ... expect=1 actual=1 rc=0` |
+| `check-milestones-fresh` 4 项（状态/长度/次序/登记注） | ✅已修 | 任务书状态→`待验收`；流水行 110 字、保留登记时间、排到表尾 | `make check` rc=0 |
+| 098t S7 旧断言 stale（同族） | ✅已修 | 改契约不变式；旧期望 `--expect-nonwritable 6` 作为可达 FAIL | default 0 FAIL；旧期望 rc=1 |
+| 证据脚本 grep 与 `PASS name (expected=…)` 格式不符 | ✅已修 | 改 `grep -qF` 全行前缀 | evidence final rc=0 |
+
+**判决**：全部 finding 已修，状态置 `待验收`。
+
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**重跑（本人执行；rc = 被检命令自身，未用管道取码）**：证据脚本 `./.work/evidence/TESTCASES-053t/run.sh` rc=0 / 33 CHECK / `rc=1` 计 0（另 2 条门控 CHECK ⇒ 35），末态复跑仍 rc=0。
+- `ISS-270`：`--filter ^functional/setjmp$ --json-out /tmp/…` rc=0；`grep -c 'sigsetjmp is not implemented'`=0；JSON `klass=pass notes=[]`。
+- `ISS-282`：① libc `--filter` / llvm-ts `--only` / `--limit` 三路指 `.work/tests/authoritative` ⇒ 均 rc=2、目录数 6→6；② 临时树缺 `finished_utc` ⇒ rc=1 + `meta.json: missing finished_utc`，空串亦红，补回 rc=0，`--self-test` rc=0（含 `A2 missing finished_utc … PASS`）；③ `--legacy-status` rc=1、26 个 `llvm-ts-user-*` 在 ⇒ 豁免保留属实，**只记录、不参与门控**。
+- `ISS-273`：098t default 35 PASS/0 FAIL；`--regen` 两次构建逐字节一致且基线 md5 不变（sha256 `0d5623…a13a` = 当前工具链真值）；S10 实测 rc=0/size=1157888/DYN/link-lines=1/pic-err=0。
+- `ISS-288`：111t default 22/22；`--regen` 双次一致、基线 md5 `e317ff…` 不变；`P3-asm-identical` 保留且 `P3-stdout-identical` 语义 oracle 在断言（`P3.out` 仍是 10-19 原件，未随新输出改写）。
+- 门控：L1 `make check` rc=0（`check-musl-freshness`/`check-run-artifacts`/`check-no-residue` PASS）；L2 `make check-modules` rc=0。
+
+**独立注入（`cp` + md5，红→还原→绿）**：① `static/musl_smoke.c` 加符号 ⇒ S9 现编译 cmp rc=1，还原 md5 `1e000d…` ⇒ rc=0；② `strlen.lo` 置垃圾 ⇒ `make lib/libc.so` rc=2（S10 可红），还原 md5 `1fc442…` ⇒ rc=0、受管 libc.so `9d7178…` 复原；③ 改 `P3.c` ⇒ `P3-asm-identical` cmp rc=1，还原 md5 `5377ef…` ⇒ rc=0；④ S7 新不变式对事故形状 `stale/math_atan2f.lo` 红（`|0|4`）、对现 `dlstart.lo` 绿 ⇒ 仍抓错。
+
+**约束核验**：未触 `spec/`/`contracts/`/`tests/vectors/**`；`git status --porcelain -uall` 审前审后皆空，7 个已跟踪文件 + 3 个基线/产物 md5 与审前快照逐一相同；用例分类 0 增 0 删（驱动仅删 1 条 `CASE_NOTES` 旧条目 + `pass` 早退 + guard，早退不改 klass、notes 只入报告）；证据脚本无 `| tee` 吞码、注入全用 `cp`+md5。
+
+**判决：Accepted**。备注（非阻断）：S9 为「同源同参数 + 持久化基线」快照口径——非自比（fresh build vs 落盘基线）、我方独立注入可红，但跨工具链变更须显式 `--regen` 才更新，脚本注释与 `baseline/README.md` 已记录；完成区「修前 27P/6F」与 `issues.yaml` 登记的「25P/8F」不一致，`.work/evidence/**` 不入 git 无从回放，仅记口径差异。

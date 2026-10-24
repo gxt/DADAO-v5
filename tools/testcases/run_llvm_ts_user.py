@@ -2479,6 +2479,18 @@ def main() -> int:
                          "corrupt the expectation of matching cases so the "
                          "normal comparison must FAIL (proves the FAIL path)")
     args = ap.parse_args()
+    # docs/Process-08 §1.2: a subset run (--only/--limit) must never land in
+    # authoritative/.  Reject before any directory is created.
+    subset_bits = []
+    if args.only:
+        subset_bits.append(f"--only {args.only!r}")
+    if args.limit is not None:
+        subset_bits.append(f"--limit {args.limit}")
+    guard = _run_artifacts.subset_authoritative_error(
+        " ".join(subset_bits) or None, args.work_dir)
+    if guard:
+        sys.stderr.write(f"ERROR: {guard}\n")
+        return 2
     json_out = abspath(args.json_out)
     report_out = (abspath(args.report_out) if args.report_out else
                   os.path.splitext(json_out)[0] + ".log")

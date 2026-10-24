@@ -10,10 +10,11 @@ A1  the three user-mode drivers have no fixed output fallback
     - the driver uses the per-run directory helper (``create_run_dir``)
 A2  every run directory (``^\\d{8}T\\d{6}Z-``) under ``.work/tests/**`` (and the
     configured test-artifacts root) carries ``run.json`` / ``run.log`` /
-    ``meta.json``; ``meta.json`` has a non-empty ``command``, ``started_utc``
-    and a ``toolchain`` block whose ``clang`` / ``qemu`` / ``libc`` entries
-    each carry a non-empty sha256 (or md5).  ``authoritative/latest`` must
-    point at an existing directory.  No run root at all => SKIP, printed.
+    ``meta.json``; ``meta.json`` has a non-empty ``command``, ``started_utc``,
+    ``finished_utc`` and a ``toolchain`` block whose ``clang`` / ``qemu`` /
+    ``libc`` entries each carry a non-empty sha256 (or md5).
+    ``authoritative/latest`` must point at an existing directory.  No run root
+    at all => SKIP, printed.
 A3  files added to ``.work/log/**`` after the epoch marker
     (``.work/log/.run-artifacts-epoch``) must be named either
     ``check-<name>.log`` or ``<TASK-ID>-<purpose>.(log|json|txt)``.
@@ -21,6 +22,9 @@ A3  files added to ``.work/log/**`` after the epoch marker
     files with ``mtime <= epoch`` are exempt.  No marker => SKIP, printed.
     The in-flight legacy ``llvm-ts-user-*`` files of the current dynamic run
     are explicitly exempt until the separate migration task moves them.
+    ``--legacy-status`` is the mechanical criterion for deleting that
+    exemption: rc=0 (no legacy files left) => delete ``INFLIGHT_LEGACY``;
+    rc=1 (files remain) => keep it (ISS-282 ③).
 
 Exit: 0 = PASS (or documented SKIP), 1 = FAIL.  ``--self-test`` runs each
 assertion's injection: baseline green, then one injected counter-example per
@@ -174,6 +178,9 @@ def _meta_problems(meta_path: str) -> list[str]:
     if not (isinstance(meta.get("started_utc"), str)
             and meta["started_utc"].strip()):
         problems.append("meta.json: missing started_utc")
+    if not (isinstance(meta.get("finished_utc"), str)
+            and meta["finished_utc"].strip()):
+        problems.append("meta.json: missing finished_utc")
     toolchain = meta.get("toolchain")
     if not isinstance(toolchain, dict):
         problems.append("meta.json: missing toolchain block")
@@ -307,6 +314,7 @@ def check_a3(root: str | None, out) -> list[str]:
         baseline = {line.strip() for line in
                     _read(baseline_path).splitlines() if line.strip()}
     checked = exempt = bad = 0
+    legacy = 0
     for dirpath, _dirnames, filenames in os.walk(base):
         for name in filenames:
             path = os.path.join(dirpath, name)
@@ -325,6 +333,7 @@ def check_a3(root: str | None, out) -> list[str]:
                 continue
             if INFLIGHT_LEGACY.match(name):
                 exempt += 1
+                legacy += 1
                 continue
             checked += 1
             if not any(rx.match(name) for rx in LEGAL_LOG_NAMES):
@@ -334,11 +343,40 @@ def check_a3(root: str | None, out) -> list[str]:
                     "check-<name>.log or <TASK-ID>-<purpose>.(log|json|txt))")
     if bad:
         out(f"[FAIL] A3 {checked} new file(s) checked, {bad} illegal, "
-            f"{exempt} exempt (epoch/baseline/legacy)")
+            f"{exempt} exempt (epoch/baseline/legacy; legacy={legacy})")
     else:
         out(f"[PASS] A3 {checked} new file(s) checked, {bad} illegal, "
-            f"{exempt} exempt (epoch/baseline/legacy)")
+            f"{exempt} exempt (epoch/baseline/legacy; legacy={legacy})")
     return problems
+
+
+def legacy_status(root: str | None = None) -> int:
+    """Mechanical criterion for deleting the ``INFLIGHT_LEGACY`` exemption.
+
+    ``rc=0``: no ``llvm-ts-user-*`` file is left under ``.work/log/**`` => the
+    migration (ISS-278 second step) is complete and ``INFLIGHT_LEGACY`` must
+    be deleted together with this subcommand.  ``rc=1``: files remain => the
+    exemption is still load-bearing; keep it and do not widen it.
+    """
+    base = (os.path.join(root, ".work", "log") if root
+            else os.path.join(REPO_ROOT, ".work", "log"))
+    remaining = []
+    for dirpath, _dirnames, filenames in os.walk(base):
+        for name in filenames:
+            if INFLIGHT_LEGACY.match(name):
+                remaining.append(os.path.relpath(
+                    os.path.join(dirpath, name), base))
+    if remaining:
+        print(f"legacy-status: FAIL ({len(remaining)} llvm-ts-user-* file(s) "
+              "remain; keep INFLIGHT_LEGACY)")
+        for rel in remaining[:10]:
+            print(f"  .work/log/{rel}")
+        if len(remaining) > 10:
+            print(f"  ... and {len(remaining) - 10} more")
+        return 1
+    print("legacy-status: PASS (no llvm-ts-user-* file left; delete "
+          "INFLIGHT_LEGACY and this subcommand)")
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -452,7 +490,19 @@ def self_test(base: str) -> int:
     outcomes.append(("A2 missing meta.json", 1, rc))
     shutil.rmtree(tree, ignore_errors=True)
 
-    # 5. A3: an illegal new log name under .work/log.
+    # 5. A2: meta.json without finished_utc (Process-08 §1.1 requires it).
+    tree = fresh()
+    meta_path = os.path.join(tree, ".work", "tests",
+                             "20260101T000000Z-demo-static", "meta.json")
+    meta = json.loads(_read(meta_path))
+    meta.pop("finished_utc")
+    _write(meta_path, json.dumps(meta) + "\n")
+    out = []
+    rc = 1 if run_checks(tree, out.append) else 0
+    outcomes.append(("A2 missing finished_utc", 1, rc))
+    shutil.rmtree(tree, ignore_errors=True)
+
+    # 6. A3: an illegal new log name under .work/log.
     tree = fresh()
     _write(os.path.join(tree, ".work", "log", "testcases",
                         "check_issues.log"), "x\n")
@@ -480,7 +530,13 @@ def main() -> int:
     ap.add_argument("--self-test", action="store_true",
                     help="run baseline + one injected counter-example per "
                          "assertion")
+    ap.add_argument("--legacy-status", action="store_true",
+                    help="mechanical criterion for the INFLIGHT_LEGACY "
+                         "exemption (ISS-282 ③): rc=0 => no llvm-ts-user-* "
+                         "file left, delete the exemption; rc=1 => keep it")
     args = ap.parse_args()
+    if args.legacy_status:
+        return legacy_status(args.root)
     if args.self_test:
         base = os.environ.get("DADAO_TMP",
                               "/tmp/opencode/INFRA-093t")

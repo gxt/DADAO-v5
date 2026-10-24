@@ -34,8 +34,8 @@
 ```
 
 - 各次权威跑**并列、永不覆盖**；`authoritative/latest` 指向最新权威跑目录（符号链接或内容为目录路径的文本文件）。
-- **子集跑**（`--filter` / `--only` / `--limit`）**不得**写 `authoritative/`。
-- 当前三个驱动默认把运行目录建在 `--work-dir` 下；把 `--work-dir` 指向 `authoritative/` 即构成权威跑，由调用者负责选择。
+- **子集跑**（`--filter` / `--only` / `--limit`）**不得**写 `authoritative/`。带子集参数的驱动（`run_libc_test_user_suite.py` 的 `--filter`；`run_llvm_ts_user.py` 的 `--only`/`--limit`）在组合命中时**显式拒绝**（`rc=2` + 提示，`run_artifacts.subset_authoritative_error()`），拒绝发生在建目录之前。
+- 当前三个驱动默认把运行目录建在 `--work-dir` 下；把 `--work-dir` 指向 `authoritative/` 即构成权威跑，由调用者负责选择（子集组合除外，见上一条）。
 
 ### 1.3 驱动约束
 
@@ -89,14 +89,16 @@
 
 - 扫描面：`.work/tests/**`（若存在）＋ 配置的 test-artifacts 根（当前 `.dadao/tests/**`）；两者都不存在 ⇒ **SKIP**（明文打印，不 vacuous PASS）。
 - 每个匹配 `^\d{8}T\d{6}Z-` 的目录**必须**同时有非空 `run.json` / `run.log` / `meta.json`；
-- `meta.json` 的 `command` 非空、`started_utc` 存在、`toolchain.clang` / `.qemu` / `.libc` 各带非空 `sha256` 或 `md5`；
+- `meta.json` 的 `command` 非空、`started_utc` 与 `finished_utc` 存在、`toolchain.clang` / `.qemu` / `.libc` 各带非空 `sha256` 或 `md5`；
 - `authoritative/` 存在时，`authoritative/latest` **必须**存在且指向存在的目录。
+
+反例注入：删掉 `meta.json` / 去掉 `finished_utc` ⇒ **FAIL**。
 
 ### A3 `.work/log/**` 新增文件命名
 
 - **存量豁免**：落地时在 `.work/log/` 写 `.run-artifacts-epoch`（内容 = 创建时刻 UTC）。`mtime <= epoch` 的文件豁免；落地时另写 `.run-artifacts-baseline`（当时全部相对路径的快照），快照内路径一律豁免（防止**正在被改写**的旧文件因 mtime 变新而误判）。标记不存在 ⇒ **SKIP**。
 - 新增文件**必须**是 `check-<name>.log` 或 `<任务号>-<用途>.(log|json|txt)`；其余 ⇒ **FAIL**。
-- 过渡豁免：本册落地时仍在写的 `llvm-ts-user-*` 旧固定名（当前动态跑）不判红；搬迁任务完成后删除该豁免。
+- 过渡豁免：本册落地时仍在写的 `llvm-ts-user-*` 旧固定名（当前动态跑）不判红；搬迁任务完成后删除该豁免。删除的**机械判据**：`python3 tools/infra/check_run_artifacts.py --legacy-status` 返回 `0`（= `.work/log/**` 已无 `llvm-ts-user-*` 文件）⇒ 连同 `--legacy-status` 子命令一起删除 `INFLIGHT_LEGACY`；返回 `1` ⇒ 搬迁未完成，保留且**不得**扩大范围（`ISS-282 ③`）。
 - 不得把豁免写成「只查某个目录」。
 
 ### 退出码

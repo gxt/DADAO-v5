@@ -76,6 +76,27 @@ def toolchain_summary(clang: str, lld: str | None, qemu: str,
     return summary
 
 
+def is_authoritative_root(path: str) -> bool:
+    """True when *path* is (inside) an ``authoritative/`` run root."""
+    parts = os.path.normpath(os.path.abspath(path)).split(os.sep)
+    return "authoritative" in parts
+
+
+def subset_authoritative_error(subset: str | None,
+                               work_dir: str) -> str | None:
+    """Reject a subset run that would write ``authoritative/`` (Process-08 §1.2).
+
+    ``subset`` is a human-readable description of the subset flags actually in
+    use (``None`` = full run).  Drivers call this *before* creating any
+    directory, so a rejected invocation leaves no run dir behind.
+    """
+    if subset and is_authoritative_root(work_dir):
+        return (f"subset run ({subset}) must not write authoritative/ "
+                f"(docs/Process-08 §1.2): "
+                f"--work-dir={os.path.abspath(work_dir)}")
+    return None
+
+
 def create_run_dir(work_dir: str, suite: str, mode: str,
                    started: datetime | None = None) -> str:
     """Create the per-invocation run directory and return its path.
