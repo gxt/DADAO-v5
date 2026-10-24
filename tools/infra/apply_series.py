@@ -28,6 +28,11 @@ E5 (apply side):
 ``git apply --check --reverse``.  If a patch is already applied, it is
 skipped entirely (no ``git apply``, no mtime change).  Only patches that
 are not yet applied get ``git apply``.
+
+``patchless`` components (manifest flag, ADR-0024 D1) carry no patch set —
+``manifest_check.py`` rejects ``patch_dir``/``patch_series`` for them — so
+they are skipped explicitly (``component=<name>: patchless, skip``) instead
+of raising ``KeyError``; same guard as ``check_patch_tree.py``.
 """
 from __future__ import annotations
 
@@ -100,6 +105,14 @@ def main() -> int:
     source_root = ROOT / manifest.get("work_root", ".work") / "source"
     for component in enabled:
         name = component["name"]
+        if component.get("patchless"):
+            # Reference-only component (ADR-0024 D1): explicitly carries no v5
+            # patch set, so there is nothing to apply.  `manifest_check.py`
+            # rejects patch_dir/patch_series for this component, hence the
+            # guards below must not read them.  Same handling as
+            # check_patch_tree.py (`patchless; skipped`) — never silent.
+            print(f"apply-series: component={name}: patchless, skip")
+            continue
         base = component["commit"]
         source = source_root / name
         if not (source / ".git").exists():
