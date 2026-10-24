@@ -4,7 +4,7 @@
 >
 > **范围**：M1——标量整数 + 地址/内存 RD/RB/**RA** + 控制流（`call`/`ret`、RegRAS）+ 测试机所需系统/异常。
 >
-> **M1 范围外**（`scope: fp` / `scope: excluded`，本合约不提取其规范内容）：浮点（**RF 全部**，`scope: fp`：RF 寄存器存取与浮点运算，含 FCSR/rf0 的指令语义）、`scope: excluded`（核芯功能扩展指令 `cfxld`/`cfxst`、LR-SC 原子指令、fence）。**（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`，见 §13.6。）**
+> **M1 范围外**（`scope: fp` / `scope: excluded`，本合约不提取其规范内容）：浮点（**RF 全部**，`scope: fp`：RF 寄存器存取与浮点运算，含 FCSR/rf0 的指令语义）、`scope: excluded`（仅 `cfxld`/`cfxst`；LR-SC 原子与 `fence` 已于 M9 实现并转 `scope: m9`）。**（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`，见 §13.6。）**
 >
 > **`scope: m8`（非 M1）**：逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b` 4 条——编码见 §2.8 / 附录 A.8，语义见 §6.4.3；位扫描 / 位计数 `ctlz`/`cttz`/`ctpop` 3 条（**无位宽后缀**，借 `OPC-octa` 格位）——编码见 §2.8 / 附录 A.9，语义见 §6.4.4。新增指令与里程碑**无绑定**；本合约只同步其编码 / 语义 / 合法集，**不作 M1 身份**。[SimRISC-00 §OPC-octa指令编码]
 >
@@ -25,10 +25,10 @@
 | 范围 | 条数 | 含义 | 指针 |
 |---|---|---|---|
 | `scope: m1` | 156 | 已实现（含 `trap`/`escape`/`cfx2rd`/`cfx2rc`） | §13.6 |
-| `scope: fp` | 64 | 浮点已实现，不触发 decode ILLI。分布：`SimRISC-07` 50（`OPC-RF` 子表）+ `SimRISC-01` 8（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ `SimRISC-02` 5（`cs.n`/`cs.z`/`cs.p` 的 `-rf`、`rd2rf`/`rf2rd`）+ `SimRISC-03` 1（`set.w-rf`） | `contract-fp.md`；`ADR-0012 §D3.1` |
-| `scope: excluded` | 4 | 已定义编码、未实现该语义的机器 decode ILLI：`cfxld`/`cfxst` 2 + 融合乘加 `ftfma`/`fofma` 2 | `ADR-0014`（fence）；`ADR-0034`（fence/lr/sc 编码重排）；`contracts/opcodes.yaml::decode` |
+| `scope: fp` | 66 | 浮点已实现，不触发 decode ILLI（含融合乘加 `ftfma`/`fofma` 2 条）。分布：`SimRISC-07` 50（`OPC-RF` 子表）+ `SimRISC-01` 8（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ `SimRISC-02` 5（`cs.n`/`cs.z`/`cs.p` 的 `-rf`、`rd2rf`/`rf2rd`）+ `SimRISC-03` 1（`set.w-rf`） | `contract-fp.md`；`ADR-0012 §D3.1` |
+| `scope: excluded` | 2 | 已定义编码、未实现该语义的机器 decode ILLI：`cfxld`/`cfxst` | `ADR-0014`（fence）；`contracts/opcodes.yaml::decode` |
 | `scope: m3` | 1 | `sub.o_orrr_dbb`（RB 算术，非 M1 身份） | `ADR-0012 §D9.1` |
-| `scope: m8` | 7 | `rev.*` 4 + `ctlz`/`cttz`/`ctpop` 3（**无位宽后缀**，借 `OPC-octa` 格位） | `ADR-0012 §D10/D11` |
+| `scope: m8` | 7 | `rev.*` 4 + `ctlz`/`cttz`/`ctpop` 3（**无位宽后缀**，位于 `OPC-MISC`，`opc 0x47`／`ha 0x25–0x27`） | `ADR-0012 §D10/D11` |
 | `scope: m9` | 34 | `rol.*`（8 条记录）+ `clmul.o` + `fence` + `lr`/`sc` 24 | `ADR-0032 §D4`；`ADR-0035 §D5`；`ADR-0034`（fence/lr/sc） |
 
 **编码例外与删格指针**（自 `SimRISC-00` 子表注记迁出）：
@@ -48,7 +48,7 @@ SimRISC 提供 4 组用户可见寄存器，每组 64 个，每个寄存器 64 �
 |------|------|------|---------|
 | 数据寄存器 (RD) | rd0–rd63 | 通用运算 | 是 |
 | 基址寄存器 (RB) | rb0–rb63 | 地址计算 | 是 |
-| 浮点寄存器 (RF) | rf0–rf63 | 浮点运算 | RF 存取与运算 `scope: fp`——语义见 `contract-fp.md`（已归一化，共 60 条，执行层已实现）；本 M1 合约仅保留 rf0（FCSR）寄存器模型/复位值（供 SPEC-006t，指令语义见 `contract-fp.md`） |
+| 浮点寄存器 (RF) | rf0–rf63 | 浮点运算 | RF 存取与运算 `scope: fp`——语义见 `contract-fp.md`（已归一化，共 66 条，执行层已实现）；本 M1 合约仅保留 rf0（FCSR）寄存器模型/复位值（供 SPEC-006t，指令语义见 `contract-fp.md`） |
 | 返回地址栈 (RA) | ra0–ra63 | 函数调用/返回 | 是（RegRAS/MemRAS 模型 + RA 存取/块赋值） |
 
 ### §1.2 寄存器编号编码
