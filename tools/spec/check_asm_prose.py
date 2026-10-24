@@ -27,6 +27,9 @@ R6  Operand shape from opcodes.yaml — for each mnemonic, ``opcodes.yaml`` list
     valid format variants (e.g. ``add.so`` has both ``rrrr`` and ``orrr``).  The checker
     counts operands (``{…}`` = one operand) and verifies the count matches at least one
     known format's expected count.  Only flag when **no** format variant matches.
+    The ``rrrr`` brace requirement follows the **actual shape** (``fields[].role``):
+    2 ``dst`` fields (dual-dst) ⇒ ``{…}`` required; 1 ``dst`` field (``ftfma``/``fofma``
+    = 1 dst + 3 src) ⇒ ``{…}`` forbidden; ``cs.*`` braces are conditions (R2b).
     Block-copy/format-convert (``ra2rd``, ``ft2fo``, etc.) additionally require ``{…}``.
 
 Scan scope
@@ -276,10 +279,11 @@ def extract_code_blocks(filepath: Path) -> list[CodeBlock]:
 # ---------------------------------------------------------------------------
 
 # Expected operand count per format (counting {...} as one operand).
-# rrrr: dual-dst form = 3 (brace-pair + 2 regs); cs form = 4 (brace + 3 regs)
+# rrrr: 3 = dual-dst {rdHA,rdHB},rdHC,rdHD; 4 = single-dst (ftfma/fofma: dst,src,src,src)
+#       or cs {cond}?,dst,src1,src2
 # orri block-copy = 2 (two brace-pairs)
 _FORMAT_OP_COUNTS: dict[str, set[int]] = {
-    "rrrr": {3, 4},   # 3 = dual-dst {rdHA,rdHB},rdHC,rdHD; 4 = cs {cond}?,dst,src1,src2
+    "rrrr": {3, 4},   # see above; brace requirement decided by dst-field count (R6)
     "rrri": {2},      # ldm/stm: {rdHA:…}, [rbHB, rdHC]
     "rrii": {2, 3},   # 2 = ld/st rdHA, [rbHB, imm]; 3 = jump [rbHA, rdHB, immi]
     "riii": {1, 2},   # 1 = add.si rdHA, imm; 2 = br.n {rdHA}?, [rb0, immi]
@@ -309,6 +313,48 @@ def _count_operands(operands_str: str) -> int:
         elif ch == "," and depth == 0:
             count += 1
     return count + 1
+
+
+# Cache for ``_load_opcode_dst_counts`` (filled on first use; ``{}`` = unknown).
+_OPCODE_DST_COUNT_CACHE: Optional[dict[str, dict[str, int]]] = None
+
+
+def _load_opcode_dst_counts() -> dict[str, dict[str, int]]:
+    """Return ``{mnemonic: {format: dst-role count}}`` from ``opcodes.yaml``.
+
+    R6 judges the **actual operand shape**, not the format name: an ``rrrr``
+    variant with **2** ``dst`` fields (`add.uo` … `{rdHA, rdHB}, rdHC, rdHD`)
+    needs the brace pair, while a variant with a **single** ``dst`` (`ftfma`/
+    `fofma` = 1 dst + 3 src) is written as four plain registers.  ``cs.*`` also
+    has 1 ``dst``, but its braces are the **condition** (`{cond}?`, rule R2b),
+    not a dst pair — R6 stays out of its way.
+
+    Empty dict = shape unknown (opcodes.yaml unreadable) ⇒ caller falls back to
+    the conservative "``rrrr`` ⇒ braces required" rule.
+    """
+    global _OPCODE_DST_COUNT_CACHE
+    if _OPCODE_DST_COUNT_CACHE is not None:
+        return _OPCODE_DST_COUNT_CACHE
+    result: dict[str, dict[str, int]] = {}
+    yaml_path = ROOT / "contracts" / "opcodes.yaml"
+    if yaml_path.exists():
+        try:
+            import yaml  # type: ignore
+            data = yaml.safe_load(yaml_path.read_text())
+            if isinstance(data, list):
+                for entry in data:
+                    mn = entry.get("mnemonic", "")
+                    fmt = entry.get("format", "")
+                    if mn and fmt:
+                        dst = sum(
+                            1 for f in (entry.get("fields") or [])
+                            if f.get("role") == "dst"
+                        )
+                        result.setdefault(mn, {})[fmt] = dst
+        except Exception:
+            result = {}
+    _OPCODE_DST_COUNT_CACHE = result
+    return result
 
 
 def _get_valid_operand_counts(formats: set[str]) -> set[int]:
@@ -574,8 +620,12 @@ def _check_line(
 
     # R6: Operand shape from opcodes.yaml — data-driven.
     # For mnemonics with known formats, check if operand count matches any valid format.
-    # Additionally, when the mnemonic has an rrrr variant, require {…} (dual-dst or condition).
-    # Only flag when the mnemonic is in opcodes.yaml AND (count doesn't match OR rrrr needs {}).
+    # For an rrrr variant, decide from the **actual shape** (opcodes.yaml `fields[].role`),
+    # not from the format name:
+    #   2 dst fields ⇒ dual-dst (`add.uo`), braces required: `{rdHA, rdHB}, rdHC, rdHD`;
+    #   1 dst field  ⇒ single-dst (`ftfma`/`fofma` = 1 dst + 3 src), NO braces;
+    #                  `cs.*` (1 dst) braces are the condition `{cond}?` (rule R2b) ⇒ skip.
+    # Only flag when the mnemonic is in opcodes.yaml AND the shape is violated.
     if mnemonic in opcode_formats:
         after_mn = code_part[len(mnemonic):].strip()
         formats = opcode_formats[mnemonic]
@@ -587,19 +637,33 @@ def _check_line(
                     filepath, lineno,
                     "R6(操作数形态不符)", stripped
                 ))
-            elif "rrrr" in formats and "{" not in after_mn and actual_count >= 3:
-                # mnemonic has rrrr variant (dual-dst / cs), which requires {…}
-                # Old form: add.so rd0, rd4, rd2, rd3 (4 bare regs)
-                # New form: add.so {rdHA, rdHB}, rdHC, rdHD
-                # Exception: if mnemonic ALSO has orrr variant, 3-operands without {}
-                # is valid (orrr address arithmetic). Only flag when count matches rrrr
-                # specifically AND there's no orrr variant accepting this count.
-                orrr_counts = _FORMAT_OP_COUNTS.get("orrr", set())
-                if actual_count not in orrr_counts:
-                    violations.append(Violation(
-                        filepath, lineno,
-                        "R6(rrrr缺{})", stripped
-                    ))
+            elif "rrrr" in formats and actual_count >= 3:
+                dst_count = _load_opcode_dst_counts().get(mnemonic, {}).get("rrrr")
+                if dst_count == 1 and not mnemonic.startswith("cs."):
+                    # single-dst rrrr = exactly `dst, src1, src2, src3` (4 operands),
+                    # and braces are not part of the shape
+                    # (e.g. `ftfma {rf8, rf9}, rf10, rf11` is the dual-dst form).
+                    if "{" in after_mn:
+                        violations.append(Violation(
+                            filepath, lineno,
+                            "R6(rrrr单目的不得带{})", stripped
+                        ))
+                    elif actual_count != 4:
+                        violations.append(Violation(
+                            filepath, lineno,
+                            "R6(单目的rrrr须4操作数)", stripped
+                        ))
+                else:
+                    # dual-dst rrrr (dst_count == 2), or unknown shape ⇒ conservative:
+                    # braces required unless another variant (orrr) accepts this count.
+                    # Old form: add.so rd0, rd4, rd2, rd3 (4 bare regs)
+                    # New form: add.so {rdHA, rdHB}, rdHC, rdHD
+                    orrr_counts = _FORMAT_OP_COUNTS.get("orrr", set())
+                    if actual_count not in orrr_counts and "{" not in after_mn:
+                        violations.append(Violation(
+                            filepath, lineno,
+                            "R6(rrrr缺{})", stripped
+                        ))
 
     # R6b: Block-copy / format-convert (ra2rd, rb2rb, etc. and ft2fo, etc.)
     # These are orri format with immu6 = count

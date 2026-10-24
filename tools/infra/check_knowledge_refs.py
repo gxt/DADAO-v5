@@ -22,7 +22,8 @@
   - 其余具体路径 ⇒ **要求存在**（文件或目录），不存在即红。
 
 (B) 检查（**悬空即红**；用户 2026-10-14 裁定「A」= 两条都补、并入 L1；任务 `INFRA-080t`）：
-  扫描面**限** `.tao/knowledge/**/*.md`（(A) 的扫描面不受影响）；对下列**小节级互指** token
+  扫描面 = `.tao/knowledge/**/*.md` **+** `.tao/contracts/**/*.md`（后者 `SPEC-171t` 并入：
+  契约正文 13 条小节级悬空修完后纳入同一判据防回归；两个面各自空转即 FAIL）；对下列**小节级互指** token
   做目标存在性检查，目标必须是**同仓真实存在**的文档小节：
   - `ADR-<4 位数字>` ⇒ 目标文件 `.tao/adr/adr-<NNNN>-*.md`；
     带**小节设计符**者还须在目标文件内找到该小节：
@@ -95,8 +96,9 @@ def _classify(raw: str) -> str:
 # (B) 小节级互指（INFRA-080t）
 # ---------------------------------------------------------------------------
 
-# 扫描面：限 `.tao/knowledge/**/*.md`（任务书 §接口规范 输出①）。
-_SECTION_SCAN_DIR = ".tao/knowledge"
+# 扫描面：`.tao/knowledge/**/*.md`（INFRA-080t）+ `.tao/contracts/**/*.md`（SPEC-171t：
+# 契约正文的 13 条小节级悬空已修，纳入同一判据以防回归；两处均为必扫面，各自空转即 FAIL）。
+_SECTION_SCAN_DIRS = (".tao/knowledge", ".tao/contracts")
 
 # 目标：ADR 文件目录 / 契约文件目录。
 _ADR_DIR = ".tao/adr"
@@ -203,8 +205,13 @@ def _decision_desig_missing(desig: str, decisions: set[str], target_text: str) -
 
 def audit_section_refs(root: Path) -> dict:
     """(B) section-level cross-reference existence check; prints its own report block."""
-    base = root / _SECTION_SCAN_DIR
-    files = sorted(base.rglob("*.md")) if base.is_dir() else []
+    files: list[Path] = []
+    face_checked: dict[str, int] = {}
+    for scan_dir in _SECTION_SCAN_DIRS:
+        base = root / scan_dir
+        face_files = sorted(base.rglob("*.md")) if base.is_dir() else []
+        files.extend(face_files)
+        face_checked[scan_dir] = 0
 
     n_adr = n_adr_bare = n_adr_ph = n_adr_unknown = n_adr_checked = 0
     n_contract = n_contract_bare = n_contract_checked = 0
@@ -216,6 +223,8 @@ def audit_section_refs(root: Path) -> dict:
 
     for f in files:
         rel = str(f.relative_to(root))
+        face = next((d for d in _SECTION_SCAN_DIRS if rel.startswith(d + "/")), None)
+        checked_before = n_adr_checked + n_contract_checked
         try:
             raw = f.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -299,10 +308,14 @@ def audit_section_refs(root: Path) -> dict:
                         dangling.append(
                             (rel, lineno, f"contract-{name}.md §{sid}", "目标小节不存在")
                         )
+        if face is not None:
+            face_checked[face] += (n_adr_checked + n_contract_checked) - checked_before
 
     print()
-    print(f"  [INFRA-080t] 小节级互指存在性（扫描面: {_SECTION_SCAN_DIR}/**/*.md，"
+    print(f"  [INFRA-080t] 小节级互指存在性（扫描面: {' + '.join(_SECTION_SCAN_DIRS)}/**/*.md，"
           f"文件 {len(files)}）")
+    for scan_dir in _SECTION_SCAN_DIRS:
+        print(f"      {scan_dir}/**/*.md: 校验 {face_checked[scan_dir]} 条")
     print(f"    `ADR-…` 引用总数: {n_adr}")
     print(f"      无小节设计符 (只校验文件存在): {n_adr_bare}")
     print(f"      占位/示意 (跳过): {n_adr_ph}")
@@ -329,6 +342,7 @@ def audit_section_refs(root: Path) -> dict:
         "contract_checked": n_contract_checked,
         "contract_bare": n_contract_bare,
         "checked": n_adr_checked + n_contract_checked,
+        "face_checked": face_checked,
         "dangling": dangling,
         "skipped": skipped,
     }
@@ -418,15 +432,17 @@ def audit(root: Path) -> int:
     if sec["dangling"]:
         print(f"结果: FAIL ({len(sec['dangling'])} 悬空小节级互指)")
         return 1
-    # §2.20 自证命中：两个扫描面都必须确有 token 被判定，否则判为「空转」而 FAIL。
+    # §2.20 自证命中：两个扫描面 (A)/(B) 都必须确有 token 被判定，(B) 的每个目录面亦然，
+    # 否则判为「空转」而 FAIL。
     if checked == 0:
         print("ERROR: 无任何可校验的 `.work/**` 引用（扫描面为空 ⇒ 门控空转，fail-closed）",
               file=sys.stderr)
         print("结果: FAIL (vacuous: no checkable .work/** refs)")
         return 1
-    if sec["checked"] == 0:
-        print("ERROR: 无任何可校验的小节级互指（扫描面为空 ⇒ 门控空转，fail-closed）",
-              file=sys.stderr)
+    vacuous_faces = [d for d, n in sec["face_checked"].items() if n == 0]
+    if vacuous_faces:
+        print(f"ERROR: 小节级互指扫描面空转（无可校验 token）: {', '.join(vacuous_faces)}"
+              f"（fail-closed）", file=sys.stderr)
         print("结果: FAIL (vacuous: no checkable section-level cross-refs)")
         return 1
     print(f"结果: PASS (0 悬空 `.work/**` 引用; 0 悬空小节级互指；"

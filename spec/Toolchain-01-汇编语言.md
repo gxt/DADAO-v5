@@ -104,6 +104,7 @@
 - **范围**：`{rd3:rd8}`——表示 `rd3` 到 `rd8` 的**连续**寄存器；分隔符**MUST**为 `:`（不是 `-`）。
 - **条件寄存器**：`?` **MUST** 紧跟 `}` 之后，标记「该组寄存器用于条件判断」。**MUST NOT** 写在寄存器名之后（`rd3?` 会被词法解析为单个标识符）。
 - **双目的指令**：`rrrr` 格式中 `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 的 `rdha` 和 `rdhb` 均为 dst。书写格式：`助记符 {rdHA, rdHB}, rdHC, rdHD`。花括号内逗号后加空格（与整体风格一致）。
+- **单目的指令**：`rrrr` 格式中 `ftfma`/`fofma` 的 `rfha` 为唯一 dst、`rfhb`/`rfhc`/`rfhd` 为源（**1 目的 + 3 源**）。书写格式：`助记符 dst, src1, src2, src3`，即四个普通寄存器，**不带** `{}`（例：`ftfma rf8, rf9, rf10, rf11`）。`{}` 的双元素形只用于上条的**双目的寄存器对**；判据按**实际形态**（`contracts/opcodes.yaml` 的 `fields[].role`）而非格式名，见 §5 与 `check-asm-prose` R6。
 - **多寄存器指令**（`ldm.*`/`stm.*`）：目的寄存器与**个数**合并为寄存器组，**个数 MUST NOT 显式书写**（由组推出）。
   - 例：`ldm.ub {rd8:rd10}, [rb0, rd1]` ≡ 旧写法 `ldm.ub rd8, rb0, rd1, 3`。
   - **MUST** 校验：`{}` 不得为空；起点+个数**MUST NOT**越出 `rd63`；个数为 0 **MUST** 报错。
@@ -141,6 +142,7 @@
 | 格式类 | 语法（记法） | 示例 | 单位说明 |
 |---|---|---|---|
 | `rrrr`（双目的） | `助记符 {dst1, dst2}, src1, src2` | `add.uo {rd8, rd9}, rd10, rd11` | — |
+| `rrrr`（单目的） | `助记符 dst, src1, src2, src3` | `ftfma rf8, rf9, rf10, rf11` | — |
 | `rrrr`（cs.n/z/p） | `助记符 {cond}?, dst, src1, src2` | `cs.n {rd1}?, rd2, rd3, rd4` | — |
 | `rrrr`（cs.eq/ne） | `助记符 {cond1, cond2}?, dst, src` | `cs.eq {rd8, rd0}?, rd9, rd10` | — |
 | `rrri` | `助记符 {dst:…}, [base, offset]` | `ldm.ub {rd8:rd10}, [rb0, rd1]` | count 省略 |
@@ -152,6 +154,15 @@
 | `orri` | `助记符 dst, src, immu6` | `ext.uo rd8, rd0, 1` | — |
 | `orri`（块赋值/格式转换） | `助记符 {dst:…}, {src:…}` | `ra2rd {rd8:rd10}, {ra1:ra3}` | `immu6` = 连续寄存器个数 |
 | `oiii` | `助记符 immu18` | `fence 0`、`swym 0` | 纯立即数，不加 `[]` |
+
+`rrrr` 的两种目的形态（与上表首行/次行对应）：
+
+```simrisc
+@@ 双目的：加/减/乘写两个目的寄存器（`{}` 为双目的寄存器对）
+add.uo  {rd8, rd9}, rd10, rd11
+@@ 单目的：融合乘加 = 1 目的 + 3 源，四个普通寄存器（不带 `{}`）
+ftfma   rf8, rf9, rf10, rf11
+```
 
 **特权 cfx 格式（`crrr`/`crii`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**；其中 `crrr`/`ciii` 现为 `scope: m1`，`crii` 仍为 `scope: excluded`）：
 - `cfxld cfx63, [rb2, 1]`、`cfxst cfx63, [rb2, 1]`——`cfxha` 写作 `cfxHA`（测试机为 `cfx63` = power），末两操作数为**地址**。

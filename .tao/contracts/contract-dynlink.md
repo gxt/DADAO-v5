@@ -62,7 +62,7 @@
 
 ### §2.1 地址无关的寄存器基础（事实）
 
-下表中「角色」列为 spec 原文口径，「v5 处置」列为 v5 承接口径：[DADAO-21 §寄存器规范 §RB寄存器][ADR-0018 C6]
+下表中「角色」列为 spec 原文口径，「v5 处置」列为 v5 承接口径：[DADAO-21 §寄存器规范 §RB寄存器][contract-abi.md §4.5]
 
 | 寄存器 | ABI 名 | 角色（spec 定义） | v5 处置 |
 |--------|--------|-------------------|---------|
@@ -70,7 +70,7 @@
 | `rb2` | — | **frame pointer（无条件保留）** | 保留不分配 |
 | `rb3` | `rbtp` | **thread pointer（TP）** | 保留不分配 |
 
-- 上表角色为 spec 原文口径；v5 的「保留不分配」口径见 `contract-abi.md §1.6`。[DADAO-21 §寄存器规范 §RB寄存器][ADR-0018 C6]
+- 上表角色为 spec 原文口径；v5 的「保留不分配」口径见 `contract-abi.md §1.6`。[DADAO-21 §寄存器规范 §RB寄存器][contract-abi.md §4.5]
 - `rb0`（`rbip`）即 **`IP`**：读出为**当前正在执行的指令的地址**（**非**「下一条」口径；本 ISA **无 `±4` 流水偏移**——v5 无 `−4`/`+4` 修正），且 `rb0` 作目的操作数触发 ILLI。[SimRISC-00 §基址寄存器][ADR-0015 D1]
 - v5 有效虚拟地址 = **48 位**，地址计算时高 16 位被硬件忽略。[contract-isa.md §1.5]
 
@@ -89,7 +89,7 @@
 
 ### §2.4 GOT 基址寄存器与 TP：口径（**已定：2026-10-14 用户逐条确认**）
 
-- **事实**：spec 定义 `rb2` 为 **frame pointer（无条件保留）**、`rb3`/`rbtp` 为 thread pointer，v5 M3 起二者**保留不分配**；**无 GP 寄存器**。[DADAO-21 §寄存器规范 §RB寄存器][ADR-0018 C6]
+- **事实**：spec 定义 `rb2` 为 **frame pointer（无条件保留）**、`rb3`/`rbtp` 为 thread pointer，v5 M3 起二者**保留不分配**；**无 GP 寄存器**。[DADAO-21 §寄存器规范 §RB寄存器][contract-abi.md §4.5]
 - **已定（裁定 8）**：**不引入 GOT 固定基址寄存器**——PIC 取 GOT 槽地址**不经**专用 GP（**无 GP 寄存器**，GOT 基址不由固定寄存器承载），改由 **IP 相对（`rb0`）+ 链接期常量偏移**定位槽地址，再以 `ld.o`/`st.o` 做 8 字节访存（§3）；**`DT_PLTGOT` 必须提供**（musl `ldso` 读 `dso->got`）。[ADR-0021 D3][外部权威 musl `ldso/dynlink.c`][spec-decision]（用户 2026-10-14 逐条确认）
 - **已定（裁定 8）**：TP（`rbtp`）的**方向与偏置**归 **musl arch 宏**（`TLS_ABOVE_TP` / `TP_OFFSET` / `DTP_OFFSET` / `__get_tp`），**逐 arch 定值归 musl 移植任务**；本合约**只记录该依赖**、不写死值。[外部权威 musl `arch/riscv64/reloc.h`][ADR-0025 D5][spec-decision]（用户 2026-10-14 逐条确认）
 
@@ -216,7 +216,7 @@
 
 - **事实（musl 入口约定）**：ldso 的 C 入口形如 `_dlstart_c(size_t *sp, size_t *dynv)`，**直接解析 SysV 初始栈向量**（`argc` / `argv` / `envp` / auxv）；该向量由 qemu 的 `create_elf_tables` 构造。[外部权威 musl `ldso/dlstart.c`][外部权威 qemu `linux-user/elfload.c`]
 - **栈与寄存器约定承既有合约**：`SP` = `rb1`（栈向下增长）；`call` 执行时 SP 须 **8 字节对齐**。[contract-abi.md §2.1][DADAO-21 §函数调用规范 §The Stack Frame]
-- **已定（裁定 8）**：不引入 GOT 固定基址寄存器（**无 GP 寄存器**）⇒ 进入被测程序时**无** GP 初值约定；TP（`rbtp`）的初值与维护归 **musl arch 宏 / `__get_tp`**（逐 arch 定值在 musl 移植任务；本合约只记录依赖，§2.4 / §7）。[ADR-0018 C6][spec-decision]（用户 2026-10-14 逐条确认）
+- **已定（裁定 8）**：不引入 GOT 固定基址寄存器（**无 GP 寄存器**）⇒ 进入被测程序时**无** GP 初值约定；TP（`rbtp`）的初值与维护归 **musl arch 宏 / `__get_tp`**（逐 arch 定值在 musl 移植任务；本合约只记录依赖，§2.4 / §7）。[contract-abi.md §4.5][spec-decision]（用户 2026-10-14 逐条确认）
 
 ### §6.6 边界
 
@@ -228,7 +228,7 @@
 ## §7 TLS（**已定：纳入 M8；2026-10-14 用户逐条确认**）
 
 - **事实（musl 类别层）**：musl ldso **在类别层**需要 `REL_DTPMOD` / `REL_DTPOFF` / `REL_TPOFF`（+ 可选 `REL_TLSDESC`）；各目标须在 `arch/<arch>/reloc.h` 逐项映射（未映射即该类别不可命中）。[外部权威 musl `src/internal/dynlink.h`][外部权威 musl `arch/riscv64/reloc.h`][spec-decision]
-- **事实（v5 寄存器 + `D5` 查证）**：spec 已定义 `rb3` = `rbtp`（thread pointer），v5 M3 起保留不分配；`ADR-0025 D5` 查证结论 = musl **硬依赖** TP（含 `struct pthread` 的 TCB/TLS 区**无条件**、静态单线程亦不可省）⇒ **TLS 自动纳入 M8**。[DADAO-21 §寄存器规范 §RB寄存器][ADR-0018 C6][ADR-0025 D5]
+- **事实（v5 寄存器 + `D5` 查证）**：spec 已定义 `rb3` = `rbtp`（thread pointer），v5 M3 起保留不分配；`ADR-0025 D5` 查证结论 = musl **硬依赖** TP（含 `struct pthread` 的 TCB/TLS 区**无条件**、静态单线程亦不可省）⇒ **TLS 自动纳入 M8**。[DADAO-21 §寄存器规范 §RB寄存器][contract-abi.md §4.5][ADR-0025 D5]
 - **已定（裁定 1 / 8）**：TLS **纳入 M8**，类型集含 4 个 TLS 类（`R_DADAO_TLS_DTPMOD` / `R_DADAO_TLS_DTPREL` / `R_DADAO_TLS_TPREL` / `R_DADAO_TLSDESC`，编号见 §4.3 表）。[spec-decision]（用户 2026-10-14 逐条确认）
 - **依赖记录（裁定 8）**：TP 的**方向与偏置**（`TLS_ABOVE_TP` / `TP_OFFSET` / `DTP_OFFSET` / `__get_tp`）归 **musl arch 宏**，**逐 arch 定值在 musl 移植任务**；本合约**只记录该依赖**、不写死值。[外部权威 musl `arch/riscv64/reloc.h`][ADR-0025 D5][spec-decision]（用户 2026-10-14 逐条确认）
 - **禁止**：**不得**自拟 TLS 类型编号 / 模型（类型号已由 `ADR-0019 D10` 落定、用户 2026-10-14 确认，**不得增改**）。[ADR-0019 D10][spec-decision]（用户 2026-10-14 逐条确认）
@@ -290,10 +290,10 @@
 | §1.2 | 角色分工（musl ldso / QEMU user-mode = 内核·加载器侧）；边界 | `ADR-0025 D2`/`D3`/`D6`/`D7` |
 | §1.3 | 来源四分层；外部权威出处（gABI / musl / qemu，可核） | 外部权威（gABI 第4/5章、musl v1.2.6、qemu `c3d48b7d…`）；`ADR-0025 D3` |
 | §1.4 | 术语与公式符号（`S`/`A`/`P`/`B`） | `ADR-0019 D3`；gABI 第 5 章 |
-| §2.1 | `rb0`/`rb2`/`rbtp` 角色；48 位地址 | `DADAO-21 §寄存器规范 §RB寄存器`；`SimRISC-00 §基址寄存器`；`contract-isa.md §1.5`；`ADR-0018 C6`；`ADR-0015 D1` |
+| §2.1 | `rb0`/`rb2`/`rbtp` 角色；48 位地址 | `DADAO-21 §寄存器规范 §RB寄存器`；`SimRISC-00 §基址寄存器`；`contract-isa.md §1.5`；`contract-abi.md §4.5`；`ADR-0015 D1` |
 | §2.2 | 两条寻址通路（IP 相对 / 绝对·基址相对）；GOT 远距离取址通道 = **`R_DADAO_PCREL_HI`/`PCREL_LO` 配对**（`aip.si` + `ld.o`；`ADR-0029`；2026-10-16 曾定案的 `R_DADAO_REL32` 已撤回） | `ADR-0029 D2`–`D4`；`ADR-0019 D2`/`D3`/`D10`/`D12`；`ADR-0021 D1`/`D3`；`ADR-0018 C7 D4` |
 | §2.3 | `ET_DYN`（`-fPIC`/`-pie`/`-shared`）；与 M4 VA=PA 路径并存 | gABI 第 5 章；`ADR-0003 D5`；`contract-elf.md §5.2` |
-| §2.4 | GOT 基址寄存器与 TP 口径（**已定**：不引入 GOT 基址寄存器；TP 归 arch 宏） | `DADAO-21 §寄存器规范 §RB寄存器`；`ADR-0018 C6`；`ADR-0021 D3`；`ADR-0026 D5`；musl `ldso/dynlink.c`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
+| §2.4 | GOT 基址寄存器与 TP 口径（**已定**：不引入 GOT 基址寄存器；TP 归 arch 宏） | `DADAO-21 §寄存器规范 §RB寄存器`；`contract-abi.md §4.5`；`ADR-0021 D3`；`ADR-0026 D5`；musl `ldso/dynlink.c`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
 | §3 | GOT 槽 8 字节；GOT 语义（偏移固定 / 绝对不固定）；PLT 绑定时机（**已定**：eager / `BIND_NOW`、full `RELRO`）；`DT_PLTGOT`；访问路径（不经 GP；远距离通道 = `PCREL_HI`/`PCREL_LO` 配对，`ADR-0029`）；PLT 形态（**已定**：3 条 / 12 B、无数据槽，`ADR-0029 D5`；2026-10-16 曾定案的内联去槽已撤回）；icache 澄清 | `contract-abi.md §1.7`；gABI 第 5 章；musl `ldso/dynlink.c`；`ADR-0029 D4`/`D5`；`ADR-0021 D3`；`ADR-0018 C7 D4`；`ADR-0019 D10`/`D12`；`ADR-0026 D5`/`D6`；`[spec-decision]` |
 | §4.1 | `SHT_RELA` 记录型态；`Elf64_Rela` 布局与 `r_info` 位宽 | `ADR-0019 D1`；gABI 第 4 章；musl `src/internal/dynlink.h` |
 | §4.2 | musl 类别集与默认不可命中；须映射的四类 | musl `src/internal/dynlink.h` / `ldso/dynlink.c` / `arch/riscv64/reloc.h`；`ADR-0025 D3` |
@@ -307,7 +307,7 @@
 | §6.4 | 解释器路径解析（guest-root 前缀） | `ADR-0025 D2`/`D6`；qemu `linux-user/main.c` / `elfload.c` |
 | §6.5 | 入口栈向量；SP/8B 对齐；`rb2`(FP)/`rbtp` 初值（**已定**：无 GP；TP 归 arch 宏） | musl `ldso/dlstart.c`；qemu `linux-user/elfload.c`；`contract-abi.md §2.1`；`DADAO-21 §函数调用规范 §The Stack Frame`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
 | §6.6 | P3 边界；不得作 oracle；不引入内核目标 | `ADR-0025 D2`/`D6`/`D7` |
-| §7 | TLS **已定纳入 M8**（4 个 TLS 类）；TP 方向 / 偏置归 musl arch 宏（依赖记录） | `ADR-0025 D5`；musl `reloc.h`；`DADAO-21 §寄存器规范 §RB寄存器`；`ADR-0018 C6`；`ADR-0019 D10`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
+| §7 | TLS **已定纳入 M8**（4 个 TLS 类）；TP 方向 / 偏置归 musl arch 宏（依赖记录） | `ADR-0025 D5`；musl `reloc.h`；`DADAO-21 §寄存器规范 §RB寄存器`；`contract-abi.md §4.5`；`ADR-0019 D10`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
 | §8 | oracle 口径与禁止项；P4 归属 | `ADR-0025 D6`/`D7`；`ADR-0026 D8`；gABI；musl |
 | §9 | **裁定清单（已定）**与历史 / 落纸规则（裁定 5 修订为仅 GNU hash） | `ADR-0025`；`ADR-0026 D3`；`ADR-0019 D10`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
 | §10 | **失败与越界策略**（48 位约束 / 未支持类型 / 补码越界 / lld 侧 / 分层；`REL32` 通道增补 2026-10-16 **已撤回**） | `ADR-0026 D7`；`ADR-0019 D6`/`D7`；`ADR-0021 D3`；`contract-isa.md §1.5`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
