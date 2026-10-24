@@ -7,11 +7,12 @@ program"): the DADAO port of musl lives as a tree-shaped patch set
 turns it into artifacts and proves the compiler/linker can produce a static
 DADAO executable:
 
-1. **build** -- ``./configure --target=dadao-unknown-elf --disable-shared`` +
-   ``make`` inside ``.work/source/musl`` (idempotent; rerun after
-   ``make fetch apply-series``).  Products: ``lib/libc.a``, ``lib/crt1.o``.
-   P1 is the STATIC subset: ``--disable-shared`` is deliberate (the dynamic
-   linker is P2, ADR-0025 D6).
+1. **build** -- ``./configure --target=dadao-unknown-elf --disable-shared
+   CFLAGS=-ffp-contract=off`` + ``make`` inside ``.work/source/musl``
+   (idempotent; rerun after ``make fetch apply-series``).  Products:
+   ``lib/libc.a``, ``lib/crt1.o``.  P1 is the STATIC subset:
+   ``--disable-shared`` is deliberate (the dynamic linker is P2, ADR-0025 D6);
+   the fp-contract flag is musl's own accuracy requirement (ISS-332).
 2. **smoke link** -- compile a minimal program (``write(1, "hi\\n", 3)`` +
    ``return 0``) against that library and link it with ``lib/crt1.o`` and the
    project ELF script ``tests/scripts/dadao.lds``.
@@ -77,7 +78,11 @@ A changed digest forces ``make clean`` (musl's Makefile does not depend on every
 header, so an incremental build can miss a protocol change), and
 ``tools/infra/check_musl_freshness.py`` (L1) compares both stamps plus the
 installed ``libc.so`` against the build product, so "sources or toolchain
-changed ⇒ libc.so must be rebuilt/reinstalled" is mechanically enforced.
+changed ⇒ libc.so must be rebuilt/reinstalled" is mechanically enforced.  The
+digest also covers ``MUSL_CFLAGS`` -- the compile flags decide the object code
+just as much as the sources do (ISS-332: libm contracted by clang's default FMA
+contraction is 3 ulp off in ``math/yn``), and ``config.mak`` records them in a
+file this digest skips; see ``source_stamp``.
 
 Fail-closed: a missing toolchain, a missing source tree, any non-zero
 compile/assemble/link step or a failed ELF assertion is an error (rc=2 for
@@ -110,6 +115,18 @@ LDS = REPO_ROOT / "tests" / "scripts" / "dadao.lds"
 TARGET = "dadao-unknown-elf"
 EM_DADAO = 0x0DA0
 RAM_BASE = 0xFC0000000000
+
+# ── libm must be built contraction-free (ISS-332) ───────────────────────────
+# musl's libm polynomials are written as `a*b+c` and are accurate to the last
+# bit only because that rounds twice.  Since LLVM-123t the backend legalises
+# ISD::FMA and reports isFMAFasterThanFMulAndFAdd, so clang contracts the pair
+# into a single fofma by default -- that moved libc-test's math/yn by 3 ulp
+# (ISS-332).  Upstream musl's configure asks the compiler for exactly this flag;
+# the cross build has to pass it explicitly.  It goes through CFLAGS (musl's
+# configure writes the assignment into config.mak, and CFLAGS_ALL ends with
+# $(CFLAGS), i.e. after $(CFLAGS_AUTO), so a later occurrence wins).  Only the
+# libc build is affected: user code keeps the backend's FMA contraction.
+MUSL_CFLAGS = "-ffp-contract=off"
 
 # ── shared-object (dynamic linkage) names, INFRA-085t stage A1 ──────────────
 # contract-dynlink.md §6.1: PT_INTERP = /lib/ld-musl-dadao.so.1, that path being
@@ -215,8 +232,24 @@ def toolchain_env() -> dict:
     return env
 
 
+def has_musl_cflags(config_text: str) -> bool:
+    """Does a config.mak's ``CFLAGS`` line record exactly MUSL_CFLAGS?
+
+    Exact equality, not "contains": configure writes ``CFLAGS`` from our one
+    command line and nothing else appends to it (the Makefile only extends
+    ``CFLAGS_ALL``), so any other value -- including an empty one written by a
+    build whose MUSL_CFLAGS was emptied -- is a configuration that did not
+    produce this library and must be regenerated.
+    """
+    for line in config_text.splitlines():
+        if line.startswith("CFLAGS ="):
+            return line.split("=", 1)[1].split() == MUSL_CFLAGS.split()
+    return False
+
+
 def config_records(shared: bool) -> bool:
-    """True when the existing config.mak was generated for the wanted mode.
+    """True when the existing config.mak was generated for the wanted mode
+    *and* records the compile flags the library must be built with.
 
     Both modes build in the same in-tree directory, and musl records its
     configure command line in config.mak; switching modes therefore has to
@@ -224,12 +257,18 @@ def config_records(shared: bool) -> bool:
     shared configuration (and with it libc.so) after a ``build-musl-shared``
     run -- i.e. the static target would stop proving the --disable-shared
     configuration.
+
+    The same reasoning applies to MUSL_CFLAGS (ISS-332): the flag only reaches
+    the compiler through config.mak, which configure alone writes, so a
+    config.mak from before the flag existed must be regenerated -- otherwise
+    every later ``make`` would keep compiling contracted libm.
     """
     config = MUSL_SRC / "config.mak"
     if not config.is_file():
         return False
     text = config.read_text(errors="replace")
-    return ("--disable-shared" in text) != shared
+    mode_ok = ("--disable-shared" in text) != shared
+    return mode_ok and has_musl_cflags(text)
 
 
 # ── toolchain staleness guard (INFRA-085t) ──────────────────────────────────
@@ -332,10 +371,20 @@ def source_stamp() -> str:
 
     ``(relative path, sha256(content))`` for each regular file, with the
     generated top-level entries excluded (``obj/``, ``lib/``, ``config.mak``,
-    ``.git``).  Content-based on purpose: a ``git checkout`` that only touches
-    mtimes must not demand a rebuild, while a one-byte port change must.
+    ``.git``), plus the compile flags of MUSL_CFLAGS.  Content-based on
+    purpose: a ``git checkout`` that only touches mtimes must not demand a
+    rebuild, while a one-byte port change must.
+
+    The flags belong here because they decide the object code (ISS-332): the
+    same sources built with and without ``-ffp-contract=off`` differ in the
+    libm objects, yet config.mak -- the file that carries them -- is generated
+    and therefore skipped.  Mixing MUSL_CFLAGS in keeps the invariant
+    mechanical: changing the flag moves this digest, which forces ``make
+    clean`` here and turns check-musl-freshness red until the library is
+    rebuilt.
     """
     digest = hashlib.sha256()
+    digest.update(f"cflags {MUSL_CFLAGS}\0".encode())
     for path in sorted(MUSL_SRC.rglob("*")):
         rel = path.relative_to(MUSL_SRC)
         if rel.parts[0] in SOURCE_STAMP_SKIP_TOP or not path.is_file():
@@ -431,6 +480,7 @@ def build_musl(jobs: int, reconfig: bool, shared: bool) -> int:
     env = toolchain_env()
     if reconfig or not config_records(shared):
         cmd = ["./configure", f"--target={TARGET}",
+               f"CFLAGS={MUSL_CFLAGS}",
                "CROSS_COMPILE=", "AR=ar", "RANLIB=ranlib"]
         if shared:
             cmd.append(f"LDFLAGS={SHARED_LDFLAGS}")

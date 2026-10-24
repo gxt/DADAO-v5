@@ -41,7 +41,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| INFRA-104t | 待开始 | 2026-10-24 07:05（登记） | musl 构建加 `-ffp-contract=off`（修 `ISS-332`：`math/yn` 3 ulp） |
+| INFRA-104t | 已验证 | 2026-10-24 09:05 | musl 加 `-ffp-contract=off`：libc-test 331 pass/0 fail（`math/yn` 回绿），用户 FMA 无损 |
 | LLVM-129t | 已验证 | 2026-10-24 06:10 | `ldm`/`stm` post-RA 合并（10 寄存器 → 1+1）；反例 5 类活；lit 148、embench 38/38 |
 | LLVM-126t | 已验证 | 2026-10-24 04:50 | FP 接线：fcmp 12 条/符号/分类/位转/缩放/舍入模式/饱和 + `__builtin_dadao_remainder`；`FREM` 仍不接 |
 | TESTCASES-058t | 已验证 | 2026-10-23 22:00 | FMA 集成：O0/O2 各 626 PASS；单次舍入 6 组判别；无 libcall；覆盖 +3/删 0 |
