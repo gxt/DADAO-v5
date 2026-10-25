@@ -55,6 +55,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-musl-freshness check-builtins-freshness check-install-tools check-milestones-fresh \
         check-tasks check-spec-codeblocks check-legality-invariants \
         check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive check-contracts-dir \
+        check-spec-archive-verify check-milestone \
         check-component-changelog check-syscall-abi check-spec-purity check-spec-cite-targets \
         check-width-sizes check-code-range
 
@@ -170,7 +171,7 @@ help:
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
 	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
 	@echo "  make check-milestones-fresh  milestones.md task-flow table gate: status/coverage/length/order/format (L1; INFRA-091t)"
-	@echo "  make check-milestone  Current-milestone m-book exists + its task ids exist + check-tasks --strict (milestone closure; not L1)"
+	@echo "  make check-milestone  Milestone closure: SimRISC archive structure + content sha256 + current-milestone m-book/its task ids + check-tasks --strict (not L1)"
 	@echo "  make check-interface  Check cross-module interface alignment"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
 	@echo "  make check-scope     Check opcodes.yaml scope partition (m1/fp/excluded; SPEC-086t)"
@@ -179,7 +180,8 @@ help:
 	@echo "  make check-isa-coverage  ISA<->backend coverage matrix drift gate (L1; LLVM-081t/INFRA-069t)"
 	@echo "  make check-spec-numbering  Check 21-volume heading numbering structure (L1; SPEC-133t/INFRA-069t)"
 	@echo "  make check-spec-changelog  Check 21-volume appendix changelog structure (L1; SPEC-134t/INFRA-069t)"
-	@echo "  make check-spec-archive  Check SimRISC per-version archives exist (L1; SPEC-154t)"
+	@echo "  make check-spec-archive  Check SimRISC per-version archives exist (milestone closure; SPEC-154t/INFRA-109t)"
+	@echo "  make check-spec-archive-verify  Verify archive content sha256 against snapshot provenance (milestone closure; SPEC-154t/INFRA-109t)"
 	@echo "  make check-spec-purity  spec/SimRISC-* must not carry scope/task-id/ADR/ISS/contract refs (L1; SPEC-165t)"
 	@echo "  make check-spec-cite-targets  Every spec_cite book+section must exist in spec/ (L1; SPEC-165t)"
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
@@ -802,7 +804,7 @@ _locked-clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-case-ledger check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-spec-archive check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-case-ledger check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -850,8 +852,16 @@ check-spec-cite-targets:
 # SimRISC 版本归档门控 (SPEC-154t; 规则见 docs/Process-06 §8): 册头 ∪ 附录声明的
 # 每个版本须有 `.tao/archive/SimRISC-<ver>/`（非空、含 SimRISC-00*、文件数与派生清单一致）。
 # 只校验存在性与文件集，不校验内容（`-rc` 为时点快照）。派生失败 ⇒ 只查 A1/A2。
+# **里程碑收尾**专项（INFRA-109t；用户 2026-10-25 裁定）：归档是只读历史快照，只在
+# 发布/里程碑边界变化 ⇒ 结构与内容 sha 都**不入 L1**，挂 `check-milestone`。
 check-spec-archive:
 	@$(PYTHON) tools/spec/check_spec_archive.py
+
+# 归档**内容**校验 (SPEC-154t/INFRA-109t; 里程碑收尾): 以各目录 `PROVENANCE.md` 的
+# 快照提交为锚，逐文件 sha256 + 版本组合 sha256 全等；`-rc` 跳过（预发布）。
+# 判据真源 = tools/spec/gen_spec_archive.py，此处只接线、不改判据。
+check-spec-archive-verify:
+	@$(PYTHON) tools/spec/gen_spec_archive.py --verify
 
 # 组件补丁集校验 (2026-09-23): 树形补丁集断言（现 9 条），见 docs/Process-01-组件补丁组织与构建编排.md。
 check-patch-tree:
@@ -889,16 +899,18 @@ check-run-artifacts:
 	@$(PYTHON) tools/infra/check_run_artifacts.py
 
 # 里程碑收尾门控 (2026-10-17, A2; 归 **L2 层 / 里程碑收尾专项**，**不入** `check-modules`):
+# ⓪ SimRISC 归档：结构（`check-spec-archive`）+ 内容 sha256（`check-spec-archive-verify`）
+#    ——归档只在发布/里程碑边界变化，故不入 L1（INFRA-109t；用户 2026-10-25 裁定）；
 # ① 当前里程碑（`milestones.md` 中 `项目里程碑 = M<n>` 断言的最大 n）在 `.tao/tasks/**`
 #    下有对应 `m` 册（命名惯例 `<PREFIX>-<nnn>m-*.md`；自报里程碑须与当前一致）；
 # ② 该 `m` 册列出的全部任务号须在 `.tao/tasks/**`（或 `.tao/archive/**`，已完成并归档）
 #    有对应任务书；册内零任务号 ⇒ vacuous FAIL（防「漏立任务」）；
 # ③ 接 `check_tasks.py --strict`（漏收尾 = 0）。
 # 不并入 L1 的理由：`m` 册未建前本目标**必然红**（预期的收口信号），日常 L1 不应常态红。
-check-milestone:
+check-milestone: check-spec-archive check-spec-archive-verify
 	@$(PYTHON) tools/infra/check_milestone_tasks.py
 	@$(PYTHON) tools/infra/check_tasks.py --strict
-	@echo "check-milestone: PASS (m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
+	@echo "check-milestone: PASS (归档结构 + 内容 sha + m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
 
 # spec 引用审计 (INFRA-011t): Check 1 引用有效性 + Check 2 无引用规范断言.
 # L1 成员 (INFRA-058t): 静态引用完整性检查（改后 0 误报）。覆盖 SimRISC-/DADAO-/
