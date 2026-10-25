@@ -24,6 +24,7 @@
    - i32/i16/i8 无符号比较 + `br.n`/`cs.n` 的汇编**不含** `ext.so`；
    - `set.zw/or.w/andn.w`（带符号）`--show-encoding` 的 A 标记落在正确位。
 4. 不改 QEMU/spec/契约；不改 `applyFixup`。
+5. **DWARF64 默认的 `cc1as`/`llvm-mc` 路径**（LLVM-130t 遗留）：目前 `clang -c x.s`（cc1as）与 `llvm-mc` 不继承 DADAO 的默认 DWARF64，也不报 `-gdwarf32`。需改共享 `clang/lib/Driver/ToolChains/Clang.cpp`（`-gdwarf64` 注入与 `-gdwarf32` 拒绝的 target 门控），与本次重建同批；完成区须单列共享文件理由。
 
 ### 约束
 - 若删除 `ext.so` 暴露其它路径依赖（例如某处仍需窄位规范化），停下报告，不硬删。

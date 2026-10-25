@@ -30,6 +30,8 @@
 2. **机械可改的直接修正**：引用、版本号、术语、明显笔误、过期数字；
 3. **需用户裁定的冲突清单**：语义冲突/口径选择（**不擅自改语义**）；
 4. **版本升级建议**：AEE/ABI/SEE/SBI/HEE/HBI 各册的建议版本号（由用户定）。
+5. **`gen_spec_archive --apply` 与 `--verify` 口径统一**：`--apply` 目前仍会重建 `-rc` 目录；统一为跳过 `-rc`（与 INFRA-107t 的 `--verify` 口径一致）。
+6. **`tools/spec/check_spec_purity.py --self-test` 锚点更新**：仍钉 `0.5.5-rc`，自 0.5.5 发布起即失败（不在 `make check`）；更新锚点并自证可达 FAIL。
 
 ### 约束
 - 只改 `spec/DADAO-*`；**不改** SimRISC 册、不改 `contracts/`（除非用户另行授权）；
