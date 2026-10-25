@@ -17,6 +17,7 @@
 | 技术规范（上游 + v5 自定；索引 / 投影表） | `spec/` + `spec/README.md` |
 | 工程流程规范 + 仓库级索引 | `docs/Process-0x` + `docs/README.md` |
 | 合约（归一化叙述 / 机器可读数据） | `.tao/contracts/contract-*.md` / `contracts/` |
+| 代码模型 / 打包规范（REL26 边 ≤ 32 MiB；单 DSO 可执行区跨度 < 30 MiB） | `.tao/adr/adr-0036-code-model.md` §D4/D7 + `make check-code-range` |
 | 参考仓库（只读工作树 / 锁文件） | `.cache/refs/` + `manifests/` |
 | issue / 教训 | `.tao/knowledge/issues.yaml` / `.tao/knowledge/lessons.md` |
 | 历史归档 | `.tao/archive/M*/`（M1–M9；含 `README.md` + `m<i>-retrospective.md` + `issues-closed.md`） |

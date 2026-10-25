@@ -56,7 +56,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-tasks check-spec-codeblocks check-legality-invariants \
         check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive check-contracts-dir \
         check-component-changelog check-syscall-abi check-spec-purity check-spec-cite-targets \
-        check-width-sizes
+        check-width-sizes check-code-range
 
 # ── 工作树互斥锁 (INFRA-099t / ISS-229) ─────────────────────────────────────────
 # 同一工作树内会写共享状态的目标 —— 构建树 `.work/build/**`、安装根 $(SDK_DIR)、
@@ -163,6 +163,7 @@ help:
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
 	@echo "  make check-width-sizes  64-bit width + ELF64/rela/got + DWARF64 addr_size probe (L1; LLVM-130t)"
+	@echo "  make check-code-range  DADAO code-span gate: REL26 edge ≤ 32 MiB + exec_span < 30 MiB (L2; ADR-0036/INFRA-106t)"
 	@echo "  make check-contracts-dir  Whitelist gate for .tao/contracts/ + contracts/ top level (L1; INFRA-071t)"
 	@echo "  make check-component-changelog  Component changelog list-form/milestone-section gate (L1; INFRA-084t)"
 	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
@@ -808,7 +809,7 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 
 # L2 各模块功能代表集 (INFRA-058t). 注: test-semihost 自带对 `check`(L1) 的无回归前置
 # （by design，见 INTEG-020t），故 `make check-modules` 会顺带跑 L1。
-_locked-check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost check-picolibc-tests check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe
+_locked-check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost check-picolibc-tests check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe check-code-range
 	@echo "module checks (L2): PASS"
 
 # L3 较完整 (INFRA-058t). check-lit-full 由 test-m6 步骤 [1/3] 承载（不在本目标重复列出）。
@@ -1015,6 +1016,15 @@ check-components:
 # 归 L1（只做静态/尺寸断言，不跑被测语义）。
 check-width-sizes:
 	@$(PYTHON) tools/llvm/check-width-sizes.py
+
+# 代码跨度门控 (INFRA-106t, L2; ADR-0036 D4/D7): 读链接后 DADAO ELF 的
+# `--emit-relocs` 重定位，报告每个产物的最远 REL26 边 + 余量、REL20/REL14 边、
+# 全部 SHF_EXECINSTR 段的 exec_span。判据：任一 REL26 边 > 32 MiB 或
+# exec_span ≥ 30 MiB ⇒ 红（阈值单一真源在 tools/infra/check_code_range.py）。
+# 目标体用合成 fixture 自检（正常绿 / 远距红 / 缺 --emit-relocs fail-closed），
+# 不依赖 toolchain 重建；可达 FAIL 见脚本 `--self-test`。
+check-code-range:
+	@$(PYTHON) tools/infra/check_code_range.py --self-test
 
 # spec 目录只读锁 (SPEC-119t): 只读册 sha256 校验；失配 ⇒ FAIL（须先取用户授权并同步改锁）。
 # 规则见 docs/Process-06-spec目录保护规范.md §5。
