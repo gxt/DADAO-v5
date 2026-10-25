@@ -16,12 +16,14 @@
 @@ `(...)` and the trailing parseRParen() then failed on the next token
 @@ (`error: expected ')'`).  RUN line 1 fails outright under that defect.
 @@
-@@ Note: the *low* half is asserted through the object file (RUN 1/2) rather than
-@@ through `--show-encoding`, because the asm streamer's encoding comment trips
-@@ its own `assert(Bit == 0 && "Encoder wrote into fixed up bit!")` for a
-@@ partially covered byte on this big-endian target (see the task book's
-@@ 「新发现」; MCFixupKindInfo for the 12-bit field vs the streamer's MSB-first
-@@ fixup map).  Object emission is unaffected -- that is what RUN 1/2 pin.
+@@ Note: the low half is pinned here through the object file (RUN 1/2); its
+@@ `--show-encoding` display is pinned separately in
+@@ show-encoding-fixup-bigendian.s.  The streamer used to trip its own
+@@ `assert(Bit == 0 && "Encoder wrote into fixed up bit!")` for a partially
+@@ covered byte on this big-endian target, because the 12-bit fixup's
+@@ TargetOffset was given in little-endian bit order; LLVM-132t (ISS-232) moved
+@@ it to the MSB-first offset (20).  Object emission was never affected -- that
+@@ is what RUN 1/2 pin.
 @@
 @@ The expectation values are the contract's, not the implementation's: the high
 @@ record lands on the `aip.si` imms18 (type 14) and the low record on the paired

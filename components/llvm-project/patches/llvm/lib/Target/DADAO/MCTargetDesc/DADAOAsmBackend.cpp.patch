@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 new file mode 100644
-index 000000000..bdf9474e8
+index 000000000..efa72a2d5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
-@@ -0,0 +1,381 @@
+@@ -0,0 +1,386 @@
 +//===-- DADAOAsmBackend.cpp - DADAO Assembler Backend ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -55,6 +55,11 @@ index 000000000..bdf9474e8
 +  }
 +
 +  MCFixupKindInfo getFixupKindInfo(MCFixupKind Kind) const override {
++    // TargetOffset tells MCAsmStreamer::addEncodingComment which bits the
++    // fixup covers.  This target is big-endian and the streamer lays that bit
++    // map out MSB-first, so the low 12-bit / 18-bit immediate fields start at
++    // offsets 20 / 14 (a little-endian offset 0 would mark the opcode bytes);
++    // whole-word kinds keep offset 0.  TargetSize is unchanged.
 +    const static MCFixupKindInfo Infos[] = {
 +      // DADAO_FK_PCRel_12: 12-bit signed immediate (rrii: hc+hd)
 +      // Used by br.eq/br.ne
@@ -78,10 +83,10 @@ index 000000000..bdf9474e8
 +      // DADAO_FK_PCREL_HI: 18-bit PC-relative high part (riii: hb+hc+hd);
 +      // the field width is the encoding field width (contract-elf.md §2.2).
 +      // Used by aip.si
-+      {"DADAO_FK_PCREL_HI", 0, 18, 0},
++      {"DADAO_FK_PCREL_HI", 14, 18, 0},
 +      // DADAO_FK_PCREL_LO: 12-bit signed PC-relative low part (rrii: hc+hd)
 +      // Used by the paired ld.*/st.* (imms12)
-+      {"DADAO_FK_PCREL_LO", 0, 12, 0}
++      {"DADAO_FK_PCREL_LO", 20, 12, 0}
 +    };
 +
 +    if (Kind >= llvm::DADAO::DADAO_FK_PCRel_12 &&

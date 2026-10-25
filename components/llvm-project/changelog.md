@@ -504,3 +504,7 @@
 - **2026-10-25 LLVM-133t**
   - 摘要：**`cmp.{ut,uw,ub}` 结果语义核对 + `br.n` 断言（ADR-0037）**：逐使用点确认 `DADAOCmpU` 全按 i64 `{-1,0,1}` 消费（`DADAOCodeGen.td` pattern、`LowerBR_CC`/`LowerCmpSelect`、`br.n/nn/z/nz/p/np`、`cs.n/z/p`）⇒ 后端**零代码改动**；新增 lit `cmp-u-branch.ll`（8 例：i32/i16/i8 `ult`→`cmp.ut/uw/ub`+`br.n`、i64→`cmp.uo`/`cmp.ui`、`slt` 对照，含 `CHECK-NOT` 约束）；`narrow-int.ll` 仅改陈旧注释。真值：L1 绿、`check-lit` 151/151、证据 23 项、10 类注入可达 FAIL。遗留：两处 `SIGN_EXTEND_INREG` 现为恒等变换（多一条 `ext.so`），待另立小任务清理。
   - 执行者：engineer
+
+- **2026-10-25 LLVM-132t**
+  - 摘要：**ISS-232 fixup 元数据大端修正（`--show-encoding`）**：`DADAOAsmBackend::getFixupKindInfo` 的 `TargetOffset` 按大端 MSB-first 位序改写（imms12 `0→20`、imms18 `0→14`；整字 32 位 kinds 保持 `0`），`TargetSize`/`Flags` 不变；`applyFixup`/编码与链接语义零改动（`-filetype=obj` 产物 md5 与修复前基线逐字节一致）。新增 lit `show-encoding-fixup-bigendian.s`（`rb1/4/8/16/32/63` 低半 + 18 位高半 + 整字 kinds 的 A 标记），并更新 `pcrel-specifier.s` 的陈旧注释。真值（修复前）：`rb4/8/16/32/63` `--show-encoding` rc=134（`MCAsmStreamer.cpp:134` 断言）、`rb1` rc=0；运行期 `run.sh --runtime` **16/16 rc=0**（6×rb rc=0 + A 标记精确、18 位高半、lit FileCheck、obj md5 `4b82a4ed…` 与修复前基线逐字节一致；build/install 同 md5 `98a33431…`）；`--inject` 4/4；`apply-series`/`-fsyntax-only`/`check-patch-tree`/L1 绿。
+  - 执行者：engineer

@@ -43,6 +43,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-132t | 已验证 | 2026-10-25 23:08 | fixup 元数据大端修正（`PCREL_HI 14` / `PCREL_LO 20`），`--show-encoding` 不再断言 |
 | INFRA-109t | 已验证 | 2026-10-25 20:09 | 归档门控（结构 + `--verify`）移到 `check-milestone`，退出 L1 |
 | LLVM-133t | 已验证 | 2026-10-25 19:45 | `cmp.u*` 语义核对（零代码改动）+ `cmp.ut→br.n` lit 断言 |
 | TESTCASES-065t | 已验证 | 2026-10-25 19:28 | `cmp.{ut,uw,ub}` 向量期望改为 64 位全 1；生成器同步 + `cmp.ut→br.n` 序列 |
@@ -50,7 +51,6 @@
 | SPEC-173t | 已验证 | 2026-10-25 17:20 | `cmp.u*` 的 -1 改 64 位全 1；13 册 0.5.6-rc；00 第 255 行去版本号 |
 | INFRA-107t | 已验证 | 2026-10-25 16:46 | 补 0.5.3 PROVENANCE 组合 sha + 逐文件表；`--verify` 跳过 `-rc`（ISS-333） |
 | INFRA-108t | 待开始 | 2026-10-25 15:57（登记） | PIC libc 归档 + `-static-pie` 支持（ISS-303） |
-| LLVM-132t | 待开始 | 2026-10-25 15:57（登记） | ISS-232 fixup 元数据大端修正（`--show-encoding`） |
 | TESTCASES-063t | 待开始 | 2026-10-25 15:57（登记） | harness ret 路由与 loader 宽度推导修复（ISS-098） |
 | TESTCASES-064t | 待开始 | 2026-10-25 15:57（登记） | picolibc `%p` 用例判定与处置（ISS-304） |
 | LLVM-131t | 已验证 | 2026-10-25 15:56 | 代码模型 default/large：驱动 `-mcmodel` 口径 + large 间接调用序列 + 远距布局用例 |
