@@ -14,11 +14,12 @@
 - `clang -static-pie` 用**非 PIC** 的 `libc.a` ⇒ lld 逐条拒绝 `R_DADAO_ABS48`（`recompile with -fPIC`），仓库**未提供 PIC 版 `libc.a`**。
 - `build-musl-shared` 已产 `.lo`（PIC 档）但**未归档、未入安装集**。
 
-### 输出（提议方案；实施前与用户确认口径）
-1. 由 musl 的 PIC `.lo` 归档出 PIC 版 libc 归档（命名/落点按安装约定），**入安装集**；
-2. 驱动在 `-static-pie`（以及 `-pie` + 静态 libc）时**自动选** PIC 归档；普通 `-static` 仍用现有 `libc.a`；
+### 输出（**方案 B 已定**，用户 2026-10-25「可以」）
+1. 由 musl 的 PIC `.lo` 归档 `libc_pic.a`（命名/落点按安装约定），**入安装集**；
+2. 驱动在 `-static-pie`（以及 `-pie` + 静态 libc）时**自动选** `libc_pic.a`；普通 `-static` 仍用现有非 PIC `libc.a`；
 3. `components/musl/README.md`（或安装说明）写明用法与边界；
-4. 不改变默认静态链接（非 PIE）的产物。
+4. 不改变默认静态链接（非 PIE）的产物；
+5. **理由（主流做法）**：glibc 用单一 `libc.a` 编 `-fPIE`；musl 默认非 PIC，发行版用 specs/归档选择（方案 B）——保留非 PIE 静态性能。
 
 ### 约束
 - 不改 musl 上游源码；不改 LLVM target 行为；
