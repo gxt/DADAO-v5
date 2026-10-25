@@ -5,6 +5,7 @@ libc/include/sys/cdefs.h.patch
 libc/machine/dadao/machine/meson.build.patch
 libc/machine/dadao/meson.build.patch
 libc/machine/dadao/setjmp.S.patch
+libc/stdio/vfprintf_int.c.patch
 libc/string/fls.c.patch
 libc/string/flsl.c.patch
 libc/string/flsll.c.patch

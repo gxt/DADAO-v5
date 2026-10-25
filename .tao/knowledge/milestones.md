@@ -43,6 +43,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-064t | 已验证 | 2026-10-26 02:27 | picolibc `%p` 改 `va_arg(void*)`（bank 不匹配）；8 个 printf 变体转绿 |
 | QEMU-075t | 待开始 | 2026-10-26 00:00（登记） | qemu-user 宿主信号族诊断（ISS-255/257/266，时盒只诊断） |
 | LLVM-134t | 待开始 | 2026-10-25 23:10（登记） | ADR-0037 后清理：去冗余 `ext.so` + ABS48 显示偏移 |
 | SPEC-174t | 待开始 | 2026-10-25 23:10（登记） | DADAO-11/12/13/21/22/23 自洽性分析与 SimRISC 0.5.5 对齐 |
@@ -55,7 +56,6 @@
 | INFRA-107t | 已验证 | 2026-10-25 16:46 | 补 0.5.3 PROVENANCE 组合 sha + 逐文件表；`--verify` 跳过 `-rc`（ISS-333） |
 | INFRA-108t | 待开始 | 2026-10-25 15:57（登记） | PIC libc 归档 + `-static-pie` 支持（ISS-303） |
 | TESTCASES-063t | 待开始 | 2026-10-25 15:57（登记） | harness ret 路由与 loader 宽度推导修复（ISS-098） |
-| TESTCASES-064t | 待开始 | 2026-10-25 15:57（登记） | picolibc `%p` 用例判定与处置（ISS-304） |
 | LLVM-131t | 已验证 | 2026-10-25 15:56 | 代码模型 default/large：驱动 `-mcmodel` 口径 + large 间接调用序列 + 远距布局用例 |
 | INFRA-106t | 已验证 | 2026-10-25 13:48 | 代码跨度门控：REL26/20/14 余量报告 + 单 DSO 可执行区 <30 MiB（L2） |
 | LLVM-130t | 已验证 | 2026-10-25 12:15 | 64 位缺省：CodePointerSize/CalleeSaveStackSlotSize=8 + 默认 DWARF64 + 位宽探针 |

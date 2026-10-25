@@ -44,3 +44,9 @@
 - **2026-10-20 `LLVM-118t`**
   - 摘要：**`_dadao_backend_blocked` 清零（1 → 0）**（`ISS-193` 收口；上游源零改动）：按「全量重编」口径现场重枚举 —— 在 `/tmp` 源副本把过滤表置空后 `meson setup` 得**全部 1120 个编译项**，逐条真实 `-c` 重编 **0 条失败**（`non_ok=0`），故删最后一条 `hash_page.c`（`ISS-193` (c) i64 `bswap`，早由 `LLVM-097t` 的 `Expand` 收口）并同步注释；过滤机制保留（`_dadao_backend_blocked = []`，供未来缺口按同一格式登记）。`series` **14 不变**（`meson.build.patch` 一份既有补丁改）。**真值**：`make build-picolibc` rc=0，`libc.a` 2,028,044 → **2,041,338 B**；`llvm-nm` 中 `__hash_open`/`__delpair`/`__addel`/`__get_page`/`__put_page`/`__ibitmap`/`__split_page`/`__add_ovflpage`/`__free_ovflpage` 等由 `U` 转 **`T`**（修前 `dbm_open` 链接失败于 `undefined symbol: __delpair` 等 9 条；修后链接 rc=0、运行 guest exit 0）。**未跑**：`install-host`/L2/L3（按派单；picolibc 定点测试 `--only` 7/7 pass）。
   - 执行者：engineer
+
+## M10
+
+- **2026-10-26 `TESTCASES-064t`**
+  - 摘要：**`%p` 取参改按声明类型 `void *`（`ISS-304`）**：`libc/stdio/vfprintf_int.c` 原在 `%p` 分支置 `FL_LONG` 后走 `arg_to_unsigned`（⇒ `va_arg(ap, unsigned long)`，DADAO 读 **RD** 整数银行），而调用侧 `void*` 按 `CCIfPtr` 进 **RB** 银行 ⇒ 取错银行、`test 277/278` 得 `0x8`/`0x3`（应为 `0x39`）；改为 `x = (ultoa_unsigned_t)(uintptr_t)va_arg(ap, void *)`（`ptr_arg` 标记，其余整数路径不变）。`series` **14 → 15**（新增 `libc/stdio/vfprintf_int.c.patch`）。真值：`make build-picolibc` rc=0（`-Werror` 无告警）；`test-printf`/`test-printf-int` 及 4 个 `*-float`/`*-long`/`*-scanf*` 变体共 8 例全绿（full 档 pass 201→**209**，fail 9→**1**、blocked 3 不变；剩余 1 fail/3 blocked 为改前既有、与本笔无关）；撤补丁可复现 `0x8`/`0x3`。
+  - 执行者：engineer
