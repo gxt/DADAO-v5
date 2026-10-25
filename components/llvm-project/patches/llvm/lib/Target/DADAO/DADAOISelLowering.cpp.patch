@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..0cb7b5605
+index 000000000..15f3a7bb5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,3113 @@
+@@ -0,0 +1,3106 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -2535,16 +2535,12 @@ index 000000000..0cb7b5605
 +      BrOp = DADAOISD::BRNN;
 +      break;
 +    }
-+    // An unsigned narrow cmp writes its -1 result *zero-extended* by the width
-+    // (contract-isa.md §10.2/§11.2/§12.2: `.u*` zero-extends), i.e. "less"
-+    // appears as +0xFFFFFFFF instead of -1, and every sign/zero test below
-+    // would misfire.  Sign-extend the result from bit W-1 back to a canonical
-+    // {-1,0,1} (one `ext.so`), so br.n/np/p/nn mean what they say.
-+    SDValue CmpRes = Cmp(Unsigned);
-+    if (Unsigned)
-+      CmpRes = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i64, CmpRes,
-+                           DAG.getValueType(IntVT));
-+    return BrOn(BrOp, CmpRes);
++    // ADR-0037 D1: `cmp.{ut,uw,ub}` write -1 as 64-bit all-ones
++    // (contract-isa.md §10.2/§11.2/§12.2), i.e. the canonical {-1,0,1} value
++    // the signed forms produce, so br.n/np/p/nn can test bit 63 directly.  The
++    // old zero-extending `.u*` semantics needed one `ext.so` here; that
++    // extension is now an identity and is not emitted.
++    return BrOn(BrOp, Cmp(Unsigned));
 +  }
 +
 +  switch (CC) {
@@ -2717,13 +2713,10 @@ index 000000000..0cb7b5605
 +
 +  SDValue Cmp = DAG.getNode(Unsigned ? DADAOISD::CMPU : DADAOISD::CMP, DL,
 +                            MVT::i64, LHS, RHS);
-+  // A narrow unsigned cmp writes -1 zero-extended by its width (contract-isa.md
-+  // §10.2/§11.2/§12.2), i.e. a positive 0xFFFFFFFF; sign-extend it from bit W-1
-+  // so cs.n/cs.p see the canonical {-1,0,1} (one `ext.so`, i64 compares already
-+  // come back full-width).
-+  if (Unsigned && CmpVT.getSizeInBits() < 64)
-+    Cmp = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i64, Cmp,
-+                      DAG.getValueType(CmpVT));
++  // ADR-0037 D1: a narrow unsigned cmp writes -1 as 64-bit all-ones
++  // (contract-isa.md §10.2/§11.2/§12.2) -- the canonical {-1,0,1} that
++  // cs.n/cs.p test -- so no width-based sign extension is needed (the old
++  // zero-extending `.u*` semantics required a redundant `ext.so`).
 +  switch (CC) {
 +  case ISD::SETEQ: // == : rc == 0
 +    return Select(DADAOISD::CS_Z, Cmp, True, False);

@@ -49,6 +49,24 @@
 @@ CHECK:      ld.o rd1, [rb0, extg]{{.*}}@@ encoding: [0x20'A',0x04'A',A,A]
 @@ CHECK-NEXT: @@   fixup A - offset: 0, value: extg, kind: DADAO_FK_REL12
 
+@@ DADAO_FK_ABS48 (LLVM-134t): one 16-bit wyde of an absolute 48-bit address
+@@ for set.zw/or.w/andn.w (rwii: the wyde-position lives in byte 1, the
+@@ immediate in bytes 2-3).  The marker must cover the *low* 16-bit field,
+@@ i.e. offset 32-16 = 16 -- the old offset 0 marked the opcode/register
+@@ bytes instead.  Instruction encoding bytes themselves are unchanged.
+@@ CHECK:      set.zw rd8, wp0, extg{{.*}}@@ encoding: [0x4c,0x20,A,A]
+@@ CHECK-NEXT: @@   fixup A - offset: 0, value: extg, kind: DADAO_FK_ABS48
+@@ CHECK:      set.zw rb8, wp2, extg{{.*}}@@ encoding: [0x4e,0x22,A,A]
+@@ CHECK-NEXT: @@   fixup A - offset: 0, value: extg, kind: DADAO_FK_ABS48
+@@ CHECK:      or.w rd8, wp1, extg{{.*}}@@ encoding: [0x48,0x21,A,A]
+@@ CHECK-NEXT: @@   fixup A - offset: 0, value: extg, kind: DADAO_FK_ABS48
+@@ CHECK:      or.w rb8, wp3, extg{{.*}}@@ encoding: [0x4a,0x23,A,A]
+@@ CHECK-NEXT: @@   fixup A - offset: 0, value: extg, kind: DADAO_FK_ABS48
+@@ CHECK:      andn.w rd8, wp0, extg{{.*}}@@ encoding: [0x49,0x20,A,A]
+@@ CHECK-NEXT: @@   fixup A - offset: 0, value: extg, kind: DADAO_FK_ABS48
+@@ CHECK:      andn.w rb8, wp3, extg{{.*}}@@ encoding: [0x4b,0x23,A,A]
+@@ CHECK-NEXT: @@   fixup A - offset: 0, value: extg, kind: DADAO_FK_ABS48
+
 	.text
 .Lhi0:
 	ld.o	rb1, [rb1, %pcrel_lo(.Lhi0)]
@@ -62,3 +80,9 @@
 	jump	rb2, rb3, extg
 	call	[rb0, extg]
 	ld.o	rd1, [rb0, extg]
+	set.zw	rd8, wp0, extg
+	set.zw	rb8, wp2, extg
+	or.w	rd8, wp1, extg
+	or.w	rb8, wp3, extg
+	andn.w	rd8, wp0, extg
+	andn.w	rb8, wp3, extg

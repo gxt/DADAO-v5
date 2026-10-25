@@ -16,9 +16,8 @@
 ;
 ; Since ADR-0037 D1 an unsigned narrow compare writes -1 as 64-bit all-ones
 ; (contract-isa.md §10.2/§11.2/§12.2), i.e. the same {-1,0,1} value as the
-; signed forms.  The lowering still sign-extends the cmp result from bit W-1
-; (`ext.so`) before the sign tests; that is a no-op for {-1,0,1} and stays in the
-; pinned sequence below until it is dropped.  See cmp-u-branch.ll for the
+; signed forms, so no `ext.so` normalisation is needed before the sign tests
+; (LLVM-134t removed the redundant extension).  See cmp-u-branch.ll for the
 ; consumer-side assertions (sign-family branch, never a zero test).
 ;
 ; Below every arithmetic/shift/compare case is ONE instruction plus the
@@ -167,11 +166,11 @@ define i32 @cmp_slt(i32 %a, i32 %b) {
   ret i32 %r
 }
 
-; Unsigned: since ADR-0037 D1 cmp.ut already writes -1 as 64-bit all-ones; the
-; lowering still sign-extends from bit W-1 (a no-op for {-1,0,1}) before cs.n.
+; Unsigned: since ADR-0037 D1 cmp.ut already writes -1 as 64-bit all-ones, the
+; value cs.n tests directly; no `ext.so` normalisation is emitted (LLVM-134t).
 ; CHECK-LABEL: cmp_ult:
 ; CHECK:         cmp.ut rd{{[0-9]+}}, rd16, rd17
-; CHECK-NEXT:    ext.so rd{{[0-9]+}}, rd{{[0-9]+}}, 31
+; CHECK-NOT:     ext.so
 ; CHECK-NOT:     cmp.uo
 define i32 @cmp_ult(i32 %a, i32 %b) {
   %c = icmp ult i32 %a, %b
@@ -194,7 +193,7 @@ f:
 
 ; CHECK-LABEL: br_ult:
 ; CHECK:         cmp.ut rd{{[0-9]+}}, rd16, rd17
-; CHECK-NEXT:    ext.so rd{{[0-9]+}}, rd{{[0-9]+}}, 31
+; CHECK-NOT:     ext.so
 ; CHECK:         br.nn
 define i32 @br_ult(i32 %a, i32 %b) {
   %c = icmp ult i32 %a, %b

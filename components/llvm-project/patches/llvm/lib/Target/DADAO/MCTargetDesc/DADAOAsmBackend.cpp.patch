@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 new file mode 100644
-index 000000000..efa72a2d5
+index 000000000..461982b68
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
-@@ -0,0 +1,386 @@
+@@ -0,0 +1,388 @@
 +//===-- DADAOAsmBackend.cpp - DADAO Assembler Backend ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -72,8 +72,10 @@ index 000000000..efa72a2d5
 +      {"DADAO_FK_PCRel_24", 0, 32, 0},
 +      // DADAO_FK_ABS48: one 16-bit wyde of an absolute 48-bit address
 +      // (rwii: hb[3:0]+hc+hd); the wyde-position selects the slice.
++      // The low 16-bit field starts at offset 32-16 = 16 in the big-endian
++      // byte stream (same rule as PCRel_HI/PCREL_LO below).
 +      // Used by set.zw/or.w/andn.w
-+      {"DADAO_FK_ABS48", 0, 16, 0},
++      {"DADAO_FK_ABS48", 16, 16, 0},
 +      // DADAO_FK_REL12: 12-bit signed BYTE offset, PC-relative (rrii: hc+hd)
 +      // Used by ld.*/st.* with base rb0
 +      {"DADAO_FK_REL12", 0, 32, 0},

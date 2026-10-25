@@ -1,0 +1,29 @@
+diff --git a/clang/lib/Driver/ToolChains/Clang.cpp b/clang/lib/Driver/ToolChains/Clang.cpp
+index db7893c54..c460fd3d9 100644
+--- a/clang/lib/Driver/ToolChains/Clang.cpp
++++ b/clang/lib/Driver/ToolChains/Clang.cpp
+@@ -9319,6 +9319,24 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
+   RenderDebugEnablingArgs(Args, CmdArgs, DebugInfoKind, DwarfVersion,
+                           llvm::DebuggerKind::Default);
+   renderDwarfFormat(D, Triple, Args, CmdArgs, DwarfVersion);
++
++  // DADAO is a native 64-bit target whose ABI has no 32-bit address relocation
++  // channel: the ABS48 relocations of the `.debug_*` sections cannot be carried
++  // by DWARF32's 4-byte offset fields, so cc1as would fail late with
++  // "relocatable operand in a 1/2/4-byte data field ...".  Default the
++  // integrated assembler to DWARF64, mirroring the C/C++ path in
++  // DADAO.cpp/`addClangTargetOptions` (ADR-0036 D1), and reject an explicit
++  // `-gdwarf32` with a driver diagnostic instead of letting the assembler fail.
++  if (Triple.getArch() == llvm::Triple::dadao) {
++    if (const Arg *DwarfFormatArg =
++            Args.getLastArg(options::OPT_gdwarf64, options::OPT_gdwarf32)) {
++      if (DwarfFormatArg->getOption().matches(options::OPT_gdwarf32))
++        D.Diag(diag::err_drv_unsupported_opt_for_target)
++            << DwarfFormatArg->getAsString(Args) << TripleStr;
++    } else if (WantDebug) {
++      CmdArgs.push_back("-gdwarf64");
++    }
++  }
+   RenderDebugInfoCompressionArgs(Args, CmdArgs, D, getToolChain());
+ 
+   // Handle -fPIC et al -- the relocation-model affects the assembler

@@ -14,11 +14,11 @@
 ;
 ; Before ADR-0037 the same text said the narrow `.u*` result was zero-extended by
 ; its width, i.e. "less" read as +0xFFFFFFFF, which would make `cmp.ut` followed
-; by `br.n` take the wrong edge.  The backend compensated by sign-extending the
-; compare result from bit W-1 (`ext.so`); for the all-ones -1 that compensation
-; is a no-op, so the emitted instruction sequence does not change -- the checks
-; below allow that one instruction between the cmp and the branch but pin
-; everything else (compare opcode, branch family, polarity).
+; by `br.n` take the wrong edge.  The backend used to compensate by
+; sign-extending the compare result from bit W-1 (`ext.so`).  ADR-0037 D1 makes
+; that compensation obsolete: `cmp.{ut,uw,ub}` already produce the 64-bit
+; {-1,0,1}, so LLVM-134t removed the `ext.so` -- the checks below pin that no
+; extension is emitted between the compare and its consumer.
 ;
 ; Selection is width-specific: i32 -> cmp.ut, i16 -> cmp.uw, i8 -> cmp.ub,
 ; i64 -> cmp.uo / cmp.ui (12-bit immediate).  A regression that widened a
@@ -30,6 +30,7 @@ target triple = "dadao-unknown-elf"
 ; --- i32 unsigned `<`, true block reached by the branch: cmp.ut + br.n --------
 ; CHECK-LABEL: ult32_brn:
 ; CHECK:         cmp.ut rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.so
 ; CHECK-NOT:     cmp.st
 ; CHECK-NOT:     cmp.so
 ; CHECK-NOT:     cmp.ui
@@ -54,6 +55,7 @@ t:
 ;  opposite-polarity branch between them is caught too.)
 ; CHECK-LABEL: ult32_brnn:
 ; CHECK:         cmp.ut rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.so
 ; CHECK-NOT:     br.n {
 ; CHECK:         br.nn {rd{{[0-9]+}}}?, [rb0,
 ; CHECK-NOT:     br.nz
@@ -71,6 +73,7 @@ f:
 ; --- value form (icmp as a value): cs.n picks the true arm, not cs.z ---------
 ; CHECK-LABEL: ult32_val:
 ; CHECK:         cmp.ut rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.so
 ; CHECK:         cs.n {rd{{[0-9]+}}}?, rd{{[0-9]+}},
 ; CHECK-NOT:     cs.z
 define i32 @ult32_val(i32 %a, i32 %b) {
@@ -82,6 +85,7 @@ define i32 @ult32_val(i32 %a, i32 %b) {
 ; --- i16: cmp.uw (not cmp.ut / cmp.uo) + br.n --------------------------------
 ; CHECK-LABEL: ult16_brn:
 ; CHECK:         cmp.uw rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.so
 ; CHECK-NOT:     cmp.ut
 ; CHECK-NOT:     cmp.uo
 ; CHECK:         br.n {rd{{[0-9]+}}}?, [rb0,
@@ -98,6 +102,7 @@ t:
 ; --- i8: cmp.ub (not cmp.uw / cmp.uo) + br.n ---------------------------------
 ; CHECK-LABEL: ult8_brn:
 ; CHECK:         cmp.ub rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.so
 ; CHECK-NOT:     cmp.uw
 ; CHECK-NOT:     cmp.uo
 ; CHECK:         br.n {rd{{[0-9]+}}}?, [rb0,

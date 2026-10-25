@@ -16,6 +16,7 @@ clang/lib/CodeGen/TargetInfo.h.patch
 clang/lib/CodeGen/Targets/DADAO.cpp.patch
 clang/lib/Driver/CMakeLists.txt.patch
 clang/lib/Driver/Driver.cpp.patch
+clang/lib/Driver/ToolChains/Clang.cpp.patch
 clang/lib/Driver/ToolChains/CommonArgs.cpp.patch
 clang/lib/Driver/ToolChains/DADAO.cpp.patch
 clang/lib/Driver/ToolChains/DADAO.h.patch
