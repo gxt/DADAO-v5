@@ -288,11 +288,12 @@ TESTS = [
       set_zw(1, 0), or_w_rwii(1, 2, 0xBEEF), or_w_rwii(1, 3, 0xDEAD),
       shr_ut_orri(1, 2, 4)],
      "shr.ut did not zero high bits"),
-    ("V3 cmp.ut(1, 2) = -1 zero-extended (rd1 had 0xDEADBEEF...)",
+    # ADR-0037 D1: cmp.ut(-1) is 64-bit all-ones (was zero-extended pre-ADR-0037)
+    ("V3 cmp.ut(1, 2) = -1 64-bit all-ones (rd1 had 0xDEADBEEF...)",
      [set_zw(2, 1), set_zw(3, 2),
       set_zw(1, 0), or_w_rwii(1, 2, 0xBEEF), or_w_rwii(1, 3, 0xDEAD),
       cmp_ut_orrr(1, 2, 3)],
-     "cmp.ut did not zero-extend result"),
+     "cmp.ut -1 is not 64-bit all-ones"),
 ]
 
 # ── CTL self-check ────────────────────────────────────────────────────
@@ -390,17 +391,9 @@ def _append_comparison(insns, name):
         # shr.ut(0xFF00, 4) = 0x0FF0, high bits zeroed
         _exact_cmp(insns, 1, 6, 0x0FF0)
     elif "V3 cmp.ut" in name:
-        # cmp.ut(1, 2): 1<2 unsigned → -1, zero-extended from 32 bits → 0x00000000FFFFFFFF
-        # _set_rd_to_val can't handle this (add.si sign-extends 0xFFFF to -1)
-        # Build rd6 = 0x00000000FFFFFFFF manually: set.zw wp0=0xFFFF + or.w wp1=0xFFFF
-        insns.append(set_zw(6, 0xFFFF))         # rd6 = 0x000000000000FFFF
-        insns.append(or_w_rwii(6, 1, 0xFFFF))   # rd6[31:16] = 0xFFFF → 0x00000000FFFFFFFF
-        insns.append(cmp_uo(7, 1, 6))
-        insns.append(set_zw(1, 0))
-        insns.append(br_ne(7, 1, 2))
-        insns.append(set_zw(1, 1))
-        insns.append(br_ne(1, 0, 2))
-        insns.append(cmp_uo(0, 0, 0))
+        # cmp.ut(1, 2): 1<2 unsigned -> -1; ADR-0037 D1: 64-bit all-ones.
+        # Expected value = -1 (add.si sign-extends 0xFFFF to 0xFFFF...FFFF).
+        _exact_cmp(insns, 1, 6, -1)
 
 # ── Main ──────────────────────────────────────────────────────────────
 

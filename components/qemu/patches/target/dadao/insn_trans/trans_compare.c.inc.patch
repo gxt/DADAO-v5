@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_compare.c.inc b/target/dadao/insn_trans/trans_compare.c.inc
 new file mode 100644
-index 0000000..c2e61cc
+index 0000000..25e2869
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_compare.c.inc
-@@ -0,0 +1,194 @@
+@@ -0,0 +1,192 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* §3.2.1 cmp.ui/cmp.si (rrii): immediate compare */
@@ -104,8 +104,8 @@ index 0000000..c2e61cc
 +    tcg_gen_andi_i64(src_a, rdhc, 0xFFFFFFFFULL);
 +    tcg_gen_andi_i64(src_b, rdhd, 0xFFFFFFFFULL);
 +    gen_cmp_three_way(result, src_a, src_b, false);
-+    /* SPEC-069t: cmp.ut zero-extends result from 32 bits */
-+    tcg_gen_ext32u_i64(result, result);
++    /* ADR-0037 D1: no result re-extension; -1 stays 64-bit all-ones so that
++     * br.n/br.nn/cs.* (bit 63) see the negative result.  Sources truncated. */
 +    store_rd(a->hb, result);
 +    return true;
 +}
@@ -140,8 +140,7 @@ index 0000000..c2e61cc
 +    tcg_gen_andi_i64(src_a, rdhc, 0xFFFFULL);
 +    tcg_gen_andi_i64(src_b, rdhd, 0xFFFFULL);
 +    gen_cmp_three_way(result, src_a, src_b, false);
-+    /* SPEC-069t: cmp.uw zero-extends result from 16 bits */
-+    tcg_gen_ext16u_i64(result, result);
++    /* ADR-0037 D1: no result re-extension; -1 stays 64-bit all-ones. */
 +    store_rd(a->hb, result);
 +    return true;
 +}
@@ -175,8 +174,7 @@ index 0000000..c2e61cc
 +    tcg_gen_andi_i64(src_a, rdhc, 0xFFULL);
 +    tcg_gen_andi_i64(src_b, rdhd, 0xFFULL);
 +    gen_cmp_three_way(result, src_a, src_b, false);
-+    /* SPEC-069t: cmp.ub zero-extends result from 8 bits */
-+    tcg_gen_ext8u_i64(result, result);
++    /* ADR-0037 D1: no result re-extension; -1 stays 64-bit all-ones. */
 +    store_rd(a->hb, result);
 +    return true;
 +}

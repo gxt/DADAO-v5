@@ -341,7 +341,7 @@
     ra: {}
     rb: {}
     rd:
-      rd1: '0x00000000FFFFFFFF'
+      rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
   id: cmp.ut_orrr_rd
   input_state:
@@ -441,7 +441,7 @@
     ra: {}
     rb: {}
     rd:
-      rd1: '0x000000000000FFFF'
+      rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
   id: cmp.uw_orrr_rd
   input_state:
@@ -541,7 +541,7 @@
     ra: {}
     rb: {}
     rd:
-      rd1: '0x00000000000000FF'
+      rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
   id: cmp.ub_orrr_rd
   input_state:

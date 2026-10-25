@@ -189,3 +189,9 @@
 - **2026-10-24 `QEMU-073t`**
   - 摘要：**`cpu_loop_exit` longjmp 泄漏 MMIO 重入守卫（`ISS-064`）结构化复位**：`system/memory.c` 在 `access_with_adjusted_size` 置位 `engaged_in_io` 时把该守卫压入**线程级链**（栈上节点，正常路径出栈），新增 `mem_reentrancy_guard_abort()`（声明在 `include/system/memory.h`）；`accel/tcg/cpu-exec-common.c::cpu_loop_exit` 在**唯一** `siglongjmp(cpu->jmp_env)` 之前调用它——跳转时被放弃的访问帧仍在栈上，可安全遍历整条链复位（两个 `sigsetjmp` 落点共用此唯一 longjmp 产生点）。现场：`dadao_cpu_tlb_fill` 只映射 RAM/ROM，非 RAM/ROM 一律 UNMAPPED（0x87）⇒ 现机无 MMIO 可达路径，原载体 exit-port 已删（ADR-0020 D8），用户裁定「**不做复现，只修**」；本地临时实验（设备 + tlb_fill 放行，均未入交付物、cp+md5 还原）给出修复前 `rc=2` + `Blocked re-entrant IO on MemoryRegion: dadao-testio`、修复后 `rc=0` 无告警。补丁 **60 → 63**（新增 `accel/tcg/cpu-exec-common.c.patch`、`include/system/memory.h.patch`、`system/memory.c.patch`）；`check_patch_tree` **198** 绿、`check_qemu_trans --strict` **266/266**、L1/L2 rc=0。
   - 执行者：engineer
+
+## M10
+
+- **2026-10-25 `QEMU-074t`**
+  - 摘要：**`cmp.{ut,uw,ub}` 结果去掉零扩展（ADR-0037：-1 = 64 位全 1）**：`trans_cmp_{ut,uw,ub}` 删除 `ext32u/ext16u/ext8u`（`gen_cmp_three_way` 的 i64 -1/0/1 与源截断保留）；`tests/vectors/isa/reg-compare.yaml` 3 条 -1 期望改 `0xFFFF_FFFF_FFFF_FFFF`（0/+1 未动）；新增 `tools/qemu/min_rom_probe_074t.py`（21 例：-1/0/+1、源截断、`cmp.{ut,uw,ub}→br.n`、控制组）；`min_rom_probe_005t.py` 的 V3 旧零扩展断言同步。真值：L1/L2 绿、`check-qemu-smoke` 90/90、L3 967/978（11 deferred）、注入 16/16 红→绿。
+  - 执行者：engineer
