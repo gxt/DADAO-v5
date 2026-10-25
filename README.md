@@ -29,7 +29,7 @@
 | M6 | 2026-10-11 | 整数完整调用约定 + LLVM 欠账收口 + ELF 直载 + clang target + Embench |
 | M7 | 2026-10-13 | picolibc 移植（自带 test）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle |
 | M8 | 2026-10-19 | 无内核 Linux 用户态栈：musl 静态→动态 + QEMU user-mode（`ADR-0025`） |
-| M9 | 2026-10-24 | FP 完备性 + ISA 收口 + 规范重组（发布 SimRISC 0.5.5） |
+| M9 | 2026-10-24 | FP 完备性 + 线程支持 + ISA 收口（发布 SimRISC 0.5.5） |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -84,12 +84,11 @@
 - 三套大型测试两档如实分类（权威跑）：`embench-iot` 38/38 + 38/38；`libc-test` 静态 `309/0/4/24`、动态 `312/0/4/21`；`llvm-test-suite` 两档同 `201/3/0/16/2`；失败逐条归因（`ISS-265` 等）。
 - 门控 L1/L2/L3 全绿；归档与回顾见 `.tao/archive/M8/`（`README.md` / `m8-retrospective.md` / `issues-closed.md`）。
 
-### M9（2026-10-24）FP 完备性 + ISA 收口 + 规范重组
+### M9（2026-10-24）FP 完备性 + 线程支持 + ISA 收口（发布 SimRISC 0.5.5）
 
-- **ISA（发布 0.5.5）**：FMA `ftfma`/`fofma`（`rrrr` 四操作数）；`OPC-MISC` 迁 `opc 0x47`（`ct*` 并入）；`fence`/`lr`/`sc` 解 `excluded`（余 `cfxld`/`cfxst` 2 条）；`fp` 66 / `m9` 34 / `total` 266 条。
-- **后端**：窄位 `i8/i16/i32` 全做（各 1 条指令）；`ctlz`/`cttz`/`ctpop` + `rev` 各 1 条；FMA 零拷贝（`fma`/`fmuladd`/C `fma` 各 1 条）；`ldm`/`stm` post-RA 合并；FP 接线 8 类 + `__builtin_dadao_remainder`。
-- **规范**：`MISC-`→`OPC-` 485 处；分册重组（`SimRISC-11` = 核芯功能扩展 / `12` = 其它指令 / 非法指令并入 `00`）；changelog 30→14 条；`spec_cite` 改「手册: 助记符」。
-- **门控**：去写死计数（改集合不变量）+ 7 项覆盖缺口；harness `br.nz` 偏移修正（失败路径可信化）；musl 构建加 `-ffp-contract=off`（`math/yn` 回绿）。
-- **终局复跑 0 fail**：L3 PASS；`libc-test` 331/338 pass、`llvm-test-suite` 204/203 pass（`blocked` 逐例有归属）。
-- 归档与回顾见 `.tao/archive/M9/`（`README.md` / `m9-retrospective.md` / `issues-closed.md`）；11 条 open 全为 M10 登记项。
-
+- **浮点能力补齐（前端可直接用）**：融合乘加 `fma`（单次舍入）、最小/最大值、取整六档、分类（`is.fpclass`）、`remainder`、`ldexp`、舍入模式读写、饱和转换；`fma`/`fmin`/`fmax`/`fabs`/`copysign`/`rint` 等 C 库函数调用**各 1 条指令、无 libcall**。
+- **线程与 TLS 可用**：musl 端口补齐 `clone`，`pthread_create`/`pthread_join`/`posix_spawn` 可用；`__thread` 静态 TLS 与动态 TLS（含 `dlopen`）打通；`libc-test` 中原被阻塞的 20 例线程用例全部通过（仅 `pthread_create-oom` 这类 OOM 边界用例仍受限）。
+- **整数与位操作**：8/16/32 位窄指令启用（`add.st/sw/sb` 等各 1 条，不再一律按 64 位算）；`clz`/`ctz`/`popcount`/`bswap` 各 1 条（原来分别要 10 条、7 条）；结构体/小数组拷贝用多寄存器 `ldm`/`stm` 合并。
+- **原子与内存序**：`fence` 与 `lr`/`sc` 全部实现（核芯功能扩展 `cfxld`/`cfxst` 仍保留未实现）。
+- **发布与验收**：SimRISC **0.5.5**；三套大型测试两档复跑 **0 fail**（`embench-iot` 38/38；`libc-test` 静态 331 / 动态 338 pass；`llvm-test-suite` 静态 204 / 动态 203 pass）。
+- 归档与回顾见 `.tao/archive/M9/`（`README.md` / `m9-retrospective.md` / `issues-closed.md`）。
