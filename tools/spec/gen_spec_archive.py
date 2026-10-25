@@ -18,9 +18,9 @@
 ----
   python3 tools/spec/gen_spec_archive.py --list          # 清单 TSV（无表头；确定性）
   python3 tools/spec/gen_spec_archive.py --report        # 派生过程 / 跨源冲突 / 不可重建披露
-  python3 tools/spec/gen_spec_archive.py --apply         # 只新增缺失目录（已存在目录不动）
+  python3 tools/spec/gen_spec_archive.py --apply         # 只新增缺失的非 -rc 目录（已存在目录不动）
   python3 tools/spec/gen_spec_archive.py --verify        # 清单 ↔ 目录 ↔ sha256 三向校验
-  python3 tools/spec/gen_spec_archive.py --self-test     # 内置反例自检（`-rc` 跳过逻辑）
+  python3 tools/spec/gen_spec_archive.py --self-test     # 内置反例自检（`-rc` 跳过逻辑：`--verify` + `--apply`）
 
 `--list` 的列（TSV）：`版本 \t 首次提交 \t 快照提交 \t 首次标记日期 \t 来源仓库 \t 文件数 \t 组合sha256`。
 
@@ -34,7 +34,8 @@
 
 `-rc` 为**预发布**，**不纳入归档校验**（与 `tools/spec/check_spec_archive.py` 的
 「`-rc` 不纳入归档门控」口径一致；用户 2026-10-25 裁定 `SimRISC-0.5.5-rc` 可删除）：
-`--verify` 对 `-rc` 条目打印 `SKIP` 并跳过，`--list`/`--report` 仍如实列出（历史清单不减）。
+`--verify` 与 `--apply` 均对 `-rc` 条目打印 `SKIP` 并跳过（`--apply` 不得重建 `-rc` 目录），
+`--list`/`--report` 仍如实列出（历史清单不减）。
 """
 
 from __future__ import annotations
@@ -349,9 +350,14 @@ def write_provenance(e: dict, data: dict, dest: Path) -> None:
     dest.write_text("\n".join(lines))
 
 
-def apply(data: dict) -> int:
+def apply(data: dict, archive: Path | None = None) -> int:
+    dest_root = archive or ARCHIVE
     for e in data["versions"]:
-        dest = ARCHIVE / f"SimRISC-{e['version']}"
+        if is_rc(e["version"]):
+            # 预发布 `-rc` 不建目录（与 `--verify` / check_spec_archive.py 同口径）
+            print(f"SKIP SimRISC-{e['version']}（预发布 -rc：不建归档目录）")
+            continue
+        dest = dest_root / f"SimRISC-{e['version']}"
         if dest.exists():
             ok, msgs = verify_one(e, dest)
             print(f"SKIP SimRISC-{e['version']}（已存在；与快照{'一致' if ok else '不一致'}）")
@@ -424,7 +430,8 @@ def provenance_pairs(dest: Path) -> tuple[str | None, list[tuple[str, str]] | No
 def verify_one(e: dict, dest: Path) -> tuple[bool, list[str]]:
     msgs: list[str] = []
     if not dest.is_dir():
-        return False, [f"目录缺失：{dest.relative_to(REPO)}"]
+        label = dest.relative_to(REPO) if dest.is_relative_to(REPO) else dest
+        return False, [f"目录缺失：{label}"]
     present = sorted(p.name for p in dest.glob("SimRISC-*.md"))
     pin = provenance_snapshot(dest) or e["snapshot"]
     repo = WIKI if e["source"] == "wiki" else REPO
@@ -503,9 +510,11 @@ def verify(data: dict) -> int:
 
 
 def self_test() -> int:
-    """内置反例：`-rc` 缺目录须 SKIP（rc=0）、非 `-rc` 缺目录须 FAIL（rc=1）。"""
+    """内置反例：`-rc` 须 SKIP（`--verify` rc=0、`--apply` 不建目录）、非 `-rc` 须 FAIL/建目录。"""
     import contextlib
     import io
+    import shutil
+    import tempfile
 
     rc = 0
 
@@ -530,6 +539,46 @@ def self_test() -> int:
         )
         if not ok:
             rc = 1
+
+    # `--apply` 的 `-rc` 跳过：须「打印 SKIP」且「不建目录」；非 -rc 须「打印 ADD」且「建目录」。
+    head = git(REPO, "rev-parse", "HEAD").strip()
+    tmp_root = Path(tempfile.gettempdir()) / "opencode" / "SPEC-174t"
+    tmp_root.mkdir(parents=True, exist_ok=True)
+
+    def apply_entry(version: str) -> dict:
+        return {
+            "version": version, "source": "repo", "snapshot": head, "first": head,
+            "date": commit_date(REPO, head), "files": [], "file_entries": [],
+            "count": 0, "composite": composite([]),
+        }
+
+    apply_cases = [
+        ("仅 -rc 条目", ["0.0.0-rc"], [], ["0.0.0-rc"]),
+        ("仅非 -rc 条目", ["0.0.0"], ["0.0.0"], []),
+        ("-rc 与非 -rc 混合", ["0.0.0-rc", "0.0.0"], ["0.0.0"], ["0.0.0-rc"]),
+    ]
+    for name, versions, want_dirs, want_absent in apply_cases:
+        tmpdir = Path(tempfile.mkdtemp(prefix="apply-", dir=tmp_root))
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                got = apply({"versions": [apply_entry(v) for v in versions]}, archive=tmpdir)
+            out = buf.getvalue()
+            made = sorted(p.name for p in tmpdir.iterdir() if p.is_dir())
+            want_names = sorted(f"SimRISC-{v}" for v in want_dirs)
+            absent_ok = all(not (tmpdir / f"SimRISC-{v}").exists() for v in want_absent)
+            skip_ok = all(f"SKIP SimRISC-{v}" in out for v in want_absent)
+            ok = got == 0 and made == want_names and absent_ok and skip_ok
+            print(
+                f"[self-test] apply {name}：rc={got}（期望 0），建目录={made}"
+                f"（期望 {want_names}），-rc 未建={absent_ok}，SKIP 行={skip_ok}"
+                f" → {'PASS' if ok else 'FAIL'}"
+            )
+            if not ok:
+                rc = 1
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
     print(f"gen_spec_archive --self-test: {'PASS' if rc == 0 else 'FAIL'}")
     return rc
 

@@ -1,6 +1,6 @@
 # DADAO Supervisor Execution Environment（SEE）
 
-> **版本：0.7.2-rc**（与 SBI 版本号一致，同步更新。基于 SimRISC 0.5.4 指令系统设计）
+> **版本：0.7.2-rc**（与 SBI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
 
 本文档定义DADAO主管系统运行环境（Supervisor Execution Environment, SEE）的体系结构规范，涵盖地址空间组织、处理器资源管理、核芯功能扩展设计、外设资源抽象及运行模式定义等内容。
 
@@ -49,7 +49,7 @@ DADAO定义了四种运行模式，用两位编码：
 | cfx0-cfx15 | per-hart |
 | cfx16-cfx63 | per-system |
 
-> `inner_*` 为硬件内部寄存器（不对外暴露），用于异常处理流程中的中间状态保存。`inner_run_mode`（2 位）记录当前偏移运行模式（0=user, 1=jail, 2=supv, 3=hypv），`inner_cfx_mask`（64 位，per-hart）和 `inner_excp_cause_*` 等用于异常屏蔽判断与现场保存。详细语义见 §5 异常进入伪代码。
+> `inner_*` 为硬件内部寄存器（不对外暴露），用于异常处理流程中的中间状态保存。`inner_run_mode`（2 位）记录当前运行模式（0=user, 1=jail, 2=supv, 3=hypv），`inner_cfx_mask`（64 位，per-hart）和 `inner_excp_cause_*` 等用于异常屏蔽判断与现场保存。详细语义见 §异常进入流程。
 
 ## 2. 地址空间
 
@@ -96,14 +96,14 @@ CPU 外部地址总线固定为 64 位，只有对应的 PTBR 开启，通过地
 **第二步：TLB 查找**
 
 - 若 `cfx_tlb_enable` 对应位置 1，则查 TLB。以 `VA[47:42]` 选择对应 TLB 集合，集合内以 L1 index（`VA[41:29]`）作为索引键。
-- TLB 命中时直接检查 PTE 中的 SPF/GPF 字段（超页为 SPF 8位、普通页为 GPF 8位）和 R/W/X 权限。SPF/GPF 中对应小页的标记位为 0 触发对应 PFTRAP 异常，权限不符触发 NRPERM/NWPERM/NXPERM 异常。TLB 产生的这些异常属于 cfx_ptw 异常原因的子集，应通过调用 cfx_ptw 的功能来处理。
+- TLB 命中时直接检查 PTE 中的 SPF/GPF 字段（超页为 SPF 8位、普通页为 GPF 8位）和 R/W/X 权限。SPF/GPF 中对应小页的标记位为 0 触发对应 `I/DPFTRAP` 异常，权限不符触发 NRPERM/NWPERM/NXPERM 异常。TLB 产生的这些异常属于 cfx_ptw 异常原因的子集，应通过调用 cfx_ptw 的功能来处理。
 - 若 TLB 命中且权限符合，则跳过第三步（页表步进），直接进入第四步（形成最终物理地址）。
 - 若 TLB 未命中，则继续执行第三步。步进完成后将结果填入对应集合的 TLB。
 
 **第三步：页表步进**
 
 - 用 `VA[41:29]` × 8 计算 L1 页表项偏移，读取 8 字节。
-- 若 Superpage 位为 0，则为二级页表 + 普通页，参见 普通页的地址转换。
+- 若 Superpage 位为 0，则为二级页表 + 普通页，参见 §普通页的地址转换。
 - 若 Present 位为 0，且 Superpage 位为 1，则触发 ISPTRAP/DSPTRAP 异常。
 - 若 Present 位为 1，且 Superpage 位为 1，则进一步检查 SPF 字段中对应小页的标记位；若对应位为 0，则触发 ISPFTRAP/DSPFTRAP 异常。
 - 若 Present 位为 1，且 Superpage 位为 1，且 SPF 字段中对应小页的标记位为 1，则检查读/写/执行权限，若权限不符，则触发 NRPERM/NWPERM/NXPERM 异常。
@@ -137,14 +137,14 @@ CPU 外部地址总线固定为 64 位，只有对应的 PTBR 开启，通过地
 **第二步：TLB 查找**
 
 - 若 `cfx_tlb_enable` 对应位置 1，则查 TLB。以 `VA[47:42]` 选择对应 TLB 集合，集合内以 L1 index（`VA[41:29]`）和 L2 index（`VA[28:16]`）作为索引键。
-- TLB 命中时直接检查 PTE 中的 SPF/GPF 字段（超页为 SPF 8位、普通页为 GPF 8位）和 R/W/X 权限。SPF/GPF 中对应小页的标记位为 0 触发对应 PFTRAP 异常，权限不符触发 NRPERM/NWPERM/NXPERM 异常。TLB 产生的这些异常属于 cfx_ptw 异常原因的子集，应通过调用 cfx_ptw 的功能来处理。
+- TLB 命中时直接检查 PTE 中的 SPF/GPF 字段（超页为 SPF 8位、普通页为 GPF 8位）和 R/W/X 权限。SPF/GPF 中对应小页的标记位为 0 触发对应 `I/DPFTRAP` 异常，权限不符触发 NRPERM/NWPERM/NXPERM 异常。TLB 产生的这些异常属于 cfx_ptw 异常原因的子集，应通过调用 cfx_ptw 的功能来处理。
 - 若 TLB 命中且权限符合，则跳过第三步（页表步进），直接进入第四步（形成最终物理地址）。
 - 若 TLB 未命中，则继续执行第三步。步进完成后将结果填入对应集合的 TLB。
 
 **第三步：页表步进**
 
 - 用 `VA[41:29]` × 8 计算 L1 页表项偏移，读取 8 字节。
-- 若 Superpage 位为 1，则为一级页表 + 超页，参见 超页的地址转换。
+- 若 Superpage 位为 1，则为一级页表 + 超页，参见 §超页的地址转换。
 - 若 Present 位为 0，且 Superpage 位为 0，则触发 IGPTRAP/DGPTRAP 异常。
 - 生成二级页表的访问地址，读取 8 字节：
   - 根据 `VA[47:42]` 选择对应 `cfx_ptw_pthi` 作为高 16 位，即 `L2PA[63:48]`（pthi 用于页表结构的物理地址高位，与第四步最终数据页物理地址使用的 pahi 不同）
@@ -334,7 +334,7 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 
 ### 3.4 cg3 - hypv mode 寄存器
 
-H-mode 寄存器（cg=3）定义见 HEE 文档 §1。
+H-mode 寄存器（cg=3）定义见 HEE。
 
 ### 3.5 cg4 - 核芯功能扩展配置寄存器
 
@@ -422,7 +422,7 @@ cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不�
 
 ### 4.4 cfx_hmon - hypervisor monitor
 
-异常原因编码与 cfx_umon 一致。详细定义见 HEE 文档 §2。
+异常原因编码与 cfx_umon 一致。详细定义见 HEE。
 
 ### 4.5 cfx_ptw - page table walker
 
@@ -649,7 +649,7 @@ UART寄存器的读写操作通过 `cfx2rd`/`cfx2rc` 指令完成。若寄存器
 
 **重要**：异常原因编码（`excp cause id`，即 `1 << n` 中的位索引 `n`）在各核芯功能扩展间 **独立编址**，不存在跨 cfx 冲突。例如 `1<<8` 在 cfx_umon 中为 ILLI，在 cfx_ptw 中为 NUPERM，在 cfx_hart 中为 IPI——它们属于不同 cfx 的异常表，互不干扰。每个 cfx 的异常原因编码空间为 0-63，硬件通过 cfxha 区分目标。
 
-**精确异常**：所有同步异常和异步中断均为精确异常——IP 指向触发指令（同步）或下一条指令边界（异步），指令未完成，目标寄存器/内存/RA 未更新（无副作用）。页表步进异常（GPTRAP/SPTRAP/PFTRAP/NxPERM）同为精确——访存未执行。IALIGN 为精确异常——取指前检测 IP[1:0] ≠ 00，IP 停留在非法地址。浮点指令不触发异常，始终按 IEEE 754 标准返回结果，异常状态记录在 rf0[4:0] 中。
+**精确异常**：所有同步异常和异步中断均为精确异常——IP 指向触发指令（同步）或下一条指令边界（异步），指令未完成，目标寄存器/内存/RA 未更新（无副作用）。页表步进异常（`I/DGPTRAP`、`I/DSPTRAP`、`I/DPFTRAP`、`NRPERM`/`NWPERM`/`NXPERM`）同为精确——访存未执行。IALIGN 为精确异常——取指前检测 IP[1:0] ≠ 00，IP 停留在非法地址。浮点指令不触发异常，始终按 IEEE 754 标准返回结果，异常状态记录在 rf0[4:0] 中。
 
 **中断信号为电平触发**：硬件源持续有效且 mask 开启时，中断在指令边界检查并触发。mask 解除后若 pending 仍置 1，在下一指令边界触发中断。多个 pending 位同时置 1 或不同 cfx 同时产生中断时，低编号 cfxha 优先。
 
@@ -862,7 +862,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 ### 0.7.2-rc（未发布）
 
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
-- 与上游 SimRISC 0.5.4 基线对齐。
+- 与上游 SimRISC 0.5.5 基线对齐。
 - 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`。
 - 为 cg0–cg3 增加 `rc0` 版本号寄存器；RO 寄存器初始值统一标记为 HW。
 - `pending` 统一：删除 timer/uart/power 专有 pending，`cfx_pending`→`excp_pending`（cg5 rc5）。

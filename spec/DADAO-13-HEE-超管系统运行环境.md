@@ -1,6 +1,6 @@
 # DADAO Hypervisor Execution Environment
 
-> **版本：0.1.3-rc**（与 HBI 版本号一致，同步更新。基于 SimRISC 0.5.4 指令系统设计）
+> **版本：0.1.3-rc**（与 HBI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
 
 本文档定义 DADAO 超管系统运行环境（Hypervisor Execution Environment, HEE）的体系结构规范。
 
@@ -44,7 +44,7 @@ hmon 为 hypv 下的同步异常处理核芯功能扩展，处理 hypv 下的同
 
 ## 3. 启动与引导移交
 
-详见 HBI 文档 §3。
+详见 HBI。
 
 ---
 
@@ -58,7 +58,7 @@ hmon 为 hypv 下的同步异常处理核芯功能扩展，处理 hypv 下的同
 - 为 cg0–cg3 增加 `rc0` 版本号寄存器。
 - cg3 寄存器 `rc1`–`rc7` 初始值由全 1 改为全 0，删除 `cfx_power` 例外。
 - 删除 FPEXCP 异常；术语「储存块」→「存储块」。
-- 与上游 SimRISC 0.5.4 基线对齐。
+- 与上游 SimRISC 0.5.5 基线对齐。
 - 正文术语 `PC` 统一为 **`IP`**（`IP` = 当前正在执行的指令的地址，见 SimRISC-00）：异常向量现场值一列。
 
 ### 0.1.2（上游基线；导入日 2026-07-14，发布日不详）

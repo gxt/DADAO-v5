@@ -91,9 +91,15 @@ def self_test() -> int:
     tmp_root.mkdir(parents=True, exist_ok=True)
     tmpdir = Path(tempfile.mkdtemp(prefix="purity-", dir=tmp_root))
     baseline = (SPEC / "SimRISC-00-指令系统设计.md").read_text(encoding="utf-8")
-    # 注入点在册头（真实行），确定性且不依赖正文措辞
-    anchor = "> **版本：0.5.5-rc**"
-    assert baseline.count(anchor) == 1, "self-test 锚点不唯一"
+    # 注入点在册头（真实行），确定性且不依赖正文措辞。锚点**从被检册现场派生**、
+    # 不钉具体版本串——否则每次发布 / 新开 `-rc` 都会与册头脱钩（锚点消失 ⇒ 自检恒红）。
+    anchors = re.findall(r"^>\s*\*\*版本[：:].*$", baseline, re.M)
+    if len(anchors) != 1:
+        print(f"[FAIL] self-test: 册头 `> **版本：…**` 行应恰 1 条，实得 {len(anchors)} 条",
+              file=sys.stderr)
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        return 1
+    anchor = anchors[0]
     cases = [
         ("baseline", "", True, "未注入 ⇒ 期望 rc=0"),
         ("scope", "\n> **scope: fp**", False, "塞 `scope: fp` ⇒ 期望 rc!=0"),

@@ -1,6 +1,6 @@
 # SBI（主管系统二进制接口）
 
-> **版本：0.7.2-rc**（与 SEE 版本号一致，同步更新。基于 SimRISC 0.5.4 指令系统设计）
+> **版本：0.7.2-rc**（与 SEE 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
 
 SBI 定义不同核芯功能扩展之间的功能调用。大部分功能调用在同一运行模式（主管模式）进行，仅少数需要访问特权硬件资源的服务才会提升到 H-mode 执行。
 
@@ -10,7 +10,7 @@ SBI 定义不同核芯功能扩展之间的功能调用。大部分功能调用�
 
 **发起与返回**：调用方执行 `trap cfxha, immu18` 陷入目标核芯功能扩展；被调方通过 `escape cfxha, [excp_cause_ip, 4]` 返回，跳转到 trap 指令的下一条指令（`excp_cause_ip + 4`）。
 
-**参数传递**：与 ABI 传参规范一致（参见 `DADAO-21-ABI-应用程序二进制接口`）。
+**参数传递**：与 ABI 传参规范一致（参见 ABI）。
 
 **错误码**：
 
@@ -34,7 +34,7 @@ SBI 定义不同核芯功能扩展之间的功能调用。大部分功能调用�
 
 ## 2. 用户态异常处理（umon / jmon）
 
-umon（cfx0）为 user 模式的异常入口，处理用户态系统调用。系统调用遵循 ABI 约定的双层模型：`immu18` 为硬件事务编号（指令编码层），`rd15` 为软件系统调用号（功能分发层），参数和返回值与 ABI 传参规范一致（参见 `DADAO-21-ABI-应用程序二进制接口`）。
+umon（cfx0）为 user 模式的异常入口，处理用户态系统调用。系统调用遵循 ABI 约定的双层模型：`immu18` 为硬件事务编号（指令编码层），`rd15` 为软件系统调用号（功能分发层），参数和返回值与 ABI 传参规范一致（参见 ABI）。
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
@@ -356,7 +356,7 @@ cfx_tlb_ptw_delegate:
     @@ 修复成功 → invalid 对应 TLB 表项，按实际页大小
     and.o   rd40, rd40, rd8                          @@ 按掩码对齐至页面起始
     cfx2rc  cfx_tlb_addr_start, rd40
-    xnor.o  rd16, rd8, rd0                       @@ rd16 = ~rd8（not.o 已删除，见 ADR-0013 D11）
+    xnor.o  rd16, rd8, rd0                       @@ rd16 = ~rd8（not.o 已删除）
     add.si    rd16, 1                             @@ addr_size = ~mask + 1
     cfx2rc  cfx_tlb_addr_size, rd16
     set.rd   rd2, 2
@@ -444,7 +444,7 @@ cfx_pmem 为存储器管理部件，S-mode 可查询 hypv 固件设置的物理�
 | 4 | SBI_PMEM_ALLOC_PAGE | rd16 = size_hint | rd8 = ppn | 从 PM 区域分配物理页。成功返回 PPN（物理页号，>=0），失败返回 -1。由 cfx_ptw 委托调用 |
 | 5 | SBI_PMEM_FREE_PAGE | rd16 = ppn | — | 释放物理页，由 cfx_ptw 委托调用 |
 
-> 初始化方式与其他 cfx 一致：探测 cfx_pmem 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 17）。cfx_pmem 的 PM 区域配置由 hypv 固件在 H-mode 初始化阶段完成（见 HBI §3）。
+> 初始化方式与其他 cfx 一致：探测 cfx_pmem 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 17）。cfx_pmem 的 PM 区域配置由 hypv 固件在 H-mode 初始化阶段完成（见 HBI）。
 
 cfx_pmem 的异常入口处理：
 
@@ -692,7 +692,7 @@ trap    cfx_uart, SBI_UART_GETCHAR
 
 ## 12. 系统控制（cfx_power）
 
-cfx_power 为电源管理，提供关机和重启服务。`power_ctrl` 寄存器的默认访问权限为 hypv；HBI 引导代码（§3）将 `cfx_power_hypv_cg_reg_deleg` 设为 0 以委托给 supv，因此 supv 可直接通过 `cfx2rc`/`cfx2rd` 操作该寄存器。固件应将其 `switch_run_mode` 配置为 hypv 以确保安全隔离。
+cfx_power 为电源管理，提供关机和重启服务。`power_ctrl` 寄存器的默认访问权限为 hypv；HBI 引导代码将 `cfx_power_hypv_cg_reg_deleg` 设为 0 以委托给 supv，因此 supv 可直接通过 `cfx2rc`/`cfx2rd` 操作该寄存器。固件应将其 `switch_run_mode` 配置为 hypv 以确保安全隔离。
 
 | immu18 | 名称 | 入参 | 说明 |
 |--------|------|------|------|
@@ -840,7 +840,7 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 - 各 cfx 服务返回寄存器统一为 `rd8`；功能调用示例中的临时寄存器由 `rb3` 改为 `rb8`。
 - `cfx_ptw` 跳转表统一为简化写法；删除冗余参数表格。
 - 删除 FPEXCP 异常；`pending` 统一（`excp_pending`）；伪指令集收缩。
-- 与上游 SimRISC 0.5.4 基线对齐。
+- 与上游 SimRISC 0.5.5 基线对齐。
 
 ### 0.7.1（上游基线；导入日 2026-07-14，发布日不详）
 

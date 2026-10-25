@@ -1,6 +1,6 @@
 # DADAO Application Execution Environment
 
-> **版本：0.9.3-rc**（与 ABI 版本号一致，同步更新。基于 SimRISC 0.5.4 指令系统设计）
+> **版本：0.9.3-rc**（与 ABI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
 
 应用程序运行环境：Application Execution Environment
 
@@ -42,9 +42,9 @@ div.st  rd4, rd2, rd3           @@ 商写入目的寄存器 rd4
 st.t rd4, [rb1, z_offset]
 ```
 
-> 若操作数经过加减乘等运算后高位被污染，除法和乘法前需 `ext.s` 重新扩展。
+> 若操作数经过加减乘等运算后高位被污染，除法和乘法前需 `ext.so` 重新扩展。
 
-**移位**：`shr.u` 逻辑右移高位补 0，`shr.s` 算数右移高位补符号位。
+**移位**：`shr.u` 逻辑右移高位补 0，`shr.s` 算术右移高位补符号位。
 
 ```simrisc
 @@ 无符号 32-bit 右移 3 位
@@ -118,7 +118,7 @@ Dadao中的octa是64位，即8字节，而gas中的.octa定义的数据是16字�
 
 除了通用的选项之外，Dadao添加了以下选项：
 
-- -multiple-to-single：将多寄存器指令转换为一系列的单寄存器指令；转换过程保持助记符（即opcode）不变
+- `-multiple-to-single`：将多寄存器指令转换为一系列的单寄存器指令；转换过程保持助记符（即指令名）不变
 
 ---
 
@@ -129,7 +129,7 @@ Dadao中的octa是64位，即8字节，而gas中的.octa定义的数据是16字�
 ### 0.9.3-rc（未发布）
 
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
-- 与上游 SimRISC 0.5.4 基线对齐。
+- 与上游 SimRISC 0.5.5 基线对齐。
 - 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`。
 - 删除 FPEXCP 异常（浮点按 IEEE 754 执行、经 `rf0` 轮询异常状态）。
 - 地址空间布局 / 汇编兼容性内容并入本册（职责边界调整）。
