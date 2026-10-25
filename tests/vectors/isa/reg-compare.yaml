@@ -352,6 +352,35 @@
   notes: 'cmp.ut: rd2=0xa, rd3=0x14, bits=32, signed=False'
   spec_cite: 'SimRISC-08: cmp.ut'
   status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x41A81083'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0xFFFFFFFFFFFFFFFF'
+      rd5: '0x0000000000000000'
+  format: orrr
+  id: cmp.ut_orrr_rd
+  input_state:
+    rd:
+      rd2: '0x000000000000000A'
+      rd3: '0x0000000000000014'
+      rd5: '0x0000000000000000'
+  mnemonic: cmp.ut
+  notes: 'ADR-0037 D1 downstream: cmp.ut(0xa,0x14) → rd1=0xFFFFFFFFFFFFFFFF → br.n TAKEN (bit63) skips the set.zw marker;
+    rd5 stays 0. Zero-extended −1 would not take the branch and rd5 would become 0xbad'
+  sequence:
+  - '0x41A81083'
+  - '0x68040002'
+  - '0x4C140BAD'
+  spec_cite: 'SimRISC-08: cmp.ut'
+  status: active
 - class: legality
   deferred_reason: null
   encoding:

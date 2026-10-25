@@ -1628,6 +1628,7 @@ vector	tests/vectors/isa/reg-compare.yaml	cmp.uo_orrr_rd	semantic	0x40a81083	Non
 vector	tests/vectors/isa/reg-compare.yaml	cmp.ut_orrr_rd	encoding	0x41a81000	None	active	1
 vector	tests/vectors/isa/reg-compare.yaml	cmp.ut_orrr_rd	legality	0x41a80000	ILLI	active	1
 vector	tests/vectors/isa/reg-compare.yaml	cmp.ut_orrr_rd	semantic	0x41a81083	None	active	1
+vector	tests/vectors/isa/reg-compare.yaml	cmp.ut_orrr_rd	semantic	0x41a81083	None	active	2
 vector	tests/vectors/isa/reg-compare.yaml	cmp.uw_orrr_rd	encoding	0x42a81000	None	active	1
 vector	tests/vectors/isa/reg-compare.yaml	cmp.uw_orrr_rd	legality	0x42a80000	ILLI	active	1
 vector	tests/vectors/isa/reg-compare.yaml	cmp.uw_orrr_rd	semantic	0x42a81083	None	active	1

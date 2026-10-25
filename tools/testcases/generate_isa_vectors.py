@@ -263,16 +263,19 @@ def _logic_result(insn, rdhc_val, rdhd_val, rdhb_old, bits):
 def _cmp_result(a, b, bits, signed=False):
     """Compare result (−1/0/+1) written into the full 64-bit destination.
 
-    SPEC-069t high-bit rule: a narrow compare extends its result to 64 bits by
-    the suffix — `.s*` sign-extends (−1 → 0xFFFF...), `.u*` zero-extends within
-    the operand width (`.ut` −1 → 0xFFFFFFFF, `.uw` → 0xFFFF, `.ub` → 0xFF).
+    ADR-0037 D1: the *source operands* are truncated to the operand width
+    (`.ut` 32 / `.uw` 16 / `.ub` 8 bits), but the *result* is always extended
+    to 64 bits the same way for both suffixes — −1 = 0xFFFF_FFFF_FFFF_FFFF.
+    (The original `SimRISC-08/09/10 §1.2` rule, which zero-extended `.u*`
+    results, was a spec error: `br.n`/`br.nn`/`cs.*` judge bit 63, so a
+    zero-extended −1 would read as positive.)
     """
     mask = (1 << bits) - 1
     a, b = a & mask, b & mask
     if signed:
         a, b = _sext(a, bits), _sext(b, bits)
     if a < b:
-        return (mask if not signed else 0xFFFFFFFFFFFFFFFF)
+        return 0xFFFFFFFFFFFFFFFF
     elif a == b:
         return 0
     else:
@@ -632,6 +635,59 @@ def gen_cmp_uo_rb_boundaries(rec):
                           "bits[63:48] participate" % (_hex64(a_val), _hex64(b_val)))
             out.append(c)
     return out
+
+
+def gen_cmp_ut_br_n_sequence(rec):
+    """ADR-0037 D1 discriminator: `cmp.ut` −1 must read as negative to `br.n`.
+
+    A single instruction cannot express the contract's *consumer* side, so the
+    case uses the harness `sequence:` field (tests/vectors/schema.md):
+
+      1. `cmp.ut rd1, rd2, rd3` with rd2 = 0xA < rd3 = 0x14 (bits[31:0])
+         → rd1 = 0xFFFF_FFFF_FFFF_FFFF (ADR-0037 D1)
+      2. `br.n rd1, +2` — bit63 = 1 ⇒ TAKEN; target = PC + (imm<<2) = PC + 8,
+         i.e. the word after the marker (SimRISC-06)
+      3. `set.zw rd5, wp0, 0x0BAD` — marker, executed **only** if the branch
+         was NOT taken
+
+    input rd5 = 0, expected rd5 = 0 (marker not executed).  Under the old
+    zero-extended rule rd1 would be 0x0000_0000_FFFF_FFFF (positive), `br.n`
+    would fall through and rd5 would become 0x0BAD ⇒ the case fails.
+
+    `expected_pc` is null on purpose: the post-sequence PC is the harness's
+    exit-section address (layout-dependent), not a spec-derived value.
+    Derivation: SimRISC-08 §1.2 + ADR-0037 D1 (`cmp.ut`), SimRISC-06 (`br.n`
+    condition = bit63, target = PC + (imm<<2)).
+    """
+    insn = rec["id"]
+    sc = rec.get("spec_cite", "")
+    br_n = BY_KEY.get(("br.n_riii_rd", "riii"))
+    set_zw = BY_KEY.get(("set.zw_rwii_rd", "rwii"))
+    if br_n is None or set_zw is None:
+        raise KeyError("br.n_riii_rd / set.zw_rwii_rd missing from "
+                       "contracts/opcodes.yaml (M1) — cannot build the "
+                       "cmp.ut → br.n sequence case")
+
+    a_val, b_val = 0x0A, 0x14
+    marker = 0x0BAD
+    cmp_word = _build_word_orrr(rec, 1, 2, 3)   # cmp.ut rd1, rd2, rd3
+    br_word = _build_word_riii(br_n, 1, 2)      # br.n rd1, +2 (skip marker)
+    zw_word = _build_word_rwii(set_zw, 5, 0, marker)  # set.zw rd5, wp0, 0x0BAD
+
+    expected = _cmp_result(a_val, b_val, _get_bits(rec["mnemonic"]),
+                           signed=False)        # ADR-0037 D1: 64-bit all-ones
+    c = _case(rec["mnemonic"], insn, rec["format"], "semantic", cmp_word,
+              {"rd": {"rd2": _hex64(a_val), "rd3": _hex64(b_val),
+                      "rd5": _hex64(0)}},
+              {"rd": {"rd1": _hex64(expected), "rd5": _hex64(0)},
+               "rb": {}, "ra": {}, "memory": []},
+              None, "active", None, None, sc,
+              "ADR-0037 D1 downstream: cmp.ut(%s,%s) → rd1=%s → br.n TAKEN "
+              "(bit63) skips the set.zw marker; rd5 stays 0. Zero-extended −1 "
+              "would not take the branch and rd5 would become %s"
+              % (hex(a_val), hex(b_val), _hex64(expected), hex(marker)))
+    c["sequence"] = ["0x%08X" % w for w in (cmp_word, br_word, zw_word)]
+    return c
 
 
 # ── div/rem defined-value coverage (SPEC-066t) ─────────────────────────
@@ -1423,6 +1479,9 @@ def generate_file(filename, recs):
             if insn == "cmp.uo_orrr_dbb":
                 # SPEC-081t D8.2: full-64-bit (bits[63:48]) boundary coverage
                 cases.extend(gen_cmp_uo_rb_boundaries(rec))
+            if insn == "cmp.ut_orrr_rd":
+                # ADR-0037 D1: cmp.ut −1 must feed `br.n` as negative (sequence)
+                cases.append(gen_cmp_ut_br_n_sequence(rec))
         elif is_cond:
             if mnem == "cs.n":
                 cases.append(gen_cs_semantic(rec, 0xFFFFFFFFFFFFFFFF, 0xAAAA, 0xBBBB, True))
