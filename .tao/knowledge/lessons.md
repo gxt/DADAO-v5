@@ -122,12 +122,6 @@
 - 任务范围若为「**复用**上游共享层」，任务书「输出」须**显式列全接入点清单**：① 钩子实现文件；② **调试地址翻译钩子**（否则回退 NULL ⇒ **SIGSEGV**）；③ **CLI arch mask**（否则 CLI 被拒）；④ **Kconfig `select` + meson `when:` 挂钩**（否则共享层不编入）。任一项漏列 ⇒ 实现期必然「越界」或功能不可达。
 - 越界**判据** = 「**是否为本任务复用共享层的必需接线**」，非任务书字面文件清单；超出字面清单的必需接线须**如实披露**、不得裁剪；共享层零改动仍须**实测证**（`git -C <source> diff --stat HEAD -- <share-path>` 为空）。
 
-### 1.28 停机协议迁移（exit-port → semihosting `SYS_EXIT`）
-- **约定**：参数为 **64 位大端内存块** `{reason=0x20026, exit_code}`，**块指针在 `rb16`**（非旧寄存器习惯）、服务号 `rd16=0x18`、`trap cfx_umon, 0x30000`（`immu18[17:16]==2'b11` 判定，**与 `cfxha` 取值无关**）；**退出码在内存块第 2 字段**。
-- harness 须**显式** `-semihosting-config enable=on,target=native`（否则 `SYS_EXIT` 不可达、host `$?` 不传播）。
-- `-d cpu` 观测：`SYS_EXIT` 的 `trap` **不在 trap 前切 TB** ⇒ 若「读观测值的 `ld_o`」与 exit 序列同 TB，会观测到旧值；**修法**：exit 序列**前置一条 no-op `jump-iiii imms24=1`** 强制 TB 边界。
-- **迁移类任务**须**先记改前基线**（逐条真实输出）**再对拍**；**范围 / 计数一律脚本枚举**（禁目测抽样）；默认全迁、例外逐条披露并登记 issue。
-
 ### 1.29 clang target 上架三处口径
 - `TargetInfo` 的 DataLayout 须 `resetDataLayout()` **由 triple 派生**，**禁**写死字面量（clang 以 `err_data_layout_mismatch` 强制与后端一致）。
 - 默认 `DefaultABIInfo` 对**所有聚合**走间接；凡 ABI 要求「小聚合入寄存器」须**自建 `ABIInfo`** 并分发。

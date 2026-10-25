@@ -42,4 +42,4 @@
 | 10 | `ISS-054` 探针标签化框架 | —（v5 自身，非上游偏离） | **不做（M9）**：收尾不改工具链；手算偏移风险由 `ISS-309`（harness 偏移修正）部分缓解。**复查**：再出现手算偏移错误即立项 | —（见 `ISS-054`） |
 > **订正说明（第 6 项）**：历史表述「浮点未实现 ⇒ decode ILLI」在 `QEMU-034t`~`037t`（执行层 60/60）后**已不成立**；现行口径为「**浮点已实现**（`scope: fp`），**仅** cfx/LR-SC/fence（`scope: excluded`）仍 ILLI」。本台账以此为准。
 >
-> **章节订正（实测）**：任务书/`docs/m2-spec-planning.md` 沿用 **SimRISC 0.5.3 编号**；v5 现行规范为 **0.5.4**，章节已重排——上游依据「exit port vs `escape`」现位于 `SimRISC-11 §退出指令`（0.5.3 为 `SimRISC-04`）、`fence` SBZ 位于 `SimRISC-11 §fence指令`（0.5.3 为 `SimRISC-04`）、浮点规范为 `SimRISC-07`（0.5.3 为 `SimRISC-03`）。均以 `contracts/opcodes.yaml` 的 `spec_cite` 实测为准。
+> **章节订正（实测）**：部分历史任务书沿用 **SimRISC 0.5.3 编号**；v5 现行规范为 **0.5.5**，分册与章节已重排——上游依据「exit port vs `escape`」现位于 `SimRISC-11 §3 退出指令`（0.5.3 为 `SimRISC-04`）、`fence` SBZ 现位于 `SimRISC-12 §1.1 fence指令`（0.5.3 为 `SimRISC-04`）、浮点规范为 `SimRISC-07`（0.5.3 为 `SimRISC-03`）。均以 `contracts/opcodes.yaml` 的 `spec_cite` 实测为准。
