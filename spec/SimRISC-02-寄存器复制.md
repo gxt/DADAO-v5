@@ -1,6 +1,6 @@
 # SimRISC寄存器复制指令
 
-> **版本：0.5.5**（与 SimRISC-00 一致）
+> **版本：0.5.6-rc**（与 SimRISC-00 一致）
 > **分类：寄存器复制** — cs.*/ra2rd/rb2rb/rb2rd/rd2ra/rd2rb/rd2rd/rd2rf/rf2rd
 
 立即数常数赋值（rwii 格式：set.zw/set.ow/set.w/or.w/andn.w 的 rd/rb/rf 形式，以及 set.rd/set.rb/set.ft/set.fo 伪指令）详见 SimRISC-03（16位立即数操作）。

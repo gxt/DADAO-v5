@@ -2,6 +2,12 @@ format = 1
 # 只读册（上游 20 册 + v5 自定 1 册）：sha256 锁。修改须用户事先明确允许（授权原话落盘），并在
 # 同一变更内更新此处哈希。见 docs/Process-06-spec目录保护规范.md。
 policy = "readonly-requires-authorization"
+# 2026-10-25（SPEC-173t，用户原话「补充simrisc的一个重要内容：cmp.ut/cmp.uw/cmp.ub的-1结果，不是按后缀扩展，
+#   而是64位扩展；否则，br.n无法做出正确判断；」「原始文档就写错了！！！0.5.6-rc，rc版本不要归档」；
+#   原话落纸于 `.tao/adr/adr-0037-cmp-u-result-64bit.md` §状态说明）：`SimRISC-08/09/10` 比较操作高位规则
+#   订正为「比较结果按 64 位扩展（−1 ⇒ 64 位全 1；0 ⇒ 0；+1 ⇒ 1）」，源操作数仍按位宽截断，
+#   `.st`/`.sw`/`.sb` 不变；`SimRISC-00` QFC 布局说明去版本号 + 附录新开 `0.5.6-rc` 段；
+#   13 册册头版本 `0.5.5` → `0.5.6-rc`（`-rc` 不归档）。上述 13 册 sha256 于同一变更内同步重算（其余 8 册不变）。
 # 2026-10-24（SPEC-172t，用户裁定原话「版本号 0.5.5」「时点：现在（复跑已绿）」「发布动作照册子」
 #   「不预开新的 -rc 空段」；渠道 = 经主会话派发）：SimRISC 0.5.5 发布——13 册册头版本串去 `-rc`（`0.5.5`）；
 #   变更记录顶部段去 `-rc` 并补发布日期 2026-10-24，条目按主题合并为最终态（同一对象的多次中间态不再单列）；
@@ -184,13 +190,13 @@ group = "simrisc-00..12"
 #   `cs.eq_rrrr_rf`/`cs.ne_rrrr_rf` 文本随删格清除）；附录 0.5.5 段**追加** 1 条（历史行不改写）；sha256 同笔重算。
 # 2026-10-24（SPEC-167t，同授权）：并入非法指令（ILLI）/ 保留编码（UNDI）总规则为 §异常规则；各 QFC 子表只留 `reserved` 说明；sha256 同笔重算。
 # 2026-10-24（SPEC-168t，用户原话见 `.tao/tasks/spec/SPEC-168t-00清理.md` §用户裁定）：§2.2 删「高 16 位处理规则」表及其后「控制流指令硬件…溢出检测」句（保留存储模型段）；§4 七张编码表列对齐；`op`/`opcode` → `opc`、去「I 形态」；sha256 同笔重算。
-sha256 = "887c0805b2451845e56fb731cdb8635a4cb8a28fc67bbc4a70ed10313e4255d6"
+sha256 = "5198f414eba0e918f1a4f46ac4f0534dbbf6dc252a9aaf2bb6cb22b27f03914c"
 # 2026-10-22（SPEC-164t，授权原话见 `.tao/tasks/spec/SPEC-164t-OPC-MISC迁移与解excluded.md` §立项来源：「还有一个编码改动过：OPC-MISC的编码改为：0100-0111」「修改编码：ctpop_orri_rd ctlz_orri_rd cttz_orri_rd 从 OPC-octa 改为 OPC-MISC，opx：100-101/100-110/100-111」）：§4 QFC 主表 `OPC-MISC` 由 `0111-0111` 迁 `0100-0111`（原格置空）；§4.1 `100-101/110/111` 填 `ctpop`/`ctlz`/`cttz`；§4.2 删同三格与「借用 OPC-octa 格位」例外说明；附录 0.5.5 两条同步；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
 group = "simrisc-00..12"
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：拍平单包装层（删 `## 1. 存取类指令`，`### 1.1–1.4` → `## 1–4`）；去子节计数；sha256 同笔重算。
-sha256 = "e5765eeac30133c2c1f9be4107ac1bb31fd1b4a3d6e67ec297ab2110f04fd831"
+sha256 = "833224b9c04e34f802cb6a43cf1d8d6ef70ceaba26f68613521aecf671f718eb"
 
 [[spec]]
 path = "spec/SimRISC-02-寄存器复制.md"
@@ -201,13 +207,13 @@ group = "simrisc-00..12"
 #   分类计数 18→16、§2 合法性 `dst_rf0` 5→3、§3.3 删第二类浮点条件赋值并改「sub + cs.z」指引、
 #   附录 `0.5.5` 追加 1 条（**破坏性**）；sha256 同笔重算。
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：拍平单包装层（`1.1–1.3` → `1–3`，指针注并入册首）；断跨册引用；sha256 同笔重算。
-sha256 = "a1a099c63720ef19b84db1b64c78abb30a0247ed1da178bab8bc54ac4097d321"
+sha256 = "d30c9a518120015d0875166162e22c338074eb19590355d34319b2b0ccee76e3"
 
 [[spec]]
 path = "spec/SimRISC-03-16位立即数操作.md"
 group = "simrisc-00..12"
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：伪指令小节 `1.1–1.3` → `## 2–4`（§1 保留自有正文）；去册头计数；sha256 同笔重算。
-sha256 = "3ab02c36a3e20ebd5df4addd3c72a338b700ec17e1f5e03eeb88ab4dd7362443"
+sha256 = "6bb5d2bb84dab5af48399bb62ff985efe7bb5dcbfbe7011d460a2a65a8c69c4c"
 
 [[spec]]
 path = "spec/SimRISC-04-64位数据运算.md"
@@ -217,7 +223,7 @@ group = "simrisc-00..12"
 # 2026-10-22（SPEC-155t，授权原话见文件头注释）：§2 合法性清单生成区由 `gen_legality_list --apply` 重生成（`clmul.o` 移出 `scope: excluded` 区块，`dst_dual_same` 清单仍列明）；sha256 同笔重算。
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：删 not/neg 伪指令小节；去 rol/ctlz 具体编码值（保留格式代号）；断跨册引用；sha256 同笔重算。
 # 2026-10-24（SPEC-167t，同授权）：`ctlz`/`cttz`/`ctpop` 小节迁至 `SimRISC-12`（留跨册指引），`2.2.3` 重编为 `2.2.2`；生成区同步；sha256 同笔重算。
-sha256 = "5b0bf370d3b0bc9fd6a8b6988ffad999414c3f79094951f3818bb3021e640e17"
+sha256 = "e0024f615500e8bf9085547971bc12dee4311ad4e9197a85ca5a0b25acb76623"
 # 2026-10-22（SPEC-164t，同授权）：「格式」句由「借用 `OPC-octa` 格位（例外）」改为「位于 `OPC-MISC` 的 `100-101/100-110/100-111`」；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-05-64位地址运算.md"
@@ -227,7 +233,7 @@ group = "simrisc-00..12"
 #   册头分类行 `aip.si-rb`；汇编速查 / 合法性生成区重生成；`0.5.5` 段追加两条。
 # （rela.si 语义 / PC 基准 / 4 KiB 块单位 / 目的 rb0 ⇒ ILLI）+ 生成区（汇编速查 · 合法性）+ 附录条目。
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：拍平单包装层（`1.1–1.4` → `1–4`）；断跨册引用；sha256 同笔重算。
-sha256 = "28ca243355c52c647b5c14fd72fb32d2ae8532d5a0e00d8177413172167557cf"
+sha256 = "a932a5c84e6cd48b92e91bb94996b0b10eac05a28f76cc405e1a781ee56ccb3f"
 
 [[spec]]
 path = "spec/SimRISC-06-控制流.md"
@@ -235,7 +241,7 @@ path = "spec/SimRISC-06-控制流.md"
 #   + 生成器 `RULE_SUMMARY`）；`0.5.5` 段追加一条。
 group = "simrisc-00..12"
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：拍平单包装层（`1.1–1.4` → `1–4`）；删 return 伪指令小节；断跨册引用；sha256 同笔重算。
-sha256 = "dc0a4dfdfe0325b3c8413c91e9c2cf338b312e4a30a27ffa9d51f5940b08525a"
+sha256 = "53d671740851ac9c3ec87b44314d734379a5cb58e094d5233ce200e57aa65bb0"
 
 [[spec]]
 path = "spec/SimRISC-07-浮点运算.md"
@@ -268,25 +274,25 @@ group = "simrisc-00..12"
 # 2026-10-23（SPEC-158t，用户 2026-10-23 口径「纯账面迁移」）：`ftfma`/`fofma` 解除 `excluded`（`scope` → `fp`，
 #   语义/编码均不变）⇒ 附录 B 生成区重生成（`dst_rf0` 清单 +2、删 decode ILLI 区块）；sha256 同笔重算
 #   （其余只读册不变）。
-sha256 = "878568a9083ea39683e8d607db272fd21eea1483b248e0c74070b1d092f8e64d"
+sha256 = "6380baffcb8206bff8afc767d974fbf62a9c508a0ec43ebc3d1fcdca597be716"
 
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"
 group = "simrisc-00..12"
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：删 neg/not/逻辑运算（已删）小节；`Bit manipulating` 升为 §2；去 rol 编码值；断跨册引用；sha256 同笔重算。
-sha256 = "4de80a81196ab0dc4176c9ca4381bcd23555e042671d140c888c28fe08c6046c"
+sha256 = "36c55f5979c911e3c5efa727287dcf14b72abcabeb91bee19730912ef9517017"
 
 [[spec]]
 path = "spec/SimRISC-09-16位数据运算.md"
 group = "simrisc-00..12"
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：同 08（wyde）；sha256 同笔重算。
-sha256 = "19171629ccaa0aa203310168632adea4a371f775c1c17e4001fe7d14ffc8c399"
+sha256 = "8804eeb9b6ead7012a4f3076fea514efa7d526f580ab95b3e62f9bf20aca7c27"
 
 [[spec]]
 path = "spec/SimRISC-10-8位数据运算.md"
 group = "simrisc-00..12"
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：同 08（byte）；sha256 同笔重算。
-sha256 = "f7f0200621ec61025125a2b836b0a798364541a493648f699911b23899dabc53"
+sha256 = "fab93a880f9cbcfc78dd2fc9ed747541fb0bf80d3eed411a6216782ac13a0191"
 
 [[spec]]
 path = "spec/SimRISC-11-核芯功能扩展指令.md"
@@ -297,7 +303,7 @@ group = "simrisc-00..12"
 # 2026-10-21（SPEC-154t，同授权）：0.5.1 段日期统一为 2026-07-17 并补 diff 指针；sha256 同笔重算。
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：删 nop 伪指令小节；去 swym 具体编码值；断跨册引用；sha256 同笔重算。
 # 2026-10-24（SPEC-167t，同授权）：册名改「核芯功能扩展指令」（由「其它」）；只留 cfx 6 条，删「特权指令」提法；`cfxld`/`cfxst` 由 `SimRISC-12` 迁入并标待定；ILLI/UNDI 规则迁出至 `SimRISC-00`；sha256 同笔重算。
-sha256 = "b7be51701f80a387cb9357b74958c8aacf990d47e05467c40e75d365da15fda4"
+sha256 = "268172a9f77ac43cfd4cb86529a48dcab971cd8a7cf901ba6d66e0554cdcd098"
 # 2026-10-22（SPEC-164t，同授权）：`fence`/`lr`/`sc` 由 `excluded` 转 `m9`，§附录 B 生成区由 `gen_legality_list --apply` 重生成（25 条 `decode ILLI` 条目移出）；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-12-其它指令.md"
@@ -307,7 +313,7 @@ group = "simrisc-00..12"
 # 2026-10-21（用户原话「把 原子指令 从SimRISC-12移动到SimRISC-11」授权）：§3 原子指令（`fence`/`lr`·`sc`）整章迁出至 `SimRISC-11 §6`，原 §4 重编为 §3；sha256 同笔重算。
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：去册头计数；sha256 同笔重算。
 # 2026-10-24（SPEC-167t，同授权）：册名改「其它指令」（由「待定」）；迁入原子（fence/lr/sc）、空转（swym）、位扫描与位计数（ctlz/cttz/ctpop）；SRAM 块传输迁出至 `SimRISC-11`；sha256 同笔重算。
-sha256 = "59950cacc553aa40fb5eef513d6bce8c6934a2b3cdc39cb8ea11b991305e369d"
+sha256 = "8bf75130105018353fd15ecbd34a8af950ae63764deb3ccdd9db91996820d384"
 
 [[spec]]
 path = "spec/DADAO-11-AEE-应用程序运行环境.md"
