@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..b60b54f87
+index 000000000..ea6413e95
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,1202 @@
+@@ -0,0 +1,1205 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -208,8 +208,11 @@ index 000000000..b60b54f87
 +  let Pattern = [];
 +}
 +def tailjmp_rrii : DADAORrii<"jump"> {
++  // The base lives in the call-clobbered GPRBTC class: the epilogue is emitted
++  // immediately before this terminating jump, and its callee-saved restores
++  // would clobber a callee-saved base (LLVM-131t; see DADAORegisterInfo.td).
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRB:$ra, GPRD:$rb, imms12:$imm12);
++  let InOperandList = (ins GPRBTC:$ra, GPRD:$rb, imms12:$imm12);
 +  let op = 0x71;
 +  let Pattern = [];
 +}

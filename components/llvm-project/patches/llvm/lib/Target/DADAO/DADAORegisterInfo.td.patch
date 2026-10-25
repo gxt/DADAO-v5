@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.td b/llvm/lib/Target/DADAO/DADAORegisterInfo.td
 new file mode 100644
-index 000000000..2f1498d14
+index 000000000..3c64a1401
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.td
-@@ -0,0 +1,213 @@
+@@ -0,0 +1,229 @@
 +//===-- DADAORegisterInfo.td - DADAO Register defs ----------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -187,6 +187,22 @@ index 000000000..2f1498d14
 +         rb40, rb41, rb42, rb43, rb44, rb45, rb46, rb47,
 +         rb48, rb49, rb50, rb51, rb52, rb53, rb54, rb55,
 +         rb56, rb57, rb58, rb59, rb60, rb61, rb62, rb63
++    )>;
++
++// RB "tail-call" subset (LLVM-131t): rb4-rb31, i.e. the call-clobbered half.
++// The base register of an indirect *tail-jump* must live here: PEI emits the
++// epilogue (callee-saved restores + frame teardown) immediately before the
++// terminating jump, so a callee-saved base would be overwritten by the restore
++// between the address materialization and the jump.  Same reason x86 names a
++// `GR64_TC` (tail call) class and AArch64 a `tcGPR64` class (contract-abi.md
++// §1.6: rb32-rb63 are the callee-saved pool).  Ordinary `call_rrii` and the
++// jump-table / BRIND `jump_rrii` keep the full GPRB class: their register is
++// consumed before any epilogue.
++def GPRBTC : RegisterClass<"DADAO", [i64], 64,
++    (add rb4, rb5, rb6, rb7,
++         rb8, rb9, rb10, rb11, rb12, rb13, rb14, rb15,
++         rb16, rb17, rb18, rb19, rb20, rb21, rb22, rb23,
++         rb24, rb25, rb26, rb27, rb28, rb29, rb30, rb31
 +    )>;
 +
 +// RF: allocatable in M6 (LLVM-066t; contract-abi.md §1.6).  rf0 (FCSR) is

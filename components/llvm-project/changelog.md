@@ -496,3 +496,7 @@
 - **2026-10-25 LLVM-130t**
   - 摘要：**64 位缺省与 DWARF64**：① `DADAOMCAsmInfo` 设 `CodePointerSize = CalleeSaveStackSlotSize = 8`（`MCAsmInfo` 默认 4 ⇒ `.debug_addr` 地址落 4 字节字段，`clang -g` 报 `relocatable operand in a 1/2/4-byte data field`；CFI `data_alignment_factor` 同源）；② 驱动在启用调试信息时默认追加 `-gdwarf64`，显式 `-gdwarf32` ⇒ `err_drv_unsupported_opt_for_target`（ABI 无 32 位地址重定位通道）；③ 新增 L1 `check-width-sizes`（6 条静态宽度断言 + ELF64 / RELA entsize 24 / `.got` 项 8 + 链接产物 CU `addr_size=0x08` 且 `format=DWARF64`，每条可达 FAIL；`.o` 因 dwarfdump 不应用 `R_DADAO_ABS48` 改看链接产物）；`LLVM_MC_FULL_TARGETS` / `HOST_LLVM_TOOLS` 增 `llvm-dwarfdump`。真值：`-g -c` rc=0（修复前 rc=1、8 条报错）；`make check-width-sizes` 15/15；`run.sh --with-l1` 9/9；L1/L2 绿。
   - 执行者：engineer
+
+- **2026-10-25 LLVM-131t**
+  - 摘要：**代码模型 default/large（ADR-0036 D1–D6）**：① 驱动 `-mcmodel=default|large`（`small` 为别名），`medium|kernel|tiny` ⇒ 新诊断 `err_drv_dadao_code_model`（文案含目标与允许值）；② `DADAOTargetMachine::selectCodeModel` 只放行 Small/Large；`large` 下 `LowerCall`（普通调用 + 尾跳）把 callee 物化为 ABS48（PIC 走 GOT PCREL）后间接 `call rb, rd, imm12`，动态导入保持 PLT 直接；③ 新增 `GPRBTC`（rb4–rb31）给 `tailjmp_rrii` 基址，避免 PEI 恢复 callee-saved 覆盖物化地址（同修原函数指针尾调用隐患）；④ 新增 lit `code-model-large.ll`、e2e `mcmodel.test` 与远距布局 fixture。真值：`run.sh` 24/24、`run.sh --inject` 29/29、L1/L2 绿；64 MiB 远距布局 `large` 链接成功、`default` 报 REL26 越界；`default` 下 libcall 保持 `call [rb0, memcpy]`（返工修门控）。
+  - 执行者：engineer

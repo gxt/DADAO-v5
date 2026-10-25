@@ -43,9 +43,9 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-131t | 已验证 | 2026-10-25 15:56 | 代码模型 default/large：驱动 `-mcmodel` 口径 + large 间接调用序列 + 远距布局用例 |
 | INFRA-106t | 已验证 | 2026-10-25 13:48 | 代码跨度门控：REL26/20/14 余量报告 + 单 DSO 可执行区 <30 MiB（L2） |
 | LLVM-130t | 已验证 | 2026-10-25 12:15 | 64 位缺省：CodePointerSize/CalleeSaveStackSlotSize=8 + 默认 DWARF64 + 位宽探针 |
-| LLVM-131t | 待开始 | 2026-10-25 11:30（登记） | 代码模型 default/large：驱动 -mcmodel 口径 + large 间接调用序列 |
 | INTEG-037m | 已验证 | 2026-10-25 00:00 | M9 整体核验：67 册全验证、终局复跑 0 fail、open issue 10（M10 登记） |
 
 ## 当前进度（2026-10-22）

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..3ceb5c05a
+index 000000000..d13886e0e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,803 @@
+@@ -0,0 +1,811 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -381,11 +381,19 @@ index 000000000..3ceb5c05a
 +    // R_DADAO_ABS48 relocation on that instruction's immu16 field, and the
 +    // linker selects the 16-bit slice from the instruction's wyde-position
 +    // (wp).  The constant offset is part of the symbol expression (r_addend).
++    // The symbol is an MO_GlobalAddress or, for a libcall target reached
++    // through `-mcmodel=large` (LLVM-131t), an MO_ExternalSymbol.
 +    Register Dst = MI.getOperand(0).getReg();
 +    const MachineOperand &Sym = MI.getOperand(1);
 +    auto AddSym = [&](MachineInstrBuilder MIB) {
-+      MIB.addGlobalAddress(Sym.getGlobal(), Sym.getOffset(),
-+                           Sym.getTargetFlags());
++      if (Sym.isGlobal()) {
++        MIB.addGlobalAddress(Sym.getGlobal(), Sym.getOffset(),
++                             Sym.getTargetFlags());
++      } else {
++        assert(Sym.isSymbol() &&
++               "GLOBAL_ADDR expects a global address or an external symbol");
++        MIB.addExternalSymbol(Sym.getSymbolName(), Sym.getTargetFlags());
++      }
 +    };
 +    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
 +    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));

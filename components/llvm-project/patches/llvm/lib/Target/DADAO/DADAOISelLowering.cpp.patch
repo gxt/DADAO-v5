@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..647556c97
+index 000000000..0cb7b5605
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,3004 @@
+@@ -0,0 +1,3113 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -54,6 +54,7 @@ index 000000000..647556c97
 +
 +#include <functional>
 +#include <iterator>
++#include <optional>
 +
 +using namespace llvm;
 +
@@ -1311,6 +1312,56 @@ index 000000000..647556c97
 +  return DAG.getNode(DADAOISD::RET_GLUE, DL, MVT::Other, RetOps);
 +}
 +
++//===----------------------------------------------------------------------===//
++// Code model `large` (LLVM-131t, ADR-0036 D5)
++//===----------------------------------------------------------------------===//
++//
++// The direct call/jump form (`call_iiii` / `jump_iiii`) reaches its target
++// through a 24-bit PC-relative *word* offset (R_DADAO_REL26,
++// contract-elf.md §3.1) => +/-32 MiB around the instruction.  The `large` code
++// model does not assume that reach: the target address is materialized into an
++// RB register and the call/jump becomes the indirect form
++// (`call rb, rd0, 0` / `jump [rb, rd0, 0]`, contract-isa.md §8.3/§8.5), which
++// uses the absolute 48-bit address the ISA can express.
++//
++// The address is built by the ordinary address path (an ISD::GlobalAddress /
++// ISD::ExternalSymbol selected exactly like any other symbol address), so
++// `large` pays the sequence the ABI already uses for an address:
++//   * static relocation model -> ABS48: `set.zw` + 2x `or.w` (R_DADAO_ABS48),
++//     the form D5 specifies;
++//   * PIC (`-fPIC`/`-fPIE`)   -> `aip.si` + `ld.o` on the symbol's GOT slot
++//     (PC-relative, +/-512 MiB); an absolute 48-bit address cannot be written
++//     into a shared object's `.text`, because only the loader knows the module
++//     base (ADR-0029 D4).
++//
++// A dynamic import keeps the direct form: its REL26 relocation is modeled as
++// R_PLT_PC by the linker (lld/ELF/Arch/DADAO.cpp, getRelExpr), so the call
++// lands on the symbol's PLT stub, which is emitted next to `.text` (12 B per
++// entry) and therefore always in range; routing an import through an absolute
++// address would also defeat symbol interposition.  "Import" is read from the
++// IR: a symbol that is not `dso_local` may be preempted or come from another
++// DSO (ADR-0036 D5).  Under the static relocation model nothing can be
++// preempted (every symbol is `dso_local`), so the whole image -- cross-object
++// calls and libcalls included -- takes the indirect form; that is precisely the
++// >32 MiB static monolith `large` exists for (D6).
++static bool useIndirectCallee(const TargetMachine &TM, const GlobalValue *GV) {
++  if (TM.getCodeModel() != CodeModel::Large)
++    return false;
++  // An undefined *weak* function has no address: lld resolves the reference to
++  // the branch itself (a self-loop, contract-elf.md §3.2 / LLVM-085t), which is
++  // only expressible in the PC-relative form.  Keep it direct so that behaviour
++  // is unchanged; a weak *definition* has an address and takes the indirect
++  // form like any other callee.
++  if (GV && GV->hasExternalWeakLinkage() && GV->isDeclarationForLinker())
++    return false;
++  if (TM.getRelocationModel() == Reloc::Static)
++    return true;
++  // PIC: only a symbol that cannot be preempted may be addressed from here; an
++  // imported/preemptible one must keep the direct call so that the linker
++  // routes it through a PLT stub.
++  return GV && GV->isDSOLocal();
++}
++
 +SDValue DADAOTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 +                                       SmallVectorImpl<SDValue> &InVals) const {
 +  // M6 call lowering (contract-abi.md §4/§6, ADR-0018 C4/C16):
@@ -1351,6 +1402,53 @@ index 000000000..647556c97
 +  // stack size (the generic CC counted the pieces one by one).
 +  const uint64_t ArgStackSize =
 +      reassignDADAOArgLocs<ISD::OutputArg>(Outs, ArgLocs);
++
++  // Direct callee operand, or -- under `-mcmodel=large` -- the indirect one
++  // built by materializing the target address into an RB register (see
++  // useIndirectCallee above).  The address materialization is appended to the
++  // chain/glue so it is scheduled after the argument copies and before the
++  // call, exactly like the pre-existing function-pointer path below.
++  //
++  // A tail-jump materializes into GPRBTC (call-clobbered) rather than GPRB: the
++  // epilogue `tailjmp_*` is isReturn, so PEI emits the callee-saved restores
++  // before it, and a callee-saved base register would be overwritten between
++  // the materialization and the jump.
++  auto largeModelCallee = [&](SDValue Callee, SDValue &CallChain,
++                              SDValue &Glue,
++                              bool IsTailJump) -> std::optional<SDValue> {
++    // Everything below is gated on the code model: `default` must keep the
++    // pre-existing direct form byte for byte -- libcalls included, because they
++    // reach LowerCall as an ExternalSymbolSDNode and are still direct calls in
++    // the default model (every other CodeGen test pins that shape).
++    if (getTargetMachine().getCodeModel() != CodeModel::Large)
++      return std::nullopt;
++    SDValue Target;
++    if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
++      if (!useIndirectCallee(getTargetMachine(), G->getGlobal()))
++        return std::nullopt;
++      // Reuse the normal address path (ABS48 statically, GOT slot under PIC),
++      // constant offset included.
++      Target =
++          DAG.getGlobalAddress(G->getGlobal(), DL, MVT::i64, G->getOffset());
++    } else if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
++      // A libcall target: there is no GlobalValue to inspect, so the relocation
++      // model decides (useIndirectCallee with a null GV).  Statically the
++      // symbol is resolved inside the image (nothing to import), so it takes
++      // the indirect form like any other callee; under PIC it is an import and
++      // keeps the direct form.
++      if (!useIndirectCallee(getTargetMachine(), nullptr))
++        return std::nullopt;
++      Target = DAG.getExternalSymbol(E->getSymbol(), MVT::i64);
++    } else {
++      return std::nullopt;
++    }
++    const TargetRegisterClass *RC =
++        IsTailJump ? &DADAO::GPRBTCRegClass : &DADAO::GPRBRegClass;
++    Register TargetReg = MF.getRegInfo().createVirtualRegister(RC);
++    CallChain = DAG.getCopyToReg(CallChain, DL, TargetReg, Target, Glue);
++    Glue = CallChain.getValue(1);
++    return DAG.getRegister(TargetReg, MVT::i64);
++  };
 +
 +  // Real tail call (LLVM-074t; contract-isa.md §8.3/§8.4, contract-abi.md
 +  // §2.3/§4.6).  DADAO has no tail-call instruction, but it does have a plain
@@ -1447,16 +1545,22 @@ index 000000000..647556c97
 +        TailRegs.push_back(std::make_pair(VA.getLocReg(), Arg));
 +      }
 +
-+      // Callee operand: a target global/external symbol (direct) or a GPRB
-+      // virtual register holding the target address (indirect), as in CALL.
++      // Callee operand: a target global/external symbol (direct) or a
++      // call-clobbered RB register holding the target address (indirect), as in
++      // CALL.  Under `-mcmodel=large` a direct symbol becomes an indirect
++      // callee here.
++      std::optional<SDValue> LargeCallee =
++          largeModelCallee(Callee, Chain, ArgGlue, /*IsTailJump=*/true);
 +      SDValue CalleeOp;
-+      if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
++      if (LargeCallee) {
++        CalleeOp = *LargeCallee;
++      } else if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
 +        CalleeOp = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i64);
 +      } else if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
 +        CalleeOp = DAG.getTargetExternalSymbol(E->getSymbol(), MVT::i64);
 +      } else {
 +        Register TargetReg =
-+            MF.getRegInfo().createVirtualRegister(&DADAO::GPRBRegClass);
++            MF.getRegInfo().createVirtualRegister(&DADAO::GPRBTCRegClass);
 +        Chain = DAG.getCopyToReg(Chain, DL, TargetReg, Callee, ArgGlue);
 +        ArgGlue = Chain.getValue(1);
 +        CalleeOp = DAG.getRegister(TargetReg, MVT::i64);
@@ -1555,9 +1659,14 @@ index 000000000..647556c97
 +  }
 +
 +  // Turn the callee into the call operand: a target global/external symbol for
-+  // a direct call, or a GPRB virtual register for an indirect one.
++  // a direct call, or a GPRB virtual register for an indirect one.  Under
++  // `-mcmodel=large` a direct symbol is materialized and becomes indirect.
++  std::optional<SDValue> LargeCallee =
++      largeModelCallee(Callee, Chain, ArgGlue, /*IsTailJump=*/false);
 +  SDValue CalleeOp;
-+  if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
++  if (LargeCallee) {
++    CalleeOp = *LargeCallee;
++  } else if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
 +    CalleeOp = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i64);
 +  } else if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
 +    CalleeOp = DAG.getTargetExternalSymbol(E->getSymbol(), MVT::i64);

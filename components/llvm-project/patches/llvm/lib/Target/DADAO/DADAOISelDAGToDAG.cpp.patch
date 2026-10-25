@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..502bd06de
+index 000000000..d50a2ffad
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,864 @@
+@@ -0,0 +1,885 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -358,6 +358,27 @@ index 000000000..502bd06de
 +    SDValue TBA = CurDAG->getTargetBlockAddress(BA->getBlockAddress(),
 +                                                MVT::i64, BA->getOffset());
 +    SDNode *M = CurDAG->getMachineNode(DADAO::BLOCK_ADDR, DL, MVT::i64, TBA);
++    ReplaceNode(Node, M);
++    return;
++  }
++  case ISD::ExternalSymbol: {
++    // Address of a symbol that has no GlobalValue (a libcall target such as
++    // `memcpy`): `-mcmodel=large` materializes it before an indirect call, and
++    // the materialization is the same fixed 3-slice absolute sequence as a
++    // global address (GLOBAL_ADDR -> set.zw/or.w, each slice an
++    // R_DADAO_ABS48 relocation).
++    //
++    // Gated on the code model: in `default` a plain ISD::ExternalSymbol must
++    // never be created (LowerCall keeps the libcall direct), so leave it to
++    // SelectCode -- a loud "Cannot select" rather than a silently different
++    // call shape.  Likewise only the static relocation model reaches the
++    // materialization: a PIC build keeps an import's direct call (PLT).
++    if (TM.getCodeModel() != CodeModel::Large)
++      break;
++    const SDLoc DL(Node);
++    auto *ES = cast<ExternalSymbolSDNode>(Node);
++    SDValue Sym = CurDAG->getTargetExternalSymbol(ES->getSymbol(), MVT::i64);
++    SDNode *M = CurDAG->getMachineNode(DADAO::GLOBAL_ADDR, DL, MVT::i64, Sym);
 +    ReplaceNode(Node, M);
 +    return;
 +  }

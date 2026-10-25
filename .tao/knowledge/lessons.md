@@ -203,6 +203,14 @@
 - `llvm-dwarfdump` 对 DADAO `.o` 返回 rc=1（libObject 不应用 `R_DADAO_ABS48` wyde 重定位，报 `failed to compute relocation`），但 CU 头值本身正确；以 `rc==0` 为条件的断言会假红。
 - 判据：调试信息类断言（address size / DWARF 格式 / 行表）一律在**链接后**产物上做（重定位已解析、rc=0）；`.o` 只保留段表 / 重定位表类检查。
 
+### 2.46 新增「按模型/开关变形」的路径，门控放唯一入口
+- 为某个开关（代码模型、reloc 模型、目标特性）新增变形路径时，**在唯一入口判一次**并直接返回「不适用」；在每个分支各判一半 ⇒ 必漏（本次 `default` 下 libcall 误走间接，冲掉 8 条既有 lit）。
+- 回归证据要覆盖「开关关时的旧形态逐字节不变」，不能只测「开关开时的新形态」。
+
+### 2.47 对象级断言以 `llvm-objdump -dr` 真实输出为准
+- 对 `.o` 反汇编打印的是**原始立即数 + 独立重定位行**（`call [rb0, 0]` 后跟 `R_DADAO_REL26 sym`），不是汇编文本的符号形态；按 `.s` 形态写期望会在重建后假红。
+- FileCheck 的 `--implicit-check-not` 在 DAG 组内不可靠；否定断言用 `%not grep -q`（与 `fma_e2e.test` 同范式）。
+
 ---
 
 ## §3 收尾与提交
