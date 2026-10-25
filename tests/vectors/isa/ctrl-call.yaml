@@ -99,12 +99,18 @@
   spec_cite: 'SimRISC-00: 压栈流程; SimRISC-06: 函数调用; ADR-0004 D5.5'
   status: active
 - class: semantic
-  deferred_reason: 'ISS-098: harness 对 `call` 无语义宽度可推导 (build_test_binary.py:205 ValueError)，用例不可执行'
+  deferred_reason: null
   encoding:
     word: '0x74000002'
   expected_fault: null
-  expected_pc: null
-  expected_state: null
+  expected_pc: '0xFC0000000008'
+  expected_state:
+    memory:
+    - address: '0xFC0000EFFFF8'
+      value: '0x0005DDDD00000000'
+    ra:
+      ra0: '0x003FFC0000EFFFF8'
+      ra63: '0x0001FC0000000004'
   format: iiii
   id: call_iiii_ra
   input_state:
@@ -115,11 +121,9 @@
   mnemonic: call
   notes: 'semantic C3b (MemRAS spill): ra0=0x003FFC0000F00000 (RACNT=63, MRPTR=0xFC0000F00000); ra1=[count=5, addr=0xDDDD00000000]
     (oldest, idx=64-63=1); ra63=[count=1, addr=0xCCCC00000000]; PC+4=0xFC0000000004 ≠ ra63[47:0] → C3b: MRPTR-=8→0xFC0000EFFFF8,
-    spill ra1→MemRAS[0xFC0000EFFFF8], push new ra63=[1, 0xFC0000000004]; RACNT stays 63；【deferred】原期望: expected_state={"memory":
-    [{"address": "0xFC0000EFFFF8", "value": "0x0005DDDD00000000"}], "ra": {"ra0": "0x003FFC0000EFFFF8", "ra63": "0x0001FC0000000004"}}
-    expected_pc=0xFC0000000008'
+    spill ra1→MemRAS[0xFC0000EFFFF8], push new ra63=[1, 0xFC0000000004]; RACNT stays 63'
   spec_cite: 'SimRISC-00: 压栈流程; SimRISC-06: 函数调用'
-  status: deferred
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:

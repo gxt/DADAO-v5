@@ -84,7 +84,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `br.nz_riii_rb` | `riii` | `ctrl-br.yaml` | ✓ | — | ✓ | ✓ | — | 同上 |
 | `call_iiii_ra` | `iiii` | `ctrl-call.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `call_rrii_ra` | `rrii` | `ctrl-call.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `ret_riii_ra` | `riii` | `ctrl-ret.yaml` | — | ✓ | deferred ISS-098 | — | — | encoding 豁免：返回目标依赖 harness 布局、单指令不可构造（非恒 fault，见 `TESTCASES-006t`）；semantic **deferred `ISS-098`**：harness 对 `ret` 路由 `build_call_ret_binary` 剥离 RA ⇒ QEMU SIGABRT，5 条 semantic 用例不可执行（原期望存向量 `notes`，修好后恢复 active） |
+| `ret_riii_ra` | `riii` | `ctrl-ret.yaml` | — | ✓ | ✓ | — | — | encoding 豁免：返回目标依赖 harness 布局、单指令不可构造（非恒 fault，见 `TESTCASES-006t`）；semantic 5 条已由 `TESTCASES-063t` 恢复 `active`（harness `build_ret_binary` 用向量自身 RA + 在 `expected_pc` 处放 landing pad；不再合成 call 覆盖 ra63） |
 | `swym_oiii_imm` | `oiii` | `misc.yaml` | ✓ | — | ✓ | — | — | 占位指令（§13.1），无 fault，legality 不适用 |
 | `and.o_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `or.o_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |

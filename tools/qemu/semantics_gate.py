@@ -73,17 +73,13 @@ PREVIOUS_CARRIERS = (
     "atomics-fence.yaml",
 )
 
-# ── 已知 harness 缺陷（ISS-098）：**精确到用例**的 deferred 登记 ─────────
-# 向量侧已对这些用例标 `status: deferred`（含 deferred_reason 指针 + 原期望存
+# ── deferred 登记：**精确到用例**（禁按类/正则批量豁免）─────────────────
+# 向量侧对暂缓用例标 `status: deferred`（含 deferred_reason 指针 + 原期望存
 # notes）；门控在此**再登记一遍**，实际 deferred 集合 != 本表 ⇒ FAIL
-# （多一条 = 偷偷豁免；少一条 = 白挂 deferred）。**禁**按类/正则批量豁免。
+# （多一条 = 偷偷豁免；少一条 = 白挂 deferred）。
+# `ISS-098` 的 6 条（ctrl-call[5] + ctrl-ret[0,1,2,3,8]）已由 TESTCASES-063t
+# 修复 harness 后全部还原 `active`，故本表不再登记它们。
 KNOWN_DEFERRED = {
-    ("ctrl-call.yaml", 5): "ISS-098: call 无语义宽度可推导（build_test_binary.py:205 ValueError）",
-    ("ctrl-ret.yaml", 0): "ISS-098: ret 路由 build_call_ret_binary ⇒ QEMU SIGABRT",
-    ("ctrl-ret.yaml", 1): "ISS-098: ret 路由 build_call_ret_binary ⇒ QEMU SIGABRT",
-    ("ctrl-ret.yaml", 2): "ISS-098: ret 路由 build_call_ret_binary ⇒ QEMU SIGABRT",
-    ("ctrl-ret.yaml", 3): "ISS-098: ret 路由 build_call_ret_binary ⇒ QEMU SIGABRT",
-    ("ctrl-ret.yaml", 8): "ISS-098: ret 路由 build_call_ret_binary ⇒ QEMU SIGABRT",
     # 既有 deferred（非本任务新增）：cs.* overlap 快照 C-27，inventory 已声明
     ("reg-cond-assign.yaml", 15): "C-27: overlap 快照 deferred（inventory 既有声明）",
     ("reg-cond-assign.yaml", 16): "C-27: overlap 快照 deferred（inventory 既有声明）",
@@ -445,7 +441,7 @@ def main() -> int:
     for key in deferred_missing:
         _fail(errs, f"已登记 deferred 但向量里未挂: {key[0]}[{key[1]}]")
     print(f"  deferred 登记: {len(deferred_live)}/{len(KNOWN_DEFERRED)} 条"
-          f"（精确名单：ISS-098 6 + 既有 C-27 5；禁按类/正则豁免；"
+          f"（精确名单：既有 C-27 5；禁按类/正则豁免；"
           f"{'一致' if not (deferred_extra or deferred_missing) else '不一致'}）")
     print("  gate 目录: %s（symlink 校验通过）" % args.gate_dir)
     print(f"  QEMU: {args.qemu}  jobs={args.jobs}")
@@ -469,7 +465,7 @@ def main() -> int:
         errs.extend(fail_details)
         errs.append(f"非全绿: failed={failed} errors={errors}")
     if deferred:
-        # deferred 只允许 ISS-098 精确名单（上面已比对）；此处仅留 trace
+        # deferred 只允许 KNOWN_DEFERRED 精确名单（上面已比对）；此处仅留 trace
         print(f"  deferred（已登记，不执行）: "
               f"{', '.join(f'{f}[{i}]' for f, i in sorted(deferred_live))}")
     if total - deferred <= 0:

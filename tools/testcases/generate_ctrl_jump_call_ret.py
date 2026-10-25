@@ -50,7 +50,6 @@ IMM = 2                         # imm for jump/call (not 0, not 1)
 TARGET = "0x%012X" % (RB0 + (IMM << 2))
 RETURN_ADDR = "0x%012X" % (RB0 + 4)
 RA64_FMT = "0x%016X"            # 64-bit hex for RA registers
-HEX48_FMT = "0x%012X"           # 48-bit hex for MRPTR / addresses
 
 # MemRAS test addresses (inside the RAM window, 8-byte aligned).  The single RAM
 # segment is [0xFC00_0000_0000, +16 MiB) (ADR-0004 R3 + rev. 2026-10-11), so the
@@ -163,19 +162,19 @@ SC_CALL_RASOF = "SimRISC-00: 压栈流程; SimRISC-06: 函数调用; ADR-0004 D5
 SC_CALL_C3b_MEM = "SimRISC-00: 压栈流程; SimRISC-06: 函数调用"
 SC_CALL_LEG = "SimRISC-06: 函数调用; ADR-0020 D15 / ADR-0004 D5.8"
 
-# ── ISS-098 已知 harness 缺陷（精确到用例；禁按类/正则批量豁免）──────────
-# 这些用例的**语义期望**经 spec 核对无争议，但 harness 当前无法执行 ⇒
-# status=deferred + 指针；门控侧另有 KNOWN_DEFERRED 精确名单（多/少即红）。
-DEFER_CALL_C3B = ("ISS-098: harness 对 `call` 无语义宽度可推导 "
-                  "(build_test_binary.py:205 ValueError)，用例不可执行")
-DEFER_RET = ("ISS-098: harness 对 `ret` 路由 build_call_ret_binary 剥离 RA ⇒ "
-             "QEMU SIGABRT (Unknown exit code 0x-6)，用例不可执行")
+# ── 备注（ISS-098 修复后，TESTCASES-063t）───────────────────────────────
+# 曾经的 `DEFER_CALL_C3B` / `DEFER_RET` 精确 defer 已全部还原 active：
+# harness 的 `build_ret_binary` 改用向量自身的 RA（不再合成 call 覆盖 ra63），
+# 宽度推导对非访存助记符按「一条 octa」处理（`ret` 不再被误判成 tetra、
+# `call` 不再抛裸 ValueError）。门控侧 `KNOWN_DEFERRED` 同步删除这 6 条。
 SC_RET = "SimRISC-06: 函数返回; SimRISC-00: 返回地址栈; ADR-0004 D6.5"
 SC_RET_D2 = "SimRISC-00: 弹栈流程; SimRISC-06: 函数返回"
 SC_RET_D3 = "SimRISC-00: 弹栈流程; SimRISC-06: 函数返回"
 SC_RET_D4b = "SimRISC-00: 弹栈流程; SimRISC-06: 函数返回"
 SC_RET_RASUF = "SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; ADR-0004 D5.5"
 SC_RET_D4B_RASUF = "SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; ADR-0004 D5.5"
+SC_RET_D4B_UNMAPPED = ("SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; "
+                       "ADR-0020 D15 / ADR-0004 D5.8")
 # TESTCASES-022t: ret rd0 ⇒ imms18 MUST be 0 (dst_rd0_nonzero); rd != rd0 unconstrained
 SC_RET_RD0_IMMS18 = "SimRISC-06: 函数返回; SimRISC-00: 数据寄存器"
 
@@ -345,8 +344,7 @@ def _gen_call_iiii():
               "ra63=[count=1, addr=0xCCCC00000000]; PC+4=0xFC0000000004 ≠ "
               "ra63[47:0] → C3b: MRPTR-=8→%s, spill ra1→MemRAS[%s], "
               "push new ra63=[1, 0xFC0000000004]; RACNT stays 63"
-              % (c3b_in_ra0, c3b_mrptr, c3b_mrptr_after, c3b_mem_addr),
-              status="deferred", deferred_reason=DEFER_CALL_C3B),
+              % (c3b_in_ra0, c3b_mrptr, c3b_mrptr_after, c3b_mem_addr)),
     ]
 
 
@@ -439,26 +437,39 @@ def _gen_ret_riii():
     d3_out_ra63 = RA64_FMT % ((1 << 48) | 0xAAAA_0000_0000)
 
     # D4b cnt>1: RACNT==0, MRPTR!=0, MemRAS entry count>1 → push to stack, RACNT=1
-    #   MemRAS entry: count=3, addr=0xBBBB00000000 at MRPTR
+    #   MemRAS entry: count=3, addr=<executable return target at PC+4>
     #   After: count-1=2, pushed to ra63, MRPTR+=8, RACNT=1
-    #   PC = entry[47:0] = 0xBBBB00000000
+    #   PC = entry[47:0] = 0xFC0000000004
+    #   (ISS-098/TESTCASES-063t: the entry address is the instruction's return
+    #   target, so it must be executable RAM — the previous magic 0xBBBB… value
+    #   made the case unobservable: `ret` to 0xBBBB00000000 faults UNMAPPED(0x87)
+    #   before any state comparison can run.  The magic shape is kept as a
+    #   legality case, the RAS bookkeeping assertions are unchanged.)
     d4b_mrptr = MRPTR_BASE
     d4b_mrptr_after = "0x%012X" % (d4b_mrptr + 8)
     d4b_in_ra0 = _ra0(0, d4b_mrptr)
-    d4b_mem_in = RA64_FMT % ((3 << 48) | 0xBBBB_0000_0000)
+    d4b_entry = int(RETURN_ADDR, 16)
+    d4b_mem_in = RA64_FMT % ((3 << 48) | d4b_entry)
     d4b_out_ra0 = _ra0(1, d4b_mrptr + 8)
-    d4b_out_ra63 = RA64_FMT % ((2 << 48) | 0xBBBB_0000_0000)
-    d4b_pc = HEX48_FMT % 0xBBBB_0000_0000  # PC = entry[47:0]
+    d4b_out_ra63 = RA64_FMT % ((2 << 48) | d4b_entry)
+    d4b_pc = RETURN_ADDR                  # PC = entry[47:0]
 
     # D4b cnt=1: RACNT==0, MRPTR!=0, MemRAS entry count=1 → consume, no push
-    #   MemRAS entry: count=1, addr=0xCCCC00000000 at MRPTR
+    #   MemRAS entry: count=1, addr=<executable return target at PC+4>
     #   After: PC=entry[47:0], MRPTR+=8, RACNT stays 0, no RegRAS change
     d4b1_mrptr = MRPTR_BASE
     d4b1_mrptr_after = "0x%012X" % (d4b1_mrptr + 8)
     d4b1_in_ra0 = _ra0(0, d4b1_mrptr)
-    d4b1_mem_in = RA64_FMT % ((1 << 48) | 0xCCCC_0000_0000)
+    d4b1_entry = int(RETURN_ADDR, 16)
+    d4b1_mem_in = RA64_FMT % ((1 << 48) | d4b1_entry)
     d4b1_out_ra0 = _ra0(0, d4b1_mrptr + 8)
-    d4b1_pc = HEX48_FMT % 0xCCCC_0000_0000  # PC = entry[47:0]
+    d4b1_pc = RETURN_ADDR                 # PC = entry[47:0]
+
+    # D4b UNMAPPED: the same MemRAS pop with a non-RAM return target
+    #   (the shape the pre-063t D4b semantic cases used): ret takes PC from the
+    #   entry → instruction fetch at 0xBBBB00000000 (cfxha 46, no mapping) →
+    #   UNMAPPED (0x87); the RAS was consumed before the fetch.
+    d4bu_mem_in = RA64_FMT % ((1 << 48) | 0xBBBB_0000_0000)
 
     # D4b cnt=0: RACNT==0, MRPTR!=0, MemRAS entry count=0 → RASUF
     d4b0_in_ra0 = _ra0(0, d4b_mrptr)
@@ -485,8 +496,7 @@ def _gen_ret_riii():
               "semantic D2 (count>1): ra0=%s, ra63=[count=3, "
               "addr=0xFC0000000004]; ret → PC=ra63[47:0]=0xFC0000000004; "
               "count 3→2, RACNT unchanged (2); ra63=[count=2, "
-              "addr=0xFC0000000004]" % d2_in_ra0,
-              status="deferred", deferred_reason=DEFER_RET),
+              "addr=0xFC0000000004]" % d2_in_ra0),
         # D3: pop stack top (count==1)
         _case("semantic", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d3_in_ra0, "ra63": d3_in_ra63,
@@ -497,8 +507,7 @@ def _gen_ret_riii():
               "addr=0xFC0000000004], ra62=[count=1, addr=0xAAAA00000000]; "
               "ret → PC=0xFC0000000004; count=1 → pop: shift-down, "
               "ra62→ra63=[count=1, addr=0xAAAA00000000]; RACNT→1, ra0=%s"
-              % (d3_in_ra0, d3_out_ra0),
-              status="deferred", deferred_reason=DEFER_RET),
+              % (d3_in_ra0, d3_out_ra0)),
         # D4b cnt>1: restore from MemRAS, push to stack
         _case("semantic", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d4b_in_ra0},
@@ -507,11 +516,14 @@ def _gen_ret_riii():
               {"ra": {"ra0": d4b_out_ra0, "ra63": d4b_out_ra63}},
               None, d4b_pc, SC_RET_D4b,
               "semantic D4b (MemRAS count>1): ra0=%s (RACNT=0, MRPTR=0x%X); "
-              "MemRAS[MRPTR]=[count=3, addr=0xBBBB00000000]; "
-              "ret → PC=条目[47:0]=0xBBBB00000000; count>1→push to stack: "
-              "ra63=[count=2, addr=0xBBBB00000000], MRPTR+=8→%s, RACNT=1"
-              % (d4b_in_ra0, d4b_mrptr, d4b_mrptr_after),
-              status="deferred", deferred_reason=DEFER_RET),
+              "MemRAS[MRPTR]=[count=3, addr=%s]; "
+              "ret → PC=条目[47:0]=%s; count>1→push to stack: "
+              "ra63=[count=2, addr=%s], MRPTR+=8→%s, RACNT=1；"
+              "（TESTCASES-063t: 条目地址即 ret 的取指目标，须为可执行 RAM ⇒ "
+              "用 canonical 返回地址；原 0xBBBB00000000 形态见本册 "
+              "legality UNMAPPED 用例）"
+              % (d4b_in_ra0, d4b_mrptr, RETURN_ADDR, RETURN_ADDR,
+                 RETURN_ADDR, d4b_mrptr_after)),
         # D4b cnt=1: restore from MemRAS, consume (no push)
         _case("semantic", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d4b1_in_ra0},
@@ -520,11 +532,14 @@ def _gen_ret_riii():
               {"ra": {"ra0": d4b1_out_ra0}},
               None, d4b1_pc, SC_RET_D4b,
               "semantic D4b (MemRAS count=1): ra0=%s (RACNT=0, MRPTR=0x%X); "
-              "MemRAS[MRPTR]=[count=1, addr=0xCCCC00000000]; "
-              "ret → PC=条目[47:0]=0xCCCC00000000; count=1→consume: "
-              "MRPTR+=8→%s, RACNT stays 0; no RegRAS change"
-              % (d4b1_in_ra0, d4b1_mrptr, d4b1_mrptr_after),
-              status="deferred", deferred_reason=DEFER_RET),
+              "MemRAS[MRPTR]=[count=1, addr=%s]; "
+              "ret → PC=条目[47:0]=%s; count=1→consume: "
+              "MRPTR+=8→%s, RACNT stays 0; no RegRAS change；"
+              "（TESTCASES-063t: 条目地址即 ret 的取指目标，须为可执行 RAM ⇒ "
+              "用 canonical 返回地址；原 0xCCCC00000000 形态不可观察，故不再作为 "
+              "semantic 用例）"
+              % (d4b1_in_ra0, d4b1_mrptr, RETURN_ADDR, RETURN_ADDR,
+                 d4b1_mrptr_after)),
         # D4b cnt=0: MemRAS entry count=0 → RASUF
         _case("legality", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d4b0_in_ra0},
@@ -568,8 +583,22 @@ def _gen_ret_riii():
               "addr=0xAAAA00000000]; ret → PC=0xFC0000000004; count=1 → pop: "
               "ra62→ra63=[count=1, addr=0xAAAA00000000], RACNT→1 (ra0=%s); "
               "rd1 = sign_extend(42) = 0x2A"
-              % (rd1_in_ra0, rd1_out_ra0),
-              status="deferred", deferred_reason=DEFER_RET),
+              % (rd1_in_ra0, rd1_out_ra0)),
+        # ── appended (index 9, 既有用例序号不变): D4b UNMAPPED ──────────────
+        # MemRAS 条目的返回目标不在可执行 RAM 内（063t 之前 D4b semantic 用例
+        # 用的 0xBBBB… 形态）：ret 取指 → UNMAPPED (0x87)。该形态语义上无法
+        # 观察到 ret 之后的寄存器状态，故只能是 legality 用例。
+        _case("legality", "ret_riii_ra", "riii", word,
+              {"ra": {"ra0": d4b1_in_ra0},
+               "memory": [{"address": "0x%012X" % d4b1_mrptr,
+                           "value": d4bu_mem_in}]},
+              None,
+              "UNMAPPED", None, SC_RET_D4B_UNMAPPED,
+              "legality D4b UNMAPPED (return target outside RAM): ra0=%s "
+              "(RACNT=0, MRPTR=0x%X); MemRAS[MRPTR]=[count=1, "
+              "addr=0xBBBB00000000]; ret → PC=0xBBBB00000000 (cfxha 46, "
+              "no mapping) → 取指 UNMAPPED (0x87)"
+              % (d4b1_in_ra0, d4b1_mrptr)),
     ]
 
 

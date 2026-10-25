@@ -1,9 +1,9 @@
 - id: ISS-098
   title: "harness 对 ret 语义用例的 pre-existing 失败（ctrl-ret[0..3] 0x01、ctrl-call[5] loader 宽度推导）"
-  status: open
+  status: closed
   scope: [testcases, qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: TESTCASES-063t
   notes: "原 backlog L92。根因 build_test_binary.py:625 将 ret 路由到 build_call_ret_binary（剥离 RA）+ loader 对 call 的宽度推导 ValueError；与 ret rd0 无关。建议由 TESTCASES-022t 或专门 harness 任务处置。"
 - id: ISS-223
   title: "【P3】musl 移植**显式排除 13 个源文件**（`arch/dadao/arch.mak`）⇒ `crypt()`/`crypt_r()`、`exec*` 族、`getcwd`、`sigdelset`、`.mo` 本地化、`getgr*`、resolver 在**链接期显式失败**（不静默）"

@@ -90,6 +90,26 @@ The test binary is loaded at the RAM base `0xFC00_0000_0000` (ADR-0004 D2.2/R3, 
 [section 4] exit     - Compare expected_state with actual, write exit code
 ```
 
+### PC-affecting cases (`expected_pc`)
+
+Vectors write the tested instruction as if it sat at `0xFC00_0000_0000`, so the
+loader prologue in front of it shifts the picture:
+
+- `call` — emitted as `[loader] [call] [ILLI poison] [exit]`; the return address
+  actually pushed is `BINARY_BASE + loader_bytes + 4`. Absolute data addresses
+  (MRPTR, stale RAS entries, spilled values) keep the vector's values; only
+  values pointing *into the image* (`IMAGE_WINDOW`) are shifted by
+  `loader_bytes`, on both the input and the expected side
+  (`build_test_binary._relocate_code_addr`).
+- `ret` — emitted as `[jump→loader] [landing pad @ expected_pc] [loader] [ret]
+  [ILLI poison] [exit]`. `input_state.ra` / MemRAS entries are used verbatim
+  (no synthetic `call`, nothing stripped) and `expected_state.ra` is compared
+  without relocation; the landing pad is placed exactly at the vector's
+  `expected_pc`, so a return to any other address cannot reach the exit
+  section. `expected_pc` must therefore lie inside the image window — an
+  unmapped return target is not observable and belongs to a legality case with
+  `expected_fault: UNMAPPED`.
+
 ### Loader (section 1)
 
 Loads input registers using `set.zw` (clear + set wyde) + `or.w` (merge wyde):
@@ -216,6 +236,8 @@ The harness consumes the following fields from vector YAML:
 - `input_state.memory`: Memory values to write (`address` + `value`)
 - `expected_state.rd/rb/ra`: Expected register values for comparison
 - `expected_fault`: Expected fault code (ILLI/UNDI/MALIGN/etc.)
-- `expected_pc`: Branch target PC (consumed by poison patterns in QEMU-017t/018t)
+- `expected_pc`: Branch/jump/call target PC (consumed by poison patterns in
+  QEMU-017t/018t); for `ret`, the return target, where the harness places its
+  landing pad (see "PC-affecting cases")
 - `encoding.reserved: true`: Reserved encoding case (skip identity validation)
 - `status`: `active`/`deferred` (deferred cases skipped in batch mode)
