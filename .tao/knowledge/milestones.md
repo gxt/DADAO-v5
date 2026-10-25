@@ -43,7 +43,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| INFRA-107t | 待开始 | 2026-10-25 15:57（登记） | 补 0.5.3 PROVENANCE 的组合 sha 与逐文件表（ISS-333） |
+| INFRA-107t | 已验证 | 2026-10-25 16:46 | 补 0.5.3 PROVENANCE 组合 sha + 逐文件表；`--verify` 跳过 `-rc`（ISS-333） |
 | INFRA-108t | 待开始 | 2026-10-25 15:57（登记） | PIC libc 归档 + `-static-pie` 支持（ISS-303） |
 | LLVM-132t | 待开始 | 2026-10-25 15:57（登记） | ISS-232 fixup 元数据大端修正（`--show-encoding`） |
 | TESTCASES-063t | 待开始 | 2026-10-25 15:57（登记） | harness ret 路由与 loader 宽度推导修复（ISS-098） |

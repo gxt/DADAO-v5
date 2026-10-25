@@ -20,6 +20,7 @@
   python3 tools/spec/gen_spec_archive.py --report        # 派生过程 / 跨源冲突 / 不可重建披露
   python3 tools/spec/gen_spec_archive.py --apply         # 只新增缺失目录（已存在目录不动）
   python3 tools/spec/gen_spec_archive.py --verify        # 清单 ↔ 目录 ↔ sha256 三向校验
+  python3 tools/spec/gen_spec_archive.py --self-test     # 内置反例自检（`-rc` 跳过逻辑）
 
 `--list` 的列（TSV）：`版本 \t 首次提交 \t 快照提交 \t 首次标记日期 \t 来源仓库 \t 文件数 \t 组合sha256`。
 
@@ -30,6 +31,10 @@
 工作树演进属正常）；无 `PROVENANCE.md` 的既有目录（0.4.1 / 0.5.3）回落到派生快照。
 有 `PROVENANCE.md` 时**逐文件精确比对**：其「逐文件 sha256」表须与快照内容全等，其
 「版本组合 sha256」须等于按该表重算的值（不接受子串/前缀匹配）。
+
+`-rc` 为**预发布**，**不纳入归档校验**（与 `tools/spec/check_spec_archive.py` 的
+「`-rc` 不纳入归档门控」口径一致；用户 2026-10-25 裁定 `SimRISC-0.5.5-rc` 可删除）：
+`--verify` 对 `-rc` 条目打印 `SKIP` 并跳过，`--list`/`--report` 仍如实列出（历史清单不减）。
 """
 
 from __future__ import annotations
@@ -475,9 +480,18 @@ def verify_one(e: dict, dest: Path) -> tuple[bool, list[str]]:
     return ok, msgs
 
 
+def is_rc(version: str) -> bool:
+    """`-rc` 为**预发布**：不纳入归档校验（与 `check_spec_archive.py` 归档门控同口径）。"""
+    return version.endswith("-rc")
+
+
 def verify(data: dict) -> int:
     rc = 0
     for e in data["versions"]:
+        if is_rc(e["version"]):
+            # 预发布 `-rc` 不纳入归档校验（check_spec_archive.py 同口径；用户 2026-10-25 裁定）
+            print(f"SKIP SimRISC-{e['version']}（预发布 -rc：不纳入归档校验）")
+            continue
         dest = ARCHIVE / f"SimRISC-{e['version']}"
         ok, msgs = verify_one(e, dest)
         print(f"{'OK  ' if ok else 'FAIL'} SimRISC-{e['version']}（{e['count']} 文件@清单快照）")
@@ -485,6 +499,38 @@ def verify(data: dict) -> int:
             print(f"     {m}")
         if not ok:
             rc = 1
+    return rc
+
+
+def self_test() -> int:
+    """内置反例：`-rc` 缺目录须 SKIP（rc=0）、非 `-rc` 缺目录须 FAIL（rc=1）。"""
+    import contextlib
+    import io
+
+    rc = 0
+
+    def fake(version: str) -> dict:
+        return {"version": version, "count": 0}
+
+    cases = [
+        ("仅 -rc 条目（目录缺失）", [fake("0.0.0-rc")], 0, "SKIP SimRISC-0.0.0-rc"),
+        ("仅非 -rc 条目（目录缺失）", [fake("0.0.0")], 1, "FAIL SimRISC-0.0.0"),
+        ("-rc 与非 -rc 混合", [fake("0.0.0-rc"), fake("0.0.0")], 1, "FAIL SimRISC-0.0.0"),
+    ]
+    for name, versions, want_rc, want_line in cases:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            got = verify({"versions": versions})
+        out = buf.getvalue()
+        hit = want_line in out
+        ok = got == want_rc and hit
+        print(
+            f"[self-test] {name}：rc={got}（期望 {want_rc}），含 {want_line!r}={hit} "
+            f"→ {'PASS' if ok else 'FAIL'}"
+        )
+        if not ok:
+            rc = 1
+    print(f"gen_spec_archive --self-test: {'PASS' if rc == 0 else 'FAIL'}")
     return rc
 
 
@@ -520,9 +566,12 @@ def main(argv: list[str]) -> int:
     group.add_argument("--report", action="store_true", help="派生过程 / 跨源冲突 / 披露")
     group.add_argument("--apply", action="store_true", help="只新增缺失归档目录")
     group.add_argument("--verify", action="store_true", help="清单 ↔ 目录 ↔ sha256 校验")
+    group.add_argument("--self-test", action="store_true", help="内置反例自检（-rc 跳过逻辑）")
     parser.add_argument("--wiki-anchor", default=WIKI_ANCHOR, help="wiki 参考树锚点提交")
     args = parser.parse_args(argv)
 
+    if args.self_test:
+        return self_test()
     data = derive(args.wiki_anchor)
     if args.list:
         sys.stdout.write(tsv(data))
