@@ -45,7 +45,7 @@
 | `0.5.4` | `7804abb` | 2026-09-28 | 13 | `.tao/archive/SimRISC-0.5.4/` |
 | `0.5.5` | `e5182dcf` | 2026-10-24 | 13 | `.tao/archive/SimRISC-0.5.5/` |
 
-> `0.5.5` 升号时点的 rc 过程快照（提交 `a04d34e`，2026-10-12）另存于 `SimRISC-<版本>-rc` 归档目录（名称见上表下方约定），**按 `Process-06 §8` 只增不改**，不列为已发布版本。
+> `-rc` 为预发布快照，**不纳入归档门控**、不再保留（用户 2026-10-25 裁定）。
 >
 > `0.3` 及更早**无版本标记**（wiki 早期为单文件 `SimRISC.md`），无法按版本重建，不伪造快照。`0.4.0`/`0.4.1` 取自 `.cache/refs/DADAO.wiki`（锚点 `9f378f4`），其余取自本仓历史。机器可读清单：`python3 tools/spec/gen_spec_archive.py --list`；门控：`make check-spec-archive`。
 >

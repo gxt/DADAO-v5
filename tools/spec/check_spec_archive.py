@@ -95,12 +95,15 @@ def counts_from_manifest() -> tuple[dict[str, int] | None, set[str] | None, str]
 
 
 def disk_versions(archive_root: Path) -> set[str]:
-    """磁盘上 `.tao/archive/SimRISC-<ver>/` 的版本集合（现场扫描，不写死）。"""
+    """磁盘上 `.tao/archive/SimRISC-<ver>/` 的版本集合（现场扫描，不写死）。
+
+    `-rc` 为预发布快照，**不纳入归档门控**（用户 2026-10-25 裁定：`SimRISC-0.5.5-rc` 可删除）。
+    """
     prefix = "SimRISC-"
     return {
         p.name[len(prefix) :]
         for p in archive_root.glob(f"{prefix}*")
-        if p.is_dir() and p.name.startswith(prefix)
+        if p.is_dir() and p.name.startswith(prefix) and not p.name.endswith("-rc")
     }
 
 
@@ -187,10 +190,13 @@ def main(argv: list[str]) -> int:
     if args.self_test:
         return self_test()
 
-    required = versions_from_spec(SPEC)
+    required = {v for v in versions_from_spec(SPEC) if not v.endswith("-rc")}
     counts, listed, note = counts_from_manifest()
+    if counts is not None:
+        counts = {v: c for v, c in counts.items() if not v.endswith("-rc")}
     errors = check_tree(ARCHIVE, required, counts)
     if listed is not None:
+        listed = {v for v in listed if not v.endswith("-rc")}
         errors += reverse_errors(ARCHIVE, listed)
     if args.verbose or errors:
         print(f"required versions（册头 ∪ 附录）={sorted(required)}")
