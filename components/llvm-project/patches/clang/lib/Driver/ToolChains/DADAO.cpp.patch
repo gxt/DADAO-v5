@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Driver/ToolChains/DADAO.cpp b/clang/lib/Driver/ToolChains/DADAO.cpp
 new file mode 100644
-index 000000000..a0ed8c66f
+index 000000000..f876d43eb
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/DADAO.cpp
-@@ -0,0 +1,162 @@
+@@ -0,0 +1,198 @@
 +//===--- DADAO.cpp - DADAO ToolChain Implementations ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -25,6 +25,25 @@ index 000000000..a0ed8c66f
 +using namespace clang::driver::tools;
 +using namespace clang;
 +using namespace llvm::opt;
++
++namespace {
++
++/// True when the driver arguments ask for debug information at all.  Mirrors
++/// `renderDebugOptions` (Clang.cpp): the last switch in the `<g>` group wins,
++/// and only `-g0`/`-ggdb0` turn emission off.  `-gdwarf*` belongs to the same
++/// group but selects the *format*, not the level, so it does not count as
++/// "enable".
++bool wantsDebugInfo(const ArgList &Args) {
++  const Arg *A = Args.getLastArg(options::OPT_g_Group);
++  if (!A)
++    return false;
++  if (A->getOption().matches(options::OPT_gN_Group) &&
++      debugLevelToInfoKind(*A) == llvm::codegenoptions::NoDebugInfo)
++    return false;
++  return true;
++}
++
++} // namespace
 +
 +DADAOToolChain::DADAOToolChain(const Driver &D, const llvm::Triple &Triple,
 +                               const ArgList &Args)
@@ -106,6 +125,23 @@ index 000000000..a0ed8c66f
 +      DriverArgs.hasFlag(options::OPT_fpie, options::OPT_fno_pie, false);
 +  if (!PIC && !DriverArgs.hasArg(options::OPT_ftlsmodel_EQ))
 +    CC1Args.push_back("-ftls-model=local-exec");
++
++  // DWARF64 by default (ADR-0036 D1).  DADAO is a native 64-bit target and its
++  // ABI has no 32-bit (4-byte) address relocation channel, so a 32-bit DWARF
++  // layout is not a supported configuration here.  Select DWARF64 whenever
++  // debug information is emitted; an explicit `-gdwarf32` is a hard error
++  // instead of a silent downgrade (the driver would otherwise pass it through
++  // and the result would fail late in the assembler).  An explicit `-gdwarf64`
++  // keeps working, and upstream "last format flag wins" still applies to
++  // `-gdwarf32 -gdwarf64`.
++  if (const Arg *DwarfFormatArg =
++          DriverArgs.getLastArg(options::OPT_gdwarf64, options::OPT_gdwarf32)) {
++    if (DwarfFormatArg->getOption().matches(options::OPT_gdwarf32))
++      getDriver().Diag(diag::err_drv_unsupported_opt_for_target)
++          << DwarfFormatArg->getAsString(DriverArgs) << getTriple().str();
++  } else if (wantsDebugInfo(DriverArgs)) {
++    CC1Args.push_back("-gdwarf64");
++  }
 +}
 +
 +void dadao::Linker::ConstructJob(Compilation &C, const JobAction &JA,

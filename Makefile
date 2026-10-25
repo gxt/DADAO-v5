@@ -55,7 +55,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-musl-freshness check-builtins-freshness check-install-tools check-milestones-fresh \
         check-tasks check-spec-codeblocks check-legality-invariants \
         check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive check-contracts-dir \
-        check-component-changelog check-syscall-abi check-spec-purity check-spec-cite-targets
+        check-component-changelog check-syscall-abi check-spec-purity check-spec-cite-targets \
+        check-width-sizes
 
 # ── 工作树互斥锁 (INFRA-099t / ISS-229) ─────────────────────────────────────────
 # 同一工作树内会写共享状态的目标 —— 构建树 `.work/build/**`、安装根 $(SDK_DIR)、
@@ -161,6 +162,7 @@ help:
 	@echo "  make check-qemu-smoke  QEMU semantic smoke (representative subset; L2)"
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
+	@echo "  make check-width-sizes  64-bit width + ELF64/rela/got + DWARF64 addr_size probe (L1; LLVM-130t)"
 	@echo "  make check-contracts-dir  Whitelist gate for .tao/contracts/ + contracts/ top level (L1; INFRA-071t)"
 	@echo "  make check-component-changelog  Component changelog list-form/milestone-section gate (L1; INFRA-084t)"
 	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
@@ -246,7 +248,7 @@ LLVM_BUILD_CONFIG = targets=$(LLVM_TARGETS) projects=$(LLVM_PROJECTS) build_type
 # configuration differs.  A failing cmake aborts before the stamp is written.
 LLVM_CONFIGURE = echo '$(LLVM_BUILD_CONFIG)' | cmp -s - $(LLVM_BUILD)/.dadao-llvm-config 2>/dev/null || { echo "llvm: configuring $(LLVM_BUILD) [$(LLVM_BUILD_CONFIG)]"; cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) -DLLVM_TARGETS_TO_BUILD="$(LLVM_TARGETS)" -DLLVM_ENABLE_PROJECTS="$(LLVM_PROJECTS)" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLLVM_ENABLE_ASSERTIONS=ON || exit 1; echo '$(LLVM_BUILD_CONFIG)' > $(LLVM_BUILD)/.dadao-llvm-config; }
 
-LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm llvm-readelf FileCheck not LLVMDADAOCodeGen llc lli clang
+LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm llvm-readelf llvm-dwarfdump FileCheck not LLVMDADAOCodeGen llc lli clang
 LLVM_MC_LITE_TARGETS = llvm-mc llvm-objdump FileCheck not
 
 _locked-build-mc: manifest-check
@@ -357,7 +359,8 @@ build-gem5: manifest-check
 # the install root is a cache — re-run after rebuilding the components.
 #
 # D11 scope: just the tools the gates/executors need — llvm-mc/llvm-objdump/
-# llvm-readobj/llvm-nm/llvm-readelf/FileCheck/not (lit MC + symbol/ELF inspection),
+# llvm-readobj/llvm-nm/llvm-readelf/llvm-dwarfdump/FileCheck/not (lit MC +
+# symbol/ELF/DWARF inspection),
 # llc (CodeGen), llvm-objcopy (test-codegen), lld + ld.lld (test-elf), clang
 # (M6 cross compiler, INFRA-050t), qemu-system-dadao (D4), llvm-lit (lit runner).
 # No full `cmake --install`.  (llvm-nm/llvm-readelf: INFRA-098t / ISS-261.)
@@ -386,7 +389,7 @@ build-gem5: manifest-check
 # processes wait (bounded by GATE_LOCK_WAIT, rc=75 with the holder's pid/target
 # on timeout) or are refused at once with GATE_LOCK_FAILFAST=1; nested calls
 # from the same make tree pass through.  See docs/Process-07 §2.
-HOST_LLVM_TOOLS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm FileCheck not llc clang
+HOST_LLVM_TOOLS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm llvm-dwarfdump FileCheck not llc clang
 # Zero-copy aliases, `<link>:<target>` (both live in $(HOST_TOOLCHAIN_BIN)).
 # Single source of truth for the install aliases: the install recipe creates
 # them and tools/infra/check_install_tools.py asserts their shape.  Relative
@@ -798,7 +801,7 @@ _locked-clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-case-ledger check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-spec-archive check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-components
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-case-ledger check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-spec-archive check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -997,6 +1000,21 @@ check-no-residue:
 # 可执行且确实认识 `dadao` 目标；不跑被测语义（那是 L2/L3）。
 check-components:
 	@$(PYTHON) tools/infra/check_components.py
+
+# 位宽 / DWARF64 探针 (LLVM-130t, L1): DADAO 是 64 位原生目标（ADR-0036 D1）——
+# ① 逐条静态断言编译 sizeof(void*/long/size_t)==8、_Alignof(max_align_t)==16、
+#    sizeof(long double)==16、__BIGGEST_ALIGNMENT__==16；
+# ② `-g -c` 必须 rc=0（修复前 `.debug_addr` 落 4 字节字段，汇编器拒绝 48 位重定位）；
+# ③ `llvm-readelf -h` Class=ELF64；所有 RELA 段 entsize=24；`.got` 项宽 = 8
+#    （`.got` size == 8 × `.rela.got` 条数，条数现场统计）；
+# ④ `llvm-dwarfdump --debug-info`（在**链接后**的 `-g` 产物上；`.o` 的 ABS48 重定位
+#    无法被 libObject 应用 ⇒ dwarfdump rc=1）每个 CU 的 `addr_size = 0x08` 且
+#    `format = DWARF64`（驱动默认 `-gdwarf64`；显式 `-gdwarf32` 由驱动报错，DADAO
+#    无 32 位 DWARF 重定位通道）。逐条可达 FAIL 见 `--self-test`（假工具注入，无需构建）。
+# 需要安装根（未跑 `make install-host` 时 FAIL 并给出提示）；按 docs/Process-07 §1
+# 归 L1（只做静态/尺寸断言，不跑被测语义）。
+check-width-sizes:
+	@$(PYTHON) tools/llvm/check-width-sizes.py
 
 # spec 目录只读锁 (SPEC-119t): 只读册 sha256 校验；失配 ⇒ FAIL（须先取用户授权并同步改锁）。
 # 规则见 docs/Process-06-spec目录保护规范.md §5。

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
 new file mode 100644
-index 000000000..6f54f4984
+index 000000000..d164ba383
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
-@@ -0,0 +1,97 @@
+@@ -0,0 +1,106 @@
 +//===-- DADAOMCAsmInfo.cpp - DADAO asm properties -----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -57,6 +57,15 @@ index 000000000..6f54f4984
 +
 +  // DADAO assembly uses ".section" before ".bss".
 +  UsesELFSectionDirectiveForBSS = true;
++
++  // DADAO is a native 64-bit target (ADR-0036 D1): pointers and callee-saved
++  // stack slots are 8 bytes.  MCAsmInfo defaults both to 4 (MCAsmInfo.h), and
++  // leaving them there emitted 4-byte DWARF `.debug_addr` entries ("Address
++  // size = 4"), which the assembler rejects because a 48-bit relocatable
++  // address does not fit `.dd.t32`; the CFI `data_alignment_factor` would be
++  // wrong for the same reason (MCDwarf.cpp getDataAlignmentFactor()).
++  CodePointerSize = 8;
++  CalleeSaveStackSlotSize = 8;
 +
 +  // Target supports emission of debugging information.
 +  SupportsDebugInformation = true;
