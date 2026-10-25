@@ -500,3 +500,7 @@
 - **2026-10-25 LLVM-131t**
   - 摘要：**代码模型 default/large（ADR-0036 D1–D6）**：① 驱动 `-mcmodel=default|large`（`small` 为别名），`medium|kernel|tiny` ⇒ 新诊断 `err_drv_dadao_code_model`（文案含目标与允许值）；② `DADAOTargetMachine::selectCodeModel` 只放行 Small/Large；`large` 下 `LowerCall`（普通调用 + 尾跳）把 callee 物化为 ABS48（PIC 走 GOT PCREL）后间接 `call rb, rd, imm12`，动态导入保持 PLT 直接；③ 新增 `GPRBTC`（rb4–rb31）给 `tailjmp_rrii` 基址，避免 PEI 恢复 callee-saved 覆盖物化地址（同修原函数指针尾调用隐患）；④ 新增 lit `code-model-large.ll`、e2e `mcmodel.test` 与远距布局 fixture。真值：`run.sh` 24/24、`run.sh --inject` 29/29、L1/L2 绿；64 MiB 远距布局 `large` 链接成功、`default` 报 REL26 越界；`default` 下 libcall 保持 `call [rb0, memcpy]`（返工修门控）。
   - 执行者：engineer
+
+- **2026-10-25 LLVM-133t**
+  - 摘要：**`cmp.{ut,uw,ub}` 结果语义核对 + `br.n` 断言（ADR-0037）**：逐使用点确认 `DADAOCmpU` 全按 i64 `{-1,0,1}` 消费（`DADAOCodeGen.td` pattern、`LowerBR_CC`/`LowerCmpSelect`、`br.n/nn/z/nz/p/np`、`cs.n/z/p`）⇒ 后端**零代码改动**；新增 lit `cmp-u-branch.ll`（8 例：i32/i16/i8 `ult`→`cmp.ut/uw/ub`+`br.n`、i64→`cmp.uo`/`cmp.ui`、`slt` 对照，含 `CHECK-NOT` 约束）；`narrow-int.ll` 仅改陈旧注释。真值：L1 绿、`check-lit` 151/151、证据 23 项、10 类注入可达 FAIL。遗留：两处 `SIGN_EXTEND_INREG` 现为恒等变换（多一条 `ext.so`），待另立小任务清理。
+  - 执行者：engineer
