@@ -512,3 +512,7 @@
 - **2026-10-26 LLVM-134t**
   - 摘要：**ADR-0037 后清理 + ABS48 显示偏移 + cc1as/llvm-mc 默认 DWARF64**：① 删除 `DADAOISelLowering.cpp` 两处窄无符号比较后的 `SIGN_EXTEND_INREG`（`LowerBR_CC`/`LowerCmpSelect`；ADR-0037 后为恒等变换，少发一条 `ext.so`），注释同步为 64 位全 1 口径；② `DADAOAsmBackend::getFixupKindInfo` 的 `DADAO_FK_ABS48` `TargetOffset 0→16`（大端 `32−16`；只影响 `--show-encoding` 位标记，编码/链接不变）；③ `ClangAs::ConstructJob` 对 DADAO 目标默认注入 `-gdwarf64` 并在显式 `-gdwarf32` 时报 `err_drv_unsupported_opt_for_target`（cc1as 路径），`llvm-mc` 对 DADAO `-g` 默认 DWARF64（ABI 无 32 位地址重定位通道）。lit：`cmp-u-branch.ll`/`narrow-int.ll` 断言窄无符号比较后无 `ext.so`、`show-encoding-fixup-bigendian.s` 钉 ABS48 低 16 位 A 标记、新增 `dwarf64-default.s`（cc1as/llvm-mc 默认 DWARF64 + `-gdwarf32` 报错）。
   - 执行者：engineer
+
+- **2026-10-26 INFRA-108t**
+  - 摘要：**驱动 `-static-pie` 支持（PIC libc，ISS-303，方案 B）**：`dadao::Linker::ConstructJob` 在 `-static-pie` 时展开为 `-static -pie --no-dynamic-linker`；PIE 且输入显式含 `libc.a` 时替换为同目录 `libc_pic.a`（`-shared`/`-r` 排除；兄弟缺失保持原输入）。`-static`/`-shared`/`-r`/`-no-pie` 行为不变（`-###` 逐 token 相同）；`-lc` 隐式查找不替换。真值：`-static-pie` 链接 ET_DYN / 无 `PT_INTERP` / 有 `PT_DYNAMIC`、qemu 运行 exit 7；非 PIE `-static` 去 `.comment` 后 md5 一致。补丁 +62 行。
+  - 执行者：engineer

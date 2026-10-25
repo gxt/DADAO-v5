@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Driver/ToolChains/DADAO.cpp b/clang/lib/Driver/ToolChains/DADAO.cpp
 new file mode 100644
-index 000000000..f876d43eb
+index 000000000..9e8ae8972
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/DADAO.cpp
-@@ -0,0 +1,198 @@
+@@ -0,0 +1,254 @@
 +//===--- DADAO.cpp - DADAO ToolChain Implementations ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -17,7 +17,9 @@ index 000000000..f876d43eb
 +#include "clang/Driver/Compilation.h"
 +#include "clang/Driver/InputInfo.h"
 +#include "clang/Options/Options.h"
++#include "llvm/ADT/SmallString.h"
 +#include "llvm/Option/ArgList.h"
++#include "llvm/Support/FileSystem.h"
 +#include "llvm/Support/Path.h"
 +
 +using namespace clang::driver;
@@ -170,8 +172,62 @@ index 000000000..f876d43eb
 +                  {options::OPT_T, options::OPT_L, options::OPT_e,
 +                   options::OPT_u, options::OPT_s, options::OPT_r,
 +                   options::OPT_shared, options::OPT_static, options::OPT_pie});
++
++  // `-static-pie` is the *driver* spelling of a static PIE link: lld has no
++  // such switch, and forwarding nothing turned the request into a plain
++  // ET_EXEC without even a warning (ISS-303).  Spell it out the way the GNU
++  // toolchain does (Gnu.cpp): a static link that is placed as a PIE and has no
++  // interpreter (there is nothing to interpret -- the libc is linked in).
++  const bool IsStaticPIE = Args.hasArg(options::OPT_static_pie);
++  if (IsStaticPIE) {
++    Args.ClaimAllArgs(options::OPT_static_pie);
++    CmdArgs.push_back("-static");
++    CmdArgs.push_back("-pie");
++    CmdArgs.push_back("--no-dynamic-linker");
++  }
++
++  // ---------------------------------------------------------------------------
++  // PIC libc for static PIE links (INFRA-108t / ISS-303).
++  //
++  // musl's `libc.a` is built from non-PIC objects (the plain static line), so a
++  // PIE that links it is rejected by lld: `R_DADAO_ABS48 ... recompile with
++  // -fPIC`.  `make build-musl-shared` produces `libc_pic.a` next to it -- the
++  // same member list, compiled with -fPIC -- and installs it in the sysroot
++  // lib dir.  When the link is a PIE with a static libc (`-static-pie`, or an
++  // explicit `-pie` whose inputs name `libc.a`), replace that input with its
++  // PIC sibling in the same directory.
++  //
++  // The ordinary `-static` line never enters this branch, so its output stays
++  // byte-identical (the regression criterion of INFRA-108t).  `-shared` links
++  // a DSO (its libc is `libc.so`) and `-r` produces a relocatable object;
++  // neither is rewritten.
++  //
++  // This is an explicit-input rule, not an implicit `-lc` lookup: the archive
++  // is replaced only when the sibling `libc_pic.a` actually exists, so a tree
++  // without the PIC product still fails loudly in the linker (ISS-303's
++  // "recompile with -fPIC") instead of silently linking non-PIC code.
++  // ---------------------------------------------------------------------------
++  const bool IsPIE =
++      IsStaticPIE || Args.hasFlag(options::OPT_pie, options::OPT_no_pie, false);
++  const bool SelectPICLibc =
++      IsPIE && !Args.hasArg(options::OPT_shared, options::OPT_r);
++  InputInfoList LinkInputs(Inputs);
++  if (SelectPICLibc) {
++    for (InputInfo &II : LinkInputs) {
++      if (!II.isFilename())
++        continue;
++      if (llvm::sys::path::filename(II.getFilename()) != "libc.a")
++        continue;
++      SmallString<128> PICLibc(llvm::sys::path::parent_path(II.getFilename()));
++      llvm::sys::path::append(PICLibc, "libc_pic.a");
++      if (!llvm::sys::fs::exists(PICLibc))
++        continue;
++      II = InputInfo(II.getAction(), Args.MakeArgString(PICLibc),
++                     II.getBaseInput());
++    }
++  }
 +  TC.AddFilePathLibArgs(Args, CmdArgs);
-+  AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
++  AddLinkerInputs(TC, LinkInputs, Args, CmdArgs, JA);
 +
 +  // Compiler builtins (ADR-0027 D5, ISS-262).  The independent DADAO
 +  // compiler-rt builtins archive is the *default* runtime library (see

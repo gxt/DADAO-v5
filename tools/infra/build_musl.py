@@ -49,6 +49,21 @@ INFRA-085t stage A1 ("shared library and PIC") adds a second, SHARED mode
    ``libc.so``.  A negative control links the same objects *without* the flag
    and must produce no ``PT_INTERP`` (so the flag is provably load-bearing).
 
+INFRA-108t (``ISS-303``) adds the **PIC static archive**:
+
+8. **``lib/libc_pic.a``** -- the PIC counterpart of ``lib/libc.a``, archived
+   from the ``.lo`` objects of the same member list (musl's
+   ``LOBJS = $(LIBC_OBJS:.o=.lo)``, read live from the build system so the two
+   archives cannot drift).  Every member is compared byte-for-byte (sha256)
+   against the ``.lo`` file it was archived from, and the member order/name set
+   is compared against ``libc.a`` (``.lo`` -> ``.o``).  It is installed next to
+   ``libc.so`` in the target sysroot lib dir, and stays next to the build
+   tree's ``libc.a``, which is where the driver looks for the PIC sibling of an
+   explicit ``libc.a`` input.  Rationale: musl's ``libc.a`` is non-PIC, so a
+   static PIE (``-static-pie``, or ``-pie`` + static libc) cannot link it --
+   lld rejects every ``R_DADAO_ABS48`` with ``recompile with -fPIC``.  The plain
+   ``-static`` line keeps using ``libc.a`` and is byte-identical.
+
 The static and the shared configurations share one in-tree build directory, so
 each mode re-runs ``./configure`` when ``config.mak`` records the other one;
 the static line is never sacrificed for the shared one (the ``libc.a`` members
@@ -101,6 +116,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -135,6 +151,11 @@ MUSL_CFLAGS = "-ffp-contract=off"
 # the DT_SONAME and the symlink target below use.
 SONAME = "libc.so"
 LDSO_NAME = "ld-musl-dadao.so.1"
+# INFRA-108t / ISS-303: the PIC static archive.  Same members as lib/libc.a,
+# built from the -fPIC .lo objects; installed next to libc.so in the sysroot
+# lib dir (and kept next to the build tree's libc.a).  The driver selects it
+# for static PIE links (see clang/lib/Driver/ToolChains/DADAO.cpp).
+PIC_ARCHIVE = "libc_pic.a"
 # contract-dynlink.md §6.1 (ruling 5, user-confirmed 2026-10-14): the
 # interpreter path written into PT_INTERP is the guest-visible
 # /lib/ld-musl-dadao.so.1, which the install step makes a symlink to libc.so.
@@ -920,6 +941,154 @@ def check_ldso_symlink(link: Path, so: Path, inject: bool) -> list[tuple[str, st
     ]
 
 
+# ── INFRA-108t: PIC static archive (ISS-303) ────────────────────────────────
+def pic_archive_members() -> list[str]:
+    """The PIC object list of the static library, read from musl's Makefile.
+
+    ``LOBJS = $(LIBC_OBJS:.o=.lo)`` is the exact PIC counterpart of the member
+    list of ``lib/libc.a`` (same objects, compiled with ``-fPIC``).  Querying
+    the build system instead of re-deriving the source list here keeps the two
+    archives in step: a second hand-written list would drift.
+
+    The print target lives in a throw-away makefile passed with a second
+    ``-f``; nothing inside the musl source tree is modified or left behind.
+    """
+    with tempfile.NamedTemporaryFile("w", suffix=".mk", delete=False) as fh:
+        fh.write(".PHONY: dadao-print-lobjs\n"
+                 "dadao-print-lobjs:\n"
+                 "\t@printf '%s\\n' $(LOBJS)\n")
+        makefile = fh.name
+    try:
+        res = run(["make", "-s", "--no-print-directory", "-f", "Makefile",
+                   "-f", makefile, "dadao-print-lobjs"],
+                  cwd=MUSL_SRC, env=toolchain_env())
+    finally:
+        os.unlink(makefile)
+    if res.returncode != 0:
+        raise RuntimeError(f"make print-LOBJS rc={res.returncode}\n{res.stdout}")
+    members = [line.strip() for line in res.stdout.splitlines()
+               if line.strip().startswith("obj/") and line.strip().endswith(".lo")]
+    if not members:
+        raise RuntimeError("make printed no LOBJS members\n" + res.stdout)
+    return members
+
+
+def archive_member_names(path: Path) -> list[str]:
+    """Names of an archive's members, in archive order (``ar t``)."""
+    res = run(["ar", "t", str(path)])
+    if res.returncode != 0:
+        raise RuntimeError(f"ar t {path} rc={res.returncode}\n{res.stdout}")
+    return [line for line in res.stdout.splitlines() if line.strip()]
+
+
+def read_archive(path: Path) -> list[tuple[str, bytes]]:
+    """(name, content) of every member of a GNU ``ar`` archive.
+
+    Parsed here instead of shelling out to ``ar p`` per member because repeated
+    basenames are legitimate (musl has ``src/malloc/free.o`` and
+    ``src/malloc/mallocng/free.o``), and ``ar p <name>`` cannot address the
+    second one.  Handles the GNU long-name table (``//`` + ``/N`` entries) and
+    skips the symbol table.
+    """
+    data = path.read_bytes()
+    if data[:8] != b"!<arch>\n":
+        raise ValueError("not an ar archive")
+    offset = 8
+    longnames = b""
+    members: list[tuple[str, bytes]] = []
+    while offset + 60 <= len(data):
+        header = data[offset:offset + 60]
+        if header[58:60] != b"`\n":
+            raise ValueError(f"bad ar member header at offset {offset}")
+        name = header[0:16].decode("ascii").strip()
+        size = int(header[48:58].decode("ascii").strip())
+        body = data[offset + 60:offset + 60 + size]
+        if len(body) != size:
+            raise ValueError(f"truncated ar member {name!r} at offset {offset}")
+        offset += 60 + size + (size & 1)
+        if name == "//":
+            longnames = body
+            continue
+        if name in ("/", "/SYM64/"):
+            continue
+        if name.startswith("/") and name[1:].isdigit():
+            start = int(name[1:])
+            end = longnames.index(b"/\n", start)
+            name = longnames[start:end].decode("ascii")
+        else:
+            name = name.rstrip("/")
+        members.append((name, body))
+    return members
+
+
+def build_pic_archive() -> list[tuple[str, str, str, bool]]:
+    """Re-archive the ``.lo`` objects as ``lib/libc_pic.a`` and prove the result.
+
+    Returns the check table (name, expected, actual, ok); the caller reports it
+    and fails the build on any mismatch.  The decisive check compares every
+    member's bytes with the ``.lo`` file it was archived from, so "this is the
+    PIC build of the same libc" is verified rather than assumed; the member
+    name list is compared against ``lib/libc.a`` (``.lo`` -> ``.o``) so the two
+    archives cannot diverge in membership either.
+    """
+    members = pic_archive_members()
+    archive = MUSL_SRC / "lib" / PIC_ARCHIVE
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    if archive.exists():
+        archive.unlink()
+    res = run(["ar", "rcsD", str(archive), *members], cwd=MUSL_SRC)
+    if res.returncode != 0:
+        raise RuntimeError(f"ar {PIC_ARCHIVE} rc={res.returncode}\n{res.stdout}")
+    archived = read_archive(archive)
+    archived_names = [name for name, _ in archived]
+    pic_names = [Path(member).name for member in members]
+    static_names = archive_member_names(MUSL_SRC / "lib" / "libc.a")
+    mismatched = [
+        (name, member)
+        for (name, body), member in zip(archived, members)
+        if hashlib.sha256(body).digest()
+        != hashlib.sha256((MUSL_SRC / member).read_bytes()).digest()
+    ]
+    return [
+        ("PIC archive built", "present",
+         "present" if archive.is_file() else "absent", archive.is_file()),
+        (f"{PIC_ARCHIVE} member count", str(len(members)), str(len(archived)),
+         len(archived) == len(members)),
+        (f"{PIC_ARCHIVE} member names == LOBJS (order)",
+         f"{len(pic_names)} names", f"{len(archived_names)} names",
+         archived_names == pic_names),
+        (f"{PIC_ARCHIVE} member names == libc.a (.lo -> .o)",
+         f"{len(static_names)} names",
+         f"{len([Path(n).with_suffix('.o').name for n in archived_names])} names",
+         static_names == [Path(n).with_suffix(".o").name
+                          for n in archived_names]),
+        (f"every {PIC_ARCHIVE} member == its source .lo (sha256)",
+         f"{len(members)} match", f"{len(members) - len(mismatched)} match",
+         not mismatched),
+    ]
+
+
+def install_pic_archive(libdir: Path) -> Path:
+    """Install the PIC archive next to ``libc.so`` in the target lib dir."""
+    libdir.mkdir(parents=True, exist_ok=True)
+    dst = libdir / PIC_ARCHIVE
+    shutil.copy2(MUSL_SRC / "lib" / PIC_ARCHIVE, dst)
+    return dst
+
+
+def check_installed_pic_archive(dst: Path) -> list[tuple[str, str, str, bool]]:
+    """The installed PIC archive must be the build product, byte for byte."""
+    src = MUSL_SRC / "lib" / PIC_ARCHIVE
+    exp_hash = sha256_of(src) if src.is_file() else "missing"
+    act_hash = sha256_of(dst) if dst.is_file() else "missing"
+    return [
+        (f"installed {PIC_ARCHIVE} present", "present",
+         "present" if dst.is_file() else "absent", dst.is_file()),
+        (f"installed {PIC_ARCHIVE} == build {PIC_ARCHIVE} (sha256)",
+         exp_hash, act_hash, exp_hash == act_hash and exp_hash != "missing"),
+    ]
+
+
 def report_checks(checks: list[tuple[str, str, str, bool]], label: str) -> int:
     """Print one PASS/FAIL line per check; return the number of failures."""
     failed = 0
@@ -974,11 +1143,20 @@ def main() -> int:
             f"  ({t:#x}) {t:#x}" for t in sorted(dict(parse_elf(so)["dynamic"] or [])))
         print(f"build-musl: dynamic tags of {so}:\n{tag_lines}")
         checks = check_shared_elf(so, args.inject)
+        # INFRA-108t: the PIC static archive for -static-pie.  Built from the
+        # same .lo objects on every shared run (cheap: ar + content check), so
+        # it can never lag behind libc.a/libc.so.
+        pic_checks = build_pic_archive()
+        if report_checks(pic_checks, "pic-archive"):
+            return 1
         if not args.no_install:
             libdir = Path(args.libdir) if args.libdir else paths.target_sysroot_dir() / "lib"
             link = install_ldso(so, libdir)
             print(f"build-musl: installed {libdir / SONAME} + {link} -> {SONAME}")
             checks += check_ldso_symlink(link, so, args.inject)
+            pic = install_pic_archive(libdir)
+            print(f"build-musl: installed {pic}")
+            checks += check_installed_pic_archive(pic)
         if report_checks(checks, "shared"):
             return 1
         if args.no_smoke:

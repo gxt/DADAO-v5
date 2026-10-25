@@ -26,6 +26,9 @@ Checks (each printed with expected/actual and its own verdict):
   7. recorded compiler-rt builtins digest == the archive on disk now (ISS-293:
      musl links ``libc.so`` with that archive and hides its members, so a stale
      archive is baked into the DSO while every static test keeps passing)
+  8. the installed PIC static archive ``lib/libc_pic.a`` is the build product
+     (INFRA-108t/ISS-303: the driver links it for static PIE; a stale copy
+     would silently link the old libc)
 
 Applicability: L1 must stay usable on a fresh checkout and in static-only
 workflows, so a missing build tree, or a build tree/sysroot with no shared
@@ -60,6 +63,36 @@ REMEDY = "run 'make build-musl-shared JOBS=8' (it rebuilds and reinstalls)"
 
 def sha256_of(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def run_pic_checks(build_pic: Path, inst_pic: Path) -> int:
+    """INFRA-108t: the installed PIC archive must be the build product.
+
+    ``libc_pic.a`` is what the driver links for a static PIE (``-static-pie`` /
+    ``-pie`` with a static libc).  The archive is rebuilt by every
+    ``build-musl-shared`` run from the current ``.lo`` objects; if the installed
+    copy is not that product, a static PIE would silently link the previous
+    libc -- the same failure mode as a stale ``libc.so`` (ISS-258/ISS-293).
+    """
+    failed = 0
+
+    def check(name: str, expected: str, actual: str, ok: bool) -> None:
+        nonlocal failed
+        print(f"[{'PASS' if ok else 'FAIL'}] {name}: expected={expected} "
+              f"actual={actual}")
+        if not ok:
+            failed += 1
+
+    check(f"build product lib/{bm.PIC_ARCHIVE} present", "present",
+          "present" if build_pic.is_file() else "absent", build_pic.is_file())
+    check(f"installed lib/{bm.PIC_ARCHIVE} present", "present",
+          "present" if inst_pic.is_file() else "absent", inst_pic.is_file())
+    if build_pic.is_file() and inst_pic.is_file():
+        build_hash = sha256_of(build_pic)
+        inst_hash = sha256_of(inst_pic)
+        check(f"installed {bm.PIC_ARCHIVE} == build {bm.PIC_ARCHIVE} (sha256)",
+              build_hash, inst_hash, build_hash == inst_hash)
+    return failed
 
 
 def run_checks(build_so: Path, inst_so: Path, link: Path, stored_tc: str | None,
@@ -154,7 +187,7 @@ def self_test() -> int:
     import shutil
     import tempfile
 
-    print("check-musl-freshness --self-test (baseline + 6 injections)")
+    print("check-musl-freshness --self-test (baseline + 7 injections)")
     tmp_root = Path("/tmp/opencode/INFRA-101t")
     tmp_root.mkdir(parents=True, exist_ok=True)
     root = Path(tempfile.mkdtemp(prefix="musl-freshness-selftest-",
@@ -256,9 +289,35 @@ def self_test() -> int:
         rc, _ = run(stored_b="builtins-digest-B")
         verdict("inject-6 (builtins digest changed)", ">=1 failure", rc)
 
+        # 7: INFRA-108t -- the installed PIC archive must be the build product.
+        build_pic = build_lib / bm.PIC_ARCHIVE
+        inst_pic = sysroot_lib / bm.PIC_ARCHIVE
+        build_pic.write_bytes(b"PIC-ARCHIVE-BUILD\n")
+        shutil.copyfile(build_pic, inst_pic)
+
+        def run_pic():
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = run_pic_checks(build_pic, inst_pic)
+            return rc, buf.getvalue()
+
+        rc, _ = run_pic()
+        verdict("pic archive baseline", "0 failures", rc)
+        inst_md5 = md5(inst_pic)
+        inst_pic.write_bytes(b"PIC-ARCHIVE-TAMPERED\n")
+        rc, _ = run_pic()
+        verdict("inject-7 (tampered installed PIC archive)", ">=1 failure", rc)
+        inst_pic.write_bytes(b"PIC-ARCHIVE-BUILD\n")
+        restored = md5(inst_pic) == inst_md5
+        print(f"[{'PASS' if restored else 'FAIL'}] self-test inject-7 restore: "
+              f"expected=md5 {inst_md5} actual={md5(inst_pic)}")
+        bad += 0 if restored else 1
+
         # green again after restoring every recorded identity.
         rc, _ = run()
         verdict("restore (all identities current)", "0 failures", rc)
+        rc, _ = run_pic()
+        verdict("restore (PIC archive current)", "0 failures", rc)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -295,6 +354,8 @@ def main() -> int:
                         bm.toolchain_stamp(), bm.read_source_stamp(),
                         bm.source_stamp(), bm.read_builtins_stamp(),
                         bm.builtins_digest())
+    failed += run_pic_checks(bm.MUSL_SRC / "lib" / bm.PIC_ARCHIVE,
+                             syslib / bm.PIC_ARCHIVE)
     if failed:
         print(f"check-musl-freshness: FAIL ({failed} check(s)) -- {REMEDY}")
         return 1

@@ -29,8 +29,23 @@ DADAO 的 Linux 用户态 C 库底座（**M8**：无内核的 Linux 用户态栈
 ```
 make fetch apply-series                 # 建工作树 + 应用补丁集
 tools/infra/build_musl.py               # configure + make（幂等）+ 链一个静态最小程序并核 ELF
-make build-musl-shared                  # 共享/PIC libc.so，并安装 libc.so + ld-musl-dadao.so.1 -> libc.so
+make build-musl-shared                  # 共享/PIC libc.so + lib/libc_pic.a（静态 PIE 用），并安装到 sysroot lib/
 make check-patch-tree                   # 补丁集机械校验（含 musl）
 ```
 
 `tools/infra/build_musl.py` 用交叉工具链（`.dadao/cross-toolchain/bin`）配置 `--target=dadao-unknown-elf --disable-shared` 并 `make`，产出 `.work/source/musl/lib/{libc.a,crt1.o}`；随后用 `tests/scripts/dadao.lds` 把 `crt1.o` + 最小程序 + `libc.a` 链成静态 `ET_EXEC`，核对 `ELF64 / MSB / machine 0xDA0 / statically linked`。`--shared` 档改为不带 `--disable-shared` 的配置（`.lo` 走 `-fPIC`），并用 `-Wl,-shared -Wl,--hash-style=gnu -Wl,-soname,libc.so` 约束动态段；链接还经 musl 的 `LIBCC` 钩子取 compiler-rt builtins（`__muldc3`/`__mulsc3`）。运行（`dadao-m1` E2E / `P3`）不在本组件的构建脚本内。
+
+### 静态 PIE 与 `libc_pic.a`（`INFRA-108t`，`ISS-303`）
+
+- **两个静态归档、用途不同**：`lib/libc.a` 的成员是**非 PIC** `.o`，只服务普通 `-static`（保留非 PIE 静态产物，逐字节不变）；`lib/libc_pic.a` 的成员是**同一份成员清单**的 `-fPIC` `.lo`（清单取自 musl Makefile 的 `LOBJS`，不另写第二份），由 `make build-musl-shared` 每次重建，并安装到 sysroot 的 `lib/`（与构建树的 `lib/libc.a` 同级，供驱动按「显式 `libc.a` 的同目录兄弟」查找）。
+- **驱动的自动选择**（`clang/lib/Driver/ToolChains/DADAO.cpp`）：`-static-pie`，或 `-pie` 且输入里显式给了 `libc.a`（= 静态 libc）时，把该输入替换为同目录的 `libc_pic.a`；普通 `-static` 不进这条分支。`-shared`（DSO 用 `libc.so`）与 `-r`（可重定位对象）不替换。
+- **`-static-pie` 的链接形态**：驱动转成 `-static -pie --no-dynamic-linker`（与 GNU 驱动一致；lld 无 `-static-pie` 这个开关，此前被静默丢弃 ⇒ 产出 ET_EXEC）。
+- **用法**（crt 必须是 PIC 的 `rcrt1.o`；`-fPIE` 只影响本编译单元，`-static-pie` 不会替你改编译选项）：
+
+  ```
+  clang --target=dadao-unknown-elf -O2 -fPIE -c foo.c -o foo.o
+  clang --target=dadao-unknown-elf -static-pie foo.o <musl>/lib/rcrt1.o \
+        <musl>/lib/libc.a -o foo          # 驱动自动改用同目录 libc_pic.a
+  ```
+
+- **边界**：只按**显式路径**替换（`-lc` 的隐式查找不参与，须显式给 `libc.a`）；同目录没有 `libc_pic.a` 时保持原输入 ⇒ 链接期以 `R_DADAO_ABS48 ... recompile with -fPIC` **显式失败**，不静默退回非 PIC；picolibc 的 `libc.a` 若与 musl 的 `libc_pic.a` 同目录，静态 PIE 口径按 musl 处理（picolibc 无 `rcrt1.o`，不在支持范围）。

@@ -139,7 +139,7 @@ help:
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
 	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"
-	@echo "  make build-musl-shared  Build musl shared/PIC libc.so + link a dynamic smoke executable (PT_INTERP/DT_NEEDED), and install libc.so + the ld-musl-dadao.so.1 symlink into the target sysroot (INFRA-085t stage A1/B1; needs install-host + fetch/apply-series)"
+	@echo "  make build-musl-shared  Build musl shared/PIC libc.so + the PIC static archive libc_pic.a (for -static-pie) + link a dynamic smoke executable (PT_INTERP/DT_NEEDED), and install libc.so + libc_pic.a + the ld-musl-dadao.so.1 symlink into the target sysroot (INFRA-085t stage A1/B1, INFRA-108t; needs install-host + fetch/apply-series)"
 	@echo "  make build-builtins  Rebuild the compiler-rt builtins with the current build-tree clang and stage the archive into that clang's resource dir (ISS-293; needs build-mc + a configured compiler-rt build tree)"
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make check-picolibc-tests  Run the picolibc self-test representative set (L2; TESTCASES-042t)"

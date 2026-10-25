@@ -66,3 +66,9 @@
 - **2026-10-21 `INFRA-100t`（`ISS-294` 实现落点：musl 真原子）**
   - 摘要：**`arch/dadao/atomic_arch.h` 由「单线程假原子」改为 `lr/sc` + `fence` 真原子**（`series` 24 不变，同一补丁重写，70 → 138 行，index blob `478acd9`）。① `a_cas`（`int`，4 B 对象）= `lr.t.an` / `sc.t.ar` 重试环：比较前用 `ext.uo …, 31` 把 `t` 规范化成与 `lr.t` 相同的零扩展 32 位（实测当前后端已把 `int` 实参实例化为零扩展 ⇒ 该指令是防御项；`contract-abi §4.2` 要求 caller 符号扩展，符号扩展的比较值会与 `lr.t` 零扩展结果永不相等并静默丢写）；`sc` 失败（`rdok ≠ 0`）回跳 `lr`；返回 `lr` 观测到的旧值。② `a_cas_p`（`void *`，8 B 槽）= `lr.o.an` / `sc.o.ar` 同形环；地址经局部寄存器变量绑 `rb9` 由后端生成 `rd2rb`（`lr/sc` 基址取 RB bank），旧值从 `lr` 的 RD 目的取回、指针返回时后端生成 `rd2rb` 到 `rb8`。③ `a_barrier` = 硬件 `fence 975`（`immu18 = 0x3CF`，`fm=0`、`pred=succ=R|W|I|O`，与 LLVM 的 acquire-release/seq-cst 映射一致）+ `"memory"` clobber。文件头整块重写为真原子描述（依赖/粒度 8 B 字/按宽度对齐/ABA 不可检/`lr.t` 零扩展前提），删去 `SINGLE-THREADED, NOT REAL ATOMICS` 与「多线程可达后必须替换」论证。真值：`4×250000` 互斥计数静态/动态各 **5/5 轮 `COUNT=1000000`**（`rc=0`）；直接 `a_cas` 自旋锁计数两档同为 `1000000`；`pthread_mutex`/`cond`（signal+broadcast，FIFO 顺序）/`sem_t` 各 2 线程 × 10^5 精确通过；`047t` 19 例静态/动态两档 19/19；`build-musl`/`build-musl-shared`/`check-musl-freshness` rc=0；注入 4 处（`a_cas` 退回普通 load/store ⇒ `COUNT=436431`、`sc` 失败不重试 ⇒ `COUNT=704421`、`a_cas_p` 落 32 位宽 ⇒ 宽指针截断 — 均运行期红；`a_cas_p` 基址改 RD bank ⇒ 汇编期红）后 `cp`+md5 还原回绿；证据脚本 `run.sh --all` 164/164。
   - 执行者：engineer
+
+## M10
+
+- **2026-10-26 INFRA-108t**
+  - 摘要：**`libc_pic.a` 归档与 `-static-pie` 支持（ISS-303，方案 B）**：`build_musl.py --shared` 额外产 `lib/libc_pic.a`（成员 = `LOBJS` 1349，逐成员 sha 对 `.lo`；命名/序对 `libc.a`）并入 sysroot `lib/`；`check_musl_freshness.py` 增「build/installed `libc_pic.a` 同源」检查（自测第 7 注入）；`README.md` 写明 `-static-pie`/`rcrt1.o`/`-fPIE` 用法与「仅替换显式路径 `libc.a`、`-lc` 不替换」边界。真值：`-static-pie` + qemu exit 7；`-static` 逐字节一致（去 `.comment`）；反例移走归档复现 20 条 ABS48 失败。
+  - 执行者：engineer
