@@ -28,8 +28,8 @@
 | M5 | 2026-10-08 | SEE/HEE 运行环境 + semihosting |
 | M6 | 2026-10-11 | 整数完整调用约定 + LLVM 欠账收口 + ELF 直载 + clang target + Embench |
 | M7 | 2026-10-13 | picolibc 移植（自带 test）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle |
-| M9 | 2026-10-24 | FP 完备性 + ISA 收口 + 规范重组（发布 SimRISC 0.5.5） |
 | M8 | 2026-10-19 | 无内核 Linux 用户态栈：musl 静态→动态 + QEMU user-mode（`ADR-0025`） |
+| M9 | 2026-10-24 | FP 完备性 + ISA 收口 + 规范重组（发布 SimRISC 0.5.5） |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -83,4 +83,13 @@
 - ABI/后端收口：`long double` = **binary128**（`ADR-0030`）、变参三游标（`ADR-0031`）、**SP 16 B 对齐**、`rb2` 帧指针、`@@` 注释符、`brind`/f128 libcall/i32 窄返回。
 - 三套大型测试两档如实分类（权威跑）：`embench-iot` 38/38 + 38/38；`libc-test` 静态 `309/0/4/24`、动态 `312/0/4/21`；`llvm-test-suite` 两档同 `201/3/0/16/2`；失败逐条归因（`ISS-265` 等）。
 - 门控 L1/L2/L3 全绿；归档与回顾见 `.tao/archive/M8/`（`README.md` / `m8-retrospective.md` / `issues-closed.md`）。
+
+### M9（2026-10-24）FP 完备性 + ISA 收口 + 规范重组
+
+- **ISA（发布 0.5.5）**：FMA `ftfma`/`fofma`（`rrrr` 四操作数）；`OPC-MISC` 迁 `opc 0x47`（`ct*` 并入）；`fence`/`lr`/`sc` 解 `excluded`（余 `cfxld`/`cfxst` 2 条）；`fp` 66 / `m9` 34 / `total` 266 条。
+- **后端**：窄位 `i8/i16/i32` 全做（各 1 条指令）；`ctlz`/`cttz`/`ctpop` + `rev` 各 1 条；FMA 零拷贝（`fma`/`fmuladd`/C `fma` 各 1 条）；`ldm`/`stm` post-RA 合并；FP 接线 8 类 + `__builtin_dadao_remainder`。
+- **规范**：`MISC-`→`OPC-` 485 处；分册重组（`SimRISC-11` = 核芯功能扩展 / `12` = 其它指令 / 非法指令并入 `00`）；changelog 30→14 条；`spec_cite` 改「手册: 助记符」。
+- **门控**：去写死计数（改集合不变量）+ 7 项覆盖缺口；harness `br.nz` 偏移修正（失败路径可信化）；musl 构建加 `-ffp-contract=off`（`math/yn` 回绿）。
+- **终局复跑 0 fail**：L3 PASS；`libc-test` 331/338 pass、`llvm-test-suite` 204/203 pass（`blocked` 逐例有归属）。
+- 归档与回顾见 `.tao/archive/M9/`（`README.md` / `m9-retrospective.md` / `issues-closed.md`）；11 条 open 全为 M10 登记项。
 
