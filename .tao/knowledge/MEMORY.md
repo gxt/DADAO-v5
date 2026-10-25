@@ -19,7 +19,7 @@
 | 合约（归一化叙述 / 机器可读数据） | `.tao/contracts/contract-*.md` / `contracts/` |
 | 参考仓库（只读工作树 / 锁文件） | `.cache/refs/` + `manifests/` |
 | issue / 教训 | `.tao/knowledge/issues.yaml` / `.tao/knowledge/lessons.md` |
-| 历史归档 | `.tao/archive/M*/`（M1–M8；含 `README.md` + `m<i>-retrospective.md` + `issues-closed.md`） |
+| 历史归档 | `.tao/archive/M*/`（M1–M9；含 `README.md` + `m<i>-retrospective.md` + `issues-closed.md`） |
 | 临时 / 一次性产物 | `/tmp/opencode/<任务ID>/` |
 
 ## 偏离 / 不做台账（唯一一份）
