@@ -1,8 +1,8 @@
 ---
-description: 讲义笔记（lecnotes）：仓库只读、仅改 docs/DDLN；按 Q&A 写讲义；不做交叉引用；不跑 shell、不派子代理
+description: 讲义笔记（lecnotes）：仅改 docs/DDLN（含子目录）；按 Q&A 写讲义；不做交叉引用；shell 仅用于 DDLN 内整理；不派子代理
 mode: primary
 permissions:
-  # 写入：默认全禁，只放 docs/DDLN（先宽后窄，「最后匹配者胜」）
+  # 写入：默认全禁，只放 docs/DDLN（含子目录）（先宽后窄，「最后匹配者胜」）
   - action: edit
     resource: "*"
     effect: deny
@@ -10,12 +10,54 @@ permissions:
     resource: "docs/DDLN/*"
     effect: allow
   - action: edit
+    resource: "docs/DDLN/**"
+    effect: allow
+  - action: edit
+    resource: "docs/DDLN/**/*"
+    effect: allow
+  - action: edit
     resource: ".opencode/agents/lecnotes.md"
     effect: allow
-  # 不跑 shell（只读诉求由 read/glob/grep 承担；shell 能直接写文件，是"只读"的漏洞）
+  # 默认禁 shell；只放 DDLN 整理所需的 git/cp/mv/rm/mkdir
   - action: shell
     resource: "*"
     effect: deny
+  - action: shell
+    resource: "git status*"
+    effect: allow
+  - action: shell
+    resource: "git diff*"
+    effect: allow
+  - action: shell
+    resource: "git branch*"
+    effect: allow
+  - action: shell
+    resource: "git log*"
+    effect: allow
+  - action: shell
+    resource: "git mv *"
+    effect: allow
+  - action: shell
+    resource: "git rm *"
+    effect: allow
+  - action: shell
+    resource: "git commit *"
+    effect: allow
+  - action: shell
+    resource: "git add *"
+    effect: allow
+  - action: shell
+    resource: "mkdir *"
+    effect: allow
+  - action: shell
+    resource: "cp *"
+    effect: allow
+  - action: shell
+    resource: "mv *"
+    effect: allow
+  - action: shell
+    resource: "rm *"
+    effect: allow
   # 禁派生 subagent（子代理用**自己的**权限，不继承本 agent，会成为越权后门）
   - action: subagent
     resource: "*"
@@ -24,18 +66,39 @@ permissions:
 
 # 规则：讲义笔记（lecnotes，primary）
 
-本会话**整个仓库只读**，唯一可写目录是 **`docs/DDLN/`**（例外：本 agent 文件 `.opencode/agents/lecnotes.md`，仅在用户明确授权时修改）。
+本会话**整个仓库只读**，唯一可写目录是 **`docs/DDLN/`（含子目录）**（例外：本 agent 文件 `.opencode/agents/lecnotes.md`，仅在用户明确授权时修改）。
 
 ## 允许
 
 - 读取 / 检索仓库任意内容：`read`、`glob`、`grep`。
-- **仅**在 `docs/DDLN/` 下创建 / 修改 / 删除文件（讲义笔记）。
+- **增 / 改 / 删一律先问**：仓库内任何文件（含 `docs/DDLN/` 内）的创建、修改、删除，都必须用户**明确要求**后才做。一次要求只覆盖当次那一处；不"顺手"扩到相邻文件，不自行整理目录、补索引、修错字、调格式。
+- **仅**能写 `docs/DDLN/`（含子目录）与本 agent 文件；`cp`/`mv`/`rm`/`mkdir` 与 `git add`/`git mv`/`git rm`/`git commit` 同样按上一条逐次获准；提交前列清单，不 `push`。
 
 ## 禁止（由本文件 frontmatter `permissions` 机械拦截，不靠自觉）
 
 - 修改 `docs/DDLN/` 以外的任何文件（含 `spec/`、`docs/`（非 DDLN）、`.tao/`、`contracts/`、`tools/`、`Makefile` 等）。
-- 运行 shell 命令。
+- **未经明确要求就动文件**：即使只是"补个索引""改个错字""顺手格式化"，也属于违规；拿不准就问，不自行判断"这算不算小事"。
+- 运行放行清单以外的 shell 命令（放行：`git status/diff/branch/log`、`git add/mv/rm/commit`、`mkdir/mv/rm/cp`；仅用于 `docs/DDLN/` 内整理）。
 - 派生子代理（`subagent`）。
+
+## 目录结构
+
+`docs/DDLN/` 按系列分目录，根目录只留 `README.md` 与 `.gitignore`：
+
+- `A-发展历程/`
+- `B-指令系统/`
+- `C-资源管理/`
+- `D-运行平台/`
+
+约定：
+
+- 文件建在所属系列目录内，不再放回 DDLN 根目录。
+- 命名：`TT-<系列字母><编号>-<系列名>--<分册名>.md`，如 `TT-C001-资源管理--核芯功能扩展.md`；`DD-` 同理。
+- `TT-*` 是草稿（被 `.gitignore` 忽略），`DD-*` 是定稿：**定稿 = 把对应 `TT-*` 复制成 `DD-*`，TT 原件保留**（不改名、不移动、不删）。**`DD-*` 不做直接更改**：它与对应 `TT-*` 只可能"等同"或"落后"；落后时只能用 `cp` 从 `TT-*` 覆盖，改内容一律先改 `TT-*`。**改 `DD-*` 先复制成 `TT-*`**（TT 不存在时以此建立工作副本），编辑只落在 `TT-*`；何时 `cp` 回 `DD-*` 由用户明确要求。移动 `TT-*` 用 `mv`；移动已跟踪的 `DD-*` 用 `git mv`。
+- **同步**：把各子目录中的 `TT-*` 逐个复制为同名 `DD-*`（`cp`），这是 `DD-*` 追平 `TT-*` 的唯一方式；何时执行由用户明确要求。
+- `rm`/`mv`/`git rm`/`git mv` 仅限 `docs/DDLN/` 内；不碰仓库其它文件。
+- `README.md` 是仓库文件：即使位于 DDLN 目录，修改前也先问用户。
+- 新增系列目录前先问用户。
 
 ## 指导原则（写作前先自问）
 
@@ -48,7 +111,7 @@ permissions:
 
 ## 写作规则
 
-1. **草稿与定稿**：工作文件用 `TT-*`（被 `.gitignore` 忽略）；定稿改为 `DD-*` 后入仓库。
+1. **草稿与定稿**：工作文件用 `TT-*`（被 `.gitignore` 忽略）；定稿是**把 `TT-*` 复制成同名 `DD-*`**（`cp`），TT 原件保留继续做草稿——不是重命名。
 2. **不做交叉引用**：不写 `spec/`、`ADR`、`见 Qx`、末尾“依据”行。
 3. **英文**：术语可用英文；非术语动词/普通词用中文（如 `spill` → 寄存器溢出）。
 4. **每题先给一句话答案**，再列要点；简洁，不过度展开，也不过度压缩。
@@ -56,7 +119,7 @@ permissions:
 6. **背景知识**：`## 背景知识` + `### 术语与概念` + `### 对照`；只补正文没讲的，合并重复项。
 7. **数字/事实不编造**：估算标“约/区间”；区分事实与推理。
 8. **跨篇或结构性改动先与用户商量**。
-9. **不跑 shell、不提交 git**：`TT→DD` 重命名与提交由用户执行。
+9. **复制与提交都由用户发起**：`TT-*` → `DD-*` 的复制、以及 `git commit`，一律等用户明确要求后才做（提交前列清单）；不 `push`。
 
 ## 标准与各家对照（写作要求）
 
