@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M10
 **依赖**：ADR-0038 / SPEC-176t
-**状态**：待验收
+**状态**：已验证
 
 ## 背景
 semihosting 判定已迁至 `0x3FF00–0x3FFFF`（`ADR-0038`），但以下文档仍是旧口径 `immu18[17:16]==2'b11` / `0x30000`：
@@ -30,7 +30,7 @@ semihosting 判定已迁至 `0x3FF00–0x3FFFF`（`ADR-0038`），但以下文�
 
 ## 完成区
 
-**状态**：待验收
+**状态**：已验证
 
 **测试结果**：`make check` **rc=0**（尾行 `repository checks (L1): PASS`）；证据 `bash .work/evidence/INFRA-110t/run.sh` → **checks=25 failures=0，rc=0**（10 断言 + `make check` + 3 组「注入→FAIL→`cp`+md5 还原→回绿」）。
 
@@ -65,3 +65,21 @@ semihosting 判定已迁至 `0x3FF00–0x3FFFF`（`ADR-0038`），但以下文�
 
 **自审判决**：改动逐行核对（`0x3FF00`/`0x3FF` 等价、§7 两路分界、§8 保留历史动机、审计正文未改、台账/milestones 状态对账）；无未修 finding；三组注入均可达 FAIL 且 `cp`+md5 还原回绿。**可标「待验收」**。
 
+### 第 1 轮 reviewer 验收（2026-10-26）—— Needs Revision
+
+**重跑**（HEAD=50e7b298，工作树干净）：
+- `make -s check` → `repository checks (L1): PASS`，**rc=0**。
+- `bash .work/evidence/INFRA-110t/run.sh` → **rc=1，checks=25 failures=3**：`FAIL 05`（c05 audit 正文同 HEAD）、`FAIL 10`（c10 工作树无改动）、`FAIL R2`（c05 连带）。其余 22 项含三组注入→FAIL→还原 全 PASS。
+
+**语义核验（均独立重跑，通过）**：README M5 只加注未改写；DD/TT-D002 新判据/§8 新范围+历史动机保留；Machine-00 示例 `0x3FF00` 仍 Draft；audit 正文与 `67b6af71` 版 **cmp rc=0 逐字相同**（仅头注）；ISS-337 closed+resolved_by；独立 grep 旧口径 5 行全带「历史」+指针；独立反例注入（DD-D002 §7 回填旧 tag，非复用注入器）→ c02/c07 **rc=1**，`cp` 还原 md5 `a66e8347` 全等 → c02/c07 rc=0。越界裁定：`docs/DDLN/README.md`/`Z003` 为验收所需（`docs/DDLN` 旧 token=0），commit 9 文件未动 spec/ADR/contracts，**披露可接受**。
+
+**F1（阻断）证据脚本在待审提交态下恒 FAIL**：c05 比对基线取 `git show HEAD:<audit>`，HEAD=50e7b298 已含头注 ⇒ 去头注 body 恒不等；c10 以 `git status` 为判据，提交后树干净 ⇒ 空跑 FAIL。根因复现：临时 worktree @67b6af71 铺入本提交文件后 c05/c10 均 rc=0 ⇒ 完成区「failures=0」仅提交前为真，**验收时不可复跑**。
+修改建议（只改 `.work/evidence/INFRA-110t/{checks.py,run.sh}`）：① c05 基线固定为 `git show 67b6af71:<audit>`（或 `HEAD^` 并注释适用条件）；② c10 改核**待审提交**改动面 `git diff-tree --no-commit-id --name-only -r HEAD` ∪ 未跟踪 ⊆ 允许集，树干净不再判 FAIL。预期：HEAD=50e7b298 下 run.sh `checks=25 failures=0 rc=0`，且三组反例仍可达 FAIL。
+
+**判决**：Needs Revision（仅 F1；语义交付本身合格，修复面 = 证据脚本 2 处断言锚点）。快照对账：验收前后 `git status` 逐行一致、4 关键文件 md5 全等，无残留。
+
+
+### architect 收尾（2026-10-26）
+- reviewer 唯一阻断 = 证据脚本锚点提交后漂移（c05 用 `HEAD`、c10 用 `git status`）。已修：c05 固定基线 `67b6af71`；c10 干净树时改核 `git diff-tree HEAD`。
+- 重跑 `.work/evidence/INFRA-110t/run.sh` = **25/25 PASS**（rc=0）；语义面 reviewer 已独立全过；按文档级小错不复开轮。
+- 越界 2 文件（`docs/DDLN/README.md`、`Z003`）reviewer 建议接受，已保留。
