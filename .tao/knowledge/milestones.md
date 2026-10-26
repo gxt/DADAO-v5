@@ -53,12 +53,12 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-071t | 已验证 | 2026-10-27 01:51 | 测试骨架与根级索引（P1；四 scope 目录 + 索引 + check-tests-index） |
 | TESTCASES-069t | 已验证 | 2026-10-27 01:35 | ISS-266 四例判定：8b10b known-fail、dbms pass、SPASS 语料 UB、typeset 语料+musl；0 blocked |
 | TESTCASES-068t | 已验证 | 2026-10-27 00:32 | qemu-user OOM 修复：-R 4G + flockfile known-fail（ISS-255/257） |
 | TESTCASES-070t | 已验证 | 2026-10-27 00:01 | rev 向量重生成+门控、diff_ir_lli 2 个 .ll 归类（ISS-335/336） |
 | INFRA-110t | 已验证 | 2026-10-26 23:44 | semihosting 旧口径文档清理（README 历史注记、DDLN、Machine-00、audit 头注） |
 | SPEC-177t | 已验证 | 2026-10-26 23:27 | 删除 SBI 保留值 0x3FFFF（ISS-334 B）；SBI/SEE 0.7.3-rc |
-| TESTCASES-071t | 待验收 | 2026-10-26 23:12（登记） | 测试骨架与根级索引（P1；四 scope 目录 + 索引 + `check-tests-index`） |
 | TESTCASES-072t | 待开始 | 2026-10-26 23:12（登记） | inst 迁移（ISA 向量+探针+harness；check-inst） |
 | TESTCASES-073t | 待开始 | 2026-10-26 23:12（登记） | arch 迁移（m5+min-ROM+bootrom；check-arch） |
 | TESTCASES-074t | 待开始 | 2026-10-26 23:12（登记） | unit 迁移（lit/codegen/ir-lli/picolibc；check-unit） |

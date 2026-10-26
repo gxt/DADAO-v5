@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：Process-09（草案）
-**状态**：待验收
+**状态**：已验证
 
 ## 目标（P1）
 1. 建 `tests/{inst,arch,unit,tset,shared}/`（空目录可留 `.gitkeep`）。
@@ -61,4 +61,23 @@
 | `file` 指向目录时仅查 `exists()` 会误通过 | ✅已修 | 增 `is_file()` 分支 + 注入⑫ | self-test case14 marker=`不是文件` |
 | 空文件索引路径未被基线覆盖 | ✅已修 | 干净基线①的 `inst.yaml` 用空文件 | self-test case1 rc=0 |
 | 注入还原是否真回到原字节 | ✅已修 | 证据脚本 `cp` 备份 + 两次 md5 对账 | 注入 A/B 均 `md5=same` |
+
+### 第 1 轮 reviewer 验收（2026-10-27）
+
+**改动范围**：`git show --name-status 75f0b30f` 仅 A/M，无 R/D；`git status --porcelain -uall` 验收前后快照逐行一致（均 0 行），目标文件 md5 验收前后相等（inst=d2441f15 / arch=c940570a，与 commit 内容一致）。
+
+**重跑（reviewer 自己执行）**：
+- `make check` → rc=0，`repository checks (L1): PASS`。
+- `make check-tests-index` → rc=0，现场计数 inst=0/arch=0/unit=0/tset=0/total=0，`结果: PASS`。
+- `python3 tools/testcases/check_tests_index.py --self-test` → rc=0，case1~14 + case-dir 全 PASS，13 类注入各自 rc=1 且 marker 命中（可达 FAIL，非恒真）。
+- `bash .work/evidence/TESTCASES-071t/run.sh` → rc=0，checks=9 fails=0，与完成区 9/9 逐条一致。
+
+**独立反例（reviewer 自注入，非复用 engineer）**：
+- A（跨条目重复 ID）：`tests/arch.yaml` 写两条 `arch-umon-001` → rc=1，`id=arch-umon-001 重复（已在第 1 条出现）`；`cp` 还原 + md5=same → rc=0 回绿。
+- B（file 不存在）：`tests/inst.yaml` 指向 `inst/nonexistent/rev.yaml` → rc=1，`file 不存在`；`cp` 还原 + md5=same → rc=0 回绿。
+- 还原全程用 `cp`+md5 对账，未用 git checkout/restore。
+
+**约束核验**：① 未移动/改名现有测试文件（diff 无 R/D）✓；② 门控仅接 L1：`check-tests-index` 只出现在 `.PHONY`/`_locked-check: ...` 与目标定义，L2 `_locked-check-modules`、L3 `_locked-check-full` 均未列入 ✓；③ 旧门控全保留（`check-testcases-suites{,-full}`、`check-case-ledger` 等原样在）✓；④ 索引字段恰五项、scope/平台校验、空索引/空文件合法、计数现场派生（代码 + self-test 双向验证）✓；⑤ 越界：改动仅 `tests/`、`tools/testcases/`、`Makefile`、`tests/README.md`、`milestones.md`、本任务书 ✓；⑥ 临时产物落 `/tmp/opencode/TESTCASES-071t/` ✓。
+
+**判决**：Accepted。
 
