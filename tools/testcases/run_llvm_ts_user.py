@@ -177,7 +177,7 @@ Classification (counted live, never hard-coded)
                   the program's own output is recorded.
 * ``known-fail``  the failure is explained by a row of the **per-case basis
                   table** (``KNOWN_FAIL_BASES``) with that row's evidence
-                  recomputed live.  Two causes are admitted:
+                  recomputed live.  Three causes are admitted:
                   * ``ISS-246`` (``__thread``: clang ``thread-local storage is
                     not supported for the current target`` / backend
                     ``GlobalTLSAddress``) -- requires a live TLS declaration
@@ -197,6 +197,16 @@ Classification (counted live, never hard-coded)
                     clang/musl and run under the same qemu) showing musl's
                     ``random()``/``rand()`` sequence after seed 1 differs from
                     the host glibc's.
+                  * ``ISS-266`` (8b10b only; user ruling 2026-10-26): the
+                    corpus' ``input.txt`` is a **little-endian** u32 word
+                    stream (calc.c's own comment) while the target is
+                    big-endian (ADR-0003 D1), so ``fread`` produces an index
+                    past ``lookupTable5B[64]`` / ``lookupTable3B[16]``.  The
+                    row is admitted only when the case's data file and its own
+                    table declarations are re-read live, both endiannesses are
+                    decoded, and the run died of a **forwarded** guest
+                    ``SIGSEGV`` (see the probe below).  Corpus/data cause, not
+                    a qemu defect.
                   No other cause is admitted (the older "sole basis = ISS-246"
                   wording is superseded by INFRA-087t's per-case-evidence
                   rule; a row whose evidence does not hold leaves the case
@@ -204,9 +214,19 @@ Classification (counted live, never hard-coded)
 * ``blocked``     a build/run gap prevents the case from reaching its own
                   verdict: compile/link failure, missing symbol, an image at
                   the scripted base, a wrong PT_INTERP/modality, qemu killed
-                  by a host signal, timeout (``--timeout`` seconds; the
-                  ``124``/timeout case is *blocked*, never pass/fail), or
-                  non-derivable upstream CMake configuration.
+                  by a host signal **that is not a forwarded guest fault**,
+                  timeout (``--timeout`` seconds; the ``124``/timeout case is
+                  *blocked*, never pass/fail), or non-derivable upstream CMake
+                  configuration.
+                  ``qemu-user`` re-raises the *target* signal as a host signal
+                  (``dump_core_and_abort`` -> ``die_with_signal``), so
+                  ``returncode < 0`` alone cannot tell a guest fault from an
+                  emulator fault (QEMU-075t).  A host-signal death is therefore
+                  re-probed with ``-strace``: a ``--- SIGxxx {si_signo=...,
+                  si_code=..., si_addr=...} ---`` delivery line and no
+                  ``QEMU internal`` means the guest ran to its own signal
+                  verdict and the case is a ``fail`` (a real defect), never
+                  ``blocked``.
                   ``blocked > 0 => rc = 1`` (ISS-248 gate rule: incomplete
                   coverage must not look green).  A completed run whose
                   oracle mismatch is caused by the platform never executing
@@ -430,12 +450,25 @@ int main(void)
 }
 """
 
+# ISS-266 (user ruling 2026-10-26): the only 8b10b row.  Its live evidence is
+# recomputed from the case's own data file and sources (no cached verdict).
+ISS266_ID = "ISS-266"
+ISS266_8B10B = "MultiSource/Benchmarks/VersaBench/8b10b"
+# Table declarations read from the case's own sources: name -> bound.
+ISS266_TABLE_RE = re.compile(r"\b(lookupTable5B|lookupTable3B)\s*\[\s*(\d+)\s*\]")
+
 KNOWN_FAIL_BASES = {
     ISS246_ID: "live TLS declaration scan hit in the case's own sources + "
                "clang thread-local-storage diagnostic",
     ISS265_ID: "per-case admission table ISS265_ADMISSION (exactly ClamAV / "
                "obsequi / ft): interleaving-only document difference, or a "
                "live musl-vs-glibc PRNG sequence divergence",
+    ISS266_ID: "per-case ISS-266 row (8b10b only): the case's own input.txt "
+               "is a little-endian u32 word stream while the target is "
+               "big-endian, so the BE-decoded index falls outside the "
+               "lookupTable5B[64]/lookupTable3B[16] bounds declared in the "
+               "case's own sources; the run must also have died of a "
+               "forwarded guest SIGSEGV",
 }
 
 # Programs upstream does not add under ``SMALL_PROBLEM_SIZE`` (its tree
@@ -608,8 +641,43 @@ PLATFORM_GAP_SIGNATURES = {
         "not ISS-267."),
 }
 
-# Cases whose host-signal death is a known qemu defect (reason pointer).
+# Cases whose host-signal death is a known qemu defect (reason pointer).  A
+# forwarded guest fault is *not* one of these: it is classified ``fail`` by the
+# ``-strace`` probe in ``guest_signal_probe`` (QEMU-075t criterion).
 QEMU_SIGNAL_ISSUES = {
+}
+
+# Attributions for guest faults, documentation only -- the class is decided by
+# the forwarded-signal probe.  Each entry records what TESTCASES-069t determined
+# (the gdb/-strace/disassembly evidence is in .work/log/testcases/).
+GUEST_FAULT_NOTES = {
+    "MultiSource/Applications/SPASS":
+        "corpus undefined behaviour exposed by the bank-separated ABI: "
+        "cnf.c:2760 calls list_Member(Symbols, ..., "
+        "(BOOL (*)(POINTER,POINTER))symbol_Equal) while symbol_Equal is "
+        "int symbol_Equal(int,int).  clang passes the two POINTER arguments in "
+        "rb16/rb17 (contract-abi §4.1/§4.2), the out-of-line symbol_Equal "
+        "reads rd16/rd17 (SPASS.elf: call at 0x510fc, callee 0x46758), so the "
+        "free-variable filter compares stale data-register values and the "
+        "skolemization bookkeeping diverges from the intended set (host "
+        "x86-64, where ints and pointers share one register file, completes; "
+        "both -O0 and -O2 DADAO builds diverge identically).  Same class as "
+        "lemon/ISS-277; guest SIGSEGV at list_Top(NULL) is the symptom, not "
+        "the cause.",
+    "MultiSource/Benchmarks/MiBench/consumer-typeset":
+        "corpus does not check catopen() failure: z01.c:229 stores the result "
+        "in MsgCat and z01.c:856 calls catclose(MsgCat) unconditionally.  The "
+        "catalog does not exist in the guest (-strace: "
+        "openat(\"lout.lib/locale/C/LC_MESSAGES/errors.C\") = -1 ENOENT), so "
+        "musl's catopen returns (nl_catd)-1 (POSIX), and musl's catclose has "
+        "no -1 guard: it dereferences map+8, i.e. address 0x7 (guest SIGBUS). "
+        "glibc's catclose((nl_catd)-1) returns -1/EBADF (live probe on this "
+        "host), which is why the upstream reference was produced without a "
+        "crash.  Corpus error-ignoring call + musl-vs-glibc difference; not "
+        "qemu instruction semantics and not a backend miscompile.",
+    "MultiSource/Benchmarks/VersaBench/8b10b":
+        "corpus data endianness (known-fail row ISS-266): input.txt is a "
+        "little-endian u32 word stream, the target is big-endian.",
 }
 
 # Machine-fault exits (ADR-0004 D5.8): the guest left through a machine fault.
@@ -1190,7 +1258,8 @@ class Case:
                  "seconds", "compare", "compare_cmd",
                  "stdout_sha256", "stdout_size", "tls_hits",
                  "known_fail_basis", "known_fail_evidence", "notes",
-                 "run_seconds", "run_timeout")
+                 "run_seconds", "run_timeout", "guest_signal",
+                 "guest_signal_detail")
 
     def __init__(self, cid, tree, kind, unit_dir, sources, target=None):
         self.cid = cid
@@ -1231,6 +1300,8 @@ class Case:
         self.notes = []
         self.run_seconds = 0.0   # guest run wall clock (timeout-table basis)
         self.run_timeout = None  # effective run timeout used for this case
+        self.guest_signal = ""   # e.g. "SIGSEGV" when qemu forwarded one
+        self.guest_signal_detail = ""  # the -strace delivery line
 
     def as_dict(self, mode):
         return dict(mode=mode, case=self.cid, tree=self.tree, kind=self.kind,
@@ -1254,6 +1325,8 @@ class Case:
                     pt_interp=self.interp,
                     known_fail_basis=self.known_fail_basis,
                     known_fail_evidence=self.known_fail_evidence,
+                    guest_signal=self.guest_signal,
+                    guest_signal_detail=self.guest_signal_detail,
                     tls_hits=self.tls_hits,
                     compile_cmd=self.compile_cmds,
                     link_cmd=self.link_cmd, run_cmd=self.run_cmd,
@@ -1604,6 +1677,106 @@ def platform_gap_reason(case: Case, actual_doc: bytes):
     return reason, line
 
 
+# ``-strace`` prints this from print_taken_signal() for a *guest* signal
+# delivery (the dashes are qemu's own markers); a host-side crash prints
+# "QEMU internal SIGxxx" instead (QEMU-075t).  ``si_code`` is a symbolic name
+# when qemu knows it (SEGV_MAPERR/...) and a number otherwise, so it is kept
+# verbatim rather than parsed.
+SIG_DELIVERY_RE = re.compile(
+    r"^--- (?P<name>SIG[A-Z0-9]+) \{si_signo=(?P<signo>SIG[A-Z0-9]+), "
+    r"si_code=(?P<code>[^,}]+)"
+    r"(?:, si_addr=(?P<addr>0x[0-9a-fA-F]+))?\} ---$", re.M)
+QEMU_INTERNAL_MARK = "QEMU internal"
+
+
+def run_to_file(cmd, stderr_path, timeout, cwd, stdin_path):
+    """Run cmd with stdout discarded and stderr kept in ``stderr_path``.
+
+    Only the host-signal probe uses this: the guest's output was already
+    recorded by the first run, and ``-strace`` can be verbose, so it must not
+    go through an in-memory pipe.  Returns (rc, timed_out, error_text).
+    """
+    stdin = subprocess.DEVNULL
+    if stdin_path:
+        stdin = open(stdin_path, "rb")
+    proc = None
+    try:
+        with open(stderr_path, "wb") as err, open(os.devnull, "wb") as null:
+            proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin, stdout=null,
+                                    stderr=err, start_new_session=True)
+            try:
+                proc.wait(timeout=timeout)
+                timed = False
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except OSError:
+                    pass
+                proc.wait()
+                timed = True
+    except OSError as exc:
+        return 127, False, str(exc)
+    finally:
+        if stdin_path:
+            stdin.close()
+    return proc.returncode, timed, ""
+
+
+def guest_signal_probe(case: Case):
+    """Re-run a host-signal death with ``-strace``; return (info, why).
+
+    qemu-user re-raises the target signal as a host signal
+    (linux-user/signal.c: ``dump_core_and_abort`` -> ``die_with_signal``), so
+    ``rc < 0`` alone cannot tell a guest fault from an emulator fault
+    (QEMU-075t).  ``-strace`` (LOG_STRACE) prints
+    ``--- SIGxxx {si_signo=..., si_code=..., si_addr=...} ---`` from
+    ``print_taken_signal()`` for a guest signal delivery, while an emulator
+    fault prints ``QEMU internal SIGxxx``.
+
+    ``info`` (a forwarded guest fault) is a dict with ``name``, ``signo``,
+    ``detail`` and ``log``; ``why`` explains a negative probe.  The probe's
+    stderr stays in ``<outdir>/qemu-strace.log`` so the criterion is auditable.
+    The probe repeats the run up to the case's own timeout, so it doubles
+    the wall clock only for cases that already died by a host signal.
+    """
+    cmd = list(case.run_cmd)
+    cmd.insert(1, "-strace")   # qemu options precede the guest image
+    log = os.path.join(case.outdir, "qemu-strace.log")
+    run_dir = os.path.join(case.outdir, "run")
+    stdin_path = (os.path.join(run_dir, case.stdin_name)
+                  if case.stdin_name else None)
+    rc, timed, err = run_to_file(cmd, log, case.run_timeout, run_dir,
+                                 stdin_path)
+    if err:
+        return None, f"-strace probe could not start: {err}"
+    try:
+        with open(log, "rb") as fh:
+            text = fh.read().decode("utf-8", errors="replace")
+    except OSError as exc:
+        return None, f"-strace probe log unreadable: {exc}"
+    if QEMU_INTERNAL_MARK in text:
+        return None, f"qemu reported 'QEMU internal' (emulator fault): {log}"
+    if timed:
+        return None, f"-strace probe timed out after {case.run_timeout}s: {log}"
+    if rc >= 0:
+        return None, (f"-strace probe exited {rc} instead of dying by a host "
+                      f"signal: {log}")
+    hits = list(SIG_DELIVERY_RE.finditer(text))
+    if not hits:
+        return None, (f"-strace shows no '--- SIG...' delivery line, so this "
+                      f"is not a forwarded guest fault: {log}")
+    hit = hits[-1]
+    name = hit.group("name")
+    try:
+        signo = int(getattr(signal, name))
+    except (AttributeError, ValueError):
+        return None, f"unknown signal name {name!r} in the -strace log: {log}"
+    detail = f"si_signo={hit.group('signo')}, si_code={hit.group('code')}"
+    if hit.group("addr"):
+        detail += f", si_addr={hit.group('addr')}"
+    return dict(name=name, signo=signo, detail=detail, log=log), ""
+
+
 def _build_and_run(case: Case, cfg, work_dir):
     """Compile -> link -> check image shape -> run -> classify one case."""
     outdir = os.path.join(work_dir, cfg["mode"], _slug(case.cid))
@@ -1816,11 +1989,30 @@ def _build_and_run(case: Case, cfg, work_dir):
         case.reason = "qemu did not return an exit code"
         return case
     if rc < 0:
+        info, why = guest_signal_probe(case)
+        if info:
+            case.guest_signal = info["name"]
+            case.guest_signal_detail = info["detail"]
+            case.exit = 128 + info["signo"]
+            case.first_error = first_output_line(stdout, b"")
+            case.klass = "fail"
+            case.reason = (
+                f"guest died of {info['name']} ({info['detail']}); qemu "
+                f"forwarded the target signal and then re-raised it as host "
+                f"signal {-rc}, so rc<0 is not an emulator fault -- the "
+                f"'-strace' log {info['log']} carries the '--- SIG' delivery "
+                f"line and no 'QEMU internal' (QEMU-075t criterion).  Guest "
+                f"signal verdict => fail, not blocked")
+            note = GUEST_FAULT_NOTES.get(case.cid)
+            if note:
+                case.reason += "; " + note
+            return case
         case.klass = "blocked"
         case.reason = f"qemu killed by host signal {-rc}"
         issue = QEMU_SIGNAL_ISSUES.get(case.cid)
         if issue:
             case.reason += f" (qemu-user crash; see {issue})"
+        case.reason += f"; {why}"
         case.first_error = first_output_line(stdout, b"")
         return case
     case.exit = rc
@@ -2123,6 +2315,107 @@ def iss265_evidence(case: Case, cfg, cache):
                   f"{guest} != glibc {host}; {row['why']}")
 
 
+def iss266_data_file(case: Case):
+    """The case's own data file actually read by the run (run copy first)."""
+    for token in case.run_argv:
+        if token.startswith("-") or "=" in token:
+            continue
+        for base in (os.path.join(case.outdir, "run"), case.unit_dir):
+            path = os.path.join(base, token)
+            if os.path.isfile(path):
+                return path
+    return ""
+
+
+def iss266_indices(word: int):
+    """The 8b10b table indices calc.c derives from one input word.
+
+    testbench.c:83 calls ``calc(bits0&0xff, bits0>>8)``; calc.c:173-174
+    builds ``index5 = ((theWord>>3)&0x1f)|(k<<5)`` and
+    ``index3 = ((theWord)&0x7)|(k<<3)``.  Re-read here, never assumed.
+    """
+    k = word >> 8
+    return (((word >> 3) & 0x1F) | (k << 5), (word & 0x7) | (k << 3))
+
+
+def iss266_8b10b_evidence(case: Case):
+    """Recompute the ISS-266 8b10b basis; return (ok, evidence).
+
+    Live checks, all from the case's own files:
+    * the run died of a **forwarded** guest SIGSEGV (exit 139);
+    * the table bounds come from the case's own ``lookupTable5B[...]`` /
+      ``lookupTable3B[...]`` declarations;
+    * the data file decodes to in-range indices as little-endian words (the
+      format calc.c's header says it writes) and to at least one out-of-range
+      index when the same bytes are read big-endian (the target's byte order).
+    """
+    if case.cid != ISS266_8B10B:
+        return False, ("not the admitted ISS-266 case (admission is per case, "
+                       "never per class)")
+    if case.guest_signal != "SIGSEGV" or case.exit != 139:
+        return False, (f"the run did not die of a forwarded guest SIGSEGV "
+                       f"(guest_signal={case.guest_signal or 'none'}, "
+                       f"exit={case.exit})")
+    bounds = {}
+    table_src = ""
+    for src in case.sources:
+        try:
+            text = read_text(src)
+        except OSError:
+            continue
+        for name, bound in ISS266_TABLE_RE.findall(text):
+            bounds.setdefault(name, int(bound))
+            table_src = table_src or os.path.basename(src)
+    missing = sorted({"lookupTable5B", "lookupTable3B"} - set(bounds))
+    if missing:
+        return False, (f"table declaration(s) {missing} not found in the "
+                       f"case's own sources")
+    data = iss266_data_file(case)
+    if not data:
+        return False, "the case's data file named on the run argv is missing"
+    try:
+        with open(data, "rb") as fh:
+            raw = fh.read()
+    except OSError as exc:
+        return False, f"cannot re-read the data file {data}: {exc}"
+    if len(raw) < 4:
+        return False, f"data file {data} holds no 32-bit word"
+    offsets = range(0, len(raw) - 3, 4)
+    le_bad = be_bad = 0
+    for off in offsets:
+        chunk = raw[off:off + 4]
+        for word, counter in ((int.from_bytes(chunk, "little"), "le"),
+                              (int.from_bytes(chunk, "big"), "be")):
+            i5, i3 = iss266_indices(word)
+            bad = (i5 >= bounds["lookupTable5B"]
+                   or i3 >= bounds["lookupTable3B"])
+            if bad and counter == "le":
+                le_bad += 1
+            elif bad:
+                be_bad += 1
+    if le_bad:
+        return False, (f"{le_bad} little-endian word(s) of {data} already "
+                       f"index past the declared table bounds: not the "
+                       f"corpus-data basis")
+    if not be_bad:
+        return False, (f"no big-endian word of {data} indexes past "
+                       f"{bounds}: the endianness basis does not hold")
+    first = int.from_bytes(raw[0:4], "big")
+    first_le = int.from_bytes(raw[0:4], "little")
+    i5_be, i3_be = iss266_indices(first)
+    i5_le, i3_le = iss266_indices(first_le)
+    return True, (
+        f"live data check: {data} has {len(raw) // 4} u32 words; first word "
+        f"bytes {raw[0:4].hex()} = 0x{first_le:08x} little-endian -> "
+        f"index5={i5_le}/index3={i3_le} (both in range), 0x{first:08x} "
+        f"big-endian -> index5={i5_be}/index3={i3_be}; all {len(raw) // 4} "
+        f"LE words are in range while {be_bad} BE word(s) exceed "
+        f"lookupTable5B[{bounds['lookupTable5B']}]/"
+        f"lookupTable3B[{bounds['lookupTable3B']}] (declared in {table_src}); "
+        f"ADR-0003 D1 makes the target big-endian, so fread yields these "
+        f"out-of-range indices and the guest faults (corpus data, not qemu)")
+
+
 def iss265_admission_selfcheck():
     """Reverse check: the ISS-265 table is closed and refuses loose cases.
 
@@ -2249,6 +2542,20 @@ def run_round(cases, cfg, work_dir, jobs, args, excluded, progress=None):
         r.known_fail_evidence = evidence
         r.reason = f"{ISS265_ID} (per-case basis holds): {r.reason}"
 
+    # ISS-266 (8b10b): same post-round admission rule, separate closed row.
+    iss266_refused = []
+    for r in results:
+        if r.klass != "fail" or r.cid != ISS266_8B10B:
+            continue
+        basis_ok, evidence = iss266_8b10b_evidence(r)
+        if not basis_ok:
+            iss266_refused.append(f"{r.cid}: {evidence}")
+            continue
+        r.klass = "known-fail"
+        r.known_fail_basis = ISS266_ID
+        r.known_fail_evidence = evidence
+        r.reason = f"{ISS266_ID} (per-case basis holds): {r.reason}"
+
     counts = {k: sum(1 for r in results if r.klass == k)
               for k in ("pass", "fail", "known-fail", "blocked", "excluded")}
     counts["excluded"] = len(excluded)
@@ -2275,6 +2582,8 @@ def run_round(cases, cfg, work_dir, jobs, args, excluded, progress=None):
             basis_ok, _evidence = iss246_evidence(r)
         elif r.known_fail_basis == ISS265_ID:
             basis_ok, _evidence = iss265_evidence(r, cfg, iss265_cache)
+        elif r.known_fail_basis == ISS266_ID:
+            basis_ok, _evidence = iss266_8b10b_evidence(r)
         else:
             basis_ok = False
         if not basis_ok:
@@ -2294,7 +2603,7 @@ def run_round(cases, cfg, work_dir, jobs, args, excluded, progress=None):
     return results, counts, dict(
         closure_ok=closure_ok, classification_ok=classification_ok,
         bad_known=bad_known, unexplained=unexplained,
-        iss265_refused=iss265_refused,
+        iss265_refused=iss265_refused, iss266_refused=iss266_refused,
         admission_problems=admission_problems, ok=ok)
 
 
@@ -2375,6 +2684,9 @@ def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
     if audit.get("iss265_refused"):
         emit(f"  ISS-265 rows refused (basis does not hold => stay fail): "
              f"{audit['iss265_refused']}")
+    if audit.get("iss266_refused"):
+        emit(f"  ISS-266 rows refused (basis does not hold => stay fail): "
+             f"{audit['iss266_refused']}")
     if audit["unexplained"]:
         emit(f"[FAIL] unclassified failure(s) remain: {audit['unexplained']}")
 

@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：QEMU-075t（诊断）
-**状态**：待开始
+**状态**：待验收
 
 ## 背景（只针对 ISS-266 的 4 个 llvm-ts 程序）
 QEMU-075t 结论：
@@ -40,16 +40,40 @@ python3 tools/testcases/run_llvm_ts_user.py --link-mode both --jobs 1 \
 
 ## 完成区
 
-**状态**：待开始
+**状态**：待验收
 
-### 修改文件
-（待填）
+**测试结果**：`bash .work/evidence/TESTCASES-069t/run.sh` ⇒ **48 PASS / 0 FAIL**（含注入→8b10b 降为 fail→`cp`+md5 还原→回绿）；`make check` rc=0。定向两档（static/dynamic）均为 `total=4 pass=1 fail=2 known-fail=1 blocked=0`；driver rc=1 因真实 `fail` 存在（判据即判定，非门控失败）。
 
-### 验收命令与结果
-（待填）
+**修改文件**：`tools/testcases/run_llvm_ts_user.py`（`rc<0` 的 `-strace` 转发探针 + ISS-266 8b10b per-case 行 + reason/`GUEST_FAULT_NOTES`）、`.tao/knowledge/issues.yaml`（ISS-266 closed）、`.tao/knowledge/milestones.md`（本行）、本任务书；证据脚本 `.work/evidence/TESTCASES-069t/run.sh`（`.work/` 不入库，日志 `.work/log/testcases/TESTCASES-069t-*`）。
 
-### 诊断结论（SPASS/typeset）
-（待填）
+**验收结果**：
+- 两档逐例：`dbms PASS exit=0`（byte-exact）；`8b10b KNOWN-FAIL basis=ISS-266 exit=139`；`SPASS FAIL exit=139 (si_addr=0x8)`；`consumer-typeset FAIL exit=135 (si_addr=0x7)`；`blocked=0`。
+- 三例 `qemu-strace.log` 均有 `--- SIGSEGV/SIGBUS {si_signo=…, si_code=1, si_addr=…} ---` 且无 `QEMU internal`（探针判据）。
+- `make check` ⇒ `repository checks (L1): PASS`（rc=0）。
 
-### 遗留
-（待填）
+**诊断结论（SPASS/typeset）**：
+- **SPASS = 语料 UB（非 qemu 语义/非后端错编）**：`cnf.c:2760` 把 `int symbol_Equal(int,int)` 强转成 `BOOL(*)(POINTER,POINTER)`；clang 按指针原型传 `rb16/rb17`，out-of-line `symbol_Equal` 读 `rd16/rd17`（`SPASS.elf` 调用点 `0x510fc` → callee `0x46758`）⇒ 自由变量过滤得错误结果，`acc=4/acc_len=2` 要删 2 个而 `newvariables` 已空 ⇒ `list_Top(NULL)` → guest SIGSEGV。同一源码 gcc/x86-64 `-O2` 跑到 exit 0；DADAO `-O0`/`-O2` 偏移一致（首调用 `nfree=3/acc=2` vs 宿主 `nfree=2/acc=1`）。**反证**：`/tmp` 副本把该强转换成匹配原型 wrapper 后，同 clang `-O2` DADAO 构建 **rc=0**、`md5(stdout+exit 0)=74365d61…` 与宿主 gcc 构建**逐字节相同**（≠上游 md5 参考 `b0b56c51…` ⇒ 另属「参考方差」面，本册不展开）。同类 = `lemon`/`ISS-277`、`TESTCASES-064t`（bank 不匹配）。
+- **typeset = 语料未查 `catopen` 失败 + musl `catclose` 无 -1 守卫**：`z01.c:229/856` 无条件 `catclose(MsgCat)`；guest 无 catalog（`-strace`: `openat("lout.lib/locale/C/LC_MESSAGES/errors.C") = -1 ENOENT`）⇒ `catopen` 返回 `(nl_catd)-1`，musl `catclose` 解引用 `map+8`（addr `0x7`）→ guest SIGBUS；宿主 glibc `catclose((nl_catd)-1)` 返回 `-1/EBADF`（实测探针），故上游参考在 glibc 下不崩。
+- 两者按判据记 **fail**（不伪造 known-fail）；8b10b 的 `ISS-266` 活证据 = `input.txt` 全 65536 小端词索引在界内、65409 个大端词越界（首词 `38000000` 大端 index5=117440512/index3=29360128）。
+
+**新发现/坑**：① 本端口 `rc<0` = qemu `die_with_signal` 重发宿主信号，**不能**直接判 blocked，须 `-strace` 看 `--- SIG…` / `QEMU internal`；② bank 分离 ABI 会把「不兼容函数指针强转」类 UB 暴露成真实错误（诊断语料崩溃优先查跨 bank 原型）；③ 探针只在 `rc<0` 触发，失败用例运行时翻倍（本次每例 ~20 s）。
+
+**遗留问题**：SPASS/typeset 属上游语料/锁定 musl 面，未改语料/qemu/LLVM；驱动保持 `fail`（全量 llvm-ts 仍红），转绿须上游修语料或改 musl 语义（另立册）。**SPASS 另有「参考方差」面**：修掉 UB 强转后 DADAO 与宿主 gcc 输出逐字节相同、却仍 ≠ 上游 md5 参考（`b0b56c51…`）⇒ 即便修语料也需重定参考，单独立册。未跑全量 llvm-ts、未夜跑（任务约束）。
+
+## 审阅记录
+
+### 第 1 轮 engineer 自审
+
+逐行复核驱动改动、探针判据、ISS-266 活证据与证据脚本：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 `-strace` 行解析写成 `si_signo=(\d+)`，实际 qemu 打印 `si_signo=SIGSEGV`（符号名）⇒ 探针恒不命中、四例仍 blocked | ✅已修 | 正则改 `si_signo=SIG[A-Z0-9]+`，信号号用 `getattr(signal, name)` 取得；`si_code` 保留原文（可能是名字） | 首跑四例即复现（三例 blocked）；修后两档 `fail=2/known-fail=1/blocked=0`，`qemu-strace.log` 逐例命中 |
+| F2 `run_to_file`/`guest_signal_probe` 返回值形状与 docstring 不一致（3 元 vs 2 元） | ✅已修 | `run_to_file` 固定 `(rc, timed, err)`；探针固定 `(info|None, why)` | `py_compile` + 两档实跑 |
+| F3 `KNOWN_FAIL_BASES` 引用未定义的 `ISS266_ID`（常量块在其后） | ✅已修 | 把 `ISS266_ID/ISS266_8B10B/ISS266_TABLE_RE` 移到表前 | 导入/运行无 `NameError` |
+| F4 计入注入还原的「已还原」证据不足（仅 md5 可能自证） | ✅已修 | 证据脚本 `cp` 备份 + 前后 md5 对账 + 还原后单例重跑回绿（`I2/I3/I4`） | `run.sh` 输出 `I2.restored_md5`/`I3.restored_rc=0`/`I4=known-fail` |
+| F5 探针把 guest stderr 与 `-strace` 混在同一文件，语料若打印 `QEMU internal` 会误判 blocked | ❌不修（已核） | — | 本次三例均无该串；且保守方向 = 记 blocked（宁可漏判 fail 不冒充），非假绿 |
+| F6 ISS-266 活证据扫全 65536 词，而运行只用前 2000 词 | ❌不修（已核） | — | 证据是「数据文件是 LE 流」的更强断言（全量），首词即已越界；不依赖运行长度 |
+
+自审判定：F1–F4 已修并复验，F5/F6 有据不修；无未修缺陷 ⇒ 状态置 `待验收`。
+

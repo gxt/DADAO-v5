@@ -63,7 +63,7 @@
 | TESTCASES-074t | 待开始 | 2026-10-26 23:12（登记） | unit 迁移（lit/codegen/ir-lli/picolibc；check-unit） |
 | TESTCASES-075t | 待开始 | 2026-10-26 23:12（登记） | tset 迁移（libc-test/llvm-ts/embench；check-tset） |
 | TESTCASES-076t | 待开始 | 2026-10-26 23:12（登记） | 测试迁移收口（删旧+门控重写+clean/repro/night） |
-| TESTCASES-069t | 待开始 | 2026-10-26 19:51（登记） | ISS-266 四例分类/诊断（8b10b known-fail、dbms pass、SPASS/typeset 判定） |
+| TESTCASES-069t | 待验收 | 2026-10-26 19:51（登记） | ISS-266 四例判定：8b10b known-fail、dbms pass、SPASS 语料 UB、typeset 语料+musl；`-strace` 转发判据（0 blocked） |
 | LLVM-135t | 已验证 | 2026-10-26 17:27 | cfx 别名运行时表：源码/反汇编共用名字，数据更新不重建 LLVM |
 | TESTCASES-067t | 已验证 | 2026-10-26 14:05 | 测试框架调研与 tests 组织方案（主流 ISA 对照 + 生成物 A/B + 确定性） |
 | QEMU-076t | 已验证 | 2026-10-26 13:18 | semihosting 调用点迁至 0x3FFxx（QEMU 译码 + bootrom/测试/探针 + picolibc/embench/musl 组件） |
