@@ -1,6 +1,6 @@
 # DADAO Supervisor Execution Environment（SEE）
 
-> **版本：0.7.2-rc**（与 SBI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
+> **版本：0.7.2**（与 SBI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
 
 本文档定义DADAO主管系统运行环境（Supervisor Execution Environment, SEE）的体系结构规范，涵盖地址空间组织、处理器资源管理、核芯功能扩展设计、外设资源抽象及运行模式定义等内容。
 
@@ -30,7 +30,7 @@ DADAO定义了四种运行模式，用两位编码：
 | 15 | hart | Hart 管理和本地计数 |
 | 16 | llc | 最后一级缓存，跨 hart 共享 |
 | 17 | pmem | 物理存储器管理 |
-| 18 | timer | 定时器/计数器 |
+| 18 | time | 全局时间计数器 |
 | 19-61 | reserved | 保留，未定义 |
 | 62 | uart | 串口控制器 |
 | 63 | power | 电源管理 |
@@ -271,7 +271,7 @@ cg0-cg7 为共有寄存器设计，不同的核芯功能扩展设计规范相同
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 0 | 0 | user global version | cfx_⟨cfxname⟩_user_global_version | 0x00090002 | RO | AEE 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.9.2。全局寄存器 |
+| 0 | 0 | user global version | cfx_⟨cfxname⟩_user_global_version | 0x00090003 | RO | AEE 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.9.3。全局寄存器 |
 | 0 | 1 | user global cfx mask | cfx_⟨cfxname⟩_user_global_cfx_mask | 全1 | RW | 全局核芯功能扩展掩码，0=可触发，1=屏蔽。自身 cfxha 对应位硬件忽略 |
 | 0 | 2 | user cfx2rd cfx mask | cfx_⟨cfxname⟩_user_cfx2rd_cfx_mask | 全1 | RW | cfx2rd 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxha 对应位硬件忽略 |
 | 0 | 3 | user cfx2rc cfx mask | cfx_⟨cfxname⟩_user_cfx2rc_cfx_mask | 全1 | RW | cfx2rc 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxha 对应位硬件忽略 |
@@ -288,6 +288,8 @@ cg0-cg7 为共有寄存器设计，不同的核芯功能扩展设计规范相同
 
 为支持用户程序通过系统调用陷入操作系统内核，硬件应至少支持 `cfx_umon_user_*` 这一组寄存器或 `cfx_smon_user_*` 这一组寄存器。
 
+用户 `trap` 按 cfxha 路由：目标为 `cfx_smon` 时使用 `cfx_smon_user_*`（需清除 `user global cfx_mask` 对应位），目标为 `cfx_umon` 时使用 `cfx_umon_user_*`。非 trap 的 U-mode 异常固定进入 `cfx_umon`。
+
 ### 3.2 cg1 - jail mode 寄存器
 
 jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限规则（如禁止指令、二阶段翻译等）留待后续版本定义。
@@ -296,7 +298,7 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 1 | 0 | jail global version | cfx_⟨cfxname⟩_jail_global_version | 0x00090002 | RO | jail 版本号，MVP 阶段与 user 版本号相同。全局寄存器 |
+| 1 | 0 | jail global version | cfx_⟨cfxname⟩_jail_global_version | 0x00090003 | RO | jail 版本号，MVP 阶段与 user 版本号相同。全局寄存器 |
 | 1 | 1 | jail global cfx mask | cfx_⟨cfxname⟩_jail_global_cfx_mask | 全1 | RW | 全局核芯功能扩展掩码，0=可触发，1=屏蔽。自身 cfxha 对应位硬件忽略 |
 | 1 | 2 | jail cfx2rd cfx mask | cfx_⟨cfxname⟩_jail_cfx2rd_cfx_mask | 全1 | RW | cfx2rd 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxha 对应位硬件忽略 |
 | 1 | 3 | jail cfx2rc cfx mask | cfx_⟨cfxname⟩_jail_cfx2rc_cfx_mask | 全1 | RW | cfx2rc 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxha 对应位硬件忽略 |
@@ -317,7 +319,7 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 2 | 0 | supv global version | cfx_⟨cfxname⟩_supv_global_version | 0x00070001 | RO | SEE 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.7.1。全局寄存器 |
+| 2 | 0 | supv global version | cfx_⟨cfxname⟩_supv_global_version | 0x00070002 | RO | SEE 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.7.2。全局寄存器 |
 | 2 | 1 | supv global cfx mask | cfx_⟨cfxname⟩_supv_global_cfx_mask | 全1 | RW | 全局核芯功能扩展掩码，0=可触发，1=屏蔽。自身 cfxha 对应位硬件忽略 |
 | 2 | 2 | supv cfx2rd cfx mask | cfx_⟨cfxname⟩_supv_cfx2rd_cfx_mask | 全1 | RW | cfx2rd 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxha 对应位硬件忽略 |
 | 2 | 3 | supv cfx2rc cfx mask | cfx_⟨cfxname⟩_supv_cfx2rc_cfx_mask | 全1 | RW | cfx2rc 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxha 对应位硬件忽略 |
@@ -377,6 +379,8 @@ H-mode 寄存器（cg=3）定义见 HEE。
 | 6 | 0−(N−1) | scratch regs | cfx_⟨cfxname⟩_scratch_regs[0..N−1] | 未定义 | RW | 暂存寄存器（软件用） |
 
 ### 3.8 cg7 - 内部存储控制寄存器
+
+**本组为预留设计**：`cfxld`/`cfxst` 当前**未启用**，未实现的机器对这两条指令 decode **ILLI**；§5.1/§5.2 中相关表述**待启用后生效**。
 
 每个核芯功能扩展可根据自身需求实现零个或多个内部存储块（SRAM），用于 cfxld/cfxst 指令在内存与核芯功能扩展内部之间的批量数据传输。
 
@@ -523,10 +527,15 @@ TLB 产生的上述异常是 cfx_ptw 异常原因的子集。TLB handler 应通�
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
 | 8 | 0 | hart id | cfx_hart_hart_id | — | RO | 硬件设置，hart 编号（0-based） |
+| 8 | 1 | — | — | — | — | 保留 |
 | 8 | 2 | cycle lo | cfx_hart_cycle_lo | 0 | RO | 本地周期数低64位 |
 | 8 | 3 | cycle hi | cfx_hart_cycle_hi | 0 | RO | 本地周期数高64位 |
 | 8 | 4 | insn lo | cfx_hart_insn_lo | 0 | RO | 指令计数低64位 |
 | 8 | 5 | insn hi | cfx_hart_insn_hi | 0 | RO | 指令计数高64位 |
+| 8 | 6 | timer cmp | cfx_hart_timer_cmp | 0 | RW | 64 位定时器比较值（绝对时间，单位同 cfx_time_value） |
+| 8 | 7 | timer ctrl | cfx_hart_timer_ctrl | 0 | RW | bit0=ENABLE，bit1=IMASK，bit2=ISTATUS（RO）；其余保留 |
+
+`cfx_time_value >= cfx_hart_timer_cmp` 且 `ENABLE=1` 时置 `ISTATUS`；`IMASK=0` 时触发 TIMER 中断。写新的 `timer_cmp` 即清除本次条件；写全 1 关闭。
 
 **异常原因表**
 
@@ -536,6 +545,7 @@ TLB 产生的上述异常是 cfx_ptw 异常原因的子集。TLB handler 应通�
 | `1 << 1`   | CFXMEM   | 访问核内地址空间或内部存储块故障 | 否 | 访存地址         |
 | `1 << 2`   | CFXREG   | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
 | `1 << 8`   | IPI       | 核间中断      | 可 | 中断源 hart ID（低 6 位有效，高 58 位保留为 0） |
+| `1 << 10`  | TIMER     | 本地定时器比较匹配 | 可 | 全零 |
 
 ### 4.9 cfx_llc - last level cache
 
@@ -581,14 +591,16 @@ cfx_pmem 管理物理存储器（Physical Memory, PM）区域，最多支持 64 
 
 > shareability、inner/outer cacheability 等进阶属性留待多核 SMP 阶段再定义。当前单核 MVP 仅需 prefetchable 和 coherent 位即可满足。
 
-### 4.11 cfx_timer - timer/counter
+### 4.11 cfx_time - 全局时间计数器
+
+`cfx_time` 为 **per-system** 全局时间计数器，所有 hart 共享同一时间基准；只提供时间读数，不产生中断。每 hart 的定时器比较与中断由 `cfx_hart` 提供。
 
 **专有寄存器表**
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 10 | 7 | timer ctrl | cfx_timer_ctrl | 0 | RW | bit0=enable(1=启动)，bit1=mode(0=one-shot,1=periodic)，bit2=dir(0=decrement,1=increment)，bits[63:3]保留 |
-| 10 | 8-15 | timer regs | cfx_timer_regs[0..7] | 0 | RW | 定时器计数器 |
+| 10 | 7 | time freq | cfx_time_freq | — | RO | 计数频率（Hz），硬件设置 |
+| 10 | 8 | time value | cfx_time_value | 0 | RO | 64 位全局时间计数值，自由运行 |
 
 **异常原因表**
 
@@ -597,7 +609,6 @@ cfx_pmem 管理物理存储器（Physical Memory, PM）区域，最多支持 64 
 | `1 << 0`   | CFXTRAP     | 功能调用      | 否 | 指令编码         |
 | `1 << 1`   | CFXMEM      | 访问核内地址空间或内部存储块故障 | 否 | 访存地址         |
 | `1 << 2`   | CFXREG      | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
-| `1 << 10`  | TIMER       | 本地定时器     | 可 | 全零         |
 
 ### 4.12 cfx_uart - uart
 
@@ -643,7 +654,7 @@ UART寄存器的读写操作通过 `cfx2rd`/`cfx2rc` 指令完成。若寄存器
 | `1 << 2`   | CFXREG      | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
 | `1 << 8`   | POWEROFF    | 硬件关机      | 否 | 全零         |
 | `1 << 9`   | HARD_RESET | 硬件重启      | 否 | 全零         |
-| `1 << 10`  | SOFT_RESET | 软件重启      | 可 | 指令编码         |
+| `1 << 10`  | SOFT_RESET | 软件重启      | 否 | 指令编码         |
 
 ## 5. 异常进入与异常退出
 
@@ -659,7 +670,7 @@ UART寄存器的读写操作通过 `cfx2rd`/`cfx2rc` 指令完成。若寄存器
 
 ### 5.1 指令行为说明
 
-trap/escape/cfxld/cfxst/cfx2rd/cfx2rc 指令可以在任意运行模式下执行。若 cfxha 为 reserved 核芯功能扩展（7-14、19-61），硬件触发 ILLI 异常。对于常见的操作系统而言，并不希望由 user/jail 直接陷入或访问 hmon 到 power 之间的核芯功能扩展，则需要在这些核芯功能扩展的初始化代码中，设置好屏蔽位（缺省为屏蔽）。
+trap/escape/cfxld/cfxst/cfx2rd/cfx2rc 指令可以在任意运行模式下执行（`cfxld`/`cfxst` 当前未启用）。若 cfxha 为 reserved 核芯功能扩展（7-14、19-61），硬件触发 ILLI 异常。对于常见的操作系统而言，并不希望由 user/jail 直接陷入或访问 hmon 到 power 之间的核芯功能扩展，则需要在这些核芯功能扩展的初始化代码中，设置好屏蔽位（缺省为屏蔽）。
 
 escape 指令的第一个参数会指定 cfxha，通常该参数应该和当前的核芯功能扩展编号相同，但是硬件实现并不检查其一致性，因此可以采用不同的核芯功能扩展编号，从而可以跳过多层核芯功能扩展的调用，直接跳到需要返回的指令指针。可以通过检查 `cfx_⟨cfxname⟩_trap_num + cfx_⟨cfxname⟩_excp_sync_num + cfx_⟨cfxname⟩_excp_async_num` 是否与 `cfx_⟨cfxname⟩_escape_num` 匹配，来判断是否有此类现象存在。
 
@@ -680,7 +691,7 @@ X-mode（任意运行模式）下发生异常时，硬件自动执行以下操�
 1. **确定核芯功能扩展**：
    - 特权指令：
      - trap/cfx2rd/cfx2rc 按 cfxha 路由；
-     - cfxld/cfxst 访问 cfx 内部存储块，仅触发 CFXMEM，按 cfxha 路由
+     - cfxld/cfxst 访问 cfx 内部存储块（待启用），仅触发 CFXMEM，按 cfxha 路由
      - 若 cfxha 为 reserved（7-14、19-61），触发 ILLI 进入当前 monitor；若 cfxha 合法但指令 cfx mask 禁止，同样触发 ILLI
    - 其它指令执行触发的 ILLI/UNDI/RASOF/RASUF/IALIGN/MALIGN 异常：
       - 根据发生异常前的运行模式（U-mode/J-mode/S-mode/H-mode）分别判断进入 cfx_umon/cfx_jmon/cfx_smon/cfx_hmon 核芯功能扩展
@@ -693,6 +704,7 @@ X-mode（任意运行模式）下发生异常时，硬件自动执行以下操�
 4. **判断 global_cfx_mask 是否屏蔽**：若目标 cfx 非自身，检查 `cfx_⟨cfxname⟩_<mode>_global_cfx_mask` 第 cfxha 位。若为1，同步异常触发 ILLI，异步中断设置 pending
 5. **判断异常原因是否被屏蔽**：检查 `cfx_⟨cfxname⟩_<mode>_excp_cause_mask` 对应位，若为1则该异常原因被屏蔽
     - 异步中断若被屏蔽，则处于待处理状态（pending），并将对应位置1到 `cfx_⟨cfxname⟩_excp_pending` 寄存器中（OR语义，不影响其他pending位）。软件可通过写0清除对应pending位。
+    - （同步异常均为不可屏蔽，已在步骤 2 跳过步骤 3–5；本步只对异步中断生效。）
 6. **更新陷入计数**：根据异常类型递增 `cfx_⟨cfxname⟩_trap_num`（trap 指令）、`cfx_⟨cfxname⟩_excp_sync_num`（同步异常）或 `cfx_⟨cfxname⟩_excp_async_num`（异步中断）
 7. **保存现场**：`cfx_⟨cfxname⟩_excp_prev_run_mode` 记录异常前的运行模式，`cfx_⟨cfxname⟩_excp_prev_cfx_mask` 保存异常前的核芯功能扩展掩码
 8. **模式切换**：将运行模式和核芯功能扩展掩码改为 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 和 `cfx_⟨cfxname⟩_<mode>_switch_cfx_mask` 寄存器的值
@@ -790,7 +802,7 @@ if (cfx_⟨cfxname⟩_excp_cause_nonmaskable & cause) == 0:
     // 5. 判断异常原因是否被屏蔽
     //    异步中断被屏蔽时设置 pending
     if (cfx_⟨cfxname⟩_<mode>_excp_cause_mask & cause) != 0:
-        cfx_⟨cfxname⟩_excp_pending ← cfx_⟨cfxname⟩_excp_pending | cause   // 同步可屏蔽或异步：设置 pending
+        cfx_⟨cfxname⟩_excp_pending ← cfx_⟨cfxname⟩_excp_pending | cause   // 仅异步中断会到达此处（同步异常均不可屏蔽，步骤 2 已跳过）
         return
 
 // 6. 更新陷入计数
@@ -857,17 +869,25 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 
 ## 附录：版本与变更记录
 
-> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
-### 0.7.2-rc（未发布）
+### 0.7.2（2026-10-26）
 
-- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
-- 与上游 SimRISC 0.5.5 基线对齐。
-- 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`。
-- 为 cg0–cg3 增加 `rc0` 版本号寄存器；RO 寄存器初始值统一标记为 HW。
+- `cfx_time`：per-system 全局时间计数器（`cfx_time_freq`、`cfx_time_value`），只提供时间读数、不产生中断。
+- `cfx_hart` 增加每 hart 定时器：`timer_cmp`（比较值）与 `timer_ctrl`（ENABLE/IMASK/ISTATUS），到期触发异步 TIMER 异常（`1 << 10`）；`rc1` 声明为保留。
+- 同步异常一律不可屏蔽（含 `SOFT_RESET`）；异常原因掩码只对异步中断生效，异常进入流程第 5 步仅在异步路径设置 pending。
+- U-mode `trap` 目标为 `cfx_smon` 时使用 `cfx_smon_user_*`；其余 U-mode 异常固定进入 `cfx_umon`。
+- `cg7` 内部存储控制按预留设计：`cfxld`/`cfxst` 尚未启用，未实现的机器对这两条指令 decode ILLI。
+- 为 cg0–cg3 增加 `rc0` 版本号寄存器。
 - `pending` 统一：删除 timer/uart/power 专有 pending，`cfx_pending`→`excp_pending`（cg5 rc5）。
+- 删除 FPEXCP 异常。
+- 与上游 SimRISC 0.5.5 基线对齐。
+- 版本号常量同步：`user_global_version` = 0.9.3、`supv_global_version` = 0.7.2（jail 同 user）。
+- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
+- 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`。
+- RO 寄存器初始值统一标记为 HW。
 - 特权模型与 SimRISC 对齐（`RASUP`→`RASUF`、删冗余 ILLI 声明）。
-- 删除 FPEXCP 异常；术语「储存块」→「存储块」。
+- 术语「储存块」→「存储块」。
 - 多项审查修复（溢出检测 / 跳转表 / 引导 / 掩码 / 注释）。
 - 正文术语 `PC` 统一为 **`IP`**（`IP` = 当前正在执行的指令的地址，见 SimRISC-00）：IALIGN 检测（`IP[1:0] ≠ 00`）、异常向量现场值、精确异常现场语义各处。
 

@@ -1,6 +1,6 @@
 # DADAO Application Execution Environment
 
-> **版本：0.9.3-rc**（与 ABI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
+> **版本：0.9.3**（与 ABI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
 
 应用程序运行环境：Application Execution Environment
 
@@ -25,24 +25,6 @@ ld.st rd3, [rb1, y_offset]
 add.so {rd0, rd4}, rd2, rd3 @@ rd4 = 低64位；rd0丢弃高64位
 st.t rd4, [rb1, z_offset]
 ```
-
-**乘除法**：乘法结果为 128-bit（`rdha` = 高 64 位，`rdhb` = 低 64 位）。32-bit 乘积取低 64 位即可。除法前须确保被除数和除数的高位正确扩展。
-
-```simrisc
-@@ 有符号 32-bit 乘法
-ld.st rd2, [rb1, x_offset]
-ld.st rd3, [rb1, y_offset]
-mul.so {rd0, rd4}, rd2, rd3 @@ rd0丢弃高64位，rd4=低64位
-st.t rd4, [rb1, z_offset]
-
-@@ 有符号 32-bit 除法
-ld.st rd2, [rb1, x_offset]
-ld.st rd3, [rb1, y_offset]
-div.st  rd4, rd2, rd3           @@ 商写入目的寄存器 rd4
-st.t rd4, [rb1, z_offset]
-```
-
-> 若操作数经过加减乘等运算后高位被污染，除法和乘法前需 `ext.so` 重新扩展。
 
 **移位**：`shr.u` 逻辑右移高位补 0，`shr.s` 算术右移高位补符号位。
 
@@ -124,15 +106,16 @@ Dadao中的octa是64位，即8字节，而gas中的.octa定义的数据是16字�
 
 ## 附录：版本与变更记录
 
-> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
-### 0.9.3-rc（未发布）
+### 0.9.3（2026-10-26）
 
-- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
-- 与上游 SimRISC 0.5.5 基线对齐。
-- 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`。
+- 删除 8/16/32 位运算中的乘除法解释与示例（乘法结果宽度与除法前的 `ext.so` 扩展提示不再单列）。
 - 删除 FPEXCP 异常（浮点按 IEEE 754 执行、经 `rf0` 轮询异常状态）。
 - 地址空间布局 / 汇编兼容性内容并入本册（职责边界调整）。
+- 与上游 SimRISC 0.5.5 基线对齐。
+- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
+- 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`。
 - `LD`/`ST` 指令名统一后缀；`cs.`/`br.` 指令名加点；修正无后缀 `add` 为 `add.so`。
 - 旧 `bp63` 语法更新为 MISC 表指令名；`ww`→`wpN` 残留修正。
 - 0 号寄存器（`rd0`）约束补全；多项审查修复（溢出检测 / 跳转表 / pending / 引导 / 掩码 / 注释）。

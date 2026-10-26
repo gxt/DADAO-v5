@@ -55,7 +55,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-musl-freshness check-builtins-freshness check-install-tools check-milestones-fresh \
         check-tasks check-spec-codeblocks check-legality-invariants \
         check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive check-contracts-dir \
-        check-spec-archive-verify check-milestone \
+        check-spec-archive-verify check-milestone check-sync-nonmaskable \
         check-component-changelog check-syscall-abi check-spec-purity check-spec-cite-targets \
         check-width-sizes check-code-range
 
@@ -171,7 +171,8 @@ help:
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
 	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
 	@echo "  make check-milestones-fresh  milestones.md task-flow table gate: status/coverage/length/order/format (L1; INFRA-091t)"
-	@echo "  make check-milestone  Milestone closure: SimRISC archive structure + content sha256 + current-milestone m-book/its task ids + check-tasks --strict (not L1)"
+	@echo "  make check-milestone  Milestone closure: SimRISC archive structure + content sha256 + sync-nonmaskable + current-milestone m-book/its task ids + check-tasks --strict (not L1)"
+	@echo "  make check-sync-nonmaskable  Sync exception causes must not be maskable (only IPI/TIMER/UART*/… may; SPEC-175t; not L1)"
 	@echo "  make check-interface  Check cross-module interface alignment"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
 	@echo "  make check-scope     Check opcodes.yaml scope partition (m1/fp/excluded; SPEC-086t)"
@@ -906,11 +907,18 @@ check-run-artifacts:
 # ② 该 `m` 册列出的全部任务号须在 `.tao/tasks/**`（或 `.tao/archive/**`，已完成并归档）
 #    有对应任务书；册内零任务号 ⇒ vacuous FAIL（防「漏立任务」）；
 # ③ 接 `check_tasks.py --strict`（漏收尾 = 0）。
+# ④ 同步异常不可屏蔽（`check-sync-nonmaskable`，用户 2026-10-26 裁定「同步异常全部不可屏蔽；
+#    仅异步可屏蔽」）——扫 DADAO-12/22/23 异常原因表，异步源（IPI/TIMER/UART*/…）之外出现「可」即红。
 # 不并入 L1 的理由：`m` 册未建前本目标**必然红**（预期的收口信号），日常 L1 不应常态红。
-check-milestone: check-spec-archive check-spec-archive-verify
+check-milestone: check-spec-archive check-spec-archive-verify check-sync-nonmaskable
 	@$(PYTHON) tools/infra/check_milestone_tasks.py
 	@$(PYTHON) tools/infra/check_tasks.py --strict
-	@echo "check-milestone: PASS (归档结构 + 内容 sha + m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
+	@echo "check-milestone: PASS (归档结构 + 内容 sha + 同步不可屏蔽 + m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
+
+# 同步异常不可屏蔽 (SPEC-175t; 里程碑层): 扫 DADAO-12/22/23 异常原因表的「是否可屏蔽」列，
+# 只有异步源（IPI / TIMER / UART* / 占位行 …）允许「可」；`--self-test` 内置注入→FAIL→还原→PASS。
+check-sync-nonmaskable:
+	@$(PYTHON) tools/spec/check_sync_nonmaskable.py
 
 # spec 引用审计 (INFRA-011t): Check 1 引用有效性 + Check 2 无引用规范断言.
 # L1 成员 (INFRA-058t): 静态引用完整性检查（改后 0 误报）。覆盖 SimRISC-/DADAO-/

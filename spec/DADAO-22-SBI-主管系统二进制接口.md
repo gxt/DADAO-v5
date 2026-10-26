@@ -1,6 +1,6 @@
 # SBI（主管系统二进制接口）
 
-> **版本：0.7.2-rc**（与 SEE 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
+> **版本：0.7.2**（与 SEE 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
 
 SBI 定义不同核芯功能扩展之间的功能调用。大部分功能调用在同一运行模式（主管模式）进行，仅少数需要访问特权硬件资源的服务才会提升到 H-mode 执行。
 
@@ -11,6 +11,8 @@ SBI 定义不同核芯功能扩展之间的功能调用。大部分功能调用�
 **发起与返回**：调用方执行 `trap cfxha, immu18` 陷入目标核芯功能扩展；被调方通过 `escape cfxha, [excp_cause_ip, 4]` 返回，跳转到 trap 指令的下一条指令（`excp_cause_ip + 4`）。
 
 **参数传递**：与 ABI 传参规范一致（参见 ABI）。
+
+**返回值 bank**：标量、页号、计数、掩码用 `rd8`；绝对地址用 `rb8`。
 
 **错误码**：
 
@@ -39,14 +41,14 @@ umon（cfx0）为 user 模式的异常入口，处理用户态系统调用。系
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
 | 0 | SBI_UMON_SYSCALL | rd15 = nr | rd8 = result | 用户态系统调用分发 |
-| 1 | SBI_UMON_GET_VERSION | — | rd8 = version | 返回 umon 版本号：当前 0.7.1 = `0x00070001`（`(major<<32)\|(minor<<16)\|patch`） |
+| 1 | SBI_UMON_GET_VERSION | — | rd8 = version | 返回 umon 版本号：当前 0.7.2 = `0x00070002`（`(major<<32)\|(minor<<16)\|patch`） |
 
 jmon（cfx1）为 jail 模式的异常入口，处理受限用户态系统调用。jmon 与 umon 为独立上下文，immu18 各自编号互不冲突。
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
 | 0 | SBI_JMON_SYSCALL | rd15 = nr | rd8 = result | 受限用户态系统调用分发 |
-| 1 | SBI_JMON_GET_VERSION | — | rd8 = version | 返回 jmon 版本号：当前 0.7.1 = `0x00070001` |
+| 1 | SBI_JMON_GET_VERSION | — | rd8 = version | 返回 jmon 版本号：当前 0.7.2 = `0x00070002` |
 
 ## 3. 系统信息（smon）
 
@@ -54,7 +56,7 @@ cfx_smon 提供 SBI 版本查询和核芯功能扩展探测。
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
-| 0 | SBI_SMON_GET_VERSION | — | rd8 = version | 返回 SBI 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.7.1 = `0x00070001` |
+| 0 | SBI_SMON_GET_VERSION | — | rd8 = version | 返回 SBI 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.7.2 = `0x00070002` |
 | 1 | SBI_SMON_PROBE_CFX | rd16 = cfx | rd8 = func_map | 探测 cfx 支持的 SBI 功能位图（bit i = 1 表示 func i 可用）。若 cfx 硬件不存在则触发 CFXREG 异常；rd8=0 表示 cfx 存在但未实现任何 SBI 功能。实现上通过读取 `cfx_*_cfx_id` 寄存器验证存在性 |
 
 ### 3.1 初始化
@@ -95,7 +97,7 @@ cfx_smon_unknown:
 
 ```simrisc
 cfx_smon_get_version:
-    set.rd   rd8, 0x00070001                        @@ v0.7.1
+    set.rd   rd8, 0x00070002                        @@ v0.7.2
     escape cfx_smon, [excp_cause_ip, 4]
 
 cfx_smon_probe_cfx:
@@ -126,7 +128,7 @@ cfx_ptw 为地址转换部件，管理页表和 PTBR。
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
 | 0 | SBI_PTW_SET_PTBR | rd16 = idx, rb16 = base | — | 设置第 idx 个 PTBR 的页表基地址。base 为 PA[63:16]（高 48 位），低 16 位强制为 0（64KiB 对齐）。调用前须已写入 pthi[idx] 和 pahi[idx] |
-| 1 | SBI_PTW_GET_PTBR | rd16 = idx | rd8 = base | 读取第 idx 个 PTBR 的值 |
+| 1 | SBI_PTW_GET_PTBR | rd16 = idx | rb8 = base | 读取第 idx 个 PTBR 的值 |
 | 2 | SBI_PTW_SET_PTBR_PERM | rd16 = mode, rd17 = perm | — | 设置 mode=0(U)/1(J)/2(S)/3(H) 的 PTBR 权限位图（64 位，bit i=1 表示允许第 i 个 PTBR） |
 | 3 | SBI_PTW_ENABLE_PTBR | rd16 = mask | — | 设置 PTBR 使能位图（64 位，bit i=1 表示 enable 第 i 个 PTBR） |
 | 4 | SBI_PTW_SET_PTE | rd16 = ptbr_code, rd17 = level, rb16 = va, rd18 = pte | — | 设置 level 页表（1=L1, 2=L2）中 VA 对应索引的 PTE 为 pte |
@@ -199,7 +201,7 @@ cfx_ptw_ptbr_table:
     escape cfx_ptw, [excp_cause_ip, 4]
 
 cfx_ptw_get_ptbr:
-    @@ rd16 = idx，返回 rd8 = base
+    @@ rd16 = idx，返回 rb8 = base（cfx2rd 只能写 RD bank，故经 rd8 中转）
     shl.o   rd16, rd16, 3
     set.rd   rd3, cfx_ptw_get_ptbr_table
     add.so {rd0, rd3}, rd3, rd16
@@ -207,11 +209,14 @@ cfx_ptw_get_ptbr:
     jump [rb8, rd0, 0]
 cfx_ptw_get_ptbr_table:
     cfx2rd  cfx_ptw_ptbr[0], rd8 @@ PTBR[0]
+    set.rb   rb8, rd8               @@ 返回 bank：rb8 = base
     escape cfx_ptw, [excp_cause_ip, 4]
     cfx2rd  cfx_ptw_ptbr[1], rd8 @@ PTBR[1]
+    set.rb   rb8, rd8
     escape cfx_ptw, [excp_cause_ip, 4]
     @@ ... 共 64 路，rc 0-63 ...
     cfx2rd  cfx_ptw_ptbr[63], rd8 @@ PTBR[63]
+    set.rb   rb8, rd8
     escape cfx_ptw, [excp_cause_ip, 4]
 
 cfx_ptw_set_ptbr_perm:
@@ -413,13 +418,75 @@ cfx_cache 为 Cache 管理部件，提供 I-Cache 和 D-Cache 的无效化和刷
 
 ## 7. Hart管理（cfx_hart）
 
-cfx_hart 为 Hart 管理部件，提供 hart ID。
+cfx_hart 为 Hart 管理部件，提供 hart ID 与每 hart 的定时器比较器。
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
 | 0 | SBI_HART_GET_ID | — | rd8 = id | 返回当前 hart 编号 |
+| 1 | SBI_HART_SET_TIMER | rd16 = timeout | — | 设置本 hart 的定时器比较值（绝对时间），到期触发 TIMER 中断 |
 
 > 初始化方式与其他 cfx 一致：探测 cfx_hart 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 15）。cfx_hart 为 per-hart cfx，每个 hart 独立初始化。
+
+### 7.1 初始化
+
+```simrisc
+@@ 设置 cfx_hart 的 supv 异常向量
+set.rd   rd2, cfx_hart_supv_excp_handler
+cfx2rc  cfx_hart_supv_excp_vector, rd2
+
+@@ 允许 cfx_hart 从 supv 触发
+cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
+set.rd   rd3, ~(1<<15)                                @@ cfx_hart = cfx15
+and.o   rd2, rd2, rd3
+cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
+```
+
+异常入口处理：
+
+```simrisc
+cfx_hart_supv_excp_handler:
+    cfx2rd  cfx_hart_excp_cause_id, rd2
+
+    @@ CFXTRAP (1<<0) → SBI 功能调用
+    set.rd   rd3, 1
+    br.eq {rd2, rd3}?, [rb0, cfx_hart_trap_dispatch]
+
+    @@ TIMER (1<<10) → 定时器中断
+    set.rd   rd3, 1024
+    br.eq {rd2, rd3}?, [rb0, cfx_hart_timer_int]
+
+cfx_hart_unknown:
+    escape cfx_hart, [excp_cause_ip, 4]
+
+cfx_hart_trap_dispatch:
+    cfx2rd  cfx_hart_excp_cause_info, rd2
+    set.rd   rd3, 0x3FFFF                            @@ 掩码提取 immu18
+    and.o   rd2, rd2, rd3
+    set.rd   rd3, 0
+    br.eq {rd2, rd3}?, [rb0, cfx_hart_get_id] @@ func 0
+    set.rd   rd3, 1
+    br.eq {rd2, rd3}?, [rb0, cfx_hart_set_timer] @@ func 1
+    escape cfx_hart, [excp_cause_ip, 4]
+```
+
+### 7.2 内部实现代码
+
+```simrisc
+cfx_hart_get_id:
+    cfx2rd  cfx_hart_hart_id, rd8                    @@ 返回值在 rd8
+    escape cfx_hart, [excp_cause_ip, 4]
+
+cfx_hart_set_timer:
+    @@ rd16 = timeout（绝对时间，单位同 cfx_time_value）
+    cfx2rc  cfx_hart_timer_cmp, rd16                 @@ 写比较值即清除本次匹配条件
+    set.rd   rd2, 1                                  @@ bit0=ENABLE，IMASK=0
+    cfx2rc  cfx_hart_timer_ctrl, rd2
+    escape cfx_hart, [excp_cause_ip, 4]
+
+cfx_hart_timer_int:
+    @@ 定时器中断：返回被中断的指令边界
+    escape cfx_hart, [excp_cause_ip, 0]
+```
 
 ## 8. LLC管理（cfx_llc）
 
@@ -438,7 +505,7 @@ cfx_pmem 为存储器管理部件，S-mode 可查询 hypv 固件设置的物理�
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
 | 0 | SBI_PMEM_GET_PM_COUNT | — | rd8 = count | 返回 PM 区域总数 |
-| 1 | SBI_PMEM_GET_PM_START | rd16 = idx | rd8 = start | 查询第 idx 个 PM 区域的起始地址 |
+| 1 | SBI_PMEM_GET_PM_START | rd16 = idx | rb8 = start | 查询第 idx 个 PM 区域的起始地址 |
 | 2 | SBI_PMEM_GET_PM_SIZE | rd16 = idx | rd8 = size | 查询第 idx 个 PM 区域的大小 |
 | 3 | SBI_PMEM_GET_PM_ATTR | rd16 = idx | rd8 = attr | 查询第 idx 个 PM 区域的属性 |
 | 4 | SBI_PMEM_ALLOC_PAGE | rd16 = size_hint | rd8 = ppn | 从 PM 区域分配物理页。成功返回 PPN（物理页号，>=0），失败返回 -1。由 cfx_ptw 委托调用 |
@@ -503,89 +570,57 @@ cfx_pmem_free_page:
     escape cfx_pmem, [excp_cause_ip, 4]
 ```
 
-## 10. 定时器/计数器（cfx_timer）
+## 10. 全局时间（cfx_time）
 
-cfx_timer 为定时器/计数器，提供定时器服务。
+cfx_time 为 per-system 全局时间计数器，所有 hart 共享同一时间基准；只提供时间读数，不产生中断。每 hart 的定时器比较与中断由 cfx_hart 提供。
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
-| 0 | SBI_TIMER_SET_TIMER | rd16 = timeout | — | 设置定时器在 timeout（周期计数值）时触发中断 |
-| 1 | SBI_TIMER_GET_TIME | — | rd8 = value | 返回定时器当前计数值 |
+| 0 | SBI_TIME_GET | — | rd8 = value | 返回全局时间计数值 |
 
 ### 10.1 初始化
 
 ```simrisc
-@@ 设置 cfx_timer 的 supv 异常向量
-set.rd   rd2, cfx_timer_supv_excp_handler
-cfx2rc  cfx_timer_supv_excp_vector, rd2
+@@ 设置 cfx_time 的 supv 异常向量
+set.rd   rd2, cfx_time_supv_excp_handler
+cfx2rc  cfx_time_supv_excp_vector, rd2
 
-@@ 允许 cfx_timer 从 supv 触发
+@@ 允许 cfx_time 从 supv 触发
 cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
-set.rd   rd3, ~(1<<18)                                @@ cfx_timer = cfx18
+set.rd   rd3, ~(1<<18)                                @@ cfx_time = cfx18
 and.o   rd2, rd2, rd3
 cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
 ```
 
-异常入口处理：
+异常入口处理（本组只有 CFXTRAP → `SBI_TIME_GET`）：
 
 ```simrisc
-cfx_timer_supv_excp_handler:
-    cfx2rd  cfx_timer_excp_cause_id, rd2
+cfx_time_supv_excp_handler:
+    cfx2rd  cfx_time_excp_cause_id, rd2
 
-    @@ CFXTRAP (1<<0) → SBI 功能调用
+    @@ CFXTRAP (1<<0) → SBI 功能调用（func 0 = SBI_TIME_GET）
     set.rd   rd3, 1
-    br.eq {rd2, rd3}?, [rb0, cfx_timer_trap_dispatch]
+    br.eq {rd2, rd3}?, [rb0, cfx_time_get_time]
 
-    @@ TIMER (1<<10) → 定时器中断
-    set.rd   rd3, 1024
-    br.eq {rd2, rd3}?, [rb0, cfx_timer_int]
-
-cfx_timer_unknown:
-    escape cfx_timer, [excp_cause_ip, 4]
-
-cfx_timer_trap_dispatch:
-    cfx2rd  cfx_timer_excp_cause_info, rd2
-    set.rd   rd3, 0x3FFFF                            @@ 掩码提取 immu18
-    and.o   rd2, rd2, rd3
-    set.rd   rd3, 0
-    br.eq {rd2, rd3}?, [rb0, cfx_timer_set_timer] @@ func 0
-    set.rd   rd3, 1
-    br.eq {rd2, rd3}?, [rb0, cfx_timer_get_time] @@ func 1
-    escape cfx_timer, [excp_cause_ip, 4]
+cfx_time_unknown:
+    escape cfx_time, [excp_cause_ip, 4]
 ```
 
 ### 10.2 内部实现代码
 
 ```simrisc
-cfx_timer_set_timer:
-    @@ rd16 = timeout（调用方传入）
-    @@ 写入计数值，设置为递减 one-shot 模式并启动
-    cfx2rc  cfx_timer_regs[0], rd16
-    set.rd   rd2, 1                                      @@ bit0=enable, bit1=one-shot, bit2=decrement
-    cfx2rc  cfx_timer_ctrl, rd2
-    escape cfx_timer, [excp_cause_ip, 4]
-
-cfx_timer_get_time:
-    cfx2rd  cfx_timer_regs[0], rd8                    @@ 返回值在 rd8，读取定时器当前计数值
-    escape cfx_timer, [excp_cause_ip, 4]
-
-cfx_timer_int:
-    @@ 处理定时器中断
-    escape cfx_timer, [excp_cause_ip, 0]
+cfx_time_get_time:
+    cfx2rd  cfx_time_value, rd8                       @@ 返回值在 rd8，读取全局时间计数值
+    escape cfx_time, [excp_cause_ip, 4]
 ```
 
 ### 10.3 功能调用示例
 
 ```simrisc
-#define SBI_TIMER_SET_TIMER  0
-#define SBI_TIMER_GET_TIME   1
+#define SBI_TIME_GET  0
 
-@@ 设置定时器在 timeout 周期后触发
-set.rd   rd16, timeout
-trap    cfx_timer, SBI_TIMER_SET_TIMER
-
-@@ 读取当前周期计数
-trap    cfx_timer, SBI_TIMER_GET_TIME
+@@ 读取全局时间计数值
+trap    cfx_time, SBI_TIME_GET
 @@ 返回值在 rd8
 ```
 
@@ -831,16 +866,21 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 
 ## 附录：版本与变更记录
 
-> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
-### 0.7.2-rc（未发布）
+### 0.7.2（2026-10-26）
 
-- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
-- 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`，寄存器名改 `cfx_<name>_<mode>`。
-- 各 cfx 服务返回寄存器统一为 `rd8`；功能调用示例中的临时寄存器由 `rb3` 改为 `rb8`。
-- `cfx_ptw` 跳转表统一为简化写法；删除冗余参数表格。
-- 删除 FPEXCP 异常；`pending` 统一（`excp_pending`）；伪指令集收缩。
+- 返回值 bank：标量、页号、计数、掩码用 `rd8`，绝对地址用 `rb8`——`SBI_PTW_GET_PTBR`、`SBI_PMEM_GET_PM_START` 返回 `rb8`，`SBI_PMEM_ALLOC_PAGE` 的 PPN 仍为 `rd8`。
+- cfx_hart 增加每 hart 定时器比较器：新增 `SBI_HART_SET_TIMER`（FID 1，入参 `rd16` = 绝对时间）设置比较值并开启 ENABLE/IMASK，到期触发 TIMER 中断；`SBI_HART_GET_ID`（FID 0）不变。
+- 全局时间 `cfx_time`（per-system，只读时间基准、不产生中断）只提供 `SBI_TIME_GET`（FID 0）；定时器设置统一由 cfx_hart 承载。
+- 删除 FPEXCP 异常。
+- `pending` 统一（`excp_pending`）。
 - 与上游 SimRISC 0.5.5 基线对齐。
+- 版本号常量同步：SBI 版本号 0.7.2（umon / jmon / smon）。
+- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
+- 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`，寄存器名改 `cfx_<name>_<mode>`；功能调用示例中的临时寄存器由 `rb3` 改为 `rb8`。
+- `cfx_ptw` 跳转表统一为简化写法；删除冗余参数表格。
+- 伪指令集收缩。
 
 ### 0.7.1（上游基线；导入日 2026-07-14，发布日不详）
 

@@ -1,6 +1,6 @@
 # HBI（超管系统二进制接口）
 
-> **版本：0.1.3-rc**（与 HEE 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
+> **版本：0.1.3**（与 HEE 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
 
 HBI 定义 H-mode（超管模式）核芯功能扩展提供的功能调用，供 S-mode 内核或其它核芯功能扩展请求需要 H-mode 权限的系统服务。
 
@@ -16,7 +16,7 @@ cfx_hmon 为 hypv 的 monitor，提供 HBI 版本查询和硬件信息。
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
-| 0 | HBI_GET_VERSION | — | rd8 = version | 返回 HBI 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.1.2 = `0x00010002` |
+| 0 | HBI_GET_VERSION | — | rd8 = version | 返回 HBI 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.1.3 = `0x00010003` |
 
 ## 3. 启动与引导移交约定
 
@@ -26,57 +26,50 @@ cfx_hmon 为 hypv 的 monitor，提供 HBI 版本查询和硬件信息。
 2. user/jail/supv 的 `global_cfx_mask` 初始化为全 1；hypv 的 `global_cfx_mask` 初始化为全 0（引导序列中 hypv 访问不受限）
 3. `inner_inst_pointer` 跳转到 `cfx_power_hypv_excp_vector` 指示的地址（初始值为 `0xffff_ffff_0000`，为 DDR 未初始化前硬件可直接执行指令的一段地址空间）
 
-hypv 引导代码完成最小初始化后，按以下流程将控制权移交 supv 内核：
+hypv 引导代码完成最小初始化后，按以下流程将控制权**完全移交 smon**：
 
-```simrisc
-@@ 清除各 cfx 的 cg reg delegation，允许 supv 访问所有 cg（cg3 固定禁止，bit3 硬件忽略写入）
-set.rd   rd2, 0
-cfx2rc  cfx_umon_hypv_cg_reg_deleg, rd2
-cfx2rc  cfx_jmon_hypv_cg_reg_deleg, rd2
-cfx2rc  cfx_smon_hypv_cg_reg_deleg, rd2
-cfx2rc  cfx_ptw_hypv_cg_reg_deleg, rd2
-cfx2rc  cfx_tlb_hypv_cg_reg_deleg, rd2
-cfx2rc  cfx_cache_hypv_cg_reg_deleg, rd2
-cfx2rc  cfx_hart_hypv_cg_reg_deleg, rd2
-cfx2rc  cfx_llc_hypv_cg_reg_deleg, rd2
-cfx2rc  cfx_pmem_hypv_cg_reg_deleg, rd2
-cfx2rc  cfx_timer_hypv_cg_reg_deleg, rd2
-cfx2rc  cfx_uart_hypv_cg_reg_deleg, rd2
-cfx2rc  cfx_power_hypv_cg_reg_deleg, rd2
+1. **逐 cfx 初始化**：对每个存在的 cfx（**hmon 除外**；hmon 由 hypv/HEE 保留），调用其 HBI 初始化函数：
 
-@@ 设置 cfx_power 的 excp_prev_run_mode 为 supv（值 2）
-set.rd   rd2, 2
-cfx2rc  cfx_power_excp_prev_run_mode, rd2
+   ```simrisc
+   trap cfx_ptw, 0x30001           @@ 例：ptw 的 HBI 初始化；其它 cfx 同理换 cfxha
+   ```
 
-@@ 设置 excp_prev_cfx_mask 为全 1（不允许任何核芯功能扩展发生异常）
-set.rd   rd2, -1
-cfx2rc  cfx_power_excp_prev_cfx_mask, rd2
+   - `HBI_<name>_INIT` 的 `immu18` 编码：bits[17:16] = `0b11`、bits[15:0] = `1`，即 `0x30001`。
+   - 各 cfx 的 `hypv_excp_vector` 复位值应指向其 HBI 初始化入口（由该 cfx 的实现提供）。
+   - 初始化内容至少包括：清除自身 `hypv_cg_reg_deleg`（允许 supv 访问 cg；cg3 固定禁止）、设置本 cfx 作为**源**时各模式可调用的目标：`<mode>_global_cfx_mask` 与 `<mode>_{trap,escape,cfx2rd,cfx2rc}_cfx_mask` 中允许的目标位（位 = 目标 cfx），以及 `<mode>_switch_run_mode`/`<mode>_switch_cfx_mask`/`<mode>_excp_vector`；其余由各 cfx 自行定义。
+   - **引导期不会被掩码拦**：`trap` 查的是**源 cfx**（= power）的 `hypv_*_cfx_mask`，复位全 0；`inner_cfx_mask` 只影响异步中断（CFXTRAP 不可屏蔽，步骤 2 跳过）。
+   - 除 smon 外，初始化完成后以 `escape cfx_<name>, [excp_cause_ip, 4]` 返回引导代码。
 
-@@ 设置 excp_cause_ip 为 supv 入口物理地址（尚未开启 ptbr，应为物理地址）
-set.rd   rd2, target_addr
-cfx2rc  cfx_power_excp_cause_ip, rd2
+2. **移交 smon**：smon 的 HBI 初始化函数**不返回**引导代码，而是直接完成移交：
 
-@@ 传递设备树或硬件信息指针（0 表示无）
-set.rb   rb16, fdt_addr
+   ```simrisc
+   @@ rb16 = S-mode 入口地址，rb17 = 设备树地址
+   trap cfx_smon, 0x30001
+   ```
 
-@@ 执行 escape 跳转到 supv 入口
-escape cfx_power, [excp_cause_ip, 0]
-```
+   - smon 初始化完成后设置：`cfx_smon_supv_{global,trap,escape,cfx2rd,cfx2rc}_cfx_mask`（允许 supv 调用的目标；最简单 = 全 0）、`cfx_smon_excp_prev_run_mode = supv`、`cfx_smon_excp_prev_cfx_mask = 0`、`cfx_smon_excp_cause_ip = rb16`；
+   - 执行 `escape cfx_smon, [excp_cause_ip, 0]` 跳转到 S-mode 入口，**不返回**引导代码；
+   - 移交完成后：`inner_run_mode = supv`、`inner_cfx_code = smon`、`inner_cfx_mask = 0`。
 
-S-mode 内核入口通过 rb16 获取设备树指针。
+S-mode 内核入口通过 `rb17` 获取设备树指针；`rb16` 为入口地址，移交后不再使用。
 
 ---
 
 ## 附录：版本与变更记录
 
-> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
-### 0.1.3-rc（未发布）
+### 0.1.3（2026-10-26）
 
-- 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`，寄存器名改 `cfx_<name>_<mode>`。
+- 启动与引导移交改为「逐 cfx HBI 初始化 → 移交 smon」：以 `trap cfx_<name>, 0x30001`（`HBI_<name>_INIT`）逐 cfx 初始化（hmon 除外，由 hypv/HEE 保留）；各 cfx 初始化后 `escape` 回引导代码，smon 则直接 `escape` 进入 S-mode 入口、不返回。
+- 删除原本由 `cfx_power` 承担的交接 trampoline（`excp_prev_cfx_mask` 置全 1 后经 `escape` 跳转）；移交由 smon 的 HBI 初始化完成，移交后 `inner_run_mode` = supv、`inner_cfx_code` = smon、`inner_cfx_mask` = 0。
+- 引导期 `trap` 不受掩码阻挡：`trap` 查源 cfx（power）的 `hypv_*_cfx_mask`（复位全 0），`inner_cfx_mask` 只影响异步中断。
+- 设备树指针改由 `rb17` 传递，`rb16` 为 S-mode 入口地址（移交后不再使用）。
 - `global_cfx_mask` 由全 1 改为 hypv 例外全 0。
-- 服务返回寄存器统一为 `rd8`。
 - 与上游 SimRISC 0.5.5 基线对齐。
+- 版本号常量同步：HBI 版本号 0.1.3。
+- 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`，寄存器名改 `cfx_<name>_<mode>`。
+- 服务返回寄存器为 `rd8`。
 
 ### 0.1.2（上游基线；导入日 2026-07-14，发布日不详）
 

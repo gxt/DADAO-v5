@@ -2,6 +2,20 @@ format = 1
 # 只读册（上游 20 册 + v5 自定 1 册）：sha256 锁。修改须用户事先明确允许（授权原话落盘），并在
 # 同一变更内更新此处哈希。见 docs/Process-06-spec目录保护规范.md。
 policy = "readonly-requires-authorization"
+# 2026-10-26（SPEC-175t：DADAO 六册**发布** + 用户逐条裁定 C1–C11 落实；发布授权原话：「这次可以定版，
+#   去掉 -rc，再有改动，开启新的 -rc（未经我认可，只动 x.y.z 中的 z）；注意，发布之前，把版本与变更
+#   记录好好整理一下，这是给人看的」；C1–C11 裁定原话见 `.tao/tasks/spec/SPEC-175t-C1至C11裁定落实.md`
+#   §背景）：AEE/ABI **0.9.3**、SEE/SBI **0.7.2**、HEE/HBI **0.1.3**，日期 2026-10-26——去 `-rc`、
+#   **不预开**空 `-rc` 段；变更记录按主题合并（同一对象只留最终态、不写任务号/ADR 号、对外语义在前
+#   机械修正（引用/笔误/版本串）在后）。语义改动：AEE 删 8/16/32 位乘除法解释与示例；ABI 通用聚合改
+#   「低地址块 → 低号寄存器」、栈溢出补「bank 独立 / 全局声明序 / 同一连续栈区」消歧；SEE `cfx_timer`
+#   → `cfx_time`（per-system 全局时间计数器）+ `cfx_hart` 加每 hart 比较器（`timer_cmp`/`timer_ctrl`
+#   + 异步 TIMER）+ 同步异常一律不可屏蔽（含 `SOFT_RESET`）+ cg7 按预留（`cfxld`/`cfxst` = ILLI）+
+#   U-mode `trap` 目标 smon 用 `cfx_smon_user_*`；SBI 返回值 bank（绝对地址 `rb8`、值类 `rd8`）+
+#   `cfx_hart` 加 `SBI_HART_SET_TIMER` + §10 只留 `SBI_TIME_GET`；HBI §3 启动移交重写（逐 cfx
+#   `HBI_<name>_INIT` = `0x30001` → 移交 smon；删 power trampoline；设备树指针改 `rb17`）；版本常量
+#   同步为发布号。Toolchain-01 按「再有改动开新 `-rc`」开 **0.5.4-rc**（§13.8 数组单下标示例随
+#   `cfx_time` 改名改用 `cfx_ptw_ptbr[0]`）。上述 7 册 sha256 于同一变更内同步重算（其余 14 册不变）。
 # 2026-10-26（SPEC-174t：DADAO 六册自洽性分析 + 对齐 SimRISC 0.5.5；授权依据 = 任务书
 #   `.tao/tasks/spec/SPEC-174t-DADAO册自洽性与0.5.5对齐.md` §背景「用户 2026-10-25 要求…先对
 #   DADAO-11/12/13/21/22/23 做自洽性分析 + 修正」+ 主会话派发声明「用户已授权本次分析/修正」）：
@@ -330,7 +344,8 @@ group = "dadao-1x"
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：指向 SimRISC-00 的跨册 `§` 引用改为手册名；sha256 同笔重算。
 # 2026-10-26（SPEC-174t，授权见文件头注释）：基线串 → SimRISC 0.5.5；`ext.s` → `ext.so`、算数→算术、
 #   `-multiple-to-single` 术语；sha256 同笔重算。
-sha256 = "6c6439402a356db7d27612b0c705775c2d260b85b4750deb578db67e2ffacac4"
+# 2026-10-26（SPEC-175t）：发布 0.9.3（去 -rc）；删乘除法段与 `ext.so` 提示；变更记录整理；sha256 同笔重算。
+sha256 = "8580f59bcd69ddcf2f7223a1113bfe90d7e99ef63c5a5e1b6911bd63273f3e6b"
 
 [[spec]]
 path = "spec/DADAO-12-SEE-主管系统运行环境.md"
@@ -341,7 +356,8 @@ group = "dadao-1x"
 # 2026-10-26（SPEC-174t，授权见文件头注释）：基线串 → 0.5.5；`见 HEE 文档 §n` → 手册名；册内
 #   `§5`/`§2.2.x` 引用改 `§标题`；异常名改表内规范名（`GP/SP/PFTRAP`、`NxPERM` → `I/D` 前缀 + `N{R/W/X}PERM`）；
 #   `当前偏移运行模式` → `当前运行模式`；sha256 同笔重算。
-sha256 = "5fc12e4b26e5fd18adbfda4b0b7f07ef6f83a5d8757cb050c4ae25cb2384e500"
+# 2026-10-26（SPEC-175t）：发布 0.7.2（去 -rc）；`cfx_timer`→`cfx_time`（cfxha 18 改名 `time`）+ `cfx_hart` rc1 保留/rc6 比较器/rc7 控制/TIMER 异常 + 同步不可屏蔽 + cg7 预留 + `user_*` 路由 + 版本常量；sha256 同笔重算。
+sha256 = "ff40f9269e2cec8decd4147ea581c0727f7d0e06a5829fff4e48231fe9adf006"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -349,7 +365,8 @@ path = "spec/DADAO-13-HEE-超管系统运行环境.md"
 group = "dadao-1x"
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：同上；sha256 同笔重算。
 # 2026-10-26（SPEC-174t，授权见文件头注释）：基线串 → 0.5.5；`详见 HBI 文档 §3` → `详见 HBI`；sha256 同笔重算。
-sha256 = "084d1c8c207525ccca978942ff1ae332c05083c6b3cd3db4f61fd0c1ac0add13"
+# 2026-10-26（SPEC-175t）：发布 0.1.3（去 -rc）；`hypv_global_version` 常量同步；sha256 同笔重算。
+sha256 = "99ec59859478a61db6220c01709a8c59413f9ea03b3f3db27bcb6364b8dc0067"
 
 [[spec]]
 path = "spec/DADAO-21-ABI-应用程序二进制接口.md"
@@ -378,7 +395,8 @@ group = "dadao-2x"
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：同上；sha256 同笔重算。
 # 2026-10-26（SPEC-174t，授权见文件头注释）：基线串 → 0.5.5；两处 AEE 悬空引用改指 `SimRISC-00`；
 #   册内 `§3.2.3`/`§3.4`/`§3.2.4`/`§3.2` 改 `§标题`；sha256 同笔重算。
-sha256 = "5bbd750ca2adb57e7ae5e1f44b8709ceeea37f3a46a034be379df67193ed4e8c"
+# 2026-10-26（SPEC-175t）：发布 0.9.3（去 -rc）；通用聚合改「低地址块 → 低号寄存器」+ 栈溢出消歧句；sha256 同笔重算。
+sha256 = "4c77e9e40818ee7bb5f83ba59a40159dd14e6ace47edced0972bcc74736eee55"
 
 [[spec]]
 path = "spec/DADAO-22-SBI-主管系统二进制接口.md"
@@ -388,14 +406,16 @@ group = "dadao-2x"
 # （§4 cfx_ptw 各 dispatch 的 set.rb/jump 中转）；仅改示例寄存器选择，其余口径不动。
 # 2026-10-26（SPEC-174t，授权见文件头注释）：基线串 → 0.5.5；`参见 DADAO-21-…` → 手册名 ABI（2 处）；
 #   `见 HBI §3`/`（§3）` 去节号；删示例注释中的 ADR 指针；sha256 同笔重算。
-sha256 = "572bed53ffd463843190ccb86f34a31a21bb6e561f52c034ae3b3e26dd315e28"
+# 2026-10-26（SPEC-175t）：发布 0.7.2（去 -rc）；返回值 bank（`rb8`/`rd8`）+ `SBI_HART_SET_TIMER` + §10 只留 `SBI_TIME_GET` + 版本常量；sha256 同笔重算。
+sha256 = "b9720e282b5b2cda53ef796d068cd3185953a29f7727ef86a0cc5bd9f286a6ba"
 
 [[spec]]
 path = "spec/DADAO-23-HBI-超管系统二进制接口.md"
 group = "dadao-2x"
 # 2026-10-09（SPEC-126t，用户裁定「统一为 rd8」）：HBI 服务返回 rd31 → rd8（HBI_GET_VERSION）。
 # 2026-10-26（SPEC-174t，授权见文件头注释）：基线串 → 0.5.5；`参见 SBI §1` → 手册名 SBI；sha256 同笔重算。
-sha256 = "eadc27a41270af24d0916858d0a8e42c1470b3623d34f8f610548d88204a8727"
+# 2026-10-26（SPEC-175t）：发布 0.1.3（去 -rc）；§3 启动移交重写（`0x30001` 逐 cfx 初始化 → 移交 smon；`rb17` 设备树）+ 版本常量；sha256 同笔重算。
+sha256 = "b1a656113aad81cc461911819a5182a518c8085a329e3d051cdb4b351762e410"
 
 [[spec]]
 path = "spec/Toolchain-01-汇编语言.md"
@@ -450,7 +470,8 @@ group = "toolchain-01"
 #   主会话下发）：实际位置为 §4.2 / §5（§6 为伪指令节，无格式表）——§4.2 补「单目的指令」bullet、
 #   §5 格式表补 `rrrr`（单目的）行 + 两形态对照示例块；**册版本不变**（ADR-0034 / SPEC-166t 同类先例：
 #   补记既有形态、指令编码/语义不变，仅锁注释留痕）。sha256 于同一变更内重算回填。
-sha256 = "535a538d0310cdd5d6caff542f7cf99ae152544ba16f22d6fb80c3a3485a393c"
+# 2026-10-26（SPEC-175t）：开 0.5.4-rc（§13.8 数组单下标示例改 `cfx_ptw_ptbr[0]`）；sha256 同笔重算。
+sha256 = "f6e19ebfec6e0914968d6e7baf9e1159e913b7fc86e79094c82cc3ec04dcfaa4"
 
 [[spec]]
 path = "spec/Machine-01-测试机运行环境.md"

@@ -125,7 +125,7 @@ _CFX_ALIAS_PATTERN = re.compile(r"^\|\s*`(cfx_[\w⟨⟩\[\].−\d]+)`\s*\|")
 # All known cfxnames (from the scalar alias table)
 _CFX_NAMES = [
     "umon", "jmon", "smon", "hmon", "ptw", "tlb", "cache",
-    "hart", "llc", "pmem", "timer", "uart", "power",
+    "hart", "llc", "pmem", "time", "uart", "power",
 ]
 
 def _load_cfx_aliases() -> tuple[set[str], dict[str, tuple[int, int]]]:
