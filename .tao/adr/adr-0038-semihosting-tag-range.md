@@ -4,7 +4,7 @@
 **日期**：2026-10-26
 **关联**：`ADR-0020`（`D1`/`D10` 被本 ADR 取代）、`SPEC-175t`（HBI `0x30001`）、`SPEC-176t`（正文落点）、`QEMU-076t`（译码/测试迁移）、`spec/Machine-01`、`.tao/contracts/contract-see.md`、`.tao/contracts/contract-semihosting.md`
 
-> **决策来源（用户原话，2026-10-26，经主会话问答）**：「**0x3ff00-0x3ffff**」；D1/D2/D4/D5 逐条确认，D3 待定。
+> **决策来源（用户原话，2026-10-26，经主会话问答）**：「**0x3ff00-0x3ffff**」；D1/D2/D4/D5 逐条确认，D3 待定（后经用户选 **B：删除**，见下方 D3 决议）。
 > **ADR 不承载规范正文**（`docs/Process-03`）：判定文本、调用约定由 `spec/Machine-01` 与 contracts 落笔。
 
 ## Context（背景）
@@ -19,6 +19,7 @@
 - **D1 — semihosting 判定**：`trap cfxHA, immu18` 中 **`immu18[17:8] == 0x3FF`**（即 `0x3FF00–0x3FFFF`）⇒ semihosting；**与 `cfxha` 无关**。原 `immu18[17:16] == 2'b11` 判定作废。
 - **D2 — HBI INIT 保持**：`HBI_<name>_INIT` 仍为 `0x30001`（bits[17:16]=`0b11`）；`DADAO-23 §3` 补一句「该编码不落在 semihosting 区（`0x3FF00–0x3FFFF`）」。
 - **D3 — SBI 保留值处置（不属本 ADR 决策）**：`DADAO-22:863` 的保留值 `0x3FFFF` 现落入 semihosting 区，处置（移到 `0x3FEFF` / 删除 / 收窄范围）待定，登记 `ISS-334`。
+  **D3 决议（2026-10-26，用户选 B）**：删除保留值；`ISS-334` 由 `SPEC-177t` 关闭。
 - **D4 — 调用点迁移**：所有 semihosting 调用从 `0x300xx` 迁到 **`0x3FFxx`**（低 8 位 op 不变）；QEMU 译码由 `((immu18 >> 16) & 3) == 3` 改为 **`immu18 >= 0x3FF00`**。
 - **D5 — 文档与 ADR**：`ADR-0020` 的 `D1`/`D10` 标 **`Superseded by ADR-0038`**（不改原文）；`spec/Machine-01 §4.1/§5.1/§5.2`、`contract-see.md`、`contract-semihosting.md` 同步改判定；`Machine-01` 版本 `0.3.1` → `0.3.2-rc`。
 
@@ -38,4 +39,4 @@
 - **规范/合约**：`spec/Machine-01`、`contract-see.md`、`contract-semihosting.md`、`DADAO-23 §3`。
 - **代码/测试**：QEMU 译码；`bootrom{,_app}.S`、`codegen_crt0.s`、`build_test_binary.py`、`tests/llvm/codegen/m5/m5_semi_*.s` 与 `expected.yaml`、`tools/qemu/min_rom_probe_*` —— 全仓 `0x30000/2'b11` 约 **93 处、20 个文件**。
 - **只读锁**：`spec/Machine-01` 需用户本次授权（随任务记录原话）并重算 sha256。
-- **遗留**：`0x3FFFF` 与 SBI 保留值冲突（`ISS-334`）；`0x3FFxx` 未来若要扩 HBI 类服务需避开该区。
+- **遗留**：`0x3FFFF` 与 SBI 保留值冲突（`ISS-334`，已按 D3 决议删除保留值关闭，`SPEC-177t`）；`0x3FFxx` 未来若要扩 HBI 类服务需避开该区。

@@ -2,6 +2,12 @@ format = 1
 # 只读册（上游 20 册 + v5 自定 1 册）：sha256 锁。修改须用户事先明确允许（授权原话落盘），并在
 # 同一变更内更新此处哈希。见 docs/Process-06-spec目录保护规范.md。
 policy = "readonly-requires-authorization"
+# 2026-10-26（SPEC-177t；用户裁定原话：「**B**」——A（移到 `0x3FEFF`）/ B（删除）/ C（收窄区间）三选一中
+#   选 B；渠道 = 经主会话问答，任务书 §背景 已落纸）：`DADAO-22 §14` 删「保留 immu18 值 `0x3FFFF`（最大）
+#   用于将来可能的协议版本协商」一句（该值落在 semihosting 区 `0x3FF00–0x3FFFF`，作保留值会被译码短路）；
+#   其余 7 处 `0x3FFFF` 为 `set.rd rd3, 0x3FFFF` 的 immu18 掩码常量，**未动**。SBI/SEE 册头 + 附录 →
+#   **0.7.3-rc**（`check-spec-changelog` 互锁组 `see-sbi`；SEE 正文不变）。`DADAO-22`、`DADAO-12`
+#   两册 sha256 于同一变更内重算（其余 19 册不变）。
 # 2026-10-26（SPEC-176t；用户裁定原话：「**0x3ff00-0x3ffff**」；D1/D2/D4/D5 已逐条确认，D3
 #   （SBI `0x3FFFF` 保留值）待定 + 登记 ISS-334；渠道 = 经主会话问答，原话落纸于
 #   `.tao/tasks/spec/SPEC-176t-semihosting判定迁移.md` §背景）：semihosting 入口判定由
@@ -367,7 +373,8 @@ group = "dadao-1x"
 #   `§5`/`§2.2.x` 引用改 `§标题`；异常名改表内规范名（`GP/SP/PFTRAP`、`NxPERM` → `I/D` 前缀 + `N{R/W/X}PERM`）；
 #   `当前偏移运行模式` → `当前运行模式`；sha256 同笔重算。
 # 2026-10-26（SPEC-175t）：发布 0.7.2（去 -rc）；`cfx_timer`→`cfx_time`（cfxha 18 改名 `time`）+ `cfx_hart` rc1 保留/rc6 比较器/rc7 控制/TIMER 异常 + 同步不可屏蔽 + cg7 预留 + `user_*` 路由 + 版本常量；sha256 同笔重算。
-sha256 = "ff40f9269e2cec8decd4147ea581c0727f7d0e06a5829fff4e48231fe9adf006"
+# 2026-10-26（SPEC-177t，授权原话见文件头注释）：册头/附录 → 0.7.3-rc（与 SBI 互锁；正文不变）；sha256 同笔重算。
+sha256 = "3c7885096fb998755b78527b695da491c8e2c75a7832fab47b5f25869da62c4a"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -418,7 +425,8 @@ group = "dadao-2x"
 # 2026-10-26（SPEC-174t，授权见文件头注释）：基线串 → 0.5.5；`参见 DADAO-21-…` → 手册名 ABI（2 处）；
 #   `见 HBI §3`/`（§3）` 去节号；删示例注释中的 ADR 指针；sha256 同笔重算。
 # 2026-10-26（SPEC-175t）：发布 0.7.2（去 -rc）；返回值 bank（`rb8`/`rd8`）+ `SBI_HART_SET_TIMER` + §10 只留 `SBI_TIME_GET` + 版本常量；sha256 同笔重算。
-sha256 = "b9720e282b5b2cda53ef796d068cd3185953a29f7727ef86a0cc5bd9f286a6ba"
+# 2026-10-26（SPEC-177t，授权原话见文件头注释）：§14 删保留值 `0x3FFFF` 约定；册头/附录 → 0.7.3-rc；sha256 同笔重算。
+sha256 = "002e056a1ec2a5c882637fe5e5bc05eeb096bc0cea91cef62e7d73777c8f277f"
 
 [[spec]]
 path = "spec/DADAO-23-HBI-超管系统二进制接口.md"

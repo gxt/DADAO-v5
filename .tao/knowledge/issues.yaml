@@ -79,11 +79,11 @@
   resolved_by: INFRA-107t
   notes: "【正式登记（2026-10-25，源 = `SPEC-172t` 发布 0.5.5 时 `gen_spec_archive.py --verify` 实测）】**现象**：`python3 tools/spec/gen_spec_archive.py --verify` rc=1，唯一失败项 = `SimRISC-0.5.3`（5 文件）——其 `PROVENANCE.md` 缺「版本组合 sha256」行与「逐文件 sha256」表；`0.5.4`/`0.5.5`/`0.5.5-rc` 均 OK。**影响**：`check_spec_archive.py`（L1）只校验存在性与文件数、不校验内容 ⇒ 该缺陷长期不可见；`--verify` 的清单级可信度被削弱。**修法方向**：按 0.5.4/0.5.5 的 PROVENANCE 格式补写 0.5.3 的组合 sha 与逐文件表（内容仍取原快照提交，禁改归档文件本体，符合 `Process-06 §8` 只增不改）；或让 `--verify` 对历史缺表项显式标注为 known-legacy。**边界**：本笔只登记 ⇒ 未改 `.tao/archive/SimRISC-0.5.3/**` ✗。"
 - id: ISS-334
-  title: "【P3】semihosting 新区间 0x3FF00–0x3FFFF 与 SBI 保留值 0x3FFFF 冲突（ADR-0038 D3 待定）"
-  status: open
+  title: "【P3】semihosting 新区间 0x3FF00–0x3FFFF 与 SBI 保留值 0x3FFFF 冲突（ADR-0038 D3；已裁定删除保留值）"
+  status: closed
   scope: [spec]
   blocks: []
-  resolved_by: null
+  resolved_by: SPEC-177t
   notes: >-
     【正式登记（2026-10-26，源 = `ADR-0038` `D3`；用户裁定「0x3ff00-0x3ffff」）】**现象**：semihosting 新判定为
     `immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`），而 `spec/DADAO-22-SBI-主管系统二进制接口.md:863` 仍保留
@@ -92,6 +92,8 @@
     ① 把保留值移到 `0x3FEFF`（最高非 semihosting FID）；② 删除该保留值；③ 把 semihosting 上界收窄到 `0x3FFFE`（与用户原话不符）。
     **证据指针**：`ADR-0038` §Decision D1/D3、`DADAO-22:863`、`contract-semihosting.md:17-18`。**边界**：本笔只登记 ⇒ 未改
     `spec/DADAO-22` ✗、未改 semihosting 判定 ✗。
+    **关闭（2026-10-26）**：用户选 **B：删除**（授权原话「B」落 `manifests/spec-readonly.lock.toml` 头）⇒
+    `DADAO-22 §14` 删该保留约定、SBI/SEE → `0.7.3-rc`；由 `SPEC-177t` 关闭。
 - id: ISS-335
   title: "【P3】`generate_rev_vectors.py --check` 红：62 例 `spec_cite` 陈旧、`rev` 向量未进门控"
   status: open
