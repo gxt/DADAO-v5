@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：QEMU-075t（诊断）
-**状态**：待验收
+**状态**：已验证
 
 ## 背景（只针对 ISS-266 的 4 个 llvm-ts 程序）
 QEMU-075t 结论：
@@ -40,7 +40,7 @@ python3 tools/testcases/run_llvm_ts_user.py --link-mode both --jobs 1 \
 
 ## 完成区
 
-**状态**：待验收
+**状态**：已验证
 
 **测试结果**：`bash .work/evidence/TESTCASES-069t/run.sh` ⇒ **48 PASS / 0 FAIL**（含注入→8b10b 降为 fail→`cp`+md5 还原→回绿）；`make check` rc=0。定向两档（static/dynamic）均为 `total=4 pass=1 fail=2 known-fail=1 blocked=0`；driver rc=1 因真实 `fail` 存在（判据即判定，非门控失败）。
 
@@ -76,4 +76,24 @@ python3 tools/testcases/run_llvm_ts_user.py --link-mode both --jobs 1 \
 | F6 ISS-266 活证据扫全 65536 词，而运行只用前 2000 词 | ❌不修（已核） | — | 证据是「数据文件是 LE 流」的更强断言（全量），首词即已越界；不依赖运行长度 |
 
 自审判定：F1–F4 已修并复验，F5/F6 有据不修；无未修缺陷 ⇒ 状态置 `待验收`。
+
+### 第 1 轮 reviewer 验收（2026-10-27）
+
+**重跑（reviewer 本人执行，非采信完成区）**：
+- `bash .work/evidence/TESTCASES-069t/run.sh` ⇒ **exit=0，48 PASS / 0 FAIL**（S1–S3、D0–D15×两档、E1、I1–I4 全绿）。
+- 定向两档（run.sh 内即任务书验证命令，独立产物复核 json）：static/dynamic 均 `total=4 pass=1 fail=2 known-fail=1 blocked=0`；逐例 `dbms pass exit=0`、`8b10b known-fail basis=ISS-266 exit=139`、`SPASS fail exit=139 si_addr=0x8`、`consumer-typeset fail exit=135 si_addr=0x7`；driver rc=1（真实 fail 存在）。
+- `make check`（run.sh E1 + 独立日志核）⇒ `repository checks (L1): PASS`，rc=0。
+- qemu-strace.log 逐例：`--- SIGSEGV/SIGBUS {…} ---` 各 1 行、`QEMU internal` 0 行（D14/D15 PASS）。
+
+**独立反例注入（方案②，非 engineer 注入点）**：`cp` 备份驱动（md5 `b5741dc6…`）→ 在 `guest_signal_probe` 入口注入 `return None, "REVIEWER INJECTION: probe disabled"` → 定向单跑 SPASS ⇒ **`blocked=1`（`qemu killed by host signal 11; REVIEWER INJECTION…`）**，证明探针 load-bearing、blocked 路径可达 → `cp` 还原 + **md5 相等**（`b5741dc6…`）→ 重跑 SPASS ⇒ **fail / SIGSEGV**（回绿）。全程未用 `git checkout/restore/stash`。
+
+**脚本审核**：逐条核 run.sh —— 每条 check 有可达 FAIL 路径（计数取自现场 json、grep 计数含缺文件即错）；注入非空（assert 唯一 needle）且有 `trap` + md5 对账 + 还原后单例重跑；无恒真、无双写同果。
+
+**约束核验**：① 改动范围 = 4 文件（driver/issues.yaml/milestones.md/任务书），`git show --stat` 核过，未动 qemu/LLVM/语料/其它 driver；② 未跑全量、未夜跑（仅定向 4 例）；③ 8b10b 行精确 case（`cid != ISS266_8B10B` 即拒绝，活证据复读 input.txt + 表声明）；④ 探针仅在 `rc<0` 分支触发，timeout/无转发行/QEMU internal ⇒ 保守 blocked，其它 blocked 不误升；⑤ 无仓库残留（`git status --porcelain -uall` 前后均 0 行，注入还原 md5 相等）。
+
+**根因证据抽查**：SPASS —— `symbol.h:112 typedef int SYMBOL` + `symbol.h:176 BOOL symbol_Equal(SYMBOL,SYMBOL)`，`cnf.c:2760` 强转属实；诊断日志含调用点 `0x510fc`（`rd2rb rb16/rb17`）与 callee `0x46768 cmp.st rd4, rd16, rd17`；wrapper 反证日志 md5 `74365d61…`（DADAO 修复构建 = 宿主 gcc 构建，≠ 上游 `b0b56c51…`）——支撑「语料 UB + 另有参考方差」。typeset —— `z01.c:229 catopen` 未查返回值、`z01.c:856` 无条件 `catclose` 属实；musl `catclose.c` 无 -1 守卫、`V(map+8)` 解引用 addr 0x7 属实；`-strace` 有 `openat(errors.C) = -1 ENOENT` 与 `--- SIGBUS si_addr=0x7`。ISS-266 closed / ISS-338、ISS-339 登记与上述一致、如实。
+
+**遗留/风险**（不阻断）：探针把 guest stderr 与 strace 同文件（F5，保守方向=漏升 fail 不假绿，已披露）；探针使 rc<0 用例运行时翻倍；「timeout⇒blocked」为代码路径核验、未实跑注入验证。
+
+**判决：Accepted**（验收命令块在 reviewer 重跑下全绿、约束无违反、反例注入→FAIL→还原→回绿成立）。
 
