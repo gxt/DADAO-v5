@@ -19,7 +19,8 @@ DADAO executable:
 3. **verify** -- the ELF is parsed here (ELF64 / big-endian / ET_EXEC /
    e_machine = EM_DADAO 0x0DA0 / no PT_INTERP / no PT_DYNAMIC, entry inside the
    first PT_LOAD) and cross-checked against ``file(1)``; the disassembly must
-   contain the ``trap cfx0, 0`` syscall entry instruction.  Running the program
+   contain the ``trap cfx0, 0`` syscall entry instruction (the name-aware
+   disassembler may spell it ``trap cfx_umon, 0``; both are accepted).  Running the program
    on the dadao-m1 machine is stage B and is NOT done here.
 
 INFRA-085t stage A1 ("shared library and PIC") adds a second, SHARED mode
@@ -835,7 +836,11 @@ def disassemble_has_trap(elf: Path) -> tuple[bool, str]:
     if res.returncode != 0:
         return False, f"llvm-objdump rc={res.returncode}"
     text = res.stdout
-    ok = "trap cfx0, 0" in text
+    # cfx spellings are run-time data (LLVM-135t): the assembler accepts
+    # `cfx0` and the canonical alias `cfx_umon`, and the printer prefers the
+    # name whenever the alias table is available.  The syscall entry is the
+    # same instruction either way, so both spellings count.
+    ok = any(s in text for s in ("trap cfx0, 0", "trap cfx_umon, 0"))
     return ok, "found" if ok else "NOT found"
 
 
@@ -1198,7 +1203,8 @@ def main() -> int:
 
     checks = check_elf(elf, args.inject)
     ok, detail = disassemble_has_trap(elf)
-    checks.append(("syscall entry present (trap cfx0, 0)", "found", detail, ok))
+    checks.append(("syscall entry present (trap cfx0, 0 / cfx_umon, 0)",
+                   "found", detail, ok))
 
     if report_checks(checks, "static"):
         return 1

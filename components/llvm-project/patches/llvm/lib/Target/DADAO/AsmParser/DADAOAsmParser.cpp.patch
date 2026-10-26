@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..fb2253b08
+index 000000000..8e50a8799
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2650 @@
+@@ -0,0 +1,2607 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -22,6 +22,7 @@ index 000000000..fb2253b08
 +//
 +//===----------------------------------------------------------------------===//
 +
++#include "MCTargetDesc/DADAOCfxAliasTable.h"
 +#include "MCTargetDesc/DADAOMCTargetDesc.h"
 +#include "MCTargetDesc/DADAOMCAsmInfo.h"
 +#include "TargetInfo/DADAOTargetInfo.h"
@@ -326,59 +327,6 @@ index 000000000..fb2253b08
 +  }
 +};
 +
-+//===----------------------------------------------------------------------===//
-+// cfx alias tables + lookup (ADR-0017 D3/D4/D8/D10; Toolchain-01 §13).
-+//
-+// DADAOCfxAlias.inc is mechanically generated from the same spec sources as
-+// the committed alias projection (.tao/contracts/contract-cfx-aliases.md);
-+// see the header of that file for provenance.
-+//===----------------------------------------------------------------------===//
-+
-+#include "DADAOCfxAlias.inc"
-+
-+// Resolve a scalar alias `cfx_<cfxname>` -> 6-bit cfx code (ADR-0017 D3).
-+static bool lookupCfxScalarAlias(StringRef Name, unsigned &Code) {
-+  for (const CfxScalarAlias &A : CfxScalarAliases)
-+    if (Name == A.Name) {
-+      Code = A.Code;
-+      return true;
-+    }
-+  return false;
-+}
-+
-+// Resolve a register alias (bare name, no subscript) -> (cfxha, cg, rcBase,
-+// rcCount).  cfx-specific aliases (cg >= 8) are matched by full name first;
-+// the remaining `cfx_<cfxname>_<tail>` forms use the generic tail table
-+// (ADR-0017 D4).  rcCount > 1 marks an array register (D10).
-+static bool lookupCfxRegAlias(StringRef Name, unsigned &Cfxha, unsigned &Cg,
-+                              unsigned &RcBase, unsigned &RcCount) {
-+  for (const CfxSpecificAlias &S : CfxSpecificAliases)
-+    if (Name == S.Name) {
-+      Cfxha = S.Cfxha;
-+      Cg = S.Cg;
-+      RcBase = S.RcBase;
-+      RcCount = S.RcCount;
-+      return true;
-+    }
-+  for (const CfxScalarAlias &A : CfxScalarAliases) {
-+    StringRef Prefix(A.Name);
-+    if (!Name.starts_with(Prefix))
-+      continue;
-+    StringRef Tail = Name.drop_front(Prefix.size());
-+    if (!Tail.starts_with("_"))
-+      continue;
-+    Tail = Tail.drop_front(1);
-+    for (const CfxRegTail &T : CfxRegTails)
-+      if (Tail == T.Tail) {
-+        Cfxha = A.Code;
-+        Cg = T.Cg;
-+        RcBase = T.RcBase;
-+        RcCount = T.RcCount;
-+        return true;
-+      }
-+  }
-+  return false;
-+}
 +
 +//===----------------------------------------------------------------------===//
 +// DADAOAsmParser
@@ -680,14 +628,14 @@ index 000000000..fb2253b08
 +    // cfx_<cfxname> (scalar) or cfx_<cfxname>_<regname> (register alias).
 +    if (Name.starts_with("cfx_")) {
 +      unsigned Code;
-+      if (lookupCfxScalarAlias(Name, Code)) {
++      if (DADAO::lookupCfxScalarAlias(Name, Code)) {
 +        getParser().Lex();
 +        Operands.push_back(DADAOOperand::createCfxha(Code, StartLoc));
 +        return 1;
 +      }
 +
 +      unsigned Cfxha, Cg, RcBase, RcCount;
-+      if (lookupCfxRegAlias(Name, Cfxha, Cg, RcBase, RcCount)) {
++      if (DADAO::lookupCfxRegAlias(Name, Cfxha, Cg, RcBase, RcCount)) {
 +        getParser().Lex();
 +        int64_t Sub = -1;
 +        if (RcCount > 1) {
@@ -728,6 +676,15 @@ index 000000000..fb2253b08
 +        Operands.push_back(
 +            DADAOOperand::createCfxRc(RcBase + (Sub < 0 ? 0 : Sub), StartLoc));
 +        return 1;
++      }
++      // No table => no name can ever resolve; say so instead of letting the
++      // generic "invalid operand" hide the real cause (LLVM-135t).  A table
++      // that *is* loaded but lacks the name still falls through, so a typo
++      // keeps reporting the ordinary invalid-operand diagnostic.
++      if (!DADAO::isCfxAliasTableAvailable()) {
++        Error(StartLoc, "cannot resolve '" + Name + "': " +
++                            DADAO::getCfxAliasTableError());
++        return -1;
 +      }
 +      return 0; // unknown cfx_* symbol -> let parseImmediate report it
 +    }

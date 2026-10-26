@@ -1,11 +1,12 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/CMakeLists.txt b/llvm/lib/Target/DADAO/MCTargetDesc/CMakeLists.txt
 new file mode 100644
-index 000000000000..43fc7e8896de
+index 000000000..76700b1b2
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/CMakeLists.txt
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,18 @@
 +add_llvm_component_library(LLVMDADAODesc
 +  DADAOAsmBackend.cpp
++  DADAOCfxAliasTable.cpp
 +  DADAOELFObjectWriter.cpp
 +  DADAOMCAsmInfo.cpp
 +  DADAOMCCodeEmitter.cpp

@@ -43,7 +43,6 @@ llvm/lib/MC/MCParser/ELFAsmParser.cpp.patch
 llvm/lib/Object/ELF.cpp.patch
 llvm/lib/Target/DADAO/AsmParser/CMakeLists.txt.patch
 llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp.patch
-llvm/lib/Target/DADAO/AsmParser/DADAOCfxAlias.inc.patch
 llvm/lib/Target/DADAO/CMakeLists.txt.patch
 llvm/lib/Target/DADAO/DADAO.h.patch
 llvm/lib/Target/DADAO/DADAO.td.patch
@@ -79,6 +78,8 @@ llvm/lib/Target/DADAO/Disassembler/CMakeLists.txt.patch
 llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp.patch
 llvm/lib/Target/DADAO/MCTargetDesc/CMakeLists.txt.patch
 llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp.patch
+llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.cpp.patch
+llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.h.patch
 llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp.patch
 llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h.patch
 llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp.patch

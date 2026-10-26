@@ -1,0 +1,346 @@
+diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.cpp
+new file mode 100644
+index 000000000..338dd0b31
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.cpp
+@@ -0,0 +1,340 @@
++//===-- DADAOCfxAliasTable.cpp - DADAO cfx alias runtime table ------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// Runtime cfx alias table: parse `share/dadao/cfx-aliases.txt` once, then
++// answer name -> encoding (assembler) and encoding -> name (MCInstPrinter).
++//
++// Table grammar (format=1; '#' starts a comment, blank lines ignored):
++//
++//   # format=1
++//   scalar <name> <cfxha> [canonical]
++//   reg    <name> <cfxha> <cg> <rc-base> <rc-count> [canonical]
++//
++// `scalar` names address a whole cfx (`cfx_<cfxname>` -> cfxha); `reg` names
++// address one register of a cfx, rc-count > 1 being an array register whose
++// single-subscript form is `name[N]` (rc = rc-base + N).  `canonical` marks
++// the preferred spelling when several names denote the same encoding.
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAOCfxAliasTable.h"
++
++#include "llvm/ADT/SmallString.h"
++#include "llvm/ADT/SmallVector.h"
++#include "llvm/ADT/StringExtras.h"
++#include "llvm/ADT/StringRef.h"
++#include "llvm/Support/CommandLine.h"
++#include "llvm/Support/FileSystem.h"
++#include "llvm/Support/IOSandbox.h"
++#include "llvm/Support/MemoryBuffer.h"
++#include "llvm/Support/Path.h"
++#include "llvm/Support/Process.h"
++
++#include <optional>
++#include <string>
++#include <tuple>
++#include <vector>
++
++using namespace llvm;
++
++static cl::opt<std::string> DadaoCfxAliasFile(
++    "dadao-cfx-alias", cl::Hidden,
++    cl::desc("Path to the DADAO cfx alias table (default: "
++             "$DADAO_CFX_ALIAS_FILE, else "
++             "<exe-dir>/../share/dadao/cfx-aliases.txt)"),
++    cl::value_desc("path"));
++
++namespace {
++
++struct ScalarAlias {
++  std::string Name;
++  unsigned Cfxha = 0;
++  bool Canonical = false;
++};
++
++struct RegAlias {
++  std::string Name;
++  unsigned Cfxha = 0;
++  unsigned Cg = 0;
++  unsigned RcBase = 0;
++  unsigned RcCount = 1;
++  bool Canonical = false;
++
++  bool covers(unsigned CgCode, unsigned RcCode) const {
++    return Cg == CgCode && RcBase <= RcCode && RcCode < RcBase + RcCount;
++  }
++};
++
++class CfxAliasTable {
++public:
++  bool Available = false;
++  std::string Path;
++  std::string Error;
++  std::vector<ScalarAlias> Scalars;
++  std::vector<RegAlias> Regs;
++};
++
++bool getUInt(StringRef Tok, unsigned Max, unsigned &Val) {
++  unsigned long long Parsed = 0;
++  if (Tok.empty() || Tok.getAsInteger(10, Parsed) || Parsed > Max)
++    return false;
++  Val = (unsigned)Parsed;
++  return true;
++}
++
++/// Parse \p Text into \p T; returns an empty string on success, otherwise a
++/// "<line N>: <reason>" message.  A malformed table is rejected as a whole
++/// (fail closed): a half-understood table would silently mis-encode names.
++std::string parseTable(StringRef Text, CfxAliasTable &T) {
++  bool SawFormat = false;
++  unsigned LineNo = 0;
++  SmallVector<StringRef, 8> Fields;
++
++  for (StringRef Line : llvm::split(Text, '\n')) {
++    ++LineNo;
++    Line = Line.trim();
++    if (Line.empty())
++      continue;
++    if (Line.consume_front("#")) {
++      StringRef Comment = Line.trim();
++      if (Comment.starts_with("format=")) {
++        if (Comment != "format=1")
++          return "line " + std::to_string(LineNo) +
++                 ": unsupported table format '" + Comment.str() + "'";
++        SawFormat = true;
++      }
++      continue;
++    }
++
++    Fields.clear();
++    Line.split(Fields, ' ', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
++    StringRef Kind = Fields[0];
++    auto bad = [&](StringRef Why) {
++      return "line " + std::to_string(LineNo) + ": " + Why.str();
++    };
++
++    if (Kind == "scalar") {
++      if (Fields.size() != 3 && Fields.size() != 4)
++        return bad("expected 'scalar <name> <cfxha> [canonical]'");
++      ScalarAlias A;
++      A.Name = Fields[1].str();
++      if (!StringRef(A.Name).starts_with("cfx_"))
++        return bad("scalar alias '" + A.Name + "' must start with 'cfx_'");
++      if (!getUInt(Fields[2], 63, A.Cfxha))
++        return bad("cfxha '" + Fields[2].str() + "' out of range [0, 63]");
++      if (Fields.size() == 4) {
++        if (Fields[3] != "canonical")
++          return bad("unknown flag '" + Fields[3].str() + "'");
++        A.Canonical = true;
++      }
++      for (const ScalarAlias &Prev : T.Scalars)
++        if (Prev.Name == A.Name)
++          return bad("duplicate scalar alias '" + A.Name + "'");
++      for (const RegAlias &Prev : T.Regs)
++        if (Prev.Name == A.Name)
++          return bad("duplicate alias '" + A.Name + "'");
++      T.Scalars.push_back(std::move(A));
++      continue;
++    }
++
++    if (Kind == "reg") {
++      if (Fields.size() != 6 && Fields.size() != 7)
++        return bad("expected 'reg <name> <cfxha> <cg> <rc-base> <rc-count> "
++                   "[canonical]'");
++      RegAlias A;
++      A.Name = Fields[1].str();
++      if (!StringRef(A.Name).starts_with("cfx_"))
++        return bad("register alias '" + A.Name + "' must start with 'cfx_'");
++      if (!getUInt(Fields[2], 63, A.Cfxha))
++        return bad("cfxha '" + Fields[2].str() + "' out of range [0, 63]");
++      if (!getUInt(Fields[3], 63, A.Cg))
++        return bad("cg '" + Fields[3].str() + "' out of range [0, 63]");
++      if (!getUInt(Fields[4], 63, A.RcBase))
++        return bad("rc-base '" + Fields[4].str() + "' out of range [0, 63]");
++      if (!getUInt(Fields[5], 64, A.RcCount) || A.RcCount == 0)
++        return bad("rc-count '" + Fields[5].str() + "' out of range [1, 64]");
++      if (A.RcBase + A.RcCount > 64)
++        return bad("rc range [" + std::to_string(A.RcBase) + ", " +
++                   std::to_string(A.RcBase + A.RcCount - 1) +
++                   "] leaves the 6-bit rc space [0, 63]");
++      if (Fields.size() == 7) {
++        if (Fields[6] != "canonical")
++          return bad("unknown flag '" + Fields[6].str() + "'");
++        A.Canonical = true;
++      }
++      for (const ScalarAlias &Prev : T.Scalars)
++        if (Prev.Name == A.Name)
++          return bad("duplicate alias '" + A.Name + "'");
++      for (const RegAlias &Prev : T.Regs)
++        if (Prev.Name == A.Name)
++          return bad("duplicate alias '" + A.Name + "'");
++      T.Regs.push_back(std::move(A));
++      continue;
++    }
++
++    return bad("unknown directive '" + Kind.str() + "'");
++  }
++
++  if (!SawFormat)
++    return "missing '# format=1' header";
++
++  return std::string();
++}
++
++/// Explicit path -> $DADAO_CFX_ALIAS_FILE -> <exe-dir>/../share/dadao/...
++std::string resolveTablePath() {
++  if (!DadaoCfxAliasFile.empty())
++    return DadaoCfxAliasFile;
++
++  if (std::optional<std::string> Env =
++          sys::Process::GetEnv("DADAO_CFX_ALIAS_FILE"))
++    if (!Env->empty())
++      return *Env;
++
++  std::string Exe = sys::fs::getMainExecutable("", nullptr);
++  if (Exe.empty())
++    return std::string();
++  SmallString<256> Path(Exe);
++  sys::path::remove_filename(Path); // <prefix>/bin/x -> <prefix>/bin/
++  sys::path::remove_filename(Path); // <prefix>/bin/ -> <prefix>/
++  sys::path::append(Path, "share", "dadao", "cfx-aliases.txt");
++  return std::string(Path);
++}
++
++CfxAliasTable loadTable() {
++  CfxAliasTable T;
++  T.Path = resolveTablePath();
++  if (T.Path.empty()) {
++    T.Error = "no cfx alias table found (no --dadao-cfx-alias, no "
++              "$DADAO_CFX_ALIAS_FILE, and the executable location is "
++              "unknown)";
++    return T;
++  }
++
++  // The alias table is auxiliary run-time data, not a compilation input, so the
++  // compiler I/O sandbox (LLVM_ENABLE_IO_SANDBOX: cc1 only reads declared
++  // inputs) must admit this read explicitly -- otherwise `clang -c foo.S`
++  // aborts with "IO sandbox violation" the first time it needs a cfx name.
++  auto BypassSandbox = sys::sandbox::scopedDisable();
++  ErrorOr<std::unique_ptr<MemoryBuffer>> Buf = MemoryBuffer::getFile(T.Path);
++  if (!Buf) {
++    T.Error = "cannot read cfx alias table '" + T.Path +
++              "': " + Buf.getError().message();
++    return T;
++  }
++
++  std::string Err = parseTable((*Buf)->getBuffer(), T);
++  if (!Err.empty()) {
++    T.Error = "invalid cfx alias table '" + T.Path + "': " + Err;
++    T.Scalars.clear();
++    T.Regs.clear();
++    return T;
++  }
++
++  T.Available = true;
++  return T;
++}
++
++const CfxAliasTable &table() {
++  static const CfxAliasTable T = loadTable();
++  return T;
++}
++
++} // namespace
++
++namespace llvm {
++namespace DADAO {
++
++bool isCfxAliasTableAvailable() { return table().Available; }
++
++std::string getCfxAliasTablePath() { return table().Path; }
++
++std::string getCfxAliasTableError() {
++  const CfxAliasTable &T = table();
++  return T.Available ? std::string() : T.Error;
++}
++
++bool lookupCfxScalarAlias(StringRef Name, unsigned &Cfxha) {
++  const CfxAliasTable &T = table();
++  if (!T.Available)
++    return false;
++  for (const ScalarAlias &A : T.Scalars)
++    if (Name == A.Name) {
++      Cfxha = A.Cfxha;
++      return true;
++    }
++  return false;
++}
++
++bool lookupCfxRegAlias(StringRef Name, unsigned &Cfxha, unsigned &Cg,
++                       unsigned &RcBase, unsigned &RcCount) {
++  const CfxAliasTable &T = table();
++  if (!T.Available)
++    return false;
++  for (const RegAlias &A : T.Regs)
++    if (Name == A.Name) {
++      Cfxha = A.Cfxha;
++      Cg = A.Cg;
++      RcBase = A.RcBase;
++      RcCount = A.RcCount;
++      return true;
++    }
++  return false;
++}
++
++StringRef getCfxScalarName(unsigned Cfxha) {
++  const CfxAliasTable &T = table();
++  if (!T.Available)
++    return StringRef();
++  const ScalarAlias *Best = nullptr;
++  for (const ScalarAlias &A : T.Scalars) {
++    if (A.Cfxha != Cfxha)
++      continue;
++    if (!Best) {
++      Best = &A;
++      continue;
++    }
++    bool Better = A.Canonical != Best->Canonical ? A.Canonical
++                                                 : A.Name < Best->Name;
++    if (Better)
++      Best = &A;
++  }
++  return Best ? StringRef(Best->Name) : StringRef();
++}
++
++bool getCfxRegName(unsigned Cfxha, unsigned Cg, unsigned Rc,
++                   std::string &Name) {
++  const CfxAliasTable &T = table();
++  if (!T.Available)
++    return false;
++  const RegAlias *Best = nullptr;
++  auto rank = [](const RegAlias &A) {
++    // Exact (single) registers beat a covering array; canonical beats not.
++    return std::make_tuple(A.RcCount == 1 ? 0 : 1, A.Canonical ? 0 : 1);
++  };
++  for (const RegAlias &A : T.Regs) {
++    if (A.Cfxha != Cfxha || !A.covers(Cg, Rc))
++      continue;
++    if (!Best) {
++      Best = &A;
++      continue;
++    }
++    if (rank(A) < rank(*Best) ||
++        (rank(A) == rank(*Best) && A.Name < Best->Name))
++      Best = &A;
++  }
++  if (!Best)
++    return false;
++  Name = Best->Name;
++  if (Best->RcCount > 1)
++    Name += "[" + std::to_string(Rc - Best->RcBase) + "]";
++  return true;
++}
++
++} // namespace DADAO
++} // namespace llvm

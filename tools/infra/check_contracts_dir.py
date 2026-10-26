@@ -10,7 +10,9 @@
 白名单（仅约束**顶层**；子目录内容不扫）：
 
   - `.tao/contracts/`：``contract-*.md``（人读契约正文） / ``README.md`` / **子目录**；
-  - `contracts/`：``*.yaml``（机器可读合约数据） / ``README.md`` / **子目录**
+  - `contracts/`：``*.yaml``（机器可读合约数据） / ``README.md`` /
+    ``cfx-aliases.txt``（LLVM-135t 运行时 cfx 别名表：由 spec 投影生成、
+    llvm-mc/llvm-objdump 运行时读取的纯数据） / **子目录**
     ——``contract-*.md`` **不在**白名单（Phase B 已迁出 ⇒ 残留在 `contracts/` 顶层即 FAIL）。
 
 设计要点（沿用 `check_knowledge_dir.py` 体例，`lessons §2.13`）：
@@ -38,11 +40,14 @@ ROOT = Path(__file__).resolve().parents[2]
 # (相对路径, 允许的 glob 模式, 允许的显式文件名) —— 两处契约目录
 _ALLOWED_GLOBS_TAO_CONTRACTS = ("contract-*.md",)
 _ALLOWED_GLOBS_CONTRACTS = ("*.yaml",)
-_ALLOWED_FILES = ("README.md",)
+_ALLOWED_FILES_TAO_CONTRACTS = ("README.md",)
+# `cfx-aliases.txt`: the runtime cfx alias table (LLVM-135t) — machine-readable
+# data projected from spec/, read by llvm-mc/llvm-objdump at run time.
+_ALLOWED_FILES_CONTRACTS = ("README.md", "cfx-aliases.txt")
 
 _TARGETS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
-    (".tao/contracts", _ALLOWED_GLOBS_TAO_CONTRACTS, _ALLOWED_FILES),
-    ("contracts", _ALLOWED_GLOBS_CONTRACTS, _ALLOWED_FILES),
+    (".tao/contracts", _ALLOWED_GLOBS_TAO_CONTRACTS, _ALLOWED_FILES_TAO_CONTRACTS),
+    ("contracts", _ALLOWED_GLOBS_CONTRACTS, _ALLOWED_FILES_CONTRACTS),
 )
 
 

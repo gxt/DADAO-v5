@@ -33,6 +33,70 @@ except ImportError:  # pragma: no cover
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OPCODES = os.path.join(REPO, "contracts", "opcodes.yaml")
+# cfx alias runtime table (LLVM-135t): the *printer* spells cfx operands with
+# these names, so the ASM expectation for ciii/crrr cases is derived from the
+# same contract data the toolchain reads at run time.  Selection rule below
+# mirrors llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.cpp
+# (exact register before a covering array, then the lexicographically first
+# name) -- a mismatch shows up as a failing ASM check, never silently.
+ALIASES = os.path.join(REPO, "contracts", "cfx-aliases.txt")
+
+
+def _load_cfx_aliases():
+    """-> (scalar{cfxha: [name]}, regs[(cfxha, cg, base, count, name)])."""
+    scalar, regs = {}, []
+    with open(ALIASES, "r", encoding="utf-8") as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if parts[0] == "scalar":
+                scalar.setdefault(int(parts[2]), []).append(parts[1])
+            elif parts[0] == "reg":
+                regs.append((int(parts[2]), int(parts[3]), int(parts[4]),
+                             int(parts[5]), parts[1]))
+    return scalar, regs
+
+
+CFX_SCALARS, CFX_REGS = _load_cfx_aliases()
+
+
+def _cfx_scalar_name(cfxha):
+    names = CFX_SCALARS.get(cfxha)
+    return sorted(names)[0] if names else None
+
+
+def _cfx_reg_name(cfxha, cg, rc):
+    best = None
+    for ha, c, base, count, name in CFX_REGS:
+        if ha != cfxha or c != cg or not base <= rc < base + count:
+            continue
+        key = (0 if count == 1 else 1, name)
+        if best is None or key < best[0]:
+            best = (key, base, count, name)
+    if best is None:
+        return None
+    _key, base, count, name = best
+    return name if count == 1 else "%s[%d]" % (name, rc - base)
+
+
+def _printed_asm(asm, assigns, fmt):
+    """The form `llvm-mc -filetype=asm` / objdump print for this cfx case."""
+    if fmt == "ciii":
+        name = _cfx_scalar_name(assigns["cfxha"])
+        if name:
+            return asm.replace("cfx%d" % assigns["cfxha"], name, 1)
+        return asm
+    if fmt == "crrr":
+        name = _cfx_reg_name(assigns["cfxha"], assigns["cghb"], assigns["rchc"])
+        if name:
+            return asm.replace("cfx%d, cg%d, rc%d" % (assigns["cfxha"],
+                                                      assigns["cghb"],
+                                                      assigns["rchc"]),
+                               name, 1)
+        return asm
+    return asm
 
 GENERATOR_PATH = "tools/testcases/generate_lit_vectors.py"
 FAST_FILE = os.path.join(REPO, "tests", "llvm", "lit", "MC", "DADAO", "gen-fast.s")
@@ -322,6 +386,7 @@ def build_case(rec):
         return base
     asm, assigns, shape = _build_positive(rec)
     base.update(kind="positive", shape=shape, asm=asm,
+                asm_check=_printed_asm(asm, assigns, rec["format"]),
                 word=_encode(rec, assigns))
     return base
 
@@ -361,7 +426,7 @@ def _render_positive(cases):
         out.append("\n@@ @src %s %08x | %s\n"
                    % (c["id"], word, c["spec_cite"]))
         out.append("@@ OBJ: {{[0-9a-f]+:}} %s{{.*}}%s\n" % (_be_bytes(word), mnem))
-        out.append("@@ ASM: %s\n" % c["asm"])
+        out.append("@@ ASM: %s\n" % c.get("asm_check", c["asm"]))
         out.append("%s\n" % c["asm"])
     return "".join(out)
 

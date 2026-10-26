@@ -17,10 +17,15 @@ M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**
 |---|---|---|
 | `cfx2-trap-escape.s` | `trap` / `escape`（ciii）+ `cfx2rd` / `cfx2rc`（crrr）的编码与**往返**；`cfx_<name>`/`cfxHA` 等价；`cfx_<cfxname>_<regname>` 简写展开；数组寄存器单下标 | `contracts/opcodes.yaml`（`value`/`mask`/`fields`，行内 `; @enc` + `; OBJ:` 双写）+ `.tao/contracts/contract-cfx-aliases.md`（别名） |
 | `cfx2-trap-escape-err.s` | 反例：`escape` 偏移 `%4!=0`/越界/非常量、非 `excp_cause_ip` 基址、`trap` 立即数越界、`cfx2rd` 裸数字/无下标/越界下标 → **硬报错（非零退出）** | `spec/Toolchain-01 §3.2` + `contracts/opcodes.yaml` |
+| `cfx-alias-runtime.s` | cfx 别名**运行时表**（`contracts/cfx-aliases.txt`）：默认表名字汇编/反汇编；`DADAO_CFX_ALIAS_FILE` 改名表即时生效（不重建）；`--dadao-cfx-alias=` 优先；缺表 ⇒ 汇编名字硬报错 / 反汇编裸回退 | `contracts/cfx-aliases.txt` + `ADR-0017 D3/D4/D8`（表由 spec 投影）；`LLVM-135t` |
 
+- 别名名字是**运行时数据**（`LLVM-135t`）：`share/dadao/cfx-aliases.txt` 由
+  `tools/llvm/gen_cfx_alias_table.py` 从 spec 投影生成到 `contracts/cfx-aliases.txt`
+  （`make check-cfx-alias-table` 漂移门控；`make install-cfx-aliases` 只拷贝、不重建 LLVM）。
 - 独立 oracle：`tests/llvm/lit/MC/DADAO/validate_cfx_vectors.py`（从 `opcodes.yaml` + 别名表
-  **独立派生** `@enc`，与行内期望比对；**不调用** `llvm-mc`）。
-- 门控：`make check-lit`（62/62，含上两条；`main` 目标在 `Makefile` 中由 `INTEG-016t` 接入）。
+  **独立派生** `@enc`，与行内期望比对；**不调用** `llvm-mc`；`LLVM-135t` 接入 L1
+  `make check-cfx-vectors`）。
+- 门控：`make check-lit`（含上述三条；`main` 目标在 `Makefile` 中由 `INTEG-016t` 接入）。
 - 编码（`contracts/opcodes.yaml`）：`trap` op `0x7F`、`escape` op `0x7E`、`cfx2rd` op `0x7A`、
   `cfx2rc` op `0x7B`，均 `mask=0xFF000000`；`crrr` 字段 `cfxha[23:18] cghb[17:12] rchc[11:6] rdhd[5:0]`，
   `ciii` 字段 `cfxha[23:18] imm18[17:0]`。

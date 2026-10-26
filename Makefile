@@ -29,6 +29,15 @@ QEMU_SRC   ?= .work/source/qemu
 QEMU_BUILD ?= .work/build/qemu
 LLVM_SRC   ?= .work/source/llvm-project/llvm
 LLVM_BUILD ?= .work/build/llvm
+# cfx alias runtime table (LLVM-135t): *data*, not code.  llvm-mc/llvm-objdump
+# (and clang's inline assembler) read <exe-dir>/../share/dadao/cfx-aliases.txt,
+# so aliases are names/numbers resolved at run time -- renaming a cfx or
+# renumbering its registers needs only a copy, never an LLVM rebuild.
+# Source of truth: contracts/cfx-aliases.txt (generated from spec; drift gate
+# `check-cfx-alias-table`).
+CFX_ALIAS_TABLE_SRC     ?= contracts/cfx-aliases.txt
+CFX_ALIAS_TABLE_BUILD   ?= $(LLVM_BUILD)/share/dadao/cfx-aliases.txt
+CFX_ALIAS_TABLE_INSTALL ?= $(HOST_TOOLCHAIN_DIR)/share/dadao/cfx-aliases.txt
 GEM5_SRC   ?= .work/source/gem5
 GEM5_BUILD ?= .work/build/gem5
 
@@ -39,7 +48,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
         build-builtins build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
-        build-musl build-musl-shared test-picolibc-smoke install-host docker-image docker-shell check \
+        build-musl build-musl-shared test-picolibc-smoke install-host install-cfx-aliases docker-image docker-shell check \
         check-picolibc-tests check-picolibc-tests-full check-rnd-probe \
         check-minmax-probe check-fma-probe check-clmul-probe \
         check-testcases-suites check-testcases-suites-full \
@@ -48,6 +57,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-spec-readonly check-cfx-aliases check-asm-prose check-lit \
+        check-cfx-alias-table check-cfx-alias-install check-cfx-vectors \
         check-lit-full \
         check-run-artifacts \
         test-codegen test-elf test-semihost test-m6 \
@@ -83,7 +93,7 @@ GATE_LOCK_FAILFAST ?= 0
 GATE_LOCK_TOOL      = $(PYTHON) tools/infra/gate_lock.py
 
 # 互斥面的**单一真源**（文档只指这里，不另列清单，避免漂移）。
-GATE_LOCKED_TARGETS = install-host clean-work \
+GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       build-mc build-mc-lite build-mc-reconfig build-lld build-qemu build-qemu-reconfig \
                       build-builtins build-bootrom build-picolibc build-musl build-musl-shared \
                       test-codegen test-elf test-semihost test-m6 test-picolibc-smoke \
@@ -152,6 +162,7 @@ help:
 	@echo "  make check-testcases-suites-full  Run every enumerable C case with main() from both suites (opt-in/L3-like; TESTCASES-045t)"
 	@echo "  make check-builtins-freshness  compiler-rt builtins archive must be the one the current clang built (build-id sidecar), in every consumer copy (L1; ISS-293/INFRA-101t)"
 	@echo "  make install-host    Install needed tools: cross toolchain (clang/llc/ld.lld …) into \$$(HOST_TOOLCHAIN_BIN) + host lli into \$$(HOST_TOOLS_BIN); adr-0016 D3/D4/D5/D11"
+	@echo "  make install-cfx-aliases  Copy contracts/cfx-aliases.txt to the build tree + install root only (no rebuild; LLVM-135t)"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
 	@echo "  make clean-work      Remove generated .work content only"
@@ -202,6 +213,9 @@ help:
 	@echo "  make check-fp-contract  Check FP semantics contract completeness (SPEC-087t)"
 	@echo "  make check-instrinfo  Cross-check DADAOInstrInfo.td against opcodes.yaml (LLVM-046t)"
 	@echo "  make check-cfx-aliases  Check cfx alias table drift gate (SPEC-075t)"
+	@echo "  make check-cfx-alias-table  contracts/cfx-aliases.txt (runtime table) == spec projection (L1; LLVM-135t)"
+	@echo "  make check-cfx-alias-install  Runtime table copies (build tree + install root) == source (needs install-host; LLVM-135t)"
+	@echo "  make check-cfx-vectors  Re-derive the cfx MC vector encodings from opcodes.yaml + alias contract (L1; LLVM-060t)"
 	@echo "  make check-asm-list-drift  Check assembly-list drift gate (INFRA-027t)"
 	@echo "  make check-dirs      Validate install-dirs paths and symlink prefix guard"
 	@echo "  make check-no-residue  Detect unexpected untracked temp files"
@@ -541,7 +555,7 @@ _locked-build-builtins: manifest-check build-mc
 # to llvm-readobj, so it must not be copied as a 319 MB standalone file.
 # All three aliases are enumerated in $(HOST_LLVM_TOOL_SYMLINKS) (one variable,
 # consumed by the recipe below and by tools/infra/check_install_tools.py).
-_locked-install-host: build-mc build-lld build-qemu build-builtins
+_locked-install-host: install-cfx-aliases build-mc build-lld build-qemu build-builtins
 	@mkdir -p $(HOST_TOOLCHAIN_BIN) $(HOST_TOOLS_BIN)
 	@for t in $(HOST_LLVM_TOOLS); do \
 	  $(call atomic-install,$(LLVM_BUILD)/bin/$$t,$(HOST_TOOLCHAIN_BIN)/$$t) || exit 1; \
@@ -567,9 +581,22 @@ _locked-install-host: build-mc build-lld build-qemu build-builtins
 	@mkdir -p $(dir $(BUILTINS_ARCHIVE_DST))
 	@$(call atomic-install,$(BUILTINS_ARCHIVE_SRC),$(BUILTINS_ARCHIVE_DST))
 	@$(PYTHON) tools/infra/check_install_tools.py
+	@$(PYTHON) tools/llvm/check_cfx_alias_install.py
 	@mkdir -p $(TARGET_SYSROOT_DIR)/include $(TARGET_SYSROOT_DIR)/lib
 	@printf '%s\n' '# DADAO target sysroot (dadao-unknown-elf)' '' 'Layout per ADR-0016 D5 (.tao/adr/adr-0016-dadao-install-layout.md):' '' '- include/ — target C headers (populated when a target libc/toolchain lands)' '- lib/     — target libraries' '' 'Placeholder only: there is no header/library consumer yet, so no content is' 'fabricated here. Consumers must resolve this path from' 'manifests/install-dirs.lock.toml via tools/infra/paths.py' '(target_sysroot_dir()), never hardcode it.' > $(TARGET_SYSROOT_DIR)/README.md
 	@echo "install-host: PASS"
+
+# install-cfx-aliases (LLVM-135t): stage the data-only cfx alias table into the
+# build tree and the install root.  Deliberately **only copies** -- after an
+# alias rename/renumber this is the whole update (no build-mc, no relink); the
+# next llvm-mc/llvm-objdump run picks the new names up.  (`install-cfx-aliases`
+# itself is the gate-locked wrapper; this is its body.)
+_locked-install-cfx-aliases:
+	@test -f $(CFX_ALIAS_TABLE_SRC) || { echo "install-cfx-aliases: ERROR: missing $(CFX_ALIAS_TABLE_SRC) -- regenerate with 'python3 tools/llvm/gen_cfx_alias_table.py'"; exit 1; }
+	@mkdir -p $(dir $(CFX_ALIAS_TABLE_BUILD)) $(dir $(CFX_ALIAS_TABLE_INSTALL))
+	@$(call atomic-install,$(CFX_ALIAS_TABLE_SRC),$(CFX_ALIAS_TABLE_BUILD))
+	@$(call atomic-install,$(CFX_ALIAS_TABLE_SRC),$(CFX_ALIAS_TABLE_INSTALL))
+	@echo "install-cfx-aliases: PASS"
 
 # build-bootrom (QEMU-047t / ADR-0020 D12): assemble and link the SEE bootrom
 # firmware with the project toolchain (llvm-mc + ld.lld + tests/scripts/
@@ -805,7 +832,7 @@ _locked-clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-case-ledger check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1010,6 +1037,22 @@ check-contract-relocs:
 # cfx alias drift gate (SPEC-075t): verify .tao/contracts/contract-cfx-aliases.md is up-to-date.
 check-cfx-aliases:
 	@$(PYTHON) tools/spec/check_cfx_aliases.py
+
+# cfx alias runtime-table drift gate (LLVM-135t, L1): contracts/cfx-aliases.txt
+# (the file llvm-mc/llvm-objdump read at run time) must equal the spec
+# projection; the generator's --check names the first differing line.
+check-cfx-alias-table:
+	@$(PYTHON) tools/llvm/gen_cfx_alias_table.py --check
+
+# cfx alias table install gate (LLVM-135t; needs install-host): source table ==
+# build-tree copy == install-root copy, byte for byte.  A stale/missing copy
+# would silently change what the assembler accepts / the disassembler prints.
+check-cfx-alias-install:
+	@$(PYTHON) tools/llvm/check_cfx_alias_install.py
+
+# cfx MC vector independent oracle (LLVM-060t; wired into L1 by LLVM-135t).
+check-cfx-vectors:
+	@$(PYTHON) tests/llvm/lit/MC/DADAO/validate_cfx_vectors.py
 
 # Install/product directory path guard (INFRA-019t): validates
 # manifests/install-dirs.lock.toml and scans for symlink prefix violations.

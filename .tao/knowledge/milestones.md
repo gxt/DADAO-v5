@@ -53,6 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-135t | 已验证 | 2026-10-26 17:27 | cfx 别名运行时表：源码/反汇编共用名字，数据更新不重建 LLVM |
 | TESTCASES-067t | 已验证 | 2026-10-26 14:05 | 测试框架调研与 tests 组织方案（主流 ISA 对照 + 生成物 A/B + 确定性） |
 | QEMU-076t | 已验证 | 2026-10-26 13:18 | semihosting 调用点迁至 0x3FFxx（QEMU 译码 + bootrom/测试/探针 + picolibc/embench/musl 组件） |
 | SPEC-176t | 已验证 | 2026-10-26 11:20 | semihosting 判定迁至 0x3FF00–0x3FFFF（ADR-0038）；HBI INIT 0x30001 解冲突 |

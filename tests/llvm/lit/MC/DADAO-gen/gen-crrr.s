@@ -13,10 +13,10 @@
 
 @@ @src cfx2rc_crrr_cfx 7bfc8048 | SimRISC-11: cfx2rc
 @@ OBJ: {{[0-9a-f]+:}} 7b fc 80 48{{.*}}cfx2rc
-@@ ASM: cfx2rc cfx63, cg8, rc1, rd8
+@@ ASM: cfx2rc cfx_power_ctrl, rd8
 cfx2rc cfx63, cg8, rc1, rd8
 
 @@ @src cfx2rd_crrr_cfx 7afc8048 | SimRISC-11: cfx2rd
 @@ OBJ: {{[0-9a-f]+:}} 7a fc 80 48{{.*}}cfx2rd
-@@ ASM: cfx2rd cfx63, cg8, rc1, rd8
+@@ ASM: cfx2rd cfx_power_ctrl, rd8
 cfx2rd cfx63, cg8, rc1, rd8

@@ -516,3 +516,7 @@
 - **2026-10-26 INFRA-108t**
   - 摘要：**驱动 `-static-pie` 支持（PIC libc，ISS-303，方案 B）**：`dadao::Linker::ConstructJob` 在 `-static-pie` 时展开为 `-static -pie --no-dynamic-linker`；PIE 且输入显式含 `libc.a` 时替换为同目录 `libc_pic.a`（`-shared`/`-r` 排除；兄弟缺失保持原输入）。`-static`/`-shared`/`-r`/`-no-pie` 行为不变（`-###` 逐 token 相同）；`-lc` 隐式查找不替换。真值：`-static-pie` 链接 ET_DYN / 无 `PT_INTERP` / 有 `PT_DYNAMIC`、qemu 运行 exit 7；非 PIE `-static` 去 `.comment` 后 md5 一致。补丁 +62 行。
   - 执行者：engineer
+
+- **2026-10-26 LLVM-135t**
+  - 摘要：**cfx 别名改为运行时表（汇编器 + MCInstPrinter 共用同一份数据；改名/改号不重建 LLVM）**：删除编译期 `AsmParser/DADAOCfxAlias.inc`（其补丁随之移除），新增 `MCTargetDesc/DADAOCfxAliasTable.{h,cpp}`（编入 `LLVMDADAODesc`；`DADAOAsmParser` 增 `DADAODesc` 链接依赖）：表 = `share/dadao/cfx-aliases.txt`，查找顺序 `--dadao-cfx-alias=`（`-mllvm -dadao-cfx-alias=` 同一 `cl::opt`）→ `DADAO_CFX_ALIAS_FILE` → `<exe>/../share/dadao/`；汇编器名字→编码（缺表而用名字 ⇒ 硬报错），printer 编码→名字（数组 `cfx_ptw_ptbr[N]`、标量 `cfx_umon`；reserved/未知 ⇒ 裸 `cfx<HA>, cgN, rcN`，不报错）。生成器改产 `contracts/cfx-aliases.txt`（13 标量 + 894 寄存器，`--check` 漂移门控）；`make install-cfx-aliases` 只拷贝（构建树 + 安装根），`install-host` 收尾断言两份副本逐字节 == 源表。同修 `cfx_time` 回归（`cfx_time_freq/value`、`cfx_hart_timer_cmp/ctrl`），lit `cfx2-trap-escape.s` 恢复名字形式并新增 `cfx-alias-runtime.s`（默认表/改名表/缺表三态）。
+  - 执行者：engineer

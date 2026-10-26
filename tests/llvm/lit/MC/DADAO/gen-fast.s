@@ -13,17 +13,17 @@
 
 @@ @src escape_ciii_cfx 7efc0002 | SimRISC-11: escape
 @@ OBJ: {{[0-9a-f]+:}} 7e fc 00 02{{.*}}escape
-@@ ASM: escape cfx63, [excp_cause_ip, 8]
+@@ ASM: escape cfx_power, [excp_cause_ip, 8]
 escape cfx63, [excp_cause_ip, 8]
 
 @@ @src trap_ciii_cfx 7ffc0001 | SimRISC-11: trap
 @@ OBJ: {{[0-9a-f]+:}} 7f fc 00 01{{.*}}trap
-@@ ASM: trap cfx63, 1
+@@ ASM: trap cfx_power, 1
 trap cfx63, 1
 
 @@ @src cfx2rc_crrr_cfx 7bfc8048 | SimRISC-11: cfx2rc
 @@ OBJ: {{[0-9a-f]+:}} 7b fc 80 48{{.*}}cfx2rc
-@@ ASM: cfx2rc cfx63, cg8, rc1, rd8
+@@ ASM: cfx2rc cfx_power_ctrl, rd8
 cfx2rc cfx63, cg8, rc1, rd8
 
 @@ @src call_iiii_ra 74000003 | SimRISC-06: call
