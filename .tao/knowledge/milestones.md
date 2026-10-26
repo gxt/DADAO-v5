@@ -30,6 +30,16 @@
 
 **M7 模块里程碑**（**均 `里程碑`**：`INFRA-072m`/`SPEC-136m`/`LLVM-090m`/`QEMU-059m`/`TESTCASES-043m`/`INTEG-034m`〔整体收敛点〕）：`INFRA-072m` / `SPEC-136m` / `LLVM-090m` / `QEMU-059m` / `TESTCASES-043m` / `INTEG-034m`（整体收敛点）+ `INTEG-035m`（M7 收尾归档，`Process-04`；任务书**已自归档**入 `.tao/archive/M7/integ/`）。
 
+## M10 规划（2026-10-26，用户裁定）
+
+**当前里程碑 = CFX 完善与验证**；**Linux 内核支持推到下一里程碑**（本里程碑不排 Linux 任务）。
+
+**Linux 7.2.10 × 当前 LLVM 兼容性评估**（architect 实测；源码 `.work/source/linux`）：
+- 可用：64 位/大端代码生成、原子（LR/SC + fence，1/2/4/8B）、inline asm `r/m/i/n`、`asm goto`（无输出）、builtins（clz/ctz/popcount/bswap/overflow）、section/attribute、TLS、`default`/`large` code model、DWARF、`.S` 宏与 `.rept`、lld 内核式脚本（KEEP/PROVIDE/ALIGN/LONG/QUAD/ASSERT）/高地址/`R_DADAO_ABS48`、`llvm-readelf/nm/objdump/objcopy`。
+- 缺口（阻断序）：① `arch/dadao` 不存在（首要）；② 缺 `llvm-ar`/`llvm-ranlib`/`llvm-strip`（`LLVM=1` 直调；GNU ar 可临时顶）；③ `asm goto` + 输出必现 SelectionDAGBuilder 断言（`CC_HAS_ASM_GOTO_OUTPUT` 探针失败）；④ 栈保护无法 lowering（`-mstack-protector-guard=global` 不支持）；⑤ 汇编器拒 `.quad/.long/.short/.byte`（只认 `.dd.*`；`CC_HAS_ASM_GOTO_TIED_OUTPUT` 探针失败）；⑥ inline asm 约束仅 `r/m/i/n`；⑦ `-mcmodel=kernel` 不支持（用 default/large）。
+- **兼容性 spike（定义）**：一次性时间盒实验——在 `/tmp/opencode/M10-COMPAT/` 造**丢弃式**最小 `arch/dadao` 桩（仅够 Kconfig/头文件），用现有 clang/lld 编 20–30 个代表性 generic 文件 + Kconfig 探针，产出「编译器缺口 + 规避法」清单；**只做编译/链接、不运行**。与 QEMU **正交**：QEMU 是运行侧（机器模型/启动/设备/MMU），不参与 spike；spike 的桩不是端口交付物。
+- **下一里程碑入口判据（建议）**：spike 清单归零或有规避法 + `llvm-ar/ranlib/strip` 就位 + `arch/dadao` 最小骨架能 `make ARCH=dadao` 出 vmlinux。
+
 ## 任务流水
 
 > 本表 = **未归档任务流水**（M9 及留活项）；M8 已终态流水（68 条）见 `.tao/archive/M8/README.md §2`，M7 及以前见 `.tao/archive/M*/README.md`。列 = `| 编号 | 状态 | 完成时间 | 一句改动 |`；**按完成时间倒序**（最新在上）；**未完成任务也列**（时间 = **登记时间**，加注 `（登记）`；同一时间按任务编号升序）。**一句改动 ≤120 字符**，只写「做了什么 + 关键数字/结论」；细节一律写各任务书（本表只做索引）。**新立任务（任务书落盘）时即加行**。
