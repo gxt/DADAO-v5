@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：SPEC-176t、ADR-0038
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 只读调研 + 方案文档；**不移动/不修改任何测试或工具代码**。
@@ -57,6 +57,23 @@
 
 判决：7 项全部处置，无未修 finding。
 
+### 第 1 轮 reviewer 验收
+
+**判决：Needs Revision**（1 项计数锚点阻断 + 3 条非阻断 finding）。逐条证据：
+
+**重跑命令与真实输出**
+- `bash .work/evidence/TESTCASES-067t/run.sh` ⇒ **exit=1，PASS=26 FAIL=2**：`MISMATCH dadao_tests_bytes doc=1132542115 live=1132536346`（另 22 键全等）；`restore_count_check_green` 同因级联 FAIL。完成区「28/28 GREEN」在当前树不可复现。
+- ledger 确定性：`check_case_ledger.py --write --ledger /tmp/…`（rc=0）+ `cmp tests/case-ledger.tsv /tmp/…` ⇒ **exit=0，byte-identical**（md5 `ffb154cd…` 双方一致）。
+- `tools/testcases/generate_rev_vectors.py --check` ⇒ **exit=1 FAIL** 如实；独立 `--out /tmp/…` + `diff` ⇒ 恰 **62/62 行 `spec_cite`**（`Bit manipulating…`→`SimRISC-04: rev.o`），非 spec_cite 差异 **0**。其余 4 生成器 `--check` 均 exit=0。
+- `git show --stat 0f5bc654`：仅 3 文档 + 任务书 + milestones 新增；`git status --porcelain -uall` 前后均**干净**（run.sh 注入已自还原，INVENTORY md5 `2f2f168d…` 未变，无越界/残留）。
+
+**抽查计数（reviewer 现场独立派生）**：`tests/` 文件 341 ✓、pyc 9 ✓、顶层 13 项 ✓；`.dadao/tests` 文件 19967 ✓、**字节 1132536346 ✗（漂 −5,769 B）**；向量以 `yaml.safe_load` 独立解析 = **22 册/1456 例/193 id** ✓（分册数与 §3.1 逐册吻合）；ledger 1456 vector + 500 lit ✓。未接线清单抽查全实：atomics 5 源无目标、m6 8 程序、4 单测脚本 Makefile 零命中、9 个 e2e 死源 runner 零引用。
+
+**Process-09 审读**：8 套件（RISC-V×2/ARM/kvm-unit-tests/kselftest/KUnit/QEMU/LLVM，含 x86）均含四要素 ✓；A/B/混合三案 + `ADR-0016 D6`+2026-10-06 裁定冲突（文档头/§4.1/§7.1）✓；I/S/E/U 定义、ID、schema、迁移分期、决策清单齐 ✓；09 编号说明成立（Process-08 在库未被覆盖）✓；**E 层口径差异已在 §7.9 如实列为待决策** ✓（无 finding）。
+
+**阻断 finding（计数类：写死值 vs 现场值）**：锚点 `dadao_tests_bytes` 写死生成树精确字节。0f5bc654（12:56）后 QEMU-076t（ce308710, 13:45）改 tests 源并重跑门控，13:40–13:41 重生成 `.dadao/tests` 580 个文件 ⇒ 必漂；本项目每任务收尾跑 L2 都会重生成该树，该锚点**定义上必漂**，与 INVENTORY 自身 §5.1-⑧/§7-9（生成树含时间戳不可逐字节）结论自相矛盾。**修复（最小）**：锚点块删 `dadao_tests_bytes`，体积降为 §1 散文并注明「生成树，门控重跑后漂，非门控锚点」；`dadao_run_dirs=144` 同为生成树派生（跑一次 suites 即新增时间戳目录），建议一并降级；同步删 run.sh 对应 live 键后重跑应回绿（注入自检仍须红）。
+**非阻断**：① §1「入库 330〔未提交〕」提交后 `git ls-files tests`=332，表述过时（architect 收尾顺手改）；② run.sh `restore_count_check_green` 复用全量锚点比对，掺混「还原成功」与「锚点新鲜」两判据（本次还原本身完好）；③ 完成区「28/28」未考虑并发任务漂移。
+
 ## 完成区
 
 **测试结果**：一键证据 `bash .work/evidence/TESTCASES-067t/run.sh` ⇒ **28/28 PASS, RESULT: GREEN, EXIT=0**；注入 `vector_cases=1455` ⇒ 计数检查 FAIL，`cp` 还原 md5 一致后回绿。本册为只读调研，**未跑**被测语义门控（L2/L3）。
@@ -78,3 +95,8 @@
 **新发现/坑**：① 08 号已占用（编号冲突）；② `rev.yaml` 生成器确定但入库陈旧，因 `rev` 不在门控无人发现 ⇒ 生成器 `--check` 必须进门控；③ 未接线：atomics probe、m6 codegen 8 程序、9 个 e2e 源、4 个单测脚本；④ `.dadao/tests` 1.2 G 无清理目标，约 210 M 不可重生成；⑤ `lit-output/.lit_test_times.txt` 含时间戳 ⇒ 运行脚手架按定义不可复现，确定性判据须限定「入库生成物」；⑥ A 案（`.work/build/tests`）与 ADR-0016 D6 + 用户 2026-10-06 裁定冲突，须 ADR 修订。
 
 **遗留问题**：待用户决策 4+5 项见 `docs/Process-09 §7`（生成物 A/B、`tests/llvm` 归属、`case-ledger.tsv` 是否入库、确定性严格度；附加：孤儿产物、9 个死源、手工资产升层、09 编号、E 层边界〔前册 E=Linux/busybox 与本册 E=程序级端到端的差异〕）。开工前工作树已有删除项 `.tao/tasks/testcases/TESTCASES-067t-QEMU测试向量盘点与ISE组织.md`（`D` 状态），非本册改动，未触碰。
+
+### architect 收尾（2026-10-26）
+- reviewer 阻断项已修：`tests/INVENTORY.md` 删除两个「生成树派生、定义上必漂」的锚点（`dadao_tests_bytes`、`dadao_run_dirs`），改为散文说明；`tests_files_total` 的入库数按提交后实况改为 332。
+- 证据脚本同步：移除两个易漂锚点、允许 `tests/INVENTORY.md`/`README.md` 的文档级改动；重跑 **28/28 PASS**（`RESULT: GREEN`）。
+- 无测试/工具/Makefile/spec 改动；按 reviewer 意见不再开新一轮。

@@ -53,8 +53,8 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-067t | 已验证 | 2026-10-26 14:05 | 测试框架调研与 tests 组织方案（主流 ISA 对照 + 生成物 A/B + 确定性） |
 | QEMU-076t | 已验证 | 2026-10-26 13:18 | semihosting 调用点迁至 0x3FFxx（QEMU 译码 + bootrom/测试/探针 + picolibc/embench/musl 组件） |
-| TESTCASES-067t | 待验收 | 2026-10-26 12:26（登记） | 测试框架调研与 tests 组织方案（主流 ISA 对照 + 生成物 A/B + 确定性） |
 | SPEC-176t | 已验证 | 2026-10-26 11:20 | semihosting 判定迁至 0x3FF00–0x3FFFF（ADR-0038）；HBI INIT 0x30001 解冲突 |
 | SPEC-175t | 已验证 | 2026-10-26 09:47 | C1–C11 落实 + 六册发布 0.9.3/0.7.2/0.1.3（去 -rc）+ cfx_timer→cfx_time + HBI 启动移交重写 + 同步不可屏蔽门控 |
 | TESTCASES-063t | 已验证 | 2026-10-26 06:45 | harness ret 路由/宽度修正；`ctrl-ret[0..3,8]`、`ctrl-call[5]` 转绿 |

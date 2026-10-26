@@ -12,7 +12,7 @@
 
 | 项 | 值 |
 |---|---|
-| `tests/` 文件总数 | **341**（入库 **330**；差 11 = 9 个 `.pyc` + 本册两份新增文档〔未提交〕，见 §7.5） |
+| `tests/` 文件总数 | **341**（入库 **332**；差 9 = 9 个 `.pyc`，见 §7.5） |
 | `tests/` 体积 | 2,064,062 B（`du -sb`；含本册两份文档） |
 | `tests/` 顶层项 | **13** = 10 个目录 + 3 个文件（`case-ledger.tsv` + 本册 `INVENTORY.md`/`README.md`）；迁移前为 11 |
 | `.dadao/tests/` | **19,967** 文件 / **1,132,542,115 B**（`du -sh` 显示 1.2 G） |
@@ -194,7 +194,7 @@
 2. **无统一入口**：仓库没有「列出全部用例 / 按 ID 跑一个用例」的 runner；入口 = §5.2 的 21 个目标 + 手工 README 命令。
 3. **m6 执行向量无门控**：`tests/llvm/codegen/m6` 8 程序只能手工跑；`codegen-m6/`、`elf-m6/` 为手工产物目录。
 4. **9 个 e2e 源无 runner**：`fp_codegen.c`、`fp_hfa.c`、`i1_load_e2e.c`、`large_const_cmp_e2e.c`、`mulhi_e2e.c`、`selectcc_e2e.c`、`setcc_e2e.c`、`smulhi_e2e.c`、`switch_jt_e2e.c`（仅归档任务书引用）。
-5. **9 个 `.pyc` 残留**：`tests/{scripts,e2e/lit,llvm/lit/MC/DADAO,llvm/lit/CodeGen/DADAO}/__pycache__/`；被忽略但污染文件计数（341 vs 330，另 2 个为 `INVENTORY.md`/`README.md`）。
+5. **9 个 `.pyc` 残留**：`tests/{scripts,e2e/lit,llvm/lit/MC/DADAO,llvm/lit/CodeGen/DADAO}/__pycache__/`；被忽略但污染文件计数（341 vs 332，另 2 个为已入库的 `INVENTORY.md`/`README.md`）。
 6. **孤儿生成物 1.2 G 中约 210 M 不可重生成**：`llvm-ts-user-050t/`（209 M，脚本已不存在）、`libc-argv-{static,dynamic}/`（1.2 M）、`smoke/`（48 K，旧默认落点）。
 7. **`rev.yaml` 与生成器漂移**：`generate_rev_vectors.py --check` **FAIL**（62 例 `spec_cite` 仍是旧小节名，生成器现派生 `SimRISC-04: rev.o`）；因 `rev` 不在任何门控，漂移未被发现（实测见 `docs/Process-09…` §5.3）。
 8. **`.dadao/tests` 无清理目标**：`clean-work` 不含它；1.2 G 只增不减。
@@ -210,7 +210,6 @@ tests_files_total=341
 tests_files_excl_ledger=340
 tests_pyc_files=9
 dadao_tests_files=19967
-dadao_tests_bytes=1132542115
 vector_yaml_files=22
 vector_cases=1456
 vector_ids=193
@@ -222,7 +221,6 @@ lit_mc_gen_files=12
 lit_codegen_files=63
 lit_e2e_files=14
 probe_files=21
-dadao_run_dirs=144
 codegen_m3_programs=15
 codegen_m4_programs=5
 codegen_m5_programs=10
@@ -232,12 +230,14 @@ irlli_exclude=72
 ```
 <!-- INVENTORY-COUNTS:END -->
 
+> 生成树体积、运行目录数随门控运行变化，不作锚点。
+
 ### 附：本页计数所用命令
 
 ```sh
 find tests -type f | wc -l                     # 341（含本册两份新文档）
 find tests -name '*.pyc' | wc -l               # 9
-git ls-files tests | wc -l                     # 330（本文档未提交前）
+git ls-files tests | wc -l                     # 332（含本册两文档）
 find .dadao/tests -type f | wc -l              # 19967
 du -sb .dadao/tests | cut -f1                  # 1132542115
 grep -c '^- mnemonic:\|^- class:' tests/vectors/**/*.yaml   # 逐册求和 = 1456
