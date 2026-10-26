@@ -63,7 +63,7 @@ memory byte order and object layout:
 A green run only says "the two back-ends agree on the value channel for the
 included modules" — i.e. the **IR semantics are preserved** end-to-end. It does
 **not** prove the ISA execution semantics: the authoritative semantics come from
-the independent oracles / execution vectors (`tests/vectors/`,
+the independent oracles / execution vectors (`tests/inst/`,
 `tools/testcases/validate_*.py`, `make test-codegen` / `check-qemu-semantics`).
 The `lli` result must never be used as a substitute for those.
 

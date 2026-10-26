@@ -1,6 +1,6 @@
 # tools/testcases — 原子探针（TESTCASES-056t）如何跑
 
-本目录的 `run_atomics_probe.py` 是 `tests/atomics/` 五个探针的驱动；期望值全部来自
+本目录的 `run_atomics_probe.py` 是 `tests/inst/atomics/` 五个探针的驱动；期望值全部来自
 `oracle_atomics.py`（纯 Python 语义模型，不 import 任何组件产物），探针只打印观测。
 
 ```sh
@@ -27,16 +27,16 @@ bash .work/evidence/TESTCASES-056t/run.sh --inject
 
 | 文件 | 覆盖 |
 | --- | --- |
-| `tests/atomics/counter.c` | N 线程 × M 次互斥自增，共享计数与各线程私有槽双路对账 |
-| `tests/atomics/c11_alltypes.c` | `_Atomic char/short/int/long/unsigned/size_t/void*` × load/store/exchange/fetch_*/CAS × 五种 ordering；另有共享对象单元 |
-| `tests/atomics/atomic_builtins.c` | `__atomic_*` 九种内建 × {1,2,4,8} 字节 × 五种 ordering；子字宽邻域字节不变；链接期无 `__atomic_*` 未定义符号 |
-| `tests/atomics/aba_treiber.c` | 版本号打包的 Treiber 栈（`{ver:16,ptr:48}`），不变量 + 确定性 ABA 重放 |
-| `tests/atomics/barrier_probe.c` | `a_barrier()` 结构断言（`fence` 计数 == 源码站点数，立即数 0x3CF） |
+| `tests/inst/atomics/counter.c` | N 线程 × M 次互斥自增，共享计数与各线程私有槽双路对账 |
+| `tests/inst/atomics/c11_alltypes.c` | `_Atomic char/short/int/long/unsigned/size_t/void*` × load/store/exchange/fetch_*/CAS × 五种 ordering；另有共享对象单元 |
+| `tests/inst/atomics/atomic_builtins.c` | `__atomic_*` 九种内建 × {1,2,4,8} 字节 × 五种 ordering；子字宽邻域字节不变；链接期无 `__atomic_*` 未定义符号 |
+| `tests/inst/atomics/aba_treiber.c` | 版本号打包的 Treiber 栈（`{ver:16,ptr:48}`），不变量 + 确定性 ABA 重放 |
+| `tests/inst/atomics/barrier_probe.c` | `a_barrier()` 结构断言（`fence` 计数 == 源码站点数，立即数 0x3CF） |
 
 ## 已知缺陷（XFAIL 机制保留，登记已清空）
 
 驱动把登记为 `xfail` 的单元按**精确缺陷签名**判 `XFAIL`；一旦恢复语义值即报 `XPASS`
-并判红，提示删除对应 xfail 条目。语义面细节见 `tests/atomics/*.c` 文件头与任务书完成区。
+并判红，提示删除对应 xfail 条目。语义面细节见 `tests/inst/atomics/*.c` 文件头与任务书完成区。
 
 `ISS-312`（`atomic-store-address`）与 `ISS-313`（`narrow-cas-sext`）已随 `LLVM-121t`
 返工修复，**登记表已清空**（20 条转为普通语义断言，两档 711/711 PASS）。机制本身仍保留：

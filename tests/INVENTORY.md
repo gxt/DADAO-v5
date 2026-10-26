@@ -1,6 +1,10 @@
 # `tests/` 测试资产盘点（现场派生）
 
 > **生成**：`TESTCASES-067t`（2026-10-26）｜**只读盘点**：本册未移动/改写任何测试、工具、Makefile。
+> **迁移后状态（2026-10-27，`TESTCASES-072t`）**：inst 向量/探针/harness 已搬家 ——
+> `tests/vectors/*` → `tests/inst/<ext>/`（`isa` → `base`）、`tests/{atomics,clmul,fma,minmax,roundint}/`
+> → `tests/inst/<ext>/`、harness → `tools/testcases/{lib,inst}/`（`tests/scripts/` 留薄 wrapper）。
+> **下文 §2/§3 的路径与计数是迁移前快照**；最新布局与入口见 `tests/README.md`。
 > **计数口径**：全部由命令现场统计（不含 `.git`、`.work`、`.cache`）；「文件数」= `find … -type f` 的**磁盘**文件（含被 `.gitignore` 忽略的 `__pycache__/*.pyc`）；「入库」另列 `git ls-files` 计数。
 > **机器可核**：文末「计数锚点」块由 `.work/evidence/TESTCASES-067t/run.sh` 现场重算逐项比对；测试一改，锚点必须同步，否则证据脚本红。
 > **层级**（本盘点用；正式定义见 `docs/Process-09-测试组织规范.md` §3.1）：**I** 指令级 · **S** 系统级 · **E** 端到端 · **U** 工具单测。
@@ -139,7 +143,7 @@
 
 | 目标 | 层 | 跑的用例 | 产物落点 | 日志 |
 |---|---|---|---|---|
-| `validate-vectors` | L1 | `tests/vectors` schema/inventory/覆盖（156 身份） | 无 | stdout |
+| `validate-vectors` | L1 | `tests/inst` schema/inventory/覆盖（156 身份） | 无 | stdout |
 | `check-case-ledger` | L1 | 清单 1,956 行 vs 现场 | 无 | stdout |
 | `check-isa-coverage` | L1 | 266 身份 × 后端矩阵漂移 | 无 | stdout |
 | `check-qemu-smoke` | L2 | 代表集 3 册（`aip-si`/`reg-compare`/`reg-shift-extend`） | `.dadao/tests/harness/smoke` | `.work/log/qemu/check-qemu-smoke.log` |
@@ -169,10 +173,10 @@
 |---|---|
 | `tests/atomics/*.c` + `run_atomics_probe.py` | 无 make 目标；手工跑最近 711/711（两档） |
 | `tests/llvm/codegen/m6/*`（8 程序） | 无 make 目标，仅 README 手工命令 |
-| `tests/vectors/{rev,bitcnt}`（476 例） | 不在 L2/L3 载体集（`inventory.md` 明示） |
+| `tests/inst/{rev,bitcnt}`（476 例） | 不在 L2/L3 载体集（`inventory.md` 明示） |
 | `tests/llvm/lit/tools/DADAO/` | 占位，无测试 |
-| `tests/scripts/test_harness_exit_path.py` | 单测 5/5 通过，但**不在任何门控** |
-| `tests/scripts/verify_harness_dump.py` | 手工工具，无门控 |
+| `tools/testcases/lib/test_harness_exit_path.py`（旧路径 `tests/scripts/` 为 wrapper） | 单测 5/5 通过，但**不在任何门控** |
+| `tools/testcases/lib/verify_harness_dump.py`（旧路径 wrapper） | 手工工具，无门控 |
 | `tools/llvm/test_m1_asm.py`、`test_encoding_oracle.py`、`tools/testcases/test_anti_forgery_008t.py` | 单测脚本，**不在任何门控**（`grep` Makefile 无命中） |
 | `tests/e2e/*.c`（9 个） | 仅被归档任务书/changelog 引用，无 runner |
 
@@ -240,7 +244,7 @@ find tests -name '*.pyc' | wc -l               # 9
 git ls-files tests | wc -l                     # 332（含本册两文档）
 find .dadao/tests -type f | wc -l              # 19967
 du -sb .dadao/tests | cut -f1                  # 1132542115
-grep -c '^- mnemonic:\|^- class:' tests/vectors/**/*.yaml   # 逐册求和 = 1456
+grep -c '^- mnemonic:\|^- class:' tests/inst/**/*.yaml   # 逐册求和 = 1456（迁移前口径）
 awk -F'\t' '!/^#/{c[$1]++} END{for(k in c) print k, c[k]}' tests/case-ledger.tsv  # vector 1456 / lit 500
 ls tests/llvm/lit/MC/DADAO/*.s | wc -l         # 76
 ls tests/llvm/lit/MC/DADAO-gen/*.s | wc -l     # 12

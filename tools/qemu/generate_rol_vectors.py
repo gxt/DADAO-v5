@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate tests/vectors/rol/rol.yaml — L3 semantic vectors for `rol.{o,t,w,b}`.
+"""Generate tests/inst/rol/rol.yaml — L3 semantic vectors for `rol.{o,t,w,b}`.
 
 Source of truth (Spec-first, no QEMU/LLVM reverse-engineering):
   * contracts/opcodes.yaml            — encoding (opc/ha/mask/value), id, format
@@ -12,10 +12,10 @@ The expected value is derived from the rotate definition itself:
 and stored zero-extended to 64 bits (SPEC-069t value semantics).
 
 `rol` identities are `scope: m9`, so they cannot live under
-`tests/vectors/isa/` (validate_vectors.py requires `tests/vectors/isa/*.yaml`
+`tests/inst/base/` (validate_vectors.py requires `tests/inst/base/*.yaml`
 ids to be M1 identities).  They live in their own directory, following the
-`tests/vectors/rev/` + `tests/vectors/bitcnt/` precedent, and are wired into
-`check-qemu-semantics` via the Makefile carrier list.
+`tests/inst/rev/` + `tests/inst/bitcnt/` precedent, and are wired into
+`check-inst` via `tools/qemu/semantics_gate.py`.
 
 Usage:
   python3 tools/qemu/generate_rol_vectors.py           # write the YAML
@@ -31,7 +31,7 @@ import yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OPCODES = os.path.join(ROOT, "contracts", "opcodes.yaml")
-OUT = os.path.join(ROOT, "tests", "vectors", "rol", "rol.yaml")
+OUT = os.path.join(ROOT, "tests", "inst", "rol", "rol.yaml")
 
 WIDTH = {"rol.o": 64, "rol.t": 32, "rol.w": 16, "rol.b": 8}
 

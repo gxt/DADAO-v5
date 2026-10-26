@@ -12,7 +12,7 @@
 
 做法：**生成式身份清单 + 幂等重生成比对**
 ------------------------------------------
-本工具由**现场语料**（`tests/vectors/**/*.yaml` 的用例、`tests/llvm/lit/**/*.s`
+本工具由**现场语料**（`tests/inst/**/*.yaml` 的用例、`tests/llvm/lit/**/*.s`
 的 `@@ OBJ:` pattern）重新派生一份**逐条身份清单**（不含任何计数），与入库的
 `tests/case-ledger.tsv` 逐字节比对：
   * 删任一用例 / 任一 lit pattern ⇒ 清单少一行 ⇒ FAIL（定位到具体行）；
@@ -59,7 +59,7 @@ LIT_OBJ_RE = re.compile(
 
 def _vector_rows(repo: Path) -> list[str]:
     rows = []
-    for path in sorted(glob.glob(str(repo / "tests" / "vectors" / "**" / "*.yaml"),
+    for path in sorted(glob.glob(str(repo / "tests" / "inst" / "**" / "*.yaml"),
                                  recursive=True)):
         try:
             data = yaml.load(Path(path).read_text(encoding="utf-8"),
@@ -155,7 +155,7 @@ def self_test() -> int:
     tmp_root.mkdir(parents=True, exist_ok=True)
     tmpdir = Path(tempfile.mkdtemp(prefix="case-ledger-", dir=tmp_root))
     try:
-        vec = tmpdir / "tests" / "vectors" / "isa"
+        vec = tmpdir / "tests" / "inst" / "base"
         lit = tmpdir / "tests" / "llvm" / "lit" / "MC" / "DADAO"
         vec.mkdir(parents=True)
         lit.mkdir(parents=True)

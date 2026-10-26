@@ -6,7 +6,7 @@
 
 默认：
   - yaml: contracts/opcodes.yaml
-  - harness: tests/scripts/build_test_binary.py
+  - harness: tools/testcases/lib/build_test_binary.py
 
 校验逻辑：
   1. 从 harness 的 encode_* 函数中提取 op 常量（或 value 常量）
@@ -122,8 +122,8 @@ def main():
     parser.add_argument("--yaml", default=os.path.join(REPO_ROOT, "contracts",
                                                         "opcodes.yaml"),
                         help="opcodes.yaml 路径")
-    parser.add_argument("--harness", default=os.path.join(REPO_ROOT, "tests",
-                                                           "scripts",
+    parser.add_argument("--harness", default=os.path.join(REPO_ROOT, "tools",
+                                                           "testcases", "lib",
                                                            "build_test_binary.py"),
                         help="build_test_binary.py 路径")
     args = parser.parse_args()

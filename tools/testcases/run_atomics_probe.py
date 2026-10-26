@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Atomics integration driver (TESTCASES-056t).
 
-Builds and runs the five probes in ``tests/atomics/`` for ONE link mode per
+Builds and runs the five probes in ``tests/inst/atomics/`` for ONE link mode per
 invocation (static first, then dynamic, exactly like the libc-test driver) and
 judges them with the independent oracle in ``oracle_atomics.py``.
 
@@ -67,7 +67,7 @@ DEFAULT_SYSROOT = os.path.join(".dadao", "dadao-unknown-elf")
 # evidence script keeps the stage log under .work/log/<module>/<TASK>/.
 DEFAULT_WORK_DIR = os.path.join("/tmp", "opencode", "TESTCASES-056t",
                                 "probe-work")
-PROBE_DIR = os.path.join("tests", "atomics")
+PROBE_DIR = os.path.join("tests", "inst", "atomics")
 
 PROBES = ["counter", "c11_alltypes", "atomic_builtins", "aba_treiber",
           "barrier_probe"]

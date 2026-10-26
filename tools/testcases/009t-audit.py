@@ -2,7 +2,7 @@
 """009t-audit.py — ISA 向量全量再审计：独立重推导/覆盖统计脚本。
 
 功能：
-  1. 读取 contracts/opcodes.yaml + tests/vectors/isa/*.yaml
+  1. 读取 contracts/opcodes.yaml + tests/inst/base/*.yaml
   2. 按 contract-isa.md 公式逐条重算 semantic/boundary/overlap 期望值
   3. 与向量数据比对，报告 mismatch
   4. 输出逐族统计（case 数、active/deferred、各类分布）
@@ -1256,7 +1256,7 @@ def main():
 
     all_records, by_key = load_opcodes(opcodes_path)
 
-    isa_dir = os.path.join(repo_dir, "tests", "vectors", "isa")
+    isa_dir = os.path.join(repo_dir, "tests", "inst", "base")
     yaml_files = sorted(glob.glob(os.path.join(isa_dir, "*.yaml")))
 
     print("=" * 70)

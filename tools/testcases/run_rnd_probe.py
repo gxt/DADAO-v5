@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DADAO-v5 roundint integration driver (TESTCASES-060t).
 
-Builds the three probes in ``tests/roundint/`` (one optimisation level per
+Builds the three probes in ``tests/inst/roundint/`` (one optimisation level per
 invocation), runs them under ``qemu-dadao`` (user mode, static musl) and judges
 every observation with the independent oracle in ``oracle_rnd.py``.
 
@@ -64,7 +64,7 @@ DEFAULT_OBJDUMP = os.path.join(TOOLCHAIN_BIN, "llvm-objdump")
 DEFAULT_MUSL = os.path.join(".work", "source", "musl")
 DEFAULT_WORK_DIR = os.path.join("/tmp", "opencode", "TESTCASES-060t",
                                 "probe-work")
-PROBE_DIR = os.path.join("tests", "roundint")
+PROBE_DIR = os.path.join("tests", "inst", "roundint")
 PROBES = ("rnd_matrix", "rnd_mode", "rnd_flags")
 SOURCES = tuple(p + ".c" for p in PROBES) + ("rnd_common.h",)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Min ROM probe for QEMU-010t ldm.o-rb and stm.o-rb (RB multi-register load/store).
 
-Covers 12 vectors from tests/vectors/isa/mem-rb.yaml for ldm.o-rb + stm.o-rb:
+Covers 12 vectors from tests/inst/base/mem-rb.yaml for ldm.o-rb + stm.o-rb:
 
 ldm.o-rb (6 vectors):
   1. encoding: ldm.o-rb rb1,rb3,rd2,1 with rb3=RAM base → no crash

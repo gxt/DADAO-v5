@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DADAO-v5 fma integration driver (TESTCASES-058t).
 
-Builds the three probes in ``tests/fma/`` for ONE optimisation level per
+Builds the three probes in ``tests/inst/fma/`` for ONE optimisation level per
 invocation, runs them under ``qemu-dadao`` (user mode, static musl) and judges
 every observation with the independent oracle in ``oracle_fma.py``.
 
@@ -72,7 +72,7 @@ DEFAULT_NM = os.path.join(TOOLCHAIN_BIN, "llvm-nm")
 DEFAULT_MUSL = os.path.join(".work", "source", "musl")
 DEFAULT_WORK_DIR = os.path.join("/tmp", "opencode", "TESTCASES-058t",
                                 "probe-work")
-PROBE_DIR = os.path.join("tests", "fma")
+PROBE_DIR = os.path.join("tests", "inst", "fma")
 PROBES = ("fma_edges", "fma_dot", "fma_horner")
 SOURCES = tuple(p + ".c" for p in PROBES) + ("fma_common.h",)
 

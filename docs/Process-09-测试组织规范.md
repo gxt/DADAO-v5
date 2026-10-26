@@ -26,6 +26,11 @@
 
 ## 2. 现状事实（2026-10-26 盘点）
 
+> **2026-10-27 更新（`TESTCASES-072t`，P2）**：inst 向量已由 `tests/vectors/*` 迁至
+> `tests/inst/<ext>/`（`isa` → `base`），inst harness 已由 `tests/scripts/` 迁至
+> `tools/testcases/{lib,inst}/`（旧入口留薄 wrapper + 别名门控 `check-qemu-{smoke,semantics}`）；
+> 因此下文「`tests/vectors/`」「`tests/scripts/`」的计数是**迁移前快照**。
+
 - `tests/`：341 文件 / 13 个顶层项；`llvm`(216)、`e2e`(45)、`scripts`(30)、`vectors`(25)、`atomics/clmul/fma/minmax/roundint`、`qemu`(1)。
 - `.dadao/tests/`：**19,967 文件 / 1.13 GB**，18 个子目录；含任务专属目录（如 `llvm-ts-user-050t`）、无 `clean` 目标、约 210 MB 不可重生成。
 - 向量：1,456 例 / 193 个 opcode 身份 / 22 个 YAML；ledger 1,956 条；lit 154。
@@ -177,7 +182,7 @@ cmd: make check-inst-smoke CASE=base/add
 
 - **P0 分解**：本册 §12 的映射表 + 缺口清单（不移动文件）。
 - **P1 骨架**：建 `inst/arch/unit/tset/shared`、根级 `*.yaml`；旧目录不动。
-- **P2 inst**：`vectors/isa` + 探针 → `inst/`；harness → `tools/testcases/lib+inst`；smoke 绿后进 L2。
+- **P2 inst**（**已完成：`TESTCASES-072t`**）：`vectors/isa` + 探针 → `inst/`；harness → `tools/testcases/lib+inst`；smoke 绿后进 L2（`check-inst-smoke` / `check-inst`）。
 - **P3 arch**：`llvm/codegen/m5` + `min_rom_probe_*` + bootrom → `arch/`；smoke 绿后进 L2。
 - **P4 unit**：`lit/MC|CodeGen`、`codegen/m3/m4/m6`、`ir-lli`、`picolibc` → `unit/`。
 - **P5 tset**：libc-test/llvm-ts/Embench 驱动 → `tools/testcases/tset`；smoke 绿。

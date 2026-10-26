@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DADAO-v5 ``clmul.o`` integration driver (TESTCASES-057t).
 
-Builds and runs the three probes in ``tests/clmul/`` for ONE optimisation
+Builds and runs the three probes in ``tests/inst/clmul/`` for ONE optimisation
 level per invocation, and judges every observation with the independent
 oracle in ``oracle_clmul.py``.
 
@@ -67,7 +67,7 @@ DEFAULT_OBJDUMP = os.path.join(TOOLCHAIN_BIN, "llvm-objdump")
 DEFAULT_MUSL = os.path.join(".work", "source", "musl")
 DEFAULT_WORK_DIR = os.path.join("/tmp", "opencode", "TESTCASES-057t",
                                 "probe-work")
-PROBE_DIR = os.path.join("tests", "clmul")
+PROBE_DIR = os.path.join("tests", "inst", "clmul")
 IR_SOURCE = "clmul_ir.ll"
 PROBES = ("clmul_edges", "clmul_ghash", "clmul_crc32c")
 SOURCES = tuple(p + ".c" for p in PROBES) + (IR_SOURCE,)
@@ -201,7 +201,7 @@ def link(ctx, elf, objs):
 
 
 def build_ir_object(ctx):
-    """Compile tests/clmul/clmul_ir.ll (the paths with no C spelling)."""
+    """Compile tests/inst/clmul/clmul_ir.ll (the paths with no C spelling)."""
     obj = os.path.join(ctx.out, "clmul_ir.o")
     rc, log, cmd = compile_ir(ctx, os.path.join(ctx.probe_dir, IR_SOURCE),
                               obj)

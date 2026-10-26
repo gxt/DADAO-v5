@@ -94,7 +94,7 @@ DEFAULT_TIMEOUT = 60
 DEFAULT_JOBS = int(os.environ.get("JOBS", "8"))
 
 # Machine-fault exit codes (ADR-0004 D5.8, ADR-0020 D15); see
-# tests/scripts/run_qemu_test.py FAULT_NAMES.
+# tools/testcases/lib/run_qemu_test.py FAULT_NAMES.
 FAULT_CODES = {
     0x81: "CFXMEM",
     0x87: "UNMAPPED",

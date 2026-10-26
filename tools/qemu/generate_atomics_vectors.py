@@ -21,11 +21,11 @@ The vectors carry `sequence: [word, ...]` where the semantic answer needs more
 than one instruction (`sc` can only succeed after a same-word `lr`; the
 "reservation is cleared on failure" rule needs lr → failing sc → sc).
 `sequence` is an optional harness field: without it the emitted binary is
-byte-identical to the single-word path (tests/scripts/build_test_binary.py).
+byte-identical to the single-word path (tools/testcases/lib/build_test_binary.py).
 
 Output (wired into `check-qemu-semantics` by the Makefile carrier list):
-  tests/vectors/atomics/atomics-lrsc.yaml
-  tests/vectors/atomics/atomics-fence.yaml
+  tests/inst/atomics/atomics-lrsc.yaml
+  tests/inst/atomics/atomics-fence.yaml
 
 Usage:
   python3 tools/qemu/generate_atomics_vectors.py           # write both YAMLs
@@ -41,7 +41,7 @@ import yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OPCODES = os.path.join(ROOT, "contracts", "opcodes.yaml")
-OUT_DIR = os.path.join(ROOT, "tests", "vectors", "atomics")
+OUT_DIR = os.path.join(ROOT, "tests", "inst", "atomics")
 OUT_LRSC = os.path.join(OUT_DIR, "atomics-lrsc.yaml")
 OUT_FENCE = os.path.join(OUT_DIR, "atomics-fence.yaml")
 

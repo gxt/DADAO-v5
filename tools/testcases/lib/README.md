@@ -1,0 +1,246 @@
+# QEMU Semantic Test Harness（`tools/testcases/lib/`）
+
+> `TESTCASES-072t`（2026-10-27）：本 harness 由 `tests/scripts/` 迁入 `tools/testcases/lib/`。
+> 旧命令行 `python3 tests/scripts/<name>.py ...` 仍是等价入口（`tests/scripts/` 留薄 wrapper）。
+
+## Overview
+
+This directory contains the QEMU-based ISA semantic test harness for `dadao-m1`. The harness builds test binaries from vector YAML files, runs them in QEMU, and reports PASS/FAIL based on exit codes.
+
+**Key design principle (D1)**: No dependency on `llvm-mc`. All instruction words are generated directly via `struct.pack('>I', encoding_word)` from the vector YAML.
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `gen_trampoline.py` | Generates ROM trampoline blob (`trampoline.bin`) |
+| `trampoline.bin` | ROM trampoline (16 bytes, 4 instructions) |
+| `build_test_binary.py` | Builds test binary from vector YAML |
+| `run_qemu_test.py` | Main test runner |
+| `verify_harness_dump.py` | Harness dump channel verification (QMP protocol, byte layout, 10a `-device loader` channel) |
+| `README.md` | This file |
+
+## Quick Start
+
+### Generate trampoline
+
+```bash
+python3 tools/testcases/lib/gen_trampoline.py
+```
+
+This generates `tools/testcases/lib/trampoline.bin` (16 bytes).
+
+### Run a single test
+
+```bash
+python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/reg-arith.yaml --case 1
+```
+
+### Run all tests in a file
+
+```bash
+python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/reg-arith.yaml
+```
+
+### Run all vector files (batch mode)
+
+```bash
+python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/ --batch
+```
+
+Batch mode runs cases serially by default. `--jobs N` runs `N` cases in
+parallel (threads: each case spawns an I/O-bound QEMU subprocess, and the
+parsed vector YAML is cached so the main loop is not GIL-bound); when
+omitted, `N` is taken from `$JOBS`, falling back to `1` (serial):
+
+```bash
+python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/ --batch --jobs 8
+```
+
+Parallel execution does not change the summary counts or the `fail_details`
+ordering: results are aggregated in `(file order, case order)`.
+
+### Run with diagnostics (dump mode)
+
+```bash
+python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/reg-arith.yaml --dump
+```
+
+## QEMU Binary
+
+The harness resolves `qemu-system-dadao` from the **install root** (ADR-0016 D9)
+via `tools/infra/paths.py` (`host_toolchain_bin()/qemu-system-dadao`, i.e. the
+`.dadao/cross-toolchain/bin/` prefix — run `make install-host` to populate it).
+The install path is never hardcoded (D7). Lookup order in `find_qemu()` is:
+`$QEMU_SYSTEM_DADAO` → install-root default → `$PATH`. Override with:
+
+```bash
+# Environment variable
+export QEMU_SYSTEM_DADAO=/path/to/qemu-system-dadao
+
+# Or command-line flag
+python3 tools/testcases/lib/run_qemu_test.py --qemu /path/to/qemu-system-dadao ...
+```
+
+## Binary Layout
+
+The test binary is loaded at the RAM base `0xFC00_0000_0000` (ADR-0004 D2.2/R3, rev. 2026-10-11):
+
+```
+[section 1] loader   - Set rd/rb/ra registers from input_state, write memory
+[section 2] test     - Raw encoding word (struct.pack('>I', word))
+[section 3] dumper   - Dump state to state-dump region (diagnostics only)
+[section 4] exit     - Compare expected_state with actual, write exit code
+```
+
+### PC-affecting cases (`expected_pc`)
+
+Vectors write the tested instruction as if it sat at `0xFC00_0000_0000`, so the
+loader prologue in front of it shifts the picture:
+
+- `call` — emitted as `[loader] [call] [ILLI poison] [exit]`; the return address
+  actually pushed is `BINARY_BASE + loader_bytes + 4`. Absolute data addresses
+  (MRPTR, stale RAS entries, spilled values) keep the vector's values; only
+  values pointing *into the image* (`IMAGE_WINDOW`) are shifted by
+  `loader_bytes`, on both the input and the expected side
+  (`build_test_binary._relocate_code_addr`).
+- `ret` — emitted as `[jump→loader] [landing pad @ expected_pc] [loader] [ret]
+  [ILLI poison] [exit]`. `input_state.ra` / MemRAS entries are used verbatim
+  (no synthetic `call`, nothing stripped) and `expected_state.ra` is compared
+  without relocation; the landing pad is placed exactly at the vector's
+  `expected_pc`, so a return to any other address cannot reach the exit
+  section. `expected_pc` must therefore lie inside the image window — an
+  unmapped return target is not observable and belongs to a legality case with
+  `expected_fault: UNMAPPED`.
+
+### Loader (section 1)
+
+Loads input registers using `set.zw` (clear + set wyde) + `or.w` (merge wyde):
+
+- RD registers: `set.zw rdX, wp0, chunk0` + `or.w rdX, wp1/2/3, chunk`
+- RB registers: `set.zw rbX, wp0, chunk0` + `or.w rbX, wp1/2/3, chunk` (rb variant)
+- RA registers: load via RD temp → `rd2ra raX, rdY, 1`
+- Memory: load address to RB temp, load value to RD temp, `st.o rd, rb, 0`
+
+### Test (section 2)
+
+Raw 4-byte encoding word from `encoding.word` field in the vector YAML.
+
+### Dumper (section 3)
+
+Dumps `rd[1..63]`, `rb[1..63]`, and `rb0` (PC) to state-dump region for diagnostics.
+
+**PC dump mechanism**: `st.o-rb` requires `rbha != rb0` (legality constraint), so `rb0` (PC) cannot be stored directly. The harness uses `rb2rd rd63, rb0, 1` to copy PC into scratch register `rd63`, then `st.o rd63, rb62, 0x400` to store it at the dump region. Encoding from `contracts/opcodes.yaml` (`rb2rd`, format `orri`, op=0x40, ha=0x36).
+
+**State-dump region** (at `0x0000_00fe_0000`, total 1032 bytes):
+
+| Offset | Content | Size | Notes |
+|--------|---------|------|-------|
+| `0x0000` | `rd[0]` slot | 8 bytes | **Reserved, not written** (rd0 is hardwired zero) |
+| `0x0008` | `rd[1..63]` | 504 bytes (rd[i] @ i*8, i=1..63) | big-endian |
+| `0x0200` | `rb[0]` slot | 8 bytes | **Reserved, not written** (rb0=PC stored at +0x400) |
+| `0x0208` | `rb[1..63]` | 504 bytes (rb[i] @ 0x200+i*8, i=1..63) | big-endian |
+| `0x0400` | `pc` (rb0 via `rb2rd`→`st.o-rd`) | 8 bytes | big-endian |
+
+### Exit (section 4)
+
+For **semantic/boundary** cases with `expected_state`:
+1. Load expected values into temp registers
+2. For RD: XOR actual register with expected
+3. For RB: `rb2rd` copies actual RB into scratch RD, then XOR with expected
+4. For RA: `ra2rd` copies actual RA into scratch RD, then XOR with expected
+5. OR all differences into accumulator
+6. If accumulator == 0 → report `0x00` (PASS) via semihosting `SYS_EXIT`
+7. If accumulator != 0 → report `0x01` (FAIL) via semihosting `SYS_EXIT`
+
+For **encoding** cases (no expected_state, no expected_fault):
+- Report `0x00` (PASS) via `SYS_EXIT` after the test instruction
+
+For **legality** cases with `expected_fault`:
+- Report a safety-net FAIL code if the fault doesn't happen
+- QEMU handles the fault and exits with its own fault code (e.g. `0x88`)
+
+The `SYS_EXIT` epilogue writes the 64-bit argument block
+`{ADP_Stopped_ApplicationExit (0x20026), code}` into RAM at
+`0x0000_00fd_0000`, then issues `rd16 = 0x18 (SYS_EXIT)`, `rb16 = block`,
+`trap` (semihosting tag).  The harness runs QEMU with
+`-semihosting-config enable=on,target=native` (ADR-0020 D7/D8).
+
+## Exit Code Protocol (ADR-0004 D5.7/D5.8; SYS_EXIT per ADR-0020 D8)
+
+| Range | Source | Meaning |
+|-------|--------|---------|
+| `0x00` | `SYS_EXIT` (guest) | PASS |
+| `0x01`-`0x7F` | `SYS_EXIT` (guest) | FAIL (test-defined) |
+| `0x80`-`0xFF` | Machine fault | See below |
+
+Machine fault codes (ADR-0004 D5.8):
+
+| Code | Fault | Description |
+|------|-------|-------------|
+| `0x87` | UNMAPPED | Access to unmapped memory |
+| `0x88` | ILLI | Illegal instruction |
+| `0x89` | UNDI | Undefined instruction |
+| `0x8A` | RASOF | RAS overflow |
+| `0x8B` | RASUF | RAS underflow |
+| `0x8C` | MALIGN | Memory alignment error |
+| `0x8D` | IALIGN | Instruction alignment error |
+
+## Register Conventions (D4)
+
+| Register | Purpose |
+|----------|---------|
+| `rd60` | Temp for loading expected values |
+| `rd61` | XOR+ORR accumulator |
+| `rd62` | Exit code |
+| `rd63` | Temp for dump |
+| `rb61` | Temp for memory address |
+| `rb62` | Dump pointer |
+
+**Note**: `rd60`-`rd63` and `rb60`-`rb63` are scratch registers. Test vectors must not use these registers for input/expected values.
+
+## State-Dump Mechanism (D7)
+
+**Normal mode**: Dumper section dumps state to memory, then continues to exit section. Host reads exit code from `$?`.
+
+**Dump mode** (`--dump` flag): After dumper section, guest spins (`jump rb0, rd0, 0`) instead of exiting via `SYS_EXIT`. Host uses QMP to dump memory. The harness starts QEMU with `-S` (frozen CPU), connects to QMP Unix socket, sends `cont` to resume guest, waits for guest to reach spin, then issues `pmemsave` and `quit`:
+
+```bash
+# The harness does this automatically. For manual testing:
+# Start QEMU with QMP Unix socket and frozen CPU
+qemu-system-dadao -machine dadao-m1 -nographic -bios trampoline.bin -kernel test.bin \
+  -qmp unix:/tmp/qemu-qmp.sock,server=on,wait=off -S
+
+# Connect to QMP, resume guest, dump memory
+# (requires a QMP client; the harness implements this internally via QMPClient)
+```
+
+The dump file contains:
+- `dump.bin[8:512]`: rd[1..63] (63 × 8 bytes, big-endian, rd[i] @ i*8)
+- `dump.bin[520:1024]`: rb[1..63] (63 × 8 bytes, big-endian, rb[i] @ 0x200+i*8)
+- `dump.bin[1024:1032]`: pc (rb0, 8 bytes, big-endian)
+
+## Timeout
+
+Default timeout is 9 seconds (ADR-0004 D3). Override with:
+
+```bash
+python3 tools/testcases/lib/run_qemu_test.py --timeout 30 ...
+```
+
+Timeout is a harness safety net only; it does not affect guest pass/fail determination.
+
+## Schema Field Consumption (D6)
+
+The harness consumes the following fields from vector YAML:
+
+- `encoding.word`: Raw instruction word (hex string)
+- `input_state.rd/rb/ra`: Register values to load (hex strings)
+- `input_state.memory`: Memory values to write (`address` + `value`)
+- `expected_state.rd/rb/ra`: Expected register values for comparison
+- `expected_fault`: Expected fault code (ILLI/UNDI/MALIGN/etc.)
+- `expected_pc`: Branch/jump/call target PC (consumed by poison patterns in
+  QEMU-017t/018t); for `ret`, the return target, where the harness places its
+  landing pad (see "PC-affecting cases")
+- `encoding.reserved: true`: Reserved encoding case (skip identity validation)
+- `status`: `active`/`deferred` (deferred cases skipped in batch mode)

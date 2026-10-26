@@ -7,9 +7,13 @@
 
 ---
 
-## 0. 四 scope 骨架（P1 已落；**现有目录尚未迁移**）
+## 0. 四 scope 骨架（P1 已落；P2 = inst 已迁）
 
-`Process-09` 的四分法骨架已落盘：**只加目录/索引/门控，未移动任何现有用例**（迁移见 `TESTCASES-072t`~`076t`）。
+`Process-09` 的四分法骨架已落盘（P1，`TESTCASES-071t`）。
+**P2（`TESTCASES-072t`，2026-10-27）已完成 inst 迁移**：`tests/vectors/*` 与顶层
+`atomics/clmul/fma/minmax/roundint` 探针 → `tests/inst/<ext>/`；inst harness →
+`tools/testcases/{lib,inst}/`（`tests/scripts/` 留薄 wrapper，旧命令行等价可用）。
+其余 scope（arch/unit/tset）仍待 `TESTCASES-073t`~`075t`，旧目录暂按原样保留。
 
 | scope | 测什么 | `platforms` 允许值 | 目录 |
 |---|---|---|---|
@@ -26,13 +30,14 @@
 
 ---
 
-## 1. 目录地图（迁移前现状）
+## 1. 目录地图（P2 = inst 迁移后；其余 scope 仍为迁移前状态）
 
 | 路径 | 层 | 是什么 | 自动入口 |
 |---|---|---|---|
-| `vectors/isa/*.yaml` | I | M1 指令向量（16 册 / 708 例） | `make check-qemu-semantics`（L3）、`make check-qemu-smoke`（L2 子集） |
-| `vectors/{rol,atomics,clmul,rev,bitcnt}/` | I | 非 M1 向量（`rev`/`bitcnt` 未入门控） | 同上（仅 `rol`/`atomics`/`clmul`） |
-| `vectors/{inventory.md,schema.md}` | — | 覆盖矩阵（M1 156 行）、向量字段规范 | `make validate-vectors`（L1） |
+| `inst/base/*.yaml` | I | M1 指令向量（16 册 / 708 例；原 `vectors/isa/`） | `make check-inst`（L3）、`make check-inst-smoke`（L2 代表集） |
+| `inst/{rol,atomics,clmul,rev,bitcnt}/*.yaml` | I | 非 M1 向量（`rev`/`bitcnt` 未入门控） | 同上（仅 `rol`/`atomics`/`clmul`） |
+| `inst/{inventory.md,schema.md,README.md}` | — | 覆盖矩阵（M1 156 行）、向量字段规范、inst scope 说明 | `make validate-vectors`（L1） |
+| `inst/{atomics,clmul,fma,minmax,roundint}/*.[ch]|*.ll` | I | 指令语义探针源（C/IR；原 `tests/<ext>/`） | `make check-{rnd,minmax,fma,clmul}-probe`（L2；atomics 手工） |
 | `llvm/lit/MC/{DADAO,DADAO-gen}/` | I | 汇编器编码 lit 用例（76 + 12） | `make check-lit` / `make check-lit-full` |
 | `llvm/lit/CodeGen/DADAO/` | E | IR→汇编/MIR **结构**断言（63） | `make check-lit` |
 | `llvm/codegen/`（M3） | E | IR→运行（15 程序） | `make test-codegen` |
@@ -42,10 +47,9 @@
 | `llvm/ir-lli/` | E | host `lli` vs DADAO 值级差分（19 include / 72 exclude） | `make test-m6` |
 | `e2e/lit/*.test` | E | 端到端 smoke/FP/clmul/weak/CM（14） | `make check-lit` |
 | `e2e/*.c|*.s|*.lds` | E | 上述 `.test` 的源（9 个已无 runner，见 `INVENTORY §7.4`） | 经 `.test` |
-| `scripts/` | U 载体 | 共享 harness：构建/运行/冒烟/bootrom/crt0/lds | 被各门控调用；`run_qemu_test.py` 可手工 |
-| `{atomics,clmul,fma,minmax,roundint}/` | I | 指令语义探针源（C） | `make check-{clmul,fma,minmax,rnd}-probe`；**atomics 仅手工** |
+| `scripts/` | U 载体 | **迁移后只剩薄 wrapper**（6 个 inst harness 入口）+ bootrom/crt0/lds/embench 胶水（P3/P5 再迁） | 旧命令行转发到 `tools/testcases/{lib,inst}/` |
 | `qemu/` | — | 占位（QEMU 组件测试落点） | — |
-| `case-ledger.tsv` | — | 逐条身份清单（1,956 行，生成物） | `make check-case-ledger`（L1） |
+| `case-ledger.tsv` | — | 逐条身份清单（1,962 行含表头；生成物） | `make check-case-ledger`（L1） |
 
 ---
 
@@ -55,24 +59,30 @@
 
 ```sh
 make check            # L1：仓库完整性（不跑被测语义）
-make check-modules    # L2：模块代表集（lit 子集 + qemu 冒烟 + codegen/elf/semihost + 4 个 probe）
-make check-full       # L3：全量语义 + test-m6（慢）
+make check-modules    # L2：模块代表集（lit 子集 + inst 冒烟 + codegen/elf/semihost + 4 个 probe）
+make check-full       # L3：inst 全量（check-inst）+ test-m6（慢）
+
+make check-inst-smoke # inst 代表集（L2；旧名 check-qemu-smoke = 别名）
+make check-inst       # inst 全量（L3；旧名 check-qemu-semantics = 别名）
 ```
 
 ### 2.2 单个向量文件 / 单个用例（手工）
 
 ```sh
-# 整册
+# 整册（新路径）
+python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/reg-arith.yaml
+
+# 旧入口/旧路径仍等价可用（薄 wrapper + 路径兼容层）
 python3 tests/scripts/run_qemu_test.py tests/vectors/isa/reg-arith.yaml
 
-# 单个 case（1-based）
-python3 tests/scripts/run_qemu_test.py tests/vectors/isa/reg-arith.yaml --case 1
+# 单个 case（0-based）
+python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/reg-arith.yaml --case 1
 
 # 整目录批跑
-python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ --batch --jobs 8
+python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/ --batch --jobs 8
 ```
 
-前置：`make install-host`（`qemu-system-dadao` 取自安装根，见 `tests/scripts/README.md`）。
+前置：`make install-host`（`qemu-system-dadao` 取自安装根，见 `tools/testcases/lib/README.md` 或 `tests/scripts/README.md`）。
 
 ### 2.3 lit（汇编器/CodeGen/E2E）
 
@@ -91,7 +101,7 @@ make check-minmax-probe    # ftmin/ftmax   3,102 例 × O0/O2
 make check-fma-probe       # ftfma/fofma   626 例 × O0/O2
 make check-clmul-probe     # clmul/GHASH/CRC-32C  627 例 × O0/O2
 # atomics（无 make 目标，手工）：
-python3 tools/testcases/run_atomics_probe.py --link-mode static --json-out /tmp/atomics-static.json
+python3 tools/testcases/run_atomics_probe.py --link-mode static --json-out /tmp/opencode/atomics-static.json
 ```
 
 ### 2.5 上游套件（opt-in，慢）
@@ -113,7 +123,7 @@ make check-picolibc-tests-full     # 全量（235，最近 1 fail / 3 blocked）
 |---|---|
 | `test-codegen` / `test-elf` / `test-semihost` | `codegen-e2e/` / `elf-e2e/` / `m5-e2e/` |
 | `test-m6` | `ir-lli-diff/` / `m6-embench/` |
-| `check-qemu-{smoke,semantics}` | `harness/smoke/` / `harness/gate/` |
+| `check-inst-smoke` / `check-inst`（旧名 `check-qemu-{smoke,semantics}`） | `harness/smoke/` / `harness/gate/` |
 | lit | `lit-output/{DADAO-MC,DADAO-CodeGen,DADAO-E2E,DADAO-MC-gen}/` |
 | 上游套件运行目录 | `libc-test-user/<UTC>-…/`、`llvm-ts-user/<UTC>-…/`、`embench-user/<UTC>-…/`（三件套 `run.json`/`run.log`/`meta.json`，见 `docs/Process-08`） |
 | bootrom / m6 手工 | `bootrom/` / `codegen-m6/`、`elf-m6/` |
@@ -130,13 +140,15 @@ make check-picolibc-tests-full     # 全量（235，最近 1 fail / 3 blocked）
 
 | 想知道 | 看哪里 |
 |---|---|
-| M1 每个身份有没有向量、哪一册、deferred 原因 | `tests/vectors/inventory.md`（156 行；`make validate-vectors` 守护） |
+| M1 每个身份有没有向量、哪一册、deferred 原因 | `tests/inst/inventory.md`（156 行；`make validate-vectors` 守护） |
 | 每个身份在 LLVM 后端到哪一步（td/isel/编码/汇编） | `tools/llvm/llvm-isa-backend-matrix.tsv`（266 行；`make check-isa-coverage` 守护） |
 | 有没有「被删掉的用例/pattern」 | `tests/case-ledger.tsv`（1,956 条；`make check-case-ledger` 守护） |
 | IR 差分语料的准入/排除理由 | `tests/llvm/ir-lli/manifest.yaml`（19 include / 72 exclude，按类登记） |
-| 哪些册进 L2/L3 | `tests/vectors/inventory.md` 末尾「门控覆盖」表 |
+| 哪些册进 L2/L3 | `tests/inst/inventory.md` 末尾「门控覆盖」表 |
 
 **已知缺口**（详见 `INVENTORY §6`）：`fp` 66 个身份无向量（语义靠 lit + 4 个 probe）；`m1` 4 个 cfx 身份 deferred；`rev`/`bitcnt` 476 例不在门控。
+
+> `TESTCASES-072t` 只搬家/接线：向量、探针、harness 内容未改（生成器 `--check` 全部 byte-identical；`case-ledger` 仅路径前缀变化）。
 
 ---
 

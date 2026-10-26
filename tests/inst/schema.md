@@ -1,11 +1,11 @@
 # Test Vector Schema
 
-`tests/vectors/isa/*.yaml` 的向量 schema。所有字段与语义期望值**独立派生自**锁定的
+`tests/inst/base/*.yaml` 的向量 schema。所有字段与语义期望值**独立派生自**锁定的
 规范与合约（`spec/`、`.tao/contracts/contract-isa.md`、`contracts/opcodes.yaml`、
 `contracts/legality_rules.yaml`、`.tao/adr/adr-0004-test-machine.md`），
 **不得**从 LLVM 汇编输出或 QEMU 运行结果反推。
 
-每个 `isa/*.yaml` 文件是一个 YAML 列表，每个元素是一条 test case。
+每个 `base/*.yaml` 文件是一个 YAML 列表，每个元素是一条 test case。
 
 ## 字段
 
@@ -31,7 +31,7 @@
 | `status` | string | 可选，默认 `active` | `active` / `deferred` |
 | `deferred_reason` | string | `status=deferred` 时必填（非空） | 暂缓原因（如 `"C-27"`） |
 | `notes` | string | 可选 | 人类可读备注（如 `shamt = rd<k>`、PC 地址来源） |
-| `sequence` | list of string | 可选 | 多条原始编码字，按序连发（QEMU-067t）。用于单条指令无法表达其语义的场景——`sc` 只有在同址 `lr` 之后才可能成功，「失败清保留」需要 `lr → 失败的 sc → sc`。缺省（不写该字段）时 harness 走原单字路径，生成二进制与旧行为**逐字节一致**。当前由 `tests/vectors/atomics/*.yaml` 使用 |
+| `sequence` | list of string | 可选 | 多条原始编码字，按序连发（QEMU-067t）。用于单条指令无法表达其语义的场景——`sc` 只有在同址 `lr` 之后才可能成功，「失败清保留」需要 `lr → 失败的 sc → sc`。缺省（不写该字段）时 harness 走原单字路径，生成二进制与旧行为**逐字节一致**。当前由 `tests/inst/atomics/*.yaml` 使用 |
 
 ### `encoding` 子结构
 
@@ -211,7 +211,7 @@
 ## 文件组织（方案 A：按运算族分，bank 混在文件内）
 
 ```
-tests/vectors/isa/
+tests/inst/base/
   reg-arith.yaml          reg-logic.yaml          reg-shift-extend.yaml
   reg-compare.yaml        reg-cond-assign.yaml    reg-imm-block.yaml
   mem-rd.yaml             mem-rb.yaml             mem-ra.yaml

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate misc.yaml test vectors for TESTCASES-007t.
 
-Covers the M1 identity in tests/vectors/isa/misc.yaml:
+Covers the M1 identity in tests/inst/base/misc.yaml:
   - swym_oiii_imm (oiii): encoding + semantic (nop-like, no architectural state change)
 
 Spec-first: all encoding words, expected values, and spec_cite derived from
@@ -24,7 +24,7 @@ import yaml
 
 # REPO derived from this file's location (tools/testcases/generate_misc.py)
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-OUT_DIR = os.path.join(REPO, "tests", "vectors", "isa")
+OUT_DIR = os.path.join(REPO, "tests", "inst", "base")
 OUT_FILE = os.path.join(OUT_DIR, "misc.yaml")
 OPCODES = os.path.join(REPO, "contracts", "opcodes.yaml")
 

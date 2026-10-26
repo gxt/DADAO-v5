@@ -52,12 +52,12 @@ def load_file(rel_path: str) -> str:
 
 
 def count_inventory_m1_rows() -> tuple[Optional[int], Optional[set[str]]]:
-    """解析 tests/vectors/inventory.md 的 M1 覆盖矩阵表。
+    """解析 tests/inst/inventory.md 的 M1 覆盖矩阵表。
 
     返回 (m1_row_count, m1_id_set)。
     解析失败时返回 (None, None)。
     """
-    path = os.path.join(REPO_ROOT, "tests", "vectors", "inventory.md")
+    path = os.path.join(REPO_ROOT, "tests", "inst", "inventory.md")
     if not os.path.isfile(path):
         return None, None
     with open(path, encoding="utf-8") as f:
@@ -524,7 +524,7 @@ def check_adr_alignment():
 
     # --- Harness constants (build_test_binary.py) ---
     # Source: ADR-0004 §D1
-    harness_content = load_file("tests/scripts/build_test_binary.py")
+    harness_content = load_file("tools/testcases/lib/build_test_binary.py")
     if harness_content:
         h_binary_match = re.search(r'BINARY_BASE\s*=\s*(0x[0-9a-fA-F_]+)', harness_content)
         if h_binary_match:
@@ -542,7 +542,7 @@ def check_adr_alignment():
 
     # --- Harness fault code mapping (run_qemu_test.py) ---
     # Source: ADR-0004 §D5.8
-    harness_run_content = load_file("tests/scripts/run_qemu_test.py")
+    harness_run_content = load_file("tools/testcases/lib/run_qemu_test.py")
     if harness_run_content:
         h_fault_match = re.search(r'FAULT_NAMES\s*=\s*\{([^}]+)\}', harness_run_content, re.DOTALL)
         if h_fault_match:
@@ -572,12 +572,12 @@ def check_adr_alignment():
 def check_schema_harness():
     cat = "3.Schema"
 
-    schema_content = load_file("tests/vectors/schema.md")
-    harness_build = load_file("tests/scripts/build_test_binary.py")
-    harness_run = load_file("tests/scripts/run_qemu_test.py")
+    schema_content = load_file("tests/inst/schema.md")
+    harness_build = load_file("tools/testcases/lib/build_test_binary.py")
+    harness_run = load_file("tools/testcases/lib/run_qemu_test.py")
 
     if not schema_content:
-        record(cat, "schema.md 存在", "FAIL", "tests/vectors/schema.md 未找到")
+        record(cat, "schema.md 存在", "FAIL", "tests/inst/schema.md 未找到")
         return
     record(cat, "schema.md 存在", "PASS", "")
 
@@ -726,7 +726,7 @@ def check_opcodes_cross():
                    f"inventory.md M1={inv_m1_count}（跨载体不一致）")
     else:
         record(cat, "opcodes.yaml 条目数", "FAIL",
-               "tests/vectors/inventory.md 未找到或解析失败（无法交叉校验 M1 身份数）")
+               "tests/inst/inventory.md 未找到或解析失败（无法交叉校验 M1 身份数）")
 
     # --- 结构完整性 ---
     missing = []

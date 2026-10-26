@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""L3 语义门控 `check-qemu-semantics` 的载体派生 + 执行（INFRA-097t）。
+"""L3 语义门控 `check-inst`（旧名 `check-qemu-semantics` = 别名）的载体派生 + 执行。
 
-载体范围（`ISS-235` 处置「甲」= 扩至全量）：
-  - `tests/vectors/isa/*.yaml` **现场清单全量**（册名/册数一律现场派生，
+载体范围（`ISS-235` 处置「甲」= 扩至全量；`TESTCASES-072t` 起载体根 = `tests/inst/`）：
+  - `tests/inst/base/*.yaml` **现场清单全量**（册名/册数一律现场派生，
     `Makefile` 与本脚本**均不写死册名/册数**）；
-  - 非 `isa/` 的既有载体目录：`tests/vectors/rol/*.yaml`（`QEMU-064t`：`rol.*`
-    scope = m9，故不在 `isa/`）与 `tests/vectors/atomics/*.yaml`
+  - 非 `base/` 的既有载体目录：`tests/inst/rol/*.yaml`（`QEMU-064t`：`rol.*`
+    scope = m9，故不在 `base/`）与 `tests/inst/atomics/*.yaml`
     （`QEMU-067t`：`fence`/`lr`/`sc` 已实现原子语义，非 M1 身份）与
-    `tests/vectors/clmul/*.yaml`（`QEMU-068t`：`clmul.o` 语义已实现，scope
-    翻转归 `SPEC-155t`，故暂不在 `isa/`）。
-  - **不在**本门控：`tests/vectors/rev/`、`tests/vectors/bitcnt/`（M8 scope，
-    2 册；见 `tests/vectors/inventory.md`「非 M1 向量」）。
+    `tests/inst/clmul/*.yaml`（`QEMU-068t`：`clmul.o` 语义已实现，scope
+    翻转归 `SPEC-155t`，故暂不在 `base/`）。
+  - **不在**本门控：`tests/inst/rev/`、`tests/inst/bitcnt/`（M8 scope，
+    2 册；见 `tests/inst/inventory.md`「非 M1 向量」）。
 
 结构性断言（fail-closed，禁静默跳过）：
-  - 每个载体目录（`isa`/`rol`/`atomics`）非空 —— 0 册 ⇒ FAIL；
+  - 每个载体目录（`base`/`rol`/`atomics`/`clmul`）非空 —— 0 册 ⇒ FAIL；
   - `git` 索引登记的载体册须全部在盘 —— 缺册 ⇒ FAIL（真源 = git 索引，
     故不写死册名/册数；无 git 工作树时打印 SKIP 提示后跳过该项）；
   - 载体 `basename` 唯一 —— 重名会被 gate 目录的 symlink 互相覆盖 ⇒ FAIL；
@@ -51,13 +51,15 @@ import yaml
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
-sys.path.insert(0, os.path.join(_REPO_ROOT, "tests", "scripts"))
+# harness / 冒烟驱动在 `tools/testcases/{lib,inst}`（TESTCASES-072t）。
+sys.path.insert(0, os.path.join(_REPO_ROOT, "tools", "testcases", "lib"))
+sys.path.insert(0, os.path.join(_REPO_ROOT, "tools", "testcases", "inst"))
 
 # 复用现有 harness（构建 + 运行 + 批量聚合），不另造轮子。
 import run_qemu_test as harness  # noqa: E402
 
-# 载体目录（相对 --vectors）。`isa` = 全量现场派生；其余为非 isa 载体。
-CARRIER_DIRS = ("isa", "rol", "atomics", "clmul")
+# 载体目录（相对 --vectors）。`base` = 全量现场派生；其余为非 base 载体。
+CARRIER_DIRS = ("base", "rol", "atomics", "clmul")
 
 # ── 历史常量（仅用于「增量展示」，**不作**通过判据）──────────────────────
 # `ISS-235` 登记时的 L3 现场 total（当时的 3 册载体集）。本轮打印与它的差值；
@@ -250,7 +252,7 @@ def prepare_gate_dir(gate_dir: str, vectors: str, carriers: list, errs: list) ->
 
 
 def check_inventory_coverage(vectors: str, carriers: list, errs: list) -> str:
-    """`tests/vectors/inventory.md` 的「门控覆盖」表须与现场载体集**双向一致**。
+    """`tests/inst/inventory.md` 的「门控覆盖」表须与现场载体集**双向一致**。
 
     表是覆盖**登记**（人读真源），载体集是现场派生真源；二者任一方向多/少 ⇒ FAIL
     （新增向量册忘了登记、或登记了却没进载体，两种都会被打红）。
@@ -338,12 +340,12 @@ def live_deferred(gate_dir: str) -> set:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="L3 semantic gate carrier derivation")
-    ap.add_argument("--vectors", default=os.path.join(_REPO_ROOT, "tests", "vectors"))
+    ap.add_argument("--vectors", default=os.path.join(_REPO_ROOT, "tests", "inst"))
     ap.add_argument("--gate-dir", default=None,
                     help="gate 目录（--form-check 时可省）")
     ap.add_argument("--qemu", default=harness.DEFAULT_QEMU)
     ap.add_argument("--trampoline",
-                    default=os.path.join(_REPO_ROOT, "tests", "scripts",
+                    default=os.path.join(_REPO_ROOT, "tools", "testcases", "lib",
                                          "trampoline.bin"))
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--check-only", action="store_true",
@@ -401,7 +403,7 @@ def main() -> int:
                     if os.path.basename(c) not in previous_basenames]
     new_case_count = sum(counts[c] for c in new_carriers)
 
-    print("check-qemu-semantics: L3 语义载体（现场派生；册名/册数不写死）")
+    print("check-inst: L3 语义载体（现场派生；册名/册数不写死）")
     print(f"  umon 接管形态（ISS-225）: {form_verdict}")
     print(f"  载体目录: {', '.join(os.path.join(args.vectors, d) for d in CARRIER_DIRS)}")
     print(f"  缺册断言（git 索引）: {tracked_verdict}")
@@ -423,13 +425,13 @@ def main() -> int:
     if errs:
         for e in errs:
             print(f"  FAIL: {e}")
-        print("check-qemu-semantics: FAIL（结构断言）")
+        print("check-inst: FAIL（结构断言）")
         shutil.rmtree(args.gate_dir, ignore_errors=True)
         return 1
 
     if args.check_only:
         shutil.rmtree(args.gate_dir, ignore_errors=True)
-        print("check-qemu-semantics: 结构断言 PASS（--check-only，未执行用例）")
+        print("check-inst: 结构断言 PASS（--check-only，未执行用例）")
         return 0
 
     # ── 2. 执行（复用 harness 批量运行）────────────────────────────────
@@ -452,7 +454,7 @@ def main() -> int:
     except Exception as exc:  # harness 异常也要清 gate 目录并显式失败
         shutil.rmtree(args.gate_dir, ignore_errors=True)
         print(f"  FAIL: harness 异常: {type(exc).__name__}: {exc}")
-        print("check-qemu-semantics: FAIL (rc=1)")
+        print("check-inst: FAIL (rc=1)")
         return 1
     print(f"  Results: {total} total, {passed} passed, {failed} failed, "
           f"{deferred} deferred, {errors} errors")
@@ -477,9 +479,9 @@ def main() -> int:
     if errs:
         for e in errs:
             print(f"  FAIL: {e}")
-        print("check-qemu-semantics: FAIL (rc=1)")
+        print("check-inst: FAIL (rc=1)")
         return 1
-    print(f"check-qemu-semantics: PASS（{passed}/{total}，载体 {len(carriers)} 册）")
+    print(f"check-inst: PASS（{passed}/{total}，载体 {len(carriers)} 册）")
     return 0
 
 

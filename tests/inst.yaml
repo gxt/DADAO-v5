@@ -1,11 +1,253 @@
-# tests/inst.yaml — inst scope 根级用例清单（Process-09 §5；P1 骨架，暂空）
+# tests/inst.yaml — inst scope 根级用例清单（Process-09 §5）
 #
 # 字段（每条目恰好五项）：
 #   id         inst-<ext>-nnn（如 inst-base-001；四份索引内全局唯一）
 #   file       tests/inst/ 下的相对路径（必须存在）
 #   platforms  非空列表；inst: system（user/hw 预留）
-#   level      smoke | full
+#   level      smoke | full（smoke = 由 L2 覆盖：`check-inst-smoke` 代表集或
+#              `check-{rnd,minmax,fma,clmul}-probe`；full = **不在 L2 代表集**——
+#              含 L3 `check-inst` 载体册、未入门控的册（rev/bitcnt）与手工探针）
 #   requires   依赖项列表（可为空）
 #
-# 门控：make check-tests-index（L1）。空列表 [] 合法。
-[]
+# 门控：make check-tests-index（L1，静态）；`TESTCASES-072t` 首次填入实际 case。
+# 本清单逐文件一条（向量 YAML + 探针 C/IR 源）；条数由 `check-tests-index` 现场统计。
+- id: inst-atomics-001
+  file: inst/atomics/aba_treiber.c
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-atomics-002
+  file: inst/atomics/atomic_builtins.c
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-atomics-003
+  file: inst/atomics/atomics-fence.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-atomics-004
+  file: inst/atomics/atomics-lrsc.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-atomics-005
+  file: inst/atomics/barrier_probe.c
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-atomics-006
+  file: inst/atomics/c11_alltypes.c
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-atomics-007
+  file: inst/atomics/counter.c
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-base-001
+  file: inst/base/aip-si.yaml
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-base-002
+  file: inst/base/ctrl-br.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-base-003
+  file: inst/base/ctrl-call.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-base-004
+  file: inst/base/ctrl-jump.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-base-005
+  file: inst/base/ctrl-ret.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-base-006
+  file: inst/base/mem-ra.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-base-007
+  file: inst/base/mem-rb.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-base-008
+  file: inst/base/mem-rd.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-base-009
+  file: inst/base/misc.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-base-010
+  file: inst/base/reg-arith.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-base-011
+  file: inst/base/reg-compare.yaml
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-base-012
+  file: inst/base/reg-cond-assign.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-base-013
+  file: inst/base/reg-imm-block.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-base-014
+  file: inst/base/reg-logic.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-base-015
+  file: inst/base/reg-shift-extend.yaml
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-base-016
+  file: inst/base/reserved.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-bitcnt-001
+  file: inst/bitcnt/bitcnt.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-clmul-001
+  file: inst/clmul/clmul.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-clmul-002
+  file: inst/clmul/clmul_crc32c.c
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-clmul-003
+  file: inst/clmul/clmul_edges.c
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-clmul-004
+  file: inst/clmul/clmul_ghash.c
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-clmul-005
+  file: inst/clmul/clmul_ir.ll
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-fma-001
+  file: inst/fma/fma_dot.c
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-fma-002
+  file: inst/fma/fma_edges.c
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-fma-003
+  file: inst/fma/fma_horner.c
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-minmax-001
+  file: inst/minmax/minmax_c23.c
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-minmax-002
+  file: inst/minmax/minmax_clamp.c
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-minmax-003
+  file: inst/minmax/minmax_matrix.c
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-rev-001
+  file: inst/rev/rev.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-rol-001
+  file: inst/rol/rol.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-roundint-001
+  file: inst/roundint/rnd_flags.c
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-roundint-002
+  file: inst/roundint/rnd_matrix.c
+  platforms:
+  - system
+  level: smoke
+  requires: []
+- id: inst-roundint-003
+  file: inst/roundint/rnd_mode.c
+  platforms:
+  - system
+  level: smoke
+  requires: []

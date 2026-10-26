@@ -59,7 +59,7 @@
 | TESTCASES-070t | 已验证 | 2026-10-27 00:01 | rev 向量重生成+门控、diff_ir_lli 2 个 .ll 归类（ISS-335/336） |
 | INFRA-110t | 已验证 | 2026-10-26 23:44 | semihosting 旧口径文档清理（README 历史注记、DDLN、Machine-00、audit 头注） |
 | SPEC-177t | 已验证 | 2026-10-26 23:27 | 删除 SBI 保留值 0x3FFFF（ISS-334 B）；SBI/SEE 0.7.3-rc |
-| TESTCASES-072t | 待开始 | 2026-10-26 23:12（登记） | inst 迁移（ISA 向量+探针+harness；check-inst） |
+| TESTCASES-072t | 待验收 | 2026-10-26 23:12（登记） | inst 迁移：向量/探针→tests/inst、harness→tools/testcases/{lib,inst}、check-inst(-smoke)+旧名别名 |
 | TESTCASES-073t | 待开始 | 2026-10-26 23:12（登记） | arch 迁移（m5+min-ROM+bootrom；check-arch） |
 | TESTCASES-074t | 待开始 | 2026-10-26 23:12（登记） | unit 迁移（lit/codegen/ir-lli/picolibc；check-unit） |
 | TESTCASES-075t | 待开始 | 2026-10-26 23:12（登记） | tset 迁移（libc-test/llvm-ts/embench；check-tset） |

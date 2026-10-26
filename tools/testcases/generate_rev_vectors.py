@@ -3,9 +3,9 @@
 
 范围（**非 M1**）
 ----------------
-`rev.*` 属 `scope: m8`（`ADR-0012 D10`），**不是 M1 身份**，故**不进** `tests/vectors/inventory.md`
+`rev.*` 属 `scope: m8`（`ADR-0012 D10`），**不是 M1 身份**，故**不进** `tests/inst/inventory.md`
 的 M1 覆盖矩阵，也**不**由 `tools/testcases/generate_isa_vectors.py`（M1-only，`scope == "m1"`
-过滤）生成；本脚本把向量落到独立的 `tests/vectors/rev/rev.yaml`。
+过滤）生成；本脚本把向量落到独立的 `tests/inst/rev/rev.yaml`。
 
 独立 oracle（硬约束）
 --------------------
@@ -22,7 +22,7 @@
 * 打印 oracle 自检：    ``python3 tools/testcases/generate_rev_vectors.py --self-check``
 
 `--check` 断言（任一不满足 ⇒ 非零退出）：
-  1. 已入库 `tests/vectors/rev/rev.yaml` 与真源重派生结果**逐字节一致**（生成器可复现）；
+  1. 已入库 `tests/inst/rev/rev.yaml` 与真源重派生结果**逐字节一致**（生成器可复现）；
   2. 每条 case 的 `encoding.word` 满足真源 `(word & mask) == value`（`contracts/opcodes.yaml`）；
   3. 每个 `semantic`/`boundary` case 的 `expected_state` 由 oracle **全量重算**后一致（非抽样）；
   4. 每个 `legality` case 的 `immu6` 要么非 one-hot、要么 `>= S`，或目的寄存器为 `rd0`
@@ -41,7 +41,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 OPCODES = ROOT / "contracts" / "opcodes.yaml"
-OUT = ROOT / "tests" / "vectors" / "rev" / "rev.yaml"
+OUT = ROOT / "tests" / "inst" / "rev" / "rev.yaml"
 
 MASK64 = (1 << 64) - 1
 

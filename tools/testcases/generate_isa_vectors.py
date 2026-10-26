@@ -7,9 +7,9 @@ Reads contracts/opcodes.yaml and produces:
 
 本脚本只覆盖 **M1**（`scope == "m1"`）。非 M1 的新增指令（`scope: m8` 的
 `rev.o`/`rev.t`/`rev.w`/`rev.b`）由独立生成器 `tools/testcases/generate_rev_vectors.py`
-产出到 `tests/vectors/rev/rev.yaml`（不带 M1 覆盖矩阵约束）；`ctlz`/`cttz`/`ctpop` 由
+产出到 `tests/inst/rev/rev.yaml`（不带 M1 覆盖矩阵约束）；`ctlz`/`cttz`/`ctpop` 由
 独立生成器 `tools/testcases/generate_bitcnt_vectors.py` 产出到
-`tests/vectors/bitcnt/bitcnt.yaml`。
+`tests/inst/bitcnt/bitcnt.yaml`。
 
 All encoding words, expected values, and spec_cite are derived from
 contracts/opcodes.yaml, .tao/contracts/contract-isa.md, and
@@ -19,7 +19,7 @@ contracts/opcodes.yaml, .tao/contracts/contract-isa.md, and
 import os, sys, yaml, copy
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-OUT = os.path.join(REPO, "tests", "vectors", "isa")
+OUT = os.path.join(REPO, "tests", "inst", "base")
 
 def _int(v):
     if isinstance(v, int): return v
@@ -641,7 +641,7 @@ def gen_cmp_ut_br_n_sequence(rec):
     """ADR-0037 D1 discriminator: `cmp.ut` −1 must read as negative to `br.n`.
 
     A single instruction cannot express the contract's *consumer* side, so the
-    case uses the harness `sequence:` field (tests/vectors/schema.md):
+    case uses the harness `sequence:` field (tests/inst/schema.md):
 
       1. `cmp.ut rd1, rd2, rd3` with rd2 = 0xA < rd3 = 0x14 (bits[31:0])
          → rd1 = 0xFFFF_FFFF_FFFF_FFFF (ADR-0037 D1)

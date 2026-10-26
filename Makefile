@@ -53,7 +53,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-minmax-probe check-fma-probe check-clmul-probe \
         check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
-        check-tests-index \
+        check-inst check-inst-smoke check-tests-index \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
@@ -100,6 +100,7 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       build-builtins build-bootrom build-picolibc build-musl build-musl-shared \
                       test-codegen test-elf test-semihost test-m6 test-picolibc-smoke \
                       check-lit check-lit-full check-qemu-semantics check-qemu-smoke \
+                      check-inst check-inst-smoke \
                       check-picolibc-tests check-picolibc-tests-full check-rnd-probe \
                       check-minmax-probe check-fma-probe check-clmul-probe \
                       check-testcases-suites check-testcases-suites-full \
@@ -168,12 +169,15 @@ help:
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
 	@echo "  make clean-work      Remove generated .work content only"
-	@echo "  make validate-vectors  Validate tests/vectors schema/inventory/coverage"
+	@echo "  make validate-vectors  Validate tests/inst vectors schema/inventory/coverage (L1)"
 	@echo "  make check           Run repository-level structural checks (L1: static + component smoke)"
-	@echo "  make check-modules   Run L2 module functional representative set (check-lit + check-interface + check-qemu-smoke + test-codegen/elf/semihost)"
-	@echo "  make check-full      Run L3 fuller checks (check-qemu-semantics + test-m6; check-lit-full via test-m6)"
+	@echo "  make check-modules   Run L2 module functional representative set (check-lit + check-interface + check-inst-smoke + test-codegen/elf/semihost + probes)"
+	@echo "  make check-full      Run L3 fuller checks (check-inst + test-m6; check-lit-full via test-m6)"
 	@echo "  make check-components  Component availability smoke (llc/clang --print-targets/qemu; L1)"
-	@echo "  make check-qemu-smoke  QEMU semantic smoke (representative subset; L2)"
+	@echo "  make check-inst-smoke  inst semantic smoke (representative subset; L2; TESTCASES-072t)"
+	@echo "  make check-inst      inst semantic full set (tests/inst; L3; TESTCASES-072t)"
+	@echo "  make check-qemu-smoke  Alias -> check-inst-smoke (旧名保留; TESTCASES-072t)"
+	@echo "  make check-qemu-semantics  Alias -> check-inst (旧名保留; TESTCASES-072t)"
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
 	@echo "  make check-width-sizes  64-bit width + ELF64/rela/got + DWARF64 addr_size probe (L1; LLVM-130t)"
@@ -834,7 +838,7 @@ _locked-clean-work:
 # L2 `make check-modules`（几十~几百秒）= 各模块功能代表集
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
-# `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
+# `check-inst`(L3；旧名 `check-qemu-semantics`) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
 _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
@@ -842,11 +846,11 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 
 # L2 各模块功能代表集 (INFRA-058t). 注: test-semihost 自带对 `check`(L1) 的无回归前置
 # （by design，见 INTEG-020t），故 `make check-modules` 会顺带跑 L1。
-_locked-check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost check-picolibc-tests check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe check-code-range
+_locked-check-modules: check-interface check-lit check-inst-smoke test-codegen test-elf test-semihost check-picolibc-tests check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe check-code-range
 	@echo "module checks (L2): PASS"
 
 # L3 较完整 (INFRA-058t). check-lit-full 由 test-m6 步骤 [1/3] 承载（不在本目标重复列出）。
-_locked-check-full: check-qemu-semantics test-m6
+_locked-check-full: check-inst test-m6
 	@echo "full checks (L3): PASS"
 
 # Vector schema/inventory/coverage gate (TESTCASES-002t). Requires the M1
@@ -1169,7 +1173,7 @@ _locked-test-codegen: install-host
 	  mkdir -p .work/log/integ; \
 	  $(PYTHON) tools/integ/run_codegen_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
-	    --qemu $(QEMU_BIN) --trampoline tests/scripts/trampoline.bin \
+	    --qemu $(QEMU_BIN) --trampoline tools/testcases/lib/trampoline.bin \
 	    --crt0 tests/scripts/codegen_crt0.s --work-dir $(CODEGEN_E2E_WORK) \
 	    > $(CODEGEN_E2E_LOG) 2>&1; \
 	  rc=$$?; \
@@ -1351,7 +1355,7 @@ check-tests-index:
 	@$(PYTHON) tools/testcases/check_tests_index.py
 
 # rev 向量重派生门控 (ISS-335, L1): 由真源（contracts/opcodes.yaml + 独立 oracle）
-# 重新派生 `tests/vectors/rev/rev.yaml` 并逐字节比对；spec_cite/期望值/合法集任一漂移
+# 重新派生 `tests/inst/rev/rev.yaml` 并逐字节比对；spec_cite/期望值/合法集任一漂移
 # ⇒ FAIL。与 check-case-ledger 同层（L1），不重复进 L2/L3。
 check-rev-vectors:
 	@$(PYTHON) tools/testcases/generate_rev_vectors.py --check
@@ -1383,53 +1387,59 @@ check-rule-refs: contracts/opcodes.yaml
 check-fp-contract:
 	@$(PYTHON) tools/spec/check_fp_contract.py
 
-# QEMU semantic execution gate (L3; SPEC-069t, INFRA-097t): runs the **full**
-# carrier set through QEMU. The QEMU binary is taken from the install root
-# (ADR-0016 D9; INFRA-047t): run 'make install-host' first.
-# Carrier set is derived **live** from tests/vectors: every isa/*.yaml (no
-# hardcoded names/counts) + the non-isa carriers rol/*.yaml + atomics/*.yaml
-# (QEMU-064t: rol.* is scope m9; QEMU-067t: fence/lr/sc are not M1 identities,
-# so both live outside isa/). rev/ and bitcnt/ are out of scope (M8; see
-# tests/vectors/inventory.md). ISS-235 = carrier set was 3/16 of isa/.
-# Derivation + structural assertions (missing 册 / duplicate basename / bad
-# symlink / zero-册 / run-total vs derived-total) + self-evidence logging
-# (ISS-236: carrier list, per-册 case counts, total/passed/failed, delta vs
-# ISS-235's 161) live in tools/qemu/semantics_gate.py.
-# Cases run in parallel via --jobs $(JOBS) (JOBS defaults to 8; never nproc).
-# Exit code propagates correctly (no pipe; shell rc capture per AGENTS.md).
-# D6 compliance: gate dir under TEST_ARTIFACTS_DIR, log under .work/log/qemu/.
-QEMU_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
-QEMU_SEM_LOG = .work/log/qemu/check-qemu-semantics.log
-QEMU_SEM_VEC_DIR = $(CURDIR)/tests/vectors
-_locked-check-qemu-semantics:
-	@mkdir -p .work/log/qemu || { echo "check-qemu-semantics: ERROR: cannot create .work/log/qemu"; exit 1; }
+# inst semantic execution gate (L3; SPEC-069t/INFRA-097t; TESTCASES-072t 更名+搬家)
+# `make check-inst` = `tests/inst` 全量载体跑 QEMU；旧名 `check-qemu-semantics`
+# 保留为**别名**（指向本目标）。QEMU 二进制取自安装根（ADR-0016 D9）。
+# 载体集**现场派生**（册名/册数不写死）：`base/*.yaml` 全量 + 非 base 载体
+# `rol/*.yaml`（QEMU-064t：rol.* scope m9）+ `atomics/*.yaml`（QEMU-067t）
+# + `clmul/*.yaml`（QEMU-068t）。`rev/`、`bitcnt/` 不在本门控（M8 scope；见
+# `tests/inst/inventory.md`「门控覆盖」）。ISS-235 = 载体集曾只覆盖 3/16 册。
+# 结构断言（缺册/basename 重复/断链/0 册/运行 total ≠ 派生总数）+ 自证日志
+# （ISS-236）在 `tools/qemu/semantics_gate.py`；`--check-only` 只跑派生+结构断言。
+# 并发走 --jobs $(JOBS)（默认 8，禁 nproc）；退出码直传（无管道）。
+# D6：gate 目录在 TEST_ARTIFACTS_DIR 下，日志在 .work/log/qemu/。
+INST_DIR = $(CURDIR)/tests/inst
+INST_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
+INST_SEM_LOG = .work/log/qemu/check-inst.log
+INST_TRAMPOLINE = tools/testcases/lib/trampoline.bin
+_locked-check-inst:
+	@mkdir -p .work/log/qemu || { echo "check-inst: ERROR: cannot create .work/log/qemu"; exit 1; }
 	@$(PYTHON) tools/qemu/semantics_gate.py \
-	    --vectors $(QEMU_SEM_VEC_DIR) --gate-dir $(QEMU_SEM_DIR) \
-	    --qemu $(QEMU_BIN) --trampoline tests/scripts/trampoline.bin \
-	    --jobs $(JOBS) > $(QEMU_SEM_LOG) 2>&1; \
+	    --vectors $(INST_DIR) --gate-dir $(INST_SEM_DIR) \
+	    --qemu $(QEMU_BIN) --trampoline $(INST_TRAMPOLINE) \
+	    --jobs $(JOBS) > $(INST_SEM_LOG) 2>&1; \
 	  rc=$$?; \
-	  tail -40 $(QEMU_SEM_LOG); \
+	  tail -40 $(INST_SEM_LOG); \
 	  if [ $$rc -ne 0 ]; then \
-	    echo "check-qemu-semantics: FAIL (rc=$$rc)"; \
+	    echo "check-inst: FAIL (rc=$$rc)"; \
 	    exit $$rc; \
 	  fi; \
-	  echo "check-qemu-semantics: PASS"
+	  echo "check-inst: PASS"
 
-# QEMU 语义**冒烟**门控 (INFRA-058t, L2): check-qemu-semantics 的代表子集。
-# 代表集按 (class, mnemonic) **机械派生**（各组取第一条，禁手工挑），计数现场统计。
-# 全量留在 L3 (`check-full` → check-qemu-semantics)。
-QEMU_SMOKE_WORK = $(TEST_ARTIFACTS_DIR)/harness/smoke
-QEMU_SMOKE_LOG = .work/log/qemu/check-qemu-smoke.log
-_locked-check-qemu-smoke:
+# inst 语义**冒烟**门控 (INFRA-058t, L2; TESTCASES-072t 更名+搬家):
+# `check-inst` 的代表子集。代表集按 (class, mnemonic) **机械派生**（每组取第一条，
+# 禁手工挑），计数现场统计；全量留在 L3（`check-full` → `check-inst`）。
+# 旧名 `check-qemu-smoke` 保留为**别名**（指向本目标）。
+INST_SMOKE_WORK = $(TEST_ARTIFACTS_DIR)/harness/smoke
+INST_SMOKE_LOG = .work/log/qemu/check-inst-smoke.log
+_locked-check-inst-smoke:
 	@mkdir -p .work/log/qemu
-	@test -x $(QEMU_BIN) || { echo "check-qemu-smoke: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
-	@$(PYTHON) tests/scripts/run_qemu_smoke.py --qemu $(QEMU_BIN) \
-	    --trampoline tests/scripts/trampoline.bin --vector-dir tests/vectors/isa \
-	    --work-dir $(QEMU_SMOKE_WORK) --jobs $(JOBS) > $(QEMU_SMOKE_LOG) 2>&1; \
+	@test -x $(QEMU_BIN) || { echo "check-inst-smoke: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
+	@$(PYTHON) tools/testcases/inst/run_qemu_smoke.py --qemu $(QEMU_BIN) \
+	    --trampoline $(INST_TRAMPOLINE) --vector-dir tests/inst/base \
+	    --work-dir $(INST_SMOKE_WORK) --jobs $(JOBS) > $(INST_SMOKE_LOG) 2>&1; \
 	  rc=$$?; \
-	  tail -8 $(QEMU_SMOKE_LOG); \
-	  if [ $$rc -ne 0 ]; then echo "check-qemu-smoke: FAIL (rc=$$rc)"; exit $$rc; fi; \
-	  echo "check-qemu-smoke: PASS"
+	  tail -8 $(INST_SMOKE_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "check-inst-smoke: FAIL (rc=$$rc)"; exit $$rc; fi; \
+	  echo "check-inst-smoke: PASS"
+
+# 旧名别名（TESTCASES-072t）：旧命令行/文档/脚本仍可跑，指向新目标（同一实现）。
+# 二者只在被显式调用时执行；L2/L3 成员表只列新目标（一个检查只在一层）。
+_locked-check-qemu-semantics: check-inst
+	@echo "check-qemu-semantics: Alias -> check-inst (TESTCASES-072t)"
+
+_locked-check-qemu-smoke: check-inst-smoke
+	@echo "check-qemu-smoke: Alias -> check-inst-smoke (TESTCASES-072t)"
 
 # 构建并行度（用户裁定 2026-10-01：限制 cc1plus 类进程）
 JOBS ?= 8

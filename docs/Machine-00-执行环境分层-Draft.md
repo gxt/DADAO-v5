@@ -65,7 +65,7 @@
 |---|---|---|---|---|
 | **picolibc 自带 test**（≈235 适用） | C 库语义 | ✓ `check-picolibc-tests`(L2 快档) / `-full`(L3) | 需 semihosting responder ⇒ `gem5`/`verilator`/`fpga` **待定** | libc/libm **语义**、FP 完备性、stdio/格式化 I/O |
 | **LLVM 自带 lit**（MC + CodeGen ≈105） | 工具链（**宿主机**跑） | ✓ `check-lit` / `check-lit-full` | **平台无关**（跑在宿主 `llvm-mc`/`llc`） | ISA 编码/解码、**ISel/ABI lowering** |
-| **ISA 向量**（`tests/vectors/isa/**`） | 编码 + 执行语义 | ✓ `validate-vectors`（宿主）+ `check-qemu-semantics` | `gem5`/`fpga` 待定（可跑 > 可校验） | 编码 legality（L1）、结构（L2）、**执行语义**（L3） |
+| **ISA 向量**（`tests/inst/base/**`） | 编码 + 执行语义 | ✓ `validate-vectors`（宿主）+ `check-qemu-semantics` | `gem5`/`fpga` 待定（可跑 > 可校验） | 编码 legality（L1）、结构（L2）、**执行语义**（L3） |
 | **Embench-iot**（已接入） | **性能** | ✓ `test-m6`（双 `-O0`/`-O2` 档） | `gem5`（周期精确 ⇒ **更适合测时**）、`fpga`（真实） | **性能/代码规模**；**不作正确性判据** |
 | **CoreMark / Dhrystone / MiBench**（参考仓库有，**未接入**） | **性能** | 未接入（候选） | `qemu` 可用；**测时**宜用 `gem5`/`fpga` | 性能（整数/访存/控制流压力） |
 | **`ansibench`**（`nfinit/ansibench`，**未接入**） | **性能**（纯 ANSI C 计算型） | 未接入 | 原则上裸机+semihosting 可跑（`gem5`/`fpga` 待定） | 与 Embench **互补**的 C 计算负载；⚠️ **上游未声明许可** ⇒ 接入前须定许可，或仅作对照（**不 vendor**） |

@@ -7,7 +7,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 
 > **本表是 `TESTCASES-002t` 冻结的「覆盖要求矩阵」**：`✓` = 该身份须有该类
 > active case；`—` = 该类不适用；`deferred <reason>` = 该类暂缓（须记原因）。
-> 向量数据（`tests/vectors/isa/*.yaml`）由 `TESTCASES-003t`~`007t` 生成；
+> 向量数据（`tests/inst/base/*.yaml`）由 `TESTCASES-003t`~`007t` 生成；
 > `file` 列为目标文件名，下游重组任务负责更新为最终文件名。
 >
 > `validate_vectors.py` 机械校验本表的 M1 行集与 `contracts/opcodes.yaml`
@@ -181,13 +181,13 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 身份集**严格一致**——多一行即 `validate_vectors.py` 报 `INVENTORY EXTRA`，缺一行报
 `INVENTORY MISSING`）。
 
-它们的向量落在独立文件 `tests/vectors/rev/rev.yaml`（由 `tools/testcases/generate_rev_vectors.py`
+它们的向量落在独立文件 `tests/inst/rev/rev.yaml`（由 `tools/testcases/generate_rev_vectors.py`
 机械生成 + 独立 oracle 校验，**非** `tools/testcases/generate_isa_vectors.py`——后者只遍历
 `scope == "m1"` 的记录）。覆盖范围：
 
 | 指令 | 向量文件 | 覆盖 |
 |------|---------|------|
-| `rev.o` | `tests/vectors/rev/rev.yaml` | encoding + 每个合法 `k`（1/2/4/8/16/32）的 semantic + 边界（`rdHC=0`/全 1/`rdHB==rdHC`/`rdHC=rd0`）+ legality（非 one-hot / `k≥S` / 目的 `rd0`） |
+| `rev.o` | `tests/inst/rev/rev.yaml` | encoding + 每个合法 `k`（1/2/4/8/16/32）的 semantic + 边界（`rdHC=0`/全 1/`rdHB==rdHC`/`rdHC=rd0`）+ legality（非 one-hot / `k≥S` / 目的 `rd0`） |
 | `rev.t` | 同上 | 同上（合法 `k` = 1/2/4/8/16） |
 | `rev.w` | 同上 | 同上（合法 `k` = 1/2/4/8） |
 | `rev.b` | 同上 | 同上（合法 `k` = 1/2/4） |
@@ -196,12 +196,12 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 > 块内字节倒序」两条独立派生路径给出，须逐例一致（见生成器 `--self-check`）。
 
 `ctlz`/`cttz`/`ctpop`（位扫描 / 位计数）同为 `scope: m8`（`ADR-0012 D11`），**不是 M1 身份**（同上，
-不入本矩阵）。向量落在独立文件 `tests/vectors/bitcnt/bitcnt.yaml`（由
+不入本矩阵）。向量落在独立文件 `tests/inst/bitcnt/bitcnt.yaml`（由
 `tools/testcases/generate_bitcnt_vectors.py` 机械生成 + 独立 oracle 校验）：
 
 | 指令 | 向量文件 | 覆盖 |
 |------|---------|------|
-| `ctlz` | `tests/vectors/bitcnt/bitcnt.yaml` | encoding + **全量** `hd ∈ 0..63` 的 semantic（不抽样）+ 定值（有效位全 0 ⇒ `hd+1`，`hd` 全量）+ 边界（`hd=0`/`hd=63`/`rdHC=rd0`/`rdHB==rdHC`/高位掩码/单 bit 位编号）+ legality（仅目的 `rd0` ⇒ ILLI） |
+| `ctlz` | `tests/inst/bitcnt/bitcnt.yaml` | encoding + **全量** `hd ∈ 0..63` 的 semantic（不抽样）+ 定值（有效位全 0 ⇒ `hd+1`，`hd` 全量）+ 边界（`hd=0`/`hd=63`/`rdHC=rd0`/`rdHB==rdHC`/高位掩码/单 bit 位编号）+ legality（仅目的 `rd0` ⇒ ILLI） |
 | `cttz` | 同上 | 同上（定值同 `hd+1`） |
 | `ctpop` | 同上 | 同上（定值 = 0） |
 
@@ -213,33 +213,33 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 
 ## 门控覆盖（L2/L3）
 
-> **机械可核**：本表是覆盖**登记**，`tools/qemu/semantics_gate.py`（`make check-qemu-semantics`）
+> **机械可核**：本表是覆盖**登记**，`tools/qemu/semantics_gate.py`（`make check-inst`；旧名 `check-qemu-semantics` = 别名）
 > 解析它并与现场**双向**比对 —— L3 列 ✓ 的册 == 现场派生载体集
-> （`isa/*.yaml` 全量 + `rol/*.yaml` + `atomics/*.yaml` + `clmul/*.yaml`），L2 列 ✓ 的册 ==
-> `tests/scripts/run_qemu_smoke.py:GATE_VECTORS`；**任一方向多/少即 FAIL**
+> （`base/*.yaml` 全量 + `rol/*.yaml` + `atomics/*.yaml` + `clmul/*.yaml`），L2 列 ✓ 的册 ==
+> `tools/testcases/inst/run_qemu_smoke.py:GATE_VECTORS`（`make check-inst-smoke`）；**任一方向多/少即 FAIL**
 > （新增向量册须同步本表与门控载体，否则 L3 红）。`ISS-235` 处置：L3 载体由 3/16 册扩至全量。
 >
-> **范围**：`isa/` 全量 + 非 M1 的 `rol`/`atomics`/`clmul` 载体（`QEMU-064t`/`QEMU-067t`/`QEMU-068t`）；
+> **范围**：`base/` 全量 + 非 M1 的 `rol`/`atomics`/`clmul` 载体（`QEMU-064t`/`QEMU-067t`/`QEMU-068t`）；
 > `rev`/`bitcnt`（M8 scope，2 册）**未纳入 L2/L3** —— 后续任务指针：评估其入门控（同 `rol`/`atomics` 口径）。
 
 | 册 | L2（代表集） | L3（全量） |
 |---|---|---|
-| `isa/aip-si.yaml` | ✓ | ✓ |
-| `isa/ctrl-br.yaml` | — | ✓ |
-| `isa/ctrl-call.yaml` | — | ✓ |
-| `isa/ctrl-jump.yaml` | — | ✓ |
-| `isa/ctrl-ret.yaml` | — | ✓ |
-| `isa/mem-ra.yaml` | — | ✓ |
-| `isa/mem-rb.yaml` | — | ✓ |
-| `isa/mem-rd.yaml` | — | ✓ |
-| `isa/misc.yaml` | — | ✓ |
-| `isa/reg-arith.yaml` | — | ✓ |
-| `isa/reg-compare.yaml` | ✓ | ✓ |
-| `isa/reg-cond-assign.yaml` | — | ✓ |
-| `isa/reg-imm-block.yaml` | — | ✓ |
-| `isa/reg-logic.yaml` | — | ✓ |
-| `isa/reg-shift-extend.yaml` | ✓ | ✓ |
-| `isa/reserved.yaml` | — | ✓ |
+| `base/aip-si.yaml` | ✓ | ✓ |
+| `base/ctrl-br.yaml` | — | ✓ |
+| `base/ctrl-call.yaml` | — | ✓ |
+| `base/ctrl-jump.yaml` | — | ✓ |
+| `base/ctrl-ret.yaml` | — | ✓ |
+| `base/mem-ra.yaml` | — | ✓ |
+| `base/mem-rb.yaml` | — | ✓ |
+| `base/mem-rd.yaml` | — | ✓ |
+| `base/misc.yaml` | — | ✓ |
+| `base/reg-arith.yaml` | — | ✓ |
+| `base/reg-compare.yaml` | ✓ | ✓ |
+| `base/reg-cond-assign.yaml` | — | ✓ |
+| `base/reg-imm-block.yaml` | — | ✓ |
+| `base/reg-logic.yaml` | — | ✓ |
+| `base/reg-shift-extend.yaml` | ✓ | ✓ |
+| `base/reserved.yaml` | — | ✓ |
 | `rol/rol.yaml` | — | ✓ |
 | `atomics/atomics-fence.yaml` | — | ✓ |
 | `atomics/atomics-lrsc.yaml` | — | ✓ |
