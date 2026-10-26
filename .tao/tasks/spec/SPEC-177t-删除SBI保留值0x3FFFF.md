@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M10
 **依赖**：ADR-0038（D1/D2/D4/D5 已 Accepted；D3 本次定）
-**状态**：待验收
+**状态**：已验证
 
 ## 背景（用户 2026-10-26 选 B）
 semihosting 已迁至 `0x3FF00–0x3FFFF`；`DADAO-22:863` 的保留值 `0x3FFFF` 正落在该区间，若将来用于「SBI 协议版本协商」会被 semihosting 短路。用户在 A（移到 `0x3FEFF`）/ B（删除）/ C（收窄区间）中选 **B：删除该保留约定**。
@@ -60,4 +60,18 @@ semihosting 已迁至 `0x3FF00–0x3FFFF`；`DADAO-22:863` 的保留值 `0x3FFFF
 | F7 注入断言 `expect_fail` 初版只判 `rc≠0`，脚本自身用法错（rc=2）也会被当作「如期 FAIL」 | ✅已修 | 收紧为必须 `rc==1`，rc=2 计 FAIL；补 R4 还原后锁哈希复验 | 三轮注入 I1b/I2b/I3b 均 `rc=1`；R4 MATCH；`checks=31 failures=0` |
 
 **自审判决**：改动逐行核对（删句仅限 §14 该句、7 条掩码常量逐行同基线、两次 sha256 与锁一致、附录逆序/无任务号、互锁一致、ADR/issue 指针齐备）；未修项 F3 有明文先例且不阻断门控。**可标「待验收」**。
+
+### 第 1 轮 reviewer 验收（2026-10-26）
+
+**重跑（本人执行，非采信完成区）**：
+- `make check` rc=0（尾行 `repository checks (L1): PASS`）；`check-spec-readonly`（21 册 OK）/`check-spec-changelog`（`files=21 segments=45 rc_segments=7`）/`check-contracts-dir`/`check-contracts-pending`/`check-contract-relocs` 均 rc=0。
+- `bash .work/evidence/SPEC-177t/run.sh` rc=0，`checks=31 failures=0`；脚本审核：12 断言均有可达 FAIL 路径（c03 基线空即 FAIL、expect_fail 收紧 rc==1），3 组注入 md5 非空、`cp`+md5 还原。
+
+**语义核对**：`DADAO-22`「SBI 协议版本协商」/「保留 immu18 值 0x3FFFF」grep 均 0；掩码 `set\.rd   rd3, 0x3FFFF` = **7 行**，与基线 `38f8e230` 逐行 diff 相同（全册 8 处 `0x3FFFF` = 7 掩码 + 1 附录条目）；SBI §14 = 基线 − 待删句（c07 逐字校验）；SBI/SEE 册头均 `0.7.3-rc`、附录顶段 `0.7.3-rc（未发布）`/次段 `0.7.2（2026-10-26）`、rc 段 0 命中任务号/ADR/ISS（门控要求成立）；sha256 `002e056a…`/`3c788509…` 现场重算 = 锁内值；ISS-334 `closed`/`resolved_by: SPEC-177t`；ADR-0038 D3 决议 + 锁头授权原话「B」均在。
+
+**独立反例**：`cp` 备份 DADAO-22（md5 `cbdee659`）→ 回填待删句（md5 → `4d4a088a`）→ `check-spec-readonly` **rc=2 MISMATCH**；`run.sh` **rc=1，7 FAIL**（c01/c02/c07/c10/13/R1/R4）→ `cp` 还原 md5 `cbdee659` 全等（`MD5-RESTORE-OK`）→ 两门控回绿。全程未用 `git checkout/restore/stash`。
+
+**越界/残留**：提交仅 7 文件（与「修改文件」声明一致）；审查前后 `git status --porcelain -uall` 空、无 `*_tmp/_gate/*.orig/*.rej`。
+
+**判决：Accepted**。剩余风险（不阻断）：版本常量 `0x00070002` 未随 `-rc` 册头升（SPEC-176t 惯例，发布时同步）；根 `README.md`「在研版本」未同步（非本任务允许文件集，已登记遗留）。
 
