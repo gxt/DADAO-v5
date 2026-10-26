@@ -116,7 +116,13 @@ tools/testcases/
 - `tools/integ/`：集成驱动并入 `tools/testcases/{unit,tset}`；`tools/integ` 目录删除。
 - `tests/scripts/embench_*` 与 `tools/testcases/run_embench_user_suite.py` 合并为 `tools/testcases/tset/embench` 一份。
 - `tests/shared/` 只放**非用例**数据（bootrom、linker、crt0、宏、公共期望）。
-- **glue**：把上游套件接到 DADAO 的适配代码（board support、crt0、syscall/semihosting stub、lds、公共宏）。代码 glue → `tools/testcases/lib`；数据（lds/bootrom）→ `tests/shared`。
+- **glue（测试胶水）**：把上游套件/被测程序接到 DADAO 的**非用例**代码与数据，分三类：
+  1. **链接/布局**：`dadao.lds`、`dadao-dyn.lds`、`bootrom.lds`（基址、段、对齐）；
+  2. **启动/运行时**：`crt0`（`codegen_crt0.s`）、bootrom（`bootrom.S`/`bootrom_app.S`）、trampoline（`gen_trampoline.py`）、`embench_runtime.c`/`embench_user_boardsupport.c`、`picolibc_test_crt0.s`；
+  3. **接口桩**：syscall/semihosting stub、`SYS_EXIT`/console 适配、公共宏/头（`embench_include/`）。
+  - **不是 patch**：patch 只用于**改上游组件源码**（`components/<name>/patches/**`，如 picolibc `semihost-dadao.S`、embench `boardsupport.c`、musl `arch/dadao`）；测试胶水**不改上游**，是我们自己的文件。
+  - **不只是链接脚本**：链接脚本只是第 1 类。
+  - **落点**：测试侧代码/数据 → `tests/shared/{linker,bootrom,runtime,include}`；Python harness → `tools/testcases/lib`；上游改动 → 组件 patch 树。
 
 ---
 
@@ -192,10 +198,9 @@ cmd: make check-inst-smoke CASE=base/add
 
 ## 13. 待确认
 
-已定：`inst` 只 `system`；pytest 不引入；ansibench 不保留；`e2e` 改名 **`boot`**（仅整系统启动）；确定性只要求构建产物；记录保留 authoritative/夜跑 + 失败。
+已定：`inst` 只 `system`；pytest 不引入；ansibench 不保留；`e2e` 改名 **`boot`**（仅整系统启动，**下一里程碑**）；确定性只要求构建产物；记录保留 authoritative/夜跑 + 失败；glue 按上述三类落点。
 
-1. `boot`（Linux）何时建：下一里程碑（推荐）？
-2. `tests/shared` 是否收纳 `embench_runtime.c` 等**数据型** glue（代码 glue 放 `tools/testcases/lib`）？
+待确认：无（若有新增，另起条目）。
 
 ## 14. 验收（本册生效时）
 
