@@ -53,6 +53,12 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-071t | 待开始 | 2026-10-26 23:12（登记） | 测试骨架与根级索引（P1；不动文件） |
+| TESTCASES-072t | 待开始 | 2026-10-26 23:12（登记） | inst 迁移（ISA 向量+探针+harness；check-inst） |
+| TESTCASES-073t | 待开始 | 2026-10-26 23:12（登记） | arch 迁移（m5+min-ROM+bootrom；check-arch） |
+| TESTCASES-074t | 待开始 | 2026-10-26 23:12（登记） | unit 迁移（lit/codegen/ir-lli/picolibc；check-unit） |
+| TESTCASES-075t | 待开始 | 2026-10-26 23:12（登记） | tset 迁移（libc-test/llvm-ts/embench；check-tset） |
+| TESTCASES-076t | 待开始 | 2026-10-26 23:12（登记） | 测试迁移收口（删旧+门控重写+clean/repro/night） |
 | INFRA-110t | 待开始 | 2026-10-26 20:08（登记） | semihosting 旧口径文档清理（README 历史注记、DDLN、Machine-00、audit 头注） |
 | TESTCASES-070t | 待开始 | 2026-10-26 20:07（登记） | rev 向量重生成+门控、diff_ir_lli 2 个 .ll 归类（ISS-335/336） |
 | SPEC-177t | 待开始 | 2026-10-26 20:06（登记） | 删除 SBI 保留值 0x3FFFF（ISS-334 B；SBI/SEE 0.7.3-rc） |
