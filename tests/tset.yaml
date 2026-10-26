@@ -1,0 +1,11 @@
+# tests/tset.yaml — tset scope 根级用例清单（Process-09 §5；P1 骨架，暂空）
+#
+# 字段（每条目恰好五项）：
+#   id         tset-<suite>-nnn（如 tset-libc-001；四份索引内全局唯一）
+#   file       tests/tset/ 下的相对路径（必须存在）
+#   platforms  非空列表；tset: user（hw 预留）
+#   level      smoke | full
+#   requires   依赖项列表（可为空）
+#
+# 门控：make check-tests-index（L1）。空列表 [] 合法。
+[]

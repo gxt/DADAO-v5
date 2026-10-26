@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：Process-09（草案）
-**状态**：待开始
+**状态**：待验收
 
 ## 目标（P1）
 1. 建 `tests/{inst,arch,unit,tset,shared}/`（空目录可留 `.gitkeep`）。
@@ -24,13 +24,41 @@
 
 ## 完成区
 
-**状态**：待开始
+**测试结果**：证据脚本 9/9 PASS；`make check` rc=0；`make check-tests-index` rc=0；`--self-test` 13 类注入全部可达 FAIL。
 
-### 修改文件
-（待填）
+**修改文件**：
+- 新增 `tests/{inst,arch,unit,tset,shared}/.gitkeep`（5 个 scope 目录）
+- 新增 `tests/{inst,arch,unit,tset}.yaml`（空列表 `[]`，含字段/平台注释）
+- 新增 `tools/testcases/check_tests_index.py`（L1 门控 + `--self-test`）
+- `Makefile`：新增 `check-tests-index`，仅接入 `_locked-check`（L2/L3 不重复）
+- `tests/README.md`：新增 §0「四 scope 骨架」（scope/索引字段/生成物目标形状）
+- `.tao/knowledge/milestones.md`：TESTCASES-071t 行状态 → `待验收`
 
-### 验收命令与结果
-（待填）
+**验收结果**（`.work/evidence/TESTCASES-071t/run.sh`，rc=0）：
+```
+[PASS] 四 scope + shared 目录 | 5 个目录全部存在
+[PASS] 四个根级索引存在且为列表
+[PASS] make check-tests-index | PASS + 现场计数（inst=0/arch=0/unit=0/tset=0/total=0）
+[PASS] check_tests_index --self-test（注入 13 类）| rc=0
+[PASS] 接线层（仅 L1）| L1=1 / L2|L3=0
+[PASS] make check（L1）| rc=0 + repository checks (L1): PASS
+[PASS] 旧测试文件未移动/改名 | status=0 行 / R-A-D=0
+[PASS] 注入A 重复ID→FAIL(marker=重复)→cp+md5 还原一致→PASS
+[PASS] 注入B file不存在→FAIL(marker=不存在)→cp+md5 还原一致→PASS
+```
 
-### 遗留
-（待填）
+**新发现/坑**：`tests/` 根下任何 `*.yaml` 都必须是 scope 索引（防 `tests/index/`、`tests/manifest/` 旁路）；`file` 除存在外须为**文件**（指向目录会静默通过存在性检查）。
+
+**遗留问题**：无（迁移/删旧入口/生成物目录落在 `TESTCASES-072t`~`076t`）。
+
+## 审阅记录
+
+### 第 1 轮 engineer 自审
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| `_check_entry` 返回未使用的 `platforms`、`_SCOPE_DIRS` 死变量 | ✅已修 | 返回值收窄为 `cid`；删除死变量 | `--self-test` rc=0 |
+| `file` 指向目录时仅查 `exists()` 会误通过 | ✅已修 | 增 `is_file()` 分支 + 注入⑫ | self-test case14 marker=`不是文件` |
+| 空文件索引路径未被基线覆盖 | ✅已修 | 干净基线①的 `inst.yaml` 用空文件 | self-test case1 rc=0 |
+| 注入还原是否真回到原字节 | ✅已修 | 证据脚本 `cp` 备份 + 两次 md5 对账 | 注入 A/B 均 `md5=same` |
+

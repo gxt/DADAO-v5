@@ -53,6 +53,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-minmax-probe check-fma-probe check-clmul-probe \
         check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
+        check-tests-index \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
@@ -834,7 +835,7 @@ _locked-clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1341,6 +1342,13 @@ check-isa-coverage:
 # 清单是生成物（--write 重生成），不含任何计数，无手写期望。
 check-case-ledger:
 	@$(PYTHON) tools/infra/check_case_ledger.py
+
+# 测试根级索引门控 (TESTCASES-071t, L1): tests/{inst,arch,unit,tset}.yaml
+# 只做静态校验（不跑 guest）：ID 全局唯一、file 存在于本 scope 目录、字段/
+# platforms/level 合法、根级 *.yaml 的 scope 合法；计数现场派生、不写死。
+# `--self-test` = 干净基线 + 13 类注入（各自可达 FAIL，含缺失 scope 目录）。
+check-tests-index:
+	@$(PYTHON) tools/testcases/check_tests_index.py
 
 # rev 向量重派生门控 (ISS-335, L1): 由真源（contracts/opcodes.yaml + 独立 oracle）
 # 重新派生 `tests/vectors/rev/rev.yaml` 并逐字节比对；spec_cite/期望值/合法集任一漂移

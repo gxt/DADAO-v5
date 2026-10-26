@@ -2,8 +2,27 @@
 
 > **本页给「要跑/要找用例的人」**：目录地图、常用命令、产物落点、覆盖矩阵指针。
 > **现状盘点**（每个目录的文件数/门控/手工-自动/已知问题）：[`INVENTORY.md`](INVENTORY.md)。
-> **组织规范（方案，待用户决策）**：[`../docs/Process-09-测试组织规范.md`](../docs/Process-09-测试组织规范.md)。
+> **组织规范（草案；下方 §0 的 P1 骨架已按此落盘）**：[`../docs/Process-09-测试组织规范.md`](../docs/Process-09-测试组织规范.md)。
 > **分层口径**：门控层 L1/L2/L3 见 `docs/Process-07`；向量层 L1/L2/L3（编码/结构/执行）见 `docs/Process-05`；本页的 **I/S/E/U** 是**资产组织层**（指令级/系统级/端到端/工具单测），定义见 `Process-09 §3.1`。
+
+---
+
+## 0. 四 scope 骨架（P1 已落；**现有目录尚未迁移**）
+
+`Process-09` 的四分法骨架已落盘：**只加目录/索引/门控，未移动任何现有用例**（迁移见 `TESTCASES-072t`~`076t`）。
+
+| scope | 测什么 | `platforms` 允许值 | 目录 |
+|---|---|---|---|
+| `inst` | 单指令/短序列执行语义（system 上跑） | `system`（`user`/`hw` 预留） | `tests/inst/` |
+| `arch` | cfx/权限：trap/escape/掩码/TIMER/IPI/UART/power | `system`（`hw` 预留） | `tests/arch/` |
+| `unit` | 各模块自身：LLVM/lld/QEMU/picolibc/仓库工具 | `host`、`toolchain` | `tests/unit/` |
+| `tset` | 外部套件在成品系统上跑：libc-test/llvm-ts/Embench | `user`（`hw` 预留） | `tests/tset/` |
+
+- 共享**非用例**资产（bootrom/lds/crt0/宏）→ `tests/shared/`；`boot`（整系统启动）下一里程碑再建。
+- 根级清单 `tests/{inst,arch,unit,tset}.yaml`：每条目**恰好**五项 `id` / `file` / `platforms` / `level`（`smoke|full`）/ `requires`；**空列表 `[]` 合法**。
+- `id` = `<scope>-<name>[-<name>...]-<nnn>`，四份索引内**全局唯一**；`file` 必须位于对应 `tests/<scope>/` 且存在。
+- 门控：`make check-tests-index`（L1，静态、不跑 guest；`tools/testcases/check_tests_index.py --self-test` 含注入反例）。
+- 生成物：目标形状 `.dadao/tests/{inst,arch,unit,tset}/`（`Process-09 §4`）；本册**不改** `.dadao/tests/` 现状（见下文 §3）。
 
 ---
 
