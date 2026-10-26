@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：TESTCASES-071t
-**状态**：待验收
+**状态**：已验证
 
 ## 目标（P5）
 1. 驱动：`tools/testcases/{run_libc_test_user_suite.py,run_llvm_ts_user.py,run_embench_user_suite.py}` → `tools/testcases/tset/<suite>/`；套件独有 glue → `tests/tset/<suite>/`（共享才进 `shared`）。
@@ -22,7 +22,7 @@
 
 ## 完成区
 
-**状态**：待验收
+**状态**：已验证
 
 ### 修改文件
 - 驱动：`tools/testcases/tset/{libc-test,llvm-ts,embench}/run_*.py`（+ libc/llvm `run_smoke.py`）；旧扁平路径留薄 wrapper。
@@ -58,3 +58,20 @@
 | `REPO_ROOT` 层级（嵌套两层后需 4 个 `..`） | ✅已修 | 三驱动 + 两 smoke | 对账 diff 仅路径行；门控全绿 |
 | 证据脚本注入 B 期望 rc 写死 1 | ✅已修 | 改判 `rc!=0` | 证据 13/13 PASS |
 | Makefile 兼容别名是否为空目标 | ✅不修 | `check-{libc-test,llvm-ts,embench}-smoke` 仅依赖新目标（旧目标本不存在） | `make -n` 不适用；实际调用走新目标 |
+
+### 第 1 轮 reviewer 验收
+
+**重跑记录（reviewer 亲自执行，均在仓库根相对路径）**：
+- `make check` RC=0；`make check-tests-index` RC=0（现场 240 条：inst=40/arch=10/unit=187/tset=3）；`make check-case-ledger` RC=0（1958 条）；`--write` 前后 md5 均 `22103f0467eeeedb354a8d92a05562fb`，byte-identical。
+- 三条 smoke：`check-tset-libc-smoke` RC=0（5 类/5 代表，现场统计）；`check-tset-llvm-smoke` RC=0（3 树/3 代表）；`check-tset-embench-smoke` RC=0（38/38 pass）。
+- 旧别名 `check-libc-test-smoke`/`check-llvm-ts-smoke`/`check-embench-smoke` 各 RC=0（依赖式别名，Makefile:854-856）。
+- `bash .work/evidence/TESTCASES-075t/run.sh` RC=0：13/13 PASS（脚本审阅通过：注入 A/B 各有可达 FAIL 路径、判据为 `rc!=0` 不写死、还原用 `cp`+md5 对账）。
+- `make check-modules` RC=0（L2；三条 tset smoke 在成员表 Makefile:919）。
+
+**语义不变核验**：三份驱动 vs `HEAD^` diff 仅 `REPO_ROOT` 层数（+2 注释里的 sister driver 路径、embench `DEFAULT_SHIM`/文档 shim 路径），无逻辑改动；旧扁平路径为薄 wrapper（runpy 转发，`sys.path` 前插实现目录）；`tests/scripts/` 三个 embench 件为符号链接 → `tests/tset/embench/`，目标存在。
+
+**独立反例（reviewer 注入，非复用 engineer）**：改 `tools/testcases/tset/embench/run_embench_user_suite.py` 的 `DEFAULT_SHIM` → 不存在路径 ⇒ `check-tset-embench-smoke` RC=2（FAIL：`hosted board shim not found`）；`cp` 备份还原 + md5 前后一致 ⇒ 回绿 RC=0。全程未用 git checkout/restore/stash。
+
+**约束核验**：① `ansibench` 全树 grep 无命中（未纳入）✓；② `check-run-artifacts` 目录名规则 `RUN_DIR_RE`（`^\d{8}T\d{6}Z-`）未变，实跑产物目录 `20261026T221821Z-embench-user-static` 合规 ✓；③ 无测试期望/断言放宽（驱动 diff 已逐行核）✓；④ 范围外披露仅 `components/embench-iot/README.md` 路径文案 + `tests/scripts` 符号链接——必要且未改语义 ✓；⑤ 工作树干净（`git status --porcelain -uall` 0 行，与审前快照一致），无残留 ✓。
+
+**判决：Accepted**。剩余风险：`tests/scripts/` 共享件与 e2e 收口、旧入口删除留 `TESTCASES-076t`（任务书已声明，不阻断）。
