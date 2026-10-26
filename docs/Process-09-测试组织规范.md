@@ -13,12 +13,12 @@
 
 | scope | 测什么 | 平台 |
 |---|---|---|
-| **inst** | **每条指令/短序列**在不同平台上的执行语义 | `system`（`qemu-system-dadao`）+ `user`（`qemu-dadao`），按用例声明 |
+| **inst** | **每条指令/短序列**在平台上的执行语义 | **`system`（`qemu-system-dadao`）**；`user` 后置（`platforms` 字段预留） |
 | **arch** | **cfx 资源管理与权限控制**：trap/escape/cfx2rd/cfx2rc、inner/global/switch/instruction 掩码、异常 cause、per-hart/per-system、TIMER/IPI/UART/power | 仅 `system` |
 | **unit** | **各模块自身功能**：LLVM（MC/CodeGen）、lld、QEMU、picolibc（仅 picolibc 下跑）、仓库工具 | host / toolchain |
-| **tset** | **外部套件**（third-party test suites）在成品系统上的运行：libc-test、llvm-test-suite、Embench、ansibench | `user`（成品系统） |
+| **tset** | **外部套件**（third-party test suites）在成品系统上的运行：libc-test、llvm-test-suite、Embench | `user`（成品系统） |
 
-- **e2e**（Linux/busybox）**预留**，下一里程碑再建；本册不排。
+- **boot**（Linux/busybox）**预留**：整系统启动到用户态；下一里程碑再建，本册不排。现有 `tests/e2e/` 是**旧目录名**，拆到 inst/arch/unit，不构成 `boot` scope。
 - 判据：**上游/组件自己的测试套件 → `unit/<组件>`**；**跑在成品系统上的外部套件 → `tset`**。
 - 本册只定**组织与门控**；运行目录/日志细节仍按 `Process-08`。
 
@@ -30,7 +30,7 @@
 - `.dadao/tests/`：**19,967 文件 / 1.13 GB**，18 个子目录；含任务专属目录（如 `llvm-ts-user-050t`）、无 `clean` 目标、约 210 MB 不可重生成。
 - 向量：1,456 例 / 193 个 opcode 身份 / 22 个 YAML；ledger 1,956 条；lit 154。
 - 现行门控：`check`（L1）、`check-modules`（L2）、`check-full`（L3）、`check-milestone`；**无夜跑层**。
-- 工具分散：`tests/scripts/`（inst harness）、`tools/testcases/`（生成器/oracle/套件驱动）、`tools/integ/`（e2e 驱动），有重复（embench runtime、两套 runner）。
+- 工具分散：`tests/scripts/`（inst harness）、`tools/testcases/`（生成器/oracle/套件驱动）、`tools/integ/`（集成驱动），有重复（embench runtime、两套 runner）。
 - 平台：宿主 Linux x86-64；guest `qemu-system-dadao` / `qemu-dadao`；**无硬件在环**。
 
 ---
@@ -46,7 +46,7 @@ tests/
   unit/                     # 模块自身
     llvm/ lld/ qemu/ picolibc/ infra/
   tset/                     # 外部套件
-    libc-test/ llvm-ts/ embench/ ansibench/
+    libc-test/ llvm-ts/ embench/
   shared/                   # 共享测试基础设施（非用例）
     bootrom/ linker/ crt0/ macros/ expected/
   inst.yaml arch.yaml unit.yaml tset.yaml   # 根级 case 清单（见 §5）
@@ -75,6 +75,7 @@ tests/
 - **日志**不进生成物：仍落 `.work/log/<模块>/<任务号>-*.log`。
 - `make clean-tests SCOPE=inst|arch|unit|tset|night|all`。
 - **确定性**：只对**构建产物**（ELF/对象/反汇编等）要求逐字节可重生成；运行记录含时间戳/宿主信息，**不要求**。`make test-repro SCOPE=...` 跑两次比 md5；`case-ledger.tsv` 已实测 byte-identical；`.lit_test_times.txt` 等运行脚手架排除。
+- **记录保留**：authoritative/夜跑 + **失败必留**（`run.json`/`meta.json`/日志）；普通 smoke 可落 `/tmp` 或跑后清理。
 
 ---
 
@@ -107,14 +108,15 @@ tools/testcases/
   inst/         # ISA 向量构建/运行（原 tests/scripts 主体）
   arch/         # bootrom/min-ROM/CFX 场景（原 min_rom_probe）
   unit/         # lit 驱动、codegen/elf/ir-lli、picolibc
-  tset/         # libc-test / llvm-ts / embench / ansibench 驱动
+  tset/         # libc-test / llvm-ts / embench 驱动
   gen/          # 向量/oracle 生成器（ISA/rev/bitcnt/atomics/...）
 ```
 
 - `tests/scripts/`：迁移后删除；harness → `tools/testcases/lib`，bootrom/lds/crt0/宏 → `tests/shared/`。
-- `tools/integ/`：e2e 驱动并入 `tools/testcases/{unit,tset}`；`tools/integ` 目录删除。
+- `tools/integ/`：集成驱动并入 `tools/testcases/{unit,tset}`；`tools/integ` 目录删除。
 - `tests/scripts/embench_*` 与 `tools/testcases/run_embench_user_suite.py` 合并为 `tools/testcases/tset/embench` 一份。
 - `tests/shared/` 只放**非用例**数据（bootrom、linker、crt0、宏、公共期望）。
+- **glue**：把上游套件接到 DADAO 的适配代码（board support、crt0、syscall/semihosting stub、lds、公共宏）。代码 glue → `tools/testcases/lib`；数据（lds/bootrom）→ `tests/shared`。
 
 ---
 
@@ -122,7 +124,7 @@ tools/testcases/
 
 - **宿主**：Linux x86-64（当前）；Python + clang/lld/llvm-*。
 - **guest**：`qemu-system-dadao`（system）与 `qemu-dadao`（user）；**无硬件在环**。
-- `inst` 用例的 `platforms` 字段声明可用平台；runner 只在交集上跑；特权指令只 `system`。
+- `inst` 首期**只 `system`**；`platforms` 字段预留 `user`/`hw`，runner 只在交集上跑。
 - 将来硬件在环：`platforms` 增 `hw`，不改用例 ID。
 
 ---
@@ -134,7 +136,7 @@ tools/testcases/
 - **L2（模块代表集）**：四 scope 的 **smoke** 集，进 `make check-modules`。
 - **L3（全量语义）**：`check-inst`（全 ISA）、`check-arch`（全 cfx）、`check-unit`、`check-tset`（smoke），进 `make check-full`。
 - **里程碑（Milestone）**：`check-milestone` = 归档/任务号/`check-tasks` + **L3 结果** + **夜跑报告存在性**；**不内联跑长套件**。
-- **夜跑（Night）**：`make check-night` = `tset` full（libc-test/llvm-ts/Embench/ansibench）+ 长 arch；`setsid nohup` + `[exit marker] rc=N`；汇总 `.dadao/tests/night/<date>/manifest.tsv`；次日由里程碑门控消费。
+- **夜跑（Night）**：`make check-night` = `tset` full（libc-test/llvm-ts/Embench）+ 长 arch；`setsid nohup` + `[exit marker] rc=N`；汇总 `.dadao/tests/night/<date>/manifest.tsv`；次日由里程碑门控消费。
 
 ---
 
@@ -161,7 +163,7 @@ cmd: make check-inst-smoke CASE=base/add
 - **unit**：LLVM `lit`/FileCheck（`llvm/test`、`clang/test`）+ QEMU `tests/unit`。
 - **tset**：libc-test、llvm-test-suite、Embench、picolibc 各自上游套件。
 - **整体骨架**：QEMU `tests/{unit,qtest,tcg,functional}` 最接近「unit / 系统 / guest 指令 / 端到端」四分。
-- **框架**：`pytest`/`unittest` 只做**宿主侧编排**（参数化、fixture、marker、JUnit/JSON）；**cocotb 不适用**（RTL 仿真框架），除非将来做 RTL 验证。
+- **框架**：**暂不引入 pytest**（新增依赖 + 两套入口，收益有限）；`unit/infra` 若需标准化，优先 stdlib **`unittest`**；**cocotb 不适用**（RTL 仿真），除非将来做 RTL 验证。
 
 ---
 
@@ -172,7 +174,7 @@ cmd: make check-inst-smoke CASE=base/add
 - **P2 inst**：`vectors/isa` + 探针 → `inst/`；harness → `tools/testcases/lib+inst`；smoke 绿后进 L2。
 - **P3 arch**：`llvm/codegen/m5` + `min_rom_probe_*` + bootrom → `arch/`；smoke 绿后进 L2。
 - **P4 unit**：`lit/MC|CodeGen`、`codegen/m3/m4/m6`、`ir-lli`、`picolibc` → `unit/`。
-- **P5 tset**：libc-test/llvm-ts/Embench/ansibench 驱动 → `tools/testcases/tset`；smoke 绿。
+- **P5 tset**：libc-test/llvm-ts/Embench 驱动 → `tools/testcases/tset`；smoke 绿。
 - **P6 收口**：删 `tests/scripts`/`tests/qemu`/`tools/integ` 旧入口；重写 Makefile 门控；`clean-tests`/`test-repro`；`check-night`。
 
 ### §12 资产 → scope 映射（P0）
@@ -182,7 +184,7 @@ cmd: make check-inst-smoke CASE=base/add
 - `tests/llvm/codegen/m5`（semihosting/CFX 权限）+ `tools/qemu/min_rom_probe_*` → **arch**
 - `tests/e2e/lit`：semihosting → **arch**；FP/clmul 等指令性 → **inst**；weak/CM 等链接/ABI → **unit**
 - `tests/scripts`（bootrom/lds/crt0/harness）→ **shared** + **tools/testcases/lib**
-- libc-test / llvm-ts / Embench / ansibench → **tset**
+- libc-test / llvm-ts / Embench → **tset**（ansibench 不保留：源码集合，非门控套件）
 - picolibc 自测（仅 picolibc 下跑）→ **unit/picolibc**
 - `case-ledger.tsv` → 根级（身份清单）
 
@@ -190,12 +192,10 @@ cmd: make check-inst-smoke CASE=base/add
 
 ## 13. 待确认
 
-1. `inst` 平台：`system + user` 都跑（推荐），还是先 `system`、`user` 后置？
-2. `pytest` 仅做编排（推荐）还是暂不引入？
-3. `tset` 的 `ansibench` 是否保留（M9 已接入）？
-4. `e2e`（Linux）何时建：下一里程碑（推荐）？
-5. 确定性范围：只要求**构建产物**逐字节（推荐），运行记录不要求？
-6. `tests/shared` 是否也收纳 `embench_runtime.c` 等上游 glue（推荐）？
+已定：`inst` 只 `system`；pytest 不引入；ansibench 不保留；`e2e` 改名 **`boot`**（仅整系统启动）；确定性只要求构建产物；记录保留 authoritative/夜跑 + 失败。
+
+1. `boot`（Linux）何时建：下一里程碑（推荐）？
+2. `tests/shared` 是否收纳 `embench_runtime.c` 等**数据型** glue（代码 glue 放 `tools/testcases/lib`）？
 
 ## 14. 验收（本册生效时）
 
