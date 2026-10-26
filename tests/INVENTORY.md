@@ -4,6 +4,9 @@
 > **迁移后状态（2026-10-27，`TESTCASES-072t`）**：inst 向量/探针/harness 已搬家 ——
 > `tests/vectors/*` → `tests/inst/<ext>/`（`isa` → `base`）、`tests/{atomics,clmul,fma,minmax,roundint}/`
 > → `tests/inst/<ext>/`、harness → `tools/testcases/{lib,inst}/`（`tests/scripts/` 留薄 wrapper）。
+> **P3 arch（2026-10-27，`TESTCASES-073t`）**：`tests/llvm/codegen/m5/` → `tests/arch/umon/`、
+> `tools/qemu/min_rom_probe_*` → `tools/testcases/arch/`（旧路径留 wrapper）、bootrom 三件 →
+> `tests/shared/bootrom/`（旧路径为符号链接）；门控 `test-semihost` → `check-arch-smoke`（别名保留）。
 > **下文 §2/§3 的路径与计数是迁移前快照**；最新布局与入口见 `tests/README.md`。
 > **计数口径**：全部由命令现场统计（不含 `.git`、`.work`、`.cache`）；「文件数」= `find … -type f` 的**磁盘**文件（含被 `.gitignore` 忽略的 `__pycache__/*.pyc`）；「入库」另列 `git ls-files` 计数。
 > **机器可核**：文末「计数锚点」块由 `.work/evidence/TESTCASES-067t/run.sh` 现场重算逐项比对；测试一改，锚点必须同步，否则证据脚本红。
@@ -152,7 +155,9 @@
 | `check-lit-full` | L3 | `check_lit_gen.py` + 12 生成 MC 用例 | `.dadao/tests/lit-output/DADAO-MC-gen` | stdout |
 | `test-codegen` | L2 | M3 15 程序 | `.dadao/tests/codegen-e2e` | `.work/log/integ/test-codegen.log` |
 | `test-elf` | L2 | M4 5 程序（多 TU/段） | `.dadao/tests/elf-e2e` | `.work/log/integ/test-elf.log` |
-| `test-semihost` | L2 | M5 10 程序 + 25 服务覆盖；前置 `test-elf`/`test-codegen`/`check` | `.dadao/tests/m5-e2e`、`bootrom/` | `.work/log/integ/test-semihost{,-probe}.log` |
+| `check-arch-smoke` | L2 | arch 10 程序（`tests/arch/umon/`）+ 25 服务覆盖（原 `test-semihost`，判据未改） | `.dadao/tests/arch/m5-e2e`、`bootrom/` | `.work/log/arch/check-arch-smoke{,-svc}.log` |
+| `check-arch` | L3 | `check-arch-smoke` + cfx min-ROM 探针 044/045/049 | 同上 | `.work/log/arch/check-arch*.log` |
+| `test-semihost` | 别名 | → `check-arch-smoke`（旧前置 `test-elf`/`test-codegen`/`check` 保留） | 同上 | 同上 |
 | `test-m6` | L3 | lit-full + ir-lli 19 + Embench 38 | `ir-lli-diff`、`m6-embench` | `.work/log/integ/test-m6-*.log` |
 | `check-rnd-probe` | L2 | 785 例 × O0/O2 | `/tmp`+`--json-out` | `.work/log/testcases/TESTCASES-060t-*.{log,json}` |
 | `check-minmax-probe` | L2 | 3,102 例 × O0/O2 | 同上 | `TESTCASES-059t-*` |

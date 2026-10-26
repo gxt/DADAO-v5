@@ -1,4 +1,8 @@
-# M5 L1/L3 向量对照表（`tests/llvm/lit/MC/DADAO/` + `tests/llvm/codegen/m5/`）
+# M5 L1/L3 向量对照表（`tests/llvm/lit/MC/DADAO/` + `tests/arch/umon/`）
+
+> `TESTCASES-073t`（2026-10-27）：L3 执行向量已由 `tests/llvm/codegen/m5/`（旧路径，现为符号链接）
+> 迁至 `tests/arch/umon/`；驱动迁至 `tools/testcases/arch/run_m5_e2e.py`
+> （旧路径 `tools/integ/` 留 wrapper），门控 `make test-semihost` → `make check-arch-smoke`（别名保留）。
 
 > 任务：`TESTCASES-033t`（SEE/HEE + semihosting 向量：L1 MC 编码/往返 + L3 执行；独立 oracle）。
 > 规范：`docs/Process-05-里程碑TDD规范.md §2`（L1/L2/L3）、`§3`（一能力一向量）、
@@ -30,7 +34,7 @@ M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**
   `cfx2rc` op `0x7B`，均 `mask=0xFF000000`；`crrr` 字段 `cfxha[23:18] cghb[17:12] rchc[11:6] rdhd[5:0]`，
   `ciii` 字段 `cfxha[23:18] imm18[17:0]`。
 
-## 2. L3 执行向量（`tests/llvm/codegen/m5/`）— 向量 ↔ 能力 ↔ 期望值来源
+## 2. L3 执行向量（`tests/arch/umon/`）— 向量 ↔ 能力 ↔ 期望值来源
 
 承载形态 = **bin**（用户 2026-10-08 M5 范围简化裁定）：`llvm-mc` → `llvm-objcopy -O binary` →
 `-kernel` 载入RAM 基址 `0xFC00_0000_0000`（`ADR-0004 D2.3` path B）→ **SEE bootrom**（`-bios`）
@@ -85,8 +89,8 @@ M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**
   （服务表）与 `contract-see.md §3`（cfx 权限规则）**独立派生**每个向量的期望（服务号/名称、
   控制台字节、cause id、pass/fail token），并与 `expected.yaml`、向量 `; @m5` 头部、向量源文本
   **三方交叉核对**；**不调用** `llvm-mc`/`llvm-objcopy`/QEMU（无子进程导入）。
-- 驱动：`tools/integ/run_m5_e2e.py`（本任务内直接 `python3` 调用；`Makefile`/`make test-semihost`
-  接线归 `INTEG-020t`）。逐例输出「名字/期望/实际/退出码」；`--inject` 提供反例自检。
+- 驱动：`tools/testcases/arch/run_m5_e2e.py`（`make check-arch-smoke` / `check-arch` 调用；
+  旧名 `make test-semihost` = 别名；`TESTCASES-073t` 迁入）。逐例输出「名字/期望/实际/退出码」；`--inject` 提供反例自检。
 
 ### 2.3 反例门控（可失败性）
 

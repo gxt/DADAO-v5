@@ -14,7 +14,9 @@ inst 语义 harness 的**实现**已迁到 `tools/testcases/{lib,inst}/`（`Proc
 
 - 上面的 `.py` 在本目录只留**薄 wrapper**：`python3 tests/scripts/<name>.py …` 仍与原实现**等价**
   （`runpy` 转发，`sys.exit` 码一致）。**删除旧入口**在 `TESTCASES-076t`。
-- **未迁移**（后续 P3/P5）：`bootrom.S`/`bootrom_app.S`/`bootrom.lds`、`codegen_crt0.s`、
-  `dadao.lds`/`dadao-dyn.lds`、`dadao_mem_runtime.ll`、`dadao_user_dyn_probe.c`、
+- **已迁**（`TESTCASES-073t`，P3）：`bootrom.S`/`bootrom_app.S`/`bootrom.lds` →
+  `tests/shared/bootrom/`；本目录保留**符号链接**（`make build-bootrom` 已改指新路径）。
+- **未迁移**（后续 P5）：`codegen_crt0.s`、`dadao.lds`/`dadao-dyn.lds`、
+  `dadao_mem_runtime.ll`、`dadao_user_dyn_probe.c`、
   `embench_runtime.c`/`embench_user_boardsupport.c`/`embench_include/`（→ `tests/shared/` 或 `tests/tset/embench/`）。
 - harness 详细文档：`tools/testcases/lib/README.md`。

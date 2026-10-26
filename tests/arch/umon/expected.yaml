@@ -1,12 +1,14 @@
-# tests/llvm/codegen/m5/expected.yaml
+# tests/arch/umon/expected.yaml
 # TESTCASES-033t: M5 L3 (execution) vectors -- SEE / semihosting, cfx-level
 # permission counter-examples, and general trap + escape.
 #
 # This is the **independent M5 manifest**.  Like tests/llvm/codegen/m4/ it is
 # kept in its own directory so the M3 driver (tools/integ/run_codegen_e2e.py)
 # and the M4 driver (tools/integ/run_elf_e2e.py) never pick these programs up
-# (they read only their own manifests and do not recurse).  The M5 driver is
-# tools/integ/run_m5_e2e.py (INTEG-020t will wire it into `make test-semihost`).
+# (they read only their own manifests and do not recurse).  The arch driver is
+# tools/testcases/arch/run_m5_e2e.py (gated by `make check-arch-smoke`; the old
+# name `make test-semihost` is an alias).  Moved here by TESTCASES-073t.
+# NOTE: comments only -- expectations below are unchanged.
 #
 # Load model (user decision 2026-10-08, M5 scope simplified):
 #   * every vector is a hand-written `*.s` assembled by the *own* toolchain

@@ -1,11 +1,88 @@
-# tests/arch.yaml — arch scope 根级用例清单（Process-09 §5；P1 骨架，暂空）
+# tests/arch.yaml — arch scope 根级用例清单（Process-09 §5）
 #
 # 字段（每条目恰好五项）：
 #   id         arch-<cfx>-nnn（如 arch-umon-001；四份索引内全局唯一）
 #   file       tests/arch/ 下的相对路径（必须存在）
 #   platforms  非空列表；arch: system（hw 预留）
-#   level      smoke | full
+#   level      smoke | full（smoke = 由 L2 覆盖：`check-arch-smoke` 代表集）
 #   requires   依赖项列表（可为空）
 #
-# 门控：make check-tests-index（L1）。空列表 [] 合法。
-[]
+# 门控：make check-tests-index（L1，静态）；`TESTCASES-073t` 首次填入实际 case。
+# 本清单逐文件一条（`tests/arch/<cfx>/*.s` 执行向量）；条数由 `check-tests-index` 现场统计。
+# cfx 划分按 `spec/DADAO-12 §3` 与 bootrom 行为：m5 向量由 SEE bootrom 装入 cfx_umon
+# 用户向量后以 user 模式运行 ⇒ `umon`。
+- id: arch-umon-001
+  file: arch/umon/m5_perm_badcombo_cfxreg.s
+  platforms:
+  - system
+  level: smoke
+  requires:
+  - bootrom
+- id: arch-umon-002
+  file: arch/umon/m5_perm_mask_illi.s
+  platforms:
+  - system
+  level: smoke
+  requires:
+  - bootrom
+- id: arch-umon-003
+  file: arch/umon/m5_perm_reserved_illi.s
+  platforms:
+  - system
+  level: smoke
+  requires:
+  - bootrom
+- id: arch-umon-004
+  file: arch/umon/m5_perm_unimpl_cfxreg.s
+  platforms:
+  - system
+  level: smoke
+  requires:
+  - bootrom
+- id: arch-umon-005
+  file: arch/umon/m5_semi_exit.s
+  platforms:
+  - system
+  level: smoke
+  requires:
+  - bootrom
+  - semihosting
+- id: arch-umon-006
+  file: arch/umon/m5_semi_exit_extended.s
+  platforms:
+  - system
+  level: smoke
+  requires:
+  - bootrom
+  - semihosting
+- id: arch-umon-007
+  file: arch/umon/m5_semi_write.s
+  platforms:
+  - system
+  level: smoke
+  requires:
+  - bootrom
+  - semihosting
+- id: arch-umon-008
+  file: arch/umon/m5_semi_write0.s
+  platforms:
+  - system
+  level: smoke
+  requires:
+  - bootrom
+  - semihosting
+- id: arch-umon-009
+  file: arch/umon/m5_semi_writec.s
+  platforms:
+  - system
+  level: smoke
+  requires:
+  - bootrom
+  - semihosting
+- id: arch-umon-010
+  file: arch/umon/m5_trap_escape.s
+  platforms:
+  - system
+  level: smoke
+  requires:
+  - bootrom

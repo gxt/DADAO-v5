@@ -53,7 +53,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-minmax-probe check-fma-probe check-clmul-probe \
         check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
-        check-inst check-inst-smoke check-tests-index \
+        check-inst check-inst-smoke check-tests-index check-arch check-arch-smoke \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
@@ -100,7 +100,7 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       build-builtins build-bootrom build-picolibc build-musl build-musl-shared \
                       test-codegen test-elf test-semihost test-m6 test-picolibc-smoke \
                       check-lit check-lit-full check-qemu-semantics check-qemu-smoke \
-                      check-inst check-inst-smoke \
+                      check-inst check-inst-smoke check-arch check-arch-smoke \
                       check-picolibc-tests check-picolibc-tests-full check-rnd-probe \
                       check-minmax-probe check-fma-probe check-clmul-probe \
                       check-testcases-suites check-testcases-suites-full \
@@ -171,7 +171,7 @@ help:
 	@echo "  make clean-work      Remove generated .work content only"
 	@echo "  make validate-vectors  Validate tests/inst vectors schema/inventory/coverage (L1)"
 	@echo "  make check           Run repository-level structural checks (L1: static + component smoke)"
-	@echo "  make check-modules   Run L2 module functional representative set (check-lit + check-interface + check-inst-smoke + test-codegen/elf/semihost + probes)"
+	@echo "  make check-modules   Run L2 module functional representative set (check-lit + check-interface + check-inst-smoke + test-codegen/elf + check-arch-smoke + probes)"
 	@echo "  make check-full      Run L3 fuller checks (check-inst + test-m6; check-lit-full via test-m6)"
 	@echo "  make check-components  Component availability smoke (llc/clang --print-targets/qemu; L1)"
 	@echo "  make check-inst-smoke  inst semantic smoke (representative subset; L2; TESTCASES-072t)"
@@ -210,7 +210,9 @@ help:
 	@echo "  make check-lit-full   Run full generated lit MC suite from contracts/opcodes.yaml (opt-in; TESTCASES-037t)"
 	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t)"
 	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t)"
-	@echo "  make test-semihost    Run M5 SEE/semihosting E2E gate (bootrom+bin via -semihosting, console+SYS_EXIT, 25 svc; INTEG-020t)"
+	@echo "  make check-arch-smoke  arch smoke: SEE/semihosting + cfx permission + 25 svc (L2; TESTCASES-073t)"
+	@echo "  make check-arch      arch full cfx set: arch-smoke + cfx min-ROM probes (L3; TESTCASES-073t)"
+	@echo "  make test-semihost    Alias -> check-arch-smoke (旧名保留，判据未改; TESTCASES-073t)"
 	@echo "  make test-m6          Run M6 E2E gate (lli value-level diff + Embench all benches -O0/-O2 + full lit MC suite; opt-in, INTEG-025t)"
 	@echo "  make check-patch-tree  Check component patch tree (docs/Process-01, 9 assertions)"
 	@echo "  make check-index-blobs  Check new-file patch index blob hashes (INFRA-038t/ISS-119)"
@@ -606,7 +608,7 @@ _locked-install-cfx-aliases:
 	@echo "install-cfx-aliases: PASS"
 
 # build-bootrom (QEMU-047t / ADR-0020 D12): assemble and link the SEE bootrom
-# firmware with the project toolchain (llvm-mc + ld.lld + tests/scripts/
+# firmware with the project toolchain (llvm-mc + ld.lld + tests/shared/bootrom/
 # bootrom.lds; ADR-0003 / ADR-0019 / contract-elf §6.1.2) and emit the flat
 # `-bios` image, plus the sample user application loaded by `-kernel`
 # (ADR-0004 D2.3 path B: raw-bin dual image).  Tools come from the install root
@@ -619,10 +621,10 @@ _locked-build-bootrom:
 	@test -x $(LLD_BIN) || { echo "build-bootrom: ERROR: $(LLD_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "build-bootrom: ERROR: $(LLVM_OBJCOPY_BIN) not found — run 'make install-host' first"; exit 1; }
 	@mkdir -p $(BOOTROM_DIR)
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/scripts/bootrom.S -o $(BOOTROM_DIR)/bootrom.o
-	$(LLD_BIN) -T tests/scripts/bootrom.lds $(BOOTROM_DIR)/bootrom.o -o $(BOOTROM_DIR)/bootrom.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/bootrom.S -o $(BOOTROM_DIR)/bootrom.o
+	$(LLD_BIN) -T tests/shared/bootrom/bootrom.lds $(BOOTROM_DIR)/bootrom.o -o $(BOOTROM_DIR)/bootrom.elf
 	$(LLVM_OBJCOPY_BIN) -O binary $(BOOTROM_DIR)/bootrom.elf $(BOOTROM_DIR)/bootrom.bin
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/scripts/bootrom_app.S -o $(BOOTROM_DIR)/bootrom_app.o
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/bootrom_app.S -o $(BOOTROM_DIR)/bootrom_app.o
 	$(LLVM_OBJCOPY_BIN) -O binary --only-section=.text $(BOOTROM_DIR)/bootrom_app.o $(BOOTROM_DIR)/bootrom_app.bin
 	@echo "build-bootrom: PASS (outputs under $(BOOTROM_DIR))"
 
@@ -844,13 +846,15 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
 
-# L2 各模块功能代表集 (INFRA-058t). 注: test-semihost 自带对 `check`(L1) 的无回归前置
-# （by design，见 INTEG-020t），故 `make check-modules` 会顺带跑 L1。
-_locked-check-modules: check-interface check-lit check-inst-smoke test-codegen test-elf test-semihost check-picolibc-tests check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe check-code-range
+# L2 各模块功能代表集 (INFRA-058t)。注（TESTCASES-073t）：原 `test-semihost` 自带
+# 对 `check`(L1) 的无回归前置（INTEG-020t）；现 L2 只列 `check-arch-smoke`（判据面
+# 与 test-semihost 相同、无 L1 前置），故 L2 不再顺带跑 L1 —— 一个检查只在一层。
+# 旧名 `test-semihost` 仍保留该前置（旧命令行行为等价）。
+_locked-check-modules: check-interface check-lit check-inst-smoke test-codegen test-elf check-arch-smoke check-picolibc-tests check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe check-code-range
 	@echo "module checks (L2): PASS"
 
 # L3 较完整 (INFRA-058t). check-lit-full 由 test-m6 步骤 [1/3] 承载（不在本目标重复列出）。
-_locked-check-full: check-inst test-m6
+_locked-check-full: check-inst check-arch test-m6
 	@echo "full checks (L3): PASS"
 
 # Vector schema/inventory/coverage gate (TESTCASES-002t). Requires the M1
@@ -1217,49 +1221,73 @@ _locked-test-elf: install-host
 	  if [ $$rc -ne 0 ]; then echo "test-elf: FAIL (rc=$$rc)"; exit $$rc; fi; \
 	  echo "test-elf: PASS"
 
-# M5 SEE/semihosting end-to-end gate (INTEG-020t).  Five components, all
-# fail-closed (any failure => non-zero exit):
-#   1. forward: SEE bootrom (`-bios`, QEMU-047t) + flat bin application
-#      (`-kernel`) served through `-semihosting`; the semihosting console is
-#      captured with a file chardev and the host exit code is the SYS_EXIT
-#      status.
-#   2. cfx-level permission counter-examples (4 cases carried by the same
-#      driver: reserved cfxha / masked trap => ILLI; unimplemented cfx /
-#      out-of-range scratch register => CFXREG; ADR-0020 D9).
-#   3. full 25-service table coverage (QEMU-046t min-ROM probe, >=1 per id).
-#   4. no regression: test-elf (5/5), test-codegen (15/15) and check (which
-#      includes check-lit) -- enforced as prerequisites.
-#   5. INTEG open/close registration (INTEG-021m): recorded in this target's
-#      logs and the task book.
-# Tools come from the install root (ADR-0016 D9); the bootrom from
-# `make build-bootrom`.  Coexists with (does not replace) test-elf/test-codegen.
-SEMIHOST_E2E_WORK = $(TEST_ARTIFACTS_DIR)/m5-e2e
-SEMIHOST_E2E_LOG = .work/log/integ/test-semihost.log
-SEMIHOST_PROBE_LOG = .work/log/integ/test-semihost-probe.log
-MIN_ROM_PROBE = tools/qemu/min_rom_probe_046t.py
+# arch scope 端到端门控（TESTCASES-073t；Process-09 §6/§8 分层）
+# 用例资产：`tests/arch/umon/`（m5 SEE/semihosting + cfx 权限向量，条数由 manifest 现场统计）
+# 驱动：`tools/testcases/arch/run_m5_e2e.py`（flat-bin 流水线）+
+#       `tools/testcases/arch/min_rom_probe_*.py`（min-ROM 场景探针，原 `tools/qemu/`）
+# 判据与原 `test-semihost`（INTEG-020t）**逐条未改**，只搬家 + 接线：
+#   1. forward: SEE bootrom (`-bios`) + flat bin (`-kernel`) + `-semihosting`；
+#      console / host 文件 / SYS_EXIT 退出码逐条比对，bootrom 生效性由 `-d cpu` 观测。
+#   2. cfx-level permission counter-examples（4 例随同一驱动：reserved cfxha / masked
+#      trap => ILLI；unimplemented cfx / RO-write => CFXREG；ADR-0020 D9）。
+#   3. 25 服务表覆盖（`min_rom_probe_046t`，>=1/id）。
+#   `check-arch-smoke` = **L2 代表集**（上述 1–3；= 原 test-semihost 的测试面）；
+#   `check-arch` = **L3**（= smoke + cfx 场景探针 044/045/049）。
+# 工具/LD 从安装根取（ADR-0016 D9），bootrom 由 `make build-bootrom` 产出。
+ARCH_M5_DIR = tests/arch/umon
+ARCH_M5_RUNNER = tools/testcases/arch/run_m5_e2e.py
+ARCH_MIN_ROM_DIR = tools/testcases/arch
+ARCH_E2E_WORK = $(TEST_ARTIFACTS_DIR)/arch/m5-e2e
+ARCH_SMOKE_LOG = .work/log/arch/check-arch-smoke.log
+ARCH_PROBE_LOG = .work/log/arch/check-arch-smoke-svc.log
+# L3 追加的 cfx 场景探针（原 min_rom_probe_*）：SEE/trap/escape 语义面 + RAM 映射/CFXMEM。
+# `045t` = trap/escape/cfx2* 全寄存器面；`049t` = RAM 映射 + 越界 cause；
+# `047t` 沿用旧期望（`stack_in_ram0` 与 bootrom.S 常量不一致）⇒ 不入本门控，见任务书遗留。
+ARCH_CFX_PROBES = 044t 045t 049t
 
-_locked-test-semihost: install-host build-bootrom test-elf test-codegen check
-	@test -x $(LLVM_MC_BIN) || { echo "test-semihost: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
-	@test -x $(LLVM_OBJCOPY_BIN) || { echo "test-semihost: ERROR: $(LLVM_OBJCOPY_BIN) not found"; exit 1; }
-	@test -x $(QEMU_BIN) || { echo "test-semihost: ERROR: $(QEMU_BIN) not found"; exit 1; }
-	@test -f $(MIN_ROM_PROBE) || { echo "test-semihost: ERROR: $(MIN_ROM_PROBE) not found"; exit 1; }
-	@test -f $(BOOTROM_DIR)/bootrom.bin || { echo "test-semihost: ERROR: $(BOOTROM_DIR)/bootrom.bin not found (run 'make build-bootrom')"; exit 1; }
-	@mkdir -p .work/log/integ
-	@rm -rf $(SEMIHOST_E2E_WORK)
-	@echo "test-semihost: [1/2] forward semihosting + cfx-level permission counter-examples"; \
-	  $(PYTHON) tools/integ/run_m5_e2e.py \
+_locked-check-arch-smoke: install-host build-bootrom
+	@test -x $(LLVM_MC_BIN) || { echo "check-arch-smoke: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
+	@test -x $(LLVM_OBJCOPY_BIN) || { echo "check-arch-smoke: ERROR: $(LLVM_OBJCOPY_BIN) not found"; exit 1; }
+	@test -x $(QEMU_BIN) || { echo "check-arch-smoke: ERROR: $(QEMU_BIN) not found"; exit 1; }
+	@test -f $(ARCH_MIN_ROM_DIR)/min_rom_probe_046t.py || { echo "check-arch-smoke: ERROR: min_rom_probe_046t.py not found"; exit 1; }
+	@test -f $(BOOTROM_DIR)/bootrom.bin || { echo "check-arch-smoke: ERROR: $(BOOTROM_DIR)/bootrom.bin not found (run 'make build-bootrom')"; exit 1; }
+	@mkdir -p .work/log/arch
+	@rm -rf $(ARCH_E2E_WORK)
+	@echo "check-arch-smoke: [1/2] forward semihosting + cfx-level permission counter-examples"; \
+	  $(PYTHON) $(ARCH_M5_RUNNER) \
 	    --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
 	    --qemu $(QEMU_BIN) --bootrom $(BOOTROM_DIR)/bootrom.bin \
-	    --work-dir $(SEMIHOST_E2E_WORK) > $(SEMIHOST_E2E_LOG) 2>&1; \
+	    --vectors-dir $(ARCH_M5_DIR) --expected $(ARCH_M5_DIR)/expected.yaml \
+	    --work-dir $(ARCH_E2E_WORK) > $(ARCH_SMOKE_LOG) 2>&1; \
 	  rc=$$?; \
-	  tail -n 30 $(SEMIHOST_E2E_LOG); \
-	  if [ $$rc -ne 0 ]; then echo "test-semihost: FAIL (forward/permission rc=$$rc)"; exit $$rc; fi
-	@echo "test-semihost: [2/2] 25-service table coverage (QEMU-046t probe)"; \
-	  $(PYTHON) $(MIN_ROM_PROBE) --qemu $(QEMU_BIN) > $(SEMIHOST_PROBE_LOG) 2>&1; \
+	  tail -n 30 $(ARCH_SMOKE_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (forward/permission rc=$$rc)"; exit $$rc; fi
+	@echo "check-arch-smoke: [2/2] 25-service table coverage (min_rom_probe_046t)"; \
+	  $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_046t.py --qemu $(QEMU_BIN) > $(ARCH_PROBE_LOG) 2>&1; \
 	  rc=$$?; \
-	  tail -n 4 $(SEMIHOST_PROBE_LOG); \
-	  if [ $$rc -ne 0 ]; then echo "test-semihost: FAIL (service coverage rc=$$rc)"; exit $$rc; fi
-	@echo "test-semihost: PASS (forward + permission + 25-service + no-regression + INTEG registration)"
+	  tail -n 4 $(ARCH_PROBE_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (service coverage rc=$$rc)"; exit $$rc; fi
+	@echo "check-arch-smoke: PASS (forward + permission + 25-service)"
+
+# L3：arch 全 cfx 场景（smoke + cfx min-ROM 探针）。任一探针非零 ⇒ 整体红。
+_locked-check-arch: check-arch-smoke
+	@mkdir -p .work/log/arch
+	@fail=0; for p in $(ARCH_CFX_PROBES); do \
+	  echo "check-arch: [$$p] cfx min-ROM probe"; \
+	  $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_$$p.py > .work/log/arch/check-arch-probe-$$p.log 2>&1; \
+	  rc=$$?; \
+	  tail -n 3 .work/log/arch/check-arch-probe-$$p.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-arch: FAIL (min_rom_probe_$$p rc=$$rc)"; fail=1; fi; \
+	done; \
+	if [ $$fail -ne 0 ]; then exit 1; fi; \
+	echo "check-arch: PASS (arch-smoke + cfx probes: $(ARCH_CFX_PROBES))"
+
+# 旧名别名（TESTCASES-073t）：`test-semihost` 指向等价新目标（判据未改）。
+# 旧前置 `test-elf`/`test-codegen`/`check`（无回归意义，INTEG-020t）**保留**，
+# 故旧命令行行为与结果等价；删除旧入口见 TESTCASES-076t。
+_locked-test-semihost: check-arch-smoke test-elf test-codegen check
+	@echo "test-semihost: Alias -> check-arch-smoke (TESTCASES-073t)"
+
 
 # M6 end-to-end gate (INTEG-025t).  Three components, all fail-closed:
 #   1. value-level differential: the same LLVM IR runs on the host `lli` (X86)

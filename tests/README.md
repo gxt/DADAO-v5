@@ -7,13 +7,17 @@
 
 ---
 
-## 0. 四 scope 骨架（P1 已落；P2 = inst 已迁）
+## 0. 四 scope 骨架（P1 已落；P2 = inst、P3 = arch 已迁）
 
 `Process-09` 的四分法骨架已落盘（P1，`TESTCASES-071t`）。
 **P2（`TESTCASES-072t`，2026-10-27）已完成 inst 迁移**：`tests/vectors/*` 与顶层
 `atomics/clmul/fma/minmax/roundint` 探针 → `tests/inst/<ext>/`；inst harness →
 `tools/testcases/{lib,inst}/`（`tests/scripts/` 留薄 wrapper，旧命令行等价可用）。
-其余 scope（arch/unit/tset）仍待 `TESTCASES-073t`~`075t`，旧目录暂按原样保留。
+**P3（`TESTCASES-073t`，2026-10-27）已完成 arch 迁移**：`tests/llvm/codegen/m5` →
+`tests/arch/umon/`；`tools/qemu/min_rom_probe_*` → `tools/testcases/arch/`；bootrom 源
+（`bootrom.S`/`bootrom_app.S`/`bootrom.lds`）→ `tests/shared/bootrom/`（旧路径留薄
+wrapper / 符号链接）；门控 `check-arch-smoke`（L2）/ `check-arch`（L3），旧名
+`test-semihost` = 别名。其余 scope（unit/tset）仍待 `TESTCASES-074t`/`075t`。
 
 | scope | 测什么 | `platforms` 允许值 | 目录 |
 |---|---|---|---|
@@ -30,7 +34,7 @@
 
 ---
 
-## 1. 目录地图（P2 = inst 迁移后；其余 scope 仍为迁移前状态）
+## 1. 目录地图（P2 = inst、P3 = arch 迁移后；unit/tset 仍为迁移前状态）
 
 | 路径 | 层 | 是什么 | 自动入口 |
 |---|---|---|---|
@@ -42,13 +46,14 @@
 | `llvm/lit/CodeGen/DADAO/` | E | IR→汇编/MIR **结构**断言（63） | `make check-lit` |
 | `llvm/codegen/`（M3） | E | IR→运行（15 程序） | `make test-codegen` |
 | `llvm/codegen/m4/` | E | 多 TU/多段 ELF（5 程序） | `make test-elf` |
-| `llvm/codegen/m5/` | S | semihosting/CFX 权限（10 程序） | `make test-semihost` |
+| `arch/umon/` | S | cfx_umon：semihosting/CFX 权限执行向量（10 程序 + 清单；原 `llvm/codegen/m5/`，旧路径为符号链接） | `make check-arch-smoke`（L2）/ `check-arch`（L3）；旧名 `test-semihost` |
 | `llvm/codegen/m6/` | E | M6 调用约定/大帧/FP（8 程序） | **手工**（见 `llvm/codegen/m6/README.md`） |
 | `llvm/ir-lli/` | E | host `lli` vs DADAO 值级差分（19 include / 72 exclude） | `make test-m6` |
 | `e2e/lit/*.test` | E | 端到端 smoke/FP/clmul/weak/CM（14） | `make check-lit` |
 | `e2e/*.c|*.s|*.lds` | E | 上述 `.test` 的源（9 个已无 runner，见 `INVENTORY §7.4`） | 经 `.test` |
-| `scripts/` | U 载体 | **迁移后只剩薄 wrapper**（6 个 inst harness 入口）+ bootrom/crt0/lds/embench 胶水（P3/P5 再迁） | 旧命令行转发到 `tools/testcases/{lib,inst}/` |
-| `qemu/` | — | 占位（QEMU 组件测试落点） | — |
+| `shared/bootrom/` | S 载体 | SEE bootrom 源 + 链接脚本（`bootrom.S`/`bootrom_app.S`/`bootrom.lds`；`make build-bootrom` 用） | — |
+| `scripts/` | U 载体 | **只剩薄 wrapper**（inst harness 入口 + bootrom 三件符号链接）+ crt0/lds/embench 胶水（P5 再迁） | 旧命令行转发到 `tools/testcases/{lib,inst}/` |
+| `qemu/` | — | 占位（QEMU 组件测试落点）；min-ROM 探针已迁 `tools/testcases/arch/` | — |
 | `case-ledger.tsv` | — | 逐条身份清单（1,962 行含表头；生成物） | `make check-case-ledger`（L1） |
 
 ---
@@ -59,11 +64,13 @@
 
 ```sh
 make check            # L1：仓库完整性（不跑被测语义）
-make check-modules    # L2：模块代表集（lit 子集 + inst 冒烟 + codegen/elf/semihost + 4 个 probe）
-make check-full       # L3：inst 全量（check-inst）+ test-m6（慢）
+make check-modules    # L2：模块代表集（lit 子集 + inst 冒烟 + codegen/elf + arch 冒烟 + 4 个 probe）
+make check-full       # L3：inst 全量（check-inst）+ arch 全 cfx（check-arch）+ test-m6（慢）
 
 make check-inst-smoke # inst 代表集（L2；旧名 check-qemu-smoke = 别名）
 make check-inst       # inst 全量（L3；旧名 check-qemu-semantics = 别名）
+make check-arch-smoke # arch 代表集（L2：SEE/semihosting + cfx 权限 + 25 服务；旧名 test-semihost = 别名）
+make check-arch       # arch 全 cfx（L3：arch-smoke + cfx min-ROM 探针 044/045/049）
 ```
 
 ### 2.2 单个向量文件 / 单个用例（手工）
@@ -83,6 +90,15 @@ python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/ --batch --jobs 8
 ```
 
 前置：`make install-host`（`qemu-system-dadao` 取自安装根，见 `tools/testcases/lib/README.md` 或 `tests/scripts/README.md`）。
+
+arch（`tests/arch/`）单跑：
+
+```sh
+make build-bootrom                                   # SEE bootrom（tests/shared/bootrom/）
+python3 tools/testcases/arch/run_m5_e2e.py --only m5_semi_exit
+python3 tools/testcases/arch/run_m5_e2e.py --inject   # 反例自检（FAIL ⇒ 还原 ⇒ 回绿）
+python3 tools/testcases/arch/min_rom_probe_044t.py --list   # cfx min-ROM 场景探针
+```
 
 ### 2.3 lit（汇编器/CodeGen/E2E）
 
@@ -121,7 +137,7 @@ make check-picolibc-tests-full     # 全量（235，最近 1 fail / 3 blocked）
 
 | 产物 | 目录 |
 |---|---|
-| `test-codegen` / `test-elf` / `test-semihost` | `codegen-e2e/` / `elf-e2e/` / `m5-e2e/` |
+| `test-codegen` / `test-elf` / `check-arch-smoke`（旧名 `test-semihost`） | `codegen-e2e/` / `elf-e2e/` / `arch/m5-e2e/` |
 | `test-m6` | `ir-lli-diff/` / `m6-embench/` |
 | `check-inst-smoke` / `check-inst`（旧名 `check-qemu-{smoke,semantics}`） | `harness/smoke/` / `harness/gate/` |
 | lit | `lit-output/{DADAO-MC,DADAO-CodeGen,DADAO-E2E,DADAO-MC-gen}/` |
