@@ -110,7 +110,7 @@ reg     cfx_ptw_ptbr       4   9  0   64  canonical
 
 **重跑记录（真实 rc）**：
 - `check-cfx-alias-table` / `check-cfx-alias-install` / `check-cfx-vectors` / `check-patch-tree` / `check-musl-freshness`：**rc=0**（本人逐条实跑）。
-- `make check` **rc=0**、`make check-lit` **rc=0**（本人后台实跑）；`make check-modules` rc=0 + lit `Passed: 154 (100.00%)`（architect 日志 modules.log，本人抽查核对）；`run.sh` 全量 **49/49 PASS**（architect evidence.log）+ 本人两轮 `--quick` 交叉验证（见下）。
+- `make check` **rc=0**、`make check-lit` **rc=0**、`make check-modules` **rc=0**、`run.sh` 全量 **49/49 PASS（rc=0）**（均本人后台实跑，17:20–17:36；lit `Passed: 154 (100.00%)`）；另与 architect 留证日志交叉一致 + 本人两轮 `--quick` 交叉验证（见下）。
 - 三处表 md5 一致 `ab91f025…`（contracts / build 树 / 安装根）。
 
 **独立不重建证明**：`cp` 源表到 /tmp、sed 改一条 **reg**（`cfx_hart_cycle_lo`→`cfx_hartx_cycle_lo`）→ `DADAO_CFX_ALIAS_FILE` 指向它：objdump 同一二进制立即打 `cfx_hartx_cycle_lo`；`llvm-mc` 新名 rc=0、旧名 rc=1（`invalid operand`）；`llvm-mc`/`llvm-objdump` md5 前后一致（`d00051c5…`/`35bd0b84…`，未重建）。默认路径：异 cwd 无环境变量仍打名字（`<exe>/../share/dadao/` 生效）。
@@ -122,3 +122,19 @@ reg     cfx_ptw_ptbr       4   9  0   64  canonical
 **约束核验**：① `check-cfx-alias-install` 不在 L1（Makefile:835 依赖表核对，0 命中）；② 补丁树合规：旧 `DADAOCfxAlias.inc.patch` 已删、新 `DADAOCfxAliasTable.{h,cpp}.patch` 入、series 两行新增一致，`check-patch-tree` rc=0；③ 生成器 `--check` 从 spec D12/D13 投影（非从 LLVM/实现反推）；④ `build_musl.py`/`generate_lit_vectors.py`/`check_contracts_dir.py` 改动为名字化必要适配（期望由 `contracts/cfx-aliases.txt` 派生、断言未删未弱化）；⑤ 提交范围与完成区「修改文件」一致，未越界改 spec/契约正文；⑥ 快照对账：验收前后 `git status -uall` 均 0 行，工具二进制 md5 未变，注入仅 /tmp + 安装根副本且已还原。
 
 **判决**：**Accepted**（验收标准 1–7 全部经本人重跑/独立反证成立；文档级无发现）。
+
+#### 第 1 轮 reviewer 验收（并行独立复核实例，互证不改写上记录）
+
+**方式**：本人实跑全部验收命令 + 独立不重建注入（/tmp 改 **reg** 条目，异于 engineer 的 scalar 注入）；不采信完成区转述。
+
+**重跑（真实 rc）**：`make check` rc=0（`repository checks (L1): PASS`）；`make check-modules` rc=0（`module checks (L2): PASS`，含 lit `Total 154 / Passed 154`）；`bash .work/evidence/LLVM-135t/run.sh` rc=0 = **49/49 PASS**（含其注入→rc=1→`cp`+md5→回绿）；`check-cfx-alias-table` rc=0（13 scalars/894 regs，本人 `grep -c` 同为 13/894）；`check-cfx-alias-install` rc=0（6 checks）；`check-cfx-vectors` rc=0（16/16）；`check-patch-tree` rc=0（5 组件/203 补丁）；`check-musl-freshness`、`check-milestones-fresh` rc=0；`make install-cfx-aliases` rc=0（仅拷贝）。三处表 md5 一致 `ab91f025…`。
+
+**独立不重建证明**（`/tmp/opencode/LLVM-135t/review-inject.sh` **26/26 PASS rc=0**）：`cp` 源表→sed `reg cfx_hart_cycle_lo`→`cfx_hartx_cycle_lo`→`DADAO_CFX_ALIAS_FILE=<tmp>`：同一 `.o` 立即打 `cfx2rd cfx_hartx_cycle_lo, rd1`、旧名消失；`llvm-mc` 新名 rc=0/旧名 rc=1；`clang`/`llvm-mc`/`llvm-objdump` md5 前后一致（`f64823e4…`/`d00051c5…`/`35bd0b84…`）、源表 md5 未动。默认路径：注入安装根表 `scalar cfx_umon`→`cfx_umonx`（cp+md5）⇒ 无环境变量时旧名拒/新名通 ⇒ `<exe>/../share/dadao/` 生效，还原后 md5 复归、回绿。cc1as：`-mllvm -dadao-cfx-alias=` rc=0、不带选项 rc=1、默认表 `trap cfx_umon, 0` rc=0（sandbox 不拦）。
+
+**缺表/回退/fail-closed**：缺表+名字 ⇒ rc=1 `cannot resolve 'cfx_umon': cannot read cfx alias table … No such file`；缺表+objdump ⇒ rc=0 裸回退 `cfx15, cg8, rc2, rd1`/`trap cfx0, 0`；`cfx0` 无表可汇编 rc=0。表损坏 3 例（越界 `99`/缺 `# format=1`/缺字段）均 asm rc=1 + `invalid cfx alias table … line N`，objdump rc=0 裸回退。名字覆盖 `cfx_hart_cycle_lo`/`cfx_ptw_ptbr[3]`/`cfx_time_value`/`trap cfx_umon` 汇编 rc=0、反汇编名字与编码逐字节相符；reserved `trap cfx20, 0`、未知 `cfx2rd cfx0, cg8, rc1, rd2` 裸回退。
+
+**约束核验**：① `check-cfx-alias-install` 不在 `_locked-check`（grep 0 命中）；② 补丁树：旧 `DADAOCfxAlias.inc.patch` 已删、新 `DADAOCfxAliasTable.{h,cpp}.patch` 入、`series` 一致，`check-patch-tree` rc=0；`scopedDisable()` 仅在 `loadTable()` 内包住读表+解析；③ `build_musl.py`（同一指令双写法）/`generate_lit_vectors.py`（ASM 期望由表派生）/`check_contracts_dir.py`（白名单仅 +`cfx-aliases.txt`）/`README-m5` 均为名字化必要适配，断言未删未弱化；④ 改动集与完成区「修改文件」逐条对齐，无 `spec/`、契约正文越界；⑤ 快照对账：验收起 `git status -uall` 0 行；验收后仅任务书 1 行差异（**并行实例** 17:37 修改，非我所改、未动），工具/表 md5 前后一致，注入仅 /tmp + 安装根副本且已还原。
+
+**剩余风险**：printer 与生成器 canonical 选名规则重复（engineer F8，已由 `check-lit` 交叉校验）；`build_musl.py` 接受两种拼写（语义同一指令，非弱化）。
+
+**判决**：**Accepted**（验收标准 1–7 全部经本人重跑与独立反证成立；与并行实例记录互证一致）。
