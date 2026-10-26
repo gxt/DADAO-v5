@@ -1,6 +1,6 @@
 # DADAO Hypervisor Execution Environment
 
-> **版本：0.1.3**（与 HBI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
+> **版本：0.1.4-rc**（与 HBI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
 
 本文档定义 DADAO 超管系统运行环境（Hypervisor Execution Environment, HEE）的体系结构规范。
 
@@ -51,6 +51,10 @@ hmon 为 hypv 下的同步异常处理核芯功能扩展，处理 hypv 下的同
 ## 附录：版本与变更记录
 
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
+
+### 0.1.4-rc（未发布）
+
+- 版本号与 HBI 同步（HBI §3 补 `HBI_<name>_INIT` 不落在 semihosting 区 `0x3FF00–0x3FFFF` 的说明）；本册正文不变。
 
 ### 0.1.3（2026-10-26）
 

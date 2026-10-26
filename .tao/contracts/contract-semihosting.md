@@ -14,10 +14,10 @@
 
 ## §1 入口判定
 
-- `trap cfxHA, immu18` 中 **`immu18[17:16] == 2'b11`** ⇒ 该 `trap` 为 **semihosting 调用**（**与 `cfxha` 无关**）。[ADR-0020 D1][Machine-01 §5.1]
-- **调用形如 `trap <any cfxha>, 0x30000`**：semihosting 用哪个 `cfxha` **不指定**（**任意 `cfxha` 等效**），判定**只依赖 `immu18[17:16]`**，**与 `cfxha` 取值无关**。（用户 2026-10-11 裁定「**写成任意 cfxha**」）[ADR-0020 D1][Machine-01 §5.1]
+- `trap cfxHA, immu18` 中 **`immu18[17:8] == 0x3FF`**（即 `0x3FF00–0x3FFFF`）⇒ 该 `trap` 为 **semihosting 调用**（**与 `cfxha` 无关**）。[ADR-0038 D1][Machine-01 §5.1]
+- **调用形如 `trap <any cfxha>, 0x3FF00`**：服务号仍占 `immu18` 低 8 位（`0x3FF00 + op`）；semihosting 用哪个 `cfxha` **不指定**（**任意 `cfxha` 等效**），判定**只依赖 `immu18[17:8]`**，**与 `cfxha` 取值无关**。（用户 2026-10-11 裁定「**写成任意 cfxha**」）[ADR-0038 D1][Machine-01 §5.1]
 - 该 tag 判定**无上游 spec 依据、属架构自定义**：`DADAO-22` 只定义 `cfxha`=服务提供者、`immu18`=功能编号，`SimRISC-11 §陷入指令` 只定义 `immu18`=功能编号，二者均无 semihosting 语义。[ADR-0020 D1][DADAO-22 §1. 调用约定][SimRISC-11 §陷入指令]
-- **两条路**：`== 2'b11` 走 semihosting 短路；`≠ 2'b11` 走一般 trap 进入 cfx 向量。不得把 semihosting 混入向量路径。[ADR-0020 D10][Machine-01 §4]
+- **两条路**：`immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`）走 semihosting 短路；`immu18 < 0x3FF00` 走一般 trap 进入 cfx 向量。不得把 semihosting 混入向量路径。[ADR-0020 D10][Machine-01 §4]
 
 ## §2 调用约定
 

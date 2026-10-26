@@ -1,6 +1,6 @@
 # HBI（超管系统二进制接口）
 
-> **版本：0.1.3**（与 HEE 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
+> **版本：0.1.4-rc**（与 HEE 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
 
 HBI 定义 H-mode（超管模式）核芯功能扩展提供的功能调用，供 S-mode 内核或其它核芯功能扩展请求需要 H-mode 权限的系统服务。
 
@@ -35,6 +35,7 @@ hypv 引导代码完成最小初始化后，按以下流程将控制权**完全�
    ```
 
    - `HBI_<name>_INIT` 的 `immu18` 编码：bits[17:16] = `0b11`、bits[15:0] = `1`，即 `0x30001`。
+   - 该编码**不落在 semihosting 区**（`0x3FF00–0x3FFFF`），按一般 trap 进入目标 cfx 向量。
    - 各 cfx 的 `hypv_excp_vector` 复位值应指向其 HBI 初始化入口（由该 cfx 的实现提供）。
    - 初始化内容至少包括：清除自身 `hypv_cg_reg_deleg`（允许 supv 访问 cg；cg3 固定禁止）、设置本 cfx 作为**源**时各模式可调用的目标：`<mode>_global_cfx_mask` 与 `<mode>_{trap,escape,cfx2rd,cfx2rc}_cfx_mask` 中允许的目标位（位 = 目标 cfx），以及 `<mode>_switch_run_mode`/`<mode>_switch_cfx_mask`/`<mode>_excp_vector`；其余由各 cfx 自行定义。
    - **引导期不会被掩码拦**：`trap` 查的是**源 cfx**（= power）的 `hypv_*_cfx_mask`，复位全 0；`inner_cfx_mask` 只影响异步中断（CFXTRAP 不可屏蔽，步骤 2 跳过）。
@@ -58,6 +59,10 @@ S-mode 内核入口通过 `rb17` 获取设备树指针；`rb16` 为入口地址�
 ## 附录：版本与变更记录
 
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
+
+### 0.1.4-rc（未发布）
+
+- §3 补充：`HBI_<name>_INIT`（`0x30001`）不落在 semihosting 区（`0x3FF00–0x3FFFF`），按一般 trap 进入目标 cfx 向量。
 
 ### 0.1.3（2026-10-26）
 

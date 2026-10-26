@@ -1,6 +1,6 @@
 # Machine-01：测试机运行环境（v5 自定）
 
-> **状态**：生效（0.3.1，2026-10-16，用户裁定：正文术语 `PC` → `IP`；完整版本记录见文末「附录：版本与变更记录」）
+> **状态**：当前（0.3.2-rc，未发布；0.3.1 生效于 2026-10-16，用户裁定：正文术语 `PC` → `IP`；完整版本记录见文末「附录：版本与变更记录」）
 >
 > **版本与变更记录细则**：版本号 `x.y.z`——**`x=0` 表示尚未正式发布；正式发布后 `x≥1`**；**大改动 `y+1`、有影响的小改 `z+1`**；当前版本见上行「状态」。
 >
@@ -81,7 +81,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 `trap cfxha, immu18` 的 `cfxha` 指定服务提供者（目标核芯功能扩展），`immu18` 为功能编号。[DADAO-22 §1. 调用约定]
 
-当 `immu18[17:16] ≠ 2'b11` 时，为**一般 trap**：先过权限检查，允许后**走 `DADAO-12 §5` 异常进入流程**（步骤 1–10，含步骤 10「跳转至异常向量」`inner_inst_pointer <= cfx_⟨cfxname⟩_<mode>_excp_vector`）——即**进入该 cfx 的异常向量**。[DADAO-12 §5. 异常进入与异常退出][ADR-0020 D10]
+当 `immu18 < 0x3FF00`（即不在 semihosting 区 `0x3FF00–0x3FFFF`）时，为**一般 trap**：先过权限检查，允许后**走 `DADAO-12 §5` 异常进入流程**（步骤 1–10，含步骤 10「跳转至异常向量」`inner_inst_pointer <= cfx_⟨cfxname⟩_<mode>_excp_vector`）——即**进入该 cfx 的异常向量**。[DADAO-12 §5. 异常进入与异常退出][ADR-0020 D10]
 
 ### 4.2 `escape` → 异常退出流程
 
@@ -93,8 +93,8 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 | 路径 | 触发条件 | 处理 | 返回 |
 |------|----------|------|------|
-| **一般 trap** | `immu18[17:16] ≠ 2'b11` | 走 `DADAO-12 §5` 异常进入流程，**进入 cfx 向量** | 由被调方 `escape` 返回 |
-| **semihosting** | `immu18[17:16] == 2'b11` | 实现层**译码短路**，**不进入向量**（同构 RISC-V `RISCV_EXCP_SEMIHOST`） | 直接 **IP 步进**返回（见 `§5`） |
+| **一般 trap** | `immu18 < 0x3FF00`（不在 `0x3FF00–0x3FFFF`） | 走 `DADAO-12 §5` 异常进入流程，**进入 cfx 向量** | 由被调方 `escape` 返回 |
+| **semihosting** | `0x3FF00 ≤ immu18 ≤ 0x3FFFF`（`immu18[17:8] == 0x3FF`） | 实现层**译码短路**，**不进入向量**（同构 RISC-V `RISCV_EXCP_SEMIHOST`） | 直接 **IP 步进**返回（见 `§5`） |
 
 两条路由由 `ADR-0020 D10` 冻结：一般 trap 与 semihosting 分离，**不得把 semihosting 混入向量路径**（否则实现者会误让 semihosting 进入向量）。[ADR-0020 D10]
 
@@ -106,9 +106,10 @@ semihosting 是 v5 测试机提供的「guest 经 `trap` 请求宿主 I/O」机�
 
 ### 5.1 判定（入口 tag）
 
-- **判定**：`trap cfxHA, immu18` 中 **`immu18[17:16] == 2'b11`** ⇒ 该 `trap` 为 **semihosting 调用**（**与 `cfxha` 无关**）。[ADR-0020 D1]
+- **判定**：`trap cfxHA, immu18` 中 **`immu18[17:8] == 0x3FF`**（即 `0x3FF00–0x3FFFF`）⇒ 该 `trap` 为 **semihosting 调用**（**与 `cfxha` 无关**）。[ADR-0038 D1]
+- **调用形如 `trap <any cfxha>, 0x3FF00`**：semihosting 服务号仍占 `immu18` 低 8 位（`0x3FF00 + op`）；用哪个 `cfxha` 不指定（任意 `cfxha` 等效），判定只依赖 `immu18[17:8]`。[ADR-0038 D1]
 - **`D1` 语义/理由说明（架构自定义）**：该 tag 判定**无上游 spec 依据、属 v5 架构自定义**——`spec/DADAO-22` 只规定 `cfxha` 为服务提供者、`immu18` 为功能编号；`spec/SimRISC-11` 只规定 `immu18` 为功能编号；二者**均无 semihosting 语义**。故本机制在 v5 中由测试机定义，guest/实现共同遵守此 tag。[ADR-0020 D1][DADAO-22 §1. 调用约定][SimRISC-11]
-- **两条路**：`immu18[17:16] == 2'b11` 走 semihosting 短路（本节）；`≠ 2'b11` 走一般 trap 进入向量（见 `§4.1`）。[ADR-0020 D10]
+- **两条路**：`immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`）走 semihosting 短路（本节）；`immu18 < 0x3FF00` 走一般 trap 进入向量（见 `§4.1`）。[ADR-0020 D10]
 
 ### 5.2 调用约定（传参/返回寄存器）
 
@@ -199,6 +200,10 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 ## 附录：版本与变更记录
 
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+
+### 0.3.2-rc（未发布）
+
+- semihosting 入口判定改为 `immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`），原按 `immu18` 高位两比特的判定作废：§4.1/§4.3 的一般 trap / semihosting 分界、§5.1 判定与调用示例同步；`HBI_<name>_INIT`（`0x30001`）落在该区之外，按一般 trap 进入目标 cfx 向量。
 
 ### 0.3.1（2026-10-16）
 

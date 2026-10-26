@@ -171,7 +171,7 @@ help:
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
 	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
 	@echo "  make check-milestones-fresh  milestones.md task-flow table gate: status/coverage/length/order/format (L1; INFRA-091t)"
-	@echo "  make check-milestone  Milestone closure: SimRISC archive structure + content sha256 + sync-nonmaskable + current-milestone m-book/its task ids + check-tasks --strict (not L1)"
+	@echo "  make check-milestone  Milestone closure: SimRISC archive structure + content sha256 + sync-nonmaskable + knowledge top-level whitelist + current-milestone m-book/its task ids + check-tasks --strict (not L1)"
 	@echo "  make check-sync-nonmaskable  Sync exception causes must not be maskable (only IPI/TIMER/UART*/… may; SPEC-175t; not L1)"
 	@echo "  make check-interface  Check cross-module interface alignment"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
@@ -805,7 +805,7 @@ _locked-clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-case-ledger check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-case-ledger check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -909,11 +909,13 @@ check-run-artifacts:
 # ③ 接 `check_tasks.py --strict`（漏收尾 = 0）。
 # ④ 同步异常不可屏蔽（`check-sync-nonmaskable`，用户 2026-10-26 裁定「同步异常全部不可屏蔽；
 #    仅异步可屏蔽」）——扫 DADAO-12/22/23 异常原因表，异步源（IPI/TIMER/UART*/…）之外出现「可」即红。
+# ⑤ `.tao/knowledge/` 顶层白名单（`check-knowledge-dir`，用户 2026-10-26 裁定「从L1摘除，
+#    放到里程碑check里」）——顶层白名单外文件即红。
 # 不并入 L1 的理由：`m` 册未建前本目标**必然红**（预期的收口信号），日常 L1 不应常态红。
-check-milestone: check-spec-archive check-spec-archive-verify check-sync-nonmaskable
+check-milestone: check-spec-archive check-spec-archive-verify check-sync-nonmaskable check-knowledge-dir
 	@$(PYTHON) tools/infra/check_milestone_tasks.py
 	@$(PYTHON) tools/infra/check_tasks.py --strict
-	@echo "check-milestone: PASS (归档结构 + 内容 sha + 同步不可屏蔽 + m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
+	@echo "check-milestone: PASS (归档结构 + 内容 sha + 同步不可屏蔽 + knowledge 顶层白名单 + m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
 
 # 同步异常不可屏蔽 (SPEC-175t; 里程碑层): 扫 DADAO-12/22/23 异常原因表的「是否可屏蔽」列，
 # 只有异步源（IPI / TIMER / UART* / 占位行 …）允许「可」；`--self-test` 内置注入→FAIL→还原→PASS。
@@ -933,8 +935,9 @@ check-spec-refs:
 check-knowledge-refs:
 	@$(PYTHON) tools/infra/check_knowledge_refs.py
 
-# `.tao/knowledge/` 顶层白名单门控 (INFRA-070t, L1 成员): 顶层只允许既定模式
-# （台账集合 / 子目录）；`contract-*.md` 已随 INFRA-071t 迁出 ⇒ 顶层再出现即白名单外 FAIL。
+# `.tao/knowledge/` 顶层白名单门控 (INFRA-070t; **里程碑层**，随 `check-milestone`；2026-10-26
+# 用户裁定「从L1摘除，放到里程碑check里」)：顶层只允许既定模式（台账集合 / 子目录）；
+# `contract-*.md` 已随 INFRA-071t 迁出 ⇒ 顶层再出现即白名单外 FAIL。
 # 计数现场统计、不写死。规则见 AGENTS.md「文档分层与单一真源」+ docs/Process-07。
 check-knowledge-dir:
 	@$(PYTHON) tools/infra/check_knowledge_dir.py
