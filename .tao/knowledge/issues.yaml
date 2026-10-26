@@ -92,3 +92,40 @@
     ① 把保留值移到 `0x3FEFF`（最高非 semihosting FID）；② 删除该保留值；③ 把 semihosting 上界收窄到 `0x3FFFE`（与用户原话不符）。
     **证据指针**：`ADR-0038` §Decision D1/D3、`DADAO-22:863`、`contract-semihosting.md:17-18`。**边界**：本笔只登记 ⇒ 未改
     `spec/DADAO-22` ✗、未改 semihosting 判定 ✗。
+- id: ISS-335
+  title: "【P3】`generate_rev_vectors.py --check` 红：62 例 `spec_cite` 陈旧、`rev` 向量未进门控"
+  status: open
+  scope: [testcases, spec]
+  blocks: []
+  resolved_by: null
+  notes: >-
+    【正式登记（2026-10-26，源 = `TESTCASES-067t` 调研实测）】**现象**：`python3 tools/tests/generate_rev_vectors.py --check`
+    报 62/62 例 `spec_cite` 与当前 spec 不一致；生成器本身确定性正常，是入库生成物未随 spec 同步，且 `rev` 向量不在任何门控中。
+    **影响**：`rev` 向量可长期漂移而不被发现（与 `case-ledger` 的 byte-identical 形成对照）。**修法方向**：把 `rev` 生成/校验接入 L1 或 L2 门控，
+    或在 `check-case-ledger` 同层加一项；先回填/重生成 62 例。**证据**：`TESTCASES-067t` 完成区、
+    `.work/log/testcases/TESTCASES-067t-determinism.log`。**边界**：本笔只登记 ⇒ 未改生成器/向量 ✗。
+- id: ISS-336
+  title: "【P2】`make test-m6` 红：`diff_ir_lli` 2 个未分类 `.ll`（`cmp-u-branch.ll`/`code-model-large.ll`）"
+  status: open
+  scope: [testcases, llvm]
+  blocks: []
+  resolved_by: null
+  notes: >-
+    【正式登记（2026-10-26，源 = `QEMU-076t` reviewer/engineer 复跑；既有缺口）】**现象**：`make test-m6` `[2/3]`
+    `diff_ir_lli: FAIL (structural) unclassified=2`，点名 `cmp-u-branch.ll`、`code-model-large.ll`；`manifests`/`manifest.yaml`
+    对两名 0 命中，两个 `.ll` 在 master 存在。**归因**：`LLVM-131t`（`658afb1a`）/`LLVM-133t`（`8eec0cc5`）后 manifest 未更新，
+    属既有缺口，非 `QEMU-076t` 引入（`git diff master -- tests/llvm/ir-lli tests/llvm/lit` 为空）。**影响**：`make test-m6` L3 红；
+    `QEMU-076t` 的 Embench 面已单跑 38/38，不阻断该任务。**修法方向**：把 2 个 `.ll` 纳入 `include`/`exclude` 并跑 `diff_ir_lli`。
+    **证据**：`QEMU-076t` 审阅记录、`.work/log/qemu/QEMU-076t-m6.log`。**边界**：本笔只登记 ⇒ 未改 manifest ✗。
+- id: ISS-337
+  title: "【P3】semihosting 旧口径文档残留（README M5 历史、DDLN DD/TT-D002、Machine-00 Draft、audits 快照）"
+  status: open
+  scope: [docs, spec]
+  blocks: []
+  resolved_by: null
+  notes: >-
+    【正式登记（2026-10-26，源 = `QEMU-076t` reviewer finding）】**现象**：`README.md:60`（M5 历史段）、
+    `docs/DDLN/D-运行平台/DD-D002`/`TT-D002`、`docs/Machine-00-执行环境分层-Draft.md:12`、`.tao/knowledge/audits/cfx-audit-2026-10-26.md`
+    仍写 `immu18[17:16]==2'b11` / `0x30000`。**性质**：README 属**历史里程碑记录**（当时口径正确），应加「M10 已迁 `0x3FF00–0x3FFFF`（ADR-0038）」注记而非改写；
+    DDLN 与 Machine-00 Draft 属**现行/教学口径**，应更新为新判据；audits 为快照，保留但可加时间注记。**证据**：
+    `QEMU-076t` 审阅记录、`grep -rn '0x30000\|2.b11' docs/DDLN README.md docs/Machine-00*`。**边界**：本笔只登记 ⇒ 未改文档 ✗。
