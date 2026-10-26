@@ -45,7 +45,7 @@ tests/
     umon/ jmon/ smon/ hmon/ ptw/ tlb/ cache/ hart/ llc/ pmem/ time/ uart/ power/
   unit/                     # 模块自身
     llvm/ lld/ qemu/ picolibc/ infra/
-  tset/                     # 外部套件
+  tset/                     # 外部套件（套件独有 glue 就近）
     libc-test/ llvm-ts/ embench/
   shared/                   # 共享测试基础设施（非用例）
     bootrom/ linker/ crt0/ macros/ expected/
@@ -122,7 +122,7 @@ tools/testcases/
   3. **接口桩**：syscall/semihosting stub、`SYS_EXIT`/console 适配、公共宏/头（`embench_include/`）。
   - **不是 patch**：patch 只用于**改上游组件源码**（`components/<name>/patches/**`，如 picolibc `semihost-dadao.S`、embench `boardsupport.c`、musl `arch/dadao`）；测试胶水**不改上游**，是我们自己的文件。
   - **不只是链接脚本**：链接脚本只是第 1 类。
-  - **落点**：测试侧代码/数据 → `tests/shared/{linker,bootrom,runtime,include}`；Python harness → `tools/testcases/lib`；上游改动 → 组件 patch 树。
+  - **落点**：**共享**（被 ≥2 scope/套件复用，或基础 harness）→ `tests/shared/`；**套件独有** → `tests/tset/<suite>/`；扩展独有 → `tests/inst/<ext>/`；cfx 独有 → `tests/arch/<cfx>/`；Python harness → `tools/testcases/lib`；**必须改上游源码** → `components/<name>/patches/`。
 
 ---
 
@@ -189,7 +189,7 @@ cmd: make check-inst-smoke CASE=base/add
 - `tests/llvm/lit/MC`、`lit/CodeGen`、`llvm/codegen/m3/m4/m6`、`llvm/ir-lli` → **unit/llvm**
 - `tests/llvm/codegen/m5`（semihosting/CFX 权限）+ `tools/qemu/min_rom_probe_*` → **arch**
 - `tests/e2e/lit`：semihosting → **arch**；FP/clmul 等指令性 → **inst**；weak/CM 等链接/ABI → **unit**
-- `tests/scripts`（bootrom/lds/crt0/harness）→ **shared** + **tools/testcases/lib**
+- `tests/scripts`（bootrom/lds/crt0/harness）→ **shared** + **tools/testcases/lib**；其中 `embench_runtime.c`/`embench_user_boardsupport.c`/`embench_include/` → **tests/tset/embench/**
 - libc-test / llvm-ts / Embench → **tset**（ansibench 不保留：源码集合，非门控套件）
 - picolibc 自测（仅 picolibc 下跑）→ **unit/picolibc**
 - `case-ledger.tsv` → 根级（身份清单）
@@ -198,7 +198,7 @@ cmd: make check-inst-smoke CASE=base/add
 
 ## 13. 待确认
 
-已定：`inst` 只 `system`；pytest 不引入；ansibench 不保留；`e2e` 改名 **`boot`**（仅整系统启动，**下一里程碑**）；确定性只要求构建产物；记录保留 authoritative/夜跑 + 失败；glue 按上述三类落点。
+已定：`inst` 只 `system`；pytest 不引入；ansibench 不保留；`e2e` 改名 **`boot`**（仅整系统启动，**下一里程碑**）；确定性只要求构建产物；记录保留 authoritative/夜跑 + 失败；glue 共享→`shared`、套件独有→`tset/<suite>`、上游改动→patch。
 
 待确认：无（若有新增，另起条目）。
 
