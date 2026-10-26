@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：无
-**状态**：待开始
+**状态**：待验收
 
 ## 背景
 - **ISS-335**：`generate_rev_vectors.py --check` 红，62/62 例 `spec_cite` 陈旧（入库 `tests/vectors/rev/rev.yaml` 未随 spec 同步；`rev` 不在门控）⇒ 生成器确定性没问题，是数据漂移。
@@ -29,13 +29,45 @@
 
 ## 完成区
 
-**状态**：待开始
+**状态**：待验收
+
+### 测试结果
+- `make check`（L1）：rc=0（`repository checks (L1): PASS`，含新门控 `check-rev-vectors`）
+- `make check-rev-vectors` rc=0；`generate_rev_vectors.py --check` rc=0（62 例：semantic/boundary 重算 39、legality 19、合法 (id,k) 覆盖 18/18）
+- `check-case-ledger` rc=0（1958 条；ledger 键不含 `spec_cite` ⇒ 无需 `--write`）
+- `make test-m6` rc=0（lit 12/12、`diff_ir_lli` unclassified=0 matched 19/19、Embench 38/38）
+- 证据脚本 `./.work/evidence/TESTCASES-070t/run.sh` rc=0（9 项检查，含 2 条注入反例）
 
 ### 修改文件
-（待填）
+- `tests/vectors/rev/rev.yaml`（重生成 62 例 `spec_cite`，其余字节不变）
+- `tests/llvm/ir-lli/manifest.yaml`（2 例 → `exclude` / `class: no-value-entry`）
+- `Makefile`（新增 `check-rev-vectors`；`.PHONY`/`_locked-check`/help 同步）
+- `.tao/knowledge/issues.yaml`（ISS-335/336 `closed` + `resolved_by` + 关闭说明）
+- `.tao/knowledge/milestones.md`（行状态）、本任务书、`.work/evidence/TESTCASES-070t/run.sh`
 
-### 验收命令与结果
-（待填）
+### 验收结果
+- rev：`generate_rev_vectors --check: PASS（逐字节一致 + 全量 oracle 重算 + 合法集复核）`
+- diff：`structural: on-disk=93 include=19 exclude=74 unclassified=0 overlap=0 missing=0`；`matched: 19/19`
+- test-m6：`test-m6: PASS (lit full + lli value-level diff + Embench E2E)`
+
+### 新发现/坑
+- rev.yaml 漂移**只在 `spec_cite`**（62 行）：`contracts/opcodes.yaml` 已细化为 `SimRISC-0x: rev.x`，入库物仍是分册级旧串；期望值/编码全未变。
+- `check_case_ledger` 的键 = (file,id,class,word,fault,status,index)，不含 `spec_cite` ⇒ 重生成不触发 ledger 变化。
+- 两个 `.ll` 均为 `llc|FileCheck` 结构测试（无 `@main`/value channel）⇒ `no-value-entry`，与既有 (e)–(j) 同语义；未用 unclassified 放行。
 
 ### 遗留
-（待填）
+- 无
+
+## 审阅记录
+
+### 第 1 轮 engineer 自审
+
+逐行审查改动：Makefile 新目标只读（`--check`）、未进 `GATE_LOCKED_TARGETS`（无需写共享状态）；manifest 两条 `class` 在 `CLASS_VOCAB` 内且 `ir` 路径存在；issues 字段满足 `check_issues`（closed ⇒ resolved_by 非空）；rev.yaml 为生成物、最终态与生成器输出逐字节一致（非手改）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 证据脚本 L1 接线断言原用 `(^\| )`，ERE 中行内 `^` 语义不明确 | ✅已修 | 改 `[[:space:]]` 边界，并加「L2/L3 不含该目标」反断言 | 证据第 2 项 PASS：`L1=1 / L2\|L3=0` |
+| 注入 A 可能「空注入」假绿（sed 未命中 ⇒ 文件未变） | ✅已修 | 增加 `git diff --name-only` 非空断言 | 证据 A：`diff=yes / inject rc=1 / md5=equal / restore rc=0` |
+| 注入 B 若就地改 manifest 会污染工作树 | ✅已修 | 改为生成临时 manifest 传给 `--manifest`（临时树注入，不碰真文件） | 证据 B：`rc=1 / unclassified=2`，真 manifest 未变 |
+
+判决：3 条 finding 全部已修，无未修项 ⇒ 状态标 `待验收`。

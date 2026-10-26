@@ -96,22 +96,25 @@
     `DADAO-22 §14` 删该保留约定、SBI/SEE → `0.7.3-rc`；由 `SPEC-177t` 关闭。
 - id: ISS-335
   title: "【P3】`generate_rev_vectors.py --check` 红：62 例 `spec_cite` 陈旧、`rev` 向量未进门控"
-  status: open
+  status: closed
   scope: [testcases, spec]
   blocks: []
-  resolved_by: null
+  resolved_by: TESTCASES-070t
   notes: >-
     【正式登记（2026-10-26，源 = `TESTCASES-067t` 调研实测）】**现象**：`python3 tools/tests/generate_rev_vectors.py --check`
     报 62/62 例 `spec_cite` 与当前 spec 不一致；生成器本身确定性正常，是入库生成物未随 spec 同步，且 `rev` 向量不在任何门控中。
     **影响**：`rev` 向量可长期漂移而不被发现（与 `case-ledger` 的 byte-identical 形成对照）。**修法方向**：把 `rev` 生成/校验接入 L1 或 L2 门控，
     或在 `check-case-ledger` 同层加一项；先回填/重生成 62 例。**证据**：`TESTCASES-067t` 完成区、
     `.work/log/testcases/TESTCASES-067t-determinism.log`。**边界**：本笔只登记 ⇒ 未改生成器/向量 ✗。
+    **关闭（2026-10-26，`TESTCASES-070t`）**：重生成 `tests/vectors/rev/rev.yaml`（62 例 `spec_cite` 随
+    `contracts/opcodes.yaml` 回填为 `SimRISC-0x: rev.x`，其余字节不变）；新增 L1 门控 `check-rev-vectors`
+    （`generate_rev_vectors.py --check`，与 `check-case-ledger` 同层、不进 L2/L3）。`--check` rc=0、`make check` rc=0。
 - id: ISS-336
   title: "【P2】`make test-m6` 红：`diff_ir_lli` 2 个未分类 `.ll`（`cmp-u-branch.ll`/`code-model-large.ll`）"
-  status: open
+  status: closed
   scope: [testcases, llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: TESTCASES-070t
   notes: >-
     【正式登记（2026-10-26，源 = `QEMU-076t` reviewer/engineer 复跑；既有缺口）】**现象**：`make test-m6` `[2/3]`
     `diff_ir_lli: FAIL (structural) unclassified=2`，点名 `cmp-u-branch.ll`、`code-model-large.ll`；`manifests`/`manifest.yaml`
@@ -119,6 +122,9 @@
     属既有缺口，非 `QEMU-076t` 引入（`git diff master -- tests/llvm/ir-lli tests/llvm/lit` 为空）。**影响**：`make test-m6` L3 红；
     `QEMU-076t` 的 Embench 面已单跑 38/38，不阻断该任务。**修法方向**：把 2 个 `.ll` 纳入 `include`/`exclude` 并跑 `diff_ir_lli`。
     **证据**：`QEMU-076t` 审阅记录、`.work/log/qemu/QEMU-076t-m6.log`。**边界**：本笔只登记 ⇒ 未改 manifest ✗。
+    **关闭（2026-10-26，`TESTCASES-070t`）**：二者均为 `llc | FileCheck` 结构测试（无 `@main`/value channel），
+    按既有语义归 `exclude` / `class: no-value-entry`（附 LLVM-131t/133t 出处），未用 unclassified 放行；
+    `diff_ir_lli` rc=0（unclassified=0）。
 - id: ISS-337
   title: "【P3】semihosting 旧口径文档残留（README M5 历史、DDLN DD/TT-D002、Machine-00 Draft、audits 快照）"
   status: closed

@@ -61,7 +61,7 @@
 | TESTCASES-074t | 待开始 | 2026-10-26 23:12（登记） | unit 迁移（lit/codegen/ir-lli/picolibc；check-unit） |
 | TESTCASES-075t | 待开始 | 2026-10-26 23:12（登记） | tset 迁移（libc-test/llvm-ts/embench；check-tset） |
 | TESTCASES-076t | 待开始 | 2026-10-26 23:12（登记） | 测试迁移收口（删旧+门控重写+clean/repro/night） |
-| TESTCASES-070t | 待开始 | 2026-10-26 20:07（登记） | rev 向量重生成+门控、diff_ir_lli 2 个 .ll 归类（ISS-335/336） |
+| TESTCASES-070t | 待验收 | 2026-10-26 20:07（登记） | rev 向量重生成+门控、diff_ir_lli 2 个 .ll 归类（ISS-335/336） |
 | TESTCASES-069t | 待开始 | 2026-10-26 19:51（登记） | ISS-266 四例分类/诊断（8b10b known-fail、dbms pass、SPASS/typeset 判定） |
 | TESTCASES-068t | 待开始 | 2026-10-26 19:47（登记） | qemu-user OOM 修复：-R 4G + flockfile known-fail（ISS-255/257） |
 | LLVM-135t | 已验证 | 2026-10-26 17:27 | cfx 别名运行时表：源码/反汇编共用名字，数据更新不重建 LLVM |

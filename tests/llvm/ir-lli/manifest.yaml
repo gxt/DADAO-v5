@@ -320,3 +320,12 @@ exclude:
   - ir: tests/llvm/lit/CodeGen/DADAO/m9-ldst-opt.ll
     class: no-value-entry
     reason: "FileCheck structural test (post-RA `stm.o`/`ldm.o` merge, LLVM-129t); no `@main` value channel."
+  # (k) ISS-336: structural `llc | FileCheck` tests added by LLVM-131t/133t under
+  #     the corpus root without value channels; registered here instead of being
+  #     relabelled or dropped so the structural-closure invariant stays green.
+  - ir: tests/llvm/lit/CodeGen/DADAO/cmp-u-branch.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (unsigned compare -> sign-family branch/select, no ext.so, LLVM-133t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/code-model-large.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (code-model large ABS48 + indirect call/jump, medium rejected, LLVM-131t); no `@main` value channel."
