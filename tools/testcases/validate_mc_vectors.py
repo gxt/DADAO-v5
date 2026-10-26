@@ -9,7 +9,7 @@
 ``-multiple-to-single``、``§9`` 诊断、``§2.2`` ``#`` 非法）**独立派生**
 每条向量的期望编码/字段/展开形态，再与向量文件内联期望比对。
 
-向量文件 = ``tests/llvm/lit/MC/DADAO/m4-*.s``（`INTEG-016t` 起已接入门控，
+向量文件 = ``tests/unit/llvm/lit/MC/DADAO/m4-*.s``（`INTEG-016t` 起已接入门控，
 不再要求门控占位标记）。每个向量的**输入**是代码部分，**期望值**是同一行
 末尾的 ``@@ @<kind> <expect>`` 注释：
 
@@ -54,7 +54,7 @@ OPCODES = os.path.join(REPO, "contracts", "opcodes.yaml")
 # 向量目录默认 = 仓库内单一落点；`MC_VEC_DIR` 仅用于反例注入自检
 # （在临时树副本上运行，避免污染真实仓库）。
 VEC_DIR = os.environ.get("MC_VEC_DIR") or os.path.join(
-    REPO, "tests", "llvm", "lit", "MC", "DADAO")
+    REPO, "tests", "unit", "llvm", "lit", "MC", "DADAO")
 VEC_GLOB = os.path.join(VEC_DIR, "m4-*.s")
 
 # spec/Toolchain-01 §7：4 条数据指导符（Knuth/MMIX 数据长度）

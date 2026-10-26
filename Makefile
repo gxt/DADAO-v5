@@ -54,6 +54,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
         check-inst check-inst-smoke check-tests-index check-arch check-arch-smoke \
+        check-unit \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
@@ -101,6 +102,7 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       test-codegen test-elf test-semihost test-m6 test-picolibc-smoke \
                       check-lit check-lit-full check-qemu-semantics check-qemu-smoke \
                       check-inst check-inst-smoke check-arch check-arch-smoke \
+                      check-unit \
                       check-picolibc-tests check-picolibc-tests-full check-rnd-probe \
                       check-minmax-probe check-fma-probe check-clmul-probe \
                       check-testcases-suites check-testcases-suites-full \
@@ -171,8 +173,8 @@ help:
 	@echo "  make clean-work      Remove generated .work content only"
 	@echo "  make validate-vectors  Validate tests/inst vectors schema/inventory/coverage (L1)"
 	@echo "  make check           Run repository-level structural checks (L1: static + component smoke)"
-	@echo "  make check-modules   Run L2 module functional representative set (check-lit + check-interface + check-inst-smoke + test-codegen/elf + check-arch-smoke + probes)"
-	@echo "  make check-full      Run L3 fuller checks (check-inst + test-m6; check-lit-full via test-m6)"
+	@echo "  make check-modules   Run L2 module functional representative set (check-interface + check-unit + check-inst-smoke + check-arch-smoke + probes)"
+	@echo "  make check-full      Run L3 fuller checks (check-inst + check-arch + test-m6)"
 	@echo "  make check-components  Component availability smoke (llc/clang --print-targets/qemu; L1)"
 	@echo "  make check-inst-smoke  inst semantic smoke (representative subset; L2; TESTCASES-072t)"
 	@echo "  make check-inst      inst semantic full set (tests/inst; L3; TESTCASES-072t)"
@@ -206,10 +208,11 @@ help:
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
 	@echo "  make check-spec-codeblocks  Check spec prose \`\`\`simrisc blocks vs opcodes.yaml (ISS-077)"
-	@echo "  make check-lit        Run lit MC + CodeGen + E2E tests (requires install-host)"
+	@echo "  make check-unit       unit scope smoke: lit + codegen/elf + ir-lli + picolibc fast (L2; TESTCASES-074t)"
+	@echo "  make check-lit        Run lit MC + CodeGen + E2E tests (requires install-host; check-unit member)"
 	@echo "  make check-lit-full   Run full generated lit MC suite from contracts/opcodes.yaml (opt-in; TESTCASES-037t)"
-	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t)"
-	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t)"
+	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t; check-unit member)"
+	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t; check-unit member)"
 	@echo "  make check-arch-smoke  arch smoke: SEE/semihosting + cfx permission + 25 svc (L2; TESTCASES-073t)"
 	@echo "  make check-arch      arch full cfx set: arch-smoke + cfx min-ROM probes (L3; TESTCASES-073t)"
 	@echo "  make test-semihost    Alias -> check-arch-smoke (旧名保留，判据未改; TESTCASES-073t)"
@@ -850,7 +853,9 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 # 对 `check`(L1) 的无回归前置（INTEG-020t）；现 L2 只列 `check-arch-smoke`（判据面
 # 与 test-semihost 相同、无 L1 前置），故 L2 不再顺带跑 L1 —— 一个检查只在一层。
 # 旧名 `test-semihost` 仍保留该前置（旧命令行行为等价）。
-_locked-check-modules: check-interface check-lit check-inst-smoke test-codegen test-elf check-arch-smoke check-picolibc-tests check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe check-code-range
+# 注（TESTCASES-074t）：unit 侧成员收拢为 `check-unit`（= check-lit + test-codegen +
+# test-elf + ir-lli + check-picolibc-tests）；旧目标名全部保留、可单独调用。
+_locked-check-modules: check-interface check-unit check-inst-smoke check-arch-smoke check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe check-code-range
 	@echo "module checks (L2): PASS"
 
 # L3 较完整 (INFRA-058t). check-lit-full 由 test-m6 步骤 [1/3] 承载（不在本目标重复列出）。
@@ -1063,7 +1068,7 @@ check-cfx-alias-install:
 
 # cfx MC vector independent oracle (LLVM-060t; wired into L1 by LLVM-135t).
 check-cfx-vectors:
-	@$(PYTHON) tests/llvm/lit/MC/DADAO/validate_cfx_vectors.py
+	@$(PYTHON) tests/unit/llvm/lit/MC/DADAO/validate_cfx_vectors.py
 
 # Install/product directory path guard (INFRA-019t): validates
 # manifests/install-dirs.lock.toml and scans for symlink prefix violations.
@@ -1139,7 +1144,7 @@ check-spec-codeblocks:
 LIT_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-lit
 _locked-check-lit:
 	@test -x $(LIT_BIN) || { echo "check-lit: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
-	$(LIT_BIN) tests/llvm/lit/MC/DADAO tests/llvm/lit/CodeGen/DADAO tests/e2e/lit -v
+	$(LIT_BIN) tests/unit/llvm/lit/MC/DADAO tests/unit/llvm/lit/CodeGen/DADAO tests/e2e/lit -v
 
 # lit 全量档 (TESTCASES-037t): 由 contracts/opcodes.yaml 机械生成的全部 lit MC
 # 编码用例（快档受控子集已随 check-lit 进 L2；本目标承载规模）。
@@ -1148,8 +1153,10 @@ _locked-check-lit:
 # 计数不写死：由 check_lit_gen.py / llvm-lit **现场统计**；本目标不设硬编码门限。
 _locked-check-lit-full:
 	@test -x $(LIT_BIN) || { echo "check-lit-full: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
-	@$(PYTHON) tools/testcases/check_lit_gen.py
-	$(LIT_BIN) tests/llvm/lit/MC/DADAO-gen -v
+	@$(PYTHON) tools/testcases/check_lit_gen.py \
+	  --full-dir tests/unit/llvm/lit/MC/DADAO-gen \
+	  --fast-file tests/unit/llvm/lit/MC/DADAO/gen-fast.s
+	$(LIT_BIN) tests/unit/llvm/lit/MC/DADAO-gen -v
 
 # M3 CodeGen end-to-end gate (INTEG-012t).  Tools are taken from the install
 # root (ADR-0016 D9); install-host keeps it in sync with the .work/ build trees.
@@ -1158,7 +1165,7 @@ _locked-check-lit-full:
 #   llvm-mc --triple=dadao -filetype=obj -> .o;
 #   llvm-objcopy -O binary --only-section=.text -> .bin;
 #   qemu-system-dadao -M dadao-m1 -bios trampoline.bin -kernel .bin ...
-# The guest process exit code is compared against tests/llvm/codegen/expected.yaml.
+# The guest process exit code is compared against tests/unit/llvm/codegen/expected.yaml.
 # Fail-closed: any mismatch / timeout / machine fault => non-zero exit.
 LLC_BIN = $(HOST_TOOLCHAIN_BIN)/llc
 LLVM_MC_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-mc
@@ -1178,7 +1185,10 @@ _locked-test-codegen: install-host
 	  $(PYTHON) tools/integ/run_codegen_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
 	    --qemu $(QEMU_BIN) --trampoline tools/testcases/lib/trampoline.bin \
-	    --crt0 tests/scripts/codegen_crt0.s --work-dir $(CODEGEN_E2E_WORK) \
+	    --crt0 tests/scripts/codegen_crt0.s \
+	    --vectors-dir tests/unit/llvm/codegen \
+	    --expected tests/unit/llvm/codegen/expected.yaml \
+	    --work-dir $(CODEGEN_E2E_WORK) \
 	    > $(CODEGEN_E2E_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -20 $(CODEGEN_E2E_LOG); \
@@ -1193,7 +1203,7 @@ _locked-test-codegen: install-host
 #   ld.lld -T tests/scripts/dadao.lds crt0.o <tu>.o ... -o <prog>.elf;
 #   qemu-system-dadao -M dadao-m1 -kernel <prog>.elf ...
 # The guest process exit code is compared against the independent M4 manifest
-# tests/llvm/codegen/m4/expected.yaml (TESTCASES-030t/032t).
+# tests/unit/llvm/codegen/m4/expected.yaml (TESTCASES-030t/032t).
 # Fail-closed: any mismatch / timeout / build-step non-zero => non-zero exit.
 # Coexists with test-codegen (raw-bin / trampoline: kept as-is).
 LLD_BIN = $(HOST_TOOLCHAIN_BIN)/ld.lld
@@ -1212,14 +1222,34 @@ _locked-test-elf: install-host
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --ldlld $(LLD_BIN) \
 	    --qemu $(QEMU_BIN) --crt0 tests/scripts/codegen_crt0.s \
 	    --lds tests/scripts/dadao.lds \
-	    --vectors-dir tests/llvm/codegen/m4 \
-	    --expected tests/llvm/codegen/m4/expected.yaml \
+	    --vectors-dir tests/unit/llvm/codegen/m4 \
+	    --expected tests/unit/llvm/codegen/m4/expected.yaml \
 	    --work-dir $(CODEGEN_ELF_WORK) \
 	    > $(CODEGEN_ELF_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -20 $(CODEGEN_ELF_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "test-elf: FAIL (rc=$$rc)"; exit $$rc; fi; \
 	  echo "test-elf: PASS"
+
+# unit scope 门控（TESTCASES-074t；Process-09 §6/§8 分层）
+# 用例资产：`tests/unit/llvm/`（lit MC/CodeGen、codegen m3/m4/m6、ir-lli manifest）
+#          + `tests/unit/picolibc/`（picolibc 自测仍只在 picolibc 构建下跑）
+# 判据与原 L2 成员**逐条未改**，只搬家 + 接线：
+#   1. check-lit（MC + CodeGen + e2e lit）
+#   2. test-codegen（M3 15 程序）
+#   3. test-elf（M4 5 程序）
+#   4. ir-lli 值级差分（host lli vs DADAO target；include 条数现场统计）
+#   5. check-picolibc-tests fast（picolibc 上游自测代表集）
+# 旧目标名全部保留、可单独调用（等价）；删除旧入口只在 TESTCASES-076t 做。
+UNIT_IR_LLI_LOG = .work/log/unit/check-unit-ir-lli.log
+_locked-check-unit: check-lit test-codegen test-elf check-picolibc-tests
+	@mkdir -p .work/log/unit
+	@echo "check-unit: [4/5] ir-lli value-level differential (host X86 vs DADAO target)"; \
+	  $(PYTHON) $(DIFF_IR_LLI) --work-dir $(IR_LLI_WORK) > $(UNIT_IR_LLI_LOG) 2>&1; \
+	  rc=$$?; \
+	  tail -n 6 $(UNIT_IR_LLI_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "check-unit: FAIL (ir-lli rc=$$rc)"; exit $$rc; fi
+	@echo "check-unit: PASS (lit + codegen + elf + ir-lli + picolibc fast)"
 
 # arch scope 端到端门控（TESTCASES-073t；Process-09 §6/§8 分层）
 # 用例资产：`tests/arch/umon/`（m5 SEE/semihosting + cfx 权限向量，条数由 manifest 现场统计）

@@ -12,7 +12,7 @@
 
 做法：**生成式身份清单 + 幂等重生成比对**
 ------------------------------------------
-本工具由**现场语料**（`tests/inst/**/*.yaml` 的用例、`tests/llvm/lit/**/*.s`
+本工具由**现场语料**（`tests/inst/**/*.yaml` 的用例、`tests/unit/llvm/lit/**/*.s`
 的 `@@ OBJ:` pattern）重新派生一份**逐条身份清单**（不含任何计数），与入库的
 `tests/case-ledger.tsv` 逐字节比对：
   * 删任一用例 / 任一 lit pattern ⇒ 清单少一行 ⇒ FAIL（定位到具体行）；
@@ -90,7 +90,7 @@ def _vector_rows(repo: Path) -> list[str]:
 
 def _lit_rows(repo: Path) -> list[str]:
     rows = []
-    for path in sorted(glob.glob(str(repo / "tests" / "llvm" / "lit" / "**" / "*.s"),
+    for path in sorted(glob.glob(str(repo / "tests" / "unit" / "llvm" / "lit" / "**" / "*.s"),
                                  recursive=True)):
         rel = Path(path).relative_to(repo).as_posix()
         seen: collections.Counter = collections.Counter()

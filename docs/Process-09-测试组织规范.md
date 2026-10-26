@@ -39,6 +39,13 @@
 > 为别名。下文 §12「`min_rom_probe_*` → arch」的**落点**以 §6 为准（驱动进
 > `tools/testcases/arch/`，`tests/arch/` 只放用例资产）。
 
+> **2026-10-27 更新（`TESTCASES-074t`，P4）**：`tests/llvm/lit/{MC,CodeGen}`、
+> `tests/llvm/codegen/{M3,m4,m6}`、`tests/llvm/ir-lli` → `tests/unit/llvm/`（旧路径为
+> 符号链接，删除见 P6）；picolibc 自测入口 → `tests/unit/picolibc/`（仍只在 picolibc
+> 构建下跑）。门控 `check-unit`（L2）= `check-lit` + `test-codegen` + `test-elf` +
+> ir-lli 值级差分 + `check-picolibc-tests` fast；旧目标名保留、可单独调用。下文
+> 「`tests/llvm/`」的计数是**迁移前快照**。
+
 - `tests/`：341 文件 / 13 个顶层项；`llvm`(216)、`e2e`(45)、`scripts`(30)、`vectors`(25)、`atomics/clmul/fma/minmax/roundint`、`qemu`(1)。
 - `.dadao/tests/`：**19,967 文件 / 1.13 GB**，18 个子目录；含任务专属目录（如 `llvm-ts-user-050t`）、无 `clean` 目标、约 210 MB 不可重生成。
 - 向量：1,456 例 / 193 个 opcode 身份 / 22 个 YAML；ledger 1,956 条；lit 154。
@@ -193,7 +200,7 @@ cmd: make check-inst-smoke CASE=base/add
 - **P2 inst**（**已完成：`TESTCASES-072t`**）：`vectors/isa` + 探针 → `inst/`；harness → `tools/testcases/lib+inst`；smoke 绿后进 L2（`check-inst-smoke` / `check-inst`）。
 - **P3 arch**（**已完成：`TESTCASES-073t`**）：`llvm/codegen/m5` + `min_rom_probe_*` + bootrom
   → `arch/`；smoke 绿后进 L2（`check-arch-smoke` / `check-arch`）。
-- **P4 unit**：`lit/MC|CodeGen`、`codegen/m3/m4/m6`、`ir-lli`、`picolibc` → `unit/`。
+- **P4 unit**（**已完成：`TESTCASES-074t`**）：`lit/MC|CodeGen`、`codegen`（M3/m4/m6）、`ir-lli`、`picolibc` → `unit/`；smoke 绿后进 L2（`check-unit`）。
 - **P5 tset**：libc-test/llvm-ts/Embench 驱动 → `tools/testcases/tset`；smoke 绿。
 - **P6 收口**：删 `tests/scripts`/`tests/qemu`/`tools/integ` 旧入口；重写 Makefile 门控；`clean-tests`/`test-repro`；`check-night`。
 

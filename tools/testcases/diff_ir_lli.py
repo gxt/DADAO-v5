@@ -14,7 +14,7 @@ them:
                                     -kernel <prog>.bin -semihosting-config \
                                     enable=on,target=native -> process exit code
 
-Value channel (frozen, see tests/llvm/ir-lli/README.md): the process exit code
+Value channel (frozen, see tests/unit/llvm/ir-lli/README.md): the process exit code
 == the low byte of the `i64` value returned by `@main`.  The startup stub
 `tests/scripts/codegen_crt0.s` calls `@main` and reports the returned value
 (`rd8`, the M6 ABI return register) through the semihosting `SYS_EXIT` service;
@@ -94,7 +94,7 @@ DEFAULT_LLVM_OBJCOPY = os.path.join(TARGET_TOOLS_BIN, "llvm-objcopy")
 DEFAULT_QEMU = os.path.join(TARGET_TOOLS_BIN, "qemu-system-dadao")
 DEFAULT_CRT0 = "tests/scripts/codegen_crt0.s"
 DEFAULT_TRAMPOLINE = "tests/scripts/trampoline.bin"
-DEFAULT_MANIFEST = "tests/llvm/ir-lli/manifest.yaml"
+DEFAULT_MANIFEST = "tests/unit/llvm/ir-lli/manifest.yaml"
 DEFAULT_WORK_DIR = str(_dadao_paths.test_artifacts_dir() / "ir-lli-diff")
 DEFAULT_TIMEOUT = 30
 

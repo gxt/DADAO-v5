@@ -1,11 +1,1365 @@
-# tests/unit.yaml — unit scope 根级用例清单（Process-09 §5；P1 骨架，暂空）
+# tests/unit.yaml — unit scope 根级用例清单（Process-09 §5）
 #
 # 字段（每条目恰好五项）：
 #   id         unit-<module>-nnn（如 unit-llvm-001；四份索引内全局唯一）
 #   file       tests/unit/ 下的相对路径（必须存在）
 #   platforms  非空列表；unit: host | toolchain
-#   level      smoke | full
-#   requires   依赖项列表（可为空）
+#   level      smoke | full（smoke = 由 L2 `check-unit` 覆盖；full = 不在 L2
+#              代表集——lit 全量档 MC-gen、M6 执行向量（手工））
+#   requires   依赖项列表（可为空）：toolchain / qemu / lli / picolibc
 #
-# 门控：make check-tests-index（L1）。空列表 [] 合法。
-[]
+# 门控：make check-tests-index（L1，静态）；`TESTCASES-074t` 首次填入实际 case。
+# 本清单逐文件一条（lit MC/CodeGen 用例、codegen 程序、ir-lli 清单、picolibc 套件入口）；
+# 条数由 `check-tests-index` 现场统计。
+- id: unit-llvm-001
+  file: unit/llvm/lit/MC/DADAO/aip-si-imm.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-002
+  file: unit/llvm/lit/MC/DADAO/atomics-fence-imm.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-003
+  file: unit/llvm/lit/MC/DADAO/atomics-lrsc.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-004
+  file: unit/llvm/lit/MC/DADAO/basic-encoding.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-005
+  file: unit/llvm/lit/MC/DADAO/branch-range-12.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-006
+  file: unit/llvm/lit/MC/DADAO/branch-range-18.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-007
+  file: unit/llvm/lit/MC/DADAO/cfx-alias-runtime.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-008
+  file: unit/llvm/lit/MC/DADAO/cfx2-trap-escape-err.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-009
+  file: unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-010
+  file: unit/llvm/lit/MC/DADAO/clmul-legality.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-011
+  file: unit/llvm/lit/MC/DADAO/data-directive-unique-set.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-012
+  file: unit/llvm/lit/MC/DADAO/dd-expr.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-013
+  file: unit/llvm/lit/MC/DADAO/dd-reject.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-014
+  file: unit/llvm/lit/MC/DADAO/dd-symbol.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-015
+  file: unit/llvm/lit/MC/DADAO/dd-width.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-016
+  file: unit/llvm/lit/MC/DADAO/dwarf64-default.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-017
+  file: unit/llvm/lit/MC/DADAO/e_flags.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-018
+  file: unit/llvm/lit/MC/DADAO/fma-encoding.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-019
+  file: unit/llvm/lit/MC/DADAO/fp-dst-rd0-legality.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-020
+  file: unit/llvm/lit/MC/DADAO/fp-encoding.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-021
+  file: unit/llvm/lit/MC/DADAO/fp-legality.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-022
+  file: unit/llvm/lit/MC/DADAO/fp-round-encoding.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-023
+  file: unit/llvm/lit/MC/DADAO/gen-fast.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-024
+  file: unit/llvm/lit/MC/DADAO/iiii_jump.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-025
+  file: unit/llvm/lit/MC/DADAO/imm-range.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-026
+  file: unit/llvm/lit/MC/DADAO/m4-diagnostic.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-027
+  file: unit/llvm/lit/MC/DADAO/m4-directive-dd.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-028
+  file: unit/llvm/lit/MC/DADAO/m4-directive-reject.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-029
+  file: unit/llvm/lit/MC/DADAO/m4-not-neg.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-030
+  file: unit/llvm/lit/MC/DADAO/m4-option-mts.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-031
+  file: unit/llvm/lit/MC/DADAO/m4-pseudo-removed.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-032
+  file: unit/llvm/lit/MC/DADAO/m4-pseudo-set.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-033
+  file: unit/llvm/lit/MC/DADAO/m4-roundtrip.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-034
+  file: unit/llvm/lit/MC/DADAO/m6-callconv.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-035
+  file: unit/llvm/lit/MC/DADAO/m6-data-narrow-reject.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-036
+  file: unit/llvm/lit/MC/DADAO/m6-ldst-symbol.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-037
+  file: unit/llvm/lit/MC/DADAO/mreg-range-legality.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-038
+  file: unit/llvm/lit/MC/DADAO/multiple-to-single-ldm.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-039
+  file: unit/llvm/lit/MC/DADAO/multiple-to-single-orri.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-040
+  file: unit/llvm/lit/MC/DADAO/multiple-to-single-reject.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-041
+  file: unit/llvm/lit/MC/DADAO/oiii.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-042
+  file: unit/llvm/lit/MC/DADAO/orri.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-043
+  file: unit/llvm/lit/MC/DADAO/orrr.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-044
+  file: unit/llvm/lit/MC/DADAO/overlap-legality.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-045
+  file: unit/llvm/lit/MC/DADAO/p2align-degrees.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-046
+  file: unit/llvm/lit/MC/DADAO/p2align-rodata.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-047
+  file: unit/llvm/lit/MC/DADAO/p2align-text.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-048
+  file: unit/llvm/lit/MC/DADAO/pcrel-specifier.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-049
+  file: unit/llvm/lit/MC/DADAO/pseudo-removed.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-050
+  file: unit/llvm/lit/MC/DADAO/ra.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-051
+  file: unit/llvm/lit/MC/DADAO/rb_ops.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-052
+  file: unit/llvm/lit/MC/DADAO/rela-addend.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-053
+  file: unit/llvm/lit/MC/DADAO/rela.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-054
+  file: unit/llvm/lit/MC/DADAO/ret-rd0-legality.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-055
+  file: unit/llvm/lit/MC/DADAO/riii_branch.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-056
+  file: unit/llvm/lit/MC/DADAO/riii_branch_rb.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-057
+  file: unit/llvm/lit/MC/DADAO/riii_ret.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-058
+  file: unit/llvm/lit/MC/DADAO/rol.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-059
+  file: unit/llvm/lit/MC/DADAO/rrii_alu.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-060
+  file: unit/llvm/lit/MC/DADAO/rrii_branch.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-061
+  file: unit/llvm/lit/MC/DADAO/rrii_load.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-062
+  file: unit/llvm/lit/MC/DADAO/rrii_store.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-063
+  file: unit/llvm/lit/MC/DADAO/rrri.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-064
+  file: unit/llvm/lit/MC/DADAO/rrrr.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-065
+  file: unit/llvm/lit/MC/DADAO/rwii.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-066
+  file: unit/llvm/lit/MC/DADAO/set-ft-fo.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-067
+  file: unit/llvm/lit/MC/DADAO/set-rb.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-068
+  file: unit/llvm/lit/MC/DADAO/set-rd-imm.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-069
+  file: unit/llvm/lit/MC/DADAO/set-rd-reg.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-070
+  file: unit/llvm/lit/MC/DADAO/set-symbol.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-071
+  file: unit/llvm/lit/MC/DADAO/show-encoding-fixup-bigendian.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-072
+  file: unit/llvm/lit/MC/DADAO/triple-smoke.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-073
+  file: unit/llvm/lit/MC/DADAO/wpn_err_bare_num.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-074
+  file: unit/llvm/lit/MC/DADAO/wpn_err_foo.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-075
+  file: unit/llvm/lit/MC/DADAO/wpn_err_range.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-076
+  file: unit/llvm/lit/MC/DADAO/wpn_err_wp4.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-077
+  file: unit/llvm/lit/MC/DADAO/wpn_operand.s
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-078
+  file: unit/llvm/lit/MC/DADAO-gen/gen-ciii.s
+  platforms:
+  - host
+  level: full
+  requires:
+  - toolchain
+- id: unit-llvm-079
+  file: unit/llvm/lit/MC/DADAO-gen/gen-crrr.s
+  platforms:
+  - host
+  level: full
+  requires:
+  - toolchain
+- id: unit-llvm-080
+  file: unit/llvm/lit/MC/DADAO-gen/gen-excluded.s
+  platforms:
+  - host
+  level: full
+  requires:
+  - toolchain
+- id: unit-llvm-081
+  file: unit/llvm/lit/MC/DADAO-gen/gen-iiii.s
+  platforms:
+  - host
+  level: full
+  requires:
+  - toolchain
+- id: unit-llvm-082
+  file: unit/llvm/lit/MC/DADAO-gen/gen-oiii.s
+  platforms:
+  - host
+  level: full
+  requires:
+  - toolchain
+- id: unit-llvm-083
+  file: unit/llvm/lit/MC/DADAO-gen/gen-orri.s
+  platforms:
+  - host
+  level: full
+  requires:
+  - toolchain
+- id: unit-llvm-084
+  file: unit/llvm/lit/MC/DADAO-gen/gen-orrr.s
+  platforms:
+  - host
+  level: full
+  requires:
+  - toolchain
+- id: unit-llvm-085
+  file: unit/llvm/lit/MC/DADAO-gen/gen-riii.s
+  platforms:
+  - host
+  level: full
+  requires:
+  - toolchain
+- id: unit-llvm-086
+  file: unit/llvm/lit/MC/DADAO-gen/gen-rrii.s
+  platforms:
+  - host
+  level: full
+  requires:
+  - toolchain
+- id: unit-llvm-087
+  file: unit/llvm/lit/MC/DADAO-gen/gen-rrri.s
+  platforms:
+  - host
+  level: full
+  requires:
+  - toolchain
+- id: unit-llvm-088
+  file: unit/llvm/lit/MC/DADAO-gen/gen-rrrr.s
+  platforms:
+  - host
+  level: full
+  requires:
+  - toolchain
+- id: unit-llvm-089
+  file: unit/llvm/lit/MC/DADAO-gen/gen-rwii.s
+  platforms:
+  - host
+  level: full
+  requires:
+  - toolchain
+- id: unit-llvm-090
+  file: unit/llvm/lit/CodeGen/DADAO/abi-narrow-extend.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-091
+  file: unit/llvm/lit/CodeGen/DADAO/atomics-cas-narrow-sext.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-092
+  file: unit/llvm/lit/CodeGen/DADAO/atomics-cas.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-093
+  file: unit/llvm/lit/CodeGen/DADAO/atomics-fence.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-094
+  file: unit/llvm/lit/CodeGen/DADAO/atomics-store.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-095
+  file: unit/llvm/lit/CodeGen/DADAO/bitops-narrow.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-096
+  file: unit/llvm/lit/CodeGen/DADAO/bitops.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-097
+  file: unit/llvm/lit/CodeGen/DADAO/br-jt.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-098
+  file: unit/llvm/lit/CodeGen/DADAO/branch-fold-insert.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-099
+  file: unit/llvm/lit/CodeGen/DADAO/branch-fold-two-way.mir
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-100
+  file: unit/llvm/lit/CodeGen/DADAO/clmul.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-101
+  file: unit/llvm/lit/CodeGen/DADAO/cmp-u-branch.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-102
+  file: unit/llvm/lit/CodeGen/DADAO/code-model-large.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-103
+  file: unit/llvm/lit/CodeGen/DADAO/f128-codegen.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-104
+  file: unit/llvm/lit/CodeGen/DADAO/fma.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-105
+  file: unit/llvm/lit/CodeGen/DADAO/fp-canonicalize.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-106
+  file: unit/llvm/lit/CodeGen/DADAO/fp-classify.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-107
+  file: unit/llvm/lit/CodeGen/DADAO/fp-codegen.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-108
+  file: unit/llvm/lit/CodeGen/DADAO/fp-fcmp.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-109
+  file: unit/llvm/lit/CodeGen/DADAO/fp-ldexp.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-110
+  file: unit/llvm/lit/CodeGen/DADAO/fp-remainder.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-111
+  file: unit/llvm/lit/CodeGen/DADAO/fp-rounding-mode.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-112
+  file: unit/llvm/lit/CodeGen/DADAO/fp-sat.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-113
+  file: unit/llvm/lit/CodeGen/DADAO/fp-unordered-pred.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-114
+  file: unit/llvm/lit/CodeGen/DADAO/i1-load.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-115
+  file: unit/llvm/lit/CodeGen/DADAO/indirectbr.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-116
+  file: unit/llvm/lit/CodeGen/DADAO/inline-asm-m-reject.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-117
+  file: unit/llvm/lit/CodeGen/DADAO/inline-asm-m.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-118
+  file: unit/llvm/lit/CodeGen/DADAO/inline-asm-operands.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-119
+  file: unit/llvm/lit/CodeGen/DADAO/inline-asm-r.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-120
+  file: unit/llvm/lit/CodeGen/DADAO/large-const-cmp.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-121
+  file: unit/llvm/lit/CodeGen/DADAO/m6-csr-batch.mir
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-122
+  file: unit/llvm/lit/CodeGen/DADAO/m6-indirect-call.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-123
+  file: unit/llvm/lit/CodeGen/DADAO/m6-large-frame.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-124
+  file: unit/llvm/lit/CodeGen/DADAO/m6-memintrin.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-125
+  file: unit/llvm/lit/CodeGen/DADAO/m6-not-neg.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-126
+  file: unit/llvm/lit/CodeGen/DADAO/m6-return-regs.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-127
+  file: unit/llvm/lit/CodeGen/DADAO/m6-varargs.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-128
+  file: unit/llvm/lit/CodeGen/DADAO/m8-f128-math-libcall.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-129
+  file: unit/llvm/lit/CodeGen/DADAO/m8-i128-f128-libcall.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-130
+  file: unit/llvm/lit/CodeGen/DADAO/m8-varargs-stack-align.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-131
+  file: unit/llvm/lit/CodeGen/DADAO/m9-ldm-stm-prologue.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-132
+  file: unit/llvm/lit/CodeGen/DADAO/m9-ldm-stm.mir
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-133
+  file: unit/llvm/lit/CodeGen/DADAO/m9-ldst-opt.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-134
+  file: unit/llvm/lit/CodeGen/DADAO/narrow-int.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-135
+  file: unit/llvm/lit/CodeGen/DADAO/p0-fp-bitcast.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-136
+  file: unit/llvm/lit/CodeGen/DADAO/p0-fp-load-extend.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-137
+  file: unit/llvm/lit/CodeGen/DADAO/p0-fp-selectcc.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-138
+  file: unit/llvm/lit/CodeGen/DADAO/p0-fp-setcc.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-139
+  file: unit/llvm/lit/CodeGen/DADAO/p0-fp-trunc-store.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-140
+  file: unit/llvm/lit/CodeGen/DADAO/p1-fp-libcall-log.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-141
+  file: unit/llvm/lit/CodeGen/DADAO/p1-fp-libcall-logf.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-142
+  file: unit/llvm/lit/CodeGen/DADAO/p1-fp-minmax.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-143
+  file: unit/llvm/lit/CodeGen/DADAO/p1-fp-rounding-f32.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-144
+  file: unit/llvm/lit/CodeGen/DADAO/p1-fp-rounding.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-145
+  file: unit/llvm/lit/CodeGen/DADAO/p1-fp-sign.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-146
+  file: unit/llvm/lit/CodeGen/DADAO/rol.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-147
+  file: unit/llvm/lit/CodeGen/DADAO/setcc-select.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-148
+  file: unit/llvm/lit/CodeGen/DADAO/smul-lohi.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-149
+  file: unit/llvm/lit/CodeGen/DADAO/tail-call-lowering.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-150
+  file: unit/llvm/lit/CodeGen/DADAO/tail-call-musttail-reject.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-151
+  file: unit/llvm/lit/CodeGen/DADAO/umul-lohi.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-152
+  file: unit/llvm/lit/CodeGen/DADAO/vec-load-widen.ll
+  platforms:
+  - host
+  level: smoke
+  requires:
+  - toolchain
+- id: unit-llvm-153
+  file: unit/llvm/codegen/arith_add_sub_neg.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-154
+  file: unit/llvm/codegen/arith_const_hi_wyde.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-155
+  file: unit/llvm/codegen/branch_eq_ne.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-156
+  file: unit/llvm/codegen/branch_loop_sum.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-157
+  file: unit/llvm/codegen/branch_ptr.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-158
+  file: unit/llvm/codegen/call_direct_ret.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-159
+  file: unit/llvm/codegen/call_multiarg_stack.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-160
+  file: unit/llvm/codegen/call_narrow_args.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-161
+  file: unit/llvm/codegen/call_ptr_bank.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-162
+  file: unit/llvm/codegen/mem_narrow_be_bytes.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-163
+  file: unit/llvm/codegen/mem_narrow_be_wide.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-164
+  file: unit/llvm/codegen/mem_store_load_offset.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-165
+  file: unit/llvm/codegen/ptr_add_offset.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-166
+  file: unit/llvm/codegen/ptr_diff_neg.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-167
+  file: unit/llvm/codegen/ptr_diff_pos.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-168
+  file: unit/llvm/codegen/m4/m4_call_lib.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-169
+  file: unit/llvm/codegen/m4/m4_call_main.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-170
+  file: unit/llvm/codegen/m4/m4_notneg_neg_lib.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-171
+  file: unit/llvm/codegen/m4/m4_notneg_neg_main.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-172
+  file: unit/llvm/codegen/m4/m4_notneg_not_lib.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-173
+  file: unit/llvm/codegen/m4/m4_notneg_not_main.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-174
+  file: unit/llvm/codegen/m4/m4_pdiff_data.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-175
+  file: unit/llvm/codegen/m4/m4_pdiff_main.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-176
+  file: unit/llvm/codegen/m4/m4_section_data.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-177
+  file: unit/llvm/codegen/m4/m4_section_main.ll
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+- id: unit-llvm-178
+  file: unit/llvm/codegen/m6/m6_aggregate_arg.ll
+  platforms:
+  - toolchain
+  level: full
+  requires:
+  - toolchain
+  - qemu
+  - lli
+- id: unit-llvm-179
+  file: unit/llvm/codegen/m6/m6_fp_arith.ll
+  platforms:
+  - toolchain
+  level: full
+  requires:
+  - toolchain
+  - qemu
+  - lli
+- id: unit-llvm-180
+  file: unit/llvm/codegen/m6/m6_fp_hfa.ll
+  platforms:
+  - toolchain
+  level: full
+  requires:
+  - toolchain
+  - qemu
+  - lli
+- id: unit-llvm-181
+  file: unit/llvm/codegen/m6/m6_indirect_call.ll
+  platforms:
+  - toolchain
+  level: full
+  requires:
+  - toolchain
+  - qemu
+  - lli
+- id: unit-llvm-182
+  file: unit/llvm/codegen/m6/m6_large_frame.ll
+  platforms:
+  - toolchain
+  level: full
+  requires:
+  - toolchain
+  - qemu
+  - lli
+- id: unit-llvm-183
+  file: unit/llvm/codegen/m6/m6_multi_return.ll
+  platforms:
+  - toolchain
+  level: full
+  requires:
+  - toolchain
+  - qemu
+  - lli
+- id: unit-llvm-184
+  file: unit/llvm/codegen/m6/m6_sret.ll
+  platforms:
+  - toolchain
+  level: full
+  requires:
+  - toolchain
+  - qemu
+  - lli
+- id: unit-llvm-185
+  file: unit/llvm/codegen/m6/m6_varargs.ll
+  platforms:
+  - toolchain
+  level: full
+  requires:
+  - toolchain
+  - qemu
+  - lli
+- id: unit-llvm-186
+  file: unit/llvm/ir-lli/manifest.yaml
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - toolchain
+  - qemu
+  - lli
+- id: unit-picolibc-001
+  file: unit/picolibc/README.md
+  platforms:
+  - toolchain
+  level: smoke
+  requires:
+  - picolibc

@@ -5,17 +5,17 @@
 ``ld.lld``/QEMU，也**不** import 或调用任何子进程模块（仅标准库 ``os``/
 ``re``/``sys`` + PyYAML）：
 
-A. **L1 MC 编码/reloc**（``tests/llvm/lit/MC/DADAO/m6-callconv.s`` 与
+A. **L1 MC 编码/reloc**（``tests/unit/llvm/lit/MC/DADAO/m6-callconv.s`` 与
    ``m6-ldst-symbol.s``）：从 ``contracts/opcodes.yaml``（``value``/``fields``
    位域）**独立派生**每条指令的编码，从 ``.tao/contracts/contract-elf.md §2.2``
    （重定位类型表，**机械解析**）独立派生其重定位类型，再与行内
    ``@@ @enc <8hex>`` / ``@@ @reloc <NAME>`` 注释比对。
 
-B. **L3 执行向量**（``tests/llvm/codegen/m6/expected.yaml``，raw-bin 清单）：
+B. **L3 执行向量**（``tests/unit/llvm/codegen/m6/expected.yaml``，raw-bin 清单）：
    每条程序的 ``expected_exit_code`` 由**主机侧 IR 语义模型**独立重算（64 位
    二进制补码整数、IEEE-754 双精度、大端内存），与清单记录比对。
 
-C. **L3 ELF 向量**（``tests/llvm/codegen/m6/expected-elf.yaml``）：同上（间接
+C. **L3 ELF 向量**（``tests/unit/llvm/codegen/m6/expected-elf.yaml``）：同上（间接
    调用 / 函数指针地址构造，需 linker 解析 ABS48）。
 
 设计原则与既有范式一致（``validate_codegen_vectors.py`` /
@@ -40,8 +40,8 @@ except ImportError:  # pragma: no cover
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OPCODES = os.path.join(ROOT, "contracts", "opcodes.yaml")
 CONTRACT_ELF = os.path.join(ROOT, ".tao", "contracts", "contract-elf.md")
-MC_DIR = os.path.join(ROOT, "tests", "llvm", "lit", "MC", "DADAO")
-M6_DIR = os.path.join(ROOT, "tests", "llvm", "codegen", "m6")
+MC_DIR = os.path.join(ROOT, "tests", "unit", "llvm", "lit", "MC", "DADAO")
+M6_DIR = os.path.join(ROOT, "tests", "unit", "llvm", "codegen", "m6")
 
 # 允许通过环境变量改目录（仅用于反例注入自检：在临时副本上运行，真源仍取
 # OPCODES/CONTRACT_ELF）。

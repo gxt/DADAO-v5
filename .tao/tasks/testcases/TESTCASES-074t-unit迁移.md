@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：TESTCASES-071t
-**状态**：待开始
+**状态**：待验收
 
 ## 目标（P4）
 1. `tests/llvm/lit/MC|CodeGen`、`llvm/codegen/m3/m4/m6`、`llvm/ir-lli`、picolibc 自测 → `tests/unit/{llvm,picolibc}/`。
@@ -22,13 +22,47 @@
 
 ## 完成区
 
-**状态**：待开始
+**测试结果**：`.work/evidence/TESTCASES-074t/run.sh` ⇒ **PASS 21/21，RUN_EXIT=0**（约 7 min）；2 处注入（`unit.yaml` 坏条目 ⇒ `check-tests-index` rc=1；ledger 删行 ⇒ `check-case-ledger` rc=1）各经 `cp` 备份 + md5 对账还原 ⇒ 回绿。
 
-### 修改文件
-（待填）
+**修改文件**（只搬家/接线/兼容，**无期望值改动**）：
+- 搬迁（`git mv`；旧路径留符号链接）：`tests/llvm/{lit,codegen,ir-lli}` → `tests/unit/llvm/`；`codegen/m5` 链接重定向为 `../../../arch/umon`。
+- 新增：`tests/unit/llvm/README.md`、`tests/unit/picolibc/README.md`、`tests/unit.yaml`（187 条：llvm 186 + picolibc 1）、`.work/evidence/TESTCASES-074t/run.sh`。
+- 门控：`Makefile`（+`check-unit`（L2，含 ir-lli 步骤）；`check-modules` 成员收拢为 `check-unit`；lit/codegen/elf 走新路径；`GATE_LOCKED_TARGETS`/`.PHONY`/help/注释）。
+- 台账/工具：`tests/case-ledger.tsv`（502 条 lit 行**仅路径重映射**，排序归一后与迁移前逐字节一致）；`tools/infra/check_case_ledger.py`（lit 真实路径）；`tools/testcases/diff_ir_lli.py`（manifest 默认新路径）+ `validate_{codegen,elf,m6,mc}_vectors.py`（路径常量）。
+- 文档：`tests/{README,INVENTORY}.md`、`docs/Process-09`（§2 P4 注 + §11）、`docs/Process-05`、`spec/README.md`（路径）、`milestones.md`、本任务书。
 
-### 验收命令与结果
-（待填）
+**验收结果**：
+- `make check` rc=0（`repository checks (L1): PASS`）；`check-tests-index` rc=0（`unit=187 / total=237`）；`check-case-ledger` rc=0（`现场身份 1958 条`）。
+- `make check-unit` rc=0（lit 154/154；codegen 15/15；elf 5/5；ir-lli 19/19；picolibc fast 20：18 pass / 0 fail / 2 excluded / 0 blocked）。
+- 旧命令等价：`check-lit` rc=0（154/154）、`test-codegen` rc=0（15/15）、`test-elf` rc=0（5/5）、`test-m6` rc=0（lit-full 12/12 + ir-lli 19/19 + embench 38/38）；`make check-modules` rc=0。
+- **期望值/生成物未变**：迁移文件对 `HEAD:tests/llvm/**` 全量对账 204 文件，除 `tests/llvm→tests/unit/llvm` 路径重写外**仅 1 处**非路径改动（`validate_cfx_vectors.py` 的 REPO 定位改为向上找仓库根）；4 个独立 oracle 校验 rc=0（58 / 42 / 102 / 78 checks）。
 
-### 遗留
-（待填）
+**新发现/坑**：
+① 目录符号链接**不能**替代递归 glob（`tests/llvm/lit/**/*.s` 在链接目录上 0 命中）⇒ ledger 门控必须改真路径；`os.walk`/单层 glob 可穿透顶层链接（ir-lli/codegen 驱动因此零改动）。
+② 仓库根按 `__file__` 上溯**固定层数**会随搬家失效（`validate_cfx_vectors` 5→6 层，实测读到 `tests/contracts/`）⇒ 改为向上找 `manifests/install-dirs.lock.toml`。
+③ `.work/log/**` 新文件名受 `check-run-artifacts` A3 约束：空格/`:`/中文即红 ⇒ 证据脚本内部日志统一 `TESTCASES-074t-evidence-<nn>-<ascii-slug>.log`。
+④ `check-unit` 以门控目标为前置（`check-lit`/`test-codegen`/`test-elf`/`check-picolibc-tests`）在父锁内嵌套放行，实测 2m27s。
+
+**遗留问题**：
+① 旧路径符号链接（`tests/llvm/{lit,codegen,ir-lli}` + m5 重定向）待 `TESTCASES-076t` 删除；届时 `tools/llvm/*` 与 `tools/integ/*` 的旧路径默认值（`check_interface_alignment`、`gen_isa_coverage`、`check_lit_bytes`、`run_codegen_e2e`/`run_elf_e2e`）需一并改新路径（本任务未改，链接下均可用）。
+② `tests/unit/llvm/lit/tools/DADAO/` 仍为占位（无测试），未入索引/门控（迁移前亦然）。
+③ `check-unit` 为 L2 代表集；L3 全量仍由 `test-m6` 承担，`codegen/m6` 仍手工（迁移前口径未改）。
+④ 未跑 `check-full`/夜跑（任务约束：只跑 smoke/定向）。
+
+## 审阅记录
+
+### 第 1 轮 engineer 自审（自主逐行审查）
+
+审查范围：`Makefile` 全部改动行；`tests/unit.yaml`（逐条 field/file 存在性由门控现场校验）；三个旧路径符号链接与 m5 目标；`check_case_ledger.py`/`diff_ir_lli.py`/4 个 validator 的路径常量；证据脚本逐检查项（含注入与还原）；`tests/README`/`INVENTORY`/`Process-09` 改动。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 递归 glob 不穿透目录符号链接 ⇒ `check-case-ledger` 现场 0 行 lit | ✅已修 | `check_case_ledger.py` lit glob 改 `tests/unit/llvm/lit`；ledger `--write` | 502 行 path-only；排序归一后 diff 空；门控 rc=0 |
+| `validate_cfx_vectors.py` 固定 5 层上溯 ⇒ 读到 `tests/contracts/opcodes.yaml`（`make check` rc=2） | ✅已修 | REPO 改为向上找 `manifests/install-dirs.lock.toml` | 新/旧路径各 rc=0（16 条向量 0 错误）；`make check` PASS |
+| `ir-lli/manifest.yaml` 的 `corpus_roots`/条目仍指旧路径 | ✅已修 | 全量替换为 `tests/unit/llvm/...`；driver 默认 manifest 同步 | `diff_ir_lli` 19/19 matched、PASS |
+| 证据脚本 `cd ../../` 少一层（到 `.work`）⇒ 18/19 假红 | ✅已修 | 改 `../../..`；并加「备份 md5 非空」断言防恒真 | 二跑 21/21 PASS |
+| 证据脚本内部日志名含空格/`:`/中文 ⇒ `check-run-artifacts` A3 红 | ✅已修 | slug 化 `TESTCASES-074t-evidence-<nn>-<slug>.log`；删除旧非法名日志 | 脚本末项 `make check` rc=0 |
+| m5 符号链接按旧目录深度写 `../../arch/umon` ⇒ 迁后指向不存在路径 | ✅已修 | 改为 `../../../arch/umon` | `readlink -f` = `tests/arch/umon`；check-arch-smoke 未受影响 |
+| `check-modules` 同时列旧成员与新 `check-unit` ⇒ 重复执行 | ✅已修（明示） | L2 只列 `check-unit`；旧目标名保留可单独调用 | `check-modules` rc=0（8m37） |
+
+**判决**：改动范围内无未修 finding；遗留 ①–④ 均为**迁移前既有口径/任务约束**（旧入口待 076t 删除、占位目录、L3 口径、未跑全量），不阻断。状态 `待验收`。

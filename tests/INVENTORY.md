@@ -7,6 +7,9 @@
 > **P3 arch（2026-10-27，`TESTCASES-073t`）**：`tests/llvm/codegen/m5/` → `tests/arch/umon/`、
 > `tools/qemu/min_rom_probe_*` → `tools/testcases/arch/`（旧路径留 wrapper）、bootrom 三件 →
 > `tests/shared/bootrom/`（旧路径为符号链接）；门控 `test-semihost` → `check-arch-smoke`（别名保留）。
+> **P4 unit（2026-10-27，`TESTCASES-074t`）**：`tests/llvm/{lit,codegen,ir-lli}` →
+> `tests/unit/llvm/`（旧路径为符号链接）；picolibc 自测入口 → `tests/unit/picolibc/`
+> （仍只在 picolibc 构建下跑）；门控收拢为 `check-unit`（L2），旧目标名保留。
 > **下文 §2/§3 的路径与计数是迁移前快照**；最新布局与入口见 `tests/README.md`。
 > **计数口径**：全部由命令现场统计（不含 `.git`、`.work`、`.cache`）；「文件数」= `find … -type f` 的**磁盘**文件（含被 `.gitignore` 忽略的 `__pycache__/*.pyc`）；「入库」另列 `git ls-files` 计数。
 > **机器可核**：文末「计数锚点」块由 `.work/evidence/TESTCASES-067t/run.sh` 现场重算逐项比对；测试一改，锚点必须同步，否则证据脚本红。

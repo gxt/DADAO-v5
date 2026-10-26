@@ -7,7 +7,7 @@
 
 ---
 
-## 0. 四 scope 骨架（P1 已落；P2 = inst、P3 = arch 已迁）
+## 0. 四 scope 骨架（P1 已落；P2 = inst、P3 = arch、P4 = unit 已迁）
 
 `Process-09` 的四分法骨架已落盘（P1，`TESTCASES-071t`）。
 **P2（`TESTCASES-072t`，2026-10-27）已完成 inst 迁移**：`tests/vectors/*` 与顶层
@@ -17,7 +17,12 @@
 `tests/arch/umon/`；`tools/qemu/min_rom_probe_*` → `tools/testcases/arch/`；bootrom 源
 （`bootrom.S`/`bootrom_app.S`/`bootrom.lds`）→ `tests/shared/bootrom/`（旧路径留薄
 wrapper / 符号链接）；门控 `check-arch-smoke`（L2）/ `check-arch`（L3），旧名
-`test-semihost` = 别名。其余 scope（unit/tset）仍待 `TESTCASES-074t`/`075t`。
+`test-semihost` = 别名。
+**P4（`TESTCASES-074t`，2026-10-27）已完成 unit 迁移**：`tests/llvm/{lit,codegen,ir-lli}`
+→ `tests/unit/llvm/{lit,codegen,ir-lli}/`（旧路径留符号链接）；picolibc 自测入口 →
+`tests/unit/picolibc/`（仍只在 picolibc 构建下跑）。门控 `check-unit`（L2 =
+lit + codegen/elf + ir-lli + picolibc fast），旧名 `check-lit`/`test-codegen`/
+`test-elf`/`test-m6`/`check-picolibc-tests` 保留、可单独调用。tset 待 `TESTCASES-075t`。
 
 | scope | 测什么 | `platforms` 允许值 | 目录 |
 |---|---|---|---|
@@ -42,13 +47,14 @@ wrapper / 符号链接）；门控 `check-arch-smoke`（L2）/ `check-arch`（L3
 | `inst/{rol,atomics,clmul,rev,bitcnt}/*.yaml` | I | 非 M1 向量（`rev`/`bitcnt` 未入门控） | 同上（仅 `rol`/`atomics`/`clmul`） |
 | `inst/{inventory.md,schema.md,README.md}` | — | 覆盖矩阵（M1 156 行）、向量字段规范、inst scope 说明 | `make validate-vectors`（L1） |
 | `inst/{atomics,clmul,fma,minmax,roundint}/*.[ch]|*.ll` | I | 指令语义探针源（C/IR；原 `tests/<ext>/`） | `make check-{rnd,minmax,fma,clmul}-probe`（L2；atomics 手工） |
-| `llvm/lit/MC/{DADAO,DADAO-gen}/` | I | 汇编器编码 lit 用例（76 + 12） | `make check-lit` / `make check-lit-full` |
-| `llvm/lit/CodeGen/DADAO/` | E | IR→汇编/MIR **结构**断言（63） | `make check-lit` |
-| `llvm/codegen/`（M3） | E | IR→运行（15 程序） | `make test-codegen` |
-| `llvm/codegen/m4/` | E | 多 TU/多段 ELF（5 程序） | `make test-elf` |
+| `unit/llvm/lit/MC/{DADAO,DADAO-gen}/` | U | 汇编器编码 lit 用例（77 + 12；原 `llvm/lit/MC/`，旧路径为符号链接） | `make check-lit` / `make check-lit-full`；`check-unit` |
+| `unit/llvm/lit/CodeGen/DADAO/` | U | IR→汇编/MIR **结构**断言（63） | `make check-lit`；`check-unit` |
+| `unit/llvm/codegen/`（M3） | U | IR→运行（15 程序） | `make test-codegen`；`check-unit` |
+| `unit/llvm/codegen/m4/` | U | 多 TU/多段 ELF（5 程序） | `make test-elf`；`check-unit` |
 | `arch/umon/` | S | cfx_umon：semihosting/CFX 权限执行向量（10 程序 + 清单；原 `llvm/codegen/m5/`，旧路径为符号链接） | `make check-arch-smoke`（L2）/ `check-arch`（L3）；旧名 `test-semihost` |
-| `llvm/codegen/m6/` | E | M6 调用约定/大帧/FP（8 程序） | **手工**（见 `llvm/codegen/m6/README.md`） |
-| `llvm/ir-lli/` | E | host `lli` vs DADAO 值级差分（19 include / 72 exclude） | `make test-m6` |
+| `unit/llvm/codegen/m6/` | U | M6 调用约定/大帧/FP（8 程序） | **手工**（见 `unit/llvm/codegen/m6/README.md`） |
+| `unit/llvm/ir-lli/` | U | host `lli` vs DADAO 值级差分（19 include / 72 exclude） | `make check-unit`（L2）/ `make test-m6`（L3） |
+| `unit/picolibc/` | U | picolibc 上游自测入口（仍只在 picolibc 构建下跑） | `make check-picolibc-tests`（L2；`check-unit` 成员） |
 | `e2e/lit/*.test` | E | 端到端 smoke/FP/clmul/weak/CM（14） | `make check-lit` |
 | `e2e/*.c|*.s|*.lds` | E | 上述 `.test` 的源（9 个已无 runner，见 `INVENTORY §7.4`） | 经 `.test` |
 | `shared/bootrom/` | S 载体 | SEE bootrom 源 + 链接脚本（`bootrom.S`/`bootrom_app.S`/`bootrom.lds`；`make build-bootrom` 用） | — |
@@ -64,9 +70,10 @@ wrapper / 符号链接）；门控 `check-arch-smoke`（L2）/ `check-arch`（L3
 
 ```sh
 make check            # L1：仓库完整性（不跑被测语义）
-make check-modules    # L2：模块代表集（lit 子集 + inst 冒烟 + codegen/elf + arch 冒烟 + 4 个 probe）
+make check-modules    # L2：模块代表集（check-unit + inst 冒烟 + arch 冒烟 + 4 个 probe）
 make check-full       # L3：inst 全量（check-inst）+ arch 全 cfx（check-arch）+ test-m6（慢）
 
+make check-unit       # unit 代表集（L2：lit + codegen/elf + ir-lli + picolibc fast）
 make check-inst-smoke # inst 代表集（L2；旧名 check-qemu-smoke = 别名）
 make check-inst       # inst 全量（L3；旧名 check-qemu-semantics = 别名）
 make check-arch-smoke # arch 代表集（L2：SEE/semihosting + cfx 权限 + 25 服务；旧名 test-semihost = 别名）
@@ -106,7 +113,7 @@ python3 tools/testcases/arch/min_rom_probe_044t.py --list   # cfx min-ROM 场景
 make check-lit                      # MC + CodeGen + E2E 三套
 make check-lit-full                 # 生成档全量（L3）
 # 单文件（lit 可执行在安装根）
-.dadao/cross-toolchain/bin/llvm-lit tests/llvm/lit/MC/DADAO/rrrr.s -v
+.dadao/cross-toolchain/bin/llvm-lit tests/unit/llvm/lit/MC/DADAO/rrrr.s -v
 ```
 
 ### 2.4 探针
@@ -159,7 +166,7 @@ make check-picolibc-tests-full     # 全量（235，最近 1 fail / 3 blocked）
 | M1 每个身份有没有向量、哪一册、deferred 原因 | `tests/inst/inventory.md`（156 行；`make validate-vectors` 守护） |
 | 每个身份在 LLVM 后端到哪一步（td/isel/编码/汇编） | `tools/llvm/llvm-isa-backend-matrix.tsv`（266 行；`make check-isa-coverage` 守护） |
 | 有没有「被删掉的用例/pattern」 | `tests/case-ledger.tsv`（1,956 条；`make check-case-ledger` 守护） |
-| IR 差分语料的准入/排除理由 | `tests/llvm/ir-lli/manifest.yaml`（19 include / 72 exclude，按类登记） |
+| IR 差分语料的准入/排除理由 | `tests/unit/llvm/ir-lli/manifest.yaml`（19 include / 72 exclude，按类登记） |
 | 哪些册进 L2/L3 | `tests/inst/inventory.md` 末尾「门控覆盖」表 |
 
 **已知缺口**（详见 `INVENTORY §6`）：`fp` 66 个身份无向量（语义靠 lit + 4 个 probe）；`m1` 4 个 cfx 身份 deferred；`rev`/`bitcnt` 476 例不在门控。
