@@ -49,7 +49,7 @@ RB_DUMP_OFF = 0x208                  # rb[1] starts at +0x208 (rb[0] slot at +0x
 PC_DUMP_OFF = 0x400                  # pc (rb0 via rb2rd→st.o-rd) at +0x400
 
 # Semihosting SYS_EXIT (contract-semihosting.md §1/§3/§5; ADR-0020 D1/D8)
-SEMIHOST_TAG = 0x30000               # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00               # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 SYS_EXIT = 0x18                      # SYS_EXIT service number
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
@@ -169,7 +169,7 @@ def encode_jump_iiii(imms24):
 
 def encode_trap(cfxha, immu18):
     """trap cfxha, immu18 (ciii, op=0x7F).
-    Fields: cfxha[23:18], immu18[17:0].  immu18[17:16]==2'b11 selects the
+    Fields: cfxha[23:18], immu18[17:0].  immu18[17:8]==0x3FF (0x3FF00-0x3FFFF) selects the
     semihosting short-circuit (contract-semihosting.md §1; ADR-0020 D1)."""
     return (0x7F << 24) | (cfxha << 18) | (immu18 & 0x3FFFF)
 

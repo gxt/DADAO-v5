@@ -35,7 +35,7 @@ _start:
 	set.zw	rd9, wp0, 0x0053
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 	swym	0
 
 fail:
@@ -47,5 +47,5 @@ fail:
 	set.zw	rd9, wp0, 0x00E1
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 	swym	0

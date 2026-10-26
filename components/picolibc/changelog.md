@@ -50,3 +50,7 @@
 - **2026-10-26 `TESTCASES-064t`**
   - 摘要：**`%p` 取参改按声明类型 `void *`（`ISS-304`）**：`libc/stdio/vfprintf_int.c` 原在 `%p` 分支置 `FL_LONG` 后走 `arg_to_unsigned`（⇒ `va_arg(ap, unsigned long)`，DADAO 读 **RD** 整数银行），而调用侧 `void*` 按 `CCIfPtr` 进 **RB** 银行 ⇒ 取错银行、`test 277/278` 得 `0x8`/`0x3`（应为 `0x39`）；改为 `x = (ultoa_unsigned_t)(uintptr_t)va_arg(ap, void *)`（`ptr_arg` 标记，其余整数路径不变）。`series` **14 → 15**（新增 `libc/stdio/vfprintf_int.c.patch`）。真值：`make build-picolibc` rc=0（`-Werror` 无告警）；`test-printf`/`test-printf-int` 及 4 个 `*-float`/`*-long`/`*-scanf*` 变体共 8 例全绿（full 档 pass 201→**209**，fail 9→**1**、blocked 3 不变；剩余 1 fail/3 blocked 为改前既有、与本笔无关）；撤补丁可复现 `0x8`/`0x3`。
   - 执行者：engineer
+
+- **2026-10-26 `QEMU-076t`**
+  - 摘要：**semihosting tag 迁移（ADR-0038 D4，architect 授权扩围）**：`libos/semihost/machine/dadao/semihost-dadao.S` 的 semihosting 调用点由旧 tag 迁至 `0x3FF00`，注释判据同步为 `immu18[17:8] == 0x3FF`；`README.md` 同步。**语义/服务号不变**，`series` 15 不变（同一补丁重写）。真值：`make check-picolibc-tests` total=20 pass=18 excluded=2 fail=0 blocked=0（改前 20 blocked / `CFXMEM 0x81`）。
+  - 执行者：engineer

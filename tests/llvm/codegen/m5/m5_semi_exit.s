@@ -33,6 +33,6 @@ _start:
 	st.o	rd9, [rb16, 8]
 	@@ SYS_EXIT = 0x18
 	set.zw	rd16, wp0, 0x0018
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 	@@ not reached on a successful SYS_EXIT
 	swym	0

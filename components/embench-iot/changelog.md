@@ -9,3 +9,9 @@
 
 - **2026-10-10 `TESTCASES-039t`**
   - 摘要：**DADAO 板级接入**：新增 `examples/dadao/boardsupport.{c,h}`（board shim 3 函数 `initialise_board`/`start_trigger`/`stop_trigger`，经 semihosting `SYS_WRITE0` 打点，证明被 `support/main.c` 调用）；改 `src/md5sum/md5.c`（**大端适配**：`uint32_t*` 重解释 ⇒ 显式小端字序组装 `w[16]` + 小端写长度字段，使 `md5sum` 在大端 DADAO 结果正确）。最小运行时（`mem*`/`str*`/`ctype`/`sqrt`）不在本组件内，落 `tests/scripts/{dadao_mem_runtime.ll（复用）,embench_runtime.c,embench_include/}`。
+
+## M10
+
+- **2026-10-26 `QEMU-076t`**
+  - 摘要：**semihosting tag 迁移（ADR-0038 D4，architect 授权扩围）**：`examples/dadao/boardsupport.c` 的 semihosting 调用点由旧 tag 迁至 `0x3FF00`，注释判据同步为 `immu18[17:8] == 0x3FF`。`series` 4 不变（同一补丁重写）。真值：Embench E2E 38/38 passed、0 failed（见任务书完成区）。
+  - 执行者：engineer

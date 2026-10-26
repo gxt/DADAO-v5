@@ -34,7 +34,7 @@ _start:
 	st.b	rd8, [rb16, 3]
 	@@ SYS_WRITE0 = 0x04
 	set.zw	rd16, wp0, 0x0004
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 	@@ report success via SYS_EXIT (pass token 0x41)
 	set.zw	rb16, wp0, 0x2000
 	or.w	rb16, wp2, 0xfc00
@@ -44,5 +44,5 @@ _start:
 	set.zw	rd9, wp0, 0x0041
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 	swym	0

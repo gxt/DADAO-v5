@@ -2,7 +2,7 @@
 @@
 @@ Capability: semihosting "console" service SYS_WRITEC (0x03) writes the single
 @@ character at the argument pointer (rb16) to the semihosting console
-@@ (contract-semihosting.md §3; Machine-01 §5.3).  Entry tag immu18[17:16]==2'b11
+@@ (contract-semihosting.md §3; Machine-01 §5.3).  Entry tag immu18[17:8]==0x3FF (0x3FF00-0x3FFFF)
 @@ (contract-semihosting.md §1); the call is short-circuited in the decode layer
 @@ and returns by pc += 4 (contract-semihosting.md §4).
 @@
@@ -31,10 +31,10 @@ _start:
 	@@ store 'A' at [rb16]
 	set.zw	rd8, wp0, 0x0041
 	st.b	rd8, [rb16, 0]
-	@@ SYS_WRITEC = 0x03, then the semihosting trap (tag 0x3000_0 sets
-	@@ immu18[17:16] = 2'b11)
+	@@ SYS_WRITEC = 0x03, then the semihosting trap (tag 0x3FF00 sets
+	@@ immu18[17:8] = 0x3FF, i.e. 0x3FF00-0x3FFFF)
 	set.zw	rd16, wp0, 0x0003
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 	@@ report success via SYS_EXIT (pass token 0x40)
 	set.zw	rb16, wp0, 0x2000
 	or.w	rb16, wp2, 0xfc00
@@ -44,5 +44,5 @@ _start:
 	set.zw	rd9, wp0, 0x0040
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 	swym	0

@@ -72,3 +72,7 @@
 - **2026-10-26 INFRA-108t**
   - 摘要：**`libc_pic.a` 归档与 `-static-pie` 支持（ISS-303，方案 B）**：`build_musl.py --shared` 额外产 `lib/libc_pic.a`（成员 = `LOBJS` 1349，逐成员 sha 对 `.lo`；命名/序对 `libc.a`）并入 sysroot `lib/`；`check_musl_freshness.py` 增「build/installed `libc_pic.a` 同源」检查（自测第 7 注入）；`README.md` 写明 `-static-pie`/`rcrt1.o`/`-fPIE` 用法与「仅替换显式路径 `libc.a`、`-lc` 不替换」边界。真值：`-static-pie` + qemu exit 7；`-static` 逐字节一致（去 `.comment`）；反例移走归档复现 20 条 ABS48 失败。
   - 执行者：engineer
+
+- **2026-10-26 `QEMU-076t`**
+  - 摘要：**semihosting 判据注释同步（ADR-0038 D4，architect 授权扩围）**：`arch/dadao/syscall_arch.h` 中 syscall 入口旁的 semihosting 判据注释改为 `immu18 < 0x3FF00`；**无功能改动**（该路径本就是 `trap cfx_umon, 0` 的 syscall 入口）。`series` 24 不变。
+  - 执行者：engineer

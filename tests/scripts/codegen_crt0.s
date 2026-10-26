@@ -20,7 +20,7 @@
 @@   * reason = ADP_Stopped_ApplicationExit (0x20026) selects a normal exit and
 @@     the second field becomes the process exit status;
 @@   * rd16 = service number 0x18 (SYS_EXIT), rb16 = argument-block pointer;
-@@   * `trap cfx_umon, 0x30000` (immu18[17:16] == 2'b11) is the semihosting tag.
+@@   * `trap cfx_umon, 0x3FF00` (immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF)) is the semihosting tag.
 @@   The harness must run QEMU with `-semihosting-config enable=on,target=native`
 @@   (ADR-0020 D7: native is explicitly enabled by the test harness).
 @@
@@ -58,7 +58,7 @@ _start:
 
 	@@ 5. rd16 = 0x18 (SYS_EXIT); trap with the semihosting tag.
 	set.zw	rd16, wp0, 0x0018
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 
 	@@ 6. SYS_EXIT never returns; kept as a guard.
 	swym	0

@@ -153,7 +153,7 @@ def swym():
     return encode_oiii(0x47, 0x22, 0)
 
 def trap_sys_exit():
-    """trap cfx_umon, 0x30000 — semihosting tag (immu18[17:16]==2'b11)."""
+    """trap cfx_umon, 0x3FF00 — semihosting tag (immu18[17:8]==0x3FF (0x3FF00-0x3FFFF))."""
     return encode_oiii(0x7F, 0x00, SEMIHOST_TAG)
 
 # ── Semihosting SYS_EXIT (ADR-0020 D8: exit port removed) ──────────────
@@ -162,7 +162,7 @@ def trap_sys_exit():
 # block[1] (offset 8) and traps; SYS_EXIT never returns.
 
 SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
-SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
 

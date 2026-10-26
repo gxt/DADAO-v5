@@ -165,7 +165,7 @@ def set_fcsr_mode(mode):
 # ── Semihosting SYS_EXIT (ADR-0020 D8) ─────────────────────────────────
 
 SEMI_BLOCK = 0xFC00_00FF_F000
-SEMIHOST_TAG = 0x30000
+SEMIHOST_TAG = 0x3FF00
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
 

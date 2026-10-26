@@ -79,12 +79,12 @@ _start:
     @@ 7. PASS: report 0x00 via SYS_EXIT
     st.o    rd5, [rb16, 8]
     set.zw  rd16, wp0, 0x0018
-    trap    cfx_umon, 0x30000
+    trap    cfx_umon, 0x3FF00
 
 Lfail:
     @@ 8. FAIL: report 0x01 via SYS_EXIT
     set.zw  rd7, wp0, 1
     st.o    rd7, [rb16, 8]
     set.zw  rd16, wp0, 0x0018
-    trap    cfx_umon, 0x30000
+    trap    cfx_umon, 0x3FF00
     swym    0

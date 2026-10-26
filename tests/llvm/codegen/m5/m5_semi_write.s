@@ -84,7 +84,7 @@ _start:
 	set.zw	rd9, wp0, 0x000C		@@ name length 12
 	st.o	rd9, [rb16, 16]
 	set.zw	rd16, wp0, 0x0001		@@ SYS_OPEN
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 
 	@@ --- SYS_WRITE: block at RAM + 0x3100 = {handle, buf ptr, count} ---
 	set.zw	rb16, wp0, 0x3100
@@ -96,7 +96,7 @@ _start:
 	set.zw	rd9, wp0, 0x0004
 	st.o	rd9, [rb16, 16]
 	set.zw	rd16, wp0, 0x0005		@@ SYS_WRITE
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 
 	@@ --- self-check: SYS_WRITE returns 0 (no unwritten bytes) ---
 	set.zw	rd12, wp0, 0x0000
@@ -112,7 +112,7 @@ _start:
 	set.zw	rd9, wp0, 0x0042
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 	swym	0
 
 fail:
@@ -125,5 +125,5 @@ fail:
 	set.zw	rd9, wp0, 0x00E1
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 	swym	0

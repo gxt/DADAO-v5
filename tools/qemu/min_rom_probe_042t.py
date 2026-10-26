@@ -64,7 +64,7 @@ RAM_SIZE = 16 * 1024 * 1024
 ROM_BASE = 0xFFFF_FFFF_0000
 ROM_SIZE = 64 * 1024
 SEMI_BLOCK = 0xFC00_00FF_F000        # SYS_EXIT argument block {reason, code}, in RAM
-SEMIHOST_TAG = 0x30000               # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00               # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
 EM_DADAO = 0x0DA0

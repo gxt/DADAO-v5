@@ -43,12 +43,12 @@ _start:
     @@ 5. PASS: report 0x00 via SYS_EXIT (rd3 = 0 from XOR equality)
     st.o    rd3, [rb16, 8]
     set.zw  rd16, wp0, 0x0018
-    trap    cfx_umon, 0x30000
+    trap    cfx_umon, 0x3FF00
 
 Lfail:
     @@ 6. FAIL: report 0x01 via SYS_EXIT
     set.zw  rd4, wp0, 1
     st.o    rd4, [rb16, 8]
     set.zw  rd16, wp0, 0x0018
-    trap    cfx_umon, 0x30000
+    trap    cfx_umon, 0x3FF00
     swym    0

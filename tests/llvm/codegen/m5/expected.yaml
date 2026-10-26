@@ -35,7 +35,7 @@ conventions:
   load: "flat bin via llvm-mc -> llvm-objcopy -O binary; -kernel at 0xFC00_0000_0000"
   entry: "SEE bootrom (-bios) sets cfx vectors/masks then hands off to the app in user mode (Machine-01 §2)"
   reset_pc: "0xffff_ffff_0000 (cfx_power_hypv_excp_vector; DADAO-12 §2.1)"
-  semihosting: "trap cfx_umon, 0x30000 (immu18[17:16]==2'b11); rd16=service, rb16=argument block, rd8=return (contract-semihosting.md §1/§2)"
+  semihosting: "trap cfx_umon, 0x3FF00 (immu18[17:8]==0x3FF (0x3FF00-0x3FFFF)); rd16=service, rb16=argument block, rd8=return (contract-semihosting.md §1/§2)"
   permission: "cfx-level only (ILLI / CFXREG); NUPERM/NJPERM/NSPERM/NHPERM are the PTBR layer and not in M5 (ADR-0020 D9 / contract-see.md §3)"
   exit: "SYS_EXIT (0x18) / SYS_EXIT_EXTENDED (0x20); host $? = guest exit code (contract-semihosting.md §5)"
   oracle: "host-side derivation from contracts/ + the vector's @m5 header; never llvm-mc / QEMU"
@@ -159,7 +159,7 @@ programs:
     expected_cause: CFXTRAP
     coverage: [trap.vector, trap.escape, adr0020.d10]
     derivation: >-
-      `trap cfx_umon, 0x0123` (immu18[17:16] != 2'b11) records cause CFXTRAP and
+      `trap cfx_umon, 0x0123` (immu18 < 0x3FF00) records cause CFXTRAP and
       enters the cfx_umon user vector; the bootrom handler returns with
       `escape cfx_umon, [excp_cause_ip, 4]` (DADAO-12 §5 / contract-see.md §4).
       The vector requires cause_id == CFXTRAP (1<<0) and escape_num == 1 (the

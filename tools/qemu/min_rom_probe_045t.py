@@ -92,7 +92,7 @@ CFXTRAP, CFXMEM, CFXREG, ILLI = 1, 2, 4, 1 << 8
 ALL1 = (1 << 64) - 1
 
 # Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
-SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 SEMI_BLOCK = 0xFC00_00FF_F000       # argument block {reason, code}, in RAM
 
@@ -258,7 +258,7 @@ def hand(off, code):
 def _trap_vector_roundtrip():
     prog = set_cfx_vector(0, 3, H)          # cfx0 hypv excp_vector = H
     trap_idx = len(prog)
-    prog += [trap(0, 0x0123)]               # immu18[17:16]=0 (general)
+    prog += [trap(0, 0x0123)]               # immu18=0x0123 (general, below 0x3FF00)
     # escape returns to trap+4:
     prog += [cfx2rd(0, 4, 5, 9)]            # escape_num -> rd9
     prog += [cfx2rd(0, 5, 3, 10)]           # cause_ip   -> rd10

@@ -195,3 +195,7 @@
 - **2026-10-25 `QEMU-074t`**
   - 摘要：**`cmp.{ut,uw,ub}` 结果去掉零扩展（ADR-0037：-1 = 64 位全 1）**：`trans_cmp_{ut,uw,ub}` 删除 `ext32u/ext16u/ext8u`（`gen_cmp_three_way` 的 i64 -1/0/1 与源截断保留）；`tests/vectors/isa/reg-compare.yaml` 3 条 -1 期望改 `0xFFFF_FFFF_FFFF_FFFF`（0/+1 未动）；新增 `tools/qemu/min_rom_probe_074t.py`（21 例：-1/0/+1、源截断、`cmp.{ut,uw,ub}→br.n`、控制组）；`min_rom_probe_005t.py` 的 V3 旧零扩展断言同步。真值：L1/L2 绿、`check-qemu-smoke` 90/90、L3 967/978（11 deferred）、注入 16/16 红→绿。
   - 执行者：engineer
+
+- **2026-10-26 `QEMU-076t`**
+  - 摘要：**semihosting 判定迁至 `0x3FF00–0x3FFFF`（ADR-0038 D1/D4）**：`insn_trans/trans_ctrl.c.inc` 译码条件 `((immu18 >> 16) & 0x3) == 0x3` → `immu18 >= 0x3FF00`；`helper.c` 的同判据防御分支与两处注释同步；调用点 `0x30000` → `0x3FF00`（bootrom_app/`codegen_crt0`/`build_test_binary`/M5 向量/e2e/`min_rom_probe_*`）。**语义/服务号不变**（`0x30001` HBI INIT、指令编码字、`0x3FFFF` 掩码常量未动）。
+  - 执行者：engineer

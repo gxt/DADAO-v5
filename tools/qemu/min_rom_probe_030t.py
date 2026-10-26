@@ -79,7 +79,7 @@ def ld_o_rd(rdha, rbhb, imms12):
 # Trampoline sets rb16 = SEMI_BLOCK, writes block[0] = 0x20026 and sets
 # rd16 = 0x18 (SYS_EXIT).  Each terminal writes the code into block[1] and traps.
 SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
-SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 def trap_sys_exit(): return encode_riii(0x7F, 0x00, SEMIHOST_TAG)
 def semi_exit(code_rd): return [st_o_rd(code_rd, 16, 8), trap_sys_exit()]
 def st_o_rd_pass(): return semi_exit(18)   # PASS: exit code from rd18

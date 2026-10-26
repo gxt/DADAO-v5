@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/syscall_arch.h b/arch/dadao/syscall_arch.h
 new file mode 100644
-index 0000000..31ac6c4
+index 0000000..c509556
 --- /dev/null
 +++ b/arch/dadao/syscall_arch.h
 @@ -0,0 +1,523 @@
@@ -23,7 +23,7 @@ index 0000000..31ac6c4
 + *         so musl's __syscall_ret() needs no change at all (it already
 + *         interprets `r > -4096UL` as an error).
 + *
-+ * The assembler form is `trap cfx_umon, 0` (immu18[17:16] != 2'b11, so it is
++ * The assembler form is `trap cfx_umon, 0` (immu18 < 0x3FF00, so it is
 + * NOT the semihosting tag) -- the same spelling tests/scripts/bootrom.S uses
 + * for the hypv->user hand-off; QEMU's dadao-m1 machine serves it for user mode
 + * (INFRA-082t stage A1) and resumes at pc+4.

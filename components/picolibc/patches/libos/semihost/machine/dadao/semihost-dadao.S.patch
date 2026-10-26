@@ -1,6 +1,6 @@
 diff --git a/libos/semihost/machine/dadao/semihost-dadao.S b/libos/semihost/machine/dadao/semihost-dadao.S
 new file mode 100644
-index 0000000..fccf4b7
+index 0000000..6f139ef
 --- /dev/null
 +++ b/libos/semihost/machine/dadao/semihost-dadao.S
 @@ -0,0 +1,41 @@
@@ -18,9 +18,9 @@ index 0000000..fccf4b7
 + *   * the service number goes in rd16 (rda0);
 + *   * the argument-block pointer goes in rb16 (rba0);
 + *   * the result comes back in rd8;
-+ *   * the call is `trap <any cfxha>, 0x30000` — the tag test is
-+ *     immu18[17:16] == 2'b11 and is independent of the cfxha value, so
-+ *     cfx_umon is used here exactly as in the M5 vectors;
++ *   * the call is `trap <any cfxha>, 0x3FF00` — the tag test is
++ *     immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) and is independent of the
++ *     cfxha value, so cfx_umon is used here exactly as in the M5 vectors;
 + *   * semihosting has no `escape`: the implementation advances pc and writes
 + *     rd8.
 + *
@@ -42,6 +42,6 @@ index 0000000..fccf4b7
 +	.type	sys_semihost, @function
 +sys_semihost:
 +	rd2rb	{rb16}, {rd17}		@@ param -> rb16 (argument block pointer)
-+	trap	cfx_umon, 0x30000	@@ immu18[17:16] == 2'b11 => semihosting
++	trap	cfx_umon, 0x3FF00	@@ immu18[17:8] == 0x3FF => semihosting
 +	ret	rd0, 0			@@ result already in rd8
 +	.size	sys_semihost, . - sys_semihost

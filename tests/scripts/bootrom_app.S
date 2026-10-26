@@ -61,7 +61,7 @@ _app:
 	or.w	rb16, wp1, 0xffff
 	or.w	rb16, wp0, 0x0180		@@ rb16 -> ROM exit block
 	set.zw	rd16, wp0, 0x0018		@@ SYS_EXIT
-	trap	cfx_umon, 0x30000		@@ immu18[17:16]=2'b11 => semihosting
+	trap	cfx_umon, 0x3FF00		@@ immu18[17:8]=0x3FF (0x3FF00-0x3FFFF) => semihosting
 	swym	0
 
 app_fail:
@@ -74,5 +74,5 @@ app_fail:
 	set.zw	rd9, wp0, 0x00E0
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018		@@ SYS_EXIT
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 	swym	0

@@ -141,7 +141,7 @@ def load_imm64_rd(rd, val):
 
 # ── Semihosting SYS_EXIT (ADR-0020 D8) ────────────────────────────────
 
-SEMIHOST_TAG = 0x30000
+SEMIHOST_TAG = 0x3FF00
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 CODE_RD = 18            # data register carrying the exit code
 

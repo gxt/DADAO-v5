@@ -21,10 +21,10 @@
 @@   [0x20] jump   [rb0, Lpass]        ; skip 3 instructions → land on Lpass
 @@   [0x24] st.o   rd4, [rb16, 8]      ; Lfail: report 0x01 (SKIPPED by jump)
 @@   [0x28] set.zw rd16, wp0, 0x0018   ; Lfail: SYS_EXIT (SKIPPED)
-@@   [0x2C] trap   cfx_umon, 0x30000   ; Lfail: semihosting trap (SKIPPED)
+@@   [0x2C] trap   cfx_umon, 0x3FF00   ; Lfail: semihosting trap (SKIPPED)
 @@   [0x30] st.o   rd5, [rb16, 8]      ; Lpass: report 0x00 (land here)
 @@   [0x34] set.zw rd16, wp0, 0x0018   ; Lpass: SYS_EXIT
-@@   [0x38] trap   cfx_umon, 0x30000   ; Lpass: semihosting trap
+@@   [0x38] trap   cfx_umon, 0x3FF00   ; Lpass: semihosting trap
 @@
 @@ jump-iiii: Addr = rb0 + (imms24 << 2), rb0 = current instruction address.
 @@   The jump target is the `Lpass` label (the assembler computes the offset),
@@ -54,11 +54,11 @@ Lfail:
     @@ 4. Error path (skipped by jump): report 0x01 via SYS_EXIT
     st.o    rd4, [rb16, 8]
     set.zw  rd16, wp0, 0x0018
-    trap    cfx_umon, 0x30000
+    trap    cfx_umon, 0x3FF00
 
 Lpass:
     @@ 5. PASS path: report 0x00 via SYS_EXIT
     st.o    rd5, [rb16, 8]
     set.zw  rd16, wp0, 0x0018
-    trap    cfx_umon, 0x30000
+    trap    cfx_umon, 0x3FF00
     swym    0

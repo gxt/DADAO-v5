@@ -1,7 +1,7 @@
 @@ m5_trap_escape.s — M5 L3 execution vector: general trap enters the vector, escape returns (TESTCASES-033t).
 @@
 @@ Capability: a general (non-semihosting) `trap cfx_umon, immu18` with
-@@ immu18[17:16] != 2'b11 records cause CFXTRAP (1<<0) and enters the target cfx
+@@ immu18 < 0x3FF00 records cause CFXTRAP (1<<0) and enters the target cfx
 @@ exception vector; the callee returns with `escape cfx_umon, [excp_cause_ip, 4]`
 @@ (DADAO-12 §5; contract-see.md §4; DADAO-22 §1).  The SEE bootrom installed the
 @@ cfx_umon user exception vector at ROM+0x200 whose handler is exactly that
@@ -22,7 +22,7 @@
 	.text
 	.globl	_start
 _start:
-	@@ general trap: immu18[17:16] = 0x0 (not the semihosting tag 2'b11)
+	@@ general trap: immu18 = 0x0123 (below the semihosting range 0x3FF00-0x3FFFF)
 	trap	cfx_umon, 0x0123
 
 	@@ (a) cause id must be CFXTRAP
@@ -46,7 +46,7 @@ _start:
 	set.zw	rd9, wp0, 0x0060
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 	swym	0
 
 fail:
@@ -58,5 +58,5 @@ fail:
 	set.zw	rd9, wp0, 0x00E2
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
-	trap	cfx_umon, 0x30000
+	trap	cfx_umon, 0x3FF00
 	swym	0

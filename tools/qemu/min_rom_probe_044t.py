@@ -71,7 +71,7 @@ USER, JAIL, SUPV, HYPV = 0, 1, 2, 3
 CFXTRAP, CFXMEM, CFXREG, ILLI = 1, 2, 4, 1 << 8
 
 # Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
-SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 SEMI_BLOCK = 0xFC00_00FF_F000       # argument block {reason, code}, in RAM
 
