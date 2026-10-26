@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：QEMU-075t（诊断）
-**状态**：待开始
+**状态**：待验收
 
 ## 背景（范围：只修 ISS-255/257 的 OOM 面）
 QEMU-075t 结论：
@@ -36,13 +36,39 @@ python3 tools/testcases/run_libc_test_user_suite.py --link-mode dynamic \
 
 ## 完成区
 
-**状态**：待开始
+**状态**：待验收
 
-### 修改文件
-（待填）
+**测试结果**：通过 37/37（`.work/evidence/TESTCASES-068t/run.sh`；含注入→FAIL→`cp`+md5 还原→回绿）。定向两档 `--filter 'setenv-oom|pthread_create-oom|flockfile-list'`：static/dynamic 均 `pass=2 known-fail=1 blocked=0 fail=0`；负控 `--reserved-va none` 下 `setenv-oom` = `blocked`（rc=1）；`make check` rc=0。
 
-### 验收命令与结果
-（待填）
+**修改文件**：
+- `tools/testcases/run_libc_test_user_suite.py`（qemu 启动加 `-R`；新增 `--reserved-va`；ISS-255 known-fail 基据；宿主信号记 `first_error`）
+- `.tao/knowledge/issues.yaml`（ISS-255/ISS-257 → `closed`，`resolved_by: TESTCASES-068t`；ISS-266 未动）
+- `.tao/knowledge/milestones.md`（068t 行 → 待验收/时间）
+- `.tao/tasks/testcases/TESTCASES-068t-qemu-user-OOM修复.md`（本册）
+- `.work/evidence/TESTCASES-068t/run.sh`（新增，非入库证据）
 
-### 遗留
-（待填）
+**验收结果**：
+- static：`qemu guest VA: -R 4G`；`PASS setenv-oom exit=0`、`PASS pthread_create-oom exit=0`、`KNOWN-FAIL flockfile-list`（basis `ISS-255`：语料 `regression/flockfile-list.c:31` bump `malloc` + 宿主 `SIGBUS`）⇒ `blocked=0`；dynamic 同。
+- 回归：`functional/strptime`（非空诊断输出）+ `functional/qsort` 带/不带 `-R` 的 stdout/stderr/rc 逐字节一致（strptime md5 `67153d0181c4f7e209d2a887d38b6c14`；qsort 空）。
+- `--help` 含 `--reserved-va`（默认 `4G` = 4 GiB，`none` 关闭）；非法值 rc=2。
+- `make check` rc=0（`check_issues: 1 open, 14 closed`，resolved_by 约束 OK）。
+- 注入（证据脚本）：删 `-R` 启动行（md5 变、`git diff --name-only` 非空）⇒ 定向 rc=1、`blocked=2`；`cp` 还原 + md5 一致 ⇒ rc=0、`blocked=0`。
+
+**新发现/坑**：`-R` 只解 OOM 族；`flockfile-list` 仍为宿主 SIGBUS(7)（语料 8 B 对齐），按基据登记 known-fail，未改 qemu。原 known-fail 机制只收 `fail` 行，本轮仅对 ISS-255 开放**精确** `blocked` 行（cid + 信号 + 语料标记三重校验），其余 blocked（timeout/编译/链接）不可被误升。
+
+**遗留问题**：无。qemu 侧 `RLIMIT_AS` 虚拟化未做（当前不需要）；llvm-ts/ISS-266 归 `TESTCASES-069t`。
+
+## 审阅记录
+
+### 第 1 轮 engineer 自审（2026-10-27）
+
+- 逻辑：`-R` 只进 qemu 启动行（编译/链接命令不变）；`none` 走无 `-R` 分支。ISS-255 三重校验（精确 cid / 宿主 SIGBUS(7) / 语料 bump `malloc` 标记），并加 `missed_iss255` 反向校验，防「删登记掩盖」。
+- 风险：`attribute_known_fail_bases` 仅对 `blocked` 试 ISS-255，cid 不匹配立即 False ⇒ 其它 blocked 不会误升；`fail` 行仍只认 ISS-251/ADR-0030。
+- 边界：宿主信号路径新增 `first_error`（仅基据/报告用，不改分类与判据）。
+- 防造假：每条断言有可达 FAIL——注入删 `-R` 实测 rc=1/blocked=2，还原后 rc=0/blocked=0；回归用非空输出（strptime）对比，非「空 == 空」。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| 注释把 4 GiB 说成 "DADAO guest cap"（无规范依据） | ✅已修 | 改为「`-R 4G` 预留 4 GiB，形态由 QEMU-075t 实测」 | `run.sh` 37/37 回绿 |
+| `CASE_NOTES` 两条旧结论（"a QEMU-side fault"）与新基据矛盾 | ✅已修 | 改为语料对齐 / `-R` 修法说明 | 两档输出 `note:` 与 `known-fail basis` 一致 |
+

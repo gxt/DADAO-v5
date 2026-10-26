@@ -175,6 +175,18 @@ DEFAULT_WORK_DIR = str(_paths.test_artifacts_dir() / "libc-test-user")
 DEFAULT_TIMEOUT = 60
 DYNAMIC_LINKER = "/lib/ld-musl-dadao.so.1"
 
+# qemu-user guest address-space reservation (TESTCASES-068t / ISS-255, ISS-257).
+# Without ``-R`` qemu-user places guest memory into the *host* address space,
+# so a case that fills its own VA -- ``setenv-oom`` / ``pthread_create-oom``
+# call setrlimit(RLIMIT_AS) and then allocate until ENOMEM -- exhausts the host,
+# qemu's own ``g_malloc`` fails and the process dies on a host SIGTRAP before
+# the case reaches a verdict.  ``-R 4G`` reserves 4 GiB of guest VA, so guest
+# exhaustion stays inside the reservation and the case reports its own t_status
+# (limit shape measured by QEMU-075t, both link modes).
+DEFAULT_RESERVED_VA = "4G"
+RESERVED_VA_NONE = "none"
+RESERVED_VA_RE = re.compile(r"^[1-9][0-9]*[KMGTP]?$", re.IGNORECASE)
+
 # Public include set for *user* translation units -- the header view a program
 # sees, not musl's own build view.  musl's internal headers must stay off this
 # path: src/include/errno.h maps ``errno`` to the hidden ``___errno_location``
@@ -244,6 +256,10 @@ EXPECTED_GUEST_EXIT = 0
 #            (``src/functional/strptime.c:112``, under the corpus' own
 #            ``/* Glibc */`` heading).  Evidence: the musl parse-only comment,
 #            the corpus call site, and the case's own ``%s`` diagnostic.
+#   ISS-255  corpus alignment: ``regression/flockfile-list`` interposes malloc
+#            as a byte-granular bump allocator, so an 8-byte store can be
+#            4 mod 8 and qemu-user dies on host SIGBUS -- the only admitted
+#            *blocked* row (the case never reaches its verdict).
 # ---------------------------------------------------------------------------
 ISS246_ID = "ISS-246"
 ISS246_PATTERNS = (
@@ -260,6 +276,28 @@ ISS251_CALL_SITE = re.compile(
     r'checkStrptime\("683078400",\s*"%s",\s*&tm2\)')
 ISS251_DIAGNOSTIC = '"%s": for "683078400"'
 
+# ISS-255: ``regression/flockfile-list`` dies on a *host* SIGBUS before it can
+# report a verdict.  The corpus interposes malloc with a byte-granular bump
+# allocator over ``static unsigned char buf[1<<20]`` (it must check that freed
+# blocks are not clobbered, so it cannot reuse memory), and DADAO requires an
+# 8-byte access to be 8-byte aligned: blocks land on arbitrary byte offsets, so
+# an 8-byte store can be 4 mod 8 and qemu's alignment check raises SIGBUS on
+# the host.  This is a corpus property (the source is patchless), not a port
+# defect: the case is admitted as known-fail under the precise conditions
+# below, never by a blanket "host signal" rule.
+ISS255_ID = "ISS-255"
+ISS255_CASE = "regression/flockfile-list"
+ISS255_SIGNAL = "qemu killed by host signal 7"     # SIGBUS (alignment check)
+ISS255_SOURCE_MARKERS = (
+    "static unsigned char buf[1<<20];",   # the bump-allocator arena
+    "void *p = buf + pos;",               # block start = raw byte offset
+    "pos += n;",                          # no rounding to the access width
+)
+# The misalignment must be a *fault* on this target, not just bad style: the
+# legality contract declares the MALIGN fault for unaligned data accesses.
+ISS255_ALIGN_RULE = os.path.join(REPO_ROOT, "contracts", "legality_rules.yaml")
+ISS255_ALIGN_LINE = "fault: MALIGN"
+
 # The admitted causes, keyed by issue id: a case's ``known_fail_basis`` must be
 # one of these keys and must satisfy the corresponding live evidence check.
 ADR0030_ID = "ADR-0030"
@@ -272,6 +310,8 @@ KNOWN_FAIL_BASES = {
     ISS251_ID: "musl %s parse-only comment + corpus call site + %s diagnostic",
     ADR0030_ID: ("ADR-0030 Accepted (binary128 / M9) + target LDBL_MANT_DIG=53 "
                  "+ ulperr diagnostic"),
+    ISS255_ID: ("exact case + host SIGBUS (7) + corpus byte-granular interpose "
+                "malloc (8-byte store can be 4 mod 8)"),
 }
 
 # Live scan basis for the known-fail table (the task's rule 1: scan every
@@ -385,12 +425,18 @@ CASE_NOTES = {
         "an array-initializer type mismatch (the same signed/unsigned "
         "disagreement also makes wcscmp/wcsncmp prototypes clash).",
     "regression/flockfile-list":
-        "root cause: qemu-user died on host signal 7 (SIGBUS) -- a QEMU-side "
-        "fault, the case never reached its verdict.",
+        "known-fail basis ISS-255 (corpus, not a port defect): the case "
+        "interposes malloc with a byte-granular bump allocator over `static "
+        "unsigned char buf[1<<20]` (src/regression/flockfile-list.c:11,30-31), "
+        "so an 8-byte block can land 4 mod 8; DADAO requires natural alignment "
+        "for an 8-byte access (contracts/legality_rules.yaml MALIGN), and "
+        "qemu-user's alignment check dies on host SIGBUS before the verdict.",
     "regression/setenv-oom":
-        "root cause: qemu-user died on host signal 5 (SIGTRAP) after the case "
-        "set RLIMIT_AS -- a QEMU-side fault, the case never reached its "
-        "verdict.",
+        "root cause (ISS-255/ISS-257, fixed by TESTCASES-068t): the case sets "
+        "RLIMIT_AS and then fills its address space; without `-R` that reached "
+        "the host allocator (qemu's g_malloc failed -> QEMU internal SIGTRAP). "
+        "The driver's default `-R 4G` caps guest VA at 4 GiB, so the case "
+        "reaches its own verdict.",
 }
 
 # Notes that only hold in one link mode (documentation only).
@@ -746,19 +792,71 @@ def adr0030_evidence(case, musl_root: str):
     return True, evidence
 
 
+def iss255_evidence(case, musl_root: str):
+    """Recompute the ISS-255 basis for ``regression/flockfile-list``.
+
+    Three independent facts, none of them taken from the case's class:
+    1. the case is exactly ``regression/flockfile-list``;
+    2. the run died on **host** SIGBUS (signal 7) -- qemu-user's alignment
+       check, i.e. the case never reached its own verdict;
+    3. the corpus source carries the byte-granular interpose allocator: a bump
+       pointer over ``static unsigned char buf[1<<20]`` with no rounding to the
+       access width, so an 8-byte block can start 4 mod 8, which violates the
+       target's natural-alignment rule (contracts/legality_rules.yaml MALIGN).
+    """
+    if case.cid != ISS255_CASE:
+        return False, f"not {ISS255_CASE}"
+    if ISS255_SIGNAL not in (case.first_error or ""):
+        return False, (f"no host SIGBUS observed: "
+                       f"{case.first_error or '(none)'}")
+    src = case.sources[0]
+    try:
+        text = read_text(src)
+    except OSError:
+        return False, f"corpus source missing: {src}"
+    missing = [m for m in ISS255_SOURCE_MARKERS if m not in text]
+    if missing:
+        return False, f"corpus interpose malloc markers missing: {missing}"
+    try:
+        rules = read_text(ISS255_ALIGN_RULE)
+    except OSError:
+        return False, f"alignment contract missing: {ISS255_ALIGN_RULE}"
+    rule_line = find_line(ISS255_ALIGN_RULE, ISS255_ALIGN_LINE)
+    if rule_line is None:
+        return False, (f"{ISS255_ALIGN_RULE} no longer declares "
+                       f"{ISS255_ALIGN_LINE!r}")
+    line = find_line(src, ISS255_SOURCE_MARKERS[1])
+    rel = os.path.relpath(src, os.path.dirname(os.path.dirname(src)))
+    evidence = (f"corpus {rel.replace(os.sep, '/')}:{line} "
+                f"\"void *p = buf + pos;\" over \"static unsigned char "
+                f"buf[1<<20]\" (byte-granular, no width rounding) => an "
+                f"8-byte store can be 4 mod 8; contracts/legality_rules.yaml:"
+                f"{rule_line} declares the MALIGN fault for it; observed: "
+                f"{case.first_error}")
+    return True, evidence
+
+
 def attribute_known_fail_bases(case, musl_root: str):
     """Promote a *genuine* failure to ``known-fail`` when a registered basis
     explains it, with that basis' evidence recomputed live.
 
-    Only ``fail`` rows are eligible: a pass or a blocked row is never
-    relabelled, and a failure that no basis explains stays ``fail`` (the audit
-    rejects any known-fail row whose basis does not hold, and any leftover
-    ``fail`` row).
+    Only genuine non-pass rows are eligible: a pass is never relabelled, and a
+    failure that no basis explains stays ``fail`` (the audit rejects any
+    known-fail row whose basis does not hold, and any leftover ``fail`` row).
+
+    ISS-255 is the one basis that also admits a **blocked** row: qemu dies on
+    host SIGBUS before ``regression/flockfile-list`` can report a verdict, and
+    the traceability requirement is met by the basis itself (exact case + host
+    signal + corpus allocator).  Every other blocked row stays blocked -- the
+    ``GAP_SIGNATURES``/host-signal classification is not relaxed.
     """
-    if case.klass != "fail":
+    if case.klass == "fail":
+        bases = ((ISS251_ID, iss251_evidence), (ADR0030_ID, adr0030_evidence))
+    elif case.klass == "blocked":
+        bases = ((ISS255_ID, iss255_evidence),)
+    else:
         return
-    for basis, evidence_fn in ((ISS251_ID, iss251_evidence),
-                               (ADR0030_ID, adr0030_evidence)):
+    for basis, evidence_fn in bases:
         ok, evidence = evidence_fn(case, musl_root)
         if ok:
             case.klass = "known-fail"
@@ -1142,6 +1240,8 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
     cmd = [cfg["qemu"]]
     if cfg["mode"] == "dynamic":
         cmd += ["-L", cfg["guest_root"]]
+    if cfg["reserved_va"]:
+        cmd += ["-R", cfg["reserved_va"]]
     cmd += [elf]
     # Cases with DSO helpers run from their output directory (the helpers --
     # and, for the source-relative dlopen() paths, the mirrored
@@ -1164,6 +1264,9 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
     if rc < 0:
         case.klass = "blocked"
         case.reason = f"qemu killed by host signal {-rc}"
+        # Persist the observation: a registered basis (ISS-255) must be able to
+        # re-check it, exactly as ISS-251 re-checks the case's own diagnostic.
+        case.first_error = f"qemu killed by host signal {-rc}"
         return case
     case.exit = rc
     if rc == EXPECTED_GUEST_EXIT:
@@ -1227,6 +1330,14 @@ def main() -> int:
     ap.add_argument("--musl", default=DEFAULT_MUSL)
     ap.add_argument("--work-dir", default=DEFAULT_WORK_DIR)
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
+    ap.add_argument("--reserved-va", default=DEFAULT_RESERVED_VA,
+                    metavar="SIZE|none",
+                    help="qemu -R value: bytes of guest virtual address space "
+                         "reserved (default %(default)s = 4 GiB; 'none' "
+                         "disables it).  The guest VA space is capped at this "
+                         "size, so a guest that fills its own address space "
+                         "(setenv-oom / pthread_create-oom) cannot exhaust the "
+                         "host and abort qemu itself (ISS-255 / ISS-257)")
     ap.add_argument("--filter", default=None,
                     help="only cases whose id matches this regex (pilots)")
     ap.add_argument("--json-out", required=True,
@@ -1238,6 +1349,15 @@ def main() -> int:
                     help="human-readable report (default: same path as "
                          "--json-out with a .log extension)")
     args = ap.parse_args()
+    if args.reserved_va.lower() == RESERVED_VA_NONE:
+        reserved_va = None
+    elif RESERVED_VA_RE.match(args.reserved_va):
+        reserved_va = args.reserved_va.upper()
+    else:
+        sys.stderr.write(
+            f"ERROR: --reserved-va must be a positive size (e.g. 4G) or "
+            f"'{RESERVED_VA_NONE}', got {args.reserved_va!r}\n")
+        return 2
     # docs/Process-08 §1.2: a subset run (--filter) must never land in
     # authoritative/.  Reject before any directory is created.
     subset = f"--filter {args.filter!r}" if args.filter else None
@@ -1258,6 +1378,7 @@ def main() -> int:
         "qemu": abspath(args.qemu),
         "src": abspath(args.src),
         "timeout": args.timeout,
+        "reserved_va": reserved_va,
     }
     musl = abspath(args.musl)
     cfg["musl_incs"] = ["-nostdinc"]
@@ -1352,6 +1473,14 @@ def main() -> int:
     emit(f"  oracle: expected guest exit {EXPECTED_GUEST_EXIT} "
          f"(each case returns its own t_status)")
     emit(f"  link base: lld default (no -T / no linker script; ISS-247)")
+    if cfg["reserved_va"]:
+        emit(f"  qemu guest VA: -R {cfg['reserved_va']} (guest address space "
+             f"capped at {cfg['reserved_va']}; a guest that fills its VA "
+             f"cannot exhaust the host, ISS-255/257)")
+    else:
+        emit("  qemu guest VA: none (no -R; guest VA maps onto the host, so a "
+             "guest that fills its VA can exhaust it and abort qemu -- "
+             "ISS-255/257)")
     if mode == "static":
         emit(f"  static link: --start-group {cfg['libc']} {cfg['builtins']} "
              f"--end-group (compiler-rt builtins from "
@@ -1422,7 +1551,9 @@ def main() -> int:
     # A `known-fail` row is admissible only if its registered basis holds *live*
     # for this very case: ISS-246 = TLS scan hit + the TLS diagnostic; ISS-251 =
     # musl's parse-only `%s` comment + the corpus call site + the case's own `%s`
-    # diagnostic.  Nothing else may be relabelled into the table (ISS-226).
+    # diagnostic; ISS-255 = the exact case + host SIGBUS + the corpus'
+    # byte-granular interpose malloc.  Nothing else may be relabelled into the
+    # table (ISS-226).
     bad_known = []
     for r in results:
         if r.klass != "known-fail":
@@ -1434,6 +1565,8 @@ def main() -> int:
             basis_ok, _ev = iss251_evidence(r, musl)
         elif r.known_fail_basis == ADR0030_ID:
             basis_ok, _ev = adr0030_evidence(r, musl)
+        elif r.known_fail_basis == ISS255_ID:
+            basis_ok, _ev = iss255_evidence(r, musl)
         else:
             basis_ok = False
         if not basis_ok:
@@ -1445,11 +1578,13 @@ def main() -> int:
                     if r.klass != "known-fail" and iss251_evidence(r, musl)[0]]
     missed_adr = [r.cid for r in results
                   if r.klass != "known-fail" and adr0030_evidence(r, musl)[0]]
+    missed_iss255 = [r.cid for r in results
+                     if r.klass != "known-fail" and iss255_evidence(r, musl)[0]]
     unexplained_fail = [r.cid for r in results if r.klass == "fail"]
     tls_that_pass = [r.cid for r in results
                      if r.klass == "pass" and r.cid in tls_ids]
     classification_ok = not (bad_known or missed_basis or missed_adr
-                             or unexplained_fail)
+                             or missed_iss255 or unexplained_fail)
     emit("  known-fail basis per case (recomputed live):")
     rows = [r for r in results if r.klass == "known-fail"]
     if rows:
@@ -1466,6 +1601,9 @@ def main() -> int:
     if missed_adr:
         emit(f"[FAIL] live ADR-0030 failure(s) not admitted as known-fail: "
              f"{missed_adr}")
+    if missed_iss255:
+        emit(f"[FAIL] live ISS-255 host-SIGBUS case(s) not admitted as "
+             f"known-fail: {missed_iss255}")
     if unexplained_fail:
         emit(f"[FAIL] unclassified failure(s) remain: {unexplained_fail}")
     if tls_that_pass:
@@ -1484,6 +1622,7 @@ def main() -> int:
         emit("  note: --filter run (pilot); counts are a subset")
 
     record = dict(mode=mode, expected_exit=EXPECTED_GUEST_EXIT,
+                  reserved_va=cfg["reserved_va"],
                   discovered=discovered, total=total, counts=counts,
                   excluded=[dict(id=n, reason=r) for n, r in excluded],
                   builtins=cfg["builtins"],
