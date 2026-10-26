@@ -53,7 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| SPEC-177t | 已验证 | 2026-10-26 23:58 | 删除 SBI 保留值 0x3FFFF（ISS-334 B）；SBI/SEE 0.7.3-rc |
+| SPEC-177t | 已验证 | 2026-10-26 23:27 | 删除 SBI 保留值 0x3FFFF（ISS-334 B）；SBI/SEE 0.7.3-rc |
 | TESTCASES-071t | 待开始 | 2026-10-26 23:12（登记） | 测试骨架与根级索引（P1；不动文件） |
 | TESTCASES-072t | 待开始 | 2026-10-26 23:12（登记） | inst 迁移（ISA 向量+探针+harness；check-inst） |
 | TESTCASES-073t | 待开始 | 2026-10-26 23:12（登记） | arch 迁移（m5+min-ROM+bootrom；check-arch） |
