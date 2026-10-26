@@ -101,7 +101,7 @@
   blocks: []
   resolved_by: TESTCASES-070t
   notes: >-
-    【正式登记（2026-10-26，源 = `TESTCASES-067t` 调研实测）】**现象**：`python3 tools/tests/generate_rev_vectors.py --check`
+    【正式登记（2026-10-26，源 = `TESTCASES-067t` 调研实测）】**现象**：`python3 tools/testcases/generate_rev_vectors.py --check`
     报 62/62 例 `spec_cite` 与当前 spec 不一致；生成器本身确定性正常，是入库生成物未随 spec 同步，且 `rev` 向量不在任何门控中。
     **影响**：`rev` 向量可长期漂移而不被发现（与 `case-ledger` 的 byte-identical 形成对照）。**修法方向**：把 `rev` 生成/校验接入 L1 或 L2 门控，
     或在 `check-case-ledger` 同层加一项；先回填/重生成 62 例。**证据**：`TESTCASES-067t` 完成区、
