@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：TESTCASES-071t
-**状态**：待验收
+**状态**：已验证
 
 ## 目标（P2）
 1. `tests/vectors/isa/*` + `atomics/clmul/fma/minmax/roundint` 探针 → `tests/inst/<ext>/`。
@@ -60,3 +60,24 @@
 | `case-ledger` 换目录后排序位置变化（`base` < `bitcnt`）易被误判内容改动 | ✅已修 | 证据按「排序后多重集」比对，另核对行数/vector 前缀 | `cmp` sorted 一致；行数 1962 不变 |
 
 **判决**：全部 finding 已修，无未修项；状态 `待验收`。
+
+### 第 1 轮 reviewer 验收
+
+**文件分析**：`git show --stat 7fce080d`（101 文件）核对搬家映射：`vectors/{isa→inst/base, rol, atomics, clmul, rev, bitcnt}`、顶层探针 →`inst/*`、harness →`tools/testcases/{lib,inst}`、`tests/scripts` 留 6 薄 wrapper（全含 `runpy.run_path`）+ `trampoline.bin` 符号链接（`git ls-tree` mode=120000）；`tests/vectors/` 已不存在；Makefile：L2 只含 `check-inst-smoke`、L3 只含 `check-inst`、`_locked-check-qemu-{smoke,semantics}` 为别名；docs/spec/AGENTS 旧路径引用仅剩 `.tao/archive`/历史任务书（历史层，豁免）与 Process-09 已加迁移注记。
+
+**重跑记录（reviewer 亲自执行，均在 workdir 内）**：
+- `make check` rc=0（`repository checks (L1): PASS`；含 check-case-ledger/check-tests-index）
+- `make check-inst-smoke` rc=0：`QEMU: total=90 passed=90 failed=0`（90 = 独立派生 (class,mnemonic) 组数）
+- `make check-tests-index` rc=0：`inst=40`；独立用 yaml 解析复核 40 条、file 全存在、ID 唯一
+- `make check-case-ledger` rc=0（1962 行；vector 1456 条全为 `tests/inst/` 前缀）
+- `bash .work/evidence/TESTCASES-072t/run.sh` rc=0：**52/52 PASS, RESULT: PASS**（脚本逐条断言有可达 FAIL 路径，非恒真）
+- 生成器 `--check`：bitcnt/atomics 亲跑 rc=0（byte-identical + oracle 重算）；rev 由 `make check`（check-rev-vectors）覆盖；clmul/rol 由证据脚本 rc=0 覆盖 ⇒ 期望值未改
+- 旧入口：`python3 tests/scripts/run_qemu_test.py tests/inst/base/reg-arith.yaml --case 0` rc=0 `Result: PASS`；旧路径 `tests/vectors/isa/...` rc=0（打印「兼容层」映射后 PASS）；`make check-qemu-smoke`（别名）rc=0 90/90
+
+**独立反例注入（非 engineer 注入项）**：`cp tests/inst/base/reg-compare.yaml → /tmp/.../review/`（md5 `ab0b6e7e…`），`sed` 改第 30 行期望 `rd1: 0x1→0x2` ⇒ `make check-inst-smoke` rc=2（`total=90 passed=89 failed=1`，`结果: FAIL`）；`cp` 还原 + md5 相等 ⇒ 复跑 rc=0 回绿（90/90）。注：首次 sed 行号偏移未命中（md5 未变、门控仍绿——非假绿），第 2 次命中后验证有效。
+
+**快照对账**：验收前/后 `git status --porcelain -uall` 均 0 行（无残留、无注入遗留）；临时产物仅在 `/tmp/opencode/TESTCASES-072t-review/`。
+
+**Findings（均不阻断）**：① 全量 `check-inst`（980 例实跑）与旧名 `check-qemu-semantics` 端到端未跑——任务约束明示留 `TESTCASES-076t`，已由结构派生（载体 20 册/980 例 == 独立统计）替代；② 约束字面只列 `tests/`、`tools/testcases/`、`Makefile`、索引/ledger、milestones.md，实际还改了 `tools/{qemu,infra,integ}`、`docs/*`、`spec/README.md`、`AGENTS.md`、`dispatch.md` 的路径接线/引用（目标 4 与完成区已列明，属接线必需，口径差为文档级）；③ Process-09 正文保留迁移前快照计数（已加注记声明）。
+
+**判决**：**Accepted**（验收命令在 reviewer 重跑下全部通过；约束无实质违反；反例注入证明门控可失败且已还原）。
