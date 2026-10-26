@@ -53,6 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-068t | 已验证 | 2026-10-27 00:32 | qemu-user OOM 修复：-R 4G + flockfile known-fail（ISS-255/257） |
 | TESTCASES-068t | 待验收 | 2026-10-27 00:07（登记） | qemu-user OOM 修复：-R 4G + flockfile known-fail（ISS-255/257） |
 | TESTCASES-070t | 已验证 | 2026-10-27 00:01 | rev 向量重生成+门控、diff_ir_lli 2 个 .ll 归类（ISS-335/336） |
 | INFRA-110t | 已验证 | 2026-10-26 23:44 | semihosting 旧口径文档清理（README 历史注记、DDLN、Machine-00、audit 头注） |

@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：QEMU-075t（诊断）
-**状态**：待验收
+**状态**：已验证
 
 ## 背景（范围：只修 ISS-255/257 的 OOM 面）
 QEMU-075t 结论：
@@ -36,7 +36,7 @@ python3 tools/testcases/run_libc_test_user_suite.py --link-mode dynamic \
 
 ## 完成区
 
-**状态**：待验收
+**状态**：已验证
 
 **测试结果**：通过 37/37（`.work/evidence/TESTCASES-068t/run.sh`；含注入→FAIL→`cp`+md5 还原→回绿）。定向两档 `--filter 'setenv-oom|pthread_create-oom|flockfile-list'`：static/dynamic 均 `pass=2 known-fail=1 blocked=0 fail=0`；负控 `--reserved-va none` 下 `setenv-oom` = `blocked`（rc=1）；`make check` rc=0。
 
@@ -71,4 +71,19 @@ python3 tools/testcases/run_libc_test_user_suite.py --link-mode dynamic \
 |---|---|---|---|
 | 注释把 4 GiB 说成 "DADAO guest cap"（无规范依据） | ✅已修 | 改为「`-R 4G` 预留 4 GiB，形态由 QEMU-075t 实测」 | `run.sh` 37/37 回绿 |
 | `CASE_NOTES` 两条旧结论（"a QEMU-side fault"）与新基据矛盾 | ✅已修 | 改为语料对齐 / `-R` 修法说明 | 两档输出 `note:` 与 `known-fail basis` 一致 |
+
+### 第 1 轮 reviewer 验收（2026-10-27）：Accepted
+
+**重跑（reviewer 本人执行，非采信 engineer 转述）**
+- `bash .work/evidence/TESTCASES-068t/run.sh` ⇒ `EVIDENCE_EXIT=0`，`TESTCASES-068t evidence: PASS (37 checks, 0 failed)`；其中 `static/dynamic` 均 `pass=2 known-fail=1 blocked=0 fail=0`、`flockfile-class=known-fail`、`basis=ISS-255`；`invalid-reserved-va-rejected rc=2`；`without--R-setenv-blocked=1 rc=1`；`strptime` 带/不带 `-R` stdout/stderr/rc 逐字节一致且非空；engineer 自身注入→FAIL→还原→回绿全绿。
+- 定向两档（脚本内）：static `discovered=367 total=3 pass=2 fail=0 known-fail=1 blocked=0`；dynamic 同计数；日志实录 `qemu guest VA: -R 4G`、`PASS setenv-oom exit=0`、`PASS pthread_create-oom exit=0`、`KNOWN-FAIL flockfile-list base=ISS-255 ... observed: qemu killed by host signal 7`（契约指针 `legality_rules.yaml:152 MALIGN` 现场行号属实）。
+- `make check` ⇒ `MAKE_CHECK_RC=0`（`check_issues: 1 open, 14 closed`；resolved_by 约束 OK）。
+
+**独立反例注入（不复用 engineer 向量）**：注入向量 = 把 `DEFAULT_RESERVED_VA = "4G"` 改 `"none"`（`cp` 备份 + md5 `efca349e…`→`e3556b35…`，非空改动）⇒ 定向 static `INJ_RC=1`、`counts: pass=0 known-fail=1 blocked=2`（setenv-oom / pthread_create-oom 均 `qemu killed by host signal 5`）⇒ **回绿**：`cp` 还原 + `md5sum -c` OK ⇒ `POST_RC=0`、`pass=2 blocked=0`。全程未用 `git checkout/restore/stash`；结束 `git status --porcelain -uall` 干净、driver md5 复原一致（快照对账通过）。
+
+**语义/防放水核验**：① `-R` 只进 qemu 启动行，编译/链接命令不含 `-R`（日志 compile/link 行实证）；`--reserved-va` 默认 `4G`、`none` 关闭、非法值 rc=2（重跑证实）。② `attribute_known_fail_bases`：`fail` 行基据集合未变（仍仅 ISS-251/ADR-0030）；`blocked` 行只试 ISS-255，`iss255_evidence` 三重校验（精确 cid + `first_error` 含 host signal 7 + 语料三标记 + 契约 MALIGN 行）不满足即 False ⇒ 其它 blocked（timeout/编译/链接/其它信号）不可被误升；`missed_iss255` 反向校验加进 `classification_ok`。③ issues.yaml：ISS-255/257 `closed` + `resolved_by: TESTCASES-068t`；ISS-266 仍 `open` 未动（逐字核对）。④ 越界：commit `c39e6faa` 仅 4 文件（driver/issues.yaml/milestones.md/本册），未碰 qemu/spec/contracts/llvm-ts。
+
+**Finding（非阻断，文档级）**：`CASE_NOTES` 把语料标记行写作 `src/regression/flockfile-list.c:11,30-31`，实际标记在 `:15`（buf 声明）/`:31`/`:34`（`:11` 为笔误，应为 `:15`）；不影响任何门控判据（evidence 用现场 `find_line` 取行号）⇒ 由 architect 收尾提交顺手改。
+
+**判决：Accepted**（验收命令全绿于 reviewer 重跑；约束无违反；注入/还原纪律守住）。
 

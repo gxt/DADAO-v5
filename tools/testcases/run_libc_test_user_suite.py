@@ -427,7 +427,7 @@ CASE_NOTES = {
     "regression/flockfile-list":
         "known-fail basis ISS-255 (corpus, not a port defect): the case "
         "interposes malloc with a byte-granular bump allocator over `static "
-        "unsigned char buf[1<<20]` (src/regression/flockfile-list.c:11,30-31), "
+        "unsigned char buf[1<<20]` (src/regression/flockfile-list.c:15,31,34), "
         "so an 8-byte block can land 4 mod 8; DADAO requires natural alignment "
         "for an 8-byte access (contracts/legality_rules.yaml MALIGN), and "
         "qemu-user's alignment check dies on host SIGBUS before the verdict.",
