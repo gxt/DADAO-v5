@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：TESTCASES-071t
-**状态**：待验收
+**状态**：已验证
 
 ## 目标（P4）
 1. `tests/llvm/lit/MC|CodeGen`、`llvm/codegen/m3/m4/m6`、`llvm/ir-lli`、picolibc 自测 → `tests/unit/{llvm,picolibc}/`。
@@ -66,3 +66,23 @@
 | `check-modules` 同时列旧成员与新 `check-unit` ⇒ 重复执行 | ✅已修（明示） | L2 只列 `check-unit`；旧目标名保留可单独调用 | `check-modules` rc=0（8m37） |
 
 **判决**：改动范围内无未修 finding；遗留 ①–④ 均为**迁移前既有口径/任务约束**（旧入口待 076t 删除、占位目录、L3 口径、未跑全量），不阻断。状态 `待验收`。
+
+### 第 1 轮 reviewer 验收（2026-10-27）
+
+**重跑记录**（reviewer 亲自执行，`80a32201`，审前/审后 `git status -uall` 均 0 行）：
+- `bash .work/evidence/TESTCASES-074t/run.sh` ⇒ **PASS (21/21 checks)，RUN_EXIT=0**；含 `check-unit` rc=0（lit 154/154、codegen 15/15、elf 5/5、ir-lli diff PASS、picolibc fast 20：18 pass/0 fail/2 excluded/0 blocked）、`check-lit`/`test-codegen`/`test-elf`/`test-m6` 各 rc=0、`make check` rc=0、旧路径符号链接 3 项 + 旧 manifest `diff_ir_lli` rc=0；脚本内 2 处注入（unit.yaml 坏条目、ledger 删行）各 rc=1 → cp+md5 还原 → 回绿。
+- `make check-modules` rc=0（`module checks (L2): PASS`）；4 个独立 oracle 全 rc=0（58 / 42 / 102 / 78 checks + mc 78 条 0 错误）。
+
+**独立反例**（不复用 engineer 注入）：`cp` 备份 `tests/unit/llvm/lit/MC/DADAO/basic-encoding.s`（md5 `e5fd0a99…`）→ 改第 10 行期望字节 `59 20 00 01 → 59 20 00 02` ⇒ `check-lit` **rc=2**（153/154，1 failed）、`check-unit` **rc=2**（同一 FAIL 路径）→ `cp` 还原（md5 相等）⇒ `check-lit` rc=0（154/154）、`check-unit` rc=0。
+
+**语义不变对账**（脚本全量，非抽样）：`HEAD^:tests/llvm/**` 204 文件 → `tests/unit/llvm/` **0 缺失**；内容差异仅 20 文件，归一 `tests/llvm→tests/unit/llvm` 后非路径改动仅 2 处：`codegen/m5` 符号链接深度（`../../`→`../../../`，`readlink -f`= `tests/arch/umon`）+ `validate_cfx_vectors.py` 根定位（固定层→向上找 `manifests/install-dirs.lock.toml`）。ledger 1962 行：排序归一后与「502 行路径重映射」版本逐字节一致。索引现场 `unit=187 / total=237`。`tests/unit.yaml` 现场 187 条。
+
+**约束核验**：① `check-unit` 在 `.PHONY`/`GATE_LOCKED_TARGETS`/L2（`check-modules` 成员收拢为 `check-unit`，无重复执行；L3 = `check-inst check-arch test-m6` 无重复）✅；② 旧门控全保留别名、`run_codegen_e2e/elf` 显式传新路径、`check-lit-full` 传 `--full-dir/--fast-file`（`check_lit_gen.py` 原生支持该参数）✅；③ 无期望值/断言弱化（对账+4 oracle 证明）✅；④ 范围外 3 处（`check_case_ledger.py` 真实路径 glob、`spec/README.md`/`docs/Process-05` 旧路径）均为必要路径重写、无语义改动 ✅；⑤ 无越界/残留（审后 `git status` 0 行）✅。m3 非搬迁遗漏（architect 已核实 `HEAD^` 无 `tests/llvm/codegen/m3`）。
+
+**剩余风险**（不阻断，已列遗留①–④）：`tools/{llvm,integ}/*` 旧路径默认值经符号链接可达，076t 删链接时须一并改。
+
+**判决：Accepted**
+
+### architect 收尾（2026-10-27）
+- reviewer 首次会话返回「Code Mode 无 shell 工具」，未判决、未落盘；按 §3.5 重试 **1/3** 成功（Accepted，证据 21/21）。
+- 已核实 `HEAD^` 无 `tests/llvm/codegen/m3`，任务书「m3/m4/m6」为泛指，非遗漏。
