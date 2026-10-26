@@ -53,7 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| TESTCASES-073t | 待验收 | 2026-10-27 03:09（登记） | arch 迁移：m5→tests/arch/umon、min-ROM→tools/testcases/arch、bootrom→tests/shared/bootrom、check-arch(-smoke)+旧名别名 |
+| TESTCASES-073t | 已验证 | 2026-10-27 03:49 | arch 迁移：m5→tests/arch/umon、min-ROM→tools/testcases/arch、bootrom→shared、check-arch(-smoke)+旧名别名 |
 | TESTCASES-072t | 已验证 | 2026-10-27 02:26 | inst 迁移：向量/探针→tests/inst、harness→tools/testcases/{lib,inst}、check-inst(-smoke)+旧名别名 |
 | TESTCASES-071t | 已验证 | 2026-10-27 01:51 | 测试骨架与根级索引（P1；四 scope 目录 + 索引 + check-tests-index） |
 | TESTCASES-069t | 已验证 | 2026-10-27 01:35 | ISS-266 四例判定：8b10b known-fail、dbms pass、SPASS 语料 UB、typeset 语料+musl；0 blocked |

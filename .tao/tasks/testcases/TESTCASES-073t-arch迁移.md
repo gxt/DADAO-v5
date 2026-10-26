@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：TESTCASES-071t
-**状态**：待验收
+**状态**：已验证
 
 ## 目标（P3）
 1. `tests/llvm/codegen/m5`（semihosting/CFX 权限）+ `tools/qemu/min_rom_probe_*` + bootrom → `tests/arch/<cfx>/`（bootrom/lds 进 `tests/shared` 或就近）。
@@ -61,3 +61,25 @@
 | L2 因 `test-semihost`→`check-arch-smoke` 后不再顺带跑 L1（原前置 `check`） | ✅已修（明示） | Makefile 注释说明「一个检查只在一层」；旧命令保留旧前置 | C12 接线检查；`make test-semihost` rc=0 |
 
 **判决**：改动范围内无未修 finding（2 项 ⏸ 属**迁移前既有失败**、按任务「不改期望」约束不动，已登记）；状态 `待验收`。
+
+### 第 1 轮 reviewer 验收（2026-10-27）
+
+**重跑记录**（本人在 workdir 内实跑，rc 为命令自身退出码；日志 `/tmp/opencode/TESTCASES-073t/*.log`）：
+- `make check` rc=0（`repository checks (L1): PASS`）；`make check-arch-smoke` rc=0（`Results: 10/10` + `run_m5_e2e: PASS` + `25-service ... RESULT: PASS`）；`make check-arch` rc=0（044/045/049 各 `RESULT: PASS`，`check-arch: PASS`）
+- `make test-semihost` rc=0（输出 `test-semihost: Alias -> check-arch-smoke`，并保留旧前置 `check` ⇒ 末行 `repository checks (L1): PASS`）
+- `make check-tests-index` rc=0（`inst=40 / arch=10 / total=50`）；`make check-case-ledger` rc=0（`现场身份 1958 条`）
+- `python3 tools/infra/check_case_ledger.py --write` rc=0，`tests/case-ledger.tsv` md5 `a85d6a76…f91f7` **前后相同**（byte-identical）
+- `bash .work/evidence/TESTCASES-073t/run.sh` rc=0 ⇒ `TOTAL: PASS=18 FAIL=0 / RESULT: PASS`（C1–C14 + I1–I4 全 PASS；脚本逐条有可达 FAIL 路径，注入用 `cp -p` 备份 + md5 对账，无恒真/双写）
+- 旧入口等价：`tools/qemu/min_rom_probe_{044,045}t.py` rc=0 且 `RESULT:` 与新路径逐字相同；`bash tools/qemu/min_rom_probe_022t.sh` rc=0；`tools/integ/run_m5_e2e.py` 与 `tools/testcases/arch/run_m5_e2e.py` 均 rc=0、`Results: 10/10`、PASS/FAIL 行 diff 为空
+
+**语义不变**：10 个 `.s` md5 与 `661e0c75` 逐个相同（`da8ca25f…` 等 10/10 SAME）；`expected.yaml` 非注释/非空行 diff 为空（仅注释变化）；索引 `arch=10` == `.s` 文件数。
+
+**约束核验**：① 旧路径保留——`tests/llvm/codegen/m5`→`../../arch/umon`、`tests/scripts/bootrom*`→`../shared/bootrom/*`（3 个符号链接 readlink 正确）、31 `.py`+1 `.sh` 薄 wrapper（旧路径无实现，C4 断言）；② 门控只在一层——L1 `_locked-check` 无 arch（grep 0 命中）、L2 仅 `check-arch-smoke`、L3 仅 `check-arch`，`test-semihost` 为别名并保留旧前置；③ 无期望改动（上）；④ 提交文件清单全在 `tests/`、`tools/{testcases,qemu,integ}`、`Makefile`、`docs/Process-09`、`milestones.md`、索引/本任务书范围内，无 spec/qemu/LLVM 改动；⑤ 工作区 `git status --porcelain -uall` 审前 0 行、审后 0 行（注入用 `cp` 备份还原，md5 `da8ca25f…` 相同），无临时残留、`__pycache__` 已被 ignore 未入库。
+
+**独立反例**（非 engineer 注入）：改 `tests/arch/umon/m5_trap_escape.s` pass token `0x0060→0x0061`（md5 `da8ca25f…`→`afcc595c…`）⇒ `make check-arch-smoke` **rc=2**、`FAIL m5_trap_escape expected=96 actual=97`、`Results: 9/10`；`cp -p` 还原后 md5 回 `da8ca25f…` ⇒ **rc=0**、`Results: 10/10`、`check-arch-smoke: PASS`。
+
+**遗留核实（非本任务引入）**：047t/030t/034t/035t/038t/040t 与迁移前实现 diff **非路径差异 0 行**、迁移前 Makefile 对其引用 0 处、当前实跑各 rc=1（047t `rb1=0xfc0000f00000 (exp 0xfc00000000f00000)`）⇒ 既有漂移，未入门控；`grep validate_m5_vectors Makefile` rc=1 ⇒ 仍未接门控（迁移前亦然）。
+
+**偏差裁定（finding，不阻断）**：任务书目标 1 字面写 `tests/arch/<cfx>/`，实际 `min_rom_probe_*` 落 `tools/testcases/arch/` —— **接受**：`docs/Process-09` §6 明确 `tools/testcases/arch/` 放「min-ROM/CFX 场景」驱动、`tests/arch/<cfx>/` 放 cfx 独有**用例**，与「runner 收拢 tools/、tests/ 只放用例」一致，且 `.s` 已按字面进 `tests/arch/umon/`。建议 architect 在本任务书目标 1 补一句措辞对齐（文档级，不重开一轮）。
+
+**判决**：**Accepted**（全部验收命令在本人重跑下通过、约束无违反、独立反例 FAIL→回绿真实）。
