@@ -43,10 +43,12 @@ from datetime import datetime, timedelta, timezone
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 
+# Paths relative to `tools/testcases/` (TESTCASES-075t: tset drivers moved to
+# `tools/testcases/tset/<suite>/`; the old flat paths are thin wrappers).
 DRIVERS = (
-    "run_libc_test_user_suite.py",
-    "run_llvm_ts_user.py",
-    "run_embench_user_suite.py",
+    os.path.join("tset", "libc-test", "run_libc_test_user_suite.py"),
+    os.path.join("tset", "llvm-ts", "run_llvm_ts_user.py"),
+    os.path.join("tset", "embench", "run_embench_user_suite.py"),
 )
 RUN_DIR_RE = re.compile(r"^\d{8}T\d{6}Z-")
 TASK_ID = r"(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG)-\d{3}[a-z]?"
@@ -368,7 +370,9 @@ def _clean_tree(tree: str) -> None:
     dst = os.path.join(tree, "tools", "testcases")
     os.makedirs(dst, exist_ok=True)
     for name in DRIVERS:
-        shutil.copyfile(os.path.join(src, name), os.path.join(dst, name))
+        target = os.path.join(dst, name)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        shutil.copyfile(os.path.join(src, name), target)
     # One valid run directory + authoritative latest pointer.
     run = os.path.join(tree, ".work", "tests", "20260101T000000Z-demo-static")
     os.makedirs(run)
@@ -417,7 +421,7 @@ def self_test(base: str) -> int:
 
     # 2. A1: --json-out loses required=True.
     tree = fresh()
-    path = os.path.join(tree, "tools", "testcases",
+    path = os.path.join(tree, "tools", "testcases", "tset", "libc-test",
                         "run_libc_test_user_suite.py")
     text = _read(path)
     injected = text.replace('"--json-out", required=True',
@@ -431,7 +435,8 @@ def self_test(base: str) -> int:
 
     # 3. A1: a fixed DEFAULT_LOG_DIR fallback reappears.
     tree = fresh()
-    path = os.path.join(tree, "tools", "testcases", "run_llvm_ts_user.py")
+    path = os.path.join(tree, "tools", "testcases", "tset", "llvm-ts",
+                        "run_llvm_ts_user.py")
     _write(path, _read(path) + '\nDEFAULT_LOG_DIR = ".work/log/testcases"\n')
     out = []
     rc = 1 if run_checks(tree, out.append) else 0

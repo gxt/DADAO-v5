@@ -22,7 +22,13 @@ wrapper / 符号链接）；门控 `check-arch-smoke`（L2）/ `check-arch`（L3
 → `tests/unit/llvm/{lit,codegen,ir-lli}/`（旧路径留符号链接）；picolibc 自测入口 →
 `tests/unit/picolibc/`（仍只在 picolibc 构建下跑）。门控 `check-unit`（L2 =
 lit + codegen/elf + ir-lli + picolibc fast），旧名 `check-lit`/`test-codegen`/
-`test-elf`/`test-m6`/`check-picolibc-tests` 保留、可单独调用。tset 待 `TESTCASES-075t`。
+`test-elf`/`test-m6`/`check-picolibc-tests` 保留、可单独调用。
+**P5（`TESTCASES-075t`，2026-10-27）已完成 tset 迁移**：三个 user-mode 套件驱动 →
+`tools/testcases/tset/{libc-test,llvm-ts,embench}/`（旧扁平路径留薄 wrapper，命令行
+等价）；Embench 套件独有 glue（`embench_runtime.c`/`embench_user_boardsupport.c`/
+`embench_include/`）→ `tests/tset/embench/`（`tests/scripts/` 留符号链接）。门控
+`check-tset-{libc,llvm,embench}-smoke`（L2；代表集机械派生，embench 为全量
+benchmark），别名 `check-{libc-test,llvm-ts,embench}-smoke`。
 
 | scope | 测什么 | `platforms` 允许值 | 目录 |
 |---|---|---|---|
@@ -39,7 +45,7 @@ lit + codegen/elf + ir-lli + picolibc fast），旧名 `check-lit`/`test-codegen
 
 ---
 
-## 1. 目录地图（P2 = inst、P3 = arch 迁移后；unit/tset 仍为迁移前状态）
+## 1. 目录地图（P2–P5 迁移后；`e2e` 与 `tests/scripts/` 共享件留给 P6）
 
 | 路径 | 层 | 是什么 | 自动入口 |
 |---|---|---|---|
@@ -55,10 +61,13 @@ lit + codegen/elf + ir-lli + picolibc fast），旧名 `check-lit`/`test-codegen
 | `unit/llvm/codegen/m6/` | U | M6 调用约定/大帧/FP（8 程序） | **手工**（见 `unit/llvm/codegen/m6/README.md`） |
 | `unit/llvm/ir-lli/` | U | host `lli` vs DADAO 值级差分（19 include / 72 exclude） | `make check-unit`（L2）/ `make test-m6`（L3） |
 | `unit/picolibc/` | U | picolibc 上游自测入口（仍只在 picolibc 构建下跑） | `make check-picolibc-tests`（L2；`check-unit` 成员） |
+| `tset/libc-test/` | T | libc-test 套件说明 + L2 代表集规则（语料在 `.work/source/`） | `make check-tset-libc-smoke` |
+| `tset/llvm-ts/` | T | llvm-test-suite 套件说明 + L2 代表集规则（语料在 `.work/source/`） | `make check-tset-llvm-smoke` |
+| `tset/embench/` | T | Embench 套件说明 + 套件独有 glue（runtime/boardsupport/头） | `make check-tset-embench-smoke` |
 | `e2e/lit/*.test` | E | 端到端 smoke/FP/clmul/weak/CM（14） | `make check-lit` |
 | `e2e/*.c|*.s|*.lds` | E | 上述 `.test` 的源（9 个已无 runner，见 `INVENTORY §7.4`） | 经 `.test` |
 | `shared/bootrom/` | S 载体 | SEE bootrom 源 + 链接脚本（`bootrom.S`/`bootrom_app.S`/`bootrom.lds`；`make build-bootrom` 用） | — |
-| `scripts/` | U 载体 | **只剩薄 wrapper**（inst harness 入口 + bootrom 三件符号链接）+ crt0/lds/embench 胶水（P5 再迁） | 旧命令行转发到 `tools/testcases/{lib,inst}/` |
+| `scripts/` | U 载体 | **只剩薄 wrapper / 符号链接**（inst harness 入口 + bootrom 三件 + embench 三件）+ 共享 crt0/lds/运行时（P6 收口） | 旧命令行转发到 `tools/testcases/{lib,inst,tset}/` |
 | `qemu/` | — | 占位（QEMU 组件测试落点）；min-ROM 探针已迁 `tools/testcases/arch/` | — |
 | `case-ledger.tsv` | — | 逐条身份清单（1,962 行含表头；生成物） | `make check-case-ledger`（L1） |
 
@@ -70,7 +79,7 @@ lit + codegen/elf + ir-lli + picolibc fast），旧名 `check-lit`/`test-codegen
 
 ```sh
 make check            # L1：仓库完整性（不跑被测语义）
-make check-modules    # L2：模块代表集（check-unit + inst 冒烟 + arch 冒烟 + 4 个 probe）
+make check-modules    # L2：模块代表集（check-unit + inst/arch/tset 冒烟 + 4 个 probe）
 make check-full       # L3：inst 全量（check-inst）+ arch 全 cfx（check-arch）+ test-m6（慢）
 
 make check-unit       # unit 代表集（L2：lit + codegen/elf + ir-lli + picolibc fast）
@@ -130,7 +139,10 @@ python3 tools/testcases/run_atomics_probe.py --link-mode static --json-out /tmp/
 ### 2.5 上游套件（opt-in，慢）
 
 ```sh
-make check-testcases-suites        # libc-test + llvm-test-suite fast 子集
+make check-tset-libc-smoke         # libc-test user-mode 代表集（L2：每顶层类别 1 例）
+make check-tset-llvm-smoke         # llvm-test-suite user-mode 代表集（L2：每棵树 1 例）
+make check-tset-embench-smoke      # Embench 全量 benchmark × -O0/-O2（L2）
+make check-testcases-suites        # libc-test + llvm-test-suite fast 子集（另用 path-B 驱动）
 make check-testcases-suites-full   # 两套件全量可枚举 C 用例
 make check-picolibc-tests          # picolibc 自测代表集（fast）
 make check-picolibc-tests-full     # 全量（235，最近 1 fail / 3 blocked）

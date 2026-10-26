@@ -17,7 +17,7 @@ Pipeline per (benchmark, optimisation level):
     clang -target dadao-unknown-elf -<O> -ffreestanding -fno-builtin \
           -DWARMUP_HEAT=1 -DGLOBAL_SCALE_FACTOR=1 \
           -c support/{main,beebsc}.c <src>/<b>/*.c <boardsupport>.c  -> *.o
-    clang ... -c tests/scripts/embench_runtime.c                    -> *.o
+    clang ... -c tests/tset/embench/embench_runtime.c                    -> *.o
     llc  -march=dadao -O0 -filetype=obj dadao_mem_runtime.ll        -> *.o
     llvm-mc --triple=dadao -filetype=obj codegen_crt0.s             -> crt0.o
     ld.lld -T dadao.lds *.o                                         -> <b>.elf
@@ -72,8 +72,8 @@ DEFAULT_LLVM_MC = os.path.join(_TARGET_BIN, "llvm-mc")
 DEFAULT_LDLD = os.path.join(_TARGET_BIN, "ld.lld")
 DEFAULT_QEMU = os.path.join(_TARGET_BIN, "qemu-system-dadao")
 DEFAULT_EMBENCH_SRC = ".work/source/embench-iot"
-DEFAULT_INCLUDE = "tests/scripts/embench_include"
-DEFAULT_RUNTIME = "tests/scripts/embench_runtime.c"
+DEFAULT_INCLUDE = "tests/tset/embench/embench_include"
+DEFAULT_RUNTIME = "tests/tset/embench/embench_runtime.c"
 DEFAULT_MEM_RUNTIME = "tests/scripts/dadao_mem_runtime.ll"
 DEFAULT_CRT0 = "tests/scripts/codegen_crt0.s"
 DEFAULT_LDS = "tests/scripts/dadao.lds"

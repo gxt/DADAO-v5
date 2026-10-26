@@ -1,11 +1,44 @@
-# tests/tset.yaml — tset scope 根级用例清单（Process-09 §5；P1 骨架，暂空）
+# tests/tset.yaml — tset scope 根级用例清单（Process-09 §5；TESTCASES-075t 首次填入）
 #
 # 字段（每条目恰好五项）：
 #   id         tset-<suite>-nnn（如 tset-libc-001；四份索引内全局唯一）
 #   file       tests/tset/ 下的相对路径（必须存在）
 #   platforms  非空列表；tset: user（hw 预留）
-#   level      smoke | full
+#   level      smoke | full（smoke = 由 L2 `check-tset-<suite>-smoke` 覆盖；
+#              full = 全量运行，不在 L2——按需/夜跑）
 #   requires   依赖项列表（可为空）
 #
-# 门控：make check-tests-index（L1）。空列表 [] 合法。
-[]
+# tset 的「case」= 一个外部套件在成品系统上的**受控运行配置**（上游用例本体
+# 在 manifest 锁定的 `.work/source/<suite>/`，不入库）。`file` 指向该套件的
+# 说明（含代表集机械派生规则 / 运行目录 / 旧入口），代表集本身由驱动现场
+# 派生（不写死清单，Process-07 §3）。门控：make check-tests-index（L1）。
+- id: tset-libc-001
+  file: tset/libc-test/README.md
+  platforms:
+  - user
+  level: smoke
+  requires:
+  - toolchain
+  - musl
+  - qemu-user
+  - libc-test-src
+- id: tset-llvm-001
+  file: tset/llvm-ts/README.md
+  platforms:
+  - user
+  level: smoke
+  requires:
+  - toolchain
+  - musl
+  - qemu-user
+  - llvm-test-suite-src
+- id: tset-embench-001
+  file: tset/embench/README.md
+  platforms:
+  - user
+  level: smoke
+  requires:
+  - toolchain
+  - musl
+  - qemu-user
+  - embench-src

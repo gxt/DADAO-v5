@@ -39,6 +39,14 @@
 > 为别名。下文 §12「`min_rom_probe_*` → arch」的**落点**以 §6 为准（驱动进
 > `tools/testcases/arch/`，`tests/arch/` 只放用例资产）。
 
+> **2026-10-27 更新（`TESTCASES-075t`，P5）**：三个 user-mode 上游套件驱动 →
+> `tools/testcases/tset/{libc-test,llvm-ts,embench}/`（旧扁平路径留薄 wrapper，命令行
+> 等价）；套件独有 glue（`embench_runtime.c`/`embench_user_boardsupport.c`/
+> `embench_include/`）→ `tests/tset/embench/`（`tests/scripts/` 留符号链接）。门控
+> `check-tset-{libc,llvm,embench}-smoke`（L2，代表集机械派生；embench 为全量
+> benchmark）。**运行目录名仍按 `Process-08`**（`<test-artifacts>/<suite>-user/…`），
+> 不改 `tset/<suite>/` 形状（收口见 P6）。
+
 > **2026-10-27 更新（`TESTCASES-074t`，P4）**：`tests/llvm/lit/{MC,CodeGen}`、
 > `tests/llvm/codegen/{M3,m4,m6}`、`tests/llvm/ir-lli` → `tests/unit/llvm/`（旧路径为
 > 符号链接，删除见 P6）；picolibc 自测入口 → `tests/unit/picolibc/`（仍只在 picolibc
@@ -128,13 +136,18 @@ tools/testcases/
   inst/         # ISA 向量构建/运行（原 tests/scripts 主体）
   arch/         # bootrom/min-ROM/CFX 场景（原 min_rom_probe）
   unit/         # lit 驱动、codegen/elf/ir-lli、picolibc
-  tset/         # libc-test / llvm-ts / embench 驱动
+  tset/         # 外部套件驱动（TESTCASES-075t 已落）
+    libc-test/  # run_libc_test_user_suite.py + run_smoke.py（L2 代表集）
+    llvm-ts/    # run_llvm_ts_user.py + run_smoke.py
+    embench/    # run_embench_user_suite.py（L2 跑全量 benchmark）
   gen/          # 向量/oracle 生成器（ISA/rev/bitcnt/atomics/...）
 ```
 
 - `tests/scripts/`：迁移后删除；harness → `tools/testcases/lib`，bootrom/lds/crt0/宏 → `tests/shared/`。
 - `tools/integ/`：集成驱动并入 `tools/testcases/{unit,tset}`；`tools/integ` 目录删除。
-- `tests/scripts/embench_*` 与 `tools/testcases/run_embench_user_suite.py` 合并为 `tools/testcases/tset/embench` 一份。
+- `tests/scripts/embench_*` 与旧 `tools/testcases/run_embench_user_suite.py` 已合并为
+  `tools/testcases/tset/embench` 一份（`TESTCASES-075t`）；套件独有 glue →
+  `tests/tset/embench/`，共享运行时（`dadao_mem_runtime.ll`）仍留 `tests/scripts/`。
 - `tests/shared/` 只放**非用例**数据（bootrom、linker、crt0、宏、公共期望）。
 - **glue（测试胶水）**：把上游套件/被测程序接到 DADAO 的**非用例**代码与数据，分三类：
   1. **链接/布局**：`dadao.lds`、`dadao-dyn.lds`、`bootrom.lds`（基址、段、对齐）；
@@ -201,7 +214,7 @@ cmd: make check-inst-smoke CASE=base/add
 - **P3 arch**（**已完成：`TESTCASES-073t`**）：`llvm/codegen/m5` + `min_rom_probe_*` + bootrom
   → `arch/`；smoke 绿后进 L2（`check-arch-smoke` / `check-arch`）。
 - **P4 unit**（**已完成：`TESTCASES-074t`**）：`lit/MC|CodeGen`、`codegen`（M3/m4/m6）、`ir-lli`、`picolibc` → `unit/`；smoke 绿后进 L2（`check-unit`）。
-- **P5 tset**：libc-test/llvm-ts/Embench 驱动 → `tools/testcases/tset`；smoke 绿。
+- **P5 tset**（**已完成：`TESTCASES-075t`**）：libc-test/llvm-ts/Embench 驱动 → `tools/testcases/tset`；套件独有 glue → `tests/tset/<suite>/`；`check-tset-{libc,llvm,embench}-smoke`（L2）绿。
 - **P6 收口**：删 `tests/scripts`/`tests/qemu`/`tools/integ` 旧入口；重写 Makefile 门控；`clean-tests`/`test-repro`；`check-night`。
 
 ### §12 资产 → scope 映射（P0）

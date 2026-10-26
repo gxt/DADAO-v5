@@ -54,7 +54,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
         check-inst check-inst-smoke check-tests-index check-arch check-arch-smoke \
-        check-unit \
+        check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
+        check-libc-test-smoke check-llvm-ts-smoke check-embench-smoke \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
@@ -102,7 +103,7 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       test-codegen test-elf test-semihost test-m6 test-picolibc-smoke \
                       check-lit check-lit-full check-qemu-semantics check-qemu-smoke \
                       check-inst check-inst-smoke check-arch check-arch-smoke \
-                      check-unit \
+                      check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
                       check-picolibc-tests check-picolibc-tests-full check-rnd-probe \
                       check-minmax-probe check-fma-probe check-clmul-probe \
                       check-testcases-suites check-testcases-suites-full \
@@ -165,6 +166,10 @@ help:
 	@echo "  make check-clmul-probe  Run the clmul.o instruction / GHASH / CRC-32C probes at -O0 and -O2 (L2; TESTCASES-057t)"
 	@echo "  make check-testcases-suites  Run the two upstream reference suites (libc-test + llvm-test-suite) fast subset (opt-in, not L2; TESTCASES-045t)"
 	@echo "  make check-testcases-suites-full  Run every enumerable C case with main() from both suites (opt-in/L3-like; TESTCASES-045t)"
+	@echo "  make check-tset-libc-smoke  libc-test user-mode smoke representative set (L2; TESTCASES-075t)"
+	@echo "  make check-tset-llvm-smoke  llvm-test-suite user-mode smoke representative set (L2; TESTCASES-075t)"
+	@echo "  make check-tset-embench-smoke  Embench-IoT user-mode full set -O0/-O2 (L2; TESTCASES-075t)"
+	@echo "  make check-libc-test-smoke / check-llvm-ts-smoke / check-embench-smoke  Alias -> check-tset-*-smoke (兼容; TESTCASES-075t)"
 	@echo "  make check-builtins-freshness  compiler-rt builtins archive must be the one the current clang built (build-id sidecar), in every consumer copy (L1; ISS-293/INFRA-101t)"
 	@echo "  make install-host    Install needed tools: cross toolchain (clang/llc/ld.lld …) into \$$(HOST_TOOLCHAIN_BIN) + host lli into \$$(HOST_TOOLS_BIN); adr-0016 D3/D4/D5/D11"
 	@echo "  make install-cfx-aliases  Copy contracts/cfx-aliases.txt to the build tree + install root only (no rebuild; LLVM-135t)"
@@ -794,6 +799,62 @@ _locked-check-testcases-suites-full:
 	@$(PYTHON) tools/testcases/run_suite.py --stage full --timeout 300 \
 		--json-out .work/log/testcases/runs/full.json
 
+# ── tset smoke（TESTCASES-075t，L2）──────────────────────────────────────────
+# 三个 user-mode 上游套件驱动已迁 `tools/testcases/tset/<suite>/`（旧路径 = 薄
+# wrapper，命令行等价）；代表集由各 suite 的 `run_smoke.py` **机械派生**
+# （libc-test: 每顶层语料类别取源码最小用例；llvm-ts: 每棵树取源码最小用例；
+# embench: 全量 benchmark，任务口径 ~1 min），计数现场统计、不写死。
+# 运行目录/三件套仍按 `docs/Process-08`（`<test-artifacts>/<suite>-user/...`）。
+# JSON 落 `$(TSET_GATE_JSON_DIR)`（易失汇总，非运行目录；权威记录仍是各驱动在
+# `<test-artifacts>/<suite>-user/<UTC>-.../` 下的三件套，A2 只查时间戳目录）。
+TSET_GATE_JSON_DIR = .work/tests/gates
+
+# check-tset-libc-smoke: libc-test 代表集（每顶层类别 1 例，static）。
+_locked-check-tset-libc-smoke:
+	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-libc-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
+	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-libc-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@$(PYTHON) tools/testcases/tset/libc-test/run_smoke.py --link-mode static \
+	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-libc-smoke.json \
+	    > .work/log/testcases/check-tset-libc-smoke.log 2>&1; \
+	  rc=$$?; \
+	  grep -E "^(check-tset-libc-smoke|  (类别数|结构断言)|结果:)" .work/log/testcases/check-tset-libc-smoke.log | tail -6; \
+	  if [ $$rc -ne 0 ]; then echo "check-tset-libc-smoke: FAIL (rc=$$rc; log .work/log/testcases/check-tset-libc-smoke.log)"; exit $$rc; fi; \
+	  echo "check-tset-libc-smoke: PASS"
+
+# check-tset-llvm-smoke: llvm-test-suite 代表集（每棵树 1 例，static）。
+_locked-check-tset-llvm-smoke:
+	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-llvm-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
+	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-llvm-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@test -d .work/source/llvm-test-suite || { echo "check-tset-llvm-smoke: ERROR: .work/source/llvm-test-suite not found — run 'make fetch'"; exit 1; }
+	@$(PYTHON) tools/testcases/tset/llvm-ts/run_smoke.py --link-mode static --jobs $(JOBS) \
+	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-llvm-smoke.json \
+	    > .work/log/testcases/check-tset-llvm-smoke.log 2>&1; \
+	  rc=$$?; \
+	  grep -E "^(check-tset-llvm-smoke|  (树数|结构断言)|结果:)" .work/log/testcases/check-tset-llvm-smoke.log | tail -6; \
+	  if [ $$rc -ne 0 ]; then echo "check-tset-llvm-smoke: FAIL (rc=$$rc; log .work/log/testcases/check-tset-llvm-smoke.log)"; exit $$rc; fi; \
+	  echo "check-tset-llvm-smoke: PASS"
+
+# check-tset-embench-smoke: Embench-IoT 全量 benchmark（默认 -O0/-O2，static）。
+_locked-check-tset-embench-smoke:
+	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-embench-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
+	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-embench-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@test -d .work/source/embench-iot || { echo "check-tset-embench-smoke: ERROR: .work/source/embench-iot not found — run 'make fetch'"; exit 1; }
+	@$(PYTHON) tools/testcases/tset/embench/run_embench_user_suite.py --link-mode static \
+	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-embench-smoke.json \
+	    > .work/log/testcases/check-tset-embench-smoke.log 2>&1; \
+	  rc=$$?; \
+	  tail -3 .work/log/testcases/check-tset-embench-smoke.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-tset-embench-smoke: FAIL (rc=$$rc; log .work/log/testcases/check-tset-embench-smoke.log)"; exit $$rc; fi; \
+	  echo "check-tset-embench-smoke: PASS"
+
+# 兼容别名（TESTCASES-075t；旧习惯入口→新名，删除见 TESTCASES-076t）。
+check-libc-test-smoke: check-tset-libc-smoke
+check-llvm-ts-smoke: check-tset-llvm-smoke
+check-embench-smoke: check-tset-embench-smoke
+
 # build-musl (INFRA-082t): configure and build the static musl libc for
 # dadao-unknown-elf inside .work/source/musl (the DADAO port lives as a
 # tree-shaped patch set, components/musl/patches/**; run 'make fetch
@@ -855,7 +916,7 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 # 旧名 `test-semihost` 仍保留该前置（旧命令行行为等价）。
 # 注（TESTCASES-074t）：unit 侧成员收拢为 `check-unit`（= check-lit + test-codegen +
 # test-elf + ir-lli + check-picolibc-tests）；旧目标名全部保留、可单独调用。
-_locked-check-modules: check-interface check-unit check-inst-smoke check-arch-smoke check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe check-code-range
+_locked-check-modules: check-interface check-unit check-inst-smoke check-arch-smoke check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe check-code-range
 	@echo "module checks (L2): PASS"
 
 # L3 较完整 (INFRA-058t). check-lit-full 由 test-m6 步骤 [1/3] 承载（不在本目标重复列出）。
