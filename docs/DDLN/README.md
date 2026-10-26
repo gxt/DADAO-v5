@@ -37,7 +37,7 @@
 | 篇目 | 内容 |
 | --- | --- |
 | `D001` 运行平台--平台与载体 | **平台与载体**：运行环境（裸机 / 用户态 / 完整系统）× 载体（功能模拟器 / RTL / FPGA / ASIC）× 粒度（功能 / 周期 / 性能）；按验收目标（语义 / ABI / 系统 / 时序）选择；各环境的库、链接与宿主接口。 |
-| `D002` 运行平台--测试机运行环境 | **测试机运行环境**：48 位核内地址高 6 位选 `cfxha`；单段 16 MiB RAM @ `0xFC00_0000_0000`；复位向量 `0xffff_ffff_0000`；`CFXMEM` 与 `unmapped` 的分工；只启用 hypv/user、实现 `cfx0/1/2/3/63`；global mask 与 switch mask；semihosting（`immu18[17:16] == 2'b11`、`SYS_EXIT`）与一般 trap 两条路径。 |
+| `D002` 运行平台--测试机运行环境 | **测试机运行环境**：48 位核内地址高 6 位选 `cfxha`；单段 16 MiB RAM @ `0xFC00_0000_0000`；复位向量 `0xffff_ffff_0000`；`CFXMEM` 与 `unmapped` 的分工；只启用 hypv/user、实现 `cfx0/1/2/3/63`；global mask 与 switch mask；semihosting（`immu18[17:8] == 0x3FF`，`0x3FF00–0x3FFFF`；`SYS_EXIT`）与一般 trap（`< 0x3FF00`）两条路径。 |
 
 ## 发展历程
 
