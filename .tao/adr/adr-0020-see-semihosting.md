@@ -2,6 +2,7 @@
 
 **状态**：Accepted
 **日期**：2026-10-07
+**修订注记（2026-10-26，`ADR-0038`）**：`D1`/`D10` 的 semihosting tag 判定（`immu18[17:16] == 2'b11`）已被 **`ADR-0038 D1`** 取代（新判定 `immu18[17:8] == 0x3FF`，范围 `0x3FF00–0x3FFFF`）；本 ADR 原文保留，仅此注记。
 **关联**：ADR-0004（测试机；本 ADR `D8` 取代其 `D3` 作为停机协议，`D15` 修订其核内地址空间划分口径）、ADR-0011（exit-port 可靠 halt）、ADR-0003（object ABI：大端 / ELF 头）、`INTEG-019k`（M5 规划）、`SPEC-113t`（本 ADR）、`SPEC-114t`（规范正文落点）、`QEMU-044t`/`045t`/`046t`/`047t`/`049t`、`LLVM-060t`、`TESTCASES-033t`/`034t`、`INTEG-020t`；`spec/DADAO-12`、`spec/DADAO-22-SBI-主管系统二进制接口.md`、`spec/SimRISC-11-其它.md`、`.tao/contracts/contract-abi.md`
 
 ## Context（背景）
