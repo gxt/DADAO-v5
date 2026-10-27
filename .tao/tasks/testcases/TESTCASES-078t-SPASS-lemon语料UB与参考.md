@@ -99,3 +99,26 @@
 ### architect 收尾（2026-10-28）
 - reviewer 唯一阻断 F-R1 = 证据脚本 `static.corpus_patchless` 把 `git status` 退出码当 rc（脏树仍 0，假绿）；已修：脏行数 >0 或 git rc≠0 ⇒ rc=1。
 - 修复后重跑 `.work/evidence/TESTCASES-078t/run.sh` = **29/29 PASS**（rc=0）；交付语义未改，按文档级小错收尾。
+
+### 第 2 轮 reviewer 验收（并行第 2 位 reviewer，独立重跑）
+
+**重跑（本人执行，真实 rc）**
+- 修复版 `run.sh`（独立 `TSET078_WORK`）→ **`PASS (29/29)`、`RUNSH_EXIT=0`**（489s，`grep -c '^  OK'`=29、`FAIL`=0）；修复前脚本另跑一轮亦 29/29（rc=0，483s）。
+- 定向 `run_llvm_ts_user.py --link-mode both --only 'SPASS$|lemon$'` → **rc=0**，static/dynamic 均 `total=2 pass=2 fail=0 known-fail=0 blocked=0`；SPASS `b0b56c51…`、lemon `8c485439…`，glue note 在；stdout sha256 `328953bd…`/`19055d31…` 与宿主修 UB 构建**逐字节相同**。
+- `make check` → **rc=0**（两次，尾行 `repository checks (L1): PASS`）。
+- 判别实验（脚本 host 段 10 项全 OK + 本人核上游文件）：gcc 13.3.0 未改/修 UB 均 `b0b56c51…` == `SPASS.reference_output.small` 文件内容，`-DocProof`=`74365d61…`；lemon 未改/修 UB 均 `8c485439…` ⇒ 参考无需重定。
+
+**独立反例（本人注入；`cp`+md5 还原；未用 git checkout/restore/stash）**
+- 删「调用点 hunk」（留 include+wrapper）：md5 `9a35dafe→d7bf3481` → `DRIVER_RC=1`、`klass=fail`、`guest_signal=SIGSEGV`。
+- include-only 删全部 wrapper 行（→`1282d77c`）→ `DRIVER_RC=1`、`fail`+`SIGSEGV`。
+- `cp` 回 `9a35dafe95c727bff8318997fe4c6300` 相等、`git status` 0 行 → `DRIVER_RC=0`、`pass`（`md5==b0b56c51…`）。
+
+**约束核验**
+- 范围：`git show c41e4e57` 8 文件 == 完成区；`manifests/`/`components/` 0 diff；`components/llvm-test-suite/patches/` 不存在；语料树 `git status` 0 行（HEAD `2919e551`）；spec/qemu 0 diff；审前快照 0 行、三目标文件 md5 审前后一致（`6c8cefaf…`/`9a35dafe…`/`017df340…`）。
+- 补丁只作用 run 副本：`apply_source_patches` 声明 `files` ↔ 补丁 `+++` 对账 + dry-run + 逐文件 sha256 前后不等（实测 `cnf.c 1ea4a30f2053 → 9645c922b390`）；`patchless=true` 未动。
+- 完成区 25 行、状态/里程碑 `已验证` 同步、无 `*_tmp`/`*.orig`/`*.rej` 残留。
+- 过程注：本轮 3 次环境红均为**并发干扰**（共享脚本硬编码 `W` 被并行 reviewer `rm -rf`；并发 081t driver 未传 `--work-dir` 致 `check-run-artifacts` 缺文件），均定位根因后重跑通过，非交付物缺陷（重试 3 次，均记录）。
+
+**finding**：与第 1 轮 F-R1 **同条、独立复现**（我实测脏仓 `git status --porcelain` rc=0 ⇒ 原断言恒真），已按修法修复（`g==0 && n==0` 才 rc=0），修复后 FAIL 可达、29 项结构与注入段 SIGSEGV 判定未被弱化。另记文档级 1 条（不阻断）：`ISS-277` 在 `issues.yaml` 无独立条目，「更新或关闭」无对象。
+
+**判决**：**Accepted**（验收命令在本人重跑下全部通过；F-R1 已修复并由本人复验）。

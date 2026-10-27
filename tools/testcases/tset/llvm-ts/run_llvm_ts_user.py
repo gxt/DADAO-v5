@@ -693,7 +693,7 @@ STRUCTURAL_EXCLUSIONS = {
     "MultiSource/Benchmarks/Prolangs-C/archie-client":
         "upstream guards the target itself: Prolangs-C/archie-client/"
         "CMakeLists.txt:4 calls ``check_function_exists(re_comp "
-        "HAVE_RE_COMP)`` and :11 wraps both ``llvm_multisource(archie)`` and "
+        "HAVE_RE_COMP)`` and :15 wraps both ``llvm_multisource(archie)`` and "
         "the ``target_include_directories()`` providing <copyright.h> in "
         "``if(HAVE_RE_COMP)``.  musl provides no re_comp/re_exec (the BSD "
         "regex API; absent from its headers and libc), so upstream's own "
@@ -833,7 +833,7 @@ CASE_PREPARE_DIRS = {
 CASE_NOTES = {
     "MultiSource/Benchmarks/Prolangs-C/archie-client":
         "upstream guards the target: CMakeLists.txt:4 "
-        "``check_function_exists(re_comp HAVE_RE_COMP)`` and :11 "
+        "``check_function_exists(re_comp HAVE_RE_COMP)`` and :15 "
         "``if(HAVE_RE_COMP)`` around llvm_multisource(archie) + "
         "target_include_directories(); musl provides no re_comp/re_exec, so "
         "upstream does not build it for this libc (TESTCASES-081t: recorded as "

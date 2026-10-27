@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：TESTCASES-077t、TESTCASES-078t、TESTCASES-079t、TESTCASES-080t
-**状态**：待验收
+**状态**：已验证
 
 ## 背景（自包含，2026-10-27 `TESTCASES-077t` 全量实测）
 077t 后 llvm-ts 全量 rc 仍为 1；剩余非 078/079/080 项：
@@ -34,7 +34,7 @@
 
 ## 完成区
 
-**状态**：已完成（用户 2026-10-27 裁定「**选 1**」：gawk/make/p2c 按上游 CMake 证据排除）
+**状态**：已验证（用户 2026-10-27 裁定「**选 1**」：gawk/make/p2c 按上游 CMake 证据排除）
 
 **用户裁定原话（摘要）**：「用户裁定：**选 1——gawk/make/p2c 按上游 CMake 证据排除**（`MultiSource/Benchmarks/MallocBench/CMakeLists.txt` 只 `add_subdirectory(espresso/gs/cfrac)`）。」——因此不再尝试语料胶水修复，三例逐例记 `excluded`。
 
@@ -74,4 +74,29 @@
 | F6 gawk/make/p2c 未 pass | ✅已修（用户裁定） | `STRUCTURAL_EXCLUSIONS` +3（引 `MallocBench/CMakeLists.txt:1-4`） | 证据 C3/C4：`--only` rc=2 + declared exclusion；13/13 PASS |
 | F7 C4 只校验理由文本子串（自指），未核上游 CMake 实体 | ✅已修 | 证据增 C4b：现场解析 `MallocBench/CMakeLists.txt` 的 `add_subdirectory` 集合 | C4b PASS：`['espresso', 'gs', 'cfrac']`，三例均不在集合 |
 
+### 第 1 轮 reviewer 验收（2026-10-27 首跑；2026-10-28 重试复核，第 1/3 次）
 
+**重试说明**：上一回返回时反例 B 仍在后台，判决未及时回话；本轮全部**前台**重跑并复核上轮落盘证据，结论一致。期间同工作树有并发会话（TESTCASES-078t reviewer）临时改写 `tests/tset/llvm-ts/patches/glue/spass_symbol_equal_ptr.patch`（02:28–02:29 短暂脏、随后由其自行还原），属并发干扰、**非本任务产物**，已核对该文件现与 HEAD 一致。
+
+**审前快照**：`git status --porcelain -uall | wc -l` = **0**；`git show --stat 3fa36313` = 7 文件（任务书/milestones/tests README/patches README/`glue/glibc_stdio_buffer.c`/驱动/归档 050t），与完成区声明一致；无 `manifests/`、`spec/`、`components.lock` 改动。
+
+**重跑记录（全部本人执行）**：
+- `bash .work/evidence/TESTCASES-081t/run.sh` → **13/13 PASS，EXIT=0**（C1/C2×4/C3×5/C4/C4b/C5/C6）。
+- 定向：`--only 'gawk$|make$|p2c$'` static/dynamic → **rc=2** + `declared exclusion`；`--only 'archie-client$|plot2fig$'` 两档 → **rc=2** 同上（四次输出均贴自本人终端）。
+- `--only 'ClamAV$' --link-mode both` → **rc=0**，static/dynamic 各 `total=1 pass=1 fail=0 known-fail=0 blocked=0 excluded=8`，`matched (byte-exact)`。
+- `--list` → `214 executed + 8 excluded = 222 discovered`，`census_ok=True`；`make check` → **rc=0**（`repository checks (L1): PASS`）。
+
+**独立反例（本人注入，非脚本照抄；`cp`+md5 还原，未用 checkout/restore/stash；本轮各复跑一次）**：
+- A 删 `SIG_DELIVERY_RE` 的 `NULL` 分支 → 自写 probe `problems= ['si_addr=NULL delivery line is not recognised']` rc=1 → `cp` 回 `6c8cefaf…dcc3` 相等 → `problems= []` rc=0（本轮复跑，输出同上）。
+- B 删 `STRUCTURAL_EXCLUSIONS` 的 gawk 条目 → 证据脚本 **EXIT=1，2 FAIL**（`C3 gawk… actual=rc=1 BLOCKED`、`C4 bad=['…/gawk']`）→ `cp`+md5 相等 → 重跑 **13/13 PASS EXIT=0**（本轮以同一注入重跑，`injectC.log`/`restoreC.log` 同结论）。
+
+**约束核验**：只动任务书声明的 7 类文件（✓）；`patchless`/lock 未动（✓）；比较仍 byte-exact、无静默跳过，`ISS265_ADMISSION={}` 无新增 known-fail（ClamAV 两档 `known-fail=0`）；8 条 excluded 均带源码/CMake 证据，现场读 `MallocBench/CMakeLists.txt` = 仅 `espresso/gs/cfrac`、`archie/CMakeLists.txt:4`/`plot2fig:2` = `check_function_exists(re_comp)`、`glibc_stdio_buffer.c` 仅 `setvbuf` 改缓冲；本任务产物审后无残留（审后 `git status` 仅本审阅记录 1 行；`.work/evidence/TESTCASES-081t/run.sh` 13 条断言逐条有可达 FAIL 路径——注入 gawk 条目时 C3/C4 同时转红即证）。
+
+**Finding（文档级，不阻断，交 architect 收尾改）**：① archie 理由串与 `CASE_NOTES` 写「`:11` wraps `if(HAVE_RE_COMP)`」，现场 `:11` 是 AIX flag 行、守卫实为 **`:15`**（050t 原记即 :15）；② commit message `gcaw` 拼写。
+
+**判决**：**Accepted**（验收命令块在本人重跑下全绿、两条反例注入均可达 FAIL 并回绿、约束无违反；上述 2 条文档级小错按 6.5 记 finding 不开返工轮）。
+
+
+
+### architect 收尾（2026-10-28）
+- reviewer 文档级 finding：archie 守卫行号 `:11`→`:15`（驱动/README/050t 已改）；commit `3fa36313` 的 `gcaw` 拼写为历史提交信息，不回写历史。
