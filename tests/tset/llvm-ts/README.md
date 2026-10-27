@@ -53,13 +53,26 @@
     `-DocProof`，非上游 `RUN_OPTIONS`）。
 - 由此 `obsequi`/`ft`/`8b10b` 三例 **static+dynamic 均 byte-exact / md5-exact
   `pass`**；`SPASS`/`lemon`（TESTCASES-078t）两档同样 **md5-exact `pass`**。
-  `known-fail` 集合不变：唯一保留的准入行仍是 `ClamAV`（`ISS-265` 交错流，
-  逐例活证据）。
+  `ClamAV`（TESTCASES-081t）经 `glue/glibc_stdio_buffer.c`（把 stdout 缓冲设为
+  参考所用的 glibc `st_blksize`=4096）后同样 **byte-exact `pass`**：参考里
+  `Initializing the engine` 的位置是 glibc stdio 缓冲造成的，不是程序行为；
+  `ISS265_ADMISSION` 因此清空（`known-fail` 准入表为空）。
 - **逐例排除**（`excluded`，理由含源码 文件:行）：上游自身不为本目标构建的单元
-  ——`siod`/`office-ispell`（缺平台 API）与
+  ——`siod`/`office-ispell`（缺平台 API）、
+  `archie-client`/`plot2fig`（TESTCASES-081t：上游 `CMakeLists.txt` 用
+  `check_function_exists(re_comp)` 守卫整个 target；musl 无 BSD
+  `re_comp`/`re_exec`，故上游配置不为本 libc 构建）、
+  `MallocBench/{gawk,make,p2c}`（TESTCASES-081t 用户裁定「选 1」：上游
+  `MallocBench/CMakeLists.txt:1-4` 只 `add_subdirectory(espresso/gs/cfrac)`，
+  这三个目录从不进入构建）与
   `SingleSource/Benchmarks/Misc/aarch64-init-cpu-features`（上游只在
   `ARCH STREQUAL "AArch64"` 下构建；符号 `__aarch64_cpu_features`/`RUNTIME_INIT`
   仅 AArch64 libc 提供）。
+- **guest 信号判据**（QEMU-075t / TESTCASES-081t）：宿主信号死亡用 `-strace`
+  复探；`--- SIG... {si_signo, si_code, si_addr} ---` 投递行（`si_addr` 可为
+  `0x...` 或 `NULL`）且无 `QEMU internal` ⇒ 真实 guest 故障 = `fail`；否则
+  `blocked`。判据自带可达 FAIL 自检（`signal_delivery_selfcheck`，轮内执行、
+  失败即 `classification_ok=False` ⇒ rc=1）。
 - **逐例编译方言**（`CASE_CFLAGS`）：C89 时代语料按其上游声明的方言编译
   （`-std=gnu90`/`gnu89`，仅 `Burg`/`cdecl`/`OptimizerEval` 三例），**不全局放宽**，
   其它用例编译命令逐字节不变。

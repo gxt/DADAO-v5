@@ -238,11 +238,11 @@ Classification (counted live, never hard-coded)
                     use TLS.
                   * ``ISS-265`` (upstream references that encode glibc
                     semantics) -- admission is **per case, never per class**:
-                    ``ISS265_ADMISSION`` names exactly the one case still
-                    admitted (``ClamAV`` = interleaved-stream order), and the
-                    row's live check must hold: the actual and expected
-                    documents have the same size and the same line multiset
-                    (only the order differs).  ``obsequi``/``ft`` (musl-vs-glibc
+                    ``ISS265_ADMISSION`` is a closed table, **empty** since
+                    TESTCASES-081t (ClamAV now reaches its reference through
+                    the declared ``CASE_STDIO_GLUE``), and a row's live check
+                    would have to hold: same size and same line multiset (only
+                    order differs).  ``obsequi``/``ft`` (musl-vs-glibc
                     PRNG) were removed from this table in TESTCASES-080t: their
                     references are now reachable through the declared
                     ``CASE_PRNG_GLUE`` (see "Test glue" above), so a mismatch
@@ -280,7 +280,15 @@ Classification (counted live, never hard-coded)
   without the ``linux`` predefine),
   ``MultiSource/Benchmarks/MiBench/office-ispell`` (BSD ``<sgtty.h>``, absent
   from musl and from the corpus) -- both are missing *platform APIs*, not
-  missing include paths (TESTCASES-050t items 1/4) -- and
+  missing include paths (TESTCASES-050t items 1/4) --,
+  ``MultiSource/Benchmarks/Prolangs-C/archie-client`` and
+  ``.../plot2fig`` (TESTCASES-081t: upstream's own CMakeLists wraps both
+  targets in ``check_function_exists(re_comp HAVE_RE_COMP)``; musl has no
+  BSD ``re_comp``/``re_exec``, so upstream's configuration does not build
+  them for this libc), the three ``MultiSource/Benchmarks/MallocBench``
+  directories upstream never adds -- ``gawk``/``make``/``p2c``
+  (``MallocBench/CMakeLists.txt:1-4`` builds only ``espresso``/``gs``/
+  ``cfrac``; user ruling 2026-10-27 option 1) --, and
   ``SingleSource/Benchmarks/Misc/aarch64-init-cpu-features`` (TESTCASES-077t:
   upstream builds it only under ``if(ARCH STREQUAL "AArch64")`` and only after
   ``check_symbol_exists(__init_cpu_features)``; the unit calls that AArch64
@@ -511,22 +519,18 @@ TLS_RE = re.compile(r"__thread|_Thread_local|\bthread_local\b")
 # are now reachable through ``CASE_PRNG_GLUE`` below, so a mismatch there is a
 # real ``fail`` again and the ``prng`` evidence machinery was deleted with them.
 ISS265_ID = "ISS-265"
-ISS265_ADMISSION = {
-    "MultiSource/Applications/ClamAV": dict(
-        kind="interleave",
-        why="upstream's reference is one interleaved stdout+stderr document; "
-            "the guest swaps the positions of clamscan's cli_dbgmsg "
-            "'Initializing the engine (devel-20071218)' line and the "
-            "database-age warning, so the bytes and line multiset match while "
-            "the order differs"),
-}
+# TESTCASES-081t emptied the table: ClamAV was its last row and now reaches
+# its reference through ``CASE_STDIO_GLUE`` (glibc's 4096-byte stdout buffer),
+# so the interleaving no longer differs and a mismatch there must stay
+# ``fail``.  The per-case admission machinery stays in place (closed table,
+# live evidence) for any future row, but admits nothing today.
+ISS265_ADMISSION = {}
 
 KNOWN_FAIL_BASES = {
     ISS246_ID: "live TLS declaration scan hit in the case's own sources + "
                "clang thread-local-storage diagnostic",
-    ISS265_ID: "per-case admission table ISS265_ADMISSION (exactly ClamAV): "
-               "interleaving-only document difference (same bytes, same line "
-               "multiset)",
+    ISS265_ID: "per-case admission table ISS265_ADMISSION (empty as of "
+               "TESTCASES-081t: ClamAV now passes via CASE_STDIO_GLUE)",
 }
 
 # ---------------------------------------------------------------------------
@@ -593,6 +597,30 @@ CASE_SOURCE_PATCHES = {
             "argument."),
 }
 
+# Cases whose upstream reference was produced with glibc's stdio buffering and
+# whose *only* difference is where the buffered stdout text lands relative to
+# stderr (TESTCASES-081t).  ``puts()`` writes to stdout; musl gives stdio a
+# 1024-byte buffer (BUFSIZ), glibc gives the redirected file a buffer of the
+# file's ``st_blksize`` (4096 here), so musl flushes the first stdout block
+# *before* the stderr database-age warnings while glibc flushes it at exit --
+# the reference's line order.  The glue object requests glibc's buffer size
+# (``setvbuf(stdout, <static 4096-byte buffer>, _IOFBF, 4096)``; musl's setvbuf
+# ignores the size unless a caller buffer is supplied) in a constructor, i.e.
+# it emulates the reference's libc, not a relaxed comparison.
+CASE_STDIO_GLUE = {
+    "MultiSource/Applications/ClamAV": dict(
+        source="glibc_stdio_buffer.c",
+        why="upstream's reference interleaves puts()/stdout with the stderr "
+            "database-age warnings at glibc's 4096-byte stdio buffer size "
+            "(st_blksize of the redirected output file); musl's 1024-byte "
+            "BUFSIZ flushes the first stdout block before those warnings, "
+            "which moves only the 'Initializing the engine' line to the top "
+            "while the bytes and line multiset stay identical (ISS-265).  "
+            "The constructor asks for the reference's buffer size so the "
+            "interleaving is reproduced without weakening the byte-exact "
+            "comparison."),
+}
+
 # Cases whose data file is a little-endian u32 word stream read by
 # ``fread(..., sizeof(unsigned int), ...)`` on a big-endian target.
 CASE_LE32_INPUTS = {
@@ -655,6 +683,74 @@ STRUCTURAL_EXCLUSIONS = {
         "*platform API*, not a missing include path: no -I can supply it.  "
         "The case is excluded with this reason; no shim header is added "
         "(corpus is patchless, task book forbids a fake header).",
+    # TESTCASES-081t: both Prolangs-C units are guarded by upstream's own
+    # ``check_function_exists(re_comp)`` -- the BSD regex entry points are not
+    # a platform API this libc provides, so upstream's configuration does not
+    # build these targets here (the reason is the CMake source line, not a
+    # driver limitation).  Keeping them ``blocked`` would report a missing
+    # platform API as an unfinished harness item forever; the CMake guard is
+    # the upstream statement that the unit does not apply to this target.
+    "MultiSource/Benchmarks/Prolangs-C/archie-client":
+        "upstream guards the target itself: Prolangs-C/archie-client/"
+        "CMakeLists.txt:4 calls ``check_function_exists(re_comp "
+        "HAVE_RE_COMP)`` and :11 wraps both ``llvm_multisource(archie)`` and "
+        "the ``target_include_directories()`` providing <copyright.h> in "
+        "``if(HAVE_RE_COMP)``.  musl provides no re_comp/re_exec (the BSD "
+        "regex API; absent from its headers and libc), so upstream's own "
+        "configuration never builds this target for this libc -- the link "
+        "stops at ``undefined symbol: re_comp`` only because the driver "
+        "enumerates the program directory directly.  The corpus' regex.c "
+        "implements re_comp only under NOREGEX, which pmachine.h defines for "
+        "legacy platforms only (u3b2/hpux/ISC/CUTCP/OS2/MSDOS), not Linux.  "
+        "Excluded with this CMake evidence; no stub is invented.",
+    "MultiSource/Benchmarks/Prolangs-C/plot2fig":
+        "upstream guards the target itself: Prolangs-C/plot2fig/"
+        "CMakeLists.txt:2 calls ``check_function_exists(re_comp "
+        "HAVE_RE_COMP)`` and :5 wraps ``llvm_multisource(plot2fig)`` in "
+        "``if(HAVE_RE_COMP)``.  musl has no re_comp/re_exec (BSD regex API), "
+        "so upstream's own configuration does not build this target on this "
+        "libc.  The driver's program-directory enumeration still counts it, "
+        "which is why the link reported ``undefined symbol: re_comp``.  "
+        "Excluded with this CMake evidence; no stub is invented.",
+    # TESTCASES-081t (user ruling 2026-10-27, option 1): gawk/make/p2c are
+    # program directories the locked corpus never adds to the build.  Upstream's
+    # own MallocBench/CMakeLists.txt builds exactly espresso (:1), gs (:2) and
+    # cfrac (:3-5); there is no add_subdirectory(gawk|make|p2c) anywhere in the
+    # tree.  Their per-directory CMakeLists.txt files are dead entries, so the
+    # references/exit-only rules were never exercised upstream and the corpus
+    # defects below are corpus-level, not DADAO results.
+    "MultiSource/Benchmarks/MallocBench/gawk":
+        "upstream never builds this program directory: "
+        "MultiSource/Benchmarks/MallocBench/CMakeLists.txt:1-4 adds exactly "
+        "``espresso`` (:1), ``gs`` (:2) and ``cfrac`` (:4, guarded at :3-5); "
+        "there is no ``add_subdirectory(gawk)``.  The unit's own "
+        "CMakeLists.txt is therefore a dead corpus entry.  Its bundled "
+        "regex.c also fails on any bracket pattern on this 64-bit target "
+        "('Regular expression too big' for ``^[a]+$``, reproduced with a "
+        "host gcc build of the unmodified corpus), i.e. a corpus defect that "
+        "upstream's build never exercised.  Excluded with the upstream CMake "
+        "source as evidence; no stub or diagnostic relaxation is added.",
+    "MultiSource/Benchmarks/MallocBench/make":
+        "upstream never builds this program directory: "
+        "MultiSource/Benchmarks/MallocBench/CMakeLists.txt:1-4 adds exactly "
+        "``espresso`` (:1), ``gs`` (:2) and ``cfrac`` (:4, guarded at :3-5); "
+        "there is no ``add_subdirectory(make)``.  The unit's own "
+        "CMakeLists.txt is a dead corpus entry, and the corpus lacks the "
+        "``glob/glob.h`` that read.c:30 includes on non-glibc systems (the "
+        "directory is not shipped) and uses glibc-only ``sys_siglist`` "
+        "(job.c:136, enabled by the CMake ``-DHAVE_SIGLIST``).  Excluded with "
+        "the upstream CMake source as evidence; no fake header/stub is added.",
+    "MultiSource/Benchmarks/MallocBench/p2c":
+        "upstream never builds this program directory: "
+        "MultiSource/Benchmarks/MallocBench/CMakeLists.txt:1-4 adds exactly "
+        "``espresso`` (:1), ``gs`` (:2) and ``cfrac`` (:4, guarded at :3-5); "
+        "there is no ``add_subdirectory(p2c)``.  The unit's own CMakeLists.txt "
+        "is a dead corpus entry, and the corpus ships no ``p2crc``: p2c's "
+        "initrc() (trans.c:92-113) zeroes every 'C' name, so FORNAME is empty "
+        "and maketempvar (decl.c:5338) loops generating names forever (host "
+        "gdb stack and a 300 s timeout reproduce it).  Excluded with the "
+        "upstream CMake source as evidence; no config file or code patch is "
+        "invented.",
     # TESTCASES-077t item 1: the corpus' *architecture-specific* unit.  Not a
     # DADAO semantic result -- upstream itself does not build this file for any
     # other architecture.
@@ -736,17 +832,12 @@ CASE_PREPARE_DIRS = {
 # decided by the oracle/classification rules above).
 CASE_NOTES = {
     "MultiSource/Benchmarks/Prolangs-C/archie-client":
-        "upstream guards both llvm_multisource(archie) and the "
-        "target_include_directories() that provides <copyright.h> behind "
-        "check_function_exists(re_comp) (CMakeLists.txt:4 and :15); musl "
-        "provides no re_comp/re_exec (BSD regex API, absent from musl's "
-        "headers), so upstream's own configuration does not build this target "
-        "on this libc and the link stops at 'undefined symbol: re_comp'.  The "
-        "corpus' regex.c implements re_comp only under NOREGEX, which "
-        "pmachine.h defines for legacy platforms only (u3b2/hpux/ISC/CUTCP/"
-        "OS2/MSDOS), not for Linux -- no stub is taken.  The directory is "
-        "still counted by the book's .c-with-main rule and kept `blocked` "
-        "(the book's wording for this case), not `excluded`.",
+        "upstream guards the target: CMakeLists.txt:4 "
+        "``check_function_exists(re_comp HAVE_RE_COMP)`` and :11 "
+        "``if(HAVE_RE_COMP)`` around llvm_multisource(archie) + "
+        "target_include_directories(); musl provides no re_comp/re_exec, so "
+        "upstream does not build it for this libc (TESTCASES-081t: recorded as "
+        "a declared exclusion, see STRUCTURAL_EXCLUSIONS).",
     "SingleSource/Benchmarks/Misc/aarch64-init-cpu-features":
         "AArch64-only test: it calls __init_cpu_features and reads "
         "__aarch64_cpu_features, runtime symbols only AArch64's libc provides; "
@@ -754,13 +845,13 @@ CASE_NOTES = {
         "check_symbol_exists(__init_cpu_features) succeeds.  Not buildable "
         "for dadao-unknown-elf.",
     "MultiSource/Applications/ClamAV":
-        "oracle mismatch is interleaving-sensitive: the output has the same "
-        "38065 B of program text (plus the 7 B 'exit 0' tail) but the line "
-        "'Initializing the engine (devel-20071218)' (cli_dbgmsg, "
-        "libclamav_readdb.c:277) sits before the database-age warnings in "
-        "this run and after them in the reference; stdout/stderr buffering "
-        "decides that position.  Reported as `fail` by the oracle rule (a "
-        "stale/interleaving-sensitive reference is not relabelled).",
+        "TESTCASES-081t: the reference's first line order is glibc stdio "
+        "buffering, not program behaviour.  cli_dbgmsg -> puts() (stdout, "
+        "libclamav_others.c:112-116) while the database-age warnings go to "
+        "stderr; glibc buffers the redirected stdout at the file's "
+        "st_blksize (4096) and flushes at exit, musl at its 1024-byte BUFSIZ "
+        "and flushes earlier.  CASE_STDIO_GLUE's constructor requests the "
+        "glibc size, so the byte-exact comparison reaches the reference.",
 }
 
 # Run-completion gaps that make a *completed* run unable to reach the case's
@@ -1873,12 +1964,62 @@ def platform_gap_reason(case: Case, actual_doc: bytes):
 # delivery (the dashes are qemu's own markers); a host-side crash prints
 # "QEMU internal SIGxxx" instead (QEMU-075t).  ``si_code`` is a symbolic name
 # when qemu knows it (SEGV_MAPERR/...) and a number otherwise, so it is kept
-# verbatim rather than parsed.
+# verbatim rather than parsed.  ``si_addr`` is 0x... for an address fault and
+# the literal ``NULL`` for a null-pointer fault (TESTCASES-081t: gawk's own
+# SIGSEGV handler dies on a guest NULL dereference and re-raises SIGIOT, so
+# the delivery line is ``--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR,
+# si_addr=NULL} ---``; the old pattern only accepted ``0x...`` and filed a
+# real forwarded guest fault as blocked).
 SIG_DELIVERY_RE = re.compile(
     r"^--- (?P<name>SIG[A-Z0-9]+) \{si_signo=(?P<signo>SIG[A-Z0-9]+), "
     r"si_code=(?P<code>[^,}]+)"
-    r"(?:, si_addr=(?P<addr>0x[0-9a-fA-F]+))?\} ---$", re.M)
+    r"(?:, si_addr=(?P<addr>(?:0x[0-9a-fA-F]+|NULL)))?\} ---$", re.M)
 QEMU_INTERNAL_MARK = "QEMU internal"
+
+
+def signal_delivery_hit(text):
+    """Apply the guest-signal rule to one ``-strace`` log.
+
+    Returns ``(hit, why)``: ``hit`` is the last ``--- SIG...`` match when the
+    log shows a forwarded guest signal, otherwise ``None`` with the reason.
+    An emulator fault (``QEMU internal``) always wins, even if a delivery line
+    was printed before the crash.
+    """
+    if QEMU_INTERNAL_MARK in text:
+        return None, "'QEMU internal' present (emulator fault)"
+    hits = list(SIG_DELIVERY_RE.finditer(text))
+    if not hits:
+        return None, "no '--- SIG...' delivery line"
+    return hits[-1], ""
+
+
+def signal_delivery_selfcheck():
+    """Reachable checks for the guest-signal criterion (TESTCASES-081t).
+
+    The classification rule is: a ``--- SIG...`` delivery line in the
+    ``-strace`` log *and* no ``QEMU internal`` marker means the guest reached
+    its own signal verdict (=> ``fail``); anything else stays ``blocked``.
+    These probes exercise both branches, including the ``si_addr=NULL`` shape
+    that gawk produces after its own SIGSEGV handler re-raises SIGIOT.
+    """
+    problems = []
+    null_addr = ("--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, "
+                 "si_addr=NULL} ---\n")
+    hit, _why = signal_delivery_hit(null_addr)
+    if hit is None or hit.group("addr") != "NULL":
+        problems.append("si_addr=NULL delivery line is not recognised")
+    addrd = ("--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, "
+             "si_addr=0x8} ---\n")
+    hit, _why = signal_delivery_hit(addrd)
+    if hit is None:
+        problems.append("si_addr=0x.. delivery line is not recognised")
+    hit, _why = signal_delivery_hit("qemu: QEMU internal SIGSEGV\n" + null_addr)
+    if hit is not None:
+        problems.append("'QEMU internal' log accepted as a guest fault")
+    hit, _why = signal_delivery_hit("qemu: unexpected host fault\n")
+    if hit is not None:
+        problems.append("a log without a delivery line is accepted")
+    return problems
 
 
 def run_to_file(cmd, stderr_path, timeout, cwd, stdin_path):
@@ -1953,11 +2094,10 @@ def guest_signal_probe(case: Case):
     if rc >= 0:
         return None, (f"-strace probe exited {rc} instead of dying by a host "
                       f"signal: {log}")
-    hits = list(SIG_DELIVERY_RE.finditer(text))
-    if not hits:
-        return None, (f"-strace shows no '--- SIG...' delivery line, so this "
-                      f"is not a forwarded guest fault: {log}")
-    hit = hits[-1]
+    hit, why = signal_delivery_hit(text)
+    if hit is None:
+        return None, (f"-strace shows {why}, so this is not a forwarded "
+                      f"guest fault: {log}")
     name = hit.group("name")
     try:
         signo = int(getattr(signal, name))
@@ -2165,7 +2305,8 @@ def _build_and_run(case: Case, cfg, work_dir):
     # in (a stale/absent glue therefore fails loudly at link time instead of
     # silently reverting to musl's generator).
     glue_objs = []
-    glue = CASE_PRNG_GLUE.get(case.cid)
+    glue = (CASE_PRNG_GLUE.get(case.cid)
+            or CASE_STDIO_GLUE.get(case.cid))
     if glue:
         glue_src = os.path.join(GLUE_DIR, glue["source"])
         glue_obj = os.path.join(objdir, "glue_" + glue["source"] + ".o")
@@ -2577,9 +2718,7 @@ def iss265_admission_selfcheck():
     must be refused too.
     """
     problems = []
-    expected = {
-        "MultiSource/Applications/ClamAV": "interleave",
-    }
+    expected = {}
     got = {cid: row.get("kind") for cid, row in ISS265_ADMISSION.items()}
     if got != expected:
         problems.append(f"admission table {got} != {expected}")
@@ -2743,15 +2882,18 @@ def run_round(cases, cfg, work_dir, jobs, args, excluded, progress=None):
         bad_known.extend(f"{cid} (ISS-265 admission is per case)"
                          for cid in misrouted)
     admission_problems = iss265_admission_selfcheck()
+    signal_problems = signal_delivery_selfcheck()
     unexplained = [r.cid for r in results if r.klass == "fail"]
-    classification_ok = not bad_known and not admission_problems
+    classification_ok = (not bad_known and not admission_problems
+                         and not signal_problems)
     ok = (counts["fail"] == 0 and counts["blocked"] == 0 and closure_ok
           and classification_ok and cfg["census_ok"])
     return results, counts, dict(
         closure_ok=closure_ok, classification_ok=classification_ok,
         bad_known=bad_known, unexplained=unexplained,
         iss265_refused=iss265_refused,
-        admission_problems=admission_problems, ok=ok)
+        admission_problems=admission_problems,
+        signal_problems=signal_problems, ok=ok)
 
 
 def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
@@ -2802,7 +2944,8 @@ def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
          f"{census['c']['MicroBenchmarks']['units_with_main']})")
     emit(f"  known-fail admission: {', '.join(sorted(KNOWN_FAIL_BASES))} "
          f"(per-case evidence recomputed live)")
-    emit(f"  test glue: PRNG {sorted(CASE_PRNG_GLUE)}; LE32 input "
+    emit(f"  test glue: PRNG {sorted(CASE_PRNG_GLUE)}; stdio "
+         f"{sorted(CASE_STDIO_GLUE)}; LE32 input "
          f"{sorted(CASE_LE32_INPUTS)}; source patch "
          f"{sorted(CASE_SOURCE_PATCHES)} (declared per case, corpus patchless; "
          f"applied to the run copy / link line only)")
@@ -2832,6 +2975,9 @@ def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
     if audit.get("admission_problems"):
         emit(f"[FAIL] ISS-265 admission self-check (closed per-case table): "
              f"{audit['admission_problems']}")
+    if audit.get("signal_problems"):
+        emit(f"[FAIL] guest-signal criterion self-check: "
+             f"{audit['signal_problems']}")
     if audit.get("iss265_refused"):
         emit(f"  ISS-265 rows refused (basis does not hold => stay fail): "
              f"{audit['iss265_refused']}")
@@ -2889,6 +3035,7 @@ def write_artifacts(cfg, cases, results, counts, audit, census, args,
                   classification_ok=audit["classification_ok"],
                   known_fail_bases=KNOWN_FAIL_BASES,
                   test_glue=dict(prng_glue=sorted(CASE_PRNG_GLUE),
+                                 stdio_glue=sorted(CASE_STDIO_GLUE),
                                  le32_inputs=sorted(CASE_LE32_INPUTS),
                                  source_patches=sorted(CASE_SOURCE_PATCHES),
                                  dir=os.path.relpath(GLUE_DIR, REPO_ROOT)),
@@ -2993,7 +3140,8 @@ def main() -> int:
         # TESTCASES-080t test glue (declared per case, applied to the run copy
         # / link line only): missing glue is a setup error, never a silent
         # fallback to musl's own PRNG or to the unconverted input.
-        for name in sorted({row["source"] for row in CASE_PRNG_GLUE.values()}):
+        for name in sorted({row["source"] for row in CASE_PRNG_GLUE.values()}
+                           | {row["source"] for row in CASE_STDIO_GLUE.values()}):
             require_file(os.path.join(GLUE_DIR, name), "test glue source")
         require_file(os.path.join(GLUE_DIR, "le32_to_be32.py"),
                      "test glue input script")

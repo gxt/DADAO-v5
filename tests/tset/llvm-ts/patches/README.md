@@ -72,6 +72,20 @@ SPASS 后续 `list_Top(NULL)` guest `SIGSEGV`（`ISS-338` / TESTCASES-069t）。
 `void Configtable_clear(int (*f)(struct config *));`，于是 `0` 按空指针常量转换。
 定义（K&R 风格）与原型兼容，不做其它改动。
 
+## `glue/glibc_stdio_buffer.c`（`ClamAV`，TESTCASES-081t）
+
+**问题**：`ClamAV` 的上游参考是一份 interleaved stdout+stderr 文档；`cli_dbgmsg`
+（`libclamav_others.c:112-116`）用 `puts()` 写 **stdout**，数据库过期警告写 stderr。
+参考里 `Initializing the engine` 位于 4 行警告之后；musl 下它跑到第一行，字节数与
+行多重集完全相同（原 ISS-265 known-fail）。根因是 stdio 缓冲大小：glibc 按重定向
+文件的 `st_blksize`（4096）分配 stdout 缓冲、退出时 flush，musl 固定 `BUFSIZ`
+（1024）提前 flush。
+
+**做法**：胶水构造函数 `setvbuf(stdout, buffer, _IOFBF, 4096)`（musl 的
+`setvbuf` 只有调用方提供 buffer 时才采用该 size，故用静态数组），复现参考所用
+libc 的缓冲行为；不改程序、不改参考、比较仍是 byte-exact。判据（glibc 缓冲 →
+警告在前）用同一 stream 的宿主探针与 guest 探针分别验证。
+
 ## 使用与证据
 
 - 驱动入口：`tests/tset/llvm-ts/README.md`「入口」；胶水随驱动自动施加，无需手工步骤。
