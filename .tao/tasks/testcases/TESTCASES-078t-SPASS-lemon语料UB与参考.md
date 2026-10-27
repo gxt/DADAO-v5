@@ -14,7 +14,7 @@
    - x86-64/riscv64 因 int/pointer 共用寄存器而「碰巧可用」。
 
 ## 目标
-1. **语料 UB 修复（可控、可审计）**：以补丁/构建胶水方式修复两处 UB（不改上游源码树本体；补丁落 `tests/tset/llvm-ts/patches/` 或等价非易失位置，并在驱动中显式应用/记录）：
+1. **语料 UB 修复（可控、可审计；用户 2026-10-27 选 A）**：以**测试胶水 patch** 修复两处 UB——补丁落 `tests/tset/llvm-ts/patches/`，驱动在编译前应用到 `.work/` 工作副本并记录补丁 sha；**`llvm-test-suite` 保持 `patchless=true`，不改 components.lock，不新建组件 patch set**：
    - SPASS：把 `symbol_Equal` 调用改为匹配原型（或等价、语义等价的 wrapper），保留 SPASS 原逻辑；
    - lemon：给 `Configtable_clear` 加原型/正确调用，使 `0` 以空指针传递。
 2. **SPASS 参考重定**：先做**判别实验**——用宿主 gcc 分别构建「未修改语料」与「修 UB 后语料」，跑同一输入/选项，比较输出+exit md5 与上游 `b0b56c51…`：① 若未修改 == 上游参考、修 UB 后 == `74365d61…`，则修 UB 确实改变了行为，上游参考对修复后语料失效，需按**可复现、独立于 LLVM/QEMU**的方式重定（记录 gcc 版本/选项/输入/哈希）；② 若未修改 != 上游参考，先查参考的输入/选项/版本来源，不得直接改参考。不得用 DADAO 自身输出作 oracle。
@@ -29,7 +29,7 @@
 
 ## 约束
 - 只改本任务范围内的 `tests/tset/llvm-ts/`、`tools/testcases/tset/llvm-ts/`、补丁/胶水、索引/ledger、任务书/milestones；不改 spec/qemu/LLVM 语义。
-- 上游源码只读：补丁/胶水必须可重复应用、可审计；不得把 `tests/tset/llvm-ts/` 变成上游源码副本。
+- 上游源码只读：补丁/胶水必须可重复应用、可审计；**不修改 `manifests/components.lock.toml` 的 `patchless`，不建 `components/llvm-test-suite/patches/`**；不得把 `tests/tset/llvm-ts/` 变成上游源码副本。
 - **不提交、不 push**；长构建/长跑申报预计耗时；不跑无关全量。
 
 ## 完成区
