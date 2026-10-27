@@ -29,4 +29,14 @@
 
 - 期望值来自上游 `*.reference_output*`（byte-exact / md5）或 exit 0，驱动内
   分类器（`pass` / `fail` / `known-fail` / `blocked`）**未改**。
+- **逐例排除**（`excluded`，理由含源码 文件:行）：上游自身不为本目标构建的单元
+  ——`siod`/`office-ispell`（缺平台 API）与
+  `SingleSource/Benchmarks/Misc/aarch64-init-cpu-features`（上游只在
+  `ARCH STREQUAL "AArch64"` 下构建；符号 `__aarch64_cpu_features`/`RUNTIME_INIT`
+  仅 AArch64 libc 提供）。
+- **逐例编译方言**（`CASE_CFLAGS`）：C89 时代语料按其上游声明的方言编译
+  （`-std=gnu90`/`gnu89`，仅 `Burg`/`cdecl`/`OptimizerEval` 三例），**不全局放宽**，
+  其它用例编译命令逐字节不变。
+- **逐例超时**（`CASE_TIMEOUTS`）：`mafft` 于 TESTCASES-077t 重测（旧 1620 s 已不足），
+  其余维持实测值；`DEFAULT_TIMEOUT` 不放大。
 - 子集跑（`--only` / `--limit`）不写 `authoritative/`（`docs/Process-08 §1.2`）。

@@ -234,13 +234,17 @@ Classification (counted live, never hard-coded)
                   required) is filed as ``blocked`` too, never as ``fail``.
 * ``excluded``    declared up front, structural, with a reason.  Scope A's
   entries are ``MultiSource/Applications/siod`` (BSD ``d_namlen`` on a target
-  without the ``linux`` predefine) and
+  without the ``linux`` predefine),
   ``MultiSource/Benchmarks/MiBench/office-ispell`` (BSD ``<sgtty.h>``, absent
   from musl and from the corpus) -- both are missing *platform APIs*, not
-  missing include paths (TESTCASES-050t items 1/4).  Excluded cases are counted
-  live, keep their reason in the JSON/report, and never count as a pass; a
-  registry entry that no longer matches a discovered unit fails the census
-  audit.  B/C are reported as counts and are **not** passes.
+  missing include paths (TESTCASES-050t items 1/4) -- and
+  ``SingleSource/Benchmarks/Misc/aarch64-init-cpu-features`` (TESTCASES-077t:
+  upstream builds it only under ``if(ARCH STREQUAL "AArch64")`` and only after
+  ``check_symbol_exists(__init_cpu_features)``; the unit calls that AArch64
+  libc entry point and reads ``__aarch64_cpu_features``).  Excluded cases are
+  counted live, keep their reason in the JSON/report, and never count as a
+  pass; a registry entry that no longer matches a discovered unit fails the
+  census audit.  B/C are reported as counts and are **not** passes.
 
 Per-case run timeouts (TESTCASES-050t item 2) are the ``CASE_TIMEOUTS`` table:
 values measured on this host (``run_seconds`` in the JSON) plus a 120 s
@@ -250,6 +254,15 @@ margin, rounded up to the next minute, applied in addition to ``--timeout``
 and every other case would then be able to burn that budget before a hang is
 reported.  ``unix-smail`` is not in the table because it completes: measured
 0.11 s in both link modes (TESTCASES-054t), far below the 300 s baseline.
+``mafft``'s row was re-measured in TESTCASES-077t (the 1620 s value from
+TESTCASES-050t no longer held: the case timed out in the 2026-10-27 full run).
+
+Per-case compile-line additions (TESTCASES-077t item 2) are the ``CASE_CFLAGS``
+table: the few C89-era units whose dialect upstream itself declares (or whose
+code predates C99) are compiled in that dialect (``-std=gnu90`` / ``-std=gnu89``)
+instead of clang's default gnu17, where their K&R definitions and implicit
+declarations are hard errors.  Nothing is relaxed globally and every other
+case's compile command stays byte-identical.
 
 Every case record keeps: compile command lines, link command, run argv, work
 directory, oracle file, stdout sha256 + size, min ``PT_LOAD``, ``PT_INTERP``
@@ -332,7 +345,7 @@ CASE_TIMEOUTS = {
     "MultiSource/Applications/lua": 1320,       # 1141.74/1167.14 -> 1320
     "MultiSource/Benchmarks/DOE-ProxyApps-C/SimpleMOC": 480,  # 349.54 -> 480
     "MultiSource/Benchmarks/DOE-ProxyApps-C/XSBench": 720,  # 533.44/541.58 -> 720
-    "MultiSource/Benchmarks/mafft": 1620,       # 1452.82 -> 1572.82 -> 1620
+    "MultiSource/Benchmarks/mafft": 1800,       # 1587.7/1604.3 -> 1740 -> 1800
     "MultiSource/Benchmarks/nbench": 480,       # 312.20 -> 432.20 -> 480
 }
 
@@ -354,8 +367,18 @@ CASE_TIMEOUT_BASIS = {
         "jobs=1 + 120 s margin -> 661.58 s, rounded up to 60 s -> 720 s "
         "(TESTCASES-054t; both rounds PASS, stdout byte-exact)",
     "MultiSource/Benchmarks/mafft":
-        "measured complete run 1452.82 s + 120 s margin, rounded up to 60 s "
-        "-> 1620 s",
+        "re-measured 2026-10-27 (TESTCASES-077t): the TESTCASES-050t value of "
+        "1452.82 s no longer held -- that full run truncated the case at "
+        "1620 s.  Complete runs measured now: 1587.7 s (isolated, jobs=1, "
+        "static) and 1604.3 s (dynamic, same round as the gate); "
+        "1604.3 + 120 s margin = 1724.3 -> rounded up to 60 s = 1740 s, then "
+        "raised to 1800 s (next half hour) because the 1620 s budget was "
+        "already exhausted under the 09:01 full run's jobs=4 load, i.e. the "
+        "120 s formula margin is consumed by load variance on this host.  The "
+        "same input on the host (gcc -O2, 18.1 s, md5 identical to the "
+        "upstream reference) proves the program is finite: the guest is slow "
+        "(~90x), not hung, and its completed output (47567152 B, md5 == the "
+        "reference) is byte-identical",
     "MultiSource/Benchmarks/nbench":
         "measured complete run 312.20 s + 120 s margin, rounded up to 60 s "
         "-> 480 s",
@@ -381,6 +404,40 @@ BASE_CFLAGS = ("-O2", "-DNDEBUG", "-w")
 # cmake/modules/TestSuite.cmake:49-50 -- the verification (not scoring) size
 # knob; it changes the workload size, never the program's own verdict.
 SMALL_PROBLEM_CFLAGS = ("-DSMALL_PROBLEM_SIZE",)
+
+# Per-case compile-line additions (TESTCASES-077t item 2).  Minimal and per
+# case, never global: every other case keeps a byte-identical compile command
+# (the full run's per-case ``compile`` lines are recorded in the JSON, so the
+# split is auditable).  Only the *dialect* a case was written in is restored;
+# no diagnostic is silenced and no expectation changes.
+#
+#   * Burg -- MultiSource/Applications/Burg/CMakeLists.txt:7 declares
+#     ``set_property(TARGET burg PROPERTY C_STANDARD 90)``; CMake maps C_STANDARD
+#     90 to ``-std=gnu90`` (C_EXTENSIONS defaults to ON).  The driver does not
+#     evaluate C_STANDARD, so the unit was compiled at clang's default (gnu17)
+#     where be.c:333's K&R definition ``static int seminal(from, to)`` is the
+#     C99 ``-Wimplicit-int`` *error* (log: be.c:335 "parameter 'to' was not
+#     declared, defaults to 'int'").  Restoring the declared dialect is the
+#     smallest flag that is upstream's own statement about the program.
+#   * cdecl -- same cause, same upstream statement:
+#     MultiSource/Benchmarks/Prolangs-C/cdecl/CMakeLists.txt:3
+#     ``set_property(TARGET cdecl PROPERTY C_STANDARD 90)``; the unit was
+#     compiled at gnu17 and the yacc-generated cdgram.y:1022 has the C99
+#     ``-Wimplicit-int`` error.
+#   * OptimizerEval -- C89-era program with no C_STANDARD declaration upstream
+#     (MultiSource/Benchmarks/OptimizerEval/CMakeLists.txt: only LDFLAGS -lm +
+#     NO_REFERENCE_OUTPUT): main.c:394 calls ``noisy`` before its definition
+#     (no prototype anywhere), a C99 ``-Wimplicit-function-declaration`` error
+#     at gnu17 and a diagnosis in the dialect the code was written for.
+#     ``-std=gnu89`` is the measured minimal flag (the alternative
+#     ``-Wno-error=implicit-function-declaration`` keeps a dialect the program
+#     was never written for); the case then PASSes exit-only (its own
+#     NO_REFERENCE_OUTPUT rule).
+CASE_CFLAGS = {
+    "MultiSource/Applications/Burg": ("-std=gnu90",),
+    "MultiSource/Benchmarks/Prolangs-C/cdecl": ("-std=gnu90",),
+    "MultiSource/Benchmarks/OptimizerEval": ("-std=gnu89",),
+}
 
 A_MULTI_TREES = ("MultiSource/Benchmarks", "MultiSource/Applications")
 B_TREES = ("SingleSource/Regression", "SingleSource/UnitTests",
@@ -519,6 +576,28 @@ STRUCTURAL_EXCLUSIONS = {
         "*platform API*, not a missing include path: no -I can supply it.  "
         "The case is excluded with this reason; no shim header is added "
         "(corpus is patchless, task book forbids a fake header).",
+    # TESTCASES-077t item 1: the corpus' *architecture-specific* unit.  Not a
+    # DADAO semantic result -- upstream itself does not build this file for any
+    # other architecture.
+    "SingleSource/Benchmarks/Misc/aarch64-init-cpu-features":
+        "AArch64-only runtime-feature probe, and upstream only builds it for "
+        "ARCH=AArch64: SingleSource/Benchmarks/Misc/CMakeLists.txt:37 selects "
+        "the branch with ``if(ARCH STREQUAL \"AArch64\")`` and :45-51 appends "
+        "the source only after ``check_symbol_exists(__init_cpu_features ...)`` "
+        "succeeds (Darwin: :38-44 ``__init_cpu_features_resolver``); for "
+        "ARCH=Dadao upstream's own configuration never adds it to the target.  "
+        "The unit itself is unimplementable off AArch64: "
+        "aarch64-init-cpu-features.c:3-5 declares "
+        "``extern struct { ... } __aarch64_cpu_features;`` and :7-11 defines "
+        "RUNTIME_INIT as ``__init_cpu_features_resolver``/``__init_cpu_features``, "
+        "so at :13/:17-25 it calls that AArch64 libc entry point and reads the "
+        "AArch64 feature word.  Neither the symbol nor the struct exists for "
+        "dadao-unknown-elf (no AArch64 libc; musl/dadao has no "
+        "__init_cpu_features), which is the recorded link failure "
+        "``ld.lld: error: undefined symbol: RUNTIME_INIT`` -- a missing "
+        "*platform ABI*, not a missing path or a compiler defect.  Excluded "
+        "with this reason instead of patched (corpus is patchless); the "
+        "upstream reference output is not a verdict for this target.",
 }
 
 # Dynamic round only (TESTCASES-049t / ISS-259 candidate (2), the same finding
@@ -1867,7 +1946,8 @@ def _build_and_run(case: Case, cfg, work_dir):
     flags = (["-target", TARGET] + cfg["musl_incs"] + inc_flags
              + list(BASE_CFLAGS) + list(SMALL_PROBLEM_CFLAGS)
              + (list(DYNAMIC_USER_CFLAGS) if cfg["mode"] == "dynamic" else [])
-             + (case.cmake.cflags if case.cmake else []))
+             + (case.cmake.cflags if case.cmake else [])
+             + list(CASE_CFLAGS.get(case.cid, ())))
     objs = []
     for idx, src in enumerate(case.sources):
         obj = os.path.join(objdir, f"{idx:03d}_"
