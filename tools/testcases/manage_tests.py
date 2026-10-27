@@ -60,6 +60,8 @@ SCOPE_MAP: dict[str, list[str]] = {
         "m6-embench", "libc-argv-static", "libc-argv-dynamic", "tset",
     ],
     "night": ["night"],
+    # L3 报告（TESTCASES-083t）：与 night 同为只读汇总报告，不可逐字节复现。
+    "l3": ["l3"],
 }
 
 # 顶层目录里**不是**测试生成物的：构建产物（由对应 build 目标管理，不进 scope 清理）。
@@ -219,6 +221,11 @@ def cmd_repro(args: argparse.Namespace) -> int:
             "ERROR: test-repro 不支持 SCOPE=night —— 夜跑报告含时间戳/宿主信息，"
             "按 docs/Process-08 §1.1 本就不要求逐字节复现。\n")
         return 2
+    if scope == "l3":
+        sys.stderr.write(
+            "ERROR: test-repro 不支持 SCOPE=l3 —— L3 报告含时间戳/宿主信息，"
+            "按 docs/Process-08 §1.1 本就不要求逐字节复现。\n")
+        return 2
 
     root = Path(args.root)
     dirs = scope_dirs(root, scope)
@@ -373,6 +380,11 @@ def cmd_selftest(args: argparse.Namespace) -> int:
         rc = cmd_repro(argparse.Namespace(
             scope="night", root=str(root), dry_run=False, producer=None, inject=None))
         checks.append(("repro night => explicit refuse (rc=2)", rc == 2, f"rc={rc}"))
+
+        # l3 显式拒绝（TESTCASES-083t）
+        rc = cmd_repro(argparse.Namespace(
+            scope="l3", root=str(root), dry_run=False, producer=None, inject=None))
+        checks.append(("repro l3 => explicit refuse (rc=2)", rc == 2, f"rc={rc}"))
     finally:
         PRODUCERS["inst"] = saved
 

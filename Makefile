@@ -56,7 +56,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-inst check-inst-smoke check-tests-index check-arch check-arch-smoke \
         check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
         check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
-        clean-tests test-repro check-night check-night-report \
+        clean-tests test-repro check-night check-night-report check-l3-report \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
@@ -182,10 +182,11 @@ help:
 	@echo "  make validate-vectors  Validate tests/inst vectors schema/inventory/coverage (L1)"
 	@echo "  make check           Run repository-level structural checks (L1: static + component smoke)"
 	@echo "  make check-modules   Run L2 = the four scopes' smoke sets (inst/arch/unit + tset x3; no FP probes)"
-	@echo "  make check-full      Run L3 = check-inst + check-arch + check-unit-full + 4 FP probes + test-m6 (tset smoke is L2-only; tset full is night-only; TESTCASES-082t)"
+	@echo "  make check-full      Run L3 = check-inst + check-arch + check-unit-full + 4 FP probes + test-m6; writes .dadao/tests/l3/<UTC>/ (tset smoke is L2-only; tset full is night-only; TESTCASES-082t/083t)"
 	@echo "  make check-night     Run the night set (tset full x3 + long arch) and write .dadao/tests/night/<date>/ (setsid nohup; TESTCASES-076t)"
 	@echo "  make check-night-report  Gate: the night report exists and is structurally complete + green (milestone closure; TESTCASES-076t)"
-	@echo "  make clean-tests     Remove one scope's generated artifacts (SCOPE=inst|arch|unit|tset|night|all; DRY_RUN=1 to list; TESTCASES-076t)"
+	@echo "  make check-l3-report  Gate: the latest L3 report exists, covers four scopes, and is fully green (milestone closure; TESTCASES-083t)"
+	@echo "  make clean-tests     Remove one scope's generated artifacts (SCOPE=inst|arch|unit|tset|night|l3|all; DRY_RUN=1 to list; TESTCASES-076t)"
 	@echo "  make test-repro      Prove build products regenerate byte-identically (SCOPE=...; TESTCASES-076t)"
 	@echo "  make check-components  Component availability smoke (llc/clang --print-targets/qemu; L1)"
 	@echo "  make check-inst-smoke  inst semantic smoke (representative subset; L2; TESTCASES-072t)"
@@ -200,7 +201,7 @@ help:
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
 	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
 	@echo "  make check-milestones-fresh  milestones.md task-flow table gate: status/coverage/length/order/format (L1; INFRA-091t)"
-	@echo "  make check-milestone  Milestone closure: SIMRISC archive + sha + sync-nonmaskable + knowledge whitelist + m-book + night report + check-tasks --strict (not L1)"
+	@echo "  make check-milestone  Milestone closure: SIMRISC archive + sha + sync-nonmaskable + knowledge whitelist + m-book + night report + L3 report + check-tasks --strict (not L1)"
 	@echo "  make check-sync-nonmaskable  Sync exception causes must not be maskable (only IPI/TIMER/UART*/… may; SPEC-175t; not L1)"
 	@echo "  make check-interface  Check cross-module interface alignment (L1)"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
@@ -987,8 +988,11 @@ _locked-check-modules: check-inst-smoke check-arch-smoke check-unit check-tset-l
 #               `test-m6` 的 Embench E2E 是集成步骤，不算 tset smoke 重复
 #   fp 语义   : 4 个 FP 探针（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖；已移出 L2，只在 L3）
 #   整链      : test-m6（Embench E2E + ir-lli + 全量 lit；其 [1/3] 亦跑 check-lit-full）
-_locked-check-full: check-inst check-arch check-unit-full check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe test-m6
-	@echo "full checks (L3): PASS"
+#   报告      : 由 l3_run.py **逐成员**跑上面 8 个目标并按 `scope:suite` 记 rc，落
+#               `<TESTS_ROOT>/l3/<YYYYMMDDTHHMMSSZ>/`（manifest.tsv/meta.json/run.log，
+#               与夜跑同格式），由里程碑层 `check-l3-report` 消费（TESTCASES-083t）。
+_locked-check-full:
+	@$(PYTHON) tools/testcases/l3_run.py --root "$(TESTS_ROOT)"
 
 # Vector schema/inventory/coverage gate (TESTCASES-002t). Requires the M1
 # encoding table (contracts/opcodes.yaml) to exist.
@@ -1084,11 +1088,13 @@ check-run-artifacts:
 #    放到里程碑check里」）——顶层白名单外文件即红。
 # ⑥ 夜跑报告存在性/结构/结果（`check-night-report`，TESTCASES-076t）——没跑夜跑即红
 #    （`.dadao/tests/night/<YYYY-MM-DD>/` 三件套 + tset×3/arch 行 + 全 rc=0）。
+# ⑦ L3 报告存在性/结构/四 scope 覆盖/结果（`check-l3-report`，TESTCASES-083t）——没跑
+#    L3 即红（`.dadao/tests/l3/<UTC>/` 三件套 + 四 scope + 全 rc=0 + exit marker 一致）。
 # 不并入 L1 的理由：`m` 册未建前本目标**必然红**（预期的收口信号），日常 L1 不应常态红。
-check-milestone: check-spec-archive check-spec-archive-verify check-sync-nonmaskable check-knowledge-dir check-night-report
+check-milestone: check-spec-archive check-spec-archive-verify check-sync-nonmaskable check-knowledge-dir check-night-report check-l3-report
 	@$(PYTHON) tools/infra/check_milestone_tasks.py
 	@$(PYTHON) tools/infra/check_tasks.py --strict
-	@echo "check-milestone: PASS (归档结构 + 内容 sha + 同步不可屏蔽 + knowledge 顶层白名单 + 夜跑报告 + m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
+	@echo "check-milestone: PASS (归档结构 + 内容 sha + 同步不可屏蔽 + knowledge 顶层白名单 + 夜跑报告 + L3 报告 + m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
 
 # 同步异常不可屏蔽 (SPEC-175t; 里程碑层): 扫 DADAO-12/22/23 异常原因表的「是否可屏蔽」列，
 # 只有异步源（IPI / TIMER / UART* / 占位行 …）允许「可」；`--self-test` 内置注入→FAIL→还原→PASS。
@@ -1637,7 +1643,7 @@ NIGHT_DATE ?=
 NIGHT_DRY_RUN ?=
 NIGHT_ALLOW_OVERWRITE ?=
 
-# make clean-tests SCOPE=inst|arch|unit|tset|night|all [DRY_RUN=1]
+# make clean-tests SCOPE=inst|arch|unit|tset|night|l3|all [DRY_RUN=1]
 _locked-clean-tests:
 	@$(PYTHON) tools/testcases/manage_tests.py clean --scope "$(SCOPE)" --root "$(TESTS_ROOT)" $(if $(DRY_RUN),--dry-run,)
 
@@ -1656,6 +1662,11 @@ _locked-check-night:
 # 未跑夜跑 ⇒ 明确 FAIL（不是 SKIP）。`NIGHT_DATE=` 指定日期，默认最新。
 check-night-report:
 	@$(PYTHON) tools/testcases/check_night_report.py --root "$(TESTS_ROOT)" $(if $(NIGHT_DATE),--date $(NIGHT_DATE),)
+
+# make check-l3-report —— 里程碑层：L3 报告**存在性 + 结构 + 四 scope 覆盖 + 结果**
+# （不跑长套件）；未跑 L3 ⇒ 明确 FAIL（不是 SKIP）。`L3_STAMP=` 指定戳，默认最新。
+check-l3-report:
+	@$(PYTHON) tools/testcases/check_l3_report.py --root "$(TESTS_ROOT)" $(if $(L3_STAMP),--stamp $(L3_STAMP),)
 
 # 构建并行度（用户裁定 2026-10-01：限制 cc1plus 类进程）
 JOBS ?= 8

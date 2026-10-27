@@ -103,6 +103,7 @@ tests/
 .dadao/tests/
   <scope 目录>/<YYYYMMDDTHHMMSSZ>-<suite>-<mode>/   # Process-08 三件套
   night/<YYYY-MM-DD>/manifest.tsv                   # 夜跑汇总（只读报告）
+  l3/<YYYYMMDDTHHMMSSZ>/manifest.tsv                # L3 汇总（只读报告）
 ```
 
 - **生成物根** = `manifests/install-dirs.lock.toml` 的 `test_artifacts_dir`（当前
@@ -118,6 +119,7 @@ tests/
   | `unit` | `codegen-e2e/`、`codegen-m6/`、`elf-e2e/`、`elf-m6/`、`ir-lli-diff/`、`lit-output/` |
   | `tset` | `libc-test-user/`、`llvm-ts-user/`、`llvm-ts-user-050t/`、`embench-user/`、`m6-embench/`、`libc-argv-static/`、`libc-argv-dynamic/` |
   | `night` | `night/` |
+  | `l3` | `l3/` |
 
 - **未归属即红**：`.dadao/tests/` 顶层出现映射表与 `UNSCOPED`（= 构建产物 `bootrom/`）之外
   的目录 ⇒ `clean-tests`/`test-repro` **FAIL**（防新产物目录悄悄长出而清理/复现漏掉）。
@@ -136,6 +138,10 @@ tests/
   `manifest.tsv`（表头 `scope<TAB>suite<TAB>rc<TAB>log`，逐成员一行）、
   `meta.json`（`command`/`started_utc`/`finished_utc`）、`run.log`（汇总）。
   同日不覆盖（重跑须换日期或显式 `NIGHT_ALLOW_OVERWRITE=1`）。
+- **L3 报告**（`Process-09 §8` L3 层，`TESTCASES-083t`）落 `l3/<YYYYMMDDTHHMMSSZ>/`，三件
+  同格式：`manifest.tsv`（逐成员 `scope<TAB>suite<TAB>rc<TAB>log`）、`meta.json`
+  （`command`/`started_utc`/`finished_utc`/`commit`/`toolchain` 摘要）、`run.log`（汇总 +
+  `[exit marker] rc=N`）。由 `make check-full` → `tools/testcases/l3_run.py` 写；同戳不覆盖。
 - **记录保留**：authoritative/夜跑 + **失败必留**（`run.json`/`meta.json`/日志）；普通 smoke 可落 `/tmp` 或跑后清理。
 
 ---
@@ -177,6 +183,9 @@ tools/testcases/
   manage_tests.py       # make clean-tests / test-repro 的实现（scope→目录映射单一真源）
   night_run.py          # make check-night 的实现（tset full×3 + 长 arch → 报告）
   check_night_report.py # 夜跑报告存在性/结构/结果门控（里程碑层）
+  l3_run.py             # make check-full 的实现（L3 逐成员执行 → l3/<UTC>/ 报告）
+  check_l3_report.py    # L3 报告存在性/结构/覆盖/结果门控（里程碑层）
+  report_io.py          # night/l3 报告 manifest/meta 格式单一真源
 ```
 
 - 仓库级**静态**一致性检查（`check_interface_alignment.py`）归 `tools/infra/`，不属测试驱动。
@@ -215,13 +224,13 @@ tools/testcases/
 - **任务级（Task）**：任务书 `## 验证` 必须写 `scope`、`level`（targeted/smoke）、`cmd`；reviewer 重跑同一命令。**≤2 min**，如 `make check-inst-smoke CASE=...`、`make check-arch-smoke CFX=...`、`make check-unit`、`make check-tset-libc-smoke`。
 - **L1（静态）**：`tests/*.yaml` 索引、ID/文件/字段、`case-ledger`、生成器 `--check`、链接/引用、**跨模块接口一致性**（`check-interface`）、**代码跨度自检**（`check-code-range`）；**不跑 guest**。
 - **L2（四 scope smoke）**：`check-inst-smoke`、`check-arch-smoke`、`check-unit`、`check-tset-{libc,llvm,embench}-smoke` ⇒ `make check-modules`。**不含 FP 探针**（2026-10-27 用户裁定「L2 只保留四 scope smoke」）。
-- **L3（全量）**：`check-inst`（全 ISA）、`check-arch`（全 cfx）、**`check-unit-full`**（= `check-unit` + `check-lit-full`）、**4 个 FP 探针**（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖，只在 L3 跑）、`test-m6`（全量 lit + ir-lli + Embench E2E）⇒ `make check-full`。
+- **L3（全量）**：`check-inst`（全 ISA）、`check-arch`（全 cfx）、**`check-unit-full`**（= `check-unit` + `check-lit-full`）、**4 个 FP 探针**（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖，只在 L3 跑）、`test-m6`（全量 lit + ir-lli + Embench E2E）⇒ `make check-full`；运行时逐成员落 `.dadao/tests/l3/<UTC>/` 报告（`l3_run.py`），由里程碑层 `check-l3-report` 消费。
   - **一层一列**：`check-unit` 只在 L2 直接列出；L3 用 `check-unit-full`，它在 L3 只是
     **前置依赖**（`Process-07 §4` 明文允许「被上层前置依赖而间接跑到不算重复」）。
     **不设例外**（2026-10-27 用户裁定严格化）。
   - **tset 不在 L3 直接列出**（`TESTCASES-082t`，2026-10-27）：`check-tset-{libc,llvm,embench}-smoke`
     只在 **L2**；tset **full** 只在**夜跑**；`test-m6` 的 Embench E2E 属集成步骤，不构成 tset smoke 重复。
-- **里程碑（Milestone）**：`check-milestone` = 归档结构/内容 sha + 同步不可屏蔽 + knowledge 白名单 + `m` 册/任务号 + **夜跑报告存在性/结构/结果**（`check-night-report`）；**不内联跑长套件**。报告缺失 ⇒ **明确 FAIL**（不是 SKIP）。
+- **里程碑（Milestone）**：`check-milestone` = 归档结构/内容 sha + 同步不可屏蔽 + knowledge 白名单 + `m` 册/任务号 + **夜跑报告存在性/结构/结果**（`check-night-report`）+ **L3 报告存在性/结构/四 scope 覆盖/结果**（`check-l3-report`）；**不内联跑长套件**。报告缺失 ⇒ **明确 FAIL**（不是 SKIP）。
 - **夜跑（Night）**：`make check-night` = `tset` full ×3（libc-test / llvm-ts / Embench，各 static+dynamic）+ 长 arch；由**主会话** `setsid nohup` 启动 + `[exit marker] rc=N`；报告落 `.dadao/tests/night/<date>/`（`manifest.tsv`/`meta.json`/`run.log`），次日由里程碑门控消费。
 
 ---

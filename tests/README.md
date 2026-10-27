@@ -78,9 +78,10 @@
 ```sh
 make check            # L1：仓库完整性（不跑被测语义）
 make check-modules    # L2：四 scope smoke（inst/arch/unit + tset×3；不含 FP 探针）
-make check-full       # L3：check-inst + check-arch + check-unit-full + 4 个 FP 探针 + test-m6（慢；tset smoke 仅在 L2、tset full 仅在夜跑）
+make check-full       # L3：check-inst + check-arch + check-unit-full + 4 个 FP 探针 + test-m6（慢；tset smoke 仅在 L2、tset full 仅在夜跑）；逐成员报告落 .dadao/tests/l3/<UTC>/
 make check-night      # 夜跑（tset full×3 + 长 arch；主会话 setsid nohup 启动；小时级）
 make check-night-report  # 里程碑层：夜跑报告存在性/结构/结果（未跑 ⇒ 明确 FAIL）
+make check-l3-report  # 里程碑层：L3 报告存在性/结构/四 scope 覆盖/全绿（未跑 ⇒ 明确 FAIL）
 
 make check-unit       # unit 代表集（仅 L2：lit + codegen/elf + ir-lli + picolibc fast）
 make check-unit-full  # unit 全量（仅 L3：check-unit + lit 全量档）
@@ -96,11 +97,18 @@ make check-tset-libc-smoke / check-tset-llvm-smoke / check-tset-embench-smoke   
 ```sh
 make clean-tests SCOPE=inst DRY_RUN=1     # 列出将删的目录（不动盘）
 make clean-tests SCOPE=unit               # 真删（按 Process-09 §4 的 scope→目录映射表）
+make clean-tests SCOPE=l3                 # 删 L3 报告目录（SCOPE=night 删夜跑报告）
 make test-repro  SCOPE=unit               # 两次生产 + 构建产物逐字节比（运行记录排除）
 ```
 
 （旧目标名 `check-qemu-{smoke,semantics}` / `test-semihost` / `check-{libc-test,llvm-ts,embench}-smoke`
 已在 P6 删除。）
+
+**L3 报告**（`TESTCASES-083t`）：`make check-full` 逐成员执行并写只读报告
+`.dadao/tests/l3/<YYYYMMDDTHHMMSSZ>/`——`manifest.tsv`（`scope<TAB>suite<TAB>rc<TAB>log`，
+逐成员一行）、`meta.json`（command / 起止 UTC / commit / 工具链摘要）、`run.log`
+（汇总 + `[exit marker] rc=N`），与夜跑报告同格式（`tools/testcases/report_io.py`）。
+同戳不覆盖；**里程碑收尾**由 `make check-l3-report` 机检（缺报告 ⇒ 明确 FAIL）。
 
 ### 2.2 单个向量文件 / 单个用例（手工）
 

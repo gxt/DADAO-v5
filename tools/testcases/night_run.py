@@ -34,6 +34,8 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+import report_io
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # 默认成员：scope:suite=命令（tset full + 长 arch）
@@ -44,11 +46,11 @@ DEFAULT_MEMBERS = [
     "arch:cfx=make check-arch",
 ]
 
-HEADER = ["scope", "suite", "rc", "log"]
+HEADER = report_io.HEADER
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return report_io.utc_now()
 
 
 def today() -> str:
@@ -90,14 +92,13 @@ def run_night(root: Path, date: str, members: list[tuple[str, str, str]],
         rows.append((scope, suite, rc, str(log.relative_to(REPO_ROOT))))
     finished = utc_now()
 
-    (report / "manifest.tsv").write_text(
-        "\n".join(["\t".join(HEADER)] + ["\t".join(map(str, r)) for r in rows]) + "\n")
-    (report / "meta.json").write_text(json.dumps({
+    report_io.write_manifest(report, rows)
+    report_io.write_meta(report, {
         "command": "make check-night",
         "started_utc": started,
         "finished_utc": finished,
         "members": [{"scope": s, "suite": u, "cmd": cmd} for s, u, cmd in members],
-    }, ensure_ascii=False, indent=2) + "\n")
+    })
     (report / "run.log").write_text(
         "\n".join([
             f"check-night {date}  ({started} .. {finished})",

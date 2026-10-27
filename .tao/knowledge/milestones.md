@@ -59,7 +59,7 @@
 | TESTCASES-080t | 待验收 | 2026-10-27 10:10（登记） | llvm-ts 零 known-fail：obsequi/ft 注入 glibc PRNG 胶水、8b10b LE→BE 输入胶水；三条两档 pass、known-fail=0 |
 | TESTCASES-081t | 待验收 | 2026-10-27 10:10（登记） | 用户裁定「选 1」：gawk/make/p2c 按上游 MallocBench CMake 证据 excluded；archie/plot2fig 同；ClamAV stdio 胶水两档 pass；SIG 判据+反例 |
 | TESTCASES-082t | 待验收 | 2026-10-27 10:10（登记） | L3 去 tset smoke（严格一层；tset full 归夜跑） |
-| TESTCASES-083t | 待开始 | 2026-10-27 10:10（登记） | L3 结果报告 + check-milestone 机检（check-l3-report） |
+| TESTCASES-083t | 待验收 | 2026-10-27 10:10（登记） | L3 结果报告 + check-milestone 机检（check-l3-report） |
 | TESTCASES-075t | 已验证 | 2026-10-27 06:35 | tset 迁移（libc-test/llvm-ts/embench；check-tset） |
 | TESTCASES-074t | 已验证 | 2026-10-27 05:11 | unit 迁移（lit/codegen/ir-lli/picolibc；check-unit） |
 | TESTCASES-073t | 已验证 | 2026-10-27 03:49 | arch 迁移：m5→tests/arch/umon、min-ROM→tools/testcases/arch、bootrom→shared、check-arch(-smoke)+旧名别名 |
