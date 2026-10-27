@@ -55,7 +55,7 @@
 | --- | --- | --- | --- |
 | TESTCASES-077t | 待验收 | 2026-10-27 10:10（登记） | llvm-ts：aarch64 记 excluded、Burg/cdecl/OptimizerEval 逐例方言、mafft 超时 1620→1800（blocked 11→6） |
 | TESTCASES-078t | 待开始 | 2026-10-27 10:10（登记） | SPASS/lemon 语料 UB 修复 + SPASS 参考重定（ISS-338/277） |
-| TESTCASES-079t | 待开始 | 2026-10-27 10:10（登记） | consumer-typeset：musl catclose(-1) 守卫（ISS-339） |
+| TESTCASES-079t | 待验收 | 2026-10-27 10:10（登记） | consumer-typeset：musl catclose 无效句柄守卫（-1/EBADF），两档由 SIGBUS 转 pass（ISS-339） |
 | TESTCASES-080t | 待开始 | 2026-10-27 10:10（登记） | llvm-ts 零 known-fail：obsequi/ft/8b10b（ISS-265/266） |
 | TESTCASES-081t | 待开始 | 2026-10-27 10:10（登记） | llvm-ts 剩余 blocked：gawk/make/p2c 胶水、archie/plot2fig 排除、ClamAV、SIG 判据 |
 | TESTCASES-082t | 待开始 | 2026-10-27 10:10（登记） | L3 去 tset smoke（严格一层；tset full 归夜跑） |

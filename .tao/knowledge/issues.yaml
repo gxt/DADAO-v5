@@ -156,10 +156,10 @@
     **边界**：只登记 ⇒ 未改语料/参考 ✗。
 - id: ISS-339
   title: "【P3】consumer-typeset：语料未查 catopen 失败 + musl catclose(-1) 无守卫（glibc 返回 EBADF）"
-  status: open
+  status: closed
   scope: [testcases, infra]
   blocks: []
-  resolved_by: null
+  resolved_by: TESTCASES-079t
   notes: >-
     【正式登记（2026-10-27，源 = `TESTCASES-069t` 诊断）】**现象**：`consumer-typeset` 的 `z01.c:229` 存 `MsgCat`、
     `z01.c:856` 无条件 `catclose`；guest 无 catalog（`openat(...errors.C) = -1 ENOENT`）⇒ musl `catopen` 返回 `(nl_catd)-1`，
@@ -167,3 +167,12 @@
     故上游参考在 glibc 下不崩。**性质**：语料未查返回值（UB）+ musl 端口健壮性差异；分档判据已按 guest 信号记 `fail`。
     **修法方向**：musl `catclose` 加 -1 守卫（组件补丁）或语料侧查 `catopen`；是否纳入 M10 由用户定。**证据**：`TESTCASES-069t`
     完成区、`.work/log/testcases/TESTCASES-069t-diagnosis.log`。**边界**：只登记 ⇒ 未改 musl/语料 ✗。
+    〔收口（2026-10-27，`TESTCASES-079t`）〕取 **musl 侧修法**：新增组件补丁 `components/musl/patches/src/locale/catclose.c.patch`
+    （`series` 24→25），`(nl_catd)-1` 与 `NULL` 一律返回 `-1` 并置 `errno = EBADF`（与 glibc 对齐），合法 catalog 路径不变
+    （`catopen`/`catgets` 未改）。实测：重建静态/共享 musl 后 `check-musl-freshness` PASS；静态探针
+    `catclose(-1)`/`catclose(NULL)` 均 `-1/EBADF` 不崩、合法 catalog `catopen`/`catgets`/`catclose` 正常；把上游**无守卫**
+    `catclose` 注入同一探针 ⇒ SIGBUS（rc=135）⇒ 守卫为载荷。`consumer-typeset` static+dynamic 由 guest SIGBUS 转为 **pass**
+    （输出 byte-exact、exit 0）；`check-tset-libc-full` 两档 rc=0（pass 335/338、known-fail 各 2、fail 0）、`make check` rc=0。
+    证据 `.work/evidence/TESTCASES-079t/run.sh`（34/34，含「注入 patch → check-patch-tree 红 → `cp`+md5 还原 → 绿」）。
+    **剩余面**：语料仍未查 `catopen` 返回值（UB 仍在，只是库侧不再崩）；`run_llvm_ts_user.py` 的 `GUEST_FAULT_NOTES`
+    条目仍描述历史故障（按本任务范围未改，仅在故障路径打印）。

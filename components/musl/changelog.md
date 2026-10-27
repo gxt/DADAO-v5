@@ -76,3 +76,7 @@
 - **2026-10-26 `QEMU-076t`**
   - 摘要：**semihosting 判据注释同步（ADR-0038 D4，architect 授权扩围）**：`arch/dadao/syscall_arch.h` 中 syscall 入口旁的 semihosting 判据注释改为 `immu18 < 0x3FF00`；**无功能改动**（该路径本就是 `trap cfx_umon, 0` 的 syscall 入口）。`series` 24 不变。
   - 执行者：engineer
+
+- **2026-10-27 `TESTCASES-079t`（`ISS-339`）**
+  - 摘要：**`catclose` 加无效句柄守卫（与 glibc 对齐）**：新增 `src/locale/catclose.c.patch`（`series` **24 → 25**）—— `catopen` 失败返回的 `(nl_catd)-1`（POSIX）与 `NULL` 都不是可解映射，原代码直接读 `map+8` 取 size（`(nl_catd)-1` ⇒ 地址 `0x7`，guest SIGBUS）；改为二者一律 `-1` 并置 `errno = EBADF`，合法 catalog 的 `munmap`/返回 `0` 路径不变（`catopen`/`catgets` 未改）。真值：`make build-musl` 与 `make build-musl-shared` 各约 15 s、rc=0、`check-musl-freshness` PASS；静态探针 `catclose(-1)`/`catclose(NULL)` 均 `-1/EBADF`、合法 20 B catalog 的 `catopen`/`catgets`/`catclose` 全正常；把上游**无守卫** `catclose` 注入同一探针 ⇒ SIGBUS rc=135（守卫确为载荷）；`consumer-typeset` static+dynamic 由 guest SIGBUS 转为 **pass**（输出 byte-exact、exit 0）；`check-tset-libc-full` 两档 rc=0（`fail=0`、各 2 例既有 known-fail）、`make check` rc=0。证据 `.work/evidence/TESTCASES-079t/run.sh`（34/34）。
+  - 执行者：engineer
