@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：TESTCASES-076t
-**状态**：待验收
+**状态**：已验证
 
 ## 背景（2026-10-27 全量实测，自包含）
 `check-tset-llvm-full`（static）在 `TESTCASES-076t` 全量中失败，除语料 UB 外还有三类**非 DADAO 语义问题**：
@@ -37,7 +37,7 @@
 
 ## 完成区
 
-**状态**：待验收
+**状态**：已验证
 
 **测试结果**：`.work/evidence/TESTCASES-077t/run.sh --slow` → `checks=55 pass=55 fail=0`；反例均可达 FAIL 且 `cp`+md5 还原：C1 aarch64 排除行改名 ⇒ A4 判据 + `census_ok` 转红 ⇒ 回绿；C2 Burg 方言行删除 ⇒ `BLOCKED (implicit-int)` ⇒ 回绿；C3 mafft timeout 1800→400 ⇒ `timeout after 400s` ⇒ 回绿。定向两档 6/6 pass（Burg/cdecl/OptimizerEval）；aarch64 不执行、`--only` 报 declared exclusion（rc=2）；mafft pass 1587.7 s（jobs=1）/1604.3 s（dynamic）/1611.5 s（static）；宿主对照 `mafft_host_compare.sh` → gcc 构建 17.2 s、stdout+exit md5 `46e32283…` == 上游参考（记录 `mafft-host-reference.txt`）⇒ 纯慢非死锁。
 
@@ -71,3 +71,22 @@
 | 5 任务书/milestones 状态不一致 ⇒ `check-milestones-fresh` 红 | ✅已修 | 表行保留 `（登记）` + 状态 `待验收`；任务书状态同步 | `make check` rc=0 |
 | 6 任务书称「三类」非语义问题，实测 blocked=11 | ⏸延后 | 无（越界，需裁定） | 遗留①：gawk/make/p2c/archie/plot2fig 实测原因 |
 | 7 驱动 `SIG_DELIVERY_RE` 不识别 `si_addr=NULL` ⇒ gawk 误记 blocked | ⏸延后 | 无（越界） | `.dadao/.../gawk/qemu-strace.log` 有 `--- SIGSEGV ... si_addr=NULL ---` |
+
+### 第 1 轮 reviewer 验收（2026-10-28）：**Accepted**
+
+**方式**：全量为 architect 现场（`.work/log/testcases/TESTCASES-077t-full.log` + 两档 gate JSON），reviewer 独立核日志 + 定向重跑 + 独立注入，不重跑 1.5 h 全量。审前/审后 `git status --porcelain -uall` 均 **0 行**；注入还原以 md5 对账（`89e21a3b…` 前==后）。
+
+**重跑（reviewer 亲跑，真实 rc）**：
+- 全量日志核对：static/dynamic 均 `total=214 pass=214 fail=0 known-fail=0 blocked=0 excluded=8`，`CHECK_TSET_LLVM_FULL_EXIT=0`；gate JSON counts 一致，mafft 两档 `run_seconds 1591.06/1591.08 ≤ 1800`，aarch64 未在 cases、在 `a_excluded`（8 条含 077 的 aarch64）。
+- 定向重跑 `--link-mode both --only 'Burg$|mafft$'`（jobs=1）：static/dynamic 各 `total=2 pass=2 fail=0 blocked=0`，`REVIEWER_DIRECTED_EXIT=0`；mafft 实测 1599.7/1599.8 s、md5 `46e32283…` 与上游参考一致（纯慢非死锁；宿主对照 17.2 s，`mafft-host-reference.txt` 已核）。`--only 'aarch64…'` ⇒ rc=2 declared exclusion（A6）。
+- 证据脚本 `run.sh --fast`：47/48 PASS，唯一 FAIL 为 D1d（见 finding R1）；C1/C2 注入→FAIL→`cp`+md5 还原→回绿真实发生。
+- **独立注入**（reviewer 自做，非脚本）：删 OptimizerEval 方言行 ⇒ rc=1、`blocked=1`、`implicit-function-declaration`；`cp` 还原 md5 相等 ⇒ 回绿 rc=0 pass=1。
+- `make check` rc=0（L1 PASS）；`check-case-ledger` rc=0（1958 条）；`check_run_artifacts.py` rc=0。
+
+**约束逐条**：改动仅 `run_llvm_ts_user.py`/README/任务书/milestones/证据（`git show f7d603a7 --stat` 核，4 文件）；方言仅 Burg/cdecl/OptimizerEval 三例（逐例表，无全局放宽，D1e 佐证 run_timeout 变化仅 mafft+3 方言例）；aarch64 排除为逐例带源码依据（`Misc/CMakeLists.txt:37`（实读文件核对）、`aarch64-init-cpu-features.c:3-5` 实读核对）；mafft 1800 有实测依据（CASE_TIMEOUT_BASIS + 三次现场 1587–1600 s）；未新增 known-fail（D1f PASS，两档 known-fail=0）。
+
+**finding R1（非阻断，记档）**：`run.sh` D1d「编译命令仅 3 例变化」以 09:01 基线对比，078/080/081 合流后 ClamAV/SPASS/lemon/obsequi/ft 编译命令合法变化（胶水编译、patch 拷入 run 目录）⇒ 该条现在必然红（非 077 缺陷，`git show` 已证 077 自身仅动 3+1 项）。建议 architect 收尾时把 D1d 期望集补入这 5 例（或标注基线时点），证据脚本回全绿。
+
+### architect 收尾（2026-10-28）
+- reviewer Accepted；全量 static/dynamic 214/214、fail/blocked/known-fail=0（`CHECK_TSET_LLVM_FULL_EXIT=0`）。
+- 证据脚本 D1d 以 09:01 编译命令基线比对，078/080/081 合流后 5 例合法变化 ⇒ 该断言已过时（非 077 缺陷）；后续如重跑证据脚本需补入 5 例或标基线时点。
