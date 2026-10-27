@@ -26,7 +26,7 @@
 
 ## 验收
 - 定向（static+dynamic）：`aarch64-init-cpu-features` 为 `excluded`（理由指向源码）；`Burg` 编译并运行到自身判定；`mafft` 在设定 timeout 内完成并 pass。
-- `make check-tset-llvm-full`（static+dynamic）**rc=0**，且 **`fail=0`、`blocked=0`、`known-fail=0`**（用户 2026-10-27 裁定：全绿 = 没有 known-fail；`obsequi`/`ft`/`8b10b` 由 `TESTCASES-080t` 处理）。本任务不得新增 known-fail。
+- `make check-tset-llvm-full`（static+dynamic）**rc=0**，且 **`fail=0`、`blocked=0`**；`known-fail` 只允许剩 `obsequi`/`ft`/`8b10b` 三条（由 `TESTCASES-080t` 消除，用户 2026-10-27 裁定全绿 = 零 known-fail）。本任务不得新增 known-fail。
 - `make check` rc=0；`check-case-ledger` rc=0；证据 `.work/evidence/<任务号>/run.sh`（含注入→FAIL→`cp`+md5 还原→PASS）。
 - 完成区 ≤30 行；状态 `待验收`；`milestones.md` 行同步；临时目录 `/tmp/opencode/TESTCASES-077t/`。
 
