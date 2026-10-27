@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..d50a2ffad
+index 000000000..45e89d92d
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,885 @@
+@@ -0,0 +1,906 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -305,6 +305,40 @@ index 000000000..d50a2ffad
 +  }
 +
 +  switch (Node->getOpcode()) {
++  case ISD::SIGN_EXTEND:
++  case ISD::ZERO_EXTEND: {
++    // LLVM-127t narrow negation must keep the rd0 form even when an enclosing
++    // extend is present.  Handle the extend root before the generic TableGen
++    // patterns can materialise the zero operand as CONST_WYDE.  The narrow
++    // subtraction and the canonical extension remain two distinct operations,
++    // matching the existing negation contract and m6-not-neg.ll.
++    SDValue Narrow = Node->getOperand(0);
++    SDNode *Sub = Narrow.getNode();
++    const EVT VT = Narrow.getValueType();
++    if (Sub->getOpcode() == ISD::SUB &&
++        (VT == MVT::i8 || VT == MVT::i16 || VT == MVT::i32)) {
++      const auto *Z = dyn_cast<ConstantSDNode>(Sub->getOperand(0));
++      if (Z && Z->isZero()) {
++        const bool IsT = VT == MVT::i32, IsW = VT == MVT::i16;
++        const unsigned SubOpc = IsT ? DADAO::sub_st
++                              : IsW ? DADAO::sub_sw : DADAO::sub_sb;
++        const unsigned ExtOpc = Node->getOpcode() == ISD::SIGN_EXTEND
++                                    ? DADAO::ext_so_orri
++                                    : DADAO::ext_uo_orri;
++        const unsigned Width = VT.getSizeInBits() - 1;
++        const SDLoc DL(Node);
++        SDNode *NarrowSub = CurDAG->getMachineNode(
++            SubOpc, DL, VT, CurDAG->getRegister(DADAO::rd0, MVT::i64),
++            Sub->getOperand(1));
++        SDValue Imm = CurDAG->getTargetConstant(Width, DL, MVT::i64);
++        SDNode *Extended = CurDAG->getMachineNode(
++            ExtOpc, DL, MVT::i64, SDValue(NarrowSub, 0), Imm);
++        ReplaceNode(Node, Extended);
++        return;
++      }
++    }
++    break;
++  }
 +  case ISD::Constant: {
 +    // All legal integer widths: i64 plus the narrow i8/i16/i32 of LLVM-127t.
 +    // (i1 never reaches ISel -- it is promoted to i8 -- so it is not listed.)
@@ -361,27 +395,6 @@ index 000000000..d50a2ffad
 +    ReplaceNode(Node, M);
 +    return;
 +  }
-+  case ISD::ExternalSymbol: {
-+    // Address of a symbol that has no GlobalValue (a libcall target such as
-+    // `memcpy`): `-mcmodel=large` materializes it before an indirect call, and
-+    // the materialization is the same fixed 3-slice absolute sequence as a
-+    // global address (GLOBAL_ADDR -> set.zw/or.w, each slice an
-+    // R_DADAO_ABS48 relocation).
-+    //
-+    // Gated on the code model: in `default` a plain ISD::ExternalSymbol must
-+    // never be created (LowerCall keeps the libcall direct), so leave it to
-+    // SelectCode -- a loud "Cannot select" rather than a silently different
-+    // call shape.  Likewise only the static relocation model reaches the
-+    // materialization: a PIC build keeps an import's direct call (PLT).
-+    if (TM.getCodeModel() != CodeModel::Large)
-+      break;
-+    const SDLoc DL(Node);
-+    auto *ES = cast<ExternalSymbolSDNode>(Node);
-+    SDValue Sym = CurDAG->getTargetExternalSymbol(ES->getSymbol(), MVT::i64);
-+    SDNode *M = CurDAG->getMachineNode(DADAO::GLOBAL_ADDR, DL, MVT::i64, Sym);
-+    ReplaceNode(Node, M);
-+    return;
-+  }
 +  case ISD::GlobalAddress: {
 +    auto *GA = cast<GlobalAddressSDNode>(Node);
 +    const SDLoc DL(Node);
@@ -433,25 +446,33 @@ index 000000000..d50a2ffad
 +    // the register form (which reduces the amount modulo W).
 +    const EVT VT = Node->getValueType(0);
 +    const auto *Amt = dyn_cast<ConstantSDNode>(Node->getOperand(1));
-+    if (!Amt || (VT != MVT::i8 && VT != MVT::i16 && VT != MVT::i32))
++    if (!Amt || (VT != MVT::i8 && VT != MVT::i16 && VT != MVT::i32 &&
++                 VT != MVT::i64))
 +      break;
 +    const unsigned W = VT.getSizeInBits();
 +    const uint64_t Sh = Amt->getZExtValue();
 +    if (Sh >= W)
 +      break;
-+    const bool IsT = VT == MVT::i32, IsW = VT == MVT::i16;
++    const bool IsO = VT == MVT::i64, IsT = VT == MVT::i32,
++               IsW = VT == MVT::i16;
 +    unsigned Opc;
 +    switch (Node->getOpcode()) {
 +    default:
 +      llvm_unreachable("unexpected shift opcode");
 +    case ISD::SHL:
-+      Opc = IsT ? DADAO::shl_t_orri : IsW ? DADAO::shl_w_orri : DADAO::shl_b_orri;
++      Opc = IsO ? DADAO::shl_o_orri
++                : IsT ? DADAO::shl_t_orri
++                      : IsW ? DADAO::shl_w_orri : DADAO::shl_b_orri;
 +      break;
 +    case ISD::SRL:
-+      Opc = IsT ? DADAO::shr_ut_orri : IsW ? DADAO::shr_uw_orri : DADAO::shr_ub_orri;
++      Opc = IsO ? DADAO::shr_uo_orri
++                : IsT ? DADAO::shr_ut_orri
++                      : IsW ? DADAO::shr_uw_orri : DADAO::shr_ub_orri;
 +      break;
 +    case ISD::SRA:
-+      Opc = IsT ? DADAO::shr_st_orri : IsW ? DADAO::shr_sw_orri : DADAO::shr_sb_orri;
++      Opc = IsO ? DADAO::shr_so_orri
++                : IsT ? DADAO::shr_st_orri
++                      : IsW ? DADAO::shr_sw_orri : DADAO::shr_sb_orri;
 +      break;
 +    }
 +    SDValue Imm = CurDAG->getTargetConstant(Sh, SDLoc(Node), MVT::i64);

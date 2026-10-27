@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAO.h b/llvm/lib/Target/DADAO/DADAO.h
 new file mode 100644
-index 000000000..9f7f9c28e
+index 000000000..5d8f53b21
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAO.h
-@@ -0,0 +1,109 @@
+@@ -0,0 +1,111 @@
 +//===-- DADAO.h - Top-level interface for DADAO representation --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -29,12 +29,14 @@ index 000000000..9f7f9c28e
 +class PassRegistry;
 +
 +FunctionPass *createDADAOISelDag(DADAOTargetMachine &TM);
++FunctionPass *createDADAOPointerPHIBankPass();
 +
 +/// Post-RA formation of `ldm.o`/`stm.o` from runs of consecutive
 +/// single-register loads/stores (LLVM-129t).
 +FunctionPass *createDADAOLoadStoreOptimizerPass();
 +
 +void initializeDADAODAGToDAGISelLegacyPass(PassRegistry &);
++void initializeDADAOPointerPHIBankPass(PassRegistry &);
 +void initializeDADAOAsmPrinterPass(PassRegistry &);
 +void initializeDADAOLoadStoreOptPass(PassRegistry &);
 +

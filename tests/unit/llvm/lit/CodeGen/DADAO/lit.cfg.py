@@ -37,12 +37,12 @@ while (root != os.path.dirname(root)
 sys.path.insert(0, os.path.join(root, 'tools', 'infra'))
 import paths as dadao_paths
 
-# Locate tools: prefer config.llvm_tools_dir (set by the site config) and the
-# LLVM_TOOLS_DIR env override; otherwise default to the install root's host
-# toolchain bin (ADR-0016 D9).
-tools_dir = getattr(config, 'llvm_tools_dir', None)
+# Locate tools: an explicit LLVM_TOOLS_DIR environment override wins over site
+# configuration, so validation can select a rebuilt toolchain; otherwise use
+# config.llvm_tools_dir and finally the install root (ADR-0016 D9).
+tools_dir = os.environ.get('LLVM_TOOLS_DIR', '')
 if not tools_dir:
-    tools_dir = os.environ.get('LLVM_TOOLS_DIR', '')
+    tools_dir = getattr(config, 'llvm_tools_dir', None)
 if not tools_dir:
     candidate = str(dadao_paths.host_toolchain_bin())
     if os.path.isdir(candidate):

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
 new file mode 100644
-index 000000000..b3749f1f4
+index 000000000..9c5c51b5e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
-@@ -0,0 +1,195 @@
+@@ -0,0 +1,172 @@
 +//===-- DADAOTargetMachine.cpp - Define TargetMachine for DADAO ---------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -41,6 +41,7 @@ index 000000000..b3749f1f4
 +
 +  auto *PR = PassRegistry::getPassRegistry();
 +  initializeDADAODAGToDAGISelLegacyPass(*PR);
++  initializeDADAOPointerPHIBankPass(*PR);
 +  initializeDADAOAsmPrinterPass(*PR);
 +  initializeDADAOLoadStoreOptPass(*PR);
 +}
@@ -79,37 +80,6 @@ index 000000000..b3749f1f4
 +  llvm_unreachable("unknown relocation model");
 +}
 +
-+// Code model selection (LLVM-131t, ADR-0036 D1/D2).  The DADAO ABI defines
-+// exactly two models:
-+//   * `default` (`CodeModel::Small`, also accepted as `-mcmodel=small` and as
-+//     the absence of the option) -- one image whose code is within a single
-+//     REL26 reach (a direct `call`/`jump` reaches +/-32 MiB); data is absolute
-+//     (ABS48 / PCREL) and therefore unrestricted;
-+//   * `large` -- code anywhere: a direct call/jump target that cannot be
-+//     reached PC-relatively is materialized as a 48-bit absolute address and
-+//     called/jumped indirectly (D5; the lowering lives in LowerCall).
-+// `medium` and `kernel` split code/data placement, which the DADAO ABI has no
-+// use for (data is already absolute -- ADR-0036 D2), and `tiny` needs a shared
-+// base register the ABI does not define.  Those are rejected loudly rather
-+// than silently lowered as one of the two real models, so an `llc
-+// -code-model=medium` (or a frontend that skips the driver check) cannot look
-+// like it worked.
-+CodeModel::Model selectCodeModel(std::optional<CodeModel::Model> CM) {
-+  const CodeModel::Model M = CM.value_or(CodeModel::Small);
-+  switch (M) {
-+  case CodeModel::Small:
-+  case CodeModel::Large:
-+    return M;
-+  case CodeModel::Tiny:
-+  case CodeModel::Kernel:
-+  case CodeModel::Medium:
-+    report_fatal_error("DADAO: unsupported code model (only 'default'/'small' "
-+                       "and 'large' are defined; medium/kernel/tiny have no "
-+                       "meaning for this ABI)");
-+  }
-+  llvm_unreachable("unknown code model");
-+}
-+
 +class DADAOPassConfig : public TargetPassConfig {
 +public:
 +  DADAOPassConfig(DADAOTargetMachine &TM, PassManagerBase &PM)
@@ -122,6 +92,13 @@ index 000000000..b3749f1f4
 +  bool addInstSelector() override {
 +    addPass(createDADAOISelDag(getDADAOTargetMachine()));
 +    return false;
++  }
++
++  void addPreRegAlloc() override {
++    // Repair only the direct pointer-PHI/two-GEP shape after ISel.  This pass
++    // is target-local and runs before register allocation; rejected shapes
++    // retain the ordinary i64/GPRD path and its existing address copy.
++    addPass(createDADAOPointerPHIBankPass());
 +  }
 +
 +  void addIRPasses() override {
@@ -169,7 +146,7 @@ index 000000000..b3749f1f4
 +    std::optional<CodeModel::Model> CM, CodeGenOptLevel OL, bool JIT)
 +    : CodeGenTargetMachineImpl(T, TT.computeDataLayout(), TT, CPU, FS, Options,
 +                               selectRelocModel(RM),
-+                               selectCodeModel(CM), OL),
++                               CM.value_or(CodeModel::Small), OL),
 +      TLOF(std::make_unique<DADAOTargetObjectFileELF>()),
 +      Subtarget(TT, CPU, FS, *this) {
 +  initAsmInfo();
