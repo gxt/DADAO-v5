@@ -53,10 +53,10 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-080t | 已验证 | 2026-10-28 01:23 | llvm-ts 零 known-fail：obsequi/ft glibc PRNG、8b10b LE→BE；三条两档 pass、known-fail=0 |
 | TESTCASES-079t | 已验证 | 2026-10-28 00:07 | consumer-typeset：musl catclose 无效句柄守卫（-1/EBADF），两档由 SIGBUS 转 pass（ISS-339） |
 | TESTCASES-077t | 待验收 | 2026-10-27 10:10（登记） | llvm-ts：aarch64 记 excluded、Burg/cdecl/OptimizerEval 逐例方言、mafft 超时 1620→1800（blocked 11→6） |
 | TESTCASES-078t | 待验收 | 2026-10-27 10:10（登记） | SPASS/lemon 语料 UB 测试胶水补丁；SPASS 参考不须重定（069t 的 74365d61 = 多传 -DocProof）；两例两档 md5-exact pass（ISS-338 关闭） |
-| TESTCASES-080t | 待验收 | 2026-10-27 10:10（登记） | llvm-ts 零 known-fail：obsequi/ft 注入 glibc PRNG 胶水、8b10b LE→BE 输入胶水；三条两档 pass、known-fail=0 |
 | TESTCASES-081t | 待验收 | 2026-10-27 10:10（登记） | 用户裁定「选 1」：gawk/make/p2c 按上游 MallocBench CMake 证据 excluded；archie/plot2fig 同；ClamAV stdio 胶水两档 pass；SIG 判据+反例 |
 | TESTCASES-082t | 待验收 | 2026-10-27 10:10（登记） | L3 去 tset smoke（严格一层；tset full 归夜跑） |
 | TESTCASES-083t | 待验收 | 2026-10-27 10:10（登记） | L3 结果报告 + check-milestone 机检（check-l3-report） |
