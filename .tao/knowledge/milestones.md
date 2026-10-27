@@ -57,6 +57,9 @@
 | TESTCASES-078t | 待开始 | 2026-10-27 10:10（登记） | SPASS/lemon 语料 UB 修复 + SPASS 参考重定（ISS-338/277） |
 | TESTCASES-079t | 待开始 | 2026-10-27 10:10（登记） | consumer-typeset：musl catclose(-1) 守卫（ISS-339） |
 | TESTCASES-080t | 待开始 | 2026-10-27 10:10（登记） | llvm-ts 零 known-fail：obsequi/ft/8b10b（ISS-265/266） |
+| TESTCASES-081t | 待开始 | 2026-10-27 10:10（登记） | llvm-ts 剩余 blocked：gawk/make/p2c 胶水、archie/plot2fig 排除、ClamAV、SIG 判据 |
+| TESTCASES-082t | 待开始 | 2026-10-27 10:10（登记） | L3 去 tset smoke（严格一层；tset full 归夜跑） |
+| TESTCASES-083t | 待开始 | 2026-10-27 10:10（登记） | L3 结果报告 + check-milestone 机检（check-l3-report） |
 | TESTCASES-075t | 已验证 | 2026-10-27 06:35 | tset 迁移（libc-test/llvm-ts/embench；check-tset） |
 | TESTCASES-074t | 已验证 | 2026-10-27 05:11 | unit 迁移（lit/codegen/ir-lli/picolibc；check-unit） |
 | TESTCASES-073t | 已验证 | 2026-10-27 03:49 | arch 迁移：m5→tests/arch/umon、min-ROM→tools/testcases/arch、bootrom→shared、check-arch(-smoke)+旧名别名 |
