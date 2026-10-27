@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：TESTCASES-076t、TESTCASES-069t
-**状态**：待验收
+**状态**：已验证
 
 ## 背景（自包含，2026-10-27 全量实测）
 1. **SPASS**（`MultiSource/Applications/SPASS`）：
@@ -34,7 +34,7 @@
 
 ## 完成区
 
-**状态**：待验收
+**状态**：已验证
 **用户裁定**（2026-10-27，原话摘要）：「A：测试胶水 patch」——补丁落 `tests/tset/llvm-ts/patches/`，驱动应用到 `.work/` 副本；`llvm-test-suite` 保持 `patchless=true`，不改 components.lock；本批不跑全量/夜跑。
 
 ### 修改文件
@@ -70,3 +70,32 @@
 | F4 删除 lemon gap 行是否放宽分类 | ❌不修（有据） | 保留删除 | 该行原为 `blocked` 逃逸；根因已修，回归应记 `fail`；`static.declarations` 断言其不存在 |
 
 **自审判定**：F1–F3 已修并复验，F4 有据不改；无未修项 → `待验收`。
+
+### 第 1 轮 reviewer 验收
+
+**重跑（本人前台执行，真实输出/退出码）**
+- `bash .work/evidence/TESTCASES-078t/run.sh` → `TESTCASES-078t evidence: PASS (29/29 checks)`，`RC=0`（real 8m05s；`grep -c '^  OK'`=29、`^  FAIL`=0）。
+- `python3 tools/testcases/tset/llvm-ts/run_llvm_ts_user.py --link-mode both --only 'SPASS$|lemon$' …` → `RC=0`；static/dynamic 均 `total=2 pass=2 fail=0 known-fail=0 blocked=0`；SPASS `md5==b0b56c51bc8f86a45423934c5ad42b9f`、lemon `md5==8c4854398b356b594ac3bbe1f0e3f4dc`，两档 `stdout sha256` 与宿主修 UB 构建逐字节相同。
+- `make check` → `RC=0`，尾行 `repository checks (L1): PASS`。
+- 判别实验（脚本实测）：宿主 gcc 13.3.0 未改/修 UB 均 `b0b56c51…`，多传 `-DocProof` = `74365d61…`；lemon 未改/修 UB 均 `8c485439…` ⇒ 参考无需重定，与完成区一致。
+
+**独立反例（与 engineer 的 include-only 注入不同）**
+- 从补丁删「调用点 hunk」（留 include + wrapper 定义）：md5 `9a35dafe…`→`d7bf3481…`；语料副本 `patch --dry-run` `DRYRUN_RC=0` ⇒ 走真编译路径非 blocked。
+- 静态跑 SPASS → `DRIVER_RC=1`、`klass=fail`、`guest_signal=SIGSEGV`、`si_addr=0x0000000000000008`、`counts={'pass':0,'fail':1,…}`。
+- `cp` 备份回 + md5 `9a35dafe95c727bff8318997fe4c6300` 相等、`git status -- <patch>` 空 → 重跑 `DRIVER_RC=0`、`klass=pass`（未用 git checkout/restore/stash）。
+
+**约束核验**
+- 范围：`git show c41e4e57` 8 文件全在完成区；`manifests/`+`components/` 改动 0 行；`components/llvm-test-suite/patches/` 不存在；语料 `git status -uall` 0 行、HEAD `2919e551`；spec/qemu/LLVM 语义未动。
+- 补丁只作用 run 副本：`apply_source_patches` 声明 `files` ↔ 补丁 `+++` 集合对账 + dry-run + 逐文件 sha256 前后不等（日志 `cnf.c 1ea4a30f2053 -> 9645c922b390`）。
+- 快照对账：审前/审后 `git status --porcelain -uall` 均 0 行；三目标文件 md5 审前后一致（`6c8cefaf…`/`9a35dafe…`/`017df340…`）；无 `*_tmp`/`_gate`/`*.orig`/`*.rej`。
+- 过程注：上轮 reviewer 遗留的同脚本后台进程（01:37:35 起）与本轮注入竞争，已等其 `RUNSH_EXIT=0` 退出后才注入。
+
+**finding F-R1（阻断）**
+- `run.sh:114-117 static.corpus_patchless` 只把 `git status` 的退出码当 rc；脏树 git 仍返回 0（本人实测临时仓：dirty → `rc=0` 3 行、clean → `rc=0`），全仓 grep 确认 driver 也无语料清洁门控 ⇒ 「语料就地改脏 ⇒ FAIL」路径不可达、对自身条件恒真，而它是「补丁只应用 run 副本、未改上游树」的唯一门控（假绿风险）。
+- 修法：按现场行数算 rc——`n=$(git -C "$SUITE" status --porcelain | wc -l); rc=$([ "$n" -eq 0 ] && echo 0 || echo 1)`（`actual` 保留 `"$n line(s)"`）；勿用 `git status --exit-code`：本机 git 2.43 实测 `error: unknown option 'exit-code'`。改后重跑 `run.sh` 应仍 29/29。
+
+**判决**：**Needs Revision**（仅 F-R1；其余验收命令与约束全部由本人重跑实测通过）。
+
+### architect 收尾（2026-10-28）
+- reviewer 唯一阻断 F-R1 = 证据脚本 `static.corpus_patchless` 把 `git status` 退出码当 rc（脏树仍 0，假绿）；已修：脏行数 >0 或 git rc≠0 ⇒ rc=1。
+- 修复后重跑 `.work/evidence/TESTCASES-078t/run.sh` = **29/29 PASS**（rc=0）；交付语义未改，按文档级小错收尾。
