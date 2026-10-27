@@ -218,7 +218,7 @@ _OCT_WIDTH = (8, encode_ld_o, encode_st_o_rd)
 
 # contracts/opcodes.yaml is the single source of truth for the mnemonic set
 # (lazy-loaded: the harness must also import cleanly for stand-alone checks).
-_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 _OPCODES_PATH = os.path.join(_ROOT_DIR, "contracts", "opcodes.yaml")
 _KNOWN_MNEMONICS = None
 

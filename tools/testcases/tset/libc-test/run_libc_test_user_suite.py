@@ -440,15 +440,11 @@ CASE_NOTES = {
 }
 
 # Notes that only hold in one link mode (documentation only).
-MODE_CASE_NOTES = {
-    ("dynamic", "musl/pleval"):
-        "dynamic-round link gap, expected upstream: __pleval is a *hidden* "
-        "musl internal symbol (src/locale/pleval.h:6), so libc.so does not "
-        "export it; upstream's own src/musl/pleval.mk says 'do not build and "
-        "run the dynamic link tests (__pleval is no longer public)'.  The "
-        "driver keeps the case in the executed set (same enumeration as the "
-        "static round) and records the link error as blocked.",
-}
+MODE_CASE_NOTES = {}
+
+# `musl/pleval` is excluded from the dynamic round up front (see discover):
+# upstream src/musl/pleval.mk forbids the dynamic link test because __pleval
+# is a hidden musl internal symbol.  The static round still runs it.
 
 # Declared structural exclusions inside the discovered set (per entry reason).
 # Everything is counted live; an entry that no longer reproduces is reported as
@@ -930,6 +926,14 @@ def discover(src_root: str, dynamic: bool = False):
     if dynamic:
         for cid in HELPER_DSOS:
             structural.pop(cid + ".c", None)
+        # Upstream's own src/musl/pleval.mk says the dynamic link test must
+        # not be built/run: __pleval is a hidden musl internal symbol and
+        # libc.so does not export it.  Excluding it up front is faithful to
+        # upstream (not a target-gap baseline); the static round keeps it.
+        structural["musl/pleval.c"] = (
+            "upstream src/musl/pleval.mk: do not build and run the dynamic "
+            "link tests (__pleval is a hidden musl internal symbol, no "
+            "longer public); the dynamic round cannot link it")
     all_c = sorted(glob.glob(os.path.join(src_root, "**", "*.c"),
                              recursive=True))
     built_glob = sorted(glob.glob(os.path.join(src_root, "*", "*.c")))
