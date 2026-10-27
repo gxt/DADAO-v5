@@ -15,7 +15,7 @@
 |---|---|---|---|
 | **L1 完整性 / 可用性** | `make check`（**默认**） | **仓库完整性静态检查**（不跑被测语义：patch-tree / spec-drift / 索引卫生 / 编码·合法性·scope·fp 一致性 / ISA 覆盖矩阵漂移 / 引用审计 / 目录·残留·只读 / **组件 changelog 形态**（`check-component-changelog`：列表式 + 按里程碑分节）等）**+ 组件可用性冒烟**（`llc` / `clang --print-targets` / `qemu-system-dadao` 可执行且认识 `dadao`；**不跑被测语义**）**+ issue 台账校验 / `compileall tools`** | 秒 ~ 几十秒 |
 | **L2 四 scope smoke** | `make check-modules` | 四个固定 scope 的 **smoke** 集（`Process-09 §8`）：`check-inst-smoke` + `check-arch-smoke` + `check-unit` + `check-tset-{libc,llvm,embench}-smoke`。**不含** FP 探针（2026-10-27 用户裁定「L2 只保留四 scope smoke」） | 几十 ~ 几百秒 |
-| **L3 四 scope 全量** | `make check-full` | **四 scope 全量**：`check-inst`（`tests/inst` **全量**载体：`base` + `rol`/`atomics`/`clmul`；`rev`/`bitcnt` 未纳入，见 `tests/inst/inventory.md`「门控覆盖」）+ `check-arch`（全 cfx）+ `check-unit-full`（= `check-unit` + `check-lit-full`，见下）+ `check-tset-*-smoke`（tset full 属夜跑）+ **4 个 FP 探针**（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖）+ `test-m6`（全量 lit 生成档 + ir-lli + Embench E2E） | 几百 ~ 几千秒 |
+| **L3 全量** | `make check-full` | **inst/arch/unit 全量 + FP 探针 + 集成链**：`check-inst`（`tests/inst` **全量**载体：`base` + `rol`/`atomics`/`clmul`；`rev`/`bitcnt` 未纳入，见 `tests/inst/inventory.md`「门控覆盖」）+ `check-arch`（全 cfx）+ `check-unit-full`（= `check-unit` + `check-lit-full`，见下）+ **4 个 FP 探针**（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖）+ `test-m6`（全量 lit 生成档 + ir-lli + Embench E2E）。**tset 不直接列出**：smoke 只在 L2、full 只在夜跑；`test-m6` 的 Embench E2E 属集成步骤，**不算** tset smoke 重复（§4；`TESTCASES-082t`） | 几百 ~ 几千秒 |
 | **夜跑（非三层之一）** | `make check-night` | `tset` full ×3（各 static+dynamic）+ 长 `check-arch`；结果只落只读报告 `.dadao/tests/night/<date>/`，由**里程碑层**消费（`check-night-report`）；触发点 = 队列空档，`setsid nohup`（`Process-09 §8`） | 小时级 |
 | **按需（模块完整）** | 各 `test-*`/`check-*` **单独调** | 模块**全量**、profiling | 不定 |
 
@@ -78,6 +78,10 @@
   `check-unit` **只在 L2** 直接列出；L3 用 **`check-unit-full`**（= `check-unit` +
   `check-lit-full`）⇒ `check-unit` 在 L3 只是**前置依赖**（§4 明文允许），
   既拿到 unit 全量，又不违反「一层一列」。**不设任何例外。**
+- **tset scope 的 L2/夜跑分工（2026-10-27 用户裁定，`TESTCASES-082t`）**：
+  `check-tset-{libc,llvm,embench}-smoke` **只在 L2** 直接列出；tset **full** 只在夜跑
+  （`check-night`）；**L3 不直接列任何 tset 目标**（`test-m6` 的 Embench E2E 是集成步骤，
+  不构成 tset smoke 的重复）。同样**不设例外**。
 - `Makefile` 中以注释标注每层成员与"已从 L1 移出"的目标，作为**机械可核**的层归属记录。
 
 ## 5. 每层须可达 FAIL（MUST）

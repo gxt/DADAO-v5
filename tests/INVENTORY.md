@@ -160,7 +160,7 @@
 |---|---|
 | L1 `make check` | 仓库完整性静态检查 + 组件可用性冒烟；P6 起含 `check-interface`（跨模块静态一致性）与 `check-code-range`（合成 fixture 自检） |
 | L2 `make check-modules` | 四 scope **smoke**：`check-inst-smoke`、`check-arch-smoke`、`check-unit`、`check-tset-{libc,llvm,embench}-smoke`（**不含** FP 探针） |
-| L3 `make check-full` | 四 scope 全量：`check-inst`、`check-arch`、`check-unit-full`（= `check-unit` + `check-lit-full`）、`check-tset-{libc,llvm,embench}-smoke`、4 个 **FP 探针**、`test-m6` |
+| L3 `make check-full` | 全量（inst/arch/unit）+ 集成链：`check-inst`、`check-arch`、`check-unit-full`（= `check-unit` + `check-lit-full`）、4 个 **FP 探针**、`test-m6`；**tset 不直接列出**（smoke 仅在 L2、full 仅在夜跑；`test-m6` 的 Embench E2E 属集成步骤） |
 | 夜跑（小时级） | `check-night`（tset full×3 + 长 arch）→ 报告 `.dadao/tests/night/<date>/`；`check-night-report` 由 `check-milestone` 消费 |
 | 按需 / opt-in | `check-lit-full`、`check-picolibc-tests-full`、`check-testcases-suites(-full)`、`test-picolibc-smoke`、`build-bootrom`、`check-milestone`、`check-install-tools`、`clean-tests`、`test-repro` |
 

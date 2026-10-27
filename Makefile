@@ -182,7 +182,7 @@ help:
 	@echo "  make validate-vectors  Validate tests/inst vectors schema/inventory/coverage (L1)"
 	@echo "  make check           Run repository-level structural checks (L1: static + component smoke)"
 	@echo "  make check-modules   Run L2 = the four scopes' smoke sets (inst/arch/unit + tset x3; no FP probes)"
-	@echo "  make check-full      Run L3 = check-inst + check-arch + check-unit-full + tset x3 smoke + 4 FP probes + test-m6"
+	@echo "  make check-full      Run L3 = check-inst + check-arch + check-unit-full + 4 FP probes + test-m6 (tset smoke is L2-only; tset full is night-only; TESTCASES-082t)"
 	@echo "  make check-night     Run the night set (tset full x3 + long arch) and write .dadao/tests/night/<date>/ (setsid nohup; TESTCASES-076t)"
 	@echo "  make check-night-report  Gate: the night report exists and is structurally complete + green (milestone closure; TESTCASES-076t)"
 	@echo "  make clean-tests     Remove one scope's generated artifacts (SCOPE=inst|arch|unit|tset|night|all; DRY_RUN=1 to list; TESTCASES-076t)"
@@ -953,12 +953,14 @@ _locked-clean-work:
 # ── 门控分层 (INFRA-058t；用户 2026-10-09 裁定，落 milestones「规划中」) ─────────
 # L1 `make check`（默认，秒~几十秒）   = 仓库完整性（静态检查）+ 组件可用性冒烟
 # L2 `make check-modules`（几十~几百秒）= **四 scope 代表集**（inst/arch/unit + tset×3）
-# L3 `make check-full`（几百~几千秒）   = **四 scope 全量**（check-inst/check-arch/check-unit
-#                                        + tset×3 smoke）+ test-m6（全量 lit + Embench E2E）
+# L3 `make check-full`（几百~几千秒）   = **全量**（check-inst/check-arch/check-unit-full
+#                                        + 4 个 FP 探针）+ test-m6（全量 lit + ir-lli + Embench E2E）
 # 夜跑 `make check-night`（小时级）     = tset full×3 + 长 arch；报告 `.dadao/tests/night/<date>/`
+# tset（TESTCASES-082t）：smoke 只在 L2（`check-modules`），full 只在夜跑（`check-night`）；
+# L3 不直接列 tset smoke ⇒ 「一个检查只在一层」（docs/Process-07 §4）。
 # 说明（TESTCASES-076t）：`check-interface`/`check-code-range` 只做静态/合成 fixture 断言
 # ⇒ 按 docs/Process-07 §3 判据 1 归 L1（原在 L2）。四个 FP 探针（rnd/minmax/fma/clmul）
-# 覆盖无向量的 `fp` 身份，属 **inst scope 的 FP 语义代表集**，仍在 L2。
+# 覆盖无向量的 `fp` 身份，属 **inst scope 的 FP 语义代表集**，只在 L3。
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # 旧名 `check-qemu-semantics`/`check-qemu-smoke`/`test-semihost`/`check-{libc-test,llvm-ts,embench}-smoke`
 # 已于 TESTCASES-076t 删除（P6 收口）；现行名 = check-inst / check-inst-smoke / check-arch-smoke /
@@ -977,14 +979,15 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 _locked-check-modules: check-inst-smoke check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke
 	@echo "module checks (L2): PASS"
 
-# L3 = 四 scope 的全量（TESTCASES-076t；2026-10-27 用户裁定「一个检查只在一层」严格化）。
+# L3 = 全量（TESTCASES-076t；2026-10-27 用户裁定「一个检查只在一层」严格化；TESTCASES-082t 去 tset smoke）。
 #   inst 全量 : check-inst；arch 全量 : check-arch
 #   unit 全量 : check-unit-full（= check-unit + check-lit-full）；`check-unit` 只在 L2 **直接**列出，
 #               此处经**前置依赖**间接跑到 ⇒ 符合 Process-07 §4「被上层前置依赖不算重复」
-#   tset      : 只跑 smoke（full 属夜跑 check-night）
+#   tset      : **不直接列出**（L2 已有 smoke；tset full 只在夜跑 check-night）；
+#               `test-m6` 的 Embench E2E 是集成步骤，不算 tset smoke 重复
 #   fp 语义   : 4 个 FP 探针（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖；已移出 L2，只在 L3）
 #   整链      : test-m6（Embench E2E + ir-lli + 全量 lit；其 [1/3] 亦跑 check-lit-full）
-_locked-check-full: check-inst check-arch check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe test-m6
+_locked-check-full: check-inst check-arch check-unit-full check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe test-m6
 	@echo "full checks (L3): PASS"
 
 # Vector schema/inventory/coverage gate (TESTCASES-002t). Requires the M1

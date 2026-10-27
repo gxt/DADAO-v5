@@ -63,7 +63,7 @@
 - `tests/`：341 文件 / 13 个顶层项；`llvm`(216)、`e2e`(45)、`scripts`(30)、`vectors`(25)、`atomics/clmul/fma/minmax/roundint`、`qemu`(1)。
 - `.dadao/tests/`：**19,967 文件 / 1.13 GB**，18 个子目录；含任务专属目录（如 `llvm-ts-user-050t`）、无 `clean` 目标、约 210 MB 不可重生成。
 - 向量：1,456 例 / 193 个 opcode 身份 / 22 个 YAML；ledger 1,956 条；lit 154。
-- 现行门控：`check`（L1）、`check-modules`（L2）、`check-full`（L3）、`check-milestone`；**无夜跑层**。
+- 现行门控（2026-10-27，`TESTCASES-076t`）：`check`（L1）、`check-modules`（L2）、`check-full`（L3）、`check-night`（夜跑）、`check-milestone`；tset full 只在夜跑。
 - 工具分散（迁移前快照，P6 后已删除）：`tests/scripts/`（inst harness）、`tools/testcases/`（生成器/oracle/套件驱动）、`tools/integ/`（集成驱动），有重复（embench runtime、两套 runner）。
 - 平台：宿主 Linux x86-64；guest `qemu-system-dadao` / `qemu-dadao`；**无硬件在环**。
 
@@ -215,10 +215,12 @@ tools/testcases/
 - **任务级（Task）**：任务书 `## 验证` 必须写 `scope`、`level`（targeted/smoke）、`cmd`；reviewer 重跑同一命令。**≤2 min**，如 `make check-inst-smoke CASE=...`、`make check-arch-smoke CFX=...`、`make check-unit`、`make check-tset-libc-smoke`。
 - **L1（静态）**：`tests/*.yaml` 索引、ID/文件/字段、`case-ledger`、生成器 `--check`、链接/引用、**跨模块接口一致性**（`check-interface`）、**代码跨度自检**（`check-code-range`）；**不跑 guest**。
 - **L2（四 scope smoke）**：`check-inst-smoke`、`check-arch-smoke`、`check-unit`、`check-tset-{libc,llvm,embench}-smoke` ⇒ `make check-modules`。**不含 FP 探针**（2026-10-27 用户裁定「L2 只保留四 scope smoke」）。
-- **L3（四 scope 全量）**：`check-inst`（全 ISA）、`check-arch`（全 cfx）、**`check-unit-full`**（= `check-unit` + `check-lit-full`）、`check-tset-{libc,llvm,embench}-smoke`（tset full 属夜跑）、**4 个 FP 探针**（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖，只在 L3 跑）、`test-m6`（全量 lit + ir-lli + Embench E2E）⇒ `make check-full`。
+- **L3（全量）**：`check-inst`（全 ISA）、`check-arch`（全 cfx）、**`check-unit-full`**（= `check-unit` + `check-lit-full`）、**4 个 FP 探针**（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖，只在 L3 跑）、`test-m6`（全量 lit + ir-lli + Embench E2E）⇒ `make check-full`。
   - **一层一列**：`check-unit` 只在 L2 直接列出；L3 用 `check-unit-full`，它在 L3 只是
     **前置依赖**（`Process-07 §4` 明文允许「被上层前置依赖而间接跑到不算重复」）。
     **不设例外**（2026-10-27 用户裁定严格化）。
+  - **tset 不在 L3 直接列出**（`TESTCASES-082t`，2026-10-27）：`check-tset-{libc,llvm,embench}-smoke`
+    只在 **L2**；tset **full** 只在**夜跑**；`test-m6` 的 Embench E2E 属集成步骤，不构成 tset smoke 重复。
 - **里程碑（Milestone）**：`check-milestone` = 归档结构/内容 sha + 同步不可屏蔽 + knowledge 白名单 + `m` 册/任务号 + **夜跑报告存在性/结构/结果**（`check-night-report`）；**不内联跑长套件**。报告缺失 ⇒ **明确 FAIL**（不是 SKIP）。
 - **夜跑（Night）**：`make check-night` = `tset` full ×3（libc-test / llvm-ts / Embench，各 static+dynamic）+ 长 arch；由**主会话** `setsid nohup` 启动 + `[exit marker] rc=N`；报告落 `.dadao/tests/night/<date>/`（`manifest.tsv`/`meta.json`/`run.log`），次日由里程碑门控消费。
 
@@ -261,7 +263,8 @@ cmd: make check-inst-smoke CASE=base/add
 - **P4 unit**（**已完成：`TESTCASES-074t`**）：`lit/MC|CodeGen`、`codegen`（M3/m4/m6）、`ir-lli`、`picolibc` → `unit/`；smoke 绿后进 L2（`check-unit`）。
 - **P5 tset**（**已完成：`TESTCASES-075t`**）：libc-test/llvm-ts/Embench 驱动 → `tools/testcases/tset`；套件独有 glue → `tests/tset/<suite>/`；`check-tset-{libc,llvm,embench}-smoke`（L2）绿。
 - **P6 收口**（**已完成：`TESTCASES-076t`**）：删旧入口（三个目录 + 旧目标名）；共享 glue →
-  `tests/shared/`；门控重写（L2 = 四 scope 代表集、L3 = 四 scope 全量 + `test-m6`）；新增
+  `tests/shared/`；门控重写（L2 = 四 scope 代表集、L3 = 四 scope 全量 + `test-m6`；tset
+  smoke 后由 `TESTCASES-082t` 收口为「只 L2」、full 只夜跑）；新增
   `make check-night` / `check-night-report` / `clean-tests` / `test-repro`。
 
 ### §12 资产 → scope 映射（P0）

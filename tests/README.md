@@ -78,7 +78,7 @@
 ```sh
 make check            # L1：仓库完整性（不跑被测语义）
 make check-modules    # L2：四 scope smoke（inst/arch/unit + tset×3；不含 FP 探针）
-make check-full       # L3：check-inst + check-arch + check-unit-full + tset smoke + 4 个 FP 探针 + test-m6（慢）
+make check-full       # L3：check-inst + check-arch + check-unit-full + 4 个 FP 探针 + test-m6（慢；tset smoke 仅在 L2、tset full 仅在夜跑）
 make check-night      # 夜跑（tset full×3 + 长 arch；主会话 setsid nohup 启动；小时级）
 make check-night-report  # 里程碑层：夜跑报告存在性/结构/结果（未跑 ⇒ 明确 FAIL）
 
@@ -88,7 +88,7 @@ make check-inst-smoke # inst 代表集（L2）
 make check-inst       # inst 全量（L3）
 make check-arch-smoke # arch 代表集（L2：SEE/semihosting + cfx 权限 + 25 服务）
 make check-arch       # arch 全 cfx（L3：arch-smoke + cfx min-ROM 探针 044/045/049）
-make check-tset-libc-smoke / check-tset-llvm-smoke / check-tset-embench-smoke   # tset 代表集（L2/L3）
+make check-tset-libc-smoke / check-tset-llvm-smoke / check-tset-embench-smoke   # tset 代表集（仅 L2；全量在夜跑）
 ```
 
 生成物管理：
