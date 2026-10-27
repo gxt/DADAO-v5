@@ -63,6 +63,39 @@ INFRA-088t) and is linked in both rounds: complex-arithmetic programs emit
 programs provide.  libc and builtins are wrapped in one lld ``--start-group``
 because they reference each other.
 
+Test glue (TESTCASES-080t): two *declared, per-case, auditable* adaptations
+that live in ``tests/tset/llvm-ts/patches/glue/`` and are applied to the
+per-case run copy only -- the corpus stays ``patchless`` and the target's
+semantics (byte order, ABI) are never changed.  Nothing is relaxed: the oracle
+comparison stays byte-exact / md5-exact.
+
+* ``CASE_PRNG_GLUE`` -- ``obsequi`` and ``ft`` build their entire output from
+  ``random()`` (obsequi: ``init.c:63`` ``srandom(1)``, ``init.c:66`` seeds the
+  Zobrist tables; ft: ``graph.c:43`` ``(random() + 1) % MAX_WEIGHT`` with the
+  generator's *default* state, since its two-argument ``RUN_OPTIONS`` never
+  reach ``ft.c:86``'s ``srandom``).  C does not specify that generator, so their
+  output is libc-defined; upstream's references pin glibc's.  A host ``-O2``
+  build of the unmodified corpus reproduces both references byte for byte
+  (``.work/log/testcases/TESTCASES-080t-host-*.log``), i.e. the oracle is not
+  stale -- musl's ``random()`` is simply a different generator.  The glue
+  translation unit ``glibc_prng.c`` implements glibc's exact algorithm
+  (degree-31 TYPE_3 additive feedback, Schrage seeding, the 310-value warm-up,
+  and glibc's "unseeded state == srandom(1)" rule) and is linked into those two
+  cases ahead of ``libc.a``, so the references are reachable without weakening
+  the comparison.  Its fidelity is verified independently against the host
+  glibc by ``patches/glue/verify_glibc_prng.py`` (default state + 7 seeds x 100
+  draws, byte-identical).
+* ``CASE_LE32_INPUTS`` -- 8b10b's ``input.txt`` is a **little-endian** u32 word
+  stream (calc.c's own header) and ``testbench.c:59`` reads it with
+  ``fread(..., sizeof(unsigned int), ...)``, so on the big-endian target
+  (ADR-0003 D1) every word is byte-swapped and ``calc.c:170-173``'s table
+  indices leave ``lookupTable5B[64]``/``lookupTable3B[16]`` (ISS-266).  The
+  glue script ``le32_to_be32.py`` rewrites the run copy of that file as the
+  **same words** in big endian (pure 4-byte swap, sha256 before/after printed,
+  read-back verified), and the driver then re-reads the converted file and
+  checks every word's indices against the bounds declared in the case's own
+  sources -- so the 65536-word stream is proven in range, not assumed.
+
 The dynamic round compiles with ``-fPIC`` (documented deviation from "same
 compile section"): without it a user TU that takes the address of a libc.so
 data object (``stdout``/``stderr`` -- every program that prints) needs an
@@ -177,7 +210,7 @@ Classification (counted live, never hard-coded)
                   the program's own output is recorded.
 * ``known-fail``  the failure is explained by a row of the **per-case basis
                   table** (``KNOWN_FAIL_BASES``) with that row's evidence
-                  recomputed live.  Three causes are admitted:
+                  recomputed live.  Two causes are admitted:
                   * ``ISS-246`` (``__thread``: clang ``thread-local storage is
                     not supported for the current target`` / backend
                     ``GlobalTLSAddress``) -- requires a live TLS declaration
@@ -186,27 +219,18 @@ Classification (counted live, never hard-coded)
                     use TLS.
                   * ``ISS-265`` (upstream references that encode glibc
                     semantics) -- admission is **per case, never per class**:
-                    ``ISS265_ADMISSION`` names exactly the three cases the
-                    user ruled known-fail (``ClamAV`` = interleaved-stream
-                    order, ``obsequi``/``ft`` = musl-vs-glibc PRNG seeding),
-                    and each row's live check must hold:
-                    ``ClamAV`` -- the actual and expected documents have the
-                    same size and the same line multiset (only the order
-                    differs); ``obsequi``/``ft`` -- a live seed+draw call in
-                    the case's own sources, plus a probe (built with the same
-                    clang/musl and run under the same qemu) showing musl's
-                    ``random()``/``rand()`` sequence after seed 1 differs from
-                    the host glibc's.
-                  * ``ISS-266`` (8b10b only; user ruling 2026-10-26): the
-                    corpus' ``input.txt`` is a **little-endian** u32 word
-                    stream (calc.c's own comment) while the target is
-                    big-endian (ADR-0003 D1), so ``fread`` produces an index
-                    past ``lookupTable5B[64]`` / ``lookupTable3B[16]``.  The
-                    row is admitted only when the case's data file and its own
-                    table declarations are re-read live, both endiannesses are
-                    decoded, and the run died of a **forwarded** guest
-                    ``SIGSEGV`` (see the probe below).  Corpus/data cause, not
-                    a qemu defect.
+                    ``ISS265_ADMISSION`` names exactly the one case still
+                    admitted (``ClamAV`` = interleaved-stream order), and the
+                    row's live check must hold: the actual and expected
+                    documents have the same size and the same line multiset
+                    (only the order differs).  ``obsequi``/``ft`` (musl-vs-glibc
+                    PRNG) were removed from this table in TESTCASES-080t: their
+                    references are now reachable through the declared
+                    ``CASE_PRNG_GLUE`` (see "Test glue" above), so a mismatch
+                    there must stay ``fail``.
+                  * ``ISS-266`` (8b10b) was removed in TESTCASES-080t: the
+                    declared ``CASE_LE32_INPUTS`` endianness glue makes the
+                    case reach its own reference, so no SIGSEGV row is needed.
                   No other cause is admitted (the older "sole basis = ISS-246"
                   wording is superseded by INFRA-087t's per-case-evidence
                   rule; a row whose evidence does not hold leaves the case
@@ -287,7 +311,6 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
-import ctypes
 import glob
 import hashlib
 import json
@@ -460,13 +483,14 @@ ISS246_PATTERNS = (
 TLS_RE = re.compile(r"__thread|_Thread_local|\bthread_local\b")
 
 # ISS-265 (user ruling 2026-10-18: known-fail).  Admission is **per case** and
-# closed: only the three cases named here can be reclassified, and only while
-# that row's live check holds.  A fourth failing case never reaches this table,
-# so no class-wide escape hatch exists.  ``kind``/``api`` select the check:
+# closed: only the cases named here can be reclassified, and only while that
+# row's live check holds.  An unlisted failing case never reaches this table, so
+# no class-wide escape hatch exists.  ``kind`` selects the check:
 #   interleave -- same bytes and same line multiset, only the line order differs
-#                 (upstream compares one interleaved stdout+stderr stream);
-#   prng       -- live seed+draw in the case's own sources, and a live probe
-#                 showing musl's ``api`` sequence != the host glibc's.
+#                 (upstream compares one interleaved stdout+stderr stream).
+# TESTCASES-080t removed the two ``prng`` rows (obsequi, ft): their references
+# are now reachable through ``CASE_PRNG_GLUE`` below, so a mismatch there is a
+# real ``fail`` again and the ``prng`` evidence machinery was deleted with them.
 ISS265_ID = "ISS-265"
 ISS265_ADMISSION = {
     "MultiSource/Applications/ClamAV": dict(
@@ -476,57 +500,55 @@ ISS265_ADMISSION = {
             "'Initializing the engine (devel-20071218)' line and the "
             "database-age warning, so the bytes and line multiset match while "
             "the order differs"),
-    "MultiSource/Applications/obsequi": dict(
-        kind="prng",
-        api="random",
-        why="init.c:63 calls srandom(1) and init.c:66 seeds the Zobrist "
-            "tables with random(); musl's lagged-Fibonacci seeding is not "
-            "glibc's 16807/Schrage sequence, so the node/cutoff counters "
-            "differ while 'Winner found: 5000' agrees"),
-    "MultiSource/Benchmarks/Ptrdist/ft": dict(
-        kind="prng",
-        api="rand",
-        why="ft.c:54 maps srandom->srand and graph.c:40 maps random->rand; "
-            "musl's rand() is a 64-bit LCG (src/prng/rand.c) whereas glibc's "
-            "rand() follows random(), so the generated graph and its output "
-            "differ (host glibc reproduces the reference hash)"),
 }
-ISS265_SEED_RE = re.compile(r"\b(?:srandom|srand)\s*\(")
-# Two values per API after seed 1; printed by ISS265_PRNG_PROBE below.
-ISS265_PRNG_PROBE = """\
-#include <stdio.h>
-#include <stdlib.h>
-
-int main(void)
-{
-\tsrandom(1);
-\tprintf("random %ld %ld\\n", (long)random(), (long)random());
-\tsrand(1);
-\tprintf("rand %ld %ld\\n", (long)rand(), (long)rand());
-\treturn 0;
-}
-"""
-
-# ISS-266 (user ruling 2026-10-26): the only 8b10b row.  Its live evidence is
-# recomputed from the case's own data file and sources (no cached verdict).
-ISS266_ID = "ISS-266"
-ISS266_8B10B = "MultiSource/Benchmarks/VersaBench/8b10b"
-# Table declarations read from the case's own sources: name -> bound.
-ISS266_TABLE_RE = re.compile(r"\b(lookupTable5B|lookupTable3B)\s*\[\s*(\d+)\s*\]")
 
 KNOWN_FAIL_BASES = {
     ISS246_ID: "live TLS declaration scan hit in the case's own sources + "
                "clang thread-local-storage diagnostic",
-    ISS265_ID: "per-case admission table ISS265_ADMISSION (exactly ClamAV / "
-               "obsequi / ft): interleaving-only document difference, or a "
-               "live musl-vs-glibc PRNG sequence divergence",
-    ISS266_ID: "per-case ISS-266 row (8b10b only): the case's own input.txt "
-               "is a little-endian u32 word stream while the target is "
-               "big-endian, so the BE-decoded index falls outside the "
-               "lookupTable5B[64]/lookupTable3B[16] bounds declared in the "
-               "case's own sources; the run must also have died of a "
-               "forwarded guest SIGSEGV",
+    ISS265_ID: "per-case admission table ISS265_ADMISSION (exactly ClamAV): "
+               "interleaving-only document difference (same bytes, same line "
+               "multiset)",
 }
+
+# ---------------------------------------------------------------------------
+# Test glue (TESTCASES-080t): declared, per-case, auditable adaptations applied
+# to the per-case run copy / link line only.  The corpus stays ``patchless``
+# and the target's own semantics (byte order, ABI) are not changed; every
+# comparison stays byte-exact / md5-exact.
+# ---------------------------------------------------------------------------
+GLUE_DIR = os.path.join(REPO_ROOT, "tests", "tset", "llvm-ts", "patches",
+                        "glue")
+
+# Cases whose output is produced by ``random()`` and whose upstream reference
+# pins glibc's generator (see the module docstring).  The glue translation unit
+# is compiled with the case's own compile line and linked ahead of ``libc.a``,
+# so musl's own ``random.o`` is never pulled in.
+CASE_PRNG_GLUE = {
+    "MultiSource/Applications/obsequi": dict(
+        source="glibc_prng.c",
+        why="init.c:63 srandom(1); init.c:66 seeds the Zobrist tables with "
+            "random(), so every node/cutoff counter in the reference is "
+            "glibc-generator-defined"),
+    "MultiSource/Benchmarks/Ptrdist/ft": dict(
+        source="glibc_prng.c",
+        why="graph.c:43 GET_WEIGHT = (random() + 1) % MAX_WEIGHT; the "
+            "two-argument RUN_OPTIONS never reach ft.c:86's srandom(), so the "
+            "default (glibc: seed 1) state defines the whole graph"),
+}
+
+# Cases whose data file is a little-endian u32 word stream read by
+# ``fread(..., sizeof(unsigned int), ...)`` on a big-endian target.
+CASE_LE32_INPUTS = {
+    "MultiSource/Benchmarks/VersaBench/8b10b": dict(
+        file="input.txt",
+        why="testbench.c:59 fread(theInputArray, numberOfWords, "
+            "sizeof(unsigned int), ...) reads host-order words; the corpus "
+            "file is little-endian (calc.c's header) and the target is "
+            "big-endian (ADR-0003 D1), so the run copy is rewritten as the "
+            "same words in big endian"),
+}
+# Table declarations read from the case's own sources: name -> bound.
+B10B_TABLE_RE = re.compile(r"\b(lookupTable5B|lookupTable3B)\s*\[\s*(\d+)\s*\]")
 
 # Programs upstream does not add under ``SMALL_PROBLEM_SIZE`` (its tree
 # CMakeLists guards the ``add_subdirectory`` with ``if(NOT DEFINED
@@ -754,9 +776,6 @@ GUEST_FAULT_NOTES = {
         "host), which is why the upstream reference was produced without a "
         "crash.  Corpus error-ignoring call + musl-vs-glibc difference; not "
         "qemu instruction semantics and not a backend miscompile.",
-    "MultiSource/Benchmarks/VersaBench/8b10b":
-        "corpus data endianness (known-fail row ISS-266): input.txt is a "
-        "little-endian u32 word stream, the target is big-endian.",
 }
 
 # Machine-fault exits (ADR-0004 D5.8): the guest left through a machine fault.
@@ -1927,6 +1946,45 @@ def _build_and_run(case: Case, cfg, work_dir):
             except OSError:
                 pass
 
+    # Test glue (TESTCASES-080t), part 1: declared per-case input rewrite on the
+    # run copy (the corpus stays patchless).  The script is a pure word-wise
+    # byte swap and verifies its own read-back; the driver then re-reads the
+    # converted file and proves every word's table index is inside the bounds
+    # the case's own sources declare.  A failure here is a harness gap, so the
+    # case is ``blocked``, never pass/fail.
+    le32 = CASE_LE32_INPUTS.get(case.cid)
+    if le32:
+        data_path = os.path.join(run_dir, le32["file"])
+        script = os.path.join(GLUE_DIR, "le32_to_be32.py")
+        rc, out, err_b, timed = run_bytes([sys.executable, script, data_path],
+                                          timeout=BUILD_TIMEOUT, cwd=run_dir)
+        if timed or rc != 0:
+            case.klass = "blocked"
+            detail = (err_b or out).decode("utf-8", errors="replace").strip()
+            case.reason = (f"test glue failed (le32_to_be32.py rc={rc} on "
+                           f"{le32['file']}): {detail[:240]}")
+            return case
+        summary = out.decode("utf-8", errors="replace").strip()
+        try:
+            info = json.loads(summary.splitlines()[-1])
+            words = int(info["words"])
+            before, after = info["sha256_before"], info["sha256_after"]
+        except (ValueError, KeyError, IndexError) as exc:
+            case.klass = "blocked"
+            case.reason = (f"test glue produced no parsable summary "
+                           f"({exc}): {summary[:200]}")
+            return case
+        ok, evidence = b10b_converted_index_check(case)
+        if not ok:
+            case.klass = "blocked"
+            case.reason = f"test glue input check failed: {evidence}"
+            return case
+        case.notes.append(
+            f"test glue: {le32['file']} rewritten {words} u32 words "
+            f"little-endian -> big-endian (sha256 {before[:16]} -> "
+            f"{after[:16]}); {le32['why']}")
+        case.notes.append(f"test glue check: {evidence}")
+
     if case.cid in CASE_PREPARE:
         command, why = CASE_PREPARE[case.cid]
         rc, out, err_b, timed = run_bytes(command, timeout=BUILD_TIMEOUT,
@@ -1980,6 +2038,32 @@ def _build_and_run(case: Case, cfg, work_dir):
             return case
         objs.append(obj)
 
+    # Test glue (TESTCASES-080t), part 2: the ``random()``/``srandom()`` glue
+    # object is compiled with the case's own compile line and placed ahead of
+    # the program objects and of the libc group, so its strong definitions are
+    # seen before ``libc.a`` is scanned and musl's ``random.o`` is never pulled
+    # in (a stale/absent glue therefore fails loudly at link time instead of
+    # silently reverting to musl's generator).
+    glue_objs = []
+    glue = CASE_PRNG_GLUE.get(case.cid)
+    if glue:
+        glue_src = os.path.join(GLUE_DIR, glue["source"])
+        glue_obj = os.path.join(objdir, "glue_" + glue["source"] + ".o")
+        cmd = [cfg["clang"]] + flags + ["-c", glue_src, "-o", glue_obj]
+        case.compile_cmds.append(cmd)
+        rc, _out, err_b, timed = run_bytes(cmd, timeout=BUILD_TIMEOUT,
+                                          cwd=run_dir)
+        if timed or rc != 0:
+            case.klass = "blocked"
+            case.first_error = first_tool_error(
+                err_b.decode("utf-8", errors="replace"))
+            case.reason = (f"test glue compile error rc={rc} on "
+                           f"{glue['source']}: {case.first_error[:240]}")
+            return case
+        glue_objs.append(glue_obj)
+        case.notes.append(f"test glue: linked {glue['source']} "
+                          f"({glue['why']})")
+
     elf = os.path.join(outdir, case.target + ".elf")
     # musl static archive and compiler-rt builtins reference each other
     # (libc's long-double helpers call builtins and vice versa), so they are
@@ -1987,10 +2071,11 @@ def _build_and_run(case: Case, cfg, work_dir):
     # (mandel, RSBench) fail with "undefined symbol: __muldc3/__divdc3".
     libs = ["--start-group", cfg["libc"], cfg["builtins"], "--end-group"]
     if cfg["mode"] == "static":
-        link = [cfg["ldlld"], "-o", elf, cfg["crt1"]] + objs + libs
+        link = ([cfg["ldlld"], "-o", elf, cfg["crt1"]] + glue_objs + objs
+                + libs)
     else:
-        link = ([cfg["ldlld"], "-o", elf, cfg["crt1"]] + objs + libs
-                + ["-dynamic-linker", DYNAMIC_LINKER])
+        link = ([cfg["ldlld"], "-o", elf, cfg["crt1"]] + glue_objs + objs
+                + libs + ["-dynamic-linker", DYNAMIC_LINKER])
     case.link_cmd = link
     rc, _out, err_b, timed = run_bytes(link, timeout=BUILD_TIMEOUT, cwd=run_dir)
     if timed or rc != 0:
@@ -2231,93 +2316,7 @@ def iss246_evidence(case: Case):
                   f"{next(p for p in ISS246_PATTERNS if p in case.first_error)!r}")
 
 
-def iss265_host_prng_sequences():
-    """Host libc's ``random()``/``rand()`` sequences after seed 1 (live)."""
-    try:
-        libc = ctypes.CDLL(None)
-        libc.srandom.argtypes = [ctypes.c_uint]
-        libc.random.restype = ctypes.c_long
-        libc.srand.argtypes = [ctypes.c_uint]
-        libc.rand.restype = ctypes.c_int
-        libc.srandom(1)
-        seq_random = (libc.random(), libc.random())
-        libc.srand(1)
-        seq_rand = (libc.rand(), libc.rand())
-    except (OSError, AttributeError) as exc:
-        return None, f"host libc has no random()/rand(): {exc}"
-    return {"random": seq_random, "rand": seq_rand}, ""
-
-
-def iss265_prng_sequences(cfg, cache):
-    """Guest musl vs host glibc PRNG sequences (live, one probe per round).
-
-    The probe is compiled with the same clang/target/musl headers and linked
-    against the same ``cfg['libc']`` as the suite, then run under the same
-    qemu, so the guest numbers come from the library actually under test.  The
-    host numbers come from this process' own libc (glibc on the reference
-    host).  Result: ``(dict(guest=..., host=...), "")`` or ``(None, why)``.
-    """
-    key = (cfg.get("mode"), cfg.get("libc"))
-    if key in cache:
-        return cache[key]
-    host, host_err = iss265_host_prng_sequences()
-    if host is None:
-        cache[key] = (None, host_err)
-        return cache[key]
-    probe_dir = os.path.join(cfg["work_dir"], f"iss265-prng-{cfg['mode']}")
-    src = os.path.join(probe_dir, "iss265_prng_probe.c")
-    obj = os.path.join(probe_dir, "iss265_prng_probe.o")
-    elf = os.path.join(probe_dir, "iss265_prng_probe.elf")
-
-    def fail(why):
-        cache[key] = (None, why)
-        return cache[key]
-
-    try:
-        os.makedirs(probe_dir, exist_ok=True)
-        with open(src, "w", encoding="utf-8") as fh:
-            fh.write(ISS265_PRNG_PROBE)
-    except OSError as exc:
-        return fail(f"cannot write PRNG probe: {exc}")
-    compile_cmd = ([cfg["clang"], "-target", TARGET] + cfg["musl_incs"]
-                   + list(BASE_CFLAGS) + ["-c", src, "-o", obj])
-    rc, _out, err_b, timed = run_bytes(compile_cmd, timeout=BUILD_TIMEOUT,
-                                       cwd=probe_dir)
-    if timed or rc != 0:
-        return fail(f"PRNG probe compile failed rc={rc}: "
-                    f"{first_tool_error(err_b.decode('utf-8', 'replace'))}")
-    link_cmd = ([cfg["ldlld"], "-o", elf, cfg["crt1"], obj,
-                 "--start-group", cfg["libc"], cfg["builtins"], "--end-group"])
-    if cfg["mode"] == "dynamic":
-        link_cmd += ["-dynamic-linker", DYNAMIC_LINKER]
-    rc, _out, err_b, timed = run_bytes(link_cmd, timeout=BUILD_TIMEOUT,
-                                       cwd=probe_dir)
-    if timed or rc != 0:
-        return fail(f"PRNG probe link failed rc={rc}: "
-                    f"{first_tool_error(err_b.decode('utf-8', 'replace'))}")
-    run_cmd = [cfg["qemu"]]
-    if cfg["mode"] == "dynamic":
-        run_cmd += ["-L", cfg["guest_root"]]
-    run_cmd += [elf]
-    rc, guest_out, _err_b, timed = run_bytes(run_cmd, timeout=60,
-                                             cwd=probe_dir)
-    if timed or rc != 0:
-        return fail(f"PRNG probe run failed rc={rc}")
-    guest = {}
-    for line in guest_out.decode("utf-8", "replace").splitlines():
-        parts = line.split()
-        if len(parts) == 3 and parts[0] in ("random", "rand"):
-            try:
-                guest[parts[0]] = (int(parts[1]), int(parts[2]))
-            except ValueError:
-                pass
-    if set(guest) != {"random", "rand"}:
-        return fail(f"PRNG probe output unparsable: {guest_out[:120]!r}")
-    cache[key] = ({"guest": guest, "host": host}, "")
-    return cache[key]
-
-
-def iss265_evidence(case: Case, cfg, cache):
+def iss265_evidence(case: Case):
     """Recompute one ISS-265 admission row; return (ok, evidence).
 
     A missing row is refused (the admission is per case), and so is any row
@@ -2348,54 +2347,22 @@ def iss265_evidence(case: Case, cfg, cache):
         return False, "the oracle matched, so there is no failure to explain"
     if not exit_ok:
         return False, f"exit differs from the ruled runs: {exit_why}"
-
-    if row["kind"] == "interleave":
-        if len(actual_doc) != len(case.expected_doc):
-            return False, (f"document sizes differ ({len(actual_doc)} B vs "
-                           f"{len(case.expected_doc)} B): not an "
-                           f"interleaving-only difference")
-        if sorted(actual_doc.splitlines()) != sorted(
-                case.expected_doc.splitlines()):
-            return False, ("line multisets differ: not an interleaving-only "
-                           "difference")
-        return True, (f"same {len(actual_doc)} B / "
-                      f"{len(actual_doc.splitlines())} lines, only the line "
-                      f"order differs; {row['why']}")
-
-    if row["kind"] != "prng":
+    if row["kind"] != "interleave":
         return False, f"unknown admission kind {row['kind']!r}"
-
-    api = row["api"]
-    draw_re = re.compile(r"\b" + re.escape(api) + r"\s*\(")
-    seed_hits, draw_hits = [], []
-    for src in case.sources:
-        try:
-            text = read_text(src)
-        except OSError:
-            continue
-        if ISS265_SEED_RE.search(text):
-            seed_hits.append(os.path.basename(src))
-        if draw_re.search(text):
-            draw_hits.append(os.path.basename(src))
-    if not seed_hits or not draw_hits:
-        return False, (f"no live seed+{api}() call in the case's own "
-                       f"sources (seed={seed_hits or 'none'}, "
-                       f"draw={draw_hits or 'none'})")
-    if cfg is None:
-        return False, "no run configuration for the live PRNG probe"
-    seqs, err = iss265_prng_sequences(cfg, cache)
-    if seqs is None:
-        return False, f"live PRNG probe unavailable: {err}"
-    guest, host = seqs["guest"][api], seqs["host"][api]
-    if tuple(guest) == tuple(host):
-        return False, (f"musl and glibc {api}() sequences after seed 1 are "
-                       f"identical ({guest}): the libc basis does not hold")
-    return True, (f"live seed in {', '.join(seed_hits)} + {api}() in "
-                  f"{', '.join(draw_hits)}; musl {api}() after seed 1 = "
-                  f"{guest} != glibc {host}; {row['why']}")
+    if len(actual_doc) != len(case.expected_doc):
+        return False, (f"document sizes differ ({len(actual_doc)} B vs "
+                       f"{len(case.expected_doc)} B): not an "
+                       f"interleaving-only difference")
+    if sorted(actual_doc.splitlines()) != sorted(
+            case.expected_doc.splitlines()):
+        return False, ("line multisets differ: not an interleaving-only "
+                       "difference")
+    return True, (f"same {len(actual_doc)} B / "
+                  f"{len(actual_doc.splitlines())} lines, only the line "
+                  f"order differs; {row['why']}")
 
 
-def iss266_data_file(case: Case):
+def data_file_on_argv(case: Case):
     """The case's own data file actually read by the run (run copy first)."""
     for token in case.run_argv:
         if token.startswith("-") or "=" in token:
@@ -2407,10 +2374,10 @@ def iss266_data_file(case: Case):
     return ""
 
 
-def iss266_indices(word: int):
+def b10b_indices(word: int):
     """The 8b10b table indices calc.c derives from one input word.
 
-    testbench.c:83 calls ``calc(bits0&0xff, bits0>>8)``; calc.c:173-174
+    testbench.c:72 calls ``calc(bits0&0xff, bits0>>8)``; calc.c:170-171
     builds ``index5 = ((theWord>>3)&0x1f)|(k<<5)`` and
     ``index3 = ((theWord)&0x7)|(k<<3)``.  Re-read here, never assumed.
     """
@@ -2418,24 +2385,8 @@ def iss266_indices(word: int):
     return (((word >> 3) & 0x1F) | (k << 5), (word & 0x7) | (k << 3))
 
 
-def iss266_8b10b_evidence(case: Case):
-    """Recompute the ISS-266 8b10b basis; return (ok, evidence).
-
-    Live checks, all from the case's own files:
-    * the run died of a **forwarded** guest SIGSEGV (exit 139);
-    * the table bounds come from the case's own ``lookupTable5B[...]`` /
-      ``lookupTable3B[...]`` declarations;
-    * the data file decodes to in-range indices as little-endian words (the
-      format calc.c's header says it writes) and to at least one out-of-range
-      index when the same bytes are read big-endian (the target's byte order).
-    """
-    if case.cid != ISS266_8B10B:
-        return False, ("not the admitted ISS-266 case (admission is per case, "
-                       "never per class)")
-    if case.guest_signal != "SIGSEGV" or case.exit != 139:
-        return False, (f"the run did not die of a forwarded guest SIGSEGV "
-                       f"(guest_signal={case.guest_signal or 'none'}, "
-                       f"exit={case.exit})")
+def b10b_table_bounds(case: Case):
+    """The ``lookupTable5B[...]``/``lookupTable3B[...]`` bounds (live)."""
     bounds = {}
     table_src = ""
     for src in case.sources:
@@ -2443,14 +2394,28 @@ def iss266_8b10b_evidence(case: Case):
             text = read_text(src)
         except OSError:
             continue
-        for name, bound in ISS266_TABLE_RE.findall(text):
+        for name, bound in B10B_TABLE_RE.findall(text):
             bounds.setdefault(name, int(bound))
             table_src = table_src or os.path.basename(src)
+    return bounds, table_src
+
+
+def b10b_converted_index_check(case: Case):
+    """Re-read the converted run input and prove every index is in range.
+
+    Returns (ok, evidence).  This is the positive counterpart of the ISS-266
+    evidence TESTCASES-080t removed: the file is now big-endian on disk, so a
+    big-endian decode gives exactly the words the corpus author wrote, and each
+    word's ``index5``/``index3`` must stay inside the bounds the case's own
+    sources declare.  ``fread`` stopping at 2000 words does not shrink the
+    claim: all 65536 words are checked.
+    """
+    bounds, table_src = b10b_table_bounds(case)
     missing = sorted({"lookupTable5B", "lookupTable3B"} - set(bounds))
     if missing:
         return False, (f"table declaration(s) {missing} not found in the "
                        f"case's own sources")
-    data = iss266_data_file(case)
+    data = data_file_on_argv(case)
     if not data:
         return False, "the case's data file named on the run argv is missing"
     try:
@@ -2458,42 +2423,29 @@ def iss266_8b10b_evidence(case: Case):
             raw = fh.read()
     except OSError as exc:
         return False, f"cannot re-read the data file {data}: {exc}"
-    if len(raw) < 4:
-        return False, f"data file {data} holds no 32-bit word"
-    offsets = range(0, len(raw) - 3, 4)
-    le_bad = be_bad = 0
-    for off in offsets:
-        chunk = raw[off:off + 4]
-        for word, counter in ((int.from_bytes(chunk, "little"), "le"),
-                              (int.from_bytes(chunk, "big"), "be")):
-            i5, i3 = iss266_indices(word)
-            bad = (i5 >= bounds["lookupTable5B"]
-                   or i3 >= bounds["lookupTable3B"])
-            if bad and counter == "le":
-                le_bad += 1
-            elif bad:
-                be_bad += 1
-    if le_bad:
-        return False, (f"{le_bad} little-endian word(s) of {data} already "
-                       f"index past the declared table bounds: not the "
-                       f"corpus-data basis")
-    if not be_bad:
-        return False, (f"no big-endian word of {data} indexes past "
-                       f"{bounds}: the endianness basis does not hold")
-    first = int.from_bytes(raw[0:4], "big")
-    first_le = int.from_bytes(raw[0:4], "little")
-    i5_be, i3_be = iss266_indices(first)
-    i5_le, i3_le = iss266_indices(first_le)
-    return True, (
-        f"live data check: {data} has {len(raw) // 4} u32 words; first word "
-        f"bytes {raw[0:4].hex()} = 0x{first_le:08x} little-endian -> "
-        f"index5={i5_le}/index3={i3_le} (both in range), 0x{first:08x} "
-        f"big-endian -> index5={i5_be}/index3={i3_be}; all {len(raw) // 4} "
-        f"LE words are in range while {be_bad} BE word(s) exceed "
-        f"lookupTable5B[{bounds['lookupTable5B']}]/"
-        f"lookupTable3B[{bounds['lookupTable3B']}] (declared in {table_src}); "
-        f"ADR-0003 D1 makes the target big-endian, so fread yields these "
-        f"out-of-range indices and the guest faults (corpus data, not qemu)")
+    if len(raw) < 4 or len(raw) % 4:
+        return False, (f"data file {data} is {len(raw)} B, not a whole number "
+                       f"of u32 words")
+    words = [int.from_bytes(raw[i:i + 4], "big")
+             for i in range(0, len(raw), 4)]
+    worst5 = worst3 = 0
+    bad = 0
+    for word in words:
+        i5, i3 = b10b_indices(word)
+        worst5 = max(worst5, i5)
+        worst3 = max(worst3, i3)
+        if i5 >= bounds["lookupTable5B"] or i3 >= bounds["lookupTable3B"]:
+            bad += 1
+    if bad:
+        return False, (f"{bad} of {len(words)} converted word(s) still index "
+                       f"past lookupTable5B[{bounds['lookupTable5B']}]/"
+                       f"lookupTable3B[{bounds['lookupTable3B']}] "
+                       f"(worst index5={worst5}, index3={worst3})")
+    return True, (f"{data}: {len(words)} big-endian words, all in range -- "
+                  f"worst index5={worst5} < lookupTable5B"
+                  f"[{bounds['lookupTable5B']}], worst index3={worst3} < "
+                  f"lookupTable3B[{bounds['lookupTable3B']}] (bounds declared "
+                  f"in {table_src})")
 
 
 def iss265_admission_selfcheck():
@@ -2507,8 +2459,6 @@ def iss265_admission_selfcheck():
     problems = []
     expected = {
         "MultiSource/Applications/ClamAV": "interleave",
-        "MultiSource/Applications/obsequi": "prng",
-        "MultiSource/Benchmarks/Ptrdist/ft": "prng",
     }
     got = {cid: row.get("kind") for cid, row in ISS265_ADMISSION.items()}
     if got != expected:
@@ -2522,7 +2472,7 @@ def iss265_admission_selfcheck():
     unlisted.expected_exit = 0
     unlisted.stdout = b"b\na\n"
     unlisted.expected_doc = b"a\nb\nexit 0\n"
-    ok, why = iss265_evidence(unlisted, None, {})
+    ok, why = iss265_evidence(unlisted)
     if ok:
         problems.append(f"unlisted case admitted: {why}")
 
@@ -2534,9 +2484,25 @@ def iss265_admission_selfcheck():
     matched.expected_exit = 0
     matched.stdout = b"a\n"
     matched.expected_doc = b"a\nexit 0\n"
-    ok, why = iss265_evidence(matched, None, {})
+    ok, why = iss265_evidence(matched)
     if ok:
         problems.append(f"admitted case without a mismatch accepted: {why}")
+
+    # TESTCASES-080t: the two removed PRNG rows must not be re-admitted, and a
+    # document whose size differs is not an interleave either (reachable FAIL
+    # path of the interleave size check).
+    sized = Case("MultiSource/Applications/ClamAV",
+                 "MultiSource/Applications", "multi", "", [])
+    sized.klass = "fail"
+    sized.oracle_kind = "stdout"
+    sized.exit = 0
+    sized.expected_exit = 0
+    sized.stdout = b"a\nb\n"
+    sized.expected_doc = b"a\nexit 0\n"
+    ok, why = iss265_evidence(sized)
+    if ok:
+        problems.append(f"differently-sized documents accepted as interleave: "
+                        f"{why}")
     return problems
 
 
@@ -2605,15 +2571,12 @@ def run_round(cases, cfg, work_dir, jobs, args, excluded, progress=None):
     results.sort(key=lambda c: c.cid)
 
     # ISS-265 admission runs after the round: a ``fail`` may become
-    # ``known-fail`` only when its own row's live evidence holds.  The PRNG
-    # probe is built once per round here (sequentially), never inside the
-    # worker threads.
-    iss265_cache = {}
+    # ``known-fail`` only when its own row's live evidence holds.
     iss265_refused = []
     for r in results:
         if r.klass != "fail" or r.cid not in ISS265_ADMISSION:
             continue
-        basis_ok, evidence = iss265_evidence(r, cfg, iss265_cache)
+        basis_ok, evidence = iss265_evidence(r)
         if not basis_ok:
             iss265_refused.append(f"{r.cid}: {evidence}")
             continue
@@ -2621,20 +2584,6 @@ def run_round(cases, cfg, work_dir, jobs, args, excluded, progress=None):
         r.known_fail_basis = ISS265_ID
         r.known_fail_evidence = evidence
         r.reason = f"{ISS265_ID} (per-case basis holds): {r.reason}"
-
-    # ISS-266 (8b10b): same post-round admission rule, separate closed row.
-    iss266_refused = []
-    for r in results:
-        if r.klass != "fail" or r.cid != ISS266_8B10B:
-            continue
-        basis_ok, evidence = iss266_8b10b_evidence(r)
-        if not basis_ok:
-            iss266_refused.append(f"{r.cid}: {evidence}")
-            continue
-        r.klass = "known-fail"
-        r.known_fail_basis = ISS266_ID
-        r.known_fail_evidence = evidence
-        r.reason = f"{ISS266_ID} (per-case basis holds): {r.reason}"
 
     counts = {k: sum(1 for r in results if r.klass == k)
               for k in ("pass", "fail", "known-fail", "blocked", "excluded")}
@@ -2661,9 +2610,7 @@ def run_round(cases, cfg, work_dir, jobs, args, excluded, progress=None):
         if r.known_fail_basis == ISS246_ID:
             basis_ok, _evidence = iss246_evidence(r)
         elif r.known_fail_basis == ISS265_ID:
-            basis_ok, _evidence = iss265_evidence(r, cfg, iss265_cache)
-        elif r.known_fail_basis == ISS266_ID:
-            basis_ok, _evidence = iss266_8b10b_evidence(r)
+            basis_ok, _evidence = iss265_evidence(r)
         else:
             basis_ok = False
         if not basis_ok:
@@ -2683,7 +2630,7 @@ def run_round(cases, cfg, work_dir, jobs, args, excluded, progress=None):
     return results, counts, dict(
         closure_ok=closure_ok, classification_ok=classification_ok,
         bad_known=bad_known, unexplained=unexplained,
-        iss265_refused=iss265_refused, iss266_refused=iss266_refused,
+        iss265_refused=iss265_refused,
         admission_problems=admission_problems, ok=ok)
 
 
@@ -2735,6 +2682,9 @@ def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
          f"{census['c']['MicroBenchmarks']['units_with_main']})")
     emit(f"  known-fail admission: {', '.join(sorted(KNOWN_FAIL_BASES))} "
          f"(per-case evidence recomputed live)")
+    emit(f"  test glue: PRNG {sorted(CASE_PRNG_GLUE)}; LE32 input "
+         f"{sorted(CASE_LE32_INPUTS)} (declared per case, corpus patchless; "
+         f"applied to the run copy / link line only)")
     emit(f"  tolerance comparison: "
          + (f"upstream fpcmp at {cfg['fpcmp']}"
             if cfg.get("fpcmp") else
@@ -2764,9 +2714,6 @@ def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
     if audit.get("iss265_refused"):
         emit(f"  ISS-265 rows refused (basis does not hold => stay fail): "
              f"{audit['iss265_refused']}")
-    if audit.get("iss266_refused"):
-        emit(f"  ISS-266 rows refused (basis does not hold => stay fail): "
-             f"{audit['iss266_refused']}")
     if audit["unexplained"]:
         emit(f"[FAIL] unclassified failure(s) remain: {audit['unexplained']}")
 
@@ -2820,6 +2767,9 @@ def write_artifacts(cfg, cases, results, counts, audit, census, args,
                   census=census, closure_ok=audit["closure_ok"],
                   classification_ok=audit["classification_ok"],
                   known_fail_bases=KNOWN_FAIL_BASES,
+                  test_glue=dict(prng_glue=sorted(CASE_PRNG_GLUE),
+                                 le32_inputs=sorted(CASE_LE32_INPUTS),
+                                 dir=os.path.relpath(GLUE_DIR, REPO_ROOT)),
                   filtered=bool(args.only or args.limit is not None),
                   cases=[r.as_dict(mode) for r in results])
     os.makedirs(os.path.dirname(json_out) or ".", exist_ok=True)
@@ -2918,6 +2868,13 @@ def main() -> int:
         for d in MUSL_USER_INCLUDE_DIRS:
             if not os.path.isdir(os.path.join(musl, d)):
                 raise SetupError(f"musl include dir not found: {musl}/{d}")
+        # TESTCASES-080t test glue (declared per case, applied to the run copy
+        # / link line only): missing glue is a setup error, never a silent
+        # fallback to musl's own PRNG or to the unconverted input.
+        for name in sorted({row["source"] for row in CASE_PRNG_GLUE.values()}):
+            require_file(os.path.join(GLUE_DIR, name), "test glue source")
+        require_file(os.path.join(GLUE_DIR, "le32_to_be32.py"),
+                     "test glue input script")
         # compiler-rt builtins: the same archive clang's driver would add
         # (INFRA-088t's installed toolchain), queried rather than guessed.
         b_rc, b_out, b_err, b_timed = run_bytes(

@@ -29,6 +29,24 @@
 
 - 期望值来自上游 `*.reference_output*`（byte-exact / md5）或 exit 0，驱动内
   分类器（`pass` / `fail` / `known-fail` / `blocked`）**未改**。
+- **测试胶水**（TESTCASES-080t，`patches/glue/`，见该目录 `README.md`）：只对
+  **run 副本 / 链接行**生效的**逐例声明**适配，语料保持 `patchless`、目标语义
+  （字节序 / ABI）不变、比较不放宽：
+  - `glibc_prng.c` → `obsequi`、`ft`：上游参考钉死的是 **glibc** 的
+    `random()`（宿主 gcc 重编译不改语料即复现两份参考：obsequi 4445 B
+    sha256 `daaf7e2c…`、ft md5 `63acb35e…`），而 C 未规定该算法；胶水按 glibc
+    算法（31 阶 TYPE_3 + 310 次预热 + 未播种态 = `srandom(1)`）实现
+    `random()`/`srandom()`，由 `patches/glue/verify_glibc_prng.py` 对宿主 glibc
+    独立核对（默认态 + 7 个种子 × 100 抽，逐字节相同）。
+  - `le32_to_be32.py` → `8b10b`：`input.txt` 是**小端 u32 词流**
+    （`testbench.c:59` 用 `fread(..., sizeof(unsigned int), ...)` 按主机序读），
+    目标为**大端**（ADR-0003 D1）；脚本把 run 副本按**逐词 4 字节交换**写成
+    同样词值的大端流（打印 sha256 前后 + 回读校验），驱动随后复读转换后文件、
+    按 `calc.c` 的索引式对**全部 65536 词**校验在界内（worst index5=63<64、
+    index3=15<16）。
+- 由此 `obsequi`/`ft`/`8b10b` 三例 **static+dynamic 均 byte-exact / md5-exact
+  `pass`**，`known-fail` 归零；唯一保留的 known-fail 准入行只剩 `ClamAV`
+  （`ISS-265` 交错流，逐例活证据）。
 - **逐例排除**（`excluded`，理由含源码 文件:行）：上游自身不为本目标构建的单元
   ——`siod`/`office-ispell`（缺平台 API）与
   `SingleSource/Benchmarks/Misc/aarch64-init-cpu-features`（上游只在
