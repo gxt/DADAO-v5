@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：TESTCASES-076t、TESTCASES-069t
-**状态**：待开始
+**状态**：待验收
 
 ## 背景（自包含，2026-10-27 全量实测）
 1. **SPASS**（`MultiSource/Applications/SPASS`）：
@@ -34,13 +34,39 @@
 
 ## 完成区
 
-**状态**：待开始
+**状态**：待验收
+**用户裁定**（2026-10-27，原话摘要）：「A：测试胶水 patch」——补丁落 `tests/tset/llvm-ts/patches/`，驱动应用到 `.work/` 副本；`llvm-test-suite` 保持 `patchless=true`，不改 components.lock；本批不跑全量/夜跑。
 
 ### 修改文件
-（待填）
+- `tools/testcases/tset/llvm-ts/run_llvm_ts_user.py`：新增 `CASE_SOURCE_PATCHES`（逐例源码补丁 → run 副本；dry-run + 声明文件/补丁 `+++` 集合对账 + 逐文件 sha256 前后断言）+ 打补丁后编译 run 副本；删 lemon `PLATFORM_GAP_SIGNATURES` 行（根因已修，回归应记 `fail`）。
+- `tests/tset/llvm-ts/patches/glue/spass_symbol_equal_ptr.patch`、`lemon_configtable_clear_prototype.patch`（新，胶水补丁）。
+- `tests/tset/llvm-ts/README.md`、`tests/tset/llvm-ts/patches/README.md`（口径/来源）。
+- `.tao/knowledge/issues.yaml`（ISS-338 → closed）、`.tao/knowledge/milestones.md`、本册。
+- `.work/evidence/TESTCASES-078t/run.sh`（证据，不入库）。
 
 ### 验收命令与结果
-（待填）
+- **判别实验**（宿主 gcc 13.3.0；`-O2 -DNDEBUG -w -DCLOCK_NO_TIMING -fno-strict-aliasing`；输入 = 上游 `RUN_OPTIONS` `small_problem.dfg`）：
+  未改语料 `md5(stdout+stderr+"exit 0\n") = b0b56c51…` **== 上游 `SPASS.reference_output.small`**；修 UB 后同值 `b0b56c51…`；同构建多传 `-DocProof` = `74365d61…`（**069t 的哈希来源，非参考方差**）。lemon 未改/修 UB 均 `8c485439…`（上游 `lemon.reference_output`）⇒ **无需重定参考**。
+- **DADAO 定向两档**（`--link-mode both --only 'SPASS$' --only 'lemon$'`）：static/dynamic 均 `total=2 pass=2 fail=0 known-fail=0 blocked=0`；两例 `md5(output+exit)` 命中上述上游参考，且 stdout sha256 与宿主修 UB 构建**逐字节相同**。
+- **一键证据**：`./.work/evidence/TESTCASES-078t/run.sh` → **29/29 PASS**（含 corpus patchless、补丁 dry-run、注入“仅 `#include`”补丁 ⇒ SPASS `fail`+guest SIGSEGV → `cp`+md5 还原 → 回绿）。
+- **L1**：`make check` rc=0（`/tmp/opencode/TESTCASES-078t/evidence/make-check.log`）。
+
+### 新发现/坑
+- 069t 的 `74365d61…` = 同构建多传 `-DocProof`（上游 RUN_OPTIONS 只有输入文件）；bank 分离 ABI 的 UB 修复在宿主上不改变输出，目标侧修后即命中上游参考。
+- 源码补丁必须校验“声明文件确实变化”，否则空/陈旧补丁会假绿；并须核对补丁 `+++` 文件集合 == 声明集合，否则未声明文件的 hunk 会应用却不参与编译。
 
 ### 遗留
-（待填）
+- 全量 `check-tset-llvm-full` 两档未跑（用户 2026-10-27 裁定本批不下发全量/夜跑），留待全量批次；其它非本册 fail/blocked 项（gawk/make/p2c/archie-client/plot2fig、ClamAV）不在本册范围。
+
+## 审阅记录
+
+### 第 1 轮 engineer 自审
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 补丁声明的文件集合可能与补丁实际 `+++` 文件不一致 ⇒ 未声明 hunk 应用但不编译 | ✅已修 | `apply_source_patches` 解析 `+++ b/…` 并与 `files` 对账 | dry-run 两例 OK；注入补丁（仅 `cnf.c`）仍通过声明对账并复现 fail |
+| F2 dry-run 依赖 `patch` 的英文 `checking file` 文案（locale 脆弱、且非必需） | ✅已修 | 去掉文案断言，改为 rc + 逐文件 sha256 前后比对（更强） | 两例 normal run PASS；注入“无变化补丁”路径由 sha 断言覆盖（代码级） |
+| F3 证据脚本多处 `report ... "$(cmd)" "$?"` 会把 `$?` 取成命令替换的状态 | ✅已修 | 先 `rc=$?` 再 `report` | 29/29 全绿，失败项均带真实 rc |
+| F4 删除 lemon gap 行是否放宽分类 | ❌不修（有据） | 保留删除 | 该行原为 `blocked` 逃逸；根因已修，回归应记 `fail`；`static.declarations` 断言其不存在 |
+
+**自审判定**：F1–F3 已修并复验，F4 有据不改；无未修项 → `待验收`。

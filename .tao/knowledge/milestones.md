@@ -54,7 +54,7 @@
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
 | TESTCASES-077t | 待验收 | 2026-10-27 10:10（登记） | llvm-ts：aarch64 记 excluded、Burg/cdecl/OptimizerEval 逐例方言、mafft 超时 1620→1800（blocked 11→6） |
-| TESTCASES-078t | 待开始 | 2026-10-27 10:10（登记） | SPASS/lemon 语料 UB 修复 + SPASS 参考重定（ISS-338/277） |
+| TESTCASES-078t | 待验收 | 2026-10-27 10:10（登记） | SPASS/lemon 语料 UB 测试胶水补丁；SPASS 参考不须重定（069t 的 74365d61 = 多传 -DocProof）；两例两档 md5-exact pass（ISS-338 关闭） |
 | TESTCASES-079t | 待验收 | 2026-10-27 10:10（登记） | consumer-typeset：musl catclose 无效句柄守卫（-1/EBADF），两档由 SIGBUS 转 pass（ISS-339） |
 | TESTCASES-080t | 待验收 | 2026-10-27 10:10（登记） | llvm-ts 零 known-fail：obsequi/ft 注入 glibc PRNG 胶水、8b10b LE→BE 输入胶水；三条两档 pass、known-fail=0 |
 | TESTCASES-081t | 待开始 | 2026-10-27 10:10（登记） | llvm-ts 剩余 blocked：gawk/make/p2c 胶水、archie/plot2fig 排除、ClamAV、SIG 判据 |

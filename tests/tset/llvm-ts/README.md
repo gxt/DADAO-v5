@@ -29,9 +29,9 @@
 
 - 期望值来自上游 `*.reference_output*`（byte-exact / md5）或 exit 0，驱动内
   分类器（`pass` / `fail` / `known-fail` / `blocked`）**未改**。
-- **测试胶水**（TESTCASES-080t，`patches/glue/`，见该目录 `README.md`）：只对
-  **run 副本 / 链接行**生效的**逐例声明**适配，语料保持 `patchless`、目标语义
-  （字节序 / ABI）不变、比较不放宽：
+- **测试胶水**（TESTCASES-080t，`patches/glue/`，见该目录 `README.md`；TESTCASES-078t
+  增加源码补丁类）：只对 **run 副本 / 链接行**生效的**逐例声明**适配，语料保持
+  `patchless`、目标语义（字节序 / ABI）不变、比较不放宽：
   - `glibc_prng.c` → `obsequi`、`ft`：上游参考钉死的是 **glibc** 的
     `random()`（宿主 gcc 重编译不改语料即复现两份参考：obsequi 4445 B
     sha256 `daaf7e2c…`、ft md5 `63acb35e…`），而 C 未规定该算法；胶水按 glibc
@@ -44,9 +44,17 @@
     同样词值的大端流（打印 sha256 前后 + 回读校验），驱动随后复读转换后文件、
     按 `calc.c` 的索引式对**全部 65536 词**校验在界内（worst index5=63<64、
     index3=15<16）。
+  - 源码补丁 → `SPASS`、`lemon`（TESTCASES-078t）：两例语料含真实 UB
+    （函数指针强转 / 无原型调用传 `0`），x86-64 恰好可用、bank 分离 ABI 暴露；
+    补丁在 **run 副本**上恢复源码本来要表达的原型（dry-run + 逐文件 sha256
+    前后断言，空补丁 ⇒ `blocked`），随后**编译 run 副本**。两例上游参考
+    （SPASS `b0b56c51…`、lemon `8c485439…`）**不必重定**：宿主 gcc 与修 UB 后
+    目标构建均逐字节复现（TESTCASES-069t 的 `74365d61…` 经查 = 同一构建多传
+    `-DocProof`，非上游 `RUN_OPTIONS`）。
 - 由此 `obsequi`/`ft`/`8b10b` 三例 **static+dynamic 均 byte-exact / md5-exact
-  `pass`**，`known-fail` 归零；唯一保留的 known-fail 准入行只剩 `ClamAV`
-  （`ISS-265` 交错流，逐例活证据）。
+  `pass`**；`SPASS`/`lemon`（TESTCASES-078t）两档同样 **md5-exact `pass`**。
+  `known-fail` 集合不变：唯一保留的准入行仍是 `ClamAV`（`ISS-265` 交错流，
+  逐例活证据）。
 - **逐例排除**（`excluded`，理由含源码 文件:行）：上游自身不为本目标构建的单元
   ——`siod`/`office-ispell`（缺平台 API）与
   `SingleSource/Benchmarks/Misc/aarch64-init-cpu-features`（上游只在

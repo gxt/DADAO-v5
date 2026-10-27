@@ -142,10 +142,10 @@
     `make check` rc=0；证据 `.work/evidence/INFRA-110t/run.sh`。
 - id: ISS-338
   title: "【P3】SPASS 修掉 UB 强转后 DADAO 输出 == 宿主 gcc，但仍 ≠ 上游参考 md5（参考方差）"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
+  resolved_by: TESTCASES-078t
   notes: >-
     【正式登记（2026-10-27，源 = `TESTCASES-069t` 诊断）】**现象**：`SPASS` 的 guest NULL 根因 = 语料 UB
     （`cnf.c:2760` 把 `int symbol_Equal(int,int)` 强转 `BOOL(*)(POINTER,POINTER)`；bank 分离 ABI 下 caller `rb16/rb17`、
@@ -154,6 +154,15 @@
     （上游参考可能基于不同输入/编译选项/浮点/未定义行为）。**修法方向**：核对上游 RUN_OPTIONS/输入/参考生成链，决定重定参考
     或标 known-fail；不在本笔实施。**证据**：`TESTCASES-069t` 完成区/诊断日志 `.work/log/testcases/TESTCASES-069t-diagnosis.log`。
     **边界**：只登记 ⇒ 未改语料/参考 ✗。
+    〔收口（2026-10-27，`TESTCASES-078t`）〕**参考无需重定，ISS-338 的「参考方差」不成立**：
+    按上游 `RUN_OPTIONS`（只有 `small_problem.dfg`；`-DCLOCK_NO_TIMING`/`-fno-strict-aliasing`）用宿主
+    **gcc 13.3.0** `-O2` 构建**未修改**语料，`md5(stdout+stderr+"exit 0\n") = b0b56c51…`
+    **== 上游 `SPASS.reference_output.small`**；同一构建跑修 UB 后语料仍为 `b0b56c51…`。069t 的
+    `74365d61…` 经复现 = **同一构建多传一个 `-DocProof`**（上游 RUN_OPTIONS 不含），故非参考失效。
+    修 UB 以测试胶水 `tests/tset/llvm-ts/patches/glue/spass_symbol_equal_ptr.patch` 施加到 run 副本
+    （语料 `patchless`），DADAO static+dynamic 两档均 md5 `b0b56c51…` `pass`；宿主 gcc 与目标构建的
+    输出 `sha256` 逐字节相同。证据 `.work/evidence/TESTCASES-078t/run.sh`。
+    **剩余面**：无（`symbol.h:708` 的同形强转在语料内无调用者）。
 - id: ISS-339
   title: "【P3】consumer-typeset：语料未查 catopen 失败 + musl catclose(-1) 无守卫（glibc 返回 EBADF）"
   status: closed

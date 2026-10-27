@@ -63,11 +63,11 @@ INFRA-088t) and is linked in both rounds: complex-arithmetic programs emit
 programs provide.  libc and builtins are wrapped in one lld ``--start-group``
 because they reference each other.
 
-Test glue (TESTCASES-080t): two *declared, per-case, auditable* adaptations
-that live in ``tests/tset/llvm-ts/patches/glue/`` and are applied to the
-per-case run copy only -- the corpus stays ``patchless`` and the target's
-semantics (byte order, ABI) are never changed.  Nothing is relaxed: the oracle
-comparison stays byte-exact / md5-exact.
+Test glue (TESTCASES-080t, extended by TESTCASES-078t): *declared, per-case,
+auditable* adaptations that live in ``tests/tset/llvm-ts/patches/glue/`` and are
+applied to the per-case run copy only -- the corpus stays ``patchless`` and the
+target's semantics (byte order, ABI) are never changed.  Nothing is relaxed: the
+oracle comparison stays byte-exact / md5-exact.
 
 * ``CASE_PRNG_GLUE`` -- ``obsequi`` and ``ft`` build their entire output from
   ``random()`` (obsequi: ``init.c:63`` ``srandom(1)``, ``init.c:66`` seeds the
@@ -95,6 +95,25 @@ comparison stays byte-exact / md5-exact.
   read-back verified), and the driver then re-reads the converted file and
   checks every word's indices against the bounds declared in the case's own
   sources -- so the 65536-word stream is proven in range, not assumed.
+* ``CASE_SOURCE_PATCHES`` (TESTCASES-078t) -- ``SPASS`` and ``lemon`` contain
+  real C undefined behaviour that x86-64/riscv64 hide but the bank-separated
+  ABI exposes (calling ``symbol_Equal(int,int)`` through a
+  ``BOOL(*)(POINTER,POINTER)`` pointer; calling a pointer-parameter function
+  declared with an empty parameter list as ``f(0)``).  Each case's patch is
+  applied to its run copy (dry-run first; every declared file must really
+  change, sha256 before/after recorded), and the *patched run copy* is what
+  gets compiled; the corpus and every other compile line stay byte-identical.
+  A failing or empty patch is ``blocked`` (harness gap), never a silent pass.
+  The patches only restore the prototypes the corpus itself intends:
+  SPASS's comparator calls the original ``symbol_Equal`` after converting the
+  ``POINTER`` payload back to ``SYMBOL``; lemon's prototype makes ``0`` a null
+  pointer argument.  Both references stay reachable and are reproduced
+  independently: a host ``gcc`` build of the *unmodified* corpus gives SPASS
+  ``b0b56c51...`` (``SPASS.reference_output.small``) and lemon
+  ``8c485439...`` (``lemon.reference_output``), and so does the fixed build --
+  the proof is in the TESTCASES-078t evidence run, including the finding that
+  the ``74365d61...`` hash recorded in TESTCASES-069t is the same build run with
+  an extra ``-DocProof`` argument that upstream's RUN_OPTIONS does not pass.
 
 The dynamic round compiles with ``-fPIC`` (documented deviation from "same
 compile section"): without it a user TU that takes the address of a libc.so
@@ -536,6 +555,44 @@ CASE_PRNG_GLUE = {
             "default (glibc: seed 1) state defines the whole graph"),
 }
 
+# Cases whose own source contains undefined behaviour that the bank-separated
+# ABI exposes but x86-64/riscv64 hide (TESTCASES-078t, user ruling 2026-10-27:
+# "A: test-glue patch").  The patch is applied to the per-case run copy only;
+# the corpus stays ``patchless`` and every other compile line stays
+# byte-identical.  ``files`` are the unit-relative paths the patch must change:
+# the driver re-checks each file's sha256 before/after, so an empty or stale
+# patch is a harness error (``blocked``), never a silent pass.  The patched run
+# copy (not the corpus file) is what gets compiled.
+CASE_SOURCE_PATCHES = {
+    "MultiSource/Applications/SPASS": dict(
+        patch="spass_symbol_equal_ptr.patch",
+        files=("cnf.c",),
+        why="cnf.c:2760 passes (BOOL (*)(POINTER,POINTER))symbol_Equal to "
+            "list_Member, but symbol_Equal is BOOL symbol_Equal(SYMBOL,SYMBOL) "
+            "with SYMBOL = int (symbol.h:112/176): calling it through an "
+            "incompatible function type is C11 6.5.2.2p9 undefined behaviour. "
+            "clang passes the POINTER arguments in rb16/rb17 while the "
+            "out-of-line callee reads rd16/rd17, so the free-variable filter "
+            "compares stale values and SPASS later dereferences list_Top(NULL) "
+            "(ISS-338 / TESTCASES-069t).  The patch adds a comparator with the "
+            "prototype list_Member declares and calls the original "
+            "symbol_Equal after converting the POINTER values back to SYMBOL "
+            "(semantics preserved: the list stores symbols as POINTER casts)."),
+    "MultiSource/Applications/lemon": dict(
+        patch="lemon_configtable_clear_prototype.patch",
+        files=("lemon.c",),
+        why="lemon.c:334 declares Configtable_clear with an empty parameter "
+            "list (no prototype) and lemon.c:1132 calls "
+            "Configtable_clear(0) with int 0; the definition "
+            "(lemon.c:4839-4840) takes int(*f)(struct config *).  C11 "
+            "6.5.2.2p6/p8: with no prototype 0 stays int, no pointer is "
+            "formed, and the call is undefined behaviour -- on the "
+            "bank-separated ABI the callee reads a stale pointer (ISS-277). "
+            "The patch restores the prototype the source's own comment "
+            "already spells out, so 0 is converted to a null pointer "
+            "argument."),
+}
+
 # Cases whose data file is a little-endian u32 word stream read by
 # ``fread(..., sizeof(unsigned int), ...)`` on a big-endian target.
 CASE_LE32_INPUTS = {
@@ -715,31 +772,11 @@ CASE_NOTES = {
 # or corpus-level undefined behaviour that only manifests on this ABI; the
 # per-case reason carries the attribution.
 PLATFORM_GAP_SIGNATURES = {
-    "MultiSource/Applications/lemon": (
-        b"Error while running on: ",
-        "corpus undefined behaviour, not a compiler/qemu backend defect: "
-        "lemon.c:334 declares Configtable_clear with an empty parameter list "
-        "(no prototype) and lemon.c:1127-1133 calls it as "
-        "Configtable_clear(0) with an int argument, while lemon.c:4839-4840 "
-        "defines the parameter as int(*f)(struct config *).  C11/N1570 "
-        "6.5.2.2p6: with no prototype only the default argument promotions "
-        "apply, so 0 stays int; the definition's parameter after promotion is "
-        "a pointer, the types are not compatible and neither listed exception "
-        "applies -> undefined behaviour (p8: no other implicit conversions are "
-        "performed, so no pointer is ever formed).  clang faithfully emits "
-        "'call void @Configtable_clear(i32 0)'; the same call through a "
-        "prototype emits 'call void @Configtable_clear(ptr null)' and writes "
-        "rb16 (rd2rb {rb16}, {rd4}), whereas without the prototype the caller "
-        "only does 'set.zw rd16, wp0, 0x0' while Configtable_clear reads f "
-        "from rb16 (rb2rb {rb32}, {rb16}) and therefore calls a stale pointer. "
-        "x86-64 ('xorl %edi,%edi') and riscv64 ('li a0,0') pass int and "
-        "pointer arguments in the same register, so the same undefined "
-        "behaviour happens to work there; only the bank-separated ABI exposes "
-        "it.  The parent then prints 'Error while running on: <input>' for "
-        "every input (that line is the recorded first_error), exits 0 and "
-        "produces no parser, so the md5 oracle cannot be reached.  "
-        "Attribution: corpus UB (ISS-277); not ISS-269/qemu, not QEMU-063t, "
-        "not ISS-267."),
+    # TESTCASES-078t removed lemon's row: its root cause (the missing
+    # Configtable_clear prototype, ISS-277) is now fixed by the declared
+    # ``CASE_SOURCE_PATCHES`` source glue, so the "Error while running on:"
+    # signature can no longer legitimately appear -- if it does, the case must
+    # be a real ``fail``, not a blocked gap.
 }
 
 # Cases whose host-signal death is a known qemu defect (reason pointer).  A
@@ -764,7 +801,9 @@ GUEST_FAULT_NOTES = {
         "x86-64, where ints and pointers share one register file, completes; "
         "both -O0 and -O2 DADAO builds diverge identically).  Same class as "
         "lemon/ISS-277; guest SIGSEGV at list_Top(NULL) is the symptom, not "
-        "the cause.",
+        "the cause.  TESTCASES-078t fixes this UB through the declared "
+        "``CASE_SOURCE_PATCHES`` glue (``cnf.c`` comparator wrapper); a guest "
+        "fault seen from now on is a different defect.",
     "MultiSource/Benchmarks/MiBench/consumer-typeset":
         "corpus does not check catopen() failure: z01.c:229 stores the result "
         "in MsgCat and z01.c:856 calls catclose(MsgCat) unconditionally.  The "
@@ -1757,6 +1796,61 @@ def copy_unit_tree(case: Case, run_dir: str):
     shutil.copytree(case.unit_dir, run_dir)
 
 
+def sha256_file(path: str) -> str:
+    with open(path, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
+def apply_source_patches(case: Case, run_dir: str):
+    """Apply the declared per-case source patch to the run copy.
+
+    Returns ``(ok, reason, info)``.  The patch is first dry-run, then applied,
+    and every file the declaration names must actually change (sha256 before
+    != after) -- so a stale/empty patch is a harness gap (``blocked``), never a
+    silent no-op that would let the old undefined behaviour through.  ``info``
+    carries the patch's sha256 and per-file hashes for the run record.
+    """
+    entry = CASE_SOURCE_PATCHES.get(case.cid)
+    if not entry:
+        return True, "", None
+    patch_path = os.path.join(GLUE_DIR, entry["patch"])
+    # The declaration must match what the patch actually touches, otherwise a
+    # hunk on an undeclared file would be applied but never compiled.
+    patch_files = set()
+    with open(patch_path, encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("+++ b/"):
+                patch_files.add(line[len("+++ b/"):].strip())
+    if patch_files != set(entry["files"]):
+        return False, (f"test glue declaration {sorted(entry['files'])} != "
+                       f"patch files {sorted(patch_files)} "
+                       f"({entry['patch']})"), None
+    before = {rel: sha256_file(os.path.join(run_dir, rel))
+              for rel in entry["files"]}
+    base = ["patch", "--batch", "--forward", "-p1", "-d", run_dir,
+            "-i", patch_path]
+    for dry in (True, False):
+        cmd = base + (["--dry-run"] if dry else [])
+        rc, out, err_b, timed = run_bytes(cmd, timeout=BUILD_TIMEOUT,
+                                          cwd=run_dir)
+        detail = (out + err_b).decode("utf-8", errors="replace").strip()
+        if timed or rc != 0:
+            return False, (f"test glue source patch "
+                           f"{'dry-run ' if dry else ''}failed "
+                           f"(rc={rc} on {entry['patch']}): {detail[:240]}"), None
+    after = {rel: sha256_file(os.path.join(run_dir, rel))
+             for rel in entry["files"]}
+    unchanged = sorted(rel for rel in entry["files"] if before[rel] == after[rel])
+    if unchanged:
+        return False, (f"test glue source patch did not change declared "
+                       f"file(s) {unchanged} ({entry['patch']})"), None
+    info = dict(patch=entry["patch"],
+                patch_sha256=sha256_file(patch_path),
+                files={rel: dict(before=before[rel], after=after[rel])
+                       for rel in entry["files"]})
+    return True, "", info
+
+
 def platform_gap_reason(case: Case, actual_doc: bytes):
     """Declared run-completion gap whose live signature is present, if any.
 
@@ -1914,6 +2008,27 @@ def _build_and_run(case: Case, cfg, work_dir):
         case.reason = f"work-tree setup failed: {exc}"
         return case
 
+    # Test glue (TESTCASES-078t): declared per-case source patches applied to
+    # the run copy only.  The corpus stays patchless; the patched run copy is
+    # what gets compiled, and a patch that fails or changes nothing makes the
+    # case ``blocked`` (a harness gap, not a program verdict).
+    patch_ok, patch_reason, patch_info = apply_source_patches(case, run_dir)
+    if not patch_ok:
+        case.klass = "blocked"
+        case.reason = patch_reason
+        return case
+    patched_files = set()
+    if patch_info:
+        patched_files = set(CASE_SOURCE_PATCHES[case.cid]["files"])
+        case.notes.append(
+            "test glue: source patch "
+            f"{patch_info['patch']} (sha256 "
+            f"{patch_info['patch_sha256'][:16]}...) applied to the run copy: "
+            + ", ".join(f"{rel} {info['before'][:12]} -> "
+                        f"{info['after'][:12]}"
+                        for rel, info in patch_info["files"].items())
+            + f"; {CASE_SOURCE_PATCHES[case.cid]['why']}")
+
     # ISS-276: a path the program names in its *config file* never appears in
     # RUN_OPTIONS, so the scan below cannot see it; CASE_PREPARE_DIRS holds
     # the explicit list.  Creating the directory changes no expectation -- the
@@ -2010,7 +2125,12 @@ def _build_and_run(case: Case, cfg, work_dir):
     for idx, src in enumerate(case.sources):
         obj = os.path.join(objdir, f"{idx:03d}_"
                                    f"{os.path.splitext(os.path.basename(src))[0]}.o")
-        cmd = [cfg["clang"]] + flags + ["-c", src, "-o", obj]
+        compile_src = src
+        rel = os.path.relpath(src, case.unit_dir).replace(os.sep, "/")
+        if rel in patched_files:
+            # TESTCASES-078t: compile the patched run copy, not the corpus.
+            compile_src = os.path.join(run_dir, rel)
+        cmd = [cfg["clang"]] + flags + ["-c", compile_src, "-o", obj]
         case.compile_cmds.append(cmd)
         rc, _out, err_b, timed = run_bytes(cmd, timeout=BUILD_TIMEOUT,
                                           cwd=run_dir)
@@ -2683,7 +2803,8 @@ def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
     emit(f"  known-fail admission: {', '.join(sorted(KNOWN_FAIL_BASES))} "
          f"(per-case evidence recomputed live)")
     emit(f"  test glue: PRNG {sorted(CASE_PRNG_GLUE)}; LE32 input "
-         f"{sorted(CASE_LE32_INPUTS)} (declared per case, corpus patchless; "
+         f"{sorted(CASE_LE32_INPUTS)}; source patch "
+         f"{sorted(CASE_SOURCE_PATCHES)} (declared per case, corpus patchless; "
          f"applied to the run copy / link line only)")
     emit(f"  tolerance comparison: "
          + (f"upstream fpcmp at {cfg['fpcmp']}"
@@ -2769,6 +2890,7 @@ def write_artifacts(cfg, cases, results, counts, audit, census, args,
                   known_fail_bases=KNOWN_FAIL_BASES,
                   test_glue=dict(prng_glue=sorted(CASE_PRNG_GLUE),
                                  le32_inputs=sorted(CASE_LE32_INPUTS),
+                                 source_patches=sorted(CASE_SOURCE_PATCHES),
                                  dir=os.path.relpath(GLUE_DIR, REPO_ROOT)),
                   filtered=bool(args.only or args.limit is not None),
                   cases=[r.as_dict(mode) for r in results])
@@ -2875,6 +2997,10 @@ def main() -> int:
             require_file(os.path.join(GLUE_DIR, name), "test glue source")
         require_file(os.path.join(GLUE_DIR, "le32_to_be32.py"),
                      "test glue input script")
+        for entry in sorted(CASE_SOURCE_PATCHES.values(),
+                            key=lambda row: row["patch"]):
+            require_file(os.path.join(GLUE_DIR, entry["patch"]),
+                         "test glue source patch")
         # compiler-rt builtins: the same archive clang's driver would add
         # (INFRA-088t's installed toolchain), queried rather than guessed.
         b_rc, b_out, b_err, b_timed = run_bytes(
