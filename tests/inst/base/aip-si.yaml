@@ -13,7 +13,7 @@
 # 语义（真源 SimRISC-05 §1.4）：`rbHA = IP + (sign_extend(imms18) << 12)`；
 #   `IP` = **该指令自身地址**（不清低位，非下一条；本 ISA 无 ±4 流水偏移）；`imms18` **有符号**、
 #   单位为 **4 KiB 块**（`<<12`、无 `<<2`）；可寻址 ±512 MiB；目的 `rb0` ⇒ **ILLI**（`dst_rb0`）。
-# L3 期望值的 host 侧派生（harness 布局，真源 `tests/scripts/build_test_binary.py`）：
+# L3 期望值的 host 侧派生（harness 布局，真源 `tools/testcases/lib/build_test_binary.py`）：
 #   kernel 装载于 `BINARY_BASE = 0xFC00_0000_0000`，测试指令紧接 loader 段之后
 #   ⇒ `input_state` 为空时 loader 段 0 字，指令地址 IP = `BINARY_BASE`；
 #     带 `rb` 预置时 IP = `BINARY_BASE + 4 * loader_words`（如 `rb2 = 0x1` ⇒ loader 1 字 ⇒ IP = `…0004`）。

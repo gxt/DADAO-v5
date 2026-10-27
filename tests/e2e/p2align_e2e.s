@@ -1,7 +1,7 @@
 @@ p2align_e2e.s -- LLVM-075t (ISS-182) end-to-end vector.
 @@
 @@ A `.text`-internal `.p2align` is assembled and linked with the freestanding
-@@ crt0 (`tests/scripts/codegen_crt0.s`) by ld.lld, then run on qemu-system-dadao.
+@@ crt0 (`tests/shared/crt0/codegen_crt0.s`) by ld.lld, then run on qemu-system-dadao.
 @@ crt0 calls `main` and reports the returned value (rd8) through the semihosting
 @@ SYS_EXIT service; the guest process exit code is main's low byte.
 @@

@@ -1,7 +1,7 @@
 /* setcc_e2e.c — M6 integer compare-as-value end-to-end program (LLVM-069t).
  *
  * Freestanding (no libc): crt0 reports the `main` return value as the guest
- * exit code (tests/scripts/codegen_crt0.s, contract-semihosting.md §3).
+ * exit code (tests/shared/crt0/codegen_crt0.s, contract-semihosting.md §3).
  *
  * Every helper returns the *value* of a comparison (C `a == b`, `a < b`,
  * `!x`, `&&`), so the backend must lower an integer SETCC used as a value

@@ -16,7 +16,7 @@
  * values follow from IEEE-754 / two's-complement semantics -- they are not
  * read back from llc.
  *
- * The companion codegen vectors in tests/llvm/lit/CodeGen/DADAO/p0-*.ll pin the
+ * The companion codegen vectors in tests/unit/llvm/lit/CodeGen/DADAO/p0-*.ll pin the
  * exact instructions; this test pins the runtime behaviour.
  */
 

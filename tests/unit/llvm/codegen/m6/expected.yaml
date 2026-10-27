@@ -5,12 +5,12 @@
 #
 # This is the **independent M6 manifest**, kept in its own directory (like
 # tests/unit/llvm/codegen/m4/ and m5/) so the M3 driver
-# (tools/integ/run_codegen_e2e.py, whose default manifest is
+# (tools/testcases/unit/run_codegen_e2e.py, whose default manifest is
 # tests/unit/llvm/codegen/expected.yaml) never picks these programs up.  The M6
 # raw-bin programs are run by reusing that same driver with an explicit
 # manifest:
 #
-#   python3 tools/integ/run_codegen_e2e.py \
+#   python3 tools/testcases/unit/run_codegen_e2e.py \
 #       --vectors-dir tests/unit/llvm/codegen/m6 \
 #       --expected    tests/unit/llvm/codegen/m6/expected.yaml \
 #       --work-dir    .dadao/tests/codegen-m6
@@ -18,11 +18,11 @@
 # The ELF-only program (m6_indirect_call.ll, which needs the linker to resolve
 # an R_DADAO_ABS48 function-pointer address and therefore cannot use the
 # flat-binary flow) lives in tests/unit/llvm/codegen/m6/expected-elf.yaml and is run
-# with tools/integ/run_elf_e2e.py against that manifest.
+# with tools/testcases/unit/run_elf_e2e.py against that manifest.
 #
 # Entry / exit channel (frozen by the M3 gate, ADR-0004 D3 superseded by
 # ADR-0020 D8): every program defines `define i64 @main()`; the crt0 `_start`
-# stub (tests/scripts/codegen_crt0.s) calls it, reports the returned value from
+# stub (tests/shared/crt0/codegen_crt0.s) calls it, reports the returned value from
 # rd8 (contract-abi.md §6.1, SPEC-124t) through the semihosting SYS_EXIT
 # service, then halts.  The guest process exit code is the low byte of that
 # value, constrained to 0x00..0x7F so it can never collide with a machine-fault

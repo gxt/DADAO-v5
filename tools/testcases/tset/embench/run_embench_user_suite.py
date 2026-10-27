@@ -25,7 +25,7 @@ Pipeline per (benchmark, optimisation level)::
     qemu-dadao -L <guest-root> <b>.elf
 
 Base address (ISS-247): the link line carries **no** ``-T``/linker script, so
-lld's default base is used.  ``tests/scripts/dadao.lds`` (``RAM ORIGIN =
+lld's default base is used.  ``tests/shared/linker/dadao.lds`` (``RAM ORIGIN =
 0xFC00_0000_0000``) cannot be loaded by ``qemu-user`` on this 47-bit host VA
 (``Unable to find a guest_base ...``).  The driver records the link command and
 the minimum ``PT_LOAD`` virtual address of every produced ELF and refuses an
@@ -141,7 +141,7 @@ FAULT_NAMES = {
     0x8B: "RASUF", 0x8C: "MALIGN", 0x8D: "IALIGN",
 }
 
-# The scripted base of tests/scripts/dadao.lds (ISS-247) -- an image linked
+# The scripted base of tests/shared/linker/dadao.lds (ISS-247) -- an image linked
 # there cannot be loaded by qemu-user on this host and is rejected here.
 SCRIPTED_BASE = 0xFC0000000000
 

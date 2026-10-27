@@ -1,6 +1,6 @@
 /* mcmodel_far.lds -- far code-layout link script (LLVM-131t; ADR-0036 D1/D5).
  *
- * Same RAM base as tests/scripts/dadao.lds, but the `.far` output section is
+ * Same RAM base as tests/shared/linker/dadao.lds, but the `.far` output section is
  * placed 64 MiB above `.text` instead of in the 16 MiB RAM window.  The two
  * code regions are therefore 64 MiB apart: far beyond the +/-32 MiB reach of a
  * direct `call`/`jump` (R_DADAO_REL26, 24-bit word offset), so

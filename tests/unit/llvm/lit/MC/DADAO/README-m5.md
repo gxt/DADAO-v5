@@ -2,7 +2,8 @@
 
 > `TESTCASES-073t`（2026-10-27）：L3 执行向量已由 `tests/unit/llvm/codegen/m5/`（旧路径，现为符号链接）
 > 迁至 `tests/arch/umon/`；驱动迁至 `tools/testcases/arch/run_m5_e2e.py`
-> （旧路径 `tools/integ/` 留 wrapper），门控 `make test-semihost` → `make check-arch-smoke`（别名保留）。
+> （迁移期旧路径薄 wrapper 已于 `TESTCASES-076t` 删除），门控 `make check-arch-smoke`（L2）/
+> `make check-arch`（L3）；旧名 `test-semihost` 已于 P6 删除。
 
 > 任务：`TESTCASES-033t`（SEE/HEE + semihosting 向量：L1 MC 编码/往返 + L3 执行；独立 oracle）。
 > 规范：`docs/Process-05-里程碑TDD规范.md §2`（L1/L2/L3）、`§3`（一能力一向量）、

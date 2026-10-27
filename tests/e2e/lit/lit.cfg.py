@@ -84,16 +84,19 @@ config.substitutions.append(("%qemu", os.path.abspath(qemu_bin)))
 # host toolchain bin as llvm-mc (ADR-0016 D9).
 config.substitutions.append(("%ld", os.path.abspath(os.path.join(tools_dir, "ld.lld"))))
 
-# Locate trampoline.bin: <repo>/tests/scripts/trampoline.bin
-trampoline = os.path.normpath(os.path.join(here, '..', '..', 'scripts',
+# Locate trampoline.bin: <repo>/tools/testcases/lib/trampoline.bin
+# (TESTCASES-076t: 旧薄 wrapper 区已删除，共享夹具落在 tests/shared/ 与
+#  tools/testcases/lib/)
+trampoline = os.path.normpath(os.path.join(here, '..', '..', '..',
+                                           'tools', 'testcases', 'lib',
                                            'trampoline.bin'))
 config.substitutions.append(("%trampoline", trampoline))
 
 # Locate the freestanding crt0 + linker script used by the linked-ELF E2E
-# pipeline: <repo>/tests/scripts/{codegen_crt0.s,dadao.lds}.
-scripts_dir = os.path.normpath(os.path.join(here, '..', '..', 'scripts'))
-config.substitutions.append(("%crt0", os.path.join(scripts_dir, "codegen_crt0.s")))
-config.substitutions.append(("%linker_script", os.path.join(scripts_dir, "dadao.lds")))
+# pipeline: <repo>/tests/shared/{crt0/codegen_crt0.s,linker/dadao.lds}.
+shared_dir = os.path.normpath(os.path.join(here, '..', '..', 'shared'))
+config.substitutions.append(("%crt0", os.path.join(shared_dir, "crt0", "codegen_crt0.s")))
+config.substitutions.append(("%linker_script", os.path.join(shared_dir, "linker", "dadao.lds")))
 
 # Locate e2e source directory: <repo>/tests/e2e/ (this config lives in
 # tests/e2e/lit/, so the source dir is its parent).

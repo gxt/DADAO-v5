@@ -1,7 +1,7 @@
 /* i1_load_e2e.c — LLVM-077t (M6, ISS-186) end-to-end vector.
  *
  * Freestanding (no libc): crt0 reports `main`'s return value as the guest exit
- * code (low byte; tests/scripts/codegen_crt0.s, contract-semihosting.md §3).
+ * code (low byte; tests/shared/crt0/codegen_crt0.s, contract-semihosting.md §3).
  *
  * Reproduces the ISS-186 shape end to end.  A static global with exactly two
  * stored values (its zero initializer and one constant written by a `noinline`

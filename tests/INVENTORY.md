@@ -3,18 +3,22 @@
 > **生成**：`TESTCASES-067t`（2026-10-26）｜**只读盘点**：本册未移动/改写任何测试、工具、Makefile。
 > **迁移后状态（2026-10-27，`TESTCASES-072t`）**：inst 向量/探针/harness 已搬家 ——
 > `tests/vectors/*` → `tests/inst/<ext>/`（`isa` → `base`）、`tests/{atomics,clmul,fma,minmax,roundint}/`
-> → `tests/inst/<ext>/`、harness → `tools/testcases/{lib,inst}/`（`tests/scripts/` 留薄 wrapper）。
-> **P3 arch（2026-10-27，`TESTCASES-073t`）**：`tests/llvm/codegen/m5/` → `tests/arch/umon/`、
+> → `tests/inst/<ext>/`、harness → `tools/testcases/{lib,inst}/`（`tests/scripts/` 留薄 wrapper，P6 已删除）。
+> **P3 arch（2026-10-27，`TESTCASES-073t`）**：`tests/unit/llvm/codegen/m5/` → `tests/arch/umon/`、
 > `tools/qemu/min_rom_probe_*` → `tools/testcases/arch/`（旧路径留 wrapper）、bootrom 三件 →
 > `tests/shared/bootrom/`（旧路径为符号链接）；门控 `test-semihost` → `check-arch-smoke`（别名保留）。
-> **P4 unit（2026-10-27，`TESTCASES-074t`）**：`tests/llvm/{lit,codegen,ir-lli}` →
+> **P4 unit（2026-10-27，`TESTCASES-074t`）**：`tests/unit/llvm/{lit,codegen,ir-lli}` →
 > `tests/unit/llvm/`（旧路径为符号链接）；picolibc 自测入口 → `tests/unit/picolibc/`
 > （仍只在 picolibc 构建下跑）；门控收拢为 `check-unit`（L2），旧目标名保留。
 > **P5 tset（2026-10-27，`TESTCASES-075t`）**：三个 user-mode 套件驱动 →
 > `tools/testcases/tset/{libc-test,llvm-ts,embench}/`（旧扁平路径留薄 wrapper）；
-> Embench 套件 glue → `tests/tset/embench/`（`tests/scripts/` 留符号链接）；门控
+> Embench 套件 glue → `tests/tset/embench/`（`tests/scripts/` 留符号链接，P6 已删除）；门控
 > `check-tset-{libc,llvm,embench}-smoke`（L2）。
-> **下文 §2/§3 的路径与计数是迁移前快照**；最新布局与入口见 `tests/README.md`。
+> **P6 收口（2026-10-27，`TESTCASES-076t`）**：`tests/scripts/`、`tests/qemu/` 已删除；共享
+> glue → `tests/shared/{crt0,linker,runtime}/`；集成驱动 → `tools/testcases/{unit,tset}/` +
+> `tools/infra/`；旧 Make 目标名已删。
+> **下文 §1/§2/§3/§8 的路径与计数是迁移前快照**（067t 口径）；**P6 后的现场值**见本节末
+> 「P6 现场复核」；最新布局与入口见 `tests/README.md`。
 > **计数口径**：全部由命令现场统计（不含 `.git`、`.work`、`.cache`）；「文件数」= `find … -type f` 的**磁盘**文件（含被 `.gitignore` 忽略的 `__pycache__/*.pyc`）；「入库」另列 `git ls-files` 计数。
 > **机器可核**：文末「计数锚点」块由 `.work/evidence/TESTCASES-067t/run.sh` 现场重算逐项比对；测试一改，锚点必须同步，否则证据脚本红。
 > **层级**（本盘点用；正式定义见 `docs/Process-09-测试组织规范.md` §3.1）：**I** 指令级 · **S** 系统级 · **E** 端到端 · **U** 工具单测。
@@ -26,9 +30,9 @@
 
 | 项 | 值 |
 |---|---|
-| `tests/` 文件总数 | **341**（入库 **332**；差 9 = 9 个 `.pyc`，见 §7.5） |
-| `tests/` 体积 | 2,064,062 B（`du -sb`；含本册两份文档） |
-| `tests/` 顶层项 | **13** = 10 个目录 + 3 个文件（`case-ledger.tsv` + 本册 `INVENTORY.md`/`README.md`）；迁移前为 11 |
+| `tests/` 文件总数 | **341**（迁移前快照；P6 后 343，见「P6 现场复核」） |
+| `tests/` 体积 | 2,064,062 B（`du -sb`；迁移前快照） |
+| `tests/` 顶层项 | **13**（迁移前快照；P6 后 14 = 7 目录 + 7 文件） |
 | `.dadao/tests/` | **19,967** 文件 / **1,132,542,115 B**（`du -sh` 显示 1.2 G） |
 | `.dadao/tests/` 子目录 | **18**（1 个空目录 `probes/`） |
 | 运行目录（`YYYYMMDDTHHMMSSZ-<suite>-<档>`） | **144**（libc-test-user 118 / llvm-ts-user 20 / embench-user 6） |
@@ -51,10 +55,10 @@
 | `e2e/` | 45（44） | 14 个 lit E2E（`.test`）+ 29 个 C/asm 源（含 9 个无 runner 引用，§7.4） | E | `check-lit`（跑 `lit/`） | 自动（9 个源已死，§7.4） | 编译→链接→运行整体链路 |
 | `scripts/` | 30（24） | 共享 harness：向量→二进制构建、QEMU 单例/批量运行、冒烟驱动、bootrom/lds/crt0、dump 校验 | U（+I/S 载体） | 被 `check-qemu-*`、`test-codegen/elf/semihost`、`semantics_gate.py` 调用 | 自动（含手工 CLI） | harness 自身正确性、测试机约定 |
 | `atomics/` | 5（5） | C11/`__atomic`/LR-SC 并发探针源（5 个 C） | I | **无 make 目标**（§5.3） | 手工 | 原子内建、互斥、ABA、`a_barrier` |
-| `clmul/` | 4（4） | clmul 边界/GHASH/CRC-32C 探针 + IR | I | `check-clmul-probe`(L2) | 自动 | `clmul.o`、GHASH、CRC-32C |
-| `fma/` | 4（4） | FMA 单次舍入/点积/GEMM/Horner 探针 + 公共头 | I | `check-fma-probe`(L2) | 自动 | `ftfma`/`fofma` |
-| `minmax/` | 4（4） | min/max NaN/±0/rounding 矩阵探针 | I | `check-minmax-probe`(L2) | 自动 | `ftmin/ftmax/fomin/fomax` |
-| `roundint/` | 4（4） | `ftrnd/fornd` 六模式/标志/`rf0` 探针 | I | `check-rnd-probe`(L2) | 自动 | roundToIntegral |
+| `clmul/` | 4（4） | clmul 边界/GHASH/CRC-32C 探针 + IR | I | `check-clmul-probe`(L3) | 自动 | `clmul.o`、GHASH、CRC-32C |
+| `fma/` | 4（4） | FMA 单次舍入/点积/GEMM/Horner 探针 + 公共头 | I | `check-fma-probe`(L3) | 自动 | `ftfma`/`fofma` |
+| `minmax/` | 4（4） | min/max NaN/±0/rounding 矩阵探针 | I | `check-minmax-probe`(L3) | 自动 | `ftmin/ftmax/fomin/fomax` |
+| `roundint/` | 4（4） | `ftrnd/fornd` 六模式/标志/`rf0` 探针 | I | `check-rnd-probe`(L3) | 自动 | roundToIntegral |
 | `qemu/` | 1（1） | 占位 README（QEMU 组件测试落点，暂无内容） | — | 无 | — | — |
 | `case-ledger.tsv` | 1（1） | 逐条身份清单（生成物，`--write` 重生成） | — | `check-case-ledger`(L1) | 自动 | 删用例/pattern 的哨兵 |
 
@@ -80,7 +84,7 @@
 
 分类计数（现场 `class:` 字段）：semantic 595 / boundary 377 / legality 276 / encoding 187 / overlap 21；`status`：active 1,451 / deferred 5。
 
-### 3.2 `tests/llvm/`（216，入库 214）
+### 3.2 `tests/unit/llvm/`（216，入库 214）
 
 | 子项 | 文件数 | 内容 | 门控 |
 |---|---|---|---|
@@ -99,15 +103,14 @@
 - `lit/`：14 个 `.test` / 96 条 RUN + `lit.cfg.py`；覆盖 smoke（add/arith/jump/fp）、FP p0/p1、FMA、clmul builtin、weak/undef、narrow-int、p2align、CM 模型、clang target。
 - 顶层 29 个源：`.c` 24 / `.s` 4 / `.lds` 1；其中 **20 个被 `.test` 引用**、**9 个无 runner 引用**（§7.4）。
 
-### 3.4 `tests/scripts/`（P5 后：薄 wrapper / 符号链接 + 共享件）
+### 3.4 `tests/scripts/`（**P6 已删除**；此处只留去向）
 
-| 类 | 文件 |
+| 原内容 | P6 后去向 |
 |---|---|
-| 运行/构建 harness（6） | `build_test_binary.py`、`run_qemu_test.py`、`run_qemu_smoke.py`、`verify_harness_dump.py`、`test_harness_exit_path.py`、`gen_trampoline.py`（均为薄 wrapper → `tools/testcases/{lib,inst}/`） |
-| 测试机夹具（7） | `bootrom.S`、`bootrom_app.S`、`bootrom.lds`（符号链接 → `tests/shared/bootrom/`）、`trampoline.bin`（符号链接）、`codegen_crt0.s`、`dadao.lds`、`dadao-dyn.lds` |
-| 运行时辅助（2） | `dadao_mem_runtime.ll`（共享）、`dadao_user_dyn_probe.c` |
-| Embench 套件 glue（3） | `embench_runtime.c`、`embench_user_boardsupport.c`、`embench_include/`（均为符号链接 → `tests/tset/embench/`） |
-| 文档（1）+ 缓存（6） | `README.md`、`__pycache__/*.pyc` |
+| 运行/构建 harness（6：`build_test_binary`/`run_qemu_test`/`run_qemu_smoke`/`verify_harness_dump`/`test_harness_exit_path`/`gen_trampoline`） | `tools/testcases/{lib,inst}/`（迁移期薄 wrapper 已删） |
+| 测试机夹具（bootrom 三件、`trampoline.bin`、`codegen_crt0.s`、`dadao.lds`、`dadao-dyn.lds`） | `tests/shared/bootrom/`、`tools/testcases/lib/trampoline.bin`、`tests/shared/{crt0,linker}/` |
+| 运行时辅助（`dadao_mem_runtime.ll`、`dadao_user_dyn_probe.c`） | `tests/shared/runtime/` |
+| Embench 套件 glue（`embench_runtime.c`/`embench_user_boardsupport.c`/`embench_include/`） | `tests/tset/embench/` |
 
 ### 3.5 `tests/tset/`（P5 后）
 
@@ -151,14 +154,15 @@
 
 ## 5. 现有 make 测试目标
 
-### 5.1 分层成员（真源 `Makefile`）
+### 5.1 分层成员（真源 `Makefile`；P6 重写后）
 
 | 层 | 目标 |
 |---|---|
-| L1 `make check` | `validate-vectors`、`check-case-ledger`、`check-isa-coverage`、`check-qemu-forms`、`check-decodetree-repro`、`check-run-artifacts`；另有 `check-syscall-abi`、`check-instrinfo` 等非测试资产类检查 |
-| L2 `make check-modules` | `check-interface`、`check-lit`、`check-qemu-smoke`、`test-codegen`、`test-elf`、`test-semihost`、`check-picolibc-tests`、`check-rnd-probe`、`check-minmax-probe`、`check-fma-probe`、`check-clmul-probe`、`check-code-range` |
-| L3 `make check-full` | `check-qemu-semantics`、`test-m6`（内含 `check-lit-full`） |
-| 按需 / opt-in | `check-lit-full`、`check-picolibc-tests-full`、`check-testcases-suites`、`check-testcases-suites-full`、`test-picolibc-smoke`、`build-bootrom`、`check-milestone`、`check-install-tools` |
+| L1 `make check` | 仓库完整性静态检查 + 组件可用性冒烟；P6 起含 `check-interface`（跨模块静态一致性）与 `check-code-range`（合成 fixture 自检） |
+| L2 `make check-modules` | 四 scope **smoke**：`check-inst-smoke`、`check-arch-smoke`、`check-unit`、`check-tset-{libc,llvm,embench}-smoke`（**不含** FP 探针） |
+| L3 `make check-full` | 四 scope 全量：`check-inst`、`check-arch`、`check-unit-full`（= `check-unit` + `check-lit-full`）、`check-tset-{libc,llvm,embench}-smoke`、4 个 **FP 探针**、`test-m6` |
+| 夜跑（小时级） | `check-night`（tset full×3 + 长 arch）→ 报告 `.dadao/tests/night/<date>/`；`check-night-report` 由 `check-milestone` 消费 |
+| 按需 / opt-in | `check-lit-full`、`check-picolibc-tests-full`、`check-testcases-suites(-full)`、`test-picolibc-smoke`、`build-bootrom`、`check-milestone`、`check-install-tools`、`clean-tests`、`test-repro` |
 
 ### 5.2 逐目标（跑什么 / 产物去哪 / 日志）
 
@@ -177,10 +181,10 @@
 | `check-arch` | L3 | `check-arch-smoke` + cfx min-ROM 探针 044/045/049 | 同上 | `.work/log/arch/check-arch*.log` |
 | `test-semihost` | 别名 | → `check-arch-smoke`（旧前置 `test-elf`/`test-codegen`/`check` 保留） | 同上 | 同上 |
 | `test-m6` | L3 | lit-full + ir-lli 19 + Embench 38 | `ir-lli-diff`、`m6-embench` | `.work/log/integ/test-m6-*.log` |
-| `check-rnd-probe` | L2 | 785 例 × O0/O2 | `/tmp`+`--json-out` | `.work/log/testcases/TESTCASES-060t-*.{log,json}` |
-| `check-minmax-probe` | L2 | 3,102 例 × O0/O2 | 同上 | `TESTCASES-059t-*` |
-| `check-fma-probe` | L2 | 626 例 × O0/O2 | 同上 | `TESTCASES-058t-*` |
-| `check-clmul-probe` | L2 | 627 例 × O0/O2 | 同上 | `TESTCASES-057t-*` |
+| `check-rnd-probe` | L3 | 785 例 × O0/O2 | `/tmp`+`--json-out` | `.work/log/testcases/TESTCASES-060t-*.{log,json}` |
+| `check-minmax-probe` | L3 | 3,102 例 × O0/O2 | 同上 | `TESTCASES-059t-*` |
+| `check-fma-probe` | L3 | 626 例 × O0/O2 | 同上 | `TESTCASES-058t-*` |
+| `check-clmul-probe` | L3 | 627 例 × O0/O2 | 同上 | `TESTCASES-057t-*` |
 | `check-picolibc-tests` | L2 | fast 档 20（18 pass / 2 excluded） | `.work/build/picolibc*` | stdout |
 | `check-picolibc-tests-full` | opt | full 档 235（209 pass / 1 fail / 22 excluded / 3 blocked，最近日志） | 同上 | stdout |
 | `check-testcases-suites` | opt | libc-test + llvm-test-suite fast 子集 | `.work/log/testcases/runs/fast.json` | stdout |
@@ -195,10 +199,10 @@
 | 资产 | 现状 |
 |---|---|
 | `tests/atomics/*.c` + `run_atomics_probe.py` | 无 make 目标；手工跑最近 711/711（两档） |
-| `tests/llvm/codegen/m6/*`（8 程序） | 无 make 目标，仅 README 手工命令 |
+| `tests/unit/llvm/codegen/m6/*`（8 程序） | 无 make 目标，仅 README 手工命令 |
 | `tests/inst/{rev,bitcnt}`（476 例） | 不在 L2/L3 载体集（`inventory.md` 明示） |
-| `tests/llvm/lit/tools/DADAO/` | 占位，无测试 |
-| `tools/testcases/lib/test_harness_exit_path.py`（旧路径 `tests/scripts/` 为 wrapper） | 单测 5/5 通过，但**不在任何门控** |
+| `tests/unit/llvm/lit/tools/DADAO/` | 占位，无测试 |
+| `tools/testcases/lib/test_harness_exit_path.py`（迁移期旧路径 wrapper 已删除） | 单测 5/5 通过，但**不在任何门控** |
 | `tools/testcases/lib/verify_harness_dump.py`（旧路径 wrapper） | 手工工具，无门控 |
 | `tools/llvm/test_m1_asm.py`、`test_encoding_oracle.py`、`tools/testcases/test_anti_forgery_008t.py` | 单测脚本，**不在任何门控**（`grep` Makefile 无命中） |
 | `tests/e2e/*.c`（9 个） | 仅被归档任务书/changelog 引用，无 runner |
@@ -209,7 +213,7 @@
 
 - **指令身份覆盖**：`contracts/opcodes.yaml` 共 **266** 身份；向量覆盖 **193**（`m1` 152/156、`m9` 34/34、`m8` 7/7）。未覆盖：`fp` 66、`m1` cfx 4（`cfx2rc`/`cfx2rd`/`escape`/`trap`，`deferred TESTCASES-033t`）、`excluded` 2、`m3` 1（`sub.o_orrr_dbb`，由 CodeGen lit 覆盖）。
 - **cfx**：`inventory.md:172-175` 明示 4 个 cfx 身份 deferred；`misc.yaml` 仅 2 例。
-- **fp**：66 个 `fp` 身份**无向量**，语义由 lit CodeGen + `check-{fma,minmax,rnd,clmul}-probe` 承担 ⇒ 覆盖信息分散在 3 处（`inventory.md`、`llvm-isa-backend-matrix.tsv`、各 probe 日志），**无单一覆盖矩阵**（用户痛点的直接原因）。
+- **fp**：66 个 `fp` 身份**无向量**，语义由 lit CodeGen + `check-{fma,minmax,rnd,clmul}-probe`（L3）承担 ⇒ 覆盖信息分散在 3 处（`inventory.md`、`llvm-isa-backend-matrix.tsv`、各 probe 日志），**无单一覆盖矩阵**（用户痛点的直接原因）。
 - **lit pattern 覆盖**：`case-ledger.tsv` 守护 500 条 `@@ OBJ:` pattern。
 - **门控载体**：`check-qemu-semantics` 20 册（`isa` 16 + `rol` + `atomics` ×2 + `clmul`），`rev`/`bitcnt` 未纳入。
 
@@ -217,9 +221,9 @@
 
 ## 7. 已知问题清单（供重组方案决策；本册不修）
 
-1. **职责重叠**：顶层 `atomics/`、`clmul/`（探针源）与 `vectors/atomics/`、`vectors/clmul/`（向量）同名不同物；`tests/llvm/codegen`（执行程序）与 `tests/llvm/lit/CodeGen`（结构断言）也易混。
+1. **职责重叠**：顶层 `atomics/`、`clmul/`（探针源）与 `vectors/atomics/`、`vectors/clmul/`（向量）同名不同物；`tests/unit/llvm/codegen`（执行程序）与 `tests/unit/llvm/lit/CodeGen`（结构断言）也易混。
 2. **无统一入口**：仓库没有「列出全部用例 / 按 ID 跑一个用例」的 runner；入口 = §5.2 的 21 个目标 + 手工 README 命令。
-3. **m6 执行向量无门控**：`tests/llvm/codegen/m6` 8 程序只能手工跑；`codegen-m6/`、`elf-m6/` 为手工产物目录。
+3. **m6 执行向量无门控**：`tests/unit/llvm/codegen/m6` 8 程序只能手工跑；`codegen-m6/`、`elf-m6/` 为手工产物目录。
 4. **9 个 e2e 源无 runner**：`fp_codegen.c`、`fp_hfa.c`、`i1_load_e2e.c`、`large_const_cmp_e2e.c`、`mulhi_e2e.c`、`selectcc_e2e.c`、`setcc_e2e.c`、`smulhi_e2e.c`、`switch_jt_e2e.c`（仅归档任务书引用）。
 5. **9 个 `.pyc` 残留**：`tests/{scripts,e2e/lit,llvm/lit/MC/DADAO,llvm/lit/CodeGen/DADAO}/__pycache__/`；被忽略但污染文件计数（341 vs 332，另 2 个为已入库的 `INVENTORY.md`/`README.md`）。
 6. **孤儿生成物 1.2 G 中约 210 M 不可重生成**：`llvm-ts-user-050t/`（209 M，脚本已不存在）、`libc-argv-{static,dynamic}/`（1.2 M）、`smoke/`（48 K，旧默认落点）。
@@ -259,6 +263,22 @@ irlli_exclude=72
 
 > 生成树体积、运行目录数随门控运行变化，不作锚点。
 
+### P6 现场复核（2026-10-27，`TESTCASES-076t`；上面锚点块保留 067t 口径）
+
+现场命令与结果（逐条可重跑）：
+
+```sh
+find tests -type f | wc -l                     # 343（含 3 个 .pyc）
+find tests -name '*.pyc' | wc -l               # 3
+git ls-files tests | wc -l                     # 343（= 339 入库文件 + 4 符号链接；新增 shared/README.md 入库后 344）
+find tests -maxdepth 1 -mindepth 1 | wc -l     # 14 = 7 目录 + 7 文件
+grep -c '' tests/case-ledger.tsv               # 1,962 行（含 4 行注释）
+make check-case-ledger                         # 现场身份 1,958 条（vector 1456 / lit 502）
+```
+
+- `tests/llvm/`（3 个旧路径符号链接）**仍在**：`tools/llvm/check_lit_bytes.py`、
+  `gen_isa_coverage.py` 的默认路径仍指向它，删除须同改这两处并重派生矩阵（P6 未做，见遗留）。
+
 ### 附：本页计数所用命令
 
 ```sh
@@ -269,8 +289,8 @@ find .dadao/tests -type f | wc -l              # 19967
 du -sb .dadao/tests | cut -f1                  # 1132542115
 grep -c '^- mnemonic:\|^- class:' tests/inst/**/*.yaml   # 逐册求和 = 1456（迁移前口径）
 awk -F'\t' '!/^#/{c[$1]++} END{for(k in c) print k, c[k]}' tests/case-ledger.tsv  # vector 1456 / lit 500
-ls tests/llvm/lit/MC/DADAO/*.s | wc -l         # 76
-ls tests/llvm/lit/MC/DADAO-gen/*.s | wc -l     # 12
-ls tests/llvm/lit/CodeGen/DADAO/*.ll tests/llvm/lit/CodeGen/DADAO/*.mir | wc -l  # 63
+ls tests/unit/llvm/lit/MC/DADAO/*.s | wc -l         # 76
+ls tests/unit/llvm/lit/MC/DADAO-gen/*.s | wc -l     # 12
+ls tests/unit/llvm/lit/CodeGen/DADAO/*.ll tests/unit/llvm/lit/CodeGen/DADAO/*.mir | wc -l  # 63
 ls tests/e2e/lit/*.test | wc -l                # 14
 ```

@@ -318,9 +318,9 @@ def check_adr_alignment():
     # Source: ADR-0004 R3 + rev. 2026-10-11 (RAM base 0xFC00_0000_0000) +
     # ADR-0020 D15 (C1 step2 deletes the legacy 0xffff_0000_0000 RAM; RAM is the
     # ONLY RAM segment).  The expected value is NOT hardcoded: it is derived from
-    # the single-source-of-truth linker script (tests/scripts/dadao.lds
+    # the single-source-of-truth linker script (tests/shared/linker/dadao.lds
     # MEMORY RAM ORIGIN/LENGTH) and cross-checked against the QEMU macro.
-    lds = load_file("tests/scripts/dadao.lds")
+    lds = load_file("tests/shared/linker/dadao.lds")
     lds_ram = re.search(
         r'RAM\s*\(rwx\)\s*:\s*ORIGIN\s*=\s*(0x[0-9a-fA-F]+)\s*,\s*LENGTH\s*=\s*(\d+)M',
         lds)
@@ -330,7 +330,7 @@ def check_adr_alignment():
     ram_size_match = re.search(r'DADAO_RAM_SIZE\s+\((\d+\s*\*\s*\d+\s*\*\s*\d+)\)', patch_content)
     if ram_base_exp is None:
         record(cat, "RAM_BASE (lds ORIGIN)", "FAIL",
-               "tests/scripts/dadao.lds 未找到 RAM ORIGIN/LENGTH")
+               "tests/shared/linker/dadao.lds 未找到 RAM ORIGIN/LENGTH")
     elif ram_base_match:
         actual = int(ram_base_match.group(1), 16)
         if actual == ram_base_exp:
@@ -345,7 +345,7 @@ def check_adr_alignment():
 
     if ram_size_exp is None:
         record(cat, "RAM_SIZE (lds LENGTH)", "FAIL",
-               "tests/scripts/dadao.lds 未找到 RAM LENGTH")
+               "tests/shared/linker/dadao.lds 未找到 RAM LENGTH")
     elif ram_size_match:
         actual = 1
         for f in ram_size_match.group(1).split("*"):
@@ -779,14 +779,14 @@ def check_opcodes_cross():
         record(cat, "QEMU trans ↔ opcodes.yaml", "FAIL", out)
 
     # --- LLVM lit format 族覆盖（跨载体交叉：opcodes.yaml M1 format 集 ↔ lit patterns） ---
-    # Source: contracts/opcodes.yaml M1 条目的 format 字段（契约）；tests/llvm/lit/MC/DADAO/*.s（实现）
+    # Source: contracts/opcodes.yaml M1 条目的 format 字段（契约）；tests/unit/llvm/lit/MC/DADAO/*.s（实现）
     # 断言：每个 M1 format 族至少有 1 条 lit @@ OBJ: pattern（其 opcode 匹配该族的 opcodes 条目）
     # 判定法：提取 @@ OBJ: 行的 4 字节 opcode word，在 opodes.yaml 中找 (word & mask)==value
     #         的唯一匹配条目，取其 format 字段作为该 pattern 的族归属
     lit_dir = os.path.join(REPO_ROOT, "tests", "llvm", "lit", "MC", "DADAO")
     if not os.path.isdir(lit_dir):
         record(cat, "LLVM lit format 族覆盖", "FAIL",
-               "tests/llvm/lit/MC/DADAO/ 目录不存在")
+               "tests/unit/llvm/lit/MC/DADAO/ 目录不存在")
     else:
         # 收集 M1 format 族（从契约推导）
         m1_formats = set(

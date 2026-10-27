@@ -14,7 +14,6 @@ Covers two previously-broken harness behaviours (ISS-309 / ISS-319):
 Usage:
   python3 tools/testcases/lib/test_harness_exit_path.py            # green path
   python3 tools/testcases/lib/test_harness_exit_path.py --inject   # prove FAIL is reachable
-  （旧入口 `python3 tests/scripts/test_harness_exit_path.py ...` 仍可用 = 薄 wrapper）
 Exit: 0 = all checks passed; 1 = at least one check failed.
 """
 import argparse

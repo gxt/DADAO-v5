@@ -7,7 +7,7 @@
 @@ (ADR-0003 D5: single-TU, self-contained, in-place label resolution).  The
 @@ M4 ELF gate assembles this same stub to `crt0.o` and links it with ld.lld.
 @@
-@@ Entry / exit channel frozen with tests/llvm/codegen/expected.yaml:
+@@ Entry / exit channel frozen with tests/unit/llvm/codegen/expected.yaml:
 @@   * every program defines `define i64 @main()`;
 @@   * `_start` sets up the stack pointer (rb1), calls `@main`; the returned
 @@     value arrives in rd8 (ABI §返回值, M6 contract-abi.md §6.1);

@@ -78,7 +78,7 @@ The static link line names ``libc.a`` **explicitly**: ``-L <musl>/lib -lc``
 would pick ``libc.so`` from the same directory (no ``PT_INTERP``, but
 ``PT_DYNAMIC`` present) and ``qemu-user`` then segfaults (TESTCASES-046t /
 QEMU-062t).  Base address (ISS-247): no ``-T``/linker script is passed, so
-lld's default base is used; ``tests/scripts/dadao.lds`` (``RAM ORIGIN =
+lld's default base is used; ``tests/shared/linker/dadao.lds`` (``RAM ORIGIN =
 0xFC00_0000_0000``) cannot be loaded by ``qemu-user`` on this 47-bit host VA.
 Every image's minimum ``PT_LOAD`` and its ``PT_INTERP`` are read back from the
 file (the modality is asserted, not assumed).
@@ -686,7 +686,7 @@ FAULT_NAMES = {
     0x8B: "RASUF", 0x8C: "MALIGN", 0x8D: "IALIGN",
 }
 
-# The scripted base of tests/scripts/dadao.lds (ISS-247).
+# The scripted base of tests/shared/linker/dadao.lds (ISS-247).
 SCRIPTED_BASE = 0xFC0000000000
 
 PT_LOAD = 1

@@ -10,7 +10,7 @@
  * extends explicitly (ext.so / ext.uo, contract-abi.md §4.2).
  *
  * The structural half of this contract is pinned by
- * tests/llvm/lit/CodeGen/DADAO/narrow-int.ll and bitops-narrow.ll; this
+ * tests/unit/llvm/lit/CodeGen/DADAO/narrow-int.ll and bitops-narrow.ll; this
  * program checks the *values* at run time.  Each failing case returns its own
  * non-zero exit code; 0 means every check passed.
  *

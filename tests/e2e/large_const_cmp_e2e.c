@@ -1,7 +1,7 @@
 /* large_const_cmp_e2e.c — LLVM-071t (M6, G1) end-to-end vector.
  *
  * Freestanding (no libc): crt0 reports the `main` return value as the guest
- * exit code (tests/scripts/codegen_crt0.s, contract-semihosting.md §3).
+ * exit code (tests/shared/crt0/codegen_crt0.s, contract-semihosting.md §3).
  *
  * Compares a runtime value against constants at and beyond the cmp* 12-bit
  * immediate boundary (simm12 max = +2047 / immu12 max = 4095) so the backend

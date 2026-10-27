@@ -1,7 +1,7 @@
 /* smulhi_e2e.c — LLVM-076t (M6, ISS-185) end-to-end vector.
  *
  * Freestanding (no libc): crt0 reports `main`'s return value as the guest exit
- * code (low byte; tests/scripts/codegen_crt0.s, contract-semihosting.md §3).
+ * code (low byte; tests/shared/crt0/codegen_crt0.s, contract-semihosting.md §3).
  *
  * Exercises the 64x64 *signed* high-half multiply that ISS-185 was about.  The
  * DADAO `mul.so` instruction produces the full 128-bit signed product

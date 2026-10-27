@@ -30,7 +30,7 @@ Design
   stack, so the harness links it with ``--redefine-sym _start=_picolibc_start``
   behind ``tools/testcases/picolibc_test_crt0.s`` (the stack-setup stub).  The
   image uses the installed ``picolibc_noflash.ld`` (single RAM segment, and the
-  ``__heap_*`` PROVIDEs that ``tests/scripts/dadao.lds`` lacks — ISS-191), so
+  ``__heap_*`` PROVIDEs that ``tests/shared/linker/dadao.lds`` lacks — ISS-191), so
   ``malloc``/``sbrk`` link.  The test's own link arguments (``--defsym`` for the
   printf/scanf float/int/long variants) and semihosting command line
   (``COMMAND_LINE`` for the argv tests) are honoured.

@@ -5,7 +5,7 @@
 ; mem* libcalls (DADAOSubtarget::initLibcallLoweringInfo).  A constant-size
 ; memcpy/memset whose octa-store count fits MaxStoresPerMem* = 16 is inlined;
 ; anything larger (and any variable size) lowers to a plain libcall that the
-; freestanding runtime (tests/scripts/dadao_mem_runtime.ll) resolves.
+; freestanding runtime (tests/shared/runtime/dadao_mem_runtime.ll) resolves.
 
 @g = global [1024 x i8] zeroinitializer, align 8
 

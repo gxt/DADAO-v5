@@ -18,8 +18,7 @@ Usage:
     python3 tools/testcases/inst/run_qemu_smoke.py [--qemu BIN] [--trampoline BIN]
         [--vector-dir DIR] [--work-dir DIR] [--jobs N]
 
-旧命令行 `python3 tests/scripts/run_qemu_smoke.py ...` 仍可用（薄 wrapper）；
-旧 `--vector-dir tests/vectors/isa` 由 harness 兼容层机械平移。
+旧 `--vector-dir tests/vectors/isa` 仍可传，由 harness 兼容层机械平移。
 """
 
 from __future__ import annotations

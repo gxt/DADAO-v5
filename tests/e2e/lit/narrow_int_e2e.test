@@ -14,7 +14,7 @@
 #
 # The emitted instruction shapes (one add.st/mul.st/div.st/..., one ext.uo per
 # zero extension, ...) are pinned *exactly* by the llc tests
-# tests/llvm/lit/CodeGen/DADAO/narrow-int.ll, bitops-narrow.ll and
+# tests/unit/llvm/lit/CodeGen/DADAO/narrow-int.ll, bitops-narrow.ll and
 # abi-narrow-extend.ll.  Here only the ABI extension at a real C call site is
 # checked, because that is what ISS-310 was about and what qemu exercises.
 # RUN: %clang -target dadao-unknown-elf -nostdlib -Oz -x c -S %e2e_dir/narrow_int_e2e.c -o %t.s

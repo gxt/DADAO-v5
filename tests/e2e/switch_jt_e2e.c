@@ -1,7 +1,7 @@
 /* switch_jt_e2e.c — LLVM-072t (M6, ISS-177 / G3) jump-table switch E2E vector.
  *
  * Freestanding (no libc): crt0 reports the `main` return value as the guest
- * exit code (tests/scripts/codegen_crt0.s, contract-semihosting.md §3).
+ * exit code (tests/shared/crt0/codegen_crt0.s, contract-semihosting.md §3).
  *
  * A dense `switch` is lowered to a jump table (ISD::BR_JT): the table lives in
  * a read-only data section as one 8-byte absolute case address per entry

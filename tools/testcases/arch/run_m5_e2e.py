@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """run_m5_e2e.py -- arch（cfx_umon）SEE / semihosting 端到端驱动（TESTCASES-073t 迁入）。
 
-原 `tools/integ/run_m5_e2e.py`（M5 gate，TESTCASES-033t）——搬家不改判据；
-旧路径保留薄 wrapper。
+本文件由 TESTCASES-073t 从集成驱动目录迁入（M5 gate，TESTCASES-033t）——搬家不改
+判据；旧薄 wrapper 已由 TESTCASES-076t 删除。
 
 Runs every program in ``tests/arch/umon/expected.yaml`` through the M5
 flat-bin pipeline and compares the observed result against the manifest:

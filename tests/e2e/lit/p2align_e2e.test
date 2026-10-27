@@ -2,7 +2,7 @@
 # must assemble, link (ld.lld) and run correctly.
 #
 # Pipeline (linked ELF, contract-elf.md §6.1.2):
-#   llvm-mc tests/scripts/codegen_crt0.s -> crt0.o   (_start calls @main)
+#   llvm-mc tests/shared/crt0/codegen_crt0.s -> crt0.o   (_start calls @main)
 #   llvm-mc p2align_e2e.s               -> main.o    (falls through `swym 0`)
 #   ld.lld -T dadao.lds crt0.o main.o   -> prog.elf
 #   qemu-system-dadao -M dadao-m1 -kernel prog.elf ...

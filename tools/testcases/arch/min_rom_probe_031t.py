@@ -239,7 +239,7 @@ def find_qemu():
 def find_trampoline():
     """Find trampoline.bin."""
     search = [
-        'tests/scripts/trampoline.bin',
+        'tools/testcases/lib/trampoline.bin',
         'tests/machine/trampoline.bin',
     ]
     for p in search:

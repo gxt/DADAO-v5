@@ -9,7 +9,7 @@
  * The P1 *libcall* classes (floor/ceil/trunc/round/rint/nearbyint, fmin/fmax)
  * need picolibc's out-of-line math routines at link time and are covered by the
  * evidence runner (<taskdir> picolibc test-floor/test-ceil/test-round on QEMU)
- * and by the CodeGen vectors tests/llvm/lit/CodeGen/DADAO/p1-fp-*.ll.
+ * and by the CodeGen vectors tests/unit/llvm/lit/CodeGen/DADAO/p1-fp-*.ll.
  *
  * All inputs are `volatile` so clang cannot constant-fold the operations away;
  * the `fosgnj`/`rd2rf` sequence then actually runs on the guest.  Expected

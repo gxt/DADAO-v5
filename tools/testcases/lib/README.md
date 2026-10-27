@@ -1,7 +1,7 @@
 # QEMU Semantic Test Harness（`tools/testcases/lib/`）
 
-> `TESTCASES-072t`（2026-10-27）：本 harness 由 `tests/scripts/` 迁入 `tools/testcases/lib/`。
-> 旧命令行 `python3 tests/scripts/<name>.py ...` 仍是等价入口（`tests/scripts/` 留薄 wrapper）。
+> `TESTCASES-072t`（2026-10-27）：本 harness 由薄 wrapper 区迁入 `tools/testcases/lib/`。
+> `TESTCASES-076t`（P6）：旧薄 wrapper 已删除 —— 现行入口只有本目录。
 
 ## Overview
 

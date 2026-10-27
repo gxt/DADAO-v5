@@ -2,7 +2,7 @@
 # TESTCASES-030t: M4 L3 (execution) vectors -- multi-TU / multi-section ELF link.
 #
 # This is the **independent M4 manifest**.  It is deliberately kept in its own
-# file so the M3 driver (tools/integ/run_codegen_e2e.py, which reads only
+# file so the M3 driver (tools/testcases/unit/run_codegen_e2e.py, which reads only
 # tests/unit/llvm/codegen/expected.yaml and never recurses into m4/) cannot pick these
 # programs up.  INTEG-016t will consume this manifest explicitly.
 #

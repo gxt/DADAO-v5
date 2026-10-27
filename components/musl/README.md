@@ -33,7 +33,7 @@ make build-musl-shared                  # 共享/PIC libc.so + lib/libc_pic.a（
 make check-patch-tree                   # 补丁集机械校验（含 musl）
 ```
 
-`tools/infra/build_musl.py` 用交叉工具链（`.dadao/cross-toolchain/bin`）配置 `--target=dadao-unknown-elf --disable-shared` 并 `make`，产出 `.work/source/musl/lib/{libc.a,crt1.o}`；随后用 `tests/scripts/dadao.lds` 把 `crt1.o` + 最小程序 + `libc.a` 链成静态 `ET_EXEC`，核对 `ELF64 / MSB / machine 0xDA0 / statically linked`。`--shared` 档改为不带 `--disable-shared` 的配置（`.lo` 走 `-fPIC`），并用 `-Wl,-shared -Wl,--hash-style=gnu -Wl,-soname,libc.so` 约束动态段；链接还经 musl 的 `LIBCC` 钩子取 compiler-rt builtins（`__muldc3`/`__mulsc3`）。运行（`dadao-m1` E2E / `P3`）不在本组件的构建脚本内。
+`tools/infra/build_musl.py` 用交叉工具链（`.dadao/cross-toolchain/bin`）配置 `--target=dadao-unknown-elf --disable-shared` 并 `make`，产出 `.work/source/musl/lib/{libc.a,crt1.o}`；随后用 `tests/shared/linker/dadao.lds` 把 `crt1.o` + 最小程序 + `libc.a` 链成静态 `ET_EXEC`，核对 `ELF64 / MSB / machine 0xDA0 / statically linked`。`--shared` 档改为不带 `--disable-shared` 的配置（`.lo` 走 `-fPIC`），并用 `-Wl,-shared -Wl,--hash-style=gnu -Wl,-soname,libc.so` 约束动态段；链接还经 musl 的 `LIBCC` 钩子取 compiler-rt builtins（`__muldc3`/`__mulsc3`）。运行（`dadao-m1` E2E / `P3`）不在本组件的构建脚本内。
 
 ### 静态 PIE 与 `libc_pic.a`（`INFRA-108t`，`ISS-303`）
 

@@ -8,7 +8,7 @@
 # program therefore uses the M4 ELF mechanism (llc -> llvm-mc -> ld.lld ->
 # QEMU `-kernel image.elf`, contract-elf.md §6.1.2) and is run with:
 #
-#   python3 tools/integ/run_elf_e2e.py \
+#   python3 tools/testcases/unit/run_elf_e2e.py \
 #       --vectors-dir tests/unit/llvm/codegen/m6 \
 #       --expected    tests/unit/llvm/codegen/m6/expected-elf.yaml \
 #       --work-dir    .dadao/tests/elf-m6

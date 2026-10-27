@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Validate the M5 (SEE / semihosting) L3 execution vectors under
-``tests/arch/umon/`` (moved from ``tests/llvm/codegen/m5/`` by TESTCASES-073t).
+``tests/arch/umon/`` (moved from ``tests/unit/llvm/codegen/m5/`` by TESTCASES-073t).
 
 This is the **independent oracle** required by ``docs/Process-05`` §2/§4 and the
 project "Independent oracle" hard rule.  It **never** invokes ``llvm-mc``,

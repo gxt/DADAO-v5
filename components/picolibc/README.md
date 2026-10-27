@@ -33,4 +33,4 @@ make test-picolibc-smoke    # 最小 E2E：printf("hi") + libm 8 符号，编/�
 make check                  # 含 check-patch-tree（9 断言）+ check-index-blobs
 ```
 
-`test-picolibc-smoke` 用 `tests/scripts/{codegen_crt0.s,dadao.lds}`（v5 ELF 直载路径）链接；`picolibc_noflash.ld` 是单 RAM 目标的正解（`picolibc.ld` 的 flash/ram 段在本目标同址重叠、不可用）。
+`test-picolibc-smoke` 用 `tests/shared/{crt0/codegen_crt0.s,linker/dadao.lds}`（v5 ELF 直载路径）链接；`picolibc_noflash.ld` 是单 RAM 目标的正解（`picolibc.ld` 的 flash/ram 段在本目标同址重叠、不可用）。

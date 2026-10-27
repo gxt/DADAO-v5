@@ -61,7 +61,7 @@ SECTIONS
   } > RAM :data
 
   /* Heap symbols for picolibc malloc/sbrk (ISS-191).  The stack pointer used by
-   * the project crt0 (tests/scripts/codegen_crt0.s) and the ROM trampoline is
+   * the project crt0 (tests/shared/crt0/codegen_crt0.s) and the ROM trampoline is
    * ORIGIN(RAM)+0x00ff_0000, so the heap ceiling keeps a 4 KiB guard below it.
    * The symbols are additive: existing programs that do not call malloc are
    * unaffected. */

@@ -13,7 +13,7 @@
  *   `contract-dynlink.md §10④`，越界**必须**是链接期报错（lld 确实报错，不静默），
  *   但那样就产不出 ET_DYN。
  *
- * 本脚本的做法 = 沿用 M4 的单一 RAM 区域模型（`ADR-0004 R3`、`tests/scripts/dadao.lds`
+ * 本脚本的做法 = 沿用 M4 的单一 RAM 区域模型（`ADR-0004 R3`、`tests/shared/linker/dadao.lds`
  * 的 `RAM (rwx)`）：把全部 allocatable 段放进**同一个 RWX PT_LOAD**，`.got` 紧随
  * `.text` ⇒ 槽落在 ±2 KiB 内。`.interp`/`.dynamic`/`.got`/`.got.plt` 另挂在
  * `PT_INTERP` / `PT_DYNAMIC` / `PT_GNU_RELRO`（eager ⇒ 装载后只读，`ADR-0026 D6`）。

@@ -55,8 +55,9 @@ import shutil
 import subprocess
 import sys
 
+# 本文件在 `tools/testcases/tset/embench/run_embench_e2e.py`（TESTCASES-076t 从集成驱动目录迁入）⇒ 仓库根在 4 层之上。
 REPO_ROOT = os.path.normpath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..")
 )
 
 # Install root (ADR-0016 D7/D9): resolve tools from the single source of truth
@@ -74,9 +75,9 @@ DEFAULT_QEMU = os.path.join(_TARGET_BIN, "qemu-system-dadao")
 DEFAULT_EMBENCH_SRC = ".work/source/embench-iot"
 DEFAULT_INCLUDE = "tests/tset/embench/embench_include"
 DEFAULT_RUNTIME = "tests/tset/embench/embench_runtime.c"
-DEFAULT_MEM_RUNTIME = "tests/scripts/dadao_mem_runtime.ll"
-DEFAULT_CRT0 = "tests/scripts/codegen_crt0.s"
-DEFAULT_LDS = "tests/scripts/dadao.lds"
+DEFAULT_MEM_RUNTIME = "tests/shared/runtime/dadao_mem_runtime.ll"
+DEFAULT_CRT0 = "tests/shared/crt0/codegen_crt0.s"
+DEFAULT_LDS = "tests/shared/linker/dadao.lds"
 DEFAULT_BOARDSUPPORT = "examples/dadao/boardsupport.c"
 # Work dir under the SDK test-artifacts root (ADR-0016 D6 / Process-05 §6),
 # resolved through paths.py (D7); never hardcoded.

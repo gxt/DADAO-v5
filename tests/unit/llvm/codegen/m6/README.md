@@ -3,7 +3,7 @@
 Source IR vectors that drive the **M6 (complete integer calling convention +
 large frames + FP/RF)** end-to-end test.  They live in their own directory —
 like `../m4/` and `../m5/` — so the M3 driver
-(`tools/integ/run_codegen_e2e.py`, whose default manifest is
+(`tools/testcases/unit/run_codegen_e2e.py`, whose default manifest is
 `tests/unit/llvm/codegen/expected.yaml`) never picks them up.
 
 Task: `TESTCASES-036t`（M6 新能力向量：L1 编码 + L3 执行）.
@@ -18,7 +18,7 @@ Contracts: `.tao/contracts/contract-abi.md §6`（调用约定）、`contract-el
   → `llvm-objcopy -O binary` → `qemu -kernel`).  Run with:
 
   ```
-  python3 tools/integ/run_codegen_e2e.py \
+  python3 tools/testcases/unit/run_codegen_e2e.py \
       --vectors-dir tests/unit/llvm/codegen/m6 \
       --expected    tests/unit/llvm/codegen/m6/expected.yaml \
       --work-dir    .dadao/tests/codegen-m6
@@ -29,7 +29,7 @@ Contracts: `.tao/contracts/contract-abi.md §6`（调用约定）、`contract-el
   cannot use the flat-binary flow.  Run with:
 
   ```
-  python3 tools/integ/run_elf_e2e.py \
+  python3 tools/testcases/unit/run_elf_e2e.py \
       --vectors-dir tests/unit/llvm/codegen/m6 \
       --expected    tests/unit/llvm/codegen/m6/expected-elf.yaml \
       --work-dir    .dadao/tests/elf-m6

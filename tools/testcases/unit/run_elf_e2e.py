@@ -1,30 +1,39 @@
 #!/usr/bin/env python3
-"""run_codegen_e2e.py -- M3 CodeGen end-to-end gate (INTEG-012t).
+"""run_elf_e2e.py -- M4 multi-TU / multi-section ELF end-to-end gate (INTEG-016t).
 
-Runs every program in ``tests/llvm/codegen/expected.yaml`` through the frozen M3
-single-TU pipeline and compares the **guest process exit code** against the
-independently-derived expected value (it does NOT rely on lit exit codes):
+Runs every program in a codegen manifest through the M4 **ELF** pipeline and
+compares the **guest process exit code** against the independently-derived
+expected value (it does NOT rely on lit exit codes):
 
-    llc -march=dadao <prog.ll>                 -> <prog>.s
-    cat tests/scripts/codegen_crt0.s <prog>.s  -> <prog>.s   (single TU)
-    llvm-mc --triple=dadao -filetype=obj       -> <prog>.o
-    llvm-objcopy -O binary --only-section=.text-> <prog>.bin
-    timeout N qemu-system-dadao -M dadao-m1 -bios trampoline.bin \
-            -kernel <prog>.bin -semihosting-config enable=on,target=native \
-            -display none -nographic
-                                               -> process exit code == guest exit code
+    per TU:  llc -march=dadao -filetype=obj  <tu>.ll     -> <tu>.o
+    once:    llvm-mc --triple=dadao -filetype=obj \
+                 tests/shared/crt0/codegen_crt0.s        -> crt0.o
+    link:    ld.lld -T tests/shared/linker/dadao.lds \
+                 crt0.o <tu>.o ... -o <prog>.elf          (ET_EXEC)
+    run:     timeout N qemu-system-dadao -M dadao-m1 \
+                 -kernel <prog>.elf \
+                 -semihosting-config enable=on,target=native \
+                 -display none -nographic
+                                                          -> guest exit code
 
-The startup stub calls ``@main`` and reports the returned value (rd8) through
-the semihosting ``SYS_EXIT`` service; the guest exit code is the low byte
-(ADR-0003 D5 single TU; ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device,
-ADR-0004 D3 superseded).  ``-semihosting-config enable=on,target=native`` is
-required so the SYS_EXIT status reaches the host ``$?`` (ADR-0020 D7: the
-harness explicitly enables ``native``).
+The crt0 `_start` calls `@main` (via an R_DADAO_REL26 relocation resolved by
+ld.lld) and reports the returned value through the semihosting `SYS_EXIT`
+service (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device, ADR-0004 D3 superseded);
+the guest exit code is the low byte.  Unlike the M3 raw-bin pipeline
+(run_codegen_e2e.py) this links multiple objects with the target LLD and loads
+the resulting ELF directly (contract-elf.md §6.1.2).
+`-semihosting-config enable=on,target=native` is required so the SYS_EXIT
+status reaches the host `$?` (ADR-0020 D7: the harness explicitly enables
+`native`).
+
+Manifest shape (both accepted):
+  * multi-TU (m4):  {name, sources: [a.ll, b.ll, ...], expected_exit_code}
+  * single-TU (M3): {name: prog.ll, expected_exit_code}
 
 Judgement (fail-closed):
   * guest exit code == expected          -> PASS
   * guest exit code != expected          -> FAIL (mismatch / machine fault)
-  * qemu timeout / build-step non-zero   -> FAIL
+  * qemu timeout / any build step != 0   -> FAIL
 
 Exit status:
   0  all cases PASS
@@ -32,8 +41,9 @@ Exit status:
   2  setup error (missing tool/vector, zero cases executed, bad options)
 
 ``--inject`` runs a built-in counter-example self-test: it takes a baseline
-PASSing case, flips its expected value in memory, and requires that the gate
-then reports FAIL.  This proves the comparison is live (the gate can fail).
+PASSing case, flips its expected value, requires the gate to report FAIL, then
+restores it and re-runs the whole chain requiring green again.  This proves the
+comparison is live (the gate can fail).
 """
 
 from __future__ import annotations
@@ -49,8 +59,9 @@ except ImportError:  # pragma: no cover
     sys.stderr.write("ERROR: PyYAML is required (used elsewhere in the repo)\n")
     sys.exit(2)
 
+# 本文件在 `tools/testcases/unit/run_elf_e2e.py`（TESTCASES-076t 从集成驱动目录迁入）⇒ 仓库根在 3 层之上。
 REPO_ROOT = os.path.normpath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
 )
 
 # Install root (ADR-0016 D9): resolve the host toolchain bin from the single
@@ -73,15 +84,15 @@ FAULT_NAMES = {
 
 DEFAULT_LLC = os.path.join(_TOOLCHAIN_BIN, "llc")
 DEFAULT_LLVM_MC = os.path.join(_TOOLCHAIN_BIN, "llvm-mc")
-DEFAULT_LLVM_OBJCOPY = os.path.join(_TOOLCHAIN_BIN, "llvm-objcopy")
+DEFAULT_LDLLD = os.path.join(_TOOLCHAIN_BIN, "ld.lld")
 DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
-DEFAULT_TRAMPOLINE = "tests/scripts/trampoline.bin"
-DEFAULT_CRT0 = "tests/scripts/codegen_crt0.s"
-DEFAULT_VECTORS_DIR = "tests/llvm/codegen"
-DEFAULT_EXPECTED = "tests/llvm/codegen/expected.yaml"
+DEFAULT_CRT0 = "tests/shared/crt0/codegen_crt0.s"
+DEFAULT_LDS = "tests/shared/linker/dadao.lds"
+DEFAULT_VECTORS_DIR = "tests/unit/llvm/codegen/m4"
+DEFAULT_EXPECTED = "tests/unit/llvm/codegen/m4/expected.yaml"
 # Work dir under the SDK test-artifacts root (ADR-0016 D6), resolved through
 # the single source of truth (D7, tools/infra/paths.py); never hardcoded.
-DEFAULT_WORK_DIR = str(_dadao_paths.test_artifacts_dir() / "codegen-e2e")
+DEFAULT_WORK_DIR = str(_dadao_paths.test_artifacts_dir() / "elf-e2e")
 DEFAULT_TIMEOUT = 30
 
 
@@ -139,11 +150,16 @@ def load_programs(expected_path: str):
         sys.exit(2)
     programs = []
     for entry in doc["programs"]:
+        name = entry["name"]
+        sources = entry.get("sources")
+        if not sources:
+            sources = [name]
         programs.append(
             {
-                "name": entry["name"],
+                "name": name,
                 "category": entry.get("category", "?"),
                 "expected": int(entry["expected_exit_code"]),
+                "sources": list(sources),
             }
         )
     if not programs:
@@ -152,68 +168,68 @@ def load_programs(expected_path: str):
     return programs
 
 
+def _ensure_crt0(tools, work_dir):
+    """Assemble crt0 once into <work>/crt0.o; return (path, rc, err)."""
+    crt0_o = os.path.join(work_dir, "crt0.o")
+    if os.path.isfile(crt0_o):
+        return crt0_o, 0, ""
+    rc, _out, err, timed = _run(
+        [tools["llvm_mc"], "--triple=dadao", "-filetype=obj",
+         tools["crt0"], "-o", crt0_o]
+    )
+    if timed:
+        return None, None, "llvm-mc (crt0) timeout"
+    return crt0_o, rc, err
+
+
 def build_and_run(prog, tools, work_dir, timeout, verbose=False):
-    """Build one program through the fixed pipeline and run it under QEMU.
+    """Build one program through the ELF pipeline and run it under QEMU.
 
     Returns a CaseResult (passed / reason filled in).
     """
     res = CaseResult(prog["name"], prog["category"], prog["expected"])
-    name = prog["name"]
-    ll_path = os.path.join(tools["vectors_dir"], name)
-    if not os.path.isfile(ll_path):
-        res.reason = f"source not found: {ll_path}"
+    stem = os.path.splitext(os.path.basename(prog["name"]))[0]
+
+    # 0. assemble the shared crt0 stub (once)
+    crt0_o, crc, cerr = _ensure_crt0(tools, work_dir)
+    if crt0_o is None or crc != 0:
+        res.reason = f"llvm-mc (crt0) failed (rc={crc})" + (
+            f": {cerr.strip()[:200]}" if cerr and cerr.strip() else "")
         return res
 
-    stem = os.path.splitext(name)[0]
-    prog_s = os.path.join(work_dir, stem + ".prog.s")
-    combined_s = os.path.join(work_dir, stem + ".s")
-    obj_path = os.path.join(work_dir, stem + ".o")
-    bin_path = os.path.join(work_dir, stem + ".bin")
+    # 1. llc -march=dadao -filetype=obj for each translation unit
+    objs = []
+    for src in prog["sources"]:
+        src_path = os.path.join(tools["vectors_dir"], src)
+        if not os.path.isfile(src_path):
+            res.reason = f"source not found: {src_path}"
+            return res
+        obj = os.path.join(work_dir, stem + "." + os.path.splitext(src)[0] + ".o")
+        rc, _out, err, timed = _run(
+            [tools["llc"], "-march=dadao", "-filetype=obj", src_path, "-o", obj]
+        )
+        if timed or rc != 0:
+            res.reason = f"llc({src}) failed (rc={rc})" + (
+                f": {err.strip()[:200]}" if err.strip() else "")
+            return res
+        objs.append(obj)
 
-    # 1. llc -march=dadao <prog.ll> -> <prog>.s
-    rc, _out, err, timed = _run([tools["llc"], "-march=dadao", ll_path, "-o", prog_s])
-    if timed or rc != 0:
-        res.reason = f"llc failed (rc={rc})" + (f": {err.strip()[:200]}" if err.strip() else "")
-        return res
-
-    # 2. cat crt0.s prog.s -> combined single TU .s
-    try:
-        with open(tools["crt0"], "rb") as fh:
-            crt0_bytes = fh.read()
-        with open(prog_s, "rb") as fh:
-            prog_bytes = fh.read()
-        with open(combined_s, "wb") as fh:
-            fh.write(crt0_bytes)
-            if not crt0_bytes.endswith(b"\n"):
-                fh.write(b"\n")
-            fh.write(prog_bytes)
-    except OSError as exc:
-        res.reason = f"concat failed: {exc}"
-        return res
-
-    # 3. llvm-mc --triple=dadao -filetype=obj -> .o
+    # 2. ld.lld -T dadao.lds crt0.o <objs> -o <prog>.elf
+    elf = os.path.join(work_dir, stem + ".elf")
     rc, _out, err, timed = _run(
-        [tools["llvm_mc"], "--triple=dadao", "-filetype=obj", combined_s, "-o", obj_path]
+        [tools["ldlld"], "-T", tools["lds"], crt0_o] + objs + ["-o", elf]
     )
     if timed or rc != 0:
-        res.reason = f"llvm-mc failed (rc={rc})" + (f": {err.strip()[:200]}" if err.strip() else "")
+        res.reason = f"ld.lld failed (rc={rc})" + (
+            f": {err.strip()[:200]}" if err.strip() else "")
         return res
 
-    # 4. llvm-objcopy -O binary --only-section=.text -> .bin
-    rc, _out, err, timed = _run(
-        [tools["llvm_objcopy"], "-O", "binary", "--only-section=.text", obj_path, bin_path]
-    )
-    if timed or rc != 0:
-        res.reason = f"llvm-objcopy failed (rc={rc})" + (f": {err.strip()[:200]}" if err.strip() else "")
-        return res
-
-    # 5. timeout N qemu-system-dadao ... -> process exit code == guest exit code
+    # 3. timeout N qemu-system-dadao -M dadao-m1 -kernel <elf> -> guest exit code
     rc, _out, err, timed = _run(
         [
             tools["qemu"],
             "-M", "dadao-m1",
-            "-bios", tools["trampoline"],
-            "-kernel", bin_path,
+            "-kernel", elf,
             "-semihosting-config", "enable=on,target=native",
             "-display", "none",
             "-nographic",
@@ -227,11 +243,9 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     if rc is None:
         res.reason = "qemu did not return an exit code"
         return res
-    # NOTE on fault detection: the comparison must be primary.  ADR-0004
-    # D5.7/D5.8 reserves 0x80..0xFF for machine faults; the guest (SYS_EXIT)
-    # codes are constrained to 0x00..0x7F (ISS-147, fixed by TESTCASES-034t),
-    # so an unexpected fault (>= 0x80) can never equal an expected guest code.
-    # A *mismatch* is still classified as a fault when it lands in FAULT_NAMES.
+    # Fault detection (ADR-0004 D5.7/D5.8): 0x80..0xFF are machine faults; the
+    # guest (SYS_EXIT) codes are constrained to 0x00..0x7F (ISS-147), so only a
+    # *mismatch* can be classified as a fault.
     if rc == prog["expected"]:
         res.passed = True
         res.reason = "match"
@@ -241,7 +255,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
         res.reason = "exit code mismatch"
     if verbose:
         sys.stdout.write(
-            f"    [steps] llc=0 llvm-mc=0 llvm-objcopy=0 qemu={rc}\n"
+            f"    [steps] llc=0 ld.lld=0 qemu={rc} elf={elf}\n"
         )
     return res
 
@@ -262,15 +276,15 @@ def run_suite(programs, tools, work_dir, timeout, verbose=False):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="M3 CodeGen end-to-end gate (INTEG-012t)")
+    ap = argparse.ArgumentParser(
+        description="M4 multi-TU/multi-section ELF end-to-end gate (INTEG-016t)")
     ap.add_argument("--llc", default=os.environ.get("LLC", DEFAULT_LLC))
     ap.add_argument("--llvm-mc", dest="llvm_mc",
                     default=os.environ.get("LLVM_MC", DEFAULT_LLVM_MC))
-    ap.add_argument("--llvm-objcopy", dest="llvm_objcopy",
-                    default=os.environ.get("LLVM_OBJCOPY", DEFAULT_LLVM_OBJCOPY))
+    ap.add_argument("--ldlld", default=os.environ.get("LDLLD", DEFAULT_LDLLD))
     ap.add_argument("--qemu", default=os.environ.get("QEMU_SYSTEM_DADAO", DEFAULT_QEMU))
-    ap.add_argument("--trampoline", default=DEFAULT_TRAMPOLINE)
     ap.add_argument("--crt0", default=DEFAULT_CRT0)
+    ap.add_argument("--lds", default=DEFAULT_LDS)
     ap.add_argument("--vectors-dir", default=DEFAULT_VECTORS_DIR)
     ap.add_argument("--expected", default=DEFAULT_EXPECTED)
     ap.add_argument("--work-dir", default=DEFAULT_WORK_DIR)
@@ -278,16 +292,17 @@ def main():
     ap.add_argument("--verbose", "-v", action="store_true")
     ap.add_argument("--inject", action="store_true",
                     help="counter-example self-test: flip a baseline-PASSing "
-                         "expected value and require the gate to FAIL")
+                         "expected value and require the gate to FAIL, then "
+                         "restore and re-run the whole chain for green")
     args = ap.parse_args()
 
     tools = {
         "llc": _abspath(args.llc),
         "llvm_mc": _abspath(args.llvm_mc),
-        "llvm_objcopy": _abspath(args.llvm_objcopy),
+        "ldlld": _abspath(args.ldlld),
         "qemu": _abspath(args.qemu),
-        "trampoline": _abspath(args.trampoline),
         "crt0": _abspath(args.crt0),
+        "lds": _abspath(args.lds),
         "vectors_dir": _abspath(args.vectors_dir),
     }
     expected_path = _abspath(args.expected)
@@ -295,13 +310,13 @@ def main():
 
     _require_exec(tools["llc"], "llc")
     _require_exec(tools["llvm_mc"], "llvm-mc")
-    _require_exec(tools["llvm_objcopy"], "llvm-objcopy")
+    _require_exec(tools["ldlld"], "ld.lld")
     _require_exec(tools["qemu"], "qemu-system-dadao")
-    if not os.path.isfile(tools["trampoline"]):
-        sys.stderr.write(f"ERROR: trampoline not found: {tools['trampoline']}\n")
-        sys.exit(2)
     if not os.path.isfile(tools["crt0"]):
         sys.stderr.write(f"ERROR: crt0 stub not found: {tools['crt0']}\n")
+        sys.exit(2)
+    if not os.path.isfile(tools["lds"]):
+        sys.stderr.write(f"ERROR: linker script not found: {tools['lds']}\n")
         sys.exit(2)
     if not os.path.isfile(expected_path):
         sys.stderr.write(f"ERROR: expected.yaml not found: {expected_path}\n")
@@ -311,7 +326,7 @@ def main():
 
     programs = load_programs(expected_path)
     sys.stdout.write(
-        f"run_codegen_e2e: {len(programs)} programs, work dir {work_dir}\n"
+        f"run_elf_e2e: {len(programs)} programs, work dir {work_dir}\n"
     )
     results = run_suite(programs, tools, work_dir, args.timeout, args.verbose)
 
@@ -330,7 +345,6 @@ def main():
             )
             return 2
         target = passing[0]
-        # locate the source program dict and mutate it in memory only
         prog = next(p for p in programs if p["name"] == target.name)
         original = prog["expected"]
         prog["expected"] = (original + 1) % 256
@@ -349,15 +363,28 @@ def main():
                 "(comparison is not live)\n"
             )
             return 1
+        # restore and re-run the whole chain
+        prog["expected"] = original
+        sys.stdout.write(
+            f"RESTORE: case={target.name} expected back to {original}; "
+            f"re-running whole chain\n"
+        )
+        restored = run_suite(programs, tools, work_dir, args.timeout, args.verbose)
+        if any(not r.passed for r in restored):
+            sys.stderr.write(
+                "INJECT: FAIL -- chain did not go green after restoring the "
+                "expected value\n"
+            )
+            return 1
         sys.stdout.write("INJECT: PASS -- gate correctly reported FAIL on the "
-                         "wrong expected value\n")
-        # In inject mode the verdict is the self-test itself, not the baseline.
+                         "wrong expected value and went green again after restore\n")
+        # In inject mode the verdict is the self-test itself.
         return 0
 
     if failed:
-        sys.stdout.write("run_codegen_e2e: FAIL\n")
+        sys.stdout.write("run_elf_e2e: FAIL\n")
         return 1
-    sys.stdout.write("run_codegen_e2e: PASS\n")
+    sys.stdout.write("run_elf_e2e: PASS\n")
     return 0
 
 

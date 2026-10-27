@@ -1,1 +1,0 @@
-../shared/bootrom/bootrom_app.S

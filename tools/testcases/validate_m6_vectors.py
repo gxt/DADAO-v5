@@ -21,8 +21,8 @@ C. **L3 ELF 向量**（``tests/unit/llvm/codegen/m6/expected-elf.yaml``）：同
 设计原则与既有范式一致（``validate_codegen_vectors.py`` /
 ``validate_elf_vectors.py`` / ``validate_cfx_vectors.py``）：改一条期望值、或
 改一条 ``.s``/``.ll`` 书写，本脚本都会**非零退出**。它是必要非充分 oracle——
-真正的端到端执行由 ``tools/integ/run_codegen_e2e.py``（raw-bin）与
-``tools/integ/run_elf_e2e.py``（ELF）承担。
+真正的端到端执行由 ``tools/testcases/unit/run_codegen_e2e.py``（raw-bin）与
+``tools/testcases/unit/run_elf_e2e.py``（ELF）承担。
 
 退出码：有错误 ``exit(1)`` 并逐条打印 ``FAIL``；全部通过 ``exit(0)``。
 """

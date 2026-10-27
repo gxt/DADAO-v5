@@ -1,12 +1,12 @@
 ; LLVM-062t / M6 runtime vector: indirect call through a function pointer.
 ;
 ; Unlike the raw-binary M3 vectors (tests/unit/llvm/codegen/*.ll, run by
-; tools/integ/run_codegen_e2e.py), this program is compiled and *linked with
+; tools/testcases/unit/run_codegen_e2e.py), this program is compiled and *linked with
 ; ld.lld* before running on QEMU.  Taking the address of a function needs the
 ; absolute 48-bit address of a text symbol, which is an R_DADAO_ABS48
 ; relocation (absolute; never resolved in place) and therefore only resolvable
 ; by the linker -- the flat-binary flow has no link step.  The ELF flow is the
-; M4 mechanism (tools/integ/run_elf_e2e.py); LLVM-062t's evidence script drives
+; M4 mechanism (tools/testcases/unit/run_elf_e2e.py); LLVM-062t's evidence script drives
 ; it directly for this one program (its expected exit code is the low byte of
 ; @main's return value, 42).
 ;

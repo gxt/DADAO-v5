@@ -59,7 +59,7 @@ command line is recorded in the JSON/report so the split is auditable per case
 (``compile_cmd``).
 
 Base address (ISS-247): the link line carries **no** ``-T``/linker script, so
-lld's default base is used; ``tests/scripts/dadao.lds`` (``RAM ORIGIN =
+lld's default base is used; ``tests/shared/linker/dadao.lds`` (``RAM ORIGIN =
 0xFC00_0000_0000``) cannot be loaded by ``qemu-user`` on this 47-bit host VA.
 Every image's minimum ``PT_LOAD`` is read back from the file and an image at
 the scripted base is rejected.
@@ -558,7 +558,7 @@ FAULT_NAMES = {
     0x8B: "RASUF", 0x8C: "MALIGN", 0x8D: "IALIGN",
 }
 
-# The scripted base of tests/scripts/dadao.lds (ISS-247).
+# The scripted base of tests/shared/linker/dadao.lds (ISS-247).
 SCRIPTED_BASE = 0xFC0000000000
 
 PT_LOAD = 1

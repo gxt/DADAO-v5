@@ -62,8 +62,8 @@ import paths  # noqa: E402
 REPO_ROOT = paths.repo_root()
 TOOLCHAIN_BIN = paths.host_toolchain_bin()
 SYSROOT = paths.target_sysroot_dir()
-CRT0 = REPO_ROOT / "tests" / "scripts" / "codegen_crt0.s"
-LDS = REPO_ROOT / "tests" / "scripts" / "dadao.lds"
+CRT0 = REPO_ROOT / "tests" / "shared" / "crt0" / "codegen_crt0.s"
+LDS = REPO_ROOT / "tests" / "shared" / "linker" / "dadao.lds"
 
 PROG_C = """\
 #include <stdio.h>

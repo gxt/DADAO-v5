@@ -8,8 +8,7 @@
 - `embench_runtime.c` — 最小运行时（`str*` / `ctype` / `sqrt` / `abort`，不引 libc）。
 - `embench_include/` — freestanding 头（`assert.h` / `stdio.h` / …）。
 
-`TESTCASES-075t` 从 `tests/scripts/` 迁入；旧路径保留**符号链接**（删除见
-`TESTCASES-076t`）。`tests/scripts/dadao_mem_runtime.ll` 是**共享**运行时，未随本
+`TESTCASES-075t` 从旧共享区迁入；迁移期符号链接已在 `TESTCASES-076t`（P6）删除。`tests/shared/runtime/dadao_mem_runtime.ll` 是**共享**运行时，未随本
 套件移动。
 
 ## 入口
@@ -23,7 +22,7 @@
   （`TESTCASES-075t` 从 `tools/testcases/` 迁入；旧路径 = 薄 wrapper，命令行等价）。
 - 运行目录 / 三件套：`<test-artifacts>/embench-user/<UTC>-embench-user-<档>/`
   （`docs/Process-08`；目录名**未改**）。
-- `test-m6` 的 Embench E2E（`tools/integ/run_embench_e2e.py`）共用本目录 glue，
+- `test-m6` 的 Embench E2E（`tools/testcases/tset/embench/run_embench_e2e.py`）共用本目录 glue，
   路径已同步。
 
 ## 口径

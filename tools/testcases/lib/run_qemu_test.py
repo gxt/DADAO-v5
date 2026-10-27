@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Run QEMU-based ISA semantic tests for dadao-m1.
 
-Usage (TESTCASES-072t：实现由 `tests/scripts/` 迁来；旧入口 = 薄 wrapper，等价）:
+Usage (TESTCASES-072t 迁入本目录；TESTCASES-076t 删除旧薄 wrapper):
   python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/reg-arith.yaml
   python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/reg-arith.yaml --case 1
   python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/reg-arith.yaml --dump
   python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/ --batch
 
-旧命令行 `python3 tests/scripts/run_qemu_test.py ...` 仍可用（薄 wrapper）；旧向量
-路径 `tests/vectors/isa|rol|atomics|clmul|rev|bitcnt/` 由 `resolve_legacy_vector_path`
-机械平移到 `tests/inst/<ext>/`（isa → base）。
+旧向量路径 `tests/vectors/isa|rol|atomics|clmul|rev|bitcnt/` 仍可传给本 CLI，由
+`resolve_legacy_vector_path` 机械平移到 `tests/inst/<ext>/`（isa → base）；用例本体
+只在 `tests/inst/`。
 
 Exit code protocol (ADR-0004 D5; SYS_EXIT per ADR-0020 D8):
   0x00       = PASS

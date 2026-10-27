@@ -2,7 +2,7 @@
  * port (TESTCASES-039t).
  *
  * Embench-iot is built freestanding, with no libc.  The `mem*` primitives are
- * already provided out-of-line by tests/scripts/dadao_mem_runtime.ll (reused,
+ * already provided out-of-line by tests/shared/runtime/dadao_mem_runtime.ll (reused,
  * unchanged); this TU supplies the remaining symbols the benchmark set
  * references:
  *
@@ -88,7 +88,7 @@ isxdigit (int c)
 /* -------------------------------------------------------------------- math */
 
 /* memcpy is used only as a compiler-recognised 8-byte load/store (type pun);
- * its out-of-line definition lives in tests/scripts/dadao_mem_runtime.ll.  The
+ * its out-of-line definition lives in tests/shared/runtime/dadao_mem_runtime.ll.  The
  * DADAO backend cannot select a register-register `bitcast f64<->i64`, so the
  * bit pattern is moved through memory instead. */
 void *memcpy (void *dst, const void *src, size_t n);

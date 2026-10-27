@@ -17,4 +17,4 @@
 | `ir-lli/` | host `lli` vs DADAO 值级差分清单 | `make check-unit`（L2）/ `make test-m6`（L3） |
 
 - 全部用例的身份清单见根级 `tests/unit.yaml`（`make check-tests-index` 守护）。
-- 驱动/校验脚本仍在 `tools/testcases/`、`tools/integ/`（本任务只搬家用例资产）。
+- 驱动/校验脚本在 `tools/testcases/`（P4 只搬用例资产；集成驱动已由 P6 并入 `tools/testcases/`）。

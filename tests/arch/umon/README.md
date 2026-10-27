@@ -6,8 +6,8 @@ directories (LLVM IR `*.ll` linked to an executable) these vectors exercise the
 *system* instructions (`trap`, `escape`, `cfx2rd`, `cfx2rc`) and semihosting,
 which have no high-level IR form.
 
-> `TESTCASES-073t`（2026-10-27）从 `tests/llvm/codegen/m5/` 迁入（P3 arch 迁移）；
-> 旧路径 `tests/llvm/codegen/m5/` 保留为**符号链接**（删除见 `TESTCASES-076t`）。
+> `TESTCASES-073t`（2026-10-27）从 `tests/unit/llvm/codegen/m5/` 迁入（P3 arch 迁移）；
+> 旧路径 `tests/unit/llvm/codegen/m5/` 保留为**符号链接**（删除见 `TESTCASES-076t`）。
 > cfx 归属：SEE bootrom 装入 **cfx_umon** 用户向量后以 user 模式运行 ⇒ `umon`。
 
 ## Pipeline
@@ -50,4 +50,4 @@ python3 tools/testcases/arch/run_m5_e2e.py --inject   # counter-example self-tes
 `make test-semihost` 为别名（判据未改）。
 
 The full vector ↔ capability ↔ expected-value table and the exact qemu command
-line are in `tests/llvm/lit/MC/DADAO/README-m5.md`.
+line are in `tests/unit/llvm/lit/MC/DADAO/README-m5.md`.

@@ -16,7 +16,7 @@ them:
 
 Value channel (frozen, see tests/unit/llvm/ir-lli/README.md): the process exit code
 == the low byte of the `i64` value returned by `@main`.  The startup stub
-`tests/scripts/codegen_crt0.s` calls `@main` and reports the returned value
+`tests/shared/crt0/codegen_crt0.s` calls `@main` and reports the returned value
 (`rd8`, the M6 ABI return register) through the semihosting `SYS_EXIT` service;
 `lli` runs `@main` natively and the OS truncates its `i64` return to the low
 byte.  Both sides therefore expose exactly the same value channel.
@@ -92,8 +92,8 @@ DEFAULT_LLC = os.path.join(TARGET_TOOLS_BIN, "llc")
 DEFAULT_LLVM_MC = os.path.join(TARGET_TOOLS_BIN, "llvm-mc")
 DEFAULT_LLVM_OBJCOPY = os.path.join(TARGET_TOOLS_BIN, "llvm-objcopy")
 DEFAULT_QEMU = os.path.join(TARGET_TOOLS_BIN, "qemu-system-dadao")
-DEFAULT_CRT0 = "tests/scripts/codegen_crt0.s"
-DEFAULT_TRAMPOLINE = "tests/scripts/trampoline.bin"
+DEFAULT_CRT0 = "tests/shared/crt0/codegen_crt0.s"
+DEFAULT_TRAMPOLINE = "tools/testcases/lib/trampoline.bin"
 DEFAULT_MANIFEST = "tests/unit/llvm/ir-lli/manifest.yaml"
 DEFAULT_WORK_DIR = str(_dadao_paths.test_artifacts_dir() / "ir-lli-diff")
 DEFAULT_TIMEOUT = 30

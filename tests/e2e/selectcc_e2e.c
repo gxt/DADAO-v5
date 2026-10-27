@@ -1,7 +1,7 @@
 /* selectcc_e2e.c — M6 integer select_cc end-to-end program (LLVM-069t).
  *
  * Freestanding (no libc): crt0 reports the `main` return value as the guest
- * exit code (tests/scripts/codegen_crt0.s, contract-semihosting.md §3).
+ * exit code (tests/shared/crt0/codegen_crt0.s, contract-semihosting.md §3).
  *
  * Ternary `?:` with a signed and an unsigned condition.  At -O2 the
  * if-conversion turns the selecting branches into SELECT_CC, i.e. exactly the

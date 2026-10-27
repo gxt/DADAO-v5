@@ -2,7 +2,7 @@
  *
  * Freestanding (no libc): a small floating-point computation whose result
  * selects the value returned from `main`; crt0 reports that value as the
- * guest exit code (tests/scripts/codegen_crt0.s, contract-semihosting.md §3).
+ * guest exit code (tests/shared/crt0/codegen_crt0.s, contract-semihosting.md §3).
  *
  * The inputs live in `volatile` globals so the computation cannot be
  * constant-folded away and the comparison stays a real fcmp + branch (the

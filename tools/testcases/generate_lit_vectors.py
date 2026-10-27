@@ -14,9 +14,9 @@
   **可汇编记录数**现场统计并打印）。
 
 输出（随产物入库，可重跑、幂等）：
-  1. ``tests/llvm/lit/MC/DADAO/gen-fast.s``：**受控子集**（每个「操作数形态」
+  1. ``tests/unit/llvm/lit/MC/DADAO/gen-fast.s``：**受控子集**（每个「操作数形态」
      取排序后首条记录），随既有 ``check-lit`` 进 ``make check``。
-  2. ``tests/llvm/lit/MC/DADAO-gen/{lit.cfg.py,gen-*.s}``：**全量档**，由
+  2. ``tests/unit/llvm/lit/MC/DADAO-gen/{lit.cfg.py,gen-*.s}``：**全量档**，由
      opt-in 目标 ``make check-lit-full`` 承载，**不进** ``make check``。
 
 计数不写死：脚本只**现场统计**并打印，不把具体数字写入源码/文档。
@@ -478,7 +478,7 @@ def _selfcheck(cases):
 
 
 LIT_CFG = '''# -*- Python -*-
-# GENERATED suite config for tests/llvm/lit/MC/DADAO-gen (TESTCASES-037t).
+# GENERATED suite config for tests/unit/llvm/lit/MC/DADAO-gen (TESTCASES-037t).
 # Resolves llvm-mc/llvm-objdump/FileCheck from the install-root host toolchain.
 import os
 import sys

@@ -15,7 +15,6 @@ Tests:
 
 Usage:
   python3 tools/testcases/lib/verify_harness_dump.py
-  （旧入口 `python3 tests/scripts/verify_harness_dump.py` 仍可用 = 薄 wrapper）
 
 All assertions are real (can fail). No check(..., True) hard-coded passes.
 """

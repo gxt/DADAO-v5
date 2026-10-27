@@ -9,7 +9,7 @@
 ; E2E (llc -> llvm-mc -> objcopy -> qemu) links and runs without any libc.
 ;
 ; Compile with `llc -march=dadao -O0` and concatenate the resulting .s ahead of
-; (or after) the crt0 + program TU, exactly like tests/scripts/codegen_crt0.s.
+; (or after) the crt0 + program TU, exactly like tests/shared/crt0/codegen_crt0.s.
 ;
 ; Signatures match the C library / libcall ABI: pointer arguments land in the
 ; RB bank (rb16..), scalars in the RD bank (rd16..), and memcmp returns i32.

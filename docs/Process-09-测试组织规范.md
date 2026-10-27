@@ -1,6 +1,7 @@
 # 测试组织规范（inst / arch / unit / tset）
 
-> **状态**：**草案（2026-10-26 重写；待用户确认）**。确认前不据此移动任何文件。
+> **状态**：**生效（2026-10-27，P6 定稿）**。P1–P6 六期已全部落地（`TESTCASES-071t`…`TESTCASES-076t`）；
+> 本册现行口径 = 下文正文（§2/§6 里标注「迁移前快照」的历史段落只作沿革）。
 > **上位依据**：`docs/Process-07`（门控分层）、`docs/Process-08`（运行产物与日志）、`ADR-0016 D6`（测试产物根 `.dadao/tests`）。
 > **关键词**：**必须**（MUST）／**应当**（SHOULD）／**可以**（MAY）。
 > **前册**：`TESTCASES-067t`（2026-10-26）的盘点与主流调研；本册按用户 2026-10-26 的四分法重写。
@@ -34,15 +35,15 @@
 > **2026-10-27 更新（`TESTCASES-073t`，P3）**：`tests/llvm/codegen/m5/` → `tests/arch/umon/`
 > （cfx_umon）；`tools/qemu/min_rom_probe_*` → `tools/testcases/arch/`、端到端驱动
 > `run_m5_e2e.py` → `tools/testcases/arch/`（旧路径留薄 wrapper）；bootrom 三件
-> （`bootrom.S`/`bootrom_app.S`/`bootrom.lds`）→ `tests/shared/bootrom/`（`tests/scripts/`
-> 留符号链接）。门控：`check-arch-smoke`（L2）/ `check-arch`（L3），旧名 `test-semihost`
+> （`bootrom.S`/`bootrom_app.S`/`bootrom.lds`）→ `tests/shared/bootrom/`
+> （迁移期的 `tests/scripts/` 符号链接已由 P6 删除）。门控：`check-arch-smoke`（L2）/ `check-arch`（L3），旧名 `test-semihost`
 > 为别名。下文 §12「`min_rom_probe_*` → arch」的**落点**以 §6 为准（驱动进
 > `tools/testcases/arch/`，`tests/arch/` 只放用例资产）。
 
 > **2026-10-27 更新（`TESTCASES-075t`，P5）**：三个 user-mode 上游套件驱动 →
 > `tools/testcases/tset/{libc-test,llvm-ts,embench}/`（旧扁平路径留薄 wrapper，命令行
 > 等价）；套件独有 glue（`embench_runtime.c`/`embench_user_boardsupport.c`/
-> `embench_include/`）→ `tests/tset/embench/`（`tests/scripts/` 留符号链接）。门控
+> `embench_include/`）→ `tests/tset/embench/`（`tests/scripts/` 留符号链接，P6 已删除）。门控
 > `check-tset-{libc,llvm,embench}-smoke`（L2，代表集机械派生；embench 为全量
 > benchmark）。**运行目录名仍按 `Process-08`**（`<test-artifacts>/<suite>-user/…`），
 > 不改 `tset/<suite>/` 形状（收口见 P6）。
@@ -54,11 +55,16 @@
 > ir-lli 值级差分 + `check-picolibc-tests` fast；旧目标名保留、可单独调用。下文
 > 「`tests/llvm/`」的计数是**迁移前快照**。
 
+> **2026-10-27 更新（`TESTCASES-076t`，P6 收口）**：`tests/scripts/`、`tests/qemu/`、
+> `tools/integ/` **已删除**；共享 glue → `tests/shared/{crt0,linker,runtime}/`；
+> 旧 Make 目标名（`check-qemu-{smoke,semantics}` / `test-semihost` /
+> `check-{libc-test,llvm-ts,embench}-smoke`）已删。下文 §2 的计数是**迁移前快照**。
+
 - `tests/`：341 文件 / 13 个顶层项；`llvm`(216)、`e2e`(45)、`scripts`(30)、`vectors`(25)、`atomics/clmul/fma/minmax/roundint`、`qemu`(1)。
 - `.dadao/tests/`：**19,967 文件 / 1.13 GB**，18 个子目录；含任务专属目录（如 `llvm-ts-user-050t`）、无 `clean` 目标、约 210 MB 不可重生成。
 - 向量：1,456 例 / 193 个 opcode 身份 / 22 个 YAML；ledger 1,956 条；lit 154。
 - 现行门控：`check`（L1）、`check-modules`（L2）、`check-full`（L3）、`check-milestone`；**无夜跑层**。
-- 工具分散：`tests/scripts/`（inst harness）、`tools/testcases/`（生成器/oracle/套件驱动）、`tools/integ/`（集成驱动），有重复（embench runtime、两套 runner）。
+- 工具分散（迁移前快照，P6 后已删除）：`tests/scripts/`（inst harness）、`tools/testcases/`（生成器/oracle/套件驱动）、`tools/integ/`（集成驱动），有重复（embench runtime、两套 runner）。
 - 平台：宿主 Linux x86-64；guest `qemu-system-dadao` / `qemu-dadao`；**无硬件在环**。
 
 ---
@@ -76,33 +82,60 @@ tests/
   tset/                     # 外部套件（套件独有 glue 就近）
     libc-test/ llvm-ts/ embench/
   shared/                   # 共享测试基础设施（非用例）
-    bootrom/ linker/ crt0/ macros/ expected/
+    bootrom/ linker/ crt0/ runtime/ macros/ expected/
   inst.yaml arch.yaml unit.yaml tset.yaml   # 根级 case 清单（见 §5）
   case-ledger.tsv           # 身份清单（生成物，L1 门控）
   README.md
 ```
 
 - **禁止** `inst/isa` 子层、`unit/tools`、`tests/index/`、`tests/manifest/`。
-- `tests/qemu/` 占位删除（内容并入 `arch/` 或 `tools/testcases`）。
+- `tests/qemu/`（占位 README）**已删除**（`TESTCASES-076t`）；QEMU 组件测试将来落
+  `tests/unit/qemu/`（现在为空，不建空目录）。
+- `tests/e2e/`：**保留**为 `e2e` 资产（`check-lit` 跑 `tests/e2e/lit`）；它的去向是下一
+  里程碑的 **`boot`** scope 与四 scope 细分（`Process-09 §12` 的映射表已给出判据），
+  P6 **不动**它（避免与 `boot` 立项时的边界判断冲突）。
 
 ---
 
-## 4. 生成物（`.dadao/tests/`，scope 名固定）
+## 4. 生成物（`.dadao/tests/`）
 
 ```text
 .dadao/tests/
-  inst/<YYYYMMDDTHHMMSSZ>-<suite>-<mode>/   # Process-08 三件套
-  arch/<...>/
-  unit/<module>/<...>/
-  tset/<suite>/<...>/
-  night/<YYYY-MM-DD>/manifest.tsv           # 夜跑汇总（只读报告）
+  <scope 目录>/<YYYYMMDDTHHMMSSZ>-<suite>-<mode>/   # Process-08 三件套
+  night/<YYYY-MM-DD>/manifest.tsv                   # 夜跑汇总（只读报告）
 ```
 
-- **scope 名固定**为 `inst|arch|unit|tset`；**禁止**任务专属目录（如 `llvm-ts-user-050t`）。
+- **生成物根** = `manifests/install-dirs.lock.toml` 的 `test_artifacts_dir`（当前
+  `.dadao/tests`），经 `tools/infra/paths.py` 解析，禁硬编码。
+- **scope → 目录的映射表**（单一真源 = `tools/testcases/manage_tests.py::SCOPE_MAP`；
+  文档与门控都指它，不另列清单）。**现状（P6）**仍沿用历史目录名 —— 统一改名到
+  `{inst,arch,unit,tset}/` 需先定 `e2e`/`boot` 归属，**留到 `boot` 立项时一次性做**：
+
+  | scope | 生成物目录（`.dadao/tests/` 下） |
+  |---|---|
+  | `inst` | `harness/`、`smoke/` |
+  | `arch` | `arch/`、`m5-e2e/`、`probes/` |
+  | `unit` | `codegen-e2e/`、`codegen-m6/`、`elf-e2e/`、`elf-m6/`、`ir-lli-diff/`、`lit-output/` |
+  | `tset` | `libc-test-user/`、`llvm-ts-user/`、`llvm-ts-user-050t/`、`embench-user/`、`m6-embench/`、`libc-argv-static/`、`libc-argv-dynamic/` |
+  | `night` | `night/` |
+
+- **未归属即红**：`.dadao/tests/` 顶层出现映射表与 `UNSCOPED`（= 构建产物 `bootrom/`）之外
+  的目录 ⇒ `clean-tests`/`test-repro` **FAIL**（防新产物目录悄悄长出而清理/复现漏掉）。
+  **禁止**任务专属运行目录（如 `llvm-ts-user-050t` 这类历史孤儿已在表内，新任务不得再建）。
 - 运行目录形状、`run.json`/`run.log`/`meta.json`、权威跑，按 `Process-08`。
-- **日志**不进生成物：仍落 `.work/log/<模块>/<任务号>-*.log`。
-- `make clean-tests SCOPE=inst|arch|unit|tset|night|all`。
-- **确定性**：只对**构建产物**（ELF/对象/反汇编等）要求逐字节可重生成；运行记录含时间戳/宿主信息，**不要求**。`make test-repro SCOPE=...` 跑两次比 md5；`case-ledger.tsv` 已实测 byte-identical；`.lit_test_times.txt` 等运行脚手架排除。
+- **日志**不进生成物：仍落 `.work/log/<模块>/<任务号>-*.log`（门控自身 `check-<name>.log`）。
+- `make clean-tests SCOPE=inst|arch|unit|tset|night|all [DRY_RUN=1]`：按映射表删目录；
+  未知 scope / 未归属目录 ⇒ 非零退出。`SCOPE=all` 连 `bootrom/` 一起删（并打印清单）。
+- **确定性**：只对**构建产物**要求逐字节可重生成；运行记录含时间戳/宿主信息，**不要求**。
+  `make test-repro SCOPE=...` 的口径 = **清 → 跑 producer → 快照 → 清 → 再跑 → 快照 →
+  逐文件 md5 比**；比较面 = 构建产物后缀白名单（`.o/.bin/.s/.elf/.ll/.mir/.yaml/.a/.so/.d`），
+  运行记录（`run.json`/`meta.json`/`*.log`/`.lit_test_times.txt`）天然排除。
+  **产物数 == 0 ⇒ FAIL**（比较不能是空的）；`SCOPE=night` **显式拒绝**（报告不可逐字节复现）。
+  `--inject CMD` 在两次生产之间执行一次注入，用于证明比较可达 FAIL（证据脚本用）。
+- **夜跑报告**（`Process-09 §8` Night 层）落 `night/<YYYY-MM-DD>/`，三件：
+  `manifest.tsv`（表头 `scope<TAB>suite<TAB>rc<TAB>log`，逐成员一行）、
+  `meta.json`（`command`/`started_utc`/`finished_utc`）、`run.log`（汇总）。
+  同日不覆盖（重跑须换日期或显式 `NIGHT_ALLOW_OVERWRITE=1`）。
 - **记录保留**：authoritative/夜跑 + **失败必留**（`run.json`/`meta.json`/日志）；普通 smoke 可落 `/tmp` 或跑后清理。
 
 ---
@@ -133,21 +166,30 @@ tests/
 ```text
 tools/testcases/
   lib/          # 共享 harness：构建、运行 qemu、超时/信号、run.json、md5
-  inst/         # ISA 向量构建/运行（原 tests/scripts 主体）
+  inst/         # ISA 向量构建/运行（原薄 wrapper 区主体）
   arch/         # bootrom/min-ROM/CFX 场景（原 min_rom_probe）
-  unit/         # lit 驱动、codegen/elf/ir-lli、picolibc
+  unit/         # codegen/elf 端到端驱动（原集成驱动目录）、lit/codegen/ir-lli 校验、picolibc
   tset/         # 外部套件驱动（TESTCASES-075t 已落）
     libc-test/  # run_libc_test_user_suite.py + run_smoke.py（L2 代表集）
     llvm-ts/    # run_llvm_ts_user.py + run_smoke.py
     embench/    # run_embench_user_suite.py（L2 跑全量 benchmark）
   gen/          # 向量/oracle 生成器（ISA/rev/bitcnt/atomics/...）
+  manage_tests.py       # make clean-tests / test-repro 的实现（scope→目录映射单一真源）
+  night_run.py          # make check-night 的实现（tset full×3 + 长 arch → 报告）
+  check_night_report.py # 夜跑报告存在性/结构/结果门控（里程碑层）
 ```
 
-- `tests/scripts/`：迁移后删除；harness → `tools/testcases/lib`，bootrom/lds/crt0/宏 → `tests/shared/`。
-- `tools/integ/`：集成驱动并入 `tools/testcases/{unit,tset}`；`tools/integ` 目录删除。
-- `tests/scripts/embench_*` 与旧 `tools/testcases/run_embench_user_suite.py` 已合并为
+- 仓库级**静态**一致性检查（`check_interface_alignment.py`）归 `tools/infra/`，不属测试驱动。
+
+- `tests/scripts/`：**已删除**（`TESTCASES-076t`，P6）。去向：Python harness →
+  `tools/testcases/{lib,inst}/`；共享 glue → `tests/shared/{bootrom,linker,crt0,runtime}/`；
+  套件独有 glue → `tests/tset/<suite>/`。
+- `tools/integ/`：**已删除**（`TESTCASES-076t`）。去向：codegen/elf 端到端驱动 →
+  `tools/testcases/unit/`；embench 系统态端到端驱动 → `tools/testcases/tset/embench/`；
+  跨模块接口一致性检查 `check_interface_alignment.py` → `tools/infra/`（静态检查，归 L1）。
+- 旧 `tests/scripts/embench_*`（P6 已删除）与旧 `tools/testcases/run_embench_user_suite.py` 已合并为
   `tools/testcases/tset/embench` 一份（`TESTCASES-075t`）；套件独有 glue →
-  `tests/tset/embench/`，共享运行时（`dadao_mem_runtime.ll`）仍留 `tests/scripts/`。
+  `tests/tset/embench/`，共享运行时 → `tests/shared/runtime/dadao_mem_runtime.ll`。
 - `tests/shared/` 只放**非用例**数据（bootrom、linker、crt0、宏、公共期望）。
 - **glue（测试胶水）**：把上游套件/被测程序接到 DADAO 的**非用例**代码与数据，分三类：
   1. **链接/布局**：`dadao.lds`、`dadao-dyn.lds`、`bootrom.lds`（基址、段、对齐）；
@@ -170,12 +212,15 @@ tools/testcases/
 
 ## 8. 门控分层（一个检查只在一层）
 
-- **任务级（Task）**：任务书 `## 验证` 必须写 `scope`、`level`（targeted/smoke）、`cmd`；reviewer 重跑同一命令。**≤2 min**，如 `make check-inst-smoke CASE=...`、`make check-arch-smoke CFX=...`、`make check-unit-llvm`、`make check-tset-libc-smoke`。
-- **L1（静态）**：`tests/*.yaml` 索引、ID/文件/字段、`case-ledger`、生成器 `--check`、链接/引用；**不跑 guest**。
-- **L2（模块代表集）**：四 scope 的 **smoke** 集，进 `make check-modules`。
-- **L3（全量语义）**：`check-inst`（全 ISA）、`check-arch`（全 cfx）、`check-unit`、`check-tset`（smoke），进 `make check-full`。
-- **里程碑（Milestone）**：`check-milestone` = 归档/任务号/`check-tasks` + **L3 结果** + **夜跑报告存在性**；**不内联跑长套件**。
-- **夜跑（Night）**：`make check-night` = `tset` full（libc-test/llvm-ts/Embench）+ 长 arch；`setsid nohup` + `[exit marker] rc=N`；汇总 `.dadao/tests/night/<date>/manifest.tsv`；次日由里程碑门控消费。
+- **任务级（Task）**：任务书 `## 验证` 必须写 `scope`、`level`（targeted/smoke）、`cmd`；reviewer 重跑同一命令。**≤2 min**，如 `make check-inst-smoke CASE=...`、`make check-arch-smoke CFX=...`、`make check-unit`、`make check-tset-libc-smoke`。
+- **L1（静态）**：`tests/*.yaml` 索引、ID/文件/字段、`case-ledger`、生成器 `--check`、链接/引用、**跨模块接口一致性**（`check-interface`）、**代码跨度自检**（`check-code-range`）；**不跑 guest**。
+- **L2（四 scope smoke）**：`check-inst-smoke`、`check-arch-smoke`、`check-unit`、`check-tset-{libc,llvm,embench}-smoke` ⇒ `make check-modules`。**不含 FP 探针**（2026-10-27 用户裁定「L2 只保留四 scope smoke」）。
+- **L3（四 scope 全量）**：`check-inst`（全 ISA）、`check-arch`（全 cfx）、**`check-unit-full`**（= `check-unit` + `check-lit-full`）、`check-tset-{libc,llvm,embench}-smoke`（tset full 属夜跑）、**4 个 FP 探针**（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖，只在 L3 跑）、`test-m6`（全量 lit + ir-lli + Embench E2E）⇒ `make check-full`。
+  - **一层一列**：`check-unit` 只在 L2 直接列出；L3 用 `check-unit-full`，它在 L3 只是
+    **前置依赖**（`Process-07 §4` 明文允许「被上层前置依赖而间接跑到不算重复」）。
+    **不设例外**（2026-10-27 用户裁定严格化）。
+- **里程碑（Milestone）**：`check-milestone` = 归档结构/内容 sha + 同步不可屏蔽 + knowledge 白名单 + `m` 册/任务号 + **夜跑报告存在性/结构/结果**（`check-night-report`）；**不内联跑长套件**。报告缺失 ⇒ **明确 FAIL**（不是 SKIP）。
+- **夜跑（Night）**：`make check-night` = `tset` full ×3（libc-test / llvm-ts / Embench，各 static+dynamic）+ 长 arch；由**主会话** `setsid nohup` 启动 + `[exit marker] rc=N`；报告落 `.dadao/tests/night/<date>/`（`manifest.tsv`/`meta.json`/`run.log`），次日由里程碑门控消费。
 
 ---
 
@@ -215,7 +260,9 @@ cmd: make check-inst-smoke CASE=base/add
   → `arch/`；smoke 绿后进 L2（`check-arch-smoke` / `check-arch`）。
 - **P4 unit**（**已完成：`TESTCASES-074t`**）：`lit/MC|CodeGen`、`codegen`（M3/m4/m6）、`ir-lli`、`picolibc` → `unit/`；smoke 绿后进 L2（`check-unit`）。
 - **P5 tset**（**已完成：`TESTCASES-075t`**）：libc-test/llvm-ts/Embench 驱动 → `tools/testcases/tset`；套件独有 glue → `tests/tset/<suite>/`；`check-tset-{libc,llvm,embench}-smoke`（L2）绿。
-- **P6 收口**：删 `tests/scripts`/`tests/qemu`/`tools/integ` 旧入口；重写 Makefile 门控；`clean-tests`/`test-repro`；`check-night`。
+- **P6 收口**（**已完成：`TESTCASES-076t`**）：删旧入口（三个目录 + 旧目标名）；共享 glue →
+  `tests/shared/`；门控重写（L2 = 四 scope 代表集、L3 = 四 scope 全量 + `test-m6`）；新增
+  `make check-night` / `check-night-report` / `clean-tests` / `test-repro`。
 
 ### §12 资产 → scope 映射（P0）
 
@@ -223,7 +270,7 @@ cmd: make check-inst-smoke CASE=base/add
 - `tests/llvm/lit/MC`、`lit/CodeGen`、`llvm/codegen/m3/m4/m6`、`llvm/ir-lli` → **unit/llvm**
 - `tests/llvm/codegen/m5`（semihosting/CFX 权限）+ `tools/qemu/min_rom_probe_*` → **arch**
 - `tests/e2e/lit`：semihosting → **arch**；FP/clmul 等指令性 → **inst**；weak/CM 等链接/ABI → **unit**
-- `tests/scripts`（bootrom/lds/crt0/harness）→ **shared** + **tools/testcases/lib**；其中 `embench_runtime.c`/`embench_user_boardsupport.c`/`embench_include/` → **tests/tset/embench/**
+- 旧薄 wrapper 区（bootrom/lds/crt0/harness）→ **`tests/shared/`** + **`tools/testcases/lib`**；其中 `embench_runtime.c`/`embench_user_boardsupport.c`/`embench_include/` → **`tests/tset/embench/`**；集成驱动 → **`tools/testcases/{unit,tset}`** + **`tools/infra/`**（P6 已完成）
 - libc-test / llvm-ts / Embench → **tset**（ansibench 不保留：源码集合，非门控套件）
 - picolibc 自测（仅 picolibc 下跑）→ **unit/picolibc**
 - `case-ledger.tsv` → 根级（身份清单）
@@ -242,3 +289,6 @@ cmd: make check-inst-smoke CASE=base/add
 - L1 索引门控、L2 smoke、L3 full、night 四层各就位；一个检查只在一层。
 - `make clean-tests`/`test-repro` 可跑；`case-ledger` 仍 byte-identical。
 - 每个 scope 至少 1 个 smoke 用例端到端绿（inst/arch/unit/tset）。
+- **P6 验收（2026-10-27）**：旧入口零残留（`grep` 无悬空引用，除历史归档/组件 changelog/
+  锁定 `spec/README.md`）；`make check` / `check-modules` 绿；`clean-tests` / `test-repro`
+  可跑且**可失败**；`check-night-report` 在无报告时**明确 FAIL**。
