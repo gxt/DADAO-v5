@@ -56,6 +56,7 @@
 | TESTCASES-077t | 待开始 | 2026-10-27 10:10（登记） | llvm-ts 架构专用排除、Burg 编译、mafft 超时（全量门控） |
 | TESTCASES-078t | 待开始 | 2026-10-27 10:10（登记） | SPASS/lemon 语料 UB 修复 + SPASS 参考重定（ISS-338/277） |
 | TESTCASES-079t | 待开始 | 2026-10-27 10:10（登记） | consumer-typeset：musl catclose(-1) 守卫（ISS-339） |
+| TESTCASES-080t | 待开始 | 2026-10-27 10:10（登记） | llvm-ts 零 known-fail：obsequi/ft/8b10b（ISS-265/266） |
 | TESTCASES-075t | 已验证 | 2026-10-27 06:35 | tset 迁移（libc-test/llvm-ts/embench；check-tset） |
 | TESTCASES-074t | 已验证 | 2026-10-27 05:11 | unit 迁移（lit/codegen/ir-lli/picolibc；check-unit） |
 | TESTCASES-073t | 已验证 | 2026-10-27 03:49 | arch 迁移：m5→tests/arch/umon、min-ROM→tools/testcases/arch、bootrom→shared、check-arch(-smoke)+旧名别名 |

@@ -21,12 +21,12 @@
 ## 目标
 1. **架构专用排除**：在 `tools/testcases/tset/llvm-ts/run_llvm_ts_user.py` 增加**逐例、带源码依据**的「架构专用/不适用」排除表，至少含 `aarch64-init-cpu-features`；扫描同目录/同套件其它 aarch64/riscv/x86 专用用例，按同口径处理。排除必须是 `excluded`（不是 pass/fail/known-fail），理由含源码文件:行与符号证据；不得用宽泛通配。
 2. **Burg 编译口径**：用**最小 per-case 编译参数**修复（如 `-Wno-error=implicit-int` 或该例 `-std=gnu89`，二选一以实测为准），不得全局放宽所有套件；确认不改变其它用例命令。
-3. **mafft 超时**：先实测单例真实耗时；按需提高**该例** timeout（如 3600s）或给出可复现的加速方案；不得把全局 `DEFAULT_TIMEOUT` 无据放大；夜跑总时长须记录。
+3. **mafft 超时**：先实测单例真实耗时；**同时在宿主机跑同一输入作参照**，判断是「纯慢」还是另有 bug（死循环/阻塞）；先提高**该例** timeout（如 3600s 起）复测；不得把全局 `DEFAULT_TIMEOUT` 无据放大；夜跑总时长须记录。
 4. 不改测试期望/断言，不把「适用用例」降级为 known-fail/blocked。
 
 ## 验收
 - 定向（static+dynamic）：`aarch64-init-cpu-features` 为 `excluded`（理由指向源码）；`Burg` 编译并运行到自身判定；`mafft` 在设定 timeout 内完成并 pass。
-- `make check-tset-llvm-full`（static+dynamic）**rc=0**，且无未知 `fail`/`blocked`；`known-fail` 仅限既有已裁定项（ISS-265/ISS-266）。
+- `make check-tset-llvm-full`（static+dynamic）**rc=0**，且 **`fail=0`、`blocked=0`、`known-fail=0`**（用户 2026-10-27 裁定：全绿 = 没有 known-fail；`obsequi`/`ft`/`8b10b` 由 `TESTCASES-080t` 处理）。本任务不得新增 known-fail。
 - `make check` rc=0；`check-case-ledger` rc=0；证据 `.work/evidence/<任务号>/run.sh`（含注入→FAIL→`cp`+md5 还原→PASS）。
 - 完成区 ≤30 行；状态 `待验收`；`milestones.md` 行同步；临时目录 `/tmp/opencode/TESTCASES-077t/`。
 
