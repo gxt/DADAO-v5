@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：TESTCASES-072t/073t/074t/075t
-**状态**：待验收
+**状态**：已验证
 
 ## 目标（P6）
 1. 删除旧入口：`tests/scripts/`、`tests/qemu/`、`tools/integ/`、旧 Make 目标（或全部改为新目标别名后删）。
@@ -31,7 +31,7 @@
 
 ## 完成区
 
-**状态**：待验收
+**状态**：已验证
 
 **测试结果**：证据脚本 `.work/evidence/TESTCASES-076t/run.sh` → `checks=50 pass=50 fail=0` / `EVIDENCE: PASS`（含：夜跑报告删 tset 行 ⇒ FAIL、`crt0` 插 `swym 0` ⇒ 产物漂移 FAIL，均 `cp`+md5 还原后回绿；4 个 FP 探针 `--inject` 各自证明「改坏 ⇒ 判定转红」）。另：`make check` rc=0（L1 含 `check-interface`/`check-code-range`）；`make check-modules` rc=0（**严格化后 L2**，无 FP 探针，`.work/log/testcases/TESTCASES-076t-check-modules-strict.log`）；`make check-unit-full` rc=0（L3 专属 unit 全量）；`test-codegen` 15/15、`test-elf` 5/5、`diff_ir_lli` 19/19、`check-inst-smoke`/`check-arch-smoke` PASS；`make check-tset-embench-full TSET_FULL_MODES=static` PASS（37 s）；`check-night-report` 无报告 ⇒ 明确 FAIL(rc=1)。
 
@@ -102,3 +102,17 @@
 **finding ②（阻断，证据脚本锚点过时，非门控缺陷）**：`bash .work/evidence/TESTCASES-076t/run.sh` ⇒ `checks=50 pass=48 fail=2` / `EVIDENCE: FAIL` / exit=1；`--fast` ⇒ `checks=41 pass=39 fail=2`。红项 = `B2`/`B8`：脚本仍按 `_locked-check-full:` 的**前置依赖行**盘点 L3 成员（期望含 3 条 tset smoke），而 083 起成员真源已迁 `l3_run.DEFAULT_MEMBERS`（Makefile 无依赖行 ⇒ actual 为空）。语义本身正确（8 成员 = inst base+4FP 探针 / arch / unit-full / test-m6，与 Process-07 §1、报告一致）。修法：B2/B8 改锚 `l3_run.py --dry-run` 或直读 `DEFAULT_MEMBERS`（与 082t/083t 修法一致），期望清单同步为当前 8 成员。
 **其余约束**：改动范围 = tests/ + tools/{testcases,infra} + Makefile + docs + components/*/README + milestones + 本册，无 spec/contracts/补丁改动；审前/审后 `git status --porcelain -uall` 均 1 行（= 本册 architect 全量验证段，未提交）；注入还原以 md5 对账（`manage_tests.py` `045d120b…`、`codegen_crt0.s` `bf0a72ed…` 均 == HEAD）。
 **判决：Needs Revision**（finding ①②）。
+
+### 第 2 轮 reviewer 验收（2026-10-28，architect 修复 `e7b73e31` 后独立重跑）
+**重跑记录（真实输出/退出码）**：`python3 tools/testcases/night_run.py --self-test` rc=0（6/6）；`check_night_report.py --self-test` rc=0（8/8）；`bash .work/evidence/TESTCASES-076t/run.sh --fast` → `checks=41 pass=41 fail=0` / `EVIDENCE: PASS`，脚本自身 `REAL_EXIT=0`（上轮红的 B2/B8 本轮 expect==actual 通过）；`make check` rc=0（`repository checks (L1): PASS`）。
+**报告核（非重跑夜跑/全量，采信 architect 现场 + reviewer 逐行核）**：`.dadao/tests/night/2026-10-28/manifest.tsv` 4 行全 rc=0，4 个 log 文件均存在且非空（731/3674/740/28774 B）；`make check-night-report`（= `check_night_report.py`）latest 与 `--date 2026-10-28` 均 rc=0；L3 报告 `.dadao/tests/l3/20261027T223042Z` 8 行全 rc=0、8 个 log 均非空（21779–160390 B）。
+**finding ① 闭环核**：`run_night` 现按 `logdir or REPO_ROOT/.work/log/testcases` 派生（self-test 传 `logdir=base/"logs"`）；self-test 输出证实日志写 `/tmp/opencode/night-run-selftest-*/logs/`。审前/审后对真实夜跑日志 + 10-28 报告三件套记 md5+mtime 快照 ⇒ `diff` **零 delta**（self-test 未触碰真实证据）。`check_night_report.check` 新增逐行「log 文件存在且非空」断言。
+**finding ② 闭环核**：run.sh B2/B8 改锚 `l3_run.py::DEFAULT_MEMBERS`（8 成员：inst base+4FP / arch / unit-full / test-m6）；非恒真验证——临时副本删 `fp-clmul` 探针后同一提取管线 ⇒ `probes=3`（≠4 即红）。
+**独立反例（cp+md5，未用 git checkout/restore）**：复制真实 10-28 报告为临时 fixture（基线 PASS rc=0）→ `: >` 清空 embench log ⇒ `FAIL — manifest.tsv:4 log 不存在/为空` rc=1 → `cp` 还原 md5 `a84d9244…` == 注入前 ⇒ 回绿 rc=0。
+**约束核验**：`e7b73e31` 只动 3 文件（本册 + night_run + check_night_report），与两处 finding 修法一致、无越界、无 spec/contracts/补丁改动；`case-ledger` 工作树 md5 `22103f04…` == HEAD；审前/审后 `git status --porcelain -uall` 均空，仓库内无 `*_tmp*`/`_gate*`/`*.orig`/`*.rej` 新增残留（find 命中项全在 `.work/` 第三方源码与历史任务目录，非本册范围）；注入全在 `/tmp/opencode/TESTCASES-076t-review/`。
+**剩余风险（非阻断，登记）**：① `night/2026-10-27` 报告已失效（其 4 个 log 被上轮 self-test 清空、10-28 已重跑替代）——新断言现会对其 `--date 2026-10-27` 判 FAIL rc=1，建议收尾时删该目录或加注记；② `/tmp/opencode/night-run-selftest-{84ca5tmu,uetxnmfp}` 两个历史遗留临时目录（非本册产生）；③ 完成区「L3 + tset smoke」等描述已被 082t/083t 取代（册内已注明「以当前 HEAD 门控为准」，文档级不阻断）。
+**判决：Accepted**（两处 finding 均闭环、证据链回绿、约束无违反；全量/夜跑采信 architect 现场报告，reviewer 逐行核报告与门控）。
+
+### architect 收尾（2026-10-28）
+- reviewer 第 2 轮 Accepted；夜跑重跑 `2026-10-28` 4/4 rc=0、日志非空；自检 6/6、8/8；证据 `--fast` 41/41。
+- 已删除失效的旧夜跑报告 `.dadao/tests/night/2026-10-27`（上轮 self-test 清零，不可恢复），以 `2026-10-28` 为权威报告。
