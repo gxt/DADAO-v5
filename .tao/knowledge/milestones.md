@@ -53,6 +53,10 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-136t | 待开始 | 2026-10-28 09:38（登记） | PR 基线 rebase/清理：保留 LLVM-130–135，任务号改 136–139，修 lit 工具链口径 |
+| LLVM-137t | 待开始 | 2026-10-28 09:38（登记） | i64 常量移位立即数选择（shl.o/shr.uo/shr.so）+ QEMU oracle |
+| LLVM-138t | 待开始 | 2026-10-28 09:38（登记） | 窄整数 canonical extension 折叠（39 组）+ 方向/边界负例 |
+| LLVM-139t | 待开始 | 2026-10-28 09:38（登记） | 循环指针 PHI GPRB machine pass（verify/支配/多回边） |
 | TESTCASES-077t | 已验证 | 2026-10-28 07:47 | llvm-ts：aarch64/archie/plot2fig 等排除、Burg/cdecl/OptimizerEval 方言、mafft 1800s；两档 214/214、零 known-fail |
 | TESTCASES-081t | 已验证 | 2026-10-28 02:35 | gawk/make/p2c 按 CMake 排除；archie/plot2fig excluded；ClamAV；SIG 判据（077 余项清） |
 | TESTCASES-078t | 已验证 | 2026-10-28 01:59 | SPASS/lemon 胶水补丁；SPASS 参考不须重定（069t 74365d61 = 多传 -DocProof）；两档 md5-exact（ISS-338 关闭） |
