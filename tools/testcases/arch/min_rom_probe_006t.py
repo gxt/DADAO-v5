@@ -15,7 +15,7 @@ Tests cover:
 Exit codes (ADR-0004 D5.8):
   0x00 = PASS, 0x88 = ILLI, 0x89 = UNDI, 0x8C = MALIGN
 
-Usage: python3 tools/qemu/min_rom_probe_006t.py
+Usage: python3 tools/testcases/arch/min_rom_probe_006t.py
 """
 
 import struct

@@ -12,7 +12,7 @@
 ;
 ; ISS-310 was the missing frontend half: `int` (i32) arguments carried no
 ; `signext`, so a signed value reached the callee zero-extended.  The clang half
-; is verified end-to-end by tests/e2e/lit/narrow_int_e2e.test (assembly check +
+; is verified end-to-end by tests/unit/llvm/e2e/lit/narrow_int_e2e.test (assembly check +
 ; the `ext_reg` runtime probe); the backend half is pinned here.
 ;
 ; Every call site below is exactly the extension plus the call; a return is the

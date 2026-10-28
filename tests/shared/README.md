@@ -6,7 +6,7 @@
 | 子目录 | 内容 | 谁用 |
 |---|---|---|
 | `bootrom/` | SEE bootrom 源 + 链接脚本（`bootrom.S` / `bootrom_app.S` / `bootrom.lds`） | `make build-bootrom` → `check-arch{,-smoke}` |
-| `crt0/` | `codegen_crt0.s`（`_start` → `@main` → `SYS_EXIT` 的最小启动桩） | `test-codegen` / `test-elf` / `tests/e2e`（lit）/ embench 系统态 E2E |
+| `crt0/` | `codegen_crt0.s`（`_start` → `@main` → `SYS_EXIT` 的最小启动桩） | `test-codegen` / `test-elf` / `tests/unit/llvm/e2e`（lit）/ embench 系统态 E2E |
 | `linker/` | `dadao.lds`（M4 裸机静态布局）/ `dadao-dyn.lds`（ET_DYN 动态布局） | 同上 + `build_musl.py` / `run_suite.py` / tset 驱动 |
 | `runtime/` | `dadao_mem_runtime.ll`（freestanding `mem*` 运行时）/ `dadao_user_dyn_probe.c`（动态装载 auxv 探针程序） | `test-m6` / Embench / 手工探针 |
 

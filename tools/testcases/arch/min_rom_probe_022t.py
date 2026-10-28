@@ -13,7 +13,7 @@ CTL self-check:
   CTL1: st.o PASS but expect TIMEOUT (wrong) — probe broken if passes
   CTL2: fence but expect PASS (wrong) — probe broken if passes
 
-Usage: python3 tools/qemu/min_rom_probe_022t.py
+Usage: python3 tools/testcases/arch/min_rom_probe_022t.py
 """
 
 import struct

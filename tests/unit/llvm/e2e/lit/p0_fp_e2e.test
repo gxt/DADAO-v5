@@ -1,6 +1,6 @@
 # P0 FP/bit-codegen end-to-end (LLVM-079t).
 #
-# Compiles tests/e2e/p0_fp_e2e.c with the DADAO clang, links it against the
+# Compiles tests/unit/llvm/e2e/p0_fp_e2e.c with the DADAO clang, links it against the
 # project crt0 + linker script, and runs it on qemu dadao-m1 with semihosting.
 # The guest exit code is the test result: p0_fp_e2e.c returns 0 only when all
 # five P0 ISel classes (f32->f64 load / FP setcc / f64<->i64 bitcast /

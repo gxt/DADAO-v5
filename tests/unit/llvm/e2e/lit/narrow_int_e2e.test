@@ -1,7 +1,7 @@
 # Narrow integer codegen end-to-end (LLVM-127t).
 #
-# Compiles tests/e2e/narrow_int_e2e.c, assembles the ABI probe
-# tests/e2e/narrow_int_e2e_abi.s, links both against the project crt0 + linker
+# Compiles tests/unit/llvm/e2e/narrow_int_e2e.c, assembles the ABI probe
+# tests/unit/llvm/e2e/narrow_int_e2e_abi.s, links both against the project crt0 + linker
 # script and runs the result on qemu dadao-m1 with semihosting.  The guest exit
 # code is the test result: 0 only when every i8/i16/i32 arithmetic, shift,
 # compare and extension case (including the ISS-310 canonical argument

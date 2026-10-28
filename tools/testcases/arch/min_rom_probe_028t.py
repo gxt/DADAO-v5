@@ -14,7 +14,7 @@ CTL self-check:
 
 Exit codes: PASS=0, ILLI=136(0x88), UNDI=137(0x89), CRASH=134
 
-Usage: python3 tools/qemu/min_rom_probe_028t.py
+Usage: python3 tools/testcases/arch/min_rom_probe_028t.py
 """
 
 import struct

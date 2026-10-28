@@ -1280,7 +1280,7 @@ check-spec-codeblocks:
 LIT_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-lit
 _locked-check-lit:
 	@test -x $(LIT_BIN) || { echo "check-lit: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
-	$(LIT_BIN) tests/unit/llvm/lit/MC/DADAO tests/unit/llvm/lit/CodeGen/DADAO tests/e2e/lit -v
+	$(LIT_BIN) tests/unit/llvm/lit/MC/DADAO tests/unit/llvm/lit/CodeGen/DADAO tests/unit/llvm/e2e/lit -v
 
 # lit 全量档 (TESTCASES-037t): 由 contracts/opcodes.yaml 机械生成的全部 lit MC
 # 编码用例（快档受控子集已随 check-lit 进 L2；本目标承载规模）。

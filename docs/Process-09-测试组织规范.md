@@ -19,7 +19,7 @@
 | **unit** | **各模块自身功能**：LLVM（MC/CodeGen）、lld、QEMU、picolibc（仅 picolibc 下跑）、仓库工具 | host / toolchain |
 | **tset** | **外部套件**（third-party test suites）在成品系统上的运行：libc-test、llvm-test-suite、Embench | `user`（成品系统） |
 
-- **boot**（Linux/busybox）**预留**：整系统启动到用户态；下一里程碑再建，本册不排。现有 `tests/e2e/` 是**旧目录名**，拆到 inst/arch/unit，不构成 `boot` scope。
+- **boot**（Linux/busybox）**预留**：整系统启动到用户态；下一里程碑再建，本册不排。原顶层 `e2e/` 已归 **unit**（`tests/unit/llvm/e2e/`，工具链编译/链接/运行用例），不构成 `boot` scope。
 - 判据：**上游/组件自己的测试套件 → `unit/<组件>`**；**跑在成品系统上的外部套件 → `tset`**。
 - 本册只定**组织与门控**；运行目录/日志细节仍按 `Process-08`。
 
@@ -32,8 +32,8 @@
 > `tools/testcases/{lib,inst}/`（旧入口留薄 wrapper + 别名门控 `check-qemu-{smoke,semantics}`）；
 > 因此下文「`tests/vectors/`」「`tests/scripts/`」的计数是**迁移前快照**。
 >
-> **2026-10-27 更新（`TESTCASES-073t`，P3）**：`tests/llvm/codegen/m5/` → `tests/arch/umon/`
-> （cfx_umon）；`tools/qemu/min_rom_probe_*` → `tools/testcases/arch/`、端到端驱动
+> **2026-10-27 更新（`TESTCASES-073t`，P3）**：旧 `llvm/` 的 `codegen/m5/` → `tests/arch/umon/`
+> （cfx_umon）；min-ROM 探针 `min_rom_probe_*` → `tools/testcases/arch/`、端到端驱动
 > `run_m5_e2e.py` → `tools/testcases/arch/`（旧路径留薄 wrapper）；bootrom 三件
 > （`bootrom.S`/`bootrom_app.S`/`bootrom.lds`）→ `tests/shared/bootrom/`
 > （迁移期的 `tests/scripts/` 符号链接已由 P6 删除）。门控：`check-arch-smoke`（L2）/ `check-arch`（L3），旧名 `test-semihost`
@@ -48,17 +48,22 @@
 > benchmark）。**运行目录名仍按 `Process-08`**（`<test-artifacts>/<suite>-user/…`），
 > 不改 `tset/<suite>/` 形状（收口见 P6）。
 
-> **2026-10-27 更新（`TESTCASES-074t`，P4）**：`tests/llvm/lit/{MC,CodeGen}`、
-> `tests/llvm/codegen/{M3,m4,m6}`、`tests/llvm/ir-lli` → `tests/unit/llvm/`（旧路径为
-> 符号链接，删除见 P6）；picolibc 自测入口 → `tests/unit/picolibc/`（仍只在 picolibc
+> **2026-10-27 更新（`TESTCASES-074t`，P4）**：旧 `llvm/` 的 `lit/{MC,CodeGen}`、
+> `codegen/{M3,m4,m6}`、`ir-lli` → `tests/unit/llvm/`（迁移期
+> 符号链接已由 084t 删除）；picolibc 自测入口 → `tests/unit/picolibc/`（仍只在 picolibc
 > 构建下跑）。门控 `check-unit`（L2）= `check-lit` + `test-codegen` + `test-elf` +
 > ir-lli 值级差分 + `check-picolibc-tests` fast；旧目标名保留、可单独调用。下文
-> 「`tests/llvm/`」的计数是**迁移前快照**。
+> 旧 `llvm/` 的计数是**迁移前快照**。
 
 > **2026-10-27 更新（`TESTCASES-076t`，P6 收口）**：`tests/scripts/`、`tests/qemu/`、
 > `tools/integ/` **已删除**；共享 glue → `tests/shared/{crt0,linker,runtime}/`；
 > 旧 Make 目标名（`check-qemu-{smoke,semantics}` / `test-semihost` /
 > `check-{libc-test,llvm-ts,embench}-smoke`）已删。下文 §2 的计数是**迁移前快照**。
+
+> **2026-10-28 更新（`TESTCASES-084t`）**：顶层 `e2e/` → **`tests/unit/llvm/e2e/`**
+> （工具链 E2E 属 unit/lit，`check-lit` 同跑）；旧 `llvm/` 迁移期符号链接与
+> 旧 `min_rom_probe_*` 薄 wrapper 已删除，`tools/llvm` 默认路径、`spec/README`
+> 与 README/INVENTORY 已同步。下文提及这两条旧路径处为迁移前快照。
 
 - `tests/`：341 文件 / 13 个顶层项；`llvm`(216)、`e2e`(45)、`scripts`(30)、`vectors`(25)、`atomics/clmul/fma/minmax/roundint`、`qemu`(1)。
 - `.dadao/tests/`：**19,967 文件 / 1.13 GB**，18 个子目录；含任务专属目录（如 `llvm-ts-user-050t`）、无 `clean` 目标、约 210 MB 不可重生成。
@@ -91,9 +96,9 @@ tests/
 - **禁止** `inst/isa` 子层、`unit/tools`、`tests/index/`、`tests/manifest/`。
 - `tests/qemu/`（占位 README）**已删除**（`TESTCASES-076t`）；QEMU 组件测试将来落
   `tests/unit/qemu/`（现在为空，不建空目录）。
-- `tests/e2e/`：**保留**为 `e2e` 资产（`check-lit` 跑 `tests/e2e/lit`）；它的去向是下一
-  里程碑的 **`boot`** scope 与四 scope 细分（`Process-09 §12` 的映射表已给出判据），
-  P6 **不动**它（避免与 `boot` 立项时的边界判断冲突）。
+- 工具链 E2E：`tests/unit/llvm/e2e/`（`check-lit` 跑其 `lit/`）。原顶层 `e2e/`
+  已由 `TESTCASES-084t` 归入 **unit**——它测的是工具链编译/链接/运行整链，
+  不是整系统启动（`boot` scope 仍预留）。
 
 ---
 
@@ -279,9 +284,9 @@ cmd: make check-inst-smoke CASE=base/add
 ### §12 资产 → scope 映射（P0）
 
 - `tests/vectors/isa/*` + `atomics/clmul/fma/minmax/roundint` 探针 → **inst**
-- `tests/llvm/lit/MC`、`lit/CodeGen`、`llvm/codegen/m3/m4/m6`、`llvm/ir-lli` → **unit/llvm**
-- `tests/llvm/codegen/m5`（semihosting/CFX 权限）+ `tools/qemu/min_rom_probe_*` → **arch**
-- `tests/e2e/lit`：semihosting → **arch**；FP/clmul 等指令性 → **inst**；weak/CM 等链接/ABI → **unit**
+- 旧 `llvm/` 的 `lit/MC`、`lit/CodeGen`、`codegen/m3/m4/m6`、`ir-lli` → **unit/llvm**
+- 旧 `llvm/` 的 `codegen/m5`（semihosting/CFX 权限）+ min-ROM 探针 → **arch**
+- 工具链 E2E（原顶层 `e2e/lit`，现 `tests/unit/llvm/e2e/`）→ **unit/llvm**（`TESTCASES-084t` 落定）
 - 旧薄 wrapper 区（bootrom/lds/crt0/harness）→ **`tests/shared/`** + **`tools/testcases/lib`**；其中 `embench_runtime.c`/`embench_user_boardsupport.c`/`embench_include/` → **`tests/tset/embench/`**；集成驱动 → **`tools/testcases/{unit,tset}`** + **`tools/infra/`**（P6 已完成）
 - libc-test / llvm-ts / Embench → **tset**（ansibench 不保留：源码集合，非门控套件）
 - picolibc 自测（仅 picolibc 下跑）→ **unit/picolibc**

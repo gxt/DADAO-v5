@@ -5,10 +5,10 @@
 > `tests/vectors/*` → `tests/inst/<ext>/`（`isa` → `base`）、`tests/{atomics,clmul,fma,minmax,roundint}/`
 > → `tests/inst/<ext>/`、harness → `tools/testcases/{lib,inst}/`（`tests/scripts/` 留薄 wrapper，P6 已删除）。
 > **P3 arch（2026-10-27，`TESTCASES-073t`）**：`tests/unit/llvm/codegen/m5/` → `tests/arch/umon/`、
-> `tools/qemu/min_rom_probe_*` → `tools/testcases/arch/`（旧路径留 wrapper）、bootrom 三件 →
-> `tests/shared/bootrom/`（旧路径为符号链接）；门控 `test-semihost` → `check-arch-smoke`（别名保留）。
+> min-ROM 探针 `min_rom_probe_*` → `tools/testcases/arch/`、bootrom 三件 →
+> `tests/shared/bootrom/`；门控 `test-semihost` → `check-arch-smoke`（别名保留）。
 > **P4 unit（2026-10-27，`TESTCASES-074t`）**：`tests/unit/llvm/{lit,codegen,ir-lli}` →
-> `tests/unit/llvm/`（旧路径为符号链接）；picolibc 自测入口 → `tests/unit/picolibc/`
+> `tests/unit/llvm/`；picolibc 自测入口 → `tests/unit/picolibc/`
 > （仍只在 picolibc 构建下跑）；门控收拢为 `check-unit`（L2），旧目标名保留。
 > **P5 tset（2026-10-27，`TESTCASES-075t`）**：三个 user-mode 套件驱动 →
 > `tools/testcases/tset/{libc-test,llvm-ts,embench}/`（旧扁平路径留薄 wrapper）；
@@ -17,8 +17,11 @@
 > **P6 收口（2026-10-27，`TESTCASES-076t`）**：`tests/scripts/`、`tests/qemu/` 已删除；共享
 > glue → `tests/shared/{crt0,linker,runtime}/`；集成驱动 → `tools/testcases/{unit,tset}/` +
 > `tools/infra/`；旧 Make 目标名已删。
-> **下文 §1/§2/§3/§8 的路径与计数是迁移前快照**（067t 口径）；**P6 后的现场值**见本节末
-> 「P6 现场复核」；最新布局与入口见 `tests/README.md`。
+> **P6 后清理（2026-10-28，`TESTCASES-084t`）**：顶层 `e2e/` → `tests/unit/llvm/e2e/`；
+> 旧 `llvm/` 迁移期符号链接与旧 `min_rom_probe_*` 薄 wrapper 已删除；
+> 5 个用例目录的 `.gitkeep` 与 `__pycache__` 已清。
+> **下文 §1/§2/§3/§8 的路径与计数是迁移前快照**（067t 口径）；**P6/084t 后的现场值**见本节末
+> 「P6 现场复核」「084t 现场复核」；最新布局与入口见 `tests/README.md`。
 > **计数口径**：全部由命令现场统计（不含 `.git`、`.work`、`.cache`）；「文件数」= `find … -type f` 的**磁盘**文件（含被 `.gitignore` 忽略的 `__pycache__/*.pyc`）；「入库」另列 `git ls-files` 计数。
 > **机器可核**：文末「计数锚点」块由 `.work/evidence/TESTCASES-067t/run.sh` 现场重算逐项比对；测试一改，锚点必须同步，否则证据脚本红。
 > **层级**（本盘点用；正式定义见 `docs/Process-09-测试组织规范.md` §3.1）：**I** 指令级 · **S** 系统级 · **E** 端到端 · **U** 工具单测。
@@ -52,7 +55,7 @@
 |---|---|---|---|---|---|---|
 | `vectors/` | 25（25） | 独立 ISA 向量：22 YAML / 1,456 例；`inventory.md` 覆盖矩阵、`schema.md` 字段规范 | I | `validate-vectors`(L1)、`check-qemu-smoke`(L2 子集)、`check-qemu-semantics`(L3 全量) | 自动 | M1 152/156、`m9` 34、`m8` 7 个身份 |
 | `llvm/` | 216（214） | LLVM 三档：lit MC 汇编、lit CodeGen 结构、CodeGen 执行程序 + ir-lli 差分清单 | I + E | `check-lit`(L2)、`check-lit-full`(L3)、`test-codegen`/`test-elf`(L2) | 自动（m6 除外，见 §7.3） | 汇编器编码、isel/帧/段结构、IR→运行 |
-| `e2e/` | 45（44） | 14 个 lit E2E（`.test`）+ 29 个 C/asm 源（含 9 个无 runner 引用，§7.4） | E | `check-lit`（跑 `lit/`） | 自动（9 个源已死，§7.4） | 编译→链接→运行整体链路 |
+| `unit/llvm/e2e/` | 45（44） | 14 个 lit E2E（`.test`）+ 29 个 C/asm 源（含 9 个无 runner 引用，§7.4）；084t 由顶层 `e2e/` 归入 | U | `check-lit`（跑 `lit/`） | 自动（9 个源已死，§7.4） | 编译→链接→运行整体链路 |
 | `scripts/` | 30（24） | 共享 harness：向量→二进制构建、QEMU 单例/批量运行、冒烟驱动、bootrom/lds/crt0、dump 校验 | U（+I/S 载体） | 被 `check-qemu-*`、`test-codegen/elf/semihost`、`semantics_gate.py` 调用 | 自动（含手工 CLI） | harness 自身正确性、测试机约定 |
 | `atomics/` | 5（5） | C11/`__atomic`/LR-SC 并发探针源（5 个 C） | I | **无 make 目标**（§5.3） | 手工 | 原子内建、互斥、ABA、`a_barrier` |
 | `clmul/` | 4（4） | clmul 边界/GHASH/CRC-32C 探针 + IR | I | `check-clmul-probe`(L3) | 自动 | `clmul.o`、GHASH、CRC-32C |
@@ -62,7 +65,7 @@
 | `qemu/` | 1（1） | 占位 README（QEMU 组件测试落点，暂无内容） | — | 无 | — | — |
 | `case-ledger.tsv` | 1（1） | 逐条身份清单（生成物，`--write` 重生成） | — | `check-case-ledger`(L1) | 自动 | 删用例/pattern 的哨兵 |
 
-`tests/` 体积分布：`llvm` 1.2 M / `vectors` 840 K / `scripts` 336 K / `e2e` 204 K / 其余各 ≤ 88 K。
+`tests/` 体积分布：`llvm` 1.2 M / `vectors` 840 K / `scripts` 336 K / `unit/llvm/e2e` 204 K / 其余各 ≤ 88 K。
 
 ---
 
@@ -96,9 +99,9 @@
 | `codegen/m4/` | 12 | 10 `.ll`（5 程序，main+lib 成对）+ 清单 | `test-elf`(L2) |
 | `codegen/m5/` | 12 | 10 `.s`（semihost/CFX 权限）+ 清单 | `test-semihost`(L2) |
 | `codegen/m6/` | 11 | 8 `.ll`（7 raw-bin + 1 ELF）+ 2 清单 | **无 make 目标**（§7.3） |
-| `ir-lli/` | 2 | `manifest.yaml`：include **19** / exclude **72**（含理由分类） | `test-m6`(L3) |
+| `ir-lli/` | 2 | `manifest.yaml`：include **20** / exclude **79**（含理由分类；084t 补齐 M10 分类） | `test-m6`(L3) |
 
-### 3.3 `tests/e2e/`（45）
+### 3.3 `tests/unit/llvm/e2e/`（45；084t 由顶层 `e2e/` 归入）
 
 - `lit/`：14 个 `.test` / 96 条 RUN + `lit.cfg.py`；覆盖 smoke（add/arith/jump/fp）、FP p0/p1、FMA、clmul builtin、weak/undef、narrow-int、p2align、CM 模型、clang target。
 - 顶层 29 个源：`.c` 24 / `.s` 4 / `.lds` 1；其中 **20 个被 `.test` 引用**、**9 个无 runner 引用**（§7.4）。
@@ -205,7 +208,7 @@
 | `tools/testcases/lib/test_harness_exit_path.py`（迁移期旧路径 wrapper 已删除） | 单测 5/5 通过，但**不在任何门控** |
 | `tools/testcases/lib/verify_harness_dump.py`（旧路径 wrapper） | 手工工具，无门控 |
 | `tools/llvm/test_m1_asm.py`、`test_encoding_oracle.py`、`tools/testcases/test_anti_forgery_008t.py` | 单测脚本，**不在任何门控**（`grep` Makefile 无命中） |
-| `tests/e2e/*.c`（9 个） | 仅被归档任务书/changelog 引用，无 runner |
+| `tests/unit/llvm/e2e/*.c`（9 个） | 仅被归档任务书/changelog 引用，无 runner |
 
 ---
 
@@ -225,7 +228,7 @@
 2. **无统一入口**：仓库没有「列出全部用例 / 按 ID 跑一个用例」的 runner；入口 = §5.2 的 21 个目标 + 手工 README 命令。
 3. **m6 执行向量无门控**：`tests/unit/llvm/codegen/m6` 8 程序只能手工跑；`codegen-m6/`、`elf-m6/` 为手工产物目录。
 4. **9 个 e2e 源无 runner**：`fp_codegen.c`、`fp_hfa.c`、`i1_load_e2e.c`、`large_const_cmp_e2e.c`、`mulhi_e2e.c`、`selectcc_e2e.c`、`setcc_e2e.c`、`smulhi_e2e.c`、`switch_jt_e2e.c`（仅归档任务书引用）。
-5. **9 个 `.pyc` 残留**：`tests/{scripts,e2e/lit,llvm/lit/MC/DADAO,llvm/lit/CodeGen/DADAO}/__pycache__/`；被忽略但污染文件计数（341 vs 332，另 2 个为已入库的 `INVENTORY.md`/`README.md`）。
+5. **`.pyc` 残留**（084t 已清理）：`tests/**/__pycache__/` 仅运行期垃圾、不入库。
 6. **孤儿生成物 1.2 G 中约 210 M 不可重生成**：`llvm-ts-user-050t/`（209 M，脚本已不存在）、`libc-argv-{static,dynamic}/`（1.2 M）、`smoke/`（48 K，旧默认落点）。
 7. **`rev.yaml` 与生成器漂移**：`generate_rev_vectors.py --check` **FAIL**（62 例 `spec_cite` 仍是旧小节名，生成器现派生 `SimRISC-04: rev.o`）；因 `rev` 不在任何门控，漂移未被发现（实测见 `docs/Process-09…` §5.3）。
 8. **`.dadao/tests` 无清理目标**：`clean-work` 不含它；1.2 G 只增不减。
@@ -276,8 +279,16 @@ grep -c '' tests/case-ledger.tsv               # 1,962 行（含 4 行注释）
 make check-case-ledger                         # 现场身份 1,958 条（vector 1456 / lit 502）
 ```
 
-- `tests/llvm/`（3 个旧路径符号链接）**仍在**：`tools/llvm/check_lit_bytes.py`、
-  `gen_isa_coverage.py` 的默认路径仍指向它，删除须同改这两处并重派生矩阵（P6 未做，见遗留）。
+- 迁移期符号链接（P6 遗留）已由 `TESTCASES-084t` 删除：`tools/llvm/{check_lit_bytes,gen_isa_coverage}.py`
+  默认路径已改 `tests/unit/llvm/...` 并重派生 ISA 矩阵；旧 `min_rom_probe_*` 薄 wrapper（32 个）同步删除。
+
+### 084t 现场复核（2026-10-28，`TESTCASES-084t`）
+
+```sh
+ls tests/unit/llvm/e2e/lit/*.test | wc -l     # 14
+ls tools/testcases/arch/min_rom_probe_* | wc -l  # 32（旧 wrapper 0）
+make check-lit                                # 158/158（现场统计）
+```
 
 ### 附：本页计数所用命令
 
@@ -292,5 +303,5 @@ awk -F'\t' '!/^#/{c[$1]++} END{for(k in c) print k, c[k]}' tests/case-ledger.tsv
 ls tests/unit/llvm/lit/MC/DADAO/*.s | wc -l         # 76
 ls tests/unit/llvm/lit/MC/DADAO-gen/*.s | wc -l     # 12
 ls tests/unit/llvm/lit/CodeGen/DADAO/*.ll tests/unit/llvm/lit/CodeGen/DADAO/*.mir | wc -l  # 63
-ls tests/e2e/lit/*.test | wc -l                # 14
+ls tests/unit/llvm/e2e/lit/*.test | wc -l      # 14
 ```

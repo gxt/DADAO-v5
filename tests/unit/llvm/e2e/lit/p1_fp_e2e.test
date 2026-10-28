@@ -1,6 +1,6 @@
 # P1 FP sign-codegen end-to-end (LLVM-080t).
 #
-# Compiles tests/e2e/p1_fp_e2e.c with the DADAO clang, links it against the
+# Compiles tests/unit/llvm/e2e/p1_fp_e2e.c with the DADAO clang, links it against the
 # project crt0 + linker script, and runs it on qemu dadao-m1 with semihosting.
 # The guest exit code is the test result: p1_fp_e2e.c returns 0 only when
 # double-precision fabs/copysign (lowered to the ISA `fosgnj`, contract-fp.md

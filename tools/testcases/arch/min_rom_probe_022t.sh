@@ -6,7 +6,6 @@
 # 2. PC values in -d exec output are incrementing (not stuck at one address)
 #
 # Usage: bash tools/testcases/arch/min_rom_probe_022t.sh
-# （旧路径 tools/qemu/min_rom_probe_022t.sh 是薄 wrapper；TESTCASES-073t）
 
 set -euo pipefail
 cd "$(dirname "$0")/../../.."

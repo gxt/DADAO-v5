@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..15f3a7bb5
+index 000000000..d79b55f52
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 @@ -0,0 +1,3106 @@
@@ -664,7 +664,7 @@ index 000000000..15f3a7bb5
 +  // mem* builtins (M6, INTEG-023k §A #3, no libc): inline a constant-size
 +  // memcpy/memset/memmove/memcmp as up to 16 stores/loads; anything larger
 +  // lowers to a libcall resolved by the freestanding runtime
-+  // (tests/scripts/dadao_mem_runtime.s) at link time.  The 0628 pitfall:
++  // (the freestanding `mem*` runtime linked by the test harness).  The 0628 pitfall:
 +  // leaving these at UINT_MAX makes a real `llvm.memcpy` lowering expand an
 +  // unbounded store sequence and blow up -- the cap must be finite.  Both the
 +  // normal and the OptSize (minsize) thresholds are set to the same value so
@@ -2792,7 +2792,7 @@ index 000000000..15f3a7bb5
 +// succ[5:0].  fm is 0 for the only defined mode, and the R/W/I/O bits of pred
 +// and succ are the low four bits of each 6-bit field (the top two bits are
 +// SBZ).  The mapping below is the A-table of the task book and is asserted by
-+// tests/llvm/lit/CodeGen/DADAO/atomics-fence.ll.
++// the CodeGen atomics/fence lit test.
 +static uint64_t getDADAOFenceImm(AtomicOrdering Ord) {
 +  // pred constants: PRED_R = 1<<6, PRED_W = 1<<7, PRED_I = 1<<8, PRED_O = 1<<9
 +  // succ constants: SUCC_R = 1<<0, SUCC_W = 1<<1, SUCC_I = 1<<2, SUCC_O = 1<<3

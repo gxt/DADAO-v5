@@ -99,8 +99,8 @@ def _printed_asm(asm, assigns, fmt):
     return asm
 
 GENERATOR_PATH = "tools/testcases/generate_lit_vectors.py"
-FAST_FILE = os.path.join(REPO, "tests", "llvm", "lit", "MC", "DADAO", "gen-fast.s")
-FULL_DIR = os.path.join(REPO, "tests", "llvm", "lit", "MC", "DADAO-gen")
+FAST_FILE = os.path.join(REPO, "tests", "unit", "llvm", "lit", "MC", "DADAO", "gen-fast.s")
+FULL_DIR = os.path.join(REPO, "tests", "unit", "llvm", "lit", "MC", "DADAO-gen")
 
 # ── 操作数形态分类（用于「受控子集」机械选取；不手工挑拣）──────────────
 # orri 的「多寄存器块赋值/格式转换」形态：目的/源均为 {start:end} 组，

@@ -1,6 +1,6 @@
 /* mcmodel_far.c -- >32 MiB code-layout link test (LLVM-131t; ADR-0036 D1/D5).
  *
- * `far_fn` is emitted into `.far`, which tests/e2e/mcmodel_far.lds places
+ * `far_fn` is emitted into `.far`, which tests/unit/llvm/e2e/mcmodel_far.lds places
  * 64 MiB above `.text`, i.e. beyond the +/-32 MiB reach of a direct
  * `call`/`jump` (R_DADAO_REL26).
  *

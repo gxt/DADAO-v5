@@ -783,7 +783,7 @@ def check_opcodes_cross():
     # 断言：每个 M1 format 族至少有 1 条 lit @@ OBJ: pattern（其 opcode 匹配该族的 opcodes 条目）
     # 判定法：提取 @@ OBJ: 行的 4 字节 opcode word，在 opodes.yaml 中找 (word & mask)==value
     #         的唯一匹配条目，取其 format 字段作为该 pattern 的族归属
-    lit_dir = os.path.join(REPO_ROOT, "tests", "llvm", "lit", "MC", "DADAO")
+    lit_dir = os.path.join(REPO_ROOT, "tests", "unit", "llvm", "lit", "MC", "DADAO")
     if not os.path.isdir(lit_dir):
         record(cat, "LLVM lit format 族覆盖", "FAIL",
                "tests/unit/llvm/lit/MC/DADAO/ 目录不存在")

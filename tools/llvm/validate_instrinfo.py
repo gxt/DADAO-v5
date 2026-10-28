@@ -86,7 +86,7 @@ FMT_BY_CLASS = {
 #   - scope:m9  -> `rol` (ADR-0032 D4 as amended 2026-10-19 / LLVM-116t).
 #   - scope:excluded -> still needed by the MC layer (assemble/disassemble) even
 #     though execution traps with ILLI.  SPEC-039t moved `fence` out of M1 but
-#     kept its def so llvm-mc can assemble it (see tests/llvm/lit/MC/DADAO/oiii.s).
+#     kept its def so llvm-mc can assemble it (see tests/unit/llvm/lit/MC/DADAO/oiii.s).
 #     LLVM-060t defined the four privileged cfx instructions (crrr/ciii) while
 #     they were scope:excluded; SPEC-115t re-scoped them to m1, so they are no
 #     longer in this allow-list and now satisfy the M1 baseline check directly.

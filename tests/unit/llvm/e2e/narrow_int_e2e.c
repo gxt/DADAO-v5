@@ -20,7 +20,7 @@
  * right shift of a negative value), never read back from a toolchain.
  */
 
-/* Assembly probes (tests/e2e/narrow_int_e2e_abi.s): return the *full* 64-bit
+/* Assembly probes (tests/unit/llvm/e2e/narrow_int_e2e_abi.s): return the *full* 64-bit
  * rd16 argument register, so a caller-side canonical extension is observable
  * (ISS-310).  Declared with the signedness whose extension is under test. */
 extern long ext_reg(int x);

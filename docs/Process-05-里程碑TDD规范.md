@@ -54,7 +54,7 @@
 - **L1**：`tests/unit/llvm/lit/MC/DADAO/`（必要时进 patch 的 `llvm/test/MC/DADAO/`）；
 - **L2**：`tests/unit/llvm/lit/CodeGen/DADAO/` 或 patch 的 `llvm/test/CodeGen/DADAO/`；MIR 用例；
 - **L3**：`tests/unit/llvm/codegen/`（M3）+ `tests/unit/llvm/codegen/m4/`（M4 独立清单）+ `tools/testcases/{unit,tset}`；独立 oracle 脚本**随产物入库**；
-- **其它落点**：QEMU 组件测试 `tests/unit/qemu/`（P6 前占位目录已删）；E2E 驱动 `tests/e2e/lit/`；共享 harness `tools/testcases/lib/`；inst 向量 `tests/inst/base/`；共享 glue `tests/shared/`。
+- **其它落点**：QEMU 组件测试 `tests/unit/qemu/`（P6 前占位目录已删）；工具链 E2E `tests/unit/llvm/e2e/lit/`；共享 harness `tools/testcases/lib/`；inst 向量 `tests/inst/base/`；共享 glue `tests/shared/`。
 
 **测试运行产物落点与留存（用户 2026-10-06 裁定；自 M5 起生效）**：
 

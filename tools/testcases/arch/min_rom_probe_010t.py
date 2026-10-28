@@ -26,7 +26,7 @@ Additional tests:
 Exit codes (ADR-0004 D5.8):
   0x00 = PASS, 0x87 = UNMAPPED, 0x88 = ILLI, 0x8C = MALIGN
 
-Usage: python3 tools/qemu/min_rom_probe_010t.py
+Usage: python3 tools/testcases/arch/min_rom_probe_010t.py
 """
 
 import struct

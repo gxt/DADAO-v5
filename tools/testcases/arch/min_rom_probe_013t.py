@@ -26,7 +26,7 @@ Tests cover:
   X3: MemRAS invalid content (entry hi16=0) → RASUF 0x8B; ra0 unchanged (precise)
       (read-back via -d cpu dump, parsed by last_ra_dump)
 
-Usage: python3 tools/qemu/min_rom_probe_013t.py
+Usage: python3 tools/testcases/arch/min_rom_probe_013t.py
 """
 
 import struct

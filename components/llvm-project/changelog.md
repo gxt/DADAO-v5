@@ -520,3 +520,7 @@
 - **2026-10-26 LLVM-135t**
   - 摘要：**cfx 别名改为运行时表（汇编器 + MCInstPrinter 共用同一份数据；改名/改号不重建 LLVM）**：删除编译期 `AsmParser/DADAOCfxAlias.inc`（其补丁随之移除），新增 `MCTargetDesc/DADAOCfxAliasTable.{h,cpp}`（编入 `LLVMDADAODesc`；`DADAOAsmParser` 增 `DADAODesc` 链接依赖）：表 = `share/dadao/cfx-aliases.txt`，查找顺序 `--dadao-cfx-alias=`（`-mllvm -dadao-cfx-alias=` 同一 `cl::opt`）→ `DADAO_CFX_ALIAS_FILE` → `<exe>/../share/dadao/`；汇编器名字→编码（缺表而用名字 ⇒ 硬报错），printer 编码→名字（数组 `cfx_ptw_ptbr[N]`、标量 `cfx_umon`；reserved/未知 ⇒ 裸 `cfx<HA>, cgN, rcN`，不报错）。生成器改产 `contracts/cfx-aliases.txt`（13 标量 + 894 寄存器，`--check` 漂移门控）；`make install-cfx-aliases` 只拷贝（构建树 + 安装根），`install-host` 收尾断言两份副本逐字节 == 源表。同修 `cfx_time` 回归（`cfx_time_freq/value`、`cfx_hart_timer_cmp/ctrl`），lit `cfx2-trap-escape.s` 恢复名字形式并新增 `cfx-alias-runtime.s`（默认表/改名表/缺表三态）。
   - 执行者：engineer
+
+- **2026-10-28 TESTCASES-084t**
+  - 摘要：**补丁注释清理（无功能改动，`series` 98 不变）**：`DADAOSubtarget.{h,cpp}` 与 `DADAOISelLowering.cpp` 中指向测试路径（含已删的旧路径）的注释改为语义说明（「freestanding `mem*` runtime linked by the test harness」/「the CodeGen atomics/fence lit test」），不再交叉引用测试目录；导出内容仅注释行变化。
+  - 执行者：engineer

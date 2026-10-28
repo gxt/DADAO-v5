@@ -7,7 +7,7 @@
 --------
 1. **第①层「汇编器可受理」**：逐条记录取其**规范操作数形态**（由
    ``tools/testcases/generate_lit_vectors.py`` 的 ``build_case`` 机械派生，
-   与现有 lit 全量档 ``tests/llvm/lit/MC/DADAO-gen/gen-*.s`` **同一口径、
+   与现有 lit 全量档 ``tests/unit/llvm/lit/MC/DADAO-gen/gen-*.s`` **同一口径、
    同一行文本**），喂 ``llvm-mc``：记录受理/拒绝；受理时再独立比对
    「llvm-mc 产出编码 == 真源派生编码」（``word``）。
 2. **第②层「ISel 用得上」**：**机械提取**（非人工判读）后端补丁树
@@ -54,7 +54,7 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 OPCODES_DEFAULT = REPO / "contracts" / "opcodes.yaml"
 BACKEND_DIR = REPO / "components/llvm-project/patches/llvm/lib/Target/DADAO"
-LIT_GEN_DIR = REPO / "tests/llvm/lit/MC/DADAO-gen"
+LIT_GEN_DIR = REPO / "tests/unit/llvm/lit/MC/DADAO-gen"
 TSV_DEFAULT = REPO / "tools/llvm/llvm-isa-backend-matrix.tsv"
 MD_DEFAULT = REPO / "tools/llvm/llvm-isa-backend-matrix.md"
 
@@ -650,7 +650,7 @@ def render_md(rows: list[dict], st: dict) -> str:
       "(--triple=dadao-unknown-elf -filetype=obj)`，记 `accept`/`reject`。")
     a("")
     a("- 形态来源：`tools/testcases/generate_lit_vectors.py` 的 `build_case()`"
-      "（与现有 lit 全量档 `tests/llvm/lit/MC/DADAO-gen/gen-*.s` **同一口径、同一行文本**；"
+      "（与现有 lit 全量档 `tests/unit/llvm/lit/MC/DADAO-gen/gen-*.s` **同一口径、同一行文本**；"
       "本工具不另立操作数拼装逻辑）。")
     a("- 受理后**另做编码复核**：由对象 `.text` 取 4 字节大端字，要求"
       "「按真源 `(word & mask) == value` 唯一命中本记录」且等于真源派生编码"
@@ -660,7 +660,7 @@ def render_md(rows: list[dict], st: dict) -> str:
       f"编码复核不符 **{st['enc_bad']}**。")
     a(f"- `scope: excluded` 且后端未实现者（{'/'.join('`' + m + '`' for m in st['l1_reject_mnemonics'])}，"
       "现场派生）由汇编器**显式拒绝**（`reject`）；其余 `scope: excluded` 记录（MC 层已受理、"
-      "执行侧仍 ILLI）与 `tests/llvm/lit/MC/DADAO-gen/gen-excluded.s` 的反例同口径。")
+      "执行侧仍 ILLI）与 `tests/unit/llvm/lit/MC/DADAO-gen/gen-excluded.s` 的反例同口径。")
     a("")
     a("### 第②层「ISel 用得上」（机械提取，非人工判读）")
     a("")

@@ -13,7 +13,7 @@
  * The program exits 0 on the correct behaviour so the lit gate can use the
  * guest exit code directly:
  *   * undefined weak  -> address 0, guard taken, dead call never entered, 0;
- *   * defined weak (linked with tests/e2e/weak_hook_def.s) -> the guard is not
+ *   * defined weak (linked with tests/unit/llvm/e2e/weak_hook_def.s) -> the guard is not
  *     taken and the definition returns 9, so the exit code is non-zero.
  */
 extern int weak_hook(int) __attribute__((weak));

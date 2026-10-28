@@ -1,6 +1,6 @@
 # FP unordered-family predicate end-to-end (LLVM-084t, ISS-193 (a)).
 #
-# Compiles tests/e2e/fp_unordered_e2e.c with the DADAO clang, links it against
+# Compiles tests/unit/llvm/e2e/fp_unordered_e2e.c with the DADAO clang, links it against
 # the project crt0 + linker script and runs it on qemu dadao-m1 with
 # semihosting.  The guest exit code is the test result: the program returns 0
 # only when isnan/isinf/isfinite over NaN / +-Inf / +-0 compute the IEEE-754

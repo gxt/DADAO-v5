@@ -28,6 +28,6 @@ __pycache__/
 Thumbs.db
 
 # 测试生成物（llc/llvm-mc/objcopy 产物，不入库）
-tests/llvm/codegen/*.s
-tests/llvm/codegen/*.o
-tests/llvm/codegen/*.bin
+tests/unit/llvm/codegen/*.s
+tests/unit/llvm/codegen/*.o
+tests/unit/llvm/codegen/*.bin

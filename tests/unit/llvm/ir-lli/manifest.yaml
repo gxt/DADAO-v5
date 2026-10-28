@@ -53,6 +53,8 @@ include:
   - {name: m6_large_frame.ll,        ir: tests/unit/llvm/codegen/m6/m6_large_frame.ll,     category: memory}
   - {name: m6_multi_return.ll,       ir: tests/unit/llvm/codegen/m6/m6_multi_return.ll,    category: call}
   - {name: m6_sret.ll,               ir: tests/unit/llvm/codegen/m6/m6_sret.ll,            category: call}
+  # M10 runtime vector (self-checking: @main returns the mismatch count)
+  - {name: m10-i64-shift.ll,         ir: tests/unit/llvm/codegen/m10-i64-shift.ll,         category: arithmetic}
 
 # ---- excluded: registered with class + reason (never silently dropped)
 exclude:
@@ -329,3 +331,31 @@ exclude:
   - ir: tests/unit/llvm/lit/CodeGen/DADAO/code-model-large.ll
     class: no-value-entry
     reason: "FileCheck structural test (code-model large ABS48 + indirect call/jump, medium rejected, LLVM-131t); no `@main` value channel."
+  # (l) M10 structural `llc | FileCheck` CodeGen tests (LLVM-137t/138t/139t) under
+  #     the corpus root; the matching runtime vectors are classified above
+  #     (`m10-i64-shift` in `include`, the other two as `host-unsupported`).
+  - ir: tests/unit/llvm/lit/CodeGen/DADAO/m10-i64-shift.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (i64 constant shift selects immu6 forms, LLVM-137t); no `@main` value channel."
+  - ir: tests/unit/llvm/lit/CodeGen/DADAO/m10-loop-pointer-bank.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (loop pointer PHI kept in GPRB, LLVM-139t); no `@main` value channel."
+  - ir: tests/unit/llvm/lit/CodeGen/DADAO/m10-narrow-extend.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (narrow producer canonical-extension folding, LLVM-138t); no `@main` value channel."
+
+  # (m) M10 runtime vectors that declare the DADAO target triple, so the host
+  #     X86 `lli` refuses them ("No available targets are compatible with triple
+  #     dadao-unknown-elf"): there is no host value channel to compare against.
+  - ir: tests/unit/llvm/codegen/m10-loop-pointer-bank.ll
+    class: host-unsupported
+    reason: >-
+      declares `target triple = "dadao-unknown-elf"`; host `lli` exits 1 with
+      "No available targets are compatible with triple", so no host value
+      channel exists (target side is covered by the LLVM-139t oracle).
+  - ir: tests/unit/llvm/codegen/m10-narrow-extend.ll
+    class: host-unsupported
+    reason: >-
+      declares `target triple = "dadao-unknown-elf"`; host `lli` exits 1 with
+      "No available targets are compatible with triple", so no host value
+      channel exists (target side is covered by the LLVM-138t oracle).

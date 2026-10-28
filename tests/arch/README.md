@@ -7,7 +7,7 @@ per-hart/per-system、TIMER/IPI/UART/power），只跑 **`system`** 平台
 
 > `TESTCASES-073t`（2026-10-27）落第一批用例（P3 arch 迁移）：`tests/unit/llvm/codegen/m5/`
 > → `arch/umon/`。执行驱动在 `tools/testcases/arch/`（`run_m5_e2e.py` +
-> `min_rom_probe_*.py`，由集成驱动目录与 `tools/qemu/` 在 P3 迁入）。
+> `min_rom_probe_*.py`，由集成驱动目录在 P3 迁入）。
 
 ## 目录（按 cfx 划分，`<cfx>` 取自 `spec/DADAO-12 §3` 的 cfx 名）
 

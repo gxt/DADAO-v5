@@ -1,6 +1,6 @@
 /* mcmodel_e2e.c -- code-model end-to-end test (LLVM-131t; ADR-0036 D1/D5/D6).
  *
- * Built twice by tests/e2e/lit/mcmodel.test: once with `-mcmodel=default` and
+ * Built twice by tests/unit/llvm/e2e/lit/mcmodel.test: once with `-mcmodel=default` and
  * once with `-mcmodel=large`.  The input is volatile, so the computation
  * cannot be constant-folded away and every step crosses a real call.  The
  * guest exit code is 0 only when all three calls returned the right value:

@@ -18,7 +18,7 @@ Value comparison method (br.ne-based, v4):
   7. fence → exit 136
   So: UNDI(137) = PASS (match), ILLI(136) = FAIL (mismatch).
 
-Usage: python3 tools/qemu/min_rom_probe_005t.py
+Usage: python3 tools/testcases/arch/min_rom_probe_005t.py
 """
 
 import struct

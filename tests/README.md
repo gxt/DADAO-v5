@@ -15,7 +15,7 @@
   `atomics/clmul/fma/minmax/roundint` 探针 → `tests/inst/<ext>/`；inst harness →
   `tools/testcases/{lib,inst}/`。
 - **P3 arch**（`TESTCASES-073t`）：`tests/unit/llvm/codegen/m5` → `tests/arch/umon/`；
-  `tools/qemu/min_rom_probe_*` → `tools/testcases/arch/`；bootrom 三件 →
+  min-ROM 探针 `min_rom_probe_*` → `tools/testcases/arch/`；bootrom 三件 →
   `tests/shared/bootrom/`。
 - **P4 unit**（`TESTCASES-074t`）：`tests/unit/llvm/{lit,codegen,ir-lli}`；picolibc 自测入口 →
   `tests/unit/picolibc/`（仍只在 picolibc 构建下跑）；门控 `check-unit`。
@@ -25,7 +25,7 @@
 - **P6 收口**（`TESTCASES-076t`）：删旧入口三目录与旧 Make 目标名；共享 glue →
   `tests/shared/{crt0,linker,runtime}/`；集成驱动 → `tools/testcases/{unit,tset}/` +
   `tools/infra/`；门控重写（L2/L3）+ `check-night` / `clean-tests` / `test-repro`。
-  `tests/e2e/` 去向属下一里程碑 `boot`，P6 不动。
+  原顶层 `e2e/` 于 P6 未动；`TESTCASES-084t` 已归 `tests/unit/llvm/e2e/`（工具链 E2E 属 unit）。
 
 | scope | 测什么 | `platforms` 允许值 | 目录 |
 |---|---|---|---|
@@ -61,8 +61,8 @@
 | `tset/libc-test/` | T | libc-test 套件说明 + L2 代表集规则（语料在 `.work/source/`） | `make check-tset-libc-smoke` |
 | `tset/llvm-ts/` | T | llvm-test-suite 套件说明 + L2 代表集规则（语料在 `.work/source/`） | `make check-tset-llvm-smoke` |
 | `tset/embench/` | T | Embench 套件说明 + 套件独有 glue（runtime/boardsupport/头） | `make check-tset-embench-smoke` |
-| `e2e/lit/*.test` | E | 端到端 smoke/FP/clmul/weak/CM（14）；去向属下一里程碑 `boot` | `make check-lit` |
-| `e2e/*.c|*.s|*.lds` | E | 上述 `.test` 的源（9 个已无 runner，见 `INVENTORY §7.4`） | 经 `.test` |
+| `unit/llvm/e2e/lit/*.test` | U | 工具链端到端 smoke/FP/clmul/weak/CM（14）；`TESTCASES-084t` 由顶层 `e2e/` 归入 | `make check-lit` |
+| `unit/llvm/e2e/*.c|*.s|*.lds` | U | 上述 `.test` 的源（9 个已无 runner，见 `INVENTORY §7.4`） | 经 `.test` |
 | `shared/bootrom/` | S 载体 | SEE bootrom 源 + 链接脚本（`bootrom.S`/`bootrom_app.S`/`bootrom.lds`；`make build-bootrom` 用） | — |
 | `shared/crt0/codegen_crt0.s` | 共享 glue | 单 TU/多 TU 端到端启动桩（`_start` → `@main` → `SYS_EXIT`） | 被 `test-codegen`/`test-elf`/lit/e2e 引用 |
 | `shared/linker/{dadao.lds,dadao-dyn.lds}` | 共享 glue | M4 静态布局 / ET_DYN 动态布局链接脚本 | 同上 + musl/P5 驱动（dyn） |
