@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：TESTCASES-076t（已 `已验证`）
-**状态**：待验收
+**状态**：已验证
 
 ## 背景
 `076t` 收口后仍有旧口径残留：
@@ -38,7 +38,7 @@
 
 ## 完成区
 
-**状态**：待验收
+**状态**：已验证
 
 **测试结果**：`make check` rc=0；`make check-modules` rc=0；`check-tests-index`（240 条）/`check-case-ledger`（1958）/`check-patch-tree`（205 patches）/`check-spec-readonly`（21 册）rc=0；`check-lit` 158/158、e2e 14/14（新路径）。一键证据 `.work/evidence/TESTCASES-084t/run.sh` 26/26；`--inject` 8/8（注入→FAIL→`cp`+md5 还原→回绿）。
 
@@ -68,3 +68,20 @@
 | F6 `tests/unit/llvm/codegen/m5` 旧链接仍存 | ⏸延后 | 非 `tests/llvm` 三链接之一，指向 `tests/arch/umon` 未断 | `find -type l` 扫描 0 断链 |
 
 **判决**：无未修 finding，状态 `待验收`。
+
+### 第 1 轮 reviewer 验收
+
+**重跑记录（reviewer 亲自执行，非采信完成区）**
+- `bash .work/evidence/TESTCASES-084t/run.sh` → `checks=26 passed=26 failed=0`，`RUN_RC=0`；关键现场值：`check-lit` discovered=158/passed=158、e2e discovered=passed=14（==14 个 `.test`）、`make check` L1 PASS、`make check-modules` L2 PASS、`check-tests-index` 240、`check-case-ledger` 1958、`check-patch-tree` 205 patches、`check-spec-readonly` 21 册，均 rc=0。
+- `run.sh --inject` → `checks=8 passed=8`，rc=0；I2 注入后 e2e lit rc=1、`cp`+md5 还原相等、回绿 14/14。
+- **独立反例（reviewer 自做，非 engineer 自检）**：`git show c58abd87^:...min_rom_probe_005t.py` 恢复旧 wrapper + `ln -s ../unit/llvm/lit tests/llvm/lit` 恢复旧链接 → 重跑同一 `run.sh` **rc=1**（C1 FAIL hits=1、C3 FAIL present）；`rm`+md5 还原（未用 git checkout/restore/stash）→ 清门控再生成的 `__pycache__` 后重跑 **26/26 PASS rc=0**。
+- 盘上事实：`tests/e2e`/`tests/llvm` absent、wrapper 0、arch 原件 32、`.gitkeep` 0、`tests/unit/llvm/codegen/m5` 链接未断；旧路径 grep（排除 `.tao`/changelog）全局 0。
+
+**约束核验**：无测试期望/断言改动（e2e 重命名 44 文件中仅 9 个改内容，逐行核为路径文本；`abi-narrow-extend.ll` 仅注释）；补丁仅注释行（5 份 patch 改动行全为 `//`/`*` 注释 + index/hash 头；`series` 98/25 未动）；`spec/README.md` 不在锁内（lock 文件明示）⇒ 锁 sha 无须更新；`manifest.yaml` +6 条为解 137–139 引入的 L2 既有红（父提交磁盘 6 个 `.ll` 未分类，`diff_ir_lli` 闭包必红），分类正确（3 lit→`no-value-entry`、1 include、2 `host-unsupported`），越界已披露；完成区数字与我重跑逐项一致；工作区审前/审后 `git status -uall` 均 0 行。
+
+**发现（非阻断，建议 architect 收尾修正 run.sh）**：F-R1 `run.sh` C4/C5 从 HEAD 派生 wrapper 清单，c58abd87 提交后清单为空 ⇒ 两断言恒真（注入恢复 wrapper 时仍 PASS）；同回归由 C1 实测捕获（hits=1，脚本 rc=1），建议改从 `c58abd87^` 或固化清单派生。F-R2 `run.sh` 非幂等：门控运行会再生成 `tools/**/__pycache__`（12 个，gitignored），连续第二次运行 C9 红；建议 C9 前清理或改判「是否被 git 跟踪」。剩余风险：`.tao/adr`/`.tao/archive` 历史层仍含旧路径（分层规范不改），全仓 grep 门控须排除 `.tao`。
+
+**判决**：**Accepted**（验收命令块在 reviewer 重跑下全绿、独立反例注入→FAIL→还原→回绿成立、硬约束无违反；F-R1/F-R2 为证据脚本健壮性改进项，不影响本册交付判据）。
+
+### architect 收尾（2026-10-28）
+- reviewer Accepted；F-R1/F-R2 证据脚本已修（C4/C5 锚 `c58abd87^`、C9 改核 tracked `__pycache__`），重跑 26/26、注入 8/8。
