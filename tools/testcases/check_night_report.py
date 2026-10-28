@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 报告根：``<test-artifacts>/night/<YYYY-MM-DD>/``
 
-1. **存在性**：``night/`` 下至少一个本地日期 ``YYYY-MM-DD`` 目录；``--date`` 指定时该目录
+1. **存在性**：``night/`` 下至少一个本地日期 ``YYYY-MM-DD-HH`` 目录；``--date`` 指定时该目录
    必须存在。否则 ⇒ FAIL（提示「先跑 ``make check-night``」，**不是** SKIP）。
 2. **三件套**：``manifest.tsv`` / ``meta.json`` / ``run.log`` 均存在且非空；
    ``meta.json`` 的 ``command`` / ``started_utc`` / ``finished_utc`` 非空。
@@ -29,7 +29,7 @@ import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{2}$")
 HEADER = ["scope", "suite", "rc", "log"]
 REQUIRED_TSET = {"libc-test", "llvm-ts", "embench"}
 REQUIRED_SCOPES = {"arch"}
@@ -165,8 +165,8 @@ def _write_report(dirp: Path, rows: list[tuple[str, str, int]], *, meta: bool = 
     if meta:
         (dirp / "meta.json").write_text(json.dumps({
             "command": "make check-night",
-            "started_utc": "2026-10-27T00:00:00Z",
-            "finished_utc": "2026-10-27T02:00:00Z",
+            "started_utc": "2026-10-27-00T00:00:00Z",
+            "finished_utc": "2026-10-27-00T02:00:00Z",
         }) + "\n")
 
 
@@ -194,30 +194,30 @@ def cmd_selftest(args: argparse.Namespace) -> int:
     expect("empty night/ => FAIL", r2, False)
 
     r3 = base / "c"
-    (r3 / "night" / "2026-10-27").mkdir(parents=True)  # 日期目录但无三件套
+    (r3 / "night" / "2026-10-27-00").mkdir(parents=True)  # 日期目录但无三件套
     expect("date dir without files => FAIL", r3, False)
 
     r4 = base / "d"
-    _write_report(r4 / "night" / "2026-10-27",
+    _write_report(r4 / "night" / "2026-10-27-00",
                   [("tset", "libc-test", 0), ("arch", "cfx", 0)])   # 缺两套件
     expect("missing tset suites => FAIL", r4, False)
 
     r5 = base / "e"
-    _write_report(r5 / "night" / "2026-10-27",
+    _write_report(r5 / "night" / "2026-10-27-00",
                   [(s, u, (1 if u == "embench" else 0)) for s, u, _ in GREEN_ROWS])
     expect("non-zero rc row => FAIL", r5, False)
 
     r6 = base / "f"
-    _write_report(r6 / "night" / "2026-10-27", GREEN_ROWS)
+    _write_report(r6 / "night" / "2026-10-27-00", GREEN_ROWS)
     expect("green report => PASS", r6, True)
 
     r7 = base / "g"
-    _write_report(r7 / "night" / "2026-10-27", GREEN_ROWS, meta=False)
+    _write_report(r7 / "night" / "2026-10-27-00", GREEN_ROWS, meta=False)
     expect("missing meta.json => FAIL", r7, False)
 
     r8 = base / "h"
-    _write_report(r8 / "night" / "2026-10-26", GREEN_ROWS)
-    expect("--date points to absent dir => FAIL", r8, False, date="2026-10-27")
+    _write_report(r8 / "night" / "2026-10-26-00", GREEN_ROWS)
+    expect("--date points to absent dir => FAIL", r8, False, date="2026-10-27-00")
 
     fails = sum(0 if ok else 1 for _, ok, _ in checks)
     for name, ok, detail in checks:

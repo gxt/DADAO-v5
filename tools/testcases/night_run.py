@@ -5,7 +5,7 @@
 ``setsid nohup make check-night > log 2>&1 &`` 脱离会话（不自带 `nohup`，避免嵌套）。
 每次跑建一个只读报告目录（`docs/Process-09 §8`）：
 
-    <test-artifacts>/night/<local YYYY-MM-DD>/
+    <test-artifacts>/night/<local YYYY-MM-DD-HH>/
         manifest.tsv   scope<TAB>suite<TAB>rc<TAB>log（逐成员一行）
         meta.json      command / started_utc / finished_utc / members
         run.log        汇总（各成员 rc + 日志指针）
@@ -54,9 +54,9 @@ def utc_now() -> str:
 
 
 def today() -> str:
-    # User-facing night directory uses the local calendar date; meta.json
+    # User-facing night directory uses the local date + hour; meta.json
     # still records UTC start/finish timestamps for auditability.
-    return datetime.now().astimezone().strftime("%Y-%m-%d")
+    return datetime.now().astimezone().strftime("%Y-%m-%d-%H")
 
 
 def parse_member(raw: str) -> tuple[str, str, str]:
@@ -140,24 +140,24 @@ def cmd_selftest(args: argparse.Namespace) -> int:
     red = [("tset", "libc-test", "echo ok"), ("tset", "llvm-ts", "echo ok"),
            ("tset", "embench", "echo fail; false"), ("arch", "cfx", "echo ok")]
 
-    rc = run_night(base, "2026-10-27", green, allow_overwrite=False, logdir=base / "logs")
+    rc = run_night(base, "2026-10-27-00", green, allow_overwrite=False, logdir=base / "logs")
     checks.append(("green night => rc=0", rc == 0, f"rc={rc}"))
-    rep = report_gate.check(base, "2026-10-27")
+    rep = report_gate.check(base, "2026-10-27-00")
     checks.append(("green night => report gate PASS", not rep.errors,
                    "errors=" + ("; ".join(rep.errors)[:100] if rep.errors else "-")))
 
-    rc = run_night(base, "2026-10-28", red, allow_overwrite=False, logdir=base / "logs")
+    rc = run_night(base, "2026-10-28-00", red, allow_overwrite=False, logdir=base / "logs")
     checks.append(("red member => rc=1", rc == 1, f"rc={rc}"))
-    rep = report_gate.check(base, "2026-10-28")
+    rep = report_gate.check(base, "2026-10-28-00")
     checks.append(("red night => report gate FAIL", bool(rep.errors),
                    "errors=" + ("; ".join(rep.errors)[:100] if rep.errors else "-")))
 
-    rows = (base / "night" / "2026-10-28" / "manifest.tsv").read_text().splitlines()
+    rows = (base / "night" / "2026-10-28-00" / "manifest.tsv").read_text().splitlines()
     emb = [ln for ln in rows if "\tembench\t" in ln]
     checks.append(("manifest records rc=1 for red member",
                    bool(emb) and emb[0].split("\t")[2] == "1", str(emb)))
 
-    rc = run_night(base, "2026-10-27", green, allow_overwrite=False, logdir=base / "logs")
+    rc = run_night(base, "2026-10-27-00", green, allow_overwrite=False, logdir=base / "logs")
     checks.append(("same-date rerun refused => rc=2", rc == 2, f"rc={rc}"))
 
     fails = sum(0 if ok else 1 for _, ok, _ in checks)

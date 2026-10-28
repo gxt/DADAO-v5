@@ -107,7 +107,7 @@ tests/
 ```text
 .dadao/tests/
   <scope 目录>/<YYYYMMDDTHHMMSSZ>-<suite>-<mode>/   # Process-08 三件套
-  night/<本地 YYYY-MM-DD>/manifest.tsv            # 夜跑汇总（只读报告；目录用本地日期，meta 记 UTC）
+  night/<本地 YYYY-MM-DD-HH>/manifest.tsv            # 夜跑汇总（只读报告；目录用本地日期，meta 记 UTC）
   l3/<YYYYMMDDTHHMMSSZ>/manifest.tsv                # L3 汇总（只读报告）
 ```
 
@@ -139,7 +139,7 @@ tests/
   运行记录（`run.json`/`meta.json`/`*.log`/`.lit_test_times.txt`）天然排除。
   **产物数 == 0 ⇒ FAIL**（比较不能是空的）；`SCOPE=night` **显式拒绝**（报告不可逐字节复现）。
   `--inject CMD` 在两次生产之间执行一次注入，用于证明比较可达 FAIL（证据脚本用）。
-- **夜跑报告**（`Process-09 §8` Night 层）落 `night/<本地 YYYY-MM-DD>/`，三件：
+- **夜跑报告**（`Process-09 §8` Night 层）落 `night/<本地 YYYY-MM-DD-HH>/`，三件：
   `manifest.tsv`（表头 `scope<TAB>suite<TAB>rc<TAB>log`，逐成员一行）、
   `meta.json`（`command`/`started_utc`/`finished_utc`）、`run.log`（汇总）。
   同日不覆盖（重跑须换日期或显式 `NIGHT_ALLOW_OVERWRITE=1`）。
@@ -236,7 +236,7 @@ tools/testcases/
   - **tset 不在 L3 直接列出**（`TESTCASES-082t`，2026-10-27）：`check-tset-{libc,llvm,embench}-smoke`
     只在 **L2**；tset **full** 只在**夜跑**；`test-m6` 的 Embench E2E 属集成步骤，不构成 tset smoke 重复。
 - **里程碑（Milestone）**：`check-milestone` = 归档结构/内容 sha + 同步不可屏蔽 + knowledge 白名单 + `m` 册/任务号 + **夜跑报告存在性/结构/结果**（`check-night-report`）+ **L3 报告存在性/结构/四 scope 覆盖/结果**（`check-l3-report`）；**不内联跑长套件**。报告缺失 ⇒ **明确 FAIL**（不是 SKIP）。
-- **夜跑（Night）**：`make check-night` = `tset` full ×3（libc-test / llvm-ts / Embench，各 static+dynamic）+ 长 arch；由**主会话** `setsid nohup` 启动 + `[exit marker] rc=N`；报告落 `.dadao/tests/night/<本地 date>/`（`manifest.tsv`/`meta.json`/`run.log`；目录用本地日期，meta 记 UTC），次日由里程碑门控消费。
+- **夜跑（Night）**：`make check-night` = `tset` full ×3（libc-test / llvm-ts / Embench，各 static+dynamic）+ 长 arch；由**主会话** `setsid nohup` 启动 + `[exit marker] rc=N`；报告落 `.dadao/tests/night/<本地 YYYY-MM-DD-HH>/`（`manifest.tsv`/`meta.json`/`run.log`；目录用本地日期，meta 记 UTC），次日由里程碑门控消费。
 
 ---
 
