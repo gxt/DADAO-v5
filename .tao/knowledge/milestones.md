@@ -53,7 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| LLVM-136t | 待验收 | 2026-10-28 15:52（登记） | PR 审计：不整体 merge（三回退保留）；137–139 重放点入 audits；lit 工具链改 opt-in + identity |
+| LLVM-136t | 已验证 | 2026-10-28 16:13 | PR 审计：不整体 merge（三回退保留）；137–139 重放点入 audits；lit 工具链 opt-in+identity |
 | TESTCASES-076t | 已验证 | 2026-10-28 15:40 | 测试迁移收口（删旧+门控重写+clean/repro/night；L3/夜跑报告绿） |
 | TESTCASES-083t | 已验证 | 2026-10-28 09:58 | L3 结果报告 + check-milestone 机检（check-l3-report） |
 | TESTCASES-082t | 已验证 | 2026-10-28 09:55 | L3 去 tset smoke（严格一层；tset full 归夜跑） |

@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M10
 **依赖**：当前 master（含 LLVM-130t–135t 已验收成果）
-**状态**：待验收
+**状态**：已验证
 
 ## 背景（自包含）
 外部 PR：`https://github.com/gxt/DADAO-v5/compare/master...xkw9:DADAO-v5:pr/llvm-130-133`
@@ -42,7 +42,7 @@
 
 ## 完成区
 
-**状态**：待验收
+**状态**：已验证
 
 ### 修改文件
 - `tests/unit/llvm/lit/CodeGen/DADAO/lit.cfg.py`：site config / 安装根优先；`LLVM_TOOLS_DIR` 改**显式 opt-in**（`DADAO_LIT_ALLOW_TOOLS_OVERRIDE=1`）+ identity 校验（llc 的 dadao 目标、三工具可执行、version+sha256 打印）
@@ -89,3 +89,30 @@
 | F7 新增块用双引号，与文件既有单引号风格不符 | ✅已修 | 统一单引号（含内嵌 `'` 的行保留双引号） | 与上下文一致；`py_compile` OK |
 
 **未修/延后**：无。**披露**：`make install-host` 未跑（见「新发现/坑」第 3 条：`ninja -n` 907 条待重建，属未申报长构建），以 L1 的安装根新鲜度门控替代取证。
+
+### 第 1 轮 reviewer 验收
+
+**判决：Accepted**（2026-10-28；重跑全绿，反例独立复证）
+
+**重跑记录（reviewer 亲自执行，rc 真实捕获）**
+- `git show --stat 32240ac1` → 仅 4 文件（audits 新/milestones/任务书/lit.cfg.py）；`git diff --name-only 6ba0d210..32240ac1 -- components/ | wc -l` → 0；审前/审后 `git status --porcelain -uall` 均 0 行
+- 三回退 grep（patches/…/DADAO/）：`selectCodeModel` 定义+调用点各 1（`CM.value_or` 唯一命中在函数体内，合法）；`case ISD::ExternalSymbol` 1 + `CodeModel::Large` 门控 1；`GPRBTC:$ra` 1、`GPRB:$ra` 0；LLVM-134t 命中 0、LLVM-135t 3 补丁在位 ⇒ components 零改动，134/135 不可能回退
+- `make check-patch-tree` → rc=0（204 patches OK）；`gen_isa_coverage.py --check` → rc=0（266 记录；accept 264/reject 2）
+- `make check-lit` → rc=0，**现场统计 154 discovered / 154 passed / 0 failed**；`make check` → rc=0（L1 83 项全 PASS）
+- `bash .work/evidence/LLVM-136t/run.sh` → rc=0（**PASS 17 checks, 0 failed**；内含探针 21/21）
+- 端到端（真实 llvm-lit）：裸 `LLVM_TOOLS_DIR` → rc=1 + 显式提示；opt-in → identity 横幅（三工具 sha256）+ **63/63** rc=0
+
+**语义核验**：默认走安装根且静默；site config 优先并明示（`both.announced`）；裸 `LLVM_TOOLS_DIR` 必失败且指名 opt-in；`DADAO_LIT_ALLOW_TOOLS_OVERRIDE=1` 后校验 dadao 目标/三工具可执行/version+sha256——逐条与 lit.cfg.py 56–128 行对齐。
+
+**独立反例（reviewer 自注入，`cp`+md5，未用 git checkout/restore/stash）**：lit.cfg.py 改回 env 优先 + 去 opt-in（md5 `af781e54`→`2de3eaaf`）→ 探针 rc=1，失败集合恰为 {bare-env.exit, bare-env.hint, both.noexit, both.site_wins}（与完成区 R2 四名一致）→ `cp` 还原 → md5 复归 `af781e54`、探针 21/21 回绿、`git status` 0 行。
+
+**约束逐条**：不 merge/cherry-pick PR ✅（components/series/矩阵零改动）；不改 spec/contracts/前端 ✅（diff 仅 4 文件）；补丁规范 ✅（check-patch-tree 204 OK）；不提交/push ✅；未跑 check-full/夜跑 ✅。
+
+**偏离（已披露、予以接受）**：`make install-host` 未跑——项目规则仅编译输入变化才需重建，本册 components 零改动（已核 0 文件）；安装根新鲜度由 L1 `check-install-tools`/`check-builtins-freshness` rc=0（reviewer 的 make check 重跑内含）覆盖。
+
+**findings（文档级，不阻断，architect 收尾顺手改）**：run.sh:118 echo 仍写 "(17 assertions inside)"，探针实为 21 条（探针 rc 是门控判据、该计数文本非门控）。
+
+**剩余风险**：MC/DADAO、MC/DADAO-gen、tests/e2e/lit 三处 lit.cfg.py 仍收裸 `LLVM_TOOLS_DIR`（同 ISS-300 类，越出本册，已列遗留）；137–139 未实现（按派单）。
+
+### architect 收尾（2026-10-28）
+- reviewer Accepted；唯一文档级 finding：证据脚本 echo 的 17→21 断言数已改（计数非门控）。
