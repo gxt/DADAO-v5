@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 报告根：``<test-artifacts>/night/<YYYY-MM-DD>/``
 
-1. **存在性**：``night/`` 下至少一个 ``YYYY-MM-DD`` 目录；``--date`` 指定时该目录
+1. **存在性**：``night/`` 下至少一个本地日期 ``YYYY-MM-DD`` 目录；``--date`` 指定时该目录
    必须存在。否则 ⇒ FAIL（提示「先跑 ``make check-night``」，**不是** SKIP）。
 2. **三件套**：``manifest.tsv`` / ``meta.json`` / ``run.log`` 均存在且非空；
    ``meta.json`` 的 ``command`` / ``started_utc`` / ``finished_utc`` 非空。

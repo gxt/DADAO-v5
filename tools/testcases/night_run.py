@@ -5,7 +5,7 @@
 ``setsid nohup make check-night > log 2>&1 &`` 脱离会话（不自带 `nohup`，避免嵌套）。
 每次跑建一个只读报告目录（`docs/Process-09 §8`）：
 
-    <test-artifacts>/night/<YYYY-MM-DD>/
+    <test-artifacts>/night/<local YYYY-MM-DD>/
         manifest.tsv   scope<TAB>suite<TAB>rc<TAB>log（逐成员一行）
         meta.json      command / started_utc / finished_utc / members
         run.log        汇总（各成员 rc + 日志指针）
@@ -54,7 +54,9 @@ def utc_now() -> str:
 
 
 def today() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # User-facing night directory uses the local calendar date; meta.json
+    # still records UTC start/finish timestamps for auditability.
+    return datetime.now().astimezone().strftime("%Y-%m-%d")
 
 
 def parse_member(raw: str) -> tuple[str, str, str]:
