@@ -47,6 +47,8 @@ COVERAGE_VOCAB = {
     "C1", "C4", "C5", "C12", "C13", "C14", "C17",
     # arithmetic
     "arith.add", "arith.sub", "arith.neg-const", "arith.const-hi-wyde",
+    "arith.i64-shift", "shift.imm-orri", "shift.register",
+    "arith.narrow-extend", "ext.canonical-sext", "ext.canonical-zext",
     # memory / big-endian narrow access
     "mem.load-store-offset", "mem.narrow-be",
     "mem.ld-ub", "mem.ld-sb", "mem.ld-uw", "mem.ld-sw", "mem.ld-ut", "mem.ld-st",
@@ -193,6 +195,102 @@ def oracle(name: str):
                 p = (p + 2) + i
             return total
         return (walk(5) != 95) + (walk(3) != 24)
+
+    if name == "m10-i64-shift.ll":
+        # 18 comparisons: shl/lshr/ashr by {0,1,31,32,63} + variable n=37.
+        def s64(x):
+            x &= MASK64
+            return x - (1 << 64) if x & (1 << 63) else x
+
+        a, b, n = 0x0123456789ABCDEF, 0xFEDCBA9876543210, 37
+        amounts = (0, 1, 31, 32, 63)
+        want_shl = (0x0123456789ABCDEF, 0x02468ACF13579BDE,
+                    0xC4D5E6F780000000, 0x89ABCDEF00000000,
+                    0x8000000000000000)
+        want_lshr = (0xFEDCBA9876543210, 0x7F6E5D4C3B2A1908,
+                     0x00000001FDB97530, 0x00000000FEDCBA98,
+                     0x0000000000000001)
+        want_ashr = (0xFEDCBA9876543210, 0xFF6E5D4C3B2A1908,
+                     0xFFFFFFFFFDB97530, 0xFFFFFFFFFEDCBA98,
+                     0xFFFFFFFFFFFFFFFF)
+        got = []
+        for k in amounts:
+            got.append((a << k) & MASK64)
+        for k in amounts:
+            got.append((b >> k) & MASK64)
+        for k in amounts:
+            got.append(u64(s64(b) >> k))
+        got += [u64(a << n), u64(b >> n), u64(s64(b) >> n)]
+        expected = list(want_shl) + list(want_lshr) + list(want_ashr)
+        expected += [0x3579BDE000000000, 0x000000007F6E5D4,
+                     0xFFFFFFFFFFF6E5D4]
+        return sum(1 for x, y in zip(got, expected) if x != y)
+
+    if name == "m10-narrow-extend.ll":
+        def sdiv_trunc(x, y):
+            q = abs(x) // abs(y)
+            return -q if (x < 0) != (y < 0) else q
+
+        def srem_trunc(x, y):
+            return x - sdiv_trunc(x, y) * y
+
+        def sx(x, bits):
+            return sext(x, bits)
+
+        def zx(x, bits):
+            return x & ((1 << bits) - 1)
+
+        cases = []
+        # (width, op, a, b, sign_extend)
+        cases += [(8, 'add', 127, 127, True)]
+        cases += [(8, 'add', 127, 127, False)]
+        cases += [(16, 'add', 32767, 1, False)]
+        cases += [(32, 'sub', 0, 5, True)]
+        cases += [(16, 'sub', 1, 32768, False)]
+        cases += [(32, 'mul', 2147483648, 4294967295, True)]
+        cases += [(16, 'mul', 65535, 3, False)]
+        cases += [(8, 'udiv', 200, 7, False)]
+        cases += [(32, 'urem', 4294967295, 7, False)]
+        cases += [(8, 'sdiv', 128, 3, True)]
+        cases += [(16, 'srem', 35536, 7, True)]
+        cases += [(8, 'shl', 64, 1, False)]
+        cases += [(32, 'shl', 1073741824, 1, False)]
+        cases += [(16, 'lshr', 32768, 4, False)]
+        cases += [(8, 'ashr', 128, 1, True)]
+        cases += [(32, 'ashr', 2147483648, 31, True)]
+        expected = [(-2 & MASK64), 0xFE, 0x8000,
+                    (-5 & MASK64), 0x8001,
+                    (-2147483648 & MASK64), 0xFFFD, 0x1C, 3,
+                    (-42 & MASK64), (-5 & MASK64), 0x80,
+                    0x80000000, 0x800, (-64 & MASK64),
+                    (MASK64)]
+        got = []
+        for width, op, a, b, sign in cases:
+            mask = (1 << width) - 1
+            if op == 'add':
+                r = (a + b) & mask
+            elif op == 'sub':
+                r = (a - b) & mask
+            elif op == 'mul':
+                r = (a * b) & mask
+            elif op == 'udiv':
+                r = (a & mask) // (b & mask)
+            elif op == 'urem':
+                r = (a & mask) % (b & mask)
+            elif op == 'sdiv':
+                r = sdiv_trunc(sx(a, width), sx(b, width)) & mask
+            elif op == 'srem':
+                r = srem_trunc(sx(a, width), sx(b, width)) & mask
+            elif op == 'shl':
+                r = (a << (b & (width - 1))) & mask
+            elif op == 'lshr':
+                r = (a & mask) >> (b & (width - 1))
+            elif op == 'ashr':
+                r = (sx(a, width) >> (b & (width - 1))) & mask
+            else:
+                return None
+            got.append(u64(sx(r, width) if sign else r))
+        return sum(1 for x, y in zip(got, expected) if x != y)
 
     return None
 

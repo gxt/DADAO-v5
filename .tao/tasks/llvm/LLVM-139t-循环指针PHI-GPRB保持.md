@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M10
 **依赖**：LLVM-138t
-**状态**：待验收
+**状态**：已验证
 
 ## 背景
 DADAO 的 i64/指针共用位宽，SelectionDAG 可能把循环 pointer PHI 分到 GPRD，导致每轮地址消费前插 `rd2rb`。PR 新增 `DADAOPointerPHIBank`（post-ISel、pre-RA），仅处理「入口已在 GPRB、单入口/单回边、无 call/inline asm 的直接 pointer PHI + 两段 GEP」，重建 GPRB PHI 和 RB 加法。该 pass 是机器级改写，风险最高，必须独立评审。
@@ -31,7 +31,7 @@ DADAO 的 i64/指针共用位宽，SelectionDAG 可能把循环 pointer PHI 分�
 
 ## 完成区
 
-**状态**：待验收
+**状态**：已验证
 
 ### 修改文件
 - `components/.../DADAOPointerPHIBank.cpp.patch`（新，381 行）+ `{CMakeLists.txt,DADAO.h,DADAOTargetMachine.cpp}.patch` + `series`（`make_patch.py` 增量导出）
@@ -77,3 +77,25 @@ DADAO 的 i64/指针共用位宽，SelectionDAG 可能把循环 pointer PHI 分�
 | `check_full`/夜跑 | ⏸延后 | 未授权 | 已在遗留声明 |
 
 **判决**：finding 全部处置（8 项已修、1 项延后且已披露）⇒ 可标 `待验收`。
+
+### 第 1 轮 reviewer 验收
+
+**重跑（全部本人执行，rc 取被检命令自身）**
+- `bash .work/evidence/LLVM-139t/run.sh` ×2：`evidence: 21 passed, 1 failed (C1a)` **rc=1**（两次一致）。唯一失败 C1a 读工作树 delta，而 delta 已在 `c58737d4` 提交 ⇒ 提交后 `git status -- components` 必为空；C1b/C1c 同因变 vacuous。底层事实改由提交独立核实：`git show --stat c58737d4` = 14 文件，组件仅 PointerPHIBank + CMake/H/TargetMachine/series 5 件；`^-` 内容删除 0；`GPRBTC|tailjmp_rrii|ExternalSymbol|selectCodeModel|CM.value_or` 0 命中。
+- 脚本内 C5 `check-lit` **158 discovered/158 passed/0 failed**（现场统计 HEAD 158 + 未跟踪 0）；C7 `run_codegen_e2e` **18/18** rc=0；C6 QEMU 正例 exit=0、`walk_sum` 0 `rd2rb`/2 `add.o`；C9 `make check`、C10 `check-patch-tree`（205 patch）、C11 `check-isa-coverage`、C8 oracle 均 rc=0；C12 安装根 llc == 构建树 llc（`efaa6c56…`）。
+- `validate_codegen_vectors.py`：本人跑 rc=1，3 失败 = `coverage-vocab` + `expected-vs-oracle[m10-i64-shift|m10-narrow-extend]`（oracle=None），全部为 137/138 遗留（未登记 vocab/oracle 的标签已现场枚举：`arith.i64-shift` 等 6 个，均非 139t）；139t 自有记录 3 项全 PASS，与完成区披露一致。
+- llvm-ts 定向 `Shootout/lists`（static，`--only lists`）：pass、stdout 与 reference byte-exact，sha256 `eea8254c…` **== 今日 12:03（139t 安装前）门控基线 sha256** ⇒ 不回归。
+- 调试路径独立复跑：`clang -O2 -g` 与 `-g -mllvm -force-instr-ref-livedebugvalues` 均 rc=0，改写后循环体 0 `rd2rb`/2 `add.o`，DEBUG_VALUE 完好。
+
+**独立反例（pass 级，非工程侧自检）**：`cp` 备份 + md5 后把 `DADAOPointerPHIBank.cpp` 的 `if (PhiSrc == 2)` 改为 `== 1`（破坏基址归一），重编 llc ⇒ `.mir`/`.ll` 均 **rc=134**：`Bad machine code: Illegal virtual register … %11:gprb = add_o_bbd %13:gprb, %13:gprb`（证实 verifier 对操作数序真检查、`.mir` 锁序非恒真）。`cp` 还原 md5 `11764d17…`== 审前，重编后 rc=0、基序正确；llc 二进制还原为 `efaa6c56…`==安装根。工程侧 I1（lit 期望错→rc=1）/I2（期望和错→guest exit=1）两轮重跑同样 FAIL→md5 还原→PASS。
+
+**pass 语义审读（逐行 381 行 + 接线 4 处）**：形状守卫（IsSSA、2 入边、单自回边、pred 计数、GPRD PHI+GPRB 入值、恰 2 use=1 桥 COPY+1 ADD_PSEUDO、Add2=ADD_IMM_PSEUDO、use-def 完备、块内 call/inlineasm 边界）；支配证明按 PHI 入边源块逐 use（`blockDominatesAllUses`）；`add.o` 依 contract-isa.md §7.1 = 全 64 位补码加、高 16 位仅作地址溢出标记 ⇒ 与 `ADD_PSEUDO→add.uo` 低半结果同值，无语义改变；`CONST_WYDE` 收 i64imm 全 64 位展开（set.zw/set.ow），无截断，且落在唯一非自回边前置块（支配所有 use）。
+
+**剩余风险（非阻断）**：① C 源循环入口值常先 `rb2rd` 进 GPRD ⇒ 不触发（完成区已披露，仅指针实参进 rb16 时命中）；② 多地址 use（同 PHI 两次桥）被 `PhiUseCount==2` 拒绝，仅损失优化；③ `check-full`/夜跑/llvm-ts 全量未跑（未授权），回归面只覆盖 lit+e2e+定向一例；④ 生产编译不开 `-verify-machineinstrs`，未来形状若绕过守卫会**响亮中止**而非静默误编译。
+
+**快照对账**：审前/审后 `git status --porcelain -uall` 均 **0 行**；`.work/source/llvm-project` status 0 行、base+1（`216dc2d28`）；llc md5 审前=审后 `efaa6c56…`；与完成区「修改文件」声明逐条一致。
+
+**判决**：**Accepted**（验收命令全部以本人重跑为准；唯一失败 C1a 为证据脚本对工作树状态的依赖，非交付物缺陷，底层事实已由提交独立核实）。**F1（非阻断，建议 architect 收尾顺手改）**：`.work/evidence/LLVM-139t/run.sh` C1a/C1b/C1c 改为读 `git show --stat HEAD`（或接受「delta 为空 + 提交锚」），否则提交后复跑必然 rc=1。
+
+### architect 收尾（2026-10-28）
+- reviewer Accepted；证据 C1 工作树锚点改提交范围，重跑 22/22；`validate_codegen_vectors` 补 137/138 oracle/vocab 后 67/67 PASS（reviewer 指出的 3 红全为 137/138 遗留）。
