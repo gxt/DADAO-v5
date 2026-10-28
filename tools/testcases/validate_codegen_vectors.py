@@ -56,6 +56,8 @@ COVERAGE_VOCAB = {
     "call.direct-ret", "call.stack-args", "call.narrow-args", "call.ptr-bank",
     # pointer arithmetic
     "ptr.add-offset", "ptr.cmp", "ptr.diff-pos", "ptr.diff-neg",
+    # loop-carried pointer induction (LLVM-139t)
+    "ptr.loop-bank",
 }
 
 REQUIRED_COVERAGE = {
@@ -180,6 +182,17 @@ def oracle(name: str):
 
     if name == "ptr_diff_neg.ll":
         return (3 - 10) & 0x7F
+
+    if name == "m10-loop-pointer-bank.ll":
+        # @walk_sum: p <- (p + 2) + i elements, element j holds 3*j + 1.
+        # Count the mismatching sums for the two trip counts (n = 5, n = 3).
+        def walk(n):
+            p, total = 0, 0
+            for i in range(n):
+                total += 3 * p + 1
+                p = (p + 2) + i
+            return total
+        return (walk(5) != 95) + (walk(3) != 24)
 
     return None
 

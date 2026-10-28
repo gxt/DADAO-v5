@@ -29,7 +29,7 @@
 | `buildmi` | 任意后端 C++ 补丁中 `BuildMI(...)` 调用里的 `DADAO::<def>` 常量（含帧处理/寄存器分配等 post-ISel 发射，ISS-327 ③） | `DADAO*.cpp.patch` |
 | `synonym` | `.td` def 与记录**编码身份相同但助记符不同**时按编码身份互认（ISS-327 ②） | 全 `.td` 补丁 |
 
-现场统计：证据条数 = buildmi 59 + isel-cpp 64 + pat 293 + pat-args 8 + pseudo 19；判「用得上」的记录 **202** 条。
+现场统计：证据条数 = buildmi 63 + isel-cpp 64 + pat 293 + pat-args 8 + pseudo 19；判「用得上」的记录 **202** 条。
 
 ### 提取方法的局限（盲区披露）
 
@@ -62,7 +62,7 @@
 | `aip.si_riii_rb` | `aip.si` | `riii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:489:aip_si_rb |
 | `and.o_orrr_rd` | `and.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:453:and_o;pat:DADAOCodeGen.td.patch:1156:and_o |
 | `andn.w_rwii_rb` | `andn.w` | `rwii` | `m1` | accept | no | — |
-| `andn.w_rwii_rd` | `andn.w` | `rwii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:364:andn_w_rd |
+| `andn.w_rwii_rd` | `andn.w` | `rwii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:364:andn_w_rd;buildmi:DADAOPointerPHIBank.cpp.patch:301:andn_w_rd:CONST_WYDE |
 | `br.eq_rrii_rd` | `br.eq` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:916:br_eq_rd |
 | `br.n_riii_rd` | `br.n` | `riii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:910:br_n_rd |
 | `br.ne_rrii_rd` | `br.ne` | `rrii` | `m1` | accept | yes | buildmi:DADAOISelLowering.cpp.patch:3095:br_ne_rd;isel-cpp:DADAOISelLowering.cpp.patch:3095:br_ne_rd;pat:DADAOCodeGen.td.patch:917:br_ne_rd |
@@ -210,7 +210,7 @@
 | `mul.uw_orrr_rd` | `mul.uw` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:610:mul_uw |
 | `or.o_orrr_rd` | `or.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:454:or_o;pat:DADAOCodeGen.td.patch:1160:or_o |
 | `or.w_rwii_rb` | `or.w` | `rwii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:399:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:400:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:437:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:438:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:456:or_w_rb;buildmi:DADAOInstrInfo.cpp.patch:457:or_w_rb |
-| `or.w_rwii_rd` | `or.w` | `rwii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:131:or_w_rd;buildmi:DADAOInstrInfo.cpp.patch:370:or_w_rd;buildmi:DADAOInstrInfo.cpp.patch:418:or_w_rd;buildmi:DADAOInstrInfo.cpp.patch:419:or_w_rd |
+| `or.w_rwii_rd` | `or.w` | `rwii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:131:or_w_rd;buildmi:DADAOInstrInfo.cpp.patch:370:or_w_rd;buildmi:DADAOInstrInfo.cpp.patch:418:or_w_rd;buildmi:DADAOInstrInfo.cpp.patch:419:or_w_rd;buildmi:DADAOPointerPHIBank.cpp.patch:301:or_w_rd:CONST_WYDE |
 | `ra2rd_orri_ra` | `ra2rd` | `orri` | `m1` | accept | no | — |
 | `rb2rb_orri_rb` | `rb2rb` | `orri` | `m1` | accept | yes | buildmi:DADAOFrameLowering.cpp.patch:368:rb2rb;buildmi:DADAOFrameLowering.cpp.patch:430:rb2rb;buildmi:DADAOFrameLowering.cpp.patch:461:rb2rb;buildmi:DADAOLoadStoreOptimizer.cpp.patch:270:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:206:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:215:rb2rb;buildmi:DADAORegisterInfo.cpp.patch:257:rb2rb |
 | `rb2rd_orri_rb` | `rb2rd` | `orri` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:603:rb2rd |
@@ -252,10 +252,10 @@
 | `sc.w.ar_orrr_rd` | `sc.w.ar` | `orrr` | `m9` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:3033:sc_w_ar |
 | `sc.w.nn_orrr_rd` | `sc.w.nn` | `orrr` | `m9` | accept | no | — |
 | `sc.w.nr_orrr_rd` | `sc.w.nr` | `orrr` | `m9` | accept | no | — |
-| `set.ow_rwii_rd` | `set.ow` | `rwii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:346:set_ow_rd;buildmi:DADAOInstrInfo.cpp.patch:354:set_ow_rd |
+| `set.ow_rwii_rd` | `set.ow` | `rwii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:346:set_ow_rd;buildmi:DADAOInstrInfo.cpp.patch:354:set_ow_rd;buildmi:DADAOPointerPHIBank.cpp.patch:301:set_ow_rd:CONST_WYDE |
 | `set.w_rwii_rf` | `set.w` | `rwii` | `fp` | accept | yes | buildmi:DADAOISelLowering.cpp.patch:3006:set_w_rwii_rf;isel-cpp:DADAOISelLowering.cpp.patch:3006:set_w_rwii_rf |
 | `set.zw_rwii_rb` | `set.zw` | `rwii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:398:set_zw_rb;buildmi:DADAOInstrInfo.cpp.patch:436:set_zw_rb;buildmi:DADAOInstrInfo.cpp.patch:455:set_zw_rb |
-| `set.zw_rwii_rd` | `set.zw` | `rwii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:131:set_zw_rd;buildmi:DADAOInstrInfo.cpp.patch:349:set_zw_rd;buildmi:DADAOInstrInfo.cpp.patch:354:set_zw_rd;buildmi:DADAOInstrInfo.cpp.patch:417:set_zw_rd |
+| `set.zw_rwii_rd` | `set.zw` | `rwii` | `m1` | accept | yes | buildmi:DADAOInstrInfo.cpp.patch:131:set_zw_rd;buildmi:DADAOInstrInfo.cpp.patch:349:set_zw_rd;buildmi:DADAOInstrInfo.cpp.patch:354:set_zw_rd;buildmi:DADAOInstrInfo.cpp.patch:417:set_zw_rd;buildmi:DADAOPointerPHIBank.cpp.patch:301:set_zw_rd:CONST_WYDE |
 | `shl.b_orri_rd` | `shl.b` | `orri` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:488:shl_b_orri |
 | `shl.b_orrr_rd` | `shl.b` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:631:shl_b_orrr;pat:DADAOCodeGen.td.patch:645:shl_b_orrr |
 | `shl.o_orri_rd` | `shl.o` | `orri` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:486:shl_o_orri;isel-cpp:DADAOISelDAGToDAG.cpp.patch:658:shl_o_orri |

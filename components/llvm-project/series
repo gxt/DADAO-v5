@@ -64,6 +64,7 @@ llvm/lib/Target/DADAO/DADAOLoadStoreOptimizer.cpp.patch
 llvm/lib/Target/DADAO/DADAOMCInstLower.cpp.patch
 llvm/lib/Target/DADAO/DADAOMCInstLower.h.patch
 llvm/lib/Target/DADAO/DADAOMachineFunctionInfo.h.patch
+llvm/lib/Target/DADAO/DADAOPointerPHIBank.cpp.patch
 llvm/lib/Target/DADAO/DADAORegisterInfo.cpp.patch
 llvm/lib/Target/DADAO/DADAORegisterInfo.h.patch
 llvm/lib/Target/DADAO/DADAORegisterInfo.td.patch

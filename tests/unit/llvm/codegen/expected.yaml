@@ -202,3 +202,17 @@ programs:
       bits (sdiv/srem truncate toward zero).  @main returns the number of
       mismatches, so the expected count is 0 and any wrong canonical
       direction, width or extension makes the exit code non-zero.
+  - name: m10-loop-pointer-bank.ll
+    category: memory
+    expected_exit_code: 0
+    coverage: [C14, ptr.add-offset, ptr.loop-bank]
+    derivation: >-
+      @walk_sum(ptr p, i64 n) walks the pointer recurrence
+      p <- (p + 2 elements) + i elements, i = 0..n-1, over a 16-element buffer
+      whose element j is 3*j+1 (volatile loads/stores keep the chain alive).
+      Visited element offsets for n = 5: 0,2,5,9,14 -> values 1,7,16,28,43,
+      sum = 95; for n = 3: 0,2,5 -> values 1,7,16, sum = 24.  Both sums are
+      derived here from LLVM IR semantics (i64 arithmetic, 8-byte elements),
+      not from llc or QEMU.  @main returns the number of mismatching sums, so
+      the expected count is 0 and a wrong element offset, scaled-index shift or
+      backedge makes the exit code non-zero.

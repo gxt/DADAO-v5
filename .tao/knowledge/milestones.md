@@ -59,7 +59,7 @@
 | TESTCASES-076t | 已验证 | 2026-10-28 15:40 | 测试迁移收口（删旧+门控重写+clean/repro/night；L3/夜跑报告绿） |
 | TESTCASES-083t | 已验证 | 2026-10-28 09:58 | L3 结果报告 + check-milestone 机检（check-l3-report） |
 | TESTCASES-082t | 已验证 | 2026-10-28 09:55 | L3 去 tset smoke（严格一层；tset full 归夜跑） |
-| LLVM-139t | 待开始 | 2026-10-28 09:38（登记） | 循环指针 PHI GPRB machine pass（verify/支配/多回边） |
+| LLVM-139t | 待验收 | 2026-10-28 09:38（登记） | 循环指针 PHI GPRB pass（支配/操作数序；lit 158、QEMU 18/18、tset 不回归） |
 | TESTCASES-077t | 已验证 | 2026-10-28 07:47 | llvm-ts：aarch64/archie/plot2fig 等排除、Burg/cdecl/OptimizerEval 方言、mafft 1800s；两档 214/214、零 known-fail |
 | TESTCASES-081t | 已验证 | 2026-10-28 02:35 | gawk/make/p2c 按 CMake 排除；archie/plot2fig excluded；ClamAV；SIG 判据（077 余项清） |
 | TESTCASES-078t | 已验证 | 2026-10-28 01:59 | SPASS/lemon 胶水补丁；SPASS 参考不须重定（069t 74365d61 = 多传 -DocProof）；两档 md5-exact（ISS-338 关闭） |
