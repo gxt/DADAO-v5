@@ -175,3 +175,16 @@ programs:
       machine-fault range 0x80..0xFF; the raw 64-bit negative difference is
       what `sub.o_orrr_dbb` must produce.
 
+
+  - name: m10-i64-shift.ll
+    category: arithmetic
+    expected_exit_code: 0
+    coverage: [arith.i64-shift, shift.imm-orri, shift.register]
+    derivation: >-
+      a = 0x0123456789ABCDEF, b = 0xFEDCBA9876543210 (negative), n = 37.
+      shl(a,k), lshr(b,k), ashr(b,k) for k = 0,1,31,32,63 plus the three
+      variable shifts (n = 37).  Expected values are derived independently in
+      Python: shl/lshr by u64 truncation, ashr by a signed 64-bit right shift
+      (Python `>>` on the two's-complement value, then `& 0xFFFF...`).
+      @main returns the number of mismatches; the oracle's expected count is 0,
+      so any wrong immediate or register shift makes the exit code non-zero.

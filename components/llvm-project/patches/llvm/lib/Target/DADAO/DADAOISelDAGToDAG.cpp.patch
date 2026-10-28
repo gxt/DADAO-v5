@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..d50a2ffad
+index 000000000..f79093317
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,885 @@
+@@ -0,0 +1,895 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -425,33 +425,43 @@ index 000000000..d50a2ffad
 +  case ISD::SHL:
 +  case ISD::SRL:
 +  case ISD::SRA: {
-+    // Narrow constant shift (LLVM-127t): fold to the one-instruction orri form.
-+    // A TableGen immediate leaf cannot express this -- the DAG shift amount has
-+    // the narrow operand type while the `immu6` operand is i64 -- so it is done
-+    // here.  `immu6 >= W` is an ILLI in hardware, so only in-range amounts are
-+    // folded; an out-of-range amount is poison in LLVM IR and falls through to
-+    // the register form (which reduces the amount modulo W).
++    // Constant shift (narrow: LLVM-127t; i64: LLVM-137t): fold to the
++    // one-instruction orri form.  A TableGen immediate leaf cannot express this
++    // -- the DAG shift amount has the narrow operand type while the `immu6`
++    // operand is i64 -- so it is done here.  `immu6 >= W` is an ILLI in
++    // hardware, so only in-range amounts are folded; an out-of-range amount is
++    // poison in LLVM IR and falls through to the register form (which reduces
++    // the amount modulo W).  A zero amount is canonicalized to a copy by LLVM
++    // before ISel (the lit test pins that `shl0`/`lshr0`/`ashr0` stay `rd2rd`).
 +    const EVT VT = Node->getValueType(0);
 +    const auto *Amt = dyn_cast<ConstantSDNode>(Node->getOperand(1));
-+    if (!Amt || (VT != MVT::i8 && VT != MVT::i16 && VT != MVT::i32))
++    if (!Amt || (VT != MVT::i8 && VT != MVT::i16 && VT != MVT::i32 &&
++                 VT != MVT::i64))
 +      break;
 +    const unsigned W = VT.getSizeInBits();
 +    const uint64_t Sh = Amt->getZExtValue();
 +    if (Sh >= W)
 +      break;
-+    const bool IsT = VT == MVT::i32, IsW = VT == MVT::i16;
++    const bool IsO = VT == MVT::i64, IsT = VT == MVT::i32,
++               IsW = VT == MVT::i16;
 +    unsigned Opc;
 +    switch (Node->getOpcode()) {
 +    default:
 +      llvm_unreachable("unexpected shift opcode");
 +    case ISD::SHL:
-+      Opc = IsT ? DADAO::shl_t_orri : IsW ? DADAO::shl_w_orri : DADAO::shl_b_orri;
++      Opc = IsO ? DADAO::shl_o_orri
++                : IsT ? DADAO::shl_t_orri
++                      : IsW ? DADAO::shl_w_orri : DADAO::shl_b_orri;
 +      break;
 +    case ISD::SRL:
-+      Opc = IsT ? DADAO::shr_ut_orri : IsW ? DADAO::shr_uw_orri : DADAO::shr_ub_orri;
++      Opc = IsO ? DADAO::shr_uo_orri
++                : IsT ? DADAO::shr_ut_orri
++                      : IsW ? DADAO::shr_uw_orri : DADAO::shr_ub_orri;
 +      break;
 +    case ISD::SRA:
-+      Opc = IsT ? DADAO::shr_st_orri : IsW ? DADAO::shr_sw_orri : DADAO::shr_sb_orri;
++      Opc = IsO ? DADAO::shr_so_orri
++                : IsT ? DADAO::shr_st_orri
++                      : IsW ? DADAO::shr_sw_orri : DADAO::shr_sb_orri;
 +      break;
 +    }
 +    SDValue Imm = CurDAG->getTargetConstant(Sh, SDLoc(Node), MVT::i64);
