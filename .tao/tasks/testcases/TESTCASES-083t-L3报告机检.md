@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：TESTCASES-076t、TESTCASES-082t
-**状态**：待验收
+**状态**：已验证
 
 ## 背景
 `TESTCASES-076t` 只加了夜跑报告存在性；`check-milestone` 的「L3 结果」仍无机检载体（076 遗留⑥），无法审计 `check-full` 是否真的全绿。
@@ -35,7 +35,7 @@
 
 ## 完成区
 
-**状态**：待验收
+**状态**：已验证
 
 ### 修改文件
 - `tools/testcases/l3_run.py`（新）：`make check-full` 包装，逐成员执行 + 写 `l3/<UTC>/` 三件套（复用 `report_io`）
@@ -80,3 +80,21 @@
 | 注入文件尚未提交（untracked），`git diff --name-only` 恒空 ⇒ 「空注入」假绿 | ✅已修 | 改以 md5 变化 + grep 双证注入非空；还原 md5 对账 | `--inject` 7/7；md5 `13fe2f12…` 前后一致 |
 
 - 判决：无未修 finding ⇒ 状态 `待验收`。
+
+### 第 1 轮 reviewer 验收
+
+审前/审后 `git status --porcelain -uall` 均 **0 行**；改动面与任务书约束逐一对齐（`git show --stat 37bbb502`：仅 tools/testcases/{l3_run,check_l3_report,report_io,night_run,manage_tests}.py、Makefile、Process-07/09、tests/README、milestones、任务书）。
+
+**重跑（reviewer 亲自执行，均 rc=0）**：
+- `python3 tools/testcases/check_l3_report.py --self-test` → **12/12 PASS** rc=0
+- `python3 tools/testcases/l3_run.py --self-test` → **9/9 PASS** rc=0（`night_run` 6/6、`manage_tests` 8/8 回归绿）
+- `bash .work/evidence/TESTCASES-083t/run.sh` → **30/30 PASS** rc=0；`--inject` → **7/7 PASS** rc=0，注入前后 gate md5 `13fe2f12…` 一致、`git status` 0 行
+- `make check` → rc=0（含 check-run-artifacts A3：`check-l3-*.log` 命名合规）
+- `make check-l3-report`（真实报告 `.dadao/tests/l3/20261027T223042Z`）→ PASS rc=0（8 行、四 scope、全 rc=0、marker 一致、meta commit=24648a2f）
+- 无报告 fixture：脚本 rc=1（「L3 报告目录不存在…先跑 make check-full」）、`make check-l3-report` rc=2 —— 明确 FAIL 非 SKIP
+- `make -n check-milestone` 含 `check_l3_report.py`；fixture（夜跑+L3 双绿）下 `make check-milestone` 两个报告门控均 PASS
+
+**独立反例（fixture 复制真实报告到 /tmp，改产物不改门控，`cp`+md5 还原）**：
+manifest 一行 rc=1（marker 仍 0）⇒ FAIL rc=1；删 tset scope 行 ⇒ FAIL rc=1（缺 scope 行+缺成员行）；run.log marker 改 rc=1 伪造全绿 ⇒ FAIL rc=1；清空一个成员日志 ⇒ FAIL rc=1。还原后 md5 与注入前全等、门控回 PASS rc=0。未用 `git checkout/restore/stash`。
+
+**结论**：验收命令块全绿、约束无违反、完成区数字与实跑一致 ⇒ **Accepted**（剩余风险：真实 `check-full` 未由本任务重跑，采信既有 L3 报告盘上产物；里程碑层 L3 项依赖主会话按队列触发全量）。
