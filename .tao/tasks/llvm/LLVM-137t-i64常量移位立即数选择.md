@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M10
 **依赖**：LLVM-136t（干净基线）
-**状态**：待验收
+**状态**：已验证
 
 ## 背景
 当前 i64 的 `shl`/`lshr`/`ashr` 常量移位会先物化移位量、再走寄存器移位；ISA 已有 `shl.o`/`shr.uo`/`shr.so` 立即数形态（`immu6`）。PR（commit `3d77f7bb`）的 64 位常量化部分可作为输入，但必须在 136t 的干净基线上重放，不得夹带 code model/tailjmp 回退。
@@ -27,7 +27,7 @@
 
 ## 完成区
 
-**状态**：待验收
+**状态**：已验证
 
 ### 修改文件
 - `components/.../DADAOISelDAGToDAG.cpp.patch`（`make_patch.py` 增量导出；diff 仅 shift hunk）
@@ -71,3 +71,24 @@
 | 矩阵行号/计数随补丁漂移 | ✅已处置 | `gen_isa_coverage.py` 重生成 md/tsv | `check-isa-coverage` 绿 |
 
 **判决**：无未修 finding ⇒ 可标 `待验收`。
+
+### 第 1 轮 reviewer 验收
+
+**分析文件**：`DADAOISelDAGToDAG.cpp.patch`（+源树 cpp 与补丁逐字节比对 md5 一致）、lit/codegen 两册、`expected.yaml`、`oracle.py`、`run.sh`、矩阵 tsv、milestones 行、`git show ce50c278` 全部 8 文件。
+
+**重跑（reviewer 亲自执行）**：
+- `bash .work/evidence/LLVM-137t/run.sh` ×3：初跑 **13 passed/1 failed**（唯一红 C2，见 finding）；独立注入轮 **6 passed/8 failed**；还原回绿轮 **13 passed/1 failed**（与初跑逐行一致）
+- C5 `make check-lit` rc=0、**passed=155 / failed=0**（现场统计）；C8 `make check` rc=0；C9 `check-patch-tree` rc=0；C6 QEMU oracle **18/18**；C7 `run_codegen_e2e` **16/16**；C10 安装根 llc md5 `9274c80b...` 一致
+
+**独立反例注入**（改被测产物，非脚本自带 I1–I4；`cp`+md5 备份于 `/tmp/opencode/LLVM-137t-review/`）：patch `VT != MVT::i64`→`i99`；lit `shl.o …32`→`shl.t`；codegen 期望常量 `…0000`→`…0001` ⇒ C1/C4/C5/C7/C8 及 I2/I4 全 FAIL；`cp` 还原后 md5 与审前一致（`5c8616ff`/`e82adee0`/`3042c170`）、回绿。未用 git checkout/restore/stash。
+
+**语义核验**（reviewer 自跑 llc 看真实汇编）：`shl0/lshr0/ashr0`→`rd2rd` copy；1/31/32/63→`shl.o/shr.uo/shr.so` 立即数；变量→`… rd16, rd17` 寄存器形态；窄 i32/i16/i8→`shl.t/w/b` 回归不变；`shl64/lshr64/ashr64` 函数体仅 `ret`（poison 折叠，无越界 immu6）。另用 Python 全量重算 IR 内 15 个期望常量（u64 截断/有符号右移）：0 mismatch。
+
+**约束逐条**：components diff 仅 1 文件（`git show --name-only` 独立核验）；grep `SIGN_EXTEND|ExternalSymbol(删除)|selectCodeModel|GPRBTC|tailjmp` exit=1 无命中，`ExternalSymbol` 分支保留；未改 spec/contracts/QEMU；工作树 `git status -uall` 0 行、无残留；临时目录合规；未跑 check-full/夜跑。
+
+**finding（非阻塞，architect 收尾改）**：`run.sh` C2/C3 用工作树 `git diff` 判"components 仅 1 文件"，ce50c278 提交后工作树干净 ⇒ 提交后重跑 C2 必红（files=0）。判据本身 reviewer 已用 `git show ce50c278 -- components/` 独立核验成立。建议改 `git diff ce50c278~1..ce50c278 --name-only -- components` 或 `git show --name-only ce50c278`。
+
+**判决**：**Accepted**（验收命令在 reviewer 重跑下通过、约束无违反；C2 为证据脚本时序适配缺陷，非交付物缺陷，已记 finding）。
+
+### architect 收尾（2026-10-28）
+- reviewer Accepted；唯一 finding：证据 C2/C3 用工作树 git diff，提交后必红；已改锚 `ce50c278~1..ce50c278`，重跑 14/14 PASS。

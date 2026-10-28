@@ -53,6 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-137t | 已验证 | 2026-10-28 16:40 | i64 常量移位立即数选择（shl.o/shr.uo/shr.so；lit 155、oracle 18/18） |
 | LLVM-136t | 已验证 | 2026-10-28 16:13 | PR 审计：不整体 merge（三回退保留）；137–139 重放点入 audits；lit 工具链 opt-in+identity |
 | TESTCASES-076t | 已验证 | 2026-10-28 15:40 | 测试迁移收口（删旧+门控重写+clean/repro/night；L3/夜跑报告绿） |
 | TESTCASES-083t | 已验证 | 2026-10-28 09:58 | L3 结果报告 + check-milestone 机检（check-l3-report） |
