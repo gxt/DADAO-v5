@@ -53,7 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| TESTCASES-084t | 已验证 | 2026-10-28 20:05 | 测试残留清理：e2e→unit/llvm、删旧链接/32 wrapper/spec 路径/补丁注释 |
+| TESTCASES-084t | 已验证 | 2026-10-28 20:22 | 测试残留清理：e2e→unit/llvm、删旧链接/32 wrapper/spec 路径/补丁注释 |
 | LLVM-139t | 已验证 | 2026-10-28 18:35 | 循环指针 PHI GPRB machine pass（支配/verify/负例；lit 158、e2e 18/18） |
 | LLVM-138t | 已验证 | 2026-10-28 17:15 | 窄整数 canonical extension 折叠（39 组；lit 156、oracle 84/84） |
 | LLVM-137t | 已验证 | 2026-10-28 16:49 | i64 常量移位立即数选择（shl.o/shr.uo/shr.so；lit 155、oracle 18/18） |
