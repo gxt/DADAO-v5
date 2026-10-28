@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..f79093317
+index 000000000..7cca228ac
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,895 @@
+@@ -0,0 +1,929 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -305,6 +305,40 @@ index 000000000..f79093317
 +  }
 +
 +  switch (Node->getOpcode()) {
++  case ISD::SIGN_EXTEND:
++  case ISD::ZERO_EXTEND: {
++    // LLVM-127t narrow negation must keep the rd0 form even when an enclosing
++    // extend is present.  Handle the extend root before the generic TableGen
++    // patterns can materialise the zero operand as CONST_WYDE.  The narrow
++    // subtraction and the canonical extension remain two distinct operations,
++    // matching the existing negation contract and m6-not-neg.ll.
++    SDValue Narrow = Node->getOperand(0);
++    SDNode *Sub = Narrow.getNode();
++    const EVT VT = Narrow.getValueType();
++    if (Sub->getOpcode() == ISD::SUB &&
++        (VT == MVT::i8 || VT == MVT::i16 || VT == MVT::i32)) {
++      const auto *Z = dyn_cast<ConstantSDNode>(Sub->getOperand(0));
++      if (Z && Z->isZero()) {
++        const bool IsT = VT == MVT::i32, IsW = VT == MVT::i16;
++        const unsigned SubOpc = IsT ? DADAO::sub_st
++                              : IsW ? DADAO::sub_sw : DADAO::sub_sb;
++        const unsigned ExtOpc = Node->getOpcode() == ISD::SIGN_EXTEND
++                                    ? DADAO::ext_so_orri
++                                    : DADAO::ext_uo_orri;
++        const unsigned Width = VT.getSizeInBits() - 1;
++        const SDLoc DL(Node);
++        SDNode *NarrowSub = CurDAG->getMachineNode(
++            SubOpc, DL, VT, CurDAG->getRegister(DADAO::rd0, MVT::i64),
++            Sub->getOperand(1));
++        SDValue Imm = CurDAG->getTargetConstant(Width, DL, MVT::i64);
++        SDNode *Extended = CurDAG->getMachineNode(
++            ExtOpc, DL, MVT::i64, SDValue(NarrowSub, 0), Imm);
++        ReplaceNode(Node, Extended);
++        return;
++      }
++    }
++    break;
++  }
 +  case ISD::Constant: {
 +    // All legal integer widths: i64 plus the narrow i8/i16/i32 of LLVM-127t.
 +    // (i1 never reaches ISel -- it is promoted to i8 -- so it is not listed.)

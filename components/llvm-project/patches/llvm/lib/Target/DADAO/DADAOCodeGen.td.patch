@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..ea6413e95
+index 000000000..e31701eb3
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,1205 @@
+@@ -0,0 +1,1251 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -585,6 +585,52 @@ index 000000000..ea6413e95
 +def : Pat<(i32 (srem (i32 GPRD:$a), (i32 GPRD:$b))), (rem_st GPRD:$a, GPRD:$b)>;
 +def : Pat<(i16 (srem (i16 GPRD:$a), (i16 GPRD:$b))), (rem_sw GPRD:$a, GPRD:$b)>;
 +def : Pat<(i8 (srem (i8 GPRD:$a), (i8 GPRD:$b))), (rem_sb GPRD:$a, GPRD:$b)>;
++
++// LLVM-138t: when a narrow producer is consumed immediately by an exact
++// i64 extension, select the producer variant whose ISA result already has the
++// requested canonical high bits.  These patterns are deliberately restricted
++// to i64 consumers: a bare narrow value still has no defined upper half, and
++// ABI argument/return extensions remain in the calling-convention lowering.
++// Direction-mismatched pairs are not listed and therefore retain ext.so/ext.uo.
++def : Pat<(i64 (sext (i32 (add (i32 GPRD:$a), (i32 GPRD:$b))))), (add_st GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i32 (add (i32 GPRD:$a), (i32 GPRD:$b))))), (add_ut GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (sext (i32 (sub (i32 GPRD:$a), (i32 GPRD:$b))))), (sub_st GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i32 (sub (i32 GPRD:$a), (i32 GPRD:$b))))), (sub_ut GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (sext (i32 (mul (i32 GPRD:$a), (i32 GPRD:$b))))), (mul_st GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i32 (mul (i32 GPRD:$a), (i32 GPRD:$b))))), (mul_ut GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i32 (udiv (i32 GPRD:$a), (i32 GPRD:$b))))), (div_ut GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i32 (urem (i32 GPRD:$a), (i32 GPRD:$b))))), (rem_ut GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (sext (i32 (sdiv (i32 GPRD:$a), (i32 GPRD:$b))))), (div_st GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (sext (i32 (srem (i32 GPRD:$a), (i32 GPRD:$b))))), (rem_st GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (sext (i16 (add (i16 GPRD:$a), (i16 GPRD:$b))))), (add_sw GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i16 (add (i16 GPRD:$a), (i16 GPRD:$b))))), (add_uw GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (sext (i16 (sub (i16 GPRD:$a), (i16 GPRD:$b))))), (sub_sw GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i16 (sub (i16 GPRD:$a), (i16 GPRD:$b))))), (sub_uw GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (sext (i16 (mul (i16 GPRD:$a), (i16 GPRD:$b))))), (mul_sw GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i16 (mul (i16 GPRD:$a), (i16 GPRD:$b))))), (mul_uw GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i16 (udiv (i16 GPRD:$a), (i16 GPRD:$b))))), (div_uw GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i16 (urem (i16 GPRD:$a), (i16 GPRD:$b))))), (rem_uw GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (sext (i16 (sdiv (i16 GPRD:$a), (i16 GPRD:$b))))), (div_sw GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (sext (i16 (srem (i16 GPRD:$a), (i16 GPRD:$b))))), (rem_sw GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (sext (i8 (add (i8 GPRD:$a), (i8 GPRD:$b))))), (add_sb GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i8 (add (i8 GPRD:$a), (i8 GPRD:$b))))), (add_ub GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (sext (i8 (sub (i8 GPRD:$a), (i8 GPRD:$b))))), (sub_sb GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i8 (sub (i8 GPRD:$a), (i8 GPRD:$b))))), (sub_ub GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (sext (i8 (mul (i8 GPRD:$a), (i8 GPRD:$b))))), (mul_sb GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i8 (mul (i8 GPRD:$a), (i8 GPRD:$b))))), (mul_ub GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i8 (udiv (i8 GPRD:$a), (i8 GPRD:$b))))), (div_ub GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i8 (urem (i8 GPRD:$a), (i8 GPRD:$b))))), (rem_ub GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (sext (i8 (sdiv (i8 GPRD:$a), (i8 GPRD:$b))))), (div_sb GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (sext (i8 (srem (i8 GPRD:$a), (i8 GPRD:$b))))), (rem_sb GPRD:$a, GPRD:$b)>;
++def : Pat<(i64 (zext (i32 (shl (i32 GPRD:$a), (i64 GPRD:$b))))), (shl_t_orrr (i32 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i64 (zext (i32 (srl (i32 GPRD:$a), (i64 GPRD:$b))))), (shr_ut_orrr (i32 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i64 (sext (i32 (sra (i32 GPRD:$a), (i64 GPRD:$b))))), (shr_st_orrr (i32 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i64 (zext (i16 (shl (i16 GPRD:$a), (i64 GPRD:$b))))), (shl_w_orrr (i16 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i64 (zext (i16 (srl (i16 GPRD:$a), (i64 GPRD:$b))))), (shr_uw_orrr (i16 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i64 (sext (i16 (sra (i16 GPRD:$a), (i64 GPRD:$b))))), (shr_sw_orrr (i16 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i64 (zext (i8 (shl (i8 GPRD:$a), (i64 GPRD:$b))))), (shl_b_orrr (i8 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i64 (zext (i8 (srl (i8 GPRD:$a), (i64 GPRD:$b))))), (shr_ub_orrr (i8 GPRD:$a), (i64 GPRD:$b))>;
++def : Pat<(i64 (sext (i8 (sra (i8 GPRD:$a), (i64 GPRD:$b))))), (shr_sb_orrr (i8 GPRD:$a), (i64 GPRD:$b))>;
 +
 +// Narrow shifts, register form.  The orrr form takes rdHD[log2(W)-1:0], i.e.
 +// the shift amount modulo the width.  A *constant* amount is folded to the

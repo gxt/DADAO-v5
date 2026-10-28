@@ -188,3 +188,17 @@ programs:
       (Python `>>` on the two's-complement value, then `& 0xFFFF...`).
       @main returns the number of mismatches; the oracle's expected count is 0,
       so any wrong immediate or register shift makes the exit code non-zero.
+  - name: m10-narrow-extend.ll
+    category: arithmetic
+    expected_exit_code: 0
+    coverage: [arith.narrow-extend, ext.canonical-sext, ext.canonical-zext]
+    derivation: >-
+      16 cases: add i8/i16, sub i16/i32, mul i16/i32, udiv i8, urem i32,
+      sdiv i8, srem i16, shl i8/i32, srl i16, sra i8/i32.  Operands are
+      volatile-loaded and sit on sign-bit / max / overflow boundaries
+      (e.g. 127+127 for i8, 0x80000000*-1 for i32, -30000%7 for i16).
+      Expected values are derived independently in Python from LLVM IR
+      semantics: wrap at the narrow width, then sign- or zero-extend to 64
+      bits (sdiv/srem truncate toward zero).  @main returns the number of
+      mismatches, so the expected count is 0 and any wrong canonical
+      direction, width or extension makes the exit code non-zero.
