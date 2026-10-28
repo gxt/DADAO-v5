@@ -69,7 +69,7 @@ def parse_member(raw: str) -> tuple[str, str, str]:
 
 
 def run_night(root: Path, date: str, members: list[tuple[str, str, str]],
-              allow_overwrite: bool) -> int:
+              allow_overwrite: bool, logdir: Path | None = None) -> int:
     report = root / "night" / date
     if report.exists() and any(report.iterdir()) and not allow_overwrite:
         sys.stderr.write(
@@ -77,7 +77,7 @@ def run_night(root: Path, date: str, members: list[tuple[str, str, str]],
             "  换一天（--date）或显式 --allow-overwrite。\n")
         return 2
     report.mkdir(parents=True, exist_ok=True)
-    logdir = REPO_ROOT / ".work" / "log" / "testcases"
+    logdir = (logdir or (REPO_ROOT / ".work" / "log" / "testcases")).resolve()
     logdir.mkdir(parents=True, exist_ok=True)
 
     started = utc_now()
@@ -89,7 +89,11 @@ def run_night(root: Path, date: str, members: list[tuple[str, str, str]],
             rc = subprocess.call(["bash", "-lc", cmd], cwd=REPO_ROOT,
                                  stdout=fh, stderr=subprocess.STDOUT)
         print(f"check-night: [{scope}:{suite}] rc={rc}", flush=True)
-        rows.append((scope, suite, rc, str(log.relative_to(REPO_ROOT))))
+        try:
+            log_ref = str(log.relative_to(REPO_ROOT))
+        except ValueError:
+            log_ref = str(log)
+        rows.append((scope, suite, rc, log_ref))
     finished = utc_now()
 
     report_io.write_manifest(report, rows)
@@ -129,18 +133,18 @@ def cmd_selftest(args: argparse.Namespace) -> int:
     base = Path(tempfile.mkdtemp(prefix="night-run-selftest-",
                                  dir=args.tmp_root or "/tmp/opencode"))
     checks: list[tuple[str, bool, str]] = []
-    green = [("tset", "libc-test", "true"), ("tset", "llvm-ts", "true"),
-             ("tset", "embench", "true"), ("arch", "cfx", "true")]
-    red = [("tset", "libc-test", "true"), ("tset", "llvm-ts", "true"),
-           ("tset", "embench", "false"), ("arch", "cfx", "true")]
+    green = [("tset", "libc-test", "echo ok"), ("tset", "llvm-ts", "echo ok"),
+             ("tset", "embench", "echo ok"), ("arch", "cfx", "echo ok")]
+    red = [("tset", "libc-test", "echo ok"), ("tset", "llvm-ts", "echo ok"),
+           ("tset", "embench", "echo fail; false"), ("arch", "cfx", "echo ok")]
 
-    rc = run_night(base, "2026-10-27", green, allow_overwrite=False)
+    rc = run_night(base, "2026-10-27", green, allow_overwrite=False, logdir=base / "logs")
     checks.append(("green night => rc=0", rc == 0, f"rc={rc}"))
     rep = report_gate.check(base, "2026-10-27")
     checks.append(("green night => report gate PASS", not rep.errors,
                    "errors=" + ("; ".join(rep.errors)[:100] if rep.errors else "-")))
 
-    rc = run_night(base, "2026-10-28", red, allow_overwrite=False)
+    rc = run_night(base, "2026-10-28", red, allow_overwrite=False, logdir=base / "logs")
     checks.append(("red member => rc=1", rc == 1, f"rc={rc}"))
     rep = report_gate.check(base, "2026-10-28")
     checks.append(("red night => report gate FAIL", bool(rep.errors),
@@ -151,7 +155,7 @@ def cmd_selftest(args: argparse.Namespace) -> int:
     checks.append(("manifest records rc=1 for red member",
                    bool(emb) and emb[0].split("\t")[2] == "1", str(emb)))
 
-    rc = run_night(base, "2026-10-27", green, allow_overwrite=False)
+    rc = run_night(base, "2026-10-27", green, allow_overwrite=False, logdir=base / "logs")
     checks.append(("same-date rerun refused => rc=2", rc == 2, f"rc={rc}"))
 
     fails = sum(0 if ok else 1 for _, ok, _ in checks)
@@ -173,6 +177,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--member", action="append", default=None,
                     help="scope:suite=cmd（可重复；默认 tset full × 3 + arch）")
     ap.add_argument("--allow-overwrite", action="store_true")
+    ap.add_argument("--log-dir", default=None)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--keep", action="store_true")
@@ -189,7 +194,8 @@ def main(argv: list[str] | None = None) -> int:
         for scope, suite, cmd in members:
             print(f"  {scope}:{suite}  $ {cmd}")
         return 0
-    return run_night(Path(args.root), date, members, args.allow_overwrite)
+    return run_night(Path(args.root), date, members, args.allow_overwrite,
+                     Path(args.log_dir) if args.log_dir else None)
 
 
 if __name__ == "__main__":

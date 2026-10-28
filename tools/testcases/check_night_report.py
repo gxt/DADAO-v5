@@ -118,6 +118,12 @@ def check(root: Path, date: str | None) -> Report:
                     continue
                 if not row["log"].strip():
                     rep.fail(f"manifest.tsv:{n} log 为空")
+                else:
+                    lp = Path(row["log"])
+                    if not lp.is_absolute():
+                        lp = REPO_ROOT / lp
+                    if not lp.is_file() or lp.stat().st_size == 0:
+                        rep.fail(f"manifest.tsv:{n} log 不存在/为空：{lp}")
                 rep.rows.append(row)
             rep.ok(f"manifest rows = {len(rep.rows)}")
 
@@ -147,9 +153,13 @@ def check(root: Path, date: str | None) -> Report:
 
 def _write_report(dirp: Path, rows: list[tuple[str, str, int]], *, meta: bool = True) -> None:
     dirp.mkdir(parents=True, exist_ok=True)
+    logs = dirp / "logs"
+    logs.mkdir(exist_ok=True)
     lines = ["\t".join(HEADER)]
     for scope, suite, rc in rows:
-        lines.append(f"{scope}\t{suite}\t{rc}\t.work/log/testcases/check-night-{suite}.log")
+        log = logs / f"check-night-{suite}.log"
+        log.write_text(f"{suite} rc={rc}\n")
+        lines.append(f"{scope}\t{suite}\t{rc}\t{log}")
     (dirp / "manifest.tsv").write_text("\n".join(lines) + "\n")
     (dirp / "run.log").write_text("night summary\n")
     if meta:

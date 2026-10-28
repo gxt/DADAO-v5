@@ -89,3 +89,16 @@
 | ⑥ `check-unit-full` 配方用 `\| tee` 写日志（有吞退出码风险） | ✅已修 | 改 `> log` + `cat log` | 配方内无 `tee`；G9 rc=0 |
 
 **判决**：可验收（无未修项）；状态保持 `待验收`。
+
+### architect 全量验证（2026-10-28）
+- `make check-full` → **PASS**，`CHECK_FULL_EXIT=0`；L3 报告 `.dadao/tests/l3/20261027T223042Z`（8 行全 rc=0），`check-l3-report` PASS。
+- `make check-night` → **PASS**，`.dadao/tests/night/2026-10-27/{manifest.tsv,meta.json,run.log}`；libc-test/llvm-ts/embench/arch 四行 rc=0；`check-night-report` PASS。
+- 注：`TESTCASES-082t/083t` 已按用户裁定把 L3 的 tset smoke 移除、L3 报告接入 `check-milestone`；本册原「L3 + tset smoke」描述由 082/083 取代，验收以当前 HEAD 门控为准。
+
+### 第 1 轮 reviewer 验收（2026-10-28，独立重跑；全量/夜跑为 architect 现场，reviewer 核报告）
+**重跑记录（真实输出/退出码）**：`make check` rc=0（`repository checks (L1): PASS`）；`make check-modules` rc=0（`module checks (L2): PASS`，四 scope：inst/arch/unit/tset 6 目标，无 FP 探针）；`make -n check-full`/`check-night` rc=0（gate-lock 包装 + `l3_run.py`/`night_run.py`）；`make check-l3-report` rc=0（8 行全 rc=0、run.log exit marker 一致）、`make check-night-report` rc=0（4 行 rc=0）；`CHECK_FULL_EXIT=0`（`.work/log/testcases/TESTCASES-077t-check-full.log`）、L3 `.dadao/tests/l3/20261027T223042Z` 8 成员（inst base+4FP / arch / unit-full / test-m6）、夜跑 `.dadao/tests/night/2026-10-27` 4 成员（tset×3+arch）逐项核过；`case-ledger` md5 `22103f04…` == HEAD 且 2eb649ad 未改它；旧目录三处已删、Makefile 旧目标定义 0、代码/配置面旧路径 0 命中（文档仅存于删除/迁移语境）；`clean-tests`/`test-repro` 可达 FAIL（脚本 E3/F4+F4b 真实输出）。**独立反例**（`cp`+md5，未用 git checkout/restore）：`manage_tests.py` 尾注 `tools/integ/` ⇒ run.sh `A4` expect=0 actual=1 转红（--fast fail 2→3）；`cp` 还原 md5 `045d120b…` == HEAD ⇒ 回到基线 fail=2。
+**结论**：交付物门控与语义（L1/L2/报告/分层/case-ledger/迁移完整性）全部核过为真；但**证据链本身两处红** ⇒ Needs Revision。
+**finding ①（阻断，交付物代码行为）**：`tools/testcases/night_run.py::run_night` 把日志目录**硬编码**为 `REPO_ROOT/.work/log/testcases`（不随 `--root` 走）⇒ `night_run.py --self-test`（证据 C2）用 `true` 成员**覆写真实夜跑日志**：现场 `.work/log/testcases/check-night-2026-10-27-{libc-test,llvm-ts,embench,cfx}.log` 全部 **0 字节**（10-28 01:00 真跑日志已丢、不可恢复）；独立复现：单独跑 `--self-test` ⇒ 四文件 mtime `10:08:41 → 10:24:34`、size 仍 0。且 `check_night_report.py` 只校验 manifest 的 log **列非空**、不查文件存在/非空 ⇒ 门控对本次证据销毁**无感**（对照 `check-l3-report` 已要求 log 存在非空）。修法：`run_night` 日志目录按 `root`（或临时目录）派生；`check-night-report` 补「逐行 log 文件存在且非空」断言；夜跑日志需重跑一次以恢复证据。
+**finding ②（阻断，证据脚本锚点过时，非门控缺陷）**：`bash .work/evidence/TESTCASES-076t/run.sh` ⇒ `checks=50 pass=48 fail=2` / `EVIDENCE: FAIL` / exit=1；`--fast` ⇒ `checks=41 pass=39 fail=2`。红项 = `B2`/`B8`：脚本仍按 `_locked-check-full:` 的**前置依赖行**盘点 L3 成员（期望含 3 条 tset smoke），而 083 起成员真源已迁 `l3_run.DEFAULT_MEMBERS`（Makefile 无依赖行 ⇒ actual 为空）。语义本身正确（8 成员 = inst base+4FP 探针 / arch / unit-full / test-m6，与 Process-07 §1、报告一致）。修法：B2/B8 改锚 `l3_run.py --dry-run` 或直读 `DEFAULT_MEMBERS`（与 082t/083t 修法一致），期望清单同步为当前 8 成员。
+**其余约束**：改动范围 = tests/ + tools/{testcases,infra} + Makefile + docs + components/*/README + milestones + 本册，无 spec/contracts/补丁改动；审前/审后 `git status --porcelain -uall` 均 1 行（= 本册 architect 全量验证段，未提交）；注入还原以 md5 对账（`manage_tests.py` `045d120b…`、`codegen_crt0.s` `bf0a72ed…` 均 == HEAD）。
+**判决：Needs Revision**（finding ①②）。
