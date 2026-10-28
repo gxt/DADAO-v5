@@ -53,12 +53,11 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| LLVM-137t | 已验证 | 2026-10-28 16:40 | i64 常量移位立即数选择（shl.o/shr.uo/shr.so；lit 155、oracle 18/18） |
+| LLVM-137t | 已验证 | 2026-10-28 16:49 | i64 常量移位立即数选择（shl.o/shr.uo/shr.so；lit 155、oracle 18/18） |
 | LLVM-136t | 已验证 | 2026-10-28 16:13 | PR 审计：不整体 merge（三回退保留）；137–139 重放点入 audits；lit 工具链 opt-in+identity |
 | TESTCASES-076t | 已验证 | 2026-10-28 15:40 | 测试迁移收口（删旧+门控重写+clean/repro/night；L3/夜跑报告绿） |
 | TESTCASES-083t | 已验证 | 2026-10-28 09:58 | L3 结果报告 + check-milestone 机检（check-l3-report） |
 | TESTCASES-082t | 已验证 | 2026-10-28 09:55 | L3 去 tset smoke（严格一层；tset full 归夜跑） |
-| LLVM-137t | 待验收 | 2026-10-28 09:38（登记） | i64 常量移位立即数选择（shl.o/shr.uo/shr.so）+ QEMU oracle |
 | LLVM-138t | 待开始 | 2026-10-28 09:38（登记） | 窄整数 canonical extension 折叠（39 组）+ 方向/边界负例 |
 | LLVM-139t | 待开始 | 2026-10-28 09:38（登记） | 循环指针 PHI GPRB machine pass（verify/支配/多回边） |
 | TESTCASES-077t | 已验证 | 2026-10-28 07:47 | llvm-ts：aarch64/archie/plot2fig 等排除、Burg/cdecl/OptimizerEval 方言、mafft 1800s；两档 214/214、零 known-fail |
