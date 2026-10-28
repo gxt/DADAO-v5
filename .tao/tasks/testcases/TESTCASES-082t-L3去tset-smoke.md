@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：TESTCASES-076t
-**状态**：待验收
+**状态**：已验证
 
 ## 背景
 `TESTCASES-076t` 后，`check-full`（L3）仍直接列 `check-tset-{libc,llvm,embench}-smoke`，与 L2 的 `check-modules` 重复，违反「一个检查只在一层」。用户 2026-10-27 要求严格化。
@@ -28,7 +28,7 @@
 
 ## 完成区
 
-**状态**：待验收
+**状态**：已验证
 
 ### 修改文件
 - `Makefile`：`_locked-check-full` 去三条 `check-tset-*-smoke`；help + L2/L3 注释同步（tset smoke 只 L2、full 只夜跑；`test-m6` Embench E2E = 集成步骤）
@@ -67,3 +67,17 @@
 | `make -n check-full` 会真实执行 gate-lock 的 `+` recipe（取锁 + 内层 dry-run），证据脚本依赖它会被并发锁干扰 | ✅已修 | 证据脚本成员集合改用免锁的 `make -n _locked-check-full`（同集合） | `run.sh` rc=0（35/35）；`make -n check-full` 另行核验 rc=0、0 条 tset |
 
 - 判决：无未修 finding ⇒ 状态 `待验收`。
+
+### 第 1 轮 reviewer 验收（2026-10-28）
+
+- 范围核验：`git show --stat 916a18d9` = 恰 7 文件（Makefile/P07/P09/README/INVENTORY/任务书/milestones），无越界；diff 逐行核对未改任何测试期望/断言（仅门控成员 + 注释 + 文档 + help）。
+- 审前/还原后快照：`git status --porcelain -uall` 均 **0 行**（审前、注入还原后各核一次）。
+- 重跑（HEAD=6b987f31）：`make check` **rc=0**；`make check-modules` **rc=0**（L2 PASS，tset×3 全过）；`make -n check-full` **rc=0**、`check-tset-*-smoke` 计数 **0**。
+- 916a18d9 状态复验（`git archive` 临时树 `/tmp/opencode/TESTCASES-082t-review/`，未动主树）：run.sh 静态 **31/31 PASS**；`--inject` 基线 31/31 → 注入 **4/31 FAIL**（L3 count 0→3、3×layer-unique 1→2）→ `cp`+md5 还原 `8ca6d57c…` 前后一致 → **31/31 PASS**；SELFCHECK PASS。完成区数字（4/31、md5 前缀、35=31+4 干跑项）与实测一致。
+- 独立反例（HEAD 主树，`cp` 备份+md5，未用 git checkout/restore）：三条 tset smoke 注回 `_locked-check-full:`（md5 `f9ebdedc→7aabadac`）⇒ run.sh **7/35 FAIL**（L3 count 0→3、3×layer-unique 1→2、dryrun 0→34）；`cp` 还原 md5=`f9ebdedc` 相等 ⇒ 回到基线 2/35；结构断言有真实咬合。
+- 语义（HEAD 实测）：L3 直接成员无 tset smoke ✓；L2 恰 3 条 ✓；无目标跨两层 ✓；`test-m6` 仍在 L3 ✓；P07/P09/README/INVENTORY/Makefile help 五处成员表一致 ✓。
+- **Finding（非 082t 缺陷，建议归 083t 处置）**：后续 083t（37bbb502）把 `_locked-check-full` 改为 `l3_run.py` 驱动（无依赖行），082t 证据脚本 2 条断言锚在该依赖行 ⇒ HEAD 上 run.sh 2/35 红（`parse:L3-dep-line`、`L3:keeps-test-m6`）。语义仍成立（`l3_run.py` DEFAULT_MEMBERS 8 条无 tset、含 `make test-m6`），但脚本需改锚 `tools/testcases/l3_run.py` 成员表方可继续作回归证据。
+- 判决：**Accepted**（082t 交付物在其提交 916a18d9 达标且独立可复验；上述脚本失锚由后续叠加的 083t 引入，不构成 082t 返工理由）。
+
+### architect 收尾（2026-10-28）
+- reviewer Accepted；唯一 finding：083t 把 `_locked-check-full` 改为 `l3_run.py` 驱动，082 证据脚本锚点失效（2 红）。已改锚 `l3_run.DEFAULT_MEMBERS`，重跑 **35/35 PASS**。

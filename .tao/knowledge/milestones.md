@@ -53,6 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-082t | 已验证 | 2026-10-28 09:55 | L3 去 tset smoke（严格一层；tset full 归夜跑） |
 | LLVM-136t | 待开始 | 2026-10-28 09:38（登记） | PR 基线 rebase/清理：保留 LLVM-130–135，任务号改 136–139，修 lit 工具链口径 |
 | LLVM-137t | 待开始 | 2026-10-28 09:38（登记） | i64 常量移位立即数选择（shl.o/shr.uo/shr.so）+ QEMU oracle |
 | LLVM-138t | 待开始 | 2026-10-28 09:38（登记） | 窄整数 canonical extension 折叠（39 组）+ 方向/边界负例 |
@@ -62,7 +63,6 @@
 | TESTCASES-078t | 已验证 | 2026-10-28 01:59 | SPASS/lemon 胶水补丁；SPASS 参考不须重定（069t 74365d61 = 多传 -DocProof）；两档 md5-exact（ISS-338 关闭） |
 | TESTCASES-080t | 已验证 | 2026-10-28 01:23 | llvm-ts 零 known-fail：obsequi/ft glibc PRNG、8b10b LE→BE；三条两档 pass、known-fail=0 |
 | TESTCASES-079t | 已验证 | 2026-10-28 00:07 | consumer-typeset：musl catclose 无效句柄守卫（-1/EBADF），两档由 SIGBUS 转 pass（ISS-339） |
-| TESTCASES-082t | 待验收 | 2026-10-27 10:10（登记） | L3 去 tset smoke（严格一层；tset full 归夜跑） |
 | TESTCASES-083t | 待验收 | 2026-10-27 10:10（登记） | L3 结果报告 + check-milestone 机检（check-l3-report） |
 | TESTCASES-075t | 已验证 | 2026-10-27 06:35 | tset 迁移（libc-test/llvm-ts/embench；check-tset） |
 | TESTCASES-074t | 已验证 | 2026-10-27 05:11 | unit 迁移（lit/codegen/ir-lli/picolibc；check-unit） |
