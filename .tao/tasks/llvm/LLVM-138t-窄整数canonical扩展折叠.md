@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M10
 **依赖**：LLVM-137t
-**状态**：待验收
+**状态**：已验证
 
 ## 背景
 窄整数（i8/i16/i32）指令可按符号/无符号方向把结果 canonical 扩展到 64 位。当生产者与显式 `sext`/`zext` 方向完全一致时，可直接选 `.st/.ut/.sw/.uw/...` 变体，省掉随后的 `ext.so/ext.uo`。PR 提供 39 组 pattern，但基线和 shift-amount 类型需要核实。
@@ -28,7 +28,7 @@
 
 ## 完成区
 
-**状态**：待验收
+**状态**：已验证
 
 ### 修改文件
 - `components/.../{DADAOCodeGen.td,DADAOISelDAGToDAG.cpp}.patch`（`make_patch.py` 增量导出：39 条 Pat + extend 根部 narrow `sub 0,x` 特例）
@@ -73,3 +73,34 @@
 | `make check` C8 首跑红（milestone 登记注） | ✅已修 | 待验收行恢复登记时间+注 | `check_milestones_fresh` PASS；证据 15/15 |
 
 **判决**：无未修 finding ⇒ 可标 `待验收`。
+
+### 第 1 轮 reviewer 验收
+
+**审前快照**：`git status -uall` 0 行；lit/codegen/两补丁/matrix md5 记录。
+**diff 核验**：`git show --stat 534f3546` = 9 文件，与完成区声明逐一对齐；components 仅 `DADAOCodeGen.td.patch`（+46 行：39 Pat + 注释）+ `DADAOISelDAGToDAG.cpp.patch`（+34 行：extend 根 narrow `sub 0,x` 特例）；grep `GPRBTC|tailjmp|ExternalSymbol|selectCodeModel|CM.value_or` 全 diff 无命中；`^-` 行仅补丁头（无删除=无 137/139 回退）。
+
+**重跑（`bash .work/evidence/LLVM-138t/run.sh`，我方原始输出）**：
+```
+C1..C11 全 PASS；C5 make check-lit passed=156 failed=0 rc=0（现场统计）
+C6 oracle: 84/84 passed；C7 run_codegen_e2e 17/17（m10-narrow-extend PASS）
+C8 make check rc=0；C9 check-patch-tree rc=0；C11 check-isa-coverage rc=0
+C10 构建树 llc == 安装根 llc（md5 bce992b3...）
+I1 注入错 lit 期望 → rc=1；I2 cp+md5 还原 → md5 equal、rc=0
+I3 注入运行期常量 → rc=1（case FAIL）；I4 还原 → md5 equal、rc=0
+evidence: 15 passed, 0 failed；RUNSH_EXIT=0
+```
+
+**独立反例（reviewer 自做，注入点不同于 engineer）**：
+- lit：`sed '32s/add.ut/add.st/'`（zext 期望错方向）→ `llvm-lit -q` rc=1 Failed 1/1；`cp -p` 还原 → md5 equal、rc=0。
+- oracle：`oracle.py --inject`（翻转首期望值）→ `oracle: 83/84` rc=1，FAIL 可达。
+
+**独立重算**：自写脚本解析 `m10-narrow-extend.ll` 16 组，按 LLVM IR 语义独立推导期望常量 → `16/16 constants match` rc=0。
+
+**约束核验**：spec/contracts/QEMU 0 改动（C3）；未提交/push；临时物仅 `/tmp/opencode/LLVM-138t/`；审后 `git status -uall` 0 行、目标文件 md5 与审前一致。语义：39 组方向一致折叠、方向不匹配保留 `ext.so/ext.uo`、narrow-neg 保留 `sub.s*+ext.*`、nsw/nuw/i8-i16 边界/div-rem/ptrtoint 均有 lit 用例且被 156/156 覆盖；shift 量 i64 由 lit 寄存器形式 + 运行期 9 组变量移位实证。
+
+**非阻断 finding**（记录，供 architect 收尾酌处）：run.sh C1 的 39/9 为写死交付物结构断言（可达 FAIL，成立）；C2 在树干净时退回检查 `git show HEAD`，提交后重跑仍有效但耦合 HEAD。
+
+**判决：Accepted**——验收命令在我方重跑下全绿，独立反例注入→FAIL→还原→回绿成立，约束无违反。
+
+### architect 收尾（2026-10-28）
+- reviewer Accepted；唯一 finding：证据 C2 耦合 HEAD，已改锚 `534f3546~1..534f3546`，重跑 15/15。
