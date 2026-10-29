@@ -1,6 +1,6 @@
 # ADR-0039: 地址空间、PTW/PTE、TLB 与 CFX 核内空间（详细讨论记录）
 
-**状态**：Proposed（2026-10-28/29 讨论已汇总；**未 Accepted**；`spec/` 未改）
+**状态**：Proposed（2026-10-28/29 讨论已汇总；**Step 1 地址空间/PTBR/PTW 已冻结**；其余章节保留；**未 Accepted**；`spec/` 未改）
 **日期**：2026-10-29
 **关联**：`spec/DADAO-12-SEE`、`spec/DADAO-13-HEE`、`contracts/cfx-aliases.txt`、QEMU ptw/TLB、`TESTCASES-*`
 
@@ -349,6 +349,21 @@ cfxld/cfxst cfxha, rb_internal, rd_pa, rd_size
 - 用 `discard` 作为正式 TLB 操作名。
 
 ---
+
+## 8.5 Step 1 冻结决策（2026-10-29）
+
+> 只冻结“地址空间 + PTBR + PTW”；下面其它章节（PTE/TLB/DMA/启动）的已确认内容**全部保留**，不因 Step 1 冻结而删除。
+
+- **Step 1-a**：`ptw_enable=0` 时 `high6=0` 的 CPU 访存 → **CFXMEM**，目标是当前运行模式 cfx；不是页表异常（此时 PTW 可能尚未初始化）。
+- **Step 1-b**：`ptw_enable=1` 后，页表缺项/权限不符才 → 页表异常（`cfx_ptw`）。
+- **Step 1-c**：未实现/保留 cfx（7–14、19–61）的普通 ld/st → **CFXMEM**；trap/escape 到 reserved cfx 沿用 ILLI。
+- **Step 1-d**：写 PTBR / 写 `ptw_enable=1` 允许，**不隐含 TLB invalidate**；软件显式 invalidate。
+- **Step 1-e**：复位 PTBR=0、`ptw_enable=0`、TLB 空。
+- **Step 1-f**：高 16 位/64 位截断问题撤回；CPU 地址就是 48 位。
+- **Step 1-g**：cfx 1–63 的访问权限**不在 Step 1** 定；留到第 6 步。
+
+**Step 1 落地范围**：`spec/DADAO-12` 地址分区/PTBR/PTW 开关；QEMU 地址分区/PTW 关闭与开启；测试向量；contracts/别名同步。  
+**不先做 Step 2+**；Step 1 改完并验证后再进 PTE。
 
 ## 9. Open（阻塞 Accepted/spec）
 
