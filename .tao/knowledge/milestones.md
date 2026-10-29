@@ -53,7 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| INTEG-040t | 待开始 | 2026-10-29 15:23（登记） | Step 3：TLB/ASID/G/A-D/PTWERR（ADR-0041；不含 DMA/启动/cfx 权限） |
+| INTEG-040t | 已验证 | 2026-10-29 15:23 | Step 3：TLB 并入 cfx_ptw/16 位 ASID/G/A-D 回写/PTWERR（ADR-0041；探针 34 例） |
 | LLVM-140t | 已验证 | 2026-10-29 15:05 | 窄 neg extend 按节点自身类型（i32/i16）选 ext；lit 159、e2e 19/19、McCat 18-imp 两档 PASS |
 | INTEG-039t | 已验证 | 2026-10-29 10:55 | Step 2：PTE/页表步进/页权限（ADR-0040；A/D 留 Step 3） |
 | INTEG-038t | 已验证 | 2026-10-29 07:10 | Step 1：地址空间/PTBR/PTW 落地（ADR-0039；不含 PTE/TLB/DMA/启动） |

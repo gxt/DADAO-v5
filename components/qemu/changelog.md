@@ -207,3 +207,7 @@
 - **2026-10-29 `INTEG-038t`**
   - 摘要：**地址空间 Step 1（ADR-0039 §8.5）**：CPU 地址按 48 位处理（`addr[47:42]` 分区）；`high6=0` 为内存窗口，`ptw_enable=0` 时数据/取指均 ⇒ CFXMEM（不再按 umon 段特判，也不直通 pmem）；`ptw_enable=1` 的页表步进尚未实现 ⇒ 显式失败（不静默成功）。新增单 PTBR `cfx_ptw_ptbr`（cg9 rc0，写掩码 `PPN[55:16]`）与 `cfx_ptw_enable`（cg8 rc8，1 位）；复位均为 0；写 PTBR/使能不隐含 TLB 失效。保留 cfx（7–14、19–61）普通 ld/st ⇒ CFXMEM。`cfx4` 加入测试机实现集（仅 Step 1 寄存器子集）；`cfxreg_unimpl` 测试改用 `cfx5`。新增 `tools/testcases/arch/min_rom_probe_integ038t.py`（16 例）。
   - 执行者：engineer
+
+- **2026-10-29 `INTEG-040t`**
+  - 摘要：**地址空间 Step 3（ADR-0041）**：TLB 并入 `cfx_ptw`——条目按「虚拟页 + 16 位 ASID（`cfx_ptw_tlb_asid`）」匹配、`G=1`（PTE bit4，原保留）跨 ASID；`ptw_enable=1` 即参与查找、`0` 时旁路，无 `tlb_enable`/`tlb_exist`；命中不重读 PTE（按 `SPF/GPF → HSJU → R/W/X` 同序检查，异常直接进 `cfx_ptw`），miss 走页表步进且成功才填充（替换 dirty 条目先回写）。A/D 在条目中维护（fill 不产生回写、读/取指置 A、写置 A/D、缺页/权限失败不更新），`CLEAN`/`FLUSH`/替换以原子 OR 回写 PTE，`INVALID` 不写回；回写失败报 `PTWERR`（`1<<7`，`cause_info` = PTE PA）并保留条目。新增 `cfx_ptw` cg12 接口（rc0 control：op/scope/ASID_ANY 正交，rc1 ASID，rc2 start，rc3 size；`scope=11` 或 `range` 且 `size=0` ⇒ `CFXREG`（仅 clean/invalid/flush；op=00 优先 no-op））。QEMU 自有 translation cache 在 PTBR/ptw_enable/ASID 写、条目删除与 run-mode 切换时丢弃（guest TLB 条目保留，不构成隐含失效）。新增探针 `tools/testcases/arch/min_rom_probe_integ040t.py`（34 例）。
+  - 执行者：engineer

@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..0af8a7e
+index 0000000..0e9529f
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,484 @@
+@@ -0,0 +1,495 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -115,11 +115,18 @@ index 0000000..0af8a7e
 +    env->lock_valid = 0;
 +
 +    /* Address-space Step 1 reset values (ADR-0039 §8.5 / DADAO-12 §2.2):
-+     * PTBR = 0, ptw_enable = 0 (TLB is empty: this model has no TLB yet). */
++     * PTBR = 0, ptw_enable = 0.  Step 3 (ADR-0041): ASID = 0, TLB empty,
++     * invalidation window start/size = 0. */
 +    env->ptbr = 0;
 +    env->ptw_enable = 0;
 +    env->ptw_fault_cause = 0;
 +    env->ptw_fault_info = 0;
++    env->tlb_asid = 0;
++    env->tlb_start = 0;
++    env->tlb_size = 0;
++    env->tlb_control = 0;
++    env->tlb_next = 0;
++    memset(env->tlb, 0, sizeof(env->tlb));
 +
 +    /* rd0 hardwired to 0 (already zero from memset) */
 +
@@ -220,7 +227,8 @@ index 0000000..0af8a7e
 +        /* cfx_ptw additionally owns the page-level causes (DADAO-12 §4.5;
 +         * every entry is "不可屏蔽"). */
 +        if (cfxha == DADAO_CFXHA_PTW) {
-+            r->cause_nonmaskable |= DADAO_CAUSE_NUPERM | DADAO_CAUSE_NJPERM |
++            r->cause_nonmaskable |= DADAO_CAUSE_PTWERR |
++                                    DADAO_CAUSE_NUPERM | DADAO_CAUSE_NJPERM |
 +                                    DADAO_CAUSE_NSPERM | DADAO_CAUSE_NHPERM |
 +                                    DADAO_CAUSE_NXPERM | DADAO_CAUSE_NWPERM |
 +                                    DADAO_CAUSE_NRPERM | DADAO_CAUSE_IGPTRAP |
@@ -332,6 +340,9 @@ index 0000000..0af8a7e
 +    qemu_fprintf(f, "CFXMASK: %016" PRIx64 "\n", env->inner_cfx_mask);
 +    qemu_fprintf(f, "PTBR: %016" PRIx64 " PTW_ENABLE: %u\n",
 +                 env->ptbr, env->ptw_enable);
++    qemu_fprintf(f, "TLBASID: %04" PRIx64 " TLBSTART: %016" PRIx64
++                 " TLBSIZE: %016" PRIx64 "\n",
++                 env->tlb_asid & 0xFFFFULL, env->tlb_start, env->tlb_size);
 +    for (i = 0; i < 4; i++) {
 +        qemu_fprintf(f, "GVER%d: %016" PRIx64 " GCM%d: %016" PRIx64 "\n",
 +                     i, env->cfx_global_version[i], i, env->global_cfx_mask[i]);

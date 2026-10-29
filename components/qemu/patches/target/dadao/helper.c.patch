@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..c8e0276
+index 0000000..5c5adb6
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,1357 @@
+@@ -0,0 +1,1799 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -156,22 +156,31 @@ index 0000000..c8e0276
 +}
 +
 +/*
-+ * PTE field layout (DADAO-12 §2.2.3/§2.2.4; ADR-0040 D1/D9).
++ * PTE field layout (DADAO-12 §2.2.3/§2.2.4; ADR-0040 D1/D9, ADR-0041 D4/D9).
 + *
 + *   [63:60] HSJU   H=63, S=62, J=61, U=60
 + *   [59:56] reserved (ignored)
 + *   [55:16] PPN    ([55:29] for a superpage)
 + *   [15:8]  SPF (L1 superpage) / GPF (L2 page); bit8 = lowest fragment
-+ *   [7] R  [6] W  [5] X  [4] reserved  [3] A  [2] D  [1] SP  [0] P
++ *   [7] R  [6] W  [5] X  [4] G  [3] A  [2] D  [1] SP  [0] P
 + */
 +#define DADAO_PTE_PPN_MASK   0x00FFFFFFFFFF0000ULL  /* PPN[55:16] */
 +#define DADAO_PTE_SPPN_MASK  0x00FFFFFFE0000000ULL  /* PPN[55:29] */
 +#define DADAO_PTE_FRAG_SHIFT 8
 +#define DADAO_PTE_P          (1ULL << 0)
 +#define DADAO_PTE_SP         (1ULL << 1)
++#define DADAO_PTE_D          (1ULL << 2)
++#define DADAO_PTE_A          (1ULL << 3)
++#define DADAO_PTE_G          (1ULL << 4)
 +#define DADAO_PTE_X          (1ULL << 5)
 +#define DADAO_PTE_W          (1ULL << 6)
 +#define DADAO_PTE_R          (1ULL << 7)
++
++/* Page sizes (DADAO-12 §2.2.1/§2.2.2): 512 MiB superpage / 64 KiB page. */
++#define DADAO_PAGE_SHIFT_SUPER   29
++#define DADAO_PAGE_SHIFT_NORMAL  16
++
++#define DADAO_SIZE_MASK(log2)    ((1ULL << (log2)) - 1)
 +
 +/* Page-table walk result: 1 = mapped, 0 = fault (*cause set), -1 = the PTE
 + * itself could not be read from memory (outside pmem; undefined by the
@@ -188,9 +197,279 @@ index 0000000..c8e0276
 +    return res == MEMTX_OK ? 0 : -1;
 +}
 +
++/*
++ * A/D write-back (ADR-0041 D4): atomically OR the pending A/D bits into the
++ * leaf PTE, keeping every other field.  The model is single-threaded, so a
++ * read-modify-write through the system address space is atomic with respect
++ * to guest accesses (page tables are only accessed by this path).
++ * Returns 0, or -1 when the PTE cannot be written (readonly ROM / no memory).
++ */
++static int dadao_ptw_or_ad(hwaddr pte_pa, bool a, bool d)
++{
++    MemTxResult res = MEMTX_OK;
++    uint64_t bits = (a ? DADAO_PTE_A : 0) | (d ? DADAO_PTE_D : 0);
++    uint64_t old;
++
++    if (bits == 0) {
++        return 0;
++    }
++    old = address_space_ldq_be(&address_space_memory, pte_pa,
++                               MEMTXATTRS_UNSPECIFIED, &res);
++    if (res != MEMTX_OK) {
++        return -1;
++    }
++    address_space_stq_be(&address_space_memory, pte_pa, old | bits,
++                         MEMTXATTRS_UNSPECIFIED, &res);
++    return res == MEMTX_OK ? 0 : -1;
++}
++
++/* ── TLB (DADAO-12 §2.2.1/§2.2.2 step 2, §4.5; ADR-0041 D2-D9) ───────── */
++
++static bool dadao_tlb_va_match(const DADAOTlbEntry *e, uint64_t va)
++{
++    return (va & ~DADAO_SIZE_MASK(e->size_log2)) == e->va;
++}
++
++static bool dadao_tlb_asid_match(const CPUDADAOState *env,
++                                 const DADAOTlbEntry *e)
++{
++    /* G=1 entries are global: they match every ASID (ADR-0041 D9). */
++    if (e->flags & DADAO_TLB_FLAG_G) {
++        return true;
++    }
++    return e->asid == (uint16_t)env->tlb_asid;
++}
++
++static DADAOTlbEntry *dadao_tlb_lookup(CPUDADAOState *env, uint64_t va)
++{
++    int i;
++
++    for (i = 0; i < DADAO_TLB_ENTRIES; i++) {
++        DADAOTlbEntry *e = &env->tlb[i];
++
++        if (e->valid && dadao_tlb_va_match(e, va) &&
++            dadao_tlb_asid_match(env, e)) {
++            return e;
++        }
++    }
++    return NULL;
++}
++
++/*
++ * Hit-path permission check: fragment presence -> HSJU -> R/W/X, the same
++ * order as the page walk (ADR-0040 D8; §2.2.6).  Returns 1 when the access may
++ * proceed, 0 on fault (*cause set).  The entry is not re-read from the PTE.
++ */
++static int dadao_tlb_check(const CPUDADAOState *env, const DADAOTlbEntry *e,
++                           uint64_t va, MMUAccessType access_type,
++                           uint64_t *cause)
++{
++    bool fetch = (access_type == MMU_INST_FETCH);
++    bool super = (e->size_log2 == DADAO_PAGE_SHIFT_SUPER);
++    int frag = super ? (int)((va >> 26) & 0x7) : (int)((va >> 13) & 0x7);
++
++    if (!(e->frags & (1u << frag))) {
++        if (super) {
++            *cause = fetch ? DADAO_CAUSE_ISPFTRAP : DADAO_CAUSE_DSPFTRAP;
++        } else {
++            *cause = fetch ? DADAO_CAUSE_IGPFTRAP : DADAO_CAUSE_DGPFTRAP;
++        }
++        return 0;
++    }
++
++    /* HSJU: the current run mode's bit must be set (ADR-0040 D6). */
++    if (!(e->hsju & (1u << (env->inner_run_mode & 0x3)))) {
++        switch (env->inner_run_mode & 0x3) {
++        case DADAO_MODE_USER: *cause = DADAO_CAUSE_NUPERM; break;
++        case DADAO_MODE_JAIL: *cause = DADAO_CAUSE_NJPERM; break;
++        case DADAO_MODE_SUPV: *cause = DADAO_CAUSE_NSPERM; break;
++        default:              *cause = DADAO_CAUSE_NHPERM; break;
++        }
++        return 0;
++    }
++
++    /* R/W/X, orthogonal to HSJU (ADR-0040 D7). */
++    if (fetch) {
++        if (!(e->flags & DADAO_TLB_FLAG_X)) {
++            *cause = DADAO_CAUSE_NXPERM;
++            return 0;
++        }
++    } else if (access_type == MMU_DATA_STORE) {
++        if (!(e->flags & DADAO_TLB_FLAG_W)) {
++            *cause = DADAO_CAUSE_NWPERM;
++            return 0;
++        }
++    } else if (!(e->flags & DADAO_TLB_FLAG_R)) {
++        *cause = DADAO_CAUSE_NRPERM;
++        return 0;
++    }
++    return 1;
++}
++
++/*
++ * Mark A/D locally for an access that passed the checks (ADR-0041 D4): a
++ * load/fetch sets A, a store sets A and D.  Only 0->1 transitions set the
++ * write-back flag.
++ */
++static void dadao_tlb_touch(DADAOTlbEntry *e, MMUAccessType access_type)
++{
++    if (!e->a_local) {
++        e->a_local = true;
++        e->a_dirty = true;
++    }
++    if (access_type == MMU_DATA_STORE && !e->d_local) {
++        e->d_local = true;
++        e->d_dirty = true;
++    }
++}
++
++/* Write the pending A/D bits back (CLEAN/FLUSH/evict).  0 = ok, -1 = failed. */
++static int dadao_tlb_writeback(DADAOTlbEntry *e)
++{
++    if (!e->a_dirty && !e->d_dirty) {
++        return 0;
++    }
++    if (dadao_ptw_or_ad(e->pte_pa, e->a_dirty, e->d_dirty) < 0) {
++        return -1;
++    }
++    e->a_dirty = false;
++    e->d_dirty = false;
++    return 0;
++}
++
++/*
++ * Fill the TLB after a successful walk (ADR-0041 D4/D8).  A dirty entry being
++ * replaced is written back first; a failed write-back is reported as PTWERR
++ * without touching the victim entry (*err_pa = its PTE PA).
++ * Returns 0 and sets *out, or -1 with *err_pa set.
++ */
++static int dadao_tlb_insert(CPUDADAOState *env, uint64_t va, uint64_t leaf_pte,
++                            hwaddr leaf_pa, bool superpage,
++                            DADAOTlbEntry **out, hwaddr *err_pa)
++{
++    DADAOTlbEntry *e = &env->tlb[env->tlb_next];
++
++    if (e->valid && dadao_tlb_writeback(e) < 0) {
++        *err_pa = e->pte_pa;
++        return -1;
++    }
++    env->tlb_next = (env->tlb_next + 1) % DADAO_TLB_ENTRIES;
++
++    memset(e, 0, sizeof(*e));
++    e->size_log2 = superpage ? DADAO_PAGE_SHIFT_SUPER : DADAO_PAGE_SHIFT_NORMAL;
++    e->va = va & ~DADAO_SIZE_MASK(e->size_log2);
++    e->pa = superpage ? (leaf_pte & DADAO_PTE_SPPN_MASK)
++                      : (leaf_pte & DADAO_PTE_PPN_MASK);
++    e->pte_pa = leaf_pa;
++    e->hsju = (leaf_pte >> 60) & 0xF;
++    e->frags = (leaf_pte >> DADAO_PTE_FRAG_SHIFT) & 0xFF;
++    e->flags = ((leaf_pte & DADAO_PTE_R) ? DADAO_TLB_FLAG_R : 0) |
++               ((leaf_pte & DADAO_PTE_W) ? DADAO_TLB_FLAG_W : 0) |
++               ((leaf_pte & DADAO_PTE_X) ? DADAO_TLB_FLAG_X : 0) |
++               ((leaf_pte & DADAO_PTE_G) ? DADAO_TLB_FLAG_G : 0);
++    e->asid = (uint16_t)env->tlb_asid;
++    e->a_local = (leaf_pte & DADAO_PTE_A) != 0;
++    e->d_local = (leaf_pte & DADAO_PTE_D) != 0;
++    e->valid = true;
++    *out = e;
++    return 0;
++}
++
++/*
++ * Soft-TLB protection for an entry.  Write permission is only mapped once both
++ * A and D are already settled in the entry: the first store to a page that was
++ * filled by a read must come back through tlb_fill so the guest A/D bits are
++ * updated (ADR-0041 D4).  This keeps the guest-visible A/D independent of
++ * QEMU's own translation cache.
++ */
++static int dadao_tlb_prot(const DADAOTlbEntry *e)
++{
++    int prot = 0;
++
++    if (e->flags & DADAO_TLB_FLAG_R) {
++        prot |= PAGE_READ;
++    }
++    if (e->flags & DADAO_TLB_FLAG_X) {
++        prot |= PAGE_EXEC;
++    }
++    if ((e->flags & DADAO_TLB_FLAG_W) && e->a_local && e->d_local) {
++        prot |= PAGE_WRITE;
++    }
++    return prot;
++}
++
++/*
++ * Execute a cfx_ptw_tlb_control write: op ([1:0]), scope ([3:2]) and ASID_ANY
++ * (bit4) are orthogonal; the match condition is (ASID match) AND (address
++ * match).  Normal completion (including op=00) raises nothing; only an illegal
++ * operand (scope=reserved, range with size=0) yields CFXREG.
++ */
++static int dadao_tlb_control_exec(CPUDADAOState *env, uint64_t val,
++                                 hwaddr *err_pa)
++{
++    unsigned op = val & 0x3;
++    unsigned scope = (val >> 2) & 0x3;
++    bool asid_any = (val >> 4) & 0x1;
++    uint64_t start = env->tlb_start;
++    uint64_t size = env->tlb_size;
++    int i;
++
++    /* op=00 is a no-op and wins over the operand checks: it raises nothing
++     * (ADR-0041 D3.2 "00 为 no-op，不报异常"), whatever scope/size hold. */
++    if (op == 0x0) {
++        return DADAO_TLB_CMD_OK;
++    }
++    if (scope == 0x3) {
++        return DADAO_TLB_CMD_CFXREG;        /* reserved scope */
++    }
++    if (scope == 0x2 && size == 0) {
++        return DADAO_TLB_CMD_CFXREG;        /* range needs a size */
++    }
++
++    for (i = 0; i < DADAO_TLB_ENTRIES; i++) {
++        DADAOTlbEntry *e = &env->tlb[i];
++
++        if (!e->valid) {
++            continue;
++        }
++        /* ASID dimension: G entries are bypassed unless ASID_ANY is set. */
++        if (!asid_any && ((e->flags & DADAO_TLB_FLAG_G) ||
++                          e->asid != (uint16_t)env->tlb_asid)) {
++            continue;
++        }
++        /* Address dimension (independent of the ASID dimension). */
++        if (scope == 0x1) {
++            if (!dadao_tlb_va_match(e, start)) {
++                continue;
++            }
++        } else if (scope == 0x2) {
++            uint64_t end = start + size;
++            uint64_t epage_end = e->va + (1ULL << e->size_log2);
++
++            if (end < start) {
++                end = UINT64_MAX;           /* saturate on wrap */
++            }
++            if (!(e->va < end && start < epage_end)) {
++                continue;
++            }
++        }
++        if (op & 0x1) {                     /* clean / flush: write back */
++            if (dadao_tlb_writeback(e) < 0) {
++                *err_pa = e->pte_pa;        /* entry kept (FLUSH failure) */
++                return DADAO_TLB_CMD_PTWERR;
++            }
++        }
++        if (op & 0x2) {                     /* invalid / flush: delete */
++            e->valid = false;
++        }
++    }
++    return DADAO_TLB_CMD_OK;
++}
++
 +static int dadao_ptw_walk(CPUDADAOState *env, uint64_t va,
 +                          MMUAccessType access_type, hwaddr *paddr,
-+                          uint64_t *cause, int *prot)
++                          uint64_t *cause, int *prot,
++                          uint64_t *leaf_pte, hwaddr *leaf_pa)
 +{
 +    bool fetch = (access_type == MMU_INST_FETCH);
 +    uint64_t l1pa = (env->ptbr & DADAO_PTBR_MASK) + (((va >> 29) & 0x1FFF) << 3);
@@ -221,6 +500,7 @@ index 0000000..c8e0276
 +        }
 +        /* PPN[28:16] is forced to zero (ADR-0040 D9): mask, never fault. */
 +        *paddr = (pte & DADAO_PTE_SPPN_MASK) | (va & 0x1FFFFFFFULL);
++        *leaf_pa = l1pa;
 +    } else {
 +        /* Step 2: L2 table, then a 64 KiB normal page + GPF fragment. */
 +        uint64_t l2pa = (pte & DADAO_PTE_PPN_MASK) +
@@ -239,6 +519,7 @@ index 0000000..c8e0276
 +            return 0;
 +        }
 +        *paddr = (pte & DADAO_PTE_PPN_MASK) | (va & 0xFFFFULL);
++        *leaf_pa = l2pa;
 +    }
 +
 +    /* Step 3: HSJU (current run mode) before R/W/X (ADR-0040 D6-D8). */
@@ -271,6 +552,7 @@ index 0000000..c8e0276
 +    *prot = ((pte & DADAO_PTE_R) ? PAGE_READ : 0) |
 +            ((pte & DADAO_PTE_W) ? PAGE_WRITE : 0) |
 +            ((pte & DADAO_PTE_X) ? PAGE_EXEC : 0);
++    *leaf_pte = pte;
 +    return 1;
 +}
 +
@@ -279,15 +561,15 @@ index 0000000..c8e0276
 +                        bool probe, uintptr_t retaddr)
 +{
 +    /*
-+     * Address-space Step 1 (ADR-0039 §8.5; DADAO-12 §2.2).
++     * Address-space Step 1 (ADR-0039 §8.5; DADAO-12 §2.2) and Step 3 TLB
++     * (ADR-0041):
 +     *
 +     * The CPU address is 48 bits; addr[47:42] is the partition key:
 +     *   high6 == 0  -> memory window (VA[41:0]):
 +     *       ptw_enable == 0: no translation => CFXMEM (current-mode cfx);
-+     *                        never a silent pmem pass-through.
-+     *       ptw_enable == 1: page-table walk.  The walk is Step 2 work and is
-+     *                        not implemented here, so fail explicitly instead
-+     *                        of pretending the access succeeded.
++     *                        never a silent pmem pass-through (TLB bypassed).
++     *       ptw_enable == 1: TLB lookup first, then a two-level page-table
++     *                        walk on a miss; a successful walk fills the TLB.
 +     *   high6 == 63 -> test-machine RAM/ROM (identity map); OOB keeps the
 +     *                  historical test-machine unmapped convention (0x87).
 +     *   reserved cfx (7-14, 19-61) plain ld/st -> CFXMEM (ADR-0039 Step 1-c).
@@ -302,8 +584,14 @@ index 0000000..c8e0276
 +    hwaddr paddr;
 +
 +    if (cfxha == DADAO_CFXHA_MEM) {
++        DADAOTlbEntry *e;
++        uint64_t leaf_pte = 0;
++        hwaddr leaf_pa = 0;
++        bool superpage;
++
 +        if (!(env->ptw_enable & 1)) {
-+            /* ptw_enable == 0: the window is never a pmem pass-through. */
++            /* ptw_enable == 0: the window is never a pmem pass-through and
++             * the TLB is bypassed (ADR-0041 D5). */
 +            if (probe) {
 +                return false;
 +            }
@@ -313,11 +601,33 @@ index 0000000..c8e0276
 +            return false;
 +        }
 +
-+        /* ptw_enable == 1: two-level page-table walk (DADAO-12
-+         * §2.2.1/§2.2.2; ADR-0040).  Page-table pages are read with physical
-+         * addresses through the address space, never through this function,
-+         * so the walk cannot recurse. */
-+        ret = dadao_ptw_walk(env, addr, access_type, &paddr, &cause, &prot);
++        /* Step 2: TLB lookup (DADAO-12 §2.2.1/§2.2.2; ADR-0041 D8/D9). */
++        e = dadao_tlb_lookup(env, addr);
++        if (e) {
++            if (!dadao_tlb_check(env, e, addr, access_type, &cause)) {
++                if (probe) {
++                    return false;
++                }
++                env->ptw_fault_cause = cause;
++                env->ptw_fault_info = addr;
++                cs->exception_index = DADAO_EXCP_PTW_FAULT;
++                cpu_loop_exit_restore(cs, retaddr);
++                /* not reached */
++                return false;
++            }
++            if (!probe) {
++                dadao_tlb_touch(e, access_type);
++            }
++            paddr = e->pa | (addr & DADAO_SIZE_MASK(e->size_log2));
++            prot = dadao_tlb_prot(e);
++            goto map;
++        }
++
++        /* Step 3: two-level page-table walk on a miss.  Page-table pages are
++         * read with physical addresses through the address space, never
++         * through this function, so the walk cannot recurse. */
++        ret = dadao_ptw_walk(env, addr, access_type, &paddr, &cause, &prot,
++                             &leaf_pte, &leaf_pa);
 +        if (ret < 0) {
 +            /* Architecture does not define a page-table page outside pmem
 +             * (Machine-01: page tables live in pmem).  Fail loudly instead of
@@ -331,6 +641,7 @@ index 0000000..c8e0276
 +            exit(1);
 +        }
 +        if (ret == 0) {
++            /* Missing page / permission failure: no fill, no A/D update. */
 +            if (probe) {
 +                return false;
 +            }
@@ -341,6 +652,34 @@ index 0000000..c8e0276
 +            /* not reached */
 +            return false;
 +        }
++
++        superpage = (leaf_pte & DADAO_PTE_SP) != 0;
++        if (probe) {
++            /* Probing must not change TLB or A/D state. */
++            prot = ((leaf_pte & DADAO_PTE_R) ? PAGE_READ : 0) |
++                   ((leaf_pte & DADAO_PTE_W) ? PAGE_WRITE : 0) |
++                   ((leaf_pte & DADAO_PTE_X) ? PAGE_EXEC : 0);
++            goto map;
++        }
++        {
++            hwaddr err_pa = 0;
++
++            if (dadao_tlb_insert(env, addr, leaf_pte, leaf_pa, superpage,
++                                 &e, &err_pa) < 0) {
++                /* Replacing a dirty entry failed to write back: PTWERR
++                 * (ADR-0041 D7/D10), cause_info = the failing PTE PA. */
++                env->ptw_fault_cause = DADAO_CAUSE_PTWERR;
++                env->ptw_fault_info = err_pa;
++                cs->exception_index = DADAO_EXCP_PTW_FAULT;
++                cpu_loop_exit_restore(cs, retaddr);
++                /* not reached */
++                return false;
++            }
++        }
++        /* The access that caused the fill is itself an access (ADR-0041 D4):
++         * a load/fetch sets A, a store sets A/D. */
++        dadao_tlb_touch(e, access_type);
++        prot = dadao_tlb_prot(e);
 +        goto map;
 +    }
 +
@@ -383,8 +722,8 @@ index 0000000..c8e0276
 +     *    (ADR-0004 D5.8).
 +     * Data accesses and instruction fetches are treated identically: the
 +     * fetch path reaches this function through get_page_addr_code ->
-+     * cpu_ldl_code_mmu (MMU_INST_FETCH), so no `access_type` special case is
-+     * needed and an out-of-range fetch never silently continues.
++     * cpu_ldl_code_maybe_mmu (MMU_INST_FETCH), so no `access_type` special
++     * case is needed and an out-of-range fetch never silently continues.
 +     */
 +    if (DADAO_CFX_IS_RESERVED(cfxha)) {
 +        cs->exception_index = DADAO_EXCP_CFXMEM;
@@ -399,8 +738,43 @@ index 0000000..c8e0276
 +    tlb_set_page(cs, address, paddr, prot, mmu_idx, TARGET_PAGE_SIZE);
 +    return true;
 +}
-+
 +#endif /* !CONFIG_USER_ONLY */
++
++/*
++ * QEMU's own translation cache is a derived cache of the guest TLB/PTW result;
++ * dropping it never invalidates guest TLB entries.  It must be dropped when the
++ * inputs that produced guest-visible mappings change (PTBR / ptw_enable / ASID)
++ * or when guest TLB entries are deleted, otherwise a stale host mapping would
++ * outlive the guest state it was derived from (ADR-0041 D5).
++ */
++#ifndef CONFIG_USER_ONLY
++static void dadao_soft_tlb_flush(CPUDADAOState *env)
++{
++    tlb_flush(env_cpu(env));
++}
++#else
++/*
++ * The linux-user build has no PTW/TLB (ADR-0041 is a system-mode structure):
++ * there is nothing to flush, and the cfx_ptw cg12 interface is withheld by
++ * cfx_reg_ptr, so a command write there takes the generic CFXREG path rather
++ * than silently succeeding.
++ */
++static void dadao_soft_tlb_flush(CPUDADAOState *env)
++{
++    (void)env;
++}
++
++/* Unreachable: cfx_reg_ptr withholds cfx_ptw cg12 in this build, so a command
++ * write is rejected there with CFXREG.  Present only to keep the link whole. */
++static int dadao_tlb_control_exec(CPUDADAOState *env, uint64_t val,
++                                 hwaddr *err_pa)
++{
++    (void)env;
++    (void)val;
++    (void)err_pa;
++    return DADAO_TLB_CMD_CFXREG;
++}
++#endif
 +
 +/*
 + * raise_exception helper: raise a DADAO exception.
@@ -1096,6 +1470,24 @@ index 0000000..c8e0276
 +        /* cfx_ptw only: the single PTBR (DADAO-12 §4.5). */
 +        return (ci >= 0 && dadao_cfxha_map[ci] == 4 && rc == 0)
 +               ? &env->ptbr : NULL;
++    case 12:
++        /* cfx_ptw only: TLB maintenance interface (DADAO-12 §4.5;
++         * ADR-0041 D3).  rc0 is a write-only command trigger. */
++        if (ci < 0 || dadao_cfxha_map[ci] != DADAO_CFXHA_PTW) {
++            return NULL;
++        }
++#ifdef CONFIG_USER_ONLY
++        /* No PTW/TLB in the user-mode build: explicit CFXREG, no stub. */
++        return NULL;
++#else
++        switch (rc) {
++        case 0: return write ? &env->tlb_control : NULL;
++        case 1: return &env->tlb_asid;      /* 16-bit ASID */
++        case 2: return &env->tlb_start;
++        case 3: return &env->tlb_size;
++        default: return NULL;
++        }
++#endif
 +    default:
 +        return NULL;
 +    }
@@ -1178,7 +1570,11 @@ index 0000000..c8e0276
 +    /* step 7: save the previous run mode / cfx mask */
 +    env->cfx[ci].prev_run_mode = entry_mode;
 +    env->cfx[ci].prev_cfx_mask = env->inner_cfx_mask;
-+    /* step 8: switch run mode / cfx mask to the <entry_mode> switch values */
++    /* step 8: switch run mode / cfx mask to the <entry_mode> switch values.
++     * HSJU permission is re-checked on every tlb_fill against the entry, so the
++     * derived translation cache must not survive a run-mode change: guest TLB
++     * entries stay (only QEMU's cache of their result is dropped). */
++    dadao_soft_tlb_flush(env);
 +    vec = env->cfx[ci].mode[entry_mode].excp_vector;
 +    env->inner_run_mode = env->cfx[ci].mode[entry_mode].switch_run_mode & 0x3;
 +    env->inner_cfx_mask = env->cfx[ci].mode[entry_mode].switch_cfx_mask;
@@ -1271,9 +1667,12 @@ index 0000000..c8e0276
 +        return;
 +    }
 +
-+    /* step 1: restore cfx mask; step 2: restore run mode */
++    /* step 1: restore cfx mask; step 2: restore run mode (the HSJU check on
++     * the next access uses the restored mode, so the derived translation cache
++     * must be dropped as well; guest TLB entries are untouched). */
 +    env->inner_cfx_mask = env->cfx[ci].prev_cfx_mask;
 +    env->inner_run_mode = env->cfx[ci].prev_run_mode & 0x3;
++    dadao_soft_tlb_flush(env);
 +    /* step 3: increment the escape counter */
 +    env->cfx[ci].escape_num++;
 +    /* step 4: return address = cause_ip + (imms18 << 2) */
@@ -1352,9 +1751,52 @@ index 0000000..c8e0276
 +    if (p == &env->ptbr) {
 +        /* Single PTBR stores PPN[55:16]; [15:0] and [63:56] read as 0. */
 +        *p = ((rd == 0) ? 0 : env->rd[rd]) & DADAO_PTBR_MASK;
++        /* Writing PTBR does not invalidate guest TLB entries (DADAO-12 §2.2,
++         * ADR-0041 D5); only QEMU's derived translation cache is dropped so
++         * that the guest TLB stays the single authority on hits/misses. */
++        dadao_soft_tlb_flush(env);
 +    } else if (p == &env->ptw_enable) {
 +        /* 1-bit enable (DADAO-12 §4.5). */
 +        *p = ((rd == 0) ? 0 : env->rd[rd]) & 1;
++        dadao_soft_tlb_flush(env);
++    } else if (p == &env->tlb_asid) {
++        /* 16-bit ASID; switching it never invalidates guest TLB entries. */
++        *p = ((rd == 0) ? 0 : env->rd[rd]) & 0xFFFFULL;
++        dadao_soft_tlb_flush(env);
++    } else if (p == &env->tlb_start) {
++        *p = ((rd == 0) ? 0 : env->rd[rd]) & DADAO_VA_MASK;
++    } else if (p == &env->tlb_size) {
++        *p = ((rd == 0) ? 0 : env->rd[rd]) & DADAO_VA_MASK;
++    } else if (p == &env->tlb_control) {
++        /* TLB command: executed synchronously on write (DADAO-12 §4.5). */
++        uint64_t val = (rd == 0) ? 0 : env->rd[rd];
++        hwaddr err_pa = 0;
++        int ret = dadao_tlb_control_exec(env, val, &err_pa);
++
++        if (ret == DADAO_TLB_CMD_CFXREG) {
++            /* Illegal scope / range with size 0 => CFXREG (ADR-0041 D6). */
++            cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++            return;
++        }
++        if (ret == DADAO_TLB_CMD_PTWERR) {
++            /* A/D write-back failed: PTWERR, entry kept (ADR-0041 D7/D10).
++             * Precise: the cfx2rc instruction did not complete. */
++            CPUState *cs = env_cpu(env);
++
++            env->pc = pc;
++            env->rb[0] = pc;
++            env->ptw_fault_cause = DADAO_CAUSE_PTWERR;
++            env->ptw_fault_info = err_pa;
++            cs->exception_index = DADAO_EXCP_PTW_FAULT;
++            cpu_loop_exit_restore(cs, GETPC());
++            /* not reached */
++            return;
++        }
++        /* CLEAN keeps entries (mappings unchanged); INVALID/FLUSH drop them,
++         * so QEMU's derived translation cache must be dropped with them. */
++        if (val & 0x2) {
++            dadao_soft_tlb_flush(env);
++        }
 +    } else {
 +        *p = (rd == 0) ? 0 : env->rd[rd];
 +    }

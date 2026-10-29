@@ -361,7 +361,8 @@ group = "dadao-1x"
 # 2026-10-26（SPEC-174t，授权见文件头注释）：基线串 → SimRISC 0.5.5；`ext.s` → `ext.so`、算数→算术、
 #   `-multiple-to-single` 术语；sha256 同笔重算。
 # 2026-10-26（SPEC-175t）：发布 0.9.3（去 -rc）；删乘除法段与 `ext.so` 提示；变更记录整理；sha256 同笔重算。
-sha256 = "8580f59bcd69ddcf2f7223a1113bfe90d7e99ef63c5a5e1b6911bd63273f3e6b"
+# 2026-10-29（INTEG-040t，Step 3 同步）：§3 地址空间布局改单 PTBR + 16 位 ASID（删除 32 PTBR/TLB 集合表述），进程切换示例改用 `cfx_ptw_tlb_asid`/`cfx_ptw_tlb_control`（全局页跨 ASID 保留）；册头 0.9.4-rc + 附录条目；sha256 同笔重算。
+sha256 = "38268a016c802379d74d2736d184be7773619a7a29d0f72841c7caf7b359b35e"
 
 [[spec]]
 path = "spec/DADAO-12-SEE-主管系统运行环境.md"
@@ -376,7 +377,8 @@ group = "dadao-1x"
 # 2026-10-26（SPEC-177t，授权原话见文件头注释）：册头/附录 → 0.7.3-rc（与 SBI 互锁；正文不变）；sha256 同笔重算。
 # 2026-10-29（INTEG-038t，Step 1 地址空间/PTBR/PTW 冻结落地）：§2/§2.1/§2.2 改 48 位 CPU 地址分区、VA42/PA56、单 PTBR（PPN[55:16]）、ptw_enable；§4.5 删 perm/pahi/pthi/ptbr_enable 并改单寄存器；§4.6/§5 同步；附录 0.7.3-rc 补条目。
 # 2026-10-29（INTEG-039t，Step 2 PTE/页表步进/页权限，ADR-0040）：§2.2.1–§2.2.6 按 ADR-0040 收口旧 32 位 PPN/顶部 SPF 布局——64 位 PTE（HSJU/PPN/SPF/GPF/flags）、两级 64 KiB 页表、512 MiB 超页、HSJU+R/W/X、异常优先级与进 cfx_ptw；§4.5 补页表步进引用；附录 0.7.3-rc 补条目；sha256 同笔重算。
-sha256 = "a73b9d7ff23149338ca521b49061b4a8fe12d3cc6c83863eef851e4f8372fed6"
+# 2026-10-29（INTEG-040t，Step 3 TLB/G/A-D/PTWERR，ADR-0041）：§1 cfxha 5 改未分配（TLB 并入 ptw）；§2.2.1/§2.2.2 TLB 查找按页+ASID/G、命中不重读 PTE、成功才填充；§2.2.3/§2.2.4 bit4 保留→G；§2.2.5 A/D 维护与 G 语义；§4.5 增 cg12 TLB 寄存器（control/asid/start/size）+ 失效正交语义 + PTWERR（`1<<7`）；删 §4.6 cfx_tlb 并重编号 4.7–4.13→4.6–4.12；§5.2 TLB 异常并入 cfx_ptw；附录 0.7.3-rc 补条目；sha256 同笔重算。
+sha256 = "a47ccf6376dd9971347ba1d04080083d58e3dc8647f6c4e67f036e91f3a75196"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -416,7 +418,8 @@ group = "dadao-2x"
 # 2026-10-26（SPEC-174t，授权见文件头注释）：基线串 → 0.5.5；两处 AEE 悬空引用改指 `SimRISC-00`；
 #   册内 `§3.2.3`/`§3.4`/`§3.2.4`/`§3.2` 改 `§标题`；sha256 同笔重算。
 # 2026-10-26（SPEC-175t）：发布 0.9.3（去 -rc）；通用聚合改「低地址块 → 低号寄存器」+ 栈溢出消歧句；sha256 同笔重算。
-sha256 = "4c77e9e40818ee7bb5f83ba59a40159dd14e6ace47edced0972bcc74736eee55"
+# 2026-10-29（INTEG-040t）：版本号与 AEE 同步升 0.9.4-rc（互锁组一致；正文不变）；sha256 同笔重算。
+sha256 = "4998f33ed02754b19fd17034f5d3aa39c0ffa91154456019e457435504006315"
 
 [[spec]]
 path = "spec/DADAO-22-SBI-主管系统二进制接口.md"
@@ -429,7 +432,8 @@ group = "dadao-2x"
 # 2026-10-26（SPEC-175t）：发布 0.7.2（去 -rc）；返回值 bank（`rb8`/`rd8`）+ `SBI_HART_SET_TIMER` + §10 只留 `SBI_TIME_GET` + 版本常量；sha256 同笔重算。
 # 2026-10-26（SPEC-177t，授权原话见文件头注释）：§14 删保留值 `0x3FFFF` 约定；册头/附录 → 0.7.3-rc；sha256 同笔重算。
 # 2026-10-29（INTEG-038t，Step 1 同步）：§4 cfx_ptw 改单 PTBR + ptw_enable；删 PERM/ENABLE_PTBR/PTHI/PAHI 功能与 64 路代码；附录 0.7.3-rc 补条目。
-sha256 = "4e7692de9292d68218bc8e48e5e19d27f502f345e5176eae169c6d7f622e67c2"
+# 2026-10-29（INTEG-040t，Step 3 同步）：§4 删除 cfx_tlb 委托表述；§5 由「TLB管理（cfx_tlb）」改写为「TLB维护（cfx_ptw）」——cg12 寄存器接口（control/asid/start/size、op/scope/ASID_ANY 正交）、删除 SBI_TLB_INVALIDATE、补 PTWERR；附录 0.7.3-rc 补条目；sha256 同笔重算。
+sha256 = "03774859f2cc3759ba803397ab003d5f928e05635b0bf28a8ccacc6eb2993763"
 
 [[spec]]
 path = "spec/DADAO-23-HBI-超管系统二进制接口.md"
@@ -514,4 +518,5 @@ group = "machine-01"
 # 2026-10-26（SPEC-176t）：semihosting 判定迁 `0x3FF00–0x3FFFF`（`immu18[17:8] == 0x3FF`）、§4.1/§4.3/§5.1 + 附录 0.3.2-rc；sha256 同笔重算。
 # 2026-10-29（INTEG-038t，Step 1 同步）：§1/§1.2/§3 改 high6=0 + ptw_enable 路由、保留 cfx 普通 ld/st → CFXMEM、测试机 cfx 范围加 cfx4 Step 1 寄存器；附录 0.3.2-rc 补条目。
 # 2026-10-29（INTEG-039t，Step 2 同步）：§1.2 ptw_enable=1 改走页表（异常进 cfx_ptw）、§3 NUPERM 触发条件与 cfx4 实现范围（含页表步进、A/D/TLB 留后续）、附录 0.3.2-rc 补条目；sha256 同笔重算。
-sha256 = "00cfaea8f37827a69045167057f65e0c63b8a447be437788218e57f43b4f9a4a"
+# 2026-10-29（INTEG-040t，Step 3 同步）：§1.2 页表/TLB 异常都进 cfx_ptw；§3 实现范围含 TLB 命中/填充/失效与 A/D 回写、cfx5 未分配按未实现处理；附录 0.3.2-rc 补条目；sha256 同笔重算。
+sha256 = "26589f860d5dc555f2dc1b10cda4ac4db4f699a1f8a3ae19d72d187dd4ab4c49"

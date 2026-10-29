@@ -105,7 +105,7 @@
 
 | 缺口（①叙述合约） | 来源册 | 状态 | deferred 理由 | 归属/触发 |
 |-------------------|--------|------|---------------|-----------|
-| `contract-sbi.md` | `DADAO-12`（SEE）/ `DADAO-22`（SBI） | **deferred（部分落于 `contract-see.md`）** | `contract-see.md` 已覆盖 SEE 运行环境与 SBI `§1` 调用约定（M5，`SPEC-114t`）；SBI **功能表**（`DADAO-22 §2–§12`：umon/jmon/smon/ptw/tlb/cache/hart/llc/pmem/timer/uart/power 功能调用）仍无 M5 消费方（M5 SEE 经 semihosting 服务，不经 `trap cfxha` 功能表），未冻结后果可控；上游 `spec/DADAO-22` 已存在，补齐不需新造正文。 | 归属 M5+；触发：`trap cfxha` SBI 功能表消费方落地（如 OS 经 SBI 调用 ptw/timer/uart）时须先补齐 `contract-sbi.md` 再实现。 |
+| `contract-sbi.md` | `DADAO-12`（SEE）/ `DADAO-22`（SBI） | **deferred（部分落于 `contract-see.md`）** | `contract-see.md` 已覆盖 SEE 运行环境与 SBI `§1` 调用约定（M5，`SPEC-114t`）；SBI **功能表**（`DADAO-22 §2–§12`：umon/jmon/smon/ptw/cache/hart/llc/pmem/time/uart/power 功能调用；TLB 维护已并入 `cfx_ptw`，无独立 `tlb` 功能）仍无 M5 消费方（M5 SEE 经 semihosting 服务，不经 `trap cfxha` 功能表），未冻结后果可控；上游 `spec/DADAO-22` 已存在，补齐不需新造正文。 | 归属 M5+；触发：`trap cfxha` SBI 功能表消费方落地（如 OS 经 SBI 调用 ptw/timer/uart）时须先补齐 `contract-sbi.md` 再实现。 |
 | `contract-exception.md` | `DADAO-13`（HEE）/ `DADAO-23`（HBI） | **deferred（部分落于 `contract-see.md`）** | `contract-see.md` 已覆盖 HEE cg3/hmon 运行环境部分（M5，`SPEC-114t`）；**完整系统态异常模型**（cfx_hmon 异常进入/退出全流程、HBI 接口）仍无 M5 消费方，未冻结后果可控；上游 `spec/DADAO-13/23` 已存在，补齐不需新造正文。 | 归属 M5+；触发：系统态异常/HBI 消费方落地时须先补齐 `contract-exception.md` 再实现。 |
 | `contract-mmu.md` | `DADAO-12`（SEE，地址转换） | **deferred** | M5 测试机 VA=PA、无地址转换消费方；M3 codegen 为 freestanding 单 TU，无 MMU，未冻结后果可控；上游 `spec/DADAO-12`（§2.2 虚实地址转换）已存在，补齐不需新造正文。`contract-see.md §3` 只提取 `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM` 权限层次，不含页表步进/转换公式。 | 归属 M5+；触发：MMU/地址转换消费方落地时须先补齐 `contract-mmu.md` 再实现。 |
 

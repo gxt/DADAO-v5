@@ -40,7 +40,7 @@ v5 测试机使用的核内地址空间划分如下（均为 48 位核内有效�
 - **层次与适用**：`CFXMEM`（`0x81`）适用于核内地址空间模型内的非法访问/取指（cfxha 段内的非法子区间、越界访问/取指）；`0x87`（unmapped）保留为测试机历史约定，用于无 cfx 归属的 unmapped 访问。[ADR-0020 D15]
 - **精确路由（地址空间 Step 1）**：
   - `addr[47:42]==0`（内存窗口）且 `ptw_enable=0`：普通访存/取指 ⇒ `CFXMEM`（`0x81`），目标是当前运行模式的 cfx；**不直通物理存储器**。
-  - `addr[47:42]==0` 且 `ptw_enable=1`：按单 PTBR 走页表（PTE 格式/页表步进/页权限见 `DADAO-12 §2.2.1–§2.2.6`）；页表步进异常进入 `cfx_ptw`（`cfx4`），`ptw_enable=0` 时仍按上一条报 `CFXMEM`。
+  - `addr[47:42]==0` 且 `ptw_enable=1`：按单 PTBR 走页表（PTE 格式/页表步进/页权限/TLB 见 `DADAO-12 §2.2.1–§2.2.6`、`§4.5`）；页表步进与 TLB 命中产生的异常都进入 `cfx_ptw`（`cfx4`），`ptw_enable=0` 时仍按上一条报 `CFXMEM`。
   - 保留 cfx（`7`–`14`、`19`–`61`）的普通 `ld/st` ⇒ `CFXMEM`（`0x81`），目标为该 cfxha；`trap`/`escape` 到保留 cfx 仍为 `ILLI`。
   - 其余未映射地址（含 `power` 段 63 的 RAM/ROM 之外）⇒ 测试机约定 `unmapped`（`0x87`）。
 - **取指路径同等对待**：越界**取指**与越界**数据访问**同属非法核内地址访问，**均须报异常**，不得只覆盖数据访问路径；不得静默继续或静默丢弃。[ADR-0020 D15]
@@ -74,7 +74,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 - `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM` 属于页级/PTW 权限异常：当前运行模式对应的 HSJU 位为 0 时触发（U/J/S/H 分别对应 `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`）；地址转换第一步已不再按 `VA[47:42]` 选择 PTBR，也不再有 PTBR 模式权限位图。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw]
 - **两个权限层次**：PTW 层权限（`NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`，出自 cfx_ptw 异常原因表）与 **cfx 访问权限**（cfx mask 不允许 ⇒ `ILLI`，见 `§5` 异常进入流程）是**不同层次**，不可混同。[ADR-0020 D9][DADAO-12 §4. 专有寄存器设计规范]
 
-- **测试机 cfx 实现范围**：v5 测试机实现 **`cfx0`/`cfx1`/`cfx2`/`cfx3`/`cfx63`**（`umon`/`jmon`/`smon`/`hmon`/`power`）以及 **`cfx4`（`ptw`）的 PTW 寄存器**（`cfx_ptw_ptbr`、`cfx_ptw_enable`）与**页表步进**（`DADAO-12 §2.2`）；A/D 硬件维护、TLB 与 TLB 管理（`cfx5`）留待后续步骤，本版页表步进不更新 A/D。该范围为**测试机约定**（控制首版成本），**不构成对上游 `DADAO-12`/`DADAO-13` 架构的 cfx 数量/编号限制**。[ADR-0020 D9][DADAO-12 §1. 运行模式与核芯功能扩展]
+- **测试机 cfx 实现范围**：v5 测试机实现 **`cfx0`/`cfx1`/`cfx2`/`cfx3`/`cfx63`**（`umon`/`jmon`/`smon`/`hmon`/`power`）以及 **`cfx4`（`ptw`）的 PTW/TLB 寄存器**（`cfx_ptw_ptbr`、`cfx_ptw_enable`、`cfx_ptw_tlb_*`）、**页表步进**、**TLB 命中/填充/失效**与 **A/D 回写**（`DADAO-12 §2.2`、`§4.5`）；`cfxha 5`（原 `tlb`）未分配，测试机按未实现 cfx 处理（访问其寄存器 ⇒ `CFXREG`）。该范围为**测试机约定**（控制首版成本），**不构成对上游 `DADAO-12`/`DADAO-13` 架构的 cfx 数量/编号限制**。[ADR-0020 D9][DADAO-12 §1. 运行模式与核芯功能扩展]
 - 对**不存在**的核芯功能扩展（其 cfx 寄存器）的访问触发 **`CFXREG`**；reserved cfxha（`7`–`14`/`19`–`61`）仍按 `§5` 触发 `ILLI`。[ADR-0020 D9][DADAO-22 §3. 系统信息（smon）][DADAO-12 §5. 异常进入与异常退出]
 
 ---
@@ -212,6 +212,7 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 - 地址空间 Step 2：`ptw_enable=1` 时按单 PTBR 走两级页表（64 KiB 页 / 512 MiB 超页），检查 HSJU 与 R/W/X，页表异常进入 `cfx_ptw`；A/D 更新与 TLB 不在本版。
 - 测试机 cfx 实现范围增加 `cfx4` 的 Step 1 寄存器子集（唯一 `cfx_ptw_ptbr`、`cfx_ptw_enable`）；删除 PTBR 模式权限位图的描述。
 - 测试机 cfx4 实现范围扩展到页表步进与页权限（Step 2）；A/D 更新、TLB 与 `cfx5` 仍留待后续步骤。
+- 地址空间 Step 3：TLB 并入 `cfx_ptw`（命中/填充/ASID/G/失效接口）与 A/D 回写落地，`PTWERR`（`1 << 7`）报 A/D 回写失败；`cfxha 5`（原 `tlb`）未分配、按未实现 cfx 处理（`CFXREG`）。
 
 ### 0.3.1（2026-10-16）
 

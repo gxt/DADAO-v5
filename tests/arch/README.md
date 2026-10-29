@@ -15,7 +15,7 @@ per-hart/per-system、TIMER/IPI/UART/power），只跑 **`system`** 平台
 |------|-----|------|
 | `umon/` | `cfx_umon`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.s`，10 条）+ `expected.yaml` 清单 |
 
-其余 cfx（`jmon`/`smon`/`hmon`/`ptw`/`tlb`/`cache`/`hart`/`llc`/`pmem`/`time`/`uart`/`power`）
+其余 cfx（`jmon`/`smon`/`hmon`/`ptw`/`cache`/`hart`/`llc`/`pmem`/`time`/`uart`/`power`）
 按需增建；**不建** `arch/isa`、空壳子目录。
 
 ## 根级清单

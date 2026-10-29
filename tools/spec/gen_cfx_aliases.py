@@ -59,6 +59,8 @@ def parse_cfxcode_table(text: str) -> dict[str, int]:
             continue
         if cells[1] == "reserved":
             continue
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", cells[1]):
+            continue  # placeholder / unallocated slot (e.g. "—"): no alias
         # Handle range cfxcodes (e.g. "19-61")
         code_str = cells[0]
         if "-" in code_str and not code_str.startswith("0x"):

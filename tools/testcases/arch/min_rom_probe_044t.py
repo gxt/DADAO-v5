@@ -353,7 +353,7 @@ def _reserved_illi():
 
 
 # -- acc 6: unimplemented cfx -> CFXREG -------------------------------------
-@case("cfxreg_unimpl", "unimplemented cfx (cfx5/tlb) access => CFXREG")
+@case("cfxreg_unimpl", "unimplemented cfx (cfx5, unallocated) access => CFXREG")
 def _cfxreg_unimpl():
     prog = load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]
     prog += [cfx2rd(5, 0, 0, 5)]

@@ -23,8 +23,8 @@ DADAO定义了四种运行模式，用两位编码：
 | 1 | jmon | 处理 jail 模式下的同步异常 |
 | 2 | smon | 处理 supv 模式下的同步异常 |
 | 3 | hmon | 处理 hypv 模式下的同步异常 |
-| 4 | ptw | 页表步进，管理页表 |
-| 5 | tlb | TLB 管理 |
+| 4 | ptw | 页表步进，管理页表与 TLB |
+| 5 | — | 未分配（原 `tlb`，TLB 管理已并入 `ptw`，见 §4.5） |
 | 6 | cache | Cache 管理 |
 | 7-14 | reserved | 保留，未定义 |
 | 15 | hart | Hart 管理和本地计数 |
@@ -38,7 +38,7 @@ DADAO定义了四种运行模式，用两位编码：
 每个核芯功能扩展提供自己特有的功能调用，并负责响应和处理所管理设备的中断，因此，异常的进入和退出也都隶属于某个核芯功能扩展：
 
 - 指令执行过程中，核芯触发的同步异常，根据指令执行时的运行模式，分别由 `cfx_umon`/`cfx_jmon`/`cfx_smon`/`cfx_hmon` 进行异常处理
-- 地址转换过程中，地址转换部件触发的异常，由 `cfx_ptw` 或 `cfx_tlb` 进行异常处理
+- 地址转换过程中，地址转换部件触发的异常（页表步进与 TLB 命中），均由 `cfx_ptw` 进行异常处理
 - 外部设备触发的异常，根据中断源，分别由相应的核芯功能扩展进行处理
 
 多核系统中各资源的作用域：
@@ -72,6 +72,7 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 - cfx_power_hypv_excp_vector 为硬件复位后的启动地址，这部分地址空间可由 CPU 直接取指并执行
 - 对核内地址空间进行非法访问时，会触发对应核芯功能扩展的 CFXMEM 异常。核芯功能扩展由地址高 6 位 `addr[47:42]`（即 cfxha）确定。
 - 保留 cfx（7–14、19–61）的普通 `ld/st` 触发 CFXMEM；`trap`/`escape` 到保留 cfx 触发 ILLI。
+- `cfxha 5` 未分配（原 TLB 管理 `tlb` 已并入 `cfx_ptw`，见 §4.5）；未分配的 cfxha 由实现约定其未实现行为（测试机按未实现 cfx 处理）。
 - cfx1–cfx63 的访问权限不在本章定义。
 
 ### 2.2 虚实地址转换
@@ -85,7 +86,7 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 
 **单 PTBR**：`cfx_ptw_ptbr` 只有一份（不是 64 项数组），只存 `PPN[55:16]`（40 位）；页表物理基址 = `PPN << 16`，即 64 KiB 对齐。PTBR 没有 valid 位；PTBR = 0 表示物理基址为 PA 0，是否使用由 `ptw_enable` 决定。PTBR 的 `[15:0]` 强制为 0，`[63:56]` 保留为 0。
 
-写 PTBR 或写 `ptw_enable = 1` 均由软件直接完成，**不隐含 TLB invalidate**；软件须显式 invalidate TLB。复位时 PTBR = 0、`ptw_enable = 0`、TLB 为空。
+写 PTBR、写 ASID 或写 `ptw_enable = 1` 均由软件直接完成，**不隐含 TLB invalidate**；软件须显式 invalidate TLB（§4.5）。复位时 PTBR = 0、ASID = 0、`ptw_enable = 0`、TLB 为空。
 
 #### 2.2.1 超页的地址转换
 
@@ -105,10 +106,11 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 
 **第二步：TLB 查找**
 
-- 若 TLB 开启，则先查 TLB；TLB 按 VA/ASID 匹配（组织方式在后续步骤定义）。
-- TLB 命中时直接检查 PTE 中的 SPF/GPF 字段（超页为 SPF 8位、普通页为 GPF 8位）、HSJU 与 R/W/X 权限：SPF/GPF 中对应小页的标记位为 0 触发对应 `I/DPFTRAP` 异常，HSJU 或 R/W/X 不符触发对应 PERM 异常。TLB 产生的这些异常属于 cfx_ptw 异常原因的子集，应通过调用 cfx_ptw 的功能来处理。
-- 若 TLB 命中且权限符合，则跳过第三步（页表步进），直接进入第四步（形成最终物理地址）。
-- 若 TLB 未命中，则继续执行第三步。步进完成后将结果填入 TLB。
+- TLB 属于 `cfx_ptw`，没有独立的 TLB 使能位：`ptw_enable = 1` 即参与查找，`ptw_enable = 0` 时地址转换整体旁路（见第一步）。
+- TLB 按「虚拟地址所在页 + ASID」匹配：条目的虚拟页必须覆盖本次访问地址，且条目 `G = 0` 时条目 ASID 等于 `cfx_ptw_tlb_asid`，`G = 1` 时跨 ASID 匹配（见 §2.2.5）。
+- TLB 命中时不重读 PTE，直接用条目中的 SPF/GPF、HSJU 与 R/W/X 检查：小页标记位为 0 触发对应 `I/DPFTRAP` 异常，HSJU 或 R/W/X 不符触发对应 PERM 异常；检查顺序与 §2.2.6 相同。TLB 命中产生的异常属于 `cfx_ptw` 异常原因的子集，直接进入 `cfx_ptw`。
+- 命中且权限符合时跳过第三步（页表步进），更新 A/D（见 §4.5）后进入第四步（形成最终物理地址）。
+- 未命中时继续执行第三步；只有步进得到的 PTE 有效且全部检查通过后才把结果填入 TLB（缺页/权限失败不填充，也不更新 A/D）。替换策略由实现决定；替换或失效带未回写 A/D 的条目时须回写（§4.5）。
 
 **第三步：页表步进**
 
@@ -142,10 +144,10 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 
 **第二步：TLB 查找**
 
-- 若 TLB 开启，则先查 TLB；TLB 按 VA/ASID 匹配，并以 L1 index（`VA[41:29]`）和 L2 index（`VA[28:16]`）作为索引键。
-- TLB 命中时直接检查 PTE 中的 SPF/GPF 字段、HSJU 与 R/W/X 权限（语义同 §2.2.1 第二步）。
-- 若 TLB 命中且权限符合，则跳过第三步（页表步进），直接进入第四步（形成最终物理地址）。
-- 若 TLB 未命中，则继续执行第三步。步进完成后将结果填入 TLB。
+- 若 `ptw_enable = 1`，先查 TLB；匹配键为「虚拟地址所在页 + ASID」，组织方式与匹配规则同 §2.2.1 第二步。
+- TLB 命中时直接检查条目中的 GPF、HSJU 与 R/W/X 权限（语义同 §2.2.1 第二步）。
+- 若 TLB 命中且权限符合，则跳过第三步（页表步进），更新 A/D（§4.5）后直接进入第四步（形成最终物理地址）。
+- 若 TLB 未命中，则继续执行第三步；只有步进成功后才把结果填入 TLB。
 
 **第三步：页表步进**
 
@@ -178,9 +180,9 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 | bit7        | READ        | R      | 0不可读，1可读           |
 | bit6        | WRITE       | W      | 0不可写，1可写           |
 | bit5        | EXEC        | X      | 0不可执行，1可执行         |
-| bit4        | 保留         | —      | 软件须写 0，硬件忽略 |
-| bit3        | Access      | A      | 0未被访问，1有访问（维护见 §4.6） |
-| bit2        | Dirty       | D      | 0未被修改，1有修改（维护见 §4.6） |
+| bit4        | Global      | G      | 1=全局页（TLB 中跨 ASID 复用），0=按 ASID 匹配；见 §2.2.5 |
+| bit3        | Access      | A      | 0未被访问，1有访问（维护见 §4.5） |
+| bit2        | Dirty       | D      | 0未被修改，1有修改（维护见 §4.5） |
 | bit1        | Superpage   | SP     | 0下一级为二级页表，1为超页 |
 | bit0        | Present     | P      | 0无效，1有效            |
 
@@ -210,9 +212,9 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 | bit7        | READ        | R      | 0不可读，1可读           |
 | bit6        | WRITE       | W      | 0不可写，1可写           |
 | bit5        | EXEC        | X      | 0不可执行，1可执行         |
-| bit4        | 保留         | —      | 软件须写 0，硬件忽略 |
-| bit3        | Access      | A      | 0未被访问，1有访问（维护见 §4.6） |
-| bit2        | Dirty       | D      | 0未被修改，1有修改（维护见 §4.6） |
+| bit4        | Global      | G      | 1=全局页（TLB 中跨 ASID 复用），0=按 ASID 匹配；见 §2.2.5 |
+| bit3        | Access      | A      | 0未被访问，1有访问（维护见 §4.5） |
+| bit2        | Dirty       | D      | 0未被修改，1有修改（维护见 §4.5） |
 | bit1        | 保留         | —      | 软件须写 0，硬件忽略 |
 | bit0        | Present     | P      | 0无效，1有效            |
 
@@ -230,11 +232,19 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 
 **A/D 位**
 
-`A`（Access）与 `D`（Dirty）由硬件在访问时置位；无 TLB 条目可回写时（例如尚未实现 TLB 的实现）不定义软件可见的更新点，软件不得依赖「访问后 PTE 立即被改写」。A/D 的硬件维护、TLB 条目回写与 `CLEAN`/`FLUSH`/`INVALID` 操作见 §4.6。
+`A`（Access）与 `D`（Dirty）由硬件在 TLB 条目中维护，经 `CLEAN`/`FLUSH`（或条目替换）以原子 OR 回写到 PTE：
+
+- 条目填充时取 PTE 的 `A`/`D` 作为本地的 `A_local`/`D_local`，回写挂起位 `A_dirty`/`D_dirty` 清零——**填充本身不产生回写**。
+- 权限通过的访问：读/取指在 `A_local = 0` 时置 `A_local = 1`、`A_dirty = 1`；写在置 `A` 的同时，`D_local = 0` 时置 `D_local = 1`、`D_dirty = 1`。该规则对「命中」与「本次访问触发填充」同样适用（填充只拷贝 PTE 的 `A`/`D`，本次访问随即按访问类型置位）。
+- 缺页/权限失败：不更新 A/D，也不填充条目。
+- `CLEAN`/`FLUSH`/条目替换：只把挂起的 `A`/`D` 位原子 OR 回写 PTE（保留其他字段），回写后清挂起位；`CLEAN` 保留条目，`FLUSH` 回写后删除条目，`INVALID` 不写回直接删除。
+- 回写失败见 §4.5 `PTWERR`；页表页必须可写。软件清 `A`/`D` 后必须显式 invalidate 对应条目。
 
 **Global 位**
 
-页表项中不设置 Global 位。TLB 的组织、ASID 与失效操作在后续步骤定义；切换地址空间后，软件必须显式 invalidate TLB——写 PTBR 或写 `ptw_enable` 都不隐含 TLB 失效。
+- 叶子 PTE 的 `G = 1` 表示全局页：该页在 TLB 中跨 ASID 复用，`G = 0` 的页按 ASID 匹配。L1 非叶子条目的 `G` 无意义，软件写 0、硬件忽略。
+- 软件必须保证 `G = 1` 的页在所有地址空间中映射一致。
+- 切换地址空间后，软件必须显式 invalidate TLB——写 PTBR、写 ASID 或写 `ptw_enable` 都不隐含 TLB 失效。失效操作与 `G` 的关系见 §4.5。
 
 **小页（Fragment）**
 
@@ -242,14 +252,14 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 
 **保留位与 PPN 低位**
 
-保留位（`[59:56]`、`bit4`；L1 非叶子条目的 `[15:0]`、L2 的 `bit1`）由软件写 0、硬件忽略，不产生异常。`PPN` 中超出对应页大小对齐要求的低位（超页的 `PPN[28:16]`）由硬件强制清零，不产生异常。
+保留位（`[59:56]`；L1 非叶子条目的 `[15:0]`、L2 的 `bit1`）由软件写 0、硬件忽略，不产生异常。（`bit4` 为 `G`，不再是保留位。）`PPN` 中超出对应页大小对齐要求的低位（超页的 `PPN[28:16]`）由硬件强制清零，不产生异常。
 
 **进程上下文切换**
 
 操作系统在切换进程时须执行以下步骤：
 
-1. 写入新进程的 PTBR（`cfx_ptw_ptbr`）
-2. 显式 invalidate TLB（写 PTBR 不隐含失效）
+1. 写入新进程的 ASID（`cfx_ptw_tlb_asid`）或新进程的 PTBR（`cfx_ptw_ptbr`）
+2. 显式 invalidate TLB（写 ASID/PTBR 均不隐含失效；见 §4.5）
 3. 置 `ptw_enable = 1`
 4. 保存和恢复暂存寄存器（cg6）
 
@@ -274,7 +284,7 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 6. HSJU 不符 → `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`（按当前运行模式）
 7. R/W/X 不符 → 取指 `NXPERM`、写 `NWPERM`、读 `NRPERM`
 
-仅触发优先级最高的异常，后续检查不再执行。取指异常用 `I` 前缀（`IGPTRAP`/`ISPTRAP`/`IGPFTRAP`/`ISPFTRAP`）并进入 cfx_ptw，数据读写异常用 `D` 前缀（`DGPTRAP`/`DSPTRAP`/`DGPFTRAP`/`DSPFTRAP`），异常原因编号与 `excp_cause_info` 见 §4.5 cfx_ptw 异常原因表；页表步进中产生的异常进入 `cfx_ptw`（§5.2），TLB 命中时产生的同类异常进入 `cfx_tlb`（§4.6，后续步骤）。
+仅触发优先级最高的异常，后续检查不再执行。取指异常用 `I` 前缀（`IGPTRAP`/`ISPTRAP`/`IGPFTRAP`/`ISPFTRAP`）并进入 cfx_ptw，数据读写异常用 `D` 前缀（`DGPTRAP`/`DSPTRAP`/`DGPFTRAP`/`DSPFTRAP`），异常原因编号与 `excp_cause_info` 见 §4.5 cfx_ptw 异常原因表；页表步进或 TLB 命中产生的异常都进入 `cfx_ptw`（§5.2）。
 
 ## 3. 共有寄存器设计规范
 
@@ -381,7 +391,7 @@ H-mode 寄存器（cg=3）定义见 HEE。
 | 5 | 5 | excp pending | cfx_⟨cfxname⟩_excp_pending | 0 | RW | 待处理异常/中断位图（one-hot，OR语义），写0清位 |
 | 5 | 63 | excp cause nonmaskable | cfx_⟨cfxname⟩_excp_cause_nonmaskable | HW | RO | 不可屏蔽异常掩码，硬件根据异常原因表静态设置 |
 
-所有异常原因编码为 one-hot（64 位），各核芯功能扩展的异常原因表定义该核芯功能扩展可处理的异常位。表中未列出的位属于保留或未使用，若硬件错误触发此类位，表示该核芯功能扩展出现不可恢复的错误。`1 << 3` 至 `1 << 7` 保留用于未来扩展（debug 异常等）。
+所有异常原因编码为 one-hot（64 位），各核芯功能扩展的异常原因表定义该核芯功能扩展可处理的异常位。表中未列出的位属于保留或未使用，若硬件错误触发此类位，表示该核芯功能扩展出现不可恢复的错误。`1 << 3` 至 `1 << 6` 保留用于未来扩展（debug 异常等）；`1 << 7` 由 `cfx_ptw` 用作 `PTWERR`（§4.5），其余核芯功能扩展保留。
 
 ### 3.7 cg6 - 暂存寄存器
 
@@ -449,10 +459,39 @@ cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不�
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 8 | 8 | ptw enable | cfx_ptw_enable | 0 | RW | PTW 使能：0=关闭（`high6=0` 的访存触发 CFXMEM），1=开启（按 PTBR 走页表）。写 1 不隐含 TLB invalidate |
+| 8 | 8 | ptw enable | cfx_ptw_enable | 0 | RW | PTW 使能：0=关闭（`high6=0` 的访存触发 CFXMEM，TLB 旁路），1=开启（先查 TLB，未命中走页表）。写 1 不隐含 TLB invalidate |
 | 9 | 0 | ptw ptbr | cfx_ptw_ptbr | 0 | RW | 唯一 PTBR（单份，无数组）：只存 `PPN[55:16]`；`[15:0]` 强制为 0（64KiB 对齐），`[63:56]` 保留为 0；无 valid 位 |
+| 12 | 0 | tlb control | cfx_ptw_tlb_control | 0 | WO | TLB 失效/回写命令（写即同步执行，无完成状态）：`[1:0]` 操作 = `00=none`/`01=clean`/`10=invalid`/`11=flush`；`[3:2]` 地址范围 = `00=all`/`01=VA`/`10=range`/`11=reserved`；`bit4=ASID_ANY`；其余保留 |
+| 12 | 1 | tlb asid | cfx_ptw_tlb_asid | 0 | RW | 当前地址空间标识 ASID：`[15:0]`（16 位，所有值可用），`[63:16]` 读 0 |
+| 12 | 2 | tlb addr start | cfx_ptw_tlb_addr_start | 0 | RW | 失效操作的起始虚拟地址（`VA[41:0]`） |
+| 12 | 3 | tlb addr size | cfx_ptw_tlb_addr_size | 0 | RW | 失效操作的地址范围大小（字节） |
 
-PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.2.1–§2.2.6。TLB 命中时产生的同类异常经 `cfx_tlb` 转 `cfx_ptw` 处理（§4.6）。
+PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.2.1–§2.2.6。TLB 并入本核芯功能扩展：没有独立的 TLB 核芯功能扩展，也没有 `tlb_enable`/`tlb_exist`；TLB 命中时产生的同类异常直接进入 `cfx_ptw`。
+
+**TLB 与 ASID**
+
+- TLB 条目保存虚拟页、页大小、ASID、`G`、PPN、HSJU、R/W/X、SPF/GPF 与本地 A/D；条目数、组织与替换策略由实现决定。
+- `ptw_enable = 1` 时 TLB 参与查找，`ptw_enable = 0` 时地址转换整体旁路（TLB 不参与）；复位时 TLB 为空，`cfx_ptw_tlb_asid = 0`。
+- 匹配条件 = `(ASID 匹配) AND (地址匹配)`：条目的虚拟页覆盖被访问地址；`G = 0` 时条目 ASID 须等于 `cfx_ptw_tlb_asid`，`G = 1` 时跨 ASID 匹配。
+- 命中时不重读 PTE；miss 走页表步进，只有 PTE 有效且全部检查通过才填充。替换带未回写 A/D 的条目时须先回写。
+- 写 PTBR、写 ASID、写 `ptw_enable` 都不隐含 TLB 失效（§2.2.5）。
+
+**A/D 维护与回写**
+
+- 条目填充：`A_local = PTE.A`、`D_local = PTE.D`、`A_dirty = D_dirty = 0`（填充本身不产生回写）。
+- 读/取指命中且权限通过：`A_local = 0` ⇒ `A_local = 1`、`A_dirty = 1`；写命中且权限通过：`A_local = 0` ⇒ `A_local = 1`、`A_dirty = 1`，且 `D_local = 0` ⇒ `D_local = 1`、`D_dirty = 1`。
+- 缺页/权限失败：不更新 A/D，不填充条目。
+- 回写只把挂起的 `A`/`D` 位做**原子 OR** 写入 PTE（保留其他字段）；回写成功后清挂起位。页表页必须可写；软件清 A/D 后必须显式失效对应条目。
+
+**失效接口（正交语义）**
+
+- `cfx_ptw_tlb_control` 的三个维度互相独立：操作（`[1:0]`）、地址范围（`[3:2]`）、ASID（`bit4` = `ASID_ANY`，`1` = 所有 ASID，`0` = 匹配 `cfx_ptw_tlb_asid`）。
+- **判序**：先判操作（`[1:0]`），再判地址范围与操作数。
+  - `00 = none`：**无条件 no-op**——不报异常，且不检查地址范围编码与 `size`（`scope = 11` 或 `range` 且 `size = 0` 在该操作下同样不报异常）；`ASID_ANY`/start/size 均被忽略。
+  - `01 = clean`：回写 A/D，保留条目。`10 = invalid`：只删除条目，不回写。`11 = flush`：回写 A/D 后删除条目；回写失败时**不删除该条目**并报 `PTWERR`。这三种操作才校验地址范围编码。
+- 地址范围（仅 `clean`/`invalid`/`flush` 生效）：`00 = all` 忽略 start/size；`01 = VA` 只匹配包含 `tlb_addr_start` 的条目（忽略 size）；`10 = range` 匹配与 `[start, start+size)` 相交的条目；`11 = reserved` 或 `range` 且 `size = 0` ⇒ `CFXREG`（非法操作数）。
+- ASID 维度与 `G`：`ASID_ANY = 1` 时包含 `G = 1` 的条目；`ASID_ANY = 0` 时只处理 `G = 0` 且 ASID 匹配的条目，**不碰 `G` 条目**。
+- 正常完成（含 `none`）不产生异常；只有 `clean`/`invalid`/`flush` 的非法编码/操作数触发 `CFXREG`。
 
 **异常原因表**
 
@@ -461,6 +500,7 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 | `1 << 0`   | CFXTRAP  | 功能调用      | 否 | 指令编码         |
 | `1 << 1`   | CFXMEM   | 访问核内地址空间或内部存储块故障 | 否 | 访存地址         |
 | `1 << 2`   | CFXREG   | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
+| `1 << 7`   | PTWERR   | A/D 回写失败  | 否 | 出错的 PTE 物理地址 |
 | `1 << 8`   | NUPERM   | U-mode无权访问  | 否 | 访存地址         |
 | `1 << 9`   | NJPERM   | J-mode无权访问  | 否 | 访存地址         |
 | `1 << 10`  | NSPERM   | S-mode无权访问  | 否 | 访存地址         |
@@ -477,41 +517,7 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 | `1 << 22`  | DGPFTRAP | 数据读写普通页小页缺失 | 否 | 读写地址         |
 | `1 << 23`  | DSPFTRAP | 数据读写超页小页缺失 | 否 | 读写地址         |
 
-### 4.6 cfx_tlb - TLB management
-
-**专有寄存器表**
-
-| cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
-|----|----|---------|---------|--------|------|------|
-| 8 | 0 | tlb exist | cfx_tlb_exist | — | RO | 硬件设置，指示对应VA空间是否有TLB |
-| 8 | 8 | tlb enable | cfx_tlb_enable | 同 tlb_exist | RW | 软件配置，0=关闭，1=开启。复位后每一位等于对应 tlb_exist 位的值（即已存在 TLB 的集合默认开启） |
-| 12 | 0 | tlb control | cfx_tlb_control | 0 | WO | bit0=invalid all；bit1=invalid by addr range |
-| 12 | 1 | — | — | — | — | 保留 |
-| 12 | 2 | tlb addr start | cfx_tlb_addr_start | 0 | RW | TLB操作的起始虚拟地址 |
-| 12 | 3 | tlb addr size | cfx_tlb_addr_size | 65536 | RW | TLB操作的地址范围大小 |
-
-TLB 不再按 PTBR 索引划分集合；TLB 的组织、ASID 匹配与失效范围在后续步骤定义。
-
-TLB 操作的目标范围由 `tlb_addr_start` 和 `tlb_addr_size` 限定；invalid all 作用于全部 TLB 条目。
-
-**异常原因表**
-
-| excp cause id | 名称     | 触发条件      | 是否可屏蔽 | excp cause info |
-| --------   | ------ | --------- | ---------- | ---------    |
-| `1 << 0`   | CFXTRAP  | 功能调用      | 否 | 指令编码         |
-| `1 << 1`   | CFXMEM   | 访问核内地址空间或内部存储块故障 | 否 | 访存地址         |
-| `1 << 2`   | CFXREG   | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
-| `1 << 12`  | NXPERM   | 执行不可执行页   | 否 | 取指地址         |
-| `1 << 13`  | NWPERM   | 写不可写页     | 否 | 读写地址         |
-| `1 << 14`  | NRPERM   | 读不可读页     | 否 | 读写地址         |
-| `1 << 18`  | IGPFTRAP | 取指普通页小页缺失 | 否 | 取指地址         |
-| `1 << 19`  | ISPFTRAP | 取指超页小页缺失  | 否 | 取指地址         |
-| `1 << 22`  | DGPFTRAP | 数据读写普通页小页缺失 | 否 | 读写地址         |
-| `1 << 23`  | DSPFTRAP | 数据读写超页小页缺失 | 否 | 读写地址         |
-
-TLB 产生的上述异常是 cfx_ptw 异常原因的子集。TLB handler 应通过调用 cfx_ptw 的功能（如 SBI_PTW_HANDLE_FAULT 等）来处理，并在 ptw 处理完成返回后，根据返回值对 TLB 表项执行相应的 invalid 或填充操作。
-
-### 4.7 cfx_cache - cache organization
+### 4.6 cfx_cache - cache organization
 
 **专有寄存器表**
 
@@ -529,7 +535,7 @@ TLB 产生的上述异常是 cfx_ptw 异常原因的子集。TLB handler 应通�
 | `1 << 1`   | CFXMEM   | 访问核内地址空间或内部存储块故障 | 否 | 访存地址         |
 | `1 << 2`   | CFXREG   | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
 
-### 4.8 cfx_hart - hart management
+### 4.7 cfx_hart - hart management
 
 管理独立的指令流水线（hart）。多核时每个 hart 有独立的 cfx_hart。
 
@@ -558,7 +564,7 @@ TLB 产生的上述异常是 cfx_ptw 异常原因的子集。TLB handler 应通�
 | `1 << 8`   | IPI       | 核间中断      | 可 | 中断源 hart ID（低 6 位有效，高 58 位保留为 0） |
 | `1 << 10`  | TIMER     | 本地定时器比较匹配 | 可 | 全零 |
 
-### 4.9 cfx_llc - last level cache
+### 4.8 cfx_llc - last level cache
 
 最后一级缓存（LLC）管理，跨 hart 共享。
 
@@ -577,7 +583,7 @@ TLB 产生的上述异常是 cfx_ptw 异常原因的子集。TLB handler 应通�
 | `1 << 1`   | CFXMEM   | 访问核内地址空间或内部存储块故障 | 否 | 访存地址         |
 | `1 << 2`   | CFXREG   | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
 
-### 4.10 cfx_pmem - physical memory management
+### 4.9 cfx_pmem - physical memory management
 
 cfx_pmem 管理物理存储器（Physical Memory, PM）区域，最多支持 64 个不连续 PM 区域。PM 仅指普通 DRAM 存储器，与 device 或 MMIO 无关——device 的存储空间由各设备核芯功能扩展自行管理。
 
@@ -602,7 +608,7 @@ cfx_pmem 管理物理存储器（Physical Memory, PM）区域，最多支持 64 
 
 > shareability、inner/outer cacheability 等进阶属性留待多核 SMP 阶段再定义。当前单核 MVP 仅需 prefetchable 和 coherent 位即可满足。
 
-### 4.11 cfx_time - 全局时间计数器
+### 4.10 cfx_time - 全局时间计数器
 
 `cfx_time` 为 **per-system** 全局时间计数器，所有 hart 共享同一时间基准；只提供时间读数，不产生中断。每 hart 的定时器比较与中断由 `cfx_hart` 提供。
 
@@ -621,7 +627,7 @@ cfx_pmem 管理物理存储器（Physical Memory, PM）区域，最多支持 64 
 | `1 << 1`   | CFXMEM      | 访问核内地址空间或内部存储块故障 | 否 | 访存地址         |
 | `1 << 2`   | CFXREG      | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
 
-### 4.12 cfx_uart - uart
+### 4.11 cfx_uart - uart
 
 **专有寄存器表**
 
@@ -648,7 +654,7 @@ UART寄存器的读写操作通过 `cfx2rd`/`cfx2rc` 指令完成。若寄存器
 | ...        | ...     | ...        | 可 | 全零              |
 | `1 << 63`  | UART31  | UART31中断   | 可 | 全零              |
 
-### 4.13 cfx_power - power management
+### 4.12 cfx_power - power management
 
 **专有寄存器表**
 
@@ -706,8 +712,7 @@ X-mode（任意运行模式）下发生异常时，硬件自动执行以下操�
      - 若 cfxha 为 reserved（7-14、19-61），触发 ILLI 进入当前 monitor；若 cfxha 合法但指令 cfx mask 禁止，同样触发 ILLI
    - 其它指令执行触发的 ILLI/UNDI/RASOF/RASUF/IALIGN/MALIGN 异常：
       - 根据发生异常前的运行模式（U-mode/J-mode/S-mode/H-mode）分别判断进入 cfx_umon/cfx_jmon/cfx_smon/cfx_hmon 核芯功能扩展
-   - 页表步进中产生的异常（页缺失、权限不符等）：判断应进入 cfx_ptw 核芯功能扩展
-   - TLB 命中时产生的异常（权限不符、fragment 缺失）：判断应进入 cfx_tlb 核芯功能扩展
+   - 页表相关异常（页表步进或 TLB 命中时产生的页缺失、权限不符、fragment 缺失、A/D 回写失败等）：判断应进入 cfx_ptw 核芯功能扩展
    - CFXMEM（核内地址空间非法访问：`ptw_enable=0` 的 `high6=0` 访存，或保留 cfx 的普通 `ld/st`）：`high6=0` 时目标是当前运行模式的 cfx；否则根据核内地址高 6 位 bits[47:42] 指定的 cfxha 作为目标核芯功能扩展
    - 异步中断：根据中断源判断进入对应的核芯功能扩展
 2. **判断是否为不可屏蔽异常**：检查 `cfx_⟨cfxname⟩_excp_cause_nonmaskable` 对应位，若置1则该异常不可屏蔽，跳过步骤3-5直接进入步骤6
@@ -772,10 +777,8 @@ elif mem_access:
                 H-mode: temp_cfx_code <= 3
         else:
             temp_cfx_code  <= addr[47:42]       // 保留 cfx 的普通 ld/st → 按 cfxha 路由
-    elif from_tlb:                              // TLB命中时产生的异常 → cfx_tlb
-        temp_cfx_code  <= 5
     else:
-        temp_cfx_code  <= 4                      // 页表步进异常 → cfx_ptw
+        temp_cfx_code  <= 4                      // 页表相关异常（页表步进或 TLB 命中）→ cfx_ptw
 else:
     temp_cfx_code          <= intr_cfx               // 异步中断 → 硬件固定路由
 
@@ -888,10 +891,13 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 - PTBR 由 64 项数组改为**单份** `cfx_ptw_ptbr`（只存 `PPN[55:16]`，64 KiB 对齐，无 valid 位）；删除 `pahi`/`pthi`/`ptbr_enable` 位图与四种模式的 PTBR 权限位图。
 - 新增 `cfx_ptw_enable`：0 时 `high6=0` 访存触发 CFXMEM（不直通物理存储器），1 时按页表转换；写 PTBR / 写 1 均不隐含 TLB invalidate；复位 PTBR=0、使能=0。
 - 保留 cfx（7–14、19–61）的普通 `ld/st` → CFXMEM；`trap`/`escape` 到保留 cfx 仍为 ILLI。
-- 页表项统一为 64 位：`HSJU[63:60]`、`PPN[55:16]`（超页 `PPN[55:29]`）、`SPF/GPF[15:8]`、flags `[7:0]`（`P/SP/D/A/X/W/R`）；保留位忽略、超页 PPN 非对齐低位强制清零。
+- 页表项统一为 64 位：`HSJU[63:60]`、`PPN[55:16]`（超页 `PPN[55:29]`）、`SPF/GPF[15:8]`、flags `[7:0]`（`P/SP/D/A/G/X/W/R`）；保留位忽略、超页 PPN 非对齐低位强制清零。
 - 两级页表：L1/L2 均 64 KiB、8192 项；`VA[41:29]`/`VA[28:16]` 选索引、`VA[15:0]` 为页内偏移；超页 512 MiB、普通页 64 KiB，PA 56 位。
-- 页访问权限：HSJU 掩码 + R/W/X 正交检查；异常优先级为「页缺失 → 小页缺失 → HSJU → R/W/X」，页表步进异常进入 `cfx_ptw`。
-- A/D 只定义字段；A/D 硬件维护、TLB、DMA 与 cfx 访问权限不在本版本变更范围内。
+- 页访问权限：HSJU 掩码 + R/W/X 正交检查；异常优先级为「页缺失 → 小页缺失 → HSJU → R/W/X」；页表步进与 TLB 命中异常都进入 `cfx_ptw`。
+- PTE `bit4` 由保留改为 **Global（`G`）**：叶子 `G=1` 为全局页、TLB 中跨 ASID 复用；非叶子 `G` 忽略。
+- TLB 并入 `cfx_ptw`：删除独立 `cfx_tlb`（`cfxha 5` 未分配）与 `tlb_exist`/`tlb_enable`；16 位 ASID（`cfx_ptw_tlb_asid`）；`cfx_ptw_tlb_control`（`op/scope/ASID_ANY` 正交）+ start/size 失效接口；写 PTBR/ASID/使能均不隐含失效。
+- A/D 由硬件在 TLB 条目中维护：填充不产生回写，读/取指置 `A`、写置 `A`/`D`，`CLEAN`/`FLUSH`/替换时原子 OR 回写，`INVALID` 不写回；回写失败报 `cfx_ptw` 的 `PTWERR`（`1 << 7`，`cause_info` = PTE 物理地址）。
+- DMA 与 cfx 访问权限不在本版本变更范围内。
 
 ### 0.7.2（2026-10-26）
 
