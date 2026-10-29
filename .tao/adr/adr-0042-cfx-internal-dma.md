@@ -1,39 +1,37 @@
-# ADR-0042: CFX 核内空间、cfxin/cfxout 与 DMA
+# ADR-0042: CFX 核内空间与 cfx_pmem DMA
 
 **状态**：Proposed
-**日期**：2026-10-29
-**关联**：ADR-0039（地址空间）、ADR-0044（fence ciii）；`spec/DADAO-12` §1/§2.1/§2.2；任务（Step 4，待立）
+**日期**：2026-10-30
+**关联**：ADR-0039（地址空间）、ADR-0044（fence）；`spec/DADAO-12` §1/§2.1/§2.2；任务（Step 4，待立）
 
 ## Context（背景）
 
-cfx1–63 各有一段 42 位核内空间，CPU 可以直接 `ld/st`。大块数据需要在 cfx 内部存储与 pmem 之间搬运（cfxin/cfxout），但 DMA 不能走 VA/PTW，也不能把核内地址当物理地址。需要固定传输指令和 DMA 错误语义。
+cfx1–63 各有一段 42 位核内空间，CPU 可以直接 `ld/st`。此前考虑用 `cfxin/cfxout` 指令或每个 cfx 自带 DMA 完成块搬运，但这会把 DMA 变成通用指令语义，并要求每个 cfx 实现 DMA，职责过重。现简化为：只在 `cfx_pmem` 内提供 SRAM 和 DMA，CPU 通过 `ld/st` 访问该 SRAM，DMA 只在 SRAM 与 physical memory 之间搬运。
 
 ## Decision（决策）
 
-- **D1 核内空间**：cfx1–63 内部空间 42 位（4 TiB 逻辑空间，实际 SRAM/MMIO 可稀疏）；cfx0 没有内部空间；核内地址 = 高 6 位 cfx + 低 42 位 offset。
-- **D2 直接 ld/st**：核内存储直接 `ld/st`，同步、小数据；不设 `block_sel`；内部存储按地址映射；非法/越界/未对齐 → CFXMEM。
-- **D3 传输指令**：`cfxin/cfxout cfxha, rb_internal, rd_pa, rd_size`；`cfxha` 选 cfx，`rb_internal` 只放 42 位 offset，`rd_pa` 是 PA56，`rd_size` 是字节数。
-- **D3.1 方向/编码**：`cfxin` = PMEM→CFX（inbound，opc `0x7C`）；`cfxout` = CFX→PMEM（outbound，opc `0x7D`）；格式改为 `crrr`：`ha=cfxha`、`hb=rb_internal`、`hc=rd_pa`、`hd=rd_size`。旧 `cfxld/cfxst` 的 `crii`/`immu12` 与 64 字节/块选择接口删除。
-- **D4 语义**：PA 不经过 PTW/TLB；操作数在发射时捕获；异步 DMA；`cfxin/cfxout` 只有一个 `cfxha`，没有“发起 cfx”第二角色；`fence` 只保证顺序/可见性，不等待完成（ADR-0044）；outstanding 数量是实现细节。
-- **D5 本地 DMA**：每个 cfx 本地 DMA，不单独做 `cfx_dma`，不设 DMA 配置寄存器；CFX 内部 SRAM 大小按 4 字节倍数可配，不固定 64 KiB。
-- **D6 同步错误 `CFXLDST`**：仅用于发射时就能判定的错误（`rd_size=0`、目标 cfx 不接受的对齐/范围/MMIO、无 DMA 能力）；精确异常、不可屏蔽、DMA 未启动、无副作用；`cause_info` 记录方向/内部地址/PA/size/错误类型；目标 = `cfxha`。
-- **D7 异步错误 `CFXDMA`**：用于发射后发生的总线/超时/ECC/中途错误；异步中断、可屏蔽/pending；可能部分完成、不可回滚；目标 = `cfxha`；`cause_info` 记录同一组字段；`fence` 不清 pending。
-- **D8 编码**：`CFXLDST = 1<<3`、`CFXDMA = 1<<4`；`PTWERR=1<<7` 不变；reserved cfx 仍 `ILLI`，不归入这两个 cause。
-- **D9 传输边界**：ISA 不强制 `rd_pa`/内部地址对齐；`rd_size` 为字节数；`rd_size=0` 统一 `CFXLDST`；各 cfx 可对对齐/范围/MMIO/SRAM 加限制，不满足时 `CFXLDST`；`cfx0` 无内部空间，`cfxin/cfxout` → `CFXLDST`。
-- **D10 cfx 编号**：`cfx5` 为 cache（由原 cfx6 移入）；`cfx6–14`、`cfx19–61` reserved；reserved cfx 的 cfx 指令一律 `ILLI`。
-- **D11 与启动的关系**：第一张页表通过 `cfxin/cfxout` + PA 写入 pmem，启动细节见 ADR-0043。
+- **D1 核内空间**：cfx1–63 内部空间 42 位；cfx0 无内部空间；核内地址 = 高 6 位 cfx + 低 42 位 offset。
+- **D2 CPU 直接访问**：CPU 对任意 cfx 内部 SRAM/MMIO 用普通 `ld/st`，同步、小数据；非法/越界/未对齐 → CFXMEM。**不设 `cfxin/cfxout` 指令**。
+- **D3 cfx_pmem SRAM**：`cfx_pmem`（cfx17）内配置一段 SRAM；大小/基址由 cfx_pmem 描述/寄存器给出；CPU 可直接 `ld/st` 访问。
+- **D4 cfx_pmem DMA**：cfx_pmem 内 DMA 只在 **cfx_pmem SRAM ↔ physical memory（PA56）** 之间搬运；PA 不经 PTW/TLB；不直接访问其它 cfx 的 SRAM。
+- **D5 设备通路**：device ↔ pmem 由 CPU 中转：CPU 把 device SRAM 数据搬到 cfx_pmem SRAM，再由 DMA 写 pmem；反向同理。高带宽设备若需直连，后续另加本地 DMA，不改变本模型。
+- **D6 无 per-cfx DMA**：不在每个 cfx 后挂 DMA，不设 `cfx_dma`，不新增 DMA ISA 指令；DMA 只属于 cfx_pmem。
+- **D7 控制/状态**：DMA 由 cfx_pmem 的 rc 寄存器控制（源/目的/大小/方向/启动/状态）；CPU 写完 SRAM 后触发，DMA 完成后 CPU 才能复用。完成/错误事件用 cfx_pmem 的 status/pending；具体 cause 名与位在 Step 4 落地时定。
+- **D8 启动**：hmon 可把第一张页表写入 cfx_pmem SRAM，再由 DMA 写到 PA；PTW 可保持关闭，不需要直通 pmem 的启动洞。
+- **D9 权限**：CPU 访问 cfx_pmem SRAM 的模式权限归 Step 6；本 ADR 不定义。
 
 ## Rationale（理由）
 
-DMA 直接使用 PA，避免页表/VA 语义混入设备搬运；`cfxin/cfxout` 四寄存器格式不需要 imm 或配置寄存器，减少 rc/cg 数量。本地 DMA 避免一个共享后端成为所有 cfx 的瓶颈，也不引入新的 `cfx_dma` 编号。直接 ld/st 与块 DMA 分工明确，避免单字语义和异步语义混用。
+DMA 是内存侧资源，放在 `cfx_pmem` 最自然；CPU 直接 `ld/st` 访问各 cfx 已覆盖控制/小数据，DMA 只解决 pmem 批量搬运。这样不需要每个 cfx 实现 DMA，也不需要把块搬运塞进 ISA；设备高带宽需求可后续单独扩展。
 
 ## Consequences（影响）
 
-- 删除 `sram_block_sel/sram_addr` 一类按块选择的接口；内部存储按地址映射。
-- `cfxin/cfxout` 的 PA 不经过 PTW/TLB；启动期 PTW 关闭时也能用。
-- 页表只能放 pmem，不能放 SRAM；DMA 不能使用 VA。
-- cfx 访问权限仍由后续 CFX 权限 ADR 决定，本 ADR 不定义谁能访问哪个 cfx。
+- `cfxin/cfxout`、`crii`、`immu12`、64 字节/块选择接口全部不采用。
+- cfx_pmem 需要 SRAM + DMA 控制/状态寄存器；CPU 与 DMA 并发访问 SRAM，软件必须做所有权/双缓冲/同步。
+- device↔pmem 需 CPU 中转，带宽受 CPU 限制；这是本简化模型的明确代价。
+- 启动仍可在 PTW 关闭时用 SRAM+DMA 建第一张页表。
+- cfx5=cache、cfx6–14/19–61 reserved 的编号安排保留；权限见 Step 6。
 
 ## 状态说明
 
-Step 4 待落地；cfx 访问权限、DMA 多通道/共享后端优化后置。fence 语义见 ADR-0044；`CFXLDST`/`CFXDMA` 的编码与 spec/QEMU/测试同步在 Step 4 落地。
+用户已确认“设备↔pmem 由 CPU 中转”。`cfx_pmem` 的 SRAM 大小、DMA 寄存器布局、完成/错误 cause 名留 Step 4 落地前确定。
