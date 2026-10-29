@@ -11,14 +11,24 @@
 ## Decision（决策）
 
 - **D1 合并**：`cfx_tlb` 合并进 `cfx_ptw`；cfx5 释放；TLB 异常作为 ptw 异常子集，不再有独立 TLB 异常入口。
-- **D2 ASID**：使用独立 `ptw_tlb_asid`；TLB 按 VA/ASID/页大小匹配，不按 64 个 PTBR 集合索引。
-- **D3 操作**：
+- **D2 ASID**：16 位 `cfx_ptw_tlb_asid[15:0]`，复位 0，所有值可用；TLB 按 VA/ASID/页大小匹配，不按 64 个 PTBR 集合索引。
+- **D3 接口**：复用 `cfx_ptw` cg12，不新增 TLB 寄存器块：
+  - rc0 `cfx_ptw_tlb_control`：
+    - `[1:0]` 操作：`00=none`、`01=clean`、`10=invalid`、`11=flush`（bit0=写回 A/D，bit1=删除条目）；
+    - `[3:2]` 地址范围：`00=all`、`01=VA`、`10=range`、`11=reserved`；
+    - `bit4`：`ASID_ANY`（1=所有 ASID，0=匹配 rc1）；
+    - 其余保留。
+  - rc1 `cfx_ptw_tlb_asid`；
+  - rc2 `cfx_ptw_tlb_addr_start`；
+  - rc3 `cfx_ptw_tlb_addr_size`。
+- **D3.1 正交语义**：匹配条件为 `(ASID match) AND (address match)`；操作、ASID、地址范围三个维度独立。`all` 忽略 start/size；`VA` 只匹配包含 start 的条目，size 忽略；`range` 匹配与 `[start,start+size)` 相交的条目，size=0 → CFXREG；`addr_scope=11` → CFXREG。
+- **D3.2 操作语义**：
   - `CLEAN`：回写 A/D，保留条目；
-  - `FLUSH`：回写 A/D 并删除条目；
   - `INVALID`：只删除、不回写；
-  - 作用域：all / ASID / VA / range；单 VA 是 range 的特殊情况。
+  - `FLUSH`：回写 A/D 并删除；写回失败时**不删除该条目**并报异常；
+  - `00` 为 no-op，不报异常；命令写同步执行，无完成状态寄存器。
 - **D4 A/D dirty**：TLB 条目记录 `A_local/D_local` 与 `A_dirty/D_dirty`；fill 时若 PTE A/D 为 0 则置 dirty；evict/flush 只对 dirty 位做**原子 OR** 回写，不整 PTE 覆盖；回写后清 dirty。
-- **D5 软件负责失效**：不设 `tlb_enable`/`tlb_exist`；PTBR/`ptw_enable` 开启即启用 TLB；写 PTBR/切 ASID 不自动 flush；PTW 关闭时 TLB bypass，重新开启由软件决定是否清空。
+- **D5 软件负责失效**：不设 `tlb_enable`/`tlb_exist`；PTBR/`ptw_enable` 开启即启用 TLB；写 PTBR、写 ASID 都不自动 flush；PTW 关闭时 TLB bypass，重新开启由软件决定是否清空。
 - **D6 正常操作不异常**：CLEAN/FLUSH/INVALID 正常完成不产生异常；非法编码/操作数才 CFXREG/ILLI。
 - **D7 回写失败**：页表页必须可写；A/D 回写失败必须报异常，不能静默丢弃。
 
@@ -34,4 +44,4 @@
 
 ## 状态说明
 
-TLB 的 ASID 宽度、命令编码、寄存器布局仍需在 Step 3 落地前确认；本 ADR 先冻结行为语义。
+ASID 16 位、cg12 布局、操作/范围/ASID 正交编码已确认；Step 3 落地时只需补实现与验证，不再改接口。A/D 回写的异常/原子细节仍按 D4/D7 在 Step 3 验证。
