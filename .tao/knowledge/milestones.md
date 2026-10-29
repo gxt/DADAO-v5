@@ -53,7 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| INTEG-039t | 待开始 | 2026-10-29 10:55（登记） | Step 2：PTE/页表步进/页权限（ADR-0040；A/D 留 Step 3） |
+| INTEG-039t | 已验证 | 2026-10-29 10:55 | Step 2：PTE/页表步进/页权限（ADR-0040；A/D 留 Step 3） |
 | INTEG-038t | 已验证 | 2026-10-29 07:10 | Step 1：地址空间/PTBR/PTW 落地（ADR-0039；不含 PTE/TLB/DMA/启动） |
 | TESTCASES-084t | 已验证 | 2026-10-28 20:22 | 测试残留清理：e2e→unit/llvm、删旧链接/32 wrapper/spec 路径/补丁注释 |
 | LLVM-139t | 已验证 | 2026-10-28 18:35 | 循环指针 PHI GPRB machine pass（支配/verify/负例；lit 158、e2e 18/18） |

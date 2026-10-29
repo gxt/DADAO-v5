@@ -375,7 +375,8 @@ group = "dadao-1x"
 # 2026-10-26（SPEC-175t）：发布 0.7.2（去 -rc）；`cfx_timer`→`cfx_time`（cfxha 18 改名 `time`）+ `cfx_hart` rc1 保留/rc6 比较器/rc7 控制/TIMER 异常 + 同步不可屏蔽 + cg7 预留 + `user_*` 路由 + 版本常量；sha256 同笔重算。
 # 2026-10-26（SPEC-177t，授权原话见文件头注释）：册头/附录 → 0.7.3-rc（与 SBI 互锁；正文不变）；sha256 同笔重算。
 # 2026-10-29（INTEG-038t，Step 1 地址空间/PTBR/PTW 冻结落地）：§2/§2.1/§2.2 改 48 位 CPU 地址分区、VA42/PA56、单 PTBR（PPN[55:16]）、ptw_enable；§4.5 删 perm/pahi/pthi/ptbr_enable 并改单寄存器；§4.6/§5 同步；附录 0.7.3-rc 补条目。
-sha256 = "1b9314117e48d375c61e2895137c31a13de22fc56e79b5499066fa2247f69bdc"
+# 2026-10-29（INTEG-039t，Step 2 PTE/页表步进/页权限，ADR-0040）：§2.2.1–§2.2.6 按 ADR-0040 收口旧 32 位 PPN/顶部 SPF 布局——64 位 PTE（HSJU/PPN/SPF/GPF/flags）、两级 64 KiB 页表、512 MiB 超页、HSJU+R/W/X、异常优先级与进 cfx_ptw；§4.5 补页表步进引用；附录 0.7.3-rc 补条目；sha256 同笔重算。
+sha256 = "a73b9d7ff23149338ca521b49061b4a8fe12d3cc6c83863eef851e4f8372fed6"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -512,4 +513,5 @@ group = "machine-01"
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：指向 SimRISC-11/00 的跨册 `§` 引用改为手册名；sha256 同笔重算。
 # 2026-10-26（SPEC-176t）：semihosting 判定迁 `0x3FF00–0x3FFFF`（`immu18[17:8] == 0x3FF`）、§4.1/§4.3/§5.1 + 附录 0.3.2-rc；sha256 同笔重算。
 # 2026-10-29（INTEG-038t，Step 1 同步）：§1/§1.2/§3 改 high6=0 + ptw_enable 路由、保留 cfx 普通 ld/st → CFXMEM、测试机 cfx 范围加 cfx4 Step 1 寄存器；附录 0.3.2-rc 补条目。
-sha256 = "6b41e00e230f24ee7e2eb64ad8c7ddf2c73c667d70626ebb0bacc34e8c923b68"
+# 2026-10-29（INTEG-039t，Step 2 同步）：§1.2 ptw_enable=1 改走页表（异常进 cfx_ptw）、§3 NUPERM 触发条件与 cfx4 实现范围（含页表步进、A/D/TLB 留后续）、附录 0.3.2-rc 补条目；sha256 同笔重算。
+sha256 = "00cfaea8f37827a69045167057f65e0c63b8a447be437788218e57f43b4f9a4a"

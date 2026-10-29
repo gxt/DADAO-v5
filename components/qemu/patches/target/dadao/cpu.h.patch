@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..70b6050
+index 0000000..bfb7e84
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,278 @@
+@@ -0,0 +1,309 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -59,6 +59,12 @@ index 0000000..70b6050
 +     * there, ADR-0025 D2).
 +     */
 +    DADAO_EXCP_SYSCALL = 10,
++    /*
++     * System mode: a page-table walk fault.  The model enters cfx_ptw
++     * (DADAO-12 §5.2) with env->ptw_fault_cause / env->ptw_fault_info
++     * instead of mapping straight to an exit code.
++     */
++    DADAO_EXCP_PTW_FAULT = 11,
 +};
 +
 +/* DADAO exit codes (propagated to host $?, per ADR-0004 D5.8) */
@@ -91,7 +97,8 @@ index 0000000..70b6050
 +/* Internal address space: cfxha = addr[47:42] (DADAO-12 §2.1).  addr[47:42]
 + * == 0 is the memory window: with ptw_enable == 0 an access/fetch there is a
 + * CFXMEM (exit 0x81, cause 1<<1) because the window is never a pmem
-+ * pass-through; with ptw_enable == 1 the page-table walk (Step 2) would run.
++ * pass-through; with ptw_enable == 1 the two-level page-table walk runs
++ * (DADAO-12 §2.2.1/§2.2.2; ADR-0040 D1-D10).
 + * Reserved cfx (7-14, 19-61) plain ld/st are also CFXMEM (ADR-0039 Step 1-c).
 + * Addresses in every other unmapped segment (incl. the power segment 63,
 + * outside RAM/ROM) keep the test-machine convention 0x87 (ADR-0004 D5.8). */
@@ -102,10 +109,12 @@ index 0000000..70b6050
 +#define DADAO_ADDR_CFXHA(a) (((uint64_t)(a) >> DADAO_CFXHA_SHIFT) & DADAO_CFXHA_MASK)
 +
 +/*
-+ * Address-space Step 1 (ADR-0039 §8.5; DADAO-12 §2.2):
++ * Address space (ADR-0039 §8.5 Step 1; DADAO-12 §2.2; ADR-0040 Step 2):
 + *   - CPU address = 48 bits; addr[47:42] selects the partition.
 + *   - addr[47:42] == 0 is the memory window (VA[41:0], PTW).
 + *     ptw_enable == 0 => no translation => CFXMEM (never a pmem pass-through).
++ *     ptw_enable == 1 => two-level page-table walk; page-table pages live in
++ *     pmem and are read with physical addresses (no PTW/TLB recursion).
 + *   - addr[47:42] == 1..63 is cfx internal space (direct ld/st).
 + *   - PTBR is a single register holding PPN[55:16]; low 16 bits and bits
 + *     [63:56] are forced to zero.  Writing PTBR / enabling PTW does not
@@ -156,6 +165,24 @@ index 0000000..70b6050
 +#define DADAO_CAUSE_RASUF     (1ULL << 11)
 +#define DADAO_CAUSE_MALIGN    (1ULL << 12)
 +#define DADAO_CAUSE_IALIGN    (1ULL << 13)
++/* cfx_ptw page-level causes (DADAO-12 §4.5 cfx_ptw; ADR-0040 D6/D8). */
++#define DADAO_CAUSE_NUPERM    (1ULL << 8)
++#define DADAO_CAUSE_NJPERM    (1ULL << 9)
++#define DADAO_CAUSE_NSPERM    (1ULL << 10)
++#define DADAO_CAUSE_NHPERM    (1ULL << 11)
++#define DADAO_CAUSE_NXPERM    (1ULL << 12)
++#define DADAO_CAUSE_NWPERM    (1ULL << 13)
++#define DADAO_CAUSE_NRPERM    (1ULL << 14)
++#define DADAO_CAUSE_IGPTRAP   (1ULL << 16)
++#define DADAO_CAUSE_ISPTRAP   (1ULL << 17)
++#define DADAO_CAUSE_IGPFTRAP  (1ULL << 18)
++#define DADAO_CAUSE_ISPFTRAP  (1ULL << 19)
++#define DADAO_CAUSE_DGPTRAP   (1ULL << 20)
++#define DADAO_CAUSE_DSPTRAP   (1ULL << 21)
++#define DADAO_CAUSE_DGPFTRAP  (1ULL << 22)
++#define DADAO_CAUSE_DSPFTRAP  (1ULL << 23)
++
++#define DADAO_CFXHA_PTW        4   /* cfx4 / ptw (DADAO-12 §1) */
 +
 +/* cg0-cg3 shared ("共有") per-mode registers, rc2..rc12.  rc0 (global version)
 + * and rc1 (global cfx mask) are global registers shared by every cfx and are
@@ -232,10 +259,14 @@ index 0000000..70b6050
 +    /* ── Address-space Step 1 (ADR-0039 §8.5) ──
 +     * Single PTBR (cfx_ptw cg9 rc0): PPN[55:16]; low 16 bits and [63:56] read
 +     * as 0.  ptw_enable (cfx_ptw cg8 rc8): 0 => high6=0 accesses take CFXMEM,
-+     * 1 => page-table walk (not implemented yet; fails explicitly).  Reset
-+     * values are both 0; writes are plain stores (no implicit TLB flush). */
++     * 1 => page-table walk (DADAO-12 §2.2.1/§2.2.2).  Reset values are
++     * both 0; writes are plain stores (no implicit TLB flush). */
 +    uint64_t ptbr;
 +    uint64_t ptw_enable;
++    /* Pending page-table fault (DADAO_EXCP_PTW_FAULT): one-hot cfx_ptw
++     * cause id and the faulting virtual address (cause_info). */
++    uint64_t ptw_fault_cause;
++    uint64_t ptw_fault_info;
 +} CPUDADAOState;
 +
 +/**

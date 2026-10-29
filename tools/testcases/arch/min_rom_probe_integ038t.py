@@ -18,9 +18,9 @@ from the QEMU implementation):
   - contracts/opcodes.yaml (ld/st/jump/set.zw/or.w/cfx2rd/cfx2rc encodings).
 
 Not covered here (explicitly out of Step 1; see the task's completion notes):
-  - PTE format / page-table walk / page faults: the walk is not implemented,
-    so ptw_enable=1 is a BLOCKED case for Step 2; this probe only asserts the
-    explicit fail-closed behaviour.
+  - PTE format / page-table walk / page faults: implemented in Step 2 and
+    covered by min_rom_probe_integ039t.py; this probe only keeps the Step 1
+    fail-closed property for a page table that is not in pmem.
   - TLB invalidate semantics: the model has no TLB yet, so "no implicit
     invalidate" is a structural property of the register writes.
 
@@ -331,14 +331,18 @@ def _cfx_internal_ld_st():
     return build_rom(prog), {"exit": EXIT_PASS, "rd5": 0xCAFEF00D}
 
 
-# -- Step 1-b / BLOCKED: ptw_enable = 1 with no page walk -------------------
-@case("ptw_on_fail_closed", "ptw_enable=1 high6=0: explicit fail-closed (no silent success)")
-def _ptw_on_fail_closed():
+# -- Step 2 boundary: ptw_enable = 1 with PTBR = 0 (no page table in pmem) ---
+# The architected page walk is covered by min_rom_probe_integ039t.py; here we
+# only keep the Step 1 fail-closed property: an unbacked page table must not
+# silently succeed (PA 0 is outside the test-machine pmem).
+@case("ptw_on_unbacked_table", "ptw_enable=1 with PTBR=0: explicit fail-closed")
+def _ptw_on_unbacked_table():
     prog = load_rd(17, 1)
     prog += [cfx2rc(PTW_HA, PTW_ENABLE_CG, PTW_ENABLE_RC, 17)]
     prog += load_rb(3, VA_WINDOW) + [ld_o(5, 3, 0)]
     prog += exit_seq(0xEE)
-    return build_rom(prog), {"exit": 1, "stderr_has": "page-table walk"}
+    return build_rom(prog), {"exit": 1,
+                             "stderr_has": "page-table access outside physical memory"}
 
 
 # ---------------------------------------------------------------------------

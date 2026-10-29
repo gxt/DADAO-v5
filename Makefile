@@ -1418,8 +1418,9 @@ ARCH_SMOKE_LOG = .work/log/arch/check-arch-smoke.log
 ARCH_PROBE_LOG = .work/log/arch/check-arch-smoke-svc.log
 # L3 追加的 cfx 场景探针（原 min_rom_probe_*）：SEE/trap/escape 语义面 + RAM 映射/CFXMEM。
 # `045t` = trap/escape/cfx2* 全寄存器面；`049t` = RAM 映射 + 越界 cause；
+# `integ039t` = 地址空间 Step 2 页表步进/页权限（ADR-0040）；
 # `047t` 沿用旧期望（`stack_in_ram0` 与 bootrom.S 常量不一致）⇒ 不入本门控，见任务书遗留。
-ARCH_CFX_PROBES = 044t 045t 049t
+ARCH_CFX_PROBES = 044t 045t 049t integ039t
 
 _locked-check-arch-smoke: install-host build-bootrom
 	@test -x $(LLVM_MC_BIN) || { echo "check-arch-smoke: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }

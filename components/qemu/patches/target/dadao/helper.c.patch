@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..e81d1dc
+index 0000000..c8e0276
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,1176 @@
+@@ -0,0 +1,1357 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -28,6 +28,7 @@ index 0000000..e81d1dc
 +#include "cpu.h"
 +#ifndef CONFIG_USER_ONLY
 +#include "system/runstate.h"
++#include "system/address-spaces.h"
 +#endif
 +#include "accel/tcg/cpu-ops.h"
 +#include "accel/tcg/cpu-loop.h"
@@ -45,6 +46,12 @@ index 0000000..e81d1dc
 +#endif
 +
 +#ifndef CONFIG_USER_ONLY
++/* DADAO-12 §5 exception-entry flow (defined below; used by the page-fault
++ * path in dadao_cpu_do_interrupt / dadao_cpu_tlb_fill). */
++static uint64_t cfx_enter(CPUDADAOState *env, uint64_t cause, int target,
++                          uint64_t cause_ip, uint64_t cause_info,
++                          bool sync, bool *entered);
++
 +/* Map QEMU-internal exception index to ADR-0004 exit code */
 +static int dadao_excp_to_exit_code(int excp)
 +{
@@ -98,6 +105,35 @@ index 0000000..e81d1dc
 +    }
 +
 +    /*
++     * Page-table walk fault (DADAO-12 §5.2 "页表步进中产生的异常 ... 进入
++     * cfx_ptw"; ADR-0040 D8): run the normal §5 exception-entry flow with
++     * target cfx_ptw and continue at its vector.  All cfx_ptw page causes are
++     * listed as non-maskable (§4.5), so entry must succeed; a redirected or
++     * masked fault would mean the cause mask was built wrong -- fail loudly.
++     */
++    if (cs->exception_index == DADAO_EXCP_PTW_FAULT) {
++        bool entered = false;
++
++        /* Do not override an already pending clean shutdown (same rule as the
++         * generic fault path below). */
++        if (qemu_shutdown_requested_get() != SHUTDOWN_CAUSE_NONE) {
++            return;
++        }
++        uint64_t vec = cfx_enter(env, env->ptw_fault_cause, DADAO_CFXHA_PTW,
++                                 env->pc, env->ptw_fault_info, true, &entered);
++
++        if (!entered) {
++            error_report("dadao: page-table fault (cause=%016" PRIx64
++                         ", VA=%016" PRIx64 ") could not enter cfx_ptw",
++                         env->ptw_fault_cause, env->ptw_fault_info);
++            exit(1);
++        }
++        env->pc = vec;
++        env->rb[0] = env->pc;
++        return;
++    }
++
++    /*
 +     * M1: no guest exception handler. QEMU directly maps fault → exit code
 +     * and exits. Per ADR-0004 D6.1, this avoids pre-setting future exception
 +     * model. The exit code is propagated to host $? via
@@ -117,6 +153,125 @@ index 0000000..e81d1dc
 +    qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
 +                                           exit_code);
 +    cpu_exit(cs);
++}
++
++/*
++ * PTE field layout (DADAO-12 §2.2.3/§2.2.4; ADR-0040 D1/D9).
++ *
++ *   [63:60] HSJU   H=63, S=62, J=61, U=60
++ *   [59:56] reserved (ignored)
++ *   [55:16] PPN    ([55:29] for a superpage)
++ *   [15:8]  SPF (L1 superpage) / GPF (L2 page); bit8 = lowest fragment
++ *   [7] R  [6] W  [5] X  [4] reserved  [3] A  [2] D  [1] SP  [0] P
++ */
++#define DADAO_PTE_PPN_MASK   0x00FFFFFFFFFF0000ULL  /* PPN[55:16] */
++#define DADAO_PTE_SPPN_MASK  0x00FFFFFFE0000000ULL  /* PPN[55:29] */
++#define DADAO_PTE_FRAG_SHIFT 8
++#define DADAO_PTE_P          (1ULL << 0)
++#define DADAO_PTE_SP         (1ULL << 1)
++#define DADAO_PTE_X          (1ULL << 5)
++#define DADAO_PTE_W          (1ULL << 6)
++#define DADAO_PTE_R          (1ULL << 7)
++
++/* Page-table walk result: 1 = mapped, 0 = fault (*cause set), -1 = the PTE
++ * itself could not be read from memory (outside pmem; undefined by the
++ * architecture, so the caller fails explicitly rather than inventing a cause).
++ */
++static int dadao_ptw_read_pte(hwaddr pa, uint64_t *pte)
++{
++    MemTxResult res = MEMTX_OK;
++
++    /* Physical memory (pmem) is the system address space; reading it here
++     * bypasses the PTW/TLB by construction (ADR-0040 D2/§2.2.1 step 3). */
++    *pte = address_space_ldq_be(&address_space_memory, pa,
++                                MEMTXATTRS_UNSPECIFIED, &res);
++    return res == MEMTX_OK ? 0 : -1;
++}
++
++static int dadao_ptw_walk(CPUDADAOState *env, uint64_t va,
++                          MMUAccessType access_type, hwaddr *paddr,
++                          uint64_t *cause, int *prot)
++{
++    bool fetch = (access_type == MMU_INST_FETCH);
++    uint64_t l1pa = (env->ptbr & DADAO_PTBR_MASK) + (((va >> 29) & 0x1FFF) << 3);
++    uint64_t hsju = 1ULL << (60 + (env->inner_run_mode & 0x3));
++    uint64_t pte;
++    int frag;
++
++    if (dadao_ptw_read_pte(l1pa, &pte) < 0) {
++        return -1;
++    }
++
++    /* Step 1: L1 present / superpage (DADAO-12 §2.2.1/§2.2.2 step 3). */
++    if (!(pte & DADAO_PTE_P)) {
++        if (pte & DADAO_PTE_SP) {
++            *cause = fetch ? DADAO_CAUSE_ISPTRAP : DADAO_CAUSE_DSPTRAP;
++        } else {
++            *cause = fetch ? DADAO_CAUSE_IGPTRAP : DADAO_CAUSE_DGPTRAP;
++        }
++        return 0;
++    }
++
++    if (pte & DADAO_PTE_SP) {
++        /* Step 2: 512 MiB superpage + SPF fragment presence. */
++        frag = (va >> 26) & 0x7;
++        if (!(pte & (1ULL << (DADAO_PTE_FRAG_SHIFT + frag)))) {
++            *cause = fetch ? DADAO_CAUSE_ISPFTRAP : DADAO_CAUSE_DSPFTRAP;
++            return 0;
++        }
++        /* PPN[28:16] is forced to zero (ADR-0040 D9): mask, never fault. */
++        *paddr = (pte & DADAO_PTE_SPPN_MASK) | (va & 0x1FFFFFFFULL);
++    } else {
++        /* Step 2: L2 table, then a 64 KiB normal page + GPF fragment. */
++        uint64_t l2pa = (pte & DADAO_PTE_PPN_MASK) +
++                        (((va >> 16) & 0x1FFF) << 3);
++
++        if (dadao_ptw_read_pte(l2pa, &pte) < 0) {
++            return -1;
++        }
++        if (!(pte & DADAO_PTE_P)) {
++            *cause = fetch ? DADAO_CAUSE_IGPTRAP : DADAO_CAUSE_DGPTRAP;
++            return 0;
++        }
++        frag = (va >> 13) & 0x7;
++        if (!(pte & (1ULL << (DADAO_PTE_FRAG_SHIFT + frag)))) {
++            *cause = fetch ? DADAO_CAUSE_IGPFTRAP : DADAO_CAUSE_DGPFTRAP;
++            return 0;
++        }
++        *paddr = (pte & DADAO_PTE_PPN_MASK) | (va & 0xFFFFULL);
++    }
++
++    /* Step 3: HSJU (current run mode) before R/W/X (ADR-0040 D6-D8). */
++    if (!(pte & hsju)) {
++        switch (env->inner_run_mode & 0x3) {
++        case DADAO_MODE_USER: *cause = DADAO_CAUSE_NUPERM; break;
++        case DADAO_MODE_JAIL: *cause = DADAO_CAUSE_NJPERM; break;
++        case DADAO_MODE_SUPV: *cause = DADAO_CAUSE_NSPERM; break;
++        default:              *cause = DADAO_CAUSE_NHPERM; break;
++        }
++        return 0;
++    }
++
++    /* Step 4: R/W/X, orthogonal to HSJU (ADR-0040 D7). */
++    if (fetch) {
++        if (!(pte & DADAO_PTE_X)) {
++            *cause = DADAO_CAUSE_NXPERM;
++            return 0;
++        }
++    } else if (access_type == MMU_DATA_STORE) {
++        if (!(pte & DADAO_PTE_W)) {
++            *cause = DADAO_CAUSE_NWPERM;
++            return 0;
++        }
++    } else if (!(pte & DADAO_PTE_R)) {
++        *cause = DADAO_CAUSE_NRPERM;
++        return 0;
++    }
++
++    *prot = ((pte & DADAO_PTE_R) ? PAGE_READ : 0) |
++            ((pte & DADAO_PTE_W) ? PAGE_WRITE : 0) |
++            ((pte & DADAO_PTE_X) ? PAGE_EXEC : 0);
++    return 1;
 +}
 +
 +bool dadao_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
@@ -141,26 +296,52 @@ index 0000000..e81d1dc
 +    CPUDADAOState *env = cpu_env(cs);
 +    uint64_t addr = address & DADAO_ADDR_MASK;
 +    unsigned cfxha = DADAO_ADDR_CFXHA(addr);
++    uint64_t cause = 0;
++    int ret;
 +    int prot;
 +    hwaddr paddr;
 +
 +    if (cfxha == DADAO_CFXHA_MEM) {
-+        if (env->ptw_enable & 1) {
++        if (!(env->ptw_enable & 1)) {
++            /* ptw_enable == 0: the window is never a pmem pass-through. */
 +            if (probe) {
 +                return false;
 +            }
-+            error_report("dadao: ptw_enable=1 requires the page-table walk, "
-+                         "which is not implemented in address-space Step 1 "
-+                         "(VA=%016" PRIx64 ")", addr);
-+            exit(1);
-+        }
-+        if (probe) {
++            cs->exception_index = DADAO_EXCP_CFXMEM;
++            cpu_loop_exit_restore(cs, retaddr);
++            /* not reached */
 +            return false;
 +        }
-+        cs->exception_index = DADAO_EXCP_CFXMEM;
-+        cpu_loop_exit_restore(cs, retaddr);
-+        /* not reached */
-+        return false;
++
++        /* ptw_enable == 1: two-level page-table walk (DADAO-12
++         * §2.2.1/§2.2.2; ADR-0040).  Page-table pages are read with physical
++         * addresses through the address space, never through this function,
++         * so the walk cannot recurse. */
++        ret = dadao_ptw_walk(env, addr, access_type, &paddr, &cause, &prot);
++        if (ret < 0) {
++            /* Architecture does not define a page-table page outside pmem
++             * (Machine-01: page tables live in pmem).  Fail loudly instead of
++             * inventing a page-fault cause. */
++            if (probe) {
++                return false;
++            }
++            error_report("dadao: page-table access outside physical memory "
++                         "(VA=%016" PRIx64 ", PTBR=%016" PRIx64 ")",
++                         addr, env->ptbr);
++            exit(1);
++        }
++        if (ret == 0) {
++            if (probe) {
++                return false;
++            }
++            env->ptw_fault_cause = cause;
++            env->ptw_fault_info = addr;
++            cs->exception_index = DADAO_EXCP_PTW_FAULT;
++            cpu_loop_exit_restore(cs, retaddr);
++            /* not reached */
++            return false;
++        }
++        goto map;
 +    }
 +
 +    /* RAM (ADR-0004 R3 + rev. 2026-10-11): the single 16 MiB RAM at
