@@ -30,9 +30,10 @@ atomic_builtins.c the ``__atomic_*`` matrix, neighbour bytes of sub-word RMW,
 aba_treiber.c    Treiber invariants + tagged-ABA replay, ``--rounds`` rounds
 barrier_probe.c  structural: ``fence`` count in ``clang -S`` and
                  ``llvm-objdump -d`` == the oracle's a_barrier site count, and
-                 every ``fence`` carries the full-barrier immediate 975
-                 (0x3CF); the runtime ordering observation is a note, not a
-                 check (a single-hart user-mode run is insensitive)
+                 every ``fence`` carries the full-barrier immediate 4095
+                 (0xFFF, all six access classes); the runtime ordering
+                 observation is a note, not a check (a single-hart user-mode
+                 run is insensitive)
 
 Usage
 -----
@@ -285,7 +286,7 @@ def check_aba(ctx):
 def fence_lines(text):
     vals = []
     for line in text.splitlines():
-        m = re.search(r"\bfence\s+(0x[0-9a-fA-F]+|\d+)\b", line)
+        m = re.search(r"\bfence\s+[^,]+,\s*(0x[0-9a-fA-F]+|\d+)\b", line)
         if m:
             vals.append(int(m.group(1), 0))
     return vals
@@ -322,9 +323,9 @@ def check_barrier(ctx):
             vals = fence_lines(f.read())
         ctx.add("barrier fence count (asm)", sites, len(vals),
                 len(vals) == sites)
-        bad = [v for v in vals if v != 975]
-        ctx.add("barrier fence immediate all 0x3CF (asm)", [], bad,
-                not bad, detail="0x3CF = full barrier")
+        bad = [v for v in vals if v != 4095]
+        ctx.add("barrier fence immediate all 0xFFF (asm)", [], bad,
+                not bad, detail="0xFFF = all six access classes")
     rc, out, _ = run([ctx.args.objdump, "-d", elf])
     if rc != 0:
         ctx.add("barrier objdump", 0, rc, False, detail=out[-500:])
@@ -332,8 +333,8 @@ def check_barrier(ctx):
         vals = fence_lines(out)
         ctx.add("barrier fence count (objdump)", sites, len(vals),
                 len(vals) == sites)
-        bad = [v for v in vals if v != 975]
-        ctx.add("barrier fence immediate all 0x3CF (objdump)", [], bad,
+        bad = [v for v in vals if v != 4095]
+        ctx.add("barrier fence immediate all 0xFFF (objdump)", [], bad,
                 not bad)
 
 

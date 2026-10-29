@@ -41,9 +41,9 @@ define void @store_atomic_i8(i8 %v) {
 define void @store_atomic_i16(i16 %v) {
 ; CHECK-LABEL: store_atomic_i16:
 ; CHECK: add.sw [[V:rd[0-9]+]], rd{{[0-9]+}}, rd{{[0-9]+}}
-; CHECK: fence 975
+; CHECK: fence cfx_umon, 4095
 ; CHECK: st.w [[V]], [rb{{[0-9]+}}, {{-?[0-9]+}}]
-; CHECK: fence 975
+; CHECK: fence cfx_umon, 4095
 ; CHECK-NOT: rb2rd
   %x = add i16 %v, 5
   store atomic i16 %x, ptr @g16 seq_cst, align 2
@@ -54,9 +54,9 @@ define void @store_atomic_i16(i16 %v) {
 define void @store_atomic_i32(i32 %v) {
 ; CHECK-LABEL: store_atomic_i32:
 ; CHECK: add.st [[V:rd[0-9]+]], rd{{[0-9]+}}, rd{{[0-9]+}}
-; CHECK: fence 975
+; CHECK: fence cfx_umon, 4095
 ; CHECK: st.t [[V]], [rb{{[0-9]+}}, {{-?[0-9]+}}]
-; CHECK: fence 975
+; CHECK: fence cfx_umon, 4095
 ; CHECK-NOT: rb2rd
   %x = add i32 %v, 7
   store atomic i32 %x, ptr @g32 seq_cst, align 4
@@ -66,7 +66,7 @@ define void @store_atomic_i32(i32 %v) {
 ; 8-byte store (release: trailing fence only).
 define void @store_atomic_i64(i64 %v) {
 ; CHECK-LABEL: store_atomic_i64:
-; CHECK: fence 194
+; CHECK: fence cfx_umon, 3104
 ; CHECK: add.si [[V:rd[0-9]+]], 9
 ; CHECK: st.o [[V]], [rb{{[0-9]+}}, {{-?[0-9]+}}]
 ; CHECK-NOT: fence

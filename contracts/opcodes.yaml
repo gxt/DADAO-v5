@@ -2420,14 +2420,17 @@
   spec_cite: 'SimRISC-11: trap'
   scope: m1
   rule_refs: []
-- id: fence_oiii_imm
+- id: fence_ciii_cfx
   mnemonic: fence
-  format: oiii
-  opc: '0x47'
-  ha: '0x20'
-  mask: '0xFFFC0000'
-  value: '0x47800000'
+  format: ciii
+  opc: '0x79'
+  mask: '0xFF000000'
+  value: '0x79000000'
   fields:
+  - name: cfxha
+    bits: '[23:18]'
+    role: cfxcode
+    bank: imm
   - name: immu18
     bits: '[17:0]'
     role: imm
@@ -2435,12 +2438,12 @@
     signed: false
   legality:
   - immu18[17:12] == 0
-  - immu18[11:10] == 0
-  - immu18[5:4] == 0
-  spec_cite: 'SimRISC-12: fence'
+  - cfxha <= 6 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
+  spec_cite: 'SimRISC-11: fence'
   scope: m9
   rule_refs:
   - encode_sbz
+  - encode_cfx_reserved
 - id: swym_oiii_imm
   mnemonic: swym
   format: oiii

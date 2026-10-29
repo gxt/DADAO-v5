@@ -22,12 +22,12 @@
 ; i64 CAS: 8-byte window, acquire on the load and release on the store.
 define i64 @cas64(ptr %p, i64 %c, i64 %n) {
 ; CHECK-LABEL: cas64:
-; CHECK: fence 975
+; CHECK: fence cfx_umon, 4095
 ; CHECK: lr.o.an [[OLD:rd[0-9]+]], [rb{{[0-9]+}}]
 ; CHECK-NEXT: br.ne {[[OLD]], rd{{[0-9]+}}}?, [rb0,
 ; CHECK: sc.o.ar [[OK:rd[0-9]+]], rd{{[0-9]+}}, [rb{{[0-9]+}}]
 ; CHECK-NEXT: br.nz {[[OK]]}?, [rb0,
-; CHECK: fence 975
+; CHECK: fence cfx_umon, 4095
   %r = cmpxchg ptr %p, i64 %c, i64 %n seq_cst seq_cst
   %v = extractvalue { i64, i1 } %r, 0
   ret i64 %v
@@ -36,13 +36,13 @@ define i64 @cas64(ptr %p, i64 %c, i64 %n) {
 ; i32 CAS with acquire ordering: tetra window, only a trailing acquire fence.
 define i32 @cas32_acq(ptr %p, i32 %c, i32 %n) {
 ; CHECK-LABEL: cas32_acq:
-; CHECK-NOT: fence 975
+; CHECK-NOT: fence cfx_umon, 4095
 ; CHECK: lr.t.an [[OLD:rd[0-9]+]], [rb{{[0-9]+}}]
 ; CHECK-NEXT: br.ne {[[OLD]], rd{{[0-9]+}}}?, [rb0,
 ; CHECK: sc.t.ar [[OK:rd[0-9]+]], rd{{[0-9]+}}, [rb{{[0-9]+}}]
 ; CHECK-NEXT: br.nz {[[OK]]}?, [rb0,
-; CHECK: fence 67
-; CHECK-NOT: fence 975
+; CHECK: fence cfx_umon, 1072
+; CHECK-NOT: fence cfx_umon, 4095
   %r = cmpxchg ptr %p, i32 %c, i32 %n acquire monotonic
   %v = extractvalue { i32, i1 } %r, 0
   ret i32 %v
@@ -51,7 +51,7 @@ define i32 @cas32_acq(ptr %p, i32 %c, i32 %n) {
 ; i16 CAS: wyde window only (no word read-modify-write of the 4-byte neighbour).
 define i16 @cas16(ptr %p, i16 %c, i16 %n) {
 ; CHECK-LABEL: cas16:
-; CHECK: fence 975
+; CHECK: fence cfx_umon, 4095
 ; CHECK: lr.w.an [[OLD:rd[0-9]+]], [rb{{[0-9]+}}]
 ; CHECK-NEXT: br.ne {[[OLD]], rd{{[0-9]+}}}?, [rb0,
 ; CHECK-NOT: lr.o
@@ -60,7 +60,7 @@ define i16 @cas16(ptr %p, i16 %c, i16 %n) {
 ; CHECK-NEXT: br.nz {[[OK]]}?, [rb0,
 ; CHECK-NOT: sc.o
 ; CHECK-NOT: sc.t
-; CHECK: fence 975
+; CHECK: fence cfx_umon, 4095
   %r = cmpxchg ptr %p, i16 %c, i16 %n seq_cst seq_cst
   %v = extractvalue { i16, i1 } %r, 0
   ret i16 %v

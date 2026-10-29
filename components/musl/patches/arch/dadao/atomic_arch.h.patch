@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/atomic_arch.h b/arch/dadao/atomic_arch.h
 new file mode 100644
-index 0000000..fc5013d
+index 0000000..f46a6c9
 --- /dev/null
 +++ b/arch/dadao/atomic_arch.h
-@@ -0,0 +1,138 @@
+@@ -0,0 +1,136 @@
 +/*
 + * DADAO atomic primitives -- real atomics built from lr/sc + fence.
 + *
@@ -65,14 +65,12 @@ index 0000000..fc5013d
 + * 3. ABA is not detected: sc compares the whole guarded word with the value
 + *    observed by lr, so a concurrent write that restores the same value is
 + *    invisible.  This is the limit of the machine's own reservation.
-+ * 4. a_barrier is a full hardware fence -- pred = succ = R|W|I|O, i.e.
-+ *    immu18 = 0x3CF (fm = 0) -- plus the compiler "memory" clobber.  The
-+ *    immediate is the one the backend uses for acquire-release/seq-cst
-+ *    (the backend emits `fence 975` for them), keeping
-+ *    inline asm and compiler-generated barriers identical.  The I/O bits are
-+ *    set in the encoding as SimRISC-11 §4.1 requires; device I/O ordering
-+ *    itself has no execution surface on this machine (QEMU-067t's "no device
-+ *    I/O" premise).
++ * 4. a_barrier is a full hardware fence -- pred = succ = all six classes
++ *    (cr/cw/ci/co/mr/mw), i.e. immu18 = 0xFFF on all cfx (cfx0) -- plus the
++ *    compiler "memory" clobber.  The immediate is the one the backend uses
++ *    for acquire-release/seq-cst (the backend emits `fence cfx_umon, 4095`
++ *    for them), keeping inline asm and compiler-generated barriers identical.
++ *    Device I/O ordering has no execution surface on this machine.
 + * 5. `lr.t` zero-extends the loaded 32-bit value, so the compare value is
 + *    canonicalized to the same representation (ext.uo ..., 31) before the
 + *    branch.  Measured with the current backend, an `int` argument is already
@@ -139,6 +137,6 @@ index 0000000..fc5013d
 +#define a_barrier a_barrier
 +static inline void a_barrier(void)
 +{
-+	/* full hardware fence: fm = 0, pred = succ = R|W|I|O => immu18 = 0x3CF */
-+	__asm__ __volatile__("fence 975" : : : "memory");
++	/* full hardware fence: cfx0 (all cfx), pred = succ = all six classes */
++	__asm__ __volatile__("fence cfx_umon, 4095" : : : "memory");
 +}

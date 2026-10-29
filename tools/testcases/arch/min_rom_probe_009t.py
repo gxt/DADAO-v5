@@ -170,8 +170,8 @@ def br_ne(rdha, rdhb, imms12):
     return encode_rrii(0x6F, rdha, rdhb, hc, hd)
 
 def fence():
-    """fence 0 (op=0x47, ha=0x20; SPEC-164t: OPC-MISC migrated to op 0x47)."""
-    return encode_oiii(0x47, 0x20, 0)
+    """fence cfx0, 0 (ciii op=0x79; ADR-0044: no-op padding)."""
+    return struct.pack('>I', 0x79000000)
 
 def swym():
     return encode_oiii(0x47, 0x22, 0)

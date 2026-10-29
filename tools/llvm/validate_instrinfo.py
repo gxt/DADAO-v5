@@ -33,7 +33,7 @@ Checks
      （可捕获凭空编码与注入的 mnemonic/op 漂移）。
   4. mapping：join key 在两侧均唯一（无歧义映射）。
   5. non-m1 policy：.td 中的非 m1/fp def 仅限显式 allow-list
-     （scope:m3、scope:m8、scope:m9，以及 MC 层仍需的个别 scope:excluded，如 fence）。
+     （scope:m3、scope:m8、scope:m9，以及 MC 层仍需的个别 scope:excluded）。
   6. format：.td 中 m1 def 用到的格式类集合 == scope:m1 记录的格式集合
      （fp 同口径另加一条，ISS-320）。
 
@@ -85,13 +85,11 @@ FMT_BY_CLASS = {
 #   - scope:m8  -> new ISA instructions (ADR-0012 D10 / SPEC-142t).
 #   - scope:m9  -> `rol` (ADR-0032 D4 as amended 2026-10-19 / LLVM-116t).
 #   - scope:excluded -> still needed by the MC layer (assemble/disassemble) even
-#     though execution traps with ILLI.  SPEC-039t moved `fence` out of M1 but
-#     kept its def so llvm-mc can assemble it (see tests/unit/llvm/lit/MC/DADAO/oiii.s).
+#     though execution traps with ILLI.
 #     LLVM-060t defined the four privileged cfx instructions (crrr/ciii) while
 #     they were scope:excluded; SPEC-115t re-scoped them to m1, so they are no
 #     longer in this allow-list and now satisfy the M1 baseline check directly.
 MC_ONLY_EXCLUDED_IDS = frozenset({
-    "fence_oiii_imm",
     # ftfma/fofma (SPEC-158t): 已由 `excluded` 转入 `fp`，由 FP 覆盖检查
     # （66/66）承接，不再列入本 allow-list。
     # clmul.o (ADR-0035 D7 / LLVM-122t): encoding and semantics are fixed, the

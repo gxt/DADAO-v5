@@ -164,7 +164,8 @@
 | `orrr` | `助记符 dst, src1, src2` | `or.o rd8, rd9, rd10` | — |
 | `orri` | `助记符 dst, src, immu6` | `ext.uo rd8, rd0, 1` | — |
 | `orri`（块赋值/格式转换） | `助记符 {dst:…}, {src:…}` | `ra2rd {rd8:rd10}, {ra1:ra3}` | `immu6` = 连续寄存器个数 |
-| `oiii` | `助记符 immu18` | `fence 0`、`swym 0` | 纯立即数，不加 `[]` |
+| `oiii` | `助记符 immu18` | `swym 0` | 纯立即数，不加 `[]` |
+| `ciii`（`fence`） | `助记符 cfxHA, immu18` | `fence cfx0, immu18` | `cfx0`/`cfx_umon` = all cfx |
 
 **特权 cfx 格式（`crrr`/`crii`/`ciii`）与 LR-SC 的书写规则**（同规则、供对照；`crrr`/`ciii` 现为 `scope: m1`，`crii` 仍 `scope: excluded`）[Toolchain-01 §5][ADR-0013 D8]：
 

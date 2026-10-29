@@ -172,7 +172,7 @@
 
 - 原专门非法指令（原 `oiii`，恒 ILLI）已于 `ADR-0012 D3.5` 删除；`ILLI` 异常保留，
   由非法操作数/条件/已定义未实现编码触发。故 M1 范围内**当前无**恒 fault 指令，
-  F6 豁免暂无适用对象；`fence`（`scope: excluded`，decode ILLI）不属 M1，不在此列。
+  F6 豁免暂无适用对象；`fence`（`scope: m9`，已实现）不属 M1，不在此列。
 
 **例外（理由不同，不得混同）**：`ret-riii` 亦无 `encoding` case，但**并非**恒 fault
 ——`ret` 的返回目标依赖 harness 布局、单指令不可构造。其理由与处置见
@@ -199,7 +199,7 @@
 ## 覆盖率要求
 
 - **M1 scope**：`contracts/opcodes.yaml` 中 `scope == "m1"` 的 **151 条**。
-  不得排除 RA 存取/块赋值或 `swym`；`fence` 已排除（ADR-0014 D1）；原专门非法指令已删除（ADR-0012 D3.5）。
+  不得排除 RA 存取/块赋值或 `swym`；`fence` 属 `scope: m9`（ADR-0044 起为 `ciii`）；原专门非法指令已删除（ADR-0012 D3.5）。
 - **主键 `id`**（对应 `contracts/opcodes.yaml` 的 `id`，**唯一**）。
   `format` 保留为普通字段，不入覆盖率主键。
 - 每个 M1 身份 `id` 至少 1 条对应 class 的 case；算术/移位类还需

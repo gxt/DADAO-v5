@@ -170,15 +170,16 @@ def _build_positive(rec):
         return "%s [rb0, 12]" % mn, {"imms24": imm}, "iiii"
 
     if fmt == "oiii":
-        if mn == "fence":
-            # §5 fence 的 SBZ 约束：immu18[17:12]=[11:6]=[5:4]=0
-            return "fence 0", {"immu18": 0}, "oiii-fence"
         return "swym 8", {"immu18": 8}, "oiii-swym"
 
     if fmt == "ciii":
         if mn == "escape":
             return ("escape cfx63, [excp_cause_ip, 8]",
                     {"cfxha": 63, "imms18": 8 >> 2}, "ciii-escape")
+        if mn == "fence":
+            # ADR-0044 D3: hb=immu18[17:12]=0; pred=1 (cr), succ=0 => immu18=0x40.
+            return ("fence cfx63, 64",
+                    {"cfxha": 63, "immu18": 0x40}, "ciii-fence")
         return "trap cfx63, 1", {"cfxha": 63, "immu18": 1}, "ciii-trap"
 
     if fmt == "crrr":

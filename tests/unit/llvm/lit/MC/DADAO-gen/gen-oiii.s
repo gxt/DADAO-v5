@@ -11,11 +11,6 @@
 
 .text
 
-@@ @src fence_oiii_imm 47800000 | SimRISC-12: fence
-@@ OBJ: {{[0-9a-f]+:}} 47 80 00 00{{.*}}fence
-@@ ASM: fence 0
-fence 0
-
 @@ @src swym_oiii_imm 47880008 | SimRISC-12: swym
 @@ OBJ: {{[0-9a-f]+:}} 47 88 00 08{{.*}}swym
 @@ ASM: swym 8

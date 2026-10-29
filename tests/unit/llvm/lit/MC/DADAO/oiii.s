@@ -2,15 +2,8 @@
 @@ RUN: %llvm_objdump -d --triple=dadao-unknown-elf %t | %FileCheck %s --check-prefix=OBJ
 @@ RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=asm %s | %FileCheck %s --check-prefix=ASM
 
-@@ oiii format: opx + immediate instructions (fence, swym)
+@@ oiii format: opx + immediate instructions (swym)
 @@ Encoding: word = (op<<24)|(ha<<18)|(imm18 & 0x3FFFF)
-
-@@ fence 0
-@@ op=0x47, ha=0x20(fence), imm18=0
-@@ word = (0x47<<24)|(0x20<<18)|0 = 0x47800000
-@@ OBJ: {{[0-9a-f]+:}} 47 80 00 00{{.*}}fence{{.*}}0
-@@ ASM: fence 0
-fence 0
 
 @@ swym 0
 @@ op=0x47, ha=0x22(swym), imm18=0

@@ -139,7 +139,7 @@ FEATURE_OVERRIDE = {
     "jump": "rb",
     # call 压栈 / ret 弹栈均走 RegRAS（ra）——用户裁定 2026-09-25
     "call": "ra", "ret": "ra",
-    "swym": "imm", "fence": "imm",
+    "swym": "imm", "fence": "cfx",
     "escape": "cfx", "trap": "cfx",
 }
 
@@ -174,8 +174,9 @@ def primary_feature(entry: dict, ops: list[dict]) -> str:
 def classify(entry: dict) -> str:
     """章节分类（优先级：cfx > rwii > 取数存数 > 控制流 > 寄存器复制 > 浮点运算 > 位宽 > 64位运算 > 其它）。"""
     m = entry["mnemonic"]
-    # 核芯功能扩展 = 带 cfx 的 6 条（`cfxld`/`cfxst` 语义待定，同册）
-    if m in ("trap", "escape", "cfx2rd", "cfx2rc", "cfxld", "cfxst"):
+    # 核芯功能扩展 = 带 cfx 的 7 条（`cfxld`/`cfxst` 语义待定，同册；
+    # `fence` 的 ha 是 cfxha，ADR-0044 起同册）
+    if m in ("trap", "escape", "cfx2rd", "cfx2rc", "cfxld", "cfxst", "fence"):
         return "核芯功能扩展"
     if entry["format"] == "rwii":
         return "16位立即数操作"
@@ -397,6 +398,8 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
         return f"{mnemonic} cfxHA, [excp_cause_ip, imms20]"
     if mnemonic == "trap":
         return f"{mnemonic} cfxHA, immu18"
+    if mnemonic == "fence":
+        return f"{mnemonic} cfxHA, immu18"
 
     # LR-SC 家族（lr 的 rdhb 固定 rd0，汇编只写两个操作数）
     if mnemonic.startswith(_LR_PREFIXES):
@@ -407,7 +410,7 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
     # rwii —— 保持 wpN
     if fmt == "rwii":
         return f"{mnemonic} {R(ops[0])}, wpN, immu16"
-    if mnemonic in ("swym", "fence"):
+    if mnemonic == "swym":
         return f"{mnemonic} {field_name(imm_ops[0]['name']) if (field and imm_ops) else '0'}"
     # 双目的指令（rrrr 格式，rdha/rdhb 均为 dst）：{rdHA, rdHB}, rdHC, rdHD
     if fmt == "rrrr" and mnemonic in _DUAL_TARGET_MNEMONICS:

@@ -524,3 +524,7 @@
 - **2026-10-28 TESTCASES-084t**
   - 摘要：**补丁注释清理（无功能改动，`series` 98 不变）**：`DADAOSubtarget.{h,cpp}` 与 `DADAOISelLowering.cpp` 中指向测试路径（含已删的旧路径）的注释改为语义说明（「freestanding `mem*` runtime linked by the test harness」/「the CodeGen atomics/fence lit test」），不再交叉引用测试目录；导出内容仅注释行变化。
   - 执行者：engineer
+
+- **2026-10-29 INTEG-041t**
+  - 摘要：**`fence` 改 `ciii`（`opc 0x79`）**（`ADR-0044 D1`–`D8`）：`DADAOInstrInfo.td` 的 `fence` 由 `DADAOOiii`（`op 0x47`/`ha 0x20`）改为 `DADAOCiii`（`op 0x79`，`cfxha` + `immu18`）；`hb = immu18[17:12]` 为 SBZ，`hc/hd = pred/succ` 六位（`cr/cw/ci/co/mr/mw`）。汇编器常量改为 `PRED_CR..PRED_MW`/`SUCC_CR..SUCC_MW`，`fence` 立即数合法性改查第 3 操作数（`hb != 0` ⇒ 保留编码硬报错），旧 `fence 0` 因操作数形态不符被拒。ISel 选 `fence` 时补 `cfxha=0`；`ATOMIC_FENCE` lowering 改用系统内存 `mr/mw`（acquire `0x430`、release `0xC20`、全屏障 `0xFFF`）。**真值**：`check-instrinfo` 0 errors（M9 34/34）；`llvm-mc`：`fence cfx0, 0` = `79 00 00 00`、`fence cfx63, 0xfff` = `79 fc 0f ff`、`fence 0` rc=1、`fence cfx0, 0x1000` rc=1。补丁 **7 份改**（`series` 98、`check-patch-tree` 205）。
+  - 执行者：engineer

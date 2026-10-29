@@ -8,7 +8,7 @@ Contract sources (spec-first; encodings NOT taken from QEMU):
 
 What it checks (each printed as "[PASS]/[FAIL] name: expected -> actual"):
   ELF path (A):
-    * entry:   ELF with e_entry != RAM base; a `fence` (ILLI) poison sits at the
+    * entry:   ELF with e_entry != RAM base; a `cfxld` (ILLI) poison sits at the
                RAM base, so the program can only report success if the
                loader really set PC = e_entry.
     * segments: .rodata/.data file bytes are placed at VA=PA; a `.bss` tail

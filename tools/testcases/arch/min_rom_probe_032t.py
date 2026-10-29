@@ -85,7 +85,7 @@ def cmp_uo_rd(rdhb, rdhc, rdhd): return encode_orri(0x40, 0x2A, rdhb, rdhc, rdhd
 def br_nz(rdha, imms18): return encode_riii(0x6B, rdha, imms18 & 0x3FFFF)
 def call_iiii(imms24): return encode_iiii(0x74, imms24 & 0xFFFFFF)
 def ret_riii(rdha, imms18): return encode_riii(0x76, rdha, imms18 & 0x3FFFF)
-def fence(): return struct.pack('>I', 0x47800000)
+def fence(): return struct.pack('>I', 0x79000000)
 
 
 # ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──

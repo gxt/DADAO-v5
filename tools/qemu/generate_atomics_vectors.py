@@ -3,9 +3,9 @@
 
 Source of truth (Spec-first; nothing is read back from QEMU or LLVM):
   * contracts/opcodes.yaml          — encoding (opc/ha/mask/value), id, format
-  * spec/SimRISC-12: fence指令 / LR-SC指令     — fence bit fields, lr/sc semantics
-  * .tao/adr/adr-0034-atomics-encoding.md — `D2` (fence fields), `D6`
-    (alignment per data width, reservation rules)
+  * spec/SimRISC-11: fence / SimRISC-12: LR-SC指令 — fence bit fields, lr/sc semantics
+  * .tao/adr/adr-0044-fence-ciii.md — `D1`-`D8` (fence ciii encoding/legality)
+  * .tao/adr/adr-0034-atomics-encoding.md — `D6` (alignment per data width)
   * user ruling 2026-10-21 「甲」    — alignment = per data width
     (.b=1 / .w=2 / .t=4 / .o=8)
 
@@ -46,7 +46,7 @@ OUT_LRSC = os.path.join(OUT_DIR, "atomics-lrsc.yaml")
 OUT_FENCE = os.path.join(OUT_DIR, "atomics-fence.yaml")
 
 SPEC_LRSC = "SimRISC-12: LR-SC指令"
-SPEC_FENCE = "SimRISC-12: fence指令"
+SPEC_FENCE = "SimRISC-11: fence"
 
 WIDTH = {"o": 8, "t": 4, "w": 2, "b": 1}
 
@@ -57,9 +57,11 @@ BASE_WORD = 0x0102030405060708       # 8 distinct bytes: every k/W shift is visi
 SC_VAL = 0xA1B2C3D4E5F60718          # distinct bytes; high bits prove truncation
 SENTINEL = 0xDEADBEEFCAFEF00D        # untouched-register marker
 
-# fence field bits (immu18[11:6] = pred, immu18[5:0] = succ; SimRISC-12: fence指令)
-F_R, F_W, F_I, F_O = 0x01, 0x02, 0x04, 0x08
-F_SBZ = 0x30
+# fence pred/succ field bits (ADR-0044 D4): cr/cw/ci/co/mr/mw.
+F_CR, F_CW, F_CI, F_CO, F_MR, F_MW = 0x01, 0x02, 0x04, 0x08, 0x10, 0x20
+F_CFX_RW = F_CR | F_CW
+F_CFX_IO = F_CI | F_CO
+F_MEM_RW = F_MR | F_MW
 
 
 def _int(v):
@@ -155,9 +157,9 @@ def sc_word(rec, flag_rd, data_rd, addr_rb):
     return build_word(rec, flag_rd, data_rd, addr_rb)
 
 
-def fence_word(rec, immu18):
-    """Fence word: op/ha come from opcodes.yaml (no hardcoded encoding)."""
-    return ((_int(rec["opc"]) << 24) | (_int(rec["ha"]) << 18)
+def fence_word(rec, cfxha, immu18):
+    """Fence word: opc/cfxha field from opcodes.yaml (no hardcoded encoding)."""
+    return ((_int(rec["opc"]) << 24) | ((cfxha & 0x3F) << 18)
             | (immu18 & 0x3FFFF))
 
 
@@ -356,51 +358,49 @@ def gen_sc_cases(rec):
 # fence cases
 # ---------------------------------------------------------------------------
 
-def fence_fields(pred, succ, fm=0):
-    return (fm << 12) | ((pred & 0x3F) << 6) | (succ & 0x3F)
+def fence_fields(pred, succ, hb=0):
+    return ((hb & 0x3F) << 12) | ((pred & 0x3F) << 6) | (succ & 0x3F)
 
 
 def gen_fence_cases(rec):
     out = []
     pred_ok = {
-        "noop (pred=succ=0)": (0, 0),
-        "succ-only R": (0, F_R),
-        "pred-only R": (F_R, 0),
-        "R->R": (F_R, F_R),
-        "W->W": (F_W, F_W),
-        "R->W": (F_R, F_W),
-        "W->R": (F_W, F_R),
-        "R|W->R|W": (F_R | F_W, F_R | F_W),
-        "acquire (R -> R|W, LLVM 0x043)": (F_R, F_R | F_W),
-        "release (R|W -> W, LLVM 0x0C2)": (F_R | F_W, F_W),
-        "acq_rel (R|W|I|O -> R|W|I|O, LLVM 0x3CF)":
-            (F_R | F_W | F_I | F_O, F_R | F_W | F_I | F_O),
-        "I/O classes (pred=I|O -> succ=I)": (F_I | F_O, F_I),
+        "noop (pred=succ=0, cfx0=all)": (0, 0, 0),
+        "cfx63 noop (pred=succ=0)": (0, 0, 63),
+        "cfx memory R->R (cfx0)": (F_CR, F_CR, 0),
+        "cfx memory W->W (cfx63)": (F_CW, F_CW, 63),
+        "cfx IO I->O": (F_CI, F_CO, 0),
+        "system memory R->W": (F_MR, F_MW, 0),
+        "system memory W->R": (F_MW, F_MR, 0),
+        "acquire (mr -> mr|mw, LLVM 0x430)": (F_MR, F_MR | F_MW, 0),
+        "release (mr|mw -> mw, LLVM 0xC20)": (F_MR | F_MW, F_MW, 0),
+        "full (all six bits, 0xFFF)": (0x3F, 0x3F, 0),
+        "mixed cfx+system (cr|mr -> cw|mw)":
+            (F_CR | F_MR, F_CW | F_MW, 0),
     }
-    for name, (pred, succ) in pred_ok.items():
+    for name, (pred, succ, cfxha) in pred_ok.items():
         immu18 = fence_fields(pred, succ)
         out.append(case(
-            rec, "semantic", fence_word(rec, immu18),
+            rec, "semantic", fence_word(rec, cfxha, immu18),
             state(rd={"rd1": SENTINEL}), state(rd={"rd1": SENTINEL}),
             None, SPEC_FENCE,
-            "fence fm=0 pred=0x%02X succ=0x%02X (%s): legal, no architecture "
-            "state changes (bar ordering itself is asserted by the evidence "
-            "script via -d op; pred=succ=0 emits no barrier at all)"
-            % (pred, succ, name)))
+            "fence cfx%d, immu18=0x%05X (pred=0x%02X succ=0x%02X; %s): legal, "
+            "no architecture state changes (bar ordering itself is asserted by "
+            "the evidence script via -d op; pred=succ=0 emits no barrier)"
+            % (cfxha, immu18, pred, succ, name)))
 
     bad = {
-        "fm=1 (reserved)": fence_fields(F_R, F_R, fm=1),
-        "fm=8 (TSO-reserved, undefined)": fence_fields(F_R, F_R, fm=8),
-        "fm=63 (reserved)": fence_fields(0, 0, fm=63),
-        "pred[11:10] SBZ != 0 (bit 4)": fence_fields(F_SBZ, F_R),
-        "pred[11:10] SBZ != 0 (bit 5)": fence_fields(0x20, F_R),
-        "succ[5:4] SBZ != 0 (bit 4)": fence_fields(F_R, F_SBZ),
-        "succ[5:4] SBZ != 0 (bit 5)": fence_fields(F_R, 0x20),
+        "hb=1 (immu18[17:12] SBZ)": (0, fence_fields(F_CR, F_CR, hb=1), 0),
+        "hb=63 (immu18[17:12] SBZ)": (0, fence_fields(0, 0, hb=63), 0),
+        "reserved cfx 7": (7, fence_fields(0, 0), 0),
+        "reserved cfx 14": (14, fence_fields(0, 0), 0),
+        "reserved cfx 19": (19, fence_fields(0, 0), 0),
+        "reserved cfx 61": (61, fence_fields(0, 0), 0),
     }
-    for name, immu18 in bad.items():
+    for name, (cfxha, immu18, _unused) in bad.items():
         out.append(case(
-            rec, "legality", fence_word(rec, immu18), state(), None, "ILLI",
-            SPEC_FENCE + "; ADR-0034 D2",
+            rec, "legality", fence_word(rec, cfxha, immu18), state(), None, "ILLI",
+            SPEC_FENCE + "; ADR-0044 D8",
             "legality fence %s -> ILLI" % name))
 
     return out
@@ -426,10 +426,10 @@ HEADER_LRSC = (
 
 HEADER_FENCE = (
     "# Generated by tools/qemu/generate_atomics_vectors.py — DO NOT EDIT\n"
-    "# Source: contracts/opcodes.yaml + spec/SimRISC-12: fence指令 + ADR-0034 D1/D2\n"
-    "# fence immu18 = fm[17:12] | pred[11:6] | succ[5:0];\n"
-    "# field bits R=1<<0 W=1<<1 I=1<<2 O=1<<3; SBZ = field bits [5:4].\n"
-    "# Legality: fm != 0 or SBZ != 0 => ILLI; pred = succ = 0 => no-op.\n"
+    "# Source: contracts/opcodes.yaml + spec/SimRISC-11: fence + ADR-0044 D1-D8\n"
+    "# ciii: opc=0x79, ha=cfxha (0 = all cfx), immu18 = hb[17:12] | pred[11:6] | succ[5:0].\n"
+    "# hb is SBZ; pred/succ bits: cr=1<<0 cw=1<<1 ci=1<<2 co=1<<3 mr=1<<4 mw=1<<5.\n"
+    "# Legality: hb != 0 or reserved cfx (7-14, 19-61) => ILLI; pred = succ = 0 => no-op.\n"
     "# Independent oracle: the fields above are decoded by hand from the spec;\n"
     "# the barrier *strength* is asserted by the evidence script (TCG op dump),\n"
     "# because a barrier has no architecturally visible state change.\n\n")

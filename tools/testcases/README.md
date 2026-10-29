@@ -31,7 +31,7 @@ bash .work/evidence/TESTCASES-056t/run.sh --inject
 | `tests/inst/atomics/c11_alltypes.c` | `_Atomic char/short/int/long/unsigned/size_t/void*` × load/store/exchange/fetch_*/CAS × 五种 ordering；另有共享对象单元 |
 | `tests/inst/atomics/atomic_builtins.c` | `__atomic_*` 九种内建 × {1,2,4,8} 字节 × 五种 ordering；子字宽邻域字节不变；链接期无 `__atomic_*` 未定义符号 |
 | `tests/inst/atomics/aba_treiber.c` | 版本号打包的 Treiber 栈（`{ver:16,ptr:48}`），不变量 + 确定性 ABA 重放 |
-| `tests/inst/atomics/barrier_probe.c` | `a_barrier()` 结构断言（`fence` 计数 == 源码站点数，立即数 0x3CF） |
+| `tests/inst/atomics/barrier_probe.c` | `a_barrier()` 结构断言（`fence` 计数 == 源码站点数，立即数 0xFFF） |
 
 ## 已知缺陷（XFAIL 机制保留，登记已清空）
 

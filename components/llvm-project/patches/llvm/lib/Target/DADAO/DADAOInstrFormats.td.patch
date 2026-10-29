@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrFormats.td b/llvm/lib/Target/DADAO/DADAOInstrFormats.td
 new file mode 100644
-index 000000000..8ff22080d
+index 000000000..57cbc79cf
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrFormats.td
 @@ -0,0 +1,295 @@
@@ -250,7 +250,7 @@ index 000000000..8ff22080d
 +// Format: oiii — opx + 18-bit immediate (§2.3)
 +//
 +//   ha = opx, hb:hc:hd = imm18
-+//   Examples: fence, swym
++//   Examples: swym
 +//===----------------------------------------------------------------------===//
 +
 +class DADAOOiii<string mnemonic> : DADAOInst<mnemonic # "\t$imm18"> {
@@ -287,7 +287,7 @@ index 000000000..8ff22080d
 +// Format: ciii — cfx code + 18-bit immediate (privileged cfx)
 +//
 +//   ha = cfxha, hb:hc:hd = imm18.
-+//   Examples: trap (immu18), escape (imms18)  (scope: excluded; MC layer only)
++//   Examples: trap (immu18), escape (imms18), fence (immu18)
 +//===----------------------------------------------------------------------===//
 +
 +class DADAOCiii<string mnemonic> : DADAOInst<mnemonic # "\t$cfxha, $imm18"> {

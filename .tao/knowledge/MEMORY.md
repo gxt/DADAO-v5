@@ -32,7 +32,7 @@
 | # | 偏离点 | 上游依据 | v5 决策 | ADR / 契约指针 |
 |---|--------|----------|---------|----------------|
 | 1 | **exit port（程序停机）** | `SimRISC-11 §退出指令`：`escape cfxHA, [excp_cause_ip, imms20]`（**退出特权态**，非停机；编码层 `imms18`） | 自定 **exit port** MMIO（`0xffff_8000_0000`，8 B，只写）；退出码 = `0x80 \| cause_bit`；写入后 `cpu_loop_exit()` 锁定 | **ADR-0004 §D3**（Exit Port 协议）+ **ADR-0011 §D1–D4**（可靠 halt） |
-| 2 | **`fence` SBZ 非零** | `SimRISC-11 §fence指令`：`immu18 bits[17:4]` 为 SBZ，**非零值行为保留** | v5 定**非零 SBZ → ILLI**（`0x88`）；`fence` 已在 `M9` 实现（`scope: m9`，见第 6 项） | **ADR-0004 §D5.3**（SBZ 非零 → ILLI）+ **ADR-0014 §D1–D3**（fence 移出 M1；后被 `SPEC-164t`/`ADR-0034` 转入 `m9`）；`contracts/opcodes.yaml::fence_oiii_imm` |
+| 2 | **`fence` 编码与 SBZ** | 上游 `SimRISC-12 §fence指令`：`fm`/`pred`/`succ` 三字段，无 cfx 选择 | 改为 **`ciii`（`opc 0x79`）**：`cfxha` 选资源域（0 = all cfx），`hb = immu18[17:12]` 为 SBZ（非 0 → ILLI），`pred/succ` 六位 `cr/cw/ci/co/mr/mw`；`cfx0`/`cfx_umon` = all；`fence 0` 拒绝 | **ADR-0044 D1–D8**；`contracts/opcodes.yaml::fence_ciii_cfx` |
 | 3 | **测试机地址映射 / 复位值** | `spec/` **无测试机层**（`DADAO-12 §2.1` 仅给核内地址空间模型，无内存映射 / 复位值全集 / exit 协议） | 采用 spec 核内地址空间模型（cfxha 63/power）：boot ROM `0xffff_ffff_0000`、RAM `0xffff_0000_0000`(16 MiB)、Exit port `0xffff_8000_0000`；复位 PC=`rb0`=boot ROM；`rd0`/`rb1`–`rb63`/`ra0`–`ra63`/`rf1`–`rf63` 复位 `0`、`rf0` 复位 `0x7FF8_0000_7FC0_0000`（架构自定义确定性复位） | **ADR-0004 §D1/D2**（内存映射、复位向量与复位值） |
 | 4 | **`ra0` 语义（MemRAS 简化）** | `SimRISC-00 §返回地址栈`（v5 修订前；对照归档 `.tao/archive/SimRISC-0.5.3/SimRISC-00`）：`ra0` 高 16 位 = **MemRAS 引用计数** | v5 `ra0` = `[63:54]` SBZ + `[53:48]` **`RACNT`** + `[47:0]` **`MRPTR`**；**取消 MemRAS 引用计数**；有效性判据 = `RACNT` | **ADR-0012 §D7**（D7.1–D7.7） |
 | 5 | **`e_flags` 版本字段** | `spec/` **无 ELF/Object ABI**（`e_machine`/`e_flags` 无依据） | `e_machine = EM_DADAO (0x0DA0)`（project-custom，未注册）；`e_flags = 0x00000001`（bits 0–7 = 对象/ABI 格式版本 = 1；bits 8–31 保留 0） | **ADR-0003 §D1**（含 `## 修订` 的 `e_flags` 版本字段）；投影 `contract-elf.md §1.3` |
@@ -41,9 +41,9 @@
 | 8 | `ISS-093` 行内 code span 检测 | —（v5 自身，非上游偏离） | **不做**：`check_asm_prose.py` 不查反引号内旧格式；`INFRA-021t` 方案 b 评估为风险>收益。**复查**：出现行内 span 回退再评估保守版 | —（见 `ISS-093`） |
 | 9 | `ISS-108` LLVM 侧两文件 >1000 行 | —（v5 自身，非上游偏离） | **不做**：`Process-01 §11` 建议性非强制；拆分会牵动补丁树与全部门控，零功能收益。**复查**：出现维护痛点再评估 | —（见 `ISS-108`） |
 | 10 | `ISS-054` 探针标签化框架 | —（v5 自身，非上游偏离） | **不做（M9）**：收尾不改工具链；手算偏移风险由 `ISS-309`（harness 偏移修正）部分缓解。**复查**：再出现手算偏移错误即立项 | —（见 `ISS-054`） |
-> **订正说明（第 6 项）**：历史表述「浮点未实现 ⇒ decode ILLI」在 `QEMU-034t`~`037t`（执行层 60/60）后**已不成立**；现行口径为「**浮点已实现**（`scope: fp`），**仅** cfx/LR-SC/fence（`scope: excluded`）仍 ILLI」。本台账以此为准。
+> **订正说明（第 6 项）**：历史表述「浮点未实现 ⇒ decode ILLI」在 `QEMU-034t`~`037t`（执行层 60/60）后**已不成立**；现行口径为「**浮点已实现**（`scope: fp`）、`fence`/LR-SC 已实现（`scope: m9`），**仅** `cfxld`/`cfxst`（`scope: excluded`）仍 ILLI」。本台账以此为准。
 >
-> **章节订正（实测）**：部分历史任务书沿用 **SimRISC 0.5.3 编号**；v5 现行规范为 **0.5.6-rc**（已发布 0.5.5），分册与章节已重排——上游依据「exit port vs `escape`」现位于 `SimRISC-11 §3 退出指令`（0.5.3 为 `SimRISC-04`）、`fence` SBZ 现位于 `SimRISC-12 §1.1 fence指令`（0.5.3 为 `SimRISC-04`）、浮点规范为 `SimRISC-07`（0.5.3 为 `SimRISC-03`）。均以 `contracts/opcodes.yaml` 的 `spec_cite` 实测为准。
+> **章节订正（实测）**：部分历史任务书沿用 **SimRISC 0.5.3 编号**；v5 现行规范为 **0.5.6-rc**（已发布 0.5.5），分册与章节已重排——上游依据「exit port vs `escape`」现位于 `SimRISC-11 §3 退出指令`（0.5.3 为 `SimRISC-04`）、`fence` 现位于 `SimRISC-11 §6 屏障指令`（0.5.3 为 `SimRISC-04`）、浮点规范为 `SimRISC-07`（0.5.3 为 `SimRISC-03`）。均以 `contracts/opcodes.yaml` 的 `spec_cite` 实测为准。
 
 ## 指令系统
 
@@ -182,6 +182,6 @@ DADAO的版本号拟遵循语义化版本控制规范SemVer 2.0.0： <https://se
 - `lr` 设置保留标记，`sc` 条件写并返回 0/1。
 - `lr` 的 `hb` 固定为 `rd0`，`hb ≠ 0` → ILLI。
 - acquire/release 后缀：`lr.*.an/.ar`、`sc.*.nr/.ar`。
-- `fence`：`fm`/`pred`/`succ` 位掩码。
+- `fence`：`cfxha` 资源域 + `pred`/`succ` 六位访问掩码（`cr`/`cw`/`ci`/`co`/`mr`/`mw`）。
 - 保留粒度由平台定义；LR/SC 按宽度对齐。
 - 异常/中断/另一条 `lr` 会清除保留；SC 可能偶发失败。

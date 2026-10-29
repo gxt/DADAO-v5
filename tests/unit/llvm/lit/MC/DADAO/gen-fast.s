@@ -16,6 +16,11 @@
 @@ ASM: escape cfx_power, [excp_cause_ip, 8]
 escape cfx63, [excp_cause_ip, 8]
 
+@@ @src fence_ciii_cfx 79fc0040 | SimRISC-11: fence
+@@ OBJ: {{[0-9a-f]+:}} 79 fc 00 40{{.*}}fence
+@@ ASM: fence cfx_power, 64
+fence cfx63, 64
+
 @@ @src trap_ciii_cfx 7ffc0001 | SimRISC-11: trap
 @@ OBJ: {{[0-9a-f]+:}} 7f fc 00 01{{.*}}trap
 @@ ASM: trap cfx_power, 1
@@ -30,11 +35,6 @@ cfx2rc cfx63, cg8, rc1, rd8
 @@ OBJ: {{[0-9a-f]+:}} 74 00 00 03{{.*}}call
 @@ ASM: call [rb0, 12]
 call [rb0, 12]
-
-@@ @src fence_oiii_imm 47800000 | SimRISC-12: fence
-@@ OBJ: {{[0-9a-f]+:}} 47 80 00 00{{.*}}fence
-@@ ASM: fence 0
-fence 0
 
 @@ @src swym_oiii_imm 47880008 | SimRISC-12: swym
 @@ OBJ: {{[0-9a-f]+:}} 47 88 00 08{{.*}}swym

@@ -84,3 +84,7 @@
 - **2026-10-28 TESTCASES-084t**
   - 摘要：**补丁注释清理（无功能改动，`series` 25 不变）**：`arch/dadao/{syscall_arch,atomic_arch}.h` 注释中指向测试路径的说明改为语义描述（「the same spelling the boot ROM uses」/「the backend emits `fence 975` for them」），不再交叉引用测试目录。
   - 执行者：engineer
+
+- **2026-10-29 INTEG-041t**
+  - 摘要：**`arch/dadao/atomic_arch.h` 的 `a_barrier` 跟随 `fence ciii`**（`ADR-0044 D7`）：内联汇编由 `fence 975`（旧 `fm/pred/succ`）改为 `fence cfx_umon, 4095`（`cfx0` = all cfx，`pred = succ = 0xFFF` 六类全置）；文件头与 README 同步。语义仍为全屏障，与后端 acquire-release/seq-cst 的 `fence cfx_umon, 4095` 一致。补丁 **1 份改**（`series` 25）；`build-musl-shared`/`check-musl-freshness` rc=0（安装根已按新工具链重建）。
+  - 执行者：engineer

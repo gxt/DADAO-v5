@@ -234,8 +234,8 @@ def br_nz_rb(rbha, imms18):
     return encode_riii(0x73, rbha, imms18 & 0x3FFFF)
 
 def fence():
-    """fence 0 (op=0x47, ha=0x20; SPEC-164t: OPC-MISC migrated to op 0x47)."""
-    return encode_oiii(0x47, 0x20, 0)
+    """fence cfx0, 0 (ciii op=0x79; ADR-0044: no-op padding)."""
+    return struct.pack('>I', 0x79000000)
 
 def swym():
     return encode_oiii(0x47, 0x22, 0)

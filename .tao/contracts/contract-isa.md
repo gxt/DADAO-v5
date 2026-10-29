@@ -26,7 +26,7 @@
 |---|---|---|---|
 | `scope: m1` | 156 | 已实现（含 `trap`/`escape`/`cfx2rd`/`cfx2rc`） | §13.6 |
 | `scope: fp` | 66 | 浮点已实现，不触发 decode ILLI（含融合乘加 `ftfma`/`fofma` 2 条）。分布：`SimRISC-07` 50（`OPC-RF` 子表）+ `SimRISC-01` 8（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ `SimRISC-02` 5（`cs.n`/`cs.z`/`cs.p` 的 `-rf`、`rd2rf`/`rf2rd`）+ `SimRISC-03` 1（`set.w-rf`） | `contract-fp.md`；`ADR-0012 §D3.1` |
-| `scope: excluded` | 2 | 已定义编码、未实现该语义的机器 decode ILLI：`cfxld`/`cfxst` | `ADR-0014`（fence）；`contracts/opcodes.yaml::decode` |
+| `scope: excluded` | 2 | 已定义编码、未实现该语义的机器 decode ILLI：`cfxld`/`cfxst` | `contracts/opcodes.yaml::decode` |
 | `scope: m3` | 1 | `sub.o_orrr_dbb`（RB 算术，非 M1 身份） | `ADR-0012 §D9.1` |
 | `scope: m8` | 7 | `rev.*` 4 + `ctlz`/`cttz`/`ctpop` 3（**无位宽后缀**，位于 `OPC-MISC`，`opc 0x47`／`ha 0x25–0x27`） | `ADR-0012 §D10/D11` |
 | `scope: m9` | 34 | `rol.*`（8 条记录）+ `clmul.o` + `fence` + `lr`/`sc` 24 | `ADR-0032 §D4`；`ADR-0035 §D5`；`ADR-0034`（fence/lr/sc） |
@@ -261,9 +261,9 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | 0110-0xxx | cs.n-rd | cs.n-rf Excl. | cs.z-rd | cs.z-rf Excl. | cs.p-rd | cs.p-rf Excl. | cs.eq-rd | cs.ne-rd |
 | 0110-1xxx | br.n-rd | br.nn-rd | br.z-rd | br.nz-rd | br.p-rd | br.np-rd | br.eq-rd | br.ne-rd |
 | 0111-0xxx | jump-iiii | jump-rrii | br.z-rb | br.nz-rb | call-iiii | call-rrii | ret | — |
-| 0111-1xxx | — | — | cfx2rd | cfx2rc | cfxld Excl. | cfxst Excl. | escape | trap |
+| 0111-1xxx | — | fence | cfx2rd | cfx2rc | cfxld Excl. | cfxst Excl. | escape | trap |
 
-> Excl. = `Excluded from M1`。`OPC-MISC` 子表承载 `fence`、`swym`、LR-SC 原子与 `ct*`（均非 M1）。[SimRISC-00 §SimRISC QFC]
+> Excl. = `Excluded from M1`。`fence` 位于主表 `0111-1001`（`ciii`，`cfxha` 选择资源域）；`OPC-MISC` 子表承载 `swym`、LR-SC 原子与 `ct*`（均非 M1）。[SimRISC-00 §SimRISC QFC]
 
 ### §2.8 MISC 子表机制
 
@@ -277,7 +277,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | `OPC-octa` | 0100-0000 | octa |
 
 - 各子表指令的 opx 在 `ha[5:0]`，与 op 共同确定指令。[SimRISC-00 §指令域说明]
-- `OPC-MISC`（op = 0100-0111）承载 `fence`、`swym`、LR-SC 原子指令与位扫描/位计数 `ct*`。[SimRISC-00 §OPC-MISC 指令编码]
+- `OPC-MISC`（op = 0100-0111）承载 `swym`、LR-SC 原子指令与位扫描/位计数 `ct*`；`fence` 不在该子表。[SimRISC-00 §OPC-MISC 指令编码]
 - `OPC-RF`（op = 0100-0100）承载浮点指令，Excluded from M1。[SimRISC-00 §OPC-RF指令编码]
 - 各子表的 `001-100`（opx = `001100`）承载逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`（`scope: m8`，非 M1，见 §6.4.3）。[SimRISC-00 §OPC-octa指令编码]
 - 各子表的 `010-000`（orrr）/`011-000`（orri）承载 `shl.o`/`shl.t`/`shl.w`/`shl.b`（符号无关、不带 `u` 后缀，`ADR-0032 D2/D3`）；`010-001`/`011-001` 承载 `rol.*`（`scope: m9`，见 §6.4.5）。`ext.uo`/`ext.so` 位于 `100-000`/`100-001`（orrr）与 `101-000`/`101-001`（orri）（`ADR-0032 D1`）。[SimRISC-00 §OPC-octa指令编码]
@@ -1175,7 +1175,7 @@ shr.sb:  rdhb[7:0]   = (rdhc[7:0] >> shamt) with sign(7)
 SimRISC 0.5.4 **不再**提供专门的非法指令助记符（原 `op=0x77, ha=0x00`）；`ILLI`（illegal instruction）异常改由**非法操作数、非法条件**或**已定义但本机器未实现的编码**触发。[SimRISC-00 §非法指令]
 
 - 已定义编码但操作数/字段非法时触发 ILLI（如目的寄存器为 `rd0`、SBZ 字段非零、多寄存器指令 `immu6 = 0` 等）。[SimRISC-00 §非法指令]
-- `scope: excluded` 的已定义编码（`cfxld`/`cfxst`、LR-SC 原子、`fence`）在未实现该语义的机器上执行时触发 ILLI。[SimRISC-00 §非法指令]
+- `scope: excluded` 的已定义编码（`cfxld`/`cfxst`）在未实现该语义的机器上执行时触发 ILLI。[SimRISC-00 §非法指令]
 
 ### §13.3 伪指令 nop — 已删除
 
@@ -1210,34 +1210,29 @@ OPC-MISC 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 
 ---
 
-## §14 deferred 指令（原「待定」）— scope: excluded｜分类依据 = `ADR-0012` D1、`ADR-0014`
+## §14 m9 指令（已实现）与 deferred 指令
 
-> 范围：fence 指令、LR-SC 原子指令、核芯功能扩展指令中的 `cfxld`/`cfxst`。均 **`scope: excluded`**（未实现，decode ILLI），本合约不提取其完整规范内容。[SimRISC-12 §fence指令]（`trap`/`escape`/`cfx2rd`/`cfx2rc` 已 re-scope 为 `m1`，见 §13.6。）
+> `scope: m9`（已实现，非 M1）：`fence`（`ADR-0044`；本节 §14.1）与 LR-SC 原子 24 条（§14.2）。
+> `scope: excluded`（未实现，decode ILLI）：仅 `cfxld`/`cfxst`（§14.3）。[SimRISC-11 §SRAM块传输指令]
 
-### §14.1 fence 指令（oiii 格式）
+### §14.1 fence 指令（ciii 格式，opc 0x79）
 
-`fence` 指令对外部可见的访存请求（如设备 I/O 和内存访问）进行串行化。[SimRISC-12 §fence指令]
+`fence cfxHA, immu18` 按 cfx 资源域约束本 hart 的访问顺序/可见性。[SimRISC-11 §屏障指令]
 
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| `fence immu18` | 内存序屏障，低 4 位编码屏障类型 | [SimRISC-12 §fence指令] |
+| 字段 | 位 | 含义 |
+|------|-----|------|
+| `cfxha` | `[23:18]` | 资源域；0 = all cfx（`cfx0`/`cfx_umon`） |
+| `hb` | `immu18[17:12]` | SBZ，非 0 → ILLI |
+| `pred` | `immu18[11:6]` | 前序掩码：`cr`/`cw`/`ci`/`co`/`mr`/`mw` |
+| `succ` | `immu18[5:0]` | 后序掩码（位义同 `pred`） |
 
-低 4 位屏障类型编码：[SimRISC-12 §fence指令]
+- `pred = succ = 0` 为合法 no-op；保留 cfx（7–14、19–61）→ ILLI。[SimRISC-11 §屏障指令]
+- 编码位置：主表 `0111-1001`（0x79），`mask = 0xFF000000`。[SimRISC-00 §SimRISC QFC]
 
-| 位 | 含义 | 说明 |
-|----|------|------|
-| bit0 | IO | 设备 I/O 访问串行化 |
-| bit1 | W | 写屏障：前序写对后序写可见 |
-| bit2 | R | 读屏障：前序读对后序读/写可见 |
-| bit3 | RW | 读写屏障：前序读写对后序读写可见（全屏障） |
+### §14.2 LR-SC 原子指令（scope: m9）
 
-- bits[17:4] 应为零（SBZ），非零值行为保留。[SimRISC-12 §fence指令]
+`lr`/`sc` 原子指令（`<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`，共 24 条：`lr` 仅 `nn`/`an`/`ar`、`sc` 仅 `nn`/`nr`/`ar`；`ADR-0034`）已实现，语义见 `spec/SimRISC-12 §LR-SC指令`。
 
-### §14.2 LR-SC 原子指令 — scope: excluded
-
-`lr`/`sc` 原子指令（`<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`，共 24 条：`lr` 仅 `nn`/`an`/`ar`、`sc` 仅 `nn`/`nr`/`ar`；`ADR-0034`）**`scope: excluded`**（未实现，decode ILLI），本合约不提取其规范内容。[SimRISC-12 §LR-SC指令]
-
-- 完整语义/编码/保留机制留后续阶段（见 `.tao/knowledge/issues.yaml`）。[spec-decision]
 - 编码位置：`OPC-MISC` 子表 ha = 010-xxx（lr）与 011-xxx（sc）。[SimRISC-00 §OPC-MISC 指令编码]
 
 ### §14.3 核芯功能扩展（cfx）系统指令 — scope: excluded
@@ -1508,13 +1503,12 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 | opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
-| 100-000 | `fence` | oiii | [SimRISC-00 §OPC-MISC 指令编码] |
 | 100-010 | `swym` | oiii | [SimRISC-00 §OPC-MISC 指令编码] |
 | 100-101 | `ctpop` | orri | [SimRISC-00 §OPC-MISC 指令编码] |
 | 100-110 | `ctlz` | orri | [SimRISC-00 §OPC-MISC 指令编码] |
 | 100-111 | `cttz` | orri | [SimRISC-00 §OPC-MISC 指令编码] |
 
-> `fence`（100-000）为 `scope: m9`；LR-SC 条目（`lr` = 000/001-xxx、`sc` = 010/011-xxx，共 24 条）亦为 `scope: m9`（`SPEC-164t` 由 `excluded` 转入）。`ct*` 为 `scope: m8`（见 A.9）。[SimRISC-00 §OPC-MISC 指令编码]
+> LR-SC 条目（`lr` = 000/001-xxx、`sc` = 010/011-xxx，共 24 条）为 `scope: m9`（`SPEC-164t` 由 `excluded` 转入）。`fence` 已迁主表 `0111-1001`（A.1）。`ct*` 为 `scope: m8`（见 A.9）。[SimRISC-00 §OPC-MISC 指令编码]
 
 ### A.7 `scope: fp` / `scope: excluded` 编码清单
 

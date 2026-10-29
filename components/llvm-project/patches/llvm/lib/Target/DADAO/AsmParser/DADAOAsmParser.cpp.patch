@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..8e50a8799
+index 000000000..2272771a5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2607 @@
+@@ -0,0 +1,2602 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -341,10 +341,10 @@ index 000000000..8e50a8799
 +  }
 +
 +  /// Define the fence bit-name constants before any statement is parsed
-+  /// (LLVM-121t; ADR-0034 D2 / SimRISC-11 §4.1).  `fence` takes ONE 18-bit
-+  /// unsigned immediate -- not three operands -- so the R/W/I/O sets are
-+  /// written as `PRED_R|PRED_W|SUCC_R|SUCC_W` style bit-name expressions.  The
-+  /// eight names are predefined absolute symbols, which makes the expression
++  /// (ADR-0044 D4 / SimRISC-11).  `fence` takes `cfxHA` plus ONE 18-bit
++  /// unsigned immediate -- not three operands -- so the cr/cw/ci/co/mr/mw sets
++  /// are written as `PRED_CR|SUCC_MR` style bit-name expressions.  The twelve
++  /// names are predefined absolute symbols, which makes the expression
 +  /// fold to a constant at parse time (no relocation, no fixup) and lets the
 +  /// usual immediate legality check see the final 18-bit value.
 +  void Initialize(MCAsmParser &Parser) override {
@@ -354,16 +354,20 @@ index 000000000..8e50a8799
 +      const char *Name;
 +      unsigned Value;
 +    } const Consts[] = {
-+        // pred: immu18[11:6] -- PRED_R/W/I/O sit in the low four bits.
-+        {"PRED_R", 1u << 6},
-+        {"PRED_W", 1u << 7},
-+        {"PRED_I", 1u << 8},
-+        {"PRED_O", 1u << 9},
-+        // succ: immu18[5:0] -- SUCC_R/W/I/O are the low four bits.
-+        {"SUCC_R", 1u << 0},
-+        {"SUCC_W", 1u << 1},
-+        {"SUCC_I", 1u << 2},
-+        {"SUCC_O", 1u << 3},
++        // pred: immu18[11:6] -- cr/cw/ci/co/mr/mw sit in the six bits.
++        {"PRED_CR", 1u << 6},
++        {"PRED_CW", 1u << 7},
++        {"PRED_CI", 1u << 8},
++        {"PRED_CO", 1u << 9},
++        {"PRED_MR", 1u << 10},
++        {"PRED_MW", 1u << 11},
++        // succ: immu18[5:0] -- the same six access classes.
++        {"SUCC_CR", 1u << 0},
++        {"SUCC_CW", 1u << 1},
++        {"SUCC_CI", 1u << 2},
++        {"SUCC_CO", 1u << 3},
++        {"SUCC_MR", 1u << 4},
++        {"SUCC_MW", 1u << 5},
 +    };
 +    for (const auto &C : Consts) {
 +      MCSymbol *Sym = Ctx.getOrCreateSymbol(C.Name);
@@ -2271,30 +2275,21 @@ index 000000000..8e50a8799
 +      }
 +  }
 +
-+  // fence immediate legality (ADR-0034 D2 / SimRISC-11 §4.1; LLVM-121t).  The
-+  // 18-bit immediate is `fm[17:12] | pred[11:6] | succ[5:0]`; only fm = 0 is
-+  // defined (fm = 8 is the TSO reservation and is currently undefined) and the
-+  // top two bits of pred ([11:10]) / succ ([5:4]) are SBZ.  A reserved
++  // fence immediate legality (ADR-0044 D3/D8; SimRISC-11).  The 18-bit
++  // immediate is `hb[17:12] | pred[11:6] | succ[5:0]`; hb is SBZ.  A reserved
 +  // encoding is ILLI on hardware, so the assembler must reject it instead of
 +  // emitting a word that traps at run time.  A symbolic operand is left to the
 +  // linker (it cannot be a fence immediate in this target anyway).
-+  if (Mnemonic == "fence" && Flat.size() == 2 && Flat[1]->isImm()) {
-+    auto *DOp = static_cast<DADAOOperand *>(Flat[1].get());
++  if (Mnemonic == "fence" && Flat.size() == 3 && Flat[2]->isImm()) {
++    auto *DOp = static_cast<DADAOOperand *>(Flat[2].get());
 +    if (!DOp->getImmExpr()) {
 +      int64_t Imm = DOp->getImm();
 +      // Values outside the 18-bit unsigned range are reported by the immu18
-+      // operand class itself (the generic "immediate out of range" diagnostic),
-+      // so only in-range values are examined for reserved bit patterns here.
-+      if (Imm >= 0 && Imm <= 0x3FFFF) {
-+        if ((Imm & 0x3F000) != 0)
-+          return Error(Flat[1]->getStartLoc(),
-+                       "fence: reserved encoding (fm = immu18[17:12] must be "
-+                       "0; fm = 8 is TSO-reserved and currently undefined)");
-+        if ((Imm & 0x00C00) != 0 || (Imm & 0x00030) != 0)
-+          return Error(Flat[1]->getStartLoc(),
-+                       "fence: reserved encoding (pred[11:10] and succ[5:4] "
-+                       "are SBZ and must be zero; see SimRISC-11 §4.1)");
-+      }
++      // operand class itself, so only in-range values are examined here.
++      if (Imm >= 0 && Imm <= 0x3FFFF && (Imm & 0x3F000) != 0)
++        return Error(Flat[2]->getStartLoc(),
++                     "fence: reserved encoding (hb = immu18[17:12] must be "
++                     "zero; see SimRISC-11)");
 +    }
 +  }
 +

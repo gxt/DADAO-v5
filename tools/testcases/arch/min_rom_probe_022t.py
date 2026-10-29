@@ -65,7 +65,7 @@ def st_o_rd(rdha, rbhb, imms12):
     return encode_rrii(0x21, rdha, rbhb, hc, hd)
 
 def fence():
-    return encode_orri(0x47, 0x20, 0, 0, 0)
+    return struct.pack('>I', 0x79000000)
 
 def illi_poison():
     """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison after fence

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..06b37883e
+index 000000000..a9267835e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,937 @@
+@@ -0,0 +1,941 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -793,12 +793,16 @@ index 000000000..06b37883e
 +  }
 +  case DADAOISD::FENCE: {
 +    // Memory barrier (LLVM-121t): [0] chain, [1] TargetConstant with the
-+    // fm/pred/succ bit pattern computed by LowerATOMIC_FENCE.  The `fence`
++    // hb/pred/succ bit pattern computed by LowerATOMIC_FENCE.  The `fence`
 +    // def is MC-only (Pattern = []), so it is selected here.
 +    const SDLoc DL(Node);
 +    SDValue Chain = Node->getOperand(0);
 +    uint64_t Imm = cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();
++    // ADR-0044: ciii takes cfxha plus the combined immediate.  CodeGen's
++    // atomics target system memory, so cfxha = 0 (all cfx) is the widest
++    // scope and never weakens the barrier.
 +    CurDAG->SelectNodeTo(Node, DADAO::fence, MVT::Other,
++                         CurDAG->getTargetConstant(0, DL, MVT::i64),
 +                         CurDAG->getTargetConstant(Imm, DL, MVT::i64), Chain);
 +    return;
 +  }

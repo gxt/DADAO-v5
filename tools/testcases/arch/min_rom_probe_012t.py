@@ -142,7 +142,7 @@ def ret_riii(rdha, imms18):
     return encode_riii(0x76, rdha, imms18 & 0x3FFFF)
 
 def fence():
-    return encode_oiii(0x47, 0x20, 0)
+    return struct.pack('>I', 0x79000000)
 
 def illi_poison():
     """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison after fence

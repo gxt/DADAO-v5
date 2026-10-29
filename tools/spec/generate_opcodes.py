@@ -13,7 +13,7 @@
     `ADR-0034` 将 `lr/sc` 由 8 条重排为 24 条；`SPEC-161t` 立取整 2 条、
     `SPEC-162t` 实现落地后将其由 `excluded` 转入 `fp`；`SPEC-159t` 立最小最大值 4 条、
     `SPEC-160t` 实现落地后将其由 `excluded` 转入 `fp`；`SPEC-164t` 将 `fence` 与 24 条
-    `lr/sc` 由 `excluded` 转入 `m9`；`SPEC-163t` 删 `cs.eq`/`cs.ne` 的 `rf` 变体，腾出
+    `lr/sc` 由 `excluded` 转入 `m9`（`fence` 编码由 ADR-0044 改为 ciii/0x79）；`SPEC-163t` 删 `cs.eq`/`cs.ne` 的 `rf` 变体，腾出
     `0x5E`/`0x5F`）；
   - `scope: m3`（1 条）——M3 CodeGen 新增指令（ADR-0012 D9.1 `sub.o_orrr_dbb`），
     **非 M1 身份**，不要求 M1 向量覆盖；
@@ -277,11 +277,11 @@ S06_JMP = "SimRISC-06: 无条件跳转指令"
 S06_CALL = "SimRISC-06: 函数调用"
 S06_RET = "SimRISC-06: 函数返回"
 
-# 核芯功能扩展（SimRISC-11）：`trap`/`escape`/`cfx2rd`/`cfx2rc` 编码出自 QFC 主表（SimRISC-00）；
-# `cfxld`/`cfxst` 的语义待定，正文同册。
+# 核芯功能扩展（SimRISC-11）：`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence` 编码出自 QFC 主表
+# （SimRISC-00）；`cfxld`/`cfxst` 的语义待定，正文同册。
+S11_FENCE = "SimRISC-11: fence"
 
 # 其它指令（SimRISC-12）
-S12_FENCE = "SimRISC-12: fence指令"
 S12_LRSC = "SimRISC-12: LR-SC指令"
 S12_SWYM = "SimRISC-12: 空转指令"
 S12_BIT = "SimRISC-12: 位扫描与位计数"
@@ -579,6 +579,14 @@ def build_main_table(records):
                        f_ciii("imms18"), [], S00_QFC, scope="m1"))
     records.append(rec("trap-ciii", "trap", "ciii", 0x7F,
                        f_ciii("immu18"), [], S00_QFC, scope="m1"))
+    # ADR-0044：fence 从 OPC-MISC 迁到主表 0111-1001（SimRISC-11）。编码字段
+    # ha = cfxha（0 = all cfx，汇编别名 cfx0 / cfx_umon），hb/hc/hd 由 immu18 拆出。
+    # hb = immu18[17:12] 为 SBZ；cfx 7-14/19-61 为 reserved（D8）。scope: m9
+    # （已实现，非 M1 身份）。
+    records.append(rec("fence", "fence", "ciii", 0x79, f_ciii("immu18"),
+                       ["immu18[17:12] == 0",
+                        "cfxha <= 6 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"],
+                       S11_FENCE, scope="m9"))
 
 
 # ────────────────────────────── OPC-MISC ──────────────────────────────
@@ -586,13 +594,9 @@ def build_main_table(records):
 def build_misc_amo(records):
     # 用户 2026-10-22 裁定「OPC-MISC 的编码改为：0100-0111」⇒ op 0x77 → 0x47。
     op = 0x47
-    # ADR-0034 D1/D2（用户 2026-10-20）：fence 由 000-000 迁至 100-000（ha=0x20）；
-    # immu18 = fm[17:12] / pred[11:6] / succ[5:0]（书写仍是 18 位无符号立即数，不拆三段）；
-    # fm=0 为唯一已定义值，pred/succ 的高 2 位（[11:10]/[5:4]）SBZ ⇒ 其余保留（ILLI）。
-    # scope：SPEC-164t（用户 2026-10-22 同意）由 excluded 转 m9 —— QEMU/LLVM 已实现。
-    records.append(rec("fence", "fence", "oiii", op, f_oiii("immu18"),
-                       ["immu18[17:12] == 0", "immu18[11:10] == 0", "immu18[5:4] == 0"],
-                       S12_FENCE, ha=0x20, scope="m9"))
+    # ADR-0044 D1/D3：fence 为 ciii（op 0x79），ha = cfxha（0 = all cfx）；
+    # hb = immu18[17:12] = 0（SBZ，非 0 ⇒ ILLI）；hc = pred；hd = succ。
+    # 移出 OPC-MISC，位于 QFC 主表 0111-1001（SimRISC-11「核芯功能扩展」）。
     # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 OPC-MISC 100-010（ha=0x22）
     records.append(rec("swym-oiii", "swym", "oiii", op, f_oiii("immu18"),
                        [], S12_SWYM, ha=0x22))
@@ -893,6 +897,8 @@ EXPR_TO_RULE = OrderedDict([
     ("aligned(8)",                                "excp_malign"),
     # ── SBZ / 位域 ──
     ("immu18[17:12] == 0",                        "encode_sbz"),
+    ("cfxha <= 6 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62",
+                                                  "encode_cfx_reserved"),
     ("immu18[11:10] == 0",                        "encode_sbz"),
     ("immu18[11:6] == 0",                         "encode_sbz"),
     ("immu18[5:4] == 0",                          "encode_sbz"),

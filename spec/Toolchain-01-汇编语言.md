@@ -14,7 +14,7 @@
 
 - **适用范围**：DADAO M1 的汇编语言——词法、记号、指令书写、指导符、选项、诊断、往返。
 - **指令集权威**：编码与身份以 `contracts/opcodes.yaml` 为准；语义以 `contract-isa.md` 为准；本规范**只规定书写形式**。
-- **格式类（format）**：`contract-isa.md §2.3` 定义的 M1 格式类——`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii` `crrr` `ciii`（格式类清单与各指令 `scope` 归属以 `contracts/opcodes.yaml` 为准）。其中 `crrr`（`cfx2rd`/`cfx2rc`）与 `ciii`（`trap`/`escape`）属特权 cfx、已纳入 M1（`scope: m1`）；`crii`（`cfxld`/`cfxst`）仍属 `scope: excluded`（`SimRISC-12` deferred）。
+- **格式类（format）**：`contract-isa.md §2.3` 定义的 M1 格式类——`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii` `crrr` `ciii`（格式类清单与各指令 `scope` 归属以 `contracts/opcodes.yaml` 为准）。其中 `crrr`（`cfx2rd`/`cfx2rc`）与 `ciii`（`trap`/`escape`/`fence`）属特权 cfx；`crii`（`cfxld`/`cfxst`）仍属 `scope: excluded`（`SimRISC-12` deferred）。
 - **术语**：**地址表达式**、**寄存器组**、**条件寄存器**、**地址立即数（字节）**——见 §3/§4/§2.4。
 
 ---
@@ -153,7 +153,8 @@
 | `orrr` | `助记符 dst, src1, src2` | `or.o rd8, rd9, rd10` | — |
 | `orri` | `助记符 dst, src, immu6` | `ext.uo rd8, rd0, 1` | — |
 | `orri`（块赋值/格式转换） | `助记符 {dst:…}, {src:…}` | `ra2rd {rd8:rd10}, {ra1:ra3}` | `immu6` = 连续寄存器个数 |
-| `oiii` | `助记符 immu18` | `fence 0`、`swym 0` | 纯立即数，不加 `[]` |
+| `oiii` | `助记符 immu18` | `swym 0` | 纯立即数，不加 `[]` |
+| `ciii`（`fence`） | `助记符 cfxHA, immu18` | `fence cfx0, immu18` | `cfx0`/`cfx_umon` = all cfx；立即数整体书写 |
 
 `rrrr` 的两种目的形态（与上表首行/次行对应）：
 
@@ -164,13 +165,14 @@ add.uo  {rd8, rd9}, rd10, rd11
 ftfma   rf8, rf9, rf10, rf11
 ```
 
-**特权 cfx 格式（`crrr`/`crii`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**；其中 `crrr`/`ciii` 现为 `scope: m1`，`crii` 仍为 `scope: excluded`）：
+**特权 cfx 格式（`crrr`/`crii`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**；其中 `crrr`/`ciii` 现为 `scope: m1`/`m9`，`crii` 仍为 `scope: excluded`）：
 - `cfxld cfx63, [rb2, 1]`、`cfxst cfx63, [rb2, 1]`——`cfxha` 写作 `cfxHA`（测试机为 `cfx63` = power），末两操作数为**地址**。
 - `cfx2rd cfx63, cg8, rc1, rd8`、`cfx2rc …`——字段占位为 `cfxHA, cgHB, rcHC, rdHD`；中间两操作数分别是 **`cg` 寄存器**与 **`rc` 寄存器**，各自命名。
 - `lr.o.nn rd9, [rb1]`——**两个操作数**：`rdHB` 固定为 `rd0`（**不在汇编中出现**，手工编码 `hb ≠ 0` → ILLI），故只写「目的寄存器 `rdHC` + 地址 `rbHD`」。
 - `sc.o.nn rd8, rd9, [rb1]`——**三个操作数**：`rdHB`(成功/失败结果)、`rdHC`(源)、地址 `rbHD`。
 - `escape cfx63, [excp_cause_ip, 4]`——`cfxha` 写作 `cfxHA`；第二个参数是**字节偏移**（汇编层 `imms20`，须 `%4==0`），其基址**不是 `rb0`**，而是**异常进入时保存的地址 `excp_cause_ip`**（该基址**不在编码中**，与 `jump-iiii` 的 `rb0` 同构，故同样**显式写出**）。编码层 `Addr = excp_cause_ip + (imms18 << 2)`。
 - `trap cfx63, 1`——`cfxha` 写作 `cfxHA`；其立即数**与地址无关**，**不加** `[]`。
+- `fence cfx0, immu18` / `fence cfx_umon, immu18`——`cfx0` 与 `cfx_umon` 都表示 **all cfx**；`immu18` 为**一个** 18 位表达式（不拆三段），可用 `PRED_*`/`SUCC_*` 位名常量按位或构造；`fence 0` 不是合法语法。
 
 **特例**：
 - `ret rd0, 0`：`imms18` 为返回值，**不是**地址，**不加** `[]`。
@@ -351,6 +353,8 @@ escape cfx_smon, [excp_cause_ip, 4]          @@ cfxha 写作标量别名
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.5.4-rc（未发布）
+
+- `fence` 改为 `ciii` 语法 `fence cfxHA, immu18`：`cfx0`/`cfx_umon` 都表示 all cfx；`immu18` 整体一个表达式；`fence 0` 不再接受。
 
 - §13.8 数组单下标示例改用 `cfx_pmem_start[0]`（`cfx_ptw_ptbr` 已改为单份寄存器，不再有数组下标）。
 

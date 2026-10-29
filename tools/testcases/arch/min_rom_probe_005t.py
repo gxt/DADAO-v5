@@ -110,7 +110,7 @@ def br_ne(rdha, rdhb, imms12):
     if imms12 < 0: hc |= 0x20
     return encode_orrr(0x6F, rdha, rdhb, hc, hd)
 
-def fence(): return encode_oiii(0x47, 0x20, 0)
+def fence(): return struct.pack('>I', 0x79000000)
 def swym(): return encode_oiii(0x47, 0x22, 0)
 
 # ── Terminators / ROM ────────────────────────────────────────────────

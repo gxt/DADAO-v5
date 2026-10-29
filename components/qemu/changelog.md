@@ -211,3 +211,7 @@
 - **2026-10-29 `INTEG-040t`**
   - 摘要：**地址空间 Step 3（ADR-0041）**：TLB 并入 `cfx_ptw`——条目按「虚拟页 + 16 位 ASID（`cfx_ptw_tlb_asid`）」匹配、`G=1`（PTE bit4，原保留）跨 ASID；`ptw_enable=1` 即参与查找、`0` 时旁路，无 `tlb_enable`/`tlb_exist`；命中不重读 PTE（按 `SPF/GPF → HSJU → R/W/X` 同序检查，异常直接进 `cfx_ptw`），miss 走页表步进且成功才填充（替换 dirty 条目先回写）。A/D 在条目中维护（fill 不产生回写、读/取指置 A、写置 A/D、缺页/权限失败不更新），`CLEAN`/`FLUSH`/替换以原子 OR 回写 PTE，`INVALID` 不写回；回写失败报 `PTWERR`（`1<<7`，`cause_info` = PTE PA）并保留条目。新增 `cfx_ptw` cg12 接口（rc0 control：op/scope/ASID_ANY 正交，rc1 ASID，rc2 start，rc3 size；`scope=11` 或 `range` 且 `size=0` ⇒ `CFXREG`（仅 clean/invalid/flush；op=00 优先 no-op））。QEMU 自有 translation cache 在 PTBR/ptw_enable/ASID 写、条目删除与 run-mode 切换时丢弃（guest TLB 条目保留，不构成隐含失效）。新增探针 `tools/testcases/arch/min_rom_probe_integ040t.py`（34 例）。
   - 执行者：engineer
+
+- **2026-10-29 INTEG-041t**
+  - 摘要：**`fence` 解码/语义迁到 `ciii`（`opc 0x79`）**（`ADR-0044 D1`–`D8`）：`insn.decode` 由 `contracts/opcodes.yaml` 重生成（266 patterns），`trans_ctrl.c.inc` 的 `trans_fence_oiii_imm` 改为 `trans_fence_ciii_cfx(arg_main)`：`ha = cfxha`（0 = all cfx；保留 7–14/19–61 ⇒ ILLI），`hb != 0` ⇒ ILLI；`pred/succ` 六位 `cr/cw/ci/co/mr/mw` 映射到 `TCG_MO_*`，零掩码 no-op。qemu-user 为平坦内存模型，cfx 选择器不额外削弱屏障。**真值**：`check-patch-tree` 205 OK；`semantics_gate` 结构派生 0 差异；`atomics-fence.yaml` **17/17 PASS**（含 hb≠0、reserved cfx、零掩码 no-op）；`build-qemu` rc=0。补丁 **2 份改**（`series` 63）。
+  - 执行者：engineer

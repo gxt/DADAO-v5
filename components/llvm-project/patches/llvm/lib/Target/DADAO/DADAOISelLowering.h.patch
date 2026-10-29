@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..439b84da5
+index 000000000..2396658b3
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 @@ -0,0 +1,448 @@
@@ -386,9 +386,9 @@ index 000000000..439b84da5
 +  ///
 +  ///   ISD::ATOMIC_FENCE -> DADAOISD::FENCE carrying the `fm`/`pred`/`succ`
 +  ///     immediate; the ordering mapping is:
-+  ///       acquire            -> pred R,        succ R|W    = 0x043
-+  ///       release            -> pred R|W,      succ W      = 0x0C2
-+  ///       acq_rel / seq_cst  -> pred R|W|I|O,  succ R|W|I|O = 0x3CF
++  ///       acquire            -> pred mr,        succ mr|mw    = 0x430
++  ///       release            -> pred mr|mw,     succ mw       = 0xC20
++  ///       acq_rel / seq_cst  -> pred all six,   succ all six  = 0xFFF
 +  ///       monotonic/unordered-> no instruction (the chain is returned as is)
 +  ///   ISD::ATOMIC_LOAD / ISD::ATOMIC_STORE -> an ordinary extending load /
 +  ///     truncating store (the fences were already inserted by AtomicExpand).

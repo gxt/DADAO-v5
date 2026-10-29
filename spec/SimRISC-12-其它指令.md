@@ -1,53 +1,11 @@
 # SimRISC其它指令
 
 > **版本：0.5.6-rc**（与 SimRISC-00 一致）
-> **分类：其它指令** — fence/lr.*/sc.*/swym/ctlz/cttz/ctpop
+> **分类：其它指令** — lr.*/sc.*/swym/ctlz/cttz/ctpop
 
 ## 1. 原子指令
 
-### 1.1 fence指令
-
-fence 指令对外部可见的访存请求,如设备 I/O 和内存访问等进行串行化。
-
-操作数类型为：`oiii`
-
-```simrisc
-fence   immu18
-```
-
-`fence immu18` 的 18 位立即数**不拆成三段操作数**，汇编层仍书写一个 18 位无符号立即数；其位域为：
-
-| 字段 | 位 | 含义 |
-| --- | --- | --- |
-| `fm` | `immu18[17:12]` | 屏障模式（fence mode） |
-| `pred` | `immu18[11:6]` | 前序（predecessor）访问类型集合 |
-| `succ` | `immu18[5:0]` | 后序（successor）访问类型集合 |
-
-`pred`/`succ` 的位含义为 R/W/I/O 四类访问（`R` 读、`W` 写、`I`/`O` 为设备 I/O 访问，RISC-V `fence` 口径）；汇编层提供八个符号常量，按位或（`|`）组合：
-
-| 访问类型 | `pred` 常量（值） | `succ` 常量（值） |
-| --- | --- | --- |
-| R | `PRED_R = 1<<6` | `SUCC_R = 1<<0` |
-| W | `PRED_W = 1<<7` | `SUCC_W = 1<<1` |
-| I | `PRED_I = 1<<8` | `SUCC_I = 1<<2` |
-| O | `PRED_O = 1<<9` | `SUCC_O = 1<<3` |
-
-例：`fence PRED_R|PRED_W|SUCC_R|SUCC_W`（= `immu18` 的 `0x00C3`，即 `pred = 000011`、`succ = 000011`）。
-
-`fm` 取值：
-
-| `fm` | 含义 |
-| --- | --- |
-| `0` | 已定义（常规屏障） |
-| `8` | TSO 预留（当前未定义） |
-| 其余 | 保留 |
-
-保留编码 ⇒ ILLI：
-
-- `fm ≠ 0`（其中 `fm = 8` 标注为「TSO 预留、当前未定义」）；
-- `pred` 的 `immu18[11:10]` 与 `succ` 的 `immu18[5:4]` 为 SBZ，非零即保留。
-
-### 1.2 LR-SC指令
+### 1.1 LR-SC指令
 
 LR 指令是 Load Reserved 的缩写，读取保留；SC 指令是 Store Conditional 的缩写，条件存储。设计参考 RISC-V RV64A 扩展（A 扩展）。
 
@@ -168,7 +126,6 @@ ctpop   rdHB, rdHC, immu6       @@ 1 的个数（immu6=63 → 64 位）
 | `ctlz` | `orri` | `rd` | `ctlz rdHB, rdHC, immu6` | `ctlz_orri_rd` |
 | `ctpop` | `orri` | `rd` | `ctpop rdHB, rdHC, immu6` | `ctpop_orri_rd` |
 | `cttz` | `orri` | `rd` | `cttz rdHB, rdHC, immu6` | `cttz_orri_rd` |
-| `fence` | `oiii` | `imm` | `fence immu18` | `fence_oiii_imm` |
 | `lr.b.an` | `orrr` | `rd` | `lr.b.an rdHC, [rbHD]` | `lr.b.an_orrr_rd` |
 | `lr.b.ar` | `orrr` | `rd` | `lr.b.ar rdHC, [rbHD]` | `lr.b.ar_orrr_rd` |
 | `lr.b.nn` | `orrr` | `rd` | `lr.b.nn rdHC, [rbHD]` | `lr.b.nn_orrr_rd` |
@@ -201,5 +158,4 @@ ctpop   rdHB, rdHC, immu6       @@ 1 的个数（immu6=63 → 64 位）
 ## 附录 B：合法性检查
 
 * `dst_rd0`：目的 rd0 → ILLI — `ctlz_orri_rd`, `ctpop_orri_rd`, `cttz_orri_rd`（3 条）
-* `encode_sbz`：SBZ 非零 → ILLI — `fence_oiii_imm`（1 条）
 <!-- LEGALITY_END -->

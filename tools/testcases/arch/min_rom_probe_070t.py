@@ -68,7 +68,7 @@ FLAG_NX = 0x10
 
 # ── Instruction encoding (op / ha from contracts/opcodes.yaml) ─────────
 
-ILLI = 0x47801000                 # fence fm=1 -> ILLI
+ILLI = 0x79001000                 # fence hb=1 -> ILLI
 SWYM = 0x47880000                 # swym (padding)
 
 

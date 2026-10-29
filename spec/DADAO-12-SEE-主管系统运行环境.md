@@ -73,6 +73,7 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 - 对核内地址空间进行非法访问时，会触发对应核芯功能扩展的 CFXMEM 异常。核芯功能扩展由地址高 6 位 `addr[47:42]`（即 cfxha）确定。
 - 保留 cfx（7–14、19–61）的普通 `ld/st` 触发 CFXMEM；`trap`/`escape` 到保留 cfx 触发 ILLI。
 - `cfxha 5` 未分配（原 TLB 管理 `tlb` 已并入 `cfx_ptw`，见 §4.5）；未分配的 cfxha 由实现约定其未实现行为（测试机按未实现 cfx 处理）。
+- 屏障指令 `fence cfxHA, immu18` 用 `cfxHA` 选择资源域：`cfx0` 与 `cfx_umon` 都表示 **all cfx**，`cfx1`–`cfx63` 表示指定 cfx；`immu18` 中的 `cr`/`cw`/`ci`/`co` 位作用于所选 cfx 的 memory/IO 访问，`mr`/`mw` 位作用于系统内存。屏障只约束本 hart 的访问顺序/可见性，不等待 DMA。
 - cfx1–cfx63 的访问权限不在本章定义。
 
 ### 2.2 虚实地址转换
@@ -885,6 +886,8 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.7.3-rc（未发布）
+
+- 屏障指令 `fence cfxHA, immu18`：`cfx0`/`cfx_umon` 表示 all cfx，`cfx1`–`cfx63` 指定 cfx；资源域顺序只约束本 hart，不等待 DMA。
 
 - 版本号与 SBI 同步（SBI 删除 `immu18` 保留值 `0x3FFFF`）；本册正文不变。
 - 地址空间改为 48 位 CPU 地址 + 高 6 位分区：`0` 为内存窗口，`1..63` 为 cfx 1–63 核内空间；VA 42 位、PA 56 位，取消 64 位物理地址与高 16 位拼接。

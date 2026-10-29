@@ -10,7 +10,7 @@
  *   is judged *structurally*: the number of `fence` instructions in the
  *   generated assembly/object must equal the number of a_barrier call sites in
  *   this source (derived live by the oracle, never a constant), and the fence
- *   immediate must be the full-barrier encoding the port installs (0x3CF).
+ *   immediate must be the full-barrier encoding the port installs (0xFFF).
  *
  * Independent oracle (tools/testcases/oracle_atomics.py)
  *   barrier_expected() counts `a_barrier();` occurrences in this file's text.

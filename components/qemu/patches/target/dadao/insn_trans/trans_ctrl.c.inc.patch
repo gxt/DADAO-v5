@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_ctrl.c.inc b/target/dadao/insn_trans/trans_ctrl.c.inc
 new file mode 100644
-index 0000000..fd5c438
+index 0000000..c2cf480
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_ctrl.c.inc
-@@ -0,0 +1,560 @@
+@@ -0,0 +1,566 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* ── Helper: RegRAS/MemRAS push/pop (ADR-0012 D7) ──────────────────── */
@@ -505,38 +505,43 @@ index 0000000..fd5c438
 +
 +/* ── §7.2 fence ─────────────────────────────────────────────────────── */
 +/*
-+ * fence immu18 (oiii, op=0x47, ha=0x20; SimRISC-11 §4.1, ADR-0034 D1/D2):
-+ *   fm   = immu18[17:12]  (hb) — only 0 is defined (8 = TSO-reserved)
-+ *   pred = immu18[11:6]   (hc) — bits [11:10] are SBZ
-+ *   succ = immu18[5:0]    (hd) — bits [5:4]   are SBZ
-+ * Within each 6-bit field the access classes are R=1<<0, W=1<<1, I=1<<2,
-+ * O=1<<3, matching the assembly constants PRED_R=1<<6 … SUCC_O=1<<3.
++ * fence cfxHA, immu18 (ciii, opc=0x79; SimRISC-11, ADR-0044 D1-D8):
++ *   cfxha = ha              — 0 = all cfx; 1..63 = one cfx
++ *   hb    = immu18[17:12]   — SBZ (non-zero => ILLI)
++ *   pred  = immu18[11:6]    — cr/cw/ci/co/mr/mw in bits 5..0
++ *   succ  = immu18[5:0]     — same six access classes
 + *
-+ * fm != 0 (incl. the TSO-reserved 8) or a non-zero SBZ => ILLI.
++ * hb != 0 or a reserved cfx (7-14, 19-61) => ILLI.
 + * pred = succ = 0 => no-op: NO barrier is emitted at all.
 + * Otherwise the (pred, succ) class pair is mapped onto the TCG ordering
 + * matrix (TCG_MO_{LD,ST}_{LD,ST}, "A before B in program order") and emitted
 + * as TCG_BAR_SC so the ordering is host-thread visible (qemu-user: one guest
-+ * hart = one host thread).  I/O classes (I/O) have no device model here, so
-+ * each of them contributes BOTH memory classes on its side: the resulting
-+ * barrier is at least as strong as the architecture requires, never weaker
-+ * (ADR-0034 D6; declared in the task's completion area).
++ * hart = one host thread).  This target has a flat memory model: the cfxha
++ * selector narrows the architectural scope, but there is no separate cfx
++ * device model to order against, and cfx memory/IO bits contribute both
++ * memory classes here, so the emitted barrier is never weaker than required.
 + */
-+#define FENCE_SBZ_MASK  0x30        /* field bits [5:4] */
-+#define FENCE_R         0x01
-+#define FENCE_W         0x02
-+#define FENCE_I         0x04
-+#define FENCE_O         0x08
++#define FENCE_CR        0x01
++#define FENCE_CW        0x02
++#define FENCE_CI        0x04
++#define FENCE_CO        0x08
++#define FENCE_MR        0x10
++#define FENCE_MW        0x20
 +
-+static bool trans_fence_oiii_imm(DisasContext *ctx, arg_misc *a)
++static bool fence_cfx_reserved(int cfxha)
 +{
++    return (cfxha >= 7 && cfxha <= 14) || (cfxha >= 19 && cfxha <= 61);
++}
++
++static bool trans_fence_ciii_cfx(DisasContext *ctx, arg_main *a)
++{
++    int cfxha = a->ha;
 +    int pred = a->hc;
 +    int succ = a->hd;
 +    bool pred_ld, pred_st, succ_ld, succ_st;
 +    int bar = 0;
 +
-+    if (a->hb != 0 ||
-+        (pred & FENCE_SBZ_MASK) || (succ & FENCE_SBZ_MASK)) {
++    if (a->hb != 0 || fence_cfx_reserved(cfxha)) {
 +        gen_exception_illegal(ctx);
 +        return true;
 +    }
@@ -544,10 +549,11 @@ index 0000000..fd5c438
 +        return true;            /* no-op: no ordering effect whatsoever */
 +    }
 +
-+    pred_ld = (pred & (FENCE_R | FENCE_I | FENCE_O)) != 0;
-+    pred_st = (pred & (FENCE_W | FENCE_I | FENCE_O)) != 0;
-+    succ_ld = (succ & (FENCE_R | FENCE_I | FENCE_O)) != 0;
-+    succ_st = (succ & (FENCE_W | FENCE_I | FENCE_O)) != 0;
++    /* I/O classes have no device model here: contribute both directions. */
++    pred_ld = (pred & (FENCE_CR | FENCE_CI | FENCE_CO | FENCE_MR)) != 0;
++    pred_st = (pred & (FENCE_CW | FENCE_CI | FENCE_CO | FENCE_MW)) != 0;
++    succ_ld = (succ & (FENCE_CR | FENCE_CI | FENCE_CO | FENCE_MR)) != 0;
++    succ_st = (succ & (FENCE_CW | FENCE_CI | FENCE_CO | FENCE_MW)) != 0;
 +
 +    if (pred_ld && succ_ld) {
 +        bar |= TCG_MO_LD_LD;

@@ -121,7 +121,7 @@ def st_o_rd(rdha, rbhb, imms12):
 
 
 def fence():
-    return encode_oiii(0x47, 0x20, 0)
+    return struct.pack('>I', 0x79000000)
 
 
 def trap_sys_exit():

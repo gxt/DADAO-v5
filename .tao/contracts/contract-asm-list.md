@@ -308,7 +308,7 @@
 | `sub.sb` | `orrr` | `rd` | `sub.sb rdHB, rdHC, rdHD` | `sub.sb_orrr_rd` |
 | `sub.ub` | `orrr` | `rd` | `sub.ub rdHB, rdHC, rdHD` | `sub.ub_orrr_rd` |
 
-### 核芯功能扩展（6 条）
+### 核芯功能扩展（7 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -317,16 +317,16 @@
 | `cfxld` | `crii` | `cfx` | `cfxld cfxHA, [rbHB, immu12]` | `cfxld_crii_cfx` |
 | `cfxst` | `crii` | `cfx` | `cfxst cfxHA, [rbHB, immu12]` | `cfxst_crii_cfx` |
 | `escape` | `ciii` | `cfx` | `escape cfxHA, [excp_cause_ip, imms20]` | `escape_ciii_cfx` |
+| `fence` | `ciii` | `cfx` | `fence cfxHA, immu18` | `fence_ciii_cfx` |
 | `trap` | `ciii` | `cfx` | `trap cfxHA, immu18` | `trap_ciii_cfx` |
 
-### 其它指令（29 条）
+### 其它指令（28 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `ctlz` | `orri` | `rd` | `ctlz rdHB, rdHC, immu6` | `ctlz_orri_rd` |
 | `ctpop` | `orri` | `rd` | `ctpop rdHB, rdHC, immu6` | `ctpop_orri_rd` |
 | `cttz` | `orri` | `rd` | `cttz rdHB, rdHC, immu6` | `cttz_orri_rd` |
-| `fence` | `oiii` | `imm` | `fence immu18` | `fence_oiii_imm` |
 | `lr.b.an` | `orrr` | `rd` | `lr.b.an rdHC, [rbHD]` | `lr.b.an_orrr_rd` |
 | `lr.b.ar` | `orrr` | `rd` | `lr.b.ar rdHC, [rbHD]` | `lr.b.ar_orrr_rd` |
 | `lr.b.nn` | `orrr` | `rd` | `lr.b.nn rdHC, [rbHD]` | `lr.b.nn_orrr_rd` |

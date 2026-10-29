@@ -126,8 +126,8 @@ def ret_riii(rdha, imms18):
     return encode_riii(0x76, rdha, imms18 & 0x3FFFF)
 
 def fence():
-    """fence 0 (op=0x47, ha=0x20; SPEC-164t: OPC-MISC migrated to op 0x47)."""
-    return encode_orri(0x47, 0x20, 0, 0, 0)
+    """fence cfx0, 0 (ciii op=0x79; ADR-0044: no-op padding)."""
+    return struct.pack('>I', 0x79000000)
 
 def illi_poison():
     """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison after fence

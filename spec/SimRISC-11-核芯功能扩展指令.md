@@ -1,7 +1,7 @@
 # SimRISC核芯功能扩展指令
 
 > **版本：0.5.6-rc**（与 SimRISC-00 一致）
-> **分类：核芯功能扩展** — trap/escape/cfx2rd/cfx2rc/cfxld/cfxst
+> **分类：核芯功能扩展** — trap/escape/cfx2rd/cfx2rc/cfxld/cfxst/fence
 
 ## 1. 指令域与执行条件
 
@@ -96,6 +96,51 @@ cfxst    cfxHA, [rbHB, immu12]
 - cfxst：将核芯功能扩展的内部存储数据传输到内存中。
 - 若 cfx_<cfxname> 为 reserved 核芯功能扩展（7-14、19-61），触发 ILLI 异常。
 
+## 6. 屏障指令
+
+屏障指令用于约束本 hart 对所选 cfx 资源域的访问顺序。
+
+操作数类型为：`ciii`
+
+```simrisc
+fence   cfxHA, immu18
+```
+
+其中，`cfxHA` 指定资源域：
+
+- `cfx0` / `cfx_umon`：表示 **all cfx**（不是只作用于 umon 本地资源）；
+- `cfx1`–`cfx63`：表示指定的 cfx。
+
+`immu18` **整体书写，不拆成三段操作数**；其位域为：
+
+| 字段 | 位 | 含义 |
+| --- | --- | --- |
+| `hb` | `immu18[17:12]` | SBZ，必须为 0 |
+| `pred` | `immu18[11:6]` | 前序（predecessor）访问类型掩码 |
+| `succ` | `immu18[5:0]` | 后序（successor）访问类型掩码 |
+
+`pred`/`succ` 的位含义相同：
+
+| 位 | 名称 | 访问类型 |
+| --- | --- | --- |
+| bit0 | `cr` | cfx memory read |
+| bit1 | `cw` | cfx memory write |
+| bit2 | `ci` | cfx IO input |
+| bit3 | `co` | cfx IO output |
+| bit4 | `mr` | system memory read |
+| bit5 | `mw` | system memory write |
+
+`pred = 0` 且 `succ = 0` 是合法的 no-op。
+
+屏障只保证**本 hart** 对所选 cfx 的对应访问顺序/可见性；不跨 hart，不等待 DMA
+完成，也不负责 TLB / icache 维护。
+
+异常规则：
+
+- `hb != 0` ⇒ ILLI；
+- `cfxHA` 为保留核芯功能扩展（7–14、19–61）⇒ ILLI；
+- 正常屏障不产生异常。
+
 <!-- ASSEMBLY_LIST_START -->
 ## 附录 A：汇编指令速查
 
@@ -106,12 +151,16 @@ cfxst    cfxHA, [rbHB, immu12]
 | `cfxld` | `crii` | `cfx` | `cfxld cfxHA, [rbHB, immu12]` | `cfxld_crii_cfx` |
 | `cfxst` | `crii` | `cfx` | `cfxst cfxHA, [rbHB, immu12]` | `cfxst_crii_cfx` |
 | `escape` | `ciii` | `cfx` | `escape cfxHA, [excp_cause_ip, imms20]` | `escape_ciii_cfx` |
+| `fence` | `ciii` | `cfx` | `fence cfxHA, immu18` | `fence_ciii_cfx` |
 | `trap` | `ciii` | `cfx` | `trap cfxHA, immu18` | `trap_ciii_cfx` |
 
 <!-- ASSEMBLY_LIST_END -->
 
 <!-- LEGALITY_START -->
 ## 附录 B：合法性检查
+
+* `encode_sbz`：SBZ 非零 → ILLI — `fence_ciii_cfx`（1 条）
+* `encode_cfx_reserved`：保留 cfx（7-14、19-61）→ ILLI — `fence_ciii_cfx`（1 条）
 
 **decode ILLI（未实现该语义的机器）：**
 * `cfxld_crii_cfx`：decode ILLI

@@ -122,7 +122,7 @@ def br_nz(rdha, imms18):
     return encode_riii(0x6B, rdha, imms18 & 0x3FFFF)
 
 def fence():
-    return encode_oiii(0x47, 0x20, 0)
+    return struct.pack('>I', 0x79000000)
 
 def swym():
     return encode_oiii(0x47, 0x22, 0)

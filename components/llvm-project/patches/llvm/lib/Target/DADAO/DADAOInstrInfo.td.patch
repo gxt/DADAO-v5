@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..d697efe74
+index 000000000..14deebcfb
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1955 @@
+@@ -0,0 +1,1956 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1659,13 +1659,14 @@ index 000000000..d697efe74
 +  let Pattern = [];
 +}
 +
-+// --- oiii format (2 instructions) ---
++// --- oiii format (1 instruction) ---
 +
-+def fence : DADAOOiii<"fence"> {
++def fence : DADAOCiii<"fence"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins immu18:$imm18);
-+  let op = 0x47;
-+  let ha = 0x20;
++  let InOperandList = (ins cfxCfxha:$cfxha, immu18:$imm18);
++  // ADR-0044 D1: ciii, opc 0x79; ha = cfxha (0 = all cfx), immu18 =
++  // hb[17:12] | pred[11:6] | succ[5:0].
++  let op = 0x79;
 +  // A barrier must never be deleted, duplicated or moved (LLVM-121t: the
 +  // instruction is now reachable from CodeGen as ISD::ATOMIC_FENCE).
 +  let hasSideEffects = 1;

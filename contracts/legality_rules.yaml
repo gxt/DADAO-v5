@@ -180,13 +180,23 @@ rules:
       SBZ（Should Be Zero）字段非零时触发 ILLI 异常（静态）。
       ADR-0004 D5.3 冻结「SBZ 非零 → ILLI」（架构自定义；spec 未规定 fault 类型）。
       固定为 0 的位域非零均属此规则，包括但不限于：
-      fence 的 immu18_hi/immu18_mid/immu18_lo bits[17:4]；
+      fence 的 hb = immu18[17:12]（ADR-0044 D3：其余位为 pred/succ 掩码）；
       移位量超过位宽限制（shl.b/rol.b/shr.sb/shr.ub: shamt > 7；shl.w/rol.w/shr.sw/shr.uw: shamt > 15；
       shl.t/rol.t/shr.st/shr.ut: shamt > 31）；
       扩展起始位超过位宽限制（ext.uo/ext.so: hd > 63；SPEC-069t: ext.ub/ext.sb、
       ext.uw/ext.sw、ext.ut/ext.st 已删除）；
       lr 指令的 hb（rdhb）固定为 rd0，手工编码时 hb ≠ 0（LR-SC 原子指令属 M1 范围外，
       M1 不提取其语义）。
+
+  - id: encode_cfx_reserved
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-11: fence"
+    status: active
+    description: >
+      fence 的 cfxha 指向保留核芯功能扩展（7–14、19–61）时触发 ILLI 异常（静态）。
+      cfxha = 0 表示 all cfx（汇编别名 cfx0 / cfx_umon）；1–6、15–18、62、63 为已分配
+      或实现约定的 cfx。ADR-0044 D8 冻结该口径；cfx 编号/权限本身不变。
 
   - id: encode_onehot
     fault: ILLI

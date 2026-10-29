@@ -2,13 +2,13 @@
 # 逐条身份清单（无计数）：删除任一 vector 用例 / lit @@ OBJ: pattern 即漂移。
 # 重新生成：python3 tools/infra/check_case_ledger.py --write
 # kind	file	identity...	ordinal
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-ciii.s	79fc0040	fence	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-ciii.s	7efc0002	escape	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-ciii.s	7ffc0001	trap	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-crrr.s	7afc8048	cfx2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-crrr.s	7bfc8048	cfx2rc	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-iiii.s	70000003	jump	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-iiii.s	74000003	call	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-oiii.s	47800000	fence	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-oiii.s	47880008	swym	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	40308241	rev.o	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	40608241	shl.o	1
@@ -266,11 +266,11 @@ lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rwii.s	4c211234	set.zw	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rwii.s	4d211234	set.ow	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rwii.s	4e211234	set.zw	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rwii.s	4f211234	set.w	1
-lit	tests/unit/llvm/lit/MC/DADAO/atomics-fence-imm.s	47800000	fence	1
-lit	tests/unit/llvm/lit/MC/DADAO/atomics-fence-imm.s	47800043	fence	1
-lit	tests/unit/llvm/lit/MC/DADAO/atomics-fence-imm.s	478000c2	fence	1
-lit	tests/unit/llvm/lit/MC/DADAO/atomics-fence-imm.s	478000c3	fence	1
-lit	tests/unit/llvm/lit/MC/DADAO/atomics-fence-imm.s	478003cf	fence	1
+lit	tests/unit/llvm/lit/MC/DADAO/atomics-fence-imm.s	79000000	fence	1
+lit	tests/unit/llvm/lit/MC/DADAO/atomics-fence-imm.s	79000043	fence	1
+lit	tests/unit/llvm/lit/MC/DADAO/atomics-fence-imm.s	79000043	fence	2
+lit	tests/unit/llvm/lit/MC/DADAO/atomics-fence-imm.s	79000430	fence	1
+lit	tests/unit/llvm/lit/MC/DADAO/atomics-fence-imm.s	79fc0fff	fence	1
 lit	tests/unit/llvm/lit/MC/DADAO/atomics-lrsc.s	47000241	lr.o.nn	1
 lit	tests/unit/llvm/lit/MC/DADAO/atomics-lrsc.s	47040241	lr.t.nn	1
 lit	tests/unit/llvm/lit/MC/DADAO/atomics-lrsc.s	47080241	lr.w.nn	1
@@ -389,7 +389,6 @@ lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	44288241	fo2fo	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	44388242	foroot	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	471c0241	lr.b.an	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	476c8241	sc.b.ar	1
-lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	47800000	fence	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	47880008	swym	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	47988241	ctlz	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	4b211234	andn.w	1
@@ -404,6 +403,7 @@ lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	6e209004	br.eq	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	74000003	call	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	75209018	call	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	76200008	ret	1
+lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	79fc0040	fence	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	7bfc8048	cfx2rc	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	7efc0002	escape	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	7ffc0001	trap	1
@@ -420,7 +420,6 @@ lit	tests/unit/llvm/lit/MC/DADAO/m6-callconv.s	68200000	br.n	1
 lit	tests/unit/llvm/lit/MC/DADAO/m6-callconv.s	6e209000	br.eq	1
 lit	tests/unit/llvm/lit/MC/DADAO/m6-callconv.s	70000000	jump	1
 lit	tests/unit/llvm/lit/MC/DADAO/m6-callconv.s	74000000	call	1
-lit	tests/unit/llvm/lit/MC/DADAO/oiii.s	47800000	fence	1
 lit	tests/unit/llvm/lit/MC/DADAO/oiii.s	47880000	swym	1
 lit	tests/unit/llvm/lit/MC/DADAO/oiii.s	4788002a	swym	1
 lit	tests/unit/llvm/lit/MC/DADAO/orri.s	40a08001	ext.uo	1
@@ -504,25 +503,23 @@ lit	tests/unit/llvm/lit/MC/DADAO/wpn_operand.s	4e0600ff	set.zw	1
 lit	tests/unit/llvm/lit/MC/DADAO/wpn_operand.s	4e06ffff	set.zw	1
 lit	tests/unit/llvm/lit/MC/DADAO/wpn_operand.s	4e0700ff	set.zw	1
 lit	tests/unit/llvm/lit/MC/DADAO/wpn_operand.s	4e07ffff	set.zw	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x47800060	ILLI	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x47800070	ILLI	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x47800801	ILLI	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x47800c01	ILLI	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x47801041	ILLI	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x47808041	ILLI	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	legality	0x4783f000	ILLI	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800000	None	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800001	None	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800040	None	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800041	None	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800042	None	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800043	None	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800081	None	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800082	None	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x478000c2	None	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x478000c3	None	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x47800304	None	active	1
-vector	tests/inst/atomics/atomics-fence.yaml	fence_oiii_imm	semantic	0x478003cf	None	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	legality	0x79001041	ILLI	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	legality	0x7903f000	ILLI	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	legality	0x791c0000	ILLI	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	legality	0x79380000	ILLI	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	legality	0x794c0000	ILLI	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	legality	0x79f40000	ILLI	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	semantic	0x79000000	None	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	semantic	0x79000041	None	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	semantic	0x79000108	None	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	semantic	0x79000420	None	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	semantic	0x79000430	None	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	semantic	0x79000462	None	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	semantic	0x79000810	None	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	semantic	0x79000c20	None	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	semantic	0x79000fff	None	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	semantic	0x79fc0000	None	active	1
+vector	tests/inst/atomics/atomics-fence.yaml	fence_ciii_cfx	semantic	0x79fc0082	None	active	1
 vector	tests/inst/atomics/atomics-lrsc.yaml	lr.b.an_orrr_rd	boundary	0x471c0085	None	active	1
 vector	tests/inst/atomics/atomics-lrsc.yaml	lr.b.an_orrr_rd	legality	0x471c2084	ILLI	active	1
 vector	tests/inst/atomics/atomics-lrsc.yaml	lr.b.an_orrr_rd	semantic	0x471c0084	None	active	1

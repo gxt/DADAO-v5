@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..d79b55f52
+index 000000000..1894b48cf
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,3106 @@
+@@ -0,0 +1,3100 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -2786,34 +2786,28 @@ index 000000000..d79b55f52
 +//     and that loop's cmpxchg becomes the lr/sc retry loop here.
 +//===----------------------------------------------------------------------===//
 +
-+// --- fence immediate bits (ADR-0034 D2) ------------------------------------
++// --- fence immediate bits (ADR-0044 D3/D4) ---------------------------------
 +//
-+// `fence` takes ONE 18-bit unsigned immediate: fm[17:12] | pred[11:6] |
-+// succ[5:0].  fm is 0 for the only defined mode, and the R/W/I/O bits of pred
-+// and succ are the low four bits of each 6-bit field (the top two bits are
-+// SBZ).  The mapping below is the A-table of the task book and is asserted by
-+// the CodeGen atomics/fence lit test.
++// `fence` takes cfxha plus ONE 18-bit unsigned immediate:
++// hb[17:12] | pred[11:6] | succ[5:0].  hb is SBZ.  Each pred/succ field has
++// cr/cw/ci/co/mr/mw in bits 5..0.  CodeGen's atomics operate on system
++// memory, so the mapping uses mr/mw (the cfx bits are left clear).
 +static uint64_t getDADAOFenceImm(AtomicOrdering Ord) {
-+  // pred constants: PRED_R = 1<<6, PRED_W = 1<<7, PRED_I = 1<<8, PRED_O = 1<<9
-+  // succ constants: SUCC_R = 1<<0, SUCC_W = 1<<1, SUCC_I = 1<<2, SUCC_O = 1<<3
-+  const uint64_t PredR = 1ULL << 6, PredW = 1ULL << 7, PredI = 1ULL << 8,
-+                 PredO = 1ULL << 9;
-+  const uint64_t SuccR = 1ULL << 0, SuccW = 1ULL << 1, SuccI = 1ULL << 2,
-+                 SuccO = 1ULL << 3;
++  // pred constants (field bit -> overall bit): PRED_MR = 1<<10, PRED_MW = 1<<11
++  // succ constants: SUCC_MR = 1<<4, SUCC_MW = 1<<5
++  const uint64_t PredMR = 1ULL << 10, PredMW = 1ULL << 11;
++  const uint64_t SuccMR = 1ULL << 4, SuccMW = 1ULL << 5;
 +  switch (Ord) {
 +  case AtomicOrdering::Acquire:
 +    // Read-acquire: no later access may move before it.
-+    return PredR | SuccR | SuccW; // 0x043
++    return PredMR | SuccMR | SuccMW; // 0x430
 +  case AtomicOrdering::Release:
 +    // Write-release: no earlier access may move after it.
-+    return PredR | PredW | SuccW; // 0x0C2
++    return PredMR | PredMW | SuccMW; // 0xC20
 +  case AtomicOrdering::AcquireRelease:
 +  case AtomicOrdering::SequentiallyConsistent:
-+    // Full barrier.  I/O bits are set as the spec requires even though this
-+    // machine has no device I/O execution surface (see the task book's known
-+    // boundary: the encoding is normative, the I/O execution semantics are
-+    // part of QEMU-067t's "no I/O" premise).
-+    return PredR | PredW | PredI | PredO | SuccR | SuccW | SuccI | SuccO;
++    // Full barrier: all six access classes on both sides.
++    return 0xFFF;
 +  case AtomicOrdering::NotAtomic:
 +  case AtomicOrdering::Unordered:
 +  case AtomicOrdering::Monotonic:

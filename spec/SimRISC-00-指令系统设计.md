@@ -271,7 +271,7 @@ SimRISC 的指令 opc 布局如下。空白单元格表示 reserved（保留未�
 | 0110-0xxx | cs.n_rrrr_rd   | cs.n_rrrr_rf   | cs.z_rrrr_rd    | cs.z_rrrr_rf    | cs.p_rrrr_rd   | cs.p_rrrr_rf   | cs.eq_rrrr_rd   | cs.ne_rrrr_rd |
 | 0110-1xxx | br.n_riii_rd   | br.nn_riii_rd  | br.z_riii_rd    | br.nz_riii_rd   | br.p_riii_rd   | br.np_riii_rd  | br.eq_rrii_rd   | br.ne_rrii_rd |
 | 0111-0xxx | jump_iiii_rb   | jump_rrii_rb   | br.z_riii_rb    | br.nz_riii_rb   | call_iiii_ra   | call_rrii_ra   | ret_riii_ra     |               |
-| 0111-1xxx |                |                | cfx2rd_crrr_cfx | cfx2rc_crrr_cfx | cfxld_crii_cfx | cfxst_crii_cfx | escape_ciii_cfx | trap_ciii_cfx |
+| 0111-1xxx |                | fence_ciii_cfx | cfx2rd_crrr_cfx | cfx2rc_crrr_cfx | cfxld_crii_cfx | cfxst_crii_cfx | escape_ciii_cfx | trap_ciii_cfx |
 
 ### 4.1 OPC-MISC 指令编码
 
@@ -283,7 +283,7 @@ SimRISC 的指令 opc 布局如下。空白单元格表示 reserved（保留未�
 | 001-xxx | lr.o.ar_orrr_rd | lr.t.ar_orrr_rd | lr.w.ar_orrr_rd | lr.b.ar_orrr_rd |                 |                 |                 |                 |
 | 010-xxx | sc.o.nn_orrr_rd | sc.t.nn_orrr_rd | sc.w.nn_orrr_rd | sc.b.nn_orrr_rd | sc.o.nr_orrr_rd | sc.t.nr_orrr_rd | sc.w.nr_orrr_rd | sc.b.nr_orrr_rd |
 | 011-xxx | sc.o.ar_orrr_rd | sc.t.ar_orrr_rd | sc.w.ar_orrr_rd | sc.b.ar_orrr_rd |                 |                 |                 |                 |
-| 100-xxx | fence_oiii_imm  |                 | swym_oiii_imm   |                 |                 | ctpop_orri_rd   | ctlz_orri_rd    | cttz_orri_rd    |
+| 100-xxx |                 |                 | swym_oiii_imm   |                 |                 | ctpop_orri_rd   | ctlz_orri_rd    | cttz_orri_rd    |
 | 101-xxx |                 |                 |                 |                 |                 |                 |                 |                 |
 | 110-xxx |                 |                 |                 |                 |                 |                 |                 |                 |
 | 111-xxx |                 |                 |                 |                 |                 |                 |                 |                 |
@@ -400,6 +400,7 @@ ILLI（illegal instruction，非法指令）异常由**非法操作数、非法�
 
 ### 0.5.6-rc（未发布）
 
+- `fence` 编码改为 `ciii`（`opc = 0x79`）：`ha = cfxha`（0 = all cfx）、`hb = 0`（SBZ）、`hc = pred`、`hd = succ`；从 `OPC-MISC` 子表移到主表 `0111-1001`，删除 `fm`/TSO。`pred`/`succ` 为 `cr`/`cw`/`ci`/`co`/`mr`/`mw` 六位掩码，零掩码为合法 no-op。
 - 修正窄位宽比较 `cmp.{ut,uw,ub}` 的 −1 扩展：原文「结果零扩展」为错误，现统一按 **64 位扩展**写满目的寄存器（−1 ⇒ 64 位全 1、0 ⇒ 0、+1 ⇒ 1），与 `.st`/`.sw`/`.sb` 同值；源操作数仍按位宽截断后比较。
 - `SimRISC QFC` 布局说明去掉版本号限定（布局表随版本演进，不再绑定单一版本号）。
 
