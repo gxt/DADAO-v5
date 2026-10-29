@@ -199,3 +199,7 @@
 - **2026-10-26 `QEMU-076t`**
   - 摘要：**semihosting 判定迁至 `0x3FF00–0x3FFFF`（ADR-0038 D1/D4）**：`insn_trans/trans_ctrl.c.inc` 译码条件 `((immu18 >> 16) & 0x3) == 0x3` → `immu18 >= 0x3FF00`；`helper.c` 的同判据防御分支与两处注释同步；调用点 `0x30000` → `0x3FF00`（bootrom_app/`codegen_crt0`/`build_test_binary`/M5 向量/e2e/`min_rom_probe_*`）。**语义/服务号不变**（`0x30001` HBI INIT、指令编码字、`0x3FFFF` 掩码常量未动）。
   - 执行者：engineer
+
+- **2026-10-29 `INTEG-038t`**
+  - 摘要：**地址空间 Step 1（ADR-0039 §8.5）**：CPU 地址按 48 位处理（`addr[47:42]` 分区）；`high6=0` 为内存窗口，`ptw_enable=0` 时数据/取指均 ⇒ CFXMEM（不再按 umon 段特判，也不直通 pmem）；`ptw_enable=1` 的页表步进尚未实现 ⇒ 显式失败（不静默成功）。新增单 PTBR `cfx_ptw_ptbr`（cg9 rc0，写掩码 `PPN[55:16]`）与 `cfx_ptw_enable`（cg8 rc8，1 位）；复位均为 0；写 PTBR/使能不隐含 TLB 失效。保留 cfx（7–14、19–61）普通 ld/st ⇒ CFXMEM。`cfx4` 加入测试机实现集（仅 Step 1 寄存器子集）；`cfxreg_unimpl` 测试改用 `cfx5`。新增 `tools/testcases/arch/min_rom_probe_integ038t.py`（16 例）。
+  - 执行者：engineer

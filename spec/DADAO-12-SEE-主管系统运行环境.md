@@ -53,13 +53,13 @@ DADAO定义了四种运行模式，用两位编码：
 
 ## 2. 地址空间
 
-CPU 内部地址总线固定为 48 位，若对应的 PTBR 未开启，则不会发生地址转换，此时，仅可以访问核芯内部的资源，可称之为核内地址空间；若对应的 PTBR 开启，则会发生地址转换，则称之为虚拟地址空间。
+CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：`0` 为内存窗口，`1..63` 为 cfx 1–63 的核内地址空间。内存窗口的虚拟地址（VA）为 42 位（`VA[41:0]`，高 6 位固定 0）；物理地址（PA）为 56 位。CPU 地址与物理地址是两个不同的地址空间：内存窗口不直通物理存储器，必须经页表转换；cfx 核内地址也不等同于物理地址。
 
-CPU 外部地址总线固定为 64 位，只有对应的 PTBR 开启，通过地址转换，才会生成访问主存或 IO 的 64 位地址，统称之为物理地址空间。
+`ptw_enable` 控制内存窗口是否翻译：`0` 时不翻译，`high6 = 0` 的访存触发 CFXMEM；`1` 时按页表转换。cfx 核内地址（`high6 = 1..63`）直接 `ld/st`，不经 `ptw_enable`。
 
 ### 2.1 核内地址空间
 
-48 位核内地址的高 6 位（bits[47:42]）指定了核芯功能扩展编号（cfxha）。
+48 位核内地址的高 6 位（bits[47:42]）指定了核芯功能扩展编号（cfxha）。`high6 = 0` 的地址属于内存窗口（见 §2.2），不属于任何 cfx 的内部空间；因此 `cfx0`（umon）没有内部地址空间。`cfx1`–`cfx63` 的内部空间各为 42 位（`addr[41:0]`）。
 
 已分配的核内地址空间如下：
 
@@ -71,34 +71,42 @@ CPU 外部地址总线固定为 64 位，只有对应的 PTBR 开启，通过地
 
 - cfx_power_hypv_excp_vector 为硬件复位后的启动地址，这部分地址空间可由 CPU 直接取指并执行
 - 对核内地址空间进行非法访问时，会触发对应核芯功能扩展的 CFXMEM 异常。核芯功能扩展由地址高 6 位 `addr[47:42]`（即 cfxha）确定。
+- 保留 cfx（7–14、19–61）的普通 `ld/st` 触发 CFXMEM；`trap`/`escape` 到保留 cfx 触发 ILLI。
+- cfx1–cfx63 的访问权限不在本章定义。
 
 ### 2.2 虚实地址转换
 
-虚拟地址空间有效位数为 48 位，物理地址空间的有效位数为 64 位。虚拟地址的高 16 位（bits[63:48]）在地址转换过程中被硬件忽略，寄存器中保持原值不变。
+内存窗口的虚拟地址划分：CPU 地址高 6 位 `addr[47:42] = 0` 时，`VA = addr[41:0]`（42 位）。物理地址 PA 为 56 位。
+
+`ptw_enable` 选择内存窗口的访问方式：
+
+- `ptw_enable = 0`：不进行地址转换；`high6 = 0` 的普通访存（含取指）触发 **CFXMEM**，目标是当前运行模式的 cfx；不得直通物理存储器。复位值 0。
+- `ptw_enable = 1`：按唯一 PTBR 指向的页表进行地址转换（见后续小节）。
+
+**单 PTBR**：`cfx_ptw_ptbr` 只有一份（不是 64 项数组），只存 `PPN[55:16]`（40 位）；页表物理基址 = `PPN << 16`，即 64 KiB 对齐。PTBR 没有 valid 位；PTBR = 0 表示物理基址为 PA 0，是否使用由 `ptw_enable` 决定。PTBR 的 `[15:0]` 强制为 0，`[63:56]` 保留为 0。
+
+写 PTBR 或写 `ptw_enable = 1` 均由软件直接完成，**不隐含 TLB invalidate**；软件须显式 invalidate TLB。复位时 PTBR = 0、`ptw_enable = 0`、TLB 为空。
 
 #### 2.2.1 超页的地址转换
 
-48位的虚拟地址划分为三个字段：
+42 位的虚拟地址划分为三个字段：
 
-- `VA[47:42]` -> PTBR index（64 个寄存器，每个寄存器存放一级页表的物理页号，即 `bits[63:16]` ）
 - `VA[41:29]` -> L1 index（一级页表的索引，每个一级页表 2^13 个页表项，每个表项 8 字节，即 64KiB）
 - `VA[28:00]` -> 页内偏移（超页的页内偏移为 29 位，即 512MiB）
 
 虚拟地址到物理地址的转换分为四步：
 
-**第一步：访问 PTBR**
+**第一步：检查 PTW 开关并使用 PTBR**
 
-- 首先，检查当前运行模式是否允许访问该 PTBR 对应的地址空间 —— 通过 `cfx_ptw_user/jail/supv/hypv_perm` 寄存器判断。
-  - 若不允许，触发 NUPERM/NJPERM/NSPERM/NHPERM 异常。
-- 其次，检查 `cfx_ptw_ptbr_enable` 寄存器中的该 PTBR 对应位是否为 0，若为 0，则不进行地址转换，直接使用 48 位地址访问核芯内部资源。
-- 最后，根据 `VA[47:42]` 选择对应的 `cfx_ptw_ptbr` ，该 PTBR 提供 64 位一级页表基地址（bits[63:16] × 64KiB 对齐）。
+- 检查 `ptw_enable`：为 0 时不会进入本流程（`high6 = 0` 的访存直接 CFXMEM）。
+- 使用唯一的 `cfx_ptw_ptbr` 作为一级页表基地址（`PPN[55:16]`，64KiB 对齐）。不再按 `VA[47:42]` 选择 PTBR，也不再检查 PTBR 模式权限。
 
 **第二步：TLB 查找**
 
-- 若 `cfx_tlb_enable` 对应位置 1，则查 TLB。以 `VA[47:42]` 选择对应 TLB 集合，集合内以 L1 index（`VA[41:29]`）作为索引键。
+- 若 TLB 开启，则先查 TLB；TLB 按 VA/ASID 匹配（组织方式在后续步骤定义）。
 - TLB 命中时直接检查 PTE 中的 SPF/GPF 字段（超页为 SPF 8位、普通页为 GPF 8位）和 R/W/X 权限。SPF/GPF 中对应小页的标记位为 0 触发对应 `I/DPFTRAP` 异常，权限不符触发 NRPERM/NWPERM/NXPERM 异常。TLB 产生的这些异常属于 cfx_ptw 异常原因的子集，应通过调用 cfx_ptw 的功能来处理。
 - 若 TLB 命中且权限符合，则跳过第三步（页表步进），直接进入第四步（形成最终物理地址）。
-- 若 TLB 未命中，则继续执行第三步。步进完成后将结果填入对应集合的 TLB。
+- 若 TLB 未命中，则继续执行第三步。步进完成后将结果填入 TLB。
 
 **第三步：页表步进**
 
@@ -111,35 +119,31 @@ CPU 外部地址总线固定为 64 位，只有对应的 PTBR 开启，通过地
 
 **第四步：形成最终物理地址**
 
-- 64 位物理地址由以下三部分拼接而成：
-  - 根据 `VA[47:42]` 选择对应 `cfx_ptw_pahi` 作为高 16 位，即 `PA[63:48]`
-  - 根据 L1 页表项得到的 PPN（bits[47:16]，共32位），取其高19位得到 `PA[47:29]`；低13位 PPN[28:16] 因超页 512MiB 对齐而强制为零
-  - 因为是超页，其虚拟地址的页内偏移 `VA[28:00]` 即为物理地址的页内偏移 `PA[28:00]`。
+- 物理地址由以下两部分拼接而成：
+  - 一级页表项给出的物理页号作为 `PA[55:29]`（超页 512MiB 对齐，低位为 0）
+  - 超页的虚拟地址页内偏移 `VA[28:00]` 即为物理地址的页内偏移 `PA[28:00]`
 
 #### 2.2.2 普通页的地址转换
 
-48位的虚拟地址划分为四个字段：
+42 位的虚拟地址划分为三个字段：
 
-- `VA[47:42]` -> PTBR index（64 个寄存器，每个寄存器内容为一级页表的物理页号，即 `bits[63:16]` ）
 - `VA[41:29]` -> L1 index（一级页表的索引，每个一级页表 2^13 个页表项，每个表项 8 字节，即 64KiB）
 - `VA[28:16]` -> L2 index（二级页表的索引，每个二级页表 2^13 个页表项，每个表项 8 字节，即 64KiB）
 - `VA[15:00]` -> 页内偏移（普通页的页内偏移为 16 位，即 64KiB）
 
 虚拟地址到物理地址的转换分为四步：
 
-**第一步：访问 PTBR**
+**第一步：检查 PTW 开关并使用 PTBR**
 
-- 首先，检查当前运行模式是否允许访问该 PTBR 对应的地址空间 —— 通过 `cfx_ptw_user/jail/supv/hypv_perm` 寄存器判断。
-  - 若不允许，触发 NUPERM/NJPERM/NSPERM/NHPERM 异常。
-- 其次，检查 `cfx_ptw_ptbr_enable` 寄存器中的该 PTBR 对应位是否为 0，若为 0，则不进行地址转换，直接使用 48 位地址访问核芯内部资源。
-- 最后，根据 `VA[47:42]` 选择对应的 `cfx_ptw_ptbr` ，该 PTBR 提供 64 位一级页表基地址（bits[63:16] × 64KiB 对齐）。
+- 检查 `ptw_enable`：为 0 时不会进入本流程（`high6 = 0` 的访存直接 CFXMEM）。
+- 使用唯一的 `cfx_ptw_ptbr` 作为一级页表基地址（`PPN[55:16]`，64KiB 对齐）。不再按 `VA[47:42]` 选择 PTBR，也不再检查 PTBR 模式权限。
 
 **第二步：TLB 查找**
 
-- 若 `cfx_tlb_enable` 对应位置 1，则查 TLB。以 `VA[47:42]` 选择对应 TLB 集合，集合内以 L1 index（`VA[41:29]`）和 L2 index（`VA[28:16]`）作为索引键。
+- 若 TLB 开启，则先查 TLB；TLB 按 VA/ASID 匹配，并以 L1 index（`VA[41:29]`）和 L2 index（`VA[28:16]`）作为索引键。
 - TLB 命中时直接检查 PTE 中的 SPF/GPF 字段（超页为 SPF 8位、普通页为 GPF 8位）和 R/W/X 权限。SPF/GPF 中对应小页的标记位为 0 触发对应 `I/DPFTRAP` 异常，权限不符触发 NRPERM/NWPERM/NXPERM 异常。TLB 产生的这些异常属于 cfx_ptw 异常原因的子集，应通过调用 cfx_ptw 的功能来处理。
 - 若 TLB 命中且权限符合，则跳过第三步（页表步进），直接进入第四步（形成最终物理地址）。
-- 若 TLB 未命中，则继续执行第三步。步进完成后将结果填入对应集合的 TLB。
+- 若 TLB 未命中，则继续执行第三步。步进完成后将结果填入 TLB。
 
 **第三步：页表步进**
 
@@ -147,8 +151,7 @@ CPU 外部地址总线固定为 64 位，只有对应的 PTBR 开启，通过地
 - 若 Superpage 位为 1，则为一级页表 + 超页，参见 §超页的地址转换。
 - 若 Present 位为 0，且 Superpage 位为 0，则触发 IGPTRAP/DGPTRAP 异常。
 - 生成二级页表的访问地址，读取 8 字节：
-  - 根据 `VA[47:42]` 选择对应 `cfx_ptw_pthi` 作为高 16 位，即 `L2PA[63:48]`（pthi 用于页表结构的物理地址高位，与第四步最终数据页物理地址使用的 pahi 不同）
-  - 根据 L1 页表项得到的 PPN ，作为中间 32 位，即 `L2PA[47:16]`
+  - 一级页表项给出的物理页号作为二级页表基址 `PA[55:16]`
   - 用 `VA[28:16]` × 8 计算二级页表的索引，即 L2 页表项偏移 `L2PA[15:3]`
 - 若 Present 位为 0，则触发 IGPTRAP/DGPTRAP 异常。
 - 若 Present 位为 1，则进一步检查 GPF 字段中对应小页的标记位；若对应位为 0，则触发 IGPFTRAP/DGPFTRAP 异常。
@@ -157,10 +160,9 @@ CPU 外部地址总线固定为 64 位，只有对应的 PTBR 开启，通过地
 
 **第四步：形成最终物理地址**
 
-- 64 位物理地址由以下三部分拼接而成：
-  - 根据 `VA[47:42]` 选择对应 `cfx_ptw_pahi` 作为高 16 位，即 `PA[63:48]`
-  - 根据 L2 页表项得到的 PPN ，共32位，得到 `PA[47:16]`
-  - 因为是普通页，其虚拟地址的页内偏移 `VA[15:00]` 即为物理地址的页内偏移 `PA[15:00]`。
+- 物理地址由以下两部分拼接而成：
+  - 二级页表项给出的物理页号作为 `PA[55:16]`
+  - 普通页的虚拟地址页内偏移 `VA[15:00]` 即为物理地址的页内偏移 `PA[15:00]`
 
 #### 2.2.3 一级页表条目格式
 
@@ -224,7 +226,7 @@ A 位和 D 位为访问和修改标记，由硬件负责更新。硬件在更新
 
 **Global 位**
 
-页表项中不再设置 Global 位。TLB 按 VA[47:42]（PTBR 索引）划分为 64 个独立集合，每个 PTBR 独占一个集合。进程切换时，只需 invalid 该 PTBR 对应集合的 TLB 表项，其他 PTBR 的 TLB 缓存不受影响。需要在多个地址空间共享的页（如内核页），在各 PTBR 各自的页表中映射相同物理页即可，无需 G 位标记。
+页表项中不设置 Global 位。TLB 的组织、ASID 与失效操作在后续步骤定义；切换地址空间后，软件必须显式 invalidate TLB——写 PTBR 或写 `ptw_enable` 都不隐含 TLB 失效。
 
 **小页（Fragment）**
 
@@ -234,9 +236,9 @@ A 位和 D 位为访问和修改标记，由硬件负责更新。硬件在更新
 
 操作系统在切换进程时须执行以下步骤：
 
-1. 通过 cfx_tlb 将旧进程的 PTBR 对应 TLB 集合 invalid（`tlb_addr_start[47:42]` = 旧 PTBR 编号，`tlb_addr_size` = 0x40000000000（2^42））
-2. 通过 cfx_ptw 设置新进程的 PTBR（`SBI_PTW_SET_PTBR`）
-3. 通过 cfx_tlb 使能新 PTBR 的 TLB（设置 `cfx_tlb_enable` 对应位置 1）
+1. 写入新进程的 PTBR（`cfx_ptw_ptbr`）
+2. 显式 invalidate TLB（写 PTBR 不隐含失效）
+3. 置 `ptw_enable = 1`
 4. 保存和恢复暂存寄存器（cg6）
 
 #### 2.2.6 异常检查优先级
@@ -252,7 +254,7 @@ A 位和 D 位为访问和修改标记，由硬件负责更新。硬件在更新
 
 **页表步进内部优先级**：
 
-1. PTBR 模式权限不符 → NUPERM/NJPERM/NSPERM/NHPERM
+1. `ptw_enable = 0` → CFXMEM（不发生页表步进）
 2. L1 Present = 0 → IGPTRAP/DGPTRAP（超页则 ISPTRAP/DSPTRAP）
 3. L1 Present = 1, SPF 字段中对应标记位 = 0（仅超页）→ 对应 I/DPFTRAP
 4. L2 Present = 0（普通页）→ IGPTRAP/DGPTRAP
@@ -434,14 +436,8 @@ cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不�
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 8 | 0 | ptw user perm | cfx_ptw_user_perm | 全0 | RW | user的PTBR权限位图，0=禁止，1=允许 |
-| 8 | 1 | ptw jail perm | cfx_ptw_jail_perm | 全0 | RW | jail的PTBR权限位图 |
-| 8 | 2 | ptw supv perm | cfx_ptw_supv_perm | 全1 | RW | supv的PTBR权限位图 |
-| 8 | 3 | ptw hypv perm | cfx_ptw_hypv_perm | 全1 | RW | hypv的PTBR权限位图 |
-| 8 | 8 | ptw ptbr enable | cfx_ptw_ptbr_enable | 全0 | RW | PTBR使能位图，0=disable，1=enable |
-| 9 | 0-63 | ptw ptbr | cfx_ptw_ptbr[0..63] | 0 | RW | 页表基地址物理地址高48位（bits[63:16]），低16位强制为0（64KiB 对齐） |
-| 10 | 0-63 | ptw pthi | cfx_ptw_pthi[0..63] | 0 | RW | 页表结构物理地址高16位 |
-| 11 | 0-63 | ptw pahi | cfx_ptw_pahi[0..63] | 0 | RW | 物理地址高16位 |
+| 8 | 8 | ptw enable | cfx_ptw_enable | 0 | RW | PTW 使能：0=关闭（`high6=0` 的访存触发 CFXMEM），1=开启（按 PTBR 走页表）。写 1 不隐含 TLB invalidate |
+| 9 | 0 | ptw ptbr | cfx_ptw_ptbr | 0 | RW | 唯一 PTBR（单份，无数组）：只存 `PPN[55:16]`；`[15:0]` 强制为 0（64KiB 对齐），`[63:56]` 保留为 0；无 valid 位 |
 
 **异常原因表**
 
@@ -479,9 +475,9 @@ cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不�
 | 12 | 2 | tlb addr start | cfx_tlb_addr_start | 0 | RW | TLB操作的起始虚拟地址 |
 | 12 | 3 | tlb addr size | cfx_tlb_addr_size | 65536 | RW | TLB操作的地址范围大小 |
 
-TLB 按虚拟地址的 VA[47:42]（PTBR 索引）划分为 64 个独立集合，每个集合对应一个 PTBR 的 TLB 表项。硬件实现可简化集合数量，但必须与软件约定一致。
+TLB 不再按 PTBR 索引划分集合；TLB 的组织、ASID 匹配与失效范围在后续步骤定义。
 
-TLB 操作的目标集合由 `tlb_addr_start[47:42]` 指定，集合内的 VA 范围由 `tlb_addr_start[41:16]` 和 `tlb_addr_size` 限定。invalid all 操作作用于全部 64 个集合。
+TLB 操作的目标范围由 `tlb_addr_start` 和 `tlb_addr_size` 限定；invalid all 作用于全部 TLB 条目。
 
 **异常原因表**
 
@@ -695,9 +691,9 @@ X-mode（任意运行模式）下发生异常时，硬件自动执行以下操�
      - 若 cfxha 为 reserved（7-14、19-61），触发 ILLI 进入当前 monitor；若 cfxha 合法但指令 cfx mask 禁止，同样触发 ILLI
    - 其它指令执行触发的 ILLI/UNDI/RASOF/RASUF/IALIGN/MALIGN 异常：
       - 根据发生异常前的运行模式（U-mode/J-mode/S-mode/H-mode）分别判断进入 cfx_umon/cfx_jmon/cfx_smon/cfx_hmon 核芯功能扩展
-   - 页表步进中产生的异常（PTBR 权限、页缺失等）：判断应进入 cfx_ptw 核芯功能扩展
+   - 页表步进中产生的异常（页缺失、权限不符等）：判断应进入 cfx_ptw 核芯功能扩展
    - TLB 命中时产生的异常（权限不符、fragment 缺失）：判断应进入 cfx_tlb 核芯功能扩展
-   - CFXMEM（核内地址空间非法访问，仅在对应 PTBR 未开启时触发）：根据核内地址高 6 位 bits[47:42] 指定的 cfxha 作为目标核芯功能扩展
+   - CFXMEM（核内地址空间非法访问：`ptw_enable=0` 的 `high6=0` 访存，或保留 cfx 的普通 `ld/st`）：`high6=0` 时目标是当前运行模式的 cfx；否则根据核内地址高 6 位 bits[47:42] 指定的 cfxha 作为目标核芯功能扩展
    - 异步中断：根据中断源判断进入对应的核芯功能扩展
 2. **判断是否为不可屏蔽异常**：检查 `cfx_⟨cfxname⟩_excp_cause_nonmaskable` 对应位，若置1则该异常不可屏蔽，跳过步骤3-5直接进入步骤6
 3. **判断 inner_cfx_mask 是否屏蔽**：若目标 cfx 非自身，检查 `inner_cfx_mask` 第 cfxha 位。若为1，同步异常触发 ILLI，异步中断设置 pending
@@ -712,7 +708,7 @@ X-mode（任意运行模式）下发生异常时，硬件自动执行以下操�
     - `cfx_⟨cfxname⟩_excp_cause_ip`：发生异常的指令地址（同步异常为触发异常的指令地址，异步中断为下一条指令地址）
     - `cfx_⟨cfxname⟩_excp_cause_id`：异常编号
     - `cfx_⟨cfxname⟩_excp_cause_info`：异常辅助信息
-10. **跳转至异常向量**：跳转到 `cfx_⟨cfxname⟩_<mode>_excp_vector` 寄存器指示的异常处理程序地址。该地址与普通访存规则一致：若对应 PTBR 未开启则为核内地址，若 PTBR 开启则为虚拟地址。软件须保证异常向量所在页不会发生页缺失，硬件不提供向量缺失的恢复机制。
+10. **跳转至异常向量**：跳转到 `cfx_⟨cfxname⟩_<mode>_excp_vector` 寄存器指示的异常处理程序地址。该地址与普通访存规则一致：`ptw_enable=0` 或地址 `high6 != 0` 时为核内地址，`ptw_enable=1` 且 `high6 = 0` 时为虚拟地址。软件须保证异常向量所在页不会发生页缺失，硬件不提供向量缺失的恢复机制。
 
 ```
 // 注：伪代码中 cause 为 one-hot 值（如 CFXTRAP = 1<<0 = 1，ILLI = 1<<8 = 256）；
@@ -753,15 +749,14 @@ elif sync:
         H-mode: temp_cfx_code <= 3
 elif mem_access:
     if cause == CFXMEM:                         // 核内地址空间异常
-        if addr[47:42] ∈ {7..14, 19..61}:       // reserved cfxha → ILLI
-            cause          <= ILLI
+        if addr[47:42] == 0:                    // 内存窗口（ptw_enable=0）→ 当前模式 monitor
             case inner_run_mode of
                 U-mode: temp_cfx_code <= 0
                 J-mode: temp_cfx_code <= 1
                 S-mode: temp_cfx_code <= 2
                 H-mode: temp_cfx_code <= 3
         else:
-            temp_cfx_code  <= addr[47:42]       // 正常路由
+            temp_cfx_code  <= addr[47:42]       // 保留 cfx 的普通 ld/st → 按 cfxha 路由
     elif from_tlb:                              // TLB命中时产生的异常 → cfx_tlb
         temp_cfx_code  <= 5
     else:
@@ -874,6 +869,11 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 ### 0.7.3-rc（未发布）
 
 - 版本号与 SBI 同步（SBI 删除 `immu18` 保留值 `0x3FFFF`）；本册正文不变。
+- 地址空间改为 48 位 CPU 地址 + 高 6 位分区：`0` 为内存窗口，`1..63` 为 cfx 1–63 核内空间；VA 42 位、PA 56 位，取消 64 位物理地址与高 16 位拼接。
+- PTBR 由 64 项数组改为**单份** `cfx_ptw_ptbr`（只存 `PPN[55:16]`，64 KiB 对齐，无 valid 位）；删除 `pahi`/`pthi`/`ptbr_enable` 位图与四种模式的 PTBR 权限位图。
+- 新增 `cfx_ptw_enable`：0 时 `high6=0` 访存触发 CFXMEM（不直通物理存储器），1 时按页表转换；写 PTBR / 写 1 均不隐含 TLB invalidate；复位 PTBR=0、使能=0。
+- 保留 cfx（7–14、19–61）的普通 `ld/st` → CFXMEM；`trap`/`escape` 到保留 cfx 仍为 ILLI。
+- 页表项格式、TLB、DMA 与 cfx 访问权限不在本版本变更范围内。
 
 ### 0.7.2（2026-10-26）
 

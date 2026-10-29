@@ -353,10 +353,10 @@ def _reserved_illi():
 
 
 # -- acc 6: unimplemented cfx -> CFXREG -------------------------------------
-@case("cfxreg_unimpl", "unimplemented cfx (cfx4) access => CFXREG")
+@case("cfxreg_unimpl", "unimplemented cfx (cfx5/tlb) access => CFXREG")
 def _cfxreg_unimpl():
     prog = load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]
-    prog += [cfx2rd(4, 0, 0, 5)]
+    prog += [cfx2rd(5, 0, 0, 5)]
     prog += exit_seq(0xEE)
     exp = {"exit": 0x44, "cid:3": CFXREG, "syncn:3": 1}
     return build_rom(prog, hand(0x100, 0x44)), exp

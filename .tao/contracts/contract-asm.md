@@ -308,7 +308,7 @@
 ```asm
 cfx2rc cfx_smon_supv_excp_vector, rd2        @@ 别名形
 cfx2rc cfx_smon, cg2, rc0, rd2               @@ 规范长形（与上行等价）
-cfx2rd cfx_ptw_ptbr[0], rd2                  @@ 数组单下标
+cfx2rd cfx_pmem_start[0], rd2                @@ 数组单下标
 escape cfx_smon, [excp_cause_ip, 4]          @@ cfxha 写作标量别名
 ```
 

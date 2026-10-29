@@ -300,7 +300,7 @@ lit	tests/unit/llvm/lit/MC/DADAO/basic-encoding.s	5923ffff	add.si	1
 lit	tests/unit/llvm/lit/MC/DADAO/basic-encoding.s	5b040001	add.si	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7a0050c2	cfx2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7a008042	cfx2rd	1
-lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7a1090c2	cfx2rd	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7a109002	cfx2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7a48a202	cfx2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7bfc8042	cfx2rc	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7e000001	escape	1

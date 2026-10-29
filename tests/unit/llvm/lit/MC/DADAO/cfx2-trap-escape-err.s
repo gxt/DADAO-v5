@@ -6,8 +6,8 @@
 @@ RUN: echo 'trap cfx_smon, 262144'                 | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=IMM
 @@ RUN: echo 'trap 2, 1'                             | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=OPERAND
 @@ RUN: echo 'cfx2rd cfx0, 5, 3, rd2'                | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=OPERAND
-@@ RUN: echo 'cfx2rd cfx_ptw_ptbr, rd2'              | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=SUBSCRIPT
-@@ RUN: echo 'cfx2rd cfx_ptw_ptbr[64], rd2'          | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=SUBSCRIPT
+@@ RUN: echo 'cfx2rd cfx_pmem_start, rd2'              | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=SUBSCRIPT
+@@ RUN: echo 'cfx2rd cfx_pmem_start[64], rd2'          | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=SUBSCRIPT
 @@ RUN: echo 'cfx2rd cfx_nosuch, rd2'                | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=OPERAND
 
 @@ LLVM-060t 反例：trap/escape/cfx2rd/cfx2rc 的非法书写 MUST 硬报错（非零退出）。

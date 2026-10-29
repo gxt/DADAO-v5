@@ -374,7 +374,8 @@ group = "dadao-1x"
 #   `当前偏移运行模式` → `当前运行模式`；sha256 同笔重算。
 # 2026-10-26（SPEC-175t）：发布 0.7.2（去 -rc）；`cfx_timer`→`cfx_time`（cfxha 18 改名 `time`）+ `cfx_hart` rc1 保留/rc6 比较器/rc7 控制/TIMER 异常 + 同步不可屏蔽 + cg7 预留 + `user_*` 路由 + 版本常量；sha256 同笔重算。
 # 2026-10-26（SPEC-177t，授权原话见文件头注释）：册头/附录 → 0.7.3-rc（与 SBI 互锁；正文不变）；sha256 同笔重算。
-sha256 = "3c7885096fb998755b78527b695da491c8e2c75a7832fab47b5f25869da62c4a"
+# 2026-10-29（INTEG-038t，Step 1 地址空间/PTBR/PTW 冻结落地）：§2/§2.1/§2.2 改 48 位 CPU 地址分区、VA42/PA56、单 PTBR（PPN[55:16]）、ptw_enable；§4.5 删 perm/pahi/pthi/ptbr_enable 并改单寄存器；§4.6/§5 同步；附录 0.7.3-rc 补条目。
+sha256 = "1b9314117e48d375c61e2895137c31a13de22fc56e79b5499066fa2247f69bdc"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -426,7 +427,8 @@ group = "dadao-2x"
 #   `见 HBI §3`/`（§3）` 去节号；删示例注释中的 ADR 指针；sha256 同笔重算。
 # 2026-10-26（SPEC-175t）：发布 0.7.2（去 -rc）；返回值 bank（`rb8`/`rd8`）+ `SBI_HART_SET_TIMER` + §10 只留 `SBI_TIME_GET` + 版本常量；sha256 同笔重算。
 # 2026-10-26（SPEC-177t，授权原话见文件头注释）：§14 删保留值 `0x3FFFF` 约定；册头/附录 → 0.7.3-rc；sha256 同笔重算。
-sha256 = "002e056a1ec2a5c882637fe5e5bc05eeb096bc0cea91cef62e7d73777c8f277f"
+# 2026-10-29（INTEG-038t，Step 1 同步）：§4 cfx_ptw 改单 PTBR + ptw_enable；删 PERM/ENABLE_PTBR/PTHI/PAHI 功能与 64 路代码；附录 0.7.3-rc 补条目。
+sha256 = "4e7692de9292d68218bc8e48e5e19d27f502f345e5176eae169c6d7f622e67c2"
 
 [[spec]]
 path = "spec/DADAO-23-HBI-超管系统二进制接口.md"
@@ -491,7 +493,8 @@ group = "toolchain-01"
 #   §5 格式表补 `rrrr`（单目的）行 + 两形态对照示例块；**册版本不变**（ADR-0034 / SPEC-166t 同类先例：
 #   补记既有形态、指令编码/语义不变，仅锁注释留痕）。sha256 于同一变更内重算回填。
 # 2026-10-26（SPEC-175t）：开 0.5.4-rc（§13.8 数组单下标示例改 `cfx_ptw_ptbr[0]`）；sha256 同笔重算。
-sha256 = "f6e19ebfec6e0914968d6e7baf9e1159e913b7fc86e79094c82cc3ec04dcfaa4"
+# 2026-10-29（INTEG-038t，引用同步）：§13.8 单下标示例改用 cfx_pmem_start[0]（cfx_ptw_ptbr 已非数组）；附录 0.5.4-rc 同步。
+sha256 = "c147038da82ff48a02983e28fe25556e3abda066d43f02a0e18e2c388b6ee734"
 
 [[spec]]
 path = "spec/Machine-01-测试机运行环境.md"
@@ -508,4 +511,5 @@ group = "machine-01"
 # 册头补 2 行「版本号 / changelog 细则」（约定声明，册内语义不变）。
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：指向 SimRISC-11/00 的跨册 `§` 引用改为手册名；sha256 同笔重算。
 # 2026-10-26（SPEC-176t）：semihosting 判定迁 `0x3FF00–0x3FFFF`（`immu18[17:8] == 0x3FF`）、§4.1/§4.3/§5.1 + 附录 0.3.2-rc；sha256 同笔重算。
-sha256 = "78e1f8bc23589ffd2a9105e81050de8bbd055ad3b48be6e5edaa3c2db7eb22eb"
+# 2026-10-29（INTEG-038t，Step 1 同步）：§1/§1.2/§3 改 high6=0 + ptw_enable 路由、保留 cfx 普通 ld/st → CFXMEM、测试机 cfx 范围加 cfx4 Step 1 寄存器；附录 0.3.2-rc 补条目。
+sha256 = "6b41e00e230f24ee7e2eb64ad8c7ddf2c73c667d70626ebb0bacc34e8c923b68"

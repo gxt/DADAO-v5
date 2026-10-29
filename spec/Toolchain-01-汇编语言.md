@@ -332,7 +332,7 @@ sub.so  {rd0, rd3}, rd0, rd4    @@ 旧 `neg.o`（64 位取负，双目的写回 
 ```
 cfx2rc cfx_smon_supv_excp_vector, rd2        @@ 别名形
 cfx2rc cfx_smon, cg2, rc0, rd2               @@ 规范长形（与上行等价）
-cfx2rd cfx_ptw_ptbr[0], rd2                  @@ 数组单下标
+cfx2rd cfx_pmem_start[0], rd2                @@ 数组单下标
 escape cfx_smon, [excp_cause_ip, 4]          @@ cfxha 写作标量别名
 ```
 
@@ -352,7 +352,7 @@ escape cfx_smon, [excp_cause_ip, 4]          @@ cfxha 写作标量别名
 
 ### 0.5.4-rc（未发布）
 
-- §13.8 数组单下标示例随 `cfx_time` 改名改用 `cfx_ptw_ptbr[0]`。
+- §13.8 数组单下标示例改用 `cfx_pmem_start[0]`（`cfx_ptw_ptbr` 已改为单份寄存器，不再有数组下标）。
 
 ### 0.5.3（2026-10-19）
 

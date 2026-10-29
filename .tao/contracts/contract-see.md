@@ -22,10 +22,12 @@
 
 ## §2 核内地址空间与复位
 
-- CPU 内部地址总线固定 48 位；48 位核内地址高 6 位 `bits[47:42]` 指定 cfxha。[DADAO-12 §2.1 核内地址空间]
+- CPU 地址固定 48 位；高 6 位 `addr[47:42]` 为分区键：`0` 为内存窗口（`ptw_enable` 控制是否翻译），`1..63` 为 cfx 1–63 核内空间；`cfx0` 无内部空间。[DADAO-12 §2.1 核内地址空间][DADAO-12 §2.2 虚实地址转换]
+- 内存窗口 VA 为 42 位（`VA[41:0]`），物理地址 PA 为 56 位。[DADAO-12 §2.2 虚实地址转换]
+- 单 PTBR `cfx_ptw_ptbr`（只存 `PPN[55:16]`，64 KiB 对齐，无 valid 位）；`cfx_ptw_enable=0` 时 `high6=0` 访存 ⇒ `CFXMEM`，`1` 时按页表转换；写 PTBR/写 1 不隐含 TLB invalidate；复位 PTBR=0、使能=0。[DADAO-12 §2.2 虚实地址转换][DADAO-12 §4.5 cfx_ptw - page table walker]
 - 硬件复位启动地址 = `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`（cfxha 63 / `power`，64 KiB），可由 CPU 直接取指执行。[DADAO-12 §2.1 核内地址空间]
 - v5 测试机地址划分（RAM@0 / 旧 RAM 段过渡保留 / exit port 过渡保留 / boot ROM）为**测试机约定**；RAM 基址改全 0，复位向量/ROM 与 exit port 不变。[ADR-0020 D15][ADR-0004 R3][Machine-01 §1]
-- 核内地址空间非法访问触发对应 cfx 的 `CFXMEM`（`1<<1`）；测试机退出码 = `0x80 | 1 = 0x81`；`0x87`（unmapped）为测试机约定、无 spec cause。[DADAO-12 §2.1 核内地址空间][DADAO-12 §4. 专有寄存器设计规范][ADR-0004 D5.8]
+- 核内地址空间非法访问触发对应 cfx 的 `CFXMEM`（`1<<1`）；测试机退出码 = `0x80 | 1 = 0x81`；保留 cfx（7–14、19–61）的普通 `ld/st` 也触发 `CFXMEM`；`0x87`（unmapped）为测试机约定、无 spec cause。[DADAO-12 §2.1 核内地址空间][DADAO-12 §4. 专有寄存器设计规范][ADR-0004 D5.8]
 - 越界**取指**与越界数据访问**同等报异常**，不得静默；fault 码表冻结不重排。[ADR-0020 D15][ADR-0004 D5.8]
 
 ## §3 cfx 与权限
@@ -34,9 +36,9 @@
 - mask 语义：0=可触发，1=屏蔽；自身 cfxha 对应位由硬件忽略。[DADAO-12 §3. 共有寄存器设计规范]
 - reserved cfxha（`7`–`14`、`19`–`61`）触发 `ILLI`；cfxha 合法但指令 cfx mask 禁止亦触发 `ILLI`。[DADAO-12 §5. 异常进入与异常退出]
 - 访问**未实现**的核芯功能扩展（其 cfx 寄存器）触发 `CFXREG`。[DADAO-22 §3. 系统信息（smon）]
-- `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM` 为 PTBR 模式权限异常（`cfx_ptw_user/jail/supv/hypv_perm` 检查）。[DADAO-12 §2.2.1 超页的地址转换][DADAO-12 §2.2.2 普通页的地址转换]
-- **两层权限不可混同**：PTBR 权限（`NUPERM` 等，出自 cfx_ptw 异常原因表）与 cfx 访问权限（cfx mask 不允许 ⇒ `ILLI`）分属不同层次。[ADR-0020 D9][DADAO-12 §4. 专有寄存器设计规范]
-- v5 测试机 cfx 实现范围 = `cfx0/1/2/3/63`（`umon`/`jmon`/`smon`/`hmon`/`power`），属**测试机约定**、非上游架构限制；范围外未实现 cfx 触发 `CFXREG`。[ADR-0020 D9][Machine-01 §3]
+- `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM` 属于页级/PTW 权限异常，触发条件由后续步骤定义；地址转换第一步不再按 `VA[47:42]` 选择 PTBR，也无 PTBR 模式权限位图。[DADAO-12 §2.2 虚实地址转换][DADAO-12 §4.5 cfx_ptw - page table walker]
+- **两层权限不可混同**：PTW 层权限（`NUPERM` 等，出自 cfx_ptw 异常原因表）与 cfx 访问权限（cfx mask 不允许 ⇒ `ILLI`）分属不同层次。[ADR-0020 D9][DADAO-12 §4. 专有寄存器设计规范]
+- v5 测试机 cfx 实现范围 = `cfx0/1/2/3/63` 以及 `cfx4` 的 Step 1 寄存器子集（`cfx_ptw_ptbr`/`cfx_ptw_enable`），属**测试机约定**、非上游架构限制；范围外未实现 cfx 触发 `CFXREG`。[ADR-0020 D9][Machine-01 §3]
 
 ## §4 `trap`/`escape` 与异常进入/退出
 

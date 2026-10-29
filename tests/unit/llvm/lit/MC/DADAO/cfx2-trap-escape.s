@@ -69,10 +69,10 @@ cfx2rc cfx_power_ctrl, rd2              @@ @enc 7bfc8042
 cfx2rc cfx_power, cg8, rc1, rd2         @@ @enc 7bfc8042
 
 @@ --- 数组寄存器单下标（ADR-0017 D10） ---
-@@ cfx2rd cfx_ptw_ptbr[3], rd2 : (cfxha=4, cg=9, rc=0+3), rd=2 -> 7a 10 90 c2
-@@ OBJ: {{[0-9a-f]+:}} 7a 10 90 c2{{.*}}cfx2rd cfx_ptw_ptbr[3], rd2
-@@ ASM: cfx2rd cfx_ptw_ptbr[3], rd2
-cfx2rd cfx_ptw_ptbr[3], rd2             @@ @enc 7a1090c2
+@@ cfx2rd cfx_ptw_ptbr, rd2 : (cfxha=4, cg=9, rc=0), rd=2 -> 7a 10 90 02
+@@ OBJ: {{[0-9a-f]+:}} 7a 10 90 02{{.*}}cfx2rd cfx_ptw_ptbr, rd2
+@@ ASM: cfx2rd cfx_ptw_ptbr, rd2
+cfx2rd cfx_ptw_ptbr, rd2                @@ @enc 7a109002
 
 @@ cfx2rd cfx_time_value, rd2 : (cfxha=18, cg=10, rc=8), rd=2 -> 7a 48 a2 02
 @@ OBJ: {{[0-9a-f]+:}} 7a 48 a2 02{{.*}}cfx2rd cfx_time_value, rd2

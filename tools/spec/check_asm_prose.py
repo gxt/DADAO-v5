@@ -159,7 +159,7 @@ def _load_cfx_aliases() -> tuple[set[str], dict[str, tuple[int, int]]]:
                 base = re.sub(r"\[\d+\.\.\d+(?:−\d+)?\]$", "", name)
                 if base != name:
                     aliases.add(base)
-        # Parse range-indexed entries: | `cfx_ptw_ptbr[0..63]` | … | … | 0-63 | … |
+        # Parse range-indexed entries: | `cfx_pmem_start[0..63]` | … | … | 0-63 | … |
         # The [lo..hi] in the name is the array index range.
         if line.startswith("|") and "[" in line and ".." in line:
             cells = [c.strip() for c in line.split("|")[1:-1]]

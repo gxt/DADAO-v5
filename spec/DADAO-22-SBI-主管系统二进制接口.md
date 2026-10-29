@@ -127,16 +127,13 @@ cfx_ptw 为地址转换部件，管理页表和 PTBR。
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
-| 0 | SBI_PTW_SET_PTBR | rd16 = idx, rb16 = base | — | 设置第 idx 个 PTBR 的页表基地址。base 为 PA[63:16]（高 48 位），低 16 位强制为 0（64KiB 对齐）。调用前须已写入 pthi[idx] 和 pahi[idx] |
-| 1 | SBI_PTW_GET_PTBR | rd16 = idx | rb8 = base | 读取第 idx 个 PTBR 的值 |
-| 2 | SBI_PTW_SET_PTBR_PERM | rd16 = mode, rd17 = perm | — | 设置 mode=0(U)/1(J)/2(S)/3(H) 的 PTBR 权限位图（64 位，bit i=1 表示允许第 i 个 PTBR） |
-| 3 | SBI_PTW_ENABLE_PTBR | rd16 = mask | — | 设置 PTBR 使能位图（64 位，bit i=1 表示 enable 第 i 个 PTBR） |
-| 4 | SBI_PTW_SET_PTE | rd16 = ptbr_code, rd17 = level, rb16 = va, rd18 = pte | — | 设置 level 页表（1=L1, 2=L2）中 VA 对应索引的 PTE 为 pte |
-| 5 | SBI_PTW_HANDLE_FAULT | rb16 = fault_addr, rd16 = cause | rd8 = page_mask | 处理页表异常。成功返回页面对齐掩码（如 0xFFFFFFFFFFFF0000 = 64KiB，0xFFFFFFFFE0000000 = 512MiB），失败返回 0 |
-| 6 | SBI_PTW_SET_PTHI | rd16 = idx, rb16 = pthi | — | 设置第 idx 个 PTBR 的页表步进物理地址高 16 位（PA[63:48]） |
-| 7 | SBI_PTW_SET_PAHI | rd16 = idx, rb16 = pahi | — | 设置第 idx 个 PTBR 的最终转换结果物理地址高 16 位（PA[63:48]） |
+| 0 | SBI_PTW_SET_PTBR | rb16 = base | — | 设置唯一 PTBR。base = PPN[55:16]，64KiB 对齐；低 16 位与高 8 位由硬件强制为 0 |
+| 1 | SBI_PTW_GET_PTBR | — | rb8 = base | 读取唯一 PTBR 的值 |
+| 2 | SBI_PTW_SET_PTW_ENABLE | rd16 = enable | — | 设置 PTW 使能：0=关闭（`high6=0` 的访存触发 CFXMEM），1=开启。写 1 不隐含 TLB invalidate |
+| 3 | SBI_PTW_SET_PTE | rd16 = level, rb16 = va, rd18 = pte | — | 设置 level 页表（1=L1, 2=L2）中 VA 对应索引的 PTE 为 pte（页表项格式在后续步骤定义） |
+| 4 | SBI_PTW_HANDLE_FAULT | rb16 = fault_addr, rd16 = cause | rd8 = page_mask | 处理页表异常。成功返回页面对齐掩码（如 0xFFFFFFFFFFFF0000 = 64KiB，0xFFFFFFFFE0000000 = 512MiB），失败返回 0 |
 
-> **PTBR 与 pthi/pahi 的关系**：PTBR 存放页表基地址的高 48 位（bits[63:16]，低 16 位强制为 0）。`pthi[idx]`（cg10）提供**页表步进**时访问页表项的 PA[63:48]；`pahi[idx]`（cg11）提供**最终转换结果**物理地址的 PA[63:48]。调用 `SBI_PTW_SET_PTBR` 前须通过 `cfx2rc` 写入正确的 pthi/pahi 值。
+> **单 PTBR**：`cfx_ptw_ptbr` 只有一份，存放 `PPN[55:16]`（页表基地址 64KiB 对齐）；没有数组下标，也没有 `pthi`/`pahi` 高 16 位拼接。`ptw_enable` 决定是否翻译 `high6=0` 的访存；写 PTBR / 写使能 1 都不隐含 TLB 失效，软件须显式 invalidate。
 >
 > **页表访问**：cfx_ptw handler 通过正常虚拟地址访问 PTE。操作系统在启动阶段须将页表所在的物理区域映射到虚拟地址空间，handler 可直接对 PTE 所在虚拟地址执行 ld/st 来读写页表项，无需专门的物理内存直接访问机制。
 
@@ -169,121 +166,38 @@ cfx_ptw_trap_dispatch:
     set.rd   rd3, 1
     br.eq {rd2, rd3}?, [rb0, cfx_ptw_get_ptbr] @@ func 1
     set.rd   rd3, 2
-    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_ptbr_perm] @@ func 2
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_ptw_enable] @@ func 2
     set.rd   rd3, 3
-    br.eq {rd2, rd3}?, [rb0, cfx_ptw_enable_ptbr] @@ func 3
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_pte] @@ func 3
     set.rd   rd3, 4
-    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_pte] @@ func 4
-    set.rd   rd3, 5
-    br.eq {rd2, rd3}?, [rb0, cfx_ptw_handle_fault] @@ func 5
-    set.rd   rd3, 6
-    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_pthi] @@ func 6
-    set.rd   rd3, 7
-    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_pahi] @@ func 7
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_handle_fault] @@ func 4
     escape cfx_ptw, [excp_cause_ip, 4]
 
 cfx_ptw_set_ptbr:
-    @@ rd16 = idx, rb16 = base（页表基地址高 48 位，低 16 位强制为 0）
-    @@ 调用前须已通过 cfx2rc 写入 cfx_ptw_pthi[idx] 和 cfx_ptw_pahi[idx]
+    @@ rb16 = base（PPN[55:16]，64KiB 对齐；低 16 位与高 8 位由硬件清 0）
     set.rd   rd17, rb16                              @@ rb→rd 中转（cfx2rc 源操作数须为 rd）
-    shl.o   rd16, rd16, 3                          @@ idx × 8（每路 2 条指令 = 8 字节）
-    set.rd   rd3, cfx_ptw_ptbr_table
-    add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb8, rd3                      @@ rd→rb 中转
-    jump [rb8, rd0, 0]
-cfx_ptw_ptbr_table:
-    cfx2rc  cfx_ptw_ptbr[0], rd17 @@ PTBR[0]
-    escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rc  cfx_ptw_ptbr[1], rd17 @@ PTBR[1]
-    escape cfx_ptw, [excp_cause_ip, 4]
-    @@ ... 共 64 路，rc 0-63 ...
-    cfx2rc  cfx_ptw_ptbr[63], rd17 @@ PTBR[63]
+    cfx2rc  cfx_ptw_ptbr, rd17
     escape cfx_ptw, [excp_cause_ip, 4]
 
 cfx_ptw_get_ptbr:
-    @@ rd16 = idx，返回 rb8 = base（cfx2rd 只能写 RD bank，故经 rd8 中转）
-    shl.o   rd16, rd16, 3
-    set.rd   rd3, cfx_ptw_get_ptbr_table
-    add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb8, rd3                      @@ rd→rb 中转
-    jump [rb8, rd0, 0]
-cfx_ptw_get_ptbr_table:
-    cfx2rd  cfx_ptw_ptbr[0], rd8 @@ PTBR[0]
+    @@ 返回 rb8 = base（cfx2rd 只能写 RD bank，故经 rd8 中转）
+    cfx2rd  cfx_ptw_ptbr, rd8
     set.rb   rb8, rd8               @@ 返回 bank：rb8 = base
     escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rd  cfx_ptw_ptbr[1], rd8 @@ PTBR[1]
-    set.rb   rb8, rd8
-    escape cfx_ptw, [excp_cause_ip, 4]
-    @@ ... 共 64 路，rc 0-63 ...
-    cfx2rd  cfx_ptw_ptbr[63], rd8 @@ PTBR[63]
-    set.rb   rb8, rd8
-    escape cfx_ptw, [excp_cause_ip, 4]
 
-cfx_ptw_set_ptbr_perm:
-    @@ rd16 = mode（0=U/1=J/2=S/3=H）, rd17 = perm（64 位权限位图）
-    @@ 通过跳转表将 rd17 写入对应 mode 的 cfx_ptw_*_perm 寄存器
-    shl.o   rd16, rd16, 3                          @@ mode × 8（跳转表偏移，每路 2 条指令）
-    set.rd   rd3, cfx_ptw_perm_table
-    add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb8, rd3                      @@ rd→rb 中转
-    jump [rb8, rd0, 0]
-cfx_ptw_perm_table:
-    cfx2rc  cfx_ptw_user_perm, rd17               @@ U-mode (0)
-    escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rc  cfx_ptw_jail_perm, rd17               @@ J-mode (1)
-    escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rc  cfx_ptw_supv_perm, rd17               @@ S-mode (2)
-    escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rc  cfx_ptw_hypv_perm, rd17               @@ H-mode (3)
-    escape cfx_ptw, [excp_cause_ip, 4]
-
-cfx_ptw_enable_ptbr:
-    @@ rd16 = mask（64 位使能位图）
-    cfx2rc  cfx_ptw_ptbr_enable, rd16
+cfx_ptw_set_ptw_enable:
+    @@ rd16 = enable（0=关闭，1=开启）
+    cfx2rc  cfx_ptw_enable, rd16
     escape cfx_ptw, [excp_cause_ip, 4]
 
 cfx_ptw_set_pte:
-    @@ rd16 = ptbr_code, rd17 = level（1=L1, 2=L2）, rb16 = va, rd18 = pte
-    @@ TODO: 读取 PTBR[ptbr_code]，按 level 计算 PTE 偏移，通过 OS 映射的虚拟地址写 PTE
+    @@ rd16 = level（1=L1, 2=L2）, rb16 = va, rd18 = pte
+    @@ TODO: 读取唯一 PTBR，按 level 计算 PTE 偏移，通过 OS 映射的虚拟地址写 PTE（页表项格式在后续步骤定义）
     escape cfx_ptw, [excp_cause_ip, 4]
 
 cfx_ptw_handle_fault:
     @@ rd16 = cause, rb16 = fault_addr（由调用方传入）
     @@ ... 根据 cause 类型执行页表步进、pmem 分配、PTE 更新 ...
-    escape cfx_ptw, [excp_cause_ip, 4]
-
-cfx_ptw_set_pthi:
-    @@ rd16 = idx, rb16 = pthi（PA[63:48] 用于页表步进）
-    set.rd   rd17, rb16                              @@ rb→rd 中转
-    shl.o   rd16, rd16, 3
-    set.rd   rd3, cfx_ptw_set_pthi_table
-    add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb8, rd3                      @@ rd→rb 中转
-    jump [rb8, rd0, 0]
-cfx_ptw_set_pthi_table:
-    cfx2rc  cfx_ptw_pthi[0], rd17 @@ pthi[0]
-    escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rc  cfx_ptw_pthi[1], rd17 @@ pthi[1]
-    escape cfx_ptw, [excp_cause_ip, 4]
-    @@ ... 共 64 路 ...
-    cfx2rc  cfx_ptw_pthi[63], rd17 @@ pthi[63]
-    escape cfx_ptw, [excp_cause_ip, 4]
-
-cfx_ptw_set_pahi:
-    @@ rd16 = idx, rb16 = pahi（PA[63:48] 用于最终转换结果）
-    set.rd   rd17, rb16                              @@ rb→rd 中转
-    shl.o   rd16, rd16, 3
-    set.rd   rd3, cfx_ptw_set_pahi_table
-    add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb8, rd3                      @@ rd→rb 中转
-    jump [rb8, rd0, 0]
-cfx_ptw_set_pahi_table:
-    cfx2rc  cfx_ptw_pahi[0], rd17 @@ pahi[0]
-    escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rc  cfx_ptw_pahi[1], rd17 @@ pahi[1]
-    escape cfx_ptw, [excp_cause_ip, 4]
-    @@ ... 共 64 路 ...
-    cfx2rc  cfx_ptw_pahi[63], rd17 @@ pahi[63]
     escape cfx_ptw, [excp_cause_ip, 4]
 ```
 
@@ -871,6 +785,8 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 ### 0.7.3-rc（未发布）
 
 - 删除保留 `immu18` 值 `0x3FFFF`（最大）的约定：该值落在 semihosting 区 `0x3FF00–0x3FFFF`，作保留值会在译码层被 semihosting 短路。新增 cfx 时新增章节 / 功能码表的要求不变。
+- `cfx_ptw` 改为单 PTBR：`SBI_PTW_SET_PTBR` / `SBI_PTW_GET_PTBR` 去掉 index 入参；删除 `SBI_PTW_SET_PTBR_PERM` / `SBI_PTW_ENABLE_PTBR` / `SBI_PTW_SET_PTHI` / `SBI_PTW_SET_PAHI`，新增 `SBI_PTW_SET_PTW_ENABLE`；功能码按新表重排。
+- `SBI_PTW_SET_PTE` 去掉 `ptbr_code` 入参（页表项格式在后续步骤定义）；PTBR 写/使能不隐含 TLB 失效。
 
 ### 0.7.2（2026-10-26）
 

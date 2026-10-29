@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..3d1fede
+index 0000000..f61c650
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,460 @@
+@@ -0,0 +1,467 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -113,6 +113,11 @@ index 0000000..3d1fede
 +    env->lock_addr = 0;
 +    env->lock_val = 0;
 +    env->lock_valid = 0;
++
++    /* Address-space Step 1 reset values (ADR-0039 §8.5 / DADAO-12 §2.2):
++     * PTBR = 0, ptw_enable = 0 (TLB is empty: this model has no TLB yet). */
++    env->ptbr = 0;
++    env->ptw_enable = 0;
 +
 +    /* rd0 hardwired to 0 (already zero from memset) */
 +
@@ -308,6 +313,8 @@ index 0000000..3d1fede
 +    qemu_fprintf(f, "MODE: %u\n", env->inner_run_mode);
 +    qemu_fprintf(f, "CFXCODE: %u\n", env->inner_cfx_code);
 +    qemu_fprintf(f, "CFXMASK: %016" PRIx64 "\n", env->inner_cfx_mask);
++    qemu_fprintf(f, "PTBR: %016" PRIx64 " PTW_ENABLE: %u\n",
++                 env->ptbr, env->ptw_enable);
 +    for (i = 0; i < 4; i++) {
 +        qemu_fprintf(f, "GVER%d: %016" PRIx64 " GCM%d: %016" PRIx64 "\n",
 +                     i, env->cfx_global_version[i], i, env->global_cfx_mask[i]);

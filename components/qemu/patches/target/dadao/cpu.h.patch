@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..dfa8e4f
+index 0000000..70b6050
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,251 @@
+@@ -0,0 +1,278 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -88,16 +88,33 @@ index 0000000..dfa8e4f
 +#define DADAO_ROM_BASE      0xffffffff0000ULL
 +#define DADAO_ROM_SIZE      (64 * 1024)          /* 64 KiB */
 +
-+/* Internal address space: cfxha = addr[47:42] (DADAO-12 §2.1).  RAM now lives
-+ * in the power segment (cfxha 63), so the umon segment (cfxha 0) holds no
-+ * mapped region: an access/fetch inside it is an illegal internal-address-space
-+ * access => CFXMEM (exit 0x81, cause 1<<1, spec/DADAO-12 §2.1:73).  Addresses
-+ * in every other unmapped segment (incl. the power segment 63, outside
-+ * RAM/ROM) keep the test-machine convention 0x87 (ADR-0004 D5.8). */
++/* Internal address space: cfxha = addr[47:42] (DADAO-12 §2.1).  addr[47:42]
++ * == 0 is the memory window: with ptw_enable == 0 an access/fetch there is a
++ * CFXMEM (exit 0x81, cause 1<<1) because the window is never a pmem
++ * pass-through; with ptw_enable == 1 the page-table walk (Step 2) would run.
++ * Reserved cfx (7-14, 19-61) plain ld/st are also CFXMEM (ADR-0039 Step 1-c).
++ * Addresses in every other unmapped segment (incl. the power segment 63,
++ * outside RAM/ROM) keep the test-machine convention 0x87 (ADR-0004 D5.8). */
 +#define DADAO_CFXHA_SHIFT   42
 +#define DADAO_CFXHA_MASK    0x3F
 +#define DADAO_CFXHA_UMON    0
++#define DADAO_CFXHA_POWER   63
 +#define DADAO_ADDR_CFXHA(a) (((uint64_t)(a) >> DADAO_CFXHA_SHIFT) & DADAO_CFXHA_MASK)
++
++/*
++ * Address-space Step 1 (ADR-0039 §8.5; DADAO-12 §2.2):
++ *   - CPU address = 48 bits; addr[47:42] selects the partition.
++ *   - addr[47:42] == 0 is the memory window (VA[41:0], PTW).
++ *     ptw_enable == 0 => no translation => CFXMEM (never a pmem pass-through).
++ *   - addr[47:42] == 1..63 is cfx internal space (direct ld/st).
++ *   - PTBR is a single register holding PPN[55:16]; low 16 bits and bits
++ *     [63:56] are forced to zero.  Writing PTBR / enabling PTW does not
++ *     implicitly invalidate any TLB.
++ */
++#define DADAO_ADDR_BITS     48
++#define DADAO_ADDR_MASK     0x0000FFFFFFFFFFFFULL
++#define DADAO_PTBR_MASK     0x00FFFFFFFFFF0000ULL  /* PPN[55:16] */
++#define DADAO_CFXHA_MEM     0
 +
 +/* Reset values (per ADR-0004 D2) */
 +#define DADAO_RESET_PC      DADAO_ROM_BASE
@@ -119,9 +136,11 @@ index 0000000..dfa8e4f
 +};
 +
 +/* Test-machine implemented cfx set: umon/jmon/smon/hmon/power (ADR-0020 D9,
-+ * Machine-01 §3).  Every other cfxha either is reserved (7-14, 19-61 => ILLI)
-+ * or allocated-but-unimplemented here (=>> CFXREG). */
-+#define DADAO_NUM_CFX 5
++ * Machine-01 §3) plus cfx4/ptw's Step 1 register subset (PTBR + ptw_enable;
++ * ADR-0039 §8.5 — page-table walk itself stays unimplemented).  Every other
++ * cfxha either is reserved (7-14, 19-61 => ILLI) or
++ * allocated-but-unimplemented here (=>> CFXREG). */
++#define DADAO_NUM_CFX 6
 +extern const int dadao_cfxha_map[DADAO_NUM_CFX]; /* defined in helper.c */
 +
 +#define DADAO_CFX_IS_RESERVED(h)  (((h) >= 7 && (h) <= 14) || \
@@ -208,7 +227,15 @@ index 0000000..dfa8e4f
 +    uint64_t inner_cfx_mask;             /* per-hart cfx mask (DADAO-12 §1 注) */
 +    uint64_t cfx_global_version[4];      /* cg0-3 rc0 (global, per mode) */
 +    uint64_t global_cfx_mask[4];         /* cg0-3 rc1 (global, per mode) */
-+    DADAOCfxRegs cfx[DADAO_NUM_CFX];     /* implemented cfx {0,1,2,3,63} */
++    DADAOCfxRegs cfx[DADAO_NUM_CFX];     /* implemented cfx {0,1,2,3,4,63} */
++
++    /* ── Address-space Step 1 (ADR-0039 §8.5) ──
++     * Single PTBR (cfx_ptw cg9 rc0): PPN[55:16]; low 16 bits and [63:56] read
++     * as 0.  ptw_enable (cfx_ptw cg8 rc8): 0 => high6=0 accesses take CFXMEM,
++     * 1 => page-table walk (not implemented yet; fails explicitly).  Reset
++     * values are both 0; writes are plain stores (no implicit TLB flush). */
++    uint64_t ptbr;
++    uint64_t ptw_enable;
 +} CPUDADAOState;
 +
 +/**

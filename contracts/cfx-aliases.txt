@@ -6,7 +6,7 @@
 # Grammar: scalar <name> <cfxha> [canonical]
 #          reg    <name> <cfxha> <cg> <rc-base> <rc-count> [canonical]
 # Read at run time from <exe-dir>/../share/dadao/cfx-aliases.txt (or $DADAO_CFX_ALIAS_FILE / --dadao-cfx-alias=).
-# scalars=13 regs=894
+# scalars=13 regs=888
 scalar cfx_umon 0 canonical
 scalar cfx_jmon 1 canonical
 scalar cfx_smon 2 canonical
@@ -350,14 +350,8 @@ reg cfx_ptw_excp_cause_nonmaskable 4 5 63 1 canonical
 reg cfx_ptw_scratch_regs 4 6 0 64 canonical
 reg cfx_ptw_sram_block_sel 4 7 0 1 canonical
 reg cfx_ptw_sram_addr 4 7 1 1 canonical
-reg cfx_ptw_user_perm 4 8 0 1 canonical
-reg cfx_ptw_jail_perm 4 8 1 1 canonical
-reg cfx_ptw_supv_perm 4 8 2 1 canonical
-reg cfx_ptw_hypv_perm 4 8 3 1 canonical
-reg cfx_ptw_ptbr_enable 4 8 8 1 canonical
-reg cfx_ptw_ptbr 4 9 0 64 canonical
-reg cfx_ptw_pthi 4 10 0 64 canonical
-reg cfx_ptw_pahi 4 11 0 64 canonical
+reg cfx_ptw_enable 4 8 8 1 canonical
+reg cfx_ptw_ptbr 4 9 0 1 canonical
 reg cfx_tlb_user_global_version 5 0 0 1 canonical
 reg cfx_tlb_user_global_cfx_mask 5 0 1 1 canonical
 reg cfx_tlb_user_cfx2rd_cfx_mask 5 0 2 1 canonical
