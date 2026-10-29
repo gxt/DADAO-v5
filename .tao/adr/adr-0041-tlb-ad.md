@@ -27,7 +27,13 @@
   - `INVALID`：只删除、不回写；
   - `FLUSH`：回写 A/D 并删除；写回失败时**不删除该条目**并报异常；
   - `00` 为 no-op，不报异常；命令写同步执行，无完成状态寄存器。
-- **D4 A/D dirty**：TLB 条目记录 `A_local/D_local` 与 `A_dirty/D_dirty`；fill 时若 PTE A/D 为 0 则置 dirty；evict/flush 只对 dirty 位做**原子 OR** 回写，不整 PTE 覆盖；回写后清 dirty。
+- **D4 A/D dirty**：TLB 条目记录 `A_local/D_local` 与 `A_dirty/D_dirty`：
+  - fill：`A_local=PTE.A`、`D_local=PTE.D`、`A_dirty=D_dirty=0`；fill 本身不产生 dirty；
+  - 读/取指命中且权限通过：若 `A_local=0` → `A_local=1, A_dirty=1`；
+  - 写命中且权限通过：若 `A_local=0` → `A_local=1, A_dirty=1`；若 `D_local=0` → `D_local=1, D_dirty=1`；
+  - 缺页/权限失败：不更新 A/D；
+  - evict/CLEAN/FLUSH：只把 dirty 位做**原子 OR** 回写 PTE，保留其他字段；回写后清 dirty；CLEAN 保留条目，FLUSH 删除条目，INVALID 不写回直接删除；FLUSH 写回失败不删除该条目并报异常；
+  - 页表页必须可写；OS 清 A/D 后必须显式 invalidate。
 - **D5 软件负责失效**：不设 `tlb_enable`/`tlb_exist`；PTBR/`ptw_enable` 开启即启用 TLB；写 PTBR、写 ASID 都不自动 flush；PTW 关闭时 TLB bypass，重新开启由软件决定是否清空。
 - **D6 正常操作不异常**：CLEAN/FLUSH/INVALID 正常完成不产生异常；非法编码/操作数才 CFXREG/ILLI。
 - **D7 回写失败**：页表页必须可写；A/D 回写失败必须报异常，不能静默丢弃。
