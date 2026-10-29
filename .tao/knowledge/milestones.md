@@ -53,6 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INTEG-041t | 待开始 | 2026-10-29 22:38（登记） | fence ciii 落地（ADR-0044：0x79/cfxha/pred-succ/移册） |
 | SPEC-178t | 已验证 | 2026-10-29 21:37 | 术语清理：移除地址高 6 位讨论期简写，统一 addr[47:42]/cfxha 表述 |
 | INTEG-040t | 已验证 | 2026-10-29 15:23 | Step 3：TLB 并入 cfx_ptw/16 位 ASID/G/A-D 回写/PTWERR（ADR-0041；探针 34 例） |
 | LLVM-140t | 已验证 | 2026-10-29 15:05 | 窄 neg extend 按节点自身类型（i32/i16）选 ext；lit 159、e2e 19/19、McCat 18-imp 两档 PASS |
