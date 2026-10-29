@@ -1,6 +1,6 @@
 # ADR-0041: TLB 与 A/D 维护
 
-**状态**：Proposed
+**状态**：Accepted
 **日期**：2026-10-29
 **关联**：ADR-0040（PTE）；`spec/DADAO-12` §2.2.5/§4.6；任务（Step 3，待立）
 
@@ -21,7 +21,7 @@
   - rc1 `cfx_ptw_tlb_asid`；
   - rc2 `cfx_ptw_tlb_addr_start`；
   - rc3 `cfx_ptw_tlb_addr_size`。
-- **D3.1 正交语义**：匹配条件为 `(ASID match) AND (address match)`；操作、ASID、地址范围三个维度独立。`all` 忽略 start/size；`VA` 只匹配包含 start 的条目，size 忽略；`range` 匹配与 `[start,start+size)` 相交的条目，size=0 → CFXREG；`addr_scope=11` → CFXREG。
+- **D3.1 正交语义**：匹配条件为 `(ASID match) AND (address match)`；操作、ASID、地址范围三个维度独立。`all` 忽略 start/size；`VA` 只匹配包含 start 的条目，size 忽略；`range` 匹配与 `[start,start+size)` 相交的条目，size=0 → CFXREG；`addr_scope=11` → CFXREG。G 条目（G=1）在 ASID 维度绕过匹配：`asid_any=1` 包含 G；`asid_any=0` 只处理 G=0 且 ASID 匹配的条目，**不碰 G**。
 - **D3.2 操作语义**：
   - `CLEAN`：回写 A/D，保留条目；
   - `INVALID`：只删除、不回写；
@@ -36,7 +36,15 @@
   - 页表页必须可写；OS 清 A/D 后必须显式 invalidate。
 - **D5 软件负责失效**：不设 `tlb_enable`/`tlb_exist`；PTBR/`ptw_enable` 开启即启用 TLB；写 PTBR、写 ASID 都不自动 flush；PTW 关闭时 TLB bypass，重新开启由软件决定是否清空。
 - **D6 正常操作不异常**：CLEAN/FLUSH/INVALID 正常完成不产生异常；非法编码/操作数才 CFXREG/ILLI。
-- **D7 回写失败**：页表页必须可写；A/D 回写失败必须报异常，不能静默丢弃。
+- **D8 命中与填充**：
+  - TLB 条目保存 ASID、VA、页大小、PPN、HSJU、R/W/X、SPF/GPF、G、A/D；
+  - 命中不重读 PTE，按 ADR-0040 D8 同序检查 `SPF/GPF → HSJU → R/W/X`；
+  - miss 走页表步进，只有 PTE 有效且全部检查通过后才填充；缺页/权限失败不填 TLB、不更新 A/D；
+  - 替换/组相联/全相联属实现，替换 dirty 条目按 D4 回写。
+- **D9 G（Global）**：`G=1` 的 TLB 条目跨 ASID 复用；`G=0` 按 ASID 匹配。失效时 `asid_any=1` 包含 G，`asid_any=0` 跳过 G；软件必须保证 G 页在所有地址空间的映射一致。
+- **D10 PTWERR**：A/D 回写失败使用异常原因 **`PTWERR = 1 << 7`**，目标 `cfx_ptw`，不可屏蔽；`cause_info` = 出错的 PTE PA；`CLEAN/FLUSH` 失败保留条目，不静默丢 A/D；`INVALID` 不写回，不受影响。
+- **D11 嵌套异常**：`escape`/`inner_cfx_code` 是 M5 遗留，不在本 ADR 改；Step 3 只保证 ptw 异常入口不被无意破坏，另登 issue 复核。
+- **D7 回写失败**：页表页必须可写；A/D 回写失败必须报 `PTWERR`，不能静默丢弃。
 
 ## Rationale（理由）
 
@@ -47,7 +55,8 @@
 - `cfx5` 可释放给其他 cfx；`cfx_tlb` 寄存器/异常原因删除或并入 `cfx_ptw`。
 - Step 2 的页表步进需为 Step 3 预留 A/D dirty 结构；Step 2 不验证 A/D 更新。
 - OS 进程切换必须显式 invalidate；不能依赖写 PTBR 自动失效。
+- TLB 条目增加 G bypass；`PTWERR` 占用 cause bit7，Step 3 需同步 spec/QEMU/测试。
 
 ## 状态说明
 
-ASID 16 位、cg12 布局、操作/范围/ASID 正交编码已确认；Step 3 落地时只需补实现与验证，不再改接口。A/D 回写的异常/原子细节仍按 D4/D7 在 Step 3 验证。
+ASID 16 位、cg12 布局、操作/范围/ASID 正交编码、G 位、A/D dirty 与 PTWERR 已确认；本 ADR 接受。Step 3 落地实现与验证；嵌套 escape 不在本 ADR 范围。
