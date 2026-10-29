@@ -216,3 +216,19 @@ programs:
       not from llc or QEMU.  @main returns the number of mismatching sums, so
       the expected count is 0 and a wrong element offset, scaled-index shift or
       backedge makes the exit code non-zero.
+  - name: m10-narrow-neg-ext-narrow.ll
+    category: arithmetic
+    expected_exit_code: 0
+    coverage: [arith.narrow-extend, ext.canonical-sext, ext.canonical-zext]
+    derivation: >-
+      14 cases: `sub i8/i16 0, trunc(x)` (x volatile-loaded i32) widened by
+      sext/zext to i8->i16, i8->i32 and i16->i32, compared against a
+      volatile-loaded expected value (LLVM-140t: this narrow extend result
+      used to abort ISel with the ReplaceAllUsesWith type assertion).
+      Expected values are derived independently in Python from LLVM IR
+      semantics: wrap the negation at the narrow width, then sign- or
+      zero-extend from that width; values cover the sign bit, max and
+      truncation boundaries (x = 1, 0x7f, 0x80, 0x8000, 0x7fff, 0x12345678,
+      0x12345681).  @main returns the number of mismatches, so the expected
+      count is 0 and a wrong negation width or extension direction makes the
+      exit code non-zero.

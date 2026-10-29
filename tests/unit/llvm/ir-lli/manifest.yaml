@@ -331,9 +331,10 @@ exclude:
   - ir: tests/unit/llvm/lit/CodeGen/DADAO/code-model-large.ll
     class: no-value-entry
     reason: "FileCheck structural test (code-model large ABS48 + indirect call/jump, medium rejected, LLVM-131t); no `@main` value channel."
-  # (l) M10 structural `llc | FileCheck` CodeGen tests (LLVM-137t/138t/139t) under
-  #     the corpus root; the matching runtime vectors are classified above
-  #     (`m10-i64-shift` in `include`, the other two as `host-unsupported`).
+  # (l) M10 structural `llc | FileCheck` CodeGen tests (LLVM-137t/138t/139t/140t)
+  #     under the corpus root; the matching runtime vectors are classified
+  #     above/below (`m10-i64-shift` in `include`, the narrow/loop vectors as
+  #     `host-unsupported`).
   - ir: tests/unit/llvm/lit/CodeGen/DADAO/m10-i64-shift.ll
     class: no-value-entry
     reason: "FileCheck structural test (i64 constant shift selects immu6 forms, LLVM-137t); no `@main` value channel."
@@ -343,6 +344,9 @@ exclude:
   - ir: tests/unit/llvm/lit/CodeGen/DADAO/m10-narrow-extend.ll
     class: no-value-entry
     reason: "FileCheck structural test (narrow producer canonical-extension folding, LLVM-138t); no `@main` value channel."
+  - ir: tests/unit/llvm/lit/CodeGen/DADAO/m10-narrow-neg-ext-narrow.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (narrow `sub 0, x` whose extend result is narrow, i32/i16, LLVM-140t); no `@main` value channel."
 
   # (m) M10 runtime vectors that declare the DADAO target triple, so the host
   #     X86 `lli` refuses them ("No available targets are compatible with triple
@@ -359,3 +363,9 @@ exclude:
       declares `target triple = "dadao-unknown-elf"`; host `lli` exits 1 with
       "No available targets are compatible with triple", so no host value
       channel exists (target side is covered by the LLVM-138t oracle).
+  - ir: tests/unit/llvm/codegen/m10-narrow-neg-ext-narrow.ll
+    class: host-unsupported
+    reason: >-
+      declares `target triple = "dadao-unknown-elf"`; host `lli` exits 1 with
+      "No available targets are compatible with triple", so no host value
+      channel exists (target side is covered by the LLVM-140t oracle).

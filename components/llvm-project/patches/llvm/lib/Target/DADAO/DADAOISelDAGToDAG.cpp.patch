@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..7cca228ac
+index 000000000..06b37883e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,929 @@
+@@ -0,0 +1,937 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -312,6 +312,14 @@ index 000000000..7cca228ac
 +    // patterns can materialise the zero operand as CONST_WYDE.  The narrow
 +    // subtraction and the canonical extension remain two distinct operations,
 +    // matching the existing negation contract and m6-not-neg.ll.
++    //
++    // The replacement node must carry the extend node's *own* result type
++    // (LLVM-140t): a narrow operand is extended either to i64 (the common case)
++    // or to another narrow legal type -- e.g. `sext i16 -> i32` from `-x`
++    // truncated to i16.  `SelectionDAG::ReplaceAllUsesWith` asserts when the
++    // result types differ, so typing the `ext.*` node at the requested type is
++    // both what the TableGen patterns do (`(i32 (sext (i16 GPRD)))` ->
++    // ext_so_orri) and what keeps the RAUW legal.
 +    SDValue Narrow = Node->getOperand(0);
 +    SDNode *Sub = Narrow.getNode();
 +    const EVT VT = Narrow.getValueType();
@@ -332,7 +340,7 @@ index 000000000..7cca228ac
 +            Sub->getOperand(1));
 +        SDValue Imm = CurDAG->getTargetConstant(Width, DL, MVT::i64);
 +        SDNode *Extended = CurDAG->getMachineNode(
-+            ExtOpc, DL, MVT::i64, SDValue(NarrowSub, 0), Imm);
++            ExtOpc, DL, Node->getValueType(0), SDValue(NarrowSub, 0), Imm);
 +        ReplaceNode(Node, Extended);
 +        return;
 +      }

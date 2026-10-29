@@ -226,6 +226,41 @@ def oracle(name: str):
                      0xFFFFFFFFFFF6E5D4]
         return sum(1 for x, y in zip(got, expected) if x != y)
 
+    if name == "m10-narrow-neg-ext-narrow.ll":
+        # 14 cases: n = (0 - trunc(<w>)(x)) at width w, then widened by
+        # sext/zext to ow bits and compared against the constant written in
+        # the vector.  Inputs and written constants are transcribed from the
+        # .ll; the values are re-derived here from LLVM IR semantics (wrap the
+        # negation at w bits, then sign-/zero-extend from that width), never
+        # from llc/QEMU.
+        # (x, w, ow, sign_extend, constant written in the vector)
+        cases = [
+            (0x1, 16, 32, True, -1),
+            (0x8000, 16, 32, True, -32768),
+            (0x7fff, 16, 32, True, -32767),
+            (0x12345678, 16, 32, True, -22136),
+            (0x1, 16, 32, False, 65535),
+            (0x8000, 16, 32, False, 32768),
+            (0x12345678, 16, 32, False, 43400),
+            (0x1, 8, 32, True, -1),
+            (0x80, 8, 32, True, -128),
+            (0x7f, 8, 32, True, -127),
+            (0x80, 8, 32, False, 128),
+            (0x12345681, 8, 32, False, 127),
+            (0x80, 8, 16, True, -128),
+            (0x80, 8, 16, False, 128),
+        ]
+        bad = 0
+        for x, w, ow, sign_extend, written in cases:
+            n = (-x) & ((1 << w) - 1)
+            if sign_extend:
+                # Sign extension preserves the mathematical value either way.
+                e = sext(n, w)
+            else:
+                e = n & ((1 << ow) - 1)
+            bad += e != written
+        return bad
+
     if name == "m10-narrow-extend.ll":
         def sdiv_trunc(x, y):
             q = abs(x) // abs(y)
