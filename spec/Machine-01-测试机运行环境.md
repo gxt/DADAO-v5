@@ -208,11 +208,12 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 ### 0.3.2-rc（未发布）
 
 - semihosting 入口判定改为 `immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`），原按 `immu18` 高位两比特的判定作废：§4.1/§4.3 的一般 trap / semihosting 分界、§5.1 判定与调用示例同步；`HBI_<name>_INIT`（`0x30001`）落在该区之外，按一般 trap 进入目标 cfx 向量。
-- 地址空间 Step 1：`high6=0` 且 `ptw_enable=0` 的访存/取指 ⇒ `CFXMEM`；保留 cfx（7–14、19–61）的普通 `ld/st` ⇒ `CFXMEM`。
+- 地址空间 Step 1：`addr[47:42] = 0` 且 `ptw_enable=0` 的访存/取指 ⇒ `CFXMEM`；保留 cfx（7–14、19–61）的普通 `ld/st` ⇒ `CFXMEM`。
 - 地址空间 Step 2：`ptw_enable=1` 时按单 PTBR 走两级页表（64 KiB 页 / 512 MiB 超页），检查 HSJU 与 R/W/X，页表异常进入 `cfx_ptw`；A/D 更新与 TLB 不在本版。
 - 测试机 cfx 实现范围增加 `cfx4` 的 Step 1 寄存器子集（唯一 `cfx_ptw_ptbr`、`cfx_ptw_enable`）；删除 PTBR 模式权限位图的描述。
 - 测试机 cfx4 实现范围扩展到页表步进与页权限（Step 2）；A/D 更新、TLB 与 `cfx5` 仍留待后续步骤。
 - 地址空间 Step 3：TLB 并入 `cfx_ptw`（命中/填充/ASID/G/失效接口）与 A/D 回写落地，`PTWERR`（`1 << 7`）报 A/D 回写失败；`cfxha 5`（原 `tlb`）未分配、按未实现 cfx 处理（`CFXREG`）。
+- 正文术语统一：地址空间分区一律写作 `addr[47:42]`（地址高 6 位），不再使用讨论期简写。
 
 ### 0.3.1（2026-10-16）
 

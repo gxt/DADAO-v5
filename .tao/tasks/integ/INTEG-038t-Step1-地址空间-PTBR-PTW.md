@@ -13,7 +13,7 @@ ADR-0039 D1–D8 已冻结 Step 1，但 `spec/DADAO-12`、contracts、QEMU 仍�
    - CPU 地址 48 位；`[47:42]==0` 为内存窗口（PTW），`1..63` 为 cfx 1–63 核内空间；cfx0=umon 无内部空间；
    - VA 42 位、PA 56 位；
    - 单 PTBR，只存 PPN[55:16]，64KiB 对齐；无数组、无 valid、无 `pahi/pthi`、无 `ptbr_enable` 位图；
-   - `ptw_enable`：0 时 `high6=0` 访存 → **CFXMEM**（当前模式 cfx）；1 时走 PTW；
+   - `ptw_enable`：0 时 `addr[47:42] = 0` 访存 → **CFXMEM**（当前模式 cfx）；1 时走 PTW；
    - 写 PTBR/`ptw_enable=1` 允许，**不隐含 TLB invalidate**；
    - 复位 PTBR=0、`ptw_enable=0`、TLB 空；
    - 保留：reserved cfx 普通 ld/st → CFXMEM；trap/escape reserved → 现有 ILLI；
@@ -21,7 +21,7 @@ ADR-0039 D1–D8 已冻结 Step 1，但 `spec/DADAO-12`、contracts、QEMU 仍�
 2. **contracts/别名/生成物**：同步单 PTBR、`ptw_enable`、删除 pahi/pthi/perm/ptbr_enable 相关条目（仅 Step1 范围）。
 3. **QEMU**：地址分区、PTBR、`ptw_enable`、PTW off 的 CFXMEM、reserved cfx ld/st；不实现 PTE/TLB/DMA。
 4. **测试**：QEMU/单元/向量覆盖：
-   - high6=0 且 `ptw_enable=0` → CFXMEM（各模式目标）；
+   - `addr[47:42] = 0` 且 `ptw_enable=0` → CFXMEM（各模式目标）；
    - `ptw_enable=1` 但 PTBR 未建页表 → 页表异常（若当前 QEMU 已有 ptw 雏形则验证；无则明确 BLOCKED 到 Step2）；
    - PTBR 写入/复位值、单 PTBR；
    - reserved cfx ld/st → CFXMEM；

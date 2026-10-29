@@ -129,11 +129,11 @@ cfx_ptw 为地址转换部件，管理页表和 PTBR。
 |--------|------|------|------|------|
 | 0 | SBI_PTW_SET_PTBR | rb16 = base | — | 设置唯一 PTBR。base = PPN[55:16]，64KiB 对齐；低 16 位与高 8 位由硬件强制为 0 |
 | 1 | SBI_PTW_GET_PTBR | — | rb8 = base | 读取唯一 PTBR 的值 |
-| 2 | SBI_PTW_SET_PTW_ENABLE | rd16 = enable | — | 设置 PTW 使能：0=关闭（`high6=0` 的访存触发 CFXMEM），1=开启。写 1 不隐含 TLB invalidate |
+| 2 | SBI_PTW_SET_PTW_ENABLE | rd16 = enable | — | 设置 PTW 使能：0=关闭（`addr[47:42] = 0` 的访存触发 CFXMEM），1=开启。写 1 不隐含 TLB invalidate |
 | 3 | SBI_PTW_SET_PTE | rd16 = level, rb16 = va, rd18 = pte | — | 设置 level 页表（1=L1, 2=L2）中 VA 对应索引的 PTE 为 pte（页表项格式在后续步骤定义） |
 | 4 | SBI_PTW_HANDLE_FAULT | rb16 = fault_addr, rd16 = cause | rd8 = page_mask | 处理页表异常。成功返回页面对齐掩码（如 0xFFFFFFFFFFFF0000 = 64KiB，0xFFFFFFFFE0000000 = 512MiB），失败返回 0 |
 
-> **单 PTBR**：`cfx_ptw_ptbr` 只有一份，存放 `PPN[55:16]`（页表基地址 64KiB 对齐）；没有数组下标，也没有 `pthi`/`pahi` 高 16 位拼接。`ptw_enable` 决定是否翻译 `high6=0` 的访存；写 PTBR / 写使能 1 都不隐含 TLB 失效，软件须显式 invalidate。
+> **单 PTBR**：`cfx_ptw_ptbr` 只有一份，存放 `PPN[55:16]`（页表基地址 64KiB 对齐）；没有数组下标，也没有 `pthi`/`pahi` 高 16 位拼接。`ptw_enable` 决定是否翻译 `addr[47:42] = 0` 的访存；写 PTBR / 写使能 1 都不隐含 TLB 失效，软件须显式 invalidate。
 >
 > **页表访问**：cfx_ptw handler 通过正常虚拟地址访问 PTE。操作系统在启动阶段须将页表所在的物理区域映射到虚拟地址空间，handler 可直接对 PTE 所在虚拟地址执行 ld/st 来读写页表项，无需专门的物理内存直接访问机制。
 
@@ -719,6 +719,7 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 - `cfx_ptw` 改为单 PTBR：`SBI_PTW_SET_PTBR` / `SBI_PTW_GET_PTBR` 去掉 index 入参；删除 `SBI_PTW_SET_PTBR_PERM` / `SBI_PTW_ENABLE_PTBR` / `SBI_PTW_SET_PTHI` / `SBI_PTW_SET_PAHI`，新增 `SBI_PTW_SET_PTW_ENABLE`；功能码按新表重排。
 - `SBI_PTW_SET_PTE` 去掉 `ptbr_code` 入参（页表项格式在后续步骤定义）；PTBR 写/使能不隐含 TLB 失效。
 - TLB 并入 `cfx_ptw`：删除 `cfx_tlb` 章节与 `SBI_TLB_INVALIDATE` 服务，TLB 维护改为直接写 `cfx_ptw` 的 cg12 寄存器（`cfx_ptw_tlb_control`/`_asid`/`_addr_start`/`_addr_size`，op/scope/`ASID_ANY` 正交）；页表异常（含 TLB 命中）统一由 `cfx_ptw` 处理，新增 `PTWERR`（`1 << 7`）的 A/D 回写失败语义。
+- 正文术语统一：地址空间分区一律写作 `addr[47:42]`（地址高 6 位），不再使用讨论期简写。
 
 ### 0.7.2（2026-10-26）
 

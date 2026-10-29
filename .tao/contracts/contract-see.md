@@ -24,7 +24,7 @@
 
 - CPU 地址固定 48 位；高 6 位 `addr[47:42]` 为分区键：`0` 为内存窗口（`ptw_enable` 控制是否翻译），`1..63` 为 cfx 1–63 核内空间；`cfx0` 无内部空间。[DADAO-12 §2.1 核内地址空间][DADAO-12 §2.2 虚实地址转换]
 - 内存窗口 VA 为 42 位（`VA[41:0]`），物理地址 PA 为 56 位。[DADAO-12 §2.2 虚实地址转换]
-- 单 PTBR `cfx_ptw_ptbr`（只存 `PPN[55:16]`，64 KiB 对齐，无 valid 位）；`cfx_ptw_enable=0` 时 `high6=0` 访存 ⇒ `CFXMEM`，`1` 时按页表转换；写 PTBR/写 1 不隐含 TLB invalidate；复位 PTBR=0、使能=0。[DADAO-12 §2.2 虚实地址转换][DADAO-12 §4.5 cfx_ptw - page table walker]
+- 单 PTBR `cfx_ptw_ptbr`（只存 `PPN[55:16]`，64 KiB 对齐，无 valid 位）；`cfx_ptw_enable=0` 时 `addr[47:42] = 0` 访存 ⇒ `CFXMEM`，`1` 时按页表转换；写 PTBR/写 1 不隐含 TLB invalidate；复位 PTBR=0、使能=0。[DADAO-12 §2.2 虚实地址转换][DADAO-12 §4.5 cfx_ptw - page table walker]
 - 页表项 64 位：`HSJU[63:60]`、`PPN[55:16]`（超页 `PPN[55:29]`）、`SPF/GPF[15:8]`、flags `[7:0]`（`P/SP/D/A/G/X/W/R`）；L1/L2 均 64 KiB、8192 项，`VA[41:29]`/`VA[28:16]` 选索引、`VA[15:0]` 为页内偏移；PA 56 位。保留位忽略、超页 PPN 非对齐低位强制清零。[DADAO-12 §2.2.1 超页的地址转换][DADAO-12 §2.2.2 普通页的地址转换][DADAO-12 §2.2.3 一级页表条目格式][DADAO-12 §2.2.4 二级页表条目格式]
 - 页权限：HSJU 要求当前模式对应位为 1，且 R/W/X 与 HSJU 正交（取指 X、读 R、写 W）；异常优先级「页缺失 → SPF/GPF 对应位 = 0 → HSJU → R/W/X」，只报最高优先级异常；页表步进与 TLB 命中产生的异常都进入 `cfx_ptw`。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §2.2.6 异常检查优先级]
 - **TLB（并入 `cfx_ptw`）**：无 `tlb_enable`/`tlb_exist`，`ptw_enable=1` 即参与查找、`0` 时旁路；按「虚拟页 + ASID（`cfx_ptw_tlb_asid`，16 位）」匹配，`G=1` 跨 ASID 复用；命中不重读 PTE，miss 走页表步进且只有成功才填充；写 PTBR/ASID/使能都不隐含失效。[DADAO-12 §2.2.1 超页的地址转换][DADAO-12 §4.5 cfx_ptw - page table walker][ADR-0041 D3/D5/D8/D9]
