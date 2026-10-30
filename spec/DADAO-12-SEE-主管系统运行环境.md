@@ -311,15 +311,6 @@ cg0-cg7 为共有寄存器设计，不同的核芯功能扩展设计规范相同
 
 `rc0`–`rc3` 为**四类同步来源 mask**，`rc4` 为异步中断来源 mask；位索引均为**源 cfxha**，`0=允许`、`1=屏蔽`。访问自身 cfx 时只绕过 cfx 轴（位测试），仍使用当前运行模式对应的寄存器行（模式轴）。`rc5`–`rc7` 保留，访问触发 `CFXREG`。
 
-`cfx0`–`cfx3`（`umon`/`jmon`/`smon`/`hmon`）另有 `cg8`/`rc1` 的 `global_cfx_intr_mask`（64 位，初始全1），按当前 mode/monitor 过滤所有中断源；其余 cfx 的 `cg8`/`rc1` 未定义。
-
-| cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
-|----|----|---------|---------|--------|------|------|
-| 8 | 1 | global cfx intr mask | cfx_umon_global_cfx_intr_mask | 全1 | RW | 当前 user 模式 monitor 的全局中断来源掩码，0=允许，1=屏蔽 |
-| 8 | 1 | global cfx intr mask | cfx_jmon_global_cfx_intr_mask | 全1 | RW | 当前 jail 模式 monitor 的全局中断来源掩码，0=允许，1=屏蔽 |
-| 8 | 1 | global cfx intr mask | cfx_smon_global_cfx_intr_mask | 全1 | RW | 当前 supv 模式 monitor 的全局中断来源掩码，0=允许，1=屏蔽 |
-| 8 | 1 | global cfx intr mask | cfx_hmon_global_cfx_intr_mask | 全1 | RW | 当前 hypv 模式 monitor 的全局中断来源掩码，0=允许，1=屏蔽 |
-
 为支持用户程序通过系统调用陷入操作系统内核，硬件应至少支持 `cfx_umon_user_*` 这一组寄存器或 `cfx_smon_user_*` 这一组寄存器。
 
 用户 `trap` 按 cfxha 路由：目标为 `cfx_smon` 时使用 `cfx_smon_user_*`（目标的 `cfxtrap` mask 须允许源 cfx），目标为 `cfx_umon` 时使用 `cfx_umon_user_*`。非 trap 的 U-mode 异常固定进入 `cfx_umon`。
@@ -342,8 +333,6 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 | 1 | 10 | jail excp vector | cfx_⟨cfxname⟩_jail_excp_vector | 0 | RW | 从jail陷入时的异常向量入口地址 |
 | 1 | 11 | jail excp mask | cfx_⟨cfxname⟩_jail_excp_cause_mask | 全1 | RW | 异常原因掩码，0=可触发，1=屏蔽 |
 
-`cg8`/`rc1` 的 `global_cfx_intr_mask` 仅定义在 `cfx0`–`cfx3`（见 §3.1）。
-
 ### 3.3 cg2 - supv mode 寄存器
 
 每个核芯功能扩展中针对主管模式（supv）有以下寄存器（cg=2）：
@@ -359,8 +348,6 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 | 2 | 9 | supv switch cfx mask | cfx_⟨cfxname⟩_supv_switch_cfx_mask | 全1 | RW | 从supv陷入时采用的 per-hart 异常掩码，0=可触发，1=屏蔽 |
 | 2 | 10 | supv excp vector | cfx_⟨cfxname⟩_supv_excp_vector | 0 | RW | 从supv陷入时的异常向量入口地址 |
 | 2 | 11 | supv excp mask | cfx_⟨cfxname⟩_supv_excp_cause_mask | 全1 | RW | 异常原因掩码，0=可触发，1=屏蔽 |
-
-`cg8`/`rc1` 的 `global_cfx_intr_mask` 仅定义在 `cfx0`–`cfx3`（见 §3.1）。
 
 ### 3.4 cg3 - hypv mode 寄存器
 
@@ -430,6 +417,12 @@ cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不�
 
 ### 4.1 cfx_umon - user monitor
 
+**专有寄存器表**
+
+| cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
+|----|----|---------|---------|--------|------|------|
+| 8 | 1 | global cfx intr mask | cfx_umon_global_cfx_intr_mask | 全1 | RW | 当前 user 模式 monitor 的全局中断来源掩码，0=允许，1=屏蔽 |
+
 **异常原因表**
 
 | excp cause id | 名称      | 触发条件      | 是否可屏蔽 | excp cause info                |
@@ -448,13 +441,31 @@ cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不�
 
 ### 4.2 cfx_jmon - jail monitor
 
+**专有寄存器表**
+
+| cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
+|----|----|---------|---------|--------|------|------|
+| 8 | 1 | global cfx intr mask | cfx_jmon_global_cfx_intr_mask | 全1 | RW | 当前 jail 模式 monitor 的全局中断来源掩码，0=允许，1=屏蔽 |
+
 异常原因编码与 cfx_umon 一致。
 
 ### 4.3 cfx_smon - supervisor monitor
 
+**专有寄存器表**
+
+| cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
+|----|----|---------|---------|--------|------|------|
+| 8 | 1 | global cfx intr mask | cfx_smon_global_cfx_intr_mask | 全1 | RW | 当前 supv 模式 monitor 的全局中断来源掩码，0=允许，1=屏蔽 |
+
 异常原因编码与 cfx_umon 一致。
 
 ### 4.4 cfx_hmon - hypervisor monitor
+
+**专有寄存器表**
+
+| cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
+|----|----|---------|---------|--------|------|------|
+| 8 | 1 | global cfx intr mask | cfx_hmon_global_cfx_intr_mask | 全1 | RW | 当前 hypv 模式 monitor 的全局中断来源掩码，0=允许，1=屏蔽 |
 
 异常原因编码与 cfx_umon 一致。详细定义见 HEE。
 

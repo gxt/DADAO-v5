@@ -398,7 +398,7 @@ group = "dadao-1x"
 # 2026-10-30（ADR-0043 启动表）：§2.1 表改为 cfx num/name/起始地址/大小/类型，补 hmon SRAM 0x0fff_0000_0000；sha256 同笔重算。
 # 2026-10-30（INTEG-043t，授权原话见任务书 §背景「用户裁定 cfx_pmem SRAM 的核内起始地址改为 `0x47ff_0000_0000`（cfx17，内部偏移 `0x3ff_0000_0000`）」）：§2.1 说明/§4.9/附录 0.7.3-rc 的内部偏移由 0 改 0x3ff_0000_0000；sha256 同笔重算。
 # 2026-10-30（INTEG-044t，授权 = 派单原话「同步 spec/contracts/aliases/QEMU/测试/锁/changelog」+ 任务书 §目标 1；ADR-0045）：cg0–3 改两轴权限布局（rc0–3 四类同步来源 mask、rc4 cfx_intr_mask、cg8/rc1 global_cfx_intr_mask），删 global_version/global_cfx_mask；monitor 增 CFXPERM、各 cfx 增 CFXESC；§5 进入/退出与附录 0.7.3-rc 同步；sha256 同笔重算。
-sha256 = "471d08b16f44503cf94c0117ff03b8b7709583fbd7a702bc0e3470b916efe153"
+sha256 = "6570fbd229715cc65696f3268f733f69da00e0ac4075fbf711b78b968c6348af"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
