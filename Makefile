@@ -1422,7 +1422,6 @@ ARCH_PROBE_LOG = .work/log/arch/check-arch-smoke-svc.log
 # `integ040t` = 地址空间 Step 3 TLB/G/A-D/PTWERR（ADR-0041）；
 # `integ042t` = Step 4 cfx_pmem 64 KiB SRAM + SRAM<->PA DMA + PMEM_DMA（ADR-0042）；
 # `integ044t` = cfx 两轴权限模型（四类同步 mask / 两类中断 mask / CFXPERM/CFXESC）。
-# `047t` 沿用旧期望（`stack_in_ram0` 与 bootrom.S 常量不一致）⇒ 不入本门控，见任务书遗留。
 ARCH_CFX_PROBES = 044t 045t 049t integ039t integ040t integ042t integ044t
 
 _locked-check-arch-smoke: install-host build-bootrom

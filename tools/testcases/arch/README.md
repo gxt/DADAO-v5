@@ -13,6 +13,6 @@
 - 门控：`make check-arch-smoke`（L2）/ `make check-arch`（L3）。
 - 迁移期的旧路径薄 wrapper 已在 `TESTCASES-084t` 删除；现行入口只有本目录。
 - 探针的 QEMU 默认值是 `.work/build/qemu/qemu-system-dadao`（历史约定，M1–M6 期）；
-  `044t/045t/046t/047t/049t/061t` 接受 `--qemu`，门控 `check-arch` 从安装根传入
+  `044t/045t/046t/049t/061t` 接受 `--qemu`，门控 `check-arch` 从安装根传入
   （ADR-0016 D9）。其余探针（005t…042t、070t…074t）无 `--qemu`，且未纳入门控
   （部分期望值已与现行 spec 漂移，见 `TESTCASES-073t` 遗留）。
