@@ -153,14 +153,13 @@ def encode_swym():
     return 0x47880000
 
 def encode_illi_poison():
-    """ILLI 毒饵：`cfxld`（crii, op=0x7C, ha=0x00），word=0x7C000000。
+    """ILLI 毒饵：word=0x79001000（`fence cfx0, hb=1`）。
 
-    `cfxld` 为 `scope: excluded`（唯一剩余的非实现族），QEMU `trans_cfxld_crii_cfx`
-    直接 `gen_exception_illegal` ⇒ ILLI(0x88)；汇编器侧拒绝（见 gen-excluded.s）。
-    SPEC-164t 前本函数用过 `fence 0` 的旧编码，但 `fence` 已实现、且旧 op 已成
-    空白主表 op（decode 失败 ⇒ UNDI 0x89，非 ILLI），故改用 `cfxld`。
+    `fence` 的 `hb = immu18[17:12]` 为 SBZ，非 0 ⇒ ILLI（`encode_sbz`，SimRISC-11
+    §屏障指令）；与 cfx 资源域/权限无关，也不会随指令增删而失效。QEMU
+    `trans_fence_ciii_cfx` 对该编码调 `gen_exception_illegal` ⇒ ILLI(0x88)。
     """
-    return 0x7C000000
+    return 0x79001000
 
 def encode_jump_iiii(imms24):
     """jump imms24 (iiii, op=0x70). PC = rb0 + (imms24 << 2).
@@ -631,12 +630,12 @@ def build_branch_test_binary(vector_case, dump_mode=False):
     delta = expected_pc - BINARY_BASE (ADR-0009 D6).
 
     TAKEN layout (delta=8):
-      [loader] [branch] [cfxld→ILLI poison] [exit section]
+      [loader] [branch] [fence-hb→ILLI poison] [exit section]
       - branch target (imm=2, PC+8) = poison+1 = exit section start → PASS
       - if branch wrongly NOT taken → falls into poison → ILLI(0x88) → FAIL
 
     NOT-TAKEN layout (delta=4):
-      [loader] [branch] [trampoline jump→exit] [cfxld→ILLI poison] [exit section]
+      [loader] [branch] [trampoline jump→exit] [fence-hb→ILLI poison] [exit section]
       - branch target (imm=2, PC+8) = poison → ILLI(0x88) if wrongly taken
       - if branch correctly NOT taken → falls through to trampoline → jumps
         over poison to exit section → PASS
@@ -681,11 +680,11 @@ def build_branch_test_binary(vector_case, dump_mode=False):
     words.extend(build_test_section(vector_case))
 
     if delta == 8:
-        # TAKEN: [branch] [cfxld→ILLI poison] [exit section]
+        # TAKEN: [branch] [fence-hb→ILLI poison] [exit section]
         # branch jumps over poison to exit; not-taken falls into poison
         words.append(encode_illi_poison())
     elif delta == 4:
-        # NOT-TAKEN: [branch] [trampoline] [cfxld→ILLI poison] [exit section]
+        # NOT-TAKEN: [branch] [trampoline] [fence-hb→ILLI poison] [exit section]
         # branch target = PC+8 = poison
         # falls through → trampoline jumps over poison to exit
         words.append(encode_jump_iiii(2))  # PC + (2<<2) = PC+8 = exit section
@@ -720,7 +719,7 @@ def build_ret_binary(vector_case, dump_mode=False):
       wL            landing pad: jump → exit section
       w(L+1)..      loader: `input_state` as written in the vector (rd/rb/ra/memory)
       w(L+1+k)      ret: the vector's instruction (`encoding.word`)
-      +1            cfxld→ILLI poison (safety net: reached only if `ret` falls through)
+      +1            fence-hb→ILLI poison (safety net: reached only if `ret` falls through)
       [+dumper]     dump mode only
       exit          compare `expected_state`, report via SYS_EXIT
 

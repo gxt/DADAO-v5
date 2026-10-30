@@ -564,13 +564,6 @@
   level: full
   requires:
   - toolchain
-- id: unit-llvm-080
-  file: unit/llvm/lit/MC/DADAO-gen/gen-excluded.s
-  platforms:
-  - host
-  level: full
-  requires:
-  - toolchain
 - id: unit-llvm-081
   file: unit/llvm/lit/MC/DADAO-gen/gen-iiii.s
   platforms:

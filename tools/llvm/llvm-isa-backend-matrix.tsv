@@ -28,8 +28,6 @@ call_iiii_ra	call	iiii	m1	call_iiii	accept	ok	call [rb0, 12]	yes	isel-cpp:DADAOI
 call_rrii_ra	call	rrii	m1	call_rrii	accept	ok	call [rb8, rd9, 96]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:744:call_rrii	
 cfx2rc_crrr_cfx	cfx2rc	crrr	m1	cfx2rc_crrr	accept	ok	cfx2rc cfx63, cg8, rc1, rd8	no		
 cfx2rd_crrr_cfx	cfx2rd	crrr	m1	cfx2rd_crrr	accept	ok	cfx2rd cfx63, cg8, rc1, rd8	no		
-cfxld_crii_cfx	cfxld	crii	excluded		reject	—	cfxld cfx63, [rb2, 1]	no		
-cfxst_crii_cfx	cfxst	crii	excluded		reject	—	cfxst cfx63, [rb2, 1]	no		
 clmul.o_rrrr_rd	clmul.o	rrrr	m9	clmul_o_rd	accept	ok	clmul.o {rd8, rd9}, rd10, rd11	yes	buildmi:DADAOInstrInfo.cpp.patch:253:clmul_o_rd;buildmi:DADAOInstrInfo.cpp.patch:267:clmul_o_rd;buildmi:DADAOInstrInfo.cpp.patch:283:clmul_o_rd;pseudo:DADAOCodeGen.td.patch:331:clmul_o_rd:CLMUL_PSEUDO;pseudo:DADAOCodeGen.td.patch:333:clmul_o_rd:CLMULHI_PSEUDO	DADAOInstrInfo.cpp.patch:253;DADAOInstrInfo.cpp.patch:267;DADAOInstrInfo.cpp.patch:283
 cmp.sb_orrr_rd	cmp.sb	orrr	m1	cmp_sb	accept	ok	cmp.sb rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:899:cmp_sb	
 cmp.si_rrii_rd	cmp.si	rrii	m1	cmp_si_rd	accept	ok	cmp.si rd8, rd9, 1	yes	pat:DADAOCodeGen.td.patch:878:cmp_si_rd;pat:DADAOCodeGen.td.patch:1152:cmp_si_rd;pat:DADAOCodeGen.td.patch:1154:cmp_si_rd;pat:DADAOCodeGen.td.patch:1156:cmp_si_rd;pat:DADAOCodeGen.td.patch:1160:cmp_si_rd	

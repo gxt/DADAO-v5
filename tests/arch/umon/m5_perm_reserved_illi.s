@@ -1,8 +1,8 @@
 @@ m5_perm_reserved_illi.s — M5 L3 execution vector: reserved cfxha => ILLI (TESTCASES-033t).
 @@
 @@ Capability / permission counter-example: a general `trap` whose cfxha is a
-@@ reserved code (7-14, 19-61) must fail with ILLI, redirected to the current-mode
-@@ monitor (contract-see.md §3 "reserved cfxha (7-14, 19-61) 触发 ILLI";
+@@ reserved code (6-14, 19-61) must fail with ILLI, redirected to the current-mode
+@@ monitor (contract-see.md §3 "reserved cfxha (6-14, 19-61) 触发 ILLI";
 @@ DADAO-12 §5; SimRISC-11 指令域与执行条件).  cfxha 7 is reserved (contract-cfx-aliases
 @@ §1 lists only umon/jmon/smon/hmon/ptw/cache/hart/llc/pmem/time/uart/power).
 @@

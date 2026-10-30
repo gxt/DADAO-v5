@@ -59,7 +59,7 @@ MALIGN_EXIT = 0x8C
 
 # ── Instruction encoding (op / ha values from contracts/opcodes.yaml) ──
 
-ILLI = 0x7C000000                 # cfxld -> ILLI (exit 0x88; fence is legal since SPEC-164t)
+ILLI = 0x79001000                 # fence cfx0, hb=1 (encode_sbz) -> ILLI (exit 0x88)
 SWYM = 0x47880000                 # swym (padding)
 UNDI_TERMINATOR = 0x08040001      # 033t convention (never reached)
 

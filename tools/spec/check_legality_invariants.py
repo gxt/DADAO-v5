@@ -15,6 +15,13 @@ Covers two invariants that previously had no mechanical gate:
    and referenced), the old id must have **0 hits** in the live contracts
    (``contracts/*.yaml``) — so a rename cannot silently regress.
 
+3. **``encode_cfx_reserved`` coverage**: **every** record carrying a ``cfxha``
+   field must reference ``encode_cfx_reserved`` and carry the reserved-number
+   legality expression; the rule must exist, be ``active``, fault ``ILLI`` and
+   match the spec's reserved set (6-14 + 19-61).  This is the mechanical
+   coverage test for "所有带 cfxha 的核芯功能扩展指令的保留编号 ⇒ ILLI"
+   (SimRISC-11 §1).
+
 Sources
 -------
 * ``contracts/opcodes.yaml``  (records: legality + rule_refs)
@@ -35,6 +42,10 @@ ROOT = Path(__file__).resolve().parents[2]
 OPCODES = ROOT / "contracts" / "opcodes.yaml"
 RULES = ROOT / "contracts" / "legality_rules.yaml"
 CONTRACTS_DIR = ROOT / "contracts"
+
+# cfx reserved-number coverage carrier（真源：SimRISC-11 §1；6-14/19-61 reserved）。
+CFX_RESERVED_RULE = "encode_cfx_reserved"
+CFX_RESERVED_EXPR = "cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"
 
 # n=2 constraint carrier.
 ROOT_N_MNEMONICS = ("ftroot", "foroot")
@@ -98,6 +109,46 @@ def main() -> int:
                 f"legality_rules.yaml: '{ROOT_N_RULE}' description 未声明 n=2"
             )
 
+    # ── 1b. encode_cfx_reserved coverage：所有带 cfxha 的记录 ─────────────
+    cfx_records = [e for e in opcodes
+                   if any((f or {}).get("name") == "cfxha"
+                          for f in (e.get("fields") or []))]
+    if not cfx_records:
+        errors.append("opcodes.yaml: 未找到任何带 cfxha 字段的记录（覆盖测试失去意义）")
+    for e in cfx_records:
+        refs = e.get("rule_refs") or []
+        if CFX_RESERVED_RULE not in refs:
+            errors.append(
+                f"opcodes.yaml: '{e['id']}' 带 cfxha 但 rule_refs 缺 "
+                f"'{CFX_RESERVED_RULE}'（实际 {refs}）"
+            )
+        if CFX_RESERVED_EXPR not in (e.get("legality") or []):
+            errors.append(
+                f"opcodes.yaml: '{e['id']}' 带 cfxha 但 legality 缺保留编号表达式 "
+                f"'{CFX_RESERVED_EXPR}'（实际 {e.get('legality')}）"
+            )
+    cfx_rule = rules_by_id.get(CFX_RESERVED_RULE)
+    if cfx_rule is None:
+        errors.append(f"legality_rules.yaml: 规则 '{CFX_RESERVED_RULE}' 不存在")
+    else:
+        if cfx_rule.get("status") != "active":
+            errors.append(
+                f"legality_rules.yaml: '{CFX_RESERVED_RULE}' "
+                f"status={cfx_rule.get('status')} ≠ active"
+            )
+        if cfx_rule.get("fault") != "ILLI":
+            errors.append(
+                f"legality_rules.yaml: '{CFX_RESERVED_RULE}' "
+                f"fault={cfx_rule.get('fault')} ≠ ILLI"
+            )
+        desc = cfx_rule.get("description") or ""
+        for token in ("6–14", "19–61"):
+            if token not in desc:
+                errors.append(
+                    f"legality_rules.yaml: '{CFX_RESERVED_RULE}' description "
+                    f"未声明保留编号 '{token}'"
+                )
+
     # ── 2. Rule rename registry ──────────────────────────────────────────
     for old_id, new_id in RULE_RENAMES.items():
         if new_id not in rules_by_id:
@@ -128,6 +179,8 @@ def main() -> int:
         f"check-legality-invariants: PASS "
         f"(root n=2: {len(ROOT_N_MNEMONICS)} mnemonics, rule '{ROOT_N_RULE}' "
         f"referenced {referenced.get(ROOT_N_RULE, 0)}×; "
+        f"cfxha 记录 {len(cfx_records)} 条全部引用 '{CFX_RESERVED_RULE}' "
+        f"({referenced.get(CFX_RESERVED_RULE, 0)}×); "
         f"renames {len(RULE_RENAMES)} 项旧 id 0 命中)"
     )
     return 0

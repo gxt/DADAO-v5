@@ -10,7 +10,7 @@ the **old** assembly syntax (pre-ADR-0013).  Two modes:
 
 Rules (old-format ⇒ violation)
 ------------------------------
-R1  Memory access missing ``[...]``  — ``ld.*/st.*/ldm.*/stm.*/cfxld/cfxst`` operands
+R1  Memory access missing ``[...]``  — ``ld.*/st.*/ldm.*/stm.*`` operands
     must use ``[rbN, …]`` address; bare ``rbN, imm`` ⇒ violation.
 R2  Jump/branch target missing ``[...]`` — ``jump/call/br.*/cs.`` must use ``[...]``;
     ``br.*/cs.`` conditions must use ``{…}?``.
@@ -294,7 +294,6 @@ _FORMAT_OP_COUNTS: dict[str, set[int]] = {
     "oiii": {1},      # swym 0
     # cfx family (SPEC-103t/ISS-077: previously absent ⇒ operand count silently skipped)
     "crrr": {2, 4},   # 4 = cfx2rd cfxHA, cgHB, rcHC, rdHD; 2 = alias cfx_<name>, rdHD
-    "crii": {2},      # cfxld/cfxst cfxHA, [rbHB, immu12]
     "ciii": {2},      # escape cfxHA, [excp_cause_ip, imms20]; trap cfxHA, immu18
 }
 
@@ -369,17 +368,17 @@ def _get_valid_operand_counts(formats: set[str]) -> set[int]:
 # Rule checks
 # ---------------------------------------------------------------------------
 
-# R1: Memory access: ld.*/st.*/ldm.*/stm.*/cfxld/cfxst must have [...]
+# R1: Memory access: ld.*/st.*/ldm.*/stm.* must have [...]
 _LD_ST_RE = re.compile(
     r"^\s*"
-    r"(ld(?:m)?\.[a-z]+|st(?:m)?\.[a-z]+|cfxld|cfxst)"
+    r"(ld(?:m)?\.[a-z]+|st(?:m)?\.[a-z]+)"
     r"\s+"
 )
 # Matches old-style: rdN, rbN, imm  (no brackets)
 # New style: rdN, [rbN, imm]  (has brackets)
 _NEEDS_BRACKET_MNEMONICS = re.compile(
     r"^\s*"
-    r"(ld(?:m)?\.[a-z]+|st(?:m)?\.[a-z]+|cfxld|cfxst)"
+    r"(ld(?:m)?\.[a-z]+|st(?:m)?\.[a-z]+)"
     r"\s"
 )
 

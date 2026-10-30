@@ -241,9 +241,9 @@ def swym():
     return encode_oiii(0x47, 0x22, 0)
 
 def illi_poison():
-    """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison after fence
+    """fence cfx0, hb=1 (op=0x79, immu18=0x1000) — ILLI poison after fence
     became an implemented instruction (SPEC-164t)."""
-    return encode_oiii(0x7C, 0x00, 0)
+    return encode_oiii(0x79, 0x00, 0x1000)
 
 def trap_sys_exit():
     """trap cfx_umon, 0x3FF00 — semihosting tag (immu18[17:8]==0x3FF (0x3FF00-0x3FFFF))."""

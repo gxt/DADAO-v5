@@ -152,12 +152,11 @@ def swym():
     return encode_oiii(0x47, 0x22, 0)
 
 def illi_poison():
-    """ILLI 毒饵：cfxld（op=0x7C, ha=0x00, scope=excluded）。
+    """ILLI 毒饵：`fence cfx0, hb=1`（op=0x79, cfxha=0, immu18=0x1000）。
 
-    `fence` used to be the ILLI poison before SPEC-164t; it is now implemented
-    (scope m9), so the poison moved to the only remaining excluded family.
+    SBZ 非零（`encode_sbz`）⇒ ILLI，与 cfx 权限/资源域无关，故不随指令增删漂移。
     """
-    return encode_oiii(0x7C, 0x00, 0)
+    return encode_oiii(0x79, 0x00, 0x1000)
 
 def trap_sys_exit():
     """trap cfx_umon, 0x3FF00 — semihosting tag (immu18[17:8]==0x3FF (0x3FF00-0x3FFFF))."""
@@ -216,7 +215,7 @@ def build_rom(test_insns):
 def run_test(rom_data, kernel_data=None, timeout=10):
     if kernel_data is None:
         # ILLI poison at the RAM base: T23 jumps there and must fault cleanly
-        # (fence is implemented since SPEC-164t, cfxld is the remaining poison).
+        # (fence with hb != 0 is a static encoding-legality ILLI).
         kernel_data = illi_poison() * 4
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data); rom_path = f.name
@@ -431,10 +430,10 @@ TESTS = [
 
     # T23: jump-rrii e2e (J1 fix, should not SIGABRT)
     # jump rb2, rd0, 0 → PC = rb2 + rd0 + 0 = RAM base
-    # RAM base has kernel = cfxld (ILLI poison) → ILLI exit (not crash)
+    # RAM base has kernel = fence-hb poison (ILLI) → ILLI exit (not crash)
     ("T23 jump-rrii → no crash (ILLI)",
      [jump_rrii(2, 0, 0)],               # jump to RAM base (trampoline set rb2=RAM base)
-     ILLI_EXIT,                           # kernel is cfxld → 0x88
+     ILLI_EXIT,                           # kernel is fence-hb poison → 0x88
      "jump-rrii crashed (SIGABRT)"),
 
     # T24: br.nz taken with correct PC target (J2 fix)

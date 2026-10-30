@@ -68,9 +68,9 @@ def fence():
     return struct.pack('>I', 0x79000000)
 
 def illi_poison():
-    """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison after fence
+    """fence cfx0, hb=1 (op=0x79, immu18=0x1000) — ILLI poison after fence
     became an implemented instruction (SPEC-164t)."""
-    return encode_orri(0x7C, 0x00, 0, 0, 0)
+    return encode_orri(0x79, 0x00, 0x01, 0x00, 0x00)
 
 
 # ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──

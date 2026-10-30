@@ -8,7 +8,9 @@
   3. **分区不变量**（代替此前的 m1==156/fp==64/…/total==264 常量）：
      - **并集 == 全量**：各 scope 的 id 集合之并 == 全部记录 id 集合（无未分区记录）；
      - **两两不交**：任意两个 scope 的 id 集合交集为空；
-     - **每 scope 非空**：6 个分区各自 ≥1 条（整族被静默清空 ⇒ FAIL）。
+     - **每 scope 非空**：除 `excluded` 外各分区 ≥1 条（整族被静默清空 ⇒ FAIL）；
+       `excluded` 现为 0 条（`cfxld`/`cfxst` 已删、`crii` 格式撤销）⇒ 允许空，
+       词表保留以备将来"编码已定义但未实现"的指令。
      计数只**现场统计并打印**，不参与比较。
   4. `scope == "excluded"` ⇔ `decode == "ILLI"`；`scope ∈ {m1, fp, m3, m8, m9}` ⇒ 无 `decode`
      且无旧字段（防回退）。
@@ -137,7 +139,9 @@ def check(records: list, repo: Path) -> tuple[list[tuple[str, str, str, bool]], 
     if not record("分区两两不交", "0 对相交", f"{len(overlaps)} 对相交") or overlaps:
         fail("分区相交: " + "; ".join(overlaps[:5]))
 
-    empty = [s for s, members in by_scope.items() if not members]
+    # `excluded` 允许为空（现行无该分区记录；见 docstring 判据 3）。
+    empty = [s for s, members in by_scope.items()
+             if not members and s != "excluded"]
     if not record("每 scope 非空", "0 个空分区", f"{len(empty)} 个空分区") or empty:
         fail("空分区（整族被清空?）: " + ", ".join(empty))
 
@@ -233,7 +237,13 @@ def self_test() -> int:
         records.append({**records[0], "id": "zzz_unpartitioned", "scope": "bogus"})
 
     def break_decode(records):
-        ex = next(r for r in records if r["scope"] == "excluded")
+        ex = next((r for r in records if r["scope"] == "excluded"), None)
+        if ex is None:
+            # 现行无 excluded 记录 ⇒ 造一条（其余不变量不受影响）再删 decode。
+            ex = {**next(r for r in records if r["scope"] == "m1"),
+                  "id": "zzz_excluded_probe", "scope": "excluded",
+                  "decode": "ILLI"}
+            records.append(ex)
         del ex["decode"]
 
     def add_decode_to_plain(records):
@@ -263,6 +273,8 @@ def self_test() -> int:
         cases = [
             ("baseline", base_text, 0),
             ("empty-scope-m3", mut(lambda rs: drop_all_scope(rs, "m3")), 1),
+            ("empty-scope-excluded-ok",
+             mut(lambda rs: drop_all_scope(rs, "excluded")), 0),
             ("duplicate-id", mut(add_dup_id), 1),
             ("invalid-scope", mut(add_unpartitioned), 1),
             ("excluded-no-decode", mut(break_decode), 1),

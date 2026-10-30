@@ -81,8 +81,8 @@ POST_ISEL_FILES = [
 ]
 
 # 缺口三分类里「汇编层/特权族」的机械判据（format / mnemonic 口径，非人工挑拣）：
-# crrr/ciii/crii 为特权 cfx 族（经 cfx 访问/cfx2rd 读出），fence/swym 为占位/屏障。
-ASM_LEVEL_FORMATS = frozenset({"crrr", "ciii", "crii"})
+# crrr/ciii 为特权 cfx 族（经 cfx 访问/cfx2rd 读出），fence/swym 为占位/屏障。
+ASM_LEVEL_FORMATS = frozenset({"crrr", "ciii"})
 ASM_LEVEL_MNEMONICS = frozenset({"fence", "swym"})
 
 # TableGen 指令格式类 → opcodes.yaml 的 format 字符串（与 validate_instrinfo 同）。
@@ -658,9 +658,13 @@ def render_md(rows: list[dict], st: dict) -> str:
     a(f"- 现场统计：`accept` **{st['l1_accept']}** / `reject` **{st['l1_reject']}**"
       f"{(' / 异常 ' + str(st['l1_other'])) if st['l1_other'] else ''}；"
       f"编码复核不符 **{st['enc_bad']}**。")
-    a(f"- `scope: excluded` 且后端未实现者（{'/'.join('`' + m + '`' for m in st['l1_reject_mnemonics'])}，"
-      "现场派生）由汇编器**显式拒绝**（`reject`）；其余 `scope: excluded` 记录（MC 层已受理、"
-      "执行侧仍 ILLI）与 `tests/unit/llvm/lit/MC/DADAO-gen/gen-excluded.s` 的反例同口径。")
+    if st["l1_reject_mnemonics"]:
+        a(f"- `scope: excluded` 且后端未实现者（{'/'.join('`' + m + '`' for m in st['l1_reject_mnemonics'])}，"
+          "现场派生）由汇编器**显式拒绝**（`reject`）；其余 `scope: excluded` 记录（MC 层已受理、"
+          "执行侧仍 ILLI）与 `tests/unit/llvm/lit/MC/DADAO-gen/gen-excluded.s` 的反例同口径。")
+    else:
+        a("- 无 `reject` 记录（现场派生：`scope: excluded` 现为 0 条——`cfxld`/`cfxst` 已从 ISA "
+          "删除，`crii` 格式一并撤销），故无 `gen-excluded.s` 反例档。")
     a("")
     a("### 第②层「ISel 用得上」（机械提取，非人工判读）")
     a("")
@@ -721,11 +725,12 @@ def render_md(rows: list[dict], st: dict) -> str:
     a("")
     a(f"1. **真缺口·候补优化面**（`scope != excluded`，且后端 ISel/post-ISel 均未引用，"
       f"且非汇编层/特权族）：**{len(st['gap_true'])}** 条 —— ISA 有、后端一次都没发射，最有价值。")
-    a(f"2. **真缺口·汇编层/特权族**（同上但 `format ∈ {{crrr, ciii, crii}}` 或助记符 ∈ "
+    a(f"2. **真缺口·汇编层/特权族**（同上但 `format ∈ {{crrr, ciii}}` 或助记符 ∈ "
       f"{{fence, swym}}，机械判据）：**{len(st['gap_asm'])}** 条 —— 经 cfx 访问/内联汇编/占位语义使用，"
       "不经 ISel 选入属预期。")
     a(f"3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**{len(st['gap_post'])}** 条。")
-    a(f"4. **`scope: excluded` 未实现**（汇编器拒绝、执行 ILLI）：**{len(st['gap_excluded'])}** 条 —— 不在本期范围。")
+    if st["gap_excluded"]:
+        a(f"4. **`scope: excluded` 未实现**（汇编器拒绝、执行 ILLI）：**{len(st['gap_excluded'])}** 条 —— 不在本期范围。")
     a("")
     for idx, (title, group) in enumerate(
             (("真缺口·候补优化面", st["gap_true"]),

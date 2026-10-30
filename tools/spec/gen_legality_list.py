@@ -4,7 +4,7 @@
 Sources
 -------
 * ``contracts/legality_rules.yaml`` -- 16 rules (active + deferred)
-* ``contracts/opcodes.yaml`` -- 243 entries, 207 with ``rule_refs``
+* ``contracts/opcodes.yaml`` -- 264 entries, 219 with ``rule_refs``
 
 Reuses ``classify()``, ``SECTION_ORDER``, ``CLASS_TO_SPEC`` from
 ``tools/llvm/gen_asm_list.py`` (DRY: no duplicated classification logic).
@@ -77,7 +77,7 @@ RULE_SUMMARY: dict[str, str] = {
     "excp_malign":       "未对齐访问 → MALIGN",
     "excp_ialign":       "IP[1:0]≠0 → IALIGN",
     "encode_sbz":        "SBZ 非零 → ILLI",
-    "encode_cfx_reserved": "保留 cfx（7-14、19-61）→ ILLI",
+    "encode_cfx_reserved": "保留 cfx（6-14、19-61）→ ILLI",
     "encode_onehot":     "immu6 非 one-hot 或 ≥ S → ILLI",
     "encode_fp_root_n":  "ftroot/foroot n≠2 → ILLI",
     "excp_undi":         "保留编码 → UNDI",

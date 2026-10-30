@@ -16,7 +16,7 @@
 - 适用范围：DADAO M1 汇编语言——词法、记号、指令书写、指导符、选项、诊断、往返。[Toolchain-01 §1]
 - 指令集权威：编码与身份以 `contracts/opcodes.yaml` 为准，语义以 `contract-isa.md` 为准；本合约只规定书写形式。[Toolchain-01 §1]
 - M1 格式类（`Toolchain-01 §1` 定义；格式类清单与各指令 `scope` 归属以 `contracts/opcodes.yaml` 为准）：`rrrr`、`rrri`、`rrii`、`riii`、`iiii`、`rwii`、`orrr`、`orri`、`oiii`、`crrr`、`ciii`。[Toolchain-01 §1]
-- `crrr`/`ciii` 属特权 cfx：`cfx2rd`/`cfx2rc`（crrr）与 `trap`/`escape`（ciii）为 `scope: m1`（已实现）；`cfxld`/`cfxst`（crii）仍 `scope: excluded`。[Toolchain-01 §1]
+- `crrr`/`ciii` 属特权 cfx：`cfx2rd`/`cfx2rc`（crrr）与 `trap`/`escape`/`fence`（ciii）为已实现指令；`crii` 格式已随 `cfxld`/`cfxst` 删除而撤销。[Toolchain-01 §1]
 - 术语：地址表达式、寄存器组、条件寄存器、地址立即数（字节）。[Toolchain-01 §1]
 
 ---
@@ -74,7 +74,7 @@
 
 ### §3.2 语义（三类，公式不同）
 
-- **访存**（`ld.*`/`st.*`/`ldm.*`/`stm.*`/`cfxld`/`cfxst`）：有效地址 = `基址 + 立即数`（偏移单位为字节，`imms12`）。[Toolchain-01 §3.2][ADR-0013 D4]
+- **访存**（`ld.*`/`st.*`/`ldm.*`/`stm.*`）：有效地址 = `基址 + 立即数`（偏移单位为字节，`imms12`）。[Toolchain-01 §3.2][ADR-0013 D4]
 - **iiii 跳转/分支**（`jump`/`call` 的 iiii 形式、`br.*`）：目标 = `基址 + 立即数`（字节，`imms26`/`imms20`/`imms14`）。[Toolchain-01 §3.2][ADR-0013 D4]
 - **rrii 跳转**（`jump`/`call` 的 rrii 形式）：目标 = `基址 + 寄存器偏移 + 立即数`（字节，`imms14`）。[Toolchain-01 §3.2][ADR-0013 D4]
 - **相对跳转的基址**：iiii 形式的基址 MUST 为 `rb0`（当前指令地址）；基址非 `rb0` 而指令为 iiii 形式时 MUST 报错；rrii 形式的基址 MAY 为任意 RB 寄存器。[Toolchain-01 §3.2][ADR-0013 D4]
@@ -167,9 +167,8 @@
 | `oiii` | `助记符 immu18` | `swym 0` | 纯立即数，不加 `[]` |
 | `ciii`（`fence`） | `助记符 cfxHA, immu18` | `fence cfx0, immu18` | `cfx0`/`cfx_umon` = all cfx |
 
-**特权 cfx 格式（`crrr`/`crii`/`ciii`）与 LR-SC 的书写规则**（同规则、供对照；`crrr`/`ciii` 现为 `scope: m1`，`crii` 仍 `scope: excluded`）[Toolchain-01 §5][ADR-0013 D8]：
+**特权 cfx 格式（`crrr`/`ciii`）与 LR-SC 的书写规则**（同规则、供对照；`crrr`/`ciii` 现为已实现指令）[Toolchain-01 §5][ADR-0013 D8]：
 
-- `cfxld cfx63, [rb2, 1]`、`cfxst cfx63, [rb2, 1]`——`cfxha` 写作 `cfxHA`（测试机为 `cfx63` = power）；末两操作数为地址。[Toolchain-01 §5][ADR-0013 D8]
 - `cfx2rd cfx63, cg8, rc1, rd8`、`cfx2rc …`——字段占位为 `cfxHA, cgHB, rcHC, rdHD`；中间两操作数分别是 `cg` 寄存器与 `rc` 寄存器。[Toolchain-01 §5][ADR-0013 D8]
 - `lr.o.nn rd9, [rb1]`——两个操作数：`rdHB` 固定为 `rd0`（不在汇编中出现；手工编码 `hb ≠ 0` → ILLI）。[Toolchain-01 §5][ADR-0013 D8]
 - `sc.o.nn rd8, rd9, [rb1]`——三个操作数：`rdHB`（成功/失败结果）、`rdHC`（源）、地址 `rbHD`。[Toolchain-01 §5][ADR-0013 D8]
@@ -264,7 +263,7 @@
 
 ## §13 cfx 别名约定
 
-本节承载 cfx 系列别名的**书写约定**（规范正文「怎么写」）；决策与理由见 `ADR-0017`。**别名表**为机械生成投影 `.tao/contracts/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），不属于规范正文。cfx 中 `cfx2rd`/`cfx2rc`/`trap`/`escape` 已 `SPEC-115t` re-scope 为 `scope: m1`（MC 可汇编）；`cfxld`/`cfxst` 仍 `scope: excluded`。[Toolchain-01 §13][ADR-0017]
+本节承载 cfx 系列别名的**书写约定**（规范正文「怎么写」）；决策与理由见 `ADR-0017`。**别名表**为机械生成投影 `.tao/contracts/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），不属于规范正文。cfx 中 `cfx2rd`/`cfx2rc`/`trap`/`escape` 已 `SPEC-115t` re-scope 为 `scope: m1`（MC 可汇编）；`cfxld`/`cfxst` 已从 ISA 删除（`crii` 格式一并撤销）。[Toolchain-01 §13][ADR-0017]
 
 ### §13.1 归属与形态（D1/D2）
 

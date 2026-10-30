@@ -49,7 +49,7 @@ M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**
 | `m5_semi_write.s` | semihosting | `SYS_OPEN`(0x01, mode 4) + `SYS_WRITE`(0x05)：写宿主文件 | `contract-semihosting §3` + 缓冲字节 `57 58 59 5a` → 文件 `m5_write.txt="WXYZ"` |
 | `m5_semi_exit.s` | semihosting | `SYS_EXIT`(0x18)：`{0x20026, code}` 停机、码传 host `$?` | `contract-semihosting §5`（`ADR-0020 D8`）→ `$?=0x43` |
 | `m5_semi_exit_extended.s` | semihosting | `SYS_EXIT_EXTENDED`(0x20)：带显式退出码停机 | `contract-semihosting §3/§5` → `$?=0x44` |
-| `m5_perm_reserved_illi.s` | permission | 一般 `trap cfx7`（reserved cfxha）⇒ `ILLI` | `contract-see §3`（reserved 7–14/19–61 ⇒ ILLI；`DADAO-12 §5`）→ cause `ILLI`(1<<8)，pass token `0x50` |
+| `m5_perm_reserved_illi.s` | permission | 一般 `trap cfx7`（reserved cfxha）⇒ `ILLI` | `contract-see §3`（reserved 6–14/19–61 ⇒ ILLI；`DADAO-12 §5`）→ cause `ILLI`(1<<8)，pass token `0x50` |
 | `m5_perm_mask_illi.s` | permission | 一般 `trap cfx_jmon`（指令类型 mask 禁止）⇒ `ILLI` | `contract-see §3`（mask 禁止 ⇒ ILLI；`DADAO-12 §3`）→ `ILLI`，pass token `0x51` |
 | `m5_perm_unimpl_cfxreg.s` | permission | `trap cfx_hart`（未实现 cfx）⇒ `CFXREG` | `contract-see §3`（未实现 cfx ⇒ CFXREG；`DADAO-22 §3`）→ `CFXREG`(1<<2)，pass token `0x52` |
 | `m5_perm_badcombo_cfxreg.s` | permission | `cfx2rd cfx_umon, cg6, rc63`（超数量寄存器组合）⇒ `CFXREG` | `contract-see §3`（不存在组合 ⇒ CFXREG；`DADAO-12 §3` `rc≥scratch_regs_num`）→ `CFXREG`，pass token `0x53` |

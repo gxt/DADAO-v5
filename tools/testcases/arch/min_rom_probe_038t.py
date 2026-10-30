@@ -55,7 +55,7 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 PASS_EXIT = 0x00
 ILLI_EXIT = 0x88
 
-ILLI = 0x7C000000
+ILLI = 0x79001000                 # fence cfx0, hb=1 (encode_sbz) -> ILLI (exit 0x88)
 SWYM = 0x47880000
 
 # ft / fo operand bit patterns (used only to give executed controls a value)

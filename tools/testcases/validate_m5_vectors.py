@@ -89,7 +89,7 @@ CAUSE_ID = {
 }
 
 # contract-see.md §3 permission rules -> expected cause.  Citation:
-#   reserved_cfxha     : "reserved cfxha (7-14, 19-61) 触发 ILLI"        [DADAO-12 §5]
+#   reserved_cfxha     : "reserved cfxha (6-14, 19-61) 触发 ILLI"        [DADAO-12 §5]
 #   mask_forbidden     : "cfxha 合法但指令 cfx mask 禁止亦触发 ILLI"     [DADAO-12 §3/§5]
 #   unimplemented_cfx  : "访问未实现的核芯功能扩展 ... 触发 CFXREG"       [DADAO-22 §3]
 #   bad_register_combo : non-existent / over-count register combination => CFXREG

@@ -79,5 +79,5 @@ DADAO-v5 在上游规范（SimRISC 0.5.x + AEE/SEE/HEE + ABI/SBI/HBI）之上，
 - **浮点能力补齐（前端可直接用）**：融合乘加 `fma`（单次舍入）、最小/最大值、取整六档、分类（`is.fpclass`）、`remainder`、`ldexp`、舍入模式读写、饱和转换；`fma`/`fmin`/`fmax`/`fabs`/`copysign`/`rint` 等 C 库函数调用**各 1 条指令、无 libcall**。
 - **线程与 TLS 可用**：musl 端口补齐 `clone`，`pthread_create`/`pthread_join`/`posix_spawn` 可用；`__thread` 静态 TLS 与动态 TLS（含 `dlopen`）打通；`libc-test` 中原被阻塞的 20 例线程用例全部通过（仅 `pthread_create-oom` 这类 OOM 边界用例仍受限）。
 - **整数与位操作**：8/16/32 位窄指令启用（`add.st/sw/sb` 等各 1 条，不再一律按 64 位算）；`clz`/`ctz`/`popcount`/`bswap` 各 1 条（原来分别要 10 条、7 条）；结构体/小数组拷贝用多寄存器 `ldm`/`stm` 合并。
-- **原子与内存序**：`fence` 与 `lr`/`sc` 全部实现（核芯功能扩展 `cfxld`/`cfxst` 仍保留未实现）。
+- **原子与内存序**：`fence` 与 `lr`/`sc` 全部实现（核芯功能扩展 `cfxld`/`cfxst` 已删除）。
 - **发布与验收**：SimRISC **0.5.5**；三套大型测试两档复跑 **0 fail**（`embench-iot` 38/38；`libc-test` 静态 331 / 动态 338 pass；`llvm-test-suite` 静态 204 / 动态 203 pass）。

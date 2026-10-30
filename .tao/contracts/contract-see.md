@@ -16,7 +16,7 @@
 
 - DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`（`0b01`）、`supv`（`0b10`）、`hypv`（`0b11`）。[DADAO-12 §1. 运行模式与核芯功能扩展]
 - `hypv`（超管模式）的 cg3 寄存器定义见 HEE（含 `hypv_switch_run_mode`/`hypv_excp_vector`）。[DADAO-13 §1. cg3 - hypv mode 寄存器]
-- `trap/escape/cfx2rd/cfx2rc/cfxld/cfxst` 可在**任意运行模式**下执行；是否允许由 `cfxtrap`/`cfxreg` 等来源 mask 控制。[SimRISC-11 §指令域与执行条件]
+- `trap/escape/cfx2rd/cfx2rc` 可在**任意运行模式**下执行；是否允许由 `cfxtrap`/`cfxreg` 等来源 mask 控制。[SimRISC-11 §指令域与执行条件]
 - 异常进入时运行模式/掩码切换为 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 与 `switch_cfx_mask`（异常进入流程步骤 8）。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3. 共有寄存器设计规范]
 - v5 测试机只启用 `hypv`/`user`，**本版不启用 `supv`**、不涉及 `smon`。[ADR-0020 D12][ADR-0004 R1][Machine-01 §2]
 

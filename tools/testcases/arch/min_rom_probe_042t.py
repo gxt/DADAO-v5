@@ -8,7 +8,7 @@ Contract sources (spec-first; encodings NOT taken from QEMU):
 
 What it checks (each printed as "[PASS]/[FAIL] name: expected -> actual"):
   ELF path (A):
-    * entry:   ELF with e_entry != RAM base; a `cfxld` (ILLI) poison sits at the
+    * entry:   ELF with e_entry != RAM base; a fence-hb (ILLI) poison sits at the
                RAM base, so the program can only report success if the
                loader really set PC = e_entry.
     * segments: .rodata/.data file bytes are placed at VA=PA; a `.bss` tail
@@ -113,8 +113,8 @@ def swym():
     return 0x47880000
 
 def illi_poison():
-    """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison."""
-    return 0x7C000000
+    """fence cfx0, hb=1 (op=0x79, immu18=0x1000) — ILLI poison."""
+    return 0x79001000
 
 def imm64_rd(rd, val):
     words = [set_zw_rd(rd, 0, val & 0xFFFF)]

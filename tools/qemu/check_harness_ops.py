@@ -111,7 +111,8 @@ FUNC_TO_YAML = {
     "encode_ld_ut":     "ld.ut_rrii_rd",
     "encode_ld_o":      "ld.o_rrii_rd",
     "encode_swym":      "swym_oiii_imm",
-    "encode_illi_poison": "cfxld_crii_cfx",
+    # encode_illi_poison 不在此表：它是**违反编码合法性**的实例（fence 的 hb != 0，
+    # 触发 encode_sbz ⇒ ILLI），其 word ≠ 任何记录的基值，无法按 id 对账。
     "encode_jump_iiii": "jump_iiii_rb",
 }
 

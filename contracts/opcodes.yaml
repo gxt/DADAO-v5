@@ -2,13 +2,13 @@
 # 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md
 # M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统
 # scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；
-# scope: excluded 为核芯功能扩展（cfxld/cfxst），尚未实现，
-#   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
+# scope: excluded 现 0 条（cfxld/cfxst 已删除、crii 格式撤销），
+#   词表保留：编码已定义但未实现 ⇒ ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
 # scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份
 # scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b + ADR-0035 GF(2) 无进位乘 clmul.o + fence/lr/sc 原子），非 M1 身份
-# 共 266 条：M1 156 条 + scope fp 66 条 + scope excluded 2 条 + scope m3 1 条 + scope m8 7 条 + scope m9 34 条
-# 有 rule_refs 的指令：215 条
+# 共 264 条：M1 156 条 + scope fp 66 条 + scope excluded 0 条 + scope m3 1 条 + scope m8 7 条 + scope m9 34 条
+# 有 rule_refs 的指令：219 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -2299,10 +2299,12 @@
     bits: '[5:0]'
     role: dst
     bank: rd
-  legality: []
+  legality:
+  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
   spec_cite: 'SimRISC-11: cfx2rd'
   scope: m1
-  rule_refs: []
+  rule_refs:
+  - encode_cfx_reserved
 - id: cfx2rc_crrr_cfx
   mnemonic: cfx2rc
   format: crrr
@@ -2326,60 +2328,12 @@
     bits: '[5:0]'
     role: dst
     bank: rd
-  legality: []
+  legality:
+  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
   spec_cite: 'SimRISC-11: cfx2rc'
   scope: m1
-  rule_refs: []
-- id: cfxld_crii_cfx
-  mnemonic: cfxld
-  format: crii
-  opc: '0x7C'
-  mask: '0xFF000000'
-  value: '0x7C000000'
-  fields:
-  - name: cfxha
-    bits: '[23:18]'
-    role: cfxcode
-    bank: imm
-  - name: rbhb
-    bits: '[17:12]'
-    role: src
-    bank: rb
-  - name: immu12
-    bits: '[11:0]'
-    role: imm
-    bank: imm
-    signed: false
-  legality: []
-  spec_cite: 'SimRISC-11: cfxld'
-  scope: excluded
-  decode: ILLI
-  rule_refs: []
-- id: cfxst_crii_cfx
-  mnemonic: cfxst
-  format: crii
-  opc: '0x7D'
-  mask: '0xFF000000'
-  value: '0x7D000000'
-  fields:
-  - name: cfxha
-    bits: '[23:18]'
-    role: cfxcode
-    bank: imm
-  - name: rbhb
-    bits: '[17:12]'
-    role: src
-    bank: rb
-  - name: immu12
-    bits: '[11:0]'
-    role: imm
-    bank: imm
-    signed: false
-  legality: []
-  spec_cite: 'SimRISC-11: cfxst'
-  scope: excluded
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - encode_cfx_reserved
 - id: escape_ciii_cfx
   mnemonic: escape
   format: ciii
@@ -2396,10 +2350,12 @@
     role: imm
     bank: imm
     signed: true
-  legality: []
+  legality:
+  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
   spec_cite: 'SimRISC-11: escape'
   scope: m1
-  rule_refs: []
+  rule_refs:
+  - encode_cfx_reserved
 - id: trap_ciii_cfx
   mnemonic: trap
   format: ciii
@@ -2416,10 +2372,12 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality:
+  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
   spec_cite: 'SimRISC-11: trap'
   scope: m1
-  rule_refs: []
+  rule_refs:
+  - encode_cfx_reserved
 - id: fence_ciii_cfx
   mnemonic: fence
   format: ciii
@@ -2438,7 +2396,7 @@
     signed: false
   legality:
   - immu18[17:12] == 0
-  - cfxha <= 6 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
+  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
   spec_cite: 'SimRISC-11: fence'
   scope: m9
   rule_refs:

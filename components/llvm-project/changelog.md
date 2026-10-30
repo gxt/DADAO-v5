@@ -528,3 +528,7 @@
 - **2026-10-29 INTEG-041t**
   - 摘要：**`fence` 改 `ciii`（`opc 0x79`）**（`ADR-0044 D1`–`D8`）：`DADAOInstrInfo.td` 的 `fence` 由 `DADAOOiii`（`op 0x47`/`ha 0x20`）改为 `DADAOCiii`（`op 0x79`，`cfxha` + `immu18`）；`hb = immu18[17:12]` 为 SBZ，`hc/hd = pred/succ` 六位（`cr/cw/ci/co/mr/mw`）。汇编器常量改为 `PRED_CR..PRED_MW`/`SUCC_CR..SUCC_MW`，`fence` 立即数合法性改查第 3 操作数（`hb != 0` ⇒ 保留编码硬报错），旧 `fence 0` 因操作数形态不符被拒。ISel 选 `fence` 时补 `cfxha=0`；`ATOMIC_FENCE` lowering 改用系统内存 `mr/mw`（acquire `0x430`、release `0xC20`、全屏障 `0xFFF`）。**真值**：`check-instrinfo` 0 errors（M9 34/34）；`llvm-mc`：`fence cfx0, 0` = `79 00 00 00`、`fence cfx63, 0xfff` = `79 fc 0f ff`、`fence 0` rc=1、`fence cfx0, 0x1000` rc=1。补丁 **7 份改**（`series` 98、`check-patch-tree` 205）。
   - 执行者：engineer
+
+- **2026-10-30 INTEG-045t**
+  - 摘要：**注释同步（无功能改动，`series` 98 不变）**：`DADAOInstrFormats.td` 的格式类说明删去已撤销的 `crii`（cfx 块传输格式；`cfxld`/`cfxst` 已从 ISA 删除），只余 `crrr`/`ciii` 两种带 `cfxha` 的格式；导出内容仅注释行变化（`check-patch-tree` 205 OK、`check-index-blobs` OK）。
+  - 执行者：engineer

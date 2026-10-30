@@ -29,7 +29,7 @@
 | [`SimRISC-08-32位数据运算.md`](SimRISC-08-32位数据运算.md) | 32 位数据运算 |
 | [`SimRISC-09-16位数据运算.md`](SimRISC-09-16位数据运算.md) | 16 位数据运算 |
 | [`SimRISC-10-8位数据运算.md`](SimRISC-10-8位数据运算.md) | 8 位数据运算 |
-| [`SimRISC-11-核芯功能扩展指令.md`](SimRISC-11-核芯功能扩展指令.md) | 核芯功能扩展指令（`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence`；`cfxld`/`cfxst` 待定） |
+| [`SimRISC-11-核芯功能扩展指令.md`](SimRISC-11-核芯功能扩展指令.md) | 核芯功能扩展指令（`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence`） |
 | [`SimRISC-12-其它指令.md`](SimRISC-12-其它指令.md) | 其它指令（原子 / 空转 / 位扫描与位计数） |
 
 **历史版本（已归档）**：每个 SimRISC 版本在 `.tao/archive/SimRISC-<ver>/` 各留一份**只读**快照（**只增不改**；来源、快照提交与逐文件 `sha256` 见各目录 `PROVENANCE.md`）。归档不参与实现、不参与 `spec/` 门控扫描，仅供对照与溯源；规则见 `docs/Process-06-spec目录保护规范.md §8`。

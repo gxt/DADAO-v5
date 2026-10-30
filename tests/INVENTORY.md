@@ -173,7 +173,7 @@
 |---|---|---|---|---|
 | `validate-vectors` | L1 | `tests/inst` schema/inventory/覆盖（156 身份） | 无 | stdout |
 | `check-case-ledger` | L1 | 清单 1,956 行 vs 现场 | 无 | stdout |
-| `check-isa-coverage` | L1 | 266 身份 × 后端矩阵漂移 | 无 | stdout |
+| `check-isa-coverage` | L1 | 264 身份 × 后端矩阵漂移 | 无 | stdout |
 | `check-qemu-smoke` | L2 | 代表集 3 册（`aip-si`/`reg-compare`/`reg-shift-extend`） | `.dadao/tests/harness/smoke` | `.work/log/qemu/check-qemu-smoke.log` |
 | `check-qemu-semantics` | L3 | 20 册全量（最近 975/980，5 deferred） | `.dadao/tests/harness/gate` | `.work/log/qemu/check-qemu-semantics.log` |
 | `check-lit` | L2 | 76 MC + 63 CodeGen + 14 E2E = 153 个 lit 用例 | `.dadao/tests/lit-output/{DADAO-MC,DADAO-CodeGen,DADAO-E2E}` | stdout（逐例） |
@@ -214,7 +214,7 @@
 
 ## 6. 覆盖现状（事实）
 
-- **指令身份覆盖**：`contracts/opcodes.yaml` 共 **266** 身份；向量覆盖 **193**（`m1` 152/156、`m9` 34/34、`m8` 7/7）。未覆盖：`fp` 66、`m1` cfx 4（`cfx2rc`/`cfx2rd`/`escape`/`trap`，`deferred TESTCASES-033t`）、`excluded` 2、`m3` 1（`sub.o_orrr_dbb`，由 CodeGen lit 覆盖）。
+- **指令身份覆盖**：`contracts/opcodes.yaml` 共 **264** 身份；向量覆盖 **193**（`m1` 152/156、`m9` 34/34、`m8` 7/7）。未覆盖：`fp` 66、`m1` cfx 4（`cfx2rc`/`cfx2rd`/`escape`/`trap`，`deferred TESTCASES-033t`）、`m3` 1（`sub.o_orrr_dbb`，由 CodeGen lit 覆盖）。`excluded` 现 0 条（`cfxld`/`cfxst` 已删除）。
 - **cfx**：`inventory.md:172-175` 明示 4 个 cfx 身份 deferred；`misc.yaml` 仅 2 例。
 - **fp**：66 个 `fp` 身份**无向量**，语义由 lit CodeGen + `check-{fma,minmax,rnd,clmul}-probe`（L3）承担 ⇒ 覆盖信息分散在 3 处（`inventory.md`、`llvm-isa-backend-matrix.tsv`、各 probe 日志），**无单一覆盖矩阵**（用户痛点的直接原因）。
 - **lit pattern 覆盖**：`case-ledger.tsv` 守护 500 条 `@@ OBJ:` pattern。

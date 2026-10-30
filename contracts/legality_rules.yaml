@@ -191,11 +191,12 @@ rules:
   - id: encode_cfx_reserved
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-11: fence"
+    spec_cite: "SimRISC-11: 指令域与执行条件"
     status: active
     description: >
-      fence 的 cfxha 指向保留核芯功能扩展（7–14、19–61）时触发 ILLI 异常（静态）。
-      cfxha = 0 表示 all cfx（汇编别名 cfx0 / cfx_umon）；1–6、15–18、62、63 为已分配
+      所有带 cfxha 的核芯功能扩展指令（trap/escape/cfx2rd/cfx2rc/fence）：
+      cfxha 指向保留核芯功能扩展（6–14、19–61）时触发 ILLI 异常（静态）。
+      cfxha = 0 表示 all cfx（汇编别名 cfx0 / cfx_umon）；1–5、15–18、62、63 为已分配
       或实现约定的 cfx。ADR-0044 D8 冻结该口径；cfx 编号/权限本身不变。
 
   - id: encode_onehot

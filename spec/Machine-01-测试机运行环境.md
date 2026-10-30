@@ -56,7 +56,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 `hypv`（超管模式）的 cg3 寄存器（含 `cfx_⟨cfxname⟩_hypv_cfxtrap` 等四类同步 mask、`cfx_⟨cfxname⟩_hypv_cfx_intr_mask`、`switch_run_mode`、`excp_vector`）定义见 HEE。[DADAO-13 §1. cg3 - hypv mode 寄存器]
 
-`trap`/`escape`/`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst` 可在**任意运行模式**下执行；是否允许由各核芯功能扩展的 cfx mask 与指令类型 cfx mask 控制。[SimRISC-11]
+`trap`/`escape`/`cfx2rd`/`cfx2rc` 可在**任意运行模式**下执行；是否允许由各核芯功能扩展的 cfx mask 与指令类型 cfx mask 控制。[SimRISC-11]
 
 异常进入后，硬件把运行模式与核芯功能扩展掩码改为 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 与 `cfx_⟨cfxname⟩_<mode>_switch_cfx_mask` 的值（异常进入流程步骤 8）。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3. 共有寄存器设计规范]
 
@@ -209,6 +209,7 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 
 ### 0.3.2-rc（未发布）
 
+- 核芯功能扩展指令清单同步：`cfxld`/`cfxst` 已从指令系统删除，只余 `trap`/`escape`/`cfx2rd`/`cfx2rc`（及 `fence`）。
 - cfx 权限表述同步两轴模型：四类同步来源 mask + `cfx_intr_mask`/`global_cfx_intr_mask`；权限拒绝 ⇒ `CFXPERM`，escape 帧/目标错误 ⇒ `CFXESC`。
 - 新增 `cfx_pmem` 的 64 KiB SRAM（`0x47ff_0000_0000`，cfxha 17、内部偏移 `0x3ff_0000_0000`）与 `cg15` DMA 的测试机约定：DMA 可读 RAM/boot ROM、只可写 RAM。
 - cfx 编号同步：`cfx5`（`cache`）为已分配未实现；保留 cfx 改为 `6`–`14`、`19`–`61`。

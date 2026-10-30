@@ -429,7 +429,7 @@ HEADER_FENCE = (
     "# Source: contracts/opcodes.yaml + spec/SimRISC-11: fence + ADR-0044 D1-D8\n"
     "# ciii: opc=0x79, ha=cfxha (0 = all cfx), immu18 = hb[17:12] | pred[11:6] | succ[5:0].\n"
     "# hb is SBZ; pred/succ bits: cr=1<<0 cw=1<<1 ci=1<<2 co=1<<3 mr=1<<4 mw=1<<5.\n"
-    "# Legality: hb != 0 or reserved cfx (7-14, 19-61) => ILLI; pred = succ = 0 => no-op.\n"
+    "# Legality: hb != 0 or reserved cfx (6-14, 19-61) => ILLI; pred = succ = 0 => no-op.\n"
     "# Independent oracle: the fields above are decoded by hand from the spec;\n"
     "# the barrier *strength* is asserted by the evidence script (TCG op dump),\n"
     "# because a barrier has no architecturally visible state change.\n\n")

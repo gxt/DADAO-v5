@@ -253,7 +253,7 @@ def load_yaml(yaml_path):
 
 # QFC 单元格名称格式为「指令-格式」，分类前剥掉格式后缀
 _QFC_FORMATS = {"rrrr", "rrii", "rrri", "riii", "iiii", "rwii",
-                "orrr", "orri", "oiii", "crrr", "crii", "ciii"}
+                "orrr", "orri", "oiii", "crrr", "ciii"}
 
 
 def _strip_format(name):
@@ -268,7 +268,7 @@ def classify_m1(op, ha, name, misc_name=None):
 
     M1 外类别（contracts/opcodes.yaml 头部 + contract-isa.md）：
       - 浮点 RF：OPC-RF 子表，或名称含 -rf / ft*/fo* / rd2rf / rf2rd
-      - 特权 cfx：cfx2rd/cfx2rc/cfxld/cfxst/escape/trap
+      - 特权 cfx：cfx2rd/cfx2rc/escape/trap/fence
       - LR-SC 原子：OPC-MISC 子表的 lr_*/sc_*
       - fence：QFC 主表的 fence（scope: m9，非 M1；ADR-0044 起为 ciii）
 

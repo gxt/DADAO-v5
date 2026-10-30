@@ -1,11 +1,11 @@
 # SimRISC核芯功能扩展指令
 
 > **版本：0.5.6-rc**（与 SimRISC-00 一致）
-> **分类：核芯功能扩展** — trap/escape/cfx2rd/cfx2rc/cfxld/cfxst/fence
+> **分类：核芯功能扩展** — trap/escape/cfx2rd/cfx2rc/fence
 
 ## 1. 指令域与执行条件
 
-`trap`/`escape`/`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst` 指令可以在任意运行模式下执行，具体是否允许由各核芯功能扩展的 cfx mask 寄存器和指令类型 cfx mask 寄存器控制。详细异常路由规则见 SEE。
+`trap`/`escape`/`cfx2rd`/`cfx2rc` 指令可以在任意运行模式下执行，具体是否允许由各核芯功能扩展的 cfx mask 寄存器和指令类型 cfx mask 寄存器控制。详细异常路由规则见 SEE。
 
 核芯功能扩展指令用于访问各核芯功能扩展的寄存器与异常入口，为应用程序提供完备的运行环境，并用于资源管理和状态配置等功能。
 
@@ -16,6 +16,8 @@
 - `cfx_<cfxname>`：使用名称，如 `cfx_power`、`cfx_umon`
 
 汇编器对两种写法等价处理，均编码为 6 位的 cfxha。
+
+`cfxHA` 指向保留核芯功能扩展（6–14、19–61）时，本章所有指令均触发 ILLI 异常。
 
 ## 2. 陷入指令
 
@@ -56,7 +58,7 @@ cfx2rc    cfxHA, cgHB, rcHC, rdHD
 cfx2rc 是将 rdHD 的值设置到 cfx_<cfxname>_cgHB_rcHC 中。
 cfx2rd 是将 cfx_<cfxname>_cgHB_rcHC 的值设置到 rdHD 中。
 
-读写不存在的 cfx_<cfxname>_cgHB_rcHC 组合时触发 CFXREG 异常；cfx_<cfxname> 为 reserved 核芯功能扩展（7-14、19-61）时触发 ILLI 异常；读写权限不匹配时，触发非法核芯功能扩展寄存器访问异常（CFXREG）。
+读写不存在的 cfx_<cfxname>_cgHB_rcHC 组合时触发 CFXREG 异常；cfx_<cfxname> 为 reserved 核芯功能扩展（6-14、19-61）时触发 ILLI 异常；读写权限不匹配时，触发非法核芯功能扩展寄存器访问异常（CFXREG）。
 
 > **注意**：cfx2rd/cfx2rc 的数据通路仅连接 rd 寄存器组。若需要将 rb 或 rf 寄存器的值写入核芯功能扩展寄存器，须先通过 `rb2rd rd, rb, 1` 或 `rf2rd rd, rf, 1` 中转至 rd 寄存器。汇编器提供 `set.rd rd, rs` 伪指令简化此操作（展开为 `rb2rd`/`rf2rd`/`rd2rd`）。
 
@@ -74,29 +76,7 @@ cfx2rc  cfx_power, cg8, rc1, rd2
 
 这种简化写法使代码更具可读性，程序员无需记忆每个寄存器的cg和rc编号，直接通过寄存器名称即可定位目标寄存器。
 
-## 5. SRAM块传输指令（待定）
-
-> **待定**（deferred）：本组指令的语义尚未定稿，`cfxld`/`cfxst` 暂不启用。
-
-这类指令用于核芯功能扩展的内部存储与内存之间的块传输，要求 64 字节对齐，并且是 64 字节的倍数。
-
-操作数类型为：`crii`
-
-```simrisc
-cfxld    cfxHA, [rbHB, immu12]
-cfxst    cfxHA, [rbHB, immu12]
-```
-
-其中：
-- cfx_<cfxname> 指定核芯功能扩展名称。
-- rbHB 指定内存地址，要求 64 字节对齐。
-- 传输长度 = immu12 × 64 字节。
-- 内部存储侧的目标块由 `cfx_⟨cfxname⟩_sram_block_sel`（cg7 rc0）选择，块内起始偏移由 `cfx_⟨cfxname⟩_sram_addr`（cg7 rc1）指定。`cfx_⟨cfxname⟩_sram_addr` 及内存侧 `rbHB` 均需 64 字节对齐。
-- cfxld：将内存数据传输到核芯功能扩展的内部存储中。
-- cfxst：将核芯功能扩展的内部存储数据传输到内存中。
-- 若 cfx_<cfxname> 为 reserved 核芯功能扩展（7-14、19-61），触发 ILLI 异常。
-
-## 6. 屏障指令
+## 5. 屏障指令
 
 屏障指令用于约束本 hart 对所选 cfx 资源域的访问顺序。
 
@@ -130,6 +110,25 @@ fence   cfxHA, immu18
 | bit4 | `mr` | system memory read |
 | bit5 | `mw` | system memory write |
 
+汇编器为上述 12 个位提供同名宏，可直接用 `|` 组合，组合结果整体作为 `immu18` 书写：
+
+| 宏 | 值 | 访问类型 |
+| --- | --- | --- |
+| `PRED_CR` | `1 << 6` | cfx memory read |
+| `PRED_CW` | `1 << 7` | cfx memory write |
+| `PRED_CI` | `1 << 8` | cfx IO input |
+| `PRED_CO` | `1 << 9` | cfx IO output |
+| `PRED_MR` | `1 << 10` | system memory read |
+| `PRED_MW` | `1 << 11` | system memory write |
+| `SUCC_CR` | `1 << 0` | cfx memory read |
+| `SUCC_CW` | `1 << 1` | cfx memory write |
+| `SUCC_CI` | `1 << 2` | cfx IO input |
+| `SUCC_CO` | `1 << 3` | cfx IO output |
+| `SUCC_MR` | `1 << 4` | system memory read |
+| `SUCC_MW` | `1 << 5` | system memory write |
+
+例如 `fence cfx0, PRED_CR|SUCC_CR|SUCC_CW` 与 `fence cfx0, 67` 编码相同。
+
 `pred = 0` 且 `succ = 0` 是合法的 no-op。
 
 屏障只保证**本 hart** 对所选 cfx 的对应访问顺序/可见性；不跨 hart，不等待 DMA
@@ -138,7 +137,7 @@ fence   cfxHA, immu18
 异常规则：
 
 - `hb != 0` ⇒ ILLI；
-- `cfxHA` 为保留核芯功能扩展（7–14、19–61）⇒ ILLI；
+- `cfxHA` 为保留核芯功能扩展（6–14、19–61）⇒ ILLI；
 - 正常屏障不产生异常。
 
 <!-- ASSEMBLY_LIST_START -->
@@ -148,8 +147,6 @@ fence   cfxHA, immu18
 |---|---|---|---|---|
 | `cfx2rc` | `crrr` | `cfx` | `cfx2rc cfxHA, cgHB, rcHC, rdHD` | `cfx2rc_crrr_cfx` |
 | `cfx2rd` | `crrr` | `cfx` | `cfx2rd cfxHA, cgHB, rcHC, rdHD` | `cfx2rd_crrr_cfx` |
-| `cfxld` | `crii` | `cfx` | `cfxld cfxHA, [rbHB, immu12]` | `cfxld_crii_cfx` |
-| `cfxst` | `crii` | `cfx` | `cfxst cfxHA, [rbHB, immu12]` | `cfxst_crii_cfx` |
 | `escape` | `ciii` | `cfx` | `escape cfxHA, [excp_cause_ip, imms20]` | `escape_ciii_cfx` |
 | `fence` | `ciii` | `cfx` | `fence cfxHA, immu18` | `fence_ciii_cfx` |
 | `trap` | `ciii` | `cfx` | `trap cfxHA, immu18` | `trap_ciii_cfx` |
@@ -160,9 +157,5 @@ fence   cfxHA, immu18
 ## 附录 B：合法性检查
 
 * `encode_sbz`：SBZ 非零 → ILLI — `fence_ciii_cfx`（1 条）
-* `encode_cfx_reserved`：保留 cfx（7-14、19-61）→ ILLI — `fence_ciii_cfx`（1 条）
-
-**decode ILLI（未实现该语义的机器）：**
-* `cfxld_crii_cfx`：decode ILLI
-* `cfxst_crii_cfx`：decode ILLI
+* `encode_cfx_reserved`：保留 cfx（6-14、19-61）→ ILLI — `cfx2rc_crrr_cfx`, `cfx2rd_crrr_cfx`, `escape_ciii_cfx`, `fence_ciii_cfx`, `trap_ciii_cfx`（5 条）
 <!-- LEGALITY_END -->

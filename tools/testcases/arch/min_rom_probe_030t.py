@@ -90,7 +90,7 @@ def call_iiii(imms24): return encode_iiii(0x74, imms24 & 0xFFFFFF)
 def ret_riii(rdha, imms18): return encode_riii(0x76, rdha, imms18 & 0x3FFFF)
 def fence(): return struct.pack('>I', 0x79000000)
 def swym(): return struct.pack(">I", 0x47880000)
-def illi_poison(): return struct.pack(">I", 0x7C000000)  # cfxld
+def illi_poison(): return struct.pack(">I", 0x79001000)  # fence hb=1 (encode_sbz)
 def st_o_ra(raha, rbhb, imms12):
     imm = imms12 & 0xFFF; hc = (imm >> 6) & 0x3F; hd = imm & 0x3F
     if imms12 < 0: hc |= 0x20

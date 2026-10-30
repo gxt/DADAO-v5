@@ -4,7 +4,7 @@
 > **版本与变更记录细则**：版本号 `x.y.z`——**`x=0` 表示尚未正式发布；正式发布后 `x≥1`**；**大改动 `y+1`、有影响的小改 `z+1`**；当前版本见上行「状态」。
 > **变更记录见文末「附录：版本与变更记录」**（格式 = 「版本（日期）」小标题 + 列表项；**不用表格、不写「依据」**）。
 > **上位依据**：`ADR-0002 D4`（组件补丁与构建编排）；本规范的语法决策由 **`ADR-0013`《DADAO 汇编语言语法》冻结（Accepted，2026-09-28）**
-> **依赖**：`.tao/contracts/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表，指令条数以此表为准）、`.tao/contracts/contract-asm-list.md`（指令全表，自动生成自 `contracts/opcodes.yaml`；其中**浮点**章为 `scope: fp`（已实现）、**待定**章为 deferred）
+> **依赖**：`.tao/contracts/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表，指令条数以此表为准）、`.tao/contracts/contract-asm-list.md`（指令全表，自动生成自 `contracts/opcodes.yaml`；其中**浮点**章为 `scope: fp`（已实现））
 > **说明**：本规范按 ADR-0012 D4 由 spec 模块任务修改上游 `spec/`（SimRISC 系列）——上游将按本规定生成**新版本**文档（另行安排）
 > **关键词**：MUST / SHOULD / MAY 按 RFC 2119 解释
 
@@ -14,7 +14,7 @@
 
 - **适用范围**：DADAO M1 的汇编语言——词法、记号、指令书写、指导符、选项、诊断、往返。
 - **指令集权威**：编码与身份以 `contracts/opcodes.yaml` 为准；语义以 `contract-isa.md` 为准；本规范**只规定书写形式**。
-- **格式类（format）**：`contract-isa.md §2.3` 定义的 M1 格式类——`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii` `crrr` `ciii`（格式类清单与各指令 `scope` 归属以 `contracts/opcodes.yaml` 为准）。其中 `crrr`（`cfx2rd`/`cfx2rc`）与 `ciii`（`trap`/`escape`/`fence`）属特权 cfx；`crii`（`cfxld`/`cfxst`）仍属 `scope: excluded`（`SimRISC-12` deferred）。
+- **格式类（format）**：`contract-isa.md §2.3` 定义的 M1 格式类——`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii` `crrr` `ciii`（格式类清单与各指令 `scope` 归属以 `contracts/opcodes.yaml` 为准）。其中 `crrr`（`cfx2rd`/`cfx2rc`）与 `ciii`（`trap`/`escape`/`fence`）属特权 cfx。
 - **术语**：**地址表达式**、**寄存器组**、**条件寄存器**、**地址立即数（字节）**——见 §3/§4/§2.4。
 
 ---
@@ -64,7 +64,7 @@
 ```
 
 ### 3.2 语义（三类，公式不同）
-- **访存**（`ld.*`/`st.*`/`ldm.*`/`stm.*`/`cfxld`/`cfxst`）：有效地址 = `基址 + 立即数`（**偏移单位为字节**，`imms12`）。例：`ld.ub rd8, [rb2, 1]` ⇒ `rb2 + 1`。
+- **访存**（`ld.*`/`st.*`/`ldm.*`/`stm.*`）：有效地址 = `基址 + 立即数`（**偏移单位为字节**，`imms12`）。例：`ld.ub rd8, [rb2, 1]` ⇒ `rb2 + 1`。
 - **iiii 跳转/分支**（`jump`/`call` 的 iiii 形式、`br.*`）：目标 = `基址 + 立即数`（**字节**，`imms26`/`imms20`/`imms14`）。例：`jump [rb0, 8]` ⇒ `rb0 + 8`。
 - **rrii 跳转**（`jump`/`call` 的 rrii 形式）：目标 = `基址 + 寄存器偏移 + 立即数`（**字节**，`imms14`）。例：`jump [rb3, rd0, 96]` ⇒ `rb3 + rd0 + 96`。
 - **相对跳转的基址**：**iiii 形式**的基址 **MUST** 为 `rb0`（当前指令地址）；基址非 `rb0` 而指令为 iiii 形式时 **MUST** 报错。rrii 形式的基址 **MAY** 为任意 RB 寄存器。
@@ -165,8 +165,7 @@ add.uo  {rd8, rd9}, rd10, rd11
 ftfma   rf8, rf9, rf10, rf11
 ```
 
-**特权 cfx 格式（`crrr`/`crii`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**；其中 `crrr`/`ciii` 现为 `scope: m1`/`m9`，`crii` 仍为 `scope: excluded`）：
-- `cfxld cfx63, [rb2, 1]`、`cfxst cfx63, [rb2, 1]`——`cfxha` 写作 `cfxHA`（测试机为 `cfx63` = power），末两操作数为**地址**。
+**特权 cfx 格式（`crrr`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**；其中 `crrr`/`ciii` 现为 `scope: m1`/`m9`）：
 - `cfx2rd cfx63, cg8, rc1, rd8`、`cfx2rc …`——字段占位为 `cfxHA, cgHB, rcHC, rdHD`；中间两操作数分别是 **`cg` 寄存器**与 **`rc` 寄存器**，各自命名。
 - `lr.o.nn rd9, [rb1]`——**两个操作数**：`rdHB` 固定为 `rd0`（**不在汇编中出现**，手工编码 `hb ≠ 0` → ILLI），故只写「目的寄存器 `rdHC` + 地址 `rbHD`」。
 - `sc.o.nn rd8, rd9, [rb1]`——**三个操作数**：`rdHB`(成功/失败结果)、`rdHC`(源)、地址 `rbHD`。
@@ -296,7 +295,7 @@ sub.so  {rd0, rd3}, rd0, rd4    @@ 旧 `neg.o`（64 位取负，双目的写回 
 
 ## 13. cfx 别名约定
 
-> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）；其**决策与理由**见 `ADR-0017`（`.tao/adr/adr-0017-cfx-assembly-aliases.md`）。**别名表**为机械生成的**投影**——`.tao/contracts/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），**不属于**本规范正文。cfx 中 `cfx2rd`/`cfx2rc`（`crrr`）与 `trap`/`escape`（`ciii`）为 `scope: m1`；`cfxld`/`cfxst`（`crii`）为 `scope: excluded`。本节约定随 M2 落地。
+> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）；其**决策与理由**见 `ADR-0017`（`.tao/adr/adr-0017-cfx-assembly-aliases.md`）。**别名表**为机械生成的**投影**——`.tao/contracts/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），**不属于**本规范正文。cfx 中 `cfx2rd`/`cfx2rc`（`crrr`）与 `trap`/`escape`（`ciii`）为 `scope: m1`。本节约定随 M2 落地。
 
 ### 13.1 归属与形态（D1/D2）
 - cfx 别名属**汇编规范**：由汇编器内置**符号表**解析，**不引入** cpp 头文件/宏。
@@ -354,6 +353,7 @@ escape cfx_smon, [excp_cause_ip, 4]          @@ cfxha 写作标量别名
 
 ### 0.5.4-rc（未发布）
 
+- 删除 `cfxld`/`cfxst` 的书写规则与其 `crii` 格式（两条指令已从指令系统删除）；格式类清单只余 `crrr`/`ciii` 两种带 `cfxha` 的格式。
 - `fence` 改为 `ciii` 语法 `fence cfxHA, immu18`：`cfx0`/`cfx_umon` 都表示 all cfx；`immu18` 整体一个表达式；`fence 0` 不再接受。
 
 - §13.8 数组单下标示例改用 `cfx_pmem_start[0]`（`cfx_ptw_ptbr` 已改为单份寄存器，不再有数组下标）。

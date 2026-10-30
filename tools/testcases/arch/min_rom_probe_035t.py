@@ -68,11 +68,10 @@ ILLI_EXIT = 0x88
 
 # ── Instruction encoding (op / ha values from contracts/opcodes.yaml) ──
 
-# ROM terminator: a deterministic ILLI word.  `fence` used to be the poison,
-# but since SPEC-164t it is an implemented legal instruction (and its old op is
-# no longer decoded), so the poison is the remaining excluded family `cfxld`
-# (op=0x7C, ha=0x00, scope=excluded) -> exit 0x88.
-ILLI = 0x7C000000                 # cfxld -> ILLI (exit 0x88)
+# ROM terminator: a deterministic ILLI word.  A plain `fence` is legal, but
+# `fence` with hb (= immu18[17:12]) != 0 violates `encode_sbz` -> ILLI, which
+# is independent of cfx resource domains and of ISA revisions.
+ILLI = 0x79001000                 # fence cfx0, hb=1 -> ILLI (exit 0x88)
 SWYM = 0x47880000                 # swym (padding, op=0x47 ha=0x22)
 
 

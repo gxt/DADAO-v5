@@ -223,3 +223,7 @@
 - **2026-10-30 INTEG-044t**
   - 摘要：**cfx 两轴权限模型（ADR-0045）**：cg0–3 的 rc0–3 改为 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` 四类 64 位同步来源 mask、rc4 = `cfx_intr_mask`，删除 `global_version`/旧 `global_cfx_mask`，cfx0–3 增加 `cg8/rc1 global_cfx_intr_mask`；初值 power/普通 cfx `0xFFFF_FFFF_FFFF_FFF7`、hmon `0x7FFF_FFFF_FFFF_FFF7`、中断 mask 全 1。权限判定先判 reserved→ILLI，再以「当前模式行 + 源 cfx 位」判四类 mask（self 只绕 cfx 轴），拒绝 ⇒ `CFXPERM`（`1<<7`）进当前模式 monitor；escape `cfxha` 固定当前 cfx，目标/帧错误 ⇒ `CFXESC`（`1<<3`）进当前 cfx。直接 ld/st/取指在 `tlb_fill` 按 cfxmem/cfxexe 检查；异步按当前 cfx `cfx_intr_mask` 与当前 mode monitor 的 `global_cfx_intr_mask` 两级过滤后置 pending。trap 进入时保存并置全 1 `global_cfx_intr_mask`，escape 恢复；mask 写触发 translation cache 丢弃。`-d cpu` dump 改输出新 mask 字段。新增探针 `min_rom_probe_integ044t.py`（6 例），并迁移 044/045/046/039/040/042 探针与 bootrom 到 hmon 引导。
   - 执行者：engineer
+
+- **2026-10-30 INTEG-045t**
+  - 摘要：**cfx 指令清理同步**：`insn.decode` 由 `contracts/opcodes.yaml` 重生成（266 → **264** patterns，计数从记录派生）；删除 `trans_cfxld_crii_cfx`/`trans_cfxst_crii_cfx` 两个 ILLI 桩（两条指令已从 ISA 删除、其两格转为空白保留 ⇒ decode UNDI），`check_qemu_trans --strict` 264/264、orphan 0；`fence_cfx_reserved` 的保留集由 `7–14` 改为 **`6–14`/`19–61`**（与 `DADAO_CFX_IS_RESERVED` 及 `encode_cfx_reserved` 统一）。补丁 **2 份改**（`series` 63、`check-patch-tree` 205 不变）；`build-qemu` rc=0，`check-arch` 全绿（7 个 cfx 探针）。
+  - 执行者：engineer

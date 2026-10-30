@@ -75,7 +75,7 @@ FLAG_UF_NX = UF | NX
 
 # ── Instruction encoding (op / ha from contracts/opcodes.yaml) ────────────
 
-ILLI = 0x7C000000
+ILLI = 0x79001000                 # fence cfx0, hb=1 (encode_sbz) -> ILLI (exit 0x88)
 SWYM = 0x47880000
 
 # rf0[33:32] rounding mode selectors (SimRISC-00: 浮点状态寄存器)

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrFormats.td b/llvm/lib/Target/DADAO/DADAOInstrFormats.td
 new file mode 100644
-index 000000000..57cbc79cf
+index 000000000..8b02be2ef
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrFormats.td
-@@ -0,0 +1,295 @@
+@@ -0,0 +1,293 @@
 +//===-- DADAOInstrFormats.td - DADAO Instruction Formats ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -37,9 +37,7 @@ index 000000000..57cbc79cf
 +//   binds the operand values to the bits<> fields. No explicit
 +//   `let ra = rdha;` is needed — the operand name IS the field name.
 +//
-+// Excluded from M1 (not defined here as executables):
-+//   crii — privileged cfx load/store format (contract-isa.md §2.3, §7.5).
-+// The MC layer also needs .td defs for the contained-escapement cfx formats
++// The MC layer needs .td defs for the contained-escapement cfx formats
 +// crrr/ciii (LLVM-060t; AssembleDisassemble without semantics): see below.
 +//
 +//===----------------------------------------------------------------------===//

@@ -163,9 +163,9 @@ def semi_exit(code):
         st_o_rd(CODE_RD, 16, 8), trap_sys_exit()]
 
 
-# `cfxld` (op 0x7C, scope=excluded) -> ILLI (exit 0x88): a case that never
+# `fence cfx0, hb=1` (op 0x79, SBZ violation) -> ILLI (exit 0x88): a case that never
 # reaches its exit terminator must not look like PASS.
-POISON = b'\x7c\x00\x00\x00'
+POISON = b'\x79\x00\x10\x00'
 
 
 def build_rom(test_insns):

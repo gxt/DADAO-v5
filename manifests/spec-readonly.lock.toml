@@ -2,6 +2,14 @@ format = 1
 # 只读册（上游 20 册 + v5 自定 1 册）：sha256 锁。修改须用户事先明确允许（授权原话落盘），并在
 # 同一变更内更新此处哈希。见 docs/Process-06-spec目录保护规范.md。
 policy = "readonly-requires-authorization"
+# 2026-10-30（INTEG-045t；授权原话见任务书 `.tao/tasks/integ/INTEG-045t-cfx指令清理.md`
+#   §用户授权原话（派单原话原样落纸）：「删除 cfxld/cfxst：SimRISC-11 整节/汇编表/decode ILLI；
+#   SimRISC-00 `crii` 格式定义、编码表两格、历史引用」「SimRISC-11 补 fence 12 个宏表：
+#   `PRED_CR/CW/CI/CO/MR/MW`、`SUCC_CR/CW/CI/CO/MR/MW`，值与 AsmParser 一致；`|` 组合，
+#   整体 immu18；hb SBZ」「reserved 列表统一 6–14/19–61」）：SimRISC-00 删 `crii` 格式定义 /
+#   QFC 两格 / 相关历史引用；SimRISC-11 删 SRAM 块传输整节（屏障节顺序前移）、补 12 个 fence
+#   宏名表、保留编号 7–14 → 6–14；Toolchain-01 删 `crii` 与 `cfxld`/`cfxst` 书写规则；
+#   Machine-01 指令清单同步。上述 4 册 sha256 同笔重算（其余 17 册不变）。
 # 2026-10-26（SPEC-177t；用户裁定原话：「**B**」——A（移到 `0x3FEFF`）/ B（删除）/ C（收窄区间）三选一中
 #   选 B；渠道 = 经主会话问答，任务书 §背景 已落纸）：`DADAO-22 §14` 删「保留 immu18 值 `0x3FFFF`（最大）
 #   用于将来可能的协议版本协商」一句（该值落在 semihosting 区 `0x3FF00–0x3FFFF`，作保留值会被译码短路）；
@@ -234,7 +242,8 @@ group = "simrisc-00..12"
 #   `cs.eq_rrrr_rf`/`cs.ne_rrrr_rf` 文本随删格清除）；附录 0.5.5 段**追加** 1 条（历史行不改写）；sha256 同笔重算。
 # 2026-10-24（SPEC-167t，同授权）：并入非法指令（ILLI）/ 保留编码（UNDI）总规则为 §异常规则；各 QFC 子表只留 `reserved` 说明；sha256 同笔重算。
 # 2026-10-24（SPEC-168t，用户原话见 `.tao/tasks/spec/SPEC-168t-00清理.md` §用户裁定）：§2.2 删「高 16 位处理规则」表及其后「控制流指令硬件…溢出检测」句（保留存储模型段）；§4 七张编码表列对齐；`op`/`opcode` → `opc`、去「I 形态」；sha256 同笔重算。
-sha256 = "fba68f9754d2c9d4c76a0415998d1ee8f559d6fa5df8732f2588c8e2f9cbd254"
+# 2026-10-30（INTEG-045t，授权原话见文件头注记与任务书 §用户授权原话）：见文件头条目；sha256 同笔重算。
+sha256 = "1df96136844ff0f82a8a794e0d616e8ecadcf8cd21fb59cacf57c90e60cb0fad"
 # 2026-10-22（SPEC-164t，授权原话见 `.tao/tasks/spec/SPEC-164t-OPC-MISC迁移与解excluded.md` §立项来源：「还有一个编码改动过：OPC-MISC的编码改为：0100-0111」「修改编码：ctpop_orri_rd ctlz_orri_rd cttz_orri_rd 从 OPC-octa 改为 OPC-MISC，opx：100-101/100-110/100-111」）：§4 QFC 主表 `OPC-MISC` 由 `0111-0111` 迁 `0100-0111`（原格置空）；§4.1 `100-101/110/111` 填 `ctpop`/`ctlz`/`cttz`；§4.2 删同三格与「借用 OPC-octa 格位」例外说明；附录 0.5.5 两条同步；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -347,7 +356,8 @@ group = "simrisc-00..12"
 # 2026-10-21（SPEC-154t，同授权）：0.5.1 段日期统一为 2026-07-17 并补 diff 指针；sha256 同笔重算。
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：删 nop 伪指令小节；去 swym 具体编码值；断跨册引用；sha256 同笔重算。
 # 2026-10-24（SPEC-167t，同授权）：册名改「核芯功能扩展指令」（由「其它」）；只留 cfx 6 条，删「特权指令」提法；`cfxld`/`cfxst` 由 `SimRISC-12` 迁入并标待定；ILLI/UNDI 规则迁出至 `SimRISC-00`；sha256 同笔重算。
-sha256 = "f218a94220af61c996b670867f71e7e8309ab81d3caed6975d08c6271b628e3a"
+# 2026-10-30（INTEG-045t，授权原话见文件头注记与任务书 §用户授权原话）：见文件头条目；sha256 同笔重算。
+sha256 = "c0cdda8239936ab344fae0db425a479a460e8a426cf02f15fbf5bf7d1bdadd7a"
 # 2026-10-22（SPEC-164t，同授权）：`fence`/`lr`/`sc` 由 `excluded` 转 `m9`，§附录 B 生成区由 `gen_legality_list --apply` 重生成（25 条 `decode ILLI` 条目移出）；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-12-其它指令.md"
@@ -513,7 +523,8 @@ group = "toolchain-01"
 #   补记既有形态、指令编码/语义不变，仅锁注释留痕）。sha256 于同一变更内重算回填。
 # 2026-10-26（SPEC-175t）：开 0.5.4-rc（§13.8 数组单下标示例改 `cfx_ptw_ptbr[0]`）；sha256 同笔重算。
 # 2026-10-29（INTEG-038t，引用同步）：§13.8 单下标示例改用 cfx_pmem_start[0]（cfx_ptw_ptbr 已非数组）；附录 0.5.4-rc 同步。
-sha256 = "59ce3e9f9714cd9faa8e61e57d49566993b1e059028b38e1449582b5b2ac222b"
+# 2026-10-30（INTEG-045t，授权原话见文件头注记与任务书 §用户授权原话）：见文件头条目；sha256 同笔重算。
+sha256 = "bbbdf3dd783abe87004c535a290add531d0ef25b90fc159238a8a9431319add3"
 
 [[spec]]
 path = "spec/Machine-01-测试机运行环境.md"
@@ -537,4 +548,5 @@ group = "machine-01"
 # 2026-10-30（INTEG-042t，Step 4；授权同上）：§1.1 增 cfx_pmem SRAM（0x0000_4400_0000_0000，64 KiB）；§1.2/§3 保留 cfx 改 6–14、19–61，cfx5=cache 已分配未实现，测试机实现 cfx17 SRAM+DMA（PA 可读 RAM/ROM、只写 RAM）；附录 0.3.2-rc 补条目；sha256 同笔重算。
 # 2026-10-30（INTEG-043t，授权原话见任务书 §背景「用户裁定 cfx_pmem SRAM 的核内起始地址改为 `0x47ff_0000_0000`（cfx17，内部偏移 `0x3ff_0000_0000`）」）：§1.1 表与附录 0.3.2-rc 的内部偏移由 0 改 0x3ff_0000_0000；sha256 同笔重算。
 # 2026-10-30（INTEG-044t，授权同 SEE 条目）：§2/§3 权限表述同步两轴模型（四类 mask、CFXPERM/CFXESC）；附录 0.3.2-rc 补条目；sha256 同笔重算。
-sha256 = "ed5a31c6c80ebab14679c273d95b97c9c314241ded6c39b1e6949a3f99aca5dd"
+# 2026-10-30（INTEG-045t，授权原话见文件头注记与任务书 §用户授权原话）：见文件头条目；sha256 同笔重算。
+sha256 = "42d9094c9e9a3b5850633c9d72b571295feb9e6cd2fd21a83422047ceb493263"
