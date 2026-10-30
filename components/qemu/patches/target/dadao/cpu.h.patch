@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..ece7553
+index 0000000..a765107
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,414 @@
+@@ -0,0 +1,431 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -66,6 +66,11 @@ index 0000000..ece7553
 +     * instead of mapping straight to an exit code.
 +     */
 +    DADAO_EXCP_PTW_FAULT = 11,
++    /*
++     * System mode: two-axis permission denial (ADR-0045 D6).  Routed to the
++     * current-mode monitor as CFXPERM with env->cfx_perm_info.
++     */
++    DADAO_EXCP_CFXPERM = 12,
 +};
 +
 +/* DADAO exit codes (propagated to host $?, per ADR-0004 D5.8) */
@@ -161,6 +166,10 @@ index 0000000..ece7553
 +#define DADAO_CAUSE_CFXTRAP   (1ULL << 0)
 +#define DADAO_CAUSE_CFXMEM    (1ULL << 1)
 +#define DADAO_CAUSE_CFXREG    (1ULL << 2)
++/* Every cfx: escape frame/target error (DADAO-12 §4; ADR-0045 D6). */
++#define DADAO_CAUSE_CFXESC    (1ULL << 3)
++/* cfx0-3 monitors: cfx two-axis permission denial (DADAO-12 §4; ADR-0045 D6). */
++#define DADAO_CAUSE_CFXPERM   (1ULL << 7)
 +/* cfx_ptw only: A/D write-back failure (DADAO-12 §4.5; ADR-0041 D7/D10). */
 +#define DADAO_CAUSE_PTWERR    (1ULL << 7)
 +#define DADAO_CAUSE_ILLI      (1ULL << 8)
@@ -258,16 +267,17 @@ index 0000000..ece7553
 +    DADAO_TLB_CMD_CFXREG = -2,   /* illegal operand: scope=11 / range+size=0 */
 +};
 +
-+/* cg0-cg3 shared ("共有") per-mode registers, rc2..rc12.  rc0 (global version)
-+ * and rc1 (global cfx mask) are global registers shared by every cfx and are
-+ * held in cfx_global_version[]/global_cfx_mask[] (DADAO-12 §3 note). */
++/* cg0-cg3 shared ("共有") per-mode registers (DADAO-12 §3; ADR-0045 D2/D3).
++ * Four 64-bit source masks (rc0..rc3), the per-cfx interrupt source mask
++ * (rc4), and the mode-transfer/exception registers (rc8..rc12).  The bit
++ * index of every source mask is the *source* cfxha; self access bypasses the
++ * cfx axis but still uses the current-mode register row (D1). */
 +typedef struct DADAOCfxModeRegs {
-+    uint64_t cfx2rd_mask;      /* rc2  */
-+    uint64_t cfx2rc_mask;      /* rc3  */
-+    uint64_t cfxld_mask;       /* rc4  */
-+    uint64_t cfxst_mask;       /* rc5  */
-+    uint64_t trap_mask;        /* rc6  */
-+    uint64_t escape_mask;      /* rc7  */
++    uint64_t cfxtrap;          /* rc0  trap/escape control transfer */
++    uint64_t cfxmem;           /* rc1  direct ld/st into this cfx */
++    uint64_t cfxreg;           /* rc2  cfx2rd/cfx2rc */
++    uint64_t cfxexe;           /* rc3  direct execution/fetch into this cfx */
++    uint64_t cfx_intr_mask;    /* rc4  async interrupt source mask */
 +    uint64_t switch_run_mode;  /* rc8  */
 +    uint64_t switch_cfx_mask;  /* rc9  */
 +    uint64_t excp_vector;      /* rc10 */
@@ -278,6 +288,12 @@ index 0000000..ece7553
 +/* Per-cfx cg4..cg7 (config / exception frame / scratch / sram control). */
 +typedef struct DADAOCfxRegs {
 +    DADAOCfxModeRegs mode[4];   /* cg0..cg3 */
++    uint64_t global_cfx_intr_mask; /* cg8 rc1 (cfx0-3 only; ADR-0045 D3) */
++    /* Hidden single-frame state for D9: trap saves the entry-mode monitor's
++     * global_cfx_intr_mask here and sets the architectural register all-1;
++     * escape restores it.  Not software-visible (frame_active is out of scope). */
++    uint64_t saved_global_intr_mask;
++    uint8_t  saved_intr_monitor;   /* cfx0-3 whose global mask was saved */
 +    uint64_t cfx_id;            /* cg4 rc0 (RO) */
 +    uint64_t version;           /* cg4 rc1 (RO) */
 +    uint64_t trap_num;          /* cg4 rc2 */
@@ -326,9 +342,7 @@ index 0000000..ece7553
 +    uint8_t  inner_run_mode;             /* 0..3 (DADAO-12 §1) */
 +    uint8_t  inner_cfx_code;             /* current cfxha 0..63 */
 +    uint64_t inner_cfx_mask;             /* per-hart cfx mask (DADAO-12 §1 注) */
-+    uint64_t cfx_global_version[4];      /* cg0-3 rc0 (global, per mode) */
-+    uint64_t global_cfx_mask[4];         /* cg0-3 rc1 (global, per mode) */
-+    DADAOCfxRegs cfx[DADAO_NUM_CFX];     /* implemented cfx {0,1,2,3,4,63} */
++    DADAOCfxRegs cfx[DADAO_NUM_CFX];     /* implemented cfx {0,1,2,3,4,17,63} */
 +
 +    /* ── Address-space Step 1 (ADR-0039 §8.5) ──
 +     * Single PTBR (cfx_ptw cg9 rc0): PPN[55:16]; low 16 bits and [63:56] read
@@ -342,6 +356,9 @@ index 0000000..ece7553
 +     * (A/D write-back failure, ADR-0041 D10) cause_info is the PTE PA. */
 +    uint64_t ptw_fault_cause;
 +    uint64_t ptw_fault_info;
++    /* Pending two-axis permission denial (DADAO_EXCP_CFXPERM): cause_info is
++     * the faulting address (ld/st/fetch) or the instruction encoding. */
++    uint64_t cfx_perm_info;
 +    /* ── TLB (cfx_ptw cg12; DADAO-12 §4.5, ADR-0041 D2/D3) ──
 +     * tlb_asid stores [15:0]; tlb_start/tlb_size are the invalidate window
 +     * operands (reset 0 -> a range operation needs an explicit size). */

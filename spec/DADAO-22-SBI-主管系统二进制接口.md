@@ -67,10 +67,10 @@ set.rd   rd2, cfx_smon_supv_excp_handler
 cfx2rc  cfx_smon_supv_excp_vector, rd2
 
 @@ 允许 cfx_smon 从 supv 触发
-cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
+cfx2rd  cfx_smon_supv_cfxtrap, rd2
 set.rd   rd3, ~(1<<2)
 and.o   rd2, rd2, rd3
-cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
+cfx2rc  cfx_smon_supv_cfxtrap, rd2
 ```
 
 异常入口处理：
@@ -139,7 +139,7 @@ cfx_ptw 为地址转换部件，管理页表和 PTBR。
 
 ### 4.1 初始化
 
-> 初始化方式与其他 cfx 一致：探测 cfx_ptw 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 4）。cfx_ptw 为 per-hart cfx，每个 hart 独立初始化。
+> 初始化方式与其他 cfx 一致：探测 cfx_ptw 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_ptw 为 per-hart cfx，每个 hart 独立初始化。
 
 cfx_ptw 的异常入口处理——页表步进异常与 TLB 命中异常均由硬件直接路由至此：
 
@@ -259,7 +259,7 @@ cfx_cache 为 Cache 管理部件，提供 I-Cache 和 D-Cache 的无效化和刷
 | 1 | SBI_CACHE_DC_INVALID | — | 无效化所有 D-Cache |
 | 2 | SBI_CACHE_DC_FLUSH | — | 刷新所有 D-Cache（写回脏数据后无效化） |
 
-> 初始化方式与其他 cfx 一致：通过 `trap cfx_smon, SBI_SMON_PROBE_CFX` 探测 cfx_cache 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 6）。cfx_cache 为 per-hart cfx，每个 hart 独立初始化。
+> 初始化方式与其他 cfx 一致：通过 `trap cfx_smon, SBI_SMON_PROBE_CFX` 探测 cfx_cache 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_cache 为 per-hart cfx，每个 hart 独立初始化。
 
 ## 7. Hart管理（cfx_hart）
 
@@ -270,7 +270,7 @@ cfx_hart 为 Hart 管理部件，提供 hart ID 与每 hart 的定时器比较�
 | 0 | SBI_HART_GET_ID | — | rd8 = id | 返回当前 hart 编号 |
 | 1 | SBI_HART_SET_TIMER | rd16 = timeout | — | 设置本 hart 的定时器比较值（绝对时间），到期触发 TIMER 中断 |
 
-> 初始化方式与其他 cfx 一致：探测 cfx_hart 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 15）。cfx_hart 为 per-hart cfx，每个 hart 独立初始化。
+> 初始化方式与其他 cfx 一致：探测 cfx_hart 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_hart 为 per-hart cfx，每个 hart 独立初始化。
 
 ### 7.1 初始化
 
@@ -280,10 +280,10 @@ set.rd   rd2, cfx_hart_supv_excp_handler
 cfx2rc  cfx_hart_supv_excp_vector, rd2
 
 @@ 允许 cfx_hart 从 supv 触发
-cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
-set.rd   rd3, ~(1<<15)                                @@ cfx_hart = cfx15
+cfx2rd  cfx_hart_supv_cfxtrap, rd2
+set.rd   rd3, ~(1<<2)                                @@ cfx_hart = cfx15
 and.o   rd2, rd2, rd3
-cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
+cfx2rc  cfx_hart_supv_cfxtrap, rd2
 ```
 
 异常入口处理：
@@ -341,7 +341,7 @@ cfx_llc 为最后一级缓存管理部件，跨 hart 共享。
 |--------|------|------|------|
 | 0 | SBI_LLC_INVALID | — | 无效化所有 LLC |
 
-> 初始化方式与其他 cfx 一致：探测 cfx_llc 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 16）。cfx_llc 为 per-system cfx（跨 hart 共享），仅需初始化一次。
+> 初始化方式与其他 cfx 一致：探测 cfx_llc 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_llc 为 per-system cfx（跨 hart 共享），仅需初始化一次。
 
 ## 9. 物理存储器管理（cfx_pmem）
 
@@ -356,7 +356,7 @@ cfx_pmem 为存储器管理部件，S-mode 可查询 hypv 固件设置的物理�
 | 4 | SBI_PMEM_ALLOC_PAGE | rd16 = size_hint | rd8 = ppn | 从 PM 区域分配物理页。成功返回 PPN（物理页号，>=0），失败返回 -1。由 cfx_ptw 委托调用 |
 | 5 | SBI_PMEM_FREE_PAGE | rd16 = ppn | — | 释放物理页，由 cfx_ptw 委托调用 |
 
-> 初始化方式与其他 cfx 一致：探测 cfx_pmem 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 17）。cfx_pmem 的 PM 区域配置由 hypv 固件在 H-mode 初始化阶段完成（见 HBI）。
+> 初始化方式与其他 cfx 一致：探测 cfx_pmem 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_pmem 的 PM 区域配置由 hypv 固件在 H-mode 初始化阶段完成（见 HBI）。
 
 cfx_pmem 的异常入口处理：
 
@@ -431,10 +431,10 @@ set.rd   rd2, cfx_time_supv_excp_handler
 cfx2rc  cfx_time_supv_excp_vector, rd2
 
 @@ 允许 cfx_time 从 supv 触发
-cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
-set.rd   rd3, ~(1<<18)                                @@ cfx_time = cfx18
+cfx2rd  cfx_time_supv_cfxtrap, rd2
+set.rd   rd3, ~(1<<2)                                @@ cfx_time = cfx18
 and.o   rd2, rd2, rd3
-cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
+cfx2rc  cfx_time_supv_cfxtrap, rd2
 ```
 
 异常入口处理（本组只有 CFXTRAP → `SBI_TIME_GET`）：
@@ -488,10 +488,10 @@ set.rd   rd2, cfx_uart_supv_excp_handler
 cfx2rc  cfx_uart_supv_excp_vector, rd2
 
 @@ 允许 cfx_uart 从 supv 触发
-cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
-set.rd   rd3, ~(1<<62)
+cfx2rd  cfx_uart_supv_cfxtrap, rd2
+set.rd   rd3, ~(1<<2)
 and.o   rd2, rd2, rd3
-cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
+cfx2rc  cfx_uart_supv_cfxtrap, rd2
 ```
 
 异常入口处理：
@@ -587,11 +587,11 @@ cfx_power 为电源管理，提供关机和重启服务。`power_ctrl` 寄存器
 set.rd   rd2, cfx_power_supv_excp_handler
 cfx2rc  cfx_power_supv_excp_vector, rd2
 
-@@ 允许 cfx_power 从 supv 触发（清除 global_cfx_mask 对应位）
-cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
-set.rd   rd3, ~(1<<63)
+@@ 允许 cfx_power 从 supv 触发（清除 cfxtrap 对应位）
+cfx2rd  cfx_power_supv_cfxtrap, rd2
+set.rd   rd3, ~(1<<2)
 and.o   rd2, rd2, rd3
-cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
+cfx2rc  cfx_power_supv_cfxtrap, rd2
 ```
 
 异常入口处理：
@@ -670,7 +670,7 @@ trap    cfx_power, SBI_POWER_SOFT_RESET
 
 ### 13.1 示例：主管系统异常向量
 
-cfx_umon、cfx_jmon、cfx_smon、cfx_hmon 为运行模式 monitor，配置方式同上（设置异常向量 + 清除 global_cfx_mask，允许当前运行模式同步异常进入对应 monitor）。
+cfx_umon、cfx_jmon、cfx_smon、cfx_hmon 为运行模式 monitor，配置方式同上（设置异常向量；需要时按 cfxtrap 来源 mask 授权）。
 
 ```simrisc
 @@ ===== 系统初始化 =====
@@ -679,11 +679,11 @@ os_init:
     set.rd   rd2, cfx_umon_user_excp_handler
     cfx2rc  cfx_umon_user_excp_vector, rd2
 
-    @@ 允许 U-mode 同步异常进入 cfx_umon（清除 global_cfx_mask bit 0）
-    cfx2rd  cfx_smon_user_global_cfx_mask, rd2
+    @@ 允许 U-mode 同步异常进入 cfx_umon（清除 cfxtrap bit 0）
+    cfx2rd  cfx_umon_user_cfxtrap, rd2
     set.rd   rd3, ~(1<<0)
     and.o   rd2, rd2, rd3
-    cfx2rc  cfx_smon_user_global_cfx_mask, rd2
+    cfx2rc  cfx_umon_user_cfxtrap, rd2
 ```
 
 ```simrisc
@@ -714,6 +714,8 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.7.3-rc（未发布）
+
+- cfx 初始化示例由 `global_cfx_mask` 改为按目标 cfx 的 `cfxtrap` 来源 mask 授权（位索引=源 cfx）。
 
 - 删除保留 `immu18` 值 `0x3FFFF`（最大）的约定：该值落在 semihosting 区 `0x3FF00–0x3FFFF`，作保留值会在译码层被 semihosting 短路。新增 cfx 时新增章节 / 功能码表的要求不变。
 - `cfx_ptw` 改为单 PTBR：`SBI_PTW_SET_PTBR` / `SBI_PTW_GET_PTBR` 去掉 index 入参；删除 `SBI_PTW_SET_PTBR_PERM` / `SBI_PTW_ENABLE_PTBR` / `SBI_PTW_SET_PTHI` / `SBI_PTW_SET_PAHI`，新增 `SBI_PTW_SET_PTW_ENABLE`；功能码按新表重排。

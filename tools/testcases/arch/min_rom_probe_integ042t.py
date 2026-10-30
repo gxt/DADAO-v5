@@ -532,8 +532,8 @@ def _dma_pa_write_rom():
 def _dma_pa_read_rom():
     p = []
     status_clear(p)
-    # First word of the ROM is `jump_iiii(1)` (this program's own first word).
-    dma_start_pa_to_cfx(p, ROM_BASE, PMEM_BASE + 0x0300, 8)
+    # First two words of the (bootstrapped) body.
+    dma_start_pa_to_cfx(p, ROM_BASE + BOOTSTRAP_OFF, PMEM_BASE + 0x0300, 8)
     poll_busy_clear(p)
     pmem_r(p, DMA_STATUS_RC, 6)
     load64(p, PMEM_BASE + 0x0300, rd=7)
@@ -658,18 +658,25 @@ def _enter_pmem_via_cfxreg(p):
     p.append(cfx2rd(PMEM_HA, PMEM_DMA_CG, DMA_RESERVED_RC, 5))
 
 
-def _pmem_entry_setup(p, handler_addr, cause_mask):
+def _pmem_entry_setup(p, handler_addr, cause_mask, allow_irq=False):
     setup_pmem_vector(p, handler_addr)
     p += load_rd(17, cause_mask)
     p.append(cfx2rc(PMEM_HA, MODE_H, CG3_EXCP_MASK_RC, 17))
     p += load_rd(17, 0)                    # switch_cfx_mask = 0 (unmask on entry)
     p.append(cfx2rc(PMEM_HA, MODE_H, 9, 17))
+    if allow_irq:
+        # Two-level async filter (ADR-0045 D3): current cfx (pmem) source mask
+        # and the current-mode monitor (hmon) global mask must both allow
+        # source cfx17.
+        p += load_rd(17, 0)
+        p.append(cfx2rc(PMEM_HA, MODE_H, 4, 17))     # cfx_pmem hypv cfx_intr_mask
+        p.append(cfx2rc(3, 8, 1, 17))                # cfx_hmon global_cfx_intr_mask
 
 
 @case("pmem_dma_irq_delivered", "IRQ_EN=1 delivers PMEM_DMA to cfx_pmem")
 def _pmem_dma_irq_delivered():
     p = []
-    _pmem_entry_setup(p, PMEM_HANDLER, cause_mask=0)
+    _pmem_entry_setup(p, PMEM_HANDLER, cause_mask=0, allow_irq=True)
     fill_sram(p, 0x0000, MAGIC)
     status_clear(p)
     dma_setup(p, PMEM_BASE, DATA_A, 8, 0)  # latched, not started
@@ -726,10 +733,48 @@ def _pmem_cg15_reserved_cfxreg():
 # Driver
 # ---------------------------------------------------------------------------
 
+# ADR-0045 D4: only hmon may access the default-masked cfx resources, so every
+# min-ROM body runs in hmon (cfx3).  The power stage at offset 0 installs the
+# hmon hypv vector and traps hmon; the original body starts at BOOTSTRAP_OFF.
+BOOTSTRAP_OFF = 0x48
+STAGE_OFF = 0x24
+
+
+def bootstrap_prefix():
+    ins = load_rd(22, ROM_BASE + STAGE_OFF) + [cfx2rc(3, 3, 10, 22), trap(3, 0)]
+    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
+    assert len(ins) == STAGE_OFF // 4, len(ins)
+    return ins
+
+
+def bootstrap_stage():
+    # hmon stage: clear cfx_power's cfxmem/cfxexe for user/hypv so the body
+    # and any cfx0 handler can use RAM and fetch this ROM (ADR-0045 D2).
+    ins = load_rd(20, 0)
+    for cg in (0, 1, 2, 3):
+        ins += [cfx2rc(63, cg, 1, 20), cfx2rc(63, cg, 3, 20)]
+    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
+    assert len(ins) == STAGE_OFF // 4, len(ins)
+    return ins
+
+
+def bootstrap_rom(rom):
+    return words_to_bytes(bootstrap_prefix()) + words_to_bytes(bootstrap_stage()) + rom
+
+
+def shift_rom_expect(exp):
+    for k, v in list(exp.items()):
+        if isinstance(v, int) and ROM_BASE <= v < ROM_BASE + 0x100:
+            exp[k] = v + BOOTSTRAP_OFF
+    return exp
+
+
 def run_case(name):
     for n, d, fn in CASES:
         if n == name:
             rom, exp = fn()
+            rom = bootstrap_rom(rom)
+            exp = shift_rom_expect(exp)
             rc, log, err = run(rom)
             if rc is None:
                 return False, "TIMEOUT", exp

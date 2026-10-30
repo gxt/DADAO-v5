@@ -387,7 +387,8 @@ group = "dadao-1x"
 # 2026-10-30（INTEG-042t，Step 4 cfx_pmem SRAM+DMA，ADR-0042；授权 = 派单原话「修改 spec/contracts/QEMU/测试/锁/changelog」）：§1 cfx5=cache、cfx6–14/19–61 reserved；§2.1 cfx_pmem 64 KiB SRAM 地址空间；§3.6 补 `1<<8` PMEM_DMA；§4.9 cfx_pmem 增 SRAM/DMA cg15 寄存器/ERR_CODE/PMEM_DMA 异常；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-30（ADR-0043 启动表）：§2.1 表改为 cfx num/name/起始地址/大小/类型，补 hmon SRAM 0x0fff_0000_0000；sha256 同笔重算。
 # 2026-10-30（INTEG-043t，授权原话见任务书 §背景「用户裁定 cfx_pmem SRAM 的核内起始地址改为 `0x47ff_0000_0000`（cfx17，内部偏移 `0x3ff_0000_0000`）」）：§2.1 说明/§4.9/附录 0.7.3-rc 的内部偏移由 0 改 0x3ff_0000_0000；sha256 同笔重算。
-sha256 = "91ab6834cc1104916f16b9d3ccc5abacea61b69008999063ecba796a644e0053"
+# 2026-10-30（INTEG-044t，授权 = 派单原话「同步 spec/contracts/aliases/QEMU/测试/锁/changelog」+ 任务书 §目标 1；ADR-0045）：cg0–3 改两轴权限布局（rc0–3 四类同步来源 mask、rc4 cfx_intr_mask、cg8/rc1 global_cfx_intr_mask），删 global_version/global_cfx_mask；monitor 增 CFXPERM、各 cfx 增 CFXESC；§5 进入/退出与附录 0.7.3-rc 同步；sha256 同笔重算。
+sha256 = "471d08b16f44503cf94c0117ff03b8b7709583fbd7a702bc0e3470b916efe153"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -397,7 +398,8 @@ group = "dadao-1x"
 # 2026-10-26（SPEC-174t，授权见文件头注释）：基线串 → 0.5.5；`详见 HBI 文档 §3` → `详见 HBI`；sha256 同笔重算。
 # 2026-10-26（SPEC-175t）：发布 0.1.3（去 -rc）；`hypv_global_version` 常量同步；sha256 同笔重算。
 # 2026-10-26（SPEC-176t）：版本号与 HBI 同步升 0.1.4-rc（互锁组一致；正文不变）；sha256 同笔重算。
-sha256 = "76fd50a52434237a8859d458065114d1bc8caaf1cf70dc535bb3b28c64d7098e"
+# 2026-10-30（INTEG-044t，授权同 SEE 条目）：cg3 按两轴权限布局重排（rc0–4 + rc8–12），删 hypv_global_version/global_cfx_mask，hmon 增 CFXESC/CFXPERM；附录 0.1.4-rc 补条目；sha256 同笔重算。
+sha256 = "b2cc93773183b71f50532a8977b8e79d3abffcfbc64f664192923081e25ab1d4"
 
 [[spec]]
 path = "spec/DADAO-21-ABI-应用程序二进制接口.md"
@@ -443,7 +445,8 @@ group = "dadao-2x"
 # 2026-10-29（INTEG-038t，Step 1 同步）：§4 cfx_ptw 改单 PTBR + ptw_enable；删 PERM/ENABLE_PTBR/PTHI/PAHI 功能与 64 路代码；附录 0.7.3-rc 补条目。
 # 2026-10-29（INTEG-040t，Step 3 同步）：§4 删除 cfx_tlb 委托表述；§5 由「TLB管理（cfx_tlb）」改写为「TLB维护（cfx_ptw）」——cg12 寄存器接口（control/asid/start/size、op/scope/ASID_ANY 正交）、删除 SBI_TLB_INVALIDATE、补 PTWERR；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-29（SPEC-178t，授权见文件头注释）：§4 地址分区表述统一为 `addr[47:42]`（纯术语）；附录 0.7.3-rc 补条目；sha256 同笔重算。
-sha256 = "2e4670b83853a0c701cf45368ceab17f2be00e9fc09d1c2028da22ce9dfca89e"
+# 2026-10-30（INTEG-044t，授权同 SEE 条目）：初始化示例的 `global_cfx_mask` 改按目标 cfx 的 `cfxtrap` 来源 mask（supv 源 = bit 2）；附录 0.7.3-rc 补条目；sha256 同笔重算。
+sha256 = "1f22eb56d4924505217cf1567116e36e8acc986b2cf051793cf6e7a66eff8be2"
 
 [[spec]]
 path = "spec/DADAO-23-HBI-超管系统二进制接口.md"
@@ -452,7 +455,8 @@ group = "dadao-2x"
 # 2026-10-26（SPEC-174t，授权见文件头注释）：基线串 → 0.5.5；`参见 SBI §1` → 手册名 SBI；sha256 同笔重算。
 # 2026-10-26（SPEC-175t）：发布 0.1.3（去 -rc）；§3 启动移交重写（`0x30001` 逐 cfx 初始化 → 移交 smon；`rb17` 设备树）+ 版本常量；sha256 同笔重算。
 # 2026-10-26（SPEC-176t）：§3 补 `HBI_<name>_INIT` 不落在 semihosting 区（`0x3FF00–0x3FFFF`）+ 附录 0.1.4-rc；sha256 同笔重算。
-sha256 = "04f3514d8f979a2f6aff77e9d3dbd19f42951874bbb9b5d3fc8604eabdd6da6d"
+# 2026-10-30（INTEG-044t，授权同 SEE 条目）：§3 初始化约定改两轴权限模型（四类同步 mask / 两类中断 mask / cfxtrap 源位授权）；附录 0.1.4-rc 补条目；sha256 同笔重算。
+sha256 = "9ee5cc8a72e0a41b3e370fe729e2ab4113dc9ae7c263ca0b0f1737323bd3e368"
 
 [[spec]]
 path = "spec/Toolchain-01-汇编语言.md"
@@ -532,4 +536,5 @@ group = "machine-01"
 # 2026-10-29（SPEC-178t，授权见文件头注释）：§1 地址分区表述统一为 `addr[47:42]`（纯术语）；附录 0.3.2-rc 补条目；sha256 同笔重算。
 # 2026-10-30（INTEG-042t，Step 4；授权同上）：§1.1 增 cfx_pmem SRAM（0x0000_4400_0000_0000，64 KiB）；§1.2/§3 保留 cfx 改 6–14、19–61，cfx5=cache 已分配未实现，测试机实现 cfx17 SRAM+DMA（PA 可读 RAM/ROM、只写 RAM）；附录 0.3.2-rc 补条目；sha256 同笔重算。
 # 2026-10-30（INTEG-043t，授权原话见任务书 §背景「用户裁定 cfx_pmem SRAM 的核内起始地址改为 `0x47ff_0000_0000`（cfx17，内部偏移 `0x3ff_0000_0000`）」）：§1.1 表与附录 0.3.2-rc 的内部偏移由 0 改 0x3ff_0000_0000；sha256 同笔重算。
-sha256 = "cedd398a985a98cef694cc808b7f50450e0a8e867e2f176a031e6c0c15cc63e2"
+# 2026-10-30（INTEG-044t，授权同 SEE 条目）：§2/§3 权限表述同步两轴模型（四类 mask、CFXPERM/CFXESC）；附录 0.3.2-rc 补条目；sha256 同笔重算。
+sha256 = "ed5a31c6c80ebab14679c273d95b97c9c314241ded6c39b1e6949a3f99aca5dd"

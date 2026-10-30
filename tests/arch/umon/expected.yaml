@@ -38,7 +38,7 @@ conventions:
   entry: "SEE bootrom (-bios) sets cfx vectors/masks then hands off to the app in user mode (Machine-01 §2)"
   reset_pc: "0xffff_ffff_0000 (cfx_power_hypv_excp_vector; DADAO-12 §2.1)"
   semihosting: "trap cfx_umon, 0x3FF00 (immu18[17:8]==0x3FF (0x3FF00-0x3FFFF)); rd16=service, rb16=argument block, rd8=return (contract-semihosting.md §1/§2)"
-  permission: "cfx-level only (ILLI / CFXREG); NUPERM/NJPERM/NSPERM/NHPERM are the PTBR layer and not in M5 (ADR-0020 D9 / contract-see.md §3)"
+  permission: "cfx-level (ILLI / CFXREG / CFXPERM); NUPERM/NJPERM/NSPERM/NHPERM are the PTBR layer and not in M5 (ADR-0020 D9 / ADR-0045 / contract-see.md §3)"
   exit: "SYS_EXIT (0x18) / SYS_EXIT_EXTENDED (0x20); host $? = guest exit code (contract-semihosting.md §5)"
   oracle: "host-side derivation from contracts/ + the vector's @m5 header; never llvm-mc / QEMU"
 
@@ -122,13 +122,13 @@ programs:
     sources: [m5_perm_mask_illi.s]
     category: permission
     expected_exit_code: 0x51
-    expected_cause: ILLI
+    expected_cause: CFXPERM
     coverage: [perm.illi.mask, adr0020.d9]
     derivation: >-
-      General `trap cfx_jmon, 0`; cfxha 1 is legal but its user instruction-type
-      trap cfx mask bit is set (mask 1 = masked, contract-see.md §3), so the
-      machine raises ILLI.  The vector requires cause_id == ILLI; pass token
-      0x51, mismatch token 0xE1.
+      General `trap cfx_jmon, 0`; cfxha 1 is legal but cfx_jmon's user cfxtrap
+      source bit 0 is set (mask 1 = masked, DADAO-12 §3 / ADR-0045 D6), so the
+      machine raises CFXPERM into the current-mode monitor (cfx_umon).  The
+      vector requires cause_id == CFXPERM; pass token 0x51, mismatch 0xE1.
 
   - name: m5_perm_unimpl_cfxreg
     sources: [m5_perm_unimpl_cfxreg.s]

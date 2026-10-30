@@ -69,6 +69,7 @@ H3 = ROM_BASE + 0x180  # handler slot 3
 USER, JAIL, SUPV, HYPV = 0, 1, 2, 3
 # Cause ids (DADAO-12 §4 monitor exception table)
 CFXTRAP, CFXMEM, CFXREG, ILLI = 1, 2, 4, 1 << 8
+CFXPERM = 1 << 7
 
 # Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
 SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
@@ -262,13 +263,10 @@ for _sm in (USER, JAIL, SUPV, HYPV):
 # -- acc 3: reset values ----------------------------------------------------
 @case("reset_values", "cg0-cg7 reset values per DADAO-12 §3 / DADAO-13 §1")
 def _reset_values():
-    prog = exit_seq(0x00)     # no cfx access; observe power-on reset state
+    prog = exit_seq(0x00)     # no cfx access; observe reset state (body in hmon)
     all1 = ~0 & 0xFFFFFFFFFFFFFFFF
     exp = {
-        "exit": 0x00, "mode": HYPV, "cfxcode": 63, "cfxmask": all1,
-        "gver0": 0x00090002, "gver1": 0x00090002,
-        "gver2": 0x00070001, "gver3": 0x00010002,
-        "gcm0": all1, "gcm1": all1, "gcm2": all1, "gcm3": 0,
+        "exit": 0x00, "mode": HYPV, "cfxcode": 3, "cfxmask": all1,
         "id:0": 0, "id:1": 1, "id:2": 2, "id:3": 3, "id:63": 63,
         "scrnum:0": 4, "scrnum:63": 4,
         "swmode:63:0": SUPV, "swmode:63:1": SUPV,
@@ -283,15 +281,14 @@ def _reset_values():
 @case("cfx_rw_share", "cfx2rd/cfx2rc rw + global_cfx_mask sharing (cfx0<->cfx63)")
 def _cfx_rw_share():
     prog = []
-    prog += load_rd(21, 0xABCD) + [cfx2rc(0, 0, 1, 21)]    # global_cfx_mask[0]
+    prog += load_rd(21, 0xABCD) + [cfx2rc(0, 0, 1, 21)]    # cfx_umon user cfxmem
     prog += load_rd(22, 0x1234) + [cfx2rc(63, 6, 0, 22)]   # cfx63 scratch[0]
-    prog += [cfx2rd(63, 0, 1, 6)]                          # read global via cfx63
+    prog += [cfx2rd(0, 0, 1, 6)]                           # read cfx_umon cfxmem
     prog += [cfx2rd(63, 6, 0, 7)]                          # read scratch
     prog += [cfx2rd(63, 4, 6, 8)]                          # scratch_regs_num
     prog += [cfx2rd(63, 4, 0, 10)]                         # cfx_power cfx_id
     prog += exit_seq(0x00)
-    exp = {"exit": 0x00, "rd6": 0xABCD, "rd7": 0x1234, "rd8": 4, "rd10": 63,
-           "gcm0": 0xABCD}
+    exp = {"exit": 0x00, "rd6": 0xABCD, "rd7": 0x1234, "rd8": 4, "rd10": 63}
     return build_rom(prog, {}), exp
 
 
@@ -327,15 +324,15 @@ def _escape_return():
 
 
 # -- acc 4: instruction-type mask -> ILLI redirect --------------------------
-@case("mask_illi", "cfx trap mask bit => ILLI redirect to current-mode monitor")
+@case("cfxtrap_deny", "cfxtrap source mask denies hmon => CFXPERM")
 def _mask_illi():
     prog = []
-    prog += load_rd(23, 1) + [cfx2rc(0, 3, 6, 23)]   # cfx_umon hypv trap_mask bit0=1
-    prog += load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]  # cfx_hmon hypv vector = H
+    prog += load_rd(23, 1 << 3) + [cfx2rc(0, 3, 0, 23)]  # cfx_umon hypv cfxtrap bit3=1
+    prog += load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]      # cfx_hmon hypv vector = H
     trap_idx = len(prog)
     prog += [trap(0, 0)]
     prog += exit_seq(0xEE)
-    exp = {"exit": 0x22, "cid:3": ILLI, "syncn:3": 1,
+    exp = {"exit": 0x22, "cid:3": CFXPERM, "syncn:3": 1,
            "cip:3": ROM_BASE + trap_idx * 4}
     return build_rom(prog, hand(0x100, 0x22)), exp
 
@@ -366,6 +363,7 @@ def _cfxreg_unimpl():
 @case("cfxreg_badcombo", "invalid cfx register combo (scratch rc>=N) => CFXREG")
 def _cfxreg_badcombo():
     prog = load_rd(24, H) + [cfx2rc(0, 3, 10, 24)]   # cfx_umon hypv vector = H
+    prog += load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]  # cfx_hmon hypv vector = H
     prog += [cfx2rd(0, 6, 5, 5)]                     # cfx0 scratch rc5 >= N(4)
     prog += exit_seq(0xEE)
     exp = {"exit": 0x45, "cid:0": CFXREG, "syncn:0": 1}
@@ -386,10 +384,48 @@ def _cfxreg_ro_write():
 # Driver
 # ---------------------------------------------------------------------------
 
+# ADR-0045 D4: only hmon may access the default-masked cfx resources, so every
+# min-ROM body runs in hmon (cfx3).  The power stage at offset 0 installs the
+# hmon hypv vector and traps hmon; the original body starts at BOOTSTRAP_OFF.
+BOOTSTRAP_OFF = 0x48
+STAGE_OFF = 0x24
+
+
+def bootstrap_prefix():
+    ins = load_rd(22, ROM_BASE + STAGE_OFF) + [cfx2rc(3, 3, 10, 22), trap(3, 0)]
+    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
+    assert len(ins) == STAGE_OFF // 4, len(ins)
+    return ins
+
+
+def bootstrap_stage():
+    # hmon stage: clear cfx_power's cfxmem/cfxexe for user/hypv so the body
+    # and any cfx0 handler can use RAM and fetch this ROM (ADR-0045 D2).
+    ins = load_rd(20, 0)
+    for cg in (0, 1, 2, 3):
+        ins += [cfx2rc(63, cg, 1, 20), cfx2rc(63, cg, 3, 20)]
+    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
+    assert len(ins) == STAGE_OFF // 4, len(ins)
+    return ins
+
+
+def bootstrap_rom(rom):
+    return words_to_bytes(bootstrap_prefix()) + words_to_bytes(bootstrap_stage()) + rom
+
+
+def shift_rom_expect(exp):
+    for k, v in list(exp.items()):
+        if isinstance(v, int) and ROM_BASE <= v < ROM_BASE + 0x100:
+            exp[k] = v + BOOTSTRAP_OFF
+    return exp
+
+
 def run_case(name):
     for n, d, fn in CASES:
         if n == name:
             rom, exp = fn()
+            rom = bootstrap_rom(rom)
+            exp = shift_rom_expect(exp)
             rc, log = run(rom)
             if rc is None:
                 return False, "TIMEOUT", exp

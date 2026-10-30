@@ -86,7 +86,6 @@ def _parse_blocks(log):
         txt = "\n".join(b["lines"])
         b["mode"] = _hex(txt, r"^MODE: (\d+)")
         b["cfxcode"] = _hex(txt, r"^CFXCODE: (\d+)")
-        b["gcm0"] = _hex(txt, r"^GVER0:.*GCM0: ([0-9a-fA-F]+)")
         b["rb01"] = _hex(txt, r"RB\[01\]: ([0-9a-fA-F]+)")
         for ha in (0, 63):
             for md in (0, 3):
@@ -194,17 +193,12 @@ def _cfx0_user_switch_user(blocks, rc):
     return (b is not None), ("cfx0 M0 SWMODE=0 seen" if b else "cfx0 M0 SWMODE never 0")
 
 
-@case("cfx0_user_trapmask_cleared",
-      "bootrom cleared cfx_umon user trap cfx mask (instruction-type mask, 0 = allow)")
-def _cfx0_user_trapmask_cleared(blocks, rc):
-    b = _first(blocks, lambda b: b["cfx0_m0"] and b["cfx0_m0"]["trapmask"] == 0)
-    return (b is not None), ("cfx0 M0 TRAPMASK=0 seen" if b else "cfx0 M0 TRAPMASK never 0")
-
-
-@case("gcm_user_cleared", "bootrom cleared cfx_umon user global_cfx_mask (GCM0 -> 0)")
-def _gcm_user_cleared(blocks, rc):
-    b = _first(blocks, lambda b: b["gcm0"] == 0)
-    return (b is not None), ("GCM0=0 seen" if b else "GCM0 never 0")
+@case("cfx0_user_cfxtrap_default",
+      "cfx_umon user cfxtrap keeps its hmon-only default (ADR-0045 D4)")
+def _cfx0_user_cfxtrap_default(blocks, rc):
+    v = 0xFFFFFFFFFFFFFFF7
+    b = _first(blocks, lambda b: b["cfx0_m0"] and b["cfx0_m0"]["trapmask"] == v)
+    return (b is not None), ("cfx0 M0 cfxtrap default seen" if b else "cfx0 M0 cfxtrap default never seen")
 
 
 @case("cfx63_user_vector", "cfx_power user excp_vector = handler 0xffff_ffff_0200")

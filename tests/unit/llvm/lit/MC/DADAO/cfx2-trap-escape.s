@@ -92,8 +92,8 @@ trap cfx0, 0                            @@ @enc 7f000000
 @@ ASM: trap cfx20, 0
 trap cfx20, 0                           @@ @enc 7f500000
 
-@@ cfx2rd cfx_umon, cg8, rc1, rd2 : (0, 8, 1) 无名字（generic tail 仅 cg0-7）
-@@   -> 0x7A | 0<<18 | 8<<12 | 1<<6 | 2 = 7a 00 80 42
-@@ OBJ: {{[0-9a-f]+:}} 7a 00 80 42{{.*}}cfx2rd cfx0, cg8, rc1, rd2
-@@ ASM: cfx2rd cfx0, cg8, rc1, rd2
-cfx2rd cfx_umon, cg8, rc1, rd2          @@ @enc 7a008042
+@@ cfx2rd cfx_umon, cg8, rc0, rd2 : (0, 8, 0) 无名字（cfx0-3 只定义 cg8 rc1）
+@@   -> 0x7A | 0<<18 | 8<<12 | 0<<6 | 2 = 7a 00 80 02
+@@ OBJ: {{[0-9a-f]+:}} 7a 00 80 02{{.*}}cfx2rd cfx0, cg8, rc0, rd2
+@@ ASM: cfx2rd cfx0, cg8, rc0, rd2
+cfx2rd cfx_umon, cg8, rc0, rd2          @@ @enc 7a008002

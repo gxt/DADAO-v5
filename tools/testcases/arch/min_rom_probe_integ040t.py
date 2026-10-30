@@ -709,7 +709,7 @@ def _ptwerr_clean_keeps_entry():
     tlb_cmd(p, tlb_ctrl(OP_CLEAN, SCOPE_ALL, asid_any=True))    # entry kept
     p += exit_seq(EXIT_PASS)
     return build_rom(p, {OFF_PTW_HANDLER: PTW_SKIP_WORDS},
-                     words_at={ROM_PTE_OFF: ROM_PTE_WORDS}), \
+                     words_at={ROM_PTE_OFF - BOOTSTRAP_OFF: ROM_PTE_WORDS}), \
         {"exit": EXIT_PASS, "rd10": C_PTWERR, "rd11": ROM_PTE_PA,
          "rd5": MAGIC, "syncn4": 2, "cid4": C_PTWERR}
 
@@ -724,7 +724,7 @@ def _ptwerr_flush_keeps_entry():
     tlb_cmd(p, tlb_ctrl(OP_FLUSH, SCOPE_ALL, asid_any=True))    # PTWERR again
     p += exit_seq(EXIT_PASS)
     return build_rom(p, {OFF_PTW_HANDLER: PTW_SKIP_WORDS},
-                     words_at={ROM_PTE_OFF: ROM_PTE_WORDS}), \
+                     words_at={ROM_PTE_OFF - BOOTSTRAP_OFF: ROM_PTE_WORDS}), \
         {"exit": EXIT_PASS, "rd10": C_PTWERR, "rd11": ROM_PTE_PA,
          "rd5": MAGIC, "syncn4": 2, "cid4": C_PTWERR}
 
@@ -738,7 +738,7 @@ def _ptwerr_invalid_no_writeback():
     load_va(p, ROM_VA, rd=7)                                    # re-walk works
     p += exit_seq(EXIT_PASS)
     return build_rom(p, {OFF_PTW_HANDLER: PTW_SKIP_WORDS},
-                     words_at={ROM_PTE_OFF: ROM_PTE_WORDS}), \
+                     words_at={ROM_PTE_OFF - BOOTSTRAP_OFF: ROM_PTE_WORDS}), \
         {"exit": EXIT_PASS, "rd10": 0,
          "rd6": pte(pa=RAM_BASE, sp=True, frags=0xFF), "rd7": MAGIC}
 
@@ -973,10 +973,52 @@ def _tlb_asid_reg_roundtrip():
 # Driver
 # ---------------------------------------------------------------------------
 
+# ADR-0045 D4: only hmon may access the default-masked cfx resources, so every
+# min-ROM body runs in hmon (cfx3).  The power stage at offset 0 installs the
+# hmon hypv vector and traps hmon; the original body starts at BOOTSTRAP_OFF.
+BOOTSTRAP_OFF = 0x48
+STAGE_OFF = 0x24
+
+
+def bootstrap_prefix():
+    ins = load_rd(22, ROM_BASE + STAGE_OFF) + [cfx2rc(3, 3, 10, 22), trap(3, 0)]
+    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
+    assert len(ins) == STAGE_OFF // 4, len(ins)
+    return ins
+
+
+def bootstrap_stage():
+    # hmon stage: clear cfx_power's cfxmem/cfxexe for user/hypv so the body
+    # and any cfx0 handler can use RAM and fetch this ROM (ADR-0045 D2).
+    ins = load_rd(20, 0)
+    for cg in (0, 1, 2, 3):
+        ins += [cfx2rc(63, cg, 1, 20), cfx2rc(63, cg, 3, 20)]
+    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
+    assert len(ins) == STAGE_OFF // 4, len(ins)
+    return ins
+
+
+def bootstrap_rom(rom):
+    return words_to_bytes(bootstrap_prefix()) + words_to_bytes(bootstrap_stage()) + rom
+
+
+def shift_rom_expect(exp):
+    # Only code-address expectations move with the bootstrap body; handler
+    # addresses (>=0x300) and data values stay put.
+    for k in list(exp):
+        v = exp[k]
+        if (k.startswith("cip") or k == "rd12") and isinstance(v, int) \
+                and ROM_BASE <= v < ROM_BASE + 0x10000:
+            exp[k] = v + BOOTSTRAP_OFF
+    return exp
+
+
 def run_case(name):
     for n, d, fn in CASES:
         if n == name:
             rom, exp = fn()
+            rom = bootstrap_rom(rom)
+            exp = shift_rom_expect(exp)
             # rd12 (cause ip) is not asserted when the expectation omits it:
             # A/D write-back failures are raised from the command write, whose
             # precise PC is checked by the CFXREG cases instead.

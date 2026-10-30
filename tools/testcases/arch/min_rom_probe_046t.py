@@ -281,15 +281,13 @@ def _std_rom(prog, handlers=None):
 @case("semihost_tag_path", "immu18[17:8]==0x3FF (0x3FF00-0x3FFFF) => semihosting, PC+=4, no vector",
       services=[0x31])
 def _semihost_tag_path():
-    # cfx0 hypv vector -> handler that exits 0xEE (the "vector entered" marker).
-    prog = set_cfx_vector(0, 3, H)
-    trap_idx = len(prog)
-    prog += sh_call(0x31, 0)          # TICKFREQ: returns 1000000000
+    # Semihosting is short-circuited before cfx permission/vector logic, so it
+    # must be served even when no vector is installed (ADR-0045 D6).
+    prog = sh_call(0x31, 0)          # TICKFREQ: returns 1000000000
     prog += exit_seq(0x5A)
     exp = {"exit": 0x5A, "rd8": 1000000000, "rd30": 0,
            "cid:0": 0, "trapn:0": 0}
-    handlers = {0x100: exit_seq(0xEE)}
-    return _std_rom(prog, handlers), build_kernel({}), b"", exp
+    return _std_rom(prog), build_kernel({}), b"", exp
 
 
 # -- acc 2: the semihosting tag is independent of cfxha ---------------------
@@ -310,12 +308,18 @@ def _semihost_cfxha_agnostic():
 @case("general_trap_path", "immu18 < 0x3FF00 => CFXTRAP enters vector",
       services=[])
 def _general_trap_path():
-    prog = set_cfx_vector(0, 3, H)
-    trap_idx = len(prog)
-    prog += [trap(0, 0x0123)]         # tag miss
-    prog += exit_seq(0xEE)            # only reached if the vector was NOT taken
+    # Power (cfx63) may only trap hmon by default (ADR-0045 D4), so the test
+    # body runs in hmon (cfx3): hmon installs cfx_umon's hypv vector and traps
+    # cfx_umon.  Stage at ROM+0x300.
+    stage = (load_rd(22, H) + [cfx2rc(0, 3, 10, 22),
+             cfx2rc(63, 3, 1, 0),      # cfx_power hypv cfxmem: allow source umon
+             cfx2rc(63, 3, 3, 0)])     # cfx_power hypv cfxexe: allow source umon
+    trap_idx = len(stage)
+    stage += [trap(0, 0x0123)]        # tag miss
+    stage += exit_seq(0xEE)           # only reached if the vector was NOT taken
+    prog = load_rd(22, ROM_BASE + 0x300) + [cfx2rc(3, 3, 10, 22), trap(3, 0)]
     exp = {"exit": 0x42, "cid:0": CFXTRAP, "trapn:0": 1}
-    handlers = {0x100: exit_seq(0x42)}
+    handlers = {0x100: exit_seq(0x42), 0x300: stage}
     return _std_rom(prog, handlers), build_kernel({}), b"", exp
 
 

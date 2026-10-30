@@ -54,7 +54,7 @@ v5 测试机使用的核内地址空间划分如下（均为 48 位核内有效�
 
 DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`（`0b01`）、`supv`（`0b10`）、`hypv`（`0b11`）；`user`/`jail` 为普通用户态，`supv`/`hypv` 为特权态。[DADAO-12 §1. 运行模式与核芯功能扩展]
 
-`hypv`（超管模式）的 cg3 寄存器（含 `cfx_⟨cfxname⟩_hypv_global_cfx_mask`、`cfx_⟨cfxname⟩_hypv_switch_run_mode`、`cfx_⟨cfxname⟩_hypv_excp_vector`）定义见 HEE。[DADAO-13 §1. cg3 - hypv mode 寄存器]
+`hypv`（超管模式）的 cg3 寄存器（含 `cfx_⟨cfxname⟩_hypv_cfxtrap` 等四类同步 mask、`cfx_⟨cfxname⟩_hypv_cfx_intr_mask`、`switch_run_mode`、`excp_vector`）定义见 HEE。[DADAO-13 §1. cg3 - hypv mode 寄存器]
 
 `trap`/`escape`/`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst` 可在**任意运行模式**下执行；是否允许由各核芯功能扩展的 cfx mask 与指令类型 cfx mask 控制。[SimRISC-11]
 
@@ -69,11 +69,11 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 每个核芯功能扩展提供 cg0–cg7 共有寄存器，规范相同；其中 cg0–cg3 为 `user`/`jail`/`supv`/`hypv` 各自的 12 个模式寄存器，cg4–cg7 为配置/现场/暂存/内部存储寄存器。[DADAO-12 §3. 共有寄存器设计规范]
 
-- `global_cfx_mask` 与指令类型 mask（`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst`/`trap`/`escape` 各自一位）语义：**0=可触发，1=屏蔽**；自身 cfxha 对应位由硬件忽略。[DADAO-12 §3. 共有寄存器设计规范]
+- 每个 cfx 的 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe`（`rc0`–`rc3`）为四类 64 位同步来源 mask，`rc4` 为 `cfx_intr_mask`：**0=允许，1=屏蔽**，位索引=源 cfx；自身只绕过 cfx 轴。`cfx0`–`cfx3` 的 `cg8`/`rc1` 为 `global_cfx_intr_mask`。[DADAO-12 §3. 共有寄存器设计规范][ADR-0045 D2/D3]
 - `switch_cfx_mask` 为陷入时采用的异常掩码（0=可触发，1=屏蔽）；`switch_run_mode` 为陷入时切换的运行模式。[DADAO-12 §3. 共有寄存器设计规范]
-- reserved cfxha（`6`–`14`、`19`–`61`）触发 `ILLI`；cfxha 合法但指令 cfx mask 禁止，同样触发 `ILLI`。[DADAO-12 §5. 异常进入与异常退出]
+- reserved cfxha（`6`–`14`、`19`–`61`）触发 `ILLI`；权限拒绝触发 `CFXPERM`（`1<<7`，进入当前模式 monitor），escape 帧/目标错误触发 `CFXESC`（`1<<3`，进入当前 cfx）。[DADAO-12 §4. 专有寄存器设计规范][ADR-0045 D6/D7]
 - `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM` 属于页级/PTW 权限异常：当前运行模式对应的 HSJU 位为 0 时触发（U/J/S/H 分别对应 `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`）；地址转换第一步已不再按 `VA[47:42]` 选择 PTBR，也不再有 PTBR 模式权限位图。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw]
-- **两个权限层次**：PTW 层权限（`NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`，出自 cfx_ptw 异常原因表）与 **cfx 访问权限**（cfx mask 不允许 ⇒ `ILLI`，见 `§5` 异常进入流程）是**不同层次**，不可混同。[ADR-0020 D9][DADAO-12 §4. 专有寄存器设计规范]
+- **两个权限层次**：PTW 层权限（`NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`，出自 cfx_ptw 异常原因表）与 **cfx 访问权限**（mask 不允许 ⇒ `CFXPERM`，见 `§5` 异常进入流程）是**不同层次**，不可混同。[ADR-0020 D9][DADAO-12 §4. 专有寄存器设计规范]
 
 - **测试机 cfx 实现范围**：v5 测试机实现 **`cfx0`/`cfx1`/`cfx2`/`cfx3`/`cfx63`**（`umon`/`jmon`/`smon`/`hmon`/`power`）以及 **`cfx4`（`ptw`）的 PTW/TLB 寄存器**（`cfx_ptw_ptbr`、`cfx_ptw_enable`、`cfx_ptw_tlb_*`）、**页表步进**、**TLB 命中/填充/失效**与 **A/D 回写**（`DADAO-12 §2.2`、`§4.5`）；并实现 **`cfx17`（`pmem`）的 64 KiB SRAM 与 `cg15` DMA**（`DADAO-12 §2.1`、`§4.9`）。`cfx5`（`cache`）为已分配未实现，测试机按未实现 cfx 处理（访问其寄存器 ⇒ `CFXREG`）。该范围为**测试机约定**（控制首版成本），**不构成对上游 `DADAO-12`/`DADAO-13` 架构的 cfx 数量/编号限制**。[ADR-0020 D9][DADAO-12 §1. 运行模式与核芯功能扩展]
 - **测试机 `cfx_pmem` DMA 约定**：DMA 只在 `cfx_pmem` SRAM 与物理存储器之间搬运，异步完成（软件须轮询 `dma_status.BUSY` 或使能 `IRQ_EN`）；DMA 可读 RAM 与 boot ROM、只可写 RAM，其余 PA 属 `PA_FAULT`；`PMEM_DMA`（`1 << 8`）直接投递本 hart 的 `cfx_pmem` 异常入口（单 hart）。[DADAO-12 §4.9][ADR-0042 D7.1–D7.4]
@@ -209,6 +209,7 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 
 ### 0.3.2-rc（未发布）
 
+- cfx 权限表述同步两轴模型：四类同步来源 mask + `cfx_intr_mask`/`global_cfx_intr_mask`；权限拒绝 ⇒ `CFXPERM`，escape 帧/目标错误 ⇒ `CFXESC`。
 - 新增 `cfx_pmem` 的 64 KiB SRAM（`0x47ff_0000_0000`，cfxha 17、内部偏移 `0x3ff_0000_0000`）与 `cg15` DMA 的测试机约定：DMA 可读 RAM/boot ROM、只可写 RAM。
 - cfx 编号同步：`cfx5`（`cache`）为已分配未实现；保留 cfx 改为 `6`–`14`、`19`–`61`。
 

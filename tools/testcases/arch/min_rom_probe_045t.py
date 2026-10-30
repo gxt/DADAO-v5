@@ -88,6 +88,7 @@ EXIT_CONT = 0x300
 USER, JAIL, SUPV, HYPV = 0, 1, 2, 3
 # Cause ids (DADAO-12 §4 monitor exception table; one-hot)
 CFXTRAP, CFXMEM, CFXREG, ILLI = 1, 2, 4, 1 << 8
+CFXESC, CFXPERM = 1 << 3, 1 << 7
 
 ALL1 = (1 << 64) - 1
 
@@ -281,14 +282,14 @@ def _trap_vector_roundtrip():
 
 
 # -- acc 2: instruction-type trap mask forbid => ILLI -----------------------
-@case("trap_mask_illi", "instruction-type trap mask forbid => ILLI redirect")
+@case("cfxtrap_deny", "cfxtrap source mask denies hmon => CFXPERM")
 def _trap_mask_illi():
-    prog = load_rd(23, 1) + [cfx2rc(0, 3, 6, 23)]   # cfx0 hypv trap_mask bit0=1
-    prog += set_cfx_vector(3, 3, H)                 # cfx3 hypv excp_vector = H
+    prog = load_rd(23, 1 << 3) + [cfx2rc(0, 3, 0, 23)]  # cfx0 hypv cfxtrap bit3=1
+    prog += set_cfx_vector(3, 3, H)                     # cfx3 hypv excp_vector = H
     trap_idx = len(prog)
     prog += [trap(0, 0)]
     prog += exit_seq(0xEE)
-    exp = {"exit": 0x22, "cid:3": ILLI, "syncn:3": 1,
+    exp = {"exit": 0x22, "cid:3": CFXPERM, "syncn:3": 1,
            "cip:3": ROM_BASE + trap_idx * 4}
     return build_rom(prog, hand(0x100, 0x22)), exp
 
@@ -332,35 +333,17 @@ def _escape_neg_offset():
 
 
 # -- acc 4/6: cross-cfx escape forbidden (step 0) => ILLI -------------------
-@case("escape_cross_mask", "cross-cfx escape forbidden (escape_cfx_mask) => ILLI")
+@case("escape_wrong_target", "escape cfxha != current cfx => CFXESC")
 def _escape_cross_mask():
-    prog = load_rd(23, 1) + [cfx2rc(63, 3, 7, 23)]   # cfx63 hypv escape_mask bit0=1
-    prog += set_cfx_vector(3, 3, H)                  # cfx3 hypv excp_vector = H
-    trap_idx = len(prog)
-    prog += [escape(0, 0)]                           # cross cfx63 -> cfx0, forbidden
+    prog = set_cfx_vector(3, 3, H)                  # cfx3 hypv excp_vector = H
+    fault_idx = len(prog)
+    prog += [escape(0, 0)]                          # current cfx is hmon (3)
     prog += exit_seq(0xEE)
-    exp = {"exit": 0xCC, "cid:3": ILLI, "syncn:3": 1,
-           "cip:3": ROM_BASE + trap_idx * 4}
+    exp = {"exit": 0xCC, "cid:3": CFXESC, "syncn:3": 1,
+           "cip:3": ROM_BASE + fault_idx * 4}
     return build_rom(prog, hand(0x100, 0xCC)), exp
 
 
-# -- acc 3: cross-cfx escape allowed restores non-reset prev mode/mask ------
-@case("escape_cross_allowed",
-      "cross-cfx escape allowed restores prev_run_mode / prev_cfx_mask")
-def _escape_cross_allowed():
-    prog = load_rd(20, 0) + [cfx2rc(63, 3, 7, 20)]   # cfx63 hypv escape_mask = 0
-    prog += load_rd(20, ROM_BASE + EXIT_CONT) + [cfx2rc(63, 5, 3, 20)]  # cause_ip
-    prog += load_rd(20, USER) + [cfx2rc(63, 5, 0, 20)]       # prev_run_mode = USER
-    prog += load_rd(20, 0xDEADBEEF) + [cfx2rc(63, 5, 1, 20)] # prev_cfx_mask
-    prog += [escape(0, 0)]                    # cfx63 -> cfx0 (allowed)
-    exp = {
-        "exit": 0xBB, "mode": USER, "cfxmask": 0xDEADBEEF,
-        "escn:63": 1, "prevm:63": USER, "prevmask:63": 0xDEADBEEF,
-    }
-    return build_rom(prog, {EXIT_CONT: exit_seq(0xBB)}), exp
-
-
-# -- acc 5: cfx2rd/cfx2rc full register face (cg0-cg7), read-back -----------
 @case("cfx2_full_regface",
       "cfx2rd/cfx2rc cg0-cg7 read/write roundtrip (cfx0 + cfx63 sharing)")
 def _cfx2_full_regface():
@@ -368,8 +351,8 @@ def _cfx2_full_regface():
     # cg4/cg5 RO reads (reset values from DADAO-12 §3/§4): version, scratch_regs_num,
     # cause_nonmaskable (monitor set = bits 0,1,2,8..13)
     prog += [cfx2rd(0, 4, 1, 53), cfx2rd(0, 4, 6, 54), cfx2rd(0, 5, 63, 55)]
-    # cg0 rc1 global_cfx_mask[0]: write via cfx0, read back via cfx63 (shared)
-    prog += load_rd(20, 0x1111) + [cfx2rc(0, 0, 1, 20), cfx2rd(63, 0, 1, 30)]
+    # cg0 rc1 cfxmem: write via cfx0, read back via cfx0
+    prog += load_rd(20, 0x1111) + [cfx2rc(0, 0, 1, 20), cfx2rd(0, 0, 1, 30)]
     # cg0/1/2/3 rc8 switch_run_mode per mode
     prog += load_rd(20, 2) + [cfx2rc(0, 0, 8, 20), cfx2rd(0, 0, 8, 31)]
     prog += load_rd(20, 1) + [cfx2rc(0, 1, 8, 20), cfx2rd(0, 1, 8, 32)]
@@ -391,21 +374,21 @@ def _cfx2_full_regface():
     # cg7 rc0 sram_block_sel / rc1 sram_addr (RW)
     prog += load_rd(20, 0x1234) + [cfx2rc(0, 7, 0, 20), cfx2rd(0, 7, 0, 45)]
     prog += load_rd(20, 0x5678) + [cfx2rc(0, 7, 1, 20), cfx2rd(0, 7, 1, 46)]
-    # cg2 rc1 global_cfx_mask[2] (distinct per-mode shared reg)
+    # cg2 rc1 cfxmem (per-mode row)
     prog += load_rd(20, 0x2222) + [cfx2rc(0, 2, 1, 20), cfx2rd(0, 2, 1, 47)]
     # cfx63 (power): write cause_ip / scratch[1], read back
     prog += load_rd(20, 0x12345678) + [cfx2rc(63, 5, 3, 20), cfx2rd(63, 5, 3, 48)]
     prog += load_rd(20, 0xFFFF) + [cfx2rc(63, 6, 1, 20), cfx2rd(63, 6, 1, 49)]
     prog += exit_seq(0x00)
     exp = {
-        "exit": 0x00, "gcm0": 0x1111, "gcm2": 0x2222,
+        "exit": 0x00,
         "rd30": 0x1111, "rd31": 2, "rd32": 1, "rd33": 0, "rd34": 3,
         "rd35": 0xCAFE, "rd36": 0, "rd37": 0,
         "rd38": 0x5555, "rd39": 1, "rd40": 0x9999, "rd41": 7, "rd42": 0,
         "rd43": 0xAAAA, "rd44": 0xBBBB,
         "rd45": 0x1234, "rd46": 0x5678, "rd47": 0x2222,
         "rd48": 0x12345678, "rd49": 0xFFFF,
-        "rd53": 0x00010000, "rd54": 4, "rd55": 0x3F07,
+        "rd53": 0x00010000, "rd54": 4, "rd55": 0x3F8F,
     }
     return build_rom(prog, {}), exp
 
@@ -413,24 +396,17 @@ def _cfx2_full_regface():
 # -- acc 5/6: cg3 access outside hypv => CFXREG -----------------------------
 @case("cfx2_cg3_nonhypv", "cg3 register access outside hypv mode => CFXREG")
 def _cfx2_cg3_nonhypv():
-    # cfx0 user (cg0) and hypv (cg3) vectors both -> H
-    prog = set_cfx_vector(0, 0, H) + set_cfx_vector(0, 3, H)
-    # allow cfx2rd cfx0 from user mode (clear cfx0 user cfx2rd_mask)
-    prog += load_rd(20, 0) + [cfx2rc(0, 0, 2, 20)]
-    # drop to user mode via allowed cross-cfx escape from cfx63
-    prog += load_rd(20, 0) + [cfx2rc(63, 3, 7, 20)]                    # escape_mask = 0
-    prog += load_rd(20, ROM_BASE + EXIT_CONT) + [cfx2rc(63, 5, 3, 20)]  # cause_ip
-    prog += load_rd(20, USER) + [cfx2rc(63, 5, 0, 20)]       # prev_run_mode = USER
-    prog += load_rd(20, 0) + [cfx2rc(63, 5, 1, 20)]          # prev_cfx_mask = 0
-    prog += [escape(0, 0)]                                   # -> user mode @ EXIT_CONT
-    exp = {"exit": 0xCC, "cid:0": CFXREG, "syncn:0": 1,
-           "cip:0": ROM_BASE + EXIT_CONT}
-    handlers = {0x100: exit_seq(0xCC),
-                EXIT_CONT: [cfx2rd(0, 3, 1, 30)] + exit_seq(0xEE)}
+    # cfx0 hypv vector -> H (trap entry); cfx0 user vector -> EXIT_CONT (fault).
+    prog = set_cfx_vector(0, 3, H) + set_cfx_vector(0, 0, ROM_BASE + EXIT_CONT)
+    prog += load_rd(20, USER) + [cfx2rc(0, 3, 8, 20)]   # switch to user
+    prog += load_rd(20, 0) + [cfx2rc(0, 0, 2, 20)]     # user cfxreg mask = 0
+    prog += [trap(0, 0)]
+    exp = {"exit": 0xCC, "cid:0": CFXREG, "syncn:0": 1}
+    handlers = {0x100: [cfx2rd(0, 3, 1, 30)] + exit_seq(0xEE),
+                EXIT_CONT: exit_seq(0xCC)}
     return build_rom(prog, handlers), exp
 
 
-# -- acc 6: non-existent cg (>=8) => CFXREG --------------------------------
 @case("cfxreg_cg_oor", "non-existent cg (cg8) => CFXREG")
 def _cfxreg_cg_oor():
     prog = set_cfx_vector(0, 3, H) + set_cfx_vector(0, 0, H)
@@ -507,10 +483,48 @@ def _trap_reserved_illi():
 # Driver
 # ---------------------------------------------------------------------------
 
+# ADR-0045 D4: only hmon may access the default-masked cfx resources, so every
+# min-ROM body runs in hmon (cfx3).  The power stage at offset 0 installs the
+# hmon hypv vector and traps hmon; the original body starts at BOOTSTRAP_OFF.
+BOOTSTRAP_OFF = 0x48
+STAGE_OFF = 0x24
+
+
+def bootstrap_prefix():
+    ins = load_rd(22, ROM_BASE + STAGE_OFF) + [cfx2rc(3, 3, 10, 22), trap(3, 0)]
+    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
+    assert len(ins) == STAGE_OFF // 4, len(ins)
+    return ins
+
+
+def bootstrap_stage():
+    # hmon stage: clear cfx_power's cfxmem/cfxexe for user/hypv so the body
+    # and any cfx0 handler can use RAM and fetch this ROM (ADR-0045 D2).
+    ins = load_rd(20, 0)
+    for cg in (0, 1, 2, 3):
+        ins += [cfx2rc(63, cg, 1, 20), cfx2rc(63, cg, 3, 20)]
+    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
+    assert len(ins) == STAGE_OFF // 4, len(ins)
+    return ins
+
+
+def bootstrap_rom(rom):
+    return words_to_bytes(bootstrap_prefix()) + words_to_bytes(bootstrap_stage()) + rom
+
+
+def shift_rom_expect(exp):
+    for k, v in list(exp.items()):
+        if isinstance(v, int) and ROM_BASE <= v < ROM_BASE + 0x100:
+            exp[k] = v + BOOTSTRAP_OFF
+    return exp
+
+
 def run_case(name):
     for n, d, fn in CASES:
         if n == name:
             rom, exp = fn()
+            rom = bootstrap_rom(rom)
+            exp = shift_rom_expect(exp)
             rc, log = run(rom)
             if rc is None:
                 return False, "TIMEOUT", exp

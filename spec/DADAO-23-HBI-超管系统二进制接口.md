@@ -23,7 +23,7 @@ cfx_hmon 为 hypv 的 monitor，提供 HBI 版本查询和硬件信息。
 硬件复位后：
 
 1. 运行模式初始化为 hypv，`inner_cfx_code` 初始化为 cfx_power，`inner_cfx_mask` 初始化为全 1（当前运行掩码屏蔽所有核芯功能扩展；可通过 trap 或 escape 流程更新）
-2. user/jail/supv 的 `global_cfx_mask` 初始化为全 1；hypv 的 `global_cfx_mask` 初始化为全 0（引导序列中 hypv 访问不受限）
+2. 每个 cfx 的 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` 四类同步来源 mask 初始化为 `0xFFFF_FFFF_FFFF_FFF7`（hmon 自身 `0x7FFF_FFFF_FFFF_FFF7`，只允许 hmon/power）；`cfx_intr_mask` 与 `global_cfx_intr_mask` 初始化为全 1
 3. `inner_inst_pointer` 跳转到 `cfx_power_hypv_excp_vector` 指示的地址（初始值为 `0xffff_ffff_0000`，为 DDR 未初始化前硬件可直接执行指令的一段地址空间）
 
 hypv 引导代码完成最小初始化后，按以下流程将控制权**完全移交 smon**：
@@ -37,8 +37,8 @@ hypv 引导代码完成最小初始化后，按以下流程将控制权**完全�
    - `HBI_<name>_INIT` 的 `immu18` 编码：bits[17:16] = `0b11`、bits[15:0] = `1`，即 `0x30001`。
    - 该编码**不落在 semihosting 区**（`0x3FF00–0x3FFFF`），按一般 trap 进入目标 cfx 向量。
    - 各 cfx 的 `hypv_excp_vector` 复位值应指向其 HBI 初始化入口（由该 cfx 的实现提供）。
-   - 初始化内容至少包括：清除自身 `hypv_cg_reg_deleg`（允许 supv 访问 cg；cg3 固定禁止）、设置本 cfx 作为**源**时各模式可调用的目标：`<mode>_global_cfx_mask` 与 `<mode>_{trap,escape,cfx2rd,cfx2rc}_cfx_mask` 中允许的目标位（位 = 目标 cfx），以及 `<mode>_switch_run_mode`/`<mode>_switch_cfx_mask`/`<mode>_excp_vector`；其余由各 cfx 自行定义。
-   - **引导期不会被掩码拦**：`trap` 查的是**源 cfx**（= power）的 `hypv_*_cfx_mask`，复位全 0；`inner_cfx_mask` 只影响异步中断（CFXTRAP 不可屏蔽，步骤 2 跳过）。
+   - 初始化内容至少包括：清除自身 `hypv_cg_reg_deleg`（允许 supv 访问 cg；cg3 固定禁止）、设置本 cfx 的 `<mode>_cfxtrap`/`_cfxmem`/`_cfxreg`/`_cfxexe` 来源 mask（位 = 源 cfx，0=允许、1=屏蔽），以及 `<mode>_switch_run_mode`/`<mode>_switch_cfx_mask`/`<mode>_excp_vector`；其余由各 cfx 自行定义。
+   - **引导期授权**：`trap` 查目标 cfx 的 `hypv_cfxtrap` 第「源 cfx（power=63）」位；目标需显式允许 power（hmon 默认允许，其余 cfx 默认只允许 hmon）。
    - 除 smon 外，初始化完成后以 `escape cfx_<name>, [excp_cause_ip, 4]` 返回引导代码。
 
 2. **移交 smon**：smon 的 HBI 初始化函数**不返回**引导代码，而是直接完成移交：
@@ -62,6 +62,7 @@ S-mode 内核入口通过 `rb17` 获取设备树指针；`rb16` 为入口地址�
 
 ### 0.1.4-rc（未发布）
 
+- §3 初始化约定改为两轴权限模型：四类同步来源 mask 初值 `0xFFFF_FFFF_FFFF_FFF7`（hmon `0x7FFF_FFFF_FFFF_FFF7`），中断 mask 全 1；`trap` 由目标 cfx 的 `cfxtrap` 源位授权。
 - §3 补充：`HBI_<name>_INIT`（`0x30001`）不落在 semihosting 区（`0x3FF00–0x3FFFF`），按一般 trap 进入目标 cfx 向量。
 
 ### 0.1.3（2026-10-26）

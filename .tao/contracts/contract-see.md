@@ -1,8 +1,8 @@
 # SEE/HEE 运行环境合约（M5）
 
-> **版本：0.7.1** [DADAO-12 §1. 运行模式与核芯功能扩展][DADAO-22 §1. 调用约定]
+> **版本：0.7.3-rc** [DADAO-12 §1. 运行模式与核芯功能扩展][DADAO-22 §1. 调用约定]
 >
-> **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`（0.7.1）、`spec/DADAO-13-HEE-超管系统运行环境.md`（0.1.2）、`spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.1）、`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）、`spec/SimRISC-11-其它.md`（0.5.4）；测试机运行环境正文 `spec/Machine-01-测试机运行环境.md`（v5 自定）；决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted）与 `.tao/adr/adr-0004-test-machine.md`（`ADR-0004`，Accepted，rev. 2026-10-07 `R1`/`R3`）。
+> **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`（0.7.3-rc）、`spec/DADAO-13-HEE-超管系统运行环境.md`（0.1.4-rc）、`spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.3-rc）、`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）、`spec/SimRISC-11-其它.md`（0.5.4）；测试机运行环境正文 `spec/Machine-01-测试机运行环境.md`（v5 自定）；决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted）与 `.tao/adr/adr-0004-test-machine.md`（`ADR-0004`，Accepted，rev. 2026-10-07 `R1`/`R3`）。
 >
 > **范围**：M5 SEE/HEE 运行环境——运行模式、核内地址空间与复位、cfx 与权限、`trap`/`escape` 与异常进入/退出、SBI 调用约定。semihosting 的服务表/调用约定见 `contract-semihosting.md`。
 >
@@ -16,7 +16,7 @@
 
 - DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`（`0b01`）、`supv`（`0b10`）、`hypv`（`0b11`）。[DADAO-12 §1. 运行模式与核芯功能扩展]
 - `hypv`（超管模式）的 cg3 寄存器定义见 HEE（含 `hypv_switch_run_mode`/`hypv_excp_vector`）。[DADAO-13 §1. cg3 - hypv mode 寄存器]
-- `trap`/`escape`/`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst` 可在**任意运行模式**下执行；是否允许由 cfx mask 与指令类型 cfx mask 控制。[SimRISC-11 §指令域与执行条件]
+- `trap/escape/cfx2rd/cfx2rc/cfxld/cfxst` 可在**任意运行模式**下执行；是否允许由 `cfxtrap`/`cfxreg` 等来源 mask 控制。[SimRISC-11 §指令域与执行条件]
 - 异常进入时运行模式/掩码切换为 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 与 `switch_cfx_mask`（异常进入流程步骤 8）。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3. 共有寄存器设计规范]
 - v5 测试机只启用 `hypv`/`user`，**本版不启用 `supv`**、不涉及 `smon`。[ADR-0020 D12][ADR-0004 R1][Machine-01 §2]
 
@@ -39,19 +39,22 @@
 
 ## §3 cfx 与权限
 
-- 每个 cfx 提供 cg0–cg7 共有寄存器（含 `global_cfx_mask`、指令类型 mask、`switch_run_mode`、`switch_cfx_mask`、`excp_vector`、`excp_cause_mask`）。[DADAO-12 §3. 共有寄存器设计规范]
-- mask 语义：0=可触发，1=屏蔽；自身 cfxha 对应位由硬件忽略。[DADAO-12 §3. 共有寄存器设计规范]
-- reserved cfxha（`6`–`14`、`19`–`61`）触发 `ILLI`；cfxha 合法但指令 cfx mask 禁止亦触发 `ILLI`。[DADAO-12 §5. 异常进入与异常退出]
+- 每个 cfx 提供 cg0–cg7 共有寄存器；`cg0`–`cg3` 的 `rc0`–`rc3` 为 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` 四类同步来源 mask，`rc4` 为 `cfx_intr_mask`，另有 `switch_run_mode`/`switch_cfx_mask`/`excp_vector`/`excp_cause_mask`；`cfx0`–`cfx3` 的 `cg8`/`rc1` 为 `global_cfx_intr_mask`。[DADAO-12 §3. 共有寄存器设计规范]
+- 两轴授权：最终允许 = 运行模式允许 AND cfx 资源允许；`self` 只绕过 cfx 轴（位测试），仍使用当前运行模式的寄存器行。mask 位索引为源 cfx，0=允许、1=屏蔽。[ADR-0045 D1/D2][DADAO-12 §3. 共有寄存器设计规范]
+- 四类同步 mask 初值：power 与普通 cfx `0xFFFF_FFFF_FFFF_FFF7`，hmon 自身 `0x7FFF_FFFF_FFFF_FFF7`；`cfx_intr_mask`/`global_cfx_intr_mask` 初值全 1。[ADR-0045 D4][DADAO-12 §3. 共有寄存器设计规范]
+- 权限拒绝触发 `CFXPERM`（`1<<7`，进入当前模式 monitor），不再是 ILLI；escape 帧/目标错误触发 `CFXESC`（`1<<3`，进入当前 cfx）。[ADR-0045 D6/D7][DADAO-12 §4. 专有寄存器设计规范]
+- reserved cfxha（`6`–`14`、`19`–`61`）触发 `ILLI`。[DADAO-12 §5. 异常进入与异常退出]
+- 异步中断按当前 cfx 的 `cfx_intr_mask` 与当前 mode monitor 的 `global_cfx_intr_mask` 两级来源过滤，被屏蔽时置 pending。[ADR-0045 D3][DADAO-12 §5. 异常进入与异常退出]
 - 访问**未实现**的核芯功能扩展（其 cfx 寄存器）触发 `CFXREG`。[DADAO-22 §3. 系统信息（smon）]
 - `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM` 属于页级/PTW 权限异常：当前运行模式对应的 HSJU 位为 0 时触发（U/J/S/H 分别对应 `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`）；地址转换第一步不再按 `VA[47:42]` 选择 PTBR，也无 PTBR 模式权限位图。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw - page table walker]
-- **两层权限不可混同**：PTW 层权限（`NUPERM` 等，出自 cfx_ptw 异常原因表）与 cfx 访问权限（cfx mask 不允许 ⇒ `ILLI`）分属不同层次。[ADR-0020 D9][DADAO-12 §4. 专有寄存器设计规范]
+- **两层权限不可混同**：PTW 层权限（`NUPERM` 等，出自 cfx_ptw 异常原因表）与 cfx 访问权限（`CFXPERM`）分属不同层次。[ADR-0020 D9][ADR-0045 D6][DADAO-12 §4. 专有寄存器设计规范]
 - v5 测试机 cfx 实现范围 = `cfx0/1/2/3/63` 以及 `cfx4` 的 PTW/TLB 寄存器（`cfx_ptw_ptbr`/`cfx_ptw_enable`/`cfx_ptw_tlb_*`）、页表步进、TLB 命中/填充/失效与 A/D 回写，加上 `cfx17` 的 64 KiB SRAM 与 `cg15` DMA，属**测试机约定**、非上游架构限制；`cfx5`（`cache`）已分配未实现、按未实现 cfx 处理（`CFXREG`）；范围外未实现 cfx 触发 `CFXREG`。[ADR-0020 D9][Machine-01 §3]
 
 ## §4 `trap`/`escape` 与异常进入/退出
 
 - `trap cfxha, immu18`：`cfxha` 为服务提供者、`immu18` 为功能编号。[DADAO-22 §1. 调用约定]
 - 一般 trap（`immu18 < 0x3FF00`）走 `DADAO-12 §5` 异常进入流程步骤 1–10，进入目标 cfx 异常向量。[DADAO-12 §5. 异常进入与异常退出][ADR-0020 D10]
-- `escape cfxha, [excp_cause_ip, imms20]` 完成异常退出；编码层 `imms18`，`Addr = excp_cause_ip + (imms18 << 2)`，`imms20` 须 `%4==0`。[DADAO-12 §异常退出流程][SimRISC-11 §退出指令]
+- `escape cfxha, [excp_cause_ip, imms20]` 完成异常退出；编码层 `imms18`，`Addr = excp_cause_ip + (imms18 << 2)`，`imms20` 须 `%4==0`；`cfxha` 必须是当前 cfx，返回 cfx/mode/IP 取自异常帧，偏移固定；目标/帧错误 ⇒ `CFXESC`。[DADAO-12 §5. 异常进入与异常退出][SimRISC-11 §退出指令][ADR-0045 D8]
 - 被调方经 `escape cfxha, [excp_cause_ip, 4]` 返回 trap 下一条指令。[DADAO-22 §1. 调用约定]
 - **两条路分离**：semihosting（`immu18[17:8] == 0x3FF`，即 `0x3FF00–0x3FFFF`）经实现层短路、不进入向量、IP 步进返回，见 `contract-semihosting.md`；不得混入向量路径。[ADR-0020 D10][Machine-01 §4]
 
