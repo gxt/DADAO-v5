@@ -386,7 +386,7 @@ group = "dadao-1x"
 # 2026-10-29（SPEC-178t，授权见文件头注释）：§2/§2.1/§2.2/§4.5/§5 与附录的地址分区表述统一为 `addr[47:42]`（纯术语）；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-30（INTEG-042t，Step 4 cfx_pmem SRAM+DMA，ADR-0042；授权 = 派单原话「修改 spec/contracts/QEMU/测试/锁/changelog」）：§1 cfx5=cache、cfx6–14/19–61 reserved；§2.1 cfx_pmem 64 KiB SRAM 地址空间；§3.6 补 `1<<8` PMEM_DMA；§4.9 cfx_pmem 增 SRAM/DMA cg15 寄存器/ERR_CODE/PMEM_DMA 异常；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-30（ADR-0043 启动表）：§2.1 表改为 cfx num/name/起始地址/大小/类型，补 hmon SRAM 0x0fff_0000_0000；sha256 同笔重算。
-sha256 = "8fb607c2e4e3747d34ea777545e56203dc23d2b8245f213a5e689d0035946ac1"
+sha256 = "964de9d7568e000b90ca5904ff228847909a48e8767294bd9791341cc6510c2d"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -530,4 +530,4 @@ group = "machine-01"
 # 2026-10-29（INTEG-040t，Step 3 同步）：§1.2 页表/TLB 异常都进 cfx_ptw；§3 实现范围含 TLB 命中/填充/失效与 A/D 回写、cfx5 未分配按未实现处理；附录 0.3.2-rc 补条目；sha256 同笔重算。
 # 2026-10-29（SPEC-178t，授权见文件头注释）：§1 地址分区表述统一为 `addr[47:42]`（纯术语）；附录 0.3.2-rc 补条目；sha256 同笔重算。
 # 2026-10-30（INTEG-042t，Step 4；授权同上）：§1.1 增 cfx_pmem SRAM（0x0000_4400_0000_0000，64 KiB）；§1.2/§3 保留 cfx 改 6–14、19–61，cfx5=cache 已分配未实现，测试机实现 cfx17 SRAM+DMA（PA 可读 RAM/ROM、只写 RAM）；附录 0.3.2-rc 补条目；sha256 同笔重算。
-sha256 = "7b6c7e9dd601fe21ac4685439eee6b0aed67315c3f5a6a9f164f933c09343bc0"
+sha256 = "5eba6268171a9a139086c76e41aa90be8dd7a78624866885171410a4acca538a"
