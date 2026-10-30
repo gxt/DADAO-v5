@@ -11,7 +11,7 @@
 ## Decision（决策）
 
 - **D1 唯一 BootROM**：非易失启动源只有 `cfx_power`（cfx63）的 BootROM；hmon 没有独立 ROM。power BootROM 把 hmon 镜像复制到 hmon SRAM，设置入口/栈/异常向量后跳转 hmon；hmon 不是独立上电启动。
-- **D2 hmon 最小资源**：hmon 保留自身 cfx3、power cfx63 的复位/所有权、H-mode 异常入口、cg3；可只读 cfx_pmem/PTW 状态用于诊断；不保留普通 IO、cfx_pmem DMA 启动权、普通 pmem SRAM 数据访问。hmon SRAM 固定 **64 KiB**，独立于 power SRAM 和 pmem；布局必须包含代码/数据、启动参数、正常栈、独立的异常栈/紧急栈，禁止动态分配，保证异常/嵌套时仍有空间。
+- **D2 hmon 最小资源**：hmon 保留自身 cfx3、power cfx63 的复位/所有权、H-mode 异常入口、cg3；可只读 cfx_pmem/PTW 状态用于诊断；不保留普通 IO、cfx_pmem DMA 启动权、普通 pmem SRAM 数据访问。hmon SRAM 固定 **64 KiB**，起始地址 `0x0fff_0000_0000`，独立于 power SRAM 和 pmem；布局必须包含代码/数据、启动参数、正常栈、独立的异常栈/紧急栈，禁止动态分配，保证异常/嵌套时仍有空间。
 - **D3 单 hart**：当前固定 hart0 为 boot hart；其它 hart 后置。多 hart 以后用 `boot_hart_id` 硬件选择，非 boot hart 保持 reset。
 - **D4 PTW 默认关**：复位 PTBR=0、`ptw_enable=0`；`addr[47:42]=0` 的 CPU 访存直接 CFXMEM，不设直通 pmem 的启动洞。
 - **D5 第一张页表**：页表只在 pmem；用 `cfx_pmem` 的 64 KiB SRAM + DMA 写到 PA；DMA 完成/错误用 `dma_status`/`PMEM_DMA`；写 PTBR（PPN[55:16]），再置 `ptw_enable=1`。

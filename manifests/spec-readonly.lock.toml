@@ -385,7 +385,8 @@ group = "dadao-1x"
 # 2026-10-29（INTEG-040t，Step 3 TLB/G/A-D/PTWERR，ADR-0041）：§1 cfxha 5 改未分配（TLB 并入 ptw）；§2.2.1/§2.2.2 TLB 查找按页+ASID/G、命中不重读 PTE、成功才填充；§2.2.3/§2.2.4 bit4 保留→G；§2.2.5 A/D 维护与 G 语义；§4.5 增 cg12 TLB 寄存器（control/asid/start/size）+ 失效正交语义 + PTWERR（`1<<7`）；删 §4.6 cfx_tlb 并重编号 4.7–4.13→4.6–4.12；§5.2 TLB 异常并入 cfx_ptw；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-29（SPEC-178t，授权见文件头注释）：§2/§2.1/§2.2/§4.5/§5 与附录的地址分区表述统一为 `addr[47:42]`（纯术语）；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-30（INTEG-042t，Step 4 cfx_pmem SRAM+DMA，ADR-0042；授权 = 派单原话「修改 spec/contracts/QEMU/测试/锁/changelog」）：§1 cfx5=cache、cfx6–14/19–61 reserved；§2.1 cfx_pmem 64 KiB SRAM 地址空间；§3.6 补 `1<<8` PMEM_DMA；§4.9 cfx_pmem 增 SRAM/DMA cg15 寄存器/ERR_CODE/PMEM_DMA 异常；附录 0.7.3-rc 补条目；sha256 同笔重算。
-sha256 = "f11f4a46542fb259f95ea03857bba96a1b57c27d192fba305c8f57537b611fda"
+# 2026-10-30（ADR-0043 启动表）：§2.1 表改为 cfx num/name/起始地址/大小/类型，补 hmon SRAM 0x0fff_0000_0000；sha256 同笔重算。
+sha256 = "8fb607c2e4e3747d34ea777545e56203dc23d2b8245f213a5e689d0035946ac1"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
