@@ -53,7 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| INTEG-042t | 待开始 | 2026-10-30 08:01（登记） | Step 4：cfx_pmem SRAM+DMA（ADR-0042；无 cfxin/cfxout/per-cfx DMA） |
+| INTEG-042t | 已验证 | 2026-10-30 08:01 | Step 4：cfx_pmem 64 KiB SRAM + SRAM↔PA DMA/PMEM_DMA（ADR-0042；探针 23 例） |
 | INTEG-041t | 已验证 | 2026-10-30 00:25 | fence ciii 落地（ADR-0044：0x79/cfxha/pred-succ/移册） |
 | SPEC-178t | 已验证 | 2026-10-29 21:37 | 术语清理：移除地址高 6 位讨论期简写，统一 addr[47:42]/cfxha 表述 |
 | INTEG-040t | 已验证 | 2026-10-29 15:23 | Step 3：TLB 并入 cfx_ptw/16 位 ASID/G/A-D 回写/PTWERR（ADR-0041；探针 34 例） |

@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..f019b1d
+index 0000000..511da1a
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,502 @@
+@@ -0,0 +1,512 @@
 +/*
 + * DADAO M1 bare-metal test machine for QEMU
 + *
@@ -370,7 +370,7 @@ index 0000000..f019b1d
 +static void dadao_m1_init(MachineState *machine)
 +{
 +    DadaoCPU *cpu;
-+    MemoryRegion *ram, *rom, *system_memory;
++    MemoryRegion *ram, *rom, *pmem_sram, *system_memory;
 +    Error *err = NULL;
 +    ssize_t bios_size, kernel_size;
 +    const char *kernel = machine->kernel_filename;
@@ -397,6 +397,16 @@ index 0000000..f019b1d
 +    rom = g_new(MemoryRegion, 1);
 +    memory_region_init_rom(rom, NULL, "dadao-rom", DADAO_ROM_SIZE, &error_fatal);
 +    memory_region_add_subregion(system_memory, DADAO_ROM_BASE, rom);
++
++    /* cfx_pmem SRAM: 64 KiB at a host address outside the 56-bit guest PA
++     * space, so a guest PA can never alias it (DADAO-12 §4.9; ADR-0042 D3).
++     * CPU ld/st reach it through tlb_fill; the cfx_pmem DMA reads/writes it
++     * through the system address space. */
++    pmem_sram = g_new(MemoryRegion, 1);
++    memory_region_init_ram(pmem_sram, NULL, "dadao-pmem-sram",
++                           DADAO_PMEM_SRAM_SIZE, &error_fatal);
++    memory_region_add_subregion(system_memory, DADAO_PMEM_SRAM_HOST_BASE,
++                                pmem_sram);
 +
 +    /* The kernel's magic selects the loading path (ADR-0004 D2.3). */
 +    if (dadao_kernel_is_elf(kernel)) {

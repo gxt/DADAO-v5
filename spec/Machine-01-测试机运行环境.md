@@ -28,6 +28,7 @@ v5 测试机使用的核内地址空间划分如下（均为 48 位核内有效�
 |------|------|------|-----------------|------|
 | **RAM（唯一 RAM 段）** | `0xFC00_0000_0000` | 16 MiB | 63 / `power` | 唯一 RAM 段；供 bootrom/SEE/应用（rev. 2026-10-11 迁入 cfxha 63 段） |
 | **boot ROM** | `0xffff_ffff_0000` | 64 KiB | 63 / `power` | 复位向量 = `cfx_power_hypv_excp_vector`；`-bios` 加载 |
+| **cfx_pmem SRAM** | `0x0000_4400_0000_0000` | 64 KiB | 17 / `pmem` | cfx_pmem 内部偏移 0；CPU 用 `ld/st` 访问，越界 ⇒ `CFXMEM` |
 
 - **RAM 基址口径**：RAM 基址为 `0xFC00_0000_0000`（cfxha 63 / `power`，**唯一 RAM 段**）；复位向量/ROM（`0xffff_ffff_0000`，64 KiB）与 RAM 容量（16 MiB）不变。[ADR-0004 R3 + rev. 2026-10-11]
 - **C1 两步过渡（已收口）+ 基址迁移**：**step1（M5，`QEMU-049t`）** 机器模型**同时映射 RAM@0（新）与旧 RAM 段（`0xffff_0000_0000`，供既有测试）**；**step2（`QEMU-053t`）** 已把既有向量/harness/`crt0`/e2e 迁到 `0`、**删除旧 RAM 段与 exit-port MMIO 设备**；**`QEMU-056t`（rev. 2026-10-11）** 再把唯一 RAM 段基址由全 0 迁到 `0xFC00_0000_0000`（cfxha 63）。**RAM 现为唯一 RAM 段**。[ADR-0020 D15][ADR-0004 R3]
@@ -41,7 +42,7 @@ v5 测试机使用的核内地址空间划分如下（均为 48 位核内有效�
 - **精确路由（地址空间 Step 1）**：
   - `addr[47:42]==0`（内存窗口）且 `ptw_enable=0`：普通访存/取指 ⇒ `CFXMEM`（`0x81`），目标是当前运行模式的 cfx；**不直通物理存储器**。
   - `addr[47:42]==0` 且 `ptw_enable=1`：按单 PTBR 走页表（PTE 格式/页表步进/页权限/TLB 见 `DADAO-12 §2.2.1–§2.2.6`、`§4.5`）；页表步进与 TLB 命中产生的异常都进入 `cfx_ptw`（`cfx4`），`ptw_enable=0` 时仍按上一条报 `CFXMEM`。
-  - 保留 cfx（`7`–`14`、`19`–`61`）的普通 `ld/st` ⇒ `CFXMEM`（`0x81`），目标为该 cfxha；`trap`/`escape` 到保留 cfx 仍为 `ILLI`。
+  - 保留 cfx（`6`–`14`、`19`–`61`）的普通 `ld/st` ⇒ `CFXMEM`（`0x81`），目标为该 cfxha；`trap`/`escape` 到保留 cfx 仍为 `ILLI`。
   - 其余未映射地址（含 `power` 段 63 的 RAM/ROM 之外）⇒ 测试机约定 `unmapped`（`0x87`）。
 - **取指路径同等对待**：越界**取指**与越界**数据访问**同属非法核内地址访问，**均须报异常**，不得只覆盖数据访问路径；不得静默继续或静默丢弃。[ADR-0020 D15]
 - **码表冻结、不得重排**：`ADR-0004 D5.8` 的 fault 码表已冻结；`CFXMEM` 落在表中已保留的 `0x81`–`0x86` 区间（对应 spec cause 位 1–6），**无需新码、无需重排**；`0x87`–`0x8D` 一经冻结不得重排。[ADR-0004 D5.8][ADR-0020 D15]
@@ -70,12 +71,13 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 - `global_cfx_mask` 与指令类型 mask（`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst`/`trap`/`escape` 各自一位）语义：**0=可触发，1=屏蔽**；自身 cfxha 对应位由硬件忽略。[DADAO-12 §3. 共有寄存器设计规范]
 - `switch_cfx_mask` 为陷入时采用的异常掩码（0=可触发，1=屏蔽）；`switch_run_mode` 为陷入时切换的运行模式。[DADAO-12 §3. 共有寄存器设计规范]
-- reserved cfxha（`7`–`14`、`19`–`61`）触发 `ILLI`；cfxha 合法但指令 cfx mask 禁止，同样触发 `ILLI`。[DADAO-12 §5. 异常进入与异常退出]
+- reserved cfxha（`6`–`14`、`19`–`61`）触发 `ILLI`；cfxha 合法但指令 cfx mask 禁止，同样触发 `ILLI`。[DADAO-12 §5. 异常进入与异常退出]
 - `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM` 属于页级/PTW 权限异常：当前运行模式对应的 HSJU 位为 0 时触发（U/J/S/H 分别对应 `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`）；地址转换第一步已不再按 `VA[47:42]` 选择 PTBR，也不再有 PTBR 模式权限位图。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw]
 - **两个权限层次**：PTW 层权限（`NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`，出自 cfx_ptw 异常原因表）与 **cfx 访问权限**（cfx mask 不允许 ⇒ `ILLI`，见 `§5` 异常进入流程）是**不同层次**，不可混同。[ADR-0020 D9][DADAO-12 §4. 专有寄存器设计规范]
 
-- **测试机 cfx 实现范围**：v5 测试机实现 **`cfx0`/`cfx1`/`cfx2`/`cfx3`/`cfx63`**（`umon`/`jmon`/`smon`/`hmon`/`power`）以及 **`cfx4`（`ptw`）的 PTW/TLB 寄存器**（`cfx_ptw_ptbr`、`cfx_ptw_enable`、`cfx_ptw_tlb_*`）、**页表步进**、**TLB 命中/填充/失效**与 **A/D 回写**（`DADAO-12 §2.2`、`§4.5`）；`cfxha 5`（原 `tlb`）未分配，测试机按未实现 cfx 处理（访问其寄存器 ⇒ `CFXREG`）。该范围为**测试机约定**（控制首版成本），**不构成对上游 `DADAO-12`/`DADAO-13` 架构的 cfx 数量/编号限制**。[ADR-0020 D9][DADAO-12 §1. 运行模式与核芯功能扩展]
-- 对**不存在**的核芯功能扩展（其 cfx 寄存器）的访问触发 **`CFXREG`**；reserved cfxha（`7`–`14`/`19`–`61`）仍按 `§5` 触发 `ILLI`。[ADR-0020 D9][DADAO-22 §3. 系统信息（smon）][DADAO-12 §5. 异常进入与异常退出]
+- **测试机 cfx 实现范围**：v5 测试机实现 **`cfx0`/`cfx1`/`cfx2`/`cfx3`/`cfx63`**（`umon`/`jmon`/`smon`/`hmon`/`power`）以及 **`cfx4`（`ptw`）的 PTW/TLB 寄存器**（`cfx_ptw_ptbr`、`cfx_ptw_enable`、`cfx_ptw_tlb_*`）、**页表步进**、**TLB 命中/填充/失效**与 **A/D 回写**（`DADAO-12 §2.2`、`§4.5`）；并实现 **`cfx17`（`pmem`）的 64 KiB SRAM 与 `cg15` DMA**（`DADAO-12 §2.1`、`§4.9`）。`cfx5`（`cache`）为已分配未实现，测试机按未实现 cfx 处理（访问其寄存器 ⇒ `CFXREG`）。该范围为**测试机约定**（控制首版成本），**不构成对上游 `DADAO-12`/`DADAO-13` 架构的 cfx 数量/编号限制**。[ADR-0020 D9][DADAO-12 §1. 运行模式与核芯功能扩展]
+- **测试机 `cfx_pmem` DMA 约定**：DMA 只在 `cfx_pmem` SRAM 与物理存储器之间搬运，异步完成（软件须轮询 `dma_status.BUSY` 或使能 `IRQ_EN`）；DMA 可读 RAM 与 boot ROM、只可写 RAM，其余 PA 属 `PA_FAULT`；`PMEM_DMA`（`1 << 8`）直接投递本 hart 的 `cfx_pmem` 异常入口（单 hart）。[DADAO-12 §4.9][ADR-0042 D7.1–D7.4]
+- 对**不存在**的核芯功能扩展（其 cfx 寄存器）的访问触发 **`CFXREG`**；reserved cfxha（`6`–`14`/`19`–`61`）仍按 `§5` 触发 `ILLI`。[ADR-0020 D9][DADAO-22 §3. 系统信息（smon）][DADAO-12 §5. 异常进入与异常退出]
 
 ---
 
@@ -207,8 +209,11 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 
 ### 0.3.2-rc（未发布）
 
+- 新增 `cfx_pmem` 的 64 KiB SRAM（`0x0000_4400_0000_0000`，cfxha 17、内部偏移 0）与 `cg15` DMA 的测试机约定：DMA 可读 RAM/boot ROM、只可写 RAM。
+- cfx 编号同步：`cfx5`（`cache`）为已分配未实现；保留 cfx 改为 `6`–`14`、`19`–`61`。
+
 - semihosting 入口判定改为 `immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`），原按 `immu18` 高位两比特的判定作废：§4.1/§4.3 的一般 trap / semihosting 分界、§5.1 判定与调用示例同步；`HBI_<name>_INIT`（`0x30001`）落在该区之外，按一般 trap 进入目标 cfx 向量。
-- 地址空间 Step 1：`addr[47:42] = 0` 且 `ptw_enable=0` 的访存/取指 ⇒ `CFXMEM`；保留 cfx（7–14、19–61）的普通 `ld/st` ⇒ `CFXMEM`。
+- 地址空间 Step 1：`addr[47:42] = 0` 且 `ptw_enable=0` 的访存/取指 ⇒ `CFXMEM`；保留 cfx（6–14、19–61）的普通 `ld/st` ⇒ `CFXMEM`。
 - 地址空间 Step 2：`ptw_enable=1` 时按单 PTBR 走两级页表（64 KiB 页 / 512 MiB 超页），检查 HSJU 与 R/W/X，页表异常进入 `cfx_ptw`；A/D 更新与 TLB 不在本版。
 - 测试机 cfx 实现范围增加 `cfx4` 的 Step 1 寄存器子集（唯一 `cfx_ptw_ptbr`、`cfx_ptw_enable`）；删除 PTBR 模式权限位图的描述。
 - 测试机 cfx4 实现范围扩展到页表步进与页权限（Step 2）；A/D 更新、TLB 与 `cfx5` 仍留待后续步骤。

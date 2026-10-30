@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..0e9529f
+index 0000000..4ba6525
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,495 @@
+@@ -0,0 +1,537 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -128,6 +128,24 @@ index 0000000..0e9529f
 +    env->tlb_next = 0;
 +    memset(env->tlb, 0, sizeof(env->tlb));
 +
++    /* cfx_pmem SRAM/DMA reset values (DADAO-12 §4.9; ADR-0042): all zero,
++     * no transfer in flight, no PMEM_DMA pending. */
++#ifndef CONFIG_USER_ONLY
++    dadao_pmem_dma_reset(env);
++#else
++    env->pmem_dma_src = 0;
++    env->pmem_dma_dst = 0;
++    env->pmem_dma_size = 0;
++    env->pmem_dma_ctrl = 0;
++    env->pmem_dma_status = 0;
++    env->pmem_dma_dir = 0;
++    env->pmem_dma_irq_en = 0;
++    env->pmem_dma_irq = false;
++    env->pmem_dma_cfx_off = 0;
++    env->pmem_dma_pa = 0;
++    env->pmem_dma_len = 0;
++#endif
++
 +    /* rd0 hardwired to 0 (already zero from memset) */
 +
 +    /* rb0 = reset vector = cfx_power_hypv_excp_vector = boot ROM base */
@@ -240,6 +258,14 @@ index 0000000..0e9529f
 +                                    DADAO_CAUSE_DGPFTRAP |
 +                                    DADAO_CAUSE_DSPFTRAP;
 +        }
++        /* cfx_pmem's exception table lists only CFXTRAP/CFXMEM/CFXREG as
++         * non-maskable; PMEM_DMA (1 << 8) is maskable (DADAO-12 §4.9;
++         * ADR-0042 D7.4).  The monitor base set above shares bits 8-13 with
++         * asynchronous causes, so the per-cfx table wins here. */
++        if (cfxha == DADAO_CFXHA_PMEM) {
++            r->cause_nonmaskable = DADAO_CAUSE_CFXTRAP | DADAO_CAUSE_CFXMEM |
++                                   DADAO_CAUSE_CFXREG;
++        }
 +        /* cg6 scratch[]/cg7 left 0 (scratch undefined at reset) */
 +    }
 +}
@@ -255,6 +281,10 @@ index 0000000..0e9529f
 +        error_propagate(errp, local_err);
 +        return;
 +    }
++#ifndef CONFIG_USER_ONLY
++    /* cfx_pmem DMA completion timer (DADAO-12 §4.9; ADR-0042). */
++    dadao_pmem_dma_init(cs);
++#endif
 +    qemu_init_vcpu(cs);
 +    cpu_reset(cs);
 +
@@ -433,7 +463,19 @@ index 0000000..0e9529f
 +
 +static bool dadao_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
 +{
-+    /* M1: no interrupts */
++    CPUDADAOState *env = cpu_env(cs);
++
++    /*
++     * The only asynchronous source in this model is the cfx_pmem DMA
++     * completion/error interrupt (PMEM_DMA, DADAO-12 §4.9; ADR-0042 D7.4).
++     * The delivery runs the §5 exception-entry flow asynchronously; when the
++     * cause is masked the flow only records cfx_pmem_excp_pending.
++     */
++    if ((interrupt_request & CPU_INTERRUPT_HARD) && env->pmem_dma_irq) {
++        cpu_reset_interrupt(cs, CPU_INTERRUPT_HARD);
++        dadao_pmem_dma_deliver(env);
++        return true;
++    }
 +    return false;
 +}
 +#endif /* !CONFIG_USER_ONLY */

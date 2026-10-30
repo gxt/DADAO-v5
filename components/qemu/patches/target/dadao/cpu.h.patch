@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..c764f14
+index 0000000..27dea14
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,361 @@
+@@ -0,0 +1,413 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -28,6 +28,7 @@ index 0000000..c764f14
 +#include "cpu-qom.h"
 +#include "exec/cpu-common.h"
 +#include "exec/cpu-interrupt.h"
++#include "qemu/timer.h"
 +#ifndef CONFIG_USER_ONLY
 +#include "system/memory.h"
 +#endif
@@ -146,14 +147,14 @@ index 0000000..c764f14
 +};
 +
 +/* Test-machine implemented cfx set: umon/jmon/smon/hmon/power (ADR-0020 D9,
-+ * Machine-01 §3) plus cfx4/ptw's Step 1 register subset (PTBR + ptw_enable;
-+ * ADR-0039 §8.5 — page-table walk itself stays unimplemented).  Every other
-+ * cfxha either is reserved (7-14, 19-61 => ILLI) or
-+ * allocated-but-unimplemented here (=>> CFXREG). */
-+#define DADAO_NUM_CFX 6
++ * Machine-01 §3) plus cfx4/ptw's PTW/TLB register subset (ADR-0039 §8.5,
++ * ADR-0041) and cfx17/pmem's 64 KiB SRAM + cg15 DMA (ADR-0042 Step 4).  Every
++ * other cfxha either is reserved (6-14, 19-61 => ILLI) or
++ * allocated-but-unimplemented here (=> CFXREG). */
++#define DADAO_NUM_CFX 7
 +extern const int dadao_cfxha_map[DADAO_NUM_CFX]; /* defined in helper.c */
 +
-+#define DADAO_CFX_IS_RESERVED(h)  (((h) >= 7 && (h) <= 14) || \
++#define DADAO_CFX_IS_RESERVED(h)  (((h) >= 6 && (h) <= 14) || \
 +                                   ((h) >= 19 && (h) <= 61))
 +
 +/* Exception cause ids (one-hot, DADAO-12 §4 monitor exception table). */
@@ -186,6 +187,36 @@ index 0000000..c764f14
 +#define DADAO_CAUSE_DSPFTRAP  (1ULL << 23)
 +
 +#define DADAO_CFXHA_PTW        4   /* cfx4 / ptw (DADAO-12 §1) */
++#define DADAO_CFXHA_PMEM       17  /* cfx17 / pmem (DADAO-12 §1) */
++
++/* ── cfx_pmem SRAM + DMA (DADAO-12 §2.1/§4.9; ADR-0042 D3/D4/D6/D7) ─────
++ * The 64 KiB SRAM lives at internal offset 0 of cfx_pmem.  The test machine
++ * backs it with a RAM MemoryRegion mapped at a host address *outside* the
++ * 56-bit guest PA space, so a guest PA can never alias it; the CPU reaches it
++ * through tlb_fill (paddr = DADAO_PMEM_SRAM_HOST_BASE + offset) and the DMA
++ * through the system address space.
++ *
++ * dma_status: bit0 BUSY (RO), bit1 DONE (W1C), bit2 ERROR (W1C),
++ * bits[15:3] ERR_CODE (one-hot, RO). */
++#define DADAO_PMEM_SRAM_SIZE    (64 * 1024)
++#define DADAO_PMEM_SRAM_HOST_BASE  0x0100000000000000ULL
++
++#define DADAO_PMEM_DMA_BUSY     (1ULL << 0)
++#define DADAO_PMEM_DMA_DONE     (1ULL << 1)
++#define DADAO_PMEM_DMA_ERROR    (1ULL << 2)
++#define DADAO_PMEM_DMA_ERR_CODE_SHIFT 3
++#define DADAO_PMEM_DMA_ERR_CODE_MASK  0x1FFFULL   /* status[15:3] */
++/* ERR_CODE one-hot values (spec §4.9); the field holds 13 bits (bit3..15). */
++#define DADAO_PMEM_DMA_ERR_SIZE      (1ULL << 0)
++#define DADAO_PMEM_DMA_ERR_CFX_RANGE (1ULL << 1)
++#define DADAO_PMEM_DMA_ERR_PA_RANGE  (1ULL << 2)
++#define DADAO_PMEM_DMA_ERR_PA_FAULT  (1ULL << 3)
++/* dma_ctrl bits */
++#define DADAO_PMEM_DMA_CTRL_START   (1ULL << 0)   /* self-clearing */
++#define DADAO_PMEM_DMA_CTRL_DIR     (1ULL << 1)   /* 0=CFX->PA, 1=PA->CFX */
++#define DADAO_PMEM_DMA_CTRL_IRQ_EN  (1ULL << 2)
++/* Asynchronous, maskable completion/error interrupt (spec §4.9; ADR-0042 D7.4). */
++#define DADAO_CAUSE_PMEM_DMA    (1ULL << 8)
 +
 +/* ── TLB (DADAO-12 §2.2.1/§4.5; ADR-0041) ─────────────────────────────
 + * The TLB is part of cfx_ptw: there is no separate cfx_tlb, no tlb_enable /
@@ -319,6 +350,23 @@ index 0000000..c764f14
 +    uint64_t tlb_start;
 +    uint64_t tlb_size;
 +    uint64_t tlb_control;   /* write-only command latch (never read back) */
++
++    /* ── cfx_pmem SRAM/DMA (DADAO-12 §4.9; ADR-0042; single hart) ──
++     * cg15 registers plus the latched transfer description captured at START.
++     * The completion is asynchronous (QEMUTimer, virtual clock), so BUSY is
++     * observable; the DMA itself is a single memcpy of at most 64 KiB. */
++    uint64_t pmem_dma_src;
++    uint64_t pmem_dma_dst;
++    uint64_t pmem_dma_size;      /* 30-bit field */
++    uint64_t pmem_dma_ctrl;      /* START always reads 0 */
++    uint64_t pmem_dma_status;
++    uint8_t  pmem_dma_dir;       /* 0 = CFX->PA, 1 = PA->CFX (latched) */
++    uint8_t  pmem_dma_irq_en;    /* latched dma_ctrl.IRQ_EN */
++    bool     pmem_dma_irq;       /* PMEM_DMA pending delivery to cpu_exec_interrupt */
++    uint64_t pmem_dma_cfx_off;   /* latched SRAM offset */
++    uint64_t pmem_dma_pa;        /* latched physical address */
++    uint64_t pmem_dma_len;       /* latched byte count */
++    QEMUTimer *pmem_dma_timer;
 +} CPUDADAOState;
 +
 +/**
@@ -352,6 +400,10 @@ index 0000000..c764f14
 +bool dadao_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
 +                        MMUAccessType access_type, int mmu_idx,
 +                        bool probe, uintptr_t retaddr);
++/* cfx_pmem DMA (DADAO-12 §4.9; ADR-0042) */
++void dadao_pmem_dma_init(CPUState *cs);
++void dadao_pmem_dma_reset(CPUDADAOState *env);
++void dadao_pmem_dma_deliver(CPUDADAOState *env);
 +#endif
 +
 +void dadao_cpu_tcg_init(void);

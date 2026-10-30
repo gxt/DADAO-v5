@@ -384,7 +384,8 @@ group = "dadao-1x"
 # 2026-10-29（INTEG-039t，Step 2 PTE/页表步进/页权限，ADR-0040）：§2.2.1–§2.2.6 按 ADR-0040 收口旧 32 位 PPN/顶部 SPF 布局——64 位 PTE（HSJU/PPN/SPF/GPF/flags）、两级 64 KiB 页表、512 MiB 超页、HSJU+R/W/X、异常优先级与进 cfx_ptw；§4.5 补页表步进引用；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-29（INTEG-040t，Step 3 TLB/G/A-D/PTWERR，ADR-0041）：§1 cfxha 5 改未分配（TLB 并入 ptw）；§2.2.1/§2.2.2 TLB 查找按页+ASID/G、命中不重读 PTE、成功才填充；§2.2.3/§2.2.4 bit4 保留→G；§2.2.5 A/D 维护与 G 语义；§4.5 增 cg12 TLB 寄存器（control/asid/start/size）+ 失效正交语义 + PTWERR（`1<<7`）；删 §4.6 cfx_tlb 并重编号 4.7–4.13→4.6–4.12；§5.2 TLB 异常并入 cfx_ptw；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-29（SPEC-178t，授权见文件头注释）：§2/§2.1/§2.2/§4.5/§5 与附录的地址分区表述统一为 `addr[47:42]`（纯术语）；附录 0.7.3-rc 补条目；sha256 同笔重算。
-sha256 = "ddcd7e6316a6fa46c44b324731589ee6f394ff1b8d37b5dde0f1128f929d87f6"
+# 2026-10-30（INTEG-042t，Step 4 cfx_pmem SRAM+DMA，ADR-0042；授权 = 派单原话「修改 spec/contracts/QEMU/测试/锁/changelog」）：§1 cfx5=cache、cfx6–14/19–61 reserved；§2.1 cfx_pmem 64 KiB SRAM 地址空间；§3.6 补 `1<<8` PMEM_DMA；§4.9 cfx_pmem 增 SRAM/DMA cg15 寄存器/ERR_CODE/PMEM_DMA 异常；附录 0.7.3-rc 补条目；sha256 同笔重算。
+sha256 = "f11f4a46542fb259f95ea03857bba96a1b57c27d192fba305c8f57537b611fda"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -527,4 +528,5 @@ group = "machine-01"
 # 2026-10-29（INTEG-039t，Step 2 同步）：§1.2 ptw_enable=1 改走页表（异常进 cfx_ptw）、§3 NUPERM 触发条件与 cfx4 实现范围（含页表步进、A/D/TLB 留后续）、附录 0.3.2-rc 补条目；sha256 同笔重算。
 # 2026-10-29（INTEG-040t，Step 3 同步）：§1.2 页表/TLB 异常都进 cfx_ptw；§3 实现范围含 TLB 命中/填充/失效与 A/D 回写、cfx5 未分配按未实现处理；附录 0.3.2-rc 补条目；sha256 同笔重算。
 # 2026-10-29（SPEC-178t，授权见文件头注释）：§1 地址分区表述统一为 `addr[47:42]`（纯术语）；附录 0.3.2-rc 补条目；sha256 同笔重算。
-sha256 = "eb5a2d47485205c694c9f15c84f73ef49f3bace410e4d546b81277fb2cf61d51"
+# 2026-10-30（INTEG-042t，Step 4；授权同上）：§1.1 增 cfx_pmem SRAM（0x0000_4400_0000_0000，64 KiB）；§1.2/§3 保留 cfx 改 6–14、19–61，cfx5=cache 已分配未实现，测试机实现 cfx17 SRAM+DMA（PA 可读 RAM/ROM、只写 RAM）；附录 0.3.2-rc 补条目；sha256 同笔重算。
+sha256 = "7b6c7e9dd601fe21ac4685439eee6b0aed67315c3f5a6a9f164f933c09343bc0"

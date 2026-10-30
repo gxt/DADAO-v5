@@ -215,3 +215,7 @@
 - **2026-10-29 INTEG-041t**
   - 摘要：**`fence` 解码/语义迁到 `ciii`（`opc 0x79`）**（`ADR-0044 D1`–`D8`）：`insn.decode` 由 `contracts/opcodes.yaml` 重生成（266 patterns），`trans_ctrl.c.inc` 的 `trans_fence_oiii_imm` 改为 `trans_fence_ciii_cfx(arg_main)`：`ha = cfxha`（0 = all cfx；保留 7–14/19–61 ⇒ ILLI），`hb != 0` ⇒ ILLI；`pred/succ` 六位 `cr/cw/ci/co/mr/mw` 映射到 `TCG_MO_*`，零掩码 no-op。qemu-user 为平坦内存模型，cfx 选择器不额外削弱屏障。**真值**：`check-patch-tree` 205 OK；`semantics_gate` 结构派生 0 差异；`atomics-fence.yaml` **17/17 PASS**（含 hb≠0、reserved cfx、零掩码 no-op）；`build-qemu` rc=0。补丁 **2 份改**（`series` 63）。
   - 执行者：engineer
+
+- **2026-10-30 INTEG-042t**
+  - 摘要：**Step 4：`cfx_pmem` 64 KiB SRAM + SRAM↔PA DMA（ADR-0042）**。测试机把 SRAM 映射为独立 RAM 区（`0x0100_0000_0000_0000`，56 位 PA 之外，guest PA 无法别名），`tlb_fill` 把 cfx17 内部偏移 `0..0xFFFF` 映射过去（越界 ⇒ CFXMEM）；`cfx_reg_ptr` 的测试机 cfx 集合加 `17`，保留 cfx 改 `6`–`14`/`19`–`61`（`cfx5` = cache，未实现 ⇒ CFXREG）。`cg15` rc0–4 = `dma_src`/`dma_dst`/`dma_size`/`dma_ctrl`/`dma_status`：方向位、CFX 低42/PA 低56、size 30 位 `1..2^29`，START 自清并在虚拟时钟定时器上异步完成（BUSY 可观测），setup 错误置 `ERROR|ERR_CODE`（SIZE/CFX_RANGE/PA_RANGE/PA_FAULT），`BUSY` 期间 cg15 写与 DONE/ERROR W1C 被忽略；`PMEM_DMA`（`1<<8`，可屏蔽）经 `cpu_exec_interrupt` 投递到 `cfx_pmem`（被屏蔽只置 pending），`cfx_pmem` 的 `cause_nonmaskable` 按 §4.9 只保留 CFXTRAP/CFXMEM/CFXREG。新增探针 `tools/testcases/arch/min_rom_probe_integ042t.py`（23 例）。
+  - 执行者：engineer

@@ -24,9 +24,8 @@ DADAO定义了四种运行模式，用两位编码：
 | 2 | smon | 处理 supv 模式下的同步异常 |
 | 3 | hmon | 处理 hypv 模式下的同步异常 |
 | 4 | ptw | 页表步进，管理页表与 TLB |
-| 5 | — | 未分配（原 `tlb`，TLB 管理已并入 `ptw`，见 §4.5） |
-| 6 | cache | Cache 管理 |
-| 7-14 | reserved | 保留，未定义 |
+| 5 | cache | Cache 管理 |
+| 6-14 | reserved | 保留，未定义 |
 | 15 | hart | Hart 管理和本地计数 |
 | 16 | llc | 最后一级缓存，跨 hart 共享 |
 | 17 | pmem | 物理存储器管理 |
@@ -65,14 +64,16 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 
 | cfxha      | 地址空间起始地址          | 地址空间大小          | regname |
 | --------  | ------      | --------- | ---------- |
+| 17        |  `0x0000_4400_0000_0000`（cfxha 17、内部偏移 0）  | 64KiB | cfx_pmem SRAM |
 | 63        |  `0xffff_ffff_0000`       | 64KiB             | cfx_power_hypv_excp_vector |
 
 说明：
 
 - cfx_power_hypv_excp_vector 为硬件复位后的启动地址，这部分地址空间可由 CPU 直接取指并执行
 - 对核内地址空间进行非法访问时，会触发对应核芯功能扩展的 CFXMEM 异常。核芯功能扩展由地址高 6 位 `addr[47:42]`（即 cfxha）确定。
-- 保留 cfx（7–14、19–61）的普通 `ld/st` 触发 CFXMEM；`trap`/`escape` 到保留 cfx 触发 ILLI。
-- `cfxha 5` 未分配（原 TLB 管理 `tlb` 已并入 `cfx_ptw`，见 §4.5）；未分配的 cfxha 由实现约定其未实现行为（测试机按未实现 cfx 处理）。
+- 保留 cfx（6–14、19–61）的普通 `ld/st` 触发 CFXMEM；`trap`/`escape` 到保留 cfx 触发 ILLI。
+- cfxha 5 为 `cfx_cache`；未实现的已分配 cfx 由实现约定其未实现行为（测试机按未实现 cfx 处理）。
+- cfx_pmem 的 64 KiB SRAM 固定在内部偏移 0（§4.9），CPU 用普通 `ld/st` 访问；SRAM 之外的核内偏移触发 CFXMEM。
 - 屏障指令 `fence cfxHA, immu18` 用 `cfxHA` 选择资源域：`cfx0` 与 `cfx_umon` 都表示 **all cfx**，`cfx1`–`cfx63` 表示指定 cfx；`immu18` 中的 `cr`/`cw`/`ci`/`co` 位作用于所选 cfx 的 memory/IO 访问，`mr`/`mw` 位作用于系统内存。屏障只约束本 hart 的访问顺序/可见性，不等待 DMA。
 - cfx1–cfx63 的访问权限不在本章定义。
 
@@ -392,7 +393,7 @@ H-mode 寄存器（cg=3）定义见 HEE。
 | 5 | 5 | excp pending | cfx_⟨cfxname⟩_excp_pending | 0 | RW | 待处理异常/中断位图（one-hot，OR语义），写0清位 |
 | 5 | 63 | excp cause nonmaskable | cfx_⟨cfxname⟩_excp_cause_nonmaskable | HW | RO | 不可屏蔽异常掩码，硬件根据异常原因表静态设置 |
 
-所有异常原因编码为 one-hot（64 位），各核芯功能扩展的异常原因表定义该核芯功能扩展可处理的异常位。表中未列出的位属于保留或未使用，若硬件错误触发此类位，表示该核芯功能扩展出现不可恢复的错误。`1 << 3` 至 `1 << 6` 保留用于未来扩展（debug 异常等）；`1 << 7` 由 `cfx_ptw` 用作 `PTWERR`（§4.5），其余核芯功能扩展保留。
+所有异常原因编码为 one-hot（64 位），各核芯功能扩展的异常原因表定义该核芯功能扩展可处理的异常位。表中未列出的位属于保留或未使用，若硬件错误触发此类位，表示该核芯功能扩展出现不可恢复的错误。`1 << 3` 至 `1 << 6` 保留用于未来扩展（debug 异常等）；`1 << 7` 由 `cfx_ptw` 用作 `PTWERR`（§4.5），`1 << 8` 由 `cfx_pmem` 用作 `PMEM_DMA`（§4.9），其余核芯功能扩展保留。
 
 ### 3.7 cg6 - 暂存寄存器
 
@@ -588,6 +589,16 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 
 cfx_pmem 管理物理存储器（Physical Memory, PM）区域，最多支持 64 个不连续 PM 区域。PM 仅指普通 DRAM 存储器，与 device 或 MMIO 无关——device 的存储空间由各设备核芯功能扩展自行管理。
 
+cfx_pmem 内含一段 **64 KiB SRAM**，固定在 cfx_pmem 内部偏移 0（核内地址 = cfxha 17、低 42 位偏移）。CPU 用普通 `ld/st` 同步访问该 SRAM；访问超出 64 KiB 的核内偏移触发 CFXMEM。cfx 访问权限不在本章定义。
+
+SRAM 与物理存储器（PA）之间的块搬运由 cfx_pmem 的 DMA 完成（不新增指令，不设 per-cfx DMA）：
+
+- **方向**：`CFX→PA`（SRAM 读到 PA）或 `PA→CFX`（PA 读到 SRAM）。
+- **地址**：`dma_src`/`dma_dst` 为 64 位；CFX 侧只取低 42 位、PA 侧只取低 56 位，高位**忽略**（不因高位非 0 报错）。
+- **长度**：`dma_size` 为 30 位，合法范围 `1..2^29`（512 MiB）。实际传输还受 64 KiB SRAM 范围、PA 56 位不溢出与目标可访问性约束。
+- **异步**：写 `dma_ctrl.START=1` 后 `dma_status.BUSY=1`，完成后硬件清 BUSY 并置 DONE（或 ERROR）；完成前软件不得复用 SRAM 与寄存器。
+- **单 hart**：`PMEM_DMA` 直接投递到本 hart 的 cfx_pmem 异常入口；多 hart 的接收者规则后续定义。
+
 **专有寄存器表**
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
@@ -596,8 +607,26 @@ cfx_pmem 管理物理存储器（Physical Memory, PM）区域，最多支持 64 
 | 12 | 0-63 | pmem start | cfx_pmem_start[0..63] | 0 | RW | PM区域起始物理地址 |
 | 13 | 0-63 | pmem size | cfx_pmem_size[0..63] | 0 | RW | PM区域大小（0=未使用） |
 | 14 | 0-63 | pmem attr | cfx_pmem_attr[0..63] | 0 | RW | bit0=prefetchable，bit1=coherent |
+| 15 | 0 | dma src | cfx_pmem_dma_src | 0 | RW | 64 位源地址（CFX 侧取低 42 位，PA 侧取低 56 位） |
+| 15 | 1 | dma dst | cfx_pmem_dma_dst | 0 | RW | 64 位目的地址（同上） |
+| 15 | 2 | dma size | cfx_pmem_dma_size | 0 | RW | 传输字节数，30 位，合法 `1..2^29` |
+| 15 | 3 | dma ctrl | cfx_pmem_dma_ctrl | 0 | RW | bit0=START（自清）、bit1=DIR（0=CFX→PA，1=PA→CFX）、bit2=IRQ_EN；其余 SBZ |
+| 15 | 4 | dma status | cfx_pmem_dma_status | 0 | RW | bit0=BUSY（RO）、bit1=DONE（W1C）、bit2=ERROR（W1C）、bit3-15=ERR_CODE（one-hot，RO）；其余保留 |
+
+cg15 其余 rc 保留，读写触发 CFXREG。`dma_ctrl` 写入时 START 自清（读回 0）；`DIR`/`IRQ_EN` 读回最后写入值。`BUSY=1` 期间对 cg15 的 `dma_src`/`dma_dst`/`dma_size`/`dma_ctrl` 写入被忽略（含 START），`dma_status` 的 DONE/ERROR W1C 被忽略；寄存器读出不受影响。`DONE`、`ERROR` 为粘滞位，只由 W1C 清除（`START` 不清除）；`ERROR` W1C 时一并清除 `ERR_CODE`。
 
 多个 PM 区域可以不连续。若区域地址重叠，按编号小的优先级高。硬件访问物理地址时，按 PM 编号从 0 开始匹配，匹配到的第一个区域的属性决定该访问的行为（预取策略、Cache 一致性等）。
+
+**ERR_CODE（`dma_status[15:3]`，one-hot）**
+
+| 位 | 名称 | 触发条件 |
+|----|------|---------|
+| bit3 | SIZE | `dma_size=0` 或 `dma_size > 2^29` |
+| bit4 | CFX_RANGE | CFX 侧地址 + size 超出 64 KiB SRAM 范围 |
+| bit5 | PA_RANGE | PA + size 超出 56 位物理地址空间 |
+| bit6 | PA_FAULT | PA 不属于可访问的物理存储器，或写不可写的物理存储器（如 ROM） |
+
+错误在 `START` 时判定：校验失败的传输不启动（BUSY 保持 0），硬件置 `ERROR` 与对应 `ERR_CODE`。
 
 **异常原因表**
 
@@ -606,6 +635,9 @@ cfx_pmem 管理物理存储器（Physical Memory, PM）区域，最多支持 64 
 | `1 << 0`   | CFXTRAP  | 功能调用      | 否 | 指令编码         |
 | `1 << 1`   | CFXMEM   | 访问核内地址空间或内部存储块故障 | 否 | 访存地址         |
 | `1 << 2`   | CFXREG   | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
+| `1 << 8`   | PMEM_DMA | DMA 完成（DONE）或出错（ERROR） | 可 | `dma_status`（含 `ERR_CODE`） |
+
+`PMEM_DMA` 为异步异常：`dma_ctrl.IRQ_EN=1` 时 `DONE` 或 `ERROR` 置位触发；被掩码屏蔽时对应位置入 `cfx_pmem_excp_pending`（`1 << 8`）。`cause_info` 携带触发时的 `dma_status` 值。
 
 > shareability、inner/outer cacheability 等进阶属性留待多核 SMP 阶段再定义。当前单核 MVP 仅需 prefetchable 和 coherent 位即可满足。
 
@@ -688,7 +720,7 @@ UART寄存器的读写操作通过 `cfx2rd`/`cfx2rc` 指令完成。若寄存器
 
 ### 5.1 指令行为说明
 
-trap/escape/cfxld/cfxst/cfx2rd/cfx2rc 指令可以在任意运行模式下执行（`cfxld`/`cfxst` 当前未启用）。若 cfxha 为 reserved 核芯功能扩展（7-14、19-61），硬件触发 ILLI 异常。对于常见的操作系统而言，并不希望由 user/jail 直接陷入或访问 hmon 到 power 之间的核芯功能扩展，则需要在这些核芯功能扩展的初始化代码中，设置好屏蔽位（缺省为屏蔽）。
+trap/escape/cfxld/cfxst/cfx2rd/cfx2rc 指令可以在任意运行模式下执行（`cfxld`/`cfxst` 当前未启用）。若 cfxha 为 reserved 核芯功能扩展（6-14、19-61），硬件触发 ILLI 异常。对于常见的操作系统而言，并不希望由 user/jail 直接陷入或访问 hmon 到 power 之间的核芯功能扩展，则需要在这些核芯功能扩展的初始化代码中，设置好屏蔽位（缺省为屏蔽）。
 
 escape 指令的第一个参数会指定 cfxha，通常该参数应该和当前的核芯功能扩展编号相同，但是硬件实现并不检查其一致性，因此可以采用不同的核芯功能扩展编号，从而可以跳过多层核芯功能扩展的调用，直接跳到需要返回的指令指针。可以通过检查 `cfx_⟨cfxname⟩_trap_num + cfx_⟨cfxname⟩_excp_sync_num + cfx_⟨cfxname⟩_excp_async_num` 是否与 `cfx_⟨cfxname⟩_escape_num` 匹配，来判断是否有此类现象存在。
 
@@ -710,7 +742,7 @@ X-mode（任意运行模式）下发生异常时，硬件自动执行以下操�
    - 特权指令：
      - trap/cfx2rd/cfx2rc 按 cfxha 路由；
      - cfxld/cfxst 访问 cfx 内部存储块（待启用），仅触发 CFXMEM，按 cfxha 路由
-     - 若 cfxha 为 reserved（7-14、19-61），触发 ILLI 进入当前 monitor；若 cfxha 合法但指令 cfx mask 禁止，同样触发 ILLI
+     - 若 cfxha 为 reserved（6-14、19-61），触发 ILLI 进入当前 monitor；若 cfxha 合法但指令 cfx mask 禁止，同样触发 ILLI
    - 其它指令执行触发的 ILLI/UNDI/RASOF/RASUF/IALIGN/MALIGN 异常：
       - 根据发生异常前的运行模式（U-mode/J-mode/S-mode/H-mode）分别判断进入 cfx_umon/cfx_jmon/cfx_smon/cfx_hmon 核芯功能扩展
    - 页表相关异常（页表步进或 TLB 命中时产生的页缺失、权限不符、fragment 缺失、A/D 回写失败等）：判断应进入 cfx_ptw 核芯功能扩展
@@ -888,6 +920,9 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 ### 0.7.3-rc（未发布）
 
 - 屏障指令 `fence cfxHA, immu18`：`cfx0`/`cfx_umon` 表示 all cfx，`cfx1`–`cfx63` 指定 cfx；资源域顺序只约束本 hart，不等待 DMA。
+- cfx 编号调整：`cfx5` 为 `cache`（原 `cfx6` 迁入）；`cfx6`–`cfx14`、`cfx19`–`cfx61` 保留。
+- `cfx_pmem` 增加 64 KiB SRAM（内部偏移 0，CPU 用 `ld/st` 访问）与 SRAM ↔ 物理存储器 DMA：`cg15` 寄存器 `dma_src`/`dma_dst`/`dma_size`/`dma_ctrl`/`dma_status`；方向 `CFX→PA`/`PA→CFX`，CFX 侧 42 位、PA 侧 56 位（高位忽略），`size` 30 位、合法 `1..2^29`；`START` 自清、`BUSY`/`DONE`/`ERROR`/`ERR_CODE`（W1C 与错误码）异步完成；`BUSY` 期间写寄存器与 W1C 被忽略。
+- `cfx_pmem` 增加异步可屏蔽异常 `PMEM_DMA`（`1 << 8`）：`IRQ_EN=1` 时 `DONE`/`ERROR` 触发，`cause_info` 携带 `dma_status`；被屏蔽时置 `cfx_pmem_excp_pending`。当前单 hart 直接投递 `cfx_pmem`。
 
 - 版本号与 SBI 同步（SBI 删除 `immu18` 保留值 `0x3FFFF`）；本册正文不变。
 - 地址空间改为 48 位 CPU 地址 + 高 6 位分区：`0` 为内存窗口，`1..63` 为 cfx 1–63 核内空间；VA 42 位、PA 56 位，取消 64 位物理地址与高 16 位拼接。

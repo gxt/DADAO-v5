@@ -6,13 +6,13 @@
 # Grammar: scalar <name> <cfxha> [canonical]
 #          reg    <name> <cfxha> <cg> <rc-base> <rc-count> [canonical]
 # Read at run time from <exe-dir>/../share/dadao/cfx-aliases.txt (or $DADAO_CFX_ALIAS_FILE / --dadao-cfx-alias=).
-# scalars=12 regs=821
+# scalars=12 regs=826
 scalar cfx_umon 0 canonical
 scalar cfx_jmon 1 canonical
 scalar cfx_smon 2 canonical
 scalar cfx_hmon 3 canonical
 scalar cfx_ptw 4 canonical
-scalar cfx_cache 6 canonical
+scalar cfx_cache 5 canonical
 scalar cfx_hart 15 canonical
 scalar cfx_llc 16 canonical
 scalar cfx_pmem 17 canonical
@@ -355,75 +355,75 @@ reg cfx_ptw_tlb_control 4 12 0 1 canonical
 reg cfx_ptw_tlb_asid 4 12 1 1 canonical
 reg cfx_ptw_tlb_addr_start 4 12 2 1 canonical
 reg cfx_ptw_tlb_addr_size 4 12 3 1 canonical
-reg cfx_cache_user_global_version 6 0 0 1 canonical
-reg cfx_cache_user_global_cfx_mask 6 0 1 1 canonical
-reg cfx_cache_user_cfx2rd_cfx_mask 6 0 2 1 canonical
-reg cfx_cache_user_cfx2rc_cfx_mask 6 0 3 1 canonical
-reg cfx_cache_user_cfxld_cfx_mask 6 0 4 1 canonical
-reg cfx_cache_user_cfxst_cfx_mask 6 0 5 1 canonical
-reg cfx_cache_user_trap_cfx_mask 6 0 6 1 canonical
-reg cfx_cache_user_escape_cfx_mask 6 0 7 1 canonical
-reg cfx_cache_user_switch_run_mode 6 0 8 1 canonical
-reg cfx_cache_user_switch_cfx_mask 6 0 9 1 canonical
-reg cfx_cache_user_excp_vector 6 0 10 1 canonical
-reg cfx_cache_user_excp_cause_mask 6 0 11 1 canonical
-reg cfx_cache_jail_global_version 6 1 0 1 canonical
-reg cfx_cache_jail_global_cfx_mask 6 1 1 1 canonical
-reg cfx_cache_jail_cfx2rd_cfx_mask 6 1 2 1 canonical
-reg cfx_cache_jail_cfx2rc_cfx_mask 6 1 3 1 canonical
-reg cfx_cache_jail_cfxld_cfx_mask 6 1 4 1 canonical
-reg cfx_cache_jail_cfxst_cfx_mask 6 1 5 1 canonical
-reg cfx_cache_jail_trap_cfx_mask 6 1 6 1 canonical
-reg cfx_cache_jail_escape_cfx_mask 6 1 7 1 canonical
-reg cfx_cache_jail_switch_run_mode 6 1 8 1 canonical
-reg cfx_cache_jail_switch_cfx_mask 6 1 9 1 canonical
-reg cfx_cache_jail_excp_vector 6 1 10 1 canonical
-reg cfx_cache_jail_excp_cause_mask 6 1 11 1 canonical
-reg cfx_cache_supv_global_version 6 2 0 1 canonical
-reg cfx_cache_supv_global_cfx_mask 6 2 1 1 canonical
-reg cfx_cache_supv_cfx2rd_cfx_mask 6 2 2 1 canonical
-reg cfx_cache_supv_cfx2rc_cfx_mask 6 2 3 1 canonical
-reg cfx_cache_supv_cfxld_cfx_mask 6 2 4 1 canonical
-reg cfx_cache_supv_cfxst_cfx_mask 6 2 5 1 canonical
-reg cfx_cache_supv_trap_cfx_mask 6 2 6 1 canonical
-reg cfx_cache_supv_escape_cfx_mask 6 2 7 1 canonical
-reg cfx_cache_supv_switch_run_mode 6 2 8 1 canonical
-reg cfx_cache_supv_switch_cfx_mask 6 2 9 1 canonical
-reg cfx_cache_supv_excp_vector 6 2 10 1 canonical
-reg cfx_cache_supv_excp_cause_mask 6 2 11 1 canonical
-reg cfx_cache_hypv_global_version 6 3 0 1 canonical
-reg cfx_cache_hypv_global_cfx_mask 6 3 1 1 canonical
-reg cfx_cache_hypv_cfx2rd_cfx_mask 6 3 2 1 canonical
-reg cfx_cache_hypv_cfx2rc_cfx_mask 6 3 3 1 canonical
-reg cfx_cache_hypv_cfxld_cfx_mask 6 3 4 1 canonical
-reg cfx_cache_hypv_cfxst_cfx_mask 6 3 5 1 canonical
-reg cfx_cache_hypv_trap_cfx_mask 6 3 6 1 canonical
-reg cfx_cache_hypv_escape_cfx_mask 6 3 7 1 canonical
-reg cfx_cache_hypv_switch_run_mode 6 3 8 1 canonical
-reg cfx_cache_hypv_switch_cfx_mask 6 3 9 1 canonical
-reg cfx_cache_hypv_excp_vector 6 3 10 1 canonical
-reg cfx_cache_hypv_excp_cause_mask 6 3 11 1 canonical
-reg cfx_cache_hypv_cg_reg_deleg 6 3 12 1 canonical
-reg cfx_cache_cfx_id 6 4 0 1 canonical
-reg cfx_cache_version 6 4 1 1 canonical
-reg cfx_cache_trap_num 6 4 2 1 canonical
-reg cfx_cache_excp_sync_num 6 4 3 1 canonical
-reg cfx_cache_excp_async_num 6 4 4 1 canonical
-reg cfx_cache_escape_num 6 4 5 1 canonical
-reg cfx_cache_scratch_regs_num 6 4 6 1 canonical
-reg cfx_cache_excp_prev_run_mode 6 5 0 1 canonical
-reg cfx_cache_excp_prev_cfx_mask 6 5 1 1 canonical
-reg cfx_cache_excp_cause_id 6 5 2 1 canonical
-reg cfx_cache_excp_cause_ip 6 5 3 1 canonical
-reg cfx_cache_excp_cause_info 6 5 4 1 canonical
-reg cfx_cache_excp_pending 6 5 5 1 canonical
-reg cfx_cache_excp_cause_nonmaskable 6 5 63 1 canonical
-reg cfx_cache_scratch_regs 6 6 0 64 canonical
-reg cfx_cache_sram_block_sel 6 7 0 1 canonical
-reg cfx_cache_sram_addr 6 7 1 1 canonical
-reg cfx_cache_exist 6 8 0 1 canonical
-reg cfx_cache_enable 6 8 8 1 canonical
-reg cfx_cache_ctrl 6 8 9 1 canonical
+reg cfx_cache_user_global_version 5 0 0 1 canonical
+reg cfx_cache_user_global_cfx_mask 5 0 1 1 canonical
+reg cfx_cache_user_cfx2rd_cfx_mask 5 0 2 1 canonical
+reg cfx_cache_user_cfx2rc_cfx_mask 5 0 3 1 canonical
+reg cfx_cache_user_cfxld_cfx_mask 5 0 4 1 canonical
+reg cfx_cache_user_cfxst_cfx_mask 5 0 5 1 canonical
+reg cfx_cache_user_trap_cfx_mask 5 0 6 1 canonical
+reg cfx_cache_user_escape_cfx_mask 5 0 7 1 canonical
+reg cfx_cache_user_switch_run_mode 5 0 8 1 canonical
+reg cfx_cache_user_switch_cfx_mask 5 0 9 1 canonical
+reg cfx_cache_user_excp_vector 5 0 10 1 canonical
+reg cfx_cache_user_excp_cause_mask 5 0 11 1 canonical
+reg cfx_cache_jail_global_version 5 1 0 1 canonical
+reg cfx_cache_jail_global_cfx_mask 5 1 1 1 canonical
+reg cfx_cache_jail_cfx2rd_cfx_mask 5 1 2 1 canonical
+reg cfx_cache_jail_cfx2rc_cfx_mask 5 1 3 1 canonical
+reg cfx_cache_jail_cfxld_cfx_mask 5 1 4 1 canonical
+reg cfx_cache_jail_cfxst_cfx_mask 5 1 5 1 canonical
+reg cfx_cache_jail_trap_cfx_mask 5 1 6 1 canonical
+reg cfx_cache_jail_escape_cfx_mask 5 1 7 1 canonical
+reg cfx_cache_jail_switch_run_mode 5 1 8 1 canonical
+reg cfx_cache_jail_switch_cfx_mask 5 1 9 1 canonical
+reg cfx_cache_jail_excp_vector 5 1 10 1 canonical
+reg cfx_cache_jail_excp_cause_mask 5 1 11 1 canonical
+reg cfx_cache_supv_global_version 5 2 0 1 canonical
+reg cfx_cache_supv_global_cfx_mask 5 2 1 1 canonical
+reg cfx_cache_supv_cfx2rd_cfx_mask 5 2 2 1 canonical
+reg cfx_cache_supv_cfx2rc_cfx_mask 5 2 3 1 canonical
+reg cfx_cache_supv_cfxld_cfx_mask 5 2 4 1 canonical
+reg cfx_cache_supv_cfxst_cfx_mask 5 2 5 1 canonical
+reg cfx_cache_supv_trap_cfx_mask 5 2 6 1 canonical
+reg cfx_cache_supv_escape_cfx_mask 5 2 7 1 canonical
+reg cfx_cache_supv_switch_run_mode 5 2 8 1 canonical
+reg cfx_cache_supv_switch_cfx_mask 5 2 9 1 canonical
+reg cfx_cache_supv_excp_vector 5 2 10 1 canonical
+reg cfx_cache_supv_excp_cause_mask 5 2 11 1 canonical
+reg cfx_cache_hypv_global_version 5 3 0 1 canonical
+reg cfx_cache_hypv_global_cfx_mask 5 3 1 1 canonical
+reg cfx_cache_hypv_cfx2rd_cfx_mask 5 3 2 1 canonical
+reg cfx_cache_hypv_cfx2rc_cfx_mask 5 3 3 1 canonical
+reg cfx_cache_hypv_cfxld_cfx_mask 5 3 4 1 canonical
+reg cfx_cache_hypv_cfxst_cfx_mask 5 3 5 1 canonical
+reg cfx_cache_hypv_trap_cfx_mask 5 3 6 1 canonical
+reg cfx_cache_hypv_escape_cfx_mask 5 3 7 1 canonical
+reg cfx_cache_hypv_switch_run_mode 5 3 8 1 canonical
+reg cfx_cache_hypv_switch_cfx_mask 5 3 9 1 canonical
+reg cfx_cache_hypv_excp_vector 5 3 10 1 canonical
+reg cfx_cache_hypv_excp_cause_mask 5 3 11 1 canonical
+reg cfx_cache_hypv_cg_reg_deleg 5 3 12 1 canonical
+reg cfx_cache_cfx_id 5 4 0 1 canonical
+reg cfx_cache_version 5 4 1 1 canonical
+reg cfx_cache_trap_num 5 4 2 1 canonical
+reg cfx_cache_excp_sync_num 5 4 3 1 canonical
+reg cfx_cache_excp_async_num 5 4 4 1 canonical
+reg cfx_cache_escape_num 5 4 5 1 canonical
+reg cfx_cache_scratch_regs_num 5 4 6 1 canonical
+reg cfx_cache_excp_prev_run_mode 5 5 0 1 canonical
+reg cfx_cache_excp_prev_cfx_mask 5 5 1 1 canonical
+reg cfx_cache_excp_cause_id 5 5 2 1 canonical
+reg cfx_cache_excp_cause_ip 5 5 3 1 canonical
+reg cfx_cache_excp_cause_info 5 5 4 1 canonical
+reg cfx_cache_excp_pending 5 5 5 1 canonical
+reg cfx_cache_excp_cause_nonmaskable 5 5 63 1 canonical
+reg cfx_cache_scratch_regs 5 6 0 64 canonical
+reg cfx_cache_sram_block_sel 5 7 0 1 canonical
+reg cfx_cache_sram_addr 5 7 1 1 canonical
+reg cfx_cache_exist 5 8 0 1 canonical
+reg cfx_cache_enable 5 8 8 1 canonical
+reg cfx_cache_ctrl 5 8 9 1 canonical
 reg cfx_hart_user_global_version 15 0 0 1 canonical
 reg cfx_hart_user_global_cfx_mask 15 0 1 1 canonical
 reg cfx_hart_user_cfx2rd_cfx_mask 15 0 2 1 canonical
@@ -635,6 +635,11 @@ reg cfx_pmem_exist 17 8 0 1 canonical
 reg cfx_pmem_start 17 12 0 64 canonical
 reg cfx_pmem_size 17 13 0 64 canonical
 reg cfx_pmem_attr 17 14 0 64 canonical
+reg cfx_pmem_dma_src 17 15 0 1 canonical
+reg cfx_pmem_dma_dst 17 15 1 1 canonical
+reg cfx_pmem_dma_size 17 15 2 1 canonical
+reg cfx_pmem_dma_ctrl 17 15 3 1 canonical
+reg cfx_pmem_dma_status 17 15 4 1 canonical
 reg cfx_time_user_global_version 18 0 0 1 canonical
 reg cfx_time_user_global_cfx_mask 18 0 1 1 canonical
 reg cfx_time_user_cfx2rd_cfx_mask 18 0 2 1 canonical

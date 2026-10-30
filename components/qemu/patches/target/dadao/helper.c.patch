@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..5c5adb6
+index 0000000..05c4c18
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,1799 @@
+@@ -0,0 +1,2104 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -25,6 +25,8 @@ index 0000000..5c5adb6
 +#include "qemu/osdep.h"
 +#include "qemu/log.h"
 +#include "qemu/error-report.h"
++#include "qemu/timer.h"
++#include "hw/core/cpu.h"
 +#include "cpu.h"
 +#ifndef CONFIG_USER_ONLY
 +#include "system/runstate.h"
@@ -681,6 +683,27 @@ index 0000000..5c5adb6
 +        dadao_tlb_touch(e, access_type);
 +        prot = dadao_tlb_prot(e);
 +        goto map;
++    }
++
++    /* cfx_pmem (cfx17): the 64 KiB SRAM window at internal offset 0
++     * (DADAO-12 §2.1/§4.9; ADR-0042 D3).  The test machine backs it with a
++     * RAM region at a host address outside the 56-bit PA space.  An offset
++     * outside the SRAM is an illegal internal-space access => CFXMEM. */
++    if (cfxha == DADAO_CFXHA_PMEM) {
++        uint64_t off = addr & DADAO_VA_MASK;
++
++        if (off < DADAO_PMEM_SRAM_SIZE) {
++            paddr = DADAO_PMEM_SRAM_HOST_BASE + off;
++            prot = PAGE_READ | PAGE_WRITE;
++            goto map;
++        }
++        if (probe) {
++            return false;
++        }
++        cs->exception_index = DADAO_EXCP_CFXMEM;
++        cpu_loop_exit_restore(cs, retaddr);
++        /* not reached */
++        return false;
 +    }
 +
 +    /* RAM (ADR-0004 R3 + rev. 2026-10-11): the single 16 MiB RAM at
@@ -1356,7 +1379,7 @@ index 0000000..5c5adb6
 + * cfx => CFXREG.
 + * =================================================================== */
 +
-+const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 4, 63 };
++const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 4, 17, 63 };
 +
 +/* cfxha -> compact index into env->cfx[], or -1 if not implemented here. */
 +static int cfx_idx(int cfxha)
@@ -1598,6 +1621,261 @@ index 0000000..5c5adb6
 +    env->rb[0] = env->pc;
 +}
 +
++/* ===================================================================
++ * cfx_pmem SRAM + DMA (spec/DADAO-12 §2.1/§4.9; ADR-0042 D3/D4/D6/D7)
++ *
++ * The DMA moves at most 64 KiB between the cfx_pmem SRAM and physical memory.
++ * Registers are cfx_pmem cg15 rc0..rc4; START launches the transfer, which
++ * completes asynchronously on a virtual-clock timer so that BUSY is
++ * observable (the transfer itself is one memcpy).
++ * =================================================================== */
++#ifndef CONFIG_USER_ONLY
++
++/* Completion latency of the test-machine DMA (virtual clock). */
++#define DADAO_PMEM_DMA_DELAY_NS  1000000ULL   /* 1 ms */
++
++static bool dadao_pmem_dma_pa_ok(uint64_t pa, uint64_t len, bool write)
++{
++    uint64_t end = pa + len;
++
++    if (pa >= DADAO_RAM_BASE && end <= DADAO_RAM_BASE + DADAO_RAM_SIZE) {
++        return true;
++    }
++    /* The boot ROM is readable, never writable. */
++    if (!write && pa >= DADAO_ROM_BASE && end <= DADAO_ROM_BASE + DADAO_ROM_SIZE) {
++        return true;
++    }
++    return false;
++}
++
++static void dadao_pmem_dma_complete(void *opaque)
++{
++    CPUState *cs = opaque;
++    CPUDADAOState *env = cpu_env(cs);
++    g_autofree uint8_t *buf = NULL;
++    MemTxResult res;
++    bool dir = env->pmem_dma_dir;
++    uint64_t err = 0;
++
++    if (!(env->pmem_dma_status & DADAO_PMEM_DMA_BUSY)) {
++        return;                       /* defensive: no transfer in flight */
++    }
++
++    buf = g_malloc(env->pmem_dma_len);
++    if (dir == 0) {
++        /* CFX -> PA */
++        res = address_space_read(&address_space_memory,
++                                 DADAO_PMEM_SRAM_HOST_BASE + env->pmem_dma_cfx_off,
++                                 MEMTXATTRS_UNSPECIFIED, buf, env->pmem_dma_len);
++        if (res == MEMTX_OK) {
++            res = address_space_write(&address_space_memory, env->pmem_dma_pa,
++                                      MEMTXATTRS_UNSPECIFIED, buf,
++                                      env->pmem_dma_len);
++        }
++    } else {
++        /* PA -> CFX */
++        res = address_space_read(&address_space_memory, env->pmem_dma_pa,
++                                 MEMTXATTRS_UNSPECIFIED, buf, env->pmem_dma_len);
++        if (res == MEMTX_OK) {
++            res = address_space_write(&address_space_memory,
++                                      DADAO_PMEM_SRAM_HOST_BASE + env->pmem_dma_cfx_off,
++                                      MEMTXATTRS_UNSPECIFIED, buf,
++                                      env->pmem_dma_len);
++        }
++    }
++
++    env->pmem_dma_status &= ~DADAO_PMEM_DMA_BUSY;
++    if (res != MEMTX_OK) {
++        err = DADAO_PMEM_DMA_ERR_PA_FAULT;
++        env->pmem_dma_status |= DADAO_PMEM_DMA_ERROR |
++                                (err << DADAO_PMEM_DMA_ERR_CODE_SHIFT);
++    } else {
++        env->pmem_dma_status |= DADAO_PMEM_DMA_DONE;
++    }
++
++    if (env->pmem_dma_irq_en) {
++        env->pmem_dma_irq = true;
++        cpu_interrupt(cs, CPU_INTERRUPT_HARD);
++    }
++}
++
++/*
++ * START (dma_ctrl bit0): validate size / SRAM range / PA range / PA target.
++ * Setup errors never start a transfer (BUSY stays 0) and set ERROR + ERR_CODE.
++ */
++static void dadao_pmem_dma_start(CPUDADAOState *env, uint64_t ctrl)
++{
++    uint64_t dir = (ctrl & DADAO_PMEM_DMA_CTRL_DIR) ? 1 : 0;
++    uint64_t cfx_addr = (dir ? env->pmem_dma_dst : env->pmem_dma_src) &
++                        DADAO_VA_MASK;
++    uint64_t pa = (dir ? env->pmem_dma_src : env->pmem_dma_dst) &
++                  0x00FFFFFFFFFFFFFFULL;              /* PA[55:0] */
++    uint64_t size = env->pmem_dma_size & 0x3FFFFFFFULL;  /* 30-bit field */
++    uint64_t err = 0;
++
++    if (size == 0 || size > (1ULL << 29)) {
++        err = DADAO_PMEM_DMA_ERR_SIZE;
++    } else if (cfx_addr + size > DADAO_PMEM_SRAM_SIZE) {
++        err = DADAO_PMEM_DMA_ERR_CFX_RANGE;
++    } else if (size > (1ULL << 56) - pa) {
++        err = DADAO_PMEM_DMA_ERR_PA_RANGE;
++    } else if (!dadao_pmem_dma_pa_ok(pa, size, dir == 0)) {
++        err = DADAO_PMEM_DMA_ERR_PA_FAULT;
++    }
++
++    if (err) {
++        env->pmem_dma_status |= DADAO_PMEM_DMA_ERROR |
++                                (err << DADAO_PMEM_DMA_ERR_CODE_SHIFT);
++        if (env->pmem_dma_irq_en) {
++            env->pmem_dma_irq = true;
++            cpu_interrupt(env_cpu(env), CPU_INTERRUPT_HARD);
++        }
++        return;
++    }
++
++    env->pmem_dma_dir = dir;
++    env->pmem_dma_cfx_off = cfx_addr;
++    env->pmem_dma_pa = pa;
++    env->pmem_dma_len = size;
++    env->pmem_dma_status |= DADAO_PMEM_DMA_BUSY;
++    timer_mod(env->pmem_dma_timer,
++              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + DADAO_PMEM_DMA_DELAY_NS);
++}
++
++/* cfx_pmem cg15 read (rc0..rc4).  Returns false for a reserved rc (CFXREG). */
++static bool dadao_pmem_dma_reg_read(CPUDADAOState *env, uint32_t rc,
++                                    uint64_t *val)
++{
++    switch (rc) {
++    case 0: *val = env->pmem_dma_src; return true;
++    case 1: *val = env->pmem_dma_dst; return true;
++    case 2: *val = env->pmem_dma_size & 0x3FFFFFFFULL; return true;
++    case 3: *val = env->pmem_dma_ctrl & ~DADAO_PMEM_DMA_CTRL_START; return true;
++    case 4: *val = env->pmem_dma_status; return true;
++    default: return false;
++    }
++}
++
++/*
++ * cfx_pmem cg15 write (rc0..rc4).  While BUSY, writes to rc0..rc3 and the
++ * DONE/ERROR W1C of rc4 are ignored (DADAO-12 §4.9).  Returns false for a
++ * reserved rc (CFXREG).
++ */
++static bool dadao_pmem_dma_reg_write(CPUDADAOState *env, uint32_t rc,
++                                     uint64_t val)
++{
++    bool busy = (env->pmem_dma_status & DADAO_PMEM_DMA_BUSY) != 0;
++
++    switch (rc) {
++    case 0:
++        if (!busy) {
++            env->pmem_dma_src = val;
++        }
++        return true;
++    case 1:
++        if (!busy) {
++            env->pmem_dma_dst = val;
++        }
++        return true;
++    case 2:
++        if (!busy) {
++            env->pmem_dma_size = val & 0x3FFFFFFFULL;
++        }
++        return true;
++    case 3:
++        if (busy) {
++            return true;
++        }
++        /* START self-clears; DIR/IRQ_EN read back what was written. */
++        env->pmem_dma_ctrl = val & (DADAO_PMEM_DMA_CTRL_DIR |
++                                    DADAO_PMEM_DMA_CTRL_IRQ_EN);
++        env->pmem_dma_irq_en = (val & DADAO_PMEM_DMA_CTRL_IRQ_EN) ? 1 : 0;
++        if (val & DADAO_PMEM_DMA_CTRL_START) {
++            dadao_pmem_dma_start(env, val);
++        }
++        return true;
++    case 4:
++        if (busy) {
++            return true;              /* W1C ignored while BUSY */
++        }
++        if (val & DADAO_PMEM_DMA_DONE) {
++            env->pmem_dma_status &= ~DADAO_PMEM_DMA_DONE;
++        }
++        if (val & DADAO_PMEM_DMA_ERROR) {
++            env->pmem_dma_status &= ~(DADAO_PMEM_DMA_ERROR |
++                                      DADAO_PMEM_DMA_ERR_CODE_MASK);
++        }
++        return true;
++    default:
++        return false;
++    }
++}
++
++/* Async PMEM_DMA delivery: run the §5 entry flow with cause_info=dma_status;
++ * when masked the flow records cfx_pmem_excp_pending and we stay put. */
++void dadao_pmem_dma_deliver(CPUDADAOState *env)
++{
++    bool entered = false;
++    uint64_t vec;
++
++    env->pmem_dma_irq = false;
++    vec = cfx_enter(env, DADAO_CAUSE_PMEM_DMA, DADAO_CFXHA_PMEM, env->pc,
++                    env->pmem_dma_status, false, &entered);
++    if (entered) {
++        env->pc = vec;
++        env->rb[0] = vec;
++    }
++}
++
++void dadao_pmem_dma_init(CPUState *cs)
++{
++    CPUDADAOState *env = cpu_env(cs);
++
++    env->pmem_dma_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
++                                       dadao_pmem_dma_complete, cs);
++}
++
++void dadao_pmem_dma_reset(CPUDADAOState *env)
++{
++    if (env->pmem_dma_timer) {
++        timer_del(env->pmem_dma_timer);
++    }
++    env->pmem_dma_src = 0;
++    env->pmem_dma_dst = 0;
++    env->pmem_dma_size = 0;
++    env->pmem_dma_ctrl = 0;
++    env->pmem_dma_status = 0;
++    env->pmem_dma_dir = 0;
++    env->pmem_dma_irq_en = 0;
++    env->pmem_dma_irq = false;
++    env->pmem_dma_cfx_off = 0;
++    env->pmem_dma_pa = 0;
++    env->pmem_dma_len = 0;
++}
++
++#else /* CONFIG_USER_ONLY */
++
++/*
++ * The linux-user build has no system address space and no cfx internal SRAM:
++ * the cfx_pmem cg15 interface is withheld explicitly (CFXREG), never a
++ * silent success.
++ */
++static bool dadao_pmem_dma_reg_read(CPUDADAOState *env, uint32_t rc,
++                                    uint64_t *val)
++{
++    (void)env; (void)rc; (void)val;
++    return false;
++}
++
++static bool dadao_pmem_dma_reg_write(CPUDADAOState *env, uint32_t rc,
++                                     uint64_t val)
++{
++    (void)env; (void)rc; (void)val;
++    return false;
++}
++
++#endif /* !CONFIG_USER_ONLY */
++
 +/* trap cfxha, immu18 : general trap (not the semihosting tag) -> §5 flow.
 + * Semihosting (immu18[17:8] == 0x3FF, i.e. 0x3FF00-0x3FFFF) is handled by the
 + * decode-layer short-circuit (trans_trap_ciii_cfx -> DADAO_EXCP_SEMIHOST,
@@ -1707,6 +1985,21 @@ index 0000000..5c5adb6
 +        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
 +        return;
 +    }
++    /* cfx_pmem cg15: DMA registers (DADAO-12 §4.9; ADR-0042 D7.3). */
++    if (cg == 15 && dadao_cfxha_map[ci] == DADAO_CFXHA_PMEM) {
++        uint64_t v;
++
++        if (!dadao_pmem_dma_reg_read(env, rc, &v)) {
++            cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++            return;
++        }
++        if (rd != 0) {
++            env->rd[rd] = v;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
++        return;
++    }
 +    p = cfx_reg_ptr(env, ci, cg, rc, false);
 +    if (!p) {
 +        cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
@@ -1741,6 +2034,18 @@ index 0000000..5c5adb6
 +    }
 +    if (ci < 0) {
 +        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++        return;
++    }
++    /* cfx_pmem cg15: DMA registers (DADAO-12 §4.9; ADR-0042 D7.3). */
++    if (cg == 15 && dadao_cfxha_map[ci] == DADAO_CFXHA_PMEM) {
++        uint64_t v = (rd == 0) ? 0 : env->rd[rd];
++
++        if (!dadao_pmem_dma_reg_write(env, rc, v)) {
++            cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++            return;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
 +        return;
 +    }
 +    p = cfx_reg_ptr(env, ci, cg, rc, true);
