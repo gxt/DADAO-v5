@@ -1,8 +1,8 @@
 # ADR-0042: CFX 核内空间与 cfx_pmem DMA
 
-**状态**：Proposed
+**状态**：Accepted
 **日期**：2026-10-30
-**关联**：ADR-0039（地址空间）、ADR-0044（fence）；`spec/DADAO-12` §1/§2.1/§2.2；任务（Step 4，待立）
+**关联**：ADR-0039（地址空间）、ADR-0044（fence）；`spec/DADAO-12` §1/§2.1/§2.2；任务 `INTEG-042t`（Step 4）
 
 ## Context（背景）
 
