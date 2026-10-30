@@ -53,6 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INTEG-045t | 待开始 | 2026-10-30 20:41（登记） | cfx 指令清理：reserved 规则/删 cfxld-cfxst/fence 宏表 |
 | INTEG-044t | 已验证 | 2026-10-30 18:39 | CFX 两轴权限模型落地（ADR-0045） |
 | INTEG-043t | 已验证 | 2026-10-30 11:06 | cfx_pmem SRAM 内偏移迁 0x3ff_0000_0000（核内 0x47ff_0000_0000；QEMU/探针 25 例/锁） |
 | INTEG-042t | 已验证 | 2026-10-30 08:01 | Step 4：cfx_pmem 64 KiB SRAM + SRAM↔PA DMA/PMEM_DMA（ADR-0042；探针 23 例） |
