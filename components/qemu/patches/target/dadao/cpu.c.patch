@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..14b5acb
+index 0000000..d680eb5
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,532 @@
+@@ -0,0 +1,552 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -431,6 +431,26 @@ index 0000000..14b5acb
 +    if ((addr >= DADAO_RAM_BASE && addr < DADAO_RAM_BASE + DADAO_RAM_SIZE) ||
 +        (addr >= DADAO_ROM_BASE && addr < DADAO_ROM_BASE + DADAO_ROM_SIZE)) {
 +        result->physaddr = addr;
++        result->attrs = MEMTXATTRS_UNSPECIFIED;
++        result->attrs.debug = 1;
++        result->lg_page_size = TARGET_PAGE_BITS;
++        return true;
++    }
++    /* hmon / smon SRAM live outside the 56-bit PA space, but semihosting runs
++     * in every boot stage and reads its argument block through this hook. */
++    if (addr >= DADAO_HMON_CFX_BASE &&
++        addr < DADAO_HMON_CFX_BASE + DADAO_MON_SRAM_SIZE) {
++        result->physaddr = DADAO_HMON_SRAM_HOST_BASE +
++                           (addr - DADAO_HMON_CFX_BASE);
++        result->attrs = MEMTXATTRS_UNSPECIFIED;
++        result->attrs.debug = 1;
++        result->lg_page_size = TARGET_PAGE_BITS;
++        return true;
++    }
++    if (addr >= DADAO_SMON_CFX_BASE &&
++        addr < DADAO_SMON_CFX_BASE + DADAO_MON_SRAM_SIZE) {
++        result->physaddr = DADAO_SMON_SRAM_HOST_BASE +
++                           (addr - DADAO_SMON_CFX_BASE);
 +        result->attrs = MEMTXATTRS_UNSPECIFIED;
 +        result->attrs.debug = 1;
 +        result->lg_page_size = TARGET_PAGE_BITS;

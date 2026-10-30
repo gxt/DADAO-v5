@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..a765107
+index 0000000..e18acb2
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,431 @@
+@@ -0,0 +1,454 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -97,8 +97,18 @@ index 0000000..a765107
 + * D8). */
 +#define DADAO_RAM_BASE      0xFC0000000000ULL
 +#define DADAO_RAM_SIZE      (16 * 1024 * 1024)  /* 16 MiB */
-+#define DADAO_ROM_BASE      0xffffffff0000ULL
-+#define DADAO_ROM_SIZE      (64 * 1024)          /* 64 KiB */
++/* Boot ROM geometry (ADR-0043 D1/D2): the single non-volatile BootROM is
++ * 256 KiB at 0xffff_fffc_0000..0xffff_ffff_ffff.  The reset vector stays at
++ * 0xffff_ffff_0000 (the image's 0x3_0000 offset); the legacy `-bios` path
++ * keeps loading its 64 KiB trampoline into that same reset window. */
++#define DADAO_ROM_BASE      0xFFFFFFFC0000ULL
++#define DADAO_ROM_SIZE      (256 * 1024)         /* 256 KiB */
++#define DADAO_BIOS_LOAD_BASE 0xffffffff0000ULL   /* legacy -bios reset window */
++#define DADAO_BIOS_WINDOW_SIZE (64 * 1024)       /* legacy -bios limit */
++/* PA 0 aliases the first 16 MiB of the RAM region (ADR-0043 D10: the first
++ * page table lives at PA 0 / PTBR=0; page-table reads and cfx_pmem DMA accept
++ * the low alias as well as DADAO_RAM_BASE). */
++#define DADAO_RAM_ALIAS_BASE 0x000000000000ULL
 +
 +/* Internal address space: cfxha = addr[47:42] (DADAO-12 §2.1).  addr[47:42]
 + * == 0 is the memory window: with ptw_enable == 0 an access/fetch there is a
@@ -133,7 +143,7 @@ index 0000000..a765107
 +#define DADAO_CFXHA_MEM     0
 +
 +/* Reset values (per ADR-0004 D2) */
-+#define DADAO_RESET_PC      DADAO_ROM_BASE
++#define DADAO_RESET_PC      DADAO_BIOS_LOAD_BASE
 +#define DADAO_RESET_RF0     0x7FF800007FC00000ULL
 +
 +/* ===================================================================
@@ -210,6 +220,19 @@ index 0000000..a765107
 +#define DADAO_PMEM_SRAM_SIZE    (64 * 1024)
 +#define DADAO_PMEM_SRAM_CFX_OFFSET 0x3FF00000000ULL
 +#define DADAO_PMEM_SRAM_HOST_BASE  0x0100000000000000ULL
++
++/* ── hmon/smon SRAM (ADR-0043 D4/D5) ────────────────────────────────────
++ * Each monitor owns a 64 KiB SRAM at internal offset 0x3ff_0000_0000 of its
++ * own cfx (hmon = cfx3 at 0x0fff_0000_0000, smon = cfx2 at
++ * 0x0bff_0000_0000).  Like the cfx_pmem SRAM they are backed by RAM regions
++ * at host addresses outside the 56-bit guest PA space; tlb_fill routes the
++ * cfx-internal window, an offset beyond 64 KiB is CFXMEM. */
++#define DADAO_MON_SRAM_SIZE        (64 * 1024)
++#define DADAO_MON_SRAM_CFX_OFFSET  0x3FF00000000ULL
++#define DADAO_HMON_CFX_BASE        ((3ULL << 42) | DADAO_MON_SRAM_CFX_OFFSET)
++#define DADAO_SMON_CFX_BASE        ((2ULL << 42) | DADAO_MON_SRAM_CFX_OFFSET)
++#define DADAO_HMON_SRAM_HOST_BASE  0x0100000001000000ULL
++#define DADAO_SMON_SRAM_HOST_BASE  0x0100000002000000ULL
 +
 +#define DADAO_PMEM_DMA_BUSY     (1ULL << 0)
 +#define DADAO_PMEM_DMA_DONE     (1ULL << 1)

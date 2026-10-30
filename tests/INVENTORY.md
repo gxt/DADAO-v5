@@ -145,7 +145,7 @@
 | `ir-lli-diff/` | 76 | 340 K | `test-m6` [2/3] → `diff_ir_lli.py` | 是 | — |
 | `lit-output/` | 143 | 680 K | `check-lit` / `check-lit-full`（4 个 lit suite 的 `test_exec_root`） | 部分（含 `.lit_test_times.txt` 时间戳 ⇒ **不可能逐字节**） | 见 §5.3 |
 | `harness/` | 4 | 64 K | `check-qemu-semantics`（`gate/`）、`check-qemu-smoke`（`smoke/`）、`verify_harness_dump.py`（`dumps/`） | 是 | 3 种来源共用一目录 |
-| `bootrom/` | 5 | 28 K | `build-bootrom` | 是 | — |
+| `bootrom/` | 13 | 373 K | `build-bootrom`（legacy 5 + `step5/` 8 = 三 ELF/三对象/BootROM/平铺） | 是 | — |
 | `smoke/` | 2 | 48 K | `run_qemu_smoke.py` 的**默认** `--work-dir`（Makefile 传 `harness/smoke`） | 是 | 旧默认落点残留（2026-10-11） |
 | `libc-argv-static/` | 13 | 136 K | **无脚本**：全仓 grep `libc-argv` 零命中（mtime 2026-10-18） | **否** | 孤儿 |
 | `libc-argv-dynamic/` | 14 | 1.1 M | **无脚本**（同上） | **否** | 孤儿 |
@@ -193,7 +193,7 @@
 | `check-testcases-suites` | opt | libc-test + llvm-test-suite fast 子集 | `.work/log/testcases/runs/fast.json` | stdout |
 | `check-testcases-suites-full` | opt | 两套件全量可枚举 C 用例 | `runs/full.json` | stdout |
 | `test-picolibc-smoke` | opt | `printf("hi")` 端到端 | `.work/build/picolibc-smoke` | stdout |
-| `build-bootrom` | 前置 | `bootrom.S` + `bootrom_app.S` 汇编链接 | `.dadao/tests/bootrom` | stdout |
+| `build-bootrom` | 前置 | legacy `bootrom.S`/`bootrom_app.S` + step5 `power/hmon/smon` 汇编链接与 256 KiB 镜像打包 | `.dadao/tests/bootrom`（含 `step5/`） | stdout |
 
 （表中「最近」数字取自各目标最近一次日志，非本次重跑；`make` 本册未执行任何被测语义。）
 

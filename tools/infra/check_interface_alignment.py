@@ -433,10 +433,10 @@ def check_adr_alignment():
         record(cat, "exit port device removed", "PASS",
                "旧 exit-port MMIO 设备已删除（停机 = semihosting SYS_EXIT）")
 
-    # --- Boot ROM base = 0xffff_ffff_0000, size = 64 KiB ---
-    # Source: ADR-0004 §D1
-    rom_base_exp = 0xFFFF_FFFF_0000
-    rom_size_exp = 64 * 1024
+    # --- Boot ROM base = 0xffff_fffc_0000, size = 256 KiB (ADR-0043 D1) ---
+    # The reset vector stays 0xffff_ffff_0000 (the legacy -bios window).
+    rom_base_exp = 0xFFFF_FFFC_0000
+    rom_size_exp = 256 * 1024
     rom_base_match = re.search(r'DADAO_ROM_BASE\s+(0x[0-9a-fA-F]+)', patch_content)
     rom_size_match = re.search(r'DADAO_ROM_SIZE\s+\((\d+\s*\*\s*\d+)\)', patch_content)
     if rom_base_match:
@@ -456,13 +456,13 @@ def check_adr_alignment():
         for f in rom_size_match.group(1).split("*"):
             actual *= int(f.strip())
         if actual == rom_size_exp:
-            record(cat, "ROM_SIZE=64KiB", "PASS",
+            record(cat, "ROM_SIZE=256KiB", "PASS",
                    f"QEMU: DADAO_ROM_SIZE = {actual} ({actual // 1024} KiB)")
         else:
-            record(cat, "ROM_SIZE=64KiB", "FAIL",
+            record(cat, "ROM_SIZE=256KiB", "FAIL",
                    f"期望 {rom_size_exp}, 实際 {actual}")
     else:
-        record(cat, "ROM_SIZE=64KiB", "FAIL",
+        record(cat, "ROM_SIZE=256KiB", "FAIL",
                "QEMU patch 未找到 DADAO_ROM_SIZE")
 
     # --- Dual image: -bios + -kernel (MANUAL — 宽泛语义匹配) ---
@@ -507,19 +507,20 @@ def check_adr_alignment():
             record(cat, f"EXIT_{name}=0x{code:02X}", "FAIL",
                    f"QEMU patch 未找到 DADAO_EXIT_{name}")
 
-    # --- RESET_PC = ROM_BASE ---
-    # Source: ADR-0004 §D2.1
+    # --- RESET_PC = DADAO_BIOS_LOAD_BASE (0xffff_ffff_0000, ADR-0043 D1) ---
+    # Source: ADR-0004 §D2.1 + ADR-0043 D1 (reset vector unchanged while the
+    # ROM window grows to 256 KiB).
     reset_match = re.search(r'DADAO_RESET_PC\s+(\S+)', patch_content)
     if reset_match:
         val = reset_match.group(1).strip()
-        if val == "DADAO_ROM_BASE":
-            record(cat, "RESET_PC=ROM_BASE", "PASS",
-                   f"DADAO_RESET_PC = DADAO_ROM_BASE (= 0x{rom_base_exp:X})")
+        if val == "DADAO_BIOS_LOAD_BASE":
+            record(cat, "RESET_PC=BIOS_LOAD_BASE", "PASS",
+                   f"DADAO_RESET_PC = DADAO_BIOS_LOAD_BASE (= 0x{0xFFFF_FFFF_0000:X})")
         else:
-            record(cat, "RESET_PC=ROM_BASE", "FAIL",
-                   f"DADAO_RESET_PC = {val}, 期望 DADAO_ROM_BASE")
+            record(cat, "RESET_PC=BIOS_LOAD_BASE", "FAIL",
+                   f"DADAO_RESET_PC = {val}, 期望 DADAO_BIOS_LOAD_BASE")
     else:
-        record(cat, "RESET_PC=ROM_BASE", "FAIL",
+        record(cat, "RESET_PC=BIOS_LOAD_BASE", "FAIL",
                "QEMU patch 未找到 DADAO_RESET_PC")
 
     # --- Harness constants (build_test_binary.py) ---

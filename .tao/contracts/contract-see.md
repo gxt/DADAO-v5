@@ -18,7 +18,7 @@
 - `hypv`（超管模式）的 cg3 寄存器定义见 HEE（含 `hypv_switch_run_mode`/`hypv_excp_vector`）。[DADAO-13 §1. cg3 - hypv mode 寄存器]
 - `trap/escape/cfx2rd/cfx2rc` 可在**任意运行模式**下执行；是否允许由 `cfxtrap`/`cfxreg` 等来源 mask 控制。[SimRISC-11 §指令域与执行条件]
 - 异常进入时运行模式/掩码切换为 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 与 `switch_cfx_mask`（异常进入流程步骤 8）。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3. 共有寄存器设计规范]
-- v5 测试机只启用 `hypv`/`user`，**本版不启用 `supv`**、不涉及 `smon`。[ADR-0020 D12][ADR-0004 R1][Machine-01 §2]
+- v5 测试机启用 `hypv`/`supv`/`user`：step5 启动链为 power(cfx63/hypv) → hmon(cfx3/hypv) → smon(cfx2/supv)，`smon` 负责第一张页表与 PTW 开启；`jail` 仍不启用。[ADR-0043 D1/D4/D5/D8/D9]（spec/Machine-01 §2 的 supv/smon 缺口见 `INTEG-046t` BLOCKED）
 
 ## §2 核内地址空间与复位
 
@@ -30,8 +30,9 @@
 - **TLB（并入 `cfx_ptw`）**：无 `tlb_enable`/`tlb_exist`，`ptw_enable=1` 即参与查找、`0` 时旁路；按「虚拟页 + ASID（`cfx_ptw_tlb_asid`，16 位）」匹配，`G=1` 跨 ASID 复用；命中不重读 PTE，miss 走页表步进且只有成功才填充；写 PTBR/ASID/使能都不隐含失效。[DADAO-12 §2.2.1 超页的地址转换][DADAO-12 §4.5 cfx_ptw - page table walker][ADR-0041 D3/D5/D8/D9]
 - **TLB 失效**：`cfx_ptw_tlb_control` 三维正交——`op`（`00=none`/`01=clean`/`10=invalid`/`11=flush`）、`scope`（`00=all`/`01=VA`/`10=range`/`11=reserved`）、`ASID_ANY`（bit4）；`all` 忽略 start/size、`VA` 只看 start、`range` 用 `[start,start+size)`；`scope=11` 或 `range` 且 `size=0` ⇒ `CFXREG`（仅 `clean`/`invalid`/`flush`；`op=none` 优先按 no-op）；`ASID_ANY=1` 含 `G`、`0` 跳过 `G`；正常完成不报异常。[DADAO-12 §4.5 cfx_ptw - page table walker][ADR-0041 D3.1/D3.2/D6]
 - **A/D**：填充取 PTE 的 A/D 为本地值、不产生回写；读/取指置 A，写置 A/D；缺页/权限失败不更新；`clean`/`flush`/替换时原子 OR 回写 PTE（`clean` 保留、`flush` 删除、`invalid` 不写回）；回写失败报 `PTWERR`（`1 << 7`，`cause_info` = PTE 物理地址）且保留条目。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw - page table walker][ADR-0041 D4/D7/D10]
-- 硬件复位启动地址 = `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`（cfxha 63 / `power`，64 KiB），可由 CPU 直接取指执行。[DADAO-12 §2.1 核内地址空间]
-- v5 测试机地址划分（RAM@0 / 旧 RAM 段过渡保留 / exit port 过渡保留 / boot ROM）为**测试机约定**；RAM 基址改全 0，复位向量/ROM 与 exit port 不变。[ADR-0020 D15][ADR-0004 R3][Machine-01 §1]
+- 硬件复位启动地址 = `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`（cfxha 63 / `power`），可由 CPU 直接取指执行；唯一非易失 BootROM 为 **256 KiB**（`0xffff_fffc_0000`–`0xffff_ffff_ffff`），复位向量是镜像内偏移 `0x3_0000`，既有 `-bios` 仍按 64 KiB 复位窗口装载。[DADAO-12 §2.1 核内地址空间][ADR-0043 D1/D2]
+- v5 测试机地址划分（RAM `0xFC00_0000_0000` 16 MiB + PA 0 别名 / BootROM 256 KiB / exit port 已删）为**测试机约定**；PA 0 别名供 PTBR=0 的第一张页表使用。[ADR-0020 D15][ADR-0004 R3][ADR-0043 D10][Machine-01 §1]
+- **hmon/smon SRAM**：hmon（cfx3）`0x0fff_0000_0000`、smon（cfx2）`0x0bff_0000_0000`，各 64 KiB，内部偏移 `0x3ff_0000_0000`，越界 ⇒ `CFXMEM`；power 不设 SRAM。[ADR-0043 D4/D5]
 - 核内地址空间非法访问触发对应 cfx 的 `CFXMEM`（`1<<1`）；测试机退出码 = `0x80 | 1 = 0x81`；保留 cfx（6–14、19–61）的普通 `ld/st` 也触发 `CFXMEM`；`0x87`（unmapped）为测试机约定、无 spec cause。[DADAO-12 §2.1 核内地址空间][DADAO-12 §4. 专有寄存器设计规范][ADR-0004 D5.8]
 - 越界**取指**与越界数据访问**同等报异常**，不得静默；fault 码表冻结不重排。[ADR-0020 D15][ADR-0004 D5.8]
 - **`cfx_pmem` SRAM 与 DMA**：`cfx_pmem`（cfxha 17）内含 64 KiB SRAM（内部偏移 0x3ff_0000_0000，核内起始 `0x47ff_0000_0000`），CPU 用普通 `ld/st` 访问、越界 ⇒ `CFXMEM`；DMA 只在 SRAM ↔ PA 间搬运，`cg15` 寄存器为 `dma_src`/`dma_dst`/`dma_size`/`dma_ctrl`/`dma_status`；CFX 侧取低 42 位、PA 侧取低 56 位（高位忽略），`size` 30 位、合法 `1..2^29`。[DADAO-12 §2.1 核内地址空间][DADAO-12 §4.9 cfx_pmem - physical memory management][ADR-0042 D3/D6/D7.1–D7.3]

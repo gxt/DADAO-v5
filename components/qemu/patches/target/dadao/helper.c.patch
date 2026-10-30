@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..72d2080
+index 0000000..ef799c1
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2200 @@
+@@ -0,0 +1,2230 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -763,6 +763,30 @@ index 0000000..72d2080
 +            off - DADAO_PMEM_SRAM_CFX_OFFSET < DADAO_PMEM_SRAM_SIZE) {
 +            paddr = DADAO_PMEM_SRAM_HOST_BASE + (off - DADAO_PMEM_SRAM_CFX_OFFSET);
 +            prot = PAGE_READ | PAGE_WRITE;
++            goto map;
++        }
++        if (probe) {
++            return false;
++        }
++        cs->exception_index = DADAO_EXCP_CFXMEM;
++        cpu_loop_exit_restore(cs, retaddr);
++        /* not reached */
++        return false;
++    }
++
++    /* hmon (cfx3) / smon (cfx2) SRAM: 64 KiB at internal offset
++     * 0x3ff_0000_0000 of the owning cfx (ADR-0043 D4/D5).  The test machine
++     * backs each with a host RAM region outside the 56-bit PA space.  An
++     * offset outside the SRAM is an illegal internal-space access => CFXMEM. */
++    if (cfxha == 3 || cfxha == 2) {
++        uint64_t off = addr & DADAO_VA_MASK;
++        uint64_t host = (cfxha == 3) ? DADAO_HMON_SRAM_HOST_BASE
++                                     : DADAO_SMON_SRAM_HOST_BASE;
++
++        if (off >= DADAO_MON_SRAM_CFX_OFFSET &&
++            off - DADAO_MON_SRAM_CFX_OFFSET < DADAO_MON_SRAM_SIZE) {
++            paddr = host + (off - DADAO_MON_SRAM_CFX_OFFSET);
++            prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
 +            goto map;
 +        }
 +        if (probe) {
@@ -1709,6 +1733,12 @@ index 0000000..72d2080
 +    uint64_t end = pa + len;
 +
 +    if (pa >= DADAO_RAM_BASE && end <= DADAO_RAM_BASE + DADAO_RAM_SIZE) {
++        return true;
++    }
++    /* PA 0 aliases the same 16 MiB RAM (ADR-0043 D10): the first page table
++     * lives at PA 0 (PTBR=0), so DMA must reach it there as well. */
++    if (pa >= DADAO_RAM_ALIAS_BASE &&
++        end <= DADAO_RAM_ALIAS_BASE + DADAO_RAM_SIZE) {
 +        return true;
 +    }
 +    /* The boot ROM is readable, never writable. */

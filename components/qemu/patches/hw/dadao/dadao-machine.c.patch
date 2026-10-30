@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..511da1a
+index 0000000..d1a343e
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,512 @@
+@@ -0,0 +1,623 @@
 +/*
 + * DADAO M1 bare-metal test machine for QEMU
 + *
@@ -27,7 +27,11 @@ index 0000000..511da1a
 + * and the legacy exit-port MMIO device were removed in step2 (halt is now
 + * semihosting SYS_EXIT, ADR-0020 D8).
 + *   RAM:        0xFC00_0000_0000 .. +DADAO_RAM_SIZE   (16 MiB, RWX; cfxha 63)
-+ *   Boot ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff  (64 KiB, RO+X)
++ *   RAM alias:  0x0000_0000_0000 .. +DADAO_RAM_SIZE   (same 16 MiB, ADR-0043 D10)
++ *   Boot ROM:   0xffff_fffc_0000 .. 0xffff_ffff_ffff  (256 KiB, RO+X; ADR-0043 D1)
++ *   reset vec:  0xffff_ffff_0000 (legacy -bios window, 64 KiB limit)
++ *   hmon SRAM:  cfx3 internal 0x0fff_0000_0000, 64 KiB (host backing)
++ *   smon SRAM:  cfx2 internal 0x0bff_0000_0000, 64 KiB (host backing)
 + *
 + * Loading paths per ADR-0004 D2.2/D2.3 (rev. 2026-10-06, SPEC-107t) and
 + * contract-elf.md §5/§6 -- two paths coexist, selected by the kernel's ELF
@@ -50,6 +54,13 @@ index 0000000..511da1a
 + *   path B (raw):   qemu-system-dadao -machine dadao-m1 -bios rom.bin -kernel test.bin
 + *                   flat ROM trampoline + flat test binary, entry fixed at the
 + *                   RAM base (M1-M3 path, unchanged; M3 test-codegen depends on it).
++ *
++ *   path C (256 KiB BootROM, ADR-0043 D1/D2):
++ *                   qemu-system-dadao -machine dadao-m1,bootrom-image=bootrom.bin
++ *                   the image must be exactly 256 KiB and is loaded at
++ *                   0xffff_fffc_0000; the CPU still resets to 0xffff_ffff_0000.
++ *                   -kernel is optional (an ELF is preloaded into RAM without
++ *                   overriding the reset PC); -bios must not be given.
 + *
 + * Load-stage errors (malformed/oversize images) are reported and cause a
 + * non-zero process exit; they are a different layer from guest faults
@@ -358,6 +369,8 @@ index 0000000..511da1a
 +/* DADAO M1 machine */
 +typedef struct DadaoMachineState {
 +    MachineState parent_obj;
++    /* 256 KiB BootROM image path (ADR-0043 D1/D2); NULL => legacy paths. */
++    char *bootrom_image;
 +} DadaoMachineState;
 +
 +typedef struct DadaoMachineClass {
@@ -367,16 +380,39 @@ index 0000000..511da1a
 +#define TYPE_DADAO_M1_MACHINE MACHINE_TYPE_NAME("dadao-m1")
 +OBJECT_DECLARE_SIMPLE_TYPE(DadaoMachineState, DADAO_M1_MACHINE)
 +
++static char *dadao_m1_get_bootrom_image(Object *obj, Error **errp)
++{
++    DadaoMachineState *ms = DADAO_M1_MACHINE(obj);
++
++    return g_strdup(ms->bootrom_image);
++}
++
++static void dadao_m1_set_bootrom_image(Object *obj, const char *value,
++                                       Error **errp)
++{
++    DadaoMachineState *ms = DADAO_M1_MACHINE(obj);
++
++    g_free(ms->bootrom_image);
++    ms->bootrom_image = g_strdup(value);
++}
++
 +static void dadao_m1_init(MachineState *machine)
 +{
++    DadaoMachineState *ms = DADAO_M1_MACHINE(machine);
 +    DadaoCPU *cpu;
-+    MemoryRegion *ram, *rom, *pmem_sram, *system_memory;
++    MemoryRegion *ram, *ram_alias, *rom, *pmem_sram, *hmon_sram, *smon_sram;
++    MemoryRegion *system_memory;
 +    Error *err = NULL;
 +    ssize_t bios_size, kernel_size;
 +    const char *kernel = machine->kernel_filename;
++    const char *bootrom = ms->bootrom_image;
 +
-+    if (!kernel) {
++    if (!kernel && !bootrom) {
 +        error_report("dadao-m1: -kernel test.bin is required");
++        exit(1);
++    }
++    if (bootrom && machine->firmware) {
++        error_report("dadao-m1: bootrom-image and -bios cannot be combined");
 +        exit(1);
 +    }
 +
@@ -393,7 +429,15 @@ index 0000000..511da1a
 +    memory_region_init_ram(ram, NULL, "dadao-ram", DADAO_RAM_SIZE, &error_fatal);
 +    memory_region_add_subregion(system_memory, DADAO_RAM_BASE, ram);
 +
-+    /* Boot ROM: 0xffff_ffff_0000, 64 KiB */
++    /* PA 0 aliases the same RAM (ADR-0043 D10): the first page table is built
++     * at PTBR=0 and page-table reads / cfx_pmem DMA use physical addresses. */
++    ram_alias = g_new(MemoryRegion, 1);
++    memory_region_init_alias(ram_alias, NULL, "dadao-ram-alias", ram, 0,
++                             DADAO_RAM_SIZE);
++    memory_region_add_subregion(system_memory, DADAO_RAM_ALIAS_BASE, ram_alias);
++
++    /* Boot ROM: 0xffff_fffc_0000, 256 KiB (ADR-0043 D1); the reset vector
++     * 0xffff_ffff_0000 is the legacy -bios window inside it. */
 +    rom = g_new(MemoryRegion, 1);
 +    memory_region_init_rom(rom, NULL, "dadao-rom", DADAO_ROM_SIZE, &error_fatal);
 +    memory_region_add_subregion(system_memory, DADAO_ROM_BASE, rom);
@@ -407,6 +451,63 @@ index 0000000..511da1a
 +                           DADAO_PMEM_SRAM_SIZE, &error_fatal);
 +    memory_region_add_subregion(system_memory, DADAO_PMEM_SRAM_HOST_BASE,
 +                                pmem_sram);
++
++    /* hmon (cfx3) / smon (cfx2) SRAM, 64 KiB each (ADR-0043 D4/D5). */
++    hmon_sram = g_new(MemoryRegion, 1);
++    memory_region_init_ram(hmon_sram, NULL, "dadao-hmon-sram",
++                           DADAO_MON_SRAM_SIZE, &error_fatal);
++    memory_region_add_subregion(system_memory, DADAO_HMON_SRAM_HOST_BASE,
++                                hmon_sram);
++    smon_sram = g_new(MemoryRegion, 1);
++    memory_region_init_ram(smon_sram, NULL, "dadao-smon-sram",
++                           DADAO_MON_SRAM_SIZE, &error_fatal);
++    memory_region_add_subregion(system_memory, DADAO_SMON_SRAM_HOST_BASE,
++                                smon_sram);
++
++    /* Path C: 256 KiB BootROM image (ADR-0043 D1/D2).  -kernel is optional;
++     * a given ELF is preloaded into RAM but does not override the reset PC. */
++    if (bootrom) {
++        err = NULL;
++        bios_size = load_image_targphys_as(bootrom, DADAO_ROM_BASE,
++                                           DADAO_ROM_SIZE,
++                                           &address_space_memory, &err);
++        if (bios_size != DADAO_ROM_SIZE) {
++            error_report("dadao-m1: bootrom-image '%s' is %" PRId64 " bytes, "
++                         "expected exactly %d bytes (256 KiB)", bootrom,
++                         (int64_t)bios_size, (int)DADAO_ROM_SIZE);
++            exit(1);
++        }
++        if (kernel) {
++            if (dadao_kernel_is_elf(kernel)) {
++                uint64_t entry = 0;
++                ssize_t elf_size;
++
++                dadao_elf_check_header(kernel);
++                dadao_elf_check_segments(kernel);
++                elf_size = load_elf(kernel, NULL, NULL, NULL, &entry, NULL,
++                                    NULL, NULL, ELFDATA2MSB,
++                                    DADAO_EM_MACHINE, 0, 0);
++                if (elf_size < 0) {
++                    error_report("dadao-m1: could not load ELF kernel '%s': %s",
++                                 kernel, load_elf_strerror(elf_size));
++                    exit(1);
++                }
++            } else {
++                err = NULL;
++                kernel_size = load_image_targphys_as(kernel, DADAO_RAM_BASE,
++                                                     DADAO_RAM_SIZE,
++                                                     &address_space_memory,
++                                                     &err);
++                if (kernel_size < 0) {
++                    error_report("dadao-m1: could not load kernel image '%s': %s",
++                                 kernel,
++                                 err ? error_get_pretty(err) : "unknown error");
++                    exit(1);
++                }
++            }
++        }
++        return;
++    }
 +
 +    /* The kernel's magic selects the loading path (ADR-0004 D2.3). */
 +    if (dadao_kernel_is_elf(kernel)) {
@@ -452,7 +553,7 @@ index 0000000..511da1a
 +
 +    if (dadao_enforce_size_limits) {
 +        if (dadao_check_image_limit(machine->firmware, "ROM",
-+                                    DADAO_ROM_SIZE) < 0) {
++                                    DADAO_BIOS_WINDOW_SIZE) < 0) {
 +            exit(1);
 +        }
 +        if (dadao_check_image_limit(kernel, "RAM", DADAO_RAM_SIZE) < 0) {
@@ -460,10 +561,11 @@ index 0000000..511da1a
 +        }
 +    }
 +
-+    /* Load BIOS (ROM trampoline) into ROM region */
++    /* Load BIOS (ROM trampoline) into the 64 KiB reset window (ADR-0004
++     * D2.3; the window is inside the 256 KiB BootROM, ADR-0043 D1). */
 +    bios_size = load_image_targphys_as(machine->firmware,
-+                                       DADAO_ROM_BASE,
-+                                       DADAO_ROM_SIZE,
++                                       DADAO_BIOS_LOAD_BASE,
++                                       DADAO_BIOS_WINDOW_SIZE,
 +                                       &address_space_memory,
 +                                       &err);
 +    if (bios_size < 0) {
@@ -500,6 +602,15 @@ index 0000000..511da1a
 +    mc->no_floppy = 1;
 +    mc->no_cdrom = 1;
 +    mc->default_cpu_type = DADAO_CPU_TYPE_NAME("any");
++
++    /* 256 KiB BootROM image property (ADR-0043 D1/D2).  It is a machine
++     * property rather than a new CLI switch so every existing command line
++     * stays valid: `-machine dadao-m1,bootrom-image=<path>`. */
++    object_class_property_add_str(oc, "bootrom-image",
++                                  dadao_m1_get_bootrom_image,
++                                  dadao_m1_set_bootrom_image);
++    object_class_property_set_description(oc, "bootrom-image",
++        "256 KiB BootROM image loaded at 0xffff_fffc_0000");
 +}
 +
 +static const TypeInfo dadao_m1_type = {

@@ -630,16 +630,41 @@ _locked-install-cfx-aliases:
 # test-artifacts root (ADR-0016 D6, resolved via paths.py):
 #   $(BOOTROM_DIR)/{bootrom.o,bootrom.elf,bootrom.bin,bootrom_app.o,bootrom_app.bin}
 BOOTROM_DIR = $(TEST_ARTIFACTS_DIR)/bootrom
+STEP5_BOOTROM_DIR = $(BOOTROM_DIR)/step5
 _locked-build-bootrom:
 	@test -x $(LLVM_MC_BIN) || { echo "build-bootrom: ERROR: $(LLVM_MC_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLD_BIN) || { echo "build-bootrom: ERROR: $(LLD_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "build-bootrom: ERROR: $(LLVM_OBJCOPY_BIN) not found — run 'make install-host' first"; exit 1; }
-	@mkdir -p $(BOOTROM_DIR)
+	@test -x $(LLVM_NM_BIN) || { echo "build-bootrom: ERROR: $(LLVM_NM_BIN) not found — run 'make install-host' first"; exit 1; }
+	@mkdir -p $(BOOTROM_DIR) $(STEP5_BOOTROM_DIR)
 	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/bootrom.S -o $(BOOTROM_DIR)/bootrom.o
 	$(LLD_BIN) -T tests/shared/bootrom/bootrom.lds $(BOOTROM_DIR)/bootrom.o -o $(BOOTROM_DIR)/bootrom.elf
 	$(LLVM_OBJCOPY_BIN) -O binary $(BOOTROM_DIR)/bootrom.elf $(BOOTROM_DIR)/bootrom.bin
 	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/bootrom_app.S -o $(BOOTROM_DIR)/bootrom_app.o
 	$(LLVM_OBJCOPY_BIN) -O binary --only-section=.text $(BOOTROM_DIR)/bootrom_app.o $(BOOTROM_DIR)/bootrom_app.bin
+	@# INTEG-046t step5: 256 KiB BootROM (power flat + hmon/smon ELFs) and the
+	@# image index table builder.  -z max-page-size keeps the small images inside
+	@# the 64 KiB per-image limit (the default 64 KiB page padding would not).
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/step5/power.S -o $(STEP5_BOOTROM_DIR)/power.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/step5/power.lds $(STEP5_BOOTROM_DIR)/power.o -o $(STEP5_BOOTROM_DIR)/power.elf
+	$(LLVM_OBJCOPY_BIN) -O binary $(STEP5_BOOTROM_DIR)/power.elf $(STEP5_BOOTROM_DIR)/power.bin
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/step5/hmon.S -o $(STEP5_BOOTROM_DIR)/hmon.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/step5/hmon.lds $(STEP5_BOOTROM_DIR)/hmon.o -o $(STEP5_BOOTROM_DIR)/hmon.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/step5/smon.S -o $(STEP5_BOOTROM_DIR)/smon.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/step5/smon.lds $(STEP5_BOOTROM_DIR)/smon.o -o $(STEP5_BOOTROM_DIR)/smon.elf
+	$(PYTHON) tools/testcases/arch/build_step5_bootrom.py \
+	  --out-dir $(STEP5_BOOTROM_DIR) \
+	  --power-elf $(STEP5_BOOTROM_DIR)/power.elf \
+	  --hmon-elf $(STEP5_BOOTROM_DIR)/hmon.elf \
+	  --smon-elf $(STEP5_BOOTROM_DIR)/smon.elf \
+	  --llvm-objcopy $(LLVM_OBJCOPY_BIN) --llvm-nm $(LLVM_NM_BIN)
+	$(PYTHON) tools/testcases/arch/build_step5_bootrom.py \
+	  --out-dir $(STEP5_BOOTROM_DIR) \
+	  --power-elf $(STEP5_BOOTROM_DIR)/power.elf \
+	  --hmon-elf $(STEP5_BOOTROM_DIR)/hmon.elf \
+	  --smon-elf $(STEP5_BOOTROM_DIR)/smon.elf \
+	  --llvm-objcopy $(LLVM_OBJCOPY_BIN) --llvm-nm $(LLVM_NM_BIN) \
+	  --self-test
 	@echo "build-bootrom: PASS (outputs under $(BOOTROM_DIR))"
 
 # build-picolibc (INFRA-057t): build the DADAO port of picolibc with Meson and
@@ -1306,6 +1331,7 @@ _locked-check-lit-full:
 LLC_BIN = $(HOST_TOOLCHAIN_BIN)/llc
 LLVM_MC_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-mc
 LLVM_OBJCOPY_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-objcopy
+LLVM_NM_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-nm
 QEMU_BIN = $(HOST_TOOLCHAIN_BIN)/qemu-system-dadao
 # Work dir under the SDK test-artifacts root (ADR-0016 D6), resolved via
 # paths.py (D7) — never the source tree.
@@ -1422,7 +1448,7 @@ ARCH_PROBE_LOG = .work/log/arch/check-arch-smoke-svc.log
 # `integ040t` = 地址空间 Step 3 TLB/G/A-D/PTWERR（ADR-0041）；
 # `integ042t` = Step 4 cfx_pmem 64 KiB SRAM + SRAM<->PA DMA + PMEM_DMA（ADR-0042）；
 # `integ044t` = cfx 两轴权限模型（四类同步 mask / 两类中断 mask / CFXPERM/CFXESC）。
-ARCH_CFX_PROBES = 044t 045t 049t integ039t integ040t integ042t integ044t
+ARCH_CFX_PROBES = 044t 045t 049t integ039t integ040t integ042t integ044t integ046t
 
 _locked-check-arch-smoke: install-host build-bootrom
 	@test -x $(LLVM_MC_BIN) || { echo "check-arch-smoke: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }

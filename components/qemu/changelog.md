@@ -227,3 +227,7 @@
 - **2026-10-30 INTEG-045t**
   - 摘要：**cfx 指令清理同步**：`insn.decode` 由 `contracts/opcodes.yaml` 重生成（266 → **264** patterns，计数从记录派生）；删除 `trans_cfxld_crii_cfx`/`trans_cfxst_crii_cfx` 两个 ILLI 桩（两条指令已从 ISA 删除、其两格转为空白保留 ⇒ decode UNDI），`check_qemu_trans --strict` 264/264、orphan 0；`fence_cfx_reserved` 的保留集由 `7–14` 改为 **`6–14`/`19–61`**（与 `DADAO_CFX_IS_RESERVED` 及 `encode_cfx_reserved` 统一）。补丁 **2 份改**（`series` 63、`check-patch-tree` 205 不变）；`build-qemu` rc=0，`check-arch` 全绿（7 个 cfx 探针）。
   - 执行者：engineer
+
+- **2026-10-30 `INTEG-046t`**
+  - 摘要：**Step5 启动链 QEMU 侧（ADR-0043 D1/D2/D4/D5/D10/D14）**：BootROM 几何改为 256 KiB（`0xffff_fffc_0000`–`0xffff_ffff_ffff`），复位向量独立为 `DADAO_BIOS_LOAD_BASE`（`0xffff_ffff_0000`，既有 `-bios` 仍按 64 KiB 窗口装载，语义不变）；新增机器属性 `bootrom-image=<path>`（`-machine dadao-m1,bootrom-image=...`，要求恰 256 KiB，与 `-bios` 互斥，`-kernel` 可选且不改复位 PC）；新增 hmon/smon SRAM（cfx3 `0x0fff_0000_0000` / cfx2 `0x0bff_0000_0000`，各 64 KiB，宿主地址在 56 位 PA 之外，`tlb_fill` 按内部偏移 `0x3ff_0000_0000` 路由、越界 ⇒ CFXMEM）；RAM 在 PA 0 增加 16 MiB 别名（PTE 读取与 `cfx_pmem` DMA 同时接受 `[0,16 MiB)` 与 `[RAM_BASE,+16 MiB)`），供 smon 的 PTBR=0 页表；`translate_for_debug` 覆盖 hmon/smon SRAM（半托管参数块）。新增探针 `min_rom_probe_integ046t.py`（15 例）与 builder `build_step5_bootrom.py`。
+  - 执行者：engineer
