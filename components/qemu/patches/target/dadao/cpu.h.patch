@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..27dea14
+index 0000000..ece7553
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,413 @@
+@@ -0,0 +1,414 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -190,7 +190,7 @@ index 0000000..27dea14
 +#define DADAO_CFXHA_PMEM       17  /* cfx17 / pmem (DADAO-12 §1) */
 +
 +/* ── cfx_pmem SRAM + DMA (DADAO-12 §2.1/§4.9; ADR-0042 D3/D4/D6/D7) ─────
-+ * The 64 KiB SRAM lives at internal offset 0 of cfx_pmem.  The test machine
++ * The 64 KiB SRAM lives at internal offset 0x3ff_0000_0000 of cfx_pmem.  The test machine
 + * backs it with a RAM MemoryRegion mapped at a host address *outside* the
 + * 56-bit guest PA space, so a guest PA can never alias it; the CPU reaches it
 + * through tlb_fill (paddr = DADAO_PMEM_SRAM_HOST_BASE + offset) and the DMA
@@ -199,6 +199,7 @@ index 0000000..27dea14
 + * dma_status: bit0 BUSY (RO), bit1 DONE (W1C), bit2 ERROR (W1C),
 + * bits[15:3] ERR_CODE (one-hot, RO). */
 +#define DADAO_PMEM_SRAM_SIZE    (64 * 1024)
++#define DADAO_PMEM_SRAM_CFX_OFFSET 0x3FF00000000ULL
 +#define DADAO_PMEM_SRAM_HOST_BASE  0x0100000000000000ULL
 +
 +#define DADAO_PMEM_DMA_BUSY     (1ULL << 0)

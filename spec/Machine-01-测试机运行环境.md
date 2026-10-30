@@ -28,7 +28,7 @@ v5 测试机使用的核内地址空间划分如下（均为 48 位核内有效�
 |------|------|------|-----------------|------|
 | **RAM（唯一 RAM 段）** | `0xFC00_0000_0000` | 16 MiB | 63 / `power` | 唯一 RAM 段；供 bootrom/SEE/应用（rev. 2026-10-11 迁入 cfxha 63 段） |
 | **boot ROM** | `0xffff_ffff_0000` | 64 KiB | 63 / `power` | 复位向量 = `cfx_power_hypv_excp_vector`；`-bios` 加载 |
-| **cfx_pmem SRAM** | `0x47ff_0000_0000` | 64 KiB | 17 / `pmem` | cfx_pmem 内部偏移 0；CPU 用 `ld/st` 访问，越界 ⇒ `CFXMEM` |
+| **cfx_pmem SRAM** | `0x47ff_0000_0000` | 64 KiB | 17 / `pmem` | cfx_pmem 内部偏移 0x3ff_0000_0000；CPU 用 `ld/st` 访问，越界 ⇒ `CFXMEM` |
 
 - **RAM 基址口径**：RAM 基址为 `0xFC00_0000_0000`（cfxha 63 / `power`，**唯一 RAM 段**）；复位向量/ROM（`0xffff_ffff_0000`，64 KiB）与 RAM 容量（16 MiB）不变。[ADR-0004 R3 + rev. 2026-10-11]
 - **C1 两步过渡（已收口）+ 基址迁移**：**step1（M5，`QEMU-049t`）** 机器模型**同时映射 RAM@0（新）与旧 RAM 段（`0xffff_0000_0000`，供既有测试）**；**step2（`QEMU-053t`）** 已把既有向量/harness/`crt0`/e2e 迁到 `0`、**删除旧 RAM 段与 exit-port MMIO 设备**；**`QEMU-056t`（rev. 2026-10-11）** 再把唯一 RAM 段基址由全 0 迁到 `0xFC00_0000_0000`（cfxha 63）。**RAM 现为唯一 RAM 段**。[ADR-0020 D15][ADR-0004 R3]
@@ -209,7 +209,7 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 
 ### 0.3.2-rc（未发布）
 
-- 新增 `cfx_pmem` 的 64 KiB SRAM（`0x47ff_0000_0000`，cfxha 17、内部偏移 0）与 `cg15` DMA 的测试机约定：DMA 可读 RAM/boot ROM、只可写 RAM。
+- 新增 `cfx_pmem` 的 64 KiB SRAM（`0x47ff_0000_0000`，cfxha 17、内部偏移 `0x3ff_0000_0000`）与 `cg15` DMA 的测试机约定：DMA 可读 RAM/boot ROM、只可写 RAM。
 - cfx 编号同步：`cfx5`（`cache`）为已分配未实现；保留 cfx 改为 `6`–`14`、`19`–`61`。
 
 - semihosting 入口判定改为 `immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`），原按 `immu18` 高位两比特的判定作废：§4.1/§4.3 的一般 trap / semihosting 分界、§5.1 判定与调用示例同步；`HBI_<name>_INIT`（`0x30001`）落在该区之外，按一般 trap 进入目标 cfx 向量。

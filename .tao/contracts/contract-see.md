@@ -34,7 +34,7 @@
 - v5 测试机地址划分（RAM@0 / 旧 RAM 段过渡保留 / exit port 过渡保留 / boot ROM）为**测试机约定**；RAM 基址改全 0，复位向量/ROM 与 exit port 不变。[ADR-0020 D15][ADR-0004 R3][Machine-01 §1]
 - 核内地址空间非法访问触发对应 cfx 的 `CFXMEM`（`1<<1`）；测试机退出码 = `0x80 | 1 = 0x81`；保留 cfx（6–14、19–61）的普通 `ld/st` 也触发 `CFXMEM`；`0x87`（unmapped）为测试机约定、无 spec cause。[DADAO-12 §2.1 核内地址空间][DADAO-12 §4. 专有寄存器设计规范][ADR-0004 D5.8]
 - 越界**取指**与越界数据访问**同等报异常**，不得静默；fault 码表冻结不重排。[ADR-0020 D15][ADR-0004 D5.8]
-- **`cfx_pmem` SRAM 与 DMA**：`cfx_pmem`（cfxha 17）内含 64 KiB SRAM（内部偏移 0，核内起始 `0x47ff_0000_0000`），CPU 用普通 `ld/st` 访问、越界 ⇒ `CFXMEM`；DMA 只在 SRAM ↔ PA 间搬运，`cg15` 寄存器为 `dma_src`/`dma_dst`/`dma_size`/`dma_ctrl`/`dma_status`；CFX 侧取低 42 位、PA 侧取低 56 位（高位忽略），`size` 30 位、合法 `1..2^29`。[DADAO-12 §2.1 核内地址空间][DADAO-12 §4.9 cfx_pmem - physical memory management][ADR-0042 D3/D6/D7.1–D7.3]
+- **`cfx_pmem` SRAM 与 DMA**：`cfx_pmem`（cfxha 17）内含 64 KiB SRAM（内部偏移 0x3ff_0000_0000，核内起始 `0x47ff_0000_0000`），CPU 用普通 `ld/st` 访问、越界 ⇒ `CFXMEM`；DMA 只在 SRAM ↔ PA 间搬运，`cg15` 寄存器为 `dma_src`/`dma_dst`/`dma_size`/`dma_ctrl`/`dma_status`；CFX 侧取低 42 位、PA 侧取低 56 位（高位忽略），`size` 30 位、合法 `1..2^29`。[DADAO-12 §2.1 核内地址空间][DADAO-12 §4.9 cfx_pmem - physical memory management][ADR-0042 D3/D6/D7.1–D7.3]
 - **`cfx_pmem` DMA 控制/状态**：`dma_ctrl` bit0 `START`（自清）/bit1 `DIR`（0=CFX→PA，1=PA→CFX）/bit2 `IRQ_EN`；`dma_status` bit0 `BUSY`、bit1 `DONE`（W1C）、bit2 `ERROR`（W1C，同时清 `ERR_CODE`）、bit3–15 `ERR_CODE`（one-hot：`SIZE`/`CFX_RANGE`/`PA_RANGE`/`PA_FAULT`）；`BUSY=1` 时 cg15 写与 DONE/ERROR W1C 被忽略；`PMEM_DMA`（`1 << 8`）异步可屏蔽，`IRQ_EN=1` 时 DONE/ERROR 触发、`cause_info` = `dma_status`，被屏蔽时置 `cfx_pmem_excp_pending`；单 hart 直接投递 `cfx_pmem`。[DADAO-12 §4.9 cfx_pmem - physical memory management][ADR-0042 D7.2/D7.4]
 
 ## §3 cfx 与权限

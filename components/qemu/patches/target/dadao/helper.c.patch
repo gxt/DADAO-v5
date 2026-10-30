@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..05c4c18
+index 0000000..29eb0a2
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2104 @@
+@@ -0,0 +1,2109 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -685,15 +685,16 @@ index 0000000..05c4c18
 +        goto map;
 +    }
 +
-+    /* cfx_pmem (cfx17): the 64 KiB SRAM window at internal offset 0
-+     * (DADAO-12 §2.1/§4.9; ADR-0042 D3).  The test machine backs it with a
++    /* cfx_pmem (cfx17): the 64 KiB SRAM window at internal offset
++     * 0x3ff_0000_0000 (DADAO-12 §2.1/§4.9; ADR-0042 D3).  The test machine backs it with a
 +     * RAM region at a host address outside the 56-bit PA space.  An offset
 +     * outside the SRAM is an illegal internal-space access => CFXMEM. */
 +    if (cfxha == DADAO_CFXHA_PMEM) {
 +        uint64_t off = addr & DADAO_VA_MASK;
 +
-+        if (off < DADAO_PMEM_SRAM_SIZE) {
-+            paddr = DADAO_PMEM_SRAM_HOST_BASE + off;
++        if (off >= DADAO_PMEM_SRAM_CFX_OFFSET &&
++            off - DADAO_PMEM_SRAM_CFX_OFFSET < DADAO_PMEM_SRAM_SIZE) {
++            paddr = DADAO_PMEM_SRAM_HOST_BASE + (off - DADAO_PMEM_SRAM_CFX_OFFSET);
 +            prot = PAGE_READ | PAGE_WRITE;
 +            goto map;
 +        }
@@ -1715,7 +1716,11 @@ index 0000000..05c4c18
 +
 +    if (size == 0 || size > (1ULL << 29)) {
 +        err = DADAO_PMEM_DMA_ERR_SIZE;
-+    } else if (cfx_addr + size > DADAO_PMEM_SRAM_SIZE) {
++    } else if (size > DADAO_PMEM_SRAM_SIZE) {
++        err = DADAO_PMEM_DMA_ERR_CFX_RANGE;
++    } else if (cfx_addr < DADAO_PMEM_SRAM_CFX_OFFSET ||
++               cfx_addr - DADAO_PMEM_SRAM_CFX_OFFSET >
++                   DADAO_PMEM_SRAM_SIZE - size) {
 +        err = DADAO_PMEM_DMA_ERR_CFX_RANGE;
 +    } else if (size > (1ULL << 56) - pa) {
 +        err = DADAO_PMEM_DMA_ERR_PA_RANGE;
@@ -1734,7 +1739,7 @@ index 0000000..05c4c18
 +    }
 +
 +    env->pmem_dma_dir = dir;
-+    env->pmem_dma_cfx_off = cfx_addr;
++    env->pmem_dma_cfx_off = cfx_addr - DADAO_PMEM_SRAM_CFX_OFFSET;
 +    env->pmem_dma_pa = pa;
 +    env->pmem_dma_len = size;
 +    env->pmem_dma_status |= DADAO_PMEM_DMA_BUSY;

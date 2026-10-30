@@ -3,13 +3,13 @@
 
 Expectations are derived by hand from the frozen spec + ADRs, never from the
 QEMU implementation:
-  - spec/DADAO-12 §2.1 (cfx_pmem SRAM at internal offset 0, 64 KiB; reserved
+  - spec/DADAO-12 §2.1 (cfx_pmem 64 KiB SRAM at internal offset 0x3ff_0000_0000; reserved
     cfx 6-14/19-61 => CFXMEM), §4.9 (cg15 DMA registers dma_src/dma_dst/
     dma_size/dma_ctrl/dma_status, direction, 42/56-bit masking, 30-bit size
     1..2^29, START self-clear, BUSY/DONE(W1C)/ERROR(W1C)/ERR_CODE one-hot,
     PMEM_DMA = 1 << 8 maskable), §3.6 (1<<8 owned by cfx_pmem).
   - .tao/adr/adr-0042-cfx-internal-dma.md D3/D4/D6/D7.1-D7.4.
-  - spec/Machine-01-测试机运行环境.md §1.1 (SRAM window 0x0000_4400_0000_0000)
+  - spec/Machine-01-测试机运行环境.md §1.1 (SRAM window 0x47ff_0000_0000)
     and §3 (DMA may read RAM/boot ROM, may write RAM only).
   - contracts/cfx-aliases.txt (cfx_pmem = cfx17, cfx_cache = cfx5).
 
@@ -50,8 +50,11 @@ RAM_SIZE = 16 * 1024 * 1024
 
 # cfxha / internal address space (DADAO-12 §2.1, Machine-01 §1.1)
 PMEM_HA = 17
-PMEM_BASE = PMEM_HA << 42            # 0x0000_4400_0000_0000
+PMEM_BASE = 0x47ff_0000_0000          # cfx17, SRAM internal offset 0x3ff_0000_0000
+PMEM_SRAM_CFX_OFFSET = 0x3ff_0000_0000
+PMEM_OLD_BASE = PMEM_HA << 42         # 0x0000_4400_0000_0000 (offset 0, now invalid)
 PMEM_SRAM_SIZE = 64 * 1024
+assert PMEM_BASE == (PMEM_HA << 42) | PMEM_SRAM_CFX_OFFSET
 CACHE_HA = 5
 RESERVED_HA = 6
 RESERVED_BASE = RESERVED_HA << 42    # 0x0000_1800_0000_0000
@@ -345,7 +348,7 @@ def fill_sram(p, off, value=MAGIC, rd=17):
 
 
 # -- CPU direct SRAM access ------------------------------------------------
-@case("sram_ldst_roundtrip", "CPU ld/st the 64 KiB SRAM at internal offset 0")
+@case("sram_ldst_roundtrip", "CPU ld/st the 64 KiB SRAM at the new base 0x47ff_0000_0000")
 def _sram_ldst_roundtrip():
     p = []
     fill_sram(p, 0x0000, MAGIC)
@@ -359,6 +362,14 @@ def _sram_ldst_roundtrip():
 @case("sram_oob_cfxmem", "SRAM offset >= 64 KiB => CFXMEM (0x81)")
 def _sram_oob_cfxmem():
     p = load_rb(3, PMEM_BASE + PMEM_SRAM_SIZE)
+    p.append(ld_o(5, 3, 0))
+    p += exit_seq(0xEE)
+    return build_rom(p), {"exit": EXIT_CFXMEM}
+
+
+@case("sram_old_offset_cfxmem", "internal offset 0 (old base) is outside the SRAM")
+def _sram_old_offset_cfxmem():
+    p = load_rb(3, PMEM_OLD_BASE)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0xEE)
     return build_rom(p), {"exit": EXIT_CFXMEM}
@@ -446,6 +457,19 @@ def _dma_cfx_range_overflow():
     dma_start(p, PMEM_BASE + 0xFFFC, DATA_C, 8)
     pmem_r(p, DMA_STATUS_RC, 5)
     load64(p, DATA_C, rd=6)
+    p += exit_seq(EXIT_PASS)
+    return build_rom(p), {"exit": EXIT_PASS, "rd5": ST_ERROR | ERR_CFX_RANGE,
+                          "rd6": MAGIC}
+
+
+@case("dma_cfx_below_offset", "DMA CFX addr below 0x3ff_0000_0000 => CFX_RANGE")
+def _dma_cfx_below_offset():
+    p = []
+    store64(p, DATA_A, MAGIC)
+    status_clear(p)
+    dma_start(p, PMEM_OLD_BASE, DATA_A, 8)
+    pmem_r(p, DMA_STATUS_RC, 5)
+    load64(p, DATA_A, rd=6)
     p += exit_seq(EXIT_PASS)
     return build_rom(p), {"exit": EXIT_PASS, "rd5": ST_ERROR | ERR_CFX_RANGE,
                           "rd6": MAGIC}

@@ -74,7 +74,7 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 - 对核内地址空间进行非法访问时，会触发对应核芯功能扩展的 CFXMEM 异常。核芯功能扩展由地址高 6 位 `addr[47:42]`（即 cfxha）确定。
 - 保留 cfx（6–14、19–61）的普通 `ld/st` 触发 CFXMEM；`trap`/`escape` 到保留 cfx 触发 ILLI。
 - cfxha 5 为 `cfx_cache`；未实现的已分配 cfx 由实现约定其未实现行为（测试机按未实现 cfx 处理）。
-- cfx_pmem 的 64 KiB SRAM 固定在内部偏移 0（§4.9），CPU 用普通 `ld/st` 访问；SRAM 之外的核内偏移触发 CFXMEM。
+- cfx_pmem 的 64 KiB SRAM 固定在内部偏移 0x3ff_0000_0000（§4.9），CPU 用普通 `ld/st` 访问；SRAM 之外的核内偏移触发 CFXMEM。
 - 屏障指令 `fence cfxHA, immu18` 用 `cfxHA` 选择资源域：`cfx0` 与 `cfx_umon` 都表示 **all cfx**，`cfx1`–`cfx63` 表示指定 cfx；`immu18` 中的 `cr`/`cw`/`ci`/`co` 位作用于所选 cfx 的 memory/IO 访问，`mr`/`mw` 位作用于系统内存。屏障只约束本 hart 的访问顺序/可见性，不等待 DMA。
 - cfx1–cfx63 的访问权限不在本章定义。
 
@@ -590,7 +590,7 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 
 cfx_pmem 管理物理存储器（Physical Memory, PM）区域，最多支持 64 个不连续 PM 区域。PM 仅指普通 DRAM 存储器，与 device 或 MMIO 无关——device 的存储空间由各设备核芯功能扩展自行管理。
 
-cfx_pmem 内含一段 **64 KiB SRAM**，固定在 cfx_pmem 内部偏移 0（核内地址 = cfxha 17、低 42 位偏移）。CPU 用普通 `ld/st` 同步访问该 SRAM；访问超出 64 KiB 的核内偏移触发 CFXMEM。cfx 访问权限不在本章定义。
+cfx_pmem 内含一段 **64 KiB SRAM**，固定在 cfx_pmem 内部偏移 0x3ff_0000_0000（核内地址 = cfxha 17、低 42 位偏移）。CPU 用普通 `ld/st` 同步访问该 SRAM；访问超出 64 KiB 的核内偏移触发 CFXMEM。cfx 访问权限不在本章定义。
 
 SRAM 与物理存储器（PA）之间的块搬运由 cfx_pmem 的 DMA 完成（不新增指令，不设 per-cfx DMA）：
 
@@ -922,7 +922,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 
 - 屏障指令 `fence cfxHA, immu18`：`cfx0`/`cfx_umon` 表示 all cfx，`cfx1`–`cfx63` 指定 cfx；资源域顺序只约束本 hart，不等待 DMA。
 - cfx 编号调整：`cfx5` 为 `cache`（原 `cfx6` 迁入）；`cfx6`–`cfx14`、`cfx19`–`cfx61` 保留。
-- `cfx_pmem` 增加 64 KiB SRAM（内部偏移 0，CPU 用 `ld/st` 访问）与 SRAM ↔ 物理存储器 DMA：`cg15` 寄存器 `dma_src`/`dma_dst`/`dma_size`/`dma_ctrl`/`dma_status`；方向 `CFX→PA`/`PA→CFX`，CFX 侧 42 位、PA 侧 56 位（高位忽略），`size` 30 位、合法 `1..2^29`；`START` 自清、`BUSY`/`DONE`/`ERROR`/`ERR_CODE`（W1C 与错误码）异步完成；`BUSY` 期间写寄存器与 W1C 被忽略。
+- `cfx_pmem` 增加 64 KiB SRAM（内部偏移 0x3ff_0000_0000，CPU 用 `ld/st` 访问）与 SRAM ↔ 物理存储器 DMA：`cg15` 寄存器 `dma_src`/`dma_dst`/`dma_size`/`dma_ctrl`/`dma_status`；方向 `CFX→PA`/`PA→CFX`，CFX 侧 42 位、PA 侧 56 位（高位忽略），`size` 30 位、合法 `1..2^29`；`START` 自清、`BUSY`/`DONE`/`ERROR`/`ERR_CODE`（W1C 与错误码）异步完成；`BUSY` 期间写寄存器与 W1C 被忽略。
 - `cfx_pmem` 增加异步可屏蔽异常 `PMEM_DMA`（`1 << 8`）：`IRQ_EN=1` 时 `DONE`/`ERROR` 触发，`cause_info` 携带 `dma_status`；被屏蔽时置 `cfx_pmem_excp_pending`。当前单 hart 直接投递 `cfx_pmem`。
 
 - 版本号与 SBI 同步（SBI 删除 `immu18` 保留值 `0x3FFFF`）；本册正文不变。
