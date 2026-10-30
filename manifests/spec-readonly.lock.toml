@@ -456,7 +456,8 @@ group = "dadao-2x"
 # 2026-10-29（INTEG-040t，Step 3 同步）：§4 删除 cfx_tlb 委托表述；§5 由「TLB管理（cfx_tlb）」改写为「TLB维护（cfx_ptw）」——cg12 寄存器接口（control/asid/start/size、op/scope/ASID_ANY 正交）、删除 SBI_TLB_INVALIDATE、补 PTWERR；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-29（SPEC-178t，授权见文件头注释）：§4 地址分区表述统一为 `addr[47:42]`（纯术语）；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-30（INTEG-044t，授权同 SEE 条目）：初始化示例的 `global_cfx_mask` 改按目标 cfx 的 `cfxtrap` 来源 mask（supv 源 = bit 2）；附录 0.7.3-rc 补条目；sha256 同笔重算。
-sha256 = "1f22eb56d4924505217cf1567116e36e8acc986b2cf051793cf6e7a66eff8be2"
+# 2026-10-31（INTEG-047t，授权原话见任务书 §用户授权原话）：§1 错误码增 -5 SBI_ERR_BUSY；§9 表增 FID 6/7/8（DMA START/STATUS/WAIT）+ 说明段 + 分发示例 3 分支/3 处理器；附录 0.7.3-rc 补条目；sha256 同笔重算。
+sha256 = "7541b6e498706e14c3fd8811a43751a9f65c4359b9a60b284ffea54f8d58f5ac"
 
 [[spec]]
 path = "spec/DADAO-23-HBI-超管系统二进制接口.md"

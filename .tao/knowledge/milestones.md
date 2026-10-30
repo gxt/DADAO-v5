@@ -53,6 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INTEG-047t | 已验证 | 2026-10-31 01:30 | cfx_pmem DMA 的 SBI 契约：§9 补 FID 6/7/8（WAIT 预留）、错误码 `-5` 忙、测试专用 provider 探针 |
 | INTEG-046t | 已验证 | 2026-10-31 00:50 | Step5 启动链：256 KiB BootROM 表/ELF 校验、power→hmon→smon、smon 首张页表+PTW（ADR-0043） |
 | INTEG-045t | 已验证 | 2026-10-30 20:41 | cfx 指令清理：reserved 规则/删 cfxld-cfxst/fence 宏表 |
 | INTEG-044t | 已验证 | 2026-10-30 18:39 | CFX 两轴权限模型落地（ADR-0045） |

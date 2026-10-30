@@ -23,6 +23,7 @@ SBI 定义不同核芯功能扩展之间的功能调用。大部分功能调用�
 | -2 | SBI_ERR_NOT_SUPPORTED | 功能不支持 |
 | -3 | SBI_ERR_INVALID_PARAM | 参数无效 |
 | -4 | SBI_ERR_NO_DEVICE | 设备不可用 |
+| -5 | SBI_ERR_BUSY | 资源忙，可重试 |
 
 **嵌套调用**：
 
@@ -355,8 +356,13 @@ cfx_pmem 为存储器管理部件，S-mode 可查询 hypv 固件设置的物理�
 | 3 | SBI_PMEM_GET_PM_ATTR | rd16 = idx | rd8 = attr | 查询第 idx 个 PM 区域的属性 |
 | 4 | SBI_PMEM_ALLOC_PAGE | rd16 = size_hint | rd8 = ppn | 从 PM 区域分配物理页。成功返回 PPN（物理页号，>=0），失败返回 -1。由 cfx_ptw 委托调用 |
 | 5 | SBI_PMEM_FREE_PAGE | rd16 = ppn | — | 释放物理页，由 cfx_ptw 委托调用 |
+| 6 | SBI_PMEM_DMA_START | rd16 = dir（0 = CFX→PA，1 = PA→CFX）、rd17 = src、rd18 = dst、rd19 = size | rd8 = 错误码 | 启动 SRAM ↔ PA 块搬运。**只检查 DMA 忙**：`dma_status.BUSY=1` ⇒ 返回 `SBI_ERR_BUSY`（-5），不写寄存器；否则把 `rd17`→`cg15.rc0`、`rd18`→`cg15.rc1`、`rd19`→`cg15.rc2`、`(rd16 & 1) << 1 \| START`→`cg15.rc3`，返回 0。地址/长度**不在本层校验**；传输错误由 `dma_status.ERROR`/`ERR_CODE` 唯一判定 |
+| 7 | SBI_PMEM_DMA_STATUS | — | rd8 = `cfx_pmem_dma_status` | 返回**原始** `dma_status`（bit0 `BUSY` / bit1 `DONE`(W1C) / bit2 `ERROR`(W1C) / bit3–15 `ERR_CODE`，语义见 SEE §4.9）；本层**不另造错误码**，也**不提供** W1C |
+| 8 | SBI_PMEM_DMA_WAIT | — | rd8 = 错误码 | **预留，未实现**：当前无时钟/定时器，固定返回 `SBI_ERR_NOT_SUPPORTED`（-2）；**不得**轮询后返回成功，**不得**伪造超时 |
 
 > 初始化方式与其他 cfx 一致：探测 cfx_pmem 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_pmem 的 PM 区域配置由 hypv 固件在 H-mode 初始化阶段完成（见 HBI）。
+
+> `SBI_PMEM_DMA_*` 只做「忙判定 + 寄存器搬运 + 状态回读」：`START` 返回 0 仅表示**调用完成且当时不忙**（硬件可能在 `START` 时即判定非法并置 `ERROR`/`ERR_CODE`、`BUSY` 保持 0），调用方须读 `STATUS` 判定传输结果；`START` 不清 `DONE`/`ERROR`，`STATUS` 不做 W1C。SRAM 基址与大小固定（`DADAO-12 §4.9`），因此**不提供** `SBI_PMEM_GET_SRAM`。
 
 cfx_pmem 的异常入口处理：
 
@@ -380,6 +386,12 @@ cfx_pmem_supv_excp_handler:
     br.eq {rd2, rd3}?, [rb0, cfx_pmem_alloc_page] @@ func 4
     set.rd   rd3, 5
     br.eq {rd2, rd3}?, [rb0, cfx_pmem_free_page] @@ func 5
+    set.rd   rd3, 6
+    br.eq {rd2, rd3}?, [rb0, cfx_pmem_dma_start]  @@ func 6
+    set.rd   rd3, 7
+    br.eq {rd2, rd3}?, [rb0, cfx_pmem_dma_status] @@ func 7
+    set.rd   rd3, 8
+    br.eq {rd2, rd3}?, [rb0, cfx_pmem_dma_wait]   @@ func 8
 cfx_pmem_unknown:
     escape cfx_pmem, [excp_cause_ip, 4]
 
@@ -412,6 +424,21 @@ cfx_pmem_alloc_page:
 cfx_pmem_free_page:
     @@ rd16 = ppn
     @@ TODO: 将 PPN 归还到对应 PM 区域的自由页链表
+    escape cfx_pmem, [excp_cause_ip, 4]
+
+cfx_pmem_dma_start:
+    @@ rd16 = dir（0 = CFX→PA，1 = PA→CFX），rd17 = src，rd18 = dst，rd19 = size
+    @@ BUSY=1 ⇒ rd8 = -5（SBI_ERR_BUSY），不写寄存器
+    @@ 否则写 cg15 rc0..rc3（START=1，DIR = rd16 & 1），rd8 = 0
+    escape cfx_pmem, [excp_cause_ip, 4]
+
+cfx_pmem_dma_status:
+    @@ rd8 = cfx_pmem_dma_status（原始值：BUSY/DONE/ERROR/ERR_CODE）
+    escape cfx_pmem, [excp_cause_ip, 4]
+
+cfx_pmem_dma_wait:
+    @@ 预留：无时钟/定时器，不实现轮询与超时 ⇒ SBI_ERR_NOT_SUPPORTED(-2)
+    set.rd   rd8, -2
     escape cfx_pmem, [excp_cause_ip, 4]
 ```
 
@@ -722,6 +749,7 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 - `SBI_PTW_SET_PTE` 去掉 `ptbr_code` 入参（页表项格式在后续步骤定义）；PTBR 写/使能不隐含 TLB 失效。
 - TLB 并入 `cfx_ptw`：删除 `cfx_tlb` 章节与 `SBI_TLB_INVALIDATE` 服务，TLB 维护改为直接写 `cfx_ptw` 的 cg12 寄存器（`cfx_ptw_tlb_control`/`_asid`/`_addr_start`/`_addr_size`，op/scope/`ASID_ANY` 正交）；页表异常（含 TLB 命中）统一由 `cfx_ptw` 处理，新增 `PTWERR`（`1 << 7`）的 A/D 回写失败语义。
 - 正文术语统一：地址空间分区一律写作 `addr[47:42]`（地址高 6 位），不再使用讨论期简写。
+- `cfx_pmem` 增加 DMA 的 SBI 封装（启动、状态查询，等待为预留并返回不支持）；SBI 错误码增加「忙，可重试」；不提供 SRAM 查询。
 
 ### 0.7.2（2026-10-26）
 

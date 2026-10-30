@@ -37,6 +37,7 @@
 - 越界**取指**与越界数据访问**同等报异常**，不得静默；fault 码表冻结不重排。[ADR-0020 D15][ADR-0004 D5.8]
 - **`cfx_pmem` SRAM 与 DMA**：`cfx_pmem`（cfxha 17）内含 64 KiB SRAM（内部偏移 0x3ff_0000_0000，核内起始 `0x47ff_0000_0000`），CPU 用普通 `ld/st` 访问、越界 ⇒ `CFXMEM`；DMA 只在 SRAM ↔ PA 间搬运，`cg15` 寄存器为 `dma_src`/`dma_dst`/`dma_size`/`dma_ctrl`/`dma_status`；CFX 侧取低 42 位、PA 侧取低 56 位（高位忽略），`size` 30 位、合法 `1..2^29`。[DADAO-12 §2.1 核内地址空间][DADAO-12 §4.9 cfx_pmem - physical memory management][ADR-0042 D3/D6/D7.1–D7.3]
 - **`cfx_pmem` DMA 控制/状态**：`dma_ctrl` bit0 `START`（自清）/bit1 `DIR`（0=CFX→PA，1=PA→CFX）/bit2 `IRQ_EN`；`dma_status` bit0 `BUSY`、bit1 `DONE`（W1C）、bit2 `ERROR`（W1C，同时清 `ERR_CODE`）、bit3–15 `ERR_CODE`（one-hot：`SIZE`/`CFX_RANGE`/`PA_RANGE`/`PA_FAULT`）；`BUSY=1` 时 cg15 写与 DONE/ERROR W1C 被忽略；`PMEM_DMA`（`1 << 8`）异步可屏蔽，`IRQ_EN=1` 时 DONE/ERROR 触发、`cause_info` = `dma_status`，被屏蔽时置 `cfx_pmem_excp_pending`；单 hart 直接投递 `cfx_pmem`。[DADAO-12 §4.9 cfx_pmem - physical memory management][ADR-0042 D7.2/D7.4]
+- **`cfx_pmem` DMA 的 SBI 封装**：FID 6 `SBI_PMEM_DMA_START`（`rd16` = dir、`rd17` = src、`rd18` = dst、`rd19` = size；只检查 `BUSY`，忙返回 `−5`，否则写 `cg15` `rc0`–`rc3` 并返回 0；不校验地址/长度）、FID 7 `SBI_PMEM_DMA_STATUS`（返回原始 `dma_status`，不另造错误码、不做 W1C）、FID 8 `SBI_PMEM_DMA_WAIT`（预留，返回 `SBI_ERR_NOT_SUPPORTED`）；`START` 返回 0 仅表示调用完成且当时不忙，调用方须读 `STATUS` 判定传输结果。[DADAO-22 §9. 物理存储器管理（cfx_pmem）]
 
 ## §3 cfx 与权限
 
@@ -66,7 +67,7 @@
 - 参数寄存器：`rd16–rd31`（数据）、`rb16–rb31`（地址）、`rf16–rf31`（浮点）；三组独立计数、从 16 起递增。[DADAO-21 §参数寄存器：Parameter registers]
 - 标量返回值用 `rd8`；指针返回值用 `rb8`。[DADAO-21 §标量类型返回值：Scalar type return]
 - 系统调用号存于 `rd15`，与 `immu18` 为两个独立层次。[DADAO-21 §系统调用规范]
-- 错误码：`0 = SBI_SUCCESS`、`−1 = SBI_ERR_FAILED`、`−2 = SBI_ERR_NOT_SUPPORTED`、`−3 = SBI_ERR_INVALID_PARAM`、`−4 = SBI_ERR_NO_DEVICE`。[DADAO-22 §1. 调用约定]
+- 错误码：`0 = SBI_SUCCESS`、`−1 = SBI_ERR_FAILED`、`−2 = SBI_ERR_NOT_SUPPORTED`、`−3 = SBI_ERR_INVALID_PARAM`、`−4 = SBI_ERR_NO_DEVICE`、`−5 = SBI_ERR_BUSY`（资源忙，可重试）。[DADAO-22 §1. 调用约定]
 
 ---
 
