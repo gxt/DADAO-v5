@@ -56,3 +56,26 @@
 - 状态：待处理
 - 结论：ADR-0043/0045/0046 仍为 Proposed，对应实现已落地
 - 下一步：逐条确认后转 Accepted；不擅自改状态
+
+## 从 milestones.md 迁入的现行规则/规划
+
+> 非历史内容，当前仍有效。
+
+## 体例约定（硬约束）
+
+1. **任务流水用表格**：列 = `| 编号 | 状态 | 完成时间 | 一句改动 |`；**一句改动 ≤120 字符**（中文按 1 字符计）；细节写各任务书，本文只做**索引**（与 `lessons §1.4` 一致）。
+2. **按完成时间倒序**（最新在上）；**未完成任务也必须列**，其时间列 = **登记时间**并加注 `（登记）`；同一时间按任务编号升序。
+3. **状态以任务书头部「状态」字段为准**；本文与任务书不一致 ⇒ L1 门控 `check-milestones-fresh` 红。
+4. **表格之后的当前进度 / M8 规划区 / 状态快照 / M9 规划须随任务与产物同步更新**；计数一律**现场派生**，不写死。
+
+> 机械校验：`make check-milestones-fresh`（L1；状态一致 / 覆盖 / 长度 / 次序 / 格式五断言，`--self-test` 内置五类反例）。
+
+## M10 规划（2026-10-26，用户裁定）
+
+**当前里程碑 = CFX 完善与验证**；**Linux 内核支持推到下一里程碑**（本里程碑不排 Linux 任务）。
+
+**Linux 7.2.10 × 当前 LLVM 兼容性评估**（architect 实测；源码 `.work/source/linux`）：
+- 可用：64 位/大端代码生成、原子（LR/SC + fence，1/2/4/8B）、inline asm `r/m/i/n`、`asm goto`（无输出）、builtins（clz/ctz/popcount/bswap/overflow）、section/attribute、TLS、`default`/`large` code model、DWARF、`.S` 宏与 `.rept`、lld 内核式脚本（KEEP/PROVIDE/ALIGN/LONG/QUAD/ASSERT）/高地址/`R_DADAO_ABS48`、`llvm-readelf/nm/objdump/objcopy`。
+- 缺口（阻断序）：① `arch/dadao` 不存在（首要）；② 缺 `llvm-ar`/`llvm-ranlib`/`llvm-strip`（`LLVM=1` 直调；GNU ar 可临时顶）；③ `asm goto` + 输出必现 SelectionDAGBuilder 断言（`CC_HAS_ASM_GOTO_OUTPUT` 探针失败）；④ 栈保护无法 lowering（`-mstack-protector-guard=global` 不支持）；⑤ 汇编器拒 `.quad/.long/.short/.byte`（只认 `.dd.*`；`CC_HAS_ASM_GOTO_TIED_OUTPUT` 探针失败）；⑥ inline asm 约束仅 `r/m/i/n`；⑦ `-mcmodel=kernel` 不支持（用 default/large）。
+- **兼容性 spike（定义）**：一次性时间盒实验——在 `/tmp/opencode/M10-COMPAT/` 造**丢弃式**最小 `arch/dadao` 桩（仅够 Kconfig/头文件），用现有 clang/lld 编 20–30 个代表性 generic 文件 + Kconfig 探针，产出「编译器缺口 + 规避法」清单；**只做编译/链接、不运行**。与 QEMU **正交**：QEMU 是运行侧（机器模型/启动/设备/MMU），不参与 spike；spike 的桩不是端口交付物。
+- **下一里程碑入口判据（建议）**：spike 清单归零或有规避法 + `llvm-ar/ranlib/strip` 就位 + `arch/dadao` 最小骨架能 `make ARCH=dadao` 出 vmlinux。
