@@ -40,6 +40,7 @@ _ALLOWED_FILES = frozenset({
     "issues.yaml",                   # issue 台账
     "lessons.md",                    # 教训/判据
     "milestones.md",                 # 任务流水 / 进度
+    "discussing.md",                 # 讨论项 backlog（非任务流水）
     "mirrors.md",                    # 镜像/下载口径
     "project_M3-codegen-choices.md", # M3 codegen 口径台账
 })
