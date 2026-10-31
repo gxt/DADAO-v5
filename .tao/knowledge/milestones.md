@@ -6,6 +6,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INTEG-051t | 待开始 | 2026-10-31 23:30（登记） | 统一异步中断仲裁：pending 归目标 cfx（TIMER→cfx_hart、PMEM_DMA→cfx_pmem），cfx_hart 只扫描仲裁（低 cfxha 优先、mask 解除补投；依赖 050） |
 | INFRA-112t | 已验证 | 2026-10-31 23:13 | `check-knowledge-dir` 回 L1：进 `_locked-check`、退出 `check-milestone`、Process-07 登记同步 |
 | INTEG-050t | 已验证 | 2026-10-31 22:29 | cfx_time + 单 hart cfx_hart（64 位 cycle/insn、定时器、探针、m5 换 cfx_llc） |
 | TESTCASES-087t | 已验证 | 2026-10-31 18:20 | ctrl 生成器 OUT_DIR 迁回 tests/inst/base；`--check` 逐字节校验 + 落点守卫 |
