@@ -697,9 +697,9 @@ vector	tests/inst/base/ctrl-jump.yaml	jump_iiii_rb	semantic	0x70000002	None	acti
 vector	tests/inst/base/ctrl-jump.yaml	jump_rrii_rb	encoding	0x71000002	None	active	1
 vector	tests/inst/base/ctrl-jump.yaml	jump_rrii_rb	legality	0x710c0000	CFXMEM	active	1
 vector	tests/inst/base/ctrl-jump.yaml	jump_rrii_rb	semantic	0x71000002	None	active	1
+vector	tests/inst/base/ctrl-ret.yaml	ret_riii_ra	legality	0x76000000	CFXMEM	active	1
 vector	tests/inst/base/ctrl-ret.yaml	ret_riii_ra	legality	0x76000000	RASUF	active	1
 vector	tests/inst/base/ctrl-ret.yaml	ret_riii_ra	legality	0x76000000	RASUF	active	2
-vector	tests/inst/base/ctrl-ret.yaml	ret_riii_ra	legality	0x76000000	UNMAPPED	active	1
 vector	tests/inst/base/ctrl-ret.yaml	ret_riii_ra	legality	0x76000001	ILLI	active	1
 vector	tests/inst/base/ctrl-ret.yaml	ret_riii_ra	legality	0x7603ffff	ILLI	active	1
 vector	tests/inst/base/ctrl-ret.yaml	ret_riii_ra	semantic	0x76000000	None	active	1

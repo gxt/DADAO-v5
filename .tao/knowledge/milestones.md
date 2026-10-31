@@ -53,6 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-086t | 已验证 | 2026-10-31 16:10 | reserved cfx 异常期望修正：ctrl-ret[9] 取指 ⇒ CFXMEM；审计 tests/inst 全部 fault 期望 |
 | INTEG-049t | 已验证 | 2026-10-31 12:30 | cg7 空间描述落地：16×4 只读表、写任意 rc ⇒ CFXREG、四类空间探针 |
 | TESTCASES-085t | 已验证 | 2026-10-31 12:10 | runner 外杀后清理 qemu 孤儿：PID/PGID 登记 + SIGTERM/INT/HUP 钩子 + 公共助手 + 自检 |
 | INTEG-048t | 已验证 | 2026-10-31 10:30 | `cfx_*_cg_reg_deleg` 强制检查：`CFXPERM`/bit3 恒 1/全 cg/不豁免 self；hmon 写 `0x8` 开 ptw/pmem/smon；power 仅 cfxmem bit2 开 BootROM |

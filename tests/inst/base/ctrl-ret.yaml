@@ -68,7 +68,7 @@
   mnemonic: ret
   notes: 'semantic D4b (MemRAS count>1): ra0=0x0000FC0000F00000 (RACNT=0, MRPTR=0xFC0000F00000); MemRAS[MRPTR]=[count=3, addr=0xFC0000000004];
     ret → PC=条目[47:0]=0xFC0000000004; count>1→push to stack: ra63=[count=2, addr=0xFC0000000004], MRPTR+=8→0xFC0000F00008,
-    RACNT=1；（TESTCASES-063t: 条目地址即 ret 的取指目标，须为可执行 RAM ⇒ 用 canonical 返回地址；原 0xBBBB00000000 形态见本册 legality UNMAPPED 用例）'
+    RACNT=1；（TESTCASES-063t: 条目地址即 ret 的取指目标，须为可执行 RAM ⇒ 用 canonical 返回地址；原 0xBBBB00000000 形态见本册 legality CFXMEM 用例）'
   spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回'
   status: active
 - class: semantic
@@ -187,7 +187,7 @@
   deferred_reason: null
   encoding:
     word: '0x76000000'
-  expected_fault: UNMAPPED
+  expected_fault: CFXMEM
   expected_pc: null
   expected_state: null
   format: riii
@@ -199,7 +199,7 @@
     ra:
       ra0: '0x0000FC0000F00000'
   mnemonic: ret
-  notes: 'legality D4b UNMAPPED (return target outside RAM): ra0=0x0000FC0000F00000 (RACNT=0, MRPTR=0xFC0000F00000); MemRAS[MRPTR]=[count=1,
-    addr=0xBBBB00000000]; ret → PC=0xBBBB00000000 (cfxha 46, no mapping) → 取指 UNMAPPED (0x87)'
-  spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; ADR-0020 D15 / ADR-0004 D5.8'
+  notes: 'legality D4b CFXMEM (return target in reserved cfx): ra0=0x0000FC0000F00000 (RACNT=0, MRPTR=0xFC0000F00000); MemRAS[MRPTR]=[count=1,
+    addr=0xBBBB00000000]; ret → PC=0xBBBB00000000 (cfxha 46, reserved 19–61) → 取指 CFXMEM (0x81)'
+  spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; DADAO-12: 核内地址空间; DADAO-12: 异常进入流程; ADR-0020 D15 / ADR-0004 D5.8'
   status: active

@@ -4,7 +4,7 @@
 Covers M1 identities (jump-iiii, jump-rrii, call-iiii, call-rrii, ret-riii) with:
   - encoding cases (jump/call only; ret-riii excluded: return target depends on harness layout)
   - semantic/boundary cases with expected_pc, expected_state (ra + memory)
-  - legality cases (UNMAPPED, RASOF, RASUF)
+  - legality cases (UNMAPPED, CFXMEM, RASOF, RASUF)
 
 Spec-first: all encoding words, expected values, and spec_cite derived from
 contracts/opcodes.yaml, spec/SimRISC-00: 返回地址栈 (D7),
@@ -173,8 +173,9 @@ SC_RET_D3 = "SimRISC-00: 弹栈流程; SimRISC-06: 函数返回"
 SC_RET_D4b = "SimRISC-00: 弹栈流程; SimRISC-06: 函数返回"
 SC_RET_RASUF = "SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; ADR-0004 D5.5"
 SC_RET_D4B_RASUF = "SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; ADR-0004 D5.5"
-SC_RET_D4B_UNMAPPED = ("SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; "
-                       "ADR-0020 D15 / ADR-0004 D5.8")
+SC_RET_D4B_CFXMEM = ("SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; "
+                     "DADAO-12: 核内地址空间; DADAO-12: 异常进入流程; "
+                     "ADR-0020 D15 / ADR-0004 D5.8")
 # TESTCASES-022t: ret rd0 ⇒ imms18 MUST be 0 (dst_rd0_nonzero); rd != rd0 unconstrained
 SC_RET_RD0_IMMS18 = "SimRISC-06: 函数返回; SimRISC-00: 数据寄存器"
 
@@ -442,9 +443,10 @@ def _gen_ret_riii():
     #   PC = entry[47:0] = 0xFC0000000004
     #   (ISS-098/TESTCASES-063t: the entry address is the instruction's return
     #   target, so it must be executable RAM — the previous magic 0xBBBB… value
-    #   made the case unobservable: `ret` to 0xBBBB00000000 faults UNMAPPED(0x87)
-    #   before any state comparison can run.  The magic shape is kept as a
-    #   legality case, the RAS bookkeeping assertions are unchanged.)
+    #   made the case unobservable: `ret` to 0xBBBB00000000 (cfxha 46,
+    #   reserved 19–61) faults CFXMEM(0x81) before any state comparison can
+    #   run.  The magic shape is kept as a legality case, the RAS bookkeeping
+    #   assertions are unchanged.)
     d4b_mrptr = MRPTR_BASE
     d4b_mrptr_after = "0x%012X" % (d4b_mrptr + 8)
     d4b_in_ra0 = _ra0(0, d4b_mrptr)
@@ -465,10 +467,10 @@ def _gen_ret_riii():
     d4b1_out_ra0 = _ra0(0, d4b1_mrptr + 8)
     d4b1_pc = RETURN_ADDR                 # PC = entry[47:0]
 
-    # D4b UNMAPPED: the same MemRAS pop with a non-RAM return target
+    # D4b CFXMEM: the same MemRAS pop with a reserved-cfx return target
     #   (the shape the pre-063t D4b semantic cases used): ret takes PC from the
-    #   entry → instruction fetch at 0xBBBB00000000 (cfxha 46, no mapping) →
-    #   UNMAPPED (0x87); the RAS was consumed before the fetch.
+    #   entry → instruction fetch at 0xBBBB00000000 (cfxha 46, reserved 19–61)
+    #   → CFXMEM (0x81); the RAS was consumed before the fetch.
     d4bu_mem_in = RA64_FMT % ((1 << 48) | 0xBBBB_0000_0000)
 
     # D4b cnt=0: RACNT==0, MRPTR!=0, MemRAS entry count=0 → RASUF
@@ -521,7 +523,7 @@ def _gen_ret_riii():
               "ra63=[count=2, addr=%s], MRPTR+=8→%s, RACNT=1；"
               "（TESTCASES-063t: 条目地址即 ret 的取指目标，须为可执行 RAM ⇒ "
               "用 canonical 返回地址；原 0xBBBB00000000 形态见本册 "
-              "legality UNMAPPED 用例）"
+              "legality CFXMEM 用例）"
               % (d4b_in_ra0, d4b_mrptr, RETURN_ADDR, RETURN_ADDR,
                  RETURN_ADDR, d4b_mrptr_after)),
         # D4b cnt=1: restore from MemRAS, consume (no push)
@@ -584,20 +586,21 @@ def _gen_ret_riii():
               "ra62→ra63=[count=1, addr=0xAAAA00000000], RACNT→1 (ra0=%s); "
               "rd1 = sign_extend(42) = 0x2A"
               % (rd1_in_ra0, rd1_out_ra0)),
-        # ── appended (index 9, 既有用例序号不变): D4b UNMAPPED ──────────────
-        # MemRAS 条目的返回目标不在可执行 RAM 内（063t 之前 D4b semantic 用例
-        # 用的 0xBBBB… 形态）：ret 取指 → UNMAPPED (0x87)。该形态语义上无法
-        # 观察到 ret 之后的寄存器状态，故只能是 legality 用例。
+        # ── appended (index 9, 既有用例序号不变): D4b CFXMEM ───────────────
+        # MemRAS 条目的返回目标落在 reserved cfx（0xBBBB… ⇒ cfxha 46 ∈
+        # 19–61；063t 之前 D4b semantic 用例用的形态）：ret 取指 → CFXMEM
+        # (0x81)。该形态语义上无法观察到 ret 之后的寄存器状态，故只能是
+        # legality 用例。
         _case("legality", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d4b1_in_ra0},
                "memory": [{"address": "0x%012X" % d4b1_mrptr,
                            "value": d4bu_mem_in}]},
               None,
-              "UNMAPPED", None, SC_RET_D4B_UNMAPPED,
-              "legality D4b UNMAPPED (return target outside RAM): ra0=%s "
+              "CFXMEM", None, SC_RET_D4B_CFXMEM,
+              "legality D4b CFXMEM (return target in reserved cfx): ra0=%s "
               "(RACNT=0, MRPTR=0x%X); MemRAS[MRPTR]=[count=1, "
               "addr=0xBBBB00000000]; ret → PC=0xBBBB00000000 (cfxha 46, "
-              "no mapping) → 取指 UNMAPPED (0x87)"
+              "reserved 19–61) → 取指 CFXMEM (0x81)"
               % (d4b1_in_ra0, d4b1_mrptr)),
     ]
 
