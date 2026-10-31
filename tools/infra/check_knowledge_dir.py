@@ -43,7 +43,6 @@ _ALLOWED_FILES = frozenset({
     "discussing.md",                 # 讨论项 backlog（非任务流水）
     "cfx-register-usage.md",         # CFX 寄存器 usage profile（ADR-0046）
     "mirrors.md",                    # 镜像/下载口径
-    "project_M3-codegen-choices.md", # M3 codegen 口径台账
 })
 
 # 顶层允许的 glob 模式（空）：`contract-*.md` 已由 INFRA-071t 迁入 `.tao/contracts/`

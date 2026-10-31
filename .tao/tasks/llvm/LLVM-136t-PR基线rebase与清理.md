@@ -46,7 +46,7 @@
 
 ### 修改文件
 - `tests/unit/llvm/lit/CodeGen/DADAO/lit.cfg.py`：site config / 安装根优先；`LLVM_TOOLS_DIR` 改**显式 opt-in**（`DADAO_LIT_ALLOW_TOOLS_OVERRIDE=1`）+ identity 校验（llc 的 dadao 目标、三工具可执行、version+sha256 打印）
-- 历史审计快照（已删除）（新）：PR 15 文件差异清单 + 三项回退证据 + 137–139 重放点 + 错号订正
+- 历史审计快照（已删除）：PR 15 文件差异清单 + 三项回退证据 + 137–139 重放点 + 错号订正
 - `.tao/tasks/llvm/LLVM-136t-PR基线rebase与清理.md`：标题 `LLVM-130–133`→`LLVM-137–139`，状态/本区
 - `.tao/knowledge/milestones.md`：LLVM-136t 行 → `待验收`
 - `components/**`、`series`、矩阵 **零改动**（未 merge PR、未落 137–139 代码）；证据未跟踪 `.work/evidence/LLVM-136t/{run.sh,check_lit_tools.py}`
