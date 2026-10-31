@@ -2,7 +2,7 @@
 
 **模块**：integ
 **项目里程碑**：M10（Linux 开发前置独立项；M11 未定义，暂挂 M10，待用户确认）
-**依赖**：`INTEG-050t`（`cfx_time` + 单 hart `cfx_hart` 定时器，状态 `待开始`；本任务**必须在其 `已验证` 后**开工）
+**依赖**：`INTEG-050t`（`cfx_time` + 单 hart `cfx_hart` 定时器，2026-10-31 `已验证`）
 **状态**：待开始
 
 > **开工门槛**：`INTEG-050t` 未 `已验证` 前不得 `/dispatch`。050 交付的是「单来源异步路径 + 两个独立 `bool`」，本任务把这两个 `bool` 换成**目标 cfx 的既有 `cg5 rc5 pending`** 并把投递收成一处仲裁；050 的探针（17 例）、`contract-see` 条目与 QEMU 补丁是本任务的基线。
@@ -28,7 +28,7 @@
 7. **零回退**：050 探针 17 例、`integ042t`（25 例）与既有 cfx 探针全部保持绿；`cg5 rc5` 的 TIMER bit10 语义不变（050 探针依赖）。
 8. **契约与登记**：`contract-see` 补「统一仲裁（测试机约定）」条目并纠正 cfx_pmem 异步句措辞；QEMU `changelog` 1 条；`Makefile`/arch `README.md` 登记新探针。
 
-**明确不做**：不做 IPI；不做多 hart / 多 hart 同步；不做生产 SBI provider；不做嵌套投递/异步帧分离；**不改 `cfx_enter()` 与其掩码判定**；不改 `spec/**`（本任务零 spec 改动，见「预检 5」）；不改 LLVM；不改 `cg7`/两轴权限/tlb_fill/PMEM DMA 传输逻辑；不跑夜跑；不实现（本任务书只立规划）。
+**明确不做**：不做 IPI；不做多 hart / 多 hart 同步；不做生产 SBI provider；不做嵌套投递/异步帧分离；**不改 `cfx_enter()` 与其掩码判定**；不改 `spec/**`（本任务零 spec 改动，见「预检 5」）；不改 LLVM；不改 `cg7`/两轴权限/tlb_fill/PMEM DMA 传输逻辑；不跑夜跑。
 
 ## 问题根源
 
