@@ -17,9 +17,9 @@
 
 ## escape 只允许 0/+4
 
-- 状态：待立项
+- 状态：已转任务
 - 结论：`imms18[0]` 只允许 0/1，`imms18[17:1]` SBZ；汇编器拒绝非法值，QEMU 执行 ⇒ `ILLI`；`excp_cause_ip` 仍 RW，不构成任意返回安全边界
-- 下一步：立 SPEC-180t，再做 LLVM/QEMU 同步
+- 下一步：→ 已转 SPEC-180t
 
 ## QEMU 注释 7-14 与宏 6–14 不一致
 
@@ -56,6 +56,12 @@
 - 状态：0043/0045 已 Accepted；0046 仍 Proposed
 - 结论：ADR-0043/0045 的决策已确认并收口；ADR-0046 等 Linux 实测后再收口
 - 下一步：不再改 0043/0045 的 decision；0046 保持 Proposed
+
+## ADR-0017 D10 与 LLVM-141t stride
+
+- 状态：待用户裁定
+- 结论：LLVM-141t 已实现 `rc = rcBase + N*stride`；`ADR-0017 D10` 仍写 `rc = rc_base + N`，属对 D10 的扩展，未静默改写
+- 下一步：逐条确认后修订 D10 或另立 ADR；确认前不改 ADR
 
 ## 从 CFX 审计保留的未决项
 
