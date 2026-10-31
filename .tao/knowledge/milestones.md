@@ -1,6 +1,6 @@
 # 项目里程碑
 
-> 只维护任务流水；历史见 `.tao/archive/M10/milestones-history.md`，当前讨论/规划见 `.tao/knowledge/discussing.md`。
+> 只维护任务流水；历史任务见 `.tao/archive/`，当前讨论/规划见 `.tao/knowledge/discussing.md`。
 
 ## 任务流水
 

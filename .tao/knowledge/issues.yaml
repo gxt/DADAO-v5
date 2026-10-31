@@ -133,7 +133,7 @@
   resolved_by: INFRA-110t
   notes: >-
     【正式登记（2026-10-26，源 = `QEMU-076t` reviewer finding）】**现象**：`README.md:60`（M5 历史段）、
-    `docs/DDLN/D-运行平台/DD-D002`/`TT-D002`、`docs/Machine-00-执行环境分层-Draft.md:12`、`.tao/knowledge/audits/cfx-audit-2026-10-26.md`
+    `docs/DDLN/D-运行平台/DD-D002`/`TT-D002`、`docs/Machine-00-执行环境分层-Draft.md:12`、历史审计快照（已删除）
     仍写 `immu18[17:16]==2'b11` / `0x30000`。**性质**：README 属**历史里程碑记录**（当时口径正确），应加「M10 已迁 `0x3FF00–0x3FFFF`（ADR-0038）」注记而非改写；
     DDLN 与 Machine-00 Draft 属**现行/教学口径**，应更新为新判据；audits 为快照，保留但可加时间注记。**证据**：
     `QEMU-076t` 审阅记录、`grep -rn '0x30000\|2.b11' docs/DDLN README.md docs/Machine-00*`。**边界**：本笔只登记 ⇒ 未改文档 ✗。

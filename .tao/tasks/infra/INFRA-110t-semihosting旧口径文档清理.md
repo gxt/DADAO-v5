@@ -10,7 +10,7 @@ semihosting 判定已迁至 `0x3FF00–0x3FFFF`（`ADR-0038`），但以下文�
 - `README.md:60`（M5 历史段）；
 - `docs/DDLN/D-运行平台/DD-D002`、`TT-D002`（现行/教学口径，含 §8「为什么用 tag」）；
 - `docs/Machine-00-执行环境分层-Draft.md:12`；
-- `.tao/knowledge/audits/cfx-audit-2026-10-26.md`（审计快照）。
+- 历史审计快照（已删除）（审计快照）。
 
 ## 改动
 1. `README.md` M5 历史段：**不改写历史**，在句末加注「（M10 已迁 `0x3FF00–0x3FFFF`，见 `ADR-0038`）」。
@@ -34,7 +34,7 @@ semihosting 判定已迁至 `0x3FF00–0x3FFFF`（`ADR-0038`），但以下文�
 
 **测试结果**：`make check` **rc=0**（尾行 `repository checks (L1): PASS`）；证据 `bash .work/evidence/INFRA-110t/run.sh` → **checks=25 failures=0，rc=0**（10 断言 + `make check` + 3 组「注入→FAIL→`cp`+md5 还原→回绿」）。
 
-**修改文件**：`README.md`（M5 段加历史注记）、`docs/DDLN/D-运行平台/DD-D002-运行平台--测试机运行环境.md` + `TT-D002-…`（§7/§8/对照改新判据；`TT-*` 被 `.gitignore` 忽略、随 DD 同步）、`docs/DDLN/Z-发展历程/DD-Z003-…` + `TT-Z003-…`（M5 段同 README 加注）、`docs/DDLN/README.md`（D002 索引行）、`docs/Machine-00-执行环境分层-Draft.md`（L2 示例 `0x3FF00`）、`.tao/knowledge/audits/cfx-audit-2026-10-26.md`（仅头注）、`.tao/knowledge/issues.yaml`（ISS-337）、`.tao/knowledge/milestones.md`（行状态）、本任务书；证据 `.work/evidence/INFRA-110t/{run.sh,checks.py}`（`.work/**` 不入 git）。
+**修改文件**：`README.md`（M5 段加历史注记）、`docs/DDLN/D-运行平台/DD-D002-运行平台--测试机运行环境.md` + `TT-D002-…`（§7/§8/对照改新判据；`TT-*` 被 `.gitignore` 忽略、随 DD 同步）、`docs/DDLN/Z-发展历程/DD-Z003-…` + `TT-Z003-…`（M5 段同 README 加注）、`docs/DDLN/README.md`（D002 索引行）、`docs/Machine-00-执行环境分层-Draft.md`（L2 示例 `0x3FF00`）、历史审计快照（已删除）（仅头注）、`.tao/knowledge/issues.yaml`（ISS-337）、`.tao/knowledge/milestones.md`（行状态）、本任务书；证据 `.work/evidence/INFRA-110t/{run.sh,checks.py}`（`.work/**` 不入 git）。
 
 **验收结果**：
 - 现行口径 grep：`README.md`/`docs/Machine-00*`/`docs/DDLN`（现场 77 文件）中旧口径行 = **5 行，全部标「历史」且带新口径指针**（README M5、Z003/TT-Z003 M5、DD002 §8 历史动机）；未标「历史」= **0**。

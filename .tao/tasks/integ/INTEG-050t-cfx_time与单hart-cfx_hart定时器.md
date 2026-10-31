@@ -114,7 +114,7 @@
 | `tests/unit/llvm/lit/MC/DADAO/README-m5.md:54` | m5 行说明 `trap cfx_hart` | 按「§6 m5 改造」改为 `cfx_llc` |
 | `tests/arch/umon/*`、`tools/**`、`tools/testcases/**` | 无旧名引用（已 grep） | 不动 |
 | `docs/DDLN/C-资源管理/{DD,TT}-C008-*.md:35-36` | 讨论稿提到 `cycle_lo/hi` | **不改**（该稿整体停留旧 `timer` cfx 8 计数器设计，属既有过时讨论稿，非规格投影；登记遗留） |
-| `.tao/knowledge/audits/cfx-audit-2026-10-26.md`、`.tao/archive/**` | 历史层 | 不改 |
+| 历史审计快照（已删除）、`.tao/archive/**` | 历史层 | 不改 |
 
 **重生成与生效顺序**（须按序，缺一则门控/实测读旧表）：
 
@@ -249,7 +249,7 @@
 20. 本任务书（完成区 + 状态）
 21. `.tao/knowledge/milestones.md`（仅本任务流水行状态）
 
-**明确不动**：其它 `spec/**` 册与 `spec/README.md`；`.tao/adr/**`；`.tao/knowledge/discussing.md`（「Linux 开发前」后置项登记在**本任务书**「后置独立项」节，是否另立台账条目由用户决定）；`components/llvm-project/**`（别名是运行时表，**不重建 LLVM**）；`tests/arch.yaml`；`tests/inst/**`；`tests/shared/bootrom/**`；`docs/**`（含 `docs/DDLN/**` 过时讨论稿）；`.tao/archive/**`、`.tao/knowledge/audits/**`；`tools/spec/gen_cfx_aliases.py`、`tools/llvm/gen_cfx_alias_table.py`（生成器本身不改）；`target/dadao/helper.h`（不加 helper）。
+**明确不动**：其它 `spec/**` 册与 `spec/README.md`；`.tao/adr/**`；`.tao/knowledge/discussing.md`（「Linux 开发前」后置项登记在**本任务书**「后置独立项」节，是否另立台账条目由用户决定）；`components/llvm-project/**`（别名是运行时表，**不重建 LLVM**）；`tests/arch.yaml`；`tests/inst/**`；`tests/shared/bootrom/**`；`docs/**`（含 `docs/DDLN/**` 过时讨论稿）；`.tao/archive/**`、历史审计目录（已删除）；`tools/spec/gen_cfx_aliases.py`、`tools/llvm/gen_cfx_alias_table.py`（生成器本身不改）；`target/dadao/helper.h`（不加 helper）。
 
 ## 约束
 

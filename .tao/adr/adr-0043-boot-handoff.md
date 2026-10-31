@@ -1,7 +1,8 @@
 # ADR-0043: 启动、power/hmon 分层与 SEE 交接
 
-**状态**：Proposed
+**状态**：Accepted
 **日期**：2026-10-30
+**接受日期**：2026-10-31
 **关联**：ADR-0039（PTBR/PTW）、ADR-0040（PTE）、ADR-0042（cfx_pmem）、ADR-0045（权限）；`spec/DADAO-12` §1/§2
 
 ## Context（背景）
@@ -40,3 +41,5 @@
 ## 状态说明
 
 已确认：唯一 BootROM、power 无 SRAM、hmon/smon 64 KiB、镜像复制链、trap magic、页表/PTW、超高区映射、park。帧管理、异步重入、jmon、用户态测试未定。
+
+**接受记录**：用户 2026-10-31 确认 D1–D15 已讨论，ADR 转 `Accepted`；帧管理、异步重入、jmon、用户态测试仍不在本 ADR 范围。

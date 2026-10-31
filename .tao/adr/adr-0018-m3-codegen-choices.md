@@ -2,15 +2,15 @@
 
 **状态**：Accepted（rev. 2026-10-08: `§C7 D4` 大帧寻址改为**四形态 + 代价驱动**；rev. 2026-10-09: `§C7 D6` 保留策略改为 **`rb63` 条件式保留**（FP 由 `rb2` 迁 `rb63`）；rev. 2026-10-19: `§C7 D3`/`D6` 恢复 **`rb2` 帧指针**（无条件保留、无别名），`rb63` 回归普通 callee-saved；rev. 2026-10-19（第二条）: `§C9` 新增 **`D3`** —— `call` 执行时 `sp` **16 B 对齐**（`StackAlignment=Align(16)`）；均见 `## 修订`）
 **日期**：2026-10-04
-**决策者**：用户（逐条确认，见 `project_M3-codegen-choices.md §5`）
-**关联**：`SPEC-096k`（M3 启动与分解）；`.tao/knowledge/project_M3-codegen-choices.md §5`（权威判定）；任务 `INFRA-035t`/`SPEC-097t`/`LLVM-033t`–`041t`/`TESTCASES-026t`/`INTEG-012t` 及各模块 `m`
+**决策者**：用户（逐条确认，见本文附录 A）
+**关联**：`SPEC-096k`（M3 启动与分解）；本文附录 A（权威判定）；任务 `INFRA-035t`/`SPEC-097t`/`LLVM-033t`–`041t`/`TESTCASES-026t`/`INTEG-012t` 及各模块 `m`
 
 > **合并说明**：本 ADR 由原 10 条草案（C1/C2/C4/C5/C7/C9/C11/C13/C14/C16）合并为**单文件**；32 条 decision 经用户逐一审核**无变化、直接通过**，逐字保留，状态 `Accepted`。C17（无标志位 compare-branch）按用户裁定**只落任务书约束、不立 ADR**；C6（CSR）归 ABI（`SPEC-097t`）。本 ADR **不承载规范正文**（正文归 `spec/` 与 `contract-*`），只记决策/理由/被否方案/指向。
 
 ## Context（背景）
 
 - **M3 = Basic CodeGen（纯整数）**：`llc` 把标量整数/指针函数（LLVM IR）编译为 DADAO 汇编，经 MC → **单 TU** obj/raw binary → `qemu-system-dadao` 执行正确；门槛 `make test-codegen` 全绿。bank 只用 `GPRD`+`GPRB`；`RA`/`RF` 仅「保留不分配」；无需链接器（单 TU 自包含 + 最小重定位）。
-- M3 CodeGen 涉及一组跨组件、高代价、需一致且有取舍的取舍点 **C1–C17**；逐条分析（含三参考 M68k / DADAO-0628 / TCH-llvm 的 `file:line` 证据）见 `.tao/knowledge/project_M3-codegen-choices.md`。
+- M3 CodeGen 涉及一组跨组件、高代价、需一致且有取舍的取舍点 **C1–C17**；逐条分析原见 `.tao/knowledge/project_M3-codegen-choices.md`；该分析文件已清理，C1–C17 的权威判定与附注见本文附录 A。
 - 其中 **§5「判定结果」表（C1–C17）及其「附注与澄清」是权威判定**，已逐条经用户确认。本 ADR 固化需立 ADR 的部分。
 - 各取舍点的 ABI 内容（跨组件可观察事实）另行投影到 `contract-abi.md`/`contracts/abi.yaml`（`SPEC-097t`），不在本 ADR 内定义。
 
@@ -314,3 +314,41 @@
 - 2026-10-19：**`§C7 D3`/`D6` 就地修订**（用户逐条确认）——FP 恢复 `rb2`（无条件保留、无别名），`rb63` 回归普通 callee-saved（`rb32–rb63` 连续可分配）；`D2`/`D3` 的 FP 寄存器号恢复为 `rb2`（详见 `## 修订`）；其余 decision 不变。
 - 2026-10-19（第二条）：**`§C9` 新增 `D3`**（用户逐条确认）——`call` 时 `sp` **16 B 对齐**（`Align(16)`）；`ADR-0031 D7` 的 16 B 栈值绝对对齐转为**无条件**；`DataLayout` / `S128` 不变（详见 `## 修订`）。
 - 后续如需变更任一 decision，按 `docs/Process-03-ADR编写规范.md`（新增 ADR / 标注 `Superseded` / 经授权的就地修订），并仍须逐条经用户确认。
+
+## 附录 A：C1–C17 判定结果（自 project_M3-codegen-choices.md §5 迁入）
+
+> 原文件 `project_M3-codegen-choices.md` 已删除；本附录保留权威判定与附注。
+
+### A.1 判定结果（2026-10-04，用户逐条判定）
+
+> 逐条判定进行中（C1–C10 已判，其余待判）。每条均经用户确认；ADR 待全部判完后按「建议 ADR 集合」落地。
+
+| C | 判定 | ADR |
+|---|---|---|
+| **C1** | **硬双类**：`GPRD=i64`、`GPRB=指针/基址`；指针经 CC/ISel 强制落 GPRB | 建议立 |
+| **C2** | **(2) i64 通吃 + `ArgFlags.isPointer()`/`CCIfPtr` 人为约束**（不改 LLVM 核心） | 建议立 |
+| **C3** | **(1) 专用 `rd2rd`/`rb2rb`**；跨 bank 用 `rd2rb`/`rb2rd` | 否 |
+| **C4** | 溢出区 **(a) 全局声明序**（单栈区、按参数声明序；同 0628/主流）；窄参数由 caller 扩展 | 并入 ABI |
+| **C5** | 指针返回 `rb31`；窄返回 **(A) callee 扩展（canonical）**；多返回值/i128 **归 M4**（i128 约定 M4 再议） | 建议立 |
+| **C6** | `CSR = rd32–63 ∪ rb32–63`；caller-saved = rd/rb 8–31；`rd1–7`/`rb3–7` reserved；`rd0`/`rb0` 特殊；**SP(rb1) ∉ CSR**（对称回收） | 否 |
+| **C7** | **(ii) 标准条件式** `hasFPImpl = DisableFramePointerElim ∨ hasVarSizedObjects ∨ isFrameAddressTaken ∨ hasStackRealignment`；默认 **SP-only(rb1)**，选项/条件 → **FP=rb2**；`getFrameRegister = hasFP ? rb2 : rb1`；**大帧**：方案2 为主（`rb2rb`+`add.si`，≤±128K，单/多寄存器都支持），方案1（rd 存偏移 + `ldm/stm`）仅 >128K；**M3 现在实现** | **建议立** |
+| **C8** | `SP=rb1`、`FP=rb2`（spec 定）；`getFrameRegister` 须改为条件式（现行返回 rb2 恒值） | 否 |
+| **C9** | DataLayout = **`E-m:e-p:64:64-i64:64-i128:128-n8:16:32:64-S128`**（`S128`/`i128:128`/省略 `a:` 随主流；`n8:16:32:64` 同 x86-64；端序 `E` 有意） | **建议立** |
+| **C10** | `call`/`ret` 用 **RegRAS(ra63)**，**无内存返回地址槽**；机制随 spec、无取舍；实现项 `isCall`/`isReturn`/`Uses`/`Defs` 归 C16 | 否 |
+| **C11** | **SelectionDAG 为主**，**预留后续加 GISel 的空间**（M3 不做 GISel）；与 x86-64/RISC-V 模式一致 | **建议立** |
+| **C12** | 常数材料化：`set.ow`/`set.zw` **按正负选基调** + `or.w`/`andn.w` 修正其余 wyde（镜像 `set.rd` 策略）；**不引 constant pool**；`add.si` 仅用于**增减**（非立即数设置）；**`wpN` 是唯一合法 wyde 位置写法（裸数字 0–3 须报错 → ISS-128）** | 否 |
+| **C13** | **无 subreg**（同 RISC-V 的单 64 位设计，非因“x86 特有”）；**大端窄访存须显式保证/测试** `ReduceLoadWidth` 类 combine 的字节偏移（0628 silent miscompile 教训）；窄算术回绕 = **用对应符号后缀的窄指令**（`add.st/ut` 等：N 位结果 + 扩展写满 64），无额外规则；补 `mayLoad`/`mayStore` | **建议立**（大端） |
+| **C14** | 指针算术**直接落 GPRB**（`add.so-rb`/`add.si-rb`/`sub.so-rb`，利用 base(rb)+offset(rd)）；`cmp.uo-rb` 做指针比较（结果→RD，供 `br.*`/`cs.*`）；**RB 算术=全 64 位**，仅**访存**取低 48 位、高 16 位示溢出（→ISS-129）；`ptr−ptr` 暂转 RD，待新增 `sub rd,rb,rb`（→ISS-130）；RB 仅用于基址/绝对地址 | 建议立 |
+| **C15** | RA/RF 保留不分配（M3 边界）；**`rb2` 始终 reserved**（随 C7，可能是 FP）；`rd1-7`/`rb3-7` 保留；保留方式统一为 **`isAllocatable=0` + 显式 `Reserved.set`** 双保险 | 随 C7 ADR |
+| **C16** | `call` **`Defs=[rd31, rb31]`**；实现 **`getCallPreservedMask`（含 rb32–63）** 并在 `LowerCall` **附 RegMask**；`storeRegToStackSlot`/`loadRegFromStackSlot` **按 bank 路由**；`ret` **不加 Defs** | **建议立** |
+| **C17** | **无标志位**（CZSO 取消）→ `cmp.*` 结果（−1/0/1）落 **rd**、`br.*` 测 rd/rb；**rd 用虚拟寄存器**（(A)，不设固定 RDCC/不做融合）；`==`/`!=` 用 `br.eq/ne` 省 cmp；`p==NULL` 用 **`br.z/nz {rb}`**（1 条）；`p==q` 用 `cmp.uo-rb`+`br.z`（2 条，**暂不新增指令**）；`cmp.*` 的 SDNode **不得标 `SDNPCommutative`**（0628 教训；**只写任务书约束**，不立 issue/ADR） | 否 |
+
+### A.2 附注与澄清
+
+- **C4 栈溢出区**：`spec/DADAO-21 §栈溢出规则` 同句「按声明顺序从左到右」与「各组溢出参数连续紧凑存放」互相拉扯，**取全局声明序**；建议补 spec 澄清句。
+- **C7 FP**：`rb2` 仅在 FP 时启用（DADAO 的 rb2 是特殊寄存器，非 M68k 那种兼作通用 callee-saved）；大帧 >128K 的**单**访问无寄存器偏移形式，仍需方案2 的 `add.so`（两寄存器形式）。
+- **C9 `a:`**：`a:0:64` 是 **no-op**（= 默认 `a:8:64`，聚合 ABI 1 字节）；spec `:107`「聚合 ≥8B 对齐」若指内存布局则须 `a:64`，但**已裁定省略 `a:`**（随主流/C 规则，避免改变 struct 尺寸）。**M4 引入 clang 时须核对 clang 侧 AST 布局一致**。
+- **`iiii` 立即数宽度（非不一致）**：`iiii` 编码 **24 位**（`imms24`，`SimRISC-00:220`/`opcodes.yaml`）；因 SimRISC 指令 32 位对齐，PCRel 位移**左移 2 位**使用，**有效相对范围 = 26 位**（速查表 `call/jump [rb0, imms26]` 指此）。两者描述不同层面，**不矛盾**。
+- **C17「暂不新增指令」的范围**：仅指**不给 `br.eq/ne` 增加 rb 形式**（两指针相等走 `cmp.uo-rb`+`br.z`，2 条）；**ISS-130（新增 `sub rd,rb,rb`）按原计划保留**（M3 用到 `ptr−ptr` 前落地，走 spec 变更 + ADR）。
+
+---
