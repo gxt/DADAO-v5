@@ -71,8 +71,9 @@ def load_aliases():
     """Parse contract-cfx-aliases.md -> (scalar, generic, specific).
 
     scalar   : {cfx_<name>: code}
-    generic  : [(tail, cg, rcLo, rcHi)]          # cfx_<cfxname>_<tail>
-    specific : [(alias, cfxha, cg, rcLo, rcHi)]  # full alias
+    generic  : [(tail, cg, rcLo, rcCount, stride)]
+    specific : [(alias, cfxha, cg, rcLo, rcCount, stride)]
+    # cfx_<cfxname>_<tail>; ``rc = rcLo + N*stride`` (stride 1 = 连续数组)
     """
     scalar, generic, specific = {}, [], []
     mode = None
@@ -102,27 +103,39 @@ def load_aliases():
                     continue
                 tail = tmpl.replace("cfx_⟨cfxname⟩_", "", 1)
                 tail = re.sub(r"\[.*\]$", "", tail)
-                lo, hi = parse_rc(rc)
-                generic.append((tail, int(cg), lo, hi))
+                lo, count, stride = parse_rc(rc)
+                generic.append((tail, int(cg), lo, count, stride))
             elif mode == "specific" and len(cells) == 5:
                 name, ha, cg, rc = cells[0], cells[1], cells[2], cells[3]
-                lo, hi = parse_rc(rc)
+                lo, count, stride = parse_rc(rc)
                 base = re.sub(r"\[.*\]$", "", name)
-                specific.append((base, int(ha), int(cg), lo, hi))
+                specific.append((base, int(ha), int(cg), lo, count, stride))
     return scalar, generic, specific
 
 
 def parse_rc(rc: str):
-    """'0-63' -> (0,63); '8-15' -> (8,15); '3' -> (3,3); '0-(N-1)' -> (0,63)."""
-    m = re.match(r"^(\d+)\s*[-−]\s*\(?N", rc.strip())
+    """rc 列 -> (lo, count, stride)；下标 N 的 rc = lo + N*stride。
+
+    '0-63' -> (0,64,1); '8-15' -> (8,8,1); '3' -> (3,1,1);
+    '0-(N-1)' -> (0,64,1); '4i+0' -> (0,16,4); '4i+3' -> (3,16,4)。
+    """
+    s = rc.strip()
+    m = re.match(r"^(\d+)\s*[-−]\s*\(?N", s)
     if m:
-        return int(m.group(1)), 63
-    m = re.match(r"^(\d+)\s*[-−]\s*(\d+)$", rc.strip())
+        return int(m.group(1)), 64, 1
+    m = re.match(r"^(\d+)\s*[-−]\s*(\d+)$", s)
     if m:
-        return int(m.group(1)), int(m.group(2))
-    m = re.match(r"^(\d+)$", rc.strip())
+        lo, hi = int(m.group(1)), int(m.group(2))
+        return lo, hi - lo + 1, 1
+    m = re.match(r"^(\d+)$", s)
     if m:
-        return int(m.group(1)), int(m.group(1))
+        return int(m.group(1)), 1, 1
+    m = re.match(r"^(\d+)i\s*\+\s*(\d+)$", s)
+    if m:
+        stride, off = int(m.group(1)), int(m.group(2))
+        if stride <= 0 or 64 % stride != 0:
+            raise ValueError("bad rc stride: %r" % rc)
+        return off, 64 // stride, stride
     raise ValueError("unparsable rc column: %r" % rc)
 
 
@@ -174,32 +187,32 @@ def resolve_reg(alias: str, scalar, generic, specific):
     else:
         base, sub = alias.strip(), None
 
-    for name, ha, cg, lo, hi in specific:
+    for name, ha, cg, lo, count, stride in specific:
         if name != base:
             continue
         if sub is None:
-            if hi != lo:
+            if count != 1:
                 raise ValueError("%s is an array; a subscript is required" % base)
             return ha, cg, lo
-        if not 0 <= sub <= hi - lo:
+        if not 0 <= sub < count:
             raise ValueError("subscript %d out of range for %s" % (sub, base))
-        return ha, cg, lo + sub
+        return ha, cg, lo + sub * stride
 
     for sname, code in scalar.items():
         if not base.startswith(sname + "_"):
             continue
         tail = base[len(sname) + 1:]
-        for ttail, cg, lo, hi in generic:
+        for ttail, cg, lo, count, stride in generic:
             if ttail != tail:
                 continue
             if sub is None:
-                if hi != lo:
+                if count != 1:
                     raise ValueError("%s is an array; a subscript is required"
                                      % base)
                 return code, cg, lo
-            if not 0 <= sub <= hi - lo:
+            if not 0 <= sub < count:
                 raise ValueError("subscript %d out of range for %s" % (sub, base))
-            return code, cg, lo + sub
+            return code, cg, lo + sub * stride
     raise ValueError("unknown cfx register alias: %r" % alias)
 
 

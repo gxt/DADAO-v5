@@ -64,13 +64,16 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 
 | cfx num | cfx name | 起始地址 | 地址大小 | 空间类型 |
 |:---:|------|------|------|------|
+| 2 | smon | `0x0bff_0000_0000` | 64 KiB | SRAM |
 | 3 | hmon | `0x0fff_0000_0000` | 64 KiB | SRAM |
 | 17 | pmem | `0x47ff_0000_0000` | 64 KiB | SRAM |
-| 63 | power | `0xffff_ffff_0000` | 64 KiB | BootROM |
+| 63 | power | `0xffff_fffc_0000` | 256 KiB | BootROM |
 
 说明：
 
-- cfx_power_hypv_excp_vector 为硬件复位后的启动地址，这部分地址空间可由 CPU 直接取指并执行
+- `cfx_power_hypv_excp_vector = 0xffff_ffff_0000` 为硬件复位后的启动地址，位于 BootROM 内偏移 `0x3_0000`；BootROM 范围 `0xffff_fffc_0000`–`0xffff_ffff_ffff`（256 KiB），可由 CPU 直接取指执行；复位向量不变。`cfx_power` 的 BootROM 空间块 `attr` 必须含 `X=1`（复位向量位于该块内，CPU 直接取指执行）；smon/hmon/pmem 的 SRAM 块按各自异常向量取指需求给出 `X`。
+- `cfx2`（smon）与 `cfx3`（hmon）的 SRAM 各 64 KiB；S-mode 与 H-mode 异常向量默认等于各自的起始地址；`cfx63`（power）不设 SRAM。
+- 各 cfx 的内部空间（起始偏移、字节大小、空间类型）由该 cfx 自身的 cg7（§3.8）描述；本表每行必须与对应 cfx 的 cg7 某个空间块一致（`start = 起始地址 − (cfxha << 42)`、`size` 相等、空间类型对应）。校验示例：smon/hmon/pmem 的 `start` 均为 `0x3ff_0000_0000`；power 的 `start = 0x3ff_fffc_0000`（`0xffff_fffc_0000 − 0xfc00_0000_0000`）、`size = 0x4_0000`（256 KiB），且 `start + size = 2^42` 边界合法。
 - 对核内地址空间进行非法访问时，会触发对应核芯功能扩展的 CFXMEM 异常。核芯功能扩展由地址高 6 位 `addr[47:42]`（即 cfxha）确定。
 - 保留 cfx（6–14、19–61）的普通 `ld/st` 触发 CFXMEM；`trap`/`escape` 到保留 cfx 触发 ILLI。
 - cfxha 5 为 `cfx_cache`；未实现的已分配 cfx 由实现约定其未实现行为（测试机按未实现 cfx 处理）。
@@ -393,23 +396,25 @@ H-mode 寄存器（cg=3）定义见 HEE。
 |----|----|---------|---------|--------|------|------|
 | 6 | 0−(N−1) | scratch regs | cfx_⟨cfxname⟩_scratch_regs[0..N−1] | 未定义 | RW | 暂存寄存器（软件用） |
 
-### 3.8 cg7 - 内部存储控制寄存器
+### 3.8 cg7 - 内部空间描述寄存器
 
-**本组为预留设计**：`cfxld`/`cfxst` 当前**未启用**，未实现的机器对这两条指令 decode **ILLI**；§5.1/§5.2 中相关表述**待启用后生效**。
+每个核芯功能扩展用 cg7 描述自身的核内空间（§2.1 的 42 位内部地址空间）。每 **4 个 rc 描述一个空间**，空间块编号 `i = 0..15`，共 **16 块**，正好用完 `rc0–rc63`（`rc = 4i + 0..3`）。
 
-每个核芯功能扩展可根据自身需求实现零个或多个内部存储块（SRAM），用于 cfxld/cfxst 指令在内存与核芯功能扩展内部之间的批量数据传输。
-
-- 内部存储块的数量与每块大小由各核芯功能扩展的硬件实现决定，每块为一段连续的字节可寻址空间。
-- 内部存储块可映射为核内地址空间；核内地址空间也可通过内部存储块机制进行访问；具体方式由各核芯功能扩展自行定义。
-- 对cfx的内部存储块进行非法访问时，例如访问不存在的地址，或试图写只读的区域，会触发对应核芯功能扩展的 CFXMEM 异常。
-- cfxld/cfxst 通过 cfx_⟨cfxname⟩_sram_block_sel 选择目标块，通过 cfx_⟨cfxname⟩_sram_addr 指定块内传输起始偏移。
-
-每个核芯功能扩展都有以下内部存储控制寄存器（cg=7）：
+- `rc4i+0`（描述字）：`bit0 = exists`；`bit1 = SRAM`、`bit2 = ROM`、`bit3 = MMIO`、`bit4 = DRAM`、`bit5 = OTHER`（存在时 one-hot）；其余位保留、读 0。
+- `rc4i+1`（start）：42 位内部起始偏移；该空间的完整核内地址 = `(cfxha << 42) | start`。
+- `rc4i+2`（size）：空间字节数；须满足 `start + size ≤ 2^42`。
+- `rc4i+3`（attr）：`bit0 = R`、`bit1 = W`、`bit2 = X`、`bit3 = cacheable`、`bit4 = shareable`、`bit5 = volatile/device`；其余位保留、读 0。
+- `exists = 0` 时 `start`/`size`/`attr` 读 0；`exists = 1` 时类型位恰好一个为 1（实现须静态保证，不存在软件可写的非法编码）。
+- 未实现的空间填 `exists = 0`；实现须静态给出 16 块表。
+- cg7 **全部只读**；对任意 cg7 rc 的写访问触发 `CFXREG`。
+- cg7 只描述空间，**不做传输控制**；核内存储块批量传输指令仍为已删除指令，不再定义其行为。
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 7 | 0 | cfx sram block select | cfx_⟨cfxname⟩_sram_block_sel | 0 | RW | cfxld/cfxst 的目标内部存储块编号 |
-| 7 | 1 | cfx sram address | cfx_⟨cfxname⟩_sram_addr | 0 | RW | 块内字节偏移 |
+| 7 | 4i+0 | space desc | cfx_⟨cfxname⟩_space_desc[i] | HW | RO | 空间块 `i`（`i = 0..15`）描述字：bit0=exists；bit1=SRAM；bit2=ROM；bit3=MMIO；bit4=DRAM；bit5=OTHER（exists=1 时 one-hot）；其余位保留读 0 |
+| 7 | 4i+1 | space start | cfx_⟨cfxname⟩_space_start[i] | HW | RO | 空间块 `i` 的 42 位内部起始偏移；完整核内地址由 (cfxha << 42) 与该 start 拼接；exists=0 时读 0 |
+| 7 | 4i+2 | space size | cfx_⟨cfxname⟩_space_size[i] | HW | RO | 空间块 `i` 的字节数；须满足 start + size ≤ 2^42；exists=0 时读 0 |
+| 7 | 4i+3 | space attr | cfx_⟨cfxname⟩_space_attr[i] | HW | RO | 空间块 `i` 的属性：bit0=R；bit1=W；bit2=X；bit3=cacheable；bit4=shareable；bit5=volatile/device；其余位保留读 0；exists=0 时读 0 |
 
 ## 4. 专有寄存器设计规范
 
@@ -742,7 +747,7 @@ UART寄存器的读写操作通过 `cfx2rd`/`cfx2rc` 指令完成。若寄存器
 
 ### 5.1 指令行为说明
 
-trap/escape/cfxld/cfxst/cfx2rd/cfx2rc 指令可以在任意运行模式下执行（`cfxld`/`cfxst` 当前未启用）。若 cfxha 为 reserved 核芯功能扩展（6-14、19-61），硬件触发 ILLI 异常。对于常见的操作系统而言，并不希望由 user/jail 直接陷入或访问 hmon 到 power 之间的核芯功能扩展，则需要在这些核芯功能扩展的初始化代码中，设置好 `cfxtrap`/`cfxreg`/`cfxmem`/`cfxexe` 的来源 mask（缺省只允许 hmon）。
+trap/escape/cfx2rd/cfx2rc 指令可以在任意运行模式下执行。若 cfxha 为 reserved 核芯功能扩展（6-14、19-61），硬件触发 ILLI 异常。对于常见的操作系统而言，并不希望由 user/jail 直接陷入或访问 hmon 到 power 之间的核芯功能扩展，则需要在这些核芯功能扩展的初始化代码中，设置好 `cfxtrap`/`cfxreg`/`cfxmem`/`cfxexe` 的来源 mask（缺省只允许 hmon）。
 
 `escape` 指令的第一个参数 `cfxha` 必须是**当前执行的 cfx**；返回的 cfx、运行模式和指令指针全部来自当前 cfx 的异常帧。若 `cfxha` 非当前 cfx（目标错误）或当前 cfx 没有有效异常帧（帧错误），硬件在切换前触发当前 cfx 的 `CFXESC`，不改变 cfx/运行模式。
 
@@ -763,7 +768,6 @@ X-mode（任意运行模式）下发生异常时，硬件自动执行以下操�
 1. **确定核芯功能扩展**：
    - 特权指令：
      - trap/cfx2rd/cfx2rc 按 cfxha 路由；
-     - cfxld/cfxst 访问 cfx 内部存储块（待启用），仅触发 CFXMEM，按 cfxha 路由
      - 若 cfxha 为 reserved（6-14、19-61），触发 ILLI 进入当前 monitor；若 cfxha 合法但目标 cfx 的 `cfxtrap`/`cfxreg` mask 拒绝源 cfx，触发 `CFXPERM` 进入当前模式 monitor
    - 其它指令执行触发的 ILLI/UNDI/RASOF/RASUF/IALIGN/MALIGN 异常：
       - 根据发生异常前的运行模式（U-mode/J-mode/S-mode/H-mode）分别判断进入 cfx_umon/cfx_jmon/cfx_smon/cfx_hmon 核芯功能扩展
@@ -790,8 +794,8 @@ X-mode（任意运行模式）下发生异常时，硬件自动执行以下操�
 // 注：伪代码中 cause 为 one-hot 值（如 CFXTRAP = 1<<0 = 1，ILLI = 1<<8 = 256）；
 //     异常原因表中 `1 << n` 的 n 即位索引，cause = 1 << n。
 // 1. 确定核芯功能扩展
-if instruction ∈ {TRAP, ESCAPE, CFXLD, CFXST, CFX2RD, CFX2RC}:
-    if cfxha ∈ {7..14, 19..61}:
+if instruction ∈ {TRAP, ESCAPE, CFX2RD, CFX2RC}:
+    if cfxha ∈ {6..14, 19..61}:
         cause      <= ILLI
         ; reserved→ILLI，重定向到当前运行模式的 monitor (cfx0-3)
         case inner_run_mode of
@@ -812,9 +816,6 @@ if instruction ∈ {TRAP, ESCAPE, CFXLD, CFXST, CFX2RD, CFX2RC}:
         temp_cfx_code  <= cfxha
     elif instruction ∈ {CFX2RD, CFX2RC}:
         ; cfxreg 权限已在执行阶段检查（拒绝 → CFXPERM）
-        temp_cfx_code  <= cfxha
-    elif instruction ∈ {CFXLD, CFXST}:
-        ; cfxld/cfxst 访问核芯功能扩展内部存储块，仅触发 CFXMEM
         temp_cfx_code  <= cfxha
     // ESCAPE（非 reserved）：由异常退出流程处理，不在此处路由
 elif sync:
@@ -909,7 +910,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_<mode>_excp_vector
 
 ```
 // 0. 检查目标/帧
-if cfxha ∈ {7..14, 19..61}:
+if cfxha ∈ {6..14, 19..61}:
     cause <= ILLI
     ; 进入当前模式 monitor
     goto check_nonmaskable
@@ -952,7 +953,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 - 地址空间改为 48 位 CPU 地址 + 高 6 位分区：`0` 为内存窗口，`1..63` 为 cfx 1–63 核内空间；VA 42 位、PA 56 位，取消 64 位物理地址与高 16 位拼接。
 - PTBR 由 64 项数组改为**单份** `cfx_ptw_ptbr`（只存 `PPN[55:16]`，64 KiB 对齐，无 valid 位）；删除 `pahi`/`pthi`/`ptbr_enable` 位图与四种模式的 PTBR 权限位图。
 - 新增 `cfx_ptw_enable`：0 时 `addr[47:42] = 0` 访存触发 CFXMEM（不直通物理存储器），1 时按页表转换；写 PTBR / 写 1 均不隐含 TLB invalidate；复位 PTBR=0、使能=0。
-- 保留 cfx（7–14、19–61）的普通 `ld/st` → CFXMEM；`trap`/`escape` 到保留 cfx 仍为 ILLI。
+- 保留 cfx（6–14、19–61）的普通 `ld/st` → CFXMEM；`trap`/`escape` 到保留 cfx 仍为 ILLI。
 - 页表项统一为 64 位：`HSJU[63:60]`、`PPN[55:16]`（超页 `PPN[55:29]`）、`SPF/GPF[15:8]`、flags `[7:0]`（`P/SP/D/A/G/X/W/R`）；保留位忽略、超页 PPN 非对齐低位强制清零。
 - 两级页表：L1/L2 均 64 KiB、8192 项；`VA[41:29]`/`VA[28:16]` 选索引、`VA[15:0]` 为页内偏移；超页 512 MiB、普通页 64 KiB，PA 56 位。
 - 页访问权限：HSJU 掩码 + R/W/X 正交检查；异常优先级为「页缺失 → 小页缺失 → HSJU → R/W/X」；页表步进与 TLB 命中异常都进入 `cfx_ptw`。
@@ -961,6 +962,10 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 - A/D 由硬件在 TLB 条目中维护：填充不产生回写，读/取指置 `A`、写置 `A`/`D`，`CLEAN`/`FLUSH`/替换时原子 OR 回写，`INVALID` 不写回；回写失败报 `cfx_ptw` 的 `PTWERR`（`1 << 7`，`cause_info` = PTE 物理地址）。
 - DMA 与 cfx 访问权限不在本版本变更范围内。
 - 正文术语统一：地址空间分区一律写作 `addr[47:42]`（地址高 6 位），不再使用讨论期简写。
+- 核内地址空间同步启动分层：新增 `cfx2`（`smon`）64 KiB SRAM（`0x0bff_0000_0000`）与 `cfx3`（`hmon`）64 KiB SRAM（`0x0fff_0000_0000`），`cfx63`（`power`）不设 SRAM；唯一非易失 BootROM 为 256 KiB（`0xffff_fffc_0000`–`0xffff_ffff_ffff`），复位向量仍为 `0xffff_ffff_0000`（镜像内偏移 `0x3_0000`）。
+- `cg7` 改为内部空间描述寄存器：每 4 个 rc 描述一个内部空间（存在 + 类型 one-hot / 42 位起始偏移 / 字节大小 / R-W-X-cacheable-shareable-volatile 属性），16 块用完 `rc0`–`rc63`；寄存器按数组 `space_{desc,start,size,attr}[i]` 命名（`i=0..15`，`rc=4i+0..3`），全部只读、写触发 `CFXREG`；不再使用块选择与块内地址寄存器。
+- 删除核内存储块批量传输指令的行为说明与异常进入分支/伪代码：该类指令已从指令系统删除，不再定义其异常流。
+- 保留 cfx 统一为 `6–14`、`19–61`。
 
 ### 0.7.2（2026-10-26）
 
@@ -968,7 +973,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 - `cfx_hart` 增加每 hart 定时器：`timer_cmp`（比较值）与 `timer_ctrl`（ENABLE/IMASK/ISTATUS），到期触发异步 TIMER 异常（`1 << 10`）；`rc1` 声明为保留。
 - 同步异常一律不可屏蔽（含 `SOFT_RESET`）；异常原因掩码只对异步中断生效，异常进入流程第 5 步仅在异步路径设置 pending。
 - U-mode `trap` 目标为 `cfx_smon` 时使用 `cfx_smon_user_*`；其余 U-mode 异常固定进入 `cfx_umon`。
-- `cg7` 内部存储控制按预留设计：`cfxld`/`cfxst` 尚未启用，未实现的机器对这两条指令 decode ILLI。
+- `cg7` 按预留设计：核内存储块批量传输指令尚未启用，未实现的机器对这两条指令 decode ILLI。
 - 为 cg0–cg3 增加 `rc0` 版本号寄存器。
 - `pending` 统一：删除 timer/uart/power 专有 pending，`cfx_pending`→`excp_pending`（cg5 rc5）。
 - 删除 FPEXCP 异常。

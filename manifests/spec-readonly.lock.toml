@@ -398,7 +398,9 @@ group = "dadao-1x"
 # 2026-10-30（ADR-0043 启动表）：§2.1 表改为 cfx num/name/起始地址/大小/类型，补 hmon SRAM 0x0fff_0000_0000；sha256 同笔重算。
 # 2026-10-30（INTEG-043t，授权原话见任务书 §背景「用户裁定 cfx_pmem SRAM 的核内起始地址改为 `0x47ff_0000_0000`（cfx17，内部偏移 `0x3ff_0000_0000`）」）：§2.1 说明/§4.9/附录 0.7.3-rc 的内部偏移由 0 改 0x3ff_0000_0000；sha256 同笔重算。
 # 2026-10-30（INTEG-044t，授权 = 派单原话「同步 spec/contracts/aliases/QEMU/测试/锁/changelog」+ 任务书 §目标 1；ADR-0045）：cg0–3 改两轴权限布局（rc0–3 四类同步来源 mask、rc4 cfx_intr_mask、cg8/rc1 global_cfx_intr_mask），删 global_version/global_cfx_mask；monitor 增 CFXPERM、各 cfx 增 CFXESC；§5 进入/退出与附录 0.7.3-rc 同步；sha256 同笔重算。
-sha256 = "6570fbd229715cc65696f3268f733f69da00e0ac4075fbf711b78b968c6348af"
+# 2026-10-31（SPEC-179t，授权原话「可以，授权」，落纸于 .tao/tasks/spec/SPEC-179t-启动链BootROM权限口径清理.md）：§2.1 补 smon SRAM（0x0bff_0000_0000，64 KiB）、BootROM 改 256 KiB（0xffff_fffc_0000–0xffff_ffff_ffff，复位向量仍在内部偏移 0x3_0000）；cg7 改保留并删块传输指令正文/异常流；reserved 统一 6–14、19–61；附录 0.7.3-rc 补条目；版本不变（0.7.3-rc）；sha256 同笔重算。
+# 2026-10-31（SPEC-179t 返工，A 方案；授权原话见任务书 §用户返工裁定原话 / A 方案裁定）：§3 恢复 cg0-cg7 共有；§3.8 改内部空间描述寄存器（每 4 个 rc 一块、i=0..15、4 行数组 space_{desc,start,size,attr}[i]、只读、写触发 CFXREG）；§2.1 补 cg7 互锁与 power BootROM X=1；附录 0.7.3-rc 条目改述；版本不变（0.7.3-rc）；sha256 同笔重算。
+sha256 = "d55fff183b178cfaf9bbdcc0ab85e565a979c8ccf532e3c79e3b1f12e248fa05"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -550,4 +552,6 @@ group = "machine-01"
 # 2026-10-30（INTEG-043t，授权原话见任务书 §背景「用户裁定 cfx_pmem SRAM 的核内起始地址改为 `0x47ff_0000_0000`（cfx17，内部偏移 `0x3ff_0000_0000`）」）：§1.1 表与附录 0.3.2-rc 的内部偏移由 0 改 0x3ff_0000_0000；sha256 同笔重算。
 # 2026-10-30（INTEG-044t，授权同 SEE 条目）：§2/§3 权限表述同步两轴模型（四类 mask、CFXPERM/CFXESC）；附录 0.3.2-rc 补条目；sha256 同笔重算。
 # 2026-10-30（INTEG-045t，授权原话见文件头注记与任务书 §用户授权原话）：见文件头条目；sha256 同笔重算。
-sha256 = "42d9094c9e9a3b5850633c9d72b571295feb9e6cd2fd21a83422047ceb493263"
+# 2026-10-31（SPEC-179t，授权原话「可以，授权」，落纸于 .tao/tasks/spec/SPEC-179t-启动链BootROM权限口径清理.md）：§1/§1.1 地址划分补 hmon/smon SRAM 与 PA 0 别名、BootROM 改 256 KiB（复位向量不变）；§2 启用 supv/smon + 启动链 power→hmon→smon；§3 cg0–cg6 + cg7 保留；§6 BootROM 几何/装载语义/模式移交；legacy -bios 64 KiB 复位窗口语义保留；附录 0.3.2-rc 补条目；版本不变（0.3.2-rc）；sha256 同笔重算。
+# 2026-10-31（SPEC-179t 返工，A 方案；授权原话见任务书 §用户返工裁定原话 / A 方案裁定）：§3 恢复 cg0–cg7 并说明 cg7 为内部空间描述（数组 space_{desc,start,size,attr}[i]、未实现空间 exists=0、只读）；附录 0.3.2-rc 条目同步；sha256 同笔重算。
+sha256 = "8a3c56ac9a32f4930e1ea9df7a01dd20b89e97b3472ce3639e5ef6e7cb48febf"

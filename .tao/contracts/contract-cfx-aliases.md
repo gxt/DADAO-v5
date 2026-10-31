@@ -82,8 +82,10 @@ Per ADR-0017 D4：寄存器别名查 spec 寄存器表的 `cg`/`rc` 列。
 | `cfx_⟨cfxname⟩_excp_pending` | 5 | 5 | — |
 | `cfx_⟨cfxname⟩_excp_cause_nonmaskable` | 5 | 63 | — |
 | `cfx_⟨cfxname⟩_scratch_regs[0..N−1]` | 6 | 0−(N−1) | — |
-| `cfx_⟨cfxname⟩_sram_block_sel` | 7 | 0 | — |
-| `cfx_⟨cfxname⟩_sram_addr` | 7 | 1 | — |
+| `cfx_⟨cfxname⟩_space_desc[i]` | 7 | 4i+0 | — |
+| `cfx_⟨cfxname⟩_space_start[i]` | 7 | 4i+1 | — |
+| `cfx_⟨cfxname⟩_space_size[i]` | 7 | 4i+2 | — |
+| `cfx_⟨cfxname⟩_space_attr[i]` | 7 | 4i+3 | — |
 | `cfx_⟨cfxname⟩_hypv_cfxtrap` | 3 | 0 | — |
 | `cfx_⟨cfxname⟩_hypv_cfxmem` | 3 | 1 | — |
 | `cfx_⟨cfxname⟩_hypv_cfxreg` | 3 | 2 | — |
@@ -95,55 +97,55 @@ Per ADR-0017 D4：寄存器别名查 spec 寄存器表的 `cg`/`rc` 列。
 | `cfx_⟨cfxname⟩_hypv_excp_cause_mask` | 3 | 11 | — |
 | `cfx_⟨cfxname⟩_hypv_cg_reg_deleg` | 3 | 12 | — |
 
-展开后共 12 cfxname × 54 模板 = 648 条目。
+展开后共 1392 条目（12 cfxname × 56 模板；数组模板按 stride 展开）。
 
 ### 2.2 专有寄存器（cg8+，各 cfx 独有）
 
 | 别名 | cfxha | cg | rc | 来源 |
 |------|-------|----|----|------|
-| `cfx_umon_global_cfx_intr_mask` | 0 | 8 | 1 | DADAO-12:424 |
-| `cfx_jmon_global_cfx_intr_mask` | 1 | 8 | 1 | DADAO-12:448 |
-| `cfx_smon_global_cfx_intr_mask` | 2 | 8 | 1 | DADAO-12:458 |
-| `cfx_hmon_global_cfx_intr_mask` | 3 | 8 | 1 | DADAO-12:468 |
-| `cfx_ptw_enable` | 4 | 8 | 8 | DADAO-12:478 |
-| `cfx_ptw_ptbr` | 4 | 9 | 0 | DADAO-12:479 |
-| `cfx_ptw_tlb_control` | 4 | 12 | 0 | DADAO-12:480 |
-| `cfx_ptw_tlb_asid` | 4 | 12 | 1 | DADAO-12:481 |
-| `cfx_ptw_tlb_addr_start` | 4 | 12 | 2 | DADAO-12:482 |
-| `cfx_ptw_tlb_addr_size` | 4 | 12 | 3 | DADAO-12:483 |
-| `cfx_cache_exist` | 5 | 8 | 0 | DADAO-12:543 |
-| `cfx_cache_enable` | 5 | 8 | 8 | DADAO-12:544 |
-| `cfx_cache_ctrl` | 5 | 8 | 9 | DADAO-12:545 |
-| `cfx_hart_hart_id` | 15 | 8 | 0 | DADAO-12:564 |
-| `cfx_hart_cycle_lo` | 15 | 8 | 2 | DADAO-12:566 |
-| `cfx_hart_cycle_hi` | 15 | 8 | 3 | DADAO-12:567 |
-| `cfx_hart_insn_lo` | 15 | 8 | 4 | DADAO-12:568 |
-| `cfx_hart_insn_hi` | 15 | 8 | 5 | DADAO-12:569 |
-| `cfx_hart_timer_cmp` | 15 | 8 | 6 | DADAO-12:570 |
-| `cfx_hart_timer_ctrl` | 15 | 8 | 7 | DADAO-12:571 |
-| `cfx_llc_exist` | 16 | 8 | 0 | DADAO-12:594 |
-| `cfx_llc_ctrl` | 16 | 8 | 8 | DADAO-12:595 |
-| `cfx_pmem_exist` | 17 | 8 | 0 | DADAO-12:624 |
-| `cfx_pmem_start[0..63]` | 17 | 12 | 0-63 | DADAO-12:625 |
-| `cfx_pmem_size[0..63]` | 17 | 13 | 0-63 | DADAO-12:626 |
-| `cfx_pmem_attr[0..63]` | 17 | 14 | 0-63 | DADAO-12:627 |
-| `cfx_pmem_dma_src` | 17 | 15 | 0 | DADAO-12:628 |
-| `cfx_pmem_dma_dst` | 17 | 15 | 1 | DADAO-12:629 |
-| `cfx_pmem_dma_size` | 17 | 15 | 2 | DADAO-12:630 |
-| `cfx_pmem_dma_ctrl` | 17 | 15 | 3 | DADAO-12:631 |
-| `cfx_pmem_dma_status` | 17 | 15 | 4 | DADAO-12:632 |
-| `cfx_time_freq` | 18 | 10 | 7 | DADAO-12:671 |
-| `cfx_time_value` | 18 | 10 | 8 | DADAO-12:672 |
-| `cfx_uart_exist` | 62 | 8 | 1 | DADAO-12:689 |
-| `cfx_uart_uart0_regs[0..63]` | 62 | 32 | 0-63 | DADAO-12:690 |
-| `cfx_uart_uart1_regs[0..63]` | 62 | 33 | 0-63 | DADAO-12:691 |
-| `cfx_uart_uart31_regs[0..63]` | 62 | 63 | 0-63 | DADAO-12:693 |
-| `cfx_power_ctrl` | 63 | 8 | 1 | DADAO-12:717 |
+| `cfx_umon_global_cfx_intr_mask` | 0 | 8 | 1 | DADAO-12:429 |
+| `cfx_jmon_global_cfx_intr_mask` | 1 | 8 | 1 | DADAO-12:453 |
+| `cfx_smon_global_cfx_intr_mask` | 2 | 8 | 1 | DADAO-12:463 |
+| `cfx_hmon_global_cfx_intr_mask` | 3 | 8 | 1 | DADAO-12:473 |
+| `cfx_ptw_enable` | 4 | 8 | 8 | DADAO-12:483 |
+| `cfx_ptw_ptbr` | 4 | 9 | 0 | DADAO-12:484 |
+| `cfx_ptw_tlb_control` | 4 | 12 | 0 | DADAO-12:485 |
+| `cfx_ptw_tlb_asid` | 4 | 12 | 1 | DADAO-12:486 |
+| `cfx_ptw_tlb_addr_start` | 4 | 12 | 2 | DADAO-12:487 |
+| `cfx_ptw_tlb_addr_size` | 4 | 12 | 3 | DADAO-12:488 |
+| `cfx_cache_exist` | 5 | 8 | 0 | DADAO-12:548 |
+| `cfx_cache_enable` | 5 | 8 | 8 | DADAO-12:549 |
+| `cfx_cache_ctrl` | 5 | 8 | 9 | DADAO-12:550 |
+| `cfx_hart_hart_id` | 15 | 8 | 0 | DADAO-12:569 |
+| `cfx_hart_cycle_lo` | 15 | 8 | 2 | DADAO-12:571 |
+| `cfx_hart_cycle_hi` | 15 | 8 | 3 | DADAO-12:572 |
+| `cfx_hart_insn_lo` | 15 | 8 | 4 | DADAO-12:573 |
+| `cfx_hart_insn_hi` | 15 | 8 | 5 | DADAO-12:574 |
+| `cfx_hart_timer_cmp` | 15 | 8 | 6 | DADAO-12:575 |
+| `cfx_hart_timer_ctrl` | 15 | 8 | 7 | DADAO-12:576 |
+| `cfx_llc_exist` | 16 | 8 | 0 | DADAO-12:599 |
+| `cfx_llc_ctrl` | 16 | 8 | 8 | DADAO-12:600 |
+| `cfx_pmem_exist` | 17 | 8 | 0 | DADAO-12:629 |
+| `cfx_pmem_start[0..63]` | 17 | 12 | 0-63 | DADAO-12:630 |
+| `cfx_pmem_size[0..63]` | 17 | 13 | 0-63 | DADAO-12:631 |
+| `cfx_pmem_attr[0..63]` | 17 | 14 | 0-63 | DADAO-12:632 |
+| `cfx_pmem_dma_src` | 17 | 15 | 0 | DADAO-12:633 |
+| `cfx_pmem_dma_dst` | 17 | 15 | 1 | DADAO-12:634 |
+| `cfx_pmem_dma_size` | 17 | 15 | 2 | DADAO-12:635 |
+| `cfx_pmem_dma_ctrl` | 17 | 15 | 3 | DADAO-12:636 |
+| `cfx_pmem_dma_status` | 17 | 15 | 4 | DADAO-12:637 |
+| `cfx_time_freq` | 18 | 10 | 7 | DADAO-12:676 |
+| `cfx_time_value` | 18 | 10 | 8 | DADAO-12:677 |
+| `cfx_uart_exist` | 62 | 8 | 1 | DADAO-12:694 |
+| `cfx_uart_uart0_regs[0..63]` | 62 | 32 | 0-63 | DADAO-12:695 |
+| `cfx_uart_uart1_regs[0..63]` | 62 | 33 | 0-63 | DADAO-12:696 |
+| `cfx_uart_uart31_regs[0..63]` | 62 | 63 | 0-63 | DADAO-12:698 |
+| `cfx_power_ctrl` | 63 | 8 | 1 | DADAO-12:722 |
 
 ## 3. 统计
 
 - 标量别名：12 条
-- 寄存器别名（展开后）：686 条
-  - 通用（cg0-7 展开）：12 × 54 = 648 条
+- 寄存器别名（展开后）：1430 条
+  - 通用（cg0-7 展开）：1392 条（12 cfxname × 56 模板）
   - 专有（cg8+）：38 条
 

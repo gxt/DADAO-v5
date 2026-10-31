@@ -18,20 +18,24 @@
 
 CPU 地址固定为 48 位；高 6 位 `addr[47:42]` 为分区键：`0` 为内存窗口（受 `ptw_enable` 控制），`1..63` 为 cfx 1–63 的核内地址空间（`cfx0` 没有内部空间）。[DADAO-12 §2.1 核内地址空间][DADAO-12 §2.2 虚实地址转换]
 
-硬件复位后的启动地址为 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`（cfxha 63 / `power`，64 KiB），该地址空间可由 CPU 直接取指并执行。[DADAO-12 §2.1 核内地址空间]
+硬件复位后的启动地址为 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`（cfxha 63 / `power`，位于 256 KiB BootROM 内，镜像偏移 `0x3_0000`），该地址可由 CPU 直接取指并执行。[DADAO-12 §2.1 核内地址空间]
 
 ### 1.1 核内地址空间划分（测试机约定）
 
-v5 测试机使用的核内地址空间划分如下（均为 48 位核内有效地址；地址区间为**测试机约定**，上游 `spec/` 只规定 `cfxha 63` 的复位向量）。[ADR-0020 D15]
+v5 测试机使用的核内地址空间划分如下（均为 48 位核内有效地址；地址区间为**测试机约定**）。[ADR-0020 D15]
 
 | 区域 | 起始 | 大小 | cfxha / cfxname | 说明 |
 |------|------|------|-----------------|------|
-| **RAM（唯一 RAM 段）** | `0xFC00_0000_0000` | 16 MiB | 63 / `power` | 唯一 RAM 段；供 bootrom/SEE/应用（rev. 2026-10-11 迁入 cfxha 63 段） |
-| **boot ROM** | `0xffff_ffff_0000` | 64 KiB | 63 / `power` | 复位向量 = `cfx_power_hypv_excp_vector`；`-bios` 加载 |
-| **cfx_pmem SRAM** | `0x47ff_0000_0000` | 64 KiB | 17 / `pmem` | cfx_pmem 内部偏移 0x3ff_0000_0000；CPU 用 `ld/st` 访问，越界 ⇒ `CFXMEM` |
+| **RAM（唯一 RAM 段）** | `0xFC00_0000_0000` | 16 MiB | 63 / `power` | 唯一 RAM 段；供 bootrom/SEE/应用（rev. 2026-10-11 迁入 cfxha 63 段）；另有 PA 0 别名（见下） |
+| **BootROM** | `0xffff_fffc_0000` | 256 KiB | 63 / `power` | 唯一非易失启动源；复位向量 `0xffff_ffff_0000`（镜像内偏移 `0x3_0000`） |
+| **hmon SRAM** | `0x0fff_0000_0000` | 64 KiB | 3 / `hmon` | H-mode 异常向量默认等于起始地址；内部偏移 `0x3ff_0000_0000`，越界 ⇒ `CFXMEM` |
+| **smon SRAM** | `0x0bff_0000_0000` | 64 KiB | 2 / `smon` | S-mode 异常向量默认等于起始地址；内部偏移 `0x3ff_0000_0000`，越界 ⇒ `CFXMEM` |
+| **cfx_pmem SRAM** | `0x47ff_0000_0000` | 64 KiB | 17 / `pmem` | cfx_pmem 内部偏移 `0x3ff_0000_0000`；CPU 用 `ld/st` 访问，越界 ⇒ `CFXMEM` |
 
-- **RAM 基址口径**：RAM 基址为 `0xFC00_0000_0000`（cfxha 63 / `power`，**唯一 RAM 段**）；复位向量/ROM（`0xffff_ffff_0000`，64 KiB）与 RAM 容量（16 MiB）不变。[ADR-0004 R3 + rev. 2026-10-11]
-- **C1 两步过渡（已收口）+ 基址迁移**：**step1（M5，`QEMU-049t`）** 机器模型**同时映射 RAM@0（新）与旧 RAM 段（`0xffff_0000_0000`，供既有测试）**；**step2（`QEMU-053t`）** 已把既有向量/harness/`crt0`/e2e 迁到 `0`、**删除旧 RAM 段与 exit-port MMIO 设备**；**`QEMU-056t`（rev. 2026-10-11）** 再把唯一 RAM 段基址由全 0 迁到 `0xFC00_0000_0000`（cfxha 63）。**RAM 现为唯一 RAM 段**。[ADR-0020 D15][ADR-0004 R3]
+- **RAM 基址口径**：RAM 基址为 `0xFC00_0000_0000`（cfxha 63 / `power`，**唯一 RAM 段**）；复位向量/ROM（`0xffff_fffc_0000`，256 KiB）与 RAM 容量（16 MiB）不变。[ADR-0004 R3 + rev. 2026-10-11]
+- **legacy `-bios` 复位窗口**：`-bios` 路径仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变。
+- **PA 0 别名（测试机约定）**：现有 16 MiB DRAM 在物理地址 `[0, 16 MiB)` 另设别名，与 `0xFC00_0000_0000` 的 16 MiB DRAM 指向同一存储；供 PTBR=0 的第一张页表使用。PTW 页表读与 `cfx_pmem` DMA 的 PA 合法性检查同时接受 `[0, 16 MiB)` 与 `[0xFC00_0000_0000, 0xFC00_0000_0000 + 16 MiB)`；BootROM 仍只读，其余 PA 仍按 `PA_FAULT`/未映射处理；CPU 地址侧 `addr[47:42] = 0` 的内存窗口仍由 `ptw_enable` 控制。[ADR-0043 D10]
+- **C1 两步过渡（已收口）+ 基址迁移**：**step1（M5，`QEMU-049t`）** 机器模型**同时映射 RAM@0（新）与旧 RAM 段（已删，供既有测试）**；**step2（`QEMU-053t`）** 已把既有向量/harness/`crt0`/e2e 迁到 `0`、**删除旧 RAM 段与 exit-port MMIO 设备**；**`QEMU-056t`（rev. 2026-10-11）** 再把唯一 RAM 段基址由全 0 迁到 `0xFC00_0000_0000`（cfxha 63）。**RAM 现为唯一 RAM 段**。[ADR-0020 D15][ADR-0004 R3]
 
 ### 1.2 越界访问与越界取指异常（含取指路径）
 
@@ -60,14 +64,16 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 异常进入后，硬件把运行模式与核芯功能扩展掩码改为 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 与 `cfx_⟨cfxname⟩_<mode>_switch_cfx_mask` 的值（异常进入流程步骤 8）。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3. 共有寄存器设计规范]
 
-- **测试机范围**：v5 测试机只启用 `hypv` 与 `user`；**本版不启用 `supv`**、不涉及 `smon`。[ADR-0020 D12][ADR-0004 R1][Machine-01 §6]
-- **bootrom 移交**：bootrom 由 `hypv` **直接跳到 `user`** 运行应用。[ADR-0020 D12][ADR-0004 R1]
+- **运行模式范围**：v5 测试机启用 `hypv`、`supv` 与 `user`；`jail` 不启用。
+- **异常承载**：`hmon`（cfx3）承载 hypv 异常，`smon`（cfx2）承载 supv 异常。
+- **启动链**：power（hypv/cfx63）→ hmon（hypv/cfx3）→ smon（supv/cfx2）——power 从 BootROM 装载 hmon 并 `trap` 移交；hmon 配置 smon 的 S-mode 向量/权限后 `trap` 移交；smon 建立第一张页表、开启 PTW 并接管运行期。[ADR-0043 D1/D8/D9]
+- **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变。[ADR-0020 D12][ADR-0004 R1]
 
 ---
 
 ## 3. cfx 与权限
 
-每个核芯功能扩展提供 cg0–cg7 共有寄存器，规范相同；其中 cg0–cg3 为 `user`/`jail`/`supv`/`hypv` 各自的 12 个模式寄存器，cg4–cg7 为配置/现场/暂存/内部存储寄存器。[DADAO-12 §3. 共有寄存器设计规范]
+每个核芯功能扩展提供 cg0–cg7 共有寄存器，规范相同；其中 cg0–cg3 为 `user`/`jail`/`supv`/`hypv` 各自的 12 个模式寄存器，cg4–cg6 为配置/现场/暂存寄存器。`cg7` 为内部空间描述寄存器（[DADAO-12 §3.8]）：每 4 个 rc 描述一个内部空间，字段按**数组** `space_{desc,start,size,attr}[i]`（`i = 0..15`）定义，未实现空间以 `exists=0` 表示，全部只读、写触发 `CFXREG`。[DADAO-12 §3. 共有寄存器设计规范]
 
 - 每个 cfx 的 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe`（`rc0`–`rc3`）为四类 64 位同步来源 mask，`rc4` 为 `cfx_intr_mask`：**0=允许，1=屏蔽**，位索引=源 cfx；自身只绕过 cfx 轴。`cfx0`–`cfx3` 的 `cg8`/`rc1` 为 `global_cfx_intr_mask`。[DADAO-12 §3. 共有寄存器设计规范][ADR-0045 D2/D3]
 - `switch_cfx_mask` 为陷入时采用的异常掩码（0=可触发，1=屏蔽）；`switch_run_mode` 为陷入时切换的运行模式。[DADAO-12 §3. 共有寄存器设计规范]
@@ -190,8 +196,10 @@ semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 
 
 M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配置**；bootrom 用**自有工具链**编译（LLVM 新指令的首个真实用户）。[ADR-0020 D12]
 
-- **加载模型**：用 **`-bios`** 加载 bootrom；**复位向量不变**（`0xffff_ffff_0000` = `cfx_power_hypv_excp_vector`，64 KiB）。[ADR-0020 D12][ADR-0004 R1][DADAO-12 §2.1 核内地址空间]
-- **模式移交**：bootrom 在 `hypv` 完成初始权限/向量配置后，**直接跳到 `user`** 运行应用；本版不启用 `supv`。[ADR-0020 D12][ADR-0004 R1]
+- **BootROM 几何**：唯一非易失 BootROM 256 KiB（`0xffff_fffc_0000`–`0xffff_ffff_ffff`）；复位向量不变（`0xffff_ffff_0000`，镜像内偏移 `0x3_0000`）。[ADR-0043 D1][DADAO-12 §2.1 核内地址空间]
+- **装载语义**：256 KiB BootROM 经 bootrom 镜像装载路径（机器属性 `bootrom-image`）装入。[ADR-0043 D2]
+- **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变。[ADR-0020 D12][ADR-0004 R1]
+- **模式移交**：power → hmon → smon（同 `§2`）；smon 在 supv/cfx2 建立第一张页表、开启 PTW 并接管运行期。[ADR-0043 D8–D11]
 - **并存关系**：`-bios` bootrom 启动路径与 M4 的 ELF 单镜像路径（`ADR-0004 D2.2/D2.3` 路径 A）**并存、非替代**——两条启动路径各自可自动化。[ADR-0004 R1]
 
 ---
@@ -221,6 +229,12 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 - 测试机 cfx4 实现范围扩展到页表步进与页权限（Step 2）；A/D 更新、TLB 与 `cfx5` 仍留待后续步骤。
 - 地址空间 Step 3：TLB 并入 `cfx_ptw`（命中/填充/ASID/G/失效接口）与 A/D 回写落地，`PTWERR`（`1 << 7`）报 A/D 回写失败；`cfxha 5`（原 `tlb`）未分配、按未实现 cfx 处理（`CFXREG`）。
 - 正文术语统一：地址空间分区一律写作 `addr[47:42]`（地址高 6 位），不再使用讨论期简写。
+- 启动链改为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ smon（supv/cfx2）：启用 `supv` 与 `smon`，由 power 从 BootROM 装载 hmon、hmon 移交 smon、smon 建立第一张页表并开启 PTW。
+- 唯一非易失 BootROM 扩为 256 KiB（`0xffff_fffc_0000`–`0xffff_ffff_ffff`），复位向量仍为 `0xffff_ffff_0000`（镜像内偏移 `0x3_0000`）。
+- 新增 hmon/smon 各 64 KiB SRAM（`0x0fff_0000_0000` / `0x0bff_0000_0000`），H/S-mode 异常向量默认等于各自起始地址。
+- 新增 PA 0 别名（测试机约定）：16 MiB DRAM 在 `[0, 16 MiB)` 另有别名，供 PTBR=0 的第一张页表使用；PTW 页表读与 `cfx_pmem` DMA 的 PA 合法性检查同时接受该别名。
+- `cg7` 改为内部空间描述寄存器：`cg0`–`cg7` 为共有寄存器；每 4 个 rc 描述一个内部空间（存在+类型 one-hot / 42 位起始偏移 / 字节大小 / R-W-X-cacheable-shareable-volatile 属性），16 块用完 `rc0`–`rc63`；寄存器按数组 `space_{desc,start,size,attr}[i]`（`i = 0..15`）定义，未实现空间以 `exists=0` 表示，全部只读、写触发 `CFXREG`。
+- legacy `-bios` 仍按 64 KiB 复位窗口装载，与镜像装载路径并存。
 
 ### 0.3.1（2026-10-16）
 

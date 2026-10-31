@@ -15,6 +15,12 @@ for each non-reserved cfxname.  cfx-specific registers (cg8+, no placeholder)
 are included verbatim.  Range-indexed registers (``[0..63]`` etc.) are
 **not** expanded.
 
+Stride-indexed array rows (``rc = 4i+K`` with regname ending in ``[i]``)
+are expanded into concrete aliases ``<base>[n]`` with ``rc = n*stride+K``
+(``n = 0 .. 64/stride-1``); ``parse_register_tables`` records
+``stride``/``expand_count`` for each entry.  The markdown side keeps the
+template row and reports the expanded count.
+
 Usage
 -----
 * Generate:  ``python3 tools/spec/gen_cfx_aliases.py``
@@ -74,13 +80,19 @@ def parse_cfxcode_table(text: str) -> dict[str, int]:
     return result
 
 
+STRIDE_RC_RE = re.compile(r"^(\d+)i\s*\+\s*(\d+)$")
+ARRAY_INDEX_RE = re.compile(r"\[i\]$")
+
+
 def parse_register_tables(text: str, source_file: str) -> list[dict]:
     """Parse all cg/rc/regname tables → list of {cg, rc, tail, source, line}.
 
     * Skips rows where regname is ``—``, ``...``, contains ``reserved``,
-      or contains range brackets (``0-(N−1)`` etc.) -- those are
-      variable-size or placeholder rows.
+      or contains variable-size brackets (``0-(N−1)`` etc.).
     * Keeps ``[0..63]`` style rows as-is (not expanded).
+    * Stride-indexed rows (``rc = 4i+K``, regname ends ``[i]``) carry
+      ``stride``/``array_offset``/``array_base``/``expand_count`` and are
+      expanded by :func:`build_register_aliases`.
     * For regname containing ``⟨cfxname⟩``, extracts the tail after the
       placeholder.
     """
@@ -139,15 +151,48 @@ def parse_register_tables(text: str, source_file: str) -> list[dict]:
             else:
                 tail = regname
             is_generic = False
+        # Stride-indexed array row: rc = <stride>i + <offset>, name ends "[i]"
+        stride = 0
+        array_offset = 0
+        array_base = None
+        expand_count = 1
+        m_stride = STRIDE_RC_RE.match(rc_str)
+        if m_stride and ARRAY_INDEX_RE.search(regname):
+            stride = int(m_stride.group(1))
+            array_offset = int(m_stride.group(2))
+            if stride <= 0 or 64 % stride != 0:
+                raise ValueError(
+                    f"bad array stride in {source_file}:{lineno}: {rc_str!r}")
+            array_base = tail[: -len("[i]")]
+            expand_count = 64 // stride
         entries.append({
             "cg": cg,
             "rc": rc_str,
             "tail": tail,
             "regname": regname,
             "is_generic": is_generic,
+            "stride": stride,
+            "array_offset": array_offset,
+            "array_base": array_base,
+            "expand_count": expand_count,
             "source": f"{source_file}:{lineno}",
         })
     return entries
+
+
+def expand_entry(entry: dict) -> list[tuple[str, str]]:
+    """Expand one parsed row to concrete ``(tail, rc_str)`` pairs.
+
+    Non-array rows yield themselves unchanged; stride rows yield
+    ``(<array_base>[n], str(n*stride + offset))`` for ``n = 0..count-1``.
+    """
+    if not entry.get("stride"):
+        return [(entry["tail"], entry["rc"])]
+    return [
+        (f"{entry['array_base']}[{n}]",
+         str(n * entry["stride"] + entry["array_offset"]))
+        for n in range(entry["expand_count"])
+    ]
 
 
 def build_scalar_aliases(cfx_map: dict[str, int]) -> list[tuple[str, str, int]]:
@@ -166,16 +211,19 @@ def build_register_aliases(
 ) -> list[tuple[str, int, int, str, str]]:
     """Build register aliases: (alias, cfxha, cg, rc, source).
 
-    For generic entries (containing ⟨cfxname⟩), expand for each non-reserved cfxname.
-    For cfx-specific entries, use the cfxname extracted from the regname.
+    For generic entries (containing ⟨cfxname⟩), expand for each non-reserved
+    cfxname.  For cfx-specific entries, use the cfxname extracted from the
+    regname.  Stride-indexed rows are expanded to concrete ``[n]`` names and
+    numeric rc values (see :func:`expand_entry`).
     """
     result: list[tuple[str, int, int, str, str]] = []
     for entry in entries:
         if entry["is_generic"]:
             # Expand for each non-reserved cfxname
             for cfxname, cfxcode in sorted(cfx_map.items(), key=lambda x: x[1]):
-                alias = f"cfx_{cfxname}_{entry['tail']}"
-                result.append((alias, cfxcode, entry["cg"], entry["rc"], entry["source"]))
+                for tail, rc in expand_entry(entry):
+                    alias = f"cfx_{cfxname}_{tail}"
+                    result.append((alias, cfxcode, entry["cg"], rc, entry["source"]))
         else:
             # cfx-specific: extract cfxname from regname
             m = re.match(r"cfx_([a-z]+)_", entry["regname"])
@@ -183,8 +231,9 @@ def build_register_aliases(
                 cfxname = m.group(1)
                 if cfxname in cfx_map:
                     cfxha = cfx_map[cfxname]
-                    alias = f"cfx_{cfxname}_{entry['tail']}"
-                    result.append((alias, cfxha, entry["cg"], entry["rc"], entry["source"]))
+                    for tail, rc in expand_entry(entry):
+                        alias = f"cfx_{cfxname}_{tail}"
+                        result.append((alias, cfxha, entry["cg"], rc, entry["source"]))
     return result
 
 
@@ -234,11 +283,13 @@ def render_markdown(
     lines.append("")
     lines.append("| 别名模板 | cg | rc | 说明 |")
     lines.append("|----------|----|----|------|")
+    generic_expanded = sum(e["expand_count"] for e in generic_entries)
+    generic_total = len(cfx_map) * generic_expanded
     for entry in generic_entries:
         lines.append(f"| `cfx_⟨cfxname⟩_{entry['tail']}` | {entry['cg']} | {entry['rc']} | — |")
     lines.append("")
-    lines.append("展开后共 {} cfxname × {} 模板 = {} 条目。".format(
-        len(cfx_map), len(generic_entries), len(cfx_map) * len(generic_entries)))
+    lines.append("展开后共 {} 条目（{} cfxname × {} 模板；数组模板按 stride 展开）。".format(
+        generic_total, len(cfx_map), len(generic_entries)))
     lines.append("")
 
     # Register aliases — cfx-specific
@@ -257,12 +308,12 @@ def render_markdown(
     lines.append("")
 
     # Statistics
-    total_register = len(register_aliases) + len(cfx_map) * len(generic_entries)
+    total_register = len(register_aliases) + generic_total
     lines.append("## 3. 统计")
     lines.append("")
     lines.append(f"- 标量别名：{len(scalar_aliases)} 条")
     lines.append(f"- 寄存器别名（展开后）：{total_register} 条")
-    lines.append(f"  - 通用（cg0-7 展开）：{len(cfx_map)} × {len(generic_entries)} = {len(cfx_map) * len(generic_entries)} 条")
+    lines.append(f"  - 通用（cg0-7 展开）：{generic_total} 条（{len(cfx_map)} cfxname × {len(generic_entries)} 模板）")
     lines.append(f"  - 专有（cg8+）：{len(register_aliases)} 条")
     lines.append("")
     return "\n".join(lines) + "\n"
