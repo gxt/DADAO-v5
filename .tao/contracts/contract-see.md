@@ -52,6 +52,7 @@
 - `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM` 属于页级/PTW 权限异常：当前运行模式对应的 HSJU 位为 0 时触发（U/J/S/H 分别对应 `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`）；地址转换第一步不再按 `VA[47:42]` 选择 PTBR，也无 PTBR 模式权限位图。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw - page table walker]
 - **两层权限不可混同**：PTW 层权限（`NUPERM` 等，出自 cfx_ptw 异常原因表）与 cfx 访问权限（`CFXPERM`）分属不同层次。[ADR-0020 D9][ADR-0045 D6][DADAO-12 §4. 专有寄存器设计规范]
 - v5 测试机 cfx 实现范围 = `cfx0/1/2/3/63` 以及 `cfx4` 的 PTW/TLB 寄存器（`cfx_ptw_ptbr`/`cfx_ptw_enable`/`cfx_ptw_tlb_*`）、页表步进、TLB 命中/填充/失效与 A/D 回写，加上 `cfx17` 的 64 KiB SRAM 与 `cg15` DMA，属**测试机约定**、非上游架构限制；`cfx5`（`cache`）已分配未实现、按未实现 cfx 处理（`CFXREG`）；范围外未实现 cfx 触发 `CFXREG`。[ADR-0020 D9][Machine-01 §3]
+- **cg7 内部空间描述**：每个 cfx 用 cg7 描述自身核内空间——每 4 个 rc 一个空间块、`i=0..15` 共 16 块（`rc = 4i+0..3`，寄存器名 `cfx_⟨cfxname⟩_space_desc[i]`/`space_start[i]`/`space_size[i]`/`space_attr[i]`）：desc（bit0=`exists`；bit1=SRAM/bit2=ROM/bit3=MMIO/bit4=DRAM/bit5=OTHER，存在时 one-hot）、start（42 位内部偏移，完整地址 `(cfxha << 42) | start`）、size（`start + size ≤ 2^42`）、attr（bit0=R/bit1=W/bit2=X/bit3=cacheable/bit4=shareable/bit5=volatile）；`exists=0` 时 start/size/attr 读 0；cg7 全部只读，写任意 rc ⇒ `CFXREG`；cg7 只描述空间、不做传输控制。测试机实测块：smon/hmon `start=0x3ff_0000_0000 size=0x1_0000 attr=R|W|X`、pmem 同 start/size 而 `X=0`、power `start=0x3ff_fffc_0000 size=0x4_0000 attr=R|X`；其余已实现 cfx（umon/jmon/ptw）无空间（16 块全 `exists=0`），未实现 cfx 访问仍 `CFXREG`。[DADAO-12 §3.8 cg7 - 内部空间描述寄存器][Machine-01 §3]（块值 = 测试机约定）
 
 ## §4 `trap`/`escape` 与异常进入/退出
 
@@ -78,6 +79,6 @@
 |----------|------|-----------|
 | §1 | 运行模式（四模式）、任意模式执行核芯功能扩展指令、switch_run_mode | `DADAO-12 §1. 运行模式与核芯功能扩展`、`§5. 异常进入与异常退出`；`DADAO-13 §1. cg3 - hypv mode 寄存器`；`SimRISC-11 §指令域与执行条件` |
 | §2 | 核内地址空间 / 复位向量 / CFXMEM / cfx_pmem SRAM+DMA / 测试机划分 | `DADAO-12 §2.1 核内地址空间`、`§4. 专有寄存器设计规范`、`§4.9 cfx_pmem - physical memory management`；`ADR-0020 D15`、`ADR-0004 D5.8`/`R3`；`ADR-0042 D3/D6/D7` |
-| §3 | cfx 共有寄存器 / mask / PERM 层次 / 未实现 cfx | `DADAO-12 §3. 共有寄存器设计规范`、`§5. 异常进入与异常退出`、`§2.2.1 超页的地址转换`、`§2.2.2 普通页的地址转换`；`DADAO-22 §3. 系统信息（smon）`；`ADR-0020 D9` |
+| §3 | cfx 共有寄存器 / mask / PERM 层次 / 未实现 cfx | `DADAO-12 §3. 共有寄存器设计规范`、`§3.8 cg7 - 内部空间描述寄存器`、`§5. 异常进入与异常退出`、`§2.2.1 超页的地址转换`、`§2.2.2 普通页的地址转换`；`DADAO-22 §3. 系统信息（smon）`；`ADR-0020 D9` |
 | §4 | trap/escape 路由、异常进入/退出 | `DADAO-12 §5. 异常进入与异常退出`、`§异常退出流程`；`DADAO-22 §1. 调用约定`；`SimRISC-11 §退出指令`；`ADR-0020 D10` |
 | §5 | SBI 调用约定、参数/返回寄存器、错误码 | `DADAO-22 §1. 调用约定`；`DADAO-21 §参数寄存器：Parameter registers`、`§标量类型返回值：Scalar type return`、`§系统调用规范` |

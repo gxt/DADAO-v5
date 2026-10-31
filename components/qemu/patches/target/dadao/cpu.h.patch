@@ -1,6 +1,6 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..e18acb2
+index 0000000..2d54e5a
 --- /dev/null
 +++ b/target/dadao/cpu.h
 @@ -0,0 +1,454 @@
@@ -308,7 +308,9 @@ index 0000000..e18acb2
 +    uint64_t cg_reg_deleg;     /* rc12 (cg3/hypv only, DADAO-13 §1) */
 +} DADAOCfxModeRegs;
 +
-+/* Per-cfx cg4..cg7 (config / exception frame / scratch / sram control). */
++/* Per-cfx cg4..cg6 (config / exception frame / scratch).  cg7 (internal
++ * space description) is a static read-only table, not per-cfx state
++ * (DADAO-12 §3.8). */
 +typedef struct DADAOCfxRegs {
 +    DADAOCfxModeRegs mode[4];   /* cg0..cg3 */
 +    uint64_t global_cfx_intr_mask; /* cg8 rc1 (cfx0-3 only; ADR-0045 D3) */
@@ -332,8 +334,6 @@ index 0000000..e18acb2
 +    uint64_t pending;           /* cg5 rc5 */
 +    uint64_t cause_nonmaskable; /* cg5 rc63 (RO) */
 +    uint64_t scratch[4];        /* cg6 rc0..N-1 */
-+    uint64_t sram_block_sel;    /* cg7 rc0 */
-+    uint64_t sram_addr;         /* cg7 rc1 */
 +} DADAOCfxRegs;
 +
 +/*

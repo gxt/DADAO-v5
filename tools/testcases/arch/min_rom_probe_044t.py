@@ -29,7 +29,8 @@ Instruction under test (encodings from contracts/opcodes.yaml):
 
 Cases (acceptance 2-7):
   run_mode_0/1/2/3  (acc 2,5)   switch_run_mode -> 4 run-mode encodings
-  reset_values      (acc 3)     cg0-cg7 reset values per DADAO-12 §3 / DADAO-13 §1
+  reset_values      (acc 3)     cg0-cg6 reset values (DADAO-12 §3 / DADAO-13 §1)
+                                + cg7 space[0] read-only description (§3.8)
   cfx_rw_share      (acc 3)     cfx2rd/cfx2rc rw + global_cfx_mask sharing
   trap_counters     (acc 3,7)   trap_num increment + cause_ip/id/info frame
   escape_return     (acc 3,7)   escape -> cause_ip+4, escape_num++, mode restore
@@ -261,9 +262,14 @@ for _sm in (USER, JAIL, SUPV, HYPV):
 
 
 # -- acc 3: reset values ----------------------------------------------------
-@case("reset_values", "cg0-cg7 reset values per DADAO-12 §3 / DADAO-13 §1")
+@case("reset_values", "cg0-cg6 reset values (DADAO-12 §3 / DADAO-13 §1) + cg7 space[0] RO read")
 def _reset_values():
-    prog = exit_seq(0x00)     # no cfx access; observe reset state (body in hmon)
+    # cg7 is a static read-only space description (DADAO-12 §3.8): the body
+    # runs in cfx_hmon (self), so cg7 space[0] of cfx3 is directly readable.
+    # rd5..rd7/rd10 are free (exit_seq only touches rd8/rd9/rd16).
+    prog = [cfx2rd(3, 7, 0, 5), cfx2rd(3, 7, 1, 6),
+            cfx2rd(3, 7, 2, 7), cfx2rd(3, 7, 3, 10)]
+    prog += exit_seq(0x00)     # observe reset state (body in hmon)
     all1 = ~0 & 0xFFFFFFFFFFFFFFFF
     exp = {
         "exit": 0x00, "mode": HYPV, "cfxcode": 3, "cfxmask": all1,
@@ -273,6 +279,8 @@ def _reset_values():
         "swmode:63:2": SUPV, "swmode:63:3": HYPV,
         "swmode:0:0": SUPV, "swmode:0:3": HYPV,
         "trapn:63": 0, "syncn:63": 0, "escn:63": 0,
+        # cg7 space[0] of cfx_hmon: exists|SRAM, 0x3ff_0000_0000, 64 KiB, R|W|X
+        "rd5": 0x3, "rd6": 0x3FF_0000_0000, "rd7": 0x1_0000, "rd10": 0x7,
     }
     return build_rom(prog, {}), exp
 

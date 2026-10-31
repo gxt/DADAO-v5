@@ -3,7 +3,7 @@
 **模块**：integ
 **项目里程碑**：M10
 **依赖**：`SPEC-179t`（已验证；cg7 内部空间描述口径已落 `DADAO-12 §3.8`）、`INTEG-044t`（两轴权限 + `CFXREG`/`CFXPERM` 消费点）、`INTEG-045t`（`cfxld`/`cfxst` 已删）、`INTEG-048t`（deleg 强制；其探针 `open_cg7` 依赖旧 cg7 写回，本任务同步改造）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地（仓库 `/mnt/tao/DADAO-v5`，分支 `INTEG-049t`；`.work/source/qemu` 与 `.work/build/qemu` 均在场）
@@ -172,16 +172,70 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：新探针 `integ049t` 12/12 PASS；旧探针 `044t` 13/13、`045t` 14/14、`integ048t` 23/23 PASS。证据 `.work/evidence/INTEG-049t/run.sh`：`--default` rc=0（`checks.py` 28 项静态/spec 派生检查 + 4 探针 + L1 + check-arch）、`--inject` rc=0（2 轮可达 FAIL）、`--full` 中 L1/L2 绿、L3 1 项 pre-existing 红（见验收 7 与遗留 ③）。
+**修改文件**：`components/qemu/patches/target/dadao/cpu.h.patch`、`components/qemu/patches/target/dadao/helper.c.patch`（由 `make_patch.py qemu` 导出：2 改 61 跳过，series 63 / 205 patches OK）；`tools/testcases/arch/min_rom_probe_integ049t.py`（新增，12 例）；`tools/testcases/arch/min_rom_probe_044t.py`（`reset_values` 补 cfx3 cg7 space[0] 四值）；`min_rom_probe_045t.py`（cg7 改只读回读 + 新增 `cfxreg_cg7_write`，13→14）；`min_rom_probe_integ048t.py`（`open_cg7` 只读化）；`.tao/contracts/contract-see.md`（§3 块级条目 + 附录 A `§3` 行）；`components/qemu/changelog.md`（+1 条）；`Makefile`（`ARCH_CFX_PROBES` 末尾加 `integ049t`）；`tools/testcases/arch/README.md`（表格行 + `--qemu` 名单）；本任务书；`.tao/knowledge/milestones.md`。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+1. 文件集 12 项（10 M + 1 新 + 任务书；`git status --porcelain -uall`）；`spec/**`、`.tao/adr/**`、`components/llvm-project/**`、`contracts/**`、`tests/**`、`manifests/**`、`docs/**` 零改动 → PASS
+2. 旧语义零残留：`grep -rn 'sram_block_sel\|sram_addr' components/qemu/patches tools/testcases/arch`（排除 `__pycache__`）0 命中；`cfx_reg_ptr()` 补丁切片（2878 B）无 `case 7`/`sram`；`DADAOCfxRegs`（1229 B）无这两个字段 → PASS
+3. 表值逐条：探针 1–4/7/9 覆盖 cfx2/3/17/63 × 64 rc 与 cfx0/4 × 64 rc；`checks.py::block_table_matches_spec` 由 `spec/DADAO-12 §2.1` 表格现算 desc/start/size（4 组）并对账探针常量，断言 `start+size ≤ 2^42`、power 恰 `== 2^42`、`(cfxha<<42)|start` == §2.1 四地址 → PASS
+4. 新探针：rc=0；`--list` 的 `distinct=12` 覆盖接口规范 §3 全部 12 名（缺项为空）→ PASS
+5. 旧探针：`044t` rc=0（13 例，含 cg7 `space[0]` 四值）、`045t` rc=0（14 例，含 `cfxreg_cg7_write`）、`integ048t` rc=0（23 例；`open_cg7` 只读化后仍 PASS、`power_cg7_closed` 仍 `CFXPERM`）→ PASS
+6. 组件闭环：`check-patch-tree` rc=0（`5 component(s), 205 patches OK`）；`build-qemu` rc=0（增量 10.8 s）；`install-host` rc=0（35.9 s）；安装根与构建树 md5 同为 `7b7dc4291c3d0ef56227f14e444707ee`；`check-source-state` rc=0（qemu `HEAD=7eedbc1b6dd5 count=1 clean=True`）→ PASS
+7. 门控：L1 `make check` rc=0（52 s）、L2 `make check-modules` rc=0（239 s）、`check-arch` rc=0（arch-smoke + 11 个 cfx 探针含 `integ049t`）、L3 `make check-full` **1/8 成员红**：`inst:base` 的 `ctrl-ret.yaml[9]`（`Expected UNMAPPED, got CFXMEM`，exit `0x81`）——**A/B 实测非本任务引入**：改前二进制（组件 `84f1b66`）单跑同例同样 `FAIL`（见「遗留问题 ③」）；其余 7 成员（fp-rnd/minmax/fma/clmul、arch:cfx、unit:full、tset:m6-integration）rc=0 → L1/L2/arch 绿，L3 红为 pre-existing 漂移
+8. 契约/文档：`contract-see.md §3` 段落命中 `space`/`exists`/`CFXREG`/`0x3ff_fffc_0000`/`(cfxha << 42)` 各 ≥1，附录 A `§3` 行含 `§3.8`；`check-contracts-dir`、`check-component-changelog` rc=0（qemu 57 条 1 新增）；Makefile 探针表 / README 两处登记就位 → PASS
+9. 证据脚本：`run.sh` 三档均 rc=0；注入轮「smon/hmon attr `0x7`→`0x5`」⇒ `space_smon`/`space_hmon`/`ro_all_rc` FAIL（`rd13 exp=0x7 got=0x5`）、`space_power` 控制仍绿；「cg7 写静默成功」⇒ `write_cfxreg` FAIL（`exit exp=0xcc got=0x0`）、`space_hmon` 控制仍绿；`cp`+md5 还原（`c9a69cb71599c85ef65dcceff1f41d27`）→ 重建 → 回绿
+10. 收尾：状态 `待验收`、milestones 流水行同步（`check-milestones-fresh` rc=0）、仓库无 `*_tmp*`/`_gate*`/`*.orig`/`*.rej`/`*.bak`、无 qemu 残留 → PASS
+**新发现/坑**：① 只删 `cfx_reg_ptr()` 的 `case 7` 时，`cfx2rc` 的 cg7 拒绝分支**不可观测**（NULL 兜底同样报 `CFXREG`）⇒ 单看 `write_cfxreg` 会误判"恒真"；证据脚本须用「写静默成功」注入才证明该断言可达 FAIL。② 多 cfx 抽样若共用 rd 窗口，后写覆盖前写：断言仍绿但覆盖实际丢失（本任务自审抓到，改为互斥窗口）。③ `.work/log/**` 的长任务完成标记**不能用 `.EXIT` 后缀**（`check-run-artifacts` 只认 `check-<name>.log` 或 `<TASK-ID>-<purpose>.(log|json|txt)`）；本次 `.EXIT` 曾使 L1 红，改 `.txt`/事后删除即回绿。
+**遗留问题**：① `docs/DDLN/{DD,TU}-C003/C004` 仍按旧口径「cg7 = SRAM `block_sel`/`sram_addr`」描述（讲义漂移，需另立文档任务）；② LLVM 汇编端仍不能拼写 `cfx_<name>_space_*[i]`（`SPEC-179t` 遗留 2：运行时表 `format=1` 无 stride）；本任务只用 `cfx2rd`/`cfx2rc` 编码，不依赖别名；③ **pre-existing L3 红**（不在本任务文件集，`tests/**` 明确不动）：`tests/inst/base/ctrl-ret.yaml[9]` 期望 `UNMAPPED`（`0x87`）而实测 `CFXMEM`（`0x81`）——该分类由 `INTEG-038t`（commit `e601034b`，2026-10-29）的「reserved cfxha ⇒ CFXMEM」引入，晚于最后一次全绿 L3（2026-10-28）；A/B 证据：改前组件二进制 `84f1b66` 单跑 `run_qemu_test.py … --case 9` 同样 `FAIL - Expected UNMAPPED, got CFXMEM`，本任务二进制同例同红，切回后 md5/`git status` 复原。**需另立 `TESTCASES` 任务按现行契约修正该例期望**（建议改 `expected_fault: CFXMEM` 并同步 notes）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+**审查范围（逐行）**：`helper.c`（新增 `dadao_cg7_space_reg()`、`helper_cfx2rd`/`helper_cfx2rc` 的 cg7 分支、`cfx_reg_ptr()` 删 `case 7`）、`cpu.h`（删两字段 + 结构注释）、三个旧探针改动、新探针全文、`run.sh`/`checks.py`/`inject.py`、`contract-see.md`、`Makefile`、arch `README.md`、changelog。
+
+**核对结论**：cg7 分支位于 reserved → `cfx_idx<0` → cfxreg 轴 → deleg →（`cg15 && pmem`）之后、`cfx_reg_ptr()` 之前 ⇒ 权限门**先于** cg7 生效（`power_cg7_closed` 仍 `CFXPERM` 即证）；读仅取静态表、不写任何 `env` 字段（可重复读）；写任意 rc 一律显式 `CFXREG`（不靠 NULL 兜底）；`rc` 为 6 位编码字段 ⇒ `rc/4 ≤ 15`，`space[1..15]` 恒 0；未实现 cfx（cfx5）在 `cfx_idx<0` 处即 `CFXREG`，不入 cg7 分支；无 16×4 状态、无复位值改动；`blk` 每条路径已赋值或已返回（编译 0 新告警，`helper.c` 3 条既有告警位置未变）；探针写侧精确 pc 已回读核验（`body[idx]` == `cfx2rc(3,7,0,25)` 编码）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `ro_all_rc` 的 cfx2 `rc60..63` 与 cfx63 `rc0..3` 共用 rd34..37，后写覆盖前写 ⇒ 该抽样实际未观测 | ✅已修 | 互斥窗口：cfx2→rd30..37、cfx63→rd38..45；累加器改 rd10/rd13 | `--only ro_all_rc` PASS；attr 注入下仍 FAIL（`rd10 exp=0x0 got=0x2; rd33 exp=0x7 got=0x5`，见 inject 日志）|
+| F2 `045t::cfx2_full_regface` 用例标题仍写 "read/write roundtrip"，与 cg7 RO 新语义不符 | ✅已修 | 标题改 "cg7 RO readback"，文件头用例表同步 | `--only cfx2_full_regface` PASS |
+| F3 证据 `run_check` 只打 rc、不打被检命令的失败细节 ⇒「必须 FAIL」不可审计 | ✅已修 | 增打 `[FAIL]`/`RESULT` 摘要 | inject 日志含 `rd13 exp=0x7 got=0x5`、`exit exp=0xcc got=0x0` |
+| F4 `contract-see.md §3` 新条目初稿无字面 `space`，与验收 8 的 grep 判据冲突 | ✅已修 | 条目补 `cfx_⟨cfxname⟩_space_desc[i]` 等 regname | `checks.py::contract_see_s3_*` 5/5 PASS |
+| F5 `045t::cfx2_full_regface` 的 `exp` 未随 cg7 只读化同步（初版仍 `0x1234`/`0x5678`） | ✅已修 | `rd45`/`rd46` 期望改 0（cfx0 无空间） | 该例 PASS |
+
+**判决**：5 条 finding 全部 ✅已修，无 ⏸延后 / ❌不修；任务状态 = `待验收`。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决）
+
+**重跑（reviewer 独立执行，非转述）**：`git branch`=INTEG-049t、HEAD=`c0614e06`、`git status --porcelain -uall` 空；`git diff master...HEAD --name-only` 恰 12 项与完成区逐项一致，禁改目录（`spec/|.tao/adr/|components/llvm-project/|contracts/|tests/|manifests/|docs/`）grep 0 命中。探针独立重跑：integ049t rc=0（12 PASS/0 FAIL）、044t rc=0（13）、045t rc=0（14）、integ048t rc=0（23），`--list` 12 名全齐。门控：`make check` rc=0（53 s）、`make check-modules` rc=0（~4 min）、`make check-arch` rc=0（arch-smoke 绿 + 11 cfx 探针含 integ049t）、`make check-patch-tree` rc=0（`205 patches OK`）、`make check-source-state` rc=0（qemu `HEAD=7eedbc1b6dd5 count=1 clean=True`）；安装根与构建树 md5 同 `7b7dc4291c3d0ef56227f14e444707ee`。
+
+**证据脚本 + 独立注入**：`bash .work/evidence/INTEG-049t/run.sh` rc=0；`--inject` rc=0（attr `0x7→0x5` ⇒ space_smon/hmon/ro_all_rc FAIL、write 静默成功 ⇒ write_cfxreg FAIL，均 cp+md5 还原回绿）。**reviewer 独立注入**（非 engineer 点：smon desc `0x3→0x1`，锚点唯一）：注入后二进制 md5 `78adf3…55a`，`--only` 实测 space_smon/space_hmon/desc_attr_reserved/ro_all_rc `RESULT: FAIL` rc=1（`rd10 exp=0x3 got=0x1`、`desc type not one-hot: 0x1`），space_pmem/space_power 控制绿；`cp`+md5 还原（`c9a69cb7…1d27`）→ 重建 → 4 探针回绿（12/13/14/23），源树/主仓均干净、md5 复原。
+
+**cg7 语义核验**：helper.c 静态表 smon/hmon `0x3/0x3ff_0000_0000/0x1_0000/0x7`、pmem `…/0x3`（X=0）、power `0x5/0x3ff_fffc_0000/0x4_0000/0x5` 与 spec/DADAO-12 §2.1/§3.8 逐位一致；`rc/4!=0⇒0`（space[1..15]）、default⇒0（umon/jmon/ptw 全 64 rc 读 0）；cfx2rd/cfx2rc 的 cg7 分支位于 reserved→idx<0→cfxreg→deleg→cg15/pmem **之后**、`cfx_reg_ptr` **之前**（权限门先于 cg7，`power_cg7_closed` 仍 CFXPERM）；写任意 rc 显式 CFXREG；`cfx_reg_ptr` 无 `case 7`（唯一 `case 7` 命中为无关 FP fosub）；`DADAOCfxRegs` 无 sram 字段；`grep sram_block_sel|sram_addr` 0 命中。
+
+**L3 红归因（pre-existing 证明）**：`make check-inst` rc=2、域内恰 1 红 `ctrl-ret.yaml[9] Expected UNMAPPED, got CFXMEM`（exit 0x81）复现成功；`git log -S "reserved cfxha"` ⇒ e601034b（INTEG-038t，2026-10-29）引入 reserved⇒CFXMEM，且 `merge-base --is-ancestor e601034b master` 为真（pre-existing）；本任务 diff 对 helper.c.patch 仅改 cg7 表/分支/注释，未碰取指/tlb_fill/CFXMEM 路径；`grep cg7 tests/` 0 命中 ⇒ 不引入新红。**pre-existing，非本任务**。
+
+**约束核验**：12 项文件集/禁改目录零改动 ✓；只落回读、未扩状态（无 16×4 存储）✓；未实现 cfx（cfx5/reserved）仍 CFXREG ✓；旧探针不删用例不放宽（044t 13、045t 14、048t 23 含 open_cg7 只读化 + power_cg7_closed 仍 CFXPERM）✓；补丁经 make_patch.py 导出（patch-tree/source-state 绿）✓；门控经 make（未手工 ninja/cp）✓；契约/changelog（恰 1 条）/Makefile/README 登记就位 ✓；完成区 18 行 ≤30、状态待验收、milestones 同步、无 `*_tmp*`/`_gate*`/`*.orig`/`*.rej`/`*.bak` 残留 ✓。
+
+**判决：Accepted** —— 验收 1–10 在 reviewer 自己重跑下全部通过、约束无违反、L3 红证为 pre-existing；可进入 `/complete`。
+
+#### architect 提交记录（engineer 返回后第 1 次）
+- 档位：**正常提交**（engineer 自审结论 `待验收`、5 条 finding 全 ✅已修、无 `Needs Revision`）；按主会话派单原话用 `feat(integ): INTEG-049t cg7 空间描述落地`，分支 `INTEG-049t`，**未 push**（单号见本分支 `git log -1`）。
+- 文件集对账：显式 staging 12 项 ⇔ 完成区「修改文件」12 项 **逐项一致**，无漏提/多提/越界；`spec/**`、`.tao/adr/**`、`components/llvm-project/**`、`contracts/**`、`tests/**`、`manifests/**`、`docs/**` 零改动；`git status --porcelain -uall` 除这 12 项外无残留（`*.orig`/`*.rej`/`*_tmp*` 0）。
+- 独立复核（architect 重跑，非转述）：4 探针 rc=0（`integ049t` 12 / `044t` 13 / `045t` 14 / `integ048t` 23 PASS，含 `space_smon|hmon|pmem|power` 四值 3/3ff_0000_0000/1_0000/7、3/…/3、5/3ff_fffc_0000/4_0000/5）；安装根 `qemu-system-dadao` 与 `.work/build/qemu/qemu-system-dadao` md5 同为 `7b7dc4291c3d0ef56227f14e444707ee`；`make check-patch-tree` rc=0（205 patches OK）；L1 `make check` rc=0、L2 `make check-modules` rc=0、`make check-arch` rc=0（11 探针含 `integ049t`）。
+- L3 披露核验：`check-full` 红项 = `inst:base` 的 `ctrl-ret.yaml[9]`（`Expected UNMAPPED, got CFXMEM`），**A/B 归因 `INTEG-038t`（`e601034b`）引入的「保留 cfxha 普通 ld/st ⇒ CFXMEM」**，该分类晚于最后一次全绿 L3 且不在本任务文件集；`git log -S` 实测该行由 `e601034b` 引入 ⇒ **pre-existing，非本任务**，不得以改 `tests/**` 掩盖。
+
+#### architect 交叉复核（`/complete` 前，第 1 轮 reviewer Accepted 后）
+
+**独立重跑（architect 本机，非转述）**：分支 `INTEG-049t`、HEAD=`c0614e06`；`git diff master...HEAD --name-only` 恰 12 项，`spec|.tao/adr|components/llvm-project|contracts|tests|manifests|docs` 改动 0。探针 `[PASS]/[FAIL]` 现场计数：`integ049t` 12/0、`044t` 13/0、`045t` 14/0、`integ048t` 23/0（rc 全 0）；`--list` 12 名与接口规范 §3 逐名一致。门控：`make check` rc=0、`make check-arch` rc=0（末行 `arch-smoke + cfx probes: 044t 045t 049t … integ048t integ049t` 共 11 项，日志 69 个 `[PASS]`）、`make check-patch-tree` rc=0（`5 component(s), 205 patches OK`）、`make check-source-state` rc=0（qemu `HEAD=7eedbc1b6dd5 count=1 clean=True`）；安装根 `.dadao/cross-toolchain/bin/qemu-system-dadao` 与 `.work/build/qemu/qemu-system-dadao` 的 md5 本轮自算同为 `7b7dc4291c3d0ef56227f14e444707ee`。L2 未由本复核重跑（reviewer 已跑绿）；L3 见下。
+**cg7 逐值对 spec（architect 自算，不读实现）**：`DADAO-12 §2.1` 四行 起始地址 − `(cfxha<<42)` ⇒ smon/hmon/pmem `start=0x3ff_0000_0000`、power `0x3ff_fffc_0000`，size `0x1_0000`/`0x1_0000`/`0x1_0000`/`0x4_0000`，类型 SRAM×3+BootROM ⇒ desc `0x3/0x3/0x3/0x5`；`§3.8` attr 位定义 + `§2.1` power 必须 `X=1` ⇒ `0x7/0x7/0x3/0x5`；power `start+size=2^42` 边界成立。与 `dadao_cg7_space_reg()` 三段常量、探针 `BLOCK0` 三者一致；`FULL_ADDR` 为 §2.1 独立常量、非 cg7 回读。
+**RO/CFXREG/门序（源树实读）**：`helper_cfx2rd` 顺序 reserved→`cfx_idx<0`→`cfx_perm_denied`→`cfx_deleg_denied`→`cg15&&pmem`→`cg==7`→`cfx_reg_ptr`；`helper_cfx2rc` 同序、cg7 处 `cfx_raise(CFXREG)` 且位于 `cfx_reg_ptr` 之前；`cfx_reg_ptr()` 无 `case 7`、无 `sram`；`DADAOCfxRegs` 无 `sram*`；`grep -rn 'sram_block_sel|sram_addr' components/qemu/patches tools/testcases/arch` = **0**；`grep -rn cg7 tests/` = 0。
+**旧探针不放松**：`044t` 仅新增 4 条精确 `rd5/6/7/10` 断言（原用例保留）；`045t` cg7 两条写回改只读 `rd45/rd46=0` 并新增 `cfxreg_cg7_write`（`cid:0/syncn:0/cip:0` 精确）；`integ048t::open_cg7` 改只读 `rd10=0`，`power_cg7_closed` 未动且仍 `CFXPERM`（23 例全 PASS）。
+**L3 红归因复核**：单跑 `run_qemu_test.py tests/inst/base/ctrl-ret.yaml --case 9` 复现 `Expected UNMAPPED, got CFXMEM`（exit `0x81`）；`ctrl-ret.yaml` 末次改动 `7fce080d`（2026-10-27）**早于** `e601034b`（2026-10-29「reserved cfxha 普通 ld/st ⇒ CFXMEM」），后者 `merge-base --is-ancestor e601034b master` 为真；本任务 helper.c.patch 仅 4 处 hunk（结构注释 / 静态表 / `case 7` 删除 / cg7 两分支），未触取指-`tlb_fill`-CFXMEM 路径 ⇒ **pre-existing 漂移，非本任务**；修复须另立 `TESTCASES` 任务（遗留 ③ 已登记）。
+**reviewer 记录核验（遗漏/过松）**：文件集、禁改目录、探针计数、md5、门控、独立注入点（smon desc 唯一锚点）、L3 归因均与盘上事实相符，无夸大、无转述冒充。两点非阻断瑕疵：① `checks.py::check_no_legacy` 把 grep 非 0 返回（含 rc=2 错误）一律当「0 命中」（正则固定、实测不触发，稳健性小瑕）；② 全地址断言用探针常量 `FULL_ADDR` 对账、非从 §2.1 文本现算（`start`/`size`/`desc` 仍由 §2.1 现算，覆盖等价）。均不改判据、登记不改。
+**判决：维持 Accepted**，可进入主会话 `merge --squash` + `push`，无须返工。
+
+#### 主会话统一收尾
+
+reviewer 与 architect 两份独立复核均为 **Accepted**，无分歧；主会话采信并置任务 `已验证`。本任务完成 cg7 空间描述 QEMU 落地，未改 spec/ADR/LLVM/tests。L3 `check-full` 唯一红项 `inst:base ctrl-ret.yaml[9]` 已 A/B 证明为 `INTEG-038t` 既有期望漂移，另立 TESTCASES 任务修正；本任务不掩盖。

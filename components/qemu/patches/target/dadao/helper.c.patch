@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..7b706ff
+index 0000000..f095c1b
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2260 @@
+@@ -0,0 +1,2321 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -1518,11 +1518,64 @@ index 0000000..7b706ff
 +}
 +
 +/*
++ * cg7 internal space description (DADAO-12 §3.8): 16 blocks of 4 words,
++ * rc = 4i+0..3 = desc / start / size / attr.  desc bit0 = exists, bits1-5 =
++ * SRAM/ROM/MMIO/DRAM/OTHER (one-hot when exists); attr bit0 = R, bit1 = W,
++ * bit2 = X, bit3 = cacheable, bit4 = shareable, bit5 = volatile.  The table is
++ * a compile-time constant: cg7 carries no per-cfx state and is read-only.
++ * Test-machine blocks (§2.1: smon/hmon/pmem 64 KiB SRAM, power 256 KiB
++ * BootROM); every other block (space[1..15] and cfx0/1/4/...) reads 0.
++ */
++static uint64_t dadao_cg7_space_reg(int cfxha, unsigned rc)
++{
++    static const uint64_t smon[4] = {
++        0x3,                    /* desc: exists | SRAM */
++        0x3FF00000000ULL,       /* start: 0x3ff_0000_0000 */
++        0x10000ULL,             /* size:  64 KiB */
++        0x7,                    /* attr: R | W | X */
++    };
++    static const uint64_t pmem[4] = {
++        0x3,                    /* desc: exists | SRAM */
++        0x3FF00000000ULL,       /* start: 0x3ff_0000_0000 */
++        0x10000ULL,             /* size:  64 KiB */
++        0x3,                    /* attr: R | W (X = 0) */
++    };
++    static const uint64_t power[4] = {
++        0x5,                    /* desc: exists | ROM */
++        0x3FFFFFC0000ULL,       /* start: 0x3ff_fffc_0000 */
++        0x40000ULL,             /* size:  256 KiB (start + size = 2^42) */
++        0x5,                    /* attr: R | X */
++    };
++    const uint64_t *blk;
++
++    if (rc / 4 != 0) {
++        return 0;               /* space[1..15]: exists = 0 => all fields 0 */
++    }
++    switch (cfxha) {
++    case 2:                     /* cfx_smon */
++    case 3:                     /* cfx_hmon */
++        blk = smon;
++        break;
++    case 17:                    /* cfx_pmem */
++        blk = pmem;
++        break;
++    case 63:                    /* cfx_power */
++        blk = power;
++        break;
++    default:
++        return 0;               /* umon/jmon/ptw: 16 blocks all empty */
++    }
++    return blk[rc % 4];
++}
++
++/*
 + * Resolve (cfxha, cg, rc) to a register pointer.  Returns NULL for any
 + * non-existent register combination or a read/write permission mismatch
 + * (DADAO-12 §3: rc >= scratch_regs_num => CFXREG; SimRISC-11 §特权指令:
 + * "读写权限不匹配时触发 CFXREG").  cg3 is only accessible in hypv
-+ * (DADAO-13 §1).  Callers must handle reserved/unimplemented cfxha first.
++ * (DADAO-13 §1).  cg7 is answered before this call from the static space
++ * table (DADAO-12 §3.8).  Callers must handle reserved/unimplemented cfxha
++ * first.
 + */
 +static uint64_t *cfx_reg_ptr(CPUDADAOState *env, int ci, int cg, int rc,
 +                             bool write)
@@ -1572,12 +1625,6 @@ index 0000000..7b706ff
 +            return NULL;   /* rc >= N => CFXREG (DADAO-12 §3) */
 +        }
 +        return &r->scratch[rc];
-+    case 7:
-+        switch (rc) {
-+        case 0: return &r->sram_block_sel;
-+        case 1: return &r->sram_addr;
-+        default: return NULL;
-+        }
 +    case 8:
 +        /* cfx0-3: global_cfx_intr_mask (cg8 rc1; ADR-0045 D3). */
 +        if (ci >= 0 && dadao_cfxha_map[ci] < 4 && rc == 1) {
@@ -2143,6 +2190,15 @@ index 0000000..7b706ff
 +        env->rb[0] = pc + 4;
 +        return;
 +    }
++    if (cg == 7) {                       /* cg7 internal space description
++                                          * (read-only, DADAO-12 §3.8) */
++        if (rd != 0) {
++            env->rd[rd] = dadao_cg7_space_reg(cfxha, rc);
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
++        return;
++    }
 +    p = cfx_reg_ptr(env, ci, cg, rc, false);
 +    if (!p) {
 +        cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
@@ -2194,6 +2250,11 @@ index 0000000..7b706ff
 +        }
 +        env->pc = pc + 4;
 +        env->rb[0] = pc + 4;
++        return;
++    }
++    if (cg == 7) {                       /* cg7 is read-only: any rc write
++                                          * => CFXREG (DADAO-12 §3.8) */
++        cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
 +        return;
 +    }
 +    p = cfx_reg_ptr(env, ci, cg, rc, true);

@@ -235,3 +235,7 @@
 - **2026-10-31 `INTEG-048t`**
   - 摘要：**`cfx_<cfxname>_hypv_cg_reg_deleg` 强制检查（DADAO-13 §1；R1–R6）**：新增静态门 `cfx_deleg_denied()`（数据源固定 `mode[DADAO_MODE_HYPV].cg_reg_deleg`，仅 `supv` 生效、位索引 = cg 编号 0–63、`1 ⇒ CFXPERM`），在 `helper_cfx2rd`/`helper_cfx2rc` 的 `cfxreg` 轴之后、`cfx_pmem cg15` 特例与 `cfx_reg_ptr()` 之前调用 ⇒ **cg3 无例外**（supv 访问任何 cfx 的 cg3 由恒 1 的 bit3 拒绝为 `CFXPERM`，不再落到 `CFXREG`），hypv/user/jail 不受本检查约束；`helper_cfx2rc` 对 `cg3 rc12` 的写强制 `value | (1<<3)`（软件写 0 无效、读回恒 1）；复位值 `~0` 与 `cpu.h` 布局不变。新增探针 `min_rom_probe_integ048t.py`（23 例）。
   - 执行者：engineer
+
+- **2026-10-31 `INTEG-049t`**
+  - 摘要：**cg7 内部空间描述在 QEMU 落地（DADAO-12 §3.8）**：删除 `DADAOCfxRegs.sram_block_sel`/`sram_addr`（旧「块选择 + 块内地址」RW 语义作废），改为编译期常量 16×4 只读表 `dadao_cg7_space_reg()`（smon/hmon `desc=0x3 start=0x3ff_0000_0000 size=0x1_0000 attr=R|W|X`、pmem 同 start/size 而 `attr=R|W`、power `desc=0x5 start=0x3ff_fffc_0000 size=0x4_0000 attr=R|X`，其余块/其余 cfx 读 0）；`cfx_reg_ptr()` 删除 `case 7`，`helper_cfx2rd`/`helper_cfx2rc` 在权限与 deleg 门之后插入 cg7 分支（读任意 rc 回表值、写任意 cg7 rc ⇒ `CFXREG`）；未实现 cfx（`cfx5` 等）仍 `CFXREG`，`exists=0` 只对已实现 cfx 可见。新增探针 `min_rom_probe_integ049t.py`（12 例），`044t`/`045t`（13→14 例）/`integ048t` 旧 cg7 用例按新语义改造（不删用例、不放宽断言）。
+  - 执行者：engineer

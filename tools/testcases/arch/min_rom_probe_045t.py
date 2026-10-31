@@ -46,7 +46,8 @@ Cases (acceptance 2-6):
   escape_cross_allowed  (acc 3)   cross-cfx escape allowed restores non-reset
                                   prev_run_mode / prev_cfx_mask.
   cfx2_full_regface     (acc 5)   cfx2rd/cfx2rc cg0-cg7 read/write roundtrip
-                                  (RO/RW, scratch, cfx0<->cfx63 sharing).
+                                  (RO/RW, scratch, cfx0<->cfx63 sharing;
+                                  cg7 is the RO space description, §3.8).
   cfx2_cg3_nonhypv      (acc 5/6) user/jail (non-hypv) cg3 => CFXREG; the
                                   supv axis is INTEG-048t::cg3_supv_perm_rd
                                   (delegation denies it with CFXPERM).
@@ -54,6 +55,7 @@ Cases (acceptance 2-6):
   cfxreg_rc_oor         (acc 6)   non-existent rc (cg0 rc12) => CFXREG.
   cfxreg_scratch_oor    (acc 6)   scratch rc >= scratch_regs_num => CFXREG.
   cfxreg_ro_write       (acc 6)   write to RO register => CFXREG.
+  cfxreg_cg7_write      (acc 6)   write to any cg7 rc => CFXREG (cg7 RO).
   reserved_illi         (acc 6)   reserved cfxha via cfx2rd (7) => ILLI.
   trap_reserved_illi    (acc 2,6) reserved cfxha via trap (7) => ILLI.
 
@@ -347,7 +349,7 @@ def _escape_cross_mask():
 
 
 @case("cfx2_full_regface",
-      "cfx2rd/cfx2rc cg0-cg7 read/write roundtrip (cfx0 + cfx63 sharing)")
+      "cfx2rd/cfx2rc cg0-cg7 roundtrip (cg7 RO readback; cfx0 + cfx63 sharing)")
 def _cfx2_full_regface():
     prog = []
     # cg4/cg5 RO reads (reset values from DADAO-12 §3/§4): version, scratch_regs_num,
@@ -373,9 +375,10 @@ def _cfx2_full_regface():
     # cg6 scratch rc0 / rc3 (RW, N=4)
     prog += load_rd(20, 0xAAAA) + [cfx2rc(0, 6, 0, 20), cfx2rd(0, 6, 0, 43)]
     prog += load_rd(20, 0xBBBB) + [cfx2rc(0, 6, 3, 20), cfx2rd(0, 6, 3, 44)]
-    # cg7 rc0 sram_block_sel / rc1 sram_addr (RW)
-    prog += load_rd(20, 0x1234) + [cfx2rc(0, 7, 0, 20), cfx2rd(0, 7, 0, 45)]
-    prog += load_rd(20, 0x5678) + [cfx2rc(0, 7, 1, 20), cfx2rd(0, 7, 1, 46)]
+    # cg7 rc0/rc1 read-only space description (DADAO-12 §3.8): cfx0 (umon) has
+    # no internal space, so both reads return 0 and a write would be CFXREG
+    # (see cfxreg_cg7_write).
+    prog += [cfx2rd(0, 7, 0, 45), cfx2rd(0, 7, 1, 46)]
     # cg2 rc1 cfxmem (per-mode row)
     prog += load_rd(20, 0x2222) + [cfx2rc(0, 2, 1, 20), cfx2rd(0, 2, 1, 47)]
     # cfx63 (power): write cause_ip / scratch[1], read back
@@ -388,7 +391,7 @@ def _cfx2_full_regface():
         "rd35": 0xCAFE, "rd36": 0, "rd37": 0,
         "rd38": 0x5555, "rd39": 1, "rd40": 0x9999, "rd41": 7, "rd42": 0,
         "rd43": 0xAAAA, "rd44": 0xBBBB,
-        "rd45": 0x1234, "rd46": 0x5678, "rd47": 0x2222,
+        "rd45": 0, "rd46": 0, "rd47": 0x2222,
         "rd48": 0x12345678, "rd49": 0xFFFF,
         "rd53": 0x00010000, "rd54": 4, "rd55": 0x3F8F,
     }
@@ -452,6 +455,19 @@ def _cfxreg_ro_write():
     prog += load_rd(25, 0x1234)
     fault_idx = len(prog)
     prog += [cfx2rc(0, 4, 0, 25)]
+    prog += exit_seq(0xEE)
+    exp = {"exit": 0xCC, "cid:0": CFXREG, "syncn:0": 1,
+           "cip:0": ROM_BASE + fault_idx * 4}
+    return build_rom(prog, hand(0x100, 0xCC)), exp
+
+
+# -- acc 6: write to any cg7 rc => CFXREG (cg7 is read-only, DADAO-12 §3.8) --
+@case("cfxreg_cg7_write", "write to cg7 rc63 (space attr of block 15) => CFXREG")
+def _cfxreg_cg7_write():
+    prog = set_cfx_vector(0, 3, H) + set_cfx_vector(0, 0, H)
+    prog += load_rd(25, 0x1234)
+    fault_idx = len(prog)
+    prog += [cfx2rc(0, 7, 63, 25)]
     prog += exit_seq(0xEE)
     exp = {"exit": 0xCC, "cid:0": CFXREG, "syncn:0": 1,
            "cip:0": ROM_BASE + fault_idx * 4}

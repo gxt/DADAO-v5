@@ -398,14 +398,16 @@ def _open_smon_cg5_self():
     return one(rom, {"exit": 0x00, "rd10": 1})   # cause_id = CFXTRAP (1)
 
 
-@case("open_cg7", "deleg=0x8: supv cfx_ptw cg7 rc0 (sram_block_sel) write/read")
+@case("open_cg7", "deleg=0x8: supv cfx_ptw cg7 rc0 (space desc) read => 0, no CFXPERM")
 def _open_cg7():
-    body = load_rd(20, 5) + [cfx2rc(4, 7, 0, 20)]
-    body += [cfx2rd(4, 7, 0, 10)] + exit_seq(0x00)
+    # cg7 is a read-only space description (DADAO-12 §3.8): a write would be
+    # CFXREG regardless of delegation, so the gate is proved by a read of
+    # cfx_ptw space[0]; cfx_ptw has no internal space => 0.
+    body = [cfx2rd(4, 7, 0, 10)] + exit_seq(0x00)
     prog = probe_base() + set_deleg(4, DELEG_OPEN) + open_supv_cfxreg(4, 0)
     prog += enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x00, "rd10": 5})
+    return one(rom, {"exit": 0x00, "rd10": 0})
 
 
 # -- 6/8: closed cfx (hmon) with the 0x8 control ---------------------------
