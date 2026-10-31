@@ -3,7 +3,7 @@
 **模块**：integ
 **项目里程碑**：M10（Linux 开发前置独立项；M11 未定义，暂挂 M10，待用户确认）
 **依赖**：`INTEG-050t`（`cfx_time` + 单 hart `cfx_hart` 定时器，2026-10-31 `已验证`）
-**状态**：待开始
+**状态**：已验证
 
 > **开工门槛**：`INTEG-050t` 未 `已验证` 前不得 `/dispatch`。050 交付的是「单来源异步路径 + 两个独立 `bool`」，本任务把这两个 `bool` 换成**目标 cfx 的既有 `cg5 rc5 pending`** 并把投递收成一处仲裁；050 的探针（17 例）、`contract-see` 条目与 QEMU 补丁是本任务的基线。
 
@@ -296,11 +296,29 @@ return delivered;
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
+**测试结果**：新探针 **14/14**（12 runtime + 2 offline；默认路径与 `--qemu` 安装根各跑一次）；`INTEG-050t` **17/17**、`INTEG-042t` **25/25**；`make check-arch` 13 个探针全绿（含 `integ051t`）；L1 rc=0、L2 `check-modules` rc=0、L3 `check-full` rc=0（8/8 成员，含 `arch:cfx`）；证据 `run.sh --default` 10/10、`--inject` 19/19、`--full` 31/31。
+
+**修改文件**（= 任务书文件集 10 项，`git status` 无越界；`spec/**`、`tests/**`、`components/llvm-project/**` 零改动）：
+1. `components/qemu/patches/target/dadao/cpu.h.patch`（删 `pmem_dma_irq`/`hart_irq`，声明 `dadao_async_arbitrate`）
+2. `.../cpu.c.patch`（`exec_interrupt` 收成单一仲裁 + 无条件清 HARD；删两 bool 复位）
+3. `.../helper.c.patch`（`dadao_async_lowest/kick/arbitrate`、D9 共用 `cfx_frame_block_async`、四类踢点、源侧改 pending、删两个 `*_deliver`）
+4. `tools/testcases/arch/min_rom_probe_integ051t.py`（新增）
+5. `Makefile`（`ARCH_CFX_PROBES` 追加 `integ051t`）6. `tools/testcases/arch/README.md` 7. `components/qemu/changelog.md`
+8. `.tao/contracts/contract-see.md`（新增「统一异步中断仲裁」+ 修 `:39`/`:50`/`:57`/`:58` 措辞）9. 本任务书 10. `.tao/knowledge/milestones.md`
+
+**验收结果**：`build-qemu` rc=0（增量 6–7 s，无 reconfig/全量）、`install-host` rc=0；`qemu-system-dadao`/`qemu-dadao` 安装根==构建树 md5 `dfec9ede…`/`e319db9c…`；`check-patch-tree` 205 patches OK、`check-source-state` qemu OK；补丁树 `hart_async_pending=0 async_enable=0`、`pmem_dma_irq;`/`hart_irq;` 各 0、async `cfx_enter` 调用点 1。14 例可达 FAIL 已逐例实测（日志 `.work/log/integ/`）：priority-swap→`low_cfxha_first`(24)；mask-bypass→`global_mask_block`(211) 等 5 例；cross-cfx pending→`pmem_pending_in_pmem`(161)；删 cfx2rc 尾踢→`cause_mask_block`(243)；删 escape 踢→`escape_kick`(34)；不清 pending→`dedup_same_source`(TIMEOUT)；monitor-hop→`direct_target`(238)；删 expiry 踢→`direct_target`(50)；删 masked-pending→`timer_imask_hold`(2)；删 `cause_info`→`pmem_error_info`(83)；契约删词→`doc_shape`；补丁加 `async_enable`→`no_async_enable`。
+
 **新发现/坑**：
+1. 任务书称「async `cfx_enter` 进入帧会把全局 mask 置全 1（D9）」——050 代码里 D9 只在 `helper_cfx_trap`；异步投递不设会①帧内可嵌套②`escape` 用陈旧 `saved_*` 恢复（写坏 cfx0 的 global mask）。已抽 `cfx_frame_block_async()` 供同步 trap 与异步仲裁共用（**未改** `cfx_enter` 及其掩码判定）。
+2. `-d cpu` 按 TB 打全状态（~20 KB/份）：icount 下等 1 ms 虚拟时间的 DMA 轮询要 1e6 条指令 ⇒ 单例 5.5 GB/85 s；探针改纯退出码自检，`dump` 只作调试开关。
+3. 倒数 delay 循环会被投递打断（落在 `add -1` 且计数已 0 ⇒ 下溢死循环）；改「头部先判 0」的守护循环。
+4. 任务书 `--inject` 与 050 实际接口不符（050 探针无 `--inject`）；按 050 现状：探针 `--doc/--only/--list/--qemu`，注入在 `run.sh --inject`。
+5. `cfx_intr_mask` 读**当前 cfx** 行、`escape` 不恢复 `inner_cfx_code` ⇒「目标 cfx 自己的行不影响」的反向断言只在首次投递前成立；`per_cfx_mask_block` 据此排序。
+6. 证据期共 4 次增量重建（6–7 s/次）用于注入反例与还原后重装；实现期仅 1 次。
+
 **遗留问题**：
+- `integ038t` 8/16 红为**改前既有**（A/B：050 版三文件同 8 例同码 `0x81`，FAIL 集 diff 为空；日志 `INTEG-051t-038t-{pre,post}051.log`）；不在门控集内，未修、未改 probe 掩盖。
+- `cause_info` 取投递时刻 `dma_status`（屏蔽期再启动新传输会覆盖）= 任务书风险 4，未快照化。
 
 ## 审阅记录
 
@@ -325,4 +343,51 @@ return delivered;
 
 #### 第 1 轮 engineer 自审
 
+- **范围**：逐行自审 `cpu.h`/`cpu.c`/`helper.c` 的 051 改动与探针；`git status` = 10 项、`git diff master -- spec/ tests/ components/llvm-project/ .tao/adr/` 为空；`.work/source/qemu` HEAD 干净（E1 base+1）。
+- **判决**：无未修 finding（下表逐条）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 异步帧未做 D9 ⇒ 帧内可嵌套 / `escape` 恢复陈旧 mask | ✅已修 | 抽 `cfx_frame_block_async()`，trap 与 arbitrate 共用 | `escape_kick`/`low_cfxha_first` 绿；删 escape 踢注入 FAIL(34) |
+| F2 D9 首版落在 `#ifndef CONFIG_USER_ONLY` 内而 trap 两侧都编（链接失败） | ✅已修 | 移到 `cfx_raise_perm` 之后（无系统态依赖） | `build-qemu` rc=0（system+user）；`qemu-dadao` 已装、md5 相同 |
+| F3 探针 `-d cpu` 日志爆炸、单例 85 s | ✅已修 | `run(dump=False)` 默认不打 dump，用例全走退出码 | 14 例 0.5 s 全绿 |
+| F4 倒数 delay 循环被投递打断后下溢死循环 | ✅已修 | 守护循环（头部先判 0） | 12 runtime 重复运行全绿 |
+| F5 只能比常量、够不到「前后计数不变」 | ✅已修 | 新增 `need_same` | `direct_target` no_monitor_hop 绿；monitor-hop 注入 FAIL(238) |
+| F6 `direct_target` 原顺序让 TIMER 借用 DMA 踢点，expiry-kick 不可观测 | ✅已修 | 改「先 DMA、再 lone TIMER」 | 删 expiry-kick 注入 ⇒ FAIL(50) |
+| F7 `per_cfx_mask_block` 反向断言在投递后失效（当前 cfx 变 17） | ✅已修 | 反向断言前置，再置 hmon 行、再投递 | 掩码绕过注入 ⇒ FAIL(225)；正常绿 |
+| F8 用函数体比对 HART/PMEM 顺序（`DADAO_CFXHA_PMEM` 不在 arbitrate 内）误判 | ✅已修 | 改从候选表取序 | `no_async_enable` 绿；补丁加 `async_enable` ⇒ FAIL |
+| F9 证据 `--inject` 只改源不重建 ⇒ 变异无效（假绿） | ✅已修 | 变异后 `make build-qemu` 再跑；还原用 `cp`（`cp -p` 会保旧 mtime，ninja 不重建） | inject 19/19；变异体 md5 变化、还原 md5 相同且回绿 |
+| F10 `milestones` 时间列缺 `（登记）` ⇒ L1 红 | ✅已修 | 补 `（登记）` | `make check` rc=0 |
+| F11 `.work/log/integ/*.EXIT` 违反 `check-run-artifacts` 命名 | ✅已修 | 标记移 `/tmp/opencode/INTEG-051t/L3.EXIT`，日志改 `INTEG-051t-L3-run.txt` | `make check` rc=0 |
+
 #### 第 1 轮 reviewer 验收
+
+- **重跑（安装根 md5 `dfec9ede…`==构建树；user `e319db9c…` 两者一致）**：051t `--list`=14、安装根 `--qemu` **14/14 rc=0**；050t **17/17 rc=0**；042t **25/25 rc=0**；`make check`(L1) **rc=0**；`make check-arch` **rc=0**（13 探针含 integ051t）；`make check-modules`(L2) **rc=0**；`check-patch-tree` **rc=0**（205 patches OK）、`check-source-state`/`check-component-changelog`/`check-contracts-dir` 均 **rc=0**。L3 `check-full` 未重跑（按现场能力取舍）。
+- **文件集**：`git diff --name-only master...HEAD` = **恰 10 项** = 任务书清单；`spec/`、`tests/`、`components/llvm-project/`、`.tao/adr/` **0 命中**；审查前后 `git status --porcelain -uall` 均空、`.work/source/qemu` 干净 @`70879b7`、`helper.c` md5 `3ea4603…` 前后一致。
+- **语义逐条（补丁树实证）**：pending 唯一在目标 cfx（DMA→`cfx_pmem.pending|=bit8`、expire→`cfx_hart.pending|=bit10`）；`hart_async_pending`/`async_enable`/`pmem_dma_irq;`/`hart_irq;`/`dadao_*_deliver` 全 0 命中（`pmem_dma_irq_en` 保留属预期）；候选表 15→17 升序、`arbitrate` 单层 `return true`、async `cfx_enter` 调用点恰 1（arbitrate 内）；掩码判定未复制（arbiter 内无 `*_intr_mask`/`excp_cause_mask` 表达式）；四类踢点齐（`cfx2rc` 通用尾 / cg8 rc5 / `escape` step1 后 / 源事件）；**`cfx_enter` 函数体与 050（master）逐字节一致**（两版提取比对 md5 均 `9f255a1b…`），D9 抽 `cfx_frame_block_async()` 供 trap/仲裁共用、未动掩码判定。
+- **证据脚本**：逐条审读无恒真、各断言有可达 FAIL 路径（变异后先重建再跑，F9 已修）；独立重跑 `--default` **10/10 rc=0**、`--inject` **19/19 rc=0**（3 变异体 build md5 各异、`cp` 还原 md5 相同、探针回 14/14）。
+- **独立注入 2 例（均 `cp`+md5 还原，未用 git checkout/restore/stash）**：① `cfx_enter` step4 行选择 `cfx_idx(inner_cfx_code)`→`cfx_idx(target)` ⇒ `per_cfx_mask_block` **FAIL(227)**，还原 `3ea4603…`、重建后回 PASS；② `dadao_hart_timer_expire` 把 TIMER pending 落 `cfx_pmem`（与 run.sh 的 DMA→15 变异不同向、不同用例）⇒ `pending_no_cross_cfx` **FAIL(193)**，还原重建后 **14/14 回绿**。
+- **契约/登记**：`contract-see`「统一异步中断仲裁（测试机约定）」条目 + `:39`/`:50` 修正、changelog 恰 1 条、Makefile `ARCH_CFX_PROBES`+`integ051t`、README 表行与 `--qemu` 名单，均与实际一致，相关门控 rc=0。
+- **finding（非阻断，交 architect 收尾改）**：`contract-see:57` cfx_hart 句「写新值取消旧 deadline 并清 ISTATUS/pending/**irq**」——`irq` 指已删除的 `hart_irq` bool，属文字残留；代码行为（写 `timer_cmp` 清 TIMER pending 位）与 `:59`「只有这一份记录」表述一致，**不构成语义错误**，门控不受影响。
+- **判决：Accepted**。验收标准 1–14、16–18 在我方独立重跑下全过（15 的 L3 未重跑，L1/L2/check-arch/相关 cfx 探针均已实测绿）；未发现凑绿、断言弱化、越界改动或未提交残留。未提交、未 push。
+
+#### 第 1 轮 architect 提交前审核（提交留痕）
+
+- **档位**：`feat(integ)`（任务 `待验收`、非 reviewer Accepted；按主会话指定信息提交，未加 `WIP:`；reviewer 若 Needs Revision，修复提交续在本分支）。
+- **文件集对账**：`git diff --cached --name-only` = 10 项（三份 QEMU 补丁、新探针、`Makefile`、arch `README`、`changelog`、`contract-see`、本任务书、`milestones`）；无漏提/多提；`spec/`、`tests/`、`components/llvm-project/`、`.tao/adr/` 零改动。
+- **architect 独立复跑**：`min_rom_probe_integ051t --qemu` 安装根 14/14 rc=0；`integ050t` 16/16 runtime + `doc_shape` rc=0；`integ042t` 25/25 rc=0；`make check` rc=0（54 s）；`make check-arch` rc=0（1 m 32 s，13 探针含 `integ051t`）；`check-patch-tree` 205 OK、`check-source-state`/`check-component-changelog`/`check-contracts-dir` rc=0；安装根==构建树 md5 `dfec9ede…`（system）/`e319db9c…`（user）；`.work/source/qemu` HEAD `70879b7`、工作树干净、`helper.c` md5 `3ea4603…`。
+- **D9 偏差裁定（`cfx_frame_block_async()`）**：**接受**。与 050 版逐字对比：`cfx_enter()` 函数体 0 差异（掩码 step 3/4/5 未动）；`helper_cfx_trap()` 仅把原 4 行 D9 换成同参调用（语义等价）；`helper_cfx_escape()` 仅在 step 1 恢复后加 `#ifndef CONFIG_USER_ONLY` 内 `dadao_async_kick`。函数位于 `cfx_raise_perm()` 后、`#ifndef CONFIG_USER_ONLY`（`:1796`）之外 ⇒ 两侧都编（F2 到位），user-mode `qemu-dadao` 构建+安装成功。
+- **仲裁实现核对**：候选表 15→17 升序、单层 `return true`；async `cfx_enter` 调用点 1 处（arbitrate 内）；两 `bool`/`*_deliver` 零命中；四类踢点齐（`cfx2rc` 尾、`cg8 rc5`、`escape` step 1 后、源事件 DMA/expiry）；`IMASK` 仅源本地门、mask 唯一真源仍是 `cfx_enter`。
+- **可达 FAIL 补证（抽查 2 例；任务书原仅显式记录 12 例）**：跨 cfx pending 注入 ⇒ `pending_no_cross_cfx` FAIL(194)；`int cur = cfx_idx(inner_cfx_code)` → `ci` 注入 ⇒ `per_cfx_mask_block` FAIL(227)；`cp`+md5 还原回 `3ea4603…`，重建+`install-host` 后 md5 `dfec9ede…` 一致、探针回 14/14（`/tmp/opencode/INTEG-051t/arch-extra/extra.log`）。
+- **遗留提示（非阻断）**：`contract-see` `cfx_hart` 条目仍写「清 ISTATUS/pending/irq」，`irq` 已随两 `bool` 删除（现为 pending 位 + 重踢），措辞可收尾时对齐。
+- **结论**：无阻断，提交 `feat(integ): INTEG-051t 统一异步中断仲裁`；未 `push`；可进 reviewer。
+
+#### 第 2 轮 architect 交叉复核（`/complete`；不 push / 不 merge / 不改实现）
+
+- **文件集**：`git diff --name-only master...HEAD` = **恰 10 项** = 任务书清单；`spec/`、`tests/`、`components/llvm-project/`、`.tao/adr/` **0 命中**（grep rc=1）；收尾前 `git status --porcelain -uall` 仅本任务书 1 项（reviewer 记录未提交）。
+- **独立重跑**：051t `--list`=14、`--qemu` **14/14 rc=0**（契约措辞修正后复跑仍 rc=0）；050t **16/16 runtime + `doc` 0 failed rc=0**；042t **25/25 rc=0**；`make check`(L1) **rc=0**（54 s）；`make check-arch` **rc=0**（1 m 28 s，13 探针含 `integ051t`）；**L3 独立补跑 `make check-full` rc=0（8/8 绿，7 m 55 s）**——报告 `.dadao/tests/l3/20261031T170934Z`，`meta.commit=81a3cf71`、qemu build-id `87fb54f9…` == 现安装根/构建树；证据脚本 `.work/evidence/INTEG-051t/run.sh --default` **10/10 rc=0**（日志 `/tmp/opencode/INTEG-051t/complete/`）。
+- **md5**：安装根 `.dadao/cross-toolchain/bin/qemu-system-dadao` == 构建树 `dfec9ede…`、`qemu-dadao` == `e319db9c…`；`.work/source/qemu` @`70879b7` 干净、`helper.c` `3ea4603…`。
+- **L3 必要性判定**：L3 独有成员（`check-inst` 全量、4 个 FP 探针、`check-unit-full`、`test-m6`）不含 cfx 异步用例，但前三者在 `qemu-system-dadao` 上运行、本次改的是 `helper.c`/`cpu.c` 核心 ⇒ 判为**相关**，已补跑全绿；不以 engineer 旧报告（虽同 build-id）作唯一凭据。
+- **非阻断 finding 处置**：`contract-see:57` `timer_cmp` 句改为「写新值取消旧 deadline 并清 ISTATUS 与 `cfx_hart cg5 rc5` 的 TIMER pending 位（pending 为唯一记录，未投递事件随之取消）」——删去指向已删 `hart_irq` bool 的 `irq` 残留，与「只有 pending 位 + 重踢」一致；`grep -c irq` = **0**；未改语义/代码；改后 051t `--doc` rc=0、`--qemu` 14/14、`check-contracts-dir`/`check-spec-drift` rc=0。
+- **完成区与真实输出**：14/14、17、25、L1/L2/**L3 8/8**、13 探针、md5 逐条对上；无凑绿、无越界、无临时残留。
+- **判决：Accepted（交叉复核通过）**；状态 `待验收`→`已验证`、`milestones` 流水行同步（`2026-11-01 01:18`）；本轮提交 `review: INTEG-051t Accepted（reviewer + architect 交叉复核）`（staging = 本任务书 + `contract-see` + `milestones`）；未 `push`、未 `merge`。

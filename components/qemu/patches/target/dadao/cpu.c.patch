@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..486f70e
+index 0000000..d9bb315
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,582 @@
+@@ -0,0 +1,573 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -129,7 +129,8 @@ index 0000000..486f70e
 +    memset(env->tlb, 0, sizeof(env->tlb));
 +
 +    /* cfx_pmem SRAM/DMA reset values (DADAO-12 §4.9; ADR-0042): all zero,
-+     * no transfer in flight, no PMEM_DMA pending. */
++     * no transfer in flight.  The PMEM_DMA pending bit lives in the target
++     * cfx (cfx_pmem cg5 rc5) and is cleared by the per-cfx reset loop above. */
 +#ifndef CONFIG_USER_ONLY
 +    dadao_pmem_dma_reset(env);
 +    /* cfx_time epoch + single-hart timer (DADAO-12 §4.7/§4.10). */
@@ -142,7 +143,6 @@ index 0000000..486f70e
 +    env->pmem_dma_status = 0;
 +    env->pmem_dma_dir = 0;
 +    env->pmem_dma_irq_en = 0;
-+    env->pmem_dma_irq = false;
 +    env->pmem_dma_cfx_off = 0;
 +    env->pmem_dma_pa = 0;
 +    env->pmem_dma_len = 0;
@@ -150,7 +150,6 @@ index 0000000..486f70e
 +    env->hart_insn = 0;
 +    env->hart_timer_cmp = 0;
 +    env->hart_timer_ctrl = 0;
-+    env->hart_irq = false;
 +#endif
 +
 +    /* rd0 hardwired to 0 (already zero from memset) */
@@ -495,33 +494,25 @@ index 0000000..486f70e
 +
 +static bool dadao_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
 +{
-+    CPUDADAOState *env = cpu_env(cs);
++    bool delivered;
 +
++    if (!(interrupt_request & CPU_INTERRUPT_HARD)) {
++        return false;
++    }
 +    /*
-+     * Asynchronous sources are delivered through independent per-source
-+     * branches (each with its own bool flag): cfx_pmem DMA completion/error
-+     * (PMEM_DMA, DADAO-12 §4.9; ADR-0042 D7.4) and the single-hart cfx_hart
-+     * timer (TIMER, DADAO-12 §4.7).  There is deliberately NO unified
-+     * per-hart pending bitmap, cross-source priority or merge/dedup here
-+     * (INTEG-050t; unified arbitration is deferred to a pre-Linux task).
-+     * The only interaction: when the other source's flag is still set, keep
-+     * CPU_INTERRUPT_HARD raised so it is entered on the next round.
++     * One arbitration entry point (INTEG-051t).  The pending record of every
++     * asynchronous source lives in its *target* cfx's cg5 rc5 (TIMER ->
++     * cfx_hart bit10, PMEM_DMA -> cfx_pmem bit8); cfx_hart holds no cross-cfx
++     * pending bitmap.  The arbiter picks the lowest target cfxha that is
++     * deliverable, runs one cfx_enter(async) and consumes that pending bit.
++     * At most one source per call: while the frame is live the entry-mode
++     * monitor's global_cfx_intr_mask blocks the rest, and escape re-kicks.
++     * Clearing HARD unconditionally keeps the model from spinning; the
++     * pending bit is the only re-delivery record.
 +     */
-+    if ((interrupt_request & CPU_INTERRUPT_HARD) && env->pmem_dma_irq) {
-+        dadao_pmem_dma_deliver(env);
-+        if (!env->hart_irq) {
-+            cpu_reset_interrupt(cs, CPU_INTERRUPT_HARD);
-+        }
-+        return true;
-+    }
-+    if ((interrupt_request & CPU_INTERRUPT_HARD) && env->hart_irq) {
-+        dadao_hart_timer_deliver(env);
-+        if (!env->pmem_dma_irq) {
-+            cpu_reset_interrupt(cs, CPU_INTERRUPT_HARD);
-+        }
-+        return true;
-+    }
-+    return false;
++    delivered = dadao_async_arbitrate(cs);
++    cpu_reset_interrupt(cs, CPU_INTERRUPT_HARD);
++    return delivered;
 +}
 +#endif /* !CONFIG_USER_ONLY */
 +

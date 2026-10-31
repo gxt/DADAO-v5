@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..7889252
+index 0000000..10e9fa5
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,485 @@
+@@ -0,0 +1,487 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -417,7 +417,6 @@ index 0000000..7889252
 +    uint64_t pmem_dma_status;
 +    uint8_t  pmem_dma_dir;       /* 0 = CFX->PA, 1 = PA->CFX (latched) */
 +    uint8_t  pmem_dma_irq_en;    /* latched dma_ctrl.IRQ_EN */
-+    bool     pmem_dma_irq;       /* PMEM_DMA pending delivery to cpu_exec_interrupt */
 +    uint64_t pmem_dma_cfx_off;   /* latched SRAM offset */
 +    uint64_t pmem_dma_pa;        /* latched physical address */
 +    uint64_t pmem_dma_len;       /* latched byte count */
@@ -426,14 +425,14 @@ index 0000000..7889252
 +    /* ── cfx_time + cfx_hart timer (DADAO-12 §4.7/§4.10; INTEG-050t) ──
 +     * Single hart: time_base_ns is the reset epoch of the virtual clock and
 +     * cfx_time_value/cycle read (now - base).  `hart_insn` counts instructions
-+     * in dadao_tr_insn_start() (translate.c).  The timer is one-shot; `hart_irq` is
-+     * the per-source delivery flag (PMEM_DMA keeps its own, no unified
-+     * pending bitmap / arbitration is built here). */
++     * in dadao_tr_insn_start() (translate.c).  The timer is one-shot; a pending
++     * TIMER is recorded in the target cfx's cg5 rc5 (bit10) and is not a
++     * separate per-source flag (INTEG-051t: pending lives in the target cfx,
++     * cfx_hart only arbitrates). */
 +    uint64_t time_base_ns;
 +    uint64_t hart_insn;
 +    uint64_t hart_timer_cmp;
 +    uint8_t  hart_timer_ctrl;    /* bit0 ENABLE, bit1 IMASK */
-+    bool     hart_irq;           /* TIMER pending delivery to cpu_exec_interrupt */
 +    QEMUTimer *hart_timer;
 +} CPUDADAOState;
 +
@@ -471,11 +470,14 @@ index 0000000..7889252
 +/* cfx_pmem DMA (DADAO-12 §4.9; ADR-0042) */
 +void dadao_pmem_dma_init(CPUState *cs);
 +void dadao_pmem_dma_reset(CPUDADAOState *env);
-+void dadao_pmem_dma_deliver(CPUDADAOState *env);
 +/* cfx_time + single-hart cfx_hart timer (DADAO-12 §4.7/§4.10; INTEG-050t) */
 +void dadao_hart_timer_init(CPUState *cs);
 +void dadao_hart_timer_reset(CPUDADAOState *env);
-+void dadao_hart_timer_deliver(CPUDADAOState *env);
++/* Unified async arbitration (INTEG-051t): every asynchronous source records
++ * its pending bit in the *target* cfx's cg5 rc5 (TIMER -> cfx_hart bit10,
++ * PMEM_DMA -> cfx_pmem bit8); this one function selects the lowest deliverable
++ * target cfxha and runs at most one cfx_enter(async) per call. */
++bool dadao_async_arbitrate(CPUState *cs);
 +#endif
 +
 +void dadao_cpu_tcg_init(void);

@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..ac44847
+index 0000000..4c39848
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2604 @@
+@@ -0,0 +1,2692 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -1778,6 +1778,19 @@ index 0000000..ac44847
 +    cfx_raise(env, DADAO_CAUSE_CFXPERM, env->inner_run_mode, pc, info);
 +}
 +
++/* D9: entering a frame saves the entry-mode monitor's global_cfx_intr_mask and
++ * blocks every async source while the single frame is live; escape restores
++ * it.  Shared by the sync trap path and the async arbiter so that both record
++ * the frame's saved mask and neither can deliver a second source inside it. */
++static void cfx_frame_block_async(CPUDADAOState *env, int ci, uint8_t entry_mode)
++{
++    int mon = entry_mode & 0x3;
++
++    env->cfx[ci].saved_global_intr_mask = env->cfx[mon].global_cfx_intr_mask;
++    env->cfx[ci].saved_intr_monitor = (uint8_t)mon;
++    env->cfx[mon].global_cfx_intr_mask = ~0ULL;
++}
++
 +/* ===================================================================
 + * cfx_pmem SRAM + DMA (spec/DADAO-12 §2.1/§4.9; ADR-0042 D3/D4/D6/D7)
 + *
@@ -1790,6 +1803,11 @@ index 0000000..ac44847
 +
 +/* Completion latency of the test-machine DMA (virtual clock). */
 +#define DADAO_PMEM_DMA_DELAY_NS  1000000ULL   /* 1 ms */
++
++/* Re-raise CPU_INTERRUPT_HARD when a source is still pending; defined with the
++ * arbitration block next to the cfx_hart timer section below.  The DMA
++ * completion runs before that definition, hence the forward declaration. */
++static void dadao_async_kick(CPUDADAOState *env);
 +
 +static bool dadao_pmem_dma_pa_ok(uint64_t pa, uint64_t len, bool write)
 +{
@@ -1857,8 +1875,14 @@ index 0000000..ac44847
 +    }
 +
 +    if (env->pmem_dma_irq_en) {
-+        env->pmem_dma_irq = true;
-+        cpu_interrupt(cs, CPU_INTERRUPT_HARD);
++        /* The pending record is the target cfx's cg5 rc5 bit8 (INTEG-051t);
++         * the arbiter turns it into a delivery. */
++        int ci = cfx_idx(DADAO_CFXHA_PMEM);
++
++        if (ci >= 0) {
++            env->cfx[ci].pending |= DADAO_CAUSE_PMEM_DMA;
++        }
++        dadao_async_kick(env);
 +    }
 +}
 +
@@ -1894,8 +1918,12 @@ index 0000000..ac44847
 +        env->pmem_dma_status |= DADAO_PMEM_DMA_ERROR |
 +                                (err << DADAO_PMEM_DMA_ERR_CODE_SHIFT);
 +        if (env->pmem_dma_irq_en) {
-+            env->pmem_dma_irq = true;
-+            cpu_interrupt(env_cpu(env), CPU_INTERRUPT_HARD);
++            int ci = cfx_idx(DADAO_CFXHA_PMEM);
++
++            if (ci >= 0) {
++                env->cfx[ci].pending |= DADAO_CAUSE_PMEM_DMA;
++            }
++            dadao_async_kick(env);
 +        }
 +        return;
 +    }
@@ -1978,22 +2006,6 @@ index 0000000..ac44847
 +    }
 +}
 +
-+/* Async PMEM_DMA delivery: run the §5 entry flow with cause_info=dma_status;
-+ * when masked the flow records cfx_pmem_excp_pending and we stay put. */
-+void dadao_pmem_dma_deliver(CPUDADAOState *env)
-+{
-+    bool entered = false;
-+    uint64_t vec;
-+
-+    env->pmem_dma_irq = false;
-+    vec = cfx_enter(env, DADAO_CAUSE_PMEM_DMA, DADAO_CFXHA_PMEM, env->pc,
-+                    env->pmem_dma_status, false, &entered);
-+    if (entered) {
-+        env->pc = vec;
-+        env->rb[0] = vec;
-+    }
-+}
-+
 +void dadao_pmem_dma_init(CPUState *cs)
 +{
 +    CPUDADAOState *env = cpu_env(cs);
@@ -2014,7 +2026,6 @@ index 0000000..ac44847
 +    env->pmem_dma_status = 0;
 +    env->pmem_dma_dir = 0;
 +    env->pmem_dma_irq_en = 0;
-+    env->pmem_dma_irq = false;
 +    env->pmem_dma_cfx_off = 0;
 +    env->pmem_dma_pa = 0;
 +    env->pmem_dma_len = 0;
@@ -2045,15 +2056,14 @@ index 0000000..ac44847
 +
 +/* ===================================================================
 + * cfx_time (cfxha 18) + single-hart cfx_hart timer (cfxha 15)
-+ * (spec/DADAO-12 §4.7/§4.10; contract-see §3; INTEG-050t)
++ * (spec/DADAO-12 §4.7/§4.10; contract-see §3; INTEG-050t/INTEG-051t)
 + *
 + * cfx_time_value and cfx_hart_cycle are derived from QEMU_CLOCK_VIRTUAL
 + * (test-machine model: 1 count = 1 ns, epoch = reset time_base_ns).  cfx_hart
 + * insn is accumulated per TB by translate.c.  The timer is one-shot and its
 + * deadline is a 64-bit absolute cfx_time value; TIMER (1 << 10) is maskable
-+ * with cause_info = 0.  Only the existing single-source async path is used
-+ * (own bool + CPU_INTERRUPT_HARD + cfx_enter(async)); no unified pending
-+ * bitmap or cross-source arbitration is built here.
++ * with cause_info = 0.  A pending TIMER lives in the target cfx's cg5 rc5
++ * (cfx_hart bit10); the unified arbiter below only selects (INTEG-051t).
 + * =================================================================== */
 +
 +static uint64_t dadao_time_now_ns(void)
@@ -2140,6 +2150,96 @@ index 0000000..ac44847
 +    }
 +}
 +
++/* ── Unified async arbitration (INTEG-051t; DADAO-12 §5, ADR-0045 D3) ──
++ * Every asynchronous source records its pending bit in the *target* cfx's
++ * cg5 rc5 (TIMER -> cfx_hart bit10, PMEM_DMA -> cfx_pmem bit8); cfx_hart is
++ * not a pending store and no cross-cfx bitmap exists.  This arbiter only
++ * selects: the two-level masks and excp_cause_mask stay in cfx_enter (steps
++ * 3/4/5), whose `entered` result says whether the pending bit was consumed or
++ * must stay for a later kick.  At most one cfx_enter(async) per call. */
++
++/* Sources in target-cfxha order: the lowest deliverable cfxha wins. */
++static const struct dadao_async_source {
++    int cfxha;
++    uint64_t cause;
++} dadao_async_sources[] = {
++    { DADAO_CFXHA_HART, DADAO_CAUSE_TIMER },       /* 15 */
++    { DADAO_CFXHA_PMEM, DADAO_CAUSE_PMEM_DMA },    /* 17 */
++};
++
++/* Lowest target cfxha whose pending bit is set and may be delivered.  The
++ * masks are deliberately not evaluated here (cfx_enter is the only authority);
++ * only the source-local TIMER IMASK gate applies.  -1 when nothing is pending. */
++static int dadao_async_lowest(CPUDADAOState *env)
++{
++    int i;
++
++    for (i = 0; i < ARRAY_SIZE(dadao_async_sources); i++) {
++        int cfxha = dadao_async_sources[i].cfxha;
++        int ci = cfx_idx(cfxha);
++
++        if (ci < 0 || !(env->cfx[ci].pending & dadao_async_sources[i].cause)) {
++            continue;
++        }
++        if (cfxha == DADAO_CFXHA_HART &&
++            (env->hart_timer_ctrl & DADAO_HART_TIMER_IMASK)) {
++            continue;
++        }
++        return cfxha;
++    }
++    return -1;
++}
++
++/* Re-raise CPU_INTERRUPT_HARD when a source is still pending.  Called from
++ * every point that can unblock one (mask/pending writes, escape, a new source
++ * event); never spins, because exec_interrupt clears HARD on every call. */
++static void dadao_async_kick(CPUDADAOState *env)
++{
++    if (dadao_async_lowest(env) >= 0) {
++        dadao_hart_notify(env_cpu(env));
++    }
++}
++
++/* Deliver at most one pending source; true iff one cfx_enter(async) ran. */
++bool dadao_async_arbitrate(CPUState *cs)
++{
++    CPUDADAOState *env = cpu_env(cs);
++    int i;
++
++    for (i = 0; i < ARRAY_SIZE(dadao_async_sources); i++) {
++        int cfxha = dadao_async_sources[i].cfxha;
++        uint64_t cause = dadao_async_sources[i].cause;
++        uint8_t entry_mode = env->inner_run_mode;
++        uint64_t info;
++        uint64_t vec;
++        int ci = cfx_idx(cfxha);
++        bool entered = false;
++
++        if (ci < 0 || !(env->cfx[ci].pending & cause)) {
++            continue;                   /* this source has no event */
++        }
++        if (cfxha == DADAO_CFXHA_HART &&
++            (env->hart_timer_ctrl & DADAO_HART_TIMER_IMASK)) {
++            continue;                   /* source-local gate */
++        }
++        /* TIMER has cause_info = 0; PMEM_DMA carries the dma_status at the
++         * moment of delivery (050 convention). */
++        info = (cfxha == DADAO_CFXHA_HART) ? 0 : env->pmem_dma_status;
++        vec = cfx_enter(env, cause, cfxha, env->pc, info, false, &entered);
++        if (!entered) {
++            /* Masked by step 3/4/5: cfx_enter kept the pending bit; the next
++             * source must not be held back by this one. */
++            continue;
++        }
++        env->cfx[ci].pending &= ~cause;  /* consumed: one event, one delivery */
++        env->pc = vec;
++        env->rb[0] = vec;
++        cfx_frame_block_async(env, ci, entry_mode);
++        return true;                     /* single layer: one source per call */
++    }
++    return false;
++}
++
 +static void dadao_hart_timer_expire(CPUState *cs)
 +{
 +    CPUDADAOState *env = cpu_env(cs);
@@ -2152,15 +2252,15 @@ index 0000000..ac44847
 +    if (dadao_time_value(env) < env->hart_timer_cmp) {
 +        return;                         /* re-armed after the callback fired */
 +    }
-+    if (env->hart_timer_ctrl & DADAO_HART_TIMER_IMASK) {
-+        /* Masked expiry: record the existing per-cfx pending bit (cg5 rc5),
-+         * never a new bitmap, and do not deliver. */
-+        if (ci >= 0) {
-+            env->cfx[ci].pending |= DADAO_CAUSE_TIMER;
-+        }
-+    } else {
-+        env->hart_irq = true;
-+        dadao_hart_notify(cs);
++    /* The expiry is an event: record it in the target cfx's pending bit
++     * (cfx_hart cg5 rc5 bit10, the single record) and let the arbiter deliver.
++     * IMASK is the source-local delivery gate, so a masked expiry only records
++     * and waits for the ctrl write that releases it. */
++    if (ci >= 0) {
++        env->cfx[ci].pending |= DADAO_CAUSE_TIMER;
++    }
++    if (!(env->hart_timer_ctrl & DADAO_HART_TIMER_IMASK)) {
++        dadao_async_kick(env);
 +    }
 +}
 +
@@ -2207,21 +2307,6 @@ index 0000000..ac44847
 +    env->hart_insn = 0;
 +    env->hart_timer_cmp = 0;
 +    env->hart_timer_ctrl = 0;
-+    env->hart_irq = false;
-+}
-+
-+void dadao_hart_timer_deliver(CPUDADAOState *env)
-+{
-+    bool entered;
-+    uint64_t vec;
-+
-+    env->hart_irq = false;
-+    vec = cfx_enter(env, DADAO_CAUSE_TIMER, DADAO_CFXHA_HART, env->pc, 0,
-+                    false, &entered);
-+    if (entered) {
-+        env->pc = vec;
-+        env->rb[0] = vec;
-+    }
 +}
 +
 +#endif /* !CONFIG_USER_ONLY */
@@ -2242,7 +2327,6 @@ index 0000000..ac44847
 +            if (ci >= 0) {
 +                env->cfx[ci].pending &= ~DADAO_CAUSE_TIMER;
 +            }
-+            env->hart_irq = false;
 +            timer_del(env->hart_timer);
 +            dadao_hart_timer_arm(env, cs);
 +        }
@@ -2258,15 +2342,15 @@ index 0000000..ac44847
 +
 +            env->hart_timer_ctrl = (uint8_t)(val & (DADAO_HART_TIMER_ENABLE |
 +                                                    DADAO_HART_TIMER_IMASK));
-+            /* Releasing IMASK while ISTATUS=1 drops the recorded pending bit
-+             * and lets the existing async path deliver TIMER. */
++            /* Releasing IMASK while ISTATUS=1 keeps the recorded pending bit
++             * (re-setting it if software cleared it) and re-kicks, so the
++             * arbiter performs the delivery (050 "release delivers" semantics). */
 +            if (!(env->hart_timer_ctrl & DADAO_HART_TIMER_IMASK) &&
 +                dadao_hart_istatus(env)) {
 +                if (ci >= 0) {
-+                    env->cfx[ci].pending &= ~DADAO_CAUSE_TIMER;
++                    env->cfx[ci].pending |= DADAO_CAUSE_TIMER;
 +                }
-+                env->hart_irq = true;
-+                dadao_hart_notify(cs);
++                dadao_async_kick(env);
 +            }
 +            dadao_hart_timer_arm(env, cs);
 +        }
@@ -2326,14 +2410,7 @@ index 0000000..ac44847
 +        env->pc = entered ? vec : pc + 4;
 +        env->rb[0] = env->pc;
 +        if (entered && env->inner_cfx_code == cfxha) {
-+            /* D9: save the entry-mode monitor's global_cfx_intr_mask and block
-+             * all async sources while the single frame is live. */
-+            int mon = entry_mode & 0x3;
-+
-+            env->cfx[ci].saved_global_intr_mask =
-+                env->cfx[mon].global_cfx_intr_mask;
-+            env->cfx[ci].saved_intr_monitor = (uint8_t)mon;
-+            env->cfx[mon].global_cfx_intr_mask = ~0ULL;
++            cfx_frame_block_async(env, ci, entry_mode);
 +        }
 +    }
 +}
@@ -2367,6 +2444,11 @@ index 0000000..ac44847
 +    /* step 1: restore the saved global_cfx_intr_mask (D9). */
 +    env->cfx[env->cfx[ci].saved_intr_monitor & 0x3].global_cfx_intr_mask =
 +        env->cfx[ci].saved_global_intr_mask;
++#ifndef CONFIG_USER_ONLY
++    /* The live frame blocked every async source; once the mask is back,
++     * re-kick so the arbiter can deliver what accumulated meanwhile. */
++    dadao_async_kick(env);
++#endif
 +    /* step 2: restore the per-hart cfx mask and run mode from the frame. */
 +    env->inner_cfx_mask = env->cfx[ci].prev_cfx_mask;
 +    env->inner_run_mode = env->cfx[ci].prev_run_mode & 0x3;
@@ -2605,6 +2687,12 @@ index 0000000..ac44847
 +         * derived translation cache so the next access re-checks. */
 +        dadao_soft_tlb_flush(env);
 +    }
++#ifndef CONFIG_USER_ONLY
++    /* A write to a mask / excp_cause_mask / pending register may unblock a
++     * pending async source; re-kick here so the generic write path covers
++     * every such register (INTEG-051t). */
++    dadao_async_kick(env);
++#endif
 +    env->pc = pc + 4;
 +    env->rb[0] = pc + 4;
 +}
