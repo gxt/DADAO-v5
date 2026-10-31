@@ -23,6 +23,8 @@ M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**
 | `cfx2-trap-escape.s` | `trap` / `escape`（ciii）+ `cfx2rd` / `cfx2rc`（crrr）的编码与**往返**；`cfx_<name>`/`cfxHA` 等价；`cfx_<cfxname>_<regname>` 简写展开；数组寄存器单下标 | `contracts/opcodes.yaml`（`value`/`mask`/`fields`，行内 `; @enc` + `; OBJ:` 双写）+ `.tao/contracts/contract-cfx-aliases.md`（别名） |
 | `cfx2-trap-escape-err.s` | 反例：`escape` 偏移 `%4!=0`/越界/非常量、非 `excp_cause_ip` 基址、`trap` 立即数越界、`cfx2rd` 裸数字/无下标/越界下标 → **硬报错（非零退出）** | `spec/Toolchain-01 §3.2` + `contracts/opcodes.yaml` |
 | `cfx-alias-runtime.s` | cfx 别名**运行时表**（`contracts/cfx-aliases.txt`）：默认表名字汇编/反汇编；`DADAO_CFX_ALIAS_FILE` 改名表即时生效（不重建）；`--dadao-cfx-alias=` 优先；缺表 ⇒ 汇编名字硬报错 / 反汇编裸回退 | `contracts/cfx-aliases.txt` + `ADR-0017 D3/D4/D8`（表由 spec 投影）；`LLVM-135t` |
+| `cfx2-space-stride.s` | `format=2` **stride 数组**：cg7 `space_{desc,start,size,attr}[N]` 汇编/反汇编（`[5]`⇒rc20、`[15]`⇒rc60/…/63）；连续数组不回归；旧 `format=1` 表兼容；`format=2` 改名 `array` 表数据驱动生效 | `contracts/opcodes.yaml` + `.tao/contracts/contract-cfx-aliases.md`（`4i+K`，`rc = rc-base + N*stride`）+ `contracts/cfx-aliases.txt`；`LLVM-141t` |
+| `cfx2-space-stride-err.s` | 反例：cg7 stride 数组下标越界（`space_desc[16]` / `space_size[16]`）⇒ 非零 + `out of range`；无下标 ⇒ 非零 + `single subscript is required` | 同上（count=16、`i=0..15`）；`LLVM-141t` |
 
 - 别名名字是**运行时数据**（`LLVM-135t`）：`share/dadao/cfx-aliases.txt` 由
   `tools/llvm/gen_cfx_alias_table.py` 从 spec 投影生成到 `contracts/cfx-aliases.txt`

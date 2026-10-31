@@ -532,3 +532,7 @@
 - **2026-10-30 INTEG-045t**
   - 摘要：**注释同步（无功能改动，`series` 98 不变）**：`DADAOInstrFormats.td` 的格式类说明删去已撤销的 `crii`（cfx 块传输格式；`cfxld`/`cfxst` 已从 ISA 删除），只余 `crrr`/`ciii` 两种带 `cfxha` 的格式；导出内容仅注释行变化（`check-patch-tree` 205 OK、`check-index-blobs` OK）。
   - 执行者：engineer
+
+- **2026-11-01 LLVM-141t**
+  - 摘要：**cfx 别名表 `format=2` + stride 数组（cg7 `space_*[i]` 可汇编）**：① 运行时表新增 `array <name-base> <cfxha> <cg> <rc-base> <count> <stride> [canonical]`，`rc = rc-base + N*stride`；`format=1` 仍原样可读，`array` 仅在 `format=2` 合法（否则整表拒绝）；② `RegAlias` 增 `Stride`，`covers`/`getCfxRegName` 按 stride 判断与反算下标（`(rc-rcBase)/stride`），`lookupCfxRegAlias` 输出 `RcStride`，`DADAOAsmParser` 按 `RcBase + Sub*RcStride` 落 rc；③ 生成器对 `parse_register_tables` 的 stride 条目直接产 `array`（cg7 12 cfx × 4 字段 = 48 行，count=16 stride=4），连续数组仍为 `reg`；头行 `regs=` 取契约展开别名数（实测 1428，非行数）。真值（离线）：表 `48 array / 660 reg / 12 scalar`、无 `space_*` 字面下标；`validate_cfx_vectors.py` 新增 6 条 `@enc` 全 PASS；`make check-cfx-alias-table`/`check-cfx-aliases` rc=0；构建树增量链接的 `llvm-mc`/`llvm-objdump` 下 MC lit **79/79** 绿（含 `cfx2-space-stride{,-err}.s`）。`make install-host` 已完成（安装根重建；源表/构建树/安装根 sha256 一致），`check-cfx-alias-install` 6 checks PASS。
+  - 执行者：engineer

@@ -298,6 +298,12 @@ lit	tests/unit/llvm/lit/MC/DADAO/atomics-lrsc.s	476c8241	sc.b.ar	1
 lit	tests/unit/llvm/lit/MC/DADAO/basic-encoding.s	59200001	add.si	1
 lit	tests/unit/llvm/lit/MC/DADAO/basic-encoding.s	5923ffff	add.si	1
 lit	tests/unit/llvm/lit/MC/DADAO/basic-encoding.s	5b040001	add.si	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-space-stride.s	7a0060c1	cfx2rd	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-space-stride.s	7a007001	cfx2rd	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-space-stride.s	7a007501	cfx2rd	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-space-stride.s	7a007f81	cfx2rd	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-space-stride.s	7a007fc1	cfx2rd	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-space-stride.s	7a44c0c1	cfx2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7a0050c2	cfx2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7a008002	cfx2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7a109002	cfx2rd	1

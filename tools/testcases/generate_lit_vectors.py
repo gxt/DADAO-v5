@@ -43,7 +43,11 @@ ALIASES = os.path.join(REPO, "contracts", "cfx-aliases.txt")
 
 
 def _load_cfx_aliases():
-    """-> (scalar{cfxha: [name]}, regs[(cfxha, cg, base, count, name)])."""
+    """-> (scalar{cfxha: [name]}, regs[(cfxha, cg, base, count, stride, name)]).
+
+    `reg` rows are contiguous (stride 1); `array` rows (format=2) carry an
+    explicit element stride, ``rc = base + N*stride``.
+    """
     scalar, regs = {}, []
     with open(ALIASES, "r", encoding="utf-8") as fh:
         for raw in fh:
@@ -55,7 +59,10 @@ def _load_cfx_aliases():
                 scalar.setdefault(int(parts[2]), []).append(parts[1])
             elif parts[0] == "reg":
                 regs.append((int(parts[2]), int(parts[3]), int(parts[4]),
-                             int(parts[5]), parts[1]))
+                             int(parts[5]), 1, parts[1]))
+            elif parts[0] == "array":
+                regs.append((int(parts[2]), int(parts[3]), int(parts[4]),
+                             int(parts[5]), int(parts[6]), parts[1]))
     return scalar, regs
 
 
@@ -69,16 +76,18 @@ def _cfx_scalar_name(cfxha):
 
 def _cfx_reg_name(cfxha, cg, rc):
     best = None
-    for ha, c, base, count, name in CFX_REGS:
-        if ha != cfxha or c != cg or not base <= rc < base + count:
+    for ha, c, base, count, stride, name in CFX_REGS:
+        if ha != cfxha or c != cg or rc < base or (rc - base) % stride:
+            continue
+        if (rc - base) // stride >= count:
             continue
         key = (0 if count == 1 else 1, name)
         if best is None or key < best[0]:
-            best = (key, base, count, name)
+            best = (key, base, count, stride, name)
     if best is None:
         return None
-    _key, base, count, name = best
-    return name if count == 1 else "%s[%d]" % (name, rc - base)
+    _key, base, count, stride, name = best
+    return name if count == 1 else "%s[%d]" % (name, (rc - base) // stride)
 
 
 def _printed_asm(asm, assigns, fmt):

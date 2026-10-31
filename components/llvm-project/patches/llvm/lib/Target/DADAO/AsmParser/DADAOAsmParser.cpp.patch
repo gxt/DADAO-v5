@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..2272771a5
+index 000000000..d6c588541
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2602 @@
+@@ -0,0 +1,2604 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -611,7 +611,7 @@ index 000000000..2272771a5
 +//   cfx<N>                    scalar code (0..63)
 +//   cfx_<cfxname>             scalar alias  -> cfx code
 +//   cfx_<cfxname>_<regname>   register alias -> cfxha, cg, rc
-+//   cfx_<...>[N]              array register alias -> cfxha, cg, rcBase + N
++//   cfx_<...>[N]              array register alias -> cfxha, cg, rcBase + N*stride
 +//   cg<N>                     cfx cg register code (0..63)
 +//   rc<N>                     cfx rc register code (0..63)
 +//
@@ -638,8 +638,9 @@ index 000000000..2272771a5
 +        return 1;
 +      }
 +
-+      unsigned Cfxha, Cg, RcBase, RcCount;
-+      if (DADAO::lookupCfxRegAlias(Name, Cfxha, Cg, RcBase, RcCount)) {
++      unsigned Cfxha, Cg, RcBase, RcCount, RcStride;
++      if (DADAO::lookupCfxRegAlias(Name, Cfxha, Cg, RcBase, RcCount,
++                                   RcStride)) {
 +        getParser().Lex();
 +        int64_t Sub = -1;
 +        if (RcCount > 1) {
@@ -678,7 +679,8 @@ index 000000000..2272771a5
 +        Operands.push_back(DADAOOperand::createCfxha(Cfxha, StartLoc));
 +        Operands.push_back(DADAOOperand::createCfxCg(Cg, StartLoc));
 +        Operands.push_back(
-+            DADAOOperand::createCfxRc(RcBase + (Sub < 0 ? 0 : Sub), StartLoc));
++            DADAOOperand::createCfxRc(RcBase + (Sub < 0 ? 0 : Sub) * RcStride,
++                                      StartLoc));
 +        return 1;
 +      }
 +      // No table => no name can ever resolve; say so instead of letting the
