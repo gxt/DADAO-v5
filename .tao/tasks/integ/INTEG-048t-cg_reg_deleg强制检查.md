@@ -3,10 +3,10 @@
 **模块**：integ
 **项目里程碑**：M10
 **依赖**：INTEG-044t（两轴权限模型/`CFXPERM` 落地）、INTEG-046t（Step5 启动链；本任务对其 hmon/smon 与探针做**前置修正**）、INTEG-047t（SBI DMA 契约；其探针 provider 以 hypv 运行 ⇒ 本检查零影响）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
-**执行环境**：本地（git worktree `/tmp/opencode/INTEG-048t/repo`，分支 `INTEG-048t`）
+**执行环境**：本地（仓库 `/mnt/tao/DADAO-v5`，分支 `INTEG-048t`；原 worktree `/tmp/opencode/INTEG-048t/repo` 已回收，验收与收尾均在仓库内复跑）
 
 ## 背景（问题根源）
 
@@ -287,11 +287,17 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：全绿 — 048t 探针 23/23、046t 16/16、044t/045t/integ044t PASS；`make check`(L1) rc=0、`make check-modules`(L2) rc=0、`make check-arch`(L3) rc=0（9 探针+smoke）；证据默认与 `--inject`（10 处注入）均 rc=0（`EVIDENCE INJECT: PASS`）。
+**修改文件**：`components/qemu/patches/target/dadao/helper.c.patch`（导出，未手改）｜`components/qemu/changelog.md`｜`tools/testcases/arch/min_rom_probe_integ048t.py`（新）｜`tools/testcases/arch/README.md`｜`Makefile`｜`tests/shared/bootrom/step5/{hmon.S,smon.S,README.md}`｜`tools/testcases/arch/min_rom_probe_integ046t.py`｜`tools/testcases/arch/min_rom_probe_045t.py`（仅描述/指针）｜`.tao/contracts/contract-see.md` §3｜`.tao/knowledge/milestones.md`。证据 `.work/evidence/INTEG-048t/{run.sh,check.py}`；日志 `.work/log/integ/INTEG-048t-*.log`、`.work/log/arch/check-arch-probe-integ048t.log`。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- QEMU：`cfx_deleg_denied`（supv-only、`env->cfx[ci].mode[HYPV].cg_reg_deleg` 位=cg、`1⇒CFXPERM`）在 `cfx2rd`/`cfx2rc` 的 cfxreg 轴之后、`cg15` DMA 特例与 `cfx_reg_ptr` 之前调用；cg3 由同一门拒绝为 `CFXPERM`（`cg3_supv_perm_rd/wr` 观测 `cid:2=0x80`），hypv cg3 读写成功（`cg3_hypv_allowed` rd10=`0xFFF7`、rd11=`0xFFFF_FFFF_FFFF_CAFE`），user/jail cg3 仍 `CFXREG`（`user_cg3_cfxreg` `cid:0=0x04`）。
+- bit3：写 0 读回 `0x8`、写 `0xFFFF_FFFF_FFFF_FFF7` 读回全 1（`bit3_forced`）；写 0 后 supv cg3 仍 `CFXPERM`（`cg3_bit3_locked` rd23=`0x8`）。
+- 正/反例：ptw cg8/cg9、pmem cg15、smon cg5(self)、cg7 在 `0x8` 下成功；`cfx_hmon` cg0/cg8、`cfx_power` cg4/cg7 与 `no_power_full_open` 均 `CFXPERM`（cfxreg 轴隔离且 `rd24` 回读数 = `~bit[源]`，除 7d 用默认双轴）；self 不豁免（`self_not_exempt` closed=`CFXPERM`/open=成功）；hypv/user 不受限。
+- 046t：`rd17/rd18/rd19=0x8`、`rd20=0x4442_4F54_0001_0002`、`rd21=0xFFFF_FFFF_FFFF_FFF3`、`rd22=全 1`（16/16）；power BootROM：`ld` 成功、bit2=1 ⇒ `CFXPERM`、`st` ⇒ `ILLI`（exit `0x88`）、控制写/cg7 ⇒ `CFXPERM`、整组开放不波及 power。
+- 7b/7c 真实 grep：`cfx_deleg_denied` 体无 `cg==3` 早退；`grep -n "cfx2rc.*cg3, rc12" hmon.S` ⇒ 3 条（ptw/pmem/smon，值均 `0x8`）；`grep -n "cfx2rc.*cfx_power"` ⇒ 1 条（`cg2, rc1`）；`grep -n "cfx2rd.*cfx_power"` ⇒ 2 条；禁写项（`cfx_power` + cg3/cg2 rc2/cg2 rc3）0 命中；7c 残留正则（含 `-i`）0 命中（rc=1）。
+- `install-host` 后安装根 md5 == 构建树 md5（`0909e7445e9592df410e831c78a97651`）；`git diff` 对 `spec/**`、`contracts/**`、`.tao/adr/**`、`tests/inst/**`、`docs/**`、`power.S`/三份 `lds`、`cpu.{h,c}.patch` 零改动；无 Linux 侧测试。
+**新发现/坑**：①`-d cpu` 每 TB 入口打印 ⇒ 同 TB 内 `ld` 结果不可观测，7a 用 `jump` 切 TB（否则读到 hmon 旧值假红）；②异常进入取「当前模式行」：`CFXPERM` handler 的向量/switch 在 `cfx_smon` 的 **cg2** 行（任务书写作 cg3）⇒ 置 `cg2 rc8=3` 才回 hypv；③RAM 属分区 63(power)：supv 写 RAM 查 `cfx_power cfxmem` ⇒ 半托管块移入 `cfx_smon` SRAM，只开 `cfx_smon` supv/user cfxmem bit0，power 的 MEMMASK 保持 `0xFFF7`；④`cp` 还原保留旧 mtime ⇒ ninja/make 跳过重建留注入二进制（假绿），还原后 `os.utime`+md5 双检（`lessons §2` 同类）；⑤默认双轴的反例（7d）deleg 门缺失也不会红 ⇒ 另加探针级反例 J 证明可达 FAIL；7e/7f 改为 cfxreg 隔离以隔离 deleg 轴。
+**遗留问题**：①可选用例 18 `jail_unaffected` 未实现（jail 不启用；user 轴已覆盖，见 `user_unaffected`）；②任务书 §探针基座 的「`cfx_smon` cg3 rc8/cg3 rc9」按实现语义落在 **cg2** 行（见坑②，属探针内部布置，不改语义）；③7d 保留「默认双轴」原口径（其可达 FAIL 由证据注入 J 证明）；④无阻塞项。
 
 ## 审阅记录
 
@@ -312,3 +318,40 @@
 - §046t 前置修正：hmon 增加一行 `cfx_power cg2 rc1 = 0xFFFF_FFFF_FFFF_FFF3`（只清 bit2）；smon 固定地址 `0xFFFF_FFFC_0000` 读 BootROM 头（`rd20=0x44424F54_0001_0002`）、`rd21=power cfxmem`、`rd22=power deleg`；`rd6` 重装提醒；`deleg_dump` **仍只**断言 ptw/pmem/smon = `0x8`，新增 `power_bootrom_read`；README 同步；046t 15→16 例。
 - §测试：新增 7a–7f（固定地址读成功/关闭 ⇒ `CFXPERM`/写 ROM ⇒ `ILLI`/控制写与 cg7 仍拒/整组开放不含 power）；power 的 deleg 反例不写 `0x8`；探针取指仅清 `cfx_power cg2 rc3` bit0/bit2 并标明是探针布置。
 - §验收新增 4b、7c 改为按 `cfx_power`/`cg3 rc12` 行 grep（`FFF3` 现有两处合法用途，不再按单值 grep）；§BLOCKED 增加 cfxmem 无方向位与 power cfxexe 说明；§约束/§预检/§milestones 同步。范围仍仅任务书 + `milestones.md` 一行，未实现。
+
+#### 第 1 轮 engineer 自审
+- 审查范围：`helper.c.patch` 的门/调用点/写侧、`hmon.S`/`smon.S` 的 deleg 与回读、046t/048t 探针的每个用例与期望值、证据脚本的注入与还原路径、`contract-see.md` 投影与门控输出。
+- 逐条核对：①门只读 `mode[HYPV].cg_reg_deleg`（与 `cfx_reg_ptr` 的 `rc==12` 同源），`cg` 为 6 位字段故 `cg>63` 分支不可达但保留；②调用点在 `cfxreg` 轴之后、`cg15` 特例与 `cfx_reg_ptr` 之前（两处对称）；③写侧 `cg==3 && rc==12` 分支位于 `cfx_reg_ptr` 成功后、通用 `else` 之前；④`smon` 的 supv 访问（ptw cg8/cg9、pmem cg15、smon cg5、power ROM）逐条对应 hmon 的 `0x8`/`0xFFF3`；⑤`rd6` 在 `cfx_hmon cg2 rc0` 前重装 `0xFFF3`；⑥探针每例 FAIL 路径由证据注入 A–J 实测（A 9 例、B 10 例、E 23 例、F 2 例、G/H/I/J 各 1 例，覆盖全部 23 例）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 7a 的 `ld` 结果未被 dump 观测（同 TB） | ✅已修 | 7a 体改用 `jump` 到独立 exit 槽（切 TB） | `open_power_bootrom` rd20=`0x1122_3344_5566_7788` PASS；注入 G ⇒ FAIL |
+| CFXPERM handler 若按任务书用 cg3 行则仍留在 supv、读 cg5 递归 | ✅已修 | 探针基座改设 `cfx_smon cg2 rc8/rc9/rc11`（接入行） | `self_not_exempt`/`closed_*` 均进 handler 并以 `0xEE` 退出 |
+| supv 写 RAM（分区 63）需 `cfx_power cfxmem` bit0，与 7d/7f 的 `0xFFF7` 冲突 | ✅已修 | 半托管块移入 `cfx_smon` SRAM，仅开 `cfx_smon` supv/user cfxmem bit0 | 7d/7f `memmask:63:2 = 0xFFF7` PASS |
+| 证据注入还原后 `make` 不重建（`cp` 保 mtime） | ✅已修 | 还原后 `os.utime` + md5 双检 + 重建 | `--inject` 全项 PASS（含 `_restored_md5`/`_green_again`） |
+| 7e/7f「默认双轴」无 deleg 轴可达 FAIL | ✅已修 | 两例 cfxreg 轴隔离（bit[源]清 0） | 注入 A ⇒ `power_cg7_closed`/`no_power_full_open` FAIL；默认 PASS |
+| `power_control_write` 双轴均拒 ⇒ 单一轴注入不红 | ✅已修 | 保留任务书「默认双轴」口径，证据脚本加探针级反例 J 证明 FAIL 可达 | 注入 J（两轴置开）⇒ `power_control_write` FAIL；默认 PASS |
+| 可选用例 18 `jail_unaffected` | ❌不修 | 任务书标注「（可选）」；jail 不启用，user 轴已由 `user_unaffected`/`user_cg3_cfxreg` 覆盖 | `--list` 23 例；`user_unaffected` PASS |
+| 未用变量/占位 | ❌不修 | `run_case` 的 `desc` 仅列表用；无死代码影响 | `python3 -m py_compile` 通过、探针全绿 |
+
+#### 第 1 轮 reviewer 验收（reviewer，2026-10-31）—— **Accepted**
+- 快照对账：`git status --porcelain -uall` 前后各 0 行、逐行 diff 为空；注入物（helper.c/hmon.S）`cp`+md5 还原与注入前一致（`7b63e343…`/`cc44a40b…`），非 `git checkout/restore`。
+- 重跑（reviewer 亲自，均 rc=0）：`make check`(L1)、`make check-modules`(L2)、`make check-arch`(L3，含 046t **16/16**、048t **23/23**、047t 及既有探针零回退)、`check-source-state`、`check-patch-tree`（205 patches OK）、`check-component-changelog`；安装根 md5 == 构建树 = `0909e744…`（验收 9）。
+- 文件正确性：`cfx_deleg_denied` 仅 supv、数据源 `mode[DADAO_MODE_HYPV].cg_reg_deleg`、位=cg、`1⇒CFXPERM`、体无 `cg==3` 早退（7b）；两处调用点在 cfxreg 轴后、cg15 特例与 `cfx_reg_ptr` 前；写侧 `cg3 rc12` 分支在 `cfx_reg_ptr` 成功后、通用 else 前，`| (1ULL<<3)`。
+- 7c 残留 grep（含 `-i`）0 命中（rc=1）；`cfx2rc.*cg3, rc12` 3 条（ptw/pmem/smon，值均 0x8）；`cfx2rc.*cfx_power` 仅 1 条（`cg2, rc1`=0xFFF3）；`cfx2rd.*cfx_power` 2 条；禁写项 0 命中。hmon `rd6` 在 `cfx_hmon cg2 rc0` 前重装 0xFFF3；smon 期望 `rd17/18/19=0x8`、`rd21=0xFFF3`、`rd22=全1`、`rd20=0x44424F54_0001_0002` 与探针一致。
+- 证据脚本审核+重跑：10 处注入（A/B/E/F=QEMU 门与 bit3、C/D=hmon、G/H/I/J=探针级）逐条有可达 FAIL，还原用 cp+md5+`utime`+重建；reviewer 跑 `run.sh` 默认全绿（rc=0）、`run.sh --inject` `EVIDENCE INJECT: PASS`（rc=0，63 PASS/0 FAIL）。
+- **reviewer 独立注入 2 次**（非 engineer 注入点）：①helper.c 门数据源错改 `mode[SUPV]` 行 ⇒ `make build-qemu` 后 048t **9 例 FAIL**（closed_*/cg3_*/self_not_exempt 等）⇒ 还原+重建 ⇒ 23/23 回绿；②hmon 三份 `0x8`→`0x18` ⇒ `build-bootrom` 后 046t **9 例 FAIL**（`deleg_dump` 观测 0x18、smon 自检 0xB9）⇒ 还原+重建 ⇒ 16/16 回绿。两次还原后构建树二进制 md5 回 `0909e744…` == 安装根。
+- 零改动核验：`git diff master...HEAD` 对 `spec/**`、`contracts/**`、`.tao/adr/**`、`tests/inst/**`、`components/llvm/**`、`docs/**`、`cpu.{h,c}.patch` 均空；13 个文件与完成区「修改文件」逐项一致；045t 仅改描述/指针（期望 CFXREG 未变）；无 Linux 侧测试、无临时残留。
+- 限长：完成区 13 行（≤30）；本记录 12 行（≤40）。可选例 18（jail）未实现属任务书标注可选，不阻断。判决 **Accepted**（可进入 `/complete`）。
+
+#### 提交记录（architect，2026-10-31）
+- 档位：`待验收`（reviewer 未验收）⇒ 按流程提交本任务分支；commit 消息 `feat(integ): INTEG-048t cg_reg_deleg 强制`（分支 `INTEG-048t`，未 push；哈希见 `git log -1`）。
+- 文件集：13 项与完成区「修改文件」逐项一致（含新文件 `min_rom_probe_integ048t.py`）；无多提/漏提；`spec/**`、`contracts/**`、`.tao/adr/**`、`tests/inst/**`、`docs/**`、`components/llvm/**`、`cpu.{h,c}.patch` 零改动。
+- 机械核验（architect 独立跑）：`make check-patch-tree` rc=0；`make check-component-changelog` PASS；补丁 `+` 行与 `.work/source/qemu/target/dadao/helper.c` `diff` 为空（导出非手改）；安装根/构建树 `qemu-system-dadao` md5 均 `0909e744…`；`--list` 计 046t 16 / 048t 23；安装根二进制抽跑 `integ048t --only cg3_supv_perm_rd,bit3_forced` 与 `integ046t --only deleg_dump`/`power_bootrom_read` 均 PASS。
+
+#### architect 交叉复核（`/complete`，2026-10-31）—— **无阻断**
+- 复核对象：`d93909bd` + 第 1 轮 reviewer 记录 + 任务书；实现零改动，仅 2 处文档/注释修正（见末条）。
+- 关键项（本轮真实输出）：① `0x8` 全 cg —— `grep "cfx2rc.*cg3, rc12" hmon.S` = 3 条（ptw/pmem/smon，值均 `0x8`），无第四处；② power 仅 cfxmem bit2 —— `grep "cfx2rc.*cfx_power"` = 1 条（`cg2 rc1` = `0xFFF3`），禁写项（`cg3 rc12`/`cg2 rc2`/`cg2 rc3`）0 命中；③ power deleg 全 1 —— smon `rd22` 期望 `~0`、046t `power_bootrom_read` 断言之，048t 7f 断言 `memmask:63:2 = 0xFFF7`；④ bit3 —— patch 中 `else if (cg == 3 && rc == 12)` 分支 `| (1ULL << 3)`，位于 `cfx_reg_ptr` 成功后、通用 `else` 前；⑤ cg3 —— `cfx_deleg_denied` 体无 `cg == 3` 早退，两处调用点在 cfxreg 轴后、`cg15` 特例与 `cfx_reg_ptr` 前；⑥ 用例数 —— `--list` 实测 046t **16**、048t **23**；⑦ 安装根 md5 == 构建树 = `0909e744…`；⑧ 补丁非手改 —— `.work/source/qemu` 的 `git diff <base> -- target/dadao/helper.c` 与 `components/qemu/patches/target/dadao/helper.c.patch` 逐字节相同（`diff` rc=0），源树 clean。
+- 门控（最终树上重跑，日志 `.work/log/integ/INTEG-048t-complete-gates.log`）：L1 rc=0、L2 rc=0、L3 rc=0（`check-arch` 含 048t **23/23**、046t **16/16**、047t 与既有探针零回退）；`check-patch-tree`/`check-source-state`/`check-component-changelog`/`check-no-residue` 含于 L1 均 rc=0。
+- 非阻断项处置：① `smon.S` 头部步骤编号重复（两个 `4.`）→ 第二项改 `5.`；改后重建 `build-bootrom`，镜像 md5 仍 `ffbc8966…`（纯注释、零语义）；② `contract-see.md` 来源清单新增 DADAO-23 → 因 §3 新引用 `[DADAO-23 §3]`（实核该节确含「清除自身 `hypv_cg_reg_deleg`」），保留并登记，属必要同源修正；③ 任务书执行环境原 worktree 已回收 → 改指主仓库 `/mnt/tao/DADAO-v5`（分支 `INTEG-048t`）。
+- 判决：reviewer 记录无遗漏、未过松（7d 默认双轴的可达 FAIL 由证据注入 J 覆盖；可选例 18 属任务书标注可选）；**无阻断**，`**状态**` 置 `已验证`，可进入主会话 `merge --squash` + push。

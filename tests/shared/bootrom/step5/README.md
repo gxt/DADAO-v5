@@ -43,9 +43,14 @@ Flags used: `REQUIRED=1`, `LOAD=2`, `VERIFY=4` (default `0x7`).
   `trap cfx_hmon, <boot_magic>`.
 - hmon checks `CFXTRAP` + the magic, loads smon, writes
   `cfx_smon.hypv.excp_vector = e_entry` and `switch_run_mode = 2`, opens
-  `cfx_ptw`/`cfx_pmem` for source smon (and hmon for `cfx_ptw`), clears
-  `cfx_hmon.supv.cfxtrap` bit 2, then **last** revokes its own `cfx_pmem`
-  access (cg3 rc0/rc1/rc3/rc2 = all ones) before `trap cfx_smon`.
+  `cfx_ptw`/`cfx_pmem`/`cfx_smon` for source smon by writing
+  `cg3 rc12 = 0x8` (all cg allowed except the hardware-fixed bit3; whole
+  group, not per cg), writes `cfx_power cg2 rc1 = 0xffff_ffff_ffff_fff3`
+  (only bit2 = 0) so smon can read the power BootROM, keeps
+  `cfx_hmon`/`cfx_power` `hypv_cg_reg_deleg` at the reset `~0` (never writes
+  their `cg3 rc12`), clears `cfx_hmon.supv.cfxtrap` bit 2, then **last**
+  revokes its own `cfx_pmem` access (cg3 rc0/rc1/rc3/rc2 = all ones) before
+  `trap cfx_smon`.
 - smon checks the magic, clears cfx_pmem SRAM, writes the L1 PTE
   `0x4000_0000_0000_FFE3` at SRAM offset `0x8000`, DMAs the 64 KiB page table
   to PA 0, sets `PTBR=0` then `PTW_ENABLE=1`, and self-checks
@@ -56,7 +61,11 @@ Flags used: `REQUIRED=1`, `LOAD=2`, `VERIFY=4` (default `0x7`).
 `rd5` VA round-trip, `rd6` DMA readback of the same word, `rd7` reverse
 direction word, `rd8` PTBR, `rd9` PTW enable, `rd10/11/12` power/hmon/smon
 stage markers, `rd13` park-poison OR (must be 0), `rd14` PTE read back from PA
-`0x8000`, `rd15` DMA status of the page-table copy (`DONE = 2`).
+`0x8000`, `rd15` DMA status of the page-table copy (`DONE = 2`),
+`rd17/rd18/rd19` the `cg_reg_deleg` readback of `cfx_ptw`/`cfx_pmem`/`cfx_smon`
+(all `0x8`), `rd20` the power BootROM header at `0xffff_fffc_0000`
+(`0x4442_4f54_0001_0002`), `rd21` `cfx_power` supv cfxmem
+(`0xffff_ffff_ffff_fff3`), `rd22` `cfx_power` `cg_reg_deleg` (all ones).
 
 ## Build
 

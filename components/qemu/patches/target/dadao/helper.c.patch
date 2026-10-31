@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..ef799c1
+index 0000000..7b706ff
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2230 @@
+@@ -0,0 +1,2260 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -79,6 +79,20 @@ index 0000000..ef799c1
 +    default:                  mask = m->cfxexe;  break;
 +    }
 +    return (mask & (1ULL << (env->inner_cfx_code & 0x3F))) != 0;
++}
++
++/* supv 访问目标 cfx 的 cg 需其 hypv_cg_reg_deleg 对应位 = 0 (DADAO-13 §1)。
++ * cg3 不作例外：其 bit3 恒 1 => supv 恒拒（CFXPERM）；hypv/user/jail 不受本检查约束。
++ * 软件侧「整组开放」的写法是 0x8（除恒 1 的 bit3 外无置位），硬件仍按位判定。 */
++static bool cfx_deleg_denied(CPUDADAOState *env, int ci, int cg)
++{
++    uint64_t mask;
++
++    if (env->inner_run_mode != DADAO_MODE_SUPV || cg > 63) {
++        return false;
++    }
++    mask = env->cfx[ci].mode[DADAO_MODE_HYPV].cg_reg_deleg;
++    return (mask & (1ULL << cg)) != 0;
 +}
 +
 +#ifndef CONFIG_USER_ONLY
@@ -2108,6 +2122,12 @@ index 0000000..ef799c1
 +        cfx_raise_perm(env, info, pc);
 +        return;
 +    }
++    /* cg_reg_deleg (supv only; DADAO-13 §1).  cg3 has no exception: its bit3
++     * is hardware-fixed 1, so a supv cg3 access is always CFXPERM. */
++    if (cfx_deleg_denied(env, ci, cg)) {
++        cfx_raise_perm(env, info, pc);
++        return;
++    }
 +    /* cfx_pmem cg15: DMA registers (DADAO-12 §4.9; ADR-0042 D7.3). */
 +    if (cg == 15 && dadao_cfxha_map[ci] == DADAO_CFXHA_PMEM) {
 +        uint64_t v;
@@ -2155,6 +2175,12 @@ index 0000000..ef799c1
 +        return;
 +    }
 +    if (cfx_perm_denied(env, cfxha, DADAO_CFX_PERM_REG)) {
++        cfx_raise_perm(env, info, pc);
++        return;
++    }
++    /* cg_reg_deleg (supv only; DADAO-13 §1).  cg3 has no exception: its bit3
++     * is hardware-fixed 1, so a supv cg3 access is always CFXPERM. */
++    if (cfx_deleg_denied(env, ci, cg)) {
 +        cfx_raise_perm(env, info, pc);
 +        return;
 +    }
@@ -2224,6 +2250,10 @@ index 0000000..ef799c1
 +        if (val & 0x2) {
 +            dadao_soft_tlb_flush(env);
 +        }
++    } else if (cg == 3 && rc == 12) {
++        /* bit3 is hardware-fixed 1 (DADAO-13 §1): a software 0 is ignored and
++         * the register reads back with bit3 set. */
++        *p = ((rd == 0) ? 0 : env->rd[rd]) | (1ULL << 3);
 +    } else {
 +        *p = (rd == 0) ? 0 : env->rd[rd];
 +        /* Any cfx2rc write may change a two-axis permission mask (cfxtrap/

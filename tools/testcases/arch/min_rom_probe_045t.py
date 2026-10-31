@@ -47,7 +47,9 @@ Cases (acceptance 2-6):
                                   prev_run_mode / prev_cfx_mask.
   cfx2_full_regface     (acc 5)   cfx2rd/cfx2rc cg0-cg7 read/write roundtrip
                                   (RO/RW, scratch, cfx0<->cfx63 sharing).
-  cfx2_cg3_nonhypv      (acc 5/6) cg3 access outside hypv => CFXREG.
+  cfx2_cg3_nonhypv      (acc 5/6) user/jail (non-hypv) cg3 => CFXREG; the
+                                  supv axis is INTEG-048t::cg3_supv_perm_rd
+                                  (delegation denies it with CFXPERM).
   cfxreg_cg_oor         (acc 6)   non-existent cg (>=8) => CFXREG.
   cfxreg_rc_oor         (acc 6)   non-existent rc (cg0 rc12) => CFXREG.
   cfxreg_scratch_oor    (acc 6)   scratch rc >= scratch_regs_num => CFXREG.
@@ -394,7 +396,8 @@ def _cfx2_full_regface():
 
 
 # -- acc 5/6: cg3 access outside hypv => CFXREG -----------------------------
-@case("cfx2_cg3_nonhypv", "cg3 register access outside hypv mode => CFXREG")
+@case("cfx2_cg3_nonhypv",
+      "user/jail (non-hypv) cg3 => CFXREG; supv cg3 is INTEG-048t::cg3_supv_perm_rd")
 def _cfx2_cg3_nonhypv():
     # cfx0 hypv vector -> H (trap entry); cfx0 user vector -> EXIT_CONT (fault).
     prog = set_cfx_vector(0, 3, H) + set_cfx_vector(0, 0, ROM_BASE + EXIT_CONT)

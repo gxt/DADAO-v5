@@ -231,3 +231,7 @@
 - **2026-10-30 `INTEG-046t`**
   - 摘要：**Step5 启动链 QEMU 侧（ADR-0043 D1/D2/D4/D5/D10/D14）**：BootROM 几何改为 256 KiB（`0xffff_fffc_0000`–`0xffff_ffff_ffff`），复位向量独立为 `DADAO_BIOS_LOAD_BASE`（`0xffff_ffff_0000`，既有 `-bios` 仍按 64 KiB 窗口装载，语义不变）；新增机器属性 `bootrom-image=<path>`（`-machine dadao-m1,bootrom-image=...`，要求恰 256 KiB，与 `-bios` 互斥，`-kernel` 可选且不改复位 PC）；新增 hmon/smon SRAM（cfx3 `0x0fff_0000_0000` / cfx2 `0x0bff_0000_0000`，各 64 KiB，宿主地址在 56 位 PA 之外，`tlb_fill` 按内部偏移 `0x3ff_0000_0000` 路由、越界 ⇒ CFXMEM）；RAM 在 PA 0 增加 16 MiB 别名（PTE 读取与 `cfx_pmem` DMA 同时接受 `[0,16 MiB)` 与 `[RAM_BASE,+16 MiB)`），供 smon 的 PTBR=0 页表；`translate_for_debug` 覆盖 hmon/smon SRAM（半托管参数块）。新增探针 `min_rom_probe_integ046t.py`（15 例）与 builder `build_step5_bootrom.py`。
   - 执行者：engineer
+
+- **2026-10-31 `INTEG-048t`**
+  - 摘要：**`cfx_<cfxname>_hypv_cg_reg_deleg` 强制检查（DADAO-13 §1；R1–R6）**：新增静态门 `cfx_deleg_denied()`（数据源固定 `mode[DADAO_MODE_HYPV].cg_reg_deleg`，仅 `supv` 生效、位索引 = cg 编号 0–63、`1 ⇒ CFXPERM`），在 `helper_cfx2rd`/`helper_cfx2rc` 的 `cfxreg` 轴之后、`cfx_pmem cg15` 特例与 `cfx_reg_ptr()` 之前调用 ⇒ **cg3 无例外**（supv 访问任何 cfx 的 cg3 由恒 1 的 bit3 拒绝为 `CFXPERM`，不再落到 `CFXREG`），hypv/user/jail 不受本检查约束；`helper_cfx2rc` 对 `cg3 rc12` 的写强制 `value | (1<<3)`（软件写 0 无效、读回恒 1）；复位值 `~0` 与 `cpu.h` 布局不变。新增探针 `min_rom_probe_integ048t.py`（23 例）。
+  - 执行者：engineer

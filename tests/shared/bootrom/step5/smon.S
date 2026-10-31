@@ -7,7 +7,9 @@
 @@      the cg15 DMA: PTBR=0, one 512 MiB superpage at L1 index 0x1000 mapping
 @@      VA 0x0200_0000_0000..0x021f_ffff_ffff -> PA 0..0x1fff_ffff;
 @@   3. enables PTW and checks VA->PA in both data directions with DMA;
-@@   4. writes the three chain markers and the poison words into registers
+@@   4. reads the power BootROM header at its fixed address (hmon opened only
+@@      cfx_power supv cfxmem bit2 for this; the power delegation stays closed);
+@@   5. writes the three chain markers and the poison words into registers
 @@      rd5-rd14 for the `-d cpu` dump, then SYS_EXIT(0).
 @@
 @@ Observation registers (probe compares the last dump block):
@@ -22,6 +24,10 @@
 @@   rd13 OR of the power/hmon poison words (must stay 0)
 @@   rd14 PTE readback via DMA from PA 0x8000
 @@   rd15 DMA status of the page-table copy (DONE = 2)
+@@   rd17/rd18/rd19 cg_reg_deleg readback of cfx_ptw/cfx_pmem/cfx_smon (0x8)
+@@   rd20 power BootROM header word at 0xffff_fffc_0000 (0x4442_4f54_0001_0002)
+@@   rd21 cfx_power supv cfxmem (0xffff_ffff_ffff_fff3: only bit2 cleared)
+@@   rd22 cfx_power cg_reg_deleg (all ones: never opened)
 @@
 @@ Exit channel: semihosting SYS_EXIT with the block in smon SRAM.
 
@@ -65,6 +71,14 @@ smon_clear:
 	add.si	rd6, -1
 	br.nz	{rd6}?, [rb0, smon_clear]
 	stm.o	{rd8:rd23}, [rb3, rd0]
+
+	@@ --- 2a2. read the power BootROM header at its fixed address (R6) ---
+	@@ Source cfx2/supv; requires cfx_power.supv.cfxmem bit2 = 0 (hmon).
+	@@ rd20 is cleared first so a rejected read fails visibly, and it is read
+	@@ after the SRAM clear because the clear loop uses rd8-rd63 as zeros.
+	LD64	rd20, 0x0000, 0x0000, 0x0000, 0x0000
+	LD64	rb4, 0x0000, 0xfffc, 0xffff, 0x0000	@@ 0xffff_fffc_0000
+	ld.o	rd20, [rb4, 0]
 
 	@@ --- 2b. L1 PTE at SRAM offset 0x8000 (L1 index 0x1000) ---
 	LD64	rb3, 0x0000, 0x0000, 0x47ff, 0x0000
@@ -165,9 +179,18 @@ smon_clear:
 	LD64	rb4, 0x0108, 0x0001, 0x0200, 0x0000
 	ld.o	rd7, [rb4, 0]
 	or.o	rd13, rd6, rd7
-	@@ hmon's cg_reg_deleg readback (stored at PA 0x10018).
+	@@ hmon's cg_reg_deleg readbacks (stored at PA 0x10018/0x10020/0x10028)
+	@@ and cfx_power's supv cfxmem / delegation (PA 0x10030/0x10038).
 	LD64	rb4, 0x0018, 0x0001, 0x0200, 0x0000
 	ld.o	rd17, [rb4, 0]
+	LD64	rb4, 0x0020, 0x0001, 0x0200, 0x0000
+	ld.o	rd18, [rb4, 0]
+	LD64	rb4, 0x0028, 0x0001, 0x0200, 0x0000
+	ld.o	rd19, [rb4, 0]
+	LD64	rb4, 0x0030, 0x0001, 0x0200, 0x0000
+	ld.o	rd21, [rb4, 0]
+	LD64	rb4, 0x0038, 0x0001, 0x0200, 0x0000
+	ld.o	rd22, [rb4, 0]
 	rd2rd	rd6, rd3, 1
 	rd2rd	rd7, rd4, 1
 
@@ -204,8 +227,21 @@ smon_clear:
 	LD64	rd1, 0x0002, 0x0000, 0x0000, 0x0000
 	cmp.uo	rd2, rd15, rd1
 	br.nz	{rd2}?, [rb0, smon_fail]
-	LD64	rd1, 0xfff3, 0xffff, 0xffff, 0xffff
+	LD64	rd1, 0x0008, 0x0000, 0x0000, 0x0000
 	cmp.uo	rd2, rd17, rd1
+	br.nz	{rd2}?, [rb0, smon_fail]
+	cmp.uo	rd2, rd18, rd1
+	br.nz	{rd2}?, [rb0, smon_fail]
+	cmp.uo	rd2, rd19, rd1
+	br.nz	{rd2}?, [rb0, smon_fail]
+	LD64	rd1, 0xfff3, 0xffff, 0xffff, 0xffff
+	cmp.uo	rd2, rd21, rd1
+	br.nz	{rd2}?, [rb0, smon_fail]
+	LD64	rd1, 0xffff, 0xffff, 0xffff, 0xffff
+	cmp.uo	rd2, rd22, rd1
+	br.nz	{rd2}?, [rb0, smon_fail]
+	LD64	rd1, 0x0002, 0x0001, 0x4f54, 0x4442	@@ 0x4442_4f54_0001_0002
+	cmp.uo	rd2, rd20, rd1
 	br.nz	{rd2}?, [rb0, smon_fail]
 
 	LD64	rd1, 0x0000, 0x0000, 0x0000, 0x0000

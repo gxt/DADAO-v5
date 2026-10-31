@@ -6,7 +6,8 @@
 @@   2. looks up the smon entry in the BootROM image index table and loads the
 @@      smon ELF into smon SRAM with the shared ROM loader;
 @@   3. programs cfx_smon's S-mode vector/switch mode and opens the run-time
-@@      cfx permissions needed by smon (cfx_ptw / cfx_pmem);
+@@      cfx permissions needed by smon (cfx_ptw / cfx_pmem / cfx_smon cg
+@@      delegation = 0x8, plus cfx_power supv cfxmem bit2 for the BootROM read);
 @@   4. revokes its own cfx_pmem access (D13), traps into smon and parks.
 @@
 @@ Exit channel: semihosting SYS_EXIT with the argument block in hmon SRAM
@@ -90,16 +91,42 @@ hmon_smon_loaded:
 	cfx2rc	cfx_pmem, cg2, rc1, rd6
 	cfx2rc	cfx_pmem, cg2, rc2, rd6
 	cfx2rc	cfx_pmem, cg2, rc3, rd6
+	@@ cfx_power supv cfxmem: clear bit2 (source smon) only, so that smon may
+	@@ read the power BootROM at its fixed address (INTEG-048t R6).  This is
+	@@ the cfxmem axis, not the delegation axis; the power delegation stays ~0.
+	cfx2rc	cfx_power, cg2, rc1, rd6
+
+	@@ --- 3b2. open the whole cg delegation group for source smon ---
+	@@ 0x8 has only the hardware-fixed bit3 set => cg0-cg2 and cg4-cg63 are
+	@@ all allowed (DADAO-13 §1; the software convention is INTEG-048t R5).
+	LD64	rd6, 0x0008, 0x0000, 0x0000, 0x0000
 	cfx2rc	cfx_ptw, cg3, rc12, rd6
 	cfx2rc	cfx_pmem, cg3, rc12, rd6
-	@@ Read back the delegation register and hand it to smon through RAM
-	@@ (QEMU currently only stores it; the probe asserts the stored value).
-	cfx2rd	cfx_ptw, cg3, rc12, rd6
+	cfx2rc	cfx_smon, cg3, rc12, rd6
+
+	@@ Read the three delegation registers back for smon's self-check (the
+	@@ mask is not part of the `-d cpu` dump).  Also record cfx_power's supv
+	@@ cfxmem (only bit2 cleared) and its untouched delegation (all ones).
 	LD64	rb4, 0x0018, 0x0001, 0xfc00, 0x0000
+	cfx2rd	cfx_ptw, cg3, rc12, rd6
+	st.o	rd6, [rb4, 0]
+	LD64	rb4, 0x0020, 0x0001, 0xfc00, 0x0000
+	cfx2rd	cfx_pmem, cg3, rc12, rd6
+	st.o	rd6, [rb4, 0]
+	LD64	rb4, 0x0028, 0x0001, 0xfc00, 0x0000
+	cfx2rd	cfx_smon, cg3, rc12, rd6
+	st.o	rd6, [rb4, 0]
+	LD64	rb4, 0x0030, 0x0001, 0xfc00, 0x0000
+	cfx2rd	cfx_power, cg2, rc1, rd6
+	st.o	rd6, [rb4, 0]
+	LD64	rb4, 0x0038, 0x0001, 0xfc00, 0x0000
+	cfx2rd	cfx_power, cg3, rc12, rd6
 	st.o	rd6, [rb4, 0]
 
 	@@ cfx_hmon.supv.cfxtrap: allow source smon to trap back to hmon
-	@@ (poweroff/reset service, D13).
+	@@ (poweroff/reset service, D13).  rd6 must be reloaded first: the
+	@@ delegation writes/readbacks above clobbered it.
+	LD64	rd6, 0xfff3, 0xffff, 0xffff, 0xffff
 	cfx2rc	cfx_hmon, cg2, rc0, rd6
 
 	@@ --- 3c. revoke hmon's own cfx_pmem access (D13).  rc2 (cfxreg) is

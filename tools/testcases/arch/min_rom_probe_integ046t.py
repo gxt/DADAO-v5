@@ -242,12 +242,26 @@ def _vectors():
     return (not bad), ("ok" if not bad else "mismatch %r" % bad)
 
 
-@case("deleg_dump", "cg_reg_deleg stored value (0xf3...f3) survives in the dump")
+@case("deleg_dump", "cfx_ptw/cfx_pmem/cfx_smon cg_reg_deleg = 0x8 (all cg open, bit3 fixed)")
 def _deleg_dump():
     rc, blocks, _ = run(base_image())
     o = last(blocks)
-    want = 0xFFFF_FFFF_FFFF_FFF3
-    checks = {"rc": (rc, 0), "rd17": (o.get("rd17"), want)}
+    checks = {"rc": (rc, 0),
+              "rd17(ptw)": (o.get("rd17"), 0x8),
+              "rd18(pmem)": (o.get("rd18"), 0x8),
+              "rd19(smon)": (o.get("rd19"), 0x8)}
+    bad = {k: v for k, v in checks.items() if v[0] != v[1]}
+    return (not bad), ("ok" if not bad else "mismatch %r" % bad)
+
+
+@case("power_bootrom_read", "smon reads the power BootROM header; power stays closed")
+def _power_bootrom_read():
+    rc, blocks, _ = run(base_image())
+    o = last(blocks)
+    checks = {"rc": (rc, 0),
+              "rd20(bootrom hdr)": (o.get("rd20"), 0x4442_4F54_0001_0002),
+              "rd21(power supv cfxmem)": (o.get("rd21"), 0xFFFF_FFFF_FFFF_FFF3),
+              "rd22(power deleg)": (o.get("rd22"), 0xFFFF_FFFF_FFFF_FFFF)}
     bad = {k: v for k, v in checks.items() if v[0] != v[1]}
     return (not bad), ("ok" if not bad else "mismatch %r" % bad)
 
