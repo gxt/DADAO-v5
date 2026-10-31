@@ -183,8 +183,9 @@ def _build_positive(rec):
 
     if fmt == "ciii":
         if mn == "escape":
-            return ("escape cfx63, [excp_cause_ip, 8]",
-                    {"cfxha": 63, "imms18": 8 >> 2}, "ciii-escape")
+            # 合法偏移只有 0 / 4（imms18 ∈ {0, 1}）；取 4 ⇒ imms18 = 1。
+            return ("escape cfx63, [excp_cause_ip, 4]",
+                    {"cfxha": 63, "imms18": 4 >> 2}, "ciii-escape")
         if mn == "fence":
             # ADR-0044 D3: hb=immu18[17:12]=0; pred=1 (cr), succ=0 => immu18=0x40.
             return ("fence cfx63, 64",

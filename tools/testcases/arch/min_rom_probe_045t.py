@@ -11,12 +11,14 @@ the QEMU implementation):
     steps 0-4 (escape: escape_cfx_mask / prev_cfx_mask / prev_run_mode /
     escape_num++ / PC = excp_cause_ip + (imms18<<2)).
   - spec/SimRISC-11-核芯功能扩展指令.md 「指令域与执行条件」 (trap ciii; escape ciii with
-    `imms20` byte offset, `%4==0`, addr = excp_cause_ip + imms20, encoding
-    imms18<<2, N may be negative; cfx2rd/cfx2rc crrr; reserved cfxha 6-14,
-    19-61 => ILLI; non-existent register combination / RO-write => CFXREG).
+    `imms20` byte offset, legal values only 0/4 => encoding imms18 in {0,1},
+    addr = excp_cause_ip + imms20 = excp_cause_ip + (imms18<<2);
+    imms18[17:1] is SBZ, non-zero => ILLI; cfx2rd/cfx2rc crrr; reserved
+    cfxha 6-14, 19-61 => ILLI; non-existent register combination /
+    RO-write => CFXREG).
   - spec/Machine-01-测试机运行环境.md §2/§3 (test-machine cfx set
     cfx0/1/2/3/63; hypv+user only).
-  - spec/Toolchain-01 (escape byte offset %4==0; assembly imms20 = imms18<<2).
+  - spec/Toolchain-01 (escape byte offset is 0 or 4; assembly imms20 = imms18<<2).
   - .tao/adr/adr-0020-see-semihosting.md (D9/D10/D11); adr-0004 (D2 reset,
     D5.8 exit codes).
   - contracts/opcodes.yaml (trap_ciii_cfx / escape_ciii_cfx / cfx2rd_crrr_cfx /
@@ -30,7 +32,7 @@ Observation channels:
 
 Instruction encodings (contracts/opcodes.yaml):
   trap   ciii  op 0x7F  cfxha=ha[23:18]  immu18=(hb,hc,hd)   (unsigned)
-  escape ciii  op 0x7E  cfxha=ha[23:18]  imms18=(hb,hc,hd)   (signed)
+  escape ciii  op 0x7E  cfxha=ha[23:18]  imms18=(hb,hc,hd)   (imms18[17:1] SBZ)
   cfx2rd crrr  op 0x7A  cfxha=ha[23:18] cghb=hb rchc=hc rdhd=hd
   cfx2rc crrr  op 0x7B  cfxha=ha[23:18] cghb=hb rchc=hc rdhd=hd
   jump   iiii  op 0x70  imms24=bits[23:0] (signed)  PC = rb0 + (imms24<<2)
@@ -40,8 +42,8 @@ Cases (acceptance 2-6):
   trap_vector_roundtrip (acc 2,3) general trap cfx0 enters vector; cause_id/
                                   cause_ip/cause_info; escape back +4; escape_num++.
   trap_mask_illi        (acc 2)   instruction-type trap mask forbid => ILLI.
-  escape_fwd_offset     (acc 4)   imms18=+3 => PC = cause_ip + 12.
-  escape_neg_offset     (acc 4)   imms18 negative => PC falls back before trap.
+  escape_fwd_offset     (acc 4)   imms18=+1 (byte +4) => PC = cause_ip + 4.
+  escape_illegal_offset (acc 4)   imms18[17:1] != 0 => ILLI; escape_num unchanged.
   escape_cross_mask     (acc 4,6) cross-cfx escape forbidden (step 0) => ILLI.
   escape_cross_allowed  (acc 3)   cross-cfx escape allowed restores non-reset
                                   prev_run_mode / prev_cfx_mask.
@@ -85,7 +87,6 @@ H = ROM_BASE + 0x100    # generic handler slot (cfx0 / cfx3)
 EXIT_A = 0x200          # jump targets for the escape-offset cases
 EXIT_B = 0x240
 EXIT_C = 0x280
-EXIT_NEG = 0x2C0
 EXIT_CONT = 0x300
 
 # Run modes (DADAO-12 §1)
@@ -298,42 +299,38 @@ def _trap_mask_illi():
     return build_rom(prog, hand(0x100, 0x22)), exp
 
 
-# -- acc 4: escape forward offset (imms18 = +3 => cause_ip + 12) ------------
-@case("escape_fwd_offset", "escape imms18=+3 => PC = cause_ip + 12")
+# -- acc 4: escape forward offset (imms18 = +1 => cause_ip + 4) -------------
+@case("escape_fwd_offset", "escape imms18=+1 (byte +4) => PC = cause_ip + 4")
 def _escape_fwd_offset():
     prog = set_cfx_vector(0, 3, H)
     trap_idx = len(prog)
     prog += [trap(0, 0)]
     j1 = len(prog)
-    prog += [jump_to(j1, EXIT_A)]      # cause_ip + 4
+    prog += [jump_to(j1, EXIT_A)]      # cause_ip + 4  <-- expected target
     j2 = len(prog)
     prog += [jump_to(j2, EXIT_B)]      # cause_ip + 8
     j3 = len(prog)
-    prog += [jump_to(j3, EXIT_C)]      # cause_ip + 12  <-- expected target
-    handlers = {0x100: [escape(0, 3)],
+    prog += [jump_to(j3, EXIT_C)]      # cause_ip + 12
+    handlers = {0x100: [escape(0, 1)],
                 EXIT_A: exit_seq(0x66),
                 EXIT_B: exit_seq(0x77),
                 EXIT_C: exit_seq(0x99)}
-    exp = {"exit": 0x99, "escn:0": 1, "trapn:0": 1}
+    exp = {"exit": 0x66, "escn:0": 1, "trapn:0": 1}
     return build_rom(prog, handlers), exp
 
 
-# -- acc 4: escape negative offset (backward) -------------------------------
-@case("escape_neg_offset", "escape negative imms18 => PC falls back before trap")
-def _escape_neg_offset():
-    J = 8
-    prog = [swym()] * J
-    prog[0] = jump_to(0, J * 4)        # skip the negative target on first pass
-    prog[1] = jump_to(1, EXIT_NEG)     # NEGATIVE TARGET (index 1)
-    prog += set_cfx_vector(0, 3, H)
-    trap_idx = len(prog)
-    prog += [trap(0, 0)]
-    prog += exit_seq(0xEE)             # taken only if offset were wrong
-    imms = 1 - trap_idx                # target = index 1 (negative offset)
-    handlers = {0x100: [escape(0, imms)],
-                EXIT_NEG: exit_seq(0xAA)}
-    exp = {"exit": 0xAA, "escn:0": 1, "trapn:0": 1}
-    return build_rom(prog, handlers), exp
+# -- acc 4: illegal escape offset (imms18[17:1] != 0) => ILLI --------------
+@case("escape_illegal_offset",
+      "escape imms18=-1 (imms18[17:1] != 0) => ILLI; escape_num unchanged")
+def _escape_illegal_offset():
+    prog = set_cfx_vector(3, 3, H)     # current mode monitor (hmon) vector
+    fault_idx = len(prog)
+    prog += [escape(0, -1)]            # cfxha=0 valid; SBZ violated => ILLI
+    prog += exit_seq(0xEE)             # taken only if the illegal offset ran
+    exp = {"exit": 0x33, "cid:3": ILLI, "syncn:3": 1,
+           "cip:3": ROM_BASE + fault_idx * 4,
+           "escn:0": 0}
+    return build_rom(prog, hand(0x100, 0x33)), exp
 
 
 # -- acc 4/6: cross-cfx escape forbidden (step 0) => ILLI -------------------

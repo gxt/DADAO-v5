@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..4c39848
+index 0000000..632b4dd
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2692 @@
+@@ -0,0 +1,2699 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -2424,6 +2424,13 @@ index 0000000..4c39848
 +{
 +    uint64_t info = ((uint64_t)0x7E << 24) | ((uint64_t)(cfxha & 0x3F) << 18) |
 +                    (uint64_t)(imms18 & 0x3FFFF);
++    /* imms18[17:1] is SBZ: the legal escape offset set is {0, +4}.  Raise
++     * before the reserved-cfxha/CFXESC checks and before any state switch,
++     * on the same pc/info path as reserved-cfxha ILLI. */
++    if (imms18 & ~0x1u) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
 +    int ci = cfx_idx(env->inner_cfx_code);
 +    int32_t imm = (int32_t)(imms18 & 0x3FFFF);
 +

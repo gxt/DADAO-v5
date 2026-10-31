@@ -67,7 +67,7 @@ EXAMPLES = {
 }
 IMM_EXAMPLE = {"immu6": "1", "immu12": "1", "immu16": "0x1234", "immu18": "1",
                "immu24": "1", "imms12": "1", "imms14": "8", "imms18": "1",
-               "imms20": "8", "imms24": "1", "imms26": "8", "wpN": "0"}
+               "imms20": "4", "imms24": "1", "imms26": "8", "wpN": "0"}
 
 # ADR-0013 D10: assembly-layer field name mapping for ×4 address fields.
 # Encoding-level names (imms12/18/24) are renamed to byte-domain names
@@ -738,7 +738,7 @@ def main() -> int:
 | `imms12` | s12: -2048..2047 | 访存偏移（字节，无 `%4` 要求） |
 | `imms14` | bytes: [-8192, 8188]，`%4==0` | 跳转/分支 rrii 偏移（字节→编码 `>>2`） |
 | `imms18` | s18: -131072..131071 | `ret` 返回值（非地址，无 `%4` 要求）；`aip.si` 的**编码层** 4 KiB 块偏移（`<<12`；汇编层按字节写 `imms30`） |
-| `imms20` | bytes: [-524288, 524284]，`%4==0` | 跳转/分支 riii 偏移 + `escape` 偏移（字节→编码 `>>2`） |
+| `imms20` | 跳转/分支 bytes: [-524288, 524284]，`%4==0`；`escape` 只允许 0 或 4 | 跳转/分支 riii 偏移 + `escape` 偏移（字节→编码 `>>2`） |
 | `imms24` | s24: -8388608..8388607 | 编码层字段（非汇编层直接使用） |
 | `imms26` | bytes: [-33554432, 33554428]，`%4==0` | 跳转 iiii 偏移（字节→编码 `>>2`） |
 | `imms30` | bytes: [-536870912, 536866816]，`%4096==0` | `aip.si` 的**汇编层**操作数（字节；编码 `imms18 = bytes >> 12`） |

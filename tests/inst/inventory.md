@@ -171,7 +171,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `rem.sb_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `cfx2rc_crrr_cfx` | `crrr` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 特权 cfx；SPEC-115t re-scope excluded→m1（已实现，MC 可汇编），向量待 TESTCASES-033t |
 | `cfx2rd_crrr_cfx` | `crrr` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上 |
-| `escape_ciii_cfx` | `ciii` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上（位宽：汇编 imms20 ⇔ 编码 imms18=bytes>>2） |
+| `escape_ciii_cfx` | `ciii` | `misc.yaml` | deferred TESTCASES-033t | ✓ | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 位宽：汇编 `imms20`（合法 0/4）⇔ 编码 `imms18 ∈ {0,1}`；legality = `imms18[17:1]` SBZ 非零 ⇒ ILLI（SPEC-180t）；合法偏移的执行期覆盖见 `min_rom_probe_integ044t.py` escape_return 与 `tests/arch/umon/m5_trap_escape.s` |
 | `trap_ciii_cfx` | `ciii` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上 |
 
 ## 非 M1 向量（独立文件，不入本矩阵）

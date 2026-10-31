@@ -362,7 +362,10 @@ group = "simrisc-00..12"
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：删 nop 伪指令小节；去 swym 具体编码值；断跨册引用；sha256 同笔重算。
 # 2026-10-24（SPEC-167t，同授权）：册名改「核芯功能扩展指令」（由「其它」）；只留 cfx 6 条，删「特权指令」提法；`cfxld`/`cfxst` 由 `SimRISC-12` 迁入并标待定；ILLI/UNDI 规则迁出至 `SimRISC-00`；sha256 同笔重算。
 # 2026-10-30（INTEG-045t，授权原话见文件头注记与任务书 §用户授权原话）：见文件头条目；sha256 同笔重算。
-sha256 = "c0cdda8239936ab344fae0db425a479a460e8a426cf02f15fbf5bf7d1bdadd7a"
+# 2026-11-01（SPEC-180t，授权原话见任务书 §用户已确认的设计）：§3 退出指令散文把 `imms20` 由
+#   「须 `%4==0`」收窄为「只允许 0 或 4」，补 `imms18 ∈ {0,1}` / `imms18[17:1]` SBZ 非零 ⇒ ILLI；
+#   汇编速查/合法性生成块由生成器重生成（不手改）；sha256 同笔重算。
+sha256 = "e0e207871f132ded3691d3717dd00939472bef62b5b89d50eba3396e75298340"
 # 2026-10-22（SPEC-164t，同授权）：`fence`/`lr`/`sc` 由 `excluded` 转 `m9`，§附录 B 生成区由 `gen_legality_list --apply` 重生成（25 条 `decode ILLI` 条目移出）；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-12-其它指令.md"
@@ -406,7 +409,10 @@ group = "dadao-1x"
 # 2026-10-31（SPEC-179t，授权原话「可以，授权」，落纸于 .tao/tasks/spec/SPEC-179t-启动链BootROM权限口径清理.md）：§2.1 补 smon SRAM（0x0bff_0000_0000，64 KiB）、BootROM 改 256 KiB（0xffff_fffc_0000–0xffff_ffff_ffff，复位向量仍在内部偏移 0x3_0000）；cg7 改保留并删块传输指令正文/异常流；reserved 统一 6–14、19–61；附录 0.7.3-rc 补条目；版本不变（0.7.3-rc）；sha256 同笔重算。
 # 2026-10-31（SPEC-179t 返工，A 方案；授权原话见任务书 §用户返工裁定原话 / A 方案裁定）：§3 恢复 cg0-cg7 共有；§3.8 改内部空间描述寄存器（每 4 个 rc 一块、i=0..15、4 行数组 space_{desc,start,size,attr}[i]、只读、写触发 CFXREG）；§2.1 补 cg7 互锁与 power BootROM X=1；附录 0.7.3-rc 条目改述；版本不变（0.7.3-rc）；sha256 同笔重算。
 # 2026-10-31（INTEG-050t，授权见文件头注释）：§4.7 cfx_hart 计数收为 64 位 `cycle`/`insn`（rc2/rc3）、timer_cmp/timer_ctrl 前移 rc4/rc5、rc6/rc7 保留；§4.10 cfx_time 的 time_freq/time_value 前移 cg10 rc0/rc1、rc2–rc63 保留；附录 0.7.3-rc 补条目；版本不变（0.7.3-rc）；sha256 同笔重算。
-sha256 = "556d1e5c8809194afdc84d0d6a7e9ce59de6d5bae50108a7684a97f0fb861dd6"
+# 2026-11-01（SPEC-180t，授权原话见任务书 §用户已确认的设计）：§5.1 删除「跳过 N 条指令（N 可为负）」
+#   用法行、偏移合法集改为 0/+4；§5.3 步骤 0 与伪代码补 `imms18[17:1] != 0 ⇒ ILLI`（先于状态切换）；
+#   附录 0.7.3-rc 补条目；sha256 同笔重算。
+sha256 = "7e89331b48264be9426de0f2595c37062332ba3744596e94eef84730ef13ce6b"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -534,7 +540,10 @@ group = "toolchain-01"
 # 2026-10-26（SPEC-175t）：开 0.5.4-rc（§13.8 数组单下标示例改 `cfx_ptw_ptbr[0]`）；sha256 同笔重算。
 # 2026-10-29（INTEG-038t，引用同步）：§13.8 单下标示例改用 cfx_pmem_start[0]（cfx_ptw_ptbr 已非数组）；附录 0.5.4-rc 同步。
 # 2026-10-30（INTEG-045t，授权原话见文件头注记与任务书 §用户授权原话）：见文件头条目；sha256 同笔重算。
-sha256 = "bbbdf3dd783abe87004c535a290add531d0ef25b90fc159238a8a9431319add3"
+# 2026-11-01（SPEC-180t，授权原话见任务书 §用户已确认的设计）：§2.4/§5 的 escape 偏移校验由
+#   「`%4==0` 与范围」收窄为「只接受 0 与 4」，补 `imms18[17:1]` SBZ 口径；附录 0.5.4-rc 补条目；
+#   sha256 同笔重算。
+sha256 = "1d0a933d5a14f1da12447bb582ee85b232e7665dce1df8d77241b9f37acfffd2"
 
 [[spec]]
 path = "spec/Machine-01-测试机运行环境.md"
@@ -561,4 +570,6 @@ group = "machine-01"
 # 2026-10-30（INTEG-045t，授权原话见文件头注记与任务书 §用户授权原话）：见文件头条目；sha256 同笔重算。
 # 2026-10-31（SPEC-179t，授权原话「可以，授权」，落纸于 .tao/tasks/spec/SPEC-179t-启动链BootROM权限口径清理.md）：§1/§1.1 地址划分补 hmon/smon SRAM 与 PA 0 别名、BootROM 改 256 KiB（复位向量不变）；§2 启用 supv/smon + 启动链 power→hmon→smon；§3 cg0–cg6 + cg7 保留；§6 BootROM 几何/装载语义/模式移交；legacy -bios 64 KiB 复位窗口语义保留；附录 0.3.2-rc 补条目；版本不变（0.3.2-rc）；sha256 同笔重算。
 # 2026-10-31（SPEC-179t 返工，A 方案；授权原话见任务书 §用户返工裁定原话 / A 方案裁定）：§3 恢复 cg0–cg7 并说明 cg7 为内部空间描述（数组 space_{desc,start,size,attr}[i]、未实现空间 exists=0、只读）；附录 0.3.2-rc 条目同步；sha256 同笔重算。
-sha256 = "8a3c56ac9a32f4930e1ea9df7a01dd20b89e97b3472ce3639e5ef6e7cb48febf"
+# 2026-11-01（SPEC-180t，授权原话见任务书 §用户已确认的设计）：§4.2 同步 escape 偏移合法集
+#   0/+4 与 `imms18[17:1]` SBZ 非零 ⇒ ILLI；附录 0.3.2-rc 补条目；sha256 同笔重算。
+sha256 = "f07bb0b7d6aede86b1614ebe97f286d047538d01c76eae39d04e8491368b1b8d"

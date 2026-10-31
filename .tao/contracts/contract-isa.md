@@ -1203,7 +1203,7 @@ OPC-MISC 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 
 - **执行模式**：`trap`/`escape`/`cfx2rd`/`cfx2rc` 可在任意运行模式下执行，具体是否允许由各核芯功能扩展的 cfx mask 寄存器和指令类型 cfx mask 寄存器控制。[SimRISC-11 §指令域与执行条件]
 - **cfxha 写法**：`cfx<cfxha>`（如 `cfx63`）与 `cfx_<cfxname>`（如 `cfx_power`）等价，均编码为 6 位 cfxha。[SimRISC-11 §指令域与执行条件]（别名表见 `contract-cfx-aliases.md`、`ADR-0017`。）
-- **`escape` 位宽关系**：汇编层 `imms20` 为**字节**偏移（须 `%4==0`），编码层为 `imms18 = imms20 >> 2`；实际地址 `Addr = excp_cause_ip + (imms18 << 2)`。[SimRISC-11 §退出指令][Toolchain-01 §3.2]
+- **`escape` 位宽关系**：汇编层 `imms20` 为**字节**偏移（合法值只有 0 或 4），编码层为 `imms18 = imms20 >> 2 ∈ {0, 1}`；`imms18[0]` 为字节偏移 bit2，`imms18[17:1]` 为 SBZ（非零 ⇒ ILLI）；实际地址 `Addr = excp_cause_ip + (imms18 << 2)`。[SimRISC-11 §退出指令][Toolchain-01 §3.2]
 - **legality**：这 4 条的静态编码规则为 **`encode_cfx_reserved`**——`cfxha` 为保留核芯功能扩展（6–14、19–61）⇒ **ILLI**（`contracts/opcodes.yaml` 的 `legality`/`rule_refs` 由此派生；`fence` 同）。读写不存在组合 / 权限不匹配 → **CFXREG** 属**实现/运行期**语义，不在汇编/编码期约束（见 `ADR-0020`）。[SimRISC-11 §指令域与执行条件][SimRISC-11 §寄存器传输指令]
 - **编码位置**：op = `0111-1010`/`0111-1011`/`0111-1110`/`0111-1111`（0x7A/0x7B/0x7E/0x7F），均 `mask = 0xFF000000`。[SimRISC-00 §SimRISC QFC]
 

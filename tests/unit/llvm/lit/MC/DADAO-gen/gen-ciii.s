@@ -11,10 +11,10 @@
 
 .text
 
-@@ @src escape_ciii_cfx 7efc0002 | SimRISC-11: escape
-@@ OBJ: {{[0-9a-f]+:}} 7e fc 00 02{{.*}}escape
-@@ ASM: escape cfx_power, [excp_cause_ip, 8]
-escape cfx63, [excp_cause_ip, 8]
+@@ @src escape_ciii_cfx 7efc0001 | SimRISC-11: escape
+@@ OBJ: {{[0-9a-f]+:}} 7e fc 00 01{{.*}}escape
+@@ ASM: escape cfx_power, [excp_cause_ip, 4]
+escape cfx63, [excp_cause_ip, 4]
 
 @@ @src fence_ciii_cfx 79fc0040 | SimRISC-11: fence
 @@ OBJ: {{[0-9a-f]+:}} 79 fc 00 40{{.*}}fence

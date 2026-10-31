@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..d6c588541
+index 000000000..edc0b1378
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2604 @@
+@@ -0,0 +1,2601 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1174,13 +1174,10 @@ index 000000000..d6c588541
 +      int64_t Bytes;
 +      if (!OffExpr->evaluateAsAbsolute(Bytes))
 +        return Error(OffStart, "escape offset must be a constant (imms20)");
-+      if (Bytes % 4 != 0)
++      if (Bytes != 0 && Bytes != 4)
 +        return Error(OffStart,
-+                     "escape offset must be a multiple of 4 bytes (imms20)");
-+      if (Bytes < -524288 || Bytes > 524284)
-+        return Error(OffStart,
-+                     "escape byte offset out of range: expected "
-+                     "[-524288, 524284] (imms20, %4==0)");
++                     "escape offset must be 0 or 4 (imms20; imms18[17:1] is "
++                     "SBZ)");
 +      if (getParser().getTok().isNot(AsmToken::RBrac))
 +        return Error(getParser().getTok().getLoc(), "expected ']'");
 +      getParser().Lex(); // consume ']'

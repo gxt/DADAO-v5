@@ -2351,10 +2351,12 @@
     bank: imm
     signed: true
   legality:
+  - imms18[17:1] == 0
   - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
   spec_cite: 'SimRISC-11: escape'
   scope: m1
   rule_refs:
+  - encode_sbz
   - encode_cfx_reserved
 - id: trap_ciii_cfx
   mnemonic: trap

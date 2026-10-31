@@ -41,7 +41,7 @@ trap    cfxHA, immu18
 escape  cfxHA, [excp_cause_ip, imms20]
 ```
 
-其中，cfx_\<cfxname\> 指定核芯功能扩展名称；imms20 指定目标地址偏移（字节，须 `%4==0`；实际地址 = excp_cause_ip + imms20；编码层 `Addr = excp_cause_ip + (imms18 << 2)`）。
+其中，cfx_\<cfxname\> 指定核芯功能扩展名称；imms20 指定目标地址偏移（字节，**只允许 0 或 4**；实际地址 = excp_cause_ip + imms20；编码层 `imms18 = imms20 >> 2 ∈ {0, 1}`，`imms18[0]` 即字节偏移 bit2，`imms18[17:1]` 为 SBZ、手工编码非零 ⇒ ILLI；`Addr = excp_cause_ip + (imms18 << 2)`）。
 
 ## 4. 寄存器传输指令
 
@@ -156,6 +156,6 @@ fence   cfxHA, immu18
 <!-- LEGALITY_START -->
 ## 附录 B：合法性检查
 
-* `encode_sbz`：SBZ 非零 → ILLI — `fence_ciii_cfx`（1 条）
+* `encode_sbz`：SBZ 非零 → ILLI — `escape_ciii_cfx`, `fence_ciii_cfx`（2 条）
 * `encode_cfx_reserved`：保留 cfx（6-14、19-61）→ ILLI — `cfx2rc_crrr_cfx`, `cfx2rd_crrr_cfx`, `escape_ciii_cfx`, `fence_ciii_cfx`, `trap_ciii_cfx`（5 条）
 <!-- LEGALITY_END -->

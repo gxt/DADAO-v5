@@ -97,7 +97,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 ### 4.2 `escape` → 异常退出流程
 
-`escape` 指令完成异常退出：恢复 `excp_prev_cfx_mask`/`excp_prev_run_mode`、递增 `escape_num`，并以 `escape` 的 `imms18`（指令字偏移）计算返回地址并跳转——`Addr = excp_cause_ip + (imms18 << 2)`。[DADAO-12 §异常退出流程] 汇编层写 `escape cfxha, [excp_cause_ip, imms20]`，`imms20` 以字节为单位且须 `%4==0`。[SimRISC-11]
+`escape` 指令完成异常退出：恢复 `excp_prev_cfx_mask`/`excp_prev_run_mode`、递增 `escape_num`，并以 `escape` 的 `imms18`（指令字偏移）计算返回地址并跳转——`Addr = excp_cause_ip + (imms18 << 2)`。[DADAO-12 §异常退出流程] 汇编层写 `escape cfxha, [excp_cause_ip, imms20]`，`imms20` 以字节为单位、**只允许 0 或 4**（`imms18 ∈ {0, 1}`）；`imms18[17:1]` 为 SBZ，手工编码非零 ⇒ `ILLI`（先于任何状态切换）。[SimRISC-11]
 
 被调方通过 `escape cfxha, [excp_cause_ip, 4]` 返回 trap 指令的下一条指令（`excp_cause_ip + 4`）。[DADAO-22 §1. 调用约定]
 
@@ -232,6 +232,7 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 - 启动链改为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ smon（supv/cfx2）：启用 `supv` 与 `smon`，由 power 从 BootROM 装载 hmon、hmon 移交 smon、smon 建立第一张页表并开启 PTW。
 - 唯一非易失 BootROM 扩为 256 KiB（`0xffff_fffc_0000`–`0xffff_ffff_ffff`），复位向量仍为 `0xffff_ffff_0000`（镜像内偏移 `0x3_0000`）。
 - 新增 hmon/smon 各 64 KiB SRAM（`0x0fff_0000_0000` / `0x0bff_0000_0000`），H/S-mode 异常向量默认等于各自起始地址。
+- `escape` 偏移合法集同步为 **0 / +4**（`imms18 ∈ {0, 1}`）；`imms18[17:1]` 为 SBZ，非零 ⇒ `ILLI`（§4.2）。
 - 新增 PA 0 别名（测试机约定）：16 MiB DRAM 在 `[0, 16 MiB)` 另有别名，供 PTBR=0 的第一张页表使用；PTW 页表读与 `cfx_pmem` DMA 的 PA 合法性检查同时接受该别名。
 - `cg7` 改为内部空间描述寄存器：`cg0`–`cg7` 为共有寄存器；每 4 个 rc 描述一个内部空间（存在+类型 one-hot / 42 位起始偏移 / 字节大小 / R-W-X-cacheable-shareable-volatile 属性），16 块用完 `rc0`–`rc63`；寄存器按数组 `space_{desc,start,size,attr}[i]`（`i = 0..15`）定义，未实现空间以 `exists=0` 表示，全部只读、写触发 `CFXREG`。
 - legacy `-bios` 仍按 64 KiB 复位窗口装载，与镜像装载路径并存。

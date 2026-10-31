@@ -752,13 +752,12 @@ trap/escape/cfx2rd/cfx2rc 指令可以在任意运行模式下执行。若 cfxha
 
 `escape` 指令的第一个参数 `cfxha` 必须是**当前执行的 cfx**；返回的 cfx、运行模式和指令指针全部来自当前 cfx 的异常帧。若 `cfxha` 非当前 cfx（目标错误）或当前 cfx 没有有效异常帧（帧错误），硬件在切换前触发当前 cfx 的 `CFXESC`，不改变 cfx/运行模式。
 
-`escape` 指令的第二个参数：**编码层** `imms18`（指令字偏移），`Addr = excp_cause_ip + (imms18 << 2)`；**汇编层** `imms20` 以字节为单位，值须 `%4==0`。偏移是编译期固定的立即数，不支持任意地址跳转。常见用法如下：
+`escape` 指令的第二个参数：**编码层** `imms18`（指令字偏移），`Addr = excp_cause_ip + (imms18 << 2)`；**汇编层** `imms20` 以字节为单位，合法值**只有 0 或 4**（`imms18 = imms20 >> 2 ∈ {0, 1}`）。`imms18[0]` 即字节偏移的 bit2（0 ⇒ 字节偏移 0；1 ⇒ 字节偏移 +4），`imms18[17:1]` 为 **SBZ**，手工编码非零 ⇒ `ILLI`。偏移是编译期固定的立即数，不支持任意地址跳转。常见用法如下：
 
 | 用例 | 指令 | 返回位置 |
 |------|------|---------|
 | 重新执行触发异常的指令 | `escape cfxha, [excp_cause_ip, 0]` | cause_ip |
 | 跳过触发指令（继续执行） | `escape cfxha, [excp_cause_ip, 4]` | cause_ip + 4 |
-| 跳过 N 条指令（N 可为负数表示回退） | `escape cfxha, [excp_cause_ip, N*4]` | cause_ip + N×4 |
 
 `escape` 恢复 `excp_prev_run_mode`、`excp_prev_cfx_mask`，以及 trap 进入时保存的 `global_cfx_intr_mask`。
 
@@ -903,7 +902,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_<mode>_excp_vector
 
 通过 `escape` 指令完成异常退出。`escape` 指令编码中指定了 `cfxha`，它必须是当前执行的核芯功能扩展（`inner_cfx_code`）；返回 cfx、运行模式与 IP 均取自当前 cfx 的异常帧。下面的步骤和伪代码描述 `escape` 指令的硬件语义：
 
-0. **检查目标/帧**：若 `cfxha` 为 reserved，触发 ILLI；若 `cfxha` 非当前 cfx，或当前 cfx 无有效异常帧（`excp_cause_id = 0`），在切换任何状态前触发当前 cfx 的 `CFXESC`
+0. **检查目标/帧**：若 `imms18[17:1] != 0`（SBZ 非零），触发 ILLI；若 `cfxha` 为 reserved，触发 ILLI；若 `cfxha` 非当前 cfx，或当前 cfx 无有效异常帧（`excp_cause_id = 0`），在切换任何状态前触发当前 cfx 的 `CFXESC`
 1. **恢复中断屏蔽**：恢复 trap 进入时保存的 `global_cfx_intr_mask`
 2. **恢复核芯功能扩展掩码**：根据 `cfx_⟨cfxname⟩_excp_prev_cfx_mask` 寄存器的值恢复核芯功能扩展掩码
 3. **恢复运行模式**：依据 `cfx_⟨cfxname⟩_excp_prev_run_mode` 还原为异常发生前的运行模式
@@ -911,6 +910,10 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_<mode>_excp_vector
 
 ```
 // 0. 检查目标/帧
+if imms18[17:1] != 0:
+    cause <= ILLI                            // SBZ 非零
+    ; 进入当前模式 monitor
+    goto check_nonmaskable
 if cfxha ∈ {6..14, 19..61}:
     cause <= ILLI
     ; 进入当前模式 monitor
@@ -948,6 +951,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 - 四类同步 mask 初值：power 与普通 cfx `0xFFFF_FFFF_FFFF_FFF7`，hmon 自身 `0x7FFF_FFFF_FFFF_FFF7`；两类中断 mask 初值全 1。
 - 新增同步异常 `CFXESC`（`1 << 3`，所有 cfx）与 `CFXPERM`（`1 << 7`，`cfx0`–`cfx3`）：权限拒绝进入当前模式 monitor，escape 帧/目标错误进入当前 cfx；reserved cfxha 仍为 ILLI。
 - `escape` 的 `cfxha` 固定为当前 cfx，返回 cfx/mode/IP 取自异常帧，偏移为编译期固定立即数；`trap` 进入时自动保存并屏蔽 `global_cfx_intr_mask`，`escape` 恢复。
+- `escape` 偏移合法集收窄为 **0 / +4**（`imms18 ∈ {0, 1}`，`imms18[0]` 为字节偏移 bit2）；`imms18[17:1]` 为 SBZ，手工编码非零 ⇒ `ILLI`（先于任何状态切换）。`excp_cause_ip` 仍为 RW，本约束不构成任意返回安全边界。
 - 异步中断按 `cfx_intr_mask` 与 `global_cfx_intr_mask` 两级来源过滤，被屏蔽时置 pending。
 
 - 版本号与 SBI 同步（SBI 删除 `immu18` 保留值 `0x3FFFF`）。

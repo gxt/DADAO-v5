@@ -16,8 +16,8 @@
 @@ cfx2rd/cfx2rc 的 `cfx_<cfxname>_<regname>` 简写展开为 `cfxHA, cgHB, rcHC`；
 @@ 反汇编优先打印**名字**（运行时表 contracts/cfx-aliases.txt；LLVM-135t），
 @@ 无名字（reserved cfx / 未知 cg-rc 组合）回退 `cfx<HA>, cgN, rcN`。
-@@ escape 汇编层 `imms20`（字节，须 %4==0）⇔ 编码 `imms18 = bytes >> 2`
-@@ （Toolchain-01 §3.2；反汇编还原 `<<2`）。
+@@ escape 汇编层 `imms20`（字节，合法值只有 0 或 4）⇔ 编码 `imms18 = bytes >> 2`
+@@ ∈ {0,1}（Toolchain-01 §3.2；反汇编还原 `<<2`）。
 @@
 @@ `@enc` 为独立派生的期望编码；同目录 oracle 从 opcodes.yaml + 别名表重算并比对。
 
@@ -38,15 +38,15 @@ trap cfx63, 0                           @@ @enc 7ffc0000
 @@ ASM: escape cfx_umon, [excp_cause_ip, 4]
 escape cfx_umon, [excp_cause_ip, 4]     @@ @enc 7e000001
 
-@@ escape cfx0, [excp_cause_ip, 8] : imms18=2 -> 7e 00 00 02
-@@ OBJ: {{[0-9a-f]+:}} 7e 00 00 02{{.*}}escape cfx_umon, [excp_cause_ip, 8]
-@@ ASM: escape cfx_umon, [excp_cause_ip, 8]
-escape cfx0, [excp_cause_ip, 8]         @@ @enc 7e000002
+@@ escape cfx0, [excp_cause_ip, 0] : imms18=0 -> 7e 00 00 00
+@@ OBJ: {{[0-9a-f]+:}} 7e 00 00 00{{.*}}escape cfx_umon, [excp_cause_ip, 0]
+@@ ASM: escape cfx_umon, [excp_cause_ip, 0]
+escape cfx0, [excp_cause_ip, 0]         @@ @enc 7e000000
 
-@@ escape cfx0, [excp_cause_ip, -8] : 负偏移 -8>>2=-2 -> imms18=0x3FFFE -> 7e 03 ff fe
-@@ OBJ: {{[0-9a-f]+:}} 7e 03 ff fe{{.*}}escape cfx_umon, [excp_cause_ip, -8]
-@@ ASM: escape cfx_umon, [excp_cause_ip, -8]
-escape cfx0, [excp_cause_ip, -8]        @@ @enc 7e03fffe
+@@ escape cfx0, [excp_cause_ip, 4] : imms18=1 -> 7e 00 00 01
+@@ OBJ: {{[0-9a-f]+:}} 7e 00 00 01{{.*}}escape cfx_umon, [excp_cause_ip, 4]
+@@ ASM: escape cfx_umon, [excp_cause_ip, 4]
+escape cfx0, [excp_cause_ip, 4]         @@ @enc 7e000001
 
 @@ --- cfx2rd（crrr）：cfx_<cfxname>_<regname> 简写 ---
 @@ cfx2rd cfx_umon_excp_cause_ip, rd2 : (cfxha=0, cg=5, rc=3), rd=2

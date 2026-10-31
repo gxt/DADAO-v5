@@ -3,7 +3,7 @@
 # 重新生成：python3 tools/infra/check_case_ledger.py --write
 # kind	file	identity...	ordinal
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-ciii.s	79fc0040	fence	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-ciii.s	7efc0002	escape	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-ciii.s	7efc0001	escape	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-ciii.s	7ffc0001	trap	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-crrr.s	7afc8048	cfx2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-crrr.s	7bfc8048	cfx2rc	1
@@ -309,9 +309,9 @@ lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7a008002	cfx2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7a109002	cfx2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7a48a042	cfx2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7bfc8042	cfx2rc	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7e000000	escape	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7e000001	escape	1
-lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7e000002	escape	1
-lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7e03fffe	escape	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7e000001	escape	2
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7f080001	trap	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7f500000	trap	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-trap-escape.s	7ffc0000	trap	1
@@ -411,7 +411,7 @@ lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	75209018	call	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	76200008	ret	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	79fc0040	fence	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	7bfc8048	cfx2rc	1
-lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	7efc0002	escape	1
+lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	7efc0001	escape	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	7ffc0001	trap	1
 lit	tests/unit/llvm/lit/MC/DADAO/iiii_jump.s	70000001	jump	1
 lit	tests/unit/llvm/lit/MC/DADAO/iiii_jump.s	74000001	call	1
@@ -880,6 +880,10 @@ vector	tests/inst/base/mem-rd.yaml	stm.w_rrri_rd	legality	0x31043080	ILLI	active
 vector	tests/inst/base/mem-rd.yaml	stm.w_rrri_rd	legality	0x31043081	CFXMEM	active	1
 vector	tests/inst/base/mem-rd.yaml	stm.w_rrri_rd	legality	0x31043081	MALIGN	active	1
 vector	tests/inst/base/mem-rd.yaml	stm.w_rrri_rd	semantic	0x31043081	None	active	1
+vector	tests/inst/base/misc.yaml	escape_ciii_cfx	legality	0x7efc0002	ILLI	active	1
+vector	tests/inst/base/misc.yaml	escape_ciii_cfx	legality	0x7efc0003	ILLI	active	1
+vector	tests/inst/base/misc.yaml	escape_ciii_cfx	legality	0x7efdffff	ILLI	active	1
+vector	tests/inst/base/misc.yaml	escape_ciii_cfx	legality	0x7efffffe	ILLI	active	1
 vector	tests/inst/base/misc.yaml	swym_oiii_imm	encoding	0x47880000	None	active	1
 vector	tests/inst/base/misc.yaml	swym_oiii_imm	semantic	0x47880000	None	active	1
 vector	tests/inst/base/reg-arith.yaml	add.o_orrr_bbd	boundary	0x40c01083	None	active	1
