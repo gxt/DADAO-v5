@@ -6,7 +6,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| TESTCASES-088t | 已验证 | 2026-11-01 06:25（登记） | mem 生成器 OUT 归位 tests/inst/base + 守卫；mem/isa/misc 补 `--check`（同渲染函数），10 册 0 diff |
+| TESTCASES-088t | 已验证 | 2026-11-01 07:32 | mem 生成器 OUT 归位 tests/inst/base + 守卫；mem/isa/misc 补 `--check`（同渲染函数），10 册 0 diff |
 | TESTCASES-089t | 待开始 | 2026-11-01 06:25（登记） | reserved cfx（6–14、19–61）普通 ld/st 补 4 条 active CFXMEM 例；ledger/inventory 同步 |
 | SPEC-180t | 已验证 | 2026-11-01 06:17 | escape 偏移收窄 0/+4：imms18[0]∈{0,1}、[17:1] SBZ、汇编器拒绝、执行期 ILLI |
 | LLVM-141t | 已验证 | 2026-11-01 02:17 | cfx 别名表 format=2 + stride 数组：48 array（660 reg / 1428 展开）、解析器 stride、`space_*[i]` 可汇编/往返；lit 161/161、L1/L2 绿 |
