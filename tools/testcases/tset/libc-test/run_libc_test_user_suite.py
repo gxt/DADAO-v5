@@ -163,6 +163,7 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases"))
 import paths as _paths  # noqa: E402
 import run_artifacts as _run_artifacts  # noqa: E402
+import proc_reap  # noqa: E402  (TESTCASES-085t: reap qemu on external signals)
 
 TOOLCHAIN_BIN = str(_paths.host_toolchain_bin())
 
@@ -584,9 +585,9 @@ def run(cmd, timeout=None, stdin_data=None, cwd=None):
     directory is the working directory for those.
     """
     try:
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE, timeout=timeout,
-                              input=stdin_data, cwd=cwd)
+        proc = proc_reap.run_tracked(cmd, stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE, timeout=timeout,
+                                     input=stdin_data, cwd=cwd)
         return (proc.returncode,
                 proc.stdout.decode("utf-8", errors="replace"),
                 proc.stderr.decode("utf-8", errors="replace"), False)
@@ -1353,6 +1354,9 @@ def main() -> int:
                     help="human-readable report (default: same path as "
                          "--json-out with a .log extension)")
     args = ap.parse_args()
+    # TESTCASES-085t: reap children when an external signal kills the runner
+    # (must precede any spawn).
+    proc_reap.install()
     if args.reserved_va.lower() == RESERVED_VA_NONE:
         reserved_va = None
     elif RESERVED_VA_RE.match(args.reserved_va):

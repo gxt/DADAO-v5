@@ -53,6 +53,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-085t | 已验证 | 2026-10-31 12:10 | runner 外杀后清理 qemu 孤儿：PID/PGID 登记 + SIGTERM/INT/HUP 钩子 + 公共助手 + 自检 |
 | INTEG-049t | 待开始 | 2026-10-31 11:10（登记） | cg7 空间描述落地：16×4 只读表、写任意 rc ⇒ CFXREG、四类空间探针 |
 | INTEG-048t | 已验证 | 2026-10-31 10:30 | `cfx_*_cg_reg_deleg` 强制检查：`CFXPERM`/bit3 恒 1/全 cg/不豁免 self；hmon 写 `0x8` 开 ptw/pmem/smon；power 仅 cfxmem bit2 开 BootROM |
 | SPEC-179t | 已验证 | 2026-10-31 09:10 | 启动链/BootROM/权限口径清理：DADAO-12 BootROM 256 KiB；cg7 空间描述改 4 行数组（stride 4，768 别名）；Machine-01 启动链/PA0 |

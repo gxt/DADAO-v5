@@ -72,7 +72,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-rev-vectors \
         check-spec-archive-verify check-milestone check-sync-nonmaskable \
         check-component-changelog check-syscall-abi check-spec-purity check-spec-cite-targets \
-        check-width-sizes check-code-range
+        check-width-sizes check-code-range check-runner-reap
 
 # ── 工作树互斥锁 (INFRA-099t / ISS-229) ─────────────────────────────────────────
 # 同一工作树内会写共享状态的目标 —— 构建树 `.work/build/**`、安装根 $(SDK_DIR)、
@@ -991,7 +991,7 @@ _locked-clean-work:
 # 旧名 `check-qemu-semantics`/`check-qemu-smoke`/`test-semihost`/`check-{libc-test,llvm-ts,embench}-smoke`
 # 已于 TESTCASES-076t 删除（P6 收口）；现行名 = check-inst / check-inst-smoke / check-arch-smoke /
 # check-tset-{libc,llvm,embench}-smoke。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components check-interface check-code-range
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components check-interface check-code-range check-runner-reap
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1268,6 +1268,11 @@ check-width-sizes:
 # 不依赖 toolchain 重建；可达 FAIL 见脚本 `--self-test`。
 check-code-range:
 	@$(PYTHON) tools/infra/check_code_range.py --self-test
+
+# check-runner-reap (TESTCASES-085t, L1): runner 被外部信号杀死后不留 qemu/子进程
+# 孤儿。合成驱动 + 伪 qemu，不编译、不跑被测语义；可达 FAIL 见任务证据注入。
+check-runner-reap:
+	@$(PYTHON) tools/testcases/check_runner_reap.py --mode helper
 
 # spec 目录只读锁 (SPEC-119t): 只读册 sha256 校验；失配 ⇒ FAIL（须先取用户授权并同步改锁）。
 # 规则见 docs/Process-06-spec目录保护规范.md §5。

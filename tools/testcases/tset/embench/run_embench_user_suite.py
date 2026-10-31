@@ -102,6 +102,7 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases"))
 import paths as _paths  # noqa: E402
 import run_artifacts as _run_artifacts  # noqa: E402
+import proc_reap  # noqa: E402  (TESTCASES-085t: reap qemu on external signals)
 
 TOOLCHAIN_BIN = str(_paths.host_toolchain_bin())
 
@@ -166,8 +167,8 @@ def abspath(path: str) -> str:
 def run(cmd, timeout=None):
     """Run cmd; return (rc, stdout, stderr, timed_out). rc is None on timeout."""
     try:
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE, timeout=timeout)
+        proc = proc_reap.run_tracked(cmd, stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE, timeout=timeout)
         return (proc.returncode,
                 proc.stdout.decode("utf-8", errors="replace"),
                 proc.stderr.decode("utf-8", errors="replace"), False)
@@ -455,6 +456,9 @@ def main() -> int:
                     help="human-readable report (default: same path as "
                          "--json-out with a .log extension)")
     args = ap.parse_args()
+    # TESTCASES-085t: reap children when an external signal kills the runner
+    # (must precede any spawn).
+    proc_reap.install()
     started_utc = _run_artifacts.iso_utc()
     json_out = abspath(args.json_out)
     report_out = (abspath(args.report_out) if args.report_out else

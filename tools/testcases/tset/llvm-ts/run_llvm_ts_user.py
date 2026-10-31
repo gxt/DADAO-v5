@@ -359,6 +359,7 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases"))
 import paths as _paths  # noqa: E402
 import run_artifacts as _run_artifacts  # noqa: E402
+import proc_reap  # noqa: E402  (TESTCASES-085t: reap qemu on external signals)
 
 TOOLCHAIN_BIN = str(_paths.host_toolchain_bin())
 
@@ -944,10 +945,10 @@ def run_bytes(cmd, timeout=None, cwd=None, stdin_path=None):
     if stdin_path:
         stdin = open(stdin_path, "rb")
     try:
-        proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                start_new_session=True)
+        proc = proc_reap.popen_tracked(cmd, cwd=cwd, stdin=stdin,
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE,
+                                       start_new_session=True)
     except OSError as exc:
         if stdin_path:
             stdin.close()
@@ -963,6 +964,7 @@ def run_bytes(cmd, timeout=None, cwd=None, stdin_path=None):
         out, err = proc.communicate()
         timed = True
     finally:
+        proc_reap.release(proc)
         if stdin_path:
             stdin.close()
     return proc.returncode, out, err, timed
@@ -982,11 +984,13 @@ def run_stream(cmd, out_path, timeout=None, cwd=None, stdin_path=None):
     stdin = subprocess.DEVNULL
     if stdin_path:
         stdin = open(stdin_path, "rb")
+    proc = None
     try:
         with open(out_path, "wb") as out:
-            proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin, stdout=out,
-                                    stderr=subprocess.STDOUT,
-                                    start_new_session=True)
+            proc = proc_reap.popen_tracked(cmd, cwd=cwd, stdin=stdin,
+                                           stdout=out,
+                                           stderr=subprocess.STDOUT,
+                                           start_new_session=True)
             try:
                 proc.wait(timeout=timeout)
                 timed = False
@@ -1000,6 +1004,8 @@ def run_stream(cmd, out_path, timeout=None, cwd=None, stdin_path=None):
     except OSError as exc:
         return 127, str(exc).encode(), False
     finally:
+        if proc is not None:
+            proc_reap.release(proc)
         if stdin_path:
             stdin.close()
     with open(out_path, "rb") as fh:
@@ -2035,8 +2041,9 @@ def run_to_file(cmd, stderr_path, timeout, cwd, stdin_path):
     proc = None
     try:
         with open(stderr_path, "wb") as err, open(os.devnull, "wb") as null:
-            proc = subprocess.Popen(cmd, cwd=cwd, stdin=stdin, stdout=null,
-                                    stderr=err, start_new_session=True)
+            proc = proc_reap.popen_tracked(cmd, cwd=cwd, stdin=stdin,
+                                           stdout=null, stderr=err,
+                                           start_new_session=True)
             try:
                 proc.wait(timeout=timeout)
                 timed = False
@@ -2050,6 +2057,8 @@ def run_to_file(cmd, stderr_path, timeout, cwd, stdin_path):
     except OSError as exc:
         return 127, False, str(exc)
     finally:
+        if proc is not None:
+            proc_reap.release(proc)
         if stdin_path:
             stdin.close()
     return proc.returncode, timed, ""
@@ -3090,6 +3099,9 @@ def main() -> int:
                          "corrupt the expectation of matching cases so the "
                          "normal comparison must FAIL (proves the FAIL path)")
     args = ap.parse_args()
+    # TESTCASES-085t: reap own-session qemu children when an external
+    # SIGTERM/SIGINT/SIGHUP kills this runner (must precede any spawn).
+    proc_reap.install()
     # docs/Process-08 §1.2: a subset run (--only/--limit) must never land in
     # authoritative/.  Reject before any directory is created.
     subset_bits = []
