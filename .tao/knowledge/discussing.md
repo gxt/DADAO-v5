@@ -5,9 +5,9 @@
 
 ## 生成器 OUT_DIR 修正
 
-- 状态：待立项
+- 状态：已转任务
 - 结论：`generate_ctrl_jump_call_ret.py` / `generate_ctrl_br.py` 的 `OUT_DIR` 仍指旧 `tests/vectors/isa`，重跑不会更新 `tests/inst`
-- 下一步：立 TESTCASES 任务，改生成器输出目录并验证三册 byte-identical
+- 下一步：→ 已转 TESTCASES-087t
 
 ## LLVM 别名 stride
 

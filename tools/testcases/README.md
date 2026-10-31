@@ -33,6 +33,20 @@ bash .work/evidence/TESTCASES-056t/run.sh --inject
 | `tests/inst/atomics/aba_treiber.c` | 版本号打包的 Treiber 栈（`{ver:16,ptr:48}`），不变量 + 确定性 ABA 重放 |
 | `tests/inst/atomics/barrier_probe.c` | `a_barrier()` 结构断言（`fence` 计数 == 源码站点数，立即数 0xFFF） |
 
+## ctrl 向量生成器（jump / call / ret / br）
+
+```sh
+python3 tools/testcases/generate_ctrl_jump_call_ret.py          # 写 tests/inst/base/ctrl-{jump,call,ret}.yaml
+python3 tools/testcases/generate_ctrl_br.py                     # 写 tests/inst/base/ctrl-br.yaml
+python3 tools/testcases/generate_ctrl_jump_call_ret.py --check  # 只读校验（byte-identical ⇒ rc=0）
+python3 tools/testcases/generate_ctrl_br.py --check
+```
+
+`--check` 用与写盘**同一个渲染函数**重渲染后与磁盘逐字节比较：全部一致 → `PASS（N 册 byte-identical）`
+rc=0；缺失/不一致 → 逐册 `FAIL` rc=1；未知参数 → rc=2。`--check` **不写盘、不建目录**。
+落点受守卫约束：`OUT_DIR` 必须在 `tests/inst/` 之下，否则 `ERROR` + 非零退出
+（防静默写回旧 `tests/vectors/isa`）。
+
 ## 已知缺陷（XFAIL 机制保留，登记已清空）
 
 驱动把登记为 `xfail` 的单元按**精确缺陷签名**判 `XFAIL`；一旦恢复语义值即报 `XPASS`
