@@ -6,7 +6,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| INFRA-112t | 待开始 | 2026-10-31 22:45（登记） | `check-knowledge-dir` 回 L1：进 `_locked-check`、退出 `check-milestone`、Process-07 登记同步 |
+| INFRA-112t | 已验证 | 2026-10-31 23:13 | `check-knowledge-dir` 回 L1：进 `_locked-check`、退出 `check-milestone`、Process-07 登记同步 |
 | INTEG-050t | 已验证 | 2026-10-31 22:29 | cfx_time + 单 hart cfx_hart（64 位 cycle/insn、定时器、探针、m5 换 cfx_llc） |
 | TESTCASES-087t | 已验证 | 2026-10-31 18:20 | ctrl 生成器 OUT_DIR 迁回 tests/inst/base；`--check` 逐字节校验 + 落点守卫 |
 | TESTCASES-086t | 已验证 | 2026-10-31 16:10 | reserved cfx 异常期望修正：ctrl-ret[9] 取指 ⇒ CFXMEM；审计 tests/inst 全部 fault 期望 |
