@@ -6,6 +6,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-141t | 待开始 | 2026-11-01 01:40（登记） | cfx 别名表 format=2 + stride 数组：cg7 48 条 array、解析器 stride、space_*[i] 可汇编 |
 | INTEG-051t | 已验证 | 2026-11-01 01:18 | 统一异步中断仲裁：pending 归目标 cfx（TIMER→cfx_hart、PMEM_DMA→cfx_pmem），低 cfxha 优先、单层投递、mask 保留/补投；14 例探针 |
 | INFRA-112t | 已验证 | 2026-10-31 23:13 | `check-knowledge-dir` 回 L1：进 `_locked-check`、退出 `check-milestone`、Process-07 登记同步 |
 | INTEG-050t | 已验证 | 2026-10-31 22:29 | cfx_time + 单 hart cfx_hart（64 位 cycle/insn、定时器、探针、m5 换 cfx_llc） |
