@@ -1454,7 +1454,8 @@ ARCH_PROBE_LOG = .work/log/arch/check-arch-smoke-svc.log
 # `integ042t` = Step 4 cfx_pmem 64 KiB SRAM + SRAM<->PA DMA + PMEM_DMA（ADR-0042）；
 # `integ044t` = cfx 两轴权限模型（四类同步 mask / 两类中断 mask / CFXPERM/CFXESC）。
 # `integ049t` = cg7 内部空间描述（16×4 静态表 / 全部只读 / 写任意 rc ⇒ CFXREG）。
-ARCH_CFX_PROBES = 044t 045t 049t integ039t integ040t integ042t integ044t integ046t integ047t integ048t integ049t
+# `integ050t` = cfx_time 1 GHz/64 位 + 单 hart cfx_hart 的 cycle/insn 64 位与 TIMER/IMASK/pending。
+ARCH_CFX_PROBES = 044t 045t 049t integ039t integ040t integ042t integ044t integ046t integ047t integ048t integ049t integ050t
 
 _locked-check-arch-smoke: install-host build-bootrom
 	@test -x $(LLVM_MC_BIN) || { echo "check-arch-smoke: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }

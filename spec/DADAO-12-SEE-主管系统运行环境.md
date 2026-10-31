@@ -568,12 +568,12 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 |----|----|---------|---------|--------|------|------|
 | 8 | 0 | hart id | cfx_hart_hart_id | — | RO | 硬件设置，hart 编号（0-based） |
 | 8 | 1 | — | — | — | — | 保留 |
-| 8 | 2 | cycle lo | cfx_hart_cycle_lo | 0 | RO | 本地周期数低64位 |
-| 8 | 3 | cycle hi | cfx_hart_cycle_hi | 0 | RO | 本地周期数高64位 |
-| 8 | 4 | insn lo | cfx_hart_insn_lo | 0 | RO | 指令计数低64位 |
-| 8 | 5 | insn hi | cfx_hart_insn_hi | 0 | RO | 指令计数高64位 |
-| 8 | 6 | timer cmp | cfx_hart_timer_cmp | 0 | RW | 64 位定时器比较值（绝对时间，单位同 cfx_time_value） |
-| 8 | 7 | timer ctrl | cfx_hart_timer_ctrl | 0 | RW | bit0=ENABLE，bit1=IMASK，bit2=ISTATUS（RO）；其余保留 |
+| 8 | 2 | cycle | cfx_hart_cycle | 0 | RO | 本地周期数（64 位） |
+| 8 | 3 | insn | cfx_hart_insn | 0 | RO | 退休指令数（64 位） |
+| 8 | 4 | timer cmp | cfx_hart_timer_cmp | 0 | RW | 64 位定时器比较值（绝对时间，单位同 cfx_time_value） |
+| 8 | 5 | timer ctrl | cfx_hart_timer_ctrl | 0 | RW | bit0=ENABLE，bit1=IMASK，bit2=ISTATUS（RO）；其余保留 |
+| 8 | 6 | — | — | — | — | 保留 |
+| 8 | 7 | — | — | — | — | 保留 |
 
 `cfx_time_value >= cfx_hart_timer_cmp` 且 `ENABLE=1` 时置 `ISTATUS`；`IMASK=0` 时触发 TIMER 中断。写新的 `timer_cmp` 即清除本次条件；写全 1 关闭。
 
@@ -673,8 +673,9 @@ cg15 其余 rc 保留，读写触发 CFXREG。`dma_ctrl` 写入时 START 自清�
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 10 | 7 | time freq | cfx_time_freq | — | RO | 计数频率（Hz），硬件设置 |
-| 10 | 8 | time value | cfx_time_value | 0 | RO | 64 位全局时间计数值，自由运行 |
+| 10 | 0 | time freq | cfx_time_freq | — | RO | 计数频率（Hz），硬件设置 |
+| 10 | 1 | time value | cfx_time_value | 0 | RO | 64 位全局时间计数值，自由运行 |
+| 10 | 2-63 | — | — | — | — | 保留 |
 
 **异常原因表**
 
@@ -966,6 +967,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 - `cg7` 改为内部空间描述寄存器：每 4 个 rc 描述一个内部空间（存在 + 类型 one-hot / 42 位起始偏移 / 字节大小 / R-W-X-cacheable-shareable-volatile 属性），16 块用完 `rc0`–`rc63`；寄存器按数组 `space_{desc,start,size,attr}[i]` 命名（`i=0..15`，`rc=4i+0..3`），全部只读、写触发 `CFXREG`；不再使用块选择与块内地址寄存器。
 - 删除核内存储块批量传输指令的行为说明与异常进入分支/伪代码：该类指令已从指令系统删除，不再定义其异常流。
 - 保留 cfx 统一为 `6–14`、`19–61`。
+- `cfx_hart` 计数寄存器由 128 位 `cycle_lo`/`cycle_hi`/`insn_lo`/`insn_hi`（`cg8 rc2`–`rc5`）收为 64 位单寄存器 `cycle`/`insn`（`rc2`/`rc3`）；定时器比较/控制前移至 `rc4`/`rc5`，`rc6`/`rc7` 保留。`cfx_time` 的 `time_freq`/`time_value` 前移至 `cg10 rc0`/`rc1`，`rc2`–`rc63` 保留。
 
 ### 0.7.2（2026-10-26）
 

@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..2d54e5a
+index 0000000..7889252
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,454 @@
+@@ -0,0 +1,485 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -163,10 +163,11 @@ index 0000000..2d54e5a
 +
 +/* Test-machine implemented cfx set: umon/jmon/smon/hmon/power (ADR-0020 D9,
 + * Machine-01 §3) plus cfx4/ptw's PTW/TLB register subset (ADR-0039 §8.5,
-+ * ADR-0041) and cfx17/pmem's 64 KiB SRAM + cg15 DMA (ADR-0042 Step 4).  Every
-+ * other cfxha either is reserved (6-14, 19-61 => ILLI) or
++ * ADR-0041), cfx17/pmem's 64 KiB SRAM + cg15 DMA (ADR-0042 Step 4), and
++ * cfx15/cfx18 (single-hart timer + global time, INTEG-050t).  Every other
++ * cfxha either is reserved (6-14, 19-61 => ILLI) or
 + * allocated-but-unimplemented here (=> CFXREG). */
-+#define DADAO_NUM_CFX 7
++#define DADAO_NUM_CFX 9
 +extern const int dadao_cfxha_map[DADAO_NUM_CFX]; /* defined in helper.c */
 +
 +#define DADAO_CFX_IS_RESERVED(h)  (((h) >= 6 && (h) <= 14) || \
@@ -206,7 +207,20 @@ index 0000000..2d54e5a
 +#define DADAO_CAUSE_DSPFTRAP  (1ULL << 23)
 +
 +#define DADAO_CFXHA_PTW        4   /* cfx4 / ptw (DADAO-12 §1) */
++#define DADAO_CFXHA_HART       15  /* cfx15 / hart (DADAO-12 §4.7) */
 +#define DADAO_CFXHA_PMEM       17  /* cfx17 / pmem (DADAO-12 §1) */
++#define DADAO_CFXHA_TIME       18  /* cfx18 / time (DADAO-12 §4.10) */
++
++/* ── cfx_hart timer + cfx_time (DADAO-12 §4.7/§4.10; INTEG-050t) ─────────
++ * Single hart only: the timer is one-shot, deadline in the cfx_time domain
++ * (1 count = 1 ns on the test machine).  TIMER is maskable (1 << 10) with
++ * cause_info = 0; an IMASK-ed expiry records the existing per-cfx pending bit
++ * (cfx_hart cg5 rc5), it does not create a new pending bitmap. */
++#define DADAO_CAUSE_TIMER      (1ULL << 10)
++#define DADAO_TIME_FREQ        1000000000ULL
++#define DADAO_HART_TIMER_ENABLE (1U << 0)
++#define DADAO_HART_TIMER_IMASK  (1U << 1)
++#define DADAO_HART_TIMER_ISTATUS (1U << 2)
 +
 +/* ── cfx_pmem SRAM + DMA (DADAO-12 §2.1/§4.9; ADR-0042 D3/D4/D6/D7) ─────
 + * The 64 KiB SRAM lives at internal offset 0x3ff_0000_0000 of cfx_pmem.  The test machine
@@ -365,7 +379,7 @@ index 0000000..2d54e5a
 +    uint8_t  inner_run_mode;             /* 0..3 (DADAO-12 §1) */
 +    uint8_t  inner_cfx_code;             /* current cfxha 0..63 */
 +    uint64_t inner_cfx_mask;             /* per-hart cfx mask (DADAO-12 §1 注) */
-+    DADAOCfxRegs cfx[DADAO_NUM_CFX];     /* implemented cfx {0,1,2,3,4,17,63} */
++    DADAOCfxRegs cfx[DADAO_NUM_CFX];     /* implemented cfx {0,1,2,3,4,15,17,18,63} */
 +
 +    /* ── Address-space Step 1 (ADR-0039 §8.5) ──
 +     * Single PTBR (cfx_ptw cg9 rc0): PPN[55:16]; low 16 bits and [63:56] read
@@ -408,6 +422,19 @@ index 0000000..2d54e5a
 +    uint64_t pmem_dma_pa;        /* latched physical address */
 +    uint64_t pmem_dma_len;       /* latched byte count */
 +    QEMUTimer *pmem_dma_timer;
++
++    /* ── cfx_time + cfx_hart timer (DADAO-12 §4.7/§4.10; INTEG-050t) ──
++     * Single hart: time_base_ns is the reset epoch of the virtual clock and
++     * cfx_time_value/cycle read (now - base).  `hart_insn` counts instructions
++     * in dadao_tr_insn_start() (translate.c).  The timer is one-shot; `hart_irq` is
++     * the per-source delivery flag (PMEM_DMA keeps its own, no unified
++     * pending bitmap / arbitration is built here). */
++    uint64_t time_base_ns;
++    uint64_t hart_insn;
++    uint64_t hart_timer_cmp;
++    uint8_t  hart_timer_ctrl;    /* bit0 ENABLE, bit1 IMASK */
++    bool     hart_irq;           /* TIMER pending delivery to cpu_exec_interrupt */
++    QEMUTimer *hart_timer;
 +} CPUDADAOState;
 +
 +/**
@@ -445,6 +472,10 @@ index 0000000..2d54e5a
 +void dadao_pmem_dma_init(CPUState *cs);
 +void dadao_pmem_dma_reset(CPUDADAOState *env);
 +void dadao_pmem_dma_deliver(CPUDADAOState *env);
++/* cfx_time + single-hart cfx_hart timer (DADAO-12 §4.7/§4.10; INTEG-050t) */
++void dadao_hart_timer_init(CPUState *cs);
++void dadao_hart_timer_reset(CPUDADAOState *env);
++void dadao_hart_timer_deliver(CPUDADAOState *env);
 +#endif
 +
 +void dadao_cpu_tcg_init(void);

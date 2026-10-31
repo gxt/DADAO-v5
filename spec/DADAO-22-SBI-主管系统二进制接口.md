@@ -269,7 +269,7 @@ cfx_hart 为 Hart 管理部件，提供 hart ID 与每 hart 的定时器比较�
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
 | 0 | SBI_HART_GET_ID | — | rd8 = id | 返回当前 hart 编号 |
-| 1 | SBI_HART_SET_TIMER | rd16 = timeout | — | 设置本 hart 的定时器比较值（绝对时间），到期触发 TIMER 中断 |
+| 1 | SBI_HART_SET_TIMER | rd16 = timeout | — | 设置本 hart 的定时器比较值（64 位绝对时间，单位同 cfx_time_value） |
 
 > 初始化方式与其他 cfx 一致：探测 cfx_hart 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_hart 为 per-hart cfx，每个 hart 独立初始化。
 
@@ -448,7 +448,7 @@ cfx_time 为 per-system 全局时间计数器，所有 hart 共享同一时间�
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
-| 0 | SBI_TIME_GET | — | rd8 = value | 返回全局时间计数值 |
+| 0 | SBI_TIME_GET | — | rd8 = value | 返回全局时间计数值（64 位） |
 
 ### 10.1 初始化
 
@@ -750,6 +750,7 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 - TLB 并入 `cfx_ptw`：删除 `cfx_tlb` 章节与 `SBI_TLB_INVALIDATE` 服务，TLB 维护改为直接写 `cfx_ptw` 的 cg12 寄存器（`cfx_ptw_tlb_control`/`_asid`/`_addr_start`/`_addr_size`，op/scope/`ASID_ANY` 正交）；页表异常（含 TLB 命中）统一由 `cfx_ptw` 处理，新增 `PTWERR`（`1 << 7`）的 A/D 回写失败语义。
 - 正文术语统一：地址空间分区一律写作 `addr[47:42]`（地址高 6 位），不再使用讨论期简写。
 - `cfx_pmem` 增加 DMA 的 SBI 封装（启动、状态查询，等待为预留并返回不支持）；SBI 错误码增加「忙，可重试」；不提供 SRAM 查询。
+- `SBI_HART_SET_TIMER` 的 `timeout` 与 `SBI_TIME_GET` 的返回值明确为 64 位绝对时间（单位同 `cfx_time_value`），语义不变。
 
 ### 0.7.2（2026-10-26）
 

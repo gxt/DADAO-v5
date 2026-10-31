@@ -74,10 +74,10 @@ cfx2rc cfx_power, cg8, rc1, rd2         @@ @enc 7bfc8042
 @@ ASM: cfx2rd cfx_ptw_ptbr, rd2
 cfx2rd cfx_ptw_ptbr, rd2                @@ @enc 7a109002
 
-@@ cfx2rd cfx_time_value, rd2 : (cfxha=18, cg=10, rc=8), rd=2 -> 7a 48 a2 02
-@@ OBJ: {{[0-9a-f]+:}} 7a 48 a2 02{{.*}}cfx2rd cfx_time_value, rd2
+@@ cfx2rd cfx_time_value, rd2 : (cfxha=18, cg=10, rc=1), rd=2 -> 7a 48 a0 42
+@@ OBJ: {{[0-9a-f]+:}} 7a 48 a0 42{{.*}}cfx2rd cfx_time_value, rd2
 @@ ASM: cfx2rd cfx_time_value, rd2
-cfx2rd cfx_time_value, rd2             @@ @enc 7a48a202
+cfx2rd cfx_time_value, rd2             @@ @enc 7a48a042
 
 @@ --- 标量别名等价（`cfx_<name>` ⇔ `cfx<ha>`；acceptance 3）---
 @@ cfx_power ≡ cfx63 (cfxha=63)

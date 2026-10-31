@@ -137,9 +137,10 @@ programs:
     expected_cause: CFXREG
     coverage: [perm.cfxreg.unimpl, adr0020.d9]
     derivation: >-
-      `trap cfx_hart, 0`; cfxha 15 is allocated but not implemented by the M5
-      test machine (cfx0/1/2/3/63 plus cfx_ptw's ptw/tlb registers, ADR-0020
-      D9), so access raises CFXREG (contract-see.md §3 / DADAO-22 §3).  The
+      `trap cfx_llc, 0`; cfxha 16 is allocated but not implemented by the M5
+      test machine (cfx0/1/2/3/63 plus cfx_ptw's ptw/tlb registers, cfx_pmem,
+      cfx_time and cfx_hart, ADR-0020 D9), so access raises CFXREG
+      (contract-see.md §3 / DADAO-22 §3).  The
       vector requires cause_id == CFXREG (1<<2); pass token 0x52, mismatch
       token 0xE1.
 

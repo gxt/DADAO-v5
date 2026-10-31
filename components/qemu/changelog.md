@@ -239,3 +239,7 @@
 - **2026-10-31 `INTEG-049t`**
   - 摘要：**cg7 内部空间描述在 QEMU 落地（DADAO-12 §3.8）**：删除 `DADAOCfxRegs.sram_block_sel`/`sram_addr`（旧「块选择 + 块内地址」RW 语义作废），改为编译期常量 16×4 只读表 `dadao_cg7_space_reg()`（smon/hmon `desc=0x3 start=0x3ff_0000_0000 size=0x1_0000 attr=R|W|X`、pmem 同 start/size 而 `attr=R|W`、power `desc=0x5 start=0x3ff_fffc_0000 size=0x4_0000 attr=R|X`，其余块/其余 cfx 读 0）；`cfx_reg_ptr()` 删除 `case 7`，`helper_cfx2rd`/`helper_cfx2rc` 在权限与 deleg 门之后插入 cg7 分支（读任意 rc 回表值、写任意 cg7 rc ⇒ `CFXREG`）；未实现 cfx（`cfx5` 等）仍 `CFXREG`，`exists=0` 只对已实现 cfx 可见。新增探针 `min_rom_probe_integ049t.py`（12 例），`044t`/`045t`（13→14 例）/`integ048t` 旧 cg7 用例按新语义改造（不删用例、不放宽断言）。
   - 执行者：engineer
+
+- **2026-10-31 `INTEG-050t`**
+  - 摘要：**`cfx_time`（cfxha 18）+ 单 hart `cfx_hart` 定时器（DADAO-12 §4.7/§4.10）**：测试机 cfx 集合加 15/18（`DADAO_NUM_CFX` 7→9，map `{0,1,2,3,4,15,17,18,63}`）；`cfx_time` `cg10 rc0 = 1 GHz`、`rc1` = 虚拟时钟 64 位（1 count=1 ns）、`SBI_TIME_GET`；`cfx_hart` `cg8 rc0 = hart_id 0`、`rc2 cycle`/`rc3 insn` 均 64 位（cycle 由时钟派生、insn 在 `insn_start` 每指令累加，不依赖 `-icount`）、`rc4 timer_cmp`/`rc5 timer_ctrl`（ENABLE/IMASK/ISTATUS）、`rc1/rc6/rc7` 保留；TIMER（`1<<10`，可屏蔽，`cause_info=0`）为 one-shot，IMASK 时置既有 `cg5 rc5` bit10、解除 IMASK 后经异步路径投递。异步只复用既有单源路径（per-source bool + `CPU_INTERRUPT_HARD` + `cfx_enter(async)`），不做跨源统一仲裁。新增探针 `min_rom_probe_integ050t.py`（17 例）；m5 `unimplemented cfx` 样本改 `cfx_llc`。
+  - 执行者：engineer

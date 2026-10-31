@@ -117,12 +117,10 @@ Per ADR-0017 D4：寄存器别名查 spec 寄存器表的 `cg`/`rc` 列。
 | `cfx_cache_enable` | 5 | 8 | 8 | DADAO-12:549 |
 | `cfx_cache_ctrl` | 5 | 8 | 9 | DADAO-12:550 |
 | `cfx_hart_hart_id` | 15 | 8 | 0 | DADAO-12:569 |
-| `cfx_hart_cycle_lo` | 15 | 8 | 2 | DADAO-12:571 |
-| `cfx_hart_cycle_hi` | 15 | 8 | 3 | DADAO-12:572 |
-| `cfx_hart_insn_lo` | 15 | 8 | 4 | DADAO-12:573 |
-| `cfx_hart_insn_hi` | 15 | 8 | 5 | DADAO-12:574 |
-| `cfx_hart_timer_cmp` | 15 | 8 | 6 | DADAO-12:575 |
-| `cfx_hart_timer_ctrl` | 15 | 8 | 7 | DADAO-12:576 |
+| `cfx_hart_cycle` | 15 | 8 | 2 | DADAO-12:571 |
+| `cfx_hart_insn` | 15 | 8 | 3 | DADAO-12:572 |
+| `cfx_hart_timer_cmp` | 15 | 8 | 4 | DADAO-12:573 |
+| `cfx_hart_timer_ctrl` | 15 | 8 | 5 | DADAO-12:574 |
 | `cfx_llc_exist` | 16 | 8 | 0 | DADAO-12:599 |
 | `cfx_llc_ctrl` | 16 | 8 | 8 | DADAO-12:600 |
 | `cfx_pmem_exist` | 17 | 8 | 0 | DADAO-12:629 |
@@ -134,18 +132,18 @@ Per ADR-0017 D4：寄存器别名查 spec 寄存器表的 `cg`/`rc` 列。
 | `cfx_pmem_dma_size` | 17 | 15 | 2 | DADAO-12:635 |
 | `cfx_pmem_dma_ctrl` | 17 | 15 | 3 | DADAO-12:636 |
 | `cfx_pmem_dma_status` | 17 | 15 | 4 | DADAO-12:637 |
-| `cfx_time_freq` | 18 | 10 | 7 | DADAO-12:676 |
-| `cfx_time_value` | 18 | 10 | 8 | DADAO-12:677 |
-| `cfx_uart_exist` | 62 | 8 | 1 | DADAO-12:694 |
-| `cfx_uart_uart0_regs[0..63]` | 62 | 32 | 0-63 | DADAO-12:695 |
-| `cfx_uart_uart1_regs[0..63]` | 62 | 33 | 0-63 | DADAO-12:696 |
-| `cfx_uart_uart31_regs[0..63]` | 62 | 63 | 0-63 | DADAO-12:698 |
-| `cfx_power_ctrl` | 63 | 8 | 1 | DADAO-12:722 |
+| `cfx_time_freq` | 18 | 10 | 0 | DADAO-12:676 |
+| `cfx_time_value` | 18 | 10 | 1 | DADAO-12:677 |
+| `cfx_uart_exist` | 62 | 8 | 1 | DADAO-12:695 |
+| `cfx_uart_uart0_regs[0..63]` | 62 | 32 | 0-63 | DADAO-12:696 |
+| `cfx_uart_uart1_regs[0..63]` | 62 | 33 | 0-63 | DADAO-12:697 |
+| `cfx_uart_uart31_regs[0..63]` | 62 | 63 | 0-63 | DADAO-12:699 |
+| `cfx_power_ctrl` | 63 | 8 | 1 | DADAO-12:723 |
 
 ## 3. 统计
 
 - 标量别名：12 条
-- 寄存器别名（展开后）：1430 条
+- 寄存器别名（展开后）：1428 条
   - 通用（cg0-7 展开）：1392 条（12 cfxname × 56 模板）
-  - 专有（cg8+）：38 条
+  - 专有（cg8+）：36 条
 

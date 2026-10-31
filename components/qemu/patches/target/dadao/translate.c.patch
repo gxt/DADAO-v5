@@ -1,9 +1,9 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000..8a848fa
+index 0000000..5fa7ad1
 --- /dev/null
 +++ b/target/dadao/translate.c
-@@ -0,0 +1,643 @@
+@@ -0,0 +1,660 @@
 +/*
 + * DADAO translation routines for QEMU (decodetree version)
 + *
@@ -60,7 +60,24 @@ index 0000000..8a848fa
 +static void dadao_tr_insn_start(DisasContextBase *dcbase, CPUState *cs)
 +{
 +    DisasContext *ctx = container_of(dcbase, DisasContext, base);
++
 +    tcg_gen_insn_start(ctx->base.pc_next, 0, 0);
++    /* cfx_hart cg8 rc3 (insn) test-machine counter: count each dispatched
++     * instruction (64-bit natural wrap).  Emitted *after* insn_start so it is
++     * part of the instruction body: a goto_tb chained entry starts at the
++     * first instruction body, skipping the TB prologue, so a prologue-only
++     * counter would freeze inside loops.  Pure TCG ops, no helper; counted
++     * before the instruction executes so an early-faulting instruction is
++     * not under-counted. */
++    {
++        TCGv_i64 insn = tcg_temp_new_i64();
++
++        tcg_gen_ld_i64(insn, tcg_env,
++                       offsetof(CPUDADAOState, hart_insn));
++        tcg_gen_addi_i64(insn, insn, 1);
++        tcg_gen_st_i64(insn, tcg_env,
++                       offsetof(CPUDADAOState, hart_insn));
++    }
 +}
 +
 +static void gen_exception_illegal(DisasContext *ctx)

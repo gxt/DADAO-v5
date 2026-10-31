@@ -11,6 +11,7 @@
 | `min_rom_probe_integ047t.py` | cfx_pmem DMA 的 SBI 契约探针（FID 6/7/8；内嵌 provider 为**测试专用，非生产实现**；`--doc` 离线表形态 + runtime 用例；`--qemu/--only/--list`） |
 | `min_rom_probe_integ048t.py` | `cfx_<name>_hypv_cg_reg_deleg` 强制检查探针（supv 按目标 cfx 的 64 位 cg 位图判定 ⇒ `CFXPERM`、cg3 无例外、bit3 恒 1、不豁免 self、hypv/user 不受约束、power BootROM 只读；`--qemu/--only/--list`） |
 | `min_rom_probe_integ049t.py` | cg7 内部空间描述探针（16×4 静态只读表：smon/hmon/pmem/power 四类空间块、`space[1..15]` 全 0、`desc`/`attr` 位规则、全 rc 可读、写任意 rc ⇒ `CFXREG`、未实现 cfx 仍 `CFXREG`；`--qemu/--only/--list`） |
+| `min_rom_probe_integ050t.py` | `cfx_time`（cfxha 18：`cg10 rc0` 1 GHz、`rc1` 64 位时间、`SBI_TIME_GET`）与单 hart `cfx_hart`（cfxha 15：`cg8 rc0` hart_id、`rc2/rc3` 64 位 cycle/insn、`rc4/rc5` timer_cmp/timer_ctrl、TIMER `1<<10`、IMASK pending、`SBI_HART_GET_ID`/`SBI_HART_SET_TIMER`）探针；内嵌 provider 为**测试专用，非生产实现**；`--doc` 离线表形态 + runtime 用例（默认时钟走 `-d cpu`，定时器用例 `-icount shift=0` 自检）；`--qemu/--only/--list` |
 | `build_step5_bootrom.py` | step5 256 KiB BootROM 打包器（image index table + 三镜像尺寸/ELF 自检 + trap magic 回填 + `--self-test` + `--max-image-size` 注入） |
 
 - 用例**资产**（`.s` 向量 + `expected.yaml`）在 `tests/arch/<cfx>/`；本目录只放驱动，
@@ -18,6 +19,6 @@
 - 门控：`make check-arch-smoke`（L2）/ `make check-arch`（L3）。
 - 迁移期的旧路径薄 wrapper 已在 `TESTCASES-084t` 删除；现行入口只有本目录。
 - 探针的 QEMU 默认值是 `.work/build/qemu/qemu-system-dadao`（历史约定，M1–M6 期）；
-  `044t/045t/046t/049t/061t/integ046t/integ047t/integ048t/integ049t` 接受 `--qemu`，门控 `check-arch` 从安装根传入
+  `044t/045t/046t/049t/061t/integ046t/integ047t/integ048t/integ049t/integ050t` 接受 `--qemu`，门控 `check-arch` 从安装根传入
   （ADR-0016 D9）。其余探针（005t…042t、070t…074t）无 `--qemu`，且未纳入门控
   （部分期望值已与现行 spec 漂移，见 `TESTCASES-073t` 遗留）。

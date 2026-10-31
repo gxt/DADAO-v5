@@ -51,7 +51,7 @@ M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**
 | `m5_semi_exit_extended.s` | semihosting | `SYS_EXIT_EXTENDED`(0x20)：带显式退出码停机 | `contract-semihosting §3/§5` → `$?=0x44` |
 | `m5_perm_reserved_illi.s` | permission | 一般 `trap cfx7`（reserved cfxha）⇒ `ILLI` | `contract-see §3`（reserved 6–14/19–61 ⇒ ILLI；`DADAO-12 §5`）→ cause `ILLI`(1<<8)，pass token `0x50` |
 | `m5_perm_mask_illi.s` | permission | 一般 `trap cfx_jmon`（指令类型 mask 禁止）⇒ `ILLI` | `contract-see §3`（mask 禁止 ⇒ ILLI；`DADAO-12 §3`）→ `ILLI`，pass token `0x51` |
-| `m5_perm_unimpl_cfxreg.s` | permission | `trap cfx_hart`（未实现 cfx）⇒ `CFXREG` | `contract-see §3`（未实现 cfx ⇒ CFXREG；`DADAO-22 §3`）→ `CFXREG`(1<<2)，pass token `0x52` |
+| `m5_perm_unimpl_cfxreg.s` | permission | `trap cfx_llc`（未实现 cfx）⇒ `CFXREG` | `contract-see §3`（未实现 cfx ⇒ CFXREG；`DADAO-22 §3`）→ `CFXREG`(1<<2)，pass token `0x52` |
 | `m5_perm_badcombo_cfxreg.s` | permission | `cfx2rd cfx_umon, cg6, rc63`（超数量寄存器组合）⇒ `CFXREG` | `contract-see §3`（不存在组合 ⇒ CFXREG；`DADAO-12 §3` `rc≥scratch_regs_num`）→ `CFXREG`，pass token `0x53` |
 | `m5_trap_escape.s` | trap | 一般 `trap cfx_umon, 0x0123` 进向量 + bootrom handler `escape` 返回 | `contract-see §4`（cause `CFXTRAP`；`DADAO-12 §5`）→ cause `CFXTRAP`(1)、`escape_num==1`，pass token `0x60` |
 

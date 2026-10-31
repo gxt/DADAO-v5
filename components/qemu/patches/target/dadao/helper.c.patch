@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..f095c1b
+index 0000000..ac44847
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2321 @@
+@@ -0,0 +1,2604 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -26,6 +26,7 @@ index 0000000..f095c1b
 +#include "qemu/log.h"
 +#include "qemu/error-report.h"
 +#include "qemu/timer.h"
++#include "qemu/main-loop.h"
 +#include "hw/core/cpu.h"
 +#include "cpu.h"
 +#ifndef CONFIG_USER_ONLY
@@ -1481,11 +1482,12 @@ index 0000000..f095c1b
 + *
 + * Test-machine scope (ADR-0020 D9, Machine-01 §3): only cfx0/1/2/3/63 are
 + * fully implemented, plus cfx4/ptw's Step 1 register subset (PTBR +
-+ * ptw_enable, ADR-0039 §8.5).  Access to any other allocated-but-unimplemented
-+ * cfx => CFXREG.
++ * ptw_enable, ADR-0039 §8.5), cfx17/pmem's SRAM+DMA (ADR-0042) and
++ * cfx15/cfx18 (single-hart timer + global time, INTEG-050t).  Access to any
++ * other allocated-but-unimplemented cfx => CFXREG.
 + * =================================================================== */
 +
-+const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 4, 17, 63 };
++const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 4, 15, 17, 18, 63 };
 +
 +/* cfxha -> compact index into env->cfx[], or -1 if not implemented here. */
 +static int cfx_idx(int cfxha)
@@ -2041,6 +2043,240 @@ index 0000000..f095c1b
 +
 +#endif /* !CONFIG_USER_ONLY */
 +
++/* ===================================================================
++ * cfx_time (cfxha 18) + single-hart cfx_hart timer (cfxha 15)
++ * (spec/DADAO-12 §4.7/§4.10; contract-see §3; INTEG-050t)
++ *
++ * cfx_time_value and cfx_hart_cycle are derived from QEMU_CLOCK_VIRTUAL
++ * (test-machine model: 1 count = 1 ns, epoch = reset time_base_ns).  cfx_hart
++ * insn is accumulated per TB by translate.c.  The timer is one-shot and its
++ * deadline is a 64-bit absolute cfx_time value; TIMER (1 << 10) is maskable
++ * with cause_info = 0.  Only the existing single-source async path is used
++ * (own bool + CPU_INTERRUPT_HARD + cfx_enter(async)); no unified pending
++ * bitmap or cross-source arbitration is built here.
++ * =================================================================== */
++
++static uint64_t dadao_time_now_ns(void)
++{
++#ifdef CONFIG_USER_ONLY
++    /* linux-user has no QEMU_CLOCK_VIRTUAL; reads stay non-faulting. */
++    return 0;
++#else
++    return qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
++#endif
++}
++
++static uint64_t dadao_time_value(CPUDADAOState *env)
++{
++    uint64_t now = dadao_time_now_ns();
++
++    return (now >= env->time_base_ns) ? now - env->time_base_ns : 0;
++}
++
++static bool dadao_time_reg_read(CPUDADAOState *env, uint32_t rc, uint64_t *val)
++{
++    switch (rc) {
++    case 0:                             /* cg10 rc0: time_freq (Hz) */
++        *val = DADAO_TIME_FREQ;
++        return true;
++    case 1:                             /* cg10 rc1: time_value (64-bit) */
++        *val = dadao_time_value(env);
++        return true;
++    default:
++        return false;
++    }
++}
++
++static bool dadao_hart_istatus(CPUDADAOState *env)
++{
++    return (env->hart_timer_ctrl & DADAO_HART_TIMER_ENABLE) &&
++           (env->hart_timer_cmp != ~0ULL) &&
++           (dadao_time_value(env) >= env->hart_timer_cmp);
++}
++
++static bool dadao_hart_reg_read(CPUDADAOState *env, uint32_t rc, uint64_t *val)
++{
++    switch (rc) {
++    case 0:                             /* cg8 rc0: hart_id (single hart) */
++        *val = 0;
++        return true;
++    case 2:                             /* cg8 rc2: cycle (64-bit) */
++        *val = dadao_time_value(env);
++        return true;
++    case 3:                             /* cg8 rc3: insn (64-bit) */
++        *val = env->hart_insn;
++        return true;
++#ifdef CONFIG_USER_ONLY
++    case 4:
++    case 5:
++        return false;                   /* timer regs withheld: CFXREG */
++#else
++    case 4:                             /* cg8 rc4: timer_cmp (64-bit) */
++        *val = env->hart_timer_cmp;
++        return true;
++    case 5:                             /* cg8 rc5: ctrl[1:0] | ISTATUS << 2 */
++        *val = (env->hart_timer_ctrl & (DADAO_HART_TIMER_ENABLE |
++                                        DADAO_HART_TIMER_IMASK)) |
++               (dadao_hart_istatus(env) ? DADAO_HART_TIMER_ISTATUS : 0);
++        return true;
++#endif
++    default:                            /* rc1/rc6/rc7/others: reserved */
++        return false;
++    }
++}
++
++#ifndef CONFIG_USER_ONLY
++
++/* Wake the vCPU for TIMER.  The timer callback runs in the main loop with
++ * the BQL held; the same expiry can also be reached synchronously from a
++ * cfx2rc helper (write cmp/ctrl) where the BQL is not held, so use the
++ * BQL-free atomic request in that case (cpu_interrupt asserts bql_locked). */
++static void dadao_hart_notify(CPUState *cs)
++{
++    if (bql_locked()) {
++        cpu_interrupt(cs, CPU_INTERRUPT_HARD);
++    } else {
++        cpu_set_interrupt(cs, CPU_INTERRUPT_HARD);
++    }
++}
++
++static void dadao_hart_timer_expire(CPUState *cs)
++{
++    CPUDADAOState *env = cpu_env(cs);
++    int ci = cfx_idx(DADAO_CFXHA_HART);
++
++    if (!(env->hart_timer_ctrl & DADAO_HART_TIMER_ENABLE) ||
++        env->hart_timer_cmp == ~0ULL) {
++        return;
++    }
++    if (dadao_time_value(env) < env->hart_timer_cmp) {
++        return;                         /* re-armed after the callback fired */
++    }
++    if (env->hart_timer_ctrl & DADAO_HART_TIMER_IMASK) {
++        /* Masked expiry: record the existing per-cfx pending bit (cg5 rc5),
++         * never a new bitmap, and do not deliver. */
++        if (ci >= 0) {
++            env->cfx[ci].pending |= DADAO_CAUSE_TIMER;
++        }
++    } else {
++        env->hart_irq = true;
++        dadao_hart_notify(cs);
++    }
++}
++
++static void dadao_hart_timer_arm(CPUDADAOState *env, CPUState *cs)
++{
++    uint64_t now;
++
++    if (!(env->hart_timer_ctrl & DADAO_HART_TIMER_ENABLE) ||
++        env->hart_timer_cmp == ~0ULL) {
++        timer_del(env->hart_timer);
++        return;
++    }
++    now = dadao_time_value(env);
++    if (now >= env->hart_timer_cmp) {
++        timer_del(env->hart_timer);
++        dadao_hart_timer_expire(cs);
++        return;
++    }
++    /* QEMU_CLOCK_VIRTUAL deadline in ns: epoch + absolute cfx_time value
++     * (1 count = 1 ns on the test machine). */
++    timer_mod(env->hart_timer,
++              (int64_t)(env->time_base_ns + env->hart_timer_cmp));
++}
++
++static void dadao_hart_timer_cb(void *opaque)
++{
++    dadao_hart_timer_expire((CPUState *)opaque);
++}
++
++void dadao_hart_timer_init(CPUState *cs)
++{
++    CPUDADAOState *env = cpu_env(cs);
++
++    env->hart_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
++                                   dadao_hart_timer_cb, cs);
++}
++
++void dadao_hart_timer_reset(CPUDADAOState *env)
++{
++    if (env->hart_timer) {
++        timer_del(env->hart_timer);
++    }
++    env->time_base_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
++    env->hart_insn = 0;
++    env->hart_timer_cmp = 0;
++    env->hart_timer_ctrl = 0;
++    env->hart_irq = false;
++}
++
++void dadao_hart_timer_deliver(CPUDADAOState *env)
++{
++    bool entered;
++    uint64_t vec;
++
++    env->hart_irq = false;
++    vec = cfx_enter(env, DADAO_CAUSE_TIMER, DADAO_CFXHA_HART, env->pc, 0,
++                    false, &entered);
++    if (entered) {
++        env->pc = vec;
++        env->rb[0] = vec;
++    }
++}
++
++#endif /* !CONFIG_USER_ONLY */
++
++static bool dadao_hart_reg_write(CPUDADAOState *env, uint32_t rc, uint64_t val)
++{
++    switch (rc) {
++    case 4:                             /* cg8 rc4: timer_cmp (64-bit) */
++#ifdef CONFIG_USER_ONLY
++        return false;
++#else
++        {
++            CPUState *cs = env_cpu(env);
++            int ci = cfx_idx(DADAO_CFXHA_HART);
++
++            /* A new compare value cancels the old deadline and this match. */
++            env->hart_timer_cmp = val;
++            if (ci >= 0) {
++                env->cfx[ci].pending &= ~DADAO_CAUSE_TIMER;
++            }
++            env->hart_irq = false;
++            timer_del(env->hart_timer);
++            dadao_hart_timer_arm(env, cs);
++        }
++        return true;
++#endif
++    case 5:                             /* cg8 rc5: ENABLE/IMASK (bit2 RO) */
++#ifdef CONFIG_USER_ONLY
++        return false;
++#else
++        {
++            CPUState *cs = env_cpu(env);
++            int ci = cfx_idx(DADAO_CFXHA_HART);
++
++            env->hart_timer_ctrl = (uint8_t)(val & (DADAO_HART_TIMER_ENABLE |
++                                                    DADAO_HART_TIMER_IMASK));
++            /* Releasing IMASK while ISTATUS=1 drops the recorded pending bit
++             * and lets the existing async path deliver TIMER. */
++            if (!(env->hart_timer_ctrl & DADAO_HART_TIMER_IMASK) &&
++                dadao_hart_istatus(env)) {
++                if (ci >= 0) {
++                    env->cfx[ci].pending &= ~DADAO_CAUSE_TIMER;
++                }
++                env->hart_irq = true;
++                dadao_hart_notify(cs);
++            }
++            dadao_hart_timer_arm(env, cs);
++        }
++        return true;
++#endif
++    default:                            /* rc2/rc3 are RO; rc0/1/6/7 reserved */
++        return false;
++    }
++}
++
 +/* trap cfxha, immu18 : general trap (not the semihosting tag) -> §5 flow.
 + * Semihosting (immu18[17:8] == 0x3FF, i.e. 0x3FF00-0x3FFFF) is handled by the
 + * decode-layer short-circuit (trans_trap_ciii_cfx -> DADAO_EXCP_SEMIHOST,
@@ -2190,6 +2426,36 @@ index 0000000..f095c1b
 +        env->rb[0] = pc + 4;
 +        return;
 +    }
++    /* cfx_time cg10 (DADAO-12 §4.10; INTEG-050t). */
++    if (cg == 10 && dadao_cfxha_map[ci] == DADAO_CFXHA_TIME) {
++        uint64_t v;
++
++        if (!dadao_time_reg_read(env, rc, &v)) {
++            cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++            return;
++        }
++        if (rd != 0) {
++            env->rd[rd] = v;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
++        return;
++    }
++    /* cfx_hart cg8 (DADAO-12 §4.7; INTEG-050t). */
++    if (cg == 8 && dadao_cfxha_map[ci] == DADAO_CFXHA_HART) {
++        uint64_t v;
++
++        if (!dadao_hart_reg_read(env, rc, &v)) {
++            cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++            return;
++        }
++        if (rd != 0) {
++            env->rd[rd] = v;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
++        return;
++    }
 +    if (cg == 7) {                       /* cg7 internal space description
 +                                          * (read-only, DADAO-12 §3.8) */
 +        if (rd != 0) {
@@ -2245,6 +2511,23 @@ index 0000000..f095c1b
 +        uint64_t v = (rd == 0) ? 0 : env->rd[rd];
 +
 +        if (!dadao_pmem_dma_reg_write(env, rc, v)) {
++            cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++            return;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
++        return;
++    }
++    /* cfx_time cg10 is RO (DADAO-12 §4.10; INTEG-050t). */
++    if (cg == 10 && dadao_cfxha_map[ci] == DADAO_CFXHA_TIME) {
++        cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++        return;
++    }
++    /* cfx_hart cg8: only rc4/rc5 accept writes (DADAO-12 §4.7; INTEG-050t). */
++    if (cg == 8 && dadao_cfxha_map[ci] == DADAO_CFXHA_HART) {
++        uint64_t v = (rd == 0) ? 0 : env->rd[rd];
++
++        if (!dadao_hart_reg_write(env, rc, v)) {
 +            cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
 +            return;
 +        }

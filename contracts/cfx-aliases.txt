@@ -6,7 +6,7 @@
 # Grammar: scalar <name> <cfxha> [canonical]
 #          reg    <name> <cfxha> <cg> <rc-base> <rc-count> [canonical]
 # Read at run time from <exe-dir>/../share/dadao/cfx-aliases.txt (or $DADAO_CFX_ALIAS_FILE / --dadao-cfx-alias=).
-# scalars=12 regs=1430
+# scalars=12 regs=1428
 scalar cfx_umon 0 canonical
 scalar cfx_jmon 1 canonical
 scalar cfx_smon 2 canonical
@@ -845,12 +845,10 @@ reg cfx_hart_space_start[15] 15 7 61 1 canonical
 reg cfx_hart_space_size[15] 15 7 62 1 canonical
 reg cfx_hart_space_attr[15] 15 7 63 1 canonical
 reg cfx_hart_hart_id 15 8 0 1 canonical
-reg cfx_hart_cycle_lo 15 8 2 1 canonical
-reg cfx_hart_cycle_hi 15 8 3 1 canonical
-reg cfx_hart_insn_lo 15 8 4 1 canonical
-reg cfx_hart_insn_hi 15 8 5 1 canonical
-reg cfx_hart_timer_cmp 15 8 6 1 canonical
-reg cfx_hart_timer_ctrl 15 8 7 1 canonical
+reg cfx_hart_cycle 15 8 2 1 canonical
+reg cfx_hart_insn 15 8 3 1 canonical
+reg cfx_hart_timer_cmp 15 8 4 1 canonical
+reg cfx_hart_timer_ctrl 15 8 5 1 canonical
 reg cfx_llc_user_cfxtrap 16 0 0 1 canonical
 reg cfx_llc_user_cfxmem 16 0 1 1 canonical
 reg cfx_llc_user_cfxreg 16 0 2 1 canonical
@@ -1210,8 +1208,8 @@ reg cfx_time_space_desc[15] 18 7 60 1 canonical
 reg cfx_time_space_start[15] 18 7 61 1 canonical
 reg cfx_time_space_size[15] 18 7 62 1 canonical
 reg cfx_time_space_attr[15] 18 7 63 1 canonical
-reg cfx_time_freq 18 10 7 1 canonical
-reg cfx_time_value 18 10 8 1 canonical
+reg cfx_time_freq 18 10 0 1 canonical
+reg cfx_time_value 18 10 1 1 canonical
 reg cfx_uart_user_cfxtrap 62 0 0 1 canonical
 reg cfx_uart_user_cfxmem 62 0 1 1 canonical
 reg cfx_uart_user_cfxreg 62 0 2 1 canonical

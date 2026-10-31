@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..d680eb5
+index 0000000..486f70e
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,552 @@
+@@ -0,0 +1,582 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -132,6 +132,8 @@ index 0000000..d680eb5
 +     * no transfer in flight, no PMEM_DMA pending. */
 +#ifndef CONFIG_USER_ONLY
 +    dadao_pmem_dma_reset(env);
++    /* cfx_time epoch + single-hart timer (DADAO-12 §4.7/§4.10). */
++    dadao_hart_timer_reset(env);
 +#else
 +    env->pmem_dma_src = 0;
 +    env->pmem_dma_dst = 0;
@@ -144,6 +146,11 @@ index 0000000..d680eb5
 +    env->pmem_dma_cfx_off = 0;
 +    env->pmem_dma_pa = 0;
 +    env->pmem_dma_len = 0;
++    env->time_base_ns = 0;
++    env->hart_insn = 0;
++    env->hart_timer_cmp = 0;
++    env->hart_timer_ctrl = 0;
++    env->hart_irq = false;
 +#endif
 +
 +    /* rd0 hardwired to 0 (already zero from memset) */
@@ -265,6 +272,14 @@ index 0000000..d680eb5
 +            r->cause_nonmaskable = DADAO_CAUSE_CFXTRAP | DADAO_CAUSE_CFXMEM |
 +                                   DADAO_CAUSE_CFXREG | DADAO_CAUSE_CFXESC;
 +        }
++        /* cfx_hart/cfx_time exception tables list only CFXTRAP/CFXMEM/
++         * CFXREG/CFXESC as non-maskable: IPI (1 << 8) and TIMER (1 << 10)
++         * are maskable, so the monitor base set must not leak RASOF/NSPERM
++         * (= 1 << 10) into cfx_hart (DADAO-12 §4.7/§4.10). */
++        if (cfxha == DADAO_CFXHA_HART || cfxha == DADAO_CFXHA_TIME) {
++            r->cause_nonmaskable = DADAO_CAUSE_CFXTRAP | DADAO_CAUSE_CFXMEM |
++                                   DADAO_CAUSE_CFXREG | DADAO_CAUSE_CFXESC;
++        }
 +        /* cg6 scratch[]/cg7 left 0 (scratch undefined at reset) */
 +    }
 +}
@@ -283,6 +298,8 @@ index 0000000..d680eb5
 +#ifndef CONFIG_USER_ONLY
 +    /* cfx_pmem DMA completion timer (DADAO-12 §4.9; ADR-0042). */
 +    dadao_pmem_dma_init(cs);
++    /* cfx_time epoch + single-hart cfx_hart timer (DADAO-12 §4.7/§4.10). */
++    dadao_hart_timer_init(cs);
 +#endif
 +    qemu_init_vcpu(cs);
 +    cpu_reset(cs);
@@ -481,14 +498,27 @@ index 0000000..d680eb5
 +    CPUDADAOState *env = cpu_env(cs);
 +
 +    /*
-+     * The only asynchronous source in this model is the cfx_pmem DMA
-+     * completion/error interrupt (PMEM_DMA, DADAO-12 §4.9; ADR-0042 D7.4).
-+     * The delivery runs the §5 exception-entry flow asynchronously; when the
-+     * cause is masked the flow only records cfx_pmem_excp_pending.
++     * Asynchronous sources are delivered through independent per-source
++     * branches (each with its own bool flag): cfx_pmem DMA completion/error
++     * (PMEM_DMA, DADAO-12 §4.9; ADR-0042 D7.4) and the single-hart cfx_hart
++     * timer (TIMER, DADAO-12 §4.7).  There is deliberately NO unified
++     * per-hart pending bitmap, cross-source priority or merge/dedup here
++     * (INTEG-050t; unified arbitration is deferred to a pre-Linux task).
++     * The only interaction: when the other source's flag is still set, keep
++     * CPU_INTERRUPT_HARD raised so it is entered on the next round.
 +     */
 +    if ((interrupt_request & CPU_INTERRUPT_HARD) && env->pmem_dma_irq) {
-+        cpu_reset_interrupt(cs, CPU_INTERRUPT_HARD);
 +        dadao_pmem_dma_deliver(env);
++        if (!env->hart_irq) {
++            cpu_reset_interrupt(cs, CPU_INTERRUPT_HARD);
++        }
++        return true;
++    }
++    if ((interrupt_request & CPU_INTERRUPT_HARD) && env->hart_irq) {
++        dadao_hart_timer_deliver(env);
++        if (!env->pmem_dma_irq) {
++            cpu_reset_interrupt(cs, CPU_INTERRUPT_HARD);
++        }
 +        return true;
 +    }
 +    return false;

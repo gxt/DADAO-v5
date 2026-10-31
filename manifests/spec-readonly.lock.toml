@@ -2,6 +2,11 @@ format = 1
 # 只读册（上游 20 册 + v5 自定 1 册）：sha256 锁。修改须用户事先明确允许（授权原话落盘），并在
 # 同一变更内更新此处哈希。见 docs/Process-06-spec目录保护规范.md。
 policy = "readonly-requires-authorization"
+# 2026-10-31（INTEG-050t；授权原话摘要：「把 rc 设计现在收干净，并把 spec 变更并入本任务」）：
+#   仅 `DADAO-12`/`DADAO-22` 两册——`cfx_hart` 的 cycle/insn 收为 64 位单寄存器（`cg8 rc2`/`rc3`）、
+#   定时器比较/控制前移至 `rc4`/`rc5`；`cfx_time` 的 `time_freq`/`time_value` 前移至 `cg10 rc0`/`rc1`；
+#   `SBI_HART_SET_TIMER` 的 `timeout` 与 `SBI_TIME_GET` 返回值明确为 64 位。两册附录各 1 条，
+#   册头版本不动（仍 `0.7.3-rc`）；两册 sha256 同笔重算（其余 19 册不变）。
 # 2026-10-30（INTEG-045t；授权原话见任务书 `.tao/tasks/integ/INTEG-045t-cfx指令清理.md`
 #   §用户授权原话（派单原话原样落纸）：「删除 cfxld/cfxst：SimRISC-11 整节/汇编表/decode ILLI；
 #   SimRISC-00 `crii` 格式定义、编码表两格、历史引用」「SimRISC-11 补 fence 12 个宏表：
@@ -400,7 +405,8 @@ group = "dadao-1x"
 # 2026-10-30（INTEG-044t，授权 = 派单原话「同步 spec/contracts/aliases/QEMU/测试/锁/changelog」+ 任务书 §目标 1；ADR-0045）：cg0–3 改两轴权限布局（rc0–3 四类同步来源 mask、rc4 cfx_intr_mask、cg8/rc1 global_cfx_intr_mask），删 global_version/global_cfx_mask；monitor 增 CFXPERM、各 cfx 增 CFXESC；§5 进入/退出与附录 0.7.3-rc 同步；sha256 同笔重算。
 # 2026-10-31（SPEC-179t，授权原话「可以，授权」，落纸于 .tao/tasks/spec/SPEC-179t-启动链BootROM权限口径清理.md）：§2.1 补 smon SRAM（0x0bff_0000_0000，64 KiB）、BootROM 改 256 KiB（0xffff_fffc_0000–0xffff_ffff_ffff，复位向量仍在内部偏移 0x3_0000）；cg7 改保留并删块传输指令正文/异常流；reserved 统一 6–14、19–61；附录 0.7.3-rc 补条目；版本不变（0.7.3-rc）；sha256 同笔重算。
 # 2026-10-31（SPEC-179t 返工，A 方案；授权原话见任务书 §用户返工裁定原话 / A 方案裁定）：§3 恢复 cg0-cg7 共有；§3.8 改内部空间描述寄存器（每 4 个 rc 一块、i=0..15、4 行数组 space_{desc,start,size,attr}[i]、只读、写触发 CFXREG）；§2.1 补 cg7 互锁与 power BootROM X=1；附录 0.7.3-rc 条目改述；版本不变（0.7.3-rc）；sha256 同笔重算。
-sha256 = "d55fff183b178cfaf9bbdcc0ab85e565a979c8ccf532e3c79e3b1f12e248fa05"
+# 2026-10-31（INTEG-050t，授权见文件头注释）：§4.7 cfx_hart 计数收为 64 位 `cycle`/`insn`（rc2/rc3）、timer_cmp/timer_ctrl 前移 rc4/rc5、rc6/rc7 保留；§4.10 cfx_time 的 time_freq/time_value 前移 cg10 rc0/rc1、rc2–rc63 保留；附录 0.7.3-rc 补条目；版本不变（0.7.3-rc）；sha256 同笔重算。
+sha256 = "556d1e5c8809194afdc84d0d6a7e9ce59de6d5bae50108a7684a97f0fb861dd6"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -459,7 +465,8 @@ group = "dadao-2x"
 # 2026-10-29（SPEC-178t，授权见文件头注释）：§4 地址分区表述统一为 `addr[47:42]`（纯术语）；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-30（INTEG-044t，授权同 SEE 条目）：初始化示例的 `global_cfx_mask` 改按目标 cfx 的 `cfxtrap` 来源 mask（supv 源 = bit 2）；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-31（INTEG-047t，授权原话见任务书 §用户授权原话）：§1 错误码增 -5 SBI_ERR_BUSY；§9 表增 FID 6/7/8（DMA START/STATUS/WAIT）+ 说明段 + 分发示例 3 分支/3 处理器；附录 0.7.3-rc 补条目；sha256 同笔重算。
-sha256 = "7541b6e498706e14c3fd8811a43751a9f65c4359b9a60b284ffea54f8d58f5ac"
+# 2026-10-31（INTEG-050t，授权见文件头注释）：§7 `SBI_HART_SET_TIMER` 的 timeout 与 §10 `SBI_TIME_GET` 返回值明确为 64 位（语义不变）；附录 0.7.3-rc 补条目；版本不变（0.7.3-rc）；sha256 同笔重算。
+sha256 = "13893303056fdeb05fbfb57675de0c9932289f91cbce97a18de40f226e4c80ac"
 
 [[spec]]
 path = "spec/DADAO-23-HBI-超管系统二进制接口.md"
