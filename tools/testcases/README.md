@@ -47,6 +47,28 @@ rc=0；缺失/不一致 → 逐册 `FAIL` rc=1；未知参数 → rc=2。`--chec
 落点受守卫约束：`OUT_DIR` 必须在 `tests/inst/` 之下，否则 `ERROR` + 非零退出
 （防静默写回旧 `tests/vectors/isa`）。
 
+## mem / isa / misc 向量生成器（TESTCASES-088t）
+
+```sh
+python3 tools/testcases/generate_mem_vectors.py           # 写 tests/inst/base/mem-{rd,rb,ra}.yaml
+python3 tools/testcases/generate_isa_vectors.py           # 写 tests/inst/base/reg-*.yaml（六册）
+python3 tools/testcases/generate_isa_vectors.py reg-arith.yaml   # 只重生成指定册（位置参数）
+python3 tools/testcases/generate_misc.py                  # 写 tests/inst/base/misc.yaml
+python3 tools/testcases/generate_mem_vectors.py --check   # 只读校验 3 册
+python3 tools/testcases/generate_isa_vectors.py --check   # 只读校验 6 册（可与位置参数组合）
+python3 tools/testcases/generate_misc.py --check          # 只读校验 1 册
+```
+
+- 落点：三者的产物一律在 `tests/inst/base/`（mem 的 `OUT_DIR` 带同款守卫：不在 `tests/inst/`
+  之下即 `ERROR: OUT_DIR 必须位于 tests/inst 之下` + 非零退出）。
+- `--check`：与写盘**共用同一渲染函数**重渲染后与磁盘**逐字节**比较；全一致 → `PASS（N 册 byte-identical）`
+  rc=0；缺失/不一致 → `FAIL tests/inst/base/<册>: missing|mismatch` rc=1。**不写盘、不建目录、
+  不创建 `tests/vectors`**；`import` 亦无副作用。
+- 退出码：`0` = 成功/一致；`1` = 不一致或册缺失；`2` = 参数错误（未知选项、未知册名）。
+- 默认模式的 stdout 形如 `  tests/inst/base/mem-rd.yaml: N cases`（mem）、
+  `Wrote reg-arith.yaml: N cases for M identities`（isa）、`Written to: <path>`（misc），
+  便于日志比对。
+
 ## 已知缺陷（XFAIL 机制保留，登记已清空）
 
 驱动把登记为 `xfail` 的单元按**精确缺陷签名**判 `XFAIL`；一旦恢复语义值即报 `XPASS`
