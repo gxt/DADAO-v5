@@ -14,7 +14,7 @@
 | --- | --- | --- | --- |
 | GEM5-005t | 待开始 | 2026-11-02 07:07（登记） | scaleB C1 第三源 rf→rd + sc rd0 的 gem5 decode/断言更新 |
 | QEMU-078t | 待开始 | 2026-11-02 07:07（登记） | scaleB C1 第三源 rf→rd + sc rd0 ILLI；QEMU decode/helper |
-| TESTCASES-090t | 待开始 | 2026-11-02 07:07（登记） | scaleB C1 与 sc rd0 测试：正/负例、QEMU/gem5 对照 |
+| TESTCASES-090t | 待开始 | 2026-11-02 07:07（登记） | scaleB/sc 测试 + LLVM lit/isa matrix 同步；QEMU/gem5 对照 |
 | LLVM-142t | 待开始 | 2026-11-02 07:00（登记） | scaleB C1（第三源 rf→rd）+ sc rd0 汇编期 ILLI；LLVM TD/MC/CodeGen |
 | GEM5-004t | 已验证 | 2026-11-01 23:40 | B0 解码核心 + 264 条解码断言（388 反例）；gem5 骨架可构建，B1–B7 留边界 |
 | SPEC-181t | 待验收 | 2026-11-01 22:33（登记） | gem5 语义契约收口：ADR-0044 Accepted、FP remainder/scaleB/f2i、call IP+4、sc rd0、保留粒度 |
