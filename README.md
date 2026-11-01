@@ -17,7 +17,7 @@
 
 ## 项目里程碑
 
-> 已完成里程碑（M1–M9）；当前进度见 `.tao/knowledge/milestones.md`。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
+> 已完成里程碑（M1–M10）；当前进度见 `.tao/knowledge/milestones.md`。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
 
 | 里程碑 | 达成日 | 主题 |
 | --- | --- | --- |
@@ -30,6 +30,7 @@
 | M7 | 2026-10-13 | picolibc 移植（自带 test）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle |
 | M8 | 2026-10-19 | 无内核 Linux 用户态栈：musl 静态→动态 + QEMU user-mode（`ADR-0025`） |
 | M9 | 2026-10-24 | FP 完备性 + 线程支持 + ISA 收口（发布 SimRISC 0.5.5） |
+| M10 | 2026-11-01 | CFX 完善与验证：time/hart、异步仲裁、cg7 数组别名、escape 偏移收口、reserved 访存覆盖 |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -92,3 +93,10 @@
 - **原子与内存序**：`fence` 与 `lr`/`sc` 全部实现（核芯功能扩展 `cfxld`/`cfxst` 已删除）。
 - **发布与验收**：SimRISC **0.5.5**；三套大型测试两档复跑 **0 fail**（`embench-iot` 38/38；`libc-test` 静态 331 / 动态 338 pass；`llvm-test-suite` 静态 204 / 动态 203 pass）。
 - 归档与回顾见 `.tao/archive/M9/`（`README.md` / `m9-retrospective.md` / `issues-closed.md`）。
+
+### M10（2026-11-01）CFX 完善与验证
+
+- **时间与 hart**：`cfx_time`（1 GHz、64 位）+ 单 hart `cfx_hart`（64 位 cycle/insn、`timer_cmp`/`timer_ctrl`、`IMASK`/`ISTATUS`、`SBI_HART_SET_TIMER`）。
+- **异步中断**：`PMEM_DMA` 与 `TIMER` 统一仲裁；pending 只记在目标 cfx 的 `cg5 rc5`，按目标 cfxha 升序、单层投递，mask 挡住时保留并在解除后补投；不引入 `async_enable` 或跨 cfx 聚合位图。
+- **CFX 汇编/验证**：cg7 `space_*[i]` 按 `stride=4` 数组化，`llvm-mc`/`objdump` 可往返；`escape` 偏移收窄为 0/+4（`imms18[17:1]` SBZ）；reserved cfx 普通 `ld/st` 补 `CFXMEM` 向量。
+- **收口**：`check-night` **4/4 PASS**；L1/L2/L3 与 `check-milestone` 全绿；open issue **0**；`INTEG-052m` 为里程碑核验册。
