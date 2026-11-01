@@ -323,10 +323,11 @@ sub.so  {rd0, rd3}, rd0, rd4    @@ 旧 `neg.o`（64 位取负，双目的写回 
 文档示例**SHOULD**优先使用**别名形**（人读友好，且与既有 `DADAO-11/22/23` 一致）。
 
 ### 13.7 数组寄存器单下标（D10）
-数组 cfx 寄存器支持**单下标** `cfx_<cfxname>_<regname>[N]` ⇔ `(cfxha, cg, rc = rc_base + N)`：
-- `N` **MUST** 落在别名表中该寄存器的**名称列范围 `[lo..hi]`**（如 `0..63`、`0..7`）内；
-- `rc_base` 为该行 **`rc` 列的下界**；别名表以 `cfx_<…>[lo..hi]` 记整数组，**单下标是其具体化**；
-- 汇编器/检测器 **MUST 接受**该形（不视为违规）；`N` 越界 **MUST 报错**。
+数组 cfx 寄存器支持**单下标** `cfx_<cfxname>_<regname>[N]` ⇔ `(cfxha, cg, rc = rc_base + N*stride)`：
+- `N` **MUST** 落在 `[0, count)` 内；
+- `count`/`stride` 由别名表该数组行给出；`stride` 缺省 1（连续数组），cg7 `space_*` 为 `count=16`、`stride=4`、`rc_base=0/1/2/3`；旧 `format=1` 的 `[lo..hi]` 行按 `stride=1` 兼容；
+- `rc_base` 为该行 `rc-base`；别名表以 `array <name-base> ...` 记整数组，**单下标是其具体化**；
+- 汇编器/检测器 **MUST 接受**该形（不视为违规）；`N` 越界 **MUST** 按 `count` 报错。
 
 ### 13.8 示例
 
@@ -355,6 +356,7 @@ escape cfx_smon, [excp_cause_ip, 4]          @@ cfxha 写作标量别名
 
 - 删除 `cfxld`/`cfxst` 的书写规则与其 `crii` 格式（两条指令已从指令系统删除）；格式类清单只余 `crrr`/`ciii` 两种带 `cfxha` 的格式。
 - `fence` 改为 `ciii` 语法 `fence cfxHA, immu18`：`cfx0`/`cfx_umon` 都表示 all cfx；`immu18` 整体一个表达式；`fence 0` 不再接受。
+- §13.7 数组单下标扩展为 `rc = rc_base + N*stride`（`N ∈ [0,count)`；`stride` 由别名表给出，连续数组缺省 1）；配套别名表 stride 决策修订。
 
 - §13.8 数组单下标示例改用 `cfx_pmem_start[0]`（`cfx_ptw_ptbr` 已改为单份寄存器，不再有数组下标）。
 - `escape` 的 `imms20` 合法集收窄为 **0 / 4**（其它值报错）：§2.4 与 §5 的偏移校验由「`%4==0` 与范围」改为此限定；编码层 `imms18 ∈ {0, 1}`、`imms18[17:1]` 为 SBZ。

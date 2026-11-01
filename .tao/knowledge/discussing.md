@@ -4,12 +4,6 @@
 
 ## 待用户裁定：ADR
 
-### ADR-0017 D10 与 LLVM-141t stride
-
-- 状态：待用户裁定
-- 结论：LLVM-141t 已实现 `rc = rcBase + N*stride`；`ADR-0017 D10` 仍写 `rc = rc_base + N`，属扩展，未静默改写
-- 下一步：逐条确认后修订 D10 或另立 ADR；确认前不改 ADR
-
 ### SPEC-180t 的 ADR
 
 - 状态：待用户裁定

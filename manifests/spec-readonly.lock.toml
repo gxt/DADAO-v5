@@ -543,7 +543,10 @@ group = "toolchain-01"
 # 2026-11-01（SPEC-180t，授权原话见任务书 §用户已确认的设计）：§2.4/§5 的 escape 偏移校验由
 #   「`%4==0` 与范围」收窄为「只接受 0 与 4」，补 `imms18[17:1]` SBZ 口径；附录 0.5.4-rc 补条目；
 #   sha256 同笔重算。
-sha256 = "1d0a933d5a14f1da12447bb582ee85b232e7665dce1df8d77241b9f37acfffd2"
+# 2026-11-01（ADR-0017 D10 修订；用户原话「ADR0017：修订D10」，并选择同步 Toolchain-01 §13.7/contract-asm §13.7）：
+#   数组单下标扩展为 `rc = rc_base + N*stride`（`N ∈ [0,count)`；stride 由别名表给出，format=1 按 stride=1 兼容）；
+#   §13.7 + 0.5.4-rc 附录各 1 条；sha256 同笔重算。上述 1 册 sha256 于同一变更内同步重算（其余 20 册不变）。
+sha256 = "025a5cd0907cf888039baadea26ec1ac58dc280bfe46e135763d7bc60be7fd17"
 
 [[spec]]
 path = "spec/Machine-01-测试机运行环境.md"

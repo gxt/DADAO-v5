@@ -299,9 +299,9 @@
 
 ### §13.7 数组寄存器单下标（D10）
 
-- 数组 cfx 寄存器支持**单下标** `cfx_<cfxname>_<regname>[N]` ⇔ `(cfxha, cg, rc = rc_base + N)`。[Toolchain-01 §13.7][ADR-0017 D10]
-- `N` MUST 落在别名表中该寄存器名称列范围 `[lo..hi]`（如 `0..63`、`0..7`）内；`rc_base` 为该行 `rc` 列的下界。[Toolchain-01 §13.7][ADR-0017 D10]
-- 汇编器/检测器 MUST 接受该形（不视为违规）；`N` 越界 MUST 报错。[Toolchain-01 §13.7][ADR-0017 D10]
+- 数组 cfx 寄存器支持**单下标** `cfx_<cfxname>_<regname>[N]` ⇔ `(cfxha, cg, rc = rc_base + N*stride)`；`N` 为 `[0, count)` 的整数。[Toolchain-01 §13.7][ADR-0017 D10]
+- `count`/`stride` 由别名表该数组行给出；`stride` 缺省 1（连续数组），cg7 `space_*` 为 `count=16`、`stride=4`、`rc_base=0/1/2/3`；旧 `format=1` 的 `[lo..hi]` 行按 `stride=1` 兼容。[Toolchain-01 §13.7][ADR-0017 D10]
+- 别名表以 `array <name-base> ...` 记整数组，单下标是其具体化；汇编器/检测器 MUST 接受该形；`N` 越界 MUST 按 `count` 报错。[Toolchain-01 §13.7][ADR-0017 D10]
 
 ### §13.8 示例
 
