@@ -74,11 +74,11 @@
    - a. `cp` 备份 `tests/inst/base/misc.yaml` + `md5sum` → 改 1 个期望字节 → `make check-generator-sync` **rc≠0**（`generate_misc --check: FAIL`）→ `cp` 还原 + md5 一致 → 复跑 rc=0；
    - b. `cp` 备份 `tools/testcases/test_anti_forgery_008t.py` → 把 `INJECT1` 改成与 `PASS_CASES` 相同（即“未注入”）→ 脚本 **rc=1** 并打印 `FAIL: inject1` → `cp` 还原 + md5 一致 → 复跑 rc=0。
 9. **体例**：`make check-milestones-fresh` rc=0；`make check-tasks` rc=0；完成区 **≤30 行**。
-10. **证据脚本**：`.work/evidence/INFRA-115t/` 下一键脚本跑通（`checks=N failures=0` + 自身 rc 落盘），每条断言有**可达 FAIL** 路径。
+10. **证据脚本**：`.work/evidence/<任务ID>/` 下一键脚本跑通（`checks=N failures=0` + 自身 rc 落盘），每条断言有**可达 FAIL** 路径。
 
 ## 文件范围
 
-- 允许：`tests/inst/README.md`、`tests/README.md`、`tools/testcases/test_anti_forgery_008t.py`、`Makefile`（仅新目标 + `.PHONY` + 挂载 + 1 行 help）、`docs/Process-07-门控分层规范.md`（+1 行）、`.tao/tasks/infra/INFRA-115t-*.md`、`.tao/knowledge/milestones.md`、`.work/evidence/INFRA-115t/`。
+- 允许：`tests/inst/README.md`、`tests/README.md`、`tools/testcases/test_anti_forgery_008t.py`、`Makefile`（仅新目标 + `.PHONY` + 挂载 + 1 行 help）、`docs/Process-07-门控分层规范.md`（+1 行）、`.tao/tasks/infra/INFRA-115t-*.md`、`.tao/knowledge/milestones.md`、`.work/evidence/<任务ID>/`。
 - **条件允许**：`tests/INVENTORY.md`（仅当验收 2 实测不符）。
 - 禁止：`tests/inst/**` 的 YAML 内容、生成器脚本、QEMU/LLVM/musl、`spec/`、`contracts/`、`.tao/contracts/`、`.tao/adr/`、其它 Makefile 目标。
 
