@@ -1200,10 +1200,9 @@ check-milestones-fresh:
 # 每册 `**状态**` ∈ {已验证,里程碑}、`**项目里程碑**` 号 == 归档号，README §1 计数 == 目录
 # 实际册数、流水 ID == 任务书 ID（M7+）、MEMORY/指针/终局证据节、issues 快照非空。
 # 规则 = docs/Process-04 §5–§8。计数现场统计、不写死。
-# 过渡（INFRA-116t）：--pending-ok 仅豁免显式 PENDING_117（逐条命中）；INFRA-117t 归一后
-# 去掉该 flag（目标改为严格默认）并删除常量。
+# INFRA-117t 归一后 = 严格默认（无过渡 flag / 常量）。
 check-archive:
-	@$(PYTHON) tools/infra/check_archive.py --pending-ok
+	@$(PYTHON) tools/infra/check_archive.py
 
 check-component-changelog:
 	@$(PYTHON) tools/infra/check_component_changelog.py

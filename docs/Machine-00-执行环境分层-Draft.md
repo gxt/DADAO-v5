@@ -77,7 +77,7 @@
 
 ### 5.1 套件接入要点（Embench-IoT → DADAO）
 
-> 逐条要点提炼自 `embench-analysis.md`（原文已归档 `.tao/archive/M7/notes/embench-analysis.md`，含逐基准证据/脚本索引）；此处只留**接入判据**，不复述证据。
+> 逐条要点提炼自 `embench-analysis.md`（原文已并入 `.tao/archive/M7/m7-retrospective.md` 附录 B，含逐基准证据/脚本索引）；此处只留**接入判据**，不复述证据。
 
 - **平台接入面极窄**：Embench 只要求平台实现 **3 个 `void` 函数** `initialise_board` / `start_trigger` / `stop_trigger`（`support/support.h`）；**无** `uart_*`/`timer_*`/`power_*`/`exit` 钩子；计时为平台自选。
 - **无需 OS / varargs / libc malloc**：freestanding；所有 `printf/puts` 均在调试宏内（默认不编译）；堆 = BEEBS 自带静态 bump 堆（≤ 8 KiB）；停机由 crt0 走 semihosting `SYS_EXIT`。
@@ -96,4 +96,4 @@
 - 2026-10-12：**#6 裁定**（用户原话「**不立 ADR，只写在册里**」）⇒ §2 末新增「各层后置顺序」条，§3 #6 标已裁定。**框架类 6 项讨论收敛**（#1 暂缓、#2–#6 已定）。
 - 2026-10-12：新增 **§4 平台 × 能力矩阵**（用户裁定「入库 + 先填 qemu 列」）⇒ `qemu` 列填现状（逐格带依据），`gem5`/`verilator`/`fpga` 标 `待定（依据待补）`。
 - 2026-10-12：新增 **§5「测试与基准 × 平台 × 功能点」**（用户 2026-10-12 指令：把 **Embench / `ansibench` / LLVM lit / picolibc test** 等列入，分析"能在哪个平台测、能测哪些功能点"）；`ansibench` = `nfinit/ansibench`（纯 ANSI C、~359 KB、**上游未声明许可** ⇒ 接入待定）。
-- 2026-10-13：新增 **§5.1「套件接入要点（Embench-IoT → DADAO）」**（`INFRA-070t`：`embench-analysis.md` 收敛，提炼 5 条接入判据；原文归档 `.tao/archive/M7/notes/`）。
+- 2026-10-13：新增 **§5.1「套件接入要点（Embench-IoT → DADAO）」**（`INFRA-070t`：`embench-analysis.md` 收敛，提炼 5 条接入判据；原文并入 `.tao/archive/M7/m7-retrospective.md` 附录 B）。

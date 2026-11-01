@@ -26,6 +26,8 @@
 
 ## 2. 任务流水与实质改动（M7 时期，2026-10-11 ~ 2026-10-13，41 条）
 
+> 本节为任务流水（冻结）节；表格原样保留，不重写。
+
 > 原样搬入 `.tao/knowledge/milestones.md`「任务流水」的 M7 **已终态**行（**41**，含各模块 `m`）；每格单行。M7 期**未决** 1 行（`INFRA-071t`〔**已改标 `M8`**〕）仍留活表。
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
@@ -81,7 +83,7 @@
 - 里程碑定义/达成：`.tao/knowledge/milestones.md`
 - 里程碑回顾：本目录 `m7-retrospective.md`（含 §7 **待用户裁定 / 操作清单**；**注**：该文件为**归档时快照、不再更新**——其 §1.2「M7 尚未标记『达成』」/§7 相关表述随 2026-10-13 口径纠正而**失效**，以本 `README.md` 头部「更正说明」为准）
 - 台账快照：本目录 `issues-closed.md`（M7 阶段 closed **12** 条）
-- M7 期补充记录：本目录 `notes/`（`gate-tiering-design.md`/`embench-analysis.md`/`LLVM-070t-rootcause.md`/`SPEC-129t-count-table.md`/`INTEG-027t-report.md`）
+- M7 期补充记录：附录 A–E 见本目录 `m7-retrospective.md`（原 `notes/` 5 份全文，2026-11-01 并入）
 - 遗留台账：`.tao/knowledge/issues.yaml`（issue/待决）、`.tao/knowledge/lessons.md`（教训/方法论/过程记录）
 - 任务流水（之后）：`.tao/knowledge/milestones.md`「任务流水」（M7 未决项**仅** `INFRA-071t`〔**已改标 `M8`**〕）
 - **跨文件引用说明**：本归档**未更新**历史引用（`Process-04 §6`）；凡引用原 `.tao/tasks/<module>/<task>.md` 的 M7 任务书者，其内容现位于本目录 `<module>/`（历史指针）。

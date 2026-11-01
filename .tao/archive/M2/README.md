@@ -21,6 +21,8 @@
 
 ## 2. changelog（M2 时期，2026-09-23 ~ 10-04，61 条）
 
+> 本节 = 任务流水（冻结）历史别名；表格原样保留，不重写。
+
 | 日期 | 描述 | 执行方 |
 | --- | --- | --- |
 | 2026-10-04 | **`INFRA-033t`：`issues.yaml` 内容清理与校正（A–E，M2 归档前置）**。**119→113**（100o/19c → **72o/41c**）。**A** 头部：M1=达成（2026-09-22）/M2=进行中/M3=待开始，`M1-gate` 历史化，`scope` 值补 `M3`。**B**：`ISS-086`（check-spec-refs 76）→ closed（`SPEC-094t`）；`ISS-004`（soft-float）→ closed/改写（原生浮点）。**C**：`ISS-005/008/040/110` scope M2→M3。**D**：`ISS-081` 补 `INTEG-009t`、余归 M3。**E-1**：6 条记录/教训类（`ISS-024/032/035/055/066/072`）移入 `lessons.md`（id 不复用）。**E-2**：closed 20 + scope 校正 4 + 保留 1（`ISS-025`），逐条附实测依据。**证据**：`check_issues` EXIT=0；`make check` EXIT=0；一键证据 31/31 + 反例注入；reviewer + architect 独立注入（`ISS-086→open`、`ISS-005 M3→M2`）→ FAIL → 还原 sha 复原。 | engineer + reviewer + architect |

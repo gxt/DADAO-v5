@@ -132,8 +132,8 @@
 
 ## 8. 验收与纪律
 
-- **门控**：`make check-archive` 已挂 **L1**（`make check` 默认包含）；`--self-test` 必须 rc=0（基线 PASS + 注入 FAIL + 过渡边界）。最终态（`INFRA-117t` 归一后）`python3 tools/infra/check_archive.py`（严格）须 **rc=0**。
-- **过渡期（`INFRA-116t` → `INFRA-117t`）**：允许 `--pending-ok` 豁免**显式** `PENDING_117`（M2 两册状态括注、`M7/notes`、M9/M10 README 缺节），且常量项须**逐条命中**（未命中按 STALE 报红）；此时严格模式应为 **rc=1 且 VIOLATION=0**（只余 PENDING_117）。`117` 完成归一后**删除**该常量与 flag，严格模式全绿。
+- **门控**：`make check-archive` 已挂 **L1**（`make check` 默认包含）；`--self-test` 必须 rc=0（基线 PASS + 12 类注入 FAIL，各自可达）。
+- **最终态（`INFRA-117t` 归一后）**：`python3 tools/infra/check_archive.py` **严格默认**、无过渡 flag；**须 rc=0**（M1–M10 全部归档结构/册字段/五节/流水/issue 快照齐备）。M2 两册状态括注已移入 `> **状态注记**`；原 `notes/` 5 份已并入 `m7-retrospective.md` 附录 A–E；M9/M10 README 五节齐全、流水已冻结。
 - `make check` **EXIT 0**。
 - `git mv` 后 `git status` 显示 `R`（rename）。
 - **不误伤并行未提交工作**：只 `git add` 归档相关文件；并行任务书/补丁一律不动（本例曾遇 QEMU FP 并行工作，归档提交只含归档文件）。

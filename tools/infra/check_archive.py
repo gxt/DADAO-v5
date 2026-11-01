@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""check-archive: ``.tao/archive/M<i>/`` 归档结构 + 任务书字段门控（INFRA-116t）。
+"""check-archive: ``.tao/archive/M<i>/`` 归档结构 + 任务书字段门控（INFRA-116t / 117t）。
 
 规则真源 = ``docs/Process-04-里程碑归档规范.md`` §2/§4/§5/§6/§7/§8。
 本门控把「归档目录只允许什么」与「每份册必须是什么态」落为**机械检查**：
@@ -23,16 +23,15 @@
 设计要点：
   - **计数现场统计、不写死**；
   - **fail-closed**：无 ``M<i>`` 目录 / 无任务书 / 流水表空 ⇒ FAIL；
-  - **过渡常量** ``PENDING_117``：仅 ``--pending-ok`` 豁免，默认（严格）命中即 FAIL；
-    ``INFRA-117t`` 完成归一后删除该常量与该 flag。
+  - **严格默认**（``INFRA-117t`` 归一）：无过渡 flag / 常量，任何违规即 rc=1。
 
 Usage:
-    python3 tools/infra/check_archive.py [--pending-ok] [--root DIR] [--self-test]
+    python3 tools/infra/check_archive.py [--root DIR] [--self-test]
 
 ``--root DIR`` 检查另一棵树（默认仓库根）；``--self-test`` 用临时树跑
-「基线 PASS + 注入 FAIL + 过渡边界」自检。
+「基线 PASS + 12 类注入 FAIL」自检。
 
-Exit code: 0 = 无违规（严格）/ 仅剩 PENDING_117（过渡）；1 = 有违规。
+Exit code: 0 = 无违规；1 = 有违规。
 """
 from __future__ import annotations
 
@@ -60,23 +59,9 @@ ROOT_INTEG_HISTORICAL = frozenset({"M9", "M10"})
 _ROOT_INTEG_RE = re.compile(r"^INTEG-\d+m-.+\.md$")
 _TASK_ID_RE = re.compile(r"^([A-Z]+-\d+[a-z])")
 
-# ── 过渡常量（INFRA-116t → INFRA-117t）────────────────────────────────────────
-# 这些是**已知、待 117 归一**的缺口；`--pending-ok` 只豁免本表（逐条对账：
-# 表内项必须在现场**命中**，否则按 STALE 报红）。117 完成后整表与 flag 删除。
-PENDING_117: dict[tuple[str, str, str], str] = {
-    ("M2", "task", "TESTCASES-019t"): "状态带括注 `已验证（第 3 轮返工后）`；117 规范化为精确值",
-    ("M2", "task", "SPEC-064t"): "状态带括注 `已验证（**…**）`；117 规范化为精确值 + 状态注记",
-    ("M7", "dir", "notes"): "`notes/` 补充记录目录；117 并入 `m7-retrospective.md` 附录",
-    ("M9", "flow", "§2"): "README 缺「任务流水（冻结）」节；117 从里程碑台账回填",
-    ("M9", "memory", "§4"): "README 缺「MEMORY 摘录」节；117 补齐",
-    ("M10", "flow", "§2"): "README 缺「任务流水（冻结）」节；117 从里程碑台账回填",
-    ("M10", "memory", "§4"): "README 缺「MEMORY 摘录」节；117 补齐",
-}
-
-
 @dataclass(frozen=True)
 class Violation:
-    """一条违规；key = (里程碑, 类别, 主体)，用于 PENDING_117 逐条对账。"""
+    """一条违规；key = (里程碑, 类别, 主体)，用于报告去重/排序。"""
 
     key: tuple[str, str, str]
     message: str
@@ -85,18 +70,13 @@ class Violation:
 @dataclass
 class AuditResult:
     real: list[Violation] = field(default_factory=list)
-    pending_hits: list[Violation] = field(default_factory=list)
-    stale_pending: list[tuple[str, str, str]] = field(default_factory=list)
     milestones: list[str] = field(default_factory=list)
     stats: dict[str, int] = field(default_factory=dict)
     per_milestone: list[str] = field(default_factory=list)
-    pending_ok: bool = False
 
     @property
     def ok(self) -> bool:
-        # 严格模式：PENDING_117 同样是违规（不豁免）⇒ 非绿。
-        return (not self.real and not self.stale_pending
-                and (self.pending_ok or not self.pending_hits))
+        return not self.real
 
 
 # ── 文本/表格解析 ──────────────────────────────────────────────────────────────
@@ -378,15 +358,11 @@ def _milestone_dirs(root: Path, add) -> list[Path]:
     return sorted(dirs, key=lambda p: int(p.name[1:]))
 
 
-def audit(root: Path, pending_ok: bool) -> AuditResult:
-    res = AuditResult(pending_ok=pending_ok)
-    pending_keys = set(PENDING_117)
+def audit(root: Path) -> AuditResult:
+    res = AuditResult()
 
     def add(v: Violation) -> None:
-        if v.key in pending_keys:
-            res.pending_hits.append(v)
-        else:
-            res.real.append(v)
+        res.real.append(v)
 
     for mdir in _milestone_dirs(root, add):
         mnum = int(mdir.name[1:])
@@ -459,21 +435,17 @@ def audit(root: Path, pending_ok: bool) -> AuditResult:
         if (mdir / "issues-closed.md").is_file() and (mdir / "issues-closed.md").stat().st_size:
             _check_issues(mdir, add)
 
-    if pending_ok:
-        hit = {v.key for v in res.pending_hits}
-        res.stale_pending = sorted(pending_keys - hit)
     res.real.sort(key=lambda v: (v.key, v.message))
-    res.pending_hits.sort(key=lambda v: (v.key, v.message))
     return res
 
 
 # ── 输出 ──────────────────────────────────────────────────────────────────────
-def _print_report(root: Path, res: AuditResult, pending_ok: bool) -> None:
+def _print_report(root: Path, res: AuditResult) -> None:
     print("=" * 72)
-    print("check-archive — `.tao/archive/M<i>/` 结构与册字段门控（INFRA-116t）")
+    print("check-archive — `.tao/archive/M<i>/` 结构与册字段门控（INFRA-116t/117t）")
     print("=" * 72)
     print(f"  检查根（现场）: {root}")
-    print(f"  模式: {'--pending-ok（过渡）' if pending_ok else '严格'}")
+    print(f"  模式: 严格（默认；无过渡 flag）")
     print(f"  归档目录（现场统计）: {len(res.milestones)} 个 —— {' '.join(res.milestones)}")
     print(f"  扫描归档册（现场统计）: {res.stats.get('tasks', 0)} 份")
     for line in res.per_milestone:
@@ -485,34 +457,14 @@ def _print_report(root: Path, res: AuditResult, pending_ok: bool) -> None:
         for v in res.real:
             print(f"  [{v.key[0]}/{v.key[1]}/{v.key[2]}] {v.message}")
 
-    if pending_ok:
-        print()
-        print(f"PENDING（PENDING_117，{len(res.pending_hits)} 条）:")
-        for v in res.pending_hits:
-            print(f"  [{v.key[0]}/{v.key[1]}/{v.key[2]}] {v.message}")
-        if res.stale_pending:
-            print()
-            print("STALE PENDING（常量项在现场未命中 ⇒ 常量须更新）:")
-            for key in res.stale_pending:
-                print(f"  [{key[0]}/{key[1]}/{key[2]}] {PENDING_117[key]}")
-    elif res.pending_hits:
-        print()
-        print(f"VIOLATION-PENDING_117（严格模式不豁免，{len(res.pending_hits)} 条）:")
-        for v in res.pending_hits:
-            print(f"  [{v.key[0]}/{v.key[1]}/{v.key[2]}] {v.message}")
-
     print("-" * 72)
     if res.ok:
-        suffix = f"（仅剩 PENDING_117 {len(res.pending_hits)} 条，待 INFRA-117t 归一）" if pending_ok else ""
-        print(f"结果: PASS{suffix}")
+        print("结果: PASS")
     else:
-        print(f"结果: FAIL（违规 {len(res.real)} 条"
-              + (f" + PENDING_117 {len(res.pending_hits)} 条（严格模式）" if res.pending_hits and not pending_ok else "")
-              + (f" + STALE PENDING {len(res.stale_pending)} 条" if res.stale_pending else "")
-              + "）")
+        print(f"结果: FAIL（违规 {len(res.real)} 条）")
 
 
-# ── 自检（临时树：基线 PASS + 注入 FAIL + 过渡边界）────────────────────────────
+# ── 自检（临时树：基线 PASS + 12 类注入 FAIL，各自可达）──────────────────────
 _BASE_TASK = """# INFRA-001t 示例任务
 
 **模块**：infra
@@ -616,31 +568,15 @@ def _build_baseline(root: Path) -> None:
     _build_historical(root, "M6")
 
 
-def _build_pending_tree(root: Path) -> None:
-    """M2 两册状态括注 + M7 notes/ + M9/M10 README 缺流水/MEMORY（= PENDING_117）。"""
-    _build_historical(root, "M2", extra={
-        "testcases": {"TESTCASES-019t-示例.md":
-                      _BASE_TASK.format(pm="M2", status="已验证（第 3 轮返工后）")},
-        "spec": {"SPEC-064t-示例.md":
-                 _BASE_TASK.format(pm="M2", status="已验证（**补填**）")},
-    })
-    m7 = _build_milestone(root, "M7")
-    _write(m7 / "notes" / "record.md", "# 补充记录\n")
-    _build_milestone(root, "M9", flow=False, memory=False)
-    _build_milestone(root, "M10", flow=False, memory=False)
-
-
 def _mutate_copy(src: Path, dst: Path) -> None:
     shutil.copytree(src, dst)
 
 
-def _check_case(name: str, root: Path, pending_ok: bool,
+def _check_case(name: str, root: Path,
                 expect_rc: int, expect_keys: set[tuple[str, str, str]]) -> bool:
-    res = audit(root, pending_ok)
+    res = audit(root)
     rc = 0 if res.ok else 1
-    keys = {v.key for v in res.real} | {v.key for v in res.pending_hits}
-    if pending_ok:
-        keys |= {(k[0], "stale-" + k[1], k[2]) for k in res.stale_pending}
+    keys = {v.key for v in res.real}
     ok = (rc == expect_rc) and expect_keys <= keys
     print(f"  [{'PASS' if ok else 'FAIL'}] {name}: 期望 rc={expect_rc} "
           f"命中键={sorted(expect_keys) or '∅'} / 实际 rc={rc} 命中={sorted(keys) or '∅'}")
@@ -654,14 +590,14 @@ def self_test() -> int:
         baseline = base / "baseline"
         _build_baseline(baseline)
         print("自检 1：基线（M9 五节 + M6 历史 changelog）")
-        results.append(_check_case("baseline", baseline, False, 0, set()))
+        results.append(_check_case("baseline", baseline, 0, set()))
 
         def inject(idx: int, label: str, mutate, keys: set[tuple[str, str, str]]) -> None:
             tree = base / f"case{idx}"
             _mutate_copy(baseline, tree)
             mutate(tree / ".tao" / "archive" / "M9")
             print(f"自检 {idx + 1}：注入 {label}")
-            results.append(_check_case(label, tree, False, 1, keys))
+            results.append(_check_case(label, tree, 1, keys))
 
         inject(1, "根级杂项文件", lambda m: _write(m / "extra.md", "# x\n"),
                {("M9", "rootfile", "extra.md")})
@@ -712,33 +648,6 @@ def self_test() -> int:
         inject(12, "历史归档缺三件套",
                lambda m: (m / "issues-closed.md").unlink(),
                {("M9", "archive", "issues-closed.md")})
-
-        print(f"自检 {len(results) + 1}：过渡边界（PENDING_117 树）")
-        ptree = base / "pending"
-        _build_pending_tree(ptree)
-        results.append(_check_case("pending:strict", ptree, False, 1, set(PENDING_117)))
-        pres = audit(ptree, True)
-        strict = audit(ptree, False)
-        strict_keys = {v.key for v in strict.real} | {v.key for v in strict.pending_hits}
-        boundary_ok = (
-            pres.ok
-            and strict_keys == set(PENDING_117)
-            and not pres.stale_pending
-            and {v.key for v in pres.pending_hits} == set(PENDING_117)
-        )
-        print(f"自检 {len(results) + 1}：--pending-ok 边界")
-        print(f"  [{'PASS' if boundary_ok else 'FAIL'}] pending:--pending-ok "
-              f"期望 rc=0 且 PENDING 命中 == 常量 {len(PENDING_117)} 条 / "
-              f"实际 rc={0 if pres.ok else 1} 命中={len(pres.pending_hits)} "
-              f"strict 唯一键={sorted(strict_keys) == sorted(set(PENDING_117))}")
-        results.append(boundary_ok)
-
-        stale_ok = audit(baseline, True)
-        stale = bool(stale_ok.stale_pending) and not stale_ok.ok
-        print(f"自检 {len(results) + 1}：常量对账（未命中即 STALE）")
-        print(f"  [{'PASS' if stale else 'FAIL'}] pending:stale 常量未命中 ⇒ FAIL "
-              f"（实际 rc={0 if stale_ok.ok else 1}，stale={len(stale_ok.stale_pending)}）")
-        results.append(stale)
     finally:
         shutil.rmtree(base, ignore_errors=True)
 
@@ -754,8 +663,6 @@ def main() -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--root", type=Path, default=None,
                         help="检查另一棵树（默认仓库根）")
-    parser.add_argument("--pending-ok", action="store_true",
-                        help="过渡模式：只豁免显式 PENDING_117（INFRA-117t 后删除）")
     parser.add_argument("--self-test", action="store_true",
                         help="用临时树跑可达 FAIL 自检")
     args = parser.parse_args()
@@ -767,8 +674,8 @@ def main() -> int:
     if not root.is_dir():
         print(f"check-archive: ERROR: --root 不存在: {root}", file=sys.stderr)
         return 1
-    res = audit(root, args.pending_ok)
-    _print_report(root, res, args.pending_ok)
+    res = audit(root)
+    _print_report(root, res)
     return 0 if res.ok else 1
 
 
