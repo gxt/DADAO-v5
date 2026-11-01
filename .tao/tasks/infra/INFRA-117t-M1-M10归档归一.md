@@ -1,67 +1,94 @@
-# INFRA-117t: M1–M10 归档归一（流水冻结、状态修正、M7 notes）
+# INFRA-117t: M1–M10 归档归一
 
 **模块**：infra
 **项目里程碑**：M10 后（维护）
-**依赖**：`INFRA-116t`（Process-04 规则与 `check_archive`；本任务完成后移除 M7 notes 临时例外）
+**依赖**：`INFRA-116t`（Process-04 规则 + `check_archive.py` 就绪）
 **状态**：待开始
 
-## 用户授权与背景
+## 执行环境
+**执行环境**：本地（仓库根 `/mnt/tao/DADAO-v5`；临时产物只放 `/tmp/opencode/INFRA-117t/`，证据落 `.work/evidence/INFRA-117t/`）
 
-用户 2026-11-01 确认：任务流水搬入各归档 README 并从 `milestones.md` 清理；归档目录只三文件 + 模块任务；任务书必须与 README 流水对应且已验收；m 不强制；缺状态补状态；非精确状态规范化；模板统一；M7 notes 全部并入 `m7-retrospective.md` 附录并删除 `notes/`。
+## 预检（只读，已现场核实）
 
-扫描事实（2026-11-01）：
-- M1–M10 均有 README/retro/issues；任务数：M1 76、M2 150、M3 41、M4 32、M5 27、M6 47、M7 41+5 notes、M8 68、M9 68、M10 70+m。
-- M9/M10 README 无任务流水；M9/M10 历史行仍在 `milestones.md`。
-- M6 `INTEG-023k` 无 `**状态**`；M2 `TESTCASES-019t`/`SPEC-064t` 状态为 `已验证（…`，非精确。
-- M7 `notes/` 5 份；`INTEG-027t-report.md` 内含 `待验收`。
-- M8–M10 仅 INTEG m、M3 缺 qemu m、M7 多 archive m：按用户裁定不补、不删、不改；m 可选。
+- `milestones.md` 现有 **74** 行流水：M9 仅 `INTEG-037m`（2026-10-25 00:00）1 行；M10 期 **70** 行；M10 后维护 **3** 行（`INFRA-115t` / `QEMU-077t` / `INFRA-113t`）。
+- M9 的 68 行流水在 `M9 归档` 提交 `e70fb74d` 中已删除，**只能从 `git show e70fb74d^:.tao/knowledge/milestones.md` 恢复**（该父提交中 2026-10-19~10-24 的 68 行；其中 `SPEC-172t` 为 `待验收` + `（登记）`，任务书现为 `已验证`，提交 `bcd5f773` 时间 **2026-10-24 23:57**）。
+- M9 任务书 = 68 模块册 + 根级 `INTEG-037m`；M10 任务书 = 70 模块册 + 根级 `INTEG-052m`（`m` 册按 `里程碑` 状态**不入流水**，见其 §说明）。
+- `M7/notes/` 5 文件共 **746** 行；`M7/notes/INTEG-027t-report.md` 状态 `待验收`，其余 4 份无任务书字段。
+- **事实更正（相对派单原文）**：M6 `INTEG-023k` **并非缺状态**——第 2 行内联 `**模块**：integ　**项目里程碑**：M6　**状态**：已验证`，值已精确；117 只做**格式归位**（拆成独立行），不重复插入、不改值。
+- M2 两册确为带括注状态：`TESTCASES-019t` = `已验证（第 3 轮返工后）`；`SPEC-064t` = `已验证（**2026-10-01 主会话补填完成区**——…）`。
+- `check_archive.py` 由 116 交付；116 的 `--pending-ok` 仅豁免 M2 两册、`M7/notes`、M9/M10 README 缺节；117 完成后必须全绿严格。
 
-## 目标
+## 接口规范
 
-1. **M9/M10 流水冻结**：
-   - 把 `milestones.md` 中 M9/M10 历史行原样搬入对应 `archive/M9/README.md` / `M10/README.md` 的 `## 2 任务流水（冻结）`（状态/日期/一句改动），并补 `## 4 MEMORY 摘录`（0 行/指针）与 `## 5 指针`，按 Process-04 模板。
-   - 从 `milestones.md` 删除 M9/M10 历史行；保留 M10 后/维护任务行（INFRA-113/116/117 等）与 M10 归档指针。
-   - 更新 M10 README 中「保留活表」旧句为「已冻结在本 README §2」。
-2. **门控适配**：
-   - `check_milestones_fresh` A2：m 册任务号允许在归档任务文件名中命中，不强制活流水表有行；M9/M10 归档 m 不再导致假红。
-   - `check_milestone_tasks`：按 Process-04「m 可选」处理无活 m（当前 M10 m 已归档）；不得因 M10 已归档而误报。
-   - `check_archive` 去掉 M7 notes 临时例外，跑严格模式。
-3. **状态修正**：
-   - M6 `INTEG-023k` 补 `**状态**：已验证`（历史内容不改）。
-   - M2 `TESTCASES-019t`、`SPEC-064t` 的 `**状态**` 规范为 `已验证`，括号内容移到审阅/注记。
-4. **M7 notes 合并**：
-   - 将 `M7/notes/` 5 份按主题并入 `M7/m7-retrospective.md` 附录：agent/规则重构、LLVM 误编译根因、写死计数判定表、门控分层设计、Embench 接入分析。
-   - 删除 `M7/notes/` 目录；M7 README 指针更新；`INTEG-027t-report` 的 `待验收` 随之消失/改为历史报告。
-5. **模板**：M9/M10 按统一五节；M1–M8 未缺失的保持原文，不重写大段内容；README 声明任务书与流水一一对应。
-6. **验证**：`check_archive` 严格 rc=0；`check_milestones_fresh` rc=0；`make check` L1 rc=0；`milestones.md` 不再有 M1–M10 历史行；M7 notes 0；M6/M2 状态精确；M9/M10 流水条目数 = 归档任务数（排除 m/notes 口径按实际）。
+### A. M9 README（`.tao/archive/M9/README.md`）
 
-## 文件范围
+1. 新增 `## 2 任务流水（冻结）`：**69 行** =
+   - 68 行：从 `git show e70fb74d^:.tao/knowledge/milestones.md` 取 2026-10-19~10-24、任务号全部落在 M9 归档册的行；
+   - 1 行：现有 `INTEG-037m | 已验证 | 2026-10-25 00:00`。
+   - 列固定 `| 编号 | 状态 | 完成时间 | 一句改动 |`；`SPEC-172t` 状态改 `已验证`、时间用 `2026-10-24 23:57`；其余行去掉 `（登记）`；**每行状态必须等于归档任务书 `**状态**`**。
+2. 现有 `## 2 终局证据` → `## 3 终局证据`。
+3. 新增 `## 4 MEMORY 摘录`：M9 归档时已移出，写 `0 行` + 指针（`.tao/knowledge/MEMORY.md` 归档指针 / `m9-retrospective.md`）。
+4. 新增 `## 5 指针`：合并现 `## 3 相关索引`（issues、核验册、回顾）+ `milestones.md` 归档指针。
+5. 流水 68 行与 `M9/{infra,llvm,qemu,spec,testcases}/*.md` **一一对应**（根级 `INTEG-037m` 可入流水，已入）。
 
-- `.tao/archive/M9/README.md`、`M10/README.md`（流水/模板）
-- `.tao/archive/M7/m7-retrospective.md`、`.tao/archive/M7/README.md`、删除 `.tao/archive/M7/notes/**`
-- `.tao/archive/M6/integ/INTEG-023k-M6启动与分解.md`
-- `.tao/archive/M2/testcases/TESTCASES-019t-st源为0号寄存器用例修正.md`、`.tao/archive/M2/spec/SPEC-064t-adr0004-L49复位行对齐D7.md`
-- `.tao/knowledge/milestones.md`
-- `tools/infra/check_milestones_fresh.py`、`tools/infra/check_milestone_tasks.py`、`tools/infra/check_archive.py`（117 的例外移除）
-- 本任务书
+### B. M10 README（`.tao/archive/M10/README.md`）
 
-**不改**：M1–M10 任务内容（除上述状态入口）、M8–M10 m 数量、M3 qemu m、M7 额外 m、spec/contracts/代码。
+1. 新增 `## 2 任务流水（冻结）`：**70 行**，取自 `milestones.md` 现行 M10 期行（排除 `INFRA-115t` / `QEMU-077t` / `INFRA-113t` 与 `INTEG-037m`）；状态/时间/一句改动原样，去掉 `（登记）`（M10 行应无）；`INTEG-052m` 不入流水（`m` 册 `里程碑` 状态，沿用其自身口径）。
+2. 现有 `## 2 终局证据` → `## 3 终局证据`。
+3. 新增 `## 4 MEMORY 摘录`：`0 行` + 指针（M10 归档时已移出）。
+4. 新增 `## 5 指针`：合并现 `## 3 相关索引 / 指针` + 更新「里程碑定义/达成」措辞（流水已冻结在本 README §2，活台账不再保留 M10 行）。
+5. 70 行与 `M10/{infra,integ,llvm,qemu,spec,testcases}/*.md` 一一对应。
 
-## 验收
+### C. `.tao/knowledge/milestones.md`
 
-1. M9/M10 README 有冻结流水，行数与归档任务（去除 m）一致；`milestones.md` 无 M9/M10 历史行，只有 M10 后任务与指针。
-2. `check_milestones_fresh`/`check_milestone_tasks`/`check_archive` 严格 rc=0；`check_archive --self-test` rc=0。
-3. M6 `INTEG-023k` 状态精确；M2 两个状态精确。
-4. `M7/notes` 不存在；5 份内容全部出现在 `m7-retrospective.md` 附录（可用 grep 标题/关键词核对）。
-5. `make check` L1 rc=0；无 archive 任务内容/代码越界。
-6. 证据脚本；不跑夜跑；完成区 ≤30 行。
+1. 删除 **70** 条 M10 期流水行 + `INTEG-037m` 行（共 71 行）；**保留** `INFRA-115t`、`QEMU-077t`、`INFRA-113t`、`INFRA-116t`、`INFRA-117t`。
+2. 新增 `> **M9 归档指针（2026-11-01）**：… 流水 69 行已冻结到 .tao/archive/M9/README.md §2`。
+3. 改写现有 M10 归档指针：「本页保留 M10 任务流水行」→「流水 70 行已冻结到 `.tao/archive/M10/README.md §2`，本页仅留 M10 后维护行」。
+4. 保留 `**项目里程碑 = M10**` 断言（本任务不改当前里程碑号）。
 
-## 5 项预检（待执行前复核）
+### D. 状态规范化与格式归位（历史内容不改）
 
-1. 依赖 116 已完成（规则/checker）；2. 归档任务 ID/状态可机械清点；3. 验收可跑；4. 与 `milestones.md` 现场一致；5. 不触 spec/contracts/代码。
+1. `M2/testcases/TESTCASES-019t-*.md`、`M2/spec/SPEC-064t-*.md`：`**状态**` 行改为**精确** `**状态**：已验证`；原括注**原样**移到紧跟其后的 `> **状态注记**：…`（保留全部文字），不删改正文。
+2. `M6/integ/INTEG-023k-*.md`：把第 2 行拆为三行独立字段（模块 / 项目里程碑 / 状态），值不变；**不新增重复状态行**。
+3. `M7/notes/INTEG-027t-report.md` 的 `待验收` 随 `notes/` 删除而消失；不另建任务书。
+
+### E. M7 `notes/` 并入回顾
+
+1. 将 5 份文件**全文**并入 `.tao/archive/M7/m7-retrospective.md` 附录，按 5 个主题分节（建议 `## 附录 A–E`：gate-tiering-design / embench-analysis / LLVM-070t-rootcause / SPEC-129t-count-table / INTEG-027t-report），保留原文与行数（746 行，允许只加标题与来源行）。
+2. `git rm -r .tao/archive/M7/notes/`；更新 `.tao/archive/M7/README.md` §4 指针为「附录 A–E 见 `m7-retrospective.md`」。
+3. 更新**活文档**中的 `M7/notes` 引用（已现场定位）：
+   - `docs/Process-07-门控分层规范.md`（文件头 §缘起、§1 层边界注）→ 指向 `m7-retrospective.md` 附录；
+   - `docs/Machine-00-执行环境分层-Draft.md`（2 处）→ 同上；
+   - `.tao/archive/M7/README.md`。
+   - **不改**已归档任务书内的历史路径（如 `M7/infra/INFRA-070t`、`M7/integ/INTEG-035m`、`M8/infra/INFRA-071t`）——历史快照，保留溯源。
+4. `make check-knowledge-refs` 必须 rc=0（悬空引用清零）。
+
+### F. 模板最小统一（不重写内容）
+
+- M1–M6：在 `## 2. changelog` / `## 2. 台账快照` 标题下加**一句**「本节 = 任务流水（冻结）历史别名」；不重命名、不搬行、不改内容。
+- M7/M8：已用「任务流水与实质改动」，保持；只在标题后补「（冻结）」同义说明（可选，不得改表）。
+- M9/M10：按 A/B 补齐五节，成为后续归档模板实例。
+
+### G. 门控收口
+
+1. `Makefile` 去掉 `check-archive` 的 `--pending-ok`（目标改为严格默认）。
+2. `tools/infra/check_archive.py` 删除 `PENDING_117` 常量与 `--pending-ok` 分支；`--self-test` 去掉过渡用例、保留 ≥6 类注入。
+3. `check_milestones_fresh.py` A2：若删行后出现「`m` 册列号必须入流水」的假红，按新口径最小调整——**`m` 册列出的号在归档任务文件名命中即可**（已归档豁免），不强制活流水有行；不得放宽其它断言。
+4. `check_milestone_tasks.py`：**不在 L1**，本任务不调整；M11 未定义期间 `make check-milestone` 因「无活 `m` 册」**预期红**（M10 README 已记录），117 只在完成区披露。
+
+## 验收标准
+
+1. `python3 tools/infra/check_archive.py` **rc=0**（严格）；`grep -R "pending-ok\|PENDING_117" Makefile tools/infra/check_archive.py` = **0 命中**。
+2. `make check` **rc=0**（L1 含 `check-archive` 严格）。
+3. `python3 tools/infra/check_milestones_fresh.py` **rc=0**；流水表**只剩** 5 行（`INFRA-115t`/`QEMU-077t`/`INFRA-113t`/`INFRA-116t`/`INFRA-117t`），无 M9/M10 历史行；M9/M10 归档指针各 1 行。
+4. `python3 tools/infra/check_tasks.py` **rc=0**（0 漏收尾）。
+5. M9：流水 **69** 行，68 模块册 + `INTEG-037m` 一一对应；`SPEC-172t` = `已验证` / `2026-10-24 23:57`，全表无 `（登记）`。M10：流水 **70** 行与 70 模块册一一对应，无 `（登记）`。
+6. 状态规范化：`grep -n "^\*\*状态\*\*" M2 两册` = 精确 `已验证`，括注在 `> **状态注记**`；`INTEG-023k` 三字段分行且值不变。
+7. `test ! -e .tao/archive/M7/notes`；5 份原文行数合计 **746** 行出现在 retrospective 附录（逐文件计数对账）；`grep -R "M7/notes" docs .tao/archive/M7/README.md` = 0（归档任务书历史引用不计）。
+8. `git diff --name-only` 仅含：`M1–M10/README.md`（M9/M10 为主，M1–M8 仅别名句/指针）、M2 两册、M6 `INTEG-023k`、`M7/m7-retrospective.md`、`M7/README.md`、删除 `M7/notes/**`、`docs/Process-07`、`docs/Machine-00`、`milestones.md`、`Makefile`、`tools/infra/check_archive.py`、`tools/infra/check_milestones_fresh.py`（仅必要）、本任务书。**不改** M10 归档 `tasks/m`；不补/不删任何 `m`。
+9. 证据 `.work/evidence/INFRA-117t/run.sh` 一键重跑（逐条命令 + rc），reviewer 独立重跑 + 一次反例注入（`cp`+md5 还原）。
 
 ## 完成区
-
 **测试结果**：
 **修改文件**：
 **验收结果**：
