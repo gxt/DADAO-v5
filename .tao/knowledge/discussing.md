@@ -60,7 +60,11 @@
 - 用户 2026-11-01 裁定：现有 Linux 开发延至 M12 或后续；先完成 gem5，gem5 成为新里程碑 M11。
 - 新模块：`gem5`，任务前缀 `GEM5-`；目录 `.tao/tasks/gem5/`。Linux 模块保留，恢复时再用。
 - 工作方式：**不做 PR merge、不建 worktree**；在本仓库普通任务分支上按 DADAO 最新 spec 重写/整理补丁。
-- 约束：其它模块（LLVM/QEMU/picolibc/测试/基础设施）如需修改，先经用户同意；测试独立调整，不与实现混在一起。
+- 范围：**保留全系统态**（Machine-01、boot ROM、模式移交、semihosting、PTW/TLB 等），按最新 DADAO 规范重做，不缩成纯用户态。
+- 测试：按 `docs/Process-09` 的 `inst/arch/unit/tset` 四 scope 调整；**不新建 `tests/gem5/` 平行体系**；gem5 只作为 system 后端，复用现有向量、bootrom、harness 和 case 清单；该合并的合并。
+- QEMU/gem5 一致性：同一 case 在 QEMU system 与 gem5 system 上跑，比较架构结果/退出码，不比较时序；不一致必须解释或修复。
+- 一致性边界：`inst`/`arch` 与裸机 E2E 可直接做 QEMU system vs gem5 system；`tset` 的 libc-test/llvm-ts 当前是 QEMU **user-mode**，不能直接和 gem5 full-system 比较；若要纳入，需先定义 QEMU system/Linux 运行载体，不能拿不同模式的结果冒充一致。
+- 约束：其它模块（LLVM/QEMU/picolibc/测试/基础设施）如需修改，先经用户同意；测试调整**单独立任务**，不与实现补丁混在一起。
 - PR：`gxt/DADAO-v5#3`，标题“gem5: 提交 DADAO 裸机功能闭环里程碑（GEM5-008m）”，当前 **draft**、`mergeable=false`、`mergeable_state=dirty`。
 - 分支：head `JeffffHu:DADAO-v5:pr/gem5-008m-milestone`，head commit `7ea82cfe…`；base 为 `gxt:master` 的 `c6fbcbae…`；差异约 **97 文件 / +7710 行**。
 - 本地试合并（基于当前 master）冲突 **12 项**，主要来自 M10 归档后的任务删除、`tests/llvm` 迁 `tests/unit`、Makefile、LLVM/QEMU/picolibc 补丁、ADR 编号碰撞。
