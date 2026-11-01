@@ -9,6 +9,16 @@
 
 用户 2026-11-01 接受 G1 语义矩阵，允许修 SPEC/契约任务；本任务只修规范/契约/ADR 状态，不写 gem5 实现。
 
+## 已确认口径（2026-11-01 用户裁决）
+
+- **F2**：`ADR-0044` 置 `Accepted`（decision 已确认）。
+- **F5.1**：`ftrem/forem` 按 IEEE 754 remainder；`y=0`/`x=Inf`/sNaN ⇒ NV+qNaN；`y=Inf` ⇒ x；不置 NX/OF/UF。
+- **F5.2 C1**：`ftsclb`/`fosclb` 第三操作数 `rfHD → rdHD`；同 `orrr` 编码，不新增 opcode/格式；`rdHD` 为 64 位有符号整数指数；`rd0` 作指数 = 0；旧 `rf,rf,rf` 写法失效。
+- **F5.3**：`convert_f2i` 按 IEEE 754-2019；有限 inexact ⇒ NX；NaN/Inf/超范围 ⇒ 饱和 + NV。
+- **F7**：`call` 返回地址 = 当前指令地址 + 4（相对/绝对两种形式一致）。
+- **F8.1**：M11 保留粒度 = 精确地址 + 访问宽度。
+- **F8.2**：`sc` 的 `rdHB = rd0` ⇒ ILLI（新增 `dst_rd0` 规则）。
+
 ## 目标
 
 按 `GEM5-002t` 的矩阵与报告，处理已识别的规范缺口，形成可实现的明确口径：
