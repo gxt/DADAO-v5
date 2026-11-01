@@ -1198,9 +1198,9 @@ check-milestones-fresh:
 
 # 归档结构门控 (INFRA-116t, L1 成员): `.tao/archive/M<i>/` 只允许三件套 + 模块子目录，
 # 每册 `**状态**` ∈ {已验证,里程碑}、`**项目里程碑**` 号 == 归档号，README §1 计数 == 目录
-# 实际册数、流水 ID == 任务书 ID（M7+）、MEMORY/指针/终局证据节、issues 快照非空。
+# 实际册数、流水 ID == t 册或 t+m 集合（M7+）、MEMORY/指针/终局证据节、issues 快照非空。
 # 规则 = docs/Process-04 §5–§8。计数现场统计、不写死。
-# INFRA-117t 归一后 = 严格默认（无过渡 flag / 常量）。
+# INFRA-117t 归一后 = 严格默认；INFRA-118t 起 m 册统一放模块目录（根级仅三件套）。
 check-archive:
 	@$(PYTHON) tools/infra/check_archive.py
 

@@ -1,26 +1,27 @@
 # M9 归档（Archive）
 
 > **归档日期**：2026-10-25 ｜ **范围**：M9 里程碑（**FP 完备性 + ISA 收口 + 规范重组**；2026-10-19 起 ~ **2026-10-24 达成**）。
-> **状态（如实）**：**项目里程碑 M9 = 达成（2026-10-24，用户裁定「不用等我确认」）**——核验册 `INTEG-037m` 原留活于 `.tao/tasks/integ/`，**M10 核验册建立时（2026-11-01）移入本目录**（留在活目录会被 `check-milestone` 误判为当前 M10 的 m 册）。
-> **归档判据**：任务书字段 `**项目里程碑**：M9` 且状态 `已验证`（**68** 个 = infra 11 / llvm 15 / qemu 10 / spec 21 / testcases 11）；`issues.yaml` M9 期关闭项（**83** 条，见 `issues-closed.md`）。
-> **留活（不归档）**：`issues.yaml` 11 条 open（全部 M10 登记项）；`INTEG-037m` 已于 2026-11-01 移入本目录（见 `INTEG-037m-M9里程碑核验.md`）。
+> **状态（如实）**：**项目里程碑 M9 = 达成（2026-10-24，用户裁定「不用等我确认」）**——核验册 `INTEG-037m` 原留活于 `.tao/tasks/integ/`，**M10 核验册建立时（2026-11-01）移入本目录 `integ/`**（留在活目录会被 `check-milestone` 误判为当前 M10 的 m 册）。
+> **归档判据**：任务书字段 `**项目里程碑**：M9` 且状态 `已验证`（**69** 个 = infra 11 / integ 1 / llvm 15 / qemu 10 / spec 21 / testcases 11）；`issues.yaml` M9 期关闭项（**83** 条，见 `issues-closed.md`）。
+> **留活（不归档）**：`issues.yaml` 11 条 open（全部 M10 登记项）；`INTEG-037m` 已于 2026-11-01 移入本目录 `integ/`（见 `integ/INTEG-037m-M9里程碑核验.md`）。
 > **说明**：本目录是**历史归档**，不再活跃；权威摘要见 `m9-retrospective.md`，后续路线见 `.tao/knowledge/milestones.md`。
 
-## 1. M9 任务清单（68 个，按模块）
+## 1. M9 任务清单（69 个，按模块）
 
 | 模块 | 数量 |
 |---|---|
 | infra | 11 |
+| integ | 1 |
 | llvm | 15 |
 | qemu | 10 |
 | spec | 21 |
 | testcases | 11 |
 
-> 任务书位于同目录下 `infra/` `spec/` `llvm/` `qemu/` `testcases/` 子目录（`git mv` 保留 `R` rename 历史）。
+> 任务书位于同目录下 `infra/` `integ/` `spec/` `llvm/` `qemu/` `testcases/` 子目录（`git mv` 保留 `R` rename 历史）。
 
 ## 2 任务流水（冻结）
 
-> **冻结日期**：2026-11-01（`INFRA-117t`）。原样搬入 `.tao/knowledge/milestones.md`「任务流水」的 M9 期行（68 个模块册 + 根级核验册 `INTEG-037m`，共 **69** 行）；行状态 == 归档任务书 `**状态**`；`SPEC-172t` 按任务书取 `已验证` / `2026-10-24 23:57`；全表不含登记注记。
+> **冻结日期**：2026-11-01（`INFRA-117t`）。原样搬入 `.tao/knowledge/milestones.md`「任务流水」的 M9 期行（68 个模块任务册 + `integ/` 核验册 `INTEG-037m`，共 **69** 行）；行状态 == 归档任务书 `**状态**`；`SPEC-172t` 按任务书取 `已验证` / `2026-10-24 23:57`；全表不含登记注记。
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
@@ -113,6 +114,6 @@
 
 - 里程碑定义/达成：`.tao/knowledge/milestones.md`（M9 归档指针行；任务流水 **69** 行已冻结在本 README §2）
 - 里程碑回顾：本目录 `m9-retrospective.md`
-- 里程碑核验：本目录 `INTEG-037m-M9里程碑核验.md`（2026-11-01 由 `.tao/tasks/integ/` 移入）
+- 里程碑核验：本目录 `integ/INTEG-037m-M9里程碑核验.md`（2026-11-01 由 `.tao/tasks/integ/` 移入本归档 `integ/`）
 - 关闭 issue 快照：本目录 `issues-closed.md`（83 条）
 - 遗留台账：`.tao/knowledge/issues.yaml`（issue/待决）、`.tao/knowledge/lessons.md`（教训/方法论）

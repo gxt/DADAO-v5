@@ -1,8 +1,8 @@
 # M10 归档（Archive）
 
 > **归档日期**：2026-11-01 ｜ **范围**：M10 里程碑（**cfx 空间/权限/启动链 + 工具链与测试收口**；2026-10-25 起 ~ **2026-11-01 达成**）的**全部任务书与相关记录**
-> **状态（如实）**：**项目里程碑 M10 = 达成（2026-11-01）**——核验册 `INTEG-052m`（结论「M10 达成」）随本归档移入本目录顶层；归档前 `make check-milestone` **rc=0**（现跑）。
-> **归档判据**：任务书字段 `**项目里程碑**：M10` 且状态 `已验证`/`里程碑`（**71** 个 = infra 7 / integ 14 `t` + 1 `m` / llvm 12 / qemu 3 / spec 8 / testcases 26）；`issues.yaml` M10 期关闭项（**17** 条，见 `issues-closed.md`）。
+> **状态（如实）**：**项目里程碑 M10 = 达成（2026-11-01）**——核验册 `INTEG-052m`（结论「M10 达成」）随本归档移入本目录 `integ/`；归档前 `make check-milestone` **rc=0**（现跑）。
+> **归档判据**：任务书字段 `**项目里程碑**：M10` 且状态 `已验证`/`里程碑`（**71** 个 = infra 7 / integ 15（14 `t` + 1 `m`）/ llvm 12 / qemu 3 / spec 8 / testcases 26）；`issues.yaml` M10 期关闭项（**17** 条，见 `issues-closed.md`）。
 > **留活（不归档）**：`INFRA-113t`（字段 `**项目里程碑**：M10 后`，状态 `待开始`，M10 后清理项）；`INTEG-051t` 字段带「M11 未定义，暂挂 M10，待用户确认」括注，`INTEG-052m` 已将其列入「本期任务」⇒ **按 M10 期任务归档**（字段原文随任务书保留）。
 > **说明**：本目录是**历史归档**，不再活跃；权威摘要见 `m10-retrospective.md`，后续路线见 `.tao/knowledge/milestones.md`。
 > **门控提示**：归档后 `.tao/tasks/**` 已无 `INTEG-*m` 档 ⇒ `make check-milestone` 的 ① 「当前里程碑无 `m` 册」为**预期红**（M11 规划立 `k`/`m` 后回绿），非本归档引入的缺陷；L1 `make check` 不含该目标（`Process-04 §8`）。
@@ -12,8 +12,7 @@
 | 模块 | 数量 | 任务号 |
 |---|---|---|
 | infra | 7 | INFRA-106t/107t/108t/109t/110t/112t/114t |
-| integ | 14 | INTEG-038t–050t（连续 13 个）+ INTEG-051t |
-| integ（核验册，顶层） | 1 | INTEG-052m（`M10里程碑核验.md`，置于本目录顶层） |
+| integ | 15 | INTEG-038t–050t（连续 13 个）+ INTEG-051t + INTEG-052m（`integ/` 核验册） |
 | llvm | 12 | LLVM-130t–141t |
 | qemu | 3 | QEMU-074t/075t/076t |
 | spec | 8 | SPEC-173t–180t |
@@ -115,7 +114,7 @@
 ## 5 指针
 
 - 里程碑定义/达成：`.tao/knowledge/milestones.md`（M10 归档指针行；任务流水 **70** 行已冻结在本 README §2，活台账仅留 M10 后维护行）
-- 里程碑核验：本目录 `INTEG-052m-M10里程碑核验.md`
+- 里程碑核验：本目录 `integ/INTEG-052m-M10里程碑核验.md`
 - 里程碑回顾：本目录 `m10-retrospective.md`
 - 关闭 issue 快照：本目录 `issues-closed.md`（17 条）
 - 遗留台账：`.tao/knowledge/issues.yaml`（当前 `0 open`）、`.tao/knowledge/lessons.md`（教训/方法论）

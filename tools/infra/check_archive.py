@@ -6,17 +6,18 @@
 
   1. **三件套**：``README.md`` / ``m<i>-retrospective.md`` / ``issues-closed.md``
      存在且非空。
-  2. **根文件封闭**：只允许三件套 + ``INTEG-*m-*.md`` 核验册（**仅历史归档 M9/M10**
-     可置根；新归档放 ``integ/``）。
+  2. **根文件封闭**：只允许三件套 ``README.md`` / ``m<i>-retrospective.md`` /
+     ``issues-closed.md``；所有任务书（含 ``INTEG-*m`` 核验册）一律放模块子目录。
   3. **子目录封闭**：只允许 6 个模块名（``infra``/``integ``/``llvm``/``qemu``/
      ``spec``/``testcases``）；``notes/`` 等一律 FAIL。
-  4. **任务书字段**：模块子目录与根级 ``m`` 册的每份 ``*.md`` 须有 ``**状态**``
+  4. **任务书字段**：模块子目录的每份 ``*.md`` 须有 ``**状态**``
      ∈ {``已验证``,``里程碑``}，``**项目里程碑**`` 的里程碑号 == 所在归档号
      （尾随历史括注按编号判定、不计错；**新归档应写裸 ``M<i>``**）。
   5. **任务清单计数**：README §1 的模块计数 == 模块目录实际 ``*.md`` 数（现场统计）。
   6. **任务流水对应**：README 的「任务流水 / changelog / 台账快照」节须有表格；
-     编号列格式（M7+）要求流水 ID 集合 == 模块任务书 ID 集合（根级 ``m`` 可入可不入）
-     且行状态 == 任务书状态；日期列格式（M1–M6 历史 ``changelog``）只要求表格非空。
+     编号列格式（M7+）要求流水 ID 集合 == 模块 ``t`` 册集合，或 == ``t`` 册 + ``m`` 册集合
+     （``m`` 可入可不入流水），且行状态 == 任务书状态；日期列格式（M1–M6 历史
+     ``changelog``）只要求表格非空。
   7. **README 必备节**：「MEMORY」节、「指针 / 相关索引」节；M9 起另须「终局证据」。
   8. **issues 快照**：``issues-closed.md`` 须含 ``ISS-<数字>`` 或等价计数表。
 
@@ -29,7 +30,7 @@ Usage:
     python3 tools/infra/check_archive.py [--root DIR] [--self-test]
 
 ``--root DIR`` 检查另一棵树（默认仓库根）；``--self-test`` 用临时树跑
-「基线 PASS + 12 类注入 FAIL」自检。
+「基线 PASS + 13 类注入 FAIL」自检。
 
 Exit code: 0 = 无违规；1 = 有违规。
 """
@@ -53,10 +54,7 @@ MODULES = ("infra", "integ", "llvm", "qemu", "spec", "testcases")
 TERMINAL_STATUS = ("已验证", "里程碑")
 # 任务流水节的同义标题（M1–M8 历史归档用 changelog / 台账快照）。
 FLOW_ALIASES = ("任务流水", "changelog", "台账快照")
-# 根级 INTEG 核验册仅历史归档（M9/M10）可置根；新归档应放 integ/。
-ROOT_INTEG_HISTORICAL = frozenset({"M9", "M10"})
-# 根级 INTEG 核验册文件名（`INTEG-037m-M9里程碑核验.md` / `INTEG-052m-...`）。
-_ROOT_INTEG_RE = re.compile(r"^INTEG-\d+m-.+\.md$")
+# 任务册 ID（`-t` / `-k` / `-m` 后缀）。
 _TASK_ID_RE = re.compile(r"^([A-Z]+-\d+[a-z])")
 
 @dataclass(frozen=True)
@@ -202,8 +200,8 @@ def _check_task_fields(path: Path, mdir: Path, mnum: int, add) -> tuple[str | No
     return status, pm
 
 
-def _check_readme(mdir: Path, mnum: int, task_ids: set[str],
-                  root_ids: set[str], status_map: dict[str, str], add) -> list[str]:
+def _check_readme(mdir: Path, mnum: int, t_ids: set[str],
+                  m_ids: set[str], status_map: dict[str, str], add) -> list[str]:
     """README 四类断言；返回摘要行（打印用）。"""
     path = mdir / "README.md"
     text = _read(path)
@@ -309,10 +307,10 @@ def _check_readme(mdir: Path, mnum: int, task_ids: set[str],
             flow_status[fid] = row[st_i].strip()
         if not flow_ids:
             add(Violation((mdir.name, "flow", "§2"), "任务流水表无数据行（vacuous）"))
-        allowed = [task_ids, task_ids | root_ids]
-        if task_ids and set(flow_ids) not in allowed:
-            missing = sorted(task_ids - set(flow_ids))
-            extra = sorted(set(flow_ids) - task_ids - root_ids)
+        allowed = [t_ids, t_ids | m_ids]
+        if t_ids and set(flow_ids) not in allowed:
+            missing = sorted(t_ids - set(flow_ids))
+            extra = sorted(set(flow_ids) - t_ids - m_ids)
             add(Violation((mdir.name, "flow", "§2"),
                           "流水 ID 集合 != 任务书 ID 集合"
                           + (f"；缺册 {missing}" if missing else "")
@@ -385,17 +383,13 @@ def audit(root: Path) -> AuditResult:
                 continue
             if e.name in ("README.md", f"m{mnum}-retrospective.md", "issues-closed.md"):
                 continue
-            if _ROOT_INTEG_RE.match(e.name):
-                if mdir.name not in ROOT_INTEG_HISTORICAL:
-                    add(Violation((mdir.name, "rootfile", e.name),
-                                  f"根级核验册只允许历史归档 {sorted(ROOT_INTEG_HISTORICAL)} 保留；"
-                                  f"新归档应放 integ/: {e.name}"))
-                continue
             add(Violation((mdir.name, "rootfile", e.name),
                           f"归档根出现不允许的文件: {e.name}"))
 
-        # ④ 任务书字段（模块子目录 + 根级 m 册）
+        # ④ 任务书字段（模块子目录；含 integ/ 下的 m 册）
         task_ids: set[str] = set()
+        t_ids: set[str] = set()
+        m_ids: set[str] = set()
         status_map: dict[str, str] = {}
         for mod in MODULES:
             for p in _module_task_files(mdir, mod, add):
@@ -405,30 +399,24 @@ def audit(root: Path) -> AuditResult:
                     res.stats["bad_status"] = res.stats.get("bad_status", 0) + 1
                 tid_match = _TASK_ID_RE.match(p.name)
                 if tid_match:
-                    task_ids.add(tid_match.group(1))
+                    tid = tid_match.group(1)
+                    task_ids.add(tid)
+                    if tid.endswith("m"):
+                        m_ids.add(tid)
+                    else:
+                        t_ids.add(tid)
                     if status:
-                        status_map[tid_match.group(1)] = status
-        root_ids: set[str] = set()
-        for e in sorted(mdir.iterdir()):
-            if not (e.is_file() and _ROOT_INTEG_RE.match(e.name)):
-                continue
-            status, _pm = _check_task_fields(e, mdir, mnum, add)
-            res.stats["tasks"] = res.stats.get("tasks", 0) + 1
-            tid_match = _TASK_ID_RE.match(e.name)
-            if tid_match:
-                root_ids.add(tid_match.group(1))
-                if status:
-                    status_map[tid_match.group(1)] = status
+                        status_map[tid] = status
 
-        if not task_ids and not root_ids:
+        if not task_ids:
             add(Violation((mdir.name, "task", "vacuous"),
                           "归档内无任何任务书（扫描面 vacuous）"))
 
         # ⑤⑥⑦ README
         readme = mdir / "README.md"
         if readme.is_file() and readme.stat().st_size:
-            summary = _check_readme(mdir, mnum, task_ids, root_ids, status_map, add)
-            res.per_milestone.append(f"  {mdir.name}: 册 {len(task_ids) + len(root_ids)}"
+            summary = _check_readme(mdir, mnum, t_ids, m_ids, status_map, add)
+            res.per_milestone.append(f"  {mdir.name}: 册 {len(task_ids)}"
                                      + ("；" + "；".join(summary) if summary else ""))
 
         # ⑧ issues 快照
@@ -442,7 +430,7 @@ def audit(root: Path) -> AuditResult:
 # ── 输出 ──────────────────────────────────────────────────────────────────────
 def _print_report(root: Path, res: AuditResult) -> None:
     print("=" * 72)
-    print("check-archive — `.tao/archive/M<i>/` 结构与册字段门控（INFRA-116t/117t）")
+    print("check-archive — `.tao/archive/M<i>/` 结构与册字段门控（INFRA-116t/117t/118t）")
     print("=" * 72)
     print(f"  检查根（现场）: {root}")
     print(f"  模式: 严格（默认；无过渡 flag）")
@@ -464,7 +452,7 @@ def _print_report(root: Path, res: AuditResult) -> None:
         print(f"结果: FAIL（违规 {len(res.real)} 条）")
 
 
-# ── 自检（临时树：基线 PASS + 12 类注入 FAIL，各自可达）──────────────────────
+# ── 自检（临时树：基线 PASS + 13 类注入 FAIL，各自可达）──────────────────────
 _BASE_TASK = """# INFRA-001t 示例任务
 
 **模块**：infra
@@ -648,6 +636,9 @@ def self_test() -> int:
         inject(12, "历史归档缺三件套",
                lambda m: (m / "issues-closed.md").unlink(),
                {("M9", "archive", "issues-closed.md")})
+        inject(13, "根级核验册",
+               lambda m: _write(m / "INTEG-999m-核验.md", "# m\n"),
+               {("M9", "rootfile", "INTEG-999m-核验.md")})
     finally:
         shutil.rmtree(base, ignore_errors=True)
 

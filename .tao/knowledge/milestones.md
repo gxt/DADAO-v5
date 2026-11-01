@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-118t | 已验证 | 2026-11-01 15:04 | M9/M10 根级 INTEG m 册迁入 integ，归档根仅三件套 + 模块任务书 |
 | INFRA-117t | 已验证 | 2026-11-01 14:33 | M1–M10 归档归一：M9/M10 流水冻结、M6/M2 状态、M7 notes 并入回顾 |
 | INFRA-116t | 已验证 | 2026-11-01 14:06 | Process-04 归档规则修订（m 可选/流水落 README/三文件）+ check-archive 门控 |
 | INFRA-115t | 已验证 | 2026-11-01 13:02 | tests/inst 计数 152→156、生成器 `--check` 措辞列名化、anti_forgery 迁 tests/inst；新 check-generator-sync 挂 L2 |

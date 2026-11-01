@@ -67,12 +67,11 @@
 ├── README.md               # 归档说明 + 五节摘录（见 §6；必须）
 ├── m<i>-retrospective.md   # 里程碑回顾（必须）
 ├── issues-closed.md        # 台账快照：里程碑阶段 closed 项（必须）
-├── INTEG-*m-*.md           # 核验册：**仅历史归档 M9/M10 可置根**；新归档放 integ/
-└── <模块>/                 # 只允许 infra/integ/llvm/qemu/spec/testcases
+└── <模块>/                 # 只允许 infra/integ/llvm/qemu/spec/testcases；任务书（含 m）均放此
 ```
 
-- **根级允许项封闭**：三件套 + `INTEG-*m-*.md`（历史核验册）；**其它根文件一律不允许**。
-- **子目录封闭**：只允许 `infra` / `integ` / `llvm` / `qemu` / `spec` / `testcases`；子目录内为**已验收任务书**（`*.md`）。
+- **根级允许项封闭**：仅三件套（`README.md` / `m<i>-retrospective.md` / `issues-closed.md`）；**其它根文件一律不允许**。
+- **子目录封闭**：只允许 `infra` / `integ` / `llvm` / `qemu` / `spec` / `testcases`；子目录内为**已验收任务书**（`*.md`，含该模块的 `m` 核验册）。
 - **禁止** `notes/`、根级补充记录、其它杂项目录/文件（用户 2026-11-01 裁定）：补充记录**只能并入 `m<i>-retrospective.md` 附录**，否则拒绝入库。
 - 任务书**必须**用 `git mv` 移动（保留 rename 历史，`git status` 显示 `R` 而非 `A`+`D`）。
 - 目录名 `<M<i>>` 与 `.tao/knowledge/milestones.md` 的项目里程碑编号一致。
@@ -132,7 +131,7 @@
 
 ## 8. 验收与纪律
 
-- **门控**：`make check-archive` 已挂 **L1**（`make check` 默认包含）；`--self-test` 必须 rc=0（基线 PASS + 12 类注入 FAIL，各自可达）。
+- **门控**：`make check-archive` 已挂 **L1**（`make check` 默认包含）；`--self-test` 必须 rc=0（基线 PASS + 13 类注入 FAIL，各自可达）。
 - **最终态（`INFRA-117t` 归一后）**：`python3 tools/infra/check_archive.py` **严格默认**、无过渡 flag；**须 rc=0**（M1–M10 全部归档结构/册字段/五节/流水/issue 快照齐备）。M2 两册状态括注已移入 `> **状态注记**`；原 `notes/` 5 份已并入 `m7-retrospective.md` 附录 A–E；M9/M10 README 五节齐全、流水已冻结。
 - `make check` **EXIT 0**。
 - `git mv` 后 `git status` 显示 `R`（rename）。
