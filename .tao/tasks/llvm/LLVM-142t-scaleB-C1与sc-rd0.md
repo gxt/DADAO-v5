@@ -31,7 +31,7 @@
 1. `make install-host` 后：新旧语法汇编检查、反汇编/编码检查。
 2. `check-instrinfo`、`check-scope`、`check-isa-coverage`（依赖 SPEC 分支）真实 rc=0。
 3. `make check-lit`（或 targeted lit）真实 rc=0；旧 `rf` 写法必须失败。
-4. 不修改测试资产；证据 `.work/evidence/LLVM-142t/`；完成区 ≤30 行，状态 `待验收`。
+4. 不修改测试资产；证据 `.work/evidence/<任务ID>/`；完成区 ≤30 行，状态 `待验收`。
 5. 失败保留现场；不猜 spec；不复制 QEMU/gem5 实现。
 
 ## 完成区
