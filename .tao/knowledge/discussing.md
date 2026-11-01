@@ -36,23 +36,10 @@
 - 结论：当前只有测试专用 provider；生产 provider、`DONE/ERROR` W1C、`WAIT` 属 Linux 集成阶段
 - 下一步：不在 M10 通路内实现
 
-### QEMU 注释 7-14 与宏 6–14 不一致
-
-- 状态：待立项
-- 结论：`components/qemu/patches/target/dadao/helper.c.patch` 仅注释笔误，实现正确
-- 下一步：另立最小修或并入后续 QEMU 任务
-
 ### TESTCASES-089t 遗留
 
 - `reserved.yaml` 是否拆册（当前同册承载「保留编码 ⇒ UNDI」与「reserved cfx 地址空间 ⇒ CFXMEM」两类语义）
 - `trap`/`escape` → reserved cfx 的 active 向量仍 deferred（`TESTCASES-033t`）
-- `tests/inst/README.md` M1 条数写 152、现场 156（文档漂移）
-
-### 生成器/门控后续
-
-- `--check` 是否入 Makefile 门控（L1/L2）未定；目前仅脚本自跑
-- `tools/testcases/test_anti_forgery_008t.py` 仍引用旧 `tests/vectors/**`，疑似孤儿
-- `tests/README.md` 的「生成器 `--check` 全部 byte-identical」措辞待与三生成器对齐
 
 ### CFX 审计保留的未决项
 

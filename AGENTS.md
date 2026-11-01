@@ -19,6 +19,7 @@
 
 ## 核心原则
 - **Spec-first**：编码/语义期望值来自 `.tao/contracts/contract-*.md`，不从实现反推。
+- **DADAO 特有行为先查 spec**：涉及页/地址/端序/对齐/ABI/编码/cfx 等，先查 `spec/` 对应篇目与 `.tao/knowledge/MEMORY.md` 反套用清单；不确定不猜；spec 冲突或语义不明直接问用户；不得用 RISC-V/x86/ARM 经验补全。
 - **Independent oracle**：测试向量不从 LLVM/QEMU 生成，须独立派生自 `spec/`。
 - **Component lock**：LLVM/QEMU/gem5 以 `manifests/` 精确 commit 锁定，不用 tag/branch。
 - **里程碑 TDD**：自 M4 起每里程碑先立测试向量/门控、再实现（L1 编码/L2 结构/L3 执行，见 `docs/Process-05`）；「一能力一向量」、规模 ∝ 能力。
