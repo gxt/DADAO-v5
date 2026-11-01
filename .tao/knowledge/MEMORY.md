@@ -8,7 +8,7 @@
 | --- | --- |
 | 项目总览 / 里程碑 / 版本号 | 根 `README.md` |
 | 当前进度 / 任务流水 / 规划中 / 裁定 | `.tao/knowledge/milestones.md` |
-| M9 收尾 / 回顾 / 未决项 | `.tao/archive/M9/m9-retrospective.md`（M10 进度见 `milestones.md` 任务流水） |
+| M9 / M10 收尾 / 回顾 / 未决项 | `.tao/archive/M9/m9-retrospective.md`、`.tao/archive/M10/m10-retrospective.md`（M11 进度见 `milestones.md` 任务流水） |
 | 决策（ADR：架构 / 契约 / 流程） | `.tao/adr/` |
 | 交互目录（`$TAO_ROOT` / 结构 / 模块表） | `.tao/README.md` |
 | 角色 / 流程 / 命令 | `AGENTS.md`「角色与流程」+ `.opencode/agents/`、`.opencode/commands/` |
@@ -20,7 +20,7 @@
 | 代码模型 / 打包规范（REL26 边 ≤ 32 MiB；单 DSO 可执行区跨度 < 30 MiB） | `.tao/adr/adr-0036-code-model.md` §D4/D7 + `make check-code-range` |
 | 参考仓库（只读工作树 / 锁文件） | `.cache/refs/` + `manifests/` |
 | issue / 教训 | `.tao/knowledge/issues.yaml` / `.tao/knowledge/lessons.md` |
-| 历史归档 | `.tao/archive/M*/`（M1–M9；含 `README.md` + `m<i>-retrospective.md` + `issues-closed.md`） |
+| 历史归档 | `.tao/archive/M*/`（M1–M10；含 `README.md` + `m<i>-retrospective.md` + `issues-closed.md`） |
 | 临时 / 一次性产物 | `/tmp/opencode/<任务ID>/` |
 
 ## 偏离 / 不做台账（唯一一份）

@@ -3,6 +3,8 @@
 > **项目里程碑 = M10**（当前里程碑；`check-milestone` 取 `项目里程碑 = M<n>` 断言的**最大 n**，本行是唯一断言）
 >
 > 只维护任务流水；历史任务见 `.tao/archive/`，当前讨论/规划见 `.tao/knowledge/discussing.md`。
+>
+> **M10 归档指针（2026-11-01）**：M10 任务书 **71** 册（含核验册 `INTEG-052m`）与 M10 期关闭 issue **17** 条已冻结到 `.tao/archive/M10/`（`README.md` / `m10-retrospective.md` / `issues-closed.md`）；本页**保留** M10 任务流水行作历史可读索引（`check-milestones-fresh` A1/A2 对归档册同样生效，已归档号豁免回填）。
 
 ## 任务流水
 
