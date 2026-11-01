@@ -74,6 +74,7 @@
 - 下一步：先做 M11 gap matrix（FS/SE 共用 ISA、FS/SE 分叉、测试复用/合并、其它模块依赖），再按最新 spec 重做 `components/gem5` 补丁与测试；不直接采用 PR 的旧计数/旧证据。
 - M11 子阶段（参考 0628 ADR-0010 修订）：G0 gap/契约 → **G1 共用 ISA 核心 + SE** → **G2 FS 全系统** → G3 QEMU/gem5 双向一致性与测试收口 → G4 里程碑核验。SE 先行拿快速功能参考，FS 后接系统态；两者同属 M11。
 - 0628 参考结论（仅参考，不复制代码）：ADR-0010 明确 **SE 先行、FS 留后**；先做 `SEWorkload`/`Process`、真实 ELF、RB1/栈、brk/mmap，再上 Machine-01/PTW/TLB/timer。已知坑：`SEWorkload` 与 `Process` 概念混淆、LLD 多段 ELF 装载、QEMU trampoline 的 RB1 不可照搬到 SE、RB bank/RegClass/rd0/rb0 语义、不要整体克隆 RISC-V arch 充当骨架。
+- **语义复用禁令**：编码相同、助记符相同 **不等于** 语义可复用；每条指令必须从当前 `spec/`/`contracts/` 重新推导，单独核对操作数/结果/异常/FP 舍入/标志/内存副作用，并与 0628/PR 的变化逐条对照。G1 先产出“语义重导矩阵”，不得按旧 opcode 表直接搬运。
 - 任务量粗估：G0 4–6；G1 SE + 共用 ISA 10–15；G2 FS 15–25；G3 测试/一致性 5–8；G4 1–2；合计约 **35–56**，以 G0 matrix 校准。
 
 ## Linux（M12 或后续，暂缓）

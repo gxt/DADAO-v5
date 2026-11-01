@@ -51,7 +51,7 @@ DRIVERS = (
     os.path.join("tset", "embench", "run_embench_user_suite.py"),
 )
 RUN_DIR_RE = re.compile(r"^\d{8}T\d{6}Z-")
-TASK_ID = r"(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG)-\d{3}[a-z]?"
+TASK_ID = r"(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?"
 LEGAL_LOG_NAMES = (
     re.compile(r"^check-[A-Za-z0-9][A-Za-z0-9._-]*\.log$"),
     re.compile(rf"^{TASK_ID}-[A-Za-z0-9][A-Za-z0-9._-]*\.(?:log|json|txt)$"),

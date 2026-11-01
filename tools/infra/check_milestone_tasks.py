@@ -54,9 +54,9 @@ FIELD_M_RE = re.compile(r"\*\*项目里程碑\*\*[：:]\s*[*`]{0,2}M(\d+)\b")
 # 文件名里程碑标签：`-M8-`
 NAME_M_RE = re.compile(r"(?:^|[-_])M(\d+)(?:[-_.]|$)")
 # 任务号：PREFIX-<3 位数字><后缀>
-TASK_ID_RE = re.compile(r"\b(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG)-\d{3}[a-z]?\b")
+TASK_ID_RE = re.compile(r"\b(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?\b")
 # 任务书文件名前缀 = 任务号
-TASK_FILE_RE = re.compile(r"^((?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG)-\d{3}[a-z]?)(?:-|\.md$)")
+TASK_FILE_RE = re.compile(r"^((?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?)(?:-|\.md$)")
 
 
 def current_milestone(text: str) -> tuple[int | None, int]:
