@@ -55,13 +55,16 @@
 - UART：实例号/索引语义未定义（Linux 阶段暂缓，留 M12/后续）
 - 下一步：确认哪些进入 M10 后/Linux 前任务；不恢复已删除的审计文件
 
-## 当前优先：gem5 PR #3（待审核）
+## 当前优先：gem5（M11，PR #3）
 
-- 用户 2026-11-01 裁定：现有 Linux 开发延至 M12 或后续；先处理本仓库 gem5 PR。
+- 用户 2026-11-01 裁定：现有 Linux 开发延至 M12 或后续；先完成 gem5，gem5 成为新里程碑 M11。
+- 新模块：`gem5`，任务前缀 `GEM5-`；目录 `.tao/tasks/gem5/`。Linux 模块保留，恢复时再用。
+- 工作方式：**不做 PR merge、不建 worktree**；在本仓库普通任务分支上按 DADAO 最新 spec 重写/整理补丁。
+- 约束：其它模块（LLVM/QEMU/picolibc/测试/基础设施）如需修改，先经用户同意；测试独立调整，不与实现混在一起。
 - PR：`gxt/DADAO-v5#3`，标题“gem5: 提交 DADAO 裸机功能闭环里程碑（GEM5-008m）”，当前 **draft**、`mergeable=false`、`mergeable_state=dirty`。
 - 分支：head `JeffffHu:DADAO-v5:pr/gem5-008m-milestone`，head commit `7ea82cfe…`；base 为 `gxt:master` 的 `c6fbcbae…`；差异约 **97 文件 / +7710 行**。
-- 本地试合并（基于当前 master `5d162a79`）冲突 **12 项**，主要是 `.tao/knowledge/milestones.md`、`Makefile`、M10 归档后的任务书删除、LLVM/QEMU/picolibc 补丁、`tests/llvm` 迁到 `tests/unit`、`tools/infra/check_knowledge_refs.py`。
-- 下一步：不直接 merge；先按 DADAO 规范另立审查任务/分支，rebase 或重放 PR，逐项按 spec/contracts 复核 + 重跑门控，再决定是否合并。
+- 本地试合并（基于当前 master）冲突 **12 项**，主要来自 M10 归档后的任务删除、`tests/llvm` 迁 `tests/unit`、Makefile、LLVM/QEMU/picolibc 补丁、ADR 编号碰撞。
+- 下一步：先判定用户态/系统态边界；按最新 spec 重做 `components/gem5` 补丁与测试；不直接采用 PR 的旧计数/旧证据。
 
 ## Linux（M12 或后续，暂缓）
 
