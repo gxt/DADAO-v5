@@ -57,3 +57,8 @@
 |---------|------|---------|---------|
 | 无 | — | — | — |
 
+
+### 第 1 轮 architect 提交对账（WIP）
+- 档位：**WIP**（reviewer 未验收，任务仍 `待验收`；`check-lit`/`check-isa-coverage` 红）
+- 提交：`36400def WIP: LLVM-142t scaleB C1 与 sc rd0（测试资产待同步）`，8 文件、+78/-39
+- 对账：`git diff --cached --name-only` 8 项与完成区「修改文件」逐项一致（5 份导出补丁 + `changelog.md` + 本任务书 + `milestones.md`）；核 `git status -uall` 无 `tests/**`、`spec/**`、`contracts/**`、`components/{qemu,gem5}/**` 改动；无漏提 / 多提 / 越界。**未 push**。
