@@ -40,7 +40,7 @@
 
 ### M2（2026-10-04）规范与接口冻结（Normative Freeze）
 
-- `spec/`（0.5.5）→ 投影（`contracts/*`、`contract-*.md`）→ checker 三层机械一致；投影表缺口清零 / 显式 deferred（4 项）。
+- `spec/`（0.5.4；版本以规范版本表为准）→ 投影（`contracts/*`、`contract-*.md`）→ checker 三层机械一致；投影表缺口清零 / 显式 deferred（4 项）。
 - FP 实现侧冻结：执行层 60/60 + `dst_rd0@FP` + 最小 FP smoke。
 - 上游 ↔ v5 偏离台账成型（6 项）。
 
