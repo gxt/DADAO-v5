@@ -183,8 +183,8 @@ forem rf8, rf9, rf10
 
 @@ @src fosclb_orrr_rf 4474824a | SimRISC-07: fosclb
 @@ OBJ: {{[0-9a-f]+:}} 44 74 82 4a{{.*}}fosclb
-@@ ASM: fosclb rf8, rf9, rf10
-fosclb rf8, rf9, rf10
+@@ ASM: fosclb rf8, rf9, rd10
+fosclb rf8, rf9, rd10
 
 @@ @src foscmp_orrr_rf 44a4824a | SimRISC-07: foscmp
 @@ OBJ: {{[0-9a-f]+:}} 44 a4 82 4a{{.*}}foscmp
@@ -243,8 +243,8 @@ ftrem rf8, rf9, rf10
 
 @@ @src ftsclb_orrr_rf 4454824a | SimRISC-07: ftsclb
 @@ OBJ: {{[0-9a-f]+:}} 44 54 82 4a{{.*}}ftsclb
-@@ ASM: ftsclb rf8, rf9, rf10
-ftsclb rf8, rf9, rf10
+@@ ASM: ftsclb rf8, rf9, rd10
+ftsclb rf8, rf9, rd10
 
 @@ @src ftscmp_orrr_rf 4484824a | SimRISC-07: ftscmp
 @@ OBJ: {{[0-9a-f]+:}} 44 84 82 4a{{.*}}ftscmp
