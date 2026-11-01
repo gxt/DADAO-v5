@@ -1,0 +1,13 @@
+diff --git a/src/arch/dadao/DadaoISA.py b/src/arch/dadao/DadaoISA.py
+new file mode 100644
+index 0000000..10a68eb
+--- /dev/null
++++ b/src/arch/dadao/DadaoISA.py
+@@ -0,0 +1,7 @@
++from m5.objects.BaseISA import BaseISA
++
++
++class DadaoISA(BaseISA):
++    type = "DadaoISA"
++    cxx_class = "gem5::DadaoISA::ISA"
++    cxx_header = "arch/dadao/isa.hh"

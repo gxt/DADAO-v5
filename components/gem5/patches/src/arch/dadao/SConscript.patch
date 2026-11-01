@@ -1,0 +1,24 @@
+diff --git a/src/arch/dadao/SConscript b/src/arch/dadao/SConscript
+new file mode 100644
+index 0000000..abb6039
+--- /dev/null
++++ b/src/arch/dadao/SConscript
+@@ -0,0 +1,18 @@
++# DADAO ISA build description (B0 skeleton).
++Import('*')
++
++if not env['CONF']['USE_DADAO_ISA']:
++    Return()
++
++env.TagImplies('dadao isa', 'gem5 lib')
++env.TagImplies('isa', 'dadao isa')
++
++Source('decoder.cc', tags=['dadao isa'])
++Source('isa.cc', tags=['dadao isa'])
++Source('inst.cc', tags=['dadao isa'])
++Source('decode/decode.cc', tags=['dadao isa'])
++
++SimObject('DadaoDecoder.py', sim_objects=['DadaoDecoder'], tags=['dadao isa'])
++SimObject('DadaoISA.py', sim_objects=['DadaoISA'], tags=['dadao isa'])
++
++ISADesc('isa/main.isa', tags=['dadao isa'])

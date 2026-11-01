@@ -1,0 +1,137 @@
+diff --git a/src/arch/dadao/decode/decode.cc b/src/arch/dadao/decode/decode.cc
+new file mode 100644
+index 0000000..0a0848a
+--- /dev/null
++++ b/src/arch/dadao/decode/decode.cc
+@@ -0,0 +1,131 @@
++/*
++ * DADAO gem5 decode core (B0) -- implementation.
++ */
++#include "arch/dadao/decode/decode.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace decode
++{
++
++// The generated table uses the FieldDesc/DecodeEntry types above and is
++// included inside the namespace on purpose (it is not a standalone header).
++#include "arch/dadao/decode/decode_table.inc"
++
++namespace
++{
++
++const DecodeEntry *
++lookup(uint32_t raw)
++{
++    const unsigned opc = (raw >> 24) & 0xFF;
++    const int subtable = table::kOpcodeSubtable[opc];
++    if (subtable >= 0) {
++        const unsigned ha = (raw >> 18) & 0x3F;
++        const int index = table::kSubtableEntries[subtable][ha];
++        return index < 0 ? nullptr : &table::kEntries[index];
++    }
++    const int index = table::kOpcodeEntry[opc];
++    return index < 0 ? nullptr : &table::kEntries[index];
++}
++
++} // anonymous namespace
++
++size_t
++entryCount()
++{
++    return sizeof(table::kEntries) / sizeof(table::kEntries[0]);
++}
++
++const DecodeEntry *
++entries()
++{
++    return table::kEntries;
++}
++
++const DecodeEntry *
++entryById(std::string_view id)
++{
++    for (size_t i = 0; i < entryCount(); ++i) {
++        if (id == table::kEntries[i].id)
++            return &table::kEntries[i];
++    }
++    return nullptr;
++}
++
++const FieldDesc &
++fieldDesc(const DecodeEntry &entry, unsigned index)
++{
++    return table::kFields[entry.firstField + index];
++}
++
++const char *
++legalityOf(const DecodeEntry &entry, unsigned index)
++{
++    return entry.legality[index];
++}
++
++int64_t
++signExtend(uint64_t value, unsigned width)
++{
++    if (width == 0 || width >= 64)
++        return static_cast<int64_t>(value);
++    const uint64_t mask = (uint64_t(1) << width) - 1;
++    value &= mask;
++    if (value & (uint64_t(1) << (width - 1)))
++        value |= ~mask;
++    return static_cast<int64_t>(value);
++}
++
++DecodedInst
++decodeWord(uint32_t raw)
++{
++    DecodedInst result;
++    result.raw = raw;
++
++    const DecodeEntry *entry = lookup(raw);
++    if (entry == nullptr)
++        return result;
++
++    // Defensive: the maps are built from the same mask/value pairs, so this
++    // can only trip if the generated table is corrupt.
++    if ((raw & entry->mask) != entry->value)
++        return result;
++
++    result.entry = entry;
++    result.numFields = entry->numFields;
++    for (unsigned i = 0; i < entry->numFields; ++i) {
++        const FieldDesc &field = table::kFields[entry->firstField + i];
++        result.fieldValues[i] =
++            (uint64_t(raw) >> field.lo) & ((uint64_t(1) << field.width()) - 1);
++    }
++    return result;
++}
++
++const char *
++batchName(uint8_t batch)
++{
++    switch (batch) {
++      case 0: return "none";
++      case 1: return "B1";
++      case 2: return "B2";
++      case 3: return "B3";
++      case 4: return "B4";
++      case 5: return "B5";
++      case 6: return "B6";
++      case 7: return "B7";
++      default: return "invalid";
++    }
++}
++
++const char *
++statusName(const DecodedInst &inst)
++{
++    return inst.ok() ? "Decoded" : "Illegal";
++}
++
++} // namespace decode
++} // namespace DadaoISA
++} // namespace gem5

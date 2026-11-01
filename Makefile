@@ -40,6 +40,10 @@ CFX_ALIAS_TABLE_BUILD   ?= $(LLVM_BUILD)/share/dadao/cfx-aliases.txt
 CFX_ALIAS_TABLE_INSTALL ?= $(HOST_TOOLCHAIN_DIR)/share/dadao/cfx-aliases.txt
 GEM5_SRC   ?= .work/source/gem5
 GEM5_BUILD ?= .work/build/gem5
+# gem5 builds with SCons; no SCons is vendored in the repo.  Point this at a
+# venv/install if `scons` is not on PATH (build-gem5 then reports BLOCKED, not
+# a fake PASS).
+GEM5_SCONS ?= scons
 
 DOCKER_TAG ?= dadao-v5-dev:local
 
@@ -47,7 +51,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
-        build-builtins build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
+        build-builtins build-qemu build-qemu-reconfig build-gem5 check-gem5-decode build-bootrom build-picolibc \
         build-musl build-musl-shared test-picolibc-smoke install-host install-cfx-aliases docker-image docker-shell check \
         check-picolibc-tests check-picolibc-tests-full check-rnd-probe \
         check-minmax-probe check-fma-probe check-clmul-probe \
@@ -101,6 +105,7 @@ GATE_LOCK_TOOL      = $(PYTHON) tools/infra/gate_lock.py
 # 互斥面的**单一真源**（文档只指这里，不另列清单，避免漂移）。
 GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       build-mc build-mc-lite build-mc-reconfig build-lld build-qemu build-qemu-reconfig \
+                      build-gem5 check-gem5-decode \
                       build-builtins build-bootrom build-picolibc build-musl build-musl-shared \
                       test-codegen test-elf test-m6 test-picolibc-smoke \
                       check-lit check-lit-full \
@@ -155,7 +160,8 @@ help:
 	@echo "  make build-lld       Build LLD linker (bin/ld.lld); shares the one-shot LLVM config"
 	@echo "  make build-qemu      Compile QEMU (skips configure if build.ninja exists)"
 	@echo "  make build-qemu-reconfig  Force configure re-run then compile QEMU"
-	@echo "  make build-gem5      Build gem5 (stub; command owned by the gem5 module)"
+	@echo "  make build-gem5      Build gem5 with the DADAO arch skeleton (SCons; GEM5_SCONS=... if not on PATH; GEM5-004t)"
+	@echo "  make check-gem5-decode  Regenerate/compare the decode table and run the 264-row decode assertions (GEM5-004t)"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
 	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"
@@ -386,16 +392,24 @@ _locked-build-qemu-reconfig: manifest-check
 	PYTHONHASHSEED=0 $(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
 	@echo "build-qemu-reconfig: PASS"
 
-# gem5 is a v5 addition and has no build command yet (the gem5 module owns it).
-# This target is a deliberate skeleton: even once the component is enabled it
-# must not claim success until a real recipe exists.
-build-gem5: manifest-check
+# build-gem5 (GEM5-004t): compile the DADAO arch skeleton with gem5's own
+# SCons build (build_opts/DADAO).  Missing SCons => rc=2 (BLOCKED), never a
+# fake PASS.  See tools/gem5/build_gem5.py.
+_locked-build-gem5: manifest-check
 	@$(call component-enabled,gem5) || { \
 	  echo "build-gem5: component 'gem5' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
 	}
-	@echo "build-gem5: gem5 build command is not defined yet (owned by the gem5 module); refusing to fake success"
-	@exit 1
+	@$(PYTHON) tools/gem5/build_gem5.py --source $(GEM5_SRC) \
+	  --build $(GEM5_BUILD) --jobs $(JOBS) --scons "$(GEM5_SCONS)"
+
+# check-gem5-decode (GEM5-004t): regenerate/compare the contract-driven decode
+# table, then compile and run the 264-row assertion harness.  Standalone
+# (opt-in) L1-style check; it does not require a gem5 build.
+_locked-check-gem5-decode:
+	@$(PYTHON) tools/gem5/gen_decode_table.py --check --source $(GEM5_SRC)
+	@$(PYTHON) tools/gem5/check_decode.py --source $(GEM5_SRC) \
+	  --out $(GEM5_BUILD)/dadao-decode-test
 
 # install-host (INFRA-047t, ADR-0016 D3/D4/D5/D11): stage only the needed host
 # tool set from the .work/ build trees into the install root's bin/, install the

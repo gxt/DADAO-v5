@@ -38,7 +38,7 @@ url = "https://mirror.sjtu.edu.cn/git/qemu.git"
 
 [[component]]
 name = "gem5"
-enabled = false
+enabled = true
 repository = "https://github.com/gem5/gem5.git"
 commit = "c8222cc67a399bfc01e8658dd14b30d5bfd634f9"
 shallow = true

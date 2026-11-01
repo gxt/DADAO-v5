@@ -1,0 +1,67 @@
+diff --git a/src/arch/dadao/faults.hh b/src/arch/dadao/faults.hh
+new file mode 100644
+index 0000000..9f81934
+--- /dev/null
++++ b/src/arch/dadao/faults.hh
+@@ -0,0 +1,61 @@
++// DADAO faults (B0 skeleton).
++#
++// B0 has no execution semantics: every successfully decoded instruction ends
++// in UnimplementedInstruction, and an unmatched/reserved encoding ends in
++// IllegalInstruction (ILLI).  Both panic loudly; nothing silently succeeds.
++#ifndef __ARCH_DADAO_FAULTS_HH__
++#define __ARCH_DADAO_FAULTS_HH__
++
++#include <string>
++
++#include "arch/dadao/types.hh"
++#include "base/logging.hh"
++#include "sim/faults.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++
++class IllegalInstruction : public FaultBase
++{
++  private:
++    const ExtMachInst machInst;
++
++  public:
++    explicit IllegalInstruction(ExtMachInst inst) : machInst(inst) {}
++
++    FaultName name() const override { return "Illegal instruction"; }
++
++    void
++    invoke(ThreadContext *, const StaticInstPtr &) override
++    {
++        panic("DADAO ILLI: illegal/reserved encoding 0x%08x", machInst);
++    }
++};
++
++class UnimplementedInstruction : public FaultBase
++{
++  private:
++    const ExtMachInst machInst;
++    const std::string id;
++
++  public:
++    UnimplementedInstruction(ExtMachInst inst, const char *instId) :
++        machInst(inst), id(instId ? instId : "?")
++    {}
++
++    FaultName name() const override { return "Unimplemented instruction"; }
++
++    void
++    invoke(ThreadContext *, const StaticInstPtr &) override
++    {
++        panic("DADAO B0: execution semantics for %s (0x%08x) are not "
++              "implemented; see batches B1-B7", id, machInst);
++    }
++};
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_FAULTS_HH__

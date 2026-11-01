@@ -1,0 +1,56 @@
+diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
+new file mode 100644
+index 0000000..a05f8ea
+--- /dev/null
++++ b/src/arch/dadao/isa.hh
+@@ -0,0 +1,50 @@
++// DADAO ISA object (B0 skeleton).
++#ifndef __ARCH_DADAO_ISA_HH__
++#define __ARCH_DADAO_ISA_HH__
++
++#include "arch/dadao/pcstate.hh"
++#include "arch/dadao/regs/misc.hh"
++#include "arch/generic/isa.hh"
++
++namespace gem5
++{
++
++struct DadaoISAParams;
++
++namespace DadaoISA
++{
++
++class ISA : public BaseISA
++{
++  public:
++    using Params = DadaoISAParams;
++
++    explicit ISA(const Params &p);
++
++    PCStateBase *
++    newPCState(Addr addr = 0) const override
++    {
++        return new PCState(addr);
++    }
++
++    void clear() override;
++
++    // B6 owns the architectural misc-register model (mode/cfx/trap state).
++    // Until then every access panics explicitly instead of returning a made-up
++    // value.
++    RegVal readMiscRegNoEffect(RegIndex idx) const override;
++    RegVal readMiscReg(RegIndex idx) override;
++    void setMiscRegNoEffect(RegIndex idx, RegVal val) override;
++    void setMiscReg(RegIndex idx, RegVal val) override;
++
++    // B6 owns the privilege model; B0 has only one flat view and must not
++    // pretend that a user/kernel split exists.
++    bool inUserMode() const override;
++
++    void copyRegsFrom(ThreadContext *src) override;
++};
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_ISA_HH__

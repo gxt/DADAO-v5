@@ -1,0 +1,35 @@
+diff --git a/src/arch/dadao/isa/main.isa b/src/arch/dadao/isa/main.isa
+new file mode 100644
+index 0000000..7249fa3
+--- /dev/null
++++ b/src/arch/dadao/isa/main.isa
+@@ -0,0 +1,29 @@
++// DADAO ISA description (B0 skeleton).
++//
++// The gem5 ISA parser only needs a decoder entry point here: every opcode
++// returns the same DadaoInst class, whose constructor performs the real
++// contract-driven decode (src/arch/dadao/decode/).  Execution semantics are
++// intentionally absent (B1-B7).
++output header {{
++#include "arch/dadao/inst.hh"
++}};
++
++output decoder {{
++#include "arch/dadao/decoder.hh"
++}};
++
++output exec {{
++#include "arch/dadao/inst.hh"
++}};
++
++namespace DadaoISA;
++
++def bitfield OP <31:24>;
++
++def format Dadao() {{
++    decode_block = 'return new DadaoInst(machInst);\n'
++}};
++
++decode OP default Dadao::dadao() {
++    default: Dadao::dadao();
++}

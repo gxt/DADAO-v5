@@ -1,0 +1,63 @@
+diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
+new file mode 100644
+index 0000000..ad51190
+--- /dev/null
++++ b/src/arch/dadao/inst.cc
+@@ -0,0 +1,57 @@
++// DADAO StaticInst (B0 skeleton) -- implementation.
++#include "arch/dadao/inst.hh"
++
++#include <memory>
++
++#include "arch/dadao/faults.hh"
++#include "base/cprintf.hh"
++
++namespace gem5
++{
++namespace DadaoISAInst
++{
++
++namespace
++{
++
++const char *
++mnemonicOf(DadaoISA::ExtMachInst word)
++{
++    const auto decoded = DadaoISA::decode::decodeWord(word);
++    return decoded.ok() ? decoded.entry->mnemonic : "illi";
++}
++
++} // anonymous namespace
++
++DadaoInst::DadaoInst(DadaoISA::ExtMachInst w) :
++    StaticInst(mnemonicOf(w), IntAluOp), word(w),
++    decoded(DadaoISA::decode::decodeWord(w))
++{
++    size(4);
++    if (decoded.ok()) {
++        const bool fp = std::string(decoded.entry->scope) == "fp";
++        flags[IsInteger] = !fp;
++        flags[IsFloating] = fp;
++    } else {
++        flags[IsInvalid] = true;
++        flags[IsNonSpeculative] = true;
++    }
++}
++
++std::string
++DadaoInst::generateDisassembly(Addr, const loader::SymbolTable *) const
++{
++    return csprintf("%s 0x%08x", mnemonic, word);
++}
++
++Fault
++DadaoInst::execute(ExecContext *, trace::InstRecord *) const
++{
++    if (!decoded.ok())
++        return std::make_shared<DadaoISA::IllegalInstruction>(word);
++    return std::make_shared<DadaoISA::UnimplementedInstruction>(
++            word, decoded.entry->id);
++}
++
++} // namespace DadaoISAInst
++} // namespace gem5
