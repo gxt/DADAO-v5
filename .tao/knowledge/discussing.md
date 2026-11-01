@@ -60,15 +60,19 @@
 - 用户 2026-11-01 裁定：现有 Linux 开发延至 M12 或后续；先完成 gem5，gem5 成为新里程碑 M11。
 - 新模块：`gem5`，任务前缀 `GEM5-`；目录 `.tao/tasks/gem5/`。Linux 模块保留，恢复时再用。
 - 工作方式：**不做 PR merge、不建 worktree**；在本仓库普通任务分支上按 DADAO 最新 spec 重写/整理补丁。
-- 范围：**保留全系统态**（Machine-01、boot ROM、模式移交、semihosting、PTW/TLB 等），按最新 DADAO 规范重做，不缩成纯用户态。
-- 测试：按 `docs/Process-09` 的 `inst/arch/unit/tset` 四 scope 调整；**不新建 `tests/gem5/` 平行体系**；gem5 只作为 system 后端，复用现有向量、bootrom、harness 和 case 清单；该合并的合并。
-- QEMU/gem5 一致性：同一 case 在 QEMU system 与 gem5 system 上跑，比较架构结果/退出码，不比较时序；不一致必须解释或修复。
-- 一致性边界：`inst`/`arch` 与裸机 E2E 可直接做 QEMU system vs gem5 system；`tset` 的 libc-test/llvm-ts 当前是 QEMU **user-mode**，不能直接和 gem5 full-system 比较；若要纳入，需先定义 QEMU system/Linux 运行载体，不能拿不同模式的结果冒充一致。
+- 范围：**同时包含 FS + SE**；FS 先做（Machine-01、boot ROM、模式移交、semihosting、PTW/TLB 等），SE 复用 FS 的 ISA/执行核心，补 `Process`/`SEWorkload`、ELF、syscall、栈/brk/mmap/TLS/exit；两者都按最新 DADAO 规范重做。
+- M11 收口：FS 与 SE 都通过，并完成 QEMU/gem5 对应模式的一致性门控。
+- 测试：按 `docs/Process-09` 的 `inst/arch/unit/tset` 四 scope 调整；**不新建 `tests/gem5/` 平行体系**；gem5 只作为 system/user 后端，复用现有向量、bootrom、harness 和 case 清单；该合并的合并。
+- QEMU/gem5 一致性：
+  - **FS ↔ QEMU system**：`inst`/`arch`/裸机 E2E，比架构结果/退出码，不比时序。
+  - **SE ↔ QEMU user**：`tset`（libc-test/llvm-ts/Embench）与用户态 E2E，比通过/失败/退出码/架构结果。
+  - 不允许拿 gem5 FS 与 QEMU user 冒充一致；不同模式分别出结果矩阵。
 - 约束：其它模块（LLVM/QEMU/picolibc/测试/基础设施）如需修改，先经用户同意；测试调整**单独立任务**，不与实现补丁混在一起。
 - PR：`gxt/DADAO-v5#3`，标题“gem5: 提交 DADAO 裸机功能闭环里程碑（GEM5-008m）”，当前 **draft**、`mergeable=false`、`mergeable_state=dirty`。
 - 分支：head `JeffffHu:DADAO-v5:pr/gem5-008m-milestone`，head commit `7ea82cfe…`；base 为 `gxt:master` 的 `c6fbcbae…`；差异约 **97 文件 / +7710 行**。
 - 本地试合并（基于当前 master）冲突 **12 项**，主要来自 M10 归档后的任务删除、`tests/llvm` 迁 `tests/unit`、Makefile、LLVM/QEMU/picolibc 补丁、ADR 编号碰撞。
-- 下一步：先判定用户态/系统态边界；按最新 spec 重做 `components/gem5` 补丁与测试；不直接采用 PR 的旧计数/旧证据。
+- 下一步：先做 M11 gap matrix（FS/SE 共用 ISA、FS/SE 分叉、测试复用/合并、其它模块依赖），再按最新 spec 重做 `components/gem5` 补丁与测试；不直接采用 PR 的旧计数/旧证据。
+- M11 子阶段（建议）：G0 gap/契约 → G1 FS 全系统 → G2 SE 复用 ISA 核心 → G3 QEMU/gem5 双向一致性与测试收口 → G4 里程碑核验。SE 不并行抢 FS 的 Machine-01 基础，但同属 M11。
 
 ## Linux（M12 或后续，暂缓）
 
