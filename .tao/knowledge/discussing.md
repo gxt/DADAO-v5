@@ -2,6 +2,14 @@
 
 > 只记**当前未决/待裁定**事项；任务流水看 `.tao/knowledge/milestones.md`，历史与已落实项不在此保留。
 
+## 批次授权
+
+- **2026-11-01 M11 gem5 批次**：B0 解码核心（`GEM5-004t`）+ B1–B7（按 G1 矩阵拆分，任务书待立）+ `SPEC-181t` 语义缺口收口。
+- 范围：已接受的 G1 矩阵、FS+SE M11、按 `docs/Process-09` 复用测试；不新增跨模块修改（LLVM/QEMU/picolibc 仍不动）。
+- 授权：批次内可直接创建任务书、建任务分支、`/dispatch`、验证、`/complete`、合并 master；不逐任务确认。
+- 停止点：批次外新任务、新增/改变 SPEC/契约语义决策、跨模块修改、push、破坏性/硬件操作、验收标准变更。
+- 任务仍须落盘 `.tao/tasks/` 且有 `milestones.md` 流水行。
+
 ## 待用户裁定：ADR
 
 ### SPEC-180t 的 ADR

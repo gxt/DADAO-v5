@@ -9,7 +9,7 @@
 - **git 操作**：本仓库为**独立仓库**（`origin = git@github.com:gxt/DADAO-v5.git`），所有 git 操作限于本仓库内。
 - **参考目录**：`DADAO-0628`/`DADAO` 只读参考、不复制代码；commit 锁在 `manifests/`，只读工作树在 `.cache/refs/<id>/`（`make fetch-refs` 幂等重建）。
 - **组件补丁**：组织/生成/应用/校验以 `docs/Process-01` 为准（树形补丁集 + 一文件一补丁 + `git apply`），由 `check-patch-tree` 机械校验。
-- **提交确认**：所有提交须先经用户确认（architect 的 WIP/正常提交为流程授权）；`push` 见「任务收尾」。
+- **提交确认**：所有提交须先经用户确认（architect 的 WIP/正常提交为流程授权；**批次授权内的任务提交/合并**按批次授权执行）；`push` 除外，见「任务收尾」。
 - **推送范围**：`push` 只推 `gxt` 账号名下仓库；其它账号/域名禁止或先询问。
 - **push 检查**：push 前列待推分支 + commit 清单、核 `git remote -v` 归属、`git pull --rebase` 同步；push 后验证 up-to-date。本仓库**无 submodule**（「先子后主」不适用）。
 - **操作前提问**：实际操作前先提问，一次一问，追问到完全理解需求。
@@ -99,6 +99,8 @@ DADAO-v5/
 
 ## 任务分解与执行确认
 - `.tao/tasks/` 现有分解是**参考 `DADAO-0628` 生成**、**未对每个任务书逐一审核** ⇒ **执行任何具体任务前必须先与用户确认该任务书内容，确认后方可 `/dispatch`**。
+- **批次授权（2026-11-01）**：用户可按批次批准任务（须列出任务书清单/范围/验收），并在 `discussing.md` 登记；批次内主会话可**直接创建任务书、建任务分支、`/dispatch`、验证、`/complete` 并合并 master**，不再逐任务确认；任务仍须落盘且与 `milestones.md` 有流水行。
+- **批次停止点**：批次外新任务、新增/改变 SPEC/契约语义决策、跨模块修改、push、破坏性/硬件操作、验收标准变更 ⇒ 仍须用户确认；批次内已列明的 SPEC/契约修正可直接执行。
 - **任务成立判据**：`discussing.md` 只是候选；可执行项必须落 `.tao/tasks/<module>/` 任务书 **且** 在 `.tao/knowledge/milestones.md` 有流水行，二者缺一不算任务；禁只写在回复/清单里。
 - **收尾查 backlog**：每任务 `/complete` 前检查 `discussing.md`；有可执行项当场立任务，转任务后只追加 `→ 已转 <任务号>`，不复制正文。
 
