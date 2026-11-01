@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M10 后（维护）
 **依赖**：无（与 `QEMU-077t` 同改 `milestones.md` ⇒ 两者串行，不得并行）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地（纯 Python + 文档 + `Makefile`；不重建任何组件）
@@ -105,18 +105,65 @@
 
 ## 完成区
 
-**测试结果**：（待填写）
-**修改文件**：（待填写）
-**验收结果**：（待填写）
+**测试结果**：
+- `make check-generator-sync` **rc=0**，6 段 PASS（ctrl-jump/call/ret 3 册、ctrl-br 1、mem 3、isa 6、misc 1、bitcnt；逐段 ~1.2/1.3/1.5/2.0/32.7/2.0 s，合计 **41.2 s** < 120 s 门槛）
+- `make check`（L1）**rc=0**：末行 `repository checks (L1): PASS`（`.work/log/infra/INFRA-115t-check-L1-final.log`）
+- `make check-modules`（L2）**rc=0**：日志末 6 条 `generate_* --check: PASS` + `module checks (L2): PASS`（`.work/log/infra/INFRA-115t-check-L2.log`）
+- `python3 tools/testcases/test_anti_forgery_008t.py` **rc=0**：5×`PASS: inject…` + `PASS: valid reserved case` + `ALL 5 INJECTION + 1 VALID TEST PASSED`；`/tmp/opencode/TESTCASES-008t` 已自清
+- `validate_vectors.py` rc=0：`156/156 M1 identities covered OK`
+- 证据脚本 `.work/evidence/INFRA-115t/run.sh`：默认 **checks=41 failures=0 GREEN rc=0**；`--inject` **checks=9 failures=0 GREEN rc=0**（a 改 misc.yaml 1 字节 ⇒ `FAIL tests/inst/base/misc.yaml: mismatch`；b INJECT1=PASS_CASES ⇒ `FAIL: inject1`；均 `cp`+md5 还原后回绿）
+
+**修改文件**：`tests/inst/README.md`（152→156 条）、`tests/README.md`（L211 措辞列名化，L51/L203 未动）、`tools/testcases/test_anti_forgery_008t.py`（4 处路径 → `tests/inst/base`/`tests/inst/inventory.md`）、`Makefile`（新目标 + `.PHONY` + `_locked-check-modules` 挂载 + 1 行 help）、`docs/Process-07-门控分层规范.md`（+1 行 L2 登记）、`.tao/knowledge/milestones.md`、本任务书；证据 `.work/evidence/INFRA-115t/{run.sh,run.log,inject.log,last-run.rc}`
+
+**验收结果**：
+1. `grep -c 'scope: m1'`=156；`tests/inst/README.md` 含 `**156 条**`；`grep -rn '152 条\|152 行' tests/`=0 ✓
+2. INVENTORY 实测 `total=156 deferred=4 covered=152`（`deferred_ids=cfx2rc_crrr_cfx,cfx2rd_crrr_cfx,escape_ciii_cfx,trap_ciii_cfx`）⇒ 与 `152/156` 一致，**该文件零改动**（`git status` 空）✓
+3. `全部 byte-identical` 残留=0；列名与 7 个 CLI `--check` 脚本一致（6+`rev`）✓
+4. anti_forgery rc=0 + 6 条 PASS；`tests", "vectors"` 残留=0；WORK 自清 ✓
+5. `make check-generator-sync` rc=0/6 段；Makefile 命中 4 处（定义/`.PHONY`/挂载/help）；L2 rc=0 且新段在内 ✓
+6. Process-07 表 +1 行、层级 **L2**，`git diff` 仅 +1 行 ✓
+7. L1 rc=0 ✓；8. 反例 2 条均 FAIL→md5 还原→回绿 ✓；9. `check-milestones-fresh`/`check-tasks` rc=0 ✓；10. 证据脚本 rc 落盘 `last-run.rc`=0 ✓
+
 **新发现/坑**：
-**遗留问题**：
+- `tests/INVENTORY.md` 的 `152/156` 实测成立（总数 156、整身份 deferred 4、覆盖 152），但**向量级 active id=153**（`escape_ciii_cfx` 有 1 条 active legality；另 5 条 `cs.*` 仅 overlap 一类 deferred）——与文件自身「deferred 身份计未覆盖」定义自洽，故不改；改成 153 会与同文件「m1 cfx 4 未覆盖」矛盾。
+- `generate_lit_vectors.py` **无 `--check` 开关**（源码里的 `--check-prefix` 是 FileCheck 参数）；真 `--check` 脚本恰 7 个 = 6（新门控）+ `rev`（L1）。误传 `--check` 会走默认生成路径（产物 byte-identical，`git status` 无 diff）。
+- `_locked-check-modules` 上方注释仍写「L2 = 四 scope smoke」，新成员是只读生成器同步（按任务书「只加挂载、不改说明」保留）⇒ 建议后续统一措辞。
+- 改 `Makefile` mtime 会使 L2 内 `install-host` 增量重建 qemu（行为不变，耗时上升）。
+
+**遗留问题**：无。F4（L2 注释措辞）按任务书显式保留并已登记，非未完成项。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
 
-（待填）
+审查范围：`Makefile`（新目标/`.PHONY`/挂载/help）、`tests/README.md`/`tests/inst/README.md` 文本、`test_anti_forgery_008t.py` 4 处路径、`docs/Process-07` +1 行、`.work/evidence/INFRA-115t/run.sh`。
 
-#### 第 1 轮 reviewer 验收
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 evidence 的「README 列名」断言锚在含 `byte-identical` 的行；本任务已删该词 ⇒ 6 条假 FAIL | ✅已修 | 锚点改为 `make check-generator-sync` 所在行 | 修复后 `checks=41 failures=0 RESULT: GREEN`（修复前 41/6） |
+| F2 inject-a 用 `check_rc` 比较 `nonzero`（整数比较会报错）| ✅已修 | 改 `check_eq` 字符串比较 | `--inject` checks=9 failures=0，注入段打印 `FAIL tests/inst/base/misc.yaml: mismatch` |
+| F3 `generate_lit_vectors.py` 源码含 `--check-prefix` 字串，易被误判为第 8 个 `--check` 生成器 | ❌不修 | —（无 `--check` 开关；实跑该参数走默认生成路径、产物 byte-identical） | `git status --porcelain` 无 lit 产物改动；6+`rev`=7 与任务书一致 |
+| F4 `_locked-check-modules` 上方注释仍写「L2 = 四 scope smoke」，新增成员非 smoke | ⏸延后 | 按任务书「只加挂载、不改该行说明」保留原文 | 完成区「新发现」登记，供 Process-07 后续统一措辞 |
+| F5 anti_forgery 断言只有「rc≠0」，未校验 fail 原因 | ❌不修 | —（脚本语义/`PASS_CASES` 按任务书一律不动） | 5 类注入均已打印对应规则行（R2/R8/R4）|
+| F6 `make check-modules` 因 `Makefile` mtime 变更触发 qemu 增量重建（成本上升，非功能影响）| ❌不修 | —（`install-host` 前置的既有行为） | L2 日志见 `.work/log/infra/INFRA-115t-check-L2.log` |
 
-（待填）
+判决：F1–F3 已修并复验；F4 按任务书显式保留（已登记）；F5/F6 不修有据。**无未修 finding** ⇒ 可标「待验收」。
+
+#### 第 1 轮 architect 交叉复核（2026-11-01 13:02，主线授权：无行为代码/纯文档+门控⇒免 reviewer 独立轮）
+
+自跑证据（均在 `/tmp/opencode/INFRA-115t/`，与完成区逐条对齐）：
+
+- `make check-generator-sync` **rc=0**，6 段逐段 PASS（ctrl-jump/call/ret 3、ctrl-br 1、mem 3、isa 6、misc 1、bitcnt）
+- `python3 tools/testcases/test_anti_forgery_008t.py` **rc=0**：5×`PASS: inject…` + `PASS: valid reserved case`；`/tmp/opencode/TESTCASES-008t` 已自清
+- `make check`（L1）**rc=0**（`repository checks (L1): PASS`）；`make check-modules`（L2）**rc=0**（`module checks (L2): PASS`，含新段 6 条 `--check`）
+- `make check-tasks` rc=0；`make check-milestones-fresh` rc=0
+- `validate_vectors.py`：`156/156 M1 identities covered OK`
+
+文件集核：`git status -uall` 恰 7 项且逐项落在「修改文件」声明内；`tests/inst/**` YAML、`contracts/`、`spec/`、生成器脚本零改动；`tests/INVENTORY.md` 零改动（其 `152/156` 与实测 deferred=4/覆盖=152 自洽）。
+关键抽查：`grep -c 'scope: m1'`=156、`tests/inst/README.md` 含 `**156 条**`、`tests/` 无 `152 条|152 行` 残留、`全部 byte-identical` 在 `tests/` 下 0 残留、脚本内 `tests/vectors` 0 残留、`Makefile` 4 处命中（定义/`.PHONY`/挂载/help）、`docs/Process-07` 仅 +1 行且层级 L2。
+
+判决：**Accepted**（无 finding 遗留；engineer 自审 F1–F3 已修可复核，F4 属任务书显式保留项）。
+
+发现并修：置 `已验证` 后 `check-milestones-fresh` A4 报「L13 QEMU-077t → L14 INFRA-115t 逆序」（完成时间 13:02 > 11:45）⇒ 流水行上移至首行，复跑 rc=0（`PASS (74 行)`）；`make check-tasks` re-rc=0。
+
+遗留（非本任务未完成项）：① `_locked-check-modules` 上方注释仍写「L2 = 四 scope smoke」，建议后续统一措辞；② `.tao/knowledge/discussing.md` 仍留「README 措辞待对齐三生成器」条目，待主会话收尾时清除（子代理不得改该文件）；③ 证据落 `.work/`（未跟踪，按仓库既有惯例）。

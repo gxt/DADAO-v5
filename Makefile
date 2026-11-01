@@ -70,7 +70,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-tasks check-spec-codeblocks check-legality-invariants \
         check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive \
         check-contracts-dir check-knowledge-dir \
-        check-rev-vectors \
+        check-rev-vectors check-generator-sync \
         check-spec-archive-verify check-milestone check-sync-nonmaskable \
         check-component-changelog check-syscall-abi check-spec-purity check-spec-cite-targets \
         check-width-sizes check-code-range check-runner-reap
@@ -212,6 +212,7 @@ help:
 	@echo "  make check-spec-refs Audit spec references in contract-*.md (L1; INFRA-011t/058t)"
 	@echo "  make check-isa-coverage  ISA<->backend coverage matrix drift gate (L1; LLVM-081t/INFRA-069t)"
 	@echo "  make check-rev-vectors  rev vector re-derivation + spec_cite/oracle drift gate (L1; ISS-335)"
+	@echo "  make check-generator-sync  Six vector generators' --check byte-identical to on-disk vectors (L2; INFRA-115t)"
 	@echo "  make check-spec-numbering  Check 21-volume heading numbering structure (L1; SPEC-133t/INFRA-069t)"
 	@echo "  make check-spec-changelog  Check 21-volume appendix changelog structure (L1; SPEC-134t/INFRA-069t)"
 	@echo "  make check-spec-archive  Check SimRISC per-version archives exist (milestone closure; SPEC-154t/INFRA-109t)"
@@ -1004,7 +1005,7 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 #   arch : check-arch-smoke
 #   unit : check-unit（= check-lit + test-codegen + test-elf + ir-lli + picolibc fast）
 #   tset : check-tset-{libc,llvm,embench}-smoke
-_locked-check-modules: check-inst-smoke check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke
+_locked-check-modules: check-inst-smoke check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-generator-sync
 	@echo "module checks (L2): PASS"
 
 # L3 = 全量（TESTCASES-076t；2026-10-27 用户裁定「一个检查只在一层」严格化；TESTCASES-082t 去 tset smoke）。
@@ -1593,6 +1594,18 @@ check-tests-index:
 # ⇒ FAIL。与 check-case-ledger 同层（L1），不重复进 L2/L3。
 check-rev-vectors:
 	@$(PYTHON) tools/testcases/generate_rev_vectors.py --check
+
+# 生成器—落盘向量同步门控 (INFRA-115t, L2): 6 个向量生成器以 `--check` 从真源
+# 重新渲染并逐字节比对（ctrl-jump/call/ret、ctrl-br、mem、isa、misc、bitcnt）。
+# `rev` 不在此列出：已由 L1 `check-rev-vectors` 守护（Process-07 §4「一个检查只在
+# 一层」）。任一生成器与落盘向量漂移 ⇒ FAIL。
+check-generator-sync:
+	@$(PYTHON) tools/testcases/generate_ctrl_jump_call_ret.py --check
+	@$(PYTHON) tools/testcases/generate_ctrl_br.py --check
+	@$(PYTHON) tools/testcases/generate_mem_vectors.py --check
+	@$(PYTHON) tools/testcases/generate_isa_vectors.py --check
+	@$(PYTHON) tools/testcases/generate_misc.py --check
+	@$(PYTHON) tools/testcases/generate_bitcnt_vectors.py --check
 
 # decodetree 可复现性 (ISS-058, L1): build-qemu recipe 必须固定 PYTHONHASHSEED=0；
 # .work/source/qemu 在盘时实跑 decodetree 两种 seed，确认「敏感 ⇒ 已固定」。

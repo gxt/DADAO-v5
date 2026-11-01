@@ -208,7 +208,7 @@ make check-picolibc-tests-full     # 全量（235，最近 1 fail / 3 blocked）
 
 **已知缺口**（详见 `INVENTORY §6`）：`fp` 66 个身份无向量（语义靠 lit + 4 个 probe）；`m1` 4 个 cfx 身份 deferred；`rev`/`bitcnt` 476 例不在门控。
 
-> `TESTCASES-072t` 只搬家/接线：向量、探针、harness 内容未改（生成器 `--check` 全部 byte-identical；`case-ledger` 仅路径前缀变化）。
+> `TESTCASES-072t` 只搬家/接线：向量、探针、harness 内容未改（生成器 `ctrl-jump/call/ret`、`ctrl-br`、`mem`、`isa`、`misc`、`bitcnt`、`rev` 的 `--check` 逐字节一致，由 `make check-generator-sync`（L2）与 `make check-rev-vectors`（L1）守护；`case-ledger` 仅路径前缀变化）。
 
 ---
 

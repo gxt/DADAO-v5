@@ -10,8 +10,8 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-115t | 已验证 | 2026-11-01 13:02 | tests/inst 计数 152→156、生成器 `--check` 措辞列名化、anti_forgery 迁 tests/inst；新 check-generator-sync 挂 L2 |
 | QEMU-077t | 已验证 | 2026-11-01 11:45 | helper.c/cpu.h 注释 reserved cfx 7-14→6-14 与宏一致；补丁重导出，行为不变不重建 |
-| INFRA-115t | 待开始 | 2026-11-01 11:25（登记） | tests 计数 152→156、生成器 `--check` 措辞校正、anti_forgery 迁 tests/inst 路径；新增 check-generator-sync 挂 L2 |
 | INFRA-114t | 已验证 | 2026-11-01 10:15 | check-sync-nonmaskable 白名单补 PMEM_DMA（异步源）；self-test 加可达断言；不改 spec 语义 |
 | INFRA-113t | 待开始 | 2026-11-01 09:07（登记） | M10 后清理：退役失效 M1 门控判据（check_issues/Process-04）+ 清 ADR-0030/M9 过时 known-fail 基准 |
 | TESTCASES-089t | 已验证 | 2026-11-01 08:19 | reserved cfx（6–14、19–61）普通 ld/st 补 4 条 active CFXMEM 例；ledger/inventory 同步 |
