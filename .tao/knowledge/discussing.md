@@ -65,6 +65,7 @@
 
 ## 当前优先：gem5（M11，PR #3）
 
+- **任务批次（2026-11-02）**：`SPEC-181t`、`LLVM-142t`、`QEMU-078t`、`GEM5-005t`、`TESTCASES-090t` 已一次建齐；按依赖 dispatch，不再逐任务等。记录以 `milestones.md` 流水 + 各任务书为准。
 - 用户 2026-11-01 裁定：现有 Linux 开发延至 M12 或后续；先完成 gem5，gem5 成为新里程碑 M11。
 - 新模块：`gem5`，任务前缀 `GEM5-`；目录 `.tao/tasks/gem5/`。Linux 模块保留，恢复时再用。
 - 工作方式：**不做 PR merge、不建 worktree**；在本仓库普通任务分支上按 DADAO 最新 spec 重写/整理补丁。
