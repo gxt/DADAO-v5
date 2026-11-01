@@ -536,3 +536,9 @@
 - **2026-11-01 LLVM-141t**
   - 摘要：**cfx 别名表 `format=2` + stride 数组（cg7 `space_*[i]` 可汇编）**：① 运行时表新增 `array <name-base> <cfxha> <cg> <rc-base> <count> <stride> [canonical]`，`rc = rc-base + N*stride`；`format=1` 仍原样可读，`array` 仅在 `format=2` 合法（否则整表拒绝）；② `RegAlias` 增 `Stride`，`covers`/`getCfxRegName` 按 stride 判断与反算下标（`(rc-rcBase)/stride`），`lookupCfxRegAlias` 输出 `RcStride`，`DADAOAsmParser` 按 `RcBase + Sub*RcStride` 落 rc；③ 生成器对 `parse_register_tables` 的 stride 条目直接产 `array`（cg7 12 cfx × 4 字段 = 48 行，count=16 stride=4），连续数组仍为 `reg`；头行 `regs=` 取契约展开别名数（实测 1428，非行数）。真值（离线）：表 `48 array / 660 reg / 12 scalar`、无 `space_*` 字面下标；`validate_cfx_vectors.py` 新增 6 条 `@enc` 全 PASS；`make check-cfx-alias-table`/`check-cfx-aliases` rc=0；构建树增量链接的 `llvm-mc`/`llvm-objdump` 下 MC lit **79/79** 绿（含 `cfx2-space-stride{,-err}.s`）。`make install-host` 已完成（安装根重建；源表/构建树/安装根 sha256 一致），`check-cfx-alias-install` 6 checks PASS。
   - 执行者：engineer
+
+## M11
+
+- **2026-11-02 LLVM-142t**
+  - 摘要：**scaleB C1（第三源 `rf`→`rd`）+ `sc` 目的 `rd0` 汇编期硬报错**（`SPEC-181t` F5.2/F8.2）：① `DADAOInstrInfoFP.td` 的 `ftsclb`/`fosclb` 第三操作数改 `GPRD:$rd`（同 `orrr` 编码、`op/ha` 不变）；旧 `rf` 写法由匹配器拒绝（`invalid operand`，rc=1），反汇编按编码回读为 `rdN`（`44 54 41 88` → `ftsclb rf4, rf6, rd8`）；② `DADAOCodeGen.td` 的 `DADAOScalb` 第二操作数改 `i64`，`Pat` 直接接 RD；`LowerFLDEXP` 只做 i32→i64 符号扩展，不再 `SINT_TO_FP`（`ldexp` 产出 `ext.so rd4, rd16, 31; fosclb rf8, rf16, rd4`，无 `io2fo/it2ft`）；③ `DADAOAsmParser` 对 `sc.*` 的 `rdHB == rd0` 在 `MatchInstructionImpl` 前报 `Error`（非 warning），编码/反汇编路径不变。真值：`make install-host` rc=0；`check-instrinfo`/`check-scope` rc=0；`check-isa-coverage` rc=2（矩阵与 `tests/unit/llvm/lit/MC/DADAO-gen/gen-orrr.s` 仍为旧 `rf` 口径，测试资产不在本任务范围）；`check-lit` rc=2（仅 `fp-encoding.s`、`fp-ldexp.ll` 两例仍断言旧语义/旧语法），其余 159/161 绿。补丁 5 份改，`series` 98 不变。
+  - 执行者：engineer
