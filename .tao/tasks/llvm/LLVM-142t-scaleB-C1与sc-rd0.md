@@ -9,6 +9,8 @@
 
 用户 2026-11-01 裁决：`ftsclb`/`fosclb` 第三源 `rf → rd`（同 `orrr` 编码，C1）；`sc rdHB=rd0 ⇒ ILLI`；授权分别建 LLVM/QEMU 任务。
 
+用户 2026-11-02 裁定：**扩展 `TESTCASES-090t`** 接收 LLVM lit 与 isa matrix 同步；LLVM-142t 只验实现与定向行为，不要求 `check-lit`/`check-isa-coverage` 在本分支全局回绿。
+
 ## 目标
 
 1. **scaleB C1**
@@ -29,10 +31,11 @@
 ## 验收
 
 1. `make install-host` 后：新旧语法汇编检查、反汇编/编码检查。
-2. `check-instrinfo`、`check-scope`、`check-isa-coverage`（依赖 SPEC 分支）真实 rc=0。
-3. `make check-lit`（或 targeted lit）真实 rc=0；旧 `rf` 写法必须失败。
-4. 不修改测试资产；证据 `.work/evidence/<任务ID>/`；完成区 ≤30 行，状态 `待验收`。
-5. 失败保留现场；不猜 spec；不复制 QEMU/gem5 实现。
+2. `check-instrinfo`、`check-scope` 真实 rc=0。
+3. `make install-host` 后定向行为检查 rc=0：新/旧语法、反汇编、编码；旧 `rf` 写法必须失败。
+4. `check-lit`/`check-isa-coverage` 的全局回绿由 `TESTCASES-090t` 负责；本任务只记录失败例与原因，不修改 `tests/**`/`tools/llvm/**`。
+5. 不修改测试资产；证据 `.work/evidence/<任务ID>/`；完成区 ≤30 行，状态 `待验收`。
+6. 失败保留现场；不猜 spec；不复制 QEMU/gem5 实现。
 
 ## 完成区
 
