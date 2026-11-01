@@ -403,6 +403,11 @@ ILLI（illegal instruction，非法指令）异常由**非法操作数、非法�
 - 保留核芯功能扩展编号统一为 `6–14`、`19–61`；`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence` 的 `cfxha` 指向保留编号时触发 ILLI（五条共用同一条编码合法性规则）。
 - `escape` 的汇编层偏移合法集收窄为 **0 或 4 字节**；编码层 `imms18 ∈ {0,1}`（`imms18[0]` = 字节偏移 bit2），`imms18[17:1]` 为 SBZ、非零 ⇒ ILLI。
 - 修正窄位宽比较 `cmp.{ut,uw,ub}` 的 −1 扩展：原文「结果零扩展」为错误，现统一按 **64 位扩展**写满目的寄存器（−1 ⇒ 64 位全 1、0 ⇒ 0、+1 ⇒ 1），与 `.st`/`.sw`/`.sb` 同值；源操作数仍按位宽截断后比较。
+- `ftrem`/`forem` 明确为 IEEE 754 remainder：`rfHC` 为 ±Inf、`rfHD` 为 ±0、任一源为 sNaN ⇒ NV + qNaN；`rfHD` 为 ±Inf（`rfHC` 有限）⇒ 返回 `rfHC`；不置 NX/OF/UF。
+- `ftsclb`/`fosclb` 第三操作数由 `rfHD` 改为 `rdHD`（`rd` 组的**有符号 64 位整数指数**；`rdHD = rd0` 表示指数 0），沿用原 `orrr` 编码、不新增 opcode；旧 `rf` 第三操作数写法失效。
+- 浮点→整数转换（`ft2it`/`ft2io`/`ft2ut`/`ft2uo`/`fo2it`/`fo2io`/`fo2ut`/`fo2uo`）：有限值结果 inexact ⇒ 置 NX；NaN/Inf/超出目标整型范围 ⇒ 饱和（最大/最小）+ NV。
+- `call` 的返回地址明确为 **当前指令地址 + 4**（相对地址与绝对地址两种形式一致）。
+- `lr`/`sc`：保留标记粒度 = **精确地址 + 访问宽度**；`sc` 的 `rdHB` 为成功/失败结果，`rdHB = rd0` ⇒ ILLI。
 - `SimRISC QFC` 布局说明去掉版本号限定（布局表随版本演进，不再绑定单一版本号）。
 
 ### 0.5.5（2026-10-24）

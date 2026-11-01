@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M11
 **依赖**：`GEM5-002t`（语义矩阵，已验证）
-**状态**：待开始
+**状态**：待验收
 
 ## 用户授权
 
@@ -49,10 +49,20 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`make -k check` rc=2（唯一 FAIL=`check-isa-coverage`：LLVM 后端仍按旧 `ftsclb/fosclb rf,rf,rf` 汇编；重派生 accept 262/reject 2。按任务边界不改 LLVM）。证据脚本 `.work/evidence/SPEC-181t/run.sh` rc=0（23 个门控 + 语义检查 33/33 PASS；两次注入→FAIL→`cp`+md5 还原→回绿）。其余 L1 全 PASS：`check-legality-invariants`/`check-fp-contract`/`check-scope`/`check-rule-refs`/`check-legality-drift`/`check-asm-list`/`check-asm-list-drift`/`check-spec-drift`/`numbering`/`changelog`/`purity`/`cite-targets`/`refs`/`codeblocks`/`readonly`/`archive`/`archive-verify`/`check-contracts-dir`/`pending`/`check-contract-relocs`/`validate-encoding`/`check-instrinfo`/`check-milestones-fresh` 均 rc=0。
+**修改文件**：`spec/SimRISC-00/06/07/12`；`contracts/opcodes.yaml`、`contracts/legality_rules.yaml`；`.tao/contracts/contract-fp.md`、`contract-isa.md`、`contract-asm-list.md`（生成物）；`.tao/adr/adr-0044-fence-ciii.md`；`tools/spec/generate_opcodes.py`（生成器同步）；`manifests/spec-readonly.lock.toml`（4 册 sha256）；本任务书、`.tao/knowledge/milestones.md`。
+**验收结果**：F2 `ADR-0044` 置 `Accepted`（D1–D8 原文未改）；F5.1 remainder 边界/flag 写明；F5.2 C1 `ftsclb/fosclb` 第三操作数 `rdHD`（有符号 64 位整数指数，`rd0`=0，同 `orrr` 编码，旧 rf 写法失效）；F5.3 `convert_f2i` 有限 inexact⇒NX、NaN/Inf/超范围⇒饱和+NV；F7 `call` 返回地址=当前指令地址+4（相对/绝对一致）；F8.1 保留粒度=精确地址+访问宽度；F8.2 `sc.rdHB=rd0⇒ILLI`（12 条挂 `dst_rd0`，sc 编码未改）。矩阵行回溯：`ftrem_orrr_rf`/`forem_orrr_rf`/`ftsclb_orrr_rf`/`fosclb_orrr_rf`→SimRISC-07 §2.1+opcodes；`ft2it…fo2uo`→§1；`call_iiii_ra`/`call_rrii_ra`→SimRISC-06 §3；`sc.*`（12）→SimRISC-12 §1.1+opcodes `rule_refs`。`fp_semantics` 66 条 id/family/legality_refs 与 opcodes 双向一致（无操作数字段，未改结构）。
+**新发现/坑**：① `generate_opcodes.py` 原缺 SPEC-180t 的 escape `imms18[17:1] == 0`，直接重生成会回退该语义；已补生成器并重生成。② `manifests/spec-readonly.lock.toml` 未列在任务书文件范围，但 Process-06 要求改只读册同笔更新 sha256；已按授权更新并留注。③ `check-isa-coverage` 红是 LLVM 后端未同步的必然结果，不是规范/契约内部不一致。
+**遗留问题**：① F1（spec 现行文字已要求 `lr.hb==rd0` 否则 ILLI，但 contracts/legality 的 12 条 `lr` 仍为空）不在「已确认口径」内，未改；需用户裁定。② LLVM/QEMU/gem5/tests 未同步新语义（`ftsclb`/`fosclb`、sc legality、call IP+4、`convert_f2i` NX、remainder 边界、保留粒度），需另立实现/测试任务；`check-isa-coverage` 待 LLVM 落地后回绿。③ 未新增测试（按任务边界）。
 
 ## 审阅记录
+
+### 第 1 轮 engineer 自审
+
+**范围**：逐行审 spec/contracts/adr/generator 改动；重跑全部相关门控。
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F-1 `generate_opcodes.py` 缺 escape SBZ，重生成会回退 | ✅已修 | 补 `imms18[17:1] == 0` legality 与 `EXPR_TO_RULE` | 重生成 diff 无 escape 回退；`check-legality-invariants` rc=0 |
+| F-2 spec 只读锁未同步 | ✅已修 | 4 册 sha256 + 授权注记 | `check-spec-readonly` rc=0 |
+| F-3 生成区手工修改风险 | ✅已修 | 附录 A/B 全由生成器重生成 | `check-asm-list-drift`/`check-legality-drift` rc=0 |
+| F-4 `ftsclb`/`fosclb` 生成物与散文 bank 不一致 | ✅已修 | 生成器 field `rdhd` + spec 散文/速查同步 | `check-spec-codeblocks`/`check-asm-list` rc=0 |

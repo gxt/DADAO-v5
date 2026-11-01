@@ -39,7 +39,7 @@ uo2fo   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
 
 其中it表示32位有符号整数，io表示64位有符号整数，ut表示32位无符号整数，uo表示64位无符号整数，ft表示32位单精浮点数，fo表示64位双精浮点数。immu6 指定连续转换的寄存器数量（1-63）。例如 `ft2fo {rf4:rf6}, {rf8:rf10}` 将 rf8→rf4、rf9→rf5、rf10→rf6。源范围与目的范围不可有任何交集（含完全重合），否则触发 ILLI 异常（与 SimRISC-02 一致）；无交集时转换按序号递增逐对进行，先读后写。
 
-浮点格式转换遵循 IEEE 754 标准：浮点→浮点（fo2ft/ft2fo）溢出返回 ±Inf（设置 OF），下溢（结果 **tiny 且 inexact**）按舍入模式处理并置 UF（同时置 NX），NaN 传播 payload。整数→浮点转换可能 inexact（精度损失）。浮点→整数转换中 NaN/Inf/超出范围返回整型饱和值（最大/最小），设置 NV 标志。sNaN 作为算术输入时设置 NV 并返回 qNaN。舍入模式由 rf0[33:32] 控制，异常标志在 rf0[4:0]。
+浮点格式转换遵循 IEEE 754 标准：浮点→浮点（fo2ft/ft2fo）溢出返回 ±Inf（设置 OF），下溢（结果 **tiny 且 inexact**）按舍入模式处理并置 UF（同时置 NX），NaN 传播 payload。整数→浮点转换可能 inexact（精度损失）。浮点→整数转换按 IEEE 754-2019：有限值转换结果 inexact（不能精确表示）⇒ 置 NX；NaN/Inf/超出目标整型范围 ⇒ 返回整型饱和值（最大/最小）并置 NV。sNaN 作为算术输入时设置 NV 并返回 qNaN。舍入模式由 rf0[33:32] 控制，异常标志在 rf0[4:0]。
 
 **异常标志口径（IEEE 754-2019 §7.5）**：`UF` 仅在结果 **tiny 且 inexact** 时置位——结果 tiny 但可精确表示时**不置** `UF`（也不置 `NX`）；`NX` 与 `UF` **相互独立**（inexact 但非 tiny ⇒ 只置 `NX`）。**tininess 检测点 = 舍入后**（after rounding：按目标格式舍入后再判结果是否小于最小正规数）。标志为 **sticky**（置位后保持到软件清零，见 `SimRISC-00 §浮点状态寄存器`）。
 
@@ -63,21 +63,21 @@ ftsub   rfHB, rfHC, rfHD
 ftmul   rfHB, rfHC, rfHD
 ftdiv   rfHB, rfHC, rfHD
 ftrem   rfHB, rfHC, rfHD
-ftsclb  rfHB, rfHC, rfHD
+ftsclb  rfHB, rfHC, rdHD
 
 foadd   rfHB, rfHC, rfHD
 fosub   rfHB, rfHC, rfHD
 fomul   rfHB, rfHC, rfHD
 fodiv   rfHB, rfHC, rfHD
 forem   rfHB, rfHC, rfHD
-fosclb  rfHB, rfHC, rfHD
+fosclb  rfHB, rfHC, rdHD
 ```
 
-其中，rfHB为目的操作数，rfHC和rfHD分别为第一个源操作数和第二个源操作数。硬件先读全部源操作数再写结果，源寄存器被目的覆盖前其值已捕获，行为确定。
+其中，rfHB为目的操作数，rfHC为第一个源操作数。除 `ftsclb`/`fosclb` 外，rfHD为第二个源操作数；`ftsclb`/`fosclb` 的第三个操作数为 `rdHD`（`rd` 组的**有符号 64 位整数指数**，非浮点寄存器；`rdHD = rd0` 表示指数 0）。硬件先读全部源操作数再写结果，源寄存器被目的覆盖前其值已捕获，行为确定。
 
-`ftrem`/`forem` 为 IEEE 754 remainder 操作（`rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数）。除数为零、Inf 或 NaN 行为遵循 IEEE 754。
+`ftrem`/`forem` 为 IEEE 754 remainder 操作：结果 = `rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数。`rfHC` 为 ±Inf、`rfHD` 为 ±0、任一源为 sNaN ⇒ 置 NV 并返回 qNaN；否则 `rfHD` 为 ±Inf（`rfHC` 有限）⇒ 返回 `rfHC`；qNaN 作输入 ⇒ 返回 qNaN（不置标志）。本操作结果精确，不置 NX/OF/UF。
 
-`ftsclb`/`fosclb` 为 IEEE 754 scaleB 操作：计算 `rfHC × 2^rfHD`（rfHD 取整数值），舍入模式由 rf0 控制。NaN/Inf/溢出/下溢行为遵循 IEEE 754。
+`ftsclb`/`fosclb` 为 IEEE 754 scaleB 操作：计算 `rfHC × 2^rdHD`（`rdHD` 为整数指数），舍入模式由 rf0 控制。两种形式使用同一 `orrr` 编码，不新增 opcode；旧写法 `ftsclb rfHB, rfHC, rfHD` / `fosclb rfHB, rfHC, rfHD`（第三操作数为 `rf` 组）不再接受。NaN/Inf/溢出/下溢行为遵循 IEEE 754。
 
 ### 2.2 S1D1
 
@@ -334,7 +334,7 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 | `forem` | `orrr` | `rf` | `forem rfHB, rfHC, rfHD` | `forem_orrr_rf` |
 | `fornd` | `orri` | `rf` | `fornd rfHB, rfHC, immu6` | `fornd_orri_rf` |
 | `foroot` | `orri` | `rf` | `foroot rfHB, rfHC, immu6` | `foroot_orri_rf` |
-| `fosclb` | `orrr` | `rf` | `fosclb rfHB, rfHC, rfHD` | `fosclb_orrr_rf` |
+| `fosclb` | `orrr` | `rf` | `fosclb rfHB, rfHC, rdHD` | `fosclb_orrr_rf` |
 | `foscmp` | `orrr` | `rf` | `foscmp rdHB, rfHC, rfHD` | `foscmp_orrr_rf` |
 | `fosgnj` | `orrr` | `rf` | `fosgnj rfHB, rfHC, rfHD` | `fosgnj_orrr_rf` |
 | `fosgnn` | `orrr` | `rf` | `fosgnn rfHB, rfHC, rfHD` | `fosgnn_orrr_rf` |
@@ -356,7 +356,7 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 | `ftrem` | `orrr` | `rf` | `ftrem rfHB, rfHC, rfHD` | `ftrem_orrr_rf` |
 | `ftrnd` | `orri` | `rf` | `ftrnd rfHB, rfHC, immu6` | `ftrnd_orri_rf` |
 | `ftroot` | `orri` | `rf` | `ftroot rfHB, rfHC, immu6` | `ftroot_orri_rf` |
-| `ftsclb` | `orrr` | `rf` | `ftsclb rfHB, rfHC, rfHD` | `ftsclb_orrr_rf` |
+| `ftsclb` | `orrr` | `rf` | `ftsclb rfHB, rfHC, rdHD` | `ftsclb_orrr_rf` |
 | `ftscmp` | `orrr` | `rf` | `ftscmp rdHB, rfHC, rfHD` | `ftscmp_orrr_rf` |
 | `ftsgnj` | `orrr` | `rf` | `ftsgnj rfHB, rfHC, rfHD` | `ftsgnj_orrr_rf` |
 | `ftsgnn` | `orrr` | `rf` | `ftsgnn rfHB, rfHC, rfHD` | `ftsgnn_orrr_rf` |

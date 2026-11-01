@@ -1,8 +1,9 @@
 # ADR-0044: fence ciii（按 cfx 资源域的屏障）
 
-**状态**：Proposed
+**状态**：Accepted
 **日期**：2026-10-29
-**关联**：ADR-0039（地址空间）、ADR-0042（CFX/DMA）；`spec/SimRISC-11`、`spec/SimRISC-12`、`contracts/opcodes.yaml`；任务 `INTEG-041t`（待立）
+**更新**：2026-11-01（状态 `Proposed` → `Accepted`；D1–D8 原文不变）
+**关联**：ADR-0039（地址空间）、ADR-0042（CFX/DMA）；`spec/SimRISC-11`、`spec/SimRISC-12`、`contracts/opcodes.yaml`；任务 `INTEG-041t`（已验证）
 
 ## Context（背景）
 
@@ -46,4 +47,4 @@
 
 ## 状态说明
 
-关键语义已确认：`cfx0`/`cfx_umon`=all、`pred=succ=0` no-op、`hb` SBZ、`fm` 删除。落地由 `INTEG-041t` 负责。
+关键语义已确认：`cfx0`/`cfx_umon`=all、`pred=succ=0` no-op、`hb` SBZ、`fm` 删除。用户 2026-11-01 确认 decision 全部成立，本 ADR 由 `Proposed` 置 **`Accepted`**（D1–D8 正文保持不变）。落地由 `INTEG-041t` 完成（已验证）。
