@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""M1-gate issue blocker check + `resolved_by` field-constraint check.
+"""`resolved_by` field-constraint check.
 
-Reads .tao/knowledge/issues.yaml and checks that no open issue blocks M1-gate.
+Reads .tao/knowledge/issues.yaml and checks the `status` / `resolved_by` field
+constraints only.  The M1 stage's issue-blocking gate is retired: M1 was
+reached 2026-09-22 and no gate is in force, so the `blocks` field stays a
+descriptive slot that takes no part in the verdict (`INFRA-113t`).
 Fail-closed: if the file is missing, exit 1.
 
 字段约束（本文件头声明，INFRA-080t 起机械校验；用户 2026-10-14 裁定「A」= 两条都补、并入 L1）：
@@ -39,7 +42,6 @@ def main():
 
     n_open = 0
     n_closed = 0
-    n_blocking = 0
     n_closed_missing = 0
     n_open_stale = 0
     errors = []
@@ -49,12 +51,6 @@ def main():
         resolved_by = issue.get("resolved_by")
         if status == "open":
             n_open += 1
-            blocks = issue.get("blocks") or []
-            if "M1-gate" in blocks:
-                n_blocking += 1
-                errors.append(
-                    f"  BLOCKER: {issue['id']} — {issue['title']}"
-                )
             # 字段约束：open ⇒ resolved_by 为 null（空串视为 null 等价）。
             if not _is_blank(resolved_by):
                 n_open_stale += 1
@@ -79,16 +75,13 @@ def main():
             print(e, file=sys.stderr)
         print(
             f"check_issues: FAIL — {n_open} open, {n_closed} closed "
-            f"({n_blocking} blocking M1-gate; "
-            f"resolved_by: {n_closed_missing} closed 缺填 / {n_open_stale} open 非空)",
+            f"(resolved_by: {n_closed_missing} closed 缺填 / "
+            f"{n_open_stale} open 非空)",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    print(
-        f"check_issues: {n_open} open, {n_closed} closed "
-        f"({n_blocking} blocking M1-gate: 0)"
-    )
+    print(f"check_issues: {n_open} open, {n_closed} closed")
     print(
         f"check_issues: resolved_by 约束 OK "
         f"({n_closed} closed → 非空 / {n_open} open → null)"

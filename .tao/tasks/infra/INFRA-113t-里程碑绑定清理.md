@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M10 后（清理，不纳入 M10 收尾）
 **依赖**：无
-**状态**：待开始
+**状态**：已验证
 
 ## 定位与边界（先读）
 
@@ -132,18 +132,62 @@ dynamic 档同法换 `--link-mode dynamic` 与文件名。判据：`pass=5 且 f
 
 ## 完成区
 
-**测试结果**：（待填写）
-**修改文件**：（待填写）
-**验收结果**：（待填写）
+**测试结果**：evidence `.work/evidence/INFRA-113t/run.sh` **checks=36 failures=0**（脚本自身 rc=0，落 `run.rc`）；5 例两档 **pass=5 / fail=0 / known-fail=0 / blocked=0**（static、dynamic 各 5/5，closure_ok=classification_ok=true）；`make check` rc=0。
+**修改文件**：
+- `tools/infra/check_issues.py`：删 M1 阶段阻断分支/计数/文案；只留 `status`/`resolved_by`；fail-closed 不变。
+- `docs/Process-04-里程碑归档规范.md`：§3 步骤 5 的 `gate` 判据改「已退役」+ 文件头口径更正（不新增章节）。
+- `tools/testcases/tset/libc-test/run_libc_test_user_suite.py`：删 ADR-0030 全链路（常量/表行/evidence 函数/fail 分支/审计两处/CASE_NOTES 5 条）；清 `M9`/`M9+`/`ADR-0025 D2` 误引（含 4 条 `STRUCTURAL_EXCLUSIONS` 与 2 处链接注释）；保留「`-static` 无动态装载器」真缺口并注明动态档经 `HELPER_DSOS` 正常建/跑。判据其余（`GAP_SIGNATURES`、ISS-226/246/251/255、`--reserved-va`）零改动。
+- `.tao/knowledge/milestones.md`（113 行状态 → 待验收）、本任务书、`.work/evidence/INFRA-113t/run.sh`（新证据脚本）。`issues.yaml` 零改动。
+**验收结果**（真实 rc/计数）：
+1. `git grep -n 'M1-gate' -- tools docs .tao/knowledge .tao/contracts Makefile` ⇒ **0 行 rc=1**；`.tao/archive` **71** 文件保留。
+2. `check_issues.py` rc=0，输出 `check_issues: 0 open, 0 closed` + `resolved_by 约束 OK (0 closed → 非空 / 0 open → null)`，不含该词；17-closed 形态用 `/tmp` 同名副本证明（实打实打印 `17 closed → 非空 / 0 open → null`）；缺文件 fail-closed rc=1。
+3. 注入 `closed`+`resolved_by:null` ⇒ **rc=1** 点名 `ISS-TEST-A`；注入 `open`+`blocks:[M1-gate]` ⇒ **rc=0**；`cp` 还原后 md5 `9c4e93fb…` 前后一致。
+4. 两档 JSON `/tmp/opencode/INFRA-113t/evidence/math-{static,dynamic}.json`：5/5 pass（逐例 pass，exit=0）。
+5. runner `grep -nE 'ADR-0030|adr0030|LDBL_MANT_DIG=53'` ⇒ **0**；`grep -n 'M9'` ⇒ **0**。
+6. `/tmp` 副本树 ISS-251 evidence 恒 False ⇒ **rc=1** + `unclassified failure(s) remain: ['functional/strptime']`；adopt-无证据变体 ⇒ **rc=1** + `known-fail without live basis evidence`；仓库 runner md5 `dc54cce3…` 前后一致。
+7. `make check` **rc=0** + `repository checks (L1): PASS`（锁空，一次跑通）。
+8. `make check-tasks` rc=0、`make check-milestones-fresh` rc=0（6 行 PASS）。
+
 **新发现/坑**：
-**遗留问题**：
+- 任务书「17 条全 closed」已过期：M10 归档（2026-11-01）把 17 条冻结到 `.tao/archive/M10/issues-closed.md`，活台账现为 `[]`（0/0）。`issues.yaml` 零改动 ⇒ 验收 2 的 "17 closed" 只能用 `/tmp` 副本证明格式。
+- `check-tasks` ① 在 `待验收` 窗口必然命中本任务（完成区已填 + 待验收），`INFRA-114t` 已有同口径先例；已用临时树翻 `已验证` 证明 ① 归零。
+- `git status` 对中文路径转义，判定须 `-c core.quotepath=false`（lessons §2.19 再次命中，证据脚本首轮曾因此误红）。
+
+**遗留问题**：无阻塞项。两处「任务书字面 vs 现场」已按现场处置并留证（活台账 0/0、① 命中本任务），`/complete` 时知会即可。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
 
-（待填）
+**范围**：`check_issues.py` 全文、`Process-04` §3 步骤 5、runner 全量 diff（docstring / 常量 / `CASE_NOTES` / `STRUCTURAL_EXCLUSIONS` / evidence / attribute / audit）逐行核对。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `check_issues.py` docstring 若照任务书原话写 `M1-gate`，会撞验收 1（`git grep` 须 0 行） | ✅已修 | 改为「M1 stage's issue-blocking gate」表述，不出现字面串 | `git grep 'M1-gate' -- tools …` rc=1 |
+| F2 删除分支 vs 重算分支：最初按 binary128 改写 5 条 `CASE_NOTES` | ✅已修 | 按删除分支整条删（`pass` 不带 note，保留只增维护负担） | 文件内 `math/*l` note 0 处 |
+| F3 `regression/tls_get_new-dtv.c` 旧理由写「port has no threads」（INFRA-095t 后已假） | ✅已修 | 只述 `-static` 无动态装载器 + 动态档建 DSO | diff 该条；`grep M9`=0 |
+| F4 删 `missed_adr` 后 `classification_ok`/emit/注释是否残留 | ✅已修 | 同步删变量、emit、注释 | 两档 classification_ok=true；B6 注入仍 rc=1 |
+| F5 边界：删掉 fail 分支的第二个 basis 后 ISS-251 归因链是否仍有效 | ✅已验 | —（无需改） | `/tmp` 副本恒 False ⇒ rc=1 反证归因在用 |
+| F6 证据脚本对中文路径用 `git status` 转义导致误红（实跑 A3-tree-scope FAIL） | ✅已修 | 加 `-c core.quotepath=false` | 重跑转绿 |
+| F7 反例是否恒真：每类断言是否有可达 FAIL | ✅已验 | 补 4 条负控制（grep/JSON/runner/任务表） | 负控制全部按预期非零/命中 |
+
+判决：findings 全部已修/已验 ⇒ 状态置 `待验收`。
 
 #### 第 1 轮 reviewer 验收
 
-（待填）
+**重跑记录（全部本人执行，日志 `/tmp/opencode/INFRA-113t/reviewer-*.log`）**：
+- `.work/evidence/INFRA-113t/run.sh` 重跑：**checks=36 failures=0 / SCRIPT_RC=0 / run.rc=0**，与完成区一致（`reviewer-run.log`）；逐条审脚本：A1/A2/A3/A2b/A2c、B4（含 doctored-JSON 负控制）、B5（含注入副本负控制）、B6（两处 `/tmp` 副本树真跑 qemu 变异 ⇒ rc=1）、L1 均有可达 FAIL 路径，无恒真。
+- 验收 1：`git grep -n 'M1-gate' -- tools docs .tao/knowledge .tao/contracts Makefile` ⇒ **0 行 rc=1**；`git grep -l 'M1-gate' -- .tao/archive | wc -l` = **71**（历史保留）。
+- 验收 2：`python3 tools/infra/check_issues.py` ⇒ **rc=0**，输出 `check_issues: 0 open, 0 closed` + `resolved_by 约束 OK (0 closed → 非空 / 0 open → null)`，无该词；`/tmp` 合成 17-closed 副本实打 `17 closed → 非空`；缺文件 rc=1。
+- 验收 3（**独立注入**，`cp`+md5，未用 git 还原）：注入 `closed`+`resolved_by:null` ⇒ **rc=1** 且点名 `ISS-REVIEW-A`；注入 `open`+`blocks:[M1-gate]` ⇒ **rc=0**；两次还原 md5 均 `9c4e93fb…` 一致，`git status` 只剩 5 个允许文件。
+- 验收 4：两档 JSON 本人重跑生成并逐例核对 —— static/dynamic 均 `counts={'pass':5,'fail':0,'known-fail':0,'blocked':0}`、`closure_ok=classification_ok=True`，5 例逐条 `pass|exit=0`；`known_fail_bases` 仅 ISS-246/251/255；static 档 4 条 dlopen 排除理由已为 `-static` 真缺口 + `HELPER_DSOS` 说明，dynamic 档不再排除。
+- 验收 5：`grep -nE 'ADR-0030|adr0030|LDBL_MANT_DIG=53|ADR-0025'` ⇒ rc=1；`grep -n 'M9'` ⇒ rc=1；`GAP_SIGNATURES`/ISS-226/246/251/255/`--reserved-va`/`-R 4G`/`DYNAMIC_EXCLUSION_REASONS`（保留空表）均在。另 `git grep adr0030_evidence|ADR0030` 全仓 0 命中。
+- 验收 6：`make check` 本人直跑 ⇒ **rc=0** + `repository checks (L1): PASS`（`reviewer/make-check.log`）。
+- 验收 8：`make check-tasks` rc=0；`make check-milestones-fresh` rc=0（6 行 PASS）。
+- **反向注入补充**（reviewer 独立，`/tmp` 副本树）：`iss251_evidence` 体改恒 True ⇒ rc=0 —— 可解释：`strptime` 本征 fail，admission 与 audit 复用同一证据函数（本任务前同构，非回归），且验收 6 的两条判据（证据输入恒 False、无证据 adopt ⇒ rc=1）我重跑均见 FAIL，审计未放宽。
+
+**约束核验**：改动 = 5 个允许文件（`git status` 前后快照一致）；`issues.yaml` `git diff` 空（md5 `9c4e93fb…` 前后一致）；`Makefile`/`contracts/`/`.tao/adr/`/`.tao/archive/`/`spec/`/`tests/`/`components/` 零改动；未跑 L2/L3/夜跑；无临时残留（`*_tmp*`/`*.orig`/`*.rej` 扫描空）。
+
+**非阻断说明**：① 任务书「17 条全 closed」为**事实过期**——`b9de21c3`（M10 归档，分支基点 `e6998c44` 祖先）已把 17 条冻结到 `.tao/archive/M10/issues-closed.md`（实数 17 行），活台账现 `[]`，非漏做；② `check-tasks` ① 命中本任务属**工具设计**（完成区已填 + 待验收 ⇒ 报告型提示），脚本内临时树翻 `已验证` 后 ① 归零已证；③ F1 处置（docstring 不写字面 `M1-gate`）合理，否则与验收 1 冲突。
+
+**判决：Accepted**（9 条验收在本人重跑下全过，约束无违反；两处「任务书字面 vs 现场」已留证，`/complete` 知会即可）。

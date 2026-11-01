@@ -75,7 +75,7 @@ dadao-unknown-elf -print-libgcc-file-name``, installed by INFRA-088t), inside
 the same ``--start-group`` as ``libc.a``: ``functional/tgmath`` emits
 ``__muldc3``/``__divdc3`` complex-arithmetic helpers that neither musl nor the
 program provides.  Both link lines carry that archive: with ``long double`` =
-binary128 (ADR-0030 D1) user TUs and the ``src/common/mtest.c`` harness emit TF
+binary128 user TUs and the ``src/common/mtest.c`` harness emit TF
 libcalls, and ``libc.so`` hides its own compiler-rt members
 (``--exclude-libs=ALL``, upstream musl policy), so the archive must appear on
 the dynamic line as well.
@@ -108,21 +108,18 @@ Classification (counted live, never hard-coded)
                   target`` / backend ``GlobalTLSAddress``); ``ISS-251``
                   (musl's ``%s`` is parse-only -- ``src/time/strptime.c`` --
                   while the corpus asserts glibc's fill-``tm`` behaviour at
-                  ``src/functional/strptime.c:112``); ``ADR-0030`` (the target
-                  still declares ``long double`` = binary64 /
-                  ``LDBL_MANT_DIG=53``; ADR-0030 is Accepted and schedules
-                  binary128 in M9, so the five ``math/*l`` ulperr failures
-                  disappear then).  A failure without a registered basis stays
-                  a ``fail``; nothing else may be relabelled (ISS-226).  The
-                  audit prints each row's basis and rejects an unattributed
-                  ``known-fail`` and any unclassified ``fail``.
+                  ``src/functional/strptime.c:112``).  A failure without a
+                  registered basis stays a ``fail``; nothing else may be
+                  relabelled (ISS-226).  The audit prints each row's basis and
+                  rejects an unattributed ``known-fail`` and any unclassified
+                  ``fail``.
 * ``excluded``    declared up front, structural, with a per-entry reason and a
                   live count: upstream's test *generator* tree
-                  (``src/math/gen/**``), the ``dlopen`` cases (a static image
-                  has no dynamic loader; in the dynamic round dlopen is out
-                  of the declared M8 scope -- ADR-0025 D2 / INFRA-085t item 7
-                  -- and the TLS DSO helpers cannot compile under ISS-246),
-                  and an ``src/api`` conformance TU
+                  (``src/math/gen/**``), the ``dlopen`` cases (a ``-static``
+                  image carries no dynamic loader, so the static round cannot
+                  run them; the dynamic round builds their per-case DSO
+                  helpers -- ``HELPER_DSOS`` -- and runs them as ordinary
+                  cases), and an ``src/api`` conformance TU
                   that names an identifier the locked musl does not provide.
 * ``blocked``     a build/run gap prevents the case from reaching its own
                   verdict: compile/link failure, missing symbol, unloadable
@@ -301,16 +298,9 @@ ISS255_ALIGN_LINE = "fault: MALIGN"
 
 # The admitted causes, keyed by issue id: a case's ``known_fail_basis`` must be
 # one of these keys and must satisfy the corresponding live evidence check.
-ADR0030_ID = "ADR-0030"
-ADR0030_FILE = os.path.join(REPO_ROOT, ".tao", "adr",
-                            "adr-0030-long-double-binary128.md")
-ADR0030_CASE_LIST = re.compile(r"math/\{([a-z0-9,]+)\}")
-
 KNOWN_FAIL_BASES = {
     ISS246_ID: "live TLS scan hit + clang thread-local-storage diagnostic",
     ISS251_ID: "musl %s parse-only comment + corpus call site + %s diagnostic",
-    ADR0030_ID: ("ADR-0030 Accepted (binary128 / M9) + target LDBL_MANT_DIG=53 "
-                 "+ ulperr diagnostic"),
     ISS255_ID: ("exact case + host SIGBUS (7) + corpus byte-granular interpose "
                 "malloc (8-byte store can be 4 mod 8)"),
 }
@@ -389,29 +379,6 @@ CASE_NOTES = {
         "behaviour at src/functional/strptime.c:112 (under its own "
         "/* Glibc */ heading).  musl is kept as upstream; the corpus is "
         "read-only (patchless).",
-    "math/acoshl":
-        "known-fail basis ADR-0030 (Accepted; long double -> binary128 in M9): "
-        "target declares long double == double (LDBL_MANT_DIG=53, "
-        "musl arch/dadao/bits/float.h:24); musl's long-double implementation "
-        "deviates from the corpus' double vectors by more than its ulp bar.",
-    "math/asinhl":
-        "known-fail basis ADR-0030 (Accepted; long double -> binary128 in M9): "
-        "target declares long double == double (LDBL_MANT_DIG=53); "
-        "musl's long-double implementation deviates from the corpus' double "
-        "vectors by more than its ulp bar.",
-    "math/erfcl":
-        "known-fail basis ADR-0030 (Accepted; long double -> binary128 in M9): "
-        "target declares long double == double (LDBL_MANT_DIG=53); "
-        "musl's erfcl deviates from the corpus' double erfc vectors.",
-    "math/lgammal":
-        "known-fail basis ADR-0030 (Accepted; long double -> binary128 in M9): "
-        "target declares long double == double (LDBL_MANT_DIG=53); "
-        "musl's lgammal deviates from the corpus' double lgamma vectors "
-        "(10.5 ulp on the failing vector).",
-    "math/tgammal":
-        "known-fail basis ADR-0030 (Accepted; long double -> binary128 in M9): "
-        "target declares long double == double (LDBL_MANT_DIG=53); "
-        "musl's tgammal deviates from the corpus' double tgamma vectors.",
     "functional/tgmath":
         "root cause (TESTCASES-047t static round, fixed by TESTCASES-050t): "
         "the static link line carried no compiler-rt builtins, so __muldc3 "
@@ -453,18 +420,20 @@ MODE_CASE_NOTES = {}
 STRUCTURAL_EXCLUSIONS = {
     "functional/dlopen.c":
         "static musl image has no dynamic loader: the case dlopen()s a sibling "
-        "DSO.  ADR-0025 D2 defers dlopen to M9+; structurally impossible in "
-        "the static round (the dynamic round is the place for it).",
+        "DSO, which a ``-static`` image cannot resolve; the dynamic round "
+        "builds dlopen_dso.so (HELPER_DSOS) and runs it as an ordinary case.",
     "functional/tls_align_dlopen.c":
         "dlopen-based TLS case: it dlopen()s tls_align_dso.so and dlsyms its "
-        "TLS variables.  A static image has no dynamic loader (ADR-0025 D2: "
-        "dlopen deferred to M9+), so the case cannot reach a verdict here.",
+        "TLS variables.  A ``-static`` image has no dynamic loader, so the "
+        "case cannot reach a verdict there; the dynamic round builds the DSO "
+        "helper and runs it.",
     "functional/tls_init_dlopen.c":
-        "dlopen-based TLS case (dlopen of tls_init_dso.so + dlsym).  A static "
-        "image has no dynamic loader (ADR-0025 D2: dlopen deferred to M9+).",
+        "dlopen-based TLS case (dlopen of tls_init_dso.so + dlsym).  A "
+        "``-static`` image has no dynamic loader; the dynamic round builds the "
+        "DSO helper and runs it.",
     "regression/tls_get_new-dtv.c":
-        "dlopen + pthread-based dynamic-TLS regression test; a static image "
-        "has no dynamic loader (ADR-0025 D2) and the port has no threads.",
+        "dlopen-based dynamic-TLS regression test; a ``-static`` image has no "
+        "dynamic loader.  The dynamic round builds its DSO helper and runs it.",
 }
 
 # Dynamic-round reasons for the same four entries (empty since LLVM-117t): the
@@ -734,61 +703,6 @@ def iss251_evidence(case, musl_root: str):
     return True, evidence
 
 
-def adr0030_evidence(case, musl_root: str):
-    """Recompute the ADR-0030 basis; return (ok, evidence).
-
-    The ADR fixes ``long double`` = binary128 and defers it to M9.  Five facts,
-    none taken from the case's class:
-    1. the case is a ``math/*l`` case whose own diagnostic carries a ``ulperr``
-       (the precision class the ADR names, not a look-alike);
-    2. ADR-0030 is ``Accepted`` (decision authority);
-    3. its D1 requires binary128 / ``LDBL_MANT_DIG`` = 113;
-    4. the ADR lists this very case among the five that must disappear, and
-       its D7 schedules the work in M9;
-    5. the locked target still declares ``LDBL_MANT_DIG`` = 53 -- exactly the
-       documented gap M9 removes.
-    """
-    name = os.path.basename(case.cid)
-    if not case.cid.startswith("math/") or not name.endswith("l"):
-        return False, "not a math/*l case"
-    if "ulperr" not in (case.first_error or ""):
-        return False, "diagnostic carries no ulperr"
-    try:
-        adr_text = read_text(ADR0030_FILE)
-    except OSError:
-        return False, f"ADR-0030 missing: {ADR0030_FILE}"
-    status_line = find_line(ADR0030_FILE, "**状态**：Accepted")
-    if status_line is None:
-        return False, "ADR-0030 is not Accepted"
-    d1_line = find_line(ADR0030_FILE, "### D1 ")
-    if d1_line is None or not re.search(r"LDBL_MANT_DIG.{0,12}113", adr_text):
-        return False, "ADR-0030 D1 does not state LDBL_MANT_DIG = 113"
-    d7_line = find_line(ADR0030_FILE, "### D7 ")
-    if d7_line is None:
-        return False, "ADR-0030 has no D7 scheduling decision"
-    d7_block = adr_text.splitlines()[d7_line - 1:d7_line + 8]
-    if not any("M9" in line for line in d7_block):
-        return False, "ADR-0030 D7 does not schedule the work in M9"
-    m = ADR0030_CASE_LIST.search(adr_text)
-    if not m:
-        return False, "ADR-0030 does not list the five math cases"
-    listed = {"math/" + n.strip() for n in m.group(1).split(",")}
-    if case.cid not in listed:
-        return False, f"ADR-0030's case list does not contain {case.cid}"
-    list_line = find_line(ADR0030_FILE, m.group(0))
-    float_h = os.path.join(musl_root, "arch", "dadao", "bits", "float.h")
-    mant = re.search(r"#define\s+LDBL_MANT_DIG\s+(\d+)", read_text(float_h))
-    if not mant or mant.group(1) != "53":
-        return False, (f"target does not declare LDBL_MANT_DIG=53 "
-                       f"({mant.group(1) if mant else 'missing'})")
-    evidence = (f"ADR-0030 Accepted (line {status_line}); D1 line {d1_line} "
-                f"binary128 / LDBL_MANT_DIG=113; D7 line {d7_line} -> M9; "
-                f"ADR lists the case (line {list_line}); target musl "
-                f"arch/dadao/bits/float.h:{find_line(float_h, '#define LDBL_MANT_DIG')} "
-                f"LDBL_MANT_DIG=53; observed: {case.first_error}")
-    return True, evidence
-
-
 def iss255_evidence(case, musl_root: str):
     """Recompute the ISS-255 basis for ``regression/flockfile-list``.
 
@@ -848,7 +762,7 @@ def attribute_known_fail_bases(case, musl_root: str):
     ``GAP_SIGNATURES``/host-signal classification is not relaxed.
     """
     if case.klass == "fail":
-        bases = ((ISS251_ID, iss251_evidence), (ADR0030_ID, adr0030_evidence))
+        bases = ((ISS251_ID, iss251_evidence),)
     elif case.klass == "blocked":
         bases = ((ISS255_ID, iss255_evidence),)
     else:
@@ -1193,7 +1107,7 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
                    "--end-group"])
     else:
         # The dynamic line needs the builtins archive too: `long double` is
-        # binary128 (ADR-0030 D1), so user TUs and the libtest harness
+        # binary128, so user TUs and the libtest harness
         # (src/common/mtest.c) emit TF libcalls, and libc.so hides its own
         # compiler-rt members (--exclude-libs=ALL, upstream musl policy) --
         # they cannot resolve user references.  In a normal build the driver
@@ -1416,8 +1330,8 @@ def main() -> int:
         if not os.path.isfile(os.path.join(musl, "lib", "libc.a")):
             raise SetupError("static musl libc.a missing (build-musl)")
 
-        # compiler-rt builtins for BOTH link lines (TESTCASES-050t item 3 +
-        # ADR-0030 binary128): the archive clang's own driver would use,
+        # compiler-rt builtins for BOTH link lines (TESTCASES-050t item 3,
+        # binary128): the archive clang's own driver would use,
         # queried rather than guessed (INFRA-088t installs it).  The static
         # round groups it with libc.a so tgmath's __muldc3/__divdc3 resolve;
         # with `long double` = binary128 the harness (src/common/mtest.c) and
@@ -1571,27 +1485,23 @@ def main() -> int:
                         and any(p in r.first_error for p in ISS246_PATTERNS))
         elif r.known_fail_basis == ISS251_ID:
             basis_ok, _ev = iss251_evidence(r, musl)
-        elif r.known_fail_basis == ADR0030_ID:
-            basis_ok, _ev = adr0030_evidence(r, musl)
         elif r.known_fail_basis == ISS255_ID:
             basis_ok, _ev = iss255_evidence(r, musl)
         else:
             basis_ok = False
         if not basis_ok:
             bad_known.append(f"{r.cid} (basis={r.known_fail_basis or 'none'})")
-    # Reverse direction: a live ISS-251 or ADR-0030 failure may not silently
-    # stay a `fail` (removing an admission would otherwise hide the basis), and
-    # after the long-double row is admitted no unclassified `fail` may remain.
+    # Reverse direction: a live ISS-251 failure may not silently stay a `fail`
+    # (removing an admission would otherwise hide the basis), and no
+    # unclassified `fail` may remain.
     missed_basis = [r.cid for r in results
                     if r.klass != "known-fail" and iss251_evidence(r, musl)[0]]
-    missed_adr = [r.cid for r in results
-                  if r.klass != "known-fail" and adr0030_evidence(r, musl)[0]]
     missed_iss255 = [r.cid for r in results
                      if r.klass != "known-fail" and iss255_evidence(r, musl)[0]]
     unexplained_fail = [r.cid for r in results if r.klass == "fail"]
     tls_that_pass = [r.cid for r in results
                      if r.klass == "pass" and r.cid in tls_ids]
-    classification_ok = not (bad_known or missed_basis or missed_adr
+    classification_ok = not (bad_known or missed_basis
                              or missed_iss255 or unexplained_fail)
     emit("  known-fail basis per case (recomputed live):")
     rows = [r for r in results if r.klass == "known-fail"]
@@ -1606,9 +1516,6 @@ def main() -> int:
     if missed_basis:
         emit(f"[FAIL] live ISS-251 failure(s) not admitted as known-fail: "
              f"{missed_basis}")
-    if missed_adr:
-        emit(f"[FAIL] live ADR-0030 failure(s) not admitted as known-fail: "
-             f"{missed_adr}")
     if missed_iss255:
         emit(f"[FAIL] live ISS-255 host-SIGBUS case(s) not admitted as "
              f"known-fail: {missed_iss255}")
