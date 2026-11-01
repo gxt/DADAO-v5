@@ -1,6 +1,8 @@
-# 保留编码 → UNDI 向量（TESTCASES-008t，方案 A）
-# 手写（无生成器）；encoding.reserved: true 标记 QFC/子表空白单元格
-# 不参与 id 覆盖率门控（无身份）；UNDI 覆盖由 inventory.md 登记
+# reserved 向量（手写，无生成器；TESTCASES-008t 方案 A，TESTCASES-089t 扩为两类）
+# ① 保留编码 ⇒ UNDI（Case 0–2）：encoding.reserved: true 标记 QFC/子表空白单元格，无 id 身份
+# ② 保留 cfxha（6–14、19–61）的普通 ld/st ⇒ CFXMEM（Case 3–6）：已定义编码 + 保留地址空间，
+#    带 id（contracts/opcodes.yaml 身份），**不带** encoding.reserved
+# 两类覆盖均登记于 inventory.md
 
 # ── Case 0: QFC 主表 op=0x08（0000-1xxx 整行 reserved）──
 - class: legality
@@ -49,3 +51,75 @@
   status: active
   spec_cite: "SimRISC-00: SimRISC QFC; contract-isa: 2.9"
   notes: "QFC 主表 op=0x58（0101-1xxx row, column 000）。该行 op=0x58 为空白单元格；0x59=add.si_riii_rd、0x5A=aip.si_riii_rb、0x5B=add.si_riii_rb、0x5C=cmp.ui_rrii_rd、0x5D=cmp.si_rrii_rd、0x5E/0x5F 亦为空白（原 cs.eq/ne_rrrr_rf 已随 SPEC-163t 删除，编码腾空；现场自 SimRISC-00 QFC 表逐格派生）。word=0x58040001: op[7:0]=0x58, ha=0x01, 非全零。（本 Case 原为 op=0x5A：该编码已随 `rela.si` → `aip.si` 成为合法指令，故改指向本仍为 blank 的格位。）"
+
+# ── Case 3: reserved cfxha 6（6–14 段下界）普通 ld.ub ⇒ CFXMEM ──
+- class: legality
+  encoding:
+    word: "0x10043000"
+  mnemonic: ld.ub
+  id: ld.ub_rrii_rd
+  format: rrii
+  input_state:
+    rb:
+      rb3: "0x180000000000"
+  expected_state: null
+  expected_pc: null
+  expected_fault: CFXMEM
+  status: active
+  spec_cite: "SimRISC-01: ld.ub; DADAO-12: 核内地址空间"
+  notes: "reserved cfx 地址空间（addr[47:42]=6，reserved 段 6–14/19–61）上的普通 ld.ub rd1, [rb3, 0]：word=0x10043000（opc=0x10、ha=1、hb=3、imms12=0），rb3=0x180000000000 ⇒ EA=0x180000000000（imms12=0，EA 对齐；不触发 MALIGN）⇒ CFXMEM (0x81)。"
+
+# ── Case 4: reserved cfxha 14（6–14 段上界）普通 ld.o ⇒ CFXMEM ──
+- class: legality
+  encoding:
+    word: "0x20043000"
+  mnemonic: ld.o
+  id: ld.o_rrii_rd
+  format: rrii
+  input_state:
+    rb:
+      rb3: "0x380000000000"
+  expected_state: null
+  expected_pc: null
+  expected_fault: CFXMEM
+  status: active
+  spec_cite: "SimRISC-01: ld.o; DADAO-12: 核内地址空间"
+  notes: "reserved cfx 地址空间（addr[47:42]=14，reserved 段 6–14/19–61）上的普通 ld.o rd1, [rb3, 0]：word=0x20043000（opc=0x20、ha=1、hb=3、imms12=0），rb3=0x380000000000 ⇒ EA=0x380000000000（imms12=0，EA 8 字节对齐；不触发 MALIGN）⇒ CFXMEM (0x81)。"
+
+# ── Case 5: reserved cfxha 19（19–61 段下界）普通 st.b ⇒ CFXMEM ──
+- class: legality
+  encoding:
+    word: "0x18043000"
+  mnemonic: st.b
+  id: st.b_rrii_rd
+  format: rrii
+  input_state:
+    rd:
+      rd1: "0x0000000000000042"
+    rb:
+      rb3: "0x4c0000000000"
+  expected_state: null
+  expected_pc: null
+  expected_fault: CFXMEM
+  status: active
+  spec_cite: "SimRISC-01: st.b; DADAO-12: 核内地址空间"
+  notes: "reserved cfx 地址空间（addr[47:42]=19，reserved 段 6–14/19–61）上的普通 st.b rd1, [rb3, 0]：word=0x18043000（opc=0x18、ha=1、hb=3、imms12=0），源值 rd1=0x…42，rb3=0x4c0000000000 ⇒ EA=0x4c0000000000（imms12=0，EA 对齐；不触发 MALIGN）⇒ CFXMEM (0x81)。"
+
+# ── Case 6: reserved cfxha 61（19–61 段上界）普通 st.o ⇒ CFXMEM ──
+- class: legality
+  encoding:
+    word: "0x21043000"
+  mnemonic: st.o
+  id: st.o_rrii_rd
+  format: rrii
+  input_state:
+    rd:
+      rd1: "0x0000000000000042"
+    rb:
+      rb3: "0xf40000000000"
+  expected_state: null
+  expected_pc: null
+  expected_fault: CFXMEM
+  status: active
+  spec_cite: "SimRISC-01: st.o; DADAO-12: 核内地址空间"
+  notes: "reserved cfx 地址空间（addr[47:42]=61，reserved 段 6–14/19–61）上的普通 st.o rd1, [rb3, 0]：word=0x21043000（opc=0x21、ha=1、hb=3、imms12=0），源值 rd1=0x…42，rb3=0xf40000000000 ⇒ EA=0xf40000000000（imms12=0，EA 8 字节对齐；不触发 MALIGN）⇒ CFXMEM (0x81)。"

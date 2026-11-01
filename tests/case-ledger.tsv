@@ -1346,6 +1346,10 @@ vector	tests/inst/base/reg-shift-extend.yaml	shr.uw_orrr_rd	semantic	0x42481083	
 vector	tests/inst/base/reserved.yaml	None	legality	0x08040001	UNDI	active	1
 vector	tests/inst/base/reserved.yaml	None	legality	0x1b040001	UNDI	active	1
 vector	tests/inst/base/reserved.yaml	None	legality	0x58040001	UNDI	active	1
+vector	tests/inst/base/reserved.yaml	ld.o_rrii_rd	legality	0x20043000	CFXMEM	active	1
+vector	tests/inst/base/reserved.yaml	ld.ub_rrii_rd	legality	0x10043000	CFXMEM	active	1
+vector	tests/inst/base/reserved.yaml	st.b_rrii_rd	legality	0x18043000	CFXMEM	active	1
+vector	tests/inst/base/reserved.yaml	st.o_rrii_rd	legality	0x21043000	CFXMEM	active	1
 vector	tests/inst/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x4798101f	None	active	1
 vector	tests/inst/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981080	None	active	1
 vector	tests/inst/bitcnt/bitcnt.yaml	ctlz_orri_rd	boundary	0x47981080	None	active	2

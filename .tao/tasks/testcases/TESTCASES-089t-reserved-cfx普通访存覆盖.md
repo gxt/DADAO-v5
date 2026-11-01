@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M10
 **依赖**：`TESTCASES-086t`（已验证；审计确认「reserved cfx 的普通 ld/st 无 active 向量」为覆盖缺口，登记遗留）、`INTEG-038t`（已验证；`addr[47:42]` 选 cfxha，reserved cfx 普通 `ld/st` ⇒ `CFXMEM`）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地（仓库 `/mnt/tao/DADAO-v5`，分支 `TESTCASES-089t`）。QEMU 安装根 `.dadao/cross-toolchain/bin/qemu-system-dadao`（mtime `2026-11-01 06:09`，35169320 B）；trampoline `tools/testcases/lib/trampoline.bin`（16 B，10-27）；单例 runner `tools/testcases/lib/run_qemu_test.py`（`--case` 为 0-based）；门控 `make check-inst`（= L3 成员 `inst:base`）。
@@ -111,12 +111,68 @@
 
 ## 完成区
 
-**测试结果**：（待填写）
-**修改文件**：（待填写）
-**验收结果**：（待填写）
-**新发现/坑**：（待填写）
-**遗留问题**：（待填写）
+**测试结果**：单例 Case 3–6 全 PASS（`Status: PASS - Expected CFXMEM, got CFXMEM`、`Exit code: 0x81`、rc=0）；Case 0–2 UNDI 不回归（`Exit code: 0x89`、rc=0）。`make check-inst` rc=0：**986 total / 981 passed / 0 failed / 5 deferred / 0 errors**（修前现场 982 +4，deferred 5 不变）。L1 `make check` rc=0；L2 `make check-modules` rc=0；`validate_vectors` rc=0（156/156 M1、716 cases = 修前 712 +4）；`check_case_ledger` rc=0（+4 行）；`check_spec_cite_targets` rc=0。证据脚本 default rc=0、`--inject` rc=0。
+
+**修改文件**：`tests/inst/base/reserved.yaml`（文件头改两类说明 + 追加 Case 3–6；Case 0–2 逐字节不动；`git diff -U0` 删除行仅 3 行旧头注释）；`tests/inst/inventory.md`（M1 矩阵表下方 +1 行来源说明，机械表行 0 改动）；`tests/case-ledger.tsv`（`check_case_ledger.py --write` 重生成，+4 行）；本任务书；`.tao/knowledge/milestones.md`（行状态 → 待验收，L1 A1 要求）。证据：`.work/evidence/TESTCASES-089t/{run.sh,logs/}`、`.work/log/testcases/TESTCASES-089t-*.log`（不入库）。
+
+**验收结果**（真实输出，日志见 `.work/evidence/TESTCASES-089t/logs/`）：
+- 编码独立重算：`ld.ub word=0x10043000 / ld.o 0x20043000 / st.b 0x18043000 / st.o 0x21043000`，`(word & 0xFF000000)==value` 全成立；ha=1、hb=3、imms12=0；`rb3>>42 ∈ {6,14,19,61}`、`rb3 ≤ 0xFFFF_FFFF_FFFF`、EA % 宽度 == 0。
+- 计数现场派生：`carriers=20 live_cases=986 | baseline total=982 + delta=4 == post total=986`；`passed=981 failed=0 deferred=5 errors=0`。
+- 反例注入：Case 3 `CFXMEM→ILLI`，md5 `1b111de8→ba263c33`（非空注入），`--case 3` rc=1 且含 `Expected ILLI`；`cp` 还原后 md5 一致、`--case 3` rc=0 回绿（未用 git 还原）。
+- `git status --untracked-files=all`：5 个 M（3 数据文件 + 任务书 + milestones），无 `*_tmp*`/`_gate*`/`*.orig`/`*.rej`。
+
+**新发现/坑**：① 任务书预检查写的「修前 978 total」与现场不符，实测基线 **982**（以现场为准，已在证据脚本内从修前日志读取、不写死）。② 证据脚本最初用 `git diff --quiet $BASE -- tests/inst/base/` 作「其它册零改动」断言，**目录 pathspec 会把 `reserved.yaml` 也算进去** ⇒ 恒假 FAIL；改为「显式文件列表 = 全部 base 册 − reserved.yaml」并断言列表长度 = 全部−1（防空集假绿）。③ 比对基线**不能钉 HEAD**（architect 提交/合并后会前移），钉不可变 commit `870b64e2`。④ 合法编码 + 保留地址的用例**不得**带 `encoding.reserved`（validate_vectors R2 强制 UNDI 且禁 id）。
+
+**遗留问题**：`trap`/`escape` 到 reserved cfx ⇒ ILLI 的 active 向量仍缺（全 deferred `TESTCASES-033t`，不在本任务范围）；`helper.c.patch` 注释写 `7-14`（宏为 6–14）笔误未改；`tests/inst/README.md` 的 M1 条数漂移未改；任务书「已知风险」第 1 条（reserved.yaml 语义分两类，是否拆册）留主会话裁定。
 
 ## 审阅记录
 
-（待 engineer 自审后按轮次追加）
+### 第 1 轮 engineer 自审（逐行审查）
+
+**范围**：`reserved.yaml`（头部 5 行 + Case 3–6 共 72 行）、`inventory.md`（+2 行）、`case-ledger.tsv`（重生成）、`run.sh`。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `run.sh` 的「其它 base 册零改动」用目录 pathspec 会把 reserved.yaml 自身算入 ⇒ 实际 rc=1 假红 | ✅已修 | 改为显式文件列表（全部 base 册 − reserved.yaml）+ 断言列表长度 = 全部−1（防空集） | 全量脚本 rc=0；`old-base-vectors-unchanged` PASS（`15 of 16 files`） |
+| F2 `run.sh` 以 `HEAD` 作基线：architect 提交后 diff 为空 ⇒ 「删除行 == 3 行旧头」断言变假红/恒真 | ✅已修 | 钉不可变 commit `BASE=870b64e2`（可用 `TESTCASES_089T_BASE` 覆盖），`git diff/git show` 统一用 `$BASE`，并 `export BASE` 供内层 bash/python 取用 | `bash -n` 通过；全量脚本 rc=0 |
+| F3 `case-ledger.tsv` 是否只需重生成、无手写期望 | ✅已确认（无改动） | 未手写；`--write` 生成 4 行（id/class/word/fault/status 与 yaml 逐字段对齐） | `check-case-ledger: PASS`；diff 仅 +4 行 |
+| F4 Case 3/4（load）的 `rd1` 不预置是否安全（dest 无需预置；合法编码检查/覆盖率守卫只对 semantic 要求 src 预置） | ✅已确认（无改动） | — | 单例 PASS；`validate_vectors` rc=0 |
+| F5 notes 要求「addr[47:42]/EA/⇒ CFXMEM (0x81)/imms12=0」四项是否齐全 | ✅已确认（无改动） | 证据脚本逐项断言 4 条 notes | `yaml-structure-and-fields` PASS |
+| F6 台账/清单是否越界（矩阵行、门控表、schema、其它 yaml） | ✅已确认（无改动） | 只加 1 行引用块说明 | `git diff --name-only $BASE -- tests/inst` == {reserved.yaml, inventory.md}；L1/L2 rc=0 |
+
+**判决**：6 条 finding 全部处置完毕（F1/F2 已修并复验），无未修项 ⇒ 状态置 `待验收`。
+
+### ARCH 复核与提交（architect，第 1 轮）
+
+**独立重跑**（日志 `/tmp/opencode/TESTCASES-089t-review/`）：单例 `--case 3|4|5|6` 全部 `Exit code: 0x81` / `PASS - Expected CFXMEM, got CFXMEM` rc=0；`--case 0|1|2` `0x89` UNDI rc=0（不回归）；`make check-inst` rc=0（`986 total, 981 passed, 0 failed, 5 deferred, 0 errors` = 基线 982 + 4）；L1 `make check` rc=0；L2 `make check-modules` rc=0；`validate_vectors` rc=0（156/156、716 cases）；`check_case_ledger` rc=0（1969 身份）；`check_spec_cite_targets` rc=0（unresolved=0）；证据脚本 `run.sh --inject` rc=0。
+**独立核字段/编码**（本方脚本，不采信叙述）：7 例；Case 0–2 与基线 `870b64e2` YAML 等值（`git diff -U0` 删除行仅 3 行旧头注释）；Case 3–6 均 `class=legality`/`active`/`rrii`/`expected_state|expected_pc=null`/`expected_fault=CFXMEM`、`encoding` 仅 `word`（无 `reserved`）；`(word & 0xFF000000) == value` 对 `contracts/opcodes.yaml` 4 条 `scope=m1` 记录全成立、ha=1/hb=3/imms12=0；`rb3>>42 ∈ {6,14,19,61}`、≤48 位、EA 按宽度对齐。
+**独立反例（本方）**：Case 3 `CFXMEM→ILLI`（`cp` 备份 md5 `1b111de8`）⇒ `--case 3` rc=1 `Expected ILLI, got CFXMEM` ⇒ `cp` 还原 md5 一致 ⇒ rc=0（未用 git 还原）。
+**档位/提交**：`待验收`（reviewer 未判决）⇒ 按主会话派单原话用 `feat(testcases): TESTCASES-089t reserved cfx 普通访存覆盖`（非 `WIP:`，偏差已声明）；分支 `TESTCASES-089t`，**未 push、未 merge**，哈希见 `git log -1`。
+**文件集对账**：`git status -uall` 5 项 == 完成区「修改文件」（`reserved.yaml`、`inventory.md`、`case-ledger.tsv`、本任务书、`milestones.md`）；无 `schema.md`/其它 yaml/生成器/`components/**`/`spec/**`/`contracts/**`/`Makefile`。`milestones.md` 改 1 行状态 = L1 `check_milestones_fresh` A1 门控强制（非越界）；`inventory.md` 实为 1 行引用 + 1 空行分隔（机械表行 0 改动）。
+**遗留（交主会话）**：`reserved.yaml` 是否拆册（现含两类语义）；`trap`/`escape` → reserved cfx ⇒ ILLI 仍全 deferred（`TESTCASES-033t`）；`helper.c.patch` 注释 `7-14` 笔误（宏为 6–14）；`tests/inst/README.md` M1 条数漂移（152 vs 现场 156）。
+
+### 第 1 轮 reviewer 验收（独立重跑，非采信叙述）
+
+**重跑记录（workdir=仓库根，本方命令/输出）**
+- `./.work/evidence/TESTCASES-089t/run.sh` ⇒ **`EXIT=0`**，39 项检查全 PASS、0 FAIL（含 L1 `make check` rc=0「repository checks (L1): PASS」、L2 `make check-modules` rc=0「module checks (L2): PASS」）。
+- 单例（脚本 S2/S4 逐条 rc）：Case 3/4/5/6 ⇒ rc=0、`Exit code: 0x81`、`Status: PASS - Expected CFXMEM, got CFXMEM`；Case 0/1/2 ⇒ rc=0、`Exit code: 0x89`、`Expected UNDI, got UNDI`（不回归）。
+- `make check-inst`（本方跑，`.work/log/testcases/TESTCASES-089t-check-inst.log:33`）：`Results: 986 total, 981 passed, 0 failed, 5 deferred, 0 errors`（rc=0）。基线本方独立复算（20 载体 × `git show 870b64e2:…` 逐册计数）= **982** ⇒ 982+4=986、deferred 5 不变、「+4 且零回退」成立。
+- `validate_vectors.py` rc=0（`156/156 M1 … 716 cases` = 修前 712+4）；`check_case_ledger.py` rc=0（`1969 身份 … PASS`）；`check_spec_cite_targets.py` rc=0（`unresolved=0`）——均本方重跑。
+- 字段/编码本方独立核：7 例；Case 0–2 与 `870b64e2` YAML 逐字段相等（`git diff -U0` 删除行仅 3 行旧头注释）；Case 3–6 = `legality/active/rrii`、`expected_state|expected_pc=null`、`expected_fault=CFXMEM`、`encoding` 仅 `word`（无 `reserved`）；`(word & 0xFF000000)==value` 对 `contracts/opcodes.yaml` 4 条 `scope=m1` 全成立（`opc=0x10/0x20/0x18/0x21`），ha=1、hb=3、imms12=0；`rb3>>42 ∈ {6,14,19,61}`、`rb3 ≤ 0xFFFFFFFFFFFF`、EA 按 1/8 字节宽度对齐；`spec_cite`/`notes` 四要素齐全。
+
+**独立反例（Case 4 → UNMAPPED，不照搬 Case 3→ILLI）**：`cp` 备份 md5 `1b111de8` → 改 Case 4 `expected_fault: CFXMEM→UNMAPPED`（md5 `c595e9a8`，非空注入）→ `run_qemu_test.py --case 4` **rc=1**、`Status: FAIL - Expected UNMAPPED, got CFXMEM` → `cp` 还原 md5 `1b111de8` 相等 → `--case 4` **rc=0** 回绿。全程未用 `git checkout/restore/stash`；还原后 `git status --porcelain -uall` = 0 行。
+
+**约束逐条**：① 文件集 = 5 项（`reserved.yaml`/`inventory.md`/`case-ledger.tsv`/任务书/`milestones.md`，`git diff --name-only 870b64e2 e1e6d494` 核），**无** schema/其它 yaml/生成器/`components/**`/`spec/**`/`contracts/**`/`Makefile` 改动；`milestones.md` 不在任务书文件范围，但为 L1 `check_milestones_fresh` A1 强制（表行状态 == 任务书 `**状态**`），完成区已声明 ⇒ 判非越界。② 既有 3 例与既有 UNMAPPED/CFXMEM 43 例、`ctrl-ret[9]` 零 diff。③ 未用 `encoding.reserved`（schema 该标记强制 UNDI+无 id）。④ 未跑夜跑/`check-full`；日志名均 `TESTCASES-089t-` 起头；无 `*_tmp*`/`_gate*`/`*.orig`/`*.rej`。
+
+**脚本审核**：`run.sh` 各断言均有可达 FAIL 路径（逐项 rc/子串判定），计数现场派生、基线钉 `870b64e2` 非 HEAD，含防空集断言，无恒真/两支同果；注入非空 + `cp`+md5 还原 ⇒ 合格（不合格项：无）。
+
+**发现（均不阻断）**：① 任务书预检「修前 978」与现场 982 不符（文档笔误，验收按现场，任务书已写「以现场为准」）；② `inventory.md` 实际 +2 行（1 说明 + 1 空行分隔），机械表行 0 改动、说明内容符合任务意图 ⇒ **可接受**；③ `reserved.yaml` 现含两类语义，文件头已分①②写清、任务书「已知风险 1」本就交主会话裁定 ⇒ **非阻断**，拆册与否由 architect 收尾裁定；④ 完成区「+1 行」与实际 +2 行措辞差 1 空行（文档级）。
+
+**判决：Accepted** —— 验收标准 1–8 在本方重跑下全部通过、约束无违反（仅写本审阅记录，未提交）。
+
+### /complete 交叉复核与提交（architect）
+
+**交叉复核（本人现场）**：分支 `TESTCASES-089t`、HEAD `e1e6d494`、起始工作树仅本任务书（reviewer 记录）；`git diff --name-status 870b64e2 e1e6d494` = 5 项，与完成区「修改文件」一致；单例 Case 3–6 均 rc=0 / `Exit code: 0x81` / `Expected CFXMEM, got CFXMEM`；`check_case_ledger` rc=0（1969 身份）；L1 `make check` rc=0（`repository checks (L1): PASS`，含 `check-milestones-fresh` A1/A5 绿）；`make check-inst` rc=0（`986 total, 981 passed, 0 failed, 5 deferred, 0 errors`）。
+**收尾改**：`**状态**` 待验收→已验证；`milestones.md` 089t 行 `待验收`→`已验证`、时间 `2026-11-01 06:25（登记）`→`2026-11-01 08:19`（去 `（登记）`，L1 A5 强制），并按 A4 倒序上移至 088t 行之前。
+**档位/提交**：reviewer Accepted ⇒ 正常提交 `review: TESTCASES-089t Accepted（reviewer + architect 交叉复核）`；文件集 2 项（本任务书、`milestones.md`）；分支 `TESTCASES-089t`，**未 push、未 merge**，哈希见 `git log -1`。
+**遗留（交主会话）**：`reserved.yaml` 是否拆册（现含两类语义）；`trap`/`escape` → reserved cfx ⇒ ILLI 全 deferred（`TESTCASES-033t`）；`helper.c.patch` 注释 `7-14` 笔误（宏 6–14）；`tests/inst/README.md` M1 条数漂移（152 vs 现场 156）；任务书预检「修前 978」笔误（现场 982）。
