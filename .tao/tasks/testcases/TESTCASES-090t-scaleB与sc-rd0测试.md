@@ -59,3 +59,8 @@
 | finding | 处置 | 改了什么 | 复验证据 |
 |---------|------|---------|---------|
 | 无 | — | — | — |
+
+#### 第 1 轮 architect 提交（WIP）
+- 档位：`待验收`（reviewer 未验收）⇒ WIP。
+- 提交：`a83a9a7c` `WIP: TESTCASES-090t LLVM 资产同步（QEMU/gem5 阶段待实现）`（7 files, +358/-340）。
+- 文件集对账：显式 staging 7 项，与完成区「修改文件」逐项一致（`fp-encoding.s`、`fp-ldexp.ll`、`gen-orrr.s`、`llvm-isa-backend-matrix.{tsv,md}`、本任务书、`milestones.md`）；漏提 0 / 多提 0 / 越界 0；无 `components/`、`spec/`、`contracts/`、QEMU/gem5、`Makefile` 改动；`git status --porcelain -uall` 除本行外干净。
