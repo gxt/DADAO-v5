@@ -401,6 +401,7 @@ ILLI（illegal instruction，非法指令）异常由**非法操作数、非法�
 - `fence` 编码改为 `ciii`（`opc = 0x79`）：`ha = cfxha`（0 = all cfx）、`hb = 0`（SBZ）、`hc = pred`、`hd = succ`；从 `OPC-MISC` 子表移到主表 `0111-1001`，删除 `fm`/TSO。`pred`/`succ` 为 `cr`/`cw`/`ci`/`co`/`mr`/`mw` 六位掩码，零掩码为合法 no-op。
 - 删除 `cfxld`/`cfxst` 两条指令与 `crii` 操作数格式：主表 `0111-1100`/`0111-1101` 两格转为保留（UNDI）；核芯功能扩展册只余 `trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence` 五条。
 - 保留核芯功能扩展编号统一为 `6–14`、`19–61`；`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence` 的 `cfxha` 指向保留编号时触发 ILLI（五条共用同一条编码合法性规则）。
+- `escape` 的汇编层偏移合法集收窄为 **0 或 4 字节**；编码层 `imms18 ∈ {0,1}`（`imms18[0]` = 字节偏移 bit2），`imms18[17:1]` 为 SBZ、非零 ⇒ ILLI。
 - 修正窄位宽比较 `cmp.{ut,uw,ub}` 的 −1 扩展：原文「结果零扩展」为错误，现统一按 **64 位扩展**写满目的寄存器（−1 ⇒ 64 位全 1、0 ⇒ 0、+1 ⇒ 1），与 `.st`/`.sw`/`.sb` 同值；源操作数仍按位宽截断后比较。
 - `SimRISC QFC` 布局说明去掉版本号限定（布局表随版本演进，不再绑定单一版本号）。
 

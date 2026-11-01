@@ -3,14 +3,16 @@
 
 规则（用户 2026-10-26 裁定「同步异常全部不可屏蔽；仅异步可屏蔽」）：扫描
 ``spec/DADAO-12/22/23`` 的**异常原因表**（表头含 `是否可屏蔽` 列），凡该列取值为
-`可` 的行，其名称必须是**异步源**——`IPI`、`TIMER`、`UART<n>` 或占位行 `...`；
+`可` 的行，其名称必须是**异步源**——`IPI`、`TIMER`、`UART<n>`、`PMEM_DMA`
+（`cfx_pmem` DMA 完成/出错，异步置位；DADAO-12 §4.9）或占位行 `...`；
 其余任何 cause 行出现 `可` 即 **FAIL**（打印 `file:line`）。
 
 计数**现场统计**（不写死）。若一册表都没找到 ⇒ ERROR（防空跑假绿）。
 
 ``--self-test``（可达 FAIL 自检）：临时副本上「注入一条同步 cause=可 → 必须 FAIL →
-还原 → 必须 PASS」，任一预期不成立即非零退出。临时树落 `/tmp/opencode/SPEC-175t/`，
-不触碰仓库文件。
+还原 → 必须 PASS」，任一预期不成立即非零退出；另含 `PMEM_DMA=可` 白名单**显式**断言
+（独立小表走真实扫描，且同步 cause 反向用例必须仍 FAIL，防白名单退化通配）。
+临时树落 `/tmp/opencode/SPEC-175t/`，不触碰仓库文件。
 
 Exit codes
 ----------
@@ -40,7 +42,7 @@ MASK_HEADER = "是否可屏蔽"
 NAME_HEADER = "名称"
 MASKABLE = "可"
 # 异步源白名单（用户裁定：仅异步可屏蔽）
-ASYNC_NAME_RE = re.compile(r"^(?:IPI|TIMER|UART\d*|\.\.\.)$")
+ASYNC_NAME_RE = re.compile(r"^(?:IPI|TIMER|UART\d*|PMEM_DMA|\.\.\.)$")
 SPLIT_RE = re.compile(r"(?<!\\)\|")
 
 
@@ -119,7 +121,9 @@ def _report(rc: int, errors: list[str], agg: dict, label: str) -> None:
     for e in errors:
         print("  " + e)
     if rc == 0:
-        print("check-sync-nonmaskable: PASS（仅异步源（IPI/TIMER/UART*/…）可屏蔽）")
+        print(
+            "check-sync-nonmaskable: PASS（仅异步源（IPI/TIMER/UART*/PMEM_DMA/…）可屏蔽）"
+        )
     elif rc == 1:
         print(f"check-sync-nonmaskable: FAIL ({len(errors)} violation(s))")
     else:
@@ -195,7 +199,52 @@ def self_test() -> int:
         _report(rc3, err3, agg3, "self-test/async")
         note(rc3 == 0, "异步源 TIMER=可 必须 PASS", rc3)
 
-        # 5) 还原并复核
+        # 5) 显式：PMEM_DMA=可 必须白名单命中 ⇒ PASS（独立小表走真实 run()，rc 即判决）
+        #    小表只放一条 PMEM_DMA=可；stats 断言 maskable_rows==1 证明该行**确被扫描到**
+        #    （防「行被跳过却全绿」）。真源行数现场统计，防合成小表与本仓 spec 脱节。
+        ppm_rows = 0
+        for line in (pristine / TARGETS[0]).read_text(encoding="utf-8").splitlines():
+            cells = _cells(line)
+            if len(cells) == 5 and cells[1] == "PMEM_DMA":
+                ppm_rows += 1
+        print(f"  DADAO-12 基线中 PMEM_DMA 行数 = {ppm_rows}（现场统计）")
+
+        ppm_dir = tmp / "pmem"
+        ppm_dir.mkdir()
+        for name in TARGETS[1:]:
+            (ppm_dir / name).write_text("# 自检占位（无表格）\n", encoding="utf-8")
+        ppm_head = (
+            "# 自检小表（非仓库文本）\n\n"
+            "| 名称 | 触发条件 | 是否可屏蔽 |\n"
+            "| --- | --- | --- |\n"
+        )
+        ppm_target = ppm_dir / TARGETS[0]
+        ppm_target.write_text(
+            ppm_head + "| PMEM_DMA | DMA 完成（DONE）或出错（ERROR） | 可 |\n",
+            encoding="utf-8",
+        )
+        rc5, err5, agg5 = run(ppm_dir)
+        _report(rc5, err5, agg5, "self-test/pmem-dma")
+        note(
+            rc5 == 0 and not err5 and agg5["maskable_rows"] == 1 and ppm_rows >= 1,
+            "PMEM_DMA=可 必须白名单命中且不报错",
+            rc5,
+        )
+
+        # 5b) 同一小表换成同步 cause CFXMEM=可 → 必须仍 FAIL（防白名单退化为通配）
+        ppm_target.write_text(
+            ppm_head + "| CFXMEM | 访问核内地址空间或内部存储块故障 | 可 |\n",
+            encoding="utf-8",
+        )
+        rc5b, err5b, agg5b = run(ppm_dir)
+        _report(rc5b, err5b, agg5b, "self-test/pmem-dma-neg")
+        note(
+            rc5b == 1 and any("CFXMEM" in e for e in err5b),
+            "同步 cause CFXMEM=可 必须仍 FAIL（白名单不得退化为通配）",
+            rc5b,
+        )
+
+        # 6) 还原并复核
         shutil.copy2(pristine / TARGETS[0], target)
         rc4, err4, agg4 = run(tmp)
         _report(rc4, err4, agg4, "self-test/final")
