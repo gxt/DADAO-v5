@@ -40,12 +40,12 @@ url = "https://mirror.sjtu.edu.cn/git/qemu.git"
 name = "gem5"
 enabled = false
 repository = "https://github.com/gem5/gem5.git"
-commit = ""
+commit = "c8222cc67a399bfc01e8658dd14b30d5bfd634f9"
 shallow = true
-# shallow_ref 待 gem5 启用时（其 ADR 定 tag/commit 后）补充；当前组件 disabled
+shallow_ref = "v25.1.0.1"
 patch_dir = "components/gem5/patches"
 patch_series = "components/gem5/series"
-role = "functional second reference"
+role = "functional second reference: FS + SE (AtomicSimpleCPU)"
 
 [[component]]
 name = "embench-iot"
