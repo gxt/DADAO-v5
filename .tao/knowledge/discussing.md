@@ -26,7 +26,7 @@
 
 ### M10 收尾
 
-- 状态：任务书已全部 `已验证`（089 待 merge）；`check-night` 尚未跑
+- 状态：任务书已全部 `已验证`（089 已 merge）；`check-night` 尚未跑
 - 下一步：`check-night` **4/4 PASS** 后才建 `INTEG-052m` 并置 M10 里程碑
 
 ### M10 后的 cfx 范围
