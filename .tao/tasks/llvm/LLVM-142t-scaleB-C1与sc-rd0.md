@@ -65,3 +65,14 @@
 - 档位：**WIP**（reviewer 未验收，任务仍 `待验收`；`check-lit`/`check-isa-coverage` 红）
 - 提交：`36400def WIP: LLVM-142t scaleB C1 与 sc rd0（测试资产待同步）`，8 文件、+78/-39
 - 对账：`git diff --cached --name-only` 8 项与完成区「修改文件」逐项一致（5 份导出补丁 + `changelog.md` + 本任务书 + `milestones.md`）；核 `git status -uall` 无 `tests/**`、`spec/**`、`contracts/**`、`components/{qemu,gem5}/**` 改动；无漏提 / 多提 / 越界。**未 push**。
+
+### 第 1 轮 reviewer 验收（2026-11-02，独立重跑）
+
+**环境/范围**：分支 `LLVM-142t`（HEAD `d0d72427`），`git status --porcelain -uall` 前/后均空；`git diff a211c9b0..HEAD` 恰 8 文件（5 补丁 + changelog + 本任务书 + milestones），对 `tests/ spec/ contracts/ components/{qemu,gem5}/ tools/` 改动数 = 0；`series` 98 未动。
+**门控（我方重跑，真实 rc）**：`make install-host` rc=0（ninja 增量 23 步、重链 `llvm-mc`/`llc`，安装根 mtime 07:23/07:25）；`check-instrinfo` rc=0、`check-scope` rc=0、`check-patch-tree` rc=0（205 patches OK）、`check-component-changelog` rc=0。
+**证据脚本**：`run.sh` rc=0（43/43 PASS）；`--inject` rc=0（7/7 反例检出，还原后 43/43）。逐条审脚本：每条 check 均为 expected/actual 字符串比对、有可达 FAIL 路径，无恒真/两支同果；`c_lit_full` 同时断言 rc=2 与失败集恰为两例，不掩盖新失败。
+**独立注入（非现成脚本）**：`mv` 安装根 `llvm-mc`→恒失败 stub（先记 md5 `3693b3fe…`）→ 重跑同一 `run.sh`：**rc=1、21 FAIL**（含「check-lit failing set」FAIL）→ `mv` 还原 → md5 复核一致 → 重跑 rc=0、43/43；无 `*.preinject` 残留、仓库状态与注入前一致。
+**行为核验（独立命令）**：`ftsclb rf4, rf6, rd8`=`[0x44,0x54,0x41,0x88]`、`fosclb rf4, rf6, rd63`=`[0x44,0x74,0x41,0xbf]`（与 `opcodes.yaml` orrr 位域 op=0x44/ha=0x15|0x1D/rdhd[5:0] 手工核算一致）；旧 `rf,rf,rf` 两条均 rc=1 `invalid operand`；objdump 回读 `rd8/rd63`；`llc` ldexp 产出 `ext.so rd4, rd16, 31; fosclb rf8, rf16, rd4`（f32 为 `ftsclb`），`grep io2fo|it2ft` 无命中；12 条 `sc.*` rdHB=rd0 全 rc=1、`error:` 级且诊断含 `dst_rd0`；`sc.o.nn rd8, rd0, [rb1]`（rdHC=rd0）rc=0；`sc.o.nn rd8, rd9, [rb1]`=`[0x47,0x40,0x82,0x41]` 与契约 `0x47408241` 一致（编码未改）。
+**允许红的边界（用户 2026-11-02 裁定）**：`check-lit` rc=2，161 例 159 绿，FAIL 恰为 `fp-encoding.s`（旧 `ftsclb/fosclb rf4, rf6, rf8` 行 123/171 报 invalid operand）与 `fp-ldexp.ll`（旧断言 `CHECK-COUNT-1: io2fo/io2ft`）——单例 `-v` 复跑证实根因即旧资产；`check-isa-coverage` rc=2 恰 4 项（`gen-orrr.s` 缺 `ftsclb/fosclb rf8, rf9, rd10` 两行 + 矩阵 tsv/md：ftsclb/fosclb 行仍 `rf10`、`DADAOCodeGen.td.patch` 行号 +1 漂移），全为测试/矩阵资产（归 TESTCASES-090t），无其它失败被掩盖。
+**输出真实性**：工程师 `run.log`/`inject.log` 与我方重跑逐行 diff 一致；完成区各数字（43/43、7/7、205、159/161、4 项、各编码值、`llc` 输出）逐项复核吻合。
+**判决：Accepted**。约束逐条守住：未改 `tests/**`/`spec/**`/`contracts/**`/`components/{qemu,gem5}/**`；语义对齐实查 spec/contracts（`SimRISC-07` §2.1/附录B：`ftsclb/fosclb rfHB, rfHC, rdHD`、旧写法不再接受；`SimRISC-12`/`legality_rules.yaml`：`dst_rd0` 含 12 条 `sc.*`，rdHC 可为 rd0）；失败留痕于 `/tmp/opencode/LLVM-142t/review-*.log`。
