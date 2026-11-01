@@ -3,10 +3,10 @@
 **模块**：infra
 **项目里程碑**：M10 后（维护）
 **依赖**：无
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
-**执行环境**：本地（仓库根 `/mnt/tao/DADAO-v5`；临时产物只放 `/tmp/opencode/INFRA-116t/`，证据落 `.work/evidence/INFRA-116t/`）
+**执行环境**：本地（仓库根 `/mnt/tao/DADAO-v5`；临时产物只放 `/tmp/opencode/INFRA-116t/`，证据落 `.work/evidence/<任务ID>/`）
 
 ## 背景（用户 2026-11-01 已确认，逐条）
 
@@ -85,13 +85,63 @@
 4. `make check` **rc=0**（L1 已含新目标）；`make check-milestones-fresh` 仍 **rc=0**。
 5. Process-04 逐条核对表：用户 9 条 → 文档节号/行号，9/9 命中；`grep` 不再出现「各模块…各放一个 `m`」强制句。
 6. `git diff --name-only` 仅含 `docs/Process-04*`、`docs/Process-07*`、`tools/infra/check_archive.py`、`Makefile`、本任务书、`milestones.md`；`.tao/archive/**` **零改动**。
-7. 证据脚本 `.work/evidence/INFRA-116t/run.sh` 可一键重跑（含反例注入→FAIL→`cp`+md5 还原→回绿），reviewer 独立注入一次。
+7. 证据脚本 `.work/evidence/<任务ID>/run.sh` 可一键重跑（含反例注入→FAIL→`cp`+md5 还原→回绿），reviewer 独立注入一次。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
+**测试结果**：任务书验收 7/7 条满足；`.work/evidence/INFRA-116t/run.sh` **37/37** 项 PASS（rc=0）；失败原因：无
+**修改文件**：`Makefile`、`docs/Process-04-里程碑归档规范.md`、`docs/Process-07-门控分层规范.md`、`tools/infra/check_archive.py`（新增）、本任务书、`.tao/knowledge/milestones.md`（状态行）；`.tao/archive/**` 零改动（`git diff --name-only -- .tao/archive` 空）
+**验收结果**（真实 rc）：
+- `python3 tools/infra/check_archive.py --pending-ok` **rc=0**；PENDING **7/7** == `PENDING_117`（M2 两册状态括注、M7/notes、M9/M10 各缺 flow+memory；逐条对账，未命中即 STALE ⇒ 红）
+- `python3 tools/infra/check_archive.py`（严格）**rc=1**：VIOLATION **0** 条，仅 PENDING_117 **7** 条
+- `python3 tools/infra/check_archive.py --self-test` **rc=0**，**16/16**（基线 1 + 注入 12 + 过渡边界 3）；注入覆盖根杂项/notes/状态非终态/里程碑不符/计数不符/流水缺册·多册·状态不符/issues 空壳/缺 MEMORY/缺终局证据/缺三件套
+- 现场统计：归档 **10** 个（M1–M10）、册 **622** 份；M7 流水 41 行、M8 68 行；M1–M10 清单计数与目录实况逐模块相符
+- `make check-archive` **rc=0**；`make check`（L1）**rc=0**；`check_milestones_fresh` **rc=0**
+- Process-04 用户 9 条 → 节号+行号 **9/9** 命中（证据脚本 §6 逐条打印）；`grep 各放一个` = 0
 **新发现/坑**：
-**遗留问题**：
+- **任务书 B.4/A.5「`**项目里程碑**` 值 == `M<i>` 恰好」按字面不可满足**：历史归档 M2/M5/M6/M7/M9/M10 多册带尾随括注（如 `M9（FP 完备性）`），而 117 明确不归一该字段 ⇒ 门控按「里程碑号 == 归档号；允许尾随括注」判定，**新归档要求裸 `M<i>`**；已在 Process-04 §4.1 写明口径。若不这样，严格模式永远红或必须越界改归档。
+- **后缀不映射状态**：M9 根级 `INTEG-037m` 记为 `已验证`（m 后缀但非 `里程碑`）⇒ 只校验值 ∈ {已验证,里程碑}，不校验 `m↔里程碑`。
+- **外部并发改动**：主会话 2026-11-01 13:51 将 116/117 任务书证据路径改为 `.work/evidence/<任务ID>/`，修 base 的 `check-knowledge-refs` 4 条悬空（`make check` 方可达 rc=0）。117 任务书未由本任务改动。
+- PENDING_117 须**双向对账**（常量项未命中 ＝ STALE 红），否则 117 归一后常量会静默腐烂。
+**遗留问题**：无。`INFRA-117t` 归一后按 Process-04 §8 / Makefile 注释删除 `PENDING_117` 与 `--pending-ok`（目标改严格默认）。
 
 ## 审阅记录
+
+### 第 1 轮 engineer 自审
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| B.4/A.5「`**项目里程碑**` 恰好 `M<i>`」与历史归档括注（M2/M5/M6/M7/M9/M10 多册）+ 117 不归一该字段冲突 | ✅已修（口径） | 门控按「里程碑号 == 归档号；允许尾随括注」，新归档要求裸值；Process-04 §4.1 写明 | `--pending-ok` rc=0；严格仅 7 条 PENDING |
+| 流水「行状态 == 任务书状态」初版只收集未比对 | ✅已修 | `_check_readme` 增加 `status_map` 比对 + 自检「流水状态不符」注入 | self-test 16/16；M7/M8 真数据通过 |
+| 严格模式初版 `ok` 未计 PENDING 命中 ⇒ case7/8 假绿 | ✅已修 | `AuditResult.ok` 纳入 `pending_hits`/`pending_ok` | 严格 rc=1、`violations=0 pending=7` |
+| `--pending-ok` 常量项未命中不报红（常量会静默腐烂） | ✅已修 | STALE 对账（未命中 ⇒ 非零） | self-test 过渡边界 3 例全 PASS |
+| 空归档（无任务书）可 vacuous 通过 | ✅已修 | 每目录 `task/vacuous` 断言 | self-test 基线/注入仍绿 |
+| 自检用例编号重复、计数不随用例增加 | ✅已修 | 动态编号；现 16 例 | 输出 `自检结果: 16/16` |
+| `m` 后缀↔`里程碑` 映射不可行（`INTEG-037m` = `已验证`） | ✅已修（口径） | 删除注释中的映射断言；Process-04 §4.1 注明不做后缀映射 | `check_archive.py --pending-ok` rc=0 |
+| 证据白名单对非 ASCII 路径解析脆弱；117 任务书被外部并发改动 | ✅已修 | `git -c core.quotepath=false`；external 集合显式打印 | evidence 37/37，白名单外 0 |
+
+### 第 1 轮 reviewer 验收
+
+**重跑记录**（reviewer 独立执行；日志 `/tmp/opencode/INFRA-116t/reviewer-*.log`；退出码取命令自身）：
+
+| 命令 | 期望 | 实际 |
+|---|---|---|
+| `bash .work/evidence/INFRA-116t/run.sh` | rc=0 | **rc=0，37/37 PASS** |
+| `check_archive.py --self-test` | rc=0 | **rc=0，16/16**（基线1+注入12+过渡边界3） |
+| `check_archive.py --pending-ok` | rc=0 | **rc=0**，PENDING **7** == `PENDING_117`，无 STALE |
+| `check_archive.py`（严格） | rc=1 | **rc=1**，**VIOLATION 0 条 + PENDING 7 条**（非全绿，符合 116 过渡态） |
+| `make check-archive` / `make check` / `check_milestones_fresh` | rc=0 | **0 / 0 / 0**（`make check` 另独立复跑 2 次均 `repository checks (L1): PASS`） |
+
+**独立反例注入**（真实归档树；`cp` 备份 + md5 对账，全程未用 git checkout/restore）：
+- 注入 A `M1/notes/bad.md`：`--pending-ok` **rc=1**，命中 `[M1/dir/notes]`；还原后全归档 md5 清单**一致**、**rc=0** 回绿。
+- 注入 B `M1/infra/INFRA-001k` 状态改 `待验收`：**rc=1**，命中 `[M1/task/INFRA-001k]`；`cp` 回写后 md5 `4a951073…` 与注入前**相等**、**rc=0** 回绿。注入前后 `git status -uall` 均 **0 行**。
+
+**约束核验**（逐条）：
+- 白名单：`git diff --name-only c297c32d..HEAD` = **7 文件**全在白名单；`INFRA-117t` 仅证据路径占位 2 行（已核 diff，属主会话外部修复）；`.tao/archive/**` **0 改动**。
+- Makefile：`check-archive` 仅入 `.PHONY`/`help`/`_locked-check`/目标（目标用 `--pending-ok`）；未入 L2/L3/`check-milestone`（`grep check-archive Makefile` 仅 4 行）。
+- Process-04：`grep 各放一个` = **0**；用户 9 条 → 节号+行号 **9/9** 命中；§8「最终严格 rc=0 / 过渡严格 rc=1 仅 PENDING」与脚本默认严格、`--pending-ok` 豁免**口径一致、无矛盾**。
+- self-test **无恒真/漏判**：12 注入各 `期望 rc=1/实际 rc=1` 且命中对应键（缺三件套/notes/状态非终态/里程碑不符/计数不符/流水缺·多·状态不符/issues 空壳/缺 MEMORY/缺终局证据）；case16 证明常量未命中即红（防腐烂）。
+- 完成区数字与 reviewer 输出逐条一致（10 归档/622 册/M7 流水 41 行/M8 68 行/16/16/37/37）。
+
+**Finding（非阻断、已披露，供 architect 追认）**：A.5「`**项目里程碑**` 恰好 `M<i>`」字面不可满足（历史册 `M9（FP 完备性）` 等 45+ 处尾随括注 × 归档零改动硬约束互斥）；工程师改判「编号相等 + 历史括注容忍 / 新归档裸值」并在 Process-04 §4.1 固化、完成区披露——**属有据偏离、非凑绿**；建议追认或同步修订 A.5 措辞。两条极小观察：README §1 表头总数「(N 个)」不参与校验（M10 表头 71 vs 模块合计 70，含根级 INTEG 册，属归档既有内容非本任务产物）；`task_ids` 空而 `root_ids` 非空时流水集合比对跳过（边缘形态，实际归档不触发）。
+
+**判决：Accepted**（验收 7/7 在 reviewer 独立重跑下全部通过；硬约束无违反；反例注入独立验证可达 FAIL 且 cp+md5 完整还原）。

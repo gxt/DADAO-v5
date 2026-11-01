@@ -33,6 +33,7 @@
 | `make check-contracts-pending` | **L1** | `.tao/contracts/**` 出现「待…定 / 待裁定 / TODO / TBD」标记的行，须同行含 `ADR-<n>` / `ISS-<n>` 指针（只认带编号落点）；行内代码跨度与「」引用不计。计数现场统计。 |
 | `make check-contract-relocs` | **L1** | `contract-elf.md §2.2` 与 `contract-dynlink.md §4.3` 的**现行表**逐行比对（类型号 ↔ 名）；只解析两小节内的表格行 ⇒ 历史注记不参与；附加自洽 = 表非空 / 号名唯一 / 号 0 起密集。 |
 | `make check-milestones-fresh` | **L1** | `milestones.md`「任务流水」逐行：状态 == 任务书 `**状态**`；活 `t` 册 + `INTEG-*m` 册所列号 + 正文号须全部入表（已归档号豁免，全仓无册的悬空号 FAIL）；一句改动 ≤120 字符；按完成时间倒序（未完成 = 登记时间 + `（登记）`，同时按编号升序）；恰好 4 格、状态枚举、`已验证` 不得带登记注。`--self-test` 内置五类注入。 |
+| `make check-archive` | **L1** | `.tao/archive/M<i>/` 结构与册字段（规则 = `docs/Process-04` §5–§8）：① 三件套非空；② 根文件白名单（三件套 + `INTEG-*m-*` 仅 M9/M10 历史）；③ 子目录只允许 6 个模块名（`notes/` 即 FAIL）；④ 每册 `**状态**` ∈ {`已验证`,`里程碑`}、`**项目里程碑**` 里程碑号 == 归档号；⑤ §1 模块计数 == 模块目录实际册数（现场统计）；⑥ 流水 ID 集合 == 任务书集合（M7+；M1–M6 日期列 `changelog` 只要求表格非空）、行状态 == 任务书状态；⑦ README 有 MEMORY/指针节、M9 起有终局证据；⑧ `issues-closed.md` 非空壳。`--self-test` 12 类注入 + 过渡边界。**过渡期**（`INFRA-116t`）：`--pending-ok` 仅豁免显式 `PENDING_117` 且逐条命中；`INFRA-117t` 归一后严格。 |
 | `make check-spec-archive` | **里程碑收尾专项**（随 `check-milestone`；**不入 L1**） | 册头 ∪ 附录声明的每个版本须有 `.tao/archive/SimRISC-<ver>/`：A1 目录存在；A2 目录非空且含 `SimRISC-00*`；A3 文件数 = 派生清单；A4 反向（磁盘 ⊆ 清单）⇒ 双向；**只校验存在性与文件集、不校验内容**；`-rc` 不参与。判定归 `tools/spec/check_spec_archive.py`（判据未改，仅改触发层）。 |
 | `make check-spec-archive-verify` | **里程碑收尾专项**（随 `check-milestone`；**不入 L1**） | 归档**内容**：以各目录 `PROVENANCE.md` 的「快照提交」为锚，逐文件 sha256 与该提交树全等 + 「版本组合 sha256」= 按表重算值（拒绝子串/前缀匹配）；无 `PROVENANCE.md` 的既有目录回落派生快照；`-rc` 打印 SKIP。判定归 `tools/spec/gen_spec_archive.py --verify`（判据未改，仅接线）。 |
 | `make check-milestone` | **L2 层 / 里程碑收尾专项**（按需；**不入** `check-modules`） | 先跑 `check-spec-archive` + `check-spec-archive-verify`（归档结构 + 内容 sha）+ `check-night-report` + `check-l3-report`（夜跑/L3 报告存在性/结构/结果）；再：当前里程碑（`milestones.md` 中 `项目里程碑 = M<n>` 断言的最大 n）在 `.tao/tasks/**` 有对应 `m` 册（自报里程碑须一致）；该册所列任务号在 `.tao/tasks/**` 或 `.tao/archive/**` 真实存在（册内零任务号 ⇒ vacuous FAIL）；并接 `check_tasks.py --strict`（漏收尾 = 0）。 |
@@ -55,6 +56,7 @@
 ## 2. 触发点（MUST）
 
 - **任务收尾**（`/dispatch` 后、`/complete` 前）：跑 **L2**（`make check-modules`）。
+- **归档结构**（`check-archive`）：属 **L1**（`make check` 默认包含）——归档是只读历史，结构与册字段可随时静态核；**不新增收尾专项**（`INFRA-116t`）。
 - **里程碑 / `/complete`**：跑 **L3**（`make check-full`；它逐成员落 `.dadao/tests/l3/<UTC>/` 报告）；里程碑收尾另跑 **`make check-milestone`**（归档结构 + 内容 sha + `m` 册 + 漏收尾 = 0 + **夜跑报告** `check-night-report` + **L3 报告** `check-l3-report`）——归档门控**只在此触发**（`INFRA-109t`）。
 - **夜跑**：队列空档由**主会话** `setsid nohup make check-night > log 2>&1 &` 启动（一次只跑一个）；报告次日供 `check-milestone` 消费。
 - **某模块全量**：按需**单独调**该模块目标（不进 L1/L2）。

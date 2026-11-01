@@ -6,7 +6,7 @@
 **状态**：待开始
 
 ## 执行环境
-**执行环境**：本地（仓库根 `/mnt/tao/DADAO-v5`；临时产物只放 `/tmp/opencode/INFRA-117t/`，证据落 `.work/evidence/INFRA-117t/`）
+**执行环境**：本地（仓库根 `/mnt/tao/DADAO-v5`；临时产物只放 `/tmp/opencode/INFRA-117t/`，证据落 `.work/evidence/<任务ID>/`）
 
 ## 预检（只读，已现场核实）
 
@@ -86,7 +86,7 @@
 6. 状态规范化：`grep -n "^\*\*状态\*\*" M2 两册` = 精确 `已验证`，括注在 `> **状态注记**`；`INTEG-023k` 三字段分行且值不变。
 7. `test ! -e .tao/archive/M7/notes`；5 份原文行数合计 **746** 行出现在 retrospective 附录（逐文件计数对账）；`grep -R "M7/notes" docs .tao/archive/M7/README.md` = 0（归档任务书历史引用不计）。
 8. `git diff --name-only` 仅含：`M1–M10/README.md`（M9/M10 为主，M1–M8 仅别名句/指针）、M2 两册、M6 `INTEG-023k`、`M7/m7-retrospective.md`、`M7/README.md`、删除 `M7/notes/**`、`docs/Process-07`、`docs/Machine-00`、`milestones.md`、`Makefile`、`tools/infra/check_archive.py`、`tools/infra/check_milestones_fresh.py`（仅必要）、本任务书。**不改** M10 归档 `tasks/m`；不补/不删任何 `m`。
-9. 证据 `.work/evidence/INFRA-117t/run.sh` 一键重跑（逐条命令 + rc），reviewer 独立重跑 + 一次反例注入（`cp`+md5 还原）。
+9. 证据 `.work/evidence/<任务ID>/run.sh` 一键重跑（逐条命令 + rc），reviewer 独立重跑 + 一次反例注入（`cp`+md5 还原）。
 
 ## 完成区
 **测试结果**：

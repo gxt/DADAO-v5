@@ -67,7 +67,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         test-codegen test-elf test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-musl-freshness check-builtins-freshness check-install-tools check-milestones-fresh \
-        check-tasks check-spec-codeblocks check-legality-invariants \
+        check-tasks check-archive check-spec-codeblocks check-legality-invariants \
         check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive \
         check-contracts-dir check-knowledge-dir \
         check-rev-vectors check-generator-sync \
@@ -203,6 +203,7 @@ help:
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
 	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
 	@echo "  make check-milestones-fresh  milestones.md task-flow table gate: status/coverage/length/order/format (L1; INFRA-091t)"
+	@echo "  make check-archive   .tao/archive/M<i>/ structure + task-book fields + README five sections + issues snapshot (L1; INFRA-116t)"
 	@echo "  make check-milestone  Milestone closure: SIMRISC archive + sha + sync-nonmaskable + m-book + night report + L3 report + check-tasks --strict (not L1)"
 	@echo "  make check-sync-nonmaskable  Sync exception causes must not be maskable (only IPI/TIMER/UART*/… may; SPEC-175t; not L1)"
 	@echo "  make check-interface  Check cross-module interface alignment (L1)"
@@ -994,7 +995,7 @@ _locked-clean-work:
 # 旧名 `check-qemu-semantics`/`check-qemu-smoke`/`test-semihost`/`check-{libc-test,llvm-ts,embench}-smoke`
 # 已于 TESTCASES-076t 删除（P6 收口）；现行名 = check-inst / check-inst-smoke / check-arch-smoke /
 # check-tset-{libc,llvm,embench}-smoke。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components check-interface check-code-range check-runner-reap
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components check-interface check-code-range check-runner-reap
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1194,6 +1195,15 @@ check-install-tools:
 # 时间倒序 / 格式。规则 = milestones.md「体例约定（硬约束）」+ docs/Process-07 §1.1。
 check-milestones-fresh:
 	@$(PYTHON) tools/infra/check_milestones_fresh.py
+
+# 归档结构门控 (INFRA-116t, L1 成员): `.tao/archive/M<i>/` 只允许三件套 + 模块子目录，
+# 每册 `**状态**` ∈ {已验证,里程碑}、`**项目里程碑**` 号 == 归档号，README §1 计数 == 目录
+# 实际册数、流水 ID == 任务书 ID（M7+）、MEMORY/指针/终局证据节、issues 快照非空。
+# 规则 = docs/Process-04 §5–§8。计数现场统计、不写死。
+# 过渡（INFRA-116t）：--pending-ok 仅豁免显式 PENDING_117（逐条命中）；INFRA-117t 归一后
+# 去掉该 flag（目标改为严格默认）并删除常量。
+check-archive:
+	@$(PYTHON) tools/infra/check_archive.py --pending-ok
 
 check-component-changelog:
 	@$(PYTHON) tools/infra/check_component_changelog.py
