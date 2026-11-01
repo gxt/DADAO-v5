@@ -10,6 +10,8 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-116t | 待开始 | 2026-11-01 13:41（登记） | Process-04 归档规则修订（m 可选/流水落 README/三文件）+ check-archive 门控 |
+| INFRA-117t | 待开始 | 2026-11-01 13:41（登记） | M1–M10 归档归一：M9/M10 流水冻结、M6/M2 状态、M7 notes 并入回顾 |
 | INFRA-115t | 已验证 | 2026-11-01 13:02 | tests/inst 计数 152→156、生成器 `--check` 措辞列名化、anti_forgery 迁 tests/inst；新 check-generator-sync 挂 L2 |
 | QEMU-077t | 已验证 | 2026-11-01 11:45 | helper.c/cpu.h 注释 reserved cfx 7-14→6-14 与宏一致；补丁重导出，行为不变不重建 |
 | INFRA-114t | 已验证 | 2026-11-01 10:15 | check-sync-nonmaskable 白名单补 PMEM_DMA（异步源）；self-test 加可达断言；不改 spec 语义 |
