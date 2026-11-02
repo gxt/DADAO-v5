@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| GEM5-006t | 待开始 | 2026-11-02 11:06（登记） | B1 取数存数执行核心：38 条 load/store + ldm/stm 语义与定向断言 |
 | QEMU-078t | 已验证 | 2026-11-02 10:56 | scaleB C1 第三源 rdHD + sc rdHB=rd0 静态 ILLI；QEMU trans/helper |
 | LLVM-142t | 已验证 | 2026-11-02 10:55 | scaleB C1（第三源 rf→rd）+ sc rd0 汇编期 ILLI；LLVM TD/MC/CodeGen |
 | GEM5-005t | 已验证 | 2026-11-02 10:54 | scaleB C1 第三源 rf→rd + sc rd0 的 gem5 decode/断言更新 |
