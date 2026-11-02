@@ -1,6 +1,6 @@
 # ADR-0047: gem5 版本与组件基线
 
-**状态**：Proposed
+**状态**：Accepted
 **日期**：2026-11-02（恢复稿；决策事实 2026-11-01 已由用户确认）
 **关联**：`GEM5-003t`、`GEM5-001k`、ADR-0005；`manifests/components.lock.toml`
 
@@ -35,4 +35,4 @@ M11 需要一个独立的 gem5 第二参考实现，覆盖 FS + SE，并与 QEMU
 
 本文件是 ADR-0047 的恢复稿；当前仓库历史中未找到原始文件。
 四条 decision 已按 `GEM5-003t` 与 `manifests/components.lock.toml` 重建；
-在用户逐条确认前保持 `Proposed`，不标 `Accepted`。
+用户 2026-11-02 已逐条确认 D1–D4，状态置 `Accepted`。
