@@ -54,3 +54,13 @@
 | F-3 scaleB 仍可能走旧 `rfHD` | ✅已修 | `is_sclb ? load_rd : load_rf` 分支 | 恢复旧路径注入 ⇒ scaleB 2/2 FAIL |
 | F-4 `insn.decode` 未改是否漏同步 | ❌不修 | decodetree 无 bank 字段，重生成逐字节相同 | 生成器 diff rc=0；`validate_decodetree` PASS |
 | F-5 `sc` 非 rd0 路径回归 | ✅已修 | 未改非 rd0 逻辑，仅加前置 ILLI | `atomics-lrsc` 125/125 PASS |
+
+### 第 1 轮 reviewer 验收
+
+**快照/范围**：分支 `QEMU-078t` @4ef0a81b；前/后 `git status --porcelain -uall` 均空；`git diff HEAD~1..HEAD` 仅 6 文件（helper.c/translate.c/trans_fp.c.inc 三补丁 + changelog + 任务书 + milestones），无 tests/spec/contracts/LLVM/gem5/Makefile 越界；QEMU 源树 `git diff` 空，md5 与注入前一致（trans_fp `5452c695…` / translate `eb7496fc…`）。
+**重跑（本人执行，真实 rc）**：`make build-qemu JOBS=8` rc=0（增量 real 2.5s；注入/还原后重建各 rc=0，约 8s）；`.work/evidence/QEMU-078t/run.sh` rc=0（checks=31 failures=0，89s）；`check-patch-tree` rc=0（5 comp/205 patches）；`check-source-state` rc=0（qemu OK HEAD=f98216a count=1 clean=True）；`check_qemu_trans --strict` rc=0（264/264、orphan 0）；`validate_decodetree` rc=0 PASS；`check-qemu-forms` rc=0；`check-interface` rc=0（49/49）；`check-component-changelog` rc=0（20 项）；回归 `run_qemu_test --batch tests/inst/atomics` rc=0（125 total/125 passed）。
+**独立注入（cp+md5，未用 git checkout/restore）**：① scaleB 改回 `load_rf(a->hd)` → 重建 rc=0，engineer 4 条 scaleB 中 3 条 FAIL、我方 5 条中 4 条 FAIL，整体 rc=1；`cp` 还原 + `md5sum -c` OK + 重建 rc=0 → 全绿。② 删除 `gen_sc` rd0 守卫 → 12 条 `sc.* rdHB=rd0` 全部 `FAIL Expected ILLI, got FAIL(0x01)`（rc=1），我方「先 lr 持保留再 sc rd0」同 FAIL、rdHC=rd0 仍 PASS；还原回绿 13/13。
+**独立行为核验（我方向量 `/tmp/opencode/QEMU-078t-review/rev_vectors.yaml`，6/6 PASS）**：rd3=-1 → 0.75（有符号 64 位指数）；rd3=2^31 → +Inf（超 int32 不回绕）；rd3=rd0 → 1.5（rf 诱饵 10.0 不生效，旧路径应为 1536）；fosclb 同；`sc.o.nn` 持保留 + rdHB=rd0 → 0x88。llvm-mc 独立复跑：新语法 rc=0 → `0x44544043 0x44744043`/objdump `rd3`，旧 `rf,rf,rf` rc=1 `invalid operand`；`insn.decode` 重生成逐字节相同、opcodes 未改 ⇒ 编码未改。
+**make check**：`make -k check` rc=2，失败仅 3 项且均非本任务引入——`check-isa-coverage`（允许，TESTCASES-090t）、`check-musl-freshness`（clang/lld 07:23–07:30 被他任务安装、stamp 停在 11-01）、`check-run-artifacts`（18 条非法名全在 `.work/log/testcases/TESTCASES-090t/`，mtime 07:39–07:46 早于本轮审查）；其余 L1 全 PASS，无失败被掩盖。
+**findings（不阻断）**：F-a 完成区「scaleB 2/2 FAIL」实为 3/4——`ftsclb_exp_max` 注入下仍 PASS（rf 诱饵 0x41200000 被当指数饱和到 +Inf，恰好等于期望值），门控整体仍 FAIL，属文档数字不准；F-b「atomics-lrsc 125/125」实为 atomics 目录 108 lrsc + 17 fence = 125；F-c「make check 唯一 FAIL」在本轮已不成立（另 2 红为他任务残留）；F-d 12 条 sc 为 legality 类、harness 不比对 expected_state，「不写内存/状态」依据是守卫位于 gen_sc 任何访存/状态操作之前的静态次序 + 持保留反例。
+**判决：Accepted**（验收命令全部在本人重跑下通过；F-a~F-d 交 architect 收尾处置）
