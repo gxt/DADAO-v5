@@ -1,14 +1,15 @@
 diff --git a/src/arch/dadao/faults.hh b/src/arch/dadao/faults.hh
 new file mode 100644
-index 0000000..9f81934
+index 0000000..6870f99
 --- /dev/null
 +++ b/src/arch/dadao/faults.hh
-@@ -0,0 +1,61 @@
-+// DADAO faults (B0 skeleton).
+@@ -0,0 +1,89 @@
++// DADAO faults (B0 decode + B1 execution).
 +#
-+// B0 has no execution semantics: every successfully decoded instruction ends
-+// in UnimplementedInstruction, and an unmatched/reserved encoding ends in
-+// IllegalInstruction (ILLI).  Both panic loudly; nothing silently succeeds.
++// ILLI covers illegal/reserved encodings and B1 static legality violations;
++// MALIGN is the B1 dynamic alignment fault.  B2-B7 still end in
++// UnimplementedInstruction.  All of them panic loudly; nothing silently
++// succeeds.
 +#ifndef __ARCH_DADAO_FAULTS_HH__
 +#define __ARCH_DADAO_FAULTS_HH__
 +
@@ -37,6 +38,33 @@ index 0000000..9f81934
 +    invoke(ThreadContext *, const StaticInstPtr &) override
 +    {
 +        panic("DADAO ILLI: illegal/reserved encoding 0x%08x", machInst);
++    }
++};
++
++/** Dynamic alignment fault (MALIGN).
++ *
++ * B1 reports it by panicking with the effective address and access width; the
++ * B6 trap/vector model will turn it into a real architectural exception.
++ */
++class MalignInstruction : public FaultBase
++{
++  private:
++    const ExtMachInst machInst;
++    const uint64_t address;
++    const unsigned width;
++
++  public:
++    MalignInstruction(ExtMachInst inst, uint64_t addr, unsigned bytes) :
++        machInst(inst), address(addr), width(bytes)
++    {}
++
++    FaultName name() const override { return "Misaligned memory access"; }
++
++    void
++    invoke(ThreadContext *, const StaticInstPtr &) override
++    {
++        panic("DADAO MALIGN: %u-byte access at 0x%llx (0x%08x)", width,
++              static_cast<unsigned long long>(address), machInst);
 +    }
 +};
 +

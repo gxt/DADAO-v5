@@ -13,6 +13,9 @@ src/arch/dadao/decode/decode_table.inc.patch
 src/arch/dadao/decode/decode_test.cc.patch
 src/arch/dadao/decoder.cc.patch
 src/arch/dadao/decoder.hh.patch
+src/arch/dadao/exec/b1.cc.patch
+src/arch/dadao/exec/b1.hh.patch
+src/arch/dadao/exec/b1_test.cc.patch
 src/arch/dadao/faults.hh.patch
 src/arch/dadao/inst.cc.patch
 src/arch/dadao/inst.hh.patch

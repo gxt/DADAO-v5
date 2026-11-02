@@ -11,3 +11,7 @@
 - **2026-11-02 GEM5-005t**
   - 摘要：**scaleB C1 与 sc rd0 解码更新**。按 SPEC-181t 重生成 `components/gem5` 解码表/断言：`ftsclb`/`fosclb` 第三操作数由 `rfhd/rf` 改为 `rdhd/rd`（编码/opc/ha 不变，旧 rf 字段成为负例守护）；12 条 `sc.*` 的 `rdhb != rd0`（`dst_rd0`）写入 legality/rule 断言，`rdhc=rd0` 保持合法。生成器新增 SPEC-181t 守护与 28 条合法性用例（sc dst rd0⇒ILLI、rdhc=rd0 合法、scaleB 指数 rdhd=0 合法、scaleB dst rf0⇒ILLI）+ 2 条旧 rf 负例；断言表增加 `rules` 列并逐行校验。`make check-gem5-decode` 264/264 + 388/388 + 28/28 + 2/2。执行语义仍在 B1–B7。
   - 执行者：engineer
+
+- **2026-11-02 GEM5-006t**
+  - 摘要：**B1 取数存数执行核心（38 条）**。新增纯 C++ 执行核 `src/arch/dadao/exec/b1.hh` / `b1.cc`（38 个 id 显式分派：RD/RB/RA/RF × 单/多 load-store），实现 48 位有效地址与回绕、大端字节序、符号/零扩展、块传输（原始 rdhc 快照、i 递增、先读后写、immu6/范围 ILLI、宽度 MALIGN）、`rd0`/`rb0`/`ra0`/`rf0` 边界（rf0 目的 FCSR 写掩码、`ld.t`/`ldm.t` 高 32 位保持）；`inst.cc` 增加 `Gem5B1Context` 适配（int/float 寄存器组、`readMem`/`writeMem`）与 `executeB1` 分派，`faults.hh` 新增 `MalignInstruction`（先 panic 报地址/宽度），`SConscript` 加入 `exec/b1.cc`；B2–B7 仍返回 `UnimplementedInstruction`。组件内断言 `exec/b1_test.cc`（38/38 覆盖 + ILLI/MALIGN/端序/块/rf0/高位立即数）由新增 `tools/gem5/check_b1.py` 编译运行，不新增 `tests/**`、不改解码表。
+  - 执行者：engineer

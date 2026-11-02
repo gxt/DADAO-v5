@@ -1,16 +1,23 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..ad51190
+index 0000000..5b5bcde
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,57 @@
-+// DADAO StaticInst (B0 skeleton) -- implementation.
+@@ -0,0 +1,239 @@
++// DADAO StaticInst (B0 skeleton + B1 execution).
 +#include "arch/dadao/inst.hh"
 +
 +#include <memory>
++#include <vector>
 +
++#include "arch/dadao/exec/b1.hh"
 +#include "arch/dadao/faults.hh"
++#include "arch/dadao/regs/float.hh"
++#include "arch/dadao/regs/int.hh"
 +#include "base/cprintf.hh"
++#include "cpu/exec_context.hh"
++#include "cpu/thread_context.hh"
++#include "mem/request.hh"
 +
 +namespace gem5
 +{
@@ -20,12 +27,161 @@ index 0000000..ad51190
 +namespace
 +{
 +
++namespace exec = DadaoISA::exec;
++
 +const char *
 +mnemonicOf(DadaoISA::ExtMachInst word)
 +{
 +    const auto decoded = DadaoISA::decode::decodeWord(word);
 +    return decoded.ok() ? decoded.entry->mnemonic : "illi";
 +}
++
++/** gem5 adapter for the B1 execution core.
++ *
++ * The core is plain C++ and only sees byte arrays; this class provides the
++ * architectural register file (rd/rb/ra via the integer register class, rf via
++ * the float register class) and the memory interface.
++ */
++class Gem5B1Context : public exec::B1Context
++{
++  private:
++    ExecContext *xc;
++    ThreadContext *tc;
++    Fault memFault;
++    uint64_t malignAddr;
++    unsigned malignWidth;
++
++    static RegId
++    intReg(exec::Bank bank, unsigned idx)
++    {
++        RegIndex base = DadaoISA::int_reg::RdBase;
++        switch (bank) {
++          case exec::Bank::Rd:
++            base = DadaoISA::int_reg::RdBase;
++            break;
++          case exec::Bank::Rb:
++            base = DadaoISA::int_reg::RbBase;
++            break;
++          case exec::Bank::Ra:
++            base = DadaoISA::int_reg::RaBase;
++            break;
++        }
++        return RegId(DadaoISA::intRegClass, base + idx);
++    }
++
++    static RegId
++    floatReg(unsigned idx)
++    {
++        return RegId(DadaoISA::floatRegClass, idx);
++    }
++
++    static std::vector<bool>
++    allBytes(unsigned bytes)
++    {
++        return std::vector<bool>(bytes, true);
++    }
++
++  public:
++    explicit Gem5B1Context(ExecContext *xc) :
++        xc(xc), tc(xc->tcBase()), memFault(NoFault), malignAddr(0),
++        malignWidth(0)
++    {}
++
++    uint64_t
++    readInt(exec::Bank bank, unsigned idx) override
++    {
++        // rd0 is hard-wired zero; rb0 reads the current instruction address.
++        if (bank == exec::Bank::Rd && idx == 0)
++            return 0;
++        if (bank == exec::Bank::Rb && idx == 0)
++            return pc();
++        return tc->getReg(intReg(bank, idx));
++    }
++
++    void
++    writeInt(exec::Bank bank, unsigned idx, uint64_t val) override
++    {
++        // rd0/rb0 are read-only; executeB1() raises ILLI before any such
++        // write, so reaching this is an internal ISA bug -- fail loudly.
++        if ((bank == exec::Bank::Rd || bank == exec::Bank::Rb) && idx == 0) {
++            panic("DADAO B1: illegal write to read-only %s0",
++                  bank == exec::Bank::Rd ? "rd" : "rb");
++        }
++        tc->setReg(intReg(bank, idx), val);
++    }
++
++    uint64_t
++    readFloat(unsigned idx) override
++    {
++        return tc->getReg(floatReg(idx));
++    }
++
++    void
++    writeFloatLow32(unsigned idx, uint32_t val) override
++    {
++        const uint64_t old = tc->getReg(floatReg(idx));
++        tc->setReg(floatReg(idx), (old & 0xFFFFFFFF00000000ULL) | val);
++    }
++
++    void
++    writeFloat64(unsigned idx, uint64_t val) override
++    {
++        tc->setReg(floatReg(idx), val);
++    }
++
++    void
++    writeFcsr(uint64_t raw) override
++    {
++        // rf0 keeps its read-only quiet-NaN and SBZ bits; only the rounding
++        // mode [33:32] and the accrued flags [4:0] are writable
++        // (contract-isa §1.3.3).
++        constexpr uint64_t mask = (uint64_t(3) << 32) | 0x1F;
++        const uint64_t old = tc->getReg(floatReg(0));
++        tc->setReg(floatReg(0), (old & ~mask) | (raw & mask));
++    }
++
++    uint64_t
++    pc() const override
++    {
++        return xc->pcState().as<DadaoISA::PCState>().instAddr();
++    }
++
++    bool
++    readMem(uint64_t addr, unsigned bytes, uint8_t *out) override
++    {
++        const Fault fault = xc->readMem(addr, out, bytes, Request::Flags(0),
++                                        allBytes(bytes));
++        if (fault != NoFault) {
++            memFault = fault;
++            return false;
++        }
++        return true;
++    }
++
++    bool
++    writeMem(uint64_t addr, const uint8_t *in, unsigned bytes) override
++    {
++        const Fault fault = xc->writeMem(const_cast<uint8_t *>(in), bytes, addr,
++                                         Request::Flags(0), nullptr,
++                                         allBytes(bytes));
++        if (fault != NoFault) {
++            memFault = fault;
++            return false;
++        }
++        return true;
++    }
++
++    void
++    reportMalign(uint64_t addr, unsigned width) override
++    {
++        malignAddr = addr;
++        malignWidth = width;
++    }
++
++    Fault memFaultValue() const { return memFault; }
++    uint64_t malignAddress() const { return malignAddr; }
++    unsigned malignAccessWidth() const { return malignWidth; }
++};
 +
 +} // anonymous namespace
 +
@@ -51,10 +207,36 @@ index 0000000..ad51190
 +}
 +
 +Fault
-+DadaoInst::execute(ExecContext *, trace::InstRecord *) const
++DadaoInst::execute(ExecContext *xc, trace::InstRecord *) const
 +{
 +    if (!decoded.ok())
 +        return std::make_shared<DadaoISA::IllegalInstruction>(word);
++
++    // Only batch B1 has execution semantics; B2-B7 stay explicitly
++    // unimplemented (no cross-batch guessing).
++    if (decoded.entry->batch != 1) {
++        return std::make_shared<DadaoISA::UnimplementedInstruction>(
++                word, decoded.entry->id);
++    }
++
++    Gem5B1Context ctx(xc);
++    switch (exec::executeB1(decoded, ctx)) {
++      case exec::Fault::None:
++        return NoFault;
++      case exec::Fault::Illegal:
++        return std::make_shared<DadaoISA::IllegalInstruction>(word);
++      case exec::Fault::Malign:
++        return std::make_shared<DadaoISA::MalignInstruction>(
++                word, ctx.malignAddress(), ctx.malignAccessWidth());
++      case exec::Fault::Memory:
++        return ctx.memFaultValue();
++      case exec::Fault::NotB1:
++        break;
++    }
++
++    // executeB1() must not reject an instruction whose entry is in batch 1.
++    panic("DADAO B1: %s (0x%08x) is batch 1 but rejected by executeB1()",
++          decoded.entry->id, word);
 +    return std::make_shared<DadaoISA::UnimplementedInstruction>(
 +            word, decoded.entry->id);
 +}

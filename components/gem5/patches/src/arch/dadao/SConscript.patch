@@ -1,10 +1,10 @@
 diff --git a/src/arch/dadao/SConscript b/src/arch/dadao/SConscript
 new file mode 100644
-index 0000000..abb6039
+index 0000000..058b383
 --- /dev/null
 +++ b/src/arch/dadao/SConscript
-@@ -0,0 +1,18 @@
-+# DADAO ISA build description (B0 skeleton).
+@@ -0,0 +1,21 @@
++# DADAO ISA build description (B0 decode + B1 execution).
 +Import('*')
 +
 +if not env['CONF']['USE_DADAO_ISA']:
@@ -17,6 +17,9 @@ index 0000000..abb6039
 +Source('isa.cc', tags=['dadao isa'])
 +Source('inst.cc', tags=['dadao isa'])
 +Source('decode/decode.cc', tags=['dadao isa'])
++# B1 execution core (plain C++; the assertion harness exec/b1_test.cc is
++# compiled separately by tools/gem5/check_b1.py and is not part of the build).
++Source('exec/b1.cc', tags=['dadao isa'])
 +
 +SimObject('DadaoDecoder.py', sim_objects=['DadaoDecoder'], tags=['dadao isa'])
 +SimObject('DadaoISA.py', sim_objects=['DadaoISA'], tags=['dadao isa'])
