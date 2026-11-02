@@ -1,0 +1,1975 @@
+diff --git a/src/arch/dadao/exec/b3_test.cc b/src/arch/dadao/exec/b3_test.cc
+new file mode 100644
+index 0000000..9b595cb
+--- /dev/null
++++ b/src/arch/dadao/exec/b3_test.cc
+@@ -0,0 +1,1969 @@
++/*
++ * DADAO gem5 B3 execution assertions (GEM5-008t).
++ *
++ * Standalone C++17 harness (no gem5 headers): compiled by
++ * `tools/gem5/check_b3.py` against
++ * src/arch/dadao/{exec/b3.cc,exec/b3_test.cc,decode/decode.cc}.
++ *
++ * Everything here is derived from spec/SimRISC-04, spec/SimRISC-05,
++ * spec/SimRISC-12, contract-isa §6/§7 and contracts/opcodes.yaml -- never from
++ * another implementation:
++ *   * the 42 B3 ids are listed one by one (batch membership is never guessed
++ *     from mnemonics; sub.o has three ids, cmp.uo two, shl/rol/shr/ext each
++ *     have orrr and orri ids) and must equal the live decode-table B3 set;
++ *   * expected values are computed by an independent oracle table, including
++ *     the 128-bit high/low split, carry/borrow, sign extension, rotation,
++ *     bit scan with an effective upper bit, block reverse and the constant
++ *     divide/remainder results;
++ *   * every case checks the destination register value, the write count and
++ *     that no illegal path writes a register;
++ *   * statically illegal instructions (rd0/rb0 destinations, dual-destination
++ *     aliasing, non-one-hot rev.o, ext hd > 63) raise ILLI before any write.
++ */
++#include <cinttypes>
++#include <climits>
++#include <cstdarg>
++#include <cstdio>
++#include <cstring>
++#include <string>
++#include <vector>
++
++#include "arch/dadao/decode/decode.hh"
++#include "arch/dadao/exec/b3.hh"
++#include "arch/dadao/exec/common.hh"
++
++namespace decode = gem5::DadaoISA::decode;
++namespace exec = gem5::DadaoISA::exec;
++
++namespace
++{
++
++int failures = 0;
++
++void
++fail(const char *fmt, ...)
++{
++    ++failures;
++    va_list args;
++    va_start(args, fmt);
++    std::printf("[FAIL] ");
++    std::vprintf(fmt, args);
++    std::printf("\n");
++    va_end(args);
++}
++
++void
++check(bool condition, const char *fmt, ...)
++{
++    va_list args;
++    va_start(args, fmt);
++    std::printf(condition ? "[PASS] " : "[FAIL] ");
++    std::vprintf(fmt, args);
++    std::printf("\n");
++    va_end(args);
++    if (!condition)
++        ++failures;
++}
++
++bool
++strEq(const char *a, const char *b)
++{
++    return a != nullptr && b != nullptr && std::strcmp(a, b) == 0;
++}
++
++// ---------------------------------------------------------------------------
++// Independent oracle table: no implementation type is reused here.
++// ---------------------------------------------------------------------------
++
++enum TestOp
++{
++    T_ADD_UO,
++    T_ADD_SO,
++    T_SUB_UO,
++    T_SUB_SO,
++    T_MUL_UO,
++    T_MUL_SO,
++    T_CLMUL,
++    T_ADD_SI_RD,
++    T_AIP_SI,
++    T_ADD_SI_RB,
++    T_CMP_UI,
++    T_CMP_SI,
++    T_CTPOP,
++    T_CTLZ,
++    T_CTTZ,
++    T_AND,
++    T_OR,
++    T_XOR,
++    T_XNOR,
++    T_SHL_R,
++    T_ROL_R,
++    T_SHR_UI_R,
++    T_SHR_SI_R,
++    T_SHL_I,
++    T_ROL_I,
++    T_SHR_UI_I,
++    T_SHR_SI_I,
++    T_EXT_UI_R,
++    T_EXT_SI_R,
++    T_EXT_UI_I,
++    T_EXT_SI_I,
++    T_REV,
++    T_ADD_BBD,
++    T_SUB_BBD,
++    T_CMP_UO_DBB,
++    T_SUB_DBB,
++    T_CMP_UO,
++    T_CMP_SO,
++    T_DIV_UO,
++    T_DIV_SO,
++    T_REM_UO,
++    T_REM_SO,
++};
++
++enum RuleKind
++{
++    RULE_DUAL_SAME,
++    RULE_RD0,
++    RULE_RB0,
++    RULE_RD0_ONEHOT,
++};
++
++struct Oracle
++{
++    const char *id;
++    TestOp op;
++    const char *format;
++    RuleKind rule;
++};
++
++const Oracle kOracle[] = {
++    // 128-bit rrrr
++    {"add.uo_rrrr_rd", T_ADD_UO, "rrrr", RULE_DUAL_SAME},
++    {"add.so_rrrr_rd", T_ADD_SO, "rrrr", RULE_DUAL_SAME},
++    {"sub.uo_rrrr_rd", T_SUB_UO, "rrrr", RULE_DUAL_SAME},
++    {"sub.so_rrrr_rd", T_SUB_SO, "rrrr", RULE_DUAL_SAME},
++    {"mul.uo_rrrr_rd", T_MUL_UO, "rrrr", RULE_DUAL_SAME},
++    {"mul.so_rrrr_rd", T_MUL_SO, "rrrr", RULE_DUAL_SAME},
++    {"clmul.o_rrrr_rd", T_CLMUL, "rrrr", RULE_DUAL_SAME},
++    // immediate arithmetic / compare
++    {"add.si_riii_rd", T_ADD_SI_RD, "riii", RULE_RD0},
++    {"aip.si_riii_rb", T_AIP_SI, "riii", RULE_RB0},
++    {"add.si_riii_rb", T_ADD_SI_RB, "riii", RULE_RB0},
++    {"cmp.ui_rrii_rd", T_CMP_UI, "rrii", RULE_RD0},
++    {"cmp.si_rrii_rd", T_CMP_SI, "rrii", RULE_RD0},
++    // bit scan / population
++    {"ctpop_orri_rd", T_CTPOP, "orri", RULE_RD0},
++    {"ctlz_orri_rd", T_CTLZ, "orri", RULE_RD0},
++    {"cttz_orri_rd", T_CTTZ, "orri", RULE_RD0},
++    // logic
++    {"and.o_orrr_rd", T_AND, "orrr", RULE_RD0},
++    {"or.o_orrr_rd", T_OR, "orrr", RULE_RD0},
++    {"xor.o_orrr_rd", T_XOR, "orrr", RULE_RD0},
++    {"xnor.o_orrr_rd", T_XNOR, "orrr", RULE_RD0},
++    // shift / rotate
++    {"shl.o_orrr_rd", T_SHL_R, "orrr", RULE_RD0},
++    {"rol.o_orrr_rd", T_ROL_R, "orrr", RULE_RD0},
++    {"shr.uo_orrr_rd", T_SHR_UI_R, "orrr", RULE_RD0},
++    {"shr.so_orrr_rd", T_SHR_SI_R, "orrr", RULE_RD0},
++    {"shl.o_orri_rd", T_SHL_I, "orri", RULE_RD0},
++    {"rol.o_orri_rd", T_ROL_I, "orri", RULE_RD0},
++    {"shr.uo_orri_rd", T_SHR_UI_I, "orri", RULE_RD0},
++    {"shr.so_orri_rd", T_SHR_SI_I, "orri", RULE_RD0},
++    // extend / reverse
++    {"ext.uo_orrr_rd", T_EXT_UI_R, "orrr", RULE_RD0},
++    {"ext.so_orrr_rd", T_EXT_SI_R, "orrr", RULE_RD0},
++    {"ext.uo_orri_rd", T_EXT_UI_I, "orri", RULE_RD0},
++    {"ext.so_orri_rd", T_EXT_SI_I, "orri", RULE_RD0},
++    {"rev.o_orri_rd", T_REV, "orri", RULE_RD0_ONEHOT},
++    // RB address arithmetic
++    {"add.o_orrr_bbd", T_ADD_BBD, "orrr", RULE_RB0},
++    {"sub.o_orrr_bbd", T_SUB_BBD, "orrr", RULE_RB0},
++    {"cmp.uo_orrr_dbb", T_CMP_UO_DBB, "orrr", RULE_RD0},
++    {"sub.o_orrr_dbb", T_SUB_DBB, "orrr", RULE_RD0},
++    // 64-bit compare / divide / remainder
++    {"cmp.uo_orrr_rd", T_CMP_UO, "orrr", RULE_RD0},
++    {"cmp.so_orrr_rd", T_CMP_SO, "orrr", RULE_RD0},
++    {"div.uo_orrr_rd", T_DIV_UO, "orrr", RULE_RD0},
++    {"div.so_orrr_rd", T_DIV_SO, "orrr", RULE_RD0},
++    {"rem.uo_orrr_rd", T_REM_UO, "orrr", RULE_RD0},
++    {"rem.so_orrr_rd", T_REM_SO, "orrr", RULE_RD0},
++};
++
++constexpr size_t kOracleCount = sizeof(kOracle) / sizeof(kOracle[0]);
++
++const Oracle *
++oracleOf(const char *id)
++{
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        if (strEq(kOracle[i].id, id))
++            return &kOracle[i];
++    }
++    return nullptr;
++}
++
++const char *
++idOf(TestOp op)
++{
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        if (kOracle[i].op == op)
++            return kOracle[i].id;
++    }
++    return nullptr;
++}
++
++exec::B3Op
++execOpOf(TestOp op)
++{
++    switch (op) {
++      case T_ADD_UO: return exec::B3Op::AddUo;
++      case T_ADD_SO: return exec::B3Op::AddSo;
++      case T_SUB_UO: return exec::B3Op::SubUo;
++      case T_SUB_SO: return exec::B3Op::SubSo;
++      case T_MUL_UO: return exec::B3Op::MulUo;
++      case T_MUL_SO: return exec::B3Op::MulSo;
++      case T_CLMUL: return exec::B3Op::ClMul;
++      case T_ADD_SI_RD:
++      case T_ADD_SI_RB: return exec::B3Op::AddSi;
++      case T_AIP_SI: return exec::B3Op::AipSi;
++      case T_CMP_UI: return exec::B3Op::CmpUi;
++      case T_CMP_SI: return exec::B3Op::CmpSi;
++      case T_CTPOP: return exec::B3Op::CtPop;
++      case T_CTLZ: return exec::B3Op::CtLz;
++      case T_CTTZ: return exec::B3Op::CtTz;
++      case T_AND: return exec::B3Op::And;
++      case T_OR: return exec::B3Op::Or;
++      case T_XOR: return exec::B3Op::Xor;
++      case T_XNOR: return exec::B3Op::Xnor;
++      case T_SHL_R:
++      case T_SHL_I: return exec::B3Op::Shl;
++      case T_ROL_R:
++      case T_ROL_I: return exec::B3Op::Rol;
++      case T_SHR_UI_R:
++      case T_SHR_UI_I: return exec::B3Op::ShrUo;
++      case T_SHR_SI_R:
++      case T_SHR_SI_I: return exec::B3Op::ShrSo;
++      case T_EXT_UI_R:
++      case T_EXT_UI_I: return exec::B3Op::ExtUo;
++      case T_EXT_SI_R:
++      case T_EXT_SI_I: return exec::B3Op::ExtSo;
++      case T_REV: return exec::B3Op::Rev;
++      case T_ADD_BBD: return exec::B3Op::AddBbd;
++      case T_SUB_BBD: return exec::B3Op::SubBbd;
++      case T_CMP_UO_DBB: return exec::B3Op::CmpUoDbb;
++      case T_SUB_DBB: return exec::B3Op::SubDbb;
++      case T_CMP_UO: return exec::B3Op::CmpUo;
++      case T_CMP_SO: return exec::B3Op::CmpSo;
++      case T_DIV_UO: return exec::B3Op::DivUo;
++      case T_DIV_SO: return exec::B3Op::DivSo;
++      case T_REM_UO: return exec::B3Op::RemUo;
++      case T_REM_SO: return exec::B3Op::RemSo;
++    }
++    return exec::B3Op::AddUo;
++}
++
++// ---------------------------------------------------------------------------
++// Mock architectural state (plain C++, no gem5).
++// ---------------------------------------------------------------------------
++
++struct Write
++{
++    exec::Bank bank;
++    unsigned idx;
++    uint64_t value;
++};
++
++struct MockRegAccess : public exec::RegAccess
++{
++    uint64_t rd[64] = {};
++    uint64_t rb[64] = {};
++    uint64_t ra[64] = {};
++    uint64_t rf[64] = {};
++    uint64_t ip = 0x1000;
++
++    int badWrites = 0;
++    int badFloats = 0;
++    std::vector<Write> writes;
++
++    uint64_t
++    readInt(exec::Bank bank, unsigned idx) override
++    {
++        switch (bank) {
++          case exec::Bank::Rd: return idx == 0 ? 0 : rd[idx];
++          case exec::Bank::Rb: return idx == 0 ? ip : rb[idx];
++          case exec::Bank::Ra: return ra[idx];
++        }
++        return 0;
++    }
++
++    void
++    writeInt(exec::Bank bank, unsigned idx, uint64_t val) override
++    {
++        if ((bank == exec::Bank::Rd || bank == exec::Bank::Rb) && idx == 0) {
++            ++badWrites;
++            return;
++        }
++        writes.push_back({bank, idx, val});
++        switch (bank) {
++          case exec::Bank::Rd: rd[idx] = val; break;
++          case exec::Bank::Rb: rb[idx] = val; break;
++          case exec::Bank::Ra: ra[idx] = val; break;
++        }
++    }
++
++    uint64_t readFloat(unsigned idx) override
++    {
++        ++badFloats;
++        return rf[idx];
++    }
++
++    void
++    writeFloat64(unsigned idx, uint64_t val) override
++    {
++        ++badFloats;
++        rf[idx] = val;
++    }
++
++    void
++    writeFcsr(uint64_t raw) override
++    {
++        ++badFloats;
++        rf[0] = raw;
++    }
++
++    uint64_t pc() const override { return ip; }
++
++    uint64_t &
++    reg(exec::Bank bank, unsigned idx)
++    {
++        switch (bank) {
++          case exec::Bank::Rd: return rd[idx];
++          case exec::Bank::Rb: return rb[idx];
++          case exec::Bank::Ra: return ra[idx];
++        }
++        return rd[idx];
++    }
++};
++
++void
++initContext(MockRegAccess &ctx)
++{
++    for (unsigned i = 0; i < 64; ++i) {
++        ctx.rd[i] = 0xDEAD000000000000ULL + i;
++        ctx.rb[i] = 0xBEEF000000000000ULL + i;
++        ctx.ra[i] = 0xCAFE000000000000ULL + i;
++        ctx.rf[i] = 0xF00D000000000000ULL + i;
++    }
++    ctx.rd[0] = 0;
++    ctx.rb[0] = 0;
++    ctx.rf[0] = 0;
++    ctx.ip = 0x1000;
++}
++
++// ---------------------------------------------------------------------------
++// Word construction helpers.
++// ---------------------------------------------------------------------------
++
++struct WordSpec
++{
++    unsigned rdha = 5;
++    unsigned rdhb = 5;
++    unsigned rbha = 5;
++    unsigned rbhb = 5;
++    unsigned rdhc = 6;
++    unsigned rdhd = 8;
++    unsigned rbhc = 6;
++    unsigned rbhd = 8;
++    unsigned imm = 8;
++};
++
++uint32_t
++makeWord(const char *id, const WordSpec &w)
++{
++    const decode::DecodeEntry *entry = decode::entryById(id);
++    if (entry == nullptr) {
++        fail("encode: unknown id %s", id);
++        return 0;
++    }
++    struct FieldVal
++    {
++        const char *name;
++        uint64_t value;
++    };
++    const FieldVal values[] = {
++        {"rdha", w.rdha}, {"rdhb", w.rdhb},
++        {"rbha", w.rbha}, {"rbhb", w.rbhb},
++        {"rdhc", w.rdhc}, {"rdhd", w.rdhd},
++        {"rbhc", w.rbhc}, {"rbhd", w.rbhd},
++        {"immu6", w.imm}, {"immu12", w.imm},
++        {"imms12", w.imm}, {"imms18", w.imm},
++    };
++    uint32_t raw = entry->value;
++    for (const FieldVal &fv : values) {
++        for (unsigned i = 0; i < entry->numFields; ++i) {
++            const decode::FieldDesc &field = decode::fieldDesc(*entry, i);
++            if (std::strcmp(field.name, fv.name) != 0)
++                continue;
++            const uint32_t mask =
++                ((uint32_t(1) << field.width()) - 1) << field.lo;
++            raw = (raw & ~mask) |
++                  ((static_cast<uint32_t>(fv.value) << field.lo) & mask);
++            break;
++        }
++    }
++    return raw;
++}
++
++exec::Fault
++runWord(MockRegAccess &ctx, const char *id, uint32_t raw)
++{
++    const decode::DecodedInst decoded = decode::decodeWord(raw);
++    if (!decoded.ok()) {
++        fail("%s: encoding 0x%08x does not decode", id, raw);
++        return exec::Fault::Illegal;
++    }
++    if (!strEq(decoded.entry->id, id)) {
++        fail("%s: encoding 0x%08x decoded as %s", id, raw, decoded.entry->id);
++        return exec::Fault::Illegal;
++    }
++    return exec::executeB3(decoded, ctx);
++}
++
++const char *
++faultName(exec::Fault fault)
++{
++    switch (fault) {
++      case exec::Fault::None: return "None";
++      case exec::Fault::NotB1: return "NotB1";
++      case exec::Fault::NotB2: return "NotB2";
++      case exec::Fault::NotB3: return "NotB3";
++      case exec::Fault::Illegal: return "Illegal";
++      case exec::Fault::Malign: return "Malign";
++      case exec::Fault::Memory: return "Memory";
++    }
++    return "?";
++}
++
++// ---------------------------------------------------------------------------
++// Independent value oracles.
++// ---------------------------------------------------------------------------
++
++struct U128
++{
++    uint64_t hi;
++    uint64_t lo;
++};
++
++uint64_t
++lowMask(unsigned bits)
++{
++    return bits >= 64 ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
++}
++
++U128
++expectedRrrr(TestOp op, uint64_t a, uint64_t b)
++{
++    switch (op) {
++      case T_ADD_UO: {
++        const uint64_t lo = a + b;
++        return {lo < a ? uint64_t(1) : uint64_t(0), lo};
++      }
++      case T_SUB_UO: {
++        const uint64_t lo = a - b;
++        return {a < b ? uint64_t(1) : uint64_t(0), lo};
++      }
++      case T_ADD_SO: {
++        const __int128 sum = static_cast<__int128>(static_cast<int64_t>(a)) +
++                             static_cast<__int128>(static_cast<int64_t>(b));
++        const unsigned __int128 bits = static_cast<unsigned __int128>(sum);
++        return {static_cast<uint64_t>(bits >> 64),
++                static_cast<uint64_t>(bits)};
++      }
++      case T_SUB_SO: {
++        const __int128 diff = static_cast<__int128>(static_cast<int64_t>(a)) -
++                              static_cast<__int128>(static_cast<int64_t>(b));
++        const unsigned __int128 bits = static_cast<unsigned __int128>(diff);
++        return {static_cast<uint64_t>(bits >> 64),
++                static_cast<uint64_t>(bits)};
++      }
++      case T_MUL_UO: {
++        const unsigned __int128 product =
++            static_cast<unsigned __int128>(a) * b;
++        return {static_cast<uint64_t>(product >> 64),
++                static_cast<uint64_t>(product)};
++      }
++      case T_MUL_SO: {
++        const __int128 product =
++            static_cast<__int128>(static_cast<int64_t>(a)) *
++            static_cast<__int128>(static_cast<int64_t>(b));
++        const unsigned __int128 bits = static_cast<unsigned __int128>(product);
++        return {static_cast<uint64_t>(bits >> 64),
++                static_cast<uint64_t>(bits)};
++      }
++      case T_CLMUL: {
++        uint64_t hi = 0;
++        uint64_t lo = 0;
++        for (unsigned i = 0; i < 64; ++i) {
++            if (((a >> i) & 1) == 0)
++                continue;
++            for (unsigned j = 0; j < 64; ++j) {
++                if (((b >> j) & 1) == 0)
++                    continue;
++                const unsigned bit = i + j;
++                if (bit < 64)
++                    lo ^= uint64_t(1) << bit;
++                else
++                    hi ^= uint64_t(1) << (bit - 64);
++            }
++        }
++        return {hi, lo};
++    }
++    default:
++        break;
++    }
++    return {0, 0};
++}
++
++uint64_t
++cmpUnsigned(uint64_t a, uint64_t b)
++{
++    if (a < b)
++        return ~uint64_t(0);
++    return a == b ? 0 : 1;
++}
++
++uint64_t
++cmpSigned(uint64_t a, uint64_t b)
++{
++    const int64_t sa = static_cast<int64_t>(a);
++    const int64_t sb = static_cast<int64_t>(b);
++    if (sa < sb)
++        return ~uint64_t(0);
++    return sa == sb ? 0 : 1;
++}
++
++uint64_t
++rol64(uint64_t value, unsigned amount)
++{
++    const unsigned n = amount & 63;
++    if (n == 0)
++        return value;
++    return (value << n) | (value >> (64 - n));
++}
++
++uint64_t
++bitReverse64(uint64_t value)
++{
++    uint64_t result = 0;
++    for (unsigned i = 0; i < 64; ++i)
++        result |= ((value >> i) & 1) << (63 - i);
++    return result;
++}
++
++/** Independent block reverse: split into 64/k k-bit units and reverse the
++ * unit order (unit bit order unchanged). */
++uint64_t
++expectedRev(uint64_t value, unsigned k)
++{
++    const unsigned units = 64 / k;
++    const uint64_t mask = lowMask(k);
++    uint64_t result = 0;
++    for (unsigned i = 0; i < units; ++i) {
++        const uint64_t unit = (value >> (i * k)) & mask;
++        result |= unit << ((units - 1 - i) * k);
++    }
++    return result;
++}
++
++uint64_t
++expectedDivRem(TestOp op, uint64_t a, uint64_t b)
++{
++    const bool isDiv = op == T_DIV_UO || op == T_DIV_SO;
++    const bool isSigned = op == T_DIV_SO || op == T_REM_SO;
++    if (!isSigned) {
++        if (b == 0)
++            return isDiv ? ~uint64_t(0) : a;
++        return isDiv ? a / b : a % b;
++    }
++    const int64_t sa = static_cast<int64_t>(a);
++    const int64_t sb = static_cast<int64_t>(b);
++    if (sb == 0)
++        return isDiv ? ~uint64_t(0) : a;
++    if (sa == INT64_MIN && sb == -1)
++        return isDiv ? (uint64_t(1) << 63) : 0;
++    return static_cast<uint64_t>(isDiv ? sa / sb : sa % sb);
++}
++
++// ---------------------------------------------------------------------------
++// 1. Coverage: 42/42 ids, live B3 set == explicit list, non-B3 -> NotB3.
++// ---------------------------------------------------------------------------
++
++void
++checkCoverage()
++{
++    size_t live = 0;
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        const decode::DecodeEntry *entry = decode::entryById(o.id);
++        check(entry != nullptr, "b3 list id %s exists in the decode table",
++              o.id);
++        if (entry == nullptr)
++            continue;
++        check(entry->batch == 3, "b3 list id %s is in batch 3 (actual %u)",
++              o.id, entry->batch);
++        check(strEq(entry->format, o.format),
++              "b3 list id %s is %s (actual %s)", o.id, o.format,
++              entry->format);
++        const exec::B3Spec *spec = exec::b3SpecForId(o.id);
++        check(spec != nullptr, "executeB3 covers b3 id %s", o.id);
++        if (spec != nullptr)
++            check(spec->op == execOpOf(o.op),
++                  "%s spec op matches the independent oracle", o.id);
++        ++live;
++        std::printf("[PASS] b3-id %s\n", o.id);
++    }
++    check(live == 42, "B3 coverage %zu/42", live);
++    std::printf("B3 coverage %zu/42\n", live);
++
++    // Every live batch-3 entry has exactly one oracle row and one spec row.
++    size_t batch3 = 0;
++    for (size_t i = 0; i < decode::entryCount(); ++i) {
++        const decode::DecodeEntry &entry = decode::entries()[i];
++        if (entry.batch != 3)
++            continue;
++        ++batch3;
++        check(oracleOf(entry.id) != nullptr, "oracle row for batch-3 id %s",
++              entry.id);
++        check(exec::b3SpecForId(entry.id) != nullptr,
++              "executeB3 covers batch-3 id %s", entry.id);
++    }
++    check(batch3 == 42, "live batch-3 entry count == 42 (actual %zu)",
++          batch3);
++    check(exec::b3SpecCount() == 42,
++          "executeB3 spec count == 42 (actual %zu)", exec::b3SpecCount());
++
++    // Spec rows are unique and all map back to a batch-3 decode entry.
++    for (size_t i = 0; i < exec::b3SpecCount(); ++i) {
++        const exec::B3Spec &spec = exec::b3Specs()[i];
++        for (size_t j = i + 1; j < exec::b3SpecCount(); ++j) {
++            check(!strEq(spec.id, exec::b3Specs()[j].id),
++                  "spec ids unique: %s vs %s", spec.id,
++                  exec::b3Specs()[j].id);
++        }
++        const decode::DecodeEntry *entry = decode::entryById(spec.id);
++        check(entry != nullptr && entry->batch == 3,
++              "spec id %s is a batch-3 decode entry", spec.id);
++    }
++
++    // The 222 non-B3 entries must stay NotB3 and must not touch any register.
++    size_t notB3 = 0;
++    for (size_t i = 0; i < decode::entryCount(); ++i) {
++        const decode::DecodeEntry &entry = decode::entries()[i];
++        const decode::DecodedInst decoded = decode::decodeWord(entry.value);
++        if (!decoded.ok() || !strEq(decoded.entry->id, entry.id)) {
++            fail("entry %s: value 0x%08x does not decode back", entry.id,
++                 entry.value);
++            continue;
++        }
++        MockRegAccess ctx;
++        initContext(ctx);
++        const exec::Fault fault = exec::executeB3(decoded, ctx);
++        if (entry.batch == 3) {
++            check(fault != exec::Fault::NotB3, "%s is handled by executeB3",
++                  entry.id);
++        } else {
++            ++notB3;
++            if (fault != exec::Fault::NotB3)
++                fail("%s (batch %u) returned %s, expected NotB3", entry.id,
++                     entry.batch, faultName(fault));
++            if (!ctx.writes.empty() || ctx.badWrites != 0 ||
++                    ctx.badFloats != 0)
++                fail("%s (batch %u) touched a register on NotB3", entry.id,
++                     entry.batch);
++        }
++    }
++    check(notB3 == 264 - 42, "non-B3 ids return NotB3 (%zu/222)", notB3);
++    std::printf("non-B3 ids return NotB3 (%zu/222)\n", notB3);
++
++    // Rule references must match contracts/opcodes.yaml: dst_dual_same (7),
++    // dst_rd0 (31), dst_rb0 (4) and rev.o's encode_onehot (1).
++    size_t dual = 0;
++    size_t rd0 = 0;
++    size_t rb0 = 0;
++    size_t onehot = 0;
++    for (size_t i = 0; i < decode::entryCount(); ++i) {
++        const decode::DecodeEntry &entry = decode::entries()[i];
++        if (entry.batch != 3)
++            continue;
++        for (unsigned r = 0; r < entry.numRules; ++r) {
++            const char *rule = entry.rules[r];
++            if (strEq(rule, "dst_dual_same"))
++                ++dual;
++            else if (strEq(rule, "dst_rd0"))
++                ++rd0;
++            else if (strEq(rule, "dst_rb0"))
++                ++rb0;
++            else if (strEq(rule, "encode_onehot"))
++                ++onehot;
++            else
++                fail("%s: unknown rule_ref %s", entry.id, rule);
++        }
++    }
++    check(dual == 7, "rule dst_dual_same count == 7 (actual %zu)", dual);
++    check(rd0 == 31, "rule dst_rd0 count == 31 (actual %zu)", rd0);
++    check(rb0 == 4, "rule dst_rb0 count == 4 (actual %zu)", rb0);
++    check(onehot == 1, "rule encode_onehot count == 1 (actual %zu)", onehot);
++}
++
++// ---------------------------------------------------------------------------
++// 2. 128-bit rrrr arithmetic.
++// ---------------------------------------------------------------------------
++
++void
++expectRrrr(const char *id, TestOp op, unsigned ha, unsigned hb, uint64_t a,
++           uint64_t b, const char *label)
++{
++    MockRegAccess ctx;
++    initContext(ctx);
++    ctx.rd[6] = a;
++    ctx.rd[8] = b;
++
++    WordSpec w;
++    w.rdha = ha;
++    w.rdhb = hb;
++    w.rdhc = 6;
++    w.rdhd = 8;
++    const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++    check(fault == exec::Fault::None, "%s %s: fault %s", id, label,
++          faultName(fault));
++    if (fault != exec::Fault::None)
++        return;
++
++    const U128 expected = expectedRrrr(op, a, b);
++    if (ha != 0) {
++        check(ctx.rd[ha] == expected.hi,
++              "%s %s: hi 0x%016" PRIx64 " (expected 0x%016" PRIx64 ")",
++              id, label, ctx.rd[ha], expected.hi);
++    } else {
++        check(ctx.rd[0] == 0, "%s %s: rd0 stays zero", id, label);
++    }
++    if (hb != 0) {
++        check(ctx.rd[hb] == expected.lo,
++              "%s %s: lo 0x%016" PRIx64 " (expected 0x%016" PRIx64 ")",
++              id, label, ctx.rd[hb], expected.lo);
++    } else {
++        check(ctx.rd[0] == 0, "%s %s: rd0 stays zero", id, label);
++    }
++    const size_t expectedWrites = (ha != 0 ? 1u : 0u) + (hb != 0 ? 1u : 0u);
++    check(ctx.writes.size() == expectedWrites,
++          "%s %s: %zu register write(s)", id, label, ctx.writes.size());
++    check(ctx.badWrites == 0, "%s %s: no rd0 write path", id, label);
++}
++
++void
++checkRrrr()
++{
++    struct Pair
++    {
++        uint64_t a;
++        uint64_t b;
++        const char *label;
++    };
++    const Pair pairs[] = {
++        {0, 0, "0+0"},
++        {1, 2, "1,2"},
++        {5, 3, "5,3"},
++        {3, 5, "3,5"},
++        {0, 1, "0,1"},
++        {1, 0, "1,0"},
++        {~uint64_t(0), 1, "max,1"},
++        {~uint64_t(0), ~uint64_t(0), "max,max"},
++        {uint64_t(1) << 63, 2, "2^63,2"},
++        {2, uint64_t(1) << 63, "2,2^63"},
++        {0x0123456789ABCDEFULL, 0xFEDCBA9876543210ULL, "pattern"},
++        {uint64_t(1) << 63, ~uint64_t(0), "min,-1"},
++    };
++
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        if (o.rule != RULE_DUAL_SAME)
++            continue;
++
++        for (const Pair &p : pairs) {
++            expectRrrr(o.id, o.op, 5, 0, p.a, p.b, p.label);
++            expectRrrr(o.id, o.op, 0, 5, p.a, p.b, p.label);
++        }
++
++        // Both destinations: low half to rdhb, high half to rdha.
++        {
++            const U128 expected = expectedRrrr(o.op, uint64_t(2) << 62, 3);
++            MockRegAccess ctx;
++            initContext(ctx);
++            ctx.rd[6] = uint64_t(2) << 62;
++            ctx.rd[8] = 3;
++            WordSpec w;
++            w.rdha = 4;
++            w.rdhb = 5;
++            w.rdhc = 6;
++            w.rdhd = 8;
++            const exec::Fault fault =
++                runWord(ctx, o.id, makeWord(o.id, w));
++            check(fault == exec::Fault::None,
++                  "%s dual destination: fault %s", o.id, faultName(fault));
++            check(ctx.rd[4] == expected.hi, "%s dual destination: hi",
++                  o.id);
++            check(ctx.rd[5] == expected.lo, "%s dual destination: lo",
++                  o.id);
++            check(ctx.writes.size() == 2,
++                  "%s dual destination: two writes", o.id);
++        }
++
++        // Alias/snapshot: rdha=rdhc and rdhb=rdhd, so an implementation that
++        // writes the high half before reading the sources is caught.
++        {
++            const uint64_t a = 0x0F0F0F0F0F0F0F0FULL;
++            const uint64_t b = 0x00FF00FF00FF00FFULL;
++            const U128 expected = expectedRrrr(o.op, a, b);
++            MockRegAccess ctx;
++            initContext(ctx);
++            ctx.rd[5] = a;
++            ctx.rd[6] = b;
++            WordSpec w;
++            w.rdha = 5;
++            w.rdhb = 6;
++            w.rdhc = 5;
++            w.rdhd = 6;
++            const exec::Fault fault =
++                runWord(ctx, o.id, makeWord(o.id, w));
++            check(fault == exec::Fault::None, "%s alias snapshot: fault %s",
++                  o.id, faultName(fault));
++            check(ctx.rd[5] == expected.hi && ctx.rd[6] == expected.lo,
++                  "%s alias snapshot: hi/lo from the source snapshot", o.id);
++        }
++
++        // Dual-destination legality: both rd0, or the same non-rd0 register.
++        {
++            MockRegAccess ctx;
++            initContext(ctx);
++            WordSpec w;
++            w.rdha = 0;
++            w.rdhb = 0;
++            const exec::Fault both = runWord(ctx, o.id, makeWord(o.id, w));
++            check(both == exec::Fault::Illegal,
++                  "%s both rd0 -> Illegal (got %s)", o.id,
++                  faultName(both));
++            check(ctx.writes.empty(), "%s both rd0: no register write",
++                  o.id);
++
++            w.rdha = 5;
++            w.rdhb = 5;
++            const exec::Fault same = runWord(ctx, o.id, makeWord(o.id, w));
++            check(same == exec::Fault::Illegal,
++                  "%s rdha == rdhb != rd0 -> Illegal (got %s)", o.id,
++                  faultName(same));
++            check(ctx.writes.empty(), "%s same destination: no register write",
++                  o.id);
++        }
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 3. Immediates: add.si (rd/rb), aip.si, cmp.ui/cmp.si.
++// ---------------------------------------------------------------------------
++
++void
++checkImmediate()
++{
++    const int64_t imms18[] = {0, 1, -1, 131071, -131072};
++    const bool rbForms[] = {false, true};
++    for (bool rb : rbForms) {
++        const char *id = rb ? "add.si_riii_rb" : "add.si_riii_rd";
++        const exec::Bank bank = rb ? exec::Bank::Rb : exec::Bank::Rd;
++        for (int64_t imm : imms18) {
++            MockRegAccess ctx;
++            initContext(ctx);
++            const uint64_t base = 0x123456789ABCDEF0ULL;
++            ctx.reg(bank, 5) = base;
++            WordSpec w;
++            w.imm = static_cast<unsigned>(static_cast<uint64_t>(imm) &
++                                          0x3FFFF);
++            const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++            check(fault == exec::Fault::None, "%s imm %" PRId64 ": fault %s",
++                  id, imm, faultName(fault));
++            const uint64_t expected =
++                base + static_cast<uint64_t>(imm);
++            check(ctx.reg(bank, 5) == expected,
++                  "%s imm %" PRId64 ": 0x%016" PRIx64
++                  " (expected 0x%016" PRIx64 ")", id, imm,
++                  ctx.reg(bank, 5), expected);
++            check(ctx.writes.size() == 1,
++                  "%s imm %" PRId64 ": one write", id, imm);
++        }
++        // Destination 0 is ILLI before any register access.
++        MockRegAccess ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rdha = 0;
++        w.rbha = 0;
++        const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++        check(fault == exec::Fault::Illegal,
++              "%s dst 0 -> Illegal (got %s)", id, faultName(fault));
++        check(ctx.writes.empty(), "%s dst 0: no register write", id);
++    }
++
++    // aip.si: IP is the current instruction address and its low bits are not
++    // cleared; the 18-bit immediate is a signed 4 KiB block offset.
++    {
++        const char *id = "aip.si_riii_rb";
++        struct AipCase
++        {
++            uint64_t pc;
++            int64_t imm;
++        };
++        const AipCase cases[] = {
++            {0x1234, 0},
++            {0x1234, 1},
++            {0x1234, -1},
++            {0x1234, 131071},
++            {0x1234, -131072},
++            {0xFFFFFFFFFFFFF000ULL, 1},
++            {0xFFFFFFFFFFFFF000ULL, -1},
++        };
++        for (const AipCase &c : cases) {
++            MockRegAccess ctx;
++            initContext(ctx);
++            ctx.ip = c.pc;
++            WordSpec w;
++            w.rbha = 5;
++            w.imm = static_cast<unsigned>(static_cast<uint64_t>(c.imm) &
++                                          0x3FFFF);
++            const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++            check(fault == exec::Fault::None,
++                  "aip.si pc=0x%" PRIx64 " imm=%" PRId64 ": fault %s",
++                  c.pc, c.imm, faultName(fault));
++            const uint64_t expected =
++                c.pc + (static_cast<uint64_t>(c.imm) << 12);
++            check(ctx.rb[5] == expected,
++                  "aip.si pc=0x%" PRIx64 " imm=%" PRId64
++                  ": 0x%016" PRIx64 " (expected 0x%016" PRIx64 ")",
++                  c.pc, c.imm, ctx.rb[5], expected);
++            check(ctx.writes.size() == 1, "aip.si: one RB write");
++        }
++        MockRegAccess ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rbha = 0;
++        const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++        check(fault == exec::Fault::Illegal,
++              "aip.si rb0 -> Illegal (got %s)", faultName(fault));
++        check(ctx.writes.empty(), "aip.si rb0: no register write");
++    }
++
++    // cmp.ui: immu12 must be treated as unsigned (0x800 == +2048).
++    {
++        const char *id = "cmp.ui_rrii_rd";
++        struct CmpCase
++        {
++            uint64_t value;
++            unsigned imm;
++        };
++        const CmpCase cases[] = {
++            {0, 0x800}, {0x7FF, 0x800}, {0x800, 0x800}, {0x801, 0x800},
++            {0xFFF, 0x800}, {~uint64_t(0), 0xFFF}, {0xFFFF, 0x000},
++            {0x800, 0xFFF},
++        };
++        for (const CmpCase &c : cases) {
++            MockRegAccess ctx;
++            initContext(ctx);
++            ctx.rd[6] = c.value;
++            WordSpec w;
++            w.rdha = 5;
++            w.rdhb = 6;
++            w.imm = c.imm;
++            const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++            check(fault == exec::Fault::None,
++                  "cmp.ui 0x%" PRIx64 ",0x%x: fault %s", c.value, c.imm,
++                  faultName(fault));
++            const uint64_t expected = cmpUnsigned(c.value, c.imm);
++            check(ctx.rd[5] == expected,
++                  "cmp.ui 0x%" PRIx64 ",0x%x: 0x%016" PRIx64
++                  " (expected 0x%016" PRIx64 ")", c.value, c.imm, ctx.rd[5],
++                  expected);
++        }
++        MockRegAccess ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rdha = 0;
++        const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++        check(fault == exec::Fault::Illegal,
++              "cmp.ui dst 0 -> Illegal (got %s)", faultName(fault));
++        check(ctx.writes.empty(), "cmp.ui dst 0: no register write");
++    }
++
++    // cmp.si: imms12 must be sign-extended.
++    {
++        const char *id = "cmp.si_rrii_rd";
++        struct CmpCase
++        {
++            uint64_t value;
++            int64_t imm;
++        };
++        const CmpCase cases[] = {
++            {0, -2048}, {~uint64_t(0), -2048},
++            {uint64_t(1) << 63, -2048}, {~uint64_t(0) - 2047, -2048},
++            {static_cast<uint64_t>(-2049), -2048},
++            {~uint64_t(0), 2047}, {2047, 2047}, {2048, 2047},
++            {0, 0}, {~uint64_t(0), 0}, {1, 0},
++        };
++        for (const CmpCase &c : cases) {
++            MockRegAccess ctx;
++            initContext(ctx);
++            ctx.rd[6] = c.value;
++            WordSpec w;
++            w.rdha = 5;
++            w.rdhb = 6;
++            w.imm = static_cast<unsigned>(static_cast<uint64_t>(c.imm) &
++                                          0xFFF);
++            const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++            check(fault == exec::Fault::None,
++                  "cmp.si 0x%" PRIx64 ",%" PRId64 ": fault %s", c.value,
++                  c.imm, faultName(fault));
++            const uint64_t expected = cmpSigned(c.value,
++                                                static_cast<uint64_t>(c.imm));
++            check(ctx.rd[5] == expected,
++                  "cmp.si 0x%" PRIx64 ",%" PRId64 ": 0x%016" PRIx64
++                  " (expected 0x%016" PRIx64 ")", c.value, c.imm, ctx.rd[5],
++                  expected);
++        }
++        MockRegAccess ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rdha = 0;
++        const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++        check(fault == exec::Fault::Illegal,
++              "cmp.si dst 0 -> Illegal (got %s)", faultName(fault));
++        check(ctx.writes.empty(), "cmp.si dst 0: no register write");
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 4. Bit scan / population count.
++// ---------------------------------------------------------------------------
++
++void
++checkBitScan()
++{
++    struct ScanCase
++    {
++        unsigned hd;
++        uint64_t src;
++        uint64_t pop;
++        uint64_t lz;
++        uint64_t tz;
++    };
++    const ScanCase cases[] = {
++        {0, 0, 0, 1, 1},
++        {0, 1, 1, 0, 0},
++        {0, ~uint64_t(0), 1, 0, 0},
++        {7, 0x80, 1, 0, 7},
++        {7, 0x01, 1, 7, 0},
++        {7, 0x8000000000000000ULL, 0, 8, 8},   // bits above hd ignored
++        {7, 0xFF, 8, 0, 0},
++        {7, 0x40, 1, 1, 6},
++        {31, 0x80000000ULL, 1, 0, 31},
++        {31, ~uint64_t(0), 32, 0, 0},
++        {31, 0x100000000ULL, 0, 32, 32},       // bit 32 above hd ignored
++        {63, ~uint64_t(0), 64, 0, 0},
++        {63, 0x8000000000000000ULL, 1, 0, 63},
++        {63, 0, 0, 64, 64},
++        {63, 0x8000000000000001ULL, 2, 0, 0},
++        {32, 0x200000000ULL, 0, 33, 33},       // bit 33 above hd ignored
++    };
++
++    const char *const ids[3] = {"ctpop_orri_rd", "ctlz_orri_rd",
++                                "cttz_orri_rd"};
++    for (const ScanCase &c : cases) {
++        for (unsigned t = 0; t < 3; ++t) {
++            MockRegAccess ctx;
++            initContext(ctx);
++            ctx.rd[6] = c.src;
++            WordSpec w;
++            w.rdhb = 5;
++            w.rdhc = 6;
++            w.imm = c.hd;
++            const exec::Fault fault =
++                runWord(ctx, ids[t], makeWord(ids[t], w));
++            check(fault == exec::Fault::None,
++                  "%s hd=%u src=0x%016" PRIx64 ": fault %s", ids[t], c.hd,
++                  c.src, faultName(fault));
++            const uint64_t expected = t == 0 ? c.pop : (t == 1 ? c.lz : c.tz);
++            check(ctx.rd[5] == expected,
++                  "%s hd=%u src=0x%016" PRIx64 ": %" PRIu64
++                  " (expected %" PRIu64 ")", ids[t], c.hd, c.src, ctx.rd[5],
++                  expected);
++            check(ctx.writes.size() == 1, "%s hd=%u: one write", ids[t],
++                  c.hd);
++        }
++    }
++
++    // rd0 source reads 0 (legal): ctlz/cttz = hd+1, ctpop = 0.
++    for (unsigned t = 0; t < 3; ++t) {
++        MockRegAccess ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = 0;
++        w.imm = 13;
++        const exec::Fault fault =
++            runWord(ctx, ids[t], makeWord(ids[t], w));
++        check(fault == exec::Fault::None, "%s rd0 source: legal (got %s)",
++              ids[t], faultName(fault));
++        const uint64_t expected = t == 0 ? 0 : 14;
++        check(ctx.rd[5] == expected, "%s rd0 source: %" PRIu64, ids[t],
++              ctx.rd[5]);
++    }
++
++    // dst rd0 -> ILLI, zero writes.
++    for (unsigned t = 0; t < 3; ++t) {
++        MockRegAccess ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rdhb = 0;
++        w.imm = 63;
++        const exec::Fault fault =
++            runWord(ctx, ids[t], makeWord(ids[t], w));
++        check(fault == exec::Fault::Illegal, "%s dst 0 -> Illegal (got %s)",
++              ids[t], faultName(fault));
++        check(ctx.writes.empty(), "%s dst 0: no register write", ids[t]);
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 5. Logic.
++// ---------------------------------------------------------------------------
++
++void
++checkLogic()
++{
++    struct LogicCase
++    {
++        TestOp op;
++        uint64_t a;
++        uint64_t b;
++    };
++    const LogicCase cases[] = {
++        {T_AND, 0xF0F0F0F0F0F0F0F0ULL, 0xFF00FF00FF00FF00ULL},
++        {T_AND, ~uint64_t(0), 0x0123456789ABCDEFULL},
++        {T_OR, 0xF000000000000000ULL, 0x000000000000000FULL},
++        {T_XOR, ~uint64_t(0), 0x0123456789ABCDEFULL},
++        {T_XNOR, 0x0123456789ABCDEFULL, 0x0123456789ABCDEFULL},
++        {T_XNOR, 0, 0},
++    };
++    for (const LogicCase &c : cases) {
++        const char *id = idOf(c.op);
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rd[6] = c.a;
++        ctx.rd[8] = c.b;
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = 6;
++        w.rdhd = 8;
++        const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++        check(fault == exec::Fault::None, "%s: fault %s", id,
++              faultName(fault));
++        uint64_t expected = 0;
++        if (c.op == T_AND)
++            expected = c.a & c.b;
++        else if (c.op == T_OR)
++            expected = c.a | c.b;
++        else if (c.op == T_XOR)
++            expected = c.a ^ c.b;
++        else
++            expected = ~(c.a ^ c.b);
++        check(ctx.rd[5] == expected,
++              "%s 0x%016" PRIx64 ",0x%016" PRIx64 ": 0x%016" PRIx64, id,
++              c.a, c.b, ctx.rd[5]);
++        check(ctx.writes.size() == 1, "%s: one write", id);
++    }
++
++    // xnor with rd0 implements NOT (either source).
++    for (bool first : {true, false}) {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rd[6] = 0x0123456789ABCDEFULL;
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = first ? 6 : 0;
++        w.rdhd = first ? 0 : 6;
++        const exec::Fault fault =
++            runWord(ctx, "xnor.o_orrr_rd", makeWord("xnor.o_orrr_rd", w));
++        check(fault == exec::Fault::None, "xnor rd0 source: fault %s",
++              faultName(fault));
++        check(ctx.rd[5] == ~0x0123456789ABCDEFULL,
++              "xnor with rd0 negates the other source");
++    }
++
++    // In-place destination == source.
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rd[5] = 0xDEADBEEFCAFEBABEULL;
++        ctx.rd[6] = 0x00FF00FF00FF00FFULL;
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = 5;
++        w.rdhd = 6;
++        const exec::Fault fault =
++            runWord(ctx, "xor.o_orrr_rd", makeWord("xor.o_orrr_rd", w));
++        check(fault == exec::Fault::None, "xor in-place: fault %s",
++              faultName(fault));
++        check(ctx.rd[5] == (0xDEADBEEFCAFEBABEULL ^ 0x00FF00FF00FF00FFULL),
++              "xor in-place uses the pre-instruction source");
++    }
++
++    const char *const ids[4] = {"and.o_orrr_rd", "or.o_orrr_rd",
++                                "xor.o_orrr_rd", "xnor.o_orrr_rd"};
++    for (const char *id : ids) {
++        MockRegAccess ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rdhb = 0;
++        const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++        check(fault == exec::Fault::Illegal, "%s dst 0 -> Illegal (got %s)",
++              id, faultName(fault));
++        check(ctx.writes.empty(), "%s dst 0: no register write", id);
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 6. Shift / rotate (orrr shamt = rdhd[5:0], orri shamt = immu6).
++// ---------------------------------------------------------------------------
++
++void
++expectShift(const char *id, TestOp op, bool immForm, uint64_t value,
++            unsigned amount, const char *label)
++{
++    MockRegAccess ctx;
++    initContext(ctx);
++    ctx.rd[6] = value;
++    ctx.rd[8] = amount;
++    WordSpec w;
++    w.rdhb = 5;
++    w.rdhc = 6;
++    if (immForm)
++        w.imm = amount & 63;
++    else
++        w.rdhd = 8;
++    const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++    check(fault == exec::Fault::None, "%s %s: fault %s", id, label,
++          faultName(fault));
++    if (fault != exec::Fault::None)
++        return;
++
++    const unsigned shamt = amount & 63;
++    uint64_t expected;
++    switch (op) {
++      case T_SHL_R:
++      case T_SHL_I: expected = value << shamt; break;
++      case T_ROL_R:
++      case T_ROL_I: expected = rol64(value, shamt); break;
++      case T_SHR_UI_R:
++      case T_SHR_UI_I: expected = value >> shamt; break;
++      case T_SHR_SI_R:
++      case T_SHR_SI_I:
++        expected = static_cast<uint64_t>(
++                static_cast<int64_t>(value) >> shamt);
++        break;
++      default: expected = 0; break;
++    }
++    check(ctx.rd[5] == expected,
++          "%s %s amount=%u: 0x%016" PRIx64 " (expected 0x%016" PRIx64 ")",
++          id, label, shamt, ctx.rd[5], expected);
++    check(ctx.writes.size() == 1, "%s %s: one write", id, label);
++}
++
++void
++checkShift()
++{
++    const uint64_t values[] = {0, 1, 0x0123456789ABCDEFULL,
++                               uint64_t(1) << 63, ~uint64_t(0),
++                               0x8000000000000001ULL};
++    const unsigned amounts[] = {0, 1, 2, 31, 63};
++
++    const TestOp orrrOps[] = {T_SHL_R, T_ROL_R, T_SHR_UI_R, T_SHR_SI_R};
++    for (TestOp op : orrrOps) {
++        for (uint64_t value : values) {
++            for (unsigned amount : amounts) {
++                expectShift(idOf(op), op, false, value, amount, "orrr");
++            }
++            // Register shamt is naturally mod 64: 64 -> 0, 65 -> 1, 127 -> 63.
++            expectShift(idOf(op), op, false, value, 64, "rdhd=64");
++            expectShift(idOf(op), op, false, value, 65, "rdhd=65");
++            expectShift(idOf(op), op, false, value, 127, "rdhd=127");
++        }
++    }
++
++    const TestOp orriOps[] = {T_SHL_I, T_ROL_I, T_SHR_UI_I, T_SHR_SI_I};
++    for (TestOp op : orriOps) {
++        for (uint64_t value : values) {
++            for (unsigned amount : amounts) {
++                expectShift(idOf(op), op, true, value, amount, "orri");
++            }
++        }
++    }
++
++    // shr.so negative sign fill.
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rd[6] = uint64_t(1) << 63;
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = 6;
++        w.rdhd = 1;
++        runWord(ctx, "shr.so_orrr_rd", makeWord("shr.so_orrr_rd", w));
++        check(ctx.rd[5] == 0xC000000000000000ULL,
++              "shr.so of the sign bit fills with ones");
++    }
++
++    const char *const ids[8] = {
++        "shl.o_orrr_rd", "rol.o_orrr_rd", "shr.uo_orrr_rd",
++        "shr.so_orrr_rd", "shl.o_orri_rd", "rol.o_orri_rd",
++        "shr.uo_orri_rd", "shr.so_orri_rd",
++    };
++    for (const char *id : ids) {
++        MockRegAccess ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rdhb = 0;
++        const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++        check(fault == exec::Fault::Illegal, "%s dst 0 -> Illegal (got %s)",
++              id, faultName(fault));
++        check(ctx.writes.empty(), "%s dst 0: no register write", id);
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 7. Sign / zero extend.
++// ---------------------------------------------------------------------------
++
++void
++checkExtend()
++{
++    struct ExtCase
++    {
++        unsigned hd;
++        uint64_t src;
++    };
++    const ExtCase cases[] = {
++        {0, 0}, {0, 1}, {0, ~uint64_t(0)},
++        {1, 1}, {1, 2}, {1, 3},
++        {7, 0xDEADBEEFCAFEBABEULL},
++        {8, 0xDEADBEEFCAFEBABEULL},
++        {31, 0x80000000ULL}, {32, 0x123456789ULL},
++        {62, uint64_t(1) << 62}, {63, uint64_t(1) << 63},
++        {63, ~uint64_t(0)}, {63, 0},
++    };
++
++    const char *const orrrIds[2] = {"ext.uo_orrr_rd", "ext.so_orrr_rd"};
++    const char *const orriIds[2] = {"ext.uo_orri_rd", "ext.so_orri_rd"};
++    for (unsigned s = 0; s < 2; ++s) {
++        const bool sign = s == 1;
++        for (bool immForm : {false, true}) {
++            const char *id = immForm ? orriIds[s] : orrrIds[s];
++            for (const ExtCase &c : cases) {
++                MockRegAccess ctx;
++                initContext(ctx);
++                ctx.rd[6] = c.src;
++                ctx.rd[8] = c.hd;
++                WordSpec w;
++                w.rdhb = 5;
++                w.rdhc = 6;
++                if (immForm)
++                    w.imm = c.hd;
++                else
++                    w.rdhd = 8;
++                const exec::Fault fault =
++                    runWord(ctx, id, makeWord(id, w));
++                check(fault == exec::Fault::None,
++                      "%s hd=%u: fault %s", id, c.hd, faultName(fault));
++                const uint64_t mask = lowMask(c.hd + 1);
++                uint64_t expected = c.src & mask;
++                if (sign && ((c.src >> c.hd) & 1) != 0)
++                    expected |= ~mask;
++                check(ctx.rd[5] == expected,
++                      "%s hd=%u src=0x%016" PRIx64 ": 0x%016" PRIx64
++                      " (expected 0x%016" PRIx64 ")", id, c.hd, c.src,
++                      ctx.rd[5], expected);
++                check(ctx.writes.size() == 1, "%s hd=%u: one write", id,
++                      c.hd);
++            }
++        }
++    }
++
++    // orrr hd comes from the whole rdhd register value: 64 and 2^64-1 are
++    // illegal, and nothing is written.
++    const uint64_t badHds[] = {64, 65, 0xFFFFFFFFFFFFFFFFULL,
++                               uint64_t(1) << 40};
++    for (const char *id : orrrIds) {
++        for (uint64_t hd : badHds) {
++            MockRegAccess ctx;
++            initContext(ctx);
++            ctx.rd[6] = ~uint64_t(0);
++            ctx.rd[8] = hd;
++            WordSpec w;
++            w.rdhb = 5;
++            w.rdhc = 6;
++            w.rdhd = 8;
++            const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++            check(fault == exec::Fault::Illegal,
++                  "%s hd=0x%" PRIx64 " -> Illegal (got %s)", id, hd,
++                  faultName(fault));
++            check(ctx.writes.empty(), "%s hd=0x%" PRIx64
++                  ": no register write", id, hd);
++        }
++        // dst rd0 -> ILLI.
++        MockRegAccess ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rdhb = 0;
++        w.rdhd = 8;
++        const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++        check(fault == exec::Fault::Illegal, "%s dst 0 -> Illegal (got %s)",
++              id, faultName(fault));
++        check(ctx.writes.empty(), "%s dst 0: no register write", id);
++    }
++    for (const char *id : orriIds) {
++        MockRegAccess ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rdhb = 0;
++        const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++        check(fault == exec::Fault::Illegal, "%s dst 0 -> Illegal (got %s)",
++              id, faultName(fault));
++        check(ctx.writes.empty(), "%s dst 0: no register write", id);
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 8. rev.o.
++// ---------------------------------------------------------------------------
++
++void
++checkReverse()
++{
++    const char *const id = "rev.o_orri_rd";
++    const uint64_t values[] = {
++        0, 1, uint64_t(1) << 63, ~uint64_t(0),
++        0x0123456789ABCDEFULL, 0x8000000000000001ULL,
++    };
++
++    for (unsigned k : {1u, 2u, 4u, 8u, 16u, 32u}) {
++        for (uint64_t value : values) {
++            MockRegAccess ctx;
++            initContext(ctx);
++            ctx.rd[6] = value;
++            WordSpec w;
++            w.rdhb = 5;
++            w.rdhc = 6;
++            w.imm = k;
++            const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++            check(fault == exec::Fault::None, "rev.o k=%u: fault %s", k,
++                  faultName(fault));
++            const uint64_t expected = expectedRev(value, k);
++            check(ctx.rd[5] == expected,
++                  "rev.o k=%u src=0x%016" PRIx64 ": 0x%016" PRIx64
++                  " (expected 0x%016" PRIx64 ")", k, value, ctx.rd[5],
++                  expected);
++            check(ctx.writes.size() == 1, "rev.o k=%u: one write", k);
++        }
++    }
++
++    // Known vectors: k=1 is bitreverse, k=8 is bswap64, k=32 swaps halves.
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rd[6] = 0x0123456789ABCDEFULL;
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = 6;
++        w.imm = 1;
++        runWord(ctx, id, makeWord(id, w));
++        check(ctx.rd[5] == bitReverse64(0x0123456789ABCDEFULL),
++              "rev.o k=1 is 64-bit bitreverse");
++    }
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rd[6] = 0x0123456789ABCDEFULL;
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = 6;
++        w.imm = 8;
++        runWord(ctx, id, makeWord(id, w));
++        check(ctx.rd[5] == 0xEFCDAB8967452301ULL,
++              "rev.o k=8 is bswap64");
++    }
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rd[6] = 0x0123456789ABCDEFULL;
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = 6;
++        w.imm = 32;
++        runWord(ctx, id, makeWord(id, w));
++        check(ctx.rd[5] == 0x89ABCDEF01234567ULL,
++              "rev.o k=32 swaps the two 32-bit units");
++    }
++
++    // Illegal k: non-one-hot values and k=63; k >= 64 is unrepresentable in
++    // the 6-bit field (the encoder wraps it to 0, still illegal).
++    for (unsigned k : {0u, 3u, 5u, 6u, 7u, 9u, 63u, 64u}) {
++        MockRegAccess ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = 6;
++        w.imm = k;
++        const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++        check(fault == exec::Fault::Illegal,
++              "rev.o k=%u -> Illegal (got %s)", k, faultName(fault));
++        check(ctx.writes.empty(), "rev.o k=%u: no register write", k);
++    }
++
++    // rd0 source is legal and gives 0; in-place rdhb == rdhc works.
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = 0;
++        w.imm = 8;
++        const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++        check(fault == exec::Fault::None, "rev.o rd0 source: legal (got %s)",
++              faultName(fault));
++        check(ctx.rd[5] == 0, "rev.o rd0 source: result 0");
++    }
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rd[5] = 0x0123456789ABCDEFULL;
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = 5;
++        w.imm = 8;
++        const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++        check(fault == exec::Fault::None, "rev.o in-place: fault %s",
++              faultName(fault));
++        check(ctx.rd[5] == 0xEFCDAB8967452301ULL,
++              "rev.o in-place reverses the pre-instruction value");
++    }
++
++    // dst rd0 -> ILLI.
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rdhb = 0;
++        w.imm = 8;
++        const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++        check(fault == exec::Fault::Illegal, "rev.o dst 0 -> Illegal (got %s)",
++              faultName(fault));
++        check(ctx.writes.empty(), "rev.o dst 0: no register write");
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 9. RB address arithmetic (bbd / dbb field roles, full 64-bit).
++// ---------------------------------------------------------------------------
++
++void
++checkRb()
++{
++    // add.o bbd: rbhb = rbhc + rdhd.  rdhd must come from the RD bank, so the
++    // RB registers at the same index are given a different value.
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rb[6] = 0x123456789ABCDEF0ULL;
++        ctx.rb[8] = 0xDEADDEADDEADDEADULL;  // must not be read
++        ctx.rd[8] = 0x0FEDCBA987654321ULL;
++        WordSpec w;
++        w.rbhb = 5;
++        w.rbhc = 6;
++        w.rdhd = 8;
++        const exec::Fault fault =
++            runWord(ctx, "add.o_orrr_bbd", makeWord("add.o_orrr_bbd", w));
++        check(fault == exec::Fault::None, "add.o bbd: fault %s",
++              faultName(fault));
++        const uint64_t expected = 0x123456789ABCDEF0ULL + 0x0FEDCBA987654321ULL;
++        check(ctx.rb[5] == expected,
++              "add.o bbd reads rdhd from the RD bank: 0x%016" PRIx64
++              " (expected 0x%016" PRIx64 ")", ctx.rb[5], expected);
++        check(ctx.rd[5] == 0xDEAD000000000005ULL,
++              "add.o bbd writes RB, not RD");
++    }
++
++    // sub.o bbd: full 64-bit result, no [63:48] truncation.
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rb[6] = 0xFFFF000000000000ULL;
++        ctx.rd[8] = 0x0001000000000001ULL;
++        WordSpec w;
++        w.rbhb = 5;
++        w.rbhc = 6;
++        w.rdhd = 8;
++        const exec::Fault fault =
++            runWord(ctx, "sub.o_orrr_bbd", makeWord("sub.o_orrr_bbd", w));
++        check(fault == exec::Fault::None, "sub.o bbd: fault %s",
++              faultName(fault));
++        check(ctx.rb[5] == 0xFFFDFFFFFFFFFFFFULL,
++              "sub.o bbd keeps all 64 bits (0x%016" PRIx64 ")", ctx.rb[5]);
++    }
++
++    // rb0 as an RB source reads the current IP for bbd and dbb.
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.ip = 0x1234;
++        ctx.rd[8] = 0x10;
++        WordSpec w;
++        w.rbhb = 5;
++        w.rbhc = 0;
++        w.rdhd = 8;
++        const exec::Fault fault =
++            runWord(ctx, "add.o_orrr_bbd", makeWord("add.o_orrr_bbd", w));
++        check(fault == exec::Fault::None, "add.o bbd rb0 source: fault %s",
++              faultName(fault));
++        check(ctx.rb[5] == 0x1244, "add.o bbd rb0 source reads the IP");
++    }
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.ip = 0x1234;
++        ctx.rb[8] = 0x34;
++        WordSpec w;
++        w.rdhb = 5;
++        w.rbhc = 6;
++        w.rbhd = 0;
++        ctx.rb[6] = 0x2000;
++        const exec::Fault fault =
++            runWord(ctx, "sub.o_orrr_dbb", makeWord("sub.o_orrr_dbb", w));
++        check(fault == exec::Fault::None, "sub.o dbb rb0 source: fault %s",
++              faultName(fault));
++        check(ctx.rd[5] == 0x2000 - 0x1234,
++              "sub.o dbb rb0 source reads the IP");
++    }
++
++    // cmp.uo dbb: whole 64-bit unsigned compare, full -1/0/1 result.
++    {
++        struct CmpCase
++        {
++            uint64_t a;
++            uint64_t b;
++            uint64_t expected;
++        };
++        const CmpCase cases[] = {
++            {0x8000000000000000ULL, 0x7FFFFFFFFFFFFFFFULL, 1},
++            {0x0001000000000000ULL, 0, 1},
++            {0, 0x0001000000000000ULL, ~uint64_t(0)},
++            {0x0123456789ABCDEFULL, 0x0123456789ABCDEFULL, 0},
++            {0, ~uint64_t(0), ~uint64_t(0)},
++        };
++        for (const CmpCase &c : cases) {
++            MockRegAccess ctx;
++            initContext(ctx);
++            ctx.rb[6] = c.a;
++            ctx.rb[8] = c.b;
++            WordSpec w;
++            w.rdhb = 5;
++            w.rbhc = 6;
++            w.rbhd = 8;
++            const exec::Fault fault = runWord(
++                ctx, "cmp.uo_orrr_dbb",
++                makeWord("cmp.uo_orrr_dbb", w));
++            check(fault == exec::Fault::None,
++                  "cmp.uo dbb 0x%016" PRIx64 ",0x%016" PRIx64
++                  ": fault %s", c.a, c.b, faultName(fault));
++            check(ctx.rd[5] == c.expected,
++                  "cmp.uo dbb 0x%016" PRIx64 ",0x%016" PRIx64
++                  ": 0x%016" PRIx64 " (expected 0x%016" PRIx64 ")",
++                  c.a, c.b, ctx.rd[5], c.expected);
++            check(ctx.writes.size() == 1 &&
++                      ctx.writes[0].bank == exec::Bank::Rd,
++                  "cmp.uo dbb writes the RD destination");
++        }
++    }
++
++    // sub.o dbb: rdhb = rbhc - rbhd, full 64 bits.
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rb[6] = 0;
++        ctx.rb[8] = 1;
++        WordSpec w;
++        w.rdhb = 5;
++        w.rbhc = 6;
++        w.rbhd = 8;
++        const exec::Fault fault =
++            runWord(ctx, "sub.o_orrr_dbb", makeWord("sub.o_orrr_dbb", w));
++        check(fault == exec::Fault::None, "sub.o dbb: fault %s",
++              faultName(fault));
++        check(ctx.rd[5] == ~uint64_t(0),
++              "sub.o dbb 0-1 == all ones (full 64-bit)");
++    }
++
++    // cmp.uo orrr rd form: whole 64-bit unsigned.
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rd[6] = 0x8000000000000000ULL;
++        ctx.rd[8] = 0x7FFFFFFFFFFFFFFFULL;
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = 6;
++        w.rdhd = 8;
++        const exec::Fault fault =
++            runWord(ctx, "cmp.uo_orrr_rd", makeWord("cmp.uo_orrr_rd", w));
++        check(fault == exec::Fault::None, "cmp.uo rd: fault %s",
++              faultName(fault));
++        check(ctx.rd[5] == 1,
++              "cmp.uo rd compares all 64 bits (high bit included)");
++    }
++    // cmp.so orrr rd form: signed.
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rd[6] = ~uint64_t(0);   // -1
++        ctx.rd[8] = 0;              // 0
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = 6;
++        w.rdhd = 8;
++        const exec::Fault fault =
++            runWord(ctx, "cmp.so_orrr_rd", makeWord("cmp.so_orrr_rd", w));
++        check(fault == exec::Fault::None, "cmp.so rd: fault %s",
++              faultName(fault));
++        check(ctx.rd[5] == ~uint64_t(0), "cmp.so -1 < 0 -> all ones");
++    }
++
++    // Destination legality.
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rbhb = 0;
++        w.rbhc = 6;
++        w.rdhd = 8;
++        const exec::Fault add = runWord(
++            ctx, "add.o_orrr_bbd", makeWord("add.o_orrr_bbd", w));
++        check(add == exec::Fault::Illegal,
++              "add.o bbd dst rb0 -> Illegal (got %s)", faultName(add));
++        const exec::Fault sub = runWord(
++            ctx, "sub.o_orrr_bbd", makeWord("sub.o_orrr_bbd", w));
++        check(sub == exec::Fault::Illegal,
++              "sub.o bbd dst rb0 -> Illegal (got %s)", faultName(sub));
++        check(ctx.writes.empty(), "bbd dst rb0: no register write");
++
++        w.rdhb = 0;
++        w.rbhc = 6;
++        w.rbhd = 8;
++        const exec::Fault cmp = runWord(
++            ctx, "cmp.uo_orrr_dbb", makeWord("cmp.uo_orrr_dbb", w));
++        check(cmp == exec::Fault::Illegal,
++              "cmp.uo dbb dst rd0 -> Illegal (got %s)", faultName(cmp));
++        const exec::Fault subDbb = runWord(
++            ctx, "sub.o_orrr_dbb", makeWord("sub.o_orrr_dbb", w));
++        check(subDbb == exec::Fault::Illegal,
++              "sub.o dbb dst rd0 -> Illegal (got %s)", faultName(subDbb));
++        check(ctx.writes.empty(), "dbb dst rd0: no register write");
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 10. Divide / remainder constants and truncation.
++// ---------------------------------------------------------------------------
++
++void
++checkDivRem()
++{
++    struct DivCase
++    {
++        uint64_t a;
++        uint64_t b;
++    };
++    const DivCase cases[] = {
++        {7, 3}, {7, 0}, {0, 5}, {0, 0}, {~uint64_t(0), 2},
++        {~uint64_t(0), ~uint64_t(0)}, {100, 7}, {1, 1},
++        {static_cast<uint64_t>(-7), 3}, {7, static_cast<uint64_t>(-3)},
++        {static_cast<uint64_t>(-7), static_cast<uint64_t>(-3)},
++        {uint64_t(1) << 63, ~uint64_t(0)},
++        {uint64_t(1) << 63, 1},
++        {0x8000000000000000ULL, 0x8000000000000000ULL},
++        {5, 0xFFFFFFFFFFFFFFFFULL},
++    };
++
++    const TestOp ops[] = {T_DIV_UO, T_DIV_SO, T_REM_UO, T_REM_SO};
++    for (TestOp op : ops) {
++        const char *id = idOf(op);
++        for (const DivCase &c : cases) {
++            MockRegAccess ctx;
++            initContext(ctx);
++            ctx.rd[6] = c.a;
++            ctx.rd[8] = c.b;
++            WordSpec w;
++            w.rdhb = 5;
++            w.rdhc = 6;
++            w.rdhd = 8;
++            const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++            check(fault == exec::Fault::None,
++                  "%s 0x%016" PRIx64 "/0x%016" PRIx64 ": fault %s", id,
++                  c.a, c.b, faultName(fault));
++            const uint64_t expected = expectedDivRem(op, c.a, c.b);
++            check(ctx.rd[5] == expected,
++                  "%s 0x%016" PRIx64 "/0x%016" PRIx64 ": 0x%016" PRIx64
++                  " (expected 0x%016" PRIx64 ")", id, c.a, c.b, ctx.rd[5],
++                  expected);
++            check(ctx.writes.size() == 1, "%s: one write", id);
++        }
++
++        // rdhd == rd0 reads 0 -> divide by zero constants, still legal.
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rd[6] = 0x1234;
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = 6;
++        w.rdhd = 0;
++        const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
++        check(fault == exec::Fault::None,
++              "%s rdhd=rd0: legal (got %s)", id, faultName(fault));
++        const bool div = op == T_DIV_UO || op == T_DIV_SO;
++        check(ctx.rd[5] == (div ? ~uint64_t(0) : 0x1234),
++              "%s rdhd=rd0 uses the divide-by-zero constant", id);
++
++        // dst rd0 -> ILLI.
++        MockRegAccess bad;
++        initContext(bad);
++        w.rdhb = 0;
++        const exec::Fault illegal = runWord(bad, id, makeWord(id, w));
++        check(illegal == exec::Fault::Illegal,
++              "%s dst 0 -> Illegal (got %s)", id, faultName(illegal));
++        check(bad.writes.empty(), "%s dst 0: no register write", id);
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 11. Statically illegal instructions never write (all 42 ids).
++// ---------------------------------------------------------------------------
++
++void
++checkLegality()
++{
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        MockRegAccess ctx;
++        initContext(ctx);
++
++        if (o.rule == RULE_DUAL_SAME) {
++            WordSpec w;
++            w.rdha = 0;
++            w.rdhb = 0;
++            const exec::Fault fault = runWord(ctx, o.id, makeWord(o.id, w));
++            check(fault == exec::Fault::Illegal,
++                  "%s dual dst both rd0 -> Illegal (got %s)", o.id,
++                  faultName(fault));
++        } else if (o.rule == RULE_RB0) {
++            WordSpec w;
++            w.rbha = 0;
++            w.rbhb = 0;
++            const exec::Fault fault = runWord(ctx, o.id, makeWord(o.id, w));
++            check(fault == exec::Fault::Illegal,
++                  "%s dst rb0 -> Illegal (got %s)", o.id, faultName(fault));
++        } else {
++            WordSpec w;
++            w.rdha = 0;
++            w.rdhb = 0;
++            const exec::Fault fault = runWord(ctx, o.id, makeWord(o.id, w));
++            check(fault == exec::Fault::Illegal,
++                  "%s dst rd0 -> Illegal (got %s)", o.id, faultName(fault));
++        }
++        check(ctx.writes.empty(), "%s ILLI path: no register write", o.id);
++        check(ctx.badWrites == 0 && ctx.badFloats == 0,
++              "%s ILLI path: no write attempt at all", o.id);
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 12. Decode metadata (rule_refs / legality / spec_cite) is consumed.
++// ---------------------------------------------------------------------------
++
++void
++checkRules()
++{
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        const decode::DecodeEntry *entry = decode::entryById(o.id);
++        if (entry == nullptr) {
++            fail("%s: missing decode entry", o.id);
++            continue;
++        }
++        check(entry->specCite != nullptr && entry->specCite[0] != '\0',
++              "%s has a spec_cite", o.id);
++
++        if (o.rule == RULE_DUAL_SAME) {
++            check(entry->numRules == 1 &&
++                      strEq(entry->rules[0], "dst_dual_same"),
++                  "%s rule_refs == dst_dual_same", o.id);
++            check(entry->numLegality == 2,
++                  "%s has two dual-destination legality expressions", o.id);
++        } else if (o.rule == RULE_RB0) {
++            check(entry->numRules == 1 && strEq(entry->rules[0], "dst_rb0"),
++                  "%s rule_refs == dst_rb0", o.id);
++            const char *expectedLegality =
++                strEq(entry->format, "riii") ? "rbha != rb0"
++                                             : "rbhb != rb0";
++            check(entry->numLegality == 1 &&
++                      strEq(entry->legality[0], expectedLegality),
++                  "%s legality == %s", o.id, expectedLegality);
++        } else if (o.rule == RULE_RD0_ONEHOT) {
++            check(entry->numRules == 2 &&
++                      strEq(entry->rules[0], "dst_rd0") &&
++                      strEq(entry->rules[1], "encode_onehot"),
++                  "%s rule_refs == dst_rd0 + encode_onehot", o.id);
++            check(entry->numLegality == 2,
++                  "%s has the one-hot legality expression", o.id);
++        } else {
++            check(entry->numRules == 1 && strEq(entry->rules[0], "dst_rd0"),
++                  "%s rule_refs == dst_rd0", o.id);
++            check(entry->numLegality == 1, "%s has one legality expression",
++                  o.id);
++        }
++    }
++}
++
++} // anonymous namespace
++
++int
++main()
++{
++    checkCoverage();
++    checkRrrr();
++    checkImmediate();
++    checkBitScan();
++    checkLogic();
++    checkShift();
++    checkExtend();
++    checkReverse();
++    checkRb();
++    checkDivRem();
++    checkLegality();
++    checkRules();
++
++    std::printf("\nsummary: B3 coverage 42/42, oracle rows %zu, failures %d\n",
++                kOracleCount, failures);
++    return failures == 0 ? 0 : 1;
++}

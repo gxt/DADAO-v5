@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/common.hh b/src/arch/dadao/exec/common.hh
 new file mode 100644
-index 0000000..0720a4d
+index 0000000..d69be5e
 --- /dev/null
 +++ b/src/arch/dadao/exec/common.hh
-@@ -0,0 +1,111 @@
+@@ -0,0 +1,113 @@
 +// DADAO gem5 execution core: shared register access for the B1-B7 batches.
 +//
 +// Plain C++ (no gem5 headers), like the B0 decode core, so the same code is
@@ -33,14 +33,16 @@ index 0000000..0720a4d
 +/** Result of executing one instruction.
 + *
 + * NotB1/NotB2 mean "this instruction is not in that batch"; the caller must
-+ * keep it unimplemented rather than guessing.  NotB1 is never returned by
-+ * executeB2() and vice versa.
++ * keep it unimplemented rather than guessing.  Each executeB*() returns only
++ * its own NotB* value (never another batch's), and the caller keeps the
++ * instruction unimplemented in that case.
 + */
 +enum class Fault
 +{
 +    None,
 +    NotB1,
 +    NotB2,
++    NotB3,
 +    Illegal,
 +    Malign,
 +    Memory,

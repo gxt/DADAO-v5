@@ -1,10 +1,10 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..465249c
+index 0000000..c893c0d
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,266 @@
-+// DADAO StaticInst (B0 skeleton + B1/B2 execution).
+@@ -0,0 +1,292 @@
++// DADAO StaticInst (B0 skeleton + B1/B2/B3 execution).
 +#include "arch/dadao/inst.hh"
 +
 +#include <memory>
@@ -12,6 +12,7 @@ index 0000000..465249c
 +
 +#include "arch/dadao/exec/b1.hh"
 +#include "arch/dadao/exec/b2.hh"
++#include "arch/dadao/exec/b3.hh"
 +#include "arch/dadao/faults.hh"
 +#include "arch/dadao/regs/float.hh"
 +#include "arch/dadao/regs/int.hh"
@@ -214,10 +215,10 @@ index 0000000..465249c
 +    if (!decoded.ok())
 +        return std::make_shared<DadaoISA::IllegalInstruction>(word);
 +
-+    // B1 and B2 have execution semantics; B3-B7 stay explicitly
-+    // unimplemented (no cross-batch guessing).
++    // B1-B3 have execution semantics; B4-B7 stay explicitly unimplemented
++    // (no cross-batch guessing).
 +    const uint8_t batch = decoded.entry->batch;
-+    if (batch != 1 && batch != 2) {
++    if (batch < 1 || batch > 3) {
 +        return std::make_shared<DadaoISA::UnimplementedInstruction>(
 +                word, decoded.entry->id);
 +    }
@@ -238,13 +239,15 @@ index 0000000..465249c
 +            break;
 +          case exec::Fault::NotB2:
 +            break;
++          case exec::Fault::NotB3:
++            break;
 +        }
 +
 +        // executeB1() must not reject an instruction whose entry is in
 +        // batch 1.
 +        panic("DADAO B1: %s (0x%08x) is batch 1 but rejected by executeB1()",
 +              decoded.entry->id, word);
-+    } else {
++    } else if (batch == 2) {
 +        switch (exec::executeB2(decoded, ctx)) {
 +          case exec::Fault::None:
 +            return NoFault;
@@ -253,6 +256,7 @@ index 0000000..465249c
 +          case exec::Fault::NotB2:
 +            break;
 +          case exec::Fault::NotB1:
++          case exec::Fault::NotB3:
 +          case exec::Fault::Malign:
 +          case exec::Fault::Memory:
 +            break;
@@ -261,6 +265,28 @@ index 0000000..465249c
 +        // executeB2() must not reject an instruction whose entry is in
 +        // batch 2.
 +        panic("DADAO B2: %s (0x%08x) is batch 2 but rejected by executeB2()",
++              decoded.entry->id, word);
++    } else {
++        switch (exec::executeB3(decoded, ctx)) {
++          case exec::Fault::None:
++            return NoFault;
++          case exec::Fault::Illegal:
++            return std::make_shared<DadaoISA::IllegalInstruction>(word);
++          case exec::Fault::NotB1:
++          case exec::Fault::NotB2:
++          case exec::Fault::NotB3:
++            break;
++          case exec::Fault::Malign:
++            panic("DADAO B3: %s raised Malign but B3 has no memory access",
++                  decoded.entry->id);
++          case exec::Fault::Memory:
++            panic("DADAO B3: %s raised Memory but B3 has no memory access",
++                  decoded.entry->id);
++        }
++
++        // executeB3() must not reject an instruction whose entry is in
++        // batch 3.
++        panic("DADAO B3: %s (0x%08x) is batch 3 but rejected by executeB3()",
 +              decoded.entry->id, word);
 +    }
 +
