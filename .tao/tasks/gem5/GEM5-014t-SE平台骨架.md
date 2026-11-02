@@ -1,4 +1,4 @@
-# GEM5-014t: G1 SE 平台骨架（首条静态 ELF）
+# GEM5-014t: G1 SE 平台骨架（首条静态 ELF · 最小 libc 启动 syscall 面）
 
 **模块**：gem5
 **项目里程碑**：M11
@@ -11,7 +11,7 @@
 ## 用户授权与边界
 
 - **授权原话（`.tao/knowledge/discussing.md` 2026-11-02）**：「**双链并行授权**：同时授权两条独立任务链推进——**G1 SE**（`GEM5-014t` SE 骨架 → ELF/args/stack → syscall/VMA → TLS → 静态 tset）与 **FS Machine-v5**（`SPEC-183t` → `TESTCASES-091t` → `QEMU-079t` Tiny / `QEMU-080t` Node → gem5 FS 映射）。**SE 为优先线，FS 线可并行**；共享文件仍串行；两条链均不需逐任务确认，停止点按 AGENTS。」；同日另一条授权：「不支持 syscall 默认失败报告、**不静默忽略**」。
-- **本任务是 G1 SE 链首**：只建**最小可运行 SE 平台骨架**（`SEWorkload` + `Process` 边界、`AtomicSimpleCPU`、静态 ELF 装载、入口、初始栈、最小 `exit` 路径）。**不实现**完整 syscall 表 / `brk` / `mmap` / TLS / 线程 / 动态链接（后续任务）。
+- **本任务是 G1 SE 链首**：只建**最小可运行 SE 平台骨架**（`SEWorkload` + `Process` 边界、`AtomicSimpleCPU`、静态 ELF 装载、入口、初始栈、最小 libc 启动 syscall 面 `set_tid_address/write/writev/exit/exit_group`）。**不实现**完整 syscall 表 / `brk` / `mmap` / TLS / 线程 / 动态链接（后续任务）。
 - **验收基线（`discussing.md` 2026-11-02，21:40/21:42 两条）**：full tset 以 **QEMU user 的 pass/fail/skip 集合**为基线，gem5 SE **不能少通过**；**若 gem5 通过而 QEMU 未通过，不得直接接受 gem5**，须新增 QEMU 调试任务定位修正；若根因是 spec 解释不清，提交用户裁定。**静态 SE 先做 `ET_EXEC`，不提前做 `ET_DYN`/static PIE**（本册据此拒绝 `ET_DYN`/`PT_INTERP`）。
 - **不改**：`tests/**`、`spec/**`、`contracts/**`（含 `.tao/contracts/**`）、`Makefile`、`manifests/**`、`tools/**`、`components/{llvm-project,qemu,musl,picolibc,embench-iot}/**`、`docs/**`。测试资产另立任务（ADR-0048 D3）。
 - **不复制 0628 / QEMU 实现代码**：`.cache/refs/DADAO-0628/**` 只读、只吸收**结论**并标「内容溯源，非执行依赖」；QEMU user 只作**同模式对照**（ADR-0048 D1/D2），不得作为期望值来源（ADR-0048 D4）。
@@ -20,7 +20,7 @@
 ## 背景与目标
 
 - B0–B7 已证明 **264 条能解码、能按批执行**（`GEM5-013t`），但 gem5 侧**从未实例化过 CPU、从未装载过 ELF**：`src/arch/dadao/` 只有 decode/exec/isa/decoder/faults/pcstate，没有 `Process`/`SEWorkload`/`MMU`/`TLB`/`Interrupts`，`loader::Arch` 也不认 `EM_DADAO`。因此「指令值级实跑」一直留空。
-- 本任务把该能力补到「**一条静态、静态链接、无 TLS、无 mmap 的 musl ELF 能进入 `main`、产出 stdout、经 `exit_group` 退出，且退出码/输出与 `qemu-dadao`（QEMU user）逐字节一致**」。之后的 syscall/VMA/TLS/动态链接任务在此骨架上叠加，不重做平台。
+- 本任务把该能力补到「**一条静态链接、无 TLS、无 mmap 的 musl ELF 能进入 `main`、产出 stdout、经 `exit_group` 退出；其依赖的最小 libc 启动 syscall 面（`set_tid_address/write/writev/exit/exit_group`）齐备，且退出码/输出与 `qemu-dadao`（QEMU user）逐字节一致**」。之后的 syscall/VMA/TLS/动态链接任务在此骨架上叠加，不重做平台。
 - **为何现在做**：M11 的 SE 交付（ADR-0048 D4）与 gem5 FS 线互不阻塞；SE 先行使 ISA 值语义尽早获得「真实流水线 + 真实 ELF」的第二路证据。
 
 ## 事实基线（2026-11-02 现场核对，只读）
@@ -47,7 +47,7 @@
 
 ### 2. SE 平台最小构成（新增 `src/arch/dadao/**`）
 
-- **`page_size.hh`**：`PageShift = 16`、`PageBytes = 65536`（DADAO 页 **64 KiB**，`MEMORY.md` 反套用清单）。
+- **`page_size.hh`**：`PageShift = 12`、`PageBytes = 4096`（**SE 与 `qemu-dadao` 的 4 KiB 用户页一致**；DADAO FS 普通页 64 KiB 不适用于 SE 的宿主代理页表。`AT_PAGESZ` 必须为 4096，否则 `getpagesize()` 类 tset 与 QEMU user 不一致）。
 - **`tlb.hh/.cc`**（`DadaoISA::TLB : BaseTLB`）：SE 专用直通翻译，唯一规则 = `Process::pTable->translate(vaddr, paddr)`（含 `pageOffset`）；
   - `translateAtomic` / `translateTiming` / `translateFunctional`：查表；失败返回 `std::make_shared<GenericPageTableFault>(vaddr)`；成功 `req->setPaddr(paddr)` 后 `NoFault`。
   - `demapPage`/`flushAll`/`takeOverFrom`/`finalizePhysical`：空实现（SE 无硬件 TLB 语义）。
@@ -57,8 +57,8 @@
 - **`process.hh/.cc`**（`DadaoISA::Process : gem5::Process`）：
   - 构造：`Process(params, new EmulationPageTable(params.name, params.pid, PageBytes), objFile)`；`fatal_if(params.useArchPT, ...)`（SE 用宿主页表，不用架构页表）。
   - `MemState` 常量（**SE 平台约定，非 spec 断言**）：`brk_point = roundUp(image.maxAddr(), PageBytes)`、`stack_base = 0x0000_FFFF_FFFF_0000`（48 位空间顶 − 64 KiB）、`max_stack = params.maxStackSize`、`next_thread_stack_base = stack_base − max_stack`、`mmap_end = 0x0000_4000_0000_0000`。
-  - `initState()`：先 `gem5::Process::initState()`（装 image、建 `initVirtMem`），再 `argsInit<uint64_t>(PageBytes)`，再对**所有** `contextIds` 设初始架构状态（见 §3）。
-  - `argsInit`：在栈上自低向高布置 `argc, argv[0..argc-1], 0, envp[0..n-1], 0, auxv..., AT_NULL/0`，字符串与 16 B `AT_RANDOM` 区在其下方；**所有 64 位字段按大端写**（`ByteOrder::big`），栈指针 `& −16` 对齐（ABI 要求 8 B 对齐，取 16 保证）；auxv 至少含 `AT_PHDR`（`ElfObject::programHeaderTable()`）、`AT_PHNUM`、`AT_PHENT`、`AT_ENTRY`、`AT_PAGESZ=PageBytes`、`AT_RANDOM`、`AT_NULL`。
+  - `initState()`：先 `gem5::Process::initState()`（装 image、建 `initVirtMem`），再 `argsInit<uint64_t>(PageBytes)`，再分配 1 MiB MemRAS 区（`initVirtMem->allocate`/`pTable->map`，按 gem5 现有 SE 接口；清零并写 invalid-entry），最后对**所有** `contextIds` 设初始架构状态（见 §3）。
+  - `argsInit`：在栈上自低向高布置 `argc, argv[0..argc-1], 0, envp[0..n-1], 0, auxv..., AT_NULL/0`，字符串与 16 B `AT_RANDOM` 区在其下方；**所有 64 位字段按大端写**（`ByteOrder::big`），栈指针 `& −16` 对齐（ABI 要求 8 B 对齐，取 16 保证）；auxv 至少含 `AT_PHDR`（`ElfObject::programHeaderTable()`）、`AT_PHNUM`、`AT_PHENT`、`AT_ENTRY`、`AT_PAGESZ=4096`（= `PageBytes`）、`AT_RANDOM`、`AT_NULL`。
   - `initState()` 结束时 `tc->pcState(getStartPC())`（`= e_entry`）、`tc->setReg(RegId(intRegClass, 65), sp)`（**SP = rb1**，`int_reg::RbBase + 1`）。
 - **`se_workload.hh/.cc`**（`DadaoISA::SEWorkload : gem5::SEWorkload`）：
   - `getArch() → loader::Dadao`；`setSystem` 只用基类（**不建** RemoteGDB：G1 无 gdb 寄存器描述）。
@@ -74,7 +74,7 @@
 - `PC(rb0) = e_entry`；`rb1 = sp`（栈顶向量低位地址）；`rd0/rb0` 只读语义不变。
 - 其余 RD/RB/RA = 0（gem5 寄存器文件已清零，不得再写非零）。
 - **`rf0 = 0x7FF8_0000_7FC0_0000`**（FCSR 复位常量，ADR-0004 D2.1 推导；SE 也必须设，否则 FP 标志/只读位从 0 起算）；`rf1–rf63 = 0`。
-- `ra0`（MemRAS 指针）语义由 B5 RAS 状态机维护，初值 0（RACNT=0/MRPTR=0 ⇒ 无有效条目）。
+- `ra0`（MemRAS 指针）：SE 必须在初始线程启动前分配 **1 MiB MemRAS 区**，清零并把 `MRPTR` 槽预置为 invalid-entry（0），然后置 `ra0[47:0] = MRPTR = 区顶 − 8`（8 字节对齐）、`RACNT=0`。依据 `contract-isa §1.3.4`「用户进程开始执行时 MemRAS 应做好分配并设置 ra0」；**不得**用 `MRPTR=0` 初值，否则深调用链会在 >63 层触发 `RASOF`。区域地址由 SE 平台自定（不要求与 QEMU user 的匿名 mmap 地址逐字节相同），但必须在 guest 可读写页内且不与 ELF/栈冲突。
 - `AT_RANDOM` 的 16 B 取**固定常量**（`0x00..0x0f` 递增），理由：SE 无安全边界，固定值使运行可复现；不是安全模型。
 - 除上述外**不得**注入任何寄存器初值（保持「栈/ABI 是唯一入口契约」）。
 
@@ -143,7 +143,9 @@
 3. **静态 ELF 进入并退出**：`hello` 用例（`write(1,"ok\n",3); return 0;`）在 gem5 SE 上 ⇒ guest stdout `ok\n`、gem5 进程 `$? == 0`、`EXIT_CAUSE` 为 `exiting with last active thread context`。
 4. **退出码精确传播**：`fail` 用例（`return 7`）⇒ gem5 `$? == 7`（不是 0、不是 1）；`exit_group` 路径生效（`status & 0xff` 语义；另测 `return 300` ⇒ `$? == 44` 作为 `&0xff` 的正向证据）。
 5. **初始栈/argv 正确**：`args` 用例（`return argc == 2 ? 0 : 3;`）带 `--args extra` ⇒ `$? == 0`；不带 `--args` ⇒ `$? == 3`（证明 `argc/argv` 向量与 SP/`rb1` 正确，而非「恰好能跑」）。
-6. **同模式一致（ADR-0048 D1/D2）**：上列 3 个用例 + 1 条既有静态 ELF（`.dadao/tests/llvm-ts-user/static/**` 中任一 5 s 内结束者，如 `heapsort`）分别在 `qemu-dadao` 与 gem5 SE 上跑，**stdout 字节逐字节相同、退出码相同**；argv[0] 传同一字符串。若出现「gem5 通过而 QEMU 未通过」或反之，**不得直接接受**：按 `discussing.md` 2026-11-02 基线定位（QEMU 调试任务 / spec 裁定），并在完成区写清归属。
+5b. **页大小一致**：`pagesz` 用例（`return sysconf(_SC_PAGESIZE) == 4096 ? 0 : 3;`）在 gem5 SE 与 `qemu-dadao` 上均 `$? == 0`；证明 `AT_PAGESZ`/`PageBytes` 没有被写成 64 KiB。
+5c. **MemRAS 已分配**：`deepcall` 用例（100 层 `call`/`ret`，`return 0`）在 gem5 SE 与 `qemu-dadao` 上均 `$? == 0`；证据侧打印 `ra0`（`MRPTR != 0`）并断言 100 层调用不触发 `RASOF`。
+6. **同模式一致（ADR-0048 D1/D2）**：上列用例 + 1 条既有静态 ELF（`.dadao/tests/llvm-ts-user/static/SingleSource_Benchmarks_Shootout_hello/hello.elf`，输出确定、无 malloc/mmap）分别在 `qemu-dadao` 与 gem5 SE 上跑，**stdout 字节逐字节相同、退出码相同**；argv[0] 传同一字符串。若出现「gem5 通过而 QEMU 未通过」或反之，**不得直接接受**：按 `discussing.md` 2026-11-02 基线定位（QEMU 调试任务 / spec 裁定），并在完成区写清归属。
 7. **不支持 syscall 不静默**：`pidsys` 用例（调 `getpid()`）⇒ gem5 **非零退出**且 stderr 含 `syscall` 号与 `pc`；同一 binary 在 `qemu-dadao` 正常退出（证明这是「明确失败报告」而非「静默忽略」）。
 8. **B0–B7 零退化**：`make check-gem5-decode` rc=0（`264/264`、`388/388`、`28/28`、`2/2`、`failures 0`）；`python3 tools/gem5/check_converge.py` rc=0，计数等于 `GEM5-013t` 基线（ids 264/264、boundary 1848/1848、B1–B7 `2102/1160/4248/3696/1215/1362/2979`、`[FAIL]` 0）。
 9. **L1**：`make check` rc=0。若失败，须用 `git archive HEAD` 临时树在**同一命令**下复现，证明该失败**既有且非本任务引入**（逐条列出命令、rc、现场），并在完成区登记；**本任务引入的红项一律不得放过**（`check-knowledge-refs` 等对 `.work/**` 悬空敏感，任务书内引用一律用 `**` 通配形）。
@@ -164,7 +166,7 @@
 
 ## 证据
 
-- `.work/evidence/GEM5-014t/**` 下的 `run.sh`：编译 4 个 fixture（`hello`/`fail`/`args`/`pidsys`，配方同 `tools/qemu/user_mode_smoke.py`）→ qemu-dadao 基线 → gem5 SE（`--outdir /tmp/opencode/GEM5-014t/gem5-out/`，**禁**在仓库内落 `m5out`）→ 逐项比对 → 跑验收 1/2/8/9/10 → 落 `*_EXIT=<rc>`；日志 `/tmp/opencode/GEM5-014t/` + `logs/`。
+- `.work/evidence/GEM5-014t/**` 下的 `run.sh`：编译 6 个 fixture（`hello`/`fail`/`args`/`pidsys`/`pagesz`/`deepcall`，配方同 `tools/qemu/user_mode_smoke.py`）→ qemu-dadao 基线 → gem5 SE（`--outdir /tmp/opencode/GEM5-014t/gem5-out/`，**禁**在仓库内落 `m5out`）→ 逐项比对 → 跑验收 1/2/8/9/10 → 落 `*_EXIT=<rc>`；日志 `/tmp/opencode/GEM5-014t/` + `logs/`。
 - 同目录 `run.sh --inject`：跑 §必测反例，记录「注入前 md5 / 注入后 rc / 还原后 md5 / 回绿 rc」。
 - 同目录 `REPORT.md`：补丁数、sim-object 列表、逐用例「qemu stdout/rc vs gem5 stdout/rc」、`EXIT_CAUSE`、B0–B7 计数、构建结果、注入表、`rf0`/SP/PC 实际值证据（可在配置里打印一次寄存器快照，或由 `--debug-flags=Exec` 抓取）。
 - 工具链/依赖缺失（`.dadao/cross-toolchain/bin/*`、`.work/source/musl/lib/*`）或 SCons 缺失 ⇒ **rc=2 BLOCKED**，不得伪造 PASS。
