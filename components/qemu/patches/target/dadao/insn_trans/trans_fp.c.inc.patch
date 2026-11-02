@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..c47bb47
+index 0000000..13e82d9
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
-@@ -0,0 +1,1107 @@
+@@ -0,0 +1,1110 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/*
 + * DADAO FP (rf) instruction translation routines.
@@ -720,9 +720,12 @@ index 0000000..c47bb47
 +        return true;
 +    }
 +    /* S2D1: hardware reads both sources before writing the result, so the
-+     * destination may alias a source. Both loads are emitted first. */
++     * destination may alias a source. Both loads are emitted first.
++     * scaleB (SimRISC-07 §2.1, SPEC-181t F5.2 C1) shares the orrr slot but its
++     * third operand is rdHD: a signed 64-bit integer exponent, not rfHD. */
++    bool is_sclb = (kind == FP_AR_FTSCLB || kind == FP_AR_FOSCLB);
 +    TCGv_i64 src1 = load_rf(a->hc);
-+    TCGv_i64 src2 = load_rf(a->hd);
++    TCGv_i64 src2 = is_sclb ? load_rd(a->hd) : load_rf(a->hd);
 +    TCGv_i64 res = tcg_temp_new_i64();
 +    gen_helper_fp_arith(res, tcg_env, src1, src2, tcg_constant_i32(kind));
 +    store_rf(a->hb, res);

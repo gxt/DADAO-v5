@@ -247,3 +247,9 @@
 - **2026-10-31 `INTEG-051t`**
   - 摘要：**统一异步中断仲裁（pending 归目标 cfx；DADAO-12 §5；ADR-0045 D3）**：删 050 的 `pmem_dma_irq`/`hart_irq` 两个 per-source `bool`，异步 pending 只记在**目标 cfx** 的 `cg5 rc5`（`PMEM_DMA` `1<<8`→`cfx_pmem`、`TIMER` `1<<10`→`cfx_hart`；不建跨 cfx 聚合位图/不新增 `async_enable`）；源事件只置位 + 重踢 `CPU_INTERRUPT_HARD`，`dadao_cpu_exec_interrupt()` 收成单一入口 `dadao_async_arbitrate()`：按**目标 cfxha 升序**（15→17）选第一个可投源、一次调用至多一次 `cfx_enter(async)`（单层、不嵌套），掩码判定仍只在 `cfx_enter` step 3/4/5（不复制公式），`entered=false` 时保留 pending；投递成功清该位。补投踢点四类：`helper_cfx2rc` 通用写尾、`cfx_hart cg8 rc4/rc5` 写、`helper_cfx_escape` step 1 之后、源事件（DMA 完成/定时器到期）。D9 帧屏蔽抽成 `cfx_frame_block_async()` 供同步 trap 与异步仲裁共用（否则 async 帧内不挡第二源、escape 会恢复陈旧 mask）。新增探针 `min_rom_probe_integ051t.py`（14 例：目标 cfx pending / S-H 不混 / 两级 mask 与 cause mask 补投 / IMASK / 低 cfxha 优先 / escape 补投 / 直接目标 poison / 去重 / ERROR info + 两项离线契约与结构断言）。
   - 执行者：engineer
+
+## M11
+
+- **2026-11-02 `QEMU-078t`**
+  - 摘要：**scaleB C1 与 sc rd0（SPEC-181t F5.2/F8.2）**。`ftsclb`/`fosclb` 的第三源由 `rfHD` 改为 `rdHD`（同 `orrr` 编码）：`gen_fp_arith` 对 scaleB 用 `load_rd(a->hd)` 取 64 位有符号整数指数，`helper_fp_arith` 删除 `floatXX_to_int32` 路径、改为 `fp_scaleb_exp()`（超出 int 范围按 IEEE 754 饱和到溢出/下溢）。`gen_sc` 在搬运地址前判 `a->hb == 0` ⇒ 静态 ILLI（不写内存、不置成功/失败），12 条 `sc.*` 编码未动；`rdHC=rd0` 仍合法。`insn.decode` 由 `opcodes.yaml` 重生成后逐字节不变（bank 不在 decodetree 里）。补丁 **3 份改**（`helper.c` / `insn_trans/trans_fp.c.inc` / `translate.c`）；证据 `.work/evidence/QEMU-078t/run.sh` rc=0（17 例行为 + 两次注入→FAIL→`cp`+md5 还原→回绿；`atomics-lrsc` 125/125 回归）。
+  - 执行者：engineer

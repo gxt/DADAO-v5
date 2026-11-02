@@ -12,9 +12,9 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| QEMU-078t | 待验收 | 2026-11-02 08:07（登记） | scaleB C1 第三源 rdHD + sc rdHB=rd0 静态 ILLI；QEMU trans/helper |
 | LLVM-142t | 待验收 | 2026-11-02 07:18（登记） | scaleB C1（第三源 rf→rd）+ sc rd0 汇编期 ILLI；LLVM TD/MC/CodeGen |
 | GEM5-005t | 待开始 | 2026-11-02 07:07（登记） | scaleB C1 第三源 rf→rd + sc rd0 的 gem5 decode/断言更新 |
-| QEMU-078t | 待开始 | 2026-11-02 07:07（登记） | scaleB C1 第三源 rf→rd + sc rd0 ILLI；QEMU decode/helper |
 | TESTCASES-090t | 待开始 | 2026-11-02 07:07（登记） | scaleB C1 与 sc rd0 测试：正/负例、QEMU/gem5 对照 |
 | SPEC-181t | 待验收 | 2026-11-01 22:33（登记） | gem5 语义契约收口：ADR-0044 Accepted、FP remainder/scaleB/f2i、call IP+4、sc rd0、保留粒度 |
 | GEM5-002t | 已验证 | 2026-11-01 22:28 | M11 指令语义重导矩阵：逐条对照当前 spec 与 0628/PR，禁止同助记符默认复用 |
