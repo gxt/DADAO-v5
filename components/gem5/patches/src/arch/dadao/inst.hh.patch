@@ -1,15 +1,16 @@
 diff --git a/src/arch/dadao/inst.hh b/src/arch/dadao/inst.hh
 new file mode 100644
-index 0000000..69d5061
+index 0000000..e763f34
 --- /dev/null
 +++ b/src/arch/dadao/inst.hh
-@@ -0,0 +1,60 @@
-+// DADAO StaticInst (B0 decode + B1/B2/B3 execution).
+@@ -0,0 +1,61 @@
++// DADAO StaticInst (B0 decode + B1/B2/B3/B4 execution).
 +#
 +// One instruction class carries the decode result.  Batches B1 (load/store),
-+// B2 (16-bit immediate) and B3 (64-bit data/address operations) execute; every
-+// other decoded batch and every illegal encoding returns an explicit fault
-+// (unimplemented / ILLI), so there is no silent success.
++// B2 (16-bit immediate), B3 (64-bit data/address operations) and B4 (32/16/8-bit
++// data operations + rev.t/w/b) execute; every other decoded batch and every
++// illegal encoding returns an explicit fault (unimplemented / ILLI), so there
++// is no silent success.
 +#ifndef __ARCH_DADAO_INST_HH__
 +#define __ARCH_DADAO_INST_HH__
 +

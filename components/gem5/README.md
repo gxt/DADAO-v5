@@ -4,7 +4,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 `manifests/components.lock.toml` 锁定；工作树由 `make fetch` +
 `make apply-series` 在 `.work/source/gem5` 建立。
 
-## 当前状态（GEM5-004t / B0 + GEM5-005t + GEM5-006t / B1 + GEM5-007t / B2 + GEM5-008t / B3）
+## 当前状态（GEM5-004t / B0 + GEM5-005t + GEM5-006t / B1 + GEM5-007t / B2 + GEM5-008t / B3 + GEM5-009t / B4）
 
 - **解码核心**：`src/arch/dadao/**` 骨架 + 契约驱动的解码表
   （格式/字段/opcode/6 位子表分派/助记符/非法与保留编码；
@@ -26,7 +26,13 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   比较、位扫描/位计数（有效位上界 `hd`）、64 位逻辑与移位/循环移位、符号/零
   扩展、逐块反转、除余定值语义（除零/`INT_MIN÷−1`）与 RB 加减/比较、`aip.si`
   IP 相对寻址；按 `entry->id` 分派，静态 ILLI 先于任何寄存器读。
-- **B4–B7 未实现**：非 B1/B2/B3 的成功解码指令仍返回
+- **B4 执行语义**（`exec/b4.{hh,cc}`，63 条 32/16/8 位运算 +
+  `rev.t/w/b`）：源先按宽度截断再运算，结果写满 64 位（`u` 零扩展、
+  `s` 符号扩展），`cmp` 的 −1 为 64 位全 1；除零/`INT_MIN÷−1` 定值；
+  `orrr` 移位量取 `rdhd` 低位（天然 mod W），`orri` 的 `immu6 ≥ W`
+  ⇒ ILLI；`rev.t/w/b` 每块内按 one-hot `k` 反转单元顺序（`k ≥ S` ⇒ ILLI）。
+  按 `entry->id` 分派，静态 ILLI 先于任何寄存器读；无访存路径。
+- **B5–B7 未实现**：非 B1/B2/B3/B4 的成功解码指令仍返回
   `UnimplementedInstruction`（显式 panic）；未匹配/保留编码返回
   `IllegalInstruction`（ILLI）。不做跨批混写。
 - **断言**：264 行逐条解码断言（`decode-assertions.tsv`）+ 388 条非法/保留/
@@ -35,7 +41,9 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   B2 执行断言 `exec/b2_test.cc`（8/8、逐 wyde/立即数分片/FCSR 掩码/ILLI）
   由 `tools/gem5/check_b2.py`、B3 执行断言 `exec/b3_test.cc`（42/42、128 位
   高低半/立即数边界/one-hot/循环移位/有符号无符号比较/除余定值/64 位写满）
-  由 `tools/gem5/check_b3.py` 编译运行（均不进 gem5 二进制，不改 `tests/**`）。
+  由 `tools/gem5/check_b3.py`、B4 执行断言 `exec/b4_test.cc`（63/63、non-B4
+  201/201、窄位宽截断/扩展/舍入/比较/移位/rev/ILLI）由 `tools/gem5/check_b4.py`
+  编译运行（均不进 gem5 二进制，不改 `tests/**`）。
 - **GEM5-005t 增量**：`ftsclb`/`fosclb` 第三操作数 `rfhd/rf` → `rdhd/rd`
   （同 `orrr` 编码，SPEC-181t F5.2 C1；旧 rf 写法为负例守护）；12 条 `sc.*`
   的 `rdhb != rd0`（`dst_rd0`）合法性数据 + 28 条合法性断言（sc 目的 rd0
@@ -46,7 +54,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），
   清单见 `series`；规范 `docs/Process-01-组件补丁组织与构建编排.md`。
-- 规模（2026-11-02 现场统计）：**36 份** = 新增 34 + 修改 2
+- 规模（2026-11-02 现场统计）：**39 份** = 新增 37 + 修改 2
   （`src/arch/Kconfig`、`src/arch/SConscript`）。
 - 解码表由 `tools/gem5/gen_decode_table.py` 从 `contracts/opcodes.yaml` +
   `GEM5-002t` 矩阵生成；`--check` 为漂移门控（不手工编辑 `.inc`）。
@@ -61,6 +69,7 @@ make check-gem5-decode   # 264 行解码断言 + 388 条非法/回归用例
 python3 tools/gem5/check_b1.py --source .work/source/gem5   # B1 执行断言（38/38）
 python3 tools/gem5/check_b2.py --source .work/source/gem5   # B2 执行断言（8/8）
 python3 tools/gem5/check_b3.py --source .work/source/gem5   # B3 执行断言（42/42）
+python3 tools/gem5/check_b4.py --source .work/source/gem5   # B4 执行断言（63/63）
 make check-patch-tree
 ```
 

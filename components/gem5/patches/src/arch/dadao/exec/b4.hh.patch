@@ -1,0 +1,83 @@
+diff --git a/src/arch/dadao/exec/b4.hh b/src/arch/dadao/exec/b4.hh
+new file mode 100644
+index 0000000..5cb74f8
+--- /dev/null
++++ b/src/arch/dadao/exec/b4.hh
+@@ -0,0 +1,77 @@
++// DADAO gem5 B4 execution core: narrow 32/16/8-bit data operations and the
++// per-block reverse rev.t/rev.w/rev.b (63 ids).
++//
++// Plain C++ (no gem5 headers), like the B0 decode core, so the *same* code is
++// driven by the component assertion harness (exec/b4_test.cc) and by the gem5
++// adapter (inst.cc).
++//
++// Source of truth: the B4 ids in contracts/opcodes.yaml, the same-id rows of
++// the GEM5-002t semantic matrix, spec/SimRISC-08/09/10, contract-isa
++// §6.1.5/§6.4.3/§6.4.5 and §10/§11/§12.  Only the 63 B4 ids are implemented;
++// every other decoded instruction reports NotB4.
++//
++// All B4 instructions are register-only (no memory access, no alignment
++// check): the core cannot return Malign/Memory by construction.
++#ifndef __ARCH_DADAO_EXEC_B4_HH__
++#define __ARCH_DADAO_EXEC_B4_HH__
++
++#include <cstddef>
++#include <cstdint>
++#include <string_view>
++
++#include "arch/dadao/decode/decode.hh"
++#include "arch/dadao/exec/common.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++enum class B4Op
++{
++    Add,
++    Sub,
++    Mul,
++    Div,
++    Rem,
++    Cmp,
++    Shl,
++    Rol,
++    ShrU,
++    ShrS,
++    Rev,
++};
++
++/** One decoded B4 id.  This is also the dispatch table.
++ *
++ * `width` is the operation width in bits (32/16/8) for the arithmetic,
++ * compare and shift ids; for Rev it is the block size S (32/16/8).
++ */
++struct B4Spec
++{
++    const char *id;
++    B4Op op;
++    uint8_t width;
++    bool isSigned;
++};
++
++size_t b4SpecCount();
++const B4Spec *b4Specs();
++const B4Spec *b4SpecForId(std::string_view id);
++
++/** Execute one B4 instruction.
++ *
++ * Returns NotB4 when the instruction does not belong to batch B4; callers must
++ * keep that instruction unimplemented rather than guessing.  A legal decoded
++ * B4 instruction only returns None or Illegal (static legality is checked
++ * before any register read).
++ */
++Fault executeB4(const decode::DecodedInst &inst, RegAccess &ctx);
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_EXEC_B4_HH__
