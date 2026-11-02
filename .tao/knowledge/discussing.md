@@ -90,6 +90,7 @@
 - **2026-11-02 双链并行授权**：同时授权两条独立任务链推进——**G1 SE**（`GEM5-014t` SE 骨架 → ELF/args/stack → syscall/VMA → TLS → 静态 tset）与 **FS Machine-v5**（`SPEC-183t` → `TESTCASES-091t` → `QEMU-079t` Tiny / `QEMU-080t` Node → gem5 FS 映射）。SE 为优先线，FS 线可并行；共享文件仍串行；两条链均不需逐任务确认，停止点按 AGENTS。
 - **2026-11-02 G1 SE 验收基线**：full tset 以 QEMU user 的 pass/fail/skip 集合为基线；gem5 SE 不能少通过；若 **gem5 通过而 QEMU 未通过**，不得直接接受 gem5，须新增 QEMU 调试任务定位并修正，使两者一致；若差异根因是 spec 解释不清，提交用户裁定。静态 SE 先做 `ET_EXEC`，不提前做 `ET_DYN`/static PIE。
 - **2026-11-02 测试机 RAM 映射裁定**：分 `Machine-v5-Tiny` / `Machine-v5-Node` 两个 FS profile（Node = 完整系统节点，当前单核，可扩展多核/NUMA）。Tiny：BootROM 64 KiB `0xffff_ffff_0000`–`0xffff_ffff_ffff`，SRAM 8 MiB `0xffff_ff00_0000`–`0xffff_ff7f_ffff`，ELF/rodata 由 loader 装入 SRAM，不塞 BootROM；覆盖 Embench 与完整 picolibc 测试集。Node：BootROM 4 MiB `0xffff_ffc0_0000`–`0xffff_ffff_ffff`，RAM 2 GiB 物理 `[0, 2 GiB)`；hmon 直接驱动 cfx_pmem、建立一级页表（2 GiB = 4 个 512 MiB 超页，`SPF=0xFF`）并在 hypv 下跑测试；`power → hmon → smon` 路径保留给内核/smon 测试。DADAO-12 只要求 BootROM ≥64 KiB，Machine-v5 规定实际大小；不做双映射，直接迁移并逐项修问题；不新立 ADR，修改 ADR-0004/0039/0040/0043 与 `spec/Machine-v5-测试机运行环境.md`。
+- **2026-11-02 Tiny/Node 澄清与页大小**：Tiny 地址高 6 位恒为全 1（cfxha 63），**不实现任何 cfx（含 `cfx_power`）**，不能进入 user 模式；Tiny 只跑非 cfx 的 `inst` + `embench` + `picolibc`，但**允许 semihosting**（`trap` 只作陷入 host 的开关，不算 cfx 类指令）。Node 跑完整 `inst` + `arch` + `embench`，**不含 `picolibc`**。M11 不覆盖 smon。页大小统一为 **16 位/64 KiB**；QEMU user 当前 `TARGET_PAGE_BITS=12` 是 bug，须改为 16，不得把 4 KiB 当基准。
 
 ## Linux（M12 或后续，暂缓）
 
