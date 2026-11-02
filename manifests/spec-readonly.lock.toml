@@ -426,7 +426,12 @@ group = "dadao-1x"
 # 2026-11-01（SPEC-180t，授权原话见任务书 §用户已确认的设计）：§5.1 删除「跳过 N 条指令（N 可为负）」
 #   用法行、偏移合法集改为 0/+4；§5.3 步骤 0 与伪代码补 `imms18[17:1] != 0 ⇒ ILLI`（先于状态切换）；
 #   附录 0.7.3-rc 补条目；sha256 同笔重算。
-sha256 = "7e89331b48264be9426de0f2595c37062332ba3744596e94eef84730ef13ce6b"
+# 2026-11-02（SPEC-183t，授权原话「DADAO-12 只要求 cfx_power BootROM ≥64 KiB，实际大小由 Machine-v5 规定；
+#   删除 `cfx_power` 不设 SRAM 的绝对句」+ 任务书 §用户授权）：§2.1 表 row63 改「自 2^48 向下、末 64 KiB 起点
+#   `0xffff_ffff_0000`、大小 ≥64 KiB（平台规定）」；说明删「power 不设 SRAM」绝对句、BootROM 段落改「≥64 KiB、
+#   复位向量在末 64 KiB 起点、镜像内偏移 = 大小 − 64 KiB」、cg7 校验示例改 64 KiB/4 MiB 两例；
+#   附录 0.7.3-rc 就地修订 BootROM 条目 + 追加收口条；§5 异常流程未动；版本不变（0.7.3-rc）；sha256 同笔重算。
+sha256 = "2ae94664ee6422ad0af1d3d5353cb1366d4a16a530ad90c86ac7aa84194a770b"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -592,4 +597,9 @@ group = "machine-v5"
 # 2026-11-02（用户裁定「Machine-01 文件改名为 Machine-v5」）：文件改名 `spec/Machine-01-测试机运行环境.md`
 #   → `spec/Machine-v5-测试机运行环境.md`、`group` 同步 `machine-01` → `machine-v5`、标题改
 #   `Machine-v5：测试机运行环境`；正文语义与版本号（0.3.2-rc）不变，附录 0.3.2-rc 补改名条目；sha256 同笔重算。
-sha256 = "8845f89bd52f8ebc15284b3501bc290c68a9cb1931cf88e5e7486c9b3b1ddea2"
+# 2026-11-02（SPEC-183t，授权原话见任务书 §用户授权 / §用户最终口径）：§1/§1.1
+#   改 Tiny/Node 两 profile 几何（Tiny：BootROM 64 KiB + SRAM 8 MiB、`addr[47:42]` 恒 0x3F、无 cfx/无 PTW/
+#   无 hmon 与异常路径；Node：BootROM 4 MiB + PA RAM 2 GiB、hmon/PTW/hypv、smon 路径保留）；删单一几何、
+#   地址别名与双映射过渡；§1.2 路由、§2 模式/启动链、§3 cfx 范围、§6 装载按 profile 分述；§4/§5/§7 语义不动；
+#   附录 0.3.2-rc 补条目；版本不变（0.3.2-rc）；sha256 同笔重算。
+sha256 = "002e10123d47cdf82512db15ea28b9643214bffd12837d35319979dfa1527733"

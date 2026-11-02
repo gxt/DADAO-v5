@@ -1,6 +1,6 @@
 # ADR-0004: SimRISC M1 裸机测试机（Test Machine）
 
-**状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型；rev. 2026-10-06: D2.2/D2.3 启动/加载扩展为 ELF + raw-bin 双路径；rev. 2026-10-07: 新 bootrom 加载模型（与 M4 ELF 路径并存）、`SYS_EXIT` 取代 exit-port、RAM 基址改全 0 + C1 双映射两步；rev. 2026-10-11: RAM 基址改 `0xFC00_0000_0000`（cfx63 段），见 `## 修订`）
+**状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型；rev. 2026-10-06: D2.2/D2.3 启动/加载扩展为 ELF + raw-bin 双路径；rev. 2026-10-07: 新 bootrom 加载模型（与 M4 ELF 路径并存）、`SYS_EXIT` 取代 exit-port、RAM 基址改全 0 + C1 双映射两步；rev. 2026-10-11: RAM 基址改 `0xFC00_0000_0000`（cfx63 段）；rev. 2026-11-02: 测试机几何改由 `spec/Machine-v5` 的 Tiny/Node 两 profile 规定，见 `## 修订`）
 **日期**：2026-09-13
 **关联**：ADR-0001（greenfield 重建）、ADR-0003（object ABI / artifact pipeline，`SPEC-005t`）、任务 `SPEC-006t`、`.tao/contracts/contract-isa.md`（SimRISC 0.5.4）、`.tao/contracts/contract-abi.md`（AEE·ABI 0.9.2）、`contracts/legality_rules.yaml`、`contracts/opcodes.yaml`
 
@@ -405,3 +405,10 @@ jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
 - **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-10-11`）。
 
 **修订（2026-10-24，`INFRA-103t`；仅订正事实性陈述，`D1`–`D6` 决策正文不改）**：本 ADR 中 `0x77000000` 的语义已两次迁移——`ADR-0034 D1/D5` 把 `fence` 迁至 `0x77800000`、并把 `0x77000000` 分给 `lr.o.nn`；`SPEC-164t` 再把 `OPC-MISC` 迁至 `op 0x47`（`fence` = `0x47800000`）。因此 `D1` 的注记、`D5.1` 末句与 `D5.6` 的 ILLI 示例中「`0x77000000` 现为 `fence`（`scope: excluded`）」均属**历史快照**；**现行口径** = `fence`/`lr`/`sc` 均已实现（`scope: m9`，执行非 ILLI），测试侧 ILLI 毒饵改用 `cfxld`（`0x7C000000`，唯一剩余 `scope: excluded` 族）。源 = `ISS-308`；历史正文保留（`Process-03`）。
+
+**rev. 2026-11-02（用户 2026-11-02 逐条确认，`SPEC-183t`）：测试机几何改由 `spec/Machine-v5-测试机运行环境.md` 的 `Machine-v5-Tiny` / `Machine-v5-Node` 两个 profile 规定。** 用户原话（经主会话转达）：「Tiny：地址高 6 位恒 `0x3F`；无任何 cfx（含 cfx_power）；不能进入 user 模式；允许 semihosting」「Node：BootROM 4 MiB `0xffff_ffc0_0000`..、复位 `0xffff_ffff_0000`；PA RAM 2 GiB；hmon 建 L1 4×512 MiB 超页、`SPF=0xFF`、PTW/hypv」「不做双映射；不保留旧 Machine-01 几何」「用户已逐条确认 ADR-0004/0039/0040/0043 四项修订」。
+
+- **覆盖关系（覆盖 `D1` 地址表、`R3` 与 rev. 2026-10-11 的 RAM 基址/容量口径）**：`D1` 表中 RAM / Exit port / boot ROM 行、`D2.2`/`D2.3` 的加载基址（`0xffff_0000_0000`）、`R3` 的全 0 基址、rev. 2026-10-11 的 `0xFC00_0000_0000` 与 16 MiB 容量，**均不再作为现行规范**；现行几何 = `spec/Machine-v5 §1`（Tiny：BootROM 64 KiB `0xffff_ffff_0000` 起、SRAM 8 MiB `0xffff_ff00_0000` 起、无 PTW/无 cfx；Node：BootROM 4 MiB `0xffff_ffc0_0000` 起、PA RAM 2 GiB `[0, 2 GiB)`、hmon/PTW/hypv）。历史正文保留（`Process-03`）。
+- **不变**：`-bios` 64 KiB 复位窗口语义、`SYS_EXIT` 停机协议（`R2`）、fault 码表 `D5.8`（`0x87`–`0x8D` 冻结不重排）、`D6` 测试 pattern 结构、复位地址 `0xffff_ffff_0000`、raw/ELF 两条启动路径并存。
+- **用户逐条确认（2026-11-02）**：本 ADR 与 `ADR-0039`/`ADR-0040`/`ADR-0043` 四项修订逐条确认；逐条口径与原始记录见 `.tao/tasks/spec/SPEC-183t-Machine-v5-Tiny-Node规范收口.md`。
+- **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-11-02`）。

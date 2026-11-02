@@ -67,13 +67,13 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 | 2 | smon | `0x0bff_0000_0000` | 64 KiB | SRAM |
 | 3 | hmon | `0x0fff_0000_0000` | 64 KiB | SRAM |
 | 17 | pmem | `0x47ff_0000_0000` | 64 KiB | SRAM |
-| 63 | power | `0xffff_fffc_0000` | 256 KiB | BootROM |
+| 63 | power | 自 `2^48` 向下；末 64 KiB 起点 `0xffff_ffff_0000` | **≥64 KiB**（具体由平台规范规定） | BootROM |
 
 说明：
 
-- `cfx_power_hypv_excp_vector = 0xffff_ffff_0000` 为硬件复位后的启动地址，位于 BootROM 内偏移 `0x3_0000`；BootROM 范围 `0xffff_fffc_0000`–`0xffff_ffff_ffff`（256 KiB），可由 CPU 直接取指执行；复位向量不变。`cfx_power` 的 BootROM 空间块 `attr` 必须含 `X=1`（复位向量位于该块内，CPU 直接取指执行）；smon/hmon/pmem 的 SRAM 块按各自异常向量取指需求给出 `X`。
-- `cfx2`（smon）与 `cfx3`（hmon）的 SRAM 各 64 KiB；S-mode 与 H-mode 异常向量默认等于各自的起始地址；`cfx63`（power）不设 SRAM。
-- 各 cfx 的内部空间（起始偏移、字节大小、空间类型）由该 cfx 自身的 cg7（§3.8）描述；本表每行必须与对应 cfx 的 cg7 某个空间块一致（`start = 起始地址 − (cfxha << 42)`、`size` 相等、空间类型对应）。校验示例：smon/hmon/pmem 的 `start` 均为 `0x3ff_0000_0000`；power 的 `start = 0x3ff_fffc_0000`（`0xffff_fffc_0000 − 0xfc00_0000_0000`）、`size = 0x4_0000`（256 KiB），且 `start + size = 2^42` 边界合法。
+- `cfx_power_hypv_excp_vector = 0xffff_ffff_0000` 为硬件复位后的启动地址，位于 BootROM 的**末 64 KiB 起点**（镜像内偏移 = BootROM 大小 − 64 KiB）；BootROM 为自 `2^48` 向下的连续非易失区，大小 **≥64 KiB**、由平台规范规定，可由 CPU 直接取指执行；复位向量不变。`cfx_power` 的 BootROM 空间块 `attr` 必须含 `X=1`（复位向量位于该块内，CPU 直接取指执行）；smon/hmon/pmem 的 SRAM 块按各自异常向量取指需求给出 `X`。
+- `cfx2`（smon）与 `cfx3`（hmon）的 SRAM 各 64 KiB；S-mode 与 H-mode 异常向量默认等于各自的起始地址。`cfx_power` 是否设 SRAM 由平台规范规定（不属本册架构约束）。
+- 各 cfx 的内部空间（起始偏移、字节大小、空间类型）由该 cfx 自身的 cg7（§3.8）描述；本表每行必须与对应 cfx 的 cg7 某个空间块一致（`start = 起始地址 − (cfxha << 42)`、`size` 相等、空间类型对应）。校验示例：smon/hmon/pmem 的 `start` 均为 `0x3ff_0000_0000`；power 的 `start = 2^42 − size`、`size ≥ 0x1_0000`，且 `start + size = 2^42` 边界合法（`size = 64 KiB` ⇒ `start = 0x3_ffff_0000`；`size = 4 MiB` ⇒ `start = 0x3_ffc0_0000`）。
 - 对核内地址空间进行非法访问时，会触发对应核芯功能扩展的 CFXMEM 异常。核芯功能扩展由地址高 6 位 `addr[47:42]`（即 cfxha）确定。
 - 保留 cfx（6–14、19–61）的普通 `ld/st` 触发 CFXMEM；`trap`/`escape` 到保留 cfx 触发 ILLI。
 - cfxha 5 为 `cfx_cache`；未实现的已分配 cfx 由实现约定其未实现行为（测试机按未实现 cfx 处理）。
@@ -967,11 +967,12 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 - A/D 由硬件在 TLB 条目中维护：填充不产生回写，读/取指置 `A`、写置 `A`/`D`，`CLEAN`/`FLUSH`/替换时原子 OR 回写，`INVALID` 不写回；回写失败报 `cfx_ptw` 的 `PTWERR`（`1 << 7`，`cause_info` = PTE 物理地址）。
 - DMA 与 cfx 访问权限不在本版本变更范围内。
 - 正文术语统一：地址空间分区一律写作 `addr[47:42]`（地址高 6 位），不再使用讨论期简写。
-- 核内地址空间同步启动分层：新增 `cfx2`（`smon`）64 KiB SRAM（`0x0bff_0000_0000`）与 `cfx3`（`hmon`）64 KiB SRAM（`0x0fff_0000_0000`），`cfx63`（`power`）不设 SRAM；唯一非易失 BootROM 为 256 KiB（`0xffff_fffc_0000`–`0xffff_ffff_ffff`），复位向量仍为 `0xffff_ffff_0000`（镜像内偏移 `0x3_0000`）。
+- 核内地址空间同步启动分层：新增 `cfx2`（`smon`）64 KiB SRAM（`0x0bff_0000_0000`）与 `cfx3`（`hmon`）64 KiB SRAM（`0x0fff_0000_0000`）；唯一非易失 BootROM 自 `2^48` 向下、大小 ≥64 KiB（由平台规范规定），复位向量仍为 `0xffff_ffff_0000`（BootROM 末 64 KiB 起点）；`cfx63`（`power`）是否设 SRAM 由平台规范规定。
 - `cg7` 改为内部空间描述寄存器：每 4 个 rc 描述一个内部空间（存在 + 类型 one-hot / 42 位起始偏移 / 字节大小 / R-W-X-cacheable-shareable-volatile 属性），16 块用完 `rc0`–`rc63`；寄存器按数组 `space_{desc,start,size,attr}[i]` 命名（`i=0..15`，`rc=4i+0..3`），全部只读、写触发 `CFXREG`；不再使用块选择与块内地址寄存器。
 - 删除核内存储块批量传输指令的行为说明与异常进入分支/伪代码：该类指令已从指令系统删除，不再定义其异常流。
 - 保留 cfx 统一为 `6–14`、`19–61`。
 - `cfx_hart` 计数寄存器由 128 位 `cycle_lo`/`cycle_hi`/`insn_lo`/`insn_hi`（`cg8 rc2`–`rc5`）收为 64 位单寄存器 `cycle`/`insn`（`rc2`/`rc3`）；定时器比较/控制前移至 `rc4`/`rc5`，`rc6`/`rc7` 保留。`cfx_time` 的 `time_freq`/`time_value` 前移至 `cg10 rc0`/`rc1`，`rc2`–`rc63` 保留。
+- BootROM 口径收口：`cfx_power` BootROM 只规定 **≥64 KiB**，实际大小与 `power` 是否设 SRAM 由平台规范规定；复位向量固定 `0xffff_ffff_0000`（BootROM 末 64 KiB 起点，镜像内偏移 = 大小 − 64 KiB）。
 
 ### 0.7.2（2026-10-26）
 
