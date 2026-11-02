@@ -1,10 +1,10 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..f56d892
+index 0000000..bdc0182
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,320 @@
-+// DADAO StaticInst (B0 skeleton + B1/B2/B3/B4 execution).
+@@ -0,0 +1,382 @@
++// DADAO StaticInst (B0 skeleton + B1/B2/B3/B4/B5 execution).
 +#include "arch/dadao/inst.hh"
 +
 +#include <memory>
@@ -14,6 +14,7 @@ index 0000000..f56d892
 +#include "arch/dadao/exec/b2.hh"
 +#include "arch/dadao/exec/b3.hh"
 +#include "arch/dadao/exec/b4.hh"
++#include "arch/dadao/exec/b5.hh"
 +#include "arch/dadao/faults.hh"
 +#include "arch/dadao/regs/float.hh"
 +#include "arch/dadao/regs/int.hh"
@@ -43,10 +44,11 @@ index 0000000..f56d892
 + *
 + * The cores are plain C++ and only see byte arrays; this class provides the
 + * architectural register file (rd/rb/ra via the integer register class, rf via
-+ * the float register class) and the memory interface.  Both executeB1() and
-+ * executeB2() accept the same instance (it implements exec::RegAccess).
++ * the float register class) and the memory interface.  executeB1() through
++ * executeB5() accept the same instance (it implements exec::B5Context, hence
++ * exec::B1Context/exec::RegAccess).
 + */
-+class Gem5B1Context : public exec::B1Context
++class Gem5B1Context : public exec::B5Context
 +{
 +  private:
 +    ExecContext *xc;
@@ -150,6 +152,21 @@ index 0000000..f56d892
 +        return xc->pcState().as<DadaoISA::PCState>().instAddr();
 +    }
 +
++    void
++    branchTo(uint64_t target64) override
++    {
++        // The full 64-bit target is written to rb0/PC; the low 48 bits are
++        // what the address space uses (ADR-0012 D8.3/D8.7).
++        //
++        // DadaoInst::advancePC() calls PCState::advance(), which moves pc to
++        // npc.  Setting only pc would therefore make the CPU continue at
++        // target + 4; npc is set to the target as well so the next fetched
++        // instruction is exactly the branch target.
++        DadaoISA::PCState target(target64);
++        target.npc(target64);
++        xc->pcState(target);
++    }
++
 +    bool
 +    readMem(uint64_t addr, unsigned bytes, uint8_t *out) override
 +    {
@@ -216,10 +233,10 @@ index 0000000..f56d892
 +    if (!decoded.ok())
 +        return std::make_shared<DadaoISA::IllegalInstruction>(word);
 +
-+    // B1-B4 have execution semantics; B5-B7 stay explicitly unimplemented
++    // B1-B5 have execution semantics; B6-B7 stay explicitly unimplemented
 +    // (no cross-batch guessing).
 +    const uint8_t batch = decoded.entry->batch;
-+    if (batch < 1 || batch > 4) {
++    if (batch < 1 || batch > 5) {
 +        return std::make_shared<DadaoISA::UnimplementedInstruction>(
 +                word, decoded.entry->id);
 +    }
@@ -243,6 +260,9 @@ index 0000000..f56d892
 +          case exec::Fault::NotB3:
 +            break;
 +          case exec::Fault::NotB4:
++          case exec::Fault::NotB5:
++          case exec::Fault::RasOverflow:
++          case exec::Fault::RasUnderflow:
 +            break;
 +        }
 +
@@ -261,8 +281,11 @@ index 0000000..f56d892
 +          case exec::Fault::NotB1:
 +          case exec::Fault::NotB3:
 +          case exec::Fault::NotB4:
++          case exec::Fault::NotB5:
 +          case exec::Fault::Malign:
 +          case exec::Fault::Memory:
++          case exec::Fault::RasOverflow:
++          case exec::Fault::RasUnderflow:
 +            break;
 +        }
 +
@@ -280,6 +303,7 @@ index 0000000..f56d892
 +          case exec::Fault::NotB2:
 +          case exec::Fault::NotB3:
 +          case exec::Fault::NotB4:
++          case exec::Fault::NotB5:
 +            break;
 +          case exec::Fault::Malign:
 +            panic("DADAO B3: %s raised Malign but B3 has no memory access",
@@ -287,13 +311,17 @@ index 0000000..f56d892
 +          case exec::Fault::Memory:
 +            panic("DADAO B3: %s raised Memory but B3 has no memory access",
 +                  decoded.entry->id);
++          case exec::Fault::RasOverflow:
++          case exec::Fault::RasUnderflow:
++            panic("DADAO B3: %s raised a RAS fault but B3 has no RAS",
++                  decoded.entry->id);
 +        }
 +
 +        // executeB3() must not reject an instruction whose entry is in
 +        // batch 3.
 +        panic("DADAO B3: %s (0x%08x) is batch 3 but rejected by executeB3()",
 +              decoded.entry->id, word);
-+    } else {
++    } else if (batch == 4) {
 +        switch (exec::executeB4(decoded, ctx)) {
 +          case exec::Fault::None:
 +            return NoFault;
@@ -303,6 +331,7 @@ index 0000000..f56d892
 +          case exec::Fault::NotB2:
 +          case exec::Fault::NotB3:
 +          case exec::Fault::NotB4:
++          case exec::Fault::NotB5:
 +            break;
 +          case exec::Fault::Malign:
 +            panic("DADAO B4: %s raised Malign but B4 has no memory access",
@@ -310,11 +339,44 @@ index 0000000..f56d892
 +          case exec::Fault::Memory:
 +            panic("DADAO B4: %s raised Memory but B4 has no memory access",
 +                  decoded.entry->id);
++          case exec::Fault::RasOverflow:
++          case exec::Fault::RasUnderflow:
++            panic("DADAO B4: %s raised a RAS fault but B4 has no RAS",
++                  decoded.entry->id);
 +        }
 +
 +        // executeB4() must not reject an instruction whose entry is in
 +        // batch 4.
 +        panic("DADAO B4: %s (0x%08x) is batch 4 but rejected by executeB4()",
++              decoded.entry->id, word);
++    } else {
++        switch (exec::executeB5(decoded, ctx)) {
++          case exec::Fault::None:
++            return NoFault;
++          case exec::Fault::Illegal:
++            return std::make_shared<DadaoISA::IllegalInstruction>(word);
++          case exec::Fault::NotB1:
++          case exec::Fault::NotB2:
++          case exec::Fault::NotB3:
++          case exec::Fault::NotB4:
++          case exec::Fault::NotB5:
++            break;
++          case exec::Fault::Malign:
++            panic("DADAO B5: %s raised Malign but B5 has no aligned access",
++                  decoded.entry->id);
++          case exec::Fault::Memory:
++            return ctx.memFaultValue();
++          case exec::Fault::RasOverflow:
++            panic("DADAO B5: %s raised RASOF (architectural trap model not "
++                  "implemented)", decoded.entry->id);
++          case exec::Fault::RasUnderflow:
++            panic("DADAO B5: %s raised RASUF (architectural trap model not "
++                  "implemented)", decoded.entry->id);
++        }
++
++        // executeB5() must not reject an instruction whose entry is in
++        // batch 5.
++        panic("DADAO B5: %s (0x%08x) is batch 5 but rejected by executeB5()",
 +              decoded.entry->id, word);
 +    }
 +

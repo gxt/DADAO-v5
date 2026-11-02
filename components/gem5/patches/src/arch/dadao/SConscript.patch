@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/SConscript b/src/arch/dadao/SConscript
 new file mode 100644
-index 0000000..fe7d9f0
+index 0000000..c889d25
 --- /dev/null
 +++ b/src/arch/dadao/SConscript
-@@ -0,0 +1,30 @@
+@@ -0,0 +1,33 @@
 +# DADAO ISA build description (B0 decode + B1/B2/B3/B4 execution).
 +Import('*')
 +
@@ -29,6 +29,9 @@ index 0000000..fe7d9f0
 +# B4 execution core (plain C++; exec/b4_test.cc is compiled by
 +# tools/gem5/check_b4.py and is not part of the build).
 +Source('exec/b4.cc', tags=['dadao isa'])
++# B5 execution core (plain C++; exec/b5_test.cc is compiled by
++# tools/gem5/check_b5.py and is not part of the build).
++Source('exec/b5.cc', tags=['dadao isa'])
 +
 +SimObject('DadaoDecoder.py', sim_objects=['DadaoDecoder'], tags=['dadao isa'])
 +SimObject('DadaoISA.py', sim_objects=['DadaoISA'], tags=['dadao isa'])

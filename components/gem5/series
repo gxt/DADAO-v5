@@ -25,6 +25,9 @@ src/arch/dadao/exec/b3_test.cc.patch
 src/arch/dadao/exec/b4.cc.patch
 src/arch/dadao/exec/b4.hh.patch
 src/arch/dadao/exec/b4_test.cc.patch
+src/arch/dadao/exec/b5.cc.patch
+src/arch/dadao/exec/b5.hh.patch
+src/arch/dadao/exec/b5_test.cc.patch
 src/arch/dadao/exec/common.hh.patch
 src/arch/dadao/faults.hh.patch
 src/arch/dadao/inst.cc.patch
