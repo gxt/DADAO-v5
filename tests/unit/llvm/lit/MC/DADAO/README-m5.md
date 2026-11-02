@@ -10,7 +10,7 @@
 > `§4`（期望值**独立派生**）、`§5`（反例门控）、`§6`（落点）。
 > 契约：`contracts/opcodes.yaml`（L1 期望编码）、`.tao/contracts/contract-see.md`（cfx 权限）、
 > `.tao/contracts/contract-semihosting.md`（服务表/调用约定/停机）、
-> `spec/Machine-01-测试机运行环境.md`。决策：`.tao/adr/adr-0020-see-semihosting.md`、
+> `spec/Machine-v5-测试机运行环境.md`。决策：`.tao/adr/adr-0020-see-semihosting.md`、
 > `adr-0004`（`R1`/`R3`）。
 
 ## 1. L1 MC 向量（编码/往返）— 复用 `LLVM-060t` 产物

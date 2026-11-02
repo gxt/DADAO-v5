@@ -13,7 +13,7 @@ Expectations are derived by hand from
   - .tao/tasks/integ/INTEG-049t-*.md「已确认口径」(user-given block table,
     2026-10-31): smon/hmon `desc=0x3 attr=R|W|X`; pmem `desc=0x3 attr=R|W`
     (X=0); power `desc=0x5 attr=R|X`;
-  - spec/Machine-01 §3 (test-machine cfx set; unimplemented cfx => CFXREG).
+  - spec/Machine-v5 §3 (test-machine cfx set; unimplemented cfx => CFXREG).
 Not from the QEMU implementation.
 
 Probe layout (one ROM per case, `-bios` window at 0xffff_ffff_0000):

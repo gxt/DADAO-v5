@@ -39,7 +39,7 @@
 - **两轴权限 + 保留 cfxha**：不要套 RISC-V 中断/CSR 模型；cfx 异常/中断按 `spec/DADAO-12` 的流程。
 - **`rb0`/`ra0` 特殊**：`rb0` 是当前 IP，`ra0` 是 DADAO MemRAS；`ret rd0, 0` 等边界不能按其他 ISA 猜。
 - **浮点/ABI**：`rf0` 状态位、`long double = binary128`、聚合/多返回值规则按 `contract-abi`/`spec/DADAO-21` 为准。
-- **测试机不是通用平台**：BootROM/RAM/复位/地址映射按 `spec/Machine-01` + `ADR-0004`。
+- **测试机不是通用平台**：BootROM/RAM/复位/地址映射按 `spec/Machine-v5` + `ADR-0004`。
 - **不确定时**：先查 `spec/` 对应篇目；不猜；spec 冲突或语义不明，直接问用户。
 
 ## 权威文档地图

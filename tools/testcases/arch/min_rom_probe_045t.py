@@ -16,7 +16,7 @@ the QEMU implementation):
     imms18[17:1] is SBZ, non-zero => ILLI; cfx2rd/cfx2rc crrr; reserved
     cfxha 6-14, 19-61 => ILLI; non-existent register combination /
     RO-write => CFXREG).
-  - spec/Machine-01-测试机运行环境.md §2/§3 (test-machine cfx set
+  - spec/Machine-v5-测试机运行环境.md §2/§3 (test-machine cfx set
     cfx0/1/2/3/63; hypv+user only).
   - spec/Toolchain-01 (escape byte offset is 0 or 4; assembly imms20 = imms18<<2).
   - .tao/adr/adr-0020-see-semihosting.md (D9/D10/D11); adr-0004 (D2 reset,

@@ -12,7 +12,7 @@ QEMU implementation:
     exception priority P=0 → SPF/GPF → HSJU → R/W/X, page-table faults enter
     cfx_ptw, A/D fields defined but no update point without a TLB.
   - .tao/adr/adr-0040-pte-pagewalk-permissions.md D1–D10.
-  - spec/Machine-01-测试机运行环境.md §1.2/§3 (test-machine scope: page tables
+  - spec/Machine-v5-测试机运行环境.md §1.2/§3 (test-machine scope: page tables
     live in pmem; A/D maintenance and TLB are later steps).
   - contracts/opcodes.yaml (ld.o/st.o/jump/set.zw/or.w/cfx2rd/cfx2rc/trap/
     escape encodings); contracts/cfx-aliases.txt (cfx_ptw = cfx4).

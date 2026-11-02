@@ -11,7 +11,7 @@ QEMU implementation:
     = PTE PA).
   - .tao/adr/adr-0041-tlb-ad.md D2-D10; .tao/adr/adr-0040-pte-pagewalk-
     permissions.md D11 (G).
-  - spec/Machine-01-测试机运行环境.md §1.2/§3.
+  - spec/Machine-v5-测试机运行环境.md §1.2/§3.
   - contracts/cfx-aliases.txt (cfx_ptw = cfx4), contracts/opcodes.yaml.
 
 Out of scope here (Step 4+): DMA, boot handoff, cfx access permissions and the

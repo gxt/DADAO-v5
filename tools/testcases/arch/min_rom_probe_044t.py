@@ -10,7 +10,7 @@ the QEMU implementation):
   - spec/DADAO-13-HEE-超管系统运行环境.md §1 (cg3/hypv reset values).
   - spec/SimRISC-11-核芯功能扩展指令.md 「指令域与执行条件」 (trap/escape/cfx2rd/cfx2rc; reserved => ILLI;
     non-existent register combination => CFXREG).
-  - spec/Machine-01-测试机运行环境.md §2/§3 (test-machine cfx set cfx0/1/2/3/63;
+  - spec/Machine-v5-测试机运行环境.md §2/§3 (test-machine cfx set cfx0/1/2/3/63;
     unimplemented cfx => CFXREG).
   - .tao/adr/adr-0020-see-semihosting.md (D9/D10/D11), adr-0004 (D2 reset).
   - contracts/opcodes.yaml (trap/escape/cfx2rd/cfx2rc op/mask/field layout).

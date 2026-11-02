@@ -2,7 +2,7 @@
 
 > **版本：0.7.3-rc** [DADAO-12 §1. 运行模式与核芯功能扩展][DADAO-22 §1. 调用约定]
 >
-> **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`（0.7.3-rc）、`spec/DADAO-13-HEE-超管系统运行环境.md`（0.1.4-rc）、`spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.3-rc）、`spec/DADAO-23-HBI-超管系统二进制接口.md`（0.1.4-rc）、`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）、`spec/SimRISC-11-其它.md`（0.5.4）；测试机运行环境正文 `spec/Machine-01-测试机运行环境.md`（v5 自定）；决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted）与 `.tao/adr/adr-0004-test-machine.md`（`ADR-0004`，Accepted，rev. 2026-10-07 `R1`/`R3`）。
+> **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`（0.7.3-rc）、`spec/DADAO-13-HEE-超管系统运行环境.md`（0.1.4-rc）、`spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.3-rc）、`spec/DADAO-23-HBI-超管系统二进制接口.md`（0.1.4-rc）、`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）、`spec/SimRISC-11-其它.md`（0.5.4）；测试机运行环境正文 `spec/Machine-v5-测试机运行环境.md`（v5 自定）；决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted）与 `.tao/adr/adr-0004-test-machine.md`（`ADR-0004`，Accepted，rev. 2026-10-07 `R1`/`R3`）。
 >
 > **范围**：M5 SEE/HEE 运行环境——运行模式、核内地址空间与复位、cfx 与权限、`trap`/`escape` 与异常进入/退出、SBI 调用约定。semihosting 的服务表/调用约定见 `contract-semihosting.md`。
 >
@@ -18,7 +18,7 @@
 - `hypv`（超管模式）的 cg3 寄存器定义见 HEE（含 `hypv_switch_run_mode`/`hypv_excp_vector`）。[DADAO-13 §1. cg3 - hypv mode 寄存器]
 - `trap/escape/cfx2rd/cfx2rc` 可在**任意运行模式**下执行；是否允许由 `cfxtrap`/`cfxreg` 等来源 mask 控制。[SimRISC-11 §指令域与执行条件]
 - 异常进入时运行模式/掩码切换为 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 与 `switch_cfx_mask`（异常进入流程步骤 8）。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3. 共有寄存器设计规范]
-- v5 测试机启用 `hypv`/`supv`/`user`：step5 启动链为 power(cfx63/hypv) → hmon(cfx3/hypv) → smon(cfx2/supv)，`smon` 负责第一张页表与 PTW 开启；`jail` 仍不启用。[ADR-0043 D1/D4/D5/D8/D9]（spec/Machine-01 §2 的 supv/smon 缺口见 `INTEG-046t` BLOCKED）
+- v5 测试机启用 `hypv`/`supv`/`user`：step5 启动链为 power(cfx63/hypv) → hmon(cfx3/hypv) → smon(cfx2/supv)，`smon` 负责第一张页表与 PTW 开启；`jail` 仍不启用。[ADR-0043 D1/D4/D5/D8/D9]（spec/Machine-v5 §2 的 supv/smon 缺口见 `INTEG-046t` BLOCKED）
 
 ## §2 核内地址空间与复位
 

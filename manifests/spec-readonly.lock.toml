@@ -147,7 +147,7 @@ policy = "readonly-requires-authorization"
 #   dadao-2x   DADAO-21/22/23
 #   simrisc    SimRISC-00..12
 #   toolchain  Toolchain-01
-#   machine-01 Machine-01（v5 自定）
+#   machine-v5 Machine-v5（v5 自定；原 Machine-01，2026-11-02 改名）
 # sha256 = 工作树基线（还原后）逐册实测；由 make check-spec-readonly 校验。
 # 注意：spec/Machine-01 已于 2026-10-08 纳入本锁（用户授权）；docs/Process-0x、
 # spec/README.md 为 v5 自定册，不在本锁内——其修订由 Process-06 §2 的授权流程约束。
@@ -563,8 +563,8 @@ group = "toolchain-01"
 sha256 = "025a5cd0907cf888039baadea26ec1ac58dc280bfe46e135763d7bc60be7fd17"
 
 [[spec]]
-path = "spec/Machine-01-测试机运行环境.md"
-group = "machine-01"
+path = "spec/Machine-v5-测试机运行环境.md"
+group = "machine-v5"
 # 2026-10-09（SPEC-126t，用户裁定「统一为 rd8」）：semihosting 返回 rd31 → rd8（§5.2/§5.4；指针返回 rb31 → rb8）。
 # 2026-10-09（QEMU-053t，用户裁定「RAM@0 收口 + 删 exit port」）：§1.1 删旧 RAM 段与 exit-port 行、
 # 「并存/过渡」表述改为「RAM@0 唯一 RAM 段」；§1.2 去「并存」；§5.5/§7 记 exit-port 已删。
@@ -589,4 +589,7 @@ group = "machine-01"
 # 2026-10-31（SPEC-179t 返工，A 方案；授权原话见任务书 §用户返工裁定原话 / A 方案裁定）：§3 恢复 cg0–cg7 并说明 cg7 为内部空间描述（数组 space_{desc,start,size,attr}[i]、未实现空间 exists=0、只读）；附录 0.3.2-rc 条目同步；sha256 同笔重算。
 # 2026-11-01（SPEC-180t，授权原话见任务书 §用户已确认的设计）：§4.2 同步 escape 偏移合法集
 #   0/+4 与 `imms18[17:1]` SBZ 非零 ⇒ ILLI；附录 0.3.2-rc 补条目；sha256 同笔重算。
-sha256 = "f07bb0b7d6aede86b1614ebe97f286d047538d01c76eae39d04e8491368b1b8d"
+# 2026-11-02（用户裁定「Machine-01 文件改名为 Machine-v5」）：文件改名 `spec/Machine-01-测试机运行环境.md`
+#   → `spec/Machine-v5-测试机运行环境.md`、`group` 同步 `machine-01` → `machine-v5`、标题改
+#   `Machine-v5：测试机运行环境`；正文语义与版本号（0.3.2-rc）不变，附录 0.3.2-rc 补改名条目；sha256 同笔重算。
+sha256 = "8845f89bd52f8ebc15284b3501bc290c68a9cb1931cf88e5e7486c9b3b1ddea2"

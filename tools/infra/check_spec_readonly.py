@@ -3,7 +3,7 @@
 
 ``manifests/spec-readonly.lock.toml`` pins the ``sha256`` of every read-only
 spec volume (``spec/SimRISC-*``, ``spec/DADAO-1x``/``DADAO-2x``,
-``spec/Toolchain-01``, ``spec/Machine-01``).  Those volumes are read-only
+``spec/Toolchain-01``, ``spec/Machine-v5``).  Those volumes are read-only
 inputs and must not be modified without the user's explicit, prior
 authorization (recorded verbatim) and a lock update in the *same* change.
 This gate makes that rule mechanical: it recomputes each locked file's

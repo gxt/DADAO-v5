@@ -2,7 +2,7 @@
 
 > **版本：0.7.1** [DADAO-22 §1. 调用约定][DADAO-12 §1. 运行模式与核芯功能扩展]
 >
-> **来源**：决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted，`D1`–`D8`/`D14`）；规范正文 `spec/Machine-01-测试机运行环境.md §5`（v5 自定）；调用约定引用 `spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.1）、`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）；服务号值语义取自 Arm Semihosting（`Semihosting for AArch32 and AArch64`）。
+> **来源**：决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted，`D1`–`D8`/`D14`）；规范正文 `spec/Machine-v5-测试机运行环境.md §5`（v5 自定）；调用约定引用 `spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.1）、`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）；服务号值语义取自 Arm Semihosting（`Semihosting for AArch32 and AArch64`）。
 >
 > **范围**：v5 测试机 semihosting——入口判定（tag）、调用约定、完整 25 服务表、返回机制、停机（`SYS_EXIT`）、已知风险。SEE/HEE 运行环境见 `contract-see.md`。
 >

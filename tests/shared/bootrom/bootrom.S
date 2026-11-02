@@ -16,7 +16,7 @@
  @@   * the bootrom configures cfx then hands off to that entry in user mode.
  @@ The M4 single-ELF path (ADR-0004 D2.2/D2.3 path A, no `-bios`) is untouched.
  @@
- @@ What the bootrom configures (spec/Machine-01 §2/§3/§4, contract-see §1/§3):
+ @@ What the bootrom configures (spec/Machine-v5 §2/§3/§4, contract-see §1/§3):
  @@   * power stage (cfx63, reset cfx) only configures hmon (cfx3): cfx_hmon
  @@     hypv cfxtrap allows power (default) and its H-mode vector points at the
  @@     hmon stage below (ADR-0043 D8; power cannot configure other cfx under

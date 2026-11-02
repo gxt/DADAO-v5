@@ -13,13 +13,13 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
 
 本 ADR 命中 `docs/Process-03-ADR编写规范.md` 的 ADR 判据：**跨组件 / 需一致**（LLVM、QEMU、testcases、integ 多模块）、**有多方案且需记录取舍**（复用 vs 自建 responder；走向量 vs 译码短路）、**外部依赖 / 契约**（复用 QEMU 上游共享层）、**把结论固化为约束**（决策先行）。
 
-**承载位置（`D13`）**：本 ADR **只记决策/理由/被否方案/指向规范章节的引用**；semihosting 服务号值↔入参/出参表、SEE/semihosting 调用约定、`switch_run_mode` 语义、`CFXMEM`/`NUPERM` 等异常语义的正文**入 `spec/`**（归 `SPEC-114t`；新建 `spec/Machine-01-测试机运行环境.md` 为正文落点）。ADR **不承载规范正文**（`docs/Process-03-ADR编写规范.md`「ADR 不承载规范正文」）。
+**承载位置（`D13`）**：本 ADR **只记决策/理由/被否方案/指向规范章节的引用**；semihosting 服务号值↔入参/出参表、SEE/semihosting 调用约定、`switch_run_mode` 语义、`CFXMEM`/`NUPERM` 等异常语义的正文**入 `spec/`**（归 `SPEC-114t`；新建 `spec/Machine-v5-测试机运行环境.md` 为正文落点）。ADR **不承载规范正文**（`docs/Process-03-ADR编写规范.md`「ADR 不承载规范正文」）。
 
 **上游对照（只读、非执行依赖）**：QEMU 共享层 `semihosting/arm-compat-semi.c` 提供 `do_common_semihosting(cs)`（声明于 `include/semihosting/common-semi.h`）；target 钩子范式 `target/riscv/common-semi-target.c`；接入点 `target/riscv/tcg/insn_trans/trans_privileged.c.inc` 抛 `RISCV_EXCP_SEMIHOST` → `target/riscv/tcg/cpu_helper.c`：`do_common_semihosting(cs); env->pc += 4;`。v5 照搬此范式。
 
 ## Decision（决策）
 
-- **D1**（入口判定）：`trap cfxHA, immu18` 中 **`immu18[17:16] == 2'b11`** ⇒ semihosting（**与 `cfxha` 无关**）。本 tag 属**架构自定义**——`spec/DADAO-22-SBI-主管系统二进制接口.md:7`（`trap cfxha, immu18`：`cfxha` 为服务提供者、`immu18` 为功能编号）与 `spec/SimRISC-11-其它.md:89`（`immu18` 功能编号）**均无 semihosting 语义**；其语义/理由说明落 `spec/Machine-01-*`（归 `SPEC-114t`），本 ADR 只留决策。
+- **D1**（入口判定）：`trap cfxHA, immu18` 中 **`immu18[17:16] == 2'b11`** ⇒ semihosting（**与 `cfxha` 无关**）。本 tag 属**架构自定义**——`spec/DADAO-22-SBI-主管系统二进制接口.md:7`（`trap cfxha, immu18`：`cfxha` 为服务提供者、`immu18` 为功能编号）与 `spec/SimRISC-11-其它.md:89`（`immu18` 功能编号）**均无 semihosting 语义**；其语义/理由说明落 `spec/Machine-v5-*`（归 `SPEC-114t`），本 ADR 只留决策。
 
 - **D2**（传参/返回寄存器）：号（标量）→ **`rd16`（=`rda0`）**；参数块指针（地址）→ **`rb16`**；返回值 → **`rd31`**（指针返回才用 `rb31`，semihosting 不用）。对齐共享层 `common_semi_arg(cs,0)` = 号、`common_semi_arg(cs,1)` = 参数块指针。**不另设 `rd15`**（`rd15` 是 umon/jmon 系统调用号）。依据 `.tao/contracts/contract-abi.md §4.1`（`rd16–rd31` 数据参数、`rb16–rb31` 地址参数）、`§4.4`（`rd31` 标量返回、`rb31` 指针返回）、`spec/DADAO-22-SBI-主管系统二进制接口.md:13`（参数传递与 ABI 一致）。
 
@@ -102,7 +102,7 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
   - **上游依赖**：复用共享层 API（`do_common_semihosting`、`common-semi-target.c` 钩子、`is_64bit_semihosting` 等）与 QEMU baseline 绑定；升级 QEMU baseline（`ADR-0002`/`ADR-0008`）时须复核其语义。
   - **`SYSTEM` 安全风险**：`SYSTEM`（执行宿主命令）为**已登记已知风险**；默认 `gdb`/沙箱（`D7`）为缓解手段，`native` 须显式开启。
   - **迁移成本**：exit-port → `SYS_EXIT` **范围 = 全部**（M1–M4 全部依赖 exit-port 的向量/harness 须迁移，`D8`），由 `TESTCASES-034t` 承接；`ISS-147`（exit 码与 fault 区重叠）随迁处置。
-  - **`D1` tag 无 spec 依据**：`immu18[17:16]==2'b11` 属架构自定义，须在 `spec/Machine-01-*` 明示（`SPEC-114t`）。
+  - **`D1` tag 无 spec 依据**：`immu18[17:16]==2'b11` 属架构自定义，须在 `spec/Machine-v5-*` 明示（`SPEC-114t`）。
   - **`D9` 权限语义层次**：PTBR 权限（`NUPERM/NJPERM/NSPERM/NHPERM`，`§2.2`）与 cfx 访问权限（`§5` 的 cfx mask → `ILLI`）为两个层次，须在 `SPEC-114t`/`QEMU-044t` 讲清。
   - **`D15` 双映射过渡**：`QEMU-049t`（step1，M5）= 机器模型同时映射 RAM@0 + 保留旧 RAM 段 + `check-interface` **新增** RAM@0 断言（旧断言保留）⇒ 每任务门控保持全绿；**step2**（旧向量/harness/`crt0`/e2e 迁到 `0` + 删旧 RAM 段 + 收紧断言）= **另立、M5 之外**。
   - **下游约束**：`SPEC-114t`（正文：服务表 / 调用约定 / 权限 / `CFXMEM` 语义）、`LLVM-060t`（`trap`/`escape`/`cfx2rc`/`cfx2rd`）、`QEMU-044t`–`QEMU-047t`/`QEMU-049t`、`TESTCASES-033t`/`034t`、`INTEG-020t`（`make test-semihost`）均以本 ADR 的决策为前提。
@@ -112,6 +112,6 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
 **Accepted（2026-10-07）**：`D1`–`D15` 已由用户于 **2026-10-07 逐条判定**（保留 / 修改 / 新增），**无否决未处置**，故由 `Candidate` 置 `Accepted`。
 
 - **判定方式**：用户 2026-10-07 以**总述 + 后续两问回答**给出裁定（原话见 `.tao/tasks/spec/SPEC-113t-ADR决策落地.md` 完成区与 §四「用户逐条裁定结果」）。
-- **本轮被特别指出的条目**：**`D1`**（决策保留；其语义说明移 `spec/Machine-01-*`，归 `SPEC-114t`）、**`D15`**（新增 decision）、以及 `ADR-0004` 的 `R1`/`R2`/`R3`。
+- **本轮被特别指出的条目**：**`D1`**（决策保留；其语义说明移 `spec/Machine-v5-*`，归 `SPEC-114t`）、**`D15`**（新增 decision）、以及 `ADR-0004` 的 `R1`/`R2`/`R3`。
 - **推定保留 + 用户明确确认**：`D2`–`D14` 未在总述中特别指出，按主会话声明「**未特别指出者视为保留**」推定保留，并**经用户明确确认**；该推定为默认推定，若用户对某条另有意见，按 `docs/Process-03` 处置（新增 ADR / 标 `Superseded` / 经授权就地修订）。
 - **决策变更**：**新增 ADR 或标注 `Superseded`**，不直接改写已 `Accepted` 的决策（`docs/Process-03`）。
