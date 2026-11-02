@@ -1,0 +1,720 @@
+diff --git a/src/arch/dadao/exec/b2_test.cc b/src/arch/dadao/exec/b2_test.cc
+new file mode 100644
+index 0000000..72d4c74
+--- /dev/null
++++ b/src/arch/dadao/exec/b2_test.cc
+@@ -0,0 +1,714 @@
++/*
++ * DADAO gem5 B2 execution assertions (GEM5-007t).
++ *
++ * Standalone C++17 harness (no gem5 headers): compiled by
++ * `tools/gem5/check_b2.py` against
++ * src/arch/dadao/{exec/b2.cc,exec/b2_test.cc,decode/decode.cc}.
++ *
++ * Everything here is derived from spec/SimRISC-03, contract-isa §5 and
++ * contract-fp §13 -- never from another implementation:
++ *   * the 8 B2 ids are listed one by one (batch membership is never guessed
++ *     from mnemonics; or.w and set.zw each have an RD and an RB id) and must
++ *     equal the live decode-table B2 set;
++ *   * one positive case per id and wyde position wp0..wp3, with immu16
++ *     values 0x0000/0xFFFF/0x0F0F/0xF0F0/0x8000 (fragment and sign-extension
++ *     bugs are only observable on these);
++ *   * set.zw zeroes the other 48 bits, set.ow sets them (including
++ *     bits[63:48]), or.w/andn.w/set.w keep them (old = 0xDEADBEEFCAFEBABE);
++ *   * ILLI when the destination is rd0/rb0 (before any register access);
++ *     rd63/rb63 and set.w rf0 stay legal;
++ *   * set.w rf0 follows the FCSR write mask: wp2 -> [33:32], wp0 -> [4:0],
++ *     wp1/wp3 are entirely write-disabled;
++ *   * every case performs exactly one write (ILLI and the rf0 wp1/wp3 cases
++ *     zero writes) and never writes another register;
++ *   * rule_refs / legality / spec_cite match the contract: dst_rd0 (4),
++ *     dst_rb0 (3), set.w none; an unknown rule id fails.
++ */
++#include <cinttypes>
++#include <cstdarg>
++#include <cstdio>
++#include <cstring>
++#include <string>
++#include <vector>
++
++#include "arch/dadao/decode/decode.hh"
++#include "arch/dadao/exec/b2.hh"
++#include "arch/dadao/exec/common.hh"
++
++namespace decode = gem5::DadaoISA::decode;
++namespace exec = gem5::DadaoISA::exec;
++
++namespace
++{
++
++int failures = 0;
++
++void
++fail(const char *fmt, ...)
++{
++    ++failures;
++    va_list args;
++    va_start(args, fmt);
++    std::printf("[FAIL] ");
++    std::vprintf(fmt, args);
++    std::printf("\n");
++    va_end(args);
++}
++
++void
++check(bool condition, const char *fmt, ...)
++{
++    if (condition) {
++        va_list args;
++        va_start(args, fmt);
++        std::printf("[PASS] ");
++        std::vprintf(fmt, args);
++        std::printf("\n");
++        va_end(args);
++    } else {
++        ++failures;
++        va_list args;
++        va_start(args, fmt);
++        std::printf("[FAIL] ");
++        std::vprintf(fmt, args);
++        std::printf("\n");
++        va_end(args);
++    }
++}
++
++bool
++strEq(const char *a, const char *b)
++{
++    return a != nullptr && b != nullptr && std::strcmp(a, b) == 0;
++}
++
++// ---------------------------------------------------------------------------
++// Oracle table: independent of the implementation's spec table.
++// ---------------------------------------------------------------------------
++
++enum TestBank
++{
++    TB_RD,
++    TB_RB,
++    TB_RF,
++};
++
++enum TestOp
++{
++    T_OR,
++    T_ANDN,
++    T_SETZW,
++    T_SETOW,
++    T_SETW,
++};
++
++struct Oracle
++{
++    const char *id;
++    TestOp op;
++    TestBank bank;
++    uint8_t opc;
++    const char *rule; // nullptr => no rule_refs (set.w)
++};
++
++const Oracle kOracle[] = {
++    {"or.w_rwii_rd", T_OR, TB_RD, 0x48, "dst_rd0"},
++    {"andn.w_rwii_rd", T_ANDN, TB_RD, 0x49, "dst_rd0"},
++    {"or.w_rwii_rb", T_OR, TB_RB, 0x4A, "dst_rb0"},
++    {"andn.w_rwii_rb", T_ANDN, TB_RB, 0x4B, "dst_rb0"},
++    {"set.zw_rwii_rd", T_SETZW, TB_RD, 0x4C, "dst_rd0"},
++    {"set.ow_rwii_rd", T_SETOW, TB_RD, 0x4D, "dst_rd0"},
++    {"set.zw_rwii_rb", T_SETZW, TB_RB, 0x4E, "dst_rb0"},
++    {"set.w_rwii_rf", T_SETW, TB_RF, 0x4F, nullptr},
++};
++
++constexpr size_t kOracleCount = sizeof(kOracle) / sizeof(kOracle[0]);
++
++const Oracle *
++oracleOf(const char *id)
++{
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        if (strEq(kOracle[i].id, id))
++            return &kOracle[i];
++    }
++    return nullptr;
++}
++
++exec::Target
++targetOf(TestBank bank)
++{
++    switch (bank) {
++      case TB_RD: return exec::Target::Rd;
++      case TB_RB: return exec::Target::Rb;
++      case TB_RF: return exec::Target::Rf;
++    }
++    return exec::Target::Rd;
++}
++
++exec::Op
++opOf(TestOp op)
++{
++    switch (op) {
++      case T_OR: return exec::Op::Or;
++      case T_ANDN: return exec::Op::Andn;
++      case T_SETZW: return exec::Op::SetZw;
++      case T_SETOW: return exec::Op::SetOw;
++      case T_SETW: return exec::Op::SetW;
++    }
++    return exec::Op::Or;
++}
++
++// ---------------------------------------------------------------------------
++// Mock architectural state (plain C++, no gem5).
++// ---------------------------------------------------------------------------
++
++constexpr uint64_t kFcsrMask = (uint64_t(3) << 32) | 0x1F;
++constexpr uint64_t kFcsrSeed = 0xF0F0F0F000000003ULL;
++constexpr uint64_t kOld = 0xDEADBEEFCAFEBABEULL;
++constexpr unsigned kDst = 5;
++
++struct Write
++{
++    enum Kind
++    {
++        Int,
++        Float64,
++        Fcsr,
++    };
++
++    Kind kind;
++    exec::Bank bank; // Int only
++    unsigned idx;
++    uint64_t value;
++};
++
++struct MockRegAccess : public exec::RegAccess
++{
++    uint64_t rd[64] = {};
++    uint64_t rb[64] = {};
++    uint64_t ra[64] = {};
++    uint64_t rf[64] = {};
++    uint64_t ip = 0x2000;
++
++    int badWrites = 0;
++    std::vector<Write> writes;
++
++    uint64_t
++    readInt(exec::Bank bank, unsigned idx) override
++    {
++        switch (bank) {
++          case exec::Bank::Rd: return idx == 0 ? 0 : rd[idx];
++          case exec::Bank::Rb: return idx == 0 ? ip : rb[idx];
++          case exec::Bank::Ra: return ra[idx];
++        }
++        return 0;
++    }
++
++    void
++    writeInt(exec::Bank bank, unsigned idx, uint64_t val) override
++    {
++        if ((bank == exec::Bank::Rd || bank == exec::Bank::Rb) && idx == 0) {
++            ++badWrites;
++            return;
++        }
++        writes.push_back({Write::Int, bank, idx, val});
++        switch (bank) {
++          case exec::Bank::Rd: rd[idx] = val; break;
++          case exec::Bank::Rb: rb[idx] = val; break;
++          case exec::Bank::Ra: ra[idx] = val; break;
++        }
++    }
++
++    uint64_t readFloat(unsigned idx) override { return rf[idx]; }
++
++    void
++    writeFloat64(unsigned idx, uint64_t val) override
++    {
++        writes.push_back({Write::Float64, exec::Bank::Rd, idx, val});
++        rf[idx] = val;
++    }
++
++    void
++    writeFcsr(uint64_t raw) override
++    {
++        writes.push_back({Write::Fcsr, exec::Bank::Rd, 0, raw});
++        rf[0] = (rf[0] & ~kFcsrMask) | (raw & kFcsrMask);
++    }
++
++    uint64_t pc() const override { return ip; }
++
++    uint64_t &
++    reg(TestBank bank, unsigned idx)
++    {
++        switch (bank) {
++          case TB_RD: return rd[idx];
++          case TB_RB: return rb[idx];
++          case TB_RF: return rf[idx];
++        }
++        return rd[idx];
++    }
++};
++
++void
++initContext(MockRegAccess &ctx)
++{
++    for (unsigned i = 0; i < 64; ++i) {
++        ctx.rd[i] = 0xDEAD000000000000ULL + i;
++        ctx.rb[i] = 0xBEEF000000000000ULL + i;
++        ctx.ra[i] = 0xCAFE000000000000ULL + i;
++        ctx.rf[i] = 0xF00D000000000000ULL + i;
++    }
++    ctx.rd[0] = 0;
++    ctx.rb[0] = 0;
++    ctx.rf[0] = kFcsrSeed;
++    ctx.ip = 0x2000;
++}
++
++// ---------------------------------------------------------------------------
++// Word construction helpers.
++// ---------------------------------------------------------------------------
++
++struct FieldVal
++{
++    const char *name;
++    uint64_t value;
++};
++
++uint32_t
++encode(const decode::DecodeEntry &entry,
++       std::initializer_list<FieldVal> fields)
++{
++    uint32_t raw = entry.value;
++    for (const FieldVal &fv : fields) {
++        for (unsigned i = 0; i < entry.numFields; ++i) {
++            const decode::FieldDesc &field = decode::fieldDesc(entry, i);
++            if (std::strcmp(field.name, fv.name) != 0)
++                continue;
++            const uint32_t mask =
++                ((uint32_t(1) << field.width()) - 1) << field.lo;
++            raw = (raw & ~mask) |
++                  ((static_cast<uint32_t>(fv.value) << field.lo) & mask);
++            break;
++        }
++    }
++    return raw;
++}
++
++uint32_t
++makeWord(const char *id, unsigned dst, unsigned wp, unsigned imm)
++{
++    const decode::DecodeEntry *entry = decode::entryById(id);
++    if (entry == nullptr) {
++        fail("encode: unknown id %s", id);
++        return 0;
++    }
++    return encode(*entry, {{"rdha", dst}, {"rbha", dst}, {"raha", dst},
++                           {"rfha", dst}, {"wpN", wp}, {"immu16", imm}});
++}
++
++exec::Fault
++runWord(MockRegAccess &ctx, const char *id, uint32_t raw)
++{
++    const decode::DecodedInst decoded = decode::decodeWord(raw);
++    if (!decoded.ok()) {
++        fail("%s: encoding 0x%08x does not decode", id, raw);
++        return exec::Fault::Illegal;
++    }
++    if (!strEq(decoded.entry->id, id)) {
++        fail("%s: encoding 0x%08x decoded as %s", id, raw,
++             decoded.entry->id);
++        return exec::Fault::Illegal;
++    }
++    return exec::executeB2(decoded, ctx);
++}
++
++const char *
++faultName(exec::Fault fault)
++{
++    switch (fault) {
++      case exec::Fault::None: return "None";
++      case exec::Fault::NotB1: return "NotB1";
++      case exec::Fault::NotB2: return "NotB2";
++      case exec::Fault::Illegal: return "Illegal";
++      case exec::Fault::Malign: return "Malign";
++      case exec::Fault::Memory: return "Memory";
++    }
++    return "?";
++}
++
++/** Independent semantic oracle (spec/SimRISC-03 §1, contract-isa §5,
++ * contract-fp §13).  Other 48 bits: zero for set.zw, one for set.ow, kept for
++ * or.w/andn.w/set.w. */
++uint64_t
++expectedValue(TestOp op, uint64_t old, unsigned wp, uint64_t imm)
++{
++    const unsigned shift = 16 * wp;
++    const uint64_t lane = uint64_t(0xFFFF) << shift;
++    const uint64_t placed = (imm & 0xFFFF) << shift;
++    switch (op) {
++      case T_OR:
++        return (old & ~lane) | ((old & lane) | placed);
++      case T_ANDN: {
++        const uint64_t laneBits = (old >> shift) & 0xFFFF;
++        return (old & ~lane) | ((laneBits & ~imm & 0xFFFF) << shift);
++      }
++      case T_SETZW:
++        return placed;
++      case T_SETOW:
++        return ~lane | placed;
++      case T_SETW:
++        return (old & ~lane) | placed;
++    }
++    return 0;
++}
++
++bool
++writeHasKind(const Write &write, TestBank bank)
++{
++    if (bank == TB_RF)
++        return write.kind == Write::Float64;
++    return write.kind == Write::Int;
++}
++
++exec::Bank
++bankOf(TestBank bank)
++{
++    switch (bank) {
++      case TB_RD: return exec::Bank::Rd;
++      case TB_RB: return exec::Bank::Rb;
++      case TB_RF: return exec::Bank::Rd;
++    }
++    return exec::Bank::Rd;
++}
++
++// ---------------------------------------------------------------------------
++// 1. Coverage: 8/8 ids, live B2 set == explicit list, B3-B7 -> NotB2.
++// ---------------------------------------------------------------------------
++
++void
++checkCoverage()
++{
++    const char *const expected[] = {
++        "or.w_rwii_rd", "andn.w_rwii_rd", "or.w_rwii_rb", "andn.w_rwii_rb",
++        "set.zw_rwii_rd", "set.ow_rwii_rd", "set.zw_rwii_rb",
++        "set.w_rwii_rf",
++    };
++
++    size_t live = 0;
++    for (const char *id : expected) {
++        const decode::DecodeEntry *entry = decode::entryById(id);
++        check(entry != nullptr, "b2 list id %s exists in the decode table", id);
++        if (entry == nullptr)
++            continue;
++        check(entry->batch == 2, "b2 list id %s is in batch 2 (actual %u)",
++              id, entry->batch);
++        check(strEq(entry->format, "rwii"), "b2 list id %s is rwii", id);
++        const Oracle *o = oracleOf(id);
++        check(o != nullptr, "oracle row for b2 id %s", id);
++        if (o != nullptr) {
++            check(entry->opc == o->opc,
++                  "%s opc 0x%02x (expected 0x%02x)", id, entry->opc,
++                  o->opc);
++            const exec::B2Spec *spec = exec::b2SpecForId(id);
++            check(spec != nullptr, "executeB2 covers b2 id %s", id);
++            if (spec != nullptr) {
++                check(spec->op == opOf(o->op),
++                      "%s spec op matches the independent oracle", id);
++                check(spec->target == targetOf(o->bank),
++                      "%s spec target matches the independent oracle", id);
++            }
++        }
++        ++live;
++        std::printf("[PASS] b2-id %s\n", id);
++    }
++    check(live == 8, "B2 coverage %zu/8", live);
++    std::printf("B2 coverage %zu/8\n", live);
++
++    // Every live batch-2 entry has exactly one oracle row and one spec row.
++    size_t batch2 = 0;
++    for (size_t i = 0; i < decode::entryCount(); ++i) {
++        const decode::DecodeEntry &entry = decode::entries()[i];
++        if (entry.batch != 2)
++            continue;
++        ++batch2;
++        check(oracleOf(entry.id) != nullptr, "oracle row for batch-2 id %s",
++              entry.id);
++        check(exec::b2SpecForId(entry.id) != nullptr,
++              "executeB2 covers batch-2 id %s", entry.id);
++    }
++    check(batch2 == 8, "live batch-2 entry count == 8 (actual %zu)", batch2);
++    check(exec::b2SpecCount() == 8, "executeB2 spec count == 8 (actual %zu)",
++          exec::b2SpecCount());
++
++    // The RB set.ow variant does not exist; it must not be added as a
++    // pwii_rb fallback.
++    check(decode::entryById("set.ow_rwii_rb") == nullptr,
++          "set.ow has no RB variant");
++
++    // B1/B3-B7 (the other 264-8 = 256 entries) must stay NotB2 and must not
++    // touch a register.
++    size_t notB2 = 0;
++    for (size_t i = 0; i < decode::entryCount(); ++i) {
++        const decode::DecodeEntry &entry = decode::entries()[i];
++        const decode::DecodedInst decoded = decode::decodeWord(entry.value);
++        if (!decoded.ok() || !strEq(decoded.entry->id, entry.id)) {
++            fail("entry %s: value 0x%08x does not decode back", entry.id,
++                 entry.value);
++            continue;
++        }
++        MockRegAccess ctx;
++        initContext(ctx);
++        const exec::Fault fault = exec::executeB2(decoded, ctx);
++        if (entry.batch == 2) {
++            check(fault != exec::Fault::NotB2, "%s is handled by executeB2",
++                  entry.id);
++        } else {
++            ++notB2;
++            if (fault != exec::Fault::NotB2) {
++                fail("%s (batch %u) returned %s, expected NotB2", entry.id,
++                     entry.batch, faultName(fault));
++            }
++            if (!ctx.writes.empty() || ctx.badWrites != 0) {
++                fail("%s (batch %u) touched a register on NotB2", entry.id,
++                     entry.batch);
++            }
++        }
++    }
++    check(notB2 == 264 - 8, "non-B2 ids return NotB2 (%zu/256)", notB2);
++    std::printf("non-B2 ids return NotB2 (%zu/256)\n", notB2);
++}
++
++// ---------------------------------------------------------------------------
++// 2. Positives: every id x wp0..wp3 x immediate fragments.
++// ---------------------------------------------------------------------------
++
++void
++checkPositive(const Oracle &o)
++{
++    static const uint64_t kImms[] = {0x0000, 0xFFFF, 0x0F0F, 0xF0F0, 0x8000};
++
++    for (unsigned wp = 0; wp < 4; ++wp) {
++        for (uint64_t imm : kImms) {
++            MockRegAccess ctx;
++            initContext(ctx);
++            ctx.reg(o.bank, kDst) = kOld;
++
++            const uint32_t raw =
++                makeWord(o.id, kDst, wp, static_cast<unsigned>(imm));
++            const exec::Fault fault = runWord(ctx, o.id, raw);
++            check(fault == exec::Fault::None, "%s wp%u imm=0x%04x: fault %s",
++                  o.id, wp, static_cast<unsigned>(imm), faultName(fault));
++            if (fault != exec::Fault::None)
++                continue;
++
++            const uint64_t expected = expectedValue(o.op, kOld, wp, imm);
++            const uint64_t actual = ctx.reg(o.bank, kDst);
++            check(actual == expected,
++                  "%s wp%u imm=0x%04x: value 0x%016" PRIx64
++                  " (expected 0x%016" PRIx64 ")",
++                  o.id, wp, static_cast<unsigned>(imm), actual, expected);
++            check(ctx.badWrites == 0,
++                  "%s wp%u imm=0x%04x: no rd0/rb0 write", o.id, wp,
++                  static_cast<unsigned>(imm));
++            check(ctx.writes.size() == 1,
++                  "%s wp%u imm=0x%04x: exactly one register write", o.id, wp,
++                  static_cast<unsigned>(imm));
++            if (ctx.writes.size() == 1) {
++                const Write &write = ctx.writes[0];
++                check(writeHasKind(write, o.bank) && write.idx == kDst &&
++                          (o.bank == TB_RF ||
++                           write.bank == bankOf(o.bank)),
++                      "%s wp%u imm=0x%04x: write targets the destination",
++                      o.id, wp, static_cast<unsigned>(imm));
++                check(write.value == expected,
++                      "%s wp%u imm=0x%04x: written value matches", o.id, wp,
++                      static_cast<unsigned>(imm));
++            }
++        }
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 3. ILLI: rd0/rb0 destinations; rd63/rb63 stay legal.
++// ---------------------------------------------------------------------------
++
++void
++checkLegality()
++{
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        if (o.bank == TB_RF)
++            continue; // set.w rf0 is legal (checked with the FCSR cases)
++
++        MockRegAccess ctx;
++        initContext(ctx);
++        const exec::Fault bad = runWord(
++            ctx, o.id, makeWord(o.id, 0, 2, 0xFFFF));
++        check(bad == exec::Fault::Illegal,
++              "%s dst 0 -> Illegal (got %s)", o.id, faultName(bad));
++        check(ctx.writes.empty(),
++              "%s dst 0: no register write", o.id);
++        check(ctx.badWrites == 0,
++              "%s dst 0: no write path reached", o.id);
++        check(ctx.reg(o.bank, 0) == 0,
++              "%s dst 0: index 0 unchanged", o.id);
++
++        MockRegAccess legal;
++        initContext(legal);
++        legal.reg(o.bank, 63) = kOld;
++        const exec::Fault good = runWord(
++            legal, o.id, makeWord(o.id, 63, 3, 0xFFFF));
++        check(good == exec::Fault::None,
++              "%s dst 63 -> legal (got %s)", o.id, faultName(good));
++        check(legal.writes.size() == 1 && legal.writes[0].idx == 63,
++              "%s dst 63: one write to index 63", o.id);
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 4. set.w rf0: FCSR write mask.
++// ---------------------------------------------------------------------------
++
++void
++checkFcsr()
++{
++    const char *const id = "set.w_rwii_rf";
++
++    // wp2 writes only [33:32]; all other FCSR bits (read-only qNaN, SBZ,
++    // rounding neighbours, flag bits) must keep their value.
++    static const uint64_t kModes[] = {0xFFFF, 0x0001, 0x8000};
++    for (uint64_t imm : kModes) {
++        MockRegAccess ctx;
++        initContext(ctx);
++        const exec::Fault fault =
++            runWord(ctx, id, makeWord(id, 0, 2, static_cast<unsigned>(imm)));
++        check(fault == exec::Fault::None,
++              "set.w rf0 wp2 imm=0x%04x: legal (got %s)",
++              static_cast<unsigned>(imm), faultName(fault));
++        const uint64_t expected =
++            (kFcsrSeed & ~(uint64_t(3) << 32)) |
++            ((imm & 3) << 32);
++        check(ctx.rf[0] == expected,
++              "set.w rf0 wp2 imm=0x%04x: only [33:32] changed",
++              static_cast<unsigned>(imm));
++        check(ctx.writes.size() == 1 && ctx.writes[0].kind == Write::Fcsr,
++              "set.w rf0 wp2 imm=0x%04x: one FCSR write",
++              static_cast<unsigned>(imm));
++    }
++
++    // wp0 writes only [4:0].
++    static const uint64_t kFlags[] = {0xFFFF, 0x0000, 0x0015};
++    for (uint64_t imm : kFlags) {
++        MockRegAccess ctx;
++        initContext(ctx);
++        const exec::Fault fault =
++            runWord(ctx, id, makeWord(id, 0, 0, static_cast<unsigned>(imm)));
++        check(fault == exec::Fault::None,
++              "set.w rf0 wp0 imm=0x%04x: legal (got %s)",
++              static_cast<unsigned>(imm), faultName(fault));
++        const uint64_t expected = (kFcsrSeed & ~uint64_t(0x1F)) | (imm & 0x1F);
++        check(ctx.rf[0] == expected,
++              "set.w rf0 wp0 imm=0x%04x: only [4:0] changed",
++              static_cast<unsigned>(imm));
++        check(ctx.writes.size() == 1 && ctx.writes[0].kind == Write::Fcsr,
++              "set.w rf0 wp0 imm=0x%04x: one FCSR write",
++              static_cast<unsigned>(imm));
++    }
++
++    // wp1/wp3 are entirely write-disabled: no write call, no change.
++    for (unsigned wp : {1u, 3u}) {
++        MockRegAccess ctx;
++        initContext(ctx);
++        const exec::Fault fault =
++            runWord(ctx, id, makeWord(id, 0, wp, 0xFFFF));
++        check(fault == exec::Fault::None,
++              "set.w rf0 wp%u: legal (got %s)", wp, faultName(fault));
++        check(ctx.writes.empty(),
++              "set.w rf0 wp%u: no write call", wp);
++        check(ctx.rf[0] == kFcsrSeed,
++              "set.w rf0 wp%u: FCSR unchanged", wp);
++    }
++
++    // Read-only qNaN/SBZ bits explicitly, on a mask-relevant write.
++    {
++        MockRegAccess ctx;
++        initContext(ctx);
++        runWord(ctx, id, makeWord(id, 0, 2, 0xFFFF));
++        constexpr uint64_t readOnly =
++            (uint64_t(0x1FFF) << 51) | (uint64_t(0x3FF) << 22);
++        check((ctx.rf[0] & readOnly) == (kFcsrSeed & readOnly),
++              "set.w rf0: read-only qNaN bits preserved");
++        check((ctx.rf[0] & ~kFcsrMask) == (kFcsrSeed & ~kFcsrMask),
++              "set.w rf0: SBZ bits preserved");
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 5. Rules / legality / spec_cite are known and consumed.
++// ---------------------------------------------------------------------------
++
++bool
++inList(const char *value, const char *const *list, size_t count)
++{
++    for (size_t i = 0; i < count; ++i) {
++        if (strEq(value, list[i]))
++            return true;
++    }
++    return false;
++}
++
++void
++checkRules()
++{
++    static const char *const knownRules[] = {"dst_rd0", "dst_rb0"};
++
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        const decode::DecodeEntry *entry = decode::entryById(o.id);
++        if (entry == nullptr) {
++            fail("%s: missing decode entry", o.id);
++            continue;
++        }
++
++        check(entry->specCite != nullptr && entry->specCite[0] != '\0',
++              "%s has a spec_cite", o.id);
++
++        if (o.rule == nullptr) {
++            check(entry->numRules == 0, "%s has no rule_refs (actual %u)",
++                  o.id, entry->numRules);
++            check(entry->numLegality == 0,
++                  "%s has no legality expression (actual %u)", o.id,
++                  entry->numLegality);
++        } else {
++            check(entry->numRules == 1 && strEq(entry->rules[0], o.rule),
++                  "%s rule_refs[0] == %s", o.id, o.rule);
++            for (unsigned r = 0; r < entry->numRules; ++r) {
++                check(inList(entry->rules[r], knownRules,
++                             sizeof(knownRules) / sizeof(knownRules[0])),
++                      "%s rule %s is known", o.id, entry->rules[r]);
++            }
++            const char *expectedLegality = o.bank == TB_RD
++                ? "rdha != rd0" : "rbha != rb0";
++            check(entry->numLegality == 1 &&
++                      strEq(entry->legality[0], expectedLegality),
++                  "%s legality == %s", o.id, expectedLegality);
++        }
++    }
++}
++
++} // anonymous namespace
++
++int
++main()
++{
++    checkCoverage();
++    for (size_t i = 0; i < kOracleCount; ++i)
++        checkPositive(kOracle[i]);
++    checkLegality();
++    checkFcsr();
++    checkRules();
++
++    std::printf("\nsummary: B2 coverage 8/8, oracle rows %zu, failures %d\n",
++                kOracleCount, failures);
++    return failures == 0 ? 0 : 1;
++}

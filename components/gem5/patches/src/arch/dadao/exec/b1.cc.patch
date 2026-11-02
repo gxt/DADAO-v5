@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b1.cc b/src/arch/dadao/exec/b1.cc
 new file mode 100644
-index 0000000..ce4b2ef
+index 0000000..3e62bec
 --- /dev/null
 +++ b/src/arch/dadao/exec/b1.cc
-@@ -0,0 +1,311 @@
+@@ -0,0 +1,314 @@
 +// DADAO gem5 B1 execution core -- implementation.
 +//
 +// The 38 B1 ids are dispatched through the table below (no mnemonic guessing:
@@ -116,16 +116,14 @@ index 0000000..ce4b2ef
 +
 +constexpr size_t kNumSpecs = sizeof(kSpecs) / sizeof(kSpecs[0]);
 +
-+int
-+fieldIndex(const decode::DecodeEntry &entry, const char *name)
++/** Look up a named field; false when the id has no such field (or the name is
++ * absent from the spec row). */
++bool
++lookupField(const decode::DecodedInst &inst, const char *name, uint64_t &out)
 +{
 +    if (name == nullptr)
-+        return -1;
-+    for (unsigned i = 0; i < entry.numFields; ++i) {
-+        if (std::string_view(decode::fieldDesc(entry, i).name) == name)
-+            return static_cast<int>(i);
-+    }
-+    return -1;
++        return false;
++    return fieldValue(inst, std::string_view(name), out);
 +}
 +
 +/** Big-endian bytes -> value (DADAO is big-endian, contract-isa §1.6). */
@@ -223,24 +221,29 @@ index 0000000..ce4b2ef
 +    if (spec == nullptr)
 +        return Fault::Illegal;
 +
-+    const decode::DecodeEntry &entry = *inst.entry;
-+    const int dstIdx = fieldIndex(entry, spec->dstField);
-+    const int baseIdx = fieldIndex(entry, spec->baseField);
-+    const int offIdx = fieldIndex(entry, spec->offsetField);
-+    const int countIdx = fieldIndex(entry, spec->countField);
-+    if (dstIdx < 0 || baseIdx < 0)
++    uint64_t dstValue = 0;
++    uint64_t baseValue = 0;
++    uint64_t offValue = 0;
++    uint64_t countValue = 0;
++    if (!lookupField(inst, spec->dstField, dstValue) ||
++        !lookupField(inst, spec->baseField, baseValue)) {
 +        return Fault::Illegal;
++    }
 +
 +    const bool multi = spec->shape == Shape::Multi;
-+    if (multi && (offIdx < 0 || countIdx < 0))
++    if (multi) {
++        if (!lookupField(inst, spec->offsetField, offValue) ||
++            !lookupField(inst, spec->countField, countValue)) {
++            return Fault::Illegal;
++        }
++    } else if (lookupField(inst, spec->offsetField, offValue) ||
++               lookupField(inst, spec->countField, countValue)) {
 +        return Fault::Illegal;
-+    if (!multi && (offIdx >= 0 || countIdx >= 0))
-+        return Fault::Illegal;
++    }
 +
-+    const unsigned dst = static_cast<unsigned>(inst.fieldValues[dstIdx]);
-+    const unsigned base = static_cast<unsigned>(inst.fieldValues[baseIdx]);
-+    const unsigned count = multi
-+        ? static_cast<unsigned>(inst.fieldValues[countIdx]) : 1u;
++    const unsigned dst = static_cast<unsigned>(dstValue);
++    const unsigned base = static_cast<unsigned>(baseValue);
++    const unsigned count = multi ? static_cast<unsigned>(countValue) : 1u;
 +
 +    // ---- static legality (ILLI): before any register or memory access ----
 +    if (spec->access == Access::Load) {
@@ -266,15 +269,15 @@ index 0000000..ce4b2ef
 +        // "when the range includes rdHC the address still uses the original
 +        // rdHC" (SimRISC-01 §1/§2).
 +        const uint64_t offset =
-+            ctx.readInt(Bank::Rd, static_cast<unsigned>(inst.fieldValues[offIdx]));
++            ctx.readInt(Bank::Rd, static_cast<unsigned>(offValue));
 +        ea = (ctx.readInt(Bank::Rb, base) + offset) & kVaMask;
 +    } else {
-+        const int immIdx = fieldIndex(entry, "imms12");
-+        if (immIdx < 0)
++        uint64_t immValue = 0;
++        if (!lookupField(inst, "imms12", immValue))
 +            return Fault::Illegal;
 +        // imms12 is a *signed* 12-bit field and must be sign-extended to 64
 +        // bits before the addition (not zero-extended).
-+        const int64_t imm = decode::signExtend(inst.fieldValues[immIdx], 12);
++        const int64_t imm = decode::signExtend(immValue, 12);
 +        ea = (ctx.readInt(Bank::Rb, base) + static_cast<uint64_t>(imm)) &
 +            kVaMask;
 +    }

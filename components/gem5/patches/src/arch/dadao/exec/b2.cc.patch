@@ -1,0 +1,198 @@
+diff --git a/src/arch/dadao/exec/b2.cc b/src/arch/dadao/exec/b2.cc
+new file mode 100644
+index 0000000..de6f84a
+--- /dev/null
++++ b/src/arch/dadao/exec/b2.cc
+@@ -0,0 +1,192 @@
++// DADAO gem5 B2 execution core -- implementation.
++//
++// The 8 B2 ids are dispatched through the table below (no mnemonic guessing:
++// `or.w` and `set.zw` each have an RD and an RB id).  The id set must equal
++// the batch_of() set of the GEM5-002t matrix.
++#include "arch/dadao/exec/b2.hh"
++
++#include <cstddef>
++#include <cstdio>
++#include <cstdlib>
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++namespace
++{
++
++// Format of the rwii fields (contracts/opcodes.yaml): dst, wpN, immu16.
++// opc 0x48..0x4F, one id per byte, in contract order.
++const B2Spec kSpecs[] = {
++    // ---- RD immediate ops (contract-isa §5.1) --------------------------
++    {"or.w_rwii_rd", Op::Or, Target::Rd},
++    {"andn.w_rwii_rd", Op::Andn, Target::Rd},
++    // ---- RB immediate ops (contract-isa §5.2) --------------------------
++    {"or.w_rwii_rb", Op::Or, Target::Rb},
++    {"andn.w_rwii_rb", Op::Andn, Target::Rb},
++    {"set.zw_rwii_rd", Op::SetZw, Target::Rd},
++    {"set.ow_rwii_rd", Op::SetOw, Target::Rd},
++    {"set.zw_rwii_rb", Op::SetZw, Target::Rb},
++    // ---- RF immediate op (contract-fp §13) -----------------------------
++    {"set.w_rwii_rf", Op::SetW, Target::Rf},
++};
++
++constexpr size_t kNumSpecs = sizeof(kSpecs) / sizeof(kSpecs[0]);
++
++/** A batch-2 instruction that this table cannot execute is a contract or
++ * implementation mismatch.  Trap instead of silently succeeding. */
++[[noreturn]] void
++internalError(const char *what)
++{
++    std::fprintf(stderr, "DADAO B2: internal error: %s\n", what);
++    std::abort();
++}
++
++Bank
++intBankOf(Target target)
++{
++    switch (target) {
++      case Target::Rd: return Bank::Rd;
++      case Target::Rb: return Bank::Rb;
++      case Target::Ra: return Bank::Ra;
++      case Target::Rf: break;
++    }
++    internalError("RF target reached an integer register access");
++}
++
++const char *
++destFieldOf(Target target)
++{
++    switch (target) {
++      case Target::Rd: return "rdha";
++      case Target::Rb: return "rbha";
++      case Target::Ra: return "raha";
++      case Target::Rf: return "rfha";
++    }
++    internalError("unknown destination target");
++}
++
++} // anonymous namespace
++
++size_t
++b2SpecCount()
++{
++    return kNumSpecs;
++}
++
++const B2Spec *
++b2Specs()
++{
++    return kSpecs;
++}
++
++const B2Spec *
++b2SpecForId(std::string_view id)
++{
++    for (size_t i = 0; i < kNumSpecs; ++i) {
++        if (id == kSpecs[i].id)
++            return &kSpecs[i];
++    }
++    return nullptr;
++}
++
++Fault
++executeB2(const decode::DecodedInst &inst, RegAccess &ctx)
++{
++    if (!inst.ok() || inst.entry->batch != 2)
++        return Fault::NotB2;
++
++    const B2Spec *spec = b2SpecForId(inst.entry->id);
++    if (spec == nullptr)
++        internalError("uncovered batch-2 id");
++
++    // Only set.w targets RF, and only set.w exists for RF (contract-fp §13);
++    // every other op targets RD/RB (contract-isa §5).  A table row that
++    // violates this would silently truncate or over-write a register.
++    if ((spec->target == Target::Rf) != (spec->op == Op::SetW))
++        internalError("op/target combination not defined by the contract");
++
++    const char *dstField = destFieldOf(spec->target);
++    uint64_t dstValue = 0;
++    uint64_t wpValue = 0;
++    uint64_t immValue = 0;
++    if (!fieldValue(inst, dstField, dstValue) ||
++        !fieldValue(inst, "wpN", wpValue) ||
++        !fieldValue(inst, "immu16", immValue)) {
++        internalError("missing rwii field");
++    }
++
++    const unsigned idx = static_cast<unsigned>(dstValue);
++    const unsigned wp = static_cast<unsigned>(wpValue);
++    if (wp > 3)
++        internalError("wpN outside 0..3");
++
++    // ---- static legality (ILLI): before any register access ---------------
++    // RD/RB destinations are read-only at index 0; RF has no dst_rf0 rule
++    // (set.w rf0 is legal and follows the FCSR write mask, contract-fp §13).
++    if ((spec->target == Target::Rd || spec->target == Target::Rb) && idx == 0)
++        return Fault::Illegal;
++
++    // immu16 is unsigned 16-bit (all 8 rows are signed: false); never
++    // sign-extend it.
++    const uint64_t imm = immValue & 0xFFFF;
++    const unsigned shift = 16 * wp;
++    const uint64_t lane = uint64_t(0xFFFF) << shift;
++    const uint64_t placed = imm << shift;
++
++    switch (spec->op) {
++      case Op::Or: {
++        const Bank bank = intBankOf(spec->target);
++        const uint64_t old = ctx.readInt(bank, idx);
++        const uint64_t value = (old & ~lane) | ((old & lane) | placed);
++        ctx.writeInt(bank, idx, value);
++        return Fault::None;
++      }
++      case Op::Andn: {
++        const Bank bank = intBankOf(spec->target);
++        const uint64_t old = ctx.readInt(bank, idx);
++        const uint64_t laneBits = (old >> shift) & 0xFFFF;
++        const uint64_t value = (old & ~lane) |
++                               ((laneBits & ~imm & 0xFFFF) << shift);
++        ctx.writeInt(bank, idx, value);
++        return Fault::None;
++      }
++      case Op::SetZw:
++        // The other 48 bits become 0 (old value is not kept), including
++        // bits[63:48] for the RB variant (contract-isa §5.2).
++        ctx.writeInt(intBankOf(spec->target), idx, placed);
++        return Fault::None;
++      case Op::SetOw:
++        // The other 48 bits become 1 (RB has no set.ow variant).
++        ctx.writeInt(intBankOf(spec->target), idx, ~lane | placed);
++        return Fault::None;
++      case Op::SetW: {
++        if (idx == 0) {
++            // rf0 is the FCSR: wp2 writes [33:32], wp0 writes [4:0],
++            // wp1/wp3 are entirely write-disabled (SimRISC-03 §1 note,
++            // contract-fp §13).  The old value is re-applied to the fields
++            // that are not being written, then writeFcsr() enforces the mask;
++            // the wp1/wp3 cases must not even call it.
++            if (wp == 2 || wp == 0) {
++                const uint64_t old = ctx.readFloat(0);
++                ctx.writeFcsr((old & ~lane) | placed);
++            }
++            return Fault::None;
++        }
++        // Non-rf0 RF destination: replace the lane, keep the other 48 bits.
++        const uint64_t old = ctx.readFloat(idx);
++        ctx.writeFloat64(idx, (old & ~lane) | placed);
++        return Fault::None;
++      }
++    }
++
++    internalError("unknown op");
++}
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5

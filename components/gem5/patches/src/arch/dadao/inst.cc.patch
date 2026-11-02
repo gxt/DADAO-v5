@@ -1,16 +1,17 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..5b5bcde
+index 0000000..465249c
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,239 @@
-+// DADAO StaticInst (B0 skeleton + B1 execution).
+@@ -0,0 +1,266 @@
++// DADAO StaticInst (B0 skeleton + B1/B2 execution).
 +#include "arch/dadao/inst.hh"
 +
 +#include <memory>
 +#include <vector>
 +
 +#include "arch/dadao/exec/b1.hh"
++#include "arch/dadao/exec/b2.hh"
 +#include "arch/dadao/faults.hh"
 +#include "arch/dadao/regs/float.hh"
 +#include "arch/dadao/regs/int.hh"
@@ -36,11 +37,12 @@ index 0000000..5b5bcde
 +    return decoded.ok() ? decoded.entry->mnemonic : "illi";
 +}
 +
-+/** gem5 adapter for the B1 execution core.
++/** gem5 adapter for the B1/B2 execution cores.
 + *
-+ * The core is plain C++ and only sees byte arrays; this class provides the
++ * The cores are plain C++ and only see byte arrays; this class provides the
 + * architectural register file (rd/rb/ra via the integer register class, rf via
-+ * the float register class) and the memory interface.
++ * the float register class) and the memory interface.  Both executeB1() and
++ * executeB2() accept the same instance (it implements exec::RegAccess).
 + */
 +class Gem5B1Context : public exec::B1Context
 +{
@@ -101,10 +103,10 @@ index 0000000..5b5bcde
 +    void
 +    writeInt(exec::Bank bank, unsigned idx, uint64_t val) override
 +    {
-+        // rd0/rb0 are read-only; executeB1() raises ILLI before any such
-+        // write, so reaching this is an internal ISA bug -- fail loudly.
++        // rd0/rb0 are read-only; executeB1()/executeB2() raise ILLI before any
++        // such write, so reaching this is an internal ISA bug -- fail loudly.
 +        if ((bank == exec::Bank::Rd || bank == exec::Bank::Rb) && idx == 0) {
-+            panic("DADAO B1: illegal write to read-only %s0",
++            panic("DADAO exec: illegal write to read-only %s0",
 +                  bank == exec::Bank::Rd ? "rd" : "rb");
 +        }
 +        tc->setReg(intReg(bank, idx), val);
@@ -212,31 +214,56 @@ index 0000000..5b5bcde
 +    if (!decoded.ok())
 +        return std::make_shared<DadaoISA::IllegalInstruction>(word);
 +
-+    // Only batch B1 has execution semantics; B2-B7 stay explicitly
++    // B1 and B2 have execution semantics; B3-B7 stay explicitly
 +    // unimplemented (no cross-batch guessing).
-+    if (decoded.entry->batch != 1) {
++    const uint8_t batch = decoded.entry->batch;
++    if (batch != 1 && batch != 2) {
 +        return std::make_shared<DadaoISA::UnimplementedInstruction>(
 +                word, decoded.entry->id);
 +    }
 +
 +    Gem5B1Context ctx(xc);
-+    switch (exec::executeB1(decoded, ctx)) {
-+      case exec::Fault::None:
-+        return NoFault;
-+      case exec::Fault::Illegal:
-+        return std::make_shared<DadaoISA::IllegalInstruction>(word);
-+      case exec::Fault::Malign:
-+        return std::make_shared<DadaoISA::MalignInstruction>(
-+                word, ctx.malignAddress(), ctx.malignAccessWidth());
-+      case exec::Fault::Memory:
-+        return ctx.memFaultValue();
-+      case exec::Fault::NotB1:
-+        break;
++    if (batch == 1) {
++        switch (exec::executeB1(decoded, ctx)) {
++          case exec::Fault::None:
++            return NoFault;
++          case exec::Fault::Illegal:
++            return std::make_shared<DadaoISA::IllegalInstruction>(word);
++          case exec::Fault::Malign:
++            return std::make_shared<DadaoISA::MalignInstruction>(
++                    word, ctx.malignAddress(), ctx.malignAccessWidth());
++          case exec::Fault::Memory:
++            return ctx.memFaultValue();
++          case exec::Fault::NotB1:
++            break;
++          case exec::Fault::NotB2:
++            break;
++        }
++
++        // executeB1() must not reject an instruction whose entry is in
++        // batch 1.
++        panic("DADAO B1: %s (0x%08x) is batch 1 but rejected by executeB1()",
++              decoded.entry->id, word);
++    } else {
++        switch (exec::executeB2(decoded, ctx)) {
++          case exec::Fault::None:
++            return NoFault;
++          case exec::Fault::Illegal:
++            return std::make_shared<DadaoISA::IllegalInstruction>(word);
++          case exec::Fault::NotB2:
++            break;
++          case exec::Fault::NotB1:
++          case exec::Fault::Malign:
++          case exec::Fault::Memory:
++            break;
++        }
++
++        // executeB2() must not reject an instruction whose entry is in
++        // batch 2.
++        panic("DADAO B2: %s (0x%08x) is batch 2 but rejected by executeB2()",
++              decoded.entry->id, word);
 +    }
 +
-+    // executeB1() must not reject an instruction whose entry is in batch 1.
-+    panic("DADAO B1: %s (0x%08x) is batch 1 but rejected by executeB1()",
-+          decoded.entry->id, word);
 +    return std::make_shared<DadaoISA::UnimplementedInstruction>(
 +            word, decoded.entry->id);
 +}

@@ -16,6 +16,10 @@ src/arch/dadao/decoder.hh.patch
 src/arch/dadao/exec/b1.cc.patch
 src/arch/dadao/exec/b1.hh.patch
 src/arch/dadao/exec/b1_test.cc.patch
+src/arch/dadao/exec/b2.cc.patch
+src/arch/dadao/exec/b2.hh.patch
+src/arch/dadao/exec/b2_test.cc.patch
+src/arch/dadao/exec/common.hh.patch
 src/arch/dadao/faults.hh.patch
 src/arch/dadao/inst.cc.patch
 src/arch/dadao/inst.hh.patch

@@ -15,3 +15,7 @@
 - **2026-11-02 GEM5-006t**
   - 摘要：**B1 取数存数执行核心（38 条）**。新增纯 C++ 执行核 `src/arch/dadao/exec/b1.hh` / `b1.cc`（38 个 id 显式分派：RD/RB/RA/RF × 单/多 load-store），实现 48 位有效地址与回绕、大端字节序、符号/零扩展、块传输（原始 rdhc 快照、i 递增、先读后写、immu6/范围 ILLI、宽度 MALIGN）、`rd0`/`rb0`/`ra0`/`rf0` 边界（rf0 目的 FCSR 写掩码、`ld.t`/`ldm.t` 高 32 位保持）；`inst.cc` 增加 `Gem5B1Context` 适配（int/float 寄存器组、`readMem`/`writeMem`）与 `executeB1` 分派，`faults.hh` 新增 `MalignInstruction`（先 panic 报地址/宽度），`SConscript` 加入 `exec/b1.cc`；B2–B7 仍返回 `UnimplementedInstruction`。组件内断言 `exec/b1_test.cc`（38/38 覆盖 + ILLI/MALIGN/端序/块/rf0/高位立即数）由新增 `tools/gem5/check_b1.py` 编译运行，不新增 `tests/**`、不改解码表。
   - 执行者：engineer
+
+- **2026-11-02 GEM5-007t**
+  - 摘要：**B2 16 位立即数执行核心（8 条）**。新增纯 C++ 执行核 `src/arch/dadao/exec/b2.hh` / `b2.cc`（按 `entry->id` 分派 8 条 rwii：`or.w`/`andn.w`/`set.zw`/`set.ow` 的 RD/RB 变体与 `set.w` RF；`wpN` wyde 选择、`immu16` 无符号 16 位分片、其余 48 位清 0/置 1/保持；`rd0`/`rb0` 目的静态 ILLI；`set.w rf0` 按 FCSR 写掩码，`wp1`/`wp3` 完全写无效）。新增共享头 `exec/common.hh`（`Fault` 增 `NotB2`、`Bank`/`Target`/`RegAccess`/`fieldValue`），`b1.hh` 改为派生 `RegAccess`、`b1.cc` 改用 `fieldValue`（等价重构，B1 2102 PASS/0 FAIL 不变）；`inst.cc` 增加 batch 2 分派（共用 `Gem5B1Context`），`SConscript` 加入 `exec/b2.cc`，`inst.hh` 头注释更新为 B0+B1/B2。组件内断言 `exec/b2_test.cc` 由新增 `tools/gem5/check_b2.py` 编译运行（8/8、wp0–wp3×立即数分片、48 位清置保持、ILLI/单写、rf0 掩码、rule/spec_cite 对照），不改 `tests/**`、解码表与 B3–B7。
+  - 执行者：engineer
