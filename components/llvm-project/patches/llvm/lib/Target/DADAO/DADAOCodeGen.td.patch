@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..e31701eb3
+index 000000000..9dfccd6df
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,1251 @@
+@@ -0,0 +1,1253 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -129,10 +129,11 @@ index 000000000..e31701eb3
 +def SDT_DADAOFClass : SDTypeProfile<1, 1, [SDTCisVT<0, i64>, SDTCisFP<1>]>;
 +def DADAOFClass : SDNode<"DADAOISD::FCLASS", SDT_DADAOFClass>;
 +
-+// IEEE 754 scaleB (LLVM-126t, contract-fp.md §5): both operands are the same FP
-+// type, and the second is an integer-valued FP number.
++// IEEE 754 scaleB (LLVM-126t, contract-fp.md §5; SPEC-181t C1): the first
++// operand is the FP value, the second is the `rdHD` signed 64-bit integer
++// exponent (an RD-bank value, not an FP number).
 +def SDT_DADAOScalb : SDTypeProfile<1, 2,
-+    [SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>]>;
++    [SDTCisSameAs<0, 1>, SDTCisVT<2, i64>]>;
 +def DADAOScalb : SDNode<"DADAOISD::SCALB", SDT_DADAOScalb>;
 +
 +def DADAOBrz  : SDNode<"DADAOISD::BRZ",  SDT_DADAOBr1, [SDNPHasChain]>;
@@ -1095,10 +1096,11 @@ index 000000000..e31701eb3
 +def : Pat<(DADAOFClass f32:$a), (ftcls_orri_rf f32:$a, 1)>;
 +
 +// --- FP scaleB: ldexp -> fosclb / ftsclb (orrr) ---
-+// LLVM-126t (contract-fp.md §5): the exponent is an integer-valued FP operand,
-+// so the lowering converts the i32 exponent with io2fo/it2ft first.
-+def : Pat<(DADAOScalb f64:$x, f64:$n), (fosclb_orrr_rf f64:$x, f64:$n)>;
-+def : Pat<(DADAOScalb f32:$x, f32:$n), (ftsclb_orrr_rf f32:$x, f32:$n)>;
++// LLVM-126t (contract-fp.md §5); SPEC-181t C1 (LLVM-142t): the exponent is the
++// RD-bank signed 64-bit integer `rdHD`, so the lowering feeds the integer
++// exponent straight to the instruction (no SINT_TO_FP conversion).
++def : Pat<(DADAOScalb f64:$x, i64:$n), (fosclb_orrr_rf f64:$x, i64:$n)>;
++def : Pat<(DADAOScalb f32:$x, i64:$n), (ftsclb_orrr_rf f32:$x, i64:$n)>;
 +
 +// --- IEEE remainder: __builtin_dadao_remainder -> forem / ftrem (orrr) ---
 +// LLVM-126t / user ruling 2026-10-23.  `forem`/`ftrem` are IEEE 754 remainder

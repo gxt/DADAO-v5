@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..1894b48cf
+index 000000000..48d9837c5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 @@ -0,0 +1,3100 @@
@@ -541,7 +541,8 @@ index 000000000..1894b48cf
 +  //     quietens an sNaN and can raise NV/NX) is both larger and less faithful.
 +  //     Custom lowering returns the operand unchanged.
 +  //   * ISD::IS_FPCLASS -> focls/ftcls + mask (contract-fp.md §9).
-+  //   * ISD::FLDEXP -> io2fo/it2ft + fosclb/ftsclb (contract-fp.md §5).
++  //   * ISD::FLDEXP -> fosclb/ftsclb with the exponent in `rdHD`
++  //     (contract-fp.md §5; SPEC-181t C1).
 +  //   * ISD::GET_ROUNDING / ISD::SET_ROUNDING -> rf0[33:32]
 +  //     (contract-fp.md §1).  GET_ROUNDING is keyed on its i32 result,
 +  //     SET_ROUNDING on MVT::Other (it is a chain node).
@@ -2215,18 +2216,17 @@ index 000000000..1894b48cf
 +}
 +
 +SDValue DADAOTargetLowering::LowerFLDEXP(SDValue Op, SelectionDAG &DAG) const {
-+  // LLVM-126t (contract-fp.md §5): `fosclb`/`ftsclb` compute rfHC * 2^rfHD
-+  // with rfHD taken as an integer value, so the i32 exponent is converted to
-+  // FP (io2fo / io2ft) and fed to the scalb instruction.  ISD::FLDEXP's node is
-+  // (x, i32 n); the signed conversion is the right one -- a negative exponent
-+  // scales down.
++  // LLVM-126t (contract-fp.md §5); SPEC-181t C1 (LLVM-142t): `fosclb`/`ftsclb`
++  // compute rfHC * 2^rdHD, where rdHD is an RD-bank *signed 64-bit integer*
++  // exponent -- not an FP register.  ISD::FLDEXP's node is (x, i32 n), so only
++  // the sign extension to i64 is needed; the integer value feeds the
++  // instruction directly (no SINT_TO_FP / io2fo / io2ft).
 +  const SDLoc DL(Op);
 +  const EVT VT = Op.getValueType();
 +  SDValue Exp = Op.getOperand(1);
 +  if (Exp.getValueType() != MVT::i64)
 +    Exp = DAG.getNode(ISD::SIGN_EXTEND, DL, MVT::i64, Exp);
-+  SDValue ExpFP = DAG.getNode(ISD::SINT_TO_FP, DL, VT, Exp);
-+  return DAG.getNode(DADAOISD::SCALB, DL, VT, Op.getOperand(0), ExpFP);
++  return DAG.getNode(DADAOISD::SCALB, DL, VT, Op.getOperand(0), Exp);
 +}
 +
 +SDValue DADAOTargetLowering::LowerFP_TO_INT_SAT(SDValue Op,

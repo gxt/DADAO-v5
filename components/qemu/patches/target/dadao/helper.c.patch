@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..9177620
+index 0000000..254ac69
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2699 @@
+@@ -0,0 +1,2709 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -1273,10 +1273,23 @@ index 0000000..9177620
 + * fp_status_commit() exactly as for the conversion family.
 + */
 +
-+/* scaleB's second source is an integer-valued floating-point operand; the
-+ * exponent n is its rounded integer value (spec §S2D1: "rfHD 取整数值").
-+ * Softfloat's float-to-int conversion follows the same status rounding mode,
-+ * so an inexact/exotic rfHD is reflected in the accrued flags. */
++/* scaleB's exponent is rdHD, a signed 64-bit integer (SimRISC-07 §2.1;
++ * SPEC-181t F5.2 C1).  scalbn() takes an int; clamp out-of-range exponents so
++ * that a huge positive one overflows to ±Inf (OF) and a huge negative one
++ * underflows toward zero (UF/NX), per IEEE 754 scaleB. */
++static int fp_scaleb_exp(uint64_t raw)
++{
++    int64_t exp = (int64_t)raw;
++
++    if (exp > 0x7fffffff) {
++        return 0x7fffffff;
++    }
++    if (exp < -0x7fffffff - 1) {
++        return -0x7fffffff - 1;
++    }
++    return (int)exp;
++}
++
 +uint64_t helper_fp_arith(CPUDADAOState *env, uint64_t a, uint64_t b,
 +                         uint32_t kind)
 +{
@@ -1300,11 +1313,9 @@ index 0000000..9177620
 +    case 4:  /* ftrem: IEEE 754 remainder (nearest quotient, ties to even) */
 +        res = (uint64_t)(uint32_t)float32_rem((float32)a, (float32)b, &st);
 +        break;
-+    case 5:  /* ftsclb: rfHC * 2^rfHD */
++    case 5:  /* ftsclb: rfHC * 2^rdHD (rdHD = signed 64-bit exponent) */
 +        res = (uint64_t)(uint32_t)float32_scalbn((float32)a,
-+                                                 float32_to_int32((float32)b,
-+                                                                  &st),
-+                                                 &st);
++                                                 fp_scaleb_exp(b), &st);
 +        break;
 +    case 6:  /* foadd */
 +        res = (uint64_t)float64_add((float64)a, (float64)b, &st);
@@ -1323,8 +1334,7 @@ index 0000000..9177620
 +        break;
 +    default: /* 11 fosclb */
 +        res = (uint64_t)float64_scalbn((float64)a,
-+                                       float64_to_int32((float64)b, &st),
-+                                       &st);
++                                       fp_scaleb_exp(b), &st);
 +        break;
 +    }
 +    fp_status_commit(env, &st);

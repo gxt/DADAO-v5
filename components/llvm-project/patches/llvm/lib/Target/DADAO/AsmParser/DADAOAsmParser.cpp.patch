@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..edc0b1378
+index 000000000..e92c074c2
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2601 @@
+@@ -0,0 +1,2613 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -2538,6 +2538,18 @@ index 000000000..edc0b1378
 +                       "': rounding mode must be one of the one-hot constants "
 +                       "0x01/0x02/0x04/0x08/0x10/0x20 (encode_onehot)");
 +  }
++
++  // `dst_rd0` (SPEC-181t F8.2; SimRISC-12 §1.1): `sc rdHB, rdHC, [rbHD]` writes
++  // the success/failure result to rdHB, so rdHB == rd0 is illegal (the result
++  // cannot be discarded) and MUST be a hard error at assembly time, never a
++  // warning.  The encoding itself is unchanged; a hand-encoded `sc` with
++  // rdHB == rd0 is ILLI at run time.
++  if (Mnemonic.starts_with("sc.") && Flat.size() >= 2 && Flat[1]->isReg() &&
++      Flat[1]->getReg() == DADAO::rd0)
++    return Error(Flat[1]->getStartLoc(),
++                 "invalid '" + Mnemonic.str() +
++                     "': rd0 is the hard-wired zero register and cannot hold "
++                     "the sc success/failure result (dst_rd0)");
 +
 +  // Static legality check for `ret` (SPEC-083t; SimRISC-06 §函数返回):
 +  // `ret rdHA, imms18` with rdHA == rd0 requires imms18 == 0; otherwise the
