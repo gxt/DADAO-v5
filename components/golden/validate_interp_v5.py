@@ -16,7 +16,8 @@ from dadao_interp_v5 import (DEFAULT_PC, MASK64, Fault, Unsupported, Specificati
                              check_legality, decode, is_supported,
                              mem_width_for, run)
 
-VECTORS_DIR = Path(__file__).resolve().parents[2] / 'tests/vectors/isa'
+VECTORS_DIR = Path(__file__).resolve().parents[2] / 'tests/inst/base'
+FP_VECTORS_DIR = Path(__file__).resolve().parents[2] / 'tests/inst/fp'
 BUCKETS = ('PASS-encoding', 'PASS-execution', 'FAIL', 'SKIP-deferred',
            'SKIP-scope', 'SKIP-machine')
 CLASSES = {'encoding', 'legality', 'semantic', 'boundary', 'overlap'}
@@ -136,6 +137,13 @@ def _check_vector(t):
     if t.get('expected_pc') is not None:
         _parse_int(t['expected_pc'], 48)
     word = _parse_int(t['encoding']['word'], 32)
+    sequence = t.get('sequence')
+    if sequence is not None:
+        if not isinstance(sequence, list) or not sequence:
+            raise ValueError('sequence must be a nonempty list')
+        seq_words = [_parse_int(item, 32) for item in sequence]
+    else:
+        seq_words = [word]
     reserved = t['encoding'].get('reserved', False)
     if type(reserved) is not bool:
         raise ValueError('encoding.reserved must be boolean')
@@ -190,11 +198,23 @@ def _check_vector(t):
             return 'FAIL', f'static legality={ex.kind}, vector expects legal encoding'
         return 'PASS-encoding', ''
 
-    width = mem_width_for(rec) if rec else 8
+    width = 8 if sequence is not None else (mem_width_for(rec) if rec else 8)
     before = build_state(t['input_state'], pc=vector_pc, mem_width=width)
     saved = _architectural(before)
     try:
-        st, got_fault = run(word, state=before)
+        st = before
+        got_fault = None
+        if sequence is not None:
+            program = {before.pc + 4 * i: w for i, w in enumerate(seq_words)}
+            for _ in range(len(seq_words) * 2):
+                seq_word = program.get(st.pc)
+                if seq_word is None:
+                    break
+                st, got_fault = run(seq_word, state=st)
+                if got_fault is not None:
+                    break
+        else:
+            st, got_fault = run(word, state=before)
     except SpecificationGap as ex:
         return 'FAIL', f'SPEC-GAP: {ex}'
     except Unsupported as ex:
@@ -252,7 +272,7 @@ def check_vector(t, fname, idx):
 
 
 def main(paths=None):
-    paths = sorted(VECTORS_DIR.glob('*.yaml')) if paths is None else [Path(p) for p in paths]
+    paths = (sorted(VECTORS_DIR.glob('*.yaml')) + sorted(FP_VECTORS_DIR.glob('*.yaml'))) if paths is None else [Path(p) for p in paths]
     buckets = dict.fromkeys(BUCKETS, 0)
     details = []
     if not paths:
@@ -289,6 +309,6 @@ def main(paths=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('paths', nargs='*', help='YAML files; default tests/vectors/isa/*.yaml')
+    parser.add_argument('paths', nargs='*', help='YAML files; default tests/inst/base/*.yaml + tests/inst/fp/*.yaml')
     args = parser.parse_args()
     sys.exit(main(args.paths or None))

@@ -121,11 +121,11 @@ class ValidatorTests(unittest.TestCase):
         case['deferred_reason'] = 'unsettled'; case['expected_state'] = None
         self.assertEqual(self.verdict(case), 'SKIP-deferred')
         # Defined fence is outside this scalar model, regardless of machine ILLI.
-        case = dict(id='fence_oiii_imm', mnemonic='fence', format='oiii',
-                    encoding={'word': '0x47800000'}, **{'class': 'encoding'},
+        case = dict(id='fence_ciii_cfx', mnemonic='fence', format='ciii',
+                    encoding={'word': '0x79000000'}, **{'class': 'encoding'},
                     input_state={}, expected_state=None, expected_fault=None,
-                    spec_cite='SimRISC-12: fence指令')
-        rec, _ = model.decode(0x47800000)
+                    spec_cite='SimRISC-11: fence')
+        rec, _ = model.decode(0x79000000)
         self.assertEqual(rec['id'], case['id'])
         self.assertEqual(self.verdict(case), 'SKIP-scope')
 

@@ -3,9 +3,9 @@
 **状态**：待验收
 **模块**：golden
 **项目里程碑**：维护（M1 标量 + `scope: fp` 66 条；特权/原子/fence 在范围外；原“不扩展浮点”仅指初始范围）
-**依赖**：当前 spec/、contract-isa.md、contracts/opcodes.yaml、tests/vectors/schema.md
+**依赖**：当前 spec/、contract-isa.md、contracts/opcodes.yaml、tests/inst/schema.md
 
-> **口径说明（2026-10-27）**：本任务书前部“43 tests / 60 FP / sub.uo 待裁定 / 浮点不实现”等为历史记录；当前最终口径见文末“文档口径与已知不足”段（46 tests、66 FP、710 回放、ADR-0049）。
+> **口径说明（2026-10-27）**：本任务书前部“43 tests / 60 FP / sub.uo 待裁定 / 浮点不实现”等为历史记录；当前最终口径见文末“文档口径与已知不足”段（48 tests、66 FP、730 回放、ADR-0049）。
 
 ## 用户确认
 
@@ -13,7 +13,7 @@
 
 ## 目标与范围
 
-校正 `components/golden/dadao_interp_v5.py` 与 `validate_interp_v5.py`；重写 `README.md`、`DESIGN.md`；新增 `components/golden/test_interp_v5.py`、`test_validator_v5.py` 与可复用证据脚本（同目录）。保留原有未提交工作，只做授权范围的修改。不修改 spec/、contracts/、tests/vectors/、LLVM/QEMU。
+校正 `components/golden/dadao_interp_v5.py` 与 `validate_interp_v5.py`；重写 `README.md`、`DESIGN.md`；新增 `components/golden/test_interp_v5.py`、`test_validator_v5.py` 与可复用证据脚本（同目录）。保留原有未提交工作，只做授权范围的修改。不修改 spec/、contracts/、tests/inst/、LLVM/QEMU。
 
 依据：contract-isa §1–8、§10–15 与对应 spec/SimRISC-00/01/02/03/04/05/06/08/09/10/12；若投影矛盾须披露而非按向量票数裁定。仅编码取自 opcodes；语义、测试期望独立来自规范，不读取 LLVM/QEMU/向量生成器。
 
@@ -197,7 +197,7 @@ EXIT=0
 用户原话：“选择B，并进行同步、ADR”。
 
 - **ADR-0049** 置 `Accepted`：`sub.uo {rdHA, rdHB}, rdHC, rdHD` 的 `rdHA` = 借位（`rdHC < rdHD` 时 1，否则 0），`rdHB = (rdHC − rdHD) mod 2^64`；不写 128 位结果的全 1 高半，需要 128 位有符号高半时用 `sub.so`。
-- **同步范围**：`spec/SimRISC-04 §1.1`、`spec/SimRISC-00` 附录 `0.5.6-rc`、`.tao/contracts/contract-isa.md §6.1.1`、`manifests/spec-readonly.lock.toml`（SimRISC-00/04 哈希 + 授权原话）、golden 解释器/单测/生成文档、`generate_isa_vectors.py`、`tests/vectors/isa/reg-arith.yaml`（新增 `0−1`、`5−7` 借位用例）。
+- **同步范围**：`spec/SimRISC-04 §1.1`、`spec/SimRISC-00` 附录 `0.5.6-rc`、`.tao/contracts/contract-isa.md §6.1.1`、`manifests/spec-readonly.lock.toml`（SimRISC-00/04 哈希 + 授权原话）、golden 解释器/单测/生成文档、`generate_isa_vectors.py`、`tests/inst/base/reg-arith.yaml`（新增 `0−1`、`5−7` 借位用例）。
 - **不改**：QEMU 原本已按借位实现；LLVM 只用 `sub.uo {rd0, dst}`（高位丢弃）；DDLN 原本已描述借位。
 - **验证（真实输出）**：
 
@@ -226,13 +226,25 @@ EXIT=0
 
 用户原话：“先把文档更新一下”。
 
-当前口径：66 条 `scope: fp`；46 项单测；仓库向量回放 710 条（171 编码通过 / 490 执行通过 / 0 失败 / 49 跳过，退出码 0）；`validate_vectors` 156/156、710 用例、0 缺口；`sub.uo` 按 ADR-0049 返回借位 0/1；`cmp` 写满 64 位。
+当前口径：66 条 `scope: fp`；48 项单测；仓库向量回放 730 条（173 编码通过 / 500 执行通过 / 0 失败 / 57 跳过，退出码 0）；`validate_vectors` 156/156、718 个 base 用例、0 缺口；`sub.uo` 按 ADR-0049 返回借位 0/1；`cmp` 写满 64 位。
 
 已知不足（如实记录，未在本次文档更新中修改实现）：
 
-- **f2i**：inexact 输入直接抛 `FPGap`（值可确定但 NX 未定）；舍入方向（golden `rf0` vs QEMU toward-zero）、NaN/Inf/负无符号饱和值缺少正式口径；无对应测试。
-- **FP 共享向量**：`tests/vectors` 没有 FP 用例；66 条 FP 仅由单测、逐身份冒烟和一次性 oracle 差分覆盖，差分脚本未入库。
-- **门控**：Makefile 没有 `check-golden`；单测、回放、`generate_instruction_guide.py --check` 仍是手工命令。
+- **f2i**：已按新规范对 finite inexact 置 NX、不再抛 `FPGap`；NaN/Inf/负无符号饱和方向仍缺独立向量。
+- **FP 共享向量**：`tests/inst/fp` 目前只有 scaleb；fma/rnd/minmax 仍只有单测和 C 探针，差分脚本未入库。
+- **门控**：已新增 `check-golden`（单测 + `tests/inst` 回放 + `check_golden` + 生成器 `--check`），纳入 `make check`（L1）。
 - **注入**：`check_golden.py` 的模型注入未覆盖 `fma/rnd/minmax`。
 - **审计工具**：`009t-audit.py` 对 `ctrl-br`、`ldm.o`、`shl.*` 有既存偏差（与本次 B 方案无关）。
-- **范围外**：M9 标量（rev/rol/ctlz/cttz/ctpop/clmul/lr/sc）、特权/原子/fence/trap/cfx、MMU/权限/异常入口不在模型内；44 条机器层用例为 SKIP。
+- **范围外**：M9 标量（rev/rol/ctlz/cttz/ctpop/clmul/lr/sc）、特权/原子/fence/trap/cfx、MMU/权限/异常入口不在模型内；48 条机器层用例为 SKIP。
+
+## 更新至 52cbcab6 / tests/inst（2026-11-02）
+
+用户原话：“又过了一周了，请你更新一下…还需要做哪些事情能做pr？”；“迁移是我干的…按新内容更新golden，并merge，重编号adr，更新文档，给一个门控”；“完成构建”。
+
+- **目录**：golden 保留在 `components/golden/`（用户手动迁移）；所有活动文档/脚本路径已从 `tools/golden` 更新。
+- **合并**：`dc63cc00`（旧 merge）→ `8c6eb294`（迁移/B/ADR-0049）→ `a9d1850a`（合并 `52cbcab6`，249 个提交）；`tests/vectors` 迁至 `tests/inst/`。
+- **新语义**：f2i finite inexact 置 NX、不再抛 `FPGap`；`ftsclb/fosclb` 第三源改为 `rdHD` signed 64 位整数指数（`rd0=0`）；验证器支持 `sequence` 按 PC 执行；新增 `tests/inst/fp/scaleb.yaml` 回放。
+- **ADR**：本地 `sub.uo` 借位决策重编号为 **ADR-0049**（上游已占用 0039/0040）。
+- **门控**：新增 `make check-golden`（单测 + `tests/inst` 回放 + `check_golden` + 生成器 `--check`），纳入 `make check`（L1）。
+- **验证**：48 项单测 OK；回放 730 条（173/500/0/57，退出码 0）；scaleb 2 encoding + 10 execution 全过；`validate_vectors` 156/156、718 base 用例、0 缺口；`check_golden`、生成器 `--check`、spec changelog 通过。
+- **未完成**：LLVM 构建在 clang 链接阶段被 OOM 杀掉（`ld terminated with signal 9`），L2 尚未跑通；reviewer 未跑；本次改动未提交/未 push。

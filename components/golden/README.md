@@ -10,7 +10,7 @@
 
 1. **覆盖范围明确。** 66 条 `scope: fp` 指令已纳入；特权系统指令、原子指令和 `fence` 仍未实现，遇到这些已定义指令抛出 `Unsupported`，不会伪装成架构的 ILLI。
 2. **只模拟指令效果。** 不模拟地址权限、MMU、ROM、设备和异常处理入口。内存是按字节存储的大端稀疏内存；没有预置的字节按 0 读取，这是测试模型约定，不是硬件保证。
-3. **规范开放点不输出猜测答案。** 浮点转整数精度损失的 NX、`rootn(-0,2)`及部分 remainder/scaleB 边界按具体输入报 `SpecificationGap`。`sub.uo` 已按 ADR-0049 返回借位 0/1。详见 [设计说明](DESIGN.md#subuo-的借位语义)。
+3. **规范开放点不输出猜测答案。** `rootn(-0,2)` 与 `ftsclb/fosclb` 的 NaN/Inf/溢出/下溢边界按具体输入报 `SpecificationGap`；f2i 已按新规范对 finite inexact 置 NX。`sub.uo` 已按 ADR-0049 返回借位 0/1。详见 [设计说明](DESIGN.md#subuo-的借位语义)。
 
 ## 文件分工
 
@@ -39,21 +39,26 @@ python3 -B -m unittest discover -s components/golden -p 'test_*v5.py' -v
 python3 -B ./components/golden/validate_interp_v5.py
 
 # 也可只回放一个文件
-python3 -B ./components/golden/validate_interp_v5.py ./tests/vectors/isa/ctrl-ret.yaml
+python3 -B ./components/golden/validate_interp_v5.py ./tests/inst/base/ctrl-ret.yaml
 
 # 独立测试 + 反例注入（期望退出码 0）
 python3 -B ./components/golden/check_golden.py
 ```
 
-**全量回放当前无 FAIL。** 合并远端并补 `sub.uo` 借位向量后，`tests/vectors/isa` 共回放 710 条：编码通过 171、执行通过 490、FAIL 0、跳过 49（5 条 deferred + 44 条机器层），退出码 0。FP 新族仍由独立单测覆盖；跳过项不计作验证通过。
+**全量回放当前无 FAIL。** 合并 `tests/inst` 与新 FP/scaleB 向量后，共回放 730 条：编码通过 173、执行通过 500、FAIL 0、跳过 57（5 deferred + 4 SKIP-scope + 48 machine），退出码 0。FP 的 fma/rnd/minmax 仍由独立单测覆盖；跳过项不计作验证通过。
 
 ## 已知不足
 
-- **f2i 尚未收口**：`convert_to_int()` 对 inexact 输入直接抛 `FPGap`（例如 `1.5` 没有整数答案），但规范只把 NX 列为未定；舍入方向（golden 用 `rf0`，QEMU softfloat 对 f2i 用 toward-zero）以及 NaN/Inf/负无符号的饱和值也缺少正式口径。
-- **FP 没有共享向量**：`tests/vectors` 只有标量；66 条 FP 由单测、逐身份冒烟和一次性 upstream oracle 差分覆盖，差分脚本尚未入库。
-- **未接入 make/CI**：单测、回放和 `generate_instruction_guide.py --check` 目前靠手工执行，没有 `check-golden` 目标。
-- **反例注入未覆盖新 FP 族**：`check_golden.py` 主要覆盖标量算术和验证器字段，`fma/rnd/minmax` 没有实现级注入。
-- **范围外**：M9 标量（rev/rol/ctlz/cttz/ctpop/clmul/lr/sc）、特权/原子/fence/trap/cfx 和 MMU/权限/异常入口不在模型内；44 条机器层用例是 SKIP。
+- **f2i 已按新规范实现**：finite inexact 置 NX，不再抛 `FPGap`；NaN/Inf/越界按当前实现饱和 + NV。NaN 的符号位与无符号 `-Inf` 饱和方向仍缺少独立向量。
+- **scaleB 已改为 `rdHD` 整数指数**：`ftsclb/fosclb` 从 `rd` 组读 signed 64 位指数（`rd0=0`），`tests/inst/fp/scaleb.yaml` 已覆盖；旧 `rfHD` 路径不再接受。
+- **FP 向量仍不完整**：`tests/inst/fp/` 只有 scaleb；fma/rnd/minmax 只有单测和 C 探针，没有共享 YAML。
+- **门控已补**：新增 `check-golden`（单测 + `tests/inst` 回放 + `check_golden` + 生成器 `--check`），纳入 `make check`。
+- **注入/审计**：`check_golden.py` 的模型注入仍只覆盖标量算术；`009t-audit.py` 对 `ctrl-br`、`ldm.o`、`shl.*` 有既存偏差。
+- **范围外**：M9 标量（rev/rol/ctlz/cttz/ctpop/clmul/lr/sc）、特权/原子/fence/trap/cfx 和 MMU/权限/异常入口不在模型内。
+
+## 未来扩展：i128/i256
+
+`sub.uo` 的借位和 `add.uo` 的进位是 64 位多字运算的基元；i128/i256 应由多条 64 位加减链组合，不改变单条 `sub.uo` 的借位语义。`cmp` 结果写满 64 位，便于后续宽比较。
 
 ## 最小 API 示例
 

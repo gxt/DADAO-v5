@@ -20,7 +20,7 @@
 | 指令编码、字段位置、身份 | `contracts/opcodes.yaml` |
 | 寄存器、整数、访存、控制流语义 | `.tao/contracts/contract-isa.md` 与其引用的 `spec/SimRISC-00` 至 `10` 相应章节 |
 | 当前零号寄存器规则、RACNT、64 位控制流 | 上述规范及 `.tao/adr/adr-0012-*`、`adr-0015-*` 中已经确认的规则 |
-| YAML 字段、内存预置宽度、默认测试地址 | `tests/vectors/schema.md` |
+| YAML 字段、内存预置宽度、默认测试地址 | `tests/inst/schema.md` |
 
 执行器不读取 LLVM、QEMU 或向量生成器。测试期望从规范和独立整数运算推导。编码表由模型与向量共用，因此回放能检查二者是否一致，**不能独立证明编码表本身无错**。
 
@@ -49,7 +49,7 @@
 
 结果的 NV、DZ、OF、UF、NX 以位或方式累积到 `rf0[4:0]`；写 `rf0` 只改 `[33:32]` 和 `[4:0]`。NaN 的 quiet/signaling 位和 payload 由位模式处理，分类、sign injection、RF 存取和块传送不把 RF 位模式转换成宿主数值。
 
-以下情况是合约开放点，不输出自行选择的值：`convert_f2i` 精度损失是否设置 NX、`rootn(-0,2)` 的结果、`ftrem/forem` 与 `ftsclb/fosclb` 未逐位展开的特殊输入。模型对这些输入抛出 `SpecificationGap`；这不是架构异常，也不计作执行通过。
+以下情况是合约开放点，不输出自行选择的值：`rootn(-0,2)` 的结果、`ftsclb/fosclb` 的 NaN/Inf/溢出/下溢边界。f2i 的 finite inexact 已按新规范置 NX。模型对这些输入抛出 `SpecificationGap`；这不是架构异常，也不计作执行通过。
 
 取整、最小/最大值与融合乘加分别按 `contract-fp.md` §18–§20 执行：`ftrnd/fornd` 的 `immu6` 是 one-hot selector，只有 `0x20` 读取 `rf0` 方向并可能置 NX；`ftmin/ftmax/fomin/fomax` 实现严格 `minimumNumber/maximumNumber`（单 NaN 返回数、双 NaN 返回规范 qNaN、sNaN 置 NV、`−0 < +0`）；`ftfma/fofma` 用精确积与加数相加后只舍入一次。
 
@@ -181,15 +181,20 @@ MemRAS 条目计数为 0 是 RASUF；大于 1 时，保留减一后的记录到�
 
 ### 仓库向量已同步
 
-合并远端 `origin/master` 后，原先把 `rd0/rb0` 存数源判为 ILLI 的 10 条向量已按现行零号源规则更新。全量回放 710 条：编码通过 171、执行通过 490、FAIL 0、跳过 49（5 deferred + 44 machine），退出码 0。若后续重新引入旧期望，应按规范重写断言，而不是把模型改回旧语义或无条件跳过。
+合并远端 `origin/master` 后，原先把 `rd0/rb0` 存数源判为 ILLI 的 10 条向量已按现行零号源规则更新。全量回放 730 条：编码通过 173、执行通过 500、FAIL 0、跳过 57（5 deferred + 4 scope + 48 machine），退出码 0。若后续重新引入旧期望，应按规范重写断言，而不是把模型改回旧语义或无条件跳过。
 
 ### 当前已知不足
 
-- **f2i**：`fp_ref.convert_to_int()` 对所有 inexact 输入抛 `FPGap`，但只有 NX 未定；舍入方向（golden 按 `rf0`；QEMU softfloat 用 toward-zero）和 NaN/Inf/负无符号的饱和值没有正式口径，且缺少 NaN/Inf/负溢出测试。
-- **FP 向量**：`tests/vectors` 没有 FP 用例；FP 证据是单测、66 条冒烟和未入库的 oracle 差分，不是仓库级回放。
-- **门控**：Makefile 没有 `check-golden`；`make check`/`check-modules` 不跑 golden 单测、回放或文档检查。
-- **注入**：`check_golden.py` 的模型注入只覆盖标量算术，未覆盖 fma/rnd/minmax。
-- **审计工具**：`009t-audit.py` 对 ctrl-br/ldm.o/shl.* 有既存偏差（与本次 B 无关），说明工具链仍有漂移。
+- **f2i**：finite inexact 已置 NX，不再抛 `FPGap`；NaN/Inf/越界按当前实现饱和 + NV，但 NaN 符号位与无符号 `-Inf` 的饱和方向仍缺独立向量。
+- **scaleB**：第三源已改为 `rdHD` signed 64 位整数（`rd0=0`），`tests/inst/fp/scaleb.yaml` 可回放；旧 `rfHD` 路径不再接受。
+- **FP 向量**：`tests/inst/fp/` 只有 scaleb；fma/rnd/minmax 仍只有单测和 C 探针，没有共享 YAML。
+- **门控**：已新增 `check-golden`（单测 + `tests/inst` 回放 + `check_golden` + 生成器 `--check`），纳入 `make check`。
+- **注入/审计**：`check_golden.py` 的模型注入只覆盖标量算术；`009t-audit.py` 对 `ctrl-br`、`ldm.o`、`shl.*` 有既存偏差。
+- **L2**：依赖已配置，但 LLVM 构建在 clang 链接阶段被 OOM 杀掉，尚未跑通。
+
+### 面向 i128/i256 的扩展
+
+`sub.uo` 的借位和 `add.uo` 的进位是 64 位多字运算的基元；i128/i256 应由多条 64 位加减链组合，不改变单条 `sub.uo` 的借位语义。`cmp` 结果写满 64 位也便于宽比较。
 
 ### 不能由本次验证推出的结论
 

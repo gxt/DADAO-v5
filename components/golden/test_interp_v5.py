@@ -98,7 +98,7 @@ class ScalarSpecTests(unittest.TestCase):
                 model.decode(invalid)
         self.assertEqual(model.run('0x00000000')[1], 'UNDI')
         self.assertEqual(model.run(0, pc=3)[1], 'IALIGN')
-        self.assertEqual(model.run(word('fence_oiii_imm'), pc=3)[1], 'IALIGN')
+        self.assertEqual(model.run(word('fence_ciii_cfx'), pc=3)[1], 'IALIGN')
         inputs = {'memory': [{'address': 0x1000, 'value': 0x42}]}
         failed, fault = model.run(word('ld.ub_rrii_rd', rdha=1, rbhb=2), inputs, pc=3)
         self.assertEqual(fault, 'IALIGN')
@@ -144,7 +144,7 @@ class ScalarSpecTests(unittest.TestCase):
         # Every applicable vector input is recomputed, irrespective of its
         # stored expected_state. Other instruction families are separately tested.
         checks = 0
-        for path in sorted((ROOT / 'tests/vectors/isa').glob('*.yaml')):
+        for path in sorted((ROOT / 'tests/inst/base').glob('*.yaml')):
             vectors = yaml.safe_load(path.read_text())
             for vec in vectors:
                 if vec.get('status', 'active') != 'active' or vec.get('expected_fault'):
@@ -181,7 +181,7 @@ class ScalarSpecTests(unittest.TestCase):
 
     def test_repository_shift_extend_inputs_independently(self):
         checks = 0
-        for path in sorted((ROOT / 'tests/vectors/isa').glob('*.yaml')):
+        for path in sorted((ROOT / 'tests/inst/base').glob('*.yaml')):
             for index, vec in enumerate(yaml.safe_load(path.read_text())):
                 if vec.get('status', 'active') != 'active' or vec.get('expected_fault'):
                     continue

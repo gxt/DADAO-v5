@@ -135,8 +135,8 @@ class FloatingGoldenTests(unittest.TestCase):
         with self.assertRaises(model.SpecificationGap):
             model.run(word('ftroot_orri_rf', rfhb=3, rfhc=1, immu6=2), state=before)
         self.assertEqual(vars(before), saved)
-        with self.assertRaises(fp_ref.FPGap):
-            fp_ref.convert_to_int(0x3FC00000, fp_ref.F32, 32, True, 0)
+        self.assertEqual(fp_ref.convert_to_int(0x3FC00000, fp_ref.F32, 32, True, 0),
+                         (2, fp_ref.NX))
 
     def test_rf_memory_transfer_and_fcsr_mask(self):
         state = {'rb': {'rb2': 0x1000}, 'memory': [{'address': 0x1000, 'value': 0x3F800000, 'width': 4}]}
@@ -226,6 +226,37 @@ class FloatingGoldenTests(unittest.TestCase):
                           rfhb=1, rfhc=2, rfhd=3)
         self.assertEqual((st.rf[1], st.rf[0] & 0x1F),
                          (fp_ref.F64.canonical_qnan, fp_ref.NV))
+
+
+    def test_f2i_inexact_and_saturation(self):
+        """SimRISC-07 §1 / contract-fp §3: inexact finite sets NX."""
+        self.assertEqual(fp_ref.convert_to_int(0x3FB33333, fp_ref.F32, 32, True, 0),
+                         (1, fp_ref.NX))
+        self.assertEqual(fp_ref.convert_to_int(0xC1000000, fp_ref.F32, 32, True, 0),
+                         (0xFFFFFFF8, 0))
+        self.assertEqual(fp_ref.convert_to_int(0x7F800000, fp_ref.F32, 32, True, 0),
+                         (0x7FFFFFFF, fp_ref.NV))
+        st = self.execute('ft2it_orri_rf', {'rf': {'rf1': 0x3FC00000}},
+                          rdhb=2, rfhc=1, immu6=1)
+        self.assertEqual((st.rd[2], st.rf[0] & 0x1F), (2, fp_ref.NX))
+
+    def test_scaleb_uses_rd_integer_exponent(self):
+        """SimRISC-07 §2.1 / contract-fp §5: third operand is rdHD."""
+        st = self.execute('ftsclb_orrr_rf',
+                          {'rf': {'rf1': 0x3FC00000, 'rf3': 0x41200000},
+                           'rd': {'rd3': 2}},
+                          rfhb=4, rfhc=1, rdhd=3)
+        self.assertEqual((st.rf[4] & 0xFFFFFFFF, st.rf[0] & 0x1F),
+                         (0x40C00000, 0))                  # 1.5 * 2^2 = 6.0
+        st = self.execute('ftsclb_orrr_rf',
+                          {'rf': {'rf1': 0x3FC00000},
+                           'rd': {'rd3': 0xFFFFFFFFFFFFFFFF}},
+                          rfhb=4, rfhc=1, rdhd=3)
+        self.assertEqual(st.rf[4] & 0xFFFFFFFF, 0x3F400000)  # 0.75
+        st = self.execute('ftsclb_orrr_rf',
+                          {'rf': {'rf1': 0x3FC00000}, 'rd': {'rd3': 0}},
+                          rfhb=4, rfhc=1, rdhd=3)
+        self.assertEqual(st.rf[4] & 0xFFFFFFFF, 0x3FC00000)  # rd0 -> 0
 
 
 if __name__ == '__main__':

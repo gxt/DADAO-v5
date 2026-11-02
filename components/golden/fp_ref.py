@@ -226,6 +226,29 @@ def arithmetic(op, a_bits, b_bits, fmt, mode):
     return bits, flags
 
 
+def scaleb(bits, exponent, fmt, mode):
+    """IEEE 754 scaleB with a signed integer exponent (contract-fp §5).
+
+    ``exponent`` is the signed 64-bit value of ``rdHD``; ``rd0`` reads as 0.
+    """
+    sign, kind, value, payload = decode(bits, fmt)
+    if kind == 'nan':
+        return nan_result(bits, fmt)
+    if kind in ('inf', 'zero'):
+        return bits & fmt.mask, 0
+    n = int(exponent)
+    if abs(n) > 20000:
+        if n > 0:
+            if _overflow_to_inf(sign, mode):
+                return _pack_special(sign, 'inf', fmt), OF | NX
+            max_finite = ((fmt.exp_mask - 1) << fmt.fbits) | fmt.frac_mask
+            return (sign << fmt.sign_shift) | max_finite, OF | NX
+        tiny = ((mode == 3 and sign == 0) or (mode == 2 and sign == 1))
+        return (sign << fmt.sign_shift) | int(tiny), UF | NX
+    result = value * (Fraction(1 << n) if n >= 0 else Fraction(1, 1 << -n))
+    return encode_fraction(result, fmt, mode)
+
+
 def sqrt(bits, fmt, mode):
     sign, kind, value, payload = decode(bits, fmt)
     if kind == 'nan': return nan_result(bits, fmt)
@@ -287,9 +310,8 @@ def convert_to_int(bits, src, width, signed, mode):
     result = -q if sign else q
     if result < lo: return lo, NV
     if result > hi: return hi, NV
-    # Contract does not settle whether an inexact f2i sets NX.
-    if rem: raise FPGap('convert_f2i precision-loss NX behavior is unspecified')
-    return result & ((1 << width) - 1), 0
+    # SimRISC-07 §1 / contract-fp §3: finite inexact => NX.
+    return result & ((1 << width) - 1), (NX if rem else 0)
 
 
 def classify(bits, fmt):

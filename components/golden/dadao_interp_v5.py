@@ -161,7 +161,7 @@ _ID_CALL_I = 'call_iiii_ra'
 _ID_CALL_R = 'call_rrii_ra'
 _ID_RET = 'ret_riii_ra'
 _ID_SWYM = 'swym_oiii_imm'
-_ID_FENCE = 'fence_oiii_imm'
+_ID_FENCE = 'fence_ciii_cfx'
 
 # id -> (width_bytes, signed_or_None)
 _LD_INFO = {
@@ -602,8 +602,13 @@ def _fp_execute(rec, f, st):
         _fp_write(st, f['rfhb'], result, fmt)
         _fp_flags(st, flags)
         return
+    if mn in ('ftsclb', 'fosclb'):
+        exponent = _sext(st.rd_read(f['rdhd']), 64)
+        result, flags = fp_ref.scaleb(_fp_bits(st, f['rfhc'], fmt), exponent, fmt, mode)
+        _fp_write(st, f['rfhb'], result, fmt); _fp_flags(st, flags)
+        return
     if rec['format'] == 'orrr' and mn[:2] in ('ft', 'fo'):
-        op = {'add':'add', 'sub':'sub', 'mul':'mul', 'div':'div', 'rem':'rem', 'sclb':'scalb'}.get(mn[2:])
+        op = {'add':'add', 'sub':'sub', 'mul':'mul', 'div':'div', 'rem':'rem'}.get(mn[2:])
         if op:
             result, flags = fp_ref.arithmetic(op, _fp_bits(st, f['rfhc'], fmt),
                                               _fp_bits(st, f['rfhd'], fmt), fmt, mode)

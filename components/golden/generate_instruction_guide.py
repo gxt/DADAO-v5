@@ -200,10 +200,19 @@ def pseudocode(r):
         fmt_bits = 32 if mn.startswith('ft') else 64
         fmt_name = 'binary32' if fmt_bits == 32 else 'binary64'
         if family == 'arith':
+            if mn in ('ftsclb', 'fosclb'):
+                return [
+                    'S = snapshot(state)',
+                    f'A = decode_fp(S.RF[hc], format={fmt_name})',
+                    'N = sint(S.RD[hd], 64)',
+                    'R, F = fp_scaleB(A, N, rounding=S.RF[0][33:32])',
+                    f'D.RF[hb] = encode_fp(R, format={fmt_name})',
+                    'D.RF[0][4:0] = S.RF[0][4:0] | F',
+                    'D.RB[0] = (S.RB[0] + 4) & ((1 << 64) - 1)',
+                    'commit(D)']
             op = {'ftadd':'add','foadd':'add','ftsub':'sub','fosub':'sub',
                   'ftmul':'mul','fomul':'mul','ftdiv':'div','fodiv':'div',
-                  'ftrem':'remainder','forem':'remainder',
-                  'ftsclb':'scaleB','fosclb':'scaleB'}[mn]
+                  'ftrem':'remainder','forem':'remainder'}[mn]
             return [
                 'S = snapshot(state)',
                 f'A = decode_fp(S.RF[hc], format={fmt_name})',
@@ -765,7 +774,7 @@ ret先检查自己的显式操作数是否合法，例如 `ret rd0, 非零立即
 | `fp_mul(...)` | 同上 | 乘法 | `arithmetic("mul", ...)` |
 | `fp_div(...)` | 同上 | 除法 | `arithmetic("div", ...)` |
 | `fp_remainder(...)` | 同上 | IEEE 754 remainder（平局取偶） | `arithmetic("rem", ...)` |
-| `fp_scaleB(...)` | 同上 | scaleB 指数缩放 | `arithmetic("scalb", ...)` |
+| `fp_scaleB(A, N, rounding=...)` | 解码值、signed 64 整数指数 → (bits, flags) | scaleB：A × 2^N（N = rdHD，rd0=0） | `fp_ref.scaleb` |
 | `fp_sqrt(X, rounding=...)` | 解码值、舍入 → (bits, flags) | 平方根；`rootn(-0,2)` 报 `SPECIFICATION-GAP` | `fp_ref.sqrt` |
 | `fp_minimumNumber(A,B)` / `fp_maximumNumber(A,B)` | 两个解码值 → (bits, flags) | IEEE 754-2019 §9.6 严格版最小/最大值 | `fp_ref.minmax("min"/"max", ...)` |
 | `round_to_integral(A, selector, rounding)` | 解码值、one-hot selector、舍入 → (bits, flags) | 六档取整；仅 selector=0x20 读取舍入并可置 NX | `fp_ref.round_to_integral` |
@@ -773,7 +782,7 @@ ret先检查自己的显式操作数是否合法，例如 `ret rd0, 非零立即
 
 返回 `(bits, flags)` 或 `(value, flags)` 的函数，`flags` 只含本条产生的 NV/DZ/OF/UF/NX，调用方再累积到 `rf0[4:0]`。`fp_to_int` 的精度损失是否置 NX 仍是开放点（见 §16）；模型对未裁定的输入报 `SPECIFICATION-GAP`，不自行补答案。
 
-共同规则的规范依据：[ISA合约](../../.tao/contracts/contract-isa.md) §1–3、§6、§8、§10–15；[浮点合约](../../.tao/contracts/contract-fp.md)；[SimRISC-00](../../spec/SimRISC-00-指令系统设计.md)。测试输入与内存预置约定见 [向量schema](../../tests/vectors/schema.md)。模型接口和范围限制见 [设计说明](DESIGN.md)。
+共同规则的规范依据：[ISA合约](../../.tao/contracts/contract-isa.md) §1–3、§6、§8、§10–15；[浮点合约](../../.tao/contracts/contract-fp.md)；[SimRISC-00](../../spec/SimRISC-00-指令系统设计.md)。测试输入与内存预置约定见 [向量schema](../../tests/inst/schema.md)。模型接口和范围限制见 [设计说明](DESIGN.md)。
 
 ## 指令目录
 
@@ -850,11 +859,13 @@ def generate():
 - `rdHA = 1` 当且仅当 `rdHC < rdHD`，否则 `0`
 - 不写 128 位结果的全 1 高半；需要 128 位有符号高半时用 `sub.so`
 
+**面向 i128/i256 的扩展**：`rdHA` 的借位（以及 `add.uo` 的进位）是 64 位多字链的基元；i128/i256 应由多条 64 位加减组合，不改变单条 `sub.uo` 的借位语义。`cmp` 结果写满 64 位也便于宽比较。
+
 原先 `SimRISC-04` 总述句的“高 64 位”与 `.uo` 变体句的“借位 0/1”冲突，已按变体句修正。QEMU 原本已按借位实现；向量生成器/审计与 golden 已对齐，并新增 `0−1`、`5−7` 借位向量。
 
 ### 2. 仓库存数向量已按现行零号源规则同步
 
-合并远端 `origin/master` 后，原先把 `rd0/rb0` 存数源判为 ILLI 的 10 条旧向量已按现行规则更新：从 `rd0` 存入 0、从 `rb0` 存入执行前控制流值均合法。本次全量回放 710 条，FAIL=0、退出码 0，这组分歧不再存在。
+合并远端 `origin/master` 后，原先把 `rd0/rb0` 存数源判为 ILLI 的 10 条旧向量已按现行规则更新：从 `rd0` 存入 0、从 `rb0` 存入执行前控制流值均合法。本次全量回放 730 条，FAIL=0、退出码 0，这组分歧不再存在。
 
 若后续重新引入同类旧数据，应依据规范重写预期内存内容、源寄存器保持和 PC 推进等断言；不能把模型改回“零号源非法”，也不能无条件跳过。
 
@@ -867,7 +878,7 @@ def generate():
 | 模型和验证器直接测试 | 46项测试通过 | 已编写的正常、边界及错误检测用例满足断言 | 所有机器字和操作数组合都正确 |
 | 独立算术与移位矩阵 | 3402组算术、360组移位检查 | 所选位宽、符号和边界组合与独立计算一致 | 这些组合已经穷尽全部64位输入 |
 | 仓库输入逐条独立重算 | 159条适用算术/比较输入、84条移位/扩展输入 | 本次选定类别中全部适用输入都已重算，而非只抽样 | 其他指令族也完成了相同方式的全量重算 |
-| 仓库向量回放 | 710条：171条编码通过、490条执行通过、0条失败、49条跳过；退出码0 | 当前仓库向量与模型一致 | 全量回归已经通过 |
+| 仓库向量回放 | 730条：173条编码通过、500条执行通过、0条失败、57条跳过；退出码0 | 当前仓库向量与模型一致 | 全量回归已经通过 |
 | 反例注入 | 修改计算或断言后失败，恢复后通过 | 检查器至少能检出这些实际注入的错误 | 检查器能检出任何可能的错误 |
 | 文档范围和生成一致性检查 | 指令身份、链接及生成内容核对通过 | 文档条目与当前清单对齐，生成结果可复现 | 文档中的每一个语义判断都已被机械证明 |
 
@@ -875,7 +886,7 @@ def generate():
 
 #### 编码通过不能替代执行通过
 
-`PASS-encoding` 检查机器字是否解码成向量声明的指令，以及静态操作数是否合法。它没有执行运算，因此不能证明乘法结果、加载的数据、返回地址栈变化或分支目标正确。汇报时应把171条编码检查与490条执行检查分开说明，不能把两者合并称为“661条语义全部正确”。
+`PASS-encoding` 检查机器字是否解码成向量声明的指令，以及静态操作数是否合法。它没有执行运算，因此不能证明乘法结果、加载的数据、返回地址栈变化或分支目标正确。汇报时应把173条编码检查与500条执行检查分开说明，不能把两者合并称为“673条语义全部正确”。
 
 `PASS-execution` 也只证明本条向量实际断言的内容成立。例如，成功用例只检查rd1，就不能据此声称所有其他寄存器均未误改。当前异常用例会额外检查整份状态不变，swym的无副作用用例也有整体状态检查；这不等于每一个成功用例都穷尽了全部副作用。
 
@@ -887,17 +898,17 @@ def generate():
 
 ### 4. 跳过的用例没有得到执行正确性的证明
 
-本次回放中的49条跳过包括5条已标deferred的用例和44条机器层异常用例。它们没有计入执行通过数，也不能在汇报时视为“没有问题”。本次回放没有 FP 向量；FP 由 `test_fp_v5.py` 的专项测试覆盖，另有逐身份 66 条冒烟检查，整套单测共 46 项。
+本次回放中的57条跳过包括5条deferred、4条SKIP-scope和48条机器层异常用例。它们没有计入执行通过数，也不能在汇报时视为“没有问题”。本次回放没有 FP 向量；FP 由 `test_fp_v5.py` 的专项测试覆盖，另有逐身份 66 条冒烟检查，整套单测共 48 项。
 
 - **SKIP-deferred**：向量已明确暂缓，通常意味着其期望或验证前提尚未确定。本模型本次没有对它作出通过结论；后续需解决具体暂缓原因，再转为可执行的有效断言。
 - **SKIP-machine**：用例期待UNMAPPED、CFXMEM等地址映射或权限结果，而当前单步模型没有这些机器机制。需要在具备相应地址图、权限配置和异常机制的环境中验证。
-- **SKIP-scope**：被测指令在本模型实现范围外。当前 710 条 ISA 回放中这个计数为 0；特权、原子和 fence 仍在范围外，只说明本组向量没有相应项目。
+- **SKIP-scope**：被测指令在本模型实现范围外。当前 730 条 ISA 回放中这个计数为 4；特权、原子和 fence 仍在范围外，只说明本组向量没有相应项目。
 
 即使一批测试的失败数为0，只要仍有跳过项，也应同时给出原因和范围。当前运行器对空输入或全部用例都跳过的情况返回非零，防止“什么都没有验证”被当成成功。
 
 ### 5. 当前模型明确不验证的能力
 
-浮点 66 条 RF 指令现在纳入本模型范围；其有限值运算使用独立整数/有理数 oracle，舍入模式和累积标志按浮点合约处理。`rootn(-0,2)`、浮点转整数精度损失的NX，以及 remainder/scaleB的合约开放边界仍报告 `SPECIFICATION-GAP`，不能据此宣称所有输入都已裁定或完整符合 IEEE 754-2019。后来新增的特权指令、trap/escape、原子指令和fence仍在范围外。
+浮点 66 条 RF 指令现在纳入本模型范围；其有限值运算使用独立整数/有理数 oracle，舍入模式和累积标志按浮点合约处理。`rootn(-0,2)` 与 `ftsclb/fosclb` 的 NaN/Inf/溢出/下溢边界仍报告 `SPECIFICATION-GAP`；f2i 已按新规范对 finite inexact 置 NX、不再拒绝。后来新增的特权指令、trap/escape、原子指令和fence仍在范围外。
 
 内存模型只提供指令所需的字节读写、端序、地址截取和对齐检查，没有完整系统的页表、权限、地址映射、ROM或设备行为。模型中某个地址可以读写，不代表真实机器在该地址也一定可访问；未预置内存读0同样只是测试模型约定。
 
@@ -907,13 +918,17 @@ def generate():
 
 ### 6. 当前已知不足与 L2 状态
 
-**f2i 尚未收口。** `convert_to_int` 对任何 inexact 输入直接抛 `FPGap`（如 `1.5 → int` 没有答案），但规范只把 NX 列为未定，整数值本身可确定；舍入方向（golden 用 `rf0`，QEMU softfloat 对 f2i 用 toward-zero）以及 NaN/Inf/负无符号的饱和值也没有可机械判的口径，且缺少对应测试。
+**f2i 已按新规范实现。** `convert_to_int` 对 finite inexact 置 NX，不再抛 `FPGap`；NaN/Inf/越界仍按当前实现饱和并置 NV。NaN 的符号位与无符号 `-Inf` 饱和方向仍缺少独立向量。
 
-**FP 没有共享向量。** `tests/vectors` 目前只有标量；66 条 FP 由单测、逐身份冒烟和一次性 oracle 差分覆盖，差分脚本尚未入库。
+**scaleB 已改为 `rdHD` 整数指数。** `ftsclb/fosclb` 从 `rd` 组读取 signed 64 位指数（`rd0=0`），由 `tests/inst/fp/scaleb.yaml` 的 sequence 回放覆盖；旧 `rfHD` 路径不再接受。
 
-**golden 未接入 make/CI。** 单测、710 条回放和本文件 `--check` 目前靠手工执行；没有 `check-golden` 目标，回归不会被项目门控自动拦住。`009t-audit.py` 对 `ctrl-br`、`ldm.o`、`shl.*` 仍有既存偏差（与本次 B 方案无关）。
+**FP 向量仍不完整。** `tests/inst/fp/` 目前只有 scaleb；fma/rnd/minmax 仍只有单测和 C 探针，没有共享 YAML。
 
-**L2 尚未跑通。** 依赖已安装、组件已拉取并打补丁，LLVM/LLD/QEMU 正在构建；L2 的 `check-lit`、`check-qemu-smoke` 和 FP 探针需要完整工具链。构建完成后运行 `make check-modules JOBS=2` 并保留真实输出；在跑通前不能写“L2 通过”。
+**门控已补。** 新增 `check-golden`，把单测、`tests/inst` 回放、反例注入和生成器 `--check` 纳入 `make check`（L1）。
+
+**注入/审计仍有缺口。** `check_golden.py` 的模型注入只覆盖标量算术；`009t-audit.py` 对 `ctrl-br`、`ldm.o`、`shl.*` 有既存偏差。
+
+**L2 尚未跑通。** 依赖已配置，但 LLVM 构建在 clang 链接阶段被 OOM 杀掉；构建修复后再跑 L2。
 
 ### 7. 伪指令、旧指令和范围变化应怎样理解
 
@@ -925,13 +940,13 @@ def generate():
 
 ### 8. 当前结论与下一步应如何表述
 
-本模型已按当前规范校正确认范围内的整数、访存、寄存器传送、控制流和 66 条 FP，并通过直接测试、独立重算及反例检查；仍保留 f2i 等开放语义、FP 共享向量缺口、golden 未入门控和系统能力边界。
+本模型已按当前规范校正确认范围内的整数、访存、寄存器传送、控制流和 66 条 FP，并通过直接测试、独立重算及反例检查；仍保留 rootn/scaleB 边界、fma/rnd/minmax 无共享 YAML、注入/审计缺口和 L2 环境边界。
 
 要进一步完成验收，需要分别推进：
 
 1. （已完成）`sub.uo` 借位高半已由 ADR-0049 裁定为 0/1，并同步规范、合约、golden 与向量。
-2. （已完成）十条旧存数向量已随远端合并按现行零号源规则更新；回放 710 条、FAIL=0。
-3. 裁定 f2i 的舍入/饱和/NX 口径并补向量；把 FP oracle 差分和 `check-golden` 纳入仓库门控。
+2. （已完成）十条旧存数向量已随远端合并按现行零号源规则更新；回放 730 条、FAIL=0。
+3. f2i 已实现；继续补 rootn/scaleB 边界、fma/rnd/minmax 共享向量，并保留 `check-golden` 门控。
 4. （进行中）项目工具环境已配置，LLVM/LLD/QEMU 构建中；完成后运行 L2 并更新验收记录。
 
 这些后续动作有不同的授权范围。本文把它们列为待办说明，不意味着已经修改共享规范、测试数据、ADR或系统环境；也不以文字补充代替实际执行证据。

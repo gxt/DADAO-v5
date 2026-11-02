@@ -51,7 +51,7 @@ def main():
         shutil.copytree(source, tree / 'components/golden', ignore=shutil.ignore_patterns('__pycache__'))
         (tree / 'contracts').mkdir()
         shutil.copy2(ROOT / 'contracts/opcodes.yaml', tree / 'contracts/opcodes.yaml')
-        shutil.copytree(ROOT / 'tests/vectors/isa', tree / 'tests/vectors/isa')
+        shutil.copytree(ROOT / 'tests/inst/base', tree / 'tests/inst/base')
         model = tree / 'components/golden/dadao_interp_v5.py'
         original = model.read_bytes()
         original_digest = digest(model)
