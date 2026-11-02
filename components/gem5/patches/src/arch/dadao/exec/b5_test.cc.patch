@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b5_test.cc b/src/arch/dadao/exec/b5_test.cc
 new file mode 100644
-index 0000000..b5f496b
+index 0000000..baa346f
 --- /dev/null
 +++ b/src/arch/dadao/exec/b5_test.cc
-@@ -0,0 +1,2047 @@
+@@ -0,0 +1,2050 @@
 +/*
 + * DADAO gem5 B5 execution assertions (GEM5-010t).
 + *
@@ -531,6 +531,9 @@ index 0000000..b5f496b
 +      case exec::Fault::Memory: return "Memory";
 +      case exec::Fault::RasOverflow: return "RasOverflow";
 +      case exec::Fault::RasUnderflow: return "RasUnderflow";
++      case exec::Fault::NotB6: return "NotB6";
++      case exec::Fault::CfxReg: return "CfxReg";
++      case exec::Fault::CfxEsc: return "CfxEsc";
 +    }
 +    return "?";
 +}

@@ -4,7 +4,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 `manifests/components.lock.toml` 锁定；工作树由 `make fetch` +
 `make apply-series` 在 `.work/source/gem5` 建立。
 
-## 当前状态（GEM5-004t / B0 + GEM5-005t + GEM5-006t / B1 + GEM5-007t / B2 + GEM5-008t / B3 + GEM5-009t / B4 + GEM5-010t / B5）
+## 当前状态（GEM5-004t / B0 + GEM5-005t + GEM5-006t / B1 + GEM5-007t / B2 + GEM5-008t / B3 + GEM5-009t / B4 + GEM5-010t / B5 + GEM5-011t / B6）
 
 - **解码核心**：`src/arch/dadao/**` 骨架 + 契约驱动的解码表
   （格式/字段/opcode/6 位子表分派/助记符/非法与保留编码；
@@ -41,7 +41,20 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `rrii` 为 `rbha + rdhb + (sext(imms12)<<2)`），48 位截断交地址空间；
   RegRAS/MemRAS 状态机 C1/C2/C3a/C3b 与 D1/D2/D3/D4a/D4b（`RACNT`/
   `MRPTR`、递归折叠、MemRAS 大端换出/读回、RASOF/RASUF 与访存异常精确）。
-- **B6–B7 未实现**：非 B1–B5 的成功解码指令仍返回
+- **B6 执行语义**（`exec/b6.{hh,cc}`，30 条系统/原子/屏障）：
+  `swym`（no-op + `swymHint` 时延提示，`immu18` 非功能操作数）；`trap`/
+  `escape`/`cfx2rd`/`cfx2rc`（cfxha 保留 6–14/19–61 ⇒ ILLI；`escape`
+  `imms18[17:1] != 0` ⇒ ILLI、字节偏移仅 0/4；`cfx2rd/cfx2rc` 未建模组合 ⇒
+  CFXREG、`trap` 控制转移 `trapTo`、帧错误 ⇒ CFXESC；`cfx2rd` 目的 `rd0`
+  丢弃写不 ILLI）；`fence`（`immu18[17:12]` SBZ、`pred/succ` 六位掩码、
+  `cfxha=0` = all cfx、`pred=succ=0` 合法 no-op，`ordering()` 为平台接入点）；
+  `lr.*`/`sc.*` 各 12 条（宽度 8/4/2/1 × 存储序 nn/an|nr/ar，按 `entry->id`
+  分派；`lr` 零扩展大端读并置保留、`sc` 精确地址+宽度匹配后条件写并置
+  `rdHB=0/1`，无论成败清本 hart 保留；`lr` 的 `hb != rd0` ⇒ ILLI、`sc` 的
+  `rdHB = rd0` ⇒ ILLI；非 `.b` 未对齐 ⇒ MALIGN；MALIGN/访存 fault 精确、
+  不消费保留）。保留标记由每线程 `ISA` 单槽持有（精确地址 + 宽度，F8.1），
+  `clear()` 复位、不做检查点序列化。
+- **B7 未实现**：非 B1–B6 的成功解码指令仍返回
   `UnimplementedInstruction`（显式 panic）；未匹配/保留编码返回
   `IllegalInstruction`（ILLI）。不做跨批混写。
 - **断言**：264 行逐条解码断言（`decode-assertions.tsv`）+ 388 条非法/保留/
@@ -54,7 +67,11 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   201/201、窄位宽截断/扩展/舍入/比较/移位/rev/ILLI）由 `tools/gem5/check_b4.py`、
   B5 执行断言 `exec/b5_test.cc`（28/28、non-B5 236/236、块搬移范围/重叠/
   `rf0`/`ra0`、条件边界、64 位地址、RAS C1–C3b/D1–D4b、精确异常）由
-  `tools/gem5/check_b5.py` 编译运行（均不进 gem5 二进制，不改 `tests/**`）。
+  `tools/gem5/check_b5.py`、B6 执行断言 `exec/b6_test.cc`（30/30、non-B6
+  234/234、`rule_refs` 5/14/12、swym/fence 掩码 4096×2/`lr` 零扩展+MALIGN+
+  hb、`sc` 成功失败+宽度截断+精确 fault、CFXREG/CFXESC、保留单槽覆盖与消费）
+  由 `tools/gem5/check_b6.py` 编译运行（均不进 gem5 二进制，不改
+  `tests/**`）。
 - **GEM5-005t 增量**：`ftsclb`/`fosclb` 第三操作数 `rfhd/rf` → `rdhd/rd`
   （同 `orrr` 编码，SPEC-181t F5.2 C1；旧 rf 写法为负例守护）；12 条 `sc.*`
   的 `rdhb != rd0`（`dst_rd0`）合法性数据 + 28 条合法性断言（sc 目的 rd0
@@ -65,7 +82,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），
   清单见 `series`；规范 `docs/Process-01-组件补丁组织与构建编排.md`。
-- 规模（2026-11-02 现场统计）：**42 份** = 新增 40 + 修改 2
+- 规模（2026-11-02 现场统计）：**45 份** = 新增 43 + 修改 2
   （`src/arch/Kconfig`、`src/arch/SConscript`）。
 - 解码表由 `tools/gem5/gen_decode_table.py` 从 `contracts/opcodes.yaml` +
   `GEM5-002t` 矩阵生成；`--check` 为漂移门控（不手工编辑 `.inc`）。
@@ -82,6 +99,7 @@ python3 tools/gem5/check_b2.py --source .work/source/gem5   # B2 执行断言（
 python3 tools/gem5/check_b3.py --source .work/source/gem5   # B3 执行断言（42/42）
 python3 tools/gem5/check_b4.py --source .work/source/gem5   # B4 执行断言（63/63）
 python3 tools/gem5/check_b5.py --source .work/source/gem5   # B5 执行断言（28/28）
+python3 tools/gem5/check_b6.py --source .work/source/gem5   # B6 执行断言（30/30）
 make check-patch-tree
 ```
 

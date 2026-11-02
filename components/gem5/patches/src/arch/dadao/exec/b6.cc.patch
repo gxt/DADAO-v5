@@ -1,0 +1,401 @@
+diff --git a/src/arch/dadao/exec/b6.cc b/src/arch/dadao/exec/b6.cc
+new file mode 100644
+index 0000000..cd2e007
+--- /dev/null
++++ b/src/arch/dadao/exec/b6.cc
+@@ -0,0 +1,395 @@
++// DADAO gem5 B6 execution core -- implementation.
++//
++// The 30 B6 ids are dispatched through the table below, by `entry->id` (never
++// by mnemonic): lr/sc share the orrr format and 12 rows each, so width and
++// memory order come only from the id.  The id set must equal the batch_of()
++// B6 set of the GEM5-002t matrix.
++//
++// contract-isa §13.1/§13.6/§14.1/§14.2, spec/SimRISC-11 §1-§5,
++// spec/SimRISC-12 §1.1/§2.  Static legality is checked before any register,
++// cfx or memory access; MALIGN is checked before the access; CFXREG/CFXESC are
++// runtime faults that never commit a partial write.
++#include "arch/dadao/exec/b6.hh"
++
++#include <cstddef>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <string_view>
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++namespace
++{
++
++// Valid virtual addresses are 48-bit (contract-isa §1.5), same rule as B1.
++constexpr uint64_t kVaMask = (uint64_t(1) << 48) - 1;
++
++// one row per contracts/opcodes.yaml B6 id (30 rows).
++const B6Spec kSpecs[] = {
++    // ---- system: swym / trap / escape / cfx2rd / cfx2rc (5) -------------
++    // swym: immu18 is only a delay hint, never a functional operand.
++    {"swym_oiii_imm", B6Op::Swym, 0, 0,
++     nullptr, nullptr, nullptr, "immu18", nullptr, nullptr, nullptr},
++    {"trap_ciii_cfx", B6Op::Trap, 0, 0,
++     nullptr, nullptr, nullptr, "immu18", "cfxha", nullptr, nullptr},
++    {"escape_ciii_cfx", B6Op::Escape, 0, 0,
++     nullptr, nullptr, nullptr, "imms18", "cfxha", nullptr, nullptr},
++    {"cfx2rd_crrr_cfx", B6Op::CfxToRd, 0, 0,
++     "rdhd", nullptr, nullptr, nullptr, "cfxha", "cghb", "rchc"},
++    {"cfx2rc_crrr_cfx", B6Op::CfxFromRd, 0, 0,
++     "rdhd", nullptr, nullptr, nullptr, "cfxha", "cghb", "rchc"},
++    // ---- fence (1) ------------------------------------------------------
++    {"fence_ciii_cfx", B6Op::Fence, 0, 0,
++     nullptr, nullptr, nullptr, "immu18", "cfxha", nullptr, nullptr},
++    // ---- lr (12): hb(rdhb) is SBZ, the value goes to rdhc --------------
++    {"lr.o.nn_orrr_rd", B6Op::Lr, 8, 0,
++     "rdhc", nullptr, "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"lr.t.nn_orrr_rd", B6Op::Lr, 4, 0,
++     "rdhc", nullptr, "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"lr.w.nn_orrr_rd", B6Op::Lr, 2, 0,
++     "rdhc", nullptr, "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"lr.b.nn_orrr_rd", B6Op::Lr, 1, 0,
++     "rdhc", nullptr, "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"lr.o.an_orrr_rd", B6Op::Lr, 8, 1,
++     "rdhc", nullptr, "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"lr.t.an_orrr_rd", B6Op::Lr, 4, 1,
++     "rdhc", nullptr, "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"lr.w.an_orrr_rd", B6Op::Lr, 2, 1,
++     "rdhc", nullptr, "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"lr.b.an_orrr_rd", B6Op::Lr, 1, 1,
++     "rdhc", nullptr, "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"lr.o.ar_orrr_rd", B6Op::Lr, 8, 3,
++     "rdhc", nullptr, "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"lr.t.ar_orrr_rd", B6Op::Lr, 4, 3,
++     "rdhc", nullptr, "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"lr.w.ar_orrr_rd", B6Op::Lr, 2, 3,
++     "rdhc", nullptr, "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"lr.b.ar_orrr_rd", B6Op::Lr, 1, 3,
++     "rdhc", nullptr, "rbhd", nullptr, nullptr, nullptr, nullptr},
++    // ---- sc (12): rdhb is the success (0) / failure (1) result ----------
++    {"sc.o.nn_orrr_rd", B6Op::Sc, 8, 0,
++     "rdhb", "rdhc", "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"sc.t.nn_orrr_rd", B6Op::Sc, 4, 0,
++     "rdhb", "rdhc", "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"sc.w.nn_orrr_rd", B6Op::Sc, 2, 0,
++     "rdhb", "rdhc", "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"sc.b.nn_orrr_rd", B6Op::Sc, 1, 0,
++     "rdhb", "rdhc", "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"sc.o.nr_orrr_rd", B6Op::Sc, 8, 2,
++     "rdhb", "rdhc", "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"sc.t.nr_orrr_rd", B6Op::Sc, 4, 2,
++     "rdhb", "rdhc", "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"sc.w.nr_orrr_rd", B6Op::Sc, 2, 2,
++     "rdhb", "rdhc", "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"sc.b.nr_orrr_rd", B6Op::Sc, 1, 2,
++     "rdhb", "rdhc", "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"sc.o.ar_orrr_rd", B6Op::Sc, 8, 3,
++     "rdhb", "rdhc", "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"sc.t.ar_orrr_rd", B6Op::Sc, 4, 3,
++     "rdhb", "rdhc", "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"sc.w.ar_orrr_rd", B6Op::Sc, 2, 3,
++     "rdhb", "rdhc", "rbhd", nullptr, nullptr, nullptr, nullptr},
++    {"sc.b.ar_orrr_rd", B6Op::Sc, 1, 3,
++     "rdhb", "rdhc", "rbhd", nullptr, nullptr, nullptr, nullptr},
++};
++
++constexpr size_t kNumSpecs = sizeof(kSpecs) / sizeof(kSpecs[0]);
++static_assert(kNumSpecs == 30, "B6 must cover exactly the 30 contract ids");
++
++/** A batch-6 instruction this table cannot execute is a contract or
++ * implementation mismatch.  Trap instead of silently succeeding. */
++[[noreturn]] void
++internalError(const char *what)
++{
++    std::fprintf(stderr, "DADAO B6: internal error: %s\n", what);
++    std::abort();
++}
++
++/** Fetch one decoded field by name; a missing field means the decode table
++ * and this core disagree -- hard failure, never a silent zero. */
++uint64_t
++field(const decode::DecodedInst &inst, const char *name)
++{
++    uint64_t value = 0;
++    if (name == nullptr || !fieldValue(inst, name, value)) {
++        std::fprintf(stderr,
++                     "DADAO B6: internal error: %s misses field %s\n",
++                     inst.entry->id, name == nullptr ? "(null)" : name);
++        std::abort();
++    }
++    return value;
++}
++
++/** Reserved cfx numbers trigger ILLI for every cfx system instruction
++ * (spec/SimRISC-11 §1: 6-14 and 19-61). */
++bool
++cfxReserved(uint64_t cfxha)
++{
++    return (cfxha >= 6 && cfxha <= 14) || (cfxha >= 19 && cfxha <= 61);
++}
++
++/** Big-endian bytes -> value, zero-extended (DADAO is big-endian). */
++uint64_t
++beToHost(const uint8_t *buf, unsigned width)
++{
++    uint64_t value = 0;
++    for (unsigned i = 0; i < width; ++i)
++        value = (value << 8) | buf[i];
++    return value;
++}
++
++/** Value -> the low `width` big-endian bytes. */
++void
++hostToBe(uint64_t value, unsigned width, uint8_t *buf)
++{
++    for (unsigned i = 0; i < width; ++i)
++        buf[i] = (value >> (8 * (width - 1 - i))) & 0xFF;
++}
++
++bool
++isAligned(uint64_t addr, unsigned width)
++{
++    return width <= 1 || (addr & (uint64_t(width) - 1)) == 0;
++}
++
++/** lr.<width>: read a zero-extended big-endian window, then set the
++ * reservation for the exact address and width (contract-isa §14.2). */
++Fault
++executeLr(const decode::DecodedInst &inst, B6Context &ctx, const B6Spec &spec)
++{
++    // hb (rdhb) is SBZ and fixed to rd0; a hand-written non-zero hb is ILLI
++    // before any register or memory access (encode_sbz).
++    if (field(inst, "rdhb") != 0)
++        return Fault::Illegal;
++
++    const uint64_t addr = ctx.readInt(Bank::Rb, field(inst, spec.baseField)) &
++                          kVaMask;
++    const unsigned width = spec.width;
++    if (!isAligned(addr, width)) {
++        ctx.reportMalign(addr, width);
++        return Fault::Malign;
++    }
++
++    uint8_t buf[8] = {};
++    if (!ctx.readMemOrdered(addr, width, buf, spec.order))
++        return Fault::Memory;
++
++    const uint64_t value = beToHost(buf, width);
++    const unsigned rd = static_cast<unsigned>(field(inst, spec.dstField));
++    // rdHC == rd0 reads as 0 and never writes: the data destination is a
++    // plain value destination, it is not part of the static legality set.
++    if (rd != 0)
++        ctx.writeInt(Bank::Rd, rd, value);
++    ctx.setReservation(addr, width);
++    return Fault::None;
++}
++
++/** sc.<width>: conditional store.  The reservation must match address *and*
++ * width; every completed sc consumes the reservation, success or failure. */
++Fault
++executeSc(const decode::DecodedInst &inst, B6Context &ctx, const B6Spec &spec)
++{
++    // rdHB is the success/failure result; discarding it is ILLI (dst_rd0),
++    // statically, before any register or memory access.
++    const unsigned rd = static_cast<unsigned>(field(inst, spec.dstField));
++    if (rd == 0)
++        return Fault::Illegal;
++
++    const uint64_t addr = ctx.readInt(Bank::Rb, field(inst, spec.baseField)) &
++                          kVaMask;
++    const unsigned width = spec.width;
++    // MALIGN is decided before touching memory and before writing rdHB: a
++    // misaligned sc does not consume the reservation (precise fault).
++    if (!isAligned(addr, width)) {
++        ctx.reportMalign(addr, width);
++        return Fault::Malign;
++    }
++
++    const uint64_t value = ctx.readInt(Bank::Rd,
++                                       field(inst, spec.srcField));
++    const bool held = ctx.hasReservation(addr, width);
++    if (held) {
++        uint8_t buf[8] = {};
++        hostToBe(value, width, buf);
++        // A memory fault aborts the instruction: no rdHB write and the
++        // reservation stays (precise exception, contract-isa §15.2).
++        if (!ctx.writeMemOrdered(addr, buf, width, spec.order))
++            return Fault::Memory;
++    }
++    // Success and conditional failure both clear this hart's reservations.
++    ctx.clearReservations();
++    ctx.writeInt(Bank::Rd, rd, held ? 0 : 1);
++    return Fault::None;
++}
++
++/** fence: hb is SBZ; pred/succ are the six-bit access masks.  cfxha 0 means
++ * "all cfx" and is forwarded unchanged (not aliased to umon). */
++Fault
++executeFence(const decode::DecodedInst &inst, B6Context &ctx,
++             const B6Spec &spec)
++{
++    const uint64_t cfxha = field(inst, spec.cfxField);
++    const uint64_t immu18 = field(inst, spec.immField);
++    // hb = immu18[17:12] must be zero.
++    if ((immu18 >> 12) != 0)
++        return Fault::Illegal;
++    if (cfxReserved(cfxha))
++        return Fault::Illegal;
++    ctx.ordering(static_cast<uint8_t>(cfxha),
++                 static_cast<uint8_t>((immu18 >> 6) & 0x3F),
++                 static_cast<uint8_t>(immu18 & 0x3F));
++    return Fault::None;
++}
++
++/** escape: imms18 encodes the byte offset (0 or 4) as imms18 << 2; bits
++ * imms18[17:1] are SBZ.  A rejected frame/target is CFXESC, decided before
++ * the privilege switch. */
++Fault
++executeEscape(const decode::DecodedInst &inst, B6Context &ctx,
++              const B6Spec &spec)
++{
++    const uint64_t cfxha = field(inst, spec.cfxField);
++    const uint64_t imms18 = field(inst, spec.immField) & 0x3FFFF;
++    if ((imms18 >> 1) != 0)
++        return Fault::Illegal;
++    if (cfxReserved(cfxha))
++        return Fault::Illegal;
++    const uint32_t byteOffset = static_cast<uint32_t>(imms18) << 2;
++    if (!ctx.escapeFrom(static_cast<uint8_t>(cfxha), byteOffset))
++        return Fault::CfxEsc;
++    return Fault::None;
++}
++
++/** cfx2rd: rdHD (rd) = cfx_<ha>_cg_rc.  A missing combination or a permission
++ * mismatch is CFXREG, and then rdHD is not written. */
++Fault
++executeCfxToRd(const decode::DecodedInst &inst, B6Context &ctx,
++               const B6Spec &spec)
++{
++    const uint64_t cfxha = field(inst, spec.cfxField);
++    if (cfxReserved(cfxha))
++        return Fault::Illegal;
++    const uint8_t cg = static_cast<uint8_t>(field(inst, spec.cgField));
++    const uint8_t rc = static_cast<uint8_t>(field(inst, spec.rcField));
++    uint64_t value = 0;
++    if (!ctx.readCfx(static_cast<uint8_t>(cfxha), cg, rc, value))
++        return Fault::CfxReg;
++    const unsigned rd = static_cast<unsigned>(field(inst, spec.dstField));
++    // contract-isa §13.6 closes the static rule set at encode_cfx_reserved,
++    // and opcodes.yaml has no dst_rd0 row for cfx2rd: a rd0 destination is a
++    // discarded write, not ILLI (see the task's open question 3).
++    if (rd != 0)
++        ctx.writeInt(Bank::Rd, rd, value);
++    return Fault::None;
++}
++
++/** cfx2rc: cfx_<ha>_cg_rc = rdHD (rd, rd0 reads 0).  CFXREG leaves the cfx
++ * register untouched. */
++Fault
++executeCfxFromRd(const decode::DecodedInst &inst, B6Context &ctx,
++                 const B6Spec &spec)
++{
++    const uint64_t cfxha = field(inst, spec.cfxField);
++    if (cfxReserved(cfxha))
++        return Fault::Illegal;
++    const uint8_t cg = static_cast<uint8_t>(field(inst, spec.cgField));
++    const uint8_t rc = static_cast<uint8_t>(field(inst, spec.rcField));
++    const uint64_t value = ctx.readInt(Bank::Rd,
++                                       field(inst, spec.dstField));
++    if (!ctx.writeCfx(static_cast<uint8_t>(cfxha), cg, rc, value))
++        return Fault::CfxReg;
++    return Fault::None;
++}
++
++// The body is kept in a noinline helper so the exported `executeB6` symbol
++// stays a single symbol (GCC otherwise partitions a `.cold` clone out of the
++// large function; the acceptance check counts `executeB6`).
++__attribute__((noinline)) Fault
++runB6(const decode::DecodedInst &inst, B6Context &ctx)
++{
++    if (!inst.ok() || inst.entry->batch != 6)
++        return Fault::NotB6;
++
++    const B6Spec *spec = b6SpecForId(inst.entry->id);
++    if (spec == nullptr)
++        internalError("uncovered batch-6 id");
++
++    switch (spec->op) {
++      case B6Op::Swym: {
++        // No architectural side effect; immu18 is only a delay hint.
++        const uint64_t immu18 = field(inst, spec->immField);
++        ctx.swymHint(static_cast<uint32_t>(immu18));
++        return Fault::None;
++      }
++
++      case B6Op::Fence:
++        return executeFence(inst, ctx, *spec);
++
++      case B6Op::Lr:
++        return executeLr(inst, ctx, *spec);
++
++      case B6Op::Sc:
++        return executeSc(inst, ctx, *spec);
++
++      case B6Op::Trap: {
++        // Transfer control to the cfx exception vector; no GPR/RF/RB write.
++        const uint64_t cfxha = field(inst, spec->cfxField);
++        if (cfxReserved(cfxha))
++            return Fault::Illegal;
++        ctx.trapTo(static_cast<uint8_t>(cfxha),
++                   static_cast<uint32_t>(field(inst, spec->immField)));
++        return Fault::None;
++      }
++
++      case B6Op::Escape:
++        return executeEscape(inst, ctx, *spec);
++
++      case B6Op::CfxToRd:
++        return executeCfxToRd(inst, ctx, *spec);
++
++      case B6Op::CfxFromRd:
++        return executeCfxFromRd(inst, ctx, *spec);
++    }
++
++    internalError("unknown B6 op");
++}
++
++} // anonymous namespace
++
++size_t
++b6SpecCount()
++{
++    return kNumSpecs;
++}
++
++const B6Spec *
++b6Specs()
++{
++    return kSpecs;
++}
++
++const B6Spec *
++b6SpecForId(std::string_view id)
++{
++    for (size_t i = 0; i < kNumSpecs; ++i) {
++        if (id == kSpecs[i].id)
++            return &kSpecs[i];
++    }
++    return nullptr;
++}
++
++Fault
++executeB6(const decode::DecodedInst &inst, B6Context &ctx)
++{
++    return runB6(inst, ctx);
++}
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5

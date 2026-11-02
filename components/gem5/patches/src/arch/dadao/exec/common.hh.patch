@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/common.hh b/src/arch/dadao/exec/common.hh
 new file mode 100644
-index 0000000..8a03a2f
+index 0000000..972ae7f
 --- /dev/null
 +++ b/src/arch/dadao/exec/common.hh
-@@ -0,0 +1,120 @@
+@@ -0,0 +1,127 @@
 +// DADAO gem5 execution core: shared register access for the B1-B7 batches.
 +//
 +// Plain C++ (no gem5 headers), like the B0 decode core, so the same code is
@@ -32,13 +32,17 @@ index 0000000..8a03a2f
 +
 +/** Result of executing one instruction.
 + *
-+ * NotB1/NotB2/NotB3/NotB4/NotB5 mean "this instruction is not in that batch";
-+ * the caller must keep it unimplemented rather than guessing.  Each
-+ * executeB*() returns only its own NotB* value (never another batch's), and
-+ * the caller keeps the instruction unimplemented in that case.
++ * NotB1/.../NotB6 mean "this instruction is not in that batch"; the caller
++ * must keep it unimplemented rather than guessing.  Each executeB*() returns
++ * only its own NotB* value (never another batch's), and the caller keeps the
++ * instruction unimplemented in that case.
 + *
 + * RasOverflow/RasUnderflow are the B5 RAS faults (contract-isa §8.6); they are
 + * precise and only the B5 call/ret core can return them.
++ *
++ * CfxReg/CfxEsc are the B6 runtime faults (contract-isa §13.6, spec/SimRISC-11
++ * §3/§4): a missing cfx register combination or a rejected escape frame.  They
++ * are appended after the existing values so no earlier enumerator changes.
 + */
 +enum class Fault
 +{
@@ -53,6 +57,9 @@ index 0000000..8a03a2f
 +    Memory,
 +    RasOverflow,
 +    RasUnderflow,
++    NotB6,
++    CfxReg,
++    CfxEsc,
 +};
 +
 +/** Integer banks; RF goes through the float accessors. */

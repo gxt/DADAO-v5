@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..eabe9a9
+index 0000000..2fad02c
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,90 @@
+@@ -0,0 +1,114 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
@@ -44,14 +44,38 @@ index 0000000..eabe9a9
 +void
 +ISA::clear()
 +{
-+    // Architectural GPRs are cleared by the CPU's register file reset; B0
-+    // has no ISA-private state yet.
++    // Architectural GPRs are cleared by the CPU's register file reset; the
++    // only ISA-private state is the B6 reservation slot.
++    clearReservations();
++}
++
++void
++ISA::setReservation(Addr addr, unsigned width)
++{
++    reservationValid = true;
++    reservationAddr = addr;
++    reservationWidth = width;
++}
++
++bool
++ISA::hasReservation(Addr addr, unsigned width) const
++{
++    return reservationValid && reservationAddr == addr &&
++           reservationWidth == width;
++}
++
++void
++ISA::clearReservations()
++{
++    reservationValid = false;
++    reservationAddr = 0;
++    reservationWidth = 0;
 +}
 +
 +RegVal
 +ISA::readMiscRegNoEffect(RegIndex idx) const
 +{
-+    panic("DADAO B0: misc register %d read before the B6 cfx/mode model",
++    panic("DADAO B0: misc register %d read before the cfx/mode model",
 +          idx);
 +    return 0; // unreachable; panic is not marked [[noreturn]]
 +}
@@ -65,7 +89,7 @@ index 0000000..eabe9a9
 +void
 +ISA::setMiscRegNoEffect(RegIndex idx, RegVal val)
 +{
-+    panic("DADAO B0: misc register %d write (%#x) before the B6 model",
++    panic("DADAO B0: misc register %d write (%#x) before the cfx model",
 +          idx, val);
 +}
 +
@@ -78,7 +102,7 @@ index 0000000..eabe9a9
 +bool
 +ISA::inUserMode() const
 +{
-+    panic("DADAO B0: privilege model not implemented (B6)");
++    panic("DADAO B0: privilege model not implemented");
 +    return false; // unreachable; panic is not marked [[noreturn]]
 +}
 +

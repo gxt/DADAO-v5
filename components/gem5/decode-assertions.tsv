@@ -88,18 +88,18 @@ row	id	batch	scope	mnemonic	format	opc	ha	mask	value	inst	fields	legality	rules	
 87	trap_ciii_cfx	B6	m1	trap	ciii	0x7f	—	0xff000000	0x7f000000	0x7fa80035	cfxha[23:18]cfxcode/imm=0x2a;immu18[17:0]imm/imm=0x35	cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62	encode_cfx_reserved	contract-isa §13.6	Decoded
 88	fence_ciii_cfx	B6	m9	fence	ciii	0x79	—	0xff000000	0x79000000	0x79a80035	cfxha[23:18]cfxcode/imm=0x2a;immu18[17:0]imm/imm=0x35	immu18[17:12] == 0;cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62	encode_sbz;encode_cfx_reserved	contract-isa §14.1	Decoded
 89	swym_oiii_imm	B6	m1	swym	oiii	0x47	ha=0x22	0xfffc0000	0x47880000	0x4788002a	immu18[17:0]imm/imm=0x2a			contract-isa §13.1	Decoded
-90	lr.o.nn_orrr_rd	B6	m9	lr.o.nn	orrr	0x47	ha=0x00	0xfffc0000	0x47000000	0x4702ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1			contract-isa §14.2	Decoded
-91	lr.t.nn_orrr_rd	B6	m9	lr.t.nn	orrr	0x47	ha=0x01	0xfffc0000	0x47040000	0x4706ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1			contract-isa §14.2	Decoded
-92	lr.w.nn_orrr_rd	B6	m9	lr.w.nn	orrr	0x47	ha=0x02	0xfffc0000	0x47080000	0x470aad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1			contract-isa §14.2	Decoded
-93	lr.b.nn_orrr_rd	B6	m9	lr.b.nn	orrr	0x47	ha=0x03	0xfffc0000	0x470c0000	0x470ead41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1			contract-isa §14.2	Decoded
-94	lr.o.an_orrr_rd	B6	m9	lr.o.an	orrr	0x47	ha=0x04	0xfffc0000	0x47100000	0x4712ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1			contract-isa §14.2	Decoded
-95	lr.t.an_orrr_rd	B6	m9	lr.t.an	orrr	0x47	ha=0x05	0xfffc0000	0x47140000	0x4716ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1			contract-isa §14.2	Decoded
-96	lr.w.an_orrr_rd	B6	m9	lr.w.an	orrr	0x47	ha=0x06	0xfffc0000	0x47180000	0x471aad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1			contract-isa §14.2	Decoded
-97	lr.b.an_orrr_rd	B6	m9	lr.b.an	orrr	0x47	ha=0x07	0xfffc0000	0x471c0000	0x471ead41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1			contract-isa §14.2	Decoded
-98	lr.o.ar_orrr_rd	B6	m9	lr.o.ar	orrr	0x47	ha=0x08	0xfffc0000	0x47200000	0x4722ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1			contract-isa §14.2	Decoded
-99	lr.t.ar_orrr_rd	B6	m9	lr.t.ar	orrr	0x47	ha=0x09	0xfffc0000	0x47240000	0x4726ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1			contract-isa §14.2	Decoded
-100	lr.w.ar_orrr_rd	B6	m9	lr.w.ar	orrr	0x47	ha=0x0a	0xfffc0000	0x47280000	0x472aad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1			contract-isa §14.2	Decoded
-101	lr.b.ar_orrr_rd	B6	m9	lr.b.ar	orrr	0x47	ha=0x0b	0xfffc0000	0x472c0000	0x472ead41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1			contract-isa §14.2	Decoded
+90	lr.o.nn_orrr_rd	B6	m9	lr.o.nn	orrr	0x47	ha=0x00	0xfffc0000	0x47000000	0x4702ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded
+91	lr.t.nn_orrr_rd	B6	m9	lr.t.nn	orrr	0x47	ha=0x01	0xfffc0000	0x47040000	0x4706ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded
+92	lr.w.nn_orrr_rd	B6	m9	lr.w.nn	orrr	0x47	ha=0x02	0xfffc0000	0x47080000	0x470aad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded
+93	lr.b.nn_orrr_rd	B6	m9	lr.b.nn	orrr	0x47	ha=0x03	0xfffc0000	0x470c0000	0x470ead41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded
+94	lr.o.an_orrr_rd	B6	m9	lr.o.an	orrr	0x47	ha=0x04	0xfffc0000	0x47100000	0x4712ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded
+95	lr.t.an_orrr_rd	B6	m9	lr.t.an	orrr	0x47	ha=0x05	0xfffc0000	0x47140000	0x4716ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded
+96	lr.w.an_orrr_rd	B6	m9	lr.w.an	orrr	0x47	ha=0x06	0xfffc0000	0x47180000	0x471aad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded
+97	lr.b.an_orrr_rd	B6	m9	lr.b.an	orrr	0x47	ha=0x07	0xfffc0000	0x471c0000	0x471ead41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded
+98	lr.o.ar_orrr_rd	B6	m9	lr.o.ar	orrr	0x47	ha=0x08	0xfffc0000	0x47200000	0x4722ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded
+99	lr.t.ar_orrr_rd	B6	m9	lr.t.ar	orrr	0x47	ha=0x09	0xfffc0000	0x47240000	0x4726ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded
+100	lr.w.ar_orrr_rd	B6	m9	lr.w.ar	orrr	0x47	ha=0x0a	0xfffc0000	0x47280000	0x472aad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded
+101	lr.b.ar_orrr_rd	B6	m9	lr.b.ar	orrr	0x47	ha=0x0b	0xfffc0000	0x472c0000	0x472ead41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded
 102	sc.o.nn_orrr_rd	B6	m9	sc.o.nn	orrr	0x47	ha=0x10	0xfffc0000	0x47400000	0x4742ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb != rd0	dst_rd0	contract-isa §14.2	Decoded
 103	sc.t.nn_orrr_rd	B6	m9	sc.t.nn	orrr	0x47	ha=0x11	0xfffc0000	0x47440000	0x4746ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb != rd0	dst_rd0	contract-isa §14.2	Decoded
 104	sc.w.nn_orrr_rd	B6	m9	sc.w.nn	orrr	0x47	ha=0x12	0xfffc0000	0x47480000	0x474aad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb != rd0	dst_rd0	contract-isa §14.2	Decoded
