@@ -101,5 +101,13 @@
 | check_contract.py 把 rules 顶层当列表 | ✅已修 | 取 `["rules"]` | run.sh rc=0 |
 | 注入断言用 `==1`，make 实际 rc=2 | ✅已修 | 新增 `report_nonzero` | `--inject` 中 drift rc=2 判 PASS |
 
-#### 第 1 轮 reviewer 验收
-（待填）
+#### 第 1 轮 reviewer 验收（2026-11-02，独立重跑）
+**现场**：分支 SPEC-182t / HEAD `82e914df`（WIP），审前审后 `git status --porcelain -uall` 均空；`git diff --name-only 8e7f26e6..HEAD` = 恰 8 文件（任务书、milestones、contract-isa、legality_rules、opcodes.yaml、generate_opcodes.py、SimRISC-12、只读锁），无 tests/components/LLVM/QEMU/Makefile 改动。
+**门控重跑（我自己的 rc）**：check-legality-invariants / check-isa-coverage / check-spec-readonly / check-instrinfo / validate-encoding / check-legality-drift / check-rule-refs / check-milestones-fresh **8/8 rc=0**（另 check-contracts-pending rc=0）；注入还原后终检复跑仍 8/8 rc=0。证据脚本 `./.work/evidence/SPEC-182t/run.sh` rc=0、`run.sh --inject` rc=0（inject-A check_contract rc=1、inject-B drift rc=2，与完成区一致）。
+**12/12**：现场派生 lr 记录 12，全部 `legality==["rdhb == rd0"]`、`rule_refs==["encode_sbz"]`；`encode_sbz` status=active/fault=ILLI/kind=static；附录 B `encode_sbz` 行恰 12 个 id、集合与 lr id 集合相等、标注（12 条）；`gen_legality_list.py --verify` 12 册全 OK。
+**编码 0 diff**：`git show 8e7f26e6:contracts/opcodes.yaml` vs 当前，12 条 lr 的 `id/opc/ha/mask/value/fields` 0 diff，lr 无其它字段变化，非 lr 记录 0 变化（仅头注 `有 rule_refs 231→243`）；重跑 `generate_opcodes.py` 后 md5 `da91e56e…` 不变 ⇒ 生成物非手改。
+**只读锁**：`sha256sum spec/SimRISC-12` = `a1224b92…51d77` 与锁值逐字相等；锁 diff 仅 SimRISC-12 块（4+/1-，含授权注记），未误改其它册条目；check-spec-readonly 21 册 OK。
+**独立注入（cp+md5，未用 git checkout/restore/stash）**：A 改 `contracts/opcodes.yaml` 首条 lr `rdhb == rd0`→`!=`（md5 `da91e5…`→`e7c615…`）⇒ 证据 `check_contract` rc=1 FAIL，还原 md5 相等后 rc=0；B 删 SimRISC-12 附录 `encode_sbz` 行（`762117…`→`441ffc…`）⇒ `check-legality-drift` rc=2（1 violation）+ `check-spec-readonly` rc=2（MISMATCH），还原后两者 rc=0。审后对账：status 空、8 文件 md5 与审前快照逐一相等。
+**约束核验**：状态 `待验收`、完成区 15 行；`rdhb role=dst` 已写明「orrr 位域默认分类、不表示写回、数据目的 rdhc」（实测字段 rdhb=dst/rdhc=src 一致）；跨模块遗留（B6 断言 L38/L240 过期、矩阵 g1_note）本任务未改、已披露，未伪称完成；LLVM/QEMU/tests 不改有据（check-instrinfo/check-isa-coverage 绿；QEMU patch `a->hb != 0 ⇒ ILLI`；`atomics-lrsc.yaml` 已有 `rdHB = rd2 != rd0 -> ILLI` 用例）。
+**findings（不阻断，交 architect 收尾）**：① 无 repo 门控校验 legality↔rule_refs 一致性——注入 A 后 validate-encoding / check-legality-drift / check-rule-refs / check-legality-invariants 全 rc=0，仅证据脚本捕获（门控脚本不在本任务范围，建议另立遗留补进 check-legality-invariants）；② 任务书 §未决 1 仍写「未确认 ⇒ BLOCKED」，spec 册授权原话只落在只读锁注记，收尾请回填任务书；③ 完成区遗留②写「12 条 lr g1_note」，现场为 **24 行**（12 lr + 12 sc）同文注记，收尾更正；④ 任务书称 B6 任务书「未提交」，实际已在 `8e7f26e6` 提交（过期断言属实、未改）。
+**判决：Accepted** —— 验收标准 1–7 全部由我本人重跑证实（命令/输出/退出码见上），范围 8 文件无越界、无凑绿、无改门控/测试；上述 4 条 finding 为文档级/遗留登记，不改本轮判决。
