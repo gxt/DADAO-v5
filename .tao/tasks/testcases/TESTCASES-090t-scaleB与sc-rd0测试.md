@@ -39,11 +39,11 @@
 
 ## 完成区
 
-**测试结果**：LLVM 阶段完成。`.work/evidence/TESTCASES-090t/run.sh` rc=0（12/12 PASS）；`--inject` rc=0（4/4 均可达 FAIL→cp+md5 还原→回绿）。`make check-lit` 161/161、`check-lit-full` 11/11、`check-isa-coverage` PASS（真源 264 == TSV 数据行 264）、`check-tests-index`（239）、`check-case-ledger`（1969）、`check-patch-tree`（205 patches）、`check-source-state`、`check-generator-sync`、`check-milestones-fresh` 均 rc=0。**QEMU/gem5 阶段 BLOCKED：QEMU-078t/GEM5-005t 未实现，未运行/未伪造其结果**。
-**修改文件**：`tests/unit/llvm/lit/MC/DADAO/fp-encoding.s`（正例第三操作数改 `rd8`；旧 `rf` 只留 2 条 `OLD-RF` 负例 RUN）；`tests/unit/llvm/lit/CodeGen/DADAO/fp-ldexp.ll`（去 `io2fo/it2ft` 断言，改 `--implicit-check-not` + `rf, rf, rd` 断言）；`tests/unit/llvm/lit/MC/DADAO-gen/gen-orrr.s`（生成器重生成）；`tools/llvm/llvm-isa-backend-matrix.{tsv,md}`（生成器重生成）；本任务书；`.tao/knowledge/milestones.md`。证据：`.work/evidence/TESTCASES-090t/{run.sh,run.log,inject.log}`。
-**验收结果**：`ftsclb rf4, rf6, rd8` = `44 54 41 88`、`fosclb rf4, rf6, rd63` = `44 74 41 bf`（期望值由 `contracts/opcodes.yaml` 现场派生，objdump 回读含 `rdN`）；旧 `ftsclb/fosclb rf4, rf6, rf8` rc=1 `invalid operand`；`llc` ldexp：f64/f32 为 `ext.so rd4, rd16, 31; fosclb/ftsclb rf8, rf16, rd4`，i64 直用 `rd16`，全程无 `io2fo/it2ft`。矩阵与旧版逐字段比对（去掉行号）仅 `ftsclb/fosclb` 的 `L1_asm` 两格变化，`accept 264/reject 0`、编码 mismatch 0、`L2 yes 202/no 62` 不变。
-**新发现/坑**：① lit 资产分两类：`gen-orrr.s`/`gen-fast.s` 是 `generate_lit_vectors.py` 生成物，`fp-encoding.s`/`fp-ldexp.ll` 为手写；`opcodes.yaml` 已被 SPEC-181t 改为 `rdhd`，重生成器只改了 `gen-orrr.s` 4 行（ASM 注释+指令），编码字未变（`rf8`/`rd8` 同位域值 0x88）。② 矩阵重生成的大 diff 主要是 `DADAOCodeGen.td.patch` 行号漂移（LLVM-142t 补丁增行），非语义变化；`check-isa-coverage` 基线实际有 4 项（含多处行号）。③ `%not ... | FileCheck` 可作旧语法负例，但必须同时断言诊断文本，否则“未知助记符”等其它失败会假绿。④ `--implicit-check-not` 对整份 llc 输出生效，比在函数块内摆 `CHECK-NOT` 可靠。
-**遗留问题**：① QEMU/gem5 阶段全部 BLOCKED：12 条 `sc rdHB=rd0 ⇒ ILLI` 运行期负例、scaleB C1 运行期语义、QEMU system 与 gem5 FS 一致性对照均待 QEMU-078t/GEM5-005t 实现后补测；② 本次未新增 `tests/inst`/`arch` 运行期向量（依赖同一实现）；③ `sc rd0` 的汇编期拒绝未新增 lit（LLVM-142t 已定向验证，非本 LLVM 资产同步范围，可留测试阶段补）。
+**测试结果**：QEMU 段本轮完成：`.work/evidence/TESTCASES-090t-qemu/run.sh` rc=0（checks=28 failures=0）——独立 oracle 140 项、targeted `fp/scaleb.yaml` 12/12、`atomics/sc-rd0.yaml` 14/14、`make check-inst-smoke` 90/90、`validate-vectors`、`check-tests-index`（241）、`check-case-ledger`（1995）、`check-spec-cite-targets`、`semantics_gate --check-only`（L3 载体 22 册/1012 例）、`check-dirs`/`check-no-residue`/`check-interface` 全 rc=0；3 组注入（错期望值 / rdHB≠0 / 删 ledger 行）均可达 FAIL→cp+md5 还原→回绿。LLVM 段沿用前轮：`check-lit` 161/161、`check-isa-coverage` PASS。**gem5 FS 段仍 BLOCKED：GEM5-005t 未完成，未运行/未伪造其结论**。
+**修改文件**：本轮新增/改：`tests/inst/fp/scaleb.yaml`（新载体，12 例）、`tests/inst/atomics/sc-rd0.yaml`（14 例）、`tests/inst/inventory.md`（L3 载体登记 2 行 + 范围说明）、`tests/inst.yaml`（`inst-fp-001` / `inst-atomics-008`）、`tests/case-ledger.tsv`（`--write` 重生成 +26 行）、`tools/qemu/semantics_gate.py`（`CARRIER_DIRS` 增 `fp`）；本任务书。证据：`.work/evidence/TESTCASES-090t-qemu/{run.sh,run_cases.py,oracle_vectors.py,logs/run.log}`。前轮 LLVM 文件（`fp-encoding.s`/`fp-ldexp.ll`/`gen-orrr.s`/`llvm-isa-backend-matrix.*`）见下，本轮未再改。
+**验收结果**：scaleB：`ftsclb rf4,rf1,rd3`=`0x44544043`，1.5f×2^2=6.0f(`0x40C00000`)、rd3=-1→0.75f、rd3=200→+Inf、-200→+0、rd0→1.5f、dst=src→6.0f，f64 同构（6.0/0.75/±Inf/0），rf3=10.0 诱饵在全部用例中不生效。sc：12 条 `sc.* rdHB=rd0` 全部 ILLI；`sc.o.nn rd5,rd0,[rb4]`（先 `lr.o.nn` 持保留）成功：rd5=0、内存=0；`sc.o.nn rd5,rd6,[rb4]` 成功：rd5=0、内存=`0x0123456789ABCDEF`。L2 代表集不变（90 条全绿）。
+**新发现/坑**：① `lr` 的 rdHB 固定 rd0（spec SimRISC-12），手写 sequence 用 rdHB≠0 会先 ILLI——本轮实际踩到，由 oracle 的 lr 字段检查拦下；② rf 组无 `input_state` 通道，浮点源/结果须用 `ld.o/st.o rf` 原始编码 sequence；③ `validate_vectors` 只扫 `base/*.yaml` 且 id 必须为 M1 身份 ⇒ 非 M1（fp/m9）向量须放非 base 载体，并同步 inventory 门控表 + `CARRIER_DIRS` + `tests/inst.yaml` + case-ledger（缺一即红）；④ `sc` 的「不写内存/不置结果」在 YAML 不可断言（legality 无 expected_state），只能依赖静态 ILLI 语义；⑤ 旧 `rf,rf,rf` 与新语法同编码，QEMU 侧只能靠 rf 诱饵证明第三源取 rd。
+**遗留问题**：① gem5 FS 段 BLOCKED（GEM5-005t 未完成）；QEMU system × gem5 FS 一致性对照未做；② 未跑 L3 全量 `check-inst`（本轮 = targeted + 结构断言 + L2 smoke）；③ `sc rd0` 汇编期拒绝仍只有 LLVM-142t 定向验证（未新增 lit）；④ 前轮 LLVM 遗留项不变。
 
 ## 审阅记录
 
@@ -64,3 +64,20 @@
 - 档位：`待验收`（reviewer 未验收）⇒ WIP。
 - 提交：`a83a9a7c` `WIP: TESTCASES-090t LLVM 资产同步（QEMU/gem5 阶段待实现）`（7 files, +358/-340）。
 - 文件集对账：显式 staging 7 项，与完成区「修改文件」逐项一致（`fp-encoding.s`、`fp-ldexp.ll`、`gen-orrr.s`、`llvm-isa-backend-matrix.{tsv,md}`、本任务书、`milestones.md`）；漏提 0 / 多提 0 / 越界 0；无 `components/`、`spec/`、`contracts/`、QEMU/gem5、`Makefile` 改动；`git status --porcelain -uall` 除本行外干净。
+
+### 第 2 轮 engineer 自审（QEMU 段）
+
+**范围**：逐行审 `tests/inst/fp/scaleb.yaml`、`tests/inst/atomics/sc-rd0.yaml`、`tests/inst/inventory.md`、`tests/inst.yaml`、`tools/qemu/semantics_gate.py`（`CARRIER_DIRS`）、`tests/case-ledger.tsv`（生成物）与证据脚本；实机重跑 `run.sh`。
+
+- 期望值来源：只据 `spec/SimRISC-07 §2.1`（`rfHC × 2^rdHD`，`rdHD∈rd`、`rd0` 为指数 0）、`spec/SimRISC-12`（`sc rdHB` 为结果目的、`=rd0 ⇒ ILLI`；`lr rdHB` 固定 rd0）与 `contracts/opcodes.yaml`（mask/value/fields/rule_refs）；数值用 `math.ldexp`+`ctypes.c_float` 独立重算（`oracle_vectors.py` 140 项），未读 QEMU 实现、未反推。
+- 可达 FAIL：三组注入均实跑（错期望值 → scaleb rc=1；rdHB≠0 → sc 用例 rc=1；删 ledger 行 → `check-case-ledger` rc=2），全部 `cp`+`md5sum -c` 还原后回绿；两向量文件为本分支新增（untracked），故注入断言用 md5 变化，另对 tracked `case-ledger.tsv` 断言 `git diff` 非空。
+- 脚本纪律：无 `tee`；每检查捕获真实 rc；计数现场统计（12/14/90/241/1995/22 册/1012 例），无写死期望；`trap` 清理注入。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F-1 `lr` 的 rdHB 手写成 5（应固定 rd0），正例实机先 ILLI | ✅已修 | `sc-rd0.yaml` 两条 sequence 的 lr 字 `0x47005004`→`0x47000144` | targeted 14/14；`run.sh` rc=0 |
+| F-2 oracle 未校验 lr 字段，F-1 只靠实机才发现 | ✅已修 | oracle 增 `lr.rdhb==0`、`lr.rbhd==sc.rbhd` 检查 | oracle checks=140 failed=0 |
+| F-3 rf 诱饵可能恰好同值使断言假绿 | ✅已修 | oracle 增「诱饵指数结果 ≠ 期望」断言 | 12 例全过；错期望值注入 FAIL |
+| F-4 非 M1 载体未登记会使 L3/inventory 红 | ✅已修 | `CARRIER_DIRS` 增 `fp` + inventory 2 行 + `tests/inst.yaml` 2 条 + ledger 重生成 | `semantics_gate --check-only` rc=0；`check-tests-index` 241；`check-case-ledger` 1995 |
+
+**判决**：QEMU 段 finding 全部 ✅已修，可标 `待验收`；gem5 FS 段仍 BLOCKED（未声称完成）。

@@ -53,6 +53,12 @@
   - system
   level: full
   requires: []
+- id: inst-atomics-008
+  file: inst/atomics/sc-rd0.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-base-001
   file: inst/base/aip-si.yaml
   platforms:
@@ -202,6 +208,12 @@
   platforms:
   - system
   level: smoke
+  requires: []
+- id: inst-fp-001
+  file: inst/fp/scaleb.yaml
+  platforms:
+  - system
+  level: full
   requires: []
 - id: inst-minmax-001
   file: inst/minmax/minmax_c23.c
