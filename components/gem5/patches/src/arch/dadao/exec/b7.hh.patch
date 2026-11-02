@@ -1,0 +1,159 @@
+diff --git a/src/arch/dadao/exec/b7.hh b/src/arch/dadao/exec/b7.hh
+new file mode 100644
+index 0000000..02af343
+--- /dev/null
++++ b/src/arch/dadao/exec/b7.hh
+@@ -0,0 +1,153 @@
++// DADAO gem5 B7 execution core: the 55 floating-point ids (dispatch + state).
++//
++// Plain C++ (no gem5 headers), like the B0 decode core, so the *same* code is
++// driven by the component assertion harness (exec/b7_test.cc) and by the gem5
++// adapter (inst.cc).
++//
++// Source of truth: the 55 B7 ids of contracts/opcodes.yaml, the same-id rows of
++// the GEM5-002t semantic matrix, spec/SimRISC-07 (all sections + appendix B),
++// spec/SimRISC-00 §2.3/§2.3.1 (rf/FCSR), spec/SimRISC-02 §3 (cs.*-rf) and
++// contract-fp §1-§10/§15/§16/§18-§20.  Every other decoded instruction reports
++// NotB7; a batch-7 id that the table cannot execute aborts (never a silent
++// success).
++//
++// The value semantics live in exec/fp_soft.{hh,cc} (pure integer, bit exact);
++// this file only decodes fields, enforces static legality, sequences register
++// reads/writes and accrues the flags into rf0[4:0].
++#ifndef __ARCH_DADAO_EXEC_B7_HH__
++#define __ARCH_DADAO_EXEC_B7_HH__
++
++#include <cstddef>
++#include <cstdint>
++#include <string_view>
++
++#include "arch/dadao/decode/decode.hh"
++#include "arch/dadao/exec/b6.hh"
++#include "arch/dadao/exec/common.hh"
++#include "arch/dadao/exec/fp_soft.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++enum class B7Op
++{
++    Fma,
++    Cs,
++    Classify,
++    ConvertFF,
++    Root,
++    ConvertF2I,
++    ConvertI2F,
++    RoundInt,
++    Arith,
++    Rem,
++    ScaleB,
++    SignN,
++    SignJ,
++    Compare,
++    MinMax,
++};
++
++/** Static legality bits, one per contract rule that a B7 id can carry.
++ *
++ * The bits mirror `contracts/opcodes.yaml` `legality` / `rule_refs`; the
++ * assertion harness cross-checks every row against the live decode entry, so a
++ * contract change cannot drift away from the core silently.
++ */
++enum LegalBit : uint16_t
++{
++    LegalDstRf0 = 1u << 0,   // dst_rf0: floating destination rf0 => ILLI
++    LegalDstRd0 = 1u << 1,   // dst_rd0: integer destination rd0 => ILLI
++    LegalCount = 1u << 2,    // mreg_zero + mreg_range_overflow (block forms)
++    LegalOverlap = 1u << 3,  // mreg_range_overlap (convert_ff only)
++    LegalOnehot = 1u << 4,   // encode_onehot (roundint six codes)
++    LegalRootN = 1u << 5,    // encode_fp_root_n (root: n == 2)
++};
++
++/** One decoded B7 id.  This is also the dispatch table (55 rows).
++ *
++ * One row per id, never per mnemonic: `ft*`/`fo*`, `ft2it`/`ft2ut`,
++ * `qcmp`/`scmp`, `sgnn`/`sgnj` and the four arithmetic operations differ only
++ * in a field of this table and are selected by `entry->id`.
++ *
++ * Unused field pointers are nullptr (a missing needed field is a hard error).
++ * `fmt` is the operand format for every op except convert_ff/convert_i2f,
++ * where it is the source format and `outFmt` the destination format.
++ */
++struct B7Spec
++{
++    const char *id;
++    B7Op op;
++    fp::Fmt fmt;
++    fp::Fmt outFmt;
++    Target dst;  // register group of dstField
++    Target src;  // register group of srcField
++    const char *dstField;
++    const char *srcField;
++    const char *thirdField = nullptr;   // rfhd / rdhd (scaleB exponent)
++    const char *fourthField = nullptr;  // fma addend (rfhd)
++    const char *condField = nullptr;    // cs.*-rf condition (rdha)
++    const char *countField = nullptr;   // immu6 block count
++    const char *immField = nullptr;     // root n
++    const char *modeField = nullptr;    // roundint one-hot code
++    uint16_t legal = 0;                 // LegalBit mask
++    unsigned intWidth = 0;       // convert_f2i / convert_i2f: 32 or 64
++    bool intSigned = false;      // convert_f2i / convert_i2f: signed
++    unsigned arith = 0;          // 0 add, 1 sub, 2 mul, 3 div
++    bool negate = false;         // sgnn
++    bool quietCompare = false;   // compare: quiet / signaling
++    bool isMax = false;          // minmax
++    uint8_t csCond = 0;          // 0 lt, 1 eq, 2 gt
++};
++
++size_t b7SpecCount();  // always 55
++const B7Spec *b7Specs();
++const B7Spec *b7SpecForId(std::string_view id);
++
++/** Extra context used by the B7 ids.
++ *
++ * No new virtual hooks: B7 needs the rf/rd accessors and the FCSR write mask
++ * that B1-B6 already provide.  `roundMode()` is the single source of the
++ * effective rounding direction and `accrueFlags()` implements the sticky
++ * semantics of rf0[4:0] (only [33:32] and [4:0] are writable).
++ */
++class B7Context : public B6Context
++{
++  public:
++    ~B7Context() override = default;
++
++    /** rf0[33:32]: 0 RNE / 1 RTZ / 2 RDN / 3 RUP. */
++    uint8_t
++    roundMode()
++    {
++        return uint8_t((readFloat(0) >> 32) & 0x3);
++    }
++
++    /** Sticky-OR the accrued flags of one instruction; no flag => no write. */
++    void
++    accrueFlags(uint8_t f)
++    {
++        if (!f)
++            return;
++        writeFcsr(readFloat(0) | (uint64_t(f) & 0x1F));
++    }
++};
++
++/** Execute one B7 instruction.
++ *
++ * Returns NotB7 when the instruction does not belong to batch B7.  Static
++ * legality is checked before any register read (zero reads and zero writes on
++ * the ILLI path); every B7 instruction is otherwise free of architectural
++ * faults -- Memory/Malign/RAS/cfx are impossible by construction.
++ */
++Fault executeB7(const decode::DecodedInst &inst, B7Context &ctx);
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_EXEC_B7_HH__

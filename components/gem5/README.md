@@ -4,7 +4,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 `manifests/components.lock.toml` 锁定；工作树由 `make fetch` +
 `make apply-series` 在 `.work/source/gem5` 建立。
 
-## 当前状态（GEM5-004t / B0 + GEM5-005t + GEM5-006t / B1 + GEM5-007t / B2 + GEM5-008t / B3 + GEM5-009t / B4 + GEM5-010t / B5 + GEM5-011t / B6）
+## 当前状态（GEM5-004t / B0 + GEM5-005t + GEM5-006t / B1 + GEM5-007t / B2 + GEM5-008t / B3 + GEM5-009t / B4 + GEM5-010t / B5 + GEM5-011t / B6 + GEM5-012t / B7）
 
 - **解码核心**：`src/arch/dadao/**` 骨架 + 契约驱动的解码表
   （格式/字段/opcode/6 位子表分派/助记符/非法与保留编码；
@@ -54,8 +54,31 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `rdHB = rd0` ⇒ ILLI；非 `.b` 未对齐 ⇒ MALIGN；MALIGN/访存 fault 精确、
   不消费保留）。保留标记由每线程 `ISA` 单槽持有（精确地址 + 宽度，F8.1），
   `clear()` 复位、不做检查点序列化。
-- **B7 未实现**：非 B1–B6 的成功解码指令仍返回
-  `UnimplementedInstruction`（显式 panic）；未匹配/保留编码返回
+- **B7 执行语义**（`exec/b7.{hh,cc}` + `exec/fp_soft.{hh,cc}`，55 条浮点）：
+  12 族 = fma 2 / cs_rf 3 / classify 2 / convert_ff 4 / root 2 / convert_f2i 8 /
+  convert_i2f 8 / roundint 2 / arith 12（add/sub/mul/div/rem/sclb）/ sign 4 /
+  compare 4 / minmax 4，按 `entry->id` 分派（`ft*`/`fo*`、`2it`/`2ut`、
+  `qcmp`/`scmp`、`sgnn`/`sgnj` 只差表项）。值语义在 `exec/fp_soft.cc`：
+  **纯整数、位精确**的 IEEE 754-2019（`unsigned __int128` 精确积/127 位窗口
+  对齐/长除法/整数开方），**不使用**宿主 `float`/`double`、`<cmath>` 结果、
+  `fesetround`/`fetestexcept` 或外部 softfloat 库；四种舍入（RNE/RTZ/RDN/RUP）
+  共用单一 round-and-pack，UF 按 **舍入后** tininess 且仅 tiny+inexact 置位，
+  fma 精确积只舍入一次，rem 用整数长除法（商最近、平局取偶、结果精确无标志）、
+  scaleB 指数 `rdHD`（rd 组有符号 64 位，大 `n` 直接判 OF/UF，不迭代）、
+  f2i 饱和 + NX/ NV、root 仅 n=2（整数 `isqrt` + 精确中点比较）、
+  minmax 为 `minimumNumber`/`maximumNumber` 严格版（−0<+0、单 NaN 返回数、
+  双 NaN canonical、sNaN⇒NV）。
+  静态合法性（`dst_rf0`/`dst_rd0`/`mreg_zero`/`mreg_range_overflow`/
+  `mreg_range_overlap`/`encode_onehot`/`encode_fp_root_n`）先于任何寄存器读；
+  块形式按序号递增逐对先读后写；标志 sticky-OR 进 `rf0[4:0]`，无标志不写 `rf0`。
+- **B7 模型选择**（spec 未规定处，**非 spec 断言**）：① `ft` 结果只写低 32 位、
+  保留 `[63:32]`（与 B1 `ld.t` 一致）；② `rootn(-0,2) = -0`（spec 明示不作要求）；
+  ③ compare 的 unordered 结果按 ft 为 `0x7FC0_0000`/`0x7F80_0001` **零扩展**到 64 位
+  rd，fo 为 `0x7FF8_...`/`0x7FF0_..._0001`（符号位 0）；④ `ft2it`/`ft2ut` 等 32 位
+  f2i 结果按 SimRISC 约定**符号/零扩展**到 64 位 rd（与 SimRISC-08 的 `.st`/`.ut`
+  一致）；⑤ signaling compare 的 unordered 置 NV（用户 2026-11-02 裁定 3）。
+- **B0–B7 全覆盖**：264 条全部有执行核；`inst.cc` 的 `batch<1 || batch>7`
+  仅作防御分支（返回 `UnimplementedInstruction`），未匹配/保留编码仍返回
   `IllegalInstruction`（ILLI）。不做跨批混写。
 - **断言**：264 行逐条解码断言（`decode-assertions.tsv`）+ 388 条非法/保留/
   身份回归用例（`decode-negative.tsv`），由 `make check-gem5-decode` 运行；
@@ -70,8 +93,13 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `tools/gem5/check_b5.py`、B6 执行断言 `exec/b6_test.cc`（30/30、non-B6
   234/234、`rule_refs` 5/14/12、swym/fence 掩码 4096×2/`lr` 零扩展+MALIGN+
   hb、`sc` 成功失败+宽度截断+精确 fault、CFXREG/CFXESC、保留单槽覆盖与消费）
-  由 `tools/gem5/check_b6.py` 编译运行（均不进 gem5 二进制，不改
-  `tests/**`）。
+  由 `tools/gem5/check_b6.py` 编译运行；B7 执行断言 `exec/b7_test.cc`
+  （55/55、non-B7 209/209、静态 ILLI 零读写、各族边界/标志/舍入/NaN/Inf/±0/rem/
+  sclb/f2i/fma/minmax/compare、FCSR sticky、ft 高 32 位、`rdHD` 字段陷阱）由
+  `tools/gem5/check_b7.py` 编译运行，并由 `tools/gem5/b7_ref.py`（独立
+  `Fraction` 精确模型）做 **3980 条**位级差分（目标寄存器 + 新 FCSR 逐位相等，
+  `oracle mismatch=0`；fma/minmax/roundint 另与 `tests/inst` 的 oracle 三方交叉）
+  （均不进 gem5 二进制，不改 `tests/**`）。
 - **GEM5-005t 增量**：`ftsclb`/`fosclb` 第三操作数 `rfhd/rf` → `rdhd/rd`
   （同 `orrr` 编码，SPEC-181t F5.2 C1；旧 rf 写法为负例守护）；12 条 `sc.*`
   的 `rdhb != rd0`（`dst_rd0`）合法性数据 + 28 条合法性断言（sc 目的 rd0
@@ -82,8 +110,9 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），
   清单见 `series`；规范 `docs/Process-01-组件补丁组织与构建编排.md`。
-- 规模（2026-11-02 现场统计）：**45 份** = 新增 43 + 修改 2
-  （`src/arch/Kconfig`、`src/arch/SConscript`）。
+- 规模（2026-11-02 现场统计）：**50 份** = 新增 48 + 修改 2
+  （`src/arch/Kconfig`、`src/arch/SConscript`；每个 patch 内含完整文件，
+  全部 `src/arch/dadao/**` 与 `build_opts/DADAO` 均为新增）。
 - 解码表由 `tools/gem5/gen_decode_table.py` 从 `contracts/opcodes.yaml` +
   `GEM5-002t` 矩阵生成；`--check` 为漂移门控（不手工编辑 `.inc`）。
   生成器内置 SPEC-181t 守护：scaleB 第三操作数必须是 `rdhd/rd`（旧 `rfhd/rf`
@@ -100,6 +129,7 @@ python3 tools/gem5/check_b3.py --source .work/source/gem5   # B3 执行断言（
 python3 tools/gem5/check_b4.py --source .work/source/gem5   # B4 执行断言（63/63）
 python3 tools/gem5/check_b5.py --source .work/source/gem5   # B5 执行断言（28/28）
 python3 tools/gem5/check_b6.py --source .work/source/gem5   # B6 执行断言（30/30）
+python3 tools/gem5/check_b7.py --source .work/source/gem5   # B7 执行断言 + 3980 条 oracle 差分
 make check-patch-tree
 ```
 

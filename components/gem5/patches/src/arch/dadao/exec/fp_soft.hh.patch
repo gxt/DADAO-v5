@@ -1,0 +1,119 @@
+diff --git a/src/arch/dadao/exec/fp_soft.hh b/src/arch/dadao/exec/fp_soft.hh
+new file mode 100644
+index 0000000..a687bda
+--- /dev/null
++++ b/src/arch/dadao/exec/fp_soft.hh
+@@ -0,0 +1,113 @@
++// DADAO gem5 B7 execution core: pure-integer IEEE 754-2019 arithmetic.
++//
++// Plain C++17 with no gem5 headers and -- on purpose -- no host floating point:
++// no `float`/`double` operand, no <cmath> result, no fesetround()/fetestexcept()
++// and no external softfloat library.  The host FPU cannot provide
++// tininess-after-rounding, a portable set of four rounding modes or canonical
++// NaN payloads, so every operation here is a bit-exact integer algorithm.
++//
++// Source of truth: spec/SimRISC-07 (all FP sections + §1 FCSR), contract-fp
++// §1-§10/§15/§16/§18-§20 and IEEE 754-2019 (user ruling 2026-11-02: B7 follows
++// the standard; DADAO specifics are taken from spec/contract).
++//
++// Conventions used throughout:
++//   * a value is (sign, sig, exp) with value = (-1)^sign * sig * 2^exp and
++//     `sig` an integer; every rounding boundary is reached through a single
++//     round-and-pack step (roundPack), so all four modes share one code path;
++//   * a `sticky` flag means "there are non-zero bits below bit 0 of sig";
++//   * flags are *accrued* bits of THIS operation only (the caller ORs them into
++//     rf0[4:0]); the library keeps no global state;
++//   * results come back as raw format bits (`F32` results use the low 32 bits).
++#ifndef __ARCH_DADAO_EXEC_FP_SOFT_HH__
++#define __ARCH_DADAO_EXEC_FP_SOFT_HH__
++
++#include <cstdint>
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++namespace fp
++{
++
++/** IEEE 754 binary32 / binary64. */
++enum class Fmt : uint8_t
++{
++    F32,
++    F64,
++};
++
++/** rf0[33:32] (contract-fp §1). */
++enum class Mode : uint8_t
++{
++    RNE = 0,
++    RTZ = 1,
++    RDN = 2,
++    RUP = 3,
++};
++
++/** rf0[4:0] accrued exception bits (contract-fp §1). */
++enum Flag : uint8_t
++{
++    NV = 1,
++    DZ = 2,
++    OF = 4,
++    UF = 8,
++    NX = 16,
++};
++
++/** One operation result: format bits plus this operation's accrued flags. */
++struct Val
++{
++    uint64_t bits;
++    uint8_t flags;
++};
++
++Val add(Fmt fmt, Mode mode, uint64_t a, uint64_t b);
++Val sub(Fmt fmt, Mode mode, uint64_t a, uint64_t b);
++Val mul(Fmt fmt, Mode mode, uint64_t a, uint64_t b);
++Val div(Fmt fmt, Mode mode, uint64_t a, uint64_t b);
++/** IEEE 754 remainder: exact, mode-independent, never sets UF/OF/NX/DZ. */
++Val rem(Fmt fmt, uint64_t a, uint64_t b);
++/** IEEE 754 scaleB: x * 2^n (n is a signed 64-bit integer). */
++Val sclb(Fmt fmt, Mode mode, uint64_t x, int64_t n);
++Val sqrt(Fmt fmt, Mode mode, uint64_t x);
++/** fusedMultiplyAdd(a, b, c): one single rounding of the exact a*b + c. */
++Val fma(Fmt fmt, Mode mode, uint64_t a, uint64_t b, uint64_t c);
++/** Integer -> float; `value` holds the raw integer, width in 1..64. */
++Val fromInt(Fmt fmt, Mode mode, uint64_t value, unsigned width, bool isSigned);
++/** Float -> integer, saturating (contract-fp §3); `bits` = the integer. */
++Val toInt(Fmt fmt, Mode mode, uint64_t bits, unsigned width, bool isSigned);
++/** Format conversion; NaN payload is propagated, sNaN is quieted with NV. */
++Val convert(Fmt dst, Mode mode, Fmt src, uint64_t bits);
++/** roundToIntegral: `onehot` is the immu6 code, rfMode only used by 0x20. */
++Val roundInt(Fmt fmt, uint64_t bits, uint8_t onehot, Mode rfMode);
++
++/** 10-bit IEEE class, one bit per class (spec/SimRISC-07 §5 bit order). */
++uint16_t classify(Fmt fmt, uint64_t bits);
++
++enum class Cmp
++{
++    Less,
++    Equal,
++    Greater,
++    Unordered,
++};
++/** Numeric comparison; -0 == +0; never uses a host floating-point compare. */
++Cmp compare(Fmt fmt, uint64_t a, uint64_t b);
++
++bool isNaNBits(Fmt fmt, uint64_t bits);
++bool isSNaNBits(Fmt fmt, uint64_t bits);
++/** Canonical quiet NaN: sign 0, payload 0 (ft 0x7FC00000 / fo 0x7FF8...). */
++uint64_t qnanBits(Fmt fmt);
++/** Canonical signaling NaN: sign 0, payload 1. */
++uint64_t snanBits(Fmt fmt);
++
++} // namespace fp
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_EXEC_FP_SOFT_HH__

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b4_test.cc b/src/arch/dadao/exec/b4_test.cc
 new file mode 100644
-index 0000000..4082527
+index 0000000..9cf0090
 --- /dev/null
 +++ b/src/arch/dadao/exec/b4_test.cc
-@@ -0,0 +1,1485 @@
+@@ -0,0 +1,1486 @@
 +/*
 + * DADAO gem5 B4 execution assertions (GEM5-009t).
 + *
@@ -512,6 +512,7 @@ index 0000000..4082527
 +      case exec::Fault::NotB6: return "NotB6";
 +      case exec::Fault::CfxReg: return "CfxReg";
 +      case exec::Fault::CfxEsc: return "CfxEsc";
++      case exec::Fault::NotB7: return "NotB7";
 +    }
 +    return "?";
 +}

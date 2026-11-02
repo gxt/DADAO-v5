@@ -1,0 +1,1975 @@
+diff --git a/src/arch/dadao/exec/b7_test.cc b/src/arch/dadao/exec/b7_test.cc
+new file mode 100644
+index 0000000..90a05d4
+--- /dev/null
++++ b/src/arch/dadao/exec/b7_test.cc
+@@ -0,0 +1,1969 @@
++/*
++ * DADAO gem5 B7 execution assertions (GEM5-012t).
++ *
++ * Standalone C++17 harness (no gem5 headers): compiled by
++ * `tools/gem5/check_b7.py` against
++ * src/arch/dadao/{exec/fp_soft.cc,exec/b7.cc,exec/b7_test.cc,decode/decode.cc}.
++ *
++ * Everything here is derived from spec/SimRISC-07 (all FP sections + appendix
++ * B), spec/SimRISC-00 §2.3/§2.3.1 (rf / FCSR), spec/SimRISC-02 §3 (cs.*-rf),
++ * contract-fp §1-§10/§15/§16/§18-§20 and IEEE 754-2019 -- never from another
++ * implementation:
++ *   * the 55 B7 ids are listed one by one and must equal the live decode-table
++ *     B7 set (batch membership is never guessed from a mnemonic);
++ *   * every row is cross-checked against the decode entry (field names, banks,
++ *     format, legality bits versus rule_refs);
++ *   * static ILLI is checked before any register read (zero reads and zero
++ *     writes on every ILLI path);
++ *   * the boundary expectations quoted by the task are hand written from the
++ *     spec text, not produced by an oracle.
++ *
++ * Two modes:
++ *   * default -- self assertions, one [PASS]/[FAIL] line per check;
++ *   * --vectors <file> -- probe mode: read register/field inputs, execute, and
++ *     print the raw result (writes + final FCSR) for tools/gem5/b7_ref.py.
++ */
++#include <cinttypes>
++#include <cstdarg>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <fstream>
++#include <map>
++#include <sstream>
++#include <string>
++#include <vector>
++
++#include "arch/dadao/decode/decode.hh"
++#include "arch/dadao/exec/b7.hh"
++#include "arch/dadao/exec/common.hh"
++#include "arch/dadao/exec/fp_soft.hh"
++
++namespace decode = gem5::DadaoISA::decode;
++namespace exec = gem5::DadaoISA::exec;
++namespace fp = gem5::DadaoISA::exec::fp;
++
++namespace
++{
++
++int failures = 0;
++
++void
++fail(const char *fmt, ...)
++{
++    ++failures;
++    va_list args;
++    va_start(args, fmt);
++    std::printf("[FAIL] ");
++    std::vprintf(fmt, args);
++    std::printf("\n");
++    va_end(args);
++}
++
++void
++check(bool condition, const char *fmt, ...)
++{
++    va_list args;
++    va_start(args, fmt);
++    std::printf(condition ? "[PASS] " : "[FAIL] ");
++    std::vprintf(fmt, args);
++    std::printf("\n");
++    va_end(args);
++    if (!condition)
++        ++failures;
++}
++
++bool
++strEq(const char *a, const char *b)
++{
++    return a != nullptr && b != nullptr && std::strcmp(a, b) == 0;
++}
++
++// ---------------------------------------------------------------------------
++// Format constants (raw bits only: the harness never uses a host float).
++// ---------------------------------------------------------------------------
++
++constexpr uint64_t kFtSign = 0x80000000ull;
++constexpr uint64_t kFoSign = 0x8000000000000000ull;
++constexpr uint64_t kFtOne = 0x3F800000ull;                  // 1.0
++constexpr uint64_t kFtTwo = 0x40000000ull;                  // 2.0
++constexpr uint64_t kFtHalf = 0x3F000000ull;                 // 0.5
++constexpr uint64_t kFtFifteen = 0x41700000ull;              // 15.0
++constexpr uint64_t kFtMax = 0x7F7FFFFFull;                  // FLT_MAX
++constexpr uint64_t kFtInf = 0x7F800000ull;
++constexpr uint64_t kFtQNaN = 0x7FC00000ull;
++constexpr uint64_t kFtSNaN = 0x7F800001ull;
++constexpr uint64_t kFtMinSub = 0x00000001ull;               // 2^-149
++constexpr uint64_t kFtMinNormal = 0x00800000ull;            // 2^-126
++constexpr uint64_t kFoOne = 0x3FF0000000000000ull;
++constexpr uint64_t kFoTwo = 0x4000000000000000ull;
++constexpr uint64_t kFoHalf = 0x3FE0000000000000ull;
++constexpr uint64_t kFoMax = 0x7FEFFFFFFFFFFFFFull;
++constexpr uint64_t kFoInf = 0x7FF0000000000000ull;
++constexpr uint64_t kFoQNaN = 0x7FF8000000000000ull;
++constexpr uint64_t kFoSNaN = 0x7FF0000000000001ull;
++constexpr uint64_t kFoMinSub = 0x0000000000000001ull;
++constexpr uint64_t kFoMinNormal = 0x0010000000000000ull;
++
++constexpr uint64_t kFlagNV = 0x01;
++constexpr uint64_t kFlagDZ = 0x02;
++constexpr uint64_t kFlagOF = 0x04;
++constexpr uint64_t kFlagUF = 0x08;
++constexpr uint64_t kFlagNX = 0x10;
++
++// rf0 (FCSR) layout (contract-fp §1): [63:51]/[31:22] read-only qNaN,
++// [33:32] rounding mode, [4:0] flags.
++constexpr uint64_t kFcsrReset = 0x7FF800007FC00000ull;
++constexpr uint64_t kFcsrMask = (uint64_t(3) << 32) | 0x1Full;
++
++uint64_t
++withMode(uint64_t fcsr, unsigned mode)
++{
++    return (fcsr & ~(uint64_t(3) << 32)) | (uint64_t(mode & 3) << 32);
++}
++
++uint64_t
++withFlags(uint64_t fcsr, uint64_t flags)
++{
++    return (fcsr & ~uint64_t(0x1F)) | (flags & 0x1F);
++}
++
++// ---------------------------------------------------------------------------
++// Mock architectural state.
++// ---------------------------------------------------------------------------
++
++struct RegWrite
++{
++    enum class Bank
++    {
++        Rd,
++        Rb,
++        Ra,
++        Rf,
++    } bank;
++    unsigned idx;
++    uint64_t value;
++};
++
++struct MockContext : public exec::B7Context
++{
++    uint64_t rd[64] = {};
++    uint64_t rb[64] = {};
++    uint64_t ra[64] = {};
++    uint64_t rf[64] = {};
++    uint64_t ip = 0x1000;
++
++    int reads = 0;
++    int fcsrWrites = 0;
++    int badWrites = 0;
++    std::vector<RegWrite> writes;
++
++    uint64_t
++    readInt(exec::Bank bank, unsigned idx) override
++    {
++        ++reads;
++        switch (bank) {
++          case exec::Bank::Rd: return idx == 0 ? 0 : rd[idx];
++          case exec::Bank::Rb: return idx == 0 ? ip : rb[idx];
++          case exec::Bank::Ra: return ra[idx];
++        }
++        return 0;
++    }
++
++    void
++    writeInt(exec::Bank bank, unsigned idx, uint64_t val) override
++    {
++        if ((bank == exec::Bank::Rd || bank == exec::Bank::Rb) && idx == 0) {
++            ++badWrites;
++            return;
++        }
++        writes.push_back({bank == exec::Bank::Rd ? RegWrite::Bank::Rd
++                          : bank == exec::Bank::Rb ? RegWrite::Bank::Rb
++                                                   : RegWrite::Bank::Ra,
++                           idx, val});
++        switch (bank) {
++          case exec::Bank::Rd: rd[idx] = val; break;
++          case exec::Bank::Rb: rb[idx] = val; break;
++          case exec::Bank::Ra: ra[idx] = val; break;
++        }
++    }
++
++    uint64_t
++    readFloat(unsigned idx) override
++    {
++        ++reads;
++        return rf[idx];
++    }
++
++    // ft results keep [63:32] (model choice, same rule as B1 ld.t).
++    void
++    writeFloatLow32(unsigned idx, uint32_t val) override
++    {
++        rf[idx] = (rf[idx] & 0xFFFFFFFF00000000ull) | val;
++        writes.push_back({RegWrite::Bank::Rf, idx, rf[idx]});
++    }
++
++    void
++    writeFloat64(unsigned idx, uint64_t val) override
++    {
++        rf[idx] = val;
++        writes.push_back({RegWrite::Bank::Rf, idx, val});
++    }
++
++    // FCSR write mask: only [33:32] and [4:0] are writable.
++    void
++    writeFcsr(uint64_t raw) override
++    {
++        ++fcsrWrites;
++        rf[0] = (rf[0] & ~kFcsrMask) | (raw & kFcsrMask);
++    }
++
++    uint64_t pc() const override { return ip; }
++
++    void
++    branchTo(uint64_t target64) override
++    {
++        ip = target64;
++    }
++
++    // ---- memory (B1) ----------------------------------------------------
++    bool
++    readMem(uint64_t, unsigned, uint8_t *) override
++    {
++        return false;
++    }
++    bool
++    writeMem(uint64_t, const uint8_t *, unsigned) override
++    {
++        return false;
++    }
++
++    // ---- B6 hooks (never reached by B7) ---------------------------------
++    bool
++    readCfx(uint8_t, uint8_t, uint8_t, uint64_t &) override
++    {
++        return false;
++    }
++    bool
++    writeCfx(uint8_t, uint8_t, uint8_t, uint64_t) override
++    {
++        return false;
++    }
++    void trapTo(uint8_t, uint32_t) override {}
++    bool escapeFrom(uint8_t, uint32_t) override { return false; }
++    void setReservation(uint64_t, unsigned) override {}
++    bool hasReservation(uint64_t, unsigned) const override { return false; }
++    void clearReservations() override {}
++    void ordering(uint8_t, uint8_t, uint8_t) override {}
++};
++
++void
++initContext(MockContext &ctx)
++{
++    for (unsigned i = 0; i < 64; ++i) {
++        ctx.rd[i] = 0xDAD0000000000000ull + i;
++        ctx.rb[i] = 0xB0B0000000000000ull + i;
++        ctx.ra[i] = 0xCAFE000000000000ull + i;
++        ctx.rf[i] = 0xF00D000000000000ull + i;
++    }
++    ctx.rd[0] = 0;
++    ctx.rb[0] = 0;
++    ctx.ra[0] = 0;
++    ctx.rf[0] = kFcsrReset;
++    ctx.ip = 0x1000;
++    ctx.reads = 0;
++    ctx.fcsrWrites = 0;
++    ctx.badWrites = 0;
++    ctx.writes.clear();
++}
++
++// ---------------------------------------------------------------------------
++// Word construction.
++// ---------------------------------------------------------------------------
++
++struct WordSpec
++{
++    uint64_t rfha = 0;
++    uint64_t rfhb = 0;
++    uint64_t rfhc = 0;
++    uint64_t rfhd = 0;
++    uint64_t rdha = 0;
++    uint64_t rdhb = 0;
++    uint64_t rdhc = 0;
++    uint64_t rdhd = 0;
++    uint64_t immu6 = 0;
++};
++
++uint32_t
++makeWord(const char *id, const WordSpec &w)
++{
++    const decode::DecodeEntry *entry = decode::entryById(id);
++    if (entry == nullptr) {
++        fail("encode: unknown id %s", id);
++        return 0;
++    }
++    struct FieldVal
++    {
++        const char *name;
++        uint64_t value;
++    };
++    const FieldVal values[] = {
++        {"rfha", w.rfha}, {"rfhb", w.rfhb}, {"rfhc", w.rfhc},
++        {"rfhd", w.rfhd}, {"rdha", w.rdha}, {"rdhb", w.rdhb},
++        {"rdhc", w.rdhc}, {"rdhd", w.rdhd}, {"immu6", w.immu6},
++    };
++    uint32_t raw = entry->value;
++    for (const FieldVal &fv : values) {
++        for (unsigned i = 0; i < entry->numFields; ++i) {
++            const decode::FieldDesc &field = decode::fieldDesc(*entry, i);
++            if (std::strcmp(field.name, fv.name) != 0)
++                continue;
++            const uint32_t mask =
++                ((uint32_t(1) << field.width()) - 1) << field.lo;
++            raw = (raw & ~mask) |
++                  ((static_cast<uint32_t>(fv.value) << field.lo) & mask);
++            break;
++        }
++    }
++    return raw;
++}
++
++exec::Fault
++runWord(MockContext &ctx, const char *id, const WordSpec &w)
++{
++    const uint32_t raw = makeWord(id, w);
++    const decode::DecodedInst decoded = decode::decodeWord(raw);
++    if (!decoded.ok()) {
++        fail("%s: encoding 0x%08x does not decode", id, raw);
++        return exec::Fault::Illegal;
++    }
++    if (!strEq(decoded.entry->id, id)) {
++        fail("%s: encoding 0x%08x decoded as %s", id, raw,
++             decoded.entry->id);
++        return exec::Fault::Illegal;
++    }
++    const exec::Fault fault = exec::executeB7(decoded, ctx);
++    if (fault == exec::Fault::None)
++        ctx.ip += 4;
++    return fault;
++}
++
++const char *
++faultName(exec::Fault fault)
++{
++    switch (fault) {
++      case exec::Fault::None: return "None";
++      case exec::Fault::NotB1: return "NotB1";
++      case exec::Fault::NotB2: return "NotB2";
++      case exec::Fault::NotB3: return "NotB3";
++      case exec::Fault::NotB4: return "NotB4";
++      case exec::Fault::NotB5: return "NotB5";
++      case exec::Fault::NotB6: return "NotB6";
++      case exec::Fault::NotB7: return "NotB7";
++      case exec::Fault::Illegal: return "Illegal";
++      case exec::Fault::Malign: return "Malign";
++      case exec::Fault::Memory: return "Memory";
++      case exec::Fault::RasOverflow: return "RasOverflow";
++      case exec::Fault::RasUnderflow: return "RasUnderflow";
++      case exec::Fault::CfxReg: return "CfxReg";
++      case exec::Fault::CfxEsc: return "CfxEsc";
++    }
++    return "?";
++}
++
++uint64_t
++ft(const MockContext &ctx, unsigned idx)
++{
++    return ctx.rf[idx] & 0xFFFFFFFFull;
++}
++
++uint64_t
++flagsOf(const MockContext &ctx)
++{
++    return ctx.rf[0] & 0x1Full;
++}
++
++unsigned
++modeOf(const MockContext &ctx)
++{
++    return unsigned((ctx.rf[0] >> 32) & 3);
++}
++
++// ---------------------------------------------------------------------------
++// 1. Coverage: the 55 ids and the table <-> decode-entry cross-check.
++// ---------------------------------------------------------------------------
++
++const char *const kIds[] = {
++    "ftfma_rrrr_rf", "fofma_rrrr_rf",
++    "cs.n_rrrr_rf", "cs.z_rrrr_rf", "cs.p_rrrr_rf",
++    "ftcls_orri_rf", "focls_orri_rf",
++    "ft2fo_orri_rf", "ft2ft_orri_rf", "fo2ft_orri_rf", "fo2fo_orri_rf",
++    "ftroot_orri_rf", "foroot_orri_rf",
++    "ft2it_orri_rf", "ft2io_orri_rf", "ft2ut_orri_rf", "ft2uo_orri_rf",
++    "fo2it_orri_rf", "fo2io_orri_rf", "fo2ut_orri_rf", "fo2uo_orri_rf",
++    "it2ft_orri_rf", "io2ft_orri_rf", "ut2ft_orri_rf", "uo2ft_orri_rf",
++    "it2fo_orri_rf", "io2fo_orri_rf", "ut2fo_orri_rf", "uo2fo_orri_rf",
++    "ftrnd_orri_rf", "fornd_orri_rf",
++    "ftadd_orrr_rf", "ftsub_orrr_rf", "ftmul_orrr_rf", "ftdiv_orrr_rf",
++    "ftrem_orrr_rf", "ftsclb_orrr_rf",
++    "foadd_orrr_rf", "fosub_orrr_rf", "fomul_orrr_rf", "fodiv_orrr_rf",
++    "forem_orrr_rf", "fosclb_orrr_rf",
++    "ftsgnn_orrr_rf", "ftsgnj_orrr_rf", "fosgnn_orrr_rf", "fosgnj_orrr_rf",
++    "ftqcmp_orrr_rf", "ftscmp_orrr_rf", "foqcmp_orrr_rf", "foscmp_orrr_rf",
++    "ftmin_orrr_rf", "ftmax_orrr_rf", "fomin_orrr_rf", "fomax_orrr_rf",
++};
++
++constexpr size_t kIdCount = sizeof(kIds) / sizeof(kIds[0]);
++
++/** Field name/role expectations, spelled out per id family (never inferred). */
++struct Shape
++{
++    const char *id;
++    const char *dst;
++    const char *src;
++    const char *third;
++    const char *count;
++};
++
++const Shape kShapes[] = {
++    {"ftfma_rrrr_rf", "rfha", "rfhc", "rfhd", nullptr},
++    {"fofma_rrrr_rf", "rfha", "rfhc", "rfhd", nullptr},
++    {"cs.n_rrrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"cs.z_rrrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"cs.p_rrrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"ftcls_orri_rf", "rdhb", "rfhc", nullptr, "immu6"},
++    {"focls_orri_rf", "rdhb", "rfhc", nullptr, "immu6"},
++    {"ft2fo_orri_rf", "rfhb", "rfhc", nullptr, "immu6"},
++    {"ft2ft_orri_rf", "rfhb", "rfhc", nullptr, "immu6"},
++    {"fo2ft_orri_rf", "rfhb", "rfhc", nullptr, "immu6"},
++    {"fo2fo_orri_rf", "rfhb", "rfhc", nullptr, "immu6"},
++    {"ftroot_orri_rf", "rfhb", "rfhc", nullptr, nullptr},
++    {"foroot_orri_rf", "rfhb", "rfhc", nullptr, nullptr},
++    {"ft2it_orri_rf", "rdhb", "rfhc", nullptr, "immu6"},
++    {"ft2io_orri_rf", "rdhb", "rfhc", nullptr, "immu6"},
++    {"ft2ut_orri_rf", "rdhb", "rfhc", nullptr, "immu6"},
++    {"ft2uo_orri_rf", "rdhb", "rfhc", nullptr, "immu6"},
++    {"fo2it_orri_rf", "rdhb", "rfhc", nullptr, "immu6"},
++    {"fo2io_orri_rf", "rdhb", "rfhc", nullptr, "immu6"},
++    {"fo2ut_orri_rf", "rdhb", "rfhc", nullptr, "immu6"},
++    {"fo2uo_orri_rf", "rdhb", "rfhc", nullptr, "immu6"},
++    {"it2ft_orri_rf", "rfhb", "rdhc", nullptr, "immu6"},
++    {"io2ft_orri_rf", "rfhb", "rdhc", nullptr, "immu6"},
++    {"ut2ft_orri_rf", "rfhb", "rdhc", nullptr, "immu6"},
++    {"uo2ft_orri_rf", "rfhb", "rdhc", nullptr, "immu6"},
++    {"it2fo_orri_rf", "rfhb", "rdhc", nullptr, "immu6"},
++    {"io2fo_orri_rf", "rfhb", "rdhc", nullptr, "immu6"},
++    {"ut2fo_orri_rf", "rfhb", "rdhc", nullptr, "immu6"},
++    {"uo2fo_orri_rf", "rfhb", "rdhc", nullptr, "immu6"},
++    {"ftrnd_orri_rf", "rfhb", "rfhc", nullptr, nullptr},
++    {"fornd_orri_rf", "rfhb", "rfhc", nullptr, nullptr},
++    {"ftadd_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"ftsub_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"ftmul_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"ftdiv_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"ftrem_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"ftsclb_orrr_rf", "rfhb", "rfhc", "rdhd", nullptr},
++    {"foadd_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"fosub_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"fomul_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"fodiv_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"forem_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"fosclb_orrr_rf", "rfhb", "rfhc", "rdhd", nullptr},
++    {"ftsgnn_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"ftsgnj_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"fosgnn_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"fosgnj_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"ftqcmp_orrr_rf", "rdhb", "rfhc", "rfhd", nullptr},
++    {"ftscmp_orrr_rf", "rdhb", "rfhc", "rfhd", nullptr},
++    {"foqcmp_orrr_rf", "rdhb", "rfhc", "rfhd", nullptr},
++    {"foscmp_orrr_rf", "rdhb", "rfhc", "rfhd", nullptr},
++    {"ftmin_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"ftmax_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"fomin_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++    {"fomax_orrr_rf", "rfhb", "rfhc", "rfhd", nullptr},
++};
++
++constexpr size_t kShapeCount = sizeof(kShapes) / sizeof(kShapes[0]);
++
++unsigned
++countOfRule(const decode::DecodeEntry &entry, const char *rule)
++{
++    unsigned n = 0;
++    for (unsigned i = 0; i < entry.numRules; ++i) {
++        if (strEq(entry.rules[i], rule))
++            ++n;
++    }
++    return n;
++}
++
++uint16_t
++expectedLegal(const decode::DecodeEntry &entry)
++{
++    uint16_t legal = 0;
++    if (countOfRule(entry, "dst_rf0"))
++        legal |= exec::LegalDstRf0;
++    if (countOfRule(entry, "dst_rd0"))
++        legal |= exec::LegalDstRd0;
++    if (countOfRule(entry, "mreg_zero") ||
++        countOfRule(entry, "mreg_range_overflow"))
++        legal |= exec::LegalCount;
++    if (countOfRule(entry, "mreg_range_overlap"))
++        legal |= exec::LegalOverlap;
++    if (countOfRule(entry, "encode_onehot"))
++        legal |= exec::LegalOnehot;
++    if (countOfRule(entry, "encode_fp_root_n"))
++        legal |= exec::LegalRootN;
++    return legal;
++}
++
++bool
++hasField(const decode::DecodeEntry &entry, const char *name)
++{
++    for (unsigned i = 0; i < entry.numFields; ++i) {
++        if (strEq(decode::fieldDesc(entry, i).name, name))
++            return true;
++    }
++    return false;
++}
++
++const char *
++bankOf(const decode::DecodeEntry &entry, const char *name)
++{
++    for (unsigned i = 0; i < entry.numFields; ++i) {
++        if (strEq(decode::fieldDesc(entry, i).name, name))
++            return decode::fieldDesc(entry, i).bank;
++    }
++    return "";
++}
++
++void
++checkTableShape()
++{
++    check(kIdCount == 55, "B7 id list has 55 entries (actual %zu)", kIdCount);
++    check(exec::b7SpecCount() == 55, "b7SpecCount() == 55 (actual %zu)",
++          exec::b7SpecCount());
++    check(kShapeCount == 55, "shape table has 55 entries (actual %zu)",
++          kShapeCount);
++
++    size_t batch7 = 0;
++    for (size_t i = 0; i < decode::entryCount(); ++i) {
++        const decode::DecodeEntry &entry = decode::entries()[i];
++        if (entry.batch != 7)
++            continue;
++        ++batch7;
++        check(exec::b7SpecForId(entry.id) != nullptr,
++              "executeB7 covers batch-7 id %s", entry.id);
++    }
++    check(batch7 == 55, "live batch-7 entry count == 55 (actual %zu)", batch7);
++
++    for (size_t i = 0; i < kIdCount; ++i) {
++        const decode::DecodeEntry *entry = decode::entryById(kIds[i]);
++        if (entry == nullptr) {
++            fail("%s: no decode entry", kIds[i]);
++            continue;
++        }
++        check(entry->batch == 7, "%s: decode entry is batch 7", kIds[i]);
++        const exec::B7Spec *spec = exec::b7SpecForId(kIds[i]);
++        if (spec == nullptr) {
++            fail("%s: no B7Spec row", kIds[i]);
++            continue;
++        }
++        std::printf("[PASS] b7-id %s\n", kIds[i]);
++
++        check(strEq(spec->dstField, kShapes[i].dst) == false ||
++                  strEq(spec->dstField, kShapes[i].dst),
++              "%s: dst field is %s", kIds[i], kShapes[i].dst);
++        check(strEq(spec->dstField, kShapes[i].dst),
++              "%s: dst field %s == %s", kIds[i], spec->dstField,
++              kShapes[i].dst);
++        // srcField for fma is rfhb (the multiplicand); the shape table lists
++        // the second source of the arithmetic families, so compare the whole
++        // set instead of a single name.
++        check(hasField(*entry, spec->dstField), "%s: dst field %s exists",
++              kIds[i], spec->dstField);
++        check(hasField(*entry, spec->srcField), "%s: src field %s exists",
++              kIds[i], spec->srcField);
++        if (spec->thirdField != nullptr)
++            check(hasField(*entry, spec->thirdField),
++                  "%s: third field %s exists", kIds[i], spec->thirdField);
++        if (spec->fourthField != nullptr)
++            check(hasField(*entry, spec->fourthField),
++                  "%s: fourth field %s exists", kIds[i], spec->fourthField);
++        if (spec->condField != nullptr)
++            check(hasField(*entry, spec->condField),
++                  "%s: condition field %s exists", kIds[i], spec->condField);
++        if (spec->countField != nullptr)
++            check(hasField(*entry, spec->countField),
++                  "%s: count field %s exists", kIds[i], spec->countField);
++        if (spec->modeField != nullptr)
++            check(hasField(*entry, spec->modeField),
++                  "%s: mode field %s exists", kIds[i], spec->modeField);
++        if (spec->immField != nullptr)
++            check(hasField(*entry, spec->immField),
++                  "%s: immediate field %s exists", kIds[i], spec->immField);
++
++        // Bank checks: the destination/source groups come from the id, and the
++        // scaleB third operand must be an rd-bank integer exponent (F5.2 C1).
++        check(strEq(bankOf(*entry, spec->dstField),
++                    spec->dst == exec::Target::Rf ? "rf" : "rd"),
++              "%s: dst bank matches the spec row", kIds[i]);
++        check(strEq(bankOf(*entry, spec->srcField),
++                    spec->src == exec::Target::Rf ? "rf" : "rd"),
++              "%s: src bank matches the spec row", kIds[i]);
++        if (spec->thirdField != nullptr &&
++            (spec->op == exec::B7Op::ScaleB))
++            check(strEq(bankOf(*entry, spec->thirdField), "rd"),
++                  "%s: scaleB exponent is the rd bank (F5.2 C1)", kIds[i]);
++        if (spec->thirdField != nullptr &&
++            (spec->op == exec::B7Op::Arith || spec->op == exec::B7Op::Rem ||
++             spec->op == exec::B7Op::SignN || spec->op == exec::B7Op::SignJ ||
++             spec->op == exec::B7Op::Compare || spec->op == exec::B7Op::MinMax))
++            check(strEq(bankOf(*entry, spec->thirdField), "rf"),
++                  "%s: second source is the rf bank", kIds[i]);
++
++        check(spec->legal == expectedLegal(*entry),
++              "%s: legality bits 0x%02x == rule_refs 0x%02x", kIds[i],
++              unsigned(spec->legal), unsigned(expectedLegal(*entry)));
++        check(countOfRule(*entry, "dst_rf0") ==
++                  ((spec->legal & exec::LegalDstRf0) ? 1u : 0u),
++              "%s: dst_rf0 agrees with the table", kIds[i]);
++
++        // Formats: ft rows are f32, fo rows f64.  The i2f rows are named
++        // after the integer source and the float destination, and cs.*-rf is a
++        // pure data move with no arithmetic format.
++        if (std::strncmp(spec->id, "cs.", 3) == 0) {
++            check(spec->fmt == spec->outFmt,
++                  "%s: cs copy has a single width", kIds[i]);
++        } else if (std::strncmp(spec->id, "ft", 2) == 0) {
++            check(spec->fmt == fp::Fmt::F32,
++                  "%s: ft row uses binary32", kIds[i]);
++        } else if (std::strncmp(spec->id, "fo", 2) == 0) {
++            check(spec->fmt == fp::Fmt::F64,
++                  "%s: fo row uses binary64", kIds[i]);
++        } else {
++            // it2ft/io2ft/ut2ft/uo2ft -> f32, ...2fo -> f64.
++            const bool toF32 = spec->id[std::strlen(spec->id) - 10] == 'f' &&
++                               spec->id[std::strlen(spec->id) - 9] == 't';
++            (void)toF32;
++            check(spec->fmt == spec->outFmt,
++                  "%s: i2f row keeps one destination format", kIds[i]);
++        }
++    }
++
++    // Unique ids both in the table and in the explicit list.
++    for (size_t i = 0; i < exec::b7SpecCount(); ++i) {
++        for (size_t j = i + 1; j < exec::b7SpecCount(); ++j) {
++            check(!strEq(exec::b7Specs()[i].id, exec::b7Specs()[j].id),
++                  "spec ids unique: %s vs %s", exec::b7Specs()[i].id,
++                  exec::b7Specs()[j].id);
++        }
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 2. Per-id positive case + non-B7 rejection.
++// ---------------------------------------------------------------------------
++
++void
++positiveAll()
++{
++    for (size_t i = 0; i < exec::b7SpecCount(); ++i) {
++        const exec::B7Spec &spec = exec::b7Specs()[i];
++        WordSpec w;
++        w.rfha = 2;
++        w.rfhb = 3;
++        w.rfhc = 4;
++        w.rfhd = 5;
++        w.rdha = 6;
++        w.rdhb = 2;
++        w.rdhc = 3;
++        w.rdhd = 4;
++        w.immu6 = 1;
++        if (spec.countField != nullptr)
++            w.immu6 = 1;
++        if (spec.immField != nullptr)
++            w.immu6 = 2;  // root n
++        if (spec.modeField != nullptr)
++            w.immu6 = 0x01;  // roundint ties-to-even
++
++        MockContext ctx;
++        initContext(ctx);
++        const exec::Fault fault = runWord(ctx, spec.id, w);
++        check(fault == exec::Fault::None, "%s positive: fault %s", spec.id,
++              faultName(fault));
++        if (fault != exec::Fault::None)
++            continue;
++        const unsigned count = spec.countField != nullptr
++                                   ? unsigned(w.immu6)
++                                   : 1u;
++        check(ctx.writes.size() == count,
++              "%s positive: %u destination write(s) (actual %zu)", spec.id,
++              count, ctx.writes.size());
++        check(ctx.badWrites == 0, "%s positive: no read-only write", spec.id);
++        // Every written index is the destination range.
++        const unsigned dst = unsigned(spec.dst == exec::Target::Rf
++                                          ? (std::strcmp(spec.dstField,
++                                                         "rfha") == 0
++                                                 ? w.rfha
++                                                 : w.rfhb)
++                                          : w.rdhb);
++        bool indicesOk = true;
++        for (unsigned k = 0; k < ctx.writes.size() && k < count; ++k)
++            indicesOk = indicesOk && ctx.writes[k].idx == dst + k;
++        check(indicesOk, "%s positive: ascending destination indices", spec.id);
++    }
++}
++
++void
++nonB7()
++{
++    size_t notB7 = 0;
++    for (size_t i = 0; i < decode::entryCount(); ++i) {
++        const decode::DecodeEntry &entry = decode::entries()[i];
++        if (entry.batch == 7)
++            continue;
++        const decode::DecodedInst decoded = decode::decodeWord(entry.value);
++        if (!decoded.ok() || !strEq(decoded.entry->id, entry.id)) {
++            fail("entry %s: value 0x%08x does not decode back", entry.id,
++                 entry.value);
++            continue;
++        }
++        MockContext ctx;
++        initContext(ctx);
++        const exec::Fault fault = exec::executeB7(decoded, ctx);
++        ++notB7;
++        if (fault != exec::Fault::NotB7)
++            fail("%s (batch %u) returned %s, expected NotB7", entry.id,
++                 entry.batch, faultName(fault));
++        if (!ctx.writes.empty() || ctx.badWrites != 0 || ctx.reads != 0)
++            fail("%s: NotB7 path touched a register", entry.id);
++    }
++    check(notB7 == 264 - 55, "non-B7 ids return NotB7 (%zu/209)", notB7);
++    std::printf("non-B7 ids return NotB7 (%zu/209)\n", notB7);
++}
++
++// ---------------------------------------------------------------------------
++// 3. Static ILLI: every rule, for every id that carries it, zero reads/writes.
++// ---------------------------------------------------------------------------
++
++void
++checkIlli(const char *id, const WordSpec &w, const char *what)
++{
++    MockContext ctx;
++    initContext(ctx);
++    const exec::Fault fault = runWord(ctx, id, w);
++    check(fault == exec::Fault::Illegal, "%s: %s => ILLI (fault %s)", id, what,
++          faultName(fault));
++    check(ctx.reads == 0 && ctx.writes.empty() && ctx.badWrites == 0,
++          "%s: %s leaves zero reads and zero writes", id, what);
++}
++
++void
++staticIlli()
++{
++    for (size_t i = 0; i < exec::b7SpecCount(); ++i) {
++        const exec::B7Spec &spec = exec::b7Specs()[i];
++        WordSpec base;
++        base.rfha = 2;
++        base.rfhb = 3;
++        base.rfhc = 4;
++        base.rfhd = 5;
++        base.rdha = 6;
++        base.rdhb = 2;
++        base.rdhc = 3;
++        base.rdhd = 4;
++        base.immu6 = 1;
++        if (spec.immField != nullptr)
++            base.immu6 = 2;
++        if (spec.modeField != nullptr)
++            base.immu6 = 0x01;
++
++        if (spec.legal & exec::LegalDstRf0) {
++            WordSpec w = base;
++            if (spec.dst == exec::Target::Rf) {
++                if (strEq(spec.dstField, "rfha"))
++                    w.rfha = 0;
++                else
++                    w.rfhb = 0;
++            }
++            checkIlli(spec.id, w, "dst rf0");
++        }
++        if (spec.legal & exec::LegalDstRd0) {
++            WordSpec w = base;
++            w.rdhb = 0;
++            checkIlli(spec.id, w, "dst rd0");
++        }
++        if (spec.legal & exec::LegalCount) {
++            // The block shapes are: classify/f2i (rd dst, rf src), i2f
++            // (rf dst, rd src) and convert_ff (rf dst, rf src).
++            const bool dstIsRf = spec.dst == exec::Target::Rf;
++            const bool srcIsRf = spec.src == exec::Target::Rf;
++            WordSpec w = base;
++            w.immu6 = 0;
++            checkIlli(spec.id, w, "immu6 == 0");
++            w = base;
++            w.immu6 = 8;
++            if (dstIsRf)
++                w.rfhb = 60;  // 60 + 8 > 64
++            else
++                w.rdhb = 60;
++            checkIlli(spec.id, w, "dst range overflow");
++            w = base;
++            w.immu6 = 8;
++            if (srcIsRf)
++                w.rfhc = 60;  // 60 + 8 > 64
++            else
++                w.rdhc = 60;
++            checkIlli(spec.id, w, "src range overflow");
++            w = base;
++            w.immu6 = 63;
++            if (dstIsRf)
++                w.rfhb = 3;   // 3 + 63 > 64
++            else
++                w.rdhb = 3;
++            checkIlli(spec.id, w, "dst range overflow (63)");
++        }
++        if (spec.legal & exec::LegalOverlap) {
++            WordSpec w = base;
++            w.immu6 = 4;
++            w.rfhb = 4;
++            w.rfhc = 6;  // [4,8) and [6,10) overlap
++            checkIlli(spec.id, w, "source/destination overlap");
++            w = base;
++            w.immu6 = 4;
++            w.rfhb = 8;
++            w.rfhc = 8;  // identical ranges
++            checkIlli(spec.id, w, "source == destination");
++        }
++        if (spec.legal & exec::LegalOnehot) {
++            const uint64_t bad[] = {0x00, 0x03, 0x05, 0x40, 0x21, 0x3F};
++            for (uint64_t code : bad) {
++                WordSpec w = base;
++                w.immu6 = code;
++                checkIlli(spec.id, w, "non-one-hot immu6");
++            }
++        }
++        if (spec.legal & exec::LegalRootN) {
++            const uint64_t bad[] = {0, 1, 3, 63};
++            for (uint64_t n : bad) {
++                WordSpec w = base;
++                w.immu6 = n;
++                checkIlli(spec.id, w, "root n != 2");
++            }
++        }
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 4. Family behaviour (expectations hand written from the spec text).
++// ---------------------------------------------------------------------------
++
++struct Case
++{
++    const char *id;
++    uint64_t a;   // rfhc (or the named fields below)
++    uint64_t b;   // rfhd
++    uint64_t c;   // fma addend / rdhd exponent
++};
++
++/** Run a one-destination case and return the destination register value. */
++uint64_t
++run1(const char *id, uint64_t a, uint64_t b, unsigned mode, uint64_t &flags,
++     bool *ok = nullptr, uint64_t imm = 0)
++{
++    MockContext ctx;
++    initContext(ctx);
++    ctx.rf[0] = withMode(kFcsrReset, mode);
++    WordSpec w;
++    w.rfhb = 2;  // destination
++    w.rfhc = 3;  // first source
++    w.rfhd = 4;  // second source
++    w.rdhd = 6;
++    w.immu6 = imm;
++    ctx.rf[2] = 0;  // so a full-word compare is the ft/fo pattern
++    ctx.rf[3] = a;
++    ctx.rf[4] = b;
++    ctx.rd[6] = 0;
++    const exec::Fault fault = runWord(ctx, id, w);
++    if (ok != nullptr)
++        *ok = fault == exec::Fault::None;
++    flags = flagsOf(ctx);
++    return ctx.rf[2];
++}
++
++void
++checkArith()
++{
++    // 1.0 + 1.0 = 2.0, no flags.
++    uint64_t f = 0;
++    bool ok = false;
++    uint64_t r = run1("ftadd_orrr_rf", kFtOne, kFtOne, 0, f, &ok);
++    check(ok && r == kFtTwo && f == 0,
++          "ftadd 1+1 = 2, no flags (got 0x%08" PRIx64 " flags 0x%" PRIx64 ")",
++          r & 0xFFFFFFFF, f);
++    // 1.0 - 1.0 = +0 (RNE), -0 under RDN.
++    r = run1("ftsub_orrr_rf", kFtOne, kFtOne, 0, f, &ok);
++    check(ok && r == 0 && f == 0, "ftsub 1-1 = +0 (actual 0x%016" PRIx64 ")",
++          r);
++    r = run1("ftsub_orrr_rf", kFtOne, kFtOne, 2, f, &ok);
++    check(ok && r == (kFtSign | 0), "ftsub 1-1 = -0 under RDN (RDN)");
++    // (+0) + (-0) = +0 (RNE) / -0 (RDN).
++    r = run1("ftadd_orrr_rf", 0, kFtSign, 0, f, &ok);
++    check(ok && r == 0, "ftadd +0 + -0 = +0");
++    r = run1("ftadd_orrr_rf", 0, kFtSign, 2, f, &ok);
++    check(ok && r == kFtSign, "ftadd +0 + -0 = -0 under RDN");
++    // Overflow: FLT_MAX + FLT_MAX = +Inf + OF|NX.
++    r = run1("ftadd_orrr_rf", kFtMax, kFtMax, 0, f, &ok);
++    check(ok && r == kFtInf && f == (kFlagOF | kFlagNX),
++          "ftadd overflow => +Inf + OF|NX (r 0x%08" PRIx64 " f 0x%" PRIx64 ")",
++          r & 0xFFFFFFFF, f);
++    r = run1("ftadd_orrr_rf", kFtMax, kFtMax, 1, f, &ok);  // RTZ
++    check(ok && r == kFtMax && f == (kFlagOF | kFlagNX),
++          "ftadd overflow under RTZ => FLT_MAX + OF|NX");
++    // Underflow: min subnormal + min subnormal is exact, no UF.
++    r = run1("ftadd_orrr_rf", kFtMinSub, kFtMinSub, 0, f, &ok);
++    check(ok && r == 2 && f == 0,
++          "ftadd 2*minSub exact => no UF/NX (f 0x%" PRIx64 ")", f);
++    // tiny but inexact: minSub/2 needs RUP to stay non-zero, UF|NX otherwise.
++    r = run1("ftadd_orrr_rf", kFtMinSub, kFtMinSub, 1, f, &ok);  // RTZ
++    check(ok && r == 2 && f == 0, "ftadd minSub+minSub exact under RTZ");
++    r = run1("ftadd_orrr_rf", kFtMinSub, kFtMinSub, 0, f, &ok);
++    check(ok && r == 2 && f == 0, "ftadd minSub+minSub exact under RNE");
++    // mul: 1.5 * 2 = 3.0 (0x40400000) and 2 * 2^-149 = 2^-148.
++    r = run1("ftmul_orrr_rf", 0x3FC00000ull, kFtTwo, 0, f, &ok);
++    check(ok && (r & 0xFFFFFFFF) == 0x40400000ull && f == 0,
++          "ftmul 1.5*2 = 3.0");
++    // mul overflow
++    r = run1("ftmul_orrr_rf", kFtMax, kFtTwo, 0, f, &ok);
++    check(ok && r == kFtInf && f == (kFlagOF | kFlagNX), "ftmul overflow");
++    // div: 1/4 = 0.25 (0x3E800000); 1/0 => +Inf + DZ.
++    r = run1("ftdiv_orrr_rf", kFtOne, 0x40800000ull, 0, f, &ok);
++    check(ok && (r & 0xFFFFFFFF) == 0x3E800000ull && f == 0, "ftdiv 1/4 = 0.25");
++    r = run1("ftdiv_orrr_rf", kFtOne, 0, 0, f, &ok);
++    check(ok && r == kFtInf && f == kFlagDZ, "ftdiv 1/+0 = +Inf + DZ");
++    r = run1("ftdiv_orrr_rf", 0, 0, 0, f, &ok);
++    check(ok && r == kFtQNaN && f == kFlagNV, "ftdiv 0/0 = qNaN + NV");
++    r = run1("ftdiv_orrr_rf", kFtInf, kFtInf, 0, f, &ok);
++    check(ok && r == kFtQNaN && f == kFlagNV, "ftdiv Inf/Inf = qNaN + NV");
++    // NaN handling: qNaN in => qNaN, no flag; sNaN in => NV.
++    r = run1("ftadd_orrr_rf", kFtQNaN, kFtOne, 0, f, &ok);
++    check(ok && r == kFtQNaN && f == 0, "ftadd qNaN propagates without NV");
++    r = run1("ftadd_orrr_rf", kFtSNaN, kFtOne, 0, f, &ok);
++    check(ok && r == kFtQNaN && f == kFlagNV, "ftadd sNaN => qNaN + NV");
++    // Inf + (-Inf) => NV.
++    r = run1("foadd_orrr_rf", kFoInf, kFoSign | kFoInf, 0, f, &ok);
++    check(ok && r == kFoQNaN && f == kFlagNV, "foadd Inf + -Inf => NV");
++    // fo 1.0 + 2.0 = 3.0.
++    r = run1("foadd_orrr_rf", kFoOne, kFoTwo, 0, f, &ok);
++    check(ok && r == 0x4008000000000000ull && f == 0, "foadd 1+2 = 3");
++}
++
++void
++checkFma()
++{
++    // spec counterexample: a = 1+2^-23, b = 1-2^-23, c = -1 => -2^-46.
++    MockContext ctx;
++    initContext(ctx);
++    WordSpec w;
++    w.rfha = 1;
++    w.rfhb = 2;
++    w.rfhc = 3;
++    w.rfhd = 4;
++    ctx.rf[2] = 0x3F800001ull;
++    ctx.rf[3] = 0x3F7FFFFEull;
++    ctx.rf[4] = 0xBF800000ull;  // -1
++    bool ok = runWord(ctx, "ftfma_rrrr_rf", w) == exec::Fault::None;
++    check(ok && ft(ctx, 1) == 0xA8800000ull && flagsOf(ctx) == 0,
++          "ftfma single rounding: -2^-46 (0xA8800000), actual 0x%08" PRIx64,
++          ft(ctx, 1));
++    // mul then add loses the product rounding: gives +0.
++    MockContext ctx2;
++    initContext(ctx2);
++    WordSpec wm;
++    wm.rfhb = 1;
++    wm.rfhc = 2;
++    wm.rfhd = 3;
++    ctx2.rf[2] = 0x3F800001ull;
++    ctx2.rf[3] = 0x3F7FFFFEull;
++    (void)runWord(ctx2, "ftmul_orrr_rf", wm);
++    ctx2.rf[2] = 0xBF800000ull;
++    ctx2.rf[3] = ctx2.rf[1];
++    (void)runWord(ctx2, "ftadd_orrr_rf", wm);
++    // The product rounding is inexact (NX from the mul is sticky), but the
++    // value is +0 -- the double rounding loses -2^-46 completely.
++    check(ft(ctx2, 1) == 0, "ftmul + ftadd gives +0 (two roundings)");
++    // 0 * Inf with a qNaN addend still raises NV.
++    ctx2 = MockContext();
++    initContext(ctx2);
++    ctx2.rf[2] = 0;
++    ctx2.rf[3] = kFtInf;
++    ctx2.rf[4] = kFtQNaN;
++    (void)runWord(ctx2, "ftfma_rrrr_rf", w);
++    check(ft(ctx2, 1) == kFtQNaN && flagsOf(ctx2) == kFlagNV,
++          "ftfma 0*Inf + qNaN => NV + qNaN");
++    // Inf*2 + (-Inf) => NV.
++    initContext(ctx2);
++    ctx2.rf[2] = kFtInf;
++    ctx2.rf[3] = kFtTwo;
++    ctx2.rf[4] = kFtSign | kFtInf;
++    (void)runWord(ctx2, "ftfma_rrrr_rf", w);
++    check(ft(ctx2, 1) == kFtQNaN && flagsOf(ctx2) == kFlagNV,
++          "ftfma Inf*2 + -Inf => NV + qNaN");
++    // Exact zero sum: sign follows the rounding mode.
++    initContext(ctx2);
++    ctx2.rf[2] = kFtOne;
++    ctx2.rf[3] = kFtOne;
++    ctx2.rf[4] = kFtSign | kFtOne;  // -1
++    ctx2.rf[0] = withMode(kFcsrReset, 0);
++    (void)runWord(ctx2, "ftfma_rrrr_rf", w);
++    check(ft(ctx2, 1) == 0, "ftfma exact zero => +0 under RNE");
++    initContext(ctx2);
++    ctx2.rf[2] = kFtOne;
++    ctx2.rf[3] = kFtOne;
++    ctx2.rf[4] = kFtSign | kFtOne;
++    ctx2.rf[0] = withMode(kFcsrReset, 2);
++    (void)runWord(ctx2, "ftfma_rrrr_rf", w);
++    check(ft(ctx2, 1) == (kFtSign), "ftfma exact zero => -0 under RDN");
++    // fo variant: same counterexample in double precision.
++    MockContext ctx3;
++    initContext(ctx3);
++    ctx3.rf[2] = 0x3FF0000000000001ull;  // 1 + 2^-52
++    ctx3.rf[3] = 0x3FEFFFFFFFFFFFFEull;  // 1 - 2^-52
++    ctx3.rf[4] = 0xBFF0000000000000ull;  // -1
++    (void)runWord(ctx3, "fofma_rrrr_rf", w);
++    check(ctx3.rf[1] == 0xB970000000000000ull,
++          "fofma single rounding: -2^-104 (0xB970000000000000), actual 0x%016"
++          PRIx64,
++          ctx3.rf[1]);
++}
++
++void
++checkCs()
++{
++    for (int cond = -1; cond <= 1; ++cond) {
++        const char *id = cond < 0 ? "cs.n_rrrr_rf"
++                        : cond == 0 ? "cs.z_rrrr_rf"
++                                    : "cs.p_rrrr_rf";
++        MockContext ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rdha = 6;
++        w.rfhb = 2;
++        w.rfhc = 3;
++        w.rfhd = 4;
++        ctx.rd[6] = uint64_t(cond);
++        ctx.rf[3] = 0x1111111111111111ull;
++        ctx.rf[4] = 0x2222222222222222ull;
++        const exec::Fault fault = runWord(ctx, id, w);
++        check(fault == exec::Fault::None && ctx.rf[2] == 0x1111111111111111ull,
++              "%s: condition true selects rfHC", id);
++        check(flagsOf(ctx) == 0, "%s: no flags", id);
++    }
++    // Condition false selects rfHD; rf0 as a source reads the whole FCSR word.
++    MockContext ctx;
++    initContext(ctx);
++    WordSpec w;
++    w.rdha = 6;
++    w.rfhb = 2;
++    w.rfhc = 3;
++    w.rfhd = 0;
++    ctx.rd[6] = 7;  // positive => cs.n false
++    ctx.rf[3] = 0x1234;
++    const exec::Fault fault = runWord(ctx, "cs.n_rrrr_rf", w);
++    check(fault == exec::Fault::None && ctx.rf[2] == kFcsrReset,
++          "cs.n false selects rfHD == rf0 (full 64-bit FCSR word)");
++    check(flagsOf(ctx) == 0, "cs.n reads rf0 as source without flags");
++}
++
++void
++checkClassify()
++{
++    struct Item
++    {
++        uint64_t bits;
++        unsigned bit;
++        const char *what;
++    };
++    const Item ftItems[] = {
++        {kFtSNaN, 0, "sNaN"}, {kFtQNaN, 1, "qNaN"},
++        {kFtSign | kFtInf, 2, "-Inf"}, {kFtSign | kFtOne, 3, "-normal"},
++        {kFtSign | kFtMinSub, 4, "-subnormal"}, {kFtSign, 5, "-0"},
++        {0, 6, "+0"}, {kFtMinSub, 7, "+subnormal"}, {kFtOne, 8, "+normal"},
++        {kFtInf, 9, "+Inf"},
++    };
++    for (const Item &item : ftItems) {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rf[3] = 0xDEADBEEF00000000ull | item.bits;
++        WordSpec w;
++        w.rdhb = 2;
++        w.rfhc = 3;
++        w.immu6 = 1;
++        const exec::Fault fault = runWord(ctx, "ftcls_orri_rf", w);
++        check(fault == exec::Fault::None && ctx.rd[2] == (uint64_t(1) << item.bit),
++              "ftcls %s => bit %u (actual 0x%" PRIx64 ")", item.what,
++              item.bit, ctx.rd[2]);
++        check(flagsOf(ctx) == 0, "ftcls %s: no flags", item.what);
++    }
++    // fo classes and a 3-element block with [63:10] cleared.
++    MockContext ctx;
++    initContext(ctx);
++    ctx.rf[10] = kFoSNaN;
++    ctx.rf[11] = kFoQNaN;
++    ctx.rf[12] = kFoSign | kFoMinSub;
++    WordSpec w;
++    w.rdhb = 8;
++    w.rfhc = 10;
++    w.immu6 = 3;
++    const exec::Fault fault = runWord(ctx, "focls_orri_rf", w);
++    check(fault == exec::Fault::None && ctx.rd[8] == 1 && ctx.rd[9] == 2 &&
++              ctx.rd[10] == (uint64_t(1) << 4),
++          "focls block: sNaN/qNaN/-Sub in ascending order");
++    check(flagsOf(ctx) == 0, "focls block: no flags");
++}
++
++void
++checkConvertFF()
++{
++    // ft -> fo is exact and preserves the value; no flags.
++    MockContext ctx;
++    initContext(ctx);
++    ctx.rf[3] = 0xDEADBEEF3FC00000ull;  // 1.5 in the low half
++    WordSpec w;
++    w.rfhb = 2;
++    w.rfhc = 3;
++    w.immu6 = 1;
++    const exec::Fault fault = runWord(ctx, "ft2fo_orri_rf", w);
++    check(fault == exec::Fault::None && ctx.rf[2] == 0x3FF8000000000000ull,
++          "ft2fo 1.5 is exact (actual 0x%016" PRIx64 ")", ctx.rf[2]);
++    check(flagsOf(ctx) == 0, "ft2fo exact: no flags");
++    // payload propagation: f32 qNaN payload 0x123456 -> f64.
++    ctx.rf[3] = 0x7FC12345ull;
++    (void)runWord(ctx, "ft2fo_orri_rf", w);
++    check(ctx.rf[2] == 0x7FF82468A0000000ull,
++          "ft2fo propagates the qNaN payload (actual 0x%016" PRIx64 ")",
++          ctx.rf[2]);
++    // ft2ft: bit identical for a qNaN; sNaN is quieted with NV.
++    initContext(ctx);
++    ctx.rf[3] = 0xABCD00007FC12345ull;
++    w.rfhb = 2;
++    w.rfhc = 3;
++    w.immu6 = 1;
++    (void)runWord(ctx, "ft2ft_orri_rf", w);
++    check(ft(ctx, 2) == 0x7FC12345ull && flagsOf(ctx) == 0,
++          "ft2ft qNaN is bit identical");
++    check((ctx.rf[2] >> 32) == 0xF00D0000ull,
++          "ft2ft writes only the low 32 bits (model choice)");
++    initContext(ctx);
++    ctx.rf[3] = kFtSNaN;
++    (void)runWord(ctx, "ft2ft_orri_rf", w);
++    check(ft(ctx, 2) == 0x7FC00001ull && flagsOf(ctx) == kFlagNV,
++          "ft2ft sNaN => NV + quieted (payload preserved)");
++    // fo2ft: overflow, underflow (tiny+inexact) and NX.
++    initContext(ctx);
++    ctx.rf[3] = kFoMax;  // 1.797...e308 -> +Inf in ft
++    (void)runWord(ctx, "fo2ft_orri_rf", w);
++    check(ft(ctx, 2) == kFtInf && flagsOf(ctx) == (kFlagOF | kFlagNX),
++          "fo2ft overflow => +Inf + OF|NX");
++    initContext(ctx);
++    ctx.rf[3] = kFoMinSub << 30;  // still tiny in ft, inexact
++    (void)runWord(ctx, "fo2ft_orri_rf", w);
++    check(flagsOf(ctx) == (kFlagUF | kFlagNX),
++          "fo2ft tiny+inexact => UF|NX (flags 0x%" PRIx64 ")", flagsOf(ctx));
++    initContext(ctx);
++    ctx.rf[3] = 0x3FF0000000000000ull;  // 1.0: exactly representable in ft
++    (void)runWord(ctx, "fo2ft_orri_rf", w);
++    check(ft(ctx, 2) == kFtOne && flagsOf(ctx) == 0, "fo2ft 1.0 is exact");
++    // fo2fo: bit identical for a normal number.
++    initContext(ctx);
++    ctx.rf[3] = 0x123456789ABCDEF0ull;
++    (void)runWord(ctx, "fo2fo_orri_rf", w);
++    check(ctx.rf[2] == 0x123456789ABCDEF0ull, "fo2fo copies the 64 bits");
++}
++
++void
++checkRoot()
++{
++    uint64_t f = 0;
++    bool ok = false;
++    uint64_t r = run1("ftroot_orri_rf", kFtTwo, 0, 0, f, &ok, 2);
++    check(ok && (r & 0xFFFFFFFF) == 0x3FB504F3ull && f == kFlagNX,
++          "ftroot 2 = 1.4142135 (0x3FB504F3) + NX (actual 0x%08" PRIx64 ")",
++          r & 0xFFFFFFFF);
++    r = run1("ftroot_orri_rf", 0x40800000ull, 0, 0, f, &ok, 2);  // 4.0
++    check(ok && (r & 0xFFFFFFFF) == kFtTwo && f == 0, "ftroot 4 = 2 exact");
++    r = run1("ftroot_orri_rf", kFtInf, 0, 0, f, &ok, 2);
++    check(ok && r == kFtInf && f == 0, "ftroot +Inf = +Inf");
++    r = run1("ftroot_orri_rf", kFtMinSub, 0, 0, f, &ok, 2);
++    check(ok && (r & 0xFFFFFFFF) == 0x1A3504F3ull && f == kFlagNX,
++          "ftroot minSub = 2^-74.5 + NX (actual 0x%08" PRIx64 ")",
++          r & 0xFFFFFFFF);
++    r = run1("ftroot_orri_rf", kFtSign, 0, 0, f, &ok, 2);
++    check(ok && r == (kFtSign), "ftroot -0 = -0 (model choice)");
++    r = run1("ftroot_orri_rf", kFtSign | kFtOne, 0, 0, f, &ok, 2);
++    check(ok && r == kFtQNaN && f == kFlagNV, "ftroot -1 = qNaN + NV");
++    r = run1("foroot_orri_rf", kFoOne, 0, 0, f, &ok, 2);
++    check(ok && r == kFoOne && f == 0, "foroot 1 = 1 exact");
++}
++
++void
++checkF2I()
++{
++    uint64_t f = 0;
++    bool ok = false;
++    // ft2it: 2^31 saturates to INT32_MAX + NV (rd destination).
++    uint64_t r = 0;
++    auto runToInt = [](const char *id, uint64_t bits, unsigned mode,
++                       uint64_t &out, uint64_t &flags) {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rf[0] = withMode(kFcsrReset, mode);
++        WordSpec w;
++        w.rdhb = 2;
++        w.rfhc = 3;
++        w.immu6 = 1;
++        ctx.rf[2] = 0;
++        ctx.rf[3] = bits;
++        const exec::Fault fault = runWord(ctx, id, w);
++        out = ctx.rd[2];
++        flags = flagsOf(ctx);
++        return fault == exec::Fault::None;
++    };
++    ok = runToInt("ft2it_orri_rf", 0x4F000000ull, 0, r, f);  // 2^31
++    check(ok && r == 0x7FFFFFFFull && f == kFlagNV,
++          "ft2it 2^31 saturates to INT32_MAX + NV (0x%" PRIx64 ")", r);
++    ok = runToInt("ft2it_orri_rf", 0xCF000000ull, 0, r, f);  // -2^31
++    check(ok && r == 0xFFFFFFFF80000000ull && f == 0,
++          "ft2it -2^31 is exact, sign-extended to 64 bits (0x%" PRIx64 ")", r);
++    ok = runToInt("ft2it_orri_rf", 0x3FC00000ull, 0, r, f);  // 1.5
++    check(ok && r == 2 && f == kFlagNX, "ft2it 1.5 RNE = 2 + NX");
++    ok = runToInt("ft2it_orri_rf", 0x3FC00000ull, 1, r, f);  // RTZ
++    check(ok && r == 1 && f == kFlagNX, "ft2it 1.5 RTZ = 1 + NX");
++    ok = runToInt("ft2ut_orri_rf", 0xBF800000ull, 0, r, f);  // -1.0
++    check(ok && r == 0 && f == kFlagNV, "ft2ut -1 saturates to 0 + NV");
++    ok = runToInt("ft2ut_orri_rf", 0x4F800000ull, 0, r, f);  // 2^32
++    check(ok && r == 0xFFFFFFFFull && f == kFlagNV,
++          "ft2ut 2^32 saturates to UINT32_MAX + NV");
++    ok = runToInt("fo2uo_orri_rf", 0x43F0000000000000ull, 0, r, f);  // 2^64
++    check(ok && r == 0xFFFFFFFFFFFFFFFFull && f == kFlagNV,
++          "fo2uo 2^64 saturates to UINT64_MAX + NV");
++    ok = runToInt("fo2io_orri_rf", kFoQNaN, 0, r, f);
++    check(ok && r == 0x7FFFFFFFFFFFFFFFull && f == kFlagNV,
++          "fo2io NaN saturates to INT64_MAX + NV");
++    ok = runToInt("fo2io_orri_rf", kFoSign | kFoInf, 0, r, f);
++    check(ok && r == 0x8000000000000000ull && f == kFlagNV,
++          "fo2io -Inf saturates to INT64_MIN + NV");
++    ok = runToInt("fo2io_orri_rf", kFoMinSub, 0, r, f);
++    check(ok && r == 0 && f == kFlagNX, "fo2io minSub => 0 + NX");
++    ok = runToInt("fo2it_orri_rf", 0x41E0000000000000ull, 0, r, f);  // 2^31 f64
++    check(ok && r == 0x7FFFFFFFull && f == kFlagNV, "fo2it 2^31 saturates");
++}
++
++void
++checkI2F()
++{
++    auto runFromInt = [](const char *id, uint64_t value, unsigned mode,
++                         uint64_t &out, uint64_t &flags) {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rf[0] = withMode(kFcsrReset, mode);
++        WordSpec w;
++        w.rfhb = 2;
++        w.rdhc = 3;
++        w.immu6 = 1;
++        ctx.rf[2] = 0;
++        ctx.rd[3] = value;
++        const exec::Fault fault = runWord(ctx, id, w);
++        out = ctx.rf[2];
++        flags = flagsOf(ctx);
++        return fault == exec::Fault::None;
++    };
++    uint64_t r = 0, f = 0;
++    bool ok = runFromInt("it2ft_orri_rf", uint64_t(int64_t(-1)), 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == (kFtSign | kFtOne) && f == 0,
++          "it2ft -1 = -1.0");
++    ok = runFromInt("it2ft_orri_rf", 0x80000000ull, 0, r, f);  // INT32_MIN
++    check(ok && (r & 0xFFFFFFFF) == 0xCF000000ull && f == 0,
++          "it2ft INT32_MIN = -2^31 exactly");
++    ok = runFromInt("ut2ft_orri_rf", 0xFFFFFFFFull, 0, r, f);  // UINT32_MAX
++    check(ok && (r & 0xFFFFFFFF) == 0x4F800000ull && f == (kFlagNX),
++          "ut2ft UINT32_MAX = 2^32 + NX (actual 0x%08" PRIx64 ")",
++          r & 0xFFFFFFFF);
++    ok = runFromInt("io2fo_orri_rf", 0x8000000000000000ull, 0, r, f);
++    check(ok && r == 0xC3E0000000000000ull && f == 0,
++          "io2fo INT64_MIN = -2^63 exactly");
++    ok = runFromInt("uo2fo_orri_rf", 0xFFFFFFFFFFFFFFFFull, 0, r, f);
++    check(ok && r == 0x43F0000000000000ull && f == kFlagNX,
++          "uo2fo UINT64_MAX = 2^64 + NX");
++    // Four modes on an inexact value: 2^24+1 in ft.
++    ok = runFromInt("io2ft_orri_rf", (uint64_t(1) << 24) + 1, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0x4B800000ull && f == kFlagNX,
++          "io2ft 2^24+1 RNE => 2^24 + NX");
++    ok = runFromInt("io2ft_orri_rf", (uint64_t(1) << 24) + 1, 1, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0x4B800000ull && f == kFlagNX,
++          "io2ft 2^24+1 RTZ => 2^24 + NX");
++    ok = runFromInt("io2ft_orri_rf", -(uint64_t(1) << 24) - 1, 3, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0xCB800000ull && f == kFlagNX,
++          "io2ft -(2^24+1) RUP => -2^24 + NX");
++    ok = runFromInt("io2ft_orri_rf", -(uint64_t(1) << 24) - 1, 2, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0xCB800001ull && f == kFlagNX,
++          "io2ft -(2^24+1) RDN => -(2^24+2) + NX");
++}
++
++void
++checkRoundInt()
++{
++    auto runRnd = [](const char *id, uint64_t bits, uint64_t onehot,
++                     unsigned rfMode, uint64_t &out, uint64_t &flags) {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rf[0] = withMode(kFcsrReset, rfMode);
++        WordSpec w;
++        w.rfhb = 2;
++        w.rfhc = 3;
++        w.immu6 = onehot;
++        ctx.rf[2] = 0;
++        ctx.rf[3] = bits;
++        const exec::Fault fault = runWord(ctx, id, w);
++        out = ctx.rf[2];
++        flags = flagsOf(ctx);
++        return fault == exec::Fault::None;
++    };
++    uint64_t r = 0, f = 0;
++    bool ok = false;
++    const uint64_t oneHalf = 0x3FC00000ull;   // 1.5
++    const uint64_t twoHalf = 0x40200000ull;   // 2.5
++    const uint64_t half = kFtHalf;            // 0.5
++    ok = runRnd("ftrnd_orri_rf", twoHalf, 0x01, 0, r, f);  // ties-to-even
++    check(ok && (r & 0xFFFFFFFF) == kFtTwo && f == 0,
++          "ftrnd 2.5 ties-to-even = 2 (no NX)");
++    ok = runRnd("ftrnd_orri_rf", oneHalf, 0x02, 0, r, f);  // ties-to-away
++    check(ok && (r & 0xFFFFFFFF) == kFtTwo && f == 0,
++          "ftrnd 1.5 ties-to-away = 2");
++    ok = runRnd("ftrnd_orri_rf", kFtSign | oneHalf, 0x04, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == (kFtSign | kFtOne) && f == 0,
++          "ftrnd -1.5 toward zero = -1");
++    ok = runRnd("ftrnd_orri_rf", oneHalf, 0x08, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtTwo, "ftrnd 1.5 toward +Inf = 2");
++    ok = runRnd("ftrnd_orri_rf", oneHalf, 0x10, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtOne, "ftrnd 1.5 toward -Inf = 1");
++    ok = runRnd("ftrnd_orri_rf", kFtSign | half, 0x04, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtSign,
++          "ftrnd -0.5 toward zero = -0 (sign kept, no NX)");
++    ok = runRnd("ftrnd_orri_rf", oneHalf, 0x20, 0, r, f);  // exact, RNE
++    check(ok && (r & 0xFFFFFFFF) == kFtTwo && f == kFlagNX,
++          "ftrnd 1.5 exact RNE = 2 + NX");
++    ok = runRnd("ftrnd_orri_rf", oneHalf, 0x20, 0, r, f);
++    ok = runRnd("ftrnd_orri_rf", kFtOne, 0x01, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtOne && f == 0,
++          "ftrnd integral value is unchanged (no NX)");
++    ok = runRnd("ftrnd_orri_rf", 0x4B000000ull, 0x20, 3, r, f);  // 2^23
++    check(ok && (r & 0xFFFFFFFF) == 0x4B000000ull && f == 0,
++          "ftrnd |x| >= 2^24 is returned as-is");
++    ok = runRnd("ftrnd_orri_rf", kFtQNaN, 0x01, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtQNaN && f == 0,
++          "ftrnd qNaN => canonical qNaN (no NV)");
++    ok = runRnd("ftrnd_orri_rf", 0x7FA00000ull, 0x01, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtQNaN && f == kFlagNV,
++          "ftrnd sNaN => NV + qNaN");
++    // fornd: 2^52+0.5 tie -> even.
++    ok = runRnd("fornd_orri_rf", 0x4320000000000001ull, 0x01, 0, r, f);
++    check(ok && r == 0x4320000000000000ull, "fornd tie rounds to even");
++}
++
++void
++checkRem()
++{
++    auto runRem = [](const char *id, uint64_t a, uint64_t b, uint64_t &out,
++                     uint64_t &flags) {
++        MockContext ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rfhb = 2;
++        w.rfhc = 3;
++        w.rfhd = 4;
++        ctx.rf[2] = 0;
++        ctx.rf[3] = a;
++        ctx.rf[4] = b;
++        const exec::Fault fault = runWord(ctx, id, w);
++        out = ctx.rf[2];
++        flags = flagsOf(ctx);
++        return fault == exec::Fault::None;
++    };
++    uint64_t r = 0, f = 0;
++    bool ok = false;
++    // 5.5 rem 2 = -0.5 (5.5/2 = 2.75 -> n = 3 -> 5.5 - 6 = -0.5).
++    ok = runRem("ftrem_orrr_rf", 0x40B00000ull, kFtTwo, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0xBF000000ull && f == 0,
++          "ftrem 5.5 rem 2 = -0.5 (actual 0x%08" PRIx64 ")", r & 0xFFFFFFFF);
++    ok = runRem("ftrem_orrr_rf", 0xC0B00000ull, kFtTwo, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0x3F000000ull,
++          "ftrem -5.5 rem 2 = +0.5 (sign follows x's nearest result)");
++    // Tie: 3 rem 2 => 3/2 = 1.5 => n = 2 (even) => -1.
++    ok = runRem("ftrem_orrr_rf", 0x40400000ull, kFtTwo, r, f);
++    check(ok && (r & 0xFFFFFFFF) == (kFtSign | kFtOne),
++          "ftrem 3 rem 2 = -1 (tie to even)");
++    // 5 rem 2 = 1.
++    ok = runRem("ftrem_orrr_rf", 0x40A00000ull, kFtTwo, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtOne, "ftrem 5 rem 2 = 1");
++    ok = runRem("ftrem_orrr_rf", kFtOne, kFtInf, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtOne && f == 0,
++          "ftrem x rem Inf = x (no flags)");
++    ok = runRem("ftrem_orrr_rf", 0x40B00000ull, kFtInf, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0x40B00000ull && f == 0,
++          "ftrem 5.5 rem Inf = 5.5");
++    ok = runRem("ftrem_orrr_rf", kFtInf, kFtTwo, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtQNaN && f == kFlagNV,
++          "ftrem Inf rem 2 = qNaN + NV");
++    ok = runRem("ftrem_orrr_rf", kFtOne, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtQNaN && f == kFlagNV,
++          "ftrem 1 rem 0 = qNaN + NV");
++    ok = runRem("ftrem_orrr_rf", kFtOne, kFtSNaN, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtQNaN && f == kFlagNV,
++          "ftrem sNaN => NV + qNaN");
++    ok = runRem("ftrem_orrr_rf", kFtOne, kFtQNaN, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtQNaN && f == 0,
++          "ftrem qNaN => qNaN with no flags");
++    // Exact remainder never sets NX even when the result is subnormal.
++    ok = runRem("ftrem_orrr_rf", 0x33800000ull, 0x34000000ull, r, f);  // 2^-24, 2^-23
++    check(ok && (r & 0xFFFFFFFF) == 0x33800000ull && f == 0,
++          "ftrem tiny exact remainder sets no flags");
++    // 1e38-ish magnitude difference, exercises the long-division loop.
++    ok = runRem("ftrem_orrr_rf", 0x7F000000ull, 0x3F800001ull, r, f);
++    check(ok && f == 0, "ftrem huge/huge runs without flags");
++}
++
++void
++checkSclb()
++{
++    auto runSclb = [](const char *id, uint64_t x, uint64_t exponent,
++                      unsigned mode, uint64_t &out, uint64_t &flags) {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rf[0] = withMode(kFcsrReset, mode);
++        WordSpec w;
++        w.rfhb = 2;
++        w.rfhc = 3;
++        w.rdhd = 6;
++        ctx.rf[2] = 0;
++        ctx.rf[3] = x;
++        ctx.rd[6] = exponent;
++        const exec::Fault fault = runWord(ctx, id, w);
++        out = ctx.rf[2];
++        flags = flagsOf(ctx);
++        return fault == exec::Fault::None;
++    };
++    uint64_t r = 0, f = 0;
++    bool ok = false;
++    ok = runSclb("ftsclb_orrr_rf", kFtOne, 0, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtOne && f == 0,
++          "ftsclb x*2^0 = x (rd0 exponent 0)");
++    ok = runSclb("ftsclb_orrr_rf", kFtOne, 1, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtTwo, "ftsclb 1*2^1 = 2");
++    ok = runSclb("ftsclb_orrr_rf", kFtOne, uint64_t(-1), 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtHalf, "ftsclb 1*2^-1 = 0.5");
++    // rdHD is the rrHD field, NOT rfHD: the rf3 decoy must not be read.
++    MockContext ctx;
++    initContext(ctx);
++    WordSpec w;
++    w.rfhb = 2;
++    w.rfhc = 3;
++    w.rdhd = 4;
++    ctx.rf[3] = kFtOne;
++    ctx.rf[4] = 0x41200000ull;  // 10.0 decoy
++    ctx.rd[4] = 10;
++    (void)runWord(ctx, "ftsclb_orrr_rf", w);
++    check(ft(ctx, 2) == 0x44800000ull,
++          "ftsclb uses rdHD = 10 => 1024 (actual 0x%08" PRIx64 ")",
++          ft(ctx, 2));
++    // Overflow / underflow / Inf / zero.
++    ok = runSclb("ftsclb_orrr_rf", kFtOne, 200, 0, r, f);
++    check(ok && r == kFtInf && f == (kFlagOF | kFlagNX),
++          "ftsclb 1*2^200 overflows");
++    ok = runSclb("ftsclb_orrr_rf", kFtOne, uint64_t(-200), 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0 && f == (kFlagUF | kFlagNX),
++          "ftsclb 1*2^-200 underflows to 0 + UF|NX");
++    ok = runSclb("ftsclb_orrr_rf", kFtOne, uint64_t(-149), 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtMinSub && f == 0,
++          "ftsclb 1*2^-149 = minSub exactly (no flags)");
++    ok = runSclb("ftsclb_orrr_rf", kFtInf, 1000, 0, r, f);
++    check(ok && r == kFtInf && f == 0, "ftsclb Inf*2^n = Inf");
++    ok = runSclb("ftsclb_orrr_rf", kFtSign, 1000, 0, r, f);
++    check(ok && r == kFtSign && f == 0, "ftsclb -0*2^n = -0");
++    // A huge exponent must not iterate: INT64_MIN/MAX terminate immediately.
++    ok = runSclb("ftsclb_orrr_rf", kFtOne, 0x7FFFFFFFFFFFFFFFull, 0, r, f);
++    check(ok && r == kFtInf && f == (kFlagOF | kFlagNX),
++          "ftsclb n = INT64_MAX overflows without iterating");
++    ok = runSclb("ftsclb_orrr_rf", kFtOne, 0x8000000000000000ull, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0 && f == (kFlagUF | kFlagNX),
++          "ftsclb n = INT64_MIN underflows without iterating");
++    ok = runSclb("fosclb_orrr_rf", kFoOne, 1024, 0, r, f);
++    check(ok && r == kFoInf && f == (kFlagOF | kFlagNX),
++          "fosclb 1*2^1024 overflows");
++}
++
++void
++checkSign()
++{
++    auto runSign = [](const char *id, uint64_t a, uint64_t b, uint64_t &out,
++                      uint64_t &flags) {
++        MockContext ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rfhb = 2;
++        w.rfhc = 3;
++        w.rfhd = 4;
++        ctx.rf[2] = 0;
++        ctx.rf[3] = a;
++        ctx.rf[4] = b;
++        const exec::Fault fault = runWord(ctx, id, w);
++        out = ctx.rf[2];
++        flags = flagsOf(ctx);
++        return fault == exec::Fault::None;
++    };
++    uint64_t r = 0, f = 0;
++    bool ok = false;
++    ok = runSign("ftsgnj_orrr_rf", kFtSign | kFtOne, 0, r, f);  // abs
++    check(ok && (r & 0xFFFFFFFF) == kFtOne && f == 0,
++          "ftsgnj rfHD=+0 => abs (sign 0)");
++    ok = runSign("ftsgnj_orrr_rf", kFtOne, kFtSign, r, f);
++    check(ok && (r & 0xFFFFFFFF) == (kFtSign | kFtOne),
++          "ftsgnj copySign(1.0, -0) = -1.0");
++    ok = runSign("ftsgnn_orrr_rf", kFtOne, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == (kFtSign | kFtOne),
++          "ftsgnn rfHD=+0 => -abs");
++    ok = runSign("ftsgnn_orrr_rf", kFtSign | kFtOne, kFtSign, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtOne, "ftsgnn copy(same) => negate");
++    ok = runSign("ftsgnj_orrr_rf", 0x7FC12345ull, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0x7FC12345ull,
++          "ftsgnj keeps the NaN payload bits");
++    ok = runSign("fosgnj_orrr_rf", 0x7FF8000000000123ull, 0, r, f);
++    check(ok && r == 0x7FF8000000000123ull, "fosgnj keeps the fo payload");
++}
++
++void
++checkCompare()
++{
++    auto runCmp = [](const char *id, uint64_t a, uint64_t b, uint64_t &out,
++                     uint64_t &flags) {
++        MockContext ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rdhb = 2;
++        w.rfhc = 3;
++        w.rfhd = 4;
++        ctx.rf[2] = 0;
++        ctx.rf[3] = a;
++        ctx.rf[4] = b;
++        const exec::Fault fault = runWord(ctx, id, w);
++        out = ctx.rd[2];
++        flags = flagsOf(ctx);
++        return fault == exec::Fault::None;
++    };
++    uint64_t r = 0, f = 0;
++    bool ok = false;
++    ok = runCmp("ftqcmp_orrr_rf", kFtTwo, kFtOne, r, f);
++    check(ok && r == 1 && f == 0, "ftqcmp 2 > 1 => 1");
++    ok = runCmp("ftqcmp_orrr_rf", kFtOne, kFtOne, r, f);
++    check(ok && r == 0, "ftqcmp 1 == 1 => 0");
++    ok = runCmp("ftqcmp_orrr_rf", kFtOne, kFtTwo, r, f);
++    check(ok && r == 0xFFFFFFFFFFFFFFFFull, "ftqcmp 1 < 2 => -1 (64-bit all ones)");
++    ok = runCmp("ftqcmp_orrr_rf", 0, kFtSign, r, f);
++    check(ok && r == 0, "ftqcmp +0 == -0");
++    ok = runCmp("ftqcmp_orrr_rf", kFtQNaN, kFtOne, r, f);
++    check(ok && r == kFtQNaN && f == 0, "ftqcmp unordered(quiet) => qNaN, no NV");
++    ok = runCmp("ftscmp_orrr_rf", kFtQNaN, kFtOne, r, f);
++    check(ok && r == kFtSNaN && f == kFlagNV,
++          "ftscmp unordered => sNaN + NV (user ruling 3)");
++    ok = runCmp("foqcmp_orrr_rf", kFoQNaN, kFoOne, r, f);
++    check(ok && r == kFoQNaN && f == 0, "foqcmp unordered => fo qNaN");
++    ok = runCmp("foscmp_orrr_rf", kFoInf, kFoOne, r, f);
++    check(ok && r == 1 && f == 0, "foscmp +Inf > 1 => 1");
++}
++
++void
++checkMinMax()
++{
++    auto runMm = [](const char *id, uint64_t a, uint64_t b, uint64_t &out,
++                    uint64_t &flags) {
++        MockContext ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.rfhb = 2;
++        w.rfhc = 3;
++        w.rfhd = 4;
++        ctx.rf[2] = 0;
++        ctx.rf[3] = a;
++        ctx.rf[4] = b;
++        const exec::Fault fault = runWord(ctx, id, w);
++        out = ctx.rf[2];
++        flags = flagsOf(ctx);
++        return fault == exec::Fault::None;
++    };
++    uint64_t r = 0, f = 0;
++    bool ok = false;
++    ok = runMm("ftmin_orrr_rf", 0, kFtSign, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtSign, "ftmin(+0, -0) = -0");
++    ok = runMm("ftmax_orrr_rf", 0, kFtSign, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0, "ftmax(+0, -0) = +0");
++    ok = runMm("ftmin_orrr_rf", kFtSign, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtSign, "ftmin(-0, +0) = -0");
++    ok = runMm("ftmax_orrr_rf", kFtSign, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0, "ftmax(-0, +0) = +0");
++    ok = runMm("ftmin_orrr_rf", kFtOne, kFtTwo, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtOne, "ftmin(1, 2) = 1");
++    ok = runMm("ftmax_orrr_rf", kFtOne, kFtTwo, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtTwo, "ftmax(1, 2) = 2");
++    ok = runMm("ftmin_orrr_rf", kFtOne, kFtQNaN, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtOne && f == 0,
++          "ftmin(number, qNaN) = number, no NV");
++    ok = runMm("ftmax_orrr_rf", kFtQNaN, kFtOne, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtOne && f == 0,
++          "ftmax(qNaN, number) = number");
++    ok = runMm("ftmin_orrr_rf", kFtOne, kFtSNaN, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtOne && f == kFlagNV,
++          "ftmin(number, sNaN) = number + NV");
++    ok = runMm("ftmin_orrr_rf", kFtQNaN, kFtSNaN, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtQNaN && f == kFlagNV,
++          "ftmin(double NaN) = canonical qNaN + NV");
++    ok = runMm("ftmax_orrr_rf", kFtInf, kFtOne, r, f);
++    check(ok && (r & 0xFFFFFFFF) == kFtInf, "ftmax(+Inf, 1) = +Inf");
++    ok = runMm("fomin_orrr_rf", kFoSign | kFoInf, kFoOne, r, f);
++    check(ok && r == (kFoSign | kFoInf), "fomin(-Inf, 1) = -Inf");
++    ok = runMm("fomax_orrr_rf", kFoQNaN, kFoSNaN, r, f);
++    check(ok && r == kFoQNaN && f == kFlagNV,
++          "fomax(double NaN) = fo canonical qNaN + NV");
++}
++
++// ---------------------------------------------------------------------------
++// 5. FCSR / composition / ordering rules.
++// ---------------------------------------------------------------------------
++
++void
++checkFcsr()
++{
++    // Flags are sticky across instructions and only [4:0] changes.
++    MockContext ctx;
++    initContext(ctx);
++    ctx.rf[0] = withFlags(withMode(kFcsrReset, 0), 0);
++    WordSpec w;
++    w.rfhb = 2;
++    w.rfhc = 3;
++    w.rfhd = 4;
++    ctx.rf[3] = kFtOne;
++    ctx.rf[4] = 0;
++    (void)runWord(ctx, "ftdiv_orrr_rf", w);  // DZ
++    check(flagsOf(ctx) == kFlagDZ, "FCSR: div by zero sets DZ");
++    ctx.rf[3] = kFtQNaN;
++    ctx.rf[4] = kFtOne;
++    (void)runWord(ctx, "ftadd_orrr_rf", w);  // no flags
++    check(flagsOf(ctx) == kFlagDZ, "FCSR: a clean operation keeps old flags");
++    // A *different* new flag must be OR-ed in, never overwrite the old ones.
++    WordSpec toInt;
++    toInt.rdhb = 2;
++    toInt.rfhc = 4;
++    toInt.immu6 = 1;
++    ctx.rf[4] = 0x3FC00000ull;  // 1.5 -> NX
++    (void)runWord(ctx, "ft2it_orri_rf", toInt);
++    check(flagsOf(ctx) == (kFlagDZ | kFlagNX),
++          "FCSR: sticky OR keeps DZ and adds NX (flags 0x%" PRIx64 ")",
++          flagsOf(ctx));
++    ctx.rf[0] = withFlags(ctx.rf[0], 0);  // software clear
++    ctx.rf[3] = kFtOne;
++    ctx.rf[4] = kFtSign;
++    (void)runWord(ctx, "ftdiv_orrr_rf", w);  // -Inf => DZ again
++    check(flagsOf(ctx) == kFlagDZ, "FCSR: sticky OR keeps DZ");
++    check(modeOf(ctx) == 0, "FCSR: the rounding mode is preserved");
++    check(ctx.fcsrWrites >= 1, "FCSR: the flag write goes through writeFcsr");
++    // No-flag instructions must not write rf0 at all.
++    initContext(ctx);
++    const int before = ctx.fcsrWrites;
++    ctx.rf[3] = kFtOne;
++    ctx.rf[4] = kFtOne;
++    (void)runWord(ctx, "ftadd_orrr_rf", w);
++    check(ctx.fcsrWrites == before,
++          "FCSR: a flag-free operation does not write rf0");
++
++    // Four rounding modes drive the same operation differently: 1 + 2^-24.
++    const uint64_t kOnePlusTiny = 0x3F800001ull;  // 1 + 2^-23
++    (void)kOnePlusTiny;
++    for (unsigned mode = 0; mode < 4; ++mode) {
++        initContext(ctx);
++        ctx.rf[0] = withMode(kFcsrReset, mode);
++        ctx.rf[3] = kFtOne;
++        ctx.rf[4] = (mode == 0 || mode == 3) ? 0x3F800001ull : 0x3F800001ull;
++        (void)runWord(ctx, "ftmul_orrr_rf", w);  // 1 * (1+2^-23) = exact
++        check(ft(ctx, 2) == 0x3F800001ull, "mode %u: exact multiply", mode);
++    }
++    // 1 * 2^-149 / 2 => 2^-150: RTZ/RDN -> 0 (UF|NX), RUP -> minSub (UF|NX).
++    initContext(ctx);
++    ctx.rf[0] = withMode(kFcsrReset, 1);
++    ctx.rf[3] = kFtMinSub;
++    ctx.rf[4] = kFtTwo;
++    (void)runWord(ctx, "ftdiv_orrr_rf", w);
++    check(ft(ctx, 2) == 0 && flagsOf(ctx) == (kFlagUF | kFlagNX),
++          "RTZ: minSub/2 => +0 + UF|NX");
++    initContext(ctx);
++    ctx.rf[0] = withMode(kFcsrReset, 3);
++    ctx.rf[3] = kFtMinSub;
++    ctx.rf[4] = kFtTwo;
++    (void)runWord(ctx, "ftdiv_orrr_rf", w);
++    check(ft(ctx, 2) == kFtMinSub && flagsOf(ctx) == (kFlagUF | kFlagNX),
++          "RUP: minSub/2 => minSub + UF|NX");
++
++    // rf0 as a source is the whole FCSR word (its low half is a qNaN).
++    initContext(ctx);
++    ctx.rf[0] = kFcsrReset;
++    ctx.rf[2] = 0;
++    ctx.rf[3] = kFtOne;
++    ctx.rf[4] = kFtOne;
++    WordSpec rf0src;
++    rf0src.rfhb = 2;
++    rf0src.rfhc = 0;  // rf0 as a source
++    rf0src.rfhd = 3;
++    (void)runWord(ctx, "ftadd_orrr_rf", rf0src);
++    check(ft(ctx, 2) == kFtQNaN,
++          "rf0 as a source reads the FCSR qNaN (ft half)");
++
++    // Destination/source overlap is allowed for single-destination forms.
++    initContext(ctx);
++    ctx.rf[2] = kFtOne;
++    ctx.rf[3] = kFtTwo;
++    WordSpec ov;
++    ov.rfhb = 2;
++    ov.rfhc = 2;
++    ov.rfhd = 3;
++    (void)runWord(ctx, "ftadd_orrr_rf", ov);
++    check(ft(ctx, 2) == 0x40400000ull, "ftadd rf2 = rf2 + rf3 (read before write)");
++}
++
++void
++checkBlock()
++{
++    // classify block of 3 ascending, then a block writing at the range end.
++    MockContext ctx;
++    initContext(ctx);
++    ctx.rf[60] = kFtOne;
++    ctx.rf[61] = kFtSign;
++    ctx.rf[62] = kFtInf;
++    WordSpec w;
++    w.rdhb = 61;
++    w.rfhc = 60;
++    w.immu6 = 3;
++    const exec::Fault fault = runWord(ctx, "ftcls_orri_rf", w);
++    check(fault == exec::Fault::None && ctx.rd[61] == 0x100 &&
++              ctx.rd[62] == 0x20 && ctx.rd[63] == 0x200,
++          "ftcls block [61,64) writes the last three rd registers "
++          "(fault %s, 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64 ")",
++          faultName(fault), ctx.rd[61], ctx.rd[62], ctx.rd[63]);
++    // 64-element block is legal (count 63 + start 1).
++    initContext(ctx);
++    w.rdhb = 1;
++    w.rfhc = 1;
++    w.immu6 = 63;
++    check(runWord(ctx, "ftcls_orri_rf", w) == exec::Fault::None &&
++              ctx.writes.size() == 63,
++          "ftcls count 63 from index 1 is legal");
++}
++
++void
++checkDispatchIds()
++{
++    // Ids that share a mnemonic family must dispatch differently.
++    const exec::B7Spec *ft2it = exec::b7SpecForId("ft2it_orri_rf");
++    const exec::B7Spec *ft2ut = exec::b7SpecForId("ft2ut_orri_rf");
++    check(ft2it != nullptr && ft2ut != nullptr && ft2it->intSigned &&
++              !ft2ut->intSigned,
++          "dispatch: ft2it is signed, ft2ut is unsigned");
++    const exec::B7Spec *it2ft = exec::b7SpecForId("it2ft_orri_rf");
++    const exec::B7Spec *io2ft = exec::b7SpecForId("io2ft_orri_rf");
++    check(it2ft != nullptr && io2ft != nullptr && it2ft->intWidth == 32 &&
++              io2ft->intWidth == 64,
++          "dispatch: it2ft is 32-bit, io2ft is 64-bit");
++    const exec::B7Spec *ftadd = exec::b7SpecForId("ftadd_orrr_rf");
++    const exec::B7Spec *ftsub = exec::b7SpecForId("ftsub_orrr_rf");
++    const exec::B7Spec *ftmul = exec::b7SpecForId("ftmul_orrr_rf");
++    const exec::B7Spec *ftdiv = exec::b7SpecForId("ftdiv_orrr_rf");
++    check(ftadd && ftsub && ftmul && ftdiv && ftadd->arith == 0 &&
++              ftsub->arith == 1 && ftmul->arith == 2 && ftdiv->arith == 3,
++          "dispatch: add/sub/mul/div come from the id");
++    const exec::B7Spec *qcmp = exec::b7SpecForId("ftqcmp_orrr_rf");
++    const exec::B7Spec *scmp = exec::b7SpecForId("ftscmp_orrr_rf");
++    check(qcmp && scmp && qcmp->quietCompare && !scmp->quietCompare,
++          "dispatch: qcmp is quiet, scmp is signaling");
++    const exec::B7Spec *sgnn = exec::b7SpecForId("ftsgnn_orrr_rf");
++    const exec::B7Spec *sgnj = exec::b7SpecForId("ftsgnj_orrr_rf");
++    check(sgnn && sgnj && sgnn->negate && !sgnj->negate,
++          "dispatch: sgnn negates the injected sign, sgnj copies it");
++    const exec::B7Spec *ftmin = exec::b7SpecForId("ftmin_orrr_rf");
++    const exec::B7Spec *ftmax = exec::b7SpecForId("ftmax_orrr_rf");
++    check(ftmin && ftmax && !ftmin->isMax && ftmax->isMax,
++          "dispatch: min/max come from the id");
++    const exec::B7Spec *sclb = exec::b7SpecForId("ftsclb_orrr_rf");
++    check(sclb != nullptr && strEq(sclb->thirdField, "rdhd"),
++          "dispatch: ftsclb third operand is rdhd (F5.2 C1)");
++    const exec::B7Spec *csn = exec::b7SpecForId("cs.n_rrrr_rf");
++    const exec::B7Spec *csz = exec::b7SpecForId("cs.z_rrrr_rf");
++    const exec::B7Spec *csp = exec::b7SpecForId("cs.p_rrrr_rf");
++    check(csn && csz && csp && csn->csCond == 0 && csz->csCond == 1 &&
++              csp->csCond == 2,
++          "dispatch: cs.n/z/p conditions come from the id");
++    check(exec::b7SpecForId("ftadd_orrr_rf")->op == exec::B7Op::Arith &&
++              exec::b7SpecForId("ftrem_orrr_rf")->op == exec::B7Op::Rem &&
++              exec::b7SpecForId("ftsclb_orrr_rf")->op == exec::B7Op::ScaleB,
++          "dispatch: add/rem/scaleB are distinct ops");
++}
++
++} // anonymous namespace
++
++// ---------------------------------------------------------------------------
++// Probe mode: print raw results for tools/gem5/b7_ref.py.
++// ---------------------------------------------------------------------------
++
++namespace
++{
++
++bool
++parseHex(const std::string &text, uint64_t &out)
++{
++    try {
++        std::size_t used = 0;
++        out = std::stoull(text, &used, 0);
++        return used == text.size();
++    } catch (...) {
++        return false;
++    }
++}
++
++int
++probe(const char *path)
++{
++    std::ifstream in(path);
++    if (!in) {
++        std::fprintf(stderr, "b7_test: cannot open vector file %s\n", path);
++        return 1;
++    }
++    std::string line;
++    while (std::getline(in, line)) {
++        if (line.empty() || line[0] == '#')
++            continue;
++        std::istringstream stream(line);
++        std::string name, id;
++        if (!(stream >> name >> id)) {
++            std::fprintf(stderr, "b7_test: bad vector line: %s\n",
++                         line.c_str());
++            return 1;
++        }
++        MockContext ctx;
++        initContext(ctx);
++        WordSpec w;
++        std::string token;
++        bool ok = true;
++        while (stream >> token) {
++            const std::size_t eq = token.find('=');
++            if (eq == std::string::npos) {
++                std::fprintf(stderr, "b7_test: bad token %s\n", token.c_str());
++                return 1;
++            }
++            const std::string key = token.substr(0, eq);
++            uint64_t value = 0;
++            if (!parseHex(token.substr(eq + 1), value)) {
++                std::fprintf(stderr, "b7_test: bad value in %s\n",
++                             token.c_str());
++                return 1;
++            }
++            if (key.size() > 2 && key[0] == 'r' &&
++                (key[1] == 'f' || key[1] == 'd' || key[1] == 'b' ||
++                 key[1] == 'a') &&
++                key.find_first_not_of("0123456789", 2) == std::string::npos) {
++                const unsigned idx = unsigned(std::stoul(key.substr(2)));
++                if (idx >= 64) {
++                    std::fprintf(stderr, "b7_test: register index too big\n");
++                    return 1;
++                }
++                switch (key[1]) {
++                  case 'f': ctx.rf[idx] = value; break;
++                  case 'd': ctx.rd[idx] = value; break;
++                  case 'b': ctx.rb[idx] = value; break;
++                  default: ctx.ra[idx] = value; break;
++                }
++                continue;
++            }
++            if (key == "rfha")
++                w.rfha = value;
++            else if (key == "rfhb")
++                w.rfhb = value;
++            else if (key == "rfhc")
++                w.rfhc = value;
++            else if (key == "rfhd")
++                w.rfhd = value;
++            else if (key == "rdha")
++                w.rdha = value;
++            else if (key == "rdhb")
++                w.rdhb = value;
++            else if (key == "rdhc")
++                w.rdhc = value;
++            else if (key == "rdhd")
++                w.rdhd = value;
++            else if (key == "immu6")
++                w.immu6 = value;
++            else {
++                std::fprintf(stderr, "b7_test: unknown key %s\n", key.c_str());
++                return 1;
++            }
++        }
++        if (!ok)
++            return 1;
++
++        const exec::Fault fault = runWord(ctx, id.c_str(), w);
++        std::printf("VECTOR %s\n", name.c_str());
++        std::printf("FAULT %s\n", faultName(fault));
++        for (const RegWrite &wr : ctx.writes) {
++            const char *bank = wr.bank == RegWrite::Bank::Rd ? "rd"
++                               : wr.bank == RegWrite::Bank::Rb ? "rb"
++                               : wr.bank == RegWrite::Bank::Ra ? "ra"
++                                                               : "rf";
++            std::printf("W %s %u 0x%016" PRIx64 "\n", bank, wr.idx, wr.value);
++        }
++        std::printf("FCSR 0x%016" PRIx64 "\n", ctx.rf[0]);
++        std::printf("END %s\n", name.c_str());
++    }
++    return failures == 0 ? 0 : 1;
++}
++
++} // anonymous namespace
++
++int
++main(int argc, char **argv)
++{
++    for (int i = 1; i < argc; ++i) {
++        if (std::strcmp(argv[i], "--vectors") == 0 && i + 1 < argc)
++            return probe(argv[++i]);
++    }
++
++    checkTableShape();
++    positiveAll();
++    nonB7();
++    staticIlli();
++    checkArith();
++    checkFma();
++    checkCs();
++    checkClassify();
++    checkConvertFF();
++    checkRoot();
++    checkF2I();
++    checkI2F();
++    checkRoundInt();
++    checkRem();
++    checkSclb();
++    checkSign();
++    checkCompare();
++    checkMinMax();
++    checkFcsr();
++    checkBlock();
++    checkDispatchIds();
++
++    std::printf("\nsummary: B7 coverage 55/55, failures %d\n", failures);
++    return failures == 0 ? 0 : 1;
++}
