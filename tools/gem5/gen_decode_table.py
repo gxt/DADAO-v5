@@ -19,6 +19,12 @@ Outputs (all generated, never hand-edited):
 ``--check`` re-generates everything in memory and compares it byte for byte
 with the files on disk (drift gate used by ``make check-gem5-decode``).
 
+GEM5-005t adds the SPEC-181t data to the same corpus: the ``ftsclb``/
+``fosclb`` third operand is ``rdhd`` (rd bank), 12 ``sc.*`` rows keep
+``rdhb != rd0`` with the ``dst_rd0`` rule, plus generated legality cases and a
+negative guard for the retired ``rfhd`` spelling.  The curated guards make a
+contract regression fail here instead of silently emitting a stale table.
+
 B0 scope: decode/format/field/opcode/sub-table dispatch only.  Execution
 semantics (B1-B7) are not part of this table; the batch column only fixes the
 B1-B7 boundary counts (38/8/42/63/28/30/55) from GEM5-002t-REPORT.md §5.
@@ -42,6 +48,25 @@ NEGATIVE_TSV = ROOT / "components/gem5/decode-negative.tsv"
 BATCH_COUNTS = {"B1": 38, "B2": 8, "B3": 42, "B4": 63,
                 "B5": 28, "B6": 30, "B7": 55}
 BATCH_NAMES = ["B1", "B2", "B3", "B4", "B5", "B6", "B7"]
+
+# SPEC-181t regression nets (user ruling 2026-11-01, SPEC-181t 已确认口径
+# F5.2/F8.2):
+#   * F5.2 C1: ``ftsclb``/``fosclb`` third operand is ``rdHD`` (64-bit signed
+#     integer exponent, ``rd0`` == exponent 0), same ``orrr`` encoding; the old
+#     ``rfHD`` (rf bank) reading is invalid.
+#   * F8.2: ``sc`` destination ``rdHB == rd0`` is ILLI (``dst_rd0``), while the
+#     ``rdHC`` source reading rd0 as 0 stays legal.
+# These lists are deliberately curated: if the contracts regress to the old
+# spelling the generator fails instead of silently emitting a stale table.
+SCALE_RD_EXPONENT_IDS = ("ftsclb_orrr_rf", "fosclb_orrr_rf")
+LEGACY_SCALE_THIRD = ("rfhd", "rf")  # name/bank the third operand must NOT be
+SC_RD0_IDS = (
+    "sc.o.nn_orrr_rd", "sc.t.nn_orrr_rd", "sc.w.nn_orrr_rd", "sc.b.nn_orrr_rd",
+    "sc.o.nr_orrr_rd", "sc.t.nr_orrr_rd", "sc.w.nr_orrr_rd", "sc.b.nr_orrr_rd",
+    "sc.o.ar_orrr_rd", "sc.t.ar_orrr_rd", "sc.w.ar_orrr_rd", "sc.b.ar_orrr_rd",
+)
+SC_RD0_DST = "rdhb"
+SC_RD0_SRC = "rdhc"
 
 # Top opcode bytes that own a 6-bit [23:18] sub-table instead of a whole
 # instruction.  Derived from the contracts; asserted below (not hardcoded in
@@ -91,20 +116,46 @@ class Entry:
     @property
     def inst(self) -> int:
         """Deterministic encoding used by the assertion corpus."""
-        inst = self.value
-        seed = 0x2A
+        return self.inst_with({})
+
+    def field_values(self) -> list[int]:
+        """Seeded per-field values (same seed as ``inst``)."""
+        values: list[int] = []
         used: set[int] = set()
         for idx, field in enumerate(self.fields):
-            value = (seed + idx * 11) & ((1 << field.width) - 1)
+            value = (0x2A + idx * 11) & ((1 << field.width) - 1)
             while value in used:
                 value = (value + 1) & ((1 << field.width) - 1)
             if value == 0:
                 value = 1
             used.add(value)
+            values.append(value)
+        return values
+
+    def inst_with(self, overrides: dict[str, int]) -> int:
+        """Seeded encoding with named fields replaced by *overrides*."""
+        names = {field.name for field in self.fields}
+        unknown = sorted(set(overrides) - names)
+        if unknown:
+            raise SystemExit(f"{self.id}: no field named {unknown}")
+        inst = self.value
+        values = self.field_values()
+        for idx, field in enumerate(self.fields):
+            value = overrides.get(field.name, values[idx])
+            if not 0 <= value < (1 << field.width):
+                raise SystemExit(
+                    f"{self.id}/{field.name}: override {value} does not fit "
+                    f"in {field.width} bits")
             inst |= value << field.lo
         if (inst & self.mask) != self.value:
             raise SystemExit(f"{self.id}: field bits collide with the opcode mask")
         return inst
+
+    def field_index(self, name: str) -> int:
+        for idx, field in enumerate(self.fields):
+            if field.name == name:
+                return idx
+        raise SystemExit(f"{self.id}: no field named {name!r}")
 
 
 def fail(msg: str) -> None:
@@ -294,6 +345,101 @@ def build_maps(entries: list[Entry]) -> tuple[dict[int, int], dict[int, int],
     ]
 
 
+def validate_spec181t(entries: list[Entry]) -> None:
+    """Curated SPEC-181t guards: the contracts must not regress.
+
+    * ``ftsclb``/``fosclb`` third operand is ``rdhd`` in the ``rd`` bank
+      (``orrr`` ``[5:0]``), not the old ``rfhd`` in the ``rf`` bank; the
+      destination rule ``dst_rf0`` stays.
+    * every ``sc.*`` keeps ``rdhb != rd0`` with the ``dst_rd0`` rule reference,
+      the rule targets the destination ``rdhb`` only (``rdhc`` as a source may
+      read rd0), and the ``sc`` id set is exactly the contract's ``sc.*`` rows.
+    """
+    by_id = {entry.id: entry for entry in entries}
+
+    contract_sc = {entry.id for entry in entries
+                   if entry.mnemonic.startswith("sc.")}
+    if contract_sc != set(SC_RD0_IDS):
+        missing = sorted(set(SC_RD0_IDS) - contract_sc)
+        extra = sorted(contract_sc - set(SC_RD0_IDS))
+        fail(f"sc id set changed (missing {missing}, unexpected {extra}); "
+             "SPEC-181t F8.2 expects 12 sc.* rows")
+
+    for entry_id in SCALE_RD_EXPONENT_IDS:
+        entry = by_id.get(entry_id)
+        if entry is None:
+            fail(f"{entry_id}: missing from contracts/opcodes.yaml "
+                 "(SPEC-181t F5.2 C1)")
+        if len(entry.fields) != 3:
+            fail(f"{entry_id}: {len(entry.fields)} fields, expected 3")
+        third = entry.fields[2]
+        if (third.name, third.bank) != ("rdhd", "rd"):
+            fail(f"{entry_id}: third operand is {third.name}/{third.bank}, "
+                 "expected rdhd/rd (SPEC-181t F5.2 C1: rfHD -> rdHD)")
+        if (third.hi, third.lo, third.role) != (5, 0, "src"):
+            fail(f"{entry_id}: third operand bits/role "
+                 f"[{third.hi}:{third.lo}]/{third.role}, expected [5:0]/src")
+        if "dst_rf0" not in entry.rules:
+            fail(f"{entry_id}: dst_rf0 rule reference lost")
+
+    for entry_id in SC_RD0_IDS:
+        entry = by_id.get(entry_id)
+        if entry is None:
+            fail(f"{entry_id}: missing from contracts/opcodes.yaml "
+                 "(SPEC-181t F8.2)")
+        if "dst_rd0" not in entry.rules:
+            fail(f"{entry_id}: dst_rd0 rule reference missing "
+                 "(SPEC-181t F8.2: sc rdHB=rd0 => ILLI)")
+        if f"{SC_RD0_DST} != rd0" not in entry.legality:
+            fail(f"{entry_id}: legality lacks '{SC_RD0_DST} != rd0' "
+                 f"(got {list(entry.legality)})")
+        dst = entry.fields[entry.field_index(SC_RD0_DST)]
+        if (dst.role, dst.bank, dst.hi, dst.lo) != ("dst", "rd", 17, 12):
+            fail(f"{entry_id}: {SC_RD0_DST} is "
+                 f"{dst.role}/{dst.bank}[{dst.hi}:{dst.lo}], expected "
+                 "dst/rd[17:12]")
+        src = entry.fields[entry.field_index(SC_RD0_SRC)]
+        if src.role != "src":
+            fail(f"{entry_id}: {SC_RD0_SRC} role is {src.role}, expected src")
+        if any(SC_RD0_SRC in expr for expr in entry.legality):
+            fail(f"{entry_id}: legality constrains {SC_RD0_SRC}; reading rd0 "
+                 "as a source must stay legal")
+
+
+def legality_cases(entries: list[Entry]) -> list[tuple[str, int, bool, str]]:
+    """(id, inst, expect_illegal, reason) cases for the static legality data.
+
+    GEM5-005t scope: the 12 ``sc.*`` destination-rd0 rule plus the scaleB
+    exponent operand.  B0 still does not raise ILLI (B1-B6 execute), so these
+    cases assert the legality metadata that those batches will enforce.
+    """
+    by_id = {entry.id: entry for entry in entries}
+    cases: list[tuple[str, int, bool, str]] = []
+    for entry_id in SC_RD0_IDS:
+        entry = by_id[entry_id]
+        cases.append((entry_id, entry.inst_with({SC_RD0_DST: 0}), True,
+                      "sc dst rdHB=rd0 => ILLI (SimRISC-12 §1.1 / dst_rd0)"))
+        cases.append((entry_id, entry.inst_with({SC_RD0_SRC: 0}), False,
+                      "sc rdHC=rd0 reads 0 and stays legal"))
+    for entry_id in SCALE_RD_EXPONENT_IDS:
+        entry = by_id[entry_id]
+        cases.append((entry_id, entry.inst_with({"rdhd": 0}), False,
+                      "scaleB exponent rdHD=rd0 means exponent 0 (legal)"))
+        cases.append((entry_id, entry.inst_with({"rfhb": 0}), True,
+                      "scaleB dst rfHB=rf0 => ILLI (dst_rf0)"))
+    return cases
+
+
+def legacy_field_cases() -> list[tuple[str, int, str, str, str]]:
+    """(id, field index, legacy name, legacy bank, reason) negative guards."""
+    legacy_name, legacy_bank = LEGACY_SCALE_THIRD
+    return [
+        (entry_id, 2, legacy_name, legacy_bank,
+         "SPEC-181t F5.2 C1: scaleB third operand is rdHD, not rfHD")
+        for entry_id in SCALE_RD_EXPONENT_IDS
+    ]
+
+
 def cpp_str(text: str) -> str:
     return json.dumps(text, ensure_ascii=False)
 
@@ -384,6 +530,10 @@ def gen_assertions(entries: list[Entry]) -> str:
             lines.append(
                 f"inline constexpr const char *kAssertLegality{idx}[] = {{"
                 + ", ".join(cpp_str(r) for r in entry.legality) + "};")
+        if entry.rules:
+            lines.append(
+                f"inline constexpr const char *kAssertRules{idx}[] = {{"
+                + ", ".join(cpp_str(r) for r in entry.rules) + "};")
     lines.append("inline constexpr RowAssert kRowAsserts[] = {")
     for idx, entry in enumerate(entries):
         fields = []
@@ -399,17 +549,41 @@ def gen_assertions(entries: list[Entry]) -> str:
             fields.append("{nullptr, 0, 0, nullptr, nullptr, false, 0, 0}")
         ha = -1 if entry.ha is None else entry.ha
         legality_ref = f"kAssertLegality{idx}" if entry.legality else "nullptr"
+        rules_ref = f"kAssertRules{idx}" if entry.rules else "nullptr"
         lines.append(
             f"    {{{cpp_str(entry.id)}, {cpp_str(entry.mnemonic)}, "
             f"{cpp_str(entry.fmt)}, {cpp_str(entry.scope)}, "
             f"{cpp_str(entry.contract_ref)}, {legality_ref}, "
-            f"{len(entry.legality)}, 0x{entry.mask:08x}u, "
+            f"{len(entry.legality)}, {rules_ref}, {len(entry.rules)}, "
+            f"0x{entry.mask:08x}u, "
             f"0x{entry.value:08x}u, 0x{entry.inst:08x}u, 0x{entry.opc:02x}, "
             f"{ha}, {BATCH_NAMES.index(entry.batch) + 1}, "
             f"{len(entry.fields)}, {{{', '.join(fields)}}}}},")
     lines.append("};")
     lines.append("inline constexpr size_t kRowAssertCount = "
                  "sizeof(kRowAsserts) / sizeof(kRowAsserts[0]);")
+    lines.append("")
+    lines.append("// GEM5-005t: static legality cases (B0 publishes the data; "
+                 "B1-B6 raise the fault).")
+    lines.append("inline constexpr LegalityCase kLegalityCases[] = {")
+    for entry_id, inst, expect_illegal, reason in legality_cases(entries):
+        lines.append(
+            f"    {{{cpp_str(entry_id)}, 0x{inst:08x}u, "
+            f"{'true' if expect_illegal else 'false'}, {cpp_str(reason)}}},")
+    lines.append("};")
+    lines.append("inline constexpr size_t kLegalityCaseCount = "
+                 "sizeof(kLegalityCases) / sizeof(kLegalityCases[0]);")
+    lines.append("")
+    lines.append("// GEM5-005t: negative guard for the retired scaleB rf third "
+                 "operand (SPEC-181t F5.2 C1).")
+    lines.append("inline constexpr LegacyFieldCase kLegacyFieldCases[] = {")
+    for entry_id, index, name, bank, reason in legacy_field_cases():
+        lines.append(
+            f"    {{{cpp_str(entry_id)}, {index}, {cpp_str(name)}, "
+            f"{cpp_str(bank)}, {cpp_str(reason)}}},")
+    lines.append("};")
+    lines.append("inline constexpr size_t kLegacyFieldCaseCount = "
+                 "sizeof(kLegacyFieldCases) / sizeof(kLegacyFieldCases[0]);")
     lines.append("")
     return "\n".join(lines)
 
@@ -518,7 +692,7 @@ def gen_negative(entries: list[Entry], coarse: dict[int, int],
 
 def tsv_assertions(entries: list[Entry]) -> str:
     header = ["row", "id", "batch", "scope", "mnemonic", "format", "opc",
-              "ha", "mask", "value", "inst", "fields", "legality",
+              "ha", "mask", "value", "inst", "fields", "legality", "rules",
               "contract_ref", "status"]
     out = ["\t".join(header)]
     for idx, entry in enumerate(entries):
@@ -534,12 +708,14 @@ def tsv_assertions(entries: list[Entry]) -> str:
             "—" if entry.ha is None else f"ha=0x{entry.ha:02x}",
             f"0x{entry.mask:08x}", f"0x{entry.value:08x}",
             f"0x{entry.inst:08x}", ";".join(fields),
-            ";".join(entry.legality), entry.contract_ref, "Decoded"]))
+            ";".join(entry.legality), ";".join(entry.rules),
+            entry.contract_ref, "Decoded"]))
     return "\n".join(out) + "\n"
 
 
 def outputs(source: Path) -> dict[Path, str]:
     entries = load_entries()
+    validate_spec181t(entries)
     counts: dict[str, int] = {name: 0 for name in BATCH_NAMES}
     for entry in entries:
         counts[entry.batch] += 1

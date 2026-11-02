@@ -12,7 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| GEM5-005t | 待开始 | 2026-11-02 07:07（登记） | scaleB C1 第三源 rf→rd + sc rd0 的 gem5 decode/断言更新 |
+| GEM5-005t | 待验收 | 2026-11-02 07:07（登记） | scaleB C1 第三源 rf→rd + sc rd0 的 gem5 decode/断言更新 |
 | QEMU-078t | 待开始 | 2026-11-02 07:07（登记） | scaleB C1 第三源 rf→rd + sc rd0 ILLI；QEMU decode/helper |
 | TESTCASES-090t | 待开始 | 2026-11-02 07:07（登记） | scaleB/sc 测试 + LLVM lit/isa matrix 同步；QEMU/gem5 对照 |
 | LLVM-142t | 待开始 | 2026-11-02 07:00（登记） | scaleB C1（第三源 rf→rd）+ sc rd0 汇编期 ILLI；LLVM TD/MC/CodeGen |

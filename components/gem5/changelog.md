@@ -7,3 +7,7 @@
 - **2026-11-01 GEM5-004t**
   - 摘要：**B0 解码核心 + 264 条断言**。新建 `components/gem5` 树形补丁集（**26 份** = 新增 24 + 修改 2：`src/arch/Kconfig`、`src/arch/SConscript`），在 gem5 v25.1.0.1 上注册 `USE_DADAO_ISA` / `build_opts/DADAO`；`src/arch/dadao/**` 提供纯 C++ 解码核心（`decode/{decode.hh,decode.cc}` + 生成的 `decode_table.inc`）与 gem5 `DadaoInst` 骨架：格式/字段/opcode/6 位子表（`[23:18]`）分派、`rule_refs` + `legality` 规则数据、264 条 ID/格式/字段/编码/批次断言、388 条非法/保留/身份回归（同编码异义 0x5E/0x5F、0x76；删除 cfxld/cfxst；老 swym/coarse-mask 回归）。执行语义不实现：解码成功 ⇒ `UnimplementedInstruction`，未匹配/保留 ⇒ `IllegalInstruction`（ILLI），不静默成功。批次边界 38/8/42/63/28/30/55 由矩阵 `contract_ref` 派生并断言。生成器 `tools/gem5/gen_decode_table.py`（`--check` 漂移门控）；`make build-gem5`（SCons 缺失 ⇒ rc=2 BLOCKED）、`make check-gem5-decode`。manifest 启用 gem5。
   - 执行者：engineer
+
+- **2026-11-02 GEM5-005t**
+  - 摘要：**scaleB C1 与 sc rd0 解码更新**。按 SPEC-181t 重生成 `components/gem5` 解码表/断言：`ftsclb`/`fosclb` 第三操作数由 `rfhd/rf` 改为 `rdhd/rd`（编码/opc/ha 不变，旧 rf 字段成为负例守护）；12 条 `sc.*` 的 `rdhb != rd0`（`dst_rd0`）写入 legality/rule 断言，`rdhc=rd0` 保持合法。生成器新增 SPEC-181t 守护与 28 条合法性用例（sc dst rd0⇒ILLI、rdhc=rd0 合法、scaleB 指数 rdhd=0 合法、scaleB dst rf0⇒ILLI）+ 2 条旧 rf 负例；断言表增加 `rules` 列并逐行校验。`make check-gem5-decode` 264/264 + 388/388 + 28/28 + 2/2。执行语义仍在 B1–B7。
+  - 执行者：engineer
