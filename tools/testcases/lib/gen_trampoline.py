@@ -8,7 +8,7 @@ single RAM segment (ADR-0004 R3 + rev. 2026-10-11).
 
 Trampoline instructions (adapted from ADR-0004 D6.4 for the RAM base):
   1. set.zw rb1, wp1, 0x00ff + or.w rb1, wp2, 0xfc00
-       -> rb1 = 0xFC00_0000_00ff_0000 (SP, near RAM top)
+       -> rb1 = 0xFC00_00FF_0000 (48-bit SP, near RAM top)
   2. set.zw rb2, wp2, 0xfc00
        -> rb2 = 0xFC00_0000_0000 (RAM entry)
   3. jump   rb2, rd0, 0        -> PC = rb2 + rd0 + 0 = 0xFC00_0000_0000
@@ -60,7 +60,7 @@ def generate_trampoline():
     instructions = []
 
     # 1. SP: set.zw rb1, wp1, 0x00ff + or.w rb1, wp2, 0xfc00
-    #    -> rb1 = 0xFC00_0000_00ff_0000 (SP, near the RAM top)
+    #    -> rb1 = 0xFC00_00FF_0000 (48-bit SP, near the RAM top)
     instructions.append(encode_set_zw_rb(1, 1, 0x00FF))
     instructions.append(encode_or_w_rb(1, 2, (SP >> 32) & 0xFFFF))
 

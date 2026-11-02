@@ -21,7 +21,7 @@
 	.text
 	.globl	_start
 _start:
-	@@ rb1 = 0xFC00_0000_00FF_0000 (SP, near the RAM top; ADR-0004 D6.5).
+	@@ rb1 = 0xFC00_00FF_0000 (48-bit SP, near the RAM top; ADR-0004 D6.5).
 	set.zw	rb1, wp1, 0x00ff
 	or.w	rb1, wp2, 0xfc00
 

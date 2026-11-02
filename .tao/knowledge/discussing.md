@@ -85,6 +85,9 @@
 - 0628 参考结论（仅参考，不复制代码）：ADR-0010 明确 **SE 先行、FS 留后**；先做 `SEWorkload`/`Process`、真实 ELF、RB1/栈、brk/mmap，再上 Machine-01/PTW/TLB/timer。已知坑：`SEWorkload` 与 `Process` 概念混淆、LLD 多段 ELF 装载、QEMU trampoline 的 RB1 不可照搬到 SE、RB bank/RegClass/rd0/rb0 语义、不要整体克隆 RISC-V arch 充当骨架。
 - **语义复用禁令**：编码相同、助记符相同 **不等于** 语义可复用；每条指令必须从当前 `spec/`/`contracts/` 重新推导，单独核对操作数/结果/异常/FP 舍入/标志/内存副作用，并与 0628/PR 的变化逐条对照。G1 先产出“语义重导矩阵”，不得按旧 opcode 表直接搬运。
 - 任务量粗估：G0 4–6；G1 SE + 共用 ISA 10–15；G2 FS 15–25；G3 测试/一致性 5–8；G4 1–2；合计约 **35–56**，以 G0 matrix 校准。
+- **2026-11-02 裁定**：B7 收口后先做 `GEM5-013t` 全 264 条执行收敛，再进 G1 SE；SE 分阶段，静态 ELF/静态 tset 先行，动态链接、TLS、线程/futex 后补；M11 最终仍按 ADR-0048 D4 覆盖完整 tset，不降级。ADR-0048 原文待恢复或重新裁定。
+- **2026-11-02 授权**：用户同意 ADR-0048 按现有讨论重建；同意 G1 任务链（`GEM5-013t` → SE 骨架/ELF/syscall/VMA-TLS/静态 tset → 动态/线程后补 → G2 FS）；不支持 syscall 默认失败报告、不静默忽略；该链内不再逐任务确认，只有新语义/跨模块/破坏性/push 才停。
+- **2026-11-02 测试机 RAM 映射裁定**：分简单/复杂两个 profile。简单 profile：BootROM 保持 256 KiB / `0xffff_fffc_0000`–`0xffff_ffff_ffff` / 复位向量 `0xffff_ffff_0000`，其下放 4 MiB `cfx_power` SRAM，程序 image/rodata 由 loader 装入 SRAM，不塞 BootROM；覆盖 Embench 与完整 picolibc 测试集。复杂 profile：RAM 为物理 `[0, 64 MiB)`，hmon 直接驱动 cfx_pmem、建立一级页表（`SPF=0x01`）并在 hypv 下跑测试；`power → hmon → smon` 路径保留给内核/smon 测试；不做双映射，直接迁移并逐项修问题；不新立 ADR，修改 ADR-0004/0039/0040/0043 与 `spec/Machine-01`。
 
 ## Linux（M12 或后续，暂缓）
 
