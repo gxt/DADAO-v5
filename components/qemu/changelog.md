@@ -253,3 +253,7 @@
 - **2026-11-02 `QEMU-078t`**
   - 摘要：**scaleB C1 与 sc rd0（SPEC-181t F5.2/F8.2）**。`ftsclb`/`fosclb` 的第三源由 `rfHD` 改为 `rdHD`（同 `orrr` 编码）：`gen_fp_arith` 对 scaleB 用 `load_rd(a->hd)` 取 64 位有符号整数指数，`helper_fp_arith` 删除 `floatXX_to_int32` 路径、改为 `fp_scaleb_exp()`（超出 int 范围按 IEEE 754 饱和到溢出/下溢）。`gen_sc` 在搬运地址前判 `a->hb == 0` ⇒ 静态 ILLI（不写内存、不置成功/失败），12 条 `sc.*` 编码未动；`rdHC=rd0` 仍合法。`insn.decode` 由 `opcodes.yaml` 重生成后逐字节不变（bank 不在 decodetree 里）。补丁 **3 份改**（`helper.c` / `insn_trans/trans_fp.c.inc` / `translate.c`）；证据 `.work/evidence/QEMU-078t/run.sh` rc=0（17 例行为 + 两次注入→FAIL→`cp`+md5 还原→回绿；`atomics-lrsc` 125/125 回归）。
   - 执行者：engineer
+
+- **2026-11-02 `QEMU-081t`**
+  - 摘要：**用户态/系统态页大小由 4 KiB 改为 64 KiB（DADAO-12 §2.2.2：`VA[15:00]` 页内偏移）**。`target/dadao/cpu-param.h` 的 `TARGET_PAGE_BITS` 12→16（唯一源码改动，`TARGET_VIRT_ADDR_SPACE_BITS` 保持 48），补丁由 `make_patch.py` 重导出（**1 份改**，`series` 63）；`TARGET_PAGE_SIZE/MASK/ALIGN` 派生面随之更新：linux-user 的 `AT_PAGESZ`/`getpagesize`/ELF 装载/`target_mmap`(`mmap_h_lt_g`)/`do_brk`/`setup_arg_pages`(guard 64 KiB)/sigtramp/`probe_guest_base`(`MAX(SHMLBA,TARGET_PAGE_SIZE)`)，softmmu 的 `tlb_set_page(...,TARGET_PAGE_SIZE)`/`translate_for_debug.lg_page_size`/subpage 容器。审计确认补丁集无第二处 4 KiB 假设；系统态各区（RAM 16 MiB、ROM 256 KiB、pmem/hmon/smon 各 64 KiB）均 64 KiB 对齐、无 <64 KiB MMIO 设备。测试驱动 `tools/qemu/user_mode_smoke.py` 的 `% 4096` 改 `% 65536` 并新增静态/动态 `getpagesize`/`sysconf(_SC_PAGESIZE)`/`getauxval(AT_PAGESZ)`=65536 断言。证据 `.work/evidence/QEMU-081t/run.sh`（静态+运行时注入→FAIL→`cp`+md5→回绿）。
+  - 执行者：engineer

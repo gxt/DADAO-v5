@@ -17,6 +17,9 @@ Independent oracle (contract-syscall.md §5 / contract-dynlink.md §8)
 * ``-errno`` values come from the host kernel uapi headers
   (``asm-generic/errno*.h``), not from qemu or from the musl port;
 * program output is fixed by the sources embedded in this file;
+* the guest page size (64 KiB) is fixed here from spec/DADAO-12 §2.2.2
+  (``VA[15:00]`` in-page offset) and contract-elf.md §5.3 (``p_align`` 0x10000),
+  not read back from qemu;
 * nothing is read back from qemu's own logs or implementation.
 
 The syscall numbers used by the raw-trap probes come from the *guest* header
@@ -45,6 +48,12 @@ DEFAULT_WORK = Path("/tmp/opencode/QEMU-062t/smoke")
 TARGET = "dadao-unknown-elf"
 DYNAMIC_LINKER = "/lib/ld-musl-dadao.so.1"
 
+# DADAO normal page = 64 KiB: the in-page offset is VA[15:00] (16 bits),
+# spec/DADAO-12 §2.2.2 "普通页的地址转换", and contract-elf.md §5.3 makes
+# 0x10000 the default p_align.  Fixed here independently of the emulator: the
+# assertion must fail if qemu reports anything else (4 KiB was a QEMU bug).
+PAGE_SIZE = 1 << 16
+
 PT_LOAD, PT_DYNAMIC, PT_INTERP, PT_PHDR = 1, 2, 3, 6
 ET_EXEC, ET_DYN = 2, 3
 EM_DADAO = 0x0DA0
@@ -62,6 +71,32 @@ int main(void) { write(1, (const void *)msg, 3); return 0; }
 
 EXIT_C = r"""
 int main(void) { return 42; }
+"""
+
+# Guest-visible page size, asked three independent ways, plus the alignment of
+# a fresh anonymous mapping.  All three must report PAGE_SIZE (64 KiB), and the
+# mmap address must be PAGE_SIZE-aligned: qemu writes AT_PAGESZ from
+# TARGET_PAGE_SIZE and musl answers getpagesize()/sysconf(_SC_PAGESIZE) from
+# that auxv value, so a 4 KiB build is caught on every path.  One line, fixed
+# order.
+PAGESZ_C = r"""
+#include <unistd.h>
+#include <stdio.h>
+#include <sys/auxv.h>
+#include <sys/mman.h>
+int main(void)
+{
+    /* musl resolves getpagesize()/sysconf(_SC_PAGESIZE) from AT_PAGESZ at
+     * start-up; the ABI has no getpagesize syscall (asm-generic numbering). */
+    long gps = getpagesize();
+    long sc = sysconf(_SC_PAGESIZE);
+    long aux = (long)getauxval(AT_PAGESZ);
+    void *p = mmap(0, 1, PROT_READ | PROT_WRITE,
+                   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (p == MAP_FAILED) return 3;
+    printf("%ld %ld %ld %lx\n", gps, sc, aux, (unsigned long)p);
+    return 0;
+}
 """
 
 # Multi-byte structures must cross the host<->guest boundary in TARGET byte
@@ -247,6 +282,19 @@ def tool(name: str) -> Path:
     return ROOT / ".dadao" / "cross-toolchain" / "bin" / name
 
 
+def builtins_archive() -> Path:
+    """compiler-rt builtins for the target (clang -print-libgcc-file-name)."""
+    env = toolchain_env()
+    r = run([tool("clang"), f"--target={TARGET}", "-rtlib=compiler-rt",
+             "-print-libgcc-file-name"], env=env)
+    path = Path(r.stdout.decode().strip())
+    if r.returncode != 0 or not path.is_file():
+        raise SystemExit(f"cannot resolve the target builtins archive "
+                         f"(clang rc={r.returncode}, path={path})\n"
+                         f"{r.stderr.decode()}")
+    return path
+
+
 # ── ELF reader (independent of qemu) ────────────────────────────────────────
 
 def parse_elf(path: Path) -> dict:
@@ -343,7 +391,13 @@ def link_static(name: str, obj: Path, work: Path) -> Path:
     out = work / f"{name}.elf"
     crt = MUSL / "lib" / "crt1.o"
     libc = MUSL / "lib" / "libc.a"
-    r = run([tool("ld.lld"), crt, obj, libc, "-o", out])
+    # The static musl archive's printf pulls in the long-double (binary128)
+    # helpers, so the compiler-rt builtins archive must be linked too.  Same
+    # recipe (and ordering) as tools/testcases/run_clmul_probe.py: crt first,
+    # then libc/builtins in one --start-group so their references resolve in
+    # either order.
+    r = run([tool("ld.lld"), crt, obj, "--start-group", libc,
+             builtins_archive(), "--end-group", "-o", out])
     if r.returncode != 0:
         raise SystemExit(f"static link {name} failed rc={r.returncode}\n"
                          f"{r.stdout.decode()}{r.stderr.decode()}")
@@ -385,6 +439,23 @@ def qemu_run(qemu: Path, argv: list, *, ld_root: Path | None = None,
     finally:
         if stdin_path:
             stdin.close()
+
+
+def check_guest_page_size(c: Checks, label: str, qemu: Path, elf: Path,
+                          ld_root: Path | None = None) -> None:
+    """Assert the guest-visible page size (three independent queries)."""
+    r = qemu_run(qemu, [elf], ld_root=ld_root)
+    c.add(f"{label}: exit", 0, r.returncode)
+    fields = r.stdout.split()
+    if len(fields) != 4:
+        c.add(f"{label}: output field count", 4, len(fields), ok=False)
+        return
+    gps, sc, aux = (int(x) for x in fields[:3])
+    addr = int(fields[3], 16)
+    c.add(f"{label}: getpagesize()", PAGE_SIZE, gps)
+    c.add(f"{label}: sysconf(_SC_PAGESIZE)", PAGE_SIZE, sc)
+    c.add(f"{label}: getauxval(AT_PAGESZ)", PAGE_SIZE, aux)
+    c.add(f"{label}: mmap(NULL,1) address % PAGE_SIZE", 0, addr % PAGE_SIZE)
 
 
 def check_identity(c: Checks, label: str, elf: Path, want_interp: bool) -> dict:
@@ -441,11 +512,14 @@ def main() -> int:
     cases = {}
     for name, src in (("hello", HELLO_C), ("exit_code", EXIT_C),
                       ("be", BE_C), ("errno_rd8", RAW_C),
-                      ("enosys_rd8", ENOSYS_C), ("ioctl_mask", IOCTL_C)):
+                      ("enosys_rd8", ENOSYS_C), ("ioctl_mask", IOCTL_C),
+                      ("pagesz", PAGESZ_C)):
         cases[name] = link_static(name, compile_program(name, src, work, env), work)
 
     info = check_identity(c, "static hello", cases["hello"], want_interp=False)
     c.add("static hello: e_type", hex(ET_EXEC), hex(info["e_type"]))
+
+    check_guest_page_size(c, "static pagesz", qemu, cases["pagesz"])
 
     data = work / "be_input.bin"
     data_size = 0x119D
@@ -495,7 +569,7 @@ def main() -> int:
         if len(lines) == 7:
             base = int(lines[0], 16)
             c.add("dynamic dyn: AT_BASE != 0", "True", str(base != 0))
-            c.add("dynamic dyn: AT_BASE page aligned", 0, base % 4096)
+            c.add("dynamic dyn: AT_BASE page aligned", 0, base % PAGE_SIZE)
             c.add("dynamic dyn: AT_ENTRY == file e_entry", hex(dinfo["e_entry"]),
                   hex(int(lines[1], 16)))
             c.add("dynamic dyn: AT_PHDR != 0", "True",
@@ -520,6 +594,12 @@ def main() -> int:
         r = qemu_run(qemu, [hello_dyn], ld_root=root)
         c.add("dynamic hello: stdout", b"hi\n", r.stdout)
         c.add("dynamic hello: exit", 0, r.returncode)
+
+        # Same three page-size queries through the dynamic loader's auxv.
+        pagesz_dyn = link_dynamic("pagesz",
+                                  compile_program("pagesz", PAGESZ_C, work, env),
+                                  work)
+        check_guest_page_size(c, "dynamic pagesz", qemu, pagesz_dyn, ld_root=root)
 
         # relocation inventory (structural, from the files): all three classes
         # the contract names must be present in the loaded objects.

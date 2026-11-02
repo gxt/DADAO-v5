@@ -1,6 +1,6 @@
 diff --git a/target/dadao/cpu-param.h b/target/dadao/cpu-param.h
 new file mode 100644
-index 0000000000..732aa8be5d
+index 0000000..f3d1ad7
 --- /dev/null
 +++ b/target/dadao/cpu-param.h
 @@ -0,0 +1,25 @@
@@ -25,7 +25,7 @@ index 0000000000..732aa8be5d
 +#ifndef DADAO_CPU_PARAM_H
 +#define DADAO_CPU_PARAM_H
 +
-+#define TARGET_PAGE_BITS 12
++#define TARGET_PAGE_BITS 16
 +#define TARGET_VIRT_ADDR_SPACE_BITS 48
 +
 +#endif /* DADAO_CPU_PARAM_H */
