@@ -2,7 +2,7 @@
 
 **模块**：gem5
 **项目里程碑**：M11
-**依赖**：`GEM5-013t`（全 264 执行收敛门控，已验证）、`GEM5-004t`（B0 解码，已验证）、`GEM5-003t`（gem5 版本锁定，已验证）
+**依赖**：`GEM5-013t`（全 264 执行收敛门控，已验证）、`GEM5-004t`（B0 解码，已验证）、`GEM5-003t`（gem5 版本锁定，已验证）、QEMU user 页大小改为 16 位（`QEMU-081t`，需先/并行修正；当前 `qemu-dadao` 的 12 位是 bug，不能作为 SE 基准）
 **状态**：待开始
 
 ## 执行环境
@@ -47,7 +47,7 @@
 
 ### 2. SE 平台最小构成（新增 `src/arch/dadao/**`）
 
-- **`page_size.hh`**：`PageShift = 12`、`PageBytes = 4096`（**SE 与 `qemu-dadao` 的 4 KiB 用户页一致**；DADAO FS 普通页 64 KiB 不适用于 SE 的宿主代理页表。`AT_PAGESZ` 必须为 4096，否则 `getpagesize()` 类 tset 与 QEMU user 不一致）。
+- **`page_size.hh`**：`PageShift = 16`、`PageBytes = 65536`（DADAO 普通页 **64 KiB**，与 `contract-elf` 的 `p_align=0x10000` 一致）。**`qemu-dadao` 当前 `TARGET_PAGE_BITS=12` 是错误，须由 QEMU 任务改为 16**；SE 以 16 为基线，`AT_PAGESZ=65536`，不得为迁就 QEMU 的 4 KiB 而改小。
 - **`tlb.hh/.cc`**（`DadaoISA::TLB : BaseTLB`）：SE 专用直通翻译，唯一规则 = `Process::pTable->translate(vaddr, paddr)`（含 `pageOffset`）；
   - `translateAtomic` / `translateTiming` / `translateFunctional`：查表；失败返回 `std::make_shared<GenericPageTableFault>(vaddr)`；成功 `req->setPaddr(paddr)` 后 `NoFault`。
   - `demapPage`/`flushAll`/`takeOverFrom`/`finalizePhysical`：空实现（SE 无硬件 TLB 语义）。
@@ -58,7 +58,7 @@
   - 构造：`Process(params, new EmulationPageTable(params.name, params.pid, PageBytes), objFile)`；`fatal_if(params.useArchPT, ...)`（SE 用宿主页表，不用架构页表）。
   - `MemState` 常量（**SE 平台约定，非 spec 断言**）：`brk_point = roundUp(image.maxAddr(), PageBytes)`、`stack_base = 0x0000_FFFF_FFFF_0000`（48 位空间顶 − 64 KiB）、`max_stack = params.maxStackSize`、`next_thread_stack_base = stack_base − max_stack`、`mmap_end = 0x0000_4000_0000_0000`。
   - `initState()`：先 `gem5::Process::initState()`（装 image、建 `initVirtMem`），再 `argsInit<uint64_t>(PageBytes)`，再分配 1 MiB MemRAS 区（`initVirtMem->allocate`/`pTable->map`，按 gem5 现有 SE 接口；清零并写 invalid-entry），最后对**所有** `contextIds` 设初始架构状态（见 §3）。
-  - `argsInit`：在栈上自低向高布置 `argc, argv[0..argc-1], 0, envp[0..n-1], 0, auxv..., AT_NULL/0`，字符串与 16 B `AT_RANDOM` 区在其下方；**所有 64 位字段按大端写**（`ByteOrder::big`），栈指针 `& −16` 对齐（ABI 要求 8 B 对齐，取 16 保证）；auxv 至少含 `AT_PHDR`（`ElfObject::programHeaderTable()`）、`AT_PHNUM`、`AT_PHENT`、`AT_ENTRY`、`AT_PAGESZ=4096`（= `PageBytes`）、`AT_RANDOM`、`AT_NULL`。
+  - `argsInit`：在栈上自低向高布置 `argc, argv[0..argc-1], 0, envp[0..n-1], 0, auxv..., AT_NULL/0`，字符串与 16 B `AT_RANDOM` 区在其下方；**所有 64 位字段按大端写**（`ByteOrder::big`），栈指针 `& −16` 对齐（ABI 要求 8 B 对齐，取 16 保证）；auxv 至少含 `AT_PHDR`（`ElfObject::programHeaderTable()`）、`AT_PHNUM`、`AT_PHENT`、`AT_ENTRY`、`AT_PAGESZ=65536`（= `PageBytes`）、`AT_RANDOM`、`AT_NULL`。
   - `initState()` 结束时 `tc->pcState(getStartPC())`（`= e_entry`）、`tc->setReg(RegId(intRegClass, 65), sp)`（**SP = rb1**，`int_reg::RbBase + 1`）。
 - **`se_workload.hh/.cc`**（`DadaoISA::SEWorkload : gem5::SEWorkload`）：
   - `getArch() → loader::Dadao`；`setSystem` 只用基类（**不建** RemoteGDB：G1 无 gdb 寄存器描述）。
@@ -143,7 +143,7 @@
 3. **静态 ELF 进入并退出**：`hello` 用例（`write(1,"ok\n",3); return 0;`）在 gem5 SE 上 ⇒ guest stdout `ok\n`、gem5 进程 `$? == 0`、`EXIT_CAUSE` 为 `exiting with last active thread context`。
 4. **退出码精确传播**：`fail` 用例（`return 7`）⇒ gem5 `$? == 7`（不是 0、不是 1）；`exit_group` 路径生效（`status & 0xff` 语义；另测 `return 300` ⇒ `$? == 44` 作为 `&0xff` 的正向证据）。
 5. **初始栈/argv 正确**：`args` 用例（`return argc == 2 ? 0 : 3;`）带 `--args extra` ⇒ `$? == 0`；不带 `--args` ⇒ `$? == 3`（证明 `argc/argv` 向量与 SP/`rb1` 正确，而非「恰好能跑」）。
-5b. **页大小一致**：`pagesz` 用例（`return sysconf(_SC_PAGESIZE) == 4096 ? 0 : 3;`）在 gem5 SE 与 `qemu-dadao` 上均 `$? == 0`；证明 `AT_PAGESZ`/`PageBytes` 没有被写成 64 KiB。
+5b. **页大小一致**：`pagesz` 用例（`return sysconf(_SC_PAGESIZE) == 65536 ? 0 : 3;`）在 gem5 SE 与修正后的 `qemu-dadao`（`TARGET_PAGE_BITS=16`）上均 `$? == 0`；证明 `AT_PAGESZ`/`PageBytes` 为 64 KiB。
 5c. **MemRAS 已分配**：`deepcall` 用例（100 层 `call`/`ret`，`return 0`）在 gem5 SE 与 `qemu-dadao` 上均 `$? == 0`；证据侧打印 `ra0`（`MRPTR != 0`）并断言 100 层调用不触发 `RASOF`。
 6. **同模式一致（ADR-0048 D1/D2）**：上列用例 + 1 条既有静态 ELF（`.dadao/tests/llvm-ts-user/static/SingleSource_Benchmarks_Shootout_hello/hello.elf`，输出确定、无 malloc/mmap）分别在 `qemu-dadao` 与 gem5 SE 上跑，**stdout 字节逐字节相同、退出码相同**；argv[0] 传同一字符串。若出现「gem5 通过而 QEMU 未通过」或反之，**不得直接接受**：按 `discussing.md` 2026-11-02 基线定位（QEMU 调试任务 / spec 裁定），并在完成区写清归属。
 7. **不支持 syscall 不静默**：`pidsys` 用例（调 `getpid()`）⇒ gem5 **非零退出**且 stderr 含 `syscall` 号与 `pc`；同一 binary 在 `qemu-dadao` 正常退出（证明这是「明确失败报告」而非「静默忽略」）。
