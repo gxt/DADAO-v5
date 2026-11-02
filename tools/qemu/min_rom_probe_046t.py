@@ -5,11 +5,11 @@ shared-layer reuse + full 25-service set + SYS_EXIT).
 Spec sources (all expectations are derived by hand from spec/ + contracts/,
 never from the QEMU implementation):
   - spec/Machine-01-测试机运行环境.md §5 (semihosting: entry tag
-    immu18[17:16]==2'b11, calling convention rd16/rb16/rd8, the authoritative
+    immu18[17:8]==0x3FF (0x3FF00-0x3FFFF), calling convention rd16/rb16/rd8, the authoritative
     25-service table, pc+=4 return, SYS_EXIT replaces the legacy MMIO halt device).
   - .tao/adr/adr-0020-see-semihosting.md D1/D2/D3/D4/D5/D6/D8/D10/D14.
-  - .tao/knowledge/contract-semihosting.md §1-§6.
-  - .tao/knowledge/contract-abi.md §2.1 (SP = rb1 / rbsp), §4.1/§4.4.
+  - .tao/contracts/contract-semihosting.md §1-§6.
+  - .tao/contracts/contract-abi.md §2.1 (SP = rb1 / rbsp), §4.1/§4.4.
   - Arm Semihosting (AArch32/AArch64, Release 2.0): service number values and
     the argument-block field layouts used by the shared responder.
 
@@ -34,9 +34,9 @@ Instruction encodings (contracts/opcodes.yaml):
   jump    iiii  op 0x70  imms24[23:0]
 
 Cases:
-  semihost_tag_path   (acc 2)  immu18[17:16]==2'b11 -> served, PC+=4, no vector
+  semihost_tag_path   (acc 2)  immu18[17:8]==0x3FF (0x3FF00-0x3FFFF) -> served, PC+=4, no vector
   semihost_cfxha_agnostic (acc 2) tag works with a reserved cfxha (7)
-  general_trap_path   (acc 2)  immu18[17:16]!=2'b11 -> CFXTRAP enters vector
+  general_trap_path   (acc 2)  immu18 < 0x3FF00 -> CFXTRAP enters vector
   bank_num_rd16       (acc 3)  n=0 reads rd16 (rd17 decorrelated)
   bank_arg_rb16       (acc 3)  n=1 reads rb16 (rb17 decorrelated)
   ret_rd8             (acc 3)  return lands in rd8, rd31 untouched
@@ -68,7 +68,7 @@ TIMEOUT = 10
 ROM_BASE = 0xFFFF_FFFF_0000
 RAM_BASE = 0xFC00_0000_0000
 H = ROM_BASE + 0x100            # vector handler slot in ROM
-TAG = 0x30000                  # immu18 with immu18[17:16] == 2'b11
+TAG = 0x3FF00                  # immu18 in the semihosting range 0x3FF00-0x3FFFF
 
 # RAM (kernel image) layout, loaded at RAM_BASE.
 K_OPEN = 0x100                 # OPEN argument block
@@ -118,7 +118,7 @@ def st_o(rd, rb, off):      return (0x21 << 24) | (rd << 18) | (rb << 12) | (off
 def cfx2rc(ha, cg, rc, rd): return (0x7B << 24) | (ha << 18) | (cg << 12) | (rc << 6) | rd
 def trap(ha, immu18):       return (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF)
 def jump_iiii(imms24):      return (0x70 << 24) | (imms24 & 0xFFFFFF)
-def swym():                 return 0x77880000
+def swym():                 return 0x47880000  # OPC-MISC op=0x47, ha=0x22
 
 
 def load_rd(rd, val):
@@ -278,7 +278,7 @@ def _std_rom(prog, handlers=None):
 
 
 # -- acc 2: semihosting tag -> served, PC+=4, never enters the vector --------
-@case("semihost_tag_path", "immu18[17:16]==2'b11 => semihosting, PC+=4, no vector",
+@case("semihost_tag_path", "immu18[17:8]==0x3FF (0x3FF00-0x3FFFF) => semihosting, PC+=4, no vector",
       services=[0x31])
 def _semihost_tag_path():
     # cfx0 hypv vector -> handler that exits 0xEE (the "vector entered" marker).
@@ -307,7 +307,7 @@ def _semihost_cfxha_agnostic():
 
 
 # -- acc 2: general trap (tag miss) -> CFXTRAP enters the vector -------------
-@case("general_trap_path", "immu18[17:16]!=2'b11 => CFXTRAP enters vector",
+@case("general_trap_path", "immu18 < 0x3FF00 => CFXTRAP enters vector",
       services=[])
 def _general_trap_path():
     prog = set_cfx_vector(0, 3, H)

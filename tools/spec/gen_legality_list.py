@@ -3,8 +3,8 @@
 
 Sources
 -------
-* ``contracts/legality_rules.yaml`` -- 15 rules (active + deferred)
-* ``contracts/opcodes.yaml`` -- 228 entries, 191 with ``rule_refs``
+* ``contracts/legality_rules.yaml`` -- 16 rules (active + deferred)
+* ``contracts/opcodes.yaml`` -- 243 entries, 207 with ``rule_refs``
 
 Reuses ``classify()``, ``SECTION_ORDER``, ``CLASS_TO_SPEC`` from
 ``tools/llvm/gen_asm_list.py`` (DRY: no duplicated classification logic).
@@ -47,6 +47,7 @@ SEMANTIC_MAP: dict[str, str] = {
     "excp_malign":       "数据对齐",
     "excp_ialign":       "指令对齐",
     "encode_sbz":        "编码合法性",
+    "encode_onehot":     "编码合法性",
     "encode_fp_root_n":  "编码合法性",
     "excp_undi":         "编码合法性",
     "excp_rasof":        "控制流",
@@ -73,8 +74,9 @@ RULE_SUMMARY: dict[str, str] = {
     "mreg_range_overflow": "起始+immu6>64 → ILLI",
     "mreg_range_overlap": "源/目的范围交集 → ILLI",
     "excp_malign":       "未对齐访问 → MALIGN",
-    "excp_ialign":       "PC[1:0]≠0 → IALIGN",
+    "excp_ialign":       "IP[1:0]≠0 → IALIGN",
     "encode_sbz":        "SBZ 非零 → ILLI",
+    "encode_onehot":     "immu6 非 one-hot 或 ≥ S → ILLI",
     "encode_fp_root_n":  "ftroot/foroot n≠2 → ILLI",
     "excp_undi":         "保留编码 → UNDI",
     "excp_rasof":        "RAS 上溢 → RASOF",
@@ -158,7 +160,7 @@ def render_chapter_legality(
     # If no rules and no non-M1 entries, still render an empty area
     # (per task: "该章无任何规则的 M1 指令时，仍渲染空区")
     if not applicable_rules and not fp_entries and not excluded_entries:
-        return f"{LEGALITY_START}\n## 2. 合法性检查\n\n（本章无适用规则）\n{LEGALITY_END}"
+        return f"{LEGALITY_START}\n## 附录 B：合法性检查\n\n（本章无适用规则）\n{LEGALITY_END}"
 
     # Group rules by fault × semantic
     # Structure: fault → semantic → list of (rule, matching_entries)
@@ -175,7 +177,7 @@ def render_chapter_legality(
         )
 
     # Render
-    lines = [LEGALITY_START, "## 2. 合法性检查", ""]
+    lines = [LEGALITY_START, "## 附录 B：合法性检查", ""]
 
     # Fault display order
     fault_order = ["ILLI", "UNDI", "MALIGN", "IALIGN", "RASOF", "RASUF"]
@@ -207,68 +209,49 @@ def render_chapter_legality(
                     # Global rule with no per-instruction references
                     lines.append(f"* `{rule_id}`{kind_tag}{status_tag}：{summary}")
 
-    # Add non-M1 instructions note, split by scope
-    if fp_entries:
-        lines.append("")
-        lines.append("**scope: fp（无附加合法性规则）：**")
-        for e in sorted(fp_entries, key=lambda x: x["id"]):
-            lines.append(f"* `{e['id']}`")
-    if excluded_entries:
-        lines.append("")
-        lines.append("**scope: excluded（decode ILLI）：**")
-        for e in sorted(excluded_entries, key=lambda x: x["id"]):
-            lines.append(f"* `{e['id']}`：decode ILLI")
+    # Add entries that carry no extra legality rule, split by decode behaviour
+    groups = (("**无附加合法性规则：**", fp_entries, False),
+              ("**decode ILLI（未实现该语义的机器）：**", excluded_entries, True))
+    for group_heading, group, decodes_illi in groups:
+        if not group:
+            continue
+        if lines[-1] != "":
+            lines.append("")
+        lines.append(group_heading)
+        suffix = "：decode ILLI" if decodes_illi else ""
+        for e in sorted(group, key=lambda x: x["id"]):
+            lines.append(f"* `{e['id']}`{suffix}")
 
     lines.append(LEGALITY_END)
     return "\n".join(lines)
 
 
 def inject_legality(spec_path: Path, legality_block: str, dry_run: bool = False) -> str | None:
-    """Inject legality block into a spec file.
+    """Inject the legality appendix into a spec file.
 
-    The block is placed right after ``<!-- ASSEMBLY_LIST_END -->``.
+    SPEC-165t: the block is the volume's ``## 附录 B：合法性检查`` and sits at the
+    **end** of the volume (fixed order: 附录 A → 附录 B).
 
     Returns the diff description, or None if no change needed.
     """
     content = spec_path.read_text(encoding="utf-8")
 
-    # Find ASSEMBLY_LIST_END
-    if "<!-- ASSEMBLY_LIST_END -->" not in content:
-        return f"WARNING: {spec_path} has no <!-- ASSEMBLY_LIST_END --> marker, cannot inject"
-
-    # Build new content
     lines = content.split("\n")
-    asm_end_idx = None
-    for i, line in enumerate(lines):
-        if line.strip() == "<!-- ASSEMBLY_LIST_END -->":
-            asm_end_idx = i
-            break
-
-    if asm_end_idx is None:
-        return f"WARNING: {spec_path} marker not found after split, cannot inject"
-
-    # Find existing legality block boundaries
-    legality_start_idx = None
-    legality_end_idx = None
+    start_idx = None
+    end_idx = None
     for i, line in enumerate(lines):
         if line.strip() == LEGALITY_START:
-            legality_start_idx = i
+            start_idx = i
         if line.strip() == LEGALITY_END:
-            legality_end_idx = i
+            end_idx = i
             break
 
-    if legality_start_idx is not None and legality_end_idx is not None:
-        # Replace existing legality block
-        before = lines[:legality_start_idx]
-        after = lines[legality_end_idx + 1:]
-        new_lines = before + legality_block.split("\n") + after
-    else:
-        # Insert new legality block right after ASSEMBLY_LIST_END
-        before = lines[:asm_end_idx + 1]  # include ASSEMBLY_LIST_END
-        after = lines[asm_end_idx + 1:]
-        new_lines = before + [""] + legality_block.split("\n") + [""] + after
+    if start_idx is not None and end_idx is not None:
+        lines = lines[:start_idx] + lines[end_idx + 1:]
 
-    new_content = "\n".join(new_lines)
+    while lines and lines[-1].strip() == "":
+        lines.pop()
+    new_content = "\n".join(lines) + "\n\n" + legality_block + "\n"
 
     if new_content == content:
         return None  # No change

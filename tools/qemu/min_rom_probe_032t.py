@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Min ROM probe for QEMU-032t: ret rd0 with imms18 != 0 → ILLI 0x88.
 
-Spec: SimRISC-06 §函数返回 / contract-isa §1.3.1 / §8.5.
+Spec: SimRISC-06: 函数返回 / contract-isa: 1.3.1 / §8.5.
 Rule: contracts/legality_rules.yaml `dst_rd0_nonzero` (kind: static, fault: ILLI).
 Exit code: ADR-0004 D5.8 — ILLI = 0x88.
 
@@ -85,13 +85,13 @@ def cmp_uo_rd(rdhb, rdhc, rdhd): return encode_orri(0x40, 0x2A, rdhb, rdhc, rdhd
 def br_nz(rdha, imms18): return encode_riii(0x6B, rdha, imms18 & 0x3FFFF)
 def call_iiii(imms24): return encode_iiii(0x74, imms24 & 0xFFFFFF)
 def ret_riii(rdha, imms18): return encode_riii(0x76, rdha, imms18 & 0x3FFFF)
-def fence(): return struct.pack('>I', 0x77000000)
+def fence(): return struct.pack('>I', 0x47800000)
 
 
 # ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──
 
 SEMI_BLOCK = 0xFC00_00FF_F000       # argument block {reason, code}, in RAM
-SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
 

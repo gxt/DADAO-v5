@@ -2,7 +2,7 @@
 
 `tests/vectors/` 存放 M1 scope 的独立测试向量，作为 LLVM/QEMU/gem5 的**独立 oracle**。
 
-- 向量**独立派生自锁定的规范与合约**（`spec/`、`.tao/knowledge/contract-isa.md`、
+- 向量**独立派生自锁定的规范与合约**（`spec/`、`.tao/contracts/contract-isa.md`、
   `contracts/opcodes.yaml`、`contracts/legality_rules.yaml`、
   `.tao/adr/adr-0004-test-machine.md`），**不从 LLVM 汇编输出或 QEMU 运行结果生成**。
 - 每条向量记录输入状态、编码字、期望输出状态/PC/异常，期望值可回溯到 `spec_cite`。

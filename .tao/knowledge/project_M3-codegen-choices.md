@@ -65,8 +65,8 @@
 | getFrameRegister | `rb2`（FP） | `DADAORegisterInfo.cpp:56-58` |
 | getCallPreservedMask | **未实现** | `DADAORegisterInfo.{h,cpp}`（grep） |
 | TargetMachine | 仅 `initAsmInfo()`，**无 PassConfig/Subtarget**；用 `TT.computeDataLayout()` | `DADAOTargetMachine.cpp:26-32` |
-| 合约 | `contract-abi.md §4` 完整 CC 仍 `Deferred to M2`（`:9,155-169`）；`contracts/abi.yaml deferred_to_m2`（`:115-130`）；`contract-abi §6 [OPEN]` 5 项（含窄返回扩展 `#2:192`、帧指针省略 `#5:195`、red zone `#4:194`） | `.tao/knowledge/contract-abi.md`、`contracts/abi.yaml` |
-| spec | `DADAO-21 §参数寄存器`（`spec/DADAO-21-...md:145-160`）、`§返回值`（`:330-340`）、`§The Stack Frame`（`:121-137`）；`SimRISC-00 §基址寄存器`（`spec/SimRISC-00-...md:57-80`）；`contract-isa §7`（`.tao/knowledge/contract-isa.md:671-705`） | — |
+| 合约 | `contract-abi.md §4` 完整 CC 仍 `Deferred to M2`（`:9,155-169`）；`contracts/abi.yaml deferred_to_m2`（`:115-130`）；`contract-abi §6 [OPEN]` 5 项（含窄返回扩展 `#2:192`、帧指针省略 `#5:195`、red zone `#4:194`） | `.tao/contracts/contract-abi.md`、`contracts/abi.yaml` |
+| spec | `DADAO-21 §参数寄存器`（`spec/DADAO-21-...md:145-160`）、`§返回值`（`:330-340`）、`§The Stack Frame`（`:121-137`）；`SimRISC-00 §基址寄存器`（`spec/SimRISC-00-...md:57-80`）；`contract-isa §7`（`.tao/contracts/contract-isa.md:671-705`） | — |
 
 ---
 
@@ -145,7 +145,7 @@
 
 ### C3 跨 bank 搬运指令
 
-**(a) 归属**：**随 spec**。指令的**编码/语义**由 `contract-isa`（`.tao/knowledge/contract-isa.md`）与 `contracts/opcodes.yaml` 定，v5 指令（`rd2rd/rb2rb/rd2rb/rb2rd`）已存在。「同类用专用移动还是 `addi+0`」是纯实现映射，**不必 ADR**（如需固化可 ADR 可选）。
+**(a) 归属**：**随 spec**。指令的**编码/语义**由 `contract-isa`（`.tao/contracts/contract-isa.md`）与 `contracts/opcodes.yaml` 定，v5 指令（`rd2rd/rb2rb/rd2rb/rb2rd`）已存在。「同类用专用移动还是 `addi+0`」是纯实现映射，**不必 ADR**（如需固化可 ADR 可选）。
 
 **(b) 分析**
 
@@ -383,7 +383,7 @@
 
 > **2026-10-04 更正**：RB 加减是**全 64 位运算**（结果为完整 64 位）；**仅当用该地址访存时**硬件取 `rb[47:0]`，`rb[63:48]` 用于**判断地址溢出**。下方正文“地址计算仅在低 48 位有效”属 spec 措辞误导（见 ISS-129）。
 
-**(a) 归属**：**随 spec**。RB 算术**指令语义**已在 `contract-isa §7`（`.tao/knowledge/contract-isa.md:671-705`）明确；「指针算术在 GPRB 直接做 vs 转 GPRD 做」是实现取舍（可 ADR 可选）。
+**(a) 归属**：**随 spec**。RB 算术**指令语义**已在 `contract-isa §7`（`.tao/contracts/contract-isa.md:671-705`）明确；「指针算术在 GPRB 直接做 vs 转 GPRD 做」是实现取舍（可 ADR 可选）。
 
 **(b) 分析**
 

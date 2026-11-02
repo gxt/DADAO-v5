@@ -1,0 +1,7 @@
+diff --git a/linux-user/dadao/sockbits.h b/linux-user/dadao/sockbits.h
+new file mode 100644
+index 0000000..0e4c8f0
+--- /dev/null
++++ b/linux-user/dadao/sockbits.h
+@@ -0,0 +1 @@
++#include "../generic/sockbits.h"

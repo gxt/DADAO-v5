@@ -1,0 +1,7 @@
+diff --git a/linux-user/dadao/target_resource.h b/linux-user/dadao/target_resource.h
+new file mode 100644
+index 0000000..2272595
+--- /dev/null
++++ b/linux-user/dadao/target_resource.h
+@@ -0,0 +1 @@
++#include "../generic/target_resource.h"

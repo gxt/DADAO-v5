@@ -1,0 +1,17 @@
+diff --git a/llvm/lib/MC/MCParser/ELFAsmParser.cpp b/llvm/lib/MC/MCParser/ELFAsmParser.cpp
+index d7adf1779..b69863ac2 100644
+--- a/llvm/lib/MC/MCParser/ELFAsmParser.cpp
++++ b/llvm/lib/MC/MCParser/ELFAsmParser.cpp
+@@ -717,8 +717,10 @@ bool ELFAsmParser::parseDirectiveType(StringRef, SMLoc) {
+     return TokError("expected identifier");
+ 
+   bool AllowAt = getLexer().getAllowAtInIdentifier();
+-  if (!AllowAt &&
+-      !getContext().getAsmInfo().getCommentString().starts_with("@"))
++  // The comment string "@" (ARM/legacy) makes '@' a comment lead, so '@' is
++  // not usable inside identifiers.  Multi-character comment strings such as
++  // DADAO's "@@" do NOT swallow the ELF '@attribute' spelling (`.type sym,@function`).
++  if (!AllowAt && getContext().getAsmInfo().getCommentString() != "@")
+     getLexer().setAllowAtInIdentifier(true);
+   llvm::scope_exit _([&]() { getLexer().setAllowAtInIdentifier(AllowAt); });
+ 

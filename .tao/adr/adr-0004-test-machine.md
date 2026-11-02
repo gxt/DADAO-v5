@@ -2,7 +2,7 @@
 
 **状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型；rev. 2026-10-06: D2.2/D2.3 启动/加载扩展为 ELF + raw-bin 双路径；rev. 2026-10-07: 新 bootrom 加载模型（与 M4 ELF 路径并存）、`SYS_EXIT` 取代 exit-port、RAM 基址改全 0 + C1 双映射两步；rev. 2026-10-11: RAM 基址改 `0xFC00_0000_0000`（cfx63 段），见 `## 修订`）
 **日期**：2026-09-13
-**关联**：ADR-0001（greenfield 重建）、ADR-0003（object ABI / artifact pipeline，`SPEC-005t`）、任务 `SPEC-006t`、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）、`.tao/knowledge/contract-abi.md`（AEE·ABI 0.9.2）、`contracts/legality_rules.yaml`、`contracts/opcodes.yaml`
+**关联**：ADR-0001（greenfield 重建）、ADR-0003（object ABI / artifact pipeline，`SPEC-005t`）、任务 `SPEC-006t`、`.tao/contracts/contract-isa.md`（SimRISC 0.5.4）、`.tao/contracts/contract-abi.md`（AEE·ABI 0.9.2）、`contracts/legality_rules.yaml`、`contracts/opcodes.yaml`
 
 ## Context（背景）
 
@@ -12,7 +12,7 @@ M1 的 QEMU 实现必须在**裸机**（bare-metal）环境执行 ISA 语义/合
 
 本 ADR 与 ADR-0003（object ABI / artifact pipeline）配合：ADR-0003 冻结 `.o → objcopy --only-section=.text -O binary → flat binary`，本 ADR 冻结该 flat binary 如何被 QEMU 加载并进入，以及 guest 可见的全部可观测行为。测试机地址图采用 spec 的**核内地址空间模型**（cfxha），整体占用最高段 cfxha 63（power）——见 D1。遗留 `dadao-virt` 内存布局（ROM `0x0010_0000` / UART `0x1000_0000` / RAM `0x8000_0000`）仅作**只读对照**，本 ADR 不沿用。
 
-依赖 oracle：`.tao/knowledge/contract-isa.md`（0.5.4，异常/对齐/地址模型）、`.tao/knowledge/contract-abi.md`（`SP = rb1`、栈向下增长）、`contracts/legality_rules.yaml`（异常触发条件）。指令助记符一律使用 0.5.4 命名。
+依赖 oracle：`.tao/contracts/contract-isa.md`（0.5.4，异常/对齐/地址模型）、`.tao/contracts/contract-abi.md`（`SP = rb1`、栈向下增长）、`contracts/legality_rules.yaml`（异常触发条件）。指令助记符一律使用 0.5.4 命名。
 
 ## Decision（决策）
 
@@ -30,7 +30,7 @@ M1 测试机（`dadao-m1`）地址图采用 spec 的**核内地址空间模型**
 - 所有区域地址均为 48-bit 核内有效地址：`bits[63:48] = 0`，高 16 位在地址计算时被硬件忽略 [contract-isa §1.5]。三个区域与 unmapped 判定均按有效地址低 48 位进行。
 - **boot ROM 起址 `0xffff_ffff_0000` 即 spec 的 `cfx_power_hypv_excp_vector`**（cfxha 63 / power，64 KiB）[DADAO-12 §2.1][DADAO-23 §3]。M1 **仅借用该复位地址**作为 boot ROM，**不复现** spec 的复位运行模式（`inner_run_mode=hypv`、`inner_cfx_code=cfx_power`、`inner_cfx_mask=全 1`）等 HBI/SEE 语义（M1 无 SEE/HBI/hypv）。
 - RAM 与 Exit port 亦位于 cfxha 63 段内（`bits[47:42]=63`）。`spec/` 的核内地址空间属 cfx 访问域，而 RAM 属 64-bit 物理地址空间；M1 无 MMU（VA=PA）、无 cfx，故测试机把这些地址统一作裸机地址使用——属**测试机约定**，非 spec 的 cfx 语义。
-- boot ROM 64 KiB 足以容纳最小 trampoline（D6，实际约 5 条指令）；未使用 ROM 读为零（**全零字现为保留编码**：`MISC-AMO` 子表的 op 为 `0111-0111`（`0x77`）⇒ 全零字若被执行触发 **UNDI**，但 trampoline 会在越过有效代码前跳转离开，见 D6）。（2026-10-01 就地修订：依据 `SPEC-068t`，`MISC-AMO` 编码 `0000-0000`→`0111-0111`；**已经用户逐条确认**）（2026-10-06 注记同步：依据 `ADR-0012 D3.5`，MISC-AMO 子表编码调整——原 `000-000` 指令删除、`fence` 移至 `000-000`（`0x77000000`）、`swym` 移至 `100-010`（`0x77880000`））
+- boot ROM 64 KiB 足以容纳最小 trampoline（D6，实际约 5 条指令）；未使用 ROM 读为零（**全零字现为保留编码**：`OPC-MISC` 子表的 op 为 `0111-0111`（`0x77`）⇒ 全零字若被执行触发 **UNDI**，但 trampoline 会在越过有效代码前跳转离开，见 D6）。（2026-10-01 就地修订：依据 `SPEC-068t`，`OPC-MISC` 编码 `0000-0000`→`0111-0111`；**已经用户逐条确认**）（2026-10-06 注记同步：依据 `ADR-0012 D3.5`，OPC-MISC 子表编码调整——原 `000-000` 指令删除、`fence` 移至 `000-000`（`0x77000000`）、`swym` 移至 `100-010`（`0x77880000`））
 - RAM 16 MiB 提供测试程序 + 栈 + scratch 空间；栈位于 RAM 高地址端、向下增长（`SP = rb1`）[contract-abi §2.1]。
 - 所有区域边界均 8 B 对齐，因此**任何自然对齐的访问都不会跨越区域边界**（跨边界只可能发生在未对齐访问上，按 D4 归 MALIGN）。
 - 「无 spec 依据，架构自定义」：RAM/Exit port 的具体地址、以及「测试机整体占用 cfxha 63 段」均为测试机约定；`spec/` 只规定 cfxha 63 的复位向量 `0xffff_ffff_0000`。
@@ -381,7 +381,7 @@ jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
 - **D2.3 启动协议**：新增 **单 ELF** `-kernel image.elf` 路径（入口 `e_entry`、不用 `-bios`）；**保留** 原双镜像 `-bios rom.bin -kernel test.bin` raw-bin 路径（M3 `make test-codegen` 不回归）。标题由「唯一启动协议」改为「启动协议」。
 - **oversize / error**：由「ROM blob > 64 KiB / test binary > 16 MiB」扩展为「**ELF 段装载越出映射区域**（RAM 16 MiB / ROM 64 KiB）亦在**启动加载阶段报错并非零退出**」。
 - **用户逐条确认（2026-10-06）**：主会话提案四条（D2.2 扩展 ELF + 保留 raw-bin；D2.3 允许单 ELF + 保留双镜像；oversize 扩展 ELF 段越界；就地修订），用户答「**继续**」= 确认四条；原话（问答摘要）见 `.tao/tasks/spec/SPEC-107t-ADR-0004调整.md` 完成区。
-- **变更范围**：D2.2、D2.3、Rationale（双路径条目）、Consequences（下游约束、与 ADR-0003/ADR-0019 一致条目）、`**状态**` 行 rev 日期；配套同步 `.tao/knowledge/contract-elf.md §5/§6` 与文件头范围说明。**不变**：D1 内存映射、D2.1 复位值、D3 exit port、D4/D5 fault、D6 测试 pattern。
+- **变更范围**：D2.2、D2.3、Rationale（双路径条目）、Consequences（下游约束、与 ADR-0003/ADR-0019 一致条目）、`**状态**` 行 rev 日期；配套同步 `.tao/contracts/contract-elf.md §5/§6` 与文件头范围说明。**不变**：D1 内存映射、D2.1 复位值、D3 exit port、D4/D5 fault、D6 测试 pattern。
 - **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-10-06`）。Context 段「冻结该 flat binary 如何被 QEMU 加载并进入」的 flat-only 措辞由本修订取代（D2.2/D2.3 为准）。
 
 **rev. 2026-10-07（用户 2026-10-07 逐条确认，`SPEC-113t`；配套 `ADR-0020`）**：按 M5 新 bootrom 与 semihosting 落地口径，补充「新 bootrom 与加载模型」并修订停机协议与 RAM 基址。**`D1`/`D2.1`/`D3`/`D4`/`D5`/`D6` 决策正文不改**——以下通过本 `## 修订` 条目表达**取代 / 覆盖关系**（`Process-03`：不直接改写已 `Accepted` 的决策）。
@@ -404,3 +404,5 @@ jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
 - **不改规范正文**：地址图正文归 `spec/Machine-01 §1`，其同步（含 `sha256` 锁）归 `QEMU-056t`（`Process-03`：ADR 不承载规范正文）。
 - **配套与下游**：`QEMU-056t`（QEMU 机器映射 + `dadao.lds`/`crt0`/异常向量/harness/`check-interface` 断言 + `Machine-01` 与锁同步）；`R3` 中「C1 双映射两步」**已收口**（`QEMU-053t`：RAM@0 为唯一 RAM 段），本次只是**把唯一 RAM 段的基址**从 `0` 移到 `0xFC00_0000_0000`。
 - **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-10-11`）。
+
+**修订（2026-10-24，`INFRA-103t`；仅订正事实性陈述，`D1`–`D6` 决策正文不改）**：本 ADR 中 `0x77000000` 的语义已两次迁移——`ADR-0034 D1/D5` 把 `fence` 迁至 `0x77800000`、并把 `0x77000000` 分给 `lr.o.nn`；`SPEC-164t` 再把 `OPC-MISC` 迁至 `op 0x47`（`fence` = `0x47800000`）。因此 `D1` 的注记、`D5.1` 末句与 `D5.6` 的 ILLI 示例中「`0x77000000` 现为 `fence`（`scope: excluded`）」均属**历史快照**；**现行口径** = `fence`/`lr`/`sc` 均已实现（`scope: m9`，执行非 ILLI），测试侧 ILLI 毒饵改用 `cfxld`（`0x7C000000`，唯一剩余 `scope: excluded` 族）。源 = `ISS-308`；历史正文保留（`Process-03`）。

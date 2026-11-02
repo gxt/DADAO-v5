@@ -41,21 +41,21 @@ def create_fixtures(base: Path) -> dict[str, dict[str, Path]]:
     # ── 1. source_missing：合约既无版本头也无 ADR 引用 ──
     d = base / "source_missing"
     _write(d / "README.md", readme)
-    _write(d / ".tao" / "knowledge" / "contract-empty.md",
+    _write(d / ".tao" / "contracts" / "contract-empty.md",
            "# Empty contract\n\nNo version header, no ADR reference.\n")
     fixtures["source_missing"] = {"root": d}
 
     # ── 2. source_bad_format：有版本头但无 spec 引用 ──
     d = base / "source_bad_format"
     _write(d / "README.md", readme)
-    _write(d / ".tao" / "knowledge" / "contract-bad.md",
+    _write(d / ".tao" / "contracts" / "contract-bad.md",
            "# Bad Format\n\n> **版本：0.5.4**\n\nNo spec reference on version line.\n")
     fixtures["source_bad_format"] = {"root": d}
 
     # ── 3. version_mismatch：合约版本 ≠ README 版本表 ──
     d = base / "version_mismatch"
     _write(d / "README.md", readme)
-    _write(d / ".tao" / "knowledge" / "contract-mismatch.md",
+    _write(d / ".tao" / "contracts" / "contract-mismatch.md",
            "# Version Mismatch\n\n> **版本：99.99.99** [SimRISC-00 §测试]\n\nMismatch.\n")
     _write(d / "spec" / "SimRISC-00-指令系统设计.md", spec_content)
     fixtures["version_mismatch"] = {"root": d}
@@ -63,7 +63,7 @@ def create_fixtures(base: Path) -> dict[str, dict[str, Path]]:
     # ── 4. unknown_adr：引用不存在的 ADR 文件 ──
     d = base / "unknown_adr"
     _write(d / "README.md", readme)
-    _write(d / ".tao" / "knowledge" / "contract-unknown-adr.md",
+    _write(d / ".tao" / "contracts" / "contract-unknown-adr.md",
            "# Unknown ADR\n\nSee adr-9999-nonexistent.md for details.\n")
     fixtures["unknown_adr"] = {"root": d}
 
@@ -73,7 +73,7 @@ def create_fixtures(base: Path) -> dict[str, dict[str, Path]]:
 def run_checker(repo_root: Path, kd: Path | None = None, sd: Path | None = None) -> int:
     """运行 check_spec_drift.py，返回退出码."""
     cmd = [sys.executable, str(CHECKER), "--repo-root", str(repo_root)]
-    contract_dir = repo_root / ".tao" / "knowledge"
+    contract_dir = repo_root / ".tao" / "contracts"
     cmd += ["--contract-dir", str(contract_dir)]
     cmd += ["--adr-dir", str(repo_root / ".tao" / "adr")]
     if kd:

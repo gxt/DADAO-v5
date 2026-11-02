@@ -1,0 +1,76 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOTargetObjectFile.cpp b/llvm/lib/Target/DADAO/DADAOTargetObjectFile.cpp
+new file mode 100644
+index 000000000..75cf6c649
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOTargetObjectFile.cpp
+@@ -0,0 +1,70 @@
++//===-- DADAOTargetObjectFile.cpp - DADAO target-specific ELF object file ===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAOTargetObjectFile.h"
++#include "llvm/BinaryFormat/ELF.h"
++#include "llvm/MC/MCContext.h"
++#include "llvm/MC/MCSectionELF.h"
++#include "llvm/MC/MCSymbolELF.h"
++#include "llvm/Support/Casting.h"
++#include "llvm/Support/ErrorHandling.h"
++#include "llvm/Target/TargetMachine.h"
++
++using namespace llvm;
++
++MCSection *DADAOTargetObjectFileELF::getSectionForJumpTable(
++    const Function &F, const TargetMachine &TM,
++    const MachineJumpTableEntry *JTE) const {
++  // Let the generic ELF path pick the section (kind ReadOnly -> `.rodata[.<fn>]`,
++  // honouring -ffunction-sections / hotness / section prefixes) and only redirect
++  // its placement when the entries will need load-time fixups.
++  MCSectionELF *ReadOnlySec = static_cast<MCSectionELF *>(
++      TargetLoweringObjectFileELF::getSectionForJumpTable(F, TM, JTE));
++
++  // Non-PIC: a jump table entry is the absolute address of a case block, which
++  // the linker resolves statically (`S + A`, contract-elf.md §3.1).  Nothing has
++  // to be patched at load time, so the table stays in the read-only section.
++  if (!TM.isPositionIndependent())
++    return ReadOnlySec;
++
++  // PIC / shared: the entry is still an absolute address -- DADAO always uses
++  // `MachineJumpTableInfo::EK_BlockAddress` because the relocation set has no
++  // 32-bit (or 64-bit) PC-relative *data* type (DADAOISelLowering::
++  // getJumpTableEncoding; ADR-0019 D10/D12) -- but the module is loaded at an
++  // arbitrary base `B`, so only the loader can patch it: the entry has to become
++  // an `R_DADAO_RELATIVE` (`B + A`, 8-byte field, contract-dynlink.md §4.3)
++  // record in `.rela.dyn`.  A dynamic relocation may not target a read-only
++  // section (lld refuses with -z text, the default), so the table must live in
++  // the standard "read-only after relocation" section `.data.rel.ro`
++  // (ELF convention; lld merges `.data.rel.ro*` into one output section inside
++  // PT_GNU_RELRO).  Without this a `-fPIC` compile of any dense switch (e.g.
++  // musl's `src/locale/catopen.c`) yields an object the `-shared` link rejects
++  // (ISS-241).
++  //
++  // The name keeps the generic per-function suffix so `-ffunction-sections`
++  // discard granularity is unaffected; only the prefix and the writability
++  // change.
++  StringRef Suffix = ReadOnlySec->getName();
++  SmallString<128> RelRoName;
++  if (Suffix.consume_front(".rodata"))
++    RelRoName = ".data.rel.ro";
++  else if (Suffix.consume_front(".lrodata"))
++    RelRoName = ".ldata.rel.ro";
++  else
++    report_fatal_error("DADAO: unexpected jump table section '" +
++                       ReadOnlySec->getName() +
++                       "' (expected a .rodata/.lrodata prefix)");
++  RelRoName += Suffix;
++
++  return getContext().getELFSection(
++      RelRoName, ReadOnlySec->getType(),
++      ReadOnlySec->getFlags() | ELF::SHF_WRITE, ReadOnlySec->getEntrySize(),
++      ReadOnlySec->getGroup(), ReadOnlySec->isComdat(),
++      ReadOnlySec->getUniqueID(),
++      static_cast<const MCSymbolELF *>(ReadOnlySec->getLinkedToSymbol()));
++}

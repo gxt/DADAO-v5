@@ -9,7 +9,7 @@ like `../m4/` and `../m5/` — so the M3 driver
 Task: `TESTCASES-036t`（M6 新能力向量：L1 编码 + L3 执行）.
 Specs: `docs/Process-05-里程碑TDD规范.md §2`（L1/L2/L3）、`§3`（一能力一向量）、
 `§4`（期望值独立派生）、`§5`（反例门控）.
-Contracts: `.tao/knowledge/contract-abi.md §6`（调用约定）、`contract-elf.md §2–§4`
+Contracts: `.tao/contracts/contract-abi.md §6`（调用约定）、`contract-elf.md §2–§4`
 （reloc）、`contract-fp.md`（FP/RF）.
 
 ## Two manifests (raw-bin vs ELF)

@@ -2,7 +2,7 @@
 
 **状态**：Accepted（rev. 2026-09-13: `e_flags` 版本字段；rev. 2026-10-06: M4 ELF 路径 `dadao.lds` 去 `FILEHDR PHDRS` + `p_align` 目标默认 64 KiB，见 `## 修订`）
 **日期**：2026-09-13
-**关联**：ADR-0001（greenfield 重建）、ADR-0002（构建编排）、ADR-0004（test machine，`SPEC-006t`）、`SPEC-005t`（本 ADR 任务）、`SPEC-007t`（ELF 合约，下游规范化）、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）、`.tao/knowledge/contract-abi.md`（0.9.2）
+**关联**：ADR-0001（greenfield 重建）、ADR-0002（构建编排）、ADR-0004（test machine，`SPEC-006t`）、`SPEC-005t`（本 ADR 任务）、`SPEC-007t`（ELF 合约，下游规范化）、`.tao/contracts/contract-isa.md`（SimRISC 0.5.4）、`.tao/contracts/contract-abi.md`（0.9.2）
 
 ## Context（背景）
 
@@ -17,7 +17,7 @@ M1 范围为单翻译单元（single TU）、freestanding、自包含：无跨 o
 
 **`Deferred to M2`**：重定位类型表（D2）、重定位溢出策略（D3）、重定位松弛策略（D4）。M1 的 `.s` 标签在同一段内由汇编器就地解析，**不产生重定位**；M1 无 link 步骤，故 M1 不冻结任何重定位编号/公式/溢出/松弛策略，完整 relocation 由 M2 决策（另见 `LLVM-012t`）。
 
-依赖 oracle：`.tao/knowledge/contract-isa.md`（0.5.4，指令格式/字段宽度/对齐/地址模型）与 `.tao/knowledge/contract-abi.md`（0.9.2，端序/指针宽度）。遗留 DADAO toolchain（`Dadao.def`/`ELF.h`）仅作**只读对照**，本 ADR **不采用**其重定位编号或公式；`EM_DADAO` 的取值沿用 legacy 命名以便生态识别，但其注册状态由本 ADR 明确为 project-custom（见 D1）。
+依赖 oracle：`.tao/contracts/contract-isa.md`（0.5.4，指令格式/字段宽度/对齐/地址模型）与 `.tao/contracts/contract-abi.md`（0.9.2，端序/指针宽度）。遗留 DADAO toolchain（`Dadao.def`/`ELF.h`）仅作**只读对照**，本 ADR **不采用**其重定位编号或公式；`EM_DADAO` 的取值沿用 legacy 命名以便生态识别，但其注册状态由本 ADR 明确为 project-custom（见 D1）。
 
 ## Decision（决策）
 
@@ -101,7 +101,7 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 
 以下内容服务 M2，**不属 M1 规范性决策**。本 ADR 仅登记主题，不冻结编号/公式/策略：
 
-- **D2 重定位类型表（`Deferred to M2`）**：M1 单 TU 自包含、无跨 object、无 link，汇编器就地解析标签，**不产生重定位**，故 M1 不定义任何重定位类型。M2 启用时的场景登记（格式/字段位置见 [contract-isa §2.3–§2.4]，分支/call/jump 语义见 [contract-isa §8.2–§8.4]；~~rela 语义见 [contract-isa §5.3]~~（2026-09-30 注记：§5.3 `rela.si` 已删除，见 `ADR-0012 D5`）；字段宽度以 0.5.4 格式为准，不在本 ADR 冻结）：
+- **D2 重定位类型表（`Deferred to M2`）**：M1 单 TU 自包含、无跨 object、无 link，汇编器就地解析标签，**不产生重定位**，故 M1 不定义任何重定位类型。M2 启用时的场景登记（格式/字段位置见 [contract-isa §2.3–§2.4]，分支/call/jump 语义见 [contract-isa §8.2–§8.4]；~~rela 语义见 [contract-isa §5.3]~~（2026-09-30 注记：§5.3 `rela.si` 已删除，见 `ADR-0012 D5`）（**2026-10-16 更新**：`rela.si` **已恢复并更名 `aip.si`**〔`riii` / 编码 `0x5A` / 语义 `rbHA = IP + (imms18 << 12)`〕⇒ 上列「已删除」注记**作废** ✗；见 `ADR-0012 D5`「就地修订注记」+ `ADR-0029 D1`）；字段宽度以 0.5.4 格式为准，不在本 ADR 冻结）：
 
   | 场景 | 0.5.4 指令格式 | 字段约束 |
   |------|---------------|----------|
@@ -109,7 +109,7 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
   | PC 相对短程分支 | `br.n`/`br.nn`/`br.z`/`br.nz`/`br.p`/`br.np`（riii，imms18） | imms18 **字**偏移，重定位 `<<2`；有效字节范围 = 18+2 → ±2¹⁹（±512 KiB） |
   | PC 相对双寄存器分支 | `br.eq`/`br.ne`（rrii，imms12） | imms12 字偏移 `<<2`；有效字节范围 = 12+2 → ±2¹³（±8 KiB） |
   | PC 相对 call/jump（中程） | `call imms24`/`jump imms24`（iiii） | imms24 字偏移 `<<2`；有效字节范围 = 24+2 → ±2²⁵（±32 MiB） |
-  | ~~PC 相对地址加载~~ | ~~`rela.si`（riii，imms18 << 12）~~ | ~~imms18 **直接 `<< 12`**（12 位偏移，得 30 位有符号数）；PC 低 12 位清零得 **4KB 对齐**（**与页无关**）、无 `<<2`~~（2026-09-30 修订：`rela.si` 已删除，编码 `0x5A` → UNDI；PC 相对寻址改为 `rb0` 基址路径。见 `ADR-0012 D5`。） |
+  | ~~PC 相对地址加载~~ | ~~`rela.si`（riii，imms18 << 12）~~ | ~~imms18 **直接 `<< 12`**（12 位偏移，得 30 位有符号数）；PC 低 12 位清零得 **4KB 对齐**（**与页无关**）、无 `<<2`~~（2026-09-30 修订：`rela.si` 已删除，编码 `0x5A` → UNDI；PC 相对寻址改为 `rb0` 基址路径。见 `ADR-0012 D5`。）（**2026-10-16 更新**：`rela.si` **已恢复并更名 `aip.si`**（编码 `0x5A` 复用、`rbHA = IP + (imms18 << 12)`、`IP` 不清低位）⇒ 本行「已删除 / `0x5A` → UNDI / 改走 `rb0` 基址路径」**作废** ✗；见 `ADR-0012 D5`「就地修订注记」+ `ADR-0029 D1`。） |
 
   > 约定：绝对地址（含 `set.zw`/`or.w` 构造）统一归入「绝对 64-bit 数据地址」，**不单列 wyde 类指令的地址构造场景**。**相对分支/call/jump** 的立即数均为**字偏移**，重定位须 **`<<2`**（字→字节），故**有效字节范围 = 立即数位宽 + 2 位**。
   > M2 冻结重定位编号时，须在 `e_flags[7:0] = 1`（M1 对象/ABI 格式版本）的 namespace 内独立编号，不得沿用 legacy `Dadao.def` 的编号或公式。
@@ -151,7 +151,7 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 **rev. 2026-09-14（用户决定）**：D2 登记表补充两条 M2 约定（D2/D3/D4 仍 `Deferred to M2`，未冻结编号/公式）：
 
 - **① 绝对地址不单列 wyde 地址构造场景**：`set.zw`/`or.w` 构造的地址统一归入「**绝对 64-bit 数据地址**」（与 `.quad`/指针数据同类），删除原「绝对 64-bit 地址构造」独立场景行。
-- **② 相对寻址 `<<2`**：相对**分支/call/jump** 的立即数均为**字偏移**，重定位须 `<<2`（字→字节），故**有效字节范围 = 立即数位宽 + 2 位**（如 imms18 → ±2¹⁹ = ±512 KiB、imms12 → ±8 KiB、imms24 → ±32 MiB）。~~**`rela.si` 例外**：其立即数直接 `<< 12`（12 位偏移），**无页概念、无 `<<2`**。~~（2026-09-30 注记：`rela.si` 已删除，见 `ADR-0012 D5`；PC 相对寻址改为 `rb0` 基址路径。）
+- **② 相对寻址 `<<2`**：相对**分支/call/jump** 的立即数均为**字偏移**，重定位须 `<<2`（字→字节），故**有效字节范围 = 立即数位宽 + 2 位**（如 imms18 → ±2¹⁹ = ±512 KiB、imms12 → ±8 KiB、imms24 → ±32 MiB）。~~**`rela.si` 例外**：其立即数直接 `<< 12`（12 位偏移），**无页概念、无 `<<2`**。~~（2026-09-30 注记：`rela.si` 已删除，见 `ADR-0012 D5`；PC 相对寻址改为 `rb0` 基址路径。）（**2026-10-16 更新**：`rela.si` **已恢复并更名 `aip.si`**（`riii` / `0x5A` / `rbHA = IP + (imms18 << 12)`；**`IP` 不清低位**）⇒ 上列「已删除」注记**作废** ✗；见 `ADR-0012 D5`「就地修订注记」+ `ADR-0029 D1`。）
 
 **rev. 2026-10-06（用户 2026-10-06 逐条确认；`SPEC-112t`）**：§D5 新增 **M4 ELF 路径补充**——不改变 M1 raw-bin pipeline，仅就 M4 ELF 路径冻结三条 decision；ELF 加载/启动协议仍归 `ADR-0004 §D2.2/§D2.3`（rev. 2026-10-06）。
 
@@ -164,5 +164,5 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 - **scope 限定**：本决策仅约束 **M4 路径级脚本 `dadao.lds`** 与 **可覆写的目标默认值**（`p_align`），**不约束完整 linker 实现**；`p_offset` 不做正反两向要求。
 - **不变项**：§D5 段最小对齐 / VA=PA / M1 raw-bin pipeline；`ADR-0004` 全部 decision；`ADR-0019` 的「本期禁用 relaxation / 4 类 reloc」。
 - **用户逐条确认（2026-10-06）**：主会话提案（B1 去掉 `FILEHDR PHDRS`；页大小并入本波 `defaultMaxPageSize = 0x10000`；落点 `ADR-0003 §D5` 且不影响后续完整 linker）经用户逐条确认；用户原话（问答摘要）见 `.tao/tasks/spec/SPEC-112t-去FILEHDR-PHDRS与64KiB页大小决策.md` §用户裁定。
-- **变更范围**：`**状态**` 行 rev 日期、§D5 新增「M4 ELF 路径补充」小节、本 `## 修订` 条目；配套同步 `.tao/knowledge/contract-elf.md §5/§6.1.2` 与附录 A、`.tao/knowledge/milestones.md`。**不变**：D1、D2/D3/D4 登记、§D5 段最小对齐/VA=PA/M1 raw-bin pipeline。
+- **变更范围**：`**状态**` 行 rev 日期、§D5 新增「M4 ELF 路径补充」小节、本 `## 修订` 条目；配套同步 `.tao/contracts/contract-elf.md §5/§6.1.2` 与附录 A、`.tao/knowledge/milestones.md`。**不变**：D1、D2/D3/D4 登记、§D5 段最小对齐/VA=PA/M1 raw-bin pipeline。
 - **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03`/`adr-authoring` 的一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-10-06`）。

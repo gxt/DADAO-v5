@@ -1,0 +1,7 @@
+diff --git a/linux-user/dadao/target_prctl.h b/linux-user/dadao/target_prctl.h
+new file mode 100644
+index 0000000..eb53b31
+--- /dev/null
++++ b/linux-user/dadao/target_prctl.h
+@@ -0,0 +1 @@
++/* No special prctl support required. */

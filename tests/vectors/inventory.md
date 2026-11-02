@@ -13,7 +13,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 > `validate_vectors.py` 机械校验本表的 M1 行集与 `contracts/opcodes.yaml`
 > 中 `scope == "m1"` 的身份集一致（无缺、无多、无重复），且每行至少声明一类覆盖（不得静默缺席）。
 
-## M1 覆盖矩阵（155 条）
+## M1 覆盖矩阵（156 条）
 
 | id | format | file | encoding | legality | semantic | boundary | overlap | notes |
 |---|---|---|---|---|---|---|---|---|
@@ -62,6 +62,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `mul.so_rrrr_rd` | `rrrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | ✓ |  |
 | `add.si_riii_rd` | `riii` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `add.si_riii_rb` | `riii` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `aip.si_riii_rb` | `riii` | `aip-si.yaml` | ✓ | ✓ | ✓ | ✓ | — | IP 相对寻址（ADR-0029 D1 + §修订注记；指令名 `rela.si` → `aip.si`）；手写向量：L1 编码往返（`ha`/`imms18` 正负各 ≥1，SPEC-145t）+ 目的 `rb0` ⇒ ILLI；汇编层操作数按**字节**（`imms30` = `imms18` << 12）；semantic/boundary **QEMU-061t 落地**（执行层：`rbHA = IP + (sext18(imms18) << 12)`，`IP` = 自身地址，期望值 host 侧独立派生） |
 | `cmp.ui_rrii_rd` | `rrii` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `cmp.si_rrii_rd` | `rrii` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `cs.n_rrrr_rd` | `rrrr` | `reg-cond-assign.yaml` | ✓ | ✓ | ✓ | — | deferred C-27 | overlap（C-27 条件赋值快照）deferred |
@@ -83,7 +84,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `br.nz_riii_rb` | `riii` | `ctrl-br.yaml` | ✓ | — | ✓ | ✓ | — | 同上 |
 | `call_iiii_ra` | `iiii` | `ctrl-call.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `call_rrii_ra` | `rrii` | `ctrl-call.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `ret_riii_ra` | `riii` | `ctrl-ret.yaml` | — | ✓ | ✓ | — | — | encoding 豁免：返回目标依赖 harness 布局、单指令不可构造（非恒 fault，见 `TESTCASES-006t`） |
+| `ret_riii_ra` | `riii` | `ctrl-ret.yaml` | — | ✓ | ✓ | — | — | encoding 豁免：返回目标依赖 harness 布局、单指令不可构造（非恒 fault，见 `TESTCASES-006t`）；semantic 5 条已由 `TESTCASES-063t` 恢复 `active`（harness `build_ret_binary` 用向量自身 RA + 在 `expected_pc` 处放 landing pad；不再合成 call 覆盖 ra63） |
 | `swym_oiii_imm` | `oiii` | `misc.yaml` | ✓ | — | ✓ | — | — | 占位指令（§13.1），无 fault，legality 不适用 |
 | `and.o_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `or.o_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
@@ -93,12 +94,12 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `ext.so_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.uo_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.so_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `shl.uo_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `shl.o_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `ext.uo_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `ext.so_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.uo_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.so_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `shl.uo_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `shl.o_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `add.o_orrr_bbd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `sub.o_orrr_bbd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `cmp.uo_orrr_dbb` | `orrr` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
@@ -116,10 +117,10 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `rem.so_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.ut_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.st_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `shl.ut_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `shl.t_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.ut_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.st_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `shl.ut_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `shl.t_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `add.ut_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `add.st_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `sub.ut_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
@@ -134,10 +135,10 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `rem.st_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.uw_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.sw_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `shl.uw_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `shl.w_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.uw_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.sw_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `shl.uw_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `shl.w_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `add.uw_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `add.sw_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `sub.uw_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
@@ -152,10 +153,10 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `rem.sw_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.ub_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.sb_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `shl.ub_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `shl.b_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.ub_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.sb_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `shl.ub_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `shl.b_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `add.ub_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `add.sb_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `sub.ub_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
@@ -172,3 +173,76 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `cfx2rd_crrr_cfx` | `crrr` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上 |
 | `escape_ciii_cfx` | `ciii` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上（位宽：汇编 imms20 ⇔ 编码 imms18=bytes>>2） |
 | `trap_ciii_cfx` | `ciii` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上 |
+
+## 非 M1 向量（独立文件，不入本矩阵）
+
+`rev.o`/`rev.t`/`rev.w`/`rev.b`（逐块反转）为 `scope: m8`（`ADR-0012 D10`），**不是 M1 身份**，
+故**不**在本文 M1 覆盖矩阵中登记（矩阵的 id 行集须与 `contracts/opcodes.yaml` 的 `scope == "m1"`
+身份集**严格一致**——多一行即 `validate_vectors.py` 报 `INVENTORY EXTRA`，缺一行报
+`INVENTORY MISSING`）。
+
+它们的向量落在独立文件 `tests/vectors/rev/rev.yaml`（由 `tools/testcases/generate_rev_vectors.py`
+机械生成 + 独立 oracle 校验，**非** `tools/testcases/generate_isa_vectors.py`——后者只遍历
+`scope == "m1"` 的记录）。覆盖范围：
+
+| 指令 | 向量文件 | 覆盖 |
+|------|---------|------|
+| `rev.o` | `tests/vectors/rev/rev.yaml` | encoding + 每个合法 `k`（1/2/4/8/16/32）的 semantic + 边界（`rdHC=0`/全 1/`rdHB==rdHC`/`rdHC=rd0`）+ legality（非 one-hot / `k≥S` / 目的 `rd0`） |
+| `rev.t` | 同上 | 同上（合法 `k` = 1/2/4/8/16） |
+| `rev.w` | 同上 | 同上（合法 `k` = 1/2/4/8） |
+| `rev.b` | 同上 | 同上（合法 `k` = 1/2/4） |
+
+> 端序：本项目为**大端**；`k = 8` 档的语义用例同时由「块内单元倒序」与「大端字节序 →
+> 块内字节倒序」两条独立派生路径给出，须逐例一致（见生成器 `--self-check`）。
+
+`ctlz`/`cttz`/`ctpop`（位扫描 / 位计数）同为 `scope: m8`（`ADR-0012 D11`），**不是 M1 身份**（同上，
+不入本矩阵）。向量落在独立文件 `tests/vectors/bitcnt/bitcnt.yaml`（由
+`tools/testcases/generate_bitcnt_vectors.py` 机械生成 + 独立 oracle 校验）：
+
+| 指令 | 向量文件 | 覆盖 |
+|------|---------|------|
+| `ctlz` | `tests/vectors/bitcnt/bitcnt.yaml` | encoding + **全量** `hd ∈ 0..63` 的 semantic（不抽样）+ 定值（有效位全 0 ⇒ `hd+1`，`hd` 全量）+ 边界（`hd=0`/`hd=63`/`rdHC=rd0`/`rdHB==rdHC`/高位掩码/单 bit 位编号）+ legality（仅目的 `rd0` ⇒ ILLI） |
+| `cttz` | 同上 | 同上（定值同 `hd+1`） |
+| `ctpop` | 同上 | 同上（定值 = 0） |
+
+> 语义口径：`hd` = **有效位上界**，参与运算的是 `rdHC[hd:0]`（`hd+1` 位）；`hd ∈ 0..63`
+> **全部合法**（**无** `hd` 触发 ILLI）。端序：大端；编码字按大端字节序落盘（`op` 字节在最前），
+> 由生成器 `--check` 逐 case 断言。oracle 用 **三条**代码独立的派生路径（逐位循环 / 整数性质 /
+> MSB-first 位串）逐例互证（见生成器 `--self-check`）。
+
+
+## 门控覆盖（L2/L3）
+
+> **机械可核**：本表是覆盖**登记**，`tools/qemu/semantics_gate.py`（`make check-qemu-semantics`）
+> 解析它并与现场**双向**比对 —— L3 列 ✓ 的册 == 现场派生载体集
+> （`isa/*.yaml` 全量 + `rol/*.yaml` + `atomics/*.yaml` + `clmul/*.yaml`），L2 列 ✓ 的册 ==
+> `tests/scripts/run_qemu_smoke.py:GATE_VECTORS`；**任一方向多/少即 FAIL**
+> （新增向量册须同步本表与门控载体，否则 L3 红）。`ISS-235` 处置：L3 载体由 3/16 册扩至全量。
+>
+> **范围**：`isa/` 全量 + 非 M1 的 `rol`/`atomics`/`clmul` 载体（`QEMU-064t`/`QEMU-067t`/`QEMU-068t`）；
+> `rev`/`bitcnt`（M8 scope，2 册）**未纳入 L2/L3** —— 后续任务指针：评估其入门控（同 `rol`/`atomics` 口径）。
+
+| 册 | L2（代表集） | L3（全量） |
+|---|---|---|
+| `isa/aip-si.yaml` | ✓ | ✓ |
+| `isa/ctrl-br.yaml` | — | ✓ |
+| `isa/ctrl-call.yaml` | — | ✓ |
+| `isa/ctrl-jump.yaml` | — | ✓ |
+| `isa/ctrl-ret.yaml` | — | ✓ |
+| `isa/mem-ra.yaml` | — | ✓ |
+| `isa/mem-rb.yaml` | — | ✓ |
+| `isa/mem-rd.yaml` | — | ✓ |
+| `isa/misc.yaml` | — | ✓ |
+| `isa/reg-arith.yaml` | — | ✓ |
+| `isa/reg-compare.yaml` | ✓ | ✓ |
+| `isa/reg-cond-assign.yaml` | — | ✓ |
+| `isa/reg-imm-block.yaml` | — | ✓ |
+| `isa/reg-logic.yaml` | — | ✓ |
+| `isa/reg-shift-extend.yaml` | ✓ | ✓ |
+| `isa/reserved.yaml` | — | ✓ |
+| `rol/rol.yaml` | — | ✓ |
+| `atomics/atomics-fence.yaml` | — | ✓ |
+| `atomics/atomics-lrsc.yaml` | — | ✓ |
+| `clmul/clmul.yaml` | — | ✓ |
+| `rev/rev.yaml` | — | — |
+| `bitcnt/bitcnt.yaml` | — | — |

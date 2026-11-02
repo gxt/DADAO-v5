@@ -176,9 +176,12 @@ exclude:
   #     `llc | FileCheck` CodeGen tests under the corpus root without value
   #     channels; registered here so the structural-closure invariant stays green
   #     (lessons §2.21).  Maintained during INTEG-034m milestone verification.
-  - ir: tests/llvm/lit/CodeGen/DADAO/p0-cttz.ll
+  - ir: tests/llvm/lit/CodeGen/DADAO/bitops.ll
     class: no-value-entry
-    reason: "FileCheck structural test (cttz count-trailing-zeros lowering, LLVM-079t); no `@main` value channel."
+    reason: "FileCheck structural test (ctlz/cttz/ctpop + rev.o/rev.t selection, LLVM-128t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/bitops-narrow.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (narrow i32/i16/i8 bit-count promotion, LLVM-128t); no `@main` value channel."
   - ir: tests/llvm/lit/CodeGen/DADAO/p0-fp-bitcast.ll
     class: no-value-entry
     reason: "FileCheck structural test (FP bitcast f64<->i64, LLVM-079t); no `@main` value channel."
@@ -194,12 +197,12 @@ exclude:
   - ir: tests/llvm/lit/CodeGen/DADAO/p0-fp-trunc-store.ll
     class: no-value-entry
     reason: "FileCheck structural test (truncating store f64->f32, LLVM-088t); no `@main` value channel."
-  - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-minmax-libcall.ll
+  - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-minmax.ll
     class: no-value-entry
-    reason: "FileCheck structural test (FP min/max libcall fmin/fmax, LLVM-080t); no `@main` value channel."
-  - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-round-libcall.ll
+    reason: "FileCheck structural test (FP min/max selection: fomin/fomax/ftmin/ftmax, LLVM-124t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fma.ll
     class: no-value-entry
-    reason: "FileCheck structural test (FP rounding libcall floor/ceil/trunc/round/rint/nearbyint, LLVM-080t); no `@main` value channel."
+    reason: "FileCheck structural test (fused multiply-add selection: fofma/ftfma from llvm.fma/llvm.fmuladd, LLVM-123t); no `@main` value channel."
   - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-sign.ll
     class: no-value-entry
     reason: "FileCheck structural test (FP sign ops fabs/copysign, LLVM-080t); no `@main` value channel."
@@ -209,9 +212,111 @@ exclude:
   - ir: tests/llvm/lit/CodeGen/DADAO/inline-asm-r.ll
     class: no-value-entry
     reason: "FileCheck structural test (inline asm \"r\" constraint / GPRD, LLVM-086t); no `@main` value channel."
-  - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-libcall-f32.ll
-    class: no-value-entry
-    reason: "FileCheck structural test (f32 rounding/extremum libcall registration, LLVM-087t); no `@main` value channel."
   - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-libcall-logf.ll
     class: no-value-entry
     reason: "FileCheck structural test (f32 log libcall LOG_F32->logf, LLVM-089t); no `@main` value channel."
+  # (g) later LLVM tasks (102t/103t/105t/106t/111t) added structural
+  #     `llc | FileCheck` CodeGen tests under the corpus root without value
+  #     channels; registered here so the structural-closure invariant stays green
+  #     (lessons §2.21).
+  - ir: tests/llvm/lit/CodeGen/DADAO/indirectbr.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (indirectbr -> BRIND / rd2rb + jump lowering, LLVM-102t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-libcall-log.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (f64 log/log10 RTLIB libcall registration, LLVM-103t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/vec-load-widen.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (vector load widening / widened SETCC type, LLVM-105t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/f128-codegen.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (fp128/binary128 libcalls + EVEN/ODD register pairs, LLVM-106t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/m8-varargs-stack-align.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (16-byte stack-slot alignment for varargs/fp128 spills, LLVM-111t); no `@main` value channel."
+  # (h) LLVM-113t/114t added structural `llc | FileCheck` CodeGen tests under
+  #     the corpus root without value channels; registered here so the
+  #     structural-closure invariant stays green (lessons §2.21).
+  - ir: tests/llvm/lit/CodeGen/DADAO/m8-i128-f128-libcall.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (128-bit int <-> binary128 conversions as compiler-rt TF libcalls, LLVM-113t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/m8-f128-math-libcall.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (f128 math intrinsics -> libm libcalls, LLVM-114t); no `@main` value channel."
+  # (i) ISS-326: 11 structural `llc | FileCheck` tests that were present under
+  #     the corpus roots but unclassified (and one dangling entry was deleted).
+  #     All have no `@main` / value channel; every reason cites the owning task.
+  - ir: tests/llvm/lit/CodeGen/DADAO/atomics-cas-narrow-sext.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (narrow cmpxchg compares W bytes, LLVM-121t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/atomics-cas.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (cmpxchg/atomicrmw -> lr/sc loop, LLVM-121t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/atomics-fence.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (ordering -> fence lowering, LLVM-121t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/atomics-store.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (atomic store value vs address, LLVM-121t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/clmul.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (clmul.o shape, LLVM-122t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/inline-asm-m-reject.ll
+    class: no-value-entry
+    reason: "FileCheck structural negative test (`not llc`, unsupported memory constraint, LLVM-119t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/inline-asm-m.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (inline-asm memory operands, LLVM-119t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/inline-asm-operands.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (`$N` operand references, LLVM-118t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-rounding-f32.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (f32 roundint -> ftrnd one-hot immu6, LLVM-125t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-rounding.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (f64 roundint -> fornd one-hot immu6, LLVM-125t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/rol.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (rol.o selection / rotr custom lowering, LLVM-116t); no `@main` value channel."
+  # (j) LLVM-126t: FP backend wiring (fcmp / sign f32 / classify / ldexp /
+  #     rounding mode / saturating conversion / canonicalize / remainder).
+  #     Structural `llc | FileCheck` tests only, no `@main` value channel.
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-fcmp.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (12 fcmp predicates -> foqcmp/ftqcmp, LLVM-126t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-classify.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (is.fpclass -> focls/ftcls + mask, LLVM-126t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-ldexp.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (ldexp -> io2fo/it2ft + fosclb/ftsclb, LLVM-126t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-rounding-mode.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (get/set.rounding -> rf0[33:32], LLVM-126t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-sat.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (fptosi.sat/fptoui.sat -> fo2io/fo2uo/fo2it/fo2ut, LLVM-126t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-canonicalize.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (llvm.canonicalize is the identity, LLVM-126t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-remainder.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (llvm.dadao.remainder -> forem/ftrem; frem stays Expand, LLVM-126t); no `@main` value channel."
+  # (g) LLVM-127t / LLVM-129t structural CodeGen tests added under the corpus
+  #     root without value channels; registered here so the structural-closure
+  #     invariant stays green (lessons §2.21).  LLVM-129t review (Needs Revision):
+  #     the two earlier files were already unclassified before that task and are
+  #     registered in the same place instead of being relabelled or deleted.
+  - ir: tests/llvm/lit/CodeGen/DADAO/abi-narrow-extend.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (narrow ABI extend/trunc register shape, LLVM-127t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/narrow-int.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (narrow i8/i16/i32 promotion + canonical extend, LLVM-127t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/m9-ldm-stm-prologue.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (callee-saved prologue/epilogue `stm.o`/`ldm.o`, LLVM-129t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/m9-ldst-opt.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (post-RA `stm.o`/`ldm.o` merge, LLVM-129t); no `@main` value channel."

@@ -8,13 +8,13 @@ DADAO-v5 仓库布局与一次性工作区（`.work/`）约定。
 ## 纳入版本控制的目录
 
 - `AGENTS.md` / `README.md`：项目规则与总览。
-- `.tao/`：agent 交互目录（任务 / 知识 / 日志），详见 `.tao/README.md`。
+- `.tao/`：agent 交互目录（任务 / 知识 / 契约 / 日志），详见 `.tao/README.md`。
 - `manifests/`：不可变输入——规范与参考组件的锁文件（精确 commit）。
 - `spec/`：**技术规范**（上游 SimRISC/DADAO + v5 自定技术册 Toolchain/Machine）；总索引 `spec/README.md`（spec 模块任务可改，见 ADR-0012 D4）。
 - `components/`：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁）+ 组件专属文档（`README.md`/`changelog.md`）。规范见 `docs/Process-01-组件补丁组织与构建编排.md`。
 - `tools/<module>/`：各模块工具脚本（`tools/infra/` 含 fetch / 准备 / 校验 / 状态等，Python 标准库）。
 - `containers/`：开发容器定义。
-- `contracts/`：规范派生的机器可读数据（编码表、合法性规则、ABI）。
+- `contracts/`：**规范派生的机器可读数据**（编码表、合法性规则、ABI）；**人读契约正文在 `.tao/contracts/`（归一化叙述，为其源）——本目录是它的派生投影**。
 - `docs/`：**工程流程规范（`Process-0x`）+ 仓库级索引（如本布局说明）+ `DDLN/` 讲义素材**——面向「**给别人看**」；技术规范在 `spec/`、结论/口径在 `.tao/knowledge/`（三分界口径见 `AGENTS.md`）。索引 `docs/README.md`。
 - `tests/`：独立于组件单元测试的接口与执行测试（按需创建）。
 - `sail/`：Sail 形式化规范（按需创建）。

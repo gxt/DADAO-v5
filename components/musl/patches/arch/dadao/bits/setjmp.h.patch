@@ -1,0 +1,53 @@
+diff --git a/arch/dadao/bits/setjmp.h b/arch/dadao/bits/setjmp.h
+new file mode 100644
+index 0000000..6227d5d
+--- /dev/null
++++ b/arch/dadao/bits/setjmp.h
+@@ -0,0 +1,47 @@
++/*
++ * DADAO jmp_buf.
++ *
++ * Sized to the exact frame that src/setjmp/dadao/{setjmp.S,longjmp.S} save,
++ * in octas (8 bytes each), in this order:
++ *
++ *   [  0 ..  63]  ra0 .. ra63   -- the hardware return-address stack.
++ *                                  ra0 carries RACNT/MRPTR (contract-abi.md
++ *                                  §1.5, ADR-0012 D7): [53:48] = RACNT,
++ *                                  [47:0] = MRPTR.
++ *   [ 64]         rb1           -- stack pointer (SP)
++ *   [ 65 ..  96]  rd32 .. rd63  -- callee-saved, contract-abi.md §4.5
++ *   [ 97 .. 128]  rb32 .. rb63  -- callee-saved (rb63 is an ordinary member;
++ *                                  ADR-0018 C7 D3/D6 rev. 2026-10-19)
++ *   [129 .. 160]  rf32 .. rf63  -- callee-saved FP bank, contract-abi.md §4.5
++ *   [161]         rb2           -- frame pointer (FP), saved separately: rb2 is
++ *                                  reserved, NOT part of the CSR, and a
++ *                                  longjmp must restore the returned-to
++ *                                  function's frame base.
++ *
++ * Total = 64 + 1 + 32 + 32 + 32 + 1 = 162 octas.  This is a *real* save/restore
++ * of every callee-saved register (CSR = rd32-rd63 ∪ rb32-rb63 ∪ rf32-rf63,
++ * contract-abi.md §4.5) plus the return-address stack, which DADAO makes
++ * architecturally readable/writable (contract-isa.md §3.3), plus the frame
++ * pointer rb2; it is not a size-only placeholder.
++ *
++ * LIMITATION (registered): only the MRPTR == 0 case (pure RegRAS, depth <= 63)
++ * is exact.  When MRPTR != 0 the MemRAS *contents* are not part of jmp_buf, so
++ * a longjmp spanning a recursion deep enough to have spilled into MemRAS
++ * cannot be restored exactly.  The same limitation is carried by the picolibc
++ * port (INFRA-068t) and is not exercised by the P1 static target, whose
++ * startup leaves ra0 at its reset value 0.
++ *
++ * sigsetjmp/siglongjmp ARE provided (src/signal/dadao/sigsetjmp.s, INFRA-089t):
++ * sigsetjmp/__sigsetjmp take the upstream two-argument (env, savemask) form;
++ * savemask == 0 is a plain setjmp, otherwise the mask is stored on the first
++ * return and restored on the siglongjmp path by musl's generic
++ * src/signal/sigsetjmp_tail.c.  The mask itself lives in the sigjmp_buf fields
++ * *after* this 162-octa frame (__ss), and the wrapper's one scratch word is
++ * __fl at byte offset 1296; neither is part of __jmp_buf.  siglongjmp is
++ * musl's generic src/signal/siglongjmp.c (it only forwards to longjmp; the
++ * restore happens in the returned-to context).  No DADAO signal-frame ABI is
++ * involved: rt_sigprocmask works on the 8-byte Linux mask in qemu-user
++ * (ADR-0025 D2/D6, contract-syscall).
++ */
++
++typedef unsigned long __jmp_buf[162];

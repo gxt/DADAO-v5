@@ -1,0 +1,22 @@
+diff --git a/include/system/memory.h b/include/system/memory.h
+index 2192fc9..31fad6e 100644
+--- a/include/system/memory.h
++++ b/include/system/memory.h
+@@ -2404,6 +2404,17 @@ MemTxResult memory_region_dispatch_write(MemoryRegion *mr,
+                                          MemOp op,
+                                          MemTxAttrs attrs);
+ 
++/**
++ * mem_reentrancy_guard_abort: release every MMIO re-entrancy guard engaged by
++ * the calling thread.
++ *
++ * Called by cpu_loop_exit() before the longjmp, while the access frames that
++ * engaged the guards are still live (their normal release path is skipped when
++ * the stack is unwound).  Without this a device stays marked engaged_in_io and
++ * the next access to it is rejected as re-entrant (ISS-064).
++ */
++void mem_reentrancy_guard_abort(void);
++
+ /**
+  * address_space_init: initializes an address space
+  *

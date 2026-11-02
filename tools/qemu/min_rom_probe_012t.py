@@ -93,7 +93,7 @@ def st_o_rd(rdha, rbhb, imms12):
     return encode_rrii(0x21, rdha, rbhb, hc, hd)
 
 def cmp_uo_rd(rdhb, rdhc, rdhd):
-    """cmp.uo rdhb, rdhc, rdhd (MISC-octa, ha=0x2A)"""
+    """cmp.uo rdhb, rdhc, rdhd (OPC-octa, ha=0x2A)"""
     return encode_orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
 
 def br_nz(rdha, imms18):
@@ -142,13 +142,18 @@ def ret_riii(rdha, imms18):
     return encode_riii(0x76, rdha, imms18 & 0x3FFFF)
 
 def fence():
-    return encode_oiii(0x77, 0x00, 0)
+    return encode_oiii(0x47, 0x20, 0)
+
+def illi_poison():
+    """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison after fence
+    became an implemented instruction (SPEC-164t)."""
+    return encode_oiii(0x7C, 0x00, 0)
 
 def swym():
-    return encode_oiii(0x77, 0x22, 0)
+    return encode_oiii(0x47, 0x22, 0)
 
 def trap_sys_exit():
-    """trap cfx_umon, 0x30000 — semihosting tag (immu18[17:16]==2'b11)."""
+    """trap cfx_umon, 0x3FF00 — semihosting tag (immu18[17:8]==0x3FF (0x3FF00-0x3FFFF))."""
     return encode_oiii(0x7F, 0x00, SEMIHOST_TAG)
 
 # ── Semihosting SYS_EXIT (ADR-0020 D8: exit port removed) ──────────────
@@ -157,7 +162,7 @@ def trap_sys_exit():
 # block[1] (offset 8) and traps; SYS_EXIT never returns.
 
 SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
-SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
 
@@ -444,7 +449,7 @@ CTL_CHECKS = [
      ILLI_EXIT,                  # wrong expectation
      "Self-check FAILED: probe cannot detect br.nz rd0 behavior"),
     ("CTL: ILLI but expect PASS (wrong)",
-     [fence()],
+     [illi_poison()],
      PASS_EXIT,
      "Self-check FAILED: probe cannot detect ILLI"),
 ]

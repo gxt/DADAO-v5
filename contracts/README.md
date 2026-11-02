@@ -1,6 +1,6 @@
 # contracts/ — 机器可读合约数据
 
-从 `.tao/knowledge/contract-*.md` 与 ADR 派生的**机器可读合约数据**，供各模块工具与实现消费。
+从 `.tao/contracts/contract-*.md` 与 ADR 派生的**机器可读合约数据**，供各模块工具与实现消费。**人读契约正文在 `../.tao/contracts/`**（本目录只放机器数据）。
 
 ## 文件说明
 
@@ -14,6 +14,7 @@
 ## 原则
 
 - **独立于实现**（Independent oracle）：只从 `spec/` 与合约派生，不从 LLVM/QEMU 反推。
+- **载体分工**：扁平锁 / 清单 → TOML（如 `manifests/*.toml`）；嵌套合约数据 → YAML（本目录）；叙述型契约正文 → Markdown（`../.tao/contracts/`）。
 - `opcodes.yaml` 须自检：每条指令的 mask & value 唯一、同 mnemonic 的变体共享基名、无编码空间重叠（由 `tools/spec/validate_encoding.py`）。
 - **工具脚本不放这里**：生成/校验脚本在 `tools/spec/`，各模块检查脚本在 `tools/<module>/`。
 - 黄金模型（Python 独立 oracle）属 `golden` 模块（M2），不在此目录。

@@ -1,0 +1,23 @@
+diff --git a/clang/include/clang/Basic/TargetInfo.h b/clang/include/clang/Basic/TargetInfo.h
+index 3aba4d261..278306fff 100644
+--- a/clang/include/clang/Basic/TargetInfo.h
++++ b/clang/include/clang/Basic/TargetInfo.h
+@@ -380,7 +380,17 @@ public:
+     //    int* __va_reg;
+     //    int __va_ndx;
+     //} va_list;
+-    XtensaABIBuiltinVaList
++    XtensaABIBuiltinVaList,
++
++    // typedef struct __va_list_tag {
++    //    void *rd_next;  void *rb_next;  void *rf_next;
++    //    long  rd_left;  long  rb_left;  long  rf_left;
++    //    void *stack_next;
++    // } va_list[1];
++    // DADAO three-cursor variable-argument ABI (spec/DADAO-21 §3.3,
++    // ADR-0031 D1): three per-bank cursors + three remaining-slot counters +
++    // the overflow stack cursor.  Field order is an ABI fact.
++    DADAOBuiltinVaList
+   };
+ 
+ protected:

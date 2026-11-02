@@ -7,8 +7,11 @@
 
 白名单（仅约束**顶层**；子目录内容不扫）：
   - **子目录**（任意名，如 ``archive``/``refs``）——递归内容不受本门控约束；
-  - ``contract-*.md``——叙述型合约（Phase B 迁入 ``contracts/`` 后本模式作废，见本文件 ``_ALLOWED_GLOBS``）；
   - **台账 / 索引集合**（显式名单 ``_ALLOWED_FILES``）。
+
+> **Phase B 已落地（INFRA-071t，2026-10-14）**：11 份 ``contract-*.md`` 已迁入 ``.tao/contracts/``
+> ⇒ 原 ``contract-*.md`` 顶层通配**作废**（``_ALLOWED_GLOBS`` 清空；``.tao/knowledge/`` 顶层
+> 再出现 ``contract-*.md`` 即白名单外 ⇒ FAIL）。新落点白名单见 ``check_contracts_dir.py``。
 
 设计要点：
   - **计数现场统计、不写死**；
@@ -41,8 +44,9 @@ _ALLOWED_FILES = frozenset({
     "project_M3-codegen-choices.md", # M3 codegen 口径台账
 })
 
-# 顶层允许的 glob 模式（Phase A：叙述型合约仍留在此；Phase B 迁入 contracts/ 后作废）
-_ALLOWED_GLOBS = ("contract-*.md",)
+# 顶层允许的 glob 模式（空）：`contract-*.md` 已由 INFRA-071t 迁入 `.tao/contracts/`
+# ⇒ 原通配作废（迁出后 `.tao/knowledge/` 顶层再出现该模式即白名单外 ⇒ FAIL）。
+_ALLOWED_GLOBS: tuple[str, ...] = ()
 
 
 def _is_allowed_file(name: str) -> bool:

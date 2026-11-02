@@ -5,13 +5,10 @@ libc/include/sys/cdefs.h.patch
 libc/machine/dadao/machine/meson.build.patch
 libc/machine/dadao/meson.build.patch
 libc/machine/dadao/setjmp.S.patch
+libc/stdio/vfprintf_int.c.patch
 libc/string/fls.c.patch
 libc/string/flsl.c.patch
 libc/string/flsll.c.patch
-libm/common/compiler_rt_builtins.h.patch
-libm/common/meson.build.patch
-libm/common/muldc3.c.patch
-libm/common/mulsc3.c.patch
 libos/semihost/machine/dadao/meson.build.patch
 libos/semihost/machine/dadao/semihost-dadao.S.patch
 meson.build.patch

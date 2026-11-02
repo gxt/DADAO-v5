@@ -1,0 +1,12 @@
+diff --git a/linux-user/meson.build b/linux-user/meson.build
+index 332847a..7fa60eb 100644
+--- a/linux-user/meson.build
++++ b/linux-user/meson.build
+@@ -42,6 +42,7 @@ gen_vdso = generator(gen_vdso_exe, output: '@BASENAME@.c.inc',
+ subdir('aarch64')
+ subdir('alpha')
+ subdir('arm')
++subdir('dadao')
+ subdir('hexagon')
+ subdir('hppa')
+ subdir('i386')

@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_mem.c.inc b/target/dadao/insn_trans/trans_mem.c.inc
 new file mode 100644
-index 0000000..090703a
+index 0000000..aa6041b
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_mem.c.inc
-@@ -0,0 +1,529 @@
+@@ -0,0 +1,593 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* §4.1.1 Single RD Load (rrii): ld.sb/ld.ub/ld.sw/ld.uw/ld.st/ld.ut/ld.o
@@ -478,58 +478,122 @@ index 0000000..090703a
 +    return true;
 +}
 +
-+static bool trans_lr_nn_o_orrr_rd(DisasContext *ctx, arg_misc *a)
++static bool trans_lr_o_nn_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
-+    /* lr_nn.o - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_lr(ctx, a, 8);
 +}
 +
-+static bool trans_lr_nr_o_orrr_rd(DisasContext *ctx, arg_misc *a)
++static bool trans_lr_t_nn_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
-+    /* lr_nr.o - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_lr(ctx, a, 4);
 +}
 +
-+static bool trans_lr_an_o_orrr_rd(DisasContext *ctx, arg_misc *a)
++static bool trans_lr_w_nn_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
-+    /* lr_an.o - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_lr(ctx, a, 2);
 +}
 +
-+static bool trans_lr_ar_o_orrr_rd(DisasContext *ctx, arg_misc *a)
++static bool trans_lr_b_nn_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
-+    /* lr_ar.o - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_lr(ctx, a, 1);
 +}
 +
-+static bool trans_sc_nn_o_orrr_rd(DisasContext *ctx, arg_misc *a)
++static bool trans_lr_o_an_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
-+    /* sc_nn.o - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_lr(ctx, a, 8);
 +}
 +
-+static bool trans_sc_nr_o_orrr_rd(DisasContext *ctx, arg_misc *a)
++static bool trans_lr_t_an_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
-+    /* sc_nr.o - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_lr(ctx, a, 4);
 +}
 +
-+static bool trans_sc_an_o_orrr_rd(DisasContext *ctx, arg_misc *a)
++static bool trans_lr_w_an_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
-+    /* sc_an.o - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_lr(ctx, a, 2);
 +}
 +
-+static bool trans_sc_ar_o_orrr_rd(DisasContext *ctx, arg_misc *a)
++static bool trans_lr_b_an_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
-+    /* sc_ar.o - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_lr(ctx, a, 1);
++}
++
++static bool trans_lr_o_ar_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_lr(ctx, a, 8);
++}
++
++static bool trans_lr_t_ar_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_lr(ctx, a, 4);
++}
++
++static bool trans_lr_w_ar_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_lr(ctx, a, 2);
++}
++
++static bool trans_lr_b_ar_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_lr(ctx, a, 1);
++}
++
++static bool trans_sc_o_nn_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_sc(ctx, a, 8);
++}
++
++static bool trans_sc_t_nn_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_sc(ctx, a, 4);
++}
++
++static bool trans_sc_w_nn_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_sc(ctx, a, 2);
++}
++
++static bool trans_sc_b_nn_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_sc(ctx, a, 1);
++}
++
++static bool trans_sc_o_nr_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_sc(ctx, a, 8);
++}
++
++static bool trans_sc_t_nr_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_sc(ctx, a, 4);
++}
++
++static bool trans_sc_w_nr_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_sc(ctx, a, 2);
++}
++
++static bool trans_sc_b_nr_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_sc(ctx, a, 1);
++}
++
++static bool trans_sc_o_ar_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_sc(ctx, a, 8);
++}
++
++static bool trans_sc_t_ar_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_sc(ctx, a, 4);
++}
++
++static bool trans_sc_w_ar_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_sc(ctx, a, 2);
++}
++
++static bool trans_sc_b_ar_orrr_rd(DisasContext *ctx, arg_misc *a)
++{
++    return gen_sc(ctx, a, 1);
 +}

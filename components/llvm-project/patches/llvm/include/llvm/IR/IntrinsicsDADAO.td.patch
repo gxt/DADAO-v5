@@ -1,0 +1,78 @@
+diff --git a/llvm/include/llvm/IR/IntrinsicsDADAO.td b/llvm/include/llvm/IR/IntrinsicsDADAO.td
+new file mode 100644
+index 000000000..28dee8640
+--- /dev/null
++++ b/llvm/include/llvm/IR/IntrinsicsDADAO.td
+@@ -0,0 +1,72 @@
++//===- IntrinsicsDADAO.td - Defines DADAO intrinsics ------*- tablegen -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file defines all of the DADAO-specific intrinsics.
++//
++//===----------------------------------------------------------------------===//
++
++let TargetPrefix = "dadao" in {
++
++//===----------------------------------------------------------------------===//
++// clmul.o (ADR-0035, LLVM-122t)
++//===----------------------------------------------------------------------===//
++
++// GF(2) carry-less 64x64 -> 128 multiply, both halves (LLVM-122t).
++// Results are (low 64 bits, high 64 bits) -- the natural reading order; the
++// instruction's def order is the opposite (rdha = high, rdhb = low), so the
++// CLMUL_LOHI_PSEUDO expansion swaps them (DADAOInstrInfo.cpp).
++def int_dadao_clmul : DefaultAttrsIntrinsic<[llvm_i64_ty, llvm_i64_ty],
++                                            [llvm_i64_ty, llvm_i64_ty],
++                                            [IntrNoMem, IntrSpeculatable,
++                                             IntrWillReturn]>;
++
++// High 64 bits only (clmul.o dst, rd0, a, b; ADR-0035 D4: "the rrrr form
++// already covers clmulh" -- this intrinsic is the compiler-side way to say
++// "high half only", like the `mulhu` -> `mul.uo dst, rd0, a, b` route).
++def int_dadao_clmul_hi : DefaultAttrsIntrinsic<[llvm_i64_ty],
++                                               [llvm_i64_ty, llvm_i64_ty],
++                                               [IntrNoMem, IntrSpeculatable,
++                                                IntrWillReturn]>;
++
++// The 128-bit result as one i128, for `__builtin_dadao_clmul` (LLVM-122t).
++// i128 is not a legal DADAO type, so this node is replaced by the two i64
++// halves during type legalization (DADAOTargetLowering::ReplaceNodeResults,
++// which builds a BUILD_PAIR over DADAOISD::CLMUL); both halves end up in one
++// `clmul.o` with no joining instructions.
++def int_dadao_clmul_wide : DefaultAttrsIntrinsic<[llvm_i128_ty],
++                                                 [llvm_i64_ty, llvm_i64_ty],
++                                                 [IntrNoMem, IntrSpeculatable,
++                                                  IntrWillReturn]>;
++
++//===----------------------------------------------------------------------===//
++// IEEE 754 remainder (LLVM-126t, user ruling 2026-10-23)
++//===----------------------------------------------------------------------===//
++
++// `forem`/`ftrem` compute `x - n*y` with n the nearest integer (ties to even),
++// i.e. IEEE 754 remainder.  That is NOT LLVM `frem` (libm fmod: n truncates
++// toward zero, so the result keeps the dividend's sign -- fmod(5,3)=2 vs
++// remainder(5,3)=-1), and LLVM has no `llvm.remainder` intrinsic, so the only
++// way to reach the instruction is a target builtin.  `__builtin_dadao_remainder`
++// lowers to one of these two intrinsics (chosen from its argument type);
++// `frem` itself stays Expand (-> fmod libcall) and must never be mapped here.
++//
++// Two concrete intrinsics instead of one `llvm_anyfloat_ty` overload: a DAG
++// pattern for an unconstrained overload cannot infer the result type, and the
++// instruction defs are concrete f64/f32 anyway (DADAOCodeGen.td).
++def int_dadao_remainder_f64 : DefaultAttrsIntrinsic<[llvm_double_ty],
++                                                    [llvm_double_ty,
++                                                     llvm_double_ty],
++                                                    [IntrNoMem, IntrSpeculatable,
++                                                     IntrWillReturn]>;
++def int_dadao_remainder_f32 : DefaultAttrsIntrinsic<[llvm_float_ty],
++                                                    [llvm_float_ty,
++                                                     llvm_float_ty],
++                                                    [IntrNoMem, IntrSpeculatable,
++                                                     IntrWillReturn]>;
++
++} // TargetPrefix = "dadao"

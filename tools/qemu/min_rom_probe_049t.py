@@ -94,11 +94,11 @@ def jump_iiii(imms24):   return (0x70 << 24) | (imms24 & 0xFFFFFF)
 def trap(ha, immu18):    return (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF)
 
 
-def swym():              return 0x77880000
+def swym():              return 0x47880000
 
 
 # Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
-SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 SEMI_BLOCK = 0xFC00_00FF_F000       # argument block {reason, code}, in RAM
 

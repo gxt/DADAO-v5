@@ -1,0 +1,67 @@
+diff --git a/arch/dadao/pthread_arch.h b/arch/dadao/pthread_arch.h
+new file mode 100644
+index 0000000..984cf47
+--- /dev/null
++++ b/arch/dadao/pthread_arch.h
+@@ -0,0 +1,61 @@
++/*
++ * DADAO thread pointer.
++ *
++ * TP = rb3 (rbtp).  Source of truth: spec/DADAO-21-ABI §寄存器规范 §RB寄存器
++ * and .tao/contracts/contract-abi.md §1.2 ("rb3 | rbtp | thread pointer") /
++ * §1.5 (rb3 is reserved, never allocated by the compiler).  SPEC-140t proved
++ * musl depends on TP unconditionally (errno, exit, stdio locks and
++ * cancellation all reach it through __pthread_self()), so this file is a
++ * P1 blocker, not an option.
++ *
++ * __get_tp() reads rb3 with `rb2rd` (RB -> RD block assignment, one register,
++ * contract-isa.md §4.2).
++ *
++ * Inline-asm style note (this applies to every inline asm in the port):
++ * clang's DADAO target cannot substitute an operand reference into an
++ * inline-asm template -- a template containing `%0` assembles with the operand
++ * printed as an EMPTY string (reproduced: `rb2rd %0, rb3, 1` becomes
++ * "rb2rd , rb3, 1").  So no template here uses `%N`: the registers are spelled
++ * literally, and the C side binds the same physical register with the
++ * GCC/clang local-register-variable idiom, which the backend does print
++ * correctly (verified: `register unsigned long x __asm__("rd8")` plus
++ * `"=r"(x)` emits exactly `rb2rd {rd8}, {rb3}`).  CRTJMP and GETFUNCSYM in
++ * arch/dadao/reloc.h are written the same way for the same reason.
++ *
++ * TP_OFFSET / GAP_ABOVE_TP / DTP_OFFSET / TLS_ABOVE_TP are the musl arch knobs
++ * that .tao/contracts/contract-dynlink.md §7 explicitly leaves to the arch port
++ * ("TP 的方向与偏置 ... 归 musl arch 宏，逐 arch 定值在 musl 移植任务").
++ * The chosen model is the simple one used by riscv64 and every other mainstream
++ * port: TLS lives ABOVE the TP (TLS_ABOVE_TP), TP points just past the TCB with
++ * no gap, and there is no bias in either direction:
++ *
++ *   * GAP_ABOVE_TP 0  -- the first TLS octa starts exactly at TP;
++ *   * TP_OFFSET 0     -- TP = (char *)&tcb + sizeof(struct pthread);
++ *   * DTP_OFFSET 0    -- so TPOFF(sym) == DTPOFF(sym), matching the frozen v5
++ *     formulas `R_DADAO_TLS_DTPREL = DTPOFF(sym) + A` and
++ *     `R_DADAO_TLS_TPREL = TPOFF(sym) + A` (contract-dynlink.md §4.3) with no
++ *     extra constant.  (riscv64 carries DTP_OFFSET 0x800 because the RISC-V
++ *     psABI bakes that bias into its TLS relocations; v5 has no such legacy,
++ *     so importing the constant would be wrong.)
++ *   * TPOFF_K 0 (reloc.h) -- consistent with the above: TPOFF is not measured
++ *     from the end of the block.
++ *
++ * MC_PC names the program-counter slot of mcontext_t; see
++ * arch/dadao/bits/signal.h (provisional, compile-only -- there is no DADAO
++ * signal-frame ABI yet).
++ */
++
++static inline uintptr_t __get_tp()
++{
++	register uintptr_t tp __asm__("rd8");
++	__asm__ __volatile__("rb2rd {rd8}, {rb3}" : "=r"(tp) : : "memory");
++	return tp;
++}
++
++#define TLS_ABOVE_TP
++#define GAP_ABOVE_TP 0
++
++#define TP_OFFSET 0
++#define DTP_OFFSET 0
++
++#define MC_PC __gregs[0]

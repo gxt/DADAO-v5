@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..12fcc23d0
+index 000000000..d13886e0e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,679 @@
+@@ -0,0 +1,811 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -23,6 +23,7 @@ index 000000000..12fcc23d0
 +
 +#include "DADAOInstrInfo.h"
 +#include "DADAORegisterInfo.h"
++#include "DADAO.h"
 +
 +// Include the generated instruction info tables.  The descriptor tables
 +// (DADAODescs / DADAOInstrNameIndices / DADAOInstrNameData) are emitted once in
@@ -41,6 +42,8 @@ index 000000000..12fcc23d0
 +#include "llvm/CodeGen/MachineFrameInfo.h"
 +#include "llvm/CodeGen/MachineFunction.h"
 +#include "llvm/CodeGen/MachineInstrBuilder.h"
++#include "llvm/MC/MCContext.h"
++#include "llvm/MC/MCSymbol.h"
 +#include "llvm/Support/ErrorHandling.h"
 +#include "llvm/Support/MathExtras.h"
 +
@@ -240,6 +243,51 @@ index 000000000..12fcc23d0
 +    MI.eraseFromParent();
 +    return true;
 +  }
++  case DADAO::CLMUL_PSEUDO: {
++    // GF(2) multiply, low half only (ADR-0035 D6; LLVM-122t):
++    // `clmul.o rd0, dst, a, b` -- rdha = rd0 discards the high 64 bits, rdhb
++    // holds the low ones.
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src1 = MI.getOperand(1).getReg();
++    Register Src2 = MI.getOperand(2).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::clmul_o_rd))
++        .addDef(DADAO::rd0)   // rdha = rd0 (discard the high 64 bits)
++        .addDef(Dst)          // rdhb = low 64 bits of the product
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::CLMULHI_PSEUDO: {
++    // GF(2) multiply, high half only: `clmul.o dst, rd0, a, b` -- the low half
++    // goes to the hardwired-zero rd0 (ADR-0035 D4: `{rdH, rd0}`).
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src1 = MI.getOperand(1).getReg();
++    Register Src2 = MI.getOperand(2).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::clmul_o_rd))
++        .addDef(Dst)          // rdha = high 64 bits of the product
++        .addDef(DADAO::rd0)   // rdhb = rd0 (discard the low 64 bits)
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::CLMUL_LOHI_PSEUDO: {
++    // Both halves (llvm.dadao.clmul / __builtin_dadao_clmul).  The pseudo lists
++    // (lo, hi) while clmul.o's defs are (rdha = high, rdhb = low), so the
++    // destinations are swapped here (mirrors UMUL_LOHI_PSEUDO).
++    Register Lo = MI.getOperand(0).getReg();
++    Register Hi = MI.getOperand(1).getReg();
++    Register Src1 = MI.getOperand(2).getReg();
++    Register Src2 = MI.getOperand(3).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::clmul_o_rd))
++        .addDef(Hi)           // rdha = high 64 bits
++        .addDef(Lo)           // rdhb = low 64 bits
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
 +  case DADAO::NEG_PSEUDO: {
 +    // iss-159: `neg dst = sub.so {rd0, dst}, rd0, src`.  rdha (high 64 bits)
 +    // goes to the hardwired-zero rd0, rdhb holds the low 64 bits; the minuend
@@ -333,15 +381,42 @@ index 000000000..12fcc23d0
 +    // R_DADAO_ABS48 relocation on that instruction's immu16 field, and the
 +    // linker selects the 16-bit slice from the instruction's wyde-position
 +    // (wp).  The constant offset is part of the symbol expression (r_addend).
++    // The symbol is an MO_GlobalAddress or, for a libcall target reached
++    // through `-mcmodel=large` (LLVM-131t), an MO_ExternalSymbol.
++    Register Dst = MI.getOperand(0).getReg();
++    const MachineOperand &Sym = MI.getOperand(1);
++    auto AddSym = [&](MachineInstrBuilder MIB) {
++      if (Sym.isGlobal()) {
++        MIB.addGlobalAddress(Sym.getGlobal(), Sym.getOffset(),
++                             Sym.getTargetFlags());
++      } else {
++        assert(Sym.isSymbol() &&
++               "GLOBAL_ADDR expects a global address or an external symbol");
++        MIB.addExternalSymbol(Sym.getSymbolName(), Sym.getTargetFlags());
++      }
++    };
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(2));
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::TLS_OFFSET: {
++    // Local-exec TLS offset materialization (LLVM-100t): TPOFF(sym) into GPRD.
++    // Same fixed 3-slice ABS48 sequence as GLOBAL_ADDR, but with the data-bank
++    // forms (set.zw.rd / or.w.rd) because the following add.o takes the offset
++    // as its rd operand.  The symbol operand is the STT_TLS object, so the
++    // linker's ABS48 S is the symbol's TLS-block offset == TPOFF(sym)
++    // (TLS_ABOVE_TP / GAP_ABOVE_TP 0 / TP_OFFSET 0; contract-dynlink §4.3/§7).
 +    Register Dst = MI.getOperand(0).getReg();
 +    const MachineOperand &Sym = MI.getOperand(1);
 +    auto AddSym = [&](MachineInstrBuilder MIB) {
 +      MIB.addGlobalAddress(Sym.getGlobal(), Sym.getOffset(),
 +                           Sym.getTargetFlags());
 +    };
-+    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
-+    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));
-+    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(2));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rd), Dst).addImm(0));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rd), Dst).addImm(1));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rd), Dst).addImm(2));
 +    MI.eraseFromParent();
 +    return true;
 +  }
@@ -351,6 +426,8 @@ index 000000000..12fcc23d0
 +    // jump table's local label carried as an MO_JumpTableIndex (the AsmPrinter/
 +    // MCInstLower resolves it to MF->getJTISymbol, the label emitJumpTableInfo
 +    // defines in front of the table).  Each slice becomes R_DADAO_ABS48.
++    // PIC (-fPIC / -fPIE) never reaches this pseudo: the selector takes the
++    // table base from a GOT slot instead (LLVM-094t).
 +    Register Dst = MI.getOperand(0).getReg();
 +    const MachineOperand &Sym = MI.getOperand(1);
 +    auto AddSym = [&](MachineInstrBuilder MIB) {
@@ -359,6 +436,61 @@ index 000000000..12fcc23d0
 +    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
 +    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));
 +    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(2));
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::BLOCK_ADDR: {
++    // Absolute address of a basic block whose address is taken (LLVM-102t;
++    // `&&label` as a value).  Same fixed 3-slice sequence as GLOBAL_ADDR, but
++    // the operand is an MO_BlockAddress, which MCInstLower resolves to the
++    // symbol AsmPrinter::GetBlockAddressSymbol emits in front of the block;
++    // each slice becomes R_DADAO_ABS48.  The result lives in GPRB, the rrii
++    // jump base bank (contract-isa.md §8.3).
++    Register Dst = MI.getOperand(0).getReg();
++    const MachineOperand &Sym = MI.getOperand(1);
++    auto AddSym = [&](MachineInstrBuilder MIB) {
++      MIB.addBlockAddress(Sym.getBlockAddress(), Sym.getOffset(),
++                          Sym.getTargetFlags());
++    };
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(2));
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::PCREL_LOAD: {
++    // PC-relative GOT-slot load (ADR-0029 D4/D5).  Expanded into the
++    // auipc-style pair, which is what gives the PIC path its reach:
++    //   aip.si rbX, <slot>                  (R_DADAO_PCREL_HI)
++    //   ld.o    rbX, [rbX, %pcrel_lo(site)]  (R_DADAO_PCREL_LO)
++    // The *same* physical register (the pseudo's result; rb0-rb3 are reserved,
++    // so it is rb4+) carries the high part, is the load base and receives the
++    // loaded address: two instructions, zero extra registers, no reserved
++    // register (ADR-0029 D4; ADR-0026 D5; ADR-0018 C6).  The high part bounds
++    // the reach at +/-512 MiB (18-bit field x 4 KiB), so no `.got`-beside-`.text`
++    // layout is required (ADR-0029 D3).
++    //
++    // This is also where the pairing label is born.  SelectionDAG has no symbol
++    // for "the address of the instruction I am selecting", so the two halves
++    // are selected as one pseudo and split here, where a MachineInstruction
++    // exists: `site` is a named temporary symbol emitted immediately in front
++    // of the `aip.si` (setPreInstrSymbol -> AsmPrinter::emitFunctionBody), and
++    // the low half names it as its `%pcrel_lo(site)` operand.  The object then
++    // carries the pairing in the R_DADAO_PCREL_LO record itself (symbol+addend =
++    // site address) instead of any side table (ADR-0029 D2; contract-elf.md
++    // §3.1), which is what lets the linker recover the already-computed high
++    // part of that site.
++    Register Dst = MI.getOperand(0).getReg();
++    MachineFunction &MF = *MBB.getParent();
++    const MachineOperand &Sym = MI.getOperand(1);
++    MCSymbol *Site = MF.getContext().createNamedTempSymbol("pcrel_hi");
++
++    MachineInstr *Hi =
++        BuildMI(MBB, MI, DL, get(DADAO::aip_si_rb), Dst).add(Sym);
++    Hi->setPreInstrSymbol(MF, Site);
++    BuildMI(MBB, MI, DL, get(DADAO::ld_o_rb), Dst)
++        .addReg(Dst)
++        .addSym(Site, DADAO::MO_PCREL_LO);
 +    MI.eraseFromParent();
 +    return true;
 +  }

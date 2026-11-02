@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..3c8f33044
+index 000000000..8e50a8799
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2423 @@
+@@ -0,0 +1,2607 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -22,10 +22,12 @@ index 000000000..3c8f33044
 +//
 +//===----------------------------------------------------------------------===//
 +
++#include "MCTargetDesc/DADAOCfxAliasTable.h"
 +#include "MCTargetDesc/DADAOMCTargetDesc.h"
 +#include "MCTargetDesc/DADAOMCAsmInfo.h"
 +#include "TargetInfo/DADAOTargetInfo.h"
 +#include "llvm/ADT/STLExtras.h"
++#include "llvm/Support/Casting.h"
 +#include "llvm/ADT/StringSwitch.h"
 +#include "llvm/MC/MCAsmInfo.h"
 +#include "llvm/MC/MCContext.h"
@@ -40,6 +42,7 @@ index 000000000..3c8f33044
 +#include "llvm/MC/MCRegisterInfo.h"
 +#include "llvm/MC/MCStreamer.h"
 +#include "llvm/MC/MCSubtargetInfo.h"
++#include "llvm/MC/MCSymbol.h"
 +#include "llvm/MC/MCTargetOptions.h"
 +#include "llvm/MC/TargetRegistry.h"
 +#include "llvm/Support/MathExtras.h"
@@ -324,59 +327,6 @@ index 000000000..3c8f33044
 +  }
 +};
 +
-+//===----------------------------------------------------------------------===//
-+// cfx alias tables + lookup (ADR-0017 D3/D4/D8/D10; Toolchain-01 §13).
-+//
-+// DADAOCfxAlias.inc is mechanically generated from the same spec sources as
-+// the committed alias projection (.tao/knowledge/contract-cfx-aliases.md);
-+// see the header of that file for provenance.
-+//===----------------------------------------------------------------------===//
-+
-+#include "DADAOCfxAlias.inc"
-+
-+// Resolve a scalar alias `cfx_<cfxname>` -> 6-bit cfx code (ADR-0017 D3).
-+static bool lookupCfxScalarAlias(StringRef Name, unsigned &Code) {
-+  for (const CfxScalarAlias &A : CfxScalarAliases)
-+    if (Name == A.Name) {
-+      Code = A.Code;
-+      return true;
-+    }
-+  return false;
-+}
-+
-+// Resolve a register alias (bare name, no subscript) -> (cfxha, cg, rcBase,
-+// rcCount).  cfx-specific aliases (cg >= 8) are matched by full name first;
-+// the remaining `cfx_<cfxname>_<tail>` forms use the generic tail table
-+// (ADR-0017 D4).  rcCount > 1 marks an array register (D10).
-+static bool lookupCfxRegAlias(StringRef Name, unsigned &Cfxha, unsigned &Cg,
-+                              unsigned &RcBase, unsigned &RcCount) {
-+  for (const CfxSpecificAlias &S : CfxSpecificAliases)
-+    if (Name == S.Name) {
-+      Cfxha = S.Cfxha;
-+      Cg = S.Cg;
-+      RcBase = S.RcBase;
-+      RcCount = S.RcCount;
-+      return true;
-+    }
-+  for (const CfxScalarAlias &A : CfxScalarAliases) {
-+    StringRef Prefix(A.Name);
-+    if (!Name.starts_with(Prefix))
-+      continue;
-+    StringRef Tail = Name.drop_front(Prefix.size());
-+    if (!Tail.starts_with("_"))
-+      continue;
-+    Tail = Tail.drop_front(1);
-+    for (const CfxRegTail &T : CfxRegTails)
-+      if (Tail == T.Tail) {
-+        Cfxha = A.Code;
-+        Cg = T.Cg;
-+        RcBase = T.RcBase;
-+        RcCount = T.RcCount;
-+        return true;
-+      }
-+  }
-+  return false;
-+}
 +
 +//===----------------------------------------------------------------------===//
 +// DADAOAsmParser
@@ -388,6 +338,38 @@ index 000000000..3c8f33044
 +                 const MCInstrInfo &MII)
 +      : MCTargetAsmParser(STI, MII) {
 +    setAvailableFeatures(FeatureBitset());
++  }
++
++  /// Define the fence bit-name constants before any statement is parsed
++  /// (LLVM-121t; ADR-0034 D2 / SimRISC-11 §4.1).  `fence` takes ONE 18-bit
++  /// unsigned immediate -- not three operands -- so the R/W/I/O sets are
++  /// written as `PRED_R|PRED_W|SUCC_R|SUCC_W` style bit-name expressions.  The
++  /// eight names are predefined absolute symbols, which makes the expression
++  /// fold to a constant at parse time (no relocation, no fixup) and lets the
++  /// usual immediate legality check see the final 18-bit value.
++  void Initialize(MCAsmParser &Parser) override {
++    MCTargetAsmParser::Initialize(Parser);
++    MCContext &Ctx = getContext();
++    struct {
++      const char *Name;
++      unsigned Value;
++    } const Consts[] = {
++        // pred: immu18[11:6] -- PRED_R/W/I/O sit in the low four bits.
++        {"PRED_R", 1u << 6},
++        {"PRED_W", 1u << 7},
++        {"PRED_I", 1u << 8},
++        {"PRED_O", 1u << 9},
++        // succ: immu18[5:0] -- SUCC_R/W/I/O are the low four bits.
++        {"SUCC_R", 1u << 0},
++        {"SUCC_W", 1u << 1},
++        {"SUCC_I", 1u << 2},
++        {"SUCC_O", 1u << 3},
++    };
++    for (const auto &C : Consts) {
++      MCSymbol *Sym = Ctx.getOrCreateSymbol(C.Name);
++      if (!Sym->isVariable())
++        Sym->setVariableValue(MCConstantExpr::create(C.Value, Ctx));
++    }
 +  }
 +
 +#define GET_ASSEMBLER_HEADER
@@ -432,6 +414,9 @@ index 000000000..3c8f33044
 +  ParseStatus parseDDDirective(unsigned Size, SMLoc Loc);
 +  bool parseOperand(OperandVector &Operands);
 +  bool parseImmediate(OperandVector &Operands);
++  // Expression with an optional relocation specifier: `expr` or
++  // `%pcrel_hi(expr)` / `%pcrel_lo(expr)` (ADR-0029 D2).
++  bool parseExprWithSpecifier(const MCExpr *&Res, SMLoc &EndLoc);
 +  bool parseWydePosToken(OperandVector &Operands);
 +  int parseCfxOperand(OperandVector &Operands);
 +  bool parseRegGroup(OperandVector &Operands);
@@ -539,7 +524,7 @@ index 000000000..3c8f33044
 +
 +  const MCExpr *Expr;
 +  SMLoc EndLoc;
-+  if (getParser().parseExpression(Expr, EndLoc))
++  if (parseExprWithSpecifier(Expr, EndLoc))
 +    return true;
 +
 +  int64_t Val;
@@ -548,6 +533,43 @@ index 000000000..3c8f33044
 +  } else {
 +    Operands.push_back(DADAOOperand::createImmExpr(Expr, StartLoc, EndLoc));
 +  }
++  return false;
++}
++
++//===----------------------------------------------------------------------===//
++// Relocation specifiers: `%pcrel_hi(expr)` / `%pcrel_lo(expr)` (ADR-0029 D2).
++//
++// A leading '%' selects a DADAO relocation specifier; the result is an
++// MCSpecifierExpr, which the code emitter turns into the corresponding PCREL
++// fixup kind.  Everything else is a plain expression.
++//===----------------------------------------------------------------------===//
++
++bool DADAOAsmParser::parseExprWithSpecifier(const MCExpr *&Res,
++                                            SMLoc &EndLoc) {
++  if (getLexer().isNot(AsmToken::Percent))
++    return getParser().parseExpression(Res, EndLoc);
++
++  SMLoc Loc = getParser().getTok().getLoc();
++  getParser().Lex(); // consume '%'
++  if (getLexer().getKind() != AsmToken::Identifier)
++    return Error(Loc, "expected a relocation specifier after '%'");
++  StringRef Name = getParser().getTok().getIdentifier();
++  DADAO::Specifier Spec = DADAO::parseSpecifierName(Name);
++  if (Spec == DADAO::S_None)
++    return Error(Loc, Twine("invalid relocation specifier '%") + Name + "'");
++  getParser().Lex(); // consume the specifier name
++  if (getParser().getTok().isNot(AsmToken::LParen))
++    return Error(getParser().getTok().getLoc(),
++                 Twine("expected '(' after '%") + Name + "'");
++  // MCAsmParser::parseParenExpression assumes the leading '(' has already been
++  // consumed ("Parse an arbitrary expression, assuming that an initial '(' has
++  // already been consumed", MCAsmParser.h); eat it here so that the ')' is
++  // matched against this '(' instead of the next token.
++  getParser().Lex(); // consume '('
++  const MCExpr *SubExpr;
++  if (getParser().parseParenExpression(SubExpr, EndLoc))
++    return true;
++  Res = MCSpecifierExpr::create(SubExpr, Spec, getContext(), Loc);
 +  return false;
 +}
 +
@@ -606,14 +628,14 @@ index 000000000..3c8f33044
 +    // cfx_<cfxname> (scalar) or cfx_<cfxname>_<regname> (register alias).
 +    if (Name.starts_with("cfx_")) {
 +      unsigned Code;
-+      if (lookupCfxScalarAlias(Name, Code)) {
++      if (DADAO::lookupCfxScalarAlias(Name, Code)) {
 +        getParser().Lex();
 +        Operands.push_back(DADAOOperand::createCfxha(Code, StartLoc));
 +        return 1;
 +      }
 +
 +      unsigned Cfxha, Cg, RcBase, RcCount;
-+      if (lookupCfxRegAlias(Name, Cfxha, Cg, RcBase, RcCount)) {
++      if (DADAO::lookupCfxRegAlias(Name, Cfxha, Cg, RcBase, RcCount)) {
 +        getParser().Lex();
 +        int64_t Sub = -1;
 +        if (RcCount > 1) {
@@ -654,6 +676,15 @@ index 000000000..3c8f33044
 +        Operands.push_back(
 +            DADAOOperand::createCfxRc(RcBase + (Sub < 0 ? 0 : Sub), StartLoc));
 +        return 1;
++      }
++      // No table => no name can ever resolve; say so instead of letting the
++      // generic "invalid operand" hide the real cause (LLVM-135t).  A table
++      // that *is* loaded but lacks the name still falls through, so a typo
++      // keeps reporting the ordinary invalid-operand diagnostic.
++      if (!DADAO::isCfxAliasTableAvailable()) {
++        Error(StartLoc, "cannot resolve '" + Name + "': " +
++                            DADAO::getCfxAliasTableError());
++        return -1;
 +      }
 +      return 0; // unknown cfx_* symbol -> let parseImmediate report it
 +    }
@@ -839,6 +870,17 @@ index 000000000..3c8f33044
 +    return Error(getParser().getTok().getLoc(),
 +                 "expected base register in address expression");
 +
++  // `[base]` -- address with no offset.  Only instructions whose encoding has
++  // no immediate field accept this form (the lr.* pair, LLVM-121t: the base is
++  // the whole address, `lr.o.nn rdHC, [rbHD]`).  The register is pushed as a
++  // plain operand, so any instruction that requires an offset operand (ld/st,
++  // jump/call, br.*) simply fails to match instead of silently using offset 0.
++  if (getParser().getTok().is(AsmToken::RBrac)) {
++    getParser().Lex(); // consume ']'
++    Operands.push_back(DADAOOperand::createReg(Base, RStart));
++    return false;
++  }
++
 +  // Expect ','.
 +  if (!getParser().getTok().is(AsmToken::Comma))
 +    return Error(getParser().getTok().getLoc(),
@@ -872,9 +914,11 @@ index 000000000..3c8f33044
 +  }
 +
 +  // Parse offset (immediate expression). Address offsets are byte values.
++  // A `%pcrel_lo(label)` offset selects the paired PC-relative low part
++  // (R_DADAO_PCREL_LO) instead of a base-relative byte offset (ADR-0029 D2).
 +  const MCExpr *OffsetExpr;
 +  SMLoc ExprEnd;
-+  if (getParser().parseExpression(OffsetExpr, ExprEnd))
++  if (parseExprWithSpecifier(OffsetExpr, ExprEnd))
 +    return true;
 +  SMLoc EndLoc = ExprEnd;
 +
@@ -1270,8 +1314,27 @@ index 000000000..3c8f33044
 +  do {
 +    SMLoc ValueLoc = Parser.getTok().getLoc();
 +    const MCExpr *Value;
-+    if (Parser.parseExpression(Value))
++    SMLoc EndLoc;
++    // A TLS specifier selects a dynamic TLS data relocation for the slot
++    // (`%tls_dtpmod` / `%tls_dtprel` / `%tls_tprel`; LLVM-117t).  Any other
++    // specifier is only meaningful on an instruction field and is rejected
++    // here instead of silently producing an ABS48 field.
++    if (parseExprWithSpecifier(Value, EndLoc))
 +      return ParseStatus::Failure;
++    if (const auto *SE = dyn_cast<MCSpecifierExpr>(Value)) {
++      const DADAO::Specifier Spec = SE->getSpecifier();
++      if (Spec != DADAO::S_TLS_DTPMOD && Spec != DADAO::S_TLS_DTPREL &&
++          Spec != DADAO::S_TLS_TPREL)
++        return Error(ValueLoc,
++                     Twine("relocation specifier '%") +
++                         DADAO::getSpecifierName(Spec) +
++                         "' is not valid on a data directive (only "
++                         "'%tls_dtpmod'/'%tls_dtprel'/'%tls_tprel' are)");
++      if (Size != 8)
++        return Error(ValueLoc,
++                     "a TLS data relocation needs an 8-byte field "
++                     "(R_DADAO_TLS_* slots; use '.dd.o64')");
++    }
 +
 +    // A relocatable (symbol / cross-section) operand of a data directive needs
 +    // an absolute data relocation.  Only the 8-byte field can carry a DADAO
@@ -1308,8 +1371,9 @@ index 000000000..3c8f33044
 +}
 +
 +// FP instructions subject to the `dst_rf0` rule (SPEC-088t) whose destination
-+// operand immediately follows the mnemonic: the 16 scalar orrr arith/sign
-+// instructions plus the 14 orri RF-destination convert/root instructions.
++// operand immediately follows the mnemonic: the 20 scalar orrr arith/sign/
++// minmax instructions plus the 16 orri RF-destination convert/root/round
++// instructions.
 +// `rd2rf` and the RF loads/stores (ld.*/ldm.*/stm.*) are intentionally NOT
 +// listed: there rf0 as a destination is legal (FCSR write mask).  The
 +// convert_f2i / classify / compare groups have an RD destination and are not
@@ -1319,10 +1383,24 @@ index 000000000..3c8f33044
 +         M == "ftrem" || M == "ftsclb" || M == "ftsgnj" || M == "ftsgnn" ||
 +         M == "foadd" || M == "fosub" || M == "fomul" || M == "fodiv" ||
 +         M == "forem" || M == "fosclb" || M == "fosgnj" || M == "fosgnn" ||
++         // minimumNumber/maximumNumber (SPEC-159t; contract-fp.md §minmax):
++         // RF destination + two RF sources, same `dst_rf0` rule (LLVM-124t).
++         M == "ftmin" || M == "ftmax" || M == "fomin" || M == "fomax" ||
 +         M == "ft2fo" || M == "fo2ft" || M == "ft2ft" || M == "fo2fo" ||
 +         M == "it2ft" || M == "io2ft" || M == "ut2ft" || M == "uo2ft" ||
 +         M == "it2fo" || M == "io2fo" || M == "ut2fo" || M == "uo2fo" ||
-+         M == "ftroot" || M == "foroot";
++         M == "ftroot" || M == "foroot" ||
++         // roundToIntegral (SPEC-161t; contract-fp.md §roundint): single RF
++         // destination, same `dst_rf0` rule as the other RF-destination forms.
++         M == "ftrnd" || M == "fornd";
++}
++
++// roundToIntegral mnemonics (SPEC-161t; SimRISC-07 §2.3): the orri `immu6` is
++// a six-way one-hot rounding-mode selector, not an element count -- exactly one
++// of 0x01/0x02/0x04/0x08/0x10/0x20.  Any other value (including 0x00) is a
++// static ILLI (`encode_onehot` family, SimRISC-07 §2.3).
++static bool isFPRoundMnemonic(StringRef M) {
++  return M == "ftrnd" || M == "fornd";
 +}
 +
 +// FP instructions subject to the `dst_rd0` rule (SPEC-089t) whose destination
@@ -1834,6 +1912,10 @@ index 000000000..3c8f33044
 +  case 3: // riii
 +    if (Mnem.starts_with("br."))
 +      return ImmFieldKind::None; // branch byte offset (checked earlier)
++    if (Mnem == "aip.si")
++      // Byte operand (imms30) converted to the 4 KiB block field, with its own
++      // multiple-of-4096 / +-512 MiB checks (see matchAndEmitInstruction).
++      return ImmFieldKind::None;
 +    return ImmFieldKind::SImm18; // add.si / ret
 +  case 4: // iiii — jump/call byte offset (checked earlier)
 +    return ImmFieldKind::None;
@@ -1938,7 +2020,8 @@ index 000000000..3c8f33044
 +        if (Operands.size() == 5 &&
 +            (Mnem == "add.uo" || Mnem == "add.so" ||
 +             Mnem == "sub.uo" || Mnem == "sub.so" ||
-+             Mnem == "mul.uo" || Mnem == "mul.so")) {
++             Mnem == "mul.uo" || Mnem == "mul.so" ||
++             Mnem == "clmul.o")) {
 +          return Error(Operands[1]->getStartLoc(),
 +                       "old syntax not accepted; use '{" "}' for dual-purpose "
 +                       "destination registers, e.g., add.uo {rd8, rd9}, rd10, rd11");
@@ -1979,6 +2062,33 @@ index 000000000..3c8f33044
 +                             "1..63");
 +        }
 +      }
++    }
++  }
++
++  // Static legality check for dst_dual_same (ADR-0035 D6; SimRISC-04 §1.1):
++  // `clmul.o {rdHA, rdHB}, rdHC, rdHD` has two destination registers; they may
++  // not both be rd0 (that would discard the whole 128-bit result) and may not
++  // name the same non-rd0 register.  A single rd0 side is legal
++  // (`clmul.o rd0, dst, a, b` = low half, `clmul.o dst, rd0, a, b` = high
++  // half).  Hard error (Error level, never a warning).
++  if (Operands.size() == 4) {
++    auto *TokOp = static_cast<DADAOOperand *>(Operands[0].get());
++    auto *PairOp = static_cast<DADAOOperand *>(Operands[1].get());
++    if (TokOp && TokOp->isToken() &&
++        TokOp->getToken() == "clmul.o" && PairOp &&
++        PairOp->Kind == DADAOOperand::kRegPair &&
++        PairOp->getRegList().size() == 2) {
++      const MCRegister RdHA = PairOp->getRegList()[0];
++      const MCRegister RdHB = PairOp->getRegList()[1];
++      if (RdHA == DADAO::rd0 && RdHB == DADAO::rd0)
++        return Error(PairOp->getStartLoc(),
++                     "invalid 'clmul.o': both destination registers are rd0 "
++                     "(dst_dual_same); one half must be a real destination");
++      if (RdHA == RdHB)
++        return Error(PairOp->getStartLoc(),
++                     "invalid 'clmul.o': both destinations are the same "
++                     "register (dst_dual_same); the two halves need distinct "
++                     "destinations");
 +    }
 +  }
 +
@@ -2161,6 +2271,33 @@ index 000000000..3c8f33044
 +      }
 +  }
 +
++  // fence immediate legality (ADR-0034 D2 / SimRISC-11 §4.1; LLVM-121t).  The
++  // 18-bit immediate is `fm[17:12] | pred[11:6] | succ[5:0]`; only fm = 0 is
++  // defined (fm = 8 is the TSO reservation and is currently undefined) and the
++  // top two bits of pred ([11:10]) / succ ([5:4]) are SBZ.  A reserved
++  // encoding is ILLI on hardware, so the assembler must reject it instead of
++  // emitting a word that traps at run time.  A symbolic operand is left to the
++  // linker (it cannot be a fence immediate in this target anyway).
++  if (Mnemonic == "fence" && Flat.size() == 2 && Flat[1]->isImm()) {
++    auto *DOp = static_cast<DADAOOperand *>(Flat[1].get());
++    if (!DOp->getImmExpr()) {
++      int64_t Imm = DOp->getImm();
++      // Values outside the 18-bit unsigned range are reported by the immu18
++      // operand class itself (the generic "immediate out of range" diagnostic),
++      // so only in-range values are examined for reserved bit patterns here.
++      if (Imm >= 0 && Imm <= 0x3FFFF) {
++        if ((Imm & 0x3F000) != 0)
++          return Error(Flat[1]->getStartLoc(),
++                       "fence: reserved encoding (fm = immu18[17:12] must be "
++                       "0; fm = 8 is TSO-reserved and currently undefined)");
++        if ((Imm & 0x00C00) != 0 || (Imm & 0x00030) != 0)
++          return Error(Flat[1]->getStartLoc(),
++                       "fence: reserved encoding (pred[11:10] and succ[5:4] "
++                       "are SBZ and must be zero; see SimRISC-11 §4.1)");
++      }
++    }
++  }
++
 +  // For iiii jump/call: [rb0, imm] → only push imm (strip base register).
 +  // The mnemonic is "jump" or "call" and we have exactly 3 flat operands:
 +  // Token, Reg(base), Imm(offset). Strip the base register.
@@ -2171,6 +2308,37 @@ index 000000000..3c8f33044
 +    Iiii.push_back(std::move(Flat[0])); // Token
 +    Iiii.push_back(std::move(Flat[2])); // Imm (offset)
 +    Flat = std::move(Iiii);
++  }
++
++  // For aip.si (riii): the assembler-level operand is in BYTES (imms30) while
++  // the encoded 18-bit field is a 4 KiB block count, so the operand is
++  // converted here exactly like the x4 jump/branch byte offsets below --
++  // validate first, then hand the matcher the encoded block value
++  // (field = bytes >> 12; Toolchain-01 §3.2/§5, ADR-0029 §修订注记 ④).
++  //   * the value MUST be a multiple of 4096 (low 12 bits zero); otherwise the
++  //     block field could not represent it and the assembler MUST hard-error
++  //     (no truncation, no silent round-down);
++  //   * it MUST fit the +-512 MiB reachable range of the 18-bit signed block
++  //     field (max = 131071 * 4096 = 536866816 bytes).
++  // A symbolic operand carries a relocation (R_DADAO_PCREL_HI) and is left
++  // untouched: its value and legality are decided at link time.
++  if (Mnemonic == "aip.si" && Flat.size() == 3 && Flat[2]->isImm()) {
++    auto *DOp = static_cast<DADAOOperand *>(Flat[2].get());
++    if (!DOp->getImmExpr()) {
++      int64_t Bytes = DOp->getImm();
++      if (Bytes % 4096 != 0)
++        return Error(Flat[2]->getStartLoc(),
++                     "aip.si offset must be a multiple of 4096 bytes: the "
++                     "operand is a byte count (imms30) and the encoded field "
++                     "is a 4 KiB block (field = bytes >> 12)");
++      int64_t Encoded = Bytes >> 12;
++      if (Encoded < -131072 || Encoded > 131071)
++        return Error(Flat[2]->getStartLoc(),
++                     "aip.si byte offset out of range: expected "
++                     "[-536870912, 536866816] (imms30, %4096==0, +-512 MiB)");
++      Flat[2] = DADAOOperand::createImm(Encoded, Flat[2]->getStartLoc(),
++                                        Flat[2]->getEndLoc());
++    }
 +  }
 +
 +  // For rrii jump/call: [rb, rd, imm] → keep all (base is in encoding).
@@ -2311,10 +2479,11 @@ index 000000000..3c8f33044
 +  }
 +
 +  // Static legality checks for FP instructions (SPEC-088t): `dst_rf0` (rf0 is
-+  // the FCSR and cannot be an FP destination; rf0 as a source is legal) and
-+  // `encode_fp_root_n` (ftroot/foroot only support n == 2).  Operand positions
-+  // follow the assembly operand order:
-+  //   scalar orrr / orri convert / root : destination = Flat[1];
++  // the FCSR and cannot be an FP destination; rf0 as a source is legal),
++  // `encode_fp_root_n` (ftroot/foroot only support n == 2) and `encode_onehot`
++  // (ftrnd/fornd immu6 is a one-hot rounding mode, SPEC-161t).  Operand
++  // positions follow the assembly operand order:
++  //   scalar orrr / orri convert / root / round : destination = Flat[1];
 +  //   cs.n/cs.z/cs.p (one condition reg) : destination = Flat[2];
 +  //   cs.eq/cs.ne (two condition regs)   : destination = Flat[3].
 +  if (isFPDstRfMnemonic(Mnemonic) && Flat.size() >= 2 && Flat[1]->isReg() &&
@@ -2359,6 +2528,21 @@ index 000000000..3c8f33044
 +                   "invalid '" + Mnemonic.str() +
 +                       "': root order n must be the constant 2 "
 +                       "(encode_fp_root_n)");
++  }
++
++  // `encode_onehot` (SPEC-161t; SimRISC-07 §2.3 roundToIntegral): the orri
++  // immu6 of ftrnd/fornd is a one-hot rounding-mode selector.  A non-constant
++  // operand (symbol/relocation) cannot be proven one-hot, so it is rejected too.
++  if (isFPRoundMnemonic(Mnemonic) && Flat.size() >= 4 && Flat[3]->isImm()) {
++    auto *NOp = static_cast<DADAOOperand *>(Flat[3].get());
++    int64_t Mode = NOp->getImm();
++    if (NOp->getImmExpr() != nullptr ||
++        (Mode != 0x01 && Mode != 0x02 && Mode != 0x04 && Mode != 0x08 &&
++         Mode != 0x10 && Mode != 0x20))
++      return Error(Flat[3]->getStartLoc(),
++                   "invalid '" + Mnemonic.str() +
++                       "': rounding mode must be one of the one-hot constants "
++                       "0x01/0x02/0x04/0x08/0x10/0x20 (encode_onehot)");
 +  }
 +
 +  // Static legality check for `ret` (SPEC-083t; SimRISC-06 §函数返回):

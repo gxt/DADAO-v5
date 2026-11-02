@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
 new file mode 100644
-index 000000000..f9e135c16
+index 000000000..041d2923c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
-@@ -0,0 +1,507 @@
+@@ -0,0 +1,590 @@
 +//===-- DADAOInstrInfoFP.td - DADAO FP instruction defs ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,7 +12,16 @@ index 000000000..f9e135c16
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// DADAO FP (scope: fp) instruction definitions (60 instructions).
++// DADAO FP instruction definitions (66 instructions).
++//
++// 64 are `scope: fp`; two are still `scope: excluded` and therefore decode to
++// ILLI until a SPEC flips them:
++//   * `ftfma`/`fofma` (fused multiply-add, SPEC-157t; LLVM-123t) --
++//     flip = SPEC-158t.
++// (`ftrnd`/`fornd` and `ftmin`/`ftmax`/`fomin`/`fomax` were flipped to
++// `scope: fp` by SPEC-162t / SPEC-160t and are ordinary FP instructions now.)
++// They are defined here so the MC layer can assemble/disassemble them and so
++// CodeGen can select them (patterns in DADAOCodeGen.td).
 +//
 +// Hand-written (NOT generated): the `op`/`ha` (opx) values below are taken
 +// verbatim from contracts/opcodes.yaml, which is the single source of truth
@@ -96,16 +105,38 @@ index 000000000..f9e135c16
 +
 +// --- rrrr format (5 instructions) ---
 +
-+def cs_eq_rrrr_rf : DADAORrrr<"cs.eq"> {
-+  let OutOperandList = (outs GPRF:$rc);
-+  let InOperandList = (ins GPRD:$ra, GPRD:$rb, GPRF:$rd);
++// Fused multiply-add (LLVM-123t; contract-fp.md §fma = SimRISC-07 §2.5):
++//   `fofma rfHA, rfHB, rfHC, rfHD` == rfHA <- rfHB * rfHC + rfHD
++//   (`ftfma` is the f32 form), one destination + three sources, ONE rounding.
++// `rrrr` (op 0x5E/0x5F, mask 0xFF000000) is a whole `op` byte, so unlike the
++// `orrr` family there is no `ha` opx.  The destination is an RF register that
++// must not be rf0 (the FCSR): `contracts/opcodes.yaml` legality `rfha != rf0`
++// (`dst_rf0`).  rf0 stays a legal *source*, so the inputs keep GPRF and only
++// the output uses the rf0-less subclass -- the register allocator can never
++// pick rf0 for the result and the MC assembler rejects an `{rf0}` destination
++// (the generated matcher reports "invalid operand"; the disassembler's
++// DecodeGPRF_NoRF0RegisterClass rejects such an encoded word as well).
++def GPRF_NoRF0 : RegisterClass<"DADAO", [f64, f32], 64,
++    (add rf1, rf2, rf3, rf4, rf5, rf6, rf7,
++         rf8, rf9, rf10, rf11, rf12, rf13, rf14, rf15,
++         rf16, rf17, rf18, rf19, rf20, rf21, rf22, rf23,
++         rf24, rf25, rf26, rf27, rf28, rf29, rf30, rf31,
++         rf32, rf33, rf34, rf35, rf36, rf37, rf38, rf39,
++         rf40, rf41, rf42, rf43, rf44, rf45, rf46, rf47,
++         rf48, rf49, rf50, rf51, rf52, rf53, rf54, rf55,
++         rf56, rf57, rf58, rf59, rf60, rf61, rf62, rf63
++    )>;
++
++def ftfma_rrrr_rf : DADAORrrr<"ftfma"> {
++  let OutOperandList = (outs GPRF_NoRF0:$ra);
++  let InOperandList = (ins GPRF:$rb, GPRF:$rc, GPRF:$rd);
 +  let op = 0x5E;
 +  let Pattern = [];
 +}
 +
-+def cs_ne_rrrr_rf : DADAORrrr<"cs.ne"> {
-+  let OutOperandList = (outs GPRF:$rc);
-+  let InOperandList = (ins GPRD:$ra, GPRD:$rb, GPRF:$rd);
++def fofma_rrrr_rf : DADAORrrr<"fofma"> {
++  let OutOperandList = (outs GPRF_NoRF0:$ra);
++  let InOperandList = (ins GPRF:$rb, GPRF:$rc, GPRF:$rd);
 +  let op = 0x5F;
 +  let Pattern = [];
 +}
@@ -131,7 +162,7 @@ index 000000000..f9e135c16
 +  let Pattern = [];
 +}
 +
-+// --- orrr format (20 instructions; op=0x44, ha=opx) ---
++// --- orrr format (24 instructions; op=0x44, ha=opx) ---
 +
 +def ftadd_orrr_rf : DADAOOrrr<"ftadd"> {
 +  let OutOperandList = (outs GPRF:$rb);
@@ -277,6 +308,26 @@ index 000000000..f9e135c16
 +  let Pattern = [];
 +}
 +
++// minimumNumber/maximumNumber (LLVM-124t; contract-fp.md §minmax =
++// SimRISC-07 §2.4): RF destination + two RF sources, no rounding and no
++// exception beyond the sNaN->NV rule, so the operand shape is the plain orrr
++// one (`dst_rf0` applies: an rf0 destination is an ILLI form).
++def ftmin_orrr_rf : DADAOOrrr<"ftmin"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x26;
++  let Pattern = [];
++}
++
++def ftmax_orrr_rf : DADAOOrrr<"ftmax"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x27;
++  let Pattern = [];
++}
++
 +def foqcmp_orrr_rf : DADAOOrrr<"foqcmp"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
@@ -293,7 +344,23 @@ index 000000000..f9e135c16
 +  let Pattern = [];
 +}
 +
-+// --- orri format (26 instructions) ---
++def fomin_orrr_rf : DADAOOrrr<"fomin"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x2E;
++  let Pattern = [];
++}
++
++def fomax_orrr_rf : DADAOOrrr<"fomax"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x2F;
++  let Pattern = [];
++}
++
++// --- orri format (28 instructions) ---
 +
 +def ftcls_orri_rf : DADAOOrri<"ftcls"> {
 +  let OutOperandList = (outs GPRD:$rb);
@@ -323,6 +390,14 @@ index 000000000..f9e135c16
 +  let Constraints = "@earlyclobber $rb"; // convert_ff: dst range must not overlap src
 +  let op = 0x44;
 +  let ha = 0x02;
++  let Pattern = [];
++}
++
++def ftrnd_orri_rf : DADAOOrri<"ftrnd"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x03;
 +  let Pattern = [];
 +}
 +
@@ -357,6 +432,14 @@ index 000000000..f9e135c16
 +  let Constraints = "@earlyclobber $rb"; // convert_ff: dst range must not overlap src
 +  let op = 0x44;
 +  let ha = 0x0A;
++  let Pattern = [];
++}
++
++def fornd_orri_rf : DADAOOrri<"fornd"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x0B;
 +  let Pattern = [];
 +}
 +

@@ -1,0 +1,37 @@
+diff --git a/libc/stdio/vfprintf_int.c b/libc/stdio/vfprintf_int.c
+index c81bd36..3d8519e 100644
+--- a/libc/stdio/vfprintf_int.c
++++ b/libc/stdio/vfprintf_int.c
+@@ -52,6 +52,7 @@
+     } else {
+         int              base;
+         ultoa_unsigned_t x;
++        int              ptr_arg = 0;
+ 
+         if (c == 'u') {
+             flags &= ~FL_ALT;
+@@ -63,8 +64,7 @@
+             base = 16;
+             flags |= FL_ALT;
+             c = 'x';
+-            if (sizeof(void *) > sizeof(int))
+-                flags |= FL_LONG;
++            ptr_arg = 1;
+         } else if (TOLOWER(c) == 'x') {
+             base = ('x' - c) | 16;
+ #ifdef _NEED_IO_PERCENT_B
+@@ -79,7 +79,13 @@
+ 
+         flags &= ~(FL_PLUS | FL_SPACE);
+ 
+-        arg_to_unsigned(ap, flags, x);
++        if (ptr_arg)
++            /* A %p argument's declared type is `void *`; DADAO passes
++             * pointers in a different argument bank than integers, so the
++             * pointer must be fetched with its own type (DADAO: ISS-304). */
++            x = (ultoa_unsigned_t)(uintptr_t)va_arg(ap, void *);
++        else
++            arg_to_unsigned(ap, flags, x);
+ 
+         /* Zero gets no special alternate treatment */
+         if (x == 0)

@@ -1,0 +1,73 @@
+diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.h b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.h
+new file mode 100644
+index 000000000..c905c7935
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.h
+@@ -0,0 +1,67 @@
++//===-- DADAOCfxAliasTable.h - DADAO cfx alias runtime table ----*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// Runtime cfx alias table (ADR-0017 D3/D4/D8/D10; LLVM-135t).
++//
++// The table is *data*, not code: `share/dadao/cfx-aliases.txt`, generated from
++// the spec register tables into `contracts/cfx-aliases.txt`.  Both the
++// assembler (name -> encoding) and the MCInstPrinter (encoding -> name) read
++// this one file, so renaming a cfx or renumbering its registers is a data
++// update -- no LLVM rebuild.
++//
++// Lookup order for the file (first hit wins):
++//   1. explicit --dadao-cfx-alias=<path> (also via `-mllvm -dadao-cfx-alias=`)
++//   2. $DADAO_CFX_ALIAS_FILE
++//   3. <executable dir>/../share/dadao/cfx-aliases.txt
++//
++// Missing/invalid table: the assembler rejects cfx names (hard error), the
++// printer falls back to the naked `cfx<HA>, cgN, rcN` form (never fails).
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOCFXALIASTABLE_H
++#define LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOCFXALIASTABLE_H
++
++#include "llvm/ADT/StringRef.h"
++#include <string>
++
++namespace llvm {
++namespace DADAO {
++
++/// True iff a well-formed table has been loaded and cached.
++bool isCfxAliasTableAvailable();
++
++/// Path the table was (or would have been) loaded from; empty when no
++/// candidate path could be derived at all.
++std::string getCfxAliasTablePath();
++
++/// Human-readable reason the table is unavailable (empty when available).
++/// Quoted verbatim in the assembler diagnostic for an unresolvable cfx name.
++std::string getCfxAliasTableError();
++
++/// Resolve a scalar alias `cfx_<cfxname>` -> 6-bit cfx code (ADR-0017 D3).
++bool lookupCfxScalarAlias(StringRef Name, unsigned &Cfxha);
++
++/// Resolve a register alias `cfx_<cfxname>_<regname>` (no subscript) ->
++/// (cfxha, cg, rcBase, rcCount); rcCount > 1 marks an array register (D10).
++bool lookupCfxRegAlias(StringRef Name, unsigned &Cfxha, unsigned &Cg,
++                       unsigned &RcBase, unsigned &RcCount);
++
++/// Canonical printed scalar name for \p Cfxha (empty when the table has none).
++StringRef getCfxScalarName(unsigned Cfxha);
++
++/// Canonical printed register name for the (Cfxha, Cg, Rc) triple; array
++/// registers are rendered with the single-subscript `name[rc - rcBase]` form.
++/// Returns false (leaving \p Name untouched) when no name covers the triple.
++bool getCfxRegName(unsigned Cfxha, unsigned Cg, unsigned Rc,
++                   std::string &Name);
++
++} // namespace DADAO
++} // namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOCFXALIASTABLE_H

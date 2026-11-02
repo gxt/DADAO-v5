@@ -1,0 +1,552 @@
+#
+# RUN: %llc -march=dadao -run-pass=dadao-ldst-opt -verify-machineinstrs %s -o - \
+# RUN:   | %FileCheck %s
+#
+# LLVM-129t: post-RA formation of `ldm.o`/`stm.o` from adjacent single-register
+# 8-byte accesses.  The merge needs *all* of: same basic block, strictly
+# adjacent accesses (no other instruction between them), same direction and
+# bank, ascending consecutive physical registers, ascending offsets +8 apart,
+# and a legal immu6 range (>= 2 accesses, start + count <= 64, load start != 0).
+#
+# Positive cases: 4 stores at [rb16, 0..24] in rd20..rd23 (offset 0 => `rd0` is
+# the offset register, no base recomputation), and 4 loads at [rb2, -32..-8]
+# (non-zero offset => `rb2rb` + `add.si` into a caller-saved RB register the
+# function never mentions; `rd0` is then the offset register as well).
+#
+# Negative cases: a register gap, a cross-bank pair with consecutive numbers,
+# an intervening call, an intervening aliasing store, and a non-contiguous
+# offset.  None may merge.
+#
+--- |
+  target datalayout = "E-m:e-p:64:64-i64:64-i128:128-n8:16:32:64-S128"
+  target triple = "dadao-unknown-elf"
+
+  declare void @callee()
+
+  define void @merge_st4() {
+  entry:
+    ret void
+  }
+  define void @merge_ld4_off() {
+  entry:
+    ret void
+  }
+  define void @no_merge_st3_off() {
+  entry:
+    ret void
+  }
+  define void @no_merge_gap() {
+  entry:
+    ret void
+  }
+  define void @no_merge_bank() {
+  entry:
+    ret void
+  }
+  define void @no_merge_call() {
+  entry:
+    ret void
+  }
+  define void @no_merge_alias() {
+  entry:
+    ret void
+  }
+  define void @no_merge_off_gap() {
+  entry:
+    ret void
+  }
+  define void @no_merge_base_load() {
+  entry:
+    ret void
+  }
+...
+---
+name:            merge_st4
+alignment:       1
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+hasFakeUses:     false
+registers:       []
+liveins:         []
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    8
+  adjustsStack:    false
+  hasCalls:        false
+  stackProtector:  ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+fixedStack:      []
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.0:
+    liveins: $rb16
+
+    $rd20 = COPY $rb16
+    $rd21 = COPY $rb16
+    $rd22 = COPY $rb16
+    $rd23 = COPY $rb16
+    ; CHECK-LABEL: name: merge_st4
+    ; CHECK: stm_o_rd $rd20, $rb16, $rd0, 4, implicit $rd21, implicit $rd22, implicit $rd23
+    ; CHECK-NOT: st_o_rd
+    st_o_rd $rd20, $rb16, 0
+    st_o_rd $rd21, $rb16, 8
+    st_o_rd $rd22, $rb16, 16
+    st_o_rd $rd23, $rb16, 24
+    RET_PSEUDO
+
+---
+name:            merge_ld4_off
+alignment:       1
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+hasFakeUses:     false
+registers:       []
+liveins:         []
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       32
+  offsetAdjustment: 0
+  maxAlignment:    8
+  adjustsStack:    false
+  hasCalls:        false
+  stackProtector:  ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+fixedStack:      []
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.0:
+    liveins: $rb2
+
+    ; CHECK-LABEL: name: merge_ld4_off
+    ; The first offset is -32: recompute base + offset into the first
+    ; caller-saved RB register the function never mentions (rb3 is reserved as
+    ; TP, rb4 is free here), then the batch uses $rd0 as the offset register.
+    ; CHECK: $rb4 = rb2rb $rb2, 1
+    ; CHECK-NEXT: $rb4 = add_si_rb -32
+    ; CHECK-NEXT: $rd20 = ldm_o_rd $rb4, $rd0, 4, implicit-def $rd21, implicit-def $rd22, implicit-def $rd23
+    ; CHECK-NOT: = ld_o_rd
+    $rd20 = ld_o_rd $rb2, -32
+    $rd21 = ld_o_rd $rb2, -24
+    $rd22 = ld_o_rd $rb2, -16
+    $rd23 = ld_o_rd $rb2, -8
+    RET_PSEUDO
+
+---
+name:            no_merge_st3_off
+alignment:       1
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+hasFakeUses:     false
+registers:       []
+liveins:         []
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       32
+  offsetAdjustment: 0
+  maxAlignment:    8
+  adjustsStack:    false
+  hasCalls:        false
+  stackProtector:  ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+fixedStack:      []
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.0:
+    liveins: $rb2
+
+    $rd20 = COPY $rb2
+    $rd21 = COPY $rb2
+    $rd22 = COPY $rb2
+    ; Three accesses with a non-zero first offset cannot pay for the two setup
+    ; instructions plus the batch: left as-is.
+    ; CHECK-LABEL: name: no_merge_st3_off
+    ; CHECK-NOT: stm_o_rd
+    ; CHECK: st_o_rd $rd20, $rb2, -24
+    ; CHECK-NEXT: st_o_rd $rd21, $rb2, -16
+    ; CHECK-NEXT: st_o_rd $rd22, $rb2, -8
+    st_o_rd $rd20, $rb2, -24
+    st_o_rd $rd21, $rb2, -16
+    st_o_rd $rd22, $rb2, -8
+    RET_PSEUDO
+
+---
+name:            no_merge_gap
+alignment:       1
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+hasFakeUses:     false
+registers:       []
+liveins:         []
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    8
+  adjustsStack:    false
+  hasCalls:        false
+  stackProtector:  ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+fixedStack:      []
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.0:
+    liveins: $rb16
+
+    $rd20 = COPY $rb16
+    $rd22 = COPY $rb16
+    ; rd20 -> rd22 is not a contiguous range (immu6 would have to invent rd21).
+    ; CHECK-LABEL: name: no_merge_gap
+    ; CHECK-NOT: stm_o_rd
+    ; CHECK: st_o_rd $rd20, $rb16, 0
+    ; CHECK-NEXT: st_o_rd $rd22, $rb16, 8
+    st_o_rd $rd20, $rb16, 0
+    st_o_rd $rd22, $rb16, 8
+    RET_PSEUDO
+
+---
+name:            no_merge_bank
+alignment:       1
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+hasFakeUses:     false
+registers:       []
+liveins:         []
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    8
+  adjustsStack:    false
+  hasCalls:        false
+  stackProtector:  ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+fixedStack:      []
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.0:
+    liveins: $rb16
+
+    $rd20 = COPY $rb16
+    $rb21 = COPY $rb16
+    ; rd20 and rb21 are numerically consecutive but live in different register
+    ; files: `ldm`/`stm` never cross a bank.
+    ; CHECK-LABEL: name: no_merge_bank
+    ; CHECK-NOT: stm_o
+    ; CHECK: st_o_rd $rd20, $rb16, 0
+    ; CHECK-NEXT: st_o_rb $rb21, $rb16, 8
+    st_o_rd $rd20, $rb16, 0
+    st_o_rb $rb21, $rb16, 8
+    RET_PSEUDO
+
+---
+name:            no_merge_call
+alignment:       1
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+hasFakeUses:     false
+registers:       []
+liveins:         []
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    8
+  adjustsStack:    false
+  hasCalls:        true
+  stackProtector:  ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+fixedStack:      []
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.0:
+    liveins: $rb32
+
+    $rd6 = COPY $rb32
+    $rd7 = COPY $rb32
+    ; CHECK-LABEL: name: no_merge_call
+    ; A call clobbers the caller-saved registers in between, so the accesses
+    ; before and after it are independent runs: the pair before the call merges
+    ; (offset 0), the three after it (offset 16, count 3) do not.  A batch of 5
+    ; spanning the call is exactly the injected miscompile:
+    ; -dadao-ldst-opt-allow-call moves the stores of the call's return values
+    ; ($rd8..$rd10, defined by the call itself) in front of the call, so the
+    ; returned values would never reach memory.  That is the CHECK-NOT FAIL
+    ; path exercised by .work/evidence/LLVM-129t/run.sh.
+    ; CHECK-NOT: stm_o_rd $rd6, $rb32, $rd0, 5
+    ; CHECK: stm_o_rd $rd6, $rb32, $rd0, 2, implicit $rd7
+    ; CHECK: call_iiii
+    ; CHECK: st_o_rd $rd8, $rb32, 16
+    ; CHECK-NEXT: st_o_rd $rd9, $rb32, 24
+    ; CHECK-NEXT: st_o_rd $rd10, $rb32, 32
+    st_o_rd $rd6, $rb32, 0
+    st_o_rd $rd7, $rb32, 8
+    call_iiii @callee, CustomRegMask($rb32), implicit-def $rd8, implicit-def $rd9, implicit-def $rd10
+    st_o_rd $rd8, $rb32, 16
+    st_o_rd $rd9, $rb32, 24
+    st_o_rd $rd10, $rb32, 32
+    RET_PSEUDO
+
+---
+name:            no_merge_alias
+alignment:       1
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+hasFakeUses:     false
+registers:       []
+liveins:         []
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    8
+  adjustsStack:    false
+  hasCalls:        false
+  stackProtector:  ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+fixedStack:      []
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.0:
+    liveins: $rb16
+
+    $rd9 = COPY $rb16
+    $rd20 = COPY $rb16
+    $rd21 = COPY $rb16
+    ; CHECK-LABEL: name: no_merge_alias
+    ; The store to [rb16, 8] aliases the would-be load range and sits between
+    ; the loads: preserving program order means the loads cannot be batched
+    ; around it.  A merged ldm covering all four would reorder the accesses.
+    ; CHECK-NOT: $rd20 = ldm_o_rd $rb16, $rd0, 4
+    ; CHECK: $rd20 = ld_o_rd $rb16, 0
+    ; CHECK-NEXT: st_o_rd $rd9, $rb16, 8
+    ; CHECK-NEXT: $rd21 = ld_o_rd $rb16, 16
+    $rd20 = ld_o_rd $rb16, 0
+    st_o_rd $rd9, $rb16, 8
+    $rd21 = ld_o_rd $rb16, 16
+    RET_PSEUDO
+
+---
+name:            no_merge_off_gap
+alignment:       1
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+hasFakeUses:     false
+registers:       []
+liveins:         []
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    8
+  adjustsStack:    false
+  hasCalls:        false
+  stackProtector:  ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+fixedStack:      []
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.0:
+    liveins: $rb16
+
+    $rd20 = COPY $rb16
+    $rd21 = COPY $rb16
+    ; Adjacent registers but offsets 0 and 16: the range would have to skip
+    ; [rb16, 8] (which is not part of this run), so no batch.
+    ; CHECK-LABEL: name: no_merge_off_gap
+    ; CHECK-NOT: stm_o_rd
+    ; CHECK: st_o_rd $rd20, $rb16, 0
+    ; CHECK-NEXT: st_o_rd $rd21, $rb16, 16
+    st_o_rd $rd20, $rb16, 0
+    st_o_rd $rd21, $rb16, 16
+    RET_PSEUDO
+
+---
+name:            no_merge_base_load
+alignment:       1
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+hasFakeUses:     false
+registers:       []
+liveins:         []
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    8
+  adjustsStack:    false
+  hasCalls:        false
+  stackProtector:  ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+fixedStack:      []
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.0:
+    liveins: $rb20
+
+    ; The loaded range would contain the base register (rb20): the sequential
+    ; code computes the second address from the value just loaded into rb20,
+    ; while an `ldm.o {rb20:rb21}` would use the old value for both.  Not equal,
+    ; so no batch.
+    ; CHECK-LABEL: name: no_merge_base_load
+    ; CHECK-NOT: ldm_o_rb
+    ; CHECK: $rb20 = ld_o_rb $rb20, 0
+    ; CHECK-NEXT: $rb21 = ld_o_rb $rb20, 8
+    $rb20 = ld_o_rb $rb20, 0
+    $rb21 = ld_o_rb $rb20, 8
+    RET_PSEUDO
+...

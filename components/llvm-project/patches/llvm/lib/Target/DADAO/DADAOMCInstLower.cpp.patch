@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp b/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp
 new file mode 100644
-index 000000000..ba8ae4302
+index 000000000..81ffe0656
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp
-@@ -0,0 +1,104 @@
+@@ -0,0 +1,157 @@
 +//===-- DADAOMCInstLower.cpp - DADAO MachineInstr to MCInst ----*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -23,7 +23,9 @@ index 000000000..ba8ae4302
 +
 +#include "DADAOMCInstLower.h"
 +
++#include "DADAO.h"
 +#include "DADAOAsmPrinter.h"
++#include "MCTargetDesc/DADAOMCAsmInfo.h"
 +
 +#include "llvm/CodeGen/AsmPrinter.h"
 +#include "llvm/CodeGen/MachineBasicBlock.h"
@@ -44,11 +46,15 @@ index 000000000..ba8ae4302
 +  assert((MO.isGlobal() || MO.isSymbol() || MO.isMBB()) &&
 +         "Not a symbol reference");
 +
-+  if (MO.isGlobal())
++  if (MO.isGlobal()) {
 +    // Plain symbol reference (no target flag / variant kind in M3): a direct
 +    // call target only.  getSymbolPreferLocal keeps the plain name for a
 +    // non-PIE static module (it is what the definition is emitted under).
++    // Note: an MO_GOT_ADDR reference (PIC, LLVM-094t) is resolved in
++    // LowerOperand instead, because the slot's data field already carries the
++    // operand offset.
 +    return Printer.getSymbolPreferLocal(*MO.getGlobal());
++  }
 +  if (MO.isMBB())
 +    return MO.getMBB()->getSymbol();
 +  // External symbol (a declared-but-not-defined callee).
@@ -86,15 +92,62 @@ index 000000000..ba8ae4302
 +    return MCOperand::createImm(MO.getImm());
 +  case MachineOperand::MO_MachineBasicBlock:
 +  case MachineOperand::MO_GlobalAddress:
++    // PIC GOT reference (LLVM-094t; reached through the `aip.si`/`ld.o` pair
++    // since ADR-0029 D4): the operand denotes the symbol's GOT slot and the
++    // slot's data field already carries `sym + offset`, so the instruction
++    // operand must be the bare slot label (adding the offset here would load
++    // from inside the slot).  It is the *high* half's target; the emitter picks
++    // R_DADAO_PCREL_HI from the `aip.si` opcode plus a bare symbol.
++    // Dynamic TLS (LLVM-117t): the operand denotes a slot too, but one whose
++    // data field carries a TLS relocation instead of an absolute address.
++    //   * MO_TLS_GD: the slot holds the address of this module's `tls_index`
++    //     pair; the instruction passes it to `__tls_get_addr`.
++    //   * MO_TLS_TPREL: the slot holds TPOFF(sym) (+ offset), which the
++    //     instruction adds to the thread pointer (initial-exec).
++    if (MO.getTargetFlags() & DADAO::MO_TLS_GD)
++      return MCOperand::createExpr(MCSymbolRefExpr::create(
++          Printer.getTLSGDIndexSymbol(MO.getGlobal()), Ctx));
++    if (MO.getTargetFlags() & DADAO::MO_TLS_TPREL)
++      return MCOperand::createExpr(MCSymbolRefExpr::create(
++          Printer.getTLSGOTSlotSymbol(MO.getGlobal(), MO.getOffset()), Ctx));
++    if (MO.getTargetFlags() & DADAO::MO_GOT_ADDR)
++      return MCOperand::createExpr(MCSymbolRefExpr::create(
++          Printer.getGOTSlotSymbol(MO.getGlobal(), MO.getOffset()), Ctx));
++    return LowerSymbolOperand(MO, GetSymbolFromOperand(MO));
 +  case MachineOperand::MO_ExternalSymbol:
 +    return LowerSymbolOperand(MO, GetSymbolFromOperand(MO));
++  case MachineOperand::MO_BlockAddress:
++    // Address of a basic block (`&&label`, LLVM-102t): the BLOCK_ADDR
++    // materialization carries one MO_BlockAddress per slice.  AsmPrinter has
++    // already defined the label (GetBlockAddressSymbol) in front of the block;
++    // the operand offset travels in the expression (r_addend) like any other
++    // symbol.
++    return LowerSymbolOperand(MO,
++                              Printer.GetBlockAddressSymbol(MO.getBlockAddress()));
 +  case MachineOperand::MO_JumpTableIndex:
 +    // Jump-table label (LLVM-072t, ISS-177/G3): the local symbol emitted in
 +    // front of the table by AsmPrinter::emitJumpTableInfo.  Used by the
-+    // JT_ADDR materialization (set.zw/or.w -> R_DADAO_ABS48).
++    // JT_ADDR materialization (set.zw/or.w -> R_DADAO_ABS48) and, under PIC
++    // (LLVM-094t), by the GOT slot holding the table base (the instruction then
++    // carries the *slot* label and the table label goes into `.got`).
++    if (MO.getTargetFlags() & DADAO::MO_GOT_ADDR)
++      return MCOperand::createExpr(MCSymbolRefExpr::create(
++          Printer.getGOTSlotSymbolForJumpTable(MO.getIndex()), Ctx));
 +    return MCOperand::createExpr(
 +        MCSymbolRefExpr::create(Printer.GetJTISymbol(MO.getIndex()), Ctx));
 +  case MachineOperand::MO_MCSymbol:
++    // Low half of a PC-relative hi/lo pair (ADR-0029 D2/D4): the operand names
++    // the *pairing site* -- the temporary label DADAOInstrInfo::
++    // expandPostRAPseudo emits in front of the paired `aip.si` -- not a data
++    // target, so it is wrapped in the `%pcrel_lo(...)` specifier (RISC-V's
++    // `%pcrel_lo(label)` form).  The emitter turns that into R_DADAO_PCREL_LO,
++    // and the ELF writer folds the local label into section symbol + addend =
++    // site address, which is the pairing information the linker needs
++    // (contract-elf.md §3.1/§3.2).  A bare MO_MCSymbol use (jump-table labels)
++    // keeps the plain expression as before.
++    if (MO.getTargetFlags() & DADAO::MO_PCREL_LO)
++      return MCOperand::createExpr(MCSpecifierExpr::create(
++          MO.getMCSymbol(), DADAO::S_PCREL_LO, Ctx));
 +    return LowerSymbolOperand(MO, MO.getMCSymbol());
 +  }
 +}

@@ -1,0 +1,13 @@
+diff --git a/src/misc/getrlimit.c b/src/misc/getrlimit.c
+index a5558d8..62ea5b1 100644
+--- a/src/misc/getrlimit.c
++++ b/src/misc/getrlimit.c
+@@ -6,7 +6,7 @@
+ 
+ int getrlimit(int resource, struct rlimit *rlim)
+ {
+-	int ret = syscall(SYS_prlimit64, 0, resource, 0, rlim);
++	int ret = syscall(SYS_prlimit64, 0, resource, (void *)0, rlim);
+ 	if (!ret) {
+ 		FIX(rlim->rlim_cur);
+ 		FIX(rlim->rlim_max);

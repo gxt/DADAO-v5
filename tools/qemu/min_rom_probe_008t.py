@@ -86,23 +86,23 @@ def add_si_rb(rb, imms18):
     return encode_riii(0x5B, rb, imms18 & 0x3FFFF)
 
 def add_o_bbd(rbhb, rbhc, rdhd):
-    """add.o rbhb, rbhc, rdhd (MISC-octa, ha=0x30)"""
+    """add.o rbhb, rbhc, rdhd (OPC-octa, ha=0x30)"""
     return encode_orrr(0x40, 0x30, rbhb, rbhc, rdhd)
 
 def sub_o_bbd(rbhb, rbhc, rdhd):
-    """sub.o rbhb, rbhc, rdhd (MISC-octa, ha=0x31)"""
+    """sub.o rbhb, rbhc, rdhd (OPC-octa, ha=0x31)"""
     return encode_orrr(0x40, 0x31, rbhb, rbhc, rdhd)
 
 def cmp_uo_rd(rdhb, rdhc, rdhd):
-    """cmp.uo rdhb, rdhc, rdhd (MISC-octa, ha=0x2A)"""
+    """cmp.uo rdhb, rdhc, rdhd (OPC-octa, ha=0x2A)"""
     return encode_orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
 
 def cmp_uo_dbb(rdhb, rbhc, rbhd):
-    """cmp.uo rdhb, rbhc, rbhd (MISC-octa, ha=0x32)"""
+    """cmp.uo rdhb, rbhc, rbhd (OPC-octa, ha=0x32)"""
     return encode_orrr(0x40, 0x32, rdhb, rbhc, rbhd)
 
 def xor_o(rdhb, rdhc, rdhd):
-    """xor.o rdhb, rdhc, rdhd (MISC-octa, ha=0x0A)"""
+    """xor.o rdhb, rdhc, rdhd (OPC-octa, ha=0x0A)"""
     return encode_orrr(0x40, 0x0A, rdhb, rdhc, rdhd)
 
 def ld_o_rd(rdha, rbhb, imms12):
@@ -142,15 +142,15 @@ def st_o_rb(rbha, rbhb, imms12):
     return encode_rrii(0x23, rbha, rbhb, hc, hd)
 
 def rb2rd(rdhb, rbhc, immu6):
-    """rb2rd rdhb, rbhc, immu6 (MISC-octa, ha=0x36)"""
+    """rb2rd rdhb, rbhc, immu6 (OPC-octa, ha=0x36)"""
     return encode_orrr(0x40, 0x36, rdhb, rbhc, immu6)
 
 def rd2rb(rbhb, rdhc, immu6):
-    """rd2rb rbhb, rdhc, immu6 (MISC-octa, ha=0x35)"""
+    """rd2rb rbhb, rdhc, immu6 (OPC-octa, ha=0x35)"""
     return encode_orrr(0x40, 0x35, rbhb, rdhc, immu6)
 
 def rb2rb(rbhb, rbhc, immu6):
-    """rb2rb rbhb, rbhc, immu6 (MISC-octa, ha=0x34)"""
+    """rb2rb rbhb, rbhc, immu6 (OPC-octa, ha=0x34)"""
     return encode_orrr(0x40, 0x34, rbhb, rbhc, immu6)
 
 def jump_iiii(imms24):
@@ -234,13 +234,19 @@ def br_nz_rb(rbha, imms18):
     return encode_riii(0x73, rbha, imms18 & 0x3FFFF)
 
 def fence():
-    return encode_oiii(0x77, 0x00, 0)
+    """fence 0 (op=0x47, ha=0x20; SPEC-164t: OPC-MISC migrated to op 0x47)."""
+    return encode_oiii(0x47, 0x20, 0)
 
 def swym():
-    return encode_oiii(0x77, 0x22, 0)
+    return encode_oiii(0x47, 0x22, 0)
+
+def illi_poison():
+    """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison after fence
+    became an implemented instruction (SPEC-164t)."""
+    return encode_oiii(0x7C, 0x00, 0)
 
 def trap_sys_exit():
-    """trap cfx_umon, 0x30000 — semihosting tag (immu18[17:16]==2'b11)."""
+    """trap cfx_umon, 0x3FF00 — semihosting tag (immu18[17:8]==0x3FF (0x3FF00-0x3FFFF))."""
     return encode_oiii(0x7F, 0x00, SEMIHOST_TAG)
 
 # ── Semihosting SYS_EXIT (ADR-0020 D8: exit port removed) ──────────────
@@ -248,7 +254,7 @@ def trap_sys_exit():
 # rd16 = 0x18 (SYS_EXIT).  Each terminal writes the code into block[1] and traps.
 
 SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
-SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 
 def semi_exit(code_rd):
     """store code_rd into SEMI_BLOCK[1] then `trap` (SYS_EXIT); +1 insn."""
@@ -804,7 +810,7 @@ CTL_CHECKS = [
      ILLI_EXIT,                  # wrong expectation
      "Self-check FAILED: probe cannot detect br.nz rd0 behavior"),
     ("CTL: ILLI but expect PASS (wrong)",
-     [fence()],
+     [illi_poison()],
      PASS_EXIT,
      "Self-check FAILED: probe cannot detect ILLI"),
 ]

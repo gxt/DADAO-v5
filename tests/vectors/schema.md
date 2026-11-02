@@ -1,7 +1,7 @@
 # Test Vector Schema
 
 `tests/vectors/isa/*.yaml` 的向量 schema。所有字段与语义期望值**独立派生自**锁定的
-规范与合约（`spec/`、`.tao/knowledge/contract-isa.md`、`contracts/opcodes.yaml`、
+规范与合约（`spec/`、`.tao/contracts/contract-isa.md`、`contracts/opcodes.yaml`、
 `contracts/legality_rules.yaml`、`.tao/adr/adr-0004-test-machine.md`），
 **不得**从 LLVM 汇编输出或 QEMU 运行结果反推。
 
@@ -19,7 +19,7 @@
 | `class` | string | 向量类别：`encoding` / `legality` / `semantic` / `boundary` / `overlap` |
 | `encoding` | object | 见下「`encoding` 子结构」 |
 | `input_state` | object | 执行前的寄存器/内存状态（仅列相关字段；可为空对象 `{}`） |
-| `spec_cite` | string | 语义/合法性来源（规范章节；测试机约定引用 ADR-0004 章节）。**非空字符串** |
+| `spec_cite` | string | 语义/合法性来源：`<手册>: <助记符>`（指令类）或 `<手册>: <小节标题>`（非指令类，不带 `§`/节号）；测试机约定引用 ADR-0004 章节。**非空字符串** |
 
 ### 可选 / 条件字段
 
@@ -31,6 +31,7 @@
 | `status` | string | 可选，默认 `active` | `active` / `deferred` |
 | `deferred_reason` | string | `status=deferred` 时必填（非空） | 暂缓原因（如 `"C-27"`） |
 | `notes` | string | 可选 | 人类可读备注（如 `shamt = rd<k>`、PC 地址来源） |
+| `sequence` | list of string | 可选 | 多条原始编码字，按序连发（QEMU-067t）。用于单条指令无法表达其语义的场景——`sc` 只有在同址 `lr` 之后才可能成功，「失败清保留」需要 `lr → 失败的 sc → sc`。缺省（不写该字段）时 harness 走原单字路径，生成二进制与旧行为**逐字节一致**。当前由 `tests/vectors/atomics/*.yaml` 使用 |
 
 ### `encoding` 子结构
 
@@ -58,7 +59,7 @@
   expected_pc: null
   expected_fault: UNDI
   status: active
-  spec_cite: "SimRISC-00 §SimRISC QFC; contract-isa §2.9/§8.2"
+  spec_cite: "SimRISC-00: SimRISC QFC; contract-isa: 2.9/8.2"
   notes: "QFC 主表 op=0x08（0000-1xxx 整行 reserved）"
 ```
 
@@ -73,14 +74,14 @@
 | `mnemonic` / `id` 为 `null` | 无已定义身份 |
 | `format` 可为 `null` 或字符串 | 可选，用于定位子表 |
 | `notes` 非空 | 须给出该 word 在 QFC/子表中的具体位置作为 reserved 依据 |
-| `spec_cite` 非空 | 须引用 SimRISC-00 QFC / contract-isa §2.9/§8.2 |
+| `spec_cite` 非空 | 须引用 `SimRISC-00: SimRISC QFC` / `contract-isa: 2.9/8.2` |
 
 **与 ILLI 的区分**：
 
 | 场景 | fault | 依据 |
 |------|-------|------|
 | QFC/子表空白单元格（reserved 编码） | **UNDI** | §2.9/§8.2 |
-| 全零字 `0x00000000`（保留编码） | **UNDI** | §2.9（MISC-AMO 编码变更后，op=0x00 为保留编码） |
+| 全零字 `0x00000000`（保留编码） | **UNDI** | §2.9（OPC-MISC 编码变更后，op=0x00 为保留编码） |
 | 已定义编码 + 非法操作数/SBZ 违规 | **ILLI** | §9.1 |
 | M1 排除但已定义的编码（RF/cfx/LR-SC） | **ILLI** | ADR-0004 D5.1 |
 
@@ -126,7 +127,7 @@
   expected_fault: null
   status: active
   deferred_reason: null
-  spec_cite: "SimRISC-01 §存取RD寄存器"
+  spec_cite: "SimRISC-01: 存取RD寄存器"
   notes: ""
 ```
 

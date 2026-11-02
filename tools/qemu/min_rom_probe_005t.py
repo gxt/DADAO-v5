@@ -83,7 +83,7 @@ def cmp_uo(rdhb, rdhc, rdhd): return encode_orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
 # shr.ub encoding (post-SPEC-069t): op=0x43, ha=0x12 (orrr), ha=0x1A (orri)
 def shr_ub_orri(rdhb, rdhc, immu6): return encode_orri(0x43, 0x1A, rdhb, rdhc, immu6)
 # SPEC-069t: value semantics test helpers
-def shl_ut_orri(rdhb, rdhc, immu6): return encode_orri(0x41, 0x1C, rdhb, rdhc, immu6)
+def shl_t_orri(rdhb, rdhc, immu6): return encode_orri(0x41, 0x18, rdhb, rdhc, immu6)
 def shr_ut_orri(rdhb, rdhc, immu6): return encode_orri(0x41, 0x1A, rdhb, rdhc, immu6)
 def cmp_st_orrr(rdhb, rdhc, rdhd): return encode_orrr(0x41, 0x2B, rdhb, rdhc, rdhd)
 def cmp_ut_orrr(rdhb, rdhc, rdhd): return encode_orrr(0x41, 0x2A, rdhb, rdhc, rdhd)
@@ -94,12 +94,12 @@ def or_w_rwii(rdha, wpN, immu16):
     imm_lo6 = immu16 & 0x3F
     return struct.pack('>I', (0x48 << 24) | (rdha << 18) | (wpN << 16) |
                        (imm_hi4 << 12) | (imm_mid6 << 6) | imm_lo6)
-def ext_so_orri(rdhb, rdhc, immu6): return encode_orri(0x40, 0x19, rdhb, rdhc, immu6)
+def ext_so_orri(rdhb, rdhc, immu6): return encode_orri(0x40, 0x29, rdhb, rdhc, immu6)
 
 def add_sb(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x21, rdhb, rdhc, rdhd)
 def add_ub(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x20, rdhb, rdhc, rdhd)
 def mul_sb(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x31, rdhb, rdhc, rdhd)
-def shl_uo_orri(rdhb, rdhc, immu6): return encode_orri(0x40, 0x1C, rdhb, rdhc, immu6)
+def shl_o_orri(rdhb, rdhc, immu6): return encode_orri(0x40, 0x18, rdhb, rdhc, immu6)
 def shr_uo_orri(rdhb, rdhc, immu6): return encode_orri(0x40, 0x1A, rdhb, rdhc, immu6)
 
 def br_ne(rdha, rdhb, imms12):
@@ -110,8 +110,8 @@ def br_ne(rdha, rdhb, imms12):
     if imms12 < 0: hc |= 0x20
     return encode_orrr(0x6F, rdha, rdhb, hc, hd)
 
-def fence(): return encode_oiii(0x77, 0x00, 0)
-def swym(): return encode_oiii(0x77, 0x22, 0)
+def fence(): return encode_oiii(0x47, 0x20, 0)
+def swym(): return encode_oiii(0x47, 0x22, 0)
 
 # ── Terminators / ROM ────────────────────────────────────────────────
 
@@ -257,9 +257,9 @@ TESTS = [
      "ext.so pos=2 != -1"),
 
     # ── Shift (exact values) ──
-    ("shl.uo 0xF << 4 == 0xF0 (exact)",
-     [set_zw(2, 0x000F), shl_uo_orri(1, 2, 4)],
-     "shl.uo 0xF<<4 != 0xF0"),
+    ("shl.o 0xF << 4 == 0xF0 (exact)",
+     [set_zw(2, 0x000F), shl_o_orri(1, 2, 4)],
+     "shl.o 0xF<<4 != 0xF0"),
     ("shr.uo 0xF0 >> 4 == 0x0F (exact)",
      [set_zw(2, 0x00F0), shr_uo_orri(1, 2, 4)],
      "shr.uo 0xF0>>4 != 0x0F"),
@@ -281,18 +281,19 @@ TESTS = [
     ("V1 shl.ut 0xFF<<4: high bits zeroed (rd1 had 0xDEADBEEF...)",
      [set_zw(2, 0xFF),
       set_zw(1, 0), or_w_rwii(1, 2, 0xBEEF), or_w_rwii(1, 3, 0xDEAD),
-      shl_ut_orri(1, 2, 4)],
+      shl_t_orri(1, 2, 4)],
      "shl.ut did not zero high bits"),
     ("V2 shr.ut 0xFF00>>4: high bits zeroed (rd1 had 0xDEADBEEF...)",
      [set_zw(2, 0xFF00),
       set_zw(1, 0), or_w_rwii(1, 2, 0xBEEF), or_w_rwii(1, 3, 0xDEAD),
       shr_ut_orri(1, 2, 4)],
      "shr.ut did not zero high bits"),
-    ("V3 cmp.ut(1, 2) = -1 zero-extended (rd1 had 0xDEADBEEF...)",
+    # ADR-0037 D1: cmp.ut(-1) is 64-bit all-ones (was zero-extended pre-ADR-0037)
+    ("V3 cmp.ut(1, 2) = -1 64-bit all-ones (rd1 had 0xDEADBEEF...)",
      [set_zw(2, 1), set_zw(3, 2),
       set_zw(1, 0), or_w_rwii(1, 2, 0xBEEF), or_w_rwii(1, 3, 0xDEAD),
       cmp_ut_orrr(1, 2, 3)],
-     "cmp.ut did not zero-extend result"),
+     "cmp.ut -1 is not 64-bit all-ones"),
 ]
 
 # ── CTL self-check ────────────────────────────────────────────────────
@@ -368,7 +369,7 @@ def _append_comparison(insns, name):
         _exact_cmp(insns, 5, 6, -20)
     elif "ext.so orri pos=2 == -1" in name:
         _exact_cmp(insns, 1, 6, -1)
-    elif "shl.uo 0xF << 4 == 0xF0" in name:
+    elif "shl.o 0xF << 4 == 0xF0" in name:
         _exact_cmp(insns, 1, 6, 0xF0)
     elif "shr.uo 0xF0 >> 4 == 0x0F" in name:
         _exact_cmp(insns, 1, 6, 0x0F)
@@ -390,17 +391,9 @@ def _append_comparison(insns, name):
         # shr.ut(0xFF00, 4) = 0x0FF0, high bits zeroed
         _exact_cmp(insns, 1, 6, 0x0FF0)
     elif "V3 cmp.ut" in name:
-        # cmp.ut(1, 2): 1<2 unsigned → -1, zero-extended from 32 bits → 0x00000000FFFFFFFF
-        # _set_rd_to_val can't handle this (add.si sign-extends 0xFFFF to -1)
-        # Build rd6 = 0x00000000FFFFFFFF manually: set.zw wp0=0xFFFF + or.w wp1=0xFFFF
-        insns.append(set_zw(6, 0xFFFF))         # rd6 = 0x000000000000FFFF
-        insns.append(or_w_rwii(6, 1, 0xFFFF))   # rd6[31:16] = 0xFFFF → 0x00000000FFFFFFFF
-        insns.append(cmp_uo(7, 1, 6))
-        insns.append(set_zw(1, 0))
-        insns.append(br_ne(7, 1, 2))
-        insns.append(set_zw(1, 1))
-        insns.append(br_ne(1, 0, 2))
-        insns.append(cmp_uo(0, 0, 0))
+        # cmp.ut(1, 2): 1<2 unsigned -> -1; ADR-0037 D1: 64-bit all-ones.
+        # Expected value = -1 (add.si sign-extends 0xFFFF to 0xFFFF...FFFF).
+        _exact_cmp(insns, 1, 6, -1)
 
 # ── Main ──────────────────────────────────────────────────────────────
 

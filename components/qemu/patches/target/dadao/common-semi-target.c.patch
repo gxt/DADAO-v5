@@ -1,6 +1,6 @@
 diff --git a/target/dadao/common-semi-target.c b/target/dadao/common-semi-target.c
 new file mode 100644
-index 0000000..6d880dc
+index 0000000..25a708e
 --- /dev/null
 +++ b/target/dadao/common-semi-target.c
 @@ -0,0 +1,86 @@
@@ -13,12 +13,12 @@ index 0000000..6d880dc
 + *     convention and return mechanism: service number rd16, argument-block
 + *     pointer rb16, scalar return rd8; pc += 4; full 25-service table,
 + *     SYS_EXIT).
-+ *   .tao/knowledge/contract-semihosting.md §2/§4 (return value -> rd8;
++ *   .tao/contracts/contract-semihosting.md §2/§4 (return value -> rd8;
 + *     pc += 4 return).
 + *   .tao/adr/adr-0020-see-semihosting.md D4/D5/D6 (PC-step return, shared
 + *     responder reuse, always 64-bit big-endian); D2/D14 argument mapping
 + *     (service number -> rd16, argument-block pointer -> rb16).
-+ *   .tao/knowledge/contract-abi.md §2.1 (SP = rb1 / rbsp), §4.1/§4.4
++ *   .tao/contracts/contract-abi.md §2.1 (SP = rb1 / rbsp), §4.1/§4.4
 + *     (rd16-rd31 data args, rb16-rb31 address args, rd8 scalar return).
 + *
 + * v5 keeps the three DADAO register banks (rd/rb/rf) independent, each

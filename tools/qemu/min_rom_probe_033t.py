@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Min ROM probe for QEMU-033t: mreg_range_overlap run-time ILLI 0x88.
 
-Spec: SimRISC-02 §寄存器组之间块赋值.
+Spec: SimRISC-02: 寄存器组之间块赋值.
 Rule: contracts/legality_rules.yaml `mreg_range_overlap` (kind: static, fault: ILLI).
       Same-group block copies (rd2rd / rb2rb) whose source range and destination
       range intersect (complete coincidence included) are illegal.
@@ -98,7 +98,7 @@ def st_o_rd(rdha, rbhb, imms12):
 # ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──
 
 SEMI_BLOCK = 0xFC00_00FF_F000       # argument block {reason, code}, in RAM
-SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
 
@@ -153,7 +153,7 @@ def rb2rd(rdhb, rbhc, immu6):
 
 
 def swym():
-    return struct.pack('>I', 0x77880000)
+    return struct.pack('>I', 0x47880000)
 
 
 # ── Assertion block (same proven pattern as 030t / 032t) ───────────────

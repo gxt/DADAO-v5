@@ -1,0 +1,67 @@
+diff --git a/ldso/dlstart.c b/ldso/dlstart.c
+index 4aac42b..d331fcd 100644
+--- a/ldso/dlstart.c
++++ b/ldso/dlstart.c
+@@ -33,6 +33,62 @@ hidden void _dlstart_c(size_t *sp, size_t *dynv)
+ 	for (i=0; auxv[i]; i+=2) if (auxv[i]<AUX_CNT)
+ 		aux[auxv[i]] = auxv[i+1];
+ 
++	/* DADAO (contract-dynlink.md §3/§6.2/§6.3, ADR-0029 D4): the entry stub
++	 * in arch/dadao/crt_arch.h cannot name &_DYNAMIC -- a link-time absolute
++	 * address is wrong for a shared object, and a `.got` slot (`aip.si` +
++	 * `ld.o`, R_DADAO_RELATIVE) only carries the address after the RELATIVE
++	 * pass that this very function performs -- so it passes dynv = NULL and
++	 * the dynamic section is located here from the program headers.
++	 *
++	 * Two entries reach this point, distinguished by AT_BASE
++	 * (contract-dynlink.md §6.2/§6.3):
++	 *
++	 *   * the interpreter's own entry (AT_BASE != 0): AT_BASE is its load
++	 *     base, so the in-memory Ehdr sits at AT_BASE and
++	 *     &_DYNAMIC = AT_BASE + PT_DYNAMIC's p_vaddr;
++	 *   * a static PIE (AT_BASE == 0, crt/rcrt1.c): there is no interpreter,
++	 *     but the program is still relocated to an arbitrary base.  AT_PHDR
++	 *     is the run-time address of the program header table and
++	 *     PT_PHDR.p_vaddr its link-time address, so
++	 *         base = AT_PHDR - PT_PHDR.p_vaddr
++	 *     and &_DYNAMIC = base + PT_DYNAMIC.p_vaddr.  This does not assume
++	 *     the phdrs live in the first page; it only needs the initial aux
++	 *     vector to carry AT_PHDR/AT_PHNUM/AT_PHENT (it does, §6.2) and the
++	 *     program headers to contain PT_PHDR.  Without those there is no
++	 *     run-time base to be had: fall through to the swym in the entry
++	 *     stub rather than relocate against a guess.
++	 */
++	if (!dynv) {
++		size_t base0 = aux[AT_BASE];
++		Phdr *ph;
++		if (base0) {
++			Ehdr *eh = (void *)base0;
++			ph = (void *)((char *)eh + eh->e_phoff);
++			for (i=0; i<eh->e_phnum; i++,
++			     ph=(void *)((char *)ph+eh->e_phentsize))
++				if (ph->p_type == PT_DYNAMIC) {
++					dynv = (void *)((char *)eh + ph->p_vaddr);
++					break;
++				}
++		} else {
++			Phdr *phdr = (void *)aux[AT_PHDR];
++			size_t phnum = aux[AT_PHNUM];
++			size_t phent = aux[AT_PHENT];
++			if (!phdr || !phnum || !phent) return;
++			for (i=0, ph=phdr; i<phnum; i++,
++			     ph=(void *)((char *)ph+phent))
++				if (ph->p_type == PT_PHDR) break;
++			if (i == phnum) return;
++			size_t base1 = (size_t)phdr - ph->p_vaddr;
++			for (i=0, ph=phdr; i<phnum; i++,
++			     ph=(void *)((char *)ph+phent))
++				if (ph->p_type == PT_DYNAMIC) {
++					dynv = (void *)(base1 + ph->p_vaddr);
++					break;
++				}
++		}
++	}
++
+ #if DL_FDPIC
+ 	struct fdpic_loadseg *segs, fakeseg;
+ 	size_t j;

@@ -1,6 +1,6 @@
 # DADAO SimRISC 0.5.4 — 合法性规则目录（M1）
 #
-# 来源：spec/ 规范文档（SimRISC-00~04）经 .tao/knowledge/contract-isa.md 归一化投影，
+# 来源：spec/ 规范文档（SimRISC-00~04）经 .tao/contracts/contract-isa.md 归一化投影，
 #       不从实现反推；M1 范围见 contract-isa.md §6/§7.4/§7.5 与附录 A。
 #
 # 每条规则：
@@ -15,9 +15,9 @@
 #   fields[].name 一致（例如块赋值目的字段为 rdhb/rbhb/rahb，而非 rdha/rbha）。
 #
 # 范围：
-#   - M1 指令 = contract-isa.md 附录 A.1~A.6；编码见 contracts/opcodes.yaml（228 条：
-#     152 条 M1 + 60 条 scope: fp + 15 条 scope: excluded + 1 条 scope: m3）
-#   - M1 范围外（deferred）：LR-SC 原子（SimRISC-12 §LR-SC指令）、特权 cfx（SimRISC-04 §特权指令）；
+#   - M1 指令 = contract-isa.md 附录 A.1~A.6；编码见 contracts/opcodes.yaml（231 条：
+#     155 条 M1 + 60 条 scope: fp + 11 条 scope: excluded + 1 条 scope: m3 + 4 条 scope: m8）
+#   - M1 范围外（deferred）：LR-SC 原子（SimRISC-12 LR-SC指令）、核芯功能扩展指令（SimRISC-11 核芯功能扩展指令）；
 #     按 ADR-0004 D5 执行这些编码触发 ILLI；RF 浮点已实现（scope: fp，60 条）
 #   - SBZ 非零 → ILLI 由 ADR-0004 D5.3 冻结（架构自定义；spec 未规定 fault 类型）
 
@@ -26,7 +26,7 @@ rules:
   - id: dst_rd0
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-00 §数据寄存器"
+    spec_cite: "SimRISC-00: 数据寄存器"
     status: active
     description: >
       写 rd0 为目的寄存器时触发 ILLI 异常。
@@ -45,7 +45,7 @@ rules:
   - id: dst_rd0_nonzero
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-06 §函数返回"
+    spec_cite: "SimRISC-06: 函数返回"
     status: active
     description: >
       仅 ret 适用：ret rdHA, imms18 中 rdha == rd0 且 imms18 != 0 时触发 ILLI 异常。
@@ -57,7 +57,7 @@ rules:
   - id: dst_dual_same
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-04 §加减操作"
+    spec_cite: "SimRISC-04: 加减操作"
     status: active
     description: >
       add.uo/add.so/sub.uo/sub.so/mul.uo/mul.so 的 rrrr 格式有两个目的寄存器（rdha, rdhb），
@@ -66,7 +66,7 @@ rules:
   - id: dst_rb0
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-00 §基址寄存器"
+    spec_cite: "SimRISC-00: 基址寄存器"
     status: active
     description: >
       rb0 读出为当前指令的地址（只读），任何指令以 rb0 为**显式目的**时触发 ILLI 异常。
@@ -77,31 +77,34 @@ rules:
   - id: dst_rf0
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-00 §浮点寄存器; SimRISC-01 §存取RF寄存器; SimRISC-02 §寄存器组之间块赋值; SimRISC-02 §浮点条件赋值; SimRISC-03 §立即数常数赋值：Immediate constant"
+    spec_cite: "SimRISC-00: 浮点寄存器; SimRISC-01: 存取RF寄存器; SimRISC-02: 寄存器组之间块赋值; SimRISC-02: 浮点条件赋值; SimRISC-03: 立即数常数赋值：Immediate constant"
     status: active
     description: >
       浮点运算指令的**目的**操作数为 rf0 时触发 ILLI 异常
       （rf0 为控制和状态寄存器 FCSR，不可作为浮点运算的目的操作数）；
       rf0 作**源**操作数合法（读出完整 64 位，含 ftsgnj/fosgnj + rfHD=rf0 的 abs() 特例）。
-      **适用（目的 rf0 → ILLI，共 35 条）**：
+      **适用（目的 rf0 → ILLI，共 41 条）**：
       convert_ff 4（ft2ft/ft2fo/fo2ft/fo2fo）、
       convert_i2f 8（it2ft/io2ft/ut2ft/uo2ft/it2fo/io2fo/ut2fo/uo2fo）、
       arith 12（ftadd/ftsub/ftmul/ftdiv/ftrem/ftsclb/foadd/fosub/fomul/fodiv/forem/fosclb）、
       root 2（ftroot/foroot）、sign 4（ftsgnj/ftsgnn/fosgnj/fosgnn）、
-      cs_rf 5（cs.n/z/p/eq/ne 的目的 rfHB 或 rfHC）。
+      cs_rf 3（cs.n/z/p 的目的 rfHB 或 rfHC；`cs.eq/ne` 的 rf 变体已由 `SPEC-163t` 删除）、
+      roundint 2（ftrnd/fornd 的目的 rfHB，`SPEC-162t` 翻转）、
+      minmax 4（ftmin/ftmax/fomin/fomax 的目的 rfHB，`SPEC-160t` 翻转）、
+      fma 2（ftfma/fofma 的目的 rfHA，`SPEC-158t` 翻转）。
       **不适用（该指令无 rf 目的字段，rf 仅作源）**：rf2rd、st.t/st.o、stm.t/stm.o（-rf）；
       只读类 14 条（convert_f2i 8、classify 2、compare 4，目的均为 rd）亦无 rf 目的字段，不涉及。
       **例外（rf0 作目的合法）**：rd2rf（含 {rf0:rf0+immu6-1}，immu6≥2 允许）、
       ld.t/ld.o/ldm.t/ldm.o（按 FCSR 写掩码）、set.w。
       **源 rf0 合法（不触发本规则）**：上述各指令及 cs.*-rf 的 rf0-源角色（读出完整 64 位）。
       本规则 active（FP 已实现，LLVM-029t/030t、QEMU-034t–037t）；由 scope: fp 记录的
-      rule_refs 覆盖（35 条）。
+      rule_refs 覆盖（41 条）。
 
   # ── 多寄存器范围规则 ─────────────────────────────────────────────────────────
   - id: mreg_zero
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-01 §存取RD寄存器; SimRISC-01 §存取RF寄存器; SimRISC-02 §寄存器组之间块赋值; SimRISC-07 §格式转换指令; SimRISC-07 §浮点分类指令"
+    spec_cite: "SimRISC-01: 存取RD寄存器; SimRISC-01: 存取RF寄存器; SimRISC-02: 寄存器组之间块赋值; SimRISC-07: 格式转换指令; SimRISC-07: 浮点分类指令"
     status: active
     description: >
       多寄存器与块赋值指令 immu6=0 时触发 ILLI 异常。覆盖寄存器组：
@@ -119,7 +122,7 @@ rules:
   - id: mreg_range_overflow
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-01 §存取RD寄存器; SimRISC-01 §存取RF寄存器; SimRISC-02 §寄存器组之间块赋值; SimRISC-07 §格式转换指令; SimRISC-07 §浮点分类指令"
+    spec_cite: "SimRISC-01: 存取RD寄存器; SimRISC-01: 存取RF寄存器; SimRISC-02: 寄存器组之间块赋值; SimRISC-07: 格式转换指令; SimRISC-07: 浮点分类指令"
     status: active
     description: >
       多寄存器/块赋值指令中任一起始寄存器 + immu6 > 64 时触发 ILLI 异常，不环绕、不截断；
@@ -135,7 +138,7 @@ rules:
   - id: mreg_range_overlap
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-02 §寄存器组之间块赋值; SimRISC-07 §格式转换指令"
+    spec_cite: "SimRISC-02: 寄存器组之间块赋值; SimRISC-07: 格式转换指令"
     status: active
     description: >
       同寄存器组块赋值指令中，源范围与目的范围有任何交集（**含完全重合**）时触发 ILLI 异常。
@@ -148,7 +151,7 @@ rules:
   - id: excp_malign
     fault: MALIGN
     kind: dynamic
-    spec_cite: "SimRISC-01 §存取RD寄存器"
+    spec_cite: "SimRISC-01: 存取RD寄存器"
     status: active
     description: >
       数据访问未对齐触发 MALIGN 异常（动态，取决于运行时有效地址）。
@@ -161,34 +164,50 @@ rules:
   - id: excp_ialign
     fault: IALIGN
     kind: dynamic
-    spec_cite: "SimRISC-00 §指令设计"
+    spec_cite: "SimRISC-00: 指令设计"
     status: active
     description: >
-      取指时若 PC[1:0] ≠ 00，触发 IALIGN 异常（动态，取决于控制流目标地址）。
+      取指时若 IP[1:0] ≠ 00，触发 IALIGN 异常（动态，取决于控制流目标地址）。
       所有指令必须 4 字节对齐。
 
   # ── 编码合法性规则 ────────────────────────────────────────────────────────────
   - id: encode_sbz
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-00 §指令域说明"
+    spec_cite: "SimRISC-00: 指令域说明"
     status: active
     description: >
       SBZ（Should Be Zero）字段非零时触发 ILLI 异常（静态）。
       ADR-0004 D5.3 冻结「SBZ 非零 → ILLI」（架构自定义；spec 未规定 fault 类型）。
       固定为 0 的位域非零均属此规则，包括但不限于：
       fence 的 immu18_hi/immu18_mid/immu18_lo bits[17:4]；
-      移位量超过位宽限制（shl.ub/shr.sb/shr.ub: shamt > 7；shl.uw/shr.sw/shr.uw: shamt > 15；
-      shl.ut/shr.st/shr.ut: shamt > 31）；
+      移位量超过位宽限制（shl.b/rol.b/shr.sb/shr.ub: shamt > 7；shl.w/rol.w/shr.sw/shr.uw: shamt > 15；
+      shl.t/rol.t/shr.st/shr.ut: shamt > 31）；
       扩展起始位超过位宽限制（ext.uo/ext.so: hd > 63；SPEC-069t: ext.ub/ext.sb、
       ext.uw/ext.sw、ext.ut/ext.st 已删除）；
       lr 指令的 hb（rdhb）固定为 rd0，手工编码时 hb ≠ 0（LR-SC 原子指令属 M1 范围外，
       M1 不提取其语义）。
 
+  - id: encode_onehot
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-04: Bit manipulating：位操作指令"
+    status: active
+    description: >
+      逐块反转指令 rev.o/rev.t/rev.w/rev.b 的 immu6（块内单元位数 k）须为 one-hot
+      （2 的幂）且不超过该后缀可用档：.o {1,2,4,8,16,32}、.t {1,2,4,8,16}、
+      .w {1,2,4,8}、.b {1,2,4}；即 k 须为 2 的幂且 k < S（S = 该后缀块大小：
+      .o 64 / .t 32 / .w 16 / .b 8），排除 k = S 恒等档。
+      非 one-hot（0/3/5/6/…/63）或 k ≥ S 时触发 ILLI 异常（静态）。
+      本规则 active；由 rule_refs 覆盖（6 条：`rev.o/.t/.w/.b` 4 条，`scope: m8`；
+      `ftrnd`/`fornd` 2 条，`scope: fp`，`SPEC-162t` 起）。
+      来源：ADR-0012 D10（用户 2026-10-14 裁定 Q3：「ILLI；需要增加 encode_onehot
+      合法性规则，配合 encode_sbz 合法性规则；此外，还有 dst_rd0」）。
+
   - id: excp_undi
     fault: UNDI
     kind: static
-    spec_cite: "SimRISC-00 §SimRISC QFC"
+    spec_cite: "SimRISC-00: SimRISC QFC"
     status: active
     description: >
       执行保留编码触发 UNDI 异常：QFC 主表与各 MISC 子表的空白单元格
@@ -198,7 +217,7 @@ rules:
   - id: encode_fp_root_n
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-07 §S1D1"
+    spec_cite: "SimRISC-07: S1D1"
     status: active
     description: >
       ftroot/foroot 指令仅支持 n=2（平方根）；其他 n 值触发 ILLI 异常。
@@ -208,21 +227,21 @@ rules:
   - id: excp_rasof
     fault: RASOF
     kind: dynamic
-    spec_cite: "SimRISC-00 §压栈流程"
+    spec_cite: "SimRISC-00: 压栈流程"
     status: active
     description: >
       返回地址栈上溢触发 RASOF 异常（动态，取决于调用深度）。
       RegRAS 满（`RACNT == 63`，即 `ra0[53:48]`）且 MemRAS 不可用（`MRPTR == 0`，即 `ra0[47:0]`）时触发；
       MemRAS 可用时改为把最旧（栈底）条目写入 MemRAS，不触发异常。无引用计数（ADR-0012 D7：`ra0[63:54]` 为 SBZ）。
-      RASOF 为精确异常：RA 寄存器保持异常前状态，PC 指向 call 指令。
+      RASOF 为精确异常：RA 寄存器保持异常前状态，IP 指向 call 指令。
 
   - id: excp_rasuf
     fault: RASUF
     kind: dynamic
-    spec_cite: "SimRISC-00 §弹栈流程"
+    spec_cite: "SimRISC-00: 弹栈流程"
     status: active
     description: >
       返回地址栈下溢触发 RASUF 异常（动态，取决于调用深度）。
       `RACNT > 0` 但栈顶条目递归计数为 0（`ra63[63:48] == 0`），或 `RACNT == 0` 且
       无可用 MemRAS 条目（`MRPTR == 0`，或所读条目递归计数为 0）时触发。无引用计数（ADR-0012 D7：`ra0[63:54]` 为 SBZ）。
-      RASUF 为精确异常：RA 寄存器保持异常前状态，PC 指向 ret 指令。
+      RASUF 为精确异常：RA 寄存器保持异常前状态，IP 指向 ret 指令。

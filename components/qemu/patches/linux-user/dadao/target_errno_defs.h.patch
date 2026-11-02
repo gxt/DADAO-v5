@@ -1,0 +1,13 @@
+diff --git a/linux-user/dadao/target_errno_defs.h b/linux-user/dadao/target_errno_defs.h
+new file mode 100644
+index 0000000..e675bd6
+--- /dev/null
++++ b/linux-user/dadao/target_errno_defs.h
+@@ -0,0 +1,7 @@
++#ifndef DADAO_TARGET_ERRNO_DEFS_H
++#define DADAO_TARGET_ERRNO_DEFS_H
++
++/* Target uses the generic (asm-generic) errno numbering. */
++#include "../generic/target_errno_defs.h"
++
++#endif

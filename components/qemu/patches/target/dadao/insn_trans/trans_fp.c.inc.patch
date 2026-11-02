@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..82b0d51
+index 0000000..c47bb47
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
-@@ -0,0 +1,1006 @@
+@@ -0,0 +1,1107 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/*
 + * DADAO FP (rf) instruction translation routines.
@@ -26,6 +26,10 @@ index 0000000..82b0d51
 + *       arith  (12): ftadd/ftsub/ftmul/ftdiv/ftrem/ftsclb
 + *                    foadd/fosub/fomul/fodiv/forem/fosclb
 + *       root    (2): ftroot/foroot (rootn(x, 2) == sqrt; other n ⇒ ILLI)
++ *   - QEMU-072t implements roundToIntegral:
++ *       round   (2): ftrnd/fornd (immu6 = one-hot six-mode rounding code)
++ *   - QEMU-070t implements fused multiply-add:
++ *       fma     (2): ftfma/fofma (softfloat muladd, single rounding)
 + *
 + * rf0 is the FCSR: reads expose the full 64 bits, writes go through
 + * store_rf() which applies RF0_WRITE_MASK for rf0.
@@ -122,7 +126,7 @@ index 0000000..82b0d51
 + * QEMU-035t implements the bit-level FP semantics with pure integer/bit
 + * operations; no softfloat is involved.  Semantics come from
 + * spec/SimRISC-07 §浮点符号位操作指令 / §浮点比较指令 / §浮点分类指令 and
-+ * .tao/knowledge/contract-fp.md §7/§8/§9.
++ * .tao/contracts/contract-fp.md §7/§8/§9.
 + *
 + * ft is a 32-bit format held in the low half of the 64-bit rf register.
 + * Per the QEMU-034t/035t agreed convention, sign injection operates on the
@@ -246,16 +250,16 @@ index 0000000..82b0d51
 +
 +    TCGv_i64 acc = tcg_temp_new_i64();
 +    tcg_gen_movi_i64(acc, 0);
-+    fp_set_bit_if(acc, fp_and3(sgn, exp_all, man_zero), 0);   /* negInfinity */
-+    fp_set_bit_if(acc, fp_and3(sgn, nz, na), 1);              /* negNormal   */
-+    fp_set_bit_if(acc, fp_and3(sgn, exp_zero, nmz), 2);       /* negSubnormal*/
-+    fp_set_bit_if(acc, fp_and3(sgn, exp_zero, man_zero), 3);  /* negZero     */
-+    fp_set_bit_if(acc, fp_and3(ns, exp_zero, man_zero), 4);   /* posZero     */
-+    fp_set_bit_if(acc, fp_and3(ns, exp_zero, nmz), 5);        /* posSubnormal*/
-+    fp_set_bit_if(acc, fp_and3(ns, nz, na), 6);               /* posNormal   */
-+    fp_set_bit_if(acc, fp_and3(ns, exp_all, man_zero), 7);    /* posInfinity */
-+    fp_set_bit_if(acc, fp_and3(exp_all, nmz, nmb), 8);        /* signalingNaN*/
-+    fp_set_bit_if(acc, fp_and3(exp_all, nmz, mmsb), 9);       /* quietNaN    */
++    fp_set_bit_if(acc, fp_and3(sgn, exp_all, man_zero), 2);   /* negInfinity */
++    fp_set_bit_if(acc, fp_and3(sgn, nz, na), 3);              /* negNormal   */
++    fp_set_bit_if(acc, fp_and3(sgn, exp_zero, nmz), 4);       /* negSubnormal*/
++    fp_set_bit_if(acc, fp_and3(sgn, exp_zero, man_zero), 5);  /* negZero     */
++    fp_set_bit_if(acc, fp_and3(ns, exp_zero, man_zero), 6);   /* posZero     */
++    fp_set_bit_if(acc, fp_and3(ns, exp_zero, nmz), 7);        /* posSubnormal*/
++    fp_set_bit_if(acc, fp_and3(ns, nz, na), 8);               /* posNormal   */
++    fp_set_bit_if(acc, fp_and3(ns, exp_all, man_zero), 9);    /* posInfinity */
++    fp_set_bit_if(acc, fp_and3(exp_all, nmz, nmb), 0);        /* signalingNaN*/
++    fp_set_bit_if(acc, fp_and3(exp_all, nmz, mmsb), 1);       /* quietNaN    */
 +    return acc;
 +}
 +
@@ -531,36 +535,6 @@ index 0000000..82b0d51
 +    TCGv_i64 res = tcg_temp_new_i64();
 +    tcg_gen_movcond_i64(TCG_COND_GT, res, rdha, zero, rfhc, rfhd);
 +    store_rf(a->hb, res);
-+    return true;
-+}
-+
-+static bool trans_cs_eq_rrrr_rf(DisasContext *ctx, arg_main *a)
-+{
-+    if (!fp_check_dst_rf0(ctx, a->hc)) {
-+        return true;
-+    }
-+    TCGv_i64 rdha = load_rd(a->ha);
-+    TCGv_i64 rdhb = load_rd(a->hb);
-+    TCGv_i64 rfhc = load_rf(a->hc);
-+    TCGv_i64 rfhd = load_rf(a->hd);
-+    TCGv_i64 res = tcg_temp_new_i64();
-+    tcg_gen_movcond_i64(TCG_COND_EQ, res, rdha, rdhb, rfhd, rfhc);
-+    store_rf(a->hc, res);
-+    return true;
-+}
-+
-+static bool trans_cs_ne_rrrr_rf(DisasContext *ctx, arg_main *a)
-+{
-+    if (!fp_check_dst_rf0(ctx, a->hc)) {
-+        return true;
-+    }
-+    TCGv_i64 rdha = load_rd(a->ha);
-+    TCGv_i64 rdhb = load_rd(a->hb);
-+    TCGv_i64 rfhc = load_rf(a->hc);
-+    TCGv_i64 rfhd = load_rf(a->hd);
-+    TCGv_i64 res = tcg_temp_new_i64();
-+    tcg_gen_movcond_i64(TCG_COND_NE, res, rdha, rdhb, rfhd, rfhc);
-+    store_rf(a->hc, res);
 +    return true;
 +}
 +
@@ -1009,4 +983,131 @@ index 0000000..82b0d51
 +    }
 +    gen_fp_cmp(a, true, FP_FO_SNAN);
 +    return true;
++}
++
++/* ── QEMU-072t: roundToIntegral (S1D1) ───────────────────────────────── */
++/*
++ * ftrnd/fornd (orri): rfHB destination, rfHC source, immu6 = one-hot rounding
++ * code (SimRISC-07 §取整（roundToIntegral）, contract-fp.md §18):
++ *   0x01 ties-to-even / 0x02 ties-away / 0x04 toward-zero /
++ *   0x08 toward-+inf / 0x10 toward--inf  ⇒ static directions;
++ *   0x20 roundToIntegralExact ⇒ direction from rf0[33:32] (NX accrued).
++ * The helper owns the status-copy / flag-merge split; translate only enforces
++ * the static legality rules (dst_rf0, encode_onehot).
++ */
++static bool gen_fp_round_to_int(DisasContext *ctx, arg_misc *a, bool isdbl)
++{
++    const uint32_t code = a->hd;
++
++    if (!fp_check_dst_rf0(ctx, a->hb)) {           /* dst_rf0 */
++        return true;
++    }
++    if (code == 0 || (code & (code - 1)) != 0) {   /* encode_onehot (6 bits) */
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    /* S1D1: read the source before writing the destination (src may alias). */
++    TCGv_i64 src = load_rf(a->hc);
++    TCGv_i64 res = tcg_temp_new_i64();
++    gen_helper_fp_round_to_int(res, tcg_env, src, tcg_constant_i32(code),
++                               tcg_constant_i32(isdbl));
++    store_rf(a->hb, res);
++    return true;
++}
++
++static bool trans_ftrnd_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_round_to_int(ctx, a, false);
++}
++
++static bool trans_fornd_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_round_to_int(ctx, a, true);
++}
++
++/* ── QEMU-071t: minimumNumber / maximumNumber (S2D1) ─────────────────── */
++/*
++ * ftmin/ftmax/fomin/fomax (orrr): rfHB destination, rfHC/rfHD sources
++ * (simrisc ftmin rfHB, rfHC, rfHD).  Semantics = IEEE 754-2019 §9.6
++ * minimumNumber/maximumNumber, strict form (SimRISC-07 §2.4,
++ * contract-fp.md §19):
++ *   - ordered ⇒ the smaller/larger operand;
++ *   - −0 < +0, so min(+0,−0) = −0 and max(+0,−0) = +0;
++ *   - x == y with the same sign ⇒ either operand (identical bit patterns);
++ *   - exactly one NaN (q or s) ⇒ the numeric operand; NV only for sNaN;
++ *   - two NaNs ⇒ canonical qNaN (0x7FC00000 / 0x7FF8000000000000);
++ *   - no rounding ⇒ NX/OF/UF never set.
++ * All of this lives in softfloat's minimum_number/maximum_number; the helper
++ * only adds the FCSR flag merge.  A naive (a < b) ? a : b must NOT be used:
++ * it returns the second operand for a single NaN and never raises NV.
++ */
++static bool gen_fp_minmax(DisasContext *ctx, arg_misc *a, bool isdbl,
++                          bool ismax)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    /* S2D1: read both sources before writing the result (dest may alias a
++     * source; both loads are emitted first). */
++    TCGv_i64 src1 = load_rf(a->hc);
++    TCGv_i64 src2 = load_rf(a->hd);
++    TCGv_i64 res = tcg_temp_new_i64();
++    gen_helper_fp_minmax(res, tcg_env, src1, src2,
++                         tcg_constant_i32(isdbl), tcg_constant_i32(ismax));
++    store_rf(a->hb, res);
++    return true;
++}
++
++static bool trans_ftmin_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_minmax(ctx, a, false, false);
++}
++
++static bool trans_ftmax_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_minmax(ctx, a, false, true);
++}
++
++static bool trans_fomin_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_minmax(ctx, a, true, false);
++}
++
++static bool trans_fomax_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_minmax(ctx, a, true, true);
++}
++
++/* ── QEMU-070t: fused multiply-add (rrrr, single rounding) ───────────── */
++/*
++ * ftfma/fofma (rrrr): rfHA ← rfHB × rfHC + rfHD with ONE rounding
++ * (spec/SimRISC-07 §融合乘加, contract-fp.md §20).  All three sources are
++ * loaded before rfHA is written, so the destination may alias any source.
++ * The fused semantics live in softfloat (helper_fp_muladd); a mul+add pair is
++ * NOT equivalent — it rounds the product before the addition.
++ */
++static bool gen_fp_muladd(DisasContext *ctx, arg_main *a, bool isdbl)
++{
++    if (!fp_check_dst_rf0(ctx, a->ha)) {
++        return true;
++    }
++    TCGv_i64 src1 = load_rf(a->hb);
++    TCGv_i64 src2 = load_rf(a->hc);
++    TCGv_i64 src3 = load_rf(a->hd);
++    TCGv_i64 res = tcg_temp_new_i64();
++
++    gen_helper_fp_muladd(res, tcg_env, src1, src2, src3,
++                         tcg_constant_i32(isdbl));
++    store_rf(a->ha, res);
++    return true;
++}
++
++static bool trans_ftfma_rrrr_rf(DisasContext *ctx, arg_main *a)
++{
++    return gen_fp_muladd(ctx, a, false);
++}
++
++static bool trans_fofma_rrrr_rf(DisasContext *ctx, arg_main *a)
++{
++    return gen_fp_muladd(ctx, a, true);
 +}

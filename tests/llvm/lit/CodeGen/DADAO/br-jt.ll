@@ -61,7 +61,7 @@ default: ret i64 0
 ; the jump-table label), index scaling, base+index add, the 8-byte load and the
 ; indirect jump through the loaded address (rd0 supplies the zero offset).
 ; CHECK-LABEL: jt:
-; CHECK-DAG: shl.uo rd{{[0-9]+}}, rd{{[0-9]+}}, 3
+; CHECK-DAG: shl.o rd{{[0-9]+}}, rd{{[0-9]+}}, 3
 ; CHECK-DAG: set.zw rb{{[0-9]+}}, wp0, [[JTI:\.LJTI[0-9]+_[0-9]+]]
 ; CHECK-DAG: or.w rb{{[0-9]+}}, wp1, [[JTI]]
 ; CHECK-DAG: or.w rb{{[0-9]+}}, wp2, [[JTI]]

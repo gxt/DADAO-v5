@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..00a8aa2
+index 0000000..dfa8e4f
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,226 @@
+@@ -0,0 +1,251 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -28,13 +28,18 @@ index 0000000..00a8aa2
 +#include "cpu-qom.h"
 +#include "exec/cpu-common.h"
 +#include "exec/cpu-interrupt.h"
++#ifndef CONFIG_USER_ONLY
 +#include "system/memory.h"
-+
-+#ifdef CONFIG_USER_ONLY
-+#error "DADAO does not support user mode"
 +#endif
 +
 +#define CPU_RESOLVING_TYPE TYPE_DADAO_CPU
++
++/*
++ * User-mode mmu index: one address space, no MMU (P3).  System mode uses the
++ * single index 0 as well (dadao_cpu_mmu_index()); the generic TCG helpers read
++ * MMU_USER_IDX directly when CONFIG_USER_ONLY is set.
++ */
++#define MMU_USER_IDX 0
 +
 +/* DADAO exception indices (QEMU-internal, mapped to exit codes in do_interrupt) */
 +enum {
@@ -47,6 +52,13 @@ index 0000000..00a8aa2
 +    DADAO_EXCP_UNMAPPED = 7,   /* Unmapped memory access */
 +    DADAO_EXCP_CFXMEM = 8,     /* Illegal internal-address-space access */
 +    DADAO_EXCP_SEMIHOST = 9,   /* semihosting trap tag (not a fault) */
++    /*
++     * linux-user only (P3): the umon syscall entry `trap cfx0, 0`
++     * (contract-syscall.md §2).  It is not a fault: cpu_loop forwards it to
++     * the host and resumes at pc+4.  Never raised in system mode (no kernel
++     * there, ADR-0025 D2).
++     */
++    DADAO_EXCP_SYSCALL = 10,
 +};
 +
 +/* DADAO exit codes (propagated to host $?, per ADR-0004 D5.8) */
@@ -95,7 +107,7 @@ index 0000000..00a8aa2
 + * SEE/HEE run mode + cfx register file (QEMU-044t)
 + * Spec sources: spec/DADAO-12 §1/§3/§4 ("共有/专有寄存器"), §5 (异常进入/退出
 + * 流程), spec/DADAO-13 §1 (cg3/hypv), spec/SimRISC-11 §特权指令.  See also
-+ * .tao/knowledge/contract-see.md §1/§3/§4 and spec/Machine-01-测试机运行环境.md.
++ * .tao/contracts/contract-see.md §1/§3/§4 and spec/Machine-01-测试机运行环境.md.
 + * =================================================================== */
 +
 +/* Run modes: 0b00 user / 0b01 jail / 0b10 supv / 0b11 hypv (DADAO-12 §1). */
@@ -179,6 +191,17 @@ index 0000000..00a8aa2
 +    uint64_t ras_tmp;   /* Temp storage for ras_pop return value (hidden) */
 +    uint64_t pc;        /* Program counter (alias for rb0 read) */
 +
++    /* ── LR/SC reservation (QEMU-067t; SimRISC-11 §4.2, ADR-0034 D6) ──
++     * Per guest thread ("hart").  Granularity = the exact naturally aligned
++     * 8-byte word that contains the address observed by `lr`: `sc` succeeds
++     * only while the reservation is still held for that word AND the whole
++     * word still holds the value observed by `lr` (a single 8-byte host CAS).
++     * Cleared by: another `lr`, every `sc` (success or failure), a new guest
++     * thread, and exception/interrupt entry. */
++    uint64_t lock_addr;   /* 8-byte aligned word address (meaningful iff valid) */
++    uint64_t lock_val;    /* whole word observed by `lr` (target byte order) */
++    uint32_t lock_valid;  /* reservation held */
++
 +    /* ── SEE/HEE state (QEMU-044t) ── */
 +    uint8_t  inner_run_mode;             /* 0..3 (DADAO-12 §1) */
 +    uint8_t  inner_cfx_code;             /* current cfxha 0..63 */
@@ -214,10 +237,12 @@ index 0000000..00a8aa2
 +    ResettablePhases parent_phases;
 +};
 +
++#ifndef CONFIG_USER_ONLY
 +void dadao_cpu_do_interrupt(CPUState *cpu);
 +bool dadao_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
 +                        MMUAccessType access_type, int mmu_idx,
 +                        bool probe, uintptr_t retaddr);
++#endif
 +
 +void dadao_cpu_tcg_init(void);
 +void dadao_cpu_translate_code(CPUState *cs, TranslationBlock *tb,

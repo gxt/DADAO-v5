@@ -29,6 +29,15 @@ QEMU_SRC   ?= .work/source/qemu
 QEMU_BUILD ?= .work/build/qemu
 LLVM_SRC   ?= .work/source/llvm-project/llvm
 LLVM_BUILD ?= .work/build/llvm
+# cfx alias runtime table (LLVM-135t): *data*, not code.  llvm-mc/llvm-objdump
+# (and clang's inline assembler) read <exe-dir>/../share/dadao/cfx-aliases.txt,
+# so aliases are names/numbers resolved at run time -- renaming a cfx or
+# renumbering its registers needs only a copy, never an LLVM rebuild.
+# Source of truth: contracts/cfx-aliases.txt (generated from spec; drift gate
+# `check-cfx-alias-table`).
+CFX_ALIAS_TABLE_SRC     ?= contracts/cfx-aliases.txt
+CFX_ALIAS_TABLE_BUILD   ?= $(LLVM_BUILD)/share/dadao/cfx-aliases.txt
+CFX_ALIAS_TABLE_INSTALL ?= $(HOST_TOOLCHAIN_DIR)/share/dadao/cfx-aliases.txt
 GEM5_SRC   ?= .work/source/gem5
 GEM5_BUILD ?= .work/build/gem5
 
@@ -38,19 +47,80 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
-        build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
-        test-picolibc-smoke install-host docker-image docker-shell check \
-        check-picolibc-tests check-picolibc-tests-full \
+        build-builtins build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
+        build-musl build-musl-shared test-picolibc-smoke install-host install-cfx-aliases docker-image docker-shell check \
+        check-picolibc-tests check-picolibc-tests-full check-rnd-probe \
+        check-minmax-probe check-fma-probe check-clmul-probe \
+        check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-spec-readonly check-cfx-aliases check-asm-prose check-lit \
+        check-cfx-alias-table check-cfx-alias-install check-cfx-vectors \
         check-lit-full \
+        check-run-artifacts \
         test-codegen test-elf test-semihost test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
+        check-musl-freshness check-builtins-freshness check-install-tools check-milestones-fresh \
         check-tasks check-spec-codeblocks check-legality-invariants \
-        check-isa-coverage check-spec-numbering check-spec-changelog
+        check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive check-contracts-dir \
+        check-spec-archive-verify check-milestone check-sync-nonmaskable \
+        check-component-changelog check-syscall-abi check-spec-purity check-spec-cite-targets \
+        check-width-sizes check-code-range
+
+# ── 工作树互斥锁 (INFRA-099t / ISS-229) ─────────────────────────────────────────
+# 同一工作树内会写共享状态的目标 —— 构建树 `.work/build/**`、安装根 $(SDK_DIR)、
+# SDK 产物目录 $(TEST_ARTIFACTS_DIR) —— 以及跑这些写者的门控，全部**串行化**：
+# `GATE_LOCKED_TARGETS` 里每个名字都是**门控目标**（目标体 + 其前置在
+# `_locked-<name>`），由 tools/infra/gate_lock.py 在一个 flock(2) 上运行，锁文件
+# = $(GATE_LOCK)。这是 `ISS-229` 的机械化：L2 与 L3 并发曾读到瞬态不完整的安装根
+# ⇒ Embench 假 FAIL（`stddef.h not found`）；手动 `build-mc` 与 L2 内
+# `install-host` 并发 ⇒ 构建树写坏。规范见 docs/Process-07 §2。
+#
+# 语义（细节 + 自测见 tools/infra/gate_lock.py）：
+#   * **嵌套放行**：同一 make 树内 `check-modules → test-semihost → install-host →
+#     build-mc` 通过 DADAO_GATE_LOCK_HELD 直接通过（并由「持有者 pid 是本进程祖先」
+#     校验，环境标记本身不能关掉互斥），不会自锁。
+#   * **独立进程等待有上界**：GATE_LOCK_WAIT 秒（默认 3600，够一次 L3 持有）；
+#     超时打印「锁文件 + 持有者 pid/开始时间/目标/命令」，rc=75。
+#   * **fail-fast**：`GATE_LOCK_FAILFAST=1` ⇒ 一次非阻塞尝试失败即 rc=75 + 提示。
+#   * **锁不可用**（父目录不可写 / 无 flock(2)）⇒ rc=69 且**不运行**目标（不静默跳过）。
+#   * 锁文件 `.dadao/gate.lock` 在 .gitignore 的 `.dadao/` 下，不入库。
+GATE_LOCK          ?= $(REPO_ROOT)/.dadao/gate.lock
+GATE_LOCK_WAIT     ?= 3600
+GATE_LOCK_FAILFAST ?= 0
+GATE_LOCK_TOOL      = $(PYTHON) tools/infra/gate_lock.py
+
+# 互斥面的**单一真源**（文档只指这里，不另列清单，避免漂移）。
+GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
+                      build-mc build-mc-lite build-mc-reconfig build-lld build-qemu build-qemu-reconfig \
+                      build-builtins build-bootrom build-picolibc build-musl build-musl-shared \
+                      test-codegen test-elf test-semihost test-m6 test-picolibc-smoke \
+                      check-lit check-lit-full check-qemu-semantics check-qemu-smoke \
+                      check-picolibc-tests check-picolibc-tests-full check-rnd-probe \
+                      check-minmax-probe check-fma-probe check-clmul-probe \
+                      check-testcases-suites check-testcases-suites-full \
+                      check check-modules check-full
+
+# $(call gate-locked,<target>): 在锁下重入 make 跑 `_locked-<target>`。
+# 必须重入而不能只锁 recipe：`install-host: build-mc build-lld ...` 的**前置**
+# 才是写者，而前置在 recipe 之前执行。`-f $(firstword $(MAKEFILE_LIST))` 让重入
+# 读同一个 makefile（`make -f`/探针 makefile 亦然）。一行（不用 `\` 续行，避免
+# recipe 被拆行）。
+gate-locked = $(GATE_LOCK_TOOL) run --lock "$(GATE_LOCK)" --wait $(GATE_LOCK_WAIT) --failfast $(GATE_LOCK_FAILFAST) --target $(1) -- $(MAKE) -f $(firstword $(MAKEFILE_LIST)) --no-print-directory _locked-$(1)
+
+# 每个被锁目标 = 一条只做「进锁 + 重入」的门控规则；`_locked-<name>` 是原规则。
+# `+` = make 的「recursive invocation」标记：把 jobserver 交给重入的 make，否则
+# `make -jN` 会在子 make 里退化成 `-j1` 并打印 "jobserver unavailable"（本仓库
+# `make -n` 本就不可用，见 Process-07 §1，`+` 使其在 -n 下也执行此行，同任何含
+# $(MAKE) 的行）。
+define gate-locked-rule
+$(1):
+	+@$$(call gate-locked,$(1))
+endef
+$(foreach t,$(GATE_LOCKED_TARGETS),$(eval $(call gate-locked-rule,$(t))))
+.PHONY: $(GATE_LOCKED_TARGETS) $(addprefix _locked-,$(GATE_LOCKED_TARGETS))
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -78,10 +148,21 @@ help:
 	@echo "  make build-gem5      Build gem5 (stub; command owned by the gem5 module)"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
+	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"
+	@echo "  make build-musl-shared  Build musl shared/PIC libc.so + the PIC static archive libc_pic.a (for -static-pie) + link a dynamic smoke executable (PT_INTERP/DT_NEEDED), and install libc.so + libc_pic.a + the ld-musl-dadao.so.1 symlink into the target sysroot (INFRA-085t stage A1/B1, INFRA-108t; needs install-host + fetch/apply-series)"
+	@echo "  make build-builtins  Rebuild the compiler-rt builtins with the current build-tree clang and stage the archive into that clang's resource dir (ISS-293; needs build-mc + a configured compiler-rt build tree)"
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make check-picolibc-tests  Run the picolibc self-test representative set (L2; TESTCASES-042t)"
 	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
+	@echo "  make check-rnd-probe  Run the ftrnd/fornd roundToIntegral probes at -O0 and -O2 (L2; TESTCASES-060t)"
+	@echo "  make check-minmax-probe  Run the ftmin/ftmax/fomin/fomax min/max probes at -O0 and -O2 (L2; TESTCASES-059t)"
+	@echo "  make check-fma-probe  Run the ftfma/fofma single-rounding / dot / GEMM / Horner probes at -O0 and -O2 (L2; TESTCASES-058t)"
+	@echo "  make check-clmul-probe  Run the clmul.o instruction / GHASH / CRC-32C probes at -O0 and -O2 (L2; TESTCASES-057t)"
+	@echo "  make check-testcases-suites  Run the two upstream reference suites (libc-test + llvm-test-suite) fast subset (opt-in, not L2; TESTCASES-045t)"
+	@echo "  make check-testcases-suites-full  Run every enumerable C case with main() from both suites (opt-in/L3-like; TESTCASES-045t)"
+	@echo "  make check-builtins-freshness  compiler-rt builtins archive must be the one the current clang built (build-id sidecar), in every consumer copy (L1; ISS-293/INFRA-101t)"
 	@echo "  make install-host    Install needed tools: cross toolchain (clang/llc/ld.lld …) into \$$(HOST_TOOLCHAIN_BIN) + host lli into \$$(HOST_TOOLS_BIN); adr-0016 D3/D4/D5/D11"
+	@echo "  make install-cfx-aliases  Copy contracts/cfx-aliases.txt to the build tree + install root only (no rebuild; LLVM-135t)"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
 	@echo "  make clean-work      Remove generated .work content only"
@@ -92,6 +173,17 @@ help:
 	@echo "  make check-components  Component availability smoke (llc/clang --print-targets/qemu; L1)"
 	@echo "  make check-qemu-smoke  QEMU semantic smoke (representative subset; L2)"
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
+	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
+	@echo "  make check-width-sizes  64-bit width + ELF64/rela/got + DWARF64 addr_size probe (L1; LLVM-130t)"
+	@echo "  make check-code-range  DADAO code-span gate: REL26 edge ≤ 32 MiB + exec_span < 30 MiB (L2; ADR-0036/INFRA-106t)"
+	@echo "  make check-contracts-dir  Whitelist gate for .tao/contracts/ + contracts/ top level (L1; INFRA-071t)"
+	@echo "  make check-component-changelog  Component changelog list-form/milestone-section gate (L1; INFRA-084t)"
+	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
+	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
+	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
+	@echo "  make check-milestones-fresh  milestones.md task-flow table gate: status/coverage/length/order/format (L1; INFRA-091t)"
+	@echo "  make check-milestone  Milestone closure: SimRISC archive structure + content sha256 + sync-nonmaskable + knowledge top-level whitelist + current-milestone m-book/its task ids + check-tasks --strict (not L1)"
+	@echo "  make check-sync-nonmaskable  Sync exception causes must not be maskable (only IPI/TIMER/UART*/… may; SPEC-175t; not L1)"
 	@echo "  make check-interface  Check cross-module interface alignment"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
 	@echo "  make check-scope     Check opcodes.yaml scope partition (m1/fp/excluded; SPEC-086t)"
@@ -100,6 +192,10 @@ help:
 	@echo "  make check-isa-coverage  ISA<->backend coverage matrix drift gate (L1; LLVM-081t/INFRA-069t)"
 	@echo "  make check-spec-numbering  Check 21-volume heading numbering structure (L1; SPEC-133t/INFRA-069t)"
 	@echo "  make check-spec-changelog  Check 21-volume appendix changelog structure (L1; SPEC-134t/INFRA-069t)"
+	@echo "  make check-spec-archive  Check SimRISC per-version archives exist (milestone closure; SPEC-154t/INFRA-109t)"
+	@echo "  make check-spec-archive-verify  Verify archive content sha256 against snapshot provenance (milestone closure; SPEC-154t/INFRA-109t)"
+	@echo "  make check-spec-purity  spec/SimRISC-* must not carry scope/task-id/ADR/ISS/contract refs (L1; SPEC-165t)"
+	@echo "  make check-spec-cite-targets  Every spec_cite book+section must exist in spec/ (L1; SPEC-165t)"
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
 	@echo "  make check-spec-codeblocks  Check spec prose \`\`\`simrisc blocks vs opcodes.yaml (ISS-077)"
@@ -117,6 +213,9 @@ help:
 	@echo "  make check-fp-contract  Check FP semantics contract completeness (SPEC-087t)"
 	@echo "  make check-instrinfo  Cross-check DADAOInstrInfo.td against opcodes.yaml (LLVM-046t)"
 	@echo "  make check-cfx-aliases  Check cfx alias table drift gate (SPEC-075t)"
+	@echo "  make check-cfx-alias-table  contracts/cfx-aliases.txt (runtime table) == spec projection (L1; LLVM-135t)"
+	@echo "  make check-cfx-alias-install  Runtime table copies (build tree + install root) == source (needs install-host; LLVM-135t)"
+	@echo "  make check-cfx-vectors  Re-derive the cfx MC vector encodings from opcodes.yaml + alias contract (L1; LLVM-060t)"
 	@echo "  make check-asm-list-drift  Check assembly-list drift gate (INFRA-027t)"
 	@echo "  make check-dirs      Validate install-dirs paths and symlink prefix guard"
 	@echo "  make check-no-residue  Detect unexpected untracked temp files"
@@ -167,10 +266,10 @@ LLVM_BUILD_CONFIG = targets=$(LLVM_TARGETS) projects=$(LLVM_PROJECTS) build_type
 # configuration differs.  A failing cmake aborts before the stamp is written.
 LLVM_CONFIGURE = echo '$(LLVM_BUILD_CONFIG)' | cmp -s - $(LLVM_BUILD)/.dadao-llvm-config 2>/dev/null || { echo "llvm: configuring $(LLVM_BUILD) [$(LLVM_BUILD_CONFIG)]"; cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) -DLLVM_TARGETS_TO_BUILD="$(LLVM_TARGETS)" -DLLVM_ENABLE_PROJECTS="$(LLVM_PROJECTS)" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLLVM_ENABLE_ASSERTIONS=ON || exit 1; echo '$(LLVM_BUILD_CONFIG)' > $(LLVM_BUILD)/.dadao-llvm-config; }
 
-LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not LLVMDADAOCodeGen llc lli clang
+LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm llvm-readelf llvm-dwarfdump FileCheck not LLVMDADAOCodeGen llc lli clang
 LLVM_MC_LITE_TARGETS = llvm-mc llvm-objdump FileCheck not
 
-build-mc: manifest-check
+_locked-build-mc: manifest-check
 	@$(call component-enabled,llvm-project) || { \
 	  echo "build-mc: component 'llvm-project' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
@@ -182,7 +281,7 @@ build-mc: manifest-check
 # build-mc-lite: same as build-mc but omits llvm-objcopy, llvm-readobj,
 # LLVMDADAOCodeGen, lli and clang.  Sufficient for lit MC tests + encoding
 # oracle + FileCheck.  Shares the one-shot configuration above.
-build-mc-lite: manifest-check
+_locked-build-mc-lite: manifest-check
 	@$(call component-enabled,llvm-project) || { \
 	  echo "build-mc-lite: component 'llvm-project' is not enabled / commit pending; refusing to fake success"; \
 	  exit 1; \
@@ -192,7 +291,7 @@ build-mc-lite: manifest-check
 	@echo "build-mc-lite: PASS"
 
 # build-mc-reconfig: force a cmake re-run (drops the config stamp first).
-build-mc-reconfig: manifest-check
+_locked-build-mc-reconfig: manifest-check
 	@$(call component-enabled,llvm-project) || { \
 	  echo "build-mc-reconfig: component 'llvm-project' is not enabled / commit pending; refusing to fake success"; \
 	  exit 1; \
@@ -215,7 +314,7 @@ build-mc-reconfig: manifest-check
 # target named ld.lld exists.  Building `lld` writes bin/ld.lld.
 LLD_TARGETS = lld
 
-build-lld: manifest-check
+_locked-build-lld: manifest-check
 	@$(call component-enabled,llvm-project) || { \
 	  echo "build-lld: component 'llvm-project' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
@@ -229,7 +328,7 @@ build-lld: manifest-check
 # the incremental path compiles only changed objects (~3s for one file).
 # Use build-qemu-reconfig to force a full configure (e.g. after changing
 # meson.build or configure options).
-build-qemu: manifest-check
+_locked-build-qemu: manifest-check
 	@$(call component-enabled,qemu) || { \
 	  echo "build-qemu: component 'qemu' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
@@ -239,25 +338,25 @@ build-qemu: manifest-check
 	else \
 	  mkdir -p $(QEMU_BUILD) && \
 	  cd $(QEMU_BUILD) && $(CURDIR)/$(QEMU_SRC)/configure \
-	    --target-list=dadao-softmmu \
+	    --target-list=dadao-softmmu,dadao-linux-user \
 	    --enable-tcg \
 	    --disable-werror; \
 	fi
-	$(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
+	PYTHONHASHSEED=0 $(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
 	@echo "build-qemu: PASS"
 
 # build-qemu-reconfig: always re-run configure (for when meson.build changes).
-build-qemu-reconfig: manifest-check
+_locked-build-qemu-reconfig: manifest-check
 	@$(call component-enabled,qemu) || { \
 	  echo "build-qemu-reconfig: component 'qemu' is not enabled / commit pending; refusing to fake success"; \
 	  exit 1; \
 	}
 	mkdir -p $(QEMU_BUILD)
 	cd $(QEMU_BUILD) && $(CURDIR)/$(QEMU_SRC)/configure \
-	  --target-list=dadao-softmmu \
+	  --target-list=dadao-softmmu,dadao-linux-user \
 	  --enable-tcg \
 	  --disable-werror
-	$(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
+	PYTHONHASHSEED=0 $(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
 	@echo "build-qemu-reconfig: PASS"
 
 # gem5 is a v5 addition and has no build command yet (the gem5 module owns it).
@@ -278,9 +377,11 @@ build-gem5: manifest-check
 # the install root is a cache — re-run after rebuilding the components.
 #
 # D11 scope: just the tools the gates/executors need — llvm-mc/llvm-objdump/
-# llvm-readobj/FileCheck/not (lit MC), llc (CodeGen), llvm-objcopy (test-codegen),
-# lld + ld.lld (test-elf), clang (M6 cross compiler, INFRA-050t), qemu-system-dadao
-# (D4), llvm-lit (lit runner).  No full `cmake --install`.
+# llvm-readobj/llvm-nm/llvm-readelf/llvm-dwarfdump/FileCheck/not (lit MC +
+# symbol/ELF/DWARF inspection),
+# llc (CodeGen), llvm-objcopy (test-codegen), lld + ld.lld (test-elf), clang
+# (M6 cross compiler, INFRA-050t), qemu-system-dadao (D4), llvm-lit (lit runner).
+# No full `cmake --install`.  (llvm-nm/llvm-readelf: INFRA-098t / ISS-261.)
 #
 # INFRA-050t dual destination: the cross toolchain (clang/llc/ld.lld) and the
 # other target/cross tools go into $(HOST_TOOLCHAIN_BIN); the host-only lli
@@ -297,12 +398,29 @@ build-gem5: manifest-check
 # O_CREAT|O_EXCL (a non-atomic pair): the loser's O_EXCL open fails EEXIST when
 # the winner recreates the destination in between (ISS-172).
 #
-# NOTE (concurrency): only install-host's *writes* are made race-safe here.
-# Running *gate* targets (test-elf / test-semihost / check / …) concurrently in
-# one worktree remains UNSUPPORTED — they share the build trees and the SDK
-# artifact dirs under $(TEST_ARTIFACTS_DIR); see AGENTS.md ("并行任务上限").
-# Run them serially.
-HOST_LLVM_TOOLS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not llc clang
+# NOTE (concurrency): install-host's *writes* are race-safe (INFRA-053t above),
+# and concurrent runs of the writers/gates in one worktree are now *serialized*
+# mechanically rather than by convention (INFRA-099t / ISS-229): every target in
+# $(GATE_LOCKED_TARGETS) — install-host and the build-*/test-*/check* targets
+# that share the build trees, this install root and $(TEST_ARTIFACTS_DIR) — runs
+# under one flock(2) on $(GATE_LOCK) via tools/infra/gate_lock.py.  Independent
+# processes wait (bounded by GATE_LOCK_WAIT, rc=75 with the holder's pid/target
+# on timeout) or are refused at once with GATE_LOCK_FAILFAST=1; nested calls
+# from the same make tree pass through.  See docs/Process-07 §2.
+HOST_LLVM_TOOLS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm llvm-dwarfdump FileCheck not llc clang
+# Zero-copy aliases, `<link>:<target>` (both live in $(HOST_TOOLCHAIN_BIN)).
+# Single source of truth for the install aliases: the install recipe creates
+# them and tools/infra/check_install_tools.py asserts their shape.  Relative
+# symlinks resolve inside the install root and cost no bytes, unlike
+# atomic-install (cp -aL) which would copy the (multi-GB) target again.
+#
+#   llvm-readelf -> llvm-readobj : upstream builds llvm-readelf as that same
+#     binary (llvm/tools/llvm-readobj/CMakeLists.txt: `add_llvm_tool_symlink`),
+#     so the GNU-style dumper is llvm-readobj in GNU output mode.  The build
+#     tree's bin/llvm-readelf is a relative symlink too (ISS-261 / INFRA-098t).
+#   clang++ -> clang : same binary as the C driver (INFRA-056t).
+#   ld.lld -> lld    : lld's post-build copies (INFRA-043t).
+HOST_LLVM_TOOL_SYMLINKS = ld.lld:lld clang++:clang llvm-readelf:llvm-readobj
 HOST_LIT_DIR = $(HOST_TOOLCHAIN_DIR)/share/lit
 
 # $(call atomic-install,<src>,<dst>): install <src> over <dst> via a per-process
@@ -337,29 +455,118 @@ endef
 #
 # The whole clang builtin `include/` tree is staged (these are the compiler's own
 # freestanding headers — no target libc/OS/syscall header is introduced).  The
-# resource-dir `lib/` (compiler-rt builtins) has no consumer in M6 and is
-# deliberately not installed.  These headers are part of the *host* compiler
-# (D3), not the target sysroot (D5) — ADR-0016 D3/D5/D11 scope is unchanged.
+# resource-dir `lib/` gets exactly one entry: the DADAO compiler-rt builtins
+# archive (INFRA-079t below), which the driver links itself.  These headers and
+# that archive belong to the *host* compiler (D3), not to the target sysroot
+# (D5) — ADR-0016 D3/D5/D11 scope is unchanged.
 CLANG_RESOURCE_VER := $(shell ls -1 $(LLVM_BUILD)/lib/clang 2>/dev/null | head -n1)
 CLANG_HEADERS_SRC  = $(LLVM_BUILD)/lib/clang/$(CLANG_RESOURCE_VER)/include
 CLANG_RESOURCE_DIR = $(HOST_TOOLCHAIN_DIR)/lib/clang/$(CLANG_RESOURCE_VER)
 
+# DADAO compiler-rt builtins (INFRA-079t / ADR-0027 D5): the independent
+# builtins archive is produced by the compiler-rt standalone project into its
+# per-target runtime dir (LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON).  It is
+# installed into the clang resource dir at exactly the path the driver reports
+# for `-rtlib=compiler-rt -print-libgcc-file-name`; that relative path is
+# probed live from the build-tree clang (never hardcoded), so the installed
+# archive and the driver lookup cannot drift apart.
+# Deliberately recursively expanded (`=`): the probe must run when the recipe
+# runs, i.e. *after* build-mc has produced bin/clang, not at parse time (a clean
+# checkout has neither the clang binary nor the archive yet).
+COMPILER_RT_BUILD     ?= .work/build/compiler-rt-builtins
+# ISS-293: the *source* of the install copy is `<build dir>/<the path the driver
+# reports>`, not "the first archive matching a wildcard" -- the build tree also
+# holds a retired narrow-scope archive under lib/linux/ (INFRA-079t), and a
+# wildcard that picked it would install the wrong library.  Both sides of the
+# copy then provably share one relative path.
+#
+# ISS-301: ONE probe, ONE path.  `-print-libgcc-file-name` is the only
+# authoritative answer to "which archive does the build-tree clang link", and it
+# names `<llvm-build>/lib/clang/<ver>/<resource-rel>`.  The previous derivation
+# dropped the `clang/<ver>/` half, so `build-builtins` re-staged into
+# `<llvm-build>/<resource-rel>` -- a directory no consumer reads -- while the
+# copy the clang actually links stayed stale (and the freshness gate went red).
+# Every consumer below (build-builtins stage target, install-host destination,
+# and tools/infra/check_builtins_freshness.py, which splits the same probe) now
+# derives from this one variable, so the three copies cannot drift apart again.
+# The probe answers with an absolute path; it is reduced to the part below
+# `lib/clang/` (`<ver>/lib/<triple>/libclang_rt.builtins.a`), which is byte-for-
+# byte the same in the build tree and in the install root.
+BUILTINS_RESOURCE_PATH = $(shell $(LLVM_BUILD)/bin/clang --target=dadao-unknown-elf -rtlib=compiler-rt -print-libgcc-file-name 2>/dev/null | sed -e 's|^.*/lib/clang/||')
+BUILTINS_RESOURCE_VER  = $(firstword $(subst /, ,$(BUILTINS_RESOURCE_PATH)))
+# Same file in the build tree (what bin/clang links) and in the install root
+# (what install-host must refresh) -- one shape, two prefixes.
+BUILTINS_BUILD_DST     = $(if $(BUILTINS_RESOURCE_PATH),$(LLVM_BUILD)/lib/clang/$(BUILTINS_RESOURCE_PATH))
+BUILTINS_ARCHIVE_DST   = $(if $(BUILTINS_RESOURCE_PATH),$(HOST_TOOLCHAIN_DIR)/lib/clang/$(BUILTINS_RESOURCE_PATH))
+# compiler-rt's own tree mirrors the resource dir *below* `lib/` (no `<ver>`):
+# `<build dir>/lib/<triple>/libclang_rt.builtins.a`.
+BUILTINS_BUILD_REL     = $(patsubst $(BUILTINS_RESOURCE_VER)/%,%,$(BUILTINS_RESOURCE_PATH))
+BUILTINS_ARCHIVE_SRC   = $(if $(BUILTINS_BUILD_REL),$(COMPILER_RT_BUILD)/$(BUILTINS_BUILD_REL))
+
+# build-builtins (ISS-293): rebuild the compiler-rt builtins with the *current*
+# build-tree clang and re-stage the archive into that clang's resource dir.
+#
+# Why a clean rebuild: nothing in ninja tracks the compiler *binary* as an
+# input of these objects, so after a codegen change (LLVM-116t moved `shl`) an
+# incremental `ninja` reports "no work to do" and the archive keeps the retired
+# encoding -- the new qemu then decodes it as undefined and the guest dies with
+# SIGILL.  `-t clean` forces the whole target set through the current compiler
+# (a few seconds; 148 tiny sources).
+#
+# Why the staging copy: `.work/build/llvm/bin/clang` links the archive from its
+# own resource dir (`-print-libgcc-file-name`), and nothing else ever refreshed
+# that copy -- it is a third consumer beside the build product and the install
+# root.  `make install-host` stages the same archive into the install root.
+#
+# Why a producer sidecar (INFRA-101t): the gate used to order mtimes (archive
+# >= clang).  A deterministic relink after `touch one .td` moves clang's mtime
+# without changing its bytes, so the proxy demanded a full builtins rebuild
+# (LLVM-122t).  `tools/infra/toolchain_id.py --write` records the clang/ld.lld
+# **content identity** (GNU build-id) + the archive sha256 next to the build
+# product; `check-builtins-freshness` compares identity, not time.
+#
+# It depends on build-mc so `make -j install-host` cannot run the rebuild
+# before the compiler exists (the recipe probe would fail); with the tree
+# already built that prerequisite is a no-op.
+_locked-build-builtins: manifest-check build-mc
+	@$(call component-enabled,llvm-project) || { \
+	  echo "build-builtins: component 'llvm-project' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
+	  exit 1; \
+	}
+	@test -f $(LLVM_BUILD)/bin/clang || { echo "build-builtins: ERROR: $(LLVM_BUILD)/bin/clang not found -- run 'make build-mc' first"; exit 1; }
+	@test -f $(LLVM_BUILD)/bin/ld.lld || { echo "build-builtins: ERROR: $(LLVM_BUILD)/bin/ld.lld not found -- run 'make build-lld' first (the producer sidecar records clang and ld.lld content identity)"; exit 1; }
+	@test -f $(COMPILER_RT_BUILD)/build.ninja || { echo "build-builtins: ERROR: no configured compiler-rt build tree at $(COMPILER_RT_BUILD) -- configure it once (INFRA-079t) first"; exit 1; }
+	@test -n "$(BUILTINS_BUILD_DST)" || { echo "build-builtins: ERROR: cannot resolve the builtins path from '$(LLVM_BUILD)/bin/clang --target=dadao-unknown-elf -rtlib=compiler-rt -print-libgcc-file-name'"; exit 1; }
+	ninja -C $(COMPILER_RT_BUILD) -t clean
+	ninja -j$(JOBS) -C $(COMPILER_RT_BUILD) builtins
+	@test -f $(BUILTINS_ARCHIVE_SRC) || { echo "build-builtins: ERROR: archive not produced at $(BUILTINS_ARCHIVE_SRC)"; exit 1; }
+	@mkdir -p $(dir $(BUILTINS_BUILD_DST))
+	@$(call atomic-install,$(BUILTINS_ARCHIVE_SRC),$(BUILTINS_BUILD_DST))
+	@$(PYTHON) tools/infra/toolchain_id.py --write $(COMPILER_RT_BUILD)/.dadao-builtins-toolchain --tool-dir $(LLVM_BUILD)/bin --archive $(BUILTINS_ARCHIVE_SRC)
+	@echo "build-builtins: PASS"
+
 # clang++ (INFRA-056t): the C++ driver is the *same binary* as the C driver
 # (upstream bin/clang++ is itself a symlink to clang-NN), so install it as a
 # relative symlink to the already-installed `clang` — mirroring the ld.lld -> lld
-# precedent above.  Deliberately NOT added to $(HOST_LLVM_TOOLS): the clang binary
+# precedent.  Deliberately NOT added to $(HOST_LLVM_TOOLS): the clang binary
 # is ~4 GB, so atomic-install would copy it a second time.  Being relative and
 # resolving to the installed `clang`, it is zero-copy and same-source/same-commit.
-install-host: build-mc build-lld build-qemu
+# Same reasoning for llvm-readelf (INFRA-098t): upstream builds it as a symlink
+# to llvm-readobj, so it must not be copied as a 319 MB standalone file.
+# All three aliases are enumerated in $(HOST_LLVM_TOOL_SYMLINKS) (one variable,
+# consumed by the recipe below and by tools/infra/check_install_tools.py).
+_locked-install-host: install-cfx-aliases build-mc build-lld build-qemu build-builtins
 	@mkdir -p $(HOST_TOOLCHAIN_BIN) $(HOST_TOOLS_BIN)
 	@for t in $(HOST_LLVM_TOOLS); do \
 	  $(call atomic-install,$(LLVM_BUILD)/bin/$$t,$(HOST_TOOLCHAIN_BIN)/$$t) || exit 1; \
 	done
 	@$(call atomic-install,$(LLVM_BUILD)/bin/lld,$(HOST_TOOLCHAIN_BIN)/lld)
-	@ln -sf lld $(HOST_TOOLCHAIN_BIN)/ld.lld
-	@ln -sf clang $(HOST_TOOLCHAIN_BIN)/clang++
+	@for s in $(HOST_LLVM_TOOL_SYMLINKS); do \
+	  ln -sfn $${s#*:} $(HOST_TOOLCHAIN_BIN)/$${s%%:*} || exit 1; \
+	done
 	@$(call atomic-install,$(LLVM_BUILD)/bin/lli,$(HOST_TOOLS_BIN)/lli)
 	@$(call atomic-install,$(QEMU_BUILD)/qemu-system-dadao,$(HOST_TOOLCHAIN_BIN)/qemu-system-dadao)
+	@$(call atomic-install,$(QEMU_BUILD)/qemu-dadao,$(HOST_TOOLCHAIN_BIN)/qemu-dadao)
 	@rm -rf $(HOST_LIT_DIR)
 	@mkdir -p $(HOST_LIT_DIR)
 	@cp -a $(LLVM_SRC)/utils/lit/lit $(HOST_LIT_DIR)/lit
@@ -369,9 +576,27 @@ install-host: build-mc build-lld build-qemu
 	@test -d $(CLANG_HEADERS_SRC) || { echo "install-host: ERROR: clang builtin headers not found at $(CLANG_HEADERS_SRC) — build tree incomplete (run 'make build-mc')"; exit 1; }
 	@mkdir -p $(CLANG_RESOURCE_DIR)
 	@$(call atomic-install-dir,$(CLANG_HEADERS_SRC),$(CLANG_RESOURCE_DIR)/include)
+	@test -f $(BUILTINS_ARCHIVE_SRC) || { echo "install-host: ERROR: compiler-rt builtins archive not found under $(COMPILER_RT_BUILD)/lib/ — build the compiler-rt standalone 'builtins' target first (INFRA-079t)"; exit 1; }
+	@case "$(BUILTINS_BUILD_REL)" in lib/*) ;; *) echo "install-host: ERROR: cannot resolve the builtins install path from '$(LLVM_BUILD)/bin/clang --target=dadao-unknown-elf -rtlib=compiler-rt -print-libgcc-file-name' (got '$(BUILTINS_RESOURCE_PATH)')"; exit 1 ;; esac
+	@mkdir -p $(dir $(BUILTINS_ARCHIVE_DST))
+	@$(call atomic-install,$(BUILTINS_ARCHIVE_SRC),$(BUILTINS_ARCHIVE_DST))
+	@$(PYTHON) tools/infra/check_install_tools.py
+	@$(PYTHON) tools/llvm/check_cfx_alias_install.py
 	@mkdir -p $(TARGET_SYSROOT_DIR)/include $(TARGET_SYSROOT_DIR)/lib
 	@printf '%s\n' '# DADAO target sysroot (dadao-unknown-elf)' '' 'Layout per ADR-0016 D5 (.tao/adr/adr-0016-dadao-install-layout.md):' '' '- include/ — target C headers (populated when a target libc/toolchain lands)' '- lib/     — target libraries' '' 'Placeholder only: there is no header/library consumer yet, so no content is' 'fabricated here. Consumers must resolve this path from' 'manifests/install-dirs.lock.toml via tools/infra/paths.py' '(target_sysroot_dir()), never hardcode it.' > $(TARGET_SYSROOT_DIR)/README.md
 	@echo "install-host: PASS"
+
+# install-cfx-aliases (LLVM-135t): stage the data-only cfx alias table into the
+# build tree and the install root.  Deliberately **only copies** -- after an
+# alias rename/renumber this is the whole update (no build-mc, no relink); the
+# next llvm-mc/llvm-objdump run picks the new names up.  (`install-cfx-aliases`
+# itself is the gate-locked wrapper; this is its body.)
+_locked-install-cfx-aliases:
+	@test -f $(CFX_ALIAS_TABLE_SRC) || { echo "install-cfx-aliases: ERROR: missing $(CFX_ALIAS_TABLE_SRC) -- regenerate with 'python3 tools/llvm/gen_cfx_alias_table.py'"; exit 1; }
+	@mkdir -p $(dir $(CFX_ALIAS_TABLE_BUILD)) $(dir $(CFX_ALIAS_TABLE_INSTALL))
+	@$(call atomic-install,$(CFX_ALIAS_TABLE_SRC),$(CFX_ALIAS_TABLE_BUILD))
+	@$(call atomic-install,$(CFX_ALIAS_TABLE_SRC),$(CFX_ALIAS_TABLE_INSTALL))
+	@echo "install-cfx-aliases: PASS"
 
 # build-bootrom (QEMU-047t / ADR-0020 D12): assemble and link the SEE bootrom
 # firmware with the project toolchain (llvm-mc + ld.lld + tests/scripts/
@@ -382,7 +607,7 @@ install-host: build-mc build-lld build-qemu
 # test-artifacts root (ADR-0016 D6, resolved via paths.py):
 #   $(BOOTROM_DIR)/{bootrom.o,bootrom.elf,bootrom.bin,bootrom_app.o,bootrom_app.bin}
 BOOTROM_DIR = $(TEST_ARTIFACTS_DIR)/bootrom
-build-bootrom:
+_locked-build-bootrom:
 	@test -x $(LLVM_MC_BIN) || { echo "build-bootrom: ERROR: $(LLVM_MC_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLD_BIN) || { echo "build-bootrom: ERROR: $(LLD_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "build-bootrom: ERROR: $(LLVM_OBJCOPY_BIN) not found — run 'make install-host' first"; exit 1; }
@@ -401,7 +626,7 @@ build-bootrom:
 # (components/picolibc/patches/**); run 'make fetch apply-series' first.
 # The target is idempotent (Meson reconfigure + incremental Ninja + install).
 # Requires the install-root clang (run 'make install-host' first).
-build-picolibc:
+_locked-build-picolibc:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-picolibc: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
 	@$(PYTHON) tools/infra/build_picolibc.py --jobs $(JOBS)
 
@@ -409,7 +634,7 @@ build-picolibc:
 # program is compiled against the installed picolibc, linked with the project
 # crt0/linker script and run under QEMU via semihosting; the guest must print
 # "hi" and exit 0.  Needs 'make build-picolibc' + 'make install-host' first.
-test-picolibc-smoke: build-picolibc
+_locked-test-picolibc-smoke: build-picolibc
 	@$(PYTHON) tools/infra/test_picolibc_smoke.py
 
 # check-picolibc-tests (TESTCASES-042t, L2): the picolibc upstream self-test
@@ -419,13 +644,178 @@ test-picolibc-smoke: build-picolibc
 # test under qemu-system-dadao -machine dadao-m1 + semihosting.  Fails if any
 # representative reports a genuine test failure (fail=0); backend/library gaps
 # are reported separately as `blocked`, never as silent skips.
-check-picolibc-tests: build-picolibc
+_locked-check-picolibc-tests: build-picolibc
 	@$(PYTHON) tools/testcases/picolibc_tests.py --stage fast --jobs $(JOBS)
 
 # check-picolibc-tests-full (TESTCASES-042t): the full picolibc self-test set
 # (opt-in; L3-like — hundreds of compile/link/QEMU runs, several minutes).
-check-picolibc-tests-full: build-picolibc
+_locked-check-picolibc-tests-full: build-picolibc
 	@$(PYTHON) tools/testcases/picolibc_tests.py --stage full --jobs $(JOBS)
+
+# check-rnd-probe (TESTCASES-060t): ftrnd/fornd roundToIntegral integration --
+# 6-mode x value matrix (bit patterns), rf0[33:32] mode sensitivity, flag rules
+# (static never sets NX / 0x20 sets NX iff inexact / sNaN sets NV) and the
+# C-level floor/ceil/trunc/round/nearbyint mapping.  Expectations come from
+# tools/testcases/oracle_rnd.py (exact Fraction arithmetic from spec/, never
+# from QEMU).  Two optimisation levels, ~1 s each => L2 (Process-07 §3 rule 2).
+_locked-check-rnd-probe: install-host build-musl
+	@mkdir -p .work/log/testcases
+	@$(PYTHON) tools/testcases/run_rnd_probe.py --opt O0 \
+	    --json-out .work/log/testcases/TESTCASES-060t-O0.json \
+	    > .work/log/testcases/TESTCASES-060t-O0.log 2>&1; \
+	  rc=$$?; \
+	  tail -2 .work/log/testcases/TESTCASES-060t-O0.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-rnd-probe: FAIL (-O0 rc=$$rc)"; exit $$rc; fi
+	@$(PYTHON) tools/testcases/run_rnd_probe.py --opt O2 \
+	    --json-out .work/log/testcases/TESTCASES-060t-O2.json \
+	    > .work/log/testcases/TESTCASES-060t-O2.log 2>&1; \
+	  rc=$$?; \
+	  tail -2 .work/log/testcases/TESTCASES-060t-O2.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-rnd-probe: FAIL (-O2 rc=$$rc)"; exit $$rc; fi
+	@echo "check-rnd-probe: PASS (O0 + O2)"
+
+# check-minmax-probe (TESTCASES-059t): ftmin/ftmax/fomin/fomax integration --
+# NaN/±0 matrix (value + rf0[4:0] as two assertions), C23 fminimum/fmaximum
+# expansion (canonical NaN, no libcall), clamp / 4x4 / integer-control forms.
+# Expectations come from tools/testcases/oracle_minmax.py (exact Fraction
+# arithmetic from spec/SimRISC-07 §2.4, never from QEMU/LLVM).  Two
+# optimisation levels, ~1 s each => L2 (Process-07 §3 rule 2).
+_locked-check-minmax-probe: install-host build-musl
+	@mkdir -p .work/log/testcases
+	@$(PYTHON) tools/testcases/run_minmax_probe.py --opt O0 \
+	    --json-out .work/log/testcases/TESTCASES-059t-O0.json \
+	    > .work/log/testcases/TESTCASES-059t-O0.log 2>&1; \
+	  rc=$$?; \
+	  tail -2 .work/log/testcases/TESTCASES-059t-O0.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-minmax-probe: FAIL (-O0 rc=$$rc)"; exit $$rc; fi
+	@$(PYTHON) tools/testcases/run_minmax_probe.py --opt O2 \
+	    --json-out .work/log/testcases/TESTCASES-059t-O2.json \
+	    > .work/log/testcases/TESTCASES-059t-O2.log 2>&1; \
+	  rc=$$?; \
+	  tail -2 .work/log/testcases/TESTCASES-059t-O2.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-minmax-probe: FAIL (-O2 rc=$$rc)"; exit $$rc; fi
+	@echo "check-minmax-probe: PASS (O0 + O2)"
+
+# check-fma-probe (TESTCASES-058t): ftfma/fofma integration -- single-rounding
+# discriminators (C path + asm path + the two-step value, all three judged on
+# value and rf0[4:0]), NaN/Inf/±0, four rounding directions, overflow /
+# underflow, dot products (16/64/256, exact-fma and contracted `acc += a*b`),
+# 4x4 GEMM and Horner (every intermediate accumulator hashed).  Expectations
+# come from tools/testcases/oracle_fma.py (exact Fraction arithmetic + ONE
+# rounding from spec/SimRISC-07 §2.5, never from QEMU/softfloat/host fma).
+# Also asserts the per-symbol instruction mix (fused kernels: one fofma/ftfma,
+# no fomul/foadd/rf2rf) and that no fma libcall reaches the object/image.
+# Two optimisation levels, measured ~1 s => L2 (Process-07 §3 rule 2).
+_locked-check-fma-probe: install-host build-musl
+	@mkdir -p .work/log/testcases
+	@$(PYTHON) tools/testcases/run_fma_probe.py --opt O0 \
+	    --json-out .work/log/testcases/TESTCASES-058t-O0.json \
+	    > .work/log/testcases/TESTCASES-058t-O0.log 2>&1; \
+	  rc=$$?; \
+	  tail -2 .work/log/testcases/TESTCASES-058t-O0.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-fma-probe: FAIL (-O0 rc=$$rc)"; exit $$rc; fi
+	@$(PYTHON) tools/testcases/run_fma_probe.py --opt O2 \
+	    --json-out .work/log/testcases/TESTCASES-058t-O2.json \
+	    > .work/log/testcases/TESTCASES-058t-O2.log 2>&1; \
+	  rc=$$?; \
+	  tail -2 .work/log/testcases/TESTCASES-058t-O2.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-fma-probe: FAIL (-O2 rc=$$rc)"; exit $$rc; fi
+	@echo "check-fma-probe: PASS (O0 + O2)"
+
+# check-clmul-probe (TESTCASES-057t): clmul.o integration -- instruction level
+# (boundary cells + 64 seeded random cells, all three compiler-visible exits:
+# generic `llvm.clmul` low half, `llvm.dadao.clmul.hi` high half, the
+# `__builtin_dadao_clmul` i128 composite, plus the `{lo,hi}` pair intrinsic),
+# GHASH (GCM specification Appendix B test cases 1-4 with their published
+# intermediates, zero H, all-ones H, single/two-block chains, AAD + partial
+# blocks) and CRC-32C through a clmul folding kernel + GF(2) Barrett reduction
+# (lengths 0/1/7/8/9/15/16/17/63/64/65/1000, `"123456789" -> 0xE3069283`).
+# Expectations come from tools/testcases/oracle_clmul.py: GF(2) polynomial
+# arithmetic in plain Python integers + the published standards' vectors, never
+# from QEMU/LLVM.  Two optimisation levels, measured ~1 s => L2 (Process-07 §3
+# rule 2).
+_locked-check-clmul-probe: install-host build-musl
+	@mkdir -p .work/log/testcases
+	@$(PYTHON) tools/testcases/run_clmul_probe.py --opt O0 \
+	    --json-out .work/log/testcases/TESTCASES-057t-O0.json \
+	    > .work/log/testcases/TESTCASES-057t-O0.log 2>&1; \
+	  rc=$$?; \
+	  tail -2 .work/log/testcases/TESTCASES-057t-O0.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-clmul-probe: FAIL (-O0 rc=$$rc)"; exit $$rc; fi
+	@$(PYTHON) tools/testcases/run_clmul_probe.py --opt O2 \
+	    --json-out .work/log/testcases/TESTCASES-057t-O2.json \
+	    > .work/log/testcases/TESTCASES-057t-O2.log 2>&1; \
+	  rc=$$?; \
+	  tail -2 .work/log/testcases/TESTCASES-057t-O2.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-clmul-probe: FAIL (-O2 rc=$$rc)"; exit $$rc; fi
+	@echo "check-clmul-probe: PASS (O0 + O2)"
+
+# check-testcases-suites (TESTCASES-045t stage 1): drive the two upstream
+# *reference* suites -- libc-test and llvm-test-suite -- through the static musl
+# flow (compile -> ld.lld -T dadao.lds -> flat image -> qemu-system-dadao
+# -machine dadao-m1, "path B").  Upstream's own harnesses are unusable here
+# (libc-test's runtest.exe needs fork/waitpid/signals; llvm-test-suite's
+# CMake/lit driver assumes a hosted OS), so tools/testcases/run_suite.py drives
+# the corpora directly and classifies every case live.
+#
+# OPT-IN LEVEL: this target is deliberately NOT listed in L1/L2/L3.  The stage-1
+# case list is a *curated* stratified subset (each entry records its tier and
+# why), and docs/Process-07 §3 requires an L2 "representative set" to be
+# *mechanically* derived; assigning a curated list to L2 would violate that.  It
+# stays an on-demand target ("按需" level) until stage 3 replaces the curation
+# with a mechanical derivation and the cost/FAIL story has been measured.
+#
+# Exit status follows tools/testcases/run_suite.py: non-zero on any `fail` or
+# `timeout` (a genuine wrong result / hang).  `enosys`, `compile-error` and
+# `unsupported` are counted and listed, never silently skipped, and do not turn
+# the target red -- they are the documented state of an unfinished port.
+_locked-check-testcases-suites:
+	@$(PYTHON) tools/testcases/run_suite.py --stage fast \
+		--json-out .work/log/testcases/runs/fast.json
+
+# check-testcases-suites-full (TESTCASES-045t): every enumerable C case with
+# main() in both suites (upstream `External/`, C++/Fortran/ObjC sources and
+# helper TUs without main() are counted as `unsupported` with their reason).
+# Opt-in, L3-like: hundreds of compile/link/QEMU runs; `--timeout` is raised for
+# the benchmarks whose default problem size exceeds the fast-stage budget.
+_locked-check-testcases-suites-full:
+	@$(PYTHON) tools/testcases/run_suite.py --stage full --timeout 300 \
+		--json-out .work/log/testcases/runs/full.json
+
+# build-musl (INFRA-082t): configure and build the static musl libc for
+# dadao-unknown-elf inside .work/source/musl (the DADAO port lives as a
+# tree-shaped patch set, components/musl/patches/**; run 'make fetch
+# apply-series' first).  P1 is the STATIC subset: --disable-shared is
+# deliberate (the dynamic linker is P2, ADR-0025 D6).  Products:
+# lib/libc.a + lib/crt{1,i,n}.o.  The target is idempotent (configure is
+# skipped once config.mak exists and records the same mode) and, by default,
+# also links and verifies a minimal static program (see
+# tools/infra/build_musl.py).  Requires the install-root clang (run
+# 'make install-host' first).  Stale objects are guarded: a change in the
+# toolchain binaries (clang / ld.lld stamp, obj/.dadao-toolchain-stamp) or a
+# tree without a stamp runs 'make clean' before building; the decision
+# ("... => 'make clean'" / "... => incremental build") is printed.  Applies to
+# build-musl-shared too (same script, same in-tree build directory).
+_locked-build-musl:
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-musl: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
+	@$(PYTHON) tools/infra/build_musl.py --jobs $(JOBS)
+
+# build-musl-shared (INFRA-085t stage A1): the SHARED/PIC counterpart -- same
+# source tree, configured *without* --disable-shared so musl links lib/libc.so
+# from -fPIC objects, with -Wl,--hash-style=gnu and -Wl,-soname,libc.so pinning
+# the dynamic-section shape (contract-dynlink.md §5 rulings 6/7, §6.1).  Checks
+# libc.so is ET_DYN/big-endian with DT_SONAME + DT_GNU_HASH and without
+# DT_HASH/DT_RELR/version sections, then installs libc.so plus the
+# ld-musl-dadao.so.1 -> libc.so symlink into the target sysroot lib dir
+# (ADR-0016 D5).  The static line is checked in the same run (lib/libc.a is
+# built from the same non-PIC objects), so the two modes cannot drift apart.
+# Stage B1 (INFRA-085t): the same run links a dynamic EXECUTABLE with the
+# interpreter passed explicitly (-dynamic-linker /lib/ld-musl-dadao.so.1,
+# contract-dynlink.md §6.1 / ADR-0026 D2) and checks PT_INTERP + DT_NEEDED.
+# Running/loading it is P3 (qemu-user) and is not done here.
+_locked-build-musl-shared:
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-musl-shared: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
+	@$(PYTHON) tools/infra/build_musl.py --jobs $(JOBS) --shared
 
 docker-image:
 	docker build -t $(DOCKER_TAG) containers/dev
@@ -433,7 +823,7 @@ docker-image:
 docker-shell:
 	docker run --rm -it -v "$(PWD):/workspace" $(DOCKER_TAG) /bin/bash
 
-clean-work:
+_locked-clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
 # ── 门控分层 (INFRA-058t；用户 2026-10-09 裁定，落 milestones「规划中」) ─────────
@@ -442,18 +832,18 @@ clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-spec-numbering check-spec-changelog check-components
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
 
 # L2 各模块功能代表集 (INFRA-058t). 注: test-semihost 自带对 `check`(L1) 的无回归前置
 # （by design，见 INTEG-020t），故 `make check-modules` 会顺带跑 L1。
-check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost check-picolibc-tests
+_locked-check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost check-picolibc-tests check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe check-code-range
 	@echo "module checks (L2): PASS"
 
 # L3 较完整 (INFRA-058t). check-lit-full 由 test-m6 步骤 [1/3] 承载（不在本目标重复列出）。
-check-full: check-qemu-semantics test-m6
+_locked-check-full: check-qemu-semantics test-m6
 	@echo "full checks (L3): PASS"
 
 # Vector schema/inventory/coverage gate (TESTCASES-002t). Requires the M1
@@ -475,6 +865,31 @@ check-spec-numbering:
 # no table rows / task-ids.  Counts are recomputed live, never hardcoded.
 check-spec-changelog:
 	@$(PYTHON) tools/spec/check_spec_changelog.py
+
+# spec 纯净度门控 (SPEC-165t, L1): `spec/SimRISC-*` 只写规范内容——禁用词表
+# （scope / 里程碑 / 任务号 / ADR- / ISS- / contract-*.md / .tao/ / 旧表名 / v5）
+# 任一命中即红；`--self-test` 含 ≥3 类注入。
+check-spec-purity:
+	@$(PYTHON) tools/spec/check_spec_purity.py
+
+# spec_cite 目标存在性 (SPEC-165t, L1): `contracts/*.yaml` + `tests/**/*.yaml` 的
+# `spec_cite` 必须指向 `spec/` 中真实存在的「书 + 节」（数字节号或节标题）。
+check-spec-cite-targets:
+	@$(PYTHON) tools/spec/check_spec_cite_targets.py
+
+# SimRISC 版本归档门控 (SPEC-154t; 规则见 docs/Process-06 §8): 册头 ∪ 附录声明的
+# 每个版本须有 `.tao/archive/SimRISC-<ver>/`（非空、含 SimRISC-00*、文件数与派生清单一致）。
+# 只校验存在性与文件集，不校验内容（`-rc` 为时点快照）。派生失败 ⇒ 只查 A1/A2。
+# **里程碑收尾**专项（INFRA-109t；用户 2026-10-25 裁定）：归档是只读历史快照，只在
+# 发布/里程碑边界变化 ⇒ 结构与内容 sha 都**不入 L1**，挂 `check-milestone`。
+check-spec-archive:
+	@$(PYTHON) tools/spec/check_spec_archive.py
+
+# 归档**内容**校验 (SPEC-154t/INFRA-109t; 里程碑收尾): 以各目录 `PROVENANCE.md` 的
+# 快照提交为锚，逐文件 sha256 + 版本组合 sha256 全等；`-rc` 跳过（预发布）。
+# 判据真源 = tools/spec/gen_spec_archive.py，此处只接线、不改判据。
+check-spec-archive-verify:
+	@$(PYTHON) tools/spec/gen_spec_archive.py --verify
 
 # 组件补丁集校验 (2026-09-23): 树形补丁集断言（现 9 条），见 docs/Process-01-组件补丁组织与构建编排.md。
 check-patch-tree:
@@ -500,6 +915,40 @@ size-report:
 check-tasks:
 	@$(PYTHON) tools/infra/check_tasks.py
 
+# 测试运行产物与日志命名门控 (INFRA-093t, L1): A1 三个 user-mode 驱动无固定
+# 默认输出（`--json-out` 必填、无 DEFAULT_LOG_DIR 回落）；A2 `.work/tests/**`
+# 与 test-artifacts 根下每个 `YYYYMMDDTHHMMSSZ-*` 运行目录须有
+# run.json/run.log/meta.json（meta 含 command/started_utc/toolchain 摘要）；
+# A3 `.work/log/**` 新增文件名须为 `check-<name>.log` 或
+# `<任务号>-<用途>.(log|json|txt)`（存量按 `.run-artifacts-epoch` +
+# `.run-artifacts-baseline` 豁免；标记缺失 ⇒ SKIP 并打印）。
+# 规则真源 = docs/Process-08；可达 FAIL 见 `--self-test`。
+check-run-artifacts:
+	@$(PYTHON) tools/infra/check_run_artifacts.py
+
+# 里程碑收尾门控 (2026-10-17, A2; 归 **L2 层 / 里程碑收尾专项**，**不入** `check-modules`):
+# ⓪ SimRISC 归档：结构（`check-spec-archive`）+ 内容 sha256（`check-spec-archive-verify`）
+#    ——归档只在发布/里程碑边界变化，故不入 L1（INFRA-109t；用户 2026-10-25 裁定）；
+# ① 当前里程碑（`milestones.md` 中 `项目里程碑 = M<n>` 断言的最大 n）在 `.tao/tasks/**`
+#    下有对应 `m` 册（命名惯例 `<PREFIX>-<nnn>m-*.md`；自报里程碑须与当前一致）；
+# ② 该 `m` 册列出的全部任务号须在 `.tao/tasks/**`（或 `.tao/archive/**`，已完成并归档）
+#    有对应任务书；册内零任务号 ⇒ vacuous FAIL（防「漏立任务」）；
+# ③ 接 `check_tasks.py --strict`（漏收尾 = 0）。
+# ④ 同步异常不可屏蔽（`check-sync-nonmaskable`，用户 2026-10-26 裁定「同步异常全部不可屏蔽；
+#    仅异步可屏蔽」）——扫 DADAO-12/22/23 异常原因表，异步源（IPI/TIMER/UART*/…）之外出现「可」即红。
+# ⑤ `.tao/knowledge/` 顶层白名单（`check-knowledge-dir`，用户 2026-10-26 裁定「从L1摘除，
+#    放到里程碑check里」）——顶层白名单外文件即红。
+# 不并入 L1 的理由：`m` 册未建前本目标**必然红**（预期的收口信号），日常 L1 不应常态红。
+check-milestone: check-spec-archive check-spec-archive-verify check-sync-nonmaskable check-knowledge-dir
+	@$(PYTHON) tools/infra/check_milestone_tasks.py
+	@$(PYTHON) tools/infra/check_tasks.py --strict
+	@echo "check-milestone: PASS (归档结构 + 内容 sha + 同步不可屏蔽 + knowledge 顶层白名单 + m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
+
+# 同步异常不可屏蔽 (SPEC-175t; 里程碑层): 扫 DADAO-12/22/23 异常原因表的「是否可屏蔽」列，
+# 只有异步源（IPI / TIMER / UART* / 占位行 …）允许「可」；`--self-test` 内置注入→FAIL→还原→PASS。
+check-sync-nonmaskable:
+	@$(PYTHON) tools/spec/check_sync_nonmaskable.py
+
 # spec 引用审计 (INFRA-011t): Check 1 引用有效性 + Check 2 无引用规范断言.
 # L1 成员 (INFRA-058t): 静态引用完整性检查（改后 0 误报）。覆盖 SimRISC-/DADAO-/
 # Toolchain-01/Machine-01；数值节号 (§7.2) 命中标题 `7.2 …`；模板占位 (§x/§N) 跳过。
@@ -507,21 +956,103 @@ check-spec-refs:
 	@$(PYTHON) tools/infra/check_spec_refs.py
 
 # 被引用 `.work/**` 材料悬空门控 (INFRA-058t / INTEG-037t): 扫 AGENTS.md/spec/
-# .tao/knowledge/.tao/tasks 中对 `.work/**` 的引用；悬空即红。L1 成员。
+# .tao/knowledge/.tao/contracts/.tao/tasks 中对 `.work/**` 的引用；悬空即红。L1 成员。
 # 口径 (见 AGENTS.md「文档分层与单一真源」): 占位/通配/前缀截断跳过；
 # `.work/build`/`.work/source` 豁免；删除语境引用不校验；其余具体路径要求存在。
 check-knowledge-refs:
 	@$(PYTHON) tools/infra/check_knowledge_refs.py
 
-# `.tao/knowledge/` 顶层白名单门控 (INFRA-070t, L1 成员): 顶层只允许既定模式
-# （台账集合 / contract-*.md〔迁入 contracts/ 后作废〕/ 子目录）；白名单外文件即 FAIL。
+# `.tao/knowledge/` 顶层白名单门控 (INFRA-070t; **里程碑层**，随 `check-milestone`；2026-10-26
+# 用户裁定「从L1摘除，放到里程碑check里」)：顶层只允许既定模式（台账集合 / 子目录）；
+# `contract-*.md` 已随 INFRA-071t 迁出 ⇒ 顶层再出现即白名单外 FAIL。
 # 计数现场统计、不写死。规则见 AGENTS.md「文档分层与单一真源」+ docs/Process-07。
 check-knowledge-dir:
 	@$(PYTHON) tools/infra/check_knowledge_dir.py
 
-# cfx alias drift gate (SPEC-075t): verify .tao/knowledge/contract-cfx-aliases.md is up-to-date.
+# 契约目录顶层白名单门控 (INFRA-071t, L1 成员; 守两处): `.tao/contracts/` 顶层只允许
+# `contract-*.md` / `README.md` / 子目录; `contracts/` 顶层只允许 `*.yaml` / `README.md` /
+# 子目录（`contract-*.md` 随 Phase B 迁出作废）。白名单外文件 / 目录缺失 / vacuous 即 FAIL。
+check-contracts-dir:
+	@$(PYTHON) tools/infra/check_contracts_dir.py
+
+# 组件 changelog 形态门控 (INFRA-084t, L1 成员): `components/*/` 下的组件变更记录必须为
+# 「列表式（无表格）+ 按里程碑分节」形态（体例真源 docs/Process-01 §10）——① 无表格分隔行
+# ② 条目 `- **<日期> …**` ③ 条目紧接 `  - 摘要：` 缩进行 ④ `## M<k>` 节序严格递增
+# ⑤ 覆盖全部（glob 现场派生；空集 vacuous FAIL）。**只做形态断言**，不做内容校验；
+# 计数现场统计、不写死。可达 FAIL 见 `--self-test`。
+# syscall 参数银行三载体一致性 (ISS-249, L1): musl __dadao_argmask / 可取消 asm 派发 /
+# QEMU dadao_argmask 逐项一致 + 完整性（musl 能发出的 syscall 名全覆盖）。
+# 有 .work/source 时读工作树，否则退回 components/ 下的补丁（新克隆也能跑）。
+check-syscall-abi:
+	@$(PYTHON) tools/qemu/check_syscall_abi.py
+
+# musl 产物新鲜度 (ISS-258): 安装根 libc.so 必须由当前 musl 源 + 工具链构建
+# （build_musl.py 成功构建后在 obj/ 落 toolchain/source 戳记；源 digest 变即
+# 强制 make clean；安装副本与构建产物逐字节一致）。工具链判据 = clang/ld.lld
+# 的**内容标识**（GNU build-id，退路 sha256；INFRA-101t，mtime/size 不参与）；
+# 旧 `mtime=` 格式戳记判一次 stale 并打印 `migrated`。无构建树 / 无共享产物 ⇒
+# SKIP；有产物则缺戳记即 FAIL。成本 ~1.2 s（内容摘要），按 docs/Process-07
+# §1.1 归 L1（静态溯源，不跑被测语义）。
+check-musl-freshness:
+	@$(PYTHON) tools/infra/check_musl_freshness.py
+
+# compiler-rt builtins 归档新鲜度 (ISS-293, L1): 工具链消费的三份归档（构建树产物 /
+# 构建树 clang 资源目录副本 / 安装根副本）必须同一内容，且其**生产者标识**
+# （build-builtins 写的 sidecar：clang/ld.lld build-id + 归档 sha256）等于当前
+# 工具链；逐成员按**内容**对 .c.o，不看 mtime（INFRA-101t）。旧编码残留 → 新
+# qemu 按 ILLI 打 SIGILL。`--self-test`：内容变必红 / 仅 mtime 变不假红。
+check-builtins-freshness:
+	@$(PYTHON) tools/infra/check_builtins_freshness.py --build-dir $(COMPILER_RT_BUILD)
+
+# 安装集断言 (ISS-261 / INFRA-098t): 安装根须带上门控/执行器要用的工具，且每个都仍是
+# 构建树同一个二进制（真值源 = 本 Makefile 的 HOST_LLVM_TOOLS + HOST_LLVM_TOOL_SYMLINKS，
+# 脚本解析本文件，不另写第二份清单）。挂载点 = install-host 收尾（装完即断言），
+# 亦可 `make check-install-tools` 单独调。**不入 L1**：未跑过 install-host 的新克隆
+# 必然红（与 check-milestone 同类理由，层归属见 docs/Process-07 §1.1）。
+check-install-tools:
+	@$(PYTHON) tools/infra/check_install_tools.py
+
+# 任务流水体例门控 (INFRA-091t, L1): 状态 == 任务书 / 覆盖 / 一句改动 ≤120 字符 /
+# 时间倒序 / 格式。规则 = milestones.md「体例约定（硬约束）」+ docs/Process-07 §1.1。
+check-milestones-fresh:
+	@$(PYTHON) tools/infra/check_milestones_fresh.py
+
+check-component-changelog:
+	@$(PYTHON) tools/infra/check_component_changelog.py
+
+# 契约「待定」指针门控 (2026-10-17, B4; L1 成员): `.tao/contracts/**` 出现
+# 「待…定 / 待裁定 / TODO / TBD」类标记时，该行须同时含 `ADR-<n>` / `ISS-<n>` 指针
+# （只认带编号的落点；光写「待后继 ADR 定」不算）；行内代码跨度与「」引用不计。
+# 计数现场统计、不写死；可达 FAIL 见 `--self-test`。
+check-contracts-pending:
+	@$(PYTHON) tools/infra/check_contracts_pending.py
+
+# 契约重定位类型表一致门控 (2026-10-17, B5; L1 成员): `contract-elf.md §2.2` 与
+# `contract-dynlink.md §4.3` 的**现行表**逐行比对（类型号 ↔ 名）；只解析两小节内的
+# 表格行 ⇒ 历史注记 / 其它小节的历史表不参与（旧值可留在注记里，以现行表为准）。
+# 附加自洽：表非空、号/名唯一、号 0 起密集；可达 FAIL 见 `--self-test`。
+check-contract-relocs:
+	@$(PYTHON) tools/infra/check_contract_relocs.py
+
+# cfx alias drift gate (SPEC-075t): verify .tao/contracts/contract-cfx-aliases.md is up-to-date.
 check-cfx-aliases:
 	@$(PYTHON) tools/spec/check_cfx_aliases.py
+
+# cfx alias runtime-table drift gate (LLVM-135t, L1): contracts/cfx-aliases.txt
+# (the file llvm-mc/llvm-objdump read at run time) must equal the spec
+# projection; the generator's --check names the first differing line.
+check-cfx-alias-table:
+	@$(PYTHON) tools/llvm/gen_cfx_alias_table.py --check
+
+# cfx alias table install gate (LLVM-135t; needs install-host): source table ==
+# build-tree copy == install-root copy, byte for byte.  A stale/missing copy
+# would silently change what the assembler accepts / the disassembler prints.
+check-cfx-alias-install:
+	@$(PYTHON) tools/llvm/check_cfx_alias_install.py
+
+# cfx MC vector independent oracle (LLVM-060t; wired into L1 by LLVM-135t).
+check-cfx-vectors:
+	@$(PYTHON) tests/llvm/lit/MC/DADAO/validate_cfx_vectors.py
 
 # Install/product directory path guard (INFRA-019t): validates
 # manifests/install-dirs.lock.toml and scans for symlink prefix violations.
@@ -537,6 +1068,30 @@ check-no-residue:
 check-components:
 	@$(PYTHON) tools/infra/check_components.py
 
+# 位宽 / DWARF64 探针 (LLVM-130t, L1): DADAO 是 64 位原生目标（ADR-0036 D1）——
+# ① 逐条静态断言编译 sizeof(void*/long/size_t)==8、_Alignof(max_align_t)==16、
+#    sizeof(long double)==16、__BIGGEST_ALIGNMENT__==16；
+# ② `-g -c` 必须 rc=0（修复前 `.debug_addr` 落 4 字节字段，汇编器拒绝 48 位重定位）；
+# ③ `llvm-readelf -h` Class=ELF64；所有 RELA 段 entsize=24；`.got` 项宽 = 8
+#    （`.got` size == 8 × `.rela.got` 条数，条数现场统计）；
+# ④ `llvm-dwarfdump --debug-info`（在**链接后**的 `-g` 产物上；`.o` 的 ABS48 重定位
+#    无法被 libObject 应用 ⇒ dwarfdump rc=1）每个 CU 的 `addr_size = 0x08` 且
+#    `format = DWARF64`（驱动默认 `-gdwarf64`；显式 `-gdwarf32` 由驱动报错，DADAO
+#    无 32 位 DWARF 重定位通道）。逐条可达 FAIL 见 `--self-test`（假工具注入，无需构建）。
+# 需要安装根（未跑 `make install-host` 时 FAIL 并给出提示）；按 docs/Process-07 §1
+# 归 L1（只做静态/尺寸断言，不跑被测语义）。
+check-width-sizes:
+	@$(PYTHON) tools/llvm/check-width-sizes.py
+
+# 代码跨度门控 (INFRA-106t, L2; ADR-0036 D4/D7): 读链接后 DADAO ELF 的
+# `--emit-relocs` 重定位，报告每个产物的最远 REL26 边 + 余量、REL20/REL14 边、
+# 全部 SHF_EXECINSTR 段的 exec_span。判据：任一 REL26 边 > 32 MiB 或
+# exec_span ≥ 30 MiB ⇒ 红（阈值单一真源在 tools/infra/check_code_range.py）。
+# 目标体用合成 fixture 自检（正常绿 / 远距红 / 缺 --emit-relocs fail-closed），
+# 不依赖 toolchain 重建；可达 FAIL 见脚本 `--self-test`。
+check-code-range:
+	@$(PYTHON) tools/infra/check_code_range.py --self-test
+
 # spec 目录只读锁 (SPEC-119t): 只读册 sha256 校验；失配 ⇒ FAIL（须先取用户授权并同步改锁）。
 # 规则见 docs/Process-06-spec目录保护规范.md §5。
 check-spec-readonly:
@@ -546,7 +1101,7 @@ check-spec-readonly:
 check-asm-list:
 	@$(PYTHON) tools/spec/check_asm_list_consistency.py
 
-# Assembly-list drift gate (INFRA-027t): verify .tao/knowledge/contract-asm-list.md
+# Assembly-list drift gate (INFRA-027t): verify .tao/contracts/contract-asm-list.md
 # is up-to-date (regenerates to a temp file, byte-diff; never overwrites).
 check-asm-list-drift:
 	@$(PYTHON) tools/spec/check_asm_list_drift.py
@@ -571,7 +1126,7 @@ check-spec-codeblocks:
 # INFRA-047t (ADR-0016 D9): tools are taken from the install root, not .work/build.
 # INFRA-058t: L2 成员（功能代表集，受控子集）——已从 L1 `make check` 移出。
 LIT_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-lit
-check-lit:
+_locked-check-lit:
 	@test -x $(LIT_BIN) || { echo "check-lit: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
 	$(LIT_BIN) tests/llvm/lit/MC/DADAO tests/llvm/lit/CodeGen/DADAO tests/e2e/lit -v
 
@@ -580,7 +1135,7 @@ check-lit:
 # INFRA-058t: 归 **L3**（经 `check-full` → `test-m6` 步骤 [1/3] 承载；本目标亦可单独调）。
 # 先跑结构+编码检查器，再跑 lit。
 # 计数不写死：由 check_lit_gen.py / llvm-lit **现场统计**；本目标不设硬编码门限。
-check-lit-full:
+_locked-check-lit-full:
 	@test -x $(LIT_BIN) || { echo "check-lit-full: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
 	@$(PYTHON) tools/testcases/check_lit_gen.py
 	$(LIT_BIN) tests/llvm/lit/MC/DADAO-gen -v
@@ -602,7 +1157,7 @@ QEMU_BIN = $(HOST_TOOLCHAIN_BIN)/qemu-system-dadao
 # paths.py (D7) — never the source tree.
 CODEGEN_E2E_WORK = $(TEST_ARTIFACTS_DIR)/codegen-e2e
 CODEGEN_E2E_LOG = .work/log/integ/test-codegen.log
-test-codegen: install-host
+_locked-test-codegen: install-host
 	@test -x $(LLC_BIN) || { echo "test-codegen: ERROR: $(LLC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_MC_BIN) || { echo "test-codegen: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "test-codegen: ERROR: $(LLVM_OBJCOPY_BIN) not found"; exit 1; }
@@ -635,7 +1190,7 @@ LLD_BIN = $(HOST_TOOLCHAIN_BIN)/ld.lld
 # paths.py (D7); coexists with test-codegen's dir.
 CODEGEN_ELF_WORK = $(TEST_ARTIFACTS_DIR)/elf-e2e
 CODEGEN_ELF_LOG = .work/log/integ/test-elf.log
-test-elf: install-host
+_locked-test-elf: install-host
 	@test -x $(LLC_BIN) || { echo "test-elf: ERROR: $(LLC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_MC_BIN) || { echo "test-elf: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
 	@test -x $(LLD_BIN) || { echo "test-elf: ERROR: $(LLD_BIN) not found"; exit 1; }
@@ -676,7 +1231,7 @@ SEMIHOST_E2E_LOG = .work/log/integ/test-semihost.log
 SEMIHOST_PROBE_LOG = .work/log/integ/test-semihost-probe.log
 MIN_ROM_PROBE = tools/qemu/min_rom_probe_046t.py
 
-test-semihost: install-host build-bootrom test-elf test-codegen check
+_locked-test-semihost: install-host build-bootrom test-elf test-codegen check
 	@test -x $(LLVM_MC_BIN) || { echo "test-semihost: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "test-semihost: ERROR: $(LLVM_OBJCOPY_BIN) not found"; exit 1; }
 	@test -x $(QEMU_BIN) || { echo "test-semihost: ERROR: $(QEMU_BIN) not found"; exit 1; }
@@ -720,7 +1275,7 @@ EMBENCH_E2E_WORK = $(TEST_ARTIFACTS_DIR)/m6-embench
 IR_LLI_LOG = .work/log/integ/test-m6-ir-lli.log
 EMBENCH_E2E_LOG = .work/log/integ/test-m6-embench.log
 LIT_FULL_LOG = .work/log/integ/test-m6-lit-full.log
-test-m6: install-host
+_locked-test-m6: install-host
 	@test -x $(HOST_TOOLS_BIN)/lli || { echo "test-m6: ERROR: $(HOST_TOOLS_BIN)/lli not found — run 'make install-host'"; exit 1; }
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "test-m6: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
 	@test -d $(EMBENCH_SRC) || { echo "test-m6: ERROR: $(EMBENCH_SRC) not found — run 'make fetch'"; exit 1; }
@@ -778,9 +1333,26 @@ check-instrinfo:
 check-isa-coverage:
 	@$(PYTHON) tools/llvm/gen_isa_coverage.py --check
 
-# Scope partition gate (SPEC-086t/089t): opcodes.yaml scope ∈ {m1,fp,excluded},
-# counts 152/60/15/227, excluded <=> decode ILLI (m1/fp carry none),
-# fp <=> id endswith _rf, and the old M1-exclusion boolean field has disappeared.
+# 逐条用例/pattern 删除哨兵 (INFRA-102t; ISS-102+ISS-118 合并, L1):
+# 由现场语料重派生「身份清单」并与入库的 tests/case-ledger.tsv 逐字节比对；
+# 删任一 vector 用例 / 任一 lit @@ OBJ: pattern ⇒ 少一行 ⇒ FAIL。
+# 清单是生成物（--write 重生成），不含任何计数，无手写期望。
+check-case-ledger:
+	@$(PYTHON) tools/infra/check_case_ledger.py
+
+# decodetree 可复现性 (ISS-058, L1): build-qemu recipe 必须固定 PYTHONHASHSEED=0；
+# .work/source/qemu 在盘时实跑 decodetree 两种 seed，确认「敏感 ⇒ 已固定」。
+check-decodetree-repro:
+	@$(PYTHON) tools/qemu/check_decodetree_repro.py
+
+# QEMU 形态哨兵 (ISS-225, L1): dadao-m1 的 umon syscall 接管实现符号 0 命中
+# （helper.c.patch 必须存在且被扫描）。无需 qemu 二进制。
+check-qemu-forms:
+	@$(PYTHON) tools/qemu/semantics_gate.py --form-check
+
+# Scope partition gate (SPEC-086t/089t; INFRA-102t 去计数): scope ∈
+# {m1,fp,excluded,m3,m8,m9}；并集==全量、两两不交、每 scope 非空、
+# excluded <=> decode ILLI (m1/fp/m3/m8/m9 carry none)、fp => id endswith _rf。
 check-scope:
 	@$(PYTHON) tools/spec/check_scope.py
 
@@ -789,44 +1361,42 @@ check-scope:
 check-rule-refs: contracts/opcodes.yaml
 	@$(PYTHON) tools/spec/check_rule_refs.py
 
-# FP semantics contract gate (SPEC-087t): scope: fp 60 条语义投影完备性
-# (id 双向覆盖/12 族计数/spec_cite/required_keys/legality 双向/锚点/版本头)。
+# FP semantics contract gate (SPEC-087t; INFRA-102t 去计数): scope: fp 语义投影
+# 完备性（id 集合双向/族集合现场双向/spec_cite/required_keys/规则引用由 legality
+# 表达式现场派生/legality 双源/锚点/版本头）——不写死条数或族计数。
 check-fp-contract:
 	@$(PYTHON) tools/spec/check_fp_contract.py
 
-# QEMU semantic execution gate (SPEC-069t): runs ISA semantic test vectors
-# through QEMU. The QEMU binary is taken from the install root (ADR-0016 D9;
-# INFRA-047t): run 'make install-host' first.
-# Runs all semantic/boundary cases in reg-shift-extend + reg-compare.
-# Uses symlinked temp dir + --batch for full coverage; cases run in parallel
-# via --jobs $(JOBS) (JOBS defaults to 8; never nproc/full-core).
+# QEMU semantic execution gate (L3; SPEC-069t, INFRA-097t): runs the **full**
+# carrier set through QEMU. The QEMU binary is taken from the install root
+# (ADR-0016 D9; INFRA-047t): run 'make install-host' first.
+# Carrier set is derived **live** from tests/vectors: every isa/*.yaml (no
+# hardcoded names/counts) + the non-isa carriers rol/*.yaml + atomics/*.yaml
+# (QEMU-064t: rol.* is scope m9; QEMU-067t: fence/lr/sc are not M1 identities,
+# so both live outside isa/). rev/ and bitcnt/ are out of scope (M8; see
+# tests/vectors/inventory.md). ISS-235 = carrier set was 3/16 of isa/.
+# Derivation + structural assertions (missing 册 / duplicate basename / bad
+# symlink / zero-册 / run-total vs derived-total) + self-evidence logging
+# (ISS-236: carrier list, per-册 case counts, total/passed/failed, delta vs
+# ISS-235's 161) live in tools/qemu/semantics_gate.py.
+# Cases run in parallel via --jobs $(JOBS) (JOBS defaults to 8; never nproc).
 # Exit code propagates correctly (no pipe; shell rc capture per AGENTS.md).
 # D6 compliance: gate dir under TEST_ARTIFACTS_DIR, log under .work/log/qemu/.
-# ISS-089: the gate dir is transient, so the setup must be explicit — create it,
-# then verify each vector is a symlink resolving to the expected file. ln errors
-# are NOT swallowed (a silent failure would feed the gate the wrong/empty input).
 QEMU_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
 QEMU_SEM_LOG = .work/log/qemu/check-qemu-semantics.log
-QEMU_SEM_VEC_DIR = $(CURDIR)/tests/vectors/isa
-check-qemu-semantics:
-	@mkdir -p .work/log/qemu || { echo "check-qemu-semantics: ERROR: cannot create .work/log/qemu"; exit 1; }; \
-	  mkdir -p $(QEMU_SEM_DIR) || { echo "check-qemu-semantics: ERROR: cannot create gate dir $(QEMU_SEM_DIR) (path occupied?)"; exit 1; }; \
-	  for v in reg-shift-extend.yaml reg-compare.yaml; do \
-	    [ -e $(QEMU_SEM_VEC_DIR)/$$v ] || { echo "check-qemu-semantics: ERROR: vector $(QEMU_SEM_VEC_DIR)/$$v not found"; exit 1; }; \
-	    ln -sf $(QEMU_SEM_VEC_DIR)/$$v $(QEMU_SEM_DIR)/$$v || { echo "check-qemu-semantics: ERROR: failed to symlink $$v into $(QEMU_SEM_DIR)"; exit 1; }; \
-	    [ -L $(QEMU_SEM_DIR)/$$v ] || { echo "check-qemu-semantics: ERROR: $(QEMU_SEM_DIR)/$$v is not a symlink (stale/occupied path?)"; exit 1; }; \
-	    [ "$$(readlink -f $(QEMU_SEM_DIR)/$$v)" = "$$(readlink -f $(QEMU_SEM_VEC_DIR)/$$v)" ] || { echo "check-qemu-semantics: ERROR: $(QEMU_SEM_DIR)/$$v does not point to $(QEMU_SEM_VEC_DIR)/$$v"; exit 1; }; \
-	  done; \
-	  echo "check-qemu-semantics: running shift+compare (all cases)..."; \
-	  $(PYTHON) tests/scripts/run_qemu_test.py --batch $(QEMU_SEM_DIR) --jobs $(JOBS) --qemu $(QEMU_BIN) > $(QEMU_SEM_LOG) 2>&1; \
+QEMU_SEM_VEC_DIR = $(CURDIR)/tests/vectors
+_locked-check-qemu-semantics:
+	@mkdir -p .work/log/qemu || { echo "check-qemu-semantics: ERROR: cannot create .work/log/qemu"; exit 1; }
+	@$(PYTHON) tools/qemu/semantics_gate.py \
+	    --vectors $(QEMU_SEM_VEC_DIR) --gate-dir $(QEMU_SEM_DIR) \
+	    --qemu $(QEMU_BIN) --trampoline tests/scripts/trampoline.bin \
+	    --jobs $(JOBS) > $(QEMU_SEM_LOG) 2>&1; \
 	  rc=$$?; \
-	  tail -5 $(QEMU_SEM_LOG); \
+	  tail -40 $(QEMU_SEM_LOG); \
 	  if [ $$rc -ne 0 ]; then \
 	    echo "check-qemu-semantics: FAIL (rc=$$rc)"; \
-	    rm -rf $(QEMU_SEM_DIR); \
 	    exit $$rc; \
 	  fi; \
-	  rm -rf $(QEMU_SEM_DIR); \
 	  echo "check-qemu-semantics: PASS"
 
 # QEMU 语义**冒烟**门控 (INFRA-058t, L2): check-qemu-semantics 的代表子集。
@@ -834,7 +1404,7 @@ check-qemu-semantics:
 # 全量留在 L3 (`check-full` → check-qemu-semantics)。
 QEMU_SMOKE_WORK = $(TEST_ARTIFACTS_DIR)/harness/smoke
 QEMU_SMOKE_LOG = .work/log/qemu/check-qemu-smoke.log
-check-qemu-smoke:
+_locked-check-qemu-smoke:
 	@mkdir -p .work/log/qemu
 	@test -x $(QEMU_BIN) || { echo "check-qemu-smoke: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
 	@$(PYTHON) tests/scripts/run_qemu_smoke.py --qemu $(QEMU_BIN) \

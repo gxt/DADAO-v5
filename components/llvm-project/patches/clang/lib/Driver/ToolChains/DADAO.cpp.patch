@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Driver/ToolChains/DADAO.cpp b/clang/lib/Driver/ToolChains/DADAO.cpp
 new file mode 100644
-index 000000000..deb056f25
+index 000000000..9e8ae8972
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/DADAO.cpp
-@@ -0,0 +1,105 @@
+@@ -0,0 +1,254 @@
 +//===--- DADAO.cpp - DADAO ToolChain Implementations ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -17,7 +17,9 @@ index 000000000..deb056f25
 +#include "clang/Driver/Compilation.h"
 +#include "clang/Driver/InputInfo.h"
 +#include "clang/Options/Options.h"
++#include "llvm/ADT/SmallString.h"
 +#include "llvm/Option/ArgList.h"
++#include "llvm/Support/FileSystem.h"
 +#include "llvm/Support/Path.h"
 +
 +using namespace clang::driver;
@@ -25,6 +27,25 @@ index 000000000..deb056f25
 +using namespace clang::driver::tools;
 +using namespace clang;
 +using namespace llvm::opt;
++
++namespace {
++
++/// True when the driver arguments ask for debug information at all.  Mirrors
++/// `renderDebugOptions` (Clang.cpp): the last switch in the `<g>` group wins,
++/// and only `-g0`/`-ggdb0` turn emission off.  `-gdwarf*` belongs to the same
++/// group but selects the *format*, not the level, so it does not count as
++/// "enable".
++bool wantsDebugInfo(const ArgList &Args) {
++  const Arg *A = Args.getLastArg(options::OPT_g_Group);
++  if (!A)
++    return false;
++  if (A->getOption().matches(options::OPT_gN_Group) &&
++      debugLevelToInfoKind(*A) == llvm::codegenoptions::NoDebugInfo)
++    return false;
++  return true;
++}
++
++} // namespace
 +
 +DADAOToolChain::DADAOToolChain(const Driver &D, const llvm::Triple &Triple,
 +                               const ArgList &Args)
@@ -46,6 +67,14 @@ index 000000000..deb056f25
 +  if (llvm::sys::fs::exists(Dir))
 +    return std::string(Dir);
 +  return {};
++}
++
++void DADAOToolChain::addClangWarningOptions(ArgStringList &CC1Args) const {
++  // ADR-0031 D8b: `va_arg` with a type that does not match the default
++  // argument promotions (`va_arg(ap, float)`, `va_arg(ap, char)`) is definite
++  // undefined behavior; make it an error by default.  A user supplied
++  // `-Wno-error=varargs` comes later on the command line and downgrades it.
++  CC1Args.push_back("-Werror=varargs");
 +}
 +
 +void DADAOToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
@@ -81,6 +110,40 @@ index 000000000..deb056f25
 +  // Do not fall back to the host's /usr/include search paths; only the
 +  // freestanding builtin headers and the target sysroot (added above) apply.
 +  CC1Args.push_back("-nostdsysteminc");
++
++  // Thread-local storage model (LLVM-100t).  The backend implements the static
++  // local-exec model only (address = TP(`rb3`) + TPOFF; contract-abi.md §1.3,
++  // contract-dynlink.md §7).  clang's generic default is global-dynamic, which
++  // needs the dynamic TLS relocations 10/11/12 (`D2`, deferred to M9+/LLVM-117t),
++  // so a non-PIC compile defaults to local-exec here.  An explicit
++  // `-ftls-model=` still wins (Clang.cpp forwards it), and a PIC compile keeps
++  // the generic default: the backend then rejects it with an explicit
++  // diagnostic instead of silently emitting a static offset into a shared
++  // object.
++  const bool PIC =
++      DriverArgs.hasFlag(options::OPT_fPIC, options::OPT_fno_PIC, false) ||
++      DriverArgs.hasFlag(options::OPT_fpic, options::OPT_fno_pic, false) ||
++      DriverArgs.hasFlag(options::OPT_fPIE, options::OPT_fno_PIE, false) ||
++      DriverArgs.hasFlag(options::OPT_fpie, options::OPT_fno_pie, false);
++  if (!PIC && !DriverArgs.hasArg(options::OPT_ftlsmodel_EQ))
++    CC1Args.push_back("-ftls-model=local-exec");
++
++  // DWARF64 by default (ADR-0036 D1).  DADAO is a native 64-bit target and its
++  // ABI has no 32-bit (4-byte) address relocation channel, so a 32-bit DWARF
++  // layout is not a supported configuration here.  Select DWARF64 whenever
++  // debug information is emitted; an explicit `-gdwarf32` is a hard error
++  // instead of a silent downgrade (the driver would otherwise pass it through
++  // and the result would fail late in the assembler).  An explicit `-gdwarf64`
++  // keeps working, and upstream "last format flag wins" still applies to
++  // `-gdwarf32 -gdwarf64`.
++  if (const Arg *DwarfFormatArg =
++          DriverArgs.getLastArg(options::OPT_gdwarf64, options::OPT_gdwarf32)) {
++    if (DwarfFormatArg->getOption().matches(options::OPT_gdwarf32))
++      getDriver().Diag(diag::err_drv_unsupported_opt_for_target)
++          << DwarfFormatArg->getAsString(DriverArgs) << getTriple().str();
++  } else if (wantsDebugInfo(DriverArgs)) {
++    CC1Args.push_back("-gdwarf64");
++  }
 +}
 +
 +void dadao::Linker::ConstructJob(Compilation &C, const JobAction &JA,
@@ -95,11 +158,97 @@ index 000000000..deb056f25
 +  // added implicitly.  Linker-script/-L/-e/-u/-r flags are forwarded directly;
 +  // the driver itself already hands `-Wl,<arg>` / `-Xlinker <arg>` through to
 +  // the linker command, so they are not repeated here.
++  //
++  // `-shared` / `-static` / `-pie` are different: the *driver* consumes them
++  // (they are MachineOutputFlags deciding the output kind), so they never reach
++  // the linker through the `-Wl,` path above and nothing would forward them.
++  // Dropping them silently is exactly the ISS-239 bug -- `clang -shared` then
++  // only warns `-Wunused-command-line-argument` and links an ET_EXEC with no
++  // `.dynamic` section, so a shared-object build looks successful while
++  // producing an executable (a "not supported" case must fail loudly, not
++  // quietly change the output kind).  Forward the three flags verbatim; ld.lld
++  // validates their combinations itself (`-shared` + `-pie` etc.).
 +  Args.addAllArgs(CmdArgs,
 +                  {options::OPT_T, options::OPT_L, options::OPT_e,
-+                   options::OPT_u, options::OPT_s, options::OPT_r});
++                   options::OPT_u, options::OPT_s, options::OPT_r,
++                   options::OPT_shared, options::OPT_static, options::OPT_pie});
++
++  // `-static-pie` is the *driver* spelling of a static PIE link: lld has no
++  // such switch, and forwarding nothing turned the request into a plain
++  // ET_EXEC without even a warning (ISS-303).  Spell it out the way the GNU
++  // toolchain does (Gnu.cpp): a static link that is placed as a PIE and has no
++  // interpreter (there is nothing to interpret -- the libc is linked in).
++  const bool IsStaticPIE = Args.hasArg(options::OPT_static_pie);
++  if (IsStaticPIE) {
++    Args.ClaimAllArgs(options::OPT_static_pie);
++    CmdArgs.push_back("-static");
++    CmdArgs.push_back("-pie");
++    CmdArgs.push_back("--no-dynamic-linker");
++  }
++
++  // ---------------------------------------------------------------------------
++  // PIC libc for static PIE links (INFRA-108t / ISS-303).
++  //
++  // musl's `libc.a` is built from non-PIC objects (the plain static line), so a
++  // PIE that links it is rejected by lld: `R_DADAO_ABS48 ... recompile with
++  // -fPIC`.  `make build-musl-shared` produces `libc_pic.a` next to it -- the
++  // same member list, compiled with -fPIC -- and installs it in the sysroot
++  // lib dir.  When the link is a PIE with a static libc (`-static-pie`, or an
++  // explicit `-pie` whose inputs name `libc.a`), replace that input with its
++  // PIC sibling in the same directory.
++  //
++  // The ordinary `-static` line never enters this branch, so its output stays
++  // byte-identical (the regression criterion of INFRA-108t).  `-shared` links
++  // a DSO (its libc is `libc.so`) and `-r` produces a relocatable object;
++  // neither is rewritten.
++  //
++  // This is an explicit-input rule, not an implicit `-lc` lookup: the archive
++  // is replaced only when the sibling `libc_pic.a` actually exists, so a tree
++  // without the PIC product still fails loudly in the linker (ISS-303's
++  // "recompile with -fPIC") instead of silently linking non-PIC code.
++  // ---------------------------------------------------------------------------
++  const bool IsPIE =
++      IsStaticPIE || Args.hasFlag(options::OPT_pie, options::OPT_no_pie, false);
++  const bool SelectPICLibc =
++      IsPIE && !Args.hasArg(options::OPT_shared, options::OPT_r);
++  InputInfoList LinkInputs(Inputs);
++  if (SelectPICLibc) {
++    for (InputInfo &II : LinkInputs) {
++      if (!II.isFilename())
++        continue;
++      if (llvm::sys::path::filename(II.getFilename()) != "libc.a")
++        continue;
++      SmallString<128> PICLibc(llvm::sys::path::parent_path(II.getFilename()));
++      llvm::sys::path::append(PICLibc, "libc_pic.a");
++      if (!llvm::sys::fs::exists(PICLibc))
++        continue;
++      II = InputInfo(II.getAction(), Args.MakeArgString(PICLibc),
++                     II.getBaseInput());
++    }
++  }
 +  TC.AddFilePathLibArgs(Args, CmdArgs);
-+  AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
++  AddLinkerInputs(TC, LinkInputs, Args, CmdArgs, JA);
++
++  // Compiler builtins (ADR-0027 D5, ISS-262).  The independent DADAO
++  // compiler-rt builtins archive is the *default* runtime library (see
++  // GetDefaultRuntimeLibType()), so it is appended after the user inputs even
++  // without any `-rtlib` flag: libcalls must be resolved by the toolchain, not
++  // by hand.  It is looked up through ToolChain::getCompilerRT, i.e. the same
++  // path that `-print-libgcc-file-name` reports.  `-rtlib=libgcc` still opts
++  // out (nothing is appended and `-print-libgcc-file-name` reports libgcc.a).
++  //
++  // Suppression follows the GNU driver (`Gnu.cpp`: AddRunTimeLibs sits under
++  // `!hasArg(nostdlib, r)` and `!hasArg(nodefaultlibs)`): `-nostdlib`,
++  // `-nodefaultlibs` and `-r` mean "no default libraries" and must not get the
++  // archive.  `-shared` is *not* such a switch -- upstream links the runtime
++  // library into shared objects too, since their libcalls cannot be resolved at
++  // load time -- so the archive is added there as well.  `-nostdlib++` only
++  // gates the C++ standard library (`CommonArgs.cpp`), not the runtime library.
++  if (TC.GetRuntimeLibType(Args) == ToolChain::RLT_CompilerRT &&
++      !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs,
++                   options::OPT_r))
++    CmdArgs.push_back(
++        TC.getCompilerRTArgString(Args, "builtins", ToolChain::FT_Static));
 +
 +  CmdArgs.push_back("-o");
 +  CmdArgs.push_back(Output.getFilename());

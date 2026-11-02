@@ -1,0 +1,38 @@
+diff --git a/linux-user/dadao/target_elf.h b/linux-user/dadao/target_elf.h
+new file mode 100644
+index 0000000..a5faf0f
+--- /dev/null
++++ b/linux-user/dadao/target_elf.h
+@@ -0,0 +1,32 @@
++/*
++ * DADAO ELF definitions for linux-user (P3).
++ *
++ * contract-elf.md §1 fixes the executable identity: e_machine = EM_DADAO
++ * (0x0DA0, project-custom), EI_CLASS = ELFCLASS64, EI_DATA = ELFDATA2MSB
++ * (big-endian), e_flags bits[7:0] = object/ABI format version = 1,
++ * bits[8:31] reserved 0.  ELF_CLASS/ELF_DATA are consumed by the generic
++ * loader (linux-user/elfload.c) and elf_check_abi below rejects any other
++ * e_flags value instead of loading it silently.
++ */
++#ifndef DADAO_TARGET_ELF_H
++#define DADAO_TARGET_ELF_H
++
++#ifndef EM_DADAO
++#define EM_DADAO                0x0DA0
++#endif
++
++#define ELF_MACHINE             EM_DADAO
++#define ELF_CLASS               ELFCLASS64
++
++/* contract-elf.md §1.3: version field = 1, reserved bits must be 0. */
++#define elf_check_abi(x)        (((x) & ~0xffu) == 0 && ((x) & 0xffu) == 1)
++
++/*
++ * Core-dump register set: not provided.  There is no v5 contract for a DADAO
++ * core file layout ([OPEN] in the musl port as well), and HAVE_ELF_CORE_DUMP
++ * stays undefined so the loader never writes a structure nobody has specified.
++ */
++
++const char *get_elf_cpu_model(uint32_t eflags);
++
++#endif /* DADAO_TARGET_ELF_H */

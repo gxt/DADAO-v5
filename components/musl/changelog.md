@@ -1,0 +1,78 @@
+# musl 组件变更记录
+
+> 粒度：**按任务一条**，追加式。**体例 = 列表式（不用表格）+ 按里程碑分节**：每条 = `- **<日期> <任务号或 —>**`，**摘要另起缩进行** `  - 摘要：<摘要正文，逐字保留>`；原表其余列各占一条缩进行（如 `  - 执行者：engineer`）。节 = `## M<k>`（节序 M1→M2→…），**节内按日期升序**；**新里程碑到来时在文末开新节**（不留空节）。补丁集的生成/应用/校验规范见 `docs/Process-01-组件补丁组织与构建编排.md §10`。
+
+## M8
+
+- **2026-10-15 `INFRA-082t`（阶段 A2+A3）**
+  - 摘要：**建 DADAO 移植补丁集 + 锁条目补丁化 + 静态最小程序可编出**。新增 `components/musl/{README.md,changelog.md,patches/**,series}`（树形补丁、一文件一补丁）；补丁 = `arch/dadao/**`（12：`syscall_arch.h`/`crt_arch.h`/`reloc.h`/`pthread_arch.h`/`atomic_arch.h`/`kstat.h`/`arch.mak` + `bits/{alltypes.h.in,float.h,setjmp.h,signal.h,syscall.h.in}`）+ `src/setjmp/dadao/{setjmp.S,longjmp.S}` + `src/thread/dadao/__set_thread_area.s` + `configure`（加 `dadao*) ARCH=dadao`）；锁条目**去掉 `patchless`**、补 `patch_dir`/`patch_series`、`role` 同步（同一提交）。**移植口径**：号表沿用 RISC-V（号在 `rd15`、返回 `rd8`、errno 负值，`contract-syscall.md`）、参数按类型分 bank（整数 `rd16+` / 指针 `rb16+`，按号恢复指针槽位）、`TP = rb3`（`TLS_ABOVE_TP`、无偏置）、crt 静态构造 `argc/argv/auxv` 帧、`setjmp` 真保存 RegRAS + callee-saved 161 octa。**A3 出口**：`tools/infra/build_musl.py` 构出 `libc.a`+`crt1.o` 并链出静态 `ET_EXEC`——`ELF 64-bit MSB, machine 0xDA0 (DADAO), statically linked`，入口 `0xfc0000000000`。**已登记边界**：原子（LR-SC/`fence` 未实现 ⇒ 单线程语义）、`GETFUNCSYM`（内存操作数 inline asm 后端崩）、`arch.mak` 后端受阻源过滤（`rotl/rotr`/`bswap`/`dynamic_stackalloc`）、`bits/signal.h` 信号帧 `[OPEN]`、无 `AT_PHDR` ⇒ 静态 `__thread` 未打通；运行（`dadao-m1` E2E）属阶段 B。
+  - 执行者：engineer
+
+- **2026-10-17 `INFRA-085t`（阶段 A1 / `ISS-242`）**
+  - 摘要：**新增 `src/thread/dadao/syscall_cp.s`（可取消系统调用 asm）**——补上共享库必拉的 `pthread_cancel.o` 所缺的 4 个 hidden 符号（`__syscall_cp_asm`/`__cp_begin`/`__cp_end`/`__cp_cancel`）。形状同主流 ISA 的 `src/thread/<arch>/syscall_cp.s`：`__cp_begin` 起首 `ld.st rd8, [rb16, 0]` 读线程 `cancel` 标志、`br.nz` 命中即 `jump [rb0, __cancel]`（尾跳、不压 RAS）⇒ 否则 `rd2rd {rd15}, {rd16}` 置号、按 `contract-syscall.md §3` 把 6 个 `long` 参数**按类型压实**进 `rd16+`/`rb16+`（指针槽位由号恢复，与 `arch/dadao/syscall_arch.h` 的 `__dadao_argmask()` 逐项一致：`read/write/readv/writev`=`0x02`、`set_tid_address/futex/set_robust_list/brk/munmap/mmap/getrandom`=`0x01`、`ioctl`=`0x04`、其余 `0`；两表**同一不变量**，加号须同改）⇒ `trap cfx_umon, 0` 紧接 `__cp_end`、`ret rd0, 0`（`rd8` 结果/负 errno 不动）。与 `riscv64` 模板的差异：无栈参数（7 个 data 参数全落 `rd16–rd22`，取消区间不触栈）、`ecall`→`trap cfx_umon, 0`、`tail`→`jump`。**边界（如实）**：`__cp_begin/__cp_end` 的重定向需信号/ucontext 路径（`arch/dadao/bits/signal.h` 仍 `[OPEN]`）⇒ asm 可达且正确，但取消语义当前不会真正触发；`__syscall_cp_c()` 的 `-EINTR` 路径仍会调 `__cancel()`。
+  - 执行者：engineer
+
+- **2026-10-17 `INFRA-085t`（阶段 A(C1) + C + E）**
+  - 摘要：**ldso 自举路径去绝对地址 + arch.mak 刷表 + RISC-V 号泄漏清理**。① `arch/dadao/crt_arch.h`：共享档入口不再 `set.rb rb17, _DYNAMIC`（PIC 对象 `.text` 里 3 条 `ABS48`），改为 `rd2rb {rb17}, {rd0}`（dynv = NULL）；`ldso/dlstart.c` 新增 arch 门控块 `DL_DYNAMIC_FROM_LOAD_BASE`（仅在 ldso 自身入口=`START` 缺省为 `_dlstart` 时定义），据 `AT_BASE`（解释器装载基址，`contract-dynlink §6.2`）走自身 `Ehdr/phdr` 找 `PT_DYNAMIC`，得 `dynv = AT_BASE + p_vaddr`（= `&_DYNAMIC` 的定义）；`crt/rcrt1.c`（静态 PIE）定义 `START` ⇒ 不受影响、保持原绝对形态。② `arch/dadao/reloc.h` 的 `GETFUNCSYM`：`set.rd rd8, __dls2`（3 条 `ABS48`）改为契约的 PIC 形态——宏内发 `.got` 8 字节槽（`R_DADAO_ABS48` 数据形 ⇒ 装载期 `R_DADAO_RELATIVE`）+ `aip.si rb18, <slot>` + `ld.o rb18, [rb18, %pcrel_lo(<站点>)]`（`R_DADAO_PCREL_HI/_LO`，`ADR-0029 D4`）；调用点在 `_dlstart_c` 末（RELATIVE 循环之后）⇒ 槽已就位。③ `arch/dadao/arch.mak`：后端受阻表 13 → **2**（仅 `rotl` 的 `crypt_sha512.c`/`sigdelset.c`；`bswap`/VLA 的 11 源逐条实测已可编）。④ `arch/dadao/bits/syscall.h.in`：删去 `sysriscv`/`riscv_flush_icache`/`riscv_hwprobe` 三个号（与 `syscall_arch.h`「无 vDSO」口径一致），`cache.c` 不再拉 `__vdsosym`。**实测**：clean 共享构建剩余未定义 = **B(2) + D(2)**（`__muldc3`/`__mulsc3`/`__crypt_sha512`/`sigdelset`）；静态档 `crt1.o` 与链出 ELF 与改动前控制组**逐字节相同**。
+  - 执行者：engineer
+
+- **2026-10-17 `INFRA-085t`（阶段 A1 出口判据）**
+  - 摘要：**共享 `libc.so` 链出 + 静态线逐字节不回归**。① `arch/dadao/arch.mak`：后端受阻表 **2 → 0**（`LLVM-099t` 把 `i64` `ROTL`/`ROTR` 展开后，`crypt_sha512.c`/`sigdelset.c` 实测可编可链；空表 + 打印机制保留）。② **构建侧（非 musl 源）** `tools/infra/build_musl.py`：共享档经 musl 的 `LIBCC` 钩子显式传入 compiler-rt builtins archive（`__muldc3`/`__mulsc3`），因为 `make install-host` 尚未安装 compiler-rt、且 DADAO driver 不消费 `-rtlib=compiler-rt` —— **无工具链改动、无新重定位类型**。**实测**：`make build-musl-shared JOBS=8`（clean，安装根工具链）**rc=0**；`libc.so` = `ELF64`/大端/**`ET_DYN`**、`DT_SONAME[libc.so]` + `DT_GNU_HASH`，**无** `DT_HASH`/`DT_RELR`/`DT_RELRSZ`/版本标签/`.gnu.version*`；`ld-musl-dadao.so.1 → libc.so` 解析一致。静态档 `make build-musl` **rc=0**，与**同工具链控制组**（改动前补丁集构建）`crt1.o` 与链出静态 ELF **逐字节相同**，`libc.a` 差异 = 恰 **+2** 成员（`crypt_sha512.o`/`sigdelset.o`）+ `version.o` 的 git-describe。
+  - 执行者：engineer
+
+- **2026-10-17 `QEMU-062t`（P3 前置：入口栈）**
+  - 摘要：**`arch/dadao/crt_arch.h` 的 `_start` 读装载器交付的初始栈，删除 P1 的静态帧**。原 `!SHARED` 入口把 `_start_c` 的 `p` 指向 `.data` 里手工构造的 argc/argv/envp/auxv（无 AT_PHDR/AT_PHNUM/AT_PHENT/AT_BASE/AT_ENTRY），该形状只对已撤回的裸机 `dadao-m1` 运行时成立；P3 的运行面是 qemu-user（ADR-0025 D6），`create_elf_tables()` 为**每个**可执行（静态与动态）交付 Linux 形状向量并注入 `AT_*`，动态可执行更是由 ldso 带着同一 `sp` 跳到程序入口。改为 `rb2rb {rb16}, {rb1}` 后：argv[0] 为真实程序名、`AT_PHDR` 可达 ⇒ musl `static_init_tls` 能找到 `PT_TLS`、动态档不再解析与解释器无关的假帧；`.data` 帧与 `__dadao_progname`/`DADAO_STR` 辅助宏一并删除（`<elf.h>` 不再需要）。静态 `libc.a`/`libc.so` 产物与 P2 结构判据不回归。
+  - 执行者：engineer
+
+- **2026-10-17 `ISS-249`（`TESTCASES-047t` 静态档重跑收口）**
+  - 摘要：**syscall 参数银行表按契约补全（12 → 245 条）+ 三载体同步 + 大端 `ipc_perm.mode` 补偿**。① `arch/dadao/syscall_arch.h`：`__dadao_argmask()` 覆盖 **245** 个号 = musl 源码里出现的全部 `SYS_*` ∩ 端口 `bits/syscall.h.in` 定义的号 ∩ `contract-syscall.md §1.2` 锁号表（含 72 条掩码 `0x00`）；掩码按内核 `SYSCALL_DEFINE` 原型派生，内核把地址写成整数/指针 typedef 的 18 处（`brk`/`mmap`/`munmap`/`mprotect`/`mremap`/`mlock`/`munlock`/`mlock2`/`madvise`/`msync`/`mincore`/`remap_file_pages`/`ioctl`/`capget`/`capset`/`riscv_flush_icache`/`ptrace`/`semctl`）改按 userspace 原型并在表内注明。② `__dadao_trap()`：由「5 个 data 槽 + 1 个地址槽」的定类 switch 改为**按掩码分投** `rd16..rd21` / `rb16..rb21`（两 bank 独立计数，§3），修掉第 6 个参数被静默丢弃（`sendto`/`recvfrom` 的 `addrlen` 丢失 ⇒ `EINVAL`/`EFAULT`）。③ `src/thread/dadao/syscall_cp.s`：可取消派发 12 → **41** 号（musl 经 `__syscall_cp`/`syscall_cp` 走的全集），掩码类 **16** 个（含 `0x32` = sendto/recvfrom 三地址槽、`0x3e` = pselect6），块内先做全部 `rd2rb` 再做升序 `rd2rd`。④ 新增 `SYSCALL_IPC_BROKEN_MODE`：大端下宿主 `target_ipc_perm.mode` 是 16 位 + 16 位 pad、musl `mode_t` 是 32 位 ⇒ 0666 读成 `0x01b60000`（实测），musl 对 arm/sh/m68k/microblaze 提供同一补偿。⑤ 漂移门控 `tools/qemu/check_syscall_abi.py`（L1）；补丁**无新增**（musl 18）。
+  - 执行者：engineer
+
+- **2026-10-18 `INFRA-089t`**
+  - 摘要：**补上 `sigsetjmp`/`__sigsetjmp`（`ISS-254`）**。新增 `src/signal/dadao/sigsetjmp.s`（一文件一补丁，`series` 18 → **19**）：`savemask == 0` 尾跳 `setjmp`；否则 `call setjmp` 后在**返回到的上下文**里尾跳 `__sigsetjmp_tail`（首次返回 `ret==0` 存掩码到 `jb->__ss`，经 `siglongjmp` 的返回 `ret!=0` 恢复），`siglongjmp` 仍为 musl 通用 C 文件。DADAO 差异：`call`/`ret` 由硬件 RAS 管理（`contract-abi §2.3`），`setjmp` 已保存 `ra0..ra63`（含本 `call` 压入的返回地址）⇒ **不照抄** riscv64 的 `ra`/`s0` 落栈；跨调用只留一个 callee-saved 寄存器 `rb32` 持 `jb`，原值存 `__fl`（偏移 1288；`__ss` 自 1296 起、`rt_sigprocmask` 只写 8 字节，不冲突）。`arch/dadao/bits/setjmp.h` 删除「sigsetjmp 不提供」段、改述两条语义与 scratch 槽。实测：`nm libc.a` 由 1927 → **1929** 个已定义符号（仅 `+sigsetjmp`/`+__sigsetjmp`，无移除）；`047t` 静态档 `functional/setjmp` **blocked → pass**；共享档 `libc.so` 同符号导出、REL26 本地解析。
+  - 执行者：engineer
+
+- **2026-10-18 `INFRA-092t`**
+  - 摘要：**变参封装的 `va_arg` 按实参真实类型取（`ADR-0031` 三 bank）**。① `src/misc/syscall.c`：`syscall()` 的 6 个 `va_arg(ap, syscall_arg_t)` 改为按 `__dadao_argmask(n)` 逐槽选型——地址槽（掩码位 = 1）取 `va_arg(ap, void *)` 进 RB，其余取 `va_arg(ap, syscall_arg_t)` 进 RD（掩码未登记的号仍全 RD）；这修掉**外部调用者**走 C 封装时指针实参落错 bank（`syscall(SYS_uname,&u)` 由 `EFAULT` 变 0）。② `src/fcntl/fcntl.c`：第三参类型由 `cmd` 决定——指针类命令（`F_*LK`/`F_OFD_*LK`/`F_*OWN_EX`/`F_GETOWNER_UIDS`/`F_*_RW_HINT`）取 `void *`、`F_NOTIFY` 取 `long`、其余取 `int`（原统一 `unsigned long` ⇒ 指针进 RB 却按 RD 读 = 0，`F_SETLK` 报 `EFAULT`）；尾部 `syscall(SYS_fcntl, fd, cmd, (void *)arg)` 改传 `arg`（`SYS_fcntl` 掩码 `0x00`）。③ `src/misc/getrlimit.c`：`SYS_prlimit64` 的 `new_rlim` 槽（掩码 `0x0c` 的槽 2）由整型字面量 `0` 改传 `(void *)0`。补丁 **19 → 22**（新增 `src/{fcntl/fcntl.c,misc/syscall.c,misc/getrlimit.c}.patch`，`series` 字典序）。实测：`047t functional/fcntl` 静态/动态两档 **1/1 pass**（原 `Bad address`）、10 例小样本两档 10/10；探针 A–I 的 `A`（指针按 long 读 = 0）与 `D`（int 按指针读）仍按 ABI 预期，`E`/`I` 转 0。**审计判过**：`ioctl` 整型请求（注 ③）与用户代码自身的指针/整数双关不修，如实计入残留。
+  - 执行者：engineer
+
+- **2026-10-18 `INFRA-090t`**
+  - 摘要：**`arch/dadao/bits/float.h` 常量块换 binary128（`ADR-0030 D1/D5`）**。`LDBL_TRUE_MIN`/`MIN`/`MAX`/`EPSILON`、`LDBL_MANT_DIG 113`、`LDBL_MIN_EXP (-16381)`、`LDBL_MAX_EXP 16384`、`LDBL_DIG 33`、`LDBL_MIN_10_EXP (-4931)`、`LDBL_MAX_10_EXP 4932`、`DECIMAL_DIG 36` 与 musl 既有 7 个 ld128 架构（`aarch64` 等）**逐字相同**；`FLT_EVAL_METHOD 0` 保留；文件头「`long double` is identically `double`」的过期说明改写为 binary128 口径。`_l` 源码**零改动**（`D5`；上游 `LDBL_MANT_DIG == 113` 分支现场 53 文件命中）。实测 `libc-test` 5 例 `math/{acoshl,asinhl,erfcl,lgammal,tgammal}` 静态/动态两档 `known-fail → pass`（各 5/5），10 例小样本两档 10/10、12 例其它静态用例 12/12；`%Lf`/`%La` 探针与独立 oracle 逐字一致。`series` 计数不变（同文件既有补丁）；配套构建侧接线见 `tools/infra/build_musl.py`（builtins archive 按驱动 `-print-libgcc-file-name` 解析）与 `tools/testcases/run_libc_test_user_suite.py`（动态链接行加 builtins）。
+  - 执行者：engineer
+
+- **2026-10-19 `LLVM-109t`（迁移漏项修复，`ISS-281`）**
+  - 摘要：**汇编注释符 `;` → `@@`：组件补丁集漏项收口**。`LLVM-109t` 的迁移面未覆盖组件补丁里的 DADAO 手写汇编 ⇒ `CommentString="@@"` 后旧 `;` 注释被当作语句分隔符，`make build-musl` 在 `src/signal/dadao/sigsetjmp.s`、`src/thread/dadao/syscall_cp.s`、`src/thread/dadao/__set_thread_area.s` 报 `unrecognized instruction mnemonic`，`lib/libc.a`、`lib/crt1.o` 缺失。改 `.work/source/musl` 的 3 个文件（49 + 86 + 25 = 160 行注释引导符 `;`→`@@`；注释正文里的 `;` 保留、C 块注释与 `src/setjmp/dadao/*.S` 不动），E1 收敛后重导出 3 份补丁（`series` 22 不变）。实测 `make build-musl` rc=0（11.0 s，10/10 ELF 检查）、`make build-musl-shared` rc=0（12.9 s）、`libc.a`/`crt1.o`/`libc.so` 均在、`check-musl-freshness` PASS。
+  - 补充：`arch/dadao/crt_arch.h` C 注释里的过期说明「`;` starts a comment」同步改 `@@`（仅注释文本，代码零改动），重导出该补丁（本批共 4 份，`series` 22 不变）。
+  - 执行者：engineer
+
+- **2026-10-19 `LLVM-110t`**
+  - 摘要：**`jmp_buf` 增 1 个 octa 保存帧指针 `rb2`（161→162）**（FP 由 `rb63` 迁回 `rb2` 后 `rb2` 不在 CSR，`longjmp` 必须显式恢复返回上下文帧基址）：`arch/dadao/bits/setjmp.h` `__jmp_buf[162]` + 布局注释（`rb2` 追加在 CSR 块后，byte offset 1288）；`src/setjmp/dadao/setjmp.S` 增 `st.o rb2, [rb16, 1288]`、`longjmp.S` 增 `ld.o rb2, [rb16, 1288]`（在 RA/`rb1` 恢复前）；`src/signal/dadao/sigsetjmp.s` 的 `__fl`/`__ss` 偏移 1288/1296 → **1296/1304**。`series` **22 不变**（4 份既有补丁改）。真值：`make build-musl` rc=0（10/10 ELF 检查）、`make build-musl-shared` rc=0；`_Static_assert(sizeof(__jmp_buf)==1296 && sizeof(jmp_buf)==1432)` 通过；`setjmp.o`/`longjmp.o` 反汇编含 `[rb16,1288]`；E2E：新编译器 + 旧端口 setjmp/longjmp ⇒ exit 1（FP 未恢复），新端口 ⇒ exit 0。
+  - 执行者：engineer
+
+## M9
+
+- **2026-10-19 `INFRA-095t`**
+  - 摘要：**补上 `src/thread/dadao/clone.s`（`__clone`）并让 `rb3` 真正成为线程 TP**。C ABI 七参按类型落位（`func=rb16`/`stack=rb17`/`flags=rd16`/`arg=rb18`/`ptid=rb19`/`tls=rb20`/`ctid=rb21`，`contract-abi §4.1` + `contract-syscall §3`）；`SYS_clone`（220，`bits/syscall.h.in:220`）按 qemu `dadao_argmask` 的 `0x14` 投递（`rd16=flags`/`rd17=newsp`/`rb16=ptid`/`rd18=tls`/`rb17=ctid`）；子侧 `newsp=(stack&~15)-16` 保存 `func`/`arg`，clone 返回 0 后**显式 `rb2rb {rb3},{rb20}` 安装 TP**，再读回 `func`/`arg` 以 `call [rb17,rd0,0]` 调 `func(arg)`，返回则 `SYS_exit`（93）退出；父侧原样 `ret rd8,0`（负值 = errno，`§4`）。`src/thread/clone.c` 去掉可达 `return -ENOSYS`，改为显式 `__builtin_trap()`（arch `clone.s` 经 `REPLACED_OBJS` 替换通用对象，文件不参与编译）。`series` **22 → 24**（新增 `src/thread/dadao/clone.s.patch`、`src/thread/clone.c.patch`）。实测：`make build-musl`/`build-musl-shared` rc=0；`obj/src/thread/dadao/clone.o` 存在、通用 `obj/src/thread/clone.o` 不存在；静态最小 pthread 程序（create+join+errno 独立）exit 0；`__clone` 常量探针的子线程 `__get_tp()` 逐位等于传入 `tls`（独立 oracle），主线程 `rb3` 不变。
+  - 执行者：engineer
+
+- **2026-10-20 `INFRA-095t-rework`（`ISS-295`）**
+  - 摘要：**`clone.s` 子侧 `rb3` 写入按 `CLONE_SETTLS` 条件化**。内核/qemu 语义：`tls` 仅在 `flags & CLONE_SETTLS`（`0x00080000`，`include/sched.h:64`）时安装；`posix_spawn` 的 `__clone(child, stack, CLONE_VM|CLONE_VFORK|SIGCHLD, &args)` 只传 4 参，`ptid/tls/ctid` 未指定 ⇒ 原无条件 `rb2rb {rb3},{rb20}` 把残留寄存器写进子进程 TP（`spawn` 子进程 TP 垃圾、`__execvpe` 写 `errno` SIGSEGV；动态 `popen` 同形）。改为：子侧 `set.zw rd9, wp1, 8` + `and.o rd9, rd16, rd9` + `br.z`，置位才写 `rb3`，未置位**完全不碰** `rb3`（继承父 TP，即内核行为）。`series` 24 不变（仅改 `src/thread/dadao/clone.s.patch`）。实测：T1 C2 带 `CLONE_SETTLS` 静态 `child_tp=0x5a5a0000`、动态 `TP-self=200`；4 参无 SETTLS 探针 `child_tp==parent_tp` 且子侧写 `errno` 不崩；`functional/spawn`+`popen` 静态/动态各 2/2 pass；T3 上轮 14 个 static pass 逐例复跑 14/14。
+  - 执行者：engineer
+
+- **2026-10-20 `LLVM-120t`（`ISS-245`，静态 PIE 的 `_DYNAMIC`）**
+  - 摘要：**入口桩不再用链接期绝对 `_DYNAMIC`，改由 `_dlstart_c` 运行期求（`crt1.o` 逐字节不变）**。① `arch/dadao/crt_arch.h`：`SHARED` 档删去 `set.rb rb17, _DYNAMIC`（3 条 `R_DADAO_ABS48`，PIE 里不可链接也无从运行期成立）与 `DL_DYNAMIC_FROM_LOAD_BASE` 两态，统一 `rd2rb {rb17}, {rd0}`（`rd0` 硬连零，`contract-abi §4.5`）⇒ dynv = NULL；`!SHARED`（`crt1.o`）分支文本未动。② `ldso/dlstart.c`：去掉 `DL_DYNAMIC_FROM_LOAD_BASE` 门控（原来只在 `#ifndef START` 即 ldso 自身 TU 成立，`crt/rcrt1.c` 定义 `START` 故落空），求值块对两个入口统一编译；`AT_BASE != 0`（解释器，`contract-dynlink §6.2/§6.3`）路径不变（`AT_BASE + PT_DYNAMIC.p_vaddr`），新增 `AT_BASE == 0`（静态 PIE）路径：按 `AT_PHDR/AT_PHNUM/AT_PHENT` 扫自身 phdr，`base = AT_PHDR - PT_PHDR.p_vaddr`、`dynv = base + PT_DYNAMIC.p_vaddr`（不假设 phdr 落在首页；无 `PT_PHDR`/auxv 则直接返回，走入口桩 `swym`，不拿猜测去重定位）。`series` 24 不变（2 份既有补丁改）。真值：`rcrt1.o` 的 `.rela.text` = **1 条** `R_DADAO_REL26 _start_c`（`ABS48 _DYNAMIC` **0**，原 3）；`crt1.o` 与改前**逐字节相同**（`cmp`，md5 `beec4923…`）；静态 PIE 探针（`-pie --no-dynamic-linker` + `rcrt1.o` + PIC 对象档）运行期 `_DYNAMIC=0x55555557f4f8`、`base=AT_PHDR-0x40=0x555555550000`、`PT_DYNAMIC.p_vaddr=0x2f4f8`，独立 oracle 11/11、与链接期值不同，exit 7；`build-musl`/`build-musl-shared`/`check-musl-freshness` rc=0；反例注入 2 处（回退绝对形态 ⇒ 对象级 3 条 + lld 真实拒绝；漏减 `PT_PHDR.p_vaddr` ⇒ 运行期 SIGSEGV/oracle 红）。
+  - 执行者：engineer
+
+- **2026-10-21 `INFRA-100t`（`ISS-294` 实现落点：musl 真原子）**
+  - 摘要：**`arch/dadao/atomic_arch.h` 由「单线程假原子」改为 `lr/sc` + `fence` 真原子**（`series` 24 不变，同一补丁重写，70 → 138 行，index blob `478acd9`）。① `a_cas`（`int`，4 B 对象）= `lr.t.an` / `sc.t.ar` 重试环：比较前用 `ext.uo …, 31` 把 `t` 规范化成与 `lr.t` 相同的零扩展 32 位（实测当前后端已把 `int` 实参实例化为零扩展 ⇒ 该指令是防御项；`contract-abi §4.2` 要求 caller 符号扩展，符号扩展的比较值会与 `lr.t` 零扩展结果永不相等并静默丢写）；`sc` 失败（`rdok ≠ 0`）回跳 `lr`；返回 `lr` 观测到的旧值。② `a_cas_p`（`void *`，8 B 槽）= `lr.o.an` / `sc.o.ar` 同形环；地址经局部寄存器变量绑 `rb9` 由后端生成 `rd2rb`（`lr/sc` 基址取 RB bank），旧值从 `lr` 的 RD 目的取回、指针返回时后端生成 `rd2rb` 到 `rb8`。③ `a_barrier` = 硬件 `fence 975`（`immu18 = 0x3CF`，`fm=0`、`pred=succ=R|W|I|O`，与 LLVM 的 acquire-release/seq-cst 映射一致）+ `"memory"` clobber。文件头整块重写为真原子描述（依赖/粒度 8 B 字/按宽度对齐/ABA 不可检/`lr.t` 零扩展前提），删去 `SINGLE-THREADED, NOT REAL ATOMICS` 与「多线程可达后必须替换」论证。真值：`4×250000` 互斥计数静态/动态各 **5/5 轮 `COUNT=1000000`**（`rc=0`）；直接 `a_cas` 自旋锁计数两档同为 `1000000`；`pthread_mutex`/`cond`（signal+broadcast，FIFO 顺序）/`sem_t` 各 2 线程 × 10^5 精确通过；`047t` 19 例静态/动态两档 19/19；`build-musl`/`build-musl-shared`/`check-musl-freshness` rc=0；注入 4 处（`a_cas` 退回普通 load/store ⇒ `COUNT=436431`、`sc` 失败不重试 ⇒ `COUNT=704421`、`a_cas_p` 落 32 位宽 ⇒ 宽指针截断 — 均运行期红；`a_cas_p` 基址改 RD bank ⇒ 汇编期红）后 `cp`+md5 还原回绿；证据脚本 `run.sh --all` 164/164。
+  - 执行者：engineer
+
+## M10
+
+- **2026-10-26 INFRA-108t**
+  - 摘要：**`libc_pic.a` 归档与 `-static-pie` 支持（ISS-303，方案 B）**：`build_musl.py --shared` 额外产 `lib/libc_pic.a`（成员 = `LOBJS` 1349，逐成员 sha 对 `.lo`；命名/序对 `libc.a`）并入 sysroot `lib/`；`check_musl_freshness.py` 增「build/installed `libc_pic.a` 同源」检查（自测第 7 注入）；`README.md` 写明 `-static-pie`/`rcrt1.o`/`-fPIE` 用法与「仅替换显式路径 `libc.a`、`-lc` 不替换」边界。真值：`-static-pie` + qemu exit 7；`-static` 逐字节一致（去 `.comment`）；反例移走归档复现 20 条 ABS48 失败。
+  - 执行者：engineer
+
+- **2026-10-26 `QEMU-076t`**
+  - 摘要：**semihosting 判据注释同步（ADR-0038 D4，architect 授权扩围）**：`arch/dadao/syscall_arch.h` 中 syscall 入口旁的 semihosting 判据注释改为 `immu18 < 0x3FF00`；**无功能改动**（该路径本就是 `trap cfx_umon, 0` 的 syscall 入口）。`series` 24 不变。
+  - 执行者：engineer

@@ -2,27 +2,54 @@
 """从 SimRISC 0.5.4 规范生成范围机器可读编码表 contracts/opcodes.yaml。
 
 每条记录带 `scope` 字段（互斥、穷尽，用户裁定 2026-10-03）：
-  - `scope: m1`（155 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统 + 特权 cfx `trap`/`escape`/`cfx2rd`/`cfx2rc`）；
-  - `scope: fp`（60 条）——原生浮点范围（RF 存取/搬移/条件赋值 + MISC-RF 运算/转换/比较），
-    独立于 M1，**已实现**（LLVM-029t/030t、QEMU-034t–037t）；
-  - `scope: excluded`（11 条）——特权 cfx（仅 `cfxld`/`cfxst`）/ LR-SC / fence，
-    暂未归类（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`）；
+  - `scope: m1`（156 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统 + 特权 cfx `trap`/`escape`/`cfx2rd`/`cfx2rc`）；
+  - `scope: fp`（66 条）——原生浮点范围（RF 存取/搬移/条件赋值 + OPC-RF 运算/转换/比较
+    + 取整 `ftrnd`/`fornd` + 最小最大值 `ftmin`/`ftmax`/`fomin`/`fomax`
+    + 融合乘加 `ftfma`/`fofma`），独立于 M1，
+    **已实现**（LLVM-029t/030t、QEMU-034t–037t；取整见 `QEMU-072t`/`LLVM-125t`；
+    最小最大值见 `QEMU-071t`/`LLVM-124t`；融合乘加见 `QEMU-070t`/`LLVM-123t`）；
+  - `scope: excluded`（2 条）——编码已定义、尚未实现：特权 cfx `cfxld`/`cfxst` 2 条
+    （`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`；
+    `ADR-0034` 将 `lr/sc` 由 8 条重排为 24 条；`SPEC-161t` 立取整 2 条、
+    `SPEC-162t` 实现落地后将其由 `excluded` 转入 `fp`；`SPEC-159t` 立最小最大值 4 条、
+    `SPEC-160t` 实现落地后将其由 `excluded` 转入 `fp`；`SPEC-164t` 将 `fence` 与 24 条
+    `lr/sc` 由 `excluded` 转入 `m9`；`SPEC-163t` 删 `cs.eq`/`cs.ne` 的 `rf` 变体，腾出
+    `0x5E`/`0x5F`）；
   - `scope: m3`（1 条）——M3 CodeGen 新增指令（ADR-0012 D9.1 `sub.o_orrr_dbb`），
-    **非 M1 身份**，不要求 M1 向量覆盖。
+    **非 M1 身份**，不要求 M1 向量覆盖；
+  - `scope: m8`（7 条）——新增 ISA 指令（ADR-0012 D10 逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`
+    + D11 位扫描/计数 `ctlz`/`cttz`/`ctpop`，其中 `ct*` 位于 `OPC-MISC`），
+    **非 M1 身份**，与里程碑无绑定（用户 2026-10-14：新增指令与里程碑无绑定关系），不要求 M1 向量覆盖。
+  - `scope: m9`（34 条）——新增 ISA 指令 `rol.o`/`rol.t`/`rol.w`/`rol.b`（逻辑循环左移，
+    `orrr`/`orri` 两种格式；`ADR-0032` `D4`/`SPEC-152t`）+ `clmul.o`（GF(2) 无进位乘，`rrrr`；
+    `ADR-0035`，实现落地后由 `excluded` 转入）+ `fence` 与 24 条 `lr/sc`（实现已落地，
+    `SPEC-164t` 由 `excluded` 转入），**非 M1 身份**，不要求 M1 向量覆盖。
 约定 `scope == "excluded"` ⇒ `decode: ILLI`——编码已定义但尚未实现，执行即非法指令；
-`m1`/`fp` 不携带 `decode`（已实现）；UNDI 仅用于架构显式留空的编码（空白单元格）。
+`m1`/`fp`/`m3`/`m8`/`m9` 不携带 `decode`（已实现或按各自里程碑实现）；UNDI 仅用于架构显式留空的编码（空白单元格）。
 
 来源：
   - spec/SimRISC-00-指令系统设计.md  （QFC 主表 + 6 个 MISC 子表：编码权威）
-  - .tao/knowledge/contract-isa.md   （M1 范围与字段/legality 语义）
+  - .tao/contracts/contract-isa.md   （M1 范围与字段/legality 语义）
 """
 
 import os
+import re
+import sys
 import yaml
 from collections import OrderedDict
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT_PATH = os.path.join(REPO_ROOT, "contracts", "opcodes.yaml")
+
+sys.path.insert(0, REPO_ROOT)
+from tools.llvm.gen_asm_list import classify, CLASS_TO_SPEC  # noqa: E402  (册归属单一真源)
+
+
+def _spec_book(entry):
+    """记录所属手册（`SimRISC-NN`）——与附录 A（汇编速查）同源：`classify()` → 册。"""
+    name = os.path.basename(CLASS_TO_SPEC[classify(entry)])
+    m = re.match(r"(SimRISC-\d+)", name)
+    return m.group(1) if m else name
 
 
 # ────────────────────────────── 字段构造 ──────────────────────────────
@@ -182,8 +209,8 @@ def _infer_feature(fields, fmt=None):
 def rec(insn, mnemonic, fmt, op, fields, legality, spec_cite, ha=None, scope="m1"):
     """构造一条编码记录。ha 为 None 时为主表指令，否则为 MISC 子表指令。
 
-    scope ∈ {"m1", "fp", "excluded", "m3"}（必填语义，缺省 m1）。scope == "excluded" 时附
-    `decode: ILLI`（编码已定义但尚未实现）；`m1`/`fp`/`m3` 不携带 `decode`。
+    scope ∈ {"m1", "fp", "excluded", "m3", "m8", "m9"}（必填语义，缺省 m1）。scope == "excluded" 时附
+    `decode: ILLI`（编码已定义但尚未实现）；`m1`/`fp`/`m3`/`m8`/`m9` 不携带 `decode`。
     对于 orrr/orri/oiii 格式，ha 并入 op（op 变为14位）。
     对于其余格式，ha 作为独立操作数 field（由调用方加入 fields 列表）。
     """
@@ -193,14 +220,20 @@ def rec(insn, mnemonic, fmt, op, fields, legality, spec_cite, ha=None, scope="m1
         # ha 并入 op：op(8位) + ha(6位) = 14位
         mask, value = 0xFFFC0000, (op << 24) | (ha << 18)
     insn_id = _get_id(insn, fmt, fields)
-    r = {"id": insn_id, "mnemonic": mnemonic, "format": fmt, "op": f"0x{op:02X}"}
+    r = {"id": insn_id, "mnemonic": mnemonic, "format": fmt, "opc": f"0x{op:02X}"}
     if ha is not None:
         r["ha"] = f"0x{ha:02X}"
     r["mask"] = f"0x{mask:08X}"
     r["value"] = f"0x{value:08X}"
     r["fields"] = fields
     r["legality"] = legality
-    r["spec_cite"] = spec_cite
+    # SPEC-166t：`spec_cite` 用「手册: 助记符」形态（指令类），册由 classify() 决定（与附录 A
+    # 同源）。传入的 spec_cite 记录**该族正文来源小节**（`SimRISC-00` = 编码出自 QFC 表，
+    # 语义册由 classify 决定），此处以断言对账，防止两者无声漂移。
+    src_book = spec_cite.split(":")[0].strip()
+    cite_book = _spec_book(r)
+    assert src_book in (cite_book, "SimRISC-00"), (insn_id, src_book, cite_book)
+    r["spec_cite"] = f"{cite_book}: {mnemonic}"
     r["scope"] = scope
     if scope == "excluded":
         r["decode"] = "ILLI"
@@ -210,46 +243,61 @@ def rec(insn, mnemonic, fmt, op, fields, legality, spec_cite, ha=None, scope="m1
 # ────────────────────────────── spec 引用 ──────────────────────────────
 
 # 存储（SimRISC-01）
-S01_LD = "SimRISC-01 §存取RD寄存器"
-S01_RB_LD = "SimRISC-01 §存取RB寄存器"
-S01_RA_LD = "SimRISC-01 §存取RA寄存器"
+S01_LD = "SimRISC-01: 存取RD寄存器"
+S01_RB_LD = "SimRISC-01: 存取RB寄存器"
+S01_RA_LD = "SimRISC-01: 存取RA寄存器"
 
 # 寄存器复制（SimRISC-02）
-S02_BLK = "SimRISC-02 §寄存器组之间块赋值"
-S02_CS = "SimRISC-02 §条件赋值：Conditional Assignment"
+S02_BLK = "SimRISC-02: 寄存器组之间块赋值"
+S02_CS = "SimRISC-02: 条件赋值：Conditional Assignment"
 
 # 16位立即数操作（SimRISC-03）
-S03_IMM = "SimRISC-03 §立即数常数赋值：Immediate constant"
+S03_IMM = "SimRISC-03: 立即数常数赋值：Immediate constant"
 
 # 64位数据运算（SimRISC-04）
-S04_ADD = "SimRISC-04 §加减操作"
-S04_INC = "SimRISC-04 §自增自减"
-S04_CMP = "SimRISC-04 §比较操作"
-S04_MUL = "SimRISC-04 §乘除操作"
-S04_LOG = "SimRISC-04 §Logic operators：逻辑运算"
-S04_BIT = "SimRISC-04 §Bit manipulating：位操作指令"
+S04_ADD = "SimRISC-04: 加减操作"
+S04_INC = "SimRISC-04: 自增自减"
+S04_CMP = "SimRISC-04: 比较操作"
+S04_MUL = "SimRISC-04: 乘除操作"
+S04_CLMUL = "SimRISC-04: 无进位乘法"
+S04_LOG = "SimRISC-04: Logic operators：逻辑运算"
+S04_BIT = "SimRISC-04: Bit manipulating：位操作指令"
 
 # 64位地址运算（SimRISC-05）
-S05_ADD = "SimRISC-05 §加减操作"
-S05_INC = "SimRISC-05 §自增自减"
-S05_CMP = "SimRISC-05 §比较操作"
+S05_ADD = "SimRISC-05: 加减操作"
+S05_INC = "SimRISC-05: 自增自减"
+S05_CMP = "SimRISC-05: 比较操作"
+# ADR-0029 D1：恢复 aip.si（IP 相对寻址，auipc 式；0x5A 原为 ADR-0012 D5 保留位）
+# 指令名 `rela.si` → `aip.si`、正文术语 `PC` → `IP`（用户 2026-10-16 裁定）
+S05_PCREL = "SimRISC-05: IP 相对寻址"
 
 # 控制流（SimRISC-06）
-S06_BR = "SimRISC-06 §条件跳转指令"
-S06_JMP = "SimRISC-06 §无条件跳转指令"
-S06_CALL = "SimRISC-06 §函数调用"
-S06_RET = "SimRISC-06 §函数返回"
+S06_BR = "SimRISC-06: 条件跳转指令"
+S06_JMP = "SimRISC-06: 无条件跳转指令"
+S06_CALL = "SimRISC-06: 函数调用"
+S06_RET = "SimRISC-06: 函数返回"
 
-# 其它（SimRISC-11）
-S11_SWYM = "SimRISC-11 §占位指令"
+# 核芯功能扩展（SimRISC-11）：`trap`/`escape`/`cfx2rd`/`cfx2rc` 编码出自 QFC 主表（SimRISC-00）；
+# `cfxld`/`cfxst` 的语义待定，正文同册。
 
-# 待定（SimRISC-12）
-S12_FENCE = "SimRISC-12 §fence指令"
-S12_LRSC = "SimRISC-12 §LR-SC指令"
+# 其它指令（SimRISC-12）
+S12_FENCE = "SimRISC-12: fence指令"
+S12_LRSC = "SimRISC-12: LR-SC指令"
+S12_SWYM = "SimRISC-12: 空转指令"
+S12_BIT = "SimRISC-12: 位扫描与位计数"
 
-# QFC/MISC-RF（SimRISC-00）
-S00_QFC = "SimRISC-00 §SimRISC QFC"
-S00_MISCRF = "SimRISC-00 §MISC-RF指令编码"
+# QFC/OPC-RF（SimRISC-00）
+S00_QFC = "SimRISC-00: SimRISC QFC"
+S00_MISCRF = "SimRISC-00: OPC-RF指令编码"
+
+# 浮点运算（SimRISC-07）：取整（IEEE 754-2019 roundToIntegral 六档，SPEC-161t）
+S07_ROUND = "SimRISC-07: 取整（roundToIntegral）"
+
+# 浮点运算（SimRISC-07）：最小/最大值（IEEE 754-2019 §9.6 minimumNumber/maximumNumber，SPEC-159t）
+S07_MINMAX = "SimRISC-07: 最小最大值（minimumNumber / maximumNumber）"
+
+# 浮点运算（SimRISC-07）：融合乘加（IEEE 754-2019 fusedMultiplyAdd，SPEC-157t）
+S07_FMA = "SimRISC-07: 融合乘加（fusedMultiplyAdd）"
 
 # 常见 legality 片段
 LEG_RD_DST = "rdha != rd0"
@@ -261,6 +309,17 @@ LEG_RET_RD0_IMMS18 = "!(rdha == rd0 && imms18 != 0)"
 
 def aligned(n):
     return f"aligned({n})"
+
+
+def onehot_expr(S):
+    """`rev.*`（ADR-0012 D10）的 one-hot 合法集表达式（immu6 的合法档位）。
+
+    合法 `k` = 2 的幂且 `k < S`（排除 `k = S` 恒等档）；`S` = 该后缀的块大小
+    （`.o` 64 / `.t` 32 / `.w` 16 / `.b` 8）。表达式只用 `immu6` 一个标识符
+    （显式枚举合法档），故 `validate_encoding.py` 的字段引用检查无需豁免函数名。
+    """
+    vals = [v for v in (1, 2, 4, 8, 16, 32) if v < S]
+    return " || ".join(f"immu6 == {v}" for v in vals)
 
 
 # ────────────────────────────── 主表指令 ──────────────────────────────
@@ -407,24 +466,41 @@ def build_main_table(records):
                                   roles=("dst", "dst", "src", "src")),
                            dual_leg, cite))
 
+    # ADR-0035 D5（用户 2026-10-21 原话「添加 clmul.o rrrr 格式，编码放在 mul.so 后面」）：
+    # GF(2) 无进位乘，紧跟 mul.so（0x55）落 0x56；双目的/rd0 规则与 mul.* 同型；
+    # scope 由 excluded 转为 m9（ADR-0035 D7「实现后落」：LLVM 后端与 QEMU 执行语义均已落地）。
+    records.append(rec("clmul.o-rd", "clmul.o", "rrrr", 0x56,
+                       f_rrrr("rdha", "rdhb", "rdhc", "rdhd",
+                              roles=("dst", "dst", "src", "src")),
+                       dual_leg, S04_CLMUL, scope="m9"))
+
     # ── 0101-1xxx：自增/相对/比较 ──
     records.append(rec("add.si-rd", "add.si", "riii", 0x59,
                        f_riii("rdha", "imms18"), [LEG_RD_DST], S04_INC))
-    # 0x5A: rela.si deleted (ADR-0012 D5) → reserved → UNDI
+    # ADR-0029 D1（用户 2026-10-16 授权）：恢复 aip.si（IP 相对寻址）——0x5A 为
+    # ADR-0012 D5 保留（不再指派）的编码，故不占新编码位；语义 = rbha = IP + (imms18 << 12)，
+    # IP = 该指令自身地址（rb0 读出值，不清低位）；目的 rb0 ⇒ ILLI（dst_rb0）。
+    # 指令名 `rela.si` → `aip.si`（用户 2026-10-16 裁定；汇编层操作数按字节写 `imms30`）。
+    records.append(rec("aip.si-rb", "aip.si", "riii", 0x5A,
+                       f_riii("rbha", "imms18"), [LEG_RB_DST], S05_PCREL))
     records.append(rec("add.si-rb", "add.si", "riii", 0x5B,
                        f_riii("rbha", "imms18"), [LEG_RB_DST], S05_INC))
     records.append(rec("cmp.ui-rd", "cmp.ui", "rrii", 0x5C,
                        f_rrii("rdha", "rdhb", "immu12"), [LEG_RD_DST], S04_CMP))
     records.append(rec("cmp.si-rd", "cmp.si", "rrii", 0x5D,
                        f_rrii("rdha", "rdhb", "imms12"), [LEG_RD_DST], S04_CMP))
-    records.append(rec("cs.eq-rf", "cs.eq", "rrrr", 0x5E,
-                       f_rrrr("rdha", "rdhb", "rfhc", "rfhd",
-                              roles=("src", "src", "dst", "src")),
-                       ["rfhc != rf0"], S00_QFC, scope="fp"))
-    records.append(rec("cs.ne-rf", "cs.ne", "rrrr", 0x5F,
-                       f_rrrr("rdha", "rdhb", "rfhc", "rfhd",
-                              roles=("src", "src", "dst", "src")),
-                       ["rfhc != rf0"], S00_QFC, scope="fp"))
+    # SPEC-163t（用户 2026-10-22 裁定「删除cs.eq/ne-rrrr-rf，两条指令；然后把ftfma/fofma
+    # 的编码移动到这两条指令的位置」）：0x5E/0x5F 已腾空；cs.eq/ne 仅保留 rd 形态（0x66/0x67）。
+    # SPEC-157t（用户 2026-10-22 裁定「格式改为rrrr，即4个操作数」）：落 `ftfma`/`fofma` 两条，
+    # `rrrr` = 1 目的（`rfHA`）+ 3 源（`rfHB`/`rfHC`/`rfHD`），语义
+    # `rfHA ← rfHB × rfHC + rfHD`（IEEE 754-2019 `fusedMultiplyAdd`，单次舍入）。
+    # `rrrr` 无 opx ⇒ 每条占一个整 op 字节。`dst_rf0` 合法性与既有 FP 族同型；
+    # SPEC-157t 先立为 `scope: excluded`（decode ILLI），QEMU-070t/LLVM-123t 落地后由
+    # SPEC-158t 翻转为 `fp`（rule_refs 由 legality 表达式派生为 dst_rf0）。
+    for op, mnem in ((0x5E, "ftfma"), (0x5F, "fofma")):
+        records.append(rec(mnem, mnem, "rrrr", op,
+                           f_rrrr("rfha", "rfhb", "rfhc", "rfhd"),
+                           ["rfha != rf0"], S07_FMA, scope="fp"))
 
     # ── 0110-0xxx：条件赋值（rrrr）──
     records.append(rec("cs.n-rd", "cs.n", "rrrr", 0x60,
@@ -490,7 +566,7 @@ def build_main_table(records):
 
     # ── 0111-1xxx：特权 cfx ──
     # SPEC-115t：trap/escape/cfx2rd/cfx2rc re-scope excluded → m1（已实现，MC 可汇编）。
-    # cfxld/cfxst 保持 scope: excluded（SimRISC-12 待定，decode ILLI）。
+    # cfxld/cfxst 保持 scope: excluded（SimRISC-11 SRAM块传输指令（待定），decode ILLI）。
     records.append(rec("cfx2rd-crrr", "cfx2rd", "crrr", 0x7A,
                        f_crrr(), [], S00_QFC, scope="m1"))
     records.append(rec("cfx2rc-crrr", "cfx2rc", "crrr", 0x7B,
@@ -505,42 +581,66 @@ def build_main_table(records):
                        f_ciii("immu18"), [], S00_QFC, scope="m1"))
 
 
-# ────────────────────────────── MISC-AMO ──────────────────────────────
+# ────────────────────────────── OPC-MISC ──────────────────────────────
 
 def build_misc_amo(records):
-    op = 0x77
-    # ADR-0012 D3.5：删除原专门非法指令（ILLI 异常保留，由非法操作数/条件/保留编码触发）；
-    # fence 移至 000-000（ha=0x00）；swym 移至 100-010（ha=0x22）。
+    # 用户 2026-10-22 裁定「OPC-MISC 的编码改为：0100-0111」⇒ op 0x77 → 0x47。
+    op = 0x47
+    # ADR-0034 D1/D2（用户 2026-10-20）：fence 由 000-000 迁至 100-000（ha=0x20）；
+    # immu18 = fm[17:12] / pred[11:6] / succ[5:0]（书写仍是 18 位无符号立即数，不拆三段）；
+    # fm=0 为唯一已定义值，pred/succ 的高 2 位（[11:10]/[5:4]）SBZ ⇒ 其余保留（ILLI）。
+    # scope：SPEC-164t（用户 2026-10-22 同意）由 excluded 转 m9 —— QEMU/LLVM 已实现。
     records.append(rec("fence", "fence", "oiii", op, f_oiii("immu18"),
-                       ["immu18[17:12] == 0", "immu18[11:6] == 0", "immu18[5:4] == 0"],
-                       S12_FENCE, ha=0x00, scope="excluded"))
-    # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 MISC-AMO 100-010（ha=0x22）
+                       ["immu18[17:12] == 0", "immu18[11:10] == 0", "immu18[5:4] == 0"],
+                       S12_FENCE, ha=0x20, scope="m9"))
+    # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 OPC-MISC 100-010（ha=0x22）
     records.append(rec("swym-oiii", "swym", "oiii", op, f_oiii("immu18"),
-                       [], S11_SWYM, ha=0x22))
-    # spec MISC-AMO 表：行 010-xxx（lr）/ 011-xxx（sc）→ ha 0x10-0x13 / 0x18-0x1B
-    for i, mnem in enumerate(["lr_nn.o", "lr_nr.o", "lr_an.o", "lr_ar.o"]):
-        records.append(rec(mnem, mnem, "orrr", op,
-                           f_orrr("rdhb", "rdhc", "rbhd"), [],
-                           S12_LRSC, ha=0x10 + i, scope="excluded"))
-    for i, mnem in enumerate(["sc_nn.o", "sc_nr.o", "sc_an.o", "sc_ar.o"]):
-        records.append(rec(mnem, mnem, "orrr", op,
-                           f_orrr("rdhb", "rdhc", "rbhd"), [],
-                           S12_LRSC, ha=0x18 + i, scope="excluded"))
+                       [], S12_SWYM, ha=0x22))
+    # ADR-0034 D3/D4/D5（方案 A）：命名 `<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`（宽度在前）；
+    # lr 占 000/001 两行（nn/an/ar，`lr.*.nr` 删除）、sc 占 010/011 两行（nn/nr/ar，
+    # `sc.*.an` 删除）；组内宽度顺序 .o → .t → .w → .b。scope：SPEC-164t 由 excluded 转 m9。
+    for prefix, order_ha in (("lr", {"nn": 0x00, "an": 0x04, "ar": 0x08}),
+                             ("sc", {"nn": 0x10, "nr": 0x14, "ar": 0x18})):
+        for order, base_ha in order_ha.items():
+            for i, width in enumerate(("o", "t", "w", "b")):
+                mnem = f"{prefix}.{width}.{order}"
+                records.append(rec(mnem, mnem, "orrr", op,
+                                   f_orrr("rdhb", "rdhc", "rbhd"), [],
+                                   S12_LRSC, ha=base_ha + i, scope="m9"))
+    # 用户 2026-10-22 裁定「ctpop/ctlz/cttz 从 OPC-octa 改为 OPC-MISC，opx 100-101/100-110/100-111」
+    # ⇒ op 0x47、ha 0x25/0x26/0x27（原 0x40 / 0x1D/0x1E/0x1F）。三条**无位宽后缀**，
+    # 有效位宽由操作数的 `hd` 字段在运行时给出（见 SimRISC-04）。
+    # scope: m8（新增 ISA 指令，与里程碑无绑定；非 M1 身份，不要求 M1 向量覆盖）
+    # 合法性：hd ∈ 0..63 全部合法 ⇒ 不新增规则；沿用 dst_rd0（rdhb != rd0）。
+    for mnem, ha in (("ctpop", 0x25), ("ctlz", 0x26), ("cttz", 0x27)):
+        records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
+                           ["rdhb != rd0"], S12_BIT, ha=ha, scope="m8"))
 
 
-# ────────────────────────────── MISC-octa ──────────────────────────────
+# ────────────────────────────── OPC-octa ──────────────────────────────
 
 def build_misc_octa(records):
     op = 0x40
     for i, mnem in enumerate(["and.o", "or.o", "xor.o", "xnor.o"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
                            ["rdhb != rd0"], S04_LOG, ha=0x08 + i))
-    for i, mnem in enumerate(["ext.uo", "ext.so", "shr.uo", "shr.so", "shl.uo"]):
+    # ADR-0032 D1/D2/D4（SPEC-152t）：ext 迁至 100-000/001（0x20/0x21）；
+    # 移位族 shl(010-000/011-000) / rol(010-001/011-001) / shr.u(010/011-010) / shr.s(010/011-011)。
+    # rol 为新增指令（scope: m9），符号无关、不带 u/s 后缀。
+    for i, mnem in enumerate(["shl.o", "rol.o", "shr.uo", "shr.so"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
-                           ["rdhb != rd0"], S04_BIT, ha=0x10 + i))
-    for i, mnem in enumerate(["ext.uo", "ext.so", "shr.uo", "shr.so", "shl.uo"]):
+                           ["rdhb != rd0"], S04_BIT, ha=0x10 + i,
+                           scope=("m9" if mnem.startswith("rol.") else "m1")))
+    for i, mnem in enumerate(["shl.o", "rol.o", "shr.uo", "shr.so"]):
         records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
-                           ["rdhb != rd0"], S04_BIT, ha=0x18 + i))
+                           ["rdhb != rd0"], S04_BIT, ha=0x18 + i,
+                           scope=("m9" if mnem.startswith("rol.") else "m1")))
+    for i, mnem in enumerate(["ext.uo", "ext.so"]):
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
+                           ["rdhb != rd0"], S04_BIT, ha=0x20 + i))
+    for i, mnem in enumerate(["ext.uo", "ext.so"]):
+        records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
+                           ["rdhb != rd0"], S04_BIT, ha=0x28 + i))
     # D9.2/D9.3：orrr 单目的 id 后缀 = 操作数 bank 签名（bbd/dbb）
     records.append(rec("add.o-bbd", "add.o", "orrr", op,
                        f_orrr("rbhb", "rbhc", "rdhd"), ["rbhb != rb0"],
@@ -595,6 +695,12 @@ def build_misc_octa(records):
                        ["rdhb != rd0", LEG_IMMU6, "rdhb + immu6 <= 64",
                         "rfhc + immu6 <= 64"],
                        S00_MISCRF, ha=0x3E, scope="fp"))
+    # ADR-0012 D10：新增 rev.o（逐块反转；orri，ha=0x0C → opx `001-100`）
+    # scope: m8（新增 ISA 指令，与里程碑无绑定；非 M1 身份，不要求 M1 向量覆盖）
+    records.append(rec("rev.o", "rev.o", "orri", op, f_orri("rdhb", "rdhc", "immu6"),
+                       ["rdhb != rd0", onehot_expr(64)], S04_BIT,
+                       ha=0x0C, scope="m8"))
+    # ADR-0012 D11 的 ctlz/cttz/ctpop 已由 SPEC-164t 迁入 `OPC-MISC`（见 build_misc_amo）。
 
 
 # ────────────────────────────── MISC 固定位宽子表 ──────────────────────────────
@@ -605,20 +711,23 @@ def build_misc_fixed_width(records, op, suffix, nbits, sdoc):
     SPEC-069t：窄位宽逻辑（and/or/xor/xnor）与窄位宽扩展（ext）已删除（24 条），
     仅保留 shr/shl（位操作）、add/sub（算术）、cmp（比较）、mul/div/rem（乘除余）。
     """
-    cite_add = f"{sdoc} §加减操作"
-    cite_cmp = f"{sdoc} §比较操作"
-    cite_mul = f"{sdoc} §乘除操作"
-    cite_bit = f"{sdoc} §Bit manipulating：位操作指令"
-    # shr/shl orrr（ha 0x12-0x14）——SPEC-069t：ext 已删除，shr/shl 从 0x12 开始
-    for i, mnem in enumerate([f"shr.u{suffix}", f"shr.s{suffix}",
-                              f"shl.u{suffix}"]):
+    cite_add = f"{sdoc}: 加减操作"
+    cite_cmp = f"{sdoc}: 比较操作"
+    cite_mul = f"{sdoc}: 乘除操作"
+    cite_bit = f"{sdoc}: Bit manipulating：位操作指令"
+    # shr/shl/rol orrr（ADR-0032 D2/D4：shl 010-000、rol 010-001、shr 010-010/011）
+    for i, mnem in enumerate([f"shl.{suffix}", f"rol.{suffix}",
+                              f"shr.u{suffix}", f"shr.s{suffix}"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
-                           ["rdhb != rd0"], cite_bit, ha=0x12 + i))
-    # shr/shl orri（ha 0x1A-0x1C）——SPEC-069t：ext 已删除，shr/shl 从 0x1A 开始
-    for i, mnem in enumerate([f"shr.u{suffix}", f"shr.s{suffix}",
-                              f"shl.u{suffix}"]):
+                           ["rdhb != rd0"], cite_bit, ha=0x10 + i,
+                           scope=("m9" if mnem.startswith("rol.") else "m1")))
+    # shr/shl/rol orri（同上；immu6 越界 ⇒ ILLI，窄位宽沿用 immu6 <= N）
+    for i, mnem in enumerate([f"shl.{suffix}", f"rol.{suffix}",
+                              f"shr.u{suffix}", f"shr.s{suffix}"]):
         records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
-                           ["rdhb != rd0", f"immu6 <= {nbits}"], cite_bit, ha=0x1A + i))
+                           ["rdhb != rd0", f"immu6 <= {nbits}"], cite_bit,
+                           ha=0x18 + i,
+                           scope=("m9" if mnem.startswith("rol.") else "m1")))
     # add（ha 0x20-0x21）
     for i, mnem in enumerate([f"add.u{suffix}", f"add.s{suffix}"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
@@ -640,9 +749,15 @@ def build_misc_fixed_width(records, op, suffix, nbits, sdoc):
                               f"rem.u{suffix}", f"rem.s{suffix}"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
                            ["rdhb != rd0"], cite_mul, ha=0x38 + i))
+    # ADR-0012 D10：新增 rev.<suffix>（逐块反转；orri，ha=0x0C → opx `001-100`）
+    # scope: m8（新增 ISA 指令，与里程碑无绑定；非 M1 身份，不要求 M1 向量覆盖）
+    records.append(rec(f"rev.{suffix}", f"rev.{suffix}", "orri", op,
+                       f_orri("rdhb", "rdhc", "immu6"),
+                       ["rdhb != rd0", onehot_expr(nbits + 1)], cite_bit,
+                       ha=0x0C, scope="m8"))
 
 
-# ────────────────────────────── MISC-RF（全 excluded）──────────────────────────────
+# ────────────────────────────── OPC-RF（scope: fp）──────────────────────────────
 
 def build_misc_rf(records):
     op = 0x44
@@ -686,6 +801,18 @@ def build_misc_rf(records):
     for ha, mnem, dst, src, leg in orri_entries:
         records.append(rec(mnem, mnem, "orri", op, f_orri(dst, src, "immu6"),
                            leg, S00_MISCRF, ha=ha, scope="fp"))
+    # SPEC-161t（用户 2026-10-21 原话「不增加 nearbyint，只实现 754-2019 中的六种取整，
+    # 按顺序，immu6 用 one-hot 对应上」「ftrnd/fornd 的 opx：000-011/001-011」）：
+    # 取整六档（TiesToEven/TiesToAway/TowardZero/TowardPositive/TowardNegative/Exact
+    # ↔ immu6 0x01/0x02/0x04/0x08/0x10/0x20）。immu6 复用 `encode_onehot` 口径
+    #  ⇒ 非 one-hot 即 ILLI，无需新增合法性规则。SPEC-161t 先立为 `scope: excluded`
+    # （decode ILLI）；SPEC-162t 在 QEMU-072t/LLVM-125t 落地后翻转为 `scope: fp`。
+    # 语义见 SimRISC-07: 取整（roundToIntegral） / contract-fp.md §roundint。
+    for ha, mnem in ((0x03, "ftrnd"), (0x0B, "fornd")):
+        records.append(rec(mnem, mnem, "orri", op,
+                           f_orri("rfhb", "rfhc", "immu6"),
+                           ["rfhb != rf0", onehot_expr(64)], S07_ROUND,
+                           ha=ha, scope="fp"))
     # orrr 双目运算/符号位操作类（目的 rfHB；无 immu6）
     orrr_entries = [
         (0x10, "ftadd"), (0x11, "ftsub"), (0x12, "ftmul"), (0x13, "ftdiv"),
@@ -702,6 +829,20 @@ def build_misc_rf(records):
         records.append(rec(mnem, mnem, "orrr", op,
                            f_orrr("rdhb", "rfhc", "rfhd"), ["rdhb != rd0"],
                            S00_MISCRF, ha=ha, scope="fp"))
+
+    # SPEC-159t（用户 2026-10-21 原话「同意 ftmin/fomin/ftmax/fomax（number 语义）」
+    # 「同意；opx：ftmin/ftmax：100-110/100111；fomin/fomax: 101-110/101-111」）：
+    # 最小/最大值 = IEEE 754-2019 §9.6 `minimumNumber`/`maximumNumber`（严格版：单 NaN
+    # 返回数字、双 NaN ⇒ canonical qNaN、−0 < +0；**不是** `minNum` 宽松版、也不是
+    # 「返回第二操作数」的 x86 遗留语义）。orrr 单目的（`rfhb` 目的、`rfhc`/`rfhd` 源；
+    # 源可为 rf0、目的 rf0 ⇒ ILLI `dst_rf0`）。语义见 SimRISC-07: 最小最大值（minimumNumber / maximumNumber） /
+    # contract-fp.md §minmax；SPEC-160t 在 QEMU-071t/LLVM-124t 落地后翻转为 scope: fp。
+    for ha, mnem in ((0x26, "ftmin"), (0x27, "ftmax"),
+                     (0x2E, "fomin"), (0x2F, "fomax")):
+        records.append(rec(mnem, mnem, "orrr", op,
+                           f_orrr("rfhb", "rfhc", "rfhd"),
+                           ["rfhb != rf0"], S07_MINMAX,
+                           ha=ha, scope="fp"))
 
 
 # ────────────────────────────── rule_refs 映射 ──────────────────────────────
@@ -738,6 +879,7 @@ EXPR_TO_RULE = OrderedDict([
     ("no_overlap(rdhb, rdhc, immu6)",             "mreg_range_overlap"),
     ("no_overlap(rbhb, rbhc, immu6)",             "mreg_range_overlap"),
     # ── FP（scope: fp）目的/范围（SPEC-089t；来源 contract-fp.md §15 + fp_semantics.yaml）──
+    ("rfha != rf0",                               "dst_rf0"),
     ("rfhb != rf0",                               "dst_rf0"),
     ("rfhc != rf0",                               "dst_rf0"),
     ("rfha + immu6 <= 64",                        "mreg_range_overflow"),
@@ -751,24 +893,35 @@ EXPR_TO_RULE = OrderedDict([
     ("aligned(8)",                                "excp_malign"),
     # ── SBZ / 位域 ──
     ("immu18[17:12] == 0",                        "encode_sbz"),
+    ("immu18[11:10] == 0",                        "encode_sbz"),
     ("immu18[11:6] == 0",                         "encode_sbz"),
     ("immu18[5:4] == 0",                          "encode_sbz"),
     ("immu6 <= 7",                                "encode_sbz"),
     ("immu6 <= 15",                               "encode_sbz"),
     ("immu6 <= 31",                               "encode_sbz"),
     ("immu6 <= 63",                               "encode_sbz"),
+    # ── one-hot（ADR-0012 D10 rev.*）：immu6 须为 2 的幂且 k < S（排除 k = S 恒等档）──
+    ("immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32",
+     "encode_onehot"),
+    ("immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16",
+     "encode_onehot"),
+    ("immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8", "encode_onehot"),
+    ("immu6 == 1 || immu6 == 2 || immu6 == 4",    "encode_onehot"),
 ])
 
 def _compute_rule_refs(records):
     """为每条记录计算 rule_refs 字段（list[str]，去重保序）。
 
     规则：
-    - scope == "excluded" ⇒ rule_refs: []（excluded 恒空，含 fence）
+    - scope == "excluded" ⇒ rule_refs: []（未实现指令不进规则清单，含 fence）
     - legality 为空 ⇒ rule_refs: []
     - 否则按 EXPR_TO_RULE 映射每条 legality 表达式；未知表达式触发 RuntimeError。
     """
     for r in records:
-        if r.get("scope") == "excluded" or not r.get("legality"):
+        if r.get("scope") == "excluded":
+            r["rule_refs"] = []
+            continue
+        if not r.get("legality"):
             r["rule_refs"] = []
             continue
         seen = set()
@@ -802,23 +955,30 @@ def main():
     n_fp = sum(1 for r in records if r.get("scope") == "fp")
     n_ex = sum(1 for r in records if r.get("scope") == "excluded")
     n_m3 = sum(1 for r in records if r.get("scope") == "m3")
+    n_m8 = sum(1 for r in records if r.get("scope") == "m8")
+    n_m9 = sum(1 for r in records if r.get("scope") == "m9")
     n_with_refs = sum(1 for r in records if r.get("rule_refs"))
 
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         f.write("# SimRISC 0.5.4 指令编码表（按 scope 划分范围）\n")
-        f.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/knowledge/contract-isa.md\n")
+        f.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md\n")
         f.write("# M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统\n")
         f.write("# scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；\n")
-        f.write("# scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，\n")
+        f.write("# scope: excluded 为核芯功能扩展（cfxld/cfxst），尚未实现，\n")
         f.write("#   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
         f.write("# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份\n")
+        f.write("# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + "
+                "D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份\n")
+        f.write("# scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b"
+                " + ADR-0035 GF(2) 无进位乘 clmul.o + fence/lr/sc 原子），非 M1 身份\n")
         f.write(f"# 共 {len(records)} 条：M1 {n_m1} 条 + scope fp {n_fp} 条"
-                f" + scope excluded {n_ex} 条 + scope m3 {n_m3} 条\n")
+                f" + scope excluded {n_ex} 条 + scope m3 {n_m3} 条 + scope m8 {n_m8} 条"
+                f" + scope m9 {n_m9} 条\n")
         f.write(f"# 有 rule_refs 的指令：{n_with_refs} 条\n\n")
         yaml.dump(records, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
     print(f"生成完成：{len(records)} 条（M1 {n_m1}，scope fp {n_fp}，scope excluded {n_ex}，"
-          f"scope m3 {n_m3}，有 rule_refs {n_with_refs}）-> {OUT_PATH}")
+          f"scope m3 {n_m3}，scope m8 {n_m8}，scope m9 {n_m9}，有 rule_refs {n_with_refs}）-> {OUT_PATH}")
 
 
 if __name__ == "__main__":

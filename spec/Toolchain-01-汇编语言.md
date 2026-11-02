@@ -1,10 +1,10 @@
 # DADAO 汇编语言规范
 
-> **状态**：**生效（0.5.0，2026-09-25，用户审核通过；修订：双目的/多寄存器语法，2026-09-28；完整版本记录见文末「附录：版本与变更记录」）**——语法已定稿；**实现待安排**（LLVM MC 的 parser/printer/disassembler 改动；当前汇编器实现的是旧语法）
+> **状态**：**当前（0.5.4-rc，未发布；0.5.3 定稿于 2026-10-19，用户裁定：注释符 `;`→`@@`、`;` 改语句分隔符；此前 0.5.2，2026-10-16，用户裁定：指令改名 `aip.si` / 正文术语 `IP` / 操作数按字节；原定稿 2026-09-25、修订：双目的/多寄存器语法，2026-09-28；完整版本记录见文末「附录：版本与变更记录」）**——语法已定稿；**实现待安排**（LLVM MC 的 parser/printer/disassembler 改动；当前汇编器实现的是旧语法）
 > **版本与变更记录细则**：版本号 `x.y.z`——**`x=0` 表示尚未正式发布；正式发布后 `x≥1`**；**大改动 `y+1`、有影响的小改 `z+1`**；当前版本见上行「状态」。
 > **变更记录见文末「附录：版本与变更记录」**（格式 = 「版本（日期）」小标题 + 列表项；**不用表格、不写「依据」**）。
 > **上位依据**：`ADR-0002 D4`（组件补丁与构建编排）；本规范的语法决策由 **`ADR-0013`《DADAO 汇编语言语法》冻结（Accepted，2026-09-28）**
-> **依赖**：`.tao/knowledge/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表，指令条数以此表为准）、`.tao/knowledge/contract-asm-list.md`（指令全表，自动生成自 `contracts/opcodes.yaml`；其中**浮点**章为 `scope: fp`（已实现）、**待定**章为 deferred）
+> **依赖**：`.tao/contracts/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表，指令条数以此表为准）、`.tao/contracts/contract-asm-list.md`（指令全表，自动生成自 `contracts/opcodes.yaml`；其中**浮点**章为 `scope: fp`（已实现）、**待定**章为 deferred）
 > **说明**：本规范按 ADR-0012 D4 由 spec 模块任务修改上游 `spec/`（SimRISC 系列）——上游将按本规定生成**新版本**文档（另行安排）
 > **关键词**：MUST / SHOULD / MAY 按 RFC 2119 解释
 
@@ -27,9 +27,11 @@
 - **（2026-10-08 修订）** 上一条的**大小写敏感**为本条现行口径；原「`ADD.SI` ≡ `add.si`」的**等价**规定经用户授权**撤销**（依据：`INTEG-019k D16` 裁定；关联 `ISS-157`——以「条款撤销」结案，非实现缺口）。
 
 ### 2.2 注释
-- `;` 起至行尾为注释（`CommentString = ";"`）。
+- `@@` 起至行尾为注释（`CommentString = "@@"`）。
+- `;` 是**语句分隔符**（`SeparatorString = ";"`）：`;` **MAY** 在同一行内分隔多条语句，其后的内容**不是**注释。例：`add.si rb1, -8 ; add.uo {rd0, rd8}, rd17, rd16 ; ret rd0, 0`（一行三条语句）。
 - `#` **不是**注释（保留给 C 预处理器 `#include`/`#define`/`#if` 等）。
 - `//` 与 `/* … */` **不采用**。
+- **理由**：单一 `@` 出现在 ELF 指令中（如 `.type <sym>,@function`）⇒ 注释符取两字符 `@@`，以免误吞。
 
 ### 2.3 标识符与标签
 - 标识符字符集：`[A-Za-z0-9_$.?]`（`.`/`?` 亦属标识符字符，见 §3.3 的注意）。
@@ -39,7 +41,7 @@
 - 立即数**MAY**写为十进制、`0x…`（十六进制）、`0b…`（二进制）、负数（前导 `-`）；下划线分隔符**MUST NOT** 使用。
 - 立即数位置接受完整的常量表达式（`+ - * / % & | ^ << >> == != < <= > >= && ||` 与一元 `! ~ - +`、括号分组）。
 - **地址立即数**：跳转/分支目标偏移与 escape 偏移的单位为**字节**，**不含任何单位标记**。装配器将其右移 2 位写入编码字段；汇编器**校验** `%4==0` 与范围。字段名映射见 §3.1。
-- **取值范围**：各立即数字段的位宽与取值范围见 `.tao/knowledge/contract-asm-list.md` 的「立即数范围速查」（标注 `u`/`s`）。**越界 MUST 报错**（当前实现为静默环绕，属缺陷，见 `contract-asm.md §11`）。
+- **取值范围**：各立即数字段的位宽与取值范围见 `.tao/contracts/contract-asm-list.md` 的「立即数范围速查」（标注 `u`/`s`）。**越界 MUST 报错**（当前实现为静默环绕，属缺陷，见 `contract-asm.md §11`）。
 
 ### 2.5 寄存器名
 - 四组：`rd0`–`rd63`、`rb0`–`rb63`、`ra0`–`ra63`、`rf0`–`rf63`（RF 属 `scope: fp`）。
@@ -66,7 +68,7 @@
 - **iiii 跳转/分支**（`jump`/`call` 的 iiii 形式、`br.*`）：目标 = `基址 + 立即数`（**字节**，`imms26`/`imms20`/`imms14`）。例：`jump [rb0, 8]` ⇒ `rb0 + 8`。
 - **rrii 跳转**（`jump`/`call` 的 rrii 形式）：目标 = `基址 + 寄存器偏移 + 立即数`（**字节**，`imms14`）。例：`jump [rb3, rd0, 96]` ⇒ `rb3 + rd0 + 96`。
 - **相对跳转的基址**：**iiii 形式**的基址 **MUST** 为 `rb0`（当前指令地址）；基址非 `rb0` 而指令为 iiii 形式时 **MUST** 报错。rrii 形式的基址 **MAY** 为任意 RB 寄存器。
-- **字段名映射**：汇编层 ×4 地址字段的名称与编码层不同——`imms14`（汇编，字节）⇔ 编码 `imms12`（`field = bytes >> 2`）、`imms20`（汇编）⇔ `imms18`（编码）、`imms26`（汇编）⇔ `imms24`（编码）。访存的 `imms12` 与 `ret` 的 `imms18` 不在映射范围内（值非地址）。
+- **字段名映射**：汇编层地址字段的名称与编码层不同——`imms14`（汇编，字节）⇔ 编码 `imms12`（`field = bytes >> 2`）、`imms20`（汇编）⇔ `imms18`（编码）、`imms26`（汇编）⇔ `imms24`（编码）（以上为 **×4 组**，服务跳转/分支）；**`imms30`（汇编，字节）⇔ 编码 `imms18`（`field = bytes >> 12`，即 4 KiB 块）**，服务 `aip.si`（**×4096 组**：与 ×4 组同旨——汇编层按字节书写、编码层按块——但倍数不同）。访存的 `imms12` 与 `ret` 的 `imms18` 不在映射范围内（值非地址）。
 
 ### 3.3 示例
 | 场景 | 写法 |
@@ -102,6 +104,7 @@
 - **范围**：`{rd3:rd8}`——表示 `rd3` 到 `rd8` 的**连续**寄存器；分隔符**MUST**为 `:`（不是 `-`）。
 - **条件寄存器**：`?` **MUST** 紧跟 `}` 之后，标记「该组寄存器用于条件判断」。**MUST NOT** 写在寄存器名之后（`rd3?` 会被词法解析为单个标识符）。
 - **双目的指令**：`rrrr` 格式中 `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 的 `rdha` 和 `rdhb` 均为 dst。书写格式：`助记符 {rdHA, rdHB}, rdHC, rdHD`。花括号内逗号后加空格（与整体风格一致）。
+- **单目的指令**：`rrrr` 格式中 `ftfma`/`fofma` 的 `rfha` 为唯一 dst、`rfhb`/`rfhc`/`rfhd` 为源（**1 目的 + 3 源**）。书写格式：`助记符 dst, src1, src2, src3`，即四个普通寄存器，**不带** `{}`（例：`ftfma rf8, rf9, rf10, rf11`）。`{}` 的双元素形只用于上条的**双目的寄存器对**；判据按**实际形态**（`contracts/opcodes.yaml` 的 `fields[].role`）而非格式名，见 §5 与 `check-asm-prose` R6。
 - **多寄存器指令**（`ldm.*`/`stm.*`）：目的寄存器与**个数**合并为寄存器组，**个数 MUST NOT 显式书写**（由组推出）。
   - 例：`ldm.ub {rd8:rd10}, [rb0, rd1]` ≡ 旧写法 `ldm.ub rd8, rb0, rd1, 3`。
   - **MUST** 校验：`{}` 不得为空；起点+个数**MUST NOT**越出 `rd63`；个数为 0 **MUST** 报错。
@@ -139,11 +142,12 @@
 | 格式类 | 语法（记法） | 示例 | 单位说明 |
 |---|---|---|---|
 | `rrrr`（双目的） | `助记符 {dst1, dst2}, src1, src2` | `add.uo {rd8, rd9}, rd10, rd11` | — |
+| `rrrr`（单目的） | `助记符 dst, src1, src2, src3` | `ftfma rf8, rf9, rf10, rf11` | — |
 | `rrrr`（cs.n/z/p） | `助记符 {cond}?, dst, src1, src2` | `cs.n {rd1}?, rd2, rd3, rd4` | — |
 | `rrrr`（cs.eq/ne） | `助记符 {cond1, cond2}?, dst, src` | `cs.eq {rd8, rd0}?, rd9, rd10` | — |
 | `rrri` | `助记符 {dst:…}, [base, offset]` | `ldm.ub {rd8:rd10}, [rb0, rd1]` | count 省略 |
 | `rrii` | `助记符 dst, [base, offset]`；`jump`/`call` 为 `助记符 [base, reg, offset]` | `ld.ub rd8, [rb2, 1]`；`jump [rb3, rd0, 96]` | 访存偏移 = 字节；跳转偏移 = 字节 |
-| `riii` | `助记符 dst, imm` / `助记符 {dst}?, [rb0, off]`（分支） | `add.si rd8, 1`；`br.n {rd0}?, [rb0, 16]` | 分支偏移 = 字节 |
+| `riii` | `助记符 dst, imm` / `助记符 {dst}?, [rb0, off]`（分支） | `add.si rd8, 1`；`br.n {rd0}?, [rb0, 16]` | 分支偏移 = 字节；`aip.si` 偏移 = 字节（编码层 4 KiB 块） |
 | `iiii` | `助记符 [rb0, off]`（`jump`/`call`） | `jump [rb0, 8]` | 偏移 = 字节 |
 | `rwii` | `助记符 dst, wpN, immu16` | `set.zw rd8, wp2, 0x1234` | wyde 位置保持 `wpN` |
 | `orrr` | `助记符 dst, src1, src2` | `or.o rd8, rd9, rd10` | — |
@@ -151,17 +155,27 @@
 | `orri`（块赋值/格式转换） | `助记符 {dst:…}, {src:…}` | `ra2rd {rd8:rd10}, {ra1:ra3}` | `immu6` = 连续寄存器个数 |
 | `oiii` | `助记符 immu18` | `fence 0`、`swym 0` | 纯立即数，不加 `[]` |
 
+`rrrr` 的两种目的形态（与上表首行/次行对应）：
+
+```simrisc
+@@ 双目的：加/减/乘写两个目的寄存器（`{}` 为双目的寄存器对）
+add.uo  {rd8, rd9}, rd10, rd11
+@@ 单目的：融合乘加 = 1 目的 + 3 源，四个普通寄存器（不带 `{}`）
+ftfma   rf8, rf9, rf10, rf11
+```
+
 **特权 cfx 格式（`crrr`/`crii`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**；其中 `crrr`/`ciii` 现为 `scope: m1`，`crii` 仍为 `scope: excluded`）：
 - `cfxld cfx63, [rb2, 1]`、`cfxst cfx63, [rb2, 1]`——`cfxha` 写作 `cfxHA`（测试机为 `cfx63` = power），末两操作数为**地址**。
 - `cfx2rd cfx63, cg8, rc1, rd8`、`cfx2rc …`——字段占位为 `cfxHA, cgHB, rcHC, rdHD`；中间两操作数分别是 **`cg` 寄存器**与 **`rc` 寄存器**，各自命名。
-- `lr_nn.o rd9, [rb1]`——**两个操作数**：`rdHB` 固定为 `rd0`（**不在汇编中出现**，手工编码 `hb ≠ 0` → ILLI），故只写「目的寄存器 `rdHC` + 地址 `rbHD`」。
-- `sc_nn.o rd8, rd9, [rb1]`——**三个操作数**：`rdHB`(成功/失败结果)、`rdHC`(源)、地址 `rbHD`。
+- `lr.o.nn rd9, [rb1]`——**两个操作数**：`rdHB` 固定为 `rd0`（**不在汇编中出现**，手工编码 `hb ≠ 0` → ILLI），故只写「目的寄存器 `rdHC` + 地址 `rbHD`」。
+- `sc.o.nn rd8, rd9, [rb1]`——**三个操作数**：`rdHB`(成功/失败结果)、`rdHC`(源)、地址 `rbHD`。
 - `escape cfx63, [excp_cause_ip, 4]`——`cfxha` 写作 `cfxHA`；第二个参数是**字节偏移**（汇编层 `imms20`，须 `%4==0`），其基址**不是 `rb0`**，而是**异常进入时保存的地址 `excp_cause_ip`**（该基址**不在编码中**，与 `jump-iiii` 的 `rb0` 同构，故同样**显式写出**）。编码层 `Addr = excp_cause_ip + (imms18 << 2)`。
 - `trap cfx63, 1`——`cfxha` 写作 `cfxHA`；其立即数**与地址无关**，**不加** `[]`。
 
 **特例**：
 - `ret rd0, 0`：`imms18` 为返回值，**不是**地址，**不加** `[]`。
 - `jump`/`call` 的 rrii 形式：`jump [rb3, rd0, 96]`（基址 `rb3` 可为任意 RB；仅 **iiii** 形式要求基址为 `rb0`）。
+- `aip.si rbHA, imms30`：汇编层操作数 `imms30` 的单位是**字节**（**须为 4 KiB 整数倍**，范围 ±512 MiB），**不加** `[]`；编码层 `imms18 = imms30 >> 12`（4 KiB 块）。目标 = **该指令自身地址（即 `IP`）** + `imms30`——基址为 `IP`（= `rb0` 读出值、**该指令自身地址**）、低位**不清零**。形如 `aip.si rb2, 4096`（⇒ `rb2` = `IP` + 4096）。
 
 ---
 
@@ -175,9 +189,9 @@
 
 | 伪指令 | 语法 | 展开 |
 |---|---|---|
-| `set.rd` | `set.rd rd, imm64` | 常量 → **最少指令数**（`set.zw`/`set.ow` + `or.w`/`andn.w`，≤4 条）；符号/可重定位 → **固定 3 片** + `R_DADAO_ABS48`（`ADR-0019`） |
+| `set.rd` | `set.rd rd, imm64` | 常量 → **最少指令数**（`set.zw`/`set.ow` + `or.w`/`andn.w`，≤4 条）；**偏移地址（disp）** → **有符号数**、**不限指令数**（按值所需片数展开，≤4 条） |
 | `set.rd` | `set.rd rd, rs` | `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` |
-| `set.rb` | `set.rb rb, imm64` | `set.zw-rb` + `or.w-rb` 组合 |
+| `set.rb` | `set.rb rb, imm64` | `set.zw-rb` + `or.w-rb` 组合；符号/可重定位（**地址**）→ **固定 3 片** + `R_DADAO_ABS48`（`ADR-0019`） |
 | `set.rb` | `set.rb rb, rs` | `rd2rb`/`rb2rb` |
 | `set.ft` | `set.ft rf, imm32` | 2 条 `set.w` |
 | `set.ft` | `set.ft rf, rs` | `rd2rf`/`ft2ft` |
@@ -186,10 +200,10 @@
 
 **展开规则**（`MUST`）：
 
-- **常量 vs 符号**：第二操作数为**可汇编期求值的常量** → 采用「最少指令数」展开；为**符号 / 可重定位** → **固定 3 片** + 重定位类型 `R_DADAO_ABS48`（`ADR-0019 D4/D5`）。同段可解析的表达式按可求值处理；跨段/外部按符号处理。
+- **常量 vs 符号**：第二操作数为**可汇编期求值的常量** → 采用「最少指令数」展开；为**符号 / 可重定位** → 按**操作数语义**区分：**地址操作数**（`set.rb rb, <sym>`）→ **固定 3 片** + 重定位类型 `R_DADAO_ABS48`（`ADR-0019 D4/D5`）；**偏移地址**（`set.rd rd, <disp>`）→ **有符号数**、**不限指令数**。同段可解析的表达式按可求值处理；跨段/外部按符号处理。
 - **`set.rb` 细节**：允许 `wp0–wp3`（wyde 位置不限制）；**其为地址时 MUST ≤48 位**；**不补 `set.ow-rb`**（rb 无 `set.ow` 变体）——不对称性注明：64 位全 1 需 `set.zw` + 3×`or.w` = 4 条，而 `set.rd` 用 `set.ow` 仅 1 条。
 - **`set.fo` 展开细节**（`ISS-156`，2026-10-08 用户授权修订，取代原「固定 `set.w` 组合」口径）：`set.fo rf, imm64` 展开为 **`rd2rf rf, rd0`（`rd0` 恒为 0，一条指令清零目的 `rf`）**，**再加**对每个**非零** 16 位 wyde 各一条 `set.w rf, wpN, <wyde>`（**零 wyde 不再逐条 `set.w`**）；`set.fo rf, 0` ⇒ **仅 `rd2rf rf, rd0`，1 条**。
-- `set.rd`/`set.rb`/`set.ft`/`set.fo` 的 wyde 级展开示例见 `SimRISC-03 §set.rd/set.rb/set.ft/set.fo 伪指令`（`SimRISC-03` 为该节的展开示例投影，定义以本节为准）。
+- `set.rd`/`set.rb`/`set.ft`/`set.fo` 的 wyde 级展开示例见 `SimRISC-03`（`SimRISC-03` 为该展开示例的投影，定义以本节为准）。
 
 ### 6.2 删除（不实现，10 条）
 
@@ -201,11 +215,11 @@
 - `neg.{b,w,t,o}` → `sub.sX`（按位宽映射为 `sub.sb`/`sub.sw`/`sub.st`/`sub.so`）。
 
 ```simrisc
-; 被删伪指令的替代——直接书写真实指令
-swym    0                       ; 旧 `nop`
-ret     rd0, 0                  ; 旧 `return`
-xnor.o  rd16, rd31, rd0         ; 旧 `not.o`（64 位取反）
-sub.so  {rd0, rd3}, rd0, rd4    ; 旧 `neg.o`（64 位取负，双目的写回 rd3）
+@@ 被删伪指令的替代——直接书写真实指令
+swym    0                       @@ 旧 `nop`
+ret     rd0, 0                  @@ 旧 `return`
+xnor.o  rd16, rd31, rd0         @@ 旧 `not.o`（64 位取反）
+sub.so  {rd0, rd3}, rd0, rd4    @@ 旧 `neg.o`（64 位取负，双目的写回 rd3）
 ```
 
 **`ret` 语法**：保持 `ret rdHA, imms18` **显式**两操作数；**不加无参形态**（故被删的 `return` 用 `ret rd0, 0` 表达）。
@@ -268,7 +282,7 @@ sub.so  {rd0, rd3}, rd0, rd4    ; 旧 `neg.o`（64 位取负，双目的写回 r
 
 ## 11. 实现状态与缺口
 
-> **内容已移出**：实现状态见 `.tao/knowledge/contract-asm.md §11`（状态表）；缺口登记见 `.tao/knowledge/issues.yaml`。
+> **内容已移出**：实现状态见 `.tao/contracts/contract-asm.md §11`（状态表）；缺口登记见 `.tao/knowledge/issues.yaml`。
 
 ---
 
@@ -280,7 +294,7 @@ sub.so  {rd0, rd3}, rd0, rd4    ; 旧 `neg.o`（64 位取负，双目的写回 r
 
 ## 13. cfx 别名约定
 
-> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）；其**决策与理由**见 `ADR-0017`（`.tao/adr/adr-0017-cfx-assembly-aliases.md`）。**别名表**为机械生成的**投影**——`.tao/knowledge/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），**不属于**本规范正文。cfx 中 `cfx2rd`/`cfx2rc`（`crrr`）与 `trap`/`escape`（`ciii`）为 `scope: m1`；`cfxld`/`cfxst`（`crii`）为 `scope: excluded`。本节约定随 M2 落地。
+> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）；其**决策与理由**见 `ADR-0017`（`.tao/adr/adr-0017-cfx-assembly-aliases.md`）。**别名表**为机械生成的**投影**——`.tao/contracts/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），**不属于**本规范正文。cfx 中 `cfx2rd`/`cfx2rc`（`crrr`）与 `trap`/`escape`（`ciii`）为 `scope: m1`；`cfxld`/`cfxst`（`crii`）为 `scope: excluded`。本节约定随 M2 落地。
 
 ### 13.1 归属与形态（D1/D2）
 - cfx 别名属**汇编规范**：由汇编器内置**符号表**解析，**不引入** cpp 头文件/宏。
@@ -316,13 +330,13 @@ sub.so  {rd0, rd3}, rd0, rd4    ; 旧 `neg.o`（64 位取负，双目的写回 r
 ### 13.8 示例
 
 ```
-cfx2rc cfx_smon_supv_excp_vector, rd2        ; 别名形
-cfx2rc cfx_smon, cg2, rc0, rd2               ; 规范长形（与上行等价）
-cfx2rd cfx_timer_regs[0], rd2                ; 数组单下标
-escape cfx_smon, [excp_cause_ip, 4]          ; cfxha 写作标量别名
+cfx2rc cfx_smon_supv_excp_vector, rd2        @@ 别名形
+cfx2rc cfx_smon, cg2, rc0, rd2               @@ 规范长形（与上行等价）
+cfx2rd cfx_ptw_ptbr[0], rd2                  @@ 数组单下标
+escape cfx_smon, [excp_cause_ip, 4]          @@ cfxha 写作标量别名
 ```
 
-> 别名表投影（`.tao/knowledge/contract-cfx-aliases.md`）随 spec 寄存器表机械重算，**禁止手工维护**；上述示例均由该表展开所得。
+> 别名表投影（`.tao/contracts/contract-cfx-aliases.md`）随 spec 寄存器表机械重算，**禁止手工维护**；上述示例均由该表展开所得。
 
 ---
 
@@ -334,7 +348,26 @@ escape cfx_smon, [excp_cause_ip, 4]          ; cfxha 写作标量别名
 
 ## 附录：版本与变更记录
 
-> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
+
+### 0.5.4-rc（未发布）
+
+- §13.8 数组单下标示例随 `cfx_time` 改名改用 `cfx_ptw_ptbr[0]`。
+
+### 0.5.3（2026-10-19）
+
+- §2.2：行注释符 `;` → **`@@`**（`CommentString = "@@"`）；`;` 改为**语句分隔符**（`SeparatorString = ";"`），允许一行多条语句。
+- 理由：单一 `@` 出现在 ELF 指令（`.type <sym>,@function`）中 ⇒ 注释符取两字符 `@@`，以免误吞。
+- §6.2 / §13.8 示例的注释符同步改为 `@@`。
+
+### 0.5.2（2026-10-16）
+
+- 指令改名：`rela.si` → **`aip.si`**（IP 相对寻址；`riii` / 编码 `0x5A` 不变）；正文术语 `PC` → **`IP`**（`IP` = **当前正在执行的指令的地址**，非主流 ISA 的「下一条」口径；本 ISA 无 `±4` 流水偏移）。
+- §3.2 / §5：`aip.si` 的汇编层操作数改按**字节**书写、字段名 **`imms30`**（须为 4 KiB 整数倍，范围 ±512 MiB）⇒ 编码层 `imms18 = imms30 >> 12`（4 KiB 块）；与 ×4 组（`imms14`/`imms20`/`imms26`）同旨、倍数不同；原「单位 = 4 KiB 块」表述撤回。
+
+### 0.5.1（2026-10-16）
+
+- `riii` 形态补 PC 相对寻址指令 `rela.si rbHA, imms18`：立即数单位为 **4 KiB 块**（`<<12`，非字节），目标 = 该指令**自身地址** + (`imms18` << 12)、低位不清零；目的 `rb0` 触发 ILLI。
 
 ### 0.5.0（2026-10-10）
 
@@ -346,7 +379,7 @@ escape cfx_smon, [excp_cause_ip, 4]          ; cfxha 写作标量别名
 
 ### 0.3.2（2026-10-09）
 
-- 重定位正文（`REL12` = rb0 PC 相对 S+A−P、`ABS12` = rb1–rb63 S+A、`NUM` = 6）；`ABS48` 数据按 8 字节；§6.1 `set.fo` 口径。
+- 重定位正文（`REL12` = rb0 PC 相对 S+A−P、`ABS12` = rb1–rb63 S+A）；`ABS48` 数据按 8 字节；§6.1 `set.fo` 口径。
 
 ### 0.3.1（2026-10-08）
 

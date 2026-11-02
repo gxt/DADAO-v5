@@ -10,9 +10,9 @@ work_root = ".work"
 name = "llvm-project"
 enabled = true
 repository = "https://github.com/llvm/llvm-project.git"
-commit = "6dfe1677ab8dffbc6ec13d53a1e0215d75147689"
+commit = "0d261d1ca552c95a8f007e061c787ac7132fbcbc"
 shallow = true
-shallow_ref = "llvmorg-23.1.1"
+shallow_ref = "llvmorg-23.1.3"
 patch_dir = "components/llvm-project/patches"
 patch_series = "components/llvm-project/series"
 role = "LLVM MC + CodeGen"
@@ -66,3 +66,244 @@ shallow_ref = "1.8.12"
 patch_dir = "components/picolibc/patches"
 patch_series = "components/picolibc/series"
 role = "C library for embedded systems + its upstream test suite (M7 test focus)"
+
+# Chipyard is a *reference platform* (ADR-0024 D1), not a v5 delivered
+# component: it carries NO patch set (ADR-0024 "Chipyard does not enter the v5
+# component patch set"). Its exact baseline is the pinned commit plus the
+# submodule snapshot in manifests/chipyard-submodules.lock.toml (ADR-0024 D2).
+[[component]]
+name = "chipyard"
+enabled = true
+repository = "https://github.com/ucb-bar/chipyard.git"
+commit = "0acc1e1de2d3284bcd4d876956932a013ffe1949"
+shallow = true
+shallow_ref = "1.14.0"
+# Explicit "reference-only, no patch set" flag (ADR-0024 D1): it is what lets
+# the gates accept the ABSENCE of patch_dir/patch_series for this component
+# only. Declaring patch_dir/patch_series alongside it is rejected (no smuggling
+# patches into a component the patch-tree gate skips).
+patchless = true
+role = "RTL SoC simulation (Verilator/RTL reference platform)"
+
+[[component.source]]
+name = "gitclone"
+url = "https://gitclone.com/github.com/ucb-bar/chipyard"
+
+[[component.source]]
+name = "ghfast"
+url = "https://ghfast.top/https://github.com/ucb-bar/chipyard"
+
+# Linux kernel source — a *reference input* for M8's Linux user-space stack
+# (ADR-0025 D2: no kernel target). It supplies the syscall number table that
+# SPEC-138t pins against (asm-generic/unistd.h +
+# arch/riscv/include/uapi/asm/unistd.h); v5 neither builds nor patches any of
+# it, so it carries NO patch set (see `patchless` below, same class as
+# chipyard / ADR-0024 D1).
+#
+# Source form: a git baseline (user ruling 2026-10-14), so any local change can
+# always be turned into a diff/patch. The signed tarball in .cache/
+# (linux-7.2.10.tar.xz, sha256 2feaa70453e91f541be6a5c9078d8168e081af45a3d971
+# 8054850538cff2ebf3, plus .tar.sign) is kept as a *verification artefact* only
+# and must never be used as the component source (a tarball cannot produce a
+# git diff).
+#
+# `commit` is the commit that the annotated tag object `v7.2.10` peels to
+# (`git rev-parse v7.2.10^{}`); the tag object itself
+# (57eee103859fa039a1f2bf343c4453ef40661be8, what `git ls-remote` reports for
+# refs/tags/v7.2.10) is NOT a commit and must not be recorded here — same
+# convention as qemu, whose recorded commit is likewise the peeled commit and
+# not its tag object.
+[[component]]
+name = "linux"
+enabled = true
+repository = "https://mirrors.tuna.tsinghua.edu.cn/git/linux-stable.git"
+commit = "7b20d05fd38de8e0be168956f6fd241d750c7d69"
+shallow = true
+shallow_ref = "v7.2.10"
+patchless = true
+role = "Linux syscall numbering-table source (reference input; no v5 patch set)"
+
+# Primary mirror = TUNA (user ruling 2026-10-14: TUNA 主). It is listed as an
+# explicit source[0] -- not just via `repository` -- because
+# tools/infra/fetch.py::select_source prefers source[0] over `repository` when
+# a source list is present. The URL is identical to `repository` above.
+[[component.source]]
+name = "tuna"
+url = "https://mirrors.tuna.tsinghua.edu.cn/git/linux-stable.git"
+
+# Backup source.
+[[component.source]]
+name = "kernel-org"
+url = "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
+
+# LLVM test-suite — a *benchmark/baseline suite* input for M8 (user ruling
+# 2026-10-14: source github.com/llvm/llvm-test-suite, tag 23.1.3). A reference
+# input, not a v5-patched component, so it carries NO patch set (`patchless`,
+# same class as chipyard ADR-0024 D1 / linux).
+#
+# Tag form (2026-10-14, `git cat-file -t`): `llvmorg-23.1.3` is an *annotated*
+# tag (type = tag, PGP-signed); its tag object is
+# 7fa03005193c4cc9b882e0b70f9f43a088c52033. The `commit` below is the commit it
+# peels to (`git rev-parse 'llvmorg-23.1.3^{}'`) — a tag object is NOT a commit
+# and must not be recorded here (same convention as qemu / linux).
+#
+# Version delta note: every `llvmorg-23.1.{0,1,2,3}` tag peels to the SAME
+# commit 2919e551..., so the 23.1.3 tag yields exactly the tree of the 23.1.1
+# tag; our llvm-project delta (built at `llvmorg-23.1.1`) causes no test-suite
+# content delta.
+#
+# Mirror reality (2026-10-14): ghfast.top and gitclone.com answer `ls-remote`
+# but both returned HTTP 504 on the ~294 MB single-tag packfile; direct github
+# timed out (curl 124). gh-proxy.com completed the shallow bare clone
+# (294 MB, 252 s) and is listed first so `make fetch` stays reproducible; the
+# other two stay as backups.
+[[component]]
+name = "llvm-test-suite"
+enabled = true
+repository = "https://github.com/llvm/llvm-test-suite.git"
+commit = "2919e55176a572ee085cb46b291c47b7092c363e"
+shallow = true
+shallow_ref = "llvmorg-23.1.3"
+patchless = true
+role = "LLVM test-suite 23.1.3 (benchmark/baseline input; External/ = SPEC, excluded; baseline run deferred until musl static/dynamic works)"
+
+# Primary mirror = the channel that actually completed the packfile fetch
+# (see the mirror-reality note above).
+[[component.source]]
+name = "gh-proxy"
+url = "https://gh-proxy.com/https://github.com/llvm/llvm-test-suite.git"
+
+# Backups: answer ls-remote but returned HTTP 504 on the shallow packfile.
+[[component.source]]
+name = "ghfast"
+url = "https://ghfast.top/https://github.com/llvm/llvm-test-suite.git"
+
+[[component.source]]
+name = "gitclone"
+url = "https://gitclone.com/github.com/llvm/llvm-test-suite.git"
+
+# musl libc -- the sole C-library base of M8's Linux user-space stack
+# (ADR-0025 D2/D6): P1 musl static and P2 dynamic linking (ldso taken from musl
+# itself, ADR-0025 D3) both build on this tree. It is fetched at the pin below
+# and locked here.
+#
+# It carries NO v5 patch set yet (`patchless`, same class as chipyard
+# ADR-0024 D1 / linux / llvm-test-suite), because the `arch/dadao` port does
+# not exist yet -- that is a separate follow-up task. This flag is what lets
+# the gates accept the ABSENCE of patch_dir/patch_series; declaring either
+# alongside it is rejected (no smuggling patches into a component the
+# patch-tree gate skips). Drop `patchless` and add the two fields in the same
+# commit that lands the first `arch/dadao` patch.
+#
+# Tag form (2026-10-15, `git cat-file -t`): `v1.2.6` is a *lightweight* tag --
+# `refs/tags/v1.2.6` IS the commit 9fa28ece... and peels to the same object
+# (`rev-parse 'refs/tags/v1.2.6^{}'` = 9fa28ece...), and `ls-remote` reports no
+# `^{}` line for it. So, unlike linux v7.2.10 / llvm-test-suite llvmorg-23.1.3
+# (annotated tags whose tag object is NOT a commit), there is no tag-object
+# vs commit split to resolve here: the recorded commit is both.
+#
+# No mirror source[] list: the canonical host (git.musl-libc.org) answered a
+# direct `ls-remote` for the tag, so no backup source is registered -- same
+# shape as picolibc / embench-iot.
+[[component]]
+name = "musl"
+enabled = true
+repository = "https://git.musl-libc.org/git/musl"
+commit = "9fa28ece75d8a2191de7c5bb53bed224c5947417"
+shallow = true
+shallow_ref = "v1.2.6"
+# `patchless` removed and the two fields added by INFRA-082t (2026-10-15, stage
+# A2), i.e. in the same commit that lands the first `arch/dadao` patch -- as the
+# note above requires. The patch set is the DADAO port itself: arch/dadao/**,
+# src/{setjmp,thread}/dadao/**, plus the one upstream file that must know the
+# arch (configure).
+patch_dir = "components/musl/patches"
+patch_series = "components/musl/series"
+role = "C library base for the M8 Linux user-space stack (musl static + musl ldso dynamic); carries the v5 DADAO port patch set (static minimal set, P1)"
+
+# libc-test -- the musl/Linux user-space *conformance test suite* feeding M8
+# (ADR-0025 D6): a corpus independent of our own implementation, used to judge
+# whether the musl port (P1 static / P2 dynamic) holds. A reference/test input,
+# not a v5-patched component, so it carries NO patch set (`patchless`, same
+# class as chipyard ADR-0024 D1 / linux / llvm-test-suite / musl).
+#
+# User ruling (2026-10-15, original words): "libc-test取最新版本即可" -- with the
+# source fixed on 2026-10-14 ("libc-test: https://github.com/kraj/libc-test").
+# So the pin below is the CURRENT tip of the default branch at fetch time,
+# locked as an exact commit. The earlier registration in INFRA-076t (the 2022-03
+# snapshot b7ec4679...) is SUPERSEDED: the value is in fact identical, because
+# upstream master has not moved -- what changed is the policy ("snapshot" ->
+# "latest commit, locked"), not the sha. Recorded as-is, no invented delta.
+#
+# Reproducibility note (2026-10-15, live): the repo has NO tags and its default
+# branch is `master`, so the pin is a *branch tip* commit. A shallow bare mirror
+# (`--depth 1 --branch master`, ADR-0006 D2) only follows the tracked ref and
+# would lose the pin as soon as upstream advances, i.e. the pin would stop being
+# reproducible. Hence `shallow = false`: a full `git clone --mirror`, which here
+# costs only ~2.6 MB (upstream has been dormant since 2022-03).
+#
+# Channel reality (2026-10-15, live): `git ls-remote` answered on direct github,
+# gh-proxy.com and ghfast.top (all three reported the same HEAD); a full
+# `--mirror` clone completed on gh-proxy.com (2 s) and on direct github (7 s).
+# INFRA-076t recorded a direct `ls-remote` timeout on 2026-10-14 for this same
+# repo, so gh-proxy.com stays source[0] (the default for `make fetch`); direct
+# github is registered as a named backup
+# (`COMPONENT_SOURCE_LIBC-TEST=github`).
+[[component]]
+name = "libc-test"
+enabled = true
+repository = "https://github.com/kraj/libc-test.git"
+commit = "b7ec467969a53756258778fa7d9b045f912d1c93"
+shallow = false
+patchless = true
+role = "musl/Linux user-space conformance test suite (M8 P1/P2 validation input; no v5 patch set)"
+
+[[component.source]]
+name = "gh-proxy"
+url = "https://gh-proxy.com/https://github.com/kraj/libc-test.git"
+
+[[component.source]]
+name = "github"
+url = "https://github.com/kraj/libc-test.git"
+
+# ansibench -- a pure ANSI C (C90) *timing* benchmark collection feeding the
+# testcases module (ADR-0033 D1/D3). 8 dirs of benches (coremark/dhrystone/
+# hint/linpack/nbench/stream/tripforce/whetstone) + utilities/mk support.
+# A benchmark *corpus* (reference input), not a v5-patched component, so it
+# carries NO patch set (`patchless`, same class as llvm-test-suite/libc-test).
+# It is NOT a correctness oracle: the only self-check is CoreMark's own CRC;
+# the rest just print timings, and qemu user-mode timings are only usable as
+# *relative* comparisons (ADR-0033 D3). Not wired into L1/L2/L3 (D5).
+#
+# User ruling (2026-10-20, original words): "创建任务，下载并测试：
+# https://github.com/nfinit/ansibench.git；就用这个仓库最新的commit锁定即可"
+# -- so the pin is the CURRENT tip of the default branch, locked as an exact
+# commit.
+#
+# Reproducibility note (2026-10-20, live): the repo has NO tags and its default
+# branch is `master`, so the pin is a *branch tip* commit. A shallow bare mirror
+# (`--depth 1 --branch master`, ADR-0006 D2) only follows the tracked ref and
+# would lose the pin as soon as upstream advances. Hence `shallow = false`: a
+# full `git clone --mirror`, which here costs only ~1.8 MB.
+#
+# Channel reality (2026-10-20, live): direct github `git ls-remote` timed out
+# (`timeout 40` -> rc=124); gh-proxy.com answered rc=0 and reported HEAD =
+# refs/heads/master = the pin below. So gh-proxy.com is source[0] (the default
+# for `make fetch`) and direct github is registered as a named backup
+# (`COMPONENT_SOURCE_ANSIBENCH=github`) -- same shape as libc-test.
+[[component]]
+name = "ansibench"
+enabled = true
+repository = "https://github.com/nfinit/ansibench.git"
+commit = "ef90abd09d7b7bb1f2809f896d6f67fb9724bebe"
+shallow = false
+patchless = true
+role = "ANSI C benchmark corpus"
+
+[[component.source]]
+name = "gh-proxy"
+url = "https://gh-proxy.com/https://github.com/nfinit/ansibench.git"
+
+[[component.source]]
+name = "github"
+url = "https://github.com/nfinit/ansibench.git"

@@ -18,10 +18,11 @@
 首读 `.tao/README.md`（角色/命令/流程/结构）+ `.tao/knowledge/MEMORY.md`（当前状态），再读 `.tao/tasks/` 下当前模块任务。
 
 ## 核心原则
-- **Spec-first**：编码/语义期望值来自 `.tao/knowledge/contract-*.md`，不从实现反推。
+- **Spec-first**：编码/语义期望值来自 `.tao/contracts/contract-*.md`，不从实现反推。
 - **Independent oracle**：测试向量不从 LLVM/QEMU 生成，须独立派生自 `spec/`。
 - **Component lock**：LLVM/QEMU/gem5 以 `manifests/` 精确 commit 锁定，不用 tag/branch。
 - **里程碑 TDD**：自 M4 起每里程碑先立测试向量/门控、再实现（L1 编码/L2 结构/L3 执行，见 `docs/Process-05`）；「一能力一向量」、规模 ∝ 能力。
+- **新组件须问模块归属**：出现新组件（上游仓库／第三方源）时，须询问用户"**对应任务是否放入新的任务模块**"；未确认前按既有模块归口。
 
 ## 参考来源与任务自包含
 - 任务书必须**自包含**：执行所需事实/格式/模板写入任务书或 v5 自身知识，不依赖外部仓库内容。
@@ -39,16 +40,19 @@
 DADAO-v5/
 ├── AGENTS.md              # 本文件（可执行规则）
 ├── README.md              # 项目总览
-├── .tao/                  # 交互目录（任务/知识/ADR/日志）
+├── .tao/                  # 交互目录（任务/知识/ADR/日志/契约）
 │   ├── tasks/<module>/    # 任务文件 <PREFIX>-nnn<suffix>-描述.md
-│   ├── knowledge/         # 合约（contract-*.md）与台账（MEMORY/milestones/issues/lessons）
-│   └── adr/               # 架构决策记录 adr-<nnnn>-*.md（决策层）
+│   ├── knowledge/         # 台账（MEMORY/milestones/issues/lessons）
+│   ├── contracts/         # 人读契约正文 contract-*.md（归一化叙述；INFRA-071t）
+│   ├── adr/               # 架构决策记录 adr-<nnnn>-*.md（决策层）
 ├── manifests/             # 锁文件（规范/参考组件）
 ├── spec/                  # 技术规范：上游 SimRISC/DADAO + v5 自定 Toolchain/Machine；索引 spec/README.md
 ├── docs/                  # 工程流程规范（Process-0x）+ 仓库级索引 + DDLN/（别人看）；索引 docs/README.md
 ├── contracts/             # 机器可读合约数据（编码表/ABI/合法性规则）
 └── tools/<module>/        # 各模块工具脚本（infra/spec/llvm/qemu/testcases）
 ```
+- **工作区落点**：`.cache/` 放**裸仓库**（`<name>.git`）+ `refs/` 只读工作树 + **下载原件（tarball / 签名，仅作校验物）**；`.work/source/<name>/` = **源码检出**（**直接放 `<name>/`，不再套同名包装层**）；`.work/build/` = 构建产物；**大体积构建树不得放 `.cache/` 或仓库跟踪区**。
+- **组件源一律 git 基线**：`.cache/<name>.git` 裸仓库 + `.work/source/<name>/` = **可 `git diff` 的干净检出**（改动随时可产 patch/diff）；**tarball 只作校验物 / 下载原件，不得作组件源**。
 
 ## 文档分层与单一真源
 - **三分界（主判据 = 给谁看）**：`spec/` = **技术规范正文**（唯一真源）；`docs/` = **工程流程规范 + 索引 + `DDLN/`**（给别人看）；`.tao/knowledge/` = **结论/设计/口径**（含长文，给自己看）。
@@ -59,6 +63,7 @@ DADAO-v5/
 ## 门控分层与触发点
 - **分层**：L1 `make check`（完整性静态 + 可用性冒烟）/ L2 `make check-modules`（模块功能代表集）/ L3 `make check-full`（较完整）；某模块全量按需单独调。
 - **触发点**：**任务收尾跑 L2**；**里程碑 / `/complete` 跑 L3**。分层明细与「新检查进哪层」见 `docs/Process-07-门控分层规范.md`。
+- **同工作树互斥**：`Makefile` 的 `GATE_LOCKED_TARGETS`（写者 + 门控）由 `.dadao/gate.lock` 的 `flock` 串行化（`GATE_LOCK_WAIT`/`GATE_LOCK_FAILFAST`），嵌套自动放行；见 `docs/Process-07 §2`。
 
 ## 临时目录
 - 临时/合成/一次性产物一律放 `/tmp/opencode/<任务ID>/`，**不另起** `/tmp/<其它名>`，不得放仓库内或 `~/`。
@@ -70,6 +75,9 @@ DADAO-v5/
 - **交互式调试**：禁 `| tail`/`| head` 截断调试输出，用 `python3 -u`；输出过大先完整落盘再分块查看。
 - **远端任务**：快任务（≤5min）本地等待；**慢任务（>10min）** `nohup` 后台 + 落 PID、不等待、告知预计耗时。
 - **远端环境**：执行脚本**纳入仓库**（防漂移）、日志落 `<taskdir>`；涉及 license/依赖/路径先确认环境差异。
+- **`git switch` / `commit` 前必须核 `git branch --show-current` + `git status --porcelain -uall`**；脏树 / 共享树上禁 `switch -c`、禁 `commit`（防提交误落兄弟分支）。
+- **队列续链归主会话**：子代理**返回或已落地**后立即派下一件，**不得以"等回报"作为停顿理由**（后台回报可能静默丢失）；是否完成**以盘上事实判断**（`git log`／任务书 `**状态**`／`milestones.md`）。停顿只允许在"需用户裁定"或"队列空"。
+- **收到通知先核盘上事实**：收到任一声明"完成"的通知后，**先核对** `git log`／`.work/log/*.EXIT`／任务书状态，**再**决定续链（不假设"它还在继续"）。
 
 ## 大文件下载与镜像
 - 需从**国外站**下**较大**软件时：先查教育网联合镜像站列表判是否有镜像，对候选逐个测速、给出建议，由**用户确定**下载源；**不得**自行选定并开始下载。
@@ -104,20 +112,24 @@ DADAO-v5/
 ## 任务收尾（`/complete`）（强制）
 - **生命周期**：`/dispatch`（实现 + 填完成区，→ `待验收`）→ reviewer 独立重跑验收 → `/complete`（交叉复核 + 知识沉淀，→ `已验证`）→ 提交（须已含收尾）。**逐任务收尾，禁积压/批量**。
 - **分支—提交—push（单一真源）**：**开工建分支**（名 = 任务号）；该任务 WIP/返工/reviewer 修改一律提交在该分支；**architect 唯一有提交权（`commit`）、禁 `push`**，提交前显式 staging（禁 `git add -A`）+ 与完成区「修改文件」对账。确定后由主会话 `merge --squash` **一次性落地 `master`** 并删分支；**`push`(FF) 只由主会话在 `/complete` 后**执行。收尾只改 `**状态**`，不改写既有完成区/审阅记录。
-- **收尾检查**（在知识沉淀**之前**，任一不过即停下报告）：① 门控按改动类型全绿；② 仓库无临时残留（`git status --untracked-files=all` 干净，禁 `*_tmp*`/`_gate*`/`*.orig`/`*.rej`）；③ 证据留非易失位置；④ 无未提交的任务结果。步骤见 `.opencode/commands/complete.md`。
+- **收尾检查**（在知识沉淀**之前**，任一不过即停下报告）：① 门控按改动类型全绿；② 仓库无临时残留（`git status --untracked-files=all` 干净，禁 `*_tmp*`/`_gate*`/`*.orig`/`*.rej`）；③ 证据留非易失位置；④ 无未提交的任务结果；⑤ 已按队列派出下一件，或说明为何停（队列续链归主会话，见「命令与任务执行纪律」）。步骤见 `.opencode/commands/complete.md`。
 - **限长**：完成区 ≤30 行、审阅记录每轮 ≤40 行（长输出留 `.work/log/<模块>/`）。
 
 ## 并行任务上限
 - 同时在跑的子代理任务 **≤ 8**；达到上限等已有任务完成再下发。
 - **同改共享文件**（`contracts/`、`Makefile`、`tests/vectors/`、`spec/SimRISC-0x` 等）的任务**一律串行**，不得并行。
+- **同一工作树同一时间只允许一个写工作树（切分支 / 写文件）的子代理**；需并行则各自开 `git worktree`，大任务优先独立 worktree（判据 `lessons §3.8`）。
 
 ## 长任务（长构建 / 长命令）
 - **脱离生命周期**：长构建/夜跑须 `setsid nohup <cmd> >log 2>&1 &` 脱离工作区，落盘完成标记（`XXX_EXIT=$rc`），**禁会话内等待器**；**一次只跑一个**、`JOBS=8`、**禁全核** `-j$(nproc)`。
 - **申报与判据**：启动前**申报预计耗时**、不为确认空等；完成判据须含**运行期带超时的退出码**（编译 rc=0 ≠ 可运行，须逐优化级跑；`timeout` 的 `124` 判 FAIL）。
 - **诊断超时**：约 60 min 无根因 ⇒ **停下报告**，不试错、不盲目重试；bazel/Vivado 类须设充足 `timeout`。
+- **长任务归主会话**：长任务（构建/夜跑/长测试）由**主会话** `setsid nohup` + 落 `XXX_EXIT=$rc`；**子代理不得在会话内等待长任务**（子代理做完即返回）。
 
 ## 构建与注入测试的成本控制
 只有当「**编译输入**」变化时才需重建（改 `components/{qemu,llvm-project}/patches/**` 或须验证改动后二进制行为）；改 oracle/期望值/CHECK/探针/文档/契约数据 ⇒ **不重建**。注入优先不改编译输入、多例合并一轮、重建前申报「重建 X，预计 N 分钟」。
+- **改 MC（`.td` / InstrInfo）后必须补跑 `make install-host`**；**禁**只重建（门控 / lit 会读**旧安装根**、与旧生成物**自洽而假绿** —— `ISS-210`）。
+- **安装根的工具链二进制只由 `make install-host` 写入**；手工 `cp` 属例外手法（记理由 + md5 核对 + 事后补跑），规则见 `docs/Process-07 §2`（`ISS-300`）。
 
 ## 子代理硬约束（下发提示必带）
 1. **临时目录** `/tmp/opencode/<任务ID>/`，禁仓库内临时文件。

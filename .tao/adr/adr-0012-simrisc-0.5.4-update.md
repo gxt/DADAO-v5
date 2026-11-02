@@ -1,6 +1,6 @@
 # ADR-0012: SimRISC 0.5.3→0.5.4 规范更新
 
-**状态**：Accepted（rev. 2026-09-30 D3.1 修订 + D5/D6/D7 新增，见 `## 状态说明`）
+**状态**：Accepted（rev. 2026-09-30 D3.1 修订 + D5/D6/D7 新增；2026-10-14 新增 `D10`、`D11` 并经用户逐条确认——**确认范围含 `D10`、`D11`**；`D10.6b`（`scope` 取值）已于 2026-10-14 **定案 = `m8`**，见 `## 状态说明`）
 **日期**：2026-09-27
 **决策者**：用户
 
@@ -56,6 +56,10 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 - **影响**：指令总数 **254 → 253**；M1 身份集 **177 → 176**。
 - **不预设替代方案**：PC 相对寻址改用 `rb0` 基址路径（见 D3.1），遇具体问题再议。
 - **关联任务**：`SPEC-057t`（从 QFC 表、`opcodes.yaml`、spec 文档移除 `rela.si`）。
+
+> **⚠ 就地修订注记（2026-10-16，用户裁定；上方 `D5` 正文保留为历史、不删 ✓）**：**`D5` 已被 `ADR-0029`（`Accepted`）取代** ⇒ **`rela.si` 恢复、并更名 `aip.si`** ✓ —— ① **格式 / 编码**：`riii`（`op8 = 0x5A` + `ha[23:18]` + `imms18[17:0]` = 8+6+18 = 32 位，与 `add.si` 同格式同字段位）、编码 **`0x5A`**（**复用 `D5` 的保留位**、不占新编码位；`riii` 目的形）；② **语义**：`rbHA = IP + (sign_extend(imms18) << 12)`（4 KB 块、**无 `<<2`**）；**`IP` 不清低位** ✓（**取代** `ADR-0003` / 本 `D5` 前身的「PC 低 12 位清零 / 4 KB 页对齐」口径 ✗）；③ **无 `−4` / `+4` 流水偏移** ✓（`IP` = 该指令**自身**地址 = `rb0` 读出值）；④ **汇编层单位 = 字节**（`imms30`：须 `%4096 == 0`、范围 **±512 MiB**）；⑤ **目的 `rb0` ⇒ ILLI** ✓（与 `dst_rb0` 规则同形）；⑥ **两个新重定位**：`R_DADAO_PCREL_HI` = `14` / `R_DADAO_PCREL_LO` = `15`（`R_DADAO_NUM` = `16`）⇒ 见 `ADR-0019 D12`；⑦ **影响回退**：本 ADR「## 影响」段的**指令总数 `254 → 253`** 与 **M1 身份集 `177 → 176`** 随之回退（`ADR-0029 D7①`；**实际计数落点以 `SPEC-145t` 阶段核对的现状为准**）。
+> **术语附注（2026-10-16，用户裁定）**：本 ADR 正文的 **`PC` ⇒ `IP`**（含上方 `D5` 首项「PC 相对寻址」）——**`IP`（= `rb0` / `rbip`）= 当前正在执行的指令的地址**，**不是**主流 ISA 的「下一条指令地址」口径（本 ISA **无 `±4` 流水偏移**；与 `D8.3`「文档中不用「PC」指代 `rb0`」一致 ✓）。**例外（一次说明）**：`R_DADAO_PCREL_HI` / `R_DADAO_PCREL_LO`（及 RISC-V `%pcrel_hi` / `%pcrel_lo`）**沿用 ELF / RISC-V 族惯例名**（`PCREL` = PC-relative），**类型名照旧不改** ✓。
+> **用户原话（逐字引录，渠道 = 经主会话问答，2026-10-16）**：「**更新ADR-0012**」／「**改为：aip.si，在正文中，避免使用pc，应该用ip；而且，在SimRISC中，ip明确是当前正在执行的指令的地址，而非主流ISA的下一条指令地址**」。**依据** = `ADR-0029 D8`（改 `spec/` 的用户原话授权；实际 `spec/` 改动归 `SPEC-145t`）；**实现落点** = `LLVM-095t`（MC / CodeGen / lld）。
 
 ### D6：rf0（FCSR）位域调整与访问规则（2026-09-30 新增）
 
@@ -132,7 +136,7 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 
 **D9.5（计数影响）**：新增 1 条（`scope: m3`）⇒ `contracts/opcodes.yaml` **227→228**；**M1 身份数不变（152）**；`tools/spec/check_scope.py` 须纳入 `m3`（`ALLOWED_SCOPES`、计数 `m3=1`/`total=228`）。
 
-**D9.6（同步面）**：`spec/SimRISC-00` QFC `MISC-octa` 子表 + `spec/SimRISC-05` 正文/计数；`contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）；`.tao/knowledge/contract-isa.md`、`contract-asm-list.md`；`tests/vectors/{reg-arith,reg-compare}.yaml` + `inventory.md` + `tools/testcases/generate_isa_vectors.py`；MC（`DADAOInstrInfo.td` mnemonic/def、`DADAOAsmParser`/`DADAOInstPrinter`/decode）；QEMU（`insn.decode` token + `trans_*` 函数名）；`tools/qemu/check_005t_coverage.py`。D8.6 中 `trans_cmp_uo_orrr_rb` 的引用由本 D9 更名（`trans_cmp_uo_orrr_dbb`）**取代**；**D8.6 原文不改写**。
+**D9.6（同步面）**：`spec/SimRISC-00` QFC `OPC-octa` 子表 + `spec/SimRISC-05` 正文/计数；`contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）；`.tao/contracts/contract-isa.md`、`contract-asm-list.md`；`tests/vectors/{reg-arith,reg-compare}.yaml` + `inventory.md` + `tools/testcases/generate_isa_vectors.py`；MC（`DADAOInstrInfo.td` mnemonic/def、`DADAOAsmParser`/`DADAOInstPrinter`/decode）；QEMU（`insn.decode` token + `trans_*` 函数名）；`tools/qemu/check_005t_coverage.py`。D8.6 中 `trans_cmp_uo_orrr_rb` 的引用由本 D9 更名（`trans_cmp_uo_orrr_dbb`）**取代**；**D8.6 原文不改写**。
 
 **备选（否决）**：
 - R1：新指令沿用 `sub.so` 名 → 与既有 `sub.so_orrr_rb` 重名/重 id、易混；否决。
@@ -140,6 +144,206 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 - R3：新指令保留 `scope: m1` → 用户裁定归 `m3`、不要求 M1 向量覆盖；否决。
 
 **关联任务**：`SPEC-100t`（新增指令）、`SPEC-101t`（三条既有指令改名+改编码）、`LLVM-043t`（新指令 MC）、`QEMU-040t`（新指令 trans）、`LLVM-035t`（ISel）。
+
+### D10：新增 `rev.{o,t,w,b}`（逐块反转）——**（2026-10-14 新增；用户逐条确认 ✓）**
+
+> **确认状态**：`D10` 及其子项 `D10.1`–`D10.8` 已经用户 **2026-10-14 逐条确认**（原话见 `D10.0` 与 `§状态说明`）⇒ **视为 `Accepted`**；本 ADR 顶部 `**状态**：Accepted` 的确认范围**含 `D10`**。`D10.6b`（`scope` 取值）亦已于 2026-10-14 **定案 = `m8`**。
+
+**D10.0（授权与用户裁定原话，原样引录；渠道 = 经主会话问答，2026-10-14）**
+
+- **授权**：用户原话「**a/b授权**」——即授权修改**本 ADR** ✓ 且授权修改 **`spec/SimRISC-00` + `contracts/opcodes.yaml` + `contracts/legality_rules.yaml`** ✓（满足 `docs/Process-06 §2`「`spec/` 下任何新增/修改须用户事先明确允许」✓）。
+- **设计确认（Q1/Q3/Q4）**：
+  - Q1（`immu6` 语义 = **单元序反转、单元内位序不变**）⇒ 用户原话：「**前者，你的理解很正确**」。
+  - Q3（非法 `immu6` 的异常与规则落点）⇒ 用户原话：「**ILLI；需要增加 `encode_onehot` 合法性规则，配合 `encode_sbz` 合法性规则；此外，还有 `dst_rd0`**」。
+  - Q4（零寄存器 / 同寄存器边界）⇒ 用户原话：「**`rdHC` 可以为 `rd0`，`rdHB` 可以和 `rdHC` 是同一个寄存器**」。
+- **语义（Q2 最终确认）** ⇒ 用户原话：「**按 `t/w/b` 做划分……以 `w` 为例，每个 64 位寄存器，划分为四个 `w`，如果 `immu6` 为 4，每个 `w` 内部的 4 个 4 位进行翻转；所以，如果 `rdHC` 高 48 位为 0，则 `rdHB` 的高 48 位也为 0，否则，也进行类似运算**」⇒ **逐块语义**。
+
+**D10.1（新增指令）**
+
+- 新增 **4 条**：`rev.o` / `rev.t` / `rev.w` / `rev.b`，格式统一为 **`orri`**。
+- 操作数：`rdhb`（**目的**，`hb[5:0]` = bits`[17:12]`，bank `rd`）、`rdhc`（**源**，`hc[5:0]` = bits`[11:6]`，bank `rd`）、`immu6`（bits`[5:0]`，**无符号**）。
+- id 沿用既有 `mnemonic_format_feature` 约定（`orri` 变体如 `shl.ub_orri_rd`/`ext.uo_orri_rd`）：`rev.o_orri_rd` / `rev.t_orri_rd` / `rev.w_orri_rd` / `rev.b_orri_rd`。
+- `ha` 为 `opx`（见 D10.2），故不在操作数之列。
+
+**D10.2（编码位置）**
+
+`opx = 001100`（即 `ha[5:0] = 0b001100 = 0x0C`；行 `001-xxx` × 列 `xxx-100`），四子表**各一条**：
+
+| 指令 | 子表 | `op` | `opx`（= `ha`） | `mask` |
+|---|---|---|---|---|
+| `rev.o_orri_rd` | `OPC-octa`（`§4.2`） | `0x40` | `0x0C` | `0xFFFC0000` |
+| `rev.t_orri_rd` | `OPC-tetra`（`§4.3`） | `0x41` | `0x0C` | `0xFFFC0000` |
+| `rev.w_orri_rd` | `OPC-wyde`（`§4.4`） | `0x42` | `0x0C` | `0xFFFC0000` |
+| `rev.b_orri_rd` | `OPC-byte`（`§4.5`） | `0x43` | `0x0C` | `0xFFFC0000` |
+
+- `opx` 在 `bits[23:18]`（= `ha`）；`value = op<<24 | opx<<18` **由生成器计算**——**本 ADR 不复写 `value`**，真源 = `contracts/opcodes.yaml`（`tools/spec/generate_opcodes.py` 产出）。**用户 2026-10-15 口径**：「**无需计算 mask 后的值，就按位域写清楚就行，是谁的责任，谁来认真计算**」（原样引录，渠道 = 经主会话问答）⇒ 本文档只写**位域**（`opx` / `mask` / 字段位置）。
+- `opx` 布局 = 行 `opx[5:3]` × 列 `opx[2:0]`（实证：`and.o` 行`001`列`000` ⇒ `opx=0x08`；`add.o` 行`110`列`000` ⇒ `opx=0x30`）。
+- **为何不冲突**（2026-10-14 现场核对）：① `001-100` 在四个子表**均为空**（`spec/SimRISC-00 §4.2–§4.5` 第 5 列全空）；② `SPEC-069t` 的 reserved / 已删条目集 = 每子表 **8 条** = `001-000…011`（4 逻辑）+ `010-000/001` 与 `011-000/001`（2 ext × 2 格式），**不含 `001-100`**；③ `contracts/opcodes.yaml` 中**无任何** `ha: '0x0C'` 条目（现场 `grep` **0 命中**）。【2026-10-15 就地删去原并列的「或形如 `0x??0C0000` 的条目」——该模式系 `value` 复写（笔误）遗留，按上述口径不再复写派生值】
+- 四条均为 `orri`（`opx` + 两个寄存器 + 6 位立即数在 `hd[5:0]`），与 `§3.1` 的 `orri` 定义一致。
+
+**D10.3（语义：逐块）**
+
+- 后缀 ⇒ **块大小 `S`**：`.o`=64、`.t`=32、`.w`=16、`.b`=8。
+- 每个 64 位寄存器 ⇒ **`64/S` 个块**：`.o` 1 块、`.t` 2 块、`.w` 4 块、`.b` 8 块。
+- `immu6 = k` ⇒ **每块内部**按 `k` 位切分为 `S/k` 个**单元**，**反转单元顺序**；**单元内部的位序不变**。
+- **所有块一律同样处理**：不存在"范围之外的更高位保持原值 / 清零"的情形（即 `.t` 的两个 32 位块都做、`.w` 的四个 16 位块都做、`.b` 的八个 8 位块都做）。
+- 伪代码：`for i in 0..(64/S)−1: out_block[i] = 把 in_block[i] 的 S/k 个 k 位单元按下标倒序拼接`（单元内位序保持）。
+- 例（用户原话场景）：`.w` + `k=4` ⇒ 每个 16 位块切成 4 个 4 位单元，块内这 4 个单元**顺序翻转**；故若 `rdHC[63:16] == 0`，则 `rdHB[63:16] == 0`。
+
+**D10.4（`immu6` = one-hot）**
+
+| 后缀 | `S` | 块数 `64/S` | 合法 `k`（`immu6`） |
+|---|---|---|---|
+| `.o` | 64 | 1 | `{1, 2, 4, 8, 16, 32}` |
+| `.t` | 32 | 2 | `{1, 2, 4, 8, 16}` |
+| `.w` | 16 | 4 | `{1, 2, 4, 8}` |
+| `.b` | 8 | 8 | `{1, 2, 4}` |
+
+- 判据：`k` 必须为 **2 的幂（one-hot）且 `k < S`**（即 `k ∈ {S/2, S/4, …, 1}`）；**排除 `k = S` 的恒等档**。
+- **非 one-hot（`0`、`3`、`5`、`6`、…、`63`）或 `k ≥ S`（越范围）⇒ `ILLI`**。
+
+**D10.5（合法性规则）**
+
+- 新增规则 **`encode_onehot`**，写入 `contracts/legality_rules.yaml`，**与 `encode_sbz` 并列**（同属"字段编码合法性"类；`fault: ILLI`、`kind: static`）。
+- 四条指令 `rule_refs = ['dst_rd0', 'encode_onehot']`；`legality` 表达式 = `rdhb != rd0` + 该后缀的 one-hot 约束。
+- **`rdHC` 可为 `rd0`**（源，合法；读出 0 ⇒ 结果为 0），**不**触发 ILLI（`dst_rd0` 只约束**目的**）。
+- **`rdHB == rdHC` 允许**（源与目的为同一寄存器，原地反转），**不**触发 ILLI。
+- 参照先例：`shl.ub_orri_rd` = `rule_refs: [dst_rd0, encode_sbz]` + `legality: [rdhb != rd0, immu6 <= 7]`（`contracts/opcodes.yaml` 现场）。
+
+**D10.6（同步面；照 D9.6 形式逐项列）**
+
+1. `spec/SimRISC-00`：QFC 四子表（`§4.2 OPC-octa`／`§4.3 OPC-tetra`／`§4.4 OPC-wyde`／`§4.5 OPC-byte`）各补 `xxx-100` 列一条 + 相关**计数**（如子表条数）+ 文末「**附录：版本与变更记录**」**写明**（硬要求，见 `§状态说明`）。
+2. **`rev` 正文分册归位**：**已定案 (b) 分册**（用户 2026-10-14 裁定原话「1、分册写」，见 `D10.6a`）。
+3. `spec/SimRISC-0x` 各册 **`LEGALITY` 生成区**（`tools/spec/gen_legality_list.py --apply`，随归位落定）。
+4. `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）；含 `scope` 取值（**已定案 = `m8`**，见 `D10.6b`）与总数。
+5. `contracts/legality_rules.yaml`（新增 `encode_onehot`）。
+6. `.tao/contracts/contract-isa.md`（QFC/编码表 + 语义 + 合法集）、`contract-asm-list.md`（生成投影，`tools/llvm/gen_asm_list.py`）。
+7. `tests/vectors/**` + `tests/vectors/inventory.md` + `tools/testcases/generate_isa_vectors.py`（**注**：`inventory.md` 的 M1 矩阵由 `validate_vectors.py` 按 `scope == "m1"` 集合**机械对齐** ⇒ `rev`（`scope: m8`）**不入 M1 矩阵**是**机械后果、非范围排斥**；**`M1 身份数（152）不变**；向量落独立文件）。
+8. **MC**：`DADAOInstrInfo.td`（def / mnemonic）、`DADAOAsmParser`（`orri` 受理）、`DADAOInstPrinter`、`MCCodeEmitter`/decode、`DADAOMCInstLower`（如需）。
+9. **QEMU**：`insn.decode`（四条 token）+ `trans_rev.c.inc`（`trans_rev_o`/`_t`/`_w`/`_b`）+ `translate.c` 分派 + `helper.c`（如需）。
+10. **门控**：L1（`validate-encoding`／`check-scope`／`check-rule-refs`／`check-instrinfo`／`check-isa-coverage`／`check-asm-list-drift`／`check-legality-drift`／`check-legality-invariants`／`check-spec-readonly` 等）+ L2/L3。
+
+**D10.6a（`rev` 正文分册归位——**定案 = (b) 分册**）**
+
+- **定案 (b)**（用户 2026-10-14 裁定，原话「**1、分册写**」；渠道 = 经主会话问答）：按既有后缀约定**分册**（`.o`→`spec/SimRISC-04`、`.t`→`08`、`.w`→`09`、`.b`→`10`），逐块语义**总述置于 `04 §4.2`**、其余三册（`08/09/10`）**引用**。
+- **已否 (a)**：四条同归 `04 §4.2`（一处写全）——**不采用**（用户裁定分册写）。
+- **现场**（判据溯源，非定案依据）：`spec/SimRISC-04 §2.2「Bit manipulating：位操作指令」`已承载 `shl.uo`/`shr.uo`/`ext.uo` 与 `§4.1` 的 `and.o`/`or.o`/`xor.o`/`xnor.o`；窄位宽分册（`SimRISC-08/09/10`）按后缀 `t/w/b` 承载且口径为"值语义写满 64 位"。
+
+**D10.6b（`scope` 取值——**定案 = `scope: m8`**，2026-10-14 用户裁定 ✓）**
+
+- **定案 = `scope: m8`（用户 2026-10-14）**：`rev.{o,t,w,b}` 及同批 `ctlz`/`cttz`/`ctpop`（见 `D11.9` 第 4 项）的 `scope` 均取 **`m8`**（新增允许值；须同步 `tools/spec/check_scope.py` 的 `ALLOWED_SCOPES` + 分区计数 + 注释，及 `generate_opcodes.py` 的 scope 说明）⇒ `contracts/opcodes.yaml` / `check_scope.py` 的 `scope` 写入**可执行**。
+- **用户裁定原话（原样引录，渠道 = 经主会话问答，2026-10-14）**：「**m8，里程碑只是个标识，并不是在划定严格的范围**」。
+
+**D10.7（用途 / 映射）**
+
+- **`bswap`**：`bswap16` = `rev.w` + `k=8`；`bswap32` = `rev.t` + `k=8`；`bswap64` = `rev.o` + `k=8`。**前提：源的高 `(64−S)` 位为 0**（否则其余块也被逐字节反转）⇒ **列为后端待核实项**（`__bswapsi2`/`__bswapdi2` 接入时须核该前提是否成立；见 `INFRA-079t`、`ISS-193`(c)）。
+- **位反转**：`bitreverse` = `rev.o` + `k=1`（整 64 位位序反转）。**`rev.t` + `k=1` ≠ 64 位全位反序**（只在**每个 32 位块内**反转）、`rev.w` + `k=1` 同理（**每个 16 位块内**）⇒ **须在正文写明以防误用**。
+- 上述映射**各只需一条指令**（对比 ARM `REV*`/`RBIT`、RISC-V `rev8` 等需 2 条组合）。
+
+**D10.8（被否方案）**
+
+- **R1**：为 `k = S`（恒等档：块内仅 1 个单元，反转即自身）分配编码 ⇒ **不分配**。理由：恒等无语义价值，且收窄合法集能把编码错误暴露为 `ILLI`。
+- **R2**：「仅低 N 位反转 + 高位保持 / 清零」的窄位宽语义 ⇒ **被逐块语义取代**。理由：① 无需读目的寄存器（纯 `src → dst`）；② 无"块大小 × 高位数"的边界情形；③ 与主流逐块做法（ARM `REV` 系列按定宽单位反转）一致。
+
+**关联任务**：`SPEC-142t`（`rev.{o,t,w,b}` 落地，**前置 = `D10` 逐条确认 ✓ 已完成；`D10.6b` 亦已定案 = `scope: m8` ✓**）——**已确认，可实现 / 下发**。
+
+### D11：新增 `ctlz` / `cttz` / `ctpop`（位扫描与计数）——**（2026-10-14 新增；用户逐条确认 ✓）**
+
+> **确认状态**：`D11` 及其子项 `D11.1`–`D11.10` 已经用户 **2026-10-14 逐条确认**（原话见 `D11.0` 与 `§状态说明`）⇒ **视为 `Accepted`**；本 ADR 顶部 `**状态**：Accepted` 的确认范围**含 `D11`**。**无未决项**（`D11.4` 保持 `[hd:0]` 上界 ✓、`D11.9` 归位 ✓、`spec/` 修改授权已获 ✓）。
+
+**D11.0（用户裁定原话，原样引录；渠道 = 经主会话问答，2026-10-14）**
+
+- **指令名**：用户原话「**ctlz/cttz/ctpop**」。
+- **范围**：用户原话「**先就这三个吧**」⇒ `cls`/`clo`/`cto`/`parity`/`ffs`/`ffz` 等**首版不做**（判据见 `D11.10(c)`）。
+- **编码**：用户原话「**ctlz/cttz/ctpop 的 opx：011-110/011-111/011-101**」。
+- **前序已接受（渠道同）**：① **定值** = `ctlz(0)`/`cttz(0)` 返回**范围宽度（`hd+1`）**；② **不新增** `encode_onehot`；③ **不带位宽后缀**（编码借 `OPC-octa` 格位）；④ `cttz` 的 `hd` 语义「**保持 `[hd:0]` 上界**」= 主会话建议，**用户 2026-10-14 确认 ✓**（见 `D11.4`）。
+
+**D11.1（新增指令）**
+
+- 新增 **3 条**：`ctlz` / `cttz` / `ctpop`，格式统一为 **`orri`**。
+- 操作数：`rdHB`（**目的**，`hb[5:0]` = bits`[17:12]`，bank `rd`）、`rdHC`（**源**，`hc[5:0]` = bits`[11:6]`，bank `rd`）、`hd`（bits`[5:0]`，**无符号立即数**，**有效位上界**，见 `D11.4`）。
+  - **注**：`hd` 是格式定义中「6 位立即数在 `hd[5:0]`」的域；`contracts/opcodes.yaml` 中该字段名惯用 **`immu6`**（`role: imm`、`bank: imm`、`signed: false`），现场先例 `ext.uo_orri_rd`。
+- id 沿用既有 `mnemonic_format_feature` 约定（`orri` 变体如 `ext.uo_orri_rd`）：**`ctlz_orri_rd`** / **`cttz_orri_rd`** / **`ctpop_orri_rd`**。
+- `ha` 为 `opx`（见 `D11.2`），故不在操作数之列。
+- 汇编语法（`spec/Toolchain-01 §5` 的 `orri` 行 = `助记符 dst, src, immu6`）：`ctlz rdHB, rdHC, hd`（例：`ctlz rd8, rd9, 63`）⇒ `ctlz` 即 `clz64`、`ctlz rd8, rd9, 7` 即 `clz8`。
+
+**D11.2（编码位置）**
+
+`opx` = 行 `011-xxx` × 列 `xxx-101/110/111`；主 op = **`0x40`**（`OPC-octa` 子表）：
+
+| 指令 | `id` | 子表 | `op` | `opx` | `mask` |
+|---|---|---|---|---|---|
+| `ctpop` | `ctpop_orri_rd` | `OPC-octa`（`§4.2`） | `0x40` | `011-101`（`0x1D` = 29） | `0xFFFC0000` |
+| `ctlz` | `ctlz_orri_rd` | `OPC-octa`（`§4.2`） | `0x40` | `011-110`（`0x1E` = 30） | `0xFFFC0000` |
+| `cttz` | `cttz_orri_rd` | `OPC-octa`（`§4.2`） | `0x40` | `011-111`（`0x1F` = 31） | `0xFFFC0000` |
+
+- `opx` 在 `bits[23:18]`（= `ha`）；`value = op<<24 | opx<<18` **由生成器计算**——**本 ADR 不复写 `value`**，真源 = `contracts/opcodes.yaml`（`tools/spec/generate_opcodes.py` 产出）；`mask = 0xFFFC0000`（锁 `op` + `opx`）。**用户 2026-10-15 口径**：「**无需计算 mask 后的值，就按位域写清楚就行，是谁的责任，谁来认真计算**」（原样引录，渠道 = 经主会话问答）⇒ 本文档只写**位域**（`opx` / `mask` / 字段位置）。
+- **为何不冲突**（2026-10-14 现场核对，三条实证）：
+  1. `spec/SimRISC-00 §4.2 OPC-octa` 第 `011-xxx` 行**仅** `000`–`100` 有条目（`ext.uo`/`ext.so`/`shr.uo`/`shr.so`/`shl.uo`），`101`/`110`/`111` **三格为空**（= reserved）；
+  2. `SPEC-069t` 的 reserved / 已删条目集 = 每子表 **8 条** = `001-000…011`（4 逻辑）+ `010-000/001` 与 `011-000/001`（2 ext × 2 格式）⇒ **不含 `011-101/110/111`**；
+  3. `contracts/opcodes.yaml` 中 `op: '0x40'` 的 **32** 条，`ha`（十进制）集合 = `{8–11, 16–20, 24–28, 42–46, 48–54, 56–59, 61–62}`（现场统计）⇒ **`29`/`30`/`31` 无条目**（对应 `value` 由生成器按 `op<<24|opx<<18` 计算，本文档不复写）。
+- 三条均为 `orri`（`opx` + 两个寄存器 + 6 位立即数在 `hd[5:0]`），与 `§3.1` 的 `orri` 定义一致。
+
+**D11.3（无位宽后缀）**
+
+- 三条**不带** `.b`/`.w`/`.t`/`.o` 后缀：`hd`（`0..63`）**已覆盖全部宽度**（`D11.4`）⇒ 加后缀只会**丢掉"任意宽度"**且无谓扩充编码（见 `D11.10(a)`）。
+- 三条因此**借 `OPC-octa` 格位**（`D11.2`）。
+- **既有先例（现场）**：`OPC-octa` 中 **已存在 8 条无位宽后缀**的指令——`rd2rd` / `rd2ra` / `ra2rd` / `rb2rb` / `rd2rb` / `rb2rd` / `rd2rf` / `rf2rd`（`id`/`mnemonic` 均无后缀）⇒ 「**子表 ⇔ 位宽后缀**」**并非无例外**。
+- 仍**须在 `spec/SimRISC-00` 明确一句例外 / 澄清**（"位宽后缀规则的例外"，见 `D11.9` 第 1 项）。
+
+**D11.4（语义：`hd` = 有效位上界，三者统一；`cttz` 保持 `[hd:0]` 上界 ✓）**
+
+- **有效位** = `rdHC[hd:0]`（共 **`hd+1`** 位，`hd ∈ 0..63`）；`hd` 以上的位**不参与**运算。
+- `ctlz`：从 bit `hd` **向下**数前导零（到首个 1 为止）⇒ 结果 = 有效位内的前导零个数。伪代码：`n=0; for i = hd down to 0: if bit(i)==1 break; n++`。
+- `cttz`：从 bit 0 **向上**数末尾零（到 bit `hd` 为止）⇒ 结果 = 有效位内的末尾零个数。伪代码：`n=0; for i = 0 up to hd: if bit(i)==1 break; n++`。
+- `ctpop`：`rdHC[hd:0]` 内 **1 的个数**（∈ `0..hd+1`）。
+- 三者**全 0 / 无 1** 时的结果见 `D11.5`。
+- **`cttz` 的 `hd` 作上界（`[hd:0]`）—— 用户 2026-10-14 确认 ✓**（备选「下界」语义见 `D11.10(b)`，**已否**）。
+
+**D11.5（定值：全 0 / 无 1）**
+
+- `rdHC[hd:0]` **全 0** 时：`ctlz` = `cttz` = **`hd+1`**（= 有效位范围宽度，**消除 UB**）。
+- 口径一致（现场对照）：RISC-V（`clz`/`ctz` 对 0 返回 XLEN）、x86（`lzcnt`/`tzcnt` 返回操作数宽度）、ARM（`CLZ(0)` = 32/64）；对比 C `__builtin_clz(0)` 为 **UB**。
+- `ctpop(0)` = `0`（自然值，无特例）。
+
+**D11.6（合法性）**
+
+- `hd ∈ 0..63`（6 位立即数域）⇒ **全部合法**，**无非法 `hd` 值** ⇒ **不新增** `encode_onehot`，**不新增**任何合法性规则。
+- 沿用既有 **`dst_rd0`**（`rdHB != rd0`）；`rdHC` **可为 `rd0`**（读出 0 ⇒ 结果 = `hd+1` 或 0，合法）；**`rdHB == rdHC` 允许**。
+- 现场先例：`ext.uo_orri_rd` = `rule_refs: [dst_rd0]` + `legality: [rdhb != rd0]`（`hd` 全 6 位 ⇒ 无额外约束）。
+
+**D11.7（结果语义）**
+
+- 结果 ∈ **`0..64`**，**写满 64 位**（值语义；非"只写低位 / 高位保持"）——与 `SPEC-069t` 的值语义通则一致。
+
+**D11.8（用途 / 映射）**
+
+- ↔ LLVM 内建 **`int_ctlz` / `int_cttz` / `int_ctpop`**（**1:1**）↔ C++20 `std::countl_zero` / `countr_zero` / `popcount`。
+- `ctlz` **单条**覆盖 `clz8`/`clz16`/`clz32`/`clz64`（`hd` = 7/15/31/63）——对比 RISC-V 需 `clz` + `clzw` **两条**。
+- **现状（现场，`LLVM-079t`）**：后端**无** ISA 位扫描 / 计数指令 ⇒ `CTLZ`/`CTTZ`/`CTPOP` 走 `Expand` **软件展开**（`xnor.o`/`and.o`/`sub.uo`/`shr.uo`/`mul.uo`，无 libcall）。本 `D11` 落地后可为 ISel 提供单指令 ⇒ **ISel 接入另立任务**（**不在**本 `D11` 落地任务的范围，见 `D11.9` 末行）。
+
+**D11.9（同步面；照 `D10.6` 形式逐项列）**
+
+1. `spec/SimRISC-00`：QFC `§4.2 OPC-octa` 补 `011-101`/`011-110`/`011-111` **三格** + **例外说明一句**（"子表 ⇔ 位宽后缀"规则的例外，见 `D11.3`）+ 相关**计数** + 文末「**附录：版本与变更记录**」**写明**（硬要求，见 `§状态说明`）。
+2. **正文分册归位 —— 定案 = `spec/SimRISC-04 §2.2`（`Bit manipulating：位操作指令`，与 `rev` 总述同处）✓**（用户 2026-10-14 确认；现场：`ext.uo_orri_rd` 的 `spec_cite` 即该节）。
+3. `spec/SimRISC-0x` 各册 **`LEGALITY` 生成区**（`tools/spec/gen_legality_list.py --apply`）。
+4. `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）；含 `scope` 取值（**已随 `D10.6b` 定案 = `m8`**）。
+5. `contracts/legality_rules.yaml`：**不新增**规则（`D11.6`）。
+6. `.tao/contracts/contract-isa.md`（QFC/编码表 + 语义 + 定值 + 合法集 + `§2.5`/`§2.8` 的例外说明）、`contract-asm-list.md`（生成投影，`tools/llvm/gen_asm_list.py`）。
+7. `tests/vectors/**` + `tests/vectors/inventory.md` + `tools/testcases/generate_isa_vectors.py`（**注**：`inventory.md` 的 M1 矩阵由 `validate_vectors.py` 按 `scope == "m1"` 集合**机械对齐** ⇒ 三条（`scope: m8`）**不入 M1 矩阵**是**机械后果、非范围排斥**；**`M1 身份数（152）不变**；向量落独立文件）。
+8. **MC**：`DADAOInstrInfo.td`（def / mnemonic）、`DADAOAsmParser`（`orri` 受理）、`DADAOInstPrinter`、`MCCodeEmitter`/decode。
+9. **QEMU**：`insn.decode`（三条 token）+ `trans_ctlz`/`trans_cttz`/`trans_ctpop` + `translate.c` 分派。
+10. **门控**：L1（`validate-encoding`／`check-scope`／`check-rule-refs`／`check-instrinfo`／`check-isa-coverage`／`check-asm-list-drift`／`check-legality-drift`／`check-legality-invariants`／`check-spec-readonly` 等）+ L2/L3。
+
+- **不在本项**：LLVM **ISel** 接入（`int_ctlz` 等 → 单指令，见 `D11.8`）**另立任务**。
+
+**D11.10（被否方案）**
+
+- **(a) 带位宽后缀**（如 `ctlz.o`/`ctlz.t`/… 共 4 条一后缀）⇒ **不采用**：`hd`（`0..63`）**已覆盖任意宽度** ⇒ 后缀会**丢掉"任意宽度"**能力，且无谓扩充编码（4 倍条目）。
+- **(b) `cttz` 改用"下界"语义**（有效位 = `rdHC[63:hd]`，从第 `hd` 位向上找）⇒ **不采用**：使 `cttz` 与 `ctlz`/`ctpop` 的**字段语义分裂**（同名 `hd` 含义不同，易误用）；如需"从第 k 位起向上找"**另立指令**。**（本节即 `D11.4` 已否之备选。）**
+- **(c) `cls`/`clo`/`cto`/`parity`/`ffs`/`ffz` 一并做** ⇒ **本轮不做**。判据 = 「后端组合成本 ≥ 3 条 **且** 后端有对应 intrinsic」。现场实测（clang 18.1.3）：`cls` **4–5 条**、`ffs` **5 条**（**够格但本轮不做**，用户原话「先就这三个吧」）；`parity` **2 条**、`clo`/`cto` **2 条**（**≤2 条 ⇒ 不做**）。
+
+**关联任务**：`SPEC-143t`（`ctlz`/`cttz`/`ctpop` 落地，**前置均已满足 ✓** = `D11` 逐条确认 ✓ + `spec/` 修改授权 ✓；**与 `SPEC-142t` 须串行**——二者同改 `contracts/opcodes.yaml` / `tests/vectors/**`）——**已确认，可实现 / 下发（须与 `SPEC-142t` 串行）**。
 
 ## 影响
 
@@ -165,3 +369,26 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 - 2026-10-04：新增 **D9**（新增指令 `sub.o`（RB−RB→RD，`sub.o_orrr_dbb`，`ha=0x33`，`scope:m3`）+ 三条既有 RB 算术指令改名/改编码槽 `add.so_orrr_rb`→`add.o_orrr_bbd`(0x30)、`sub.so_orrr_rb`→`sub.o_orrr_bbd`(0x31)、`cmp.uo_orrr_rb`→`cmp.uo_orrr_dbb`(0x32) + id 后缀 bank 签名约定）。**用户 2026-10-04 逐条确认追加**。关联 `SPEC-100t`/`SPEC-101t`/`LLVM-043t`/`QEMU-040t`/`LLVM-035t`。
   - **算术修正（用户 2026-10-04 已确认）**：D9.1 定 `ha=0x33 ⇒ value=0x40CC0000`；旧 id 清零验收**仅覆盖活载体**（`spec/`/`contracts/`/`tests/`/`tools/`/`components/`），**映射记录豁免**。
 - 2026-10-06：**D3 就地增补第 5 项**（用户逐条确认）：**删除 `illi` 指令**（**ILLI 异常保留**，由非法操作数/条件触发）、**`fence` `ha` `0x01`→`0x00`**（`value` `0x77040000`→`0x77000000`）、**`swym` `ha` `0x02`→`0x22`**（`value` `0x77080000`→`0x77880000`）；`op=0x77` 不变。关联 M4 前置任务 `SPEC-109t`（跨组件原子落地）。
+- 2026-10-14：**新增 `D10`（提案）**——`rev.{o,t,w,b}` 逐块反转（新增 4 条 `orri` 指令，`opx=001100`，`immu6` = one-hot 位单元大小，新增 `encode_onehot` 合法性规则）。**⚠ `D10` 及其子项 `D10.1`–`D10.8` 均为提案，尚未经用户逐条确认；未确认前不得视为 `Accepted`**，本 ADR 顶部 `**状态**：Accepted` **不含 `D10`**。用户**授权**与**裁定原话**（Q1–Q4，渠道 = 经主会话问答）**原样引录于 `D10.0`**；落地任务 = `SPEC-142t`（`待开始`，**前置 = `D10` 逐条确认完成**）。**待确认项**：`D10.6a`（正文分册归位）与 `D10.6b`（`scope` 取值）。
+- 2026-10-14：**`D10` 由提案转 `Accepted`（用户逐条确认 ✓）**——**用户裁定原话（原样引录，渠道 = 经主会话问答，2026-10-14）**：「**1、分册写；2、你来定；D10.1-D10.8 认可**」。**结果**：① 「`D10.1-D10.8` 认可」⇒ `D10` 及其子项 `D10.1`–`D10.8` **逐条确认完成**；本 ADR 顶部 `**状态**：Accepted` 的确认范围**含 `D10`**（上一条同日记述的「不含 `D10`」**已被本条取代**）。② 「1、分册写」⇒ **`D10.6a` 定案 = 备选 (b) 分册**（`.o`→`SimRISC-04`、`.t`→`08`、`.w`→`09`、`.b`→`10`；逐块语义总述置于 `04 §4.2`、其余三册引用）；「建议 (a)」**已否**。③ 「2、你来定」⇒ **实现分阶段由主会话决定**，已定案为「一个任务书、三阶段验收（A 契约/编码层 → B MC → C QEMU）」，写入 `SPEC-142t`。**仍待确认**：**`D10.6b`（`scope` 取值；建议 `scope: m8`）**——**未确认前不得写入 `opcodes.yaml` / `check_scope.py`**。
+- 2026-10-14：**新增 `D11`（提案，待用户逐条确认 ✗）**——`ctlz`/`cttz`/`ctpop`（**位扫描与计数**：新增 **3 条** `orri` 指令；`opx` = `011-101`/`011-110`/`011-111`（29/30/31）、主 op `0x40`（`OPC-octa`）、`value` = `0x40740000`/`0x40780000`/`0x407C0000`、`mask` = `0xFFFC0000`；`hd` = **有效位上界**（有效位 `[hd:0]`）、全 0 定值 = **`hd+1`**、**无新合法性规则**（沿用 `dst_rd0`）；**不带位宽后缀**）。**⚠ `D11` 及其子项 `D11.1`–`D11.10` 均为提案，尚未经用户逐条确认；未确认前不得视为 `Accepted`**，本 ADR 顶部 `**状态**：Accepted` **不含 `D11`**（照 `D10` 提案期先例：顶部 `**状态**` 行**待逐条确认后**再更新）。用户**指令名 / 范围 / 编码 / 前序四项**的**裁定原话**（渠道 = 经主会话问答）**原样引录于 `D11.0`**；落地任务 = `SPEC-143t`（`待开始`，**前置 = `D11` 逐条确认完成 + `spec/` 修改授权**；**与 `SPEC-142t` 须串行**）。**待确认项**：`D11.4`（`cttz` 的 `hd` 语义）／`D11.9`（正文分册归位）〔`scope` 取值**已随 `D10.6b` 定案 = `m8`**，见下条〕。
+- 2026-10-14：**`D10.6b` 关闭——`scope` 定案 = `m8`（用户裁定）**。**用户裁定原话（原样引录，渠道 = 经主会话问答，2026-10-14）**：「**m8，里程碑只是个标识，并不是在划定严格的范围**」。**结果**：① `rev.{o,t,w,b}` 与同批 `ctlz`/`cttz`/`ctpop`（见 `D11.9` 第 4 项）的 `scope` = **`m8`**；② 据此修订 `D10.6` 第 7 项与 `D11.9` 第 7 项的 M1 矩阵表述（**矩阵按 `scope == 'm1'` 机械对齐** ⇒ **不入是机械后果、非范围排斥**；**`M1 身份数（152）不变**）；③ `D10.6b` 原「待用户确认」状态**解除** ⇒ `opcodes.yaml` / `check_scope.py` 的 `scope` 写入**可执行**。
+- 2026-10-14：**`D11` 由提案转 `Accepted`（用户逐条确认 ✓）**——**用户裁定原话（原样引录，渠道 = 经主会话问答，2026-10-14）**：「**D11全部认可**」；`SPEC-143t` 的 `spec/` 授权 = 「**同样授权**」。**结果**：① 「`D11全部认可`」⇒ `D11` 及其子项 `D11.1`–`D11.10` **逐条确认完成**（含 `D11.4` 保持 `[hd:0]` 上界 ✓、`D11.9` 归位 = `SimRISC-04 §2.2` ✓）⇒ 本 ADR 顶部 `**状态**：Accepted` 的确认范围**含 `D11`**（上一条同日记述的「**不含 `D11`**」**已被本条取代**）；② 「`同样授权`」⇒ **`SPEC-143t` 与 `SPEC-142t`（原话「a/b授权」）同样已获改 `spec/` 的授权**（`docs/Process-06 §2`）；③ **无未决项**（`D10.6b` 已定案 ⇒ 不再有 `scope` 未决项）；④ **新增硬要求**（用户同批原话）⇒ 新增指令须在 `SimRISC` 的「**版本与变更记录**」区**写明**。
+- 2026-10-14：**`scope` 记录收敛（用户口径：不必额外记录）**——**用户裁定原话（原样引录，渠道 = 经主会话问答，2026-10-14）**：「**关于scope的事情，增加指令与里程碑并没有绑定关系，不必纠结类似问题，甚至于不必额外记录，只需在SimRISC版本记录中写明即可**」。**结果**：① **新增指令与里程碑无绑定关系**；② **不必额外记录** ⇒ 删除本 ADR 内 `scope` 的**展开论述**，`D10.6b` 处只留「**定案 = `scope: m8`（用户 2026-10-14）**」；③ `D10.6` 第 7 项 / `D11.9` 第 7 项的 M1 矩阵**纠误保留为一句话**（不回退为原误导表述）；④ **新增指令须在 `SimRISC` 的「版本与变更记录」区写明**（`SimRISC-00` 及各分册）。
+- 2026-10-15：**`D10.2` / `D11.2` 就地修订（删 `value` 复写、改引真源）**——**用户 2026-10-15 口径（原样引录，渠道 = 经主会话问答）**：勘误确认 = 「**可以**」×2；位域口径 = 「**无需计算 mask 后的值，就按位域写清楚就行，是谁的责任，谁来认真计算**」。**背景（勘误）**：`D10.2` 原表复写的 `value` 系列（`0x400C0000`/`0x410C0000`/`0x420C0000`/`0x430C0000`）系**主会话算术笔误** ✗——6 位 `opx` 落 `bits[23:18]` 放进字节需 `<<2`（`0x0C → 0x30`），正确值应为 `0x40300000` 系列（已由阶段 A 按真源落地）。**结果**：① `D10.2` / `D11.2` 的编码表**删 `value` 列**，只留**位域**（`op` / `opx`(=`ha`) / `mask` / 字段位置）；② 正文改为「`value = op<<24 | opx<<18` **由生成器计算**，**真源 = `contracts/opcodes.yaml`**，**本 ADR 不复写**」；③ `D10.2`「为何不冲突」③ 删去 `0x??0C0000`（复写笔误模式）只留 `ha: '0x0C'`；`D11.2`「为何不冲突」③ 删去三个 `value` 字面（只留 `ha` 集合口径）；④ 判据沉淀 `.tao/knowledge/lessons.md §1.45`（文档只写位域，派生值由生成器算）；⑤ 任务书侧同步：`SPEC-142t §1` / `SPEC-143t §1` 与 `milestones.md` 流水行。**decision 语义不变**（编码位置 / 掩码 / 字段布局均未变，只去掉派生值复写）。
+- 2026-10-16：**`D5` 被取代（就地修订注记，用户裁定）**——用户裁定**恢复 `rela.si`** 并**更名 `aip.si`**（`riii` / 编码 `0x5A` / 语义 `rbHA = IP + (imms18 << 12)`）⇒ 源 = **`ADR-0029`（`Accepted`）** + 用户 2026-10-16 原话（**逐字**引录见 `D5` 节「就地修订注记」）；**`D5` 正文不改不删** ✓（修订以 `D5` 节「就地修订注记」承载，`docs/Process-03` + `ADR-0019 D11`／`ADR-0026 D5` 同例）；术语 **`PC` ⇒ `IP`**（`IP` = 当前正在执行的指令的地址）；连带 = **影响段计数回退**（`254 → 253` / `177 → 176` 回退，落点以 `SPEC-145t` 阶段为准）+ **陈旧指针补指**（`ADR-0003` 3 处、`ADR-0028` 1 处，只加指针、原文不删 ✓）。关联任务：`SPEC-145t`（`spec/` 恢复）→ `LLVM-095t`（MC / CodeGen / lld）→ `QEMU-061t`（解码 / 语义）。
+
+## 修订
+
+### 2026-10-22 — `D11` 的 `ctlz`/`cttz`/`ctpop` 编码格位迁入 `OPC-MISC`（决策语义不变）
+
+**用户原话（逐字引录，渠道 = 经主会话问答，2026-10-22）**：
+
+> 「修改编码：`ctpop_orri_rd` `ctlz_orri_rd` `cttz_orri_rd` 从 `OPC-octa` 改为 `OPC-MISC`，opx：`100-101`/`100-110`/`100-111`」
+
+**修订内容（仅编码格位；`D11` 的语法、语义、`hd` 上界口径、`scope: m8`、无位宽后缀均不变）**：
+
+- 三条由 `OPC-octa`（`op = 0x40`、`ha = 0x1D/0x1E/0x1F`）迁至 **`OPC-MISC`**（`op = 0x47`、`ha = 0x25/0x26/0x27`；即 opx `100-101`/`100-110`/`100-111`）；格式仍 `orri`，`mask = 0xFFFC0000` 不变。
+- `D11.2` 编码表与 `D11.9` 落位表的「`OPC-octa` / `0x40` / `011-101…`」为本修订前的历史记录，不改写（以本修订为准）。
+- 「**无位宽后缀**」规则不变；这三条不再借用 `OPC-octa` 格位。
+- `**状态**` 保持 **Accepted**。

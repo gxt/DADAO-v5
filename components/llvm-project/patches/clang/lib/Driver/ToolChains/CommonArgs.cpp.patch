@@ -1,0 +1,27 @@
+diff --git a/clang/lib/Driver/ToolChains/CommonArgs.cpp b/clang/lib/Driver/ToolChains/CommonArgs.cpp
+index 08c06951c..479239cf0 100644
+--- a/clang/lib/Driver/ToolChains/CommonArgs.cpp
++++ b/clang/lib/Driver/ToolChains/CommonArgs.cpp
+@@ -3263,6 +3263,22 @@ void tools::addMCModel(const Driver &D, const llvm::opt::ArgList &Args,
+         CM = "medium";
+       Ok = CM == "small" || CM == "medium" ||
+            (CM == "large" && Triple.isRISCV64());
++    } else if (Triple.getArch() == llvm::Triple::dadao) {
++      // DADAO defines exactly two code models (ADR-0036 D1/D2, LLVM-131t):
++      //   * `default` -- one image whose code stays within a single REL26 reach
++      //     (a direct `call`/`jump` reaches +/-32 MiB); data is absolute and
++      //     unrestricted.  `small` is accepted as an alias, because common
++      //     build scripts pass it for the same meaning.
++      //   * `large`   -- code anywhere: an unreachable call/jump target is
++      //     materialized as a 48-bit absolute address and called indirectly.
++      // `medium` / `kernel` would be fake switches (data is already absolute,
++      // so they add no semantics) and `tiny` needs a base register the ABI does
++      // not define, so they are rejected with the allowed values listed instead
++      // of being silently mapped onto one of the two real models.
++      Ok = CM == "default" || CM == "small" || CM == "large";
++      if (!Ok)
++        D.Diag(diag::err_drv_dadao_code_model)
++            << A->getSpelling() << CM << Triple.getTriple();
+     } else if (Triple.getArch() == llvm::Triple::x86_64) {
+       Ok = llvm::is_contained({"small", "kernel", "medium", "large"}, CM);
+     } else if (Triple.isNVPTX() || Triple.isAMDGPU() || Triple.isSPIRV()) {

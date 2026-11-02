@@ -1,9 +1,9 @@
 diff --git a/clang/lib/CodeGen/Targets/DADAO.cpp b/clang/lib/CodeGen/Targets/DADAO.cpp
 new file mode 100644
-index 000000000..41fb213a2
+index 000000000..9f0429aa4
 --- /dev/null
 +++ b/clang/lib/CodeGen/Targets/DADAO.cpp
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,569 @@
 +//===--- DADAO.cpp - DADAO ABI Implementation -----------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,24 +12,35 @@ index 000000000..41fb213a2
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// The DADAO C ABI for aggregates (contract-abi.md §6.1 / §6.4):
++// The DADAO C ABI for aggregates and variable arguments:
 +//
 +//   * An aggregate of at most 64 bytes (8 octa / 8 register slots) is passed
-+//     and returned *by value*; the DADAO backend (LLVM-062t) then assigns the
-+//     individual 8-byte blocks to the per-bank argument/return registers
-+//     (rd16-rd31 / rb16-rb31 and rd8-rd15 / rb8-rb15).
++//     and returned *by value*; the DADAO backend then assigns the individual
++//     8-byte blocks to the per-bank argument/return registers.
++//   * HFA / HPA aggregates go to the RF / RB banks (one slot per leaf); any
++//     other aggregate <= 64 B is coerced to an array of 64-bit integer blocks
++//     and travels in the RD bank (contract-abi.md §6.4, ADR-0031 D3).
 +//   * An aggregate larger than 64 bytes is passed/returned indirectly: a
 +//     hidden pointer (sret for returns; an indirect pointer argument for
 +//     arguments) carried in the RB bank.
++//   * Variable arguments use the seven-field three-cursor va_list of
++//     spec/DADAO-21 §3.3 (ADR-0031 D1/D2/D4): the callee snapshots the
++//     register banks in its own frame and va_arg walks the per-bank cursor,
++//     falling back to the overflow stack area when a bank has too few slots
++//     left (all-or-nothing, never split; D4).
 +//
-+// Everything else (scalars, pointers, and the <8-byte scalar promotion) is left
-+// to DefaultABIInfo, whose Direct/Extend classification the DADAO backend
++// Everything else (scalars, pointers, and the scalar promotion) is left to
++// DefaultABIInfo, whose Direct/Extend classification the DADAO backend
 +// consumes via its own calling convention.
 +//
 +//===----------------------------------------------------------------------===//
 +
 +#include "ABIInfoImpl.h"
++#include "CodeGenFunction.h"
 +#include "TargetInfo.h"
++#include "clang/Basic/TargetBuiltins.h"
++#include "llvm/IR/Intrinsics.h"
++#include "llvm/IR/IntrinsicsDADAO.h"
 +
 +using namespace clang;
 +using namespace clang::CodeGen;
@@ -39,9 +50,167 @@ index 000000000..41fb213a2
 +/// Maximum size (in bits) of an aggregate carried in registers.
 +constexpr uint64_t MaxAggregateBits = 64 * 8;
 +
++/// Maximum number of register slots an aggregate may occupy (D3).
++constexpr unsigned MaxAggregateSlots = 8;
++
++/// True if every leaf of \p Ty (recursively through structs and arrays) is a
++/// pointer and there is no padding: an HPA (contract-abi.md §6.4).  Unions are
++/// never homogeneous (spec/DADAO-21 §3.2.3).
++bool flattenPointerAggregate(ASTContext &Ctx, QualType Ty, unsigned &Count) {
++  if (Ty->isPointerType()) {
++    ++Count;
++    return true;
++  }
++  if (const auto *AT = Ctx.getAsConstantArrayType(Ty)) {
++    if (AT->getZExtSize() == 0)
++      return false;
++    unsigned ElemCount = 0;
++    if (!flattenPointerAggregate(Ctx, AT->getElementType(), ElemCount))
++      return false;
++    Count += ElemCount * AT->getZExtSize();
++    return true;
++  }
++  const auto *RD = Ty->getAsRecordDecl();
++  if (!RD || RD->isUnion())
++    return false;
++  for (const FieldDecl *FD : RD->fields()) {
++    QualType FT = FD->getType();
++    if (isEmptyField(Ctx, FD, /*AllowArrays=*/true))
++      continue;
++    if (!flattenPointerAggregate(Ctx, FT, Count))
++      return false;
++  }
++  return Count > 0;
++}
++
++bool isHomogeneousPointerAggregate(ASTContext &Ctx, QualType Ty) {
++  if (!Ty->isRecordType() && !Ty->isArrayType())
++    return false;
++  unsigned Count = 0;
++  if (!flattenPointerAggregate(Ctx, Ty, Count))
++    return false;
++  if (Count > MaxAggregateSlots)
++    return false;
++  uint64_t Size = Ctx.getTypeSize(Ty);
++  // No padding: the memory image is exactly `Count` pointer-sized slots.
++  return Size == Count * Ctx.getTypeSize(Ctx.getPointerType(Ctx.VoidTy));
++}
++
++/// The per-bank storage class of one value (ADR-0031 D3/D4).
++enum class ValBank { RD = 0, RB = 1, RF = 2 };
++
++struct VAArgClass {
++  ValBank Bank = ValBank::RD;
++  unsigned Slots = 1;   // register slots / stack slots (8 B each)
++  bool Is16 = false;    // 16-byte general aggregate: even-slot pairing (D6)
++  bool HFA = false;     // homogeneous floating aggregate: per-leaf RF
++  bool HPA = false;     // homogeneous pointer aggregate: per-leaf RB
++  bool Indirect = false; // > 64 B: the slot holds a pointer to the value
++  bool Empty = false;
++  QualType LeafTy;       // HFA leaf type
++  unsigned Leaves = 0;   // HFA/HPA leaf count
++  CharUnits TyAlign = CharUnits::fromQuantity(8);
++};
++
 +class DADAOABIInfo : public DefaultABIInfo {
 +public:
 +  DADAOABIInfo(CodeGenTypes &CGT) : DefaultABIInfo(CGT) {}
++
++  // HFA detection (ABIInfo::isHomogeneousAggregate): DADAO follows the
++  // mainstream "same float type, <= 8 leaves, no padding" rule (D3).
++  bool isHomogeneousAggregateBaseType(QualType Ty) const override {
++    return Ty->isSpecificBuiltinType(BuiltinType::Float) || Ty->isSpecificBuiltinType(BuiltinType::Double);
++  }
++  bool isHomogeneousAggregateSmallEnough(const Type *Base,
++                                         uint64_t Members) const override {
++    return Members <= MaxAggregateSlots &&
++           getContext().getTypeSize(QualType(Base, 0)) * Members <=
++               MaxAggregateBits;
++  }
++
++  /// Classify a value for the variadic path (D3/D4).  This mirrors exactly the
++  /// caller-side classification below, so va_arg reads the bank the call site
++  /// actually wrote.
++  VAArgClass classifyVAArg(QualType Ty) const {
++    ASTContext &Ctx = getContext();
++    VAArgClass C;
++    C.TyAlign = Ctx.getTypeInfoInChars(Ty).Align;
++    if (isEmptyRecord(Ctx, Ty, /*AllowArrays=*/true)) {
++      C.Empty = true;
++      C.Slots = 0;
++      return C;
++    }
++
++    // _Complex float/double: two homogeneous floating leaves (RF); _Complex
++    // integer: two 8-byte blocks in RD.
++    if (const auto *CT = Ty->getAs<ComplexType>()) {
++      QualType Elem = CT->getElementType();
++      C.Slots = 2;
++      if (Elem->isFloatingType()) {
++        C.Bank = ValBank::RF;
++        C.HFA = true;
++        C.LeafTy = Elem;
++        C.Leaves = 2;
++      }
++      return C;
++    }
++
++    if (!isAggregateTypeForABI(Ty)) {
++      // `long double` is binary128: one 16-byte value carried in the RF bank
++      // as an even/odd register pair (ADR-0030 D2, ADR-0031 D6), unlike the
++      // 8-byte double which uses a single slot.
++      if (Ty->isSpecificBuiltinType(BuiltinType::LongDouble)) {
++        C.Bank = ValBank::RF;
++        C.Slots = 2;
++        C.Is16 = true;
++        return C;
++      }
++      if (Ty->isPointerType())
++        C.Bank = ValBank::RB;
++      else if (Ty->isFloatingType())
++        C.Bank = ValBank::RF;
++      else
++        C.Bank = ValBank::RD;
++      C.Slots = 1;
++      return C;
++    }
++
++    uint64_t Size = Ctx.getTypeSize(Ty);
++    if (Size > MaxAggregateBits) {
++      // Passed as a pointer in an RB slot; va_arg reads it and copies the
++      // object (contract-abi.md §6.4, spec §3.3 step 5).
++      C.Bank = ValBank::RB;
++      C.Slots = 1;
++      C.Indirect = true;
++      return C;
++    }
++
++    const Type *Base = nullptr;
++    uint64_t Members = 0;
++    if (isHomogeneousAggregate(Ty, Base, Members)) {
++      C.Bank = ValBank::RF;
++      C.HFA = true;
++      C.LeafTy = QualType(Base, 0);
++      C.Leaves = Members;
++      C.Slots = Members;
++      return C;
++    }
++    if (isHomogeneousPointerAggregate(Ctx, Ty)) {
++      C.Bank = ValBank::RB;
++      C.HPA = true;
++      C.Leaves = Size / Ctx.getTypeSize(Ctx.getPointerType(Ctx.VoidTy));
++      C.Slots = C.Leaves;
++      return C;
++    }
++    // General aggregate: 8-byte blocks in RD.  A two-block value (9..16
++    // bytes) is allocated as one group; the caller starts a 16-byte value at
++    // an even slot (D6) and the same convention is used for the 9..15-byte
++    // corner so both sides agree.
++    C.Bank = ValBank::RD;
++    C.Slots = (Size + 63) / 64;
++    C.Is16 = (C.Slots == 2);
++    return C;
++  }
 +
 +  ABIArgInfo classifyReturnType(QualType RetTy) const {
 +    if (isAggregateTypeForABI(RetTy)) {
@@ -50,17 +219,255 @@ index 000000000..41fb213a2
 +      return getNaturalAlignIndirect(RetTy,
 +                                     getDataLayout().getAllocaAddrSpace());
 +    }
++    // contract-abi.md §4.4 C5: a value narrower than 8 bytes is canonicalised
++    // by the *callee* (§4.2 sign/zero extension) before `ret`, and the caller
++    // may assume the full 64-bit register is canonical.  DefaultABIInfo only
++    // marks types that are promotable to `int` (i1/i8/i16); i32 (and 32-bit
++    // enums) are not promotable, so without this they would reach
++    // SelectionDAGBuilder as ANY_EXTEND and leave the high 32 bits dirty.
++    if (RetTy->isIntegralOrEnumerationType() &&
++        getContext().getTypeSize(RetTy) < 64)
++      return ABIArgInfo::getExtend(RetTy, CGT.ConvertType(RetTy));
 +    return DefaultABIInfo::classifyReturnType(RetTy);
 +  }
 +
 +  ABIArgInfo classifyArgumentType(QualType Ty) const {
-+    if (isAggregateTypeForABI(Ty)) {
-+      if (getContext().getTypeSize(Ty) <= MaxAggregateBits)
-+        return ABIArgInfo::getDirect();
-+      return getNaturalAlignIndirect(Ty,
-+                                     getDataLayout().getAllocaAddrSpace());
++    Ty = useFirstFieldIfTransparentUnion(Ty);
++    // _Complex float/double: two homogeneous floating leaves.  Coerce to an
++    // array so it stays ONE IR argument (ABIArgInfo::getDirect() with the
++    // struct type would expand it into separate arguments and lose the
++    // allocation group needed by ADR-0031 D4).
++    if (const auto *CT = Ty->getAs<ComplexType>()) {
++      QualType Elem = CT->getElementType();
++      if (Elem->isFloatingType())
++        return ABIArgInfo::getDirect(llvm::ArrayType::get(
++            CGT.ConvertType(Elem), 2));
 +    }
++    if (isAggregateTypeForABI(Ty)) {
++      uint64_t Size = getContext().getTypeSize(Ty);
++      if (Size > MaxAggregateBits)
++        return getNaturalAlignIndirect(Ty,
++                                       getDataLayout().getAllocaAddrSpace());
++      // HFA / HPA are coerced to an array of their leaves: one IR argument,
++      // one allocation group, and the backend banks the pieces into RF / RB
++      // (one leaf per slot).  Passing the struct directly would let
++      // CodeGen expand it into separate IR arguments and lose the group.
++      const Type *Base = nullptr;
++      uint64_t Members = 0;
++      if (isHomogeneousAggregate(Ty, Base, Members))
++        return ABIArgInfo::getDirect(llvm::ArrayType::get(
++            CGT.ConvertType(QualType(Base, 0)), Members));
++      if (isHomogeneousPointerAggregate(getContext(), Ty))
++        return ABIArgInfo::getDirect(llvm::ArrayType::get(
++            llvm::PointerType::getUnqual(CGT.getLLVMContext()), Size / 64));
++      // Any other aggregate <= 64 B is an array of 64-bit blocks in RD
++      // (contract-abi.md §6.4: "通用聚合 <= 64 字节 ⇒ 1-8 个 8 字节块放入 RD").
++      // Two-block values (9..16 bytes) are one allocation group; the backend
++      // gives the 16-byte ones an even-aligned pair (ADR-0031 D6).
++      unsigned Blocks = (Size + 63) / 64;
++      llvm::Type *BlockTy = llvm::Type::getInt64Ty(CGT.getLLVMContext());
++      return ABIArgInfo::getDirect(llvm::ArrayType::get(BlockTy, Blocks));
++    }
++    // contract-abi.md §4.2 (C4 D2 / ISS-310): a scalar narrower than 8 bytes is
++    // passed canonicalised to 64 bits with its *sign bit preserved*, i.e.
++    // sign-extended for signed types and zero-extended for unsigned ones.  The
++    // IR `signext`/`zeroext` attribute is how the extension is requested from
++    // the backend (CC_DADAO turns it into a SExt/ZExt LocInfo).  DefaultABIInfo
++    // only does this for the types that are promotable to `int` (bool/char/
++    // short); a 32-bit `int` and a 32-bit enum are not promotable, so without
++    // this branch they reach the caller as a bare i32 and the caller
++    // zero-extends it -- generating `set.zw`+`or.w` for `int -1` instead of
++    // `ext.so`.  Mirror classifyReturnType (C5 D2) here.
++    if (Ty->isIntegralOrEnumerationType() &&
++        getContext().getTypeSize(Ty) < 64 &&
++        !isPromotableIntegerTypeForABI(Ty))
++      return ABIArgInfo::getExtend(Ty, CGT.ConvertType(Ty));
 +    return DefaultABIInfo::classifyArgumentType(Ty);
++  }
++
++  // va_arg (spec/DADAO-21 §3.3; ADR-0031 D4):
++  //   1. classify -> bank + slots;
++  //   2. if left >= slots take the register slot(s), advance cursor and left;
++  //   3. otherwise take the whole value from the overflow stack area, advance
++  //      only stack_next (the bank cursor and left stay put -- no splitting);
++  //   4. 16-byte values need an even starting slot (skip one if odd) and two
++  //      slots (three with the skip); if that does not fit, the whole value
++  //      goes to the stack without skipping or advancing the cursor.  On the
++  //      stack they are 16-byte aligned: va.stack is rounded up before the
++  //      value is read (ADR-0031 D7, same rule as the caller's stack offset);
++  //   5. HFA/HPA are rebuilt leaf by leaf; > 64 B values are copied from the
++  //      pointer held in the slot.
++  RValue EmitVAArg(CodeGenFunction &CGF, Address VAListAddr, QualType Ty,
++                   AggValueSlot Slot) const override {
++    ASTContext &Ctx = getContext();
++    CGBuilderTy &B = CGF.Builder;
++    VAArgClass C = classifyVAArg(Ty);
++
++    if (C.Empty)
++      return Slot.asRValue();
++
++    llvm::Type *PtrTy = llvm::PointerType::getUnqual(CGF.getLLVMContext());
++    llvm::Type *Int64Ty = CGF.Int64Ty;
++    CharUnits SlotAlign = CharUnits::fromQuantity(8);
++
++    Address NextP = B.CreateStructGEP(VAListAddr, static_cast<unsigned>(C.Bank),
++                                      "va.next_p");
++    Address LeftP = B.CreateStructGEP(VAListAddr, 3 + static_cast<unsigned>(C.Bank),
++                                      "va.left_p");
++    Address StackP = B.CreateStructGEP(VAListAddr, 6, "va.stack_p");
++    llvm::Value *Next = B.CreateLoad(NextP, "va.next");
++    llvm::Value *Left = B.CreateLoad(LeftP, "va.left");
++
++    llvm::BasicBlock *InRegBB = CGF.createBasicBlock("vaarg.in_reg");
++    llvm::BasicBlock *OnStackBB = CGF.createBasicBlock("vaarg.on_stack");
++    llvm::BasicBlock *ContBB = CGF.createBasicBlock("vaarg.cont");
++
++    // Number of slots this value needs when taken from registers.  A 16-byte
++    // value whose cursor is on an odd slot first skips one slot (D6).  The
++    // cursor's slot parity is derived from the remaining-slot count: the bank
++    // is counted from 16 up to 32, so the cursor index is (32 - left) and its
++    // parity is (left & 1).  Using the count (not the save-area address) keeps
++    // the rule correct when the save area itself is only 8-byte aligned, which
++    // is all contract-abi.md §2.2 guarantees for SP at a call.
++    llvm::Value *Odd = B.getFalse();
++    llvm::Value *Need = B.getInt64(C.Slots);
++    if (C.Is16) {
++      Odd = B.CreateICmpNE(B.CreateAnd(Left, B.getInt64(1)),
++                           B.getInt64(0), "va.odd");
++      Need = B.CreateSelect(Odd, B.getInt64(3), B.getInt64(2), "va.need");
++    }
++
++    llvm::Value *InRegs = B.CreateICmpSGE(Left, Need, "va.inregs");
++    B.CreateCondBr(InRegs, InRegBB, OnStackBB);
++
++    unsigned StackSlots = C.Slots;
++    if (C.HFA || C.HPA)
++      StackSlots = C.Leaves;      // one 8-byte stack slot per leaf
++    else if (C.Indirect)
++      StackSlots = 1;             // the pointer itself
++    uint64_t StackBytes = uint64_t(StackSlots) * 8;
++
++    // The value's source image in each path.  Aggregates load once from the
++    // merged address; scalars produce a value in each path (their register and
++    // stack encodings differ for f32, see below).
++    bool IsScalar = !isAggregateTypeForABI(Ty) && !Ty->isAnyComplexType() &&
++                    !Ty->isSpecificBuiltinType(BuiltinType::LongDouble);
++    Address InAddr = Address::invalid();
++    Address StackAddr = Address::invalid();
++    llvm::Value *InVal = nullptr, *StackVal = nullptr;
++
++    auto scalarFromSlot = [&](Address SlotAddr, bool InRegister) -> llvm::Value * {
++      llvm::Type *ValTy = CGF.ConvertType(Ty);
++      if (Ty->isSpecificBuiltinType(BuiltinType::Float)) {
++        // RF keeps the f32 in the low 32 bits: after stm.o the big-endian
++        // bytes 4..7 hold it.  On the stack the caller stores 4 bytes at the
++        // slot start.  These are different offsets, so load per path.
++        Address Base =
++            InRegister
++                ? B.CreateConstInBoundsByteGEP(SlotAddr,
++                                               CharUnits::fromQuantity(4))
++                : SlotAddr;
++        Address FA(Base.emitRawPointer(CGF), CGF.FloatTy,
++                   CharUnits::fromQuantity(4));
++        return B.CreateLoad(FA, "va.f32");
++      }
++      llvm::Value *Raw =
++          B.CreateLoad(B.CreateConstInBoundsByteGEP(SlotAddr, CharUnits::Zero())
++                           .withElementType(Int64Ty),
++                       "va.raw");
++      if (Ty->isSpecificBuiltinType(BuiltinType::Double))
++        return B.CreateBitCast(Raw, CGF.DoubleTy, "va.f64");
++      if (Ty->isPointerType())
++        return B.CreateIntToPtr(Raw, ValTy, "va.ptr");
++      return B.CreateIntCast(Raw, ValTy, Ty->isSignedIntegerType(), "va.int");
++    };
++
++    //=======================================
++    // Argument was in registers
++    //=======================================
++    CGF.EmitBlock(InRegBB);
++    {
++      llvm::Value *Skip = B.getInt64(0);
++      if (C.Is16)
++        Skip = B.CreateSelect(Odd, B.getInt64(8), B.getInt64(0), "va.skip");
++      llvm::Value *SrcPtr = B.CreateInBoundsGEP(CGF.Int8Ty, Next, Skip,
++                                                "va.reg_src");
++      Address Src(SrcPtr, CGF.Int8Ty, CharUnits::fromQuantity(8));
++      if (C.HFA) {
++        InAddr = emitHFATemp(CGF, Src, /*InRegister=*/true, Ty, C);
++      } else if (C.Indirect) {
++        llvm::Value *Ptr =
++            B.CreateLoad(Src.withElementType(PtrTy), "va.indirect");
++        InAddr = Address(Ptr, CGF.Int8Ty,
++                         std::max(C.TyAlign, CharUnits::fromQuantity(8)));
++      } else if (IsScalar) {
++        InVal = scalarFromSlot(Src, /*InRegister=*/true);
++      } else {
++        InAddr = Src;
++      }
++      llvm::Value *NewNext = B.CreateInBoundsGEP(
++          CGF.Int8Ty, Next,
++          B.CreateMul(Need, B.getInt64(8), "va.advance"), "va.next_new");
++      B.CreateStore(NewNext, NextP);
++      B.CreateStore(B.CreateSub(Left, Need, "va.left_new"), LeftP);
++      CGF.EmitBranch(ContBB);
++    }
++
++    //=======================================
++    // Argument was on the stack
++    //=======================================
++    CGF.EmitBlock(OnStackBB);
++    {
++      llvm::Value *StackNext = B.CreateLoad(StackP, "va.stack");
++      if (C.Is16) {
++        // ADR-0031 D7: a 16-byte stack value is 16-byte aligned.  The caller
++        // skips an odd 8-byte slot in reassignDADAOArgLocs (same rule); skip
++        // it here too before reading, and advance from the aligned address so
++        // the next value starts after the two occupied slots.
++        llvm::Value *StackInt =
++            B.CreatePtrToInt(StackNext, Int64Ty, "va.stack.int");
++        StackInt = B.CreateAnd(
++            B.CreateAdd(StackInt, B.getInt64(15), "va.stack.pad"),
++            B.getInt64(-16), "va.stack.aligned");
++        StackNext = B.CreateIntToPtr(StackInt, PtrTy, "va.stack.aligned.p");
++      }
++      Address Src(StackNext, CGF.Int8Ty, CharUnits::fromQuantity(8));
++      if (C.HFA) {
++        StackAddr = emitHFATemp(CGF, Src, /*InRegister=*/false, Ty, C);
++      } else if (C.Indirect) {
++        llvm::Value *Ptr = B.CreateLoad(Src.withElementType(PtrTy), "va.ind_ptr");
++        StackAddr = Address(Ptr, CGF.Int8Ty,
++                            std::max(C.TyAlign, CharUnits::fromQuantity(8)));
++      } else if (IsScalar) {
++        StackVal = scalarFromSlot(Src, /*InRegister=*/false);
++      } else {
++        StackAddr = Src;
++      }
++      llvm::Value *NewStack = B.CreateInBoundsGEP(
++          CGF.Int8Ty, StackNext, B.getInt64(StackBytes), "va.stack_new");
++      B.CreateStore(NewStack, StackP);
++      CGF.EmitBranch(ContBB);
++    }
++
++    //=======================================
++    // Merge
++    //=======================================
++    CGF.EmitBlock(ContBB);
++    if (IsScalar) {
++      llvm::Type *ValTy = CGF.ConvertType(Ty);
++      llvm::PHINode *PHI = B.CreatePHI(ValTy, 2, "va.arg");
++      PHI->addIncoming(InVal, InRegBB);
++      PHI->addIncoming(StackVal, OnStackBB);
++      return RValue::get(PHI);
++    }
++
++    Address ResAddr = emitMergePHI(CGF, InAddr, InRegBB, StackAddr, OnStackBB,
++                                   "vaarg.addr");
++    llvm::Type *MemTy = CGF.ConvertTypeForMem(Ty);
++    CharUnits Align = std::min(ResAddr.getAlignment(),
++                               std::max(C.TyAlign, CharUnits::fromQuantity(8)));
++    Address FinalAddr(ResAddr.emitRawPointer(CGF), MemTy, Align);
++    return CGF.EmitLoadOfAnyValue(CGF.MakeAddrLValue(FinalAddr, Ty), Slot);
 +  }
 +
 +  // DefaultABIInfo::classify{Return,Argument}Type are not virtual, so the
@@ -70,6 +477,49 @@ index 000000000..41fb213a2
 +      FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
 +    for (auto &I : FI.arguments())
 +      I.info = classifyArgumentType(I.type);
++  }
++
++private:
++  /// Build a temporary with the aggregate's canonical memory image from the
++  /// per-leaf slots of an HFA's register save area (or its stack slots).  A
++  /// float leaf lives in the low 32 bits of an RF register, which big-endian
++  /// `stm.o` puts at bytes 4..7; on the stack the caller stores the 4-byte
++  /// float at the slot start.
++  Address emitHFATemp(CodeGenFunction &CGF, Address Base, bool InRegister,
++                      QualType Ty, const VAArgClass &C) const {
++    ASTContext &Ctx = getContext();
++    CGBuilderTy &B = CGF.Builder;
++    QualType LeafTy = C.LeafTy;
++    CharUnits LeafSize = Ctx.getTypeInfoInChars(LeafTy).Width;
++    CharUnits LeafAlign = Ctx.getTypeInfoInChars(LeafTy).Align;
++    llvm::Type *MemTy = CGF.ConvertTypeForMem(Ty);
++    llvm::Type *LeafMemTy = CGF.ConvertTypeForMem(LeafTy);
++    Address Tmp = CGF.CreateTempAlloca(MemTy, C.TyAlign, "vaarg.hfa");
++    Address TmpI8 = Tmp.withElementType(CGF.Int8Ty);
++
++    for (unsigned I = 0; I != C.Leaves; ++I) {
++      Address Slot(B.CreateInBoundsGEP(CGF.Int8Ty, Base.emitRawPointer(CGF),
++                                       B.getInt64(I * 8)),
++                   CGF.Int8Ty, CharUnits::fromQuantity(8));
++      llvm::Value *Leaf;
++      if (LeafTy->isSpecificBuiltinType(BuiltinType::Float)) {
++        Address Base =
++            InRegister
++                ? B.CreateConstInBoundsByteGEP(Slot,
++                                               CharUnits::fromQuantity(4))
++                : Slot;
++        Address FA(Base.emitRawPointer(CGF), CGF.FloatTy,
++                   CharUnits::fromQuantity(4));
++        Leaf = B.CreateLoad(FA, "va.leaf.f32");
++      } else {
++        Leaf = B.CreateLoad(Slot.withElementType(CGF.DoubleTy), "va.leaf.f64");
++      }
++      Address DstAddr = B.CreateConstInBoundsByteGEP(
++          TmpI8, CharUnits::fromQuantity(I * LeafSize.getQuantity()));
++      Address Dst(DstAddr.emitRawPointer(CGF), LeafMemTy, LeafAlign);
++      B.CreateStore(Leaf, Dst);
++    }
++    return Tmp;
 +  }
 +};
 +
@@ -84,4 +534,42 @@ index 000000000..41fb213a2
 +std::unique_ptr<TargetCodeGenInfo>
 +CodeGen::createDADAOTargetCodeGenInfo(CodeGenModule &CGM) {
 +  return std::make_unique<DADAOTargetCodeGenInfo>(CGM.getTypes());
++}
++
++//===----------------------------------------------------------------------===//
++// Target builtins (LLVM-122t)
++//===----------------------------------------------------------------------===//
++
++llvm::Value *CodeGenFunction::EmitDADAOBuiltinExpr(unsigned BuiltinID,
++                                                   const CallExpr *E) {
++  switch (BuiltinID) {
++  default:
++    return nullptr;
++  case DADAO::BI__builtin_dadao_clmul: {
++    // GF(2) carry-less multiply (ADR-0035): 64x64 -> 128 bits in one
++    // `clmul.o`.  The value is carried as an i128 and the backend splits it
++    // into the instruction's two destinations (both halves of the same
++    // instruction), so no shifting/joining code is emitted here.  The builtin
++    // prototype is `unsigned __int128(unsigned long long, unsigned long long)`
++    // (BuiltinsDADAO.def), so argument type mismatches are diagnosed by Sema as
++    // usual -- nothing is silently truncated.
++    llvm::Value *A = EmitScalarExpr(E->getArg(0));
++    llvm::Value *B = EmitScalarExpr(E->getArg(1));
++    llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::dadao_clmul_wide);
++    return Builder.CreateCall(F, {A, B}, "clmul");
++  }
++  case DADAO::BI__builtin_dadao_remainder: {
++    // IEEE 754 remainder (LLVM-126t): one `forem`/`ftrem` for f64/f32, no
++    // libcall.  The overload is chosen from the (already type-checked) first
++    // argument; the intrinsic operand type is the same as the result type, so
++    // a float call cannot silently widen to double.
++    llvm::Value *A = EmitScalarExpr(E->getArg(0));
++    llvm::Value *B = EmitScalarExpr(E->getArg(1));
++    llvm::Intrinsic::ID ID = A->getType()->isFloatTy()
++                                 ? llvm::Intrinsic::dadao_remainder_f32
++                                 : llvm::Intrinsic::dadao_remainder_f64;
++    llvm::Function *F = CGM.getIntrinsic(ID);
++    return Builder.CreateCall(F, {A, B}, "rem");
++  }
++  }
 +}

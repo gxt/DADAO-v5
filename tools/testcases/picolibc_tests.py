@@ -48,11 +48,15 @@ Classification
   running the test (LLVM lowering, missing libc symbol, linker relocation
   overflow, machine fault, QEMU crash, timeout).  Reported separately from
   ``excluded`` with a root-cause pointer and, where quantifiable, the unlock
-  condition; never merged into ``excluded``.
+  condition; never merged into ``excluded``.  **A non-zero ``blocked`` count is
+  a gate failure**: the run's coverage is incomplete, so the harness must not
+  report PASS.  Fix the gap, or -- only when the case is structurally out of
+  scope with a stated reason -- move it to ``EXCLUDED`` (never relabel a real
+  gap just to make the gate green).
 
-Exit status: 0 = no failures; 1 = one or more ``fail``; 2 = setup error.
-``--inject`` corrupts one test's expected exit status so the ``fail`` path is
-reachable (used by the evidence script).
+Exit status: 0 = no failures *and* nothing blocked; 1 = one or more ``fail``
+or ``blocked``; 2 = setup error.  ``--inject`` corrupts one test's expected
+exit status so the ``fail`` path is reachable (used by the evidence script).
 
 Counting is always live (no hard-coded totals).
 """
@@ -251,12 +255,38 @@ def compile_target(name, target, out_dir, env):
     return objs, ""
 
 
+_BUILTINS_ARCHIVE: Path | None = None
+
+
+def builtins_archive() -> Path:
+    """The independent DADAO compiler-rt builtins archive (ADR-0027 D5).
+
+    ``libc.a`` no longer vendors ``__muldc3``/``__mulsc3`` (INFRA-079t), and
+    this harness links with ``ld.lld`` directly instead of the clang driver, so
+    the archive has to be named explicitly.  The path is asked from the driver
+    (single source of truth, no hard-coded resource-dir layout).
+    """
+    global _BUILTINS_ARCHIVE
+    if _BUILTINS_ARCHIVE is None:
+        res = run([str(CLANG), "-target", "dadao-unknown-elf",
+                   "-rtlib=compiler-rt", "-print-libgcc-file-name"])
+        lines = res.stdout.strip().splitlines()
+        path = Path(lines[0]) if res.returncode == 0 and lines else None
+        if path is None or not path.is_file():
+            print(f"picolibc-tests: ERROR: compiler-rt builtins archive not found "
+                  f"(driver said {path!r}) — run 'make install-host'",
+                  file=sys.stderr)
+            raise SystemExit(2)
+        _BUILTINS_ARCHIVE = path
+    return _BUILTINS_ARCHIVE
+
+
 def link_target(name, objs, prelude, defsyms, out_dir):
     elf = out_dir / f"{name}.elf"
     res = run([str(LLD), *defsyms, "-T", str(SYSROOT / "lib" / "picolibc_noflash.ld"),
                *[str(o) for o in prelude], *[str(o) for o in objs],
                str(SYSROOT / "lib" / "libc.a"), str(SYSROOT / "lib" / "libsemihost.a"),
-               "-o", str(elf)])
+               str(builtins_archive()), "-o", str(elf)])
     if res.returncode != 0:
         return None, res.stdout
     return elf, ""
@@ -452,7 +482,15 @@ def main() -> int:
     if counts["fail"] > 0:
         print(f"picolibc-tests: FAIL ({counts['fail']} test(s) failed)", file=sys.stderr)
         return 1
-    print("picolibc-tests: PASS (fail=0)")
+    # ISS-248: a `blocked` case is a *gap*, not a skip -- the gate must not
+    # report PASS while the feature it claims to cover was never exercised.
+    # Structurally out-of-scope cases belong in EXCLUDED with a stated reason
+    # (never a relabel of a live gap).
+    if counts["blocked"] > 0:
+        print(f"picolibc-tests: FAIL ({counts['blocked']} test(s) blocked -- "
+              "build/run gap; coverage is incomplete)", file=sys.stderr)
+        return 1
+    print("picolibc-tests: PASS (fail=0, blocked=0)")
     return 0
 
 

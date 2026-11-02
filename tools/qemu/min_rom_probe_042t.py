@@ -3,7 +3,7 @@
 
 Contract sources (spec-first; encodings NOT taken from QEMU):
   - contracts/opcodes.yaml            (instruction op/ha/masks)
-  - .tao/knowledge/contract-elf.md §1/§5/§6
+  - .tao/contracts/contract-elf.md §1/§5/§6
   - .tao/adr/adr-0004-test-machine.md (D1 memory map, D2.2/D2.3 load paths)
 
 What it checks (each printed as "[PASS]/[FAIL] name: expected -> actual"):
@@ -64,7 +64,7 @@ RAM_SIZE = 16 * 1024 * 1024
 ROM_BASE = 0xFFFF_FFFF_0000
 ROM_SIZE = 64 * 1024
 SEMI_BLOCK = 0xFC00_00FF_F000        # SYS_EXIT argument block {reason, code}, in RAM
-SEMIHOST_TAG = 0x30000               # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00               # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
 EM_DADAO = 0x0DA0
@@ -110,10 +110,11 @@ def trap(ha, immu18):
 
 
 def swym():
-    return 0x77880000
+    return 0x47880000
 
-def fence():
-    return 0x77000000
+def illi_poison():
+    """cfxld (op=0x7C, ha=0x00, scope=excluded) — ILLI poison."""
+    return 0x7C000000
 
 def imm64_rd(rd, val):
     words = [set_zw_rd(rd, 0, val & 0xFFFF)]
@@ -225,7 +226,7 @@ DATA_BYTES = (p64(RODATA0) + p64(RODATA1) + p64(DATA0) + p64(DATA1))
 
 def text_with_entry(code_words):
     pre = ENTRY_OFF // 4
-    words = [fence()] + [swym()] * (pre - 1) + code_words
+    words = [illi_poison()] + [swym()] * (pre - 1) + code_words
     blob = words_to_bytes(words)
     assert len(blob) <= TEXT_VADDR_OFF, len(blob)
     return blob + b"\x00" * (TEXT_VADDR_OFF - len(blob))

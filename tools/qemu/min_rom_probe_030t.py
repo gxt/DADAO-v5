@@ -79,7 +79,7 @@ def ld_o_rd(rdha, rbhb, imms12):
 # Trampoline sets rb16 = SEMI_BLOCK, writes block[0] = 0x20026 and sets
 # rd16 = 0x18 (SYS_EXIT).  Each terminal writes the code into block[1] and traps.
 SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
-SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 def trap_sys_exit(): return encode_riii(0x7F, 0x00, SEMIHOST_TAG)
 def semi_exit(code_rd): return [st_o_rd(code_rd, 16, 8), trap_sys_exit()]
 def st_o_rd_pass(): return semi_exit(18)   # PASS: exit code from rd18
@@ -88,8 +88,9 @@ def cmp_uo_rd(rdhb, rdhc, rdhd): return encode_orri(0x40, 0x2A, rdhb, rdhc, rdhd
 def br_nz(rdha, imms18): return encode_riii(0x6B, rdha, imms18 & 0x3FFFF)
 def call_iiii(imms24): return encode_iiii(0x74, imms24 & 0xFFFFFF)
 def ret_riii(rdha, imms18): return encode_riii(0x76, rdha, imms18 & 0x3FFFF)
-def fence(): return encode_orri(0x77, 0x00, 0, 0, 0)
-def swym(): return struct.pack('>I', 0x77880000)
+def fence(): return encode_orri(0x47, 0x20, 0, 0, 0)
+def swym(): return struct.pack(">I", 0x47880000)
+def illi_poison(): return struct.pack(">I", 0x7C000000)  # cfxld
 def st_o_ra(raha, rbhb, imms12):
     imm = imms12 & 0xFFF; hc = (imm >> 6) & 0x3F; hd = imm & 0x3F
     if imms12 < 0: hc |= 0x20
@@ -593,7 +594,7 @@ CTL_CHECKS = [
     ("CTL: st.o PASS but expect ILLI",
      [set_zw_rd(18, 0), *st_o_rd_pass()], ILLI_EXIT, "CTL broken"),
     ("CTL: fence but expect PASS",
-     [fence()], PASS_EXIT, "CTL broken"),
+     [illi_poison()], PASS_EXIT, "CTL broken"),
 ]
 
 # ── Test runner ────────────────────────────────────────────────────────

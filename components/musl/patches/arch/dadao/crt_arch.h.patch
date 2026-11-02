@@ -1,0 +1,105 @@
+diff --git a/arch/dadao/crt_arch.h b/arch/dadao/crt_arch.h
+new file mode 100644
+index 0000000..343b40a
+--- /dev/null
++++ b/arch/dadao/crt_arch.h
+@@ -0,0 +1,99 @@
++/*
++ * DADAO program entry point for crt1.c (START = "_start") and for
++ * ldso/dlstart.c / crt/rcrt1.c (SHARED defined, START = "_dlstart" / "_start").
++ *
++ * Argument registers (contract-abi.md §4.1/§4.4): a pointer argument goes to
++ * the RB bank, an integer/pointer *return* value to rd8.  Both entry helpers
++ * take pointer arguments only, so:
++ *
++ *     _start_c(long *p)                      -- p in rb16
++ *     _dlstart_c(size_t *sp, size_t *dynv)   -- sp in rb16, dynv in rb17
++ *
++ * THE INITIAL STACK (P3, contract-dynlink.md §6.6)
++ * ---------------------------------------------------------------------------
++ * Every entry body below takes `p`/`sp` from the incoming stack pointer (rb1).
++ * That stack is a Linux-shaped vector
++ *
++ *     argc, argv[0..argc-1], NULL, envp..., NULL, auxv (AT_* pairs), AT_NULL
++ *
++ * built by whoever starts the process.  In M8 that is the user-mode loader
++ * (qemu-user, ADR-0025 D6, P3): linux-user/elfload.c:create_elf_tables() lays
++ * out the vector and injects AT_PHDR/AT_PHNUM/AT_PHENT/AT_BASE/AT_ENTRY, and
++ * setup_arg_pages() hands the resulting SP over 16-byte aligned.  For a
++ * DYNAMIC executable the interpreter is entered first and musl's ldso finally
++ * jumps to the program's own entry with that same sp, so `_start` sees the
++ * original vector -- it must not invent one.
++ *
++ * History, so this is not re-litigated: P1 (bare metal on dadao-m1) had no
++ * process-starting software at all and `_start` therefore handed _start_c a
++ * **statically built** argc/argv/envp/auxv frame from .data (deliberately
++ * without AT_PHDR, so static TLS was undiscoverable).  That runtime no longer
++ * exists: the user ruling of 2026-10-15 deleted the dadao-m1 umon syscall
++ * service (QEMU-060t), so a musl program cannot run there any more -- the
++ * only runtime is qemu-user, and P3's acceptance requires argv/envp/auxv to
++ * come from the loader (a dynamic executable would otherwise parse a frame
++ * that has nothing to do with the one the interpreter relocated against).
++ *
++ * Consequences worth naming:
++ *   * argv[0] is the real program name the user typed, not a baked-in string;
++ *   * AT_PHDR is present, so musl's static_init_tls can find PT_TLS;
++ *   * no .data frame is emitted any more, so nothing in the port fabricates
++ *     startup facts.
++ *
++ * Conventions used here (spec/Toolchain-01-汇编语言.md): `@@` starts a comment
++ * (`#` is reserved for cpp), only `.dd.b08/.dd.w16/.dd.t32/.dd.o64` data
++ * directives and `.p2align` are legal, and an absolute symbol address is
++ * produced by `set.rb rbN, symbol` (3 wyde slices + R_DADAO_ABS48).
++ */
++
++/*
++ * How the dynamic entry hands the dynamic-section pointer (rb17 = dynv) to
++ * <START>_c.
++ *
++ * The entry stub cannot supply &_DYNAMIC in any *link-time* form, so it passes
++ * dynv = NULL and _dlstart_c derives the dynamic section from the loader's
++ * run-time state (see ldso/dlstart.c; contract-dynlink.md §6.2/§6.3):
++ *
++ *   * `set.rb rb17, _DYNAMIC` (3 wyde slices + R_DADAO_ABS48) is a *link-time
++ *     absolute address*; it is only right at the link-time base, which neither
++ *     a shared object nor a static PIE has.  As an ABS48 in .text it is
++ *     unreachable for a PIE at all -- lld refuses the link with
++ *     "relocation R_DADAO_ABS48 cannot be used against symbol '_DYNAMIC';
++ *     recompile with -fPIC" -- and for -static-pie (crt/rcrt1.c) it is the
++ *     ISS-245 defect: 3 ABS48 _DYNAMIC relocations in the object's .text.
++ *   * the PIC idiom of contract-dynlink.md §3 / ADR-0029 D4 -- a `.got` slot
++ *     read through `aip.si` + `ld.o` (R_DADAO_RELATIVE) -- needs the RELATIVE
++ *     relocations applied already, which is precisely what _dlstart_c is about
++ *     to do: the slot would be read before it is fixed up, so the two paths
++ *     are circular.
++ *
++ * `_DYNAMIC` is by definition load base + PT_DYNAMIC's p_vaddr, so both
++ * entries (interpreter via AT_BASE, static PIE via AT_PHDR/PT_PHDR) compute
++ * the same object _dlstart_c needs.  rd0 is the hardwired-zero RD register
++ * (contract-abi.md §4.5), so `rd2rb {rb17}, {rd0}` is a plain "pass 0" that
++ * touches neither memory nor the .got.
++ */
++#ifdef SHARED
++#define DADAO_DYNV_ASM "	rd2rb	{rb17}, {rd0}\n"
++#else
++/* A static executable has no dynamic vector to pass. */
++#define DADAO_DYNV_ASM ""
++#endif
++
++#define DADAO_ENTRY_BODY						\
++	"	rb2rb	{rb16}, {rb1}\n"			\
++	DADAO_DYNV_ASM						\
++	"	call	[rb0, " START "_c]\n"			\
++	"	swym	0\n"
++
++__asm__(
++".text\n"
++".p2align 2\n"
++".global " START "\n"
++".type " START ",%function\n"
++START ":\n"
++DADAO_ENTRY_BODY
++".size " START ", . - " START "\n"
++".weak _DYNAMIC\n"
++".hidden _DYNAMIC\n"
++);

@@ -10,7 +10,7 @@ the QEMU implementation):
     exception table: cause ids), §5 异常进入流程 steps 1-10 + 异常退出流程
     steps 0-4 (escape: escape_cfx_mask / prev_cfx_mask / prev_run_mode /
     escape_num++ / PC = excp_cause_ip + (imms18<<2)).
-  - spec/SimRISC-11-其它.md §特权指令 (trap ciii; escape ciii with
+  - spec/SimRISC-11-核芯功能扩展指令.md 「指令域与执行条件」 (trap ciii; escape ciii with
     `imms20` byte offset, `%4==0`, addr = excp_cause_ip + imms20, encoding
     imms18<<2, N may be negative; cfx2rd/cfx2rc crrr; reserved cfxha 7-14,
     19-61 => ILLI; non-existent register combination / RO-write => CFXREG).
@@ -92,7 +92,7 @@ CFXTRAP, CFXMEM, CFXREG, ILLI = 1, 2, 4, 1 << 8
 ALL1 = (1 << 64) - 1
 
 # Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
-SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 SEMI_BLOCK = 0xFC00_00FF_F000       # argument block {reason, code}, in RAM
 
@@ -110,7 +110,7 @@ def cfx2rc(ha, cg, rc, rd): return (0x7B << 24) | (ha << 18) | (cg << 12) | (rc 
 def trap(ha, immu18):       return (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF)
 def escape(ha, imms18):     return (0x7E << 24) | (ha << 18) | (imms18 & 0x3FFFF)
 def jump_iiii(imms24):      return (0x70 << 24) | (imms24 & 0xFFFFFF)
-def swym():                 return 0x77880000
+def swym():                 return 0x47880000
 
 
 def load_rd(rd, val):
@@ -258,7 +258,7 @@ def hand(off, code):
 def _trap_vector_roundtrip():
     prog = set_cfx_vector(0, 3, H)          # cfx0 hypv excp_vector = H
     trap_idx = len(prog)
-    prog += [trap(0, 0x0123)]               # immu18[17:16]=0 (general)
+    prog += [trap(0, 0x0123)]               # immu18=0x0123 (general, below 0x3FF00)
     # escape returns to trap+4:
     prog += [cfx2rd(0, 4, 5, 9)]            # escape_num -> rd9
     prog += [cfx2rd(0, 5, 3, 10)]           # cause_ip   -> rd10

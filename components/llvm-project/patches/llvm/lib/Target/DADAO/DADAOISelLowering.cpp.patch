@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..7dd5e6abb
+index 000000000..15f3a7bb5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1248 @@
+@@ -0,0 +1,3106 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -30,24 +30,158 @@ index 000000000..7dd5e6abb
 +//===----------------------------------------------------------------------===//
 +
 +#include "DADAOISelLowering.h"
++#include "DADAO.h"
++#include "DADAOMachineFunctionInfo.h"
 +#include "DADAOSubtarget.h"
 +#include "DADAOTargetMachine.h"
 +
 +#include "llvm/CodeGen/CallingConvLower.h"
++#include "llvm/CodeGen/MachineBasicBlock.h"
 +#include "llvm/CodeGen/MachineFrameInfo.h"
 +#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineInstrBuilder.h"
++#include "llvm/CodeGen/MachineJumpTableInfo.h"
 +#include "llvm/CodeGen/MachineRegisterInfo.h"
 +#include "llvm/CodeGen/SelectionDAG.h"
++#include "llvm/CodeGen/TargetInstrInfo.h"
++#include "llvm/IR/DerivedTypes.h"
++#include "llvm/IR/Instructions.h"
++#include "llvm/IR/Intrinsics.h"
++#include "llvm/IR/IntrinsicsDADAO.h"
++#include "llvm/MC/MCRegister.h"
 +#include "llvm/Support/ErrorHandling.h"
 +#include "llvm/Support/MathExtras.h"
 +
++#include <functional>
++#include <iterator>
++#include <optional>
++
 +using namespace llvm;
++
++//===----------------------------------------------------------------------===//
++// IEEE binary128 (long double) calling convention (LLVM-106t).
++//
++// `long double` is f128 (ADR-0030 D1) and this target has no 128-bit register:
++// the type legalizer softens f128 to i128, which the type legalizer then splits
++// into two i64 halves, and every arithmetic/comparison/conversion becomes a
++// compiler-rt TF libcall.  At the ABI boundary the two halves must travel as
++// ONE value: an even/odd pair of 64-bit RF slots with the high half in the even
++// slot (`rf16`/`rf17`, ADR-0030 D2 as revised by ADR-0031 D6), or a single
++// 16-byte/16-byte-aligned stack slot, never split across the two.  A `long
++// double` return uses `rf8` (high) + `rf9` (low).
++//
++// The generic split machinery produces the halves as ordinary i64 parts, with
++// the big-endian part order already fixed ([high, low], getCopyToParts) and the
++// Split/SplitEnd flags set on the first/last part.  To route them as a value
++// (and not as two unrelated integers) the target lowering rewrites the parts'
++// VT to f128 ("marker") before calling CC analysis; the rules below are the
++// only place that sees the marker and turn it back into a 64-bit LocVT.
++//===----------------------------------------------------------------------===//
++
++/// RF argument slots, in allocation order (contract-abi.md §4.1).
++static const MCPhysReg DADAOArgRFRegs[] = {
++    DADAO::rf16, DADAO::rf17, DADAO::rf18, DADAO::rf19,
++    DADAO::rf20, DADAO::rf21, DADAO::rf22, DADAO::rf23,
++    DADAO::rf24, DADAO::rf25, DADAO::rf26, DADAO::rf27,
++    DADAO::rf28, DADAO::rf29, DADAO::rf30, DADAO::rf31};
++
++/// RF return slots (contract-abi.md §4.4).
++static const MCPhysReg DADAORetRFRegs[] = {
++    DADAO::rf8,  DADAO::rf9,  DADAO::rf10, DADAO::rf11,
++    DADAO::rf12, DADAO::rf13, DADAO::rf14, DADAO::rf15};
++
++/// Rewrite the two 64-bit parts of every binary128 value to the f128 "marker"
++/// so CC_DADAO / RetCC_DADAO can recognise them as one value.  Works for both
++/// ISD::InputArg and ISD::OutputArg (same field names).
++template <typename ArgT>
++static SmallVector<ArgT, 16> markF128Halves(ArrayRef<ArgT> Args) {
++  SmallVector<ArgT, 16> Marked(Args.begin(), Args.end());
++  for (ArgT &A : Marked)
++    if (A.OrigTy && A.OrigTy->isFP128Ty())
++      A.VT = MVT::f128;
++  return Marked;
++}
++
++/// CCAssignFn (CCCustom) rule for one i64 half of a binary128 argument.
++/// The first half decides the location of the WHOLE value:
++///   * the lowest even-numbered RF slot whose odd neighbour is also free --
++///     an odd cursor is skipped, not used as a pair start (ADR-0031 D6);
++///   * otherwise one 16-byte, 16-byte-aligned stack slot (all-or-nothing:
++///     a value is never split between registers and the stack, ADR-0030 D2).
++/// The second half consumes the location remembered for it.
++static bool CC_DADAO_F128_Pair(unsigned &ValNo, MVT &ValVT, MVT &LocVT,
++                               CCValAssign::LocInfo &LocInfo,
++                               ISD::ArgFlagsTy &ArgFlags, CCState &State) {
++  assert(ValVT == MVT::f128 && "marker VT expected");
++  LocVT = MVT::i64;
++  LocInfo = CCValAssign::Full;
++
++  SmallVectorImpl<CCValAssign> &Pending = State.getPendingLocs();
++
++  if (ArgFlags.isSplit() && !ArgFlags.isSplitEnd()) {
++    // First half (high, big-endian part order).
++    const unsigned Num = std::size(DADAOArgRFRegs);
++    unsigned Even = Num;
++    for (unsigned I = 0; I + 1 < Num; I += 2)
++      if (!State.isAllocated(DADAOArgRFRegs[I]) &&
++          !State.isAllocated(DADAOArgRFRegs[I + 1])) {
++        Even = I;
++        break;
++      }
++    if (Even != Num) {
++      MCRegister EvenReg = State.AllocateReg(DADAOArgRFRegs[Even]);
++      MCRegister OddReg = State.AllocateReg(DADAOArgRFRegs[Even + 1]);
++      State.addLoc(CCValAssign::getReg(ValNo, ValVT, EvenReg, LocVT, LocInfo));
++      Pending.push_back(
++          CCValAssign::getReg(ValNo + 1, ValVT, OddReg, LocVT, LocInfo));
++    } else {
++      int64_t Off = State.AllocateStack(8, Align(16));
++      State.addLoc(CCValAssign::getMem(ValNo, ValVT, Off, LocVT, LocInfo));
++      Pending.push_back(
++          CCValAssign::getMem(ValNo + 1, ValVT, Off + 8, LocVT, LocInfo));
++    }
++    return true;
++  }
++
++  // Second half (low): the pair location was fixed when the first half was
++  // seen, so the two parts stay contiguous.
++  if (!Pending.empty()) {
++    State.addLoc(Pending.front());
++    Pending.erase(Pending.begin());
++    return true;
++  }
++  // An unpaired half is a bug: fall through so the CC reports it loudly.
++  return false;
++}
++
++/// CCAssignFn (CCCustom) rule for one i64 half of a binary128 return value.
++/// Parts arrive in [high, low] order, so rf8 gets the high half and rf9 the
++/// low half (ADR-0030 D2 / ADR-0031 D6).  Exhausting rf8..rf15 fails, which
++/// makes CanLowerReturn demote the return to a hidden sret pointer.
++static bool RetCC_DADAO_F128(unsigned &ValNo, MVT &ValVT, MVT &LocVT,
++                             CCValAssign::LocInfo &LocInfo,
++                             ISD::ArgFlagsTy &ArgFlags, CCState &State) {
++  assert(ValVT == MVT::f128 && "marker VT expected");
++  (void)ArgFlags;
++  LocVT = MVT::i64;
++  LocInfo = CCValAssign::Full;
++  MCRegister Reg = State.AllocateReg(DADAORetRFRegs);
++  if (!Reg)
++    return false;
++  State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
++  return true;
++}
 +
 +// Generated calling-convention assigners CC_DADAO / RetCC_DADAO
 +// (DADAOCallingConv.td).  Included after `using namespace llvm;` like the
-+// other DADAO/M68k-style targets.
++// other DADAO/M68k-style targets; the CCCustom rules declared above must be
++// visible here.
 +#define GET_CALLING_CONV_IMPL
 +#include "DADAOGenCallingConv.inc"
++
++// Instruction opcodes used by the variadic save-area prologue (stm.o).
++#define GET_INSTRINFO_ENUM
++#include "DADAOGenInstrInfo.inc"
 +
 +DADAOTargetLowering::DADAOTargetLowering(const DADAOTargetMachine &TM,
 +                                         const DADAOSubtarget &STI)
@@ -60,6 +194,82 @@ index 000000000..7dd5e6abb
 +  // 64-bit GPRF class (an ft value occupies the low 32 bits).
 +  addRegisterClass(MVT::f64, &DADAO::GPRFRegClass);
 +  addRegisterClass(MVT::f32, &DADAO::GPRFRegClass);
++
++  // M9 (LLVM-127t): narrow integer types are legal.  The ISA has 8/16/32-bit
++  // arithmetic, compare and shift instructions that operate on the low N bits
++  // and write the canonical 64-bit extension themselves (contract-isa.md
++  // §10/§11/§12: `*.st` sign-extends, `*.ut` zero-extends), so a narrow value
++  // lives directly in a 64-bit GPRD register.  A narrow value does not carry a
++  // defined upper half -- every 64-bit consumer extends it explicitly
++  // (SIGN_EXTEND/ZERO_EXTEND select ext.so/ext.uo, contract-abi.md §4.2), and
++  // the ABI boundary extensions stay in LowerCall/LowerReturn/LowerCallResult.
++  //
++  // Only the operations the ISA can perform at these widths become Legal;
++  // everything else keeps Promote/Expand so it is widened to i64 first.  In
++  // particular AND/OR/XOR have no narrow form (SPEC-069t deleted
++  // and.b/and.w/and.t), so they must stay promoted -- making them legal would
++  // leave the selector with no instruction to pick.
++  for (MVT VT : {MVT::i8, MVT::i16, MVT::i32}) {
++    addRegisterClass(VT, &DADAO::GPRDRegClass);
++
++    // Narrow arithmetic and shifts (single-destination orrr forms):
++    //   add/sub/mul.{sb,sw,st}, div/rem.{ub,uw,ut,sb,sw,st},
++    //   shl.{b,w,t}, shr.{ub,uw,ut,sb,sw,st}
++    setOperationAction({ISD::ADD, ISD::SUB, ISD::MUL, ISD::SDIV, ISD::UDIV,
++                        ISD::SREM, ISD::UREM, ISD::SHL, ISD::SRL, ISD::SRA},
++                       VT, Legal);
++
++    // Narrow compares (cmp.{sb,sw,st,ub,uw,ut}).  Custom, not Legal: the cmp
++    // result is {-1,0,1} and the SETCC result type is i64, so the outcome has
++    // to be normalised to a 0/1 boolean through cs.* (LowerCmpSelect).
++    // BR_CC is keyed by the *compared* type (LegalizeDAG uses operand 2), so
++    // the narrow types need their own Custom entry as well.
++    setOperationAction(ISD::SETCC, VT, Custom);
++    setOperationAction(ISD::BR_CC, VT, Custom);
++    setOperationAction(ISD::SELECT_CC, VT, Custom);
++    setOperationAction(ISD::SELECT, VT, Custom);
++
++    // No narrow instruction: widen to i64 and reuse the i64 patterns.
++    //   * AND/OR/XOR: the narrow logical forms were deleted (SPEC-069t);
++    //   * rotates/bitreverse: the generic narrow expansion is used;
++    //   * MULHS/MULHU + *MUL_LOHI: the ISA's narrow mul is low-half only.
++    setOperationAction({ISD::AND, ISD::OR, ISD::XOR}, VT, Promote);
++    // Narrow bit counts are one instruction each: the `immu6 hd` operand is
++    // the valid-bit upper bound, so hd = 7/15/31 makes ctlz/cttz/ctpop operate
++    // exactly on an i8/i16/i32 (including the defined 0 -> W result).  This is
++    // the `hd = 31/15/7` half of ISS-187 that LLVM-128t deferred.
++    setOperationAction({ISD::CTTZ, ISD::CTTZ_ZERO_POISON, ISD::CTLZ,
++                        ISD::CTLZ_ZERO_POISON, ISD::CTPOP},
++                       VT, Legal);
++    setOperationAction({ISD::BITREVERSE, ISD::ROTL, ISD::ROTR}, VT, Expand);
++    // SIGN_EXTEND_INREG is *not* set here: its action is keyed by the inner
++    // (sign-extended-from) type, so an Expand there would also cover the
++    // i64 <- i32 case that the backend selects with `ext.so` (and that the
++    // unsigned-compare canonicalisation relies on).  The few narrow-result
++    // forms have their own `ext.so` patterns in DADAOCodeGen.td.
++    setOperationAction({ISD::MULHS, ISD::MULHU, ISD::SMUL_LOHI,
++                        ISD::UMUL_LOHI},
++                       VT, Expand);
++
++    // Conversions the ISA only provides at 64 bits (fo2it/it2fo/...).
++    setOperationAction({ISD::FP_TO_SINT, ISD::FP_TO_UINT, ISD::SINT_TO_FP,
++                        ISD::UINT_TO_FP},
++                       VT, Promote);
++
++    // Narrow atomics: the IR-level AtomicExpandPass has already turned every
++    // RMW into a cmpxchg loop, and the custom lowering below re-lowers the
++    // load/store and builds the lr/sc loop for the CAS (ADR-0034 D3-D6).
++    // These must be Custom now that the types are legal: left at the default
++    // (Legal) the selector would have no pattern, and the Expand path would
++    // turn a plain atomic load into a libcall.
++    setOperationAction({ISD::ATOMIC_LOAD, ISD::ATOMIC_STORE,
++                        ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS},
++                       VT, Custom);
++  }
++  // Narrow byte swap: `rev.t k = 8` is bswap32 and `rev.w k = 8` is bswap16
++  // (contract-isa.md §6.4.3).  bswap.i8 is an identity and never reaches ISel.
++  setOperationAction(ISD::BSWAP, MVT::i32, Legal);
++  setOperationAction(ISD::BSWAP, MVT::i16, Legal);
 +
 +  // SP = rb1: needed by the calling convention (LowerCall reads it for the
 +  // outgoing stack-argument area) and the call-frame pseudos (LLVM-039t).
@@ -85,6 +295,32 @@ index 000000000..7dd5e6abb
 +  // operation Custom is also what enables jump-table formation
 +  // (TargetLowering::areJTsAllowed).
 +  setOperationAction(ISD::BR_JT, MVT::Other, Custom);
++
++  // Indirect branch (LLVM-102t): ISD::BRIND (C `goto *p`, LLVM `indirectbr`)
++  // has no pattern: DADAO only jumps through an RB base register, while the
++  // target is a C data value (function pointer / `&&label`, RD bank).  Marking
++  // it Custom lets LowerBRIND copy the target into a GPRB virtual register
++  // (CopyToReg -> rd2rb when it comes from RD) and the custom selector emit
++  // `jump rbtarget, rd0, 0` (contract-isa.md §8.3).  This is separate from
++  // ISD::BR_JT on purpose: a jump table is an absolute case-address table that
++  // is loaded as part of the dispatch sequence, while BRIND's target is
++  // already a computed value.
++  setOperationAction(ISD::BRIND, MVT::Other, Custom);
++
++  // Local-exec TLS (LLVM-100t): ISD::GlobalTLSAddress has no pattern.  Marking
++  // it Custom gives LowerGlobalTLSAddress the chance to build TP + TPOFF
++  // (TP = rb3, contract-abi.md §1.3) and to reject the dynamic models
++  // explicitly (they need relocations 10/11/12, `D2`/LLVM-117t).
++  setOperationAction(ISD::GlobalTLSAddress, MVT::i64, Custom);
++
++  // `llvm.thread.pointer` (__builtin_thread_pointer) is the target-independent
++  // spelling of "read the thread pointer".  Only that one intrinsic is custom
++  // lowered (to a CopyFromReg of rb3); every other INTRINSIC_WO_CHAIN keeps the
++  // generic path because an empty SDValue from LowerOperation means "not
++  // custom" and the legalizer falls through.  Keyed by MVT::Other: the
++  // legalizer looks up intrinsic nodes with Other, not with their result type
++  // (LegalizeDAG `case ISD::INTRINSIC_*: TLI.getOperationAction(Op, MVT::Other)`).
++  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Other, Custom);
 +
 +  // Compare-as-value (LLVM-069t): a comparison whose result is *used as a
 +  // value* (C `a == b`, `!x`, `a < b`, `?:`, `&&`/`||`) reaches us as a
@@ -169,34 +405,109 @@ index 000000000..7dd5e6abb
 +  // (f64<-f32) EXTLOAD fix above (LLVM-079t); same setting as AMDGPU / Sparc.
 +  setTruncStoreAction(MVT::f64, MVT::f32, Expand);
 +
-+  // Varargs (M6, contract-abi.md §6 / spec DADAO-21 §可变参数).  DADAO's
-+  // va_list is a plain void*: va_start points just past the named arguments in
-+  // the caller-written save area, and va_arg walks the 8-byte slots.  VACOPY
-+  // expands to a memcpy and VAEND is a no-op.
++  // Varargs (LLVM-102t B; spec DADAO-21 §3.3, ADR-0031 D1/D2/D4).  The va_list
++  // is a seven-field three-cursor structure.  The callee snapshots the unused
++  // argument registers in its own frame (LowerFormalArguments), va_start fills
++  // the cursors/counters/stack pointer, va_arg is emitted by clang (which owns
++  // the type classification), and va_copy is a 56-byte memcpy.
 +  setOperationAction(ISD::VASTART, MVT::Other, Custom);
 +  setOperationAction(ISD::VAARG, MVT::Other, Custom);
-+  setOperationAction(ISD::VACOPY, MVT::Other, Expand);
++  setOperationAction(ISD::VACOPY, MVT::Other, Custom);
 +  setOperationAction(ISD::VAEND, MVT::Other, Expand);
 +
++  // Dynamic stack allocation: VLA / alloca and the stacksave/stackrestore pair
++  // (LLVM-096t, ISS-222 ④).  The ISA adjusts the stack pointer (`rb1`) with an
++  // ordinary add/sub, so the generic expansion is exactly right -- and it is
++  // the *only* option, because this backend has no pattern for
++  // DYNAMIC_STACKALLOC / STACKSAVE / STACKRESTORE.  Left at the default
++  // (Legal) those nodes reach ISel and abort with
++  //   "Cannot select: ... stackrestore" / "... dynamic_stackalloc"
++  // (seen on musl's `ldso/dynlink.c`, which has a VLA in `__dls2`).
++  //
++  //   * DYNAMIC_STACKALLOC -> ExpandDYNAMIC_STACKALLOC: `SP = SP - size`
++  //     (StackGrowsDown), rounded down to the VLA's alignment when that is
++  //     coarser than the stack alignment;
++  //   * STACKSAVE / STACKRESTORE -> a CopyFromReg / CopyToReg of `rb1`.
++  //
++  // Both directions are wired by setting StackPointerRegisterToSaveRestore()
++  // above (rb1); without it the legalizer would emit a diagnostic instead.
++  // Same setting as AArch64 / Mips / RISCV / Lanai / MSP430 / CSKY / BPF.
++  setOperationAction({ISD::STACKSAVE, ISD::STACKRESTORE}, MVT::Other, Expand);
++  setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i64, Expand);
++
 +  // Floating point (M6, LLVM-066t).  Natively supported (Legal; patterns in
-+  // DADAOCodeGen.td): + - * /, sqrt, negate, absolute value, and the
-+  // int<->fp / fp<->fp conversions.  Every other FP op is expanded; a few of
-+  // those expansions are libcalls (e.g. frem -> fmod), which a freestanding
-+  // program must avoid or supply itself.
++  // DADAOCodeGen.td): + - * /, fused multiply-add (LLVM-123t), sqrt, negate,
++  // absolute value, roundToIntegral (LLVM-125t: ftrnd/fornd), min/max
++  // (LLVM-124t: ftmin/ftmax/fomin/fomax) and the int<->fp / fp<->fp
++  // conversions.  Every other FP op is expanded; a few of those expansions are
++  // libcalls (e.g. frem -> fmod), which a freestanding program must avoid or
++  // supply itself.
 +  for (MVT VT : {MVT::f32, MVT::f64}) {
 +    setOperationAction(
 +        {ISD::FADD, ISD::FSUB, ISD::FMUL, ISD::FDIV, ISD::FSQRT, ISD::FNEG},
 +        VT, Legal);
++    // Fused multiply-add (LLVM-123t; contract-fp.md §fma = SimRISC-07 §2.5).
++    // `ISD::FMA` is exactly "a*b+c with a single rounding", which is what
++    // `fofma`/`ftfma` do (one destination + three sources, no 2-address tie),
++    // so it is Legal and selected 1:1 by DADAOCodeGen.td.  `llvm.fma` maps to
++    // this node; `llvm.fmuladd` too, because isFMAFasterThanFMulAndFAdd()
++    // returns true (see below).  NEVER expand it to FMUL+FADD: that rounds
++    // twice and silently breaks `llvm.fma` semantics.
++    setOperationAction(ISD::FMA, VT, Legal);
 +    setOperationAction(
-+        {ISD::FABS, ISD::FREM, ISD::FMA, ISD::FCOPYSIGN, ISD::FSIN, ISD::FCOS,
++        {ISD::FREM, ISD::FSIN, ISD::FCOS,
 +         ISD::FTAN, ISD::FASIN, ISD::FACOS, ISD::FATAN, ISD::FATAN2,
 +         ISD::FSINH, ISD::FCOSH, ISD::FTANH, ISD::FPOW, ISD::FPOWI, ISD::FEXP,
 +         ISD::FEXP2, ISD::FEXP10, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
-+         ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FRINT, ISD::FNEARBYINT,
-+         ISD::FROUND, ISD::FROUNDEVEN, ISD::FMINNUM, ISD::FMAXNUM,
-+         ISD::FMINIMUM, ISD::FMAXIMUM, ISD::FCANONICALIZE, ISD::FLDEXP,
-+         ISD::FFREXP, ISD::FGETSIGN, ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT},
++         ISD::FMINIMUM, ISD::FMAXIMUM,
++         ISD::FFREXP, ISD::FGETSIGN},
 +        VT, Expand);
++    // Rounding family (LLVM-125t): one `fornd`/`ftrnd` each, `immu6` = one-hot
++    // rounding mode (patterns in DADAOCodeGen.td; contract-fp.md §roundint).
++    // `FNEARBYINT` takes the dynamic mode 0x20 like `FRINT`, so it may set the
++    // inexact status bit -- the ISA has no flag-suppressing variant.  Values
++    // are identical and the flag is unobservable in non-strict LLVM, so the
++    // deviation is accepted (SPEC-161t).
++    setOperationAction({ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FROUND,
++                        ISD::FROUNDEVEN, ISD::FRINT, ISD::FNEARBYINT},
++                       VT, Legal);
++    // Min/max (LLVM-124t; contract-fp.md §minmax = SimRISC-07 §2.4).  The ISA
++    // instructions `ftmin`/`ftmax`/`fomin`/`fomax` ARE IEEE 754-2019
++    // minimumNumber/maximumNumber (single NaN -> the other operand, double NaN
++    // -> canonical qNaN, sNaN raises NV, -0 < +0, no rounding), so both node
++    // flavours with exactly that semantics are Legal and map 1:1
++    // (patterns in DADAOCodeGen.td):
++    //   * FMINNUM_IEEE / FMAXNUM_IEEE   -- the well-defined number nodes;
++    //   * FMINIMUMNUM / FMAXIMUMNUM     -- 2019 minimumNumber/maximumNumber.
++    //
++    // FMINNUM / FMAXNUM are Custom (LowerMinMaxNum below) rather than Expand:
++    // LLVM's generic expansion (TargetLowering::expandFMINNUM_FMAXNUM) wraps
++    // both operands in FCANONICALIZE, and on this target FCANONICALIZE is
++    // Expand, whose lowering is `x * 1.0` (a constant materialisation plus a
++    // `fomul`) -- measured, not assumed: `llvm.canonicalize.f64` compiles to
++    // `set.zw; rd2rf; fomul`, so the expanded form of `llvm.minnum` would be
++    // 2x3+1 = 7 instructions instead of the single `fomin` the ISA affords.
++    // Dropping that canonicalisation is *more* faithful, not less:
++    //   * LangRef (Floating-point min/max intrinsics comparison): "llvm.minnum
++    //     ... For signaling NaNs, non-deterministically returns NaN or the
++    //     other operand", and the NaN section allows an FP math operation to
++    //     "treat all NaNs as if they were quiet NaNs" -- so returning the other
++    //     operand for an sNaN input is one of the permitted outcomes;
++    //   * contract-fp.md §minmax requires an sNaN *input* to raise NV, which
++    //     the instruction does on its own; the canonicalised form would quiet
++    //     the sNaN first and thereby *lose* that flag.
++    // `minimumnum` therefore selects the very same instruction; the two
++    // intrinsics differ only in the sNaN latitude LangRef grants minnum.
++    // FMINIMUM / FMAXIMUM stay Expand (left in the list above): the ISA has no
++    // NaN-propagating form (contract-fp.md §minmax 负向约束), so LLVM derives
++    // them from FMINNUM_IEEE plus a SETUO NaN select -- and because
++    // FMINNUM_IEEE is Legal, expandFMINIMUM_FMAXIMUM also learns that the
++    // instruction already orders -0 < +0 (MinMaxMustRespectOrderedZero), so it
++    // emits no SETOEQ +/-0 fixup.
++    setOperationAction({ISD::FMINNUM_IEEE, ISD::FMAXNUM_IEEE, ISD::FMINIMUMNUM,
++                        ISD::FMAXIMUMNUM},
++                       VT, Legal);
++    setOperationAction({ISD::FMINNUM, ISD::FMAXNUM}, VT, Custom);
 +  }
 +  // P1 (LLVM-080t; INTEG-033k §裁定汇总 #6) -- double-precision copysign/fabs
 +  // use the ISA sign-injection instruction `fosgnj` (contract-fp.md §7:
@@ -212,13 +523,49 @@ index 000000000..7dd5e6abb
 +  // straight back to `fabs(x)` -- an infinite legalize/combine loop (observed
 +  // hanging codegen).  Matching both directly avoids it.
 +  //
-+  // The other P1 operations -- the rounding family (floor/ceil/trunc/round/
-+  // rint/nearbyint) and fmin/fmax -- have no ISA instruction
-+  // (contracts/opcodes.yaml scope `fp`), so they stay `Expand`: the resulting
-+  // out-of-line calls are registered in DADAOSubtarget (initLibcallLoweringInfo).
-+  // f32 stays Expand (P1 is double precision).
-+  setOperationAction(ISD::FCOPYSIGN, MVT::f64, Legal);
-+  setOperationAction(ISD::FABS, MVT::f64, Legal);
++  // The other P1 operations: fmin/fmax used to be libcalls (LLVM-080t) because
++  // the ISA had no instruction; since LLVM-124t `ftmin`/`ftmax`/`fomin`/`fomax`
++  // exist and both min/max node flavours are Legal/Custom (see the loop above),
++  // so no `fmin`/`fmax` libcall is emitted any more.  The rounding family is
++  // Legal too (LLVM-125t, ftrnd/fornd -- see the loop above); this block's
++  // comment used to list it here as a libcall class.
++  // f32 copysign/fabs use the same sign-injection instruction in its ft form
++  // (`ftsgnj`; LLVM-126t); before that only the double forms were wired.
++  setOperationAction({ISD::FCOPYSIGN, ISD::FABS}, MVT::f64, Legal);
++  setOperationAction({ISD::FCOPYSIGN, ISD::FABS}, MVT::f32, Legal);
++
++  // Remaining FP nodes wired directly to hardware (LLVM-126t, ISS-188):
++  //   * ISD::FCANONICALIZE is the identity -- the target has no x87-style
++  //     excess precision and every arithmetic instruction produces an IEEE
++  //     canonical result, so `x * 1.0` (the generic expansion, which also
++  //     quietens an sNaN and can raise NV/NX) is both larger and less faithful.
++  //     Custom lowering returns the operand unchanged.
++  //   * ISD::IS_FPCLASS -> focls/ftcls + mask (contract-fp.md §9).
++  //   * ISD::FLDEXP -> io2fo/it2ft + fosclb/ftsclb (contract-fp.md §5).
++  //   * ISD::GET_ROUNDING / ISD::SET_ROUNDING -> rf0[33:32]
++  //     (contract-fp.md §1).  GET_ROUNDING is keyed on its i32 result,
++  //     SET_ROUNDING on MVT::Other (it is a chain node).
++  setOperationAction(ISD::FCANONICALIZE, MVT::f64, Custom);
++  setOperationAction(ISD::FCANONICALIZE, MVT::f32, Custom);
++  setOperationAction(ISD::IS_FPCLASS, MVT::f64, Custom);
++  setOperationAction(ISD::IS_FPCLASS, MVT::f32, Custom);
++  setOperationAction(ISD::FLDEXP, MVT::f64, Custom);
++  setOperationAction(ISD::FLDEXP, MVT::f32, Custom);
++  setOperationAction(ISD::GET_ROUNDING, MVT::i32, Custom);
++  setOperationAction(ISD::SET_ROUNDING, MVT::Other, Custom);
++
++  // Saturating float->int (LLVM-126t; contract-fp.md §3).  These nodes are
++  // keyed on the *integer result* type.  i64/i32 use the hardware conversion
++  // (fo2io/fo2uo/fo2it/fo2ut, which saturates and raises NV); i8/i16 have no
++  // hardware form, so they keep the generic, libcall-free expansion.
++  setOperationAction({ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT}, MVT::i64,
++                     Custom);
++  setOperationAction({ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT}, MVT::i32,
++                     Custom);
++  setOperationAction({ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT}, MVT::i16,
++                     Expand);
++  setOperationAction({ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT}, MVT::i8,
++                     Expand);
 +  // f64 <-> f32 conversions (ft2fo / fo2ft).  FP_ROUND is keyed on the smaller
 +  // (result) type, FP_EXTEND on the larger (result) type.
 +  setOperationAction(ISD::FP_ROUND, MVT::f32, Legal);
@@ -236,16 +583,81 @@ index 000000000..7dd5e6abb
 +                      ISD::UINT_TO_FP},
 +                     MVT::i64, Legal);
 +
-+  // Bit-manipulation builtins (LLVM-079t).  The ISA has no bit-scan / population
-+  // count instruction (`contracts/opcodes.yaml` carries no cttz/ctlz/ctpop op),
-+  // so the *generic* software expansions are used: they bottom out in ordinary
-+  // i64 shift/and/or/sub/mul/not operations that this backend already selects
-+  // (TargetLowering::expandCTTZ/expandCTLZ/expandCTPOP) and need no libcall or
-+  // constant pool.  Without this a surviving `llvm.cttz`/`ctlz`/`ctpop` aborts
-+  // ISel with "Cannot select: ... cttz" (the ISS-188 picolibc gap).
++  // Bit-manipulation builtins (LLVM-128t; supersedes the LLVM-079t `Expand`
++  // decision, whose premise -- "the ISA has no bit-scan / population-count
++  // instruction" -- no longer holds: `ctlz`/`cttz`/`ctpop` exist since
++  // SPEC-143t/ADR-0012 D11, contract-isa.md §6.4.4).  Each is one instruction
++  // (patterns in DADAOCodeGen.td) with `hd = 63`, i.e. bits [63:0]:
++  //   * ctlz(0) = 64 and cttz(0) = 64 (an all-zero `hd` field counts hd+1),
++  //     exactly the *defined* LLVM results, so the defined `CTLZ`/`CTTZ`
++  //     nodes are Legal rather than expanded; the `*_ZERO_POISON` flavours
++  //     (what `__builtin_clzll`/`ctzll` emit) map to the same instruction --
++  //     any value is allowed there and 64 is one of them;
++  //   * ctpop counts all 64 bits.
++  // The former generic expansion (10 instructions for clz, mul.uo-based for
++  // cttz/ctpop) is gone.  Narrow widths are promoted by the type legalizer
++  // and reuse these i64 instructions (see DADAOCodeGen.td).
 +  setOperationAction({ISD::CTTZ, ISD::CTTZ_ZERO_POISON, ISD::CTLZ,
 +                      ISD::CTLZ_ZERO_POISON, ISD::CTPOP},
-+                     MVT::i64, Expand);
++                     MVT::i64, Legal);
++
++  // Byte swap (LLVM-128t; supersedes LLVM-097t's `Expand`).  `rev.o rd, rs, 8`
++  // is a 64-bit byte swap (ADR-0012 D10, contract-isa.md §6.4.3: reverse the
++  // eight 8-bit elements of the block), so ISD::BSWAP i64 is Legal and matched
++  // by a pattern.  Since LLVM-127t i32 and i16 are legal too, so bswap32 is
++  // the single `rev.t k = 8` and bswap16 the single `rev.w k = 8` (patterns in
++  // DADAOCodeGen.td; the old ReplaceNodeResults hook is gone with the
++  // promotion it compensated for).
++  setOperationAction(ISD::BSWAP, MVT::i64, Legal);
++
++  // 64-bit bit reversal (LLVM-128t): `rev.o rd, rs, 1` reverses the bit order
++  // of the whole 64-bit block (ADR-0012 D10).  Default action is Expand.
++  setOperationAction(ISD::BITREVERSE, MVT::i64, Legal);
++
++  // Rotates (ADR-0032 D4, amended 2026-10-19: `ror` -> `rol`; LLVM-116t;
++  // supersedes the LLVM-099t `Expand` decision, whose premise -- "the ISA has
++  // no rotate instruction" -- no longer holds: `rol.o/t/w/b` exist at
++  // 010-001 / 011-001).  Measured with llc -O2:
++  //   * ISD::ROTL i64 -> `rol.o` (DADAOCodeGen.td): constant amount = 1
++  //     instruction (orri), variable amount = 1 instruction (orrr).
++  //   * ISD::ROTR i64 -> Custom below: rotr(x,n) = rol(x, (W-n) mod W).  The
++  //     rol.o register form already takes the amount modulo W (low log2(W)
++  //     bits), so a two's-complement negation (`sub.o rd, rd0, n`, one
++  //     instruction) suffices; a constant amount is folded here to the
++  //     one-instruction immediate form.  LLVM-099t's `Expand` emitted the
++  //     generic shl/srl/and/or sequence (5 instructions constant, 7 variable).
++  //   * Narrow types (i32/i16/i8): DAGTypeLegalizer::PromoteIntRes_ROT expands
++  //     the rotate to i64 shifts before ISel, so rol.t/w/b remain MC-only and
++  //     narrow rotates stay semantically correct.
++  setOperationAction(ISD::ROTL, MVT::i64, Legal);
++  setOperationAction(ISD::ROTR, MVT::i64, Custom);
++
++  // GF(2) carry-less multiply (ADR-0035; LLVM-122t).  `TargetLoweringBase`
++  // defaults ISD::CLMUL to `Expand` (a generic bit-by-bit sequence: 14 mul.uo
++  // + and/or for one i64 product), so mark i64 Legal: `llvm.clmul` then selects
++  // the CLMUL_PSEUDO pattern and becomes one `clmul.o rd0, dst, a, b`.  Narrow
++  // widths (i32/i16/i8) are promoted to i64 by the type legalizer first, so
++  // they reach the same pattern (and only their low bits are meaningful, which
++  // is exactly the `clmul.o` low half).
++  setOperationAction(ISD::CLMUL, MVT::i64, Legal);
++
++  // i128 shifts by a variable amount (INFRA-079t; ADR-0027 D3).  i128 is split
++  // into two i64 halves, and DAGTypeLegalizer::ExpandIntRes_Shift produces
++  // ISD::SHL_PARTS/SRL_PARTS/SRA_PARTS when the shift amount is not a
++  // constant.  Those nodes default to `Legal` (there is no i128 register
++  // class, so the parts form is what reaches ISel) and this backend has no
++  // pattern for them, hence "Cannot select: ... shl_parts" -- the common root
++  // cause of the i128 variable-shift, i128<->FP and udivmodti4 failures
++  // (INFRA-078t fact #9).  Mark them Custom and expand via the generic
++  // TargetLowering::expandShiftParts (the AArch64/Mips route), which bottoms
++  // out in i64 shl/srl/sra/and/or/select, all of which this backend selects.
++  setOperationAction({ISD::SHL_PARTS, ISD::SRL_PARTS, ISD::SRA_PARTS},
++                     MVT::i64, Custom);
++  // The generic parts expansion is written in terms of funnel shifts.  There is
++  // no funnel-shift instruction either, so let the generic expander rewrite
++  // them into plain shifts and an or (TargetLowering::expandFunnelShift);
++  // otherwise a surviving `fshl` would abort ISel with "Cannot select".
++  setOperationAction({ISD::FSHL, ISD::FSHR}, MVT::i64, Expand);
 +
 +  computeRegisterProperties(STI.getRegisterInfo());
 +
@@ -261,6 +673,64 @@ index 000000000..7dd5e6abb
 +  MaxStoresPerMemcpy = MaxStoresPerMemcpyOptSize = 16;
 +  MaxStoresPerMemmove = MaxStoresPerMemmoveOptSize = 16;
 +  MaxLoadsPerMemcmp = MaxLoadsPerMemcmpOptSize = 16;
++
++  // Atomics (LLVM-121t; ADR-0034 D2/D6, ISS-294: LR/SC only, no AMO).
++  //
++  // The toolchain has no `__atomic_*` runtime, so the backend must handle
++  // every atomic operation itself:
++  //
++  //   * setMaxAtomicSizeInBitsSupported(64): up to 8 bytes are lowered by the
++  //     backend (larger sizes keep going to the generic libcall path, which is
++  //     unsupported here on purpose -- an i128 _Atomic is not part of the
++  //     contract).
++  //   * shouldInsertFencesForAtomic() == true (see the override): the IR-level
++  //     AtomicExpandPass splits an atomic load/store into a plain access plus
++  //     a `fence` with the ordering, and weakens the access to monotonic.
++  //     RMW/cmpxchg get fences around them and are then expanded into a
++  //     cmpxchg loop (shouldExpandAtomicRMWInIR -> CmpXChg).
++  //   * ATOMIC_LOAD/ATOMIC_STORE are Custom: after the fence split they are
++  //     ordinary accesses and are re-lowered to LOAD/STORE so the existing
++  //     ld.*/st.* patterns select them (no atomic form of any instruction is
++  //     needed).
++  //   * ATOMIC_CMP_SWAP_WITH_SUCCESS is Custom: it becomes the lr/sc retry
++  //     loop (DADAOISD::ATOMIC_CMP_SWAP), for every width 1/2/4/8.
++  //   * ATOMIC_FENCE is Custom: ordering -> `fm`/`pred`/`succ` immediate.
++  setMaxAtomicSizeInBitsSupported(64);
++  setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Custom);
++  // ATOMIC_LOAD/ATOMIC_STORE/ATOMIC_CMP_SWAP_WITH_SUCCESS are Custom for i64
++  // here and for the narrow types in the LLVM-127t loop above (where the types
++  // became legal).  There is deliberately no Custom entry for ATOMIC_* on an
++  // illegal type: that would route through ReplaceNodeResults instead.
++  setOperationAction(ISD::ATOMIC_LOAD, MVT::i64, Custom);
++  setOperationAction(ISD::ATOMIC_STORE, MVT::i64, Custom);
++  setOperationAction(ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS, MVT::i64, Custom);
++
++  // GF(2) carry-less multiply (ADR-0035; LLVM-122t).  `llvm.dadao.clmul.wide`
++  // returns i128, which is not a legal DADAO type and has no generic expansion
++  // as an INTRINSIC_WO_CHAIN result, so mark it Custom for the type legalizer:
++  // ReplaceNodeResults below turns it into DADAOISD::CLMUL (two i64 results)
++  // plus a BUILD_PAIR, and the pair is what reaches ISel.  The i64-result
++  // intrinsics need nothing here: their results are already legal and are
++  // selected by patterns / the custom DAG-to-DAG selector.
++  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::i128, Custom);
++}
++
++EVT DADAOTargetLowering::getSetCCResultType(const DataLayout &DL,
++                                            LLVMContext &Context,
++                                            EVT VT) const {
++  // A vector SETCC has no vector register class here; keep the lane integer
++  // type so the type legalizer can split it into scalar compares.  Returning
++  // the generic pointer type instead would be wrong for N != pointer lanes.
++  if (VT.isVector())
++    return VT.changeVectorElementTypeToInteger();
++  return getPointerTy(DL);
++}
++
++unsigned DADAOTargetLowering::getJumpTableEncoding() const {
++  // Always absolute 8-byte entries (see DADAOISelLowering.h): the generic PIC
++  // choice (EK_LabelDifference32) would need a 4-byte data relocation, which
++  // the DADAO relocation set does not define (ADR-0019 D2/D8).
++  return MachineJumpTableInfo::EK_BlockAddress;
 +}
 +
 +const char *DADAOTargetLowering::getTargetNodeName(unsigned Opcode) const {
@@ -301,9 +771,48 @@ index 000000000..7dd5e6abb
 +    return "DADAOISD::CS_P";
 +  case DADAOISD::BR_JT:
 +    return "DADAOISD::BR_JT";
++  case DADAOISD::BRIND:
++    return "DADAOISD::BRIND";
++  case DADAOISD::TLS_ADDR:
++    return "DADAOISD::TLS_ADDR";
++  case DADAOISD::TLS_IE_ADDR:
++    return "DADAOISD::TLS_IE_ADDR";
++  case DADAOISD::TLS_GD_ADDR:
++    return "DADAOISD::TLS_GD_ADDR";
++  case DADAOISD::FENCE:
++    return "DADAOISD::FENCE";
++  case DADAOISD::ATOMIC_CMP_SWAP:
++    return "DADAOISD::ATOMIC_CMP_SWAP";
++  case DADAOISD::CLMUL:
++    return "DADAOISD::CLMUL";
++  case DADAOISD::FCLASS:
++    return "DADAOISD::FCLASS";
++  case DADAOISD::SCALB:
++    return "DADAOISD::SCALB";
++  case DADAOISD::CVT_SAT:
++    return "DADAOISD::CVT_SAT";
++  case DADAOISD::WRITE_FCSR_RM:
++    return "DADAOISD::WRITE_FCSR_RM";
++  case DADAOISD::WRITE_FCSR:
++    return "DADAOISD::WRITE_FCSR";
 +  default:
 +    return nullptr;
 +  }
++}
++
++TargetLowering::ConstraintType
++DADAOTargetLowering::getConstraintType(StringRef Constraint) const {
++  // ISS-197 / LLVM-119t: `"V"` (non-offsettable memory) is classified as
++  // C_Memory by the generic implementation, but `InlineAsm::ConstraintCode`
++  // has no `V` member (only `m`/`o` exist for memory), so selection could
++  // never succeed: SelectionDAGBuilder would first hit its
++  // "Failed to convert memory constraint code to constraint id" assertion.
++  // DADAO addresses are always `[rb, imms12]`, i.e. offsettable, so `"V"` is
++  // genuinely unsupported here; returning C_Unknown turns it into the ordinary
++  // "unknown asm constraint 'V'" diagnostic (rc=1) instead of a crash.
++  if (Constraint == "V")
++    return C_Unknown;
++  return TargetLowering::getConstraintType(Constraint);
 +}
 +
 +std::pair<unsigned, const TargetRegisterClass *>
@@ -365,6 +874,226 @@ index 000000000..7dd5e6abb
 +  return true;
 +}
 +
++
++//===----------------------------------------------------------------------===//
++// ADR-0031 D4/D6 caller-side argument groups
++//===----------------------------------------------------------------------===//
++
++namespace {
++
++/// Bank of one already-analysed argument piece.  Pointers, sret and byval
++/// pointers use RB; f32/f64 use RF; everything else uses RD.
++unsigned dadaoBankOf(const ISD::ArgFlagsTy &Flags, MVT LocVT) {
++  if (Flags.isPointer() || Flags.isSRet() || Flags.isByVal() ||
++      Flags.isByRef() || Flags.isPreallocated())
++    return 1; // RB
++  if (LocVT == MVT::f32 || LocVT == MVT::f64)
++    return 2; // RF
++  return 0;   // RD
++}
++
++MCRegister dadaoRegFor(unsigned Bank, unsigned Slot) {
++  const unsigned Base =
++      Bank == 0 ? unsigned(DADAO::rd0)
++                : (Bank == 1 ? unsigned(DADAO::rb0) : unsigned(DADAO::rf0));
++  return MCRegister(Base + Slot);
++}
++
++/// Re-assign every argument piece with whole-group semantics (ADR-0031 D4/D6).
++///
++/// The generic TableGen CC (CC_DADAO) allocates one piece at a time and cannot
++/// see argument groups.  SelectionDAGBuilder tags the pieces of one source
++/// argument with InConsecutiveRegs (and the last with ...Last) when
++/// functionArgumentNeedsConsecutiveRegisters() returns true, so this pass can
++/// re-run the allocation with the full group:
++///
++///   * a group fits only if ALL its slots are free in its bank; otherwise the
++///     whole group goes to the shared stack area and the bank cursor and the
++///     remaining count do not move (no splitting -- D4);
++///   * a 16-byte general aggregate (RD, two blocks) additionally needs an
++///     even-aligned pair: an odd cursor first skips one slot (D6), and if that
++///     leaves fewer than two slots the whole value goes to the stack without
++///     skipping or advancing;
++///   * a 16-byte value in the stack area (f128 or the two-block RD group,
++///     which also covers the 9..15-byte corner the backend cannot tell apart)
++///     occupies two 8-byte slots and is 16-byte aligned: an offset that is
++///     8 (mod 16) first skips one slot (ADR-0031 D7).  The returned stack size
++///     therefore includes that padding.
++///
++/// Both the call side (LowerCall) and the callee side (LowerFormalArguments)
++/// call this, so caller and callee agree; clang's va_arg implements the same
++/// rule at run time (parity of rd_next + rd_left and alignment of va.stack).
++template <typename ArgT>
++uint64_t reassignDADAOArgLocs(ArrayRef<ArgT> Args,
++                              SmallVectorImpl<CCValAssign> &Locs) {
++  assert(Args.size() == Locs.size() && "argument/location count mismatch");
++  unsigned NextSlot[3] = {16, 16, 16};
++  uint64_t StackOff = 0;
++
++  for (unsigned I = 0, E = Locs.size(); I != E;) {
++    // f128 halves are not tagged with InConsecutiveRegs (fp128 is a scalar
++    // type); they are recognised by the marker added in markF128Halves and
++    // must be re-allocated as one even RF pair (ADR-0031 D6).
++    const bool IsF128Start = Args[I].OrigTy &&
++                             Args[I].OrigTy->isFP128Ty() &&
++                             Args[I].Flags.isSplit() &&
++                             !Args[I].Flags.isSplitEnd();
++    if (IsF128Start) {
++      if (I + 1 >= E || !Args[I + 1].OrigTy ||
++          !Args[I + 1].OrigTy->isFP128Ty())
++        report_fatal_error("DADAO: unpaired binary128 argument half");
++      unsigned Next = NextSlot[2];
++      bool Fits = false, Skip = false;
++      if (Next & 1) {
++        Fits = (Next + 3 <= 32);
++        Skip = Fits;
++      } else {
++        Fits = (Next + 2 <= 32);
++      }
++      if (Fits) {
++        if (Skip)
++          ++Next;
++        Locs[I].convertToReg(dadaoRegFor(2, Next));
++        Locs[I + 1].convertToReg(dadaoRegFor(2, Next + 1));
++        NextSlot[2] = Next + 2;
++      } else {
++        // ADR-0031 D7: a 16-byte value occupies two 8-byte slots and must be
++        // 16-byte aligned on the stack; skip one slot when the cursor is odd.
++        StackOff = alignTo(StackOff, 16);
++        Locs[I].convertToMem(StackOff);
++        Locs[I + 1].convertToMem(StackOff + 8);
++        StackOff += 16;
++      }
++      I += 2;
++      continue;
++    }
++
++    if (!Args[I].Flags.isInConsecutiveRegs()) {
++      const unsigned Bank = dadaoBankOf(Args[I].Flags, Locs[I].getLocVT());
++      if (NextSlot[Bank] < 32)
++        Locs[I].convertToReg(dadaoRegFor(Bank, NextSlot[Bank]++));
++      else {
++        Locs[I].convertToMem(StackOff);
++        StackOff += 8;
++      }
++      ++I;
++      continue;
++    }
++
++    unsigned J = I;
++    while (J != E && !Args[J].Flags.isInConsecutiveRegsLast())
++      ++J;
++    if (J == E)
++      report_fatal_error("DADAO: argument group has no end marker");
++
++    const unsigned Count = J - I + 1;
++    const unsigned Bank = dadaoBankOf(Args[I].Flags, Locs[I].getLocVT());
++    for (unsigned K = 1; K < Count; ++K)
++      if (dadaoBankOf(Args[I + K].Flags, Locs[I + K].getLocVT()) != Bank)
++        report_fatal_error("DADAO: argument group spans register banks");
++
++    // A two-block general aggregate (RD) needs an even-aligned pair (16-byte
++    // values per D6; the 9..15-byte corner uses the same convention so caller
++    // and va_arg agree).  HFA/HPA groups are all-or-nothing but have no pair
++    // rule.  f128 was handled above as an RF pair.
++    const bool Pair = Count == 2 && Bank == 0;
++    unsigned Next = NextSlot[Bank];
++    bool Fits = false;
++    bool Skip = false;
++    if (Pair) {
++      if (Next & 1) {
++        Fits = (Next + 3 <= 32);
++        Skip = Fits; // skip the odd slot, then take the even pair
++      } else {
++        Fits = (Next + 2 <= 32);
++      }
++    } else {
++      Fits = (Next + Count <= 32);
++    }
++
++    if (Fits) {
++      if (Skip)
++        ++Next;
++      for (unsigned K = 0; K < Count; ++K)
++        Locs[I + K].convertToReg(dadaoRegFor(Bank, Next + K));
++      NextSlot[Bank] = Next + Count;
++    } else {
++      // ADR-0031 D7: the two-block RD group is a 16-byte value; keep it
++      // 16-byte aligned in the stack area (skip one 8-byte slot if needed).
++      // Larger groups, HFA and HPA keep the plain 8-byte slot packing.
++      if (Pair) {
++        StackOff = alignTo(StackOff, 16);
++      }
++      for (unsigned K = 0; K < Count; ++K)
++        Locs[I + K].convertToMem(StackOff + 8 * K);
++      StackOff += 8 * Count;
++      // Cursor and remaining count deliberately unchanged (D4).
++    }
++    I = J + 1;
++  }
++  return StackOff;
++}
++
++/// True if Ty is one allocation group for DADAO: an HFA, an HPA, or a general
++/// aggregate coerced by clang to 8-byte blocks ([N x i64]).
++bool isDADAOArgGroupType(Type *Ty, const DataLayout &DL) {
++  if (!Ty->isAggregateType())
++    return false;
++
++  SmallVector<Type *, 8> Leaves;
++  bool Ok = true;
++  std::function<void(Type *)> Flatten = [&](Type *T) {
++    if (!Ok)
++      return;
++    if (auto *AT = dyn_cast<ArrayType>(T)) {
++      if (AT->getNumElements() == 0 || AT->getNumElements() > 8) {
++        Ok = false;
++        return;
++      }
++      for (uint64_t N = 0; N != AT->getNumElements() && Ok; ++N)
++        Flatten(AT->getElementType());
++      return;
++    }
++    if (auto *ST = dyn_cast<StructType>(T)) {
++      for (Type *Elem : ST->elements())
++        Flatten(Elem);
++      return;
++    }
++    Leaves.push_back(T);
++  };
++  Flatten(Ty);
++  if (!Ok || Leaves.empty() || Leaves.size() > 8)
++    return false;
++
++  const uint64_t Size = DL.getTypeAllocSize(Ty);
++  Type *Leaf0 = Leaves[0];
++  const bool AllPtr = llvm::all_of(Leaves, [](Type *T) {
++    return T->isPointerTy();
++  });
++  const bool AllFloat = (Leaf0->isFloatTy() || Leaf0->isDoubleTy()) &&
++                        llvm::all_of(Leaves, [&](Type *T) { return T == Leaf0; });
++  const bool AllI64 = Leaf0->isIntegerTy(64) &&
++                      llvm::all_of(Leaves, [](Type *T) {
++                        return T->isIntegerTy(64);
++                      });
++  if (AllPtr && Size == Leaves.size() * 8)
++    return true; // HPA
++  if (AllFloat &&
++      Size == Leaves.size() * DL.getTypeAllocSize(Leaf0))
++    return true; // HFA
++  if (AllI64 && Size == Leaves.size() * 8)
++    return true; // general aggregate blocks
++  return false;
++}
++
++} // end anonymous namespace
++
++bool DADAOTargetLowering::functionArgumentNeedsConsecutiveRegisters(
++    Type *Ty, CallingConv::ID /*CallConv*/, bool /*isVarArg*/,
++    const DataLayout &DL) const {
++  return isDADAOArgGroupType(Ty, DL);
++}
++
 +SDValue DADAOTargetLowering::LowerFormalArguments(
 +    SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
 +    const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
@@ -392,7 +1121,12 @@ index 000000000..7dd5e6abb
 +
 +  SmallVector<CCValAssign, 16> ArgLocs;
 +  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
-+  CCInfo.AnalyzeFormalArguments(Ins, CC_DADAO);
++  CCInfo.AnalyzeFormalArguments(markF128Halves<ISD::InputArg>(Ins), CC_DADAO);
++  // Whole-group re-assignment (ADR-0031 D4/D6): aggregates are all-or-nothing
++  // per bank and an exactly-16-byte general aggregate (or f128) is an
++  // even-aligned pair.
++  const uint64_t ArgStackSize =
++      reassignDADAOArgLocs<ISD::InputArg>(Ins, ArgLocs);
 +
 +  for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
 +    CCValAssign &VA = ArgLocs[i];
@@ -402,18 +1136,35 @@ index 000000000..7dd5e6abb
 +          "DADAO: only scalar/pointer/floating-point arguments are supported");
 +
 +    SDValue ArgValue;
++    // Since LLVM-127t a narrow (<8B) integer is a legal type, so a register
++    // argument is read straight at its own width: the caller has already
++    // canonicalised it (C4 D2), a narrow value carries no defined upper half,
++    // and the later uses extend it explicitly.  A stack slot still holds the
++    // full 8-byte canonical value (big-endian: the narrow value is part of a
++    // 64-bit store), so that path loads LocVT and truncates below.
++    const bool IsNarrowInt = VA.getValVT() == MVT::i8 ||
++                             VA.getValVT() == MVT::i16 ||
++                             VA.getValVT() == MVT::i32;
++    bool NarrowReadDirect = false;
 +    if (VA.isRegLoc()) {
 +      // Bank comes from the register CC_DADAO actually assigned (rb* for
 +      // pointers, rd* for scalars, rf* for floating point); the vreg class must
 +      // match it so the register allocator cannot put a value in the wrong bank
-+      // (C1/C2; FP: contract-abi.md §4.1).
++      // (C1/C2; FP: contract-abi.md §4.1).  A binary128 half is a 64-bit
++      // integer part even though it lives in an RF slot (LLVM-106t): keep it in
++      // GPRD so the later integer operations on the halves need no extra bank
++      // move (`rf2rd` is inserted by copyPhysReg).
++      const bool IsF128Half = VA.getValVT() == MVT::f128;
 +      const TargetRegisterClass *RC =
-+          DADAO::GPRBRegClass.contains(VA.getLocReg())   ? &DADAO::GPRBRegClass
-+          : DADAO::GPRFRegClass.contains(VA.getLocReg()) ? &DADAO::GPRFRegClass
-+                                                         : &DADAO::GPRDRegClass;
++          IsF128Half                                           ? &DADAO::GPRDRegClass
++          : DADAO::GPRBRegClass.contains(VA.getLocReg())       ? &DADAO::GPRBRegClass
++          : DADAO::GPRFRegClass.contains(VA.getLocReg())       ? &DADAO::GPRFRegClass
++                                                               : &DADAO::GPRDRegClass;
 +      Register VReg = RegInfo.createVirtualRegister(RC);
 +      RegInfo.addLiveIn(VA.getLocReg(), VReg);
-+      ArgValue = DAG.getCopyFromReg(Chain, DL, VReg, LocVT);
++      NarrowReadDirect = IsNarrowInt && LocVT == MVT::i64;
++      ArgValue = DAG.getCopyFromReg(Chain, DL, VReg,
++                                    NarrowReadDirect ? VA.getValVT() : LocVT);
 +      Chain = ArgValue.getValue(1);
 +    } else {
 +      assert(VA.isMemLoc() && "expected a register or stack argument");
@@ -428,18 +1179,88 @@ index 000000000..7dd5e6abb
 +      ArgValue = L.getValue(0);
 +    }
 +
-+    // The caller canonicalised a narrow (<8B) argument; record the asserted
-+    // extension and truncate back to the IR type (C4 D2).
-+    if (VA.getLocInfo() == CCValAssign::SExt)
-+      ArgValue = DAG.getNode(ISD::AssertSext, DL, LocVT, ArgValue,
-+                             DAG.getValueType(VA.getValVT()));
-+    else if (VA.getLocInfo() == CCValAssign::ZExt)
-+      ArgValue = DAG.getNode(ISD::AssertZext, DL, LocVT, ArgValue,
-+                             DAG.getValueType(VA.getValVT()));
-+    if (VA.getLocInfo() != CCValAssign::Full)
-+      ArgValue = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), ArgValue);
++    if (!NarrowReadDirect) {
++      // The caller canonicalised a narrow (<8B) argument; record the asserted
++      // extension and truncate back to the IR type (C4 D2).
++      if (VA.getLocInfo() == CCValAssign::SExt)
++        ArgValue = DAG.getNode(ISD::AssertSext, DL, LocVT, ArgValue,
++                               DAG.getValueType(VA.getValVT()));
++      else if (VA.getLocInfo() == CCValAssign::ZExt)
++        ArgValue = DAG.getNode(ISD::AssertZext, DL, LocVT, ArgValue,
++                               DAG.getValueType(VA.getValVT()));
++      if (VA.getLocInfo() != CCValAssign::Full)
++        ArgValue = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), ArgValue);
++    }
 +
 +    InVals.push_back(ArgValue);
++  }
++
++  // Variadic register save area (ADR-0031 D2).  A variadic callee snapshots
++  // the slots of each argument bank that were NOT consumed by named arguments,
++  // with one `stm.o` per bank, at function entry.  The area is 16-byte aligned;
++  // the RD region is shifted by one slot when `start` is odd so that the
++  // address of slot `start` has bit 3 == (start & 1).  va_arg uses that bit to
++  // detect an odd cursor for the 16-byte even/odd pairing rule (D6) without
++  // carrying the start index in the va_list.
++  if (IsVarArg) {
++    auto *Info = MF.getInfo<DADAOMachineFunctionInfo>();
++    const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
++    for (const CCValAssign &VA : ArgLocs) {
++      if (!VA.isRegLoc())
++        continue;
++      const Register R = VA.getLocReg();
++      const unsigned NextSlot = TRI->getEncodingValue(R) + 1;
++      if (DADAO::GPRBRegClass.contains(R))
++        Info->VarArgStartRB = std::max(Info->VarArgStartRB, NextSlot);
++      else if (DADAO::GPRFRegClass.contains(R))
++        Info->VarArgStartRF = std::max(Info->VarArgStartRF, NextSlot);
++      else
++        Info->VarArgStartRD = std::max(Info->VarArgStartRD, NextSlot);
++    }
++    Info->VarArgPadRD = Info->VarArgStartRD & 1;
++    Info->VarArgStackOffset = ArgStackSize;
++
++    if (Info->SaveSize() != 0) {
++      const MVT PtrVT = getPointerTy(DAG.getDataLayout());
++      Info->VarArgSaveFI =
++          MFI.CreateStackObject(Info->SaveSize(), Align(16), /*isSpillSlot=*/false);
++      SDValue Base = DAG.getFrameIndex(Info->VarArgSaveFI, PtrVT);
++
++      auto SaveBank = [&](unsigned Opc, unsigned First, unsigned Count,
++                          unsigned Off) {
++        if (Count == 0)
++          return;
++        SDValue BankBase =
++            Off ? DAG.getNode(ISD::ADD, DL, PtrVT, Base,
++                              DAG.getConstant(Off, DL, PtrVT))
++                : Base;
++        SmallVector<SDValue, 20> Ops;
++        Ops.push_back(DAG.getRegister(First, MVT::i64));
++        Ops.push_back(BankBase);
++        Ops.push_back(DAG.getRegister(DADAO::rd0, MVT::i64));
++        Ops.push_back(DAG.getTargetConstant(Count, DL, MVT::i64));
++        // The range partners are implicit uses; they must be declared live-in
++        // even when no named argument used them, or the verifier rejects the
++        // read of an undefined physical register.
++        if (!RegInfo.isLiveIn(First))
++          RegInfo.addLiveIn(First);
++        for (unsigned I = 1; I != Count; ++I) {
++          const Register R(First + I);
++          Ops.push_back(DAG.getRegister(R, MVT::i64));
++          if (!RegInfo.isLiveIn(R))
++            RegInfo.addLiveIn(R);
++        }
++        Ops.push_back(Chain);
++        Chain = SDValue(DAG.getMachineNode(Opc, DL, MVT::Other, Ops), 0);
++      };
++
++      SaveBank(DADAO::stm_o_rd, DADAO::rd16 + (Info->VarArgStartRD - 16),
++               Info->RDLeft(), Info->RDOffset());
++      SaveBank(DADAO::stm_o_rb, DADAO::rb16 + (Info->VarArgStartRB - 16),
++               Info->RBLeft(), Info->RBOffset());
++      SaveBank(DADAO::stm_o_rrri_rf, DADAO::rf16 + (Info->VarArgStartRF - 16),
++               Info->RFLeft(), Info->RFOffset());
++    }
 +  }
 +  return Chain;
 +}
@@ -461,7 +1282,7 @@ index 000000000..7dd5e6abb
 +  SmallVector<CCValAssign, 16> RVLocs;
 +  CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs,
 +                 *DAG.getContext());
-+  CCInfo.AnalyzeReturn(Outs, RetCC_DADAO);
++  CCInfo.AnalyzeReturn(markF128Halves<ISD::OutputArg>(Outs), RetCC_DADAO);
 +
 +  SDValue Glue;
 +  SmallVector<SDValue, 4> RetOps(1, Chain);
@@ -491,6 +1312,56 @@ index 000000000..7dd5e6abb
 +  return DAG.getNode(DADAOISD::RET_GLUE, DL, MVT::Other, RetOps);
 +}
 +
++//===----------------------------------------------------------------------===//
++// Code model `large` (LLVM-131t, ADR-0036 D5)
++//===----------------------------------------------------------------------===//
++//
++// The direct call/jump form (`call_iiii` / `jump_iiii`) reaches its target
++// through a 24-bit PC-relative *word* offset (R_DADAO_REL26,
++// contract-elf.md §3.1) => +/-32 MiB around the instruction.  The `large` code
++// model does not assume that reach: the target address is materialized into an
++// RB register and the call/jump becomes the indirect form
++// (`call rb, rd0, 0` / `jump [rb, rd0, 0]`, contract-isa.md §8.3/§8.5), which
++// uses the absolute 48-bit address the ISA can express.
++//
++// The address is built by the ordinary address path (an ISD::GlobalAddress /
++// ISD::ExternalSymbol selected exactly like any other symbol address), so
++// `large` pays the sequence the ABI already uses for an address:
++//   * static relocation model -> ABS48: `set.zw` + 2x `or.w` (R_DADAO_ABS48),
++//     the form D5 specifies;
++//   * PIC (`-fPIC`/`-fPIE`)   -> `aip.si` + `ld.o` on the symbol's GOT slot
++//     (PC-relative, +/-512 MiB); an absolute 48-bit address cannot be written
++//     into a shared object's `.text`, because only the loader knows the module
++//     base (ADR-0029 D4).
++//
++// A dynamic import keeps the direct form: its REL26 relocation is modeled as
++// R_PLT_PC by the linker (lld/ELF/Arch/DADAO.cpp, getRelExpr), so the call
++// lands on the symbol's PLT stub, which is emitted next to `.text` (12 B per
++// entry) and therefore always in range; routing an import through an absolute
++// address would also defeat symbol interposition.  "Import" is read from the
++// IR: a symbol that is not `dso_local` may be preempted or come from another
++// DSO (ADR-0036 D5).  Under the static relocation model nothing can be
++// preempted (every symbol is `dso_local`), so the whole image -- cross-object
++// calls and libcalls included -- takes the indirect form; that is precisely the
++// >32 MiB static monolith `large` exists for (D6).
++static bool useIndirectCallee(const TargetMachine &TM, const GlobalValue *GV) {
++  if (TM.getCodeModel() != CodeModel::Large)
++    return false;
++  // An undefined *weak* function has no address: lld resolves the reference to
++  // the branch itself (a self-loop, contract-elf.md §3.2 / LLVM-085t), which is
++  // only expressible in the PC-relative form.  Keep it direct so that behaviour
++  // is unchanged; a weak *definition* has an address and takes the indirect
++  // form like any other callee.
++  if (GV && GV->hasExternalWeakLinkage() && GV->isDeclarationForLinker())
++    return false;
++  if (TM.getRelocationModel() == Reloc::Static)
++    return true;
++  // PIC: only a symbol that cannot be preempted may be addressed from here; an
++  // imported/preemptible one must keep the direct call so that the linker
++  // routes it through a PLT stub.
++  return GV && GV->isDSOLocal();
++}
++
 +SDValue DADAOTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 +                                       SmallVectorImpl<SDValue> &InVals) const {
 +  // M6 call lowering (contract-abi.md §4/§6, ADR-0018 C4/C16):
@@ -499,8 +1370,9 @@ index 000000000..7dd5e6abb
 +  //   - a direct callee is a target global/external symbol (call_iiii); an
 +  //     indirect callee (function pointer) is materialized into GPRB and
 +  //     selected to call_rrii (Addr = rbha + rdhb + (imms12 << 2));
-+  //   - for a variadic call every argument is also written into an 8-byte-slot
-+  //     save area at the call-site SP (spec DADAO-21 §可变参数);
++  //   - a variadic call writes no save area: the callee snapshots the unused
++  //     argument registers itself (ADR-0031 D2), so only the normal shared
++  //     overflow stack area carries memory arguments;
 +  //   - CALLSEQ_START/END bracket the outgoing argument area;
 +  //   - the DADAOISD::CALL node carries the call-preserved mask
 +  //     (getCallPreservedMask: includes rb32..rb63, ML-004c) and the live-in
@@ -523,16 +1395,60 @@ index 000000000..7dd5e6abb
 +
 +  MachineFunction &MF = DAG.getMachineFunction();
 +
-+  // Varargs (M6): in addition to the register assignment, every argument is
-+  // written into a contiguous save area at the call-site SP (slot i at
-+  // SP + i*8, 8 bytes each, declaration order).  All arguments must currently
-+  // fit the register banks so that the save area starts at SP + 0 and the
-+  // callee can compute the first-variadic address as entry_SP + N_named*8.
-+  const bool VarArgSaveArea = IsVarArg;
-+
 +  SmallVector<CCValAssign, 16> ArgLocs;
 +  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
-+  CCInfo.AnalyzeCallOperands(Outs, CC_DADAO);
++  CCInfo.AnalyzeCallOperands(markF128Halves<ISD::OutputArg>(Outs), CC_DADAO);
++  // Whole-group re-assignment (ADR-0031 D4/D6); this also yields the final
++  // stack size (the generic CC counted the pieces one by one).
++  const uint64_t ArgStackSize =
++      reassignDADAOArgLocs<ISD::OutputArg>(Outs, ArgLocs);
++
++  // Direct callee operand, or -- under `-mcmodel=large` -- the indirect one
++  // built by materializing the target address into an RB register (see
++  // useIndirectCallee above).  The address materialization is appended to the
++  // chain/glue so it is scheduled after the argument copies and before the
++  // call, exactly like the pre-existing function-pointer path below.
++  //
++  // A tail-jump materializes into GPRBTC (call-clobbered) rather than GPRB: the
++  // epilogue `tailjmp_*` is isReturn, so PEI emits the callee-saved restores
++  // before it, and a callee-saved base register would be overwritten between
++  // the materialization and the jump.
++  auto largeModelCallee = [&](SDValue Callee, SDValue &CallChain,
++                              SDValue &Glue,
++                              bool IsTailJump) -> std::optional<SDValue> {
++    // Everything below is gated on the code model: `default` must keep the
++    // pre-existing direct form byte for byte -- libcalls included, because they
++    // reach LowerCall as an ExternalSymbolSDNode and are still direct calls in
++    // the default model (every other CodeGen test pins that shape).
++    if (getTargetMachine().getCodeModel() != CodeModel::Large)
++      return std::nullopt;
++    SDValue Target;
++    if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
++      if (!useIndirectCallee(getTargetMachine(), G->getGlobal()))
++        return std::nullopt;
++      // Reuse the normal address path (ABS48 statically, GOT slot under PIC),
++      // constant offset included.
++      Target =
++          DAG.getGlobalAddress(G->getGlobal(), DL, MVT::i64, G->getOffset());
++    } else if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
++      // A libcall target: there is no GlobalValue to inspect, so the relocation
++      // model decides (useIndirectCallee with a null GV).  Statically the
++      // symbol is resolved inside the image (nothing to import), so it takes
++      // the indirect form like any other callee; under PIC it is an import and
++      // keeps the direct form.
++      if (!useIndirectCallee(getTargetMachine(), nullptr))
++        return std::nullopt;
++      Target = DAG.getExternalSymbol(E->getSymbol(), MVT::i64);
++    } else {
++      return std::nullopt;
++    }
++    const TargetRegisterClass *RC =
++        IsTailJump ? &DADAO::GPRBTCRegClass : &DADAO::GPRBRegClass;
++    Register TargetReg = MF.getRegInfo().createVirtualRegister(RC);
++    CallChain = DAG.getCopyToReg(CallChain, DL, TargetReg, Target, Glue);
++    Glue = CallChain.getValue(1);
++    return DAG.getRegister(TargetReg, MVT::i64);
++  };
 +
 +  // Real tail call (LLVM-074t; contract-isa.md §8.3/§8.4, contract-abi.md
 +  // §2.3/§4.6).  DADAO has no tail-call instruction, but it does have a plain
@@ -546,21 +1462,60 @@ index 000000000..7dd5e6abb
 +  if (CLI.IsTailCall) {
 +    // Eligibility (LLVM-074t).  A tail-jump leaves SP at the caller's frame, so
 +    // any argument that needs memory in *this* frame is unsafe:
-+    //   - a varargs save area or an out-of-register (stack) argument needs the
-+    //     outgoing argument area of this frame;
++    //   - an out-of-register (stack) argument needs the outgoing argument area
++    //     of this frame (a variadic tail call is rejected outright);
 +    //   - a `byval` argument is a pointer to a caller-local copy, and an
 +    //     `Indirect` (large aggregate) argument is a pointer to a caller-local
 +    //     temporary -- both become dangling once the epilogue deallocates the
 +    //     frame (same guards as RISCV/AArch64);
 +    //   - an `sret` argument (callee returns through a pointer) points into the
 +    //     caller's frame too.
-+    bool Eligible = !VarArgSaveArea && CCInfo.getStackSize() == 0;
++    bool Eligible = !IsVarArg && ArgStackSize == 0;
 +    for (const ISD::OutputArg &Arg : Outs)
 +      if (Arg.Flags.isByVal() || Arg.Flags.isSRet())
 +        Eligible = false;
 +    for (const CCValAssign &VA : ArgLocs)
 +      if (VA.getLocInfo() == CCValAssign::Indirect)
 +        Eligible = false;
++    // The return value is forwarded in registers: a tail-jump runs no code of
++    // ours after the callee's `ret`, so the callee's return registers become
++    // this function's own by construction and there is no place left for a
++    // bank move.  The two must therefore be identical (contract-abi.md §4.4:
++    // a pointer result is returned in rb8, an integer result in rd8, and a
++    // pointer return does not go through rd8; §4.6 the call's Defs are
++    // rb8-rb15/rd8-rd15).  Otherwise demote to a plain call + return, which
++    // inserts the move (ISS-256 ②: shmat() == `(void *)syscall(...)` returns
++    // an i64 from __syscall_ret in rd8 as a `void *` in rb8 -- the tail-jump
++    // left the caller reading a stale rb8).
++    if (Eligible) {
++      SmallVector<CCValAssign, 16> CalleeRets;
++      CCState CalleeRetCC(CallConv, IsVarArg, MF, CalleeRets,
++                          *DAG.getContext());
++      CalleeRetCC.AnalyzeCallResult(markF128Halves<ISD::InputArg>(Ins),
++                                    RetCC_DADAO);
++      const Function &F = MF.getFunction();
++      SmallVector<ISD::OutputArg, 4> SelfOuts;
++      GetReturnInfo(CallConv, F.getReturnType(), F.getAttributes(), SelfOuts,
++                    *this, DAG.getDataLayout());
++      // GetReturnInfo does not record the pointer bit; SelectionDAGBuilder::
++      // visitRet adds it from the returned IR type (and only when the whole
++      // return type is a pointer), so mirror that here or RetCC_DADAO would
++      // put a pointer return in rd8 and the comparison would be blind.
++      if (F.getReturnType()->isPointerTy())
++        for (ISD::OutputArg &O : SelfOuts)
++          O.Flags.setPointer();
++      SmallVector<CCValAssign, 16> SelfRets;
++      CCState SelfRetCC(CallConv, F.isVarArg(), MF, SelfRets,
++                        *DAG.getContext());
++      SelfRetCC.AnalyzeReturn(markF128Halves<ISD::OutputArg>(SelfOuts),
++                              RetCC_DADAO);
++      Eligible = CalleeRets.size() == SelfRets.size();
++      for (unsigned i = 0, e = CalleeRets.size(); Eligible && i != e; ++i)
++        Eligible = CalleeRets[i].isRegLoc() && SelfRets[i].isRegLoc() &&
++                   CalleeRets[i].getLocReg() == SelfRets[i].getLocReg() &&
++                   CalleeRets[i].getLocVT() == SelfRets[i].getLocVT() &&
++                   CalleeRets[i].getLocInfo() == SelfRets[i].getLocInfo();
++    }
 +    if (Eligible) {
 +      // Copy the outgoing register arguments (glued), materialising the
 +      // caller-side sign/zero extension exactly as the normal path (C4 D2).
@@ -590,16 +1545,22 @@ index 000000000..7dd5e6abb
 +        TailRegs.push_back(std::make_pair(VA.getLocReg(), Arg));
 +      }
 +
-+      // Callee operand: a target global/external symbol (direct) or a GPRB
-+      // virtual register holding the target address (indirect), as in CALL.
++      // Callee operand: a target global/external symbol (direct) or a
++      // call-clobbered RB register holding the target address (indirect), as in
++      // CALL.  Under `-mcmodel=large` a direct symbol becomes an indirect
++      // callee here.
++      std::optional<SDValue> LargeCallee =
++          largeModelCallee(Callee, Chain, ArgGlue, /*IsTailJump=*/true);
 +      SDValue CalleeOp;
-+      if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
++      if (LargeCallee) {
++        CalleeOp = *LargeCallee;
++      } else if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
 +        CalleeOp = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i64);
 +      } else if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
 +        CalleeOp = DAG.getTargetExternalSymbol(E->getSymbol(), MVT::i64);
 +      } else {
 +        Register TargetReg =
-+            MF.getRegInfo().createVirtualRegister(&DADAO::GPRBRegClass);
++            MF.getRegInfo().createVirtualRegister(&DADAO::GPRBTCRegClass);
 +        Chain = DAG.getCopyToReg(Chain, DL, TargetReg, Callee, ArgGlue);
 +        ArgGlue = Chain.getValue(1);
 +        CalleeOp = DAG.getRegister(TargetReg, MVT::i64);
@@ -635,13 +1596,14 @@ index 000000000..7dd5e6abb
 +    CLI.IsTailCall = false;
 +  }
 +
-+  if (VarArgSaveArea && CCInfo.getStackSize() != 0)
-+    report_fatal_error("DADAO: a varargs call with register-exhausted "
-+                       "arguments is not supported yet");
-+
-+  const uint64_t NumBytes =
-+      VarArgSaveArea ? static_cast<uint64_t>(Outs.size()) * 8
-+                     : CCInfo.getStackSize();
++  // The caller writes no variadic save area (ADR-0031 D2): the callee
++  // snapshots the argument registers itself, so a variadic call is an ordinary
++  // call whose only extra memory is the usual shared overflow stack area.
++  // ADR-0031 D7 / ADR-0018 C9 D3 (contract-abi.md §2.2): every `call` executes
++  // with SP 16-byte aligned, so the caller-side outgoing area always rounds up
++  // to 16 bytes.  The value is the *call frame* size only: the callee's
++  // ArgStackSize is the va_start offset and stays exact (LLVM-111t F3).
++  const uint64_t NumBytes = alignTo(ArgStackSize, 16);
 +  Chain = DAG.getCALLSEQ_START(Chain, NumBytes, 0, DL);
 +
 +  SmallVector<std::pair<Register, SDValue>, 8> RegsToPass;
@@ -666,16 +1628,6 @@ index 000000000..7dd5e6abb
 +      break;
 +    default:
 +      llvm_unreachable("DADAO: unsupported argument location info");
-+    }
-+
-+    if (VarArgSaveArea) {
-+      // Store the promoted argument into its 8-byte save slot SP + i*8.
-+      SDValue StackPtr = DAG.getRegister(DADAO::rb1, MVT::i64);
-+      SDValue SlotAddr = DAG.getNode(
-+          ISD::ADD, DL, MVT::i64, StackPtr,
-+          DAG.getIntPtrConstant(static_cast<int64_t>(i) * 8, DL));
-+      MemOpChains.push_back(DAG.getStore(
-+          Chain, DL, Arg, SlotAddr, MachinePointerInfo::getStack(MF, i * 8)));
 +    }
 +
 +    if (VA.isRegLoc()) {
@@ -707,9 +1659,14 @@ index 000000000..7dd5e6abb
 +  }
 +
 +  // Turn the callee into the call operand: a target global/external symbol for
-+  // a direct call, or a GPRB virtual register for an indirect one.
++  // a direct call, or a GPRB virtual register for an indirect one.  Under
++  // `-mcmodel=large` a direct symbol is materialized and becomes indirect.
++  std::optional<SDValue> LargeCallee =
++      largeModelCallee(Callee, Chain, ArgGlue, /*IsTailJump=*/false);
 +  SDValue CalleeOp;
-+  if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
++  if (LargeCallee) {
++    CalleeOp = *LargeCallee;
++  } else if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
 +    CalleeOp = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i64);
 +  } else if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
 +    CalleeOp = DAG.getTargetExternalSymbol(E->getSymbol(), MVT::i64);
@@ -756,21 +1713,33 @@ index 000000000..7dd5e6abb
 +  SmallVector<CCValAssign, 16> RVLocs;
 +  CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs,
 +                 *DAG.getContext());
-+  CCInfo.AnalyzeCallResult(Ins, RetCC_DADAO);
++  CCInfo.AnalyzeCallResult(markF128Halves<ISD::InputArg>(Ins), RetCC_DADAO);
 +
 +  for (unsigned i = 0, e = RVLocs.size(); i != e; ++i) {
 +    CCValAssign &VA = RVLocs[i];
 +    if (!VA.isRegLoc())
 +      report_fatal_error(
 +          "DADAO: only register call results are supported in M3");
++    // A narrow (<8B) integer result is read at its own width (LLVM-127t): the
++    // callee canonicalised it (C5 D2) but the caller only needs the IR-width
++    // value, and a narrow value has no defined upper half.  Everything else
++    // (f128 halves are the marker case) keeps the 64-bit read + truncate.
++    const bool IsNarrowInt = VA.getValVT() == MVT::i8 ||
++                             VA.getValVT() == MVT::i16 ||
++                             VA.getValVT() == MVT::i32;
++    const EVT CopyVT =
++        IsNarrowInt && VA.getLocVT() == MVT::i64 ? VA.getValVT() : VA.getLocVT();
 +    SDValue Copy =
-+        DAG.getCopyFromReg(Chain, DL, VA.getLocReg(), VA.getLocVT(), InGlue);
++        DAG.getCopyFromReg(Chain, DL, VA.getLocReg(), CopyVT, InGlue);
 +    Chain = Copy.getValue(1);
 +    InGlue = Copy.getValue(2);
 +    SDValue Val = Copy.getValue(0);
 +    // The callee canonicalised a narrow return value; the caller only
-+    // truncates to the IR type (C5 D2: caller does not re-extend).
-+    if (VA.getValVT() != VA.getLocVT())
++    // truncates to the IR type (C5 D2: caller does not re-extend).  A
++    // binary128 half is a 64-bit integer part (ValVT is only the marker); the
++    // generic getCopyFromParts below reassembles the two halves into f128.
++    if (!IsNarrowInt && VA.getValVT() != VA.getLocVT() &&
++        VA.getValVT() != MVT::f128)
 +      Val = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), Val);
 +    InVals.push_back(Val);
 +  }
@@ -813,8 +1782,80 @@ index 000000000..7dd5e6abb
 +    return LowerVASTART(Op, DAG);
 +  case ISD::VAARG:
 +    return LowerVAARG(Op, DAG);
++  case ISD::VACOPY:
++    return LowerVACOPY(Op, DAG);
 +  case ISD::BR_JT:
 +    return LowerBR_JT(Op, DAG);
++  case ISD::BRIND:
++    return LowerBRIND(Op, DAG);
++  case ISD::GlobalTLSAddress:
++    return LowerGlobalTLSAddress(Op, DAG);
++  case ISD::INTRINSIC_WO_CHAIN:
++    return LowerINTRINSIC_WO_CHAIN(Op, DAG);
++  // Min/max (LLVM-124t, contract-fp.md §minmax): the custom action is declared
++  // in the constructor.
++  case ISD::FMINNUM:
++  case ISD::FMAXNUM:
++    return LowerMinMaxNum(Op, DAG);
++  // FP completeness wiring (LLVM-126t; the custom actions are declared in the
++  // constructor): classification, scaleB, saturating conversion, the FCSR
++  // rounding-mode accessors and the identity canonicalisation.
++  case ISD::IS_FPCLASS:
++    return LowerIS_FPCLASS(Op, DAG);
++  case ISD::FLDEXP:
++    return LowerFLDEXP(Op, DAG);
++  case ISD::FP_TO_SINT_SAT:
++  case ISD::FP_TO_UINT_SAT:
++    return LowerFP_TO_INT_SAT(Op, DAG);
++  case ISD::GET_ROUNDING:
++    return LowerGET_ROUNDING(Op, DAG);
++  case ISD::SET_ROUNDING:
++    return LowerSET_ROUNDING(Op, DAG);
++  case ISD::FCANONICALIZE:
++    // Identity: no excess precision and no non-canonical results on this
++    // target, so canonicalisation must not touch the value (x * 1.0 would
++    // quieten an sNaN and can raise NV/NX for no semantic reason).
++    return Op.getOperand(0);
++  // Atomics (LLVM-121t; ADR-0034).  The IR-level AtomicExpandPass has already
++  // turned every atomic load/store into a monotonic access plus `fence`, and
++  // every RMW into a cmpxchg loop, so these four hooks are the whole backend
++  // atomic surface: ordering -> fence bits, plain access, lr/sc CAS loop.
++  case ISD::ATOMIC_FENCE:
++    return LowerATOMIC_FENCE(Op, DAG);
++  case ISD::ATOMIC_LOAD:
++    return LowerATOMIC_LOAD(Op, DAG);
++  case ISD::ATOMIC_STORE:
++    return LowerATOMIC_STORE(Op, DAG);
++  case ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS:
++    return LowerATOMIC_CMP_SWAP_WITH_SUCCESS(Op, DAG);
++  case ISD::ROTR: {
++    // ADR-0032 D4 (as amended: `rol`) / LLVM-116t: rotr(x,n) = rol(x, (W-n)
++    // mod W).  The custom action is declared in the constructor.
++    const SDLoc DL(Op);
++    const EVT VT = Op.getValueType();
++    const unsigned W = VT.getSizeInBits();
++    SDValue X = Op.getOperand(0);
++    SDValue Amt = Op.getOperand(1);
++    if (auto *C = dyn_cast<ConstantSDNode>(Amt)) {
++      const unsigned Rot = (unsigned)C->getAPIntValue().urem(W);
++      const unsigned Inv = Rot == 0 ? 0 : W - Rot;
++      return DAG.getNode(ISD::ROTL, DL, VT, X, DAG.getConstant(Inv, DL, VT));
++    }
++    // Two's-complement negation has exactly the low log2(W) bits of
++    // (W - n) mod W, which is what the rol register form consumes.
++    SDValue Neg =
++        DAG.getNode(ISD::SUB, DL, VT, DAG.getConstant(0, DL, VT), Amt);
++    return DAG.getNode(ISD::ROTL, DL, VT, X, Neg);
++  }
++  case ISD::SHL_PARTS:
++  case ISD::SRL_PARTS:
++  case ISD::SRA_PARTS: {
++    // INFRA-079t: expand a two-register (i128) shift into i64 shift/and/or/
++    // select operations (see the Custom action in the constructor).
++    SDValue Lo, Hi;
++    expandShiftParts(Op.getNode(), Lo, Hi, DAG);
++    return DAG.getMergeValues({Lo, Hi}, SDLoc(Op));
++  }
 +  default:
 +    return SDValue();
 +  }
@@ -822,55 +1863,88 @@ index 000000000..7dd5e6abb
 +
 +SDValue DADAOTargetLowering::LowerVASTART(SDValue Op,
 +                                          SelectionDAG &DAG) const {
-+  // `llvm.va_start(ptr %ap)` (M6, spec DADAO-21 §可变参数).  DADAO's va_list is
-+  // a plain void*: va_start sets it to the address of the first variadic
-+  // argument, i.e. entry SP + N_named*8, where the caller's save area holds
-+  // slot i at entry SP + i*8.  N_named is the number of named arguments of the
-+  // variadic function.
++  // `llvm.va_start(ptr %ap)` (spec DADAO-21 §3.3, ADR-0031 D1/D2).  Fill the
++  // seven-field va_list from the callee's register save area:
++  //   [0] rd_next  [1] rb_next  [2] rf_next
++  //   [3] rd_left  [4] rb_left  [5] rf_left
++  //   [6] stack_next (= incoming_sp = rb2 + 8)
++  // The frame layout and the per-bank start slots were computed in
++  // LowerFormalArguments (DADAOMachineFunctionInfo).
 +  MachineFunction &MF = DAG.getMachineFunction();
++  auto *Info = MF.getInfo<DADAOMachineFunctionInfo>();
 +  const DataLayout &DLayout = DAG.getDataLayout();
-+  MVT PtrVT = getPointerTy(DLayout);
-+  SDLoc DL(Op);
-+
++  const MVT PtrVT = getPointerTy(DLayout);
++  const SDLoc DL(Op);
 +  const Value *SV = cast<SrcValueSDNode>(Op.getOperand(2))->getValue();
-+  const unsigned NumNamed =
-+      static_cast<unsigned>(MF.getFunction().arg_size());
-+  int FI = MF.getFrameInfo().CreateFixedObject(
-+      /*Size=*/8, /*Offset=*/static_cast<int64_t>(NumNamed) * 8,
-+      /*IsImmutable=*/true);
-+  SDValue FIN = DAG.getFrameIndex(FI, PtrVT);
-+  return DAG.getStore(Op.getOperand(0), DL, FIN, Op.getOperand(1),
-+                      MachinePointerInfo(SV));
++  SDValue Chain = Op.getOperand(0);
++  SDValue VAList = Op.getOperand(1);
++
++  // First variadic stack slot: incoming_sp + (named stack bytes).  Named
++  // arguments that overflow share the same declaration-ordered stack area, so
++  // they always form a prefix of it (contract-abi.md §4.3, ADR-0031 D4).
++  if (Info->VarArgStackFI < 0)
++    Info->VarArgStackFI = MF.getFrameInfo().CreateFixedObject(
++        /*Size=*/8, /*Offset=*/static_cast<int64_t>(Info->VarArgStackOffset),
++        /*IsImmutable=*/true);
++  SDValue StackNext = DAG.getFrameIndex(Info->VarArgStackFI, PtrVT);
++
++  SDValue SaveBase;
++  if (Info->VarArgSaveFI >= 0)
++    SaveBase = DAG.getFrameIndex(Info->VarArgSaveFI, PtrVT);
++  else
++    // Every bank was already exhausted by the named arguments: left == 0, so
++    // the cursors are never dereferenced.  Point them at incoming_sp.
++    SaveBase = StackNext;
++
++  auto StoreField = [&](unsigned Index, SDValue Value) {
++    SDValue Addr = DAG.getNode(
++        ISD::ADD, DL, PtrVT, VAList,
++        DAG.getConstant(static_cast<int64_t>(Index) * 8, DL, PtrVT));
++    Chain = DAG.getStore(Chain, DL, Value, Addr,
++                         MachinePointerInfo(SV, Index * 8), Align(8));
++  };
++
++  const unsigned Pad = Info->VarArgPadRD;
++  SDValue RDNext = Pad ? DAG.getNode(ISD::ADD, DL, PtrVT, SaveBase,
++                                     DAG.getConstant(8, DL, PtrVT))
++                       : SaveBase;
++  SDValue RBNext = DAG.getNode(
++      ISD::ADD, DL, PtrVT, SaveBase,
++      DAG.getConstant(static_cast<int64_t>(Info->RBOffset()), DL, PtrVT));
++  SDValue RFNext = DAG.getNode(
++      ISD::ADD, DL, PtrVT, SaveBase,
++      DAG.getConstant(static_cast<int64_t>(Info->RFOffset()), DL, PtrVT));
++
++  StoreField(0, RDNext);
++  StoreField(1, RBNext);
++  StoreField(2, RFNext);
++  StoreField(3, DAG.getConstant(Info->RDLeft(), DL, MVT::i64));
++  StoreField(4, DAG.getConstant(Info->RBLeft(), DL, MVT::i64));
++  StoreField(5, DAG.getConstant(Info->RFLeft(), DL, MVT::i64));
++  StoreField(6, StackNext);
++  return Chain;
 +}
 +
 +SDValue DADAOTargetLowering::LowerVAARG(SDValue Op, SelectionDAG &DAG) const {
-+  // `llvm.va_arg(ptr %ap, T)` (M6, spec DADAO-21 §可变参数).  The va_list holds
-+  // the address of the next slot; read the value, then advance by one 8-byte
-+  // slot.  DADAO is big-endian, so a narrow value is right-aligned in the slot:
-+  // read it at slot + (8 - sizeof(T)).
-+  SDLoc DL(Op);
-+  const DataLayout &DLayout = DAG.getDataLayout();
-+  MVT PtrVT = getPointerTy(DLayout);
-+  SDValue Chain = Op.getOperand(0);
-+  SDValue VAListPtr = Op.getOperand(1);
-+  EVT VT = Op.getValueType();
++  // clang expands `va_arg` itself (it owns the type classification and emits
++  // the five-step cursor/stack sequence of spec §3.3), so the generic
++  // `llvm.va_arg` intrinsic must not be silently lowered with a layout it does
++  // not match.  Fail loudly instead (an unsupported feature must be explicit).
++  report_fatal_error(
++      "DADAO: llvm.va_arg is not used by the DADAO ABI; clang expands "
++      "va_arg directly (seven-field va_list, spec DADAO-21 §3.3)");
++}
 +
-+  SDValue Slot =
-+      DAG.getLoad(PtrVT, DL, Chain, VAListPtr, MachinePointerInfo());
-+  Chain = Slot.getValue(1);
-+
-+  SDValue Addr = Slot;
-+  const unsigned Size = VT.getSizeInBits() / 8;
-+  if (Size < 8)
-+    Addr = DAG.getNode(ISD::ADD, DL, PtrVT, Slot,
-+                       DAG.getConstant(8 - Size, DL, PtrVT));
-+  SDValue Val = DAG.getLoad(VT, DL, Chain, Addr, MachinePointerInfo());
-+  Chain = Val.getValue(1);
-+
-+  SDValue Next = DAG.getNode(ISD::ADD, DL, PtrVT, Slot,
-+                             DAG.getConstant(8, DL, PtrVT));
-+  Chain = DAG.getStore(Chain, DL, Next, VAListPtr, MachinePointerInfo());
-+  return DAG.getMergeValues({Val, Chain}, DL);
++SDValue DADAOTargetLowering::LowerVACOPY(SDValue Op, SelectionDAG &DAG) const {
++  // va_copy = copy the whole 56-byte seven-field structure (D1).
++  const SDLoc DL(Op);
++  const Value *DestSV = cast<SrcValueSDNode>(Op.getOperand(3))->getValue();
++  const Value *SrcSV = cast<SrcValueSDNode>(Op.getOperand(4))->getValue();
++  return DAG.getMemcpy(Op.getOperand(0), DL, Op.getOperand(1), Op.getOperand(2),
++                       DAG.getConstant(56, DL, MVT::i32), Align(8), Align(8),
++                       /*isVolatile=*/false, /*AlwaysInline=*/false,
++                       /*MF=*/nullptr, /*AAInfo=*/std::nullopt,
++                       MachinePointerInfo(DestSV), MachinePointerInfo(SrcSV));
 +}
 +
 +SDValue DADAOTargetLowering::LowerBRCOND(SDValue Op, SelectionDAG &DAG) const {
@@ -881,11 +1955,13 @@ index 000000000..7dd5e6abb
 +
 +  // `br (icmp ...)` / `br (fcmp ...)` reaches us as SETCC + BRCOND
 +  // (SelectionDAGBuilder no longer builds BR_CC directly).  Fold the setcc back
-+  // into a compare + branch.  The integer path (i64) and the FP path
-+  // (f32/f64, M6/LLVM-066t) are both handled by LowerBR_CC.
++  // into a compare + branch.  The integer paths (i64, and the narrow i8/i16/i32
++  // since LLVM-127t) and the FP path (f32/f64, M6/LLVM-066t) are all handled by
++  // LowerBR_CC.
 +  if (CondV.getOpcode() == ISD::SETCC) {
 +    const EVT OpVT = CondV.getOperand(0).getValueType();
-+    if (OpVT == MVT::i64 || OpVT == MVT::f32 || OpVT == MVT::f64) {
++    if (OpVT == MVT::i64 || OpVT == MVT::i32 || OpVT == MVT::i16 ||
++        OpVT == MVT::i8 || OpVT == MVT::f32 || OpVT == MVT::f64) {
 +      ISD::CondCode CC = cast<CondCodeSDNode>(CondV.getOperand(2))->get();
 +      return LowerBR_CC(Chain, CC, CondV.getOperand(0), CondV.getOperand(1),
 +                        Dest, DL, DAG);
@@ -915,6 +1991,375 @@ index 000000000..7dd5e6abb
 +  SDValue Index = Op.getOperand(2);
 +  SDValue TargetJT = DAG.getTargetJumpTable(JT->getIndex(), MVT::i64);
 +  return DAG.getNode(DADAOISD::BR_JT, DL, MVT::Other, Chain, Index, TargetJT);
++}
++
++SDValue DADAOTargetLowering::LowerBRIND(SDValue Op, SelectionDAG &DAG) const {
++  // Indirect branch (`goto *p`, LLVM-102t).  The rrii jump form is
++  //   Addr = rbha + rdhb + (imms12 << 2)            (contract-isa.md §8.3)
++  // i.e. the base must come from the RB bank, and rb0 is the IP (read as the
++  // current instruction address), so it cannot serve as the base either.  The
++  // BRIND target, on the other hand, is ordinary C data: a function pointer or
++  // `&&label` value lives in the RD bank (rd0 is the hardwired zero).  Copy it
++  // into a GPRB virtual register through CopyToReg: when the value arrives in
++  // GPRD this becomes a cross-bank `rd2rb` (copyPhysReg), and when it is
++  // already a GPRB value (e.g. the BLOCK_ADDR materialization of a label
++  // address) it stays a same-bank `rb2rb`.  The selector then emits
++  //   jump rbtarget, rd0, 0
++  // with rd0 supplying the zero offset, so the address is exactly the computed
++  // target -- never a PC-relative `jump imms24`.
++  //
++  // This path is deliberately separate from ISD::BR_JT: the switch dispatch
++  // loads its case address from the jump table as part of its own sequence
++  // (DADAOISD::BR_JT), whereas here the target is already a value.
++  SDLoc DL(Op);
++  SDValue Chain = Op.getOperand(0);
++  SDValue Target = Op.getOperand(1);
++  MachineFunction &MF = DAG.getMachineFunction();
++  Register TargetReg =
++      MF.getRegInfo().createVirtualRegister(&DADAO::GPRBRegClass);
++  Chain = DAG.getCopyToReg(Chain, DL, TargetReg, Target);
++  SDValue TargetRB = DAG.getRegister(TargetReg, MVT::i64);
++  return DAG.getNode(DADAOISD::BRIND, DL, MVT::Other, Chain, TargetRB);
++}
++
++SDValue DADAOTargetLowering::LowerGlobalTLSAddress(SDValue Op,
++                                                   SelectionDAG &DAG) const {
++  const SDLoc DL(Op);
++  auto *GA = cast<GlobalAddressSDNode>(Op);
++  const GlobalValue *GV = GA->getGlobal();
++  const int64_t Offset = GA->getOffset();
++  const EVT PtrVT = getPointerTy(DAG.getDataLayout());
++  const bool IsPIC = getTargetMachine().getRelocationModel() == Reloc::PIC_;
++
++  // musl arch macros (contract-dynlink.md §7; arch/dadao/pthread_arch.h):
++  // TLS_ABOVE_TP, GAP_ABOVE_TP 0, TP_OFFSET 0, DTP_OFFSET 0, TPOFF_K 0.  The
++  // block therefore starts exactly at TP = rb3 (contract-abi.md §1.3), so
++  // TPOFF(sym) == DTPOFF(sym): the frozen formulas
++  //   R_DADAO_TLS_DTPREL = DTPOFF(sym) + A      (type 11)
++  //   R_DADAO_TLS_TPREL  = TPOFF(sym)  + A      (type 12)
++  // (contract-dynlink.md §4.3) carry no extra bias.
++  switch (GV->getThreadLocalMode()) {
++  case GlobalValue::LocalExecTLSModel: {
++    // Static local-exec (LLVM-100t): address = TP + TPOFF.
++    //
++    // A local-exec reference pins the object to the *executing module's* TLS
++    // block, which only exists for the main executable; a shared object cannot
++    // encode it (its TP-relative offsets are assigned by the loader).  Fail
++    // loudly instead of emitting a static offset into a position-independent
++    // object (contract-dynlink.md §10②).
++    if (IsPIC) {
++      DAG.getContext()->emitError(
++          Twine("thread-local storage of '") + GV->getName() +
++          "' uses the local-exec TLS model in a position-independent "
++          "translation unit: a shared object's TLS offsets are assigned by the "
++          "loader; use -ftls-model=initial-exec or global-dynamic");
++      return DAG.getUNDEF(Op.getValueType());
++    }
++    // The offset is a link-time constant (the linker assigns TLS-block
++    // offsets) and is materialized through the ABS48 sequence on the STT_TLS
++    // symbol: an ABS48 relocation's S is the symbol's TLS offset (the linker's
++    // `getVA()` returns `va - PT_TLS.firstSection` for TLS symbols), exactly
++    // TPOFF here.  No dynamic TLS relocation is involved (types 10/11/12 stay
++    // for the dynamic models below).
++    SDValue Sym = DAG.getTargetGlobalAddress(GV, DL, MVT::i64, Offset);
++    return DAG.getNode(DADAOISD::TLS_ADDR, DL, MVT::i64, Sym);
++  }
++
++  case GlobalValue::InitialExecTLSModel: {
++    // Initial-exec (LLVM-117t): address = TP + *(GOT slot), where the slot
++    // holds TPOFF(sym) + A and is fixed up by the loader through
++    // R_DADAO_TLS_TPREL (type 12).  Valid in the executable and in a shared
++    // object that is present at startup (its block is part of the static TLS
++    // area); musl rejects it for a dlopen'd module, which is the standard
++    // initial-exec restriction.
++    SDValue Sym = DAG.getTargetGlobalAddress(
++        GV, DL, MVT::i64, Offset, DADAO::MO_GOT_ADDR | DADAO::MO_TLS_TPREL);
++    return DAG.getNode(DADAOISD::TLS_IE_ADDR, DL, MVT::i64, Sym);
++  }
++
++  case GlobalValue::GeneralDynamicTLSModel: {
++    // Global-dynamic (LLVM-117t): the only model that also works for a module
++    // loaded by dlopen(), which is what ISS-260 needs.  Pass the address of
++    // this module's `tls_index` pair {tls_id, DTPOFF} to __tls_get_addr:
++    //   * the pair is emitted in `.got` with R_DADAO_TLS_DTPMOD (type 10) and
++    //     R_DADAO_TLS_DTPREL (type 11), so the loader fills the module id and,
++    //     for a shared object, the module-relative offset;
++    //   * the instruction stream loads the pair's *address* from one more
++    //     `.got` slot (an ordinary absolute data field) with the existing
++    //     PC-relative hi/lo pair, so no new instruction or relocation is
++    //     needed for the access itself.
++    // The ABI argument is `tls_mod_off_t *` (pointer bank, first argument =
++    // rb16), i.e. exactly the pointer-typed first argument of the call below.
++    SDValue Sym = DAG.getTargetGlobalAddress(
++        GV, DL, PtrVT, /*Offset=*/0, DADAO::MO_GOT_ADDR | DADAO::MO_TLS_GD);
++    SDValue Idx = DAG.getNode(DADAOISD::TLS_GD_ADDR, DL, PtrVT, Sym);
++
++    // Both the return value and the argument are pointers: the DADAO calling
++    // convention routes pointer arguments to the RB bank and pointer returns to
++    // rb8 (contract-abi.md §4.1/§6.1, CCIfPtr), while an i64 would land in the
++    // RD bank.  Declaring the IR types as pointers is what sets
++    // ISD::ArgFlagsTy::Pointer (SelectionDAGBuilder/LowerCallTo derive the flag
++    // from the type, not from the MVT -- both legalize to i64).
++    Type *CallTy = PointerType::get(*DAG.getContext(), 0);
++    ArgListTy Args;
++    Args.emplace_back(Idx, CallTy);
++    TargetLowering::CallLoweringInfo CLI(DAG);
++    CLI.setDebugLoc(DL)
++        .setChain(DAG.getEntryNode())
++        .setLibCallee(CallingConv::C, CallTy,
++                      DAG.getExternalSymbol("__tls_get_addr", PtrVT),
++                      std::move(Args));
++    SDValue Ret = LowerCallTo(CLI).first;
++    // A constant offset on the address expression (&tls_var + N) is applied to
++    // the returned address; the pair already names the object itself.
++    if (Offset)
++      Ret = DAG.getNode(ISD::ADD, DL, PtrVT, Ret,
++                        DAG.getConstant(Offset, DL, PtrVT));
++    return Ret;
++  }
++
++  case GlobalValue::LocalDynamicTLSModel:
++    // Local-dynamic needs a module-level tls_index shared by all of the
++    // module's TLS objects (R_DADAO_TLS_DTPMOD once per module, not once per
++    // symbol).  clang never selects it by default, and nothing in the corpus
++    // asks for it, so it stays an explicit error rather than a silently wrong
++    // per-symbol pair (contract-dynlink.md §10②).
++    DAG.getContext()->emitError(
++        Twine("thread-local storage of '") + GV->getName() +
++        "' uses the local-dynamic TLS model, which is not implemented for "
++        "DADAO; use initial-exec or global-dynamic");
++    return DAG.getUNDEF(Op.getValueType());
++
++  case GlobalValue::NotThreadLocal:
++    break;
++  }
++  DAG.getContext()->emitError(
++      Twine("thread-local storage of '") + GV->getName() +
++      "' has no TLS model set");
++  return DAG.getUNDEF(Op.getValueType());
++}
++
++SDValue DADAOTargetLowering::getThreadPointer(const SDLoc &DL,
++                                              SelectionDAG &DAG) const {
++  // TP = rb3 (contract-abi.md §1.3).  rb3 is reserved, so a CopyFromReg of the
++  // physical register needs no allocation and cannot be clobbered.
++  return DAG.getCopyFromReg(DAG.getEntryNode(), DL, DADAO::rb3, MVT::i64);
++}
++
++SDValue DADAOTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
++                                                     SelectionDAG &DAG) const {
++  if (Op.getConstantOperandVal(0) != Intrinsic::thread_pointer)
++    return SDValue(); // Not custom lowered: keep the generic path.
++  return getThreadPointer(SDLoc(Op), DAG);
++}
++
++SDValue DADAOTargetLowering::LowerMinMaxNum(SDValue Op,
++                                            SelectionDAG &DAG) const {
++  // LLVM-124t (contract-fp.md §minmax = SimRISC-07 §2.4).  FMINNUM/FMAXNUM are
++  // the *legacy* pair; they carry the same minimumNumber/maximumNumber
++  // semantics as FMINNUM_IEEE/FMAXNUM_IEEE except for the sNaN result, which
++  // LangRef leaves non-deterministic ("either NaN or the other operand").  Both
++  // nodes therefore map to the same single instruction:
++  //
++  //   FMINNUM  -> FMINNUM_IEEE -> fomin / ftmin
++  //   FMAXNUM  -> FMAXNUM_IEEE -> fomax / ftmax
++  //
++  // Writing the rewrite here (rather than letting LegalizeDAG call
++  // TargetLowering::expandFMINNUM_FMAXNUM) is what keeps it to one instruction:
++  // that generic expansion wraps each operand in FCANONICALIZE, and this target
++  // expands FCANONICALIZE into `x * 1.0` (constant materialisation + `fomul`),
++  // i.e. 3 instructions per operand.  The canonicalisation is not wanted here
++  // anyway: quieting an sNaN first would drop the NV that contract-fp.md §minmax
++  // requires for an sNaN input, while the instruction raises it by itself.
++  const SDLoc DL(Op);
++  const EVT VT = Op.getValueType();
++  const unsigned NewOp =
++      Op.getOpcode() == ISD::FMINNUM ? ISD::FMINNUM_IEEE : ISD::FMAXNUM_IEEE;
++  return DAG.getNode(NewOp, DL, VT, Op.getOperand(0), Op.getOperand(1),
++                     Op->getFlags());
++}
++
++SDValue DADAOTargetLowering::LowerIS_FPCLASS(SDValue Op,
++                                             SelectionDAG &DAG) const {
++  // LLVM-126t (contract-fp.md §9).  `focls`/`ftcls` write a 10-bit one-hot
++  // class mask whose bit order is exactly LLVM's FPClassTest (SPEC-156t):
++  //   0 sNaN, 1 qNaN, 2 -Inf, 3 -Normal, 4 -Subnormal, 5 -Zero,
++  //   6 +Zero, 7 +Subnormal, 8 +Normal, 9 +Inf.
++  // So is.fpclass(x, M) is (class(x) & M) != 0 with no bit permutation; a
++  // one-hot M needs no AND at all -- comparing the class word against M is
++  // already the != 0 test for that single class.
++  const SDLoc DL(Op);
++  SDValue Src = Op.getOperand(0);
++  const uint64_t Mask = Op.getConstantOperandVal(1);
++  const EVT VT = Op.getValueType();
++  // The SETCC/cs.* machinery produces the canonical i64 0/1 boolean (i1 was
++  // promoted to the smallest legal integer, i8, by the type legalizer), so the
++  // mask test is built as i64 and truncated to the node's type.
++  const EVT BoolVT = getSetCCResultType(DAG.getDataLayout(),
++                                        *DAG.getContext(), MVT::i64);
++
++  SDValue Class = DAG.getNode(DADAOISD::FCLASS, DL, MVT::i64, Src);
++  SDValue Test;
++  if (isPowerOf2_64(Mask)) {
++    // Single class: the one-hot class word IS the test result, so compare it
++    // with the mask directly -- no AND.
++    Test = DAG.getSetCC(DL, BoolVT, Class, DAG.getConstant(Mask, DL, MVT::i64),
++                        ISD::SETEQ);
++  } else {
++    SDValue And = DAG.getNode(ISD::AND, DL, MVT::i64, Class,
++                              DAG.getConstant(Mask, DL, MVT::i64));
++    Test = DAG.getSetCC(DL, BoolVT, And, DAG.getConstant(0, DL, MVT::i64),
++                        ISD::SETNE);
++  }
++  return BoolVT == VT ? Test : DAG.getNode(ISD::TRUNCATE, DL, VT, Test);
++}
++
++SDValue DADAOTargetLowering::LowerFLDEXP(SDValue Op, SelectionDAG &DAG) const {
++  // LLVM-126t (contract-fp.md §5): `fosclb`/`ftsclb` compute rfHC * 2^rfHD
++  // with rfHD taken as an integer value, so the i32 exponent is converted to
++  // FP (io2fo / io2ft) and fed to the scalb instruction.  ISD::FLDEXP's node is
++  // (x, i32 n); the signed conversion is the right one -- a negative exponent
++  // scales down.
++  const SDLoc DL(Op);
++  const EVT VT = Op.getValueType();
++  SDValue Exp = Op.getOperand(1);
++  if (Exp.getValueType() != MVT::i64)
++    Exp = DAG.getNode(ISD::SIGN_EXTEND, DL, MVT::i64, Exp);
++  SDValue ExpFP = DAG.getNode(ISD::SINT_TO_FP, DL, VT, Exp);
++  return DAG.getNode(DADAOISD::SCALB, DL, VT, Op.getOperand(0), ExpFP);
++}
++
++SDValue DADAOTargetLowering::LowerFP_TO_INT_SAT(SDValue Op,
++                                                SelectionDAG &DAG) const {
++  // LLVM-126t (contract-fp.md §3).  The hardware conversions saturate:
++  //   * NaN/Inf/out of range -> the saturated extreme + NV (QEMU-0xx softfloat)
++  // LangRef additionally requires NaN -> 0, which the hardware does not do, so
++  // a SETUO select adds the zero (the RISC-V approach).  The SatVT operand says
++  // which width the saturation must use; only the hardware widths (32/64) are
++  // customised, and the 8/16-bit forms fall back to the (libcall-free) generic
++  // expansion in the legalizer.
++  const SDLoc DL(Op);
++  const EVT DstVT = Op.getValueType();
++  const EVT SatVT = cast<VTSDNode>(Op.getOperand(1))->getVT();
++  const bool IsSigned = Op.getOpcode() == ISD::FP_TO_SINT_SAT;
++  const bool IsF32 = Op.getOperand(0).getValueType() == MVT::f32;
++
++  if (SatVT != MVT::i32 && SatVT != MVT::i64)
++    return SDValue(); // Not custom lowered: the legalizer expands it.
++
++  // kind: 0 fo2io/ft2io (signed 64), 1 fo2uo/ft2uo (unsigned 64),
++  //       2 fo2it/ft2it (signed 32), 3 fo2ut/ft2ut (unsigned 32).
++  unsigned Kind = (IsSigned ? 0u : 1u) + (SatVT == MVT::i32 ? 2u : 0u);
++  if (IsF32)
++    Kind |= 4u; // bit 2: ft source format (see DADAOISelDAGToDAG)
++  SDValue Conv = DAG.getNode(
++      DADAOISD::CVT_SAT, DL, MVT::i64, Op.getOperand(0),
++      DAG.getTargetConstant(Kind, DL, MVT::i64));
++  if (DstVT != MVT::i64)
++    Conv = DAG.getNode(ISD::TRUNCATE, DL, DstVT, Conv);
++
++  // NaN -> 0 (LangRef); the hardware returns the saturated extreme + NV.
++  SDValue Zero = DAG.getConstant(0, DL, DstVT);
++  return DAG.getSelectCC(DL, Op.getOperand(0), Op.getOperand(0), Zero, Conv,
++                         ISD::SETUO);
++}
++
++SDValue DADAOTargetLowering::LowerGET_ROUNDING(SDValue Op,
++                                               SelectionDAG &DAG) const {
++  // LLVM-126t (contract-fp.md §1).  rf0[33:32] holds the hardware mode
++  // (00 RNE, 01 RTZ, 10 RDN, 11 RUP); FLT_ROUNDS is 0 RTZ, 1 RNE, 2 RUP,
++  // 3 RDN, i.e. exactly the hardware mode with bit 0 inverted.
++  //   rf2rd {rd}, {rf0}   (CopyFromReg + BITCAST)
++  //   shr  rd, rd, 32
++  //   and  rd, rd, 3
++  //   xor  rd, rd, 1
++  const SDLoc DL(Op);
++  SDValue Chain = Op.getOperand(0);
++  SDValue CFR = DAG.getCopyFromReg(Chain, DL, DADAO::rf0, MVT::f64);
++  Chain = CFR.getValue(1);
++  SDValue FCSR = DAG.getNode(ISD::BITCAST, DL, MVT::i64, CFR);
++  SDValue Mode = DAG.getNode(ISD::SRL, DL, MVT::i64, FCSR,
++                             DAG.getConstant(32, DL, MVT::i64));
++  Mode = DAG.getNode(ISD::AND, DL, MVT::i64, Mode,
++                     DAG.getConstant(3, DL, MVT::i64));
++  Mode = DAG.getNode(ISD::XOR, DL, MVT::i64, Mode,
++                     DAG.getConstant(1, DL, MVT::i64));
++  SDValue Result = DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Mode);
++  return DAG.getMergeValues({Result, Chain}, DL);
++}
++
++SDValue DADAOTargetLowering::LowerSET_ROUNDING(SDValue Op,
++                                               SelectionDAG &DAG) const {
++  // LLVM-126t (contract-fp.md §1, §13).  The FCSR write mask lets `set.w rf0`
++  // rewrite only [33:32] (wp2) and [4:0] (wp0), so a *constant* mode is one
++  // instruction: `set.w {rf0}, wp2, hw` with hw = FLT ^ 1.  The accrued flags
++  // in wp0 are untouched by a wp2 write.  A dynamic mode cannot be an
++  // immediate, so it becomes a read-modify-write of a copy of the FCSR
++  // (`rf2rd`, clear [33:32], merge the new mode, `rd2rf {rf0}`); the FCSR write
++  // mask then drops everything outside [33:32]/[4:0].
++  const SDLoc DL(Op);
++  SDValue Chain = Op.getOperand(0);
++  SDValue Mode = Op.getOperand(1);
++
++  if (auto *C = dyn_cast<ConstantSDNode>(Mode)) {
++    uint64_t FLT = C->getZExtValue();
++    if (FLT > 3) {
++      // FLT_ROUNDS 4 is "nearest, ties away from zero"; rf0[33:32] only defines
++      // 00 RNE, 01 RTZ, 10 RDN, 11 RUP.  Fail loudly instead of silently
++      // programming a different mode.
++      DAG.getContext()->emitError(
++          "DADAO: llvm.set.rounding with FLT_ROUNDS=4 (nearest, ties away) is "
++          "not representable (rf0[33:32] defines RTZ/RNE/RDN/RUP only)");
++      return Chain;
++    }
++    uint64_t HW = FLT ^ 1;
++    return DAG.getNode(DADAOISD::WRITE_FCSR_RM, DL, MVT::Other, Chain,
++                       DAG.getTargetConstant(HW, DL, MVT::i64));
++  }
++
++  // Dynamic mode: hw = (mode & 3) ^ 1; merge into a copy of the FCSR so the
++  // accrued exception flags survive.
++  SDValue HWMask = DAG.getNode(ISD::AND, DL, MVT::i32, Mode,
++                               DAG.getConstant(3, DL, MVT::i32));
++  SDValue HW = DAG.getNode(ISD::XOR, DL, MVT::i32, HWMask,
++                           DAG.getConstant(1, DL, MVT::i32));
++  SDValue HW64 = DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i64, HW);
++  SDValue CFR = DAG.getCopyFromReg(Chain, DL, DADAO::rf0, MVT::f64);
++  Chain = CFR.getValue(1);
++  SDValue Old = DAG.getNode(ISD::BITCAST, DL, MVT::i64, CFR);
++  // Clear the two mode bits, keep everything else (including [4:0]), then OR in
++  // the new mode.
++  SDValue Keep = DAG.getNode(ISD::AND, DL, MVT::i64, Old,
++                             DAG.getConstant(~(3ULL << 32), DL, MVT::i64));
++  SDValue NewMode = DAG.getNode(ISD::SHL, DL, MVT::i64, HW64,
++                                DAG.getConstant(32, DL, MVT::i64));
++  SDValue New = DAG.getNode(ISD::OR, DL, MVT::i64, Keep, NewMode);
++  return DAG.getNode(DADAOISD::WRITE_FCSR, DL, MVT::Other, Chain, New);
++}
++
++void DADAOTargetLowering::ReplaceNodeResults(
++    SDNode *N, SmallVectorImpl<SDValue> &Results, SelectionDAG &DAG) const {
++  // (The i32 BYTESWAP hook that used to live here is gone: since LLVM-127t i32
++  // is a legal type, so bswap32 is selected directly by the `rev.t` pattern.)+
++  if (N->getOpcode() != ISD::INTRINSIC_WO_CHAIN)
++    return;
++  // llvm.dadao.clmul.wide (LLVM-122t; ADR-0035): the i128 result is not legal
++  // and the generic type legalizer cannot expand an intrinsic node, so produce
++  // the value the type legalizer wants as a pair: DADAOISD::CLMUL yields the
++  // two 64-bit halves (low, high) directly from `clmul.o`, and BUILD_PAIR then
++  // makes them the i128's low/high halves without any joining instruction
++  // (DAGTypeLegalizer::ExpandIntRes_BUILD_PAIR just unpacks the operands).
++  if (N->getConstantOperandVal(0) != Intrinsic::dadao_clmul_wide)
++    return;
++  assert(N->getValueType(0) == MVT::i128 &&
++         "expected the i128 result of llvm.dadao.clmul.wide");
++  const SDLoc DL(N);
++  SDValue Pair = DAG.getNode(DADAOISD::CLMUL, DL,
++                             DAG.getVTList(MVT::i64, MVT::i64),
++                             N->getOperand(1), N->getOperand(2));
++  Results.push_back(
++      DAG.getNode(ISD::BUILD_PAIR, DL, MVT::i128, Pair.getValue(0),
++                  Pair.getValue(1)));
 +}
 +
 +SDValue DADAOTargetLowering::LowerBR_CC(SDValue Chain, ISD::CondCode CC,
@@ -1031,6 +2476,71 @@ index 000000000..7dd5e6abb
 +      report_fatal_error(
 +          "DADAO: unsupported floating-point branch condition");
 +    }
++  }
++
++  // --- Narrow integer compare + branch (LLVM-127t) ---
++  // The operands are i8/i16/i32, so the 64-bit shortcuts below are not valid:
++  // the upper bits of a narrow value are unspecified, so neither a zero test of
++  // the raw register, nor a two-register br.eq/ne, nor a 12-bit cmp.si/cmp.ui
++  // immediate can be used.  Always compare with the width-specific
++  // cmp.{s,u}{b,w,t} (the instruction truncates both sources to its width and
++  // writes -1/0/1) and branch on that result.  ==/!= are sign-agnostic; a
++  // constant RHS is materialised into a register by the selector (the narrow
++  // cmp has no immediate form).
++  const EVT IntVT = LHS.getValueType();
++  if (IntVT == MVT::i8 || IntVT == MVT::i16 || IntVT == MVT::i32) {
++    bool Unsigned;
++    DADAOISD::NodeType BrOp;
++    switch (CC) {
++    default:
++      report_fatal_error("DADAO: unsupported narrow integer branch condition");
++    case ISD::SETEQ:
++      Unsigned = false;
++      BrOp = DADAOISD::BRZ;
++      break;
++    case ISD::SETNE:
++      Unsigned = false;
++      BrOp = DADAOISD::BRNZ;
++      break;
++    case ISD::SETLT:
++      Unsigned = false;
++      BrOp = DADAOISD::BRN;
++      break;
++    case ISD::SETLE:
++      Unsigned = false;
++      BrOp = DADAOISD::BRNP;
++      break;
++    case ISD::SETGT:
++      Unsigned = false;
++      BrOp = DADAOISD::BRP;
++      break;
++    case ISD::SETGE:
++      Unsigned = false;
++      BrOp = DADAOISD::BRNN;
++      break;
++    case ISD::SETULT:
++      Unsigned = true;
++      BrOp = DADAOISD::BRN;
++      break;
++    case ISD::SETULE:
++      Unsigned = true;
++      BrOp = DADAOISD::BRNP;
++      break;
++    case ISD::SETUGT:
++      Unsigned = true;
++      BrOp = DADAOISD::BRP;
++      break;
++    case ISD::SETUGE:
++      Unsigned = true;
++      BrOp = DADAOISD::BRNN;
++      break;
++    }
++    // ADR-0037 D1: `cmp.{ut,uw,ub}` write -1 as 64-bit all-ones
++    // (contract-isa.md §10.2/§11.2/§12.2), i.e. the canonical {-1,0,1} value
++    // the signed forms produce, so br.n/np/p/nn can test bit 63 directly.  The
++    // old zero-extending `.u*` semantics needed one `ext.so` here; that
++    // extension is now an identity and is not emitted.
++    return BrOn(BrOp, Cmp(Unsigned));
 +  }
 +
 +  switch (CC) {
@@ -1174,7 +2684,12 @@ index 000000000..7dd5e6abb
 +    }
 +  }
 +
-+  if (LHS.getValueType() != MVT::i64)
++  // Integer compare (i64, or a narrow i8/i16/i32 since LLVM-127t).  The
++  // narrow types use the width-specific cmp.{s,u}{b,w,t} nodes; the CMP node's
++  // operand type selects the instruction (see DADAOCodeGen.td).
++  const EVT CmpVT = LHS.getValueType();
++  if (CmpVT != MVT::i64 && CmpVT != MVT::i32 && CmpVT != MVT::i16 &&
++      CmpVT != MVT::i8)
 +    report_fatal_error("DADAO: unsupported setcc/select_cc operand type");
 +
 +  // Canonicalise so a constant is on the right (the cmp* immediate formats
@@ -1198,6 +2713,10 @@ index 000000000..7dd5e6abb
 +
 +  SDValue Cmp = DAG.getNode(Unsigned ? DADAOISD::CMPU : DADAOISD::CMP, DL,
 +                            MVT::i64, LHS, RHS);
++  // ADR-0037 D1: a narrow unsigned cmp writes -1 as 64-bit all-ones
++  // (contract-isa.md §10.2/§11.2/§12.2) -- the canonical {-1,0,1} that
++  // cs.n/cs.p test -- so no width-based sign extension is needed (the old
++  // zero-extending `.u*` semantics required a redundant `ext.so`).
 +  switch (CC) {
 +  case ISD::SETEQ: // == : rc == 0
 +    return Select(DADAOISD::CS_Z, Cmp, True, False);
@@ -1251,4 +2770,343 @@ index 000000000..7dd5e6abb
 +    Cond = DAG.getZExtOrTrunc(Cond, DL, MVT::i64);
 +  return DAG.getNode(DADAOISD::CS_Z, DL, Op.getOperand(2).getValueType(), Cond,
 +                     Op.getOperand(2), Op.getOperand(1));
++}
++
++//===----------------------------------------------------------------------===//
++// Atomics (LLVM-121t; ADR-0034 D2/D6; SimRISC-11 §4.1/§3.2)
++//
++// The ISA has one atomic primitive family -- `lr`/`sc` -- and no AMO (ISS-294),
++// and the toolchain ships no `__atomic_*` runtime, so the whole atomic surface
++// is handled by the backend:
++//
++//   * AtomicExpandPass (IR) inserts the `fence`s and weakens the accesses,
++//     because shouldInsertFencesForAtomic() is true;
++//   * atomic load/store become ordinary loads/stores (LowerATOMIC_LOAD/STORE);
++//   * every RMW and cmpxchg becomes a cmpxchg loop in IR (CmpXChg expansion)
++//     and that loop's cmpxchg becomes the lr/sc retry loop here.
++//===----------------------------------------------------------------------===//
++
++// --- fence immediate bits (ADR-0034 D2) ------------------------------------
++//
++// `fence` takes ONE 18-bit unsigned immediate: fm[17:12] | pred[11:6] |
++// succ[5:0].  fm is 0 for the only defined mode, and the R/W/I/O bits of pred
++// and succ are the low four bits of each 6-bit field (the top two bits are
++// SBZ).  The mapping below is the A-table of the task book and is asserted by
++// tests/llvm/lit/CodeGen/DADAO/atomics-fence.ll.
++static uint64_t getDADAOFenceImm(AtomicOrdering Ord) {
++  // pred constants: PRED_R = 1<<6, PRED_W = 1<<7, PRED_I = 1<<8, PRED_O = 1<<9
++  // succ constants: SUCC_R = 1<<0, SUCC_W = 1<<1, SUCC_I = 1<<2, SUCC_O = 1<<3
++  const uint64_t PredR = 1ULL << 6, PredW = 1ULL << 7, PredI = 1ULL << 8,
++                 PredO = 1ULL << 9;
++  const uint64_t SuccR = 1ULL << 0, SuccW = 1ULL << 1, SuccI = 1ULL << 2,
++                 SuccO = 1ULL << 3;
++  switch (Ord) {
++  case AtomicOrdering::Acquire:
++    // Read-acquire: no later access may move before it.
++    return PredR | SuccR | SuccW; // 0x043
++  case AtomicOrdering::Release:
++    // Write-release: no earlier access may move after it.
++    return PredR | PredW | SuccW; // 0x0C2
++  case AtomicOrdering::AcquireRelease:
++  case AtomicOrdering::SequentiallyConsistent:
++    // Full barrier.  I/O bits are set as the spec requires even though this
++    // machine has no device I/O execution surface (see the task book's known
++    // boundary: the encoding is normative, the I/O execution semantics are
++    // part of QEMU-067t's "no I/O" premise).
++    return PredR | PredW | PredI | PredO | SuccR | SuccW | SuccI | SuccO;
++  case AtomicOrdering::NotAtomic:
++  case AtomicOrdering::Unordered:
++  case AtomicOrdering::Monotonic:
++    break;
++  }
++  llvm_unreachable("DADAO: fence with an unexpected atomic ordering");
++}
++
++bool DADAOTargetLowering::isFMAFasterThanFMulAndFAdd(
++    const MachineFunction &MF, EVT VT) const {
++  // LLVM-123t (contract-fp.md §fma = SimRISC-07 §2.5): `fofma`/`ftfma` fuse
++  // a*b+c in one instruction with a single rounding, so fusing is never worse
++  // than fmul+fadd (one instruction instead of two, and more accurate).
++  // Returning true here is what turns the `llvm.fmuladd` intrinsic into a
++  // single ISD::FMA (SelectionDAGBuilder, Intrinsic::fmuladd); with the default
++  // (false) LLVM would split it into fmul+fadd even though the ISA can fuse.
++  // Both scalar FP types have a native form; anything else stays unfused.
++  (void)MF;
++  return VT == MVT::f32 || VT == MVT::f64;
++}
++
++bool DADAOTargetLowering::shouldInsertFencesForAtomic(
++    const Instruction *I) const {
++  // Weak memory model with no atomic instruction forms: the ordering of a load
++  // or store is provided by an explicit `fence` (ADR-0034 D2), so let
++  // AtomicExpandPass insert it and keep the access itself plain.  This is also
++  // what keeps atomic loads/stores away from the `__atomic_*` libcalls.
++  (void)I;
++  return true;
++}
++
++TargetLowering::AtomicExpansionKind
++DADAOTargetLowering::shouldExpandAtomicRMWInIR(const AtomicRMWInst *RMW) const {
++  // `lr`/`sc` is the only primitive, so every integer RMW (add/sub/and/or/xor/
++  // nand/xchg/min/max/umin/umax) is expanded into a cmpxchg loop; the loop's
++  // cmpxchg is then lowered to lr/sc by LowerATOMIC_CMP_SWAP_WITH_SUCCESS.
++  // Floating-point RMWs have no atomic path here (the ISA has no FP atomic and
++  // the expansion would need an FP cmpxchg, which does not exist): keep the
++  // base class' behaviour so they are diagnosed by the legalizer instead of
++  // silently producing a libcall.
++  if (RMW->getValOperand()->getType()->isIntegerTy() &&
++      RMW->getValOperand()->getType()->getIntegerBitWidth() <= 64)
++    return AtomicExpansionKind::CmpXChg;
++  return TargetLowering::shouldExpandAtomicRMWInIR(RMW);
++}
++
++SDValue DADAOTargetLowering::LowerATOMIC_FENCE(SDValue Op,
++                                               SelectionDAG &DAG) const {
++  const SDLoc DL(Op);
++  SDValue Chain = Op.getOperand(0);
++  // Operands: [0] chain, [1] TargetConstant ordering, [2] TargetConstant sync
++  // scope (SelectionDAGBuilder::visitFence).  This target has one scope.
++  auto Ord = static_cast<AtomicOrdering>(
++      cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue());
++  if (!isAcquireOrStronger(Ord) && !isReleaseOrStronger(Ord))
++    return Chain; // monotonic/unordered: nothing to emit.
++
++  uint64_t Imm = getDADAOFenceImm(Ord);
++  SDValue ImmV = DAG.getTargetConstant(Imm, DL, MVT::i64);
++  return DAG.getNode(DADAOISD::FENCE, DL, MVT::Other, Chain, ImmV);
++}
++
++SDValue DADAOTargetLowering::LowerATOMIC_LOAD(SDValue Op,
++                                              SelectionDAG &DAG) const {
++  // After the fence split this is a monotonic access: re-lower it to a normal
++  // load so the existing ld.*/ldm.* patterns select it.  Narrow memory types
++  // (i8/i16/i32) use the zero-extending loads -- the same convention as the
++  // narrow `lr` widths (the task book records zero-extension as this batch's
++  // choice; the spec leaves it open).
++  const SDLoc DL(Op);
++  auto *AN = cast<AtomicSDNode>(Op.getNode());
++  EVT MemVT = AN->getMemoryVT();
++  EVT VT = Op.getValueType();
++  if (MemVT == VT)
++    return DAG.getLoad(VT, DL, AN->getChain(), AN->getBasePtr(),
++                       AN->getMemOperand());
++  return DAG.getExtLoad(ISD::ZEXTLOAD, DL, VT, AN->getChain(),
++                        AN->getBasePtr(), MemVT, AN->getMemOperand());
++}
++
++SDValue DADAOTargetLowering::LowerATOMIC_STORE(SDValue Op,
++                                               SelectionDAG &DAG) const {
++  const SDLoc DL(Op);
++  auto *AN = cast<AtomicSDNode>(Op.getNode());
++  EVT MemVT = AN->getMemoryVT();
++  // `ATOMIC_STORE` operands are (chain, value, ptr): the *value* is operand 1
++  // (`getVal()`), operand 2 / `getBasePtr()` is the address.  Taking operand 2
++  // here stored the address of the object instead of the stored value -- it
++  // went unnoticed for as long as only local `_Atomic` variables were probed,
++  // because those are usually promoted out of memory (ISS-312).
++  SDValue Val = AN->getVal();
++  if (MemVT == Val.getValueType())
++    return DAG.getStore(AN->getChain(), DL, Val, AN->getBasePtr(),
++                        AN->getMemOperand());
++  return DAG.getTruncStore(AN->getChain(), DL, Val, AN->getBasePtr(), MemVT,
++                           AN->getMemOperand());
++}
++
++SDValue DADAOTargetLowering::LowerATOMIC_CMP_SWAP_WITH_SUCCESS(
++    SDValue Op, SelectionDAG &DAG) const {
++  // ATOMIC_CMP_SWAP_WITH_SUCCESS values: (old value, success, chain).  Since
++  // LLVM-127t the value/result type is the IR width (i8/i16/i32/i64); the
++  // access width is the *memory* type, and the lr/sc pseudo works on the
++  // 64-bit register (the expected value is widened below).
++  //
++  // The lr/sc loop returns the value loaded by `lr`; the success flag of a
++  // CAS is exactly "the compared value was still there", i.e. old == cmp, so
++  // it is computed here with a SETCC instead of being threaded out of the
++  // pseudo (which keeps one definition per virtual register inside the
++  // expansion and needs no constant materialization).
++  const SDLoc DL(Op);
++  auto *AN = cast<AtomicSDNode>(Op.getNode());
++  EVT MemVT = AN->getMemoryVT();
++  const EVT VT = Op.getValueType();
++  if (!MemVT.isInteger() || MemVT.getSizeInBits() > 64)
++    report_fatal_error("DADAO: unsupported atomic cmpxchg memory type");
++
++  SDValue Chain = Op.getOperand(0);
++  SDValue Ptr = Op.getOperand(1);
++  SDValue Cmp = Op.getOperand(2);
++  SDValue New = Op.getOperand(3);
++
++  // The lr/sc loop works on 64-bit registers.  Since LLVM-127t the cmpxchg
++  // value/result type is the narrow IR type (i8/i16/i32) instead of the
++  // promoted i64, so the expected value is widened first; zero-extension is
++  // the correct widening here because the low `MemVT` bits are all that is
++  // compared (the mask below normalises both sides to the access width).
++  SDValue Cmp64 = Cmp;
++  if (Cmp64.getValueType() != MVT::i64)
++    Cmp64 = DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i64, Cmp64);
++
++  // The comparison is over the W bytes of memory, not over the whole 64-bit
++  // register: a compare-exchange succeeds iff the object's representation
++  // equals the expected one (C11 7.17.7.4), and the canonical 64-bit form of
++  // a narrow value is width-defined, not extension-defined (contract-abi
++  // §4.2 keeps the *signedness* extension as a caller duty for arguments, but
++  // a CAS operand is not an argument).  Concretely, the `lr` result enters the
++  // 64-bit register zero-extended (SimRISC-11 §4.2 as implemented by the
++  // batch: `gen_lr` masks the extracted bytes), while `Cmp` arrives promoted
++  // from the memory type with the high bits whatever the type legalizer chose
++  // (an `int -1` expected value is sign-extended to 0xFFFF...FFFF), so a
++  // plain 64-bit `br.ne` never matched a top-bit-set expected value on the
++  // 1/2/4-byte widths (ISS-313).  Masking the expected value down to the
++  // access width makes both sides of every comparison -- the SETCC below and
++  // the `br.ne` inside EmitInstrWithCustomInserter, which receives this very
++  // value as the pseudo's operand -- agree on the width, and it stays correct
++  // for either extension convention of the source operand.
++  if (MemVT.getSizeInBits() < 64) {
++    APInt Mask = APInt::getLowBitsSet(64, MemVT.getSizeInBits());
++    Cmp64 = DAG.getNode(ISD::AND, DL, MVT::i64, Cmp64,
++                        DAG.getConstant(Mask, DL, MVT::i64));
++  }
++
++  // Width class: 0 = byte, 1 = wyde, 2 = tetra, 3 = octa (lr/sc suffixes).
++  unsigned Width = Log2_64(MemVT.getSizeInBits() / 8);
++  SDValue WidthV = DAG.getTargetConstant(Width, DL, MVT::i64);
++
++  // A plain (non-MemSDNode) target node: the chain alone serialises it against
++  // every other memory operation, and the selected pseudo is marked
++  // mayLoad/mayStore.  Registering a target *memory* opcode would require a
++  // TableGen SDNode description with SDNPMemOperand, which buys nothing here
++  // (the DAG combiner must not touch an atomic sequence anyway).
++  SDVTList VTs = DAG.getVTList(MVT::i64, MVT::Other);
++  SDValue CmpSwap = DAG.getNode(DADAOISD::ATOMIC_CMP_SWAP, DL, VTs, Chain, Ptr,
++                                Cmp64, New, WidthV);
++
++  SDValue Success =
++      DAG.getSetCC(DL, Op.getNode()->getValueType(1), CmpSwap.getValue(0),
++                   Cmp64, ISD::SETEQ);
++  // The pseudo yields a 64-bit old value; hand back the IR width (a truncation
++  // is a register copy for these types, see DADAOISelDAGToDAG::Select).
++  SDValue Old = VT == MVT::i64
++                    ? CmpSwap.getValue(0)
++                    : DAG.getNode(ISD::TRUNCATE, DL, VT, CmpSwap.getValue(0));
++  return DAG.getMergeValues({Old, Success, CmpSwap.getValue(1)}, DL);
++}
++
++MachineBasicBlock *DADAOTargetLowering::EmitInstrWithCustomInserter(
++    MachineInstr &MI, MachineBasicBlock *MBB) const {
++  // FCSR rounding-mode writes (LLVM-126t): the pseudo only exists to bind the
++  // destination to rf0 (no DAG pattern can); expanding it is a single real
++  // instruction.  `wp2` is bits [47:32], i.e. the word containing the rounding
++  // mode rf0[33:32] (contract-fp.md §1/§13; the write mask ignores the rest).
++  if (MI.getOpcode() == DADAO::SET_FCSR_RM_PSEUDO ||
++      MI.getOpcode() == DADAO::SET_FCSR_PSEUDO) {
++    const TargetInstrInfo *TII =
++        MI.getParent()->getParent()->getSubtarget().getInstrInfo();
++    const DebugLoc &DL = MI.getDebugLoc();
++    if (MI.getOpcode() == DADAO::SET_FCSR_RM_PSEUDO) {
++      BuildMI(*MBB, MI, DL, TII->get(DADAO::set_w_rwii_rf), DADAO::rf0)
++          .addImm(2) // wp2
++          .addImm(MI.getOperand(0).getImm());
++    } else {
++      BuildMI(*MBB, MI, DL, TII->get(DADAO::rd2rf_orri_rf), DADAO::rf0)
++          .addReg(MI.getOperand(0).getReg())
++          .addImm(1);
++    }
++    MI.eraseFromParent();
++    return MBB;
++  }
++
++  // Expand one of the ATOMIC_CMP_SWAP_PSEUDO_{B,W,T,O} pseudos into the lr/sc
++  // retry loop (DADAOCodeGen.td has the full shape).  This hook runs in
++  // FinalizeISel, i.e. after instruction selection and before register
++  // allocation, which is the only place where new basic blocks can still be
++  // created from a selected machine instruction.
++  unsigned LR, SC;
++  switch (MI.getOpcode()) {
++  default:
++    report_fatal_error("DADAO: unexpected custom-inserter pseudo");
++  case DADAO::ATOMIC_CMP_SWAP_PSEUDO_B:
++    LR = DADAO::lr_b_an;
++    SC = DADAO::sc_b_ar;
++    break;
++  case DADAO::ATOMIC_CMP_SWAP_PSEUDO_W:
++    LR = DADAO::lr_w_an;
++    SC = DADAO::sc_w_ar;
++    break;
++  case DADAO::ATOMIC_CMP_SWAP_PSEUDO_T:
++    LR = DADAO::lr_t_an;
++    SC = DADAO::sc_t_ar;
++    break;
++  case DADAO::ATOMIC_CMP_SWAP_PSEUDO_O:
++    LR = DADAO::lr_o_an;
++    SC = DADAO::sc_o_ar;
++    break;
++  }
++
++  MachineFunction *MF = MBB->getParent();
++  MachineRegisterInfo &MRI = MF->getRegInfo();
++  const TargetInstrInfo *TII = MF->getSubtarget().getInstrInfo();
++  const DebugLoc DL = MI.getDebugLoc();
++
++  const BasicBlock *LLVM_BB = MBB->getBasicBlock();
++  MachineBasicBlock *loop1MBB = MF->CreateMachineBasicBlock(LLVM_BB);
++  MachineBasicBlock *loop2MBB = MF->CreateMachineBasicBlock(LLVM_BB);
++  MachineBasicBlock *exitMBB = MF->CreateMachineBasicBlock(LLVM_BB);
++  MachineFunction::iterator It = std::next(MBB->getIterator());
++  MF->insert(It, loop1MBB);
++  MF->insert(It, loop2MBB);
++  MF->insert(It, exitMBB);
++
++  // The rest of the original block continues in exitMBB (the loop exits into
++  // it); the pseudo itself disappears.
++  exitMBB->splice(exitMBB->begin(), MBB,
++                  std::next(MachineBasicBlock::iterator(MI)), MBB->end());
++  exitMBB->transferSuccessorsAndUpdatePHIs(MBB);
++
++  // thisMBB:
++  //   <prologue>
++  //   fallthrough -> loop1MBB
++  // loop1MBB:
++  //   lr.<w>.an  dst, [ptr]
++  //   br.ne {dst, cmp}?, [rb0, exitMBB]     ; value changed -> give up
++  //   fallthrough -> loop2MBB
++  // loop2MBB:
++  //   sc.<w>.ar  ok, new, [ptr]
++  //   br.nz {ok}?, [rb0, loop1MBB]          ; reservation lost -> retry
++  //   fallthrough -> exitMBB
++  MBB->addSuccessor(loop1MBB, BranchProbability::getOne());
++  loop1MBB->addSuccessor(exitMBB);
++  loop1MBB->addSuccessor(loop2MBB);
++  loop1MBB->normalizeSuccProbs();
++  loop2MBB->addSuccessor(loop1MBB);
++  loop2MBB->addSuccessor(exitMBB);
++  loop2MBB->normalizeSuccProbs();
++
++  Register Dst = MI.getOperand(0).getReg();
++  Register Ptr = MI.getOperand(1).getReg();
++  Register Cmp = MI.getOperand(2).getReg();
++  Register New = MI.getOperand(3).getReg();
++  Register Ok = MRI.createVirtualRegister(&DADAO::GPRDRegClass);
++
++  // lr.<w>.an dst, [ptr]: the reservation is taken on the *first* iteration
++  // and re-taken on every retry (a losing sc clears it).
++  BuildMI(*loop1MBB, loop1MBB->end(), DL, TII->get(LR), Dst).addReg(Ptr);
++  // Two-register conditional branch: br.ne {dst, cmp}?, [rb0, exitMBB] tests
++  // the value the reservation protected, so the CAS fails without writing.
++  BuildMI(*loop1MBB, loop1MBB->end(), DL, TII->get(DADAO::br_ne_rd))
++      .addReg(Dst)
++      .addReg(Cmp)
++      .addMBB(exitMBB);
++
++  // sc.<w>.ar ok, new, [ptr]: ok == 0 means the store happened, ok == 1 means
++  // the reservation was lost (another hart stored, or an exception); either
++  // way the hart's reservation is now cleared, so a failure simply loops.
++  BuildMI(*loop2MBB, loop2MBB->end(), DL, TII->get(SC), Ok)
++      .addReg(New)
++      .addReg(Ptr);
++  BuildMI(*loop2MBB, loop2MBB->end(), DL, TII->get(DADAO::br_nz_rd))
++      .addReg(Ok)
++      .addMBB(loop1MBB);
++
++  MI.eraseFromParent();
++  return exitMBB;
 +}

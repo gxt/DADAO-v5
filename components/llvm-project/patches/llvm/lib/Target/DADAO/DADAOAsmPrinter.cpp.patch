@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp b/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp
 new file mode 100644
-index 000000000..387e63079
+index 000000000..523d89c57
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,267 @@
 +//===-- DADAOAsmPrinter.cpp - DADAO LLVM Assembly Printer ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -26,8 +26,16 @@ index 000000000..387e63079
 +#include "TargetInfo/DADAOTargetInfo.h"
 +
 +#include "llvm/ADT/Twine.h"
++#include "llvm/BinaryFormat/ELF.h"
 +#include "llvm/CodeGen/MachineFunction.h"
 +#include "llvm/CodeGen/MachineInstr.h"
++#include "llvm/CodeGen/TargetRegisterInfo.h"
++#include "llvm/CodeGen/TargetSubtargetInfo.h"
++#include "llvm/IR/GlobalValue.h"
++#include "llvm/IR/Module.h"
++#include "llvm/MC/MCContext.h"
++#include "llvm/MC/MCExpr.h"
++#include "llvm/MC/MCSectionELF.h"
 +#include "llvm/MC/TargetRegistry.h"
 +#include "llvm/Support/ErrorHandling.h"
 +
@@ -43,6 +51,205 @@ index 000000000..387e63079
 +bool DADAOAsmPrinter::runOnMachineFunction(MachineFunction &MF) {
 +  MCInstLowering = std::make_unique<DADAOMCInstLower>(OutContext, *this);
 +  return AsmPrinter::runOnMachineFunction(MF);
++}
++
++MCSymbol *DADAOAsmPrinter::createGOTSlot(const MCExpr *Value,
++                                          DADAO::Specifier Spec) const {
++  // Slot names are per-object counters (`.Lgot.<n>`), so they are independent
++  // of the symbol name (which may contain characters that do not round-trip
++  // through the assembler) and are stable for a given compilation.
++  MCSymbol *Slot = OutContext.getOrCreateSymbol(Twine(".Lgot.") +
++                                                Twine(GOTSlotNextId++));
++  GOTSlotOrder.push_back(GOTSlot{Slot, Value, Spec});
++  return Slot;
++}
++
++MCSymbol *DADAOAsmPrinter::getGOTSlotSymbol(const GlobalValue *GV,
++                                            int64_t Offset) const {
++  const auto Key = std::make_pair(GV, Offset);
++  auto It = GOTSlots.find(Key);
++  if (It != GOTSlots.end())
++    return It->second.Slot;
++
++  // The slot holds the symbol's address (plus any constant offset folded into
++  // the reference) as an 8-byte absolute field: R_DADAO_ABS48 data form, fixed
++  // up at load time for a shared object, exactly like any other `.quad <sym>`.
++  const MCExpr *Value = MCSymbolRefExpr::create(getSymbol(GV), OutContext);
++  if (Offset)
++    Value = MCBinaryExpr::createAdd(
++        Value, MCConstantExpr::create(Offset, OutContext), OutContext);
++
++  const GOTSlot S{createGOTSlot(Value), Value};
++  GOTSlots.insert(std::make_pair(Key, S));
++  return S.Slot;
++}
++
++MCSymbol *DADAOAsmPrinter::getTLSGOTSlotSymbol(const GlobalValue *GV,
++                                               int64_t Offset) const {
++  const auto Key = std::make_pair(GV, Offset);
++  auto It = TLSGOTSlots.find(Key);
++  if (It != TLSGOTSlots.end())
++    return It->second.Slot;
++
++  // Initial-exec: the slot holds TPOFF(sym) + offset, recorded as
++  // R_DADAO_TLS_TPREL.  The value (an offset from TP, possibly negative) is
++  // only known once the module's static TLS block has been placed, so a shared
++  // object carries a dynamic relocation here (contract-dynlink.md §4.3/§7).
++  const MCExpr *Value = MCSymbolRefExpr::create(getSymbol(GV), OutContext);
++  if (Offset)
++    Value = MCBinaryExpr::createAdd(
++        Value, MCConstantExpr::create(Offset, OutContext), OutContext);
++
++  const GOTSlot S{createGOTSlot(Value, DADAO::S_TLS_TPREL), Value};
++  TLSGOTSlots.insert(std::make_pair(Key, S));
++  return S.Slot;
++}
++
++MCSymbol *DADAOAsmPrinter::getTLSGDIndexSymbol(const GlobalValue *GV) const {
++  auto It = TLSGDIndexSlots.find(GV);
++  if (It != TLSGDIndexSlots.end())
++    return It->second.Slot;
++
++  // Global-dynamic: `__tls_get_addr` takes `tls_index { tls_id, DTPOFF }`.
++  // Emit the two 8-byte words here (types 10 and 11; the loader fills the
++  // module id and, for a shared object, the module-relative offset), then one
++  // more slot holding the *address* of the pair.  The pointer slot is what the
++  // instruction stream loads: passing the pair itself as an immediate would be
++  // a second address formation, while an ordinary 8-byte data slot is exactly
++  // what the existing PC-relative hi/lo access already reaches
++  // (contract-dynlink.md §3/§4.3).
++  const MCExpr *Val = MCSymbolRefExpr::create(getSymbol(GV), OutContext);
++  MCSymbol *Pair = createGOTSlot(Val, DADAO::S_TLS_DTPMOD);
++  // The two words must stay adjacent: the loader reads tls_index as one
++  // 16-byte object, and the emission order below is this vector's order.
++  createGOTSlot(Val, DADAO::S_TLS_DTPREL);
++
++  const MCExpr *PairAddr = MCSymbolRefExpr::create(Pair, OutContext);
++  const GOTSlot S{createGOTSlot(PairAddr), PairAddr};
++  TLSGDIndexSlots.insert(std::make_pair(GV, S));
++  return S.Slot;
++}
++
++MCSymbol *DADAOAsmPrinter::getGOTSlotSymbolForJumpTable(unsigned JTIndex) const {
++  // Keyed by the table's label, not by its index: indices are per function.
++  MCSymbol *JTSym = GetJTISymbol(JTIndex);
++  auto It = GOTJumpTableSlots.find(JTSym);
++  if (It != GOTJumpTableSlots.end())
++    return It->second.Slot;
++
++  const MCExpr *Value = MCSymbolRefExpr::create(JTSym, OutContext);
++  const GOTSlot S{createGOTSlot(Value), Value};
++  GOTJumpTableSlots.insert(std::make_pair(JTSym, S));
++  return S.Slot;
++}
++
++void DADAOAsmPrinter::emitEndOfAsmFile(Module &) {
++  if (GOTSlotOrder.empty())
++    return;
++
++  // PIC GOT (LLVM-094t, contract-dynlink.md §3): writeable, allocated, 8-byte
++  // slots.  Since ADR-0029 D3/D4 the accesses are the PC-relative hi/lo pair
++  // (`aip.si` + `ld.o`, R_DADAO_PCREL_HI/_LO) against these labels, which
++  // reaches ±512 MiB, so **no** `.got`-beside-`.text` layout obligation is
++  // imposed on the linker (the pre-ADR-0029 `rb0`-relative R_DADAO_REL12 access
++  // was limited to ±2 KiB).  The object file only records the relocation.  No
++  // ELF `entsize` is set: it is only meaningful for mergeable sections
++  // (MCAsmInfoELF::printSwitchToSection asserts on a nonzero entry size without
++  // SHF_MERGE), and the 8-byte width is an ABI convention here, not a section
++  // property.
++  MCSection *GOT = OutContext.getELFSection(
++      ".got", ELF::SHT_PROGBITS, ELF::SHF_ALLOC | ELF::SHF_WRITE);
++  OutStreamer->switchSection(GOT);
++  OutStreamer->emitValueToAlignment(Align(8));
++  for (const GOTSlot &S : GOTSlotOrder) {
++    OutStreamer->emitLabel(S.Slot);
++    // Size 8 -> FK_Data_8, and the optional specifier decides which data
++    // relocation the ELF writer records: none -> R_DADAO_ABS48 (absolute
++    // address), `%tls_*` -> the matching R_DADAO_TLS_* dynamic TLS relocation
++    // (LLVM-117t; contract-dynlink.md §4.3).
++    const MCExpr *Val = S.Spec == DADAO::S_None
++                            ? S.Value
++                            : MCSpecifierExpr::create(S.Value, S.Spec,
++                                                      OutContext);
++    OutStreamer->emitValue(Val, 8);
++  }
++
++  // The pass instance may serve further modules; slots are module-local.
++  GOTSlots.clear();
++  GOTJumpTableSlots.clear();
++  TLSGOTSlots.clear();
++  TLSGDIndexSlots.clear();
++  GOTSlotOrder.clear();
++}
++
++bool DADAOAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
++                                      const char *ExtraCode, raw_ostream &O) {
++  // The generic printer owns the operand modifiers this target supports
++  // (`c` bare immediate, `n` negated immediate, `s` GCC's deprecated shift
++  // count, `a` address-of).  DADAO adds no target-specific modifier, so any
++  // other letter stays a diagnosed error instead of printing something
++  // arbitrary.
++  if (!AsmPrinter::PrintAsmOperand(MI, OpNo, ExtraCode, O))
++    return false;
++  if (ExtraCode && ExtraCode[0])
++    return true;
++
++  // A plain `%N` reference (ISS-222 ①): substitute the operand's assembly
++  // spelling.  Anything this switch does not handle is reported by the caller
++  // as "invalid operand in inline asm" -- it must never silently print an
++  // empty string.
++  const MachineOperand &MO = MI->getOperand(OpNo);
++  switch (MO.getType()) {
++  case MachineOperand::MO_Register: {
++    // Post-RA inline-asm operands are physical registers; a virtual one here
++    // means the operand was never allocated, so fail rather than print a
++    // bogus name.
++    if (!MO.getReg().isPhysical())
++      return true;
++    const TargetRegisterInfo *TRI =
++        MI->getMF()->getSubtarget().getRegisterInfo();
++    O << TRI->getName(MO.getReg());
++    return false;
++  }
++  case MachineOperand::MO_Immediate:
++    O << MO.getImm();
++    return false;
++  case MachineOperand::MO_GlobalAddress:
++    PrintSymbolOperand(MO, O);
++    return false;
++  case MachineOperand::MO_BlockAddress: {
++    MCSymbol *Sym = GetBlockAddressSymbol(MO.getBlockAddress());
++    Sym->print(O, MAI);
++    return false;
++  }
++  default:
++    return true;
++  }
++}
++
++bool DADAOAsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI,
++                                            unsigned OpNo,
++                                            const char *ExtraCode,
++                                            raw_ostream &O) {
++  // No operand modifier is defined for a memory operand here: the address form
++  // is fixed.  Returning true lets the generic inline-asm printer diagnose an
++  // unsupported `%c0`-style request instead of printing something arbitrary.
++  if (ExtraCode && ExtraCode[0])
++    return true;
++
++  // DADAODAGToDAGISel::SelectInlineAsmMemoryOperand emitted exactly this pair
++  // (base register, simm12 offset), and any frame index in the base position
++  // has been folded into a frame register by PrologEpilogInserter.  Both facts
++  // are required for the `[rb, off]` text to assemble, so anything else is
++  // reported as an error rather than silently mis-printed.
++  const MachineOperand &Base = MI->getOperand(OpNo);
++  const MachineOperand &Off = MI->getOperand(OpNo + 1);
++  if (!Base.isReg() || !Base.getReg().isPhysical() || !Off.isImm())
++    return true;
++
++  const TargetRegisterInfo *TRI = MI->getMF()->getSubtarget().getRegisterInfo();
++  O << '[' << TRI->getName(Base.getReg()) << ", " << Off.getImm() << ']';
++  return false;
 +}
 +
 +void DADAOAsmPrinter::emitInstruction(const MachineInstr *MI) {

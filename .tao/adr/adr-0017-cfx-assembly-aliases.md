@@ -2,7 +2,7 @@
 
 **状态**：Accepted
 **日期**：2026-10-02
-**关联**：`ADR-0013`（汇编语法；`D8` cfx 记法、`D9` 注释符）、`.tao/knowledge/contract-isa.md`、`spec/DADAO-12-*`（`cfxname`↔`cfxcode` 表）、`spec/DADAO-13-*` 等（寄存器表：`cg`/`rc`/`regname` 列）；任务编号待定
+**关联**：`ADR-0013`（汇编语法；`D8` cfx 记法、`D9` 注释符）、`.tao/contracts/contract-isa.md`、`spec/DADAO-12-*`（`cfxname`↔`cfxcode` 表）、`spec/DADAO-13-*` 等（寄存器表：`cg`/`rc`/`regname` 列）；任务编号待定
 
 ## Context（背景）
 
@@ -71,4 +71,4 @@
 
 ## 修订
 
-- 2026-10-03 文档分层改造：D9 落点迁至 `.tao/knowledge/contract-cfx-aliases.md`；汇编书写约定正文并入 `spec/Toolchain-01-汇编语言.md`。决策不变，正文不改（依 adr-authoring 规则）。
+- 2026-10-03 文档分层改造：D9 落点迁至 `.tao/contracts/contract-cfx-aliases.md`；汇编书写约定正文并入 `spec/Toolchain-01-汇编语言.md`。决策不变，正文不改（依 adr-authoring 规则）。

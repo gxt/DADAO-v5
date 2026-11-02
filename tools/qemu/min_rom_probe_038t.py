@@ -2,9 +2,9 @@
 """Min ROM probe for QEMU-038t: FP runtime `dst_rd0` ILLI (15 rd-destination insns).
 
 Spec sources (expectations derived by hand from these, never from QEMU/LLVM):
-  - spec/SimRISC-00 §数据寄存器 / §浮点寄存器
-  - spec/SimRISC-07 §格式转换指令 / §浮点比较指令 / §浮点分类指令
-  - .tao/knowledge/contract-fp.md §3 / §8 / §9 / §12 / §15
+  - spec/SimRISC-00: 数据寄存器 / 浮点寄存器
+  - spec/SimRISC-07: 格式转换指令 / 浮点比较指令 / 浮点分类指令
+  - .tao/contracts/contract-fp.md §3 / §8 / §9 / §12 / §15
   - contracts/legality_rules.yaml `dst_rd0` (active)
   - contracts/fp_semantics.yaml (legality_refs include dst_rd0 for these 15)
 Encodings: contracts/opcodes.yaml.  Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0x88).
@@ -55,8 +55,8 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 PASS_EXIT = 0x00
 ILLI_EXIT = 0x88
 
-ILLI = 0x77000000
-SWYM = 0x77880000
+ILLI = 0x7C000000
+SWYM = 0x47880000
 
 # ft / fo operand bit patterns (used only to give executed controls a value)
 F0 = 0x00000000
@@ -212,7 +212,7 @@ def set_rf(rf, val):
 # ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──
 
 SEMI_BLOCK = 0xFC00_00FF_F000       # argument block {reason, code}, in RAM
-SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
 

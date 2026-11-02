@@ -42,6 +42,17 @@ def check_components(components: dict, errors: list[str]) -> None:
             continue
         if not SHA1.fullmatch(component.get("commit", "")):
             errors.append(f"component {name}: enabled components require a full commit")
+        if component.get("patchless"):
+            # Reference-only component (ADR-0024 D1): it explicitly carries no
+            # v5 patch set, so the absence of patch_dir/patch_series is legal
+            # for this component only. Declaring them anyway would smuggle
+            # patches into a component the patch-tree gate skips -- rejected.
+            if component.get("patch_dir") or component.get("patch_series"):
+                errors.append(
+                    f"component {name}: patchless component must not declare "
+                    "patch_dir/patch_series"
+                )
+            continue
         patches_dir = ROOT / component.get("patch_dir", "")
         if not patches_dir.is_dir():
             errors.append(f"component {name}: missing patch directory {patches_dir}")

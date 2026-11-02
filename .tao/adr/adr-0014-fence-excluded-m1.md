@@ -20,7 +20,7 @@
 
 ## Decision（决策）
 
-- **D1**：`fence`（MISC-AMO ha=0x01）标 `excluded_m1: true`（与浮点 RF / 特权 cfx / LR-SC 同），M1 身份集 178 → 177。
+- **D1**：`fence`（OPC-MISC ha=0x01）标 `excluded_m1: true`（与浮点 RF / 特权 cfx / LR-SC 同），M1 身份集 178 → 177。
   - 依据：`contract-isa.md §14.1` 既已 Excluded；本决策消除与 `opcodes.yaml` 的不一致。
 - **D2**：QEMU `trans_fence` 的 ILLI 桩变为 excluded → ILLI **合规**，ISS-056 关闭。
 - **D3**：LLVM lit 的 fence 保留（编码正确性，与 M1 运行语义不冲突）——同浮点指令 LLVM 侧亦可汇编。

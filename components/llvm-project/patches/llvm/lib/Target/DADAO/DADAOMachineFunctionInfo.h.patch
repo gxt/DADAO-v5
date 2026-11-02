@@ -1,0 +1,70 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOMachineFunctionInfo.h b/llvm/lib/Target/DADAO/DADAOMachineFunctionInfo.h
+new file mode 100644
+index 000000000..305ad01f5
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOMachineFunctionInfo.h
+@@ -0,0 +1,64 @@
++//===-- DADAOMachineFunctionInfo.h - DADAO per-function info ---*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// Per-function DADAO state.  The only entry is the variadic register save
++// area (spec/DADAO-21 §3.3, ADR-0031 D2): a variadic callee snapshots the
++// unused slots of the RD/RB/RF argument banks in its own frame at entry, and
++// va_start initialises the seven-field va_list from it.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_DADAOMACHINEFUNCTIONINFO_H
++#define LLVM_LIB_TARGET_DADAO_DADAOMACHINEFUNCTIONINFO_H
++
++#include "llvm/CodeGen/MachineFunction.h"
++
++namespace llvm {
++
++class DADAOMachineFunctionInfo final : public MachineFunctionInfo {
++public:
++  DADAOMachineFunctionInfo(const Function &, const TargetSubtargetInfo *) {}
++
++  /// Frame index of the variadic register save area, or -1 when the function
++  /// is not variadic (or has no free slot to save).
++  int VarArgSaveFI = -1;
++
++  /// Frame index of the first variadic stack slot (incoming_sp + named stack
++  /// bytes), created once per function by LowerVASTART.
++  int VarArgStackFI = -1;
++
++  /// First saved slot of each bank (the first slot *after* the named
++  /// arguments), 16..32.  `left = 32 - start`.
++  unsigned VarArgStartRD = 16;
++  unsigned VarArgStartRB = 16;
++  unsigned VarArgStartRF = 16;
++
++  /// Bytes of named arguments that overflowed to the shared stack area
++  /// (`incoming_sp + VarArgStackOffset` is the first variadic stack slot).
++  unsigned VarArgStackOffset = 0;
++
++  /// Slot offset (in 8-byte slots) of the RD region inside the save area.
++  /// It is 0 or 1 so that the address of slot `start` has bit 3 equal to
++  /// `start & 1`; va_arg uses that to detect an odd slot for the 16-byte
++  /// even/odd pairing rule (ADR-0031 D6) without carrying the start index.
++  unsigned VarArgPadRD = 0;
++
++  unsigned RDLeft() const { return 32 - VarArgStartRD; }
++  unsigned RBLeft() const { return 32 - VarArgStartRB; }
++  unsigned RFLeft() const { return 32 - VarArgStartRF; }
++
++  /// Byte offset of each bank region from the start of the save area.
++  unsigned RDOffset() const { return VarArgPadRD * 8; }
++  unsigned RBOffset() const { return RDOffset() + RDLeft() * 8; }
++  unsigned RFOffset() const { return RBOffset() + RBLeft() * 8; }
++  unsigned SaveSize() const { return RFOffset() + RFLeft() * 8; }
++};
++
++} // end namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_DADAOMACHINEFUNCTIONINFO_H

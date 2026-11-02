@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""SPEC-134t 文末「附录：版本与变更记录」结构性校验（21 册只读册）。
+"""文末「附录：版本与变更记录」结构性校验（SPEC-134t；SPEC-165t 收窄扫描面）。
+
+**扫描面（SPEC-165t）**：SimRISC 系列的变更记录**只保留在 `SimRISC-00`**——01–12
+只校验「**不得**有变更记录附录」+ 册头版本；DADAO / Toolchain / Machine 各册
+（独立手册）仍逐册校验。
 
 断言（任一不满足 ⇒ 非零退出）：
-1. 每册文末有 `## 附录：版本与变更记录`（二级、**不加章节号**），且为**最后一个** `##`
-   标题（其下不允许再出现任何 `##`/`#`）；
+1. 受检册文末有 `## 附录：版本与变更记录`（二级、**不加章节号**），且为**最后一个** `##`
+   标题（其下不允许再出现任何 `##`/`#`）；SimRISC-01–12 **不得**出现该附录；
 2. 附录内的三级标题形态：顶部 = `### <X.Y.Z>-rc（未发布）`（若有未发布改动），
    其余 = `### <X.Y.Z>（<日期或说明>）`；
 3. **逆序**：所有三级标题的版本号（去掉 `-rc` 后）自顶向下**严格递减**；`-rc` 段必须在
@@ -13,8 +17,8 @@
 5. **无表格**：附录段内不得含表格行（`|`）；
 6. **不带任务号 / ADR 号**：附录段内不得出现 `SPEC-`/`QEMU-`/`LLVM-`/`INFRA-` 等任务号
    或 `ADR-`、`ISS-` 号；
-7. **互锁组一致**：`SimRISC-00..12` 一组、`AEE↔ABI`、`SEE↔SBI`、`HEE↔HBI`，组内顶部段
-   版本必须一致。
+7. **互锁组一致**：`SimRISC-00..12` 一组（比 **13 册册头版本**）、`AEE↔ABI`、
+   `SEE↔SBI`、`HEE↔HBI`，组内版本必须一致。
 
 所有计数**现场统计**（不写死）。
 """
@@ -88,12 +92,30 @@ def main():
     entries = lock_entries()
     errors = []
     stats = {"files": 0, "segments": 0, "rc_segments": 0, "bullets": 0}
-    top_versions = {}  # group -> set
+    top_versions = {}     # group -> set（版本段顶部段版本）
+    header_versions = {}  # group -> set（册头版本，SPEC-165t）
 
     for rel, group in entries:
         p = REPO / rel
         stats["files"] += 1
         lines = p.read_text(encoding="utf-8").splitlines()
+
+        # ── 0. SimRISC-01..12：变更记录只保留在 SimRISC-00（SPEC-165t）──
+        is_simrisc = "SimRISC-" in rel
+        if is_simrisc and "SimRISC-00" not in rel:
+            if any(APPENDIX_RE.match(l) for l in lines):
+                errors.append(f"{rel}: 变更记录附录只允许出现在 SimRISC-00（本册须删除）")
+            hver = None
+            for l in lines:
+                hm = HEADER_VER_RE.match(l) or HEADER_STATUS_VER_RE.match(l)
+                if hm:
+                    hver = hm.group(1)
+                    break
+            if hver is None:
+                errors.append(f"{rel}: 未找到册头版本行（`> **版本：V**`）")
+            else:
+                header_versions.setdefault("simrisc-00..12", set()).add(hver)
+            continue
 
         # ── 1. 附录标题存在且为最后一节 ──
         idxs = [i for i, l in enumerate(lines) if APPENDIX_RE.match(l)]
@@ -169,7 +191,9 @@ def main():
         else:
             errors.append(f"{rel}: 未在附录之前找到册头版本行（`> **版本：V**` / 状态行）")
 
-        top_versions.setdefault(interlock_group(rel) or rel, set()).add(top_v)
+        grp = interlock_group(rel) or rel
+        top_versions.setdefault(grp, set()).add(top_v)
+        header_versions.setdefault(grp, set()).add(header_ver)
 
         # ── 5/6. 表格 / 任务号 ──
         for j, l in enumerate(tail, ai + 2):
@@ -199,20 +223,24 @@ def main():
             if nb == 0:
                 errors.append(f"{rel}: 版本段 `{name}` 无条目（每段须 ≥1 条）")
 
-    # ── 7. 互锁组 ──
+    # ── 7. 互锁组（SimRISC 组比 13 册册头版本；其余组比顶部段版本）──
     for g in INTERLOCK_GROUPS:
-        vs = top_versions.get(g, set())
+        vs = header_versions.get(g, set()) if g == "simrisc-00..12" \
+            else top_versions.get(g, set())
         if len(vs) > 1:
-            errors.append(f"互锁组 {g} 组内顶部段版本不一致: {sorted(vs)}")
+            label = "册头版本" if g == "simrisc-00..12" else "顶部段版本"
+            errors.append(f"互锁组 {g} 组内{label}不一致: {sorted(vs)}")
 
     print(f"files={stats['files']}  segments={stats['segments']}  "
-          f"rc_segments={stats['rc_segments']}  bullets={stats['bullets']}")
+          f"rc_segments={stats['rc_segments']}  bullets={stats['bullets']}  "
+          f"simrisc_header_versions={sorted(header_versions.get('simrisc-00..12', set()))}")
     if errors:
         print(f"check-spec-changelog: FAIL ({len(errors)} violation(s))")
         for e in errors:
             print("  " + e)
         return 1
-    print("check-spec-changelog: PASS（21 册附录：存在/逆序/册头一致/无表格/无任务号/互锁一致）")
+    print("check-spec-changelog: PASS（变更记录集中于 SimRISC-00；01–12 无附录；"
+          "逆序/册头/无表格/无任务号/互锁一致）")
     return 0
 
 

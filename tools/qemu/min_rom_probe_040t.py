@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Min ROM probe for QEMU-040t: `sub.o rdhb, rbhc, rbhd` (RB − RB → RD) semantics.
 
-Spec: ADR-0012 D9.1 / SimRISC-05 §加减操作.
+Spec: ADR-0012 D9.1 / SimRISC-05: 加减操作.
 Encoding (contracts/opcodes.yaml): op=0x40, ha=0x33, mask=0xFFFC0000, value=0x40CC0000.
 Semantics: rdhb = rbhc − rbhd (full 64-bit two's-complement). ILLI: rdhb == rd0.
 Exit codes (ADR-0004 D5.8): ILLI = 0x88 (136), UNDI = 0x89 (137).
@@ -12,7 +12,7 @@ Cases (encodings taken from contracts/opcodes.yaml, not from QEMU):
   T3 sub.o rd18, rb2, rb3   rb2=0x2_0000_0000,
                             rb3=0x1_0000_0000    -> rd18=0x1_0000_0000  (full 64-bit, PASS)
   T4 sub.o rd0,  rb2, rb3   destination rd0      -> ILLI 0x88
-  T5 reserved MISC-octa slot (110-111, ha=0x37)  -> UNDI 0x89 (decode still open)
+  T5 reserved OPC-octa slot (110-111, ha=0x37)  -> UNDI 0x89 (decode still open)
   T6 sub.o rd18, rb0, rb3   rb0 as source (legal) -> rd18 = instr_addr - 4  (PASS)
 
 Reverse gate: reverting trans_sub_o_orrr_dbb to an ILLI stub makes T1/T2/T3/T6
@@ -106,7 +106,7 @@ def st_o_rd(rdha, rbhb, imms12):
 # ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──
 
 SEMI_BLOCK = 0xFC00_00FF_F000       # argument block {reason, code}, in RAM
-SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
 
@@ -136,12 +136,12 @@ def sub_o_dbb(rdhb, rbhc, rbhd):
 
 
 def reserved_octa_neighbor(rdhb, rbhc, rbhd):
-    """Reserved MISC-octa slot 110-111 (ha=0x37) — must decode to UNDI."""
+    """Reserved OPC-octa slot 110-111 (ha=0x37) — must decode to UNDI."""
     return encode_orri(0x40, 0x37, rdhb, rbhc, rbhd)
 
 
 def swym():
-    return struct.pack('>I', 0x77880000)
+    return struct.pack('>I', 0x47880000)
 
 
 # ── Assertion block (same proven pattern as 033t) ──────────────────────
@@ -264,7 +264,7 @@ def case_t4_rd0_illi():
 
 
 def case_t5_reserved_neighbor_undi():
-    """Reserved MISC-octa slot 110-111 (ha=0x37) → UNDI."""
+    """Reserved OPC-octa slot 110-111 (ha=0x37) → UNDI."""
     return [reserved_octa_neighbor(18, 2, 3)], UNDI_EXIT
 
 

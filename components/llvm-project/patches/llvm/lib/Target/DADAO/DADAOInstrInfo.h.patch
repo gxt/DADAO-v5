@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.h b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
 new file mode 100644
-index 000000000..23595fa30
+index 000000000..f96d3d049
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
 @@ -0,0 +1,146 @@
@@ -74,7 +74,7 @@ index 000000000..23595fa30
 +  /// Register spilling to / reloading from a stack slot (LLVM-038t).  The
 +  /// access is emitted as a `st.o`/`ld.o` with a frame index as the base, the
 +  /// bank selected from the spilled register class (C16 D3, ADR-0018); PEI
-+  /// resolves the frame index to `[rbsp/rbfp, offset]`.
++  /// resolves the frame index to `[rbsp/rb2 (FP), offset]`.
 +  void storeRegToStackSlot(MachineBasicBlock &MBB,
 +                           MachineBasicBlock::iterator MI, Register SrcReg,
 +                           bool isKill, int FrameIndex,

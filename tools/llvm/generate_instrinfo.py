@@ -295,7 +295,7 @@ def generate_instrinfo_td(m1_opcodes: list) -> str:
             lines.append(f"  let InOperandList = (ins {in_str});")
 
             # Set op value
-            op_val = int(op["op"], 16)
+            op_val = int(op["opc"], 16)
             lines.append(f"  let op = 0x{op_val:02X};")
 
             # For MISC sub-table instructions, set ha (opx)

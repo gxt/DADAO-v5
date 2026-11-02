@@ -2,9 +2,9 @@
 """Min ROM probe for QEMU-036t: FP conversion family (20 insns, softfloat).
 
 Spec sources (expectations derived by hand from these, never from QEMU):
-  - spec/SimRISC-07 §格式转换指令
-  - spec/SimRISC-00 §浮点寄存器 / §浮点状态寄存器
-  - .tao/knowledge/contract-fp.md §1 / §2 / §3 / §4
+  - spec/SimRISC-07: 格式转换指令
+  - spec/SimRISC-00: 浮点寄存器 / 浮点状态寄存器
+  - .tao/contracts/contract-fp.md §1 / §2 / §3 / §4
 Encodings: contracts/opcodes.yaml.  Exit codes: ADR-0004 D5.8 (PASS=0x00,
 ILLI=0x88).
 
@@ -75,10 +75,10 @@ FLAG_UF_NX = UF | NX
 
 # ── Instruction encoding (op / ha from contracts/opcodes.yaml) ────────────
 
-ILLI = 0x77000000
-SWYM = 0x77880000
+ILLI = 0x7C000000
+SWYM = 0x47880000
 
-# rf0[33:32] rounding mode selectors (SimRISC-00 §浮点状态寄存器)
+# rf0[33:32] rounding mode selectors (SimRISC-00: 浮点状态寄存器)
 RNE, RTZ, RDN, RUP = 0, 1, 2, 3
 
 
@@ -243,7 +243,7 @@ def set_rf(rf, val):
 # ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──
 
 SEMI_BLOCK = 0xFC00_00FF_F000       # argument block {reason, code}, in RAM
-SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
 

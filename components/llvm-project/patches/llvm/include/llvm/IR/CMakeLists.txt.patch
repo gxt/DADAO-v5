@@ -1,0 +1,12 @@
+diff --git a/llvm/include/llvm/IR/CMakeLists.txt b/llvm/include/llvm/IR/CMakeLists.txt
+index 5a7676b96..d65c90242 100644
+--- a/llvm/include/llvm/IR/CMakeLists.txt
++++ b/llvm/include/llvm/IR/CMakeLists.txt
+@@ -13,6 +13,7 @@ tablegen(LLVM IntrinsicsARM.h -gen-intrinsic-enums -intrinsic-prefix=arm)
+ tablegen(LLVM IntrinsicsAVR.h -gen-intrinsic-enums -intrinsic-prefix=avr)
+ tablegen(LLVM IntrinsicsBPF.h -gen-intrinsic-enums -intrinsic-prefix=bpf)
+ tablegen(LLVM IntrinsicsDirectX.h -gen-intrinsic-enums -intrinsic-prefix=dx)
++tablegen(LLVM IntrinsicsDADAO.h -gen-intrinsic-enums -intrinsic-prefix=dadao)
+ tablegen(LLVM IntrinsicsHexagon.h -gen-intrinsic-enums -intrinsic-prefix=hexagon)
+ tablegen(LLVM IntrinsicsLoongArch.h -gen-intrinsic-enums -intrinsic-prefix=loongarch)
+ tablegen(LLVM IntrinsicsMips.h -gen-intrinsic-enums -intrinsic-prefix=mips)

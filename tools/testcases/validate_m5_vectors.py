@@ -8,14 +8,14 @@ project "Independent oracle" hard rule.  It **never** invokes ``llvm-mc``,
 script greps this file for any such import and requires no hit).  Expected
 values are re-derived on the host from
 
-  * ``.tao/knowledge/contract-semihosting.md`` §3 (the authoritative service
+  * ``.tao/contracts/contract-semihosting.md`` §3 (the authoritative service
     table: number -> name -> behaviour) and §1/§4/§5 (entry tag / return /
     SYS_EXIT), and
-  * ``.tao/knowledge/contract-see.md`` §3 (cfx permission rules: reserved cfxha
+  * ``.tao/contracts/contract-see.md`` §3 (cfx permission rules: reserved cfxha
     and instruction-mask forbids => ILLI; unimplemented cfx / non-existent or
     over-count register combination => CFXREG),
 
-cross-checked against the machine-readable ``; @m5`` header embedded in every
+cross-checked against the machine-readable ``@@ @m5`` header embedded in every
 vector source (service number, console data bytes, fault rule, expected cause,
 exit / fail tokens).
 
@@ -52,7 +52,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 VEC_DIR = ROOT / "tests" / "llvm" / "codegen" / "m5"
 EXPECTED_PATH = VEC_DIR / "expected.yaml"
-CONTRACT_SEMIHOSTING = ROOT / ".tao" / "knowledge" / "contract-semihosting.md"
+CONTRACT_SEMIHOSTING = ROOT / ".tao" / "contracts" / "contract-semihosting.md"
 
 SCHEMA = "m5-vectors-v1"
 CATEGORIES = {"semihosting", "permission", "trap"}
@@ -92,7 +92,7 @@ CAUSE_ID = {
 #   mask_forbidden     : "cfxha 合法但指令 cfx mask 禁止亦触发 ILLI"     [DADAO-12 §3/§5]
 #   unimplemented_cfx  : "访问未实现的核芯功能扩展 ... 触发 CFXREG"       [DADAO-22 §3]
 #   bad_register_combo : non-existent / over-count register combination => CFXREG
-#                        [DADAO-12 §3 rc >= scratch_regs_num; SimRISC-11 §特权指令]
+#                        [DADAO-12: 共有寄存器设计规范 rc >= scratch_regs_num; SimRISC-11: 指令域与执行条件]
 RULE_CAUSE = {
     "reserved_cfxha": "ILLI",
     "mask_forbidden": "ILLI",
@@ -113,7 +113,7 @@ PASS_TOKEN = {
     "m5_trap_escape": 0x60,
 }
 
-M5_RE = re.compile(r"^;\s*@m5\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$")
+M5_RE = re.compile(r"^@@\s*@m5\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$")
 SVC_ROW_RE = re.compile(r"\|\s*`0x([0-9a-fA-F]{2})`\s*\|\s*`([A-Z0-9_]+)`\s*\|")
 
 
@@ -143,7 +143,7 @@ def load_service_table():
 
 
 def parse_m5_header(path: Path):
-    """Parse the machine-readable `; @m5 key=value` header of a vector."""
+    """Parse the machine-readable `@@ @m5 key=value` header of a vector."""
     header = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         m = M5_RE.match(line)

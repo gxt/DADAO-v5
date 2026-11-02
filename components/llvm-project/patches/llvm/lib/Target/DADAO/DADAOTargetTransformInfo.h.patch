@@ -1,0 +1,63 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOTargetTransformInfo.h b/llvm/lib/Target/DADAO/DADAOTargetTransformInfo.h
+new file mode 100644
+index 000000000..94bfcf581
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOTargetTransformInfo.h
+@@ -0,0 +1,57 @@
++//===-- DADAOTargetTransformInfo.h - DADAO specific TTI ---------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++/// \file
++/// A TargetTransformInfoImplBase conforming object specific to the DADAO
++/// target machine.  It uses the target's detailed information to provide more
++/// precise answers to certain TTI queries, while letting the target
++/// independent and default TTI implementations handle the rest.
++///
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_DADAOTARGETTRANSFORMINFO_H
++#define LLVM_LIB_TARGET_DADAO_DADAOTARGETTRANSFORMINFO_H
++
++#include "DADAOSubtarget.h"
++#include "DADAOTargetMachine.h"
++
++#include "llvm/Analysis/TargetTransformInfo.h"
++#include "llvm/CodeGen/BasicTTIImpl.h"
++
++namespace llvm {
++
++class DADAOTTIImpl final : public BasicTTIImplBase<DADAOTTIImpl> {
++  using BaseT = BasicTTIImplBase<DADAOTTIImpl>;
++  friend BaseT;
++
++  const DADAOSubtarget *ST;
++  const DADAOTargetLowering *TLI;
++
++  const DADAOSubtarget *getST() const { return ST; }
++  const DADAOTargetLowering *getTLI() const { return TLI; }
++
++public:
++  explicit DADAOTTIImpl(const DADAOTargetMachine *TM, const Function &F)
++      : BaseT(TM, F.getDataLayout()), ST(TM->getSubtargetImpl(F)),
++        TLI(ST->getTargetLowering()) {}
++
++  /// Relative lookup tables (the `RelLookupTableConverter` module pass) encode
++  /// each entry as a **32-bit PC-relative data slot** -- `element address minus
++  /// table base` -- which needs a 4-byte PC-relative *data* relocation.  The
++  /// DADAO relocation set has no such type: `R_DADAO_ABS48` (the only data form)
++  /// is an 8-byte absolute address, and the `R_DADAO_PCREL_HI`/`LO` pair only
++  /// services instruction sites (ADR-0019 D10/D12, frozen).  BasicTTIImpl
++  /// enables the pass for PIC + 64-bit automatically, so the MC layer would
++  /// reject the emitted `.dd.t32 <sym>-<base>` (ISS-240).  Opt out here exactly
++  /// like VE/NVPTX/PPC do when their object format cannot express the entry; the
++  /// lookup then stays an 8-byte absolute list (`.dd.o64`).
++  bool shouldBuildRelLookupTables() const override { return false; }
++};
++
++} // namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_DADAOTARGETTRANSFORMINFO_H

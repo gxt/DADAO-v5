@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..1938af289
+index 000000000..d697efe74
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1509 @@
+@@ -0,0 +1,1955 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,7 +12,7 @@ index 000000000..1938af289
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// DADAO M1 instruction definitions (178 instructions).
++// DADAO instruction definitions (M1 baseline + M3/M8/M9 additions).
 +// Auto-generated from contracts/opcodes.yaml by tools/llvm/generate_instrinfo.py.
 +// DO NOT EDIT MANUALLY.
 +//
@@ -514,7 +514,7 @@ index 000000000..1938af289
 +  let Pattern = [];
 +}
 +
-+// --- rrrr format (11 instructions) ---
++// --- rrrr format (12 instructions) ---
 +
 +def add_uo_rd : DADAORrrr<"add.uo"> {
 +  let OutOperandList = (outs GPRD:$ra, GPRD:$rb);
@@ -555,6 +555,23 @@ index 000000000..1938af289
 +  let OutOperandList = (outs GPRD:$ra, GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
 +  let op = 0x55;
++  let Pattern = [];
++}
++
++// GF(2) (carry-less) 64x64 -> 128 multiply (ADR-0035, LLVM-122t).  Same rrrr
++// operand form as mul.uo/mul.so: rdha = high 64 bits, rdhb = low 64 bits of the
++// 128-bit product; there is no signed variant (D3) and no clmulh/clmulr (D4).
++// Only the `.o` width exists (D2).  A single half is written as
++// `clmul.o rd0, dst, a, b` (low) / `clmul.o dst, rd0, a, b` (high); both
++// destinations being rd0, or naming the same non-rd0 register, is ILLI (D6,
++// `dst_dual_same`; enforced by the assembler, DADAOAsmParser.cpp).
++// No TableGen pattern: CodeGen reaches this through the CLMUL_PSEUDO /
++// CLMULHI_PSEUDO / CLMUL_LOHI_PSEUDO pseudos (DADAOCodeGen.td), because rd0 is
++// not an ordinary virtual register and so cannot be bound by a DAG pattern.
++def clmul_o_rd : DADAORrrr<"clmul.o"> {
++  let OutOperandList = (outs GPRD:$ra, GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
++  let op = 0x56;
 +  let Pattern = [];
 +}
 +
@@ -602,7 +619,28 @@ index 000000000..1938af289
 +  let Pattern = [];
 +}
 +
-+// 0x5A: rela.si deleted (ADR-0012 D5) -> reserved -> UNDI
++// IP-relative address formation (ADR-0029 D1 + §修订注记; the instruction is
++// named aip.si since the 2026-10-16 rename, formerly rela.si): rbHA = IP +
++// (sign_extend(imms18) << 12), IP low bits NOT cleared (auipc-style) and IP =
++// the aip.si instruction's own address (= rb0).  Format/bit order follow the
++// existing riii defs (add.si: op + ha[23:18] + imms18[17:0]).
++// The destination is an rb register, so the fetched address reuses the very
++// register of the pair below (`aip.si rbX, hi` + `ld.o rbX, [rbX, lo]`).
++// A destination of rb0 is ILLI at execution time (contracts/legality_rules.yaml
++// dst_rb0); the MC layer does not reject it (no static MC legality for GPR
++// destinations -- contracts/legality_rules.yaml + SimRISC-05 §1.4 IP 相对寻址).
++// The assembler-level operand is in BYTES (imms30; Toolchain-01 §3.2/§5) and
++// the encoded field is the 4 KiB block count (field = bytes >> 12, i.e. the
++// x4096 group of the x4 jump/branch fields): the AsmParser converts the byte
++// operand into the block field and rejects a non-multiple of 4096 plus an
++// out-of-range value (no truncation); the printer prints the byte value back.
++// The symbol operand is an R_DADAO_PCREL_HI relocation (contract-elf.md §2.2).
++def aip_si_rb : DADAORiii<"aip.si"> {
++  let OutOperandList = (outs GPRB:$ra);
++  let InOperandList = (ins imms18:$imm18);
++  let op = 0x5A;
++  let Pattern = [];
++}
 +
 +def add_si_rb : DADAORiii<"add.si"> {
 +  let OutOperandList = (outs GPRB:$ra);
@@ -779,7 +817,7 @@ index 000000000..1938af289
 +  let Pattern = [];
 +}
 +
-+// --- orrr format (81 instructions) ---
++// --- orrr format (85 instructions) ---
 +
 +def and_o : DADAOOrrr<"and.o"> {
 +  let OutOperandList = (outs GPRD:$rb);
@@ -817,7 +855,7 @@ index 000000000..1938af289
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
 +  let op = 0x40;
-+  let ha = 0x10;
++  let ha = 0x20;
 +  let Pattern = [];
 +}
 +
@@ -825,7 +863,7 @@ index 000000000..1938af289
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
 +  let op = 0x40;
-+  let ha = 0x11;
++  let ha = 0x21;
 +  let Pattern = [];
 +}
 +
@@ -845,11 +883,21 @@ index 000000000..1938af289
 +  let Pattern = [];
 +}
 +
-+def shl_uo_orrr : DADAOOrrr<"shl.uo"> {
++def shl_o_orrr : DADAOOrrr<"shl.o"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
 +  let op = 0x40;
-+  let ha = 0x14;
++  let ha = 0x10;
++  let Pattern = [];
++}
++
++// rol.o rdHB, rdHC, rdHD: logical rotate left by rdHD[log2(W)-1:0]
++// (ADR-0032 D4; the register form takes the amount modulo the operand width).
++def rol_o_orrr : DADAOOrrr<"rol.o"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
++  let op = 0x40;
++  let ha = 0x11;
 +  let Pattern = [];
 +}
 +
@@ -950,11 +998,21 @@ index 000000000..1938af289
 +  let Pattern = [];
 +}
 +
-+def shl_ut_orrr : DADAOOrrr<"shl.ut"> {
++def shl_t_orrr : DADAOOrrr<"shl.t"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
 +  let op = 0x41;
-+  let ha = 0x14;
++  let ha = 0x10;
++  let Pattern = [];
++}
++
++// rol.t rdHB, rdHC, rdHD: logical rotate left by rdHD[log2(W)-1:0]
++// (ADR-0032 D4; the register form takes the amount modulo the operand width).
++def rol_t_orrr : DADAOOrrr<"rol.t"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
++  let op = 0x41;
++  let ha = 0x11;
 +  let Pattern = [];
 +}
 +
@@ -1070,11 +1128,21 @@ index 000000000..1938af289
 +  let Pattern = [];
 +}
 +
-+def shl_uw_orrr : DADAOOrrr<"shl.uw"> {
++def shl_w_orrr : DADAOOrrr<"shl.w"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
 +  let op = 0x42;
-+  let ha = 0x14;
++  let ha = 0x10;
++  let Pattern = [];
++}
++
++// rol.w rdHB, rdHC, rdHD: logical rotate left by rdHD[log2(W)-1:0]
++// (ADR-0032 D4; the register form takes the amount modulo the operand width).
++def rol_w_orrr : DADAOOrrr<"rol.w"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
++  let op = 0x42;
++  let ha = 0x11;
 +  let Pattern = [];
 +}
 +
@@ -1190,11 +1258,21 @@ index 000000000..1938af289
 +  let Pattern = [];
 +}
 +
-+def shl_ub_orrr : DADAOOrrr<"shl.ub"> {
++def shl_b_orrr : DADAOOrrr<"shl.b"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
 +  let op = 0x43;
-+  let ha = 0x14;
++  let ha = 0x10;
++  let Pattern = [];
++}
++
++// rol.b rdHB, rdHC, rdHD: logical rotate left by rdHD[log2(W)-1:0]
++// (ADR-0032 D4; the register form takes the amount modulo the operand width).
++def rol_b_orrr : DADAOOrrr<"rol.b"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
++  let op = 0x43;
++  let ha = 0x11;
 +  let Pattern = [];
 +}
 +
@@ -1294,13 +1372,13 @@ index 000000000..1938af289
 +  let Pattern = [];
 +}
 +
-+// --- orri format (26 instructions) ---
++// --- orri format (30 instructions) ---
 +
 +def ext_uo_orri : DADAOOrri<"ext.uo"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
 +  let op = 0x40;
-+  let ha = 0x18;
++  let ha = 0x28;
 +  let Pattern = [];
 +}
 +
@@ -1308,7 +1386,7 @@ index 000000000..1938af289
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
 +  let op = 0x40;
-+  let ha = 0x19;
++  let ha = 0x29;
 +  let Pattern = [];
 +}
 +
@@ -1328,11 +1406,22 @@ index 000000000..1938af289
 +  let Pattern = [];
 +}
 +
-+def shl_uo_orri : DADAOOrri<"shl.uo"> {
++def shl_o_orri : DADAOOrri<"shl.o"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
 +  let op = 0x40;
-+  let ha = 0x1C;
++  let ha = 0x18;
++  let Pattern = [];
++}
++
++// rol.o rdHB, rdHC, immu6: immediate rotate; immu6 outside 0..W-1 is an
++// execution-time ILLI (contract-isa.md §6.4.1 / SimRISC-08/09/10 附录 B), so the
++// MC layer only enforces the generic immu6 field range [0, 63].
++def rol_o_orri : DADAOOrri<"rol.o"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x40;
++  let ha = 0x19;
 +  let Pattern = [];
 +}
 +
@@ -1400,11 +1489,22 @@ index 000000000..1938af289
 +  let Pattern = [];
 +}
 +
-+def shl_ut_orri : DADAOOrri<"shl.ut"> {
++def shl_t_orri : DADAOOrri<"shl.t"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
 +  let op = 0x41;
-+  let ha = 0x1C;
++  let ha = 0x18;
++  let Pattern = [];
++}
++
++// rol.t rdHB, rdHC, immu6: immediate rotate; immu6 outside 0..W-1 is an
++// execution-time ILLI (contract-isa.md §6.4.1 / SimRISC-08/09/10 附录 B), so the
++// MC layer only enforces the generic immu6 field range [0, 63].
++def rol_t_orri : DADAOOrri<"rol.t"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x41;
++  let ha = 0x19;
 +  let Pattern = [];
 +}
 +
@@ -1424,11 +1524,22 @@ index 000000000..1938af289
 +  let Pattern = [];
 +}
 +
-+def shl_uw_orri : DADAOOrri<"shl.uw"> {
++def shl_w_orri : DADAOOrri<"shl.w"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
 +  let op = 0x42;
-+  let ha = 0x1C;
++  let ha = 0x18;
++  let Pattern = [];
++}
++
++// rol.w rdHB, rdHC, immu6: immediate rotate; immu6 outside 0..W-1 is an
++// execution-time ILLI (contract-isa.md §6.4.1 / SimRISC-08/09/10 附录 B), so the
++// MC layer only enforces the generic immu6 field range [0, 63].
++def rol_w_orri : DADAOOrri<"rol.w"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x42;
++  let ha = 0x19;
 +  let Pattern = [];
 +}
 +
@@ -1448,11 +1559,103 @@ index 000000000..1938af289
 +  let Pattern = [];
 +}
 +
-+def shl_ub_orri : DADAOOrri<"shl.ub"> {
++def shl_b_orri : DADAOOrri<"shl.b"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
 +  let op = 0x43;
-+  let ha = 0x1C;
++  let ha = 0x18;
++  let Pattern = [];
++}
++
++// rol.b rdHB, rdHC, immu6: immediate rotate; immu6 outside 0..W-1 is an
++// execution-time ILLI (contract-isa.md §6.4.1 / SimRISC-08/09/10 附录 B), so the
++// MC layer only enforces the generic immu6 field range [0, 63].
++def rol_b_orri : DADAOOrri<"rol.b"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x43;
++  let ha = 0x19;
++  let Pattern = [];
++}
++
++// --- rev.* per-block element reversal (ADR-0012 D10 / SPEC-142t; scope: m8) ---
++//
++// rev.o/rev.t/rev.w/rev.b rdHB, rdHC, immu6: reverse the order of the S/k
++// k-bit elements inside every 64-bit block (block size S = 64/32/16/8 by
++// suffix; k = immu6 must be a power of two and k < S, see
++// contracts/legality_rules.yaml `encode_onehot`).  CodeGen (LLVM-128t): the
++// patterns in DADAOCodeGen.td select `bswap64` as rev.o + k = 8,
++// `bitreverse64` as rev.o + k = 1 and `bswap32` as rev.t + k = 8 (through
++// ReplaceNodeResults, i32 not being a legal type); rev.w/rev.b have no LLVM
++// node to map and stay MC-only.
++
++def rev_o_orri_rd : DADAOOrri<"rev.o"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x40;
++  let ha = 0x0C;
++  let Pattern = [];
++}
++
++def rev_t_orri_rd : DADAOOrri<"rev.t"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x41;
++  let ha = 0x0C;
++  let Pattern = [];
++}
++
++def rev_w_orri_rd : DADAOOrri<"rev.w"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x42;
++  let ha = 0x0C;
++  let Pattern = [];
++}
++
++def rev_b_orri_rd : DADAOOrri<"rev.b"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x43;
++  let ha = 0x0C;
++  let Pattern = [];
++}
++
++// --- ctlz/cttz/ctpop bit scan & population count (ADR-0012 D11 / SPEC-143t; scope: m8) ---
++//
++// ctpop/ctlz/cttz rdHB, rdHC, immu6: hd = immu6 is the upper bound of the
++// valid bits (rdHC[hd:0]); ctpop counts the set bits in that range, ctlz
++// counts leading zeros downwards from bit hd, cttz counts trailing zeros
++// upwards from bit 0.  Every 6-bit hd (0..63) is legal -- there is no
++// illegal hd value, so the MC layer adds no assembly-time legality check
++// (contracts/legality_rules.yaml is unchanged; the dst_rd0 rule is
++// enforced at execution time, see ISS-211).  An all-zero field yields hd+1
++// for ctlz/cttz and 0 for ctpop (contracts/opcodes.yaml).  CodeGen (LLVM-128t):
++// i64 `ctlz`/`cttz`/`ctpop` are Legal and select this instruction with
++// hd = 63 (patterns in DADAOCodeGen.td), so an all-zero field yields 64/64/0
++// -- exactly the LLVM *defined* results.
++
++def ctpop_orri_rd : DADAOOrri<"ctpop"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x47;
++  let ha = 0x25;
++  let Pattern = [];
++}
++
++def ctlz_orri_rd : DADAOOrri<"ctlz"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x47;
++  let ha = 0x26;
++  let Pattern = [];
++}
++
++def cttz_orri_rd : DADAOOrri<"cttz"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x47;
++  let ha = 0x27;
 +  let Pattern = [];
 +}
 +
@@ -1461,17 +1664,260 @@ index 000000000..1938af289
 +def fence : DADAOOiii<"fence"> {
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins immu18:$imm18);
-+  let op = 0x77;
-+  let ha = 0x00;
++  let op = 0x47;
++  let ha = 0x20;
++  // A barrier must never be deleted, duplicated or moved (LLVM-121t: the
++  // instruction is now reachable from CodeGen as ISD::ATOMIC_FENCE).
++  let hasSideEffects = 1;
 +  let Pattern = [];
 +}
 +
 +def swym_oiii : DADAOOiii<"swym"> {
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins immu18:$imm18);
-+  let op = 0x77;
++  let op = 0x47;
 +  let ha = 0x22;
 +  let Pattern = [];
++}
++
++// --- lr/sc (orrr; scope: m9; ADR-0034 D3-D6; LLVM-121t) ---
++//
++// Load-reserved / store-conditional are the only atomic primitives: there is
++// no AMO in the ISA (ISS-294), so every RMW / cmpxchg is a lr/sc retry loop
++// (DADAOTargetLowering::EmitInstrWithCustomInserter).
++//
++// Naming (ADR-0034 D3/D4): `<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>` -- data width
++// first, memory ordering second.  `lr` only has nn/an/ar and `sc` only has
++// nn/nr/ar, so `lr.*.nr` / `sc.*.an` have no def and the assembler rejects
++// them.  Field layout is `orrr`: rdhb = rdHB, rdhc = rdHC, rbhd = rbHD
++// (op 0x47, mask 0xFFFC0000); `lr` fixes hb = rd0 and is written with two
++// operands (SimRISC-11 §4.2).
++//
++// Semantics: `lr` loads from [rbHD] into rdHC and sets the hart's reservation;
++// `sc` stores rdHC to [rbHD] when the reservation is still valid and writes
++// rdHB = 0, otherwise writes rdHB = 1.  Either way it clears this hart's
++// reservations.  The address must be naturally aligned to the width
++// (b/w/t/o = 1/2/4/8 bytes; ADR-0034 D6 as revised 2026-10-21), else MALIGN.
++// The narrow widths zero-extend on load (same convention as ld.ub/ld.uw/ld.ut).
++//
++// `mayLoad`/`mayStore` + `hasSideEffects` keep the reservation pair from being
++// moved, duplicated or deleted (the reservation is an architectural side
++// effect that is not visible in the dataflow).
++
++def lr_o_nn : DADAOLROrrr<"lr.o.nn"> {
++  let OutOperandList = (outs GPRD:$rc);
++  let InOperandList = (ins GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x00;
++  let mayLoad = 1;
++  let hasSideEffects = 1;
++}
++
++def lr_t_nn : DADAOLROrrr<"lr.t.nn"> {
++  let OutOperandList = (outs GPRD:$rc);
++  let InOperandList = (ins GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x01;
++  let mayLoad = 1;
++  let hasSideEffects = 1;
++}
++
++def lr_w_nn : DADAOLROrrr<"lr.w.nn"> {
++  let OutOperandList = (outs GPRD:$rc);
++  let InOperandList = (ins GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x02;
++  let mayLoad = 1;
++  let hasSideEffects = 1;
++}
++
++def lr_b_nn : DADAOLROrrr<"lr.b.nn"> {
++  let OutOperandList = (outs GPRD:$rc);
++  let InOperandList = (ins GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x03;
++  let mayLoad = 1;
++  let hasSideEffects = 1;
++}
++
++def lr_o_an : DADAOLROrrr<"lr.o.an"> {
++  let OutOperandList = (outs GPRD:$rc);
++  let InOperandList = (ins GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x04;
++  let mayLoad = 1;
++  let hasSideEffects = 1;
++}
++
++def lr_t_an : DADAOLROrrr<"lr.t.an"> {
++  let OutOperandList = (outs GPRD:$rc);
++  let InOperandList = (ins GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x05;
++  let mayLoad = 1;
++  let hasSideEffects = 1;
++}
++
++def lr_w_an : DADAOLROrrr<"lr.w.an"> {
++  let OutOperandList = (outs GPRD:$rc);
++  let InOperandList = (ins GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x06;
++  let mayLoad = 1;
++  let hasSideEffects = 1;
++}
++
++def lr_b_an : DADAOLROrrr<"lr.b.an"> {
++  let OutOperandList = (outs GPRD:$rc);
++  let InOperandList = (ins GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x07;
++  let mayLoad = 1;
++  let hasSideEffects = 1;
++}
++
++def lr_o_ar : DADAOLROrrr<"lr.o.ar"> {
++  let OutOperandList = (outs GPRD:$rc);
++  let InOperandList = (ins GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x08;
++  let mayLoad = 1;
++  let hasSideEffects = 1;
++}
++
++def lr_t_ar : DADAOLROrrr<"lr.t.ar"> {
++  let OutOperandList = (outs GPRD:$rc);
++  let InOperandList = (ins GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x09;
++  let mayLoad = 1;
++  let hasSideEffects = 1;
++}
++
++def lr_w_ar : DADAOLROrrr<"lr.w.ar"> {
++  let OutOperandList = (outs GPRD:$rc);
++  let InOperandList = (ins GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x0A;
++  let mayLoad = 1;
++  let hasSideEffects = 1;
++}
++
++def lr_b_ar : DADAOLROrrr<"lr.b.ar"> {
++  let OutOperandList = (outs GPRD:$rc);
++  let InOperandList = (ins GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x0B;
++  let mayLoad = 1;
++  let hasSideEffects = 1;
++}
++
++def sc_o_nn : DADAOOrrr<"sc.o.nn"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x10;
++  let mayStore = 1;
++  let hasSideEffects = 1;
++}
++
++def sc_t_nn : DADAOOrrr<"sc.t.nn"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x11;
++  let mayStore = 1;
++  let hasSideEffects = 1;
++}
++
++def sc_w_nn : DADAOOrrr<"sc.w.nn"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x12;
++  let mayStore = 1;
++  let hasSideEffects = 1;
++}
++
++def sc_b_nn : DADAOOrrr<"sc.b.nn"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x13;
++  let mayStore = 1;
++  let hasSideEffects = 1;
++}
++
++def sc_o_nr : DADAOOrrr<"sc.o.nr"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x14;
++  let mayStore = 1;
++  let hasSideEffects = 1;
++}
++
++def sc_t_nr : DADAOOrrr<"sc.t.nr"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x15;
++  let mayStore = 1;
++  let hasSideEffects = 1;
++}
++
++def sc_w_nr : DADAOOrrr<"sc.w.nr"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x16;
++  let mayStore = 1;
++  let hasSideEffects = 1;
++}
++
++def sc_b_nr : DADAOOrrr<"sc.b.nr"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x17;
++  let mayStore = 1;
++  let hasSideEffects = 1;
++}
++
++def sc_o_ar : DADAOOrrr<"sc.o.ar"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x18;
++  let mayStore = 1;
++  let hasSideEffects = 1;
++}
++
++def sc_t_ar : DADAOOrrr<"sc.t.ar"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x19;
++  let mayStore = 1;
++  let hasSideEffects = 1;
++}
++
++def sc_w_ar : DADAOOrrr<"sc.w.ar"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x1A;
++  let mayStore = 1;
++  let hasSideEffects = 1;
++}
++
++def sc_b_ar : DADAOOrrr<"sc.b.ar"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, GPRB:$rd);
++  let op = 0x47;
++  let ha = 0x1B;
++  let mayStore = 1;
++  let hasSideEffects = 1;
 +}
 +
 +// --- crrr/ciii format (privileged cfx; scope: excluded; MC layer only) ---

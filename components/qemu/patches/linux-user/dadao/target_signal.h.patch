@@ -1,0 +1,25 @@
+diff --git a/linux-user/dadao/target_signal.h b/linux-user/dadao/target_signal.h
+new file mode 100644
+index 0000000..73eec21
+--- /dev/null
++++ b/linux-user/dadao/target_signal.h
+@@ -0,0 +1,19 @@
++/*
++ * DADAO signal definitions for linux-user (P3).
++ *
++ * The numbers and SA_* flags are the standard Linux values shared by the
++ * 64-bit musl ports (mirrors musl arch/dadao/bits/signal.h).
++ *
++ * TARGET_ARCH_HAS_SIGTRAMP_PAGE = 1: the port has no kernel-provided vDSO and
++ * no glibc-style SA_RESTORER, so the loader allocates a trampoline page and
++ * setup_sigtramp() fills it with `set.zw rd15, 139; trap cfx0, 0`
++ * (__NR_rt_sigreturn), see signal.c.
++ */
++#ifndef DADAO_TARGET_SIGNAL_H
++#define DADAO_TARGET_SIGNAL_H
++
++#include "../generic/signal.h"
++
++#define TARGET_ARCH_HAS_SIGTRAMP_PAGE 1
++
++#endif /* DADAO_TARGET_SIGNAL_H */

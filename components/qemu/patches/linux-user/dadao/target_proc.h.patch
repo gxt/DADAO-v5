@@ -1,0 +1,11 @@
+diff --git a/linux-user/dadao/target_proc.h b/linux-user/dadao/target_proc.h
+new file mode 100644
+index 0000000..1eb6a76
+--- /dev/null
++++ b/linux-user/dadao/target_proc.h
+@@ -0,0 +1,5 @@
++/*
++ * No arch-specific /proc entries: M8 has no kernel (ADR-0025 D2) and the port
++ * does not synthesize a DADAO /proc/cpuinfo.  The generic helpers still work
++ * for everything the host exports.
++ */

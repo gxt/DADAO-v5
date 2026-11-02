@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Basic/Targets/DADAO.cpp b/clang/lib/Basic/Targets/DADAO.cpp
 new file mode 100644
-index 000000000..3493c0094
+index 000000000..90c47f1b0
 --- /dev/null
 +++ b/clang/lib/Basic/Targets/DADAO.cpp
-@@ -0,0 +1,64 @@
+@@ -0,0 +1,100 @@
 +//===--- DADAO.cpp - Implement DADAO target feature support ---------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -18,6 +18,7 @@ index 000000000..3493c0094
 +
 +#include "DADAO.h"
 +#include "clang/Basic/MacroBuilder.h"
++#include "clang/Basic/TargetBuiltins.h"
 +#include "llvm/ADT/StringRef.h"
 +#include "llvm/ADT/Twine.h"
 +
@@ -35,6 +36,12 @@ index 000000000..3493c0094
 +  // it is not duplicated here.
 +  Builder.defineMacro("__dadao__");
 +  Builder.defineMacro("__DADAO__");
++  // `_Float128` / `__float128` are binary128 (DADAO.h sets HasFloat128 and
++  // Float128Format = IEEEquad).  Clang does not derive this macro from the
++  // target info (only some targets define it explicitly), but compiler-rt's
++  // int_types.h keys `CRT_HAS___FLOAT128_KEYWORD` on it, so define it here.
++  if (HasFloat128)
++    Builder.defineMacro("__SIZEOF_FLOAT128__", "16");
 +}
 +
 +ArrayRef<const char *> DADAOTargetInfo::getGCCRegNames() const {
@@ -60,11 +67,40 @@ index 000000000..3493c0094
 +ArrayRef<TargetInfo::GCCRegAlias> DADAOTargetInfo::getGCCRegAliases() const {
 +  // ABI names for the architecturally named registers (contract-abi.md §1.2 /
 +  // §1.3 / §1.5).  These are accepted wherever clang names a register (e.g.
-+  // `register ... asm("rbsp")`).
++  // `register ... asm("rbsp")`).  rb2 (frame pointer) deliberately has NO
++  // alias: the old GP/FP aliases are deleted (user ruling 2026-10-19), and rb63
++  // is a plain
++  // numbered callee-saved register.
 +  static const TargetInfo::GCCRegAlias GCCRegAliases[] = {
 +      {{"rdzero"}, "rd0"}, {{"rderrno"}, "rd1"}, {{"rbip"}, "rb0"},
-+      {{"rbsp"}, "rb1"},   {{"rbgp"}, "rb2"},    {{"rbtp"}, "rb3"},
-+      {{"rbfp"}, "rb63"},  {{"rasp"}, "ra63"},
++      {{"rbsp"}, "rb1"},   {{"rbtp"}, "rb3"},    {{"rasp"}, "ra63"},
 +  };
 +  return llvm::ArrayRef(GCCRegAliases);
++}
++
++//===----------------------------------------------------------------------===//
++// Target builtins (LLVM-122t)
++//===----------------------------------------------------------------------===//
++
++// The target-builtin table is BuiltinsDADAO.def, expanded twice with the
++// string-table / info-entry macros (the PPC/LoongArch route).  `DADAO::
++// LastTSBuiltin` (TargetBuiltins.h) is generated from the same file with the
++// enumerator macro, so the counts cannot drift.
++static constexpr int NumDADAOBuiltins =
++    DADAO::LastTSBuiltin - Builtin::FirstTSBuiltin;
++
++static constexpr llvm::StringTable DADAOBuiltinStrings =
++    CLANG_BUILTIN_STR_TABLE_START
++#define BUILTIN CLANG_BUILTIN_STR_TABLE
++#include "clang/Basic/BuiltinsDADAO.def"
++    ;
++
++static constexpr auto DADAOBuiltinInfos = Builtin::MakeInfos<NumDADAOBuiltins>({
++#define BUILTIN CLANG_BUILTIN_ENTRY
++#include "clang/Basic/BuiltinsDADAO.def"
++});
++
++llvm::SmallVector<Builtin::InfosShard>
++DADAOTargetInfo::getTargetBuiltins() const {
++  return {{&DADAOBuiltinStrings, DADAOBuiltinInfos}};
 +}

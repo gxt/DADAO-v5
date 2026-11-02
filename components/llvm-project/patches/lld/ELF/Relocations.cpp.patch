@@ -1,0 +1,24 @@
+diff --git a/lld/ELF/Relocations.cpp b/lld/ELF/Relocations.cpp
+index a1d3c5c2e..0fb678460 100644
+--- a/lld/ELF/Relocations.cpp
++++ b/lld/ELF/Relocations.cpp
+@@ -1060,6 +1060,19 @@ void RelocScan::processAux(RelExpr expr, RelType type, uint64_t offset,
+     if (sym.isObject()) {
+       // Produce a copy relocation.
+       if (auto *ss = dyn_cast<SharedSymbol>(&sym)) {
++        // DADAO does not emit R_DADAO_COPY in its first version: a copy
++        // relocation is needed exactly here, so fail loudly instead of
++        // emitting a dynamic relocation type the loader is not prepared to
++        // find (ADR-0026 D7②, contract-dynlink.md §4.3/§10②).
++        if (ctx.arg.emachine == EM_DADAO) {
++          auto diag = Err(ctx);
++          diag << "cannot create a copy relocation for symbol '" << ss
++               << "': R_DADAO_COPY is not emitted by this implementation "
++                  "(ADR-0026 D7②, contract-dynlink.md §10②); "
++                  "recompile with -fPIC";
++          printLocation(diag, *sec, sym, offset);
++          return;
++        }
+         if (!ctx.arg.zCopyreloc) {
+           auto diag = Err(ctx);
+           diag << "unresolvable relocation " << type << " against symbol '"

@@ -1,0 +1,7 @@
+diff --git a/linux-user/dadao/termbits.h b/linux-user/dadao/termbits.h
+new file mode 100644
+index 0000000..b1d4f4f
+--- /dev/null
++++ b/linux-user/dadao/termbits.h
+@@ -0,0 +1 @@
++#include "../generic/termbits.h"

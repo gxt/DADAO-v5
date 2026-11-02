@@ -1,12 +1,12 @@
 # DADAO Application Execution Environment
 
-> **版本：0.9.3-rc**（与 ABI 版本号一致，同步更新。基于 SimRISC 0.5.4 指令系统设计）
+> **版本：0.9.3**（与 ABI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
 
 应用程序运行环境：Application Execution Environment
 
 ## 1. 数据表示、寄存器模型、浮点状态寄存器、返回地址栈
 
-详见 SimRISC-00 §数据表示、§寄存器、§浮点状态寄存器、§返回地址栈。
+详见 SimRISC-00。
 
 ## 2. 不同宽度数据的运算处理
 
@@ -19,40 +19,22 @@ SimRISC 提供 8/16/32/64-bit 四种位宽的运算指令（如 add.ub/add.uw/ad
 **加减法**：结果产生 128-bit（rdha = 高 64 位，rdhb = 低 64 位），低 N 位天然正确。若不需要高 64 位，可将 `rdha` 设为 `rd0` 丢弃。
 
 ```simrisc
-; 有符号 32-bit 加法
-ld.st rd2, [rb1, x_offset] ; 符号扩展加载
+@@ 有符号 32-bit 加法
+ld.st rd2, [rb1, x_offset] @@ 符号扩展加载
 ld.st rd3, [rb1, y_offset]
-add.so {rd0, rd4}, rd2, rd3 ; rd4 = 低64位；rd0丢弃高64位
+add.so {rd0, rd4}, rd2, rd3 @@ rd4 = 低64位；rd0丢弃高64位
 st.t rd4, [rb1, z_offset]
 ```
 
-**乘除法**：乘法结果为 128-bit（`rdha` = 高 64 位，`rdhb` = 低 64 位）。32-bit 乘积取低 64 位即可。除法前须确保被除数和除数的高位正确扩展。
+**移位**：`shr.u` 逻辑右移高位补 0，`shr.s` 算术右移高位补符号位。
 
 ```simrisc
-; 有符号 32-bit 乘法
-ld.st rd2, [rb1, x_offset]
-ld.st rd3, [rb1, y_offset]
-mul.so {rd0, rd4}, rd2, rd3 ; rd0丢弃高64位，rd4=低64位
-st.t rd4, [rb1, z_offset]
-
-; 有符号 32-bit 除法
-ld.st rd2, [rb1, x_offset]
-ld.st rd3, [rb1, y_offset]
-div.st  rd4, rd2, rd3           ; 商写入目的寄存器 rd4
-st.t rd4, [rb1, z_offset]
-```
-
-> 若操作数经过加减乘等运算后高位被污染，除法和乘法前需 `ext.s` 重新扩展。
-
-**移位**：`shr.u` 逻辑右移高位补 0，`shr.s` 算数右移高位补符号位。
-
-```simrisc
-; 无符号 32-bit 右移 3 位
-ld.ut rd2, [rb1, x_offset] ; 零扩展加载
+@@ 无符号 32-bit 右移 3 位
+ld.ut rd2, [rb1, x_offset] @@ 零扩展加载
 shr.uo  rd2, rd2, 3
 
-; 有符号 32-bit 右移 3 位
-ld.st rd2, [rb1, x_offset] ; 符号扩展加载
+@@ 有符号 32-bit 右移 3 位
+ld.st rd2, [rb1, x_offset] @@ 符号扩展加载
 shr.so  rd2, rd2, 3
 ```
 
@@ -62,11 +44,11 @@ shr.so  rd2, rd2, 3
 - N-bit 有符号溢出检测：将结果做 N-bit 符号扩展后与原值比较，不相等即溢出。
 
 ```simrisc
-; 有符号 32-bit 加法，检测溢出
-add.so {rd0, rd3}, rd4, rd5 ; rd3 = rd4 + rd5（低 64 位）
-ext.so  rd2, rd3, 31           ; rd2 = rd3 按 32-bit 符号扩展
-cmp.so  rd2, rd2, rd3          ; 比较扩展值与原值
-br.nz {rd2}?, [rb0, overflow_handler] ; 不相等 → 32-bit 溢出
+@@ 有符号 32-bit 加法，检测溢出
+add.so {rd0, rd3}, rd4, rd5 @@ rd3 = rd4 + rd5（低 64 位）
+ext.so  rd2, rd3, 31           @@ rd2 = rd3 按 32-bit 符号扩展
+cmp.so  rd2, rd2, rd3          @@ 比较扩展值与原值
+br.nz {rd2}?, [rb0, overflow_handler] @@ 不相等 → 32-bit 溢出
 ```
 
 ## 3. 地址空间布局
@@ -81,19 +63,19 @@ br.nz {rd2}?, [rb0, overflow_handler] ; 不相等 → 32-bit 溢出
 进程切换时，仅 invalid 进程私有的 PTBR 对应的 TLB 集合。标记为"保留"的 PTBR 对应的 TLB 集合不做无效化处理，从而避免共享代码和内核映射的 TLB 抖动。
 
 ```simrisc
-; 进程切换示例：invalid 已申请的私有 PTBR（最多 16 个）
-set.rd   rd2, 0                     ; 循环变量
+@@ 进程切换示例：invalid 已申请的私有 PTBR（最多 16 个）
+set.rd   rd2, 0                     @@ 循环变量
 cfx_tlb_inv_loop:
-    ; 仅 invalid PTBR 0-15
-    shl.uo  rd3, rd2, 42              ; rd3 = PTBR 索引 << 42（构造 addr_start，VA[47:42]=PTBR 编号）
+    @@ 仅 invalid PTBR 0-15
+    shl.o   rd3, rd2, 42              @@ rd3 = PTBR 索引 << 42（构造 addr_start，VA[47:42]=PTBR 编号）
     cfx2rc  cfx_tlb_addr_start, rd3
-    set.rd   rd3, 0x40000000000     ; 0x40000000000（2^42） = 集合内全部 VA 空间
+    set.rd   rd3, 0x40000000000     @@ 0x40000000000（2^42） = 集合内全部 VA 空间
     cfx2rc  cfx_tlb_addr_size, rd3
-    set.rd   rd4, 2                 ; bit1 = invalid by addr range
+    set.rd   rd4, 2                 @@ bit1 = invalid by addr range
     cfx2rc  cfx_tlb_control, rd4
     add.si    rd2, 1
     set.rd   rd3, 16
-    cmp.so  rd5, rd2, rd3          ; rd5 = rd2 < rd3 ?
+    cmp.so  rd5, rd2, rd3          @@ rd5 = rd2 < rd3 ?
     br.n {rd5}?, [rb0, cfx_tlb_inv_loop]
 ```
 
@@ -118,21 +100,22 @@ Dadao中的octa是64位，即8字节，而gas中的.octa定义的数据是16字�
 
 除了通用的选项之外，Dadao添加了以下选项：
 
-- -multiple-to-single：将多寄存器指令转换为一系列的单寄存器指令；转换过程保持助记符（即opcode）不变
+- `-multiple-to-single`：将多寄存器指令转换为一系列的单寄存器指令；转换过程保持助记符（即指令名）不变
 
 ---
 
 ## 附录：版本与变更记录
 
-> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
-### 0.9.3-rc（未发布）
+### 0.9.3（2026-10-26）
 
-- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
-- 与上游 SimRISC 0.5.4 基线对齐。
-- 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`。
+- 删除 8/16/32 位运算中的乘除法解释与示例（乘法结果宽度与除法前的 `ext.so` 扩展提示不再单列）。
 - 删除 FPEXCP 异常（浮点按 IEEE 754 执行、经 `rf0` 轮询异常状态）。
 - 地址空间布局 / 汇编兼容性内容并入本册（职责边界调整）。
+- 与上游 SimRISC 0.5.5 基线对齐。
+- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
+- 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`。
 - `LD`/`ST` 指令名统一后缀；`cs.`/`br.` 指令名加点；修正无后缀 `add` 为 `add.so`。
 - 旧 `bp63` 语法更新为 MISC 表指令名；`ww`→`wpN` 残留修正。
 - 0 号寄存器（`rd0`）约束补全；多项审查修复（溢出检测 / 跳转表 / pending / 引导 / 掩码 / 注释）。

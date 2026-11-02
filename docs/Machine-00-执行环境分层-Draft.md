@@ -2,7 +2,7 @@
 
 > **状态**：**草案（Draft）**——**仅供讨论，不作判据真源**（定稿后再议是否升为正式册、是否纳入只读锁）。
 > **目的**：承载"**这一类问题**"——即 **C 库 / 系统调用接口 / 资源管理（内核行为）/ 平台** 四层之间的分工与落地选择；典型问句如"**syscall 由谁执行**"、"动态链接在哪一层"、"什么时候需要内核或 proxy kernel"。
-> **关系（不重复正文，只放指针）**：`spec/Machine-01`（qemu 测试机 `dadao-m1` 的具体运行环境与 semihosting **正文**）、`.tao/knowledge/contract-semihosting.md`、`spec/DADAO-12/13`（SEE/HEE 语义）、`ADR-0020`（SEE/semihosting 决策）、`ADR-0004`（测试机地址图）、`INTEG-033k §排除项`（M7 排除项）。
+> **关系（不重复正文，只放指针）**：`spec/Machine-01`（qemu 测试机 `dadao-m1` 的具体运行环境与 semihosting **正文**）、`.tao/contracts/contract-semihosting.md`、`spec/DADAO-12/13`（SEE/HEE 语义）、`ADR-0020`（SEE/semihosting 决策）、`ADR-0004`（测试机地址图）、`INTEG-033k §排除项`（M7 排除项）。
 
 ## 1. 分层（自上而下）
 
@@ -15,7 +15,7 @@
 
 **现状（M7）= L1 `picolibc`（静态）+ L2 semihosting + L3 无内核 + L4 `qemu`。**
 
-**本册边界（裁定 2026-10-12）**：**只写「层与选择」**（分层定义 / 层间约束 / 各层"候选·现状·决策点"）；**任何具体值一律指针**到 `spec/Machine-01`（内存映射、semihosting 25 服务、加载/退出等）与 `.tao/knowledge/contract-*` ⇒ **不重复、不漂移**。
+**本册边界（裁定 2026-10-12）**：**只写「层与选择」**（分层定义 / 层间约束 / 各层"候选·现状·决策点"）；**任何具体值一律指针**到 `spec/Machine-01`（内存映射、semihosting 25 服务、加载/退出等）与 `.tao/contracts/contract-*` ⇒ **不重复、不漂移**。
 
 ## 2. 层间约束（讨论要点）
 

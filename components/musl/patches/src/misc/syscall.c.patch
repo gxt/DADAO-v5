@@ -1,0 +1,31 @@
+diff --git a/src/misc/syscall.c b/src/misc/syscall.c
+index 6f3ef65..3559f7b 100644
+--- a/src/misc/syscall.c
++++ b/src/misc/syscall.c
+@@ -9,13 +9,20 @@ long syscall(long n, ...)
+ {
+ 	va_list ap;
+ 	syscall_arg_t a,b,c,d,e,f;
++	int m = __dadao_argmask(n);
+ 	va_start(ap, n);
+-	a=va_arg(ap, syscall_arg_t);
+-	b=va_arg(ap, syscall_arg_t);
+-	c=va_arg(ap, syscall_arg_t);
+-	d=va_arg(ap, syscall_arg_t);
+-	e=va_arg(ap, syscall_arg_t);
+-	f=va_arg(ap, syscall_arg_t);
++	/* ADR-0031 D1/D3: the three banks are separate, so each positional
++	 * argument must be fetched with the type the caller used -- an address
++	 * argument lives in RB and is only reachable via va_arg(void *), a data
++	 * argument lives in RD and is fetched as syscall_arg_t.  Which one it is
++	 * comes from the number, through the same __dadao_argmask() table the
++	 * QEMU host and the cancellable stub use (contract-syscall §3). */
++	a = (m & 0x01) ? (syscall_arg_t)va_arg(ap, void *) : va_arg(ap, syscall_arg_t);
++	b = (m & 0x02) ? (syscall_arg_t)va_arg(ap, void *) : va_arg(ap, syscall_arg_t);
++	c = (m & 0x04) ? (syscall_arg_t)va_arg(ap, void *) : va_arg(ap, syscall_arg_t);
++	d = (m & 0x08) ? (syscall_arg_t)va_arg(ap, void *) : va_arg(ap, syscall_arg_t);
++	e = (m & 0x10) ? (syscall_arg_t)va_arg(ap, void *) : va_arg(ap, syscall_arg_t);
++	f = (m & 0x20) ? (syscall_arg_t)va_arg(ap, void *) : va_arg(ap, syscall_arg_t);
+ 	va_end(ap);
+ 	return __syscall_ret(__syscall(n,a,b,c,d,e,f));
+ }

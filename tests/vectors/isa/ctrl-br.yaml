@@ -17,7 +17,7 @@
   input_state: {}
   mnemonic: br.n
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1 (non-rd0), imm=2'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -33,7 +33,7 @@
       rd1: '0xFFFFFFFFFFFFFFFF'
   mnemonic: br.n
   notes: 'taken: rd1 = -1 (< 0) → condition TRUE, branch taken; rb0=0xFC0000000000 (RAM entry, ADR-0004 D2.2), imm=2, expected_pc=rb0+8=0xFC0000000008'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -49,7 +49,7 @@
       rd1: '0x0000000000000001'
   mnemonic: br.n
   notes: 'not-taken: rd1 = 1 (>= 0) → condition FALSE, branch not taken; rb0=0xFC0000000000, expected_pc=rb0+4=0xFC0000000004'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: boundary
   deferred_reason: null
@@ -66,7 +66,7 @@
   mnemonic: br.n
   notes: 'boundary UNMAPPED: rd1=-1(<0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFC0000000000+(-0x4000)=0xFBFFFFFFC000
     → outside RAM (base 0xFC00_0000_0000) → UNMAPPED (0x87)'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
   status: active
 - class: encoding
   deferred_reason: null
@@ -80,7 +80,7 @@
   input_state: {}
   mnemonic: br.nn
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1 (non-rd0), imm=2'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -96,7 +96,7 @@
       rd1: '0x0000000000000001'
   mnemonic: br.nn
   notes: 'taken: rd1 = 1 (>= 0) → condition TRUE, branch taken; rb0=0xFC0000000000 (RAM entry, ADR-0004 D2.2), imm=2, expected_pc=rb0+8=0xFC0000000008'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -112,7 +112,7 @@
       rd1: '0xFFFFFFFFFFFFFFFF'
   mnemonic: br.nn
   notes: 'not-taken: rd1 = -1 (< 0) → condition FALSE, branch not taken; rb0=0xFC0000000000, expected_pc=rb0+4=0xFC0000000004'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: boundary
   deferred_reason: null
@@ -127,7 +127,7 @@
   mnemonic: br.nn
   notes: 'boundary UNMAPPED: rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFC0000000000+(-0x4000)=0xFBFFFFFFC000
     → outside RAM (base 0xFC00_0000_0000) → UNMAPPED (0x87)'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
   status: active
 - class: encoding
   deferred_reason: null
@@ -141,7 +141,7 @@
   input_state: {}
   mnemonic: br.z
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1 (non-rd0), imm=2'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -156,7 +156,7 @@
   mnemonic: br.z
   notes: 'taken: rd0 = 0 (hardwired) → condition TRUE, branch taken (always-taken with rd0); rb0=0xFC0000000000 (RAM entry,
     ADR-0004 D2.2), imm=2, expected_pc=rb0+8=0xFC0000000008'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -172,7 +172,7 @@
       rd1: '0x0000000000000001'
   mnemonic: br.z
   notes: 'not-taken: rd1 = 1 (!= 0) → condition FALSE, branch not taken; rb0=0xFC0000000000, expected_pc=rb0+4=0xFC0000000004'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: boundary
   deferred_reason: null
@@ -187,7 +187,7 @@
   mnemonic: br.z
   notes: 'boundary UNMAPPED: rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFC0000000000+(-0x4000)=0xFBFFFFFFC000
     → outside RAM (base 0xFC00_0000_0000) → UNMAPPED (0x87)'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
   status: active
 - class: encoding
   deferred_reason: null
@@ -201,7 +201,7 @@
   input_state: {}
   mnemonic: br.nz
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1 (non-rd0), imm=2'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -217,7 +217,7 @@
       rd1: '0x0000000000000001'
   mnemonic: br.nz
   notes: 'taken: rd1 = 1 (!= 0) → condition TRUE, branch taken; rb0=0xFC0000000000 (RAM entry, ADR-0004 D2.2), imm=2, expected_pc=rb0+8=0xFC0000000008'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -232,7 +232,7 @@
   mnemonic: br.nz
   notes: 'not-taken: rd0 = 0 (hardwired) → condition FALSE, branch not taken (always-not-taken with rd0); rb0=0xFC0000000000,
     expected_pc=rb0+4=0xFC0000000004'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: boundary
   deferred_reason: null
@@ -249,7 +249,7 @@
   mnemonic: br.nz
   notes: 'boundary UNMAPPED: rd1=1(>0/!=0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFC0000000000+(-0x4000)=0xFBFFFFFFC000
     → outside RAM (base 0xFC00_0000_0000) → UNMAPPED (0x87)'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
   status: active
 - class: encoding
   deferred_reason: null
@@ -263,7 +263,7 @@
   input_state: {}
   mnemonic: br.p
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1 (non-rd0), imm=2'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -279,7 +279,7 @@
       rd1: '0x0000000000000001'
   mnemonic: br.p
   notes: 'taken: rd1 = 1 (> 0) → condition TRUE, branch taken; rb0=0xFC0000000000 (RAM entry, ADR-0004 D2.2), imm=2, expected_pc=rb0+8=0xFC0000000008'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -293,7 +293,7 @@
   input_state: {}
   mnemonic: br.p
   notes: 'not-taken: rd0 = 0 (hardwired, not > 0) → condition FALSE, branch not taken; rb0=0xFC0000000000, expected_pc=rb0+4=0xFC0000000004'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: boundary
   deferred_reason: null
@@ -310,7 +310,7 @@
   mnemonic: br.p
   notes: 'boundary UNMAPPED: rd1=1(>0/!=0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFC0000000000+(-0x4000)=0xFBFFFFFFC000
     → outside RAM (base 0xFC00_0000_0000) → UNMAPPED (0x87)'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
   status: active
 - class: encoding
   deferred_reason: null
@@ -324,7 +324,7 @@
   input_state: {}
   mnemonic: br.np
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1 (non-rd0), imm=2'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -339,7 +339,7 @@
   mnemonic: br.np
   notes: 'taken: rd0 = 0 (hardwired, <= 0) → condition TRUE, branch taken (always-taken with rd0); rb0=0xFC0000000000 (RAM
     entry, ADR-0004 D2.2), imm=2, expected_pc=rb0+8=0xFC0000000008'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -355,7 +355,7 @@
       rd1: '0x0000000000000001'
   mnemonic: br.np
   notes: 'not-taken: rd1 = 1 (> 0) → condition FALSE, branch not taken; rb0=0xFC0000000000, expected_pc=rb0+4=0xFC0000000004'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: boundary
   deferred_reason: null
@@ -370,7 +370,7 @@
   mnemonic: br.np
   notes: 'boundary UNMAPPED: rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFC0000000000+(-0x4000)=0xFBFFFFFFC000
     → outside RAM (base 0xFC00_0000_0000) → UNMAPPED (0x87)'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
   status: active
 - class: encoding
   deferred_reason: null
@@ -387,7 +387,7 @@
       rd2: '0x0000000000000000'
   mnemonic: br.eq
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1, rdhb=2 (non-rd0), imm=2'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -403,7 +403,7 @@
       rd1: '0x0000000000000042'
   mnemonic: br.eq
   notes: 'taken: rd1 == rd1 (same register, always equal) → condition TRUE, branch taken; rb0=0xFC0000000000, imm=2, expected_pc=rb0+8=0xFC0000000008'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -420,7 +420,7 @@
       rd2: '0x0000000000000099'
   mnemonic: br.eq
   notes: 'not-taken: rd1=0x42 != rd2=0x99 → condition FALSE, branch not taken; rb0=0xFC0000000000, expected_pc=rb0+4=0xFC0000000004'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: boundary
   deferred_reason: null
@@ -437,7 +437,7 @@
   mnemonic: br.eq
   notes: 'boundary UNMAPPED: imms12=-0x400 (0xC00), target=rb0+(imm<<2)=0xFC0000000000+(-0x1000)=0xFBFFFFFFF000 → beyond/below
     RAM → UNMAPPED (0x87)'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
   status: active
 - class: encoding
   deferred_reason: null
@@ -454,7 +454,7 @@
       rd2: '0x0000000000000000'
   mnemonic: br.ne
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1, rdhb=2 (non-rd0), imm=2'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -471,7 +471,7 @@
       rd2: '0x0000000000000099'
   mnemonic: br.ne
   notes: 'taken: rd1=0x42 != rd2=0x99 → condition TRUE, branch taken; rb0=0xFC0000000000, imm=2, expected_pc=rb0+8=0xFC0000000008'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -487,7 +487,7 @@
       rd1: '0x0000000000000042'
   mnemonic: br.ne
   notes: 'not-taken: rd1 == rd1 (same register, always equal) → condition FALSE, branch not taken; rb0=0xFC0000000000, expected_pc=rb0+4=0xFC0000000004'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: boundary
   deferred_reason: null
@@ -505,7 +505,7 @@
   mnemonic: br.ne
   notes: 'boundary UNMAPPED: imms12=-0x400 (0xC00), target=rb0+(imm<<2)=0xFC0000000000+(-0x1000)=0xFBFFFFFFF000 → beyond/below
     RAM → UNMAPPED (0x87)'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
   status: active
 - class: encoding
   deferred_reason: null
@@ -521,7 +521,7 @@
       rb3: '0x0000000000000000'
   mnemonic: br.z
   notes: 'encoding: word matches opcodes.yaml mask/value, rbha=rb3 (non-rb0), imm=2'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -537,7 +537,7 @@
       rb3: '0x0000000000000000'
   mnemonic: br.z
   notes: 'taken: rb3 = 0 → condition TRUE, branch taken; rb0=0xFC0000000000, imm=2, expected_pc=rb0+8=0xFC0000000008'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -553,7 +553,7 @@
       rb3: '0x0000000000000001'
   mnemonic: br.z
   notes: 'not-taken: rb3 = 1 (!= 0) → condition FALSE, branch not taken; rb0=0xFC0000000000, expected_pc=rb0+4=0xFC0000000004'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: boundary
   deferred_reason: null
@@ -570,7 +570,7 @@
   mnemonic: br.z
   notes: 'boundary UNMAPPED: rb3=0(==0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFC0000000000+(-0x4000)=0xFBFFFFFFC000
     → outside RAM (base 0xFC00_0000_0000) → UNMAPPED (0x87)'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
   status: active
 - class: encoding
   deferred_reason: null
@@ -586,7 +586,7 @@
       rb3: '0x0000000000000000'
   mnemonic: br.nz
   notes: 'encoding: word matches opcodes.yaml mask/value, rbha=rb3 (non-rb0), imm=2'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -602,7 +602,7 @@
       rb3: '0x0000000000000001'
   mnemonic: br.nz
   notes: 'taken: rb3 = 1 (!= 0) → condition TRUE, branch taken; rb0=0xFC0000000000, imm=2, expected_pc=rb0+8=0xFC0000000008'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: semantic
   deferred_reason: null
@@ -618,7 +618,7 @@
       rb3: '0x0000000000000000'
   mnemonic: br.nz
   notes: 'not-taken: rb3 = 0 → condition FALSE, branch not taken; rb0=0xFC0000000000, expected_pc=rb0+4=0xFC0000000004'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D6.5'
   status: active
 - class: boundary
   deferred_reason: null
@@ -635,5 +635,5 @@
   mnemonic: br.nz
   notes: 'boundary UNMAPPED: rb3=1(!=0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFC0000000000+(-0x4000)=0xFBFFFFFFC000
     → outside RAM (base 0xFC00_0000_0000) → UNMAPPED (0x87)'
-  spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D5
+  spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
   status: active

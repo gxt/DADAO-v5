@@ -1,0 +1,64 @@
+diff --git a/clang/lib/Sema/SemaChecking.cpp b/clang/lib/Sema/SemaChecking.cpp
+index 2a8395e26..e9db0d453 100644
+--- a/clang/lib/Sema/SemaChecking.cpp
++++ b/clang/lib/Sema/SemaChecking.cpp
+@@ -54,6 +54,7 @@
+ #include "clang/Basic/Specifiers.h"
+ #include "clang/Basic/SyncScope.h"
+ #include "clang/Basic/TargetInfo.h"
++#include "clang/Basic/TargetBuiltins.h"
+ #include "clang/Basic/TypeTraits.h"
+ #include "clang/Lex/Lexer.h" // TODO: Extract static functions to fix layering.
+ #include "clang/Sema/Initialization.h"
+@@ -2188,6 +2189,42 @@ CheckBuiltinTargetInSupported(Sema &S, CallExpr *TheCall,
+ static void CheckNonNullArgument(Sema &S, const Expr *ArgExpr,
+                                  SourceLocation CallSiteLoc);
+ 
++// DADAO target builtins (LLVM-126t).  `__builtin_dadao_remainder` is
++// overloaded on its argument type: the builtin table can only spell one
++// placeholder prototype ("d."), so the real result type is taken from the
++// first argument here (the same custom-type-checking route the FP
++// classification builtins use).  Both arguments must have that same real
++// floating type -- double or float -- so the backend picks
++// llvm.dadao.remainder.f64/f32 and emits exactly one `forem`/`ftrem`.
++static bool CheckDADAOBuiltinFunctionCall(Sema &S, unsigned BuiltinID,
++                                          CallExpr *TheCall) {
++  if (BuiltinID != DADAO::BI__builtin_dadao_remainder)
++    return false;
++  if (S.checkArgCount(TheCall, 2))
++    return true;
++
++  QualType Ty = TheCall->getArg(0)->getType();
++  if (!Ty->isSpecificBuiltinType(BuiltinType::Double) &&
++      !Ty->isSpecificBuiltinType(BuiltinType::Float)) {
++    S.Diag(TheCall->getArg(0)->getBeginLoc(),
++           diag::err_builtin_invalid_arg_type)
++        << 1 << /*scalar=*/1 << /*integer=*/0 << /*floating-point=*/1 << Ty;
++    return true;
++  }
++  QualType TyB = TheCall->getArg(1)->getType();
++  if (!S.Context.hasSameType(Ty, TyB)) {
++    S.Diag(TheCall->getArg(1)->getBeginLoc(),
++           diag::err_builtin_invalid_arg_type)
++        << 2 << /*scalar=*/1 << /*integer=*/0 << /*floating-point=*/1 << TyB;
++    return true;
++  }
++
++  // The builtin's spelling is type-generic: make the call's type the argument
++  // type, so `float` stays `float` (CodeGen then uses the f32 intrinsic).
++  TheCall->setType(Ty);
++  return false;
++}
++
+ bool Sema::CheckTSBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
+                                       CallExpr *TheCall) {
+   switch (TI.getTriple().getArch()) {
+@@ -2195,6 +2232,8 @@ bool Sema::CheckTSBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
+     // Some builtins don't require additional checking, so just consider these
+     // acceptable.
+     return false;
++  case llvm::Triple::dadao:
++    return CheckDADAOBuiltinFunctionCall(*this, BuiltinID, TheCall);
+   case llvm::Triple::arm:
+   case llvm::Triple::armeb:
+   case llvm::Triple::thumb:

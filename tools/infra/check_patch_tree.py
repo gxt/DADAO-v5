@@ -307,6 +307,11 @@ def run_source_state(enabled: list[dict]) -> int:
     failed = False
     for component in enabled:
         name = component["name"]
+        if component.get("patchless"):
+            # Reference-only component (ADR-0024 D1): no patch set, so the
+            # "base + exactly one commit" E1 invariant does not apply.
+            print(f"check-patch-tree --source-state: {name}: patchless; skipped")
+            continue
         source = ROOT / ".work" / "source" / name
         if not (source / ".git").exists():
             print(f"check-patch-tree --source-state: {name}: source worktree absent; skipped")
@@ -350,7 +355,14 @@ def main() -> int:
 
     errors: list[str] = []
     total = 0
+    checked = 0
     for component in enabled:
+        if component.get("patchless"):
+            # Reference-only component (ADR-0024 D1): explicitly carries no v5
+            # patch set, so there is no patch tree to inspect. The manifest gate
+            # (manifest_check.py) rejects declaring patch_dir/patch_series here.
+            continue
+        checked += 1
         series_path = ROOT / component["patch_series"]
         if series_path.exists():
             total += len(series_entries(series_path))
@@ -361,7 +373,7 @@ def main() -> int:
     if errors:
         print(f"check-patch-tree: {len(errors)} problem(s)", file=sys.stderr)
         return 1
-    print(f"check-patch-tree: {len(enabled)} component(s), {total} patches OK")
+    print(f"check-patch-tree: {checked} component(s), {total} patches OK")
     return 0
 
 

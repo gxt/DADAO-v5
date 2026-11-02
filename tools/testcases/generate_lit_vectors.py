@@ -23,6 +23,7 @@
 """
 
 import os
+import re
 import sys
 
 try:
@@ -32,6 +33,70 @@ except ImportError:  # pragma: no cover
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OPCODES = os.path.join(REPO, "contracts", "opcodes.yaml")
+# cfx alias runtime table (LLVM-135t): the *printer* spells cfx operands with
+# these names, so the ASM expectation for ciii/crrr cases is derived from the
+# same contract data the toolchain reads at run time.  Selection rule below
+# mirrors llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.cpp
+# (exact register before a covering array, then the lexicographically first
+# name) -- a mismatch shows up as a failing ASM check, never silently.
+ALIASES = os.path.join(REPO, "contracts", "cfx-aliases.txt")
+
+
+def _load_cfx_aliases():
+    """-> (scalar{cfxha: [name]}, regs[(cfxha, cg, base, count, name)])."""
+    scalar, regs = {}, []
+    with open(ALIASES, "r", encoding="utf-8") as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if parts[0] == "scalar":
+                scalar.setdefault(int(parts[2]), []).append(parts[1])
+            elif parts[0] == "reg":
+                regs.append((int(parts[2]), int(parts[3]), int(parts[4]),
+                             int(parts[5]), parts[1]))
+    return scalar, regs
+
+
+CFX_SCALARS, CFX_REGS = _load_cfx_aliases()
+
+
+def _cfx_scalar_name(cfxha):
+    names = CFX_SCALARS.get(cfxha)
+    return sorted(names)[0] if names else None
+
+
+def _cfx_reg_name(cfxha, cg, rc):
+    best = None
+    for ha, c, base, count, name in CFX_REGS:
+        if ha != cfxha or c != cg or not base <= rc < base + count:
+            continue
+        key = (0 if count == 1 else 1, name)
+        if best is None or key < best[0]:
+            best = (key, base, count, name)
+    if best is None:
+        return None
+    _key, base, count, name = best
+    return name if count == 1 else "%s[%d]" % (name, rc - base)
+
+
+def _printed_asm(asm, assigns, fmt):
+    """The form `llvm-mc -filetype=asm` / objdump print for this cfx case."""
+    if fmt == "ciii":
+        name = _cfx_scalar_name(assigns["cfxha"])
+        if name:
+            return asm.replace("cfx%d" % assigns["cfxha"], name, 1)
+        return asm
+    if fmt == "crrr":
+        name = _cfx_reg_name(assigns["cfxha"], assigns["cghb"], assigns["rchc"])
+        if name:
+            return asm.replace("cfx%d, cg%d, rc%d" % (assigns["cfxha"],
+                                                      assigns["cghb"],
+                                                      assigns["rchc"]),
+                               name, 1)
+        return asm
+    return asm
 
 GENERATOR_PATH = "tools/testcases/generate_lit_vectors.py"
 FAST_FILE = os.path.join(REPO, "tests", "llvm", "lit", "MC", "DADAO", "gen-fast.s")
@@ -130,6 +195,15 @@ def _build_positive(rec):
         if mn == "add.si":
             return ("add.si %s, 8" % _reg(f0["bank"], 8),
                     {f0["name"]: 8, "imms18": 8}, "riii-alu")
+        if mn == "aip.si":
+            # IP 相对寻址（ADR-0029 D1 / SimRISC-05: IP 相对寻址）：`riii` 的「dst, imm」
+            # 形态（非分支形态）；指令名 `rela.si` → `aip.si`（用户 2026-10-16 裁定）。
+            # 汇编层操作数按**字节**书写（字段名 `imms30`，须为 4 KiB 整数倍，
+            # 范围 ±512 MiB；Toolchain-01 §3.2/§5）⇒ 编码层 `imms18 = bytes >> 12`
+            # （4 KiB 块）。故示例写字节值 `32768`（= 8 块），`assigns` 的
+            # `imms18` 仍为 8 —— 期望编码与 SPEC-145t 的块单位写法**逐字节相同**。
+            return ("aip.si %s, 32768" % _reg(f0["bank"], 8),
+                    {f0["name"]: 8, "imms18": 8}, "riii-alu")
         if mn == "ret":
             return "ret rd8, 8", {"rdha": 8, "imms18": 8}, "riii-ret"
         # br.*（条件组 + [rb0, 字节偏移]）
@@ -137,7 +211,10 @@ def _build_positive(rec):
                 {f0["name"]: 8, "imms18": 12 >> 2}, "riii-branch")
 
     if fmt == "rrrr":
-        if mn in ("add.uo", "add.so", "sub.uo", "sub.so", "mul.uo", "mul.so"):
+        if mn in ("add.uo", "add.so", "sub.uo", "sub.so", "mul.uo", "mul.so",
+                  # clmul.o (ADR-0035; LLVM-122t): same rrrr dual-destination
+                  # form, two distinct halves `{rdHA(high), rdHB(low)}`.
+                  "clmul.o"):
             a, b, c, d = fields
             return ("%s {%s, %s}, %s, %s" % (mn, _reg(a["bank"], 8),
                                              _reg(b["bank"], 9),
@@ -153,6 +230,16 @@ def _build_positive(rec):
                                               _reg(d["bank"], 11)),
                     {a["name"]: 8, b["name"]: 9, c["name"]: 10, d["name"]: 11},
                     "rrrr-cs2")
+        if mn in ("ftfma", "fofma"):
+            # Fused multiply-add (LLVM-123t; SPEC-157t): one destination +
+            # three sources, written without grouping braces.
+            a, b, c, d = fields
+            return ("%s %s, %s, %s, %s" % (mn, _reg(a["bank"], 8),
+                                           _reg(b["bank"], 9),
+                                           _reg(c["bank"], 10),
+                                           _reg(d["bank"], 11)),
+                    {a["name"]: 8, b["name"]: 9, c["name"]: 10, d["name"]: 11},
+                    "rrrr-fma")
         if mn in ("cs.n", "cs.z", "cs.p"):
             a, b, c, d = fields
             return ("%s {%s}?, %s, %s, %s" % (mn, _reg(a["bank"], 8),
@@ -194,6 +281,18 @@ def _build_positive(rec):
 
     if fmt == "orrr":
         a, b, c = fields
+        # lr/sc（ADR-0034 D3-D6；LLVM-121t）：地址写成 `[rb]`——lr/sc 的编码没有
+        # 偏移字段，地址就是 rbHD 本身。`lr` 的 hb 固定 rd0（SimRISC-12: LR-SC指令），
+        # 汇编只写两个操作数；`sc` 三个（状态/值/地址）。
+        if mn.startswith("lr."):
+            return ("%s %s, [%s]" % (mn, _reg(b["bank"], 9),
+                                     _reg(c["bank"], 1)),
+                    {b["name"]: 9, c["name"]: 1}, "orrr-lr")
+        if mn.startswith("sc."):
+            return ("%s %s, %s, [%s]" % (mn, _reg(a["bank"], 8),
+                                         _reg(b["bank"], 9),
+                                         _reg(c["bank"], 1)),
+                    {a["name"]: 8, b["name"]: 9, c["name"]: 1}, "orrr-sc")
         return ("%s %s, %s, %s" % (mn, _reg(a["bank"], 8), _reg(b["bank"], 9),
                                    _reg(c["bank"], 10)),
                 {a["name"]: 8, b["name"]: 9, c["name"]: 10}, "orrr")
@@ -215,20 +314,60 @@ def _build_positive(rec):
     raise ValueError("unsupported format %s (id=%s)" % (fmt, rec["id"]))
 
 
+# `scope: excluded` 但**汇编器实现**的记录 ⇒ 正例（编码 + 汇编往返），不是反例。
+#
+# 判据是**机械**的、不写名单：汇编器是否实现某助记符 ⇔ 后端 `.td` 里是否有它的
+# def（`DADAOInstrInfo.td` / `DADAOInstrInfoFP.td`，读其**提交物补丁**，故门控在
+# 干净检出上也能跑）。曾经的名单（fence + 24 条 lr/sc）会随 `.td` 落地而过期：
+# `clmul.o`（ADR-0035 / LLVM-122t）加 def 后「无 `.td` ⇒ UNREC」的前提失效，反例
+# 必然从拒绝变成功——按 def 存在与否判定后，同类问题不会再复发。
+TD_PATCHES = (
+    os.path.join(REPO, "components", "llvm-project", "patches", "llvm", "lib",
+                 "Target", "DADAO", "DADAOInstrInfo.td.patch"),
+    os.path.join(REPO, "components", "llvm-project", "patches", "llvm", "lib",
+                 "Target", "DADAO", "DADAOInstrInfoFP.td.patch"),
+)
+_TD_DEF_RE = re.compile(r'^def\s+\w+\s*:\s*DADAO\w+\s*<\s*"([^"]+)"', re.MULTILINE)
+
+
+def _td_mnemonics():
+    """有提交 `.td` def 的助记符集合（⇒ 汇编器受理）。"""
+    mnem = set()
+    for path in TD_PATCHES:
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                patch = fh.read()
+        except OSError:
+            continue
+        # 新文件补丁：正文行以 '+' 开头；跳过 '+++' 文件头与 '---'/'@@'/'index'。
+        body = "\n".join(line[1:] for line in patch.splitlines()
+                         if line.startswith("+") and not line.startswith("+++"))
+        mnem.update(_TD_DEF_RE.findall(body))
+    return frozenset(mnem)
+
+
 def _is_negative(rec):
-    """scope: excluded 且**汇编器不实现** ⇒ 反例（须显式拒绝）；fence 例外（可汇编）。"""
-    return rec.get("scope") == "excluded" and rec["mnemonic"] != "fence"
+    """scope: excluded 且**汇编器不实现**（无 `.td` def）⇒ 反例（须显式拒绝）。"""
+    return (rec.get("scope") == "excluded"
+            and rec["mnemonic"] not in _td_mnemonics())
 
 
 def _negative_text(rec):
     fmt = rec["format"]
     mn = rec["mnemonic"]
     if fmt == "orrr":          # lr（rd, [rb, imm]）/ sc（rd, rd, [rb, imm]）——spec §5
-        if mn.startswith("sc_"):
+        if mn.startswith(("ft", "fo")):
+            # ftmin/ftmax/fomin/fomax（最小最大值：rf 目的 + 2 个 rf 源，SPEC-159t）
+            return "%s rf8, rf9, rf10" % mn
+        if mn.startswith(("sc_", "sc.")):
             return "%s rd8, rd9, [rb1, 0]" % mn
         return "%s rd9, [rb1, 0]" % mn
     if fmt == "crii":          # cfxld/cfxst：cfxHA, [rb, imm]
         return "%s cfx63, [rb2, 1]" % mn
+    if fmt == "rrrr":          # clmul.o（ADR-0035；双目的与 mul.* 同形）
+        return "%s {rd8, rd9}, rd10, rd11" % mn
+    if fmt == "orri":          # ftrnd/fornd（取整：rf 目的 + 6 位模式立即数）
+        return "%s rf8, rf9, 1" % mn
     raise ValueError("no negative form for %s" % rec["id"])
 
 
@@ -247,6 +386,7 @@ def build_case(rec):
         return base
     asm, assigns, shape = _build_positive(rec)
     base.update(kind="positive", shape=shape, asm=asm,
+                asm_check=_printed_asm(asm, assigns, rec["format"]),
                 word=_encode(rec, assigns))
     return base
 
@@ -255,23 +395,23 @@ def build_case(rec):
 # 渲染
 # --------------------------------------------------------------------------
 _RUN_OBJ = (
-    "; RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %s -o %t\n"
-    "; RUN: %llvm_objdump -d --triple=dadao-unknown-elf %t | "
+    "@@ RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %s -o %t\n"
+    "@@ RUN: %llvm_objdump -d --triple=dadao-unknown-elf %t | "
     "%FileCheck %s --check-prefix=OBJ\n"
-    "; RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=asm %s | "
+    "@@ RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=asm %s | "
     "%FileCheck %s --check-prefix=ASM\n"
 )
 
 
 def _header(kind, source, extra=""):
-    bar = "; " + "=" * 70 + "\n"
+    bar = "@@ " + "=" * 70 + "\n"
     return (
         bar
-        + "; GENERATED by %s — DO NOT EDIT\n" % GENERATOR_PATH
-        + "; %s\n" % kind
-        + "; 期望编码机械派生自 contracts/opcodes.yaml（op/value/mask/fields）；\n"
-        + "; 无 llvm-mc/llc/QEMU 反填。重跑: python3 %s\n" % GENERATOR_PATH
-        + "; source: %s\n" % source
+        + "@@ GENERATED by %s — DO NOT EDIT\n" % GENERATOR_PATH
+        + "@@ %s\n" % kind
+        + "@@ 期望编码机械派生自 contracts/opcodes.yaml（op/value/mask/fields）；\n"
+        + "@@ 无 llvm-mc/llc/QEMU 反填。重跑: python3 %s\n" % GENERATOR_PATH
+        + "@@ source: %s\n" % source
         + extra
         + bar
     )
@@ -283,10 +423,10 @@ def _render_positive(cases):
     for c in cases:
         mnem = c["mnemonic"]
         word = c["word"]
-        out.append("\n; @src %s %08x | %s\n"
+        out.append("\n@@ @src %s %08x | %s\n"
                    % (c["id"], word, c["spec_cite"]))
-        out.append("; OBJ: {{[0-9a-f]+:}} %s{{.*}}%s\n" % (_be_bytes(word), mnem))
-        out.append("; ASM: %s\n" % c["asm"])
+        out.append("@@ OBJ: {{[0-9a-f]+:}} %s{{.*}}%s\n" % (_be_bytes(word), mnem))
+        out.append("@@ ASM: %s\n" % c.get("asm_check", c["asm"]))
         out.append("%s\n" % c["asm"])
     return "".join(out)
 
@@ -296,14 +436,14 @@ def _render_negative(cases):
                    "contracts/opcodes.yaml")]
     # 每个反例一条独立 RUN（echomac 单条 → 必须报 unrecognized）
     for c in cases:
-        out.append("; RUN: echo '%s' | %%not %%llvm_mc --triple=dadao-unknown-elf "
+        out.append("@@ RUN: echo '%s' | %%not %%llvm_mc --triple=dadao-unknown-elf "
                    "-filetype=obj -o /dev/null 2>&1 | "
                    "%%FileCheck %%s --check-prefix=UNREC\n" % c["asm"])
     out.append("\n.text\n")
-    out.append("; UNREC: error: unrecognized instruction mnemonic\n")
+    out.append("@@ UNREC: error: unrecognized instruction mnemonic\n")
     for c in cases:
-        out.append("\n; @src %s | %s\n" % (c["id"], c["spec_cite"]))
-        out.append("; %s（scope: excluded，汇编器 MUST 拒绝）\n" % c["asm"])
+        out.append("\n@@ @src %s | %s\n" % (c["id"], c["spec_cite"]))
+        out.append("@@ %s（scope: excluded，汇编器 MUST 拒绝）\n" % c["asm"])
     return "".join(out)
 
 

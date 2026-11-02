@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the complete DADAO assembly-instruction list.
 
-See ``.tao/knowledge/contract-asm-list.md`` (generated) and
+See ``.tao/contracts/contract-asm-list.md`` (generated) and
 ``docs/Process-01-组件补丁组织与构建编排.md`` (spec-writing conventions).
 
 Sources
@@ -34,10 +34,14 @@ ROOT = Path(__file__).resolve().parents[2]
 OPCODES = ROOT / "contracts/opcodes.yaml"
 
 OPERAND_ROLES = {"dst", "src", "imm", "wyde_pos", "cfxcode", "cfx_cg", "cfx_rc"}
+
+# LR-SC 家族前缀：旧写法 `lr_nn.o`（`lr_`）与新写法 `lr.o.nn`（`lr.`，ADR-0034 D3）同族。
+_LR_PREFIXES = ("lr_", "lr.")
+_SC_PREFIXES = ("sc_", "sc.")
 SPLIT_SUFFIX = re.compile(r"^(imms?\d+|immu?\d+)_(?:hi|mid|lo|b\d+_\d+)$")
 
 # 双目的指令（rrrr 格式，rdha/rdhb 均为 dst 的双目标寄存器指令）
-_DUAL_TARGET_MNEMONICS = frozenset({"add.uo", "add.so", "sub.uo", "sub.so", "mul.uo", "mul.so"})
+_DUAL_TARGET_MNEMONICS = frozenset({"add.uo", "add.so", "sub.uo", "sub.so", "mul.uo", "mul.so", "clmul.o"})
 
 # 多寄存器指令（orri 格式，immu6 = 连续寄存器个数，源和目的都用组记法）
 _MULTI_REG_MNEMONICS = frozenset({
@@ -71,10 +75,23 @@ IMM_EXAMPLE = {"immu6": "1", "immu12": "1", "immu16": "0x1234", "immu18": "1",
 # escape; load/store (imms12) and ret (imms18) keep encoding names.
 _ASM_IMM_RENAME = {"imms12": "imms14", "imms18": "imms20", "imms24": "imms26"}
 
+# 逐指令的汇编层字段名覆盖（用户 2026-10-16 裁定）：`aip.si` 的汇编层操作数按
+# **字节**书写，字段名 `imms30`（编码层 `imms18` = 字节值 >> 12 = 4 KiB 块 ⇒ 字节值
+# 须为 4 KiB 整数倍）。与 `_ASM_IMM_RENAME` 同旨（汇编层名 ≠ 编码层名），倍数不同（×4096）。
+_ASM_IMM_OVERRIDE = {("aip.si", "imms18"): "imms30"}
+# 同一条指令的具体示例立即数：字节域、4 KiB 整数倍。
+_IMM_EXAMPLE_OVERRIDE = {("aip.si", "imms18"): "4096"}
+
 
 def _asm_imm_name(name: str) -> str:
     """Map encoding-level immediate field name to assembly-layer name."""
     return _ASM_IMM_RENAME.get(name, name)
+
+
+def asm_field_name(mnemonic: str, name: str) -> str:
+    """汇编「汇编形式」列的字段名：先查逐指令覆盖（`aip.si` ⇒ `imms30`），再落 `field_name`。"""
+    override = _ASM_IMM_OVERRIDE.get((mnemonic, name))
+    return override if override else field_name(name)
 
 
 def base_imm(name: str) -> str:
@@ -155,12 +172,11 @@ def primary_feature(entry: dict, ops: list[dict]) -> str:
 
 
 def classify(entry: dict) -> str:
-    """章节分类（优先级：rwii > 取数存数 > 控制流 > 寄存器复制 > 浮点运算 > 位宽 > 64位运算 > 其它）。"""
+    """章节分类（优先级：cfx > rwii > 取数存数 > 控制流 > 寄存器复制 > 浮点运算 > 位宽 > 64位运算 > 其它）。"""
     m = entry["mnemonic"]
-    # 待定（用户裁定：暂不归类）
-    if m in ("cfxld", "cfxst", "fence") \
-            or m.startswith(("lr_", "sc_")):
-        return "待定"
+    # 核芯功能扩展 = 带 cfx 的 6 条（`cfxld`/`cfxst` 语义待定，同册）
+    if m in ("trap", "escape", "cfx2rd", "cfx2rc", "cfxld", "cfxst"):
+        return "核芯功能扩展"
     if entry["format"] == "rwii":
         return "16位立即数操作"
     if m.startswith(("ld.", "st.", "ldm.", "stm.")):
@@ -174,33 +190,61 @@ def classify(entry: dict) -> str:
             or m.startswith(("fo", "ft"))
             or re.search(r"2f|2rf", m)):
         return "浮点运算"
-    if m.startswith(("lr_", "sc_")):
-        return "其它"
+    if m.startswith(("lr_", "sc_", "lr.", "sc.")):
+        return "其它指令"
     if re.search(r"\.(ub|sb|b)$", m):
         return "8位数据运算"
     if re.search(r"\.(uw|sw|w)$", m) or m in ("set.zw", "set.ow"):
         return "16位数据运算"
     if re.search(r"\.(ut|st|t)$", m):
         return "32位数据运算"
+    if m in ("ctlz", "cttz", "ctpop"):
+        # 位扫描 / 位计数（ADR-0012 D11）：**无位宽后缀**；正文见
+        # SimRISC-12: 位扫描与位计数 ctlz/cttz/ctpop（orri 格式）。
+        return "其它指令"
+    if m == "aip.si":
+        # IP 相对寻址（ADR-0029 D1；指令名 `rela.si` → `aip.si`）：`riii`，与前一行
+        # 同族的 `add.si` 一样按目的 bank（rb）归「64位地址运算」（正文 SimRISC-05: IP 相对寻址）。
+        return "64位地址运算"
     if re.search(r"\.(uo|so|o)$", m) or m == "add.si" or m.startswith("cmp."):
         # 64 位运算按寄存器组分：rb（地址）→ 地址运算；其余 → 数据运算
         return "64位地址运算" if any(f.get("bank") == "rb" for f in entry["fields"]) else "64位数据运算"
-    return "其它"
+    return "其它指令"
 
 
-SECTION_ORDER = ["取数存数", "寄存器复制", "16位立即数操作", "64位数据运算", "64位地址运算", "控制流", "浮点运算", "32位数据运算", "16位数据运算", "8位数据运算", "其它", "待定"]
+SECTION_ORDER = ["取数存数", "寄存器复制", "16位立即数操作", "64位数据运算", "64位地址运算", "控制流", "浮点运算", "32位数据运算", "16位数据运算", "8位数据运算", "核芯功能扩展", "其它指令"]
+
+# 语义待定的条目（`cfxld`/`cfxst`，见 SimRISC-11: SRAM块传输指令（待定））。
+DEFERRED_MNEMONICS = frozenset({"cfxld", "cfxst"})
 
 # 章节「范围/状态」标（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）。
 # 章节名 → 标题后缀（含 `｜` 之后的内容）。
 SECTION_BADGES = {
     "浮点运算": "**scope: fp（已实现）**",
-    "待定": "**deferred** — 暂不归类，待必须启用时",
 }
+
+
+def section_badge(cls: str, entries: list[dict]) -> str | None:
+    """章节标题的「范围/状态」标（按本章条目的**实际 scope** 现场派生）。
+
+    `scope` 表范围、`deferred` 表状态，二者正交。一章可同时含 `scope: fp` 与
+    `scope: excluded`（已定义编码、执行 ILLI，如 `ftrnd`/`fornd`）⇒ 须逐类列出，
+    不得把整章标成单一 scope（否则标题与表格内容不符）。
+    """
+    if cls == "浮点运算":
+        n_fp = sum(1 for e in entries if e.get("scope") == "fp")
+        n_ex = sum(1 for e in entries if e.get("scope") == "excluded")
+        parts = [f"`scope: fp`（{n_fp} 条，已实现）"]
+        if n_ex:
+            parts.append(f"`scope: excluded`（{n_ex} 条，decode ILLI）")
+        return " + ".join(parts)
+    return None
+
 
 
 def template(entry: dict, ops: list[dict]) -> str:
     # lr 的 rdhb 固定为 rd0，模板同样只写两个操作数
-    if entry["mnemonic"].startswith("lr_") and len(ops) == 3:
+    if entry["mnemonic"].startswith(_LR_PREFIXES) and len(ops) == 3:
         ops = ops[1:]
     parts = []
     for op in ops:
@@ -219,12 +263,13 @@ def template(entry: dict, ops: list[dict]) -> str:
 
 def example_line(entry: dict, ops: list[dict], attempt: int) -> str:
     # lr 的 rdhb 固定为 rd0（spec：汇编只写两个操作数）
-    if entry["mnemonic"].startswith("lr_") and len(ops) == 3:
+    if entry["mnemonic"].startswith(_LR_PREFIXES) and len(ops) == 3:
         ops = ops[1:]
     parts = []
     for op in ops:
         if op["kind"] == "imm":
-            parts.append(IMM_EXAMPLE.get(op["name"], "1"))
+            override = _IMM_EXAMPLE_OVERRIDE.get((entry["mnemonic"], op["name"]))
+            parts.append(override if override else IMM_EXAMPLE.get(op["name"], "1"))
         elif op["kind"] == "wpN":
             parts.append("0")
         elif op["kind"] in ("cfxcode", "cfx_cg", "cfx_rc", "cfx"):
@@ -354,9 +399,9 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
         return f"{mnemonic} cfxHA, immu18"
 
     # LR-SC 家族（lr 的 rdhb 固定 rd0，汇编只写两个操作数）
-    if mnemonic.startswith("lr_"):
+    if mnemonic.startswith(_LR_PREFIXES):
         return f"{mnemonic} {R(ops[1], 1)}, [{R(ops[2], 2)}]"
-    if mnemonic.startswith("sc_"):
+    if mnemonic.startswith(_SC_PREFIXES):
         return f"{mnemonic} {R(ops[0])}, {R(ops[1], 1)}, [{R(ops[2], 2)}]"
 
     # rwii —— 保持 wpN
@@ -378,11 +423,8 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
             return f"{mnemonic} {{{inner}}}, {rest}"
 
     if field:
-        # 默认：按原顺序渲染（寄存器用字段名、立即数用字段名）
-        tokens = [
-            field_name(op["name"]) if op["kind"] != "imm" else field_name(op["name"])
-            for op in ops
-        ]
+        # 默认：按原顺序渲染（寄存器用字段名、立即数按汇编层字段名）
+        tokens = [asm_field_name(mnemonic, op["name"]) for op in ops]
         return f"{mnemonic} " + ", ".join(tokens) if tokens else mnemonic
     return example_line(entry, ops, attempt)
 
@@ -421,9 +463,9 @@ def new_template(entry: dict, ops: list[dict]) -> str:
         return f"{mnemonic} cfxN, [excp_cause_ip, offi]"
     if mnemonic == "trap":
         return f"{mnemonic} cfxN, imm"
-    if mnemonic.startswith("lr_"):
+    if mnemonic.startswith(_LR_PREFIXES):
         return f"{mnemonic} rdN, [rbN]"
-    if mnemonic.startswith("sc_"):
+    if mnemonic.startswith(_SC_PREFIXES):
         return f"{mnemonic} rdN, rdN, [rbN]"
     return template(entry, ops)
 
@@ -439,26 +481,23 @@ CLASS_TO_SPEC = {
     "32位数据运算":  "spec/SimRISC-08-32位数据运算.md",
     "16位数据运算":  "spec/SimRISC-09-16位数据运算.md",
     "8位数据运算":   "spec/SimRISC-10-8位数据运算.md",
-    "其它":         "spec/SimRISC-11-其它.md",
-    "待定":         "spec/SimRISC-12-待定.md",
+    "核芯功能扩展":  "spec/SimRISC-11-核芯功能扩展指令.md",
+    "其它指令":     "spec/SimRISC-12-其它指令.md",
 }
 
 ASSEMBLY_LIST_START = "<!-- ASSEMBLY_LIST_START -->"
 ASSEMBLY_LIST_END = "<!-- ASSEMBLY_LIST_END -->"
+# 附录 B（合法性）标记，由 `tools/spec/gen_legality_list.py` 生成；附录 A 必须排在它之前。
+LEGALITY_START = "<!-- LEGALITY_START -->"
 
 
 def _section_content(cls: str, entries: list[dict]) -> str:
-    """Return the markdown table content for one category.
+    """Return the markdown table content for one category (SPEC-165t).
 
-    SPEC-133t: the embedded block's headings carry the section numbers of their
-    fixed position inside every ``spec/SimRISC-XX`` chapter — ``## 1. 汇编指令速查``
-    is always chapter §1 and its single ``###`` child is §1.1.
+    The embedded block is the per-volume ``## 附录 A：汇编指令速查``: **一张表**，
+    不再有 ``###`` 子标题、不带分类列（册名已表明分类）。
     """
-    if cls in SECTION_BADGES:
-        header = f"### 1.1 {cls}（{len(entries)} 条）｜ {SECTION_BADGES[cls]}"
-    else:
-        header = f"### 1.1 {cls}（{len(entries)} 条）"
-    lines = [header, ""]
+    lines: list[str] = []
     lines.append("| 助记符 | format | feature | 汇编形式 | id |")
     lines.append("|---|---|---|---|---|")
     body = []
@@ -477,7 +516,13 @@ def _section_content(cls: str, entries: list[dict]) -> str:
 
 
 def embed_spec(entries: list[dict]) -> int:
-    """Embed assembly tables into spec files, one per category."""
+    """Embed assembly tables into spec files, one appendix per volume.
+
+    SPEC-165t: the table is the volume's ``## 附录 A：汇编指令速查`` and sits at
+    the **end** of the volume, but always **before** ``## 附录 B：合法性检查``
+    (fixed order: 附录 A → 附录 B; enforced by ``check-legality-drift`` /
+    ``tools/spec/check_legality_drift.py``).
+    """
     by_class: dict[str, list[dict]] = {}
     for entry in entries:
         by_class.setdefault(classify(entry), []).append(entry)
@@ -498,16 +543,16 @@ def embed_spec(entries: list[dict]) -> int:
         content = spec_path.read_text(encoding="utf-8")
         lines = content.split("\n")
 
-        # Build the new section block (with surrounding blank lines)
+        # Build the new appendix block (with surrounding blank lines)
         section = section_contents.get(cls, "")
         new_block = (
             f"{ASSEMBLY_LIST_START}\n"
-            f"## 1. 汇编指令速查\n\n"
+            f"## 附录 A：汇编指令速查\n\n"
             f"{section}\n"
             f"{ASSEMBLY_LIST_END}"
         )
 
-        # If markers already exist, replace the existing block (idempotent)
+        # Drop the existing block wherever it sits (idempotent, position-independent)
         start_idx = None
         end_idx = None
         for i, line in enumerate(lines):
@@ -516,28 +561,28 @@ def embed_spec(entries: list[dict]) -> int:
             if line.strip() == ASSEMBLY_LIST_END:
                 end_idx = i
                 break
-
         if start_idx is not None and end_idx is not None:
-            # Replace existing block (preserve lines before and after)
-            before_lines = lines[:start_idx]
-            after_lines = lines[end_idx + 1:]
-            new_content = "\n".join(before_lines) + "\n" + new_block + "\n" + "\n".join(after_lines)
+            lines = lines[:start_idx] + lines[end_idx + 1:]
+
+        # Fixed order: 附录 A (this block) → 附录 B (LEGALITY_*).  The A block is
+        # inserted **before** LEGALITY_START when present; otherwise it goes to
+        # the end of the volume.  Blindly appending at the end would move A past
+        # B on every run (non-idempotent, and breaks check-legality-drift).
+        legality_idx = next(
+            (i for i, line in enumerate(lines) if line.strip() == LEGALITY_START),
+            None,
+        )
+        block_lines = new_block.split("\n")
+        if legality_idx is not None:
+            head = lines[:legality_idx]
+            while head and head[-1].strip() == "":
+                head.pop()
+            lines = head + [""] + block_lines + [""] + lines[legality_idx:]
         else:
-            # First insertion: find the end of the header block (consecutive '>' lines
-            # at the top, possibly preceded by title/blank lines).
-            header_end = 0
-            in_header = False
-            for i, line in enumerate(lines):
-                if line.startswith(">"):
-                    header_end = i + 1
-                    in_header = True
-                elif in_header:
-                    # First non-'>' line after a '>' line = end of header block
-                    break
-            # Insert right after the last '>' line, preserving all content
-            before = "\n".join(lines[:header_end])
-            after = "\n".join(lines[header_end:])
-            new_content = before + "\n\n" + new_block + "\n" + after
+            lines = lines + ["", *block_lines]
+        while lines and lines[-1].strip() == "":
+            lines.pop()
+        new_content = "\n".join(lines) + "\n"
 
         spec_path.write_text(new_content, encoding="utf-8")
         count = len(by_class.get(cls, []))
@@ -599,12 +644,14 @@ def main() -> int:
     n_fp = sum(1 for e in entries if e.get("scope") == "fp")
     n_excluded = sum(1 for e in entries if e.get("scope") == "excluded")
     n_m3 = sum(1 for e in entries if e.get("scope") == "m3")
+    n_m8 = sum(1 for e in entries if e.get("scope") == "m8")
+    n_m9 = sum(1 for e in entries if e.get("scope") == "m9")
 
     if args.plain:
         header = (
             f"// DADAO 指令清单（{'新语法（规范草案，待实现）' if args.syntax == 'new' else '旧语法（当前已实现）'}）\n"
             f"// 生成器：tools/llvm/gen_asm_list.py --plain --syntax {args.syntax}\n"
-            f"// 来源：contracts/opcodes.yaml（{total} 条 = M1 {n_m1} + scope fp {n_fp} + scope excluded {n_excluded} + scope m3 {n_m3}）\n"
+            f"// 来源：contracts/opcodes.yaml（{total} 条 = M1 {n_m1} + scope fp {n_fp} + scope excluded {n_excluded} + scope m3 {n_m3} + scope m8 {n_m8} + scope m9 {n_m9}）\n"
             f"// 新语法规范：spec/Toolchain-01-汇编语言.md\n\n"
         )
         text = header + "\n".join(plain_lines(entries, args.syntax)) + "\n"
@@ -621,7 +668,26 @@ def main() -> int:
     for entry in entries:
         _by_class_tmp.setdefault(classify(entry), []).append(entry)
     _fp_chapter = len(_by_class_tmp.get("浮点运算", []))
-    _pending_chapter = len(_by_class_tmp.get("待定", []))
+    _pending_chapter = sum(1 for e in entries if e["mnemonic"] in DEFERRED_MNEMONICS)
+    _fp_chapter_entries = _by_class_tmp.get("浮点运算", [])
+    _fp_chapter_fp = sum(1 for e in _fp_chapter_entries if e.get("scope") == "fp")
+    _fp_chapter_ex = sum(1 for e in _fp_chapter_entries
+                         if e.get("scope") == "excluded")
+    # `scope: excluded` 条目按章分布（`cfxld`/`cfxst` 归核芯功能扩展、`ftrnd`/`fornd`
+    # 归浮点运算）—— 现场派生，不写死。
+    _excluded_by_class: dict[str, int] = {}
+    for e in entries:
+        if e.get("scope") == "excluded":
+            cls = classify(e)
+            _excluded_by_class[cls] = _excluded_by_class.get(cls, 0) + 1
+    _excluded_dist = " + ".join(
+        f"{cls} {n} 条"
+        for cls in SECTION_ORDER
+        if (n := _excluded_by_class.get(cls))
+    )
+    _fp_status = (f"`scope: fp` {_fp_chapter_fp} 条（已实现）"
+                  + (f" + `scope: excluded` {_fp_chapter_ex} 条（decode ILLI）"
+                     if _fp_chapter_ex else ""))
 
     by_format: dict[str, list[dict]] = {}
     for entry in entries:
@@ -634,9 +700,10 @@ def main() -> int:
     for cls in SECTION_ORDER:
         if cls not in by_class:
             continue
-        if cls in SECTION_BADGES:
+        badge = section_badge(cls, by_class[cls])
+        if badge:
             rows.append(
-                f"\n### {cls}（{len(by_class[cls])} 条）｜ {SECTION_BADGES[cls]}\n"
+                f"\n### {cls}（{len(by_class[cls])} 条）｜ {badge}\n"
             )
         else:
             rows.append(f"\n### {cls}（{len(by_class[cls])} 条）\n")
@@ -658,11 +725,11 @@ def main() -> int:
     header = f"""# DADAO 汇编指令表（新语法）
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
-> **源**：`contracts/opcodes.yaml`（{total} 条 = M1 {n_m1} + `scope: fp` {n_fp} + `scope: excluded` {n_excluded} + `scope: m3` {n_m3}）
+> **源**：`contracts/opcodes.yaml`（{total} 条 = M1 {n_m1} + `scope: fp` {n_fp} + `scope: excluded` {n_excluded} + `scope: m3` {n_m3} + `scope: m8` {n_m8} + `scope: m9` {n_m9}）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
-> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`）
-> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（{_fp_chapter} 条）为 `scope: fp`（已实现）；**待定**（{_pending_chapter} 条）为 **deferred**（暂不归类）；其余 {n_m1} 条为 `scope: m1` 当前有效书写形式
-> **注（`scope: fp` 范围总账 = {n_fp} 条）**：浮点运算章 {_fp_chapter} 条（MISC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 7 条（`cs.eq/ne/n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
+> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 核芯功能扩展（`trap`/`escape`/`cfx2rd`/`cfx2rc`；`cfxld`/`cfxst` 见 `deferred`） / 其它指令（原子 / 空转 / 位扫描与位计数）
+> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（{_fp_chapter} 条）：{_fp_status}；**deferred**（{_pending_chapter} 条：`cfxld`/`cfxst`）为语义待定状态（分类依据 = `ADR-0012` D1）；`scope: m1` {n_m1} 条为当前有效书写形式；`scope: excluded` 共 {n_excluded} 条，按章分布为 {_excluded_dist}
+> **注（`scope: fp` 范围总账 = {n_fp} 条）**：浮点运算章 {_fp_chapter_fp} 条（OPC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 5 条（`cs.n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{{rdHA:rdHA+immu6-1}}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `spec/Toolchain-01-汇编语言.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
 
@@ -672,10 +739,11 @@ def main() -> int:
 |---|---|---|
 | `imms12` | s12: -2048..2047 | 访存偏移（字节，无 `%4` 要求） |
 | `imms14` | bytes: [-8192, 8188]，`%4==0` | 跳转/分支 rrii 偏移（字节→编码 `>>2`） |
-| `imms18` | s18: -131072..131071 | `ret` 返回值（非地址，无 `%4` 要求） |
+| `imms18` | s18: -131072..131071 | `ret` 返回值（非地址，无 `%4` 要求）；`aip.si` 的**编码层** 4 KiB 块偏移（`<<12`；汇编层按字节写 `imms30`） |
 | `imms20` | bytes: [-524288, 524284]，`%4==0` | 跳转/分支 riii 偏移 + `escape` 偏移（字节→编码 `>>2`） |
 | `imms24` | s24: -8388608..8388607 | 编码层字段（非汇编层直接使用） |
 | `imms26` | bytes: [-33554432, 33554428]，`%4==0` | 跳转 iiii 偏移（字节→编码 `>>2`） |
+| `imms30` | bytes: [-536870912, 536866816]，`%4096==0` | `aip.si` 的**汇编层**操作数（字节；编码 `imms18 = bytes >> 12`） |
 | `immu6` | u6: 0..63 | |
 | `immu12` | u12: 0..4095 | |
 | `immu16` | u16: 0..65535 | |
@@ -684,7 +752,7 @@ def main() -> int:
 | `wpN` | wyde 位置 0..3 | |
 """
 
-    out = Path(args.output) if args.output is not None else ROOT / ".tao/knowledge/contract-asm-list.md"
+    out = Path(args.output) if args.output is not None else ROOT / ".tao/contracts/contract-asm-list.md"
     out.write_text(header + "\n".join(rows) + "\n", encoding="utf-8")
     print(f"gen-asm-list: {len(entries)} entries -> {out}")
     return 0

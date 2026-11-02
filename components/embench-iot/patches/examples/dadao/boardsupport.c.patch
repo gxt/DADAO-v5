@@ -1,9 +1,9 @@
 diff --git a/examples/dadao/boardsupport.c b/examples/dadao/boardsupport.c
 new file mode 100644
-index 0000000..0f82ef5
+index 0000000..f26c110
 --- /dev/null
 +++ b/examples/dadao/boardsupport.c
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,61 @@
 +/* Copyright (C) 2019 Clemson University
 +   Copyright (C) 2026 DADAO-v5
 +
@@ -32,16 +32,17 @@ index 0000000..0f82ef5
 +#include <support.h>
 +
 +/* Semihosting SYS_WRITE0: rd16 = 0x04, rb16 = NUL-terminated string pointer;
-+ * `trap cfx_umon, 0x30000` (immu18[17:16] == 2'b11) is the semihosting tag
-+ * (contract-semihosting.md §1-§2).  The service writes its (unused) return
-+ * value to rd8, so rd8 is declared as an output to keep the compiler honest. */
++ * `trap cfx_umon, 0x3FF00` (immu18[17:8] == 0x3FF, i.e. 0x3FF00-0x3FFFF) is
++ * the semihosting tag (contract-semihosting.md §1-§2).  The service writes its
++ * (unused) return value to rd8, so rd8 is declared as an output to keep the
++ * compiler honest. */
 +static void
 +dadao_semihost_write0 (const char *s)
 +{
 +  register long op __asm__ ("rd16") = 0x04;
 +  register const char *p __asm__ ("rb16") = s;
 +  register long ret __asm__ ("rd8");
-+  __asm__ volatile ("trap cfx_umon, 0x30000"
++  __asm__ volatile ("trap cfx_umon, 0x3FF00"
 +		    : "=r" (ret)
 +		    : "r" (op), "r" (p)
 +		    : "memory");

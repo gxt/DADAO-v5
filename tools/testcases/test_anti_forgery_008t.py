@@ -32,7 +32,7 @@ PASS_CASES = [
     "  expected_pc: null",
     "  expected_fault: UNDI",
     "  status: active",
-    '  spec_cite: "SimRISC-00 §SimRISC QFC; contract-isa §2.9/§8.2"',
+    '  spec_cite: "SimRISC-00: SimRISC QFC; contract-isa: 2.9/§8.2"',
     '  notes: "QFC 主表 op=0x08（0000-1xxx 整行 reserved）"',
 ]
 

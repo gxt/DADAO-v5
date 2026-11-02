@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
 new file mode 100644
-index 000000000..42514dc5e
+index 000000000..d164ba383
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,106 @@
 +//===-- DADAOMCAsmInfo.cpp - DADAO asm properties -----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -17,6 +17,10 @@ index 000000000..42514dc5e
 +//===----------------------------------------------------------------------===//
 +
 +#include "DADAOMCAsmInfo.h"
++#include "llvm/ADT/StringSwitch.h"
++#include "llvm/MC/MCExpr.h"
++#include "llvm/Support/ErrorHandling.h"
++#include "llvm/Support/raw_ostream.h"
 +#include "llvm/TargetParser/Triple.h"
 +
 +using namespace llvm;
@@ -38,8 +42,12 @@ index 000000000..42514dc5e
 +  Data32bitsDirective = "\t.dd.t32\t";
 +  Data64bitsDirective = "\t.dd.o64\t";
 +
-+  // DADAO uses ';' as the comment character.
-+  CommentString = ";";
++  // DADAO uses "@@" as the comment string and ";" as the statement separator
++  // (Toolchain-01 §2.2 / contract-asm.md §2.2, 0.5.3).  A single '@' cannot be
++  // used: clang emits ELF specifiers such as `.type add,@function` and
++  // `.section ".note.GNU-stack","",@progbits`, which must not be swallowed.
++  CommentString = "@@";
++  SeparatorString = ";";  // Explicit: one line MAY hold several statements.
 +
 +  // Disallow '#' as a comment character in any position (ADR-0013 D9).
 +  AllowAdditionalComments = false;
@@ -50,6 +58,55 @@ index 000000000..42514dc5e
 +  // DADAO assembly uses ".section" before ".bss".
 +  UsesELFSectionDirectiveForBSS = true;
 +
++  // DADAO is a native 64-bit target (ADR-0036 D1): pointers and callee-saved
++  // stack slots are 8 bytes.  MCAsmInfo defaults both to 4 (MCAsmInfo.h), and
++  // leaving them there emitted 4-byte DWARF `.debug_addr` entries ("Address
++  // size = 4"), which the assembler rejects because a 48-bit relocatable
++  // address does not fit `.dd.t32`; the CFI `data_alignment_factor` would be
++  // wrong for the same reason (MCDwarf.cpp getDataAlignmentFactor()).
++  CodePointerSize = 8;
++  CalleeSaveStackSlotSize = 8;
++
 +  // Target supports emission of debugging information.
 +  SupportsDebugInformation = true;
++}
++
++//===----------------------------------------------------------------------===//
++// Relocation specifiers (ADR-0029 D2: explicit hi/lo pairing, the RISC-V
++// `%pcrel_hi`/`%pcrel_lo` assembly form).
++//===----------------------------------------------------------------------===//
++
++DADAO::Specifier DADAO::parseSpecifierName(StringRef Name) {
++  return StringSwitch<DADAO::Specifier>(Name)
++      .Case("pcrel_hi", DADAO::S_PCREL_HI)
++      .Case("pcrel_lo", DADAO::S_PCREL_LO)
++      .Case("tls_dtpmod", DADAO::S_TLS_DTPMOD)
++      .Case("tls_dtprel", DADAO::S_TLS_DTPREL)
++      .Case("tls_tprel", DADAO::S_TLS_TPREL)
++      .Default(DADAO::S_None);
++}
++
++StringRef DADAO::getSpecifierName(Specifier S) {
++  switch (S) {
++  case DADAO::S_PCREL_HI:
++    return "pcrel_hi";
++  case DADAO::S_PCREL_LO:
++    return "pcrel_lo";
++  case DADAO::S_TLS_DTPMOD:
++    return "tls_dtpmod";
++  case DADAO::S_TLS_DTPREL:
++    return "tls_dtprel";
++  case DADAO::S_TLS_TPREL:
++    return "tls_tprel";
++  case DADAO::S_None:
++    break;
++  }
++  llvm_unreachable("not a %specifier() that can be printed");
++}
++
++void DADAOMCAsmInfo::printSpecifierExpr(raw_ostream &OS,
++                                        const MCSpecifierExpr &Expr) const {
++  OS << '%' << DADAO::getSpecifierName(Expr.getSpecifier()) << '(';
++  printExpr(OS, *Expr.getSubExpr());
++  OS << ')';
 +}

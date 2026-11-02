@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """spec 引用审计器 — Check 1 引用有效性 + Check 2 无引用规范断言.
 
-审计对象: .tao/knowledge/contract-*.md
+审计对象: .tao/contracts/contract-*.md
 引用目标: spec/*.md (SimRISC-00~12, DADAO-11~23, Toolchain-01, Machine-01)
 
 Check 1: 每个 [SimRISC-XX §...] / [DADAO-XX §...] / [Toolchain-01 §...] /
@@ -56,8 +56,8 @@ SPEC_PREFIX_MAP = {
     "SimRISC-08": "SimRISC-08-32位数据运算.md",
     "SimRISC-09": "SimRISC-09-16位数据运算.md",
     "SimRISC-10": "SimRISC-10-8位数据运算.md",
-    "SimRISC-11": "SimRISC-11-其它.md",
-    "SimRISC-12": "SimRISC-12-待定.md",
+    "SimRISC-11": "SimRISC-11-核芯功能扩展指令.md",
+    "SimRISC-12": "SimRISC-12-其它指令.md",
     "DADAO-11":   "DADAO-11-AEE-应用程序运行环境.md",
     "DADAO-12":   "DADAO-12-SEE-主管系统运行环境.md",
     "DADAO-13":   "DADAO-13-HEE-超管系统运行环境.md",
@@ -611,8 +611,8 @@ def main():
     parser.add_argument(
         "--contract-dir",
         type=Path,
-        default=default_root / ".tao" / "knowledge",
-        help="合约文件目录 (default: .tao/knowledge)",
+        default=default_root / ".tao" / "contracts",
+        help="合约文件目录 (default: .tao/contracts)",
     )
     parser.add_argument(
         "--spec-dir",

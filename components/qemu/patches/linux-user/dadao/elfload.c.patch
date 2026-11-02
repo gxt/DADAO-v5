@@ -1,0 +1,33 @@
+diff --git a/linux-user/dadao/elfload.c b/linux-user/dadao/elfload.c
+new file mode 100644
+index 0000000..8e75eef
+--- /dev/null
++++ b/linux-user/dadao/elfload.c
+@@ -0,0 +1,27 @@
++/*
++ * DADAO ELF loading for linux-user (P3).
++ *
++ * The generic loader (linux-user/elfload.c) does the work: it validates the
++ * identity through ELF_MACHINE/ELF_CLASS/ELF_DATA/elf_check_abi from
++ * target_elf.h, maps the PT_LOAD segments, loads the PT_INTERP interpreter
++ * (contract-dynlink.md §6.2), injects the AT_* vector including
++ * AT_PHDR/AT_PHNUM/AT_PHENT/AT_BASE/AT_ENTRY (§6.3-§6.6) and points the entry
++ * at the interpreter when one is present.
++ *
++ * There is no per-target relocation or personality hook: the guest is a plain
++ * 64-bit big-endian ELF and the load bias is the loader's business.
++ */
++#include "qemu/osdep.h"
++#include "qemu.h"
++#include "loader.h"
++#include "target_elf.h"
++
++const char *get_elf_cpu_model(uint32_t eflags)
++{
++    /*
++     * One CPU model ("any", registered in target/dadao/cpu.c).  e_flags only
++     * carries the ABI version, which elf_check_abi() has already validated, so
++     * it selects nothing here.
++     */
++    return "any";
++}

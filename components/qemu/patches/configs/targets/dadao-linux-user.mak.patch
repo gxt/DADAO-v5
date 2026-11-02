@@ -1,0 +1,24 @@
+diff --git a/configs/targets/dadao-linux-user.mak b/configs/targets/dadao-linux-user.mak
+new file mode 100644
+index 0000000..bc22f3a
+--- /dev/null
++++ b/configs/targets/dadao-linux-user.mak
+@@ -0,0 +1,18 @@
++# DADAO linux-user target (P3 of ADR-0025 D6: qemu-user, no kernel).
++#
++# The guest is 64-bit and BIG-endian (contract-elf.md §1: ELFCLASS64 /
++# ELFDATA2MSB / EM_DADAO 0x0DA0); the host is little-endian, so every syscall
++# scalar and structure crosses the boundary through QEMU's target-endian
++# accessors (TARGET_BIG_ENDIAN + tswap* + the target_* structs).
++#
++# syscall numbers: the RISC-V / asm-generic numbering is adopted verbatim
++# (contract-syscall.md §1.1/§1.2); linux-user/dadao/syscall.tbl is a
++# byte-identical copy of the qemu tree's linux-user/riscv/syscall.tbl (the
++# locked snapshot whose sha256 is listed in §1.2), and the ABI selector below
++# is riscv's.
++TARGET_ARCH=dadao
++TARGET_SYSTBL_ABI=common,64,riscv,rlimit,memfd_secret
++TARGET_SYSTBL=syscall.tbl
++TARGET_LONG_BITS=64
++TARGET_BIG_ENDIAN=y
++TARGET_NOT_USING_LEGACY_NATIVE_ENDIAN_API=y

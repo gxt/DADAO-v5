@@ -1,0 +1,86 @@
+# Code model `default` / `large` (LLVM-131t; ADR-0036 D1/D2/D3/D5/D6).
+#
+# Three properties:
+#   1. the driver accepts `-mcmodel=default|large` and treats `small` as an
+#      alias of `default`, while `medium`/`kernel`/`tiny` are rejected with a
+#      message that names the target and the allowed values (D3);
+#   2. under `large` a direct call/jump becomes the ABS48 materialization of
+#      the 48-bit target address plus the indirect form `call [rb, rd0, 0]` /
+#      `jump [rb, rd0, 0]`; under `default` the PC-relative form is kept (D5);
+#   3. a >32 MiB layout links under `large` and fails with the REL26 range
+#      error under `default`, and the same small image runs with the same
+#      result in both models (D1: `large` changes the call form only).
+#
+# 1) Driver: accepted spellings, `small` alias of `default`.
+# RUN: %clang -target dadao-unknown-elf -mcmodel=large -O2 -S %e2e_dir/mcmodel_e2e.c -o %t.large.s
+# RUN: %FileCheck %s --check-prefix=LARGE < %t.large.s
+# RUN: %not grep -q 'call \[rb0,' %t.large.s
+# RUN: %not grep -q 'jump \[rb0,' %t.large.s
+# RUN: %clang -target dadao-unknown-elf -mcmodel=default -O2 -S %e2e_dir/mcmodel_e2e.c -o %t.default.s
+# RUN: %FileCheck %s --check-prefix=DEFAULT --implicit-check-not='call [rb{{[0-9]+}}, rd0, 0]' < %t.default.s
+# RUN: %clang -target dadao-unknown-elf -mcmodel=small -O2 -S %e2e_dir/mcmodel_e2e.c -o %t.small.s
+# RUN: %FileCheck %s --check-prefix=DEFAULT --implicit-check-not='call [rb{{[0-9]+}}, rd0, 0]' < %t.small.s
+#
+# `large` under PIC takes the address from the symbol's GOT slot through the
+# PC-relative hi/lo pair instead of the absolute ABS48 sequence: an absolute
+# 48-bit address cannot be written into a shared object's `.text`.  The call is
+# still indirect.
+# RUN: %clang -target dadao-unknown-elf -mcmodel=large -fPIC -O2 -S %e2e_dir/mcmodel_e2e.c -o %t.large.pic.s
+# RUN: %FileCheck %s --check-prefix=PIC < %t.large.pic.s
+#
+# 2) Driver: `medium` / `kernel` / `tiny` are rejected (rc != 0) and the
+#    message names the target and the allowed values.
+# RUN: %not %clang -target dadao-unknown-elf -mcmodel=medium -c %e2e_dir/mcmodel_e2e.c -o %t.medium.o 2>&1 | %FileCheck %s --check-prefix=REJECT-MEDIUM
+# RUN: %not %clang -target dadao-unknown-elf -mcmodel=kernel -c %e2e_dir/mcmodel_e2e.c -o %t.kernel.o 2>&1 | %FileCheck %s --check-prefix=REJECT-KERNEL
+# RUN: %not %clang -target dadao-unknown-elf -mcmodel=tiny -c %e2e_dir/mcmodel_e2e.c -o %t.tiny.o 2>&1 | %FileCheck %s --check-prefix=REJECT-TINY
+#
+# 3) Small image: `large` produces an indirect call/jump and still runs with
+#    the same result as `default` (both exit 0 when every call is correct).
+# RUN: %clang -target dadao-unknown-elf -mcmodel=large -O2 -c %e2e_dir/mcmodel_e2e.c -o %t.large.o
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %crt0 -o %t.crt0.o
+# RUN: %ld -T %linker_script %t.crt0.o %t.large.o -o %t.large.elf
+# RUN: timeout 30 %qemu -M dadao-m1 -kernel %t.large.elf -semihosting-config enable=on,target=native -display none -nographic -monitor none
+# RUN: %llvm_objdump -d %t.large.elf | %FileCheck %s --check-prefix=LINKED
+# RUN: %clang -target dadao-unknown-elf -O2 -c %e2e_dir/mcmodel_e2e.c -o %t.default.o
+# RUN: %ld -T %linker_script %t.crt0.o %t.default.o -o %t.default.elf
+# RUN: timeout 30 %qemu -M dadao-m1 -kernel %t.default.elf -semihosting-config enable=on,target=native -display none -nographic -monitor none
+#
+# 4) >32 MiB layout: the far function is emitted into `.far`, which
+#    mcmodel_far.lds places 64 MiB above `.text`.
+# RUN: %clang -target dadao-unknown-elf -mcmodel=large -O2 -c %e2e_dir/mcmodel_far.c -o %t.far.large.o
+# RUN: %llvm_objdump -dr %t.far.large.o | %FileCheck %s --check-prefix=FAR-OBJ
+# RUN: %ld -T %e2e_dir/mcmodel_far.lds %t.crt0.o %t.far.large.o -o %t.far.large.elf
+# RUN: %clang -target dadao-unknown-elf -O2 -c %e2e_dir/mcmodel_far.c -o %t.far.default.o
+# RUN: %llvm_objdump -dr %t.far.default.o | %FileCheck %s --check-prefix=FAR-OBJ-DEFAULT
+# RUN: %not %ld -T %e2e_dir/mcmodel_far.lds %t.crt0.o %t.far.default.o -o %t.far.default.elf 2>&1 | %FileCheck %s --check-prefix=REL26
+
+# LARGE-DAG: set.zw rb{{[0-9]+}}, wp0, helper
+# LARGE-DAG: or.w rb{{[0-9]+}}, wp1, helper
+# LARGE-DAG: or.w rb{{[0-9]+}}, wp2, helper
+# LARGE-DAG: call [rb{{[0-9]+}}, rd0, 0]
+# The tail call in `twice` takes the same shape (indirect `jump`).
+# LARGE-DAG: set.zw rb{{[0-9]+}}, wp0, add3
+# LARGE-DAG: or.w rb{{[0-9]+}}, wp1, add3
+# LARGE-DAG: or.w rb{{[0-9]+}}, wp2, add3
+# LARGE-DAG: jump [rb{{[0-9]+}}, rd0, 0]
+
+# DEFAULT: call [rb0, helper]
+# DEFAULT: call [rb0, twice]
+# DEFAULT: jump [rb0, add3]
+
+# PIC: aip.si rb{{[0-9]+}}, .Lgot.
+# PIC: ld.o rb{{[0-9]+}}, [rb{{[0-9]+}}, %pcrel_lo(
+# PIC: call [rb{{[0-9]+}}, rd0, 0]
+
+# REJECT-MEDIUM: error: unsupported code model 'medium' for option '-mcmodel=' on target 'dadao-{{.*}}'; DADAO supports 'default' ('small' is an alias) and 'large'
+# REJECT-KERNEL: error: unsupported code model 'kernel' for option '-mcmodel=' on target 'dadao-{{.*}}'; DADAO supports 'default' ('small' is an alias) and 'large'
+# REJECT-TINY: error: unsupported code model 'tiny' for option '-mcmodel=' on target 'dadao-{{.*}}'; DADAO supports 'default' ('small' is an alias) and 'large'
+
+# LINKED: call [rb{{[0-9]+}}, rd0, 0]
+
+# FAR-OBJ-COUNT-3: R_DADAO_ABS48 far_fn
+# FAR-OBJ: call [rb{{[0-9]+}}, rd0, 0]
+# FAR-OBJ-DEFAULT: call [rb0, 0]
+# FAR-OBJ-DEFAULT-NEXT: R_DADAO_REL26 far_fn
+# REL26: relocation R_DADAO_REL26 out of range
+# REL26: references 'far_fn'

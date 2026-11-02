@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCTargetDesc.h b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCTargetDesc.h
 new file mode 100644
-index 000000000000..694e274e367f
+index 000000000..2efbb7f10
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCTargetDesc.h
 @@ -0,0 +1,56 @@
@@ -23,7 +23,7 @@ index 000000000000..694e274e367f
 +#include <memory>
 +
 +// Register enum: DADAO::NoRegister, DADAO::rd0..rd63, DADAO::rb0..rb63,
-+// DADAO::rf0..rf63, DADAO::ra0..ra63, DADAO::RBFP, DADAO::RBSP.
++// DADAO::rf0..rf63, DADAO::ra0..ra63, DADAO::RBSP.
 +#define GET_REGINFO_ENUM
 +#include "DADAOGenRegisterInfo.inc"
 +

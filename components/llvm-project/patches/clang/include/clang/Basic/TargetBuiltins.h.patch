@@ -1,0 +1,22 @@
+diff --git a/clang/include/clang/Basic/TargetBuiltins.h b/clang/include/clang/Basic/TargetBuiltins.h
+index 5828aae48..3b897d101 100644
+--- a/clang/include/clang/Basic/TargetBuiltins.h
++++ b/clang/include/clang/Basic/TargetBuiltins.h
+@@ -153,6 +153,17 @@ namespace clang {
+   };
+   } // namespace DirectX
+ 
++  /// DADAO builtins (LLVM-122t: __builtin_dadao_*; `BuiltinsDADAO.def`).
++  namespace DADAO {
++  enum {
++    LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
++#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
++#include "clang/Basic/BuiltinsDADAO.def"
++#undef BUILTIN
++    LastTSBuiltin
++  };
++  } // namespace DADAO
++
+   /// SPIRV builtins
+   namespace SPIRV {
+   enum {

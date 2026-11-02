@@ -5,8 +5,14 @@ Reads contracts/opcodes.yaml and produces:
   reg-arith.yaml, reg-logic.yaml, reg-shift-extend.yaml,
   reg-compare.yaml, reg-cond-assign.yaml, reg-imm-block.yaml
 
+本脚本只覆盖 **M1**（`scope == "m1"`）。非 M1 的新增指令（`scope: m8` 的
+`rev.o`/`rev.t`/`rev.w`/`rev.b`）由独立生成器 `tools/testcases/generate_rev_vectors.py`
+产出到 `tests/vectors/rev/rev.yaml`（不带 M1 覆盖矩阵约束）；`ctlz`/`cttz`/`ctpop` 由
+独立生成器 `tools/testcases/generate_bitcnt_vectors.py` 产出到
+`tests/vectors/bitcnt/bitcnt.yaml`。
+
 All encoding words, expected values, and spec_cite are derived from
-contracts/opcodes.yaml, .tao/knowledge/contract-isa.md, and
+contracts/opcodes.yaml, .tao/contracts/contract-isa.md, and
 .tao/adr/adr-0004-test-machine.md.  No LLVM/QEMU reverse-engineering.
 """
 
@@ -62,7 +68,7 @@ def _bank_from_id(insn):
 
 def _base_mnem(insn):
     """Extract base mnemonic from insn string.
-    'add.uo_orrr_rd' → 'add', 'and.o_orrr_rd' → 'and', 'shl.uo_orrr_rd' → 'shl',
+    'add.uo_orrr_rd' → 'add', 'and.o_orrr_rd' → 'and', 'shl.o_orrr_rd' → 'shl',
     'set.zw_rwii_rd' → 'set.zw', 'cs.n_rrrr_rd' → 'cs', 'rd2rd_orri_rd' → 'rd2rd',
     'cmp.uo_orrr_dbb' → 'cmp'
     Old format also supported: 'add.uo-rd' → 'add'
@@ -114,7 +120,7 @@ def _classify(insn, fmt):
     parts = base.split('.')
     op = parts[0] if len(parts) > 1 else base
 
-    # Check if this is a MISC-octa/tetra/wyde/byte instruction
+    # Check if this is a OPC-octa/tetra/wyde/byte instruction
     # These are opcodes 0x40-0x43 with orrr/orri format
     is_misc = fmt in ("orrr", "orri")
 
@@ -156,29 +162,29 @@ for key, rec in BY_KEY.items():
 
 # ── Encoding word construction helpers ─────────────────────────────────
 def _build_word_rrrr(rec, rdha, rdhb, rdhc, rdhd):
-    op = _int(rec["op"])
+    op = _int(rec["opc"])
     return (op << 24) | (rdha << 18) | (rdhb << 12) | (rdhc << 6) | rdhd
 
 def _build_word_orrr(rec, rdhb, rdhc, rdhd):
-    op = _int(rec["op"])
+    op = _int(rec["opc"])
     ha = _int(rec["ha"])
     return (op << 24) | (ha << 18) | (rdhb << 12) | (rdhc << 6) | rdhd
 
 def _build_word_orri(rec, rdhb, rdhc, immu6):
-    op = _int(rec["op"])
+    op = _int(rec["opc"])
     ha = _int(rec["ha"])
     return (op << 24) | (ha << 18) | (rdhb << 12) | (rdhc << 6) | immu6
 
 def _build_word_rrii(rec, rdha, rdhb, imm12):
-    op = _int(rec["op"])
+    op = _int(rec["opc"])
     return (op << 24) | (rdha << 18) | (rdhb << 12) | (imm12 & 0xFFF)
 
 def _build_word_riii(rec, rdha, imm18):
-    op = _int(rec["op"])
+    op = _int(rec["opc"])
     return (op << 24) | (rdha << 18) | (imm18 & 0x3FFFF)
 
 def _build_word_rwii(rec, rdha, wpN, immu16):
-    op = _int(rec["op"])
+    op = _int(rec["opc"])
     hi4 = (immu16 >> 12) & 0xF
     mid6 = (immu16 >> 6) & 0x3F
     lo6 = immu16 & 0x3F
@@ -255,14 +261,25 @@ def _logic_result(insn, rdhc_val, rdhd_val, rdhb_old, bits):
     return (rdhb_old & high_mask) | (res & mask)
 
 def _cmp_result(a, b, bits, signed=False):
-    """Compare result: -1/0/1 as64-bit."""
+    """Compare result (−1/0/+1) written into the full 64-bit destination.
+
+    ADR-0037 D1: the *source operands* are truncated to the operand width
+    (`.ut` 32 / `.uw` 16 / `.ub` 8 bits), but the *result* is always extended
+    to 64 bits the same way for both suffixes — −1 = 0xFFFF_FFFF_FFFF_FFFF.
+    (The original `SimRISC-08/09/10 §1.2` rule, which zero-extended `.u*`
+    results, was a spec error: `br.n`/`br.nn`/`cs.*` judge bit 63, so a
+    zero-extended −1 would read as positive.)
+    """
     mask = (1 << bits) - 1
     a, b = a & mask, b & mask
     if signed:
         a, b = _sext(a, bits), _sext(b, bits)
-    if a < b: return -1 & 0xFFFFFFFFFFFFFFFF
-    elif a == b: return 0
-    else: return 1
+    if a < b:
+        return 0xFFFFFFFFFFFFFFFF
+    elif a == b:
+        return 0
+    else:
+        return 1
 
 def _shl_result(src_val, shamt, N, rdhb_old):
     """Left shift: rdhb[N:0] = (src[N:0] << shamt), high unchanged."""
@@ -598,6 +615,134 @@ def gen_compare_semantic(rec, a_val, b_val, rdha_old=0):
 
     return _case(mnem, insn, fmt, "semantic", word, inp, out, None,
                  "active", None, None, sc, notes)
+
+
+def gen_cmp_uo_rb_boundaries(rec):
+    """SPEC-081t D8.2: cmp.uo-rb compares all 64 bits (bits[63:48] participate).
+
+    Three cases distinguish the full-64-bit view from a 48-bit view (all give
+    +1).  They guard the D8.2 boundary contract and must stay in the generator.
+    """
+    out = []
+    for a_val, b_val in (
+        (0x0001000000000001, 0x0000000000000002),
+        (0x0001000000000001, 0x0000000000000001),
+        (0x0001000000000000, 0x0000FFFFFFFFFFFF),
+    ):
+        c = gen_compare_semantic(rec, a_val, b_val)
+        if c:
+            c["notes"] = ("cmp.uo-rb 64-bit D8.2 boundary: rb2=%s, rb3=%s; "
+                          "bits[63:48] participate" % (_hex64(a_val), _hex64(b_val)))
+            out.append(c)
+    return out
+
+
+def gen_cmp_ut_br_n_sequence(rec):
+    """ADR-0037 D1 discriminator: `cmp.ut` −1 must read as negative to `br.n`.
+
+    A single instruction cannot express the contract's *consumer* side, so the
+    case uses the harness `sequence:` field (tests/vectors/schema.md):
+
+      1. `cmp.ut rd1, rd2, rd3` with rd2 = 0xA < rd3 = 0x14 (bits[31:0])
+         → rd1 = 0xFFFF_FFFF_FFFF_FFFF (ADR-0037 D1)
+      2. `br.n rd1, +2` — bit63 = 1 ⇒ TAKEN; target = PC + (imm<<2) = PC + 8,
+         i.e. the word after the marker (SimRISC-06)
+      3. `set.zw rd5, wp0, 0x0BAD` — marker, executed **only** if the branch
+         was NOT taken
+
+    input rd5 = 0, expected rd5 = 0 (marker not executed).  Under the old
+    zero-extended rule rd1 would be 0x0000_0000_FFFF_FFFF (positive), `br.n`
+    would fall through and rd5 would become 0x0BAD ⇒ the case fails.
+
+    `expected_pc` is null on purpose: the post-sequence PC is the harness's
+    exit-section address (layout-dependent), not a spec-derived value.
+    Derivation: SimRISC-08 §1.2 + ADR-0037 D1 (`cmp.ut`), SimRISC-06 (`br.n`
+    condition = bit63, target = PC + (imm<<2)).
+    """
+    insn = rec["id"]
+    sc = rec.get("spec_cite", "")
+    br_n = BY_KEY.get(("br.n_riii_rd", "riii"))
+    set_zw = BY_KEY.get(("set.zw_rwii_rd", "rwii"))
+    if br_n is None or set_zw is None:
+        raise KeyError("br.n_riii_rd / set.zw_rwii_rd missing from "
+                       "contracts/opcodes.yaml (M1) — cannot build the "
+                       "cmp.ut → br.n sequence case")
+
+    a_val, b_val = 0x0A, 0x14
+    marker = 0x0BAD
+    cmp_word = _build_word_orrr(rec, 1, 2, 3)   # cmp.ut rd1, rd2, rd3
+    br_word = _build_word_riii(br_n, 1, 2)      # br.n rd1, +2 (skip marker)
+    zw_word = _build_word_rwii(set_zw, 5, 0, marker)  # set.zw rd5, wp0, 0x0BAD
+
+    expected = _cmp_result(a_val, b_val, _get_bits(rec["mnemonic"]),
+                           signed=False)        # ADR-0037 D1: 64-bit all-ones
+    c = _case(rec["mnemonic"], insn, rec["format"], "semantic", cmp_word,
+              {"rd": {"rd2": _hex64(a_val), "rd3": _hex64(b_val),
+                      "rd5": _hex64(0)}},
+              {"rd": {"rd1": _hex64(expected), "rd5": _hex64(0)},
+               "rb": {}, "ra": {}, "memory": []},
+              None, "active", None, None, sc,
+              "ADR-0037 D1 downstream: cmp.ut(%s,%s) → rd1=%s → br.n TAKEN "
+              "(bit63) skips the set.zw marker; rd5 stays 0. Zero-extended −1 "
+              "would not take the branch and rd5 would become %s"
+              % (hex(a_val), hex(b_val), _hex64(expected), hex(marker)))
+    c["sequence"] = ["0x%08X" % w for w in (cmp_word, br_word, zw_word)]
+    return c
+
+
+# ── div/rem defined-value coverage (SPEC-066t) ─────────────────────────
+# Division/remainder by zero and signed INT_MIN / -1 are *defined values*
+# (no ILLI).  These three passes restore the coverage the generator used to
+# emit: zero-divisor encoding, by-zero semantics, signed-overflow semantics.
+
+def gen_divrem_zero_encoding(rec):
+    """Encoding case with rdhd=rd0 (divisor 0) — legal, must not be dropped."""
+    mnem = rec["mnemonic"]
+    insn = rec["id"]
+    fmt = rec["format"]
+    sc = rec.get("spec_cite", "")
+    word = _build_word_orrr(rec, 1, 2, 0)       # rdhd=0 (divisor = rd0)
+    inp = {"rd": {"rd1": "0x0000000000000001", "rd2": "0x0000000000000064"}}
+    notes = "encoding %s: rdhd=rd0 (divisor=0) is legal, no ILLI" % mnem
+    return _case(mnem, insn, fmt, "encoding", word, inp, None, None,
+                 "active", None, None, sc, notes)
+
+
+def gen_divrem_by_zero(rec):
+    """Semantic case for a zero divisor (SPEC-066t defined value)."""
+    mnem = rec["mnemonic"]
+    insn = rec["id"]
+    fmt = rec["format"]
+    sc = rec.get("spec_cite", "")
+    bits = _get_bits(mnem)
+    signed = ".s" in mnem
+    word = _build_word_orrr(rec, 1, 2, 0)       # rdhd=0 (divisor = rd0)
+    dividend = 0x64
+    kind = "signed" if signed else "unsigned"
+    if _base_mnem(insn) == "div":
+        # signed: -1 sign-extended; unsigned: width mask (zero-extended)
+        expected = 0xFFFFFFFFFFFFFFFF if signed else (1 << bits) - 1
+        notes = ("%s div-by-zero: rd2=0x64, rd0(divisor)=0 -> rd1=%s "
+                 "(%s div by zero defined value)" % (mnem, _hex64(expected), kind))
+    else:
+        expected = dividend
+        notes = ("%s rem-by-zero: rd2=0x64, rd0(divisor)=0 -> rd1=%s "
+                 "(%s rem by zero defined value)" % (mnem, _hex64(expected), kind))
+    inp = {"rd": {"rd1": "0x0000000000000000", "rd2": _hex64(dividend)}}
+    out = {"rd": {"rd1": _hex64(expected)}, "rb": {}, "ra": {}, "memory": []}
+    return _case(mnem, insn, fmt, "semantic", word, inp, out, None,
+                 "active", None, None, sc, notes)
+
+
+def gen_divrem_signed_overflow(rec):
+    """Semantic case INT_MIN / -1 (defined value; no overflow trap)."""
+    bits = _get_bits(rec["mnemonic"])
+    int_min = _sext(1 << (bits - 1), bits) & 0xFFFFFFFFFFFFFFFF
+    c = gen_semantic_orrr_arith(rec, int_min, 0xFFFFFFFFFFFFFFFF, 0)
+    if c:
+        c["notes"] = ("%s signed overflow: INT_MIN/-1 -> %s (defined value)"
+                      % (rec["mnemonic"], c["expected_state"]["rd"]["rd1"]))
+    return c
 
 def gen_compare_encoding(rec):
     """Encoding case for cmp."""
@@ -977,13 +1122,13 @@ _ILLI_RULES = {
     # intentionally narrowed to its RD sub-section anchor; do NOT edit here without
     # updating that file).
     # orrr single-dest (rdhb) / orri/rrii/riii/rwii rd-dest / ra2rd rdhb=rd0: dst_rd0
-    "dst_rd0": "SimRISC-00 §数据寄存器",
+    "dst_rd0": "SimRISC-00: 数据寄存器",
     # rrrr dual-dest (rdha, rdhb): dst_dual_same
-    "dst_dual_same": "SimRISC-04 §加减操作",
+    "dst_dual_same": "SimRISC-04: 加减操作",
     # orrr rb-dest (rbhb): dst_rb0
-    "dst_rb0": "SimRISC-00 §基址寄存器",
+    "dst_rb0": "SimRISC-00: 基址寄存器",
     # orri block move immu6=0 (RD/RB + RA): mreg_zero
-    "mreg_zero": "SimRISC-01 §存取RD寄存器",
+    "mreg_zero": "SimRISC-01: 存取RD寄存器",
 }
 
 
@@ -1078,7 +1223,7 @@ def gen_block_legality_mreg_zero(rec):
     # RA-involved block moves cite the RA sections (manual correction tracked
     # as pre-existing generator↔vector drift, issues.yaml; reproduce verbatim).
     if mnem in ("ra2rd", "rd2ra"):
-        rule_cite = "SimRISC-02 §存取RA寄存器、§寄存器组之间块赋值"
+        rule_cite = "SimRISC-01: 存取RA寄存器; SimRISC-02: 寄存器组之间块赋值"
     sc = rec.get("spec_cite", "")
     word = _build_word_orri(rec, 1, 3, 0)
     notes = "legality %s: immu6=0 → ILLI (%s)" % (mnem, rule_id)
@@ -1094,7 +1239,7 @@ def gen_ra2rd_legality_dest_rd0(rec):
     rule_id = "dst_rd0"
     # Manual spec_cite correction tracked as pre-existing generator↔vector
     # drift (issues.yaml); reproduce verbatim so regeneration is faithful.
-    rule_cite = "SimRISC-02 §寄存器组之间块赋值"
+    rule_cite = "SimRISC-02: 寄存器组之间块赋值"
     sc = rec.get("spec_cite", "")
     word = _build_word_orri(rec, 0, 3, 1)
     notes = "legality %s: rdhb=rd0 → ILLI (%s)" % (mnem, rule_id)
@@ -1135,7 +1280,7 @@ def gen_block_overlap(rec):
 
     Same-bank (rd2rd, rb2rb): the source range [src, src+count) and the
     destination range [dst, dst+count) share at least one register (partial
-    overlap here) ⇒ ILLI (mreg_range_overlap, SimRISC-02 §寄存器组之间块赋值).
+    overlap here) ⇒ ILLI (mreg_range_overlap, SimRISC-02: 寄存器组之间块赋值).
     Cross-bank (rb2rd, rd2rb, ra2rd, rd2ra): source and destination belong to
     different register banks, so they structurally cannot overlap; the case
     verifies basic block move semantics (ascending order, read-before-write).
@@ -1212,7 +1357,7 @@ def gen_block_overlap_complete(rec):
 
     rd2rd/rb2rb with identical single-register source and destination
     ({rdN:rdN}, {rdN:rdN}, count=1): the two ranges fully coincide
-    ⇒ ILLI (mreg_range_overlap, SimRISC-02 §寄存器组之间块赋值).
+    ⇒ ILLI (mreg_range_overlap, SimRISC-02: 寄存器组之间块赋值).
     Cross-bank instructions structurally cannot overlap ⇒ returns None.
     """
     mnem = rec["mnemonic"]
@@ -1331,6 +1476,12 @@ def generate_file(filename, recs):
             else:
                 c = gen_compare_semantic(rec, 10, 5)
             if c: cases.append(c)
+            if insn == "cmp.uo_orrr_dbb":
+                # SPEC-081t D8.2: full-64-bit (bits[63:48]) boundary coverage
+                cases.extend(gen_cmp_uo_rb_boundaries(rec))
+            if insn == "cmp.ut_orrr_rd":
+                # ADR-0037 D1: cmp.ut −1 must feed `br.n` as negative (sequence)
+                cases.append(gen_cmp_ut_br_n_sequence(rec))
         elif is_cond:
             if mnem == "cs.n":
                 cases.append(gen_cs_semantic(rec, 0xFFFFFFFFFFFFFFFF, 0xAAAA, 0xBBBB, True))
@@ -1494,6 +1645,25 @@ def generate_file(filename, recs):
             bank = _bank_from_id(insn) or "rd"
             c = gen_riii_boundary_overflow(rec, bank)
             if c: cases.append(c)
+
+    # SPEC-066t coverage: div/rem by zero (encoding + semantic) and signed
+    # INT_MIN / -1 are defined values, not ILLI.  These were emitted by the
+    # pre-TESTCASES-061t generator in separate passes; keep the rules so a
+    # regeneration cannot silently drop them (reviewer Needs-Revision).
+    if filename == "reg-arith.yaml":
+        dr = [r for r in recs
+              if r.get("format") == "orrr" and _base_mnem(r["id"]) in ("div", "rem")]
+        for rec in dr:
+            cases.append(gen_divrem_zero_encoding(rec))
+        for rec in dr:
+            cases.append(gen_divrem_by_zero(rec))
+        signed_dr = [r for r in dr if ".s" in r["mnemonic"]]
+        signed_dr.sort(key=lambda r: (_get_bits(r["mnemonic"]),
+                                      _base_mnem(r["id"])))
+        for rec in signed_dr:
+            c = gen_divrem_signed_overflow(rec)
+            if c:
+                cases.append(c)
 
     # Append deferred overlap cases at end (ordering: encoding/semantic first, then overlap)
     cases.extend(deferred_overlap)

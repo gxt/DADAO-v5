@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
 new file mode 100644
-index 000000000..55c518e1d
+index 000000000..b3749f1f4
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
-@@ -0,0 +1,99 @@
+@@ -0,0 +1,195 @@
 +//===-- DADAOTargetMachine.cpp - Define TargetMachine for DADAO ---------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -19,14 +19,18 @@ index 000000000..55c518e1d
 +#include "DADAOTargetMachine.h"
 +#include "DADAO.h"
 +#include "DADAOSubtarget.h"
++#include "DADAOTargetObjectFile.h"
++#include "DADAOTargetTransformInfo.h"
 +#include "TargetInfo/DADAOTargetInfo.h"
 +
++#include "llvm/Analysis/TargetTransformInfo.h"
 +#include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 +#include "llvm/CodeGen/Passes.h"
 +#include "llvm/CodeGen/TargetPassConfig.h"
 +#include "llvm/MC/TargetRegistry.h"
 +#include "llvm/PassRegistry.h"
 +#include "llvm/Support/Compiler.h"
++#include "llvm/Support/ErrorHandling.h"
 +
 +using namespace llvm;
 +
@@ -38,9 +42,73 @@ index 000000000..55c518e1d
 +  auto *PR = PassRegistry::getPassRegistry();
 +  initializeDADAODAGToDAGISelLegacyPass(*PR);
 +  initializeDADAOAsmPrinterPass(*PR);
++  initializeDADAOLoadStoreOptPass(*PR);
 +}
 +
 +namespace {
++
++// Relocation model selection (LLVM-094t).  The DADAO ABI defines exactly two
++// models:
++//   * `Static` -- the M4 bare-metal path (VA = PA, absolute 48-bit address
++//     materialization), and the default when no -fPIC/-fPIE is given;
++//   * `PIC_`   -- position-independent code: every global address is taken
++//     from a GOT slot addressed PC-relatively through `rb0` + a link-time
++//     constant displacement, with no global-pointer register reserved
++//     (contract-dynlink.md §2-§3, ADR-0026 D5).  Both `-fPIC` and `-fPIE`
++//     select this model (clang carries PIE-ness as a PIELevel, not as a
++//     relocation model), so there is no separate `PIE` model to accept.
++// `ROPI`/`RWPI`/`ROPI_RWPI` would change the data addressing model (read-only /
++// read-write segment split) which the v5 baseline does not define, and
++// `DynamicNoPIC` is the Darwin "dynamic data, static code" model, which has no
++// meaning for this ELF ABI.  Both are rejected loudly rather than silently
++// lowered as static code (contract-dynlink.md §2).
++Reloc::Model selectRelocModel(std::optional<Reloc::Model> RM) {
++  const Reloc::Model M = RM.value_or(Reloc::Static);
++  switch (M) {
++  case Reloc::Static:
++  case Reloc::PIC_:
++    return M;
++  case Reloc::DynamicNoPIC:
++  case Reloc::ROPI:
++  case Reloc::RWPI:
++  case Reloc::ROPI_RWPI:
++    report_fatal_error("DADAO: unsupported relocation model (only static and "
++                       "PIC are defined; ROPI/RWPI and dynamic-no-pic have no "
++                       "ABI definition)");
++  }
++  llvm_unreachable("unknown relocation model");
++}
++
++// Code model selection (LLVM-131t, ADR-0036 D1/D2).  The DADAO ABI defines
++// exactly two models:
++//   * `default` (`CodeModel::Small`, also accepted as `-mcmodel=small` and as
++//     the absence of the option) -- one image whose code is within a single
++//     REL26 reach (a direct `call`/`jump` reaches +/-32 MiB); data is absolute
++//     (ABS48 / PCREL) and therefore unrestricted;
++//   * `large` -- code anywhere: a direct call/jump target that cannot be
++//     reached PC-relatively is materialized as a 48-bit absolute address and
++//     called/jumped indirectly (D5; the lowering lives in LowerCall).
++// `medium` and `kernel` split code/data placement, which the DADAO ABI has no
++// use for (data is already absolute -- ADR-0036 D2), and `tiny` needs a shared
++// base register the ABI does not define.  Those are rejected loudly rather
++// than silently lowered as one of the two real models, so an `llc
++// -code-model=medium` (or a frontend that skips the driver check) cannot look
++// like it worked.
++CodeModel::Model selectCodeModel(std::optional<CodeModel::Model> CM) {
++  const CodeModel::Model M = CM.value_or(CodeModel::Small);
++  switch (M) {
++  case CodeModel::Small:
++  case CodeModel::Large:
++    return M;
++  case CodeModel::Tiny:
++  case CodeModel::Kernel:
++  case CodeModel::Medium:
++    report_fatal_error("DADAO: unsupported code model (only 'default'/'small' "
++                       "and 'large' are defined; medium/kernel/tiny have no "
++                       "meaning for this ABI)");
++  }
++  llvm_unreachable("unknown code model");
++}
 +
 +class DADAOPassConfig : public TargetPassConfig {
 +public:
@@ -56,7 +124,30 @@ index 000000000..55c518e1d
 +    return false;
 +  }
 +
++  void addIRPasses() override {
++    // Atomic expansion (LLVM-121t; ADR-0034).  The ISA's only atomic
++    // primitives are `lr`/`sc` (no AMO) and the toolchain ships no
++    // `__atomic_*` runtime, so every atomic operation must be rewritten before
++    // instruction selection:
++    //   * atomic load/store -> plain access + explicit `fence`
++    //     (DADAOTargetLowering::shouldInsertFencesForAtomic is true) -- the
++    //     ordering -> fm/pred/succ mapping lives in the backend;
++    //   * every atomicrmw -> a cmpxchg loop (CmpXChg expansion), whose
++    //     cmpxchg then becomes the lr/sc retry loop at ISel time.
++    // This pass is per-target (the generic pipeline does not run it), which is
++    // why the DADAO pass config has to add it explicitly.
++    TargetPassConfig::addIRPasses();
++    addPass(createAtomicExpandLegacyPass());
++  }
++
 +  void addPreEmitPass() override {
++    // Merge runs of adjacent single-register loads/stores into one `ldm`/`stm`
++    // (LLVM-129t).  Runs after PEI: the frame indices are gone and the physical
++    // registers (hence their consecutiveness) are final.  Optimization-only, so
++    // -O0 keeps the one-access-per-instruction form.
++    if (getOptLevel() != CodeGenOptLevel::None)
++      addPass(createDADAOLoadStoreOptimizerPass());
++
 +    // Relax conditional branches whose target does not fit the branch
 +    // immediate (LLVM-071t).  A br.eq/br.ne reaches only a 12-bit word offset,
 +    // so a large function body (e.g. Embench nsichneu -O2) can push the target
@@ -77,14 +168,19 @@ index 000000000..55c518e1d
 +    const TargetOptions &Options, std::optional<Reloc::Model> RM,
 +    std::optional<CodeModel::Model> CM, CodeGenOptLevel OL, bool JIT)
 +    : CodeGenTargetMachineImpl(T, TT.computeDataLayout(), TT, CPU, FS, Options,
-+                               RM.value_or(Reloc::Static),
-+                               CM.value_or(CodeModel::Small), OL),
-+      TLOF(std::make_unique<TargetLoweringObjectFileELF>()),
++                               selectRelocModel(RM),
++                               selectCodeModel(CM), OL),
++      TLOF(std::make_unique<DADAOTargetObjectFileELF>()),
 +      Subtarget(TT, CPU, FS, *this) {
 +  initAsmInfo();
 +}
 +
 +DADAOTargetMachine::~DADAOTargetMachine() = default;
++
++TargetTransformInfo
++DADAOTargetMachine::getTargetTransformInfo(const Function &F) const {
++  return TargetTransformInfo(std::make_unique<DADAOTTIImpl>(this, F));
++}
 +
 +const DADAOSubtarget *
 +DADAOTargetMachine::getSubtargetImpl(const Function &F) const {

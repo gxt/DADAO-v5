@@ -1,0 +1,14 @@
+diff --git a/clang/include/clang/Basic/DiagnosticDriverKinds.td b/clang/include/clang/Basic/DiagnosticDriverKinds.td
+index ae3eecc60..ed52b10ee 100644
+--- a/clang/include/clang/Basic/DiagnosticDriverKinds.td
++++ b/clang/include/clang/Basic/DiagnosticDriverKinds.td
+@@ -22,6 +22,9 @@ def err_drv_unsupported_option_argument : Error<
+   "unsupported argument '%1' to option '%0'">;
+ def err_drv_unsupported_option_argument_for_target : Error<
+   "unsupported argument '%1' to option '%0' for target '%2'">;
++def err_drv_dadao_code_model : Error<
++  "unsupported code model '%1' for option '%0' on target '%2'; "
++  "DADAO supports 'default' ('small' is an alias) and 'large'">;
+ def err_drv_unknown_stdin_type : Error<
+   "-E or -x required when input is from standard input">;
+ def err_drv_unknown_stdin_type_clang_cl : Error<

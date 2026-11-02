@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..3e3f33f81
+index 000000000..d50a2ffad
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,463 @@
+@@ -0,0 +1,885 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -37,6 +37,11 @@ index 000000000..3e3f33f81
 +#include "llvm/CodeGen/SelectionDAG.h"
 +#include "llvm/CodeGen/SelectionDAGISel.h"
 +#include "llvm/CodeGen/SelectionDAGNodes.h"
++#include "llvm/CodeGen/TargetOpcodes.h"
++#include "llvm/IR/InlineAsm.h"
++#include "llvm/IR/Intrinsics.h"
++#include "llvm/IR/IntrinsicsDADAO.h"
++#include "llvm/Support/CodeGen.h"
 +#include "llvm/Support/Debug.h"
 +#include "llvm/Support/ErrorHandling.h"
 +#include "llvm/Support/MathExtras.h"
@@ -66,6 +71,16 @@ index 000000000..3e3f33f81
 +  // PrologEpilogInserter can resolve it (LLVM-038t).
 +  bool SelectAddr(SDValue Addr, SDValue &Base, SDValue &Offset);
 +
++  // Memory clobber/operand selection for inline asm (`"m"`, `"o"`; ISS-197 /
++  // LLVM-119t).  The generic SelectionDAGISel hook returns true ("not
++  // implemented") which the caller turns into
++  //   report_fatal_error("Could not match memory address.  Inline asm failure!")
++  // i.e. a hard abort; this override selects the DADAO `[rb, imms12]` address
++  // form instead.
++  bool SelectInlineAsmMemoryOperand(const SDValue &Op,
++                                    InlineAsm::ConstraintCode ConstraintID,
++                                    std::vector<SDValue> &OutOps) override;
++
 +private:
 +  // i64 constant materialization (CONST_WYDE pseudo, C12 / ADR-0018).
 +  void SelectConstant(SDNode *N);
@@ -73,6 +88,10 @@ index 000000000..3e3f33f81
 +  void SelectPointerAdd(SDNode *N, SDValue Base, SDValue Offset);
 +  // ptr − ptr selection to sub.o rd, rb, rb (C14 / ADR-0018).
 +  void SelectPointerSub(SDNode *N);
++  // GF(2) multiply, both halves: llvm.dadao.clmul (INTRINSIC_WO_CHAIN) and
++  // DADAOISD::CLMUL (the i128 form after result legalization) -> one
++  // CLMUL_LOHI_PSEUDO (ADR-0035; LLVM-122t).
++  void SelectCLMULPair(SDNode *N);
 +  // True if V is an i64 value currently held in the GPRB (pointer/address)
 +  // bank, i.e. a CopyFromReg of a GPRB virtual register created by
 +  // LowerFormalArguments for a pointer argument, a frame address
@@ -130,16 +149,30 @@ index 000000000..3e3f33f81
 +  // pointer-bank value; it is materialized to GLOBAL_ADDR (GPRB) below.
 +  if (V.getOpcode() == ISD::GlobalAddress)
 +    return true;
++  // The address of a thread-local object (LLVM-100t) is pointer-bank too; it is
++  // materialized to TP + TPOFF in GPRB below.
++  if (V.getOpcode() == ISD::GlobalTLSAddress)
++    return true;
 +  // Machine nodes whose result already lives in the GPRB bank: a frame object
 +  // address materialized for a *value* use (FRAME_ADDR, LLVM-038t, e.g. an
-+  // alloca used as a pointer) and the result of a pointer add already selected
-+  // to add.o (chained GEPs).  Keeping these on the single-instruction path is
-+  // what turns `base + offset` into one add.o instead of `rb2rd` + GPRD add +
-+  // `rd2rb`.
++  // alloca used as a pointer), the result of a pointer add already selected
++  // to add.o (chained GEPs), and the PIC GOT access that replaces a
++  // GlobalAddress under -fPIC/-fPIE (LLVM-094t; the `aip.si`/`ld.o` pair
++  // PCREL_LOAD since ADR-0029 D4).  Keeping these on the single-instruction
++  // path is what turns `base + offset` into one add.o instead of `rb2rd` +
++  // GPRD add + `rd2rb`.
 +  if (V.getNode()->isMachineOpcode()) {
 +    switch (V.getMachineOpcode()) {
 +    case DADAO::FRAME_ADDR:
 +    case DADAO::add_o_bbd:
++    // PIC GOT access (LLVM-094t; since ADR-0029 D4 the `aip.si`/`ld.o` pair
++    // inside PCREL_LOAD): the pair's result is the slot content, i.e. the
++    // symbol's address, and it lands in GPRB.
++    case DADAO::PCREL_LOAD:
++    // A GPRB reload from a stack slot (`ld.o rb, [frame, 0]`): the value comes
++    // back into the address bank, so a following `+ offset` stays on the single
++    // add.o path instead of round-tripping through GPRD.
++    case DADAO::ld_o_rb:
 +      return true;
 +    default:
 +      return false;
@@ -151,10 +184,14 @@ index 000000000..3e3f33f81
 +void DADAODAGToDAGISel::SelectConstant(SDNode *Node) {
 +  const auto *C = cast<ConstantSDNode>(Node);
 +  const SDLoc DL(Node);
-+  // Materialize any i64 constant through CONST_WYDE (C12: set.zw/set.ow +
++  // Materialize any integer constant through CONST_WYDE (C12: set.zw/set.ow +
 +  // or.w/andn.w, no constant pool).  The pseudo is expanded post-RA.
++  // Since LLVM-127t the result may be a narrow legal type (i8/i16/i32); the
++  // expansion writes the full 64 bits from the sign-extended value, which is
++  // exact for the IR-width low bits (narrow values have no defined upper half).
 +  SDValue Val = CurDAG->getTargetConstant(C->getSExtValue(), DL, MVT::i64);
-+  SDNode *M = CurDAG->getMachineNode(DADAO::CONST_WYDE, DL, MVT::i64, Val);
++  SDNode *M =
++      CurDAG->getMachineNode(DADAO::CONST_WYDE, DL, Node->getValueType(0), Val);
 +  ReplaceNode(Node, M);
 +}
 +
@@ -182,7 +219,7 @@ index 000000000..3e3f33f81
 +  const EVT VT = Addr.getValueType();
 +
 +  // A frame index stays in the base operand position; PrologEpilogInserter's
-+  // eliminateFrameIndex later turns it into `[rbsp/rbfp, offset]`
++  // eliminateFrameIndex later turns it into `[rbsp/rb2 (FP), offset]`
 +  // (ADR-0018 C7/C8, LLVM-038t).
 +  if (auto *FIN = dyn_cast<FrameIndexSDNode>(Addr)) {
 +    Base = CurDAG->getTargetFrameIndex(FIN->getIndex(), VT);
@@ -209,6 +246,58 @@ index 000000000..3e3f33f81
 +  return true;
 +}
 +
++bool DADAODAGToDAGISel::SelectInlineAsmMemoryOperand(
++    const SDValue &Op, InlineAsm::ConstraintCode ConstraintID,
++    std::vector<SDValue> &OutOps) {
++  // ISS-197 / LLVM-119t: an inline-asm memory operand is printed as the DADAO
++  // `[rb, imms12]` address form (DADAOAsmPrinter::PrintAsmMemoryOperand), so it
++  // is selected exactly like a load/store address and yields the same two
++  // machine operands (base, offset).  PrologEpilogInserter resolves a frame
++  // index left in the base position through DADAORegisterInfo::
++  // eliminateFrameIndex, which accepts the same base/offset pair here.
++  switch (ConstraintID) {
++  default:
++    // Every other memory constraint code (e.g. `Q`) has no address form in
++    // this target; report it so the caller can diagnose instead of silently
++    // emitting wrong code.
++    return true;
++  case InlineAsm::ConstraintCode::m:
++  case InlineAsm::ConstraintCode::o:
++  // `"p"` (address) is a memory-class operand in the DAG (Kind::Mem with the
++  // C_Address constraint type); it shares the same address form, and the
++  // printed `[rb, off]` is a valid DADAO address expression (the assembler
++  // accepts it wherever a `[base, off]` operand is expected).  This keeps a
++  // hand-written `"p"` operand from reaching the generic "could not match"
++  // abort, exactly as `m`/`o` no longer do.
++  case InlineAsm::ConstraintCode::p: {
++    SDValue Base, Offset;
++    if (!SelectAddr(Op, Base, Offset))
++      return true;
++
++    // The base of `[rb, imms12]` must be a register of the address bank (GPRB);
++    // the printOperand path would otherwise emit e.g. `[rd4, 0]`, which the
++    // assembler rejects.  Values that are already pointer-bank (a frame index
++    // resolved by PEI, a frame/global address materialization, a pointer add or
++    // a pointer argument) are passed through unchanged, so ordinary code grows
++    // no copy; anything else gets the bank-crossing copy the register allocator
++    // turns into rd2rb (DADAOInstrInfo::copyPhysReg).
++    if (Base.getOpcode() != ISD::TargetFrameIndex &&
++        !isPointerBankValue(Base)) {
++      const SDLoc DL(Op);
++      SDValue RC =
++          CurDAG->getTargetConstant(DADAO::GPRBRegClassID, DL, MVT::i32);
++      Base = SDValue(CurDAG->getMachineNode(TargetOpcode::COPY_TO_REGCLASS, DL,
++                                            MVT::i64, Base, RC),
++                     0);
++    }
++
++    OutOps.push_back(Base);
++    OutOps.push_back(Offset);
++    return false;
++  }
++  }
++}
++
 +void DADAODAGToDAGISel::Select(SDNode *Node) {
 +  if (Node->isMachineOpcode()) {
 +    Node->setNodeId(-1);
@@ -216,12 +305,17 @@ index 000000000..3e3f33f81
 +  }
 +
 +  switch (Node->getOpcode()) {
-+  case ISD::Constant:
-+    if (Node->getValueType(0) == MVT::i64) {
++  case ISD::Constant: {
++    // All legal integer widths: i64 plus the narrow i8/i16/i32 of LLVM-127t.
++    // (i1 never reaches ISel -- it is promoted to i8 -- so it is not listed.)
++    const EVT CVT = Node->getValueType(0);
++    if (CVT == MVT::i8 || CVT == MVT::i16 || CVT == MVT::i32 ||
++        CVT == MVT::i64) {
 +      SelectConstant(Node);
 +      return;
 +    }
 +    break;
++  }
 +  case ISD::ConstantFP: {
 +    // Floating-point constants (M6, LLVM-066t).  There is no constant pool in
 +    // this backend (M3/M4 have no .rodata pool path), so an f64/f32 constant is
@@ -253,7 +347,67 @@ index 000000000..3e3f33f81
 +    ReplaceNode(Node, M);
 +    return;
 +  }
++  case ISD::BlockAddress: {
++    // `&&label` used as a value (LLVM-102t): materialize the block's absolute
++    // address through the same fixed 3-slice sequence as a global address
++    // (BLOCK_ADDR -> set.zw/or.w with an MO_BlockAddress operand, each slice an
++    // R_DADAO_ABS48 relocation).  The result lives in GPRB (address bank), so
++    // BRIND can use it as the rrii base directly.
++    const SDLoc DL(Node);
++    auto *BA = cast<BlockAddressSDNode>(Node);
++    SDValue TBA = CurDAG->getTargetBlockAddress(BA->getBlockAddress(),
++                                                MVT::i64, BA->getOffset());
++    SDNode *M = CurDAG->getMachineNode(DADAO::BLOCK_ADDR, DL, MVT::i64, TBA);
++    ReplaceNode(Node, M);
++    return;
++  }
++  case ISD::ExternalSymbol: {
++    // Address of a symbol that has no GlobalValue (a libcall target such as
++    // `memcpy`): `-mcmodel=large` materializes it before an indirect call, and
++    // the materialization is the same fixed 3-slice absolute sequence as a
++    // global address (GLOBAL_ADDR -> set.zw/or.w, each slice an
++    // R_DADAO_ABS48 relocation).
++    //
++    // Gated on the code model: in `default` a plain ISD::ExternalSymbol must
++    // never be created (LowerCall keeps the libcall direct), so leave it to
++    // SelectCode -- a loud "Cannot select" rather than a silently different
++    // call shape.  Likewise only the static relocation model reaches the
++    // materialization: a PIC build keeps an import's direct call (PLT).
++    if (TM.getCodeModel() != CodeModel::Large)
++      break;
++    const SDLoc DL(Node);
++    auto *ES = cast<ExternalSymbolSDNode>(Node);
++    SDValue Sym = CurDAG->getTargetExternalSymbol(ES->getSymbol(), MVT::i64);
++    SDNode *M = CurDAG->getMachineNode(DADAO::GLOBAL_ADDR, DL, MVT::i64, Sym);
++    ReplaceNode(Node, M);
++    return;
++  }
 +  case ISD::GlobalAddress: {
++    auto *GA = cast<GlobalAddressSDNode>(Node);
++    const SDLoc DL(Node);
++
++    // PIC (-fPIC / -fPIE, LLVM-094t; address formation ADR-0029 D4): the
++    // address comes from the symbol's GOT slot -- never from a link-time
++    // absolute materialization, because the load base of a shared object / PIE
++    // is unknown at link time.  Since ADR-0029 the slot is reached through the
++    // PC-relative hi/lo pair (PCREL_LOAD -> `aip.si rbX, <slot>` +
++    // `ld.o rbX, [rbX, %pcrel_lo(site)]`): the pair materializes the slot
++    // address as IP + (hi << 12) and loads through it, so no global-pointer
++    // register is reserved and no `.got`-beside-`.text` layout is required
++    // (contract-dynlink.md §3, ADR-0026 D5, ADR-0026 D7).  The slot itself is a
++    // plain 8-byte absolute data field in `.got` (R_DADAO_ABS48 data form,
++    // emitted by the AsmPrinter): *content* fixed at load time, *displacement*
++    // fixed at link time -- the two are never confused (ADR-0019 D2).  A
++    // constant offset stays part of the slot's data field (`sym + offset`), so
++    // the displacement remains a pure distance to the slot.
++    if (TM.getRelocationModel() == Reloc::PIC_) {
++      SDValue Sym = CurDAG->getTargetGlobalAddress(
++          GA->getGlobal(), DL, MVT::i64, GA->getOffset(), DADAO::MO_GOT_ADDR);
++      SDNode *M = CurDAG->getMachineNode(DADAO::PCREL_LOAD, DL, MVT::i64, Sym);
++      ReplaceNode(Node, M);
++      return;
++    }
++
 +    // Absolute 48-bit address of a global/static object (LLVM-055t).  Fold any
 +    // constant offset into the TargetGlobalAddress addend (carried as the RELA
 +    // r_addend) so the address is materialized by the fixed 3-slice
@@ -261,11 +415,48 @@ index 000000000..3e3f33f81
 +    // R_DADAO_ABS48; because ABS48 is absolute it is *never* resolved in place
 +    // (ADR-0019 D4/D7) -- a same-section absolute address is still a
 +    // relocation, the section base being unknown until link time.
-+    auto *GA = cast<GlobalAddressSDNode>(Node);
 +    SDValue Sym = CurDAG->getTargetGlobalAddress(
-+        GA->getGlobal(), SDLoc(Node), MVT::i64, GA->getOffset());
++        GA->getGlobal(), DL, MVT::i64, GA->getOffset());
 +    SDNode *M =
-+        CurDAG->getMachineNode(DADAO::GLOBAL_ADDR, SDLoc(Node), MVT::i64, Sym);
++        CurDAG->getMachineNode(DADAO::GLOBAL_ADDR, DL, MVT::i64, Sym);
++    ReplaceNode(Node, M);
++    return;
++  }
++  case ISD::SHL:
++  case ISD::SRL:
++  case ISD::SRA: {
++    // Narrow constant shift (LLVM-127t): fold to the one-instruction orri form.
++    // A TableGen immediate leaf cannot express this -- the DAG shift amount has
++    // the narrow operand type while the `immu6` operand is i64 -- so it is done
++    // here.  `immu6 >= W` is an ILLI in hardware, so only in-range amounts are
++    // folded; an out-of-range amount is poison in LLVM IR and falls through to
++    // the register form (which reduces the amount modulo W).
++    const EVT VT = Node->getValueType(0);
++    const auto *Amt = dyn_cast<ConstantSDNode>(Node->getOperand(1));
++    if (!Amt || (VT != MVT::i8 && VT != MVT::i16 && VT != MVT::i32))
++      break;
++    const unsigned W = VT.getSizeInBits();
++    const uint64_t Sh = Amt->getZExtValue();
++    if (Sh >= W)
++      break;
++    const bool IsT = VT == MVT::i32, IsW = VT == MVT::i16;
++    unsigned Opc;
++    switch (Node->getOpcode()) {
++    default:
++      llvm_unreachable("unexpected shift opcode");
++    case ISD::SHL:
++      Opc = IsT ? DADAO::shl_t_orri : IsW ? DADAO::shl_w_orri : DADAO::shl_b_orri;
++      break;
++    case ISD::SRL:
++      Opc = IsT ? DADAO::shr_ut_orri : IsW ? DADAO::shr_uw_orri : DADAO::shr_ub_orri;
++      break;
++    case ISD::SRA:
++      Opc = IsT ? DADAO::shr_st_orri : IsW ? DADAO::shr_sw_orri : DADAO::shr_sb_orri;
++      break;
++    }
++    SDValue Imm = CurDAG->getTargetConstant(Sh, SDLoc(Node), MVT::i64);
++    SDNode *M = CurDAG->getMachineNode(Opc, SDLoc(Node), VT, Node->getOperand(0),
++                                       Imm);
 +    ReplaceNode(Node, M);
 +    return;
 +  }
@@ -289,17 +480,100 @@ index 000000000..3e3f33f81
 +      }
 +    }
 +    break;
-+  case ISD::SUB:
++  case ISD::SUB: {
++    const EVT SubVT = Node->getValueType(0);
 +    // Bank-aware ptr − ptr (C14 / ADR-0018): when both operands are still in
 +    // the GPRB bank, select the single sub.o rd, rb, rb.  A plain i64
 +    // subtraction falls through to the SUB_PSEUDO pattern.
-+    if (Node->getValueType(0) == MVT::i64 &&
-+        isPointerBankValue(Node->getOperand(0)) &&
++    if (SubVT == MVT::i64 && isPointerBankValue(Node->getOperand(0)) &&
 +        isPointerBankValue(Node->getOperand(1))) {
 +      SelectPointerSub(Node);
 +      return;
 +    }
++    // Narrow negation `0 - x` (LLVM-127t): the narrow sub has no immediate
++    // form, so materialising the zero would cost an extra instruction; rd0 is
++    // hardwired zero, hence `sub.s{b,w,t} dst, rd0, src` is the one-instruction
++    // negation (contract-isa.md §10.5/§11.5/§12.5 `neg.*`).
++    if ((SubVT == MVT::i32 || SubVT == MVT::i16 || SubVT == MVT::i8)) {
++      const auto *Z = dyn_cast<ConstantSDNode>(Node->getOperand(0));
++      if (Z && Z->isZero()) {
++        unsigned Opc = SubVT == MVT::i32 ? DADAO::sub_st
++                     : SubVT == MVT::i16 ? DADAO::sub_sw
++                                         : DADAO::sub_sb;
++        const SDLoc DL(Node);
++        SDNode *M = CurDAG->getMachineNode(
++            Opc, DL, SubVT, CurDAG->getRegister(DADAO::rd0, MVT::i64),
++            Node->getOperand(1));
++        ReplaceNode(Node, M);
++        return;
++      }
++    }
 +    break;
++  }
++  case DADAOISD::TLS_ADDR: {
++    // Local-exec TLS address (LLVM-100t): address = TP + TPOFF, TP = rb3
++    // (contract-abi.md §1.3).  Operand [0] is the TargetGlobalAddress of the
++    // `__thread` object.
++    //
++    //   rd_off = <TPOFF(sym)>                       (TLS_OFFSET -> set.zw/or.w
++    //                                                on the STT_TLS symbol;
++    //                                                each slice R_DADAO_ABS48)
++    //   rb     = rb3 + rd_off                       (add.o rb, rb, rd)
++    //
++    // The offset is a *link-time* value: an ABS48 relocation's S is the
++    // symbol's TLS-block offset for an STT_TLS symbol, which -- with
++    // TLS_ABOVE_TP / GAP_ABOVE_TP 0 / TP_OFFSET 0 (contract-dynlink.md §7) --
++    // is exactly TPOFF(sym) (contract-dynlink.md §4.3).  No dynamic TLS
++    // relocation (10/11/12/13) is emitted; those stay for D2/LLVM-117t.
++    const SDLoc DL(Node);
++    SDValue Off = SDValue(
++        CurDAG->getMachineNode(DADAO::TLS_OFFSET, DL, MVT::i64,
++                               Node->getOperand(0)),
++        0);
++    SDValue TP = CurDAG->getRegister(DADAO::rb3, MVT::i64);
++    SDNode *M =
++        CurDAG->getMachineNode(DADAO::add_o_bbd, DL, MVT::i64, TP, Off);
++    ReplaceNode(Node, M);
++    return;
++  }
++  case DADAOISD::TLS_IE_ADDR: {
++    // Initial-exec TLS address (LLVM-117t): address = TP + slot content.
++    //
++    //   aip.si rbX, <tprel slot>             (R_DADAO_PCREL_HI)
++    //   ld.o   rbX, [rbX, %pcrel_lo(site)]   (R_DADAO_PCREL_LO)
++    //   rb2rd  {rdX}, {rbX}                  (slot value -> data bank)
++    //   add.o  rbDst, rb3, rdX               (TP + TPOFF)
++    //
++    // The slot's 8-byte data field is the R_DADAO_TLS_TPREL relocation: the
++    // loader writes TPOFF(sym) there because a shared object's static TLS
++    // offset is not known at link time (contract-dynlink.md §4.3).  PCREL_LOAD
++    // is the same pair the PIC GOT access uses, so no extra relocation type is
++    // introduced for the access.
++    const SDLoc DL(Node);
++    SDValue Slot = SDValue(
++        CurDAG->getMachineNode(DADAO::PCREL_LOAD, DL, MVT::i64,
++                               Node->getOperand(0)),
++        0);
++    SDValue One = CurDAG->getTargetConstant(1, DL, MVT::i64);
++    SDValue Off = SDValue(
++        CurDAG->getMachineNode(DADAO::rb2rd, DL, MVT::i64, Slot, One), 0);
++    SDValue TP = CurDAG->getRegister(DADAO::rb3, MVT::i64);
++    SDNode *M =
++        CurDAG->getMachineNode(DADAO::add_o_bbd, DL, MVT::i64, TP, Off);
++    ReplaceNode(Node, M);
++    return;
++  }
++  case DADAOISD::TLS_GD_ADDR: {
++    // Global-dynamic TLS index address (LLVM-117t): the operand's slot holds
++    // the address of the `tls_index` pair, so the ordinary PC-relative GOT
++    // access loads it into an RB register; the call lowering then passes it as
++    // the first (pointer) argument to __tls_get_addr.
++    const SDLoc DL(Node);
++    SDNode *M = CurDAG->getMachineNode(DADAO::PCREL_LOAD, DL, MVT::i64,
++                                       Node->getOperand(0));
++    ReplaceNode(Node, M);
++    return;
++  }
 +  case DADAOISD::BR_JT: {
 +    // Dense switch dispatch (LLVM-072t, ISS-177/G3).  Operands:
 +    //   [0] chain, [1] index (GPRD i64), [2] TargetJumpTable.
@@ -320,9 +594,24 @@ index 000000000..3e3f33f81
 +    SDValue Scale = CurDAG->getTargetConstant(3, DL, MVT::i64);
 +    SDValue Zero = CurDAG->getTargetConstant(0, DL, MVT::i64);
 +
-+    SDNode *Base =
-+        CurDAG->getMachineNode(DADAO::JT_ADDR, DL, MVT::i64, TargetJT);
-+    SDNode *Scaled = CurDAG->getMachineNode(DADAO::shl_uo_orri, DL, MVT::i64,
++    // PIC (-fPIC / -fPIE, LLVM-094t; address formation ADR-0029 D4): the table
++    // base must not be a link-time absolute address, so it is taken from a GOT
++    // slot (`.got`, 8-byte absolute data field) reached through the same
++    // PC-relative hi/lo pair as a global address (ADR-0026 D5, ADR-0026 D7):
++    // `aip.si rbX, <slot>` + `ld.o rbX, [rbX, %pcrel_lo(site)]`.  The table
++    // contents (one 8-byte absolute case address per entry) are unchanged; only
++    // the base moves behind the base-relative slot access.
++    SDNode *Base;
++    if (TM.getRelocationModel() == Reloc::PIC_) {
++      auto *JT = cast<JumpTableSDNode>(TargetJT);
++      SDValue JTSlot = CurDAG->getTargetJumpTable(JT->getIndex(), MVT::i64,
++                                                  DADAO::MO_GOT_ADDR);
++      Base = CurDAG->getMachineNode(DADAO::PCREL_LOAD, DL, MVT::i64, JTSlot);
++    } else {
++      Base = CurDAG->getMachineNode(DADAO::JT_ADDR, DL, MVT::i64, TargetJT);
++    }
++
++    SDNode *Scaled = CurDAG->getMachineNode(DADAO::shl_o_orri, DL, MVT::i64,
 +                                            Index, Scale);
 +    SDNode *Addr = CurDAG->getMachineNode(DADAO::add_o_bbd, DL, MVT::i64,
 +                                          SDValue(Base, 0), SDValue(Scaled, 0));
@@ -330,6 +619,28 @@ index 000000000..3e3f33f81
 +                                         SDValue(Addr, 0), Zero);
 +    SmallVector<SDValue, 4> JmpOps;
 +    JmpOps.push_back(SDValue(Tgt, 0));
++    JmpOps.push_back(CurDAG->getRegister(DADAO::rd0, MVT::i64));
++    JmpOps.push_back(Zero);
++    JmpOps.push_back(Chain);
++    SDNode *Jmp = CurDAG->getMachineNode(DADAO::jump_rrii, DL, MVT::Other,
++                                         JmpOps);
++    ReplaceNode(Node, Jmp);
++    return;
++  }
++  case DADAOISD::BRIND: {
++    // Indirect branch (`indirectbr` / C `goto *p`, LLVM-102t).  Operands:
++    //   [0] chain, [1] target (a GPRB virtual register, put there by
++    //       LowerBRIND's CopyToReg: rd2rb when the value came from RD).
++    // The rrii jump takes its base from RB and adds an RD offset
++    // (Addr = rbha + rdhb + (imms12 << 2), contract-isa.md §8.3); rd0 is the
++    // hardwired zero and imm12 = 0, so the next IP is exactly the target --
++    // an absolute computed jump, not a PC-relative `jump imms24`.
++    const SDLoc DL(Node);
++    SDValue Chain = Node->getOperand(0);
++    SDValue Target = Node->getOperand(1);
++    SDValue Zero = CurDAG->getTargetConstant(0, DL, MVT::i64);
++    SmallVector<SDValue, 4> JmpOps;
++    JmpOps.push_back(Target);
 +    JmpOps.push_back(CurDAG->getRegister(DADAO::rd0, MVT::i64));
 +    JmpOps.push_back(Zero);
 +    JmpOps.push_back(Chain);
@@ -428,6 +739,48 @@ index 000000000..3e3f33f81
 +    ReplaceNode(Node, Tail);
 +    return;
 +  }
++  case DADAOISD::FENCE: {
++    // Memory barrier (LLVM-121t): [0] chain, [1] TargetConstant with the
++    // fm/pred/succ bit pattern computed by LowerATOMIC_FENCE.  The `fence`
++    // def is MC-only (Pattern = []), so it is selected here.
++    const SDLoc DL(Node);
++    SDValue Chain = Node->getOperand(0);
++    uint64_t Imm = cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();
++    CurDAG->SelectNodeTo(Node, DADAO::fence, MVT::Other,
++                         CurDAG->getTargetConstant(Imm, DL, MVT::i64), Chain);
++    return;
++  }
++  case DADAOISD::ATOMIC_CMP_SWAP: {
++    // cmpxchg retry loop (LLVM-121t): [0] chain, [1] ptr, [2] cmp, [3] new,
++    // [4] TargetConstant width class (0 = b, 1 = w, 2 = t, 3 = o).  Select the
++    // width-specific pseudo; the lr/sc sequence itself is built by
++    // DADAOTargetLowering::EmitInstrWithCustomInserter (FinalizeISel).
++    // The `lr`/`sc` base is an RB-bank register, so a value that is not
++    // already pointer-bank is copied into GPRB here (the register allocator
++    // turns the copy into `rd2rb`, exactly as for a load/store base).
++    const SDLoc DL(Node);
++    SDValue Chain = Node->getOperand(0);
++    SDValue Ptr = Node->getOperand(1);
++    SDValue Cmp = Node->getOperand(2);
++    SDValue New = Node->getOperand(3);
++    unsigned Width = cast<ConstantSDNode>(Node->getOperand(4))->getZExtValue();
++    static const unsigned Pseudos[] = {
++        DADAO::ATOMIC_CMP_SWAP_PSEUDO_B, DADAO::ATOMIC_CMP_SWAP_PSEUDO_W,
++        DADAO::ATOMIC_CMP_SWAP_PSEUDO_T, DADAO::ATOMIC_CMP_SWAP_PSEUDO_O};
++    assert(Width < 4 && "DADAO: bad cmpxchg width class");
++    if (!isPointerBankValue(Ptr)) {
++      SDValue RC =
++          CurDAG->getTargetConstant(DADAO::GPRBRegClassID, DL, MVT::i32);
++      Ptr = SDValue(CurDAG->getMachineNode(TargetOpcode::COPY_TO_REGCLASS, DL,
++                                           MVT::i64, Ptr, RC),
++                    0);
++    }
++    MachineSDNode *M = CurDAG->getMachineNode(
++        Pseudos[Width], DL, CurDAG->getVTList(MVT::i64, MVT::Other),
++        {Ptr, Cmp, New, Chain});
++    ReplaceNode(Node, M);
++    return;
++  }
 +  case DADAOISD::CMPU:
 +    // Pointer comparison (C14 D2 / C17 `p == q`): cmp.uo rd, rb, rb when both
 +    // operands are in the GPRB bank.  Integer compares fall through to the
@@ -457,11 +810,80 @@ index 000000000..3e3f33f81
 +      return;
 +    }
 +    break;
++  case ISD::INTRINSIC_WO_CHAIN:
++    // GF(2) carry-less multiply, both halves (ADR-0035; LLVM-122t).  A target
++    // intrinsic with two results cannot be written as a TableGen pattern (its
++    // DAG node is INTRINSIC_WO_CHAIN with a two-value result list, which the
++    // pattern matcher cannot bind), so it is selected here; every other
++    // intrinsic keeps the generic path.
++    if (cast<ConstantSDNode>(Node->getOperand(0))->getZExtValue() ==
++        Intrinsic::dadao_clmul) {
++      SelectCLMULPair(Node);
++      return;
++    }
++    break;
++  case DADAOISD::CLMUL:
++    // i128 form (llvm.dadao.clmul.wide), split by ReplaceNodeResults.
++    SelectCLMULPair(Node);
++    return;
++  case DADAOISD::CVT_SAT: {
++    // Saturating float->int (LLVM-126t): [0] fp source, [1] TargetConstant
++    // kind.  Bits [1:0] select the saturation width and signedness, bit 2 the
++    // source format: 0 fo2io, 1 fo2uo, 2 fo2it, 3 fo2ut, 4 ft2io, 5 ft2uo,
++    // 6 ft2it, 7 ft2ut (contract-fp.md §3; the conversion writes a full rd).
++    const SDLoc DL(Node);
++    const unsigned Kind =
++        cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();
++    static const unsigned Opcodes[] = {
++        DADAO::fo2io_orri_rf, DADAO::fo2uo_orri_rf, DADAO::fo2it_orri_rf,
++        DADAO::fo2ut_orri_rf, DADAO::ft2io_orri_rf, DADAO::ft2uo_orri_rf,
++        DADAO::ft2it_orri_rf, DADAO::ft2ut_orri_rf};
++    assert(Kind < 8 && "DADAO: bad saturating-conversion kind");
++    CurDAG->SelectNodeTo(Node, Opcodes[Kind], MVT::i64, Node->getOperand(0),
++                         CurDAG->getTargetConstant(1, DL, MVT::i64));
++    return;
++  }
++  case DADAOISD::WRITE_FCSR_RM: {
++    // Constant rounding-mode write (LLVM-126t): [0] chain, [1] TargetConstant
++    // hardware mode.  Select the pseudo that carries the implicit rf0 def; the
++    // custom inserter turns it into `set.w {rf0}, wp2, imm`.
++    const SDLoc DL(Node);
++    SDValue Chain = Node->getOperand(0);
++    SDValue Mode = Node->getOperand(1);
++    MachineSDNode *M = CurDAG->getMachineNode(
++        DADAO::SET_FCSR_RM_PSEUDO, DL, MVT::Other, {Mode, Chain});
++    ReplaceNode(Node, M);
++    return;
++  }
++  case DADAOISD::WRITE_FCSR: {
++    // Dynamic rounding-mode write (LLVM-126t): [0] chain, [1] the full new
++    // FCSR value.  The custom inserter expands the pseudo to
++    // `rd2rf {rf0}, {val}`.
++    const SDLoc DL(Node);
++    SDValue Chain = Node->getOperand(0);
++    SDValue Val = Node->getOperand(1);
++    MachineSDNode *M = CurDAG->getMachineNode(DADAO::SET_FCSR_PSEUDO, DL,
++                                             MVT::Other, {Val, Chain});
++    ReplaceNode(Node, M);
++    return;
++  }
 +  default:
 +    break;
 +  }
 +
 +  SelectCode(Node);
++}
++
++void DADAODAGToDAGISel::SelectCLMULPair(SDNode *Node) {
++  // Operands are (a, b); an INTRINSIC_WO_CHAIN node carries the intrinsic id as
++  // operand 0.  The pseudo's results are (low, high) and expandPostRAPseudo
++  // reorders them to the instruction's (rdha = high, rdhb = low).
++  const unsigned Base = Node->getOpcode() == ISD::INTRINSIC_WO_CHAIN ? 1 : 0;
++  const SDLoc DL(Node);
++  MachineSDNode *M = CurDAG->getMachineNode(
++      DADAO::CLMUL_LOHI_PSEUDO, DL, CurDAG->getVTList(MVT::i64, MVT::i64),
++      {Node->getOperand(Base), Node->getOperand(Base + 1)});
++  ReplaceNode(Node, M);
 +}
 +
 +FunctionPass *llvm::createDADAOISelDag(DADAOTargetMachine &TM) {
