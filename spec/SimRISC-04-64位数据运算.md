@@ -10,22 +10,24 @@
 加减操作需要两个源操作数，一个目的操作数。
 操作数类型为 `rrrr`。
 两个源操作数寄存器为`rdHC`和`rdHD`。
-目的操作数可能超出64位，故采用两个寄存器存放目的操作数，即`rdHA`和`rdHB`，`rdHA`存放结果的高64位，`rdHB`存放结果的低64位。
+目的操作数可能超出64位，故采用两个寄存器存放目的操作数，即`rdHA`和`rdHB`。对 `add.so`/`sub.so`/`mul.uo`/`mul.so`，`rdHA` 存放结果的高64位、`rdHB` 存放结果的低64位；对 `add.uo`/`sub.uo`，`rdHA` 存放进位/借位（0 或 1）、`rdHB` 存放 64 位结果。
 硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 
 根据操作数的符号类型，`add`/`sub` 分为两个变体：
 
-- **`add.uo`/`sub.uo`**（无符号）：源操作数按**零扩展**（ZX）至 128 位，适合无符号多字加法链，`rdHA` 为进位/借位（0 或 1）。
+- **`add.uo`/`sub.uo`**（无符号）：按无符号 64 位相加减；`rdHB` 为低 64 位结果，`rdHA` 为进位/借位（0 或 1）。`sub.uo` 的借位 = `rdHC < rdHD`。适合无符号多字加减链。
 - **`add.so`/`sub.so`**（有符号，默认）：源操作数按**符号扩展**（SX）至 128 位，适合有符号 128 位运算。
 
 ```simrisc
-add.uo  {rdHA, rdHB}, rdHC, rdHD    @@ ZX，rdHA = 进位
+add.uo  {rdHA, rdHB}, rdHC, rdHD    @@ 无符号，rdHA = 进位
 add.so  {rdHA, rdHB}, rdHC, rdHD    @@ SX，rdHA = 高64位
-sub.uo  {rdHA, rdHB}, rdHC, rdHD    @@ ZX，rdHA = 借位
+sub.uo  {rdHA, rdHB}, rdHC, rdHD    @@ 无符号，rdHA = 借位（rdHC < rdHD）
 sub.so  {rdHA, rdHB}, rdHC, rdHD    @@ SX，rdHA = 高64位
 ```
 
 `rdHA` 和 `rdHB` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
+
+`sub.uo` 借位时 `rdHA = 1`、`rdHB = (rdHC − rdHD) mod 2^64`，**不写** 128 位结果的全 1 高半；需要 128 位有符号高半时用 `sub.so`。
 
 ### 1.2 自增自减
 

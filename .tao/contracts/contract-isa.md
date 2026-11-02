@@ -504,14 +504,16 @@ RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0�
 
 #### §6.1.1 加减法（128 位结果，rrrr 格式）
 
-加减操作两个源操作数为 `rdhc`/`rdhd`，目的为 `rdha`（结果高 64 位）与 `rdhb`（结果低 64 位）。硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。[SimRISC-04 §加减操作]
+加减操作两个源操作数为 `rdhc`/`rdhd`，目的为 `rdha` 与 `rdhb`。`add.so`/`sub.so` 的 `rdha` 为结果高 64 位、`rdhb` 为低 64 位；`add.uo`/`sub.uo` 的 `rdha` 为进位/借位（0 或 1）、`rdhb` 为 64 位结果。硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。[SimRISC-04 §加减操作]
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
 | `add.uo rdha, rdhb, rdhc, rdhd` | 源零扩展（ZX）至 128 位，`rdha:rdhb = rdhc + rdhd`，`rdha` 为进位（0 或 1） | [SimRISC-04 §加减操作] |
 | `add.so rdha, rdhb, rdhc, rdhd` | 源符号扩展（SX）至 128 位，`rdha:rdhb = rdhc + rdhd`，`rdha` 为高 64 位 | [SimRISC-04 §加减操作] |
-| `sub.uo rdha, rdhb, rdhc, rdhd` | 源零扩展（ZX）至 128 位，`rdha:rdhb = rdhc − rdhd`，`rdha` 为借位（0 或 1） | [SimRISC-04 §加减操作] |
+| `sub.uo rdha, rdhb, rdhc, rdhd` | 按无符号 64 位相减：`rdhb = (rdhc − rdhd) mod 2^64`；`rdha` 为借位（`rdhc < rdhd` 时 1，否则 0） | [SimRISC-04 §加减操作] |
 | `sub.so rdha, rdhb, rdhc, rdhd` | 源符号扩展（SX）至 128 位，`rdha:rdhb = rdhc − rdhd`，`rdha` 为高 64 位 | [SimRISC-04 §加减操作] |
+
+`sub.uo` 不写 128 位结果的全 1 高半；需要 128 位有符号高半时用 `sub.so`。`add.uo` 的进位与 128 位结果高半恰好一致。
 
 异常条件：[SimRISC-04 §加减操作]
 - `rdha` 与 `rdhb` 同时为 `rd0` → **ILLI**

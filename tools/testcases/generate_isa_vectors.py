@@ -932,7 +932,7 @@ def gen_block_semantic(rec, dst_reg, src_reg, count, src_bank, dst_bank):
     return _case(mnem, insn, fmt, "semantic", word, inp, out, None,
                  "active", None, None, sc, notes)
 
-# ── rrrr arith (128-bit result) ───────────────────────────────────────
+# ── rrrr arith (128-bit result; sub.uo exposes borrow 0/1) ────────────
 def gen_rrrr_arith_semantic(rec, a_val, b_val, rdha_old=0, rdhb_old=0):
     """Semantic for add.uo/so, sub.uo/so, mul.uo/so (rrrr)."""
     mnem = rec["mnemonic"]
@@ -965,8 +965,13 @@ def gen_rrrr_arith_semantic(rec, a_val, b_val, rdha_old=0, rdhb_old=0):
     else:
         return None
 
-    hi = (result128 >> 64) & 0xFFFFFFFFFFFFFFFF
-    lo = result128 & 0xFFFFFFFFFFFFFFFF
+    if "sub" in insn and "uo" in insn:
+        # ADR-0049: rdHA is borrow 0/1, not the 128-bit high half.
+        hi = 1 if a_val < b_val else 0
+        lo = (a_val - b_val) & 0xFFFFFFFFFFFFFFFF
+    else:
+        hi = (result128 >> 64) & 0xFFFFFFFFFFFFFFFF
+        lo = result128 & 0xFFFFFFFFFFFFFFFF
 
     # For rrrr with one dst = rd0: rdha=rd0 means hi is discarded
     # For encoding, use rdha=1, rdhb=2 (both non-rd0)

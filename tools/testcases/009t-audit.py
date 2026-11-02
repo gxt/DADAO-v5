@@ -265,7 +265,7 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
             hi = (result >> 64) & 0xFFFFFFFFFFFFFFFF
             lo = result & 0xFFFFFFFFFFFFFFFF
             if not is_signed:
-                # unsigned: hi = carry/borrow (0 or 1)
+                # unsigned: hi = carry/borrow (0 or 1); sub.uo per ADR-0049
                 hi = 1 if (result >> 64) != 0 else 0
             if rdha != 0:
                 expected_rd["rd%d" % rdha] = _hex64(hi)

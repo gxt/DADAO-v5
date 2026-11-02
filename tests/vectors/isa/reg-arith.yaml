@@ -220,7 +220,53 @@
       rd3: '0x0000000000000064'
       rd4: '0x000000000000001E'
   mnemonic: sub.uo
-  notes: 'sub.uo: rd3=0x64, rd4=0x1e → rd1(hi)=0x0, rd2(lo)=0x46'
+  notes: 'sub.uo: rd3=0x64, rd4=0x1e → rd1(borrow)=0x0, rd2(lo)=0x46'
+  spec_cite: 'SimRISC-04: sub.uo'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x520420C4'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0xFFFFFFFFFFFFFFFF'
+  format: rrrr
+  id: sub.uo_rrrr_rd
+  input_state:
+    rd:
+      rd3: '0x0000000000000000'
+      rd4: '0x0000000000000001'
+  mnemonic: sub.uo
+  notes: 'ADR-0049 borrow: rd3=0, rd4=1 → rd1(borrow)=1, rd2(lo)=0xFFFFFFFFFFFFFFFF'
+  spec_cite: 'SimRISC-04: sub.uo'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x520420C4'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0xFFFFFFFFFFFFFFFE'
+  format: rrrr
+  id: sub.uo_rrrr_rd
+  input_state:
+    rd:
+      rd3: '0x0000000000000005'
+      rd4: '0x0000000000000007'
+  mnemonic: sub.uo
+  notes: 'ADR-0049 borrow: rd3=5, rd4=7 → rd1(borrow)=1, rd2(lo)=0xFFFFFFFFFFFFFFFE'
   spec_cite: 'SimRISC-04: sub.uo'
   status: active
 - class: boundary
