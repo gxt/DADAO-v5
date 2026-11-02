@@ -1,6 +1,6 @@
 # tools/testcases — 原子探针（TESTCASES-056t）如何跑
 
-本目录的 `run_atomics_probe.py` 是 `tests/atomics/` 五个探针的驱动；期望值全部来自
+本目录的 `run_atomics_probe.py` 是 `tests/inst/atomics/` 五个探针的驱动；期望值全部来自
 `oracle_atomics.py`（纯 Python 语义模型，不 import 任何组件产物），探针只打印观测。
 
 ```sh
@@ -27,16 +27,52 @@ bash .work/evidence/TESTCASES-056t/run.sh --inject
 
 | 文件 | 覆盖 |
 | --- | --- |
-| `tests/atomics/counter.c` | N 线程 × M 次互斥自增，共享计数与各线程私有槽双路对账 |
-| `tests/atomics/c11_alltypes.c` | `_Atomic char/short/int/long/unsigned/size_t/void*` × load/store/exchange/fetch_*/CAS × 五种 ordering；另有共享对象单元 |
-| `tests/atomics/atomic_builtins.c` | `__atomic_*` 九种内建 × {1,2,4,8} 字节 × 五种 ordering；子字宽邻域字节不变；链接期无 `__atomic_*` 未定义符号 |
-| `tests/atomics/aba_treiber.c` | 版本号打包的 Treiber 栈（`{ver:16,ptr:48}`），不变量 + 确定性 ABA 重放 |
-| `tests/atomics/barrier_probe.c` | `a_barrier()` 结构断言（`fence` 计数 == 源码站点数，立即数 0x3CF） |
+| `tests/inst/atomics/counter.c` | N 线程 × M 次互斥自增，共享计数与各线程私有槽双路对账 |
+| `tests/inst/atomics/c11_alltypes.c` | `_Atomic char/short/int/long/unsigned/size_t/void*` × load/store/exchange/fetch_*/CAS × 五种 ordering；另有共享对象单元 |
+| `tests/inst/atomics/atomic_builtins.c` | `__atomic_*` 九种内建 × {1,2,4,8} 字节 × 五种 ordering；子字宽邻域字节不变；链接期无 `__atomic_*` 未定义符号 |
+| `tests/inst/atomics/aba_treiber.c` | 版本号打包的 Treiber 栈（`{ver:16,ptr:48}`），不变量 + 确定性 ABA 重放 |
+| `tests/inst/atomics/barrier_probe.c` | `a_barrier()` 结构断言（`fence` 计数 == 源码站点数，立即数 0xFFF） |
+
+## ctrl 向量生成器（jump / call / ret / br）
+
+```sh
+python3 tools/testcases/generate_ctrl_jump_call_ret.py          # 写 tests/inst/base/ctrl-{jump,call,ret}.yaml
+python3 tools/testcases/generate_ctrl_br.py                     # 写 tests/inst/base/ctrl-br.yaml
+python3 tools/testcases/generate_ctrl_jump_call_ret.py --check  # 只读校验（byte-identical ⇒ rc=0）
+python3 tools/testcases/generate_ctrl_br.py --check
+```
+
+`--check` 用与写盘**同一个渲染函数**重渲染后与磁盘逐字节比较：全部一致 → `PASS（N 册 byte-identical）`
+rc=0；缺失/不一致 → 逐册 `FAIL` rc=1；未知参数 → rc=2。`--check` **不写盘、不建目录**。
+落点受守卫约束：`OUT_DIR` 必须在 `tests/inst/` 之下，否则 `ERROR` + 非零退出
+（防静默写回旧 `tests/vectors/isa`）。
+
+## mem / isa / misc 向量生成器（TESTCASES-088t）
+
+```sh
+python3 tools/testcases/generate_mem_vectors.py           # 写 tests/inst/base/mem-{rd,rb,ra}.yaml
+python3 tools/testcases/generate_isa_vectors.py           # 写 tests/inst/base/reg-*.yaml（六册）
+python3 tools/testcases/generate_isa_vectors.py reg-arith.yaml   # 只重生成指定册（位置参数）
+python3 tools/testcases/generate_misc.py                  # 写 tests/inst/base/misc.yaml
+python3 tools/testcases/generate_mem_vectors.py --check   # 只读校验 3 册
+python3 tools/testcases/generate_isa_vectors.py --check   # 只读校验 6 册（可与位置参数组合）
+python3 tools/testcases/generate_misc.py --check          # 只读校验 1 册
+```
+
+- 落点：三者的产物一律在 `tests/inst/base/`（mem 的 `OUT_DIR` 带同款守卫：不在 `tests/inst/`
+  之下即 `ERROR: OUT_DIR 必须位于 tests/inst 之下` + 非零退出）。
+- `--check`：与写盘**共用同一渲染函数**重渲染后与磁盘**逐字节**比较；全一致 → `PASS（N 册 byte-identical）`
+  rc=0；缺失/不一致 → `FAIL tests/inst/base/<册>: missing|mismatch` rc=1。**不写盘、不建目录、
+  不创建 `tests/vectors`**；`import` 亦无副作用。
+- 退出码：`0` = 成功/一致；`1` = 不一致或册缺失；`2` = 参数错误（未知选项、未知册名）。
+- 默认模式的 stdout 形如 `  tests/inst/base/mem-rd.yaml: N cases`（mem）、
+  `Wrote reg-arith.yaml: N cases for M identities`（isa）、`Written to: <path>`（misc），
+  便于日志比对。
 
 ## 已知缺陷（XFAIL 机制保留，登记已清空）
 
 驱动把登记为 `xfail` 的单元按**精确缺陷签名**判 `XFAIL`；一旦恢复语义值即报 `XPASS`
-并判红，提示删除对应 xfail 条目。语义面细节见 `tests/atomics/*.c` 文件头与任务书完成区。
+并判红，提示删除对应 xfail 条目。语义面细节见 `tests/inst/atomics/*.c` 文件头与任务书完成区。
 
 `ISS-312`（`atomic-store-address`）与 `ISS-313`（`narrow-cas-sext`）已随 `LLVM-121t`
 返工修复，**登记表已清空**（20 条转为普通语义断言，两档 711/711 PASS）。机制本身仍保留：

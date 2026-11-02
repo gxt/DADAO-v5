@@ -1,0 +1,234 @@
+# tests/unit/llvm/codegen/expected.yaml
+# TESTCASES-026t: expected results for the M3 CodeGen scalar programs.
+#
+# Entry / exit channel (frozen by INTEG-012t; MMIO halt device -> SYS_EXIT by TESTCASES-034t):
+#   * every program defines `i64 @main()`;
+#   * crt0 `_start` calls it and reports the returned value (rd8) through the
+#     semihosting SYS_EXIT service (ADR-0020 D8: SYS_EXIT replaces the exit
+#     port, ADR-0004 D3 superseded), then halts;
+#   * the guest process exit code is the low byte of that value.
+#
+# Independent oracle (project hard rule):
+#   `expected_exit_code` is derived on the host from the LLVM IR semantics
+#   (64-bit two's-complement integer arithmetic, big-endian memory per
+#   contract-abi.md §1.7) -- it is NOT produced by llc or QEMU.
+#
+# All expected values are constrained to 0x00..0x7F so the process exit-code
+# comparison can never collide with a machine-fault code (0x80..0xFF; ADR-0004
+# D5.7/D5.8; ISS-147).  Every program masks its raw IR result with 127.
+schema: codegen-vectors-v1
+
+conventions:
+  entry: "define i64 @main()"
+  exit_channel: "guest exit code = low byte of the returned i64 value (0x00..0x7F)"
+  memory: "big-endian; 8-byte pointer"
+  oracle: "host-side IR-semantics model; not llc/QEMU"
+
+programs:
+  - name: arith_add_sub_neg.ll
+    category: arithmetic
+    expected_exit_code: 118
+    coverage: [C12, arith.add, arith.sub, arith.neg-const]
+    derivation: >-
+      Two volatile-loaded inputs a=-5, b=3 enclose both a negative constant and
+      genuine add/sub.
+      c = add(a,b) = -2 ; d = sub(b,a) = 8 ; e = xor(c,d) = (-2) ^ 8 = -10
+      (0xFFFFFFFFFFFFFFF6) ; r = e & 127 = 0x76 = 118.
+
+  - name: arith_const_hi_wyde.ll
+    category: arithmetic
+    expected_exit_code: 110
+    coverage: [C12, arith.const-hi-wyde]
+    derivation: >-
+      v = u0xFEDCBA9876543210 (all four wydes non-trivial, forces a
+      set.zw/set.ow + or.w/andn.w sequence).
+      hi = v >> 56 = 0xFE = 254 ; lo = v & 255 = 0x10 = 16 ;
+      x = hi ^ lo = 0xEE = 238 ; r = x & 127 = 0x6E = 110.
+
+  - name: mem_store_load_offset.ll
+    category: memory
+    expected_exit_code: 77
+    coverage: [mem.load-store-offset]
+    derivation: >-
+      buf[0] = 100, buf[1] = 23 ; element 1 is at byte offset 8.
+      r = 100 - 23 = 77.
+
+  - name: mem_narrow_be_bytes.ll
+    category: memory
+    expected_exit_code: 41
+    coverage: [C13, mem.narrow-be, mem.ld-ub, mem.ld-sb]
+    derivation: >-
+      store i64 u0x0102030405060708 -> big-endian bytes 01 02 03 04 05 06 07 08.
+      store i8 -2 at offset 3 -> byte 3 = 0xFE.
+      b0 = zext(load i8 @0) = 0x01 = 1            (ld.ub, offset 0)
+      b7 = zext(load i8 @7) = 0x08 = 8            (ld.ub, offset 7)
+      s3 = sext(load i8 @3) = -2 = 0xFFFFFFFFFFFFFFFE   (ld.sb, offset 3)
+      shi = (s3 >> 8) & 255 = 0xFF = 255          (sign bits observable)
+      r = (b0*10 + b7*100 + shi) & 255 = (10 + 800 + 255) & 255 = 41.
+
+  - name: mem_narrow_be_wide.ll
+    category: memory
+    expected_exit_code: 108
+    coverage: [C13, mem.narrow-be, mem.ld-uw, mem.ld-sw, mem.ld-ut, mem.ld-st]
+    derivation: >-
+      store i64 u0x1122334455667788 -> bytes 11 22 33 44 55 66 77 88.
+      h0 = zext(load i16 @0) = 0x1122 ; a = (h0 >> 8) & 255 = 0x11 = 17   (ld.uw)
+      h6 = zext(load i16 @6) = 0x7788 ; b = h6 & 255       = 0x88 = 136   (ld.uw)
+      w4 = zext(load i32 @4) = 0x55667788 ; c = (w4 >> 24) & 255 = 0x55 = 85 (ld.ut)
+      store i16 -300 @2 ; n = sext(load i16 @2) ; nhi = (n >> 16) & 255 = 255 (ld.sw)
+      store i32 -70000 @0 ; s = sext(load i32 @0) ; shi = (s >> 32) & 255 = 255 (ld.st)
+      r = (a + b + c + nhi + shi) & 127 = 748 & 127 = 108.
+
+  - name: branch_loop_sum.ll
+    category: branch
+    expected_exit_code: 45
+    coverage: [C17, branch.signed-loop]
+    derivation: >-
+      n = 10 (volatile).  sum = 0 ; i = 0 ; while (i < n) { sum += i ; i += 1 }
+      -> sum = 0+1+...+9 = 45.  if (sum > 40) r = sum else r = 0 -> 45.
+      Predicate `icmp slt` is signed; loop taken/not-taken edges both execute.
+
+  - name: branch_eq_ne.ll
+    category: branch
+    expected_exit_code: 16
+    coverage: [C17, branch.eq-ne]
+    derivation: >-
+      a=7, b=7, c=3, d=9.
+      if (a == b) r = 1 else r = 100       -> r = 1
+      if (c != d) r = r + 10 else r = r+200 -> r = 11
+      r = r + 5                             -> 16.
+
+  - name: branch_ptr.ll
+    category: branch
+    expected_exit_code: 25
+    coverage: [C17, C14, C1, branch.ptr-null, branch.ptr-eq, ptr.cmp]
+    derivation: >-
+      @ptr_checks(p, q): if (p == null) r = 1 else r = 2 ;
+                         if (p == q)    r = r + 4 else r = r + 8.
+      p = &buf (non-null).
+      a = ptr_checks(p, p)    -> p != null -> 2 ; p == q -> 2 + 4 = 6
+      b = ptr_checks(p, null) -> p != null -> 2 ; p != q -> 2 + 8 = 10
+      c = ptr_checks(null, p) -> p == null -> 1 ; p != q -> 1 + 8 = 9
+      r = (6 + 10 + 9) & 255 = 25.
+
+  - name: call_direct_ret.ll
+    category: call
+    expected_exit_code: 9
+    coverage: [call.direct-ret]
+    derivation: >-
+      add3(x, y, z) = x + y + z ; main: 2 + 3 + 4 = 9.
+
+  - name: call_multiarg_stack.ll
+    category: call
+    expected_exit_code: 43
+    coverage: [C4, call.stack-args]
+    derivation: >-
+      18 scalar parameters: rd16..rd31 hold the first 16; x16 and x17 spill to
+      the outgoing stack area in declaration order (8 bytes each).
+      base = 1 ; x_i = base + i for i = 0..17.
+      sum = sum_{i=0}^{17} (base + i) = 18*base + 153 = 18 + 153 = 171 ;
+      r = 171 & 127 = 43.
+
+  - name: call_narrow_args.ll
+    category: call
+    expected_exit_code: 9
+    coverage: [C4, call.narrow-args]
+    derivation: >-
+      narrow(x, y, z, w) = zext(x) + zext(y) + zext(z) + w.
+      x = 200 (i8 0xC8), y = 300, z = 400, w = 5.
+      s = 200 + 300 + 400 + 5 = 905 ; r = 905 & 127 = 9.
+      (Sub-8-byte arguments are canonically extended by the caller, C4.)
+
+  - name: call_ptr_bank.ll
+    category: call
+    expected_exit_code: 42
+    coverage: [C1, C5, call.ptr-bank]
+    derivation: >-
+      buf[3] = 42 ; q = advance(buf, 3) = buf + 3 (pointer return, rb8) ;
+      r = deref(q) = 42 (pointer argument, rb16).
+
+  - name: ptr_add_offset.ll
+    category: memory
+    expected_exit_code: 43
+    coverage: [C14, ptr.add-offset]
+    derivation: >-
+      off = 20 (volatile) ; p = &buf[0] + off ; p[0] = -85 = 0xAB ;
+      z = zext(load i8 from p) = 0xAB = 171 ; r = 171 & 127 = 43.
+      The runtime base+offset is the C14 `add.o` (rb = rb + rd) computation.
+
+  - name: ptr_diff_pos.ll
+    category: arithmetic
+    expected_exit_code: 7
+    coverage: [C14, ptr.diff-pos]
+    derivation: >-
+      p = &buf[10], q = &buf[3] ; r = (i64)p - (i64)q = 10 - 3 = 7.
+      Two pointer formal parameters (GPRB) -> single `sub.o_orrr_dbb`.
+
+  - name: ptr_diff_neg.ll
+    category: arithmetic
+    expected_exit_code: 121
+    coverage: [C14, ptr.diff-neg]
+    derivation: >-
+      p = &buf[10], q = &buf[3] ; d = (i64)q - (i64)p = 3 - 10 = -7
+      (raw 64-bit 0xFFFFFFFFFFFFFFF9) ; r = d & 127 = 0x79 = 121.
+      Masking to 7 bits keeps the process exit-code channel clear of the
+      machine-fault range 0x80..0xFF; the raw 64-bit negative difference is
+      what `sub.o_orrr_dbb` must produce.
+
+
+  - name: m10-i64-shift.ll
+    category: arithmetic
+    expected_exit_code: 0
+    coverage: [arith.i64-shift, shift.imm-orri, shift.register]
+    derivation: >-
+      a = 0x0123456789ABCDEF, b = 0xFEDCBA9876543210 (negative), n = 37.
+      shl(a,k), lshr(b,k), ashr(b,k) for k = 0,1,31,32,63 plus the three
+      variable shifts (n = 37).  Expected values are derived independently in
+      Python: shl/lshr by u64 truncation, ashr by a signed 64-bit right shift
+      (Python `>>` on the two's-complement value, then `& 0xFFFF...`).
+      @main returns the number of mismatches; the oracle's expected count is 0,
+      so any wrong immediate or register shift makes the exit code non-zero.
+  - name: m10-narrow-extend.ll
+    category: arithmetic
+    expected_exit_code: 0
+    coverage: [arith.narrow-extend, ext.canonical-sext, ext.canonical-zext]
+    derivation: >-
+      16 cases: add i8/i16, sub i16/i32, mul i16/i32, udiv i8, urem i32,
+      sdiv i8, srem i16, shl i8/i32, srl i16, sra i8/i32.  Operands are
+      volatile-loaded and sit on sign-bit / max / overflow boundaries
+      (e.g. 127+127 for i8, 0x80000000*-1 for i32, -30000%7 for i16).
+      Expected values are derived independently in Python from LLVM IR
+      semantics: wrap at the narrow width, then sign- or zero-extend to 64
+      bits (sdiv/srem truncate toward zero).  @main returns the number of
+      mismatches, so the expected count is 0 and any wrong canonical
+      direction, width or extension makes the exit code non-zero.
+  - name: m10-loop-pointer-bank.ll
+    category: memory
+    expected_exit_code: 0
+    coverage: [C14, ptr.add-offset, ptr.loop-bank]
+    derivation: >-
+      @walk_sum(ptr p, i64 n) walks the pointer recurrence
+      p <- (p + 2 elements) + i elements, i = 0..n-1, over a 16-element buffer
+      whose element j is 3*j+1 (volatile loads/stores keep the chain alive).
+      Visited element offsets for n = 5: 0,2,5,9,14 -> values 1,7,16,28,43,
+      sum = 95; for n = 3: 0,2,5 -> values 1,7,16, sum = 24.  Both sums are
+      derived here from LLVM IR semantics (i64 arithmetic, 8-byte elements),
+      not from llc or QEMU.  @main returns the number of mismatching sums, so
+      the expected count is 0 and a wrong element offset, scaled-index shift or
+      backedge makes the exit code non-zero.
+  - name: m10-narrow-neg-ext-narrow.ll
+    category: arithmetic
+    expected_exit_code: 0
+    coverage: [arith.narrow-extend, ext.canonical-sext, ext.canonical-zext]
+    derivation: >-
+      14 cases: `sub i8/i16 0, trunc(x)` (x volatile-loaded i32) widened by
+      sext/zext to i8->i16, i8->i32 and i16->i32, compared against a
+      volatile-loaded expected value (LLVM-140t: this narrow extend result
+      used to abort ISel with the ReplaceAllUsesWith type assertion).
+      Expected values are derived independently in Python from LLVM IR
+      semantics: wrap the negation at the narrow width, then sign- or
+      zero-extend from that width; values cover the sign bit, max and
+      truncation boundaries (x = 1, 0x7f, 0x80, 0x8000, 0x7fff, 0x12345678,
+      0x12345681).  @main returns the number of mismatches, so the expected
+      count is 0 and a wrong negation width or extension direction makes the
+      exit code non-zero.

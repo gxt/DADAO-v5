@@ -20,7 +20,7 @@ For every selected case (one ``.c`` translation unit that carries ``main``) it
 runs the project's *static* musl flow and reports the case's own verdict:
 
   compile ``clang --target=dadao-unknown-elf -nostdinc <musl includes> -c``
-  link    ``ld.lld -T tests/scripts/dadao.lds crt1.o <obj> [libtest] libc.a``
+  link    ``ld.lld -T tests/shared/linker/dadao.lds crt1.o <obj> [libtest] libc.a``
   image   ``llvm-objcopy -O binary`` (flat ``-kernel`` image, "path B")
   run     ``qemu-system-dadao -M dadao-m1 -bios bootrom.bin -kernel <flat>``
 
@@ -112,7 +112,7 @@ TEST_ARTIFACTS = paths.test_artifacts_dir()
 MUSL_SRC = REPO_ROOT / ".work" / "source" / "musl"
 LIBC_TEST = REPO_ROOT / ".work" / "source" / "libc-test"
 LLVM_TS = REPO_ROOT / ".work" / "source" / "llvm-test-suite"
-LDS = REPO_ROOT / "tests" / "scripts" / "dadao.lds"
+LDS = REPO_ROOT / "tests" / "shared" / "linker" / "dadao.lds"
 DEFAULT_BOOTROM = TEST_ARTIFACTS / "bootrom" / "bootrom.bin"
 
 TARGET = "dadao-unknown-elf"

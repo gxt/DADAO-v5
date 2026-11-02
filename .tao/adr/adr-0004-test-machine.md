@@ -287,9 +287,8 @@ ILLI 测试 pattern（以 `fence` 指令为例——`scope: excluded`，decode I
 set.zw  rb16, wp2, 0xffff
 or.w    rb16, wp1, 0x8000      ; rb16 = 0xffff_8000_0000
 
-; 2. 触发 ILLI：fence 0（op=0x77、ha=0x00、immu18=0 ⇒ 字 0x77000000；
-;    scope: excluded，decode ILLI；注意 32 位全零字现为保留编码 ⇒ UNDI）
-fence   0                      ; → ILLI → host $? = 0x88
+; 2. 触发 ILLI：fence cfx0, 0x1000（op=0x79；hb=immu18[17:12]=1 非零 ⇒ ILLI）
+fence   cfx0, 0x1000           ; → ILLI → host $? = 0x88
 
 ; 3. 若执行到此，说明 fault 未发生 → FAIL
 set.zw  rd16, wp0, 1

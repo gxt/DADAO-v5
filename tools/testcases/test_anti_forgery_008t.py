@@ -14,9 +14,9 @@ import sys
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 WORK = "/tmp/opencode/TESTCASES-008t"
-ISA_DIR = os.path.join(WORK, "tests", "vectors", "isa")
+ISA_DIR = os.path.join(WORK, "tests", "inst", "base")
 CONTRACTS_DIR = os.path.join(WORK, "contracts")
-VECTORS_DIR = os.path.join(WORK, "tests", "vectors")
+VECTORS_DIR = os.path.join(WORK, "tests", "inst")
 VALIDATOR_SRC = os.path.join(REPO, "tools", "testcases", "validate_vectors.py")
 
 PASS_CASES = [
@@ -56,9 +56,9 @@ def setup_workdir():
     os.makedirs(VECTORS_DIR, exist_ok=True)
     shutil.copy2(os.path.join(REPO, "contracts", "opcodes.yaml"),
                  os.path.join(CONTRACTS_DIR, "opcodes.yaml"))
-    shutil.copy2(os.path.join(REPO, "tests", "vectors", "inventory.md"),
+    shutil.copy2(os.path.join(REPO, "tests", "inst", "inventory.md"),
                  os.path.join(VECTORS_DIR, "inventory.md"))
-    real_isa = os.path.join(REPO, "tests", "vectors", "isa")
+    real_isa = os.path.join(REPO, "tests", "inst", "base")
     for fn in os.listdir(real_isa):
         if fn.endswith(".yaml"):
             shutil.copy2(os.path.join(real_isa, fn),

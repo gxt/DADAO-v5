@@ -1,0 +1,47 @@
+diff --git a/src/arch/dadao/SConscript b/src/arch/dadao/SConscript
+new file mode 100644
+index 0000000..44b9344
+--- /dev/null
++++ b/src/arch/dadao/SConscript
+@@ -0,0 +1,41 @@
++# DADAO ISA build description (B0 decode + B1/B2/B3/B4/B5/B6/B7 execution).
++Import('*')
++
++if not env['CONF']['USE_DADAO_ISA']:
++    Return()
++
++env.TagImplies('dadao isa', 'gem5 lib')
++env.TagImplies('isa', 'dadao isa')
++
++Source('decoder.cc', tags=['dadao isa'])
++Source('isa.cc', tags=['dadao isa'])
++Source('inst.cc', tags=['dadao isa'])
++Source('decode/decode.cc', tags=['dadao isa'])
++# B1 execution core (plain C++; the assertion harness exec/b1_test.cc is
++# compiled separately by tools/gem5/check_b1.py and is not part of the build).
++Source('exec/b1.cc', tags=['dadao isa'])
++# B2 execution core (plain C++; exec/b2_test.cc is compiled by
++# tools/gem5/check_b2.py and is not part of the build).
++Source('exec/b2.cc', tags=['dadao isa'])
++# B3 execution core (plain C++; exec/b3_test.cc is compiled by
++# tools/gem5/check_b3.py and is not part of the build).
++Source('exec/b3.cc', tags=['dadao isa'])
++# B4 execution core (plain C++; exec/b4_test.cc is compiled by
++# tools/gem5/check_b4.py and is not part of the build).
++Source('exec/b4.cc', tags=['dadao isa'])
++# B5 execution core (plain C++; exec/b5_test.cc is compiled by
++# tools/gem5/check_b5.py and is not part of the build).
++Source('exec/b5.cc', tags=['dadao isa'])
++# B6 execution core (plain C++; exec/b6_test.cc is compiled by
++# tools/gem5/check_b6.py and is not part of the build).
++Source('exec/b6.cc', tags=['dadao isa'])
++# B7 execution core (plain C++; exec/b7_test.cc is compiled by
++# tools/gem5/check_b7.py and is not part of the build).  exec/fp_soft.cc holds
++# the pure-integer IEEE 754 library used only by the B7 core.
++Source('exec/b7.cc', tags=['dadao isa'])
++Source('exec/fp_soft.cc', tags=['dadao isa'])
++
++SimObject('DadaoDecoder.py', sim_objects=['DadaoDecoder'], tags=['dadao isa'])
++SimObject('DadaoISA.py', sim_objects=['DadaoISA'], tags=['dadao isa'])
++
++ISADesc('isa/main.isa', tags=['dadao isa'])

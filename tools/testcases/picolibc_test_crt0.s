@@ -15,13 +15,13 @@
 @@   _start (this stub): set rb1 = RAM top - 64 KiB, then call picolibc `__start`
 @@   __start (picolibc): init .data/.bss, run constructors, call main, exit()
 @@
-@@ Entry/exit conventions follow tests/scripts/codegen_crt0.s and
+@@ Entry/exit conventions follow tests/shared/crt0/codegen_crt0.s and
 @@ contract-semihosting.md §3/§5 (SYS_EXIT reaches the host $?).
 
 	.text
 	.globl	_start
 _start:
-	@@ rb1 = 0xFC00_0000_00FF_0000 (SP, near the RAM top; ADR-0004 D6.5).
+	@@ rb1 = 0xFC00_00FF_0000 (48-bit SP, near the RAM top; ADR-0004 D6.5).
 	set.zw	rb1, wp1, 0x00ff
 	or.w	rb1, wp2, 0xfc00
 

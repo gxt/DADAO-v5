@@ -1,0 +1,35 @@
+来源	条目	处置	当前对应
+PR#3	cs.eq_rrrr_rf（cs.eq）	删除（编码被 ftfma_rrrr_rf 接管）	ftfma_rrrr_rf
+PR#3	cs.ne_rrrr_rf（cs.ne）	删除（编码被 fofma_rrrr_rf 接管）	fofma_rrrr_rf
+PR#3	cfxld_crii_cfx（cfxld）	删除	—
+PR#3	cfxst_crii_cfx（cfxst）	删除	—
+PR#3	fence_oiii_imm（fence）	编码迁移	fence_ciii_cfx
+PR#3	swym_oiii_imm（swym）	编码迁移	swym_oiii_imm
+PR#3	lr.o.nn_orrr_rd（lr.o.nn）	编码迁移	lr.o.nn_orrr_rd
+PR#3	lr.t.nn_orrr_rd（lr.t.nn）	编码迁移	lr.t.nn_orrr_rd
+PR#3	lr.w.nn_orrr_rd（lr.w.nn）	编码迁移	lr.w.nn_orrr_rd
+PR#3	lr.b.nn_orrr_rd（lr.b.nn）	编码迁移	lr.b.nn_orrr_rd
+PR#3	lr.o.an_orrr_rd（lr.o.an）	编码迁移	lr.o.an_orrr_rd
+PR#3	lr.t.an_orrr_rd（lr.t.an）	编码迁移	lr.t.an_orrr_rd
+PR#3	lr.w.an_orrr_rd（lr.w.an）	编码迁移	lr.w.an_orrr_rd
+PR#3	lr.b.an_orrr_rd（lr.b.an）	编码迁移	lr.b.an_orrr_rd
+PR#3	lr.o.ar_orrr_rd（lr.o.ar）	编码迁移	lr.o.ar_orrr_rd
+PR#3	lr.t.ar_orrr_rd（lr.t.ar）	编码迁移	lr.t.ar_orrr_rd
+PR#3	lr.w.ar_orrr_rd（lr.w.ar）	编码迁移	lr.w.ar_orrr_rd
+PR#3	lr.b.ar_orrr_rd（lr.b.ar）	编码迁移	lr.b.ar_orrr_rd
+PR#3	sc.o.nn_orrr_rd（sc.o.nn）	编码迁移	sc.o.nn_orrr_rd
+PR#3	sc.t.nn_orrr_rd（sc.t.nn）	编码迁移	sc.t.nn_orrr_rd
+PR#3	sc.w.nn_orrr_rd（sc.w.nn）	编码迁移	sc.w.nn_orrr_rd
+PR#3	sc.b.nn_orrr_rd（sc.b.nn）	编码迁移	sc.b.nn_orrr_rd
+PR#3	sc.o.nr_orrr_rd（sc.o.nr）	编码迁移	sc.o.nr_orrr_rd
+PR#3	sc.t.nr_orrr_rd（sc.t.nr）	编码迁移	sc.t.nr_orrr_rd
+PR#3	sc.w.nr_orrr_rd（sc.w.nr）	编码迁移	sc.w.nr_orrr_rd
+PR#3	sc.b.nr_orrr_rd（sc.b.nr）	编码迁移	sc.b.nr_orrr_rd
+PR#3	sc.o.ar_orrr_rd（sc.o.ar）	编码迁移	sc.o.ar_orrr_rd
+PR#3	sc.t.ar_orrr_rd（sc.t.ar）	编码迁移	sc.t.ar_orrr_rd
+PR#3	sc.w.ar_orrr_rd（sc.w.ar）	编码迁移	sc.w.ar_orrr_rd
+PR#3	sc.b.ar_orrr_rd（sc.b.ar）	编码迁移	sc.b.ar_orrr_rd
+PR#3	ctpop_orri_rd（ctpop）	编码迁移	ctpop_orri_rd
+PR#3	ctlz_orri_rd（ctlz）	编码迁移	ctlz_orri_rd
+PR#3	cttz_orri_rd（cttz）	编码迁移	cttz_orri_rd
+0628	unimp	删除	—（0.5.4 起由 UNDI 保留编码取代）

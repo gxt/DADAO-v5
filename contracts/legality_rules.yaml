@@ -36,6 +36,9 @@ rules:
       例外：ret rd0, 0 允许（无需设置返回值）。
       st*/stm*（RD）指令中 rdha 字段是数据**源**，rd0 作为源读出 0 合法，不触发 ILLI（见 ADR-0015 D2/D3）。
       适用于 orrr（单目的 rdhb）、orri/rrii/riii/rwii（目的字段 rdha/rbha）。
+      LR-SC 中 `sc` 的记录：`rdhb` 为成功/失败结果（目的），`rdhb == rd0` ⇒ ILLI；
+      `lr` 的 `rdhb` 的 `role: dst` 是 `orrr` 位域默认分类，**不表示写回**；`lr` 的数据目的
+      是 `rdhc`，`rdhb` 由 `encode_sbz` 承接、不触发本规则。
       ra2rd 的目的字段 rdhb 为 rd0 时同样触发 ILLI 异常（目的不可为 rd0）；
       rd2ra 的目的为 RA 组字段，RA 组无 rd0 约束，不受此约束。
       scope: fp 中目的为 rd 组的 15 条同样适用（orri 目的字段 rdhb：
@@ -180,13 +183,25 @@ rules:
       SBZ（Should Be Zero）字段非零时触发 ILLI 异常（静态）。
       ADR-0004 D5.3 冻结「SBZ 非零 → ILLI」（架构自定义；spec 未规定 fault 类型）。
       固定为 0 的位域非零均属此规则，包括但不限于：
-      fence 的 immu18_hi/immu18_mid/immu18_lo bits[17:4]；
+      fence 的 hb = immu18[17:12]（ADR-0044 D3：其余位为 pred/succ 掩码）；
+      escape 的 imms18[17:1]（escape 合法偏移 0/+4，imms18 ∈ {0, 1}）；
       移位量超过位宽限制（shl.b/rol.b/shr.sb/shr.ub: shamt > 7；shl.w/rol.w/shr.sw/shr.uw: shamt > 15；
       shl.t/rol.t/shr.st/shr.ut: shamt > 31）；
       扩展起始位超过位宽限制（ext.uo/ext.so: hd > 63；SPEC-069t: ext.ub/ext.sb、
       ext.uw/ext.sw、ext.ut/ext.st 已删除）；
-      lr 指令的 hb（rdhb）固定为 rd0，手工编码时 hb ≠ 0（LR-SC 原子指令属 M1 范围外，
-      M1 不提取其语义）。
+      lr 指令的 hb（rdhb）是 SBZ 固定零字段（数据目的为 rdhc），
+      手工编码 hb ≠ 0 触发 ILLI 异常（静态）；12 条 lr.* 由 rule_refs 覆盖。
+
+  - id: encode_cfx_reserved
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-11: 指令域与执行条件"
+    status: active
+    description: >
+      所有带 cfxha 的核芯功能扩展指令（trap/escape/cfx2rd/cfx2rc/fence）：
+      cfxha 指向保留核芯功能扩展（6–14、19–61）时触发 ILLI 异常（静态）。
+      cfxha = 0 表示 all cfx（汇编别名 cfx0 / cfx_umon）；1–5、15–18、62、63 为已分配
+      或实现约定的 cfx。ADR-0044 D8 冻结该口径；cfx 编号/权限本身不变。
 
   - id: encode_onehot
     fault: ILLI

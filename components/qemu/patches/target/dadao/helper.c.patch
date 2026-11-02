@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..c37a2c0
+index 0000000..254ac69
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,1128 @@
+@@ -0,0 +1,2709 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -25,9 +25,13 @@ index 0000000..c37a2c0
 +#include "qemu/osdep.h"
 +#include "qemu/log.h"
 +#include "qemu/error-report.h"
++#include "qemu/timer.h"
++#include "qemu/main-loop.h"
++#include "hw/core/cpu.h"
 +#include "cpu.h"
 +#ifndef CONFIG_USER_ONLY
 +#include "system/runstate.h"
++#include "system/address-spaces.h"
 +#endif
 +#include "accel/tcg/cpu-ops.h"
 +#include "accel/tcg/cpu-loop.h"
@@ -44,7 +48,64 @@ index 0000000..c37a2c0
 +#include "semihosting/common-semi.h"
 +#endif
 +
++static int cfx_idx(int cfxha);
++
++/* Two-axis permission check (ADR-0045 D1/D2): the target cfx owns four
++ * per-mode source masks.  The mode axis selects `mode[inner_run_mode]`; the
++ * cfx axis tests the current cfx's bit.  Self bypasses only the cfx axis. */
++enum {
++    DADAO_CFX_PERM_TRAP = 0,
++    DADAO_CFX_PERM_MEM,
++    DADAO_CFX_PERM_REG,
++    DADAO_CFX_PERM_EXE,
++};
++
++static bool cfx_perm_denied(CPUDADAOState *env, int target, int kind)
++{
++    DADAOCfxModeRegs *m;
++    uint64_t mask;
++    int ci = cfx_idx(target);
++
++    if (ci < 0) {
++        return false;
++    }
++    if (target == env->inner_cfx_code) {
++        return false;                 /* self: cfx axis bypassed */
++    }
++    m = &env->cfx[ci].mode[env->inner_run_mode & 0x3];
++    switch (kind) {
++    case DADAO_CFX_PERM_TRAP: mask = m->cfxtrap; break;
++    case DADAO_CFX_PERM_MEM:  mask = m->cfxmem;  break;
++    case DADAO_CFX_PERM_REG:  mask = m->cfxreg;  break;
++    default:                  mask = m->cfxexe;  break;
++    }
++    return (mask & (1ULL << (env->inner_cfx_code & 0x3F))) != 0;
++}
++
++/* supv 访问目标 cfx 的 cg 需其 hypv_cg_reg_deleg 对应位 = 0 (DADAO-13 §1)。
++ * cg3 不作例外：其 bit3 恒 1 => supv 恒拒（CFXPERM）；hypv/user/jail 不受本检查约束。
++ * 软件侧「整组开放」的写法是 0x8（除恒 1 的 bit3 外无置位），硬件仍按位判定。 */
++static bool cfx_deleg_denied(CPUDADAOState *env, int ci, int cg)
++{
++    uint64_t mask;
++
++    if (env->inner_run_mode != DADAO_MODE_SUPV || cg > 63) {
++        return false;
++    }
++    mask = env->cfx[ci].mode[DADAO_MODE_HYPV].cg_reg_deleg;
++    return (mask & (1ULL << cg)) != 0;
++}
++
 +#ifndef CONFIG_USER_ONLY
++/* DADAO-12 §5 exception-entry flow (defined below; used by the page-fault
++ * path in dadao_cpu_do_interrupt / dadao_cpu_tlb_fill). */
++static uint64_t cfx_enter(CPUDADAOState *env, uint64_t cause, int target,
++                          uint64_t cause_ip, uint64_t cause_info,
++                          bool sync, bool *entered);
++static void cfx_raise(CPUDADAOState *env, uint64_t cause, int target,
++                      uint64_t pc, uint64_t cause_info);
++static int cfx_idx(int cfxha);
++
 +/* Map QEMU-internal exception index to ADR-0004 exit code */
 +static int dadao_excp_to_exit_code(int excp)
 +{
@@ -98,6 +159,48 @@ index 0000000..c37a2c0
 +    }
 +
 +    /*
++     * Page-table walk fault (DADAO-12 §5.2 "页表步进中产生的异常 ... 进入
++     * cfx_ptw"; ADR-0040 D8): run the normal §5 exception-entry flow with
++     * target cfx_ptw and continue at its vector.  All cfx_ptw page causes are
++     * listed as non-maskable (§4.5), so entry must succeed; a redirected or
++     * masked fault would mean the cause mask was built wrong -- fail loudly.
++     */
++    if (cs->exception_index == DADAO_EXCP_PTW_FAULT) {
++        bool entered = false;
++
++        /* Do not override an already pending clean shutdown (same rule as the
++         * generic fault path below). */
++        if (qemu_shutdown_requested_get() != SHUTDOWN_CAUSE_NONE) {
++            return;
++        }
++        uint64_t vec = cfx_enter(env, env->ptw_fault_cause, DADAO_CFXHA_PTW,
++                                 env->pc, env->ptw_fault_info, true, &entered);
++
++        if (!entered) {
++            error_report("dadao: page-table fault (cause=%016" PRIx64
++                         ", VA=%016" PRIx64 ") could not enter cfx_ptw",
++                         env->ptw_fault_cause, env->ptw_fault_info);
++            exit(1);
++        }
++        env->pc = vec;
++        env->rb[0] = env->pc;
++        return;
++    }
++
++    /*
++     * Two-axis permission denial (ADR-0045 D6): CFXPERM goes to the monitor of
++     * the *current* run mode with cause_info recorded by the faulting access.
++     */
++    if (cs->exception_index == DADAO_EXCP_CFXPERM) {
++        if (qemu_shutdown_requested_get() != SHUTDOWN_CAUSE_NONE) {
++            return;
++        }
++        cfx_raise(env, DADAO_CAUSE_CFXPERM, env->inner_run_mode,
++                  env->pc, env->cfx_perm_info);
++        return;
++    }
++
++    /*
 +     * M1: no guest exception handler. QEMU directly maps fault → exit code
 +     * and exits. Per ADR-0004 D6.1, this avoids pre-setting future exception
 +     * model. The exit code is propagated to host $? via
@@ -119,20 +222,596 @@ index 0000000..c37a2c0
 +    cpu_exit(cs);
 +}
 +
++/*
++ * PTE field layout (DADAO-12 §2.2.3/§2.2.4; ADR-0040 D1/D9, ADR-0041 D4/D9).
++ *
++ *   [63:60] HSJU   H=63, S=62, J=61, U=60
++ *   [59:56] reserved (ignored)
++ *   [55:16] PPN    ([55:29] for a superpage)
++ *   [15:8]  SPF (L1 superpage) / GPF (L2 page); bit8 = lowest fragment
++ *   [7] R  [6] W  [5] X  [4] G  [3] A  [2] D  [1] SP  [0] P
++ */
++#define DADAO_PTE_PPN_MASK   0x00FFFFFFFFFF0000ULL  /* PPN[55:16] */
++#define DADAO_PTE_SPPN_MASK  0x00FFFFFFE0000000ULL  /* PPN[55:29] */
++#define DADAO_PTE_FRAG_SHIFT 8
++#define DADAO_PTE_P          (1ULL << 0)
++#define DADAO_PTE_SP         (1ULL << 1)
++#define DADAO_PTE_D          (1ULL << 2)
++#define DADAO_PTE_A          (1ULL << 3)
++#define DADAO_PTE_G          (1ULL << 4)
++#define DADAO_PTE_X          (1ULL << 5)
++#define DADAO_PTE_W          (1ULL << 6)
++#define DADAO_PTE_R          (1ULL << 7)
++
++/* Page sizes (DADAO-12 §2.2.1/§2.2.2): 512 MiB superpage / 64 KiB page. */
++#define DADAO_PAGE_SHIFT_SUPER   29
++#define DADAO_PAGE_SHIFT_NORMAL  16
++
++#define DADAO_SIZE_MASK(log2)    ((1ULL << (log2)) - 1)
++
++/* Page-table walk result: 1 = mapped, 0 = fault (*cause set), -1 = the PTE
++ * itself could not be read from memory (outside pmem; undefined by the
++ * architecture, so the caller fails explicitly rather than inventing a cause).
++ */
++static int dadao_ptw_read_pte(hwaddr pa, uint64_t *pte)
++{
++    MemTxResult res = MEMTX_OK;
++
++    /* Physical memory (pmem) is the system address space; reading it here
++     * bypasses the PTW/TLB by construction (ADR-0040 D2/§2.2.1 step 3). */
++    *pte = address_space_ldq_be(&address_space_memory, pa,
++                                MEMTXATTRS_UNSPECIFIED, &res);
++    return res == MEMTX_OK ? 0 : -1;
++}
++
++/*
++ * A/D write-back (ADR-0041 D4): atomically OR the pending A/D bits into the
++ * leaf PTE, keeping every other field.  The model is single-threaded, so a
++ * read-modify-write through the system address space is atomic with respect
++ * to guest accesses (page tables are only accessed by this path).
++ * Returns 0, or -1 when the PTE cannot be written (readonly ROM / no memory).
++ */
++static int dadao_ptw_or_ad(hwaddr pte_pa, bool a, bool d)
++{
++    MemTxResult res = MEMTX_OK;
++    uint64_t bits = (a ? DADAO_PTE_A : 0) | (d ? DADAO_PTE_D : 0);
++    uint64_t old;
++
++    if (bits == 0) {
++        return 0;
++    }
++    old = address_space_ldq_be(&address_space_memory, pte_pa,
++                               MEMTXATTRS_UNSPECIFIED, &res);
++    if (res != MEMTX_OK) {
++        return -1;
++    }
++    address_space_stq_be(&address_space_memory, pte_pa, old | bits,
++                         MEMTXATTRS_UNSPECIFIED, &res);
++    return res == MEMTX_OK ? 0 : -1;
++}
++
++/* ── TLB (DADAO-12 §2.2.1/§2.2.2 step 2, §4.5; ADR-0041 D2-D9) ───────── */
++
++static bool dadao_tlb_va_match(const DADAOTlbEntry *e, uint64_t va)
++{
++    return (va & ~DADAO_SIZE_MASK(e->size_log2)) == e->va;
++}
++
++static bool dadao_tlb_asid_match(const CPUDADAOState *env,
++                                 const DADAOTlbEntry *e)
++{
++    /* G=1 entries are global: they match every ASID (ADR-0041 D9). */
++    if (e->flags & DADAO_TLB_FLAG_G) {
++        return true;
++    }
++    return e->asid == (uint16_t)env->tlb_asid;
++}
++
++static DADAOTlbEntry *dadao_tlb_lookup(CPUDADAOState *env, uint64_t va)
++{
++    int i;
++
++    for (i = 0; i < DADAO_TLB_ENTRIES; i++) {
++        DADAOTlbEntry *e = &env->tlb[i];
++
++        if (e->valid && dadao_tlb_va_match(e, va) &&
++            dadao_tlb_asid_match(env, e)) {
++            return e;
++        }
++    }
++    return NULL;
++}
++
++/*
++ * Hit-path permission check: fragment presence -> HSJU -> R/W/X, the same
++ * order as the page walk (ADR-0040 D8; §2.2.6).  Returns 1 when the access may
++ * proceed, 0 on fault (*cause set).  The entry is not re-read from the PTE.
++ */
++static int dadao_tlb_check(const CPUDADAOState *env, const DADAOTlbEntry *e,
++                           uint64_t va, MMUAccessType access_type,
++                           uint64_t *cause)
++{
++    bool fetch = (access_type == MMU_INST_FETCH);
++    bool super = (e->size_log2 == DADAO_PAGE_SHIFT_SUPER);
++    int frag = super ? (int)((va >> 26) & 0x7) : (int)((va >> 13) & 0x7);
++
++    if (!(e->frags & (1u << frag))) {
++        if (super) {
++            *cause = fetch ? DADAO_CAUSE_ISPFTRAP : DADAO_CAUSE_DSPFTRAP;
++        } else {
++            *cause = fetch ? DADAO_CAUSE_IGPFTRAP : DADAO_CAUSE_DGPFTRAP;
++        }
++        return 0;
++    }
++
++    /* HSJU: the current run mode's bit must be set (ADR-0040 D6). */
++    if (!(e->hsju & (1u << (env->inner_run_mode & 0x3)))) {
++        switch (env->inner_run_mode & 0x3) {
++        case DADAO_MODE_USER: *cause = DADAO_CAUSE_NUPERM; break;
++        case DADAO_MODE_JAIL: *cause = DADAO_CAUSE_NJPERM; break;
++        case DADAO_MODE_SUPV: *cause = DADAO_CAUSE_NSPERM; break;
++        default:              *cause = DADAO_CAUSE_NHPERM; break;
++        }
++        return 0;
++    }
++
++    /* R/W/X, orthogonal to HSJU (ADR-0040 D7). */
++    if (fetch) {
++        if (!(e->flags & DADAO_TLB_FLAG_X)) {
++            *cause = DADAO_CAUSE_NXPERM;
++            return 0;
++        }
++    } else if (access_type == MMU_DATA_STORE) {
++        if (!(e->flags & DADAO_TLB_FLAG_W)) {
++            *cause = DADAO_CAUSE_NWPERM;
++            return 0;
++        }
++    } else if (!(e->flags & DADAO_TLB_FLAG_R)) {
++        *cause = DADAO_CAUSE_NRPERM;
++        return 0;
++    }
++    return 1;
++}
++
++/*
++ * Mark A/D locally for an access that passed the checks (ADR-0041 D4): a
++ * load/fetch sets A, a store sets A and D.  Only 0->1 transitions set the
++ * write-back flag.
++ */
++static void dadao_tlb_touch(DADAOTlbEntry *e, MMUAccessType access_type)
++{
++    if (!e->a_local) {
++        e->a_local = true;
++        e->a_dirty = true;
++    }
++    if (access_type == MMU_DATA_STORE && !e->d_local) {
++        e->d_local = true;
++        e->d_dirty = true;
++    }
++}
++
++/* Write the pending A/D bits back (CLEAN/FLUSH/evict).  0 = ok, -1 = failed. */
++static int dadao_tlb_writeback(DADAOTlbEntry *e)
++{
++    if (!e->a_dirty && !e->d_dirty) {
++        return 0;
++    }
++    if (dadao_ptw_or_ad(e->pte_pa, e->a_dirty, e->d_dirty) < 0) {
++        return -1;
++    }
++    e->a_dirty = false;
++    e->d_dirty = false;
++    return 0;
++}
++
++/*
++ * Fill the TLB after a successful walk (ADR-0041 D4/D8).  A dirty entry being
++ * replaced is written back first; a failed write-back is reported as PTWERR
++ * without touching the victim entry (*err_pa = its PTE PA).
++ * Returns 0 and sets *out, or -1 with *err_pa set.
++ */
++static int dadao_tlb_insert(CPUDADAOState *env, uint64_t va, uint64_t leaf_pte,
++                            hwaddr leaf_pa, bool superpage,
++                            DADAOTlbEntry **out, hwaddr *err_pa)
++{
++    DADAOTlbEntry *e = &env->tlb[env->tlb_next];
++
++    if (e->valid && dadao_tlb_writeback(e) < 0) {
++        *err_pa = e->pte_pa;
++        return -1;
++    }
++    env->tlb_next = (env->tlb_next + 1) % DADAO_TLB_ENTRIES;
++
++    memset(e, 0, sizeof(*e));
++    e->size_log2 = superpage ? DADAO_PAGE_SHIFT_SUPER : DADAO_PAGE_SHIFT_NORMAL;
++    e->va = va & ~DADAO_SIZE_MASK(e->size_log2);
++    e->pa = superpage ? (leaf_pte & DADAO_PTE_SPPN_MASK)
++                      : (leaf_pte & DADAO_PTE_PPN_MASK);
++    e->pte_pa = leaf_pa;
++    e->hsju = (leaf_pte >> 60) & 0xF;
++    e->frags = (leaf_pte >> DADAO_PTE_FRAG_SHIFT) & 0xFF;
++    e->flags = ((leaf_pte & DADAO_PTE_R) ? DADAO_TLB_FLAG_R : 0) |
++               ((leaf_pte & DADAO_PTE_W) ? DADAO_TLB_FLAG_W : 0) |
++               ((leaf_pte & DADAO_PTE_X) ? DADAO_TLB_FLAG_X : 0) |
++               ((leaf_pte & DADAO_PTE_G) ? DADAO_TLB_FLAG_G : 0);
++    e->asid = (uint16_t)env->tlb_asid;
++    e->a_local = (leaf_pte & DADAO_PTE_A) != 0;
++    e->d_local = (leaf_pte & DADAO_PTE_D) != 0;
++    e->valid = true;
++    *out = e;
++    return 0;
++}
++
++/*
++ * Soft-TLB protection for an entry.  Write permission is only mapped once both
++ * A and D are already settled in the entry: the first store to a page that was
++ * filled by a read must come back through tlb_fill so the guest A/D bits are
++ * updated (ADR-0041 D4).  This keeps the guest-visible A/D independent of
++ * QEMU's own translation cache.
++ */
++static int dadao_tlb_prot(const DADAOTlbEntry *e)
++{
++    int prot = 0;
++
++    if (e->flags & DADAO_TLB_FLAG_R) {
++        prot |= PAGE_READ;
++    }
++    if (e->flags & DADAO_TLB_FLAG_X) {
++        prot |= PAGE_EXEC;
++    }
++    if ((e->flags & DADAO_TLB_FLAG_W) && e->a_local && e->d_local) {
++        prot |= PAGE_WRITE;
++    }
++    return prot;
++}
++
++/*
++ * Execute a cfx_ptw_tlb_control write: op ([1:0]), scope ([3:2]) and ASID_ANY
++ * (bit4) are orthogonal; the match condition is (ASID match) AND (address
++ * match).  Normal completion (including op=00) raises nothing; only an illegal
++ * operand (scope=reserved, range with size=0) yields CFXREG.
++ */
++static int dadao_tlb_control_exec(CPUDADAOState *env, uint64_t val,
++                                 hwaddr *err_pa)
++{
++    unsigned op = val & 0x3;
++    unsigned scope = (val >> 2) & 0x3;
++    bool asid_any = (val >> 4) & 0x1;
++    uint64_t start = env->tlb_start;
++    uint64_t size = env->tlb_size;
++    int i;
++
++    /* op=00 is a no-op and wins over the operand checks: it raises nothing
++     * (ADR-0041 D3.2 "00 为 no-op，不报异常"), whatever scope/size hold. */
++    if (op == 0x0) {
++        return DADAO_TLB_CMD_OK;
++    }
++    if (scope == 0x3) {
++        return DADAO_TLB_CMD_CFXREG;        /* reserved scope */
++    }
++    if (scope == 0x2 && size == 0) {
++        return DADAO_TLB_CMD_CFXREG;        /* range needs a size */
++    }
++
++    for (i = 0; i < DADAO_TLB_ENTRIES; i++) {
++        DADAOTlbEntry *e = &env->tlb[i];
++
++        if (!e->valid) {
++            continue;
++        }
++        /* ASID dimension: G entries are bypassed unless ASID_ANY is set. */
++        if (!asid_any && ((e->flags & DADAO_TLB_FLAG_G) ||
++                          e->asid != (uint16_t)env->tlb_asid)) {
++            continue;
++        }
++        /* Address dimension (independent of the ASID dimension). */
++        if (scope == 0x1) {
++            if (!dadao_tlb_va_match(e, start)) {
++                continue;
++            }
++        } else if (scope == 0x2) {
++            uint64_t end = start + size;
++            uint64_t epage_end = e->va + (1ULL << e->size_log2);
++
++            if (end < start) {
++                end = UINT64_MAX;           /* saturate on wrap */
++            }
++            if (!(e->va < end && start < epage_end)) {
++                continue;
++            }
++        }
++        if (op & 0x1) {                     /* clean / flush: write back */
++            if (dadao_tlb_writeback(e) < 0) {
++                *err_pa = e->pte_pa;        /* entry kept (FLUSH failure) */
++                return DADAO_TLB_CMD_PTWERR;
++            }
++        }
++        if (op & 0x2) {                     /* invalid / flush: delete */
++            e->valid = false;
++        }
++    }
++    return DADAO_TLB_CMD_OK;
++}
++
++static int dadao_ptw_walk(CPUDADAOState *env, uint64_t va,
++                          MMUAccessType access_type, hwaddr *paddr,
++                          uint64_t *cause, int *prot,
++                          uint64_t *leaf_pte, hwaddr *leaf_pa)
++{
++    bool fetch = (access_type == MMU_INST_FETCH);
++    uint64_t l1pa = (env->ptbr & DADAO_PTBR_MASK) + (((va >> 29) & 0x1FFF) << 3);
++    uint64_t hsju = 1ULL << (60 + (env->inner_run_mode & 0x3));
++    uint64_t pte;
++    int frag;
++
++    if (dadao_ptw_read_pte(l1pa, &pte) < 0) {
++        return -1;
++    }
++
++    /* Step 1: L1 present / superpage (DADAO-12 §2.2.1/§2.2.2 step 3). */
++    if (!(pte & DADAO_PTE_P)) {
++        if (pte & DADAO_PTE_SP) {
++            *cause = fetch ? DADAO_CAUSE_ISPTRAP : DADAO_CAUSE_DSPTRAP;
++        } else {
++            *cause = fetch ? DADAO_CAUSE_IGPTRAP : DADAO_CAUSE_DGPTRAP;
++        }
++        return 0;
++    }
++
++    if (pte & DADAO_PTE_SP) {
++        /* Step 2: 512 MiB superpage + SPF fragment presence. */
++        frag = (va >> 26) & 0x7;
++        if (!(pte & (1ULL << (DADAO_PTE_FRAG_SHIFT + frag)))) {
++            *cause = fetch ? DADAO_CAUSE_ISPFTRAP : DADAO_CAUSE_DSPFTRAP;
++            return 0;
++        }
++        /* PPN[28:16] is forced to zero (ADR-0040 D9): mask, never fault. */
++        *paddr = (pte & DADAO_PTE_SPPN_MASK) | (va & 0x1FFFFFFFULL);
++        *leaf_pa = l1pa;
++    } else {
++        /* Step 2: L2 table, then a 64 KiB normal page + GPF fragment. */
++        uint64_t l2pa = (pte & DADAO_PTE_PPN_MASK) +
++                        (((va >> 16) & 0x1FFF) << 3);
++
++        if (dadao_ptw_read_pte(l2pa, &pte) < 0) {
++            return -1;
++        }
++        if (!(pte & DADAO_PTE_P)) {
++            *cause = fetch ? DADAO_CAUSE_IGPTRAP : DADAO_CAUSE_DGPTRAP;
++            return 0;
++        }
++        frag = (va >> 13) & 0x7;
++        if (!(pte & (1ULL << (DADAO_PTE_FRAG_SHIFT + frag)))) {
++            *cause = fetch ? DADAO_CAUSE_IGPFTRAP : DADAO_CAUSE_DGPFTRAP;
++            return 0;
++        }
++        *paddr = (pte & DADAO_PTE_PPN_MASK) | (va & 0xFFFFULL);
++        *leaf_pa = l2pa;
++    }
++
++    /* Step 3: HSJU (current run mode) before R/W/X (ADR-0040 D6-D8). */
++    if (!(pte & hsju)) {
++        switch (env->inner_run_mode & 0x3) {
++        case DADAO_MODE_USER: *cause = DADAO_CAUSE_NUPERM; break;
++        case DADAO_MODE_JAIL: *cause = DADAO_CAUSE_NJPERM; break;
++        case DADAO_MODE_SUPV: *cause = DADAO_CAUSE_NSPERM; break;
++        default:              *cause = DADAO_CAUSE_NHPERM; break;
++        }
++        return 0;
++    }
++
++    /* Step 4: R/W/X, orthogonal to HSJU (ADR-0040 D7). */
++    if (fetch) {
++        if (!(pte & DADAO_PTE_X)) {
++            *cause = DADAO_CAUSE_NXPERM;
++            return 0;
++        }
++    } else if (access_type == MMU_DATA_STORE) {
++        if (!(pte & DADAO_PTE_W)) {
++            *cause = DADAO_CAUSE_NWPERM;
++            return 0;
++        }
++    } else if (!(pte & DADAO_PTE_R)) {
++        *cause = DADAO_CAUSE_NRPERM;
++        return 0;
++    }
++
++    *prot = ((pte & DADAO_PTE_R) ? PAGE_READ : 0) |
++            ((pte & DADAO_PTE_W) ? PAGE_WRITE : 0) |
++            ((pte & DADAO_PTE_X) ? PAGE_EXEC : 0);
++    *leaf_pte = pte;
++    return 1;
++}
++
 +bool dadao_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
 +                        MMUAccessType access_type, int mmu_idx,
 +                        bool probe, uintptr_t retaddr)
 +{
 +    /*
-+     * M1: no MMU, 1:1 virtual-to-physical mapping.
-+     * Check if address falls within known regions:
-+     *   RAM:   0xFC00_0000_0000 .. +DADAO_RAM_SIZE (16 MiB, cfxha 63/power)
-+     *   ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB)
-+     * Unmapped/illegal accesses are classified per ADR-0020 D15 (see below).
++     * Address-space Step 1 (ADR-0039 §8.5; DADAO-12 §2.2) and Step 3 TLB
++     * (ADR-0041):
++     *
++     * The CPU address is 48 bits; addr[47:42] is the partition key:
++     *   high6 == 0  -> memory window (VA[41:0]):
++     *       ptw_enable == 0: no translation => CFXMEM (current-mode cfx);
++     *                        never a silent pmem pass-through (TLB bypassed).
++     *       ptw_enable == 1: TLB lookup first, then a two-level page-table
++     *                        walk on a miss; a successful walk fills the TLB.
++     *   high6 == 63 -> test-machine RAM/ROM (identity map); OOB keeps the
++     *                  historical test-machine unmapped convention (0x87).
++     *   reserved cfx (6-14, 19-61) plain ld/st -> CFXMEM (ADR-0039 Step 1-c).
++     *   other high6 -> test-machine unmapped convention (0x87).
 +     */
-+    uint64_t addr = address;
++    CPUDADAOState *env = cpu_env(cs);
++    uint64_t addr = address & DADAO_ADDR_MASK;
++    unsigned cfxha = DADAO_ADDR_CFXHA(addr);
++    uint64_t cause = 0;
++    int ret;
 +    int prot;
 +    hwaddr paddr;
++
++    /* Two-axis cfx permission (ADR-0045 D1/D2/D6): direct ld/st => cfxmem,
++     * fetch => cfxexe of the target cfx; self bypasses the cfx axis only.
++     * This check precedes address/range legality (CFXMEM/CFXREG). */
++    if (cfxha != DADAO_CFXHA_MEM &&
++        cfx_perm_denied(env, cfxha,
++                        access_type == MMU_INST_FETCH ? DADAO_CFX_PERM_EXE
++                                                      : DADAO_CFX_PERM_MEM)) {
++        if (probe) {
++            return false;
++        }
++        env->cfx_perm_info = addr;
++        cs->exception_index = DADAO_EXCP_CFXPERM;
++        cpu_loop_exit_restore(cs, retaddr);
++        /* not reached */
++        return false;
++    }
++
++    if (cfxha == DADAO_CFXHA_MEM) {
++        DADAOTlbEntry *e;
++        uint64_t leaf_pte = 0;
++        hwaddr leaf_pa = 0;
++        bool superpage;
++
++        if (!(env->ptw_enable & 1)) {
++            /* ptw_enable == 0: the window is never a pmem pass-through and
++             * the TLB is bypassed (ADR-0041 D5). */
++            if (probe) {
++                return false;
++            }
++            cs->exception_index = DADAO_EXCP_CFXMEM;
++            cpu_loop_exit_restore(cs, retaddr);
++            /* not reached */
++            return false;
++        }
++
++        /* Step 2: TLB lookup (DADAO-12 §2.2.1/§2.2.2; ADR-0041 D8/D9). */
++        e = dadao_tlb_lookup(env, addr);
++        if (e) {
++            if (!dadao_tlb_check(env, e, addr, access_type, &cause)) {
++                if (probe) {
++                    return false;
++                }
++                env->ptw_fault_cause = cause;
++                env->ptw_fault_info = addr;
++                cs->exception_index = DADAO_EXCP_PTW_FAULT;
++                cpu_loop_exit_restore(cs, retaddr);
++                /* not reached */
++                return false;
++            }
++            if (!probe) {
++                dadao_tlb_touch(e, access_type);
++            }
++            paddr = e->pa | (addr & DADAO_SIZE_MASK(e->size_log2));
++            prot = dadao_tlb_prot(e);
++            goto map;
++        }
++
++        /* Step 3: two-level page-table walk on a miss.  Page-table pages are
++         * read with physical addresses through the address space, never
++         * through this function, so the walk cannot recurse. */
++        ret = dadao_ptw_walk(env, addr, access_type, &paddr, &cause, &prot,
++                             &leaf_pte, &leaf_pa);
++        if (ret < 0) {
++            /* Architecture does not define a page-table page outside pmem
++             * (Machine-01: page tables live in pmem).  Fail loudly instead of
++             * inventing a page-fault cause. */
++            if (probe) {
++                return false;
++            }
++            error_report("dadao: page-table access outside physical memory "
++                         "(VA=%016" PRIx64 ", PTBR=%016" PRIx64 ")",
++                         addr, env->ptbr);
++            exit(1);
++        }
++        if (ret == 0) {
++            /* Missing page / permission failure: no fill, no A/D update. */
++            if (probe) {
++                return false;
++            }
++            env->ptw_fault_cause = cause;
++            env->ptw_fault_info = addr;
++            cs->exception_index = DADAO_EXCP_PTW_FAULT;
++            cpu_loop_exit_restore(cs, retaddr);
++            /* not reached */
++            return false;
++        }
++
++        superpage = (leaf_pte & DADAO_PTE_SP) != 0;
++        if (probe) {
++            /* Probing must not change TLB or A/D state. */
++            prot = ((leaf_pte & DADAO_PTE_R) ? PAGE_READ : 0) |
++                   ((leaf_pte & DADAO_PTE_W) ? PAGE_WRITE : 0) |
++                   ((leaf_pte & DADAO_PTE_X) ? PAGE_EXEC : 0);
++            goto map;
++        }
++        {
++            hwaddr err_pa = 0;
++
++            if (dadao_tlb_insert(env, addr, leaf_pte, leaf_pa, superpage,
++                                 &e, &err_pa) < 0) {
++                /* Replacing a dirty entry failed to write back: PTWERR
++                 * (ADR-0041 D7/D10), cause_info = the failing PTE PA. */
++                env->ptw_fault_cause = DADAO_CAUSE_PTWERR;
++                env->ptw_fault_info = err_pa;
++                cs->exception_index = DADAO_EXCP_PTW_FAULT;
++                cpu_loop_exit_restore(cs, retaddr);
++                /* not reached */
++                return false;
++            }
++        }
++        /* The access that caused the fill is itself an access (ADR-0041 D4):
++         * a load/fetch sets A, a store sets A/D. */
++        dadao_tlb_touch(e, access_type);
++        prot = dadao_tlb_prot(e);
++        goto map;
++    }
++
++    /* cfx_pmem (cfx17): the 64 KiB SRAM window at internal offset
++     * 0x3ff_0000_0000 (DADAO-12 §2.1/§4.9; ADR-0042 D3).  The test machine backs it with a
++     * RAM region at a host address outside the 56-bit PA space.  An offset
++     * outside the SRAM is an illegal internal-space access => CFXMEM. */
++    if (cfxha == DADAO_CFXHA_PMEM) {
++        uint64_t off = addr & DADAO_VA_MASK;
++
++        if (off >= DADAO_PMEM_SRAM_CFX_OFFSET &&
++            off - DADAO_PMEM_SRAM_CFX_OFFSET < DADAO_PMEM_SRAM_SIZE) {
++            paddr = DADAO_PMEM_SRAM_HOST_BASE + (off - DADAO_PMEM_SRAM_CFX_OFFSET);
++            prot = PAGE_READ | PAGE_WRITE;
++            goto map;
++        }
++        if (probe) {
++            return false;
++        }
++        cs->exception_index = DADAO_EXCP_CFXMEM;
++        cpu_loop_exit_restore(cs, retaddr);
++        /* not reached */
++        return false;
++    }
++
++    /* hmon (cfx3) / smon (cfx2) SRAM: 64 KiB at internal offset
++     * 0x3ff_0000_0000 of the owning cfx (ADR-0043 D4/D5).  The test machine
++     * backs each with a host RAM region outside the 56-bit PA space.  An
++     * offset outside the SRAM is an illegal internal-space access => CFXMEM. */
++    if (cfxha == 3 || cfxha == 2) {
++        uint64_t off = addr & DADAO_VA_MASK;
++        uint64_t host = (cfxha == 3) ? DADAO_HMON_SRAM_HOST_BASE
++                                     : DADAO_SMON_SRAM_HOST_BASE;
++
++        if (off >= DADAO_MON_SRAM_CFX_OFFSET &&
++            off - DADAO_MON_SRAM_CFX_OFFSET < DADAO_MON_SRAM_SIZE) {
++            paddr = host + (off - DADAO_MON_SRAM_CFX_OFFSET);
++            prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
++            goto map;
++        }
++        if (probe) {
++            return false;
++        }
++        cs->exception_index = DADAO_EXCP_CFXMEM;
++        cpu_loop_exit_restore(cs, retaddr);
++        /* not reached */
++        return false;
++    }
 +
 +    /* RAM (ADR-0004 R3 + rev. 2026-10-11): the single 16 MiB RAM at
 +     * 0xFC00_0000_0000 (cfxha 63, power).  The legacy RAM segment and the
@@ -165,17 +844,18 @@ index 0000000..c37a2c0
 +    }
 +
 +    /*
-+     * Machine-level fault classification (ADR-0020 D15 / ADR-0004 R3):
-+     *  - inside the umon segment (cfxha 0), which now holds no RAM => illegal
-+     *    access/fetch to the internal address space => CFXMEM (exit 0x81).
-+     *  - addresses elsewhere (including the power segment 63) keep the
-+     *    historical test-machine unmapped code 0x87 (ADR-0004 D5.8).
-+     * Data accesses and instruction fetches are treated identically here: the
++     * Machine-level fault classification:
++     *  - reserved cfxha (6-14, 19-61) plain ld/st => CFXMEM (ADR-0039
++     *    Step 1-c), routed to that cfxha (DADAO-12 §5.2).
++     *  - every other unmapped segment (incl. the power segment 63 outside
++     *    RAM/ROM) keeps the historical test-machine unmapped code 0x87
++     *    (ADR-0004 D5.8).
++     * Data accesses and instruction fetches are treated identically: the
 +     * fetch path reaches this function through get_page_addr_code ->
-+     * cpu_ldl_code_mmu (MMU_INST_FETCH), so no `access_type` special case is
-+     * needed and an out-of-range fetch never silently continues.
++     * cpu_ldl_code_maybe_mmu (MMU_INST_FETCH), so no `access_type` special
++     * case is needed and an out-of-range fetch never silently continues.
 +     */
-+    if (DADAO_ADDR_CFXHA(addr) == DADAO_CFXHA_UMON) {
++    if (DADAO_CFX_IS_RESERVED(cfxha)) {
 +        cs->exception_index = DADAO_EXCP_CFXMEM;
 +    } else {
 +        cs->exception_index = DADAO_EXCP_UNMAPPED;
@@ -188,8 +868,43 @@ index 0000000..c37a2c0
 +    tlb_set_page(cs, address, paddr, prot, mmu_idx, TARGET_PAGE_SIZE);
 +    return true;
 +}
-+
 +#endif /* !CONFIG_USER_ONLY */
++
++/*
++ * QEMU's own translation cache is a derived cache of the guest TLB/PTW result;
++ * dropping it never invalidates guest TLB entries.  It must be dropped when the
++ * inputs that produced guest-visible mappings change (PTBR / ptw_enable / ASID)
++ * or when guest TLB entries are deleted, otherwise a stale host mapping would
++ * outlive the guest state it was derived from (ADR-0041 D5).
++ */
++#ifndef CONFIG_USER_ONLY
++static void dadao_soft_tlb_flush(CPUDADAOState *env)
++{
++    tlb_flush(env_cpu(env));
++}
++#else
++/*
++ * The linux-user build has no PTW/TLB (ADR-0041 is a system-mode structure):
++ * there is nothing to flush, and the cfx_ptw cg12 interface is withheld by
++ * cfx_reg_ptr, so a command write there takes the generic CFXREG path rather
++ * than silently succeeding.
++ */
++static void dadao_soft_tlb_flush(CPUDADAOState *env)
++{
++    (void)env;
++}
++
++/* Unreachable: cfx_reg_ptr withholds cfx_ptw cg12 in this build, so a command
++ * write is rejected there with CFXREG.  Present only to keep the link whole. */
++static int dadao_tlb_control_exec(CPUDADAOState *env, uint64_t val,
++                                 hwaddr *err_pa)
++{
++    (void)env;
++    (void)val;
++    (void)err_pa;
++    return DADAO_TLB_CMD_CFXREG;
++}
++#endif
 +
 +/*
 + * raise_exception helper: raise a DADAO exception.
@@ -558,10 +1273,23 @@ index 0000000..c37a2c0
 + * fp_status_commit() exactly as for the conversion family.
 + */
 +
-+/* scaleB's second source is an integer-valued floating-point operand; the
-+ * exponent n is its rounded integer value (spec §S2D1: "rfHD 取整数值").
-+ * Softfloat's float-to-int conversion follows the same status rounding mode,
-+ * so an inexact/exotic rfHD is reflected in the accrued flags. */
++/* scaleB's exponent is rdHD, a signed 64-bit integer (SimRISC-07 §2.1;
++ * SPEC-181t F5.2 C1).  scalbn() takes an int; clamp out-of-range exponents so
++ * that a huge positive one overflows to ±Inf (OF) and a huge negative one
++ * underflows toward zero (UF/NX), per IEEE 754 scaleB. */
++static int fp_scaleb_exp(uint64_t raw)
++{
++    int64_t exp = (int64_t)raw;
++
++    if (exp > 0x7fffffff) {
++        return 0x7fffffff;
++    }
++    if (exp < -0x7fffffff - 1) {
++        return -0x7fffffff - 1;
++    }
++    return (int)exp;
++}
++
 +uint64_t helper_fp_arith(CPUDADAOState *env, uint64_t a, uint64_t b,
 +                         uint32_t kind)
 +{
@@ -585,11 +1313,9 @@ index 0000000..c37a2c0
 +    case 4:  /* ftrem: IEEE 754 remainder (nearest quotient, ties to even) */
 +        res = (uint64_t)(uint32_t)float32_rem((float32)a, (float32)b, &st);
 +        break;
-+    case 5:  /* ftsclb: rfHC * 2^rfHD */
++    case 5:  /* ftsclb: rfHC * 2^rdHD (rdHD = signed 64-bit exponent) */
 +        res = (uint64_t)(uint32_t)float32_scalbn((float32)a,
-+                                                 float32_to_int32((float32)b,
-+                                                                  &st),
-+                                                 &st);
++                                                 fp_scaleb_exp(b), &st);
 +        break;
 +    case 6:  /* foadd */
 +        res = (uint64_t)float64_add((float64)a, (float64)b, &st);
@@ -608,8 +1334,7 @@ index 0000000..c37a2c0
 +        break;
 +    default: /* 11 fosclb */
 +        res = (uint64_t)float64_scalbn((float64)a,
-+                                       float64_to_int32((float64)b, &st),
-+                                       &st);
++                                       fp_scaleb_exp(b), &st);
 +        break;
 +    }
 +    fp_status_commit(env, &st);
@@ -766,10 +1491,13 @@ index 0000000..c37a2c0
 + *   .tao/contracts/contract-see.md §1/§3/§4; spec/Machine-01-测试机运行环境.md.
 + *
 + * Test-machine scope (ADR-0020 D9, Machine-01 §3): only cfx0/1/2/3/63 are
-+ * implemented; access to any other allocated-but-unimplemented cfx => CFXREG.
++ * fully implemented, plus cfx4/ptw's Step 1 register subset (PTBR +
++ * ptw_enable, ADR-0039 §8.5), cfx17/pmem's SRAM+DMA (ADR-0042) and
++ * cfx15/cfx18 (single-hart timer + global time, INTEG-050t).  Access to any
++ * other allocated-but-unimplemented cfx => CFXREG.
 + * =================================================================== */
 +
-+const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 63 };
++const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 4, 15, 17, 18, 63 };
 +
 +/* cfxha -> compact index into env->cfx[], or -1 if not implemented here. */
 +static int cfx_idx(int cfxha)
@@ -783,16 +1511,15 @@ index 0000000..c37a2c0
 +    return -1;
 +}
 +
-+/* cg0-cg3 (rc2..rc12) shared per-mode register -> pointer. */
++/* cg0-cg3 shared per-mode register -> pointer (DADAO-12 §3; ADR-0045 D2/D3). */
 +static uint64_t *cfx_mode_reg(int ci, DADAOCfxModeRegs *m, int rc)
 +{
 +    switch (rc) {
-+    case 2:  return &m->cfx2rd_mask;
-+    case 3:  return &m->cfx2rc_mask;
-+    case 4:  return &m->cfxld_mask;
-+    case 5:  return &m->cfxst_mask;
-+    case 6:  return &m->trap_mask;
-+    case 7:  return &m->escape_mask;
++    case 0:  return &m->cfxtrap;
++    case 1:  return &m->cfxmem;
++    case 2:  return &m->cfxreg;
++    case 3:  return &m->cfxexe;
++    case 4:  return &m->cfx_intr_mask;
 +    case 8:  return &m->switch_run_mode;
 +    case 9:  return &m->switch_cfx_mask;
 +    case 10: return &m->excp_vector;
@@ -803,11 +1530,64 @@ index 0000000..c37a2c0
 +}
 +
 +/*
++ * cg7 internal space description (DADAO-12 §3.8): 16 blocks of 4 words,
++ * rc = 4i+0..3 = desc / start / size / attr.  desc bit0 = exists, bits1-5 =
++ * SRAM/ROM/MMIO/DRAM/OTHER (one-hot when exists); attr bit0 = R, bit1 = W,
++ * bit2 = X, bit3 = cacheable, bit4 = shareable, bit5 = volatile.  The table is
++ * a compile-time constant: cg7 carries no per-cfx state and is read-only.
++ * Test-machine blocks (§2.1: smon/hmon/pmem 64 KiB SRAM, power 256 KiB
++ * BootROM); every other block (space[1..15] and cfx0/1/4/...) reads 0.
++ */
++static uint64_t dadao_cg7_space_reg(int cfxha, unsigned rc)
++{
++    static const uint64_t smon[4] = {
++        0x3,                    /* desc: exists | SRAM */
++        0x3FF00000000ULL,       /* start: 0x3ff_0000_0000 */
++        0x10000ULL,             /* size:  64 KiB */
++        0x7,                    /* attr: R | W | X */
++    };
++    static const uint64_t pmem[4] = {
++        0x3,                    /* desc: exists | SRAM */
++        0x3FF00000000ULL,       /* start: 0x3ff_0000_0000 */
++        0x10000ULL,             /* size:  64 KiB */
++        0x3,                    /* attr: R | W (X = 0) */
++    };
++    static const uint64_t power[4] = {
++        0x5,                    /* desc: exists | ROM */
++        0x3FFFFFC0000ULL,       /* start: 0x3ff_fffc_0000 */
++        0x40000ULL,             /* size:  256 KiB (start + size = 2^42) */
++        0x5,                    /* attr: R | X */
++    };
++    const uint64_t *blk;
++
++    if (rc / 4 != 0) {
++        return 0;               /* space[1..15]: exists = 0 => all fields 0 */
++    }
++    switch (cfxha) {
++    case 2:                     /* cfx_smon */
++    case 3:                     /* cfx_hmon */
++        blk = smon;
++        break;
++    case 17:                    /* cfx_pmem */
++        blk = pmem;
++        break;
++    case 63:                    /* cfx_power */
++        blk = power;
++        break;
++    default:
++        return 0;               /* umon/jmon/ptw: 16 blocks all empty */
++    }
++    return blk[rc % 4];
++}
++
++/*
 + * Resolve (cfxha, cg, rc) to a register pointer.  Returns NULL for any
 + * non-existent register combination or a read/write permission mismatch
 + * (DADAO-12 §3: rc >= scratch_regs_num => CFXREG; SimRISC-11 §特权指令:
 + * "读写权限不匹配时触发 CFXREG").  cg3 is only accessible in hypv
-+ * (DADAO-13 §1).  Callers must handle reserved/unimplemented cfxha first.
++ * (DADAO-13 §1).  cg7 is answered before this call from the static space
++ * table (DADAO-12 §3.8).  Callers must handle reserved/unimplemented cfxha
++ * first.
 + */
 +static uint64_t *cfx_reg_ptr(CPUDADAOState *env, int ci, int cg, int rc,
 +                             bool write)
@@ -815,13 +1595,7 @@ index 0000000..c37a2c0
 +    DADAOCfxRegs *r = &env->cfx[ci];
 +
 +    if (cg <= 2) {
-+        if (rc == 0) {
-+            return write ? NULL : &env->cfx_global_version[cg]; /* RO */
-+        }
-+        if (rc == 1) {
-+            return &env->global_cfx_mask[cg]; /* global RW */
-+        }
-+        if (rc <= 11) {
++        if (rc <= 4 || (rc >= 8 && rc <= 11)) {
 +            return cfx_mode_reg(ci, &r->mode[cg], rc);
 +        }
 +        return NULL;
@@ -830,13 +1604,7 @@ index 0000000..c37a2c0
 +        if (env->inner_run_mode != DADAO_MODE_HYPV) {
 +            return NULL;   /* cg3 only in hypv (DADAO-13 §1) => CFXREG */
 +        }
-+        if (rc == 0) {
-+            return write ? NULL : &env->cfx_global_version[3];
-+        }
-+        if (rc == 1) {
-+            return &env->global_cfx_mask[3];
-+        }
-+        if (rc <= 12) {
++        if ((rc <= 4) || (rc >= 8 && rc <= 12)) {
 +            return cfx_mode_reg(ci, &r->mode[3], rc);
 +        }
 +        return NULL;
@@ -869,12 +1637,36 @@ index 0000000..c37a2c0
 +            return NULL;   /* rc >= N => CFXREG (DADAO-12 §3) */
 +        }
 +        return &r->scratch[rc];
-+    case 7:
++    case 8:
++        /* cfx0-3: global_cfx_intr_mask (cg8 rc1; ADR-0045 D3). */
++        if (ci >= 0 && dadao_cfxha_map[ci] < 4 && rc == 1) {
++            return &r->global_cfx_intr_mask;
++        }
++        /* cfx_ptw only: Step 1 PTW enable (DADAO-12 §4.5). */
++        return (ci >= 0 && dadao_cfxha_map[ci] == 4 && rc == 8)
++               ? &env->ptw_enable : NULL;
++    case 9:
++        /* cfx_ptw only: the single PTBR (DADAO-12 §4.5). */
++        return (ci >= 0 && dadao_cfxha_map[ci] == 4 && rc == 0)
++               ? &env->ptbr : NULL;
++    case 12:
++        /* cfx_ptw only: TLB maintenance interface (DADAO-12 §4.5;
++         * ADR-0041 D3).  rc0 is a write-only command trigger. */
++        if (ci < 0 || dadao_cfxha_map[ci] != DADAO_CFXHA_PTW) {
++            return NULL;
++        }
++#ifdef CONFIG_USER_ONLY
++        /* No PTW/TLB in the user-mode build: explicit CFXREG, no stub. */
++        return NULL;
++#else
 +        switch (rc) {
-+        case 0: return &r->sram_block_sel;
-+        case 1: return &r->sram_addr;
++        case 0: return write ? &env->tlb_control : NULL;
++        case 1: return &env->tlb_asid;      /* 16-bit ASID */
++        case 2: return &env->tlb_start;
++        case 3: return &env->tlb_size;
 +        default: return NULL;
 +        }
++#endif
 +    default:
 +        return NULL;
 +    }
@@ -922,18 +1714,23 @@ index 0000000..c37a2c0
 +                *entered = false;
 +                return 0;
 +            }
-+            /* step 4: global_cfx_mask (self cfxha is not checked) */
-+            if (target != env->inner_cfx_code &&
-+                (env->global_cfx_mask[entry_mode] & (1ULL << target))) {
-+                if (sync) {
-+                    cause = DADAO_CAUSE_ILLI;
-+                    target = entry_mode;
-+                    redirected = true;
-+                    continue;
++            /* step 4 (async only): two-level interrupt source filter
++             * (ADR-0045 D3).  The current cfx's cfx_intr_mask and the current
++             * mode monitor's global_cfx_intr_mask both mask by source cfxha;
++             * either one set => pending, no delivery. */
++            if (!sync) {
++                int cur = cfx_idx(env->inner_cfx_code);
++                uint64_t cur_mask = (cur >= 0)
++                    ? env->cfx[cur].mode[entry_mode].cfx_intr_mask : 0;
++                uint64_t global_mask =
++                    env->cfx[entry_mode & 0x3].global_cfx_intr_mask;
++
++                if ((cur_mask & (1ULL << target)) ||
++                    (global_mask & (1ULL << target))) {
++                    env->cfx[ci].pending |= cause;
++                    *entered = false;
++                    return 0;
 +                }
-+                env->cfx[ci].pending |= cause;
-+                *entered = false;
-+                return 0;
 +            }
 +            /* step 5: exception-cause mask */
 +            if (env->cfx[ci].mode[entry_mode].excp_cause_mask & cause) {
@@ -957,7 +1754,11 @@ index 0000000..c37a2c0
 +    /* step 7: save the previous run mode / cfx mask */
 +    env->cfx[ci].prev_run_mode = entry_mode;
 +    env->cfx[ci].prev_cfx_mask = env->inner_cfx_mask;
-+    /* step 8: switch run mode / cfx mask to the <entry_mode> switch values */
++    /* step 8: switch run mode / cfx mask to the <entry_mode> switch values.
++     * HSJU permission is re-checked on every tlb_fill against the entry, so the
++     * derived translation cache must not survive a run-mode change: guest TLB
++     * entries stay (only QEMU's cache of their result is dropped). */
++    dadao_soft_tlb_flush(env);
 +    vec = env->cfx[ci].mode[entry_mode].excp_vector;
 +    env->inner_run_mode = env->cfx[ci].mode[entry_mode].switch_run_mode & 0x3;
 +    env->inner_cfx_mask = env->cfx[ci].mode[entry_mode].switch_cfx_mask;
@@ -979,6 +1780,595 @@ index 0000000..c37a2c0
 +    uint64_t vec = cfx_enter(env, cause, target, pc, cause_info, true, &entered);
 +    env->pc = entered ? vec : pc + 4;
 +    env->rb[0] = env->pc;
++}
++
++/* CFXPERM is delivered to the monitor of the current run mode (cfx0-3). */
++static void cfx_raise_perm(CPUDADAOState *env, uint64_t info, uint64_t pc)
++{
++    cfx_raise(env, DADAO_CAUSE_CFXPERM, env->inner_run_mode, pc, info);
++}
++
++/* D9: entering a frame saves the entry-mode monitor's global_cfx_intr_mask and
++ * blocks every async source while the single frame is live; escape restores
++ * it.  Shared by the sync trap path and the async arbiter so that both record
++ * the frame's saved mask and neither can deliver a second source inside it. */
++static void cfx_frame_block_async(CPUDADAOState *env, int ci, uint8_t entry_mode)
++{
++    int mon = entry_mode & 0x3;
++
++    env->cfx[ci].saved_global_intr_mask = env->cfx[mon].global_cfx_intr_mask;
++    env->cfx[ci].saved_intr_monitor = (uint8_t)mon;
++    env->cfx[mon].global_cfx_intr_mask = ~0ULL;
++}
++
++/* ===================================================================
++ * cfx_pmem SRAM + DMA (spec/DADAO-12 §2.1/§4.9; ADR-0042 D3/D4/D6/D7)
++ *
++ * The DMA moves at most 64 KiB between the cfx_pmem SRAM and physical memory.
++ * Registers are cfx_pmem cg15 rc0..rc4; START launches the transfer, which
++ * completes asynchronously on a virtual-clock timer so that BUSY is
++ * observable (the transfer itself is one memcpy).
++ * =================================================================== */
++#ifndef CONFIG_USER_ONLY
++
++/* Completion latency of the test-machine DMA (virtual clock). */
++#define DADAO_PMEM_DMA_DELAY_NS  1000000ULL   /* 1 ms */
++
++/* Re-raise CPU_INTERRUPT_HARD when a source is still pending; defined with the
++ * arbitration block next to the cfx_hart timer section below.  The DMA
++ * completion runs before that definition, hence the forward declaration. */
++static void dadao_async_kick(CPUDADAOState *env);
++
++static bool dadao_pmem_dma_pa_ok(uint64_t pa, uint64_t len, bool write)
++{
++    uint64_t end = pa + len;
++
++    if (pa >= DADAO_RAM_BASE && end <= DADAO_RAM_BASE + DADAO_RAM_SIZE) {
++        return true;
++    }
++    /* PA 0 aliases the same 16 MiB RAM (ADR-0043 D10): the first page table
++     * lives at PA 0 (PTBR=0), so DMA must reach it there as well. */
++    if (pa >= DADAO_RAM_ALIAS_BASE &&
++        end <= DADAO_RAM_ALIAS_BASE + DADAO_RAM_SIZE) {
++        return true;
++    }
++    /* The boot ROM is readable, never writable. */
++    if (!write && pa >= DADAO_ROM_BASE && end <= DADAO_ROM_BASE + DADAO_ROM_SIZE) {
++        return true;
++    }
++    return false;
++}
++
++static void dadao_pmem_dma_complete(void *opaque)
++{
++    CPUState *cs = opaque;
++    CPUDADAOState *env = cpu_env(cs);
++    g_autofree uint8_t *buf = NULL;
++    MemTxResult res;
++    bool dir = env->pmem_dma_dir;
++    uint64_t err = 0;
++
++    if (!(env->pmem_dma_status & DADAO_PMEM_DMA_BUSY)) {
++        return;                       /* defensive: no transfer in flight */
++    }
++
++    buf = g_malloc(env->pmem_dma_len);
++    if (dir == 0) {
++        /* CFX -> PA */
++        res = address_space_read(&address_space_memory,
++                                 DADAO_PMEM_SRAM_HOST_BASE + env->pmem_dma_cfx_off,
++                                 MEMTXATTRS_UNSPECIFIED, buf, env->pmem_dma_len);
++        if (res == MEMTX_OK) {
++            res = address_space_write(&address_space_memory, env->pmem_dma_pa,
++                                      MEMTXATTRS_UNSPECIFIED, buf,
++                                      env->pmem_dma_len);
++        }
++    } else {
++        /* PA -> CFX */
++        res = address_space_read(&address_space_memory, env->pmem_dma_pa,
++                                 MEMTXATTRS_UNSPECIFIED, buf, env->pmem_dma_len);
++        if (res == MEMTX_OK) {
++            res = address_space_write(&address_space_memory,
++                                      DADAO_PMEM_SRAM_HOST_BASE + env->pmem_dma_cfx_off,
++                                      MEMTXATTRS_UNSPECIFIED, buf,
++                                      env->pmem_dma_len);
++        }
++    }
++
++    env->pmem_dma_status &= ~DADAO_PMEM_DMA_BUSY;
++    if (res != MEMTX_OK) {
++        err = DADAO_PMEM_DMA_ERR_PA_FAULT;
++        env->pmem_dma_status |= DADAO_PMEM_DMA_ERROR |
++                                (err << DADAO_PMEM_DMA_ERR_CODE_SHIFT);
++    } else {
++        env->pmem_dma_status |= DADAO_PMEM_DMA_DONE;
++    }
++
++    if (env->pmem_dma_irq_en) {
++        /* The pending record is the target cfx's cg5 rc5 bit8 (INTEG-051t);
++         * the arbiter turns it into a delivery. */
++        int ci = cfx_idx(DADAO_CFXHA_PMEM);
++
++        if (ci >= 0) {
++            env->cfx[ci].pending |= DADAO_CAUSE_PMEM_DMA;
++        }
++        dadao_async_kick(env);
++    }
++}
++
++/*
++ * START (dma_ctrl bit0): validate size / SRAM range / PA range / PA target.
++ * Setup errors never start a transfer (BUSY stays 0) and set ERROR + ERR_CODE.
++ */
++static void dadao_pmem_dma_start(CPUDADAOState *env, uint64_t ctrl)
++{
++    uint64_t dir = (ctrl & DADAO_PMEM_DMA_CTRL_DIR) ? 1 : 0;
++    uint64_t cfx_addr = (dir ? env->pmem_dma_dst : env->pmem_dma_src) &
++                        DADAO_VA_MASK;
++    uint64_t pa = (dir ? env->pmem_dma_src : env->pmem_dma_dst) &
++                  0x00FFFFFFFFFFFFFFULL;              /* PA[55:0] */
++    uint64_t size = env->pmem_dma_size & 0x3FFFFFFFULL;  /* 30-bit field */
++    uint64_t err = 0;
++
++    if (size == 0 || size > (1ULL << 29)) {
++        err = DADAO_PMEM_DMA_ERR_SIZE;
++    } else if (size > DADAO_PMEM_SRAM_SIZE) {
++        err = DADAO_PMEM_DMA_ERR_CFX_RANGE;
++    } else if (cfx_addr < DADAO_PMEM_SRAM_CFX_OFFSET ||
++               cfx_addr - DADAO_PMEM_SRAM_CFX_OFFSET >
++                   DADAO_PMEM_SRAM_SIZE - size) {
++        err = DADAO_PMEM_DMA_ERR_CFX_RANGE;
++    } else if (size > (1ULL << 56) - pa) {
++        err = DADAO_PMEM_DMA_ERR_PA_RANGE;
++    } else if (!dadao_pmem_dma_pa_ok(pa, size, dir == 0)) {
++        err = DADAO_PMEM_DMA_ERR_PA_FAULT;
++    }
++
++    if (err) {
++        env->pmem_dma_status |= DADAO_PMEM_DMA_ERROR |
++                                (err << DADAO_PMEM_DMA_ERR_CODE_SHIFT);
++        if (env->pmem_dma_irq_en) {
++            int ci = cfx_idx(DADAO_CFXHA_PMEM);
++
++            if (ci >= 0) {
++                env->cfx[ci].pending |= DADAO_CAUSE_PMEM_DMA;
++            }
++            dadao_async_kick(env);
++        }
++        return;
++    }
++
++    env->pmem_dma_dir = dir;
++    env->pmem_dma_cfx_off = cfx_addr - DADAO_PMEM_SRAM_CFX_OFFSET;
++    env->pmem_dma_pa = pa;
++    env->pmem_dma_len = size;
++    env->pmem_dma_status |= DADAO_PMEM_DMA_BUSY;
++    timer_mod(env->pmem_dma_timer,
++              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + DADAO_PMEM_DMA_DELAY_NS);
++}
++
++/* cfx_pmem cg15 read (rc0..rc4).  Returns false for a reserved rc (CFXREG). */
++static bool dadao_pmem_dma_reg_read(CPUDADAOState *env, uint32_t rc,
++                                    uint64_t *val)
++{
++    switch (rc) {
++    case 0: *val = env->pmem_dma_src; return true;
++    case 1: *val = env->pmem_dma_dst; return true;
++    case 2: *val = env->pmem_dma_size & 0x3FFFFFFFULL; return true;
++    case 3: *val = env->pmem_dma_ctrl & ~DADAO_PMEM_DMA_CTRL_START; return true;
++    case 4: *val = env->pmem_dma_status; return true;
++    default: return false;
++    }
++}
++
++/*
++ * cfx_pmem cg15 write (rc0..rc4).  While BUSY, writes to rc0..rc3 and the
++ * DONE/ERROR W1C of rc4 are ignored (DADAO-12 §4.9).  Returns false for a
++ * reserved rc (CFXREG).
++ */
++static bool dadao_pmem_dma_reg_write(CPUDADAOState *env, uint32_t rc,
++                                     uint64_t val)
++{
++    bool busy = (env->pmem_dma_status & DADAO_PMEM_DMA_BUSY) != 0;
++
++    switch (rc) {
++    case 0:
++        if (!busy) {
++            env->pmem_dma_src = val;
++        }
++        return true;
++    case 1:
++        if (!busy) {
++            env->pmem_dma_dst = val;
++        }
++        return true;
++    case 2:
++        if (!busy) {
++            env->pmem_dma_size = val & 0x3FFFFFFFULL;
++        }
++        return true;
++    case 3:
++        if (busy) {
++            return true;
++        }
++        /* START self-clears; DIR/IRQ_EN read back what was written. */
++        env->pmem_dma_ctrl = val & (DADAO_PMEM_DMA_CTRL_DIR |
++                                    DADAO_PMEM_DMA_CTRL_IRQ_EN);
++        env->pmem_dma_irq_en = (val & DADAO_PMEM_DMA_CTRL_IRQ_EN) ? 1 : 0;
++        if (val & DADAO_PMEM_DMA_CTRL_START) {
++            dadao_pmem_dma_start(env, val);
++        }
++        return true;
++    case 4:
++        if (busy) {
++            return true;              /* W1C ignored while BUSY */
++        }
++        if (val & DADAO_PMEM_DMA_DONE) {
++            env->pmem_dma_status &= ~DADAO_PMEM_DMA_DONE;
++        }
++        if (val & DADAO_PMEM_DMA_ERROR) {
++            env->pmem_dma_status &= ~(DADAO_PMEM_DMA_ERROR |
++                                      DADAO_PMEM_DMA_ERR_CODE_MASK);
++        }
++        return true;
++    default:
++        return false;
++    }
++}
++
++void dadao_pmem_dma_init(CPUState *cs)
++{
++    CPUDADAOState *env = cpu_env(cs);
++
++    env->pmem_dma_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
++                                       dadao_pmem_dma_complete, cs);
++}
++
++void dadao_pmem_dma_reset(CPUDADAOState *env)
++{
++    if (env->pmem_dma_timer) {
++        timer_del(env->pmem_dma_timer);
++    }
++    env->pmem_dma_src = 0;
++    env->pmem_dma_dst = 0;
++    env->pmem_dma_size = 0;
++    env->pmem_dma_ctrl = 0;
++    env->pmem_dma_status = 0;
++    env->pmem_dma_dir = 0;
++    env->pmem_dma_irq_en = 0;
++    env->pmem_dma_cfx_off = 0;
++    env->pmem_dma_pa = 0;
++    env->pmem_dma_len = 0;
++}
++
++#else /* CONFIG_USER_ONLY */
++
++/*
++ * The linux-user build has no system address space and no cfx internal SRAM:
++ * the cfx_pmem cg15 interface is withheld explicitly (CFXREG), never a
++ * silent success.
++ */
++static bool dadao_pmem_dma_reg_read(CPUDADAOState *env, uint32_t rc,
++                                    uint64_t *val)
++{
++    (void)env; (void)rc; (void)val;
++    return false;
++}
++
++static bool dadao_pmem_dma_reg_write(CPUDADAOState *env, uint32_t rc,
++                                     uint64_t val)
++{
++    (void)env; (void)rc; (void)val;
++    return false;
++}
++
++#endif /* !CONFIG_USER_ONLY */
++
++/* ===================================================================
++ * cfx_time (cfxha 18) + single-hart cfx_hart timer (cfxha 15)
++ * (spec/DADAO-12 §4.7/§4.10; contract-see §3; INTEG-050t/INTEG-051t)
++ *
++ * cfx_time_value and cfx_hart_cycle are derived from QEMU_CLOCK_VIRTUAL
++ * (test-machine model: 1 count = 1 ns, epoch = reset time_base_ns).  cfx_hart
++ * insn is accumulated per TB by translate.c.  The timer is one-shot and its
++ * deadline is a 64-bit absolute cfx_time value; TIMER (1 << 10) is maskable
++ * with cause_info = 0.  A pending TIMER lives in the target cfx's cg5 rc5
++ * (cfx_hart bit10); the unified arbiter below only selects (INTEG-051t).
++ * =================================================================== */
++
++static uint64_t dadao_time_now_ns(void)
++{
++#ifdef CONFIG_USER_ONLY
++    /* linux-user has no QEMU_CLOCK_VIRTUAL; reads stay non-faulting. */
++    return 0;
++#else
++    return qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
++#endif
++}
++
++static uint64_t dadao_time_value(CPUDADAOState *env)
++{
++    uint64_t now = dadao_time_now_ns();
++
++    return (now >= env->time_base_ns) ? now - env->time_base_ns : 0;
++}
++
++static bool dadao_time_reg_read(CPUDADAOState *env, uint32_t rc, uint64_t *val)
++{
++    switch (rc) {
++    case 0:                             /* cg10 rc0: time_freq (Hz) */
++        *val = DADAO_TIME_FREQ;
++        return true;
++    case 1:                             /* cg10 rc1: time_value (64-bit) */
++        *val = dadao_time_value(env);
++        return true;
++    default:
++        return false;
++    }
++}
++
++static bool dadao_hart_istatus(CPUDADAOState *env)
++{
++    return (env->hart_timer_ctrl & DADAO_HART_TIMER_ENABLE) &&
++           (env->hart_timer_cmp != ~0ULL) &&
++           (dadao_time_value(env) >= env->hart_timer_cmp);
++}
++
++static bool dadao_hart_reg_read(CPUDADAOState *env, uint32_t rc, uint64_t *val)
++{
++    switch (rc) {
++    case 0:                             /* cg8 rc0: hart_id (single hart) */
++        *val = 0;
++        return true;
++    case 2:                             /* cg8 rc2: cycle (64-bit) */
++        *val = dadao_time_value(env);
++        return true;
++    case 3:                             /* cg8 rc3: insn (64-bit) */
++        *val = env->hart_insn;
++        return true;
++#ifdef CONFIG_USER_ONLY
++    case 4:
++    case 5:
++        return false;                   /* timer regs withheld: CFXREG */
++#else
++    case 4:                             /* cg8 rc4: timer_cmp (64-bit) */
++        *val = env->hart_timer_cmp;
++        return true;
++    case 5:                             /* cg8 rc5: ctrl[1:0] | ISTATUS << 2 */
++        *val = (env->hart_timer_ctrl & (DADAO_HART_TIMER_ENABLE |
++                                        DADAO_HART_TIMER_IMASK)) |
++               (dadao_hart_istatus(env) ? DADAO_HART_TIMER_ISTATUS : 0);
++        return true;
++#endif
++    default:                            /* rc1/rc6/rc7/others: reserved */
++        return false;
++    }
++}
++
++#ifndef CONFIG_USER_ONLY
++
++/* Wake the vCPU for TIMER.  The timer callback runs in the main loop with
++ * the BQL held; the same expiry can also be reached synchronously from a
++ * cfx2rc helper (write cmp/ctrl) where the BQL is not held, so use the
++ * BQL-free atomic request in that case (cpu_interrupt asserts bql_locked). */
++static void dadao_hart_notify(CPUState *cs)
++{
++    if (bql_locked()) {
++        cpu_interrupt(cs, CPU_INTERRUPT_HARD);
++    } else {
++        cpu_set_interrupt(cs, CPU_INTERRUPT_HARD);
++    }
++}
++
++/* ── Unified async arbitration (INTEG-051t; DADAO-12 §5, ADR-0045 D3) ──
++ * Every asynchronous source records its pending bit in the *target* cfx's
++ * cg5 rc5 (TIMER -> cfx_hart bit10, PMEM_DMA -> cfx_pmem bit8); cfx_hart is
++ * not a pending store and no cross-cfx bitmap exists.  This arbiter only
++ * selects: the two-level masks and excp_cause_mask stay in cfx_enter (steps
++ * 3/4/5), whose `entered` result says whether the pending bit was consumed or
++ * must stay for a later kick.  At most one cfx_enter(async) per call. */
++
++/* Sources in target-cfxha order: the lowest deliverable cfxha wins. */
++static const struct dadao_async_source {
++    int cfxha;
++    uint64_t cause;
++} dadao_async_sources[] = {
++    { DADAO_CFXHA_HART, DADAO_CAUSE_TIMER },       /* 15 */
++    { DADAO_CFXHA_PMEM, DADAO_CAUSE_PMEM_DMA },    /* 17 */
++};
++
++/* Lowest target cfxha whose pending bit is set and may be delivered.  The
++ * masks are deliberately not evaluated here (cfx_enter is the only authority);
++ * only the source-local TIMER IMASK gate applies.  -1 when nothing is pending. */
++static int dadao_async_lowest(CPUDADAOState *env)
++{
++    int i;
++
++    for (i = 0; i < ARRAY_SIZE(dadao_async_sources); i++) {
++        int cfxha = dadao_async_sources[i].cfxha;
++        int ci = cfx_idx(cfxha);
++
++        if (ci < 0 || !(env->cfx[ci].pending & dadao_async_sources[i].cause)) {
++            continue;
++        }
++        if (cfxha == DADAO_CFXHA_HART &&
++            (env->hart_timer_ctrl & DADAO_HART_TIMER_IMASK)) {
++            continue;
++        }
++        return cfxha;
++    }
++    return -1;
++}
++
++/* Re-raise CPU_INTERRUPT_HARD when a source is still pending.  Called from
++ * every point that can unblock one (mask/pending writes, escape, a new source
++ * event); never spins, because exec_interrupt clears HARD on every call. */
++static void dadao_async_kick(CPUDADAOState *env)
++{
++    if (dadao_async_lowest(env) >= 0) {
++        dadao_hart_notify(env_cpu(env));
++    }
++}
++
++/* Deliver at most one pending source; true iff one cfx_enter(async) ran. */
++bool dadao_async_arbitrate(CPUState *cs)
++{
++    CPUDADAOState *env = cpu_env(cs);
++    int i;
++
++    for (i = 0; i < ARRAY_SIZE(dadao_async_sources); i++) {
++        int cfxha = dadao_async_sources[i].cfxha;
++        uint64_t cause = dadao_async_sources[i].cause;
++        uint8_t entry_mode = env->inner_run_mode;
++        uint64_t info;
++        uint64_t vec;
++        int ci = cfx_idx(cfxha);
++        bool entered = false;
++
++        if (ci < 0 || !(env->cfx[ci].pending & cause)) {
++            continue;                   /* this source has no event */
++        }
++        if (cfxha == DADAO_CFXHA_HART &&
++            (env->hart_timer_ctrl & DADAO_HART_TIMER_IMASK)) {
++            continue;                   /* source-local gate */
++        }
++        /* TIMER has cause_info = 0; PMEM_DMA carries the dma_status at the
++         * moment of delivery (050 convention). */
++        info = (cfxha == DADAO_CFXHA_HART) ? 0 : env->pmem_dma_status;
++        vec = cfx_enter(env, cause, cfxha, env->pc, info, false, &entered);
++        if (!entered) {
++            /* Masked by step 3/4/5: cfx_enter kept the pending bit; the next
++             * source must not be held back by this one. */
++            continue;
++        }
++        env->cfx[ci].pending &= ~cause;  /* consumed: one event, one delivery */
++        env->pc = vec;
++        env->rb[0] = vec;
++        cfx_frame_block_async(env, ci, entry_mode);
++        return true;                     /* single layer: one source per call */
++    }
++    return false;
++}
++
++static void dadao_hart_timer_expire(CPUState *cs)
++{
++    CPUDADAOState *env = cpu_env(cs);
++    int ci = cfx_idx(DADAO_CFXHA_HART);
++
++    if (!(env->hart_timer_ctrl & DADAO_HART_TIMER_ENABLE) ||
++        env->hart_timer_cmp == ~0ULL) {
++        return;
++    }
++    if (dadao_time_value(env) < env->hart_timer_cmp) {
++        return;                         /* re-armed after the callback fired */
++    }
++    /* The expiry is an event: record it in the target cfx's pending bit
++     * (cfx_hart cg5 rc5 bit10, the single record) and let the arbiter deliver.
++     * IMASK is the source-local delivery gate, so a masked expiry only records
++     * and waits for the ctrl write that releases it. */
++    if (ci >= 0) {
++        env->cfx[ci].pending |= DADAO_CAUSE_TIMER;
++    }
++    if (!(env->hart_timer_ctrl & DADAO_HART_TIMER_IMASK)) {
++        dadao_async_kick(env);
++    }
++}
++
++static void dadao_hart_timer_arm(CPUDADAOState *env, CPUState *cs)
++{
++    uint64_t now;
++
++    if (!(env->hart_timer_ctrl & DADAO_HART_TIMER_ENABLE) ||
++        env->hart_timer_cmp == ~0ULL) {
++        timer_del(env->hart_timer);
++        return;
++    }
++    now = dadao_time_value(env);
++    if (now >= env->hart_timer_cmp) {
++        timer_del(env->hart_timer);
++        dadao_hart_timer_expire(cs);
++        return;
++    }
++    /* QEMU_CLOCK_VIRTUAL deadline in ns: epoch + absolute cfx_time value
++     * (1 count = 1 ns on the test machine). */
++    timer_mod(env->hart_timer,
++              (int64_t)(env->time_base_ns + env->hart_timer_cmp));
++}
++
++static void dadao_hart_timer_cb(void *opaque)
++{
++    dadao_hart_timer_expire((CPUState *)opaque);
++}
++
++void dadao_hart_timer_init(CPUState *cs)
++{
++    CPUDADAOState *env = cpu_env(cs);
++
++    env->hart_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
++                                   dadao_hart_timer_cb, cs);
++}
++
++void dadao_hart_timer_reset(CPUDADAOState *env)
++{
++    if (env->hart_timer) {
++        timer_del(env->hart_timer);
++    }
++    env->time_base_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
++    env->hart_insn = 0;
++    env->hart_timer_cmp = 0;
++    env->hart_timer_ctrl = 0;
++}
++
++#endif /* !CONFIG_USER_ONLY */
++
++static bool dadao_hart_reg_write(CPUDADAOState *env, uint32_t rc, uint64_t val)
++{
++    switch (rc) {
++    case 4:                             /* cg8 rc4: timer_cmp (64-bit) */
++#ifdef CONFIG_USER_ONLY
++        return false;
++#else
++        {
++            CPUState *cs = env_cpu(env);
++            int ci = cfx_idx(DADAO_CFXHA_HART);
++
++            /* A new compare value cancels the old deadline and this match. */
++            env->hart_timer_cmp = val;
++            if (ci >= 0) {
++                env->cfx[ci].pending &= ~DADAO_CAUSE_TIMER;
++            }
++            timer_del(env->hart_timer);
++            dadao_hart_timer_arm(env, cs);
++        }
++        return true;
++#endif
++    case 5:                             /* cg8 rc5: ENABLE/IMASK (bit2 RO) */
++#ifdef CONFIG_USER_ONLY
++        return false;
++#else
++        {
++            CPUState *cs = env_cpu(env);
++            int ci = cfx_idx(DADAO_CFXHA_HART);
++
++            env->hart_timer_ctrl = (uint8_t)(val & (DADAO_HART_TIMER_ENABLE |
++                                                    DADAO_HART_TIMER_IMASK));
++            /* Releasing IMASK while ISTATUS=1 keeps the recorded pending bit
++             * (re-setting it if software cleared it) and re-kicks, so the
++             * arbiter performs the delivery (050 "release delivers" semantics). */
++            if (!(env->hart_timer_ctrl & DADAO_HART_TIMER_IMASK) &&
++                dadao_hart_istatus(env)) {
++                if (ci >= 0) {
++                    env->cfx[ci].pending |= DADAO_CAUSE_TIMER;
++                }
++                dadao_async_kick(env);
++            }
++            dadao_hart_timer_arm(env, cs);
++        }
++        return true;
++#endif
++    default:                            /* rc2/rc3 are RO; rc0/1/6/7 reserved */
++        return false;
++    }
 +}
 +
 +/* trap cfxha, immu18 : general trap (not the semihosting tag) -> §5 flow.
@@ -1013,29 +2403,44 @@ index 0000000..c37a2c0
 +        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
 +        return;
 +    }
-+    if (cfxha != env->inner_cfx_code &&
-+        (env->cfx[ci].mode[env->inner_run_mode].trap_mask & (1ULL << cfxha))) {
-+        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++    /* cfxtrap permission: target's source mask, self bypasses the cfx axis
++     * but still uses the current-mode row (ADR-0045 D1/D2). */
++    if (cfx_perm_denied(env, cfxha, DADAO_CFX_PERM_TRAP)) {
++        cfx_raise_perm(env, info, pc);
 +        return;
 +    }
 +    target = cfxha;
 +    cause = DADAO_CAUSE_CFXTRAP;
 +
 +    {
++        uint8_t entry_mode = env->inner_run_mode;
 +        bool entered;
 +        uint64_t vec = cfx_enter(env, cause, target, pc, info, true, &entered);
++
 +        env->pc = entered ? vec : pc + 4;
 +        env->rb[0] = env->pc;
++        if (entered && env->inner_cfx_code == cfxha) {
++            cfx_frame_block_async(env, ci, entry_mode);
++        }
 +    }
 +}
 +
-+/* escape cfxha, imms18 : §5 exception-exit flow (steps 0-4).  State is taken
-+ * from the current cfx (inner_cfx_code); the target cfxha only participates in
-+ * the escape-mask check (cross-cfx escape). */
++/* escape cfxha, imms18 : §5 exception-exit flow (steps 0-4).  D8: cfxha is the
++ * current cfx; the return target/mode/IP come from the current frame.  A
++ * different target or an invalid frame is CFXESC (current cfx), and no state is
++ * switched before the error is raised. */
 +void helper_cfx_escape(CPUDADAOState *env, uint32_t cfxha, uint32_t imms18,
 +                       uint64_t pc)
 +{
-+    uint8_t mode = env->inner_run_mode;
++    uint64_t info = ((uint64_t)0x7E << 24) | ((uint64_t)(cfxha & 0x3F) << 18) |
++                    (uint64_t)(imms18 & 0x3FFFF);
++    /* imms18[17:1] is SBZ: the legal escape offset set is {0, +4}.  Raise
++     * before the reserved-cfxha/CFXESC checks and before any state switch,
++     * on the same pc/info path as reserved-cfxha ILLI. */
++    if (imms18 & ~0x1u) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
 +    int ci = cfx_idx(env->inner_cfx_code);
 +    int32_t imm = (int32_t)(imms18 & 0x3FFFF);
 +
@@ -1043,19 +2448,32 @@ index 0000000..c37a2c0
 +        imm |= ~0x1FFFF;    /* sign-extend from 18 bits */
 +    }
 +
-+    /* step 0: escape cfx mask (non-self target only) */
-+    if (ci < 0 || (cfxha != env->inner_cfx_code &&
-+                   (env->cfx[ci].mode[mode].escape_mask & (1ULL << cfxha)))) {
-+        cfx_raise(env, DADAO_CAUSE_ILLI, mode, pc, 0);
++    if (DADAO_CFX_IS_RESERVED(cfxha)) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    /* CFXESC: target error (cfxha must be the current cfx) or no frame. */
++    if (ci < 0 || cfxha != env->inner_cfx_code || env->cfx[ci].cause_id == 0) {
++        cfx_raise(env, DADAO_CAUSE_CFXESC, env->inner_cfx_code, pc, info);
 +        return;
 +    }
 +
-+    /* step 1: restore cfx mask; step 2: restore run mode */
++    /* step 1: restore the saved global_cfx_intr_mask (D9). */
++    env->cfx[env->cfx[ci].saved_intr_monitor & 0x3].global_cfx_intr_mask =
++        env->cfx[ci].saved_global_intr_mask;
++#ifndef CONFIG_USER_ONLY
++    /* The live frame blocked every async source; once the mask is back,
++     * re-kick so the arbiter can deliver what accumulated meanwhile. */
++    dadao_async_kick(env);
++#endif
++    /* step 2: restore the per-hart cfx mask and run mode from the frame. */
 +    env->inner_cfx_mask = env->cfx[ci].prev_cfx_mask;
 +    env->inner_run_mode = env->cfx[ci].prev_run_mode & 0x3;
++    dadao_soft_tlb_flush(env);
 +    /* step 3: increment the escape counter */
 +    env->cfx[ci].escape_num++;
-+    /* step 4: return address = cause_ip + (imms18 << 2) */
++    /* step 4: return address = cause_ip + (imms18 << 2); the offset is a
++     * compile-time immediate, not an arbitrary target. */
 +    {
 +        uint64_t ret = env->cfx[ci].cause_ip + ((int64_t)imm << 2);
 +        env->pc = ret;
@@ -1078,13 +2496,72 @@ index 0000000..c37a2c0
 +        return;
 +    }
 +    ci = cfx_idx(cfxha);
-+    if (ci >= 0 && cfxha != env->inner_cfx_code &&
-+        (env->cfx[ci].mode[env->inner_run_mode].cfx2rd_mask & (1ULL << cfxha))) {
-+        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
-+        return;
-+    }
 +    if (ci < 0) {
 +        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++        return;
++    }
++    if (cfx_perm_denied(env, cfxha, DADAO_CFX_PERM_REG)) {
++        cfx_raise_perm(env, info, pc);
++        return;
++    }
++    /* cg_reg_deleg (supv only; DADAO-13 §1).  cg3 has no exception: its bit3
++     * is hardware-fixed 1, so a supv cg3 access is always CFXPERM. */
++    if (cfx_deleg_denied(env, ci, cg)) {
++        cfx_raise_perm(env, info, pc);
++        return;
++    }
++    /* cfx_pmem cg15: DMA registers (DADAO-12 §4.9; ADR-0042 D7.3). */
++    if (cg == 15 && dadao_cfxha_map[ci] == DADAO_CFXHA_PMEM) {
++        uint64_t v;
++
++        if (!dadao_pmem_dma_reg_read(env, rc, &v)) {
++            cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++            return;
++        }
++        if (rd != 0) {
++            env->rd[rd] = v;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
++        return;
++    }
++    /* cfx_time cg10 (DADAO-12 §4.10; INTEG-050t). */
++    if (cg == 10 && dadao_cfxha_map[ci] == DADAO_CFXHA_TIME) {
++        uint64_t v;
++
++        if (!dadao_time_reg_read(env, rc, &v)) {
++            cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++            return;
++        }
++        if (rd != 0) {
++            env->rd[rd] = v;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
++        return;
++    }
++    /* cfx_hart cg8 (DADAO-12 §4.7; INTEG-050t). */
++    if (cg == 8 && dadao_cfxha_map[ci] == DADAO_CFXHA_HART) {
++        uint64_t v;
++
++        if (!dadao_hart_reg_read(env, rc, &v)) {
++            cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++            return;
++        }
++        if (rd != 0) {
++            env->rd[rd] = v;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
++        return;
++    }
++    if (cg == 7) {                       /* cg7 internal space description
++                                          * (read-only, DADAO-12 §3.8) */
++        if (rd != 0) {
++            env->rd[rd] = dadao_cg7_space_reg(cfxha, rc);
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
 +        return;
 +    }
 +    p = cfx_reg_ptr(env, ci, cg, rc, false);
@@ -1114,13 +2591,52 @@ index 0000000..c37a2c0
 +        return;
 +    }
 +    ci = cfx_idx(cfxha);
-+    if (ci >= 0 && cfxha != env->inner_cfx_code &&
-+        (env->cfx[ci].mode[env->inner_run_mode].cfx2rc_mask & (1ULL << cfxha))) {
-+        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
-+        return;
-+    }
 +    if (ci < 0) {
 +        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++        return;
++    }
++    if (cfx_perm_denied(env, cfxha, DADAO_CFX_PERM_REG)) {
++        cfx_raise_perm(env, info, pc);
++        return;
++    }
++    /* cg_reg_deleg (supv only; DADAO-13 §1).  cg3 has no exception: its bit3
++     * is hardware-fixed 1, so a supv cg3 access is always CFXPERM. */
++    if (cfx_deleg_denied(env, ci, cg)) {
++        cfx_raise_perm(env, info, pc);
++        return;
++    }
++    /* cfx_pmem cg15: DMA registers (DADAO-12 §4.9; ADR-0042 D7.3). */
++    if (cg == 15 && dadao_cfxha_map[ci] == DADAO_CFXHA_PMEM) {
++        uint64_t v = (rd == 0) ? 0 : env->rd[rd];
++
++        if (!dadao_pmem_dma_reg_write(env, rc, v)) {
++            cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++            return;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
++        return;
++    }
++    /* cfx_time cg10 is RO (DADAO-12 §4.10; INTEG-050t). */
++    if (cg == 10 && dadao_cfxha_map[ci] == DADAO_CFXHA_TIME) {
++        cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++        return;
++    }
++    /* cfx_hart cg8: only rc4/rc5 accept writes (DADAO-12 §4.7; INTEG-050t). */
++    if (cg == 8 && dadao_cfxha_map[ci] == DADAO_CFXHA_HART) {
++        uint64_t v = (rd == 0) ? 0 : env->rd[rd];
++
++        if (!dadao_hart_reg_write(env, rc, v)) {
++            cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++            return;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
++        return;
++    }
++    if (cg == 7) {                       /* cg7 is read-only: any rc write
++                                          * => CFXREG (DADAO-12 §3.8) */
++        cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
 +        return;
 +    }
 +    p = cfx_reg_ptr(env, ci, cg, rc, true);
@@ -1128,7 +2644,72 @@ index 0000000..c37a2c0
 +        cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
 +        return;
 +    }
-+    *p = (rd == 0) ? 0 : env->rd[rd];
++    if (p == &env->ptbr) {
++        /* Single PTBR stores PPN[55:16]; [15:0] and [63:56] read as 0. */
++        *p = ((rd == 0) ? 0 : env->rd[rd]) & DADAO_PTBR_MASK;
++        /* Writing PTBR does not invalidate guest TLB entries (DADAO-12 §2.2,
++         * ADR-0041 D5); only QEMU's derived translation cache is dropped so
++         * that the guest TLB stays the single authority on hits/misses. */
++        dadao_soft_tlb_flush(env);
++    } else if (p == &env->ptw_enable) {
++        /* 1-bit enable (DADAO-12 §4.5). */
++        *p = ((rd == 0) ? 0 : env->rd[rd]) & 1;
++        dadao_soft_tlb_flush(env);
++    } else if (p == &env->tlb_asid) {
++        /* 16-bit ASID; switching it never invalidates guest TLB entries. */
++        *p = ((rd == 0) ? 0 : env->rd[rd]) & 0xFFFFULL;
++        dadao_soft_tlb_flush(env);
++    } else if (p == &env->tlb_start) {
++        *p = ((rd == 0) ? 0 : env->rd[rd]) & DADAO_VA_MASK;
++    } else if (p == &env->tlb_size) {
++        *p = ((rd == 0) ? 0 : env->rd[rd]) & DADAO_VA_MASK;
++    } else if (p == &env->tlb_control) {
++        /* TLB command: executed synchronously on write (DADAO-12 §4.5). */
++        uint64_t val = (rd == 0) ? 0 : env->rd[rd];
++        hwaddr err_pa = 0;
++        int ret = dadao_tlb_control_exec(env, val, &err_pa);
++
++        if (ret == DADAO_TLB_CMD_CFXREG) {
++            /* Illegal scope / range with size 0 => CFXREG (ADR-0041 D6). */
++            cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++            return;
++        }
++        if (ret == DADAO_TLB_CMD_PTWERR) {
++            /* A/D write-back failed: PTWERR, entry kept (ADR-0041 D7/D10).
++             * Precise: the cfx2rc instruction did not complete. */
++            CPUState *cs = env_cpu(env);
++
++            env->pc = pc;
++            env->rb[0] = pc;
++            env->ptw_fault_cause = DADAO_CAUSE_PTWERR;
++            env->ptw_fault_info = err_pa;
++            cs->exception_index = DADAO_EXCP_PTW_FAULT;
++            cpu_loop_exit_restore(cs, GETPC());
++            /* not reached */
++            return;
++        }
++        /* CLEAN keeps entries (mappings unchanged); INVALID/FLUSH drop them,
++         * so QEMU's derived translation cache must be dropped with them. */
++        if (val & 0x2) {
++            dadao_soft_tlb_flush(env);
++        }
++    } else if (cg == 3 && rc == 12) {
++        /* bit3 is hardware-fixed 1 (DADAO-13 §1): a software 0 is ignored and
++         * the register reads back with bit3 set. */
++        *p = ((rd == 0) ? 0 : env->rd[rd]) | (1ULL << 3);
++    } else {
++        *p = (rd == 0) ? 0 : env->rd[rd];
++        /* Any cfx2rc write may change a two-axis permission mask (cfxtrap/
++         * cfxmem/cfxreg/cfxexe/cfx_intr_mask/global_cfx_intr_mask); drop the
++         * derived translation cache so the next access re-checks. */
++        dadao_soft_tlb_flush(env);
++    }
++#ifndef CONFIG_USER_ONLY
++    /* A write to a mask / excp_cause_mask / pending register may unblock a
++     * pending async source; re-kick here so the generic write path covers
++     * every such register (INTEG-051t). */
++    dadao_async_kick(env);
++#endif
 +    env->pc = pc + 4;
 +    env->rb[0] = pc + 4;
 +}

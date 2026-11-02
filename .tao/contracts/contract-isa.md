@@ -4,7 +4,7 @@
 >
 > **范围**：M1——标量整数 + 地址/内存 RD/RB/**RA** + 控制流（`call`/`ret`、RegRAS）+ 测试机所需系统/异常。
 >
-> **M1 范围外**（`scope: fp` / `scope: excluded`，本合约不提取其规范内容）：浮点（**RF 全部**，`scope: fp`：RF 寄存器存取与浮点运算，含 FCSR/rf0 的指令语义）、`scope: excluded`（仅 `cfxld`/`cfxst`；LR-SC 原子与 `fence` 已于 M9 实现并转 `scope: m9`）。**（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`，见 §13.6。）**
+> **M1 范围外**（`scope: fp`，本合约不提取其规范内容）：浮点（**RF 全部**，`scope: fp`：RF 寄存器存取与浮点运算，含 FCSR/rf0 的指令语义）。LR-SC 原子与 `fence` 已于 M9 实现并转 `scope: m9`；`scope: excluded` 现为 **0 条**（`cfxld`/`cfxst` 已从 ISA 删除，`crii` 格式一并撤销）。**（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`，见 §13.6。）**
 >
 > **`scope: m8`（非 M1）**：逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b` 4 条——编码见 §2.8 / 附录 A.8，语义见 §6.4.3；位扫描 / 位计数 `ctlz`/`cttz`/`ctpop` 3 条（**无位宽后缀**，借 `OPC-octa` 格位）——编码见 §2.8 / 附录 A.9，语义见 §6.4.4。新增指令与里程碑**无绑定**；本合约只同步其编码 / 语义 / 合法集，**不作 M1 身份**。[SimRISC-00 §OPC-octa指令编码]
 >
@@ -20,13 +20,13 @@
 
 > **为什么在本表**：`spec/SimRISC-*` 只承载规范内容（指令定义 / 编码 / 格式 / 语义 / 异常 / revision）。
 > **范围分桶、实现状态、决策与合约指针**属项目侧记账，统一归本表（`SPEC-165t`，用户裁定「方案 A 彻底清理」）。
-> **计数口径**：全部由 `contracts/opcodes.yaml` 现场派生（2026-10-23 实测 **266** 条），下表不写死来源之外的数。
+> **计数口径**：全部由 `contracts/opcodes.yaml` 现场派生（2026-10-30 实测 **264** 条），下表不写死来源之外的数。
 
 | 范围 | 条数 | 含义 | 指针 |
 |---|---|---|---|
 | `scope: m1` | 156 | 已实现（含 `trap`/`escape`/`cfx2rd`/`cfx2rc`） | §13.6 |
 | `scope: fp` | 66 | 浮点已实现，不触发 decode ILLI（含融合乘加 `ftfma`/`fofma` 2 条）。分布：`SimRISC-07` 50（`OPC-RF` 子表）+ `SimRISC-01` 8（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ `SimRISC-02` 5（`cs.n`/`cs.z`/`cs.p` 的 `-rf`、`rd2rf`/`rf2rd`）+ `SimRISC-03` 1（`set.w-rf`） | `contract-fp.md`；`ADR-0012 §D3.1` |
-| `scope: excluded` | 2 | 已定义编码、未实现该语义的机器 decode ILLI：`cfxld`/`cfxst` | `ADR-0014`（fence）；`contracts/opcodes.yaml::decode` |
+| `scope: excluded` | 0 | 现无记录（`cfxld`/`cfxst` 已删除、`crii` 格式撤销）；词表保留："编码已定义、未实现 ⇒ decode ILLI" | `contracts/opcodes.yaml::decode` |
 | `scope: m3` | 1 | `sub.o_orrr_dbb`（RB 算术，非 M1 身份） | `ADR-0012 §D9.1` |
 | `scope: m8` | 7 | `rev.*` 4 + `ctlz`/`cttz`/`ctpop` 3（**无位宽后缀**，位于 `OPC-MISC`，`opc 0x47`／`ha 0x25–0x27`） | `ADR-0012 §D10/D11` |
 | `scope: m9` | 34 | `rol.*`（8 条记录）+ `clmul.o` + `fence` + `lr`/`sc` 24 | `ADR-0032 §D4`；`ADR-0035 §D5`；`ADR-0034`（fence/lr/sc） |
@@ -210,7 +210,7 @@ rf0 位域定义：[SimRISC-00 §浮点状态寄存器]
 | `orri` | opx + 两个寄存器 + 6 位立即数在 `hd[5:0]` |
 | `oiii` | opx + 18 位立即数在 `hb[5:0]`+`hc[5:0]`+`hd[5:0]` |
 
-> cfxha（`c`）相关格式 `crrr`/`crii`/`ciii` 属核芯功能扩展指令：`cfx2rd`/`cfx2rc`（crrr）与 `trap`/`escape`（ciii）已 re-scope 为 `m1`（见 §13.6）；`cfxld`/`cfxst`（crii）仍 Excluded from M1（见 §14.3）。
+> cfxha（`c`）相关格式 `crrr`/`ciii` 属核芯功能扩展指令：`cfx2rd`/`cfx2rc`（crrr）与 `trap`/`escape`/`fence`（ciii）见 §13.6/§14.1；`crii` 格式已随 `cfxld`/`cfxst` 删除而撤销。
 
 ### §2.4 Wyde-Position 编码
 
@@ -261,9 +261,9 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | 0110-0xxx | cs.n-rd | cs.n-rf Excl. | cs.z-rd | cs.z-rf Excl. | cs.p-rd | cs.p-rf Excl. | cs.eq-rd | cs.ne-rd |
 | 0110-1xxx | br.n-rd | br.nn-rd | br.z-rd | br.nz-rd | br.p-rd | br.np-rd | br.eq-rd | br.ne-rd |
 | 0111-0xxx | jump-iiii | jump-rrii | br.z-rb | br.nz-rb | call-iiii | call-rrii | ret | — |
-| 0111-1xxx | — | — | cfx2rd | cfx2rc | cfxld Excl. | cfxst Excl. | escape | trap |
+| 0111-1xxx | — | fence | cfx2rd | cfx2rc | — | — | escape | trap |
 
-> Excl. = `Excluded from M1`。`OPC-MISC` 子表承载 `fence`、`swym`、LR-SC 原子与 `ct*`（均非 M1）。[SimRISC-00 §SimRISC QFC]
+> Excl. = `Excluded from M1`。`fence` 位于主表 `0111-1001`（`ciii`，`cfxha` 选择资源域）；`OPC-MISC` 子表承载 `swym`、LR-SC 原子与 `ct*`（均非 M1）。[SimRISC-00 §SimRISC QFC]
 
 ### §2.8 MISC 子表机制
 
@@ -277,7 +277,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | `OPC-octa` | 0100-0000 | octa |
 
 - 各子表指令的 opx 在 `ha[5:0]`，与 op 共同确定指令。[SimRISC-00 §指令域说明]
-- `OPC-MISC`（op = 0100-0111）承载 `fence`、`swym`、LR-SC 原子指令与位扫描/位计数 `ct*`。[SimRISC-00 §OPC-MISC 指令编码]
+- `OPC-MISC`（op = 0100-0111）承载 `swym`、LR-SC 原子指令与位扫描/位计数 `ct*`；`fence` 不在该子表。[SimRISC-00 §OPC-MISC 指令编码]
 - `OPC-RF`（op = 0100-0100）承载浮点指令，Excluded from M1。[SimRISC-00 §OPC-RF指令编码]
 - 各子表的 `001-100`（opx = `001100`）承载逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`（`scope: m8`，非 M1，见 §6.4.3）。[SimRISC-00 §OPC-octa指令编码]
 - 各子表的 `010-000`（orrr）/`011-000`（orri）承载 `shl.o`/`shl.t`/`shl.w`/`shl.b`（符号无关、不带 `u` 后缀，`ADR-0032 D2/D3`）；`010-001`/`011-001` 承载 `rol.*`（`scope: m9`，见 §6.4.5）。`ext.uo`/`ext.so` 位于 `100-000`/`100-001`（orrr）与 `101-000`/`101-001`（orri）（`ADR-0032 D1`）。[SimRISC-00 §OPC-octa指令编码]
@@ -871,6 +871,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 | `call rbha, rdhb, imms12` | rrii | `Addr = rbha + rdhb + (imms12 << 2)` | [SimRISC-06 §函数调用] |
 
 - 地址计算按 64 位全宽进行；结果写回 `rb0`，取低 48 位为下一条地址；rrii 格式的 `rbHA` 仅读（不修改）。[ADR-0012 D8.3]
+- **返回地址 = 当前 `call` 指令的地址 + 4**；相对地址（`iiii`）与绝对地址（`rrii`）两种形式一致，压入 `ra63[47:0]`，`[63:48]` 为递归计数。[SimRISC-06 §函数调用]
 - `ha` 为基址寄存器（rb），`hb` 为偏移地址（rd）；当 `ha` 为 `rb0` 时，`rdhb + (imms12 << 2)` 实际上也是相对地址跳转。[SimRISC-06 §函数调用]
 
 ### §8.5 函数返回
@@ -892,7 +893,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 #### §8.6.1 压栈流程（call 指令）
 
-压栈按 C1/C2/C3a/C3b 四种情形处理：[SimRISC-00 §压栈流程]
+压入的返回地址 = 当前 `call` 指令地址 + 4（相对/绝对两种形式一致）。压栈按 C1/C2/C3a/C3b 四种情形处理：[SimRISC-00 §压栈流程]
 
 - **C1** `RACNT == 0` → 压入新条目（递归计数 = 1、返回地址），`RACNT = 1`。
 - **C2** `RACNT > 0` 且 返回地址 == `ra63[47:0]` 且 `ra63[63:48] < 0xFFFF` → **递归折叠优先**：`ra63[63:48] += 1`，`RACNT` 不变。
@@ -1157,7 +1158,7 @@ shr.sb:  rdhb[7:0]   = (rdhc[7:0] >> shamt) with sign(7)
 
 ## §13 其它指令
 
-> 范围：空转指令 `swym`、核芯功能扩展（cfx）系统指令（`cfx2rd`/`cfx2rc`/`trap`/`escape`，见 §13.6）、ILLI 非法指令异常、NOP 伪指令（已删除，见 §13.3）、保留编码与全零指令。`cfxld`/`cfxst` 与 LR-SC 原子指令见 §14（Excluded from M1）。[SimRISC-00 §非法指令][SimRISC-00 §SimRISC QFC]
+> 范围：空转指令 `swym`、核芯功能扩展（cfx）系统指令（`cfx2rd`/`cfx2rc`/`trap`/`escape`，见 §13.6）、ILLI 非法指令异常、NOP 伪指令（已删除，见 §13.3）、保留编码与全零指令。`fence` 与 LR-SC 原子指令见 §14。[SimRISC-00 §非法指令][SimRISC-00 §SimRISC QFC]
 
 ### §13.1 空转指令 swym（oiii 格式）
 
@@ -1177,7 +1178,6 @@ shr.sb:  rdhb[7:0]   = (rdhc[7:0] >> shamt) with sign(7)
 SimRISC 0.5.4 **不再**提供专门的非法指令助记符（原 `op=0x77, ha=0x00`）；`ILLI`（illegal instruction）异常改由**非法操作数、非法条件**或**已定义但本机器未实现的编码**触发。[SimRISC-00 §非法指令]
 
 - 已定义编码但操作数/字段非法时触发 ILLI（如目的寄存器为 `rd0`、SBZ 字段非零、多寄存器指令 `immu6 = 0` 等）。[SimRISC-00 §非法指令]
-- `scope: excluded` 的已定义编码（`cfxld`/`cfxst`、LR-SC 原子、`fence`）在未实现该语义的机器上执行时触发 ILLI。[SimRISC-00 §非法指令]
 
 ### §13.3 伪指令 nop — 已删除
 
@@ -1204,55 +1204,40 @@ OPC-MISC 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 | `cfx2rd cfxHA, cgHB, rcHC, rdHD` | `crrr` | 0x7A | 将 `cfx_<cfxname>_cgHB_rcHC` 的值设置到 `rdHD` | [SimRISC-11 §寄存器传输指令] |
 | `cfx2rc cfxHA, cgHB, rcHC, rdHD` | `crrr` | 0x7B | 将 `rdHD` 的值设置到 `cfx_<cfxname>_cgHB_rcHC` | [SimRISC-11 §寄存器传输指令] |
 
-- **执行模式**：`trap`/`escape`/`cfx2rd`/`cfx2rc`（及 `cfxld`/`cfxst`）可在任意运行模式下执行，具体是否允许由各核芯功能扩展的 cfx mask 寄存器和指令类型 cfx mask 寄存器控制。[SimRISC-11 §指令域与执行条件]
+- **执行模式**：`trap`/`escape`/`cfx2rd`/`cfx2rc` 可在任意运行模式下执行，具体是否允许由各核芯功能扩展的 cfx mask 寄存器和指令类型 cfx mask 寄存器控制。[SimRISC-11 §指令域与执行条件]
 - **cfxha 写法**：`cfx<cfxha>`（如 `cfx63`）与 `cfx_<cfxname>`（如 `cfx_power`）等价，均编码为 6 位 cfxha。[SimRISC-11 §指令域与执行条件]（别名表见 `contract-cfx-aliases.md`、`ADR-0017`。）
-- **`escape` 位宽关系**：汇编层 `imms20` 为**字节**偏移（须 `%4==0`），编码层为 `imms18 = imms20 >> 2`；实际地址 `Addr = excp_cause_ip + (imms18 << 2)`。[SimRISC-11 §退出指令][Toolchain-01 §3.2]
-- **legality**：本合约对这 4 条**不设静态编码 legality 规则**（`contracts/opcodes.yaml` 的 `legality`/`rule_refs` 均为 `[]`）——`reserved cfxha`（7–14、19–61）→ ILLI、读写不存在组合 / 权限不匹配 → CFXREG 均属**实现/运行期**语义，不在汇编/编码期约束（见 `ADR-0020`）。[SimRISC-11 §寄存器传输指令]
+- **`escape` 位宽关系**：汇编层 `imms20` 为**字节**偏移（合法值只有 0 或 4），编码层为 `imms18 = imms20 >> 2 ∈ {0, 1}`；`imms18[0]` 为字节偏移 bit2，`imms18[17:1]` 为 SBZ（非零 ⇒ ILLI）；实际地址 `Addr = excp_cause_ip + (imms18 << 2)`。[SimRISC-11 §退出指令][Toolchain-01 §3.2]
+- **legality**：这 4 条的静态编码规则为 **`encode_cfx_reserved`**——`cfxha` 为保留核芯功能扩展（6–14、19–61）⇒ **ILLI**（`contracts/opcodes.yaml` 的 `legality`/`rule_refs` 由此派生；`fence` 同）。读写不存在组合 / 权限不匹配 → **CFXREG** 属**实现/运行期**语义，不在汇编/编码期约束（见 `ADR-0020`）。[SimRISC-11 §指令域与执行条件][SimRISC-11 §寄存器传输指令]
 - **编码位置**：op = `0111-1010`/`0111-1011`/`0111-1110`/`0111-1111`（0x7A/0x7B/0x7E/0x7F），均 `mask = 0xFF000000`。[SimRISC-00 §SimRISC QFC]
 
 ---
 
-## §14 deferred 指令（原「待定」）— scope: excluded｜分类依据 = `ADR-0012` D1、`ADR-0014`
+## §14 m9 指令（已实现）
 
-> 范围：fence 指令、LR-SC 原子指令、核芯功能扩展指令中的 `cfxld`/`cfxst`。均 **`scope: excluded`**（未实现，decode ILLI），本合约不提取其完整规范内容。[SimRISC-12 §fence指令]（`trap`/`escape`/`cfx2rd`/`cfx2rc` 已 re-scope 为 `m1`，见 §13.6。）
+> `scope: m9`（已实现，非 M1）：`fence`（`ADR-0044`；本节 §14.1）与 LR-SC 原子 24 条（§14.2）。
+> `scope: excluded` 现为 0 条（`cfxld`/`cfxst` 已删除；不再保留 `crii` 格式）。
 
-### §14.1 fence 指令（oiii 格式）
+### §14.1 fence 指令（ciii 格式，opc 0x79）
 
-`fence` 指令对外部可见的访存请求（如设备 I/O 和内存访问）进行串行化。[SimRISC-12 §fence指令]
+`fence cfxHA, immu18` 按 cfx 资源域约束本 hart 的访问顺序/可见性。[SimRISC-11 §屏障指令]
 
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| `fence immu18` | 内存序屏障，低 4 位编码屏障类型 | [SimRISC-12 §fence指令] |
+| 字段 | 位 | 含义 |
+|------|-----|------|
+| `cfxha` | `[23:18]` | 资源域；0 = all cfx（`cfx0`/`cfx_umon`） |
+| `hb` | `immu18[17:12]` | SBZ，非 0 → ILLI |
+| `pred` | `immu18[11:6]` | 前序掩码：`cr`/`cw`/`ci`/`co`/`mr`/`mw` |
+| `succ` | `immu18[5:0]` | 后序掩码（位义同 `pred`） |
 
-低 4 位屏障类型编码：[SimRISC-12 §fence指令]
+- `pred = succ = 0` 为合法 no-op；保留 cfx（6–14、19–61）→ ILLI（规则 `encode_cfx_reserved`）。[SimRISC-11 §屏障指令]
+- 编码位置：主表 `0111-1001`（0x79），`mask = 0xFF000000`。[SimRISC-00 §SimRISC QFC]
 
-| 位 | 含义 | 说明 |
-|----|------|------|
-| bit0 | IO | 设备 I/O 访问串行化 |
-| bit1 | W | 写屏障：前序写对后序写可见 |
-| bit2 | R | 读屏障：前序读对后序读/写可见 |
-| bit3 | RW | 读写屏障：前序读写对后序读写可见（全屏障） |
+### §14.2 LR-SC 原子指令（scope: m9）
 
-- bits[17:4] 应为零（SBZ），非零值行为保留。[SimRISC-12 §fence指令]
+`lr`/`sc` 原子指令（`<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`，共 24 条：`lr` 仅 `nn`/`an`/`ar`、`sc` 仅 `nn`/`nr`/`ar`；`ADR-0034`）已实现，语义见 `spec/SimRISC-12 §LR-SC指令`。
 
-### §14.2 LR-SC 原子指令 — scope: excluded
-
-`lr`/`sc` 原子指令（`<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`，共 24 条：`lr` 仅 `nn`/`an`/`ar`、`sc` 仅 `nn`/`nr`/`ar`；`ADR-0034`）**`scope: excluded`**（未实现，decode ILLI），本合约不提取其规范内容。[SimRISC-12 §LR-SC指令]
-
-- 完整语义/编码/保留机制留后续阶段（见 `.tao/knowledge/issues.yaml`）。[spec-decision]
 - 编码位置：`OPC-MISC` 子表 ha = 010-xxx（lr）与 011-xxx（sc）。[SimRISC-00 §OPC-MISC 指令编码]
-
-### §14.3 核芯功能扩展（cfx）系统指令 — scope: excluded
-
-以下核芯功能扩展指令 **`scope: excluded`**（未实现，decode ILLI），本合约不提取其规范内容：[SimRISC-11 §SRAM块传输指令]
-
-| 指令 | 格式 | 来源 |
-|------|------|------|
-| `cfxld`/`cfxst cfx_<cfxname>, rbhb, immu12` | crii | [SimRISC-11 §SRAM块传输指令] |
-
-- `trap`/`escape`/`cfx2rd`/`cfx2rc` 已 re-scope 为 `m1`，见 §13.6。
-- 涉及异常 **CFXREG**、cfx reserved 编号（7–14、19–61）等属系统配置内容，本合约不提取其**运行期**语义。[SimRISC-11 §寄存器传输指令]
-- 编码位置：op = `0111-1100`/`0111-1101`（cfxld/cfxst）。[SimRISC-00 §SimRISC QFC]
+- 合法性：`sc` 的 `rdHB` 为成功/失败结果（目的），`rdHB = rd0` ⇒ **ILLI**（`dst_rd0`）；`lr` 的 `hb(rdHB)` 为 SBZ 固定零字段，`hb != rd0` ⇒ **ILLI**（`encode_sbz`，12 条），数据目的为 `rdHC`（`rdhb` 的 `role: dst` 只是 `orrr` 位域默认分类、不表示写回）。[SimRISC-12 §LR-SC指令]
+- 保留标记粒度 = **精确地址 + 访问宽度**（以 lr 的地址与 `.b`/`.w`/`.t`/`.o` 宽度为键）；另一 hart 对同一精确地址、相同访问宽度的 store 清除标记，不按 cache line 扩大，也不因不同地址或不同宽度的访问清除。[SimRISC-12 §LR-SC指令]
 
 ---
 
@@ -1269,7 +1254,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | **RASOF** | RegRAS 满栈（`RACNT == 63`）且需溢出到 MemRAS 但 `MRPTR == 0` | [SimRISC-00 §压栈流程] |
 | **RASUF** | `RACNT > 0` 且递归计数 == 0（D1）；或 `RACNT == 0` 且 `MRPTR == 0`（D4a）；或 MemRAS 条目递归计数 == 0（D4b） | [SimRISC-00 §弹栈流程] |
 
-> CFXREG 异常仅由核芯功能扩展指令（`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst`）产生，属运行期语义，不列入本表（M1 静态异常表）。[SimRISC-11 §寄存器传输指令]
+> CFXREG 异常仅由核芯功能扩展指令（`cfx2rd`/`cfx2rc`）产生，属运行期语义，不列入本表（M1 静态异常表）。[SimRISC-11 §寄存器传输指令]
 
 ### §15.1 ILLI 触发场景（M1 汇总）
 
@@ -1287,7 +1272,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 - 扩展起始位 `hd > N`。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
 - `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 中 `rdha` 与 `rdhb` 同时为 `rd0`，或为同一非 `rd0` 寄存器。[SimRISC-04 §加减操作][SimRISC-04 §乘除操作]
 - 固定位宽算术/比较/乘除余指令 `rdhb` 为 `rd0`。[SimRISC-04/08/09/10 §加减操作][SimRISC-04/08/09/10 §比较操作][SimRISC-04/08/09/10 §乘除操作]
-- `scope: excluded` 的已定义编码（`cfxld`/`cfxst`）在本机器执行时触发 ILLI（原专门非法指令已于 0.5.4 删除）。[SimRISC-00 §非法指令]
+- 核芯功能扩展指令（`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence`）的 `cfxha` 为保留编号（6–14、19–61）。[SimRISC-11 §指令域与执行条件]
 
 ### §15.2 精确异常承诺
 
@@ -1510,18 +1495,17 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 | opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
-| 100-000 | `fence` | oiii | [SimRISC-00 §OPC-MISC 指令编码] |
 | 100-010 | `swym` | oiii | [SimRISC-00 §OPC-MISC 指令编码] |
 | 100-101 | `ctpop` | orri | [SimRISC-00 §OPC-MISC 指令编码] |
 | 100-110 | `ctlz` | orri | [SimRISC-00 §OPC-MISC 指令编码] |
 | 100-111 | `cttz` | orri | [SimRISC-00 §OPC-MISC 指令编码] |
 
-> `fence`（100-000）为 `scope: m9`；LR-SC 条目（`lr` = 000/001-xxx、`sc` = 010/011-xxx，共 24 条）亦为 `scope: m9`（`SPEC-164t` 由 `excluded` 转入）。`ct*` 为 `scope: m8`（见 A.9）。[SimRISC-00 §OPC-MISC 指令编码]
+> LR-SC 条目（`lr` = 000/001-xxx、`sc` = 010/011-xxx，共 24 条）为 `scope: m9`（`SPEC-164t` 由 `excluded` 转入）。`fence` 已迁主表 `0111-1001`（A.1）。`ct*` 为 `scope: m8`（见 A.9）。[SimRISC-00 §OPC-MISC 指令编码]
 
-### A.7 `scope: fp` / `scope: excluded` 编码清单
+### A.7 `scope: fp` 编码清单
 
 > `scope: fp`（共 60 条）：RF 存取（8）、`set.w-rf`（1）、`cs.*-rf`（5）、`rd2rf`/`rf2rd`（2）、OPC-RF 子表（44）。
-> `scope: excluded`（共 2 条）：核芯功能扩展（`cfxld`/`cfxst`）。（`cfx2rd`/`cfx2rc`/`escape`/`trap` 已 re-scope 为 `m1`，见 A.1/§13.6；`fence` 与 24 条 LR-SC 已由 `SPEC-164t` 转入 `scope: m9`。）
+> `scope: excluded` 现为 0 条（`cfxld`/`cfxst` 已删除、`crii` 格式撤销；`fence` 与 24 条 LR-SC 已由 `SPEC-164t` 转入 `scope: m9`）。
 
 | op (hex) / 位置 | insn | 助记符 | 类别 | 来源 |
 |-----------------|------|--------|------|------|
@@ -1538,8 +1522,6 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x61 | cs.n-rf | `cs.n` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
 | 0x63 | cs.z-rf | `cs.z` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
 | 0x65 | cs.p-rf | `cs.p` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
-| 0x7C | cfxld | `cfxld` | 核芯功能扩展 | [SimRISC-00 §SimRISC QFC] |
-| 0x7D | cfxst | `cfxst` | 核芯功能扩展 | [SimRISC-00 §SimRISC QFC] |
 | OPC-octa 111-101 | rd2rf | `rd2rf` | RF 块赋值 | [SimRISC-00 §OPC-octa指令编码] |
 | OPC-octa 111-110 | rf2rd | `rf2rd` | RF 块赋值 | [SimRISC-00 §OPC-octa指令编码] |
 

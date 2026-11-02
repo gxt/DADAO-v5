@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
 new file mode 100644
-index 000000000..041d2923c
+index 000000000..3530b56c6
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
-@@ -0,0 +1,590 @@
+@@ -0,0 +1,594 @@
 +//===-- DADAOInstrInfoFP.td - DADAO FP instruction defs ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -206,7 +206,10 @@ index 000000000..041d2923c
 +
 +def ftsclb_orrr_rf : DADAOOrrr<"ftsclb"> {
 +  let OutOperandList = (outs GPRF:$rb);
-+  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  // SPEC-181t / LLVM-142t: the scaleB exponent is an RD signed 64-bit integer
++  // (`rdHD`), not an RF number -- same `orrr` encoding, third field is an RD
++  // register.  The old all-RF spelling is no longer accepted.
++  let InOperandList = (ins GPRF:$rc, GPRD:$rd);
 +  let op = 0x44;
 +  let ha = 0x15;
 +  let Pattern = [];
@@ -270,7 +273,8 @@ index 000000000..041d2923c
 +
 +def fosclb_orrr_rf : DADAOOrrr<"fosclb"> {
 +  let OutOperandList = (outs GPRF:$rb);
-+  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  // SPEC-181t / LLVM-142t: exponent is `rdHD` (RD, signed 64-bit integer).
++  let InOperandList = (ins GPRF:$rc, GPRD:$rd);
 +  let op = 0x44;
 +  let ha = 0x1D;
 +  let Pattern = [];

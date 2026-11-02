@@ -34,12 +34,12 @@
 ```
 
 - 各次权威跑**并列、永不覆盖**；`authoritative/latest` 指向最新权威跑目录（符号链接或内容为目录路径的文本文件）。
-- **子集跑**（`--filter` / `--only` / `--limit`）**不得**写 `authoritative/`。带子集参数的驱动（`run_libc_test_user_suite.py` 的 `--filter`；`run_llvm_ts_user.py` 的 `--only`/`--limit`）在组合命中时**显式拒绝**（`rc=2` + 提示，`run_artifacts.subset_authoritative_error()`），拒绝发生在建目录之前。
+- **子集跑**（`--filter` / `--only` / `--limit`）**不得**写 `authoritative/`。带子集参数的驱动（`tools/testcases/tset/libc-test/run_libc_test_user_suite.py` 的 `--filter`；`tools/testcases/tset/llvm-ts/run_llvm_ts_user.py` 的 `--only`/`--limit`）在组合命中时**显式拒绝**（`rc=2` + 提示，`run_artifacts.subset_authoritative_error()`），拒绝发生在建目录之前。
 - 当前三个驱动默认把运行目录建在 `--work-dir` 下；把 `--work-dir` 指向 `authoritative/` 即构成权威跑，由调用者负责选择（子集组合除外，见上一条）。
 
 ### 1.3 驱动约束
 
-三个 user-mode 驱动（`run_libc_test_user_suite.py` / `run_llvm_ts_user.py` / `run_embench_user_suite.py`）：
+三个 user-mode 驱动（`tools/testcases/tset/{libc-test,llvm-ts,embench}/run_*`；`TESTCASES-075t` 迁入，旧扁平路径为薄 wrapper、命令行等价）：
 
 - `--json-out` **必填**；未给 ⇒ argparse **报错、非 0 退出**。**不得**存在 `DEFAULT_LOG_DIR` 一类的固定默认回落。
 - `--report-out` 缺省 = 与 `--json-out` **同目录、同名换 `.log`**；不得回落到固定目录。
@@ -112,10 +112,10 @@
 `--json-out` 由「可选」改为「必填」是**有意的破坏性收紧**。现有调用点若省略该参数，升级后立即 `rc=2` 并打印 `the following arguments are required: --json-out`。迁移方式：
 
 ```bash
-# 旧
+# 旧（旧扁平路径仍可用：薄 wrapper 转发现路径，TESTCASES-075t）
 python3 tools/testcases/run_libc_test_user_suite.py --link-mode static
 # 新（--report-out 可省，自动同目录同名 .log）
-python3 tools/testcases/run_libc_test_user_suite.py --link-mode static \
+python3 tools/testcases/tset/libc-test/run_libc_test_user_suite.py --link-mode static \
     --json-out .work/tests/<UTC>-libc-test-static/results.json
 ```
 

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..8e50a8799
+index 000000000..e92c074c2
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2607 @@
+@@ -0,0 +1,2613 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -341,10 +341,10 @@ index 000000000..8e50a8799
 +  }
 +
 +  /// Define the fence bit-name constants before any statement is parsed
-+  /// (LLVM-121t; ADR-0034 D2 / SimRISC-11 §4.1).  `fence` takes ONE 18-bit
-+  /// unsigned immediate -- not three operands -- so the R/W/I/O sets are
-+  /// written as `PRED_R|PRED_W|SUCC_R|SUCC_W` style bit-name expressions.  The
-+  /// eight names are predefined absolute symbols, which makes the expression
++  /// (ADR-0044 D4 / SimRISC-11).  `fence` takes `cfxHA` plus ONE 18-bit
++  /// unsigned immediate -- not three operands -- so the cr/cw/ci/co/mr/mw sets
++  /// are written as `PRED_CR|SUCC_MR` style bit-name expressions.  The twelve
++  /// names are predefined absolute symbols, which makes the expression
 +  /// fold to a constant at parse time (no relocation, no fixup) and lets the
 +  /// usual immediate legality check see the final 18-bit value.
 +  void Initialize(MCAsmParser &Parser) override {
@@ -354,16 +354,20 @@ index 000000000..8e50a8799
 +      const char *Name;
 +      unsigned Value;
 +    } const Consts[] = {
-+        // pred: immu18[11:6] -- PRED_R/W/I/O sit in the low four bits.
-+        {"PRED_R", 1u << 6},
-+        {"PRED_W", 1u << 7},
-+        {"PRED_I", 1u << 8},
-+        {"PRED_O", 1u << 9},
-+        // succ: immu18[5:0] -- SUCC_R/W/I/O are the low four bits.
-+        {"SUCC_R", 1u << 0},
-+        {"SUCC_W", 1u << 1},
-+        {"SUCC_I", 1u << 2},
-+        {"SUCC_O", 1u << 3},
++        // pred: immu18[11:6] -- cr/cw/ci/co/mr/mw sit in the six bits.
++        {"PRED_CR", 1u << 6},
++        {"PRED_CW", 1u << 7},
++        {"PRED_CI", 1u << 8},
++        {"PRED_CO", 1u << 9},
++        {"PRED_MR", 1u << 10},
++        {"PRED_MW", 1u << 11},
++        // succ: immu18[5:0] -- the same six access classes.
++        {"SUCC_CR", 1u << 0},
++        {"SUCC_CW", 1u << 1},
++        {"SUCC_CI", 1u << 2},
++        {"SUCC_CO", 1u << 3},
++        {"SUCC_MR", 1u << 4},
++        {"SUCC_MW", 1u << 5},
 +    };
 +    for (const auto &C : Consts) {
 +      MCSymbol *Sym = Ctx.getOrCreateSymbol(C.Name);
@@ -607,7 +611,7 @@ index 000000000..8e50a8799
 +//   cfx<N>                    scalar code (0..63)
 +//   cfx_<cfxname>             scalar alias  -> cfx code
 +//   cfx_<cfxname>_<regname>   register alias -> cfxha, cg, rc
-+//   cfx_<...>[N]              array register alias -> cfxha, cg, rcBase + N
++//   cfx_<...>[N]              array register alias -> cfxha, cg, rcBase + N*stride
 +//   cg<N>                     cfx cg register code (0..63)
 +//   rc<N>                     cfx rc register code (0..63)
 +//
@@ -634,8 +638,9 @@ index 000000000..8e50a8799
 +        return 1;
 +      }
 +
-+      unsigned Cfxha, Cg, RcBase, RcCount;
-+      if (DADAO::lookupCfxRegAlias(Name, Cfxha, Cg, RcBase, RcCount)) {
++      unsigned Cfxha, Cg, RcBase, RcCount, RcStride;
++      if (DADAO::lookupCfxRegAlias(Name, Cfxha, Cg, RcBase, RcCount,
++                                   RcStride)) {
 +        getParser().Lex();
 +        int64_t Sub = -1;
 +        if (RcCount > 1) {
@@ -674,7 +679,8 @@ index 000000000..8e50a8799
 +        Operands.push_back(DADAOOperand::createCfxha(Cfxha, StartLoc));
 +        Operands.push_back(DADAOOperand::createCfxCg(Cg, StartLoc));
 +        Operands.push_back(
-+            DADAOOperand::createCfxRc(RcBase + (Sub < 0 ? 0 : Sub), StartLoc));
++            DADAOOperand::createCfxRc(RcBase + (Sub < 0 ? 0 : Sub) * RcStride,
++                                      StartLoc));
 +        return 1;
 +      }
 +      // No table => no name can ever resolve; say so instead of letting the
@@ -1168,13 +1174,10 @@ index 000000000..8e50a8799
 +      int64_t Bytes;
 +      if (!OffExpr->evaluateAsAbsolute(Bytes))
 +        return Error(OffStart, "escape offset must be a constant (imms20)");
-+      if (Bytes % 4 != 0)
++      if (Bytes != 0 && Bytes != 4)
 +        return Error(OffStart,
-+                     "escape offset must be a multiple of 4 bytes (imms20)");
-+      if (Bytes < -524288 || Bytes > 524284)
-+        return Error(OffStart,
-+                     "escape byte offset out of range: expected "
-+                     "[-524288, 524284] (imms20, %4==0)");
++                     "escape offset must be 0 or 4 (imms20; imms18[17:1] is "
++                     "SBZ)");
 +      if (getParser().getTok().isNot(AsmToken::RBrac))
 +        return Error(getParser().getTok().getLoc(), "expected ']'");
 +      getParser().Lex(); // consume ']'
@@ -2271,30 +2274,21 @@ index 000000000..8e50a8799
 +      }
 +  }
 +
-+  // fence immediate legality (ADR-0034 D2 / SimRISC-11 §4.1; LLVM-121t).  The
-+  // 18-bit immediate is `fm[17:12] | pred[11:6] | succ[5:0]`; only fm = 0 is
-+  // defined (fm = 8 is the TSO reservation and is currently undefined) and the
-+  // top two bits of pred ([11:10]) / succ ([5:4]) are SBZ.  A reserved
++  // fence immediate legality (ADR-0044 D3/D8; SimRISC-11).  The 18-bit
++  // immediate is `hb[17:12] | pred[11:6] | succ[5:0]`; hb is SBZ.  A reserved
 +  // encoding is ILLI on hardware, so the assembler must reject it instead of
 +  // emitting a word that traps at run time.  A symbolic operand is left to the
 +  // linker (it cannot be a fence immediate in this target anyway).
-+  if (Mnemonic == "fence" && Flat.size() == 2 && Flat[1]->isImm()) {
-+    auto *DOp = static_cast<DADAOOperand *>(Flat[1].get());
++  if (Mnemonic == "fence" && Flat.size() == 3 && Flat[2]->isImm()) {
++    auto *DOp = static_cast<DADAOOperand *>(Flat[2].get());
 +    if (!DOp->getImmExpr()) {
 +      int64_t Imm = DOp->getImm();
 +      // Values outside the 18-bit unsigned range are reported by the immu18
-+      // operand class itself (the generic "immediate out of range" diagnostic),
-+      // so only in-range values are examined for reserved bit patterns here.
-+      if (Imm >= 0 && Imm <= 0x3FFFF) {
-+        if ((Imm & 0x3F000) != 0)
-+          return Error(Flat[1]->getStartLoc(),
-+                       "fence: reserved encoding (fm = immu18[17:12] must be "
-+                       "0; fm = 8 is TSO-reserved and currently undefined)");
-+        if ((Imm & 0x00C00) != 0 || (Imm & 0x00030) != 0)
-+          return Error(Flat[1]->getStartLoc(),
-+                       "fence: reserved encoding (pred[11:10] and succ[5:4] "
-+                       "are SBZ and must be zero; see SimRISC-11 §4.1)");
-+      }
++      // operand class itself, so only in-range values are examined here.
++      if (Imm >= 0 && Imm <= 0x3FFFF && (Imm & 0x3F000) != 0)
++        return Error(Flat[2]->getStartLoc(),
++                     "fence: reserved encoding (hb = immu18[17:12] must be "
++                     "zero; see SimRISC-11)");
 +    }
 +  }
 +
@@ -2544,6 +2538,18 @@ index 000000000..8e50a8799
 +                       "': rounding mode must be one of the one-hot constants "
 +                       "0x01/0x02/0x04/0x08/0x10/0x20 (encode_onehot)");
 +  }
++
++  // `dst_rd0` (SPEC-181t F8.2; SimRISC-12 §1.1): `sc rdHB, rdHC, [rbHD]` writes
++  // the success/failure result to rdHB, so rdHB == rd0 is illegal (the result
++  // cannot be discarded) and MUST be a hard error at assembly time, never a
++  // warning.  The encoding itself is unchanged; a hand-encoded `sc` with
++  // rdHB == rd0 is ILLI at run time.
++  if (Mnemonic.starts_with("sc.") && Flat.size() >= 2 && Flat[1]->isReg() &&
++      Flat[1]->getReg() == DADAO::rd0)
++    return Error(Flat[1]->getStartLoc(),
++                 "invalid '" + Mnemonic.str() +
++                     "': rd0 is the hard-wired zero register and cannot hold "
++                     "the sc success/failure result (dst_rd0)");
 +
 +  // Static legality check for `ret` (SPEC-083t; SimRISC-06 §函数返回):
 +  // `ret rdHA, imms18` with rdHA == rd0 requires imms18 == 0; otherwise the

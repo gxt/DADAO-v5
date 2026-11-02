@@ -1,0 +1,387 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOPointerPHIBank.cpp b/llvm/lib/Target/DADAO/DADAOPointerPHIBank.cpp
+new file mode 100644
+index 000000000..5498c5a94
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOPointerPHIBank.cpp
+@@ -0,0 +1,381 @@
++//===-- DADAOPointerPHIBank.cpp - Keep loop pointer PHIs in the RB bank ---===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// Post-ISel, pre-RA repair of loop-carried pointer induction values (LLVM-139t).
++//
++// DADAO splits its general registers into the data bank (RD, GPRD) and the
++// address bank (RB, GPRB); `add.o rb, rb, rd` is the only pointer-plus-offset
++// form, so an address value must live in RB and its scaled offset in RD
++// (contract-isa.md §7.1; ADR-0018 C1/C2/C14).  A `phi ptr` reaches ISel as an
++// ordinary i64 DAG value, though, so SelectionDAG assigns it to GPRD; only the
++// *uses* that are already bank-aware (`SelectPointerAdd`, `SelectAddr`) stay in
++// RB.  The result is a `rd2rb` bank bridge (`COPY %phi:gprd`) inside the loop
++// for the address use, plus an `rd2rd` + `add.si` for the loop-carried update.
++//
++// For the exact shape below this pass rebuilds the chain in RB right after
++// ISel, so the loop body needs neither bridge:
++//
++//   %p    :gprd = PHI %entry:gprb, %pre, %next:gprd, %loop
++//   %cp   :gprb = COPY %p                      ; the rd2rb bridge
++//   ...uses of %cp: loads/stores...
++//   %sum  :gprd = ADD_PSEUDO %p, %off:gprd     ; p + (scaled index)
++//   %next :gprd = ADD_IMM_PSEUDO %sum, imm     ; + element offset
++//   =>
++//   %p'   :gprb = PHI %entry:gprb, %pre, %next':gprb, %loop
++//   %imm  :gprd = CONST_WYDE imm               ; hoisted into the preheader
++//   %sum' :gprb = add_o_bbd %p', %off:gprd
++//   %next':gprb = add_o_bbd %sum', %imm:gprd
++//
++// `add.o` is a full 64-bit two's-complement add like the RD form it replaces,
++// and the high 16 bits are only an address-overflow marker (contract-isa.md
++// §7.1), so the pointer value is unchanged for every address use.
++//
++// Scope is deliberately narrow and every accepted candidate carries a complete
++// use-def plus dominance proof (see runOnMachineFunction); everything else --
++// more than one loop backedge, calls or inline asm in the loop, a backedge that
++// is not the header itself (so switches/merges keep the old path), select- or
++// ptrtoint-derived values, an entry value that is not already in GPRB, plain
++// i64 induction variables -- keeps the existing rd2rb fallback.  The pass does
++// not touch the i64 register class in general, pointer legalization, the ABI,
++// or the IR.
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAO.h"
++#include "DADAOInstrInfo.h"
++#include "DADAORegisterInfo.h"
++#include "DADAOSubtarget.h"
++
++#include "llvm/CodeGen/MachineBasicBlock.h"
++#include "llvm/CodeGen/MachineDominators.h"
++#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineFunctionPass.h"
++#include "llvm/CodeGen/MachineInstrBuilder.h"
++#include "llvm/CodeGen/MachineRegisterInfo.h"
++#include "llvm/CodeGen/TargetOpcodes.h"
++#include "llvm/InitializePasses.h"
++#include "llvm/PassRegistry.h"
++#include "llvm/Support/Debug.h"
++
++#define GET_INSTRINFO_ENUM
++#include "DADAOGenInstrInfo.inc"
++#undef GET_INSTRINFO_ENUM
++
++using namespace llvm;
++
++#define DEBUG_TYPE "dadao-pointer-phi-bank"
++
++namespace {
++
++/// True when \p Dominator reaches every use of \p Reg.
++///
++/// A machine PHI operand is live at the end of its *incoming* block, not in the
++/// PHI's own block, so for those the edge source must be dominated.  This is
++/// the explicit proof that the rebuilt GPRB PHI (defined at \p Dominator's
++/// entry) may replace the value whose definition is being deleted.
++bool blockDominatesAllUses(const MachineBasicBlock &Dominator, Register Reg,
++                           const MachineRegisterInfo &MRI,
++                           const MachineDominatorTree &MDT) {
++  for (const MachineOperand &Use : MRI.use_operands(Reg)) {
++    const MachineInstr *User = Use.getParent();
++    if (User->isPHI()) {
++      // Operands are [def, (reg, mbb), ...]: the incoming block of a register
++      // operand is the MBB operand that follows it.
++      const MachineBasicBlock *Incoming =
++          User->getOperand(Use.getOperandNo() + 1).getMBB();
++      if (!MDT.dominates(&Dominator, Incoming))
++        return false;
++      continue;
++    }
++    if (!MDT.dominates(&Dominator, User->getParent()))
++      return false;
++  }
++  return true;
++}
++
++class DADAOPointerPHIBank : public MachineFunctionPass {
++public:
++  static char ID;
++  DADAOPointerPHIBank() : MachineFunctionPass(ID) {}
++
++  StringRef getPassName() const override { return "DADAO pointer PHI GPRB"; }
++
++  void getAnalysisUsage(AnalysisUsage &AU) const override {
++    AU.addRequired<MachineDominatorTreeWrapperPass>();
++    // The rewrite only changes register classes and operand kinds; the CFG and
++    // the block order are untouched.
++    AU.setPreservesCFG();
++    MachineFunctionPass::getAnalysisUsage(AU);
++  }
++
++  bool runOnMachineFunction(MachineFunction &MF) override;
++
++private:
++  /// Rewrite one candidate PHI.  Returns true when the chain was rebuilt.
++  bool rewritePhi(MachineBasicBlock &MBB, MachineInstr &Phi,
++                  const MachineDominatorTree &MDT);
++};
++
++} // end anonymous namespace
++
++bool DADAOPointerPHIBank::rewritePhi(MachineBasicBlock &MBB, MachineInstr &Phi,
++                                     const MachineDominatorTree &MDT) {
++  MachineFunction &MF = *MBB.getParent();
++  MachineRegisterInfo &MRI = MF.getRegInfo();
++  const auto &ST = MF.getSubtarget<DADAOSubtarget>();
++  const DADAOInstrInfo &TII = *ST.getInstrInfo();
++
++  // --- PHI shape: exactly one entry edge and one self backedge ---------------
++  if (!Phi.isPHI() || Phi.getNumOperands() != 5)
++    return false;
++  if (!Phi.getOperand(0).isReg() || !Phi.getOperand(0).isDef() ||
++      !Phi.getOperand(1).isReg() || !Phi.getOperand(2).isMBB() ||
++      !Phi.getOperand(3).isReg() || !Phi.getOperand(4).isMBB())
++    return false;
++
++  Register OldPhi = Phi.getOperand(0).getReg();
++  Register Entry = Phi.getOperand(1).getReg();
++  MachineBasicBlock *EntryBB = Phi.getOperand(2).getMBB();
++  Register Back = Phi.getOperand(3).getReg();
++  MachineBasicBlock *BackBB = Phi.getOperand(4).getMBB();
++  if (!OldPhi.isVirtual() || !Entry.isVirtual() || !Back.isVirtual())
++    return false;
++  // A single backedge from this very block and a single entry edge: the loop is
++  // this block, so the bridge and both address adds below are the whole loop
++  // body.  EntryBB == MBB would mean two self edges with an undefined "entry".
++  if (BackBB != &MBB || EntryBB == &MBB)
++    return false;
++  if (MBB.pred_size() != 2)
++    return false;
++  {
++    unsigned SelfEdges = 0, EntryEdges = 0;
++    for (const MachineBasicBlock *Pred : MBB.predecessors()) {
++      if (Pred == &MBB)
++        ++SelfEdges;
++      else if (Pred == EntryBB)
++        ++EntryEdges;
++    }
++    if (SelfEdges != 1 || EntryEdges != 1)
++      return false;
++  }
++  // The i64 PHI is in the data bank (that is the problem being repaired), its
++  // entry value is already an address-bank value, and the backedge value is
++  // still a data-bank value (defined by the ADD_IMM_PSEUDO checked below).
++  if (MRI.getRegClass(OldPhi) != &DADAO::GPRDRegClass ||
++      MRI.getRegClass(Entry) != &DADAO::GPRBRegClass ||
++      MRI.getRegClass(Back) != &DADAO::GPRDRegClass)
++    return false;
++
++  // --- uses of the PHI: one bank bridge COPY and one ADD_PSEUDO -------------
++  MachineInstr *Add1 = nullptr;
++  MachineInstr *BaseCopy = nullptr;
++  unsigned PhiUseCount = 0;
++  for (MachineOperand &Use : MRI.use_nodbg_operands(OldPhi)) {
++    MachineInstr *User = Use.getParent();
++    ++PhiUseCount;
++    if (User->getOpcode() == DADAO::ADD_PSEUDO) {
++      if (Add1 || User->getParent() != &MBB)
++        return false;
++      Add1 = User;
++      continue;
++    }
++    if (User->getOpcode() == TargetOpcode::COPY && User->getNumOperands() == 2 &&
++        User->getOperand(0).isReg() && User->getOperand(0).isDef() &&
++        User->getOperand(1).isReg() &&
++        User->getOperand(1).getReg() == OldPhi) {
++      // Only a bridge into the address bank is interesting; the destination
++      // must be virtual before its class can be queried (a COPY into a
++      // physical register is not a candidate).
++      Register Dst = User->getOperand(0).getReg();
++      if (Dst.isVirtual() && MRI.getRegClass(Dst) == &DADAO::GPRBRegClass) {
++        if (BaseCopy)
++          return false;
++        BaseCopy = User;
++        continue;
++      }
++    }
++    return false;
++  }
++  if (PhiUseCount != 2 || !Add1 || !BaseCopy || Add1->getNumOperands() != 3)
++    return false;
++
++  // --- Add1: %dst = ADD_PSEUDO %phi, %offset --------------------------------
++  // Exactly one operand may be the PHI; `add %p, %p` would leave the other
++  // operand dangling once the PHI is deleted.
++  unsigned PhiSrc = 0;
++  if (Add1->getOperand(1).isReg() && Add1->getOperand(1).getReg() == OldPhi)
++    PhiSrc = 1;
++  else if (Add1->getOperand(2).isReg() && Add1->getOperand(2).getReg() == OldPhi)
++    PhiSrc = 2;
++  else
++    return false;
++  const unsigned OffsetIdx = PhiSrc == 1 ? 2 : 1;
++  if (!Add1->getOperand(OffsetIdx).isReg())
++    return false;
++  Register Offset = Add1->getOperand(OffsetIdx).getReg();
++  if (!Offset.isVirtual() || Offset == OldPhi ||
++      MRI.getRegClass(Offset) != &DADAO::GPRDRegClass)
++    return false;
++  Register Add1Dst = Add1->getOperand(0).getReg();
++  if (!Add1->getOperand(0).isDef() || !Add1Dst.isVirtual() ||
++      MRI.getRegClass(Add1Dst) != &DADAO::GPRDRegClass)
++    return false;
++
++  // --- Add2: %back = ADD_IMM_PSEUDO %Add1Dst, imm ---------------------------
++  MachineInstr *Add2 = MRI.getVRegDef(Back);
++  if (!Add2 || Add2->getParent() != &MBB ||
++      Add2->getOpcode() != DADAO::ADD_IMM_PSEUDO ||
++      Add2->getNumOperands() != 3 || !Add2->getOperand(0).isDef() ||
++      Add2->getOperand(0).getReg() != Back ||
++      !Add2->getOperand(1).isReg() ||
++      Add2->getOperand(1).getReg() != Add1Dst ||
++      !Add2->getOperand(2).isImm())
++    return false;
++  const int64_t TailOffset = Add2->getOperand(2).getImm();
++
++  // --- use-def completeness ------------------------------------------------
++  // %Add1Dst must be consumed by Add2 only, and %Back by the PHI only: anything
++  // else means this is not the exact chain the rewrite models.
++  {
++    unsigned Uses = 0;
++    for (MachineOperand &Use : MRI.use_nodbg_operands(Add1Dst)) {
++      if (Use.getParent() != Add2)
++        return false;
++      ++Uses;
++    }
++    if (Uses != 1)
++      return false;
++  }
++  {
++    unsigned Uses = 0;
++    for (MachineOperand &Use : MRI.use_nodbg_operands(Back)) {
++      if (Use.getParent() != &Phi)
++        return false;
++      ++Uses;
++    }
++    if (Uses != 1)
++      return false;
++  }
++  Register CopyDst = BaseCopy->getOperand(0).getReg();
++  if (MRI.use_nodbg_empty(CopyDst))
++    return false;
++
++  // --- dominance -----------------------------------------------------------
++  // The bridge must be reached through this block, and every (non-debug) use of
++  // the bridged value must still be dominated by the rebuilt PHI's position.
++  if (!MDT.dominates(&MBB, BaseCopy->getParent()) ||
++      !blockDominatesAllUses(MBB, CopyDst, MRI, MDT))
++    return false;
++
++  //===--------------------------------------------------------------------===//
++  // Accepted: rebuild the chain.  Nothing above this point modified the IR.
++  //===--------------------------------------------------------------------===//
++
++  Register NewPhi = MRI.createVirtualRegister(&DADAO::GPRBRegClass);
++  MachineInstr *NewPhiMI =
++      BuildMI(MBB, Phi, Phi.getDebugLoc(), TII.get(TargetOpcode::PHI), NewPhi)
++          .addReg(Entry)
++          .addMBB(EntryBB)
++          .addReg(Back)
++          .addMBB(&MBB);
++  // Instruction-referencing debug info tracks the value by <instr, operand>;
++  // keep that link when the defining instruction changes.
++  MF.substituteDebugValuesForInst(Phi, *NewPhiMI);
++
++  // The element-offset constant is loop invariant, so materialize it once in
++  // the preheader (the single non-self predecessor) instead of once per
++  // iteration.  It is a pure pseudo with no side effects.
++  MachineBasicBlock::iterator InsertPt = EntryBB->getFirstTerminator();
++  Register TailConst = MRI.createVirtualRegister(&DADAO::GPRDRegClass);
++  BuildMI(*EntryBB, InsertPt, Phi.getDebugLoc(), TII.get(DADAO::CONST_WYDE),
++          TailConst)
++      .addImm(TailOffset);
++
++  // All PHI uses (including debug operands) now read the RB value.  Kill flags
++  // are cleared afterwards: a "killed" marker that was true for the old value
++  // is not necessarily true for the new one (the rebuilt PHI's backedge operand
++  // is live at the end of this block).
++  MRI.replaceRegWith(OldPhi, NewPhi);
++  MRI.clearKillFlags(NewPhi);
++
++  // %sum: add_o_bbd is (GPRB base, GPRD offset), but the machine ADD_PSEUDO
++  // takes two untyped GPRD operands, so the pointer may sit in either position
++  // (the order follows the DAG).  Put the base first; the old kill markers
++  // describe the old registers, so drop them (LiveVariables recomputes).
++  Add1->getOperand(1).setIsKill(false);
++  Add1->getOperand(2).setIsKill(false);
++  if (PhiSrc == 2) {
++    Register SavedOffset = Add1->getOperand(1).getReg();
++    Add1->getOperand(1).setReg(NewPhi);
++    Add1->getOperand(2).setReg(SavedOffset);
++  }
++  Add1->setDesc(TII.get(DADAO::add_o_bbd));
++  MRI.setRegClass(Add1Dst, &DADAO::GPRBRegClass);
++
++  // %next: add.o rb, rb, rd  (in place on %sum, constant from RD).
++  Add2->setDesc(TII.get(DADAO::add_o_bbd));
++  Add2->getOperand(2).ChangeToRegister(TailConst, /*isDef=*/false);
++  MRI.setRegClass(Back, &DADAO::GPRBRegClass);
++
++  // The bridge is dead: its destination now aliases the rebuilt PHI.
++  MRI.replaceRegWith(CopyDst, NewPhi);
++  MRI.clearKillFlags(NewPhi);
++  BaseCopy->eraseFromParent();
++  Phi.eraseFromParent();
++
++  LLVM_DEBUG(dbgs() << "dadao-pointer-phi-bank: rebuilt "
++                    << printReg(NewPhi, ST.getRegisterInfo()) << " in "
++                    << printMBBReference(MBB) << "\n");
++  return true;
++}
++
++bool DADAOPointerPHIBank::runOnMachineFunction(MachineFunction &MF) {
++  // The whole proof is an SSA use-def argument; everything after PHI
++  // elimination is out of scope.
++  if (!MF.getProperties().hasProperty(
++          MachineFunctionProperties::Property::IsSSA))
++    return false;
++
++  const auto &MDT = getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
++  bool Changed = false;
++
++  for (MachineBasicBlock &MBB : MF) {
++    // A call or inline asm makes a loop-carried address a separate ABI problem:
++    // do not infer provenance across either boundary.
++    bool HasBoundary = false;
++    for (const MachineInstr &MI : MBB)
++      if (MI.isCall() || MI.getOpcode() == TargetOpcode::INLINEASM ||
++          MI.getOpcode() == TargetOpcode::INLINEASM_BR) {
++        HasBoundary = true;
++        break;
++      }
++    if (HasBoundary)
++      continue;
++
++    // Rewriting erases the PHI and the bridge, both of which may be adjacent to
++    // the scan position, so restart at the block head after every accepted
++    // candidate.  Rejected candidates leave the block unchanged and the scan
++    // simply moves on.
++    for (auto It = MBB.begin(); It != MBB.end();) {
++      MachineInstr &Phi = *It++;
++      if (rewritePhi(MBB, Phi, MDT)) {
++        Changed = true;
++        It = MBB.begin();
++      }
++    }
++  }
++  return Changed;
++}
++
++char DADAOPointerPHIBank::ID = 0;
++INITIALIZE_PASS(DADAOPointerPHIBank, "dadao-pointer-phi-bank",
++                "DADAO pointer PHI GPRB", false, false)
++
++FunctionPass *llvm::createDADAOPointerPHIBankPass() {
++  return new DADAOPointerPHIBank();
++}

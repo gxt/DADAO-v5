@@ -1,0 +1,76 @@
+diff --git a/src/arch/dadao/exec/b2.hh b/src/arch/dadao/exec/b2.hh
+new file mode 100644
+index 0000000..60226ae
+--- /dev/null
++++ b/src/arch/dadao/exec/b2.hh
+@@ -0,0 +1,70 @@
++// DADAO gem5 B2 execution core: 16-bit immediate rwii operations (8 ids).
++//
++// Plain C++ (no gem5 headers), like the B0 decode core, so the *same* code is
++// driven by the component assertion harness (exec/b2_test.cc) and by the gem5
++// adapter (inst.cc).
++//
++// Source of truth: the B2 ids in contracts/opcodes.yaml, the same-id rows of
++// the GEM5-002t semantic matrix, spec/SimRISC-03, contract-isa §5 and
++// contract-fp §13.  Only the 8 B2 ids are implemented; every other decoded
++// instruction reports NotB2.
++//
++// All 8 ids are word operations on one 16-bit lane of a 64-bit register:
++//   lane = 0xFFFF << (16 * wpN), imm = immu16 << (16 * wpN)
++//   or.w    new = (old & ~lane) | (old & lane) | imm   (== old | imm)
++//   andn.w  new = (old & ~lane) | ((old & ~immu16 & 0xFFFF) << 16 * wpN)
++//   set.zw  new = imm                                  (other 48 bits zero)
++//   set.ow  new = ~lane | imm                          (other 48 bits one)
++//   set.w   new = (old & ~lane) | imm                  (other 48 bits kept)
++// immu16 is unsigned and must never be sign-extended.
++#ifndef __ARCH_DADAO_EXEC_B2_HH__
++#define __ARCH_DADAO_EXEC_B2_HH__
++
++#include <cstddef>
++#include <string_view>
++
++#include "arch/dadao/decode/decode.hh"
++#include "arch/dadao/exec/common.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++enum class Op
++{
++    Or,
++    Andn,
++    SetZw,
++    SetOw,
++    SetW,
++};
++
++/** One decoded B2 id.  This is also the dispatch table. */
++struct B2Spec
++{
++    const char *id;
++    Op op;
++    Target target;
++};
++
++size_t b2SpecCount();
++const B2Spec *b2Specs();
++const B2Spec *b2SpecForId(std::string_view id);
++
++/** Execute one B2 instruction.
++ *
++ * Returns NotB2 when the instruction does not belong to batch B2; callers must
++ * keep that instruction unimplemented rather than guessing.  Legal, decoded B2
++ * instructions always complete a single destination write (set.w rf0 with
++ * wp1/wp3 intentionally writes nothing: the FCSR write mask makes it a no-op).
++ */
++Fault executeB2(const decode::DecodedInst &inst, RegAccess &ctx);
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_EXEC_B2_HH__

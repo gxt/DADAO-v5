@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..439b84da5
+index 000000000..87b305263
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,448 @@
+@@ -0,0 +1,449 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -149,9 +149,9 @@ index 000000000..439b84da5
 +  /// LowerIS_FPCLASS; selected by a direct pattern in DADAOCodeGen.td.
 +  FCLASS,
 +
-+  /// IEEE 754 scaleB (LLVM-126t; contract-fp.md §5): (x, n) -> x * 2^n with the
-+  /// integer-valued FP exponent `n`.  Produced by LowerFLDEXP (`n` is already
-+  /// an io2fo/it2ft result); selected to `fosclb`/`ftsclb`.
++  /// IEEE 754 scaleB (LLVM-126t; contract-fp.md §5; SPEC-181t C1): (x, n) ->
++  /// x * 2^n with the signed 64-bit integer exponent `n` in an RD register
++  /// (`rdHD`).  Produced by LowerFLDEXP; selected to `fosclb`/`ftsclb`.
 +  SCALB,
 +
 +  /// Saturating float->int conversion (LLVM-126t; contract-fp.md §3):
@@ -386,9 +386,9 @@ index 000000000..439b84da5
 +  ///
 +  ///   ISD::ATOMIC_FENCE -> DADAOISD::FENCE carrying the `fm`/`pred`/`succ`
 +  ///     immediate; the ordering mapping is:
-+  ///       acquire            -> pred R,        succ R|W    = 0x043
-+  ///       release            -> pred R|W,      succ W      = 0x0C2
-+  ///       acq_rel / seq_cst  -> pred R|W|I|O,  succ R|W|I|O = 0x3CF
++  ///       acquire            -> pred mr,        succ mr|mw    = 0x430
++  ///       release            -> pred mr|mw,     succ mw       = 0xC20
++  ///       acq_rel / seq_cst  -> pred all six,   succ all six  = 0xFFF
 +  ///       monotonic/unordered-> no instruction (the chain is returned as is)
 +  ///   ISD::ATOMIC_LOAD / ISD::ATOMIC_STORE -> an ordinary extending load /
 +  ///     truncating store (the fences were already inserted by AtomicExpand).
@@ -423,9 +423,10 @@ index 000000000..439b84da5
 +  /// class word against the one-hot constant directly.
 +  SDValue LowerIS_FPCLASS(SDValue Op, SelectionDAG &DAG) const;
 +
-+  /// ISD::FLDEXP (LLVM-126t, contract-fp.md §5): `ldexp(x, n)` is `fosclb` with
-+  /// an FP exponent, so convert the integer exponent with `io2fo`/`io2ft`
-+  /// (signed, the exponent may be negative) and select `fosclb`/`ftsclb`.
++  /// ISD::FLDEXP (LLVM-126t, contract-fp.md §5; SPEC-181t C1): `ldexp(x, n)` is
++  /// `fosclb` with the exponent in `rdHD` (an RD-bank signed 64-bit integer),
++  /// so sign-extend the i32 exponent to i64 and select `fosclb`/`ftsclb`; no
++  /// FP conversion of the exponent is needed.
 +  SDValue LowerFLDEXP(SDValue Op, SelectionDAG &DAG) const;
 +
 +  /// ISD::FP_TO_SINT_SAT / ISD::FP_TO_UINT_SAT (LLVM-126t): the hardware

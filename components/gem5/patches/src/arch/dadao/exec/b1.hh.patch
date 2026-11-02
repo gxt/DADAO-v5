@@ -1,0 +1,108 @@
+diff --git a/src/arch/dadao/exec/b1.hh b/src/arch/dadao/exec/b1.hh
+new file mode 100644
+index 0000000..b765bd8
+--- /dev/null
++++ b/src/arch/dadao/exec/b1.hh
+@@ -0,0 +1,102 @@
++// DADAO gem5 B1 execution core: single/multi load/store (38 ids).
++//
++// Plain C++ (no gem5 headers), like the B0 decode core, so the *same* code is
++// driven by the component assertion harness (exec/b1_test.cc) and by the gem5
++// adapter (inst.cc).
++//
++// Source of truth: the B1 ids in contracts/opcodes.yaml, the same-id rows of
++// the GEM5-002t semantic matrix, spec/SimRISC-01 (sections 1-4), contract-isa
++// §3 and contract-fp §11.  Only the 38 B1 ids are implemented; every other
++// decoded instruction reports NotB1 (B2 has its own core in exec/b2.hh and
++// gem5 keeps returning UnimplementedInstruction for B3-B7).
++//
++// Rules that live in the adapter, not here:
++//   * rd0 reads as 0 and rb0 reads as the *current* instruction address (IP);
++//   * rf0 as a destination obeys the FCSR write mask (see writeFcsr);
++//   * memory is accessed with a byte array; all endianness conversion is done
++//     inside this core (DADAO is big-endian).
++#ifndef __ARCH_DADAO_EXEC_B1_HH__
++#define __ARCH_DADAO_EXEC_B1_HH__
++
++#include <cstddef>
++#include <cstdint>
++#include <string_view>
++
++#include "arch/dadao/decode/decode.hh"
++#include "arch/dadao/exec/common.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++class B1Context : public RegAccess
++{
++  public:
++    ~B1Context() override = default;
++
++    /** Write bits [31:0], keep [63:32] (used by ld.t / ldm.t). */
++    virtual void writeFloatLow32(unsigned idx, uint32_t val) = 0;
++
++    /** Byte-array access; false means "memory fault" (details in the ctx). */
++    virtual bool readMem(uint64_t addr, unsigned bytes, uint8_t *out) = 0;
++    virtual bool writeMem(uint64_t addr, const uint8_t *in, unsigned bytes) = 0;
++
++    /** Optional hook used right before executeB1() returns Malign. */
++    virtual void
++    reportMalign(uint64_t addr, unsigned width)
++    {
++        (void)addr;
++        (void)width;
++    }
++};
++
++/** Destination register group of a B1 instruction (shared with B2-B7,
++ * defined in exec/common.hh). */
++enum class Shape : uint8_t
++{
++    Single,
++    Multi,
++};
++
++enum class Access : uint8_t
++{
++    Load,
++    Store,
++};
++
++/** One decoded B1 id.  This is also the dispatch table. */
++struct B1Spec
++{
++    const char *id;
++    Access access;
++    Target target;
++    Shape shape;
++    uint8_t width;      // bytes: 1, 2, 4 or 8
++    bool signExtend;    // RD loads only (.s*); zero_extend otherwise
++    const char *dstField;
++    const char *baseField;
++    const char *offsetField; // "rdhc" for Multi, nullptr for Single
++    const char *countField;  // "immu6" for Multi, nullptr for Single
++};
++
++size_t specCount();
++const B1Spec *specs();
++const B1Spec *specForId(std::string_view id);
++
++/** Execute one B1 instruction.
++ *
++ * Returns NotB1 when the instruction does not belong to batch B1; callers must
++ * keep that instruction unimplemented rather than guessing.  Fault ordering is
++ * ILLI -> MALIGN -> memory fault; a fault never completes the pending
++ * register/memory write of the element that raised it.
++ */
++Fault executeB1(const decode::DecodedInst &inst, B1Context &ctx);
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_EXEC_B1_HH__

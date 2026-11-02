@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate tests/vectors/clmul/clmul.yaml — L3 semantic vectors for `clmul.o`.
+"""Generate tests/inst/clmul/clmul.yaml — L3 semantic vectors for `clmul.o`.
 
 Source of truth (Spec-first; no QEMU/LLVM reverse-engineering):
   * spec/SimRISC-04: 无进位乘法        — clmul.o: rdHC/rdHD are 64-bit GF(2)
@@ -21,9 +21,9 @@ implementation satisfies the GF(2) polynomial identities (`a * 1 == a`,
 any vector is emitted.
 
 `clmul.o` is still `scope: excluded` in contracts/opcodes.yaml (the scope flip
-belongs to SPEC-155t), so its vectors cannot live under `tests/vectors/isa/`
-(validate_vectors.py requires isa/*.yaml ids to be M1 identities).  They live
-in `tests/vectors/clmul/` and are registered as an L3 carrier in
+belongs to SPEC-155t), so its vectors cannot live under `tests/inst/base/`
+(validate_vectors.py requires base/*.yaml ids to be M1 identities).  They live
+in `tests/inst/clmul/` and are registered as an L3 carrier in
 `tools/qemu/semantics_gate.py`.
 
 Usage:
@@ -41,7 +41,7 @@ import yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OPCODES = os.path.join(ROOT, "contracts", "opcodes.yaml")
-OUT = os.path.join(ROOT, "tests", "vectors", "clmul", "clmul.yaml")
+OUT = os.path.join(ROOT, "tests", "inst", "clmul", "clmul.yaml")
 
 MASK64 = (1 << 64) - 1
 SEED = 0xC1A0  # fixed seed, recorded in the generated header

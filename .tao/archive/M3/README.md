@@ -21,6 +21,8 @@
 
 ## 2. changelog（M3 时期，2026-10-05，35 条）
 
+> 本节 = 任务流水（冻结）历史别名；表格原样保留，不重写。
+
 | 日期 | 描述 | 执行方 |
 | --- | --- | --- |
 | 2026-10-05 | **`SPEC-100t`+`QEMU-040t`（原子对）：新增指令 `sub.o_orrr_dbb`（RB−RB→RD，M3 前置）**。spec：`spec/SimRISC-00`(110-011)/`05`(分类 5)、`contract-isa §7.1`、`opcodes.yaml`（**227→228**，`m3=1`）、`check_scope.py`(m3/228)、生成器。qemu：`insn.decode`+`trans_arith.c.inc` 新增 `trans_sub_o_orrr_dbb` + 探针 `min_rom_probe_040t.py`。依据 `adr-0012 D9.1`（`ha=0x33`/`value=0x40CC0000`）。**验证**：`make check` EXIT=0（lit 31/31）；`check-interface` 228/80 项；`check_qemu_trans --strict` 228/228；`validate_vectors` 152/152；生成器零漂移；`validate_decodetree` EXIT=0；探针 6/6（负差全 64 位、rd0→ILLI 0x88、保留槽→UNDI 0x89）。**证据**：一键脚本 21+16 项；reviewer 独立注入 `op`→FAIL→还原回绿。**遗留**：5 处「227」文档计数残留（→ISS-131）；`validate_instrinfo.py` 陈旧（`issues.yaml:426` 已登记，非门控）。 | engineer + reviewer |

@@ -40,6 +40,10 @@ CFX_ALIAS_TABLE_BUILD   ?= $(LLVM_BUILD)/share/dadao/cfx-aliases.txt
 CFX_ALIAS_TABLE_INSTALL ?= $(HOST_TOOLCHAIN_DIR)/share/dadao/cfx-aliases.txt
 GEM5_SRC   ?= .work/source/gem5
 GEM5_BUILD ?= .work/build/gem5
+# gem5 builds with SCons; no SCons is vendored in the repo.  Point this at a
+# venv/install if `scons` is not on PATH (build-gem5 then reports BLOCKED, not
+# a fake PASS).
+GEM5_SCONS ?= scons
 
 DOCKER_TAG ?= dadao-v5-dev:local
 
@@ -47,12 +51,16 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
-        build-builtins build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
+        build-builtins build-qemu build-qemu-reconfig build-gem5 check-gem5-decode build-bootrom build-picolibc \
         build-musl build-musl-shared test-picolibc-smoke install-host install-cfx-aliases docker-image docker-shell check \
         check-picolibc-tests check-picolibc-tests-full check-rnd-probe \
         check-minmax-probe check-fma-probe check-clmul-probe \
         check-testcases-suites check-testcases-suites-full \
-        check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
+        check-modules check-full check-components check-knowledge-refs \
+        check-inst check-inst-smoke check-tests-index check-arch check-arch-smoke \
+        check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
+        check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
+        clean-tests test-repro check-night check-night-report check-l3-report \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
@@ -60,14 +68,16 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-cfx-alias-table check-cfx-alias-install check-cfx-vectors \
         check-lit-full \
         check-run-artifacts \
-        test-codegen test-elf test-semihost test-m6 \
+        test-codegen test-elf test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-musl-freshness check-builtins-freshness check-install-tools check-milestones-fresh \
-        check-tasks check-spec-codeblocks check-legality-invariants \
-        check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive check-contracts-dir \
+        check-tasks check-archive check-spec-codeblocks check-legality-invariants \
+        check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive \
+        check-contracts-dir check-knowledge-dir \
+        check-rev-vectors check-generator-sync \
         check-spec-archive-verify check-milestone check-sync-nonmaskable \
         check-component-changelog check-syscall-abi check-spec-purity check-spec-cite-targets \
-        check-width-sizes check-code-range
+        check-width-sizes check-code-range check-runner-reap
 
 # ── 工作树互斥锁 (INFRA-099t / ISS-229) ─────────────────────────────────────────
 # 同一工作树内会写共享状态的目标 —— 构建树 `.work/build/**`、安装根 $(SDK_DIR)、
@@ -79,7 +89,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
 # `install-host` 并发 ⇒ 构建树写坏。规范见 docs/Process-07 §2。
 #
 # 语义（细节 + 自测见 tools/infra/gate_lock.py）：
-#   * **嵌套放行**：同一 make 树内 `check-modules → test-semihost → install-host →
+#   * **嵌套放行**：同一 make 树内 `check-modules → check-arch-smoke → install-host →
 #     build-mc` 通过 DADAO_GATE_LOCK_HELD 直接通过（并由「持有者 pid 是本进程祖先」
 #     校验，环境标记本身不能关掉互斥），不会自锁。
 #   * **独立进程等待有上界**：GATE_LOCK_WAIT 秒（默认 3600，够一次 L3 持有）；
@@ -95,9 +105,14 @@ GATE_LOCK_TOOL      = $(PYTHON) tools/infra/gate_lock.py
 # 互斥面的**单一真源**（文档只指这里，不另列清单，避免漂移）。
 GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       build-mc build-mc-lite build-mc-reconfig build-lld build-qemu build-qemu-reconfig \
+                      build-gem5 check-gem5-decode \
                       build-builtins build-bootrom build-picolibc build-musl build-musl-shared \
-                      test-codegen test-elf test-semihost test-m6 test-picolibc-smoke \
-                      check-lit check-lit-full check-qemu-semantics check-qemu-smoke \
+                      test-codegen test-elf test-m6 test-picolibc-smoke \
+                      check-lit check-lit-full \
+                      check-inst check-inst-smoke check-arch check-arch-smoke \
+                      check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
+                      check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
+                      clean-tests test-repro check-night \
                       check-picolibc-tests check-picolibc-tests-full check-rnd-probe \
                       check-minmax-probe check-fma-probe check-clmul-probe \
                       check-testcases-suites check-testcases-suites-full \
@@ -145,7 +160,8 @@ help:
 	@echo "  make build-lld       Build LLD linker (bin/ld.lld); shares the one-shot LLVM config"
 	@echo "  make build-qemu      Compile QEMU (skips configure if build.ninja exists)"
 	@echo "  make build-qemu-reconfig  Force configure re-run then compile QEMU"
-	@echo "  make build-gem5      Build gem5 (stub; command owned by the gem5 module)"
+	@echo "  make build-gem5      Build gem5 with the DADAO arch skeleton (SCons; GEM5_SCONS=... if not on PATH; GEM5-004t)"
+	@echo "  make check-gem5-decode  Regenerate/compare the decode table and run the 264-row decode assertions (GEM5-004t)"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
 	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"
@@ -154,42 +170,56 @@ help:
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make check-picolibc-tests  Run the picolibc self-test representative set (L2; TESTCASES-042t)"
 	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
-	@echo "  make check-rnd-probe  Run the ftrnd/fornd roundToIntegral probes at -O0 and -O2 (L2; TESTCASES-060t)"
-	@echo "  make check-minmax-probe  Run the ftmin/ftmax/fomin/fomax min/max probes at -O0 and -O2 (L2; TESTCASES-059t)"
-	@echo "  make check-fma-probe  Run the ftfma/fofma single-rounding / dot / GEMM / Horner probes at -O0 and -O2 (L2; TESTCASES-058t)"
-	@echo "  make check-clmul-probe  Run the clmul.o instruction / GHASH / CRC-32C probes at -O0 and -O2 (L2; TESTCASES-057t)"
+	@echo "  make check-rnd-probe  Run the ftrnd/fornd roundToIntegral probes at -O0 and -O2 (L3; TESTCASES-060t)"
+	@echo "  make check-minmax-probe  Run the ftmin/ftmax/fomin/fomax min/max probes at -O0 and -O2 (L3; TESTCASES-059t)"
+	@echo "  make check-fma-probe  Run the ftfma/fofma single-rounding / dot / GEMM / Horner probes at -O0 and -O2 (L3; TESTCASES-058t)"
+	@echo "  make check-clmul-probe  Run the clmul.o instruction / GHASH / CRC-32C probes at -O0 and -O2 (L3; TESTCASES-057t)"
 	@echo "  make check-testcases-suites  Run the two upstream reference suites (libc-test + llvm-test-suite) fast subset (opt-in, not L2; TESTCASES-045t)"
 	@echo "  make check-testcases-suites-full  Run every enumerable C case with main() from both suites (opt-in/L3-like; TESTCASES-045t)"
+	@echo "  make check-tset-libc-smoke  libc-test user-mode smoke representative set (L2; TESTCASES-075t)"
+	@echo "  make check-tset-llvm-smoke  llvm-test-suite user-mode smoke representative set (L2; TESTCASES-075t)"
+	@echo "  make check-tset-embench-smoke  Embench-IoT user-mode full set -O0/-O2 (L2; TESTCASES-075t)"
+	@echo "  make check-tset-{libc,llvm,embench}-full  tset full set, both link modes (night only; TESTCASES-076t)"
 	@echo "  make check-builtins-freshness  compiler-rt builtins archive must be the one the current clang built (build-id sidecar), in every consumer copy (L1; ISS-293/INFRA-101t)"
 	@echo "  make install-host    Install needed tools: cross toolchain (clang/llc/ld.lld …) into \$$(HOST_TOOLCHAIN_BIN) + host lli into \$$(HOST_TOOLS_BIN); adr-0016 D3/D4/D5/D11"
 	@echo "  make install-cfx-aliases  Copy contracts/cfx-aliases.txt to the build tree + install root only (no rebuild; LLVM-135t)"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
 	@echo "  make clean-work      Remove generated .work content only"
-	@echo "  make validate-vectors  Validate tests/vectors schema/inventory/coverage"
+	@echo "  make validate-vectors  Validate tests/inst vectors schema/inventory/coverage (L1)"
 	@echo "  make check           Run repository-level structural checks (L1: static + component smoke)"
-	@echo "  make check-modules   Run L2 module functional representative set (check-lit + check-interface + check-qemu-smoke + test-codegen/elf/semihost)"
-	@echo "  make check-full      Run L3 fuller checks (check-qemu-semantics + test-m6; check-lit-full via test-m6)"
+	@echo "  make check-modules   Run L2 = the four scopes' smoke sets (inst/arch/unit + tset x3; no FP probes)"
+	@echo "  make check-full      Run L3 = check-inst + check-arch + check-unit-full + 4 FP probes + test-m6; writes .dadao/tests/l3/<UTC>/ (tset smoke is L2-only; tset full is night-only; TESTCASES-082t/083t)"
+	@echo "  make check-night     Run the night set (tset full x3 + long arch) and write .dadao/tests/night/<date>/ (setsid nohup; TESTCASES-076t)"
+	@echo "  make check-night-report  Gate: the night report exists and is structurally complete + green (milestone closure; TESTCASES-076t)"
+	@echo "  make check-l3-report  Gate: the latest L3 report exists, covers four scopes, and is fully green (milestone closure; TESTCASES-083t)"
+	@echo "  make clean-tests     Remove one scope's generated artifacts (SCOPE=inst|arch|unit|tset|night|l3|all; DRY_RUN=1 to list; TESTCASES-076t)"
+	@echo "  make test-repro      Prove build products regenerate byte-identically (SCOPE=...; TESTCASES-076t)"
 	@echo "  make check-components  Component availability smoke (llc/clang --print-targets/qemu; L1)"
-	@echo "  make check-qemu-smoke  QEMU semantic smoke (representative subset; L2)"
+	@echo "  make check-inst-smoke  inst semantic smoke (representative subset; L2; TESTCASES-072t)"
+	@echo "  make check-inst      inst semantic full set (tests/inst; L3; TESTCASES-072t)"
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
 	@echo "  make check-width-sizes  64-bit width + ELF64/rela/got + DWARF64 addr_size probe (L1; LLVM-130t)"
-	@echo "  make check-code-range  DADAO code-span gate: REL26 edge ≤ 32 MiB + exec_span < 30 MiB (L2; ADR-0036/INFRA-106t)"
+	@echo "  make check-code-range  DADAO code-span gate: REL26 edge ≤ 32 MiB + exec_span < 30 MiB (L1; ADR-0036/INFRA-106t)"
 	@echo "  make check-contracts-dir  Whitelist gate for .tao/contracts/ + contracts/ top level (L1; INFRA-071t)"
+	@echo "  make check-knowledge-dir  Whitelist gate for .tao/knowledge/ top level (L1; INFRA-070t/INFRA-112t)"
 	@echo "  make check-component-changelog  Component changelog list-form/milestone-section gate (L1; INFRA-084t)"
 	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
 	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
 	@echo "  make check-milestones-fresh  milestones.md task-flow table gate: status/coverage/length/order/format (L1; INFRA-091t)"
-	@echo "  make check-milestone  Milestone closure: SimRISC archive structure + content sha256 + sync-nonmaskable + knowledge top-level whitelist + current-milestone m-book/its task ids + check-tasks --strict (not L1)"
+	@echo "  make check-archive   .tao/archive/M<i>/ structure + task-book fields + README five sections + issues snapshot (L1; INFRA-116t)"
+	@echo "  make check-milestone  Milestone closure: SIMRISC archive + sha + sync-nonmaskable + m-book + night report + L3 report + check-tasks --strict (not L1)"
 	@echo "  make check-sync-nonmaskable  Sync exception causes must not be maskable (only IPI/TIMER/UART*/… may; SPEC-175t; not L1)"
-	@echo "  make check-interface  Check cross-module interface alignment"
+	@echo "  make check-interface  Check cross-module interface alignment (L1)"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
 	@echo "  make check-scope     Check opcodes.yaml scope partition (m1/fp/excluded; SPEC-086t)"
 	@echo "  make check-spec-drift  Audit contract provenance against README versions"
 	@echo "  make check-spec-refs Audit spec references in contract-*.md (L1; INFRA-011t/058t)"
 	@echo "  make check-isa-coverage  ISA<->backend coverage matrix drift gate (L1; LLVM-081t/INFRA-069t)"
+	@echo "  make check-rev-vectors  rev vector re-derivation + spec_cite/oracle drift gate (L1; ISS-335)"
+	@echo "  make check-generator-sync  Six vector generators' --check byte-identical to on-disk vectors (L2; INFRA-115t)"
 	@echo "  make check-spec-numbering  Check 21-volume heading numbering structure (L1; SPEC-133t/INFRA-069t)"
 	@echo "  make check-spec-changelog  Check 21-volume appendix changelog structure (L1; SPEC-134t/INFRA-069t)"
 	@echo "  make check-spec-archive  Check SimRISC per-version archives exist (milestone closure; SPEC-154t/INFRA-109t)"
@@ -199,11 +229,14 @@ help:
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
 	@echo "  make check-spec-codeblocks  Check spec prose \`\`\`simrisc blocks vs opcodes.yaml (ISS-077)"
-	@echo "  make check-lit        Run lit MC + CodeGen + E2E tests (requires install-host)"
+	@echo "  make check-unit       unit scope representative set: lit + codegen/elf + ir-lli + picolibc fast (L2; TESTCASES-074t)"
+	@echo "  make check-unit-full  unit scope full set: check-unit + lit full (L3 only; TESTCASES-076t)"
+	@echo "  make check-lit        Run lit MC + CodeGen + E2E tests (requires install-host; check-unit member)"
 	@echo "  make check-lit-full   Run full generated lit MC suite from contracts/opcodes.yaml (opt-in; TESTCASES-037t)"
-	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t)"
-	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t)"
-	@echo "  make test-semihost    Run M5 SEE/semihosting E2E gate (bootrom+bin via -semihosting, console+SYS_EXIT, 25 svc; INTEG-020t)"
+	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t; check-unit member)"
+	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t; check-unit member)"
+	@echo "  make check-arch-smoke  arch smoke: SEE/semihosting + cfx permission + 25 svc (L2; TESTCASES-073t)"
+	@echo "  make check-arch      arch full cfx set: arch-smoke + cfx min-ROM probes (L3; TESTCASES-073t)"
 	@echo "  make test-m6          Run M6 E2E gate (lli value-level diff + Embench all benches -O0/-O2 + full lit MC suite; opt-in, INTEG-025t)"
 	@echo "  make check-patch-tree  Check component patch tree (docs/Process-01, 9 assertions)"
 	@echo "  make check-index-blobs  Check new-file patch index blob hashes (INFRA-038t/ISS-119)"
@@ -359,16 +392,24 @@ _locked-build-qemu-reconfig: manifest-check
 	PYTHONHASHSEED=0 $(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
 	@echo "build-qemu-reconfig: PASS"
 
-# gem5 is a v5 addition and has no build command yet (the gem5 module owns it).
-# This target is a deliberate skeleton: even once the component is enabled it
-# must not claim success until a real recipe exists.
-build-gem5: manifest-check
+# build-gem5 (GEM5-004t): compile the DADAO arch skeleton with gem5's own
+# SCons build (build_opts/DADAO).  Missing SCons => rc=2 (BLOCKED), never a
+# fake PASS.  See tools/gem5/build_gem5.py.
+_locked-build-gem5: manifest-check
 	@$(call component-enabled,gem5) || { \
 	  echo "build-gem5: component 'gem5' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
 	}
-	@echo "build-gem5: gem5 build command is not defined yet (owned by the gem5 module); refusing to fake success"
-	@exit 1
+	@$(PYTHON) tools/gem5/build_gem5.py --source $(GEM5_SRC) \
+	  --build $(GEM5_BUILD) --jobs $(JOBS) --scons "$(GEM5_SCONS)"
+
+# check-gem5-decode (GEM5-004t): regenerate/compare the contract-driven decode
+# table, then compile and run the 264-row assertion harness.  Standalone
+# (opt-in) L1-style check; it does not require a gem5 build.
+_locked-check-gem5-decode:
+	@$(PYTHON) tools/gem5/gen_decode_table.py --check --source $(GEM5_SRC)
+	@$(PYTHON) tools/gem5/check_decode.py --source $(GEM5_SRC) \
+	  --out $(GEM5_BUILD)/dadao-decode-test
 
 # install-host (INFRA-047t, ADR-0016 D3/D4/D5/D11): stage only the needed host
 # tool set from the .work/ build trees into the install root's bin/, install the
@@ -599,7 +640,7 @@ _locked-install-cfx-aliases:
 	@echo "install-cfx-aliases: PASS"
 
 # build-bootrom (QEMU-047t / ADR-0020 D12): assemble and link the SEE bootrom
-# firmware with the project toolchain (llvm-mc + ld.lld + tests/scripts/
+# firmware with the project toolchain (llvm-mc + ld.lld + tests/shared/bootrom/
 # bootrom.lds; ADR-0003 / ADR-0019 / contract-elf §6.1.2) and emit the flat
 # `-bios` image, plus the sample user application loaded by `-kernel`
 # (ADR-0004 D2.3 path B: raw-bin dual image).  Tools come from the install root
@@ -607,16 +648,41 @@ _locked-install-cfx-aliases:
 # test-artifacts root (ADR-0016 D6, resolved via paths.py):
 #   $(BOOTROM_DIR)/{bootrom.o,bootrom.elf,bootrom.bin,bootrom_app.o,bootrom_app.bin}
 BOOTROM_DIR = $(TEST_ARTIFACTS_DIR)/bootrom
+STEP5_BOOTROM_DIR = $(BOOTROM_DIR)/step5
 _locked-build-bootrom:
 	@test -x $(LLVM_MC_BIN) || { echo "build-bootrom: ERROR: $(LLVM_MC_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLD_BIN) || { echo "build-bootrom: ERROR: $(LLD_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "build-bootrom: ERROR: $(LLVM_OBJCOPY_BIN) not found — run 'make install-host' first"; exit 1; }
-	@mkdir -p $(BOOTROM_DIR)
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/scripts/bootrom.S -o $(BOOTROM_DIR)/bootrom.o
-	$(LLD_BIN) -T tests/scripts/bootrom.lds $(BOOTROM_DIR)/bootrom.o -o $(BOOTROM_DIR)/bootrom.elf
+	@test -x $(LLVM_NM_BIN) || { echo "build-bootrom: ERROR: $(LLVM_NM_BIN) not found — run 'make install-host' first"; exit 1; }
+	@mkdir -p $(BOOTROM_DIR) $(STEP5_BOOTROM_DIR)
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/bootrom.S -o $(BOOTROM_DIR)/bootrom.o
+	$(LLD_BIN) -T tests/shared/bootrom/bootrom.lds $(BOOTROM_DIR)/bootrom.o -o $(BOOTROM_DIR)/bootrom.elf
 	$(LLVM_OBJCOPY_BIN) -O binary $(BOOTROM_DIR)/bootrom.elf $(BOOTROM_DIR)/bootrom.bin
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/scripts/bootrom_app.S -o $(BOOTROM_DIR)/bootrom_app.o
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/bootrom_app.S -o $(BOOTROM_DIR)/bootrom_app.o
 	$(LLVM_OBJCOPY_BIN) -O binary --only-section=.text $(BOOTROM_DIR)/bootrom_app.o $(BOOTROM_DIR)/bootrom_app.bin
+	@# INTEG-046t step5: 256 KiB BootROM (power flat + hmon/smon ELFs) and the
+	@# image index table builder.  -z max-page-size keeps the small images inside
+	@# the 64 KiB per-image limit (the default 64 KiB page padding would not).
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/step5/power.S -o $(STEP5_BOOTROM_DIR)/power.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/step5/power.lds $(STEP5_BOOTROM_DIR)/power.o -o $(STEP5_BOOTROM_DIR)/power.elf
+	$(LLVM_OBJCOPY_BIN) -O binary $(STEP5_BOOTROM_DIR)/power.elf $(STEP5_BOOTROM_DIR)/power.bin
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/step5/hmon.S -o $(STEP5_BOOTROM_DIR)/hmon.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/step5/hmon.lds $(STEP5_BOOTROM_DIR)/hmon.o -o $(STEP5_BOOTROM_DIR)/hmon.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/step5/smon.S -o $(STEP5_BOOTROM_DIR)/smon.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/step5/smon.lds $(STEP5_BOOTROM_DIR)/smon.o -o $(STEP5_BOOTROM_DIR)/smon.elf
+	$(PYTHON) tools/testcases/arch/build_step5_bootrom.py \
+	  --out-dir $(STEP5_BOOTROM_DIR) \
+	  --power-elf $(STEP5_BOOTROM_DIR)/power.elf \
+	  --hmon-elf $(STEP5_BOOTROM_DIR)/hmon.elf \
+	  --smon-elf $(STEP5_BOOTROM_DIR)/smon.elf \
+	  --llvm-objcopy $(LLVM_OBJCOPY_BIN) --llvm-nm $(LLVM_NM_BIN)
+	$(PYTHON) tools/testcases/arch/build_step5_bootrom.py \
+	  --out-dir $(STEP5_BOOTROM_DIR) \
+	  --power-elf $(STEP5_BOOTROM_DIR)/power.elf \
+	  --hmon-elf $(STEP5_BOOTROM_DIR)/hmon.elf \
+	  --smon-elf $(STEP5_BOOTROM_DIR)/smon.elf \
+	  --llvm-objcopy $(LLVM_OBJCOPY_BIN) --llvm-nm $(LLVM_NM_BIN) \
+	  --self-test
 	@echo "build-bootrom: PASS (outputs under $(BOOTROM_DIR))"
 
 # build-picolibc (INFRA-057t): build the DADAO port of picolibc with Meson and
@@ -782,6 +848,108 @@ _locked-check-testcases-suites-full:
 	@$(PYTHON) tools/testcases/run_suite.py --stage full --timeout 300 \
 		--json-out .work/log/testcases/runs/full.json
 
+# ── tset smoke（TESTCASES-075t，L2）──────────────────────────────────────────
+# 三个 user-mode 上游套件驱动已迁 `tools/testcases/tset/<suite>/`（旧路径 = 薄
+# wrapper，命令行等价）；代表集由各 suite 的 `run_smoke.py` **机械派生**
+# （libc-test: 每顶层语料类别取源码最小用例；llvm-ts: 每棵树取源码最小用例；
+# embench: 全量 benchmark，任务口径 ~1 min），计数现场统计、不写死。
+# 运行目录/三件套仍按 `docs/Process-08`（`<test-artifacts>/<suite>-user/...`）。
+# JSON 落 `$(TSET_GATE_JSON_DIR)`（易失汇总，非运行目录；权威记录仍是各驱动在
+# `<test-artifacts>/<suite>-user/<UTC>-.../` 下的三件套，A2 只查时间戳目录）。
+TSET_GATE_JSON_DIR = .work/tests/gates
+
+# check-tset-libc-smoke: libc-test 代表集（每顶层类别 1 例，static）。
+_locked-check-tset-libc-smoke:
+	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-libc-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
+	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-libc-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@$(PYTHON) tools/testcases/tset/libc-test/run_smoke.py --link-mode static \
+	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-libc-smoke.json \
+	    > .work/log/testcases/check-tset-libc-smoke.log 2>&1; \
+	  rc=$$?; \
+	  grep -E "^(check-tset-libc-smoke|  (类别数|结构断言)|结果:)" .work/log/testcases/check-tset-libc-smoke.log | tail -6; \
+	  if [ $$rc -ne 0 ]; then echo "check-tset-libc-smoke: FAIL (rc=$$rc; log .work/log/testcases/check-tset-libc-smoke.log)"; exit $$rc; fi; \
+	  echo "check-tset-libc-smoke: PASS"
+
+# check-tset-llvm-smoke: llvm-test-suite 代表集（每棵树 1 例，static）。
+_locked-check-tset-llvm-smoke:
+	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-llvm-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
+	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-llvm-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@test -d .work/source/llvm-test-suite || { echo "check-tset-llvm-smoke: ERROR: .work/source/llvm-test-suite not found — run 'make fetch'"; exit 1; }
+	@$(PYTHON) tools/testcases/tset/llvm-ts/run_smoke.py --link-mode static --jobs $(JOBS) \
+	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-llvm-smoke.json \
+	    > .work/log/testcases/check-tset-llvm-smoke.log 2>&1; \
+	  rc=$$?; \
+	  grep -E "^(check-tset-llvm-smoke|  (树数|结构断言)|结果:)" .work/log/testcases/check-tset-llvm-smoke.log | tail -6; \
+	  if [ $$rc -ne 0 ]; then echo "check-tset-llvm-smoke: FAIL (rc=$$rc; log .work/log/testcases/check-tset-llvm-smoke.log)"; exit $$rc; fi; \
+	  echo "check-tset-llvm-smoke: PASS"
+
+# check-tset-embench-smoke: Embench-IoT 全量 benchmark（默认 -O0/-O2，static）。
+_locked-check-tset-embench-smoke:
+	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-embench-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
+	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-embench-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@test -d .work/source/embench-iot || { echo "check-tset-embench-smoke: ERROR: .work/source/embench-iot not found — run 'make fetch'"; exit 1; }
+	@$(PYTHON) tools/testcases/tset/embench/run_embench_user_suite.py --link-mode static \
+	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-embench-smoke.json \
+	    > .work/log/testcases/check-tset-embench-smoke.log 2>&1; \
+	  rc=$$?; \
+	  tail -3 .work/log/testcases/check-tset-embench-smoke.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-tset-embench-smoke: FAIL (rc=$$rc; log .work/log/testcases/check-tset-embench-smoke.log)"; exit $$rc; fi; \
+	  echo "check-tset-embench-smoke: PASS"
+
+# ── tset full（夜跑成员；TESTCASES-076t，P6）────────────────────────────────────
+# 「full」= 该套件的**全部可枚举用例 × 两种链接档**（static / dynamic），**只在**
+# `make check-night` 里跑；不进 L2/L3（否则每次 check-full 变成夜跑）。
+# 三个驱动的 `--link-mode` 口径：libc-test / embench 只接受 static|dynamic，llvm-ts
+# 另有 both —— 这里**逐档各跑一次**，三套件同一口径（日志、rc 逐档记录）。
+TSET_FULL_MODES ?= static dynamic
+
+_locked-check-tset-libc-full:
+	@test -n "$(TSET_FULL_MODES)" || { echo "check-tset-libc-full: ERROR: TSET_FULL_MODES 为空（禁 vacuous 绿）"; exit 1; }
+	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-libc-full: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
+	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-libc-full: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@fail=0; for m in $(TSET_FULL_MODES); do \
+	  echo "check-tset-libc-full: [$$m] full suite"; \
+	  $(PYTHON) tools/testcases/tset/libc-test/run_libc_test_user_suite.py --link-mode $$m \
+	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-libc-full-$$m.json \
+	    > .work/log/testcases/check-tset-libc-full-$$m.log 2>&1; \
+	  rc=$$?; tail -3 .work/log/testcases/check-tset-libc-full-$$m.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-tset-libc-full: FAIL ($$m rc=$$rc)"; fail=1; fi; \
+	done; if [ $$fail -ne 0 ]; then exit 1; fi; echo "check-tset-libc-full: PASS"
+
+_locked-check-tset-llvm-full:
+	@test -n "$(TSET_FULL_MODES)" || { echo "check-tset-llvm-full: ERROR: TSET_FULL_MODES 为空（禁 vacuous 绿）"; exit 1; }
+	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-llvm-full: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
+	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-llvm-full: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@test -d .work/source/llvm-test-suite || { echo "check-tset-llvm-full: ERROR: .work/source/llvm-test-suite not found — run 'make fetch'"; exit 1; }
+	@fail=0; for m in $(TSET_FULL_MODES); do \
+	  echo "check-tset-llvm-full: [$$m] full suite"; \
+	  $(PYTHON) tools/testcases/tset/llvm-ts/run_llvm_ts_user.py --link-mode $$m --jobs $(JOBS) \
+	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-llvm-full-$$m.json \
+	    > .work/log/testcases/check-tset-llvm-full-$$m.log 2>&1; \
+	  rc=$$?; tail -3 .work/log/testcases/check-tset-llvm-full-$$m.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-tset-llvm-full: FAIL ($$m rc=$$rc)"; fail=1; fi; \
+	done; if [ $$fail -ne 0 ]; then exit 1; fi; echo "check-tset-llvm-full: PASS"
+
+_locked-check-tset-embench-full:
+	@test -n "$(TSET_FULL_MODES)" || { echo "check-tset-embench-full: ERROR: TSET_FULL_MODES 为空（禁 vacuous 绿）"; exit 1; }
+	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-embench-full: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
+	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-embench-full: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@test -d .work/source/embench-iot || { echo "check-tset-embench-full: ERROR: .work/source/embench-iot not found — run 'make fetch'"; exit 1; }
+	@fail=0; for m in $(TSET_FULL_MODES); do \
+	  echo "check-tset-embench-full: [$$m] full suite"; \
+	  $(PYTHON) tools/testcases/tset/embench/run_embench_user_suite.py --link-mode $$m \
+	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-embench-full-$$m.json \
+	    > .work/log/testcases/check-tset-embench-full-$$m.log 2>&1; \
+	  rc=$$?; tail -3 .work/log/testcases/check-tset-embench-full-$$m.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-tset-embench-full: FAIL ($$m rc=$$rc)"; fail=1; fi; \
+	done; if [ $$fail -ne 0 ]; then exit 1; fi; echo "check-tset-embench-full: PASS"
+
 # build-musl (INFRA-082t): configure and build the static musl libc for
 # dadao-unknown-elf inside .work/source/musl (the DADAO port lives as a
 # tree-shaped patch set, components/musl/patches/**; run 'make fetch
@@ -828,23 +996,46 @@ _locked-clean-work:
 
 # ── 门控分层 (INFRA-058t；用户 2026-10-09 裁定，落 milestones「规划中」) ─────────
 # L1 `make check`（默认，秒~几十秒）   = 仓库完整性（静态检查）+ 组件可用性冒烟
-# L2 `make check-modules`（几十~几百秒）= 各模块功能代表集
-# L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
+# L2 `make check-modules`（几十~几百秒）= **四 scope 代表集**（inst/arch/unit + tset×3）
+# L3 `make check-full`（几百~几千秒）   = **全量**（check-inst/check-arch/check-unit-full
+#                                        + 4 个 FP 探针）+ test-m6（全量 lit + ir-lli + Embench E2E）
+# 夜跑 `make check-night`（小时级）     = tset full×3 + 长 arch；报告 `.dadao/tests/night/<date>/`
+# tset（TESTCASES-082t）：smoke 只在 L2（`check-modules`），full 只在夜跑（`check-night`）；
+# L3 不直接列 tset smoke ⇒ 「一个检查只在一层」（docs/Process-07 §4）。
+# 说明（TESTCASES-076t）：`check-interface`/`check-code-range` 只做静态/合成 fixture 断言
+# ⇒ 按 docs/Process-07 §3 判据 1 归 L1（原在 L2）。四个 FP 探针（rnd/minmax/fma/clmul）
+# 覆盖无向量的 `fp` 身份，属 **inst scope 的 FP 语义代表集**，只在 L3。
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
-# `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components
+# 旧名 `check-qemu-semantics`/`check-qemu-smoke`/`test-semihost`/`check-{libc-test,llvm-ts,embench}-smoke`
+# 已于 TESTCASES-076t 删除（P6 收口）；现行名 = check-inst / check-inst-smoke / check-arch-smoke /
+# check-tset-{libc,llvm,embench}-smoke。
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components check-interface check-code-range check-runner-reap
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
 
-# L2 各模块功能代表集 (INFRA-058t). 注: test-semihost 自带对 `check`(L1) 的无回归前置
-# （by design，见 INTEG-020t），故 `make check-modules` 会顺带跑 L1。
-_locked-check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost check-picolibc-tests check-rnd-probe check-minmax-probe check-fma-probe check-clmul-probe check-code-range
+# L2 = 四 scope 的 **smoke** 集（TESTCASES-076t 收口；2026-10-27 用户裁定「L2 只保留四 scope
+# smoke」⇒ 4 个 FP 探针**移出** L2，只在 L3）
+#   inst : check-inst-smoke
+#   arch : check-arch-smoke
+#   unit : check-unit（= check-lit + test-codegen + test-elf + ir-lli + picolibc fast）
+#   tset : check-tset-{libc,llvm,embench}-smoke
+_locked-check-modules: check-inst-smoke check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-generator-sync
 	@echo "module checks (L2): PASS"
 
-# L3 较完整 (INFRA-058t). check-lit-full 由 test-m6 步骤 [1/3] 承载（不在本目标重复列出）。
-_locked-check-full: check-qemu-semantics test-m6
-	@echo "full checks (L3): PASS"
+# L3 = 全量（TESTCASES-076t；2026-10-27 用户裁定「一个检查只在一层」严格化；TESTCASES-082t 去 tset smoke）。
+#   inst 全量 : check-inst；arch 全量 : check-arch
+#   unit 全量 : check-unit-full（= check-unit + check-lit-full）；`check-unit` 只在 L2 **直接**列出，
+#               此处经**前置依赖**间接跑到 ⇒ 符合 Process-07 §4「被上层前置依赖不算重复」
+#   tset      : **不直接列出**（L2 已有 smoke；tset full 只在夜跑 check-night）；
+#               `test-m6` 的 Embench E2E 是集成步骤，不算 tset smoke 重复
+#   fp 语义   : 4 个 FP 探针（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖；已移出 L2，只在 L3）
+#   整链      : test-m6（Embench E2E + ir-lli + 全量 lit；其 [1/3] 亦跑 check-lit-full）
+#   报告      : 由 l3_run.py **逐成员**跑上面 8 个目标并按 `scope:suite` 记 rc，落
+#               `<TESTS_ROOT>/l3/<YYYYMMDDTHHMMSSZ>/`（manifest.tsv/meta.json/run.log，
+#               与夜跑同格式），由里程碑层 `check-l3-report` 消费（TESTCASES-083t）。
+_locked-check-full:
+	@$(PYTHON) tools/testcases/l3_run.py --root "$(TESTS_ROOT)"
 
 # Vector schema/inventory/coverage gate (TESTCASES-002t). Requires the M1
 # encoding table (contracts/opcodes.yaml) to exist.
@@ -936,13 +1127,15 @@ check-run-artifacts:
 # ③ 接 `check_tasks.py --strict`（漏收尾 = 0）。
 # ④ 同步异常不可屏蔽（`check-sync-nonmaskable`，用户 2026-10-26 裁定「同步异常全部不可屏蔽；
 #    仅异步可屏蔽」）——扫 DADAO-12/22/23 异常原因表，异步源（IPI/TIMER/UART*/…）之外出现「可」即红。
-# ⑤ `.tao/knowledge/` 顶层白名单（`check-knowledge-dir`，用户 2026-10-26 裁定「从L1摘除，
-#    放到里程碑check里」）——顶层白名单外文件即红。
+# ⑤ 夜跑报告存在性/结构/结果（`check-night-report`，TESTCASES-076t）——没跑夜跑即红
+#    （`.dadao/tests/night/<YYYY-MM-DD>/` 三件套 + tset×3/arch 行 + 全 rc=0）。
+# ⑥ L3 报告存在性/结构/四 scope 覆盖/结果（`check-l3-report`，TESTCASES-083t）——没跑
+#    L3 即红（`.dadao/tests/l3/<UTC>/` 三件套 + 四 scope + 全 rc=0 + exit marker 一致）。
 # 不并入 L1 的理由：`m` 册未建前本目标**必然红**（预期的收口信号），日常 L1 不应常态红。
-check-milestone: check-spec-archive check-spec-archive-verify check-sync-nonmaskable check-knowledge-dir
+check-milestone: check-spec-archive check-spec-archive-verify check-sync-nonmaskable check-night-report check-l3-report
 	@$(PYTHON) tools/infra/check_milestone_tasks.py
 	@$(PYTHON) tools/infra/check_tasks.py --strict
-	@echo "check-milestone: PASS (归档结构 + 内容 sha + 同步不可屏蔽 + knowledge 顶层白名单 + m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
+	@echo "check-milestone: PASS (归档结构 + 内容 sha + 同步不可屏蔽 + 夜跑报告 + L3 报告 + m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
 
 # 同步异常不可屏蔽 (SPEC-175t; 里程碑层): 扫 DADAO-12/22/23 异常原因表的「是否可屏蔽」列，
 # 只有异步源（IPI / TIMER / UART* / 占位行 …）允许「可」；`--self-test` 内置注入→FAIL→还原→PASS。
@@ -962,9 +1155,9 @@ check-spec-refs:
 check-knowledge-refs:
 	@$(PYTHON) tools/infra/check_knowledge_refs.py
 
-# `.tao/knowledge/` 顶层白名单门控 (INFRA-070t; **里程碑层**，随 `check-milestone`；2026-10-26
-# 用户裁定「从L1摘除，放到里程碑check里」)：顶层只允许既定模式（台账集合 / 子目录）；
-# `contract-*.md` 已随 INFRA-071t 迁出 ⇒ 顶层再出现即白名单外 FAIL。
+# `.tao/knowledge/` 顶层白名单门控 (**L1 成员**; INFRA-070t 建立；`SPEC-176t` 2026-10-26
+# 临时挪到 `check-milestone`，`INFRA-112t` 2026-10-31 回 L1)：顶层只允许既定模式
+# （台账集合 / 子目录）；`contract-*.md` 已随 INFRA-071t 迁出 ⇒ 顶层再出现即白名单外 FAIL。
 # 计数现场统计、不写死。规则见 AGENTS.md「文档分层与单一真源」+ docs/Process-07。
 check-knowledge-dir:
 	@$(PYTHON) tools/infra/check_knowledge_dir.py
@@ -1017,6 +1210,14 @@ check-install-tools:
 check-milestones-fresh:
 	@$(PYTHON) tools/infra/check_milestones_fresh.py
 
+# 归档结构门控 (INFRA-116t, L1 成员): `.tao/archive/M<i>/` 只允许三件套 + 模块子目录，
+# 每册 `**状态**` ∈ {已验证,里程碑}、`**项目里程碑**` 号 == 归档号，README §1 计数 == 目录
+# 实际册数、流水 ID == t 册或 t+m 集合（M7+）、MEMORY/指针/终局证据节、issues 快照非空。
+# 规则 = docs/Process-04 §5–§8。计数现场统计、不写死。
+# INFRA-117t 归一后 = 严格默认；INFRA-118t 起 m 册统一放模块目录（根级仅三件套）。
+check-archive:
+	@$(PYTHON) tools/infra/check_archive.py
+
 check-component-changelog:
 	@$(PYTHON) tools/infra/check_component_changelog.py
 
@@ -1052,7 +1253,7 @@ check-cfx-alias-install:
 
 # cfx MC vector independent oracle (LLVM-060t; wired into L1 by LLVM-135t).
 check-cfx-vectors:
-	@$(PYTHON) tests/llvm/lit/MC/DADAO/validate_cfx_vectors.py
+	@$(PYTHON) tests/unit/llvm/lit/MC/DADAO/validate_cfx_vectors.py
 
 # Install/product directory path guard (INFRA-019t): validates
 # manifests/install-dirs.lock.toml and scans for symlink prefix violations.
@@ -1092,6 +1293,11 @@ check-width-sizes:
 check-code-range:
 	@$(PYTHON) tools/infra/check_code_range.py --self-test
 
+# check-runner-reap (TESTCASES-085t, L1): runner 被外部信号杀死后不留 qemu/子进程
+# 孤儿。合成驱动 + 伪 qemu，不编译、不跑被测语义；可达 FAIL 见任务证据注入。
+check-runner-reap:
+	@$(PYTHON) tools/testcases/check_runner_reap.py --mode helper
+
 # spec 目录只读锁 (SPEC-119t): 只读册 sha256 校验；失配 ⇒ FAIL（须先取用户授权并同步改锁）。
 # 规则见 docs/Process-06-spec目录保护规范.md §5。
 check-spec-readonly:
@@ -1128,7 +1334,7 @@ check-spec-codeblocks:
 LIT_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-lit
 _locked-check-lit:
 	@test -x $(LIT_BIN) || { echo "check-lit: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
-	$(LIT_BIN) tests/llvm/lit/MC/DADAO tests/llvm/lit/CodeGen/DADAO tests/e2e/lit -v
+	$(LIT_BIN) tests/unit/llvm/lit/MC/DADAO tests/unit/llvm/lit/CodeGen/DADAO tests/unit/llvm/e2e/lit -v
 
 # lit 全量档 (TESTCASES-037t): 由 contracts/opcodes.yaml 机械生成的全部 lit MC
 # 编码用例（快档受控子集已随 check-lit 进 L2；本目标承载规模）。
@@ -1137,8 +1343,10 @@ _locked-check-lit:
 # 计数不写死：由 check_lit_gen.py / llvm-lit **现场统计**；本目标不设硬编码门限。
 _locked-check-lit-full:
 	@test -x $(LIT_BIN) || { echo "check-lit-full: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
-	@$(PYTHON) tools/testcases/check_lit_gen.py
-	$(LIT_BIN) tests/llvm/lit/MC/DADAO-gen -v
+	@$(PYTHON) tools/testcases/check_lit_gen.py \
+	  --full-dir tests/unit/llvm/lit/MC/DADAO-gen \
+	  --fast-file tests/unit/llvm/lit/MC/DADAO/gen-fast.s
+	$(LIT_BIN) tests/unit/llvm/lit/MC/DADAO-gen -v
 
 # M3 CodeGen end-to-end gate (INTEG-012t).  Tools are taken from the install
 # root (ADR-0016 D9); install-host keeps it in sync with the .work/ build trees.
@@ -1147,11 +1355,12 @@ _locked-check-lit-full:
 #   llvm-mc --triple=dadao -filetype=obj -> .o;
 #   llvm-objcopy -O binary --only-section=.text -> .bin;
 #   qemu-system-dadao -M dadao-m1 -bios trampoline.bin -kernel .bin ...
-# The guest process exit code is compared against tests/llvm/codegen/expected.yaml.
+# The guest process exit code is compared against tests/unit/llvm/codegen/expected.yaml.
 # Fail-closed: any mismatch / timeout / machine fault => non-zero exit.
 LLC_BIN = $(HOST_TOOLCHAIN_BIN)/llc
 LLVM_MC_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-mc
 LLVM_OBJCOPY_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-objcopy
+LLVM_NM_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-nm
 QEMU_BIN = $(HOST_TOOLCHAIN_BIN)/qemu-system-dadao
 # Work dir under the SDK test-artifacts root (ADR-0016 D6), resolved via
 # paths.py (D7) — never the source tree.
@@ -1164,10 +1373,13 @@ _locked-test-codegen: install-host
 	@test -x $(QEMU_BIN) || { echo "test-codegen: ERROR: $(QEMU_BIN) not found"; exit 1; }
 	@rm -rf $(CODEGEN_E2E_WORK); \
 	  mkdir -p .work/log/integ; \
-	  $(PYTHON) tools/integ/run_codegen_e2e.py \
+	  $(PYTHON) tools/testcases/unit/run_codegen_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
-	    --qemu $(QEMU_BIN) --trampoline tests/scripts/trampoline.bin \
-	    --crt0 tests/scripts/codegen_crt0.s --work-dir $(CODEGEN_E2E_WORK) \
+	    --qemu $(QEMU_BIN) --trampoline tools/testcases/lib/trampoline.bin \
+	    --crt0 tests/shared/crt0/codegen_crt0.s \
+	    --vectors-dir tests/unit/llvm/codegen \
+	    --expected tests/unit/llvm/codegen/expected.yaml \
+	    --work-dir $(CODEGEN_E2E_WORK) \
 	    > $(CODEGEN_E2E_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -20 $(CODEGEN_E2E_LOG); \
@@ -1177,12 +1389,12 @@ _locked-test-codegen: install-host
 # M4 multi-TU / multi-section ELF end-to-end gate (INTEG-016t).  Tools are taken
 # from the install root (ADR-0016 D9); install-host keeps it in sync with the
 # build trees.  Pipeline (multi-object, per contract-elf.md §6.1.2):
-#   llvm-mc --triple=dadao -filetype=obj tests/scripts/codegen_crt0.s -> crt0.o;
+#   llvm-mc --triple=dadao -filetype=obj tests/shared/crt0/codegen_crt0.s -> crt0.o;
 #   per TU llc -march=dadao -filetype=obj                            -> <tu>.o;
-#   ld.lld -T tests/scripts/dadao.lds crt0.o <tu>.o ... -o <prog>.elf;
+#   ld.lld -T tests/shared/linker/dadao.lds crt0.o <tu>.o ... -o <prog>.elf;
 #   qemu-system-dadao -M dadao-m1 -kernel <prog>.elf ...
 # The guest process exit code is compared against the independent M4 manifest
-# tests/llvm/codegen/m4/expected.yaml (TESTCASES-030t/032t).
+# tests/unit/llvm/codegen/m4/expected.yaml (TESTCASES-030t/032t).
 # Fail-closed: any mismatch / timeout / build-step non-zero => non-zero exit.
 # Coexists with test-codegen (raw-bin / trampoline: kept as-is).
 LLD_BIN = $(HOST_TOOLCHAIN_BIN)/ld.lld
@@ -1197,12 +1409,12 @@ _locked-test-elf: install-host
 	@test -x $(QEMU_BIN) || { echo "test-elf: ERROR: $(QEMU_BIN) not found"; exit 1; }
 	@rm -rf $(CODEGEN_ELF_WORK); \
 	  mkdir -p .work/log/integ; \
-	  $(PYTHON) tools/integ/run_elf_e2e.py \
+	  $(PYTHON) tools/testcases/unit/run_elf_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --ldlld $(LLD_BIN) \
-	    --qemu $(QEMU_BIN) --crt0 tests/scripts/codegen_crt0.s \
-	    --lds tests/scripts/dadao.lds \
-	    --vectors-dir tests/llvm/codegen/m4 \
-	    --expected tests/llvm/codegen/m4/expected.yaml \
+	    --qemu $(QEMU_BIN) --crt0 tests/shared/crt0/codegen_crt0.s \
+	    --lds tests/shared/linker/dadao.lds \
+	    --vectors-dir tests/unit/llvm/codegen/m4 \
+	    --expected tests/unit/llvm/codegen/m4/expected.yaml \
 	    --work-dir $(CODEGEN_ELF_WORK) \
 	    > $(CODEGEN_ELF_LOG) 2>&1; \
 	  rc=$$?; \
@@ -1210,49 +1422,102 @@ _locked-test-elf: install-host
 	  if [ $$rc -ne 0 ]; then echo "test-elf: FAIL (rc=$$rc)"; exit $$rc; fi; \
 	  echo "test-elf: PASS"
 
-# M5 SEE/semihosting end-to-end gate (INTEG-020t).  Five components, all
-# fail-closed (any failure => non-zero exit):
-#   1. forward: SEE bootrom (`-bios`, QEMU-047t) + flat bin application
-#      (`-kernel`) served through `-semihosting`; the semihosting console is
-#      captured with a file chardev and the host exit code is the SYS_EXIT
-#      status.
-#   2. cfx-level permission counter-examples (4 cases carried by the same
-#      driver: reserved cfxha / masked trap => ILLI; unimplemented cfx /
-#      out-of-range scratch register => CFXREG; ADR-0020 D9).
-#   3. full 25-service table coverage (QEMU-046t min-ROM probe, >=1 per id).
-#   4. no regression: test-elf (5/5), test-codegen (15/15) and check (which
-#      includes check-lit) -- enforced as prerequisites.
-#   5. INTEG open/close registration (INTEG-021m): recorded in this target's
-#      logs and the task book.
-# Tools come from the install root (ADR-0016 D9); the bootrom from
-# `make build-bootrom`.  Coexists with (does not replace) test-elf/test-codegen.
-SEMIHOST_E2E_WORK = $(TEST_ARTIFACTS_DIR)/m5-e2e
-SEMIHOST_E2E_LOG = .work/log/integ/test-semihost.log
-SEMIHOST_PROBE_LOG = .work/log/integ/test-semihost-probe.log
-MIN_ROM_PROBE = tools/qemu/min_rom_probe_046t.py
+# unit scope 门控（TESTCASES-074t；Process-09 §6/§8 分层）
+# 用例资产：`tests/unit/llvm/`（lit MC/CodeGen、codegen m3/m4/m6、ir-lli manifest）
+#          + `tests/unit/picolibc/`（picolibc 自测仍只在 picolibc 构建下跑）
+# 判据与原 L2 成员**逐条未改**，只搬家 + 接线：
+#   1. check-lit（MC + CodeGen + e2e lit）
+#   2. test-codegen（M3 15 程序）
+#   3. test-elf（M4 5 程序）
+#   4. ir-lli 值级差分（host lli vs DADAO target；include 条数现场统计）
+#   5. check-picolibc-tests fast（picolibc 上游自测代表集）
+# 旧目标名全部保留、可单独调用（等价）；删除旧入口只在 TESTCASES-076t 做。
+UNIT_IR_LLI_LOG = .work/log/unit/check-unit-ir-lli.log
+_locked-check-unit: check-lit test-codegen test-elf check-picolibc-tests
+	@mkdir -p .work/log/unit
+	@echo "check-unit: [4/5] ir-lli value-level differential (host X86 vs DADAO target)"; \
+	  $(PYTHON) $(DIFF_IR_LLI) --work-dir $(IR_LLI_WORK) > $(UNIT_IR_LLI_LOG) 2>&1; \
+	  rc=$$?; \
+	  tail -n 6 $(UNIT_IR_LLI_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "check-unit: FAIL (ir-lli rc=$$rc)"; exit $$rc; fi
+	@echo "check-unit: PASS (lit + codegen + elf + ir-lli + picolibc fast)"
 
-_locked-test-semihost: install-host build-bootrom test-elf test-codegen check
-	@test -x $(LLVM_MC_BIN) || { echo "test-semihost: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
-	@test -x $(LLVM_OBJCOPY_BIN) || { echo "test-semihost: ERROR: $(LLVM_OBJCOPY_BIN) not found"; exit 1; }
-	@test -x $(QEMU_BIN) || { echo "test-semihost: ERROR: $(QEMU_BIN) not found"; exit 1; }
-	@test -f $(MIN_ROM_PROBE) || { echo "test-semihost: ERROR: $(MIN_ROM_PROBE) not found"; exit 1; }
-	@test -f $(BOOTROM_DIR)/bootrom.bin || { echo "test-semihost: ERROR: $(BOOTROM_DIR)/bootrom.bin not found (run 'make build-bootrom')"; exit 1; }
-	@mkdir -p .work/log/integ
-	@rm -rf $(SEMIHOST_E2E_WORK)
-	@echo "test-semihost: [1/2] forward semihosting + cfx-level permission counter-examples"; \
-	  $(PYTHON) tools/integ/run_m5_e2e.py \
+# unit scope **全量**（L3 专属；TESTCASES-076t，2026-10-27 用户裁定「一个检查只在一层」）。
+# 构成 = L2 的 `check-unit`（**经前置依赖**跑到，不在 L3 直接列出）+ `check-lit-full`
+#       （由 contracts/opcodes.yaml 机械生成的全量 MC 编码档）
+# ⇒ lit 全量 + codegen + elf + ir-lli + picolibc 全覆盖；`check-unit` 本身只归 L2。
+UNIT_FULL_LOG = .work/log/unit/check-unit-full.log
+_locked-check-unit-full: check-unit check-lit-full
+	@mkdir -p .work/log/unit
+	@echo "check-unit-full: PASS (check-unit + check-lit-full)" > $(UNIT_FULL_LOG)
+	@cat $(UNIT_FULL_LOG)
+
+# arch scope 端到端门控（TESTCASES-073t；Process-09 §6/§8 分层）
+# 用例资产：`tests/arch/umon/`（m5 SEE/semihosting + cfx 权限向量，条数由 manifest 现场统计）
+# 驱动：`tools/testcases/arch/run_m5_e2e.py`（flat-bin 流水线）+
+#       `tools/testcases/arch/min_rom_probe_*.py`（min-ROM 场景探针，原 `tools/qemu/`）
+# 判据与原 `test-semihost`（INTEG-020t）**逐条未改**，只搬家 + 接线：
+#   1. forward: SEE bootrom (`-bios`) + flat bin (`-kernel`) + `-semihosting`；
+#      console / host 文件 / SYS_EXIT 退出码逐条比对，bootrom 生效性由 `-d cpu` 观测。
+#   2. cfx-level permission counter-examples（4 例随同一驱动：reserved cfxha / masked
+#      trap => ILLI；unimplemented cfx / RO-write => CFXREG；ADR-0020 D9）。
+#   3. 25 服务表覆盖（`min_rom_probe_046t`，>=1/id）。
+#   `check-arch-smoke` = **L2 代表集**（上述 1–3；= 原 test-semihost 的测试面）；
+#   `check-arch` = **L3**（= smoke + cfx 场景探针 044/045/049）。
+# 工具/LD 从安装根取（ADR-0016 D9），bootrom 由 `make build-bootrom` 产出。
+ARCH_M5_DIR = tests/arch/umon
+ARCH_M5_RUNNER = tools/testcases/arch/run_m5_e2e.py
+ARCH_MIN_ROM_DIR = tools/testcases/arch
+ARCH_E2E_WORK = $(TEST_ARTIFACTS_DIR)/arch/m5-e2e
+ARCH_SMOKE_LOG = .work/log/arch/check-arch-smoke.log
+ARCH_PROBE_LOG = .work/log/arch/check-arch-smoke-svc.log
+# L3 追加的 cfx 场景探针（原 min_rom_probe_*）：SEE/trap/escape 语义面 + RAM 映射/CFXMEM。
+# `045t` = trap/escape/cfx2* 全寄存器面；`049t` = RAM 映射 + 越界 cause；
+# `integ039t` = 地址空间 Step 2 页表步进/页权限（ADR-0040）；
+# `integ040t` = 地址空间 Step 3 TLB/G/A-D/PTWERR（ADR-0041）；
+# `integ042t` = Step 4 cfx_pmem 64 KiB SRAM + SRAM<->PA DMA + PMEM_DMA（ADR-0042）；
+# `integ044t` = cfx 两轴权限模型（四类同步 mask / 两类中断 mask / CFXPERM/CFXESC）。
+# `integ049t` = cg7 内部空间描述（16×4 静态表 / 全部只读 / 写任意 rc ⇒ CFXREG）。
+# `integ050t` = cfx_time 1 GHz/64 位 + 单 hart cfx_hart 的 cycle/insn 64 位与 TIMER/IMASK/pending。
+# `integ051t` = 统一异步中断仲裁（pending 归目标 cfx、低目标 cfxha 优先、单层、mask 保留/补投）。
+ARCH_CFX_PROBES = 044t 045t 049t integ039t integ040t integ042t integ044t integ046t integ047t integ048t integ049t integ050t integ051t
+
+_locked-check-arch-smoke: install-host build-bootrom
+	@test -x $(LLVM_MC_BIN) || { echo "check-arch-smoke: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
+	@test -x $(LLVM_OBJCOPY_BIN) || { echo "check-arch-smoke: ERROR: $(LLVM_OBJCOPY_BIN) not found"; exit 1; }
+	@test -x $(QEMU_BIN) || { echo "check-arch-smoke: ERROR: $(QEMU_BIN) not found"; exit 1; }
+	@test -f $(ARCH_MIN_ROM_DIR)/min_rom_probe_046t.py || { echo "check-arch-smoke: ERROR: min_rom_probe_046t.py not found"; exit 1; }
+	@test -f $(BOOTROM_DIR)/bootrom.bin || { echo "check-arch-smoke: ERROR: $(BOOTROM_DIR)/bootrom.bin not found (run 'make build-bootrom')"; exit 1; }
+	@mkdir -p .work/log/arch
+	@rm -rf $(ARCH_E2E_WORK)
+	@echo "check-arch-smoke: [1/2] forward semihosting + cfx-level permission counter-examples"; \
+	  $(PYTHON) $(ARCH_M5_RUNNER) \
 	    --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
 	    --qemu $(QEMU_BIN) --bootrom $(BOOTROM_DIR)/bootrom.bin \
-	    --work-dir $(SEMIHOST_E2E_WORK) > $(SEMIHOST_E2E_LOG) 2>&1; \
+	    --vectors-dir $(ARCH_M5_DIR) --expected $(ARCH_M5_DIR)/expected.yaml \
+	    --work-dir $(ARCH_E2E_WORK) > $(ARCH_SMOKE_LOG) 2>&1; \
 	  rc=$$?; \
-	  tail -n 30 $(SEMIHOST_E2E_LOG); \
-	  if [ $$rc -ne 0 ]; then echo "test-semihost: FAIL (forward/permission rc=$$rc)"; exit $$rc; fi
-	@echo "test-semihost: [2/2] 25-service table coverage (QEMU-046t probe)"; \
-	  $(PYTHON) $(MIN_ROM_PROBE) --qemu $(QEMU_BIN) > $(SEMIHOST_PROBE_LOG) 2>&1; \
+	  tail -n 30 $(ARCH_SMOKE_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (forward/permission rc=$$rc)"; exit $$rc; fi
+	@echo "check-arch-smoke: [2/2] 25-service table coverage (min_rom_probe_046t)"; \
+	  $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_046t.py --qemu $(QEMU_BIN) > $(ARCH_PROBE_LOG) 2>&1; \
 	  rc=$$?; \
-	  tail -n 4 $(SEMIHOST_PROBE_LOG); \
-	  if [ $$rc -ne 0 ]; then echo "test-semihost: FAIL (service coverage rc=$$rc)"; exit $$rc; fi
-	@echo "test-semihost: PASS (forward + permission + 25-service + no-regression + INTEG registration)"
+	  tail -n 4 $(ARCH_PROBE_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (service coverage rc=$$rc)"; exit $$rc; fi
+	@echo "check-arch-smoke: PASS (forward + permission + 25-service)"
+
+# L3：arch 全 cfx 场景（smoke + cfx min-ROM 探针）。任一探针非零 ⇒ 整体红。
+_locked-check-arch: check-arch-smoke
+	@mkdir -p .work/log/arch
+	@fail=0; for p in $(ARCH_CFX_PROBES); do \
+	  echo "check-arch: [$$p] cfx min-ROM probe"; \
+	  $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_$$p.py > .work/log/arch/check-arch-probe-$$p.log 2>&1; \
+	  rc=$$?; \
+	  tail -n 3 .work/log/arch/check-arch-probe-$$p.log; \
+	  if [ $$rc -ne 0 ]; then echo "check-arch: FAIL (min_rom_probe_$$p rc=$$rc)"; fail=1; fi; \
+	done; \
+	if [ $$fail -ne 0 ]; then exit 1; fi; \
+	echo "check-arch: PASS (arch-smoke + cfx probes: $(ARCH_CFX_PROBES))"
 
 # M6 end-to-end gate (INTEG-025t).  Three components, all fail-closed:
 #   1. value-level differential: the same LLVM IR runs on the host `lli` (X86)
@@ -1260,7 +1525,7 @@ _locked-test-semihost: install-host build-bootrom test-elf test-codegen check
 #      (`@main` return low byte) -- tools/testcases/diff_ir_lli.py (038t).
 #   2. Embench-IoT E2E: every benchmark under <embench-src>/src/ is compiled,
 #      linked and run at -O0 and -O2; judgement = guest exit code 0
-#      (support/main.c returns !correct) -- tools/integ/run_embench_e2e.py.
+#      (support/main.c returns !correct) -- tools/testcases/tset/embench/run_embench_e2e.py.
 #   3. the full generated lit MC suite (check-lit-full, 037t), driven through a
 #      sub-make so its own exit code is captured.
 # opt-in: NOT part of `make check` (the fast lit subset is already in check-lit).
@@ -1268,7 +1533,7 @@ _locked-test-semihost: install-host build-bootrom test-elf test-codegen check
 # Landing: work dirs under the SDK test-artifacts root (ADR-0016 D6 /
 # Process-05 §6), resolved via paths.py (D7) -- never hardcoded.
 DIFF_IR_LLI = tools/testcases/diff_ir_lli.py
-EMBENCH_E2E = tools/integ/run_embench_e2e.py
+EMBENCH_E2E = tools/testcases/tset/embench/run_embench_e2e.py
 EMBENCH_SRC = .work/source/embench-iot
 IR_LLI_WORK = $(TEST_ARTIFACTS_DIR)/ir-lli-diff
 EMBENCH_E2E_WORK = $(TEST_ARTIFACTS_DIR)/m6-embench
@@ -1311,7 +1576,7 @@ check-legality-invariants:
 # Interface alignment gate (INTEG-003t / INTEG-007t): cross-module
 # contract↔implementation consistency (LLVM/QEMU/opcodes/inventory).
 check-interface:
-	@$(PYTHON) tools/integ/check_interface_alignment.py
+	@$(PYTHON) tools/infra/check_interface_alignment.py
 
 # Encoding validation gate (INTEG-008t): opcodes.yaml encoding consistency
 # (value/mask, field overlap, bank, legality refs, decode conflicts).
@@ -1340,6 +1605,31 @@ check-isa-coverage:
 check-case-ledger:
 	@$(PYTHON) tools/infra/check_case_ledger.py
 
+# 测试根级索引门控 (TESTCASES-071t, L1): tests/{inst,arch,unit,tset}.yaml
+# 只做静态校验（不跑 guest）：ID 全局唯一、file 存在于本 scope 目录、字段/
+# platforms/level 合法、根级 *.yaml 的 scope 合法；计数现场派生、不写死。
+# `--self-test` = 干净基线 + 13 类注入（各自可达 FAIL，含缺失 scope 目录）。
+check-tests-index:
+	@$(PYTHON) tools/testcases/check_tests_index.py
+
+# rev 向量重派生门控 (ISS-335, L1): 由真源（contracts/opcodes.yaml + 独立 oracle）
+# 重新派生 `tests/inst/rev/rev.yaml` 并逐字节比对；spec_cite/期望值/合法集任一漂移
+# ⇒ FAIL。与 check-case-ledger 同层（L1），不重复进 L2/L3。
+check-rev-vectors:
+	@$(PYTHON) tools/testcases/generate_rev_vectors.py --check
+
+# 生成器—落盘向量同步门控 (INFRA-115t, L2): 6 个向量生成器以 `--check` 从真源
+# 重新渲染并逐字节比对（ctrl-jump/call/ret、ctrl-br、mem、isa、misc、bitcnt）。
+# `rev` 不在此列出：已由 L1 `check-rev-vectors` 守护（Process-07 §4「一个检查只在
+# 一层」）。任一生成器与落盘向量漂移 ⇒ FAIL。
+check-generator-sync:
+	@$(PYTHON) tools/testcases/generate_ctrl_jump_call_ret.py --check
+	@$(PYTHON) tools/testcases/generate_ctrl_br.py --check
+	@$(PYTHON) tools/testcases/generate_mem_vectors.py --check
+	@$(PYTHON) tools/testcases/generate_isa_vectors.py --check
+	@$(PYTHON) tools/testcases/generate_misc.py --check
+	@$(PYTHON) tools/testcases/generate_bitcnt_vectors.py --check
+
 # decodetree 可复现性 (ISS-058, L1): build-qemu recipe 必须固定 PYTHONHASHSEED=0；
 # .work/source/qemu 在盘时实跑 decodetree 两种 seed，确认「敏感 ⇒ 已固定」。
 check-decodetree-repro:
@@ -1367,53 +1657,89 @@ check-rule-refs: contracts/opcodes.yaml
 check-fp-contract:
 	@$(PYTHON) tools/spec/check_fp_contract.py
 
-# QEMU semantic execution gate (L3; SPEC-069t, INFRA-097t): runs the **full**
-# carrier set through QEMU. The QEMU binary is taken from the install root
-# (ADR-0016 D9; INFRA-047t): run 'make install-host' first.
-# Carrier set is derived **live** from tests/vectors: every isa/*.yaml (no
-# hardcoded names/counts) + the non-isa carriers rol/*.yaml + atomics/*.yaml
-# (QEMU-064t: rol.* is scope m9; QEMU-067t: fence/lr/sc are not M1 identities,
-# so both live outside isa/). rev/ and bitcnt/ are out of scope (M8; see
-# tests/vectors/inventory.md). ISS-235 = carrier set was 3/16 of isa/.
-# Derivation + structural assertions (missing 册 / duplicate basename / bad
-# symlink / zero-册 / run-total vs derived-total) + self-evidence logging
-# (ISS-236: carrier list, per-册 case counts, total/passed/failed, delta vs
-# ISS-235's 161) live in tools/qemu/semantics_gate.py.
-# Cases run in parallel via --jobs $(JOBS) (JOBS defaults to 8; never nproc).
-# Exit code propagates correctly (no pipe; shell rc capture per AGENTS.md).
-# D6 compliance: gate dir under TEST_ARTIFACTS_DIR, log under .work/log/qemu/.
-QEMU_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
-QEMU_SEM_LOG = .work/log/qemu/check-qemu-semantics.log
-QEMU_SEM_VEC_DIR = $(CURDIR)/tests/vectors
-_locked-check-qemu-semantics:
-	@mkdir -p .work/log/qemu || { echo "check-qemu-semantics: ERROR: cannot create .work/log/qemu"; exit 1; }
+# inst semantic execution gate (L3; SPEC-069t/INFRA-097t; TESTCASES-072t 更名+搬家)
+# `make check-inst` = `tests/inst` 全量载体跑 QEMU；旧名 `check-qemu-semantics`
+# 保留为**别名**（指向本目标）。QEMU 二进制取自安装根（ADR-0016 D9）。
+# 载体集**现场派生**（册名/册数不写死）：`base/*.yaml` 全量 + 非 base 载体
+# `rol/*.yaml`（QEMU-064t：rol.* scope m9）+ `atomics/*.yaml`（QEMU-067t）
+# + `clmul/*.yaml`（QEMU-068t）。`rev/`、`bitcnt/` 不在本门控（M8 scope；见
+# `tests/inst/inventory.md`「门控覆盖」）。ISS-235 = 载体集曾只覆盖 3/16 册。
+# 结构断言（缺册/basename 重复/断链/0 册/运行 total ≠ 派生总数）+ 自证日志
+# （ISS-236）在 `tools/qemu/semantics_gate.py`；`--check-only` 只跑派生+结构断言。
+# 并发走 --jobs $(JOBS)（默认 8，禁 nproc）；退出码直传（无管道）。
+# D6：gate 目录在 TEST_ARTIFACTS_DIR 下，日志在 .work/log/qemu/。
+INST_DIR = $(CURDIR)/tests/inst
+INST_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
+INST_SEM_LOG = .work/log/qemu/check-inst.log
+INST_TRAMPOLINE = tools/testcases/lib/trampoline.bin
+_locked-check-inst:
+	@mkdir -p .work/log/qemu || { echo "check-inst: ERROR: cannot create .work/log/qemu"; exit 1; }
 	@$(PYTHON) tools/qemu/semantics_gate.py \
-	    --vectors $(QEMU_SEM_VEC_DIR) --gate-dir $(QEMU_SEM_DIR) \
-	    --qemu $(QEMU_BIN) --trampoline tests/scripts/trampoline.bin \
-	    --jobs $(JOBS) > $(QEMU_SEM_LOG) 2>&1; \
+	    --vectors $(INST_DIR) --gate-dir $(INST_SEM_DIR) \
+	    --qemu $(QEMU_BIN) --trampoline $(INST_TRAMPOLINE) \
+	    --jobs $(JOBS) > $(INST_SEM_LOG) 2>&1; \
 	  rc=$$?; \
-	  tail -40 $(QEMU_SEM_LOG); \
+	  tail -40 $(INST_SEM_LOG); \
 	  if [ $$rc -ne 0 ]; then \
-	    echo "check-qemu-semantics: FAIL (rc=$$rc)"; \
+	    echo "check-inst: FAIL (rc=$$rc)"; \
 	    exit $$rc; \
 	  fi; \
-	  echo "check-qemu-semantics: PASS"
+	  echo "check-inst: PASS"
 
-# QEMU 语义**冒烟**门控 (INFRA-058t, L2): check-qemu-semantics 的代表子集。
-# 代表集按 (class, mnemonic) **机械派生**（各组取第一条，禁手工挑），计数现场统计。
-# 全量留在 L3 (`check-full` → check-qemu-semantics)。
-QEMU_SMOKE_WORK = $(TEST_ARTIFACTS_DIR)/harness/smoke
-QEMU_SMOKE_LOG = .work/log/qemu/check-qemu-smoke.log
-_locked-check-qemu-smoke:
+# inst 语义**冒烟**门控 (INFRA-058t, L2; TESTCASES-072t 更名+搬家):
+# `check-inst` 的代表子集。代表集按 (class, mnemonic) **机械派生**（每组取第一条，
+# 禁手工挑），计数现场统计；全量留在 L3（`check-full` → `check-inst`）。
+# 旧名 `check-qemu-smoke` 保留为**别名**（指向本目标）。
+INST_SMOKE_WORK = $(TEST_ARTIFACTS_DIR)/harness/smoke
+INST_SMOKE_LOG = .work/log/qemu/check-inst-smoke.log
+_locked-check-inst-smoke:
 	@mkdir -p .work/log/qemu
-	@test -x $(QEMU_BIN) || { echo "check-qemu-smoke: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
-	@$(PYTHON) tests/scripts/run_qemu_smoke.py --qemu $(QEMU_BIN) \
-	    --trampoline tests/scripts/trampoline.bin --vector-dir tests/vectors/isa \
-	    --work-dir $(QEMU_SMOKE_WORK) --jobs $(JOBS) > $(QEMU_SMOKE_LOG) 2>&1; \
+	@test -x $(QEMU_BIN) || { echo "check-inst-smoke: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
+	@$(PYTHON) tools/testcases/inst/run_qemu_smoke.py --qemu $(QEMU_BIN) \
+	    --trampoline $(INST_TRAMPOLINE) --vector-dir tests/inst/base \
+	    --work-dir $(INST_SMOKE_WORK) --jobs $(JOBS) > $(INST_SMOKE_LOG) 2>&1; \
 	  rc=$$?; \
-	  tail -8 $(QEMU_SMOKE_LOG); \
-	  if [ $$rc -ne 0 ]; then echo "check-qemu-smoke: FAIL (rc=$$rc)"; exit $$rc; fi; \
-	  echo "check-qemu-smoke: PASS"
+	  tail -8 $(INST_SMOKE_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "check-inst-smoke: FAIL (rc=$$rc)"; exit $$rc; fi; \
+	  echo "check-inst-smoke: PASS"
+
+# ── 生成物管理 + 夜跑（TESTCASES-076t，P6）─────────────────────────────────────
+# 生成物根 = `test_artifacts_dir`（`manifests/install-dirs.lock.toml`，禁硬编码）。
+# scope → 目录的**映射表**单一真源 = `tools/testcases/manage_tests.py`（`SCOPE_MAP`）；
+# 顶层出现未归属目录 ⇒ 红（防新产物目录悄悄长出）。
+TESTS_ROOT ?= $(TEST_ARTIFACTS_DIR)
+SCOPE ?=
+DRY_RUN ?=
+PRODUCER ?=
+INJECT ?=
+NIGHT_DATE ?=
+NIGHT_DRY_RUN ?=
+NIGHT_ALLOW_OVERWRITE ?=
+
+# make clean-tests SCOPE=inst|arch|unit|tset|night|l3|all [DRY_RUN=1]
+_locked-clean-tests:
+	@$(PYTHON) tools/testcases/manage_tests.py clean --scope "$(SCOPE)" --root "$(TESTS_ROOT)" $(if $(DRY_RUN),--dry-run,)
+
+# make test-repro SCOPE=... [DRY_RUN=1] [PRODUCER='...'] [INJECT='...']
+# 两次生产 + md5 逐文件比对；产物数 == 0 ⇒ 红（比较不为空）。
+_locked-test-repro:
+	@$(PYTHON) tools/testcases/manage_tests.py repro --scope "$(SCOPE)" --root "$(TESTS_ROOT)" $(if $(DRY_RUN),--dry-run,) $(if $(PRODUCER),--producer "$(PRODUCER)",) $(if $(INJECT),--inject "$(INJECT)",)
+
+# make check-night  —— **由主会话** `setsid nohup make check-night > log 2>&1 &` 启动
+# （本目标不自带 nohup，避免嵌套）；成员 = tset full×3 + 长 arch；报告只读落
+# `<TESTS_ROOT>/night/<YYYY-MM-DD>/`（manifest.tsv / meta.json / run.log）。
+_locked-check-night:
+	@$(PYTHON) tools/testcases/night_run.py --root "$(TESTS_ROOT)" $(if $(NIGHT_DATE),--date $(NIGHT_DATE),) $(if $(NIGHT_DRY_RUN),--dry-run,) $(if $(NIGHT_ALLOW_OVERWRITE),--allow-overwrite,)
+
+# make check-night-report —— 里程碑层：报告**存在性 + 结构 + 结果**（不跑长套件）；
+# 未跑夜跑 ⇒ 明确 FAIL（不是 SKIP）。`NIGHT_DATE=` 指定日期，默认最新。
+check-night-report:
+	@$(PYTHON) tools/testcases/check_night_report.py --root "$(TESTS_ROOT)" $(if $(NIGHT_DATE),--date $(NIGHT_DATE),)
+
+# make check-l3-report —— 里程碑层：L3 报告**存在性 + 结构 + 四 scope 覆盖 + 结果**
+# （不跑长套件）；未跑 L3 ⇒ 明确 FAIL（不是 SKIP）。`L3_STAMP=` 指定戳，默认最新。
+check-l3-report:
+	@$(PYTHON) tools/testcases/check_l3_report.py --root "$(TESTS_ROOT)" $(if $(L3_STAMP),--stamp $(L3_STAMP),)
 
 # 构建并行度（用户裁定 2026-10-01：限制 cc1plus 类进程）
 JOBS ?= 8

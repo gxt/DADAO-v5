@@ -2,13 +2,13 @@
 # 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md
 # M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统
 # scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；
-# scope: excluded 为核芯功能扩展（cfxld/cfxst），尚未实现，
-#   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
+# scope: excluded 现 0 条（cfxld/cfxst 已删除、crii 格式撤销），
+#   词表保留：编码已定义但未实现 ⇒ ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
 # scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份
 # scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b + ADR-0035 GF(2) 无进位乘 clmul.o + fence/lr/sc 原子），非 M1 身份
-# 共 266 条：M1 156 条 + scope fp 66 条 + scope excluded 2 条 + scope m3 1 条 + scope m8 7 条 + scope m9 34 条
-# 有 rule_refs 的指令：215 条
+# 共 264 条：M1 156 条 + scope fp 66 条 + scope excluded 0 条 + scope m3 1 条 + scope m8 7 条 + scope m9 34 条
+# 有 rule_refs 的指令：243 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -2299,10 +2299,12 @@
     bits: '[5:0]'
     role: dst
     bank: rd
-  legality: []
+  legality:
+  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
   spec_cite: 'SimRISC-11: cfx2rd'
   scope: m1
-  rule_refs: []
+  rule_refs:
+  - encode_cfx_reserved
 - id: cfx2rc_crrr_cfx
   mnemonic: cfx2rc
   format: crrr
@@ -2326,60 +2328,12 @@
     bits: '[5:0]'
     role: dst
     bank: rd
-  legality: []
+  legality:
+  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
   spec_cite: 'SimRISC-11: cfx2rc'
   scope: m1
-  rule_refs: []
-- id: cfxld_crii_cfx
-  mnemonic: cfxld
-  format: crii
-  opc: '0x7C'
-  mask: '0xFF000000'
-  value: '0x7C000000'
-  fields:
-  - name: cfxha
-    bits: '[23:18]'
-    role: cfxcode
-    bank: imm
-  - name: rbhb
-    bits: '[17:12]'
-    role: src
-    bank: rb
-  - name: immu12
-    bits: '[11:0]'
-    role: imm
-    bank: imm
-    signed: false
-  legality: []
-  spec_cite: 'SimRISC-11: cfxld'
-  scope: excluded
-  decode: ILLI
-  rule_refs: []
-- id: cfxst_crii_cfx
-  mnemonic: cfxst
-  format: crii
-  opc: '0x7D'
-  mask: '0xFF000000'
-  value: '0x7D000000'
-  fields:
-  - name: cfxha
-    bits: '[23:18]'
-    role: cfxcode
-    bank: imm
-  - name: rbhb
-    bits: '[17:12]'
-    role: src
-    bank: rb
-  - name: immu12
-    bits: '[11:0]'
-    role: imm
-    bank: imm
-    signed: false
-  legality: []
-  spec_cite: 'SimRISC-11: cfxst'
-  scope: excluded
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - encode_cfx_reserved
 - id: escape_ciii_cfx
   mnemonic: escape
   format: ciii
@@ -2396,10 +2350,14 @@
     role: imm
     bank: imm
     signed: true
-  legality: []
+  legality:
+  - imms18[17:1] == 0
+  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
   spec_cite: 'SimRISC-11: escape'
   scope: m1
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
+  - encode_cfx_reserved
 - id: trap_ciii_cfx
   mnemonic: trap
   format: ciii
@@ -2416,18 +2374,23 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality:
+  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
   spec_cite: 'SimRISC-11: trap'
   scope: m1
-  rule_refs: []
-- id: fence_oiii_imm
+  rule_refs:
+  - encode_cfx_reserved
+- id: fence_ciii_cfx
   mnemonic: fence
-  format: oiii
-  opc: '0x47'
-  ha: '0x20'
-  mask: '0xFFFC0000'
-  value: '0x47800000'
+  format: ciii
+  opc: '0x79'
+  mask: '0xFF000000'
+  value: '0x79000000'
   fields:
+  - name: cfxha
+    bits: '[23:18]'
+    role: cfxcode
+    bank: imm
   - name: immu18
     bits: '[17:0]'
     role: imm
@@ -2435,12 +2398,12 @@
     signed: false
   legality:
   - immu18[17:12] == 0
-  - immu18[11:10] == 0
-  - immu18[5:4] == 0
-  spec_cite: 'SimRISC-12: fence'
+  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
+  spec_cite: 'SimRISC-11: fence'
   scope: m9
   rule_refs:
   - encode_sbz
+  - encode_cfx_reserved
 - id: swym_oiii_imm
   mnemonic: swym
   format: oiii
@@ -2478,10 +2441,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.o.nn'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.t.nn_orrr_rd
   mnemonic: lr.t.nn
   format: orrr
@@ -2502,10 +2467,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.t.nn'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.w.nn_orrr_rd
   mnemonic: lr.w.nn
   format: orrr
@@ -2526,10 +2493,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.w.nn'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.b.nn_orrr_rd
   mnemonic: lr.b.nn
   format: orrr
@@ -2550,10 +2519,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.b.nn'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.o.an_orrr_rd
   mnemonic: lr.o.an
   format: orrr
@@ -2574,10 +2545,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.o.an'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.t.an_orrr_rd
   mnemonic: lr.t.an
   format: orrr
@@ -2598,10 +2571,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.t.an'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.w.an_orrr_rd
   mnemonic: lr.w.an
   format: orrr
@@ -2622,10 +2597,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.w.an'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.b.an_orrr_rd
   mnemonic: lr.b.an
   format: orrr
@@ -2646,10 +2623,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.b.an'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.o.ar_orrr_rd
   mnemonic: lr.o.ar
   format: orrr
@@ -2670,10 +2649,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.o.ar'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.t.ar_orrr_rd
   mnemonic: lr.t.ar
   format: orrr
@@ -2694,10 +2675,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.t.ar'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.w.ar_orrr_rd
   mnemonic: lr.w.ar
   format: orrr
@@ -2718,10 +2701,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.w.ar'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.b.ar_orrr_rd
   mnemonic: lr.b.ar
   format: orrr
@@ -2742,10 +2727,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.b.ar'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: sc.o.nn_orrr_rd
   mnemonic: sc.o.nn
   format: orrr
@@ -2766,10 +2753,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: 'SimRISC-12: sc.o.nn'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: sc.t.nn_orrr_rd
   mnemonic: sc.t.nn
   format: orrr
@@ -2790,10 +2779,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: 'SimRISC-12: sc.t.nn'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: sc.w.nn_orrr_rd
   mnemonic: sc.w.nn
   format: orrr
@@ -2814,10 +2805,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: 'SimRISC-12: sc.w.nn'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: sc.b.nn_orrr_rd
   mnemonic: sc.b.nn
   format: orrr
@@ -2838,10 +2831,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: 'SimRISC-12: sc.b.nn'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: sc.o.nr_orrr_rd
   mnemonic: sc.o.nr
   format: orrr
@@ -2862,10 +2857,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: 'SimRISC-12: sc.o.nr'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: sc.t.nr_orrr_rd
   mnemonic: sc.t.nr
   format: orrr
@@ -2886,10 +2883,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: 'SimRISC-12: sc.t.nr'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: sc.w.nr_orrr_rd
   mnemonic: sc.w.nr
   format: orrr
@@ -2910,10 +2909,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: 'SimRISC-12: sc.w.nr'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: sc.b.nr_orrr_rd
   mnemonic: sc.b.nr
   format: orrr
@@ -2934,10 +2935,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: 'SimRISC-12: sc.b.nr'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: sc.o.ar_orrr_rd
   mnemonic: sc.o.ar
   format: orrr
@@ -2958,10 +2961,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: 'SimRISC-12: sc.o.ar'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: sc.t.ar_orrr_rd
   mnemonic: sc.t.ar
   format: orrr
@@ -2982,10 +2987,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: 'SimRISC-12: sc.t.ar'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: sc.w.ar_orrr_rd
   mnemonic: sc.w.ar
   format: orrr
@@ -3006,10 +3013,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: 'SimRISC-12: sc.w.ar'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: sc.b.ar_orrr_rd
   mnemonic: sc.b.ar
   format: orrr
@@ -3030,10 +3039,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: 'SimRISC-12: sc.b.ar'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: ctpop_orri_rd
   mnemonic: ctpop
   format: orri
@@ -6665,10 +6676,10 @@
     bits: '[11:6]'
     role: src
     bank: rf
-  - name: rfhd
+  - name: rdhd
     bits: '[5:0]'
     role: src
-    bank: rf
+    bank: rd
   legality:
   - rfhb != rf0
   spec_cite: 'SimRISC-07: ftsclb'
@@ -6873,10 +6884,10 @@
     bits: '[11:6]'
     role: src
     bank: rf
-  - name: rfhd
+  - name: rdhd
     bits: '[5:0]'
     role: src
-    bank: rf
+    bank: rd
   legality:
   - rfhb != rf0
   spec_cite: 'SimRISC-07: fosclb'

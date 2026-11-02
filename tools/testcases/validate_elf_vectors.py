@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Validate the M4 (multi-TU / multi-section ELF) L3 vectors under
-``tests/llvm/codegen/m4/``.
+``tests/unit/llvm/codegen/m4/``.
 
 This is the **independent oracle** required by ``Process-05`` §2/§4 and the
 project "Independent oracle" hard rule: the expected exit codes are re-derived
@@ -44,7 +44,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-VEC_DIR = ROOT / "tests" / "llvm" / "codegen" / "m4"
+VEC_DIR = ROOT / "tests" / "unit" / "llvm" / "codegen" / "m4"
 EXPECTED_PATH = VEC_DIR / "expected.yaml"
 
 SCHEMA = "codegen-elf-vectors-v1"

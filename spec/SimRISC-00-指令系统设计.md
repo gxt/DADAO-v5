@@ -226,11 +226,10 @@ SimRISC 提供四种固定数据位宽，通过指令名后缀 `.b`/`.w`/`.t`/`.
 
 各子表内使用 `orrr`/`orri`/`oiii` 操作数格式。指令名后缀 `.b`/`.w`/`.t`/`.o` 与已有的存取指令后缀（`ldb`/`ldw`/`ld.t`/`ld.o`）一致。对有符号/无符号区分的指令（mul/div/rem/cmp/ext/shr），后缀扩展为 `.ub`/`.sb`（byte）、`.uw`/`.sw`（wyde）、`.ut`/`.st`（tetra）、`.uo`/`.so`（octa），其中 `s` 表示有符号、`u` 表示无符号。**符号无关**的指令（`shl`/`rol`/`rev`/`ctpop`/`ctlz`/`cttz`）**不带 `u`/`s` 后缀**。
 
-以下三种格式含 `c`（cfxha，6 位核芯功能扩展编码），cfxha 始终在 `ha[5:0]`：
+以下两种格式含 `c`（cfxha，6 位核芯功能扩展编码），cfxha 始终在 `ha[5:0]`：
 
 - `crrr`：cfxha + 三个 6 位寄存器编号，cg 在 `hb`，rc 在 `hc`，rd 在 `hd`（cfx2rd/cfx2rc）
-- `crii`：cfxha + 6 位 rb 寄存器在 `hb` + 12 位立即数在 `hc[5:0]`+`hd[5:0]`（hc=高位, hd=低位，cfxld/cfxst）
-- `ciii`：cfxha + 18 位立即数在 `hb[5:0]`+`hc[5:0]`+`hd[5:0]`（hb=高位, hc=中位, hd=低位，trap/escape）
+- `ciii`：cfxha + 18 位立即数在 `hb[5:0]`+`hc[5:0]`+`hd[5:0]`（hb=高位, hc=中位, hd=低位，trap/escape/fence）
 
 SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数，从而可以把立即数放在最后，并且立即数通常为最后一个源操作数，可以直观的从二进制上判断出立即数。
 其好处是便于调试，根据二进制可以直观地猜出部分指令内容。
@@ -271,7 +270,7 @@ SimRISC 的指令 opc 布局如下。空白单元格表示 reserved（保留未�
 | 0110-0xxx | cs.n_rrrr_rd   | cs.n_rrrr_rf   | cs.z_rrrr_rd    | cs.z_rrrr_rf    | cs.p_rrrr_rd   | cs.p_rrrr_rf   | cs.eq_rrrr_rd   | cs.ne_rrrr_rd |
 | 0110-1xxx | br.n_riii_rd   | br.nn_riii_rd  | br.z_riii_rd    | br.nz_riii_rd   | br.p_riii_rd   | br.np_riii_rd  | br.eq_rrii_rd   | br.ne_rrii_rd |
 | 0111-0xxx | jump_iiii_rb   | jump_rrii_rb   | br.z_riii_rb    | br.nz_riii_rb   | call_iiii_ra   | call_rrii_ra   | ret_riii_ra     |               |
-| 0111-1xxx |                |                | cfx2rd_crrr_cfx | cfx2rc_crrr_cfx | cfxld_crii_cfx | cfxst_crii_cfx | escape_ciii_cfx | trap_ciii_cfx |
+| 0111-1xxx |                | fence_ciii_cfx | cfx2rd_crrr_cfx | cfx2rc_crrr_cfx |                |                | escape_ciii_cfx | trap_ciii_cfx |
 
 ### 4.1 OPC-MISC 指令编码
 
@@ -283,7 +282,7 @@ SimRISC 的指令 opc 布局如下。空白单元格表示 reserved（保留未�
 | 001-xxx | lr.o.ar_orrr_rd | lr.t.ar_orrr_rd | lr.w.ar_orrr_rd | lr.b.ar_orrr_rd |                 |                 |                 |                 |
 | 010-xxx | sc.o.nn_orrr_rd | sc.t.nn_orrr_rd | sc.w.nn_orrr_rd | sc.b.nn_orrr_rd | sc.o.nr_orrr_rd | sc.t.nr_orrr_rd | sc.w.nr_orrr_rd | sc.b.nr_orrr_rd |
 | 011-xxx | sc.o.ar_orrr_rd | sc.t.ar_orrr_rd | sc.w.ar_orrr_rd | sc.b.ar_orrr_rd |                 |                 |                 |                 |
-| 100-xxx | fence_oiii_imm  |                 | swym_oiii_imm   |                 |                 | ctpop_orri_rd   | ctlz_orri_rd    | cttz_orri_rd    |
+| 100-xxx |                 |                 | swym_oiii_imm   |                 |                 | ctpop_orri_rd   | ctlz_orri_rd    | cttz_orri_rd    |
 | 101-xxx |                 |                 |                 |                 |                 |                 |                 |                 |
 | 110-xxx |                 |                 |                 |                 |                 |                 |                 |                 |
 | 111-xxx |                 |                 |                 |                 |                 |                 |                 |                 |
@@ -388,7 +387,6 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 ILLI（illegal instruction，非法指令）异常由**非法操作数、非法条件**或**已定义但本机器未实现的编码**触发；SimRISC 0.5.4 **不再**提供专门的非法指令助记符。
 
 - 已定义编码但操作数/字段非法时触发 ILLI，例如很多指令不允许目的操作数为 `rd0`、SBZ 字段非零、多寄存器指令 `immu6 = 0` 等。
-- `cfxld`/`cfxst`、LR-SC 原子（`lr`/`sc`）与 `fence` 的已定义编码，在未实现该语义的机器上执行时触发 ILLI。
 
 ### 6.2 保留编码（UNDI）
 
@@ -401,7 +399,16 @@ ILLI（illegal instruction，非法指令）异常由**非法操作数、非法�
 ### 0.5.6-rc（未发布）
 
 - 澄清 `sub.uo` 的 `rdHA` 语义为借位（`rdHC < rdHD` 时 1，否则 0）、`rdHB` 为 `(rdHC − rdHD) mod 2^64`；修正原文“128 位高半”与“借位 0/1”并存的表述。
+- `fence` 编码改为 `ciii`（`opc = 0x79`）：`ha = cfxha`（0 = all cfx）、`hb = 0`（SBZ）、`hc = pred`、`hd = succ`；从 `OPC-MISC` 子表移到主表 `0111-1001`，删除 `fm`/TSO。`pred`/`succ` 为 `cr`/`cw`/`ci`/`co`/`mr`/`mw` 六位掩码，零掩码为合法 no-op。
+- 删除 `cfxld`/`cfxst` 两条指令与 `crii` 操作数格式：主表 `0111-1100`/`0111-1101` 两格转为保留（UNDI）；核芯功能扩展册只余 `trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence` 五条。
+- 保留核芯功能扩展编号统一为 `6–14`、`19–61`；`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence` 的 `cfxha` 指向保留编号时触发 ILLI（五条共用同一条编码合法性规则）。
+- `escape` 的汇编层偏移合法集收窄为 **0 或 4 字节**；编码层 `imms18 ∈ {0,1}`（`imms18[0]` = 字节偏移 bit2），`imms18[17:1]` 为 SBZ、非零 ⇒ ILLI。
 - 修正窄位宽比较 `cmp.{ut,uw,ub}` 的 −1 扩展：原文「结果零扩展」为错误，现统一按 **64 位扩展**写满目的寄存器（−1 ⇒ 64 位全 1、0 ⇒ 0、+1 ⇒ 1），与 `.st`/`.sw`/`.sb` 同值；源操作数仍按位宽截断后比较。
+- `ftrem`/`forem` 明确为 IEEE 754 remainder：`rfHC` 为 ±Inf、`rfHD` 为 ±0、任一源为 sNaN ⇒ NV + qNaN；`rfHD` 为 ±Inf（`rfHC` 有限）⇒ 返回 `rfHC`；不置 NX/OF/UF。
+- `ftsclb`/`fosclb` 第三操作数由 `rfHD` 改为 `rdHD`（`rd` 组的**有符号 64 位整数指数**；`rdHD = rd0` 表示指数 0），沿用原 `orrr` 编码、不新增 opcode；旧 `rf` 第三操作数写法失效。
+- 浮点→整数转换（`ft2it`/`ft2io`/`ft2ut`/`ft2uo`/`fo2it`/`fo2io`/`fo2ut`/`fo2uo`）：有限值结果 inexact ⇒ 置 NX；NaN/Inf/超出目标整型范围 ⇒ 饱和（最大/最小）+ NV。
+- `call` 的返回地址明确为 **当前指令地址 + 4**（相对地址与绝对地址两种形式一致）。
+- `lr`/`sc`：保留标记粒度 = **精确地址 + 访问宽度**；`sc` 的 `rdHB` 为成功/失败结果，`rdHB = rd0` ⇒ ILLI。
 - `SimRISC QFC` 布局说明去掉版本号限定（布局表随版本演进，不再绑定单一版本号）。
 
 ### 0.5.5（2026-10-24）

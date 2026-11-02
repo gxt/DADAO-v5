@@ -1,0 +1,2057 @@
+diff --git a/src/arch/dadao/exec/b5_test.cc b/src/arch/dadao/exec/b5_test.cc
+new file mode 100644
+index 0000000..bc472f2
+--- /dev/null
++++ b/src/arch/dadao/exec/b5_test.cc
+@@ -0,0 +1,2051 @@
++/*
++ * DADAO gem5 B5 execution assertions (GEM5-010t).
++ *
++ * Standalone C++17 harness (no gem5 headers): compiled by
++ * `tools/gem5/check_b5.py` against
++ * src/arch/dadao/{exec/b5.cc,exec/b5_test.cc,decode/decode.cc}.
++ *
++ * Everything here is derived from spec/SimRISC-02 (block assignment),
++ * spec/SimRISC-06 (control flow), spec/SimRISC-00 §2.4 (RAS),
++ * contract-isa §3.3.3/§4/§6.5/§8 and contract-fp §12 -- never from another
++ * implementation:
++ *   * the 28 B5 ids are listed one by one and must equal the live decode-table
++ *     B5 set (batch membership is never guessed from a mnemonic);
++ *   * the oracle tables are independent of exec/b5.cc (groups, condition
++ *     codes, immediate widths and RAS flows are written out here);
++ *   * static ILLI is checked before any register read (read/write counts are
++ *     asserted to be zero on the ILLI paths);
++ *   * RASOF/RASUF/Memory are precise: zero register/memory writes and the PC
++ *     still points at the call/ret instruction.
++ */
++#include <cinttypes>
++#include <climits>
++#include <cstdarg>
++#include <cstdint>
++#include <cstdio>
++#include <cstring>
++#include <map>
++#include <string>
++#include <vector>
++
++#include "arch/dadao/decode/decode.hh"
++#include "arch/dadao/exec/b5.hh"
++#include "arch/dadao/exec/common.hh"
++
++namespace decode = gem5::DadaoISA::decode;
++namespace exec = gem5::DadaoISA::exec;
++
++namespace
++{
++
++int failures = 0;
++
++void
++fail(const char *fmt, ...)
++{
++    ++failures;
++    va_list args;
++    va_start(args, fmt);
++    std::printf("[FAIL] ");
++    std::vprintf(fmt, args);
++    std::printf("\n");
++    va_end(args);
++}
++
++void
++check(bool condition, const char *fmt, ...)
++{
++    va_list args;
++    va_start(args, fmt);
++    std::printf(condition ? "[PASS] " : "[FAIL] ");
++    std::vprintf(fmt, args);
++    std::printf("\n");
++    va_end(args);
++    if (!condition)
++        ++failures;
++}
++
++bool
++strEq(const char *a, const char *b)
++{
++    return a != nullptr && b != nullptr && std::strcmp(a, b) == 0;
++}
++
++constexpr uint64_t kMask48 = 0x0000FFFFFFFFFFFFULL;
++constexpr uint64_t kFcsrMask = (uint64_t(3) << 32) | 0x1F;
++constexpr uint64_t kSbz = 0x2AAULL << 54;
++
++uint64_t
++entryValue(uint64_t count, uint64_t addr)
++{
++    return ((count & 0xFFFF) << 48) | (addr & kMask48);
++}
++
++uint64_t
++ra0Value(uint64_t racnt, uint64_t mrptr)
++{
++    return kSbz | ((racnt & 0x3F) << 48) | (mrptr & kMask48);
++}
++
++// ---------------------------------------------------------------------------
++// Independent oracle rows: one per contract id.
++// ---------------------------------------------------------------------------
++
++enum TestOp
++{
++    T_COPY,
++    T_CS,
++    T_BR,
++    T_JUMP,
++    T_CALL,
++    T_RET,
++};
++
++enum Group
++{
++    G_RD,
++    G_RB,
++    G_RA,
++    G_RF,
++};
++
++enum CsKind
++{
++    CS_N,
++    CS_Z,
++    CS_P,
++    CS_EQ,
++    CS_NE,
++};
++
++enum BrKind
++{
++    BR_N,
++    BR_NN,
++    BR_Z,
++    BR_NZ,
++    BR_P,
++    BR_NP,
++    BR_EQ,
++    BR_NE,
++    BR_RB_Z,
++    BR_RB_NZ,
++};
++
++struct Oracle
++{
++    const char *id;
++    TestOp op;
++    const char *format;
++    Group dst;
++    Group src;
++    const char *dstField;
++    const char *srcField;
++    CsKind cs;
++    BrKind br;
++    bool iiii;
++};
++
++const Oracle kOracle[] = {
++    // register block copies (contract-isa §3.3.3/§4, contract-fp §12)
++    {"rd2rd_orri_rd", T_COPY, "orri", G_RD, G_RD, "rdhb", "rdhc",
++     CS_N, BR_N, false},
++    {"rd2ra_orri_ra", T_COPY, "orri", G_RA, G_RD, "rahb", "rdhc",
++     CS_N, BR_N, false},
++    {"ra2rd_orri_ra", T_COPY, "orri", G_RD, G_RA, "rdhb", "rahc",
++     CS_N, BR_N, false},
++    {"rb2rb_orri_rb", T_COPY, "orri", G_RB, G_RB, "rbhb", "rbhc",
++     CS_N, BR_N, false},
++    {"rd2rb_orri_rb", T_COPY, "orri", G_RB, G_RD, "rbhb", "rdhc",
++     CS_N, BR_N, false},
++    {"rb2rd_orri_rb", T_COPY, "orri", G_RD, G_RB, "rdhb", "rbhc",
++     CS_N, BR_N, false},
++    {"rd2rf_orri_rf", T_COPY, "orri", G_RF, G_RD, "rfhb", "rdhc",
++     CS_N, BR_N, false},
++    {"rf2rd_orri_rf", T_COPY, "orri", G_RD, G_RF, "rdhb", "rfhc",
++     CS_N, BR_N, false},
++    // conditional assignment (contract-isa §6.5)
++    {"cs.n_rrrr_rd", T_CS, "rrrr", G_RD, G_RD, "rdhb", "rdhc",
++     CS_N, BR_N, false},
++    {"cs.z_rrrr_rd", T_CS, "rrrr", G_RD, G_RD, "rdhb", "rdhc",
++     CS_Z, BR_N, false},
++    {"cs.p_rrrr_rd", T_CS, "rrrr", G_RD, G_RD, "rdhb", "rdhc",
++     CS_P, BR_N, false},
++    {"cs.eq_rrrr_rd", T_CS, "rrrr", G_RD, G_RD, "rdhc", "rdhd",
++     CS_EQ, BR_N, false},
++    {"cs.ne_rrrr_rd", T_CS, "rrrr", G_RD, G_RD, "rdhc", "rdhd",
++     CS_NE, BR_N, false},
++    // conditional branches (contract-isa §8.2)
++    {"br.n_riii_rd", T_BR, "riii", G_RD, G_RD, nullptr, nullptr,
++     CS_N, BR_N, false},
++    {"br.nn_riii_rd", T_BR, "riii", G_RD, G_RD, nullptr, nullptr,
++     CS_N, BR_NN, false},
++    {"br.z_riii_rd", T_BR, "riii", G_RD, G_RD, nullptr, nullptr,
++     CS_N, BR_Z, false},
++    {"br.nz_riii_rd", T_BR, "riii", G_RD, G_RD, nullptr, nullptr,
++     CS_N, BR_NZ, false},
++    {"br.p_riii_rd", T_BR, "riii", G_RD, G_RD, nullptr, nullptr,
++     CS_N, BR_P, false},
++    {"br.np_riii_rd", T_BR, "riii", G_RD, G_RD, nullptr, nullptr,
++     CS_N, BR_NP, false},
++    {"br.eq_rrii_rd", T_BR, "rrii", G_RD, G_RD, nullptr, nullptr,
++     CS_N, BR_EQ, false},
++    {"br.ne_rrii_rd", T_BR, "rrii", G_RD, G_RD, nullptr, nullptr,
++     CS_N, BR_NE, false},
++    {"br.z_riii_rb", T_BR, "riii", G_RB, G_RB, nullptr, nullptr,
++     CS_N, BR_RB_Z, false},
++    {"br.nz_riii_rb", T_BR, "riii", G_RB, G_RB, nullptr, nullptr,
++     CS_N, BR_RB_NZ, false},
++    // unconditional jumps (contract-isa §8.3)
++    {"jump_iiii_rb", T_JUMP, "iiii", G_RB, G_RB, nullptr, nullptr,
++     CS_N, BR_N, true},
++    {"jump_rrii_rb", T_JUMP, "rrii", G_RB, G_RB, nullptr, nullptr,
++     CS_N, BR_N, false},
++    // call / ret (contract-isa §8.4/§8.5/§8.6)
++    {"call_iiii_ra", T_CALL, "iiii", G_RA, G_RA, nullptr, nullptr,
++     CS_N, BR_N, true},
++    {"call_rrii_ra", T_CALL, "rrii", G_RA, G_RA, nullptr, nullptr,
++     CS_N, BR_N, false},
++    {"ret_riii_ra", T_RET, "riii", G_RD, G_RA, nullptr, nullptr,
++     CS_N, BR_N, false},
++};
++
++constexpr size_t kOracleCount = sizeof(kOracle) / sizeof(kOracle[0]);
++
++const Oracle *
++oracleOf(const char *id)
++{
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        if (strEq(kOracle[i].id, id))
++            return &kOracle[i];
++    }
++    return nullptr;
++}
++
++// ---------------------------------------------------------------------------
++// Mock architectural state (plain C++, no gem5).
++// ---------------------------------------------------------------------------
++
++enum class WBank
++{
++    Rd,
++    Rb,
++    Ra,
++    Rf,
++};
++
++struct Write
++{
++    WBank bank;
++    unsigned idx;
++    uint64_t value;
++};
++
++struct MockContext : public exec::B5Context
++{
++    uint64_t rd[64] = {};
++    uint64_t rb[64] = {};
++    uint64_t ra[64] = {};
++    uint64_t rf[64] = {};
++    uint64_t ip = 0x1000;
++    std::map<uint64_t, uint8_t> mem;
++
++    bool failAllReads = false;
++    bool failAllWrites = false;
++    uint64_t failReadAddr = ~uint64_t(0);
++    uint64_t failWriteAddr = ~uint64_t(0);
++
++    bool branched = false;
++    uint64_t branchTarget = 0;
++
++    int badWrites = 0;
++    int badFloats = 0;
++    int reads = 0;
++    int memReads = 0;
++    int memWrites = 0;
++    int memWriteBytes = 0;
++    std::vector<Write> writes;
++    std::vector<uint64_t> readAddrs;
++    std::vector<uint64_t> writeAddrs;
++
++    uint8_t
++    byteAt(uint64_t addr) const
++    {
++        const auto it = mem.find(addr);
++        return it == mem.end() ? 0 : it->second;
++    }
++
++    uint64_t
++    readInt(exec::Bank bank, unsigned idx) override
++    {
++        ++reads;
++        switch (bank) {
++          case exec::Bank::Rd: return idx == 0 ? 0 : rd[idx];
++          case exec::Bank::Rb: return idx == 0 ? ip : rb[idx];
++          case exec::Bank::Ra: return ra[idx];
++        }
++        return 0;
++    }
++
++    void
++    writeInt(exec::Bank bank, unsigned idx, uint64_t val) override
++    {
++        if ((bank == exec::Bank::Rd || bank == exec::Bank::Rb) && idx == 0) {
++            ++badWrites;
++            return;
++        }
++        const WBank wb = bank == exec::Bank::Rd ? WBank::Rd
++                          : bank == exec::Bank::Rb ? WBank::Rb
++                                                   : WBank::Ra;
++        writes.push_back({wb, idx, val});
++        switch (bank) {
++          case exec::Bank::Rd: rd[idx] = val; break;
++          case exec::Bank::Rb: rb[idx] = val; break;
++          case exec::Bank::Ra: ra[idx] = val; break;
++        }
++    }
++
++    uint64_t
++    readFloat(unsigned idx) override
++    {
++        ++reads;
++        return rf[idx];
++    }
++
++    void
++    writeFloatLow32(unsigned idx, uint32_t val) override
++    {
++        ++badFloats;
++        rf[idx] = (rf[idx] & 0xFFFFFFFF00000000ULL) | val;
++    }
++
++    void
++    writeFloat64(unsigned idx, uint64_t val) override
++    {
++        writes.push_back({WBank::Rf, idx, val});
++        rf[idx] = val;
++    }
++
++    void
++    writeFcsr(uint64_t raw) override
++    {
++        writes.push_back({WBank::Rf, 0, raw & kFcsrMask});
++        rf[0] = (rf[0] & ~kFcsrMask) | (raw & kFcsrMask);
++    }
++
++    uint64_t pc() const override { return ip; }
++
++    bool
++    readMem(uint64_t addr, unsigned bytes, uint8_t *out) override
++    {
++        ++memReads;
++        readAddrs.push_back(addr);
++        if (failAllReads || addr == failReadAddr)
++            return false;
++        for (unsigned i = 0; i < bytes; ++i)
++            out[i] = byteAt(addr + i);
++        return true;
++    }
++
++    bool
++    writeMem(uint64_t addr, const uint8_t *in, unsigned bytes) override
++    {
++        writeAddrs.push_back(addr);
++        if (failAllWrites || addr == failWriteAddr)
++            return false;
++        for (unsigned i = 0; i < bytes; ++i)
++            mem[addr + i] = in[i];
++        ++memWrites;
++        memWriteBytes += static_cast<int>(bytes);
++        return true;
++    }
++
++    void
++    branchTo(uint64_t target64) override
++    {
++        branched = true;
++        branchTarget = target64;
++        ip = target64;
++    }
++};
++
++uint64_t &
++regRef(MockContext &ctx, Group group, unsigned idx)
++{
++    switch (group) {
++      case G_RD: return ctx.rd[idx];
++      case G_RB: return ctx.rb[idx];
++      case G_RA: return ctx.ra[idx];
++      case G_RF: return ctx.rf[idx];
++    }
++    return ctx.rd[idx];
++}
++
++uint64_t
++regValue(const MockContext &ctx, Group group, unsigned idx)
++{
++    switch (group) {
++      case G_RD: return idx == 0 ? 0 : ctx.rd[idx];
++      case G_RB: return idx == 0 ? ctx.ip : ctx.rb[idx];
++      case G_RA: return ctx.ra[idx];
++      case G_RF: return ctx.rf[idx];
++    }
++    return 0;
++}
++
++void
++resetCounters(MockContext &ctx)
++{
++    ctx.reads = 0;
++    ctx.memReads = 0;
++    ctx.memWrites = 0;
++    ctx.memWriteBytes = 0;
++    ctx.badWrites = 0;
++    ctx.badFloats = 0;
++    ctx.writes.clear();
++    ctx.readAddrs.clear();
++    ctx.writeAddrs.clear();
++    ctx.branched = false;
++    ctx.branchTarget = 0;
++    ctx.failAllReads = false;
++    ctx.failAllWrites = false;
++    ctx.failReadAddr = ~uint64_t(0);
++    ctx.failWriteAddr = ~uint64_t(0);
++}
++
++void
++initContext(MockContext &ctx)
++{
++    for (unsigned i = 0; i < 64; ++i) {
++        ctx.rd[i] = 0xDAD0000000000000ULL + i;
++        ctx.rb[i] = 0xB0B0000000000000ULL + i;
++        ctx.ra[i] = 0xCAFE000000000000ULL + i;
++        ctx.rf[i] = 0xF00D000000000000ULL + i;
++    }
++    ctx.rd[0] = 0;
++    ctx.rb[0] = 0;
++    ctx.rf[0] = 0xFFFF0000FFFF0000ULL;
++    ctx.ra[0] = ra0Value(0, 0);
++    ctx.ip = 0x1000;
++    ctx.mem.clear();
++    resetCounters(ctx);
++}
++
++// ---------------------------------------------------------------------------
++// Word construction helpers.
++// ---------------------------------------------------------------------------
++
++struct WordSpec
++{
++    unsigned rdha = 1;
++    unsigned rdhb = 2;
++    unsigned rdhc = 3;
++    unsigned rdhd = 4;
++    unsigned rbha = 1;
++    unsigned rahb = 2;
++    unsigned rahc = 3;
++    unsigned rbhb = 2;
++    unsigned rbhc = 3;
++    unsigned rfhb = 2;
++    unsigned rfhc = 3;
++    uint64_t immu6 = 1;
++    uint64_t imms18 = 0;
++    uint64_t imms12 = 0;
++    uint64_t imms24 = 0;
++};
++
++uint32_t
++makeWord(const char *id, const WordSpec &w)
++{
++    const decode::DecodeEntry *entry = decode::entryById(id);
++    if (entry == nullptr) {
++        fail("encode: unknown id %s", id);
++        return 0;
++    }
++    struct FieldVal
++    {
++        const char *name;
++        uint64_t value;
++    };
++    const FieldVal values[] = {
++        {"rdha", w.rdha},   {"rdhb", w.rdhb},   {"rdhc", w.rdhc},
++        {"rdhd", w.rdhd},   {"rbha", w.rbha},   {"rahb", w.rahb},
++        {"rahc", w.rahc},   {"rbhb", w.rbhb},   {"rbhc", w.rbhc},
++        {"rfhb", w.rfhb},   {"rfhc", w.rfhc},   {"immu6", w.immu6},
++        {"imms18", w.imms18}, {"imms12", w.imms12}, {"imms24", w.imms24},
++    };
++    uint32_t raw = entry->value;
++    for (const FieldVal &fv : values) {
++        for (unsigned i = 0; i < entry->numFields; ++i) {
++            const decode::FieldDesc &field = decode::fieldDesc(*entry, i);
++            if (std::strcmp(field.name, fv.name) != 0)
++                continue;
++            const uint32_t mask =
++                ((uint32_t(1) << field.width()) - 1) << field.lo;
++            raw = (raw & ~mask) |
++                  ((static_cast<uint32_t>(fv.value) << field.lo) & mask);
++            break;
++        }
++    }
++    return raw;
++}
++
++exec::Fault
++runWord(MockContext &ctx, const char *id, const WordSpec &w)
++{
++    const uint32_t raw = makeWord(id, w);
++    const decode::DecodedInst decoded = decode::decodeWord(raw);
++    if (!decoded.ok()) {
++        fail("%s: encoding 0x%08x does not decode", id, raw);
++        return exec::Fault::Illegal;
++    }
++    if (!strEq(decoded.entry->id, id)) {
++        fail("%s: encoding 0x%08x decoded as %s", id, raw,
++             decoded.entry->id);
++        return exec::Fault::Illegal;
++    }
++    const exec::Fault fault = exec::executeB5(decoded, ctx);
++    if (fault == exec::Fault::None && !ctx.branched)
++        ctx.ip += 4;
++    return fault;
++}
++
++const char *
++faultName(exec::Fault fault)
++{
++    switch (fault) {
++      case exec::Fault::None: return "None";
++      case exec::Fault::NotB1: return "NotB1";
++      case exec::Fault::NotB2: return "NotB2";
++      case exec::Fault::NotB3: return "NotB3";
++      case exec::Fault::NotB4: return "NotB4";
++      case exec::Fault::NotB5: return "NotB5";
++      case exec::Fault::Illegal: return "Illegal";
++      case exec::Fault::Malign: return "Malign";
++      case exec::Fault::Memory: return "Memory";
++      case exec::Fault::RasOverflow: return "RasOverflow";
++      case exec::Fault::RasUnderflow: return "RasUnderflow";
++      case exec::Fault::NotB6: return "NotB6";
++      case exec::Fault::CfxReg: return "CfxReg";
++      case exec::Fault::CfxEsc: return "CfxEsc";
++      case exec::Fault::NotB7: return "NotB7";
++    }
++    return "?";
++}
++
++bool
++csCondition(CsKind kind, uint64_t a, uint64_t b)
++{
++    const bool negative = (a >> 63) != 0;
++    switch (kind) {
++      case CS_N: return negative;
++      case CS_Z: return a == 0;
++      case CS_P: return !negative && a != 0;
++      case CS_EQ: return a == b;
++      case CS_NE: return a != b;
++    }
++    return false;
++}
++
++bool
++brCondition(BrKind kind, uint64_t a, uint64_t b)
++{
++    const bool negative = (a >> 63) != 0;
++    switch (kind) {
++      case BR_N: return negative;
++      case BR_NN: return !negative;
++      case BR_Z: return a == 0;
++      case BR_NZ: return a != 0;
++      case BR_P: return !negative && a != 0;
++      case BR_NP: return negative || a == 0;
++      case BR_EQ: return a == b;
++      case BR_NE: return a != b;
++      case BR_RB_Z: return a == 0;
++      case BR_RB_NZ: return a != 0;
++    }
++    return false;
++}
++
++// ---------------------------------------------------------------------------
++// 1. Coverage: one positive case for each of the 28 ids.
++// ---------------------------------------------------------------------------
++
++void
++positiveCopy(const Oracle &o)
++{
++    MockContext ctx;
++    initContext(ctx);
++    const unsigned dst = 10;
++    const unsigned src = 20;
++    const unsigned n = 3;
++    for (unsigned i = 0; i < n; ++i)
++        regRef(ctx, o.src, src + i) = 0x1111222233334444ULL + i;
++    resetCounters(ctx);
++
++    WordSpec w;
++    w.immu6 = n;
++    if (strEq(o.dstField, "rahb"))
++        w.rahb = dst;
++    else if (strEq(o.dstField, "rbhb"))
++        w.rbhb = dst;
++    else if (strEq(o.dstField, "rfhb"))
++        w.rfhb = dst;
++    else
++        w.rdhb = dst;
++    if (strEq(o.srcField, "rahc"))
++        w.rahc = src;
++    else if (strEq(o.srcField, "rbhc"))
++        w.rbhc = src;
++    else if (strEq(o.srcField, "rfhc"))
++        w.rfhc = src;
++    else
++        w.rdhc = src;
++
++    const exec::Fault fault = runWord(ctx, o.id, w);
++    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
++          faultName(fault));
++    if (fault != exec::Fault::None)
++        return;
++    for (unsigned i = 0; i < n; ++i) {
++        check(regValue(ctx, o.dst, dst + i) ==
++                  0x1111222233334444ULL + i,
++              "%s positive: element %u copied", o.id, i);
++    }
++    check(ctx.writes.size() == n, "%s positive: %zu writes (expected %u)",
++          o.id, ctx.writes.size(), n);
++}
++
++void
++positiveCondAssign(const Oracle &o)
++{
++    MockContext ctx;
++    initContext(ctx);
++    ctx.rd[1] = 1;
++    ctx.rd[2] = 1;
++    ctx.rd[3] = 0x3333;
++    ctx.rd[4] = 0x4444;
++    resetCounters(ctx);
++    WordSpec w;
++    w.rdha = 1;
++    w.rdhb = 2;
++    w.rdhc = 3;
++    w.rdhd = 4;
++    const exec::Fault fault = runWord(ctx, o.id, w);
++    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
++          faultName(fault));
++    if (fault != exec::Fault::None)
++        return;
++    const bool twoOperand = o.cs == CS_EQ || o.cs == CS_NE;
++    const bool cond = csCondition(o.cs, 1, 1);
++    const uint64_t expected = twoOperand
++        ? (cond ? uint64_t(0x4444) : uint64_t(0x3333))
++        : (cond ? uint64_t(0x3333) : uint64_t(0x4444));
++    const unsigned dst = twoOperand ? 3 : 2;
++    check(ctx.rd[dst] == expected, "%s positive: result 0x%016" PRIx64,
++          o.id, ctx.rd[dst]);
++    check(ctx.writes.size() == 1 && ctx.writes[0].bank == WBank::Rd &&
++              ctx.writes[0].idx == dst,
++          "%s positive: exactly one RD write", o.id);
++}
++
++void
++positiveBranch(const Oracle &o)
++{
++    MockContext ctx;
++    initContext(ctx);
++    uint64_t value = 0;
++    uint64_t other = 0;
++    switch (o.br) {
++      case BR_N: value = ~uint64_t(0); break;
++      case BR_NN: value = 1; break;
++      case BR_Z: value = 0; break;
++      case BR_NZ: value = 1; break;
++      case BR_P: value = 1; break;
++      case BR_NP: value = ~uint64_t(0); break;
++      case BR_EQ: value = 0x1234; other = 0x1234; break;
++      case BR_NE: value = 0x1234; other = 0x5678; break;
++      case BR_RB_Z: value = 0; break;
++      case BR_RB_NZ: value = 1; break;
++    }
++    if (o.br == BR_RB_Z || o.br == BR_RB_NZ)
++        ctx.rb[1] = value;
++    else
++        ctx.rd[1] = value;
++    if (o.br == BR_EQ || o.br == BR_NE)
++        ctx.rd[2] = other;
++    resetCounters(ctx);
++    WordSpec w;
++    w.rdha = 1;
++    w.rdhb = 2;
++    w.imms18 = 4;
++    w.imms12 = 4;
++    const uint64_t before = ctx.ip;
++    const exec::Fault fault = runWord(ctx, o.id, w);
++    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
++          faultName(fault));
++    if (fault != exec::Fault::None)
++        return;
++    check(ctx.branched, "%s positive: branch taken", o.id);
++    check(ctx.branchTarget == before + 16, "%s positive: target 0x%" PRIx64,
++          o.id, ctx.branchTarget);
++    check(ctx.writes.empty(), "%s positive: no register write", o.id);
++}
++
++void
++positiveJump(const Oracle &o)
++{
++    MockContext ctx;
++    initContext(ctx);
++    ctx.rb[1] = 0x2000;
++    ctx.rd[2] = 0x40;
++    resetCounters(ctx);
++    WordSpec w;
++    w.rbha = 1;
++    w.rdhb = 2;
++    w.imms24 = 4;
++    w.imms12 = 4;
++    const uint64_t before = ctx.ip;
++    const exec::Fault fault = runWord(ctx, o.id, w);
++    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
++          faultName(fault));
++    if (fault != exec::Fault::None)
++        return;
++    const uint64_t expected = o.iiii ? before + 16
++                                     : uint64_t(0x2000 + 0x40 + 16);
++    check(ctx.branchTarget == expected, "%s positive: target 0x%" PRIx64,
++          o.id, ctx.branchTarget);
++    check(ctx.rb[1] == 0x2000 && ctx.rd[2] == 0x40,
++          "%s positive: base/offset registers unchanged", o.id);
++}
++
++void
++positiveCall(const Oracle &o)
++{
++    MockContext ctx;
++    initContext(ctx);
++    ctx.rb[1] = 0x2000;
++    ctx.rd[2] = 0x40;
++    ctx.ip = 0x1000;
++    resetCounters(ctx);
++    WordSpec w;
++    w.rbha = 1;
++    w.rdhb = 2;
++    w.imms24 = 4;
++    w.imms12 = 4;
++    const exec::Fault fault = runWord(ctx, o.id, w);
++    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
++          faultName(fault));
++    if (fault != exec::Fault::None)
++        return;
++    const uint64_t expected = o.iiii ? uint64_t(0x1000 + 16)
++                                     : uint64_t(0x2000 + 0x40 + 16);
++    check(ctx.branchTarget == expected, "%s positive: target 0x%" PRIx64,
++          o.id, ctx.branchTarget);
++    check(ctx.ra[63] == entryValue(1, 0x1004),
++          "%s positive: ra63 = count 1 + pc+4", o.id);
++    check(((ctx.ra[0] >> 48) & 0x3F) == 1 &&
++              (ctx.ra[0] & kMask48) == 0,
++          "%s positive: RACNT=1, MRPTR=0", o.id);
++}
++
++void
++positiveRet(const Oracle &o)
++{
++    MockContext ctx;
++    initContext(ctx);
++    ctx.ra[0] = ra0Value(1, 0);
++    ctx.ra[63] = entryValue(1, 0x3456);
++    ctx.ip = 0x1000;
++    resetCounters(ctx);
++    WordSpec w;
++    w.rdha = 5;
++    w.imms18 = uint64_t(-7);
++    const exec::Fault fault = runWord(ctx, o.id, w);
++    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
++          faultName(fault));
++    if (fault != exec::Fault::None)
++        return;
++    check(ctx.branchTarget == 0x3456, "%s positive: target 0x%" PRIx64,
++          o.id, ctx.branchTarget);
++    check(ctx.rd[5] == ~uint64_t(6), "%s positive: rdha = sext(imms18)",
++          o.id);
++    check(((ctx.ra[0] >> 48) & 0x3F) == 0,
++          "%s positive: RACNT decremented", o.id);
++}
++
++void
++checkPositiveAll()
++{
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        const int before = failures;
++        switch (o.op) {
++          case T_COPY: positiveCopy(o); break;
++          case T_CS: positiveCondAssign(o); break;
++          case T_BR: positiveBranch(o); break;
++          case T_JUMP: positiveJump(o); break;
++          case T_CALL: positiveCall(o); break;
++          case T_RET: positiveRet(o); break;
++        }
++        if (failures == before)
++            std::printf("[PASS] b5-id %s\n", o.id);
++    }
++    check(kOracleCount == 28, "oracle rows == 28 (actual %zu)",
++          kOracleCount);
++}
++
++// ---------------------------------------------------------------------------
++// 2. Decode-table membership / spec table consistency.
++// ---------------------------------------------------------------------------
++
++exec::B5Op
++execOpOf(TestOp op)
++{
++    switch (op) {
++      case T_COPY: return exec::B5Op::Copy;
++      case T_CS: return exec::B5Op::CondAssign;
++      case T_BR: return exec::B5Op::Branch;
++      case T_JUMP: return exec::B5Op::Jump;
++      case T_CALL: return exec::B5Op::Call;
++      case T_RET: return exec::B5Op::Ret;
++    }
++    return exec::B5Op::Copy;
++}
++
++void
++checkCoverage()
++{
++    size_t live = 0;
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        const decode::DecodeEntry *entry = decode::entryById(o.id);
++        check(entry != nullptr, "%s exists in the decode table", o.id);
++        if (entry == nullptr)
++            continue;
++        check(entry->batch == 5, "%s is batch 5 (actual %u)", o.id,
++              entry->batch);
++        check(strEq(entry->format, o.format), "%s is %s (actual %s)", o.id,
++              o.format, entry->format);
++        const exec::B5Spec *spec = exec::b5SpecForId(o.id);
++        check(spec != nullptr, "executeB5 covers b5 id %s", o.id);
++        if (spec != nullptr) {
++            check(spec->op == execOpOf(o.op),
++                  "%s spec op matches the independent oracle", o.id);
++        }
++        ++live;
++    }
++    check(live == 28, "B5 coverage %zu/28", live);
++    std::printf("B5 coverage %zu/28\n", live);
++
++    size_t batch5 = 0;
++    for (size_t i = 0; i < decode::entryCount(); ++i) {
++        const decode::DecodeEntry &entry = decode::entries()[i];
++        if (entry.batch != 5)
++            continue;
++        ++batch5;
++        check(oracleOf(entry.id) != nullptr, "oracle row for batch-5 id %s",
++              entry.id);
++        check(exec::b5SpecForId(entry.id) != nullptr,
++              "executeB5 covers batch-5 id %s", entry.id);
++    }
++    check(batch5 == 28, "live batch-5 entry count == 28 (actual %zu)",
++          batch5);
++    check(exec::b5SpecCount() == 28,
++          "executeB5 spec count == 28 (actual %zu)", exec::b5SpecCount());
++
++    for (size_t i = 0; i < exec::b5SpecCount(); ++i) {
++        const exec::B5Spec &spec = exec::b5Specs()[i];
++        for (size_t j = i + 1; j < exec::b5SpecCount(); ++j) {
++            check(!strEq(spec.id, exec::b5Specs()[j].id),
++                  "spec ids unique: %s vs %s", spec.id,
++                  exec::b5Specs()[j].id);
++        }
++        const decode::DecodeEntry *entry = decode::entryById(spec.id);
++        check(entry != nullptr && entry->batch == 5,
++              "spec id %s is a batch-5 decode entry", spec.id);
++    }
++
++    // Every non-B5 entry must stay NotB5 with zero register/memory access.
++    size_t notB5 = 0;
++    for (size_t i = 0; i < decode::entryCount(); ++i) {
++        const decode::DecodeEntry &entry = decode::entries()[i];
++        const decode::DecodedInst decoded = decode::decodeWord(entry.value);
++        if (!decoded.ok() || !strEq(decoded.entry->id, entry.id)) {
++            fail("entry %s: value 0x%08x does not decode back", entry.id,
++                 entry.value);
++            continue;
++        }
++        MockContext ctx;
++        initContext(ctx);
++        const exec::Fault fault = exec::executeB5(decoded, ctx);
++        if (entry.batch == 5) {
++            check(fault != exec::Fault::NotB5, "%s is handled by executeB5",
++                  entry.id);
++        } else {
++            ++notB5;
++            if (fault != exec::Fault::NotB5)
++                fail("%s (batch %u) returned %s, expected NotB5", entry.id,
++                     entry.batch, faultName(fault));
++            if (!ctx.writes.empty() || ctx.badWrites != 0 ||
++                    ctx.badFloats != 0 || ctx.reads != 0 ||
++                    ctx.memReads != 0 || ctx.memWrites != 0)
++                fail("%s (batch %u) touched state on NotB5", entry.id,
++                     entry.batch);
++        }
++    }
++    check(notB5 == 264 - 28, "non-B5 ids return NotB5 (%zu/236)", notB5);
++    std::printf("non-B5 ids return NotB5 (%zu/236)\n", notB5);
++}
++
++// ---------------------------------------------------------------------------
++// 3. Block copies: ranges, zero/overflow/overlap, rf0, ra0.
++// ---------------------------------------------------------------------------
++
++void
++setRegs(MockContext &ctx, Group group, unsigned start, unsigned n,
++        uint64_t base)
++{
++    for (unsigned i = 0; i < n; ++i)
++        regRef(ctx, group, start + i) = base + i;
++}
++
++void
++checkCopyLegality(const Oracle &o)
++{
++    const unsigned n = 8;
++    // immu6 == 0 -> ILLI with no register/memory access.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.immu6 = 0;
++        const exec::Fault fault = runWord(ctx, o.id, w);
++        check(fault == exec::Fault::Illegal, "%s immu6=0 -> Illegal (%s)",
++              o.id, faultName(fault));
++        check(ctx.reads == 0 && ctx.writes.empty() && ctx.memWrites == 0,
++              "%s immu6=0: zero reads/writes", o.id);
++    }
++    // dst + n == 64 legal, 65 illegal.
++    for (unsigned extra = 0; extra <= 1; ++extra) {
++        MockContext ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.immu6 = n;
++        if (strEq(o.dstField, "rahb"))
++            w.rahb = 56 + extra;
++        else if (strEq(o.dstField, "rbhb"))
++            w.rbhb = 56 + extra;
++        else if (strEq(o.dstField, "rfhb"))
++            w.rfhb = 56 + extra;
++        else
++            w.rdhb = 56 + extra;
++        // Keep the source range disjoint and in bounds.
++        if (strEq(o.srcField, "rahc"))
++            w.rahc = 1;
++        else if (strEq(o.srcField, "rbhc"))
++            w.rbhc = 1;
++        else if (strEq(o.srcField, "rfhc"))
++            w.rfhc = 1;
++        else
++            w.rdhc = 1;
++        const exec::Fault fault = runWord(ctx, o.id, w);
++        if (extra == 0)
++            check(fault == exec::Fault::None,
++                  "%s dst+8 == 64 legal (%s)", o.id, faultName(fault));
++        else
++            check(fault == exec::Fault::Illegal,
++                  "%s dst+8 == 65 -> Illegal (%s)", o.id,
++                  faultName(fault));
++    }
++    // src + n == 64 legal, 65 illegal.
++    for (unsigned extra = 0; extra <= 1; ++extra) {
++        MockContext ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.immu6 = n;
++        w.rdhb = 1;
++        if (strEq(o.dstField, "rahb"))
++            w.rahb = 1;
++        else if (strEq(o.dstField, "rbhb"))
++            w.rbhb = 1;
++        else if (strEq(o.dstField, "rfhb"))
++            w.rfhb = 1;
++        if (strEq(o.srcField, "rahc"))
++            w.rahc = 56 + extra;
++        else if (strEq(o.srcField, "rbhc"))
++            w.rbhc = 56 + extra;
++        else if (strEq(o.srcField, "rfhc"))
++            w.rfhc = 56 + extra;
++        else
++            w.rdhc = 56 + extra;
++        const exec::Fault fault = runWord(ctx, o.id, w);
++        if (extra == 0)
++            check(fault == exec::Fault::None,
++                  "%s src+8 == 64 legal (%s)", o.id, faultName(fault));
++        else
++            check(fault == exec::Fault::Illegal,
++                  "%s src+8 == 65 -> Illegal (%s)", o.id,
++                  faultName(fault));
++    }
++    // n = 63 with a cross-group copy (both ranges fit).
++    if (o.dst != o.src) {
++        MockContext ctx;
++        initContext(ctx);
++        WordSpec w;
++        w.immu6 = 63;
++        if (strEq(o.dstField, "rahb"))
++            w.rahb = 0;
++        else if (strEq(o.dstField, "rbhb"))
++            w.rbhb = 1;
++        else if (strEq(o.dstField, "rfhb"))
++            w.rfhb = 1;
++        else
++            w.rdhb = 1;
++        if (strEq(o.srcField, "rahc"))
++            w.rahc = 1;
++        else if (strEq(o.srcField, "rbhc"))
++            w.rbhc = 1;
++        else if (strEq(o.srcField, "rfhc"))
++            w.rfhc = 1;
++        else
++            w.rdhc = 1;
++        const exec::Fault fault = runWord(ctx, o.id, w);
++        check(fault == exec::Fault::None, "%s immu6=63 legal (%s)", o.id,
++              faultName(fault));
++    }
++}
++
++void
++checkCopyOverlap(const char *id, const char *dstField, const char *srcField,
++                 Group group)
++{
++    struct Case
++    {
++        unsigned dst;
++        unsigned src;
++        bool illegal;
++        const char *label;
++    };
++    const Case cases[] = {
++        {10, 10, true, "full coincidence"},
++        {10, 12, true, "source above, partial overlap"},
++        {12, 10, true, "source below, partial overlap"},
++        {10, 14, false, "adjacent ranges"},
++        {10, 20, false, "disjoint ranges"},
++    };
++    for (const Case &c : cases) {
++        MockContext ctx;
++        initContext(ctx);
++        setRegs(ctx, group, c.src, 4, 0x5000);
++        resetCounters(ctx);
++        WordSpec w;
++        w.immu6 = 4;
++        if (strEq(dstField, "rdhb"))
++            w.rdhb = c.dst;
++        else
++            w.rbhb = c.dst;
++        if (strEq(srcField, "rdhc"))
++            w.rdhc = c.src;
++        else
++            w.rbhc = c.src;
++        const exec::Fault fault = runWord(ctx, id, w);
++        if (c.illegal) {
++            check(fault == exec::Fault::Illegal, "%s %s -> Illegal (%s)", id,
++                  c.label, faultName(fault));
++            check(ctx.reads == 0 && ctx.writes.empty(),
++                  "%s %s: zero reads/writes", id, c.label);
++        } else {
++            check(fault == exec::Fault::None, "%s %s legal (%s)", id,
++                  c.label, faultName(fault));
++        }
++    }
++}
++
++void
++checkBlockCopy()
++{
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        if (kOracle[i].op != T_COPY)
++            continue;
++        const Oracle &o = kOracle[i];
++        checkCopyLegality(o);
++        // immu6 = 1 is the smallest legal block.
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.immu6 = 1;
++        if (strEq(o.dstField, "rahb"))
++            w.rahb = 10;
++        else if (strEq(o.dstField, "rbhb"))
++            w.rbhb = 10;
++        else if (strEq(o.dstField, "rfhb"))
++            w.rfhb = 10;
++        else
++            w.rdhb = 10;
++        if (strEq(o.srcField, "rahc"))
++            w.rahc = 20;
++        else if (strEq(o.srcField, "rbhc"))
++            w.rbhc = 20;
++        else if (strEq(o.srcField, "rfhc"))
++            w.rfhc = 20;
++        else
++            w.rdhc = 20;
++        regRef(ctx, o.src, 20) = 0x0F0F0F0F0F0F0F0FULL;
++        resetCounters(ctx);
++        const exec::Fault one = runWord(ctx, o.id, w);
++        check(one == exec::Fault::None, "%s immu6=1 legal (%s)", o.id,
++              faultName(one));
++        check(one == exec::Fault::None &&
++                  regValue(ctx, o.dst, 10) == 0x0F0F0F0F0F0F0F0FULL,
++              "%s immu6=1 copies one element", o.id);
++    }
++    checkCopyOverlap("rd2rd_orri_rd", "rdhb", "rdhc", G_RD);
++    checkCopyOverlap("rb2rb_orri_rb", "rbhb", "rbhc", G_RB);
++
++    // Cross-group same index is legal and must not be treated as overlap.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        setRegs(ctx, G_RD, 5, 3, 0x7000);
++        resetCounters(ctx);
++        WordSpec w;
++        w.immu6 = 3;
++        w.rbhb = 5;
++        w.rdhc = 5;
++        const exec::Fault fault = runWord(ctx, "rd2rb_orri_rb", w);
++        check(fault == exec::Fault::None, "rd2rb same index legal (%s)",
++              faultName(fault));
++        check(ctx.rb[5] == 0x7000 && ctx.rb[7] == 0x7002,
++              "rd2rb same index copied");
++    }
++
++    // rd2rf: destination rf0 is legal and uses the FCSR write mask.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rf[0] = 0xFFFF0000FFFF0000ULL;
++        ctx.rd[1] = 0xAAAAAAAAAAAAAAAAULL;
++        ctx.rd[2] = 0xBBBBBBBBBBBBBBBBULL;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rfhb = 0;
++        w.rdhc = 1;
++        w.immu6 = 2;
++        const exec::Fault fault = runWord(ctx, "rd2rf_orri_rf", w);
++        check(fault == exec::Fault::None, "rd2rf rf0 destination legal (%s)",
++              faultName(fault));
++        check(ctx.rf[0] == ((0xFFFF0000FFFF0000ULL & ~kFcsrMask) |
++                            (0xAAAAAAAAAAAAAAAAULL & kFcsrMask)),
++              "rd2rf rf0 write applies the FCSR mask");
++        check(ctx.rf[1] == 0xBBBBBBBBBBBBBBBBULL,
++              "rd2rf rf1 is a full 64-bit copy");
++        check(ctx.writes.size() == 2 && ctx.writes[0].idx == 0,
++              "rd2rf rf0 uses writeFcsr / one write per element");
++    }
++
++    // rf2rd: source rf0 is legal and reads the full 64 bits.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rf[0] = 0x123456789ABCDEF0ULL;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdhb = 3;
++        w.rfhc = 0;
++        w.immu6 = 1;
++        const exec::Fault fault = runWord(ctx, "rf2rd_orri_rf", w);
++        check(fault == exec::Fault::None, "rf2rd rf0 source legal (%s)",
++              faultName(fault));
++        check(ctx.rd[3] == 0x123456789ABCDEF0ULL,
++              "rf2rd rf0 reads the full 64-bit FCSR word");
++    }
++
++    // RA slots are opaque 64-bit values: rd2ra/ra2rd keep ra0 bits.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        const uint64_t bits = 0x123456789ABCDEF0ULL;
++        ctx.rd[3] = bits;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rahb = 0;
++        w.rdhc = 3;
++        w.immu6 = 1;
++        const exec::Fault fault = runWord(ctx, "rd2ra_orri_ra", w);
++        check(fault == exec::Fault::None, "rd2ra ra0 destination (%s)",
++              faultName(fault));
++        check(ctx.ra[0] == bits, "rd2ra copies ra0 as opaque 64 bits");
++        w.rahc = 0;
++        w.rdhb = 4;
++        const exec::Fault back = runWord(ctx, "ra2rd_orri_ra", w);
++        check(back == exec::Fault::None, "ra2rd ra0 source (%s)",
++              faultName(back));
++        check(ctx.rd[4] == bits, "ra2rd copies ra0 as opaque 64 bits");
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 4. Conditional assignment.
++// ---------------------------------------------------------------------------
++
++void
++checkCondAssign()
++{
++    struct Case
++    {
++        CsKind kind;
++        uint64_t a;
++        uint64_t b;
++        bool taken;
++        const char *label;
++    };
++    const Case cases[] = {
++        {CS_N, 0x8000000000000000ULL, 0, true, "INT64_MIN < 0"},
++        {CS_N, ~uint64_t(0), 0, true, "-1 < 0"},
++        {CS_N, 0, 0, false, "0 not < 0"},
++        {CS_N, 1, 0, false, "1 not < 0"},
++        {CS_Z, 0, 0, true, "0 == 0"},
++        {CS_Z, 1, 0, false, "1 != 0"},
++        {CS_Z, 0x8000000000000000ULL, 0, false, "high bit != 0"},
++        {CS_P, 1, 0, true, "1 > 0"},
++        {CS_P, 0x7FFFFFFFFFFFFFFFULL, 0, true, "INT64_MAX > 0"},
++        {CS_P, 0, 0, false, "0 not > 0"},
++        {CS_P, ~uint64_t(0), 0, false, "-1 not > 0"},
++        {CS_EQ, 0x1234, 0x1234, true, "equal"},
++        {CS_EQ, 0x1234, 0x1235, false, "not equal"},
++        {CS_NE, 0x1234, 0x1235, true, "not equal"},
++        {CS_NE, 0x1234, 0x1234, false, "equal"},
++    };
++    const char *ids[] = {"cs.n_rrrr_rd", "cs.z_rrrr_rd", "cs.p_rrrr_rd",
++                         "cs.eq_rrrr_rd", "cs.ne_rrrr_rd"};
++    const CsKind kinds[] = {CS_N, CS_Z, CS_P, CS_EQ, CS_NE};
++    for (unsigned k = 0; k < 5; ++k) {
++        for (const Case &c : cases) {
++            if (c.kind != kinds[k])
++                continue;
++            MockContext ctx;
++            initContext(ctx);
++            ctx.rd[1] = c.a;
++            ctx.rd[2] = c.b;
++            ctx.rd[3] = 0x3333;
++            ctx.rd[4] = 0x4444;
++            resetCounters(ctx);
++            WordSpec w;
++            w.rdha = 1;
++            w.rdhb = 2;
++            w.rdhc = 3;
++            w.rdhd = 4;
++            const exec::Fault fault = runWord(ctx, ids[k], w);
++            check(fault == exec::Fault::None, "%s %s: fault %s", ids[k],
++                  c.label, faultName(fault));
++            if (fault != exec::Fault::None)
++                continue;
++            const bool twoOperand = kinds[k] == CS_EQ || kinds[k] == CS_NE;
++            const unsigned dst = twoOperand ? 3 : 2;
++            const uint64_t expected = twoOperand
++                ? (c.taken ? uint64_t(0x4444) : uint64_t(0x3333))
++                : (c.taken ? uint64_t(0x3333) : uint64_t(0x4444));
++            check(csCondition(kinds[k], c.a, c.b) == c.taken,
++                  "%s %s: independent condition %d", ids[k], c.label,
++                  c.taken);
++            check(ctx.rd[dst] == expected, "%s %s: result 0x%016" PRIx64,
++                  ids[k], c.label, ctx.rd[dst]);
++            check(ctx.writes.size() == 1 &&
++                      ctx.writes[0].bank == WBank::Rd &&
++                      ctx.writes[0].idx == dst,
++                  "%s %s: exactly one destination write", ids[k], c.label);
++        }
++    }
++
++    // Source/destination alias uses snapshot values (read all, then write).
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rd[6] = 0x8000000000000000ULL;
++        ctx.rd[7] = 0xAAAAAAAAAAAAAAAAULL;
++        ctx.rd[9] = 0x9999999999999999ULL;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdha = 6;
++        w.rdhb = 7;   // destination, also the rdhc source below
++        w.rdhc = 7;
++        w.rdhd = 9;
++        const exec::Fault fault = runWord(ctx, "cs.n_rrrr_rd", w);
++        check(fault == exec::Fault::None, "cs.n alias: fault %s",
++              faultName(fault));
++        check(ctx.rd[7] == 0xAAAAAAAAAAAAAAAAULL,
++              "cs.n alias uses the snapshot rdhc value");
++    }
++
++    // Destination rd0 -> ILLI before any read, for all five ids.
++    for (unsigned k = 0; k < 5; ++k) {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdha = 1;
++        w.rdhb = 2;
++        w.rdhc = 3;
++        w.rdhd = 4;
++        if (kinds[k] == CS_EQ || kinds[k] == CS_NE)
++            w.rdhc = 0;
++        else
++            w.rdhb = 0;
++        const exec::Fault fault = runWord(ctx, ids[k], w);
++        check(fault == exec::Fault::Illegal, "%s destination rd0 -> Illegal (%s)",
++              ids[k], faultName(fault));
++        check(ctx.reads == 0 && ctx.writes.empty(),
++              "%s destination rd0: zero reads/writes", ids[k]);
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 5. Conditional branches.
++// ---------------------------------------------------------------------------
++
++void
++checkBranches()
++{
++    struct BrRow
++    {
++        const char *id;
++        BrKind kind;
++    };
++    const BrRow rows[] = {
++        {"br.n_riii_rd", BR_N},   {"br.nn_riii_rd", BR_NN},
++        {"br.z_riii_rd", BR_Z},   {"br.nz_riii_rd", BR_NZ},
++        {"br.p_riii_rd", BR_P},   {"br.np_riii_rd", BR_NP},
++    };
++    const uint64_t values[] = {
++        0x8000000000000000ULL, ~uint64_t(0), 0, 1, 0x7FFFFFFFFFFFFFFFULL,
++    };
++    for (const BrRow &row : rows) {
++        for (uint64_t value : values) {
++            MockContext ctx;
++            initContext(ctx);
++            ctx.rd[1] = value;
++            resetCounters(ctx);
++            WordSpec w;
++            w.rdha = 1;
++            w.imms18 = 4;
++            const uint64_t before = ctx.ip;
++            const bool taken = brCondition(row.kind, value, 0);
++            const exec::Fault fault = runWord(ctx, row.id, w);
++            check(fault == exec::Fault::None, "%s value 0x%016" PRIx64
++                  ": fault %s", row.id, value, faultName(fault));
++            if (fault != exec::Fault::None)
++                continue;
++            check(ctx.branched == taken, "%s value 0x%016" PRIx64
++                  ": taken=%d (expected %d)", row.id, value, ctx.branched,
++                  taken);
++            const uint64_t expected = taken ? before + 16 : before + 4;
++            check(ctx.ip == expected, "%s value 0x%016" PRIx64
++                  ": IP 0x%" PRIx64 " (expected 0x%" PRIx64 ")", row.id,
++                  value, ctx.ip, expected);
++            check(ctx.writes.empty(), "%s: no register write", row.id);
++        }
++    }
++
++    // rd0 as source: br.z is always taken, br.nz never.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rd[0] = 0xFFFFFFFFFFFFFFFFULL; // rd0 still reads as 0
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdha = 0;
++        w.imms18 = 4;
++        const uint64_t before = ctx.ip;
++        const exec::Fault fz = runWord(ctx, "br.z_riii_rd", w);
++        check(fz == exec::Fault::None, "br.z rd0: fault %s",
++              faultName(fz));
++        check(ctx.branched && ctx.ip == before + 16,
++              "br.z rd0 is always taken");
++    }
++    {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdha = 0;
++        w.imms18 = 4;
++        const uint64_t before = ctx.ip;
++        const exec::Fault f = runWord(ctx, "br.nz_riii_rd", w);
++        check(f == exec::Fault::None, "br.nz rd0: fault %s", faultName(f));
++        check(!ctx.branched && ctx.ip == before + 4,
++              "br.nz rd0 is never taken");
++    }
++
++    // br.eq/br.ne compare all 64 bits.
++    {
++        const uint64_t a = 0x0000000100000000ULL;
++        const uint64_t b = 0x0000000000000000ULL;
++        for (int ne = 0; ne <= 1; ++ne) {
++            MockContext ctx;
++            initContext(ctx);
++            ctx.rd[1] = a;
++            ctx.rd[2] = b;
++            resetCounters(ctx);
++            WordSpec w;
++            w.rdha = 1;
++            w.rdhb = 2;
++            w.imms12 = 4;
++            const char *id = ne ? "br.ne_rrii_rd" : "br.eq_rrii_rd";
++            const bool expected = ne ? true : false;
++            const uint64_t before = ctx.ip;
++            const exec::Fault fault = runWord(ctx, id, w);
++            check(fault == exec::Fault::None, "%s high-word: fault %s", id,
++                  faultName(fault));
++            check(ctx.branched == expected, "%s compares all 64 bits", id);
++            check(ctx.ip == (expected ? before + 16 : before + 4),
++                  "%s high-word target", id);
++        }
++    }
++
++    // Immediate boundaries sign-extend and then shift left by 2.
++    {
++        struct ImmCase
++        {
++            const char *id;
++            bool riii;
++            uint64_t imm;
++            uint64_t expectedDelta;
++            const char *label;
++        };
++        const ImmCase cases[] = {
++            {"br.n_riii_rd", true, uint64_t(-131072),
++             uint64_t(-131072) * 4, "imms18 -131072"},
++            {"br.n_riii_rd", true, uint64_t(131071),
++             uint64_t(131071) * 4, "imms18 +131071"},
++            {"br.eq_rrii_rd", false, uint64_t(-2048),
++             uint64_t(-2048) * 4, "imms12 -2048"},
++            {"br.eq_rrii_rd", false, uint64_t(2047),
++             uint64_t(2047) * 4, "imms12 +2047"},
++        };
++        for (const ImmCase &c : cases) {
++            MockContext ctx;
++            initContext(ctx);
++            ctx.rd[1] = ~uint64_t(0);   // br.n taken
++            ctx.rd[2] = ~uint64_t(0);   // br.eq taken
++            resetCounters(ctx);
++            WordSpec w;
++            w.rdha = 1;
++            w.rdhb = 2;
++            if (c.riii)
++                w.imms18 = c.imm;
++            else
++                w.imms12 = c.imm;
++            const uint64_t before = ctx.ip;
++            const exec::Fault fault = runWord(ctx, c.id, w);
++            check(fault == exec::Fault::None, "%s: fault %s", c.label,
++                  faultName(fault));
++            check(ctx.branched, "%s: taken", c.label);
++            check(ctx.ip == before + c.expectedDelta,
++                  "%s: target sign-extends (0x%" PRIx64 ")", c.label,
++                  ctx.ip);
++        }
++    }
++
++    // rb variants test all 64 bits for zero, including the high 16 bits.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rb[1] = 0x0001000000000000ULL; // low 48 == 0, high 16 != 0
++        resetCounters(ctx);
++        WordSpec w;
++        w.rbha = 1;
++        w.imms18 = 4;
++        const uint64_t before = ctx.ip;
++        const exec::Fault fz = runWord(ctx, "br.z_riii_rb", w);
++        check(fz == exec::Fault::None, "br.z rb high16: fault %s",
++              faultName(fz));
++        check(!ctx.branched && ctx.ip == before + 4,
++              "br.z rb uses the full 64-bit value");
++    }
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rb[1] = 0x0001000000000000ULL;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rbha = 1;
++        w.imms18 = 4;
++        const uint64_t before = ctx.ip;
++        const exec::Fault f = runWord(ctx, "br.nz_riii_rb", w);
++        check(f == exec::Fault::None, "br.nz rb high16: fault %s",
++              faultName(f));
++        check(ctx.branched && ctx.ip == before + 16,
++              "br.nz rb uses the full 64-bit value");
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 6. Unconditional jumps.
++// ---------------------------------------------------------------------------
++
++void
++checkJumps()
++{
++    {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.imms24 = 64;
++        const uint64_t before = ctx.ip;
++        const exec::Fault fault = runWord(ctx, "jump_iiii_rb", w);
++        check(fault == exec::Fault::None, "jump iiii: fault %s",
++              faultName(fault));
++        check(ctx.ip == before + 256, "jump iiii target rb0 + (imm<<2)");
++        check(ctx.writes.empty(), "jump iiii: no register write");
++    }
++    {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.imms24 = uint64_t(-64);
++        const uint64_t before = ctx.ip;
++        const exec::Fault fault = runWord(ctx, "jump_iiii_rb", w);
++        check(fault == exec::Fault::None, "jump iiii negative: fault %s",
++              faultName(fault));
++        check(ctx.ip == before - 256, "jump iiii negative sign-extends");
++    }
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rb[5] = 0x2000;
++        ctx.rd[6] = 0x40;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rbha = 5;
++        w.rdhb = 6;
++        w.imms12 = 4;
++        const exec::Fault fault = runWord(ctx, "jump_rrii_rb", w);
++        check(fault == exec::Fault::None, "jump rrii: fault %s",
++              faultName(fault));
++        check(ctx.ip == 0x2000 + 0x40 + 16,
++              "jump rrii target rbha + rdhb + (imm<<2)");
++        check(ctx.rb[5] == 0x2000 && ctx.rd[6] == 0x40,
++              "jump rrii: rbha only read");
++    }
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rd[6] = 0x40;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rbha = 0;   // rb0 == IP -> relative form
++        w.rdhb = 6;
++        w.imms12 = 4;
++        const uint64_t before = ctx.ip;
++        const exec::Fault fault = runWord(ctx, "jump_rrii_rb", w);
++        check(fault == exec::Fault::None, "jump rrii rb0 base: fault %s",
++              faultName(fault));
++        check(ctx.ip == before + 0x40 + 16,
++              "jump rrii with rbha=rb0 is relative");
++    }
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0xFFFFFFFFFFFFFFF0ULL;
++        resetCounters(ctx);
++        WordSpec w;
++        w.imms24 = 8;
++        const exec::Fault fault = runWord(ctx, "jump_iiii_rb", w);
++        check(fault == exec::Fault::None, "jump 64-bit wrap: fault %s",
++              faultName(fault));
++        check(ctx.ip == 0x10,
++              "jump target wraps modulo 2^64 (got 0x%" PRIx64 ")", ctx.ip);
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 7. call: C1/C2/C3a/C3b and precise faults.
++// ---------------------------------------------------------------------------
++
++uint64_t
++getMem64(const MockContext &ctx, uint64_t addr)
++{
++    uint64_t value = 0;
++    for (unsigned i = 0; i < 8; ++i)
++        value = (value << 8) | ctx.byteAt(addr + i);
++    return value;
++}
++
++void
++checkCalls()
++{
++    // C1: empty RegRAS.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        resetCounters(ctx);
++        WordSpec w;
++        w.imms24 = 4;
++        const exec::Fault fault = runWord(ctx, "call_iiii_ra", w);
++        check(fault == exec::Fault::None, "call C1: fault %s",
++              faultName(fault));
++        check(ctx.ra[63] == entryValue(1, 0x1004),
++              "call C1: ra63 = count 1 + pc+4");
++        check(((ctx.ra[0] >> 48) & 0x3F) == 1 &&
++                  (ctx.ra[0] & kMask48) == 0,
++              "call C1: RACNT 0 -> 1, MRPTR unchanged");
++        check((ctx.ra[0] & 0xFFC0000000000000ULL) == kSbz,
++              "call C1: ra0 SBZ bits preserved");
++        check(ctx.ip == 0x1010, "call C1: target branch");
++    }
++    // C1 with the rrii form: same pc+4 return address.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x2000;
++        ctx.rb[5] = 0x3000;
++        ctx.rd[6] = 0x10;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rbha = 5;
++        w.rdhb = 6;
++        w.imms12 = 4;
++        const exec::Fault fault = runWord(ctx, "call_rrii_ra", w);
++        check(fault == exec::Fault::None, "call rrii C1: fault %s",
++              faultName(fault));
++        check(ctx.ra[63] == entryValue(1, 0x2004),
++              "call rrii C1: return address = call pc + 4");
++        check(ctx.ip == 0x3000 + 0x10 + 16, "call rrii C1: target");
++        check(ctx.rb[5] == 0x3000 && ctx.rd[6] == 0x10,
++              "call rrii: rbha/rdhb unchanged");
++    }
++    // C1 with a PC near 2^48: the stored return address is the low 48 bits.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0xFFFFFFFFFFFFFFF0ULL;
++        resetCounters(ctx);
++        WordSpec w;
++        w.imms24 = 4;
++        const exec::Fault fault = runWord(ctx, "call_iiii_ra", w);
++        check(fault == exec::Fault::None, "call 48-bit return: fault %s",
++              faultName(fault));
++        check(ctx.ra[63] == entryValue(1, 0xFFFFFFFFFFF4ULL),
++              "call 48-bit return: ra63 holds (pc+4)[47:0]");
++    }
++    // C2: recursion fold, RACNT unchanged, no entry movement.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(1, 0);
++        ctx.ra[63] = entryValue(1, 0x1004);
++        const uint64_t sentinel = ctx.ra[62];
++        resetCounters(ctx);
++        WordSpec w;
++        w.imms24 = 4;
++        const exec::Fault fault = runWord(ctx, "call_iiii_ra", w);
++        check(fault == exec::Fault::None, "call C2: fault %s",
++              faultName(fault));
++        check(ctx.ra[63] == entryValue(2, 0x1004),
++              "call C2: recursion count incremented");
++        check(((ctx.ra[0] >> 48) & 0x3F) == 1, "call C2: RACNT unchanged");
++        check(ctx.ra[62] == sentinel, "call C2: no entry movement");
++    }
++    // C2 must not fold at count 0xFFFF; go to C3a instead.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(1, 0);
++        ctx.ra[63] = entryValue(0xFFFF, 0x1004);
++        resetCounters(ctx);
++        WordSpec w;
++        w.imms24 = 4;
++        const exec::Fault fault = runWord(ctx, "call_iiii_ra", w);
++        check(fault == exec::Fault::None, "call count=0xFFFF: fault %s",
++              faultName(fault));
++        check(ctx.ra[63] == entryValue(1, 0x1004),
++              "call count=0xFFFF: new entry pushed");
++        check(ctx.ra[62] == entryValue(0xFFFF, 0x1004),
++              "call count=0xFFFF: old entry shifted down");
++        check(((ctx.ra[0] >> 48) & 0x3F) == 2,
++              "call count=0xFFFF: RACNT 2");
++    }
++    // C3a: valid entries move one slot towards ra63.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(3, 0);
++        ctx.ra[61] = entryValue(1, 0x1111);
++        ctx.ra[62] = entryValue(1, 0x2222);
++        ctx.ra[63] = entryValue(1, 0x3333);
++        resetCounters(ctx);
++        WordSpec w;
++        w.imms24 = 4;
++        const exec::Fault fault = runWord(ctx, "call_iiii_ra", w);
++        check(fault == exec::Fault::None, "call C3a: fault %s",
++              faultName(fault));
++        check(ctx.ra[63] == entryValue(1, 0x1004),
++              "call C3a: new top entry");
++        check(ctx.ra[62] == entryValue(1, 0x3333) &&
++                  ctx.ra[61] == entryValue(1, 0x2222) &&
++                  ctx.ra[60] == entryValue(1, 0x1111),
++              "call C3a: old entries shifted");
++        check(((ctx.ra[0] >> 48) & 0x3F) == 4,
++              "call C3a: RACNT 3 -> 4");
++    }
++    // C3b: evict the bottom entry to MemRAS, then push.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(63, 0x2008);
++        for (unsigned i = 1; i <= 63; ++i)
++            ctx.ra[i] = entryValue(1, 0x4000 + i);
++        const uint64_t oldTop = ctx.ra[63];
++        const uint64_t oldSecond = ctx.ra[2];
++        resetCounters(ctx);
++        WordSpec w;
++        w.imms24 = 4;
++        const exec::Fault fault = runWord(ctx, "call_iiii_ra", w);
++        check(fault == exec::Fault::None, "call C3b: fault %s",
++              faultName(fault));
++        check(ctx.memWrites == 1 && ctx.memWriteBytes == 8,
++              "call C3b: one 8-byte MemRAS write");
++        check(getMem64(ctx, 0x2000) == entryValue(1, 0x4001),
++              "call C3b: stack bottom written big-endian at MRPTR-8");
++        check((ctx.ra[0] & kMask48) == 0x2000,
++              "call C3b: MRPTR decremented by 8");
++        check(((ctx.ra[0] >> 48) & 0x3F) == 63,
++              "call C3b: RACNT stays 63");
++        check(ctx.ra[63] == entryValue(1, 0x1004),
++              "call C3b: new top entry");
++        check(ctx.ra[62] == oldTop, "call C3b: old top shifted to ra62");
++        check(ctx.ra[1] == oldSecond, "call C3b: bottom evicted, ra1 = old ra2");
++        check((ctx.ra[0] & 0xFFC0000000000000ULL) == kSbz,
++              "call C3b: ra0 SBZ bits preserved");
++    }
++    // C3b with MRPTR == 0: RASOF and no writes at all.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(63, 0);
++        for (unsigned i = 1; i <= 63; ++i)
++            ctx.ra[i] = entryValue(1, 0x4000 + i);
++        resetCounters(ctx);
++        WordSpec w;
++        w.imms24 = 4;
++        const exec::Fault fault = runWord(ctx, "call_iiii_ra", w);
++        check(fault == exec::Fault::RasOverflow,
++              "call C3b MRPTR=0 -> RasOverflow (%s)", faultName(fault));
++        check(ctx.writes.empty() && ctx.memWrites == 0,
++              "call RASOF: zero register/memory writes");
++        check(ctx.ip == 0x1000, "call RASOF: PC stays at the call");
++    }
++    // C3b with a failing MemRAS write: Memory, nothing committed.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(63, 0x2008);
++        for (unsigned i = 1; i <= 63; ++i)
++            ctx.ra[i] = entryValue(1, 0x4000 + i);
++        const uint64_t ra0Before = ctx.ra[0];
++        const uint64_t ra1Before = ctx.ra[1];
++        const uint64_t ra63Before = ctx.ra[63];
++        resetCounters(ctx);
++        ctx.failWriteAddr = 0x2000;
++        WordSpec w;
++        w.imms24 = 4;
++        const exec::Fault fault = runWord(ctx, "call_iiii_ra", w);
++        check(fault == exec::Fault::Memory,
++              "call C3b write fault -> Memory (%s)", faultName(fault));
++        check(ctx.writes.empty(), "call C3b fault: zero register writes");
++        check(ctx.ra[0] == ra0Before && ctx.ra[1] == ra1Before &&
++                  ctx.ra[63] == ra63Before,
++              "call C3b fault: RA state unchanged");
++        check(ctx.memWrites == 0, "call C3b fault: no MemRAS write");
++        check(ctx.ip == 0x1000, "call C3b fault: PC stays at the call");
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 8. ret: D1/D2/D3/D4a/D4b, rdha and precise faults.
++// ---------------------------------------------------------------------------
++
++void
++checkRets()
++{
++    // D1: the top entry has count 0.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(1, 0);
++        ctx.ra[63] = entryValue(0, 0x5555);
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdha = 5;
++        w.imms18 = 7;
++        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
++        check(fault == exec::Fault::RasUnderflow,
++              "ret D1 -> RasUnderflow (%s)", faultName(fault));
++        check(ctx.writes.empty(), "ret D1: rdha not written");
++        check(ctx.ip == 0x1000, "ret D1: PC stays at ret");
++        check(ctx.ra[63] == entryValue(0, 0x5555), "ret D1: RA unchanged");
++    }
++    // D2: count > 1, decrement only.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(2, 0);
++        ctx.ra[62] = entryValue(1, 0x5555);
++        ctx.ra[63] = entryValue(3, 0x4444);
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdha = 5;
++        w.imms18 = uint64_t(-1);
++        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
++        check(fault == exec::Fault::None, "ret D2: fault %s",
++              faultName(fault));
++        check(ctx.ra[63] == entryValue(2, 0x4444),
++              "ret D2: count decremented");
++        check(((ctx.ra[0] >> 48) & 0x3F) == 2, "ret D2: RACNT unchanged");
++        check(ctx.ra[62] == entryValue(1, 0x5555),
++              "ret D2: lower entries unchanged");
++        check(ctx.ip == 0x4444, "ret D2: IP = ra63[47:0]");
++        check(ctx.rd[5] == ~uint64_t(0), "ret D2: rdha = sext(imms18)");
++        check(ctx.writes.size() == 2,
++              "ret D2: ra63 + rdha writes only");
++    }
++    // D3: count == 1, pop and move the remaining entries up.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(3, 0);
++        ctx.ra[61] = entryValue(1, 0x1111);
++        ctx.ra[62] = entryValue(1, 0x2222);
++        ctx.ra[63] = entryValue(1, 0x3333);
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdha = 5;
++        w.imms18 = 7;
++        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
++        check(fault == exec::Fault::None, "ret D3: fault %s",
++              faultName(fault));
++        check(ctx.ra[63] == entryValue(1, 0x2222) &&
++                  ctx.ra[62] == entryValue(1, 0x1111),
++              "ret D3: entries moved up");
++        check(((ctx.ra[0] >> 48) & 0x3F) == 2,
++              "ret D3: RACNT 3 -> 2");
++        check(ctx.ip == 0x3333, "ret D3: IP = popped address");
++        check(ctx.rd[5] == 7, "ret D3: rdha = imms18");
++    }
++    // D4a: no RegRAS and no MemRAS.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(0, 0);
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdha = 5;
++        w.imms18 = 7;
++        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
++        check(fault == exec::Fault::RasUnderflow,
++              "ret D4a -> RasUnderflow (%s)", faultName(fault));
++        check(ctx.writes.empty() && ctx.memReads == 0,
++              "ret D4a: zero reads/writes");
++    }
++    // D4b with count 0: RasUnderflow, MRPTR unchanged.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(0, 0x2000);
++        const uint64_t memEntry = entryValue(0, 0x5555);
++        for (unsigned i = 0; i < 8; ++i)
++            ctx.mem[0x2000 + i] = (memEntry >> (56 - 8 * i)) & 0xFF;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdha = 5;
++        w.imms18 = 7;
++        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
++        check(fault == exec::Fault::RasUnderflow,
++              "ret D4b count 0 -> RasUnderflow (%s)", faultName(fault));
++        check((ctx.ra[0] & kMask48) == 0x2000,
++              "ret D4b count 0: MRPTR unchanged");
++        check(ctx.writes.empty(), "ret D4b count 0: zero writes");
++    }
++    // D4b with count 1: return, MRPTR += 8, RACNT stays 0.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(0, 0x2000);
++        const uint64_t memEntry = entryValue(1, 0x7777);
++        for (unsigned i = 0; i < 8; ++i)
++            ctx.mem[0x2000 + i] = (memEntry >> (56 - 8 * i)) & 0xFF;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdha = 5;
++        w.imms18 = 7;
++        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
++        check(fault == exec::Fault::None, "ret D4b count 1: fault %s",
++              faultName(fault));
++        check(ctx.ip == 0x7777, "ret D4b count 1: IP = entry[47:0]");
++        check((ctx.ra[0] & kMask48) == 0x2008,
++              "ret D4b count 1: MRPTR += 8");
++        check(((ctx.ra[0] >> 48) & 0x3F) == 0,
++              "ret D4b count 1: RACNT stays 0");
++        check(ctx.rd[5] == 7, "ret D4b count 1: rdha = imms18");
++    }
++    // D4b with count > 1: entry becomes the RegRAS top, count - 1.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(0, 0x2000);
++        const uint64_t memEntry = entryValue(3, 0x8888);
++        for (unsigned i = 0; i < 8; ++i)
++            ctx.mem[0x2000 + i] = (memEntry >> (56 - 8 * i)) & 0xFF;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdha = 5;
++        w.imms18 = 7;
++        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
++        check(fault == exec::Fault::None, "ret D4b count 3: fault %s",
++              faultName(fault));
++        check(ctx.ra[63] == entryValue(2, 0x8888),
++              "ret D4b count 3: ra63 = count-1 + address");
++        check(((ctx.ra[0] >> 48) & 0x3F) == 1,
++              "ret D4b count 3: RACNT = 1");
++        check((ctx.ra[0] & kMask48) == 0x2008,
++              "ret D4b count 3: MRPTR += 8");
++        check(ctx.ip == 0x8888, "ret D4b count 3: IP = entry[47:0]");
++    }
++    // ret rd0, 0 is legal and writes nothing; ret rd0, imm != 0 is ILLI
++    // with zero reads/writes.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(1, 0);
++        ctx.ra[63] = entryValue(1, 0x9999);
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdha = 0;
++        w.imms18 = 0;
++        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
++        check(fault == exec::Fault::None, "ret rd0,0 legal (%s)",
++              faultName(fault));
++        bool onlyRa = true;
++        for (const Write &write : ctx.writes)
++            onlyRa = onlyRa && write.bank == WBank::Ra;
++        check(ctx.badWrites == 0 && onlyRa,
++              "ret rd0,0: no rd0/rdha write (RA pop allowed)");
++        check(ctx.ip == 0x9999, "ret rd0,0: still returns");
++    }
++    {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdha = 0;
++        w.imms18 = 1;
++        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
++        check(fault == exec::Fault::Illegal,
++              "ret rd0,1 -> Illegal (%s)", faultName(fault));
++        check(ctx.reads == 0 && ctx.writes.empty() && ctx.memReads == 0,
++              "ret rd0,1: zero reads/writes");
++        check(ctx.ip == 0x1000, "ret rd0,1: PC unchanged");
++    }
++    // D4b read fault: Memory with unchanged RA.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.ra[0] = ra0Value(0, 0x2000);
++        const uint64_t ra0Before = ctx.ra[0];
++        resetCounters(ctx);
++        ctx.failReadAddr = 0x2000;
++        WordSpec w;
++        w.rdha = 5;
++        w.imms18 = 7;
++        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
++        check(fault == exec::Fault::Memory,
++              "ret D4b read fault -> Memory (%s)", faultName(fault));
++        check(ctx.writes.empty() && ctx.ra[0] == ra0Before,
++              "ret D4b fault: RA state unchanged");
++        check(ctx.ip == 0x1000, "ret D4b fault: PC stays at ret");
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 9. Dispatch by id (formats sharing a mnemonic).
++// ---------------------------------------------------------------------------
++
++void
++checkDispatch()
++{
++    // Every oracle id must decode to exactly that id and reach its own spec.
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        WordSpec w;
++        w.immu6 = 1;
++        w.rdhb = 2;
++        w.rdhc = 3;
++        w.rbhb = 2;
++        w.rbhc = 3;
++        w.rahb = 2;
++        w.rahc = 3;
++        w.rfhb = 2;
++        w.rfhc = 3;
++        w.rdha = 1;
++        w.rbha = 1;
++        w.imms18 = 4;
++        w.imms12 = 4;
++        w.imms24 = 4;
++        const uint32_t raw = makeWord(o.id, w);
++        const decode::DecodedInst decoded = decode::decodeWord(raw);
++        check(decoded.ok() && strEq(decoded.entry->id, o.id),
++              "dispatch: %s round-trips", o.id);
++    }
++    check(strEq(exec::b5SpecForId("br.z_riii_rd")->immField, "imms18") &&
++              strEq(exec::b5SpecForId("br.z_riii_rb")->condField, "rbha") &&
++              strEq(exec::b5SpecForId("br.eq_rrii_rd")->immField, "imms12"),
++          "dispatch: br.z rd/rb and br.eq rrii have distinct spec rows");
++    check(strEq(exec::b5SpecForId("jump_iiii_rb")->immField, "imms24") &&
++              strEq(exec::b5SpecForId("jump_rrii_rb")->immField, "imms12") &&
++              strEq(exec::b5SpecForId("call_iiii_ra")->immField, "imms24"),
++          "dispatch: jump/call iiii and rrii have distinct spec rows");
++    check(strEq(exec::b5SpecForId("cs.eq_rrrr_rd")->dstField, "rdhc") &&
++              strEq(exec::b5SpecForId("cs.ne_rrrr_rd")->dstField, "rdhc") &&
++              strEq(exec::b5SpecForId("cs.n_rrrr_rd")->dstField, "rdhb"),
++          "dispatch: cs.eq/ne destination is rdhc");
++}
++
++} // anonymous namespace
++
++int
++main()
++{
++    checkPositiveAll();
++    checkCoverage();
++    checkBlockCopy();
++    checkCondAssign();
++    checkBranches();
++    checkJumps();
++    checkCalls();
++    checkRets();
++    checkDispatch();
++
++    std::printf("\nsummary: B5 coverage 28/28, oracle rows %zu, "
++                "failures %d\n", kOracleCount, failures);
++    return failures == 0 ? 0 : 1;
++}

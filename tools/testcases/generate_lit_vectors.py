@@ -14,9 +14,9 @@
   **可汇编记录数**现场统计并打印）。
 
 输出（随产物入库，可重跑、幂等）：
-  1. ``tests/llvm/lit/MC/DADAO/gen-fast.s``：**受控子集**（每个「操作数形态」
+  1. ``tests/unit/llvm/lit/MC/DADAO/gen-fast.s``：**受控子集**（每个「操作数形态」
      取排序后首条记录），随既有 ``check-lit`` 进 ``make check``。
-  2. ``tests/llvm/lit/MC/DADAO-gen/{lit.cfg.py,gen-*.s}``：**全量档**，由
+  2. ``tests/unit/llvm/lit/MC/DADAO-gen/{lit.cfg.py,gen-*.s}``：**全量档**，由
      opt-in 目标 ``make check-lit-full`` 承载，**不进** ``make check``。
 
 计数不写死：脚本只**现场统计**并打印，不把具体数字写入源码/文档。
@@ -43,7 +43,11 @@ ALIASES = os.path.join(REPO, "contracts", "cfx-aliases.txt")
 
 
 def _load_cfx_aliases():
-    """-> (scalar{cfxha: [name]}, regs[(cfxha, cg, base, count, name)])."""
+    """-> (scalar{cfxha: [name]}, regs[(cfxha, cg, base, count, stride, name)]).
+
+    `reg` rows are contiguous (stride 1); `array` rows (format=2) carry an
+    explicit element stride, ``rc = base + N*stride``.
+    """
     scalar, regs = {}, []
     with open(ALIASES, "r", encoding="utf-8") as fh:
         for raw in fh:
@@ -55,7 +59,10 @@ def _load_cfx_aliases():
                 scalar.setdefault(int(parts[2]), []).append(parts[1])
             elif parts[0] == "reg":
                 regs.append((int(parts[2]), int(parts[3]), int(parts[4]),
-                             int(parts[5]), parts[1]))
+                             int(parts[5]), 1, parts[1]))
+            elif parts[0] == "array":
+                regs.append((int(parts[2]), int(parts[3]), int(parts[4]),
+                             int(parts[5]), int(parts[6]), parts[1]))
     return scalar, regs
 
 
@@ -69,16 +76,18 @@ def _cfx_scalar_name(cfxha):
 
 def _cfx_reg_name(cfxha, cg, rc):
     best = None
-    for ha, c, base, count, name in CFX_REGS:
-        if ha != cfxha or c != cg or not base <= rc < base + count:
+    for ha, c, base, count, stride, name in CFX_REGS:
+        if ha != cfxha or c != cg or rc < base or (rc - base) % stride:
+            continue
+        if (rc - base) // stride >= count:
             continue
         key = (0 if count == 1 else 1, name)
         if best is None or key < best[0]:
-            best = (key, base, count, name)
+            best = (key, base, count, stride, name)
     if best is None:
         return None
-    _key, base, count, name = best
-    return name if count == 1 else "%s[%d]" % (name, rc - base)
+    _key, base, count, stride, name = best
+    return name if count == 1 else "%s[%d]" % (name, (rc - base) // stride)
 
 
 def _printed_asm(asm, assigns, fmt):
@@ -99,8 +108,8 @@ def _printed_asm(asm, assigns, fmt):
     return asm
 
 GENERATOR_PATH = "tools/testcases/generate_lit_vectors.py"
-FAST_FILE = os.path.join(REPO, "tests", "llvm", "lit", "MC", "DADAO", "gen-fast.s")
-FULL_DIR = os.path.join(REPO, "tests", "llvm", "lit", "MC", "DADAO-gen")
+FAST_FILE = os.path.join(REPO, "tests", "unit", "llvm", "lit", "MC", "DADAO", "gen-fast.s")
+FULL_DIR = os.path.join(REPO, "tests", "unit", "llvm", "lit", "MC", "DADAO-gen")
 
 # ── 操作数形态分类（用于「受控子集」机械选取；不手工挑拣）──────────────
 # orri 的「多寄存器块赋值/格式转换」形态：目的/源均为 {start:end} 组，
@@ -170,15 +179,17 @@ def _build_positive(rec):
         return "%s [rb0, 12]" % mn, {"imms24": imm}, "iiii"
 
     if fmt == "oiii":
-        if mn == "fence":
-            # §5 fence 的 SBZ 约束：immu18[17:12]=[11:6]=[5:4]=0
-            return "fence 0", {"immu18": 0}, "oiii-fence"
         return "swym 8", {"immu18": 8}, "oiii-swym"
 
     if fmt == "ciii":
         if mn == "escape":
-            return ("escape cfx63, [excp_cause_ip, 8]",
-                    {"cfxha": 63, "imms18": 8 >> 2}, "ciii-escape")
+            # 合法偏移只有 0 / 4（imms18 ∈ {0, 1}）；取 4 ⇒ imms18 = 1。
+            return ("escape cfx63, [excp_cause_ip, 4]",
+                    {"cfxha": 63, "imms18": 4 >> 2}, "ciii-escape")
+        if mn == "fence":
+            # ADR-0044 D3: hb=immu18[17:12]=0; pred=1 (cr), succ=0 => immu18=0x40.
+            return ("fence cfx63, 64",
+                    {"cfxha": 63, "immu18": 0x40}, "ciii-fence")
         return "trap cfx63, 1", {"cfxha": 63, "immu18": 1}, "ciii-trap"
 
     if fmt == "crrr":
@@ -362,8 +373,6 @@ def _negative_text(rec):
         if mn.startswith(("sc_", "sc.")):
             return "%s rd8, rd9, [rb1, 0]" % mn
         return "%s rd9, [rb1, 0]" % mn
-    if fmt == "crii":          # cfxld/cfxst：cfxHA, [rb, imm]
-        return "%s cfx63, [rb2, 1]" % mn
     if fmt == "rrrr":          # clmul.o（ADR-0035；双目的与 mul.* 同形）
         return "%s {rd8, rd9}, rd10, rd11" % mn
     if fmt == "orri":          # ftrnd/fornd（取整：rf 目的 + 6 位模式立即数）
@@ -478,7 +487,7 @@ def _selfcheck(cases):
 
 
 LIT_CFG = '''# -*- Python -*-
-# GENERATED suite config for tests/llvm/lit/MC/DADAO-gen (TESTCASES-037t).
+# GENERATED suite config for tests/unit/llvm/lit/MC/DADAO-gen (TESTCASES-037t).
 # Resolves llvm-mc/llvm-objdump/FileCheck from the install-root host toolchain.
 import os
 import sys

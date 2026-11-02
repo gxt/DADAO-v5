@@ -1,0 +1,151 @@
+diff --git a/src/arch/dadao/exec/b6.hh b/src/arch/dadao/exec/b6.hh
+new file mode 100644
+index 0000000..168b46d
+--- /dev/null
++++ b/src/arch/dadao/exec/b6.hh
+@@ -0,0 +1,145 @@
++// DADAO gem5 B6 execution core: system/cfx, fence, LR/SC and swym (30 ids).
++//
++// Plain C++ (no gem5 headers), like the B0 decode core, so the *same* code is
++// driven by the component assertion harness (exec/b6_test.cc) and by the gem5
++// adapter (inst.cc).
++//
++// Source of truth: the B6 ids in contracts/opcodes.yaml, the same-id rows of
++// the GEM5-002t semantic matrix, spec/SimRISC-11 §1-§5 (cfx system
++// instructions + fence), spec/SimRISC-12 §1.1/§2 (LR/SC + swym), contract-isa
++// §13.1/§13.6/§14.1/§14.2 and ADR-0034/ADR-0044.  Only the 30 B6 ids are
++// implemented; every other decoded instruction reports NotB6.
++//
++// The reservation is the architectural one of contract-isa §14.2: one slot per
++// hart, keyed by the *exact* address and the access width (SPEC-181t F8.1).
++// The core does not model cfx registers, the SEE frame, privileges or
++// cross-hart snooping; those are platform hooks on B6Context.
++#ifndef __ARCH_DADAO_EXEC_B6_HH__
++#define __ARCH_DADAO_EXEC_B6_HH__
++
++#include <cstddef>
++#include <cstdint>
++#include <string_view>
++
++#include "arch/dadao/decode/decode.hh"
++#include "arch/dadao/exec/b1.hh"
++#include "arch/dadao/exec/b5.hh"
++#include "arch/dadao/exec/common.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++enum class B6Op
++{
++    Swym,
++    Fence,
++    Lr,
++    Sc,
++    Trap,
++    Escape,
++    CfxToRd,
++    CfxFromRd,
++};
++
++/** One decoded B6 id; this is also the dispatch table.
++ *
++ * Width, memory order and field names are spelled out one id at a time:
++ * lr/sc share both the orrr format and the mnemonic family, so the width and
++ * the order can only come from the id (`lr` has nn/an/ar, `sc` has nn/nr/ar).
++ */
++struct B6Spec
++{
++    const char *id;
++    B6Op op;
++    uint8_t width;        // lr/sc: 1/2/4/8; others 0
++    uint8_t order;        // 0=nn 1=an(acq) 2=nr(rel) 3=ar; others 0
++    const char *dstField; // "rdhb"(sc result) / "rdhc"(lr value) / "rdhd"(cfx)
++    const char *srcField; // "rdhc"(sc source) / nullptr
++    const char *baseField;// "rbhd"
++    const char *immField; // "immu18"(swym/trap/fence) / "imms18"(escape)
++    const char *cfxField; // "cfxha"
++    const char *cgField;  // "cghb"
++    const char *rcField;  // "rchc"
++};
++
++size_t b6SpecCount();
++const B6Spec *b6Specs();
++const B6Spec *b6SpecForId(std::string_view id);
++
++/** Extra context used by the B6 ids.
++ *
++ * Shares the register/memory interface of B5Context (hence B1Context).  The
++ * added capabilities are the cfx register access, the trap/escape control
++ * transfer, the reservation slot and the ordering hint.  A hook returning
++ * false is a precise fault: cfx2rd/cfx2rc must not write rdHD/cfx, trap must
++ * not transfer control and escape must report CFXESC.
++ */
++class B6Context : public B5Context
++{
++  public:
++    ~B6Context() override = default;
++
++    // cfx register access (contract-isa §13.6).  false => CFXREG: the
++    // combination does not exist, the permissions do not match or the platform
++    // does not model it.  On false the core performs no architectural write.
++    virtual bool readCfx(uint8_t cfxha, uint8_t cg, uint8_t rc,
++                         uint64_t &out) = 0;
++    virtual bool writeCfx(uint8_t cfxha, uint8_t cg, uint8_t rc,
++                          uint64_t val) = 0;
++
++    // trap/escape control transfer (SEE frame model lives in the adapter).
++    // escapeFrom() false => CFXESC (wrong frame/target), decided before any
++    // state change.
++    virtual void trapTo(uint8_t cfxha, uint32_t immu18) = 0;
++    virtual bool escapeFrom(uint8_t cfxha, uint32_t byteOffset) = 0;
++
++    // Reservation: one slot per hart, exact address + access width (F8.1).
++    virtual void setReservation(uint64_t addr, unsigned width) = 0;
++    virtual bool hasReservation(uint64_t addr, unsigned width) const = 0;
++    virtual void clearReservations() = 0;
++
++    // Ordering constraint of fence (mask only; strength is the platform's).
++    virtual void ordering(uint8_t cfxha, uint8_t pred, uint8_t succ) = 0;
++
++    // Ordered memory access; `order` is the B6Spec order (bit0 acquire,
++    // bit1 release).  The default degrades to B1's unordered access.
++    virtual bool
++    readMemOrdered(uint64_t addr, unsigned bytes, uint8_t *out, uint8_t order)
++    {
++        (void)order;
++        return readMem(addr, bytes, out);
++    }
++    virtual bool
++    writeMemOrdered(uint64_t addr, const uint8_t *in, unsigned bytes,
++                    uint8_t order)
++    {
++        (void)order;
++        return writeMem(addr, in, bytes);
++    }
++
++    // swym delay hint; architecturally a no-op.
++    virtual void
++    swymHint(uint32_t immu18)
++    {
++        (void)immu18;
++    }
++};
++
++/** Execute one B6 instruction.
++ *
++ * Returns NotB6 when the instruction does not belong to batch B6; callers must
++ * keep that instruction unimplemented rather than guessing.  Fault ordering is
++ * static ILLI -> MALIGN -> runtime (CFXREG/CFXESC) -> memory -> commit; every
++ * fault path is precise (no rd/rdHB/memory/reservation write).
++ */
++Fault executeB6(const decode::DecodedInst &inst, B6Context &ctx);
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_EXEC_B6_HH__

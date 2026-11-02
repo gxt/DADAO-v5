@@ -1,0 +1,619 @@
+diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
+new file mode 100644
+index 0000000..55d3bab
+--- /dev/null
++++ b/src/arch/dadao/inst.cc
+@@ -0,0 +1,613 @@
++// DADAO StaticInst (B0 skeleton + B1/B2/B3/B4/B5/B6/B7 execution).
++#include "arch/dadao/inst.hh"
++
++#include <memory>
++#include <vector>
++
++#include "arch/dadao/exec/b1.hh"
++#include "arch/dadao/exec/b2.hh"
++#include "arch/dadao/exec/b3.hh"
++#include "arch/dadao/exec/b4.hh"
++#include "arch/dadao/exec/b5.hh"
++#include "arch/dadao/exec/b6.hh"
++#include "arch/dadao/exec/b7.hh"
++#include "arch/dadao/faults.hh"
++#include "arch/dadao/isa.hh"
++#include "arch/dadao/regs/float.hh"
++#include "arch/dadao/regs/int.hh"
++#include "base/cprintf.hh"
++#include "cpu/exec_context.hh"
++#include "cpu/thread_context.hh"
++#include "mem/request.hh"
++
++namespace gem5
++{
++namespace DadaoISAInst
++{
++
++namespace
++{
++
++namespace exec = DadaoISA::exec;
++
++const char *
++mnemonicOf(DadaoISA::ExtMachInst word)
++{
++    const auto decoded = DadaoISA::decode::decodeWord(word);
++    return decoded.ok() ? decoded.entry->mnemonic : "illi";
++}
++
++/** gem5 adapter for the B1-B7 execution cores.
++ *
++ * The cores are plain C++ and only see byte arrays; this class provides the
++ * architectural register file (rd/rb/ra via the integer register class, rf via
++ * the float register class), the memory interface and the B6 platform hooks.
++ * executeB1() through executeB7() accept the same instance (it implements
++ * exec::B7Context, hence exec::B6Context/B5Context/B1Context/RegAccess); the
++ * B7 rounding-mode/flag helpers use the existing float accessors and the FCSR
++ * write mask.
++ *
++ * B6 platform boundary: there is no cfx register file / permission matrix /
++ * SEE frame / privilege model in G1, so readCfx()/writeCfx() report CFXREG,
++ * trapTo() panics and escapeFrom() reports CFXESC.  The reservation is held by
++ * the per-thread ISA object, single slot, exact address + width (SPEC-181t
++ * F8.1); no checkpoint state.
++ */
++class Gem5B1Context : public exec::B7Context
++{
++  private:
++    ExecContext *xc;
++    ThreadContext *tc;
++    Fault memFault;
++    uint64_t malignAddr;
++    unsigned malignWidth;
++
++    static RegId
++    intReg(exec::Bank bank, unsigned idx)
++    {
++        RegIndex base = DadaoISA::int_reg::RdBase;
++        switch (bank) {
++          case exec::Bank::Rd:
++            base = DadaoISA::int_reg::RdBase;
++            break;
++          case exec::Bank::Rb:
++            base = DadaoISA::int_reg::RbBase;
++            break;
++          case exec::Bank::Ra:
++            base = DadaoISA::int_reg::RaBase;
++            break;
++        }
++        return RegId(DadaoISA::intRegClass, base + idx);
++    }
++
++    static RegId
++    floatReg(unsigned idx)
++    {
++        return RegId(DadaoISA::floatRegClass, idx);
++    }
++
++    static std::vector<bool>
++    allBytes(unsigned bytes)
++    {
++        return std::vector<bool>(bytes, true);
++    }
++
++    DadaoISA::ISA *
++    isa() const
++    {
++        // One ISA object per thread (B6 reservation state lives there).
++        auto *isa = dynamic_cast<DadaoISA::ISA *>(tc->getIsaPtr());
++        if (isa == nullptr)
++            panic("DADAO exec: thread ISA object is not a DadaoISA::ISA");
++        return isa;
++    }
++
++  public:
++    explicit Gem5B1Context(ExecContext *xc) :
++        xc(xc), tc(xc->tcBase()), memFault(NoFault), malignAddr(0),
++        malignWidth(0)
++    {}
++
++    uint64_t
++    readInt(exec::Bank bank, unsigned idx) override
++    {
++        // rd0 is hard-wired zero; rb0 reads the current instruction address.
++        if (bank == exec::Bank::Rd && idx == 0)
++            return 0;
++        if (bank == exec::Bank::Rb && idx == 0)
++            return pc();
++        return tc->getReg(intReg(bank, idx));
++    }
++
++    void
++    writeInt(exec::Bank bank, unsigned idx, uint64_t val) override
++    {
++        // rd0/rb0 are read-only; executeB1()/executeB2() raise ILLI before any
++        // such write, so reaching this is an internal ISA bug -- fail loudly.
++        if ((bank == exec::Bank::Rd || bank == exec::Bank::Rb) && idx == 0) {
++            panic("DADAO exec: illegal write to read-only %s0",
++                  bank == exec::Bank::Rd ? "rd" : "rb");
++        }
++        tc->setReg(intReg(bank, idx), val);
++    }
++
++    uint64_t
++    readFloat(unsigned idx) override
++    {
++        return tc->getReg(floatReg(idx));
++    }
++
++    void
++    writeFloatLow32(unsigned idx, uint32_t val) override
++    {
++        const uint64_t old = tc->getReg(floatReg(idx));
++        tc->setReg(floatReg(idx), (old & 0xFFFFFFFF00000000ULL) | val);
++    }
++
++    void
++    writeFloat64(unsigned idx, uint64_t val) override
++    {
++        tc->setReg(floatReg(idx), val);
++    }
++
++    void
++    writeFcsr(uint64_t raw) override
++    {
++        // rf0 keeps its read-only quiet-NaN and SBZ bits; only the rounding
++        // mode [33:32] and the accrued flags [4:0] are writable
++        // (contract-isa §1.3.3).
++        constexpr uint64_t mask = (uint64_t(3) << 32) | 0x1F;
++        const uint64_t old = tc->getReg(floatReg(0));
++        tc->setReg(floatReg(0), (old & ~mask) | (raw & mask));
++    }
++
++    uint64_t
++    pc() const override
++    {
++        return xc->pcState().as<DadaoISA::PCState>().instAddr();
++    }
++
++    void
++    branchTo(uint64_t target64) override
++    {
++        // The full 64-bit target is written to rb0/PC; the low 48 bits are
++        // what the address space uses (ADR-0012 D8.3/D8.7).
++        //
++        // DadaoInst::advancePC() calls PCState::advance(), which moves pc to
++        // npc.  Setting only pc would therefore make the CPU continue at
++        // target + 4; npc is set to the target as well so the next fetched
++        // instruction is exactly the branch target.
++        DadaoISA::PCState target(target64);
++        target.npc(target64);
++        xc->pcState(target);
++    }
++
++    bool
++    readMem(uint64_t addr, unsigned bytes, uint8_t *out) override
++    {
++        const Fault fault = xc->readMem(addr, out, bytes, Request::Flags(0),
++                                        allBytes(bytes));
++        if (fault != NoFault) {
++            memFault = fault;
++            return false;
++        }
++        return true;
++    }
++
++    bool
++    writeMem(uint64_t addr, const uint8_t *in, unsigned bytes) override
++    {
++        const Fault fault = xc->writeMem(const_cast<uint8_t *>(in), bytes, addr,
++                                         Request::Flags(0), nullptr,
++                                         allBytes(bytes));
++        if (fault != NoFault) {
++            memFault = fault;
++            return false;
++        }
++        return true;
++    }
++
++    void
++    reportMalign(uint64_t addr, unsigned width) override
++    {
++        malignAddr = addr;
++        malignWidth = width;
++    }
++
++    bool
++    readCfx(uint8_t cfxha, uint8_t cg, uint8_t rc, uint64_t &out) override
++    {
++        // G1 has no cfx register file: every combination is CFXREG instead of
++        // a made-up zero (contract-isa §13.6 runtime fault).
++        (void)cfxha;
++        (void)cg;
++        (void)rc;
++        (void)out;
++        return false;
++    }
++
++    bool
++    writeCfx(uint8_t cfxha, uint8_t cg, uint8_t rc, uint64_t val) override
++    {
++        (void)cfxha;
++        (void)cg;
++        (void)rc;
++        (void)val;
++        return false;
++    }
++
++    void
++    trapTo(uint8_t cfxha, uint32_t immu18) override
++    {
++        // The SEE exception vector / frame model is not implemented.
++        panic("DADAO B6: trap cfx%u, %u (SEE vector model not implemented)",
++              cfxha, immu18);
++    }
++
++    bool
++    escapeFrom(uint8_t cfxha, uint32_t byteOffset) override
++    {
++        // No SEE frame to return to: explicit CFXESC, never a silent success.
++        (void)cfxha;
++        (void)byteOffset;
++        return false;
++    }
++
++    void
++    setReservation(uint64_t addr, unsigned width) override
++    {
++        isa()->setReservation(addr, width);
++    }
++
++    bool
++    hasReservation(uint64_t addr, unsigned width) const override
++    {
++        return isa()->hasReservation(addr, width);
++    }
++
++    void
++    clearReservations() override { isa()->clearReservations(); }
++
++    void
++    ordering(uint8_t cfxha, uint8_t pred, uint8_t succ) override
++    {
++        // No cfx resource-domain model in G1; this hook is the insertion point
++        // (the GEM5-002t matrix marks it as such).  The barrier strength is
++        // therefore not observable in this component (open question 4).
++        (void)cfxha;
++        (void)pred;
++        (void)succ;
++    }
++
++    bool
++    readMemOrdered(uint64_t addr, unsigned bytes, uint8_t *out,
++                   uint8_t order) override
++    {
++        // order bit0 = acquire, bit1 = release (B6Spec).
++        Request::Flags flags(0);
++        if (order & 0x1)
++            flags.set(Request::ACQUIRE);
++        if (order & 0x2)
++            flags.set(Request::RELEASE);
++        const Fault fault = xc->readMem(addr, out, bytes, flags,
++                                        allBytes(bytes));
++        if (fault != NoFault) {
++            memFault = fault;
++            return false;
++        }
++        return true;
++    }
++
++    bool
++    writeMemOrdered(uint64_t addr, const uint8_t *in, unsigned bytes,
++                    uint8_t order) override
++    {
++        Request::Flags flags(0);
++        if (order & 0x1)
++            flags.set(Request::ACQUIRE);
++        if (order & 0x2)
++            flags.set(Request::RELEASE);
++        const Fault fault = xc->writeMem(const_cast<uint8_t *>(in), bytes, addr,
++                                         flags, nullptr, allBytes(bytes));
++        if (fault != NoFault) {
++            memFault = fault;
++            return false;
++        }
++        return true;
++    }
++
++    Fault memFaultValue() const { return memFault; }
++    uint64_t malignAddress() const { return malignAddr; }
++    unsigned malignAccessWidth() const { return malignWidth; }
++};
++
++} // anonymous namespace
++
++DadaoInst::DadaoInst(DadaoISA::ExtMachInst w) :
++    StaticInst(mnemonicOf(w), IntAluOp), word(w),
++    decoded(DadaoISA::decode::decodeWord(w))
++{
++    size(4);
++    if (decoded.ok()) {
++        const bool fp = std::string(decoded.entry->scope) == "fp";
++        flags[IsInteger] = !fp;
++        flags[IsFloating] = fp;
++    } else {
++        flags[IsInvalid] = true;
++        flags[IsNonSpeculative] = true;
++    }
++}
++
++std::string
++DadaoInst::generateDisassembly(Addr, const loader::SymbolTable *) const
++{
++    return csprintf("%s 0x%08x", mnemonic, word);
++}
++
++Fault
++DadaoInst::execute(ExecContext *xc, trace::InstRecord *) const
++{
++    if (!decoded.ok())
++        return std::make_shared<DadaoISA::IllegalInstruction>(word);
++
++    // B1-B7 have execution semantics; every other batch stays explicitly
++    // unimplemented (no cross-batch guessing).
++    const uint8_t batch = decoded.entry->batch;
++    if (batch < 1 || batch > 7) {
++        return std::make_shared<DadaoISA::UnimplementedInstruction>(
++                word, decoded.entry->id);
++    }
++
++    Gem5B1Context ctx(xc);
++    if (batch == 1) {
++        switch (exec::executeB1(decoded, ctx)) {
++          case exec::Fault::None:
++            return NoFault;
++          case exec::Fault::Illegal:
++            return std::make_shared<DadaoISA::IllegalInstruction>(word);
++          case exec::Fault::Malign:
++            return std::make_shared<DadaoISA::MalignInstruction>(
++                    word, ctx.malignAddress(), ctx.malignAccessWidth());
++          case exec::Fault::Memory:
++            return ctx.memFaultValue();
++          case exec::Fault::NotB1:
++            break;
++          case exec::Fault::NotB2:
++          case exec::Fault::NotB3:
++          case exec::Fault::NotB4:
++          case exec::Fault::NotB5:
++          case exec::Fault::NotB6:
++          case exec::Fault::NotB7:
++          case exec::Fault::CfxReg:
++          case exec::Fault::CfxEsc:
++          case exec::Fault::RasOverflow:
++          case exec::Fault::RasUnderflow:
++            break;
++        }
++
++        // executeB1() must not reject an instruction whose entry is in
++        // batch 1.
++        panic("DADAO B1: %s (0x%08x) is batch 1 but rejected by executeB1()",
++              decoded.entry->id, word);
++    } else if (batch == 2) {
++        switch (exec::executeB2(decoded, ctx)) {
++          case exec::Fault::None:
++            return NoFault;
++          case exec::Fault::Illegal:
++            return std::make_shared<DadaoISA::IllegalInstruction>(word);
++          case exec::Fault::NotB2:
++            break;
++          case exec::Fault::NotB1:
++          case exec::Fault::NotB3:
++          case exec::Fault::NotB4:
++          case exec::Fault::NotB5:
++          case exec::Fault::NotB6:
++          case exec::Fault::NotB7:
++          case exec::Fault::CfxReg:
++          case exec::Fault::CfxEsc:
++          case exec::Fault::Malign:
++          case exec::Fault::Memory:
++          case exec::Fault::RasOverflow:
++          case exec::Fault::RasUnderflow:
++            break;
++        }
++
++        // executeB2() must not reject an instruction whose entry is in
++        // batch 2.
++        panic("DADAO B2: %s (0x%08x) is batch 2 but rejected by executeB2()",
++              decoded.entry->id, word);
++    } else if (batch == 3) {
++        switch (exec::executeB3(decoded, ctx)) {
++          case exec::Fault::None:
++            return NoFault;
++          case exec::Fault::Illegal:
++            return std::make_shared<DadaoISA::IllegalInstruction>(word);
++          case exec::Fault::NotB1:
++          case exec::Fault::NotB2:
++          case exec::Fault::NotB3:
++          case exec::Fault::NotB4:
++          case exec::Fault::NotB5:
++          case exec::Fault::NotB6:
++          case exec::Fault::NotB7:
++            break;
++          case exec::Fault::Malign:
++            panic("DADAO B3: %s raised Malign but B3 has no memory access",
++                  decoded.entry->id);
++          case exec::Fault::Memory:
++            panic("DADAO B3: %s raised Memory but B3 has no memory access",
++                  decoded.entry->id);
++          case exec::Fault::CfxReg:
++          case exec::Fault::CfxEsc:
++            panic("DADAO B3: %s raised a cfx fault but B3 has no cfx access",
++                  decoded.entry->id);
++          case exec::Fault::RasOverflow:
++          case exec::Fault::RasUnderflow:
++            panic("DADAO B3: %s raised a RAS fault but B3 has no RAS",
++                  decoded.entry->id);
++        }
++
++        // executeB3() must not reject an instruction whose entry is in
++        // batch 3.
++        panic("DADAO B3: %s (0x%08x) is batch 3 but rejected by executeB3()",
++              decoded.entry->id, word);
++    } else if (batch == 4) {
++        switch (exec::executeB4(decoded, ctx)) {
++          case exec::Fault::None:
++            return NoFault;
++          case exec::Fault::Illegal:
++            return std::make_shared<DadaoISA::IllegalInstruction>(word);
++          case exec::Fault::NotB1:
++          case exec::Fault::NotB2:
++          case exec::Fault::NotB3:
++          case exec::Fault::NotB4:
++          case exec::Fault::NotB5:
++          case exec::Fault::NotB6:
++          case exec::Fault::NotB7:
++            break;
++          case exec::Fault::Malign:
++            panic("DADAO B4: %s raised Malign but B4 has no memory access",
++                  decoded.entry->id);
++          case exec::Fault::Memory:
++            panic("DADAO B4: %s raised Memory but B4 has no memory access",
++                  decoded.entry->id);
++          case exec::Fault::CfxReg:
++          case exec::Fault::CfxEsc:
++            panic("DADAO B4: %s raised a cfx fault but B4 has no cfx access",
++                  decoded.entry->id);
++          case exec::Fault::RasOverflow:
++          case exec::Fault::RasUnderflow:
++            panic("DADAO B4: %s raised a RAS fault but B4 has no RAS",
++                  decoded.entry->id);
++        }
++
++        // executeB4() must not reject an instruction whose entry is in
++        // batch 4.
++        panic("DADAO B4: %s (0x%08x) is batch 4 but rejected by executeB4()",
++              decoded.entry->id, word);
++    } else if (batch == 5) {
++        switch (exec::executeB5(decoded, ctx)) {
++          case exec::Fault::None:
++            return NoFault;
++          case exec::Fault::Illegal:
++            return std::make_shared<DadaoISA::IllegalInstruction>(word);
++          case exec::Fault::NotB1:
++          case exec::Fault::NotB2:
++          case exec::Fault::NotB3:
++          case exec::Fault::NotB4:
++          case exec::Fault::NotB5:
++          case exec::Fault::NotB6:
++          case exec::Fault::NotB7:
++            break;
++          case exec::Fault::Malign:
++            panic("DADAO B5: %s raised Malign but B5 has no aligned access",
++                  decoded.entry->id);
++          case exec::Fault::Memory:
++            return ctx.memFaultValue();
++          case exec::Fault::CfxReg:
++          case exec::Fault::CfxEsc:
++            panic("DADAO B5: %s raised a cfx fault but B5 has no cfx access",
++                  decoded.entry->id);
++          case exec::Fault::RasOverflow:
++            panic("DADAO B5: %s raised RASOF (architectural trap model not "
++                  "implemented)", decoded.entry->id);
++          case exec::Fault::RasUnderflow:
++            panic("DADAO B5: %s raised RASUF (architectural trap model not "
++                  "implemented)", decoded.entry->id);
++        }
++
++        // executeB5() must not reject an instruction whose entry is in
++        // batch 5.
++        panic("DADAO B5: %s (0x%08x) is batch 5 but rejected by executeB5()",
++              decoded.entry->id, word);
++    } else if (batch == 6) {
++        switch (exec::executeB6(decoded, ctx)) {
++          case exec::Fault::None:
++            return NoFault;
++          case exec::Fault::Illegal:
++            return std::make_shared<DadaoISA::IllegalInstruction>(word);
++          case exec::Fault::Malign:
++            return std::make_shared<DadaoISA::MalignInstruction>(
++                    word, ctx.malignAddress(), ctx.malignAccessWidth());
++          case exec::Fault::Memory:
++            return ctx.memFaultValue();
++          case exec::Fault::CfxReg: {
++            uint64_t cfxha = 0, cg = 0, rc = 0;
++            exec::fieldValue(decoded, "cfxha", cfxha);
++            exec::fieldValue(decoded, "cghb", cg);
++            exec::fieldValue(decoded, "rchc", rc);
++            panic("DADAO B6: %s cfx%llu cg%llu rc%llu raised CFXREG "
++                  "(cfx register file not modelled)", decoded.entry->id,
++                  (unsigned long long)cfxha, (unsigned long long)cg,
++                  (unsigned long long)rc);
++          }
++          case exec::Fault::CfxEsc: {
++            uint64_t cfxha = 0, imms18 = 0;
++            exec::fieldValue(decoded, "cfxha", cfxha);
++            exec::fieldValue(decoded, "imms18", imms18);
++            panic("DADAO B6: %s cfx%llu offset 0x%llx raised CFXESC "
++                  "(SEE frame model not implemented)", decoded.entry->id,
++                  (unsigned long long)cfxha,
++                  (unsigned long long)((imms18 & 0x3FFFF) << 2));
++          }
++          case exec::Fault::NotB1:
++          case exec::Fault::NotB2:
++          case exec::Fault::NotB3:
++          case exec::Fault::NotB4:
++          case exec::Fault::NotB5:
++          case exec::Fault::NotB7:
++            break;
++          case exec::Fault::NotB6:
++            panic("DADAO B6: %s (0x%08x) is batch 6 but rejected by "
++                  "executeB6()", decoded.entry->id, word);
++          case exec::Fault::RasOverflow:
++          case exec::Fault::RasUnderflow:
++            panic("DADAO B6: %s raised a RAS fault but B6 has no RAS",
++                  decoded.entry->id);
++        }
++
++        // executeB6() must not reject an instruction whose entry is in
++        // batch 6.
++        panic("DADAO B6: %s (0x%08x) is batch 6 but rejected by executeB6()",
++              decoded.entry->id, word);
++    } else {
++        switch (exec::executeB7(decoded, ctx)) {
++          case exec::Fault::None:
++            return NoFault;
++          case exec::Fault::Illegal:
++            return std::make_shared<DadaoISA::IllegalInstruction>(word);
++          case exec::Fault::NotB1:
++          case exec::Fault::NotB2:
++          case exec::Fault::NotB3:
++          case exec::Fault::NotB4:
++          case exec::Fault::NotB5:
++          case exec::Fault::NotB6:
++            break;
++          case exec::Fault::NotB7:
++            panic("DADAO B7: %s (0x%08x) is batch 7 but rejected by "
++                  "executeB7()", decoded.entry->id, word);
++          case exec::Fault::Malign:
++          case exec::Fault::Memory:
++            panic("DADAO B7: %s raised a memory/alignment fault but B7 has no "
++                  "memory access", decoded.entry->id);
++          case exec::Fault::CfxReg:
++          case exec::Fault::CfxEsc:
++            panic("DADAO B7: %s raised a cfx fault but B7 has no cfx access",
++                  decoded.entry->id);
++          case exec::Fault::RasOverflow:
++          case exec::Fault::RasUnderflow:
++            panic("DADAO B7: %s raised a RAS fault but B7 has no RAS",
++                  decoded.entry->id);
++        }
++
++        // executeB7() must not reject an instruction whose entry is in
++        // batch 7.
++        panic("DADAO B7: %s (0x%08x) is batch 7 but rejected by executeB7()",
++              decoded.entry->id, word);
++    }
++
++    return std::make_shared<DadaoISA::UnimplementedInstruction>(
++            word, decoded.entry->id);
++}
++
++} // namespace DadaoISAInst
++} // namespace gem5

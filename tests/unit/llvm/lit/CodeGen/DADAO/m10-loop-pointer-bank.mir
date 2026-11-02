@@ -1,0 +1,220 @@
+# RUN: %llc -mtriple=dadao -run-pass=dadao-pointer-phi-bank -verify-machineinstrs -o - %s | %FileCheck %s
+#
+# LLVM-139t: DADAOPointerPHIBank operand-order normalization.
+#
+# A machine ADD_PSEUDO is a two-operand GPRD pseudo, so the loop pointer may be
+# either operand (the order follows the DAG).  The rebuilt add_o_bbd is
+# (GPRB base, GPRD offset) -- contract-isa.md §7.1 -- so a pointer in the
+# second position must be moved to the first, and the offset to the second.
+# Without that, the instruction's operand classes contradict its descriptor and
+# -verify-machineinstrs rejects the function.
+#
+# The IR->MIR pipeline always happens to put the base first; this MIR-level test
+# forces the other order so the swap path is covered.
+#
+# CHECK-LABEL: name: m10_phi_operand_first
+# CHECK:         %[[P:[0-9]+]]:gprb = PHI
+# CHECK:         %{{[0-9]+}}:gprb = add_o_bbd %[[P]], %{{[0-9]+}}
+# CHECK:         %{{[0-9]+}}:gprb = add_o_bbd
+# CHECK-LABEL: name: m10_phi_operand_second
+# CHECK:         %[[Q:[0-9]+]]:gprb = PHI
+# CHECK:         %{{[0-9]+}}:gprb = add_o_bbd %[[Q]], %{{[0-9]+}}
+# CHECK:         %{{[0-9]+}}:gprb = add_o_bbd
+
+---
+name:            m10_phi_operand_first
+alignment:       1
+exposesReturnsTwice: false
+legalized:       false
+regBankSelected: false
+selected:        false
+failedISel:      false
+tracksRegLiveness: true
+hasWinCFI:       false
+noPhis:          false
+isSSA:           true
+noVRegs:         false
+hasFakeUses:     false
+callsEHReturn:   false
+callsUnwindInit: false
+hasEHContTarget: false
+hasEHScopes:     false
+hasEHFunclets:   false
+isOutlined:      false
+debugInstrRef:   false
+failsVerification: false
+tracksDebugUserValues: false
+registers:
+  - { id: 0, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 1, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 2, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 3, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 4, class: gprb, preferred-register: '', flags: [  ] }
+  - { id: 5, class: gprb, preferred-register: '', flags: [  ] }
+  - { id: 6, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 7, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 8, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 9, class: gprb, preferred-register: '', flags: [  ] }
+  - { id: 10, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 11, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 12, class: gprd, preferred-register: '', flags: [  ] }
+liveins:
+  - { reg: '$rb16', virtual-reg: '%4' }
+  - { reg: '$rb17', virtual-reg: '%5' }
+  - { reg: '$rd16', virtual-reg: '%6' }
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    1
+  adjustsStack:    false
+  hasCalls:        false
+  framePointerPolicy: none
+  stackProtector:  ''
+  functionContext: ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+fixedStack:      []
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.0:
+    successors: %bb.1(0x80000000)
+    liveins: $rb16, $rb17, $rd16
+  
+    %6:gprd = COPY $rd16
+    %5:gprb = COPY $rb17
+    %4:gprb = COPY $rb16
+    %7:gprd = CONST_WYDE 0
+  
+  bb.1:
+    successors: %bb.1(0x7c000000), %bb.2(0x04000000)
+  
+    %0:gprd = PHI %7, %bb.0, %3, %bb.1
+    %1:gprd = PHI %4, %bb.0, %2, %bb.1
+    %9:gprb = COPY %1
+    %8:gprd = ld_o_rd %9, 0
+    st_o_rd killed %8, %5, 0
+    %10:gprd = shl_o_orri %0, 3
+    %11:gprd = ADD_PSEUDO %1, killed %10
+    %3:gprd = ADD_IMM_PSEUDO %0, 1
+    %12:gprd = cmp_uo %3, %6
+    %2:gprd = ADD_IMM_PSEUDO killed %11, 8
+    br_n_rd killed %12, %bb.1
+    jump_iiii %bb.2
+  
+  bb.2:
+    RET_PSEUDO
+...
+
+---
+name:            m10_phi_operand_second
+alignment:       1
+exposesReturnsTwice: false
+legalized:       false
+regBankSelected: false
+selected:        false
+failedISel:      false
+tracksRegLiveness: true
+hasWinCFI:       false
+noPhis:          false
+isSSA:           true
+noVRegs:         false
+hasFakeUses:     false
+callsEHReturn:   false
+callsUnwindInit: false
+hasEHContTarget: false
+hasEHScopes:     false
+hasEHFunclets:   false
+isOutlined:      false
+debugInstrRef:   false
+failsVerification: false
+tracksDebugUserValues: false
+registers:
+  - { id: 0, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 1, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 2, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 3, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 4, class: gprb, preferred-register: '', flags: [  ] }
+  - { id: 5, class: gprb, preferred-register: '', flags: [  ] }
+  - { id: 6, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 7, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 8, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 9, class: gprb, preferred-register: '', flags: [  ] }
+  - { id: 10, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 11, class: gprd, preferred-register: '', flags: [  ] }
+  - { id: 12, class: gprd, preferred-register: '', flags: [  ] }
+liveins:
+  - { reg: '$rb16', virtual-reg: '%4' }
+  - { reg: '$rb17', virtual-reg: '%5' }
+  - { reg: '$rd16', virtual-reg: '%6' }
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    1
+  adjustsStack:    false
+  hasCalls:        false
+  framePointerPolicy: none
+  stackProtector:  ''
+  functionContext: ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+fixedStack:      []
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.0:
+    successors: %bb.1(0x80000000)
+    liveins: $rb16, $rb17, $rd16
+  
+    %6:gprd = COPY $rd16
+    %5:gprb = COPY $rb17
+    %4:gprb = COPY $rb16
+    %7:gprd = CONST_WYDE 0
+  
+  bb.1:
+    successors: %bb.1(0x7c000000), %bb.2(0x04000000)
+  
+    %0:gprd = PHI %7, %bb.0, %3, %bb.1
+    %1:gprd = PHI %4, %bb.0, %2, %bb.1
+    %9:gprb = COPY %1
+    %8:gprd = ld_o_rd %9, 0
+    st_o_rd killed %8, %5, 0
+    %10:gprd = shl_o_orri %0, 3
+    %11:gprd = ADD_PSEUDO killed %10, %1
+    %3:gprd = ADD_IMM_PSEUDO %0, 1
+    %12:gprd = cmp_uo %3, %6
+    %2:gprd = ADD_IMM_PSEUDO killed %11, 8
+    br_n_rd killed %12, %bb.1
+    jump_iiii %bb.2
+  
+  bb.2:
+    RET_PSEUDO
+...

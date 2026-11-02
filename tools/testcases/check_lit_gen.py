@@ -29,8 +29,8 @@ except ImportError:  # pragma: no cover
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OPCODES = os.path.join(REPO, "contracts", "opcodes.yaml")
-DEFAULT_FULL = os.path.join(REPO, "tests", "llvm", "lit", "MC", "DADAO-gen")
-DEFAULT_FAST = os.path.join(REPO, "tests", "llvm", "lit", "MC", "DADAO",
+DEFAULT_FULL = os.path.join(REPO, "tests", "unit", "llvm", "lit", "MC", "DADAO-gen")
+DEFAULT_FAST = os.path.join(REPO, "tests", "unit", "llvm", "lit", "MC", "DADAO",
                             "gen-fast.s")
 
 # `@@ @src <id> [<enc-hex>] | <cite>`

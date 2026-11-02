@@ -1,0 +1,18 @@
+diff --git a/src/arch/dadao/decoder.cc b/src/arch/dadao/decoder.cc
+new file mode 100644
+index 0000000..929d86b
+--- /dev/null
++++ b/src/arch/dadao/decoder.cc
+@@ -0,0 +1,12 @@
++// DADAO instruction decoder (B0 skeleton) -- cache storage.
++#include "arch/dadao/decoder.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++
++GenericISA::BasicDecodeCache<Decoder, ExtMachInst> Decoder::defaultCache;
++
++} // namespace DadaoISA
++} // namespace gem5

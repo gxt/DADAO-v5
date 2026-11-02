@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
 new file mode 100644
-index 000000000..b3749f1f4
+index 000000000..92122df26
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
-@@ -0,0 +1,195 @@
+@@ -0,0 +1,204 @@
 +//===-- DADAOTargetMachine.cpp - Define TargetMachine for DADAO ---------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -41,6 +41,7 @@ index 000000000..b3749f1f4
 +
 +  auto *PR = PassRegistry::getPassRegistry();
 +  initializeDADAODAGToDAGISelLegacyPass(*PR);
++  initializeDADAOPointerPHIBankPass(*PR);
 +  initializeDADAOAsmPrinterPass(*PR);
 +  initializeDADAOLoadStoreOptPass(*PR);
 +}
@@ -122,6 +123,14 @@ index 000000000..b3749f1f4
 +  bool addInstSelector() override {
 +    addPass(createDADAOISelDag(getDADAOTargetMachine()));
 +    return false;
++  }
++
++  void addPreRegAlloc() override {
++    // Rebuild the loop-carried pointer-PHI chain in the RB bank (LLVM-139t).
++    // Runs right after ISel, while the machine function is still SSA; shapes
++    // outside the narrow direct-PHI/two-add form keep the existing rd2rb
++    // bridge.
++    addPass(createDADAOPointerPHIBankPass());
 +  }
 +
 +  void addIRPasses() override {

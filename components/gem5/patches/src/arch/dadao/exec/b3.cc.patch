@@ -1,0 +1,629 @@
+diff --git a/src/arch/dadao/exec/b3.cc b/src/arch/dadao/exec/b3.cc
+new file mode 100644
+index 0000000..e62d454
+--- /dev/null
++++ b/src/arch/dadao/exec/b3.cc
+@@ -0,0 +1,623 @@
++// DADAO gem5 B3 execution core -- implementation.
++//
++// The 42 B3 ids are dispatched through the table below (no mnemonic guessing:
++// `sub.o` has three ids in three formats, `cmp.uo` two, and shl/rol/shr/ext
++// each have an orrr and an orri id).  The id set must equal the batch_of() set
++// of the GEM5-002t matrix.
++#include "arch/dadao/exec/b3.hh"
++
++#include <cstddef>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <string_view>
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++namespace
++{
++
++// contract-isa §6.1.1 §6.1.3 §6.1.4 §6.1.5 §6.2 §6.3 §6.4 §7.1 §7.2 §7.3
++// §7.4 + SimRISC-04 §1.5; one row per contracts/opcodes.yaml B3 id.
++const B3Spec kSpecs[] = {
++    // ---- 128-bit rrrr arithmetic (contract-isa §6.1.1/§6.1.4) ----------
++    {"add.uo_rrrr_rd", B3Op::AddUo},
++    {"add.so_rrrr_rd", B3Op::AddSo},
++    {"sub.uo_rrrr_rd", B3Op::SubUo},
++    {"sub.so_rrrr_rd", B3Op::SubSo},
++    {"mul.uo_rrrr_rd", B3Op::MulUo},
++    {"mul.so_rrrr_rd", B3Op::MulSo},
++    {"clmul.o_rrrr_rd", B3Op::ClMul},
++    // ---- immediate arithmetic / compare (contract-isa §6.1.3/§6.2.1) ---
++    {"add.si_riii_rd", B3Op::AddSi},
++    {"aip.si_riii_rb", B3Op::AipSi},
++    {"add.si_riii_rb", B3Op::AddSi},
++    {"cmp.ui_rrii_rd", B3Op::CmpUi},
++    {"cmp.si_rrii_rd", B3Op::CmpSi},
++    // ---- bit scan / population (contract-isa §6.4.4) -------------------
++    {"ctpop_orri_rd", B3Op::CtPop},
++    {"ctlz_orri_rd", B3Op::CtLz},
++    {"cttz_orri_rd", B3Op::CtTz},
++    // ---- logic (contract-isa §6.3) -------------------------------------
++    {"and.o_orrr_rd", B3Op::And},
++    {"or.o_orrr_rd", B3Op::Or},
++    {"xor.o_orrr_rd", B3Op::Xor},
++    {"xnor.o_orrr_rd", B3Op::Xnor},
++    // ---- shift / rotate (contract-isa §6.4.1/§6.4.5) -------------------
++    {"shl.o_orrr_rd", B3Op::Shl},
++    {"rol.o_orrr_rd", B3Op::Rol},
++    {"shr.uo_orrr_rd", B3Op::ShrUo},
++    {"shr.so_orrr_rd", B3Op::ShrSo},
++    {"shl.o_orri_rd", B3Op::Shl},
++    {"rol.o_orri_rd", B3Op::Rol},
++    {"shr.uo_orri_rd", B3Op::ShrUo},
++    {"shr.so_orri_rd", B3Op::ShrSo},
++    // ---- extend / reverse (contract-isa §6.4.2/§6.4.3) -----------------
++    {"ext.uo_orrr_rd", B3Op::ExtUo},
++    {"ext.so_orrr_rd", B3Op::ExtSo},
++    {"ext.uo_orri_rd", B3Op::ExtUo},
++    {"ext.so_orri_rd", B3Op::ExtSo},
++    {"rev.o_orri_rd", B3Op::Rev},
++    // ---- RB address arithmetic (contract-isa §7) -----------------------
++    {"add.o_orrr_bbd", B3Op::AddBbd},
++    {"sub.o_orrr_bbd", B3Op::SubBbd},
++    {"cmp.uo_orrr_dbb", B3Op::CmpUoDbb},
++    {"sub.o_orrr_dbb", B3Op::SubDbb},
++    // ---- 64-bit compare / divide / remainder (§6.2.2/§6.1.5) -----------
++    {"cmp.uo_orrr_rd", B3Op::CmpUo},
++    {"cmp.so_orrr_rd", B3Op::CmpSo},
++    {"div.uo_orrr_rd", B3Op::DivUo},
++    {"div.so_orrr_rd", B3Op::DivSo},
++    {"rem.uo_orrr_rd", B3Op::RemUo},
++    {"rem.so_orrr_rd", B3Op::RemSo},
++};
++
++constexpr size_t kNumSpecs = sizeof(kSpecs) / sizeof(kSpecs[0]);
++static_assert(kNumSpecs == 42, "B3 must cover exactly the 42 contract ids");
++
++/** A batch-3 instruction that this table cannot execute is a contract or
++ * implementation mismatch.  Trap instead of silently succeeding. */
++[[noreturn]] void
++internalError(const char *what)
++{
++    std::fprintf(stderr, "DADAO B3: internal error: %s\n", what);
++    std::abort();
++}
++
++/** Fetch one decoded field by name; a missing field means the decode table
++ * and this core disagree -- hard failure, never a silent zero. */
++uint64_t
++field(const decode::DecodedInst &inst, const char *name)
++{
++    uint64_t value = 0;
++    if (!fieldValue(inst, name, value)) {
++        std::fprintf(stderr,
++                     "DADAO B3: internal error: %s misses field %s\n",
++                     inst.entry->id, name);
++        std::abort();
++    }
++    return value;
++}
++
++bool
++formatIs(const decode::DecodedInst &inst, const char *format)
++{
++    return std::string_view(inst.entry->format) == format;
++}
++
++/** Shift/rotate amount: orrr = the low 6 bits of the rdhd *register value*
++ * (natural mod 64, never ILLI); orri = immu6 (6 bits, 0..63 all legal).
++ * contract-isa §6.4.1/§6.4.5. */
++uint64_t
++shiftAmount(const decode::DecodedInst &inst, RegAccess &ctx)
++{
++    if (formatIs(inst, "orrr")) {
++        const unsigned hd = static_cast<unsigned>(field(inst, "rdhd"));
++        return ctx.readInt(Bank::Rd, hd) & 63;
++    }
++    if (formatIs(inst, "orri"))
++        return field(inst, "immu6");
++    internalError("shift op is neither orrr nor orri");
++}
++
++/** Extend start bit: orrr = the full 64-bit rdhd *register value*, so >63 is
++ * checkable; orri = immu6 (always 0..63).  contract-isa §6.4.2. */
++uint64_t
++extendStartBit(const decode::DecodedInst &inst, RegAccess &ctx)
++{
++    if (formatIs(inst, "orrr")) {
++        const unsigned hd = static_cast<unsigned>(field(inst, "rdhd"));
++        return ctx.readInt(Bank::Rd, hd);
++    }
++    if (formatIs(inst, "orri"))
++        return field(inst, "immu6");
++    internalError("ext op is neither orrr nor orri");
++}
++
++/** Low `bits` bits set; bits == 64 is the all-ones mask. */
++uint64_t
++lowMask(unsigned bits)
++{
++    return bits >= 64 ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
++}
++
++/** cmp result: -1/0/1 written over all 64 bits (contract-isa §6.2). */
++uint64_t
++compareResult(bool less, bool equal)
++{
++    if (less)
++        return ~uint64_t(0);
++    return equal ? 0 : 1;
++}
++
++uint64_t
++cmpUnsigned(uint64_t a, uint64_t b)
++{
++    return compareResult(a < b, a == b);
++}
++
++uint64_t
++cmpSigned(uint64_t a, uint64_t b)
++{
++    const int64_t sa = static_cast<int64_t>(a);
++    const int64_t sb = static_cast<int64_t>(b);
++    return compareResult(sa < sb, sa == sb);
++}
++
++/** GF(2) carry-less 64x64 -> 128 product (SimRISC-04 §1.5). */
++unsigned __int128
++carrylessProduct(uint64_t a, uint64_t b)
++{
++    unsigned __int128 product = 0;
++    for (unsigned bit = 0; bit < 64; ++bit) {
++        if (((a >> bit) & 1) != 0)
++            product ^= static_cast<unsigned __int128>(b) << bit;
++    }
++    return product;
++}
++
++/** rev.o: reverse the order of the 64/k k-bit units of the 64-bit source
++ * (bit order inside a unit is kept).  SimRISC-04 §2.2.1. */
++uint64_t
++reverseUnits(uint64_t value, unsigned k)
++{
++    const unsigned units = 64 / k;
++    const uint64_t unitMask = lowMask(k);
++    uint64_t result = 0;
++    for (unsigned i = 0; i < units; ++i) {
++        const uint64_t unit = (value >> (i * k)) & unitMask;
++        result |= unit << ((units - 1 - i) * k);
++    }
++    return result;
++}
++
++} // anonymous namespace
++
++size_t
++b3SpecCount()
++{
++    return kNumSpecs;
++}
++
++const B3Spec *
++b3Specs()
++{
++    return kSpecs;
++}
++
++const B3Spec *
++b3SpecForId(std::string_view id)
++{
++    for (size_t i = 0; i < kNumSpecs; ++i) {
++        if (id == kSpecs[i].id)
++            return &kSpecs[i];
++    }
++    return nullptr;
++}
++
++Fault
++executeB3(const decode::DecodedInst &inst, RegAccess &ctx)
++{
++    if (!inst.ok() || inst.entry->batch != 3)
++        return Fault::NotB3;
++
++    const B3Spec *spec = b3SpecForId(inst.entry->id);
++    if (spec == nullptr)
++        internalError("uncovered batch-3 id");
++
++    switch (spec->op) {
++      // -----------------------------------------------------------------
++      // 128-bit rrrr arithmetic: rdhb = low, rdha = high.  All source reads
++      // happen before either destination write (contract-isa §6.1.1/§6.1.4,
++      // SimRISC-04 §1.5), so rdha/rdhb may alias rdhc/rdhd.
++      // -----------------------------------------------------------------
++      case B3Op::AddUo:
++      case B3Op::AddSo:
++      case B3Op::SubUo:
++      case B3Op::SubSo:
++      case B3Op::MulUo:
++      case B3Op::MulSo:
++      case B3Op::ClMul: {
++        const uint64_t haValue = field(inst, "rdha");
++        const uint64_t hbValue = field(inst, "rdhb");
++        // Static legality before any register read: not both rd0, and not the
++        // same non-rd0 register.
++        if (haValue == 0 && hbValue == 0)
++            return Fault::Illegal;
++        if (haValue == hbValue && haValue != 0)
++            return Fault::Illegal;
++        const unsigned ha = static_cast<unsigned>(haValue);
++        const unsigned hb = static_cast<unsigned>(hbValue);
++        const unsigned hc = static_cast<unsigned>(field(inst, "rdhc"));
++        const unsigned hd = static_cast<unsigned>(field(inst, "rdhd"));
++
++        const uint64_t a = ctx.readInt(Bank::Rd, hc);
++        const uint64_t b = ctx.readInt(Bank::Rd, hd);
++        unsigned __int128 result = 0;
++        switch (spec->op) {
++          case B3Op::AddUo:
++            // 65-bit unsigned sum: high half is the 0/1 carry
++            // (contract-isa §6.1.1).
++            result = static_cast<unsigned __int128>(a) + b;
++            break;
++          case B3Op::SubUo:
++            // 65-bit unsigned difference: high half is the 0/1 borrow
++            // (contract-isa §6.1.1).
++            result = a >= b
++                    ? static_cast<unsigned __int128>(a - b)
++                    : (static_cast<unsigned __int128>(1) << 64) | (a - b);
++            break;
++          case B3Op::AddSo:
++            result = static_cast<unsigned __int128>(
++                    static_cast<__int128>(static_cast<int64_t>(a)) +
++                    static_cast<__int128>(static_cast<int64_t>(b)));
++            break;
++          case B3Op::SubSo:
++            result = static_cast<unsigned __int128>(
++                    static_cast<__int128>(static_cast<int64_t>(a)) -
++                    static_cast<__int128>(static_cast<int64_t>(b)));
++            break;
++          case B3Op::MulUo:
++            result = static_cast<unsigned __int128>(a) * b;
++            break;
++          case B3Op::MulSo:
++            result = static_cast<unsigned __int128>(
++                    static_cast<__int128>(static_cast<int64_t>(a)) *
++                    static_cast<__int128>(static_cast<int64_t>(b)));
++            break;
++          case B3Op::ClMul:
++            result = carrylessProduct(a, b);
++            break;
++          default:
++            internalError("non-rrrr op in the rrrr case");
++        }
++
++        // Both destinations see the pre-instruction source snapshot; a rd0
++        // destination is simply discarded.
++        if (ha != 0)
++            ctx.writeInt(Bank::Rd, ha, static_cast<uint64_t>(result >> 64));
++        if (hb != 0)
++            ctx.writeInt(Bank::Rd, hb, static_cast<uint64_t>(result));
++        return Fault::None;
++      }
++
++      // -----------------------------------------------------------------
++      // Immediate arithmetic (riii).
++      // -----------------------------------------------------------------
++      case B3Op::AddSi: {
++        uint64_t dstValue = 0;
++        const bool toRb = fieldValue(inst, "rbha", dstValue);
++        if (!toRb && !fieldValue(inst, "rdha", dstValue))
++            internalError("add.si misses its destination field");
++        const unsigned dst = static_cast<unsigned>(dstValue);
++        const Bank bank = toRb ? Bank::Rb : Bank::Rd;
++        if (dst == 0)
++            return Fault::Illegal;
++        const uint64_t imm = static_cast<uint64_t>(
++                decode::signExtend(field(inst, "imms18"), 18));
++        const uint64_t old = ctx.readInt(bank, dst);
++        ctx.writeInt(bank, dst, old + imm);
++        return Fault::None;
++      }
++      case B3Op::AipSi: {
++        const unsigned dst = static_cast<unsigned>(field(inst, "rbha"));
++        if (dst == 0)
++            return Fault::Illegal;
++        const uint64_t offset = static_cast<uint64_t>(
++                static_cast<uint64_t>(
++                    decode::signExtend(field(inst, "imms18"), 18)) << 12);
++        // IP is the current instruction address, low bits not cleared
++        // (contract-isa §7.4, ADR-0029 D1).
++        ctx.writeInt(Bank::Rb, dst, ctx.pc() + offset);
++        return Fault::None;
++      }
++
++      // -----------------------------------------------------------------
++      // Immediate compare (rrii).
++      // -----------------------------------------------------------------
++      case B3Op::CmpUi: {
++        const unsigned dst = static_cast<unsigned>(field(inst, "rdha"));
++        const unsigned src = static_cast<unsigned>(field(inst, "rdhb"));
++        if (dst == 0)
++            return Fault::Illegal;
++        // immu12 is unsigned and must never be sign-extended
++        // (contract-isa §6.2.1).
++        const uint64_t imm = field(inst, "immu12");
++        const uint64_t value = ctx.readInt(Bank::Rd, src);
++        ctx.writeInt(Bank::Rd, dst, cmpUnsigned(value, imm));
++        return Fault::None;
++      }
++      case B3Op::CmpSi: {
++        const unsigned dst = static_cast<unsigned>(field(inst, "rdha"));
++        const unsigned src = static_cast<unsigned>(field(inst, "rdhb"));
++        if (dst == 0)
++            return Fault::Illegal;
++        const uint64_t imm = static_cast<uint64_t>(
++                decode::signExtend(field(inst, "imms12"), 12));
++        const uint64_t value = ctx.readInt(Bank::Rd, src);
++        ctx.writeInt(Bank::Rd, dst, cmpSigned(value, imm));
++        return Fault::None;
++      }
++
++      // -----------------------------------------------------------------
++      // Bit scan / population count (orri, hd = immu6).
++      // -----------------------------------------------------------------
++      case B3Op::CtPop:
++      case B3Op::CtLz:
++      case B3Op::CtTz: {
++        const unsigned dst = static_cast<unsigned>(field(inst, "rdhb"));
++        const unsigned src = static_cast<unsigned>(field(inst, "rdhc"));
++        if (dst == 0)
++            return Fault::Illegal;
++        const unsigned hd = static_cast<unsigned>(field(inst, "immu6"));
++        const uint64_t valid = ctx.readInt(Bank::Rd, src) & lowMask(hd + 1);
++        uint64_t result;
++        switch (spec->op) {
++          case B3Op::CtPop:
++            result = static_cast<uint64_t>(__builtin_popcountll(valid));
++            break;
++          case B3Op::CtLz:
++            // Leading zeros counted from bit hd downwards; all-zero valid
++            // bits are defined as hd + 1 (SimRISC-12 §3).
++            result = valid == 0 ? hd + 1
++                    : hd - (63 - static_cast<unsigned>(
++                                       __builtin_clzll(valid)));
++            break;
++          case B3Op::CtTz:
++            // Trailing zeros from bit 0 upwards, bounded by hd; all-zero
++            // valid bits are defined as hd + 1.
++            result = valid == 0 ? hd + 1
++                    : static_cast<uint64_t>(__builtin_ctzll(valid));
++            break;
++          default:
++            internalError("non-bit-scan op in the bit-scan case");
++        }
++        ctx.writeInt(Bank::Rd, dst, result);
++        return Fault::None;
++      }
++
++      // -----------------------------------------------------------------
++      // Logic (orrr, full 64 bits).
++      // -----------------------------------------------------------------
++      case B3Op::And:
++      case B3Op::Or:
++      case B3Op::Xor:
++      case B3Op::Xnor: {
++        const unsigned dst = static_cast<unsigned>(field(inst, "rdhb"));
++        const unsigned lhs = static_cast<unsigned>(field(inst, "rdhc"));
++        const unsigned rhs = static_cast<unsigned>(field(inst, "rdhd"));
++        if (dst == 0)
++            return Fault::Illegal;
++        const uint64_t a = ctx.readInt(Bank::Rd, lhs);
++        const uint64_t b = ctx.readInt(Bank::Rd, rhs);
++        uint64_t result;
++        switch (spec->op) {
++          case B3Op::And: result = a & b; break;
++          case B3Op::Or: result = a | b; break;
++          case B3Op::Xor: result = a ^ b; break;
++          case B3Op::Xnor: result = ~(a ^ b); break;
++          default: internalError("non-logic op in the logic case");
++        }
++        ctx.writeInt(Bank::Rd, dst, result);
++        return Fault::None;
++      }
++
++      // -----------------------------------------------------------------
++      // Shift / rotate (orrr shamt = rdhd[5:0], orri shamt = immu6).
++      // -----------------------------------------------------------------
++      case B3Op::Shl:
++      case B3Op::Rol:
++      case B3Op::ShrUo:
++      case B3Op::ShrSo: {
++        const unsigned dst = static_cast<unsigned>(field(inst, "rdhb"));
++        const unsigned src = static_cast<unsigned>(field(inst, "rdhc"));
++        if (dst == 0)
++            return Fault::Illegal;
++        // 64-bit shifts have no reachable shamt > N: orrr is mod 64 and orri
++        // is a 6-bit field, so the contract's "shamt > N => ILLI" clause is
++        // unreachable here and no synthetic ILLI is raised (GEM5-008t #2).
++        const unsigned shamt = static_cast<unsigned>(shiftAmount(inst, ctx));
++        const uint64_t value = ctx.readInt(Bank::Rd, src);
++        uint64_t result;
++        switch (spec->op) {
++          case B3Op::Shl:
++            result = value << shamt;
++            break;
++          case B3Op::Rol:
++            // n == 0 rotates by 0 (the (64 - n) & 63 term becomes 0).
++            result = (value << shamt) | (value >> ((64 - shamt) & 63));
++            break;
++          case B3Op::ShrUo:
++            result = value >> shamt;
++            break;
++          case B3Op::ShrSo:
++            if (shamt == 0) {
++                result = value;
++            } else if ((value >> 63) != 0) {
++                // Arithmetic shift: fill with the sign bit without relying on
++                // implementation-defined signed right shift.
++                result = (value >> shamt) | (~uint64_t(0) << (64 - shamt));
++            } else {
++                result = value >> shamt;
++            }
++            break;
++          default:
++            internalError("non-shift op in the shift case");
++        }
++        ctx.writeInt(Bank::Rd, dst, result);
++        return Fault::None;
++      }
++
++      // -----------------------------------------------------------------
++      // Sign / zero extend (orrr hd = rdhd full value, orri hd = immu6).
++      // -----------------------------------------------------------------
++      case B3Op::ExtUo:
++      case B3Op::ExtSo: {
++        const unsigned dst = static_cast<unsigned>(field(inst, "rdhb"));
++        const unsigned src = static_cast<unsigned>(field(inst, "rdhc"));
++        if (dst == 0)
++            return Fault::Illegal;
++        const uint64_t start = extendStartBit(inst, ctx);
++        // orri cannot express hd > 63; orrr takes the whole register value,
++        // so 64..2^64-1 is ILLI (contract-isa §6.4.2).
++        if (start > 63)
++            return Fault::Illegal;
++        const unsigned hd = static_cast<unsigned>(start);
++        const uint64_t mask = lowMask(hd + 1);
++        const uint64_t value = ctx.readInt(Bank::Rd, src);
++        uint64_t result = value & mask;
++        if (spec->op == B3Op::ExtSo && ((value >> hd) & 1) != 0)
++            result |= ~mask;
++        ctx.writeInt(Bank::Rd, dst, result);
++        return Fault::None;
++      }
++
++      // -----------------------------------------------------------------
++      // rev.o (orri): k units of k bits, unit order reversed.
++      // -----------------------------------------------------------------
++      case B3Op::Rev: {
++        const unsigned dst = static_cast<unsigned>(field(inst, "rdhb"));
++        const unsigned src = static_cast<unsigned>(field(inst, "rdhc"));
++        if (dst == 0)
++            return Fault::Illegal;
++        const unsigned k = static_cast<unsigned>(field(inst, "immu6"));
++        // One-hot and k < 64; the legal values are 1/2/4/8/16/32
++        // (contract-isa §6.4.3, rule encode_onehot).
++        if (k == 0 || (k & (k - 1)) != 0 || k >= 64)
++            return Fault::Illegal;
++        const uint64_t value = ctx.readInt(Bank::Rd, src);
++        ctx.writeInt(Bank::Rd, dst, reverseUnits(value, k));
++        return Fault::None;
++      }
++
++      // -----------------------------------------------------------------
++      // RB address arithmetic: bbd (dst rbhb, src rbhc + rdhd) and dbb
++      // (dst rdhb, src rbhc + rbhd).  Field roles, never mnemonics.
++      // -----------------------------------------------------------------
++      case B3Op::AddBbd:
++      case B3Op::SubBbd: {
++        const unsigned dst = static_cast<unsigned>(field(inst, "rbhb"));
++        const unsigned lhs = static_cast<unsigned>(field(inst, "rbhc"));
++        const unsigned rhs = static_cast<unsigned>(field(inst, "rdhd"));
++        if (dst == 0)
++            return Fault::Illegal;
++        const uint64_t a = ctx.readInt(Bank::Rb, lhs);
++        const uint64_t b = ctx.readInt(Bank::Rd, rhs);
++        // Full 64-bit result; no [47:0] address truncation here
++        // (contract-isa §7.1, ADR-0012 D8.7).
++        ctx.writeInt(Bank::Rb, dst,
++                     spec->op == B3Op::AddBbd ? a + b : a - b);
++        return Fault::None;
++      }
++      case B3Op::CmpUoDbb: {
++        const unsigned dst = static_cast<unsigned>(field(inst, "rdhb"));
++        const unsigned lhs = static_cast<unsigned>(field(inst, "rbhc"));
++        const unsigned rhs = static_cast<unsigned>(field(inst, "rbhd"));
++        if (dst == 0)
++            return Fault::Illegal;
++        const uint64_t a = ctx.readInt(Bank::Rb, lhs);
++        const uint64_t b = ctx.readInt(Bank::Rb, rhs);
++        ctx.writeInt(Bank::Rd, dst, cmpUnsigned(a, b));
++        return Fault::None;
++      }
++      case B3Op::SubDbb: {
++        const unsigned dst = static_cast<unsigned>(field(inst, "rdhb"));
++        const unsigned lhs = static_cast<unsigned>(field(inst, "rbhc"));
++        const unsigned rhs = static_cast<unsigned>(field(inst, "rbhd"));
++        if (dst == 0)
++            return Fault::Illegal;
++        const uint64_t a = ctx.readInt(Bank::Rb, lhs);
++        const uint64_t b = ctx.readInt(Bank::Rb, rhs);
++        ctx.writeInt(Bank::Rd, dst, a - b);
++        return Fault::None;
++      }
++
++      // -----------------------------------------------------------------
++      // 64-bit compare (orrr rd bank).
++      // -----------------------------------------------------------------
++      case B3Op::CmpUo:
++      case B3Op::CmpSo: {
++        const unsigned dst = static_cast<unsigned>(field(inst, "rdhb"));
++        const unsigned lhs = static_cast<unsigned>(field(inst, "rdhc"));
++        const unsigned rhs = static_cast<unsigned>(field(inst, "rdhd"));
++        if (dst == 0)
++            return Fault::Illegal;
++        const uint64_t a = ctx.readInt(Bank::Rd, lhs);
++        const uint64_t b = ctx.readInt(Bank::Rd, rhs);
++        ctx.writeInt(Bank::Rd, dst,
++                     spec->op == B3Op::CmpUo ? cmpUnsigned(a, b)
++                                             : cmpSigned(a, b));
++        return Fault::None;
++      }
++
++      // -----------------------------------------------------------------
++      // Divide / remainder (orrr rd bank), constant results on divide by
++      // zero and on the signed INT_MIN / -1 overflow (contract-isa §6.1.5).
++      // -----------------------------------------------------------------
++      case B3Op::DivUo:
++      case B3Op::DivSo:
++      case B3Op::RemUo:
++      case B3Op::RemSo: {
++        const unsigned dst = static_cast<unsigned>(field(inst, "rdhb"));
++        const unsigned lhs = static_cast<unsigned>(field(inst, "rdhc"));
++        const unsigned rhs = static_cast<unsigned>(field(inst, "rdhd"));
++        if (dst == 0)
++            return Fault::Illegal;
++        const uint64_t a = ctx.readInt(Bank::Rd, lhs);
++        const uint64_t b = ctx.readInt(Bank::Rd, rhs);
++        uint64_t result;
++        if (spec->op == B3Op::DivUo || spec->op == B3Op::RemUo) {
++            result = b == 0 ? (spec->op == B3Op::DivUo ? ~uint64_t(0) : a)
++                            : (spec->op == B3Op::DivUo ? a / b : a % b);
++        } else {
++            const int64_t sa = static_cast<int64_t>(a);
++            const int64_t sb = static_cast<int64_t>(b);
++            const bool overflow = sa == INT64_MIN && sb == -1;
++            if (sb == 0) {
++                result = spec->op == B3Op::DivSo ? ~uint64_t(0) : a;
++            } else if (overflow) {
++                result = spec->op == B3Op::DivSo
++                        ? (uint64_t(1) << 63) : 0;
++            } else if (spec->op == B3Op::DivSo) {
++                result = static_cast<uint64_t>(sa / sb);
++            } else {
++                result = static_cast<uint64_t>(sa % sb);
++            }
++        }
++        ctx.writeInt(Bank::Rd, dst, result);
++        return Fault::None;
++      }
++    }
++
++    internalError("unknown B3 op");
++}
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5

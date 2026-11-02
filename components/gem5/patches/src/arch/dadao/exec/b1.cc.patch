@@ -1,0 +1,320 @@
+diff --git a/src/arch/dadao/exec/b1.cc b/src/arch/dadao/exec/b1.cc
+new file mode 100644
+index 0000000..3e62bec
+--- /dev/null
++++ b/src/arch/dadao/exec/b1.cc
+@@ -0,0 +1,314 @@
++// DADAO gem5 B1 execution core -- implementation.
++//
++// The 38 B1 ids are dispatched through the table below (no mnemonic guessing:
++// the id set must equal the batch_of() set of the GEM5-002t matrix).
++#include "arch/dadao/exec/b1.hh"
++
++#include <cstddef>
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++namespace
++{
++
++// Valid virtual addresses are 48-bit (contract-isa §1.5).
++constexpr uint64_t kVaMask = (uint64_t(1) << 48) - 1;
++
++// Format of the fields (decode/decode.hh): rrii = dst, rbhb, imms12;
++// rrri = dst, rbhb, rdhc, immu6.
++const B1Spec kSpecs[] = {
++    // ---- single RD loads (contract-isa §3.1.1) -------------------------
++    {"ld.ub_rrii_rd", Access::Load, Target::Rd, Shape::Single, 1, false,
++        "rdha", "rbhb", nullptr, nullptr},
++    {"ld.uw_rrii_rd", Access::Load, Target::Rd, Shape::Single, 2, false,
++        "rdha", "rbhb", nullptr, nullptr},
++    {"ld.ut_rrii_rd", Access::Load, Target::Rd, Shape::Single, 4, false,
++        "rdha", "rbhb", nullptr, nullptr},
++    {"ld.sb_rrii_rd", Access::Load, Target::Rd, Shape::Single, 1, true,
++        "rdha", "rbhb", nullptr, nullptr},
++    {"ld.sw_rrii_rd", Access::Load, Target::Rd, Shape::Single, 2, true,
++        "rdha", "rbhb", nullptr, nullptr},
++    {"ld.st_rrii_rd", Access::Load, Target::Rd, Shape::Single, 4, true,
++        "rdha", "rbhb", nullptr, nullptr},
++    // ---- single RD stores (contract-isa §3.1.1) ------------------------
++    {"st.b_rrii_rd", Access::Store, Target::Rd, Shape::Single, 1, false,
++        "rdha", "rbhb", nullptr, nullptr},
++    {"st.w_rrii_rd", Access::Store, Target::Rd, Shape::Single, 2, false,
++        "rdha", "rbhb", nullptr, nullptr},
++    {"st.t_rrii_rd", Access::Store, Target::Rd, Shape::Single, 4, false,
++        "rdha", "rbhb", nullptr, nullptr},
++    {"ld.o_rrii_rd", Access::Load, Target::Rd, Shape::Single, 8, false,
++        "rdha", "rbhb", nullptr, nullptr},
++    {"st.o_rrii_rd", Access::Store, Target::Rd, Shape::Single, 8, false,
++        "rdha", "rbhb", nullptr, nullptr},
++    // ---- single RB / RA (contract-isa §3.2 / §3.3.1) -------------------
++    {"ld.o_rrii_rb", Access::Load, Target::Rb, Shape::Single, 8, false,
++        "rbha", "rbhb", nullptr, nullptr},
++    {"st.o_rrii_rb", Access::Store, Target::Rb, Shape::Single, 8, false,
++        "rbha", "rbhb", nullptr, nullptr},
++    {"ld.o_rrii_ra", Access::Load, Target::Ra, Shape::Single, 8, false,
++        "raha", "rbhb", nullptr, nullptr},
++    {"st.o_rrii_ra", Access::Store, Target::Ra, Shape::Single, 8, false,
++        "raha", "rbhb", nullptr, nullptr},
++    // ---- single RF (contract-fp §11) -----------------------------------
++    {"ld.t_rrii_rf", Access::Load, Target::Rf, Shape::Single, 4, false,
++        "rfha", "rbhb", nullptr, nullptr},
++    {"st.t_rrii_rf", Access::Store, Target::Rf, Shape::Single, 4, false,
++        "rfha", "rbhb", nullptr, nullptr},
++    {"ld.o_rrii_rf", Access::Load, Target::Rf, Shape::Single, 8, false,
++        "rfha", "rbhb", nullptr, nullptr},
++    {"st.o_rrii_rf", Access::Store, Target::Rf, Shape::Single, 8, false,
++        "rfha", "rbhb", nullptr, nullptr},
++    // ---- multi RD loads (contract-isa §3.1.2) --------------------------
++    {"ldm.ub_rrri_rd", Access::Load, Target::Rd, Shape::Multi, 1, false,
++        "rdha", "rbhb", "rdhc", "immu6"},
++    {"ldm.uw_rrri_rd", Access::Load, Target::Rd, Shape::Multi, 2, false,
++        "rdha", "rbhb", "rdhc", "immu6"},
++    {"ldm.ut_rrri_rd", Access::Load, Target::Rd, Shape::Multi, 4, false,
++        "rdha", "rbhb", "rdhc", "immu6"},
++    {"ldm.sb_rrri_rd", Access::Load, Target::Rd, Shape::Multi, 1, true,
++        "rdha", "rbhb", "rdhc", "immu6"},
++    {"ldm.sw_rrri_rd", Access::Load, Target::Rd, Shape::Multi, 2, true,
++        "rdha", "rbhb", "rdhc", "immu6"},
++    {"ldm.st_rrri_rd", Access::Load, Target::Rd, Shape::Multi, 4, true,
++        "rdha", "rbhb", "rdhc", "immu6"},
++    // ---- multi RD stores (contract-isa §3.1.2) -------------------------
++    {"stm.b_rrri_rd", Access::Store, Target::Rd, Shape::Multi, 1, false,
++        "rdha", "rbhb", "rdhc", "immu6"},
++    {"stm.w_rrri_rd", Access::Store, Target::Rd, Shape::Multi, 2, false,
++        "rdha", "rbhb", "rdhc", "immu6"},
++    {"stm.t_rrri_rd", Access::Store, Target::Rd, Shape::Multi, 4, false,
++        "rdha", "rbhb", "rdhc", "immu6"},
++    {"ldm.o_rrri_rd", Access::Load, Target::Rd, Shape::Multi, 8, false,
++        "rdha", "rbhb", "rdhc", "immu6"},
++    {"stm.o_rrri_rd", Access::Store, Target::Rd, Shape::Multi, 8, false,
++        "rdha", "rbhb", "rdhc", "immu6"},
++    // ---- multi RB / RA (contract-isa §3.2 / §3.3.2) --------------------
++    {"ldm.o_rrri_rb", Access::Load, Target::Rb, Shape::Multi, 8, false,
++        "rbha", "rbhb", "rdhc", "immu6"},
++    {"stm.o_rrri_rb", Access::Store, Target::Rb, Shape::Multi, 8, false,
++        "rbha", "rbhb", "rdhc", "immu6"},
++    {"ldm.o_rrri_ra", Access::Load, Target::Ra, Shape::Multi, 8, false,
++        "raha", "rbhb", "rdhc", "immu6"},
++    {"stm.o_rrri_ra", Access::Store, Target::Ra, Shape::Multi, 8, false,
++        "raha", "rbhb", "rdhc", "immu6"},
++    // ---- multi RF (contract-fp §11) ------------------------------------
++    {"ldm.t_rrri_rf", Access::Load, Target::Rf, Shape::Multi, 4, false,
++        "rfha", "rbhb", "rdhc", "immu6"},
++    {"stm.t_rrri_rf", Access::Store, Target::Rf, Shape::Multi, 4, false,
++        "rfha", "rbhb", "rdhc", "immu6"},
++    {"ldm.o_rrri_rf", Access::Load, Target::Rf, Shape::Multi, 8, false,
++        "rfha", "rbhb", "rdhc", "immu6"},
++    {"stm.o_rrri_rf", Access::Store, Target::Rf, Shape::Multi, 8, false,
++        "rfha", "rbhb", "rdhc", "immu6"},
++};
++
++constexpr size_t kNumSpecs = sizeof(kSpecs) / sizeof(kSpecs[0]);
++
++/** Look up a named field; false when the id has no such field (or the name is
++ * absent from the spec row). */
++bool
++lookupField(const decode::DecodedInst &inst, const char *name, uint64_t &out)
++{
++    if (name == nullptr)
++        return false;
++    return fieldValue(inst, std::string_view(name), out);
++}
++
++/** Big-endian bytes -> value (DADAO is big-endian, contract-isa §1.6). */
++uint64_t
++beToHost(const uint8_t *buf, unsigned width)
++{
++    uint64_t value = 0;
++    for (unsigned i = 0; i < width; ++i)
++        value = (value << 8) | buf[i];
++    return value;
++}
++
++/** Value -> big-endian bytes, keeping the low `width` bytes. */
++void
++hostToBe(uint64_t value, unsigned width, uint8_t *buf)
++{
++    for (unsigned i = 0; i < width; ++i)
++        buf[i] = (value >> (8 * (width - 1 - i))) & 0xFF;
++}
++
++uint64_t
++readSource(B1Context &ctx, Target target, unsigned idx)
++{
++    switch (target) {
++      case Target::Rd: return ctx.readInt(Bank::Rd, idx);
++      case Target::Rb: return ctx.readInt(Bank::Rb, idx);
++      case Target::Ra: return ctx.readInt(Bank::Ra, idx);
++      case Target::Rf: return ctx.readFloat(idx);
++    }
++    return 0;
++}
++
++void
++writeDestination(B1Context &ctx, Target target, unsigned idx, uint64_t raw,
++           unsigned width)
++{
++    switch (target) {
++      case Target::Rd:
++        ctx.writeInt(Bank::Rd, idx, raw);
++        return;
++      case Target::Rb:
++        ctx.writeInt(Bank::Rb, idx, raw);
++        return;
++      case Target::Ra:
++        ctx.writeInt(Bank::Ra, idx, raw);
++        return;
++      case Target::Rf:
++        if (width == 4) {
++            // ld.t / ldm.t: [31:0] replaced, [63:32] preserved (contract-fp
++            // §11), which also covers rf0 (FCSR high half untouched).
++            ctx.writeFloatLow32(idx, static_cast<uint32_t>(raw));
++        } else if (idx == 0) {
++            ctx.writeFcsr(raw);
++        } else {
++            ctx.writeFloat64(idx, raw);
++        }
++        return;
++    }
++}
++
++} // anonymous namespace
++
++size_t
++specCount()
++{
++    return kNumSpecs;
++}
++
++const B1Spec *
++specs()
++{
++    return kSpecs;
++}
++
++const B1Spec *
++specForId(std::string_view id)
++{
++    for (size_t i = 0; i < kNumSpecs; ++i) {
++        if (id == kSpecs[i].id)
++            return &kSpecs[i];
++    }
++    return nullptr;
++}
++
++Fault
++executeB1(const decode::DecodedInst &inst, B1Context &ctx)
++{
++    if (!inst.ok() || inst.entry->batch != 1)
++        return Fault::NotB1;
++
++    // An uncovered B1 id is a contract/implementation mismatch: trap (ILLI)
++    // instead of silently succeeding.  b1_test asserts the covered set equals
++    // the live B1 set, so this branch is unreachable for a coherent table.
++    const B1Spec *spec = specForId(inst.entry->id);
++    if (spec == nullptr)
++        return Fault::Illegal;
++
++    uint64_t dstValue = 0;
++    uint64_t baseValue = 0;
++    uint64_t offValue = 0;
++    uint64_t countValue = 0;
++    if (!lookupField(inst, spec->dstField, dstValue) ||
++        !lookupField(inst, spec->baseField, baseValue)) {
++        return Fault::Illegal;
++    }
++
++    const bool multi = spec->shape == Shape::Multi;
++    if (multi) {
++        if (!lookupField(inst, spec->offsetField, offValue) ||
++            !lookupField(inst, spec->countField, countValue)) {
++            return Fault::Illegal;
++        }
++    } else if (lookupField(inst, spec->offsetField, offValue) ||
++               lookupField(inst, spec->countField, countValue)) {
++        return Fault::Illegal;
++    }
++
++    const unsigned dst = static_cast<unsigned>(dstValue);
++    const unsigned base = static_cast<unsigned>(baseValue);
++    const unsigned count = multi ? static_cast<unsigned>(countValue) : 1u;
++
++    // ---- static legality (ILLI): before any register or memory access ----
++    if (spec->access == Access::Load) {
++        // rd0 / rb0 are read-only: loading into them is illegal.  ra0 and rf0
++        // are legal destinations (contract-isa §3.3, contract-fp §11).
++        if (spec->target == Target::Rd && dst == 0)
++            return Fault::Illegal;
++        if (spec->target == Target::Rb && dst == 0)
++            return Fault::Illegal;
++    }
++    if (multi) {
++        if (count == 0)
++            return Fault::Illegal;
++        // No wrap and no truncation: the destination block must fit.
++        if (dst + count > 64)
++            return Fault::Illegal;
++    }
++
++    // ---- effective address (48-bit virtual, mod 2^48) --------------------
++    uint64_t ea;
++    if (multi) {
++        // The address offset register is read once, *before* the block write:
++        // "when the range includes rdHC the address still uses the original
++        // rdHC" (SimRISC-01 §1/§2).
++        const uint64_t offset =
++            ctx.readInt(Bank::Rd, static_cast<unsigned>(offValue));
++        ea = (ctx.readInt(Bank::Rb, base) + offset) & kVaMask;
++    } else {
++        uint64_t immValue = 0;
++        if (!lookupField(inst, "imms12", immValue))
++            return Fault::Illegal;
++        // imms12 is a *signed* 12-bit field and must be sign-extended to 64
++        // bits before the addition (not zero-extended).
++        const int64_t imm = decode::signExtend(immValue, 12);
++        ea = (ctx.readInt(Bank::Rb, base) + static_cast<uint64_t>(imm)) &
++            kVaMask;
++    }
++
++    // ---- dynamic legality (MALIGN): alignment before touching memory -----
++    const unsigned width = spec->width;
++    if (width > 1 && (ea & (uint64_t(width) - 1)) != 0) {
++        ctx.reportMalign(ea, width);
++        return Fault::Malign;
++    }
++
++    // ---- element loop: increasing i, each element read/write in order -----
++    for (unsigned i = 0; i < count; ++i) {
++        const unsigned idx = dst + i;
++        const uint64_t addr = (ea + uint64_t(i) * width) & kVaMask;
++
++        if (spec->access == Access::Load) {
++            uint8_t buf[8] = {};
++            if (!ctx.readMem(addr, width, buf))
++                return Fault::Memory;
++            const uint64_t raw = beToHost(buf, width);
++            const uint64_t value = spec->signExtend
++                ? static_cast<uint64_t>(decode::signExtend(raw, width * 8))
++                : raw;
++            writeDestination(ctx, spec->target, idx, value, width);
++        } else {
++            const uint64_t value = readSource(ctx, spec->target, idx);
++            uint8_t buf[8] = {};
++            hostToBe(value, width, buf);
++            if (!ctx.writeMem(addr, buf, width))
++                return Fault::Memory;
++        }
++    }
++
++    return Fault::None;
++}
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5

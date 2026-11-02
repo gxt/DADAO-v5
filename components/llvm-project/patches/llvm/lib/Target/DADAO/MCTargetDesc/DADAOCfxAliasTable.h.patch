@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.h b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.h
 new file mode 100644
-index 000000000..c905c7935
+index 000000000..63e4aa2c6
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.h
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,71 @@
 +//===-- DADAOCfxAliasTable.h - DADAO cfx alias runtime table ----*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -54,16 +54,20 @@ index 000000000..c905c7935
 +bool lookupCfxScalarAlias(StringRef Name, unsigned &Cfxha);
 +
 +/// Resolve a register alias `cfx_<cfxname>_<regname>` (no subscript) ->
-+/// (cfxha, cg, rcBase, rcCount); rcCount > 1 marks an array register (D10).
++/// (cfxha, cg, rcBase, rcCount, rcStride); rcCount > 1 marks an array register
++/// (D10) whose element N lives at `rc = rcBase + N*rcStride` (non-array
++/// registers have rcStride == 1).
 +bool lookupCfxRegAlias(StringRef Name, unsigned &Cfxha, unsigned &Cg,
-+                       unsigned &RcBase, unsigned &RcCount);
++                       unsigned &RcBase, unsigned &RcCount,
++                       unsigned &RcStride);
 +
 +/// Canonical printed scalar name for \p Cfxha (empty when the table has none).
 +StringRef getCfxScalarName(unsigned Cfxha);
 +
 +/// Canonical printed register name for the (Cfxha, Cg, Rc) triple; array
-+/// registers are rendered with the single-subscript `name[rc - rcBase]` form.
-+/// Returns false (leaving \p Name untouched) when no name covers the triple.
++/// registers are rendered with the single-subscript
++/// `name[(rc - rcBase)/stride]` form.  Returns false (leaving \p Name
++/// untouched) when no name covers the triple.
 +bool getCfxRegName(unsigned Cfxha, unsigned Cg, unsigned Rc,
 +                   std::string &Name);
 +

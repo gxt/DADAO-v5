@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..d50a2ffad
+index 000000000..a9267835e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,885 @@
+@@ -0,0 +1,941 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -305,6 +305,48 @@ index 000000000..d50a2ffad
 +  }
 +
 +  switch (Node->getOpcode()) {
++  case ISD::SIGN_EXTEND:
++  case ISD::ZERO_EXTEND: {
++    // LLVM-127t narrow negation must keep the rd0 form even when an enclosing
++    // extend is present.  Handle the extend root before the generic TableGen
++    // patterns can materialise the zero operand as CONST_WYDE.  The narrow
++    // subtraction and the canonical extension remain two distinct operations,
++    // matching the existing negation contract and m6-not-neg.ll.
++    //
++    // The replacement node must carry the extend node's *own* result type
++    // (LLVM-140t): a narrow operand is extended either to i64 (the common case)
++    // or to another narrow legal type -- e.g. `sext i16 -> i32` from `-x`
++    // truncated to i16.  `SelectionDAG::ReplaceAllUsesWith` asserts when the
++    // result types differ, so typing the `ext.*` node at the requested type is
++    // both what the TableGen patterns do (`(i32 (sext (i16 GPRD)))` ->
++    // ext_so_orri) and what keeps the RAUW legal.
++    SDValue Narrow = Node->getOperand(0);
++    SDNode *Sub = Narrow.getNode();
++    const EVT VT = Narrow.getValueType();
++    if (Sub->getOpcode() == ISD::SUB &&
++        (VT == MVT::i8 || VT == MVT::i16 || VT == MVT::i32)) {
++      const auto *Z = dyn_cast<ConstantSDNode>(Sub->getOperand(0));
++      if (Z && Z->isZero()) {
++        const bool IsT = VT == MVT::i32, IsW = VT == MVT::i16;
++        const unsigned SubOpc = IsT ? DADAO::sub_st
++                              : IsW ? DADAO::sub_sw : DADAO::sub_sb;
++        const unsigned ExtOpc = Node->getOpcode() == ISD::SIGN_EXTEND
++                                    ? DADAO::ext_so_orri
++                                    : DADAO::ext_uo_orri;
++        const unsigned Width = VT.getSizeInBits() - 1;
++        const SDLoc DL(Node);
++        SDNode *NarrowSub = CurDAG->getMachineNode(
++            SubOpc, DL, VT, CurDAG->getRegister(DADAO::rd0, MVT::i64),
++            Sub->getOperand(1));
++        SDValue Imm = CurDAG->getTargetConstant(Width, DL, MVT::i64);
++        SDNode *Extended = CurDAG->getMachineNode(
++            ExtOpc, DL, Node->getValueType(0), SDValue(NarrowSub, 0), Imm);
++        ReplaceNode(Node, Extended);
++        return;
++      }
++    }
++    break;
++  }
 +  case ISD::Constant: {
 +    // All legal integer widths: i64 plus the narrow i8/i16/i32 of LLVM-127t.
 +    // (i1 never reaches ISel -- it is promoted to i8 -- so it is not listed.)
@@ -425,33 +467,43 @@ index 000000000..d50a2ffad
 +  case ISD::SHL:
 +  case ISD::SRL:
 +  case ISD::SRA: {
-+    // Narrow constant shift (LLVM-127t): fold to the one-instruction orri form.
-+    // A TableGen immediate leaf cannot express this -- the DAG shift amount has
-+    // the narrow operand type while the `immu6` operand is i64 -- so it is done
-+    // here.  `immu6 >= W` is an ILLI in hardware, so only in-range amounts are
-+    // folded; an out-of-range amount is poison in LLVM IR and falls through to
-+    // the register form (which reduces the amount modulo W).
++    // Constant shift (narrow: LLVM-127t; i64: LLVM-137t): fold to the
++    // one-instruction orri form.  A TableGen immediate leaf cannot express this
++    // -- the DAG shift amount has the narrow operand type while the `immu6`
++    // operand is i64 -- so it is done here.  `immu6 >= W` is an ILLI in
++    // hardware, so only in-range amounts are folded; an out-of-range amount is
++    // poison in LLVM IR and falls through to the register form (which reduces
++    // the amount modulo W).  A zero amount is canonicalized to a copy by LLVM
++    // before ISel (the lit test pins that `shl0`/`lshr0`/`ashr0` stay `rd2rd`).
 +    const EVT VT = Node->getValueType(0);
 +    const auto *Amt = dyn_cast<ConstantSDNode>(Node->getOperand(1));
-+    if (!Amt || (VT != MVT::i8 && VT != MVT::i16 && VT != MVT::i32))
++    if (!Amt || (VT != MVT::i8 && VT != MVT::i16 && VT != MVT::i32 &&
++                 VT != MVT::i64))
 +      break;
 +    const unsigned W = VT.getSizeInBits();
 +    const uint64_t Sh = Amt->getZExtValue();
 +    if (Sh >= W)
 +      break;
-+    const bool IsT = VT == MVT::i32, IsW = VT == MVT::i16;
++    const bool IsO = VT == MVT::i64, IsT = VT == MVT::i32,
++               IsW = VT == MVT::i16;
 +    unsigned Opc;
 +    switch (Node->getOpcode()) {
 +    default:
 +      llvm_unreachable("unexpected shift opcode");
 +    case ISD::SHL:
-+      Opc = IsT ? DADAO::shl_t_orri : IsW ? DADAO::shl_w_orri : DADAO::shl_b_orri;
++      Opc = IsO ? DADAO::shl_o_orri
++                : IsT ? DADAO::shl_t_orri
++                      : IsW ? DADAO::shl_w_orri : DADAO::shl_b_orri;
 +      break;
 +    case ISD::SRL:
-+      Opc = IsT ? DADAO::shr_ut_orri : IsW ? DADAO::shr_uw_orri : DADAO::shr_ub_orri;
++      Opc = IsO ? DADAO::shr_uo_orri
++                : IsT ? DADAO::shr_ut_orri
++                      : IsW ? DADAO::shr_uw_orri : DADAO::shr_ub_orri;
 +      break;
 +    case ISD::SRA:
-+      Opc = IsT ? DADAO::shr_st_orri : IsW ? DADAO::shr_sw_orri : DADAO::shr_sb_orri;
++      Opc = IsO ? DADAO::shr_so_orri
++                : IsT ? DADAO::shr_st_orri
++                      : IsW ? DADAO::shr_sw_orri : DADAO::shr_sb_orri;
 +      break;
 +    }
 +    SDValue Imm = CurDAG->getTargetConstant(Sh, SDLoc(Node), MVT::i64);
@@ -741,12 +793,16 @@ index 000000000..d50a2ffad
 +  }
 +  case DADAOISD::FENCE: {
 +    // Memory barrier (LLVM-121t): [0] chain, [1] TargetConstant with the
-+    // fm/pred/succ bit pattern computed by LowerATOMIC_FENCE.  The `fence`
++    // hb/pred/succ bit pattern computed by LowerATOMIC_FENCE.  The `fence`
 +    // def is MC-only (Pattern = []), so it is selected here.
 +    const SDLoc DL(Node);
 +    SDValue Chain = Node->getOperand(0);
 +    uint64_t Imm = cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();
++    // ADR-0044: ciii takes cfxha plus the combined immediate.  CodeGen's
++    // atomics target system memory, so cfxha = 0 (all cfx) is the widest
++    // scope and never weakens the barrier.
 +    CurDAG->SelectNodeTo(Node, DADAO::fence, MVT::Other,
++                         CurDAG->getTargetConstant(0, DL, MVT::i64),
 +                         CurDAG->getTargetConstant(Imm, DL, MVT::i64), Chain);
 +    return;
 +  }

@@ -199,3 +199,57 @@
 - **2026-10-26 `QEMU-076t`**
   - 摘要：**semihosting 判定迁至 `0x3FF00–0x3FFFF`（ADR-0038 D1/D4）**：`insn_trans/trans_ctrl.c.inc` 译码条件 `((immu18 >> 16) & 0x3) == 0x3` → `immu18 >= 0x3FF00`；`helper.c` 的同判据防御分支与两处注释同步；调用点 `0x30000` → `0x3FF00`（bootrom_app/`codegen_crt0`/`build_test_binary`/M5 向量/e2e/`min_rom_probe_*`）。**语义/服务号不变**（`0x30001` HBI INIT、指令编码字、`0x3FFFF` 掩码常量未动）。
   - 执行者：engineer
+
+- **2026-10-29 `INTEG-039t`**
+  - 摘要：**地址空间 Step 2（ADR-0040）**：`ptw_enable=1` 由显式失败改为两级页表步进——从 PA 读 64 位大端 PTE（`HSJU[63:60]`、`PPN[55:16]`/超页 `[55:29]`、`SPF/GPF[15:8]`、flags `[7:0]`），L1 next-level / L1 512 MiB 超页 / L2 64 KiB 普通页，`VA[41:29]`/`[28:16]` 选索引，形成 PA56；按 `P=0`/超页缺失 → SPF/GPF → HSJU → R/W/X 顺序判错，页表异常经 §5 流程进入 `cfx_ptw`（新 `DADAO_EXCP_PTW_FAULT` + `ptw_fault_cause/info`，cfx4 的 `cause_nonmaskable` 补齐页级 cause）；保留位忽略、超页 PPN 低位强制清零；A/D 只定义不更新（无 TLB）。新增探针 `tools/testcases/arch/min_rom_probe_integ039t.py`（37 例）。
+  - 执行者：engineer
+
+- **2026-10-29 `INTEG-038t`**
+  - 摘要：**地址空间 Step 1（ADR-0039 §8.5）**：CPU 地址按 48 位处理（`addr[47:42]` 分区）；`addr[47:42] = 0` 为内存窗口，`ptw_enable=0` 时数据/取指均 ⇒ CFXMEM（不再按 umon 段特判，也不直通 pmem）；`ptw_enable=1` 的页表步进尚未实现 ⇒ 显式失败（不静默成功）。新增单 PTBR `cfx_ptw_ptbr`（cg9 rc0，写掩码 `PPN[55:16]`）与 `cfx_ptw_enable`（cg8 rc8，1 位）；复位均为 0；写 PTBR/使能不隐含 TLB 失效。保留 cfx（7–14、19–61）普通 ld/st ⇒ CFXMEM。`cfx4` 加入测试机实现集（仅 Step 1 寄存器子集）；`cfxreg_unimpl` 测试改用 `cfx5`。新增 `tools/testcases/arch/min_rom_probe_integ038t.py`（16 例）。
+  - 执行者：engineer
+
+- **2026-10-29 `INTEG-040t`**
+  - 摘要：**地址空间 Step 3（ADR-0041）**：TLB 并入 `cfx_ptw`——条目按「虚拟页 + 16 位 ASID（`cfx_ptw_tlb_asid`）」匹配、`G=1`（PTE bit4，原保留）跨 ASID；`ptw_enable=1` 即参与查找、`0` 时旁路，无 `tlb_enable`/`tlb_exist`；命中不重读 PTE（按 `SPF/GPF → HSJU → R/W/X` 同序检查，异常直接进 `cfx_ptw`），miss 走页表步进且成功才填充（替换 dirty 条目先回写）。A/D 在条目中维护（fill 不产生回写、读/取指置 A、写置 A/D、缺页/权限失败不更新），`CLEAN`/`FLUSH`/替换以原子 OR 回写 PTE，`INVALID` 不写回；回写失败报 `PTWERR`（`1<<7`，`cause_info` = PTE PA）并保留条目。新增 `cfx_ptw` cg12 接口（rc0 control：op/scope/ASID_ANY 正交，rc1 ASID，rc2 start，rc3 size；`scope=11` 或 `range` 且 `size=0` ⇒ `CFXREG`（仅 clean/invalid/flush；op=00 优先 no-op））。QEMU 自有 translation cache 在 PTBR/ptw_enable/ASID 写、条目删除与 run-mode 切换时丢弃（guest TLB 条目保留，不构成隐含失效）。新增探针 `tools/testcases/arch/min_rom_probe_integ040t.py`（34 例）。
+  - 执行者：engineer
+
+- **2026-10-29 INTEG-041t**
+  - 摘要：**`fence` 解码/语义迁到 `ciii`（`opc 0x79`）**（`ADR-0044 D1`–`D8`）：`insn.decode` 由 `contracts/opcodes.yaml` 重生成（266 patterns），`trans_ctrl.c.inc` 的 `trans_fence_oiii_imm` 改为 `trans_fence_ciii_cfx(arg_main)`：`ha = cfxha`（0 = all cfx；保留 7–14/19–61 ⇒ ILLI），`hb != 0` ⇒ ILLI；`pred/succ` 六位 `cr/cw/ci/co/mr/mw` 映射到 `TCG_MO_*`，零掩码 no-op。qemu-user 为平坦内存模型，cfx 选择器不额外削弱屏障。**真值**：`check-patch-tree` 205 OK；`semantics_gate` 结构派生 0 差异；`atomics-fence.yaml` **17/17 PASS**（含 hb≠0、reserved cfx、零掩码 no-op）；`build-qemu` rc=0。补丁 **2 份改**（`series` 63）。
+  - 执行者：engineer
+
+- **2026-10-30 INTEG-042t**
+  - 摘要：**Step 4：`cfx_pmem` 64 KiB SRAM + SRAM↔PA DMA（ADR-0042）**。测试机把 SRAM 映射为独立 RAM 区（`0x0100_0000_0000_0000`，56 位 PA 之外，guest PA 无法别名），`tlb_fill` 把 cfx17 内部偏移 `0..0xFFFF` 映射过去（越界 ⇒ CFXMEM）；`cfx_reg_ptr` 的测试机 cfx 集合加 `17`，保留 cfx 改 `6`–`14`/`19`–`61`（`cfx5` = cache，未实现 ⇒ CFXREG）。`cg15` rc0–4 = `dma_src`/`dma_dst`/`dma_size`/`dma_ctrl`/`dma_status`：方向位、CFX 低42/PA 低56、size 30 位 `1..2^29`，START 自清并在虚拟时钟定时器上异步完成（BUSY 可观测），setup 错误置 `ERROR|ERR_CODE`（SIZE/CFX_RANGE/PA_RANGE/PA_FAULT），`BUSY` 期间 cg15 写与 DONE/ERROR W1C 被忽略；`PMEM_DMA`（`1<<8`，可屏蔽）经 `cpu_exec_interrupt` 投递到 `cfx_pmem`（被屏蔽只置 pending），`cfx_pmem` 的 `cause_nonmaskable` 按 §4.9 只保留 CFXTRAP/CFXMEM/CFXREG。新增探针 `tools/testcases/arch/min_rom_probe_integ042t.py`（23 例）。
+  - 执行者：engineer
+
+- **2026-10-30 INTEG-044t**
+  - 摘要：**cfx 两轴权限模型（ADR-0045）**：cg0–3 的 rc0–3 改为 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` 四类 64 位同步来源 mask、rc4 = `cfx_intr_mask`，删除 `global_version`/旧 `global_cfx_mask`，cfx0–3 增加 `cg8/rc1 global_cfx_intr_mask`；初值 power/普通 cfx `0xFFFF_FFFF_FFFF_FFF7`、hmon `0x7FFF_FFFF_FFFF_FFF7`、中断 mask 全 1。权限判定先判 reserved→ILLI，再以「当前模式行 + 源 cfx 位」判四类 mask（self 只绕 cfx 轴），拒绝 ⇒ `CFXPERM`（`1<<7`）进当前模式 monitor；escape `cfxha` 固定当前 cfx，目标/帧错误 ⇒ `CFXESC`（`1<<3`）进当前 cfx。直接 ld/st/取指在 `tlb_fill` 按 cfxmem/cfxexe 检查；异步按当前 cfx `cfx_intr_mask` 与当前 mode monitor 的 `global_cfx_intr_mask` 两级过滤后置 pending。trap 进入时保存并置全 1 `global_cfx_intr_mask`，escape 恢复；mask 写触发 translation cache 丢弃。`-d cpu` dump 改输出新 mask 字段。新增探针 `min_rom_probe_integ044t.py`（6 例），并迁移 044/045/046/039/040/042 探针与 bootrom 到 hmon 引导。
+  - 执行者：engineer
+
+- **2026-10-30 INTEG-045t**
+  - 摘要：**cfx 指令清理同步**：`insn.decode` 由 `contracts/opcodes.yaml` 重生成（266 → **264** patterns，计数从记录派生）；删除 `trans_cfxld_crii_cfx`/`trans_cfxst_crii_cfx` 两个 ILLI 桩（两条指令已从 ISA 删除、其两格转为空白保留 ⇒ decode UNDI），`check_qemu_trans --strict` 264/264、orphan 0；`fence_cfx_reserved` 的保留集由 `7–14` 改为 **`6–14`/`19–61`**（与 `DADAO_CFX_IS_RESERVED` 及 `encode_cfx_reserved` 统一）。补丁 **2 份改**（`series` 63、`check-patch-tree` 205 不变）；`build-qemu` rc=0，`check-arch` 全绿（7 个 cfx 探针）。
+  - 执行者：engineer
+
+- **2026-10-30 `INTEG-046t`**
+  - 摘要：**Step5 启动链 QEMU 侧（ADR-0043 D1/D2/D4/D5/D10/D14）**：BootROM 几何改为 256 KiB（`0xffff_fffc_0000`–`0xffff_ffff_ffff`），复位向量独立为 `DADAO_BIOS_LOAD_BASE`（`0xffff_ffff_0000`，既有 `-bios` 仍按 64 KiB 窗口装载，语义不变）；新增机器属性 `bootrom-image=<path>`（`-machine dadao-m1,bootrom-image=...`，要求恰 256 KiB，与 `-bios` 互斥，`-kernel` 可选且不改复位 PC）；新增 hmon/smon SRAM（cfx3 `0x0fff_0000_0000` / cfx2 `0x0bff_0000_0000`，各 64 KiB，宿主地址在 56 位 PA 之外，`tlb_fill` 按内部偏移 `0x3ff_0000_0000` 路由、越界 ⇒ CFXMEM）；RAM 在 PA 0 增加 16 MiB 别名（PTE 读取与 `cfx_pmem` DMA 同时接受 `[0,16 MiB)` 与 `[RAM_BASE,+16 MiB)`），供 smon 的 PTBR=0 页表；`translate_for_debug` 覆盖 hmon/smon SRAM（半托管参数块）。新增探针 `min_rom_probe_integ046t.py`（15 例）与 builder `build_step5_bootrom.py`。
+  - 执行者：engineer
+
+- **2026-10-31 `INTEG-048t`**
+  - 摘要：**`cfx_<cfxname>_hypv_cg_reg_deleg` 强制检查（DADAO-13 §1；R1–R6）**：新增静态门 `cfx_deleg_denied()`（数据源固定 `mode[DADAO_MODE_HYPV].cg_reg_deleg`，仅 `supv` 生效、位索引 = cg 编号 0–63、`1 ⇒ CFXPERM`），在 `helper_cfx2rd`/`helper_cfx2rc` 的 `cfxreg` 轴之后、`cfx_pmem cg15` 特例与 `cfx_reg_ptr()` 之前调用 ⇒ **cg3 无例外**（supv 访问任何 cfx 的 cg3 由恒 1 的 bit3 拒绝为 `CFXPERM`，不再落到 `CFXREG`），hypv/user/jail 不受本检查约束；`helper_cfx2rc` 对 `cg3 rc12` 的写强制 `value | (1<<3)`（软件写 0 无效、读回恒 1）；复位值 `~0` 与 `cpu.h` 布局不变。新增探针 `min_rom_probe_integ048t.py`（23 例）。
+  - 执行者：engineer
+
+- **2026-10-31 `INTEG-049t`**
+  - 摘要：**cg7 内部空间描述在 QEMU 落地（DADAO-12 §3.8）**：删除 `DADAOCfxRegs.sram_block_sel`/`sram_addr`（旧「块选择 + 块内地址」RW 语义作废），改为编译期常量 16×4 只读表 `dadao_cg7_space_reg()`（smon/hmon `desc=0x3 start=0x3ff_0000_0000 size=0x1_0000 attr=R|W|X`、pmem 同 start/size 而 `attr=R|W`、power `desc=0x5 start=0x3ff_fffc_0000 size=0x4_0000 attr=R|X`，其余块/其余 cfx 读 0）；`cfx_reg_ptr()` 删除 `case 7`，`helper_cfx2rd`/`helper_cfx2rc` 在权限与 deleg 门之后插入 cg7 分支（读任意 rc 回表值、写任意 cg7 rc ⇒ `CFXREG`）；未实现 cfx（`cfx5` 等）仍 `CFXREG`，`exists=0` 只对已实现 cfx 可见。新增探针 `min_rom_probe_integ049t.py`（12 例），`044t`/`045t`（13→14 例）/`integ048t` 旧 cg7 用例按新语义改造（不删用例、不放宽断言）。
+  - 执行者：engineer
+
+- **2026-10-31 `INTEG-050t`**
+  - 摘要：**`cfx_time`（cfxha 18）+ 单 hart `cfx_hart` 定时器（DADAO-12 §4.7/§4.10）**：测试机 cfx 集合加 15/18（`DADAO_NUM_CFX` 7→9，map `{0,1,2,3,4,15,17,18,63}`）；`cfx_time` `cg10 rc0 = 1 GHz`、`rc1` = 虚拟时钟 64 位（1 count=1 ns）、`SBI_TIME_GET`；`cfx_hart` `cg8 rc0 = hart_id 0`、`rc2 cycle`/`rc3 insn` 均 64 位（cycle 由时钟派生、insn 在 `insn_start` 每指令累加，不依赖 `-icount`）、`rc4 timer_cmp`/`rc5 timer_ctrl`（ENABLE/IMASK/ISTATUS）、`rc1/rc6/rc7` 保留；TIMER（`1<<10`，可屏蔽，`cause_info=0`）为 one-shot，IMASK 时置既有 `cg5 rc5` bit10、解除 IMASK 后经异步路径投递。异步只复用既有单源路径（per-source bool + `CPU_INTERRUPT_HARD` + `cfx_enter(async)`），不做跨源统一仲裁。新增探针 `min_rom_probe_integ050t.py`（17 例）；m5 `unimplemented cfx` 样本改 `cfx_llc`。
+  - 执行者：engineer
+
+- **2026-10-31 `INTEG-051t`**
+  - 摘要：**统一异步中断仲裁（pending 归目标 cfx；DADAO-12 §5；ADR-0045 D3）**：删 050 的 `pmem_dma_irq`/`hart_irq` 两个 per-source `bool`，异步 pending 只记在**目标 cfx** 的 `cg5 rc5`（`PMEM_DMA` `1<<8`→`cfx_pmem`、`TIMER` `1<<10`→`cfx_hart`；不建跨 cfx 聚合位图/不新增 `async_enable`）；源事件只置位 + 重踢 `CPU_INTERRUPT_HARD`，`dadao_cpu_exec_interrupt()` 收成单一入口 `dadao_async_arbitrate()`：按**目标 cfxha 升序**（15→17）选第一个可投源、一次调用至多一次 `cfx_enter(async)`（单层、不嵌套），掩码判定仍只在 `cfx_enter` step 3/4/5（不复制公式），`entered=false` 时保留 pending；投递成功清该位。补投踢点四类：`helper_cfx2rc` 通用写尾、`cfx_hart cg8 rc4/rc5` 写、`helper_cfx_escape` step 1 之后、源事件（DMA 完成/定时器到期）。D9 帧屏蔽抽成 `cfx_frame_block_async()` 供同步 trap 与异步仲裁共用（否则 async 帧内不挡第二源、escape 会恢复陈旧 mask）。新增探针 `min_rom_probe_integ051t.py`（14 例：目标 cfx pending / S-H 不混 / 两级 mask 与 cause mask 补投 / IMASK / 低 cfxha 优先 / escape 补投 / 直接目标 poison / 去重 / ERROR info + 两项离线契约与结构断言）。
+  - 执行者：engineer
+
+## M11
+
+- **2026-11-02 `QEMU-078t`**
+  - 摘要：**scaleB C1 与 sc rd0（SPEC-181t F5.2/F8.2）**。`ftsclb`/`fosclb` 的第三源由 `rfHD` 改为 `rdHD`（同 `orrr` 编码）：`gen_fp_arith` 对 scaleB 用 `load_rd(a->hd)` 取 64 位有符号整数指数，`helper_fp_arith` 删除 `floatXX_to_int32` 路径、改为 `fp_scaleb_exp()`（超出 int 范围按 IEEE 754 饱和到溢出/下溢）。`gen_sc` 在搬运地址前判 `a->hb == 0` ⇒ 静态 ILLI（不写内存、不置成功/失败），12 条 `sc.*` 编码未动；`rdHC=rd0` 仍合法。`insn.decode` 由 `opcodes.yaml` 重生成后逐字节不变（bank 不在 decodetree 里）。补丁 **3 份改**（`helper.c` / `insn_trans/trans_fp.c.inc` / `translate.c`）；证据 `.work/evidence/QEMU-078t/run.sh` rc=0（17 例行为 + 两次注入→FAIL→`cp`+md5 还原→回绿；`atomics-lrsc` 125/125 回归）。
+  - 执行者：engineer

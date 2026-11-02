@@ -1,0 +1,104 @@
+diff --git a/src/arch/dadao/exec/b5.hh b/src/arch/dadao/exec/b5.hh
+new file mode 100644
+index 0000000..0d5e9c3
+--- /dev/null
++++ b/src/arch/dadao/exec/b5.hh
+@@ -0,0 +1,98 @@
++// DADAO gem5 B5 execution core: register block copies, conditional
++// assignment, control flow and the RegRAS/MemRAS state machine (28 ids).
++//
++// Plain C++ (no gem5 headers), like the B0 decode core, so the *same* code is
++// driven by the component assertion harness (exec/b5_test.cc) and by the gem5
++// adapter (inst.cc).
++//
++// Source of truth: the B5 ids in contracts/opcodes.yaml, the same-id rows of
++// the GEM5-002t semantic matrix, spec/SimRISC-02 (block assignment),
++// spec/SimRISC-06 (control flow), spec/SimRISC-00 §2.4 (RAS),
++// contract-isa §3.3.3/§4/§6.5/§8 and contract-fp §12.  Only the 28 B5 ids are
++// implemented; every other decoded instruction reports NotB5.
++//
++// The PC/rb0 model is the full 64-bit one (ADR-0012 D8.3/D8.7): the target is
++// computed and written to rb0 over all 64 bits, the low 48-bit truncation is
++// the address space's job (the adapter's branchTo()).
++#ifndef __ARCH_DADAO_EXEC_B5_HH__
++#define __ARCH_DADAO_EXEC_B5_HH__
++
++#include <cstddef>
++#include <cstdint>
++#include <string_view>
++
++#include "arch/dadao/decode/decode.hh"
++#include "arch/dadao/exec/b1.hh"
++#include "arch/dadao/exec/common.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++enum class B5Op
++{
++    Copy,
++    CondAssign,
++    Branch,
++    Jump,
++    Call,
++    Ret,
++};
++
++/** One decoded B5 id; this is also the dispatch table.
++ *
++ * src/dst groups, field names, condition code and immediate field are all
++ * spelled out.  Dispatch is by `entry->id`, never by mnemonic: br.z/br.nz have
++ * both an rd and an rb id, jump/call have both an iiii and an rrii id, and
++ * cs.eq/cs.ne write rdhc rather than rdhb.
++ */
++struct B5Spec
++{
++    const char *id;
++    B5Op op;
++    Target dst;
++    Target src;
++    const char *dstField;
++    const char *srcField;
++    const char *countField; // block copies: "immu6"
++    const char *condField;  // conditional branch: "rdha" / "rbha"
++    const char *immField;   // "imms18" / "imms12" / "imms24"
++    const char *cond;       // "lt"/"ge"/"eq"/"ne"/"gt"/"le"/"always"
++};
++
++size_t b5SpecCount();
++const B5Spec *b5Specs();
++const B5Spec *b5SpecForId(std::string_view id);
++
++/** Extra context used by the B5 control-flow ids.
++ *
++ * Shares the register/memory interface of B1Context; the only new capability
++ * is writing the complete 64-bit target back to rb0.  The adapter and the
++ * harness implement it by setting the PC state to the full value (the low 48
++ * bits are what the address space uses).
++ */
++class B5Context : public B1Context
++{
++  public:
++    ~B5Context() override = default;
++
++    virtual void branchTo(uint64_t target64) = 0;
++};
++
++/** Execute one B5 instruction.
++ *
++ * Returns NotB5 when the instruction does not belong to batch B5; callers must
++ * keep that instruction unimplemented rather than guessing.  Static ILLI is
++ * checked before any register or memory access.  RASOF/RASUF and memory faults
++ * are precise: no register or memory write happens on the fault path.
++ */
++Fault executeB5(const decode::DecodedInst &inst, B5Context &ctx);
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_EXEC_B5_HH__

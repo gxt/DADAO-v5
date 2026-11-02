@@ -1,0 +1,120 @@
+diff --git a/src/arch/dadao/decode/decode.hh b/src/arch/dadao/decode/decode.hh
+new file mode 100644
+index 0000000..4dbf65b
+--- /dev/null
++++ b/src/arch/dadao/decode/decode.hh
+@@ -0,0 +1,114 @@
++/*
++ * DADAO gem5 decode core (B0).
++ *
++ * Plain C++ (no gem5 headers) so the same table can be exercised by the
++ * standalone assertion harness and linked into the gem5 ISA library.
++ *
++ * Source of truth: contracts/opcodes.yaml (264 entries), cross-checked with
++ * the GEM5-002t semantic matrix.  Execution semantics are deliberately absent:
++ * every decoded instruction is reported as "decode-only" and gem5's
++ * DadaoInst::execute() returns an explicit unimplemented/illegal fault.
++ */
++#ifndef __ARCH_DADAO_DECODE_DECODE_HH__
++#define __ARCH_DADAO_DECODE_DECODE_HH__
++
++#include <cstddef>
++#include <cstdint>
++#include <string_view>
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace decode
++{
++
++enum class Batch : uint8_t
++{
++    None = 0,
++    B1 = 1,
++    B2 = 2,
++    B3 = 3,
++    B4 = 4,
++    B5 = 5,
++    B6 = 6,
++    B7 = 7,
++};
++
++constexpr size_t kMaxFields = 4;
++
++struct FieldDesc
++{
++    const char *name;
++    uint8_t hi;
++    uint8_t lo;
++    const char *role;
++    const char *bank;
++    bool isSigned;
++
++    unsigned
++    width() const
++    {
++        return hi - lo + 1;
++    }
++};
++
++struct DecodeEntry
++{
++    const char *id;
++    const char *mnemonic;
++    const char *format;
++    const char *scope;
++    const char *contractRef;
++    const char *specCite;
++    uint32_t mask;
++    uint32_t value;
++    uint8_t opc;
++    int8_t ha;          // -1 when the opcode owns no sub-table
++    uint16_t firstField;
++    uint8_t numFields;
++    uint8_t batch;      // 1..7 == B1..B7
++    const char *const *rules;
++    uint8_t numRules;
++    const char *const *legality;
++    uint8_t numLegality;
++};
++
++struct DecodedInst
++{
++    const DecodeEntry *entry = nullptr;
++    uint32_t raw = 0;
++    uint8_t numFields = 0;
++    uint64_t fieldValues[kMaxFields] = {};
++
++    bool
++    ok() const
++    {
++        return entry != nullptr;
++    }
++};
++
++/** Decode one 32-bit big-endian DADAO instruction word.
++ *
++ * Unmatched opcode bytes and empty sub-table slots are reported as illegal
++ * (the caller maps that to ILLI); there is no silent fallback instruction.
++ */
++DecodedInst decodeWord(uint32_t raw);
++
++const DecodeEntry *entryById(std::string_view id);
++size_t entryCount();
++const DecodeEntry *entries();
++const FieldDesc &fieldDesc(const DecodeEntry &entry, unsigned index);
++const char *legalityOf(const DecodeEntry &entry, unsigned index);
++
++const char *batchName(uint8_t batch);
++const char *statusName(const DecodedInst &inst);
++
++/** Sign-extend the low `width` bits of `value` (width in 1..64). */
++int64_t signExtend(uint64_t value, unsigned width);
++
++} // namespace decode
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_DECODE_DECODE_HH__

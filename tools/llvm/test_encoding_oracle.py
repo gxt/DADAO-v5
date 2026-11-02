@@ -49,6 +49,10 @@ def encode_oiii(op, ha, imm18):
     """Encode oiii format: op[31:24] ha[23:18] imm18[17:0]"""
     return (op << 24) | (ha << 18) | (imm18 & 0x3FFFF)
 
+def encode_ciii(op, cfxha, imm18):
+    """Encode ciii format: op[31:24] cfxha[23:18] imm18[17:0]"""
+    return (op << 24) | (cfxha << 18) | (imm18 & 0x3FFFF)
+
 # Register encodings
 REG = {
     'rd0': 0, 'rd8': 8, 'rd16': 16, 'rd24': 24, 'rd32': 32, 'rd40': 40, 'rd48': 48, 'rd56': 56, 'rd63': 63,
@@ -126,8 +130,8 @@ TESTS = [
     # orri format: rd2rd {rd8}, {rd0} (op=0x40, ha=0x2C)
     ("rd2rd {rd8}, {rd0}", encode_orri(0x40, 0x2C, 8, 0, 1)),
     
-    # oiii format: fence 15 (op=0x47, ha=0x20; ADR-0034 D1/D2)
-    ("fence 15", encode_oiii(0x47, 0x20, 15)),
+    # ciii format: fence cfx0, 0x430 (op=0x79; ADR-0044 D1-D4)
+    ("fence cfx0, 0x430", encode_ciii(0x79, 0, 0x430)),
 
     # === New tests for LLVM-008t: migrated from disassembly.s + basic-encoding.s ===
 

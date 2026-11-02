@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""validate_vectors.py — 校验 tests/vectors 的向量 schema、覆盖率与 inventory 同步。
+"""validate_vectors.py — 校验 tests/inst 的向量 schema、覆盖率与 inventory 同步（`TESTCASES-072t` 迁自 tests/vectors）。
 
 Spec-first：所有判定依据 `contracts/opcodes.yaml`、`contracts/legality_rules.yaml`
-与 `tests/vectors/schema.md`；**不**读取 LLVM/QEMU 产物，不从实现反推。
+与 `tests/inst/schema.md`；**不**读取 LLVM/QEMU 产物，不从实现反推。
 
 检查项（对应 `TESTCASES-002t` 的校验内容 1–14）：
    1. 必填字段存在（`mnemonic`/`id`/`format`/`class`/`encoding`/`input_state`/`spec_cite`）
@@ -55,7 +55,7 @@ RAM_BASE = 0xFC00_0000_0000
 RAM_END = 0xFC00_00FF_FFFF
 ADDR48_MAX = 0xFFFF_FFFF_FFFF
 
-# ADR-0004 D2.2 + tests/vectors/isa/ctrl-br.yaml 头部约定：
+# ADR-0004 D2.2 + tests/inst/base/ctrl-br.yaml 头部约定：
 # 向量中指令地址 = RAM 入口 rb0 = 0xFC00_0000_0000；
 # br.* 非跳转（not-taken）后继 PC = rb0 + 4。ISS-025 结构性守卫据此分类 taken/not-taken。
 RB0_PC = 0xFC00_0000_0000
@@ -695,9 +695,9 @@ def main():
         errors.append("opcodes.yaml: duplicate M1 id '%s'" % rid)
     m1_keys = set(by_id)
 
-    inventory_path = os.path.join(repo_dir, "tests", "vectors", "inventory.md")
+    inventory_path = os.path.join(repo_dir, "tests", "inst", "inventory.md")
     if not os.path.exists(inventory_path):
-        print("ERROR: tests/vectors/inventory.md not found", file=sys.stderr)
+        print("ERROR: tests/inst/inventory.md not found", file=sys.stderr)
         sys.exit(1)
 
     inv_rows = parse_inventory(inventory_path)
@@ -744,7 +744,7 @@ def main():
                           "declaration in inventory.md" % rid)
 
     # 1/2/3/4/5/6/7/8/10/11/13/14. 向量数据逐 case 校验
-    isa_dir = os.path.join(repo_dir, "tests", "vectors", "isa")
+    isa_dir = os.path.join(repo_dir, "tests", "inst", "base")
     yaml_files = (sorted(glob.glob(os.path.join(isa_dir, "*.yaml")))
                   if os.path.isdir(isa_dir) else [])
     total_cases = 0
@@ -822,7 +822,7 @@ def main():
                 data_coverage_gaps.append(
                     "DATA COVERAGE GAP: id='%s' declares '%s' in "
                     "inventory.md but no active %s case found in "
-                    "tests/vectors/isa/*.yaml"
+                    "tests/inst/base/*.yaml"
                     % (rid, cls_name, cls_name))
     # Report gaps and block validation (TESTCASES-011t: gate tightening)
     if data_coverage_gaps:

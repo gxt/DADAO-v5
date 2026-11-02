@@ -19,6 +19,8 @@
 
 ## 2. changelog（M1 时期，2026-09-12 ~ 09-22，89 条）
 
+> 本节 = 任务流水（冻结）历史别名；表格原样保留，不重写。
+
 | 日期 | 描述 | 执行方 |
 | --- | --- | --- |
 | 2026-09-22 | **M1 达成（用户确认）**。`INTEG-004m` 置里程碑 ⇒ 6/6 模块 M1 完成（`SPEC-011m`/`TESTCASES-012m`/`INFRA-014m`/`LLVM-015m`/`QEMU-021m`/`INTEG-004m`），`milestones.md` M1 = **达成**。核验（真实输出）：`llvm-lit tests/lit/E2E/` **3/3**；`tools/integ/check_interface_alignment.py` **80/80/0 EXIT 0**；`make check` **EXIT 0**。本会话另完成：`INTEG-001k`~`003t`（E2E 冒烟 + 接口对齐）、`LLVM-013t`（`wpN` 静默误编码修复，补丁 `0007`）、`LLVM-014t`（ELF `e_flags` 修复，补丁 `0008`）；里程碑顺延 `LLVM-013m→014m→015m`；`fence` 保持 deferred（`ISS-056` `blocks: []`）。 | 主会话 + 用户 |

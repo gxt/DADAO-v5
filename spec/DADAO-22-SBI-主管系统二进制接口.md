@@ -1,6 +1,6 @@
 # SBI（主管系统二进制接口）
 
-> **版本：0.7.2**（与 SEE 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
+> **版本：0.7.3-rc**（与 SEE 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
 
 SBI 定义不同核芯功能扩展之间的功能调用。大部分功能调用在同一运行模式（主管模式）进行，仅少数需要访问特权硬件资源的服务才会提升到 H-mode 执行。
 
@@ -23,6 +23,7 @@ SBI 定义不同核芯功能扩展之间的功能调用。大部分功能调用�
 | -2 | SBI_ERR_NOT_SUPPORTED | 功能不支持 |
 | -3 | SBI_ERR_INVALID_PARAM | 参数无效 |
 | -4 | SBI_ERR_NO_DEVICE | 设备不可用 |
+| -5 | SBI_ERR_BUSY | 资源忙，可重试 |
 
 **嵌套调用**：
 
@@ -67,10 +68,10 @@ set.rd   rd2, cfx_smon_supv_excp_handler
 cfx2rc  cfx_smon_supv_excp_vector, rd2
 
 @@ 允许 cfx_smon 从 supv 触发
-cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
+cfx2rd  cfx_smon_supv_cfxtrap, rd2
 set.rd   rd3, ~(1<<2)
 and.o   rd2, rd2, rd3
-cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
+cfx2rc  cfx_smon_supv_cfxtrap, rd2
 ```
 
 异常入口处理：
@@ -127,24 +128,21 @@ cfx_ptw 为地址转换部件，管理页表和 PTBR。
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
-| 0 | SBI_PTW_SET_PTBR | rd16 = idx, rb16 = base | — | 设置第 idx 个 PTBR 的页表基地址。base 为 PA[63:16]（高 48 位），低 16 位强制为 0（64KiB 对齐）。调用前须已写入 pthi[idx] 和 pahi[idx] |
-| 1 | SBI_PTW_GET_PTBR | rd16 = idx | rb8 = base | 读取第 idx 个 PTBR 的值 |
-| 2 | SBI_PTW_SET_PTBR_PERM | rd16 = mode, rd17 = perm | — | 设置 mode=0(U)/1(J)/2(S)/3(H) 的 PTBR 权限位图（64 位，bit i=1 表示允许第 i 个 PTBR） |
-| 3 | SBI_PTW_ENABLE_PTBR | rd16 = mask | — | 设置 PTBR 使能位图（64 位，bit i=1 表示 enable 第 i 个 PTBR） |
-| 4 | SBI_PTW_SET_PTE | rd16 = ptbr_code, rd17 = level, rb16 = va, rd18 = pte | — | 设置 level 页表（1=L1, 2=L2）中 VA 对应索引的 PTE 为 pte |
-| 5 | SBI_PTW_HANDLE_FAULT | rb16 = fault_addr, rd16 = cause | rd8 = page_mask | 处理页表异常。成功返回页面对齐掩码（如 0xFFFFFFFFFFFF0000 = 64KiB，0xFFFFFFFFE0000000 = 512MiB），失败返回 0 |
-| 6 | SBI_PTW_SET_PTHI | rd16 = idx, rb16 = pthi | — | 设置第 idx 个 PTBR 的页表步进物理地址高 16 位（PA[63:48]） |
-| 7 | SBI_PTW_SET_PAHI | rd16 = idx, rb16 = pahi | — | 设置第 idx 个 PTBR 的最终转换结果物理地址高 16 位（PA[63:48]） |
+| 0 | SBI_PTW_SET_PTBR | rb16 = base | — | 设置唯一 PTBR。base = PPN[55:16]，64KiB 对齐；低 16 位与高 8 位由硬件强制为 0 |
+| 1 | SBI_PTW_GET_PTBR | — | rb8 = base | 读取唯一 PTBR 的值 |
+| 2 | SBI_PTW_SET_PTW_ENABLE | rd16 = enable | — | 设置 PTW 使能：0=关闭（`addr[47:42] = 0` 的访存触发 CFXMEM），1=开启。写 1 不隐含 TLB invalidate |
+| 3 | SBI_PTW_SET_PTE | rd16 = level, rb16 = va, rd18 = pte | — | 设置 level 页表（1=L1, 2=L2）中 VA 对应索引的 PTE 为 pte（页表项格式在后续步骤定义） |
+| 4 | SBI_PTW_HANDLE_FAULT | rb16 = fault_addr, rd16 = cause | rd8 = page_mask | 处理页表异常。成功返回页面对齐掩码（如 0xFFFFFFFFFFFF0000 = 64KiB，0xFFFFFFFFE0000000 = 512MiB），失败返回 0 |
 
-> **PTBR 与 pthi/pahi 的关系**：PTBR 存放页表基地址的高 48 位（bits[63:16]，低 16 位强制为 0）。`pthi[idx]`（cg10）提供**页表步进**时访问页表项的 PA[63:48]；`pahi[idx]`（cg11）提供**最终转换结果**物理地址的 PA[63:48]。调用 `SBI_PTW_SET_PTBR` 前须通过 `cfx2rc` 写入正确的 pthi/pahi 值。
+> **单 PTBR**：`cfx_ptw_ptbr` 只有一份，存放 `PPN[55:16]`（页表基地址 64KiB 对齐）；没有数组下标，也没有 `pthi`/`pahi` 高 16 位拼接。`ptw_enable` 决定是否翻译 `addr[47:42] = 0` 的访存；写 PTBR / 写使能 1 都不隐含 TLB 失效，软件须显式 invalidate。
 >
 > **页表访问**：cfx_ptw handler 通过正常虚拟地址访问 PTE。操作系统在启动阶段须将页表所在的物理区域映射到虚拟地址空间，handler 可直接对 PTE 所在虚拟地址执行 ld/st 来读写页表项，无需专门的物理内存直接访问机制。
 
 ### 4.1 初始化
 
-> 初始化方式与其他 cfx 一致：探测 cfx_ptw 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 4）。cfx_ptw 为 per-hart cfx，每个 hart 独立初始化。
+> 初始化方式与其他 cfx 一致：探测 cfx_ptw 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_ptw 为 per-hart cfx，每个 hart 独立初始化。
 
-cfx_ptw 的异常入口处理——页表步进异常由硬件直接路由至此，也可由其它 cfx（如 cfx_tlb）通过功能调用委托处理：
+cfx_ptw 的异常入口处理——页表步进异常与 TLB 命中异常均由硬件直接路由至此：
 
 ```simrisc
 cfx_ptw_supv_excp_handler:
@@ -169,240 +167,88 @@ cfx_ptw_trap_dispatch:
     set.rd   rd3, 1
     br.eq {rd2, rd3}?, [rb0, cfx_ptw_get_ptbr] @@ func 1
     set.rd   rd3, 2
-    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_ptbr_perm] @@ func 2
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_ptw_enable] @@ func 2
     set.rd   rd3, 3
-    br.eq {rd2, rd3}?, [rb0, cfx_ptw_enable_ptbr] @@ func 3
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_pte] @@ func 3
     set.rd   rd3, 4
-    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_pte] @@ func 4
-    set.rd   rd3, 5
-    br.eq {rd2, rd3}?, [rb0, cfx_ptw_handle_fault] @@ func 5
-    set.rd   rd3, 6
-    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_pthi] @@ func 6
-    set.rd   rd3, 7
-    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_pahi] @@ func 7
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_handle_fault] @@ func 4
     escape cfx_ptw, [excp_cause_ip, 4]
 
 cfx_ptw_set_ptbr:
-    @@ rd16 = idx, rb16 = base（页表基地址高 48 位，低 16 位强制为 0）
-    @@ 调用前须已通过 cfx2rc 写入 cfx_ptw_pthi[idx] 和 cfx_ptw_pahi[idx]
+    @@ rb16 = base（PPN[55:16]，64KiB 对齐；低 16 位与高 8 位由硬件清 0）
     set.rd   rd17, rb16                              @@ rb→rd 中转（cfx2rc 源操作数须为 rd）
-    shl.o   rd16, rd16, 3                          @@ idx × 8（每路 2 条指令 = 8 字节）
-    set.rd   rd3, cfx_ptw_ptbr_table
-    add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb8, rd3                      @@ rd→rb 中转
-    jump [rb8, rd0, 0]
-cfx_ptw_ptbr_table:
-    cfx2rc  cfx_ptw_ptbr[0], rd17 @@ PTBR[0]
-    escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rc  cfx_ptw_ptbr[1], rd17 @@ PTBR[1]
-    escape cfx_ptw, [excp_cause_ip, 4]
-    @@ ... 共 64 路，rc 0-63 ...
-    cfx2rc  cfx_ptw_ptbr[63], rd17 @@ PTBR[63]
+    cfx2rc  cfx_ptw_ptbr, rd17
     escape cfx_ptw, [excp_cause_ip, 4]
 
 cfx_ptw_get_ptbr:
-    @@ rd16 = idx，返回 rb8 = base（cfx2rd 只能写 RD bank，故经 rd8 中转）
-    shl.o   rd16, rd16, 3
-    set.rd   rd3, cfx_ptw_get_ptbr_table
-    add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb8, rd3                      @@ rd→rb 中转
-    jump [rb8, rd0, 0]
-cfx_ptw_get_ptbr_table:
-    cfx2rd  cfx_ptw_ptbr[0], rd8 @@ PTBR[0]
+    @@ 返回 rb8 = base（cfx2rd 只能写 RD bank，故经 rd8 中转）
+    cfx2rd  cfx_ptw_ptbr, rd8
     set.rb   rb8, rd8               @@ 返回 bank：rb8 = base
     escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rd  cfx_ptw_ptbr[1], rd8 @@ PTBR[1]
-    set.rb   rb8, rd8
-    escape cfx_ptw, [excp_cause_ip, 4]
-    @@ ... 共 64 路，rc 0-63 ...
-    cfx2rd  cfx_ptw_ptbr[63], rd8 @@ PTBR[63]
-    set.rb   rb8, rd8
-    escape cfx_ptw, [excp_cause_ip, 4]
 
-cfx_ptw_set_ptbr_perm:
-    @@ rd16 = mode（0=U/1=J/2=S/3=H）, rd17 = perm（64 位权限位图）
-    @@ 通过跳转表将 rd17 写入对应 mode 的 cfx_ptw_*_perm 寄存器
-    shl.o   rd16, rd16, 3                          @@ mode × 8（跳转表偏移，每路 2 条指令）
-    set.rd   rd3, cfx_ptw_perm_table
-    add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb8, rd3                      @@ rd→rb 中转
-    jump [rb8, rd0, 0]
-cfx_ptw_perm_table:
-    cfx2rc  cfx_ptw_user_perm, rd17               @@ U-mode (0)
-    escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rc  cfx_ptw_jail_perm, rd17               @@ J-mode (1)
-    escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rc  cfx_ptw_supv_perm, rd17               @@ S-mode (2)
-    escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rc  cfx_ptw_hypv_perm, rd17               @@ H-mode (3)
-    escape cfx_ptw, [excp_cause_ip, 4]
-
-cfx_ptw_enable_ptbr:
-    @@ rd16 = mask（64 位使能位图）
-    cfx2rc  cfx_ptw_ptbr_enable, rd16
+cfx_ptw_set_ptw_enable:
+    @@ rd16 = enable（0=关闭，1=开启）
+    cfx2rc  cfx_ptw_enable, rd16
     escape cfx_ptw, [excp_cause_ip, 4]
 
 cfx_ptw_set_pte:
-    @@ rd16 = ptbr_code, rd17 = level（1=L1, 2=L2）, rb16 = va, rd18 = pte
-    @@ TODO: 读取 PTBR[ptbr_code]，按 level 计算 PTE 偏移，通过 OS 映射的虚拟地址写 PTE
+    @@ rd16 = level（1=L1, 2=L2）, rb16 = va, rd18 = pte
+    @@ TODO: 读取唯一 PTBR，按 level 计算 PTE 偏移，通过 OS 映射的虚拟地址写 PTE（页表项格式在后续步骤定义）
     escape cfx_ptw, [excp_cause_ip, 4]
 
 cfx_ptw_handle_fault:
     @@ rd16 = cause, rb16 = fault_addr（由调用方传入）
     @@ ... 根据 cause 类型执行页表步进、pmem 分配、PTE 更新 ...
     escape cfx_ptw, [excp_cause_ip, 4]
-
-cfx_ptw_set_pthi:
-    @@ rd16 = idx, rb16 = pthi（PA[63:48] 用于页表步进）
-    set.rd   rd17, rb16                              @@ rb→rd 中转
-    shl.o   rd16, rd16, 3
-    set.rd   rd3, cfx_ptw_set_pthi_table
-    add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb8, rd3                      @@ rd→rb 中转
-    jump [rb8, rd0, 0]
-cfx_ptw_set_pthi_table:
-    cfx2rc  cfx_ptw_pthi[0], rd17 @@ pthi[0]
-    escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rc  cfx_ptw_pthi[1], rd17 @@ pthi[1]
-    escape cfx_ptw, [excp_cause_ip, 4]
-    @@ ... 共 64 路 ...
-    cfx2rc  cfx_ptw_pthi[63], rd17 @@ pthi[63]
-    escape cfx_ptw, [excp_cause_ip, 4]
-
-cfx_ptw_set_pahi:
-    @@ rd16 = idx, rb16 = pahi（PA[63:48] 用于最终转换结果）
-    set.rd   rd17, rb16                              @@ rb→rd 中转
-    shl.o   rd16, rd16, 3
-    set.rd   rd3, cfx_ptw_set_pahi_table
-    add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb8, rd3                      @@ rd→rb 中转
-    jump [rb8, rd0, 0]
-cfx_ptw_set_pahi_table:
-    cfx2rc  cfx_ptw_pahi[0], rd17 @@ pahi[0]
-    escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rc  cfx_ptw_pahi[1], rd17 @@ pahi[1]
-    escape cfx_ptw, [excp_cause_ip, 4]
-    @@ ... 共 64 路 ...
-    cfx2rc  cfx_ptw_pahi[63], rd17 @@ pahi[63]
-    escape cfx_ptw, [excp_cause_ip, 4]
 ```
 
-各 cfx 之间的委托关系：cfx_tlb 委托 cfx_ptw 处理页表异常（通过 SBI_PTW_HANDLE_FAULT），cfx_ptw 委托 cfx_pmem 申请物理页。
+各 cfx 之间的委托关系：页表异常（含 TLB 命中产生的异常）统一由 `cfx_ptw` 处理，`cfx_ptw` 委托 `cfx_pmem` 申请物理页。
 
-## 5. TLB管理（cfx_tlb）
+## 5. TLB维护（cfx_ptw）
 
-cfx_tlb 为 TLB 管理部件，提供 TLB 无效化服务。
+TLB 并入 `cfx_ptw`（DADAO-12 §4.5），没有独立的 TLB 核芯功能扩展，也没有 `tlb_exist`/`tlb_enable`。TLB 维护直接写 `cfx_ptw` 的 cg12 寄存器完成，**不提供 SBI 级 TLB 服务**（原 `cfx_tlb` 的 `SBI_TLB_INVALIDATE` 随该核芯功能扩展一并删除）：寄存器写即同步执行，无需在异常处理程序里按功能码分发。
 
-| immu18 | 名称 | 入参 | 说明 |
-|--------|------|------|------|
-| 0 | SBI_TLB_INVALIDATE | rb16 = start, rd16 = size | 使 TLB 中 [start, start+size) 范围的表项无效 |
+### 5.1 寄存器接口
 
-### 5.1 初始化
+| cg | rc | regname | 说明 |
+|----|----|---------|------|
+| 12 | 0 | cfx_ptw_tlb_control | `[1:0]` 操作 = `00=none`/`01=clean`/`10=invalid`/`11=flush`；`[3:2]` 地址范围 = `00=all`/`01=VA`/`10=range`/`11=reserved`；`bit4=ASID_ANY`；写即执行，无完成状态 |
+| 12 | 1 | cfx_ptw_tlb_asid | 当前 ASID（`[15:0]`） |
+| 12 | 2 | cfx_ptw_tlb_addr_start | 失效操作的起始虚拟地址 |
+| 12 | 3 | cfx_ptw_tlb_addr_size | 失效操作的地址范围大小（字节） |
+
+- 三个维度正交，匹配条件 = `(ASID 匹配) AND (地址匹配)`：`all` 忽略 start/size；`VA` 只匹配包含 start 的条目；`range` 匹配与 `[start, start+size)` 相交的条目；`scope = 11`，或 `range` 且 `size = 0` ⇒ `CFXREG`（**仅** `clean`/`invalid`/`flush`；`op = none` 优先按 no-op，不报异常）。
+- ASID 维度：`ASID_ANY = 1` 包含 `G = 1` 的条目；`ASID_ANY = 0` 只处理 `G = 0` 且 ASID 等于 `cfx_ptw_tlb_asid` 的条目（不碰 `G` 条目）。
+- 操作：`clean` 回写 A/D 并保留条目；`invalid` 只删除、不回写；`flush` 回写后删除（回写失败保留条目并报 `PTWERR`）；`none` 为无操作。
+- 写 PTBR、写 ASID、写 `cfx_ptw_enable` 都不隐含 TLB 失效，软件须显式失效。
+
+### 5.2 失效示例
 
 ```simrisc
-@@ 设置 cfx_tlb 的 supv 异常向量，允许 supv 内核调用
-set.rd   rd2, cfx_tlb_supv_excp_handler
-cfx2rc  cfx_tlb_supv_excp_vector, rd2
+@@ 切换地址空间：写新 ASID；旧条目须按需显式失效
+set.rd   rd2, 7
+cfx2rc  cfx_ptw_tlb_asid, rd2
 
-@@ 允许 cfx_tlb 从 supv 触发（清除 global_cfx_mask 对应位）
-@@ 注：global_cfx_mask 是全局共享寄存器（此处通过 cfx_smon 访问），所有 cfx 的委托掩码集中于此
-cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
-set.rd   rd3, ~(1<<5)
-and.o   rd2, rd2, rd3
-cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
+@@ 失效当前 ASID 的全部非全局条目（op=invalid, scope=all, ASID_ANY=0）
+set.rd   rd2, 0x02
+cfx2rc  cfx_ptw_tlb_control, rd2
+
+@@ 失效 [addr, addr+64K)（op=invalid, scope=range）
+set.rd   rd2, addr
+cfx2rc  cfx_ptw_tlb_addr_start, rd2
+set.rd   rd2, 65536
+cfx2rc  cfx_ptw_tlb_addr_size, rd2
+set.rd   rd2, 0x0A
+cfx2rc  cfx_ptw_tlb_control, rd2
+
+@@ 回写全部条目（含全局页）的 A/D 并保留条目（op=clean, scope=all, ASID_ANY=1）
+set.rd   rd2, 0x11
+cfx2rc  cfx_ptw_tlb_control, rd2
 ```
 
-异常入口处理——从 `excp_cause_info` 获取 trap 指令的 immu18 功能码并分发：
+### 5.3 A/D 回写失败（PTWERR）
 
-```simrisc
-cfx_tlb_supv_excp_handler:
-    cfx2rd  cfx_tlb_excp_cause_id, rd2
-
-    @@ CFXTRAP (1<<0) → SBI 功能调用
-    set.rd   rd3, 1
-    br.eq {rd2, rd3}?, [rb0, cfx_tlb_trap_dispatch]
-
-    @@ 页表相关异常（TLB 命中时产生）→ 委托 cfx_ptw 处理
-    set.rd   rd3, 1<<12                               @@ NXPERM
-    br.eq {rd2, rd3}?, [rb0, cfx_tlb_ptw_delegate]
-    set.rd   rd3, 1<<13                               @@ NWPERM
-    br.eq {rd2, rd3}?, [rb0, cfx_tlb_ptw_delegate]
-    set.rd   rd3, 1<<14                               @@ NRPERM
-    br.eq {rd2, rd3}?, [rb0, cfx_tlb_ptw_delegate]
-    set.rd   rd3, 1<<18                               @@ IGPFTRAP
-    br.eq {rd2, rd3}?, [rb0, cfx_tlb_ptw_delegate]
-    set.rd   rd3, 1<<19                               @@ ISPFTRAP
-    br.eq {rd2, rd3}?, [rb0, cfx_tlb_ptw_delegate]
-    set.rd   rd3, 1<<22                               @@ DGPFTRAP
-    br.eq {rd2, rd3}?, [rb0, cfx_tlb_ptw_delegate]
-    set.rd   rd3, 1<<23                               @@ DSPFTRAP
-    br.eq {rd2, rd3}?, [rb0, cfx_tlb_ptw_delegate]
-
-cfx_tlb_unknown:
-    escape cfx_tlb, [excp_cause_ip, 4]
-
-cfx_tlb_trap_dispatch:
-    cfx2rd  cfx_tlb_excp_cause_info, rd2
-    set.rd   rd3, 0x3FFFF
-    and.o   rd2, rd2, rd3
-    set.rd   rd3, 0
-    br.eq {rd2, rd3}?, [rb0, cfx_tlb_invalidate] @@ func 0
-    escape cfx_tlb, [excp_cause_ip, 4]
-
-cfx_tlb_ptw_delegate:
-    @@ 委托 cfx_ptw 处理页表异常（通过 SBI_PTW_HANDLE_FAULT）
-    cfx2rd  cfx_tlb_excp_cause_info, rd40            @@ 故障地址（保存至 callee-saved rd40）
-    set.rb   rb16, rd40
-    cfx2rd  cfx_tlb_excp_cause_id, rd16              @@ 异常原因（cause_id）
-    trap    cfx_ptw, SBI_PTW_HANDLE_FAULT
-    @@ 返回 rd8 = page_mask（成功：0xFFFF...掩码；失败：0）
-    set.rd   rd3, 0
-    br.eq {rd8, rd3}?, [rb0, cfx_tlb_ptw_fail] @@ 修复失败 → 跳过
-    @@ 修复成功 → invalid 对应 TLB 表项，按实际页大小
-    and.o   rd40, rd40, rd8                          @@ 按掩码对齐至页面起始
-    cfx2rc  cfx_tlb_addr_start, rd40
-    xnor.o  rd16, rd8, rd0                       @@ rd16 = ~rd8（not.o 已删除）
-    add.si    rd16, 1                             @@ addr_size = ~mask + 1
-    cfx2rc  cfx_tlb_addr_size, rd16
-    set.rd   rd2, 2
-    cfx2rc  cfx_tlb_control, rd2                      @@ bit1 = invalid by addr
-    escape cfx_tlb, [excp_cause_ip, 0] @@ 重试故障指令
-cfx_tlb_ptw_fail:
-    escape cfx_tlb, [excp_cause_ip, 4] @@ 跳过故障指令
-```
-
-### 5.2 内部实现代码
-
-分发后的功能实现——通过 cfx_tlb_control 触发操作，cfx_tlb_addr_start/size 指定地址范围：
-
-```simrisc
-cfx_tlb_invalidate:
-    @@ rb16 = start, rd16 = size（由调用方通过 trap 传入）
-    cfx2rc  cfx_tlb_addr_size, rd16
-    set.rd   rd2, rb16                               @@ rb→rd 中转（cfx2rc 源操作数须为 rd）
-    cfx2rc  cfx_tlb_addr_start, rd2
-    set.rd   rd2, 1 << 1                              @@ bit1 = invalid tlb by addr range
-    cfx2rc  cfx_tlb_control, rd2
-    escape cfx_tlb, [excp_cause_ip, 4]
-```
-
-页表异常委托处理（`cfx_tlb_ptw_delegate`）由 cfx_ptw 完成页表步进，cfx_tlb 根据返回结果 invalid 或填充对应 TLB 表项。
-
-### 5.3 功能调用示例
-
-```simrisc
-#define SBI_TLB_INVALIDATE  0
-
-@@ 使虚拟地址 addr 对应的 64K 区域 TLB 表项无效
-set.rb   rb16, addr
-set.rd   rd16, 65536                              @@ 64K
-trap    cfx_tlb, SBI_TLB_INVALIDATE
-
-@@ 使对应 ptbr 的所有 TLB 表项无效
-set.rb   rb16, 0
-set.rd   rd16, 0x40000000000                       @@ 0x40000000000（2^42） = 集合内全部 VA 空间
-trap    cfx_tlb, SBI_TLB_INVALIDATE
-```
+页表页不可写导致 A/D 回写失败时，`clean`/`flush` 报 `cfx_ptw` 的 `PTWERR`（`1 << 7`），`excp_cause_info` = 出错的 PTE 物理地址，且失败条目保留（不静默丢弃 A/D）。`invalid` 不回写，不受影响。
 
 ## 6. Cache管理（cfx_cache）
 
@@ -414,7 +260,7 @@ cfx_cache 为 Cache 管理部件，提供 I-Cache 和 D-Cache 的无效化和刷
 | 1 | SBI_CACHE_DC_INVALID | — | 无效化所有 D-Cache |
 | 2 | SBI_CACHE_DC_FLUSH | — | 刷新所有 D-Cache（写回脏数据后无效化） |
 
-> 初始化方式与其他 cfx 一致：通过 `trap cfx_smon, SBI_SMON_PROBE_CFX` 探测 cfx_cache 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 6）。cfx_cache 为 per-hart cfx，每个 hart 独立初始化。
+> 初始化方式与其他 cfx 一致：通过 `trap cfx_smon, SBI_SMON_PROBE_CFX` 探测 cfx_cache 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_cache 为 per-hart cfx，每个 hart 独立初始化。
 
 ## 7. Hart管理（cfx_hart）
 
@@ -423,9 +269,9 @@ cfx_hart 为 Hart 管理部件，提供 hart ID 与每 hart 的定时器比较�
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
 | 0 | SBI_HART_GET_ID | — | rd8 = id | 返回当前 hart 编号 |
-| 1 | SBI_HART_SET_TIMER | rd16 = timeout | — | 设置本 hart 的定时器比较值（绝对时间），到期触发 TIMER 中断 |
+| 1 | SBI_HART_SET_TIMER | rd16 = timeout | — | 设置本 hart 的定时器比较值（64 位绝对时间，单位同 cfx_time_value） |
 
-> 初始化方式与其他 cfx 一致：探测 cfx_hart 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 15）。cfx_hart 为 per-hart cfx，每个 hart 独立初始化。
+> 初始化方式与其他 cfx 一致：探测 cfx_hart 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_hart 为 per-hart cfx，每个 hart 独立初始化。
 
 ### 7.1 初始化
 
@@ -435,10 +281,10 @@ set.rd   rd2, cfx_hart_supv_excp_handler
 cfx2rc  cfx_hart_supv_excp_vector, rd2
 
 @@ 允许 cfx_hart 从 supv 触发
-cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
-set.rd   rd3, ~(1<<15)                                @@ cfx_hart = cfx15
+cfx2rd  cfx_hart_supv_cfxtrap, rd2
+set.rd   rd3, ~(1<<2)                                @@ cfx_hart = cfx15
 and.o   rd2, rd2, rd3
-cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
+cfx2rc  cfx_hart_supv_cfxtrap, rd2
 ```
 
 异常入口处理：
@@ -496,7 +342,7 @@ cfx_llc 为最后一级缓存管理部件，跨 hart 共享。
 |--------|------|------|------|
 | 0 | SBI_LLC_INVALID | — | 无效化所有 LLC |
 
-> 初始化方式与其他 cfx 一致：探测 cfx_llc 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 16）。cfx_llc 为 per-system cfx（跨 hart 共享），仅需初始化一次。
+> 初始化方式与其他 cfx 一致：探测 cfx_llc 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_llc 为 per-system cfx（跨 hart 共享），仅需初始化一次。
 
 ## 9. 物理存储器管理（cfx_pmem）
 
@@ -510,8 +356,13 @@ cfx_pmem 为存储器管理部件，S-mode 可查询 hypv 固件设置的物理�
 | 3 | SBI_PMEM_GET_PM_ATTR | rd16 = idx | rd8 = attr | 查询第 idx 个 PM 区域的属性 |
 | 4 | SBI_PMEM_ALLOC_PAGE | rd16 = size_hint | rd8 = ppn | 从 PM 区域分配物理页。成功返回 PPN（物理页号，>=0），失败返回 -1。由 cfx_ptw 委托调用 |
 | 5 | SBI_PMEM_FREE_PAGE | rd16 = ppn | — | 释放物理页，由 cfx_ptw 委托调用 |
+| 6 | SBI_PMEM_DMA_START | rd16 = dir（0 = CFX→PA，1 = PA→CFX）、rd17 = src、rd18 = dst、rd19 = size | rd8 = 错误码 | 启动 SRAM ↔ PA 块搬运。**只检查 DMA 忙**：`dma_status.BUSY=1` ⇒ 返回 `SBI_ERR_BUSY`（-5），不写寄存器；否则把 `rd17`→`cg15.rc0`、`rd18`→`cg15.rc1`、`rd19`→`cg15.rc2`、`(rd16 & 1) << 1 \| START`→`cg15.rc3`，返回 0。地址/长度**不在本层校验**；传输错误由 `dma_status.ERROR`/`ERR_CODE` 唯一判定 |
+| 7 | SBI_PMEM_DMA_STATUS | — | rd8 = `cfx_pmem_dma_status` | 返回**原始** `dma_status`（bit0 `BUSY` / bit1 `DONE`(W1C) / bit2 `ERROR`(W1C) / bit3–15 `ERR_CODE`，语义见 SEE §4.9）；本层**不另造错误码**，也**不提供** W1C |
+| 8 | SBI_PMEM_DMA_WAIT | — | rd8 = 错误码 | **预留，未实现**：当前无时钟/定时器，固定返回 `SBI_ERR_NOT_SUPPORTED`（-2）；**不得**轮询后返回成功，**不得**伪造超时 |
 
-> 初始化方式与其他 cfx 一致：探测 cfx_pmem 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 17）。cfx_pmem 的 PM 区域配置由 hypv 固件在 H-mode 初始化阶段完成（见 HBI）。
+> 初始化方式与其他 cfx 一致：探测 cfx_pmem 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_pmem 的 PM 区域配置由 hypv 固件在 H-mode 初始化阶段完成（见 HBI）。
+
+> `SBI_PMEM_DMA_*` 只做「忙判定 + 寄存器搬运 + 状态回读」：`START` 返回 0 仅表示**调用完成且当时不忙**（硬件可能在 `START` 时即判定非法并置 `ERROR`/`ERR_CODE`、`BUSY` 保持 0），调用方须读 `STATUS` 判定传输结果；`START` 不清 `DONE`/`ERROR`，`STATUS` 不做 W1C。SRAM 基址与大小固定（`DADAO-12 §4.9`），因此**不提供** `SBI_PMEM_GET_SRAM`。
 
 cfx_pmem 的异常入口处理：
 
@@ -535,6 +386,12 @@ cfx_pmem_supv_excp_handler:
     br.eq {rd2, rd3}?, [rb0, cfx_pmem_alloc_page] @@ func 4
     set.rd   rd3, 5
     br.eq {rd2, rd3}?, [rb0, cfx_pmem_free_page] @@ func 5
+    set.rd   rd3, 6
+    br.eq {rd2, rd3}?, [rb0, cfx_pmem_dma_start]  @@ func 6
+    set.rd   rd3, 7
+    br.eq {rd2, rd3}?, [rb0, cfx_pmem_dma_status] @@ func 7
+    set.rd   rd3, 8
+    br.eq {rd2, rd3}?, [rb0, cfx_pmem_dma_wait]   @@ func 8
 cfx_pmem_unknown:
     escape cfx_pmem, [excp_cause_ip, 4]
 
@@ -568,6 +425,21 @@ cfx_pmem_free_page:
     @@ rd16 = ppn
     @@ TODO: 将 PPN 归还到对应 PM 区域的自由页链表
     escape cfx_pmem, [excp_cause_ip, 4]
+
+cfx_pmem_dma_start:
+    @@ rd16 = dir（0 = CFX→PA，1 = PA→CFX），rd17 = src，rd18 = dst，rd19 = size
+    @@ BUSY=1 ⇒ rd8 = -5（SBI_ERR_BUSY），不写寄存器
+    @@ 否则写 cg15 rc0..rc3（START=1，DIR = rd16 & 1），rd8 = 0
+    escape cfx_pmem, [excp_cause_ip, 4]
+
+cfx_pmem_dma_status:
+    @@ rd8 = cfx_pmem_dma_status（原始值：BUSY/DONE/ERROR/ERR_CODE）
+    escape cfx_pmem, [excp_cause_ip, 4]
+
+cfx_pmem_dma_wait:
+    @@ 预留：无时钟/定时器，不实现轮询与超时 ⇒ SBI_ERR_NOT_SUPPORTED(-2)
+    set.rd   rd8, -2
+    escape cfx_pmem, [excp_cause_ip, 4]
 ```
 
 ## 10. 全局时间（cfx_time）
@@ -576,7 +448,7 @@ cfx_time 为 per-system 全局时间计数器，所有 hart 共享同一时间�
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
-| 0 | SBI_TIME_GET | — | rd8 = value | 返回全局时间计数值 |
+| 0 | SBI_TIME_GET | — | rd8 = value | 返回全局时间计数值（64 位） |
 
 ### 10.1 初始化
 
@@ -586,10 +458,10 @@ set.rd   rd2, cfx_time_supv_excp_handler
 cfx2rc  cfx_time_supv_excp_vector, rd2
 
 @@ 允许 cfx_time 从 supv 触发
-cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
-set.rd   rd3, ~(1<<18)                                @@ cfx_time = cfx18
+cfx2rd  cfx_time_supv_cfxtrap, rd2
+set.rd   rd3, ~(1<<2)                                @@ cfx_time = cfx18
 and.o   rd2, rd2, rd3
-cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
+cfx2rc  cfx_time_supv_cfxtrap, rd2
 ```
 
 异常入口处理（本组只有 CFXTRAP → `SBI_TIME_GET`）：
@@ -643,10 +515,10 @@ set.rd   rd2, cfx_uart_supv_excp_handler
 cfx2rc  cfx_uart_supv_excp_vector, rd2
 
 @@ 允许 cfx_uart 从 supv 触发
-cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
-set.rd   rd3, ~(1<<62)
+cfx2rd  cfx_uart_supv_cfxtrap, rd2
+set.rd   rd3, ~(1<<2)
 and.o   rd2, rd2, rd3
-cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
+cfx2rc  cfx_uart_supv_cfxtrap, rd2
 ```
 
 异常入口处理：
@@ -742,11 +614,11 @@ cfx_power 为电源管理，提供关机和重启服务。`power_ctrl` 寄存器
 set.rd   rd2, cfx_power_supv_excp_handler
 cfx2rc  cfx_power_supv_excp_vector, rd2
 
-@@ 允许 cfx_power 从 supv 触发（清除 global_cfx_mask 对应位）
-cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
-set.rd   rd3, ~(1<<63)
+@@ 允许 cfx_power 从 supv 触发（清除 cfxtrap 对应位）
+cfx2rd  cfx_power_supv_cfxtrap, rd2
+set.rd   rd3, ~(1<<2)
 and.o   rd2, rd2, rd3
-cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
+cfx2rc  cfx_power_supv_cfxtrap, rd2
 ```
 
 异常入口处理：
@@ -825,7 +697,7 @@ trap    cfx_power, SBI_POWER_SOFT_RESET
 
 ### 13.1 示例：主管系统异常向量
 
-cfx_umon、cfx_jmon、cfx_smon、cfx_hmon 为运行模式 monitor，配置方式同上（设置异常向量 + 清除 global_cfx_mask，允许当前运行模式同步异常进入对应 monitor）。
+cfx_umon、cfx_jmon、cfx_smon、cfx_hmon 为运行模式 monitor，配置方式同上（设置异常向量；需要时按 cfxtrap 来源 mask 授权）。
 
 ```simrisc
 @@ ===== 系统初始化 =====
@@ -834,11 +706,11 @@ os_init:
     set.rd   rd2, cfx_umon_user_excp_handler
     cfx2rc  cfx_umon_user_excp_vector, rd2
 
-    @@ 允许 U-mode 同步异常进入 cfx_umon（清除 global_cfx_mask bit 0）
-    cfx2rd  cfx_smon_user_global_cfx_mask, rd2
+    @@ 允许 U-mode 同步异常进入 cfx_umon（清除 cfxtrap bit 0）
+    cfx2rd  cfx_umon_user_cfxtrap, rd2
     set.rd   rd3, ~(1<<0)
     and.o   rd2, rd2, rd3
-    cfx2rc  cfx_smon_user_global_cfx_mask, rd2
+    cfx2rc  cfx_umon_user_cfxtrap, rd2
 ```
 
 ```simrisc
@@ -860,13 +732,25 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 
 ## 14. 扩展
 
-新增硬件核芯功能扩展时，按其 cfxha 在本文档中新增对应章节，定义 immu18 功能码表即可。保留 immu18 值 0x3FFFF（最大）用于将来可能的 "SBI 协议版本协商" 功能。
+新增硬件核芯功能扩展时，按其 cfxha 在本文档中新增对应章节，定义 immu18 功能码表即可。
 
 ---
 
 ## 附录：版本与变更记录
 
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
+
+### 0.7.3-rc（未发布）
+
+- cfx 初始化示例由 `global_cfx_mask` 改为按目标 cfx 的 `cfxtrap` 来源 mask 授权（位索引=源 cfx）。
+
+- 删除保留 `immu18` 值 `0x3FFFF`（最大）的约定：该值落在 semihosting 区 `0x3FF00–0x3FFFF`，作保留值会在译码层被 semihosting 短路。新增 cfx 时新增章节 / 功能码表的要求不变。
+- `cfx_ptw` 改为单 PTBR：`SBI_PTW_SET_PTBR` / `SBI_PTW_GET_PTBR` 去掉 index 入参；删除 `SBI_PTW_SET_PTBR_PERM` / `SBI_PTW_ENABLE_PTBR` / `SBI_PTW_SET_PTHI` / `SBI_PTW_SET_PAHI`，新增 `SBI_PTW_SET_PTW_ENABLE`；功能码按新表重排。
+- `SBI_PTW_SET_PTE` 去掉 `ptbr_code` 入参（页表项格式在后续步骤定义）；PTBR 写/使能不隐含 TLB 失效。
+- TLB 并入 `cfx_ptw`：删除 `cfx_tlb` 章节与 `SBI_TLB_INVALIDATE` 服务，TLB 维护改为直接写 `cfx_ptw` 的 cg12 寄存器（`cfx_ptw_tlb_control`/`_asid`/`_addr_start`/`_addr_size`，op/scope/`ASID_ANY` 正交）；页表异常（含 TLB 命中）统一由 `cfx_ptw` 处理，新增 `PTWERR`（`1 << 7`）的 A/D 回写失败语义。
+- 正文术语统一：地址空间分区一律写作 `addr[47:42]`（地址高 6 位），不再使用讨论期简写。
+- `cfx_pmem` 增加 DMA 的 SBI 封装（启动、状态查询，等待为预留并返回不支持）；SBI 错误码增加「忙，可重试」；不提供 SRAM 查询。
+- `SBI_HART_SET_TIMER` 的 `timeout` 与 `SBI_TIME_GET` 的返回值明确为 64 位绝对时间（单位同 `cfx_time_value`），语义不变。
 
 ### 0.7.2（2026-10-26）
 

@@ -1,0 +1,12 @@
+diff --git a/src/arch/Kconfig b/src/arch/Kconfig
+index 729265c..d038604 100644
+--- a/src/arch/Kconfig
++++ b/src/arch/Kconfig
+@@ -37,6 +37,7 @@ menu "ISA"
+ if BUILD_ISA
+ 
+ rsource "arm/Kconfig"
++rsource "dadao/Kconfig"
+ rsource "mips/Kconfig"
+ rsource "power/Kconfig"
+ rsource "riscv/Kconfig"

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DADAO-v5 min/max integration driver (TESTCASES-059t).
 
-Builds the three probes in ``tests/minmax/`` (one optimisation level per
+Builds the three probes in ``tests/inst/minmax/`` (one optimisation level per
 invocation), runs them under ``qemu-dadao`` (user mode, static musl) and
 judges every observation with the independent oracle in ``oracle_minmax.py``.
 
@@ -71,7 +71,7 @@ DEFAULT_OBJDUMP = os.path.join(TOOLCHAIN_BIN, "llvm-objdump")
 DEFAULT_MUSL = os.path.join(".work", "source", "musl")
 DEFAULT_WORK_DIR = os.path.join("/tmp", "opencode", "TESTCASES-059t",
                                 "probe-work")
-PROBE_DIR = os.path.join("tests", "minmax")
+PROBE_DIR = os.path.join("tests", "inst", "minmax")
 PROBES = ("minmax_matrix", "minmax_clamp", "minmax_c23")
 CLAMP_N = 500                  # per format -> 1000 clamp iterations
 SOURCES = tuple(p + ".c" for p in PROBES) + ("minmax_common.h",)

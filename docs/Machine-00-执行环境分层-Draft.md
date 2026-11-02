@@ -9,7 +9,7 @@
 | 层 | 名称 | 候选 / 现状 | 决策点（要点） |
 |---|---|---|---|
 | **L1** | **C 库与链接形态** | `picolibc`（**现状**，**静态**）；`musl`（候选）；**动态形态**（`.so`/`-fPIC`/`-shared` = **产物形态**） | 静态优先；**动态链接独立后置**（不与 pk 混）；**本层只记"形态/用它与否"**，**loader 能力归 L3**（裁定 2026-10-12） |
-| **L2** | **系统调用接口** | **semihosting**（`trap <any cfxha>, 0x30000`；**现状**）；真 syscall（syscall 号 + 执行者） | **谁执行**：平台/模拟器 responder（现状）↔ 内核 syscall 表 |
+| **L2** | **系统调用接口** | **semihosting**（`trap <any cfxha>, 0x3FF00`；**现状**）；真 syscall（syscall 号 + 执行者） | **谁执行**：平台/模拟器 responder（现状）↔ 内核 syscall 表 |
 | **L3** | **资源管理 / 内核行为** | **无内核**（**现状**）；`pk`（proxy kernel：加载 ELF + trap/异常/syscall 转发）；Linux kernel | 何时引入；`pk` 与动态链接**分层不混**（用户 2026-10-11 原话） |
 | **L4** | **平台（machine）** | `qemu`（**现状**：`dadao-m1`）；`gem5`；`verilator`；`fpga` | **暂不分类**（用户 2026-10-12 裁定）⇒ 以 **「平台 × 能力」矩阵**表达（维度/真源见 §3 #4） |
 
@@ -48,7 +48,7 @@
 | ② **semihosting responder** | ✓ 25 服务（`contract-semihosting`；`Machine-01 §5`） | 待定 | 待定 | 待定 |
 | ③ 内存映射可控（RAM/ROM） | ✓ RAM `0xFC00_0000_0000`（16 MiB）+ ROM 64 KiB（`Machine-01 §1`） | 待定 | 待定 | 待定 |
 | ④ 异常/中断注入 | 部分：fault 码 `0x81`–`0x8D` 可用；**外部中断注入未定义**（待核） | 待定 | 待定 | 待定 |
-| ⑤ 可观测性（dump/回读） | ✓ 探针/harness（`tools/qemu/min_rom_probe_*`） | 待定 | 待定 | 待定 |
+| ⑤ 可观测性（dump/回读） | ✓ 探针/harness（`tools/testcases/arch/min_rom_probe_*`） | 待定 | 待定 | 待定 |
 | ⑥ 时序精度（周期/时间） | ✗ **非周期精确**（近似） | 待定 | 待定 | 待定 |
 | ⑦ 吞吐/速度 | 快（本机仿真） | 待定 | 待定 | 待定 |
 | ⑧ 确定性（可复现） | ✓ 确定可复现 | 待定 | 待定 | 待定 |
@@ -65,7 +65,7 @@
 |---|---|---|---|---|
 | **picolibc 自带 test**（≈235 适用） | C 库语义 | ✓ `check-picolibc-tests`(L2 快档) / `-full`(L3) | 需 semihosting responder ⇒ `gem5`/`verilator`/`fpga` **待定** | libc/libm **语义**、FP 完备性、stdio/格式化 I/O |
 | **LLVM 自带 lit**（MC + CodeGen ≈105） | 工具链（**宿主机**跑） | ✓ `check-lit` / `check-lit-full` | **平台无关**（跑在宿主 `llvm-mc`/`llc`） | ISA 编码/解码、**ISel/ABI lowering** |
-| **ISA 向量**（`tests/vectors/isa/**`） | 编码 + 执行语义 | ✓ `validate-vectors`（宿主）+ `check-qemu-semantics` | `gem5`/`fpga` 待定（可跑 > 可校验） | 编码 legality（L1）、结构（L2）、**执行语义**（L3） |
+| **ISA 向量**（`tests/inst/base/**`） | 编码 + 执行语义 | ✓ `validate-vectors`（宿主）+ `check-qemu-semantics` | `gem5`/`fpga` 待定（可跑 > 可校验） | 编码 legality（L1）、结构（L2）、**执行语义**（L3） |
 | **Embench-iot**（已接入） | **性能** | ✓ `test-m6`（双 `-O0`/`-O2` 档） | `gem5`（周期精确 ⇒ **更适合测时**）、`fpga`（真实） | **性能/代码规模**；**不作正确性判据** |
 | **CoreMark / Dhrystone / MiBench**（参考仓库有，**未接入**） | **性能** | 未接入（候选） | `qemu` 可用；**测时**宜用 `gem5`/`fpga` | 性能（整数/访存/控制流压力） |
 | **`ansibench`**（`nfinit/ansibench`，**未接入**） | **性能**（纯 ANSI C 计算型） | 未接入 | 原则上裸机+semihosting 可跑（`gem5`/`fpga` 待定） | 与 Embench **互补**的 C 计算负载；⚠️ **上游未声明许可** ⇒ 接入前须定许可，或仅作对照（**不 vendor**） |
@@ -77,7 +77,7 @@
 
 ### 5.1 套件接入要点（Embench-IoT → DADAO）
 
-> 逐条要点提炼自 `embench-analysis.md`（原文已归档 `.tao/archive/M7/notes/embench-analysis.md`，含逐基准证据/脚本索引）；此处只留**接入判据**，不复述证据。
+> 逐条要点提炼自 `embench-analysis.md`（原文已并入 `.tao/archive/M7/m7-retrospective.md` 附录 B，含逐基准证据/脚本索引）；此处只留**接入判据**，不复述证据。
 
 - **平台接入面极窄**：Embench 只要求平台实现 **3 个 `void` 函数** `initialise_board` / `start_trigger` / `stop_trigger`（`support/support.h`）；**无** `uart_*`/`timer_*`/`power_*`/`exit` 钩子；计时为平台自选。
 - **无需 OS / varargs / libc malloc**：freestanding；所有 `printf/puts` 均在调试宏内（默认不编译）；堆 = BEEBS 自带静态 bump 堆（≤ 8 KiB）；停机由 crt0 走 semihosting `SYS_EXIT`。
@@ -96,4 +96,4 @@
 - 2026-10-12：**#6 裁定**（用户原话「**不立 ADR，只写在册里**」）⇒ §2 末新增「各层后置顺序」条，§3 #6 标已裁定。**框架类 6 项讨论收敛**（#1 暂缓、#2–#6 已定）。
 - 2026-10-12：新增 **§4 平台 × 能力矩阵**（用户裁定「入库 + 先填 qemu 列」）⇒ `qemu` 列填现状（逐格带依据），`gem5`/`verilator`/`fpga` 标 `待定（依据待补）`。
 - 2026-10-12：新增 **§5「测试与基准 × 平台 × 功能点」**（用户 2026-10-12 指令：把 **Embench / `ansibench` / LLVM lit / picolibc test** 等列入，分析"能在哪个平台测、能测哪些功能点"）；`ansibench` = `nfinit/ansibench`（纯 ANSI C、~359 KB、**上游未声明许可** ⇒ 接入待定）。
-- 2026-10-13：新增 **§5.1「套件接入要点（Embench-IoT → DADAO）」**（`INFRA-070t`：`embench-analysis.md` 收敛，提炼 5 条接入判据；原文归档 `.tao/archive/M7/notes/`）。
+- 2026-10-13：新增 **§5.1「套件接入要点（Embench-IoT → DADAO）」**（`INFRA-070t`：`embench-analysis.md` 收敛，提炼 5 条接入判据；原文并入 `.tao/archive/M7/m7-retrospective.md` 附录 B）。

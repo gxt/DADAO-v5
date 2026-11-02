@@ -1,0 +1,419 @@
+diff --git a/src/arch/dadao/exec/b4.cc b/src/arch/dadao/exec/b4.cc
+new file mode 100644
+index 0000000..f874389
+--- /dev/null
++++ b/src/arch/dadao/exec/b4.cc
+@@ -0,0 +1,413 @@
++// DADAO gem5 B4 execution core -- implementation.
++//
++// The 63 B4 ids are dispatched through the table below (no mnemonic guessing:
++// shl/rol/shr each have an orrr and an orri id, add/sub/mul/div/rem/cmp share
++// mnemonics across the 32/16/8-bit widths and rev.t/w/b differ only in the
++// per-block size).  The id set must equal the batch_of() set of the GEM5-002t
++// matrix.
++//
++// Every source is truncated to the operation width *before* the operation and
++// every result is written over all 64 bits (zero-extended for u variants,
++// sign-extended for s variants); compare results are -1 (all 64 bits set),
++// 0 or +1.  contract-isa §6.1.5/§6.4.3/§6.4.5 and §10/§11/§12.
++#include "arch/dadao/exec/b4.hh"
++
++#include <cstddef>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <string_view>
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++namespace
++{
++
++// contract-isa §10.1.1 §10.1.2 §10.2 §10.4.1 §11.1.1 §11.1.2 §11.2 §11.4.1
++// §12.1.1 §12.1.2 §12.2 §12.4.1 §6.4.3 + SimRISC-08/09/10; one row per
++// contracts/opcodes.yaml B4 id.
++const B4Spec kSpecs[] = {
++    // ---- 32-bit add/sub/mul (contract-isa §10.1.1/§10.1.2) -------------
++    {"add.ut_orrr_rd", B4Op::Add, 32, false},
++    {"add.st_orrr_rd", B4Op::Add, 32, true},
++    {"sub.ut_orrr_rd", B4Op::Sub, 32, false},
++    {"sub.st_orrr_rd", B4Op::Sub, 32, true},
++    {"mul.ut_orrr_rd", B4Op::Mul, 32, false},
++    {"mul.st_orrr_rd", B4Op::Mul, 32, true},
++    {"div.ut_orrr_rd", B4Op::Div, 32, false},
++    {"div.st_orrr_rd", B4Op::Div, 32, true},
++    {"rem.ut_orrr_rd", B4Op::Rem, 32, false},
++    {"rem.st_orrr_rd", B4Op::Rem, 32, true},
++    // ---- 32-bit compare / shift (contract-isa §10.2/§10.4.1) -----------
++    {"cmp.ut_orrr_rd", B4Op::Cmp, 32, false},
++    {"cmp.st_orrr_rd", B4Op::Cmp, 32, true},
++    {"shl.t_orrr_rd", B4Op::Shl, 32, false},
++    {"rol.t_orrr_rd", B4Op::Rol, 32, false},
++    {"shr.ut_orrr_rd", B4Op::ShrU, 32, false},
++    {"shr.st_orrr_rd", B4Op::ShrS, 32, true},
++    {"shl.t_orri_rd", B4Op::Shl, 32, false},
++    {"rol.t_orri_rd", B4Op::Rol, 32, false},
++    {"shr.ut_orri_rd", B4Op::ShrU, 32, false},
++    {"shr.st_orri_rd", B4Op::ShrS, 32, true},
++    // ---- 16-bit add/sub/mul (contract-isa §11.1.1/§11.1.2) -------------
++    {"add.uw_orrr_rd", B4Op::Add, 16, false},
++    {"add.sw_orrr_rd", B4Op::Add, 16, true},
++    {"sub.uw_orrr_rd", B4Op::Sub, 16, false},
++    {"sub.sw_orrr_rd", B4Op::Sub, 16, true},
++    {"mul.uw_orrr_rd", B4Op::Mul, 16, false},
++    {"mul.sw_orrr_rd", B4Op::Mul, 16, true},
++    {"div.uw_orrr_rd", B4Op::Div, 16, false},
++    {"div.sw_orrr_rd", B4Op::Div, 16, true},
++    {"rem.uw_orrr_rd", B4Op::Rem, 16, false},
++    {"rem.sw_orrr_rd", B4Op::Rem, 16, true},
++    // ---- 16-bit compare / shift (contract-isa §11.2/§11.4.1) -----------
++    {"cmp.uw_orrr_rd", B4Op::Cmp, 16, false},
++    {"cmp.sw_orrr_rd", B4Op::Cmp, 16, true},
++    {"shl.w_orrr_rd", B4Op::Shl, 16, false},
++    {"rol.w_orrr_rd", B4Op::Rol, 16, false},
++    {"shr.uw_orrr_rd", B4Op::ShrU, 16, false},
++    {"shr.sw_orrr_rd", B4Op::ShrS, 16, true},
++    {"shl.w_orri_rd", B4Op::Shl, 16, false},
++    {"rol.w_orri_rd", B4Op::Rol, 16, false},
++    {"shr.uw_orri_rd", B4Op::ShrU, 16, false},
++    {"shr.sw_orri_rd", B4Op::ShrS, 16, true},
++    // ---- 8-bit add/sub/mul (contract-isa §12.1.1/§12.1.2) --------------
++    {"add.ub_orrr_rd", B4Op::Add, 8, false},
++    {"add.sb_orrr_rd", B4Op::Add, 8, true},
++    {"sub.ub_orrr_rd", B4Op::Sub, 8, false},
++    {"sub.sb_orrr_rd", B4Op::Sub, 8, true},
++    {"mul.ub_orrr_rd", B4Op::Mul, 8, false},
++    {"mul.sb_orrr_rd", B4Op::Mul, 8, true},
++    {"div.ub_orrr_rd", B4Op::Div, 8, false},
++    {"div.sb_orrr_rd", B4Op::Div, 8, true},
++    {"rem.ub_orrr_rd", B4Op::Rem, 8, false},
++    {"rem.sb_orrr_rd", B4Op::Rem, 8, true},
++    // ---- 8-bit compare / shift (contract-isa §12.2/§12.4.1) ------------
++    {"cmp.ub_orrr_rd", B4Op::Cmp, 8, false},
++    {"cmp.sb_orrr_rd", B4Op::Cmp, 8, true},
++    {"shl.b_orrr_rd", B4Op::Shl, 8, false},
++    {"rol.b_orrr_rd", B4Op::Rol, 8, false},
++    {"shr.ub_orrr_rd", B4Op::ShrU, 8, false},
++    {"shr.sb_orrr_rd", B4Op::ShrS, 8, true},
++    {"shl.b_orri_rd", B4Op::Shl, 8, false},
++    {"rol.b_orri_rd", B4Op::Rol, 8, false},
++    {"shr.ub_orri_rd", B4Op::ShrU, 8, false},
++    {"shr.sb_orri_rd", B4Op::ShrS, 8, true},
++    // ---- per-block reverse (contract-isa §6.4.3) -----------------------
++    {"rev.t_orri_rd", B4Op::Rev, 32, false},
++    {"rev.w_orri_rd", B4Op::Rev, 16, false},
++    {"rev.b_orri_rd", B4Op::Rev, 8, false},
++};
++
++constexpr size_t kNumSpecs = sizeof(kSpecs) / sizeof(kSpecs[0]);
++static_assert(kNumSpecs == 63, "B4 must cover exactly the 63 contract ids");
++
++/** A batch-4 instruction that this table cannot execute is a contract or
++ * implementation mismatch.  Trap instead of silently succeeding. */
++[[noreturn]] void
++internalError(const char *what)
++{
++    std::fprintf(stderr, "DADAO B4: internal error: %s\n", what);
++    std::abort();
++}
++
++/** Fetch one decoded field by name; a missing field means the decode table
++ * and this core disagree -- hard failure, never a silent zero. */
++uint64_t
++field(const decode::DecodedInst &inst, const char *name)
++{
++    uint64_t value = 0;
++    if (!fieldValue(inst, name, value)) {
++        std::fprintf(stderr,
++                     "DADAO B4: internal error: %s misses field %s\n",
++                     inst.entry->id, name);
++        std::abort();
++    }
++    return value;
++}
++
++bool
++formatIs(const decode::DecodedInst &inst, const char *format)
++{
++    return std::string_view(inst.entry->format) == format;
++}
++
++/** Low `bits` bits set; bits >= 64 is the all-ones mask. */
++uint64_t
++lowMask(unsigned bits)
++{
++    return bits >= 64 ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
++}
++
++/** Sign-extend the low `width` bits of `value` to 64 bits without relying on
++ * implementation-defined conversions. */
++uint64_t
++signExtendWidth(uint64_t value, unsigned width)
++{
++    const uint64_t mask = lowMask(width);
++    value &= mask;
++    if (width != 0 && ((value >> (width - 1)) & 1) != 0)
++        value |= ~mask;
++    return value;
++}
++
++/** Write a value over all 64 bits: zero-extended for u variants, sign
++ * extended for s variants (contract-isa §10/§11/§12 value semantics). */
++uint64_t
++extendResult(uint64_t value, unsigned width, bool isSigned)
++{
++    const uint64_t low = value & lowMask(width);
++    return isSigned ? signExtendWidth(low, width) : low;
++}
++
++/** cmp result: -1/0/1 written over all 64 bits (contract-isa §10.2/§11.2/
++ * §12.2).  -1 is 64 bits of ones, never a zero-extended width mask. */
++uint64_t
++compareResult(bool less, bool equal)
++{
++    if (less)
++        return ~uint64_t(0);
++    return equal ? 0 : 1;
++}
++
++/** Shift/rotate amount: orrr = the low log2(width) bits of the rdhd register
++ * value (natural mod width, never ILLI); orri = immu6 (already checked
++ * against the width before any register read).  contract-isa §6.4.5. */
++unsigned
++shiftAmount(const decode::DecodedInst &inst, RegAccess &ctx, unsigned width)
++{
++    if (formatIs(inst, "orrr")) {
++        const unsigned hd = static_cast<unsigned>(field(inst, "rdhd"));
++        return static_cast<unsigned>(ctx.readInt(Bank::Rd, hd)) &
++               (width - 1);
++    }
++    if (formatIs(inst, "orri"))
++        return static_cast<unsigned>(field(inst, "immu6"));
++    internalError("shift op is neither orrr nor orri");
++}
++
++/** Arithmetic shift right of a width-bit value, then sign-extended to 64
++ * bits.  The fill is computed on unsigned values so the code does not depend
++ * on implementation-defined signed right shifts. */
++uint64_t
++shiftRightSigned(uint64_t value, unsigned width, unsigned shamt)
++{
++    const uint64_t mask = lowMask(width);
++    uint64_t result = (value & mask) >> shamt;
++    if (shamt != 0 && ((value >> (width - 1)) & 1) != 0)
++        result |= mask & ~(mask >> shamt);
++    return signExtendWidth(result, width);
++}
++
++/** Per-block reverse: split the 64-bit source into 64/blockSize blocks, split
++ * each block into blockSize/k k-bit units and reverse the unit order inside
++ * the block (bit order inside a unit is kept).  All blocks are processed.
++ * contract-isa §6.4.3, SimRISC-04 §2.2.1. */
++uint64_t
++reverseBlocks(uint64_t value, unsigned blockSize, unsigned k)
++{
++    const unsigned blocks = 64 / blockSize;
++    const unsigned units = blockSize / k;
++    const uint64_t unitMask = lowMask(k);
++    const uint64_t blockMask = lowMask(blockSize);
++    uint64_t result = 0;
++    for (unsigned block = 0; block < blocks; ++block) {
++        const uint64_t in = (value >> (block * blockSize)) & blockMask;
++        uint64_t out = 0;
++        for (unsigned unit = 0; unit < units; ++unit) {
++            const uint64_t bits = (in >> (unit * k)) & unitMask;
++            out |= bits << ((units - 1 - unit) * k);
++        }
++        result |= out << (block * blockSize);
++    }
++    return result;
++}
++
++} // anonymous namespace
++
++size_t
++b4SpecCount()
++{
++    return kNumSpecs;
++}
++
++const B4Spec *
++b4Specs()
++{
++    return kSpecs;
++}
++
++const B4Spec *
++b4SpecForId(std::string_view id)
++{
++    for (size_t i = 0; i < kNumSpecs; ++i) {
++        if (id == kSpecs[i].id)
++            return &kSpecs[i];
++    }
++    return nullptr;
++}
++
++// The body is kept in a noinline helper so the exported `executeB4` symbol
++// stays a single symbol (GCC otherwise partitions a `.cold` clone out of the
++// large function; the acceptance check counts `executeB4`).
++__attribute__((noinline))
++static Fault
++runB4(const decode::DecodedInst &inst, RegAccess &ctx)
++{
++    if (!inst.ok() || inst.entry->batch != 4)
++        return Fault::NotB4;
++
++    const B4Spec *spec = b4SpecForId(inst.entry->id);
++    if (spec == nullptr)
++        internalError("uncovered batch-4 id");
++
++    const unsigned width = spec->width;
++    if (width != 32 && width != 16 && width != 8)
++        internalError("B4 width is not 32/16/8");
++
++    // Static legality first, before any register read (contract-isa §10/§11/
++    // §12: dst_rd0, encode_sbz and encode_onehot are static constraints).
++    const unsigned dst = static_cast<unsigned>(field(inst, "rdhb"));
++    if (dst == 0)
++        return Fault::Illegal;
++
++    const bool immForm = formatIs(inst, "orri");
++    if (!immForm && !formatIs(inst, "orrr"))
++        internalError("B4 op is neither orrr nor orri");
++
++    unsigned imm = 0;
++    if (immForm) {
++        imm = static_cast<unsigned>(field(inst, "immu6"));
++        if (spec->op == B4Op::Rev) {
++            // One-hot and k < S; k = S is the identity slot and illegal.
++            if (imm == 0 || (imm & (imm - 1)) != 0 || imm >= width)
++                return Fault::Illegal;
++        } else if (spec->op == B4Op::Shl || spec->op == B4Op::Rol ||
++                   spec->op == B4Op::ShrU || spec->op == B4Op::ShrS) {
++            // encode_sbz: the immediate field is the shift amount and may not
++            // reach the width; the orrr register form is taken mod width.
++            if (imm >= width)
++                return Fault::Illegal;
++        } else {
++            internalError("B4 immediate form for a non-shift/rev op");
++        }
++    }
++
++    const unsigned src = static_cast<unsigned>(field(inst, "rdhc"));
++    const uint64_t mask = lowMask(width);
++
++    const uint64_t raw = ctx.readInt(Bank::Rd, src);
++    const uint64_t a = raw & mask;
++    uint64_t b = 0;
++    unsigned shamt = 0;
++    if (spec->op == B4Op::Shl || spec->op == B4Op::Rol ||
++            spec->op == B4Op::ShrU || spec->op == B4Op::ShrS) {
++        shamt = shiftAmount(inst, ctx, width);
++    } else if (spec->op != B4Op::Rev) {
++        const unsigned rhs = static_cast<unsigned>(field(inst, "rdhd"));
++        b = ctx.readInt(Bank::Rd, rhs) & mask;
++    }
++
++    uint64_t result = 0;
++    switch (spec->op) {
++      case B4Op::Add:
++        result = extendResult(a + b, width, spec->isSigned);
++        break;
++      case B4Op::Sub:
++        result = extendResult(a - b, width, spec->isSigned);
++        break;
++      case B4Op::Mul: {
++        const unsigned __int128 product =
++            static_cast<unsigned __int128>(a) * b;
++        result = extendResult(static_cast<uint64_t>(product), width,
++                              spec->isSigned);
++        break;
++      }
++      case B4Op::Div:
++      case B4Op::Rem: {
++        const bool div = spec->op == B4Op::Div;
++        if (!spec->isSigned) {
++            // Divide-by-zero constants (contract-isa §6.1.5): div.u = all
++            // ones of the width (zero-extended), rem.u = dividend.
++            if (b == 0) {
++                result = div ? mask : a;
++            } else {
++                result = div ? (a / b) : (a % b);
++            }
++        } else {
++            const int64_t sa = static_cast<int64_t>(signExtendWidth(a, width));
++            const int64_t sb = static_cast<int64_t>(signExtendWidth(b, width));
++            const int64_t intMin = -(static_cast<int64_t>(1) << (width - 1));
++            if (sb == 0) {
++                // div.s = all ones over 64 bits; rem.s = the dividend
++                // sign-extended over 64 bits.
++                result = div ? ~uint64_t(0) : signExtendWidth(a, width);
++            } else if (sa == intMin && sb == -1) {
++                // Signed overflow constant: div.s = INT_MIN of the width
++                // (sign-extended), rem.s = 0.
++                result = div ? signExtendWidth(
++                                   uint64_t(1) << (width - 1), width)
++                             : 0;
++            } else {
++                // C++ integer division truncates toward zero and the
++                // remainder has the dividend's sign (C99 rule).
++                result = div ? signExtendWidth(static_cast<uint64_t>(sa / sb),
++                                               width)
++                             : signExtendWidth(static_cast<uint64_t>(sa % sb),
++                                               width);
++            }
++        }
++        break;
++      }
++      case B4Op::Cmp: {
++        bool less;
++        bool equal;
++        if (spec->isSigned) {
++            const int64_t sa = static_cast<int64_t>(signExtendWidth(a, width));
++            const int64_t sb = static_cast<int64_t>(signExtendWidth(b, width));
++            less = sa < sb;
++            equal = sa == sb;
++        } else {
++            less = a < b;
++            equal = a == b;
++        }
++        result = compareResult(less, equal);
++        break;
++      }
++      case B4Op::Shl:
++        result = (a << shamt) & mask;
++        break;
++      case B4Op::Rol:
++        result = ((a << shamt) | (a >> ((width - shamt) & (width - 1)))) &
++                 mask;
++        break;
++      case B4Op::ShrU:
++        result = a >> shamt;
++        break;
++      case B4Op::ShrS:
++        result = shiftRightSigned(a, width, shamt);
++        break;
++      case B4Op::Rev:
++        result = reverseBlocks(raw, width, imm);
++        break;
++    }
++
++    ctx.writeInt(Bank::Rd, dst, result);
++    return Fault::None;
++}
++
++Fault
++executeB4(const decode::DecodedInst &inst, RegAccess &ctx)
++{
++    return runB4(inst, ctx);
++}
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5

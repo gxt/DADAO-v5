@@ -1,0 +1,136 @@
+diff --git a/src/arch/dadao/exec/common.hh b/src/arch/dadao/exec/common.hh
+new file mode 100644
+index 0000000..4911586
+--- /dev/null
++++ b/src/arch/dadao/exec/common.hh
+@@ -0,0 +1,130 @@
++// DADAO gem5 execution core: shared register access for the B1-B7 batches.
++//
++// Plain C++ (no gem5 headers), like the B0 decode core, so the same code is
++// driven by the standalone assertion harnesses (exec/*_test.cc) and by the
++// gem5 adapter (inst.cc).
++//
++// Only what the batches have in common lives here: the fault result, the
++// integer bank selector, the destination register group and the register
++// access interface.  Memory access and the B1-only 32-bit float half write
++// stay in the batch that needs them (exec/b1.hh).
++#ifndef __ARCH_DADAO_EXEC_COMMON_HH__
++#define __ARCH_DADAO_EXEC_COMMON_HH__
++
++#include <cstddef>
++#include <cstdint>
++#include <string_view>
++
++#include "arch/dadao/decode/decode.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++/** Result of executing one instruction.
++ *
++ * NotB1/.../NotB6 mean "this instruction is not in that batch"; the caller
++ * must keep it unimplemented rather than guessing.  Each executeB*() returns
++ * only its own NotB* value (never another batch's), and the caller keeps the
++ * instruction unimplemented in that case.
++ *
++ * RasOverflow/RasUnderflow are the B5 RAS faults (contract-isa §8.6); they are
++ * precise and only the B5 call/ret core can return them.
++ *
++ * CfxReg/CfxEsc are the B6 runtime faults (contract-isa §13.6, spec/SimRISC-11
++ * §3/§4): a missing cfx register combination or a rejected escape frame.  They
++ * are appended after the existing values so no earlier enumerator changes.
++ *
++ * NotB7 is the B7 batch marker, appended last for the same reason.
++ */
++enum class Fault
++{
++    None,
++    NotB1,
++    NotB2,
++    NotB3,
++    NotB4,
++    NotB5,
++    Illegal,
++    Malign,
++    Memory,
++    RasOverflow,
++    RasUnderflow,
++    NotB6,
++    CfxReg,
++    CfxEsc,
++    NotB7,
++};
++
++/** Integer banks; RF goes through the float accessors. */
++enum class Bank
++{
++    Rd,
++    Rb,
++    Ra,
++};
++
++/** Destination register group of an instruction. */
++enum class Target : uint8_t
++{
++    Rd,
++    Rb,
++    Ra,
++    Rf,
++};
++
++/** Architectural register access, implemented by the gem5 adapter and by the
++ * assertion harness.
++ *
++ * rd0 reads as 0 and rb0 reads as the current instruction address; rf0 reads
++ * the whole FCSR word and writeFcsr() applies the FCSR write mask.  There is
++ * deliberately no memory method here: the B2 batch has no memory access, so
++ * that path is impossible by construction.
++ */
++class RegAccess
++{
++  public:
++    virtual ~RegAccess() = default;
++
++    virtual uint64_t readInt(Bank bank, unsigned idx) = 0;
++    virtual void writeInt(Bank bank, unsigned idx, uint64_t val) = 0;
++
++    /** Full 64-bit RF read (rf0 reads the whole FCSR word). */
++    virtual uint64_t readFloat(unsigned idx) = 0;
++    /** Write the whole 64-bit register (never used for rf0). */
++    virtual void writeFloat64(unsigned idx, uint64_t val) = 0;
++    /** rf0 write: only [33:32] (rounding mode) and [4:0] (flags) change. */
++    virtual void writeFcsr(uint64_t raw) = 0;
++
++    /** Address of the instruction being executed (IP, not IP+4). */
++    virtual uint64_t pc() const = 0;
++};
++
++/** Look up one decoded field by name; false when the entry has no such field.
++ *
++ * Callers must treat false as a hard failure (ILLI / panic), never as a zero
++ * value: a missing field means the contract and the implementation disagree.
++ */
++inline bool
++fieldValue(const decode::DecodedInst &inst, std::string_view name,
++           uint64_t &out)
++{
++    if (!inst.ok() || name.empty())
++        return false;
++    for (unsigned i = 0; i < inst.numFields; ++i) {
++        if (std::string_view(decode::fieldDesc(*inst.entry, i).name) == name) {
++            out = inst.fieldValues[i];
++            return true;
++        }
++    }
++    return false;
++}
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_EXEC_COMMON_HH__

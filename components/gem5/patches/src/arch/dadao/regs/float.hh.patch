@@ -1,0 +1,28 @@
+diff --git a/src/arch/dadao/regs/float.hh b/src/arch/dadao/regs/float.hh
+new file mode 100644
+index 0000000..066695a
+--- /dev/null
++++ b/src/arch/dadao/regs/float.hh
+@@ -0,0 +1,22 @@
++// DADAO RF register bank (B0 skeleton).
++#
++// rf0 is the FP control/status register; FP value semantics are B7 and are not
++// implemented here.  Only the register-class layout is fixed in B0.
++#ifndef __ARCH_DADAO_REGS_FLOAT_HH__
++#define __ARCH_DADAO_REGS_FLOAT_HH__
++
++#include "cpu/reg_class.hh"
++#include "debug/FloatRegs.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++
++inline constexpr RegClass floatRegClass(FloatRegClass, FloatRegClassName,
++        64, debug::FloatRegs);
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_REGS_FLOAT_HH__

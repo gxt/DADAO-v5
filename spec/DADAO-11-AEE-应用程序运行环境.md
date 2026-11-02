@@ -1,6 +1,6 @@
 # DADAO Application Execution Environment
 
-> **版本：0.9.3**（与 ABI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
+> **版本：0.9.4-rc**（与 ABI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
 
 应用程序运行环境：Application Execution Environment
 
@@ -53,30 +53,19 @@ br.nz {rd2}?, [rb0, overflow_handler] @@ 不相等 → 32-bit 溢出
 
 ## 3. 地址空间布局
 
-应用程序建议使用不超过 32 个 PTBR，按需申请而非一次性分配。各 PTBR 按用途划分独立的虚拟地址空间区域：
+地址转换使用单份 PTBR（`cfx_ptw_ptbr`）与 16 位 ASID（`cfx_ptw_tlb_asid`）：进程私有映射按各自的 ASID 区分，共享库/内核映射置为全局页（PTE 的 `G = 1`），在 ASID 之间复用。
 
-| PTBR | 用途 | TLB 切换行为 |
-|------|------|:--:|
-| 0-15 | 进程私有：代码、数据、栈、堆、备用 | invalid |
-| 16-31 | 共享库、动态链接、内核映射、共享内存 | **保留** |
-
-进程切换时，仅 invalid 进程私有的 PTBR 对应的 TLB 集合。标记为"保留"的 PTBR 对应的 TLB 集合不做无效化处理，从而避免共享代码和内核映射的 TLB 抖动。
+进程切换时先按旧 ASID 显式 invalid 其非全局条目，再写入新 ASID；全局页不随进程切换失效，从而避免共享代码和内核映射的 TLB 抖动。
 
 ```simrisc
-@@ 进程切换示例：invalid 已申请的私有 PTBR（最多 16 个）
-set.rd   rd2, 0                     @@ 循环变量
-cfx_tlb_inv_loop:
-    @@ 仅 invalid PTBR 0-15
-    shl.o   rd3, rd2, 42              @@ rd3 = PTBR 索引 << 42（构造 addr_start，VA[47:42]=PTBR 编号）
-    cfx2rc  cfx_tlb_addr_start, rd3
-    set.rd   rd3, 0x40000000000     @@ 0x40000000000（2^42） = 集合内全部 VA 空间
-    cfx2rc  cfx_tlb_addr_size, rd3
-    set.rd   rd4, 2                 @@ bit1 = invalid by addr range
-    cfx2rc  cfx_tlb_control, rd4
-    add.si    rd2, 1
-    set.rd   rd3, 16
-    cmp.so  rd5, rd2, rd3          @@ rd5 = rd2 < rd3 ?
-    br.n {rd5}?, [rb0, cfx_tlb_inv_loop]
+@@ 进程切换示例：先按旧 ASID 失效其全部非全局条目（写 ASID 不隐含失效）
+set.rd   rd2, old_asid
+cfx2rc  cfx_ptw_tlb_asid, rd2
+set.rd   rd4, 0x02                 @@ op=invalid(10)、scope=all(00)、ASID_ANY=0（不碰全局页）
+cfx2rc  cfx_ptw_tlb_control, rd4
+@@ 再切到新 ASID（全局页跨 ASID 保留）
+set.rd   rd2, new_asid
+cfx2rc  cfx_ptw_tlb_asid, rd2
 ```
 
 ## 4. 汇编兼容性
@@ -107,6 +96,10 @@ Dadao中的octa是64位，即8字节，而gas中的.octa定义的数据是16字�
 ## 附录：版本与变更记录
 
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
+
+### 0.9.4-rc（未发布）
+
+- §3 地址空间布局按单 PTBR + 16 位 ASID 收口：删除「32 个 PTBR / 按 PTBR 划分 TLB 集合」表述，进程切换示例改用 `cfx_ptw_tlb_asid` 与 `cfx_ptw_tlb_control`（op/scope/`ASID_ANY`）；全局页（PTE `G = 1`）跨 ASID 保留。
 
 ### 0.9.3（2026-10-26）
 

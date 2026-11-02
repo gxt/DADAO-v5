@@ -1,10 +1,10 @@
 # DADAO 汇编指令表（新语法）
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
-> **源**：`contracts/opcodes.yaml`（266 条 = M1 156 + `scope: fp` 66 + `scope: excluded` 2 + `scope: m3` 1 + `scope: m8` 7 + `scope: m9` 34）
+> **源**：`contracts/opcodes.yaml`（264 条 = M1 156 + `scope: fp` 66 + `scope: excluded` 0 + `scope: m3` 1 + `scope: m8` 7 + `scope: m9` 34）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
-> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 核芯功能扩展（`trap`/`escape`/`cfx2rd`/`cfx2rc`；`cfxld`/`cfxst` 见 `deferred`） / 其它指令（原子 / 空转 / 位扫描与位计数）
-> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（52 条）：`scope: fp` 52 条（已实现）；**deferred**（2 条：`cfxld`/`cfxst`）为语义待定状态（分类依据 = `ADR-0012` D1）；`scope: m1` 156 条为当前有效书写形式；`scope: excluded` 共 2 条，按章分布为 核芯功能扩展 2 条
+> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 核芯功能扩展（`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence`） / 其它指令（原子 / 空转 / 位扫描与位计数）
+> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围）：**浮点运算**（52 条）：`scope: fp` 52 条（已实现）；`scope: m1` 156 条为当前有效书写形式；`scope: excluded` 现 0 条（无该分区记录：`cfxld`/`cfxst` 已删）
 > **注（`scope: fp` 范围总账 = 66 条）**：浮点运算章 52 条（OPC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 5 条（`cs.n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{rdHA:rdHA+immu6-1}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `spec/Toolchain-01-汇编语言.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
@@ -16,7 +16,7 @@
 | `imms12` | s12: -2048..2047 | 访存偏移（字节，无 `%4` 要求） |
 | `imms14` | bytes: [-8192, 8188]，`%4==0` | 跳转/分支 rrii 偏移（字节→编码 `>>2`） |
 | `imms18` | s18: -131072..131071 | `ret` 返回值（非地址，无 `%4` 要求）；`aip.si` 的**编码层** 4 KiB 块偏移（`<<12`；汇编层按字节写 `imms30`） |
-| `imms20` | bytes: [-524288, 524284]，`%4==0` | 跳转/分支 riii 偏移 + `escape` 偏移（字节→编码 `>>2`） |
+| `imms20` | 跳转/分支 bytes: [-524288, 524284]，`%4==0`；`escape` 只允许 0 或 4 | 跳转/分支 riii 偏移 + `escape` 偏移（字节→编码 `>>2`） |
 | `imms24` | s24: -8388608..8388607 | 编码层字段（非汇编层直接使用） |
 | `imms26` | bytes: [-33554432, 33554428]，`%4==0` | 跳转 iiii 偏移（字节→编码 `>>2`） |
 | `imms30` | bytes: [-536870912, 536866816]，`%4096==0` | `aip.si` 的**汇编层**操作数（字节；编码 `imms18 = bytes >> 12`） |
@@ -194,7 +194,7 @@
 | `forem` | `orrr` | `rf` | `forem rfHB, rfHC, rfHD` | `forem_orrr_rf` |
 | `fornd` | `orri` | `rf` | `fornd rfHB, rfHC, immu6` | `fornd_orri_rf` |
 | `foroot` | `orri` | `rf` | `foroot rfHB, rfHC, immu6` | `foroot_orri_rf` |
-| `fosclb` | `orrr` | `rf` | `fosclb rfHB, rfHC, rfHD` | `fosclb_orrr_rf` |
+| `fosclb` | `orrr` | `rf` | `fosclb rfHB, rfHC, rdHD` | `fosclb_orrr_rf` |
 | `foscmp` | `orrr` | `rf` | `foscmp rdHB, rfHC, rfHD` | `foscmp_orrr_rf` |
 | `fosgnj` | `orrr` | `rf` | `fosgnj rfHB, rfHC, rfHD` | `fosgnj_orrr_rf` |
 | `fosgnn` | `orrr` | `rf` | `fosgnn rfHB, rfHC, rfHD` | `fosgnn_orrr_rf` |
@@ -216,7 +216,7 @@
 | `ftrem` | `orrr` | `rf` | `ftrem rfHB, rfHC, rfHD` | `ftrem_orrr_rf` |
 | `ftrnd` | `orri` | `rf` | `ftrnd rfHB, rfHC, immu6` | `ftrnd_orri_rf` |
 | `ftroot` | `orri` | `rf` | `ftroot rfHB, rfHC, immu6` | `ftroot_orri_rf` |
-| `ftsclb` | `orrr` | `rf` | `ftsclb rfHB, rfHC, rfHD` | `ftsclb_orrr_rf` |
+| `ftsclb` | `orrr` | `rf` | `ftsclb rfHB, rfHC, rdHD` | `ftsclb_orrr_rf` |
 | `ftscmp` | `orrr` | `rf` | `ftscmp rdHB, rfHC, rfHD` | `ftscmp_orrr_rf` |
 | `ftsgnj` | `orrr` | `rf` | `ftsgnj rfHB, rfHC, rfHD` | `ftsgnj_orrr_rf` |
 | `ftsgnn` | `orrr` | `rf` | `ftsgnn rfHB, rfHC, rfHD` | `ftsgnn_orrr_rf` |
@@ -308,25 +308,23 @@
 | `sub.sb` | `orrr` | `rd` | `sub.sb rdHB, rdHC, rdHD` | `sub.sb_orrr_rd` |
 | `sub.ub` | `orrr` | `rd` | `sub.ub rdHB, rdHC, rdHD` | `sub.ub_orrr_rd` |
 
-### 核芯功能扩展（6 条）
+### 核芯功能扩展（5 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `cfx2rc` | `crrr` | `cfx` | `cfx2rc cfxHA, cgHB, rcHC, rdHD` | `cfx2rc_crrr_cfx` |
 | `cfx2rd` | `crrr` | `cfx` | `cfx2rd cfxHA, cgHB, rcHC, rdHD` | `cfx2rd_crrr_cfx` |
-| `cfxld` | `crii` | `cfx` | `cfxld cfxHA, [rbHB, immu12]` | `cfxld_crii_cfx` |
-| `cfxst` | `crii` | `cfx` | `cfxst cfxHA, [rbHB, immu12]` | `cfxst_crii_cfx` |
 | `escape` | `ciii` | `cfx` | `escape cfxHA, [excp_cause_ip, imms20]` | `escape_ciii_cfx` |
+| `fence` | `ciii` | `cfx` | `fence cfxHA, immu18` | `fence_ciii_cfx` |
 | `trap` | `ciii` | `cfx` | `trap cfxHA, immu18` | `trap_ciii_cfx` |
 
-### 其它指令（29 条）
+### 其它指令（28 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `ctlz` | `orri` | `rd` | `ctlz rdHB, rdHC, immu6` | `ctlz_orri_rd` |
 | `ctpop` | `orri` | `rd` | `ctpop rdHB, rdHC, immu6` | `ctpop_orri_rd` |
 | `cttz` | `orri` | `rd` | `cttz rdHB, rdHC, immu6` | `cttz_orri_rd` |
-| `fence` | `oiii` | `imm` | `fence immu18` | `fence_oiii_imm` |
 | `lr.b.an` | `orrr` | `rd` | `lr.b.an rdHC, [rbHD]` | `lr.b.an_orrr_rd` |
 | `lr.b.ar` | `orrr` | `rd` | `lr.b.ar rdHC, [rbHD]` | `lr.b.ar_orrr_rd` |
 | `lr.b.nn` | `orrr` | `rd` | `lr.b.nn rdHC, [rbHD]` | `lr.b.nn_orrr_rd` |

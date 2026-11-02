@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOSubtarget.h b/llvm/lib/Target/DADAO/DADAOSubtarget.h
 new file mode 100644
-index 000000000..ebce3682e
+index 000000000..d373f18d4
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOSubtarget.h
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,80 @@
 +//===-- DADAOSubtarget.h - Define Subtarget for DADAO ----------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -77,8 +77,7 @@ index 000000000..ebce3682e
 +  /// M6 (INTEG-023k §A #3, no libc): expose the C `mem*` libcalls so an
 +  /// out-of-line `llvm.memcpy`/`memset`/`memmove`/`memcmp` lowers to a plain
 +  /// `call memcpy`/... (LLVM-064t).  The symbols are provided by the
-+  /// freestanding runtime in tests/scripts/dadao_mem_runtime.s; there is no
-+  /// libc.
++  /// freestanding `mem*` runtime linked by the test harness; there is no libc.
 +  void initLibcallLoweringInfo(LibcallLoweringInfo &Info) const override;
 +};
 +

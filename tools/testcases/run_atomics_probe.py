@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Atomics integration driver (TESTCASES-056t).
 
-Builds and runs the five probes in ``tests/atomics/`` for ONE link mode per
+Builds and runs the five probes in ``tests/inst/atomics/`` for ONE link mode per
 invocation (static first, then dynamic, exactly like the libc-test driver) and
 judges them with the independent oracle in ``oracle_atomics.py``.
 
@@ -30,9 +30,10 @@ atomic_builtins.c the ``__atomic_*`` matrix, neighbour bytes of sub-word RMW,
 aba_treiber.c    Treiber invariants + tagged-ABA replay, ``--rounds`` rounds
 barrier_probe.c  structural: ``fence`` count in ``clang -S`` and
                  ``llvm-objdump -d`` == the oracle's a_barrier site count, and
-                 every ``fence`` carries the full-barrier immediate 975
-                 (0x3CF); the runtime ordering observation is a note, not a
-                 check (a single-hart user-mode run is insensitive)
+                 every ``fence`` carries the full-barrier immediate 4095
+                 (0xFFF, all six access classes); the runtime ordering
+                 observation is a note, not a check (a single-hart user-mode
+                 run is insensitive)
 
 Usage
 -----
@@ -67,7 +68,7 @@ DEFAULT_SYSROOT = os.path.join(".dadao", "dadao-unknown-elf")
 # evidence script keeps the stage log under .work/log/<module>/<TASK>/.
 DEFAULT_WORK_DIR = os.path.join("/tmp", "opencode", "TESTCASES-056t",
                                 "probe-work")
-PROBE_DIR = os.path.join("tests", "atomics")
+PROBE_DIR = os.path.join("tests", "inst", "atomics")
 
 PROBES = ["counter", "c11_alltypes", "atomic_builtins", "aba_treiber",
           "barrier_probe"]
@@ -285,7 +286,7 @@ def check_aba(ctx):
 def fence_lines(text):
     vals = []
     for line in text.splitlines():
-        m = re.search(r"\bfence\s+(0x[0-9a-fA-F]+|\d+)\b", line)
+        m = re.search(r"\bfence\s+[^,]+,\s*(0x[0-9a-fA-F]+|\d+)\b", line)
         if m:
             vals.append(int(m.group(1), 0))
     return vals
@@ -322,9 +323,9 @@ def check_barrier(ctx):
             vals = fence_lines(f.read())
         ctx.add("barrier fence count (asm)", sites, len(vals),
                 len(vals) == sites)
-        bad = [v for v in vals if v != 975]
-        ctx.add("barrier fence immediate all 0x3CF (asm)", [], bad,
-                not bad, detail="0x3CF = full barrier")
+        bad = [v for v in vals if v != 4095]
+        ctx.add("barrier fence immediate all 0xFFF (asm)", [], bad,
+                not bad, detail="0xFFF = all six access classes")
     rc, out, _ = run([ctx.args.objdump, "-d", elf])
     if rc != 0:
         ctx.add("barrier objdump", 0, rc, False, detail=out[-500:])
@@ -332,8 +333,8 @@ def check_barrier(ctx):
         vals = fence_lines(out)
         ctx.add("barrier fence count (objdump)", sites, len(vals),
                 len(vals) == sites)
-        bad = [v for v in vals if v != 975]
-        ctx.add("barrier fence immediate all 0x3CF (objdump)", [], bad,
+        bad = [v for v in vals if v != 4095]
+        ctx.add("barrier fence immediate all 0xFFF (objdump)", [], bad,
                 not bad)
 
 

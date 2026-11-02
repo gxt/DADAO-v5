@@ -1,0 +1,38 @@
+diff --git a/src/arch/dadao/regs/int.hh b/src/arch/dadao/regs/int.hh
+new file mode 100644
+index 0000000..99e362e
+--- /dev/null
++++ b/src/arch/dadao/regs/int.hh
+@@ -0,0 +1,32 @@
++// DADAO integer register banks (B0 skeleton).
++#
++// Four architecturally separate banks: rd, rb, ra, rf.  rf lives in the float
++// register class because rf0 is the FP control/status register.  B0 only fixes
++// the bank layout; naming aliases (rd8/rb8/rf8, cfx, ...) are B1-B7 work.
++#ifndef __ARCH_DADAO_REGS_INT_HH__
++#define __ARCH_DADAO_REGS_INT_HH__
++
++#include "cpu/reg_class.hh"
++#include "debug/IntRegs.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace int_reg
++{
++
++inline constexpr RegIndex RdBase = 0;
++inline constexpr RegIndex RbBase = 64;
++inline constexpr RegIndex RaBase = 128;
++inline constexpr RegIndex NumRegs = 192;
++
++} // namespace int_reg
++
++inline constexpr RegClass intRegClass(IntRegClass, IntRegClassName,
++        int_reg::NumRegs, debug::IntRegs);
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_REGS_INT_HH__

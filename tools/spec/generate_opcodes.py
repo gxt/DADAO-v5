@@ -8,12 +8,13 @@
     + 融合乘加 `ftfma`/`fofma`），独立于 M1，
     **已实现**（LLVM-029t/030t、QEMU-034t–037t；取整见 `QEMU-072t`/`LLVM-125t`；
     最小最大值见 `QEMU-071t`/`LLVM-124t`；融合乘加见 `QEMU-070t`/`LLVM-123t`）；
-  - `scope: excluded`（2 条）——编码已定义、尚未实现：特权 cfx `cfxld`/`cfxst` 2 条
-    （`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`；
+  - `scope: excluded`（现 0 条）——"编码已定义、尚未实现"词表保留备用；`cfxld`/`cfxst`
+    已从 ISA 删除（`crii` 格式一并撤销），故现行无此分区记录
+    （历史：`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`；
     `ADR-0034` 将 `lr/sc` 由 8 条重排为 24 条；`SPEC-161t` 立取整 2 条、
     `SPEC-162t` 实现落地后将其由 `excluded` 转入 `fp`；`SPEC-159t` 立最小最大值 4 条、
     `SPEC-160t` 实现落地后将其由 `excluded` 转入 `fp`；`SPEC-164t` 将 `fence` 与 24 条
-    `lr/sc` 由 `excluded` 转入 `m9`；`SPEC-163t` 删 `cs.eq`/`cs.ne` 的 `rf` 变体，腾出
+    `lr/sc` 由 `excluded` 转入 `m9`（`fence` 编码由 ADR-0044 改为 ciii/0x79）；`SPEC-163t` 删 `cs.eq`/`cs.ne` 的 `rf` 变体，腾出
     `0x5E`/`0x5F`）；
   - `scope: m3`（1 条）——M3 CodeGen 新增指令（ADR-0012 D9.1 `sub.o_orrr_dbb`），
     **非 M1 身份**，不要求 M1 向量覆盖；
@@ -132,12 +133,6 @@ def f_crrr():
             R("rdhd", "[5:0]", "dst", "rd")]
 
 
-def f_crii(imm="immu12"):
-    return [_field("cfxha", "[23:18]", "cfxcode", "imm"),
-            R("rbhb", "[17:12]", "src"),
-            I(imm, "[11:0]")]
-
-
 def f_ciii(imm):
     return [_field("cfxha", "[23:18]", "cfxcode", "imm"),
             I(imm, "[17:0]")]
@@ -147,7 +142,7 @@ def f_ciii(imm):
 
 _KNOWN_FMTS = frozenset([
     "rrrr", "rrii", "rrri", "riii", "iiii", "rwii",
-    "orrr", "orri", "oiii", "crrr", "crii", "ciii",
+    "orrr", "orri", "oiii", "crrr", "ciii",
 ])
 
 # 特例映射：当 mnemonic 的 "-" 后部分是格式（非寄存器组）时，
@@ -192,8 +187,8 @@ def _get_id(mnemonic, fmt, fields):
 
 
 def _infer_feature(fields, fmt=None):
-    # crrr/crii/ciii 的 feature 始终为 "cfx"
-    if fmt in ("crrr", "crii", "ciii"):
+    # crrr/ciii 的 feature 始终为 "cfx"
+    if fmt in ("crrr", "ciii"):
         return "cfx"
     if not fields:
         return "imm"
@@ -277,11 +272,15 @@ S06_JMP = "SimRISC-06: 无条件跳转指令"
 S06_CALL = "SimRISC-06: 函数调用"
 S06_RET = "SimRISC-06: 函数返回"
 
-# 核芯功能扩展（SimRISC-11）：`trap`/`escape`/`cfx2rd`/`cfx2rc` 编码出自 QFC 主表（SimRISC-00）；
-# `cfxld`/`cfxst` 的语义待定，正文同册。
+# 核芯功能扩展（SimRISC-11）：`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence` 编码出自 QFC 主表
+# （SimRISC-00）。`cfxld`/`cfxst` 已从 ISA 删除（`crii` 格式一并撤销）。
+S11_FENCE = "SimRISC-11: fence"
+# 保留核芯功能扩展（6-14、19-61）⇒ ILLI：适用于**所有带 cfxha 的**核芯功能扩展
+# 指令（trap/escape/cfx2rd/cfx2rc/fence），编解码规则见 SimRISC-11 §1；
+# cfxha = 0 为 all cfx（汇编别名 cfx0 / cfx_umon），15-18/62/63 为已分配 cfx。
+CFX_RESERVED_EXPR = "cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"
 
 # 其它指令（SimRISC-12）
-S12_FENCE = "SimRISC-12: fence指令"
 S12_LRSC = "SimRISC-12: LR-SC指令"
 S12_SWYM = "SimRISC-12: 空转指令"
 S12_BIT = "SimRISC-12: 位扫描与位计数"
@@ -566,19 +565,25 @@ def build_main_table(records):
 
     # ── 0111-1xxx：特权 cfx ──
     # SPEC-115t：trap/escape/cfx2rd/cfx2rc re-scope excluded → m1（已实现，MC 可汇编）。
-    # cfxld/cfxst 保持 scope: excluded（SimRISC-11 SRAM块传输指令（待定），decode ILLI）。
+    # cfxld/cfxst（0x7C/0x7D）已从 ISA 删除（`crii` 格式一并撤销）⇒ 两格空白（UNDI）。
+    # 所有带 cfxha 的核芯功能扩展指令共享保留编号规则 encode_cfx_reserved
+    # （cfxha 6-14、19-61 ⇒ ILLI；SimRISC-11 §1）。
     records.append(rec("cfx2rd-crrr", "cfx2rd", "crrr", 0x7A,
-                       f_crrr(), [], S00_QFC, scope="m1"))
+                       f_crrr(), [CFX_RESERVED_EXPR], S00_QFC, scope="m1"))
     records.append(rec("cfx2rc-crrr", "cfx2rc", "crrr", 0x7B,
-                       f_crrr(), [], S00_QFC, scope="m1"))
-    records.append(rec("cfxld-crii", "cfxld", "crii", 0x7C,
-                       f_crii("immu12"), [], S00_QFC, scope="excluded"))
-    records.append(rec("cfxst-crii", "cfxst", "crii", 0x7D,
-                       f_crii("immu12"), [], S00_QFC, scope="excluded"))
+                       f_crrr(), [CFX_RESERVED_EXPR], S00_QFC, scope="m1"))
     records.append(rec("escape-ciii", "escape", "ciii", 0x7E,
-                       f_ciii("imms18"), [], S00_QFC, scope="m1"))
+                       f_ciii("imms18"), ["imms18[17:1] == 0", CFX_RESERVED_EXPR],
+                       S00_QFC, scope="m1"))
     records.append(rec("trap-ciii", "trap", "ciii", 0x7F,
-                       f_ciii("immu18"), [], S00_QFC, scope="m1"))
+                       f_ciii("immu18"), [CFX_RESERVED_EXPR], S00_QFC, scope="m1"))
+    # ADR-0044：fence 从 OPC-MISC 迁到主表 0111-1001（SimRISC-11）。编码字段
+    # ha = cfxha（0 = all cfx，汇编别名 cfx0 / cfx_umon），hb/hc/hd 由 immu18 拆出。
+    # hb = immu18[17:12] 为 SBZ；cfx 6-14/19-61 为 reserved（D8）。scope: m9
+    # （已实现，非 M1 身份）。
+    records.append(rec("fence", "fence", "ciii", 0x79, f_ciii("immu18"),
+                       ["immu18[17:12] == 0", CFX_RESERVED_EXPR],
+                       S11_FENCE, scope="m9"))
 
 
 # ────────────────────────────── OPC-MISC ──────────────────────────────
@@ -586,13 +591,9 @@ def build_main_table(records):
 def build_misc_amo(records):
     # 用户 2026-10-22 裁定「OPC-MISC 的编码改为：0100-0111」⇒ op 0x77 → 0x47。
     op = 0x47
-    # ADR-0034 D1/D2（用户 2026-10-20）：fence 由 000-000 迁至 100-000（ha=0x20）；
-    # immu18 = fm[17:12] / pred[11:6] / succ[5:0]（书写仍是 18 位无符号立即数，不拆三段）；
-    # fm=0 为唯一已定义值，pred/succ 的高 2 位（[11:10]/[5:4]）SBZ ⇒ 其余保留（ILLI）。
-    # scope：SPEC-164t（用户 2026-10-22 同意）由 excluded 转 m9 —— QEMU/LLVM 已实现。
-    records.append(rec("fence", "fence", "oiii", op, f_oiii("immu18"),
-                       ["immu18[17:12] == 0", "immu18[11:10] == 0", "immu18[5:4] == 0"],
-                       S12_FENCE, ha=0x20, scope="m9"))
+    # ADR-0044 D1/D3：fence 为 ciii（op 0x79），ha = cfxha（0 = all cfx）；
+    # hb = immu18[17:12] = 0（SBZ，非 0 ⇒ ILLI）；hc = pred；hd = succ。
+    # 移出 OPC-MISC，位于 QFC 主表 0111-1001（SimRISC-11「核芯功能扩展」）。
     # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 OPC-MISC 100-010（ha=0x22）
     records.append(rec("swym-oiii", "swym", "oiii", op, f_oiii("immu18"),
                        [], S12_SWYM, ha=0x22))
@@ -604,8 +605,11 @@ def build_misc_amo(records):
         for order, base_ha in order_ha.items():
             for i, width in enumerate(("o", "t", "w", "b")):
                 mnem = f"{prefix}.{width}.{order}"
+                # sc 的 rdHB 是成功/失败结果（目的），rdHB = rd0 ⇒ ILLI（dst_rd0）；
+                # lr 的 rdHB 是 SBZ 固定零字段（数据目的为 rdhc），hb != rd0 ⇒ ILLI（encode_sbz）。
+                leg = ["rdhb != rd0"] if prefix == "sc" else ["rdhb == rd0"]
                 records.append(rec(mnem, mnem, "orrr", op,
-                                   f_orrr("rdhb", "rdhc", "rbhd"), [],
+                                   f_orrr("rdhb", "rdhc", "rbhd"), leg,
                                    S12_LRSC, ha=base_ha + i, scope="m9"))
     # 用户 2026-10-22 裁定「ctpop/ctlz/cttz 从 OPC-octa 改为 OPC-MISC，opx 100-101/100-110/100-111」
     # ⇒ op 0x47、ha 0x25/0x26/0x27（原 0x40 / 0x1D/0x1E/0x1F）。三条**无位宽后缀**，
@@ -821,7 +825,10 @@ def build_misc_rf(records):
         (0x1C, "forem"), (0x1D, "fosclb"), (0x1E, "fosgnn"), (0x1F, "fosgnj"),
     ]
     for ha, mnem in orrr_entries:
-        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rfhb", "rfhc", "rfhd"),
+        # scaleB（ftsclb/fosclb）的第三操作数是 rd 组的有符号整数指数（rdHD），
+        # 复用 orrr 编码与 opc/ha，不新增 opcode/格式；rdHD = rd0 表示指数 0。
+        third = "rdhd" if mnem in ("ftsclb", "fosclb") else "rfhd"
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rfhb", "rfhc", third),
                            ["rfhb != rf0"], S00_MISCRF, ha=ha, scope="fp"))
     # 比较类：目的为 rd
     cmp_entries = [(0x20, "ftqcmp"), (0x21, "ftscmp"), (0x28, "foqcmp"), (0x29, "foscmp")]
@@ -892,7 +899,10 @@ EXPR_TO_RULE = OrderedDict([
     ("aligned(4)",                                "excp_malign"),
     ("aligned(8)",                                "excp_malign"),
     # ── SBZ / 位域 ──
+    ("rdhb == rd0",                               "encode_sbz"),
     ("immu18[17:12] == 0",                        "encode_sbz"),
+    ("imms18[17:1] == 0",                         "encode_sbz"),
+    (CFX_RESERVED_EXPR,                           "encode_cfx_reserved"),
     ("immu18[11:10] == 0",                        "encode_sbz"),
     ("immu18[11:6] == 0",                         "encode_sbz"),
     ("immu18[5:4] == 0",                          "encode_sbz"),
@@ -964,8 +974,8 @@ def main():
         f.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md\n")
         f.write("# M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统\n")
         f.write("# scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；\n")
-        f.write("# scope: excluded 为核芯功能扩展（cfxld/cfxst），尚未实现，\n")
-        f.write("#   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
+        f.write("# scope: excluded 现 0 条（cfxld/cfxst 已删除、crii 格式撤销），\n")
+        f.write("#   词表保留：编码已定义但未实现 ⇒ ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
         f.write("# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份\n")
         f.write("# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + "
                 "D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份\n")

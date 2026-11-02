@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.cpp
 new file mode 100644
-index 000000000..338dd0b31
+index 000000000..746043faf
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOCfxAliasTable.cpp
-@@ -0,0 +1,340 @@
+@@ -0,0 +1,394 @@
 +//===-- DADAOCfxAliasTable.cpp - DADAO cfx alias runtime table ------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -15,16 +15,20 @@ index 000000000..338dd0b31
 +// Runtime cfx alias table: parse `share/dadao/cfx-aliases.txt` once, then
 +// answer name -> encoding (assembler) and encoding -> name (MCInstPrinter).
 +//
-+// Table grammar (format=1; '#' starts a comment, blank lines ignored):
++// Table grammar ('#' starts a comment, blank lines ignored):
 +//
-+//   # format=1
++//   # format=1                       (legacy; still read)
++//   # format=2                       (adds stride-indexed arrays)
 +//   scalar <name> <cfxha> [canonical]
 +//   reg    <name> <cfxha> <cg> <rc-base> <rc-count> [canonical]
++//   array  <name-base> <cfxha> <cg> <rc-base> <count> <stride> [canonical]
 +//
 +// `scalar` names address a whole cfx (`cfx_<cfxname>` -> cfxha); `reg` names
-+// address one register of a cfx, rc-count > 1 being an array register whose
-+// single-subscript form is `name[N]` (rc = rc-base + N).  `canonical` marks
-+// the preferred spelling when several names denote the same encoding.
++// address a contiguous register array of a cfx (rc = rc-base + N, stride 1);
++// `array` (format=2 only) names a stride-indexed array (`name-base[N]`,
++// rc = rc-base + N*stride).  A register array (rc-count > 1) is spelled with a
++// single subscript.  `canonical` marks the preferred spelling when several
++// names denote the same encoding.
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -69,10 +73,14 @@ index 000000000..338dd0b31
 +  unsigned Cg = 0;
 +  unsigned RcBase = 0;
 +  unsigned RcCount = 1;
++  unsigned Stride = 1;
 +  bool Canonical = false;
 +
 +  bool covers(unsigned CgCode, unsigned RcCode) const {
-+    return Cg == CgCode && RcBase <= RcCode && RcCode < RcBase + RcCount;
++    if (Cg != CgCode || RcCode < RcBase)
++      return false;
++    unsigned Delta = RcCode - RcBase;
++    return Delta % Stride == 0 && Delta / Stride < RcCount;
 +  }
 +};
 +
@@ -98,6 +106,7 @@ index 000000000..338dd0b31
 +/// (fail closed): a half-understood table would silently mis-encode names.
 +std::string parseTable(StringRef Text, CfxAliasTable &T) {
 +  bool SawFormat = false;
++  unsigned Format = 0;
 +  unsigned LineNo = 0;
 +  SmallVector<StringRef, 8> Fields;
 +
@@ -109,9 +118,10 @@ index 000000000..338dd0b31
 +    if (Line.consume_front("#")) {
 +      StringRef Comment = Line.trim();
 +      if (Comment.starts_with("format=")) {
-+        if (Comment != "format=1")
++        if (Comment != "format=1" && Comment != "format=2")
 +          return "line " + std::to_string(LineNo) +
 +                 ": unsupported table format '" + Comment.str() + "'";
++        Format = Comment.back() - '0';
 +        SawFormat = true;
 +      }
 +      continue;
@@ -183,11 +193,53 @@ index 000000000..338dd0b31
 +      continue;
 +    }
 +
++    if (Kind == "array") {
++      if (Format != 2)
++        return bad("'array' requires a '# format=2' header");
++      if (Fields.size() != 7 && Fields.size() != 8)
++        return bad("expected 'array <name-base> <cfxha> <cg> <rc-base> "
++                   "<count> <stride> [canonical]'");
++      RegAlias A;
++      A.Name = Fields[1].str();
++      if (!StringRef(A.Name).starts_with("cfx_"))
++        return bad("array alias '" + A.Name + "' must start with 'cfx_'");
++      if (!getUInt(Fields[2], 63, A.Cfxha))
++        return bad("cfxha '" + Fields[2].str() + "' out of range [0, 63]");
++      if (!getUInt(Fields[3], 63, A.Cg))
++        return bad("cg '" + Fields[3].str() + "' out of range [0, 63]");
++      if (!getUInt(Fields[4], 63, A.RcBase))
++        return bad("rc-base '" + Fields[4].str() + "' out of range [0, 63]");
++      if (!getUInt(Fields[5], 64, A.RcCount) || A.RcCount == 0)
++        return bad("count '" + Fields[5].str() + "' out of range [1, 64]");
++      if (!getUInt(Fields[6], 64, A.Stride) || A.Stride == 0)
++        return bad("stride '" + Fields[6].str() + "' out of range [1, 64]");
++      if (A.RcBase + (A.RcCount - 1) * A.Stride > 63)
++        return bad("rc range [" + std::to_string(A.RcBase) + ", " +
++                   std::to_string(A.RcBase + (A.RcCount - 1) * A.Stride) +
++                   "] leaves the 6-bit rc space [0, 63]");
++      if (Fields.size() == 8) {
++        if (Fields[7] != "canonical")
++          return bad("unknown flag '" + Fields[7].str() + "'");
++        A.Canonical = true;
++      }
++      // Legacy format=1 tables carry literal-bracket names (for example
++      // `cfx_umon_space_desc[0]`); brackets in a name are therefore *not*
++      // rejected -- only a cross-kind duplicate is.
++      for (const ScalarAlias &Prev : T.Scalars)
++        if (Prev.Name == A.Name)
++          return bad("duplicate alias '" + A.Name + "'");
++      for (const RegAlias &Prev : T.Regs)
++        if (Prev.Name == A.Name)
++          return bad("duplicate alias '" + A.Name + "'");
++      T.Regs.push_back(std::move(A));
++      continue;
++    }
++
 +    return bad("unknown directive '" + Kind.str() + "'");
 +  }
 +
 +  if (!SawFormat)
-+    return "missing '# format=1' header";
++    return "missing '# format=' header";
 +
 +  return std::string();
 +}
@@ -278,7 +330,8 @@ index 000000000..338dd0b31
 +}
 +
 +bool lookupCfxRegAlias(StringRef Name, unsigned &Cfxha, unsigned &Cg,
-+                       unsigned &RcBase, unsigned &RcCount) {
++                       unsigned &RcBase, unsigned &RcCount,
++                       unsigned &RcStride) {
 +  const CfxAliasTable &T = table();
 +  if (!T.Available)
 +    return false;
@@ -288,6 +341,7 @@ index 000000000..338dd0b31
 +      Cg = A.Cg;
 +      RcBase = A.RcBase;
 +      RcCount = A.RcCount;
++      RcStride = A.Stride;
 +      return true;
 +    }
 +  return false;
@@ -338,7 +392,7 @@ index 000000000..338dd0b31
 +    return false;
 +  Name = Best->Name;
 +  if (Best->RcCount > 1)
-+    Name += "[" + std::to_string(Rc - Best->RcBase) + "]";
++    Name += "[" + std::to_string((Rc - Best->RcBase) / Best->Stride) + "]";
 +  return true;
 +}
 +

@@ -1,0 +1,70 @@
+diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
+new file mode 100644
+index 0000000..06e4e06
+--- /dev/null
++++ b/src/arch/dadao/isa.hh
+@@ -0,0 +1,64 @@
++// DADAO ISA object (B0 skeleton + B6 LR/SC reservation state).
++#ifndef __ARCH_DADAO_ISA_HH__
++#define __ARCH_DADAO_ISA_HH__
++
++#include "arch/dadao/pcstate.hh"
++#include "arch/dadao/regs/misc.hh"
++#include "arch/generic/isa.hh"
++
++namespace gem5
++{
++
++struct DadaoISAParams;
++
++namespace DadaoISA
++{
++
++class ISA : public BaseISA
++{
++  public:
++    using Params = DadaoISAParams;
++
++    explicit ISA(const Params &p);
++
++    PCStateBase *
++    newPCState(Addr addr = 0) const override
++    {
++        return new PCState(addr);
++    }
++
++    void clear() override;
++
++    // The architectural cfx/misc-register model (mode/cfx/trap state) and the
++    // privilege model are still not implemented: every access panics
++    // explicitly instead of returning a made-up value.  B6 implements the ISA
++    // side of the cfx instructions; the cfx register file itself is a platform
++    // model (see the B6 open questions).
++    RegVal readMiscRegNoEffect(RegIndex idx) const override;
++    RegVal readMiscReg(RegIndex idx) override;
++    void setMiscRegNoEffect(RegIndex idx, RegVal val) override;
++    void setMiscReg(RegIndex idx, RegVal val) override;
++
++    bool inUserMode() const override;
++
++    // LR/SC reservation (B6): one slot per hart, keyed by the exact address and
++    // the access width (contract-isa §14.2, SPEC-181t F8.1).  No checkpoint
++    // state: after a restore an sc simply fails (spurious failure is allowed).
++    void setReservation(Addr addr, unsigned width);
++    bool hasReservation(Addr addr, unsigned width) const;
++    void clearReservations();
++
++  private:
++    bool reservationValid = false;
++    Addr reservationAddr = 0;
++    unsigned reservationWidth = 0;
++
++  public:
++
++    void copyRegsFrom(ThreadContext *src) override;
++};
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_ISA_HH__

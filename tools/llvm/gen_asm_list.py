@@ -9,7 +9,7 @@ Sources
 * ``contracts/opcodes.yaml`` -- the authoritative encoding table
   (per-record ``scope`` = m1 | fp | excluded | m3), with per-field ``role``/``bank``.
 
-Derivation rules (validated against ``tests/llvm/lit/MC/DADAO/*.s``)
+Derivation rules (validated against ``tests/unit/llvm/lit/MC/DADAO/*.s``)
 ---------------------------------------------------------------
 * operands are the fields whose ``role`` is one of dst/src/imm/wyde_pos/
   cfxcode/cfx_cg/cfx_rc; ``opx`` fields are already encoded in the
@@ -67,7 +67,7 @@ EXAMPLES = {
 }
 IMM_EXAMPLE = {"immu6": "1", "immu12": "1", "immu16": "0x1234", "immu18": "1",
                "immu24": "1", "imms12": "1", "imms14": "8", "imms18": "1",
-               "imms20": "8", "imms24": "1", "imms26": "8", "wpN": "0"}
+               "imms20": "4", "imms24": "1", "imms26": "8", "wpN": "0"}
 
 # ADR-0013 D10: assembly-layer field name mapping for ×4 address fields.
 # Encoding-level names (imms12/18/24) are renamed to byte-domain names
@@ -139,7 +139,7 @@ FEATURE_OVERRIDE = {
     "jump": "rb",
     # call 压栈 / ret 弹栈均走 RegRAS（ra）——用户裁定 2026-09-25
     "call": "ra", "ret": "ra",
-    "swym": "imm", "fence": "imm",
+    "swym": "imm", "fence": "cfx",
     "escape": "cfx", "trap": "cfx",
 }
 
@@ -174,8 +174,8 @@ def primary_feature(entry: dict, ops: list[dict]) -> str:
 def classify(entry: dict) -> str:
     """章节分类（优先级：cfx > rwii > 取数存数 > 控制流 > 寄存器复制 > 浮点运算 > 位宽 > 64位运算 > 其它）。"""
     m = entry["mnemonic"]
-    # 核芯功能扩展 = 带 cfx 的 6 条（`cfxld`/`cfxst` 语义待定，同册）
-    if m in ("trap", "escape", "cfx2rd", "cfx2rc", "cfxld", "cfxst"):
+    # 核芯功能扩展 = 带 cfxha 的 5 条（`fence` 的 ha 是 cfxha，ADR-0044 起同册）
+    if m in ("trap", "escape", "cfx2rd", "cfx2rc", "fence"):
         return "核芯功能扩展"
     if entry["format"] == "rwii":
         return "16位立即数操作"
@@ -214,10 +214,7 @@ def classify(entry: dict) -> str:
 
 SECTION_ORDER = ["取数存数", "寄存器复制", "16位立即数操作", "64位数据运算", "64位地址运算", "控制流", "浮点运算", "32位数据运算", "16位数据运算", "8位数据运算", "核芯功能扩展", "其它指令"]
 
-# 语义待定的条目（`cfxld`/`cfxst`，见 SimRISC-11: SRAM块传输指令（待定））。
-DEFERRED_MNEMONICS = frozenset({"cfxld", "cfxst"})
-
-# 章节「范围/状态」标（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）。
+# 章节「范围」标（按本章条目实际 scope 现场派生）。
 # 章节名 → 标题后缀（含 `｜` 之后的内容）。
 SECTION_BADGES = {
     "浮点运算": "**scope: fp（已实现）**",
@@ -227,8 +224,8 @@ SECTION_BADGES = {
 def section_badge(cls: str, entries: list[dict]) -> str | None:
     """章节标题的「范围/状态」标（按本章条目的**实际 scope** 现场派生）。
 
-    `scope` 表范围、`deferred` 表状态，二者正交。一章可同时含 `scope: fp` 与
-    `scope: excluded`（已定义编码、执行 ILLI，如 `ftrnd`/`fornd`）⇒ 须逐类列出，
+    一章可同时含 `scope: fp` 与 `scope: excluded`（已定义编码、执行 ILLI）
+    ⇒ 须逐类列出，
     不得把整章标成单一 scope（否则标题与表格内容不符）。
     """
     if cls == "浮点运算":
@@ -385,9 +382,7 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
     if fmt == "rrii" and mnemonic.startswith(("ld.", "st.")):
         return f"{mnemonic} {R(ops[0])}, [{R(ops[1], 1)}, imms12]"
 
-    # cfx 家族（Excluded from M1）
-    if mnemonic in ("cfxld", "cfxst"):
-        return f"{mnemonic} {field_name(ops[0]['name']) if field else 'cfx63'}, [{R(ops[1])}, immu12]"
+    # cfx 家族
     if mnemonic in ("cfx2rd", "cfx2rc"):
         return (
             f"{mnemonic} {field_name(ops[0]['name']) if field else 'cfx63'}, "
@@ -396,6 +391,8 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
     if mnemonic == "escape":
         return f"{mnemonic} cfxHA, [excp_cause_ip, imms20]"
     if mnemonic == "trap":
+        return f"{mnemonic} cfxHA, immu18"
+    if mnemonic == "fence":
         return f"{mnemonic} cfxHA, immu18"
 
     # LR-SC 家族（lr 的 rdhb 固定 rd0，汇编只写两个操作数）
@@ -407,7 +404,7 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
     # rwii —— 保持 wpN
     if fmt == "rwii":
         return f"{mnemonic} {R(ops[0])}, wpN, immu16"
-    if mnemonic in ("swym", "fence"):
+    if mnemonic == "swym":
         return f"{mnemonic} {field_name(imm_ops[0]['name']) if (field and imm_ops) else '0'}"
     # 双目的指令（rrrr 格式，rdha/rdhb 均为 dst）：{rdHA, rdHB}, rdHC, rdHD
     if fmt == "rrrr" and mnemonic in _DUAL_TARGET_MNEMONICS:
@@ -455,8 +452,6 @@ def new_template(entry: dict, ops: list[dict]) -> str:
         return f"{mnemonic} rdN, [rbN, off]"
     if fmt == "rwii":
         return f"{mnemonic} rdN, wpN, immu16"
-    if mnemonic in ("cfxld", "cfxst"):
-        return f"{mnemonic} cfxN, [rbN, off]"
     if mnemonic in ("cfx2rd", "cfx2rc"):
         return f"{mnemonic} cfxN, cgN, rcN, rdN"
     if mnemonic == "escape":
@@ -663,18 +658,16 @@ def main() -> int:
             print(f"gen-asm-list: {len(entries)} entries ({args.syntax} syntax) -> stdout", file=sys.stderr)
         return 0
 
-    # --- 范围/状态统计（从 entries 推导；scope 表范围、deferred 表状态，二者正交）---
+    # --- 范围/状态统计（从 entries 推导）---
     _by_class_tmp: dict[str, list[dict]] = {}
     for entry in entries:
         _by_class_tmp.setdefault(classify(entry), []).append(entry)
     _fp_chapter = len(_by_class_tmp.get("浮点运算", []))
-    _pending_chapter = sum(1 for e in entries if e["mnemonic"] in DEFERRED_MNEMONICS)
     _fp_chapter_entries = _by_class_tmp.get("浮点运算", [])
     _fp_chapter_fp = sum(1 for e in _fp_chapter_entries if e.get("scope") == "fp")
     _fp_chapter_ex = sum(1 for e in _fp_chapter_entries
                          if e.get("scope") == "excluded")
-    # `scope: excluded` 条目按章分布（`cfxld`/`cfxst` 归核芯功能扩展、`ftrnd`/`fornd`
-    # 归浮点运算）—— 现场派生，不写死。
+    # `scope: excluded` 条目按章分布 —— 现场派生，不写死（现行 0 条：词表保留备用）。
     _excluded_by_class: dict[str, int] = {}
     for e in entries:
         if e.get("scope") == "excluded":
@@ -684,6 +677,11 @@ def main() -> int:
         f"{cls} {n} 条"
         for cls in SECTION_ORDER
         if (n := _excluded_by_class.get(cls))
+    )
+    _excluded_clause = (
+        f"`scope: excluded` 共 {n_excluded} 条，按章分布为 {_excluded_dist}"
+        if _excluded_dist else
+        f"`scope: excluded` 现 {n_excluded} 条（无该分区记录：`cfxld`/`cfxst` 已删）"
     )
     _fp_status = (f"`scope: fp` {_fp_chapter_fp} 条（已实现）"
                   + (f" + `scope: excluded` {_fp_chapter_ex} 条（decode ILLI）"
@@ -727,8 +725,8 @@ def main() -> int:
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
 > **源**：`contracts/opcodes.yaml`（{total} 条 = M1 {n_m1} + `scope: fp` {n_fp} + `scope: excluded` {n_excluded} + `scope: m3` {n_m3} + `scope: m8` {n_m8} + `scope: m9` {n_m9}）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
-> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 核芯功能扩展（`trap`/`escape`/`cfx2rd`/`cfx2rc`；`cfxld`/`cfxst` 见 `deferred`） / 其它指令（原子 / 空转 / 位扫描与位计数）
-> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（{_fp_chapter} 条）：{_fp_status}；**deferred**（{_pending_chapter} 条：`cfxld`/`cfxst`）为语义待定状态（分类依据 = `ADR-0012` D1）；`scope: m1` {n_m1} 条为当前有效书写形式；`scope: excluded` 共 {n_excluded} 条，按章分布为 {_excluded_dist}
+> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 核芯功能扩展（`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence`） / 其它指令（原子 / 空转 / 位扫描与位计数）
+> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围）：**浮点运算**（{_fp_chapter} 条）：{_fp_status}；`scope: m1` {n_m1} 条为当前有效书写形式；{_excluded_clause}
 > **注（`scope: fp` 范围总账 = {n_fp} 条）**：浮点运算章 {_fp_chapter_fp} 条（OPC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 5 条（`cs.n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{{rdHA:rdHA+immu6-1}}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `spec/Toolchain-01-汇编语言.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
@@ -740,7 +738,7 @@ def main() -> int:
 | `imms12` | s12: -2048..2047 | 访存偏移（字节，无 `%4` 要求） |
 | `imms14` | bytes: [-8192, 8188]，`%4==0` | 跳转/分支 rrii 偏移（字节→编码 `>>2`） |
 | `imms18` | s18: -131072..131071 | `ret` 返回值（非地址，无 `%4` 要求）；`aip.si` 的**编码层** 4 KiB 块偏移（`<<12`；汇编层按字节写 `imms30`） |
-| `imms20` | bytes: [-524288, 524284]，`%4==0` | 跳转/分支 riii 偏移 + `escape` 偏移（字节→编码 `>>2`） |
+| `imms20` | 跳转/分支 bytes: [-524288, 524284]，`%4==0`；`escape` 只允许 0 或 4 | 跳转/分支 riii 偏移 + `escape` 偏移（字节→编码 `>>2`） |
 | `imms24` | s24: -8388608..8388607 | 编码层字段（非汇编层直接使用） |
 | `imms26` | bytes: [-33554432, 33554428]，`%4==0` | 跳转 iiii 偏移（字节→编码 `>>2`） |
 | `imms30` | bytes: [-536870912, 536866816]，`%4096==0` | `aip.si` 的**汇编层**操作数（字节；编码 `imms18 = bytes >> 12`） |

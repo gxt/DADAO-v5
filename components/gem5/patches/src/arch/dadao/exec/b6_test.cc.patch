@@ -1,0 +1,1811 @@
+diff --git a/src/arch/dadao/exec/b6_test.cc b/src/arch/dadao/exec/b6_test.cc
+new file mode 100644
+index 0000000..265cafa
+--- /dev/null
++++ b/src/arch/dadao/exec/b6_test.cc
+@@ -0,0 +1,1805 @@
++/*
++ * DADAO gem5 B6 execution assertions (GEM5-011t).
++ *
++ * Standalone C++17 harness (no gem5 headers): compiled by
++ * `tools/gem5/check_b6.py` against
++ * src/arch/dadao/{exec/b6.cc,exec/b6_test.cc,decode/decode.cc}.
++ *
++ * Everything here is derived from spec/SimRISC-11 §1-§5 (cfx system
++ * instructions + fence), spec/SimRISC-12 §1.1/§2 (LR/SC + swym),
++ * contract-isa §13.1/§13.6/§14.1/§14.2 and ADR-0034/ADR-0044 -- never from
++ * another implementation:
++ *   * the 30 B6 ids are listed one by one and must equal the live decode-table
++ *     B6 set (batch membership is never guessed from a mnemonic);
++ *   * the oracle rows are independent of exec/b6.cc (width, memory order and
++ *     field names are written out here, one id at a time);
++ *   * static ILLI is checked before any register/cfx/memory access (read and
++ *     write counts are asserted to be zero on the fault paths);
++ *   * MALIGN, CFXREG, CFXESC and Memory are precise: zero architectural
++ *     writes, and the reservation is only consumed by a completed sc.
++ */
++#include <cinttypes>
++#include <climits>
++#include <cstdarg>
++#include <cstdint>
++#include <cstdio>
++#include <cstring>
++#include <map>
++#include <string>
++#include <vector>
++
++#include "arch/dadao/decode/decode.hh"
++#include "arch/dadao/exec/b6.hh"
++#include "arch/dadao/exec/common.hh"
++
++namespace decode = gem5::DadaoISA::decode;
++namespace exec = gem5::DadaoISA::exec;
++
++namespace
++{
++
++int failures = 0;
++
++void
++fail(const char *fmt, ...)
++{
++    ++failures;
++    va_list args;
++    va_start(args, fmt);
++    std::printf("[FAIL] ");
++    std::vprintf(fmt, args);
++    std::printf("\n");
++    va_end(args);
++}
++
++void
++check(bool condition, const char *fmt, ...)
++{
++    va_list args;
++    va_start(args, fmt);
++    std::printf(condition ? "[PASS] " : "[FAIL] ");
++    std::vprintf(fmt, args);
++    std::printf("\n");
++    va_end(args);
++    if (!condition)
++        ++failures;
++}
++
++bool
++strEq(const char *a, const char *b)
++{
++    return a != nullptr && b != nullptr && std::strcmp(a, b) == 0;
++}
++
++/** Field-name equality where "absent" (nullptr) is itself a value. */
++bool
++sameField(const char *a, const char *b)
++{
++    if (a == nullptr || b == nullptr)
++        return a == b;
++    return std::strcmp(a, b) == 0;
++}
++
++// ---------------------------------------------------------------------------
++// Independent oracle rows: one per contract id.
++// ---------------------------------------------------------------------------
++
++enum TestOp
++{
++    T_SWYM,
++    T_FENCE,
++    T_LR,
++    T_SC,
++    T_TRAP,
++    T_ESCAPE,
++    T_CFXRD,
++    T_CFXRC,
++};
++
++struct Oracle
++{
++    const char *id;
++    TestOp op;
++    const char *format;
++    unsigned width;
++    unsigned order; // 0=nn 1=an 2=nr 3=ar
++    const char *dstField;
++    const char *srcField;
++    const char *baseField;
++    const char *immField;
++    const char *cfxField;
++    const char *cgField;
++    const char *rcField;
++};
++
++const Oracle kOracle[] = {
++    // system / cfx (contract-isa §13.1/§13.6)
++    {"swym_oiii_imm", T_SWYM, "oiii", 0, 0, nullptr, nullptr, nullptr,
++     "immu18", nullptr, nullptr, nullptr},
++    {"trap_ciii_cfx", T_TRAP, "ciii", 0, 0, nullptr, nullptr, nullptr,
++     "immu18", "cfxha", nullptr, nullptr},
++    {"escape_ciii_cfx", T_ESCAPE, "ciii", 0, 0, nullptr, nullptr, nullptr,
++     "imms18", "cfxha", nullptr, nullptr},
++    {"cfx2rd_crrr_cfx", T_CFXRD, "crrr", 0, 0, "rdhd", nullptr, nullptr,
++     nullptr, "cfxha", "cghb", "rchc"},
++    {"cfx2rc_crrr_cfx", T_CFXRC, "crrr", 0, 0, "rdhd", nullptr, nullptr,
++     nullptr, "cfxha", "cghb", "rchc"},
++    // fence (contract-isa §14.1)
++    {"fence_ciii_cfx", T_FENCE, "ciii", 0, 0, nullptr, nullptr, nullptr,
++     "immu18", "cfxha", nullptr, nullptr},
++    // lr.<width>.<order> (contract-isa §14.2; lr has nn/an/ar)
++    {"lr.o.nn_orrr_rd", T_LR, "orrr", 8, 0, "rdhc", nullptr, "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"lr.t.nn_orrr_rd", T_LR, "orrr", 4, 0, "rdhc", nullptr, "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"lr.w.nn_orrr_rd", T_LR, "orrr", 2, 0, "rdhc", nullptr, "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"lr.b.nn_orrr_rd", T_LR, "orrr", 1, 0, "rdhc", nullptr, "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"lr.o.an_orrr_rd", T_LR, "orrr", 8, 1, "rdhc", nullptr, "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"lr.t.an_orrr_rd", T_LR, "orrr", 4, 1, "rdhc", nullptr, "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"lr.w.an_orrr_rd", T_LR, "orrr", 2, 1, "rdhc", nullptr, "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"lr.b.an_orrr_rd", T_LR, "orrr", 1, 1, "rdhc", nullptr, "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"lr.o.ar_orrr_rd", T_LR, "orrr", 8, 3, "rdhc", nullptr, "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"lr.t.ar_orrr_rd", T_LR, "orrr", 4, 3, "rdhc", nullptr, "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"lr.w.ar_orrr_rd", T_LR, "orrr", 2, 3, "rdhc", nullptr, "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"lr.b.ar_orrr_rd", T_LR, "orrr", 1, 3, "rdhc", nullptr, "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    // sc.<width>.<order> (contract-isa §14.2; sc has nn/nr/ar)
++    {"sc.o.nn_orrr_rd", T_SC, "orrr", 8, 0, "rdhb", "rdhc", "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"sc.t.nn_orrr_rd", T_SC, "orrr", 4, 0, "rdhb", "rdhc", "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"sc.w.nn_orrr_rd", T_SC, "orrr", 2, 0, "rdhb", "rdhc", "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"sc.b.nn_orrr_rd", T_SC, "orrr", 1, 0, "rdhb", "rdhc", "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"sc.o.nr_orrr_rd", T_SC, "orrr", 8, 2, "rdhb", "rdhc", "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"sc.t.nr_orrr_rd", T_SC, "orrr", 4, 2, "rdhb", "rdhc", "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"sc.w.nr_orrr_rd", T_SC, "orrr", 2, 2, "rdhb", "rdhc", "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"sc.b.nr_orrr_rd", T_SC, "orrr", 1, 2, "rdhb", "rdhc", "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"sc.o.ar_orrr_rd", T_SC, "orrr", 8, 3, "rdhb", "rdhc", "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"sc.t.ar_orrr_rd", T_SC, "orrr", 4, 3, "rdhb", "rdhc", "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"sc.w.ar_orrr_rd", T_SC, "orrr", 2, 3, "rdhb", "rdhc", "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++    {"sc.b.ar_orrr_rd", T_SC, "orrr", 1, 3, "rdhb", "rdhc", "rbhd", nullptr,
++     nullptr, nullptr, nullptr},
++};
++
++constexpr size_t kOracleCount = sizeof(kOracle) / sizeof(kOracle[0]);
++
++const Oracle *
++oracleOf(const char *id)
++{
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        if (strEq(kOracle[i].id, id))
++            return &kOracle[i];
++    }
++    return nullptr;
++}
++
++// ---------------------------------------------------------------------------
++// Mock architectural state (plain C++, no gem5).
++// ---------------------------------------------------------------------------
++
++enum class WBank
++{
++    Rd,
++    Rb,
++    Ra,
++    Rf,
++};
++
++struct Write
++{
++    WBank bank;
++    unsigned idx;
++    uint64_t value;
++};
++
++struct MockContext : public exec::B6Context
++{
++    uint64_t rd[64] = {};
++    uint64_t rb[64] = {};
++    uint64_t ra[64] = {};
++    uint64_t rf[64] = {};
++    uint64_t ip = 0x1000;
++    std::map<uint64_t, uint8_t> mem;
++
++    // programmable cfx table: key = (ha << 16) | (cg << 8) | rc
++    std::map<uint32_t, uint64_t> cfx;
++    int cfxReads = 0;
++    int cfxWrites = 0;
++    int cfxMisses = 0;
++
++    // reservation slot (single, exact address + width)
++    bool resValid = false;
++    uint64_t resAddr = 0;
++    unsigned resWidth = 0;
++    int resSets = 0;
++    int resClears = 0;
++
++    // platform hooks
++    int trapCalls = 0;
++    uint8_t trapCfx = 0;
++    uint32_t trapImm = 0;
++    int escapeCalls = 0;
++    uint8_t escapeCfx = 0;
++    uint32_t escapeOffset = 0;
++    bool failEscape = false;
++    bool controlTransfer = false;
++    int orderingCalls = 0;
++    uint8_t orderCfx = 0xFF;
++    uint8_t orderPred = 0xFF;
++    uint8_t orderSucc = 0xFF;
++    int swymCalls = 0;
++    uint32_t swymValue = 0;
++
++    // memory access bookkeeping / fault injection
++    bool failAllReads = false;
++    bool failAllWrites = false;
++    uint64_t failReadAddr = ~uint64_t(0);
++    uint64_t failWriteAddr = ~uint64_t(0);
++    int memReads = 0;
++    int memWrites = 0;
++    int memReadBytes = 0;
++    int memWriteBytes = 0;
++    int orderedReads = 0;
++    int orderedWrites = 0;
++    std::vector<uint8_t> readOrders;
++    std::vector<uint8_t> writeOrders;
++    std::vector<uint64_t> readAddrs;
++    std::vector<uint64_t> writeAddrs;
++
++    int badWrites = 0;
++    int reads = 0;
++    std::vector<Write> writes;
++
++    uint8_t
++    byteAt(uint64_t addr) const
++    {
++        const auto it = mem.find(addr);
++        return it == mem.end() ? 0 : it->second;
++    }
++
++    uint64_t
++    readInt(exec::Bank bank, unsigned idx) override
++    {
++        ++reads;
++        switch (bank) {
++          case exec::Bank::Rd: return idx == 0 ? 0 : rd[idx];
++          case exec::Bank::Rb: return idx == 0 ? ip : rb[idx];
++          case exec::Bank::Ra: return ra[idx];
++        }
++        return 0;
++    }
++
++    void
++    writeInt(exec::Bank bank, unsigned idx, uint64_t val) override
++    {
++        if ((bank == exec::Bank::Rd || bank == exec::Bank::Rb) && idx == 0) {
++            ++badWrites;
++            return;
++        }
++        const WBank wb = bank == exec::Bank::Rd ? WBank::Rd
++                          : bank == exec::Bank::Rb ? WBank::Rb
++                                                   : WBank::Ra;
++        writes.push_back({wb, idx, val});
++        switch (bank) {
++          case exec::Bank::Rd: rd[idx] = val; break;
++          case exec::Bank::Rb: rb[idx] = val; break;
++          case exec::Bank::Ra: ra[idx] = val; break;
++        }
++    }
++
++    uint64_t
++    readFloat(unsigned idx) override
++    {
++        ++reads;
++        return rf[idx];
++    }
++
++    void
++    writeFloatLow32(unsigned idx, uint32_t val) override
++    {
++        rf[idx] = (rf[idx] & 0xFFFFFFFF00000000ULL) | val;
++    }
++
++    void
++    writeFloat64(unsigned idx, uint64_t val) override
++    {
++        writes.push_back({WBank::Rf, idx, val});
++        rf[idx] = val;
++    }
++
++    void
++    writeFcsr(uint64_t raw) override
++    {
++        writes.push_back({WBank::Rf, 0, raw});
++        rf[0] = raw;
++    }
++
++    uint64_t pc() const override { return ip; }
++
++    bool
++    readMem(uint64_t addr, unsigned bytes, uint8_t *out) override
++    {
++        ++memReads;
++        memReadBytes += static_cast<int>(bytes);
++        readAddrs.push_back(addr);
++        if (failAllReads || addr == failReadAddr)
++            return false;
++        for (unsigned i = 0; i < bytes; ++i)
++            out[i] = byteAt(addr + i);
++        return true;
++    }
++
++    bool
++    writeMem(uint64_t addr, const uint8_t *in, unsigned bytes) override
++    {
++        writeAddrs.push_back(addr);
++        if (failAllWrites || addr == failWriteAddr)
++            return false;
++        for (unsigned i = 0; i < bytes; ++i)
++            mem[addr + i] = in[i];
++        ++memWrites;
++        memWriteBytes += static_cast<int>(bytes);
++        return true;
++    }
++
++    void
++    branchTo(uint64_t target64) override
++    {
++        controlTransfer = true;
++        ip = target64;
++    }
++
++    // ---- B6 hooks -----------------------------------------------------
++    bool
++    readCfx(uint8_t cfxha, uint8_t cg, uint8_t rc, uint64_t &out) override
++    {
++        ++cfxReads;
++        const uint32_t key = (uint32_t(cfxha) << 16) | (uint32_t(cg) << 8) | rc;
++        const auto it = cfx.find(key);
++        if (it == cfx.end()) {
++            ++cfxMisses;
++            return false;
++        }
++        out = it->second;
++        return true;
++    }
++
++    bool
++    writeCfx(uint8_t cfxha, uint8_t cg, uint8_t rc, uint64_t val) override
++    {
++        ++cfxWrites;
++        const uint32_t key = (uint32_t(cfxha) << 16) | (uint32_t(cg) << 8) | rc;
++        if (cfx.find(key) == cfx.end()) {
++            ++cfxMisses;
++            return false;
++        }
++        cfx[key] = val;
++        return true;
++    }
++
++    void
++    trapTo(uint8_t cfxha, uint32_t immu18) override
++    {
++        ++trapCalls;
++        trapCfx = cfxha;
++        trapImm = immu18;
++        controlTransfer = true;
++    }
++
++    bool
++    escapeFrom(uint8_t cfxha, uint32_t byteOffset) override
++    {
++        ++escapeCalls;
++        escapeCfx = cfxha;
++        escapeOffset = byteOffset;
++        if (failEscape)
++            return false;
++        controlTransfer = true;
++        return true;
++    }
++
++    void
++    setReservation(uint64_t addr, unsigned width) override
++    {
++        ++resSets;
++        resValid = true;
++        resAddr = addr;
++        resWidth = width;
++    }
++
++    bool
++    hasReservation(uint64_t addr, unsigned width) const override
++    {
++        return resValid && resAddr == addr && resWidth == width;
++    }
++
++    void
++    clearReservations() override
++    {
++        ++resClears;
++        resValid = false;
++        resAddr = 0;
++        resWidth = 0;
++    }
++
++    void
++    ordering(uint8_t cfxha, uint8_t pred, uint8_t succ) override
++    {
++        ++orderingCalls;
++        orderCfx = cfxha;
++        orderPred = pred;
++        orderSucc = succ;
++    }
++
++    void
++    swymHint(uint32_t immu18) override
++    {
++        ++swymCalls;
++        swymValue = immu18;
++    }
++
++    // Ordered accessors record the order and degrade to the plain access.
++    bool
++    readMemOrdered(uint64_t addr, unsigned bytes, uint8_t *out,
++                   uint8_t order) override
++    {
++        ++orderedReads;
++        readOrders.push_back(order);
++        return readMem(addr, bytes, out);
++    }
++
++    bool
++    writeMemOrdered(uint64_t addr, const uint8_t *in, unsigned bytes,
++                    uint8_t order) override
++    {
++        ++orderedWrites;
++        writeOrders.push_back(order);
++        return writeMem(addr, in, bytes);
++    }
++};
++
++void
++resetCounters(MockContext &ctx)
++{
++    ctx.reads = 0;
++    ctx.badWrites = 0;
++    ctx.writes.clear();
++    ctx.memReads = 0;
++    ctx.memWrites = 0;
++    ctx.memReadBytes = 0;
++    ctx.memWriteBytes = 0;
++    ctx.orderedReads = 0;
++    ctx.orderedWrites = 0;
++    ctx.readOrders.clear();
++    ctx.writeOrders.clear();
++    ctx.readAddrs.clear();
++    ctx.writeAddrs.clear();
++    ctx.cfxReads = 0;
++    ctx.cfxWrites = 0;
++    ctx.cfxMisses = 0;
++    ctx.resSets = 0;
++    ctx.resClears = 0;
++    ctx.trapCalls = 0;
++    ctx.trapCfx = 0;
++    ctx.trapImm = 0;
++    ctx.escapeCalls = 0;
++    ctx.escapeCfx = 0;
++    ctx.escapeOffset = 0;
++    ctx.failEscape = false;
++    ctx.controlTransfer = false;
++    ctx.orderingCalls = 0;
++    ctx.orderCfx = 0xFF;
++    ctx.orderPred = 0xFF;
++    ctx.orderSucc = 0xFF;
++    ctx.swymCalls = 0;
++    ctx.swymValue = 0;
++    ctx.failAllReads = false;
++    ctx.failAllWrites = false;
++    ctx.failReadAddr = ~uint64_t(0);
++    ctx.failWriteAddr = ~uint64_t(0);
++}
++
++void
++initContext(MockContext &ctx)
++{
++    for (unsigned i = 0; i < 64; ++i) {
++        ctx.rd[i] = 0xDAD0000000000000ULL + i;
++        ctx.rb[i] = 0xB0B0000000000000ULL + i;
++        ctx.ra[i] = 0xCAFE000000000000ULL + i;
++        ctx.rf[i] = 0xF00D000000000000ULL + i;
++    }
++    ctx.rd[0] = 0;
++    ctx.rb[0] = 0;
++    ctx.rf[0] = 0xFFFF0000FFFF0000ULL;
++    ctx.ra[0] = 0;
++    ctx.ip = 0x1000;
++    ctx.mem.clear();
++    ctx.cfx.clear();
++    ctx.resValid = false;
++    ctx.resAddr = 0;
++    ctx.resWidth = 0;
++    resetCounters(ctx);
++}
++
++// ---------------------------------------------------------------------------
++// Word construction helpers.
++// ---------------------------------------------------------------------------
++
++struct WordSpec
++{
++    unsigned cfxha = 0;
++    unsigned cghb = 0;
++    unsigned rchc = 0;
++    unsigned rdhd = 0;
++    unsigned rdhb = 0;
++    unsigned rdhc = 0;
++    unsigned rbhd = 0;
++    uint64_t immu18 = 0;
++    uint64_t imms18 = 0;
++};
++
++uint32_t
++makeWord(const char *id, const WordSpec &w)
++{
++    const decode::DecodeEntry *entry = decode::entryById(id);
++    if (entry == nullptr) {
++        fail("encode: unknown id %s", id);
++        return 0;
++    }
++    struct FieldVal
++    {
++        const char *name;
++        uint64_t value;
++    };
++    const FieldVal values[] = {
++        {"cfxha", w.cfxha}, {"cghb", w.cghb}, {"rchc", w.rchc},
++        {"rdhd", w.rdhd},   {"rdhb", w.rdhb}, {"rdhc", w.rdhc},
++        {"rbhd", w.rbhd},   {"immu18", w.immu18}, {"imms18", w.imms18},
++    };
++    uint32_t raw = entry->value;
++    for (const FieldVal &fv : values) {
++        for (unsigned i = 0; i < entry->numFields; ++i) {
++            const decode::FieldDesc &field = decode::fieldDesc(*entry, i);
++            if (std::strcmp(field.name, fv.name) != 0)
++                continue;
++            const uint32_t mask =
++                ((uint32_t(1) << field.width()) - 1) << field.lo;
++            raw = (raw & ~mask) |
++                  ((static_cast<uint32_t>(fv.value) << field.lo) & mask);
++            break;
++        }
++    }
++    return raw;
++}
++
++exec::Fault
++runWord(MockContext &ctx, const char *id, const WordSpec &w)
++{
++    const uint32_t raw = makeWord(id, w);
++    const decode::DecodedInst decoded = decode::decodeWord(raw);
++    if (!decoded.ok()) {
++        fail("%s: encoding 0x%08x does not decode", id, raw);
++        return exec::Fault::Illegal;
++    }
++    if (!strEq(decoded.entry->id, id)) {
++        fail("%s: encoding 0x%08x decoded as %s", id, raw,
++             decoded.entry->id);
++        return exec::Fault::Illegal;
++    }
++    const exec::Fault fault = exec::executeB6(decoded, ctx);
++    // The framework advances IP for sequential instructions; trap/escape move
++    // control through the platform hook instead.
++    if (fault == exec::Fault::None && !ctx.controlTransfer)
++        ctx.ip += 4;
++    return fault;
++}
++
++const char *
++faultName(exec::Fault fault)
++{
++    switch (fault) {
++      case exec::Fault::None: return "None";
++      case exec::Fault::NotB1: return "NotB1";
++      case exec::Fault::NotB2: return "NotB2";
++      case exec::Fault::NotB3: return "NotB3";
++      case exec::Fault::NotB4: return "NotB4";
++      case exec::Fault::NotB5: return "NotB5";
++      case exec::Fault::NotB6: return "NotB6";
++      case exec::Fault::Illegal: return "Illegal";
++      case exec::Fault::Malign: return "Malign";
++      case exec::Fault::Memory: return "Memory";
++      case exec::Fault::RasOverflow: return "RasOverflow";
++      case exec::Fault::RasUnderflow: return "RasUnderflow";
++      case exec::Fault::CfxReg: return "CfxReg";
++      case exec::Fault::CfxEsc: return "CfxEsc";
++      case exec::Fault::NotB7: return "NotB7";
++    }
++    return "?";
++}
++
++bool
++hasOrderAcquire(unsigned order)
++{
++    return (order & 1) != 0;
++}
++
++bool
++hasOrderRelease(unsigned order)
++{
++    return (order & 2) != 0;
++}
++
++exec::B6Op
++execOpOf(TestOp op)
++{
++    switch (op) {
++      case T_SWYM: return exec::B6Op::Swym;
++      case T_FENCE: return exec::B6Op::Fence;
++      case T_LR: return exec::B6Op::Lr;
++      case T_SC: return exec::B6Op::Sc;
++      case T_TRAP: return exec::B6Op::Trap;
++      case T_ESCAPE: return exec::B6Op::Escape;
++      case T_CFXRD: return exec::B6Op::CfxToRd;
++      case T_CFXRC: return exec::B6Op::CfxFromRd;
++    }
++    return exec::B6Op::Swym;
++}
++
++// ---------------------------------------------------------------------------
++// 1. Coverage: 30 explicit ids, one positive case each.
++// ---------------------------------------------------------------------------
++
++constexpr uint64_t kAddr = 0x2000;
++
++uint64_t
++windowValue(unsigned width, uint64_t seed)
++{
++    // Independent big-endian window oracle: every byte = seed + i, the value
++    // is zero-extended (no sign extension).
++    uint64_t value = 0;
++    for (unsigned i = 0; i < width; ++i)
++        value = (value << 8) | ((seed + i) & 0xFF);
++    return value;
++}
++
++void
++positiveSwym(const Oracle &o)
++{
++    MockContext ctx;
++    initContext(ctx);
++    WordSpec w;
++    w.immu18 = 0x12345;
++    resetCounters(ctx);
++    const exec::Fault fault = runWord(ctx, o.id, w);
++    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
++          faultName(fault));
++    check(ctx.swymCalls == 1 && ctx.swymValue == 0x12345,
++          "%s positive: swymHint gets the raw immu18", o.id);
++    check(ctx.writes.empty() && ctx.badWrites == 0 && ctx.memReads == 0 &&
++              ctx.memWrites == 0,
++          "%s positive: no architectural side effect", o.id);
++}
++
++void
++positiveFence(const Oracle &o)
++{
++    MockContext ctx;
++    initContext(ctx);
++    WordSpec w;
++    w.cfxha = 0;
++    w.immu18 = (uint64_t(0x3F) << 6) | 0x15;
++    resetCounters(ctx);
++    const exec::Fault fault = runWord(ctx, o.id, w);
++    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
++          faultName(fault));
++    check(ctx.orderingCalls == 1 && ctx.orderCfx == 0 &&
++              ctx.orderPred == 0x3F && ctx.orderSucc == 0x15,
++          "%s positive: ordering(cfx0, pred 0x3F, succ 0x15)", o.id);
++    check(ctx.writes.empty() && ctx.memReads == 0 && ctx.memWrites == 0,
++          "%s positive: no data access and no register write", o.id);
++}
++
++void
++positiveTrap(const Oracle &o)
++{
++    MockContext ctx;
++    initContext(ctx);
++    WordSpec w;
++    w.cfxha = 15;
++    w.immu18 = 0x3FFFF;
++    resetCounters(ctx);
++    const exec::Fault fault = runWord(ctx, o.id, w);
++    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
++          faultName(fault));
++    check(ctx.trapCalls == 1 && ctx.trapCfx == 15 &&
++              ctx.trapImm == 0x3FFFF,
++          "%s positive: trapTo(cfx15, 0x3FFFF)", o.id);
++    check(ctx.writes.empty() && ctx.badWrites == 0 && ctx.memReads == 0,
++          "%s positive: no GPR/RF/RB write and no memory access", o.id);
++}
++
++void
++positiveEscape(const Oracle &o)
++{
++    MockContext ctx;
++    initContext(ctx);
++    WordSpec w;
++    w.cfxha = 17;
++    w.imms18 = 1; // byte offset 4
++    resetCounters(ctx);
++    const exec::Fault fault = runWord(ctx, o.id, w);
++    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
++          faultName(fault));
++    check(ctx.escapeCalls == 1 && ctx.escapeCfx == 17 &&
++              ctx.escapeOffset == 4,
++          "%s positive: escapeFrom(cfx17, 4)", o.id);
++    check(ctx.writes.empty() && ctx.memReads == 0,
++          "%s positive: no architectural write", o.id);
++}
++
++void
++positiveCfx(const Oracle &o)
++{
++    MockContext ctx;
++    initContext(ctx);
++    const bool toRd = o.op == T_CFXRD;
++    const uint32_t key = (15u << 16) | (2u << 8) | 3u;
++    const uint64_t seed = 0xA1B2C3D4E5F60718ULL;
++    ctx.cfx[key] = seed;
++    WordSpec w;
++    w.cfxha = 15;
++    w.cghb = 2;
++    w.rchc = 3;
++    w.rdhd = 9;
++    if (!toRd) {
++        ctx.rd[9] = 0x1122334455667788ULL;
++    }
++    resetCounters(ctx);
++    const exec::Fault fault = runWord(ctx, o.id, w);
++    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
++          faultName(fault));
++    if (toRd) {
++        check(ctx.rd[9] == seed,
++              "%s positive: rdHD = cfx_15_cg2_rc3 (64-bit)", o.id);
++        check(ctx.cfxWrites == 0 && ctx.cfxReads == 1,
++              "%s positive: only RD is written", o.id);
++    } else {
++        check(ctx.cfx[key] == 0x1122334455667788ULL,
++              "%s positive: cfx_15_cg2_rc3 = rdHD (64-bit)", o.id);
++        check(ctx.writes.empty(),
++              "%s positive: only the cfx register is written", o.id);
++    }
++    check(ctx.memReads == 0 && ctx.memWrites == 0,
++          "%s positive: no memory access", o.id);
++}
++
++void
++positiveLr(const Oracle &o)
++{
++    MockContext ctx;
++    initContext(ctx);
++    for (unsigned i = 0; i < 8; ++i)
++        ctx.mem[kAddr + i] = static_cast<uint8_t>(0x80 + i);
++    ctx.rb[4] = kAddr;
++    ctx.rd[5] = 0xDEADBEEFDEADBEEFULL;
++    WordSpec w;
++    w.rdhb = 0; // SBZ: fixed rd0
++    w.rdhc = 5;
++    w.rbhd = 4;
++    resetCounters(ctx);
++    const exec::Fault fault = runWord(ctx, o.id, w);
++    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
++          faultName(fault));
++    const uint64_t expected = windowValue(o.width, 0x80);
++    check(ctx.rd[5] == expected,
++          "%s positive: zero-extended big-endian value 0x%" PRIx64, o.id,
++          expected);
++    check(ctx.resSets == 1 && ctx.resValid && ctx.resAddr == kAddr &&
++              ctx.resWidth == o.width,
++          "%s positive: reservation set for (0x%" PRIx64 ", %u)", o.id,
++          kAddr, o.width);
++    check(ctx.memReads == 1 && ctx.memReadBytes == int(o.width) &&
++              ctx.readAddrs.size() == 1 && ctx.readAddrs[0] == kAddr,
++          "%s positive: one %u-byte read at the base address", o.id,
++          o.width);
++    check(ctx.orderedReads == 1 && ctx.readOrders.size() == 1 &&
++              ctx.readOrders[0] == o.order,
++          "%s positive: memory order %u", o.id, o.order);
++    check(ctx.writes.size() == 1 && ctx.memWrites == 0,
++          "%s positive: exactly one register write, no memory write", o.id);
++}
++
++void
++positiveSc(const Oracle &o)
++{
++    MockContext ctx;
++    initContext(ctx);
++    for (unsigned i = 0; i < 8; ++i)
++        ctx.mem[kAddr + i] = 0xAA;
++    ctx.rb[4] = kAddr;
++    ctx.rd[5] = 0x1122334455667788ULL;
++    ctx.rd[3] = 0xDEADBEEFDEADBEEFULL;
++    ctx.setReservation(kAddr, o.width);
++    resetCounters(ctx);
++    WordSpec w;
++    w.rdhb = 3;
++    w.rdhc = 5;
++    w.rbhd = 4;
++    const exec::Fault fault = runWord(ctx, o.id, w);
++    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
++          faultName(fault));
++    check(ctx.rd[3] == 0, "%s positive: rdHB = 0 (success)", o.id);
++    bool bytesOk = true;
++    for (unsigned i = 0; i < o.width; ++i) {
++        const uint8_t expected =
++            (0x1122334455667788ULL >> (8 * (o.width - 1 - i))) & 0xFF;
++        bytesOk = bytesOk && ctx.byteAt(kAddr + i) == expected;
++    }
++    check(bytesOk, "%s positive: only the low %u bytes are stored (BE)",
++          o.id, o.width);
++    bool untouched = true;
++    for (unsigned i = o.width; i < 8; ++i)
++        untouched = untouched && ctx.byteAt(kAddr + i) == 0xAA;
++    check(untouched, "%s positive: bytes beyond the width are untouched",
++          o.id);
++    check(ctx.memWrites == 1 && ctx.memWriteBytes == int(o.width),
++          "%s positive: exactly one %u-byte store", o.id, o.width);
++    check(ctx.orderedWrites == 1 && ctx.writeOrders.size() == 1 &&
++              ctx.writeOrders[0] == o.order,
++          "%s positive: memory order %u", o.id, o.order);
++    check(ctx.resClears == 1 && !ctx.resValid,
++          "%s positive: the reservation is consumed on success", o.id);
++}
++
++void
++checkPositiveAll()
++{
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        const int before = failures;
++        switch (o.op) {
++          case T_SWYM: positiveSwym(o); break;
++          case T_FENCE: positiveFence(o); break;
++          case T_TRAP: positiveTrap(o); break;
++          case T_ESCAPE: positiveEscape(o); break;
++          case T_CFXRD:
++          case T_CFXRC: positiveCfx(o); break;
++          case T_LR: positiveLr(o); break;
++          case T_SC: positiveSc(o); break;
++        }
++        if (failures == before)
++            std::printf("[PASS] b6-id %s\n", o.id);
++    }
++    check(kOracleCount == 30, "oracle rows == 30 (actual %zu)",
++          kOracleCount);
++}
++
++// ---------------------------------------------------------------------------
++// 2. Decode-table membership / spec table consistency.
++// ---------------------------------------------------------------------------
++
++void
++checkCoverage()
++{
++    size_t live = 0;
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        const decode::DecodeEntry *entry = decode::entryById(o.id);
++        check(entry != nullptr, "%s exists in the decode table", o.id);
++        if (entry == nullptr)
++            continue;
++        check(entry->batch == 6, "%s is batch 6 (actual %u)", o.id,
++              entry->batch);
++        check(strEq(entry->format, o.format), "%s is %s (actual %s)", o.id,
++              o.format, entry->format);
++        const exec::B6Spec *spec = exec::b6SpecForId(o.id);
++        check(spec != nullptr, "executeB6 covers b6 id %s", o.id);
++        if (spec != nullptr) {
++            check(spec->op == execOpOf(o.op),
++                  "%s spec op matches the independent oracle", o.id);
++            check(spec->width == o.width && spec->order == o.order,
++                  "%s spec width/order = %u/%u", o.id, o.width, o.order);
++            check(sameField(spec->dstField, o.dstField) &&
++                      sameField(spec->srcField, o.srcField) &&
++                      sameField(spec->baseField, o.baseField) &&
++                      sameField(spec->immField, o.immField) &&
++                      sameField(spec->cfxField, o.cfxField) &&
++                      sameField(spec->cgField, o.cgField) &&
++                      sameField(spec->rcField, o.rcField),
++                  "%s spec field names match the independent oracle", o.id);
++        }
++        ++live;
++    }
++    check(live == 30, "B6 coverage %zu/30", live);
++    std::printf("B6 coverage %zu/30\n", live);
++
++    size_t batch6 = 0;
++    for (size_t i = 0; i < decode::entryCount(); ++i) {
++        const decode::DecodeEntry &entry = decode::entries()[i];
++        if (entry.batch != 6)
++            continue;
++        ++batch6;
++        check(oracleOf(entry.id) != nullptr, "oracle row for batch-6 id %s",
++              entry.id);
++        check(exec::b6SpecForId(entry.id) != nullptr,
++              "executeB6 covers batch-6 id %s", entry.id);
++    }
++    check(batch6 == 30, "live batch-6 entry count == 30 (actual %zu)",
++          batch6);
++    check(exec::b6SpecCount() == 30,
++          "executeB6 spec count == 30 (actual %zu)", exec::b6SpecCount());
++
++    for (size_t i = 0; i < exec::b6SpecCount(); ++i) {
++        const exec::B6Spec &spec = exec::b6Specs()[i];
++        for (size_t j = i + 1; j < exec::b6SpecCount(); ++j) {
++            check(!strEq(spec.id, exec::b6Specs()[j].id),
++                  "spec ids unique: %s vs %s", spec.id,
++                  exec::b6Specs()[j].id);
++        }
++        const decode::DecodeEntry *entry = decode::entryById(spec.id);
++        check(entry != nullptr && entry->batch == 6,
++              "spec id %s is a batch-6 decode entry", spec.id);
++    }
++
++    // Every non-B6 entry must stay NotB6 with zero register/cfx/memory access.
++    size_t notB6 = 0;
++    for (size_t i = 0; i < decode::entryCount(); ++i) {
++        const decode::DecodeEntry &entry = decode::entries()[i];
++        const decode::DecodedInst decoded = decode::decodeWord(entry.value);
++        if (!decoded.ok() || !strEq(decoded.entry->id, entry.id)) {
++            fail("entry %s: value 0x%08x does not decode back", entry.id,
++                 entry.value);
++            continue;
++        }
++        MockContext ctx;
++        initContext(ctx);
++        const exec::Fault fault = exec::executeB6(decoded, ctx);
++        if (entry.batch == 6) {
++            check(fault != exec::Fault::NotB6, "%s is handled by executeB6",
++                  entry.id);
++        } else {
++            ++notB6;
++            if (fault != exec::Fault::NotB6)
++                fail("%s (batch %u) returned %s, expected NotB6", entry.id,
++                     entry.batch, faultName(fault));
++            if (!ctx.writes.empty() || ctx.badWrites != 0 || ctx.reads != 0 ||
++                    ctx.memReads != 0 || ctx.memWrites != 0 ||
++                    ctx.cfxReads != 0 || ctx.cfxWrites != 0 ||
++                    ctx.resSets != 0 || ctx.resClears != 0 ||
++                    ctx.trapCalls != 0 || ctx.escapeCalls != 0 ||
++                    ctx.orderingCalls != 0 || ctx.swymCalls != 0)
++                fail("%s (batch %u) touched state on NotB6", entry.id,
++                     entry.batch);
++        }
++    }
++    check(notB6 == 264 - 30, "non-B6 ids return NotB6 (%zu/234)", notB6);
++    std::printf("non-B6 ids return NotB6 (%zu/234)\n", notB6);
++}
++
++// ---------------------------------------------------------------------------
++// 3. swym: no architectural effect, the hint carries immu18 unchanged.
++// ---------------------------------------------------------------------------
++
++void
++checkSwym()
++{
++    const uint64_t values[] = {0, 1, 0x3FFFF};
++    for (uint64_t value : values) {
++        MockContext ctx;
++        initContext(ctx);
++        const uint64_t before = ctx.ip;
++        resetCounters(ctx);
++        WordSpec w;
++        w.immu18 = value;
++        const exec::Fault fault = runWord(ctx, "swym_oiii_imm", w);
++        check(fault == exec::Fault::None,
++              "swym %" PRIu64 ": fault %s", value, faultName(fault));
++        check(ctx.swymCalls == 1 && ctx.swymValue == value,
++              "swym %" PRIu64 ": hint carries the raw immu18", value);
++        check(ctx.writes.empty() && ctx.badWrites == 0 &&
++                  ctx.memReads == 0 && ctx.memWrites == 0,
++              "swym %" PRIu64 ": zero register/memory writes", value);
++        check(ctx.ip == before + 4,
++              "swym %" PRIu64 ": IP advances by 4 only", value);
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 4. fence: mask split, hb SBZ, reserved cfx, cfx0 = all cfx.
++// ---------------------------------------------------------------------------
++
++void
++checkFence()
++{
++    size_t legal = 0;
++    size_t maskMismatch = 0;
++    size_t stateTouched = 0;
++    for (unsigned cfxha : {0u, 63u}) {
++        for (unsigned imm = 0; imm < 4096; ++imm) {
++            MockContext ctx;
++            initContext(ctx);
++            resetCounters(ctx);
++            WordSpec w;
++            w.cfxha = cfxha;
++            w.immu18 = imm;
++            const exec::Fault fault = runWord(ctx, "fence_ciii_cfx", w);
++            const unsigned pred = (imm >> 6) & 0x3F;
++            const unsigned succ = imm & 0x3F;
++            if (fault != exec::Fault::None)
++                continue;
++            ++legal;
++            if (ctx.orderingCalls != 1 || ctx.orderCfx != cfxha ||
++                    ctx.orderPred != pred || ctx.orderSucc != succ) {
++                ++maskMismatch;
++            }
++            if (!ctx.writes.empty() || ctx.memReads != 0 ||
++                    ctx.memWrites != 0)
++                ++stateTouched;
++        }
++    }
++    check(legal == 2 * 4096, "fence: every hb=0 mask is legal (actual %zu)",
++          legal);
++    check(maskMismatch == 0,
++          "fence: pred=immu18[11:6], succ=immu18[5:0], cfxha forwarded "
++          "unchanged (mismatches %zu)", maskMismatch);
++    check(stateTouched == 0,
++          "fence: no register/memory access on the legal path (%zu bad)",
++          stateTouched);
++
++    // pred = succ = 0 is a legal no-op (the hook still sees 0/0).
++    {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = 0;
++        w.immu18 = 0;
++        const exec::Fault fault = runWord(ctx, "fence_ciii_cfx", w);
++        check(fault == exec::Fault::None && ctx.orderingCalls == 1 &&
++                  ctx.orderPred == 0 && ctx.orderSucc == 0 &&
++                  ctx.writes.empty(),
++              "fence pred=succ=0: legal no-op with no architectural state "
++              "change");
++        check(ctx.orderCfx == 0, "fence cfx0: stays 0 (all cfx, not umon)");
++    }
++
++    // hb != 0 -> ILLI before the ordering hook.
++    for (unsigned hb : {1u, 0x3Fu}) {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = 0;
++        w.immu18 = (uint64_t(hb) << 12) | 0x0F;
++        const exec::Fault fault = runWord(ctx, "fence_ciii_cfx", w);
++        check(fault == exec::Fault::Illegal,
++              "fence hb=%u -> Illegal (%s)", hb, faultName(fault));
++        check(ctx.orderingCalls == 0 && ctx.writes.empty(),
++              "fence hb=%u: ordering not called, zero writes", hb);
++    }
++
++    // Reserved cfx numbers -> ILLI.
++    for (unsigned cfxha : {6u, 14u, 19u, 61u}) {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = cfxha;
++        w.immu18 = 0x3F;
++        const exec::Fault fault = runWord(ctx, "fence_ciii_cfx", w);
++        check(fault == exec::Fault::Illegal,
++              "fence cfx%u (reserved) -> Illegal (%s)", cfxha,
++              faultName(fault));
++        check(ctx.orderingCalls == 0 && ctx.writes.empty(),
++              "fence cfx%u: ordering not called, zero writes", cfxha);
++    }
++
++    // Legal boundary numbers: 0-5, 15-18, 62, 63.
++    for (unsigned cfxha : {0u, 5u, 15u, 18u, 62u, 63u}) {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = cfxha;
++        w.immu18 = 0;
++        const exec::Fault fault = runWord(ctx, "fence_ciii_cfx", w);
++        check(fault == exec::Fault::None,
++              "fence cfx%u is a legal resource domain (%s)", cfxha,
++              faultName(fault));
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 5. lr: width/order, zero extension, MALIGN, hb SBZ, reservation overwrite.
++// ---------------------------------------------------------------------------
++
++void
++checkLr()
++{
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        if (o.op != T_LR)
++            continue;
++
++        // hb != 0 is statically illegal (encode_sbz).
++        {
++            MockContext ctx;
++            initContext(ctx);
++            ctx.rb[4] = kAddr;
++            resetCounters(ctx);
++            WordSpec w;
++            w.rdhb = 1;
++            w.rdhc = 5;
++            w.rbhd = 4;
++            const exec::Fault fault = runWord(ctx, o.id, w);
++            check(fault == exec::Fault::Illegal,
++                  "%s hb!=0 -> Illegal (%s)", o.id, faultName(fault));
++            check(ctx.memReads == 0 && ctx.writes.empty() &&
++                      ctx.resSets == 0 && ctx.badWrites == 0,
++                  "%s hb!=0: no memory access, no write, no reservation",
++                  o.id);
++        }
++
++        // Misaligned (all but .b) -> MALIGN before the access.
++        if (o.width > 1) {
++            MockContext ctx;
++            initContext(ctx);
++            ctx.rb[4] = kAddr + 1;
++            ctx.rd[5] = 0xDEADBEEFDEADBEEFULL;
++            resetCounters(ctx);
++            WordSpec w;
++            w.rdhc = 5;
++            w.rbhd = 4;
++            const exec::Fault fault = runWord(ctx, o.id, w);
++            check(fault == exec::Fault::Malign,
++                  "%s misaligned -> Malign (%s)", o.id, faultName(fault));
++            check(ctx.rd[5] == 0xDEADBEEFDEADBEEFULL && ctx.writes.empty(),
++                  "%s misaligned: rdHC untouched", o.id);
++            check(ctx.memReads == 0 && ctx.resSets == 0,
++                  "%s misaligned: no memory access, no reservation", o.id);
++        }
++    }
++
++    // Zero extension is observable: a .b load of 0x80 is 0x80, not -128.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.mem[kAddr] = 0x80;
++        ctx.rb[4] = kAddr;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdhc = 7;
++        w.rbhd = 4;
++        const exec::Fault fault = runWord(ctx, "lr.b.nn_orrr_rd", w);
++        check(fault == exec::Fault::None && ctx.rd[7] == 0x80,
++              "lr.b: 0x80 is zero-extended to 0x80");
++    }
++
++    // .b has no alignment requirement: an odd address is legal.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.mem[kAddr + 3] = 0x5A;
++        ctx.rb[4] = kAddr + 3;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdhc = 7;
++        w.rbhd = 4;
++        const exec::Fault fault = runWord(ctx, "lr.b.nn_orrr_rd", w);
++        check(fault == exec::Fault::None && ctx.rd[7] == 0x5A,
++              "lr.b: an odd address is legal (no alignment requirement)");
++        check(ctx.resValid && ctx.resAddr == kAddr + 3 && ctx.resWidth == 1,
++              "lr.b: reservation key uses the exact odd address + width 1");
++    }
++
++    // .o loads the full 64-bit big-endian word.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        for (unsigned i = 0; i < 8; ++i)
++            ctx.mem[kAddr + i] = static_cast<uint8_t>(i + 1);
++        ctx.rb[4] = kAddr;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdhc = 7;
++        w.rbhd = 4;
++        const exec::Fault fault = runWord(ctx, "lr.o.ar_orrr_rd", w);
++        check(fault == exec::Fault::None &&
++                  ctx.rd[7] == 0x0102030405060708ULL,
++              "lr.o: full 64-bit big-endian load");
++        check(ctx.readOrders.size() == 1 && hasOrderAcquire(ctx.readOrders[0]) &&
++                  hasOrderRelease(ctx.readOrders[0]),
++              "lr.o.ar: acquire+release order reaches the memory hook");
++    }
++
++    // A new lr overwrites the single reservation slot (different addr/width).
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rb[4] = kAddr;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdhc = 5;
++        w.rbhd = 4;
++        const exec::Fault first = runWord(ctx, "lr.o.nn_orrr_rd", w);
++        ctx.rb[4] = kAddr + 0x100;
++        const exec::Fault second = runWord(ctx, "lr.w.an_orrr_rd", w);
++        check(first == exec::Fault::None && second == exec::Fault::None,
++              "lr: two consecutive loads execute");
++        check(ctx.resSets == 2 && ctx.resValid &&
++                  ctx.resAddr == kAddr + 0x100 && ctx.resWidth == 2,
++              "lr: a new lr overwrites the old reservation (addr+width)");
++    }
++
++    // The effective address is 48-bit (same rule as B1).
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rb[4] = 0x0001000000000000ULL + kAddr;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdhc = 5;
++        w.rbhd = 4;
++        const exec::Fault fault = runWord(ctx, "lr.o.nn_orrr_rd", w);
++        check(fault == exec::Fault::None && ctx.readAddrs.size() == 1 &&
++                  ctx.readAddrs[0] == kAddr,
++              "lr: the effective address is masked to 48 bits");
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 6. sc: success/failure, width truncation, reservation lifetime, MALIGN.
++// ---------------------------------------------------------------------------
++
++void
++checkSc()
++{
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        if (o.op != T_SC)
++            continue;
++
++        // Conditional failure: no reservation -> rdHB=1, no store, consumed.
++        {
++            MockContext ctx;
++            initContext(ctx);
++            for (unsigned j = 0; j < 8; ++j)
++                ctx.mem[kAddr + j] = 0xAA;
++            ctx.rb[4] = kAddr;
++            ctx.rd[5] = 0x1122334455667788ULL;
++            ctx.rd[3] = 0xDEADBEEFDEADBEEFULL;
++            resetCounters(ctx);
++            WordSpec w;
++            w.rdhb = 3;
++            w.rdhc = 5;
++            w.rbhd = 4;
++            const exec::Fault fault = runWord(ctx, o.id, w);
++            check(fault == exec::Fault::None,
++                  "%s no reservation -> conditional failure (%s)", o.id,
++                  faultName(fault));
++            check(ctx.rd[3] == 1, "%s failure: rdHB = 1", o.id);
++            check(ctx.memWrites == 0 && ctx.orderedWrites == 0,
++                  "%s failure: no memory write", o.id);
++            check(ctx.resClears == 1 && !ctx.resValid,
++                  "%s failure: reservations are still cleared", o.id);
++        }
++
++        // Wrong address (same width) -> failure, no store.
++        {
++            MockContext ctx;
++            initContext(ctx);
++            ctx.rb[4] = kAddr + o.width;
++            ctx.rd[5] = 0x1122334455667788ULL;
++            ctx.rd[3] = 0xDEADBEEFDEADBEEFULL;
++            ctx.setReservation(kAddr, o.width);
++            resetCounters(ctx);
++            WordSpec w;
++            w.rdhb = 3;
++            w.rdhc = 5;
++            w.rbhd = 4;
++            const exec::Fault fault = runWord(ctx, o.id, w);
++            check(fault == exec::Fault::None && ctx.rd[3] == 1,
++                  "%s different address -> failure (rdHB=1)", o.id);
++            check(ctx.memWrites == 0 && ctx.resClears == 1,
++                  "%s different address: no store, reservation cleared",
++                  o.id);
++        }
++
++        // Same address, different width -> failure (F8.1 exact key).
++        {
++            MockContext ctx;
++            initContext(ctx);
++            ctx.rb[4] = kAddr;
++            ctx.rd[5] = 0x1122334455667788ULL;
++            ctx.rd[3] = 0xDEADBEEFDEADBEEFULL;
++            const unsigned otherWidth = o.width == 8 ? 4 : o.width * 2;
++            ctx.setReservation(kAddr, otherWidth);
++            resetCounters(ctx);
++            WordSpec w;
++            w.rdhb = 3;
++            w.rdhc = 5;
++            w.rbhd = 4;
++            const exec::Fault fault = runWord(ctx, o.id, w);
++            check(fault == exec::Fault::None && ctx.rd[3] == 1,
++                  "%s reservation of width %u does not match width %u",
++                  o.id, otherWidth, o.width);
++            check(ctx.memWrites == 0,
++                  "%s width mismatch: no memory write", o.id);
++        }
++
++        // rdHB = rd0 is statically illegal (dst_rd0).
++        {
++            MockContext ctx;
++            initContext(ctx);
++            ctx.rb[4] = kAddr;
++            ctx.setReservation(kAddr, o.width);
++            resetCounters(ctx);
++            WordSpec w;
++            w.rdhb = 0;
++            w.rdhc = 5;
++            w.rbhd = 4;
++            const exec::Fault fault = runWord(ctx, o.id, w);
++            check(fault == exec::Fault::Illegal,
++                  "%s rdHB=rd0 -> Illegal (%s)", o.id, faultName(fault));
++            check(ctx.memWrites == 0 && ctx.badWrites == 0 &&
++                      ctx.resClears == 0 && ctx.resValid,
++                  "%s rdHB=rd0: no store, no rdHB write, reservation kept",
++                  o.id);
++        }
++
++        // Misaligned (all but .b) -> MALIGN; the reservation is not consumed.
++        if (o.width > 1) {
++            MockContext ctx;
++            initContext(ctx);
++            ctx.rb[4] = kAddr + 1;
++            ctx.rd[3] = 0xDEADBEEFDEADBEEFULL;
++            ctx.setReservation(kAddr, o.width);
++            resetCounters(ctx);
++            WordSpec w;
++            w.rdhb = 3;
++            w.rdhc = 5;
++            w.rbhd = 4;
++            const exec::Fault fault = runWord(ctx, o.id, w);
++            check(fault == exec::Fault::Malign,
++                  "%s misaligned -> Malign (%s)", o.id, faultName(fault));
++            check(ctx.rd[3] == 0xDEADBEEFDEADBEEFULL && ctx.writes.empty(),
++                  "%s misaligned: rdHB untouched", o.id);
++            check(ctx.memWrites == 0 && ctx.resClears == 0 && ctx.resValid,
++                  "%s misaligned: no store, reservation kept", o.id);
++        }
++
++        // A memory fault on the store path is precise.
++        {
++            MockContext ctx;
++            initContext(ctx);
++            ctx.rb[4] = kAddr;
++            ctx.rd[5] = 0x1122334455667788ULL;
++            ctx.rd[3] = 0xDEADBEEFDEADBEEFULL;
++            ctx.setReservation(kAddr, o.width);
++            resetCounters(ctx);
++            ctx.failWriteAddr = kAddr;
++            WordSpec w;
++            w.rdhb = 3;
++            w.rdhc = 5;
++            w.rbhd = 4;
++            const exec::Fault fault = runWord(ctx, o.id, w);
++            check(fault == exec::Fault::Memory,
++                  "%s store fault -> Memory (%s)", o.id, faultName(fault));
++            check(ctx.rd[3] == 0xDEADBEEFDEADBEEFULL && ctx.writes.empty(),
++                  "%s store fault: rdHB untouched", o.id);
++            check(ctx.memWrites == 0 && ctx.resClears == 0 && ctx.resValid,
++                  "%s store fault: reservation kept", o.id);
++        }
++    }
++
++    // .b has no alignment requirement: an odd address is a legal store.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rb[4] = kAddr + 3;
++        ctx.rd[5] = 0xA5;
++        ctx.setReservation(kAddr + 3, 1);
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdhb = 3;
++        w.rdhc = 5;
++        w.rbhd = 4;
++        const exec::Fault fault = runWord(ctx, "sc.b.nn_orrr_rd", w);
++        check(fault == exec::Fault::None && ctx.rd[3] == 0 &&
++                  ctx.byteAt(kAddr + 3) == 0xA5,
++              "sc.b: an odd address is legal and stores one byte");
++        check(ctx.memWriteBytes == 1 && ctx.resClears == 1,
++              "sc.b odd address: one byte stored, reservation consumed");
++    }
++
++    // rdHC = rd0 is a legal zero source (.w writes 0x0000).
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rb[4] = kAddr;
++        for (unsigned i = 0; i < 2; ++i)
++            ctx.mem[kAddr + i] = 0xAA;
++        ctx.setReservation(kAddr, 2);
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdhb = 3;
++        w.rdhc = 0;
++        w.rbhd = 4;
++        const exec::Fault fault = runWord(ctx, "sc.w.nn_orrr_rd", w);
++        check(fault == exec::Fault::None && ctx.rd[3] == 0,
++              "sc.w rdHC=rd0: legal, succeeds");
++        check(ctx.byteAt(kAddr) == 0 && ctx.byteAt(kAddr + 1) == 0,
++              "sc.w rdHC=rd0: writes 0x0000");
++    }
++
++    // Width truncation: .w stores only rdHC[15:0].
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rb[4] = kAddr;
++        ctx.rd[5] = 0x1122334455667788ULL;
++        ctx.setReservation(kAddr, 2);
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdhb = 3;
++        w.rdhc = 5;
++        w.rbhd = 4;
++        const exec::Fault fault = runWord(ctx, "sc.w.nr_orrr_rd", w);
++        check(fault == exec::Fault::None &&
++                  ctx.byteAt(kAddr) == 0x77 && ctx.byteAt(kAddr + 1) == 0x88,
++              "sc.w: truncates rdHC to [15:0] (0x7788)");
++        check(ctx.writeOrders.size() == 1 &&
++                  hasOrderRelease(ctx.writeOrders[0]) &&
++                  !hasOrderAcquire(ctx.writeOrders[0]),
++              "sc.w.nr: release-only order reaches the memory hook");
++    }
++
++    // Acquisition/release bits per order value.
++    for (unsigned order : {0u, 2u, 3u}) {
++        const char *id = order == 0 ? "sc.o.nn_orrr_rd"
++                        : order == 2 ? "sc.o.nr_orrr_rd"
++                                     : "sc.o.ar_orrr_rd";
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rb[4] = kAddr;
++        ctx.rd[5] = 0xAA;
++        ctx.setReservation(kAddr, 8);
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdhb = 3;
++        w.rdhc = 5;
++        w.rbhd = 4;
++        const exec::Fault fault = runWord(ctx, id, w);
++        check(fault == exec::Fault::None && ctx.writeOrders.size() == 1 &&
++                  ctx.writeOrders[0] == order,
++              "%s: order %u passed to writeMemOrdered", id, order);
++        check(hasOrderRelease(order) == ((order & 2) != 0) &&
++                  hasOrderAcquire(order) == ((order & 1) != 0),
++              "%s: acquire/release bits match the order", id);
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 7. cfx2rd / cfx2rc: direction, CFXREG, reserved cfx, rd0.
++// ---------------------------------------------------------------------------
++
++void
++checkCfx()
++{
++    const uint32_t key = (15u << 16) | (1u << 8) | 2u;
++
++    // Hit: cfx2rd writes only rdHD, cfx2rc writes only the cfx register.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.cfx[key] = 0xA1B2C3D4E5F60718ULL;
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = 15;
++        w.cghb = 1;
++        w.rchc = 2;
++        w.rdhd = 6;
++        const exec::Fault fault = runWord(ctx, "cfx2rd_crrr_cfx", w);
++        check(fault == exec::Fault::None && ctx.rd[6] == 0xA1B2C3D4E5F60718ULL,
++              "cfx2rd: rdHD = cfx_15_cg1_rc2");
++        check(ctx.cfxWrites == 0 && ctx.writes.size() == 1,
++              "cfx2rd: only RD is written");
++    }
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.cfx[key] = 0;
++        ctx.rd[6] = 0x0102030405060708ULL;
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = 15;
++        w.cghb = 1;
++        w.rchc = 2;
++        w.rdhd = 6;
++        const exec::Fault fault = runWord(ctx, "cfx2rc_crrr_cfx", w);
++        check(fault == exec::Fault::None &&
++                  ctx.cfx[key] == 0x0102030405060708ULL,
++              "cfx2rc: cfx_15_cg1_rc2 = rdHD");
++        check(ctx.writes.empty(), "cfx2rc: no RD is written");
++    }
++
++    // Missing combination -> CFXREG with no architectural write.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = 15;
++        w.cghb = 1;
++        w.rchc = 2;
++        w.rdhd = 6;
++        const exec::Fault fault = runWord(ctx, "cfx2rd_crrr_cfx", w);
++        check(fault == exec::Fault::CfxReg,
++              "cfx2rd missing combination -> CfxReg (%s)", faultName(fault));
++        check(ctx.writes.empty() && ctx.badWrites == 0,
++              "cfx2rd CFXREG: rdHD not written");
++    }
++    {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = 15;
++        w.cghb = 1;
++        w.rchc = 2;
++        w.rdhd = 6;
++        const exec::Fault fault = runWord(ctx, "cfx2rc_crrr_cfx", w);
++        check(fault == exec::Fault::CfxReg,
++              "cfx2rc missing combination -> CfxReg (%s)", faultName(fault));
++        check(ctx.cfxWrites == 1 && ctx.cfxMisses == 1,
++              "cfx2rc CFXREG: the cfx register is not written");
++    }
++
++    // Reserved cfx numbers -> ILLI before the cfx access.
++    for (unsigned cfxha : {6u, 14u, 19u, 61u}) {
++        for (const char *id : {"cfx2rd_crrr_cfx", "cfx2rc_crrr_cfx"}) {
++            MockContext ctx;
++            initContext(ctx);
++            resetCounters(ctx);
++            WordSpec w;
++            w.cfxha = cfxha;
++            w.cghb = 1;
++            w.rchc = 2;
++            w.rdhd = 6;
++            const exec::Fault fault = runWord(ctx, id, w);
++            check(fault == exec::Fault::Illegal,
++                  "%s cfx%u (reserved) -> Illegal (%s)", id, cfxha,
++                  faultName(fault));
++            check(ctx.cfxReads == 0 && ctx.cfxWrites == 0 &&
++                      ctx.writes.empty(),
++                  "%s cfx%u: cfx access not attempted", id, cfxha);
++        }
++    }
++
++    // cfx2rd with a rd0 destination: the write is discarded, not ILLI.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.cfx[key] = 0x55AA55AA55AA55AAULL;
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = 15;
++        w.cghb = 1;
++        w.rchc = 2;
++        w.rdhd = 0;
++        const exec::Fault fault = runWord(ctx, "cfx2rd_crrr_cfx", w);
++        check(fault == exec::Fault::None,
++              "cfx2rd rd0: discarded write, not ILLI (%s)", faultName(fault));
++        check(ctx.writes.empty() && ctx.badWrites == 0,
++              "cfx2rd rd0: rd0 is not written");
++    }
++
++    // cfx2rc with a rd0 source: reads 0 and stores 0.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.cfx[key] = 0xFFFFFFFFFFFFFFFFULL;
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = 15;
++        w.cghb = 1;
++        w.rchc = 2;
++        w.rdhd = 0;
++        const exec::Fault fault = runWord(ctx, "cfx2rc_crrr_cfx", w);
++        check(fault == exec::Fault::None && ctx.cfx[key] == 0,
++              "cfx2rc rd0 source: reads 0 and writes 0");
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 8. trap / escape: delivery, SBZ, reserved cfx, CFXESC.
++// ---------------------------------------------------------------------------
++
++void
++checkTrapEscape()
++{
++    const uint64_t trapImms[] = {0, 1, 0x3FFFF};
++    for (uint64_t value : trapImms) {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = 16;
++        w.immu18 = value;
++        const exec::Fault fault = runWord(ctx, "trap_ciii_cfx", w);
++        check(fault == exec::Fault::None && ctx.trapCalls == 1 &&
++                  ctx.trapCfx == 16 && ctx.trapImm == value,
++              "trap cfx16, %" PRIu64 ": immu18 delivered unchanged", value);
++        check(ctx.writes.empty() && ctx.badWrites == 0 &&
++                  ctx.memReads == 0,
++              "trap cfx16, %" PRIu64 ": no GPR/memory access", value);
++    }
++
++    for (unsigned cfxha : {6u, 14u, 19u, 61u}) {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = cfxha;
++        w.immu18 = 1;
++        const exec::Fault fault = runWord(ctx, "trap_ciii_cfx", w);
++        check(fault == exec::Fault::Illegal,
++              "trap cfx%u (reserved) -> Illegal (%s)", cfxha,
++              faultName(fault));
++        check(ctx.trapCalls == 0 && ctx.writes.empty(),
++              "trap cfx%u: no control transfer and no write", cfxha);
++    }
++
++    // Legal offsets: imms18 = 0 -> byte offset 0, imms18 = 1 -> 4.
++    for (uint64_t encoded : {0, 1}) {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = 17;
++        w.imms18 = encoded;
++        const exec::Fault fault = runWord(ctx, "escape_ciii_cfx", w);
++        check(fault == exec::Fault::None && ctx.escapeCalls == 1 &&
++                  ctx.escapeOffset == encoded * 4,
++              "escape imms18=%" PRIu64 ": byte offset %" PRIu64, encoded,
++              encoded * 4);
++        check(ctx.writes.empty() && ctx.memReads == 0,
++              "escape imms18=%" PRIu64 ": no architectural write", encoded);
++    }
++
++    // imms18[17:1] != 0 -> ILLI before the hook.
++    for (uint64_t bad : {uint64_t(2), uint64_t(3), uint64_t(0x3FFFE)}) {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = 17;
++        w.imms18 = bad;
++        const exec::Fault fault = runWord(ctx, "escape_ciii_cfx", w);
++        check(fault == exec::Fault::Illegal,
++              "escape imms18=0x%" PRIx64 " (SBZ != 0) -> Illegal (%s)", bad,
++              faultName(fault));
++        check(ctx.escapeCalls == 0 && ctx.writes.empty(),
++              "escape imms18=0x%" PRIx64 ": escapeFrom not called", bad);
++    }
++
++    // A rejected frame/target -> CFXESC with no architectural write.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        ctx.failEscape = true;
++        WordSpec w;
++        w.cfxha = 17;
++        w.imms18 = 1;
++        const exec::Fault fault = runWord(ctx, "escape_ciii_cfx", w);
++        check(fault == exec::Fault::CfxEsc,
++              "escape frame rejected -> CfxEsc (%s)", faultName(fault));
++        check(ctx.writes.empty() && ctx.badWrites == 0 &&
++                  !ctx.controlTransfer,
++              "escape CFXESC: no state change, no control transfer");
++    }
++
++    for (unsigned cfxha : {6u, 14u, 19u, 61u}) {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = cfxha;
++        w.imms18 = 0;
++        const exec::Fault fault = runWord(ctx, "escape_ciii_cfx", w);
++        check(fault == exec::Fault::Illegal,
++              "escape cfx%u (reserved) -> Illegal (%s)", cfxha,
++              faultName(fault));
++        check(ctx.escapeCalls == 0, "escape cfx%u: hook not called", cfxha);
++    }
++}
++
++// ---------------------------------------------------------------------------
++// 9. Dispatch: id-based, family members must not be conflated.
++// ---------------------------------------------------------------------------
++
++void
++checkDispatch()
++{
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        WordSpec w;
++        w.cfxha = 15;
++        w.cghb = 1;
++        w.rchc = 2;
++        w.rdhd = 6;
++        w.rdhb = 3;
++        w.rdhc = 5;
++        w.rbhd = 4;
++        w.immu18 = 4;
++        w.imms18 = 1;
++        const uint32_t raw = makeWord(o.id, w);
++        const decode::DecodedInst decoded = decode::decodeWord(raw);
++        check(decoded.ok() && strEq(decoded.entry->id, o.id),
++              "dispatch: %s round-trips", o.id);
++    }
++
++    const exec::B6Spec *lrAn = exec::b6SpecForId("lr.o.an_orrr_rd");
++    const exec::B6Spec *lrAr = exec::b6SpecForId("lr.b.ar_orrr_rd");
++    const exec::B6Spec *scNr = exec::b6SpecForId("sc.o.nr_orrr_rd");
++    const exec::B6Spec *scAr = exec::b6SpecForId("sc.w.ar_orrr_rd");
++    check(lrAn != nullptr && lrAn->width == 8 && lrAn->order == 1 &&
++              lrAr != nullptr && lrAr->width == 1 && lrAr->order == 3,
++          "dispatch: lr width/order come from the id");
++    check(scNr != nullptr && scNr->order == 2 && scAr != nullptr &&
++              scAr->order == 3,
++          "dispatch: sc nr/ar orders come from the id");
++    check(exec::b6SpecForId("lr.o.nr_orrr_rd") == nullptr &&
++              exec::b6SpecForId("sc.o.an_orrr_rd") == nullptr,
++          "dispatch: lr has no nr and sc has no an");
++    check(strEq(exec::b6SpecForId("trap_ciii_cfx")->immField, "immu18") &&
++              strEq(exec::b6SpecForId("escape_ciii_cfx")->immField,
++                    "imms18"),
++          "dispatch: trap uses immu18, escape uses imms18");
++    check(exec::b6SpecForId("cfx2rd_crrr_cfx")->op == exec::B6Op::CfxToRd &&
++              exec::b6SpecForId("cfx2rc_crrr_cfx")->op ==
++                  exec::B6Op::CfxFromRd,
++          "dispatch: cfx2rd and cfx2rc have opposite data directions");
++    check(strEq(exec::b6SpecForId("sc.o.nn_orrr_rd")->dstField, "rdhb") &&
++              strEq(exec::b6SpecForId("lr.o.nn_orrr_rd")->dstField, "rdhc"),
++          "dispatch: sc result is rdhb, lr value is rdhc");
++}
++
++} // anonymous namespace
++
++int
++main()
++{
++    checkPositiveAll();
++    checkCoverage();
++    checkSwym();
++    checkFence();
++    checkLr();
++    checkSc();
++    checkCfx();
++    checkTrapEscape();
++    checkDispatch();
++
++    std::printf("\nsummary: B6 coverage 30/30, oracle rows %zu, "
++                "failures %d\n", kOracleCount, failures);
++    return failures == 0 ? 0 : 1;
++}

@@ -1,0 +1,100 @@
+diff --git a/src/arch/dadao/exec/b3.hh b/src/arch/dadao/exec/b3.hh
+new file mode 100644
+index 0000000..3b6a6a0
+--- /dev/null
++++ b/src/arch/dadao/exec/b3.hh
+@@ -0,0 +1,94 @@
++// DADAO gem5 B3 execution core: 64-bit data / address operations (42 ids).
++//
++// Plain C++ (no gem5 headers), like the B0 decode core, so the *same* code is
++// driven by the component assertion harness (exec/b3_test.cc) and by the gem5
++// adapter (inst.cc).
++//
++// Source of truth: the B3 ids in contracts/opcodes.yaml, the same-id rows of
++// the GEM5-002t semantic matrix, spec/SimRISC-04, spec/SimRISC-05,
++// spec/SimRISC-12 and contract-isa §6/§7.  Only the 42 B3 ids are
++// implemented; every other decoded instruction reports NotB3.
++//
++// All B3 instructions are register-only (no memory access, no alignment
++// check): the core cannot return Malign/Memory by construction.
++#ifndef __ARCH_DADAO_EXEC_B3_HH__
++#define __ARCH_DADAO_EXEC_B3_HH__
++
++#include <cstddef>
++#include <cstdint>
++#include <string_view>
++
++#include "arch/dadao/decode/decode.hh"
++#include "arch/dadao/exec/common.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++enum class B3Op
++{
++    AddUo,
++    AddSo,
++    SubUo,
++    SubSo,
++    MulUo,
++    MulSo,
++    ClMul,
++    AddSi,
++    AipSi,
++    CmpUi,
++    CmpSi,
++    CtPop,
++    CtLz,
++    CtTz,
++    And,
++    Or,
++    Xor,
++    Xnor,
++    Shl,
++    Rol,
++    ShrUo,
++    ShrSo,
++    ExtUo,
++    ExtSo,
++    Rev,
++    AddBbd,
++    SubBbd,
++    CmpUoDbb,
++    SubDbb,
++    CmpUo,
++    CmpSo,
++    DivUo,
++    DivSo,
++    RemUo,
++    RemSo,
++};
++
++/** One decoded B3 id.  This is also the dispatch table. */
++struct B3Spec
++{
++    const char *id;
++    B3Op op;
++};
++
++size_t b3SpecCount();
++const B3Spec *b3Specs();
++const B3Spec *b3SpecForId(std::string_view id);
++
++/** Execute one B3 instruction.
++ *
++ * Returns NotB3 when the instruction does not belong to batch B3; callers must
++ * keep that instruction unimplemented rather than guessing.  A legal decoded
++ * B3 instruction only returns None or Illegal (static legality is checked
++ * before any register read).
++ */
++Fault executeB3(const decode::DecodedInst &inst, RegAccess &ctx);
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_EXEC_B3_HH__

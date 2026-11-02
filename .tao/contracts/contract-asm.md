@@ -4,7 +4,7 @@
 
 本合约把 v5 自定规范 `spec/Toolchain-01-汇编语言.md`（0.5.3，语法已定稿；实现待安排）归一化为可精确消费的断言；规范叙述与理由留在该规范正文，本合约只提取可机械/agent 消费的约束。
 
-- **投影关系**：本合约为投影类型①（叙述合约）；②机器数据 = `contracts/opcodes.yaml`（`format`/汇编形式列）；③机械门控 = `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py`；④可执行 = `tests/llvm/lit/MC/DADAO`。[Toolchain-01 §12]
+- **投影关系**：本合约为投影类型①（叙述合约）；②机器数据 = `contracts/opcodes.yaml`（`format`/汇编形式列）；③机械门控 = `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py`；④可执行 = `tests/unit/llvm/lit/MC/DADAO`。[Toolchain-01 §12]
 - **指令全表**：指令全表为生成投影 `.tao/contracts/contract-asm-list.md`（条数由该生成投影派生自 `contracts/opcodes.yaml`），本合约不重抄；指令编码身份以 `contracts/opcodes.yaml` 为准，指令语义见 `contract-isa.md`（M1）/`contract-fp.md`（`scope: fp`）。[Toolchain-01 §1]
 - **来源标注**：每条规范性断言以 `[Toolchain-01 §x]` 标注主来源；凡书写形式决策并标其冻结依据 `ADR-0013`（cfx 记法见 `ADR-0013 D8`），cfx 别名约定并标 `ADR-0017`，上游可溯源者并标 `SimRISC-0x`/`DADAO-11` 的对应章节。
 - **冲突处理**：本合约与 `spec/` 冲突时阻断实现，走变更流程（`docs/Process-02-合约编写规范.md`），由规范而非实现裁定。[Toolchain-01 §附：与上游 spec/ 的关系]
@@ -16,7 +16,7 @@
 - 适用范围：DADAO M1 汇编语言——词法、记号、指令书写、指导符、选项、诊断、往返。[Toolchain-01 §1]
 - 指令集权威：编码与身份以 `contracts/opcodes.yaml` 为准，语义以 `contract-isa.md` 为准；本合约只规定书写形式。[Toolchain-01 §1]
 - M1 格式类（`Toolchain-01 §1` 定义；格式类清单与各指令 `scope` 归属以 `contracts/opcodes.yaml` 为准）：`rrrr`、`rrri`、`rrii`、`riii`、`iiii`、`rwii`、`orrr`、`orri`、`oiii`、`crrr`、`ciii`。[Toolchain-01 §1]
-- `crrr`/`ciii` 属特权 cfx：`cfx2rd`/`cfx2rc`（crrr）与 `trap`/`escape`（ciii）为 `scope: m1`（已实现）；`cfxld`/`cfxst`（crii）仍 `scope: excluded`。[Toolchain-01 §1]
+- `crrr`/`ciii` 属特权 cfx：`cfx2rd`/`cfx2rc`（crrr）与 `trap`/`escape`/`fence`（ciii）为已实现指令；`crii` 格式已随 `cfxld`/`cfxst` 删除而撤销。[Toolchain-01 §1]
 - 术语：地址表达式、寄存器组、条件寄存器、地址立即数（字节）。[Toolchain-01 §1]
 
 ---
@@ -44,7 +44,7 @@
 
 - 立即数 MAY 写为十进制、`0x…`（十六进制）、`0b…`（二进制）、负数（前导 `-`）；下划线分隔符 MUST NOT 使用。[Toolchain-01 §2.4][ADR-0013 D3]
 - 立即数位置接受完整常量表达式（`+ - * / % & | ^ << >> == != < <= > >= && ||` 与一元 `! ~ - +`、括号分组）。[Toolchain-01 §2.4]
-- **地址立即数**：跳转/分支目标偏移与 escape 偏移单位为**字节**，不含任何单位标记；装配器将其右移 2 位写入编码字段，并校验 `%4==0` 与范围。[Toolchain-01 §2.4][ADR-0013 D3]
+- **地址立即数**：跳转/分支目标偏移与 escape 偏移单位为**字节**，不含任何单位标记；装配器将其右移 2 位写入编码字段，并对跳转/分支校验 `%4==0` 与范围、对 escape 只接受 0 与 4。[Toolchain-01 §2.4][ADR-0013 D3]
 - 各立即数字段的位宽与取值范围见 `contract-asm-list.md` 的「立即数范围速查」；越界 MUST 报错。[Toolchain-01 §2.4][ADR-0013 D3]
 
 ### §2.5 寄存器名
@@ -74,7 +74,7 @@
 
 ### §3.2 语义（三类，公式不同）
 
-- **访存**（`ld.*`/`st.*`/`ldm.*`/`stm.*`/`cfxld`/`cfxst`）：有效地址 = `基址 + 立即数`（偏移单位为字节，`imms12`）。[Toolchain-01 §3.2][ADR-0013 D4]
+- **访存**（`ld.*`/`st.*`/`ldm.*`/`stm.*`）：有效地址 = `基址 + 立即数`（偏移单位为字节，`imms12`）。[Toolchain-01 §3.2][ADR-0013 D4]
 - **iiii 跳转/分支**（`jump`/`call` 的 iiii 形式、`br.*`）：目标 = `基址 + 立即数`（字节，`imms26`/`imms20`/`imms14`）。[Toolchain-01 §3.2][ADR-0013 D4]
 - **rrii 跳转**（`jump`/`call` 的 rrii 形式）：目标 = `基址 + 寄存器偏移 + 立即数`（字节，`imms14`）。[Toolchain-01 §3.2][ADR-0013 D4]
 - **相对跳转的基址**：iiii 形式的基址 MUST 为 `rb0`（当前指令地址）；基址非 `rb0` 而指令为 iiii 形式时 MUST 报错；rrii 形式的基址 MAY 为任意 RB 寄存器。[Toolchain-01 §3.2][ADR-0013 D4]
@@ -164,15 +164,15 @@
 | `orrr` | `助记符 dst, src1, src2` | `or.o rd8, rd9, rd10` | — |
 | `orri` | `助记符 dst, src, immu6` | `ext.uo rd8, rd0, 1` | — |
 | `orri`（块赋值/格式转换） | `助记符 {dst:…}, {src:…}` | `ra2rd {rd8:rd10}, {ra1:ra3}` | `immu6` = 连续寄存器个数 |
-| `oiii` | `助记符 immu18` | `fence 0`、`swym 0` | 纯立即数，不加 `[]` |
+| `oiii` | `助记符 immu18` | `swym 0` | 纯立即数，不加 `[]` |
+| `ciii`（`fence`） | `助记符 cfxHA, immu18` | `fence cfx0, immu18` | `cfx0`/`cfx_umon` = all cfx |
 
-**特权 cfx 格式（`crrr`/`crii`/`ciii`）与 LR-SC 的书写规则**（同规则、供对照；`crrr`/`ciii` 现为 `scope: m1`，`crii` 仍 `scope: excluded`）[Toolchain-01 §5][ADR-0013 D8]：
+**特权 cfx 格式（`crrr`/`ciii`）与 LR-SC 的书写规则**（同规则、供对照；`crrr`/`ciii` 现为已实现指令）[Toolchain-01 §5][ADR-0013 D8]：
 
-- `cfxld cfx63, [rb2, 1]`、`cfxst cfx63, [rb2, 1]`——`cfxha` 写作 `cfxHA`（测试机为 `cfx63` = power）；末两操作数为地址。[Toolchain-01 §5][ADR-0013 D8]
 - `cfx2rd cfx63, cg8, rc1, rd8`、`cfx2rc …`——字段占位为 `cfxHA, cgHB, rcHC, rdHD`；中间两操作数分别是 `cg` 寄存器与 `rc` 寄存器。[Toolchain-01 §5][ADR-0013 D8]
 - `lr.o.nn rd9, [rb1]`——两个操作数：`rdHB` 固定为 `rd0`（不在汇编中出现；手工编码 `hb ≠ 0` → ILLI）。[Toolchain-01 §5][ADR-0013 D8]
 - `sc.o.nn rd8, rd9, [rb1]`——三个操作数：`rdHB`（成功/失败结果）、`rdHC`（源）、地址 `rbHD`。[Toolchain-01 §5][ADR-0013 D8]
-- `escape cfx63, [excp_cause_ip, 4]`——第二参数为字节偏移（汇编层 `imms20`，须 `%4==0`），基址为异常进入时保存的地址 `excp_cause_ip`（不在编码中，故显式写出）。[Toolchain-01 §5][ADR-0013 D8]
+- `escape cfx63, [excp_cause_ip, 4]`——第二参数为字节偏移（汇编层 `imms20`，只允许 0 或 4；`imms18[17:1]` 为 SBZ、非零 ⇒ ILLI），基址为异常进入时保存的地址 `excp_cause_ip`（不在编码中，故显式写出）。[Toolchain-01 §5][ADR-0013 D8]
 - `trap cfx63, 1`——立即数与地址无关，不加 `[]`。[Toolchain-01 §5][ADR-0013 D8]
 
 **特例**：
@@ -263,7 +263,7 @@
 
 ## §13 cfx 别名约定
 
-本节承载 cfx 系列别名的**书写约定**（规范正文「怎么写」）；决策与理由见 `ADR-0017`。**别名表**为机械生成投影 `.tao/contracts/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），不属于规范正文。cfx 中 `cfx2rd`/`cfx2rc`/`trap`/`escape` 已 `SPEC-115t` re-scope 为 `scope: m1`（MC 可汇编）；`cfxld`/`cfxst` 仍 `scope: excluded`。[Toolchain-01 §13][ADR-0017]
+本节承载 cfx 系列别名的**书写约定**（规范正文「怎么写」）；决策与理由见 `ADR-0017`。**别名表**为机械生成投影 `.tao/contracts/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），不属于规范正文。cfx 中 `cfx2rd`/`cfx2rc`/`trap`/`escape` 已 `SPEC-115t` re-scope 为 `scope: m1`（MC 可汇编）；`cfxld`/`cfxst` 已从 ISA 删除（`crii` 格式一并撤销）。[Toolchain-01 §13][ADR-0017]
 
 ### §13.1 归属与形态（D1/D2）
 
@@ -299,16 +299,16 @@
 
 ### §13.7 数组寄存器单下标（D10）
 
-- 数组 cfx 寄存器支持**单下标** `cfx_<cfxname>_<regname>[N]` ⇔ `(cfxha, cg, rc = rc_base + N)`。[Toolchain-01 §13.7][ADR-0017 D10]
-- `N` MUST 落在别名表中该寄存器名称列范围 `[lo..hi]`（如 `0..63`、`0..7`）内；`rc_base` 为该行 `rc` 列的下界。[Toolchain-01 §13.7][ADR-0017 D10]
-- 汇编器/检测器 MUST 接受该形（不视为违规）；`N` 越界 MUST 报错。[Toolchain-01 §13.7][ADR-0017 D10]
+- 数组 cfx 寄存器支持**单下标** `cfx_<cfxname>_<regname>[N]` ⇔ `(cfxha, cg, rc = rc_base + N*stride)`；`N` 为 `[0, count)` 的整数。[Toolchain-01 §13.7][ADR-0017 D10]
+- `count`/`stride` 由别名表该数组行给出；`stride` 缺省 1（连续数组），cg7 `space_*` 为 `count=16`、`stride=4`、`rc_base=0/1/2/3`；旧 `format=1` 的 `[lo..hi]` 行按 `stride=1` 兼容。[Toolchain-01 §13.7][ADR-0017 D10]
+- 别名表以 `array <name-base> ...` 记整数组，单下标是其具体化；汇编器/检测器 MUST 接受该形；`N` 越界 MUST 按 `count` 报错。[Toolchain-01 §13.7][ADR-0017 D10]
 
 ### §13.8 示例
 
 ```asm
 cfx2rc cfx_smon_supv_excp_vector, rd2        @@ 别名形
 cfx2rc cfx_smon, cg2, rc0, rd2               @@ 规范长形（与上行等价）
-cfx2rd cfx_ptw_ptbr[0], rd2                  @@ 数组单下标
+cfx2rd cfx_pmem_start[0], rd2                @@ 数组单下标
 escape cfx_smon, [excp_cause_ip, 4]          @@ cfxha 写作标量别名
 ```
 

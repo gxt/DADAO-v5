@@ -1,0 +1,539 @@
+; RUN: %llc -march=dadao -O2 -verify-machineinstrs -filetype=asm %s -o - | %FileCheck %s
+;
+; LLVM-138t: only an exact i64 extension consumer may select a producer whose
+; ISA variant already writes the requested canonical high bits.  Mismatched
+; directions remain explicit ext.so/ext.uo; ABI-only extensions are tested in
+; abi-narrow-extend.ll and are intentionally not folded.
+;
+; The narrow shift amount is the target shift-amount type i64 (see
+; narrow-int.ll and TargetLoweringBase::getShiftAmountTy: pointer size 64),
+; so the register-form patterns spell it `(i64 GPRD:$b)` exactly like the
+; pre-existing narrow SHL/SRL/SRA patterns.  The run-time oracle in
+; .work/evidence/LLVM-138t/oracle.py checks the values, not just the absence
+; of ext.so/ext.uo.
+;
+; Negatives below cover: direction mismatch (zext(ashr), sext(lshr/shl)),
+; div/rem direction mismatch, non-target producers, nsw/nuw flags, integer
+; pointer conversion, and the LLVM-127t `sub 0, x` narrow-neg form (which must
+; stay sub.s* + ext.*, see m6-not-neg.ll).
+
+target triple = "dadao-unknown-elf"
+
+; CHECK-LABEL: sext_add32:
+; CHECK:         add.st rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_add32(i32 %a, i32 %b) {
+  %r = add i32 %a, %b
+  %e = sext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_add32:
+; CHECK:         add.ut rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_add32(i32 %a, i32 %b) {
+  %r = add i32 %a, %b
+  %e = zext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_sub32:
+; CHECK:         sub.st rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_sub32(i32 %a, i32 %b) {
+  %r = sub i32 %a, %b
+  %e = sext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_sub32:
+; CHECK:         sub.ut rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_sub32(i32 %a, i32 %b) {
+  %r = sub i32 %a, %b
+  %e = zext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_mul32:
+; CHECK:         mul.st rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_mul32(i32 %a, i32 %b) {
+  %r = mul i32 %a, %b
+  %e = sext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_mul32:
+; CHECK:         mul.ut rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_mul32(i32 %a, i32 %b) {
+  %r = mul i32 %a, %b
+  %e = zext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_udiv32:
+; CHECK:         div.ut rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_udiv32(i32 %a, i32 %b) {
+  %r = udiv i32 %a, %b
+  %e = zext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_urem32:
+; CHECK:         rem.ut rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_urem32(i32 %a, i32 %b) {
+  %r = urem i32 %a, %b
+  %e = zext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_sdiv32:
+; CHECK:         div.st rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_sdiv32(i32 %a, i32 %b) {
+  %r = sdiv i32 %a, %b
+  %e = sext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_srem32:
+; CHECK:         rem.st rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_srem32(i32 %a, i32 %b) {
+  %r = srem i32 %a, %b
+  %e = sext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_shl32:
+; CHECK:         shl.t rd{{[0-9]+}}, rd16, rd{{[0-9]+}}
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_shl32(i32 %a, i32 %b) {
+  %r = shl i32 %a, %b
+  %e = zext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_lshr32:
+; CHECK:         shr.ut rd{{[0-9]+}}, rd16, rd{{[0-9]+}}
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_lshr32(i32 %a, i32 %b) {
+  %r = lshr i32 %a, %b
+  %e = zext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_ashr32:
+; CHECK:         shr.st rd{{[0-9]+}}, rd16, rd{{[0-9]+}}
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_ashr32(i32 %a, i32 %b) {
+  %r = ashr i32 %a, %b
+  %e = sext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_add16:
+; CHECK:         add.sw rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_add16(i16 %a, i16 %b) {
+  %r = add i16 %a, %b
+  %e = sext i16 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_add16:
+; CHECK:         add.uw rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_add16(i16 %a, i16 %b) {
+  %r = add i16 %a, %b
+  %e = zext i16 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_sub16:
+; CHECK:         sub.sw rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_sub16(i16 %a, i16 %b) {
+  %r = sub i16 %a, %b
+  %e = sext i16 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_sub16:
+; CHECK:         sub.uw rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_sub16(i16 %a, i16 %b) {
+  %r = sub i16 %a, %b
+  %e = zext i16 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_mul16:
+; CHECK:         mul.sw rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_mul16(i16 %a, i16 %b) {
+  %r = mul i16 %a, %b
+  %e = sext i16 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_mul16:
+; CHECK:         mul.uw rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_mul16(i16 %a, i16 %b) {
+  %r = mul i16 %a, %b
+  %e = zext i16 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_udiv16:
+; CHECK:         div.uw rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_udiv16(i16 %a, i16 %b) {
+  %r = udiv i16 %a, %b
+  %e = zext i16 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_urem16:
+; CHECK:         rem.uw rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_urem16(i16 %a, i16 %b) {
+  %r = urem i16 %a, %b
+  %e = zext i16 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_sdiv16:
+; CHECK:         div.sw rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_sdiv16(i16 %a, i16 %b) {
+  %r = sdiv i16 %a, %b
+  %e = sext i16 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_srem16:
+; CHECK:         rem.sw rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_srem16(i16 %a, i16 %b) {
+  %r = srem i16 %a, %b
+  %e = sext i16 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_shl16:
+; CHECK:         shl.w rd{{[0-9]+}}, rd16, rd{{[0-9]+}}
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_shl16(i16 %a, i16 %b) {
+  %r = shl i16 %a, %b
+  %e = zext i16 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_lshr16:
+; CHECK:         shr.uw rd{{[0-9]+}}, rd16, rd{{[0-9]+}}
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_lshr16(i16 %a, i16 %b) {
+  %r = lshr i16 %a, %b
+  %e = zext i16 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_ashr16:
+; CHECK:         shr.sw rd{{[0-9]+}}, rd16, rd{{[0-9]+}}
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_ashr16(i16 %a, i16 %b) {
+  %r = ashr i16 %a, %b
+  %e = sext i16 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_add8:
+; CHECK:         add.sb rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_add8(i8 %a, i8 %b) {
+  %r = add i8 %a, %b
+  %e = sext i8 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_add8:
+; CHECK:         add.ub rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_add8(i8 %a, i8 %b) {
+  %r = add i8 %a, %b
+  %e = zext i8 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_sub8:
+; CHECK:         sub.sb rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_sub8(i8 %a, i8 %b) {
+  %r = sub i8 %a, %b
+  %e = sext i8 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_sub8:
+; CHECK:         sub.ub rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_sub8(i8 %a, i8 %b) {
+  %r = sub i8 %a, %b
+  %e = zext i8 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_mul8:
+; CHECK:         mul.sb rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_mul8(i8 %a, i8 %b) {
+  %r = mul i8 %a, %b
+  %e = sext i8 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_mul8:
+; CHECK:         mul.ub rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_mul8(i8 %a, i8 %b) {
+  %r = mul i8 %a, %b
+  %e = zext i8 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_udiv8:
+; CHECK:         div.ub rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_udiv8(i8 %a, i8 %b) {
+  %r = udiv i8 %a, %b
+  %e = zext i8 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_urem8:
+; CHECK:         rem.ub rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_urem8(i8 %a, i8 %b) {
+  %r = urem i8 %a, %b
+  %e = zext i8 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_sdiv8:
+; CHECK:         div.sb rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_sdiv8(i8 %a, i8 %b) {
+  %r = sdiv i8 %a, %b
+  %e = sext i8 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_srem8:
+; CHECK:         rem.sb rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_srem8(i8 %a, i8 %b) {
+  %r = srem i8 %a, %b
+  %e = sext i8 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_shl8:
+; CHECK:         shl.b rd{{[0-9]+}}, rd16, rd{{[0-9]+}}
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_shl8(i8 %a, i8 %b) {
+  %r = shl i8 %a, %b
+  %e = zext i8 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_lshr8:
+; CHECK:         shr.ub rd{{[0-9]+}}, rd16, rd{{[0-9]+}}
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_lshr8(i8 %a, i8 %b) {
+  %r = lshr i8 %a, %b
+  %e = zext i8 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_ashr8:
+; CHECK:         shr.sb rd{{[0-9]+}}, rd16, rd{{[0-9]+}}
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_ashr8(i8 %a, i8 %b) {
+  %r = ashr i8 %a, %b
+  %e = sext i8 %r to i64
+  ret i64 %e
+}
+
+; Direction mismatches must retain the explicit extension.
+; CHECK-LABEL: zext_ashr32:
+; CHECK:         shr.st rd{{[0-9]+}}, rd16, rd{{[0-9]+}}
+; CHECK:         ext.uo rd{{[0-9]+}}, rd{{[0-9]+}}, 31
+define i64 @zext_ashr32(i32 %a, i32 %b) {
+  %r = ashr i32 %a, %b
+  %e = zext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_lshr32:
+; CHECK:         shr.ut rd{{[0-9]+}}, rd16, rd{{[0-9]+}}
+; CHECK:         ext.so rd{{[0-9]+}}, rd{{[0-9]+}}, 31
+define i64 @sext_lshr32(i32 %a, i32 %b) {
+  %r = lshr i32 %a, %b
+  %e = sext i32 %r to i64
+  ret i64 %e
+}
+
+; A non-target producer is not treated as canonical merely because its result
+; type is narrow.
+; CHECK-LABEL: zext_and32:
+; CHECK:         ext.uo rd{{[0-9]+}}, rd{{[0-9]+}}, 31
+define i64 @zext_and32(i32 %a, i32 %b) {
+  %r = and i32 %a, %b
+  %e = zext i32 %r to i64
+  ret i64 %e
+}
+
+; --- direction mismatch on the remaining producers --------------------------
+; The ISA canonical result of shl/srl is zero-extended and of sra
+; sign-extended; every other pairing must keep the explicit extension.
+; CHECK-LABEL: sext_shl32:
+; CHECK:         shl.t rd{{[0-9]+}}, rd16, rd{{[0-9]+}}
+; CHECK-NEXT:    ext.so rd{{[0-9]+}}, rd{{[0-9]+}}, 31
+define i64 @sext_shl32(i32 %a, i32 %b) {
+  %r = shl i32 %a, %b
+  %e = sext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_sra16:
+; CHECK:         shr.sw rd{{[0-9]+}}, rd16, rd{{[0-9]+}}
+; CHECK-NEXT:    ext.uo rd{{[0-9]+}}, rd{{[0-9]+}}, 15
+define i64 @zext_sra16(i16 %a, i16 %b) {
+  %r = ashr i16 %a, %b
+  %e = zext i16 %r to i64
+  ret i64 %e
+}
+
+; --- div/rem direction mismatch --------------------------------------------
+; CHECK-LABEL: sext_udiv32:
+; CHECK:         div.ut rd{{[0-9]+}}, rd16, rd17
+; CHECK-NEXT:    ext.so rd{{[0-9]+}}, rd{{[0-9]+}}, 31
+define i64 @sext_udiv32(i32 %a, i32 %b) {
+  %r = udiv i32 %a, %b
+  %e = sext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_sdiv32:
+; CHECK:         div.st rd{{[0-9]+}}, rd16, rd17
+; CHECK-NEXT:    ext.uo rd{{[0-9]+}}, rd{{[0-9]+}}, 31
+define i64 @zext_sdiv32(i32 %a, i32 %b) {
+  %r = sdiv i32 %a, %b
+  %e = zext i32 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: sext_urem16:
+; CHECK:         rem.uw rd{{[0-9]+}}, rd16, rd17
+; CHECK-NEXT:    ext.so rd{{[0-9]+}}, rd{{[0-9]+}}, 15
+define i64 @sext_urem16(i16 %a, i16 %b) {
+  %r = urem i16 %a, %b
+  %e = sext i16 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_srem8:
+; CHECK:         rem.sb rd{{[0-9]+}}, rd16, rd17
+; CHECK-NEXT:    ext.uo rd{{[0-9]+}}, rd{{[0-9]+}}, 7
+define i64 @zext_srem8(i8 %a, i8 %b) {
+  %r = srem i8 %a, %b
+  %e = zext i8 %r to i64
+  ret i64 %e
+}
+
+; --- nsw/nuw do not change the canonical extension direction ---------------
+; CHECK-LABEL: sext_add8_nsw:
+; CHECK:         add.sb rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_add8_nsw(i8 %a, i8 %b) {
+  %r = add nsw i8 %a, %b
+  %e = sext i8 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_mul16_nuw:
+; CHECK:         mul.uw rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_mul16_nuw(i16 %a, i16 %b) {
+  %r = mul nuw i16 %a, %b
+  %e = zext i16 %r to i64
+  ret i64 %e
+}
+
+; --- i8/i16 boundary operands ----------------------------------------------
+; The i8 max constant stays in the narrow domain; the selected narrow
+; instruction still writes the canonical high half, so no ext follows.  The
+; i16 sub keeps both operands in registers because LLVM canonicalises a
+; narrow constant subtraction into an add.  The *values* at these boundaries
+; are covered by the QEMU oracle (see the task evidence).
+; CHECK-LABEL: sext_add8_max:
+; CHECK:         add.sb rd{{[0-9]+}}, rd16, rd{{[0-9]+}}
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @sext_add8_max(i8 %a) {
+  %r = add i8 %a, 127
+  %e = sext i8 %r to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_sub16_edge:
+; CHECK:         sub.uw rd{{[0-9]+}}, rd16, rd17
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @zext_sub16_edge(i16 %a, i16 %b) {
+  %r = sub i16 %a, %b
+  %e = zext i16 %r to i64
+  ret i64 %e
+}
+
+; --- pointer conversions never act as a narrow canonical producer ----------
+; CHECK-LABEL: ptr_roundtrip:
+; CHECK-NOT:     ext.{{s|u}}o
+define i64 @ptr_roundtrip(i64 %x) {
+  %p = inttoptr i64 %x to ptr
+  %y = ptrtoint ptr %p to i64
+  ret i64 %y
+}
+
+; CHECK-LABEL: ptrtoint32_zext:
+; CHECK:         ext.uo rd{{[0-9]+}}, rd{{[0-9]+}}, 31
+define i64 @ptrtoint32_zext(ptr %p) {
+  %v = ptrtoint ptr %p to i32
+  %e = zext i32 %v to i64
+  ret i64 %e
+}
+
+; --- narrow negation keeps the LLVM-127t rd0 form --------------------------
+; Even under an enclosing extend, `sub 0, x` stays sub.s* + ext.* (the
+; DADAOISelDAGToDAG extend special case), never a CONST_WYDE zero operand.
+; CHECK-LABEL: sext_neg8:
+; CHECK:         sub.sb rd{{[0-9]+}}, rd0, rd16
+; CHECK-NEXT:    ext.so rd{{[0-9]+}}, rd{{[0-9]+}}, 7
+define i64 @sext_neg8(i8 %x) {
+  %n = sub i8 0, %x
+  %e = sext i8 %n to i64
+  ret i64 %e
+}
+
+; CHECK-LABEL: zext_neg16:
+; CHECK:         sub.sw rd{{[0-9]+}}, rd0, rd16
+; CHECK-NEXT:    ext.uo rd{{[0-9]+}}, rd{{[0-9]+}}, 15
+define i64 @zext_neg16(i16 %x) {
+  %n = sub i16 0, %x
+  %e = zext i16 %n to i64
+  ret i64 %e
+}

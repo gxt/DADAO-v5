@@ -1,0 +1,95 @@
+diff --git a/src/arch/dadao/faults.hh b/src/arch/dadao/faults.hh
+new file mode 100644
+index 0000000..6870f99
+--- /dev/null
++++ b/src/arch/dadao/faults.hh
+@@ -0,0 +1,89 @@
++// DADAO faults (B0 decode + B1 execution).
++#
++// ILLI covers illegal/reserved encodings and B1 static legality violations;
++// MALIGN is the B1 dynamic alignment fault.  B2-B7 still end in
++// UnimplementedInstruction.  All of them panic loudly; nothing silently
++// succeeds.
++#ifndef __ARCH_DADAO_FAULTS_HH__
++#define __ARCH_DADAO_FAULTS_HH__
++
++#include <string>
++
++#include "arch/dadao/types.hh"
++#include "base/logging.hh"
++#include "sim/faults.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++
++class IllegalInstruction : public FaultBase
++{
++  private:
++    const ExtMachInst machInst;
++
++  public:
++    explicit IllegalInstruction(ExtMachInst inst) : machInst(inst) {}
++
++    FaultName name() const override { return "Illegal instruction"; }
++
++    void
++    invoke(ThreadContext *, const StaticInstPtr &) override
++    {
++        panic("DADAO ILLI: illegal/reserved encoding 0x%08x", machInst);
++    }
++};
++
++/** Dynamic alignment fault (MALIGN).
++ *
++ * B1 reports it by panicking with the effective address and access width; the
++ * B6 trap/vector model will turn it into a real architectural exception.
++ */
++class MalignInstruction : public FaultBase
++{
++  private:
++    const ExtMachInst machInst;
++    const uint64_t address;
++    const unsigned width;
++
++  public:
++    MalignInstruction(ExtMachInst inst, uint64_t addr, unsigned bytes) :
++        machInst(inst), address(addr), width(bytes)
++    {}
++
++    FaultName name() const override { return "Misaligned memory access"; }
++
++    void
++    invoke(ThreadContext *, const StaticInstPtr &) override
++    {
++        panic("DADAO MALIGN: %u-byte access at 0x%llx (0x%08x)", width,
++              static_cast<unsigned long long>(address), machInst);
++    }
++};
++
++class UnimplementedInstruction : public FaultBase
++{
++  private:
++    const ExtMachInst machInst;
++    const std::string id;
++
++  public:
++    UnimplementedInstruction(ExtMachInst inst, const char *instId) :
++        machInst(inst), id(instId ? instId : "?")
++    {}
++
++    FaultName name() const override { return "Unimplemented instruction"; }
++
++    void
++    invoke(ThreadContext *, const StaticInstPtr &) override
++    {
++        panic("DADAO B0: execution semantics for %s (0x%08x) are not "
++              "implemented; see batches B1-B7", id, machInst);
++    }
++};
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_FAULTS_HH__

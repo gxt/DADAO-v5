@@ -1,0 +1,40 @@
+diff --git a/src/arch/dadao/pcstate.hh b/src/arch/dadao/pcstate.hh
+new file mode 100644
+index 0000000..9db6e8e
+--- /dev/null
++++ b/src/arch/dadao/pcstate.hh
+@@ -0,0 +1,34 @@
++// DADAO PC state (B0 skeleton).
++#
++// DADAO is fixed 32-bit and big-endian; IP is the current instruction address
++// (not PC+4), so the generic SimplePCState<4> advance is correct for
++// sequential instructions.  Branch/RA semantics belong to B5.
++#ifndef __ARCH_DADAO_PCSTATE_HH__
++#define __ARCH_DADAO_PCSTATE_HH__
++
++#include "arch/generic/pcstate.hh"
++#include "enums/ByteOrder.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++
++class PCState : public GenericISA::SimplePCState<4>
++{
++  public:
++    using GenericISA::SimplePCState<4>::SimplePCState;
++
++    PCStateBase *clone() const override { return new PCState(*this); }
++
++    ByteOrder
++    byteOrder() const
++    {
++        return ByteOrder::big;
++    }
++};
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_PCSTATE_HH__

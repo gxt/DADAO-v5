@@ -1,53 +1,11 @@
 # SimRISC其它指令
 
 > **版本：0.5.6-rc**（与 SimRISC-00 一致）
-> **分类：其它指令** — fence/lr.*/sc.*/swym/ctlz/cttz/ctpop
+> **分类：其它指令** — lr.*/sc.*/swym/ctlz/cttz/ctpop
 
 ## 1. 原子指令
 
-### 1.1 fence指令
-
-fence 指令对外部可见的访存请求,如设备 I/O 和内存访问等进行串行化。
-
-操作数类型为：`oiii`
-
-```simrisc
-fence   immu18
-```
-
-`fence immu18` 的 18 位立即数**不拆成三段操作数**，汇编层仍书写一个 18 位无符号立即数；其位域为：
-
-| 字段 | 位 | 含义 |
-| --- | --- | --- |
-| `fm` | `immu18[17:12]` | 屏障模式（fence mode） |
-| `pred` | `immu18[11:6]` | 前序（predecessor）访问类型集合 |
-| `succ` | `immu18[5:0]` | 后序（successor）访问类型集合 |
-
-`pred`/`succ` 的位含义为 R/W/I/O 四类访问（`R` 读、`W` 写、`I`/`O` 为设备 I/O 访问，RISC-V `fence` 口径）；汇编层提供八个符号常量，按位或（`|`）组合：
-
-| 访问类型 | `pred` 常量（值） | `succ` 常量（值） |
-| --- | --- | --- |
-| R | `PRED_R = 1<<6` | `SUCC_R = 1<<0` |
-| W | `PRED_W = 1<<7` | `SUCC_W = 1<<1` |
-| I | `PRED_I = 1<<8` | `SUCC_I = 1<<2` |
-| O | `PRED_O = 1<<9` | `SUCC_O = 1<<3` |
-
-例：`fence PRED_R|PRED_W|SUCC_R|SUCC_W`（= `immu18` 的 `0x00C3`，即 `pred = 000011`、`succ = 000011`）。
-
-`fm` 取值：
-
-| `fm` | 含义 |
-| --- | --- |
-| `0` | 已定义（常规屏障） |
-| `8` | TSO 预留（当前未定义） |
-| 其余 | 保留 |
-
-保留编码 ⇒ ILLI：
-
-- `fm ≠ 0`（其中 `fm = 8` 标注为「TSO 预留、当前未定义」）；
-- `pred` 的 `immu18[11:10]` 与 `succ` 的 `immu18[5:4]` 为 SBZ，非零即保留。
-
-### 1.2 LR-SC指令
+### 1.1 LR-SC指令
 
 LR 指令是 Load Reserved 的缩写，读取保留；SC 指令是 Store Conditional 的缩写，条件存储。设计参考 RISC-V RV64A 扩展（A 扩展）。
 
@@ -91,11 +49,11 @@ r是 release 的缩写，表示该指令前序所有访问存储的指令不得�
 n表示没有对应的a或r的顺序限制。
 
 lr 指令是从内存地址 rbHD 中加载内容到 rdHC 寄存器，然后在 rbHD 对应地址上设置保留标记（reservation set）。
-sc 指令会先判断 rbHD 内存地址是否有设置保留标记，如果设置了，则把 rdHC 值正常写入到 rbHD 内存地址里，并把 rdHB 寄存器设置成 0，表示写入成功；如果 rbHD 内存地址没有设置保留标记，则不执行写入操作，并把 rdHB 寄存器设置成 1， 表示写入失败；不管成功还是失败，sc 指令都会把当前 hart 上的所有保留标记全部清除。
+sc 指令会先判断 rbHD 内存地址是否有设置保留标记，如果设置了，则把 rdHC 值正常写入到 rbHD 内存地址里，并把 rdHB 寄存器设置成 0，表示写入成功；如果 rbHD 内存地址没有设置保留标记，则不执行写入操作，并把 rdHB 寄存器设置成 1， 表示写入失败；不管成功还是失败，sc 指令都会把当前 hart 上的所有保留标记全部清除。`sc` 的 `rdHB` 是成功/失败结果（目的寄存器），`rdHB = rd0` ⇒ **ILLI** 异常（成功/失败结果不可丢弃）。
 
 对于 lr/sc 指令，要求 rbHD 寄存器中的地址**按数据宽度自然对齐**（`.b`=1 / `.w`=2 / `.t`=4 / `.o`=8 字节），否则触发 **MALIGN** 异常。
 
-> **保留机制**（参考 RISC-V RV64A）：一条 lr 指令在 hart 上设置保留标记。sc 指令在保留标记仍在时写入内存并返回 0，否则不写入并返回非 0 值。sc 可能偶发性失败（spurious failure），软件应在循环中重试。以下事件清除 hart 上的保留标记：另一 hart 对保留地址的 store（或另一 hart 对保留地址所在 cache line 的 store，取决于平台实现的保留粒度）、当前 hart 执行另一条 lr 指令、异常或中断进入。如果 hart 在 lr 和 sc 之间执行了异常处理程序，sc 必定失败。保留标记的粒度由平台定义（可实现为精确地址或 cache line）。
+> **保留机制**（参考 RISC-V RV64A）：一条 lr 指令在 hart 上设置保留标记。sc 指令在保留标记仍在时写入内存并返回 0，否则不写入并返回非 0 值。sc 可能偶发性失败（spurious failure），软件应在循环中重试。以下事件清除 hart 上的保留标记：另一 hart 对**同一精确地址、相同访问宽度**的 store、当前 hart 执行另一条 lr 指令、异常或中断进入。如果 hart 在 lr 和 sc 之间执行了异常处理程序，sc 必定失败。**保留标记的粒度 = 精确地址 + 访问宽度**（以 lr 的地址与 `.b`/`.w`/`.t`/`.o` 宽度为键；不按 cache line 扩大，也不因不同地址或不同宽度的访问清除）。
 
 ## 2. 空转指令
 
@@ -168,7 +126,6 @@ ctpop   rdHB, rdHC, immu6       @@ 1 的个数（immu6=63 → 64 位）
 | `ctlz` | `orri` | `rd` | `ctlz rdHB, rdHC, immu6` | `ctlz_orri_rd` |
 | `ctpop` | `orri` | `rd` | `ctpop rdHB, rdHC, immu6` | `ctpop_orri_rd` |
 | `cttz` | `orri` | `rd` | `cttz rdHB, rdHC, immu6` | `cttz_orri_rd` |
-| `fence` | `oiii` | `imm` | `fence immu18` | `fence_oiii_imm` |
 | `lr.b.an` | `orrr` | `rd` | `lr.b.an rdHC, [rbHD]` | `lr.b.an_orrr_rd` |
 | `lr.b.ar` | `orrr` | `rd` | `lr.b.ar rdHC, [rbHD]` | `lr.b.ar_orrr_rd` |
 | `lr.b.nn` | `orrr` | `rd` | `lr.b.nn rdHC, [rbHD]` | `lr.b.nn_orrr_rd` |
@@ -200,6 +157,6 @@ ctpop   rdHB, rdHC, immu6       @@ 1 的个数（immu6=63 → 64 位）
 <!-- LEGALITY_START -->
 ## 附录 B：合法性检查
 
-* `dst_rd0`：目的 rd0 → ILLI — `ctlz_orri_rd`, `ctpop_orri_rd`, `cttz_orri_rd`（3 条）
-* `encode_sbz`：SBZ 非零 → ILLI — `fence_oiii_imm`（1 条）
+* `dst_rd0`：目的 rd0 → ILLI — `ctlz_orri_rd`, `ctpop_orri_rd`, `cttz_orri_rd`, `sc.b.ar_orrr_rd`, `sc.b.nn_orrr_rd`, `sc.b.nr_orrr_rd`, `sc.o.ar_orrr_rd`, `sc.o.nn_orrr_rd`, `sc.o.nr_orrr_rd`, `sc.t.ar_orrr_rd`, `sc.t.nn_orrr_rd`, `sc.t.nr_orrr_rd`, `sc.w.ar_orrr_rd`, `sc.w.nn_orrr_rd`, `sc.w.nr_orrr_rd`（15 条）
+* `encode_sbz`：SBZ 非零 → ILLI — `lr.b.an_orrr_rd`, `lr.b.ar_orrr_rd`, `lr.b.nn_orrr_rd`, `lr.o.an_orrr_rd`, `lr.o.ar_orrr_rd`, `lr.o.nn_orrr_rd`, `lr.t.an_orrr_rd`, `lr.t.ar_orrr_rd`, `lr.t.nn_orrr_rd`, `lr.w.an_orrr_rd`, `lr.w.ar_orrr_rd`, `lr.w.nn_orrr_rd`（12 条）
 <!-- LEGALITY_END -->

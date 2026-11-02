@@ -1,0 +1,546 @@
+diff --git a/src/arch/dadao/exec/b5.cc b/src/arch/dadao/exec/b5.cc
+new file mode 100644
+index 0000000..f817ae5
+--- /dev/null
++++ b/src/arch/dadao/exec/b5.cc
+@@ -0,0 +1,540 @@
++// DADAO gem5 B5 execution core -- implementation.
++//
++// The 28 B5 ids are dispatched through the table below, by `entry->id` (never
++// by mnemonic): br.z/br.nz exist in both the rd and the rb form, jump/call in
++// both the iiii and the rrii form, and cs.eq/cs.ne write rdhc while cs.n/z/p
++// write rdhb.  The id set must equal the batch_of() B5 set of the GEM5-002t
++// matrix.
++//
++// contract-isa §3.3.3/§4/§6.5/§8, contract-fp §12, spec/SimRISC-02,
++// spec/SimRISC-06 and spec/SimRISC-00 §2.4.  Static legality is checked before
++// any register or memory access; RASOF/RASUF and memory faults are precise
++// (no register/memory write on the fault path).
++#include "arch/dadao/exec/b5.hh"
++
++#include <cstddef>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <string_view>
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++namespace
++{
++
++constexpr uint64_t kMask48 = 0x0000FFFFFFFFFFFFULL;
++// ra0[63:54] is SBZ; RAS hardware writes keep the original bits.
++constexpr uint64_t kRasSbzMask = 0xFFC0000000000000ULL;
++constexpr uint64_t kRecursionMax = 0xFFFF;
++constexpr unsigned kNumRaSlots = 63;
++
++// contract-isa §3.3.3/§4/§6.5/§8 + contract-fp §12, one row per
++// contracts/opcodes.yaml B5 id.
++const B5Spec kSpecs[] = {
++    // ---- register block copies (8) -------------------------------------
++    {"rd2rd_orri_rd", B5Op::Copy, Target::Rd, Target::Rd,
++     "rdhb", "rdhc", "immu6", nullptr, nullptr, nullptr},
++    {"rd2ra_orri_ra", B5Op::Copy, Target::Ra, Target::Rd,
++     "rahb", "rdhc", "immu6", nullptr, nullptr, nullptr},
++    {"ra2rd_orri_ra", B5Op::Copy, Target::Rd, Target::Ra,
++     "rdhb", "rahc", "immu6", nullptr, nullptr, nullptr},
++    {"rb2rb_orri_rb", B5Op::Copy, Target::Rb, Target::Rb,
++     "rbhb", "rbhc", "immu6", nullptr, nullptr, nullptr},
++    {"rd2rb_orri_rb", B5Op::Copy, Target::Rb, Target::Rd,
++     "rbhb", "rdhc", "immu6", nullptr, nullptr, nullptr},
++    {"rb2rd_orri_rb", B5Op::Copy, Target::Rd, Target::Rb,
++     "rdhb", "rbhc", "immu6", nullptr, nullptr, nullptr},
++    {"rd2rf_orri_rf", B5Op::Copy, Target::Rf, Target::Rd,
++     "rfhb", "rdhc", "immu6", nullptr, nullptr, nullptr},
++    {"rf2rd_orri_rf", B5Op::Copy, Target::Rd, Target::Rf,
++     "rdhb", "rfhc", "immu6", nullptr, nullptr, nullptr},
++    // ---- conditional assignment (5) ------------------------------------
++    {"cs.n_rrrr_rd", B5Op::CondAssign, Target::Rd, Target::Rd,
++     "rdhb", "rdhc", nullptr, "rdha", nullptr, "lt"},
++    {"cs.z_rrrr_rd", B5Op::CondAssign, Target::Rd, Target::Rd,
++     "rdhb", "rdhc", nullptr, "rdha", nullptr, "eq"},
++    {"cs.p_rrrr_rd", B5Op::CondAssign, Target::Rd, Target::Rd,
++     "rdhb", "rdhc", nullptr, "rdha", nullptr, "gt"},
++    {"cs.eq_rrrr_rd", B5Op::CondAssign, Target::Rd, Target::Rd,
++     "rdhc", "rdhd", nullptr, "rdha", nullptr, "eq"},
++    {"cs.ne_rrrr_rd", B5Op::CondAssign, Target::Rd, Target::Rd,
++     "rdhc", "rdhd", nullptr, "rdha", nullptr, "ne"},
++    // ---- conditional branches (10) -------------------------------------
++    {"br.n_riii_rd", B5Op::Branch, Target::Rd, Target::Rd,
++     nullptr, nullptr, nullptr, "rdha", "imms18", "lt"},
++    {"br.nn_riii_rd", B5Op::Branch, Target::Rd, Target::Rd,
++     nullptr, nullptr, nullptr, "rdha", "imms18", "ge"},
++    {"br.z_riii_rd", B5Op::Branch, Target::Rd, Target::Rd,
++     nullptr, nullptr, nullptr, "rdha", "imms18", "eq"},
++    {"br.nz_riii_rd", B5Op::Branch, Target::Rd, Target::Rd,
++     nullptr, nullptr, nullptr, "rdha", "imms18", "ne"},
++    {"br.p_riii_rd", B5Op::Branch, Target::Rd, Target::Rd,
++     nullptr, nullptr, nullptr, "rdha", "imms18", "gt"},
++    {"br.np_riii_rd", B5Op::Branch, Target::Rd, Target::Rd,
++     nullptr, nullptr, nullptr, "rdha", "imms18", "le"},
++    {"br.eq_rrii_rd", B5Op::Branch, Target::Rd, Target::Rd,
++     nullptr, nullptr, nullptr, "rdha", "imms12", "eq"},
++    {"br.ne_rrii_rd", B5Op::Branch, Target::Rd, Target::Rd,
++     nullptr, nullptr, nullptr, "rdha", "imms12", "ne"},
++    {"br.z_riii_rb", B5Op::Branch, Target::Rb, Target::Rb,
++     nullptr, nullptr, nullptr, "rbha", "imms18", "eq"},
++    {"br.nz_riii_rb", B5Op::Branch, Target::Rb, Target::Rb,
++     nullptr, nullptr, nullptr, "rbha", "imms18", "ne"},
++    // ---- unconditional jumps (2) ---------------------------------------
++    {"jump_iiii_rb", B5Op::Jump, Target::Rb, Target::Rb,
++     nullptr, nullptr, nullptr, nullptr, "imms24", "always"},
++    {"jump_rrii_rb", B5Op::Jump, Target::Rb, Target::Rb,
++     nullptr, nullptr, nullptr, nullptr, "imms12", "always"},
++    // ---- call / ret (3) ------------------------------------------------
++    {"call_iiii_ra", B5Op::Call, Target::Ra, Target::Ra,
++     nullptr, nullptr, nullptr, nullptr, "imms24", "always"},
++    {"call_rrii_ra", B5Op::Call, Target::Ra, Target::Ra,
++     nullptr, nullptr, nullptr, nullptr, "imms12", "always"},
++    {"ret_riii_ra", B5Op::Ret, Target::Rd, Target::Ra,
++     nullptr, nullptr, nullptr, "rdha", "imms18", nullptr},
++};
++
++constexpr size_t kNumSpecs = sizeof(kSpecs) / sizeof(kSpecs[0]);
++static_assert(kNumSpecs == 28, "B5 must cover exactly the 28 contract ids");
++
++/** A batch-5 instruction this table cannot execute is a contract or
++ * implementation mismatch.  Trap instead of silently succeeding. */
++[[noreturn]] void
++internalError(const char *what)
++{
++    std::fprintf(stderr, "DADAO B5: internal error: %s\n", what);
++    std::abort();
++}
++
++/** Fetch one decoded field by name; a missing field means the decode table
++ * and this core disagree -- hard failure, never a silent zero. */
++uint64_t
++field(const decode::DecodedInst &inst, const char *name)
++{
++    uint64_t value = 0;
++    if (name == nullptr || !fieldValue(inst, name, value)) {
++        std::fprintf(stderr,
++                     "DADAO B5: internal error: %s misses field %s\n",
++                     inst.entry->id, name == nullptr ? "(null)" : name);
++        std::abort();
++    }
++    return value;
++}
++
++bool
++hasField(const decode::DecodedInst &inst, const char *name)
++{
++    uint64_t value = 0;
++    return name != nullptr && fieldValue(inst, name, value);
++}
++
++/** Sign-extend the low `width` bits of `value` to 64 bits without relying on
++ * implementation-defined conversions. */
++uint64_t
++signExtendWidth(uint64_t value, unsigned width)
++{
++    const uint64_t mask = width >= 64 ? ~uint64_t(0)
++                                      : ((uint64_t(1) << width) - 1);
++    value &= mask;
++    if (width != 0 && ((value >> (width - 1)) & 1) != 0)
++        value |= ~mask;
++    return value;
++}
++
++/** sign_extend(imm) << 2 over all 64 bits (contract-isa §8.1).  The shift is
++ * done on the unsigned two's-complement image, so negative offsets wrap
++ * modulo 2^64 without implementation-defined behaviour. */
++uint64_t
++branchOffset(const decode::DecodedInst &inst, const char *immField,
++             unsigned width)
++{
++    return signExtendWidth(field(inst, immField), width) << 2;
++}
++
++Bank
++bankOf(Target group)
++{
++    switch (group) {
++      case Target::Rd: return Bank::Rd;
++      case Target::Rb: return Bank::Rb;
++      case Target::Ra: return Bank::Ra;
++      case Target::Rf: internalError("RF has no integer bank");
++    }
++    internalError("unknown target group");
++}
++
++uint64_t
++readReg(B5Context &ctx, Target group, unsigned idx)
++{
++    if (group == Target::Rf)
++        return ctx.readFloat(idx);
++    return ctx.readInt(bankOf(group), idx);
++}
++
++void
++writeReg(B5Context &ctx, Target group, unsigned idx, uint64_t value)
++{
++    if (group == Target::Rf) {
++        // rf0 is the FCSR: only [33:32] and [4:0] are writable
++        // (contract-fp §12, §1.3.3).
++        if (idx == 0)
++            ctx.writeFcsr(value);
++        else
++            ctx.writeFloat64(idx, value);
++        return;
++    }
++    ctx.writeInt(bankOf(group), idx, value);
++}
++
++void
++storeBigEndian8(uint8_t *out, uint64_t value)
++{
++    for (unsigned i = 0; i < 8; ++i)
++        out[i] = static_cast<uint8_t>(value >> (56 - 8 * i));
++}
++
++uint64_t
++loadBigEndian8(const uint8_t *in)
++{
++    uint64_t value = 0;
++    for (unsigned i = 0; i < 8; ++i)
++        value = (value << 8) | in[i];
++    return value;
++}
++
++/** Write ra0[53:48] = RACNT and ra0[47:0] = MRPTR, keeping the SBZ bits
++ * [63:54] (contract-isa §1.3.4). */
++void
++writeRasHeader(B5Context &ctx, uint64_t racnt, uint64_t mrptr)
++{
++    const uint64_t old = ctx.readInt(Bank::Ra, 0);
++    ctx.writeInt(Bank::Ra, 0,
++                 (old & kRasSbzMask) | ((racnt & 0x3F) << 48) |
++                     (mrptr & kMask48));
++}
++
++/** C1/C2/C3a/C3b push (spec/SimRISC-00 §2.4.1).  Returns RasOverflow when
++ * RACNT == 63 and MRPTR == 0, or Memory when the MemRAS write fails; on either
++ * fault nothing has been committed. */
++Fault
++pushRas(B5Context &ctx, uint64_t returnAddress)
++{
++    const uint64_t ra0 = ctx.readInt(Bank::Ra, 0);
++    const uint64_t racnt = (ra0 >> 48) & 0x3F;
++    const uint64_t mrptr = ra0 & kMask48;
++    const uint64_t entry = (uint64_t(1) << 48) | (returnAddress & kMask48);
++
++    // C1: empty stack.
++    if (racnt == 0) {
++        ctx.writeInt(Bank::Ra, kNumRaSlots, entry);
++        writeRasHeader(ctx, 1, mrptr);
++        return Fault::None;
++    }
++
++    const uint64_t top = ctx.readInt(Bank::Ra, kNumRaSlots);
++    const uint64_t topCount = top >> 48;
++    const uint64_t topAddr = top & kMask48;
++
++    // C2: recursive fold (takes priority over the overflow path).
++    if (topAddr == (returnAddress & kMask48) && topCount < kRecursionMax) {
++        ctx.writeInt(Bank::Ra, kNumRaSlots,
++                     (((topCount + 1) & 0xFFFF) << 48) | topAddr);
++        return Fault::None;
++    }
++
++    // C3a: one free slot; move the valid entries one slot towards ra63.
++    if (racnt < kNumRaSlots) {
++        for (uint64_t j = 64 - racnt; j <= kNumRaSlots; ++j)
++            ctx.writeInt(Bank::Ra, j - 1, ctx.readInt(Bank::Ra, j));
++        ctx.writeInt(Bank::Ra, kNumRaSlots, entry);
++        writeRasHeader(ctx, racnt + 1, mrptr);
++        return Fault::None;
++    }
++
++    // C3b: evict the stack bottom to MemRAS, then push.
++    if (mrptr == 0)
++        return Fault::RasOverflow;
++    const uint64_t newPtr = mrptr - 8;
++    uint8_t bytes[8];
++    storeBigEndian8(bytes, ctx.readInt(Bank::Ra, 64 - racnt));
++    if (!ctx.writeMem(newPtr, bytes, 8))
++        return Fault::Memory;
++    for (uint64_t j = 2; j <= kNumRaSlots; ++j)
++        ctx.writeInt(Bank::Ra, j - 1, ctx.readInt(Bank::Ra, j));
++    ctx.writeInt(Bank::Ra, kNumRaSlots, entry);
++    writeRasHeader(ctx, kNumRaSlots, newPtr);
++    return Fault::None;
++}
++
++/** D1/D2/D3/D4a/D4b pop (spec/SimRISC-00 §2.4.2).  On success the popped
++ * address is stored in `target`; on RasUnderflow/Memory nothing is committed. */
++Fault
++popRas(B5Context &ctx, uint64_t &target)
++{
++    const uint64_t ra0 = ctx.readInt(Bank::Ra, 0);
++    const uint64_t racnt = (ra0 >> 48) & 0x3F;
++    const uint64_t mrptr = ra0 & kMask48;
++
++    if (racnt > 0) {
++        const uint64_t top = ctx.readInt(Bank::Ra, kNumRaSlots);
++        const uint64_t count = top >> 48;
++        target = top & kMask48;
++        // D1: the architectural stack is corrupt (count 0).
++        if (count == 0)
++            return Fault::RasUnderflow;
++        // D2: recursive fold -> decrement the count, keep RACNT.
++        if (count > 1) {
++            ctx.writeInt(Bank::Ra, kNumRaSlots,
++                         ((count - 1) << 48) | (top & kMask48));
++            return Fault::None;
++        }
++        // D3: pop the top entry, move the remaining valid entries up.
++        for (int64_t j = 62; j >= static_cast<int64_t>(64 - racnt); --j)
++            ctx.writeInt(Bank::Ra, j + 1, ctx.readInt(Bank::Ra, j));
++        writeRasHeader(ctx, racnt - 1, mrptr);
++        return Fault::None;
++    }
++
++    // D4a: no RegRAS entry and no MemRAS.
++    if (mrptr == 0)
++        return Fault::RasUnderflow;
++
++    // D4b: read the MemRAS entry (MRPTR is not modified before the decision).
++    uint8_t bytes[8];
++    if (!ctx.readMem(mrptr, 8, bytes))
++        return Fault::Memory;
++    const uint64_t entry = loadBigEndian8(bytes);
++    const uint64_t count = entry >> 48;
++    target = entry & kMask48;
++    if (count == 0)
++        return Fault::RasUnderflow;
++    if (count == 1) {
++        writeRasHeader(ctx, 0, mrptr + 8);
++        return Fault::None;
++    }
++    // count > 1: the entry becomes the RegRAS top with the count decremented.
++    ctx.writeInt(Bank::Ra, kNumRaSlots, ((count - 1) << 48) | target);
++    writeRasHeader(ctx, 1, mrptr + 8);
++    return Fault::None;
++}
++
++// The body is kept in a noinline helper so the exported `executeB5` symbol
++// stays a single symbol (GCC otherwise partitions a `.cold` clone out of the
++// large function; the acceptance check counts `executeB5`).
++__attribute__((noinline)) Fault
++runB5(const decode::DecodedInst &inst, B5Context &ctx)
++{
++    if (!inst.ok() || inst.entry->batch != 5)
++        return Fault::NotB5;
++
++    const B5Spec *spec = b5SpecForId(inst.entry->id);
++    if (spec == nullptr)
++        internalError("uncovered batch-5 id");
++
++    switch (spec->op) {
++      case B5Op::Copy: {
++        // ---- register block copy (contract-isa §3.3.3/§4, fp §12) ----
++        const uint64_t count = field(inst, spec->countField);
++        const uint64_t dst = field(inst, spec->dstField);
++        const uint64_t src = field(inst, spec->srcField);
++        // Static legality first: no register access before all checks.
++        if (count == 0)
++            return Fault::Illegal;
++        if (dst + count > 64 || src + count > 64)
++            return Fault::Illegal;
++        if (spec->dst == Target::Rd && dst == 0)
++            return Fault::Illegal;
++        if (spec->dst == Target::Rb && dst == 0)
++            return Fault::Illegal;
++        // Same-group overlap is illegal, including full coincidence
++        // (mreg_range_overlap).  Cross-group ranges cannot overlap.
++        if (spec->dst == spec->src && dst < src + count && src < dst + count)
++            return Fault::Illegal;
++        for (uint64_t i = 0; i < count; ++i) {
++            const uint64_t value = readReg(ctx, spec->src, src + i);
++            writeReg(ctx, spec->dst, dst + i, value);
++        }
++        return Fault::None;
++      }
++
++      case B5Op::CondAssign: {
++        // ---- conditional assignment (contract-isa §6.5) --------------
++        const uint64_t dst = field(inst, spec->dstField);
++        if (dst == 0)
++            return Fault::Illegal;
++        // cs.eq/cs.ne write rdhc (two-operand condition); cs.n/z/p write
++        // rdhb (single-operand condition).  Read every source before the
++        // single destination write so aliasing uses snapshot values.
++        const bool twoOperand = std::strcmp(spec->dstField, "rdhc") == 0;
++        const uint64_t a = ctx.readInt(Bank::Rd, field(inst, "rdha"));
++        uint64_t b = 0;
++        if (twoOperand)
++            b = ctx.readInt(Bank::Rd, field(inst, "rdhb"));
++        const uint64_t c = ctx.readInt(Bank::Rd, field(inst, "rdhc"));
++        const uint64_t d = ctx.readInt(Bank::Rd, field(inst, "rdhd"));
++
++        // Negative/positive are decided on bit 63 directly, so the code
++        // does not rely on implementation-defined uint64 -> int64 conversion.
++        const bool negative = (a >> 63) != 0;
++        bool cond = false;
++        if (std::strcmp(spec->cond, "lt") == 0)
++            cond = negative;
++        else if (std::strcmp(spec->cond, "gt") == 0)
++            cond = !negative && a != 0;
++        else if (std::strcmp(spec->cond, "eq") == 0)
++            cond = twoOperand ? (a == b) : (a == 0);
++        else if (std::strcmp(spec->cond, "ne") == 0)
++            cond = twoOperand ? (a != b) : (a != 0);
++        else
++            internalError("unknown conditional-assignment code");
++
++        const uint64_t result = twoOperand ? (cond ? d : c) : (cond ? c : d);
++        ctx.writeInt(Bank::Rd, dst, result);
++        return Fault::None;
++      }
++
++      case B5Op::Branch: {
++        // ---- conditional branch (contract-isa §8.2) ------------------
++        // Address is always rb0 + (sext(imm) << 2); the condition source
++        // may be rd (one or two registers) or rb.
++        const uint64_t rb0 = ctx.readInt(Bank::Rb, 0);
++        const char *imm = spec->immField;
++        const unsigned width = std::strcmp(imm, "imms12") == 0 ? 12 : 18;
++        const uint64_t target = rb0 + branchOffset(inst, imm, width);
++
++        bool cond = false;
++        if (std::strcmp(spec->condField, "rbha") == 0) {
++            const uint64_t v = ctx.readInt(Bank::Rb, field(inst, "rbha"));
++            cond = std::strcmp(spec->cond, "eq") == 0 ? (v == 0) : (v != 0);
++        } else if (hasField(inst, "rdhb")) {
++            const uint64_t a = ctx.readInt(Bank::Rd, field(inst, "rdha"));
++            const uint64_t b = ctx.readInt(Bank::Rd, field(inst, "rdhb"));
++            cond = std::strcmp(spec->cond, "eq") == 0 ? (a == b) : (a != b);
++        } else {
++            const uint64_t a = ctx.readInt(Bank::Rd, field(inst, "rdha"));
++            const bool negative = (a >> 63) != 0;
++            const bool positive = !negative && a != 0;
++            if (std::strcmp(spec->cond, "lt") == 0)
++                cond = negative;
++            else if (std::strcmp(spec->cond, "ge") == 0)
++                cond = !negative;
++            else if (std::strcmp(spec->cond, "eq") == 0)
++                cond = a == 0;
++            else if (std::strcmp(spec->cond, "ne") == 0)
++                cond = a != 0;
++            else if (std::strcmp(spec->cond, "gt") == 0)
++                cond = positive;
++            else if (std::strcmp(spec->cond, "le") == 0)
++                cond = negative || a == 0;
++            else
++                internalError("unknown branch condition code");
++        }
++        if (cond)
++            ctx.branchTo(target);
++        // Not taken: the next-instruction PC (IP + 4) is advanced by the
++        // execution framework, not by this core.
++        return Fault::None;
++      }
++
++      case B5Op::Jump: {
++        // ---- unconditional jump (contract-isa §8.3) ------------------
++        uint64_t target;
++        if (std::strcmp(spec->immField, "imms24") == 0) {
++            target = ctx.readInt(Bank::Rb, 0) +
++                     branchOffset(inst, "imms24", 24);
++        } else {
++            const uint64_t base = ctx.readInt(Bank::Rb, field(inst, "rbha"));
++            const uint64_t offset = ctx.readInt(Bank::Rd, field(inst, "rdhb"));
++            target = base + offset + branchOffset(inst, "imms12", 12);
++        }
++        ctx.branchTo(target);
++        return Fault::None;
++      }
++
++      case B5Op::Call: {
++        // ---- call (contract-isa §8.4/§8.6.1) ------------------------
++        uint64_t target;
++        if (std::strcmp(spec->immField, "imms24") == 0) {
++            target = ctx.readInt(Bank::Rb, 0) +
++                     branchOffset(inst, "imms24", 24);
++        } else {
++            const uint64_t base = ctx.readInt(Bank::Rb, field(inst, "rbha"));
++            const uint64_t offset = ctx.readInt(Bank::Rd, field(inst, "rdhb"));
++            target = base + offset + branchOffset(inst, "imms12", 12);
++        }
++        // Return address = current call address + 4 (SPEC-181t F7), low 48
++        // bits in the RAS entry.  Push before the jump; a fault leaves the
++        // PC at the call instruction.
++        const Fault fault = pushRas(ctx, (ctx.pc() + 4) & kMask48);
++        if (fault != Fault::None)
++            return fault;
++        ctx.branchTo(target);
++        return Fault::None;
++      }
++
++      case B5Op::Ret: {
++        // ---- ret (contract-isa §8.5/§8.6.2) -------------------------
++        const uint64_t rd = field(inst, "rdha");
++        const uint64_t imm = field(inst, "imms18");
++        // ret rd0, imm != 0 is statically illegal (dst_rd0_nonzero);
++        // ret rd0, 0 is legal and writes nothing.
++        if (rd == 0 && imm != 0)
++            return Fault::Illegal;
++
++        uint64_t target = 0;
++        const Fault fault = popRas(ctx, target);
++        if (fault != Fault::None)
++            return fault;
++
++        // The return value is written only after the pop succeeded, so
++        // RASUF/Memory leave rdha untouched.
++        if (rd != 0)
++            ctx.writeInt(Bank::Rd, rd, signExtendWidth(imm, 18));
++        ctx.branchTo(target);
++        return Fault::None;
++      }
++    }
++
++    internalError("unknown B5 op");
++}
++
++} // anonymous namespace
++
++size_t
++b5SpecCount()
++{
++    return kNumSpecs;
++}
++
++const B5Spec *
++b5Specs()
++{
++    return kSpecs;
++}
++
++const B5Spec *
++b5SpecForId(std::string_view id)
++{
++    for (size_t i = 0; i < kNumSpecs; ++i) {
++        if (id == kSpecs[i].id)
++            return &kSpecs[i];
++    }
++    return nullptr;
++}
++
++Fault
++executeB5(const decode::DecodedInst &inst, B5Context &ctx)
++{
++    return runB5(inst, ctx);
++}
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5

@@ -4,7 +4,7 @@
 > **版本与变更记录细则**：版本号 `x.y.z`——**`x=0` 表示尚未正式发布；正式发布后 `x≥1`**；**大改动 `y+1`、有影响的小改 `z+1`**；当前版本见上行「状态」。
 > **变更记录见文末「附录：版本与变更记录」**（格式 = 「版本（日期）」小标题 + 列表项；**不用表格、不写「依据」**）。
 > **上位依据**：`ADR-0002 D4`（组件补丁与构建编排）；本规范的语法决策由 **`ADR-0013`《DADAO 汇编语言语法》冻结（Accepted，2026-09-28）**
-> **依赖**：`.tao/contracts/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表，指令条数以此表为准）、`.tao/contracts/contract-asm-list.md`（指令全表，自动生成自 `contracts/opcodes.yaml`；其中**浮点**章为 `scope: fp`（已实现）、**待定**章为 deferred）
+> **依赖**：`.tao/contracts/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表，指令条数以此表为准）、`.tao/contracts/contract-asm-list.md`（指令全表，自动生成自 `contracts/opcodes.yaml`；其中**浮点**章为 `scope: fp`（已实现））
 > **说明**：本规范按 ADR-0012 D4 由 spec 模块任务修改上游 `spec/`（SimRISC 系列）——上游将按本规定生成**新版本**文档（另行安排）
 > **关键词**：MUST / SHOULD / MAY 按 RFC 2119 解释
 
@@ -14,7 +14,7 @@
 
 - **适用范围**：DADAO M1 的汇编语言——词法、记号、指令书写、指导符、选项、诊断、往返。
 - **指令集权威**：编码与身份以 `contracts/opcodes.yaml` 为准；语义以 `contract-isa.md` 为准；本规范**只规定书写形式**。
-- **格式类（format）**：`contract-isa.md §2.3` 定义的 M1 格式类——`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii` `crrr` `ciii`（格式类清单与各指令 `scope` 归属以 `contracts/opcodes.yaml` 为准）。其中 `crrr`（`cfx2rd`/`cfx2rc`）与 `ciii`（`trap`/`escape`）属特权 cfx、已纳入 M1（`scope: m1`）；`crii`（`cfxld`/`cfxst`）仍属 `scope: excluded`（`SimRISC-12` deferred）。
+- **格式类（format）**：`contract-isa.md §2.3` 定义的 M1 格式类——`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii` `crrr` `ciii`（格式类清单与各指令 `scope` 归属以 `contracts/opcodes.yaml` 为准）。其中 `crrr`（`cfx2rd`/`cfx2rc`）与 `ciii`（`trap`/`escape`/`fence`）属特权 cfx。
 - **术语**：**地址表达式**、**寄存器组**、**条件寄存器**、**地址立即数（字节）**——见 §3/§4/§2.4。
 
 ---
@@ -40,7 +40,7 @@
 ### 2.4 数字与立即数单位
 - 立即数**MAY**写为十进制、`0x…`（十六进制）、`0b…`（二进制）、负数（前导 `-`）；下划线分隔符**MUST NOT** 使用。
 - 立即数位置接受完整的常量表达式（`+ - * / % & | ^ << >> == != < <= > >= && ||` 与一元 `! ~ - +`、括号分组）。
-- **地址立即数**：跳转/分支目标偏移与 escape 偏移的单位为**字节**，**不含任何单位标记**。装配器将其右移 2 位写入编码字段；汇编器**校验** `%4==0` 与范围。字段名映射见 §3.1。
+- **地址立即数**：跳转/分支目标偏移与 escape 偏移的单位为**字节**，**不含任何单位标记**。装配器将其右移 2 位写入编码字段；汇编器对跳转/分支**校验** `%4==0` 与范围，对 `escape` **只接受 0 与 4**（其它值报错）。字段名映射见 §3.1。
 - **取值范围**：各立即数字段的位宽与取值范围见 `.tao/contracts/contract-asm-list.md` 的「立即数范围速查」（标注 `u`/`s`）。**越界 MUST 报错**（当前实现为静默环绕，属缺陷，见 `contract-asm.md §11`）。
 
 ### 2.5 寄存器名
@@ -64,7 +64,7 @@
 ```
 
 ### 3.2 语义（三类，公式不同）
-- **访存**（`ld.*`/`st.*`/`ldm.*`/`stm.*`/`cfxld`/`cfxst`）：有效地址 = `基址 + 立即数`（**偏移单位为字节**，`imms12`）。例：`ld.ub rd8, [rb2, 1]` ⇒ `rb2 + 1`。
+- **访存**（`ld.*`/`st.*`/`ldm.*`/`stm.*`）：有效地址 = `基址 + 立即数`（**偏移单位为字节**，`imms12`）。例：`ld.ub rd8, [rb2, 1]` ⇒ `rb2 + 1`。
 - **iiii 跳转/分支**（`jump`/`call` 的 iiii 形式、`br.*`）：目标 = `基址 + 立即数`（**字节**，`imms26`/`imms20`/`imms14`）。例：`jump [rb0, 8]` ⇒ `rb0 + 8`。
 - **rrii 跳转**（`jump`/`call` 的 rrii 形式）：目标 = `基址 + 寄存器偏移 + 立即数`（**字节**，`imms14`）。例：`jump [rb3, rd0, 96]` ⇒ `rb3 + rd0 + 96`。
 - **相对跳转的基址**：**iiii 形式**的基址 **MUST** 为 `rb0`（当前指令地址）；基址非 `rb0` 而指令为 iiii 形式时 **MUST** 报错。rrii 形式的基址 **MAY** 为任意 RB 寄存器。
@@ -153,7 +153,8 @@
 | `orrr` | `助记符 dst, src1, src2` | `or.o rd8, rd9, rd10` | — |
 | `orri` | `助记符 dst, src, immu6` | `ext.uo rd8, rd0, 1` | — |
 | `orri`（块赋值/格式转换） | `助记符 {dst:…}, {src:…}` | `ra2rd {rd8:rd10}, {ra1:ra3}` | `immu6` = 连续寄存器个数 |
-| `oiii` | `助记符 immu18` | `fence 0`、`swym 0` | 纯立即数，不加 `[]` |
+| `oiii` | `助记符 immu18` | `swym 0` | 纯立即数，不加 `[]` |
+| `ciii`（`fence`） | `助记符 cfxHA, immu18` | `fence cfx0, immu18` | `cfx0`/`cfx_umon` = all cfx；立即数整体书写 |
 
 `rrrr` 的两种目的形态（与上表首行/次行对应）：
 
@@ -164,13 +165,13 @@ add.uo  {rd8, rd9}, rd10, rd11
 ftfma   rf8, rf9, rf10, rf11
 ```
 
-**特权 cfx 格式（`crrr`/`crii`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**；其中 `crrr`/`ciii` 现为 `scope: m1`，`crii` 仍为 `scope: excluded`）：
-- `cfxld cfx63, [rb2, 1]`、`cfxst cfx63, [rb2, 1]`——`cfxha` 写作 `cfxHA`（测试机为 `cfx63` = power），末两操作数为**地址**。
+**特权 cfx 格式（`crrr`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**；其中 `crrr`/`ciii` 现为 `scope: m1`/`m9`）：
 - `cfx2rd cfx63, cg8, rc1, rd8`、`cfx2rc …`——字段占位为 `cfxHA, cgHB, rcHC, rdHD`；中间两操作数分别是 **`cg` 寄存器**与 **`rc` 寄存器**，各自命名。
 - `lr.o.nn rd9, [rb1]`——**两个操作数**：`rdHB` 固定为 `rd0`（**不在汇编中出现**，手工编码 `hb ≠ 0` → ILLI），故只写「目的寄存器 `rdHC` + 地址 `rbHD`」。
 - `sc.o.nn rd8, rd9, [rb1]`——**三个操作数**：`rdHB`(成功/失败结果)、`rdHC`(源)、地址 `rbHD`。
-- `escape cfx63, [excp_cause_ip, 4]`——`cfxha` 写作 `cfxHA`；第二个参数是**字节偏移**（汇编层 `imms20`，须 `%4==0`），其基址**不是 `rb0`**，而是**异常进入时保存的地址 `excp_cause_ip`**（该基址**不在编码中**，与 `jump-iiii` 的 `rb0` 同构，故同样**显式写出**）。编码层 `Addr = excp_cause_ip + (imms18 << 2)`。
+- `escape cfx63, [excp_cause_ip, 4]`——`cfxha` 写作 `cfxHA`；第二个参数是**字节偏移**（汇编层 `imms20`，**只允许 0 或 4**），其基址**不是 `rb0`**，而是**异常进入时保存的地址 `excp_cause_ip`**（该基址**不在编码中**，与 `jump-iiii` 的 `rb0` 同构，故同样**显式写出**）。编码层 `imms18 = imms20 >> 2 ∈ {0, 1}`（`imms18[0]` 为字节偏移 bit2，`imms18[17:1]` 为 SBZ、非零 ⇒ ILLI），`Addr = excp_cause_ip + (imms18 << 2)`。
 - `trap cfx63, 1`——`cfxha` 写作 `cfxHA`；其立即数**与地址无关**，**不加** `[]`。
+- `fence cfx0, immu18` / `fence cfx_umon, immu18`——`cfx0` 与 `cfx_umon` 都表示 **all cfx**；`immu18` 为**一个** 18 位表达式（不拆三段），可用 `PRED_*`/`SUCC_*` 位名常量按位或构造；`fence 0` 不是合法语法。
 
 **特例**：
 - `ret rd0, 0`：`imms18` 为返回值，**不是**地址，**不加** `[]`。
@@ -294,7 +295,7 @@ sub.so  {rd0, rd3}, rd0, rd4    @@ 旧 `neg.o`（64 位取负，双目的写回 
 
 ## 13. cfx 别名约定
 
-> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）；其**决策与理由**见 `ADR-0017`（`.tao/adr/adr-0017-cfx-assembly-aliases.md`）。**别名表**为机械生成的**投影**——`.tao/contracts/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），**不属于**本规范正文。cfx 中 `cfx2rd`/`cfx2rc`（`crrr`）与 `trap`/`escape`（`ciii`）为 `scope: m1`；`cfxld`/`cfxst`（`crii`）为 `scope: excluded`。本节约定随 M2 落地。
+> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）；其**决策与理由**见 `ADR-0017`（`.tao/adr/adr-0017-cfx-assembly-aliases.md`）。**别名表**为机械生成的**投影**——`.tao/contracts/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），**不属于**本规范正文。cfx 中 `cfx2rd`/`cfx2rc`（`crrr`）与 `trap`/`escape`（`ciii`）为 `scope: m1`。本节约定随 M2 落地。
 
 ### 13.1 归属与形态（D1/D2）
 - cfx 别名属**汇编规范**：由汇编器内置**符号表**解析，**不引入** cpp 头文件/宏。
@@ -322,17 +323,18 @@ sub.so  {rd0, rd3}, rd0, rd4    @@ 旧 `neg.o`（64 位取负，双目的写回 
 文档示例**SHOULD**优先使用**别名形**（人读友好，且与既有 `DADAO-11/22/23` 一致）。
 
 ### 13.7 数组寄存器单下标（D10）
-数组 cfx 寄存器支持**单下标** `cfx_<cfxname>_<regname>[N]` ⇔ `(cfxha, cg, rc = rc_base + N)`：
-- `N` **MUST** 落在别名表中该寄存器的**名称列范围 `[lo..hi]`**（如 `0..63`、`0..7`）内；
-- `rc_base` 为该行 **`rc` 列的下界**；别名表以 `cfx_<…>[lo..hi]` 记整数组，**单下标是其具体化**；
-- 汇编器/检测器 **MUST 接受**该形（不视为违规）；`N` 越界 **MUST 报错**。
+数组 cfx 寄存器支持**单下标** `cfx_<cfxname>_<regname>[N]` ⇔ `(cfxha, cg, rc = rc_base + N*stride)`：
+- `N` **MUST** 落在 `[0, count)` 内；
+- `count`/`stride` 由别名表该数组行给出；`stride` 缺省 1（连续数组），cg7 `space_*` 为 `count=16`、`stride=4`、`rc_base=0/1/2/3`；旧 `format=1` 的 `[lo..hi]` 行按 `stride=1` 兼容；
+- `rc_base` 为该行 `rc-base`；别名表以 `array <name-base> ...` 记整数组，**单下标是其具体化**；
+- 汇编器/检测器 **MUST 接受**该形（不视为违规）；`N` 越界 **MUST** 按 `count` 报错。
 
 ### 13.8 示例
 
 ```
 cfx2rc cfx_smon_supv_excp_vector, rd2        @@ 别名形
 cfx2rc cfx_smon, cg2, rc0, rd2               @@ 规范长形（与上行等价）
-cfx2rd cfx_ptw_ptbr[0], rd2                  @@ 数组单下标
+cfx2rd cfx_pmem_start[0], rd2                @@ 数组单下标
 escape cfx_smon, [excp_cause_ip, 4]          @@ cfxha 写作标量别名
 ```
 
@@ -352,7 +354,12 @@ escape cfx_smon, [excp_cause_ip, 4]          @@ cfxha 写作标量别名
 
 ### 0.5.4-rc（未发布）
 
-- §13.8 数组单下标示例随 `cfx_time` 改名改用 `cfx_ptw_ptbr[0]`。
+- 删除 `cfxld`/`cfxst` 的书写规则与其 `crii` 格式（两条指令已从指令系统删除）；格式类清单只余 `crrr`/`ciii` 两种带 `cfxha` 的格式。
+- `fence` 改为 `ciii` 语法 `fence cfxHA, immu18`：`cfx0`/`cfx_umon` 都表示 all cfx；`immu18` 整体一个表达式；`fence 0` 不再接受。
+- §13.7 数组单下标扩展为 `rc = rc_base + N*stride`（`N ∈ [0,count)`；`stride` 由别名表给出，连续数组缺省 1）；配套别名表 stride 决策修订。
+
+- §13.8 数组单下标示例改用 `cfx_pmem_start[0]`（`cfx_ptw_ptbr` 已改为单份寄存器，不再有数组下标）。
+- `escape` 的 `imms20` 合法集收窄为 **0 / 4**（其它值报错）：§2.4 与 §5 的偏移校验由「`%4==0` 与范围」改为此限定；编码层 `imms18 ∈ {0, 1}`、`imms18[17:1]` 为 SBZ。
 
 ### 0.5.3（2026-10-19）
 

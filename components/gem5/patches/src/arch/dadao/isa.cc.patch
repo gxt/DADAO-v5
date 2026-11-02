@@ -1,0 +1,120 @@
+diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
+new file mode 100644
+index 0000000..2fad02c
+--- /dev/null
++++ b/src/arch/dadao/isa.cc
+@@ -0,0 +1,114 @@
++// DADAO ISA object (B0 skeleton) -- implementation.
++#include "arch/dadao/isa.hh"
++
++#include "arch/dadao/regs/float.hh"
++#include "arch/dadao/regs/int.hh"
++#include "base/logging.hh"
++#include "cpu/thread_context.hh"
++#include "debug/CCRegs.hh"
++#include "debug/MatRegs.hh"
++#include "debug/VecPredRegs.hh"
++#include "debug/VecRegs.hh"
++#include "params/DadaoISA.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++
++namespace
++{
++
++RegClass vecRegClass(VecRegClass, VecRegClassName, 1, debug::VecRegs);
++RegClass vecElemClass(VecElemClass, VecElemClassName, 1, debug::VecRegs);
++RegClass vecPredRegClass(VecPredRegClass, VecPredRegClassName, 1,
++        debug::VecPredRegs);
++RegClass matRegClass(MatRegClass, MatRegClassName, 0, debug::MatRegs);
++RegClass ccRegClass(CCRegClass, CCRegClassName, 0, debug::CCRegs);
++
++} // anonymous namespace
++
++ISA::ISA(const Params &p) : BaseISA(p, "dadao")
++{
++    _regClasses = {&intRegClass, &floatRegClass, &vecRegClass,
++        &vecElemClass, &vecPredRegClass, &matRegClass, &ccRegClass,
++        &miscRegClass};
++}
++
++void
++ISA::clear()
++{
++    // Architectural GPRs are cleared by the CPU's register file reset; the
++    // only ISA-private state is the B6 reservation slot.
++    clearReservations();
++}
++
++void
++ISA::setReservation(Addr addr, unsigned width)
++{
++    reservationValid = true;
++    reservationAddr = addr;
++    reservationWidth = width;
++}
++
++bool
++ISA::hasReservation(Addr addr, unsigned width) const
++{
++    return reservationValid && reservationAddr == addr &&
++           reservationWidth == width;
++}
++
++void
++ISA::clearReservations()
++{
++    reservationValid = false;
++    reservationAddr = 0;
++    reservationWidth = 0;
++}
++
++RegVal
++ISA::readMiscRegNoEffect(RegIndex idx) const
++{
++    panic("DADAO B0: misc register %d read before the cfx/mode model",
++          idx);
++    return 0; // unreachable; panic is not marked [[noreturn]]
++}
++
++RegVal
++ISA::readMiscReg(RegIndex idx)
++{
++    return readMiscRegNoEffect(idx);
++}
++
++void
++ISA::setMiscRegNoEffect(RegIndex idx, RegVal val)
++{
++    panic("DADAO B0: misc register %d write (%#x) before the cfx model",
++          idx, val);
++}
++
++void
++ISA::setMiscReg(RegIndex idx, RegVal val)
++{
++    setMiscRegNoEffect(idx, val);
++}
++
++bool
++ISA::inUserMode() const
++{
++    panic("DADAO B0: privilege model not implemented");
++    return false; // unreachable; panic is not marked [[noreturn]]
++}
++
++void
++ISA::copyRegsFrom(ThreadContext *src)
++{
++    for (const auto &id : intRegClass)
++        tc->setReg(id, src->getReg(id));
++    for (const auto &id : floatRegClass)
++        tc->setReg(id, src->getReg(id));
++    tc->pcState(src->pcState());
++}
++
++} // namespace DadaoISA
++} // namespace gem5

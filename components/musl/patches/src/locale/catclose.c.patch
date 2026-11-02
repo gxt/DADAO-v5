@@ -1,0 +1,27 @@
+diff --git a/src/locale/catclose.c b/src/locale/catclose.c
+index 54e24dd..4a19cf3 100644
+--- a/src/locale/catclose.c
++++ b/src/locale/catclose.c
+@@ -2,6 +2,7 @@
+ #include <nl_types.h>
+ #include <stdint.h>
+ #include <endian.h>
++#include <errno.h>
+ #include <sys/mman.h>
+ 
+ #define V(p) be32toh(*(uint32_t *)(p))
+@@ -9,6 +10,14 @@
+ int catclose (nl_catd catd)
+ {
+ 	char *map = (char *)catd;
++	/* catopen reports failure as (nl_catd)-1 (POSIX); a NULL handle is never
++	 * a mapped catalog either, so reading the size field would fault.
++	 * Reject both with EBADF -- the errno glibc uses for (nl_catd)-1 --
++	 * instead of dereferencing an invalid address (ISS-339). */
++	if (map == (char *)-1 || !map) {
++		errno = EBADF;
++		return -1;
++	}
+ 	munmap(map, V(map+8)+20);
+ 	return 0;
+ }

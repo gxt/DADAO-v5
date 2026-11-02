@@ -23,6 +23,8 @@
 
 ## 2. changelog（M4 时期，2026-10-06 ~ 2026-10-07，28 条）
 
+> 本节 = 任务流水（冻结）历史别名；表格原样保留，不重写。
+
 | 日期 | 描述 | 执行方 |
 | --- | --- | --- |
 | 2026-10-07 | **M4 达成：ELF 文件支持 + LLD 链接 + 汇编器遗留收口**。门槛 `make test-elf` **5/5**；6 模块 `m`（`SPEC-108m`/`INFRA-044m`/`LLVM-057m`/`QEMU-043m`/`TESTCASES-031m`/`INTEG-017m`）全置 `里程碑`；`make check`/`check-lit`(60/60)/`test-codegen`(15/15)/`check-no-residue`/`check-patch-tree`(89)/`check-qemu-semantics` 全 EXIT=0（`.work/log/integ/m4-closure/`）。收口前置：issues 核查（6 结案 + 8 rescale M5 + 3 moot + `ISS-149/150`→`160/161` + `ISS-047`→M5）、`SPEC-105t` 补置已验证、`SPEC-111t` 归档 `spec/SimRISC-0.5.3`。**M4 任务书归档**待立归档任务（`Process-04 §3`）。 | 主会话 |

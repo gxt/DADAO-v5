@@ -1,0 +1,432 @@
+diff --git a/src/arch/dadao/decode/decode_test.cc b/src/arch/dadao/decode/decode_test.cc
+new file mode 100644
+index 0000000..36736dd
+--- /dev/null
++++ b/src/arch/dadao/decode/decode_test.cc
+@@ -0,0 +1,426 @@
++/*
++ * DADAO gem5 decode assertions (B0).
++ *
++ * Standalone C++17 harness (no gem5 headers): compiled by
++ * `make check-gem5-decode` against src/arch/dadao/decode/{decode.cc,*.inc}.
++ *
++ * Covers:
++ *   * 264 positive rows  -- one per contracts/opcodes.yaml entry (the
++ *     GEM5-002t semantic matrix), asserting id/format/field/opcode/sub-table/
++ *     batch plus the extracted field values and the legality/rule metadata;
++ *   * all unused opcode bytes and all reserved sub-table slots -> ILLI;
++ *   * identity regressions (same-encoding-different-meaning, new, deleted,
++ *     mnemonic-only-same) from GEM5-002t §3;
++ *   * static legality cases (GEM5-005t) -- `sc` destination rd0 => ILLI while
++ *     the rdHC source reading rd0 stays legal, and the scaleB exponent rdHD=0
++ *     is legal.  B0 only publishes the legality data; B1-B6 raise the fault,
++ *     so this harness evaluates the published expressions against the decoded
++ *     fields instead of expecting decodeWord() to reject the word;
++ *   * the retired scaleB `rfhd`/`rf` third operand (SPEC-181t F5.2 C1) must
++ *     not reappear in the table;
++ *   * table integrity (unique ids, unique mask/value, batch boundary counts).
++ */
++#include <cinttypes>
++#include <cstdarg>
++#include <cstdio>
++#include <cstring>
++#include <map>
++#include <string>
++#include <vector>
++
++#include "arch/dadao/decode/decode.hh"
++
++namespace decode = gem5::DadaoISA::decode;
++
++namespace
++{
++
++struct FieldAssert
++{
++    const char *name;
++    uint16_t hi;
++    uint16_t lo;
++    const char *role;
++    const char *bank;
++    bool is_signed;
++    uint64_t raw;
++    int64_t sext;
++};
++
++struct RowAssert
++{
++    const char *id;
++    const char *mnemonic;
++    const char *format;
++    const char *scope;
++    const char *contract_ref;
++    const char *const *legality;
++    uint8_t num_legality;
++    const char *const *rules;
++    uint8_t num_rules;
++    uint32_t mask;
++    uint32_t value;
++    uint32_t inst;
++    uint16_t opc;
++    int8_t ha;
++    uint8_t batch;
++    uint8_t num_fields;
++    FieldAssert fields[4];
++};
++
++struct NegativeCase
++{
++    uint32_t inst;
++    const char *expected_id; // nullptr => expect Illegal
++    bool expect_decoded;
++    const char *reason;
++};
++
++// GEM5-005t: one static-legality probe over the published legality data.
++struct LegalityCase
++{
++    const char *id;
++    uint32_t inst;
++    bool expect_illegal;
++    const char *reason;
++};
++
++// GEM5-005t: negative guard for a retired field name/bank pair.
++struct LegacyFieldCase
++{
++    const char *id;
++    uint8_t index;
++    const char *legacy_name;
++    const char *legacy_bank;
++    const char *reason;
++};
++
++#include "arch/dadao/decode/decode_assertions.inc"
++#include "arch/dadao/decode/decode_negative.inc"
++
++int failures = 0;
++int positive_pass = 0;
++int negative_pass = 0;
++int legality_pass = 0;
++int legacy_pass = 0;
++
++void
++pass(const char *fmt, ...)
++{
++    va_list args;
++    va_start(args, fmt);
++    std::printf("[PASS] ");
++    std::vprintf(fmt, args);
++    std::printf("\n");
++    va_end(args);
++}
++
++void
++fail(const char *fmt, ...)
++{
++    ++failures;
++    va_list args;
++    va_start(args, fmt);
++    std::printf("[FAIL] ");
++    std::vprintf(fmt, args);
++    std::printf("\n");
++    va_end(args);
++}
++
++void
++check(bool condition, const char *fmt, ...)
++{
++    if (condition) {
++        va_list args;
++        va_start(args, fmt);
++        std::printf("[PASS] ");
++        std::vprintf(fmt, args);
++        std::printf("\n");
++        va_end(args);
++    } else {
++        ++failures;
++        va_list args;
++        va_start(args, fmt);
++        std::printf("[FAIL] ");
++        std::vprintf(fmt, args);
++        std::printf("\n");
++        va_end(args);
++    }
++}
++
++bool
++strEq(const char *a, const char *b)
++{
++    return a && b && std::strcmp(a, b) == 0;
++}
++
++void
++checkRow(size_t index, const RowAssert &row)
++{
++    const decode::DecodedInst decoded = decode::decodeWord(row.inst);
++    if (!decoded.ok()) {
++        fail("row %03zu %s: expected Decoded, got Illegal (0x%08x)",
++             index + 1, row.id, row.inst);
++        return;
++    }
++    const decode::DecodeEntry &entry = *decoded.entry;
++
++    bool ok = true;
++    ok = ok && strEq(entry.id, row.id);
++    ok = ok && strEq(entry.mnemonic, row.mnemonic);
++    ok = ok && strEq(entry.format, row.format);
++    ok = ok && strEq(entry.scope, row.scope);
++    ok = ok && strEq(entry.contractRef, row.contract_ref);
++    ok = ok && entry.numLegality == row.num_legality;
++    for (unsigned i = 0; ok && i < row.num_legality; ++i)
++        ok = ok && strEq(decode::legalityOf(entry, i), row.legality[i]);
++    ok = ok && entry.numRules == row.num_rules;
++    for (unsigned i = 0; ok && i < row.num_rules; ++i)
++        ok = ok && strEq(entry.rules[i], row.rules[i]);
++    ok = ok && entry.mask == row.mask;
++    ok = ok && entry.value == row.value;
++    ok = ok && entry.opc == row.opc;
++    ok = ok && entry.ha == row.ha;
++    ok = ok && entry.batch == row.batch;
++    ok = ok && entry.numFields == row.num_fields;
++    ok = ok && decoded.numFields == row.num_fields;
++    ok = ok && (row.inst & entry.mask) == entry.value;
++
++    for (unsigned i = 0; ok && i < row.num_fields; ++i) {
++        const decode::FieldDesc &field = decode::fieldDesc(entry, i);
++        const FieldAssert &want = row.fields[i];
++        ok = ok && strEq(field.name, want.name);
++        ok = ok && field.hi == want.hi && field.lo == want.lo;
++        ok = ok && strEq(field.role, want.role);
++        ok = ok && strEq(field.bank, want.bank);
++        ok = ok && field.isSigned == want.is_signed;
++        ok = ok && decoded.fieldValues[i] == want.raw;
++        const int64_t sext = want.is_signed ?
++            decode::signExtend(want.raw, field.width()) :
++            static_cast<int64_t>(want.raw);
++        ok = ok && sext == want.sext;
++    }
++
++    if (ok) {
++        ++positive_pass;
++        pass("row %03zu %-28s %-5s opc=0x%02x ha=%d batch=%s fields=%u "
++             "inst=0x%08x", index + 1, row.id, row.format, row.opc, row.ha,
++             decode::batchName(row.batch), row.num_fields, row.inst);
++    } else {
++        fail("row %03zu %s: decode mismatch (entry=%s format=%s opc=0x%02x "
++             "ha=%d batch=%s fields=%u)", index + 1, row.id,
++             entry.id ? entry.id : "?", entry.format ? entry.format : "?",
++             entry.opc, entry.ha, decode::batchName(entry.batch),
++             entry.numFields);
++    }
++}
++
++void
++checkNegative(const NegativeCase &test)
++{
++    const decode::DecodedInst decoded = decode::decodeWord(test.inst);
++    bool ok = decoded.ok() == test.expect_decoded;
++    if (ok && test.expected_id)
++        ok = strEq(decoded.entry->id, test.expected_id);
++    if (ok && test.expected_id == nullptr)
++        ok = !decoded.ok();
++    if (ok) {
++        ++negative_pass;
++        pass("negative 0x%08x -> %-28s (%s)", test.inst,
++             decoded.ok() ? decoded.entry->id : "Illegal", test.reason);
++    } else {
++        fail("negative 0x%08x: expected %s %s, got %s %s (%s)", test.inst,
++             test.expect_decoded ? "Decoded" : "Illegal",
++             test.expected_id ? test.expected_id : "", decoded.ok() ?
++             "Decoded" : "Illegal",
++             decoded.ok() ? decoded.entry->id : "", test.reason);
++    }
++}
++
++// Evaluate one published legality expression against the decoded fields.
++// Only the "<field> != <bank>0" form (e.g. "rdhb != rd0") is defined here;
++// anything else is reported as Unsupported so a new rule shape cannot pass
++// silently.  B0 publishes legality as data (B1-B6 raise the fault), so this is
++// where the data itself is exercised.
++enum class Verdict { Legal, Illegal, Unsupported };
++
++Verdict
++evalLegality(const decode::DecodeEntry &entry,
++             const decode::DecodedInst &decoded, const char *expr)
++{
++    static const char *const sep = " != ";
++    const char *at = std::strstr(expr, sep);
++    if (at == nullptr)
++        return Verdict::Unsupported;
++    const std::string lhs(expr, at - expr);
++    const char *rhs = at + std::strlen(sep);
++    static const std::map<std::string, std::string> zero_regs = {
++        {"rd", "rd0"}, {"rf", "rf0"}, {"rb", "rb0"}, {"ra", "ra0"},
++    };
++    for (unsigned i = 0; i < entry.numFields; ++i) {
++        const decode::FieldDesc &field = decode::fieldDesc(entry, i);
++        if (lhs != field.name)
++            continue;
++        const auto zero = zero_regs.find(field.bank);
++        if (zero == zero_regs.end() || zero->second != rhs)
++            return Verdict::Unsupported;
++        return decoded.fieldValues[i] == 0 ? Verdict::Illegal : Verdict::Legal;
++    }
++    return Verdict::Unsupported;
++}
++
++void
++checkLegalityCases()
++{
++    for (size_t i = 0; i < kLegalityCaseCount; ++i) {
++        const LegalityCase &test = kLegalityCases[i];
++        const decode::DecodedInst decoded = decode::decodeWord(test.inst);
++        if (!decoded.ok() || !strEq(decoded.entry->id, test.id)) {
++            fail("legality %s: word 0x%08x decoded as %s, expected %s (%s)",
++                 test.id, test.inst,
++                 decoded.ok() ? decoded.entry->id : "Illegal", test.id,
++                 test.reason);
++            continue;
++        }
++        const decode::DecodeEntry &entry = *decoded.entry;
++        bool illegal = false;
++        bool supported = true;
++        for (unsigned j = 0; j < entry.numLegality; ++j) {
++            const Verdict verdict =
++                evalLegality(entry, decoded, entry.legality[j]);
++            if (verdict == Verdict::Unsupported)
++                supported = false;
++            illegal = illegal || verdict == Verdict::Illegal;
++        }
++        if (!supported) {
++            fail("legality %s: unsupported legality expression for 0x%08x",
++                 test.id, test.inst);
++        } else if (illegal != test.expect_illegal) {
++            fail("legality %s: word 0x%08x expected %s, got %s (%s)",
++                 test.id, test.inst,
++                 test.expect_illegal ? "ILLI" : "legal",
++                 illegal ? "ILLI" : "legal", test.reason);
++        } else {
++            ++legality_pass;
++            pass("legality %-28s 0x%08x -> %-5s (%s)", test.id, test.inst,
++                 illegal ? "ILLI" : "legal", test.reason);
++        }
++    }
++}
++
++void
++checkLegacyFields()
++{
++    for (size_t i = 0; i < kLegacyFieldCaseCount; ++i) {
++        const LegacyFieldCase &test = kLegacyFieldCases[i];
++        const decode::DecodeEntry *entry = decode::entryById(test.id);
++        if (entry == nullptr) {
++            fail("legacy %s: entry missing from the decode table", test.id);
++            continue;
++        }
++        const bool present = test.index < entry->numFields &&
++            strEq(decode::fieldDesc(*entry, test.index).name,
++                  test.legacy_name) &&
++            strEq(decode::fieldDesc(*entry, test.index).bank,
++                  test.legacy_bank);
++        if (present) {
++            fail("legacy %s: field %u is still %s/%s (%s)", test.id,
++                 test.index, test.legacy_name, test.legacy_bank, test.reason);
++        } else {
++            ++legacy_pass;
++            pass("legacy %-28s field %u is not %s/%s (%s)", test.id,
++                 test.index, test.legacy_name, test.legacy_bank, test.reason);
++        }
++    }
++}
++
++void
++checkTableIntegrity()
++{
++    check(decode::entryCount() == 264,
++          "table entry count == 264 (actual %zu)", decode::entryCount());
++
++    std::map<std::string, int> ids;
++    std::map<uint64_t, std::string> encodings;
++    int batch_counts[8] = {0, 0, 0, 0, 0, 0, 0, 0};
++    for (size_t i = 0; i < decode::entryCount(); ++i) {
++        const decode::DecodeEntry &entry = decode::entries()[i];
++        ids[entry.id]++;
++        encodings[(uint64_t(entry.mask) << 32) | entry.value] = entry.id;
++        if (entry.batch < 8)
++            batch_counts[entry.batch]++;
++    }
++    bool unique_ids = true;
++    for (const auto &pair : ids)
++        unique_ids = unique_ids && pair.second == 1;
++    check(unique_ids, "all 264 ids are unique (%zu distinct)", ids.size());
++    check(encodings.size() == 264,
++          "all 264 (mask,value) pairs are unique (%zu distinct)",
++          encodings.size());
++
++    const int want[8] = {0, 38, 8, 42, 63, 28, 30, 55};
++    for (int batch = 1; batch <= 7; ++batch) {
++        check(batch_counts[batch] == want[batch],
++              "batch %s boundary count == %d (actual %d)",
++              decode::batchName(batch), want[batch], batch_counts[batch]);
++    }
++}
++
++void
++checkMnemonicGroups()
++{
++    std::map<std::string, std::vector<decode::DecodeEntry>> groups;
++    for (size_t i = 0; i < decode::entryCount(); ++i) {
++        const decode::DecodeEntry &entry = decode::entries()[i];
++        groups[entry.mnemonic].push_back(entry);
++    }
++    int multi = 0;
++    bool ok = true;
++    for (const auto &pair : groups) {
++        if (pair.second.size() < 2)
++            continue;
++        ++multi;
++        std::map<std::string, int> ids;
++        std::map<uint32_t, int> values;
++        for (const auto &entry : pair.second) {
++            ids[entry.id]++;
++            values[entry.value]++;
++        }
++        bool distinct_ids = true;
++        for (const auto &item : ids)
++            distinct_ids = distinct_ids && item.second == 1;
++        ok = ok && distinct_ids;
++        ok = ok && values.size() == pair.second.size();
++    }
++    check(ok, "same-mnemonic groups keep distinct ids/encodings (%d groups)",
++          multi);
++    check(multi == 37,
++          "same-mnemonic group count == 37 (actual %d)", multi);
++}
++
++} // anonymous namespace
++
++int
++main()
++{
++    checkTableIntegrity();
++    for (size_t i = 0; i < kRowAssertCount; ++i)
++        checkRow(i, kRowAsserts[i]);
++    for (size_t i = 0; i < kNegativeCaseCount; ++i)
++        checkNegative(kNegativeCases[i]);
++    checkLegalityCases();
++    checkLegacyFields();
++    checkMnemonicGroups();
++
++    std::printf("\nsummary: positive %d/%zu, negative %d/%zu, legality "
++                "%d/%zu, legacy %d/%zu, failures %d\n",
++                positive_pass, kRowAssertCount, negative_pass,
++                kNegativeCaseCount, legality_pass, kLegalityCaseCount,
++                legacy_pass, kLegacyFieldCaseCount, failures);
++    if (positive_pass != static_cast<int>(kRowAssertCount) ||
++            negative_pass != static_cast<int>(kNegativeCaseCount) ||
++            legality_pass != static_cast<int>(kLegalityCaseCount) ||
++            legacy_pass != static_cast<int>(kLegacyFieldCaseCount))
++        ++failures;
++    return failures == 0 ? 0 : 1;
++}

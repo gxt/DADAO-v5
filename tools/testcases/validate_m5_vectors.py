@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Validate the M5 (SEE / semihosting) L3 execution vectors under
-``tests/llvm/codegen/m5/``.
+``tests/arch/umon/`` (moved from ``tests/unit/llvm/codegen/m5/`` by TESTCASES-073t).
 
 This is the **independent oracle** required by ``docs/Process-05`` §2/§4 and the
 project "Independent oracle" hard rule.  It **never** invokes ``llvm-mc``,
@@ -39,7 +39,8 @@ Checks (all fail-closed, exit non-zero on any failure):
      trap + escape.
 
 A green validator is necessary but not sufficient: the true end-to-end execution
-is owned by ``tools/integ/run_m5_e2e.py`` (and ``INTEG-020t`` for the gate).
+is owned by ``tools/testcases/arch/run_m5_e2e.py`` (gated by
+``make check-arch-smoke``; old name ``make test-semihost`` is an alias).
 """
 from __future__ import annotations
 
@@ -50,7 +51,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-VEC_DIR = ROOT / "tests" / "llvm" / "codegen" / "m5"
+VEC_DIR = ROOT / "tests" / "arch" / "umon"
 EXPECTED_PATH = VEC_DIR / "expected.yaml"
 CONTRACT_SEMIHOSTING = ROOT / ".tao" / "contracts" / "contract-semihosting.md"
 
@@ -88,7 +89,7 @@ CAUSE_ID = {
 }
 
 # contract-see.md §3 permission rules -> expected cause.  Citation:
-#   reserved_cfxha     : "reserved cfxha (7-14, 19-61) 触发 ILLI"        [DADAO-12 §5]
+#   reserved_cfxha     : "reserved cfxha (6-14, 19-61) 触发 ILLI"        [DADAO-12 §5]
 #   mask_forbidden     : "cfxha 合法但指令 cfx mask 禁止亦触发 ILLI"     [DADAO-12 §3/§5]
 #   unimplemented_cfx  : "访问未实现的核芯功能扩展 ... 触发 CFXREG"       [DADAO-22 §3]
 #   bad_register_combo : non-existent / over-count register combination => CFXREG

@@ -7,7 +7,7 @@ missing copy** silently changes what assembly accepts and what disassembly
 prints -- without any build failure.  This gate makes that a hard failure:
 
 1. the source table ``contracts/cfx-aliases.txt`` exists, is non-empty and
-   starts with the ``# format=1`` header;
+   starts with a ``# format=1`` (legacy) or ``# format=2`` header;
 2. the build-tree copy ``.work/build/llvm/share/dadao/cfx-aliases.txt`` is
    byte-identical to the source (that is what the build-tree llvm-mc reads);
 3. the install-root copy
@@ -40,7 +40,7 @@ import paths  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_REL = Path("contracts") / "cfx-aliases.txt"
 BUILD_COPY_REL = Path(".work") / "build" / "llvm" / "share" / "dadao" / "cfx-aliases.txt"
-FORMAT_LINE = "# format=1"
+FORMAT_LINES = ("# format=1", "# format=2")
 
 
 def sha256_of(path: Path) -> str:
@@ -86,8 +86,8 @@ def audit(source: Path, build_copy: Path, install_copy: Path) -> int:
         return 1
 
     first = source.read_text(encoding="utf-8").splitlines()
-    header_ok = bool(first) and first[0] == FORMAT_LINE
-    rep.check("source header", repr(FORMAT_LINE),
+    header_ok = bool(first) and first[0] in FORMAT_LINES
+    rep.check("source header", "one of " + repr(FORMAT_LINES),
               repr(first[0] if first else "<empty>"), header_ok)
 
     src_sha = sha256_of(source)
@@ -113,21 +113,27 @@ def audit(source: Path, build_copy: Path, install_copy: Path) -> int:
 
 def self_test() -> int:
     """Fixtures: a good tree must pass; each injected defect must fail."""
-    body = (f"{FORMAT_LINE}\n"
+    body = (f"{FORMAT_LINES[0]}\n"
             "scalar cfx_umon 0 canonical\n"
             "reg cfx_umon_cfx_id 0 4 0 1 canonical\n")
+    body_v2 = (f"{FORMAT_LINES[1]}\n"
+               "scalar cfx_umon 0 canonical\n"
+               "array cfx_umon_space_desc 0 7 0 16 4 canonical\n")
 
-    def write_tree(base: Path) -> tuple[Path, Path, Path]:
+    def write_tree(base: Path, text: str = body) -> tuple[Path, Path, Path]:
         src = base / "contracts" / "cfx-aliases.txt"
         build = base / "build" / "share" / "dadao" / "cfx-aliases.txt"
         install = base / "install" / "share" / "dadao" / "cfx-aliases.txt"
         for path in (src, build, install):
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(body, encoding="utf-8")
+            path.write_text(text, encoding="utf-8")
         return src, build, install
 
     def green(base: Path) -> tuple[Path, Path, Path]:
         return write_tree(base)
+
+    def green_v2(base: Path) -> tuple[Path, Path, Path]:
+        return write_tree(base, body_v2)
 
     def install_drift(base: Path) -> tuple[Path, Path, Path]:
         src, build, install = write_tree(base)
@@ -151,12 +157,17 @@ def self_test() -> int:
             path.write_text("scalar cfx_umon 0 canonical\n", encoding="utf-8")
         return src, build, install
 
+    def bad_header(base: Path) -> tuple[Path, Path, Path]:
+        return write_tree(base, body.replace("# format=1", "# format=3", 1))
+
     cases = [
         ("green tree", 0, green),
+        ("green tree (format=2)", 0, green_v2),
         ("install copy differs", 1, install_drift),
         ("build copy missing", 1, build_missing),
         ("source table missing", 1, source_missing),
         ("missing format header", 1, no_header),
+        ("unsupported format header", 1, bad_header),
     ]
 
     failed = 0

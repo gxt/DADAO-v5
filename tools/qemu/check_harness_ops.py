@@ -6,7 +6,7 @@
 
 默认：
   - yaml: contracts/opcodes.yaml
-  - harness: tests/scripts/build_test_binary.py
+  - harness: tools/testcases/lib/build_test_binary.py
 
 校验逻辑：
   1. 从 harness 的 encode_* 函数中提取 op 常量（或 value 常量）
@@ -111,7 +111,8 @@ FUNC_TO_YAML = {
     "encode_ld_ut":     "ld.ut_rrii_rd",
     "encode_ld_o":      "ld.o_rrii_rd",
     "encode_swym":      "swym_oiii_imm",
-    "encode_illi_poison": "cfxld_crii_cfx",
+    # encode_illi_poison 不在此表：它是**违反编码合法性**的实例（fence 的 hb != 0，
+    # 触发 encode_sbz ⇒ ILLI），其 word ≠ 任何记录的基值，无法按 id 对账。
     "encode_jump_iiii": "jump_iiii_rb",
 }
 
@@ -122,8 +123,8 @@ def main():
     parser.add_argument("--yaml", default=os.path.join(REPO_ROOT, "contracts",
                                                         "opcodes.yaml"),
                         help="opcodes.yaml 路径")
-    parser.add_argument("--harness", default=os.path.join(REPO_ROOT, "tests",
-                                                           "scripts",
+    parser.add_argument("--harness", default=os.path.join(REPO_ROOT, "tools",
+                                                           "testcases", "lib",
                                                            "build_test_binary.py"),
                         help="build_test_binary.py 路径")
     args = parser.parse_args()

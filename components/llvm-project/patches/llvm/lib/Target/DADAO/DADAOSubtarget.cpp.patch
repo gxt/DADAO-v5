@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOSubtarget.cpp b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
 new file mode 100644
-index 000000000..85aaf02b0
+index 000000000..9408ea445
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
 @@ -0,0 +1,199 @@
@@ -39,7 +39,7 @@ index 000000000..85aaf02b0
 +  // an out-of-line llvm.memcpy/memset/memmove/memcmp lowers to `call memcpy`
 +  // (etc.) instead of an IR loop.  Small constant-size intrinsics remain
 +  // inlined by ISel up to MaxStoresPerMem* (16).  The symbols are resolved by
-+  // the freestanding runtime (tests/scripts/dadao_mem_runtime.s).
++  // the freestanding `mem*` runtime supplied by the test harness at link time.
 +  Info.setLibcallImpl(RTLIB::MEMCPY, RTLIB::impl_memcpy);
 +  Info.setLibcallImpl(RTLIB::MEMSET, RTLIB::impl_memset);
 +  Info.setLibcallImpl(RTLIB::MEMMOVE, RTLIB::impl_memmove);

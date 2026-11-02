@@ -1,0 +1,41 @@
+# gem5 组件变更记录
+
+> 粒度：**按任务一条**，追加式。**体例 = 列表式（不用表格）+ 按里程碑分节**：每条 = `- **<日期> <任务号或 —>**`，**摘要另起缩进行** `  - 摘要：<摘要正文，逐字保留>`；原表其余列各占一条缩进行（如 `  - 执行者：engineer`）。节 = `## M<k>`（节序 M1→M2→…），**节内按日期升序**；**新里程碑到来时在文末开新节**（不留空节）。补丁集的生成/应用/校验规范见 `docs/Process-01-组件补丁组织与构建编排.md §10`。
+
+## M11
+
+- **2026-11-02 GEM5-012t**
+  - 摘要：**B7 浮点执行核心（55 条，B0–B7 最后一批）**。新增纯整数 FP 库 `src/arch/dadao/exec/fp_soft.{hh,cc}`（`unsigned __int128` 精确积、127 位窗口对齐 + 舍入后 tininess、整数长除法 remainder、整数 `isqrt` + 精确中点比较开方、单次舍入 fma；**禁用**宿主 `float`/`double`/`<cmath>`/`fenv`/外部 softfloat）与分派核 `exec/b7.{hh,cc}`（55 行按 `entry->id` 显式表：fma 2、cs_rf 3、classify 2、convert_ff 4、root 2、convert_f2i 8、convert_i2f 8、roundint 2、arith 12、sign 4、compare 4、minmax 4；四种舍入、NV/DZ/OF/UF/NX sticky、NaN/Inf/±0、rem 精确无标志、scaleB 用 `rdHD` 有符号 64 位指数且大 `n` 不迭代、f2i 饱和、块形式先读后写、7 条静态规则先于任何寄存器读）。`Fault` 追加 `NotB7`（B1–B6 test 与 `inst.cc` 既有 switch 补编译连带 case，语义不变）；`inst.cc` 增 batch 7 分派（`Gem5B1Context` 改继承 `B7Context`，`Illegal→IllegalInstruction`，Memory/Malign/RAS/cfx/NotB7 ⇒ panic），`SConscript` 加入 `exec/b7.cc`+`exec/fp_soft.cc`。新增 `exec/b7_test.cc` 与 `tools/gem5/check_b7.py`（55/55、non-B7 209/209、2979 条 PASS、规则计数 41/22/22/14/4/2/2、逐 id contract/spec_cite/legality 对照），并新增独立 oracle `tools/gem5/b7_ref.py`（`Fraction` 精确模型；3980 条向量位级差分 `mismatch=0`；fma/minmax/roundint 与 `tests/inst` oracle 三方交叉一致）。B1–B6 回归零变化（2102/1160/4248/3696/1215/1362），B0 264+388+28+2 不变，gem5 构建通过（`executeB7` 1 个符号、`b7.o`/`fp_soft.o`、构建树无 `b7_test`）。
+  - 执行者：engineer
+
+- **2026-11-01 GEM5-004t**
+  - 摘要：**B0 解码核心 + 264 条断言**。新建 `components/gem5` 树形补丁集（**26 份** = 新增 24 + 修改 2：`src/arch/Kconfig`、`src/arch/SConscript`），在 gem5 v25.1.0.1 上注册 `USE_DADAO_ISA` / `build_opts/DADAO`；`src/arch/dadao/**` 提供纯 C++ 解码核心（`decode/{decode.hh,decode.cc}` + 生成的 `decode_table.inc`）与 gem5 `DadaoInst` 骨架：格式/字段/opcode/6 位子表（`[23:18]`）分派、`rule_refs` + `legality` 规则数据、264 条 ID/格式/字段/编码/批次断言、388 条非法/保留/身份回归（同编码异义 0x5E/0x5F、0x76；删除 cfxld/cfxst；老 swym/coarse-mask 回归）。执行语义不实现：解码成功 ⇒ `UnimplementedInstruction`，未匹配/保留 ⇒ `IllegalInstruction`（ILLI），不静默成功。批次边界 38/8/42/63/28/30/55 由矩阵 `contract_ref` 派生并断言。生成器 `tools/gem5/gen_decode_table.py`（`--check` 漂移门控）；`make build-gem5`（SCons 缺失 ⇒ rc=2 BLOCKED）、`make check-gem5-decode`。manifest 启用 gem5。
+  - 执行者：engineer
+
+- **2026-11-02 GEM5-005t**
+  - 摘要：**scaleB C1 与 sc rd0 解码更新**。按 SPEC-181t 重生成 `components/gem5` 解码表/断言：`ftsclb`/`fosclb` 第三操作数由 `rfhd/rf` 改为 `rdhd/rd`（编码/opc/ha 不变，旧 rf 字段成为负例守护）；12 条 `sc.*` 的 `rdhb != rd0`（`dst_rd0`）写入 legality/rule 断言，`rdhc=rd0` 保持合法。生成器新增 SPEC-181t 守护与 28 条合法性用例（sc dst rd0⇒ILLI、rdhc=rd0 合法、scaleB 指数 rdhd=0 合法、scaleB dst rf0⇒ILLI）+ 2 条旧 rf 负例；断言表增加 `rules` 列并逐行校验。`make check-gem5-decode` 264/264 + 388/388 + 28/28 + 2/2。执行语义仍在 B1–B7。
+  - 执行者：engineer
+
+- **2026-11-02 GEM5-006t**
+  - 摘要：**B1 取数存数执行核心（38 条）**。新增纯 C++ 执行核 `src/arch/dadao/exec/b1.hh` / `b1.cc`（38 个 id 显式分派：RD/RB/RA/RF × 单/多 load-store），实现 48 位有效地址与回绕、大端字节序、符号/零扩展、块传输（原始 rdhc 快照、i 递增、先读后写、immu6/范围 ILLI、宽度 MALIGN）、`rd0`/`rb0`/`ra0`/`rf0` 边界（rf0 目的 FCSR 写掩码、`ld.t`/`ldm.t` 高 32 位保持）；`inst.cc` 增加 `Gem5B1Context` 适配（int/float 寄存器组、`readMem`/`writeMem`）与 `executeB1` 分派，`faults.hh` 新增 `MalignInstruction`（先 panic 报地址/宽度），`SConscript` 加入 `exec/b1.cc`；B2–B7 仍返回 `UnimplementedInstruction`。组件内断言 `exec/b1_test.cc`（38/38 覆盖 + ILLI/MALIGN/端序/块/rf0/高位立即数）由新增 `tools/gem5/check_b1.py` 编译运行，不新增 `tests/**`、不改解码表。
+  - 执行者：engineer
+
+- **2026-11-02 GEM5-007t**
+  - 摘要：**B2 16 位立即数执行核心（8 条）**。新增纯 C++ 执行核 `src/arch/dadao/exec/b2.hh` / `b2.cc`（按 `entry->id` 分派 8 条 rwii：`or.w`/`andn.w`/`set.zw`/`set.ow` 的 RD/RB 变体与 `set.w` RF；`wpN` wyde 选择、`immu16` 无符号 16 位分片、其余 48 位清 0/置 1/保持；`rd0`/`rb0` 目的静态 ILLI；`set.w rf0` 按 FCSR 写掩码，`wp1`/`wp3` 完全写无效）。新增共享头 `exec/common.hh`（`Fault` 增 `NotB2`、`Bank`/`Target`/`RegAccess`/`fieldValue`），`b1.hh` 改为派生 `RegAccess`、`b1.cc` 改用 `fieldValue`（等价重构，B1 2102 PASS/0 FAIL 不变）；`inst.cc` 增加 batch 2 分派（共用 `Gem5B1Context`），`SConscript` 加入 `exec/b2.cc`，`inst.hh` 头注释更新为 B0+B1/B2。组件内断言 `exec/b2_test.cc` 由新增 `tools/gem5/check_b2.py` 编译运行（8/8、wp0–wp3×立即数分片、48 位清置保持、ILLI/单写、rf0 掩码、rule/spec_cite 对照），不改 `tests/**`、解码表与 B3–B7。
+  - 执行者：engineer
+
+- **2026-11-02 GEM5-008t**
+  - 摘要：**B3 64 位运算执行核心（42 条）**。新增纯 C++ 执行核 `src/arch/dadao/exec/b3.hh` / `b3.cc`（42 个 id 显式分派，覆盖 rrrr 128 位 `add/sub/mul` 与 `clmul.o`、`add.si`/`aip.si`/`cmp.ui/si` 立即数、`ctpop/ctlz/cttz`、逻辑 `and/or/xor/xnor`、`shl/rol/shr.u/shr.s` 的 `orrr`+`orri`、`ext.u/s` 的 `orrr`+`orri`、`rev.o`、RB `add/sub` 的 `bbd`/`dbb` 与 `cmp.uo-dbb`、`cmp.uo/so`、`div/rem` 的 `.uo`/`.so`）。实现源快照读写顺序、`dst_dual_same`/`dst_rd0`/`dst_rb0`/`encode_onehot`/`ext hd>63` 静态 ILLI、`sub.uo` 进位/借位 0/1、`div/rem` 除零与 `INT_MIN÷−1` 定值、`rev.o` 逐块反转、RB 整 64 位写回（不截断 `[63:48]`）。`common.hh` 的 `Fault` 追加 `NotB3`（`b1_test`/`b2_test` 的 `faultName()` 补编译连带 case，B1/B2 语义不变）；`inst.cc` 增加 batch 3 分派（`NotB3`/`Malign`/`Memory` ⇒ panic），`SConscript` 加入 `exec/b3.cc`，`inst.hh` 头注释更新。新增组件内断言 `exec/b3_test.cc` 与 `tools/gem5/check_b3.py`（42/42、non-B3 222/222、规则计数 7/31/4/1、正例/ILLI/立即数/onehot/rotation/除余/RB），不改 `tests/**`、`spec/**`、`contracts/**`、解码表与 B4–B7。
+  - 执行者：engineer
+
+- **2026-11-02 GEM5-009t**
+  - 摘要：**B4 窄位宽执行核心（63 条：32/16/8 位 + rev.t/w/b）**。新增纯 C++ 执行核 `src/arch/dadao/exec/b4.hh` / `b4.cc`（63 个 id 显式分派，按 `entry->id` 而非助记符：`shl/rol/shr` 各 orrr+orri、`add/sub/mul/div/rem/cmp` 跨 32/16/8 位同名）；源先按宽度截断再运算、结果写满 64 位（`u` 零扩展 / `s` 符号扩展，`cmp` 的 −1 为 64 位全 1），除零与 `INT_MIN÷−1` 定值，`orrr` 移位量取 `rdhd` 低位（mod W）而 `orri` 的 `immu6 ≥ W` ⇒ ILLI（`encode_sbz`），`rev.t/w/b` 全块按 one-hot `k` 反转单元（`k ≥ S` ⇒ ILLI，`encode_onehot`），静态 ILLI 先于任何寄存器读。`common.hh` 的 `Fault` 追加 `NotB4`（B1/B2/B3 test 的 `faultName()` 补编译连带 case）；`inst.cc` 增加 batch 4 分派（`NotB4`/`Malign`/`Memory` ⇒ panic），`SConscript` 加入 `exec/b4.cc`，`inst.hh` 头注释更新。新增组件内断言 `exec/b4_test.cc` 与 `tools/gem5/check_b4.py`（63/63、non-B4 201/201、规则计数 63/12/3、截断/扩展/除余定值/移位 mod/rev 各 k/ILLI），不改 `tests/**`、`spec/**`、`contracts/**`、解码表与 B5–B7。
+  - 执行者：engineer
+
+- **2026-11-02 GEM5-010t**
+  - 摘要：**B5 块搬移/条件赋值/控制流与 RAS 执行核心（28 条）**。新增纯 C++ 执行核 `src/arch/dadao/exec/b5.hh` / `b5.cc`（28 个 id 按 `entry->id` 显式分派：8 条 RD/RB/RA/RF 块搬移、5 条 `cs.*`、10 条条件跳转、2 条 `jump`、2 条 `call`、`ret`）。块搬移校验 `immu6=0`/区间越界/目的 `rd0`/`rb0`/同组重叠，64 位二进制传输，`rd2rf` 目的 `rf0` 按 FCSR 写掩码、`rf2rd` 源 `rf0` 读完整 64 位；条件赋值先读全部源再单次写目的（`cs.eq/ne` 目的为 `rdhc`）；控制流按 64 位全宽计算并写回 rb0（48 位截断交地址空间），`ret rd0,0` 合法、`ret rd0,imm!=0` ILLI；RegRAS/MemRAS 实现 C1/C2/C3a/C3b 与 D1/D2/D3/D4a/D4b（`RACNT`/`MRPTR`、递归折叠、MemRAS 大端换出/读回、`RASOF`/`RASUF`、精确异常）。`common.hh` 的 `Fault` 追加 `NotB5`/`RasOverflow`/`RasUnderflow`（B1–B4 test 的 `faultName()` 补编译连带 case）；`inst.cc` 增加 batch 5 分派与 `Gem5B1Context::branchTo()`，`SConscript` 加入 `exec/b5.cc`，`inst.hh` 头注释更新。新增组件内断言 `exec/b5_test.cc` 与 `tools/gem5/check_b5.py`（28/28、non-B5 236/236、规则计数 9/2/1/8/8/2、块搬移/条件边界/64 位地址/RAS 全流程/精确异常），不改 `tests/**`、`spec/**`、`contracts/**`、解码表与 B6–B7。
+  - 执行者：engineer
+
+- **2026-11-02 GEM5-011t**
+  - 摘要：**B6 系统/原子/屏障执行核心（30 条）**。新增纯 C++ 执行核 `src/arch/dadao/exec/b6.hh` / `b6.cc`（30 个 id 按 `entry->id` 显式分派：`swym`、`trap`/`escape`/`cfx2rd`/`cfx2rc`、`fence`、`lr`/`sc` 各 12 条）。`swym` 为 no-op + `swymHint`；cfx 5 条实现 `cfxha` 保留 ⇒ ILLI、`escape` SBZ 与字节偏移 0/4、CFXREG/CFXESC 运行期故障且零写、`cfx2rd` 目的 `rd0` 丢弃写；`fence` 分解 `hb/pred/succ` 并把掩码交给 `ordering()`（cfx0=all cfx、pred=succ=0 no-op）；`lr` 大端零扩展 + 单槽保留（精确地址+宽度）、`sc` 精确匹配条件写并置 `rdHB=0/1`、无论成败清保留、`lr hb!=rd0`/`sc rdHB=rd0` ⇒ ILLI、非 `.b` 未对齐 ⇒ MALIGN 且精确（不消费保留、不写 rdHB）。`common.hh` 的 `Fault` 追加 `NotB6`/`CfxReg`/`CfxEsc`（B1–B5 test 的 `faultName()` 补编译连带 case）；`inst.cc` 增加 batch 6 分派、`Gem5B1Context` 改继承 `B6Context` 并实现 10 个钩子（保留标记存每线程 `DadaoISA::ISA`；`ACQUIRE`/`RELEASE` 请求标志；cfx/SEE 未建模 ⇒ 显式故障/panic）；`isa.hh`/`isa.cc` 增保留标记三态与 `clear()` 复位；`SConscript` 加入 `exec/b6.cc`。新增组件内断言 `exec/b6_test.cc` 与 `tools/gem5/check_b6.py`（30/30、non-B6 234/234、`rule_refs` 5/14/12、fence 4096×2 掩码、lr/sc 全 12 条宽度×序、保留覆盖/消费、CFXREG/CFXESC、精确异常）。SPEC-182t F1 契约收口后机械重生成 B0 解码物（12 条 lr 的 legality/rules 数据，编码 0 变化）。不改 `tests/**`、`spec/**`、`contracts/**`、`Makefile`、`manifests/**` 与 B7。
+  - 执行者：engineer

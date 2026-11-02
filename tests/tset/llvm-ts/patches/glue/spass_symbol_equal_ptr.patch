@@ -1,0 +1,43 @@
+--- a/cnf.c
++++ b/cnf.c
+@@ -45,6 +45,7 @@
+ 
+ /* $RCSfile$ */
+ 
++#include <stdint.h>
+ #include "cnf.h"
+ #include "rules-inf.h"
+ #include "rules-red.h"
+@@ -2747,6 +2748,23 @@
+ }
+ 
+ 
++static BOOL cnf_SymbolEqualPointer(POINTER A, POINTER B)
++/********************************************************
++  INPUT:   Two symbol values passed through the POINTER-typed
++           list comparator interface.
++  RETURNS: TRUE iff both denote the same SPASS symbol.
++  NOTE:    The original code cast symbol_Equal (BOOL(int,int)) to
++           BOOL(*)(POINTER,POINTER), which is undefined behaviour and
++           breaks on ABIs that pass integers and pointers in different
++           register banks.  This wrapper has the comparator's real
++           prototype and converts the two POINTER values back to the
++           SYMBOL integers they carry, then calls the original function.
++*********************************************************/
++{
++  return symbol_Equal((SYMBOL)(intptr_t) A, (SYMBOL)(intptr_t) B);
++}
++
++
+ static LIST cnf_FreeVariablesBut(TERM Term, LIST Symbols)
+ /********************************************************
+   INPUT:   A term and a list of symbols
+@@ -2758,7 +2776,7 @@
+   follist = fol_FreeVariables(Term);
+   for (Scan = follist; !list_Empty(Scan); Scan = list_Cdr(Scan))
+     if (list_Member(Symbols, (POINTER)term_TopSymbol(list_Car(Scan)),
+-		    (BOOL (*)(POINTER,POINTER))symbol_Equal))
++		    cnf_SymbolEqualPointer))
+       list_Rplaca(Scan,NULL);
+   follist = list_PointerDeleteElement(follist,NULL);
+     

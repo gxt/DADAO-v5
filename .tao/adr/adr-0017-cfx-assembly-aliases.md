@@ -31,7 +31,7 @@
 - **D7（文档）**：**文档示例优先别名形**（人读友好，且与既有 `DADAO-11/22/23` 一致）。
 - **D8（生成）**：别名表**由 spec 寄存器表机械生成**（与 `docs/assembly-list.md` 同族的生成器），**禁止手工维护** ✗。
 - **D9（落点，2026-10-02 用户裁定）**：别名表作为**独立生成附录** **`docs/spec/cfx-aliases.md`**（由 spec 寄存器表机械生成；纳入漂移门控）。
-- **D10（数组寄存器单下标，2026-10-02 用户裁定）**：数组 cfx 寄存器支持**单下标** **`cfx_<cfxname>_<regname>[N]`** ⇔ `(cfxha, cg, rc = rc_base + N)`，其中 `N` **落在**别名表中该寄存器的**名称列范围 `[lo..hi]`**（如 `0..63`、`0..7`）内，`rc_base` 为该行 **`rc` 列的下界**；别名表以 **`cfx_<…>[lo..hi]`** 记整数组，**单下标是其具体化**。汇编器/检测器**接受**该形（不视为违规）。
+- **D10（数组寄存器单下标，2026-10-02 用户裁定；2026-11-01 修订）**：数组 cfx 寄存器支持**单下标** **`cfx_<cfxname>_<regname>[N]`** ⇔ `(cfxha, cg, rc = rc_base + N*stride)`。`N` 为 `[0, count)` 的整数；`count`/`stride` 由别名表该数组行给出，`stride` 缺省 1（连续数组），cg7 `space_*` 为 `count=16`、`stride=4`、`rc_base=0/1/2/3`。别名表以 **`array <name-base> ...`** 记整数组，单下标是其具体化；旧 `format=1` 的 `[lo..hi]` 行按 `stride=1` 兼容。汇编器/检测器**接受**该形（不视为违规），`N` 越界按 count 报错。
 
 ### 示例（别名映射，源自 spec 表）
 
@@ -72,3 +72,4 @@
 ## 修订
 
 - 2026-10-03 文档分层改造：D9 落点迁至 `.tao/contracts/contract-cfx-aliases.md`；汇编书写约定正文并入 `spec/Toolchain-01-汇编语言.md`。决策不变，正文不改（依 adr-authoring 规则）。
+- 2026-11-01 用户裁定「ADR0017：修订D10」，D10 就地修订为 `rc = rc_base + N*stride`（`N ∈ [0,count)`、`stride` 由别名表给出，`format=1` 按 stride=1 兼容）；D1–D9 不变。同步 `spec/Toolchain-01 §13.7` 与 `.tao/contracts/contract-asm.md §13.7`。

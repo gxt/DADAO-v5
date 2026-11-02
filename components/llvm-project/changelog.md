@@ -520,3 +520,25 @@
 - **2026-10-26 LLVM-135t**
   - 摘要：**cfx 别名改为运行时表（汇编器 + MCInstPrinter 共用同一份数据；改名/改号不重建 LLVM）**：删除编译期 `AsmParser/DADAOCfxAlias.inc`（其补丁随之移除），新增 `MCTargetDesc/DADAOCfxAliasTable.{h,cpp}`（编入 `LLVMDADAODesc`；`DADAOAsmParser` 增 `DADAODesc` 链接依赖）：表 = `share/dadao/cfx-aliases.txt`，查找顺序 `--dadao-cfx-alias=`（`-mllvm -dadao-cfx-alias=` 同一 `cl::opt`）→ `DADAO_CFX_ALIAS_FILE` → `<exe>/../share/dadao/`；汇编器名字→编码（缺表而用名字 ⇒ 硬报错），printer 编码→名字（数组 `cfx_ptw_ptbr[N]`、标量 `cfx_umon`；reserved/未知 ⇒ 裸 `cfx<HA>, cgN, rcN`，不报错）。生成器改产 `contracts/cfx-aliases.txt`（13 标量 + 894 寄存器，`--check` 漂移门控）；`make install-cfx-aliases` 只拷贝（构建树 + 安装根），`install-host` 收尾断言两份副本逐字节 == 源表。同修 `cfx_time` 回归（`cfx_time_freq/value`、`cfx_hart_timer_cmp/ctrl`），lit `cfx2-trap-escape.s` 恢复名字形式并新增 `cfx-alias-runtime.s`（默认表/改名表/缺表三态）。
   - 执行者：engineer
+
+- **2026-10-28 TESTCASES-084t**
+  - 摘要：**补丁注释清理（无功能改动，`series` 98 不变）**：`DADAOSubtarget.{h,cpp}` 与 `DADAOISelLowering.cpp` 中指向测试路径（含已删的旧路径）的注释改为语义说明（「freestanding `mem*` runtime linked by the test harness」/「the CodeGen atomics/fence lit test」），不再交叉引用测试目录；导出内容仅注释行变化。
+  - 执行者：engineer
+
+- **2026-10-29 INTEG-041t**
+  - 摘要：**`fence` 改 `ciii`（`opc 0x79`）**（`ADR-0044 D1`–`D8`）：`DADAOInstrInfo.td` 的 `fence` 由 `DADAOOiii`（`op 0x47`/`ha 0x20`）改为 `DADAOCiii`（`op 0x79`，`cfxha` + `immu18`）；`hb = immu18[17:12]` 为 SBZ，`hc/hd = pred/succ` 六位（`cr/cw/ci/co/mr/mw`）。汇编器常量改为 `PRED_CR..PRED_MW`/`SUCC_CR..SUCC_MW`，`fence` 立即数合法性改查第 3 操作数（`hb != 0` ⇒ 保留编码硬报错），旧 `fence 0` 因操作数形态不符被拒。ISel 选 `fence` 时补 `cfxha=0`；`ATOMIC_FENCE` lowering 改用系统内存 `mr/mw`（acquire `0x430`、release `0xC20`、全屏障 `0xFFF`）。**真值**：`check-instrinfo` 0 errors（M9 34/34）；`llvm-mc`：`fence cfx0, 0` = `79 00 00 00`、`fence cfx63, 0xfff` = `79 fc 0f ff`、`fence 0` rc=1、`fence cfx0, 0x1000` rc=1。补丁 **7 份改**（`series` 98、`check-patch-tree` 205）。
+  - 执行者：engineer
+
+- **2026-10-30 INTEG-045t**
+  - 摘要：**注释同步（无功能改动，`series` 98 不变）**：`DADAOInstrFormats.td` 的格式类说明删去已撤销的 `crii`（cfx 块传输格式；`cfxld`/`cfxst` 已从 ISA 删除），只余 `crrr`/`ciii` 两种带 `cfxha` 的格式；导出内容仅注释行变化（`check-patch-tree` 205 OK、`check-index-blobs` OK）。
+  - 执行者：engineer
+
+- **2026-11-01 LLVM-141t**
+  - 摘要：**cfx 别名表 `format=2` + stride 数组（cg7 `space_*[i]` 可汇编）**：① 运行时表新增 `array <name-base> <cfxha> <cg> <rc-base> <count> <stride> [canonical]`，`rc = rc-base + N*stride`；`format=1` 仍原样可读，`array` 仅在 `format=2` 合法（否则整表拒绝）；② `RegAlias` 增 `Stride`，`covers`/`getCfxRegName` 按 stride 判断与反算下标（`(rc-rcBase)/stride`），`lookupCfxRegAlias` 输出 `RcStride`，`DADAOAsmParser` 按 `RcBase + Sub*RcStride` 落 rc；③ 生成器对 `parse_register_tables` 的 stride 条目直接产 `array`（cg7 12 cfx × 4 字段 = 48 行，count=16 stride=4），连续数组仍为 `reg`；头行 `regs=` 取契约展开别名数（实测 1428，非行数）。真值（离线）：表 `48 array / 660 reg / 12 scalar`、无 `space_*` 字面下标；`validate_cfx_vectors.py` 新增 6 条 `@enc` 全 PASS；`make check-cfx-alias-table`/`check-cfx-aliases` rc=0；构建树增量链接的 `llvm-mc`/`llvm-objdump` 下 MC lit **79/79** 绿（含 `cfx2-space-stride{,-err}.s`）。`make install-host` 已完成（安装根重建；源表/构建树/安装根 sha256 一致），`check-cfx-alias-install` 6 checks PASS。
+  - 执行者：engineer
+
+## M11
+
+- **2026-11-02 LLVM-142t**
+  - 摘要：**scaleB C1（第三源 `rf`→`rd`）+ `sc` 目的 `rd0` 汇编期硬报错**（`SPEC-181t` F5.2/F8.2）：① `DADAOInstrInfoFP.td` 的 `ftsclb`/`fosclb` 第三操作数改 `GPRD:$rd`（同 `orrr` 编码、`op/ha` 不变）；旧 `rf` 写法由匹配器拒绝（`invalid operand`，rc=1），反汇编按编码回读为 `rdN`（`44 54 41 88` → `ftsclb rf4, rf6, rd8`）；② `DADAOCodeGen.td` 的 `DADAOScalb` 第二操作数改 `i64`，`Pat` 直接接 RD；`LowerFLDEXP` 只做 i32→i64 符号扩展，不再 `SINT_TO_FP`（`ldexp` 产出 `ext.so rd4, rd16, 31; fosclb rf8, rf16, rd4`，无 `io2fo/it2ft`）；③ `DADAOAsmParser` 对 `sc.*` 的 `rdHB == rd0` 在 `MatchInstructionImpl` 前报 `Error`（非 warning），编码/反汇编路径不变。真值：`make install-host` rc=0；`check-instrinfo`/`check-scope` rc=0；`check-isa-coverage` rc=2（矩阵与 `tests/unit/llvm/lit/MC/DADAO-gen/gen-orrr.s` 仍为旧 `rf` 口径，测试资产不在本任务范围）；`check-lit` rc=2（仅 `fp-encoding.s`、`fp-ldexp.ll` 两例仍断言旧语义/旧语法），其余 159/161 绿。补丁 5 份改，`series` 98 不变。
+  - 执行者：engineer

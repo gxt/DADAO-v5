@@ -1,8 +1,8 @@
 # FP 独立 oracle：实现与边界
 
-> **状态**：实现说明；当前代码位于 `components/golden/fp_ref.py`，解释器接入位于 `components/golden/dadao_interp_v5.py`。
-> **范围**：描述目前实现的 binary32/binary64 指令语义、独立性与未裁定边界。
-> **铁律**：FP 测试期望值**不得**由 LLVM / QEMU 生成或校准，**必须独立派生自 `spec/`**（同 `tests/vectors/README.md` 的独立 oracle 原则）。
+> **状态**：设计文档（`SPEC-087t` 交付物 10）。
+> **范围**：**只出方案，不写实现、不产任何期望值**。
+> **铁律**：FP 测试期望值**不得**由 LLVM / QEMU 生成或校准，**必须独立派生自 `spec/`**（同 `tests/inst/README.md` 的独立 oracle 原则）。
 
 此文档描述当前 oracle 的计算方法与适用边界；指令逐条操作过程见 `components/golden/INSTRUCTION_REFERENCE.md`。期望值只依据仓库 SimRISC 规范及浮点合约，不使用 LLVM/QEMU 生成或校准。
 

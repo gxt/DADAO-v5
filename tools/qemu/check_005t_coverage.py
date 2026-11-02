@@ -16,12 +16,12 @@ import yaml
 
 # Map vector file names to paths
 VECTOR_FILES = {
-    "reg-arith.yaml": "tests/vectors/isa/reg-arith.yaml",
-    "reg-shift-extend.yaml": "tests/vectors/isa/reg-shift-extend.yaml",
-    "reg-logic.yaml": "tests/vectors/isa/reg-logic.yaml",
-    "reg-imm-block.yaml": "tests/vectors/isa/reg-imm-block.yaml",
-    "reg-compare.yaml": "tests/vectors/isa/reg-compare.yaml",
-    "reg-cond-assign.yaml": "tests/vectors/isa/reg-cond-assign.yaml",
+    "reg-arith.yaml": "tests/inst/base/reg-arith.yaml",
+    "reg-shift-extend.yaml": "tests/inst/base/reg-shift-extend.yaml",
+    "reg-logic.yaml": "tests/inst/base/reg-logic.yaml",
+    "reg-imm-block.yaml": "tests/inst/base/reg-imm-block.yaml",
+    "reg-compare.yaml": "tests/inst/base/reg-compare.yaml",
+    "reg-cond-assign.yaml": "tests/inst/base/reg-cond-assign.yaml",
 }
 
 # Instructions that should remain ILLI (not in 005t scope)
