@@ -12,10 +12,10 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-091t | 已验证 | 2026-11-03 00:01 | Machine-v5 Tiny/Node 测试资产迁移、minimal_crt0 BSS、dadao-tiny/node、picolibc A、m5 CFXPERM；静态门控全绿，真实执行留 QEMU |
 | QEMU-081t | 待开始 | 2026-11-02 22:09（登记） | QEMU user 页大小 12→16（64 KiB）：修 `TARGET_PAGE_BITS` 缺陷 + 4 KiB 假设审计 + 用户态/系统态回归 |
 | GEM5-014t | 待开始 | 2026-11-02 21:41（登记） | 首个 G1 SE 平台骨架：SEWorkload/Process/MMU 边界、AtomicSimpleCPU、静态 ELF 入口/初始栈、最小 exit；与 QEMU user 对齐 |
 | SPEC-183t | 待开始 | 2026-11-02 21:35（登记） | Machine-v5 Tiny/Node 规范收口：两 profile 几何 + DADAO-12 BootROM ≥64 KiB + ADR-0004/0039/0040/0043 + 只读锁 |
-| TESTCASES-091t | 已验证 | 2026-11-03 00:01 | Machine-v5 Tiny/Node 测试资产迁移、minimal_crt0 BSS、dadao-tiny/node、picolibc A、m5 CFXPERM；静态门控全绿，真实执行留 QEMU |
 | GEM5-013t | 已验证 | 2026-11-02 21:03 | B7 后全 ISA 收敛门控：264 条统一 dispatcher 可达 + NotBx 边界矩阵 + 矩阵旧注刷新 |
 | GEM5-012t | 已验证 | 2026-11-02 19:15 | B7 FP 执行核心 55 条：12 族 IEEE754（fma/rem/sclb/f2i/compare/minmax/roundint）+ 独立 oracle |
 | GEM5-011t | 已验证 | 2026-11-02 16:55 | B6 系统/原子/屏障 30 条：swym/trap/escape/cfx2rd/cfx2rc/fence/lr/sc + 单槽保留标记与 CFXREG/CFXESC |
