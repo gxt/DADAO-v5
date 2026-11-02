@@ -12,7 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| GEM5-013t | 待验收 | 2026-11-02 19:22（登记） | B7 后全 ISA 收敛门控：264 条统一 dispatcher 可达 + NotBx 边界矩阵 + 矩阵旧注刷新 |
+| GEM5-013t | 已验证 | 2026-11-02 21:03 | B7 后全 ISA 收敛门控：264 条统一 dispatcher 可达 + NotBx 边界矩阵 + 矩阵旧注刷新 |
 | GEM5-012t | 已验证 | 2026-11-02 19:15 | B7 FP 执行核心 55 条：12 族 IEEE754（fma/rem/sclb/f2i/compare/minmax/roundint）+ 独立 oracle |
 | GEM5-011t | 已验证 | 2026-11-02 16:55 | B6 系统/原子/屏障 30 条：swym/trap/escape/cfx2rd/cfx2rc/fence/lr/sc + 单槽保留标记与 CFXREG/CFXESC |
 | SPEC-182t | 已验证 | 2026-11-02 15:58 | F1 收口：12 条 lr.* 的 hb(rdHB)≠rd0 ⇒ ILLI 写入契约/生成器；编码不变 |
