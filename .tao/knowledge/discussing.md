@@ -88,6 +88,7 @@
 - **2026-11-02 裁定**：B7 收口后先做 `GEM5-013t` 全 264 条执行收敛，再进 G1 SE；SE 分阶段，静态 ELF/静态 tset 先行，动态链接、TLS、线程/futex 后补；M11 最终仍按 ADR-0048 D4 覆盖完整 tset，不降级。ADR-0048 原文待恢复或重新裁定。
 - **2026-11-02 授权**：用户同意 ADR-0048 按现有讨论重建；同意 G1 任务链（`GEM5-013t` → SE 骨架/ELF/syscall/VMA-TLS/静态 tset → 动态/线程后补 → G2 FS）；不支持 syscall 默认失败报告、不静默忽略；该链内不再逐任务确认，只有新语义/跨模块/破坏性/push 才停。
 - **2026-11-02 双链并行授权**：同时授权两条独立任务链推进——**G1 SE**（`GEM5-014t` SE 骨架 → ELF/args/stack → syscall/VMA → TLS → 静态 tset）与 **FS Machine-v5**（`SPEC-183t` → `TESTCASES-091t` → `QEMU-079t` Tiny / `QEMU-080t` Node → gem5 FS 映射）。SE 为优先线，FS 线可并行；共享文件仍串行；两条链均不需逐任务确认，停止点按 AGENTS。
+- **2026-11-02 G1 SE 验收基线**：full tset 以 QEMU user 的 pass/fail/skip 集合为基线；gem5 SE 可以多通过，不能少通过；差异逐例解释。静态 SE 先做 `ET_EXEC`，不提前做 `ET_DYN`/static PIE。
 - **2026-11-02 测试机 RAM 映射裁定**：分 `Machine-v5-Tiny` / `Machine-v5-Node` 两个 FS profile（Node = 完整系统节点，当前单核，可扩展多核/NUMA）。Tiny：BootROM 64 KiB `0xffff_ffff_0000`–`0xffff_ffff_ffff`，SRAM 8 MiB `0xffff_ff00_0000`–`0xffff_ff7f_ffff`，ELF/rodata 由 loader 装入 SRAM，不塞 BootROM；覆盖 Embench 与完整 picolibc 测试集。Node：BootROM 4 MiB `0xffff_ffc0_0000`–`0xffff_ffff_ffff`，RAM 2 GiB 物理 `[0, 2 GiB)`；hmon 直接驱动 cfx_pmem、建立一级页表（2 GiB = 4 个 512 MiB 超页，`SPF=0xFF`）并在 hypv 下跑测试；`power → hmon → smon` 路径保留给内核/smon 测试。DADAO-12 只要求 BootROM ≥64 KiB，Machine-v5 规定实际大小；不做双映射，直接迁移并逐项修问题；不新立 ADR，修改 ADR-0004/0039/0040/0043 与 `spec/Machine-v5-测试机运行环境.md`。
 
 ## Linux（M12 或后续，暂缓）
