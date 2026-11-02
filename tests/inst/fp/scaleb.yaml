@@ -1,0 +1,350 @@
+# scaleB C1 —— ftsclb/fosclb 第三源为 rdHD（rd 组有符号 64 位整数指数）。
+#
+# 期望值独立派生自 spec/SimRISC-07 §2.1（附录 A 速查行 `ftsclb rfHB, rfHC, rdHD`）
+# 与 contracts/opcodes.yaml（ftsclb_orrr_rf / fosclb_orrr_rf，第三字段 rdhd [5:0]）：
+#   结果 = rfHC × 2^rdHD（IEEE 754 scaleB；舍入由 rf0 控制；rdHD=rd0 ⇒ 指数 0）。
+# 数值期望由 IEEE 754 独立计算（见 .work/evidence/TESTCASES-090t-qemu/oracle_scaleb.py），
+# **不**从 QEMU 运行结果反推。
+#
+# 为什么用 `sequence:`：rf 组无 `input_state` 通道（schema 只允许 rd/rb/ra/memory），
+# 故用 ld.o rf / st.o rf 原始编码把浮点源装进 rf、把结果写回内存再用 ld.o rd 回读。
+# 各 semantic/boundary 用例都刻意让 rf3 = 10.0 作**诱饵**：若第三源仍按旧的 rfHD
+# 读取（即 1.5 × 2^10 = 1536.0），结果与期望不同 ⇒ 用例 FAIL。
+
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x44544043'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: ftsclb_orrr_rf
+  input_state: {}
+  mnemonic: ftsclb
+  notes: 'ftsclb rf4, rf1, rd3：rfHB=4/rfHC=1/rdHD=3；旧写法同编码，编码不变'
+  spec_cite: 'SimRISC-07: ftsclb'
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x44744043'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: fosclb_orrr_rf
+  input_state: {}
+  mnemonic: fosclb
+  notes: 'fosclb rf4, rf1, rd3：rfHB=4/rfHC=1/rdHD=3；旧写法同编码，编码不变'
+  spec_cite: 'SimRISC-07: fosclb'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44544043'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000040C00000'
+  format: orrr
+  id: ftsclb_orrr_rf
+  input_state:
+    memory:
+    - address: '0xFC0000100000'
+      value: '0x000000003FC00000'
+    - address: '0xFC0000100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '0xFC0000100000'
+    rd:
+      rd3: '0x0000000000000002'
+  mnemonic: ftsclb
+  notes: 'ftsclb rf4, rf1, rd3 = 1.5f × 2^2 = 6.0f；rf3=10.0f 为诱饵（旧 rfHD 路径应得 1536.0f）'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44544043'
+  - '0x27101010'
+  - '0x20141010'
+  spec_cite: 'SimRISC-07: ftsclb'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44744043'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x4018000000000000'
+  format: orrr
+  id: fosclb_orrr_rf
+  input_state:
+    memory:
+    - address: '0xFC0000100000'
+      value: '0x3FF8000000000000'
+    - address: '0xFC0000100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '0xFC0000100000'
+    rd:
+      rd3: '0x0000000000000002'
+  mnemonic: fosclb
+  notes: 'fosclb rf4, rf1, rd3 = 1.5 × 2^2 = 6.0（f64）；rf3=10.0 为诱饵'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44744043'
+  - '0x27101010'
+  - '0x20141010'
+  spec_cite: 'SimRISC-07: fosclb'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x44544043'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000003F400000'
+  format: orrr
+  id: ftsclb_orrr_rf
+  input_state:
+    memory:
+    - address: '0xFC0000100000'
+      value: '0x000000003FC00000'
+    - address: '0xFC0000100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '0xFC0000100000'
+    rd:
+      rd3: '0xFFFFFFFFFFFFFFFF'
+  mnemonic: ftsclb
+  notes: 'rdHD=-1（有符号 64 位）：1.5f × 2^-1 = 0.75f；rf3=10.0f 诱饵'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44544043'
+  - '0x27101010'
+  - '0x20141010'
+  spec_cite: 'SimRISC-07: ftsclb'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x44744043'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x3FE8000000000000'
+  format: orrr
+  id: fosclb_orrr_rf
+  input_state:
+    memory:
+    - address: '0xFC0000100000'
+      value: '0x3FF8000000000000'
+    - address: '0xFC0000100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '0xFC0000100000'
+    rd:
+      rd3: '0xFFFFFFFFFFFFFFFF'
+  mnemonic: fosclb
+  notes: 'rdHD=-1（有符号 64 位）：1.5 × 2^-1 = 0.75（f64）；rf3=10.0 诱饵'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44744043'
+  - '0x27101010'
+  - '0x20141010'
+  spec_cite: 'SimRISC-07: fosclb'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x44544043'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000007F800000'
+  format: orrr
+  id: ftsclb_orrr_rf
+  input_state:
+    memory:
+    - address: '0xFC0000100000'
+      value: '0x000000003F800000'
+    - address: '0xFC0000100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '0xFC0000100000'
+    rd:
+      rd3: '0x00000000000000C8'
+  mnemonic: ftsclb
+  notes: 'rdHD=200：1.0f × 2^200 溢出 ⇒ +Inf（IEEE 754 溢出）；rf3=10.0f 诱饵'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44544043'
+  - '0x27101010'
+  - '0x20141010'
+  spec_cite: 'SimRISC-07: ftsclb'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x44544043'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+  format: orrr
+  id: ftsclb_orrr_rf
+  input_state:
+    memory:
+    - address: '0xFC0000100000'
+      value: '0x000000003F800000'
+    - address: '0xFC0000100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '0xFC0000100000'
+    rd:
+      rd3: '0xFFFFFFFFFFFFFF38'
+  mnemonic: ftsclb
+  notes: 'rdHD=-200：1.0f × 2^-200 下溢 ⇒ +0（IEEE 754 下溢）；rf3=10.0f 诱饵'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44544043'
+  - '0x27101010'
+  - '0x20141010'
+  spec_cite: 'SimRISC-07: ftsclb'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x44744043'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x7FF0000000000000'
+  format: orrr
+  id: fosclb_orrr_rf
+  input_state:
+    memory:
+    - address: '0xFC0000100000'
+      value: '0x3FF0000000000000'
+    - address: '0xFC0000100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '0xFC0000100000'
+    rd:
+      rd3: '0x00000000000007D0'
+  mnemonic: fosclb
+  notes: 'rdHD=2000：1.0 × 2^2000 溢出 ⇒ +Inf（f64）；rf3=10.0 诱饵'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44744043'
+  - '0x27101010'
+  - '0x20141010'
+  spec_cite: 'SimRISC-07: fosclb'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x44744043'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+  format: orrr
+  id: fosclb_orrr_rf
+  input_state:
+    memory:
+    - address: '0xFC0000100000'
+      value: '0x3FF0000000000000'
+    - address: '0xFC0000100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '0xFC0000100000'
+    rd:
+      rd3: '0xFFFFFFFFFFFFF830'
+  mnemonic: fosclb
+  notes: 'rdHD=-2000：1.0 × 2^-2000 下溢 ⇒ +0（f64）；rf3=10.0 诱饵'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44744043'
+  - '0x27101010'
+  - '0x20141010'
+  spec_cite: 'SimRISC-07: fosclb'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x44544040'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000003FC00000'
+  format: orrr
+  id: ftsclb_orrr_rf
+  input_state:
+    memory:
+    - address: '0xFC0000100000'
+      value: '0x000000003FC00000'
+    - address: '0xFC0000100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '0xFC0000100000'
+    rd: {}
+  mnemonic: ftsclb
+  notes: 'rdHD=rd0 ⇒ 指数 0：1.5f × 2^0 = 1.5f；rf3=10.0f 诱饵（旧路径应得 1536.0f）'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44544040'
+  - '0x27101010'
+  - '0x20141010'
+  spec_cite: 'SimRISC-07: ftsclb'
+  status: active
+- class: overlap
+  deferred_reason: null
+  encoding:
+    word: '0x44541043'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000040C00000'
+  format: orrr
+  id: ftsclb_orrr_rf
+  input_state:
+    memory:
+    - address: '0xFC0000100000'
+      value: '0x000000003FC00000'
+    - address: '0xFC0000100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '0xFC0000100000'
+    rd:
+      rd3: '0x0000000000000002'
+  mnemonic: ftsclb
+  notes: '重叠：dst rf1 = src rf1；先捕获源再写目的 ⇒ 1.5f × 2^2 = 6.0f'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44541043'
+  - '0x27041010'
+  - '0x20141010'
+  spec_cite: 'SimRISC-07: ftsclb'
+  status: active

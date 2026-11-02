@@ -8,7 +8,8 @@
     scope = m9，故不在 `base/`）与 `tests/inst/atomics/*.yaml`
     （`QEMU-067t`：`fence`/`lr`/`sc` 已实现原子语义，非 M1 身份）与
     `tests/inst/clmul/*.yaml`（`QEMU-068t`：`clmul.o` 语义已实现，scope
-    翻转归 `SPEC-155t`，故暂不在 `base/`）。
+    翻转归 `SPEC-155t`，故暂不在 `base/`）与 `tests/inst/fp/*.yaml`
+    （`TESTCASES-090t`：`ftsclb`/`fosclb` 为 scope fp，非 M1 身份）。
   - **不在**本门控：`tests/inst/rev/`、`tests/inst/bitcnt/`（M8 scope，
     2 册；见 `tests/inst/inventory.md`「非 M1 向量」）。
 
@@ -59,7 +60,9 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "tools", "testcases", "inst"))
 import run_qemu_test as harness  # noqa: E402
 
 # 载体目录（相对 --vectors）。`base` = 全量现场派生；其余为非 base 载体。
-CARRIER_DIRS = ("base", "rol", "atomics", "clmul")
+# `fp`（TESTCASES-090t）：`ftsclb`/`fosclb` 属 scope fp，validator 的 M1 身份
+# 约束使其不能进 `base/`，故单列载体目录（同 rol/atomics/clmul 口径）。
+CARRIER_DIRS = ("base", "rol", "atomics", "clmul", "fp")
 
 # ── 历史常量（仅用于「增量展示」，**不作**通过判据）──────────────────────
 # `ISS-235` 登记时的 L3 现场 total（当时的 3 册载体集）。本轮打印与它的差值；

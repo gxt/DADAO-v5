@@ -1,6 +1,8 @@
 @@ RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %s -o %t
 @@ RUN: %llvm_objdump -d --triple=dadao-unknown-elf %t | %FileCheck %s --check-prefix=OBJ
 @@ RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=asm %s | %FileCheck %s --check-prefix=ASM
+@@ RUN: echo 'ftsclb rf4, rf6, rf8' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=OLD-RF
+@@ RUN: echo 'fosclb rf4, rf6, rf8' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=OLD-RF
 
 @@ FP (scope: fp) encoding round-trip: all 58 instructions.
 @@ Bytes are hand-computed from contracts/opcodes.yaml:
@@ -116,11 +118,11 @@ ftdiv rf4, rf6, rf8
 @@ ASM: ftrem rf4, rf6, rf8
 ftrem rf4, rf6, rf8
 
-@@ ftsclb rf4, rf6, rf8
+@@ ftsclb rf4, rf6, rd8
 @@ op=0x44 ha=0x15(opx)  word = 0x44544188  bytes = 44 54 41 88
-@@ OBJ: {{[0-9a-f]+:}} 44 54 41 88{{.*}}ftsclb{{.*}}rf4, rf6, rf8
-@@ ASM: ftsclb rf4, rf6, rf8
-ftsclb rf4, rf6, rf8
+@@ OBJ: {{[0-9a-f]+:}} 44 54 41 88{{.*}}ftsclb{{.*}}rf4, rf6, rd8
+@@ ASM: ftsclb rf4, rf6, rd8
+ftsclb rf4, rf6, rd8
 
 @@ ftsgnn rf4, rf6, rf8
 @@ op=0x44 ha=0x16(opx)  word = 0x44584188  bytes = 44 58 41 88
@@ -164,11 +166,11 @@ fodiv rf4, rf6, rf8
 @@ ASM: forem rf4, rf6, rf8
 forem rf4, rf6, rf8
 
-@@ fosclb rf4, rf6, rf8
+@@ fosclb rf4, rf6, rd8
 @@ op=0x44 ha=0x1D(opx)  word = 0x44744188  bytes = 44 74 41 88
-@@ OBJ: {{[0-9a-f]+:}} 44 74 41 88{{.*}}fosclb{{.*}}rf4, rf6, rf8
-@@ ASM: fosclb rf4, rf6, rf8
-fosclb rf4, rf6, rf8
+@@ OBJ: {{[0-9a-f]+:}} 44 74 41 88{{.*}}fosclb{{.*}}rf4, rf6, rd8
+@@ ASM: fosclb rf4, rf6, rd8
+fosclb rf4, rf6, rd8
 
 @@ fosgnn rf4, rf6, rf8
 @@ op=0x44 ha=0x1E(opx)  word = 0x44784188  bytes = 44 78 41 88
@@ -355,6 +357,11 @@ rf2rd {rd14:rd16}, {rf18:rf20}
 @@ OBJ: {{[0-9a-f]+:}} 44 f8 42 03{{.*}}ut2fo{{.*}}{rf4:rf6}, {rd8:rd10}
 @@ ASM: ut2fo {rf4:rf6}, {rd8:rd10}
 ut2fo {rf4:rf6}, {rd8:rd10}
+
+@@ ftsclb/fosclb: third operand is rdHD (signed 64-bit integer in an RD
+@@ register, SimRISC-07 §S2D1).  The old rfHD spelling is rejected (negative
+@@ cases checked by the OLD-RF RUN lines at the top).
+@@ OLD-RF: error: invalid operand for instruction
 
 @@ uo2fo {rf10:rf12}, {rd14:rd16}
 @@ op=0x44 ha=0x3F(opx)  word = 0x44FCA383  bytes = 44 fc a3 83

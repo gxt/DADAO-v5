@@ -1,0 +1,257 @@
+# sc rdHB=rd0 —— 12 条 sc 的成功/失败结果寄存器为 rd0 ⇒ 静态 ILLI。
+#
+# 期望值独立派生自 spec/SimRISC-12 §LR-SC（"`sc` 的 `rdHB` 是成功/失败结果（目的
+# 寄存器），`rdHB = rd0` ⇒ **ILLI** 异常"）与 contracts/opcodes.yaml 的
+# `dst_rd0` rule_refs（sc.{o,t,w,b}.{nn,nr,ar} 共 12 条）。编码沿用既有 orrr 位模式，
+# 本任务不改编码；ILLI 是**静态**判定，故不写内存、不产生成功/失败状态。
+#
+# `rdHC=rd0` 是**合法源**（读出 0），单列正例证明它不被误判成 ILLI。
+
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x47400144'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: sc.o.nn_orrr_rd
+  input_state:
+    rb:
+      rb4: '0xFC0000003000'
+  mnemonic: sc.o.nn
+  notes: 'sc.o.nn rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI（结果不可丢弃）'
+  spec_cite: 'SimRISC-12: sc.o.nn'
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x47440144'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: sc.t.nn_orrr_rd
+  input_state:
+    rb:
+      rb4: '0xFC0000003000'
+  mnemonic: sc.t.nn
+  notes: 'sc.t.nn rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
+  spec_cite: 'SimRISC-12: sc.t.nn'
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x47480144'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: sc.w.nn_orrr_rd
+  input_state:
+    rb:
+      rb4: '0xFC0000003000'
+  mnemonic: sc.w.nn
+  notes: 'sc.w.nn rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
+  spec_cite: 'SimRISC-12: sc.w.nn'
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x474C0144'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: sc.b.nn_orrr_rd
+  input_state:
+    rb:
+      rb4: '0xFC0000003000'
+  mnemonic: sc.b.nn
+  notes: 'sc.b.nn rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
+  spec_cite: 'SimRISC-12: sc.b.nn'
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x47500144'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: sc.o.nr_orrr_rd
+  input_state:
+    rb:
+      rb4: '0xFC0000003000'
+  mnemonic: sc.o.nr
+  notes: 'sc.o.nr rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
+  spec_cite: 'SimRISC-12: sc.o.nr'
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x47540144'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: sc.t.nr_orrr_rd
+  input_state:
+    rb:
+      rb4: '0xFC0000003000'
+  mnemonic: sc.t.nr
+  notes: 'sc.t.nr rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
+  spec_cite: 'SimRISC-12: sc.t.nr'
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x47580144'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: sc.w.nr_orrr_rd
+  input_state:
+    rb:
+      rb4: '0xFC0000003000'
+  mnemonic: sc.w.nr
+  notes: 'sc.w.nr rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
+  spec_cite: 'SimRISC-12: sc.w.nr'
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x475C0144'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: sc.b.nr_orrr_rd
+  input_state:
+    rb:
+      rb4: '0xFC0000003000'
+  mnemonic: sc.b.nr
+  notes: 'sc.b.nr rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
+  spec_cite: 'SimRISC-12: sc.b.nr'
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x47600144'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: sc.o.ar_orrr_rd
+  input_state:
+    rb:
+      rb4: '0xFC0000003000'
+  mnemonic: sc.o.ar
+  notes: 'sc.o.ar rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
+  spec_cite: 'SimRISC-12: sc.o.ar'
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x47640144'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: sc.t.ar_orrr_rd
+  input_state:
+    rb:
+      rb4: '0xFC0000003000'
+  mnemonic: sc.t.ar
+  notes: 'sc.t.ar rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
+  spec_cite: 'SimRISC-12: sc.t.ar'
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x47680144'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: sc.w.ar_orrr_rd
+  input_state:
+    rb:
+      rb4: '0xFC0000003000'
+  mnemonic: sc.w.ar
+  notes: 'sc.w.ar rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
+  spec_cite: 'SimRISC-12: sc.w.ar'
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x476C0144'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: sc.b.ar_orrr_rd
+  input_state:
+    rb:
+      rb4: '0xFC0000003000'
+  mnemonic: sc.b.ar
+  notes: 'sc.b.ar rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
+  spec_cite: 'SimRISC-12: sc.b.ar'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x47405004'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory:
+    - address: '0xFC0000003000'
+      value: '0x0000000000000000'
+    rd:
+      rd5: '0x0000000000000000'
+  format: orrr
+  id: sc.o.nn_orrr_rd
+  input_state:
+    memory:
+    - address: '0xFC0000003000'
+      value: '0x1122334455667788'
+    rb:
+      rb4: '0xFC0000003000'
+  mnemonic: sc.o.nn
+  notes: 'rdHC=rd0 合法：lr.o.nn 持保留后 sc.o.nn rd5, rd0, [rb4] 成功（rd5=0）并把 0 写入 [rb4]'
+  sequence:
+  - '0x47000144'
+  - '0x47405004'
+  spec_cite: 'SimRISC-12: sc.o.nn'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x47405184'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory:
+    - address: '0xFC0000003000'
+      value: '0x0123456789ABCDEF'
+    rd:
+      rd5: '0x0000000000000000'
+  format: orrr
+  id: sc.o.nn_orrr_rd
+  input_state:
+    memory:
+    - address: '0xFC0000003000'
+      value: '0x1122334455667788'
+    rb:
+      rb4: '0xFC0000003000'
+    rd:
+      rd6: '0x0123456789ABCDEF'
+  mnemonic: sc.o.nn
+  notes: '正常 rd 目的正例：lr.o.nn 持保留后 sc.o.nn rd5, rd6, [rb4] 成功（rd5=0）并写入 rd6 值'
+  sequence:
+  - '0x47000144'
+  - '0x47405184'
+  spec_cite: 'SimRISC-12: sc.o.nn'
+  status: active
