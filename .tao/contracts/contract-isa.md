@@ -869,6 +869,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 | `call rbha, rdhb, imms12` | rrii | `Addr = rbha + rdhb + (imms12 << 2)` | [SimRISC-06 §函数调用] |
 
 - 地址计算按 64 位全宽进行；结果写回 `rb0`，取低 48 位为下一条地址；rrii 格式的 `rbHA` 仅读（不修改）。[ADR-0012 D8.3]
+- **返回地址 = 当前 `call` 指令的地址 + 4**；相对地址（`iiii`）与绝对地址（`rrii`）两种形式一致，压入 `ra63[47:0]`，`[63:48]` 为递归计数。[SimRISC-06 §函数调用]
 - `ha` 为基址寄存器（rb），`hb` 为偏移地址（rd）；当 `ha` 为 `rb0` 时，`rdhb + (imms12 << 2)` 实际上也是相对地址跳转。[SimRISC-06 §函数调用]
 
 ### §8.5 函数返回
@@ -890,7 +891,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 #### §8.6.1 压栈流程（call 指令）
 
-压栈按 C1/C2/C3a/C3b 四种情形处理：[SimRISC-00 §压栈流程]
+压入的返回地址 = 当前 `call` 指令地址 + 4（相对/绝对两种形式一致）。压栈按 C1/C2/C3a/C3b 四种情形处理：[SimRISC-00 §压栈流程]
 
 - **C1** `RACNT == 0` → 压入新条目（递归计数 = 1、返回地址），`RACNT = 1`。
 - **C2** `RACNT > 0` 且 返回地址 == `ra63[47:0]` 且 `ra63[63:48] < 0xFFFF` → **递归折叠优先**：`ra63[63:48] += 1`，`RACNT` 不变。
@@ -1233,6 +1234,8 @@ OPC-MISC 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 `lr`/`sc` 原子指令（`<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`，共 24 条：`lr` 仅 `nn`/`an`/`ar`、`sc` 仅 `nn`/`nr`/`ar`；`ADR-0034`）已实现，语义见 `spec/SimRISC-12 §LR-SC指令`。
 
 - 编码位置：`OPC-MISC` 子表 ha = 010-xxx（lr）与 011-xxx（sc）。[SimRISC-00 §OPC-MISC 指令编码]
+- 合法性：`sc` 的 `rdHB` 为成功/失败结果（目的），`rdHB = rd0` ⇒ **ILLI**（`dst_rd0`）；`lr` 的 `rdHB` 固定为 rd0（编码约束，见 `encode_sbz`）。[SimRISC-12 §LR-SC指令]
+- 保留标记粒度 = **精确地址 + 访问宽度**（以 lr 的地址与 `.b`/`.w`/`.t`/`.o` 宽度为键）；另一 hart 对同一精确地址、相同访问宽度的 store 清除标记，不按 cache line 扩大，也不因不同地址或不同宽度的访问清除。[SimRISC-12 §LR-SC指令]
 
 ---
 

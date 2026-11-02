@@ -40,10 +40,9 @@
 ## §3 `convert_f2i`（浮点→整型）<a id="convert_f2i"></a>
 
 - 指令：`ft2it`/`ft2io`/`ft2ut`/`ft2uo`/`fo2it`/`fo2io`/`fo2ut`/`fo2uo`（orri：`rdHB` 目的、`rfHC` 源、`immu6` 连续个数 1–63）。[SimRISC-07 §格式转换指令]
-- 浮点→整数转换中 NaN/Inf/超出范围返回整型饱和值（最大/最小）并置 NV。[SimRISC-07 §格式转换指令]
+- 浮点→整数转换按 IEEE 754-2019：有限值结果 inexact（不能精确表示）⇒ 置 NX；NaN/Inf/超出目标整型范围 ⇒ 返回整型饱和值（最大/最小）并置 NV。[SimRISC-07 §格式转换指令]
 - `immu6 = 0` 或任一起始寄存器 + `immu6 > 64` → ILLI。[SimRISC-07 §格式转换指令]
 - 目的为 rd 组（非 rf），不受 rf0 目的约束；但受 `dst_rd0` 约束（目的 `rdHB` 为 `rd0` → ILLI）。[SimRISC-00 §浮点寄存器][SimRISC-00 §数据寄存器]
-- 精度损失（inexact）是否置 NX：spec 未明，本合约如实记录、不臆造（见 §16 开放点）。[SimRISC-07 §格式转换指令]
 
 ## §4 `convert_i2f`（整型→浮点）<a id="convert_i2f"></a>
 
@@ -54,10 +53,10 @@
 
 ## §5 `arith`（S2D1 双源单目的运算）<a id="arith"></a>
 
-- 指令：`ftadd`/`ftsub`/`ftmul`/`ftdiv`/`ftrem`/`ftsclb` 与 `foadd`/`fosub`/`fomul`/`fodiv`/`forem`/`fosclb`（orrr：`rfHB` 目的、`rfHC`/`rfHD` 源）。[SimRISC-07 §S2D1]
+- 指令：`ftadd`/`ftsub`/`ftmul`/`ftdiv`/`ftrem`/`ftsclb` 与 `foadd`/`fosub`/`fomul`/`fodiv`/`forem`/`fosclb`（orrr：`rfHB` 目的、`rfHC` 第一源；`ftrem`/`forem` 的第二源为 `rfHD`，`ftsclb`/`fosclb` 的第二源为 `rdHD`）。[SimRISC-07 §S2D1]
 - 硬件先读全部源操作数再写结果；源被目的覆盖前其值已捕获，行为确定。[SimRISC-07 §S2D1]
-- `ftrem`/`forem` 为 IEEE754 remainder（`rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数）；除数为零、Inf 或 NaN 行为遵循 IEEE754。[SimRISC-07 §S2D1]
-- `ftsclb`/`fosclb` 为 IEEE754 scaleB：计算 `rfHC × 2^rfHD`（rfHD 取整数值），舍入模式由 rf0 控制；NaN/Inf/溢出/下溢行为遵循 IEEE754。[SimRISC-07 §S2D1]
+- `ftrem`/`forem` 为 IEEE754 remainder：结果 = `rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数；`rfHC` 为 ±Inf、`rfHD` 为 ±0、任一源为 sNaN ⇒ NV + qNaN；`rfHD` 为 ±Inf（`rfHC` 有限）⇒ 返回 `rfHC`；qNaN 作输入 ⇒ 返回 qNaN（不置标志）；结果精确，不置 NX/OF/UF。[SimRISC-07 §S2D1]
+- `ftsclb`/`fosclb` 为 IEEE754 scaleB：计算 `rfHC × 2^rdHD`；`rdHD` 为 `rd` 组的**有符号 64 位整数指数**（非浮点寄存器），`rdHD = rd0` 表示指数 0；沿用原 `orrr` 编码、不新增 opcode，旧 `rf` 第三操作数写法失效；舍入模式由 rf0 控制，NaN/Inf/溢出/下溢行为遵循 IEEE754。[SimRISC-07 §S2D1]
 - 异常标志 NV/DZ/OF/UF/NX 按 IEEE754 设置。[SimRISC-07 §S2D1]
 - 目的 `rfHB` 为 `rf0` → ILLI。[SimRISC-00 §浮点寄存器]
 
@@ -141,9 +140,8 @@
 
 ## §16 开放点（spec 未明，如实记录、不臆造）<a id="open-points"></a>
 
-- `convert_f2i`（浮点→整数）精度损失是否置 NX：spec 仅说明「浮点→整数 NaN/Inf/超范围返回饱和值并置 NV」，未提 NX。[SimRISC-07 §格式转换指令]
 - `rootn(-0, 2)`：spec 明确**不做具体要求**。[SimRISC-07 §S1D1]
-- `ftrem`/`forem`、`ftsclb`/`fosclb` 的边界（除零/Inf/NaN）按 IEEE754，spec 未给逐位细则。[SimRISC-07 §S2D1]
+- `ftsclb`/`fosclb` 的边界（NaN/Inf/溢出/下溢）按 IEEE754，spec 未给逐位细则。[SimRISC-07 §S2D1]
 
 ## §17 oracle 独立派生原则
 

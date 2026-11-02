@@ -573,7 +573,8 @@ def build_main_table(records):
     records.append(rec("cfx2rc-crrr", "cfx2rc", "crrr", 0x7B,
                        f_crrr(), [CFX_RESERVED_EXPR], S00_QFC, scope="m1"))
     records.append(rec("escape-ciii", "escape", "ciii", 0x7E,
-                       f_ciii("imms18"), [CFX_RESERVED_EXPR], S00_QFC, scope="m1"))
+                       f_ciii("imms18"), ["imms18[17:1] == 0", CFX_RESERVED_EXPR],
+                       S00_QFC, scope="m1"))
     records.append(rec("trap-ciii", "trap", "ciii", 0x7F,
                        f_ciii("immu18"), [CFX_RESERVED_EXPR], S00_QFC, scope="m1"))
     # ADR-0044：fence 从 OPC-MISC 迁到主表 0111-1001（SimRISC-11）。编码字段
@@ -604,8 +605,11 @@ def build_misc_amo(records):
         for order, base_ha in order_ha.items():
             for i, width in enumerate(("o", "t", "w", "b")):
                 mnem = f"{prefix}.{width}.{order}"
+                # sc 的 rdHB 是成功/失败结果（目的），rdHB = rd0 ⇒ ILLI（dst_rd0）；
+                # lr 的 rdHB 固定为 rd0（编码约束，另由 SBZ 口径表达），无目的字段。
+                leg = ["rdhb != rd0"] if prefix == "sc" else []
                 records.append(rec(mnem, mnem, "orrr", op,
-                                   f_orrr("rdhb", "rdhc", "rbhd"), [],
+                                   f_orrr("rdhb", "rdhc", "rbhd"), leg,
                                    S12_LRSC, ha=base_ha + i, scope="m9"))
     # 用户 2026-10-22 裁定「ctpop/ctlz/cttz 从 OPC-octa 改为 OPC-MISC，opx 100-101/100-110/100-111」
     # ⇒ op 0x47、ha 0x25/0x26/0x27（原 0x40 / 0x1D/0x1E/0x1F）。三条**无位宽后缀**，
@@ -821,7 +825,10 @@ def build_misc_rf(records):
         (0x1C, "forem"), (0x1D, "fosclb"), (0x1E, "fosgnn"), (0x1F, "fosgnj"),
     ]
     for ha, mnem in orrr_entries:
-        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rfhb", "rfhc", "rfhd"),
+        # scaleB（ftsclb/fosclb）的第三操作数是 rd 组的有符号整数指数（rdHD），
+        # 复用 orrr 编码与 opc/ha，不新增 opcode/格式；rdHD = rd0 表示指数 0。
+        third = "rdhd" if mnem in ("ftsclb", "fosclb") else "rfhd"
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rfhb", "rfhc", third),
                            ["rfhb != rf0"], S00_MISCRF, ha=ha, scope="fp"))
     # 比较类：目的为 rd
     cmp_entries = [(0x20, "ftqcmp"), (0x21, "ftscmp"), (0x28, "foqcmp"), (0x29, "foscmp")]
@@ -893,6 +900,7 @@ EXPR_TO_RULE = OrderedDict([
     ("aligned(8)",                                "excp_malign"),
     # ── SBZ / 位域 ──
     ("immu18[17:12] == 0",                        "encode_sbz"),
+    ("imms18[17:1] == 0",                         "encode_sbz"),
     (CFX_RESERVED_EXPR,                           "encode_cfx_reserved"),
     ("immu18[11:10] == 0",                        "encode_sbz"),
     ("immu18[11:6] == 0",                         "encode_sbz"),

@@ -36,6 +36,8 @@ rules:
       例外：ret rd0, 0 允许（无需设置返回值）。
       st*/stm*（RD）指令中 rdha 字段是数据**源**，rd0 作为源读出 0 合法，不触发 ILLI（见 ADR-0015 D2/D3）。
       适用于 orrr（单目的 rdhb）、orri/rrii/riii/rwii（目的字段 rdha/rbha）。
+      LR-SC 中 `sc` 的记录：`rdhb` 为成功/失败结果（目的），`rdhb == rd0` ⇒ ILLI；
+      `lr` 的 `rdhb` 固定为 rd0（编码约束，见 encode_sbz），不是目的字段、不触发本规则。
       ra2rd 的目的字段 rdhb 为 rd0 时同样触发 ILLI 异常（目的不可为 rd0）；
       rd2ra 的目的为 RA 组字段，RA 组无 rd0 约束，不受此约束。
       scope: fp 中目的为 rd 组的 15 条同样适用（orri 目的字段 rdhb：
