@@ -606,8 +606,8 @@ def build_misc_amo(records):
             for i, width in enumerate(("o", "t", "w", "b")):
                 mnem = f"{prefix}.{width}.{order}"
                 # sc 的 rdHB 是成功/失败结果（目的），rdHB = rd0 ⇒ ILLI（dst_rd0）；
-                # lr 的 rdHB 固定为 rd0（编码约束，另由 SBZ 口径表达），无目的字段。
-                leg = ["rdhb != rd0"] if prefix == "sc" else []
+                # lr 的 rdHB 是 SBZ 固定零字段（数据目的为 rdhc），hb != rd0 ⇒ ILLI（encode_sbz）。
+                leg = ["rdhb != rd0"] if prefix == "sc" else ["rdhb == rd0"]
                 records.append(rec(mnem, mnem, "orrr", op,
                                    f_orrr("rdhb", "rdhc", "rbhd"), leg,
                                    S12_LRSC, ha=base_ha + i, scope="m9"))
@@ -899,6 +899,7 @@ EXPR_TO_RULE = OrderedDict([
     ("aligned(4)",                                "excp_malign"),
     ("aligned(8)",                                "excp_malign"),
     # ── SBZ / 位域 ──
+    ("rdhb == rd0",                               "encode_sbz"),
     ("immu18[17:12] == 0",                        "encode_sbz"),
     ("imms18[17:1] == 0",                         "encode_sbz"),
     (CFX_RESERVED_EXPR,                           "encode_cfx_reserved"),

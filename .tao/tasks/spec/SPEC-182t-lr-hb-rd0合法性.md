@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M11
 **依赖**：`SPEC-181t`（已验证，F1 以「需用户裁定」登记）、`GEM5-002t`（已验证，矩阵 12 条 lr 行 `exceptions` 已写 `hb != rd0 ⇒ ILLI`）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -71,16 +71,35 @@
 7. 完成区 ≤30 行；状态 `待验收`。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
+**测试结果**：通过 15/15（11 门控 + 2 契约/编码检查 + 2 注入自检）；`./.work/evidence/SPEC-182t/run.sh --inject` rc=0。
+**修改文件**：`contracts/opcodes.yaml`、`contracts/legality_rules.yaml`、`tools/spec/generate_opcodes.py`、`.tao/contracts/contract-isa.md`、`spec/SimRISC-12-其它指令.md`（仅附录 B 生成区 +1 行）、`manifests/spec-readonly.lock.toml`、本任务书、`.tao/knowledge/milestones.md`；证据 `.work/evidence/SPEC-182t/`。
 **验收结果**：
+- 12/12：lr 记录数 12（现场派生），全部 `legality == ["rdhb == rd0"]`、`rule_refs == ["encode_sbz"]`；`encode_sbz` active/ILLI/static；附录 B 行 id 数 12 且集合一致、标注（12 条）一致。
+- 编码未变：基线 `git show HEAD:contracts/opcodes.yaml` vs 当前，12 条 lr 的 `id/opc/ha/mask/value/fields` 0 diff（`check_encoding.py` PASS）。
+- 门控 rc=0：check-legality-invariants、check-isa-coverage、check-spec-readonly、check-instrinfo、validate-encoding、check-legality-drift、check-rule-refs、check-contracts-pending、check-contracts-dir、check-contract-relocs、check-milestones-fresh。
+- 注入：A 把 `lr.o.nn` 的 `rdhb == rd0` 改 `!=` ⇒ `check_contract` rc=1；B 删 SimRISC-12 附录 `encode_sbz` 行 ⇒ `check-legality-drift` rc=2（1 violation）；均 `cp` 备份 + md5 相等还原后回绿。
+- `git status --porcelain -uall` 仅列上述 8 个范围文件；SimRISC-12 `git diff -U0` 仅 +1 行 LEGALITY。
 **新发现/坑**：
-**遗留问题**：
+- 只读锁改 sha256 曾按哈希值锚点误改到 `SimRISC-04` 条目（两文件新旧哈希交错），已按 `path` 块上下文改回；改锁必须按 path 定位、改后跑 `check-spec-readonly`。
+- `make` 门控失败退出码可为 2，注入断言须判 non-zero 而非 `==1`。
+- 证据脚本读 `legality_rules.yaml` 须取顶层 `rules` 键（原地误当列表，已修）。
+- `.tao/knowledge/refs/GEM5-002t-semantic-matrix.tsv` 12 条 lr 的 `g1_note` 仍写「contracts 缺规则（F1）」。
+**遗留问题**：跨模块（不在本任务修）——① gem5 `GEM5-011t-B6` 的 `check_b6` 断言过期（encode_sbz 数 2→14、lr legality/rule_refs 非空、删缺口/未决提示）；② matrix tsv 12 行补注；③ LLVM/QEMU/tests 无需改（已实现/已覆盖）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填）
+- 逐行核对 `generate_opcodes.py`：lr 分支仅改 `leg`；`EXPR_TO_RULE` 新增 `rdhb == rd0 → encode_sbz` 与既有 `rdhb != rd0 → dst_rd0` 无键冲突；重生成仅 12 条 lr 记录 + rule_refs 计数头变化。
+- 核对 `legality_rules.yaml`：`encode_sbz` 删「M1 范围外」过期句；`dst_rd0` 明确 `role: dst` 为位域默认分类、不表示写回（与 `ADR-0034 D5` 一致）。
+- 核对 `contract-isa.md §14.2`：保留 `[SimRISC-12 §LR-SC指令]` 引用，补 `rdHC` 数据目的。
+- 核对 lock：diff 仅 SimRISC-12 块 sha256 + 授权注记；`check-spec-readonly` 21 册 OK。
+- 核对证据脚本：两处注入均可 FAIL、md5 还原、禁 git restore。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 只读锁 sha256 误命中 SimRISC-04 条目 | ✅已修 | 按 `path` 块上下文恢复 SimRISC-04、重设 SimRISC-12 | `git diff manifests/...` 仅 SimRISC-12 块；check-spec-readonly rc=0 |
+| check_contract.py 把 rules 顶层当列表 | ✅已修 | 取 `["rules"]` | run.sh rc=0 |
+| 注入断言用 `==1`，make 实际 rc=2 | ✅已修 | 新增 `report_nonzero` | `--inject` 中 drift rc=2 判 PASS |
 
 #### 第 1 轮 reviewer 验收
 （待填）

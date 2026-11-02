@@ -1234,7 +1234,7 @@ OPC-MISC 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 `lr`/`sc` 原子指令（`<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`，共 24 条：`lr` 仅 `nn`/`an`/`ar`、`sc` 仅 `nn`/`nr`/`ar`；`ADR-0034`）已实现，语义见 `spec/SimRISC-12 §LR-SC指令`。
 
 - 编码位置：`OPC-MISC` 子表 ha = 010-xxx（lr）与 011-xxx（sc）。[SimRISC-00 §OPC-MISC 指令编码]
-- 合法性：`sc` 的 `rdHB` 为成功/失败结果（目的），`rdHB = rd0` ⇒ **ILLI**（`dst_rd0`）；`lr` 的 `rdHB` 固定为 rd0（编码约束，见 `encode_sbz`）。[SimRISC-12 §LR-SC指令]
+- 合法性：`sc` 的 `rdHB` 为成功/失败结果（目的），`rdHB = rd0` ⇒ **ILLI**（`dst_rd0`）；`lr` 的 `hb(rdHB)` 为 SBZ 固定零字段，`hb != rd0` ⇒ **ILLI**（`encode_sbz`，12 条），数据目的为 `rdHC`（`rdhb` 的 `role: dst` 只是 `orrr` 位域默认分类、不表示写回）。[SimRISC-12 §LR-SC指令]
 - 保留标记粒度 = **精确地址 + 访问宽度**（以 lr 的地址与 `.b`/`.w`/`.t`/`.o` 宽度为键）；另一 hart 对同一精确地址、相同访问宽度的 store 清除标记，不按 cache line 扩大，也不因不同地址或不同宽度的访问清除。[SimRISC-12 §LR-SC指令]
 
 ---

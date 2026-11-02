@@ -386,7 +386,10 @@ group = "simrisc-00..12"
 # 2026-10-24（SPEC-167t，同授权）：册名改「其它指令」（由「待定」）；迁入原子（fence/lr/sc）、空转（swym）、位扫描与位计数（ctlz/cttz/ctpop）；SRAM 块传输迁出至 `SimRISC-11`；sha256 同笔重算。
 # 2026-11-01（SPEC-181t，授权同 SimRISC-00 条目）：§LR-SC 补 `sc` 的 `rdHB = rd0` ⇒ ILLI，
 #   保留标记粒度明确为「精确地址 + 访问宽度」；sha256 同笔重算。
-sha256 = "8cb30f60a768a79697e50dd92766b2a2ff09cf718beb211ff796483cc60fc215"
+# 2026-11-02（SPEC-182t，授权原话摘要：「批准 SPEC-182t 修改 spec/SimRISC-12 的 LEGALITY
+#   生成区，并更新 manifests/spec-readonly.lock.toml sha256」）：附录 B 合法性生成区由
+#   `gen_legality_list --apply` 重生成（新增 12 条 lr 的 `encode_sbz` 行）；sha256 同笔重算。
+sha256 = "a1224b9290545f61d9ddf6ef315d1ded9f5cf5299420f466c4c06de058951d77"
 
 [[spec]]
 path = "spec/DADAO-11-AEE-应用程序运行环境.md"

@@ -8,7 +8,7 @@
 # scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份
 # scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b + ADR-0035 GF(2) 无进位乘 clmul.o + fence/lr/sc 原子），非 M1 身份
 # 共 264 条：M1 156 条 + scope fp 66 条 + scope excluded 0 条 + scope m3 1 条 + scope m8 7 条 + scope m9 34 条
-# 有 rule_refs 的指令：231 条
+# 有 rule_refs 的指令：243 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -2441,10 +2441,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.o.nn'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.t.nn_orrr_rd
   mnemonic: lr.t.nn
   format: orrr
@@ -2465,10 +2467,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.t.nn'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.w.nn_orrr_rd
   mnemonic: lr.w.nn
   format: orrr
@@ -2489,10 +2493,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.w.nn'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.b.nn_orrr_rd
   mnemonic: lr.b.nn
   format: orrr
@@ -2513,10 +2519,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.b.nn'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.o.an_orrr_rd
   mnemonic: lr.o.an
   format: orrr
@@ -2537,10 +2545,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.o.an'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.t.an_orrr_rd
   mnemonic: lr.t.an
   format: orrr
@@ -2561,10 +2571,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.t.an'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.w.an_orrr_rd
   mnemonic: lr.w.an
   format: orrr
@@ -2585,10 +2597,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.w.an'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.b.an_orrr_rd
   mnemonic: lr.b.an
   format: orrr
@@ -2609,10 +2623,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.b.an'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.o.ar_orrr_rd
   mnemonic: lr.o.ar
   format: orrr
@@ -2633,10 +2649,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.o.ar'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.t.ar_orrr_rd
   mnemonic: lr.t.ar
   format: orrr
@@ -2657,10 +2675,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.t.ar'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.w.ar_orrr_rd
   mnemonic: lr.w.ar
   format: orrr
@@ -2681,10 +2701,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.w.ar'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.b.ar_orrr_rd
   mnemonic: lr.b.ar
   format: orrr
@@ -2705,10 +2727,12 @@
     bits: '[5:0]'
     role: src
     bank: rb
-  legality: []
+  legality:
+  - rdhb == rd0
   spec_cite: 'SimRISC-12: lr.b.ar'
   scope: m9
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: sc.o.nn_orrr_rd
   mnemonic: sc.o.nn
   format: orrr

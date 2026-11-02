@@ -158,4 +158,5 @@ ctpop   rdHB, rdHC, immu6       @@ 1 的个数（immu6=63 → 64 位）
 ## 附录 B：合法性检查
 
 * `dst_rd0`：目的 rd0 → ILLI — `ctlz_orri_rd`, `ctpop_orri_rd`, `cttz_orri_rd`, `sc.b.ar_orrr_rd`, `sc.b.nn_orrr_rd`, `sc.b.nr_orrr_rd`, `sc.o.ar_orrr_rd`, `sc.o.nn_orrr_rd`, `sc.o.nr_orrr_rd`, `sc.t.ar_orrr_rd`, `sc.t.nn_orrr_rd`, `sc.t.nr_orrr_rd`, `sc.w.ar_orrr_rd`, `sc.w.nn_orrr_rd`, `sc.w.nr_orrr_rd`（15 条）
+* `encode_sbz`：SBZ 非零 → ILLI — `lr.b.an_orrr_rd`, `lr.b.ar_orrr_rd`, `lr.b.nn_orrr_rd`, `lr.o.an_orrr_rd`, `lr.o.ar_orrr_rd`, `lr.o.nn_orrr_rd`, `lr.t.an_orrr_rd`, `lr.t.ar_orrr_rd`, `lr.t.nn_orrr_rd`, `lr.w.an_orrr_rd`, `lr.w.ar_orrr_rd`, `lr.w.nn_orrr_rd`（12 条）
 <!-- LEGALITY_END -->
