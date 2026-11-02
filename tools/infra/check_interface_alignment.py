@@ -318,49 +318,70 @@ def check_adr_alignment():
 
     # --- RAM/ROM geometry = profile table (TESTCASES-091t) ---
     # Expected values come from tests/shared/machine-profiles.yaml.  QEMU's
-    # macros are compared only when the profile's qemu_* field is filled; a
-    # null field prints DEFERRED (QEMU-079) instead of silently passing.
-    prof = machine_profile.load("node")
-    qemu_fields = (
-        ("RAM_BASE", "qemu_ram_base", r'DADAO_RAM_BASE\s+(0x[0-9a-fA-F]+)', 16),
-        ("RAM_SIZE", "qemu_ram_size",
-         r'DADAO_RAM_SIZE\s+\((\d+\s*\*\s*\d+\s*\*\s*\d+)\)', "product"),
-        ("ROM_BASE", "qemu_bootrom_base", r'DADAO_ROM_BASE\s+(0x[0-9a-fA-F]+)', 16),
-        ("ROM_SIZE", "qemu_bootrom_size",
-         r'DADAO_ROM_SIZE\s+\((\d+\s*\*\s*\d+)\)', "product"),
-        ("RESET_PC", "qemu_reset_pc", r'DADAO_RESET_PC\s+(\S+)', "reset"),
-    )
-    for item, field, pattern, kind in qemu_fields:
-        expected = prof.get(field)
-        if expected is None:
-            record(cat, f"{item} (profile {prof.name})", "MANUAL",
-                   "DEFERRED (QEMU-079): profile qemu_* field is null")
+    # macros are compared only when the profile's qemu_* fields are filled; a
+    # profile whose fields are all null prints DEFERRED instead of silently
+    # passing.  Macro prefix per profile: `tiny` uses its dedicated
+    # DADAO_TINY_* macros (canonical DADAO_* stay Node/legacy, QEMU-080t);
+    # `node` uses the canonical names once QEMU-080t fills its fields.
+    macro_prefix = {"tiny": "DADAO_TINY_", "node": "DADAO_"}
+    for prof_name, prof in sorted(machine_profile.all_profiles().items()):
+        fields = ("qemu_ram_base", "qemu_ram_size", "qemu_bootrom_base",
+                  "qemu_bootrom_size", "qemu_reset_pc")
+        if all(prof.get(f) is None for f in fields):
+            record(cat, f"geometry (profile {prof_name})", "MANUAL",
+                   f"DEFERRED (QEMU-080t): profile {prof_name} qemu_* fields are null")
             continue
-        m = re.search(pattern, patch_content)
-        if not m:
-            record(cat, item, "FAIL", "QEMU patch 未找到对应宏")
+        prefix = macro_prefix.get(prof_name)
+        if prefix is None:
+            record(cat, f"geometry (profile {prof_name})", "FAIL",
+                   f"no QEMU macro prefix registered for profile {prof_name}")
             continue
-        if kind == "product":
-            actual = 1
-            for f in m.group(1).split("*"):
-                actual *= int(f.strip())
-        elif kind == "reset":
-            actual = m.group(1).strip()
-            if actual == "DADAO_BIOS_LOAD_BASE":
-                actual = prof.reset_pc
+        qemu_fields = (
+            (f"{prefix}RAM_BASE", "qemu_ram_base",
+             rf'{prefix}RAM_BASE\s+(0x[0-9a-fA-F]+)', 16),
+            (f"{prefix}RAM_SIZE", "qemu_ram_size",
+             rf'{prefix}RAM_SIZE\s+\((\d+\s*\*\s*\d+\s*\*\s*\d+)\)', "product"),
+            (f"{prefix}ROM_BASE", "qemu_bootrom_base",
+             rf'{prefix}ROM_BASE\s+(0x[0-9a-fA-F]+)', 16),
+            (f"{prefix}ROM_SIZE", "qemu_bootrom_size",
+             rf'{prefix}ROM_SIZE\s+\((\d+\s*\*\s*\d+)\)', "product"),
+            (f"{prefix}RESET_PC", "qemu_reset_pc",
+             rf'{prefix}RESET_PC\s+(\S+)', "reset"),
+        )
+        for item, field, pattern, kind in qemu_fields:
+            expected = prof.get(field)
+            if expected is None:
+                record(cat, f"{item} (profile {prof_name})", "MANUAL",
+                       f"DEFERRED: profile {prof_name} {field} is null")
+                continue
+            m = re.search(pattern, patch_content)
+            if not m:
+                record(cat, item, "FAIL", "QEMU patch 未找到对应宏")
+                continue
+            if kind == "product":
+                actual = 1
+                for f in m.group(1).split("*"):
+                    actual *= int(f.strip())
+            elif kind == "reset":
+                actual = m.group(1).strip()
+                if actual in ("DADAO_BIOS_LOAD_BASE",
+                              "DADAO_TINY_BIOS_LOAD_BASE"):
+                    actual = prof.reset_pc
+                else:
+                    try:
+                        actual = int(re.sub(r"ULL$", "", actual), 0)
+                    except ValueError:
+                        record(cat, item, "FAIL",
+                               f"无法解析 RESET_PC={actual!r}")
+                        continue
             else:
-                try:
-                    actual = int(actual, 0)
-                except ValueError:
-                    record(cat, item, "FAIL", f"无法解析 RESET_PC={actual!r}")
-                    continue
-        else:
-            actual = int(m.group(1), 16)
-        if actual == expected:
-            record(cat, item, "PASS", f"QEMU = profile {expected:#x}")
-        else:
-            record(cat, item, "FAIL",
-                   f"QEMU {actual!r} != profile {expected:#x}")
+                actual = int(m.group(1), 16)
+            if actual == expected:
+                record(cat, item, "PASS",
+                       f"QEMU = profile {expected:#x}")
+            else:
+                record(cat, item, "FAIL",
+                       f"QEMU {actual!r} != profile {expected:#x}")
 
     # --- legacy RAM segment removed (C1 step2) ---
     # Source: ADR-0020 D15 step2.  The legacy 0xffff_0000_0000 RAM segment
@@ -375,18 +396,23 @@ def check_adr_alignment():
 
     # --- RAM hw registration in hw/dadao (init_ram + add_subregion) ---
     # Source: ADR-0004 R3 / ADR-0020 D15: machine maps the single RAM.
-    if re.search(r'memory_region_init_ram\(\s*ram\b[^;]*DADAO_RAM_SIZE',
+    # QEMU-079t makes the geometry profile-driven: the size/base may come from
+    # the runtime profile (p->ram_size / prof->ram_size, p->ram_base) instead
+    # of the canonical macros, so both forms are accepted.
+    if re.search(r'memory_region_init_ram\(\s*ram\b[^;]*?'
+                 r'(DADAO_RAM_SIZE|(?:p|prof)->ram_size)',
                  patch_content, re.DOTALL):
         record(cat, "RAM hw registration (init_ram)", "PASS",
-               "hw/dadao: memory_region_init_ram(ram, ..., DADAO_RAM_SIZE)")
+               "hw/dadao: memory_region_init_ram(ram, ..., RAM size)")
     else:
         record(cat, "RAM hw registration (init_ram)", "FAIL",
                "QEMU patch 未找到 RAM 的 memory_region_init_ram 注册")
 
     if re.search(r'memory_region_add_subregion\(\s*system_memory\s*,\s*'
-                 r'DADAO_RAM_BASE\s*,\s*ram\s*\)', patch_content):
+                 r'(DADAO_RAM_BASE|(?:p|prof)->ram_base)\s*,\s*ram\s*\)',
+                 patch_content):
         record(cat, "RAM hw registration (add_subregion)", "PASS",
-               "hw/dadao: add_subregion(system_memory, DADAO_RAM_BASE, ram)")
+               "hw/dadao: add_subregion(system_memory, RAM base, ram)")
     else:
         record(cat, "RAM hw registration (add_subregion)", "FAIL",
                "QEMU patch 未找到 RAM 的 memory_region_add_subregion 注册")

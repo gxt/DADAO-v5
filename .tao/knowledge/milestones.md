@@ -12,8 +12,8 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| QEMU-079t | 已验证 | 2026-11-03 05:00 | Machine-v5-Tiny 系统机：64 KiB BootROM + 8 MiB SRAM、无 cfx/PTW/user、raw/ELF 与 semihosting |
 | QEMU-081t | 已验证 | 2026-11-03 04:20 | QEMU user 页大小 12→16（64 KiB）：缺陷修正 + 4 KiB 假设审计 + 用户态/系统态回归 |
-| QEMU-079t | 待开始 | 2026-11-03 02:25（登记） | Machine-v5-Tiny 系统机：64 KiB BootROM + 8 MiB SRAM、无 cfx/PTW/user、raw/ELF 装载与 semihosting |
 | QEMU-080t | 待开始 | 2026-11-03 02:25（登记） | Machine-v5-Node 系统机：4 MiB BootROM + 2 GiB RAM、hmon/PTW/hypv 启动链与完整 inst/arch/embench |
 | SPEC-183t | 已验证 | 2026-11-03 00:04 | Machine-v5 Tiny/Node 规范收口：两 profile 几何 + DADAO-12 BootROM ≥64 KiB + ADR-0004/0039/0040/0043 修订 + 只读锁 |
 | TESTCASES-091t | 已验证 | 2026-11-03 00:01 | Machine-v5 Tiny/Node 测试资产迁移、minimal_crt0 BSS、dadao-tiny/node、picolibc A、m5 CFXPERM；静态门控全绿，真实执行留 QEMU |

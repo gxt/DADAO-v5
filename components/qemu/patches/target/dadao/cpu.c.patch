@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..d9bb315
+index 0000000..3c7f456
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,573 @@
+@@ -0,0 +1,647 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -34,6 +34,63 @@ index 0000000..d9bb315
 +#include "hw/core/qdev-properties.h"
 +#include "accel/tcg/cpu-ops.h"
 +#include "accel/tcg/cpu-loop.h"
++
++/* ===================================================================
++ * Machine profiles (spec/Machine-v5 §1; QEMU-079t)
++ *
++ * `legacy` is exactly the pre-QEMU-079 single-geometry machine: 16 MiB RAM at
++ * 0xFC00_0000_0000, 256 KiB BootROM, PA-0 alias, hmon/smon/pmem SRAM, full cfx
++ * register file + PTW.  It is the default until QEMU-080t removes it, so the
++ * existing arch gates keep their baseline.
++ *
++ * `tiny` is Machine-v5-Tiny: 64 KiB BootROM + 8 MiB SRAM, no cfx (not even
++ * cfx_power), no PTW, no monitor/pmem SRAM, no PA alias, semihosting only.
++ * =================================================================== */
++const DadaoProfile dadao_profile_legacy = {
++    .name = "legacy",
++    .ram_base = DADAO_RAM_BASE,
++    .ram_size = DADAO_RAM_SIZE,
++    .rom_base = DADAO_ROM_BASE,
++    .rom_size = DADAO_ROM_SIZE,
++    .reset_pc = DADAO_RESET_PC,
++    .bios_load_base = DADAO_BIOS_LOAD_BASE,
++    .bios_window_size = DADAO_BIOS_WINDOW_SIZE,
++    .kernel_base = DADAO_RAM_BASE,
++    .kernel_entry = DADAO_RAM_BASE,
++    .kernel_reserved = 0,
++    .ram_alias = true,
++    .mon_sram = true,
++    .pmem_sram = true,
++    .cfx_enabled = true,
++    .ptw_supported = true,
++    .rom_elf_segments = false,
++    .unmapped_is_cfxmem = false,
++    .user_mode = true,
++    .semihosting = true,
++};
++
++const DadaoProfile dadao_profile_tiny = {
++    .name = "tiny",
++    .ram_base = DADAO_TINY_RAM_BASE,
++    .ram_size = DADAO_TINY_RAM_SIZE,
++    .rom_base = DADAO_TINY_ROM_BASE,
++    .rom_size = DADAO_TINY_ROM_SIZE,
++    .reset_pc = DADAO_TINY_RESET_PC,
++    .bios_load_base = DADAO_TINY_ROM_BASE,      /* the whole ROM is the window */
++    .bios_window_size = DADAO_TINY_ROM_SIZE,
++    .kernel_base = DADAO_TINY_KERNEL_BASE,
++    .kernel_entry = DADAO_TINY_KERNEL_ENTRY,
++    .kernel_reserved = DADAO_TINY_KERNEL_RESERVED,
++    .ram_alias = false,
++    .mon_sram = false,
++    .pmem_sram = false,
++    .cfx_enabled = false,
++    .ptw_supported = false,
++    .rom_elf_segments = true,
++    .unmapped_is_cfxmem = true,
++    .user_mode = false,
++    .semihosting = true,
++};
 +
 +static void dadao_cpu_set_pc(CPUState *cs, vaddr value)
 +{
@@ -154,9 +211,20 @@ index 0000000..d9bb315
 +
 +    /* rd0 hardwired to 0 (already zero from memset) */
 +
-+    /* rb0 = reset vector = cfx_power_hypv_excp_vector = boot ROM base */
-+    env->rb[0] = DADAO_RESET_PC;
-+    env->pc = DADAO_RESET_PC;
++    /* rb0 = reset vector = cfx_power_hypv_excp_vector = boot ROM base
++     * (profile-dependent: both profiles reset to 0xffff_ffff_0000, but the
++     * value now comes from the selected machine profile, QEMU-079t). */
++    {
++        const DadaoProfile *prof = DADAO_PROFILE(env);
++
++        env->rb[0] = prof->reset_pc;
++        env->pc = prof->reset_pc;
++        /* Tiny has no cfx4: ptw_enable is not writable and must stay 0 even
++         * if a (unreachable) register path ever wrote it. */
++        if (!prof->ptw_supported) {
++            env->ptw_enable = 0;
++        }
++    }
 +
 +    /* rf0 = FCSR reset value (per ADR-0004 D2, derived from SimRISC-00 §浮点状态寄存器)
 +     * Bits [63:51] = fo format Quiet NaN = 0xFFF (read-only)
@@ -444,8 +512,11 @@ index 0000000..d9bb315
 +static bool dadao_cpu_translate_for_debug(CPUState *cs, vaddr addr,
 +                                          TranslateForDebugResult *result)
 +{
-+    if ((addr >= DADAO_RAM_BASE && addr < DADAO_RAM_BASE + DADAO_RAM_SIZE) ||
-+        (addr >= DADAO_ROM_BASE && addr < DADAO_ROM_BASE + DADAO_ROM_SIZE)) {
++    CPUDADAOState *env = cpu_env(cs);
++    const DadaoProfile *prof = DADAO_PROFILE(env);
++
++    if ((addr >= prof->ram_base && addr < prof->ram_base + prof->ram_size) ||
++        (addr >= prof->rom_base && addr < prof->rom_base + prof->rom_size)) {
 +        result->physaddr = addr;
 +        result->attrs = MEMTXATTRS_UNSPECIFIED;
 +        result->attrs.debug = 1;
@@ -453,8 +524,10 @@ index 0000000..d9bb315
 +        return true;
 +    }
 +    /* hmon / smon SRAM live outside the 56-bit PA space, but semihosting runs
-+     * in every boot stage and reads its argument block through this hook. */
-+    if (addr >= DADAO_HMON_CFX_BASE &&
++     * in every boot stage and reads its argument block through this hook.
++     * Tiny has no monitor SRAM. */
++    if (prof->mon_sram &&
++        addr >= DADAO_HMON_CFX_BASE &&
 +        addr < DADAO_HMON_CFX_BASE + DADAO_MON_SRAM_SIZE) {
 +        result->physaddr = DADAO_HMON_SRAM_HOST_BASE +
 +                           (addr - DADAO_HMON_CFX_BASE);
@@ -463,7 +536,8 @@ index 0000000..d9bb315
 +        result->lg_page_size = TARGET_PAGE_BITS;
 +        return true;
 +    }
-+    if (addr >= DADAO_SMON_CFX_BASE &&
++    if (prof->mon_sram &&
++        addr >= DADAO_SMON_CFX_BASE &&
 +        addr < DADAO_SMON_CFX_BASE + DADAO_MON_SRAM_SIZE) {
 +        result->physaddr = DADAO_SMON_SRAM_HOST_BASE +
 +                           (addr - DADAO_SMON_CFX_BASE);

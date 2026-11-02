@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..7fd9f1b
+index 0000000..46e713e
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,487 @@
+@@ -0,0 +1,559 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -71,12 +71,20 @@ index 0000000..7fd9f1b
 +     * current-mode monitor as CFXPERM with env->cfx_perm_info.
 +     */
 +    DADAO_EXCP_CFXPERM = 12,
++    /*
++     * System mode: a cfx-register access on a machine that implements no cfx
++     * at all (Machine-v5-Tiny, spec/Machine-v5 §3).  Tiny has no exception
++     * vectors, so this is a direct machine fault mapped to exit code 0x84
++     * (ADR-0004 D5.8), never a cfx_raise() into a vector.
++     */
++    DADAO_EXCP_CFXREG = 13,
 +};
 +
 +/* DADAO exit codes (propagated to host $?, per ADR-0004 D5.8) */
 +enum {
 +    DADAO_EXIT_PASS = 0x00,
 +    DADAO_EXIT_CFXMEM = 0x81,  /* 0x80 | CFXMEM cause bit (1<<1) */
++    DADAO_EXIT_CFXREG = 0x84,  /* 0x80 | CFXREG cause bit (1<<2) */
 +    DADAO_EXIT_UNMAPPED = 0x87,
 +    DADAO_EXIT_ILLI = 0x88,
 +    DADAO_EXIT_UNDI = 0x89,
@@ -123,6 +131,59 @@ index 0000000..7fd9f1b
 +#define DADAO_CFXHA_UMON    0
 +#define DADAO_CFXHA_POWER   63
 +#define DADAO_ADDR_CFXHA(a) (((uint64_t)(a) >> DADAO_CFXHA_SHIFT) & DADAO_CFXHA_MASK)
++
++/* ===================================================================
++ * Runtime machine profiles (spec/Machine-v5 §1, ADR-0043; QEMU-079t)
++ *
++ * One machine type (`dadao-m1`) selects its geometry / capability set at
++ * runtime from a DadaoProfile, so the Tiny (64 KiB BootROM + 8 MiB SRAM, no
++ * cfx) and legacy geometries never share compile-time constants.  The
++ * canonical DADAO_RAM_BASE / DADAO_RAM_SIZE / DADAO_ROM_BASE /
++ * DADAO_ROM_SIZE / DADAO_RESET_PC macros above keep the legacy (Node-side,
++ * `check-interface`) values; every runtime decision goes through env->prof,
++ * never through those macros.
++ *
++ * Selection: `-machine dadao-m1,profile=<name>` beats the environment
++ * variable `DADAO_TEST_PROFILE` (same names as tests/shared/
++ * machine-profiles.yaml) which beats the default (`legacy` until QEMU-080t).
++ * =================================================================== */
++typedef struct DadaoProfile {
++    const char *name;           /* selector value: "legacy" / "tiny" */
++    uint64_t ram_base;
++    uint64_t ram_size;
++    uint64_t rom_base;          /* BootROM (non-volatile) */
++    uint64_t rom_size;
++    uint64_t reset_pc;          /* cfx_power_hypv_excp_vector */
++    uint64_t bios_load_base;    /* legacy `-bios` 64 KiB reset window */
++    uint64_t bios_window_size;
++    uint64_t kernel_base;       /* raw `-kernel` load base */
++    uint64_t kernel_entry;      /* raw application entry (base+reserved) */
++    uint64_t kernel_reserved;   /* leading zero bytes of a raw image */
++    bool ram_alias;             /* PA 0 aliases RAM (legacy first page table) */
++    bool mon_sram;              /* hmon (cfx3) / smon (cfx2) 64 KiB SRAM */
++    bool pmem_sram;             /* cfx_pmem (cfx17) 64 KiB SRAM */
++    bool cfx_enabled;           /* cfx register file / vectors / run modes */
++    bool ptw_supported;         /* cfx4 PTW/TLB (memory window can translate) */
++    bool rom_elf_segments;      /* ELF PT_LOAD may target the BootROM */
++    bool unmapped_is_cfxmem;    /* every unmapped access => CFXMEM (Tiny) */
++    bool user_mode;             /* user/jail/supv reachable via cfx switches */
++    bool semihosting;
++} DadaoProfile;
++
++/* Machine-v5-Tiny geometry (spec/Machine-v5 §1.1/§6).  Address high 6 bits
++ * are always 0x3F; the SRAM is the only writable memory and the BootROM is
++ * exactly the 64 KiB reset window. */
++#define DADAO_TINY_RAM_BASE        0xFFFFFF000000ULL
++#define DADAO_TINY_RAM_SIZE        (8 * 1024 * 1024)
++#define DADAO_TINY_ROM_BASE        0xFFFFFFFF0000ULL
++#define DADAO_TINY_ROM_SIZE        (64 * 1024)
++#define DADAO_TINY_RESET_PC        0xFFFFFFFF0000ULL
++#define DADAO_TINY_KERNEL_BASE     0xFFFFFF010000ULL
++#define DADAO_TINY_KERNEL_ENTRY    0xFFFFFF010100ULL
++#define DADAO_TINY_KERNEL_RESERVED 0x100ULL
++
++extern const DadaoProfile dadao_profile_legacy;
++extern const DadaoProfile dadao_profile_tiny;
 +
 +/*
 + * Address space (ADR-0039 §8.5 Step 1; DADAO-12 §2.2; ADR-0040 Step 2):
@@ -381,6 +442,12 @@ index 0000000..7fd9f1b
 +    uint64_t inner_cfx_mask;             /* per-hart cfx mask (DADAO-12 §1 注) */
 +    DADAOCfxRegs cfx[DADAO_NUM_CFX];     /* implemented cfx {0,1,2,3,4,15,17,18,63} */
 +
++    /* Runtime machine profile (QEMU-079t; spec/Machine-v5 §1).  Set by the
++     * machine before qdev_realize() so reset can derive PC/geometry from it;
++     * NULL means the legacy profile (safe default for the linux-user build and
++     * for a CPU created without a machine). */
++    const DadaoProfile *prof;
++
 +    /* ── Address-space Step 1 (ADR-0039 §8.5) ──
 +     * Single PTBR (cfx_ptw cg9 rc0): PPN[55:16]; low 16 bits and [63:56] read
 +     * as 0.  ptw_enable (cfx_ptw cg8 rc8): 0 => high6=0 accesses take CFXMEM,
@@ -435,6 +502,11 @@ index 0000000..7fd9f1b
 +    uint8_t  hart_timer_ctrl;    /* bit0 ENABLE, bit1 IMASK */
 +    QEMUTimer *hart_timer;
 +} CPUDADAOState;
++
++/* Resolve the active profile; an unset pointer means the legacy profile (the
++ * linux-user build never has a machine to set one). */
++#define DADAO_PROFILE(env) \
++    ((env)->prof ? (env)->prof : &dadao_profile_legacy)
 +
 +/**
 + * DadaoCPU:

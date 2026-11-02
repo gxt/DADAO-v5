@@ -701,7 +701,7 @@ _locked-build-picolibc:
 # crt0/linker script and run under QEMU via semihosting; the guest must print
 # "hi" and exit 0.  Needs 'make build-picolibc' + 'make install-host' first.
 _locked-test-picolibc-smoke: build-picolibc
-	@$(PYTHON) tools/infra/test_picolibc_smoke.py
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/infra/test_picolibc_smoke.py
 
 # check-picolibc-tests (TESTCASES-042t, L2): the picolibc upstream self-test
 # representative set — one test per Meson suite, mechanically derived by the
@@ -711,12 +711,12 @@ _locked-test-picolibc-smoke: build-picolibc
 # representative reports a genuine test failure (fail=0); backend/library gaps
 # are reported separately as `blocked`, never as silent skips.
 _locked-check-picolibc-tests: build-picolibc
-	@$(PYTHON) tools/testcases/picolibc_tests.py --stage fast --jobs $(JOBS)
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/picolibc_tests.py --stage fast --jobs $(JOBS)
 
 # check-picolibc-tests-full (TESTCASES-042t): the full picolibc self-test set
 # (opt-in; L3-like — hundreds of compile/link/QEMU runs, several minutes).
 _locked-check-picolibc-tests-full: build-picolibc
-	@$(PYTHON) tools/testcases/picolibc_tests.py --stage full --jobs $(JOBS)
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/picolibc_tests.py --stage full --jobs $(JOBS)
 
 # check-rnd-probe (TESTCASES-060t): ftrnd/fornd roundToIntegral integration --
 # 6-mode x value matrix (bit patterns), rf0[33:32] mode sensitivity, flag rules
@@ -863,7 +863,7 @@ _locked-check-tset-libc-smoke:
 	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-libc-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
 	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-libc-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
-	@$(PYTHON) tools/testcases/tset/libc-test/run_smoke.py --link-mode static \
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/tset/libc-test/run_smoke.py --link-mode static \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-libc-smoke.json \
 	    > .work/log/testcases/check-tset-libc-smoke.log 2>&1; \
 	  rc=$$?; \
@@ -877,7 +877,7 @@ _locked-check-tset-llvm-smoke:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-llvm-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
 	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-llvm-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
 	@test -d .work/source/llvm-test-suite || { echo "check-tset-llvm-smoke: ERROR: .work/source/llvm-test-suite not found — run 'make fetch'"; exit 1; }
-	@$(PYTHON) tools/testcases/tset/llvm-ts/run_smoke.py --link-mode static --jobs $(JOBS) \
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/tset/llvm-ts/run_smoke.py --link-mode static --jobs $(JOBS) \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-llvm-smoke.json \
 	    > .work/log/testcases/check-tset-llvm-smoke.log 2>&1; \
 	  rc=$$?; \
@@ -891,7 +891,7 @@ _locked-check-tset-embench-smoke:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-embench-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
 	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-embench-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
 	@test -d .work/source/embench-iot || { echo "check-tset-embench-smoke: ERROR: .work/source/embench-iot not found — run 'make fetch'"; exit 1; }
-	@$(PYTHON) tools/testcases/tset/embench/run_embench_user_suite.py --link-mode static \
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/tset/embench/run_embench_user_suite.py --link-mode static \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-embench-smoke.json \
 	    > .work/log/testcases/check-tset-embench-smoke.log 2>&1; \
 	  rc=$$?; \
@@ -1373,7 +1373,7 @@ _locked-test-codegen: install-host
 	@test -x $(QEMU_BIN) || { echo "test-codegen: ERROR: $(QEMU_BIN) not found"; exit 1; }
 	@rm -rf $(CODEGEN_E2E_WORK); \
 	  mkdir -p .work/log/integ; \
-	  $(PYTHON) tools/testcases/unit/run_codegen_e2e.py \
+	  DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/unit/run_codegen_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
 	    --qemu $(QEMU_BIN) --trampoline tools/testcases/lib/trampoline.bin \
 	    --crt0 tests/shared/crt0/minimal_crt0.s \
@@ -1409,7 +1409,7 @@ _locked-test-elf: install-host
 	@test -x $(QEMU_BIN) || { echo "test-elf: ERROR: $(QEMU_BIN) not found"; exit 1; }
 	@rm -rf $(CODEGEN_ELF_WORK); \
 	  mkdir -p .work/log/integ; \
-	  $(PYTHON) tools/testcases/unit/run_elf_e2e.py \
+	  DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/unit/run_elf_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --ldlld $(LLD_BIN) \
 	    --qemu $(QEMU_BIN) --crt0 tests/shared/crt0/minimal_crt0.s \
 	    --lds tests/shared/linker/dadao-tiny.lds \
@@ -1674,7 +1674,7 @@ INST_SEM_LOG = .work/log/qemu/check-inst.log
 INST_TRAMPOLINE = tools/testcases/lib/trampoline.bin
 _locked-check-inst:
 	@mkdir -p .work/log/qemu || { echo "check-inst: ERROR: cannot create .work/log/qemu"; exit 1; }
-	@$(PYTHON) tools/qemu/semantics_gate.py \
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/qemu/semantics_gate.py \
 	    --vectors $(INST_DIR) --gate-dir $(INST_SEM_DIR) \
 	    --qemu $(QEMU_BIN) --trampoline $(INST_TRAMPOLINE) \
 	    --jobs $(JOBS) > $(INST_SEM_LOG) 2>&1; \
@@ -1695,7 +1695,7 @@ INST_SMOKE_LOG = .work/log/qemu/check-inst-smoke.log
 _locked-check-inst-smoke:
 	@mkdir -p .work/log/qemu
 	@test -x $(QEMU_BIN) || { echo "check-inst-smoke: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
-	@$(PYTHON) tools/testcases/inst/run_qemu_smoke.py --qemu $(QEMU_BIN) \
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/inst/run_qemu_smoke.py --qemu $(QEMU_BIN) \
 	    --trampoline $(INST_TRAMPOLINE) --vector-dir tests/inst/base \
 	    --work-dir $(INST_SMOKE_WORK) --jobs $(JOBS) > $(INST_SMOKE_LOG) 2>&1; \
 	  rc=$$?; \

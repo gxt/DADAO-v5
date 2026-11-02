@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..254ac69
+index 0000000..ba70786
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2709 @@
+@@ -0,0 +1,2754 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -96,6 +96,18 @@ index 0000000..254ac69
 +    return (mask & (1ULL << cg)) != 0;
 +}
 +
++
++/* Direct machine fault (no cfx vector): used by profiles without any cfx
++ * (Machine-v5-Tiny).  ADR-0004 D5 maps the cause straight to an exit code in
++ * dadao_cpu_do_interrupt. */
++static void dadao_direct_fault(CPUDADAOState *env, int excp)
++{
++    CPUState *cs = env_cpu(env);
++
++    cs->exception_index = excp;
++    cpu_loop_exit_restore(cs, GETPC());
++}
++
 +#ifndef CONFIG_USER_ONLY
 +/* DADAO-12 §5 exception-entry flow (defined below; used by the page-fault
 + * path in dadao_cpu_do_interrupt / dadao_cpu_tlb_fill). */
@@ -126,6 +138,8 @@ index 0000000..254ac69
 +        return DADAO_EXIT_UNMAPPED;   /* 0x87 */
 +    case DADAO_EXCP_CFXMEM:
 +        return DADAO_EXIT_CFXMEM;     /* 0x81 (ADR-0020 D15) */
++    case DADAO_EXCP_CFXREG:
++        return DADAO_EXIT_CFXREG;     /* 0x84 (Tiny: no cfx, QEMU-079t) */
 +    default:
 +        return DADAO_EXIT_ILLI;       /* fallback */
 +    }
@@ -643,6 +657,7 @@ index 0000000..254ac69
 +     *   other high6 -> test-machine unmapped convention (0x87).
 +     */
 +    CPUDADAOState *env = cpu_env(cs);
++    const DadaoProfile *prof = DADAO_PROFILE(env);
 +    uint64_t addr = address & DADAO_ADDR_MASK;
 +    unsigned cfxha = DADAO_ADDR_CFXHA(addr);
 +    uint64_t cause = 0;
@@ -652,8 +667,10 @@ index 0000000..254ac69
 +
 +    /* Two-axis cfx permission (ADR-0045 D1/D2/D6): direct ld/st => cfxmem,
 +     * fetch => cfxexe of the target cfx; self bypasses the cfx axis only.
-+     * This check precedes address/range legality (CFXMEM/CFXREG). */
-+    if (cfxha != DADAO_CFXHA_MEM &&
++     * This check precedes address/range legality (CFXMEM/CFXREG).  A profile
++     * without any cfx (Tiny) has no masks and skips it entirely. */
++    if (prof->cfx_enabled &&
++        cfxha != DADAO_CFXHA_MEM &&
 +        cfx_perm_denied(env, cfxha,
 +                        access_type == MMU_INST_FETCH ? DADAO_CFX_PERM_EXE
 +                                                      : DADAO_CFX_PERM_MEM)) {
@@ -673,7 +690,9 @@ index 0000000..254ac69
 +        hwaddr leaf_pa = 0;
 +        bool superpage;
 +
-+        if (!(env->ptw_enable & 1)) {
++        /* Tiny has no PTW (spec/Machine-v5 §1.2): the memory window is never
++         * a pmem pass-through, so every high6==0 access/fetch is CFXMEM. */
++        if (!prof->ptw_supported || !(env->ptw_enable & 1)) {
 +            /* ptw_enable == 0: the window is never a pmem pass-through and
 +             * the TLB is bypassed (ADR-0041 D5). */
 +            if (probe) {
@@ -771,7 +790,7 @@ index 0000000..254ac69
 +     * 0x3ff_0000_0000 (DADAO-12 §2.1/§4.9; ADR-0042 D3).  The test machine backs it with a
 +     * RAM region at a host address outside the 56-bit PA space.  An offset
 +     * outside the SRAM is an illegal internal-space access => CFXMEM. */
-+    if (cfxha == DADAO_CFXHA_PMEM) {
++    if (prof->pmem_sram && cfxha == DADAO_CFXHA_PMEM) {
 +        uint64_t off = addr & DADAO_VA_MASK;
 +
 +        if (off >= DADAO_PMEM_SRAM_CFX_OFFSET &&
@@ -793,7 +812,7 @@ index 0000000..254ac69
 +     * 0x3ff_0000_0000 of the owning cfx (ADR-0043 D4/D5).  The test machine
 +     * backs each with a host RAM region outside the 56-bit PA space.  An
 +     * offset outside the SRAM is an illegal internal-space access => CFXMEM. */
-+    if (cfxha == 3 || cfxha == 2) {
++    if (prof->mon_sram && (cfxha == 3 || cfxha == 2)) {
 +        uint64_t off = addr & DADAO_VA_MASK;
 +        uint64_t host = (cfxha == 3) ? DADAO_HMON_SRAM_HOST_BASE
 +                                     : DADAO_SMON_SRAM_HOST_BASE;
@@ -813,16 +832,15 @@ index 0000000..254ac69
 +        return false;
 +    }
 +
-+    /* RAM (ADR-0004 R3 + rev. 2026-10-11): the single 16 MiB RAM at
-+     * 0xFC00_0000_0000 (cfxha 63, power).  The legacy RAM segment and the
-+     * exit-port device were removed in step2. */
-+    if (addr >= DADAO_RAM_BASE && addr < DADAO_RAM_BASE + DADAO_RAM_SIZE) {
++    /* RAM (profile geometry): legacy 16 MiB at 0xFC00_0000_0000, Tiny 8 MiB
++     * at 0xffff_ff00_0000 (spec/Machine-v5 §1.1). */
++    if (addr >= prof->ram_base && addr < prof->ram_base + prof->ram_size) {
 +        prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
 +        paddr = addr;
 +        goto map;
 +    }
 +
-+    if (addr >= DADAO_ROM_BASE && addr < DADAO_ROM_BASE + DADAO_ROM_SIZE) {
++    if (addr >= prof->rom_base && addr < prof->rom_base + prof->rom_size) {
 +        /* ROM: read+exec allowed. Store to ROM triggers ILLI (ADR-0004 D5.6).
 +         * The ROM MemoryRegion is readonly, so stores should not succeed.
 +         * However, TCG fast-path stores may not check write permission.
@@ -845,8 +863,11 @@ index 0000000..254ac69
 +
 +    /*
 +     * Machine-level fault classification:
++     *  - a profile with no cfx segment map (Tiny) reports every unmapped
++     *    access/fetch as CFXMEM (0x81, spec/Machine-v5 §1.2) -- both the
++     *    high6==0 window and "cfxha 63 outside BootROM/SRAM";
 +     *  - reserved cfxha (6-14, 19-61) plain ld/st => CFXMEM (ADR-0039
-+     *    Step 1-c), routed to that cfxha (DADAO-12 §5.2).
++     *    Step 1-c), routed to that cfxha (DADAO-12 §5.2);
 +     *  - every other unmapped segment (incl. the power segment 63 outside
 +     *    RAM/ROM) keeps the historical test-machine unmapped code 0x87
 +     *    (ADR-0004 D5.8).
@@ -855,7 +876,7 @@ index 0000000..254ac69
 +     * cpu_ldl_code_maybe_mmu (MMU_INST_FETCH), so no `access_type` special
 +     * case is needed and an out-of-range fetch never silently continues.
 +     */
-+    if (DADAO_CFX_IS_RESERVED(cfxha)) {
++    if (prof->unmapped_is_cfxmem || DADAO_CFX_IS_RESERVED(cfxha)) {
 +        cs->exception_index = DADAO_EXCP_CFXMEM;
 +    } else {
 +        cs->exception_index = DADAO_EXCP_UNMAPPED;
@@ -2385,6 +2406,13 @@ index 0000000..254ac69
 +    int target;
 +    int ci;
 +
++    /* Tiny implements no cfx at all (spec/Machine-v5 §3): a general trap is
++     * an illegal instruction (0x88), it has no vector to enter and must not
++     * switch run mode.  Semihosting never reaches this helper. */
++    if (!DADAO_PROFILE(env)->cfx_enabled) {
++        dadao_direct_fault(env, DADAO_EXCP_ILLI);
++    }
++
 +    if (immu18 >= 0x3FF00) {
 +        /* Semihosting tag (immu18[17:8] == 0x3FF, ADR-0038 D1): short-circuited
 +         * at the decode layer (trans_trap_ciii_cfx -> DADAO_EXCP_SEMIHOST) and
@@ -2434,6 +2462,13 @@ index 0000000..254ac69
 +{
 +    uint64_t info = ((uint64_t)0x7E << 24) | ((uint64_t)(cfxha & 0x3F) << 18) |
 +                    (uint64_t)(imms18 & 0x3FFFF);
++
++    /* Tiny implements no cfx: `escape` is an illegal instruction (0x88),
++     * with no frame and no state to restore (spec/Machine-v5 §3). */
++    if (!DADAO_PROFILE(env)->cfx_enabled) {
++        dadao_direct_fault(env, DADAO_EXCP_ILLI);
++    }
++
 +    /* imms18[17:1] is SBZ: the legal escape offset set is {0, +4}.  Raise
 +     * before the reserved-cfxha/CFXESC checks and before any state switch,
 +     * on the same pc/info path as reserved-cfxha ILLI. */
@@ -2490,6 +2525,11 @@ index 0000000..254ac69
 +                    (rd & 0x3F);
 +    uint64_t *p;
 +    int ci;
++
++    /* Tiny implements no cfx register file: any cfx2rd is CFXREG (0x84). */
++    if (!DADAO_PROFILE(env)->cfx_enabled) {
++        dadao_direct_fault(env, DADAO_EXCP_CFXREG);
++    }
 +
 +    if (DADAO_CFX_IS_RESERVED(cfxha)) {
 +        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
@@ -2585,6 +2625,11 @@ index 0000000..254ac69
 +                    (rd & 0x3F);
 +    uint64_t *p;
 +    int ci;
++
++    /* Tiny implements no cfx register file: any cfx2rc is CFXREG (0x84). */
++    if (!DADAO_PROFILE(env)->cfx_enabled) {
++        dadao_direct_fault(env, DADAO_EXCP_CFXREG);
++    }
 +
 +    if (DADAO_CFX_IS_RESERVED(cfxha)) {
 +        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);

@@ -29,7 +29,10 @@ import machine_profile  # noqa: E402
 
 # Geometry comes from tests/shared/machine-profiles.yaml (TESTCASES-091t).
 _PROFILE = machine_profile.load("tiny")
-RAM_BASE = _PROFILE.ram_base       # RAM entry (path-B fixed entry)
+# Raw -kernel application entry (Tiny: kernel_base + 0x100).  The trampoline
+# jumps here, not to the RAM base, so the raw image's reserved prefix and the
+# fixed entry stay consistent with spec/Machine-v5 §6.
+RAM_BASE = _PROFILE.entry
 RAM_SIZE = _PROFILE["ram_size"]
 SP = _PROFILE.sp
 

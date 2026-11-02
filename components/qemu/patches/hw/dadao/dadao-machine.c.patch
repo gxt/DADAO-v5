@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..d1a343e
+index 0000000..24dffe1
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,623 @@
+@@ -0,0 +1,806 @@
 +/*
 + * DADAO M1 bare-metal test machine for QEMU
 + *
@@ -21,17 +21,22 @@ index 0000000..d1a343e
 + * You should have received a copy of the GNU General Public License along with
 + * this program.  If not, see <http://www.gnu.org/licenses/>.
 + *
-+ * Memory map per ADR-0004 R3 + rev. 2026-10-11 / ADR-0020 D15: RAM is the
-+ * single RAM segment at 0xFC00_0000_0000 (cfxha 63/power, 16 MiB; moved from
-+ * all-zero in rev. 2026-10-11).  The legacy 0xffff_0000_0000 RAM of C1 step1
-+ * and the legacy exit-port MMIO device were removed in step2 (halt is now
-+ * semihosting SYS_EXIT, ADR-0020 D8).
-+ *   RAM:        0xFC00_0000_0000 .. +DADAO_RAM_SIZE   (16 MiB, RWX; cfxha 63)
-+ *   RAM alias:  0x0000_0000_0000 .. +DADAO_RAM_SIZE   (same 16 MiB, ADR-0043 D10)
-+ *   Boot ROM:   0xffff_fffc_0000 .. 0xffff_ffff_ffff  (256 KiB, RO+X; ADR-0043 D1)
++ * Machine profiles (QEMU-079t; spec/Machine-v5 §1): `dadao-m1` selects its
++ * geometry at runtime via `-machine dadao-m1,profile=legacy|tiny` or the
++ * DADAO_TEST_PROFILE environment variable (see dadao_machine_select_profile).
++ * `legacy` is the pre-QEMU-079 geometry kept for the arch baseline:
++ *   RAM:        0xFC00_0000_0000 .. +16 MiB (RWX; cfxha 63)
++ *   RAM alias:  0x0000_0000_0000 .. +16 MiB (ADR-0043 D10)
++ *   Boot ROM:   0xffff_fffc_0000 .. 0xffff_ffff_ffff (256 KiB, RO+X)
 + *   reset vec:  0xffff_ffff_0000 (legacy -bios window, 64 KiB limit)
-+ *   hmon SRAM:  cfx3 internal 0x0fff_0000_0000, 64 KiB (host backing)
-+ *   smon SRAM:  cfx2 internal 0x0bff_0000_0000, 64 KiB (host backing)
++ *   hmon SRAM / smon SRAM / cfx_pmem SRAM: legacy cfx support
++ * `tiny` is Machine-v5-Tiny (spec/Machine-v5 §1.1/§6):
++ *   Boot ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB, RO+X)
++ *   SRAM:       0xffff_ff00_0000 .. 0xffff_ff7f_ffff (8 MiB, RWX)
++ *   reset vec:  0xffff_ffff_0000; raw -kernel at 0xffff_ff01_0000
++ *               (first 0x100 bytes zero, entry 0xffff_ff01_0100);
++ *               ELF PT_LOAD may target the BootROM (crt stub) or the SRAM.
++ *   no cfx register file / PTW / monitor or pmem SRAM / PA-0 alias.
 + *
 + * Loading paths per ADR-0004 D2.2/D2.3 (rev. 2026-10-06, SPEC-107t) and
 + * contract-elf.md §5/§6 -- two paths coexist, selected by the kernel's ELF
@@ -42,23 +47,27 @@ index 0000000..d1a343e
 + *                   and the PT_LOAD consistency/range rules the upstream
 + *                   loader does not enforce (e_type == ET_EXEC, e_flags
 + *                   version 1 / reserved bits 0, p_filesz <= p_memsz,
-+ *                   p_vaddr == p_paddr, segment interval inside RAM;
-+ *                   contract-elf.md §1.3/§5.2/§6.1.2).  An ELF loaded over
-+ *                   -kernel is a RAM image, so a segment in the boot ROM
-+ *                   window is a load-stage error (user decision D, 2026-10-09).
++ *                   p_vaddr == p_paddr, segment interval inside the
++ *                   profile's mapped regions; contract-elf.md
++ *                   §1.3/§5.2/§6.1.2).  Legacy allows RAM only (a boot ROM
++ *                   segment is a load error, user decision D, 2026-10-09);
++ *                   Tiny also allows BootROM segments (crt stub, QEMU-079t).
 + *                   The segment placement (VA=PA, .bss zero-fill) and the
 + *                   entry point (e_entry -> PC) are then delegated to the
 + *                   upstream loader (hw/core/loader.c: load_elf(), the standard
 + *                   API).  No external -bios ROM is used on this path.
 + *
 + *   path B (raw):   qemu-system-dadao -machine dadao-m1 -bios rom.bin -kernel test.bin
-+ *                   flat ROM trampoline + flat test binary, entry fixed at the
-+ *                   RAM base (M1-M3 path, unchanged; M3 test-codegen depends on it).
++ *                   flat ROM trampoline + flat test binary.  Legacy entry is
++ *                   the RAM base (M1-M3 path); Tiny entry is fixed at
++ *                   kernel_base + kernel_reserved (0x100) and the image's
++ *                   first kernel_reserved bytes must be zero (QEMU-079t).
 + *
-+ *   path C (256 KiB BootROM, ADR-0043 D1/D2):
++ *   path C (BootROM image, ADR-0043 D1/D2):
 + *                   qemu-system-dadao -machine dadao-m1,bootrom-image=bootrom.bin
-+ *                   the image must be exactly 256 KiB and is loaded at
-+ *                   0xffff_fffc_0000; the CPU still resets to 0xffff_ffff_0000.
++ *                   the image must be exactly the profile ROM size (legacy
++ *                   256 KiB, Tiny 64 KiB) and is loaded at the profile ROM
++ *                   base; the CPU still resets to 0xffff_ffff_0000.
 + *                   -kernel is optional (an ELF is preloaded into RAM without
 + *                   overriding the reset PC); -bios must not be given.
 + *
@@ -111,20 +120,45 @@ index 0000000..d1a343e
 +/*
 + * Regions an ELF PT_LOAD interval may occupy (contract-elf.md §5/§6.1.2).
 + *
-+ * User decision D (2026-10-09): an ELF loaded over -kernel is a RAM image --
-+ * only RAM is allowed.  A segment whose interval falls in the boot ROM window
-+ * (0xffff_ffff_0000, 64 KiB) is a load-stage error (non-zero exit), never a
-+ * ROM load.  This table is used only to validate a segment interval before the
-+ * load; the placement itself is still done by the upstream loader.
++ * Legacy (Node-side) machine: an ELF loaded over -kernel is a RAM image --
++ * only RAM is allowed.  A segment in the boot ROM window is a load-stage
++ * error (non-zero exit), never a ROM load.  This table is used only to
++ * validate a segment interval before the load; the placement itself is still
++ * done by the upstream loader.
++ *
++ * Machine-v5-Tiny (QEMU-079t): the crt/startup stub lives in the BootROM, so
++ * a PT_LOAD may target the BootROM as well as the SRAM (spec/Machine-v5 §6).
 + */
 +typedef struct DadaoMappedRegion {
 +    uint64_t base;
 +    uint64_t size;
 +} DadaoMappedRegion;
 +
-+static const DadaoMappedRegion dadao_mapped_regions[] = {
-+    { DADAO_RAM_BASE, DADAO_RAM_SIZE },
-+};
++static unsigned dadao_mapped_regions(const DadaoProfile *prof,
++                                     DadaoMappedRegion regions[2])
++{
++    unsigned n = 0;
++
++    regions[n++] = (DadaoMappedRegion){ prof->ram_base, prof->ram_size };
++    if (prof->rom_elf_segments) {
++        regions[n++] = (DadaoMappedRegion){ prof->rom_base, prof->rom_size };
++    }
++    return n;
++}
++
++static bool dadao_addr_mapped(const DadaoProfile *prof, uint64_t addr)
++{
++    DadaoMappedRegion regions[2];
++    unsigned n = dadao_mapped_regions(prof, regions);
++    unsigned r;
++
++    for (r = 0; r < n; r++) {
++        if (addr >= regions[r].base && addr < regions[r].base + regions[r].size) {
++            return true;
++        }
++    }
++    return false;
++}
 +
 +/* Big-endian field readers (ELFDATA2MSB, contract-elf.md §1.1): the ELF is
 + * always big-endian regardless of host byte order. */
@@ -267,7 +301,8 @@ index 0000000..d1a343e
 + * of file bounds, ...) is left to the loader, which reports it and returns an
 + * error.
 + */
-+static void dadao_elf_check_segments(const char *filename)
++static void dadao_elf_check_segments(const char *filename,
++                                     const DadaoProfile *prof)
 +{
 +    uint8_t ehdr[sizeof(Elf64_Ehdr)];
 +    uint8_t phdr[sizeof(Elf64_Phdr)];
@@ -294,6 +329,10 @@ index 0000000..d1a343e
 +        close(fd);
 +        return; /* unexpected entry size: let the loader handle the file */
 +    }
++
++    {
++    DadaoMappedRegion regions[2];
++    unsigned nregions = dadao_mapped_regions(prof, regions);
 +
 +    for (i = 0; i < phnum; i++) {
 +        uint64_t off = phoff + (uint64_t)i * phentsize;
@@ -343,9 +382,9 @@ index 0000000..d1a343e
 +            close(fd);
 +            exit(1);
 +        }
-+        for (r = 0; r < ARRAY_SIZE(dadao_mapped_regions); r++) {
-+            uint64_t rbase = dadao_mapped_regions[r].base;
-+            uint64_t rend = rbase + dadao_mapped_regions[r].size;
++        for (r = 0; r < nregions; r++) {
++            uint64_t rbase = regions[r].base;
++            uint64_t rend = rbase + regions[r].size;
 +
 +            if (p_vaddr >= rbase && end <= rend) {
 +                mapped = true;
@@ -355,13 +394,16 @@ index 0000000..d1a343e
 +        if (!mapped) {
 +            error_report("dadao-m1: ELF kernel '%s': PT_LOAD segment %u "
 +                         "interval [%#" PRIx64 ", %#" PRIx64 ") is outside the "
-+                         "mapped regions (only RAM 0x%" PRIx64 " + %" PRIu64
-+                         " bytes is allowed; the boot ROM window is rejected)",
-+                         filename, i, p_vaddr, end, (uint64_t)DADAO_RAM_BASE,
-+                         (uint64_t)DADAO_RAM_SIZE);
++                         "mapped regions (RAM %#" PRIx64 " + %" PRIu64 " bytes%s)",
++                         filename, i, p_vaddr, end, (uint64_t)prof->ram_base,
++                         (uint64_t)prof->ram_size,
++                         prof->rom_elf_segments
++                             ? " or the BootROM (Tiny crt stub)"
++                             : "; the boot ROM window is rejected");
 +            close(fd);
 +            exit(1);
 +        }
++    }
 +    }
 +    close(fd);
 +}
@@ -369,8 +411,10 @@ index 0000000..d1a343e
 +/* DADAO M1 machine */
 +typedef struct DadaoMachineState {
 +    MachineState parent_obj;
-+    /* 256 KiB BootROM image path (ADR-0043 D1/D2); NULL => legacy paths. */
++    /* BootROM image path (ADR-0043 D1/D2); NULL => legacy paths. */
 +    char *bootrom_image;
++    /* `-machine dadao-m1,profile=<name>` (QEMU-079t); NULL => env / default. */
++    char *profile;
 +} DadaoMachineState;
 +
 +typedef struct DadaoMachineClass {
@@ -396,14 +440,213 @@ index 0000000..d1a343e
 +    ms->bootrom_image = g_strdup(value);
 +}
 +
++static char *dadao_m1_get_profile(Object *obj, Error **errp)
++{
++    DadaoMachineState *ms = DADAO_M1_MACHINE(obj);
++
++    return g_strdup(ms->profile);
++}
++
++static void dadao_m1_set_profile(Object *obj, const char *value, Error **errp)
++{
++    DadaoMachineState *ms = DADAO_M1_MACHINE(obj);
++
++    g_free(ms->profile);
++    ms->profile = g_strdup(value);
++}
++
++static const DadaoProfile *dadao_profile_lookup(const char *name)
++{
++    if (g_strcmp0(name, "legacy") == 0) {
++        return &dadao_profile_legacy;
++    }
++    if (g_strcmp0(name, "tiny") == 0) {
++        return &dadao_profile_tiny;
++    }
++    return NULL;
++}
++
++/*
++ * Profile selection (QEMU-079t): `-machine dadao-m1,profile=<name>` beats the
++ * environment variable `DADAO_TEST_PROFILE` (same names as
++ * tests/shared/machine-profiles.yaml) which beats the default (`legacy`
++ * until QEMU-080t flips it to tiny/node).  A fallback through the environment
++ * is announced on stderr; an unknown name is a hard error, never a silent
++ * downgrade.
++ */
++static const DadaoProfile *dadao_machine_select_profile(DadaoMachineState *ms)
++{
++    const char *name = ms->profile;
++    const char *origin = "-machine profile=";
++    const DadaoProfile *prof;
++
++    if (!name || !*name) {
++        const char *env = getenv("DADAO_TEST_PROFILE");
++
++        if (env && *env) {
++            name = env;
++            origin = "environment DADAO_TEST_PROFILE";
++        }
++    }
++    if (!name || !*name) {
++        name = "legacy";
++        origin = NULL;
++    }
++    prof = dadao_profile_lookup(name);
++    if (!prof) {
++        error_report("dadao-m1: unknown machine profile '%s' "
++                     "(valid: legacy, tiny)", name);
++        exit(1);
++    }
++    if (origin) {
++        info_report("dadao-m1: machine profile '%s' selected from %s",
++                    prof->name, origin);
++    }
++    return prof;
++}
++
++/*
++ * Raw -kernel reserved prefix (spec/Machine-v5 §6): Tiny's raw image starts at
++ * kernel_base and the first kernel_reserved bytes are reserved and must be
++ * zero; the application entry is base+reserved.  Returns 0 when within the
++ * rule (or the file is unreadable -- the loader reports that), -1 after
++ * reporting a violation.
++ */
++static int dadao_check_raw_prefix(const char *filename, uint64_t reserved)
++{
++    uint8_t *buf;
++    ssize_t n;
++    int fd;
++    uint64_t i;
++
++    if (reserved == 0) {
++        return 0;
++    }
++    if (reserved > SIZE_MAX) {
++        error_report("dadao-m1: raw kernel reserved prefix is too large "
++                     "(%" PRIu64 " bytes)", reserved);
++        return -1;
++    }
++    fd = qemu_open(filename, O_RDONLY | O_BINARY, NULL);
++    if (fd < 0) {
++        return 0;
++    }
++    buf = g_malloc(reserved);
++    n = read(fd, buf, reserved);
++    close(fd);
++    if (n < 0) {
++        g_free(buf);
++        return 0;
++    }
++    if ((uint64_t)n < reserved) {
++        error_report("dadao-m1: raw kernel '%s' is %" PRId64 " bytes, smaller "
++                     "than the reserved prefix of %" PRIu64 " bytes",
++                     filename, (int64_t)n, reserved);
++        g_free(buf);
++        return -1;
++    }
++    for (i = 0; i < reserved; i++) {
++        if (buf[i] != 0) {
++            error_report("dadao-m1: raw kernel '%s': reserved prefix byte %"
++                         PRIu64 " is %#x, the first %" PRIu64 " bytes must be "
++                         "zero", filename, i, buf[i], reserved);
++            g_free(buf);
++            return -1;
++        }
++    }
++    g_free(buf);
++    return 0;
++}
++
++static void dadao_load_raw_kernel(const char *filename,
++                                  const DadaoProfile *prof)
++{
++    Error *err = NULL;
++    uint64_t limit = prof->ram_size - prof->kernel_reserved;
++    ssize_t kernel_size;
++
++    if (dadao_enforce_size_limits &&
++        dadao_check_image_limit(filename, "RAM", limit) < 0) {
++        exit(1);
++    }
++    if (dadao_check_raw_prefix(filename, prof->kernel_reserved) < 0) {
++        exit(1);
++    }
++    kernel_size = load_image_targphys_as(filename, prof->kernel_base, limit,
++                                         &address_space_memory, &err);
++    if (kernel_size < 0) {
++        error_report("dadao-m1: could not load kernel image '%s': %s",
++                     filename, err ? error_get_pretty(err) : "unknown error");
++        exit(1);
++    }
++}
++
++/* Load an ELF -kernel and return its e_entry (validated to be mapped). */
++static uint64_t dadao_load_elf_kernel(const char *filename,
++                                      const DadaoProfile *prof)
++{
++    uint64_t entry = 0;
++    ssize_t elf_size;
++
++    dadao_elf_check_header(filename);
++    dadao_elf_check_segments(filename, prof);
++    elf_size = load_elf(filename, NULL, NULL, NULL, &entry, NULL,
++                        NULL, NULL, ELFDATA2MSB, DADAO_EM_MACHINE, 0, 0);
++    if (elf_size < 0) {
++        error_report("dadao-m1: could not load ELF kernel '%s': %s",
++                     filename, load_elf_strerror(elf_size));
++        exit(1);
++    }
++    if (!dadao_addr_mapped(prof, entry)) {
++        error_report("dadao-m1: ELF kernel '%s': e_entry %#" PRIx64 " is "
++                     "outside the mapped regions", filename, entry);
++        exit(1);
++    }
++    return entry;
++}
++
++static void dadao_load_bootrom_image(const char *filename,
++                                     const DadaoProfile *prof)
++{
++    Error *err = NULL;
++    ssize_t bios_size;
++
++    bios_size = load_image_targphys_as(filename, prof->rom_base, prof->rom_size,
++                                       &address_space_memory, &err);
++    if (bios_size != (ssize_t)prof->rom_size) {
++        error_report("dadao-m1: bootrom-image '%s' is %" PRId64 " bytes, "
++                     "expected exactly %" PRIu64 " bytes",
++                     filename, (int64_t)bios_size, prof->rom_size);
++        exit(1);
++    }
++}
++
++static void dadao_load_bios(const char *filename, const DadaoProfile *prof)
++{
++    Error *err = NULL;
++    ssize_t bios_size;
++
++    if (dadao_enforce_size_limits &&
++        dadao_check_image_limit(filename, "ROM", prof->bios_window_size) < 0) {
++        exit(1);
++    }
++    bios_size = load_image_targphys_as(filename, prof->bios_load_base,
++                                       prof->bios_window_size,
++                                       &address_space_memory, &err);
++    if (bios_size < 0) {
++        error_report("dadao-m1: could not load ROM image '%s': %s",
++                     filename, err ? error_get_pretty(err) : "unknown error");
++        exit(1);
++    }
++}
++
 +static void dadao_m1_init(MachineState *machine)
 +{
 +    DadaoMachineState *ms = DADAO_M1_MACHINE(machine);
++    const DadaoProfile *prof = dadao_machine_select_profile(ms);
 +    DadaoCPU *cpu;
-+    MemoryRegion *ram, *ram_alias, *rom, *pmem_sram, *hmon_sram, *smon_sram;
++    MemoryRegion *ram, *rom;
 +    MemoryRegion *system_memory;
-+    Error *err = NULL;
-+    ssize_t bios_size, kernel_size;
 +    const char *kernel = machine->kernel_filename;
 +    const char *bootrom = ms->bootrom_image;
 +
@@ -416,94 +659,74 @@ index 0000000..d1a343e
 +        exit(1);
 +    }
 +
-+    /* Create CPU */
++    /* Create the CPU and pin its profile before realize: reset derives PC and
++     * geometry from env->prof (spec/Machine-v5 §1; QEMU-079t). */
 +    cpu = DADAO_CPU(qdev_new(DADAO_CPU_TYPE_NAME("any")));
++    cpu->env.prof = prof;
 +    qdev_realize_and_unref(DEVICE(cpu), NULL, &error_fatal);
 +
 +    system_memory = get_system_memory();
 +
-+    /* RAM (ADR-0004 R3 + rev. 2026-10-11 / ADR-0020 D15): the single 16 MiB
-+     * RAM segment at 0xFC00_0000_0000 (cfxha 63, power).  The legacy RAM
-+     * segment and the exit-port device were removed in step2. */
++    /* RAM (profile geometry): legacy 16 MiB at 0xFC00_0000_0000, Tiny 8 MiB
++     * at 0xffff_ff00_0000 (spec/Machine-v5 §1.1). */
 +    ram = g_new(MemoryRegion, 1);
-+    memory_region_init_ram(ram, NULL, "dadao-ram", DADAO_RAM_SIZE, &error_fatal);
-+    memory_region_add_subregion(system_memory, DADAO_RAM_BASE, ram);
++    memory_region_init_ram(ram, NULL, "dadao-ram", prof->ram_size,
++                           &error_fatal);
++    memory_region_add_subregion(system_memory, prof->ram_base, ram);
 +
-+    /* PA 0 aliases the same RAM (ADR-0043 D10): the first page table is built
-+     * at PTBR=0 and page-table reads / cfx_pmem DMA use physical addresses. */
-+    ram_alias = g_new(MemoryRegion, 1);
-+    memory_region_init_alias(ram_alias, NULL, "dadao-ram-alias", ram, 0,
-+                             DADAO_RAM_SIZE);
-+    memory_region_add_subregion(system_memory, DADAO_RAM_ALIAS_BASE, ram_alias);
++    /* Legacy only: PA 0 aliases the same RAM (ADR-0043 D10) because the first
++     * page table is built at PTBR=0.  Tiny has no PTW and no alias. */
++    if (prof->ram_alias) {
++        MemoryRegion *ram_alias = g_new(MemoryRegion, 1);
 +
-+    /* Boot ROM: 0xffff_fffc_0000, 256 KiB (ADR-0043 D1); the reset vector
-+     * 0xffff_ffff_0000 is the legacy -bios window inside it. */
++        memory_region_init_alias(ram_alias, NULL, "dadao-ram-alias", ram, 0,
++                                 prof->ram_size);
++        memory_region_add_subregion(system_memory, DADAO_RAM_ALIAS_BASE,
++                                    ram_alias);
++    }
++
++    /* BootROM: legacy 256 KiB at 0xffff_fffc_0000, Tiny 64 KiB at
++     * 0xffff_ffff_0000 (spec/Machine-v5 §1.1/§6). */
 +    rom = g_new(MemoryRegion, 1);
-+    memory_region_init_rom(rom, NULL, "dadao-rom", DADAO_ROM_SIZE, &error_fatal);
-+    memory_region_add_subregion(system_memory, DADAO_ROM_BASE, rom);
++    memory_region_init_rom(rom, NULL, "dadao-rom", prof->rom_size,
++                           &error_fatal);
++    memory_region_add_subregion(system_memory, prof->rom_base, rom);
 +
-+    /* cfx_pmem SRAM: 64 KiB at a host address outside the 56-bit guest PA
-+     * space, so a guest PA can never alias it (DADAO-12 §4.9; ADR-0042 D3).
-+     * CPU ld/st reach it through tlb_fill; the cfx_pmem DMA reads/writes it
-+     * through the system address space. */
-+    pmem_sram = g_new(MemoryRegion, 1);
-+    memory_region_init_ram(pmem_sram, NULL, "dadao-pmem-sram",
-+                           DADAO_PMEM_SRAM_SIZE, &error_fatal);
-+    memory_region_add_subregion(system_memory, DADAO_PMEM_SRAM_HOST_BASE,
-+                                pmem_sram);
++    /* cfx_pmem SRAM (legacy only): 64 KiB at a host address outside the
++     * 56-bit guest PA space, so a guest PA can never alias it. */
++    if (prof->pmem_sram) {
++        MemoryRegion *pmem_sram = g_new(MemoryRegion, 1);
 +
-+    /* hmon (cfx3) / smon (cfx2) SRAM, 64 KiB each (ADR-0043 D4/D5). */
-+    hmon_sram = g_new(MemoryRegion, 1);
-+    memory_region_init_ram(hmon_sram, NULL, "dadao-hmon-sram",
-+                           DADAO_MON_SRAM_SIZE, &error_fatal);
-+    memory_region_add_subregion(system_memory, DADAO_HMON_SRAM_HOST_BASE,
-+                                hmon_sram);
-+    smon_sram = g_new(MemoryRegion, 1);
-+    memory_region_init_ram(smon_sram, NULL, "dadao-smon-sram",
-+                           DADAO_MON_SRAM_SIZE, &error_fatal);
-+    memory_region_add_subregion(system_memory, DADAO_SMON_SRAM_HOST_BASE,
-+                                smon_sram);
++        memory_region_init_ram(pmem_sram, NULL, "dadao-pmem-sram",
++                               DADAO_PMEM_SRAM_SIZE, &error_fatal);
++        memory_region_add_subregion(system_memory, DADAO_PMEM_SRAM_HOST_BASE,
++                                    pmem_sram);
++    }
 +
-+    /* Path C: 256 KiB BootROM image (ADR-0043 D1/D2).  -kernel is optional;
-+     * a given ELF is preloaded into RAM but does not override the reset PC. */
++    /* hmon (cfx3) / smon (cfx2) SRAM (legacy only), 64 KiB each. */
++    if (prof->mon_sram) {
++        MemoryRegion *hmon_sram = g_new(MemoryRegion, 1);
++        MemoryRegion *smon_sram = g_new(MemoryRegion, 1);
++
++        memory_region_init_ram(hmon_sram, NULL, "dadao-hmon-sram",
++                               DADAO_MON_SRAM_SIZE, &error_fatal);
++        memory_region_add_subregion(system_memory, DADAO_HMON_SRAM_HOST_BASE,
++                                    hmon_sram);
++        memory_region_init_ram(smon_sram, NULL, "dadao-smon-sram",
++                               DADAO_MON_SRAM_SIZE, &error_fatal);
++        memory_region_add_subregion(system_memory, DADAO_SMON_SRAM_HOST_BASE,
++                                    smon_sram);
++    }
++
++    /* Path C: BootROM image (ADR-0043 D1/D2).  -kernel is optional; a given
++     * ELF is preloaded but does not override the reset PC. */
 +    if (bootrom) {
-+        err = NULL;
-+        bios_size = load_image_targphys_as(bootrom, DADAO_ROM_BASE,
-+                                           DADAO_ROM_SIZE,
-+                                           &address_space_memory, &err);
-+        if (bios_size != DADAO_ROM_SIZE) {
-+            error_report("dadao-m1: bootrom-image '%s' is %" PRId64 " bytes, "
-+                         "expected exactly %d bytes (256 KiB)", bootrom,
-+                         (int64_t)bios_size, (int)DADAO_ROM_SIZE);
-+            exit(1);
-+        }
++        dadao_load_bootrom_image(bootrom, prof);
 +        if (kernel) {
 +            if (dadao_kernel_is_elf(kernel)) {
-+                uint64_t entry = 0;
-+                ssize_t elf_size;
-+
-+                dadao_elf_check_header(kernel);
-+                dadao_elf_check_segments(kernel);
-+                elf_size = load_elf(kernel, NULL, NULL, NULL, &entry, NULL,
-+                                    NULL, NULL, ELFDATA2MSB,
-+                                    DADAO_EM_MACHINE, 0, 0);
-+                if (elf_size < 0) {
-+                    error_report("dadao-m1: could not load ELF kernel '%s': %s",
-+                                 kernel, load_elf_strerror(elf_size));
-+                    exit(1);
-+                }
++                (void)dadao_load_elf_kernel(kernel, prof);
 +            } else {
-+                err = NULL;
-+                kernel_size = load_image_targphys_as(kernel, DADAO_RAM_BASE,
-+                                                     DADAO_RAM_SIZE,
-+                                                     &address_space_memory,
-+                                                     &err);
-+                if (kernel_size < 0) {
-+                    error_report("dadao-m1: could not load kernel image '%s': %s",
-+                                 kernel,
-+                                 err ? error_get_pretty(err) : "unknown error");
-+                    exit(1);
-+                }
++                dadao_load_raw_kernel(kernel, prof);
 +            }
 +        }
 +        return;
@@ -512,38 +735,23 @@ index 0000000..d1a343e
 +    /* The kernel's magic selects the loading path (ADR-0004 D2.3). */
 +    if (dadao_kernel_is_elf(kernel)) {
 +        /*
-+         * Path A: ELF.  First apply the rules the upstream loader does not
-+         * enforce -- ELF header (e_type/e_flags, contract-elf.md §1.3/§6.1.2)
-+         * and PT_LOAD consistency/range (§5.2/§6.1.2, RAM-only) -- then
-+         * delegate parsing and segment placement to the upstream loader
-+         * (hw/core/loader.c): it walks every PT_LOAD, loads p_filesz bytes at
-+         * VA=PA and zero-fills the (p_memsz - p_filesz) tail, and reports
-+         * e_entry.  An ELF loaded over -kernel is a RAM image: a segment in
-+         * the boot ROM window is rejected above (user decision D, 2026-10-09),
-+         * so load_elf() never sees one.  No external -bios ROM is used on this
-+         * path.
++         * Path A: ELF.  Header and PT_LOAD rules the upstream loader does not
++         * enforce are checked first (contract-elf.md §1.3/§5.2/§6.1.2); the
++         * allowed segment regions follow the profile (legacy: RAM only; Tiny:
++         * RAM + BootROM, the crt stub lives in ROM).  Placement and .bss
++         * zero-fill stay with the upstream loader.
 +         */
-+        uint64_t entry = 0;
-+        ssize_t elf_size;
++        uint64_t entry = dadao_load_elf_kernel(kernel, prof);
 +
-+        dadao_elf_check_header(kernel);
-+        dadao_elf_check_segments(kernel);
-+
-+        elf_size = load_elf(kernel, NULL, NULL, NULL, &entry, NULL,
-+                            NULL, NULL, ELFDATA2MSB, DADAO_EM_MACHINE, 0, 0);
-+        if (elf_size < 0) {
-+            error_report("dadao-m1: could not load ELF kernel '%s': %s",
-+                         kernel, load_elf_strerror(elf_size));
-+            exit(1);
-+        }
 +        /* Entry: PC = e_entry (path A; rb0 reset value is the ROM base). */
 +        cpu_set_pc(CPU(cpu), entry);
 +        return;
 +    }
 +
 +    /*
-+     * Path B: raw-bin dual image (M1-M3).  Both a ROM trampoline (-bios) and
-+     * the flat test binary (-kernel) are required; entry is the RAM base.
++     * Path B: raw-bin dual image.  Both a ROM trampoline (-bios) and the flat
++     * test binary (-kernel) are required; the raw entry is fixed by the
++     * profile (Tiny: kernel_base + 0x100) and reached by the trampoline.
 +     */
 +    if (!machine->firmware) {
 +        error_report("dadao-m1: kernel image '%s' is not an ELF (bad magic); "
@@ -551,43 +759,8 @@ index 0000000..d1a343e
 +        exit(1);
 +    }
 +
-+    if (dadao_enforce_size_limits) {
-+        if (dadao_check_image_limit(machine->firmware, "ROM",
-+                                    DADAO_BIOS_WINDOW_SIZE) < 0) {
-+            exit(1);
-+        }
-+        if (dadao_check_image_limit(kernel, "RAM", DADAO_RAM_SIZE) < 0) {
-+            exit(1);
-+        }
-+    }
-+
-+    /* Load BIOS (ROM trampoline) into the 64 KiB reset window (ADR-0004
-+     * D2.3; the window is inside the 256 KiB BootROM, ADR-0043 D1). */
-+    bios_size = load_image_targphys_as(machine->firmware,
-+                                       DADAO_BIOS_LOAD_BASE,
-+                                       DADAO_BIOS_WINDOW_SIZE,
-+                                       &address_space_memory,
-+                                       &err);
-+    if (bios_size < 0) {
-+        error_report("dadao-m1: could not load ROM image '%s': %s",
-+                     machine->firmware,
-+                     err ? error_get_pretty(err) : "unknown error");
-+        exit(1);
-+    }
-+
-+    /* Load kernel (test binary) into RAM region */
-+    err = NULL;
-+    kernel_size = load_image_targphys_as(kernel,
-+                                         DADAO_RAM_BASE,
-+                                         DADAO_RAM_SIZE,
-+                                         &address_space_memory,
-+                                         &err);
-+    if (kernel_size < 0) {
-+        error_report("dadao-m1: could not load kernel image '%s': %s",
-+                     kernel,
-+                     err ? error_get_pretty(err) : "unknown error");
-+        exit(1);
-+    }
++    dadao_load_bios(machine->firmware, prof);
++    dadao_load_raw_kernel(kernel, prof);
 +}
 +
 +static void dadao_m1_class_init(ObjectClass *oc, const void *data)
@@ -595,7 +768,8 @@ index 0000000..d1a343e
 +    MachineClass *mc = MACHINE_CLASS(oc);
 +
 +    mc->init = dadao_m1_init;
-+    mc->desc = "DADAO M1 bare-metal test machine";
++    mc->desc = "DADAO M1 bare-metal test machine "
++               "(profile=legacy|tiny; DADAO_TEST_PROFILE fallback)";
 +    mc->default_cpus = 1;
 +    mc->min_cpus = 1;
 +    mc->max_cpus = 1;
@@ -603,14 +777,23 @@ index 0000000..d1a343e
 +    mc->no_cdrom = 1;
 +    mc->default_cpu_type = DADAO_CPU_TYPE_NAME("any");
 +
-+    /* 256 KiB BootROM image property (ADR-0043 D1/D2).  It is a machine
-+     * property rather than a new CLI switch so every existing command line
-+     * stays valid: `-machine dadao-m1,bootrom-image=<path>`. */
++    /* BootROM image property (ADR-0043 D1/D2): a machine property rather than
++     * a new CLI switch so every existing command line stays valid:
++     * `-machine dadao-m1,bootrom-image=<path>`. */
 +    object_class_property_add_str(oc, "bootrom-image",
 +                                  dadao_m1_get_bootrom_image,
 +                                  dadao_m1_set_bootrom_image);
 +    object_class_property_set_description(oc, "bootrom-image",
-+        "256 KiB BootROM image loaded at 0xffff_fffc_0000");
++        "BootROM image loaded at the profile ROM base (exact ROM size)");
++
++    /* Runtime machine profile (QEMU-079t): legacy (default until QEMU-080t)
++     * or tiny (Machine-v5-Tiny). */
++    object_class_property_add_str(oc, "profile",
++                                  dadao_m1_get_profile,
++                                  dadao_m1_set_profile);
++    object_class_property_set_description(oc, "profile",
++        "machine profile: legacy (default) or tiny; falls back to "
++        "$DADAO_TEST_PROFILE");
 +}
 +
 +static const TypeInfo dadao_m1_type = {
