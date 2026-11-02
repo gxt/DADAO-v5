@@ -1,0 +1,16 @@
+diff --git a/src/arch/dadao/DadaoInterrupts.py b/src/arch/dadao/DadaoInterrupts.py
+new file mode 100644
+index 0000000..4654bfc
+--- /dev/null
++++ b/src/arch/dadao/DadaoInterrupts.py
+@@ -0,0 +1,10 @@
++from m5.objects.BaseInterrupts import BaseInterrupts
++from m5.params import *
++
++
++class DadaoInterrupts(BaseInterrupts):
++    """SE placeholder: BaseCPU needs one controller per thread, no sources."""
++
++    type = "DadaoInterrupts"
++    cxx_class = "gem5::DadaoISA::Interrupts"
++    cxx_header = "arch/dadao/interrupts.hh"

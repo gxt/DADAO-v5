@@ -1,0 +1,45 @@
+diff --git a/src/arch/dadao/se_workload.hh b/src/arch/dadao/se_workload.hh
+new file mode 100644
+index 0000000..5b32ce4
+--- /dev/null
++++ b/src/arch/dadao/se_workload.hh
+@@ -0,0 +1,39 @@
++// DADAO syscall-emulation workload: the SE "OS" object.
++//
++// It owns the loader hook (an ET_EXEC DADAO object becomes a DADAO Process)
++// and the minimal Linux-compatible syscall surface of the G1 milestone.  A
++// GDB register description and the FS workload model are deliberately absent.
++#ifndef __ARCH_DADAO_SE_WORKLOAD_HH__
++#define __ARCH_DADAO_SE_WORKLOAD_HH__
++
++#include "arch/dadao/page_size.hh"
++#include "base/loader/object_file.hh"
++#include "enums/ByteOrder.hh"
++#include "params/DadaoSEWorkload.hh"
++#include "sim/se_workload.hh"
++
++namespace gem5
++{
++
++namespace DadaoISA
++{
++
++class SEWorkload : public gem5::SEWorkload
++{
++  public:
++    using Params = DadaoSEWorkloadParams;
++
++    explicit SEWorkload(const Params &p) : gem5::SEWorkload(p, PageShift) {}
++
++    loader::Arch getArch() const override { return loader::Dadao; }
++
++    ByteOrder byteOrder() const override { return ByteOrder::big; }
++
++    /** Entry point of `trap cfx0, 0` (umon, SBI_UMON_SYSCALL). */
++    void syscall(ThreadContext *tc) override;
++};
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_SE_WORKLOAD_HH__

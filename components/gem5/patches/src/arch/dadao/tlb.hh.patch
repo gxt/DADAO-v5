@@ -1,0 +1,60 @@
+diff --git a/src/arch/dadao/tlb.hh b/src/arch/dadao/tlb.hh
+new file mode 100644
+index 0000000..2c6e826
+--- /dev/null
++++ b/src/arch/dadao/tlb.hh
+@@ -0,0 +1,54 @@
++// DADAO SE TLB: a direct pass-through onto the host-side page table.
++//
++// Syscall-emulation does not model a hardware page table walk, PTBR or TLB
++// fill: translation is exactly "ask Process::pTable".  The FS page-table
++// machinery (ADR-0039) is deliberately absent from this file.
++#ifndef __ARCH_DADAO_TLB_HH__
++#define __ARCH_DADAO_TLB_HH__
++
++#include "arch/generic/tlb.hh"
++#include "params/DadaoTlb.hh"
++
++namespace gem5
++{
++
++class ThreadContext;
++
++namespace DadaoISA
++{
++
++class TLB : public BaseTLB
++{
++  public:
++    using Params = DadaoTlbParams;
++
++    explicit TLB(const Params &p) : BaseTLB(p) {}
++
++    void demapPage(Addr vaddr, uint64_t asn) override;
++
++    Fault translateAtomic(const RequestPtr &req, ThreadContext *tc,
++                          BaseMMU::Mode mode) override;
++
++    void translateTiming(const RequestPtr &req, ThreadContext *tc,
++                         BaseMMU::Translation *translation,
++                         BaseMMU::Mode mode) override;
++
++    Fault translateFunctional(const RequestPtr &req, ThreadContext *tc,
++                              BaseMMU::Mode mode) override;
++
++    Fault finalizePhysical(const RequestPtr &req, ThreadContext *tc,
++                           BaseMMU::Mode mode) const override;
++
++    void flushAll() override {}
++
++    void takeOverFrom(BaseTLB *old) override {}
++
++  private:
++    /** Translate through Process::pTable.  Nothing is cached. */
++    Fault translate(const RequestPtr &req, ThreadContext *tc);
++};
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_TLB_HH__

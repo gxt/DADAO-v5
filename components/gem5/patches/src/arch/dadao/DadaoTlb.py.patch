@@ -1,0 +1,16 @@
+diff --git a/src/arch/dadao/DadaoTlb.py b/src/arch/dadao/DadaoTlb.py
+new file mode 100644
+index 0000000..0c8a0bf
+--- /dev/null
++++ b/src/arch/dadao/DadaoTlb.py
+@@ -0,0 +1,10 @@
++from m5.objects.BaseTLB import BaseTLB
++from m5.params import *
++
++
++class DadaoTlb(BaseTLB):
++    """SE pass-through TLB (no hardware walk, no entries)."""
++
++    type = "DadaoTlb"
++    cxx_class = "gem5::DadaoISA::TLB"
++    cxx_header = "arch/dadao/tlb.hh"

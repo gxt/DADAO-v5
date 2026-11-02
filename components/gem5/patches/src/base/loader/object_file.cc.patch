@@ -1,0 +1,13 @@
+diff --git a/src/base/loader/object_file.cc b/src/base/loader/object_file.cc
+index 287f910..b72760d 100644
+--- a/src/base/loader/object_file.cc
++++ b/src/base/loader/object_file.cc
+@@ -83,6 +83,8 @@ archToString(Arch arch)
+         return "riscv64";
+       case Riscv32:
+         return "riscv32";
++      case Dadao:
++        return "dadao";
+       default:
+         panic("Unrecognized arch %d.", arch);
+     }

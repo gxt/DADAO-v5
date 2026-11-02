@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..2fad02c
+index 0000000..7c64901
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,114 @@
+@@ -0,0 +1,116 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
@@ -102,8 +102,10 @@ index 0000000..2fad02c
 +bool
 +ISA::inUserMode() const
 +{
-+    panic("DADAO B0: privilege model not implemented");
-+    return false; // unreachable; panic is not marked [[noreturn]]
++    // G1 SE runs user code only.  FS will replace this with the three-axis
++    // privilege model; until then "always user" is the honest answer for the
++    // SE platform (BaseSimpleCPU queries this on every committed inst).
++    return true;
 +}
 +
 +void

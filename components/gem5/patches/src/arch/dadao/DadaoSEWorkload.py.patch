@@ -1,0 +1,18 @@
+diff --git a/src/arch/dadao/DadaoSEWorkload.py b/src/arch/dadao/DadaoSEWorkload.py
+new file mode 100644
+index 0000000..21f0b31
+--- /dev/null
++++ b/src/arch/dadao/DadaoSEWorkload.py
+@@ -0,0 +1,12 @@
++from m5.objects.Workload import SEWorkload
++from m5.params import *
++
++
++class DadaoSEWorkload(SEWorkload):
++    type = "DadaoSEWorkload"
++    cxx_class = "gem5::DadaoISA::SEWorkload"
++    cxx_header = "arch/dadao/se_workload.hh"
++
++    @classmethod
++    def _is_compatible_with(cls, obj):
++        return obj.get_arch() == "dadao"

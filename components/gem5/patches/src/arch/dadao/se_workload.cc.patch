@@ -1,0 +1,235 @@
+diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
+new file mode 100644
+index 0000000..5935a0a
+--- /dev/null
++++ b/src/arch/dadao/se_workload.cc
+@@ -0,0 +1,229 @@
++// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
++#include "arch/dadao/se_workload.hh"
++
++#include <unistd.h>
++
++#include <cerrno>
++#include <cstdint>
++#include <memory>
++#include <vector>
++
++#include "arch/dadao/process.hh"
++#include "arch/dadao/regs/int.hh"
++#include "base/logging.hh"
++#include "cpu/thread_context.hh"
++#include "mem/se_translating_port_proxy.hh"
++#include "sim/fd_entry.hh"
++#include "sim/process.hh"
++#include "sim/sim_exit.hh"
++#include "sim/system.hh"
++namespace gem5
++{
++
++namespace
++{
++
++// Linux/RISC-V syscall numbers used by the G1 static-musl startup path
++// (contract-syscall §1.1: numbers live in rd15).
++constexpr uint64_t SysIoctl = 29;
++constexpr uint64_t SysWrite = 64;
++constexpr uint64_t SysWritev = 66;
++constexpr uint64_t SysExit = 93;
++constexpr uint64_t SysExitGroup = 94;
++constexpr uint64_t SysSetTidAddress = 96;
++
++RegId
++intReg(RegIndex idx)
++{
++    return RegId(DadaoISA::intRegClass, idx);
++}
++
++RegId
++rd(unsigned idx)
++{
++    return intReg(DadaoISA::int_reg::RdBase + idx);
++}
++
++RegId
++rb(unsigned idx)
++{
++    return intReg(DadaoISA::int_reg::RbBase + idx);
++}
++
++uint64_t
++readBigEndian64(const uint8_t *bytes)
++{
++    uint64_t value = 0;
++    for (unsigned i = 0; i < 8; ++i)
++        value = (value << 8) | bytes[i];
++    return value;
++}
++
++/** write(2) on a host-backed guest file descriptor.
++ *
++ * Guest memory is read with Never allocation: a bad pointer must fail with
++ * EFAULT, never silently map a fresh page.
++ */
++RegVal
++doWrite(ThreadContext *tc, DadaoISA::Process *process, int fd, Addr buf,
++        uint64_t count)
++{
++    if (fd < 0 || fd >= process->fds->getSize())
++        return static_cast<RegVal>(-EBADF);
++
++    std::shared_ptr<FDEntry> entry = (*process->fds)[fd];
++    auto hostEntry = std::dynamic_pointer_cast<HBFDEntry>(entry);
++    if (!hostEntry)
++        return static_cast<RegVal>(-EBADF);
++
++    const int sim_fd = hostEntry->getSimFD();
++
++    std::vector<uint8_t> data(count);
++    if (count > 0) {
++        SETranslatingPortProxy proxy(tc, SETranslatingPortProxy::Never);
++        if (!proxy.tryReadBlob(buf, data.data(), count))
++            return static_cast<RegVal>(-EFAULT);
++    }
++
++    ssize_t written;
++    do {
++        written = ::write(sim_fd, data.data(), count);
++    } while (written < 0 && errno == EINTR);
++
++    if (written < 0)
++        return static_cast<RegVal>(-errno);
++    return static_cast<RegVal>(written);
++}
++
++class DadaoLoader : public Process::Loader
++{
++  public:
++    Process *
++    load(const ProcessParams &params, loader::ObjectFile *obj) override
++    {
++        if (obj->getArch() != loader::Dadao)
++            return nullptr;
++
++        loader::OpSys opsys = obj->getOpSys();
++        if (opsys == loader::UnknownOpSys) {
++            warn("Unknown operating system; assuming Linux.");
++            opsys = loader::Linux;
++        }
++        if (opsys != loader::Linux)
++            return nullptr;
++
++        return new DadaoISA::Process(params, obj);
++    }
++};
++
++DadaoLoader dadaoLoader;
++
++} // anonymous namespace
++
++namespace DadaoISA
++{
++
++void
++SEWorkload::syscall(ThreadContext *tc)
++{
++    auto *process = dynamic_cast<DadaoISA::Process *>(tc->getProcessPtr());
++    fatal_if(process == nullptr, "DADAO SE: syscall on a non-DADAO process");
++
++    // Statistics only; the base implementation does no dispatch.
++    process->gem5::Process::syscall(tc);
++
++    const uint64_t nr = tc->getReg(rd(15));
++    const Addr pc = tc->pcState().instAddr();
++    RegVal result = 0;
++
++    switch (nr) {
++      case SysExit:
++      case SysExitGroup: {
++        // contract-syscall §6: process exit is a syscall, not an exit port.
++        // The status is truncated to 8 bits, exactly like exitImpl.
++        const int status = static_cast<int>(tc->getReg(rd(16)));
++        tc->halt();
++        exitSimLoop("exiting with last active thread context", status & 0xff);
++        return; // not reached
++      }
++
++      case SysIoctl: {
++        // musl's __stdout_write() probes TIOCGWINSZ once before printf's first
++        // flush; a non-tty returns -ENOTTY and musl falls back to full
++        // buffering.  Only the two terminal probes of the static-musl startup
++        // surface are answered; any other request is an explicit failure.
++        const uint64_t req = tc->getReg(rd(17));
++        if (req == 0x5413 /* TIOCGWINSZ */ || req == 0x5401 /* TCGETS */) {
++            result = static_cast<RegVal>(-ENOTTY);
++            break;
++        }
++        fatal("DADAO SE: ioctl request %#x not implemented (pc=%#x)", req, pc);
++      }
++
++      case SysSetTidAddress: {
++        // musl __init_tp calls this unconditionally before main().
++        process->childClearTID = tc->getReg(rb(16));
++        result = process->pid();
++        break;
++      }
++
++      case SysWrite: {
++        const int fd = static_cast<int>(tc->getReg(rd(16)));
++        const Addr buf = tc->getReg(rb(16));
++        const uint64_t count = tc->getReg(rd(17));
++        result = doWrite(tc, process, fd, buf, count);
++        break;
++      }
++
++      case SysWritev: {
++        const int fd = static_cast<int>(tc->getReg(rd(16)));
++        const Addr iov = tc->getReg(rb(16));
++        const uint64_t iovcnt = tc->getReg(rd(17));
++
++        if (iovcnt > 1024) {
++            result = static_cast<RegVal>(-EINVAL);
++            break;
++        }
++
++        std::vector<uint8_t> raw(iovcnt * 16);
++        if (iovcnt > 0) {
++            SETranslatingPortProxy proxy(tc, SETranslatingPortProxy::Never);
++            if (!proxy.tryReadBlob(iov, raw.data(), raw.size())) {
++                result = static_cast<RegVal>(-EFAULT);
++                break;
++            }
++        }
++
++        RegVal total = 0;
++        bool failed = false;
++        for (uint64_t i = 0; i < iovcnt; ++i) {
++            // struct iovec (contract-abi §1.7): {base, len}, 8 bytes each, BE.
++            const uint64_t base = readBigEndian64(&raw[i * 16]);
++            const uint64_t len = readBigEndian64(&raw[i * 16 + 8]);
++            const int64_t written =
++                static_cast<int64_t>(doWrite(tc, process, fd, base, len));
++            if (written < 0) {
++                result = total > 0 ? total : static_cast<RegVal>(written);
++                failed = true;
++                break;
++            }
++            total += static_cast<RegVal>(written);
++        }
++        if (!failed)
++            result = total;
++        break;
++      }
++
++      default:
++        // 2026-11-02 decision: an unsupported syscall is a hard, explicit
++        // failure with the number and the trapping pc -- never a silent
++        // -ENOSYS/0 continuation.
++        fatal("DADAO SE: syscall %d not implemented (pc=%#x)",
++              static_cast<int>(nr), pc);
++    }
++
++    tc->setReg(rd(8), result);
++}
++
++} // namespace DadaoISA
++} // namespace gem5

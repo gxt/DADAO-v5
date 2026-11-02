@@ -1,0 +1,250 @@
+diff --git a/src/arch/dadao/process.cc b/src/arch/dadao/process.cc
+new file mode 100644
+index 0000000..301dc4b
+--- /dev/null
++++ b/src/arch/dadao/process.cc
+@@ -0,0 +1,244 @@
++// DADAO syscall-emulation process -- implementation.
++#include "arch/dadao/process.hh"
++
++#include <algorithm>
++#include <memory>
++#include <vector>
++
++#include "arch/dadao/page_size.hh"
++#include "arch/dadao/regs/float.hh"
++#include "arch/dadao/regs/int.hh"
++#include "base/loader/elf_object.hh"
++#include "base/loader/object_file.hh"
++#include "base/logging.hh"
++#include "cpu/thread_context.hh"
++#include "mem/page_table.hh"
++#include "sim/aux_vector.hh"
++#include "sim/byteswap.hh"
++#include "sim/mem_state.hh"
++#include "sim/system.hh"
++
++namespace gem5
++{
++
++namespace
++{
++
++// SE address-space convention (48-bit guest VA, ADR-0048 D1).  Not a spec
++// assertion and not shared with the FS memory window.
++constexpr Addr StackBase = 0x0000FFFFFFFF0000ULL;
++constexpr Addr MmapEnd = 0x0000400000000000ULL;
++
++// MemRAS backing store: 1 MiB of guest-readable/writable pages.  Placed above
++// the mmap region and well below the stack so it cannot collide with either.
++constexpr Addr MemRasBase = 0x0000500000000000ULL;
++constexpr Addr MemRasSize = 1ULL << 20;
++
++// FCSR reset value (rf0): read-only quiet-NaN payload plus reset rounding mode
++// (ADR-0004 D2.1, contract-isa §1.3.3).
++constexpr uint64_t FcsrReset = 0x7FF800007FC00000ULL;
++
++// AT_RANDOM contents are a fixed pattern: SE has no security boundary and a
++// reproducible run is more useful than entropy.
++constexpr uint8_t AtRandomBytes[16] = {
++    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
++    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
++};
++
++} // anonymous namespace
++
++DadaoISA::Process::Process(const ProcessParams &params, loader::ObjectFile *objFile) :
++    gem5::Process(params,
++                  new EmulationPageTable(params.name, params.pid, PageBytes),
++                  objFile)
++{
++    fatal_if(params.useArchPT,
++             "DADAO SE: architecture page tables are not supported");
++
++    const Addr max_stack_size = params.maxStackSize;
++    const Addr next_thread_stack_base = StackBase - max_stack_size;
++    const Addr brk_point = roundUp(image.maxAddr(), PageBytes);
++
++    memState = std::make_shared<MemState>(this, brk_point, StackBase,
++                                          max_stack_size,
++                                          next_thread_stack_base, MmapEnd);
++
++    validateStaticElf();
++}
++
++void
++DadaoISA::Process::validateStaticElf()
++{
++    fatal_if(objFile->getArch() != loader::Dadao,
++             "DADAO SE: object file is not DADAO (%s)",
++             loader::archToString(objFile->getArch()));
++    fatal_if(objFile->getByteOrder() != ByteOrder::big,
++             "DADAO SE: object file is not big-endian");
++
++    auto *elf = dynamic_cast<loader::ElfObject *>(objFile);
++    fatal_if(elf == nullptr, "DADAO SE: object file is not an ELF file");
++
++    // contract-elf §1/§1.3: ET_EXEC only, e_flags[7:0] == 1, e_flags[31:8] == 0.
++    fatal_if(elf->elfType() != ET_EXEC,
++             "DADAO SE: only ET_EXEC is supported (e_type=%u; ET_DYN/static "
++             "PIE is a later milestone)", elf->elfType());
++    fatal_if((elf->elfFlags() & 0xff) != 1,
++             "DADAO SE: unsupported object/ABI version e_flags[7:0]=%u",
++             elf->elfFlags() & 0xff);
++    fatal_if((elf->elfFlags() >> 8) != 0,
++             "DADAO SE: reserved e_flags[31:8] must be zero (0x%08x)",
++             elf->elfFlags());
++
++    // Dynamic linking is out of scope for G1: reject rather than ignore.
++    fatal_if(objFile->getInterpreter() != nullptr,
++             "DADAO SE: PT_INTERP (dynamic linking) is not supported");
++
++    const Addr stack_limit =
++        memState->getStackBase() - memState->getMaxStackSize();
++    const Addr entry = objFile->entryPoint();
++    bool entry_covered = false;
++
++    for (const auto &seg : image.segments()) {
++        fatal_if(seg.size == 0, "DADAO SE: empty loadable segment '%s'",
++                 seg.name);
++        // lld packs PT_LOAD segments back to back (only p_offset is aligned
++        // to p_align), so a segment base is 4-byte aligned, not 64 KiB.  The
++        // architectural requirement is instruction/word alignment; 8-byte
++        // object alignment is the linker's business inside the section.
++        fatal_if((seg.base & 3) != 0,
++                 "DADAO SE: segment '%s' base %#x is not 4-byte aligned",
++                 seg.name, seg.base);
++        fatal_if(seg.base + seg.size < seg.base,
++                 "DADAO SE: segment '%s' at %#x overflows the address space",
++                 seg.name, seg.base);
++        fatal_if(seg.base + seg.size > stack_limit,
++                 "DADAO SE: segment '%s' [%#x, %#x) intrudes into the stack "
++                 "reservation [%#x, %#x)", seg.name, seg.base,
++                 seg.base + seg.size, stack_limit,
++                 memState->getStackBase());
++        if (entry >= seg.base && entry < seg.base + seg.size)
++            entry_covered = true;
++    }
++
++    fatal_if((entry & 3) != 0,
++             "DADAO SE: entry point %#x is not 4-byte aligned", entry);
++    fatal_if(!entry_covered,
++             "DADAO SE: entry point %#x is outside every loadable segment",
++             entry);
++
++    const auto opsys = objFile->getOpSys();
++    fatal_if(opsys != loader::Linux && opsys != loader::UnknownOpSys,
++             "DADAO SE: unsupported operating system %d", opsys);
++}
++
++void
++DadaoISA::Process::initState()
++{
++    gem5::Process::initState();
++
++    argsInit<uint64_t>(PageBytes);
++
++    // MemRAS: contract-isa §1.3.4 requires a user process to start with the
++    // MemRAS allocated and ra0 set.  One MiB, zero-filled, with the top
++    // entry (MRPTR) pre-set to the invalid entry 0.  The VMA must exist
++    // before the physical pages are allocated.
++    memState->mapRegion(MemRasBase, MemRasSize, "memras");
++    allocateMem(MemRasBase, MemRasSize);
++    initVirtMem->memsetBlob(MemRasBase, 0, MemRasSize);
++    const Addr mrptr = MemRasBase + MemRasSize - 8;
++    const uint64_t invalidEntry = 0;
++    initVirtMem->writeBlob(mrptr, &invalidEntry, sizeof(invalidEntry));
++
++    for (ContextID ctx : contextIds) {
++        auto *tc = system->threads[ctx];
++        tc->pcState(getStartPC());
++        // SP is rb1; rd0/rb0 keep their read-only semantics.
++        tc->setReg(RegId(intRegClass, int_reg::RbBase + 1), initialSp);
++        // ra0 = RACNT(0) | MRPTR; [63:54] SBZ.
++        tc->setReg(RegId(intRegClass, int_reg::RaBase), mrptr);
++        // FCSR reset value; rf1-rf63 stay zero (register file reset).
++        tc->setReg(RegId(floatRegClass, 0), FcsrReset);
++    }
++}
++
++template <class IntType>
++void
++DadaoISA::Process::argsInit(Addr pageSize)
++{
++    const int RandomBytes = 16;
++    const int addrSize = sizeof(IntType);
++
++    auto *elfObject = dynamic_cast<loader::ElfObject *>(objFile);
++    fatal_if(elfObject == nullptr, "DADAO SE: object file is not an ELF file");
++
++    // Layout from the stack base downwards: 16-byte AT_RANDOM block, then the
++    // argument/environment strings, then the vector.  The vector is the lowest
++    // part, so the initial SP points at argc (standard Linux initial stack).
++    const Addr stack_base = memState->getStackBase();
++    const Addr randomAddr = stack_base - RandomBytes;
++
++    Addr str = randomAddr;
++    std::vector<Addr> argPointers;
++    for (const std::string &arg : argv) {
++        str -= arg.size() + 1;
++        argPointers.push_back(str);
++    }
++    std::vector<Addr> envPointers;
++    for (const std::string &env : envp) {
++        str -= env.size() + 1;
++        envPointers.push_back(str);
++    }
++    str &= -addrSize;
++
++    std::vector<gem5::auxv::AuxVector<IntType>> auxv;
++    auxv.emplace_back(gem5::auxv::Entry, objFile->entryPoint());
++    auxv.emplace_back(gem5::auxv::Phnum, elfObject->programHeaderCount());
++    auxv.emplace_back(gem5::auxv::Phent, elfObject->programHeaderSize());
++    auxv.emplace_back(gem5::auxv::Phdr, elfObject->programHeaderTable());
++    auxv.emplace_back(gem5::auxv::Pagesz, PageBytes);
++    auxv.emplace_back(gem5::auxv::Random, randomAddr);
++    auxv.emplace_back(gem5::auxv::Null, 0);
++
++    const Addr vectorBytes =
++        (1 + argv.size()) * addrSize + (1 + envp.size()) * addrSize +
++        addrSize + 2 * sizeof(IntType) * auxv.size();
++    const Addr sp = (str - vectorBytes) & (-2 * addrSize);
++
++    memState->setStackSize(stack_base - sp);
++    memState->mapRegion(roundDown(sp, pageSize),
++                        roundUp(memState->getStackSize(), pageSize), "stack");
++
++    // AT_RANDOM contents are a fixed pattern: SE has no security boundary.
++    initVirtMem->writeBlob(randomAddr, AtRandomBytes, RandomBytes);
++    for (size_t i = 0; i < argv.size(); ++i)
++        initVirtMem->writeString(argPointers[i], argv[i].c_str());
++    for (size_t i = 0; i < envp.size(); ++i)
++        initVirtMem->writeString(envPointers[i], envp[i].c_str());
++
++    // Big-endian on the stack: contract-elf §1 (all guest data is BE).
++    Addr cursor = sp;
++    const auto pushOntoStack = [this, &cursor](IntType data) {
++        initVirtMem->write(cursor, data, ByteOrder::big);
++        cursor += sizeof(data);
++    };
++
++    pushOntoStack(static_cast<IntType>(argv.size()));
++    for (const Addr &argPointer : argPointers)
++        pushOntoStack(argPointer);
++    pushOntoStack(static_cast<IntType>(0));
++    for (const Addr &envPointer : envPointers)
++        pushOntoStack(envPointer);
++    pushOntoStack(static_cast<IntType>(0));
++    for (const auto &aux : auxv) {
++        pushOntoStack(aux.type);
++        pushOntoStack(aux.val);
++    }
++
++    fatal_if(cursor > str,
++             "DADAO SE: argv/envp/auxv vector overran the string area");
++
++    initialSp = sp;
++    memState->setStackMin(roundDown(sp, pageSize));
++}
++
++} // namespace gem5

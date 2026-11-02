@@ -1,0 +1,50 @@
+diff --git a/src/arch/dadao/interrupts.hh b/src/arch/dadao/interrupts.hh
+new file mode 100644
+index 0000000..2bd9b74
+--- /dev/null
++++ b/src/arch/dadao/interrupts.hh
+@@ -0,0 +1,44 @@
++// DADAO SE interrupt controller: a placeholder with no interrupt sources.
++//
++// BaseCPU requires one interrupt object per thread, so SE must provide one;
++// there is nothing to deliver.  Both "is there an interrupt" and the delivery
++// path are explicit about that instead of silently pretending.
++#ifndef __ARCH_DADAO_INTERRUPTS_HH__
++#define __ARCH_DADAO_INTERRUPTS_HH__
++
++#include "arch/generic/interrupts.hh"
++#include "base/logging.hh"
++#include "params/DadaoInterrupts.hh"
++#include "sim/faults.hh"
++
++namespace gem5
++{
++
++namespace DadaoISA
++{
++
++class Interrupts : public BaseInterrupts
++{
++  public:
++    using Params = DadaoInterruptsParams;
++
++    explicit Interrupts(const Params &p) : BaseInterrupts(p) {}
++
++    bool checkInterrupts() const override { return false; }
++
++    Fault
++    getInterrupt() override
++    {
++        panic("DADAO SE: no interrupt source is modelled");
++        return NoFault;
++    }
++
++    void updateIntrInfo() override {}
++
++    void clearAll() override {}
++};
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_INTERRUPTS_HH__

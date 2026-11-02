@@ -106,13 +106,38 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   ⇒ ILLI、`rdhc=rd0` 仍合法、scaleB 指数 `rdhd=0` 合法）。
 - **B1–B7 边界**（GEM5-002t-REPORT §5）：38 / 8 / 42 / 63 / 28 / 30 / 55。
 
+## SE 平台（GEM5-014t）
+
+- **构成**：`DadaoAtomicSimpleCPU`（`BaseAtomicSimpleCPU` + `DadaoISA`/
+  `DadaoDecoder`/`DadaoMMU`/`DadaoInterrupts`）、`DadaoMMU`/`DadaoTlb`
+  （宿主页表直通翻译，无 PTW/PTBR）、`DadaoInterrupts`（无中断源）、
+  `DadaoSEWorkload`（`Process::Loader` 钩子 + syscall 分发）、
+  `DadaoISA::Process`（ET_EXEC 装载、初始栈/argv/auxv、MemRAS）。
+- **边界**：仅静态 `ET_EXEC`（明确拒绝 `ET_DYN`/static PIE/`PT_INTERP`）；
+  syscall 面 = `set_tid_address`/`write`/`writev`/`exit`/`exit_group` +
+  `ioctl` 的 `TIOCGWINSZ`/`TCGETS` 子集（musl `__stdout_write` 探测终端所需，
+  返回 `-ENOTTY`）；其余号与未建模的 ioctl request 一律 `fatal` **带号与 pc**
+  （不静默）；无 `brk`/`mmap`/TLS/线程/动态链接。
+- **页大小**：`PageShift = 16`（64 KiB），`AT_PAGESZ = 65536`（与架构页一致）。
+- **初始状态**：PC = `e_entry`、SP = `rb1`、`rf0 = 0x7FF800007FC00000`、
+  `ra0` 指向 1 MiB 预置 MemRAS（`MRPTR = 区顶 − 8`，invalid entry = 0）。
+- **CLI**：`configs/dadao/se.py --binary <elf> [--args "a b"] [--env K=V]
+  [--mem-size] [--max-stack] [--guest-stdout/-stderr/-stdin] [--cwd]
+  [--max-insts]`；退出码 = guest `status & 0xff`，非 guest 退出为 125。
+- **已知限制**：无 gdb/checkpoint/多核/非 ATOMIC CPU；SEE 异常帧仍 panic。
+- **页大小对照**：`qemu-dadao` 的 4 KiB 页是 QEMU 侧缺陷，已由 `QEMU-081t`
+  改为 `TARGET_PAGE_BITS=16`；本任务现场 `pagesz` 在 gem5 与 qemu 两侧均
+  `$?==0`（65536）。
+
 ## 补丁集
 
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），
   清单见 `series`；规范 `docs/Process-01-组件补丁组织与构建编排.md`。
-- 规模（2026-11-02 现场统计）：**50 份** = 新增 48 + 修改 2
-  （`src/arch/Kconfig`、`src/arch/SConscript`；每个 patch 内含完整文件，
-  全部 `src/arch/dadao/**` 与 `build_opts/DADAO` 均为新增）。
+- 规模（2026-11-02 现场统计）：**73 份** = 新增 66 + 修改 7
+  （`src/arch/Kconfig`、`src/arch/SConscript`、
+  `src/base/loader/{object_file.hh,object_file.cc,elf_object.hh,elf_object.cc}`、
+  `src/cpu/simple/AtomicSimpleCPU.py`；其余为 `src/arch/dadao/**`、
+  `build_opts/DADAO`、`configs/dadao/se.py` 等新增文件）。
 - 解码表由 `tools/gem5/gen_decode_table.py` 从 `contracts/opcodes.yaml` +
   `GEM5-002t` 矩阵生成；`--check` 为漂移门控（不手工编辑 `.inc`）。
   生成器内置 SPEC-181t 守护：scaleB 第三操作数必须是 `rdhd/rd`（旧 `rfhd/rf`

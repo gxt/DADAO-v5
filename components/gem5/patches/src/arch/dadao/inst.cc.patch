@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..fdc97c5
+index 0000000..476bb4a
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,459 @@
+@@ -0,0 +1,472 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -22,6 +22,7 @@ index 0000000..fdc97c5
 +#include "cpu/exec_context.hh"
 +#include "cpu/thread_context.hh"
 +#include "mem/request.hh"
++#include "sim/system.hh"
 +
 +namespace gem5
 +{
@@ -52,9 +53,11 @@ index 0000000..fdc97c5
 + *
 + * B6 platform boundary: there is no cfx register file / permission matrix /
 + * SEE frame / privilege model in G1, so readCfx()/writeCfx() report CFXREG,
-+ * trapTo() panics and escapeFrom() reports CFXESC.  The reservation is held by
-+ * the per-thread ISA object, single slot, exact address + width (SPEC-181t
-+ * F8.1); no checkpoint state.
++ * escapeFrom() reports CFXESC and non-syscall traps panic.  The one modelled
++ * trap is the SE syscall entry (`trap cfx0, 0`), which hands control to the
++ * workload's syscall dispatcher.  The reservation is held by the per-thread
++ * ISA object, single slot, exact address + width (SPEC-181t F8.1); no
++ * checkpoint state.
 + */
 +class Gem5B1Context : public exec::B7Context
 +{
@@ -242,7 +245,17 @@ index 0000000..fdc97c5
 +    void
 +    trapTo(uint8_t cfxha, uint32_t immu18) override
 +    {
-+        // The SEE exception vector / frame model is not implemented.
++        // SE entry point: `trap cfx0, 0` is umon / SBI_UMON_SYSCALL
++        // (contract-syscall §2).  The workload dispatches on rd15 and the CPU
++        // advances the PC by 4 like any other sequential instruction.
++        if (cfxha == 0 && immu18 == 0) {
++            tc->getSystemPtr()->workload->syscall(tc);
++            return;
++        }
++
++        // The SEE exception vector / frame model is not implemented; other
++        // trap combinations must fail loudly (semihosting and the FS SYS_EXIT
++        // path are separate, later milestones).
 +        panic("DADAO B6: trap cfx%u, %u (SEE vector model not implemented)",
 +              cfxha, immu18);
 +    }

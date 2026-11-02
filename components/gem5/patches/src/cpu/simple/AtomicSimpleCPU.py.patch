@@ -1,0 +1,21 @@
+diff --git a/src/cpu/simple/AtomicSimpleCPU.py b/src/cpu/simple/AtomicSimpleCPU.py
+index 984db9d..8ca7b46 100644
+--- a/src/cpu/simple/AtomicSimpleCPU.py
++++ b/src/cpu/simple/AtomicSimpleCPU.py
+@@ -27,6 +27,7 @@ import m5.defines
+ 
+ arch_vars = [
+     "USE_ARM_ISA",
++    "USE_DADAO_ISA",
+     "USE_MIPS_ISA",
+     "USE_POWER_ISA",
+     "USE_RISCV_ISA",
+@@ -40,6 +41,8 @@ if len(enabled) == 1:
+     arch = enabled[0]
+     if arch == "USE_ARM_ISA":
+         from m5.objects.ArmCPU import ArmAtomicSimpleCPU as AtomicSimpleCPU
++    elif arch == "USE_DADAO_ISA":
++        from m5.objects.DadaoCPU import DadaoAtomicSimpleCPU as AtomicSimpleCPU
+     elif arch == "USE_MIPS_ISA":
+         from m5.objects.MipsCPU import MipsAtomicSimpleCPU as AtomicSimpleCPU
+     elif arch == "USE_POWER_ISA":

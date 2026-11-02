@@ -1,0 +1,72 @@
+diff --git a/src/arch/dadao/tlb.cc b/src/arch/dadao/tlb.cc
+new file mode 100644
+index 0000000..421466f
+--- /dev/null
++++ b/src/arch/dadao/tlb.cc
+@@ -0,0 +1,66 @@
++// DADAO SE TLB -- direct pass-through translation.
++#include "arch/dadao/tlb.hh"
++
++#include <memory>
++
++#include "cpu/thread_context.hh"
++#include "mem/page_table.hh"
++#include "sim/faults.hh"
++#include "sim/process.hh"
++
++namespace gem5
++{
++
++namespace DadaoISA
++{
++
++Fault
++TLB::translate(const RequestPtr &req, ThreadContext *tc)
++{
++    Process *process = tc->getProcessPtr();
++    Addr paddr;
++    if (!process->pTable->translate(req->getVaddr(), paddr))
++        return std::make_shared<GenericPageTableFault>(req->getVaddr());
++
++    req->setPaddr(paddr);
++    return NoFault;
++}
++
++void
++TLB::demapPage(Addr vaddr, uint64_t asn)
++{
++    // SE has no TLB entries to invalidate: the host page table is the truth.
++}
++
++Fault
++TLB::translateAtomic(const RequestPtr &req, ThreadContext *tc,
++                     BaseMMU::Mode mode)
++{
++    return translate(req, tc);
++}
++
++void
++TLB::translateTiming(const RequestPtr &req, ThreadContext *tc,
++                     BaseMMU::Translation *translation, BaseMMU::Mode mode)
++{
++    translation->finish(translate(req, tc), req, tc, mode);
++}
++
++Fault
++TLB::translateFunctional(const RequestPtr &req, ThreadContext *tc,
++                         BaseMMU::Mode mode)
++{
++    // Used by SETranslatingPortProxy: the same host page table lookup, minus
++    // the request/translation bookkeeping.
++    return translate(req, tc);
++}
++
++Fault
++TLB::finalizePhysical(const RequestPtr &req, ThreadContext *tc,
++                      BaseMMU::Mode mode) const
++{
++    return NoFault;
++}
++
++} // namespace DadaoISA
++} // namespace gem5

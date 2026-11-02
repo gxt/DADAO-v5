@@ -4,6 +4,10 @@
 
 ## M11
 
+- **2026-11-02 GEM5-014t**
+  - 摘要：**G1 SE 平台骨架（静态 ELF 首跑）**。新增 `src/arch/dadao/page_size.hh`（`PageShift=16`/64 KiB、`AT_PAGESZ=65536`）、`tlb.{hh,cc}`（SE 直通宿主页表，无 PTW/PTBR）、`mmu.hh`（`MMUTranslationGen`）、`interrupts.hh`（无中断源占位）、`process.{hh,cc}`（`ET_EXEC` 校验、BE 初始栈/argv/envp/auxv、`AT_RANDOM` 固定 16 B、1 MiB MemRAS + `MRPTR=区顶−8`、PC/SP/`ra0`/`rf0` 初值）、`se_workload.{hh,cc}`（`Process::Loader` 钩子 + `set_tid_address`/`write`/`writev`/`exit`/`exit_group` + `ioctl` 的 `TIOCGWINSZ`/`TCGETS` 子集，其余号与未建模 ioctl request `fatal` 带号与 pc）、5 个 SimObject 与 `DadaoCPU.py`、`configs/dadao/se.py`（经典式 SE 配置，非 guest 退出 125）；`loader::Arch` 增 `Dadao`（`EM_DADAO=0x0DA0`，强制 ELFCLASS64/ELFDATA2MSB），`ElfObject` 增 `elfType()`/`elfFlags()`；`ISA::inUserMode()` → `true`；`trap cfx0,0` 接 syscall 分发；`AtomicSimpleCPU.py` 增 `USE_DADAO_ISA` 分支。验收：静态 ELF 的 stdout/退出码与 `qemu-dadao` 逐字节一致，B0–B7 无退化；`pagesz`（64 KiB）在 gem5 与修正后的 `qemu-dadao`（`QEMU-081t`，`TARGET_PAGE_BITS=16`）上均通过。
+  - 执行者：engineer
+
 - **2026-11-02 GEM5-013t**
   - 摘要：**全 264 条执行收敛门控（B7 后 / G1 SE 前）**。新增统一 dispatcher `src/arch/dadao/exec/dispatch.{hh,cc}`（`dispatchBatch()` 恰 7 个 case，各自调用对应 `executeBk()`，`default` = `__builtin_unreachable()`），`inst.cc` 删除 7 段重复 `if/else + switch`，改为「batch guard（唯一一处 `UnimplementedInstruction`）→ `dispatchBatch()` → 单个 `switch (Fault)`」，逐批不可达 panic 文案原样保留；`SConscript` 加入 `exec/dispatch.cc`（harness `exec/converge_test.cc` 不进构建）。新增 `tools/gem5/gen_converge_words.py`（只读 `contracts/opcodes.yaml` 字段/位段/legality + `gen_decode_table.batch_of()`，回溯搜索 264/264 合法字，`aligned()` 视为运行期约束）、`tools/gem5/check_converge.py`（B0 表/B0 门控/三方 id 双向一致/264 ids+1848 边界矩阵/0 副作用/B1–B7 零退化/结构断言/矩阵刷新 8 步单一入口）与 `tools/gem5/refresh_matrix_notes.py`（按内容谓词刷新矩阵 44 行 `g1_note`、12 条 `sc` exceptions、2 条 `sclb` 字段，`--check` 逐字节比对、`--baseline <rev>` 断言非目标列不变）。矩阵刷新依据已生效的 SPEC-181t/182t，不改 spec/contracts。数据面：owner 批非 NotB* 且非 Illegal、其余 6 批恰为各自 NotB* 且寄存器/内存/FCSR/保留标记/cfx 快照零变化（1848/1848）；B0 264/264+388/388+28/28+2/2、B1–B7 2102/1160/4248/3696/1215/1362/2979 全零退化；`make build-gem5` 通过且 `nm -C` 含 `dispatchBatch` 与 `executeB1..7`。
   - 执行者：engineer

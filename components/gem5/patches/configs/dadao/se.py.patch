@@ -1,0 +1,114 @@
+diff --git a/configs/dadao/se.py b/configs/dadao/se.py
+new file mode 100644
+index 0000000..ee3a3cd
+--- /dev/null
++++ b/configs/dadao/se.py
+@@ -0,0 +1,108 @@
++#!/usr/bin/env python3
++# DADAO syscall-emulation configuration (GEM5-014t).
++#
++# A deliberately small classic-style SE configuration: one AtomicSimpleCPU, one
++# flat SimpleMemory starting at physical address 0, and the DADAO SE workload.
++# Guest virtual addresses are the ELF p_vaddr values; translation is done by
++# the DADAO SE TLB through the host page table.  The FS machine model (boot ROM,
++# memory window, page-table walker) is not part of this configuration.
++
++import argparse
++import os
++import shlex
++import sys
++
++import m5
++from m5.objects import *
++
++
++EXIT_CAUSE = "exiting with last active thread context"
++
++
++def parse_args():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--binary", required=True,
++                        help="static ET_EXEC DADAO ELF to run")
++    parser.add_argument("--args", default="",
++                        help="guest argv[1:], split like a shell would")
++    parser.add_argument("--env", action="append", default=[],
++                        help="guest environment entry K=V (repeatable)")
++    parser.add_argument("--mem-size", default="256MiB",
++                        help="size of the single physical memory range")
++    parser.add_argument("--max-stack", default="8MiB",
++                        help="maximum stack size handed to the process")
++    parser.add_argument("--guest-stdin", default="/dev/stdin",
++                        help="host file backing guest fd 0")
++    parser.add_argument("--guest-stdout", default="/dev/stdout",
++                        help="host file backing guest fd 1")
++    parser.add_argument("--guest-stderr", default="/dev/stderr",
++                        help="host file backing guest fd 2")
++    parser.add_argument("--cwd", default=None,
++                        help="guest current working directory")
++    parser.add_argument("--max-insts", type=int, default=0,
++                        help="safety cap; hitting it is NOT a guest exit")
++    return parser.parse_args()
++
++
++def main():
++    args = parse_args()
++
++    system = System()
++    system.mem_mode = "atomic"
++    system.mem_ranges = [AddrRange(args.mem_size)]
++    system.cache_line_size = 64
++
++    # The CPU is a ClockedObject, so the system needs a clock domain.
++    system.voltage_domain = VoltageDomain()
++    system.clk_domain = SrcClockDomain(clock="1GHz",
++                                       voltage_domain=system.voltage_domain)
++
++    system.membus = SystemXBar()
++    system.mem = SimpleMemory(range=AddrRange(args.mem_size))
++    system.mem.port = system.membus.mem_side_ports
++    system.system_port = system.membus.cpu_side_ports
++
++    system.workload = DadaoSEWorkload()
++
++    process = Process()
++    # argv[0] is the exact --binary string, so cross-checking against
++    # qemu-dadao can pass the same string on both sides.
++    process.executable = args.binary
++    process.cmd = [args.binary] + shlex.split(args.args)
++    process.env = list(args.env)
++    process.input = args.guest_stdin
++    process.output = args.guest_stdout
++    process.errout = args.guest_stderr
++    process.cwd = args.cwd if args.cwd is not None else os.getcwd()
++    process.maxStackSize = args.max_stack
++
++    system.cpu = DadaoAtomicSimpleCPU()
++    system.cpu.workload = process
++    system.cpu.createInterruptController()
++    system.cpu.icache_port = system.membus.cpu_side_ports
++    system.cpu.dcache_port = system.membus.cpu_side_ports
++    system.cpu.createThreads()
++
++    if args.max_insts > 0:
++        system.cpu.max_insts_any_thread = args.max_insts
++
++    root = Root(full_system=False, system=system)
++    m5.instantiate()
++
++    exit_event = m5.simulate()
++    cause = exit_event.getCause()
++    # Evidence hook: the exit cause is host-side information, never guest
++    # output, so it goes to stderr.
++    print(f"GEM5_EXIT_CAUSE={cause}", file=sys.stderr)
++    if cause != EXIT_CAUSE:
++        # A non-guest exit (max-insts, panic unwinding, ...) must never be
++        # mistaken for the guest's own status.
++        print(f"gem5 SE: simulation ended without a guest exit: {cause}",
++              file=sys.stderr)
++        sys.exit(125)
++
++    sys.exit(exit_event.getCode())
++
++
++if __name__ == "__m5_main__":
++    main()

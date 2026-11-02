@@ -1,0 +1,34 @@
+diff --git a/src/base/loader/elf_object.cc b/src/base/loader/elf_object.cc
+index 26fb443..1134c19 100644
+--- a/src/base/loader/elf_object.cc
++++ b/src/base/loader/elf_object.cc
+@@ -58,6 +58,13 @@
+ #include "gelf.h"
+ #include "sim/byteswap.hh"
+ 
++// DADAO's project-custom ELF machine id (contract-elf §1).  It is not part of
++// upstream <elf.h>, so define it locally rather than relying on a toolchain
++// header that may or may not carry it.
++#ifndef EM_DADAO
++#define EM_DADAO 0x0DA0
++#endif
++
+ namespace gem5
+ {
+ 
+@@ -272,6 +279,15 @@ ElfObject::determineArch()
+         arch = bits(ehdr.e_entry, 0) ? Thumb : Arm;
+     } else if (emach == EM_AARCH64 && eclass == ELFCLASS64) {
+         arch = Arm64;
++    } else if (emach == EM_DADAO) {
++        // contract-elf §1: ELFCLASS64 + ELFDATA2MSB only.  Little-endian or
++        // 32-bit objects are rejected loudly instead of being mis-decoded.
++        if (eclass != ELFCLASS64 || edata != ELFDATA2MSB) {
++            fatal("The binary you're trying to load is not a 64-bit big-endian "
++                  "DADAO object (EI_CLASS=%d, EI_DATA=%d). Please recompile "
++                  "your binary.\n", eclass, edata);
++        }
++        arch = Dadao;
+     } else if (emach == EM_RISCV) {
+         arch = (eclass == ELFCLASS64) ? Riscv64 : Riscv32;
+     } else if (emach == EM_PPC && eclass == ELFCLASS32) {

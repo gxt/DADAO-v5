@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/SConscript b/src/arch/dadao/SConscript
 new file mode 100644
-index 0000000..f995d04
+index 0000000..698d244
 --- /dev/null
 +++ b/src/arch/dadao/SConscript
-@@ -0,0 +1,45 @@
+@@ -0,0 +1,60 @@
 +# DADAO ISA build description (B0 decode + B1/B2/B3/B4/B5/B6/B7 execution).
 +Import('*')
 +
@@ -44,8 +44,23 @@ index 0000000..f995d04
 +# GEM5-013t convergence harness exec/converge_test.cc, which is compiled
 +# by tools/gem5/check_converge.py and is not part of the build).
 +Source('exec/dispatch.cc', tags=['dadao isa'])
++# Syscall-emulation platform (GEM5-014t): host-page-table process, the minimal
++# syscall surface and the SE TLB/MMU/interrupt objects.  The FS memory model is
++# intentionally absent.
++Source('process.cc', tags=['dadao isa'])
++Source('se_workload.cc', tags=['dadao isa'])
++Source('tlb.cc', tags=['dadao isa'])
 +
 +SimObject('DadaoDecoder.py', sim_objects=['DadaoDecoder'], tags=['dadao isa'])
 +SimObject('DadaoISA.py', sim_objects=['DadaoISA'], tags=['dadao isa'])
++SimObject('DadaoInterrupts.py', sim_objects=['DadaoInterrupts'],
++          tags=['dadao isa'])
++SimObject('DadaoMMU.py', sim_objects=['DadaoMMU'], tags=['dadao isa'])
++SimObject('DadaoSEWorkload.py', sim_objects=['DadaoSEWorkload'],
++          tags=['dadao isa'])
++SimObject('DadaoTlb.py', sim_objects=['DadaoTlb'], tags=['dadao isa'])
++# DadaoCPU.py only assembles existing SimObjects into a CPU class (same shape
++# as RiscvCPU.py), so it registers no new SimObject of its own.
++SimObject('DadaoCPU.py', sim_objects=[], tags=['dadao isa'])
 +
 +ISADesc('isa/main.isa', tags=['dadao isa'])

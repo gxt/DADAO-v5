@@ -1,0 +1,16 @@
+diff --git a/src/base/loader/elf_object.hh b/src/base/loader/elf_object.hh
+index f084492..44797bf 100644
+--- a/src/base/loader/elf_object.hh
++++ b/src/base/loader/elf_object.hh
+@@ -124,6 +124,11 @@ class ElfObject : public ObjectFile
+     Addr programHeaderTable() {return _programHeaderTable;}
+     uint16_t programHeaderSize() {return _programHeaderSize;}
+     uint16_t programHeaderCount() {return _programHeaderCount;}
++
++    // Read-only header fields needed by SE loaders to reject unsupported
++    // object kinds (ET_DYN / static PIE) and ABI versions before running.
++    uint16_t elfType() const { return ehdr.e_type; }
++    uint32_t elfFlags() const { return ehdr.e_flags; }
+ };
+ 
+ /**

@@ -1,0 +1,22 @@
+diff --git a/src/arch/dadao/DadaoCPU.py b/src/arch/dadao/DadaoCPU.py
+new file mode 100644
+index 0000000..c2a87d8
+--- /dev/null
++++ b/src/arch/dadao/DadaoCPU.py
+@@ -0,0 +1,16 @@
++from m5.objects.BaseAtomicSimpleCPU import BaseAtomicSimpleCPU
++from m5.objects.DadaoDecoder import DadaoDecoder
++from m5.objects.DadaoISA import DadaoISA
++from m5.objects.DadaoInterrupts import DadaoInterrupts
++from m5.objects.DadaoMMU import DadaoMMU
++
++
++class DadaoCPU:
++    ArchDecoder = DadaoDecoder
++    ArchMMU = DadaoMMU
++    ArchInterrupts = DadaoInterrupts
++    ArchISA = DadaoISA
++
++
++class DadaoAtomicSimpleCPU(BaseAtomicSimpleCPU, DadaoCPU):
++    mmu = DadaoMMU()
