@@ -1,0 +1,47 @@
+diff --git a/src/arch/dadao/exec/dispatch.hh b/src/arch/dadao/exec/dispatch.hh
+new file mode 100644
+index 0000000..e86d376
+--- /dev/null
++++ b/src/arch/dadao/exec/dispatch.hh
+@@ -0,0 +1,41 @@
++// DADAO gem5 execution dispatcher: the single batch -> core mapping.
++//
++// Plain C++ (no gem5 headers), so the *same* function is driven by the gem5
++// adapter (inst.cc) and by the standalone convergence harness
++// (exec/converge_test.cc, tools/gem5/check_converge.py).  Keeping one copy is
++// the point of GEM5-013t: the harness then proves the boundary behaviour of the
++// exact code gem5 links, not a re-statement of it.
++#ifndef __ARCH_DADAO_EXEC_DISPATCH_HH__
++#define __ARCH_DADAO_EXEC_DISPATCH_HH__
++
++#include <cstdint>
++
++#include "arch/dadao/decode/decode.hh"
++#include "arch/dadao/exec/b7.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++/** Call the execution core of *batch*.
++ *
++ * Precondition: batch is in [1,7]; the caller has already checked
++ * `decoded.entry->batch` (inst.cc guards it before calling).  Returns the raw
++ * Fault of that core, including its own NotBk: interpreting NotBk as
++ * "unimplemented" is the caller's job, never this function's.
++ *
++ * Every core checks its batch before reading any architectural state (see
++ * exec/b*.cc), so a call with the wrong batch returns NotBk with zero side
++ * effects.
++ */
++Fault dispatchBatch(uint8_t batch, const decode::DecodedInst &inst,
++                    B7Context &ctx);
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_EXEC_DISPATCH_HH__

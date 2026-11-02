@@ -35,6 +35,9 @@ src/arch/dadao/exec/b7.cc.patch
 src/arch/dadao/exec/b7.hh.patch
 src/arch/dadao/exec/b7_test.cc.patch
 src/arch/dadao/exec/common.hh.patch
+src/arch/dadao/exec/converge_test.cc.patch
+src/arch/dadao/exec/dispatch.cc.patch
+src/arch/dadao/exec/dispatch.hh.patch
 src/arch/dadao/exec/fp_soft.cc.patch
 src/arch/dadao/exec/fp_soft.hh.patch
 src/arch/dadao/faults.hh.patch

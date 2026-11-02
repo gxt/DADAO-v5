@@ -1,0 +1,385 @@
+diff --git a/src/arch/dadao/exec/converge_test.cc b/src/arch/dadao/exec/converge_test.cc
+new file mode 100644
+index 0000000..0207ebc
+--- /dev/null
++++ b/src/arch/dadao/exec/converge_test.cc
+@@ -0,0 +1,379 @@
++// DADAO gem5 execution convergence harness (GEM5-013t).
++//
++// Standalone C++17 (no gem5 headers), compiled by tools/gem5/check_converge.py
++// against decode/decode.cc + exec/b1..b7.cc + exec/fp_soft.cc +
++// exec/dispatch.cc + this file.
++//
++// It exercises the *same* exec::dispatchBatch() that gem5's DadaoInst::execute()
++// calls, over the 264 legal words generated from contracts/opcodes.yaml by
++// tools/gem5/gen_converge_words.py (converge_words.inc):
++//
++//   1. decode: word -> the expected id, and entry->batch == owner batch;
++//   2. owner path: dispatchBatch(owner) is neither a NotB* nor Illegal (a legal
++//      encoding must not be rejected statically);
++//   3. boundary matrix: for every other k in 1..7, dispatchBatch(k) is exactly
++//      that batch's NotB* value and the register/memory/FCSR/reservation/cfx
++//      state is byte-identical before and after the call (zero side effects);
++//   4. one [PASS] converge-id line per id and a fixed summary line.
++//
++// Value semantics are *not* re-oracled here: check_b1..b7 own them.
++#include <cinttypes>
++#include <cstdarg>
++#include <cstdint>
++#include <cstdio>
++#include <cstring>
++#include <vector>
++
++#include "arch/dadao/decode/decode.hh"
++#include "arch/dadao/exec/b7.hh"
++#include "arch/dadao/exec/dispatch.hh"
++#include "converge_words.inc"
++
++namespace decode = gem5::DadaoISA::decode;
++namespace exec = gem5::DadaoISA::exec;
++
++namespace
++{
++
++int failures = 0;
++
++void
++fail(const char *fmt, ...)
++{
++    ++failures;
++    std::printf("[FAIL] ");
++    va_list args;
++    va_start(args, fmt);
++    std::vprintf(fmt, args);
++    va_end(args);
++    std::printf("\n");
++}
++
++// rf0 (FCSR) reset: read-only qNaN + RTZ-neutral fields (contract-fp §1).
++constexpr uint64_t kFcsrReset = 0x7FF800007FC00000ull;
++constexpr uint64_t kFcsrMask = (uint64_t(3) << 32) | 0x1Full;
++// Every integer register starts at an 8-byte aligned address (the harness
++// guarantees the run-time `aligned(N)` constraint of the contract legality).
++constexpr uint64_t kInitReg = 0x1000;
++constexpr uint64_t kInitPc = 0x1000;
++constexpr unsigned kMemBytes = 0x4000;
++
++struct Snapshot
++{
++    uint64_t rd[64] = {};
++    uint64_t rb[64] = {};
++    uint64_t ra[64] = {};
++    uint64_t rf[64] = {};
++    uint64_t cfx[64] = {};
++    std::vector<uint8_t> mem;
++    uint64_t ip = 0;
++    bool resValid = false;
++    uint64_t resAddr = 0;
++    unsigned resWidth = 0;
++};
++
++class TestContext : public exec::B7Context
++{
++  public:
++    uint64_t rd[64] = {};
++    uint64_t rb[64] = {};
++    uint64_t ra[64] = {};
++    uint64_t rf[64] = {};
++    uint64_t cfx[64] = {};
++    std::vector<uint8_t> mem;
++    uint64_t ip = kInitPc;
++    bool resValid = false;
++    uint64_t resAddr = 0;
++    unsigned resWidth = 0;
++
++    TestContext() : mem(kMemBytes, 0) { reset(); }
++
++    void
++    reset()
++    {
++        for (unsigned i = 0; i < 64; ++i) {
++            rd[i] = i == 0 ? 0 : kInitReg;
++            rb[i] = i == 0 ? 0 : kInitReg;
++            ra[i] = i == 0 ? 0 : kInitReg;
++            rf[i] = i == 0 ? kFcsrReset : kInitReg;
++            cfx[i] = 0xCF00000000000000ull + i;
++        }
++        for (unsigned i = 0; i < kMemBytes; ++i)
++            mem[i] = uint8_t((i * 7u + 3u) & 0xFFu);
++        ip = kInitPc;
++        resValid = false;
++        resAddr = 0;
++        resWidth = 0;
++    }
++
++    Snapshot
++    snapshot() const
++    {
++        Snapshot s;
++        std::memcpy(s.rd, rd, sizeof(rd));
++        std::memcpy(s.rb, rb, sizeof(rb));
++        std::memcpy(s.ra, ra, sizeof(ra));
++        std::memcpy(s.rf, rf, sizeof(rf));
++        std::memcpy(s.cfx, cfx, sizeof(cfx));
++        s.mem = mem;
++        s.ip = ip;
++        s.resValid = resValid;
++        s.resAddr = resAddr;
++        s.resWidth = resWidth;
++        return s;
++    }
++
++    bool
++    sameAs(const Snapshot &s) const
++    {
++        return std::memcmp(s.rd, rd, sizeof(rd)) == 0 &&
++               std::memcmp(s.rb, rb, sizeof(rb)) == 0 &&
++               std::memcmp(s.ra, ra, sizeof(ra)) == 0 &&
++               std::memcmp(s.rf, rf, sizeof(rf)) == 0 &&
++               std::memcmp(s.cfx, cfx, sizeof(cfx)) == 0 &&
++               s.mem == mem && s.ip == ip && s.resValid == resValid &&
++               s.resAddr == resAddr && s.resWidth == resWidth;
++    }
++
++    // ---- RegAccess / B1..B7 context ------------------------------------
++    uint64_t
++    readInt(exec::Bank bank, unsigned idx) override
++    {
++        switch (bank) {
++          case exec::Bank::Rd: return idx == 0 ? 0 : rd[idx];
++          case exec::Bank::Rb: return idx == 0 ? ip : rb[idx];
++          case exec::Bank::Ra: return ra[idx];
++        }
++        return 0;
++    }
++
++    void
++    writeInt(exec::Bank bank, unsigned idx, uint64_t val) override
++    {
++        if ((bank == exec::Bank::Rd || bank == exec::Bank::Rb) && idx == 0) {
++            fail("harness: write to read-only %s0",
++                 bank == exec::Bank::Rd ? "rd" : "rb");
++            return;
++        }
++        switch (bank) {
++          case exec::Bank::Rd: rd[idx] = val; break;
++          case exec::Bank::Rb: rb[idx] = val; break;
++          case exec::Bank::Ra: ra[idx] = val; break;
++        }
++    }
++
++    uint64_t
++    readFloat(unsigned idx) override { return rf[idx]; }
++
++    void
++    writeFloatLow32(unsigned idx, uint32_t val) override
++    {
++        rf[idx] = (rf[idx] & 0xFFFFFFFF00000000ull) | val;
++    }
++
++    void writeFloat64(unsigned idx, uint64_t val) override { rf[idx] = val; }
++
++    void
++    writeFcsr(uint64_t raw) override
++    {
++        rf[0] = (rf[0] & ~kFcsrMask) | (raw & kFcsrMask);
++    }
++
++    uint64_t pc() const override { return ip; }
++
++    void
++    branchTo(uint64_t target64) override
++    {
++        ip = target64;
++    }
++
++    // ---- memory ---------------------------------------------------------
++    bool
++    readMem(uint64_t addr, unsigned bytes, uint8_t *out) override
++    {
++        if (addr + bytes > mem.size())
++            return false;
++        std::memcpy(out, &mem[addr], bytes);
++        return true;
++    }
++
++    bool
++    writeMem(uint64_t addr, const uint8_t *in, unsigned bytes) override
++    {
++        if (addr + bytes > mem.size())
++            return false;
++        std::memcpy(&mem[addr], in, bytes);
++        return true;
++    }
++
++    void
++    reportMalign(uint64_t addr, unsigned width) override
++    {
++        malignAddr = addr;
++        malignWidth = width;
++    }
++
++    uint64_t malignAddr = 0;
++    unsigned malignWidth = 0;
++
++    // ---- B6 platform hooks (all succeed: this harness is about dispatch) -
++    bool
++    readCfx(uint8_t cfxha, uint8_t cg, uint8_t rc, uint64_t &out) override
++    {
++        out = cfx[(cfxha * 8u + cg * 4u + rc) % 64u];
++        return true;
++    }
++
++    bool
++    writeCfx(uint8_t cfxha, uint8_t cg, uint8_t rc, uint64_t val) override
++    {
++        cfx[(cfxha * 8u + cg * 4u + rc) % 64u] = val;
++        return true;
++    }
++
++    void trapTo(uint8_t, uint32_t) override {}
++
++    bool
++    escapeFrom(uint8_t, uint32_t) override
++    {
++        return true;
++    }
++
++    void
++    setReservation(uint64_t addr, unsigned width) override
++    {
++        resValid = true;
++        resAddr = addr;
++        resWidth = width;
++    }
++
++    bool
++    hasReservation(uint64_t addr, unsigned width) const override
++    {
++        return resValid && resAddr == addr && resWidth == width;
++    }
++
++    void clearReservations() override { resValid = false; }
++
++    void ordering(uint8_t, uint8_t, uint8_t) override {}
++    void swymHint(uint32_t) override {}
++};
++
++const char *
++faultName(exec::Fault fault)
++{
++    switch (fault) {
++      case exec::Fault::None: return "None";
++      case exec::Fault::NotB1: return "NotB1";
++      case exec::Fault::NotB2: return "NotB2";
++      case exec::Fault::NotB3: return "NotB3";
++      case exec::Fault::NotB4: return "NotB4";
++      case exec::Fault::NotB5: return "NotB5";
++      case exec::Fault::NotB6: return "NotB6";
++      case exec::Fault::NotB7: return "NotB7";
++      case exec::Fault::Illegal: return "Illegal";
++      case exec::Fault::Malign: return "Malign";
++      case exec::Fault::Memory: return "Memory";
++      case exec::Fault::RasOverflow: return "RasOverflow";
++      case exec::Fault::RasUnderflow: return "RasUnderflow";
++      case exec::Fault::CfxReg: return "CfxReg";
++      case exec::Fault::CfxEsc: return "CfxEsc";
++    }
++    return "?";
++}
++
++bool
++isNotBk(exec::Fault fault)
++{
++    return fault == exec::Fault::NotB1 || fault == exec::Fault::NotB2 ||
++           fault == exec::Fault::NotB3 || fault == exec::Fault::NotB4 ||
++           fault == exec::Fault::NotB5 || fault == exec::Fault::NotB6 ||
++           fault == exec::Fault::NotB7;
++}
++
++/** The NotBk value of batch k (each core returns only its own marker). */
++exec::Fault
++notBkOf(uint8_t batch)
++{
++    switch (batch) {
++      case 1: return exec::Fault::NotB1;
++      case 2: return exec::Fault::NotB2;
++      case 3: return exec::Fault::NotB3;
++      case 4: return exec::Fault::NotB4;
++      case 5: return exec::Fault::NotB5;
++      case 6: return exec::Fault::NotB6;
++      case 7: return exec::Fault::NotB7;
++      default: return exec::Fault::None;
++    }
++}
++
++} // anonymous namespace
++
++int
++main()
++{
++    TestContext ctx;
++    unsigned ids = 0;
++    unsigned idsOk = 0;
++    unsigned boundary = 0;
++    unsigned boundaryOk = 0;
++    const unsigned kNumWords =
++        sizeof(kConvergeWords) / sizeof(kConvergeWords[0]);
++
++    for (unsigned n = 0; n < kNumWords; ++n) {
++        const ConvergeWord &row = kConvergeWords[n];
++        const unsigned before = unsigned(failures);
++        ++ids;
++
++        const decode::DecodedInst decoded = decode::decodeWord(row.word);
++        if (!decoded.ok() || std::strcmp(decoded.entry->id, row.id) != 0 ||
++            decoded.entry->batch != row.owner) {
++            fail("%s: decode mismatch (ok=%d id=%s batch=%u, expected "
++                 "batch %u)", row.id, decoded.ok() ? 1 : 0,
++                 decoded.ok() ? decoded.entry->id : "-",
++                 decoded.ok() ? unsigned(decoded.entry->batch) : 0u,
++                 unsigned(row.owner));
++        } else {
++            // owner path + the six wrong-batch boundaries
++            ctx.reset();
++            const exec::Fault ownerFault =
++                exec::dispatchBatch(row.owner, decoded, ctx);
++            ++boundary;
++            if (isNotBk(ownerFault)) {
++                fail("%s: owner batch %u returned %s", row.id,
++                     unsigned(row.owner), faultName(ownerFault));
++            } else if (ownerFault == exec::Fault::Illegal) {
++                fail("%s: legal word rejected statically (Illegal)", row.id);
++            } else {
++                ++boundaryOk;
++            }
++
++            for (unsigned k = 1; k <= 7; ++k) {
++                if (k == row.owner)
++                    continue;
++                const Snapshot snapshot = ctx.snapshot();
++                const exec::Fault got = exec::dispatchBatch(k, decoded, ctx);
++                ++boundary;
++                if (got != notBkOf(uint8_t(k))) {
++                    fail("%s: batch %u returned %s, expected %s", row.id, k,
++                         faultName(got), faultName(notBkOf(uint8_t(k))));
++                } else if (!ctx.sameAs(snapshot)) {
++                    fail("%s: batch %u changed architectural state on the "
++                         "NotB path", row.id, k);
++                } else {
++                    ++boundaryOk;
++                }
++            }
++        }
++
++        if (unsigned(failures) == before) {
++            ++idsOk;
++            std::printf("[PASS] converge-id %s\n", row.id);
++        }
++    }
++
++    std::printf("summary: ids %u/%u, boundary %u/%u, failures %d\n", idsOk,
++                ids, boundaryOk, boundary, failures);
++    return failures == 0 && idsOk == ids && ids == 264 &&
++           boundaryOk == boundary && boundary == 1848 ? 0 : 1;
++}
