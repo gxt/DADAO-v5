@@ -12,7 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| GEM5-012t | 待验收 | 2026-11-02 17:00（登记） | B7 FP 执行核心 55 条：12 族 IEEE754（fma/rem/sclb/f2i/compare/minmax/roundint）+ 独立 oracle |
+| GEM5-012t | 已验证 | 2026-11-02 19:15 | B7 FP 执行核心 55 条：12 族 IEEE754（fma/rem/sclb/f2i/compare/minmax/roundint）+ 独立 oracle |
 | GEM5-011t | 已验证 | 2026-11-02 16:55 | B6 系统/原子/屏障 30 条：swym/trap/escape/cfx2rd/cfx2rc/fence/lr/sc + 单槽保留标记与 CFXREG/CFXESC |
 | SPEC-182t | 已验证 | 2026-11-02 15:58 | F1 收口：12 条 lr.* 的 hb(rdHB)≠rd0 ⇒ ILLI 写入契约/生成器；编码不变 |
 | GEM5-010t | 已验证 | 2026-11-02 15:11 | B5 块搬移/条件赋值/控制流与 RAS：28 条（rd/ra/rb/rf 块复制、cs.*、br/jump/call/ret、RegRAS+MemRAS） |
