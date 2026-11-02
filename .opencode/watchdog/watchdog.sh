@@ -142,7 +142,7 @@ fi
 
 payload=$(python3 - <<'PY'
 import json
-print(json.dumps({"text":"定时巡检：检查是否有子代理结束未通知、后台 shell/构建的 EXIT 标记、以及可继续的任务。只做巡检和必要的只读核对；需要用户决策时记录并停，不要自动合并、推送或修改 SPEC/契约语义。","delivery":"queue"}, ensure_ascii=False))
+print(json.dumps({"text":"定时巡检：检查子代理/后台 shell/EXIT/任务状态。若存在已批准、依赖满足、无阻塞的下一任务，按现有授权直接继续推进（立任务书、派单、验收、合并）；只有需要用户语义裁定、额外授权、破坏性操作或队列空时才停。不要自行修改 SPEC/契约语义，未经授权不要 push。","delivery":"queue"}, ensure_ascii=False))
 PY
 )
 printf 'DRY-RUN would wake session=%s age=%s\n' "$sid" "$age" >> "$LOG"
