@@ -81,13 +81,13 @@
 3. **只读锁**：两册 `sha256sum` 与锁值逐字相等；锁 diff 仅这两册块（4+/1- 级），未误伤其它 20 册；授权注记含日期与用户原话摘要。
 4. **章节编号零漂移**：`git diff -U0` 证明所有 `##`/`###` 标题行未变（仅正文变动）；若必须新增标题，只允许 `#### N.M.K` 且同级 ≥2、编号连续。
 5. **归档零改动**：`git status --porcelain -uall` 与 `git diff --name-only` 均不含 `.tao/archive/**`；归档里的旧几何引用保持原样（历史快照，不追改）。
-6. **反例可达 FAIL**：至少两处注入（如把 Tiny BootROM 改成 `0x2_0000`、或把「≥64 KiB」改回「256 KiB」固定）⇒ 证据脚本/门控 FAIL；`cp` 备份 + `md5sum -c` 还原后回绿；**禁** `git checkout/restore/stash`。证据脚本落 `.work/evidence/SPEC-183t/run.sh`（`--inject` 模式）。
-7. **基线诚实**：`check-knowledge-refs` 当前基线**红**（`TESTCASES-091t` 的 `.work/evidence/TESTCASES-091t/` 悬空，非本任务引入）。本任务要求「不新增悬空 + 基线红原样记录」，**不得**为凑绿去改 `TESTCASES-091t` 任务书或移除其证据路径。
+6. **反例可达 FAIL**：至少两处注入（如把 Tiny BootROM 改成 `0x2_0000`、或把「≥64 KiB」改回「256 KiB」固定）⇒ 证据脚本/门控 FAIL；`cp` 备份 + `md5sum -c` 还原后回绿；**禁** `git checkout/restore/stash`。证据脚本落 `.work/evidence/SPEC-183t/run.sh*`（`--inject` 模式）。
+7. **基线诚实**：`check-knowledge-refs` 当前基线**红**（`TESTCASES-091t` 的 `.work/evidence/TESTCASES-091t/*` 尚未落盘，非本任务引入）。本任务要求「不新增悬空 + 基线红原样记录」，**不得**为凑绿去改 `TESTCASES-091t` 任务书或移除其证据路径。
 8. 完成区 ≤30 行；状态置 `待验收`。
 
 ## 证据
 
-- `.work/evidence/SPEC-183t/run.sh`：一条命令重跑全部门控，逐项取**命令自身** rc（禁 `| tee` 吞码），输出 profile 自洽断言明细与锁 sha256 对账；`--inject` 走注入/还原（`cp` + `md5sum -c`）。
+- `.work/evidence/SPEC-183t/run.sh*`：一条命令重跑全部门控，逐项取**命令自身** rc（禁 `| tee` 吞码），输出 profile 自洽断言明细与锁 sha256 对账；`--inject` 走注入/还原（`cp` + `md5sum -c`）。
 - `.work/evidence/SPEC-183t/*.log`：门控原始输出、`sha256sum` 前后快照、`git diff --stat`。
 - 完成区只写结论 + 命令 rc + 证据路径。
 

@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| GEM5-014t | 待开始 | 2026-11-02 21:41（登记） | 首个 G1 SE 平台骨架：SEWorkload/Process/MMU 边界、AtomicSimpleCPU、静态 ELF 入口/初始栈、最小 exit；与 QEMU user 对齐 |
 | SPEC-183t | 待开始 | 2026-11-02 21:35（登记） | Machine-v5 Tiny/Node 规范收口：两 profile 几何 + DADAO-12 BootROM ≥64 KiB + ADR-0004/0039/0040/0043 + 只读锁 |
 | TESTCASES-091t | 待开始 | 2026-11-02 21:17（登记） | Machine-v5 Tiny/Node 测试资产按 profile 参数化；本轮静态门控，真实执行留后续 QEMU |
 | GEM5-013t | 已验证 | 2026-11-02 21:03 | B7 后全 ISA 收敛门控：264 条统一 dispatcher 可达 + NotBx 边界矩阵 + 矩阵旧注刷新 |

@@ -129,7 +129,7 @@
 11. 每个 profile 的 lds 链接一个最小 ELF，`e_entry`/最小 PT_LOAD 落在 profile 规定地址。
 
 **S3 证据**
-12. `.work/evidence/TESTCASES-091t/` 有 `run.sh`（一条命令重跑全部静态检查、逐项取真实 rc、无 `tee` 吞码）、日志、注入/还原记录（`cp`+`md5`）、profile 参数核对输出。完成区只写结论 + 证据路径。
+12. `.work/evidence/TESTCASES-091t/*` 有 `run.sh`（一条命令重跑全部静态检查、逐项取真实 rc、无 `tee` 吞码）、日志、注入/还原记录（`cp`+`md5`）、profile 参数核对输出。完成区只写结论 + 证据路径。
 
 **BLOCKED（不得声称通过，交后续任务）**
 - 真实 QEMU 执行类：`check-inst-smoke`、`check-arch-smoke`、`check-unit`、`check-tset-*-smoke`、`test-elf`、`test-codegen` 及所有 `min_rom_probe_*` 实跑——依赖 `QEMU-079t`/`QEMU-080t` 的机器实现。
