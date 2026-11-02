@@ -60,3 +60,20 @@
 ### 第 1 次提交（architect 文件集审核）
 
 档位：`WIP:`（reviewer 未验收，状态 `待验收`）。对账：显式 staging 9 项 = 完成区「修改文件」(`tools/gem5/gen_decode_table.py`、`components/gem5/{README.md,changelog.md,decode-assertions.tsv}`、三份 `decode/*.patch`、本任务书、`milestones.md`)，无多提/漏提；`tests|spec|contracts|manifests|llvm|qemu|Makefile` 越界 grep 无命中；`milestones.md` 仅单行状态 `待开始`→`待验收`。提交落分支 `GEM5-005t`，见 `git log GEM5-005t`；未 push。
+
+### 第 1 轮 reviewer 验收
+
+**范围/快照**：分支 `GEM5-005t` = master `340b0d08` + 2 提交；验前/验后 `git status --porcelain -uall` 均空，`.work/source/gem5` `HEAD=3bb64c721a24` clean；四目标文件 `md5sum -c` 全 OK。WIP `75466476` 仅 9 文件，`tests|spec|contracts|Makefile|manifests|llvm|qemu` 越界 grep 无命中；补丁 26 份（series 26 行）仅 3 份 decode 补丁更新。
+**重跑记录（我本人执行，非采信完成区）**：
+- `make check-gem5-decode` **rc=0**：`gen_decode_table: OK (264 rows, batches {'B1': 38, 'B2': 8, 'B3': 42, 'B4': 63, 'B5': 28, 'B6': 30, 'B7': 55})`；`summary: positive 264/264, negative 388/388, legality 28/28, legacy 2/2, failures 0`（[PASS]694 / [FAIL]0）。
+- `make check-source-state` **rc=0**：`gem5: OK HEAD=3bb64c721a24 count=1 clean=True`。
+- gem5 单组件 `check_patch_tree.check_component("gem5")` **rc=0**：`gem5 patch-tree errors: 0`（断言 1–9）。
+- 全量 `make check-patch-tree` **rc=2**：`16 problem(s)` = llvm-project 10（⑨×5+⑥×5）+ qemu 6（⑨×3+⑥×3），`grep -c '^check-patch-tree: gem5'`=0；`git diff --name-only master...HEAD` 对 `components/{llvm,qemu}` 零改动 ⇒ 非 gem5 文件、非本任务引起（共享工作树并行任务）。
+- `make build-gem5` **rc=0**：`gem5.opt` 712,225,416 B；`make check-component-changelog` **rc=0**。
+- 证据脚本 `.work/evidence/GEM5-005t/run.sh` 我重跑 **rc=0**：`GEM5-005t evidence: PASS (0 failures)`（含 3 次注入→FAIL→`cp`+md5 还原→回绿）。
+**独立注入（自写 `/tmp/opencode/GEM5-005t/review-inject.py`，`cp`+md5，未用 git checkout/restore；首次 1 次索引 off-by-one 被自身断言拦下、文件未改）**：① 断言行改回 `rfhd/rf` → rc=1 `[FAIL] row 246 ftsclb_orrr_rf`（263/264），还原 md5 `772b5545…` 回绿；② 解码表 `kLegality,1→nullptr,0` → `gen --check` rc=1 `stale:` + rc=1 `[FAIL] legality sc.o.nn_orrr_rd`（27/28），还原 md5 `613178df…` 回绿；③ 反转 `sc.o.nn` rd0 期望 → rc=1 `[FAIL] legality sc.o.nn_orrr_rd expected legal, got ILLI`，回绿；④ 解码表 ftsclb 第三字段改 `rfhd/rf` → `gen --check` rc=1 + rc=1 `[FAIL] legacy ftsclb_orrr_rf: field 2 is still rfhd/rf`（legacy 1/2），回绿。
+**生成器派生性（临时树 `/tmp/opencode/GEM5-005t/deriv`，未动仓库）**：契约回退 ftsclb→rfhd ⇒ rc=1 `third operand is rfhd/rf, expected rdhd/rd`；删 `sc.o.nn` legality ⇒ rc=1 `legality lacks 'rdhb != rd0'`；删 rule_refs ⇒ rc=1 `dst_rd0 rule reference missing`；还原契约 ⇒ `--check` rc=0（非硬编码/非恒真）。
+**独立计数/语义**：tsv 264 行 = 契约 264；负例 388（`decode-negative.tsv` 行数 = harness 总数）；legality 28 = 12×2+2×2；legacy 2；12 条 sc 全 `rdhb != rd0`+`dst_rd0` 且 `rdhc` 不受约束；`ftsclb/fosclb` 第三字段 `rdhd[5:0]src/rd`、tsv 无 scaleB `rfhd`（其余 27 处 `rfhd` 属 FP 指令）。契约 master↔HEAD 逐条比对：**编码/opc/ha/mask/value 零变化**，仅 scaleB 字段 rfhd→rdhd + 12 条 sc legality/rules 新增。spec 复核：SimRISC-07 §2（`rdHD` 指数、旧 rf 写法失效）、SimRISC-12 §1.1（`rdHB=rd0⇒ILLI`、`rdHC` 可为 rd0）。
+**约束核验**：未切分支/未提交/未 push ✓；engineer 改动限 `components/gem5/**`、`tools/gem5/**`、本任务书、`milestones` ✓；仅 decode/断言层（`decode.cc` 无执行语义、README 标 B0/B1 分层、`dst_rd0/dst_rf0` 执行期 ILLI 留遗留）✓；完成区数字与我重跑逐条一致 ✓。
+**findings（不阻断，交 architect）**：F1 分支含依赖基线提交 `237aca8a`（改 `spec/`、`contracts/`、`manifests/spec-readonly.lock.toml`、`tools/spec/`、`.tao/{adr,contracts}`；内容与 SPEC-181t `c94c90d2` 逐字一致，diff 仅其 `components.lock.toml`，无新增语义；任务书完成区未声明该提交）——合并时须与 SPEC-181t 分支去重并补记账目。F2 证据脚本负例仅断言 `neg==neg_t && >0`（未绑 388），已由我独立计数补证。F3 全量 `check-patch-tree` rc=2 属并行 LLVM/QEMU 工作树，gem5 0 problem。
+**判决：Accepted** —— 验收命令在我自己的重跑下全部通过、约束无违反、4 次独立注入均可达 FAIL 且 `cp`+md5 还原回绿。
