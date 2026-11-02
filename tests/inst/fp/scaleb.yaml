@@ -52,12 +52,12 @@
   id: ftsclb_orrr_rf
   input_state:
     memory:
-    - address: '0xFC0000100000'
+    - address: '@ENTRY+0x100000'
       value: '0x000000003FC00000'
-    - address: '0xFC0000100008'
+    - address: '@ENTRY+0x100008'
       value: '0x0000000041200000'
     rb:
-      rb1: '0xFC0000100000'
+      rb1: '@ENTRY+0x100000'
     rd:
       rd3: '0x0000000000000002'
   mnemonic: ftsclb
@@ -83,12 +83,12 @@
   id: fosclb_orrr_rf
   input_state:
     memory:
-    - address: '0xFC0000100000'
+    - address: '@ENTRY+0x100000'
       value: '0x3FF8000000000000'
-    - address: '0xFC0000100008'
+    - address: '@ENTRY+0x100008'
       value: '0x4024000000000000'
     rb:
-      rb1: '0xFC0000100000'
+      rb1: '@ENTRY+0x100000'
     rd:
       rd3: '0x0000000000000002'
   mnemonic: fosclb
@@ -114,12 +114,12 @@
   id: ftsclb_orrr_rf
   input_state:
     memory:
-    - address: '0xFC0000100000'
+    - address: '@ENTRY+0x100000'
       value: '0x000000003FC00000'
-    - address: '0xFC0000100008'
+    - address: '@ENTRY+0x100008'
       value: '0x0000000041200000'
     rb:
-      rb1: '0xFC0000100000'
+      rb1: '@ENTRY+0x100000'
     rd:
       rd3: '0xFFFFFFFFFFFFFFFF'
   mnemonic: ftsclb
@@ -145,12 +145,12 @@
   id: fosclb_orrr_rf
   input_state:
     memory:
-    - address: '0xFC0000100000'
+    - address: '@ENTRY+0x100000'
       value: '0x3FF8000000000000'
-    - address: '0xFC0000100008'
+    - address: '@ENTRY+0x100008'
       value: '0x4024000000000000'
     rb:
-      rb1: '0xFC0000100000'
+      rb1: '@ENTRY+0x100000'
     rd:
       rd3: '0xFFFFFFFFFFFFFFFF'
   mnemonic: fosclb
@@ -176,12 +176,12 @@
   id: ftsclb_orrr_rf
   input_state:
     memory:
-    - address: '0xFC0000100000'
+    - address: '@ENTRY+0x100000'
       value: '0x000000003F800000'
-    - address: '0xFC0000100008'
+    - address: '@ENTRY+0x100008'
       value: '0x0000000041200000'
     rb:
-      rb1: '0xFC0000100000'
+      rb1: '@ENTRY+0x100000'
     rd:
       rd3: '0x00000000000000C8'
   mnemonic: ftsclb
@@ -207,12 +207,12 @@
   id: ftsclb_orrr_rf
   input_state:
     memory:
-    - address: '0xFC0000100000'
+    - address: '@ENTRY+0x100000'
       value: '0x000000003F800000'
-    - address: '0xFC0000100008'
+    - address: '@ENTRY+0x100008'
       value: '0x0000000041200000'
     rb:
-      rb1: '0xFC0000100000'
+      rb1: '@ENTRY+0x100000'
     rd:
       rd3: '0xFFFFFFFFFFFFFF38'
   mnemonic: ftsclb
@@ -238,12 +238,12 @@
   id: fosclb_orrr_rf
   input_state:
     memory:
-    - address: '0xFC0000100000'
+    - address: '@ENTRY+0x100000'
       value: '0x3FF0000000000000'
-    - address: '0xFC0000100008'
+    - address: '@ENTRY+0x100008'
       value: '0x4024000000000000'
     rb:
-      rb1: '0xFC0000100000'
+      rb1: '@ENTRY+0x100000'
     rd:
       rd3: '0x00000000000007D0'
   mnemonic: fosclb
@@ -269,12 +269,12 @@
   id: fosclb_orrr_rf
   input_state:
     memory:
-    - address: '0xFC0000100000'
+    - address: '@ENTRY+0x100000'
       value: '0x3FF0000000000000'
-    - address: '0xFC0000100008'
+    - address: '@ENTRY+0x100008'
       value: '0x4024000000000000'
     rb:
-      rb1: '0xFC0000100000'
+      rb1: '@ENTRY+0x100000'
     rd:
       rd3: '0xFFFFFFFFFFFFF830'
   mnemonic: fosclb
@@ -300,12 +300,12 @@
   id: ftsclb_orrr_rf
   input_state:
     memory:
-    - address: '0xFC0000100000'
+    - address: '@ENTRY+0x100000'
       value: '0x000000003FC00000'
-    - address: '0xFC0000100008'
+    - address: '@ENTRY+0x100008'
       value: '0x0000000041200000'
     rb:
-      rb1: '0xFC0000100000'
+      rb1: '@ENTRY+0x100000'
     rd: {}
   mnemonic: ftsclb
   notes: 'rdHD=rd0 ⇒ 指数 0：1.5f × 2^0 = 1.5f；rf3=10.0f 诱饵（旧路径应得 1536.0f）'
@@ -330,12 +330,12 @@
   id: ftsclb_orrr_rf
   input_state:
     memory:
-    - address: '0xFC0000100000'
+    - address: '@ENTRY+0x100000'
       value: '0x000000003FC00000'
-    - address: '0xFC0000100008'
+    - address: '@ENTRY+0x100008'
       value: '0x0000000041200000'
     rb:
-      rb1: '0xFC0000100000'
+      rb1: '@ENTRY+0x100000'
     rd:
       rd3: '0x0000000000000002'
   mnemonic: ftsclb

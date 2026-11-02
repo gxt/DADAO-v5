@@ -44,6 +44,34 @@ import struct
 import subprocess
 import sys
 
+import os, sys
+
+# TESTCASES-091t: probe geometry from the single profile source
+# (tests/shared/machine-profiles.yaml); runtime execution stays BLOCKED until
+# QEMU-079/080 provide the Tiny/Node machines.
+_MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))))
+if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
+    sys.path.insert(0, os.path.join(_MACH_REPO, "tools", "testcases", "lib"))
+import machine_profile as _machine_profile  # noqa: E402
+_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
+RAM_BASE = _MACH.ram_base
+RAM_END = _MACH.ram_end
+SP = _MACH.sp
+SP_OFF = SP - RAM_BASE
+BOOTROM_BASE = _MACH.bootrom_base
+ENTRY = _MACH.entry
+EXIT_BLOCK = _MACH.exit_block
+RAM_W2 = (RAM_BASE >> 32) & 0xFFFF
+RAM_W1 = (RAM_BASE >> 16) & 0xFFFF
+RAM_W0 = RAM_BASE & 0xFFFF
+SP_W2 = (SP >> 32) & 0xFFFF
+SP_W1 = (SP >> 16) & 0xFFFF
+SP_W0 = SP & 0xFFFF
+EXIT_W2 = (EXIT_BLOCK >> 32) & 0xFFFF
+EXIT_W1 = (EXIT_BLOCK >> 16) & 0xFFFF
+EXIT_W0 = EXIT_BLOCK & 0xFFFF
+
 def _repo_root():
     d = os.path.dirname(os.path.abspath(__file__))
     while d != "/":
@@ -59,11 +87,11 @@ WORKDIR = "/tmp/opencode/QEMU-042t"
 TIMEOUT = 20
 
 # Memory map (ADR-0004 D1; RAM base per rev. 2026-10-11)
-RAM_BASE = 0xFC00_0000_0000
-RAM_SIZE = 16 * 1024 * 1024
+RAM_BASE = _MACH.ram_base
+RAM_SIZE = _MACH["ram_size"]
 ROM_BASE = 0xFFFF_FFFF_0000
 ROM_SIZE = 64 * 1024
-SEMI_BLOCK = 0xFC00_00FF_F000        # SYS_EXIT argument block {reason, code}, in RAM
+SEMI_BLOCK = EXIT_BLOCK        # SYS_EXIT argument block {reason, code}, in RAM
 SEMIHOST_TAG = 0x3FF00               # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
@@ -134,7 +162,7 @@ def imm64_rb(rb, val):
 
 def code_set_semi_block():
     """rb16 = SEMI_BLOCK; block[0] = 0x20026 (ADR-0020 D8)."""
-    return ([set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000), or_w_rb(16, 2, 0xFC00)]
+    return ([set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000), or_w_rb(16, 2, RAM_W2)]
             + imm64_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o_rd(8, 16, 0)])
 
 def code_exit(code):
@@ -309,10 +337,10 @@ def run_qemu(elf_path=None, bios=None, kernel=None):
 # trampoline (ADR-0004 D6.4) for the raw-bin path
 def build_trampoline():
     return words_to_bytes([
-        set_zw_rb(1, 2, 0xFC00),   # rb1 = 0xFC0000000000 (stack)
-        or_w_rb(1, 1, 0x00FF),     # rb1 = 0xFC0000FF0000
-        or_w_rb(1, 2, 0xFC00),
-        set_zw_rb(2, 2, 0xFC00),   # rb2 = 0xFC0000000000 (RAM entry)
+        set_zw_rb(1, 2, RAM_W2),   # rb1 = RAM_BASE (stack)
+        or_w_rb(1, 1, 0x00FF),     # rb1 = SP
+        or_w_rb(1, 2, RAM_W2),
+        set_zw_rb(2, 2, RAM_W2),   # rb2 = RAM_BASE (RAM entry)
         jump_rrii(2, 0, 0),
     ])
 

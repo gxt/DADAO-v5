@@ -29,9 +29,10 @@ Design
   ``crt0-semihost.o`` assumes the architecture start-up code already set the
   stack, so the harness links it with ``--redefine-sym _start=_picolibc_start``
   behind ``tools/testcases/picolibc_test_crt0.s`` (the stack-setup stub).  The
-  image uses the installed ``picolibc_noflash.ld`` (single RAM segment, and the
-  ``__heap_*`` PROVIDEs that ``tests/shared/linker/dadao.lds`` lacks — ISS-191), so
-  ``malloc``/``sbrk`` link.  The test's own link arguments (``--defsym`` for the
+  image uses ``tests/shared/linker/picolibc-tiny.ld`` (a wrapper over the
+  installed ``picolibc_noflash.ld`` with Tiny __flash/__ram/__stack values;
+  ISS-191 heap PROVIDEs still apply), so ``malloc``/``sbrk`` link.  picolibc is
+  Tiny-only: selecting a non-picolibc profile is an explicit error.  The test's own link arguments (``--defsym`` for the
   printf/scanf float/int/long variants) and semihosting command line
   (``COMMAND_LINE`` for the argv tests) are honoured.
 
@@ -74,6 +75,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "infra"))
 import paths  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import machine_profile  # noqa: E402
 
 REPO_ROOT = paths.repo_root()
 TOOLCHAIN_BIN = paths.host_toolchain_bin()
@@ -82,6 +85,7 @@ PICOLIBC_SRC = REPO_ROOT / ".work" / "source" / "picolibc"
 CROSS_FILE = PICOLIBC_SRC / "scripts" / "cross-dadao.txt"
 TEST_BUILD = REPO_ROOT / ".work" / "build" / "picolibc-tests"
 CRT0_STUB = Path(__file__).resolve().parent / "picolibc_test_crt0.s"
+PICOLIBC_LDS = REPO_ROOT / "tests" / "shared" / "linker" / "picolibc-tiny.ld"
 
 CLANG = TOOLCHAIN_BIN / "clang"
 CLANGXX = TOOLCHAIN_BIN / "clang++"
@@ -283,7 +287,8 @@ def builtins_archive() -> Path:
 
 def link_target(name, objs, prelude, defsyms, out_dir):
     elf = out_dir / f"{name}.elf"
-    res = run([str(LLD), *defsyms, "-T", str(SYSROOT / "lib" / "picolibc_noflash.ld"),
+    res = run([str(LLD), "-L", str(SYSROOT / "lib"),
+               "-L", str(PICOLIBC_LDS.parent), *defsyms, "-T", str(PICOLIBC_LDS),
                *[str(o) for o in prelude], *[str(o) for o in objs],
                str(SYSROOT / "lib" / "libc.a"), str(SYSROOT / "lib" / "libsemihost.a"),
                str(builtins_archive()), "-o", str(elf)])
@@ -405,6 +410,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--stage", choices=("fast", "full"), default="full")
+    ap.add_argument("--profile",
+                    default=os.environ.get("DADAO_TEST_PROFILE") or "tiny",
+                    choices=sorted(machine_profile.all_profiles()),
+                    help="machine profile (picolibc is Tiny-only)")
     ap.add_argument("--jobs", type=int, default=DEFAULT_JOBS)
     ap.add_argument("--work-dir", default=str(REPO_ROOT / ".work" / "build" / "picolibc-tests-run"))
     ap.add_argument("--only", default=None, help="comma-separated test names")
@@ -413,6 +422,12 @@ def main() -> int:
                     help="corrupt one expectation to make the FAIL path reachable")
     ap.add_argument("--inject-test", default="basename")
     args = ap.parse_args()
+    prof = machine_profile.load(args.profile)
+    if not prof.get("picolibc", False):
+        print("picolibc-tests: ERROR: profile %r does not run picolibc "
+              "(Tiny-only per user ruling 2026-11-02)" % prof.name,
+              file=sys.stderr)
+        return 2
 
     for tool in (CLANG, CLANGXX, LLVM_MC, LLVM_OBJCOPY, LLD, QEMU):
         if not tool.exists():

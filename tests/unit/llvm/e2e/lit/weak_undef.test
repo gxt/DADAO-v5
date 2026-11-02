@@ -1,7 +1,7 @@
 # Undefined weak function references must link on DADAO (LLVM-085t / ISS-194).
 #
 # ELF gives an undefined weak symbol the value 0; the DADAO code image lives at
-# 0xFC00_0000_0000, so the PC-relative displacement to 0 cannot be encoded and a
+# the tiny profile ENTRY (0xFFFF_FF00_0000), so the PC-relative displacement to 0 cannot be encoded and a
 # veneer cannot bridge the 2^47 gap either.  lld now resolves such a reference
 # to the place itself (RISC-V convention for relative-only ISAs) -- a self-loop
 # -- and rewrites a `call` site to `jump` so that no RegRAS entry is pushed for
@@ -34,7 +34,7 @@
 #    a defined-but-far strong symbol is still an out-of-range error.
 # RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %e2e_dir/weak_undef_strong.s -o %t.strong.o
 # RUN: %not %ld -T %linker_script %t.strong.o -o %t.strong.elf 2>&1 | %FileCheck %s --check-prefix=STRONG
-# RUN: %not %ld -T %linker_script --defsym=strong_fn=0xFC0010000000 %t.strong.o -o %t.far.elf 2>&1 | %FileCheck %s --check-prefix=FAR
+# RUN: %not %ld -T %linker_script --defsym=strong_fn=0xFFFFFB000000 %t.strong.o -o %t.far.elf 2>&1 | %FileCheck %s --check-prefix=FAR
 
 # WEAK: jump [rb0, 0]
 # DEF: call [rb0,

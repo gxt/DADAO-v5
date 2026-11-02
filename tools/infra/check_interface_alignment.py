@@ -22,6 +22,8 @@ import sys
 from typing import Optional
 
 REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
+import machine_profile  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Result tracking
@@ -314,51 +316,51 @@ def check_adr_alignment():
         record(cat, 'machine_name="dadao-m1"', "FAIL",
                "QEMU patch 未找到 dadao-m1 机器名定义")
 
-    # --- RAM = the single RAM segment (base/size) ---
-    # Source: ADR-0004 R3 + rev. 2026-10-11 (RAM base 0xFC00_0000_0000) +
-    # ADR-0020 D15 (C1 step2 deletes the legacy 0xffff_0000_0000 RAM; RAM is the
-    # ONLY RAM segment).  The expected value is NOT hardcoded: it is derived from
-    # the single-source-of-truth linker script (tests/shared/linker/dadao.lds
-    # MEMORY RAM ORIGIN/LENGTH) and cross-checked against the QEMU macro.
-    lds = load_file("tests/shared/linker/dadao.lds")
-    lds_ram = re.search(
-        r'RAM\s*\(rwx\)\s*:\s*ORIGIN\s*=\s*(0x[0-9a-fA-F]+)\s*,\s*LENGTH\s*=\s*(\d+)M',
-        lds)
-    ram_base_exp = int(lds_ram.group(1), 16) if lds_ram else None
-    ram_size_exp = int(lds_ram.group(2)) * 1024 * 1024 if lds_ram else None
-    ram_base_match = re.search(r'DADAO_RAM_BASE\s+(0x[0-9a-fA-F]+)', patch_content)
-    ram_size_match = re.search(r'DADAO_RAM_SIZE\s+\((\d+\s*\*\s*\d+\s*\*\s*\d+)\)', patch_content)
-    if ram_base_exp is None:
-        record(cat, "RAM_BASE (lds ORIGIN)", "FAIL",
-               "tests/shared/linker/dadao.lds 未找到 RAM ORIGIN/LENGTH")
-    elif ram_base_match:
-        actual = int(ram_base_match.group(1), 16)
-        if actual == ram_base_exp:
-            record(cat, f"RAM_BASE=0x{ram_base_exp:X}", "PASS",
-                   f"QEMU DADAO_RAM_BASE = dadao.lds ORIGIN(RAM) = 0x{actual:X}")
+    # --- RAM/ROM geometry = profile table (TESTCASES-091t) ---
+    # Expected values come from tests/shared/machine-profiles.yaml.  QEMU's
+    # macros are compared only when the profile's qemu_* field is filled; a
+    # null field prints DEFERRED (QEMU-079) instead of silently passing.
+    prof = machine_profile.load("node")
+    qemu_fields = (
+        ("RAM_BASE", "qemu_ram_base", r'DADAO_RAM_BASE\s+(0x[0-9a-fA-F]+)', 16),
+        ("RAM_SIZE", "qemu_ram_size",
+         r'DADAO_RAM_SIZE\s+\((\d+\s*\*\s*\d+\s*\*\s*\d+)\)', "product"),
+        ("ROM_BASE", "qemu_bootrom_base", r'DADAO_ROM_BASE\s+(0x[0-9a-fA-F]+)', 16),
+        ("ROM_SIZE", "qemu_bootrom_size",
+         r'DADAO_ROM_SIZE\s+\((\d+\s*\*\s*\d+)\)', "product"),
+        ("RESET_PC", "qemu_reset_pc", r'DADAO_RESET_PC\s+(\S+)', "reset"),
+    )
+    for item, field, pattern, kind in qemu_fields:
+        expected = prof.get(field)
+        if expected is None:
+            record(cat, f"{item} (profile {prof.name})", "MANUAL",
+                   "DEFERRED (QEMU-079): profile qemu_* field is null")
+            continue
+        m = re.search(pattern, patch_content)
+        if not m:
+            record(cat, item, "FAIL", "QEMU patch 未找到对应宏")
+            continue
+        if kind == "product":
+            actual = 1
+            for f in m.group(1).split("*"):
+                actual *= int(f.strip())
+        elif kind == "reset":
+            actual = m.group(1).strip()
+            if actual == "DADAO_BIOS_LOAD_BASE":
+                actual = prof.reset_pc
+            else:
+                try:
+                    actual = int(actual, 0)
+                except ValueError:
+                    record(cat, item, "FAIL", f"无法解析 RESET_PC={actual!r}")
+                    continue
         else:
-            record(cat, f"RAM_BASE=0x{ram_base_exp:X}", "FAIL",
-                   f"QEMU DADAO_RAM_BASE 0x{actual:X} != dadao.lds ORIGIN(RAM) 0x{ram_base_exp:X}")
-    else:
-        record(cat, f"RAM_BASE=0x{ram_base_exp:X}", "FAIL",
-               "QEMU patch 未找到 DADAO_RAM_BASE")
-
-    if ram_size_exp is None:
-        record(cat, "RAM_SIZE (lds LENGTH)", "FAIL",
-               "tests/shared/linker/dadao.lds 未找到 RAM LENGTH")
-    elif ram_size_match:
-        actual = 1
-        for f in ram_size_match.group(1).split("*"):
-            actual *= int(f.strip())
-        if actual == ram_size_exp:
-            record(cat, f"RAM_SIZE={ram_size_exp // (1024*1024)}MiB", "PASS",
-                   f"QEMU DADAO_RAM_SIZE = dadao.lds LENGTH(RAM) = {actual}")
+            actual = int(m.group(1), 16)
+        if actual == expected:
+            record(cat, item, "PASS", f"QEMU = profile {expected:#x}")
         else:
-            record(cat, f"RAM_SIZE={ram_size_exp // (1024*1024)}MiB", "FAIL",
-                   f"QEMU DADAO_RAM_SIZE {actual} != dadao.lds LENGTH(RAM) {ram_size_exp}")
-    else:
-        record(cat, f"RAM_SIZE={ram_size_exp // (1024*1024)}MiB", "FAIL",
-               "QEMU patch 未找到 DADAO_RAM_SIZE")
+            record(cat, item, "FAIL",
+                   f"QEMU {actual!r} != profile {expected:#x}")
 
     # --- legacy RAM segment removed (C1 step2) ---
     # Source: ADR-0020 D15 step2.  The legacy 0xffff_0000_0000 RAM segment
@@ -433,38 +435,6 @@ def check_adr_alignment():
         record(cat, "exit port device removed", "PASS",
                "旧 exit-port MMIO 设备已删除（停机 = semihosting SYS_EXIT）")
 
-    # --- Boot ROM base = 0xffff_fffc_0000, size = 256 KiB (ADR-0043 D1) ---
-    # The reset vector stays 0xffff_ffff_0000 (the legacy -bios window).
-    rom_base_exp = 0xFFFF_FFFC_0000
-    rom_size_exp = 256 * 1024
-    rom_base_match = re.search(r'DADAO_ROM_BASE\s+(0x[0-9a-fA-F]+)', patch_content)
-    rom_size_match = re.search(r'DADAO_ROM_SIZE\s+\((\d+\s*\*\s*\d+)\)', patch_content)
-    if rom_base_match:
-        actual = int(rom_base_match.group(1), 16)
-        if actual == rom_base_exp:
-            record(cat, f"ROM_BASE=0x{rom_base_exp:X}", "PASS",
-                   f"QEMU: DADAO_ROM_BASE = {hex(actual)}")
-        else:
-            record(cat, f"ROM_BASE=0x{rom_base_exp:X}", "FAIL",
-                   f"期望 0x{rom_base_exp:X}, 实際 {hex(actual)}")
-    else:
-        record(cat, f"ROM_BASE=0x{rom_base_exp:X}", "FAIL",
-               "QEMU patch 未找到 DADAO_ROM_BASE")
-
-    if rom_size_match:
-        actual = 1
-        for f in rom_size_match.group(1).split("*"):
-            actual *= int(f.strip())
-        if actual == rom_size_exp:
-            record(cat, "ROM_SIZE=256KiB", "PASS",
-                   f"QEMU: DADAO_ROM_SIZE = {actual} ({actual // 1024} KiB)")
-        else:
-            record(cat, "ROM_SIZE=256KiB", "FAIL",
-                   f"期望 {rom_size_exp}, 实際 {actual}")
-    else:
-        record(cat, "ROM_SIZE=256KiB", "FAIL",
-               "QEMU patch 未找到 DADAO_ROM_SIZE")
-
     # --- Dual image: -bios + -kernel (MANUAL — 宽泛语义匹配) ---
     # Source: ADR-0004 §D2.3
     # 判定标准：QEMU 在缺少 -bios 或 -kernel 时报错退出
@@ -507,39 +477,46 @@ def check_adr_alignment():
             record(cat, f"EXIT_{name}=0x{code:02X}", "FAIL",
                    f"QEMU patch 未找到 DADAO_EXIT_{name}")
 
-    # --- RESET_PC = DADAO_BIOS_LOAD_BASE (0xffff_ffff_0000, ADR-0043 D1) ---
-    # Source: ADR-0004 §D2.1 + ADR-0043 D1 (reset vector unchanged while the
-    # ROM window grows to 256 KiB).
-    reset_match = re.search(r'DADAO_RESET_PC\s+(\S+)', patch_content)
-    if reset_match:
-        val = reset_match.group(1).strip()
-        if val == "DADAO_BIOS_LOAD_BASE":
-            record(cat, "RESET_PC=BIOS_LOAD_BASE", "PASS",
-                   f"DADAO_RESET_PC = DADAO_BIOS_LOAD_BASE (= 0x{0xFFFF_FFFF_0000:X})")
-        else:
-            record(cat, "RESET_PC=BIOS_LOAD_BASE", "FAIL",
-                   f"DADAO_RESET_PC = {val}, 期望 DADAO_BIOS_LOAD_BASE")
-    else:
-        record(cat, "RESET_PC=BIOS_LOAD_BASE", "FAIL",
-               "QEMU patch 未找到 DADAO_RESET_PC")
-
-    # --- Harness constants (build_test_binary.py) ---
-    # Source: ADR-0004 §D1
+    # --- Test-side: harness/linker must be profile-derived (reachable FAIL) ---
     harness_content = load_file("tools/testcases/lib/build_test_binary.py")
-    if harness_content:
-        h_binary_match = re.search(r'BINARY_BASE\s*=\s*(0x[0-9a-fA-F_]+)', harness_content)
-        if h_binary_match:
-            actual = int(h_binary_match.group(1).replace("_", ""), 16)
-            if actual == ram_base_exp:
-                record(cat, "harness.BINARY_BASE=RAM_BASE", "PASS",
-                       f"build_test_binary.py: BINARY_BASE = 0x{actual:X}")
-            else:
-                record(cat, "harness.BINARY_BASE=RAM_BASE", "FAIL",
-                       f"期望 0x{ram_base_exp:X}, 实際 0x{actual:X}")
-        # NOTE (TESTCASES-034t): build_test_binary.py no longer carries an
-        # EXIT_PORT constant — the ISA-vector harness signals pass/fail through
-        # the semihosting SYS_EXIT service (ADR-0020 D8), so the former
-        # harness.EXIT_PORT=EXIT_PORT_BASE cross-check is retired here.
+    if not harness_content:
+        record(cat, "harness profile-derived", "FAIL",
+               "build_test_binary.py missing")
+    elif "machine_profile" not in harness_content:
+        record(cat, "harness profile-derived", "FAIL",
+               "build_test_binary.py does not import machine_profile")
+    elif re.search(r"BINARY_BASE\s*=\s*0x[0-9a-fA-F_]+", harness_content):
+        record(cat, "harness profile-derived", "FAIL",
+               "BINARY_BASE is a literal; must come from the profile table")
+    else:
+        record(cat, "harness profile-derived", "PASS",
+               "BINARY_BASE/EXIT_BLOCK/DUMP_BASE from machine_profile")
+
+    for name, rel, mem_name in (
+            ("tiny", "tests/shared/linker/dadao-tiny.lds", "RAM"),
+            ("node", "tests/shared/linker/dadao-node.lds", "RAM")):
+        text = load_file(rel)
+        m = re.search(
+            r"RAM\s*\(rwx\)\s*:\s*ORIGIN\s*=\s*(0x[0-9a-fA-F_]+)"
+            r"\s*,\s*LENGTH\s*=\s*(0x[0-9a-fA-F_]+|\d+[KkMm])", text)
+        if not m:
+            record(cat, f"lds[{name}] profile geometry", "FAIL",
+                   f"{rel}: RAM MEMORY region missing")
+            continue
+        origin = int(m.group(1).replace("_", ""), 16)
+        length = m.group(2)
+        if length[-1] in "KkMm":
+            lval = int(length[:-1]) * (1024 if length[-1] in "Kk" else 1024 * 1024)
+        else:
+            lval = int(length.replace("_", ""), 16)
+        prow = machine_profile.load(name)
+        if origin == prow.ram_base and lval == prow["ram_size"]:
+            record(cat, f"lds[{name}] profile geometry", "PASS",
+                   f"{rel} RAM = {origin:#x}+{lval:#x}")
+        else:
+            record(cat, f"lds[{name}] profile geometry", "FAIL",
+                   f"{rel} RAM {origin:#x}+{lval:#x} != profile "
+                   f"{prow.ram_base:#x}+{prow['ram_size']:#x}")
 
     # --- Harness fault code mapping (run_qemu_test.py) ---
     # Source: ADR-0004 §D5.8

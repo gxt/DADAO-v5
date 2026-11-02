@@ -55,6 +55,34 @@ import struct
 import subprocess
 import sys
 
+import os, sys
+
+# TESTCASES-091t: probe geometry from the single profile source
+# (tests/shared/machine-profiles.yaml); runtime execution stays BLOCKED until
+# QEMU-079/080 provide the Tiny/Node machines.
+_MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))))
+if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
+    sys.path.insert(0, os.path.join(_MACH_REPO, "tools", "testcases", "lib"))
+import machine_profile as _machine_profile  # noqa: E402
+_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
+RAM_BASE = _MACH.ram_base
+RAM_END = _MACH.ram_end
+SP = _MACH.sp
+SP_OFF = SP - RAM_BASE
+BOOTROM_BASE = _MACH.bootrom_base
+ENTRY = _MACH.entry
+EXIT_BLOCK = _MACH.exit_block
+RAM_W2 = (RAM_BASE >> 32) & 0xFFFF
+RAM_W1 = (RAM_BASE >> 16) & 0xFFFF
+RAM_W0 = RAM_BASE & 0xFFFF
+SP_W2 = (SP >> 32) & 0xFFFF
+SP_W1 = (SP >> 16) & 0xFFFF
+SP_W0 = SP & 0xFFFF
+EXIT_W2 = (EXIT_BLOCK >> 32) & 0xFFFF
+EXIT_W1 = (EXIT_BLOCK >> 16) & 0xFFFF
+EXIT_W0 = EXIT_BLOCK & 0xFFFF
+
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 DEFAULT_QEMU = os.path.join(_REPO, ".work/build/qemu/qemu-system-dadao")
 QEMU = DEFAULT_QEMU
@@ -75,7 +103,7 @@ CFXPERM = 1 << 7
 # Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
 SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
-SEMI_BLOCK = 0xFC00_00FF_F000       # argument block {reason, code}, in RAM
+SEMI_BLOCK = EXIT_BLOCK       # argument block {reason, code}, in RAM
 
 # ---------------------------------------------------------------------------
 # Encoders (contracts/opcodes.yaml)
@@ -109,7 +137,7 @@ def exit_seq(code):
     rd16 = 0x18 (SYS_EXIT); `trap` with the semihosting tag.  The low byte of
     `code` becomes the process status (contract-semihosting.md §3/§5).
     """
-    return ([set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000), or_w_rb(16, 2, 0xFC00)]
+    return ([set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000), or_w_rb(16, 2, RAM_W2)]
             + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
             + load_rd(9, code) + [st_o(9, 16, 8)]
             + load_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)])

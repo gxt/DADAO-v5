@@ -51,8 +51,8 @@
     are 0/+4. Sequence installs a cause_id discriminator as cfx3''s HYPV monitor vector so monitor-entry ILLI is observable
     (non-ILLI exits via UNDI/CFXMEM).'
   sequence:
-  - '0x4C580010'
-  - '0x485AFC00'
+  - '0x40D96001'
+  - '0x59580010'
   - '0x7B0C3296'
   - '0x7EFC0002'
   - '0x7A0C509E'
@@ -61,6 +61,8 @@
   - '0x6B780002'
   - '0x79001000'
   - '0x00000000'
+  profiles:
+  - node
 - mnemonic: escape
   id: escape_ciii_cfx
   format: ciii
@@ -78,8 +80,8 @@
     offsets are 0/+4. Sequence installs a cause_id discriminator as cfx3''s HYPV monitor vector so monitor-entry ILLI is observable
     (non-ILLI exits via UNDI/CFXMEM).'
   sequence:
-  - '0x4C580010'
-  - '0x485AFC00'
+  - '0x40D96001'
+  - '0x59580010'
   - '0x7B0C3296'
   - '0x7EFC0003'
   - '0x7A0C509E'
@@ -88,6 +90,8 @@
   - '0x6B780002'
   - '0x79001000'
   - '0x00000000'
+  profiles:
+  - node
 - mnemonic: escape
   id: escape_ciii_cfx
   format: ciii
@@ -105,8 +109,8 @@
     != 0 (SBZ) => ILLI; legal offsets are 0/+4. Sequence installs a cause_id discriminator as cfx3''s HYPV monitor vector
     so monitor-entry ILLI is observable (non-ILLI exits via UNDI/CFXMEM).'
   sequence:
-  - '0x4C580010'
-  - '0x485AFC00'
+  - '0x40D96001'
+  - '0x59580010'
   - '0x7B0C3296'
   - '0x7EFFFFFE'
   - '0x7A0C509E'
@@ -115,6 +119,8 @@
   - '0x6B780002'
   - '0x79001000'
   - '0x00000000'
+  profiles:
+  - node
 - mnemonic: escape
   id: escape_ciii_cfx
   format: ciii
@@ -132,8 +138,8 @@
     offsets are 0/+4. Sequence installs a cause_id discriminator as cfx3''s HYPV monitor vector so monitor-entry ILLI is observable
     (non-ILLI exits via UNDI/CFXMEM).'
   sequence:
-  - '0x4C580010'
-  - '0x485AFC00'
+  - '0x40D96001'
+  - '0x59580010'
   - '0x7B0C3296'
   - '0x7EFDFFFF'
   - '0x7A0C509E'
@@ -142,3 +148,5 @@
   - '0x6B780002'
   - '0x79001000'
   - '0x00000000'
+  profiles:
+  - node

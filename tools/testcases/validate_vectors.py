@@ -41,6 +41,9 @@ try:
 except ImportError:  # pragma: no cover
     sys.exit("ERROR: PyYAML 未安装。运行: pip install pyyaml")
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
+import machine_profile  # noqa: E402
+
 
 ALLOWED_CLASSES = {"encoding", "legality", "semantic", "boundary", "overlap"}
 ALLOWED_STATUS = {"active", "deferred"}
@@ -49,17 +52,14 @@ ALLOWED_FAULTS = {None, "ILLI", "UNDI", "MALIGN", "IALIGN",
 REQUIRED_FIELDS = ["mnemonic", "id", "format", "class", "encoding",
                    "input_state", "spec_cite"]
 
-# ADR-0004 R3 + rev. 2026-10-11（RAM 基址 0xFC00_0000_0000）：RAM 窗口（16 MiB）
-# 与 48-bit 有效地址上限
-RAM_BASE = 0xFC00_0000_0000
-RAM_END = 0xFC00_00FF_FFFF
+# ADR-0004 R3 + 用户 2026-11-02 裁定：RAM 几何按 profile（Tiny 8 MiB cfxha63 /
+# Node 2 GiB 内存窗口）。**不在本文件写死**，从 tests/shared/machine-profiles.yaml
+# 读取；token 解析与 harness 共用 machine_profile.resolve()。
 ADDR48_MAX = 0xFFFF_FFFF_FFFF
 
-# ADR-0004 D2.2 + tests/inst/base/ctrl-br.yaml 头部约定：
-# 向量中指令地址 = RAM 入口 rb0 = 0xFC00_0000_0000；
-# br.* 非跳转（not-taken）后继 PC = rb0 + 4。ISS-025 结构性守卫据此分类 taken/not-taken。
-RB0_PC = 0xFC00_0000_0000
-BR_NOT_TAKEN_PC = RB0_PC + 4
+PROFILE = None          # set in main() from --profile / DADAO_TEST_PROFILE / tiny
+RB0_PC = None           # profile RAM entry (instruction address convention)
+BR_NOT_TAKEN_PC = None  # rb0 + 4
 
 HEX_RE = re.compile(r"^0x[0-9a-fA-F]+$")
 REG_RE = re.compile(r"^(rd|rb|ra)\d+$")
@@ -134,8 +134,8 @@ def parse_inventory(path):
     return rows
 
 
-def _check_memory(state, tag, label, ram_required, errors):
-    """校验 state.memory：元素结构、48-bit 地址、（可选）RAM 窗口。"""
+def _check_memory(state, tag, label, ram_required, errors, resolve_geometry=True):
+    """校验 state.memory：元素结构、token 可解析、48-bit 地址、（可选）RAM 窗口。"""
     if not isinstance(state, dict):
         return
     mem = state.get("memory")
@@ -149,19 +149,27 @@ def _check_memory(state, tag, label, ram_required, errors):
             errors.append("%s: %s.memory[%d] must be a mapping" % (tag, label, j))
             continue
         addr = ent.get("address")
-        if not isinstance(addr, str) or not HEX_RE.match(addr.strip()):
-            errors.append("%s: %s.memory[%d].address not valid hex: %r"
-                          % (tag, label, j, addr))
+        if not isinstance(addr, str):
+            errors.append("%s: %s.memory[%d].address must be a string "
+                          "(hex or @TOKEN): %r" % (tag, label, j, addr))
             continue
-        aval = int(addr, 16)
+        if not resolve_geometry:
+            continue
+        try:
+            aval = machine_profile.resolve(addr, PROFILE)
+        except machine_profile.ProfileError as exc:
+            errors.append("%s: %s.memory[%d].address %r: %s"
+                          % (tag, label, j, addr, exc))
+            continue
         if aval > ADDR48_MAX:
             errors.append("%s: %s.memory[%d].address is not a 48-bit valid "
                           "address (> 0x%x): %s"
                           % (tag, label, j, ADDR48_MAX, addr))
-        if ram_required and not (RAM_BASE <= aval <= RAM_END):
-            errors.append("%s: semantic %s.memory[%d].address %s outside "
-                          "ADR-0004 RAM window [0x%x, 0x%x]"
-                          % (tag, label, j, addr, RAM_BASE, RAM_END))
+        if ram_required and not (PROFILE.ram_base <= aval <= PROFILE.ram_end):
+            errors.append("%s: semantic %s.memory[%d].address %s resolves to "
+                          "0x%x outside profile %r RAM window [0x%x, 0x%x]"
+                          % (tag, label, j, addr, aval, PROFILE.name,
+                             PROFILE.ram_base, PROFILE.ram_end))
 
 
 def _check_state_banks(state, tag, label, errors):
@@ -203,6 +211,25 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
         if not isinstance(case, dict):
             errors.append("%s: case is not a mapping" % tag)
             continue
+
+        # 0. 几何 token：任何以 '@' 开头的字符串都必须能按所选 profile 解析；
+        #    harness/validator 共用同一解析函数（任务书 §3）。仅在 case 适用于
+        #    当前 profile 时解析（profiles 字段限定的 case 允许另一 profile 不可解析）。
+        profiles = case.get("profiles")
+        if profiles is None:
+            applies = True
+        elif not isinstance(profiles, list) or not profiles or \
+                any(p not in machine_profile.all_profiles() for p in profiles):
+            errors.append("%s: profiles must be a non-empty list drawn from %s"
+                          % (tag, sorted(machine_profile.all_profiles())))
+            applies = False
+        else:
+            applies = PROFILE.name in profiles
+        if applies:
+            try:
+                machine_profile.resolve_case(case, PROFILE)
+            except machine_profile.ProfileError as exc:
+                errors.append("%s: machine token: %s" % (tag, exc))
 
         # 1/2/3/4/5. 必填字段、class、status、fault（保留编码仍须有这些字段，值为 null）
         for field in REQUIRED_FIELDS:
@@ -346,11 +373,12 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
             errors.append("%s: input_state must be a mapping" % tag)
 
         # 10/11. state banks 与 memory
-        ram_required = (cls == "semantic")
+        ram_required = (cls == "semantic") and applies
         for label, state in (("input_state", input_state),
                              ("expected_state", expected_state)):
             _check_state_banks(state, tag, label, errors)
-            _check_memory(state, tag, label, ram_required, errors)
+            _check_memory(state, tag, label, ram_required, errors,
+                          resolve_geometry=applies)
 
         # 4. deferred 一致性
         if status == "deferred":
@@ -381,16 +409,20 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
             if cls in ("legality", "encoding"):
                 errors.append("%s: %s case must not carry non-null expected_pc"
                               % (tag, cls))
-            if not isinstance(expected_pc, str) or not HEX_RE.match(
-                    expected_pc.strip()):
-                errors.append("%s: expected_pc not valid hex: %r"
+            if not isinstance(expected_pc, str):
+                errors.append("%s: expected_pc not a hex string/token: %r"
                               % (tag, expected_pc))
-            else:
-                pval = int(expected_pc, 16)
-                if pval > ADDR48_MAX:
-                    errors.append("%s: expected_pc is not a 48-bit valid "
-                                  "address (> 0x%x): %s"
-                                  % (tag, ADDR48_MAX, expected_pc))
+            elif applies:
+                try:
+                    pval = machine_profile.resolve(expected_pc, PROFILE)
+                except machine_profile.ProfileError as exc:
+                    errors.append("%s: expected_pc %r: %s"
+                                  % (tag, expected_pc, exc))
+                else:
+                    if pval > ADDR48_MAX:
+                        errors.append("%s: expected_pc is not a 48-bit valid "
+                                      "address (> 0x%x): %s"
+                                      % (tag, ADDR48_MAX, expected_pc))
 
         # ── F7: expected_pc existence for PC-affecting instructions (TESTCASES-005t/006t) ──
         # Active semantic cases for PC-affecting instructions MUST have expected_pc.
@@ -623,16 +655,21 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                         errors.append(
                             "%s: F10: encoding base register %s not preset "
                             "in input_state.rb" % (tag, base_name))
+                    elif not applies:
+                        pass  # profile-limited case: geometry not checked here
                     else:
                         try:
-                            base_val = _to_int(rb_preset[base_name])
-                            if not (RAM_BASE <= base_val <= RAM_END):
+                            base_val = machine_profile.resolve(
+                                rb_preset[base_name], PROFILE)
+                            if not (PROFILE.ram_base <= base_val
+                                    <= PROFILE.ram_end):
                                 errors.append(
                                     "%s: F10: encoding base %s value 0x%x "
-                                    "outside RAM window [0x%x, 0x%x]"
-                                    % (tag, base_name, base_val,
-                                       RAM_BASE, RAM_END))
-                        except (ValueError, TypeError):
+                                    "outside profile %r RAM window [0x%x, 0x%x]"
+                                    % (tag, base_name, base_val, PROFILE.name,
+                                       PROFILE.ram_base, PROFILE.ram_end))
+                        except (ValueError, TypeError,
+                                machine_profile.ProfileError):
                             errors.append(
                                 "%s: F10: encoding base %s value not parseable: "
                                 "%r" % (tag, base_name, rb_preset[base_name]))
@@ -675,6 +712,19 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
 
 
 def main():
+    global PROFILE, RB0_PC, BR_NOT_TAKEN_PC
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__)
+    machine_profile.add_profile_argument(ap)
+    args = ap.parse_args()
+    try:
+        PROFILE = machine_profile.load(args.profile)
+    except machine_profile.ProfileError as exc:
+        print("ERROR: %s" % exc, file=sys.stderr)
+        sys.exit(1)
+    RB0_PC = PROFILE.entry
+    BR_NOT_TAKEN_PC = RB0_PC + 4
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
     repo_dir = os.path.abspath(os.path.join(script_dir, "..", ".."))
 
@@ -784,12 +834,18 @@ def main():
             # ISS-025: 收集 br.* 的 taken / not-taken 语义覆盖
             if isinstance(c_id, str) and c_id.startswith("br.") \
                     and c_cls == "semantic":
+                profiles = c.get("profiles")
+                if isinstance(profiles, list) and PROFILE.name not in profiles:
+                    continue
                 epc = c.get("expected_pc")
-                if isinstance(epc, str) and HEX_RE.match(epc.strip()) \
-                        and int(epc, 16) == BR_NOT_TAKEN_PC:
-                    path = "not-taken"
-                else:
-                    path = "taken"
+                not_taken = False
+                if isinstance(epc, str):
+                    try:
+                        not_taken = machine_profile.resolve(epc, PROFILE) \
+                            == BR_NOT_TAKEN_PC
+                    except machine_profile.ProfileError:
+                        not_taken = False
+                path = "not-taken" if not_taken else "taken"
                 br_paths.setdefault(c_id, set()).add(path)
 
     # ── ISS-025: br.* 双路径（taken + not-taken）结构性守卫 ────────────

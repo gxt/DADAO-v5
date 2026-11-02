@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""run_m5_e2e.py -- arch（cfx_umon）SEE / semihosting 端到端驱动（TESTCASES-073t 迁入）。
+"""run_m5_e2e.py -- arch（cfx_umon）Node / semihosting 端到端驱动（TESTCASES-073t 迁入）。
 
 本文件由 TESTCASES-073t 从集成驱动目录迁入（M5 gate，TESTCASES-033t）——搬家不改
 判据；旧薄 wrapper 已由 TESTCASES-076t 删除。
@@ -14,12 +14,10 @@ flat-bin pipeline and compares the observed result against the manifest:
         -chardev file,id=semi,path=<console> -d cpu -D <log>
                                                              -> host exit code
 
-The bin is loaded at the RAM base 0xFC00_0000_0000 by `-kernel`
-(ADR-0004 D2.3 path B; single RAM segment since C1 step2); the SEE bootrom
-(`-bios .dadao/tests/bootrom/bootrom.bin`, QEMU-047t) starts at the reset PC
-0xffff_ffff_0000, configures the
-cfx user exception vector/masks and hands off to the app in *user* mode
-(Machine-01 §2).  Every vector carries a hand-derived expectation in the
+The bin is loaded at the Node profile ENTRY by `-kernel`; the Node BootROM
+(`-bios .dadao/tests/bootrom/step5/bootrom_step5.bin`) starts at reset
+0xffff_ffff_0000, runs power -> hmon, hmon installs page tables/PTW and hands
+the app to *hypv*.  Tiny has no cfx and is rejected by this driver.  Every vector carries a hand-derived expectation in the
 manifest; the expected values come from `.tao/contracts/contract-*.md` +
 `spec/`, never from QEMU (see ``tools/testcases/validate_m5_vectors.py``).
 
@@ -28,9 +26,8 @@ Judgement (fail-closed), per case:
   * host exit code == ``expected_exit_code``           (else FAIL)
   * semihosting console == ``expected_console``         (when declared)
   * produced host file == ``expected_file``             (when declared)
-  * bootrom effective: first ``-d cpu`` block PC == 0xffff_ffff_0000, the
-    bootrom-installed cfx_umon user vector is present, and the app is observed
-    running in user mode (MODE == 0) in the RAM range
+  * bootrom effective: first ``-d cpu`` block PC == 0xffff_ffff_0000 and the
+    app is observed running in the profile RAM (Node: hypv, MODE == 3)
 
 Exit status:
   0  all cases PASS
@@ -66,6 +63,8 @@ REPO_ROOT = os.path.normpath(
 # (tools/infra/paths.py, ADR-0016 D7) instead of hardcoding .work/build.
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 import paths as _dadao_paths  # noqa: E402
+sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
+import machine_profile  # noqa: E402
 
 _TOOLCHAIN_BIN = str(_dadao_paths.host_toolchain_bin())
 _TEST_ARTIFACTS = _dadao_paths.test_artifacts_dir()
@@ -87,20 +86,43 @@ DEFAULT_LLVM_OBJCOPY = os.path.join(_TOOLCHAIN_BIN, "llvm-objcopy")
 DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
 # Bootrom is produced by `make build-bootrom` into the test-artifacts root
 # (QEMU-047t); never hardcode the path.
-DEFAULT_BOOTROM = str(_TEST_ARTIFACTS / "bootrom" / "bootrom.bin")
+DEFAULT_BOOTROM = str(_TEST_ARTIFACTS / "bootrom" / "bootrom.bin")  # tiny
+DEFAULT_BOOTROM_NODE = str(_TEST_ARTIFACTS / "bootrom" / "step5" / "bootrom_step5.bin")
 DEFAULT_VECTORS_DIR = "tests/arch/umon"
 DEFAULT_EXPECTED = "tests/arch/umon/expected.yaml"
 DEFAULT_WORK_DIR = str(_TEST_ARTIFACTS / "arch" / "m5-e2e")
 DEFAULT_TIMEOUT = 30
 
-# Reset PC / memory map (ADR-0004 D2 / R3 + rev. 2026-10-11, DADAO-12 §2.1).
-RESET_PC = 0xFFFF_FFFF_0000
-RAM_BASE = 0xFC00_0000_0000
-RAM_SIZE = 16 * 1024 * 1024
-# The SEE bootrom installs this cfx_umon user exception vector (Rom base + 0x200,
-# `escape cfx_umon, [excp_cause_ip, 4]`); its presence proves the config ran.
-BOOTROM_USER_VECTOR = "0000ffffffff0200"
-USER_MODE = 0
+# Geometry is selected from tests/shared/machine-profiles.yaml in main().
+PROFILE = None
+RESET_PC = None
+RAM_BASE = None
+RAM_SIZE = None
+# Tiny has no cfx/mode; Node runs the body in hypv (mode 3).
+HYPV_MODE = 3
+
+
+def set_profile(name):
+    global PROFILE, RESET_PC, RAM_BASE, RAM_SIZE
+    PROFILE = machine_profile.load(name)
+    RESET_PC = PROFILE.reset_pc
+    RAM_BASE = PROFILE.ram_base
+    RAM_SIZE = PROFILE["ram_size"]
+    return PROFILE
+
+
+def _defsym_args(prof):
+    def h(val):
+        return "%#x" % val
+    return [
+        "-I", os.path.join(REPO_ROOT, "tests", "shared", "asm"),
+        "--defsym", "RAM_BASE=" + h(prof.ram_base),
+        "--defsym", "RAM_END=" + h(prof.ram_end),
+        "--defsym", "ENTRY=" + h(prof.entry),
+        "--defsym", "SP=" + h(prof.sp),
+        "--defsym", "BOOTROM_BASE=" + h(prof.bootrom_base),
+        "--defsym", "RESET_PC=" + h(prof.reset_pc),
+    ]
 
 
 class CaseResult:
@@ -204,15 +226,17 @@ def check_bootrom(log: str):
         return False, "no `-d cpu` dump blocks"
     if blocks[0][0] != RESET_PC:
         return False, f"first PC 0x{blocks[0][0]:x} != reset PC 0x{RESET_PC:x}"
-    if BOOTROM_USER_VECTOR not in log:
-        return False, "bootrom cfx_umon user vector 0xffff_ffff_0200 not observed"
-    user_hit = any(
-        RAM_BASE <= pc < RAM_BASE + RAM_SIZE and mode == USER_MODE
+    want_mode = HYPV_MODE if PROFILE.get("cfx", False) else None
+    hit = any(
+        RAM_BASE <= pc < RAM_BASE + RAM_SIZE
+        and (want_mode is None or mode == want_mode)
         for pc, mode in blocks
     )
-    if not user_hit:
-        return False, "application not observed running in user mode (MODE==0)"
-    return True, "reset PC ok; bootrom user vector set; app entered user mode"
+    if not hit:
+        if want_mode is None:
+            return False, "application not observed running in Tiny RAM"
+        return False, "application not observed running in hypv (MODE==3)"
+    return True, "reset PC ok; application entered the profile RAM"
 
 
 def build_and_run(prog, tools, work_dir, timeout, verbose=False):
@@ -231,8 +255,8 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
 
     # 1. llvm-mc -filetype=obj -> .o
     rc, _out, err, timed = _run(
-        [tools["llvm_mc"], "--triple=dadao-unknown-elf", "-filetype=obj",
-         src, "-o", obj])
+        [tools["llvm_mc"], "--triple=dadao-unknown-elf", "-filetype=obj"]
+        + tools["defsyms"] + [src, "-o", obj])
     if timed or rc != 0:
         res.reason = f"llvm-mc failed (rc={rc})" + (
             f": {err.strip()[:200]}" if err.strip() else "")
@@ -245,6 +269,11 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     if timed or rc != 0:
         res.reason = f"llvm-objcopy failed (rc={rc})" + (
             f": {err.strip()[:200]}" if err.strip() else "")
+        return res
+
+    if tools.get("build_only"):
+        res.passed = True
+        res.reason = "build-only (no QEMU)"
         return res
 
     # 3. qemu: -bios bootrom + -kernel bin + semihosting (-chardev capture)
@@ -354,12 +383,19 @@ def main():
     ap.add_argument("--llvm-objcopy", dest="llvm_objcopy",
                     default=os.environ.get("LLVM_OBJCOPY", DEFAULT_LLVM_OBJCOPY))
     ap.add_argument("--qemu", default=os.environ.get("QEMU_SYSTEM_DADAO", DEFAULT_QEMU))
-    ap.add_argument("--bootrom", default=os.environ.get("BOOTROM", DEFAULT_BOOTROM))
+    ap.add_argument("--bootrom", default=None,
+                    help="bootrom image (default: profile-specific)")
     ap.add_argument("--vectors-dir", default=DEFAULT_VECTORS_DIR)
     ap.add_argument("--expected", default=DEFAULT_EXPECTED)
     ap.add_argument("--work-dir", default=DEFAULT_WORK_DIR)
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     ap.add_argument("--only", default=None, help="run a single case by name")
+    ap.add_argument("--profile",
+                    default=os.environ.get("DADAO_TEST_PROFILE") or "node",
+                    choices=sorted(machine_profile.all_profiles()),
+                    help="machine profile (arch is Node-only; default node)")
+    ap.add_argument("--build-only", action="store_true",
+                    help="assemble/objcopy only; do not start QEMU")
     ap.add_argument("--verbose", "-v", action="store_true")
     ap.add_argument("--inject", action="store_true",
                     help="counter-example self-test: flip a baseline-PASSing "
@@ -367,24 +403,40 @@ def main():
                          "restore and re-run the whole suite for green")
     args = ap.parse_args()
 
+    try:
+        prof = set_profile(args.profile)
+    except machine_profile.ProfileError as exc:
+        sys.stderr.write("ERROR: %s\n" % exc)
+        return 2
+    if not prof.get("arch", False):
+        sys.stderr.write(
+            "ERROR: profile %r does not support arch tests (Tiny has no cfx; "
+            "arch is Node-only per user ruling 2026-11-02)\n" % prof.name)
+        return 2
+    bootrom = args.bootrom or (
+        DEFAULT_BOOTROM if prof.name == "tiny" else DEFAULT_BOOTROM_NODE)
+
     tools = {
         "llvm_mc": _abspath(args.llvm_mc),
         "llvm_objcopy": _abspath(args.llvm_objcopy),
         "qemu": _abspath(args.qemu),
-        "bootrom": _abspath(args.bootrom),
+        "bootrom": _abspath(bootrom),
         "vectors_dir": _abspath(args.vectors_dir),
+        "defsyms": _defsym_args(prof),
+        "build_only": args.build_only,
     }
     expected_path = _abspath(args.expected)
     work_dir = _abspath(args.work_dir)
 
     _require_exec(tools["llvm_mc"], "llvm-mc")
     _require_exec(tools["llvm_objcopy"], "llvm-objcopy")
-    _require_exec(tools["qemu"], "qemu-system-dadao")
-    if not os.path.isfile(tools["bootrom"]):
-        sys.stderr.write(
-            f"ERROR: bootrom not found: {tools['bootrom']}\n"
-            "       run 'make build-bootrom' first (QEMU-047t)\n")
-        sys.exit(2)
+    if not args.build_only:
+        _require_exec(tools["qemu"], "qemu-system-dadao")
+        if not os.path.isfile(tools["bootrom"]):
+            sys.stderr.write(
+                f"ERROR: bootrom not found: {tools['bootrom']}\n"
+                "       run 'make build-bootrom' first (QEMU-047t)\n")
+            sys.exit(2)
     if not os.path.isfile(expected_path):
         sys.stderr.write(f"ERROR: expected.yaml not found: {expected_path}\n")
         sys.exit(2)
@@ -399,8 +451,8 @@ def main():
             sys.exit(2)
 
     sys.stdout.write(
-        f"run_m5_e2e: {len(programs)} programs, bootrom {tools['bootrom']}, "
-        f"work dir {work_dir}\n")
+        f"run_m5_e2e: profile={prof.name} {len(programs)} programs, "
+        f"bootrom {tools['bootrom']}, work dir {work_dir}\n")
     results = run_suite(programs, tools, work_dir, args.timeout, args.verbose)
 
     failed = [r for r in results if not r.passed]

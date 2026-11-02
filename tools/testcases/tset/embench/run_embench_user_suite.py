@@ -14,7 +14,7 @@ Pipeline per (benchmark, optimisation level)::
           -DWARMUP_HEAT=1 -DGLOBAL_SCALE_FACTOR=1 \
           -c <support/{main,beebsc}.c> <src>/<b>/*.c <hosted board shim>  -> *.o
 
-    # static line: P1 musl products, lld DEFAULT base (never -T dadao.lds)
+    # static line: P1 musl products, lld DEFAULT base (never -T dadao-tiny.lds)
     ld.lld -o <b>.elf <musl>/lib/crt1.o <objs> <musl>/lib/libc.a
     qemu-dadao <b>.elf
 
@@ -25,8 +25,8 @@ Pipeline per (benchmark, optimisation level)::
     qemu-dadao -L <guest-root> <b>.elf
 
 Base address (ISS-247): the link line carries **no** ``-T``/linker script, so
-lld's default base is used.  ``tests/shared/linker/dadao.lds`` (``RAM ORIGIN =
-0xFC00_0000_0000``) cannot be loaded by ``qemu-user`` on this 47-bit host VA
+lld's default base is used.  ``tests/shared/linker/dadao-tiny.lds`` (``RAM ORIGIN =
+the old high RAM base``) cannot be loaded by ``qemu-user`` on this 47-bit host VA
 (``Unable to find a guest_base ...``).  The driver records the link command and
 the minimum ``PT_LOAD`` virtual address of every produced ELF and refuses an
 image whose minimum ``PT_LOAD`` is the scripted base.
@@ -142,7 +142,7 @@ FAULT_NAMES = {
     0x8B: "RASUF", 0x8C: "MALIGN", 0x8D: "IALIGN",
 }
 
-# The scripted base of tests/shared/linker/dadao.lds (ISS-247) -- an image linked
+# The scripted base of tests/shared/linker/dadao-tiny.lds (ISS-247) -- an image linked
 # there cannot be loaded by qemu-user on this host and is rejected here.
 SCRIPTED_BASE = 0xFC0000000000
 
@@ -358,7 +358,7 @@ def build_and_run(bench, opt, cfg, work_dir):
         return res
     if res.min_pt_load == SCRIPTED_BASE:
         res.klass = "blocked"
-        res.reason = (f"ELF min PT_LOAD is the scripted dadao.lds base "
+        res.reason = (f"ELF min PT_LOAD is the scripted dadao-tiny.lds base "
                       f"0x{SCRIPTED_BASE:x} (ISS-247: qemu-user cannot load it)")
         return res
     if cfg["mode"] == "static" and res.interp:

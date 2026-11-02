@@ -29,7 +29,7 @@ conventions:
   entry: "define i64 @main() -- linked with crt0 via ld.lld"
   exit_channel: "guest exit code = low byte of @main return value (0x00..0x7F, ADR-0004 D3)"
   memory: "big-endian; 8-byte pointer; DADAO 48-bit effective address"
-  link: "llc -march=dadao -filetype=obj per TU; ld.lld -T dadao.lds"
+  link: "llc -march=dadao -filetype=obj per TU; ld.lld -T dadao-tiny.lds"
   oracle: "host-side IR-semantics interpreter; not llc/ld.lld/QEMU"
 
 programs:

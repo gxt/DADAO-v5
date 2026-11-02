@@ -18,7 +18,7 @@
   id: sc.o.nn_orrr_rd
   input_state:
     rb:
-      rb4: '0xFC0000003000'
+      rb4: '@ENTRY+0x3000'
   mnemonic: sc.o.nn
   notes: 'sc.o.nn rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI（结果不可丢弃）'
   spec_cite: 'SimRISC-12: sc.o.nn'
@@ -34,7 +34,7 @@
   id: sc.t.nn_orrr_rd
   input_state:
     rb:
-      rb4: '0xFC0000003000'
+      rb4: '@ENTRY+0x3000'
   mnemonic: sc.t.nn
   notes: 'sc.t.nn rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
   spec_cite: 'SimRISC-12: sc.t.nn'
@@ -50,7 +50,7 @@
   id: sc.w.nn_orrr_rd
   input_state:
     rb:
-      rb4: '0xFC0000003000'
+      rb4: '@ENTRY+0x3000'
   mnemonic: sc.w.nn
   notes: 'sc.w.nn rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
   spec_cite: 'SimRISC-12: sc.w.nn'
@@ -66,7 +66,7 @@
   id: sc.b.nn_orrr_rd
   input_state:
     rb:
-      rb4: '0xFC0000003000'
+      rb4: '@ENTRY+0x3000'
   mnemonic: sc.b.nn
   notes: 'sc.b.nn rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
   spec_cite: 'SimRISC-12: sc.b.nn'
@@ -82,7 +82,7 @@
   id: sc.o.nr_orrr_rd
   input_state:
     rb:
-      rb4: '0xFC0000003000'
+      rb4: '@ENTRY+0x3000'
   mnemonic: sc.o.nr
   notes: 'sc.o.nr rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
   spec_cite: 'SimRISC-12: sc.o.nr'
@@ -98,7 +98,7 @@
   id: sc.t.nr_orrr_rd
   input_state:
     rb:
-      rb4: '0xFC0000003000'
+      rb4: '@ENTRY+0x3000'
   mnemonic: sc.t.nr
   notes: 'sc.t.nr rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
   spec_cite: 'SimRISC-12: sc.t.nr'
@@ -114,7 +114,7 @@
   id: sc.w.nr_orrr_rd
   input_state:
     rb:
-      rb4: '0xFC0000003000'
+      rb4: '@ENTRY+0x3000'
   mnemonic: sc.w.nr
   notes: 'sc.w.nr rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
   spec_cite: 'SimRISC-12: sc.w.nr'
@@ -130,7 +130,7 @@
   id: sc.b.nr_orrr_rd
   input_state:
     rb:
-      rb4: '0xFC0000003000'
+      rb4: '@ENTRY+0x3000'
   mnemonic: sc.b.nr
   notes: 'sc.b.nr rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
   spec_cite: 'SimRISC-12: sc.b.nr'
@@ -146,7 +146,7 @@
   id: sc.o.ar_orrr_rd
   input_state:
     rb:
-      rb4: '0xFC0000003000'
+      rb4: '@ENTRY+0x3000'
   mnemonic: sc.o.ar
   notes: 'sc.o.ar rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
   spec_cite: 'SimRISC-12: sc.o.ar'
@@ -162,7 +162,7 @@
   id: sc.t.ar_orrr_rd
   input_state:
     rb:
-      rb4: '0xFC0000003000'
+      rb4: '@ENTRY+0x3000'
   mnemonic: sc.t.ar
   notes: 'sc.t.ar rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
   spec_cite: 'SimRISC-12: sc.t.ar'
@@ -178,7 +178,7 @@
   id: sc.w.ar_orrr_rd
   input_state:
     rb:
-      rb4: '0xFC0000003000'
+      rb4: '@ENTRY+0x3000'
   mnemonic: sc.w.ar
   notes: 'sc.w.ar rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
   spec_cite: 'SimRISC-12: sc.w.ar'
@@ -194,7 +194,7 @@
   id: sc.b.ar_orrr_rd
   input_state:
     rb:
-      rb4: '0xFC0000003000'
+      rb4: '@ENTRY+0x3000'
   mnemonic: sc.b.ar
   notes: 'sc.b.ar rd0, rd5, [rb4]：rdHB=rd0 ⇒ ILLI'
   spec_cite: 'SimRISC-12: sc.b.ar'
@@ -207,7 +207,7 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000003000'
+    - address: '@ENTRY+0x3000'
       value: '0x0000000000000000'
     rd:
       rd5: '0x0000000000000000'
@@ -215,10 +215,10 @@
   id: sc.o.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000003000'
+    - address: '@ENTRY+0x3000'
       value: '0x1122334455667788'
     rb:
-      rb4: '0xFC0000003000'
+      rb4: '@ENTRY+0x3000'
   mnemonic: sc.o.nn
   notes: 'rdHC=rd0 合法：lr.o.nn 持保留后 sc.o.nn rd5, rd0, [rb4] 成功（rd5=0）并把 0 写入 [rb4]'
   sequence:
@@ -234,7 +234,7 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000003000'
+    - address: '@ENTRY+0x3000'
       value: '0x0123456789ABCDEF'
     rd:
       rd5: '0x0000000000000000'
@@ -242,10 +242,10 @@
   id: sc.o.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000003000'
+    - address: '@ENTRY+0x3000'
       value: '0x1122334455667788'
     rb:
-      rb4: '0xFC0000003000'
+      rb4: '@ENTRY+0x3000'
     rd:
       rd6: '0x0123456789ABCDEF'
   mnemonic: sc.o.nn

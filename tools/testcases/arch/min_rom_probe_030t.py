@@ -19,6 +19,34 @@ Test index i → byte addr = 0xFFFFFFFF0018 + i*4.
 import struct
 import subprocess
 import sys
+
+import os, sys
+
+# TESTCASES-091t: probe geometry from the single profile source
+# (tests/shared/machine-profiles.yaml); runtime execution stays BLOCKED until
+# QEMU-079/080 provide the Tiny/Node machines.
+_MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))))
+if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
+    sys.path.insert(0, os.path.join(_MACH_REPO, "tools", "testcases", "lib"))
+import machine_profile as _machine_profile  # noqa: E402
+_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
+RAM_BASE = _MACH.ram_base
+RAM_END = _MACH.ram_end
+SP = _MACH.sp
+SP_OFF = SP - RAM_BASE
+BOOTROM_BASE = _MACH.bootrom_base
+ENTRY = _MACH.entry
+EXIT_BLOCK = _MACH.exit_block
+RAM_W2 = (RAM_BASE >> 32) & 0xFFFF
+RAM_W1 = (RAM_BASE >> 16) & 0xFFFF
+RAM_W0 = RAM_BASE & 0xFFFF
+SP_W2 = (SP >> 32) & 0xFFFF
+SP_W1 = (SP >> 16) & 0xFFFF
+SP_W0 = SP & 0xFFFF
+EXIT_W2 = (EXIT_BLOCK >> 32) & 0xFFFF
+EXIT_W1 = (EXIT_BLOCK >> 16) & 0xFFFF
+EXIT_W0 = EXIT_BLOCK & 0xFFFF
 import os
 import re
 import tempfile
@@ -37,7 +65,7 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 
 # ROM base and test base addresses
 ROM_BASE = 0xFFFFFFFF0000
-RAM_BASE = 0xFC00_0000_0000        # single RAM segment (ADR-0004 R3, rev. 2026-10-11)
+RAM_BASE = _MACH.ram_base
 TEST_BASE = ROM_BASE + 0x2C  # test instructions start after the 11-insn trampoline
 
 def addr_of(idx):
@@ -78,7 +106,7 @@ def ld_o_rd(rdha, rbhb, imms12):
 # ── Semihosting SYS_EXIT (ADR-0020 D8: exit port removed) ──────────────
 # Trampoline sets rb16 = SEMI_BLOCK, writes block[0] = 0x20026 and sets
 # rd16 = 0x18 (SYS_EXIT).  Each terminal writes the code into block[1] and traps.
-SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
+SEMI_BLOCK = EXIT_BLOCK       # {reason, code} block inside RAM (16 MiB)
 SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 def trap_sys_exit(): return encode_riii(0x7F, 0x00, SEMIHOST_TAG)
 def semi_exit(code_rd): return [st_o_rd(code_rd, 16, 8), trap_sys_exit()]
@@ -143,18 +171,18 @@ def build_rom(test_insns):
     # SYS_EXIT argument block (rb16=SEMI_BLOCK, block[0]=0x20026, rd16=0x18).
     trampoline = [
         encode_rwii(0x4E, 1, 0, 0x0000),   # rb1 = 0
-        encode_rwii(0x4A, 1, 1, 0x00FF),   # rb1 = 0xFC00_00FF_0000 (SP)
-        encode_rwii(0x4A, 1, 2, 0xFC00),
-        encode_rwii(0x4E, 2, 2, 0xFC00),   # rb2 = 0 (RAM base)
+        encode_rwii(0x4A, 1, 1, 0x00FF),   # rb1 = SP (SP)
+        encode_rwii(0x4A, 1, 2, RAM_W2),
+        encode_rwii(0x4E, 2, 2, RAM_W2),   # rb2 = 0 (RAM base)
         encode_rwii(0x4E, 16, 0, 0x0000),  # rb16 = 0
-        encode_rwii(0x4A, 16, 1, 0x00FF),  # rb16 = 0x00FF0000
-        encode_rwii(0x4A, 16, 0, 0xF000),  # rb16 = 0xFC00_00FF_F000 (block)
-        encode_rwii(0x4A, 16, 2, 0xFC00),
+        encode_rwii(0x4A, 16, 1, 0x00FF),  # rb16 = SP_OFF
+        encode_rwii(0x4A, 16, 0, 0xF000),  # rb16 = EXIT_BLOCK (block)
+        encode_rwii(0x4A, 16, 2, RAM_W2),
         encode_rwii(0x4C, 8, 0, 0x0026),   # rd8 = 0x26
         encode_rwii(0x48, 8, 1, 0x0002),   # rd8 = 0x20026
         encode_rrii(0x21, 8, 16, 0, 0),    # block[0] = 0x20026
         encode_rwii(0x4C, 16, 0, 0x0018),  # rd16 = 0x18 (SYS_EXIT)
-        encode_rwii(0x4E, 17, 2, 0xFC00),  # rb17 = 0 (RAM base)
+        encode_rwii(0x4E, 17, 2, RAM_W2),  # rb17 = 0 (RAM base)
     ]
     rom = b''.join(trampoline) + b''.join(test_insns) + UNDI_TERMINATOR
     while len(rom) < 64:
@@ -309,7 +337,7 @@ def _t5():
     VERIFY_IDX = 15
     insns = [
         set_zw_rd(18, 0x0100),
-        or_w_rd(18, 2, 0xFC00),   # RAM: MRPTR high bits = 0xFC00
+        or_w_rd(18, 2, RAM_W2),   # RAM: MRPTR high bits = RAM_W2
         or_w_rd(18, 3, 0x003F),
         rd2ra(0, 18, 1),
         set_zw_rd(18, MARKER),
@@ -403,7 +431,7 @@ def _t10():
     NEW_MRPTR = OLD_MRPTR + 8
     insns = [
         set_zw_rd(18, 0x0100),
-        or_w_rd(18, 2, 0xFC00),   # RAM: MRPTR high bits = 0xFC00
+        or_w_rd(18, 2, RAM_W2),   # RAM: MRPTR high bits = RAM_W2
         rd2ra(0, 18, 1),
     ]
     RET_IDX = 3 + 4 + 1 + 1
@@ -427,7 +455,7 @@ def _t11():
     NEW_MRPTR = OLD_MRPTR + 8
     insns = [
         set_zw_rd(18, 0x0100),
-        or_w_rd(18, 2, 0xFC00),   # RAM: MRPTR high bits = 0xFC00
+        or_w_rd(18, 2, RAM_W2),   # RAM: MRPTR high bits = RAM_W2
         rd2ra(0, 18, 1),
     ]
     RET_IDX = 3 + 4 + 1 + 1
@@ -453,7 +481,7 @@ TESTS.append(("D4b count>1 (push RegRAS, RACNT=1, MRPTR+=8)", _t11(), PASS_EXIT,
 def _t12():
     return [
         set_zw_rd(18, 0x0100),
-        or_w_rd(18, 2, 0xFC00),   # RAM: MRPTR high bits = 0xFC00
+        or_w_rd(18, 2, RAM_W2),   # RAM: MRPTR high bits = RAM_W2
         rd2ra(0, 18, 1),
         set_zw_rd(18, 0),
         rd2ra(5, 18, 1),

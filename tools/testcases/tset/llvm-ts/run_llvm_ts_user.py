@@ -43,7 +43,7 @@ Per-case pipeline::
           <upstream CMake flags> -O2 -DNDEBUG -w -DSMALL_PROBLEM_SIZE \
           -c <TU>  -> <TU>.o            # one per TU of the program
 
-    # static round: P1 musl products, lld DEFAULT base (never -T dadao.lds)
+    # static round: P1 musl products, lld DEFAULT base (never -T dadao-tiny.lds)
     ld.lld -o <p>.elf <musl>/lib/crt1.o <objs> \
            --start-group <musl>/lib/libc.a <clang -print-libgcc-file-name> \
            --end-group
@@ -130,8 +130,8 @@ The static link line names ``libc.a`` **explicitly**: ``-L <musl>/lib -lc``
 would pick ``libc.so`` from the same directory (no ``PT_INTERP``, but
 ``PT_DYNAMIC`` present) and ``qemu-user`` then segfaults (TESTCASES-046t /
 QEMU-062t).  Base address (ISS-247): no ``-T``/linker script is passed, so
-lld's default base is used; ``tests/shared/linker/dadao.lds`` (``RAM ORIGIN =
-0xFC00_0000_0000``) cannot be loaded by ``qemu-user`` on this 47-bit host VA.
+lld's default base is used; ``tests/shared/linker/dadao-tiny.lds`` (``RAM ORIGIN =
+the old high RAM base``) cannot be loaded by ``qemu-user`` on this 47-bit host VA.
 Every image's minimum ``PT_LOAD`` and its ``PT_INTERP`` are read back from the
 file (the modality is asserted, not assumed).
 
@@ -915,7 +915,7 @@ FAULT_NAMES = {
     0x8B: "RASUF", 0x8C: "MALIGN", 0x8D: "IALIGN",
 }
 
-# The scripted base of tests/shared/linker/dadao.lds (ISS-247).
+# The scripted base of tests/shared/linker/dadao-tiny.lds (ISS-247).
 SCRIPTED_BASE = 0xFC0000000000
 
 PT_LOAD = 1
@@ -2371,7 +2371,7 @@ def _build_and_run(case: Case, cfg, work_dir):
         return case
     if case.min_pt_load == SCRIPTED_BASE:
         case.klass = "blocked"
-        case.reason = ("ELF min PT_LOAD is the scripted dadao.lds base "
+        case.reason = ("ELF min PT_LOAD is the scripted dadao-tiny.lds base "
                        f"0x{SCRIPTED_BASE:x} (ISS-247)")
         return case
     if cfg["mode"] == "static" and case.interp:

@@ -16,6 +16,8 @@
 @@ @m5 exit=0x53
 @@ @m5 fail_exit=0xE1
 
+	.include "machine.inc"
+
 	.text
 	.globl	_start
 _start:
@@ -27,8 +29,7 @@ _start:
 	br.nz	{rd11}?, [rb0, fail]
 
 	@@ pass: SYS_EXIT(0x53)
-	set.zw	rb16, wp0, 0x2000
-	or.w	rb16, wp2, 0xfc00
+	LOAD_ADDR rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
@@ -39,8 +40,7 @@ _start:
 	swym	0
 
 fail:
-	set.zw	rb16, wp0, 0x2000
-	or.w	rb16, wp2, 0xfc00
+	LOAD_ADDR rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]

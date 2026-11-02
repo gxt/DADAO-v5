@@ -21,6 +21,34 @@ Usage: python3 tools/testcases/arch/min_rom_probe_006t.py
 import struct
 import subprocess
 import sys
+
+import os, sys
+
+# TESTCASES-091t: probe geometry from the single profile source
+# (tests/shared/machine-profiles.yaml); runtime execution stays BLOCKED until
+# QEMU-079/080 provide the Tiny/Node machines.
+_MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))))
+if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
+    sys.path.insert(0, os.path.join(_MACH_REPO, "tools", "testcases", "lib"))
+import machine_profile as _machine_profile  # noqa: E402
+_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
+RAM_BASE = _MACH.ram_base
+RAM_END = _MACH.ram_end
+SP = _MACH.sp
+SP_OFF = SP - RAM_BASE
+BOOTROM_BASE = _MACH.bootrom_base
+ENTRY = _MACH.entry
+EXIT_BLOCK = _MACH.exit_block
+RAM_W2 = (RAM_BASE >> 32) & 0xFFFF
+RAM_W1 = (RAM_BASE >> 16) & 0xFFFF
+RAM_W0 = RAM_BASE & 0xFFFF
+SP_W2 = (SP >> 32) & 0xFFFF
+SP_W1 = (SP >> 16) & 0xFFFF
+SP_W0 = SP & 0xFFFF
+EXIT_W2 = (EXIT_BLOCK >> 32) & 0xFFFF
+EXIT_W1 = (EXIT_BLOCK >> 16) & 0xFFFF
+EXIT_W0 = EXIT_BLOCK & 0xFFFF
 import os
 import tempfile
 
@@ -167,7 +195,7 @@ def trap_sys_exit():
 # rd16 = 0x18 (SYS_EXIT).  Each terminal store writes the exit code into
 # block[1] (offset 8) and traps; SYS_EXIT never returns.
 
-SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
+SEMI_BLOCK = EXIT_BLOCK       # {reason, code} block inside RAM (16 MiB)
 SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 
 def semi_exit(code_rd):
@@ -187,20 +215,20 @@ def build_rom(test_insns):
     SYS_EXIT argument block (ADR-0020 D8)."""
     trampoline = [
         set_zw_rb(1, 0x0000),    # set.zw rb1, wp0, 0x0000 -> rb1 = 0
-        or_w_rb(1, 1, 0x00FF),   # or.w rb1, wp1, 0x00FF -> rb1 = 0xFC00_00FF_0000 (SP)
-        or_w_rb(1, 2, 0xFC00),
+        or_w_rb(1, 1, 0x00FF),   # or.w rb1, wp1, 0x00FF -> rb1 = SP (SP)
+        or_w_rb(1, 2, RAM_W2),
         set_zw_rb(2, 0x0000),    # set.zw rb2, wp0, 0x0000 -> rb2 = 0 (RAM base)
-        or_w_rb(2, 2, 0xFC00),
+        or_w_rb(2, 2, RAM_W2),
         set_zw_rb(16, 0x0000),   # set.zw rb16, wp0, 0x0000 -> rb16 = 0
-        or_w_rb(16, 1, 0x00FF),  # or.w rb16, wp1, 0x00FF -> rb16 = 0x00FF0000
-        or_w_rb(16, 0, 0xF000),  # or.w rb16, wp0, 0xF000 -> rb16 = 0xFC00_00FF_F000 (block)
-        or_w_rb(16, 2, 0xFC00),
+        or_w_rb(16, 1, 0x00FF),  # or.w rb16, wp1, 0x00FF -> rb16 = SP_OFF
+        or_w_rb(16, 0, 0xF000),  # or.w rb16, wp0, 0xF000 -> rb16 = EXIT_BLOCK (block)
+        or_w_rb(16, 2, RAM_W2),
         set_zw_rd(8, 0x0026),    # set.zw rd8, wp0, 0x0026
         or_w_rd(8, 1, 0x0002),   # or.w rd8, wp1, 0x0002 -> rd8 = 0x20026
         st_o(8, 16, 0),          # block[0] = 0x20026 (ADP_Stopped_ApplicationExit)
         set_zw_rd(16, 0x0018),   # set.zw rd16, wp0, 0x0018 (SYS_EXIT)
         set_zw_rb(17, 0x0000),   # set.zw rb17, wp0, 0x0000 -> rb17 = 0 (RAM base)
-        or_w_rb(17, 2, 0xFC00),
+        or_w_rb(17, 2, RAM_W2),
     ]
     rom = b''
     for insn in trampoline:
@@ -334,7 +362,7 @@ TESTS = [
     # match is now reported with a br.nz/FAIL arm (present-ISA equivalent).
     ("T12 stm.o+ldm.o round-trip",
      [set_zw_rb(18, 0x0000),             # rb18 = 0
-      or_w_rb(18, 2, 0xFC00),            # rb18 = RAM base
+      or_w_rb(18, 2, RAM_W2),            # rb18 = RAM base
       or_w_rb(18, 0, 0x0100),            # rb18 = RAM+0x100
       set_zw_rd(20, 0x0042),             # rd20 = 0x42
       set_zw_rd(19, 0),                  # rd19 = 0 (offset)

@@ -4,7 +4,7 @@
 @@ the argument pointer (rb16) to the semihosting console
 @@ (contract-semihosting.md §3; Machine-01 §5.3).
 @@
-@@ Loaded as a flat bin at the RAM base 0xFC00_0000_0000 by `-kernel`
+@@ Loaded as a flat bin at the profile ENTRY by `-kernel`
 @@ (ADR-0004 D2.3 path B) and entered in user mode by the SEE bootrom
 @@ (QEMU-047t / Machine-01 §2).
 @@
@@ -18,12 +18,13 @@
 @@ @m5 console_data=4f4b0a00
 @@ @m5 exit=0x41
 
+	.include "machine.inc"
+
 	.text
 	.globl	_start
 _start:
 	@@ rb16 -> RAM + 0x1000; build "OK\n\0" byte by byte
-	set.zw	rb16, wp0, 0x1000
-	or.w	rb16, wp2, 0xfc00
+	LOAD_ADDR rb16, ENTRY + 0x1000
 	set.zw	rd8, wp0, 0x004F		@@ 'O'
 	st.b	rd8, [rb16, 0]
 	set.zw	rd8, wp0, 0x004B		@@ 'K'
@@ -36,8 +37,7 @@ _start:
 	set.zw	rd16, wp0, 0x0004
 	trap	cfx_umon, 0x3FF00
 	@@ report success via SYS_EXIT (pass token 0x41)
-	set.zw	rb16, wp0, 0x2000
-	or.w	rb16, wp2, 0xfc00
+	LOAD_ADDR rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]

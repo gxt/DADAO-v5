@@ -24,9 +24,9 @@
 schema: m6-elf-vectors-v1
 
 conventions:
-  entry: "define i64 @main() -- linked with crt0 via ld.lld -T dadao.lds"
+  entry: "define i64 @main() -- linked with crt0 via ld.lld -T dadao-tiny.lds"
   exit_channel: "guest exit code = low byte of @main return value (0x00..0x7F)"
-  link: "llc -march=dadao -filetype=obj per TU; ld.lld -T dadao.lds"
+  link: "llc -march=dadao -filetype=obj per TU; ld.lld -T dadao-tiny.lds"
   oracle: "host-side IR-semantics model; not llc / ld.lld / QEMU"
 
 programs:

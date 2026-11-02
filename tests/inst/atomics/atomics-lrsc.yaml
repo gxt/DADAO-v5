@@ -15,21 +15,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x18'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb: {}
@@ -41,25 +41,25 @@
   id: lr.b.an_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001003'
+      rb4: '@ENTRY+0x1003'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -81,21 +81,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb: {}
@@ -106,25 +106,25 @@
   id: lr.b.an_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb:
-      rb5: '0xFC0000001007'
+      rb5: '@ENTRY+0x1007'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -158,21 +158,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x18'
     ra: {}
     rb: {}
@@ -184,25 +184,25 @@
   id: lr.b.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001007'
+      rb4: '@ENTRY+0x1007'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -224,21 +224,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb: {}
@@ -249,25 +249,25 @@
   id: lr.b.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb:
-      rb5: '0xFC0000001007'
+      rb5: '@ENTRY+0x1007'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -301,21 +301,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x18'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb: {}
@@ -327,25 +327,25 @@
   id: lr.b.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -367,21 +367,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb: {}
@@ -392,25 +392,25 @@
   id: lr.b.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb:
-      rb5: '0xFC0000001007'
+      rb5: '@ENTRY+0x1007'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -444,7 +444,7 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0xA1B2C3D4E5F60718'
     ra: {}
     rb: {}
@@ -456,11 +456,11 @@
   id: lr.o.an_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -487,7 +487,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
+      rb4: '@ENTRY+0x1004'
     rd: {}
   mnemonic: lr.o.an
   notes: 'legality lr.o.an: addr & 7 != 0 -> MALIGN, never ILLI/CFXMEM'
@@ -519,7 +519,7 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0xA1B2C3D4E5F60718'
     ra: {}
     rb: {}
@@ -531,11 +531,11 @@
   id: lr.o.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -562,7 +562,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
+      rb4: '@ENTRY+0x1004'
     rd: {}
   mnemonic: lr.o.ar
   notes: 'legality lr.o.ar: addr & 7 != 0 -> MALIGN, never ILLI/CFXMEM'
@@ -594,7 +594,7 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0xA1B2C3D4E5F60718'
     ra: {}
     rb: {}
@@ -606,11 +606,11 @@
   id: lr.o.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -637,7 +637,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
+      rb4: '@ENTRY+0x1004'
     rd: {}
   mnemonic: lr.o.nn
   notes: 'legality lr.o.nn: addr & 7 != 0 -> MALIGN, never ILLI/CFXMEM'
@@ -669,9 +669,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0xE5F60718'
     ra: {}
     rb: {}
@@ -683,13 +683,13 @@
   id: lr.t.an_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
+      rb4: '@ENTRY+0x1004'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -711,9 +711,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb: {}
@@ -724,13 +724,13 @@
   id: lr.t.an_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb5: '0xFC0000001004'
+      rb5: '@ENTRY+0x1004'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -751,7 +751,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001002'
+      rb4: '@ENTRY+0x1002'
     rd: {}
   mnemonic: lr.t.an
   notes: 'legality lr.t.an: addr & 3 != 0 -> MALIGN, never ILLI/CFXMEM'
@@ -783,9 +783,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0xE5F60718'
     ra: {}
     rb: {}
@@ -797,13 +797,13 @@
   id: lr.t.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
+      rb4: '@ENTRY+0x1004'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -825,9 +825,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb: {}
@@ -838,13 +838,13 @@
   id: lr.t.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb5: '0xFC0000001004'
+      rb5: '@ENTRY+0x1004'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -865,7 +865,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001002'
+      rb4: '@ENTRY+0x1002'
     rd: {}
   mnemonic: lr.t.ar
   notes: 'legality lr.t.ar: addr & 3 != 0 -> MALIGN, never ILLI/CFXMEM'
@@ -897,9 +897,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0xE5F60718'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb: {}
@@ -911,13 +911,13 @@
   id: lr.t.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -939,9 +939,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb: {}
@@ -952,13 +952,13 @@
   id: lr.t.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb5: '0xFC0000001004'
+      rb5: '@ENTRY+0x1004'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -979,7 +979,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001002'
+      rb4: '@ENTRY+0x1002'
     rd: {}
   mnemonic: lr.t.nn
   notes: 'legality lr.t.nn: addr & 3 != 0 -> MALIGN, never ILLI/CFXMEM'
@@ -1011,13 +1011,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0718'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -1029,17 +1029,17 @@
   id: lr.w.an_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
+      rb4: '@ENTRY+0x1004'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -1061,13 +1061,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -1078,17 +1078,17 @@
   id: lr.w.an_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb5: '0xFC0000001006'
+      rb5: '@ENTRY+0x1006'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -1109,7 +1109,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001001'
+      rb4: '@ENTRY+0x1001'
     rd: {}
   mnemonic: lr.w.an
   notes: 'legality lr.w.an: addr & 1 != 0 -> MALIGN, never ILLI/CFXMEM'
@@ -1141,13 +1141,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0718'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -1159,17 +1159,17 @@
   id: lr.w.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001002'
+      rb4: '@ENTRY+0x1002'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -1191,13 +1191,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -1208,17 +1208,17 @@
   id: lr.w.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb5: '0xFC0000001006'
+      rb5: '@ENTRY+0x1006'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -1239,7 +1239,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001001'
+      rb4: '@ENTRY+0x1001'
     rd: {}
   mnemonic: lr.w.ar
   notes: 'legality lr.w.ar: addr & 1 != 0 -> MALIGN, never ILLI/CFXMEM'
@@ -1271,13 +1271,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0718'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -1289,17 +1289,17 @@
   id: lr.w.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -1321,13 +1321,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -1338,17 +1338,17 @@
   id: lr.w.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb5: '0xFC0000001006'
+      rb5: '@ENTRY+0x1006'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -1369,7 +1369,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001001'
+      rb4: '@ENTRY+0x1001'
     rd: {}
   mnemonic: lr.w.nn
   notes: 'legality lr.w.nn: addr & 1 != 0 -> MALIGN, never ILLI/CFXMEM'
@@ -1401,21 +1401,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x18'
     ra: {}
     rb: {}
@@ -1427,25 +1427,25 @@
   id: sc.b.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001007'
+      rb4: '@ENTRY+0x1007'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -1466,21 +1466,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb: {}
@@ -1491,25 +1491,25 @@
   id: sc.b.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001007'
+      rb4: '@ENTRY+0x1007'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -1526,37 +1526,37 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01'
-    - address: '0xFC0000001101'
+    - address: '@ENTRY+0x1101'
       value: '0x02'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x03'
-    - address: '0xFC0000001103'
+    - address: '@ENTRY+0x1103'
       value: '0x04'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05'
-    - address: '0xFC0000001105'
+    - address: '@ENTRY+0x1105'
       value: '0x06'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x07'
-    - address: '0xFC0000001107'
+    - address: '@ENTRY+0x1107'
       value: '0x08'
     ra: {}
     rb: {}
@@ -1568,42 +1568,42 @@
   id: sc.b.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01'
-    - address: '0xFC0000001101'
+    - address: '@ENTRY+0x1101'
       value: '0x02'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x03'
-    - address: '0xFC0000001103'
+    - address: '@ENTRY+0x1103'
       value: '0x04'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05'
-    - address: '0xFC0000001105'
+    - address: '@ENTRY+0x1105'
       value: '0x06'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x07'
-    - address: '0xFC0000001107'
+    - address: '@ENTRY+0x1107'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001107'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1107'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -1624,37 +1624,37 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01'
-    - address: '0xFC0000001101'
+    - address: '@ENTRY+0x1101'
       value: '0x02'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x03'
-    - address: '0xFC0000001103'
+    - address: '@ENTRY+0x1103'
       value: '0x04'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05'
-    - address: '0xFC0000001105'
+    - address: '@ENTRY+0x1105'
       value: '0x06'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x07'
-    - address: '0xFC0000001107'
+    - address: '@ENTRY+0x1107'
       value: '0x08'
     ra: {}
     rb: {}
@@ -1666,42 +1666,42 @@
   id: sc.b.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01'
-    - address: '0xFC0000001101'
+    - address: '@ENTRY+0x1101'
       value: '0x02'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x03'
-    - address: '0xFC0000001103'
+    - address: '@ENTRY+0x1103'
       value: '0x04'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05'
-    - address: '0xFC0000001105'
+    - address: '@ENTRY+0x1105'
       value: '0x06'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x07'
-    - address: '0xFC0000001107'
+    - address: '@ENTRY+0x1107'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001007'
-      rb5: '0xFC0000001107'
+      rb4: '@ENTRY+0x1007'
+      rb5: '@ENTRY+0x1107'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -1724,21 +1724,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x18'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb: {}
@@ -1750,25 +1750,25 @@
   id: sc.b.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -1789,21 +1789,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb: {}
@@ -1814,25 +1814,25 @@
   id: sc.b.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -1849,37 +1849,37 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01'
-    - address: '0xFC0000001101'
+    - address: '@ENTRY+0x1101'
       value: '0x02'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x03'
-    - address: '0xFC0000001103'
+    - address: '@ENTRY+0x1103'
       value: '0x04'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05'
-    - address: '0xFC0000001105'
+    - address: '@ENTRY+0x1105'
       value: '0x06'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x07'
-    - address: '0xFC0000001107'
+    - address: '@ENTRY+0x1107'
       value: '0x08'
     ra: {}
     rb: {}
@@ -1891,42 +1891,42 @@
   id: sc.b.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01'
-    - address: '0xFC0000001101'
+    - address: '@ENTRY+0x1101'
       value: '0x02'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x03'
-    - address: '0xFC0000001103'
+    - address: '@ENTRY+0x1103'
       value: '0x04'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05'
-    - address: '0xFC0000001105'
+    - address: '@ENTRY+0x1105'
       value: '0x06'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x07'
-    - address: '0xFC0000001107'
+    - address: '@ENTRY+0x1107'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001100'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1100'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -1947,37 +1947,37 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01'
-    - address: '0xFC0000001101'
+    - address: '@ENTRY+0x1101'
       value: '0x02'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x03'
-    - address: '0xFC0000001103'
+    - address: '@ENTRY+0x1103'
       value: '0x04'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05'
-    - address: '0xFC0000001105'
+    - address: '@ENTRY+0x1105'
       value: '0x06'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x07'
-    - address: '0xFC0000001107'
+    - address: '@ENTRY+0x1107'
       value: '0x08'
     ra: {}
     rb: {}
@@ -1989,42 +1989,42 @@
   id: sc.b.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01'
-    - address: '0xFC0000001101'
+    - address: '@ENTRY+0x1101'
       value: '0x02'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x03'
-    - address: '0xFC0000001103'
+    - address: '@ENTRY+0x1103'
       value: '0x04'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05'
-    - address: '0xFC0000001105'
+    - address: '@ENTRY+0x1105'
       value: '0x06'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x07'
-    - address: '0xFC0000001107'
+    - address: '@ENTRY+0x1107'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001100'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1100'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -2047,21 +2047,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x18'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb: {}
@@ -2073,25 +2073,25 @@
   id: sc.b.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001003'
+      rb4: '@ENTRY+0x1003'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -2112,21 +2112,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb: {}
@@ -2137,25 +2137,25 @@
   id: sc.b.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001003'
+      rb4: '@ENTRY+0x1003'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -2172,37 +2172,37 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01'
-    - address: '0xFC0000001101'
+    - address: '@ENTRY+0x1101'
       value: '0x02'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x03'
-    - address: '0xFC0000001103'
+    - address: '@ENTRY+0x1103'
       value: '0x04'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05'
-    - address: '0xFC0000001105'
+    - address: '@ENTRY+0x1105'
       value: '0x06'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x07'
-    - address: '0xFC0000001107'
+    - address: '@ENTRY+0x1107'
       value: '0x08'
     ra: {}
     rb: {}
@@ -2214,42 +2214,42 @@
   id: sc.b.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01'
-    - address: '0xFC0000001101'
+    - address: '@ENTRY+0x1101'
       value: '0x02'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x03'
-    - address: '0xFC0000001103'
+    - address: '@ENTRY+0x1103'
       value: '0x04'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05'
-    - address: '0xFC0000001105'
+    - address: '@ENTRY+0x1105'
       value: '0x06'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x07'
-    - address: '0xFC0000001107'
+    - address: '@ENTRY+0x1107'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001103'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1103'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -2270,37 +2270,37 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01'
-    - address: '0xFC0000001101'
+    - address: '@ENTRY+0x1101'
       value: '0x02'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x03'
-    - address: '0xFC0000001103'
+    - address: '@ENTRY+0x1103'
       value: '0x04'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05'
-    - address: '0xFC0000001105'
+    - address: '@ENTRY+0x1105'
       value: '0x06'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x07'
-    - address: '0xFC0000001107'
+    - address: '@ENTRY+0x1107'
       value: '0x08'
     ra: {}
     rb: {}
@@ -2312,42 +2312,42 @@
   id: sc.b.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01'
-    - address: '0xFC0000001001'
+    - address: '@ENTRY+0x1001'
       value: '0x02'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x03'
-    - address: '0xFC0000001003'
+    - address: '@ENTRY+0x1003'
       value: '0x04'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05'
-    - address: '0xFC0000001005'
+    - address: '@ENTRY+0x1005'
       value: '0x06'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x07'
-    - address: '0xFC0000001007'
+    - address: '@ENTRY+0x1007'
       value: '0x08'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01'
-    - address: '0xFC0000001101'
+    - address: '@ENTRY+0x1101'
       value: '0x02'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x03'
-    - address: '0xFC0000001103'
+    - address: '@ENTRY+0x1103'
       value: '0x04'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05'
-    - address: '0xFC0000001105'
+    - address: '@ENTRY+0x1105'
       value: '0x06'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x07'
-    - address: '0xFC0000001107'
+    - address: '@ENTRY+0x1107'
       value: '0x08'
     ra: {}
     rb:
-      rb4: '0xFC0000001003'
-      rb5: '0xFC0000001103'
+      rb4: '@ENTRY+0x1003'
+      rb5: '@ENTRY+0x1103'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -2370,7 +2370,7 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0xA1B2C3D4E5F60718'
     ra: {}
     rb: {}
@@ -2382,11 +2382,11 @@
   id: sc.o.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -2407,7 +2407,7 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb: {}
@@ -2418,11 +2418,11 @@
   id: sc.o.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -2439,9 +2439,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102030405060708'
     ra: {}
     rb: {}
@@ -2453,14 +2453,14 @@
   id: sc.o.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001100'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1100'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -2481,9 +2481,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102030405060708'
     ra: {}
     rb: {}
@@ -2495,14 +2495,14 @@
   id: sc.o.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001100'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1100'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -2530,7 +2530,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
+      rb4: '@ENTRY+0x1004'
     rd:
       rd5: '0xFFFFFFFFFFFFFFFF'
       rd6: '0xA1B2C3D4E5F60718'
@@ -2549,12 +2549,12 @@
   id: sc.o.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001004'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1004'
     rd:
       rd2: '0x0000000000000000'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -2574,7 +2574,7 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0xA1B2C3D4E5F60718'
     ra: {}
     rb: {}
@@ -2586,11 +2586,11 @@
   id: sc.o.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -2611,7 +2611,7 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb: {}
@@ -2622,11 +2622,11 @@
   id: sc.o.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -2643,9 +2643,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102030405060708'
     ra: {}
     rb: {}
@@ -2657,14 +2657,14 @@
   id: sc.o.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001100'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1100'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -2685,9 +2685,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102030405060708'
     ra: {}
     rb: {}
@@ -2699,14 +2699,14 @@
   id: sc.o.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001100'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1100'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -2734,7 +2734,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
+      rb4: '@ENTRY+0x1004'
     rd:
       rd5: '0xFFFFFFFFFFFFFFFF'
       rd6: '0xA1B2C3D4E5F60718'
@@ -2753,12 +2753,12 @@
   id: sc.o.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001004'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1004'
     rd:
       rd2: '0x0000000000000000'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -2778,7 +2778,7 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0xA1B2C3D4E5F60718'
     ra: {}
     rb: {}
@@ -2790,11 +2790,11 @@
   id: sc.o.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -2815,7 +2815,7 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb: {}
@@ -2826,11 +2826,11 @@
   id: sc.o.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -2847,9 +2847,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102030405060708'
     ra: {}
     rb: {}
@@ -2861,14 +2861,14 @@
   id: sc.o.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001100'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1100'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -2889,9 +2889,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102030405060708'
     ra: {}
     rb: {}
@@ -2903,14 +2903,14 @@
   id: sc.o.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001100'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1100'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -2938,7 +2938,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
+      rb4: '@ENTRY+0x1004'
     rd:
       rd5: '0xFFFFFFFFFFFFFFFF'
       rd6: '0xA1B2C3D4E5F60718'
@@ -2957,12 +2957,12 @@
   id: sc.o.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102030405060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001004'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1004'
     rd:
       rd2: '0x0000000000000000'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -2982,9 +2982,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0xE5F60718'
     ra: {}
     rb: {}
@@ -2996,13 +2996,13 @@
   id: sc.t.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
+      rb4: '@ENTRY+0x1004'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -3023,9 +3023,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb: {}
@@ -3036,13 +3036,13 @@
   id: sc.t.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
+      rb4: '@ENTRY+0x1004'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -3059,13 +3059,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01020304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05060708'
     ra: {}
     rb: {}
@@ -3077,18 +3077,18 @@
   id: sc.t.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01020304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001104'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1104'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -3109,13 +3109,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01020304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05060708'
     ra: {}
     rb: {}
@@ -3127,18 +3127,18 @@
   id: sc.t.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01020304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
-      rb5: '0xFC0000001104'
+      rb4: '@ENTRY+0x1004'
+      rb5: '@ENTRY+0x1104'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -3166,7 +3166,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001002'
+      rb4: '@ENTRY+0x1002'
     rd:
       rd5: '0xFFFFFFFFFFFFFFFF'
       rd6: '0xA1B2C3D4E5F60718'
@@ -3185,14 +3185,14 @@
   id: sc.t.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001002'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1002'
     rd:
       rd2: '0x0000000000000000'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -3212,9 +3212,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0xE5F60718'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb: {}
@@ -3226,13 +3226,13 @@
   id: sc.t.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -3253,9 +3253,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb: {}
@@ -3266,13 +3266,13 @@
   id: sc.t.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -3289,13 +3289,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01020304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05060708'
     ra: {}
     rb: {}
@@ -3307,18 +3307,18 @@
   id: sc.t.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01020304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001100'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1100'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -3339,13 +3339,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01020304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05060708'
     ra: {}
     rb: {}
@@ -3357,18 +3357,18 @@
   id: sc.t.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01020304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001100'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1100'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -3396,7 +3396,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001002'
+      rb4: '@ENTRY+0x1002'
     rd:
       rd5: '0xFFFFFFFFFFFFFFFF'
       rd6: '0xA1B2C3D4E5F60718'
@@ -3415,14 +3415,14 @@
   id: sc.t.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001002'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1002'
     rd:
       rd2: '0x0000000000000000'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -3442,9 +3442,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0xE5F60718'
     ra: {}
     rb: {}
@@ -3456,13 +3456,13 @@
   id: sc.t.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
+      rb4: '@ENTRY+0x1004'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -3483,9 +3483,9 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb: {}
@@ -3496,13 +3496,13 @@
   id: sc.t.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
+      rb4: '@ENTRY+0x1004'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -3519,13 +3519,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01020304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05060708'
     ra: {}
     rb: {}
@@ -3537,18 +3537,18 @@
   id: sc.t.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01020304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001104'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1104'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -3569,13 +3569,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01020304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05060708'
     ra: {}
     rb: {}
@@ -3587,18 +3587,18 @@
   id: sc.t.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x01020304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001004'
-      rb5: '0xFC0000001104'
+      rb4: '@ENTRY+0x1004'
+      rb5: '@ENTRY+0x1104'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -3626,7 +3626,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001002'
+      rb4: '@ENTRY+0x1002'
     rd:
       rd5: '0xFFFFFFFFFFFFFFFF'
       rd6: '0xA1B2C3D4E5F60718'
@@ -3645,14 +3645,14 @@
   id: sc.t.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x01020304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x05060708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001002'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1002'
     rd:
       rd2: '0x0000000000000000'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -3672,13 +3672,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0718'
     ra: {}
     rb: {}
@@ -3690,17 +3690,17 @@
   id: sc.w.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001006'
+      rb4: '@ENTRY+0x1006'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -3721,13 +3721,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -3738,17 +3738,17 @@
   id: sc.w.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001006'
+      rb4: '@ENTRY+0x1006'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -3765,21 +3765,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x0304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x0506'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -3791,26 +3791,26 @@
   id: sc.w.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x0304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x0506'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001106'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1106'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -3831,21 +3831,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x0304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x0506'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -3857,26 +3857,26 @@
   id: sc.w.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x0304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x0506'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001006'
-      rb5: '0xFC0000001106'
+      rb4: '@ENTRY+0x1006'
+      rb5: '@ENTRY+0x1106'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -3904,7 +3904,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001001'
+      rb4: '@ENTRY+0x1001'
     rd:
       rd5: '0xFFFFFFFFFFFFFFFF'
       rd6: '0xA1B2C3D4E5F60718'
@@ -3923,18 +3923,18 @@
   id: sc.w.ar_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001001'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1001'
     rd:
       rd2: '0x0000000000000000'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -3954,13 +3954,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0718'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -3972,17 +3972,17 @@
   id: sc.w.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -4003,13 +4003,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -4020,17 +4020,17 @@
   id: sc.w.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
+      rb4: '@ENTRY+0x1000'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -4047,21 +4047,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x0304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x0506'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -4073,26 +4073,26 @@
   id: sc.w.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x0304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x0506'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001100'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1100'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -4113,21 +4113,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x0304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x0506'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -4139,26 +4139,26 @@
   id: sc.w.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x0304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x0506'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001100'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1100'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -4186,7 +4186,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001001'
+      rb4: '@ENTRY+0x1001'
     rd:
       rd5: '0xFFFFFFFFFFFFFFFF'
       rd6: '0xA1B2C3D4E5F60718'
@@ -4205,18 +4205,18 @@
   id: sc.w.nn_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001001'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1001'
     rd:
       rd2: '0x0000000000000000'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -4236,13 +4236,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0718'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -4254,17 +4254,17 @@
   id: sc.w.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001002'
+      rb4: '@ENTRY+0x1002'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -4285,13 +4285,13 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -4302,17 +4302,17 @@
   id: sc.w.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001002'
+      rb4: '@ENTRY+0x1002'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd5: '0xFFFFFFFFFFFFFFFF'
@@ -4329,21 +4329,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x0304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x0506'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -4355,26 +4355,26 @@
   id: sc.w.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x0304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x0506'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001102'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1102'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -4395,21 +4395,21 @@
   expected_pc: null
   expected_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x0304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x0506'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x0708'
     ra: {}
     rb: {}
@@ -4421,26 +4421,26 @@
   id: sc.w.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
-    - address: '0xFC0000001100'
+    - address: '@ENTRY+0x1100'
       value: '0x0102'
-    - address: '0xFC0000001102'
+    - address: '@ENTRY+0x1102'
       value: '0x0304'
-    - address: '0xFC0000001104'
+    - address: '@ENTRY+0x1104'
       value: '0x0506'
-    - address: '0xFC0000001106'
+    - address: '@ENTRY+0x1106'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001002'
-      rb5: '0xFC0000001102'
+      rb4: '@ENTRY+0x1002'
+      rb5: '@ENTRY+0x1102'
     rd:
       rd1: '0xDEADBEEFCAFEF00D'
       rd2: '0x0000000000000000'
@@ -4468,7 +4468,7 @@
     memory: []
     ra: {}
     rb:
-      rb4: '0xFC0000001001'
+      rb4: '@ENTRY+0x1001'
     rd:
       rd5: '0xFFFFFFFFFFFFFFFF'
       rd6: '0xA1B2C3D4E5F60718'
@@ -4487,18 +4487,18 @@
   id: sc.w.nr_orrr_rd
   input_state:
     memory:
-    - address: '0xFC0000001000'
+    - address: '@ENTRY+0x1000'
       value: '0x0102'
-    - address: '0xFC0000001002'
+    - address: '@ENTRY+0x1002'
       value: '0x0304'
-    - address: '0xFC0000001004'
+    - address: '@ENTRY+0x1004'
       value: '0x0506'
-    - address: '0xFC0000001006'
+    - address: '@ENTRY+0x1006'
       value: '0x0708'
     ra: {}
     rb:
-      rb4: '0xFC0000001000'
-      rb5: '0xFC0000001001'
+      rb4: '@ENTRY+0x1000'
+      rb5: '@ENTRY+0x1001'
     rd:
       rd2: '0x0000000000000000'
       rd5: '0xFFFFFFFFFFFFFFFF'

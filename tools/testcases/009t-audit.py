@@ -46,6 +46,9 @@ try:
 except ImportError:
     sys.exit("ERROR: PyYAML 未安装。运行: pip install pyyaml")
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
+import machine_profile  # noqa: E402
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -147,9 +150,8 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
     inp_rb = input_state.get("rb", {})
     inp_ra = input_state.get("ra", {})
 
-    # rb0 = PC (hardwired). Test vectors use rb0 = 0xFC0000000000 (RAM entry, ADR-0004 D2.2)
-    # This is not in input_state; read from notes or use convention.
-    RB0_PC = 0xFC00_0000_0000  # Default convention for test vectors
+    # rb0 = PC (hardwired). Test vectors use rb0 = profile ENTRY (ADR-0004 D2.2).
+    RB0_PC = machine_profile.load("tiny").entry
 
     def get_rd(name):
         if name == "rd0":

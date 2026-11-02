@@ -11,9 +11,9 @@ Spec-first: all encoding words, expected values, and spec_cite derived from
 contracts/opcodes.yaml, .tao/contracts/contract-isa.md §5, and
 .tao/adr/adr-0004-test-machine.md (D6.5: rb0 = current instruction address).
 
-PC convention: instruction address = 0xFC00_0000_0000 (RAM entry, ADR-0004 D2.2).
-imm=2 for taken → target = rb0 + 8 = 0xFC0000000008.
-not-taken → PC = rb0 + 4 = 0xFC0000000004.
+PC convention: instruction address = profile RAM entry (@RAM_BASE, ADR-0004 D2.2).
+imm=2 for taken → target = rb0 + 8 = @RAM_BASE+0x8.
+not-taken → PC = rb0 + 4 = @RAM_BASE+0x4.
 
 Output: tests/inst/base/ctrl-br.yaml (默认：渲染 + 写盘).
 Check:  python3 tools/testcases/generate_ctrl_br.py --check
@@ -48,25 +48,26 @@ for r in ALL:
         BY_KEY[(r["id"], r["format"])] = r
 
 # ── Constants ─────────────────────────────────────────────────────────
-RB0 = 0xFC00_0000_0000          # instruction address (RAM entry, ADR-0004 D2.2/D6.5)
+# 几何真源 = tests/shared/machine-profiles.yaml；本生成器只把 @RAM_BASE token
+# 写进向量（不落绝对地址）。RB0 仅用于独立 oracle 的算术推导。
+sys.path.insert(0, os.path.join(REPO, "tools", "testcases", "lib"))
+import machine_profile  # noqa: E402
+RB0 = machine_profile.load("tiny").entry   # RAM entry (oracle arithmetic only)
 IMM_TAKEN = 2                   # imm for taken path (not 0, not 1)
-TARGET_TAKEN = "0x%012X" % (RB0 + (IMM_TAKEN << 2))
-TARGET_NOT_TAKEN = "0x%012X" % (RB0 + 4)
+TARGET_TAKEN = "@ENTRY+0x%X" % (IMM_TAKEN << 2)
+TARGET_NOT_TAKEN = "@ENTRY+0x4"
 
 # Boundary: negative imm → target = rb0 + (imm << 2) falls outside RAM
-# (RAM = [0xFC00_0000_0000, +16 MiB); the target lands in a lower, unmapped
-# segment, cfxha 62 ⇒ not the umon (cfxha 0) segment ⇒ UNMAPPED 0x87).
-# riii: imms18 = -0x1000 (18-bit: 0x3F000) → target = RB0 + (-4096 << 2) = RB0 - 0x4000
-#        = 0xFBFF_FFFF_C000 (48-bit valid, below RAM → UNMAPPED)
-# rrii: imms12 = -0x400 (12-bit: 0xC00) → target = RB0 + (-1024 << 2) = RB0 - 0x1000
-#        = 0xFBFF_FFFF_F000 (48-bit valid, below RAM → UNMAPPED)
+# (below the selected profile RAM base ⇒ UNMAPPED 0x87).
+# riii: imms18 = -0x1000 (18-bit: 0x3F000) → target = RB0 - 0x4000
+# rrii: imms12 = -0x400 (12-bit: 0xC00) → target = RB0 - 0x1000
 IMM_BOUNDARY_RIII = (-0x1000) & 0x3FFFF   # 0x3F000
 IMM_BOUNDARY_RRII = (-0x400) & 0xFFF      # 0xC00
 # Sign-extend: for n-bit value, if bit (n-1) set → val - (1 << n)
 _imm18_s = IMM_BOUNDARY_RIII - (1 << 18) if IMM_BOUNDARY_RIII & (1 << 17) else IMM_BOUNDARY_RIII
-TARGET_BOUNDARY_RIII = "0x%012X" % ((RB0 + (_imm18_s << 2)) & 0xFFFFFFFFFFFF)
+TARGET_BOUNDARY_RIII = "@ENTRY-0x%X" % (-(_imm18_s << 2))
 _imm12_s = IMM_BOUNDARY_RRII - (1 << 12) if IMM_BOUNDARY_RRII & (1 << 11) else IMM_BOUNDARY_RRII
-TARGET_BOUNDARY_RRII = "0x%012X" % ((RB0 + (_imm12_s << 2)) & 0xFFFFFFFFFFFF)
+TARGET_BOUNDARY_RRII = "@ENTRY-0x%X" % (-(_imm12_s << 2))
 
 SPEC_CITE_RD = "SimRISC-06: 条件跳转指令; ADR-0004 D6.5"
 SPEC_CITE_RB = "SimRISC-06: 条件跳转指令; ADR-0004 D6.5"
@@ -85,8 +86,8 @@ def _hex8(w):
 
 # ── Case factory ──────────────────────────────────────────────────────
 def _case(mnem, insn, fmt, cls, word, inp, out, fault=None,
-          expected_pc=None, spec_cite="", notes=""):
-    return {
+          expected_pc=None, spec_cite="", notes="", profiles=None):
+    case = {
         "mnemonic": mnem,
         "id": insn,
         "format": fmt,
@@ -101,6 +102,9 @@ def _case(mnem, insn, fmt, cls, word, inp, out, fault=None,
         "spec_cite": spec_cite,
         "notes": notes,
     }
+    if profiles is not None:
+        case["profiles"] = profiles
+    return case
 
 # ── br.* identity definitions ─────────────────────────────────────────
 # (id, mnemonic, format, op, is_rb)
@@ -197,8 +201,9 @@ def _gen_riii_rd(identity, mnem, op):
         taken_inp = {"rd": {"rd%d" % taken_reg: "0x%016X" % taken_val}}
     cases.append(_case(mnem, identity, "riii", "semantic", taken_word, taken_inp,
                        {}, None, TARGET_TAKEN, sc,
-                       "taken: %s; rb0=0x%012X (RAM entry, ADR-0004 D2.2), imm=%d, expected_pc=rb0+%d=0x%012X"
-                       % (taken_note, RB0, IMM_TAKEN, IMM_TAKEN << 2, RB0 + (IMM_TAKEN << 2))))
+                       "taken: %s; rb0=@ENTRY (RAM entry, ADR-0004 D2.2), imm=%d, "
+                       "expected_pc=rb0+%d=@ENTRY+0x%X"
+                       % (taken_note, IMM_TAKEN, IMM_TAKEN << 2, IMM_TAKEN << 2)))
 
     # ── Not-taken case ──
     nt_word = _build_word_riii(op, not_taken_reg, IMM_TAKEN)
@@ -207,8 +212,8 @@ def _gen_riii_rd(identity, mnem, op):
         nt_inp = {"rd": {"rd%d" % not_taken_reg: "0x%016X" % not_taken_val}}
     cases.append(_case(mnem, identity, "riii", "semantic", nt_word, nt_inp,
                        {}, None, TARGET_NOT_TAKEN, sc,
-                       "not-taken: %s; rb0=0x%012X, expected_pc=rb0+4=0x%012X"
-                       % (not_taken_note, RB0, RB0 + 4)))
+                       "not-taken: %s; rb0=@ENTRY, expected_pc=rb0+4=@ENTRY+0x4"
+                       % (not_taken_note,)))
 
     return cases
 
@@ -248,16 +253,16 @@ def _gen_riii_rb(identity, mnem, op):
     taken_inp = {"rb": {"rb3": "0x%016X" % taken_val}}
     cases.append(_case(mnem, identity, "riii", "semantic", taken_word, taken_inp,
                        {}, None, TARGET_TAKEN, sc,
-                       "taken: %s; rb0=0x%012X, imm=%d, expected_pc=rb0+%d=0x%012X"
-                       % (taken_note, RB0, IMM_TAKEN, IMM_TAKEN << 2, RB0 + (IMM_TAKEN << 2))))
+                       "taken: %s; rb0=@ENTRY, imm=%d, expected_pc=rb0+%d=@ENTRY+0x%X"
+                       % (taken_note, IMM_TAKEN, IMM_TAKEN << 2, IMM_TAKEN << 2)))
 
     # ── Not-taken case ──
     nt_word = _build_word_riii(op, reg, IMM_TAKEN)
     nt_inp = {"rb": {"rb3": "0x%016X" % not_taken_val}}
     cases.append(_case(mnem, identity, "riii", "semantic", nt_word, nt_inp,
                        {}, None, TARGET_NOT_TAKEN, sc,
-                       "not-taken: %s; rb0=0x%012X, expected_pc=rb0+4=0x%012X"
-                       % (not_taken_note, RB0, RB0 + 4)))
+                       "not-taken: %s; rb0=@ENTRY, expected_pc=rb0+4=@ENTRY+0x4"
+                       % (not_taken_note,)))
 
     return cases
 
@@ -298,15 +303,15 @@ def _gen_rrii(identity, mnem, op):
     taken_word = _build_word_rrii(op, taken_ha, taken_hb, IMM_TAKEN)
     cases.append(_case(mnem, identity, "rrii", "semantic", taken_word, taken_inp,
                        {}, None, TARGET_TAKEN, sc,
-                       "taken: %s; rb0=0x%012X, imm=%d, expected_pc=rb0+%d=0x%012X"
-                       % (taken_note, RB0, IMM_TAKEN, IMM_TAKEN << 2, RB0 + (IMM_TAKEN << 2))))
+                       "taken: %s; rb0=@ENTRY, imm=%d, expected_pc=rb0+%d=@ENTRY+0x%X"
+                       % (taken_note, IMM_TAKEN, IMM_TAKEN << 2, IMM_TAKEN << 2)))
 
     # ── Not-taken case ──
     nt_word = _build_word_rrii(op, not_taken_ha, not_taken_hb, IMM_TAKEN)
     cases.append(_case(mnem, identity, "rrii", "semantic", nt_word, not_taken_inp,
                        {}, None, TARGET_NOT_TAKEN, sc,
-                       "not-taken: %s; rb0=0x%012X, expected_pc=rb0+4=0x%012X"
-                       % (not_taken_note, RB0, RB0 + 4)))
+                       "not-taken: %s; rb0=@ENTRY, expected_pc=rb0+4=@ENTRY+0x4"
+                       % (not_taken_note,)))
 
     return cases
 
@@ -351,9 +356,9 @@ def _gen_boundary_riii(identity, mnem, op, is_rb):
                        {}, "UNMAPPED", None, sc,
                        "boundary UNMAPPED: %s → condition TRUE → TAKEN; "
                        "imms18=-0x1000 (0x3F000), "
-                       "target=rb0+(imm<<2)=0x%012X+(-0x4000)=0x%012X → "
-                       "outside RAM (base 0xFC00_0000_0000) → UNMAPPED (0x87)"
-                       % (reg_label, RB0, int(TARGET_BOUNDARY_RIII, 16))))
+                       "target=rb0+(imm<<2)=@ENTRY-0x4000 → "
+                       "outside the selected profile RAM window → UNMAPPED (0x87)"
+                       % (reg_label,), profiles=["tiny"]))
     return cases
 
 
@@ -373,9 +378,9 @@ def _gen_boundary_rrii(identity, mnem, op):
     cases.append(_case(mnem, identity, "rrii", "boundary", word, inp,
                        {}, "UNMAPPED", None, sc,
                        "boundary UNMAPPED: imms12=-0x400 (0xC00), "
-                       "target=rb0+(imm<<2)=0x%012X+(-0x1000)=0x%012X → "
-                       "beyond/below RAM → UNMAPPED (0x87)"
-                       % (RB0, int(TARGET_BOUNDARY_RRII, 16))))
+                       "target=rb0+(imm<<2)=@ENTRY-0x1000 → "
+                       "beyond/below the selected profile RAM → UNMAPPED (0x87)",
+                       profiles=["tiny"]))
     return cases
 
 
@@ -403,9 +408,9 @@ def _render(all_cases=None):
         "# Generated by TESTCASES-005t generator — DO NOT EDIT\n"
         "# Source: contracts/opcodes.yaml + contract-isa.md §5 + adr-0004 D6.5\n"
         "# Each case has spec_cite and notes for traceability.\n"
-        "# PC convention: instruction address = 0xFC00_0000_0000 (RAM entry, ADR-0004 D2.2)\n"
-        "# imm=2 for taken → target = rb0 + 8 = 0xFC0000000008\n"
-        "# not-taken → PC = rb0 + 4 = 0xFC0000000004\n\n"
+        "# PC convention: instruction address = profile RAM entry (@RAM_BASE, ADR-0004 D2.2)\n"
+        "# imm=2 for taken → target = rb0 + 8 = @RAM_BASE+0x8\n"
+        "# not-taken → PC = rb0 + 4 = @RAM_BASE+0x4\n\n"
     )
     return header + yaml.dump(all_cases, default_flow_style=False,
                               allow_unicode=True, width=120)

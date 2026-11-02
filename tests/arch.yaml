@@ -19,7 +19,7 @@
   requires:
   - bootrom
 - id: arch-umon-002
-  file: arch/umon/m5_perm_mask_illi.s
+  file: arch/umon/m5_perm_mask_cfxperm.s
   platforms:
   - system
   level: smoke

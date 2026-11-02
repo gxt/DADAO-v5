@@ -818,7 +818,7 @@ _locked-check-clmul-probe: install-host build-musl
 
 # check-testcases-suites (TESTCASES-045t stage 1): drive the two upstream
 # *reference* suites -- libc-test and llvm-test-suite -- through the static musl
-# flow (compile -> ld.lld -T dadao.lds -> flat image -> qemu-system-dadao
+# flow (compile -> ld.lld -T dadao-tiny.lds -> flat image -> qemu-system-dadao
 # -machine dadao-m1, "path B").  Upstream's own harnesses are unusable here
 # (libc-test's runtest.exe needs fork/waitpid/signals; llvm-test-suite's
 # CMake/lit driver assumes a hosted OS), so tools/testcases/run_suite.py drives
@@ -1351,7 +1351,7 @@ _locked-check-lit-full:
 # M3 CodeGen end-to-end gate (INTEG-012t).  Tools are taken from the install
 # root (ADR-0016 D9); install-host keeps it in sync with the .work/ build trees.
 # Pipeline (single TU, per ADR-0003 D5):
-#   llc -march=dadao <prog.ll> -> .s; cat codegen_crt0.s prog.s -> .s;
+#   llc -march=dadao <prog.ll> -> .s; cat minimal_crt0.s prog.s -> .s;
 #   llvm-mc --triple=dadao -filetype=obj -> .o;
 #   llvm-objcopy -O binary --only-section=.text -> .bin;
 #   qemu-system-dadao -M dadao-m1 -bios trampoline.bin -kernel .bin ...
@@ -1376,7 +1376,7 @@ _locked-test-codegen: install-host
 	  $(PYTHON) tools/testcases/unit/run_codegen_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
 	    --qemu $(QEMU_BIN) --trampoline tools/testcases/lib/trampoline.bin \
-	    --crt0 tests/shared/crt0/codegen_crt0.s \
+	    --crt0 tests/shared/crt0/minimal_crt0.s \
 	    --vectors-dir tests/unit/llvm/codegen \
 	    --expected tests/unit/llvm/codegen/expected.yaml \
 	    --work-dir $(CODEGEN_E2E_WORK) \
@@ -1389,9 +1389,9 @@ _locked-test-codegen: install-host
 # M4 multi-TU / multi-section ELF end-to-end gate (INTEG-016t).  Tools are taken
 # from the install root (ADR-0016 D9); install-host keeps it in sync with the
 # build trees.  Pipeline (multi-object, per contract-elf.md §6.1.2):
-#   llvm-mc --triple=dadao -filetype=obj tests/shared/crt0/codegen_crt0.s -> crt0.o;
+#   llvm-mc --triple=dadao -filetype=obj tests/shared/crt0/minimal_crt0.s -> crt0.o;
 #   per TU llc -march=dadao -filetype=obj                            -> <tu>.o;
-#   ld.lld -T tests/shared/linker/dadao.lds crt0.o <tu>.o ... -o <prog>.elf;
+#   ld.lld -T tests/shared/linker/dadao-tiny.lds crt0.o <tu>.o ... -o <prog>.elf;
 #   qemu-system-dadao -M dadao-m1 -kernel <prog>.elf ...
 # The guest process exit code is compared against the independent M4 manifest
 # tests/unit/llvm/codegen/m4/expected.yaml (TESTCASES-030t/032t).
@@ -1411,8 +1411,8 @@ _locked-test-elf: install-host
 	  mkdir -p .work/log/integ; \
 	  $(PYTHON) tools/testcases/unit/run_elf_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --ldlld $(LLD_BIN) \
-	    --qemu $(QEMU_BIN) --crt0 tests/shared/crt0/codegen_crt0.s \
-	    --lds tests/shared/linker/dadao.lds \
+	    --qemu $(QEMU_BIN) --crt0 tests/shared/crt0/minimal_crt0.s \
+	    --lds tests/shared/linker/dadao-tiny.lds \
 	    --vectors-dir tests/unit/llvm/codegen/m4 \
 	    --expected tests/unit/llvm/codegen/m4/expected.yaml \
 	    --work-dir $(CODEGEN_ELF_WORK) \
@@ -1487,13 +1487,13 @@ _locked-check-arch-smoke: install-host build-bootrom
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "check-arch-smoke: ERROR: $(LLVM_OBJCOPY_BIN) not found"; exit 1; }
 	@test -x $(QEMU_BIN) || { echo "check-arch-smoke: ERROR: $(QEMU_BIN) not found"; exit 1; }
 	@test -f $(ARCH_MIN_ROM_DIR)/min_rom_probe_046t.py || { echo "check-arch-smoke: ERROR: min_rom_probe_046t.py not found"; exit 1; }
-	@test -f $(BOOTROM_DIR)/bootrom.bin || { echo "check-arch-smoke: ERROR: $(BOOTROM_DIR)/bootrom.bin not found (run 'make build-bootrom')"; exit 1; }
+	@test -f $(BOOTROM_DIR)/step5/bootrom_step5.bin || { echo "check-arch-smoke: ERROR: $(BOOTROM_DIR)/step5/bootrom_step5.bin not found (run 'make build-bootrom')"; exit 1; }
 	@mkdir -p .work/log/arch
 	@rm -rf $(ARCH_E2E_WORK)
 	@echo "check-arch-smoke: [1/2] forward semihosting + cfx-level permission counter-examples"; \
 	  $(PYTHON) $(ARCH_M5_RUNNER) \
 	    --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
-	    --qemu $(QEMU_BIN) --bootrom $(BOOTROM_DIR)/bootrom.bin \
+	    --qemu $(QEMU_BIN) --bootrom $(BOOTROM_DIR)/step5/bootrom_step5.bin \
 	    --vectors-dir $(ARCH_M5_DIR) --expected $(ARCH_M5_DIR)/expected.yaml \
 	    --work-dir $(ARCH_E2E_WORK) > $(ARCH_SMOKE_LOG) 2>&1; \
 	  rc=$$?; \

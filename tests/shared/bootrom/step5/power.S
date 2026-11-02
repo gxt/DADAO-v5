@@ -1,8 +1,9 @@
 @@ power.S — DADAO-v5 step5 BootROM power stage + shared boot helpers
 @@ (INTEG-046t; ADR-0043 D1/D2/D3/D8/D14).
 @@
-@@ This file is linked at the reset window 0xffff_ffff_0000 (the last 64 KiB of
-@@ the 256 KiB BootROM at 0xffff_fffc_0000) and is the only code the CPU runs
+@@ TESTCASES-091t: this is the Machine-v5-Node power stage.  It is linked at
+@@ the reset window RESET_PC (0xffff_ffff_0000), which is the last 64 KiB of the
+@@ 4 MiB BootROM at BOOTROM_BASE (0xffff_ffc0_0000); it is the only code the CPU runs
 @@ at reset (cfx_power / cfxha 63 / hypv).  It contains:
 @@
 @@   * the power stage proper (offset 0): initialise rbsp, validate the image
@@ -12,7 +13,7 @@
 @@   * elf_loader         (fixed offset 0x2400): shared ELF validator/loader.
 @@
 @@ hmon calls the two shared routines at their absolute ROM addresses
-@@ (0xffff_fffc_2000 / 0xffff_fffc_2400), so the loader exists exactly once
+@@ (BOOTROM_BASE + 0x2000 / + 0x2400), so the loader exists exactly once
 @@ even though both power and hmon use it.
 @@
 @@ Register convention of the shared routines (documented in README.md):
@@ -39,28 +40,25 @@
 	.endif
 	.endm
 
+	.include "tests/shared/asm/machine-node.inc"
+	.include "tests/shared/asm/machine.inc"
+
 	.text
 	.globl	_start
 
 _start:
 	@@ power has no stack requirement, but the handoff contract sets rbsp.
-	LD64	rb1, 0xfff0, 0x00ff, 0xfc00, 0x0000	@@ RAM top - 16
-
-	@@ RAM marker (PA 0x10000, outside the first page table) so the probe can
-	@@ prove the power stage ran.  "POWE" = 0x504f5745.
-	LD64	rb4, 0x0000, 0x0001, 0xfc00, 0x0000
-	LD64	rd6, 0x5745, 0x504f, 0x0000, 0x0000
-	st.o	rd6, [rb4, 0]
+	LOAD_ADDR rb1, SP
 
 	@@ Validate the table and look up the hmon entry (type 1).
 	LD64	rd1, 0x0001, 0x0000, 0x0000, 0x0000
-	LD64	rb9, 0x2000, 0xffff, 0xffff, 0x0000	@@ rom_validate_table
+	LOAD_ADDR rb9, BOOTROM_BASE + 0x2000	@@ rom_validate_table
 	call	[rb9, rd0, 0]
 	br.nz	{rd8}?, [rb0, power_exit_code]
 
 	@@ Load the hmon ELF into hmon SRAM (0x0fff_0000_0000).
-	LD64	rb2, 0x0000, 0x0000, 0x0fff, 0x0000
-	LD64	rb9, 0x2400, 0xffff, 0xffff, 0x0000	@@ elf_loader
+	LOAD_ADDR rb2, HMON_BASE
+	LOAD_ADDR rb9, BOOTROM_BASE + 0x2400	@@ elf_loader
 	call	[rb9, rd0, 0]
 	br.nz	{rd8}?, [rb0, power_exit_code]
 
@@ -77,11 +75,7 @@ boot_magic_trap:
 	trap	cfx_hmon, 0x30001
 
 power_park:
-	@@ D14: power never resumes.  Poison word in RAM (0x...0f00) then
-	@@ self-loop; the probe asserts the poison word stays 0.
-	LD64	rb4, 0x0100, 0x0001, 0xfc00, 0x0000
-	LD64	rd6, 0xbeef, 0xdead, 0x0000, 0x0000
-	st.o	rd6, [rb4, 0]
+	@@ D14: power never resumes.
 power_spin:
 	jump	[rb0, power_spin]
 
@@ -92,7 +86,7 @@ power_exit_code:
 
 power_exit:
 	@@ SYS_EXIT(rd1): argument block in RAM (power may access RAM: cfx63 self).
-	LD64	rb16, 0x0d00, 0x0000, 0xfc00, 0x0000
+	LOAD_ADDR rb16, HMON_BASE + 0x0d00
 	LD64	rd16, 0x0026, 0x0002, 0x0000, 0x0000
 	st.o	rd16, [rb16, 0]
 	st.o	rd1, [rb16, 8]
@@ -112,7 +106,7 @@ power_exit:
 	.org	0x2000
 	.globl	rom_validate_table
 rom_validate_table:
-	LD64	rb3, 0x0000, 0xfffc, 0xffff, 0x0000	@@ ROM base 0xffff_fffc_0000
+	LOAD_ADDR rb3, BOOTROM_BASE	@@ ROM base
 	@@ header.magic
 	ld.ut	rd6, [rb3, 0]
 	LD64	rd7, 0x4f54, 0x4442, 0x0000, 0x0000
@@ -189,7 +183,7 @@ vt_b6:
 	.org	0x2400
 	.globl	elf_loader
 elf_loader:
-	LD64	rb3, 0x0000, 0xfffc, 0xffff, 0x0000	@@ ROM base
+	LOAD_ADDR rb3, BOOTROM_BASE	@@ ROM base
 	LD64	rd1, 0x0000, 0x0000, 0x0000, 0x0000	@@ entry-found = 0
 
 	@@ size must be <= 64 KiB (0xB3)

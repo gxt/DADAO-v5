@@ -6,7 +6,7 @@
 @@ (contract-semihosting.md §1); the call is short-circuited in the decode layer
 @@ and returns by pc += 4 (contract-semihosting.md §4).
 @@
-@@ Loaded as a flat bin at the RAM base 0xFC00_0000_0000 by `-kernel`
+@@ Loaded as a flat bin at the profile ENTRY by `-kernel`
 @@ (ADR-0004 D2.3 path B) and entered in user mode by the SEE bootrom
 @@ (QEMU-047t / Machine-01 §2).  Expected values are derived on the host from the
 @@ contract (see tools/testcases/validate_m5_vectors.py); they are never taken
@@ -22,12 +22,13 @@
 @@ @m5 console_data=41
 @@ @m5 exit=0x40
 
+	.include "machine.inc"
+
 	.text
 	.globl	_start
 _start:
 	@@ rb16 -> RAM + 0x1000 (argument pointer)
-	set.zw	rb16, wp0, 0x1000
-	or.w	rb16, wp2, 0xfc00
+	LOAD_ADDR rb16, ENTRY + 0x1000
 	@@ store 'A' at [rb16]
 	set.zw	rd8, wp0, 0x0041
 	st.b	rd8, [rb16, 0]
@@ -36,8 +37,7 @@ _start:
 	set.zw	rd16, wp0, 0x0003
 	trap	cfx_umon, 0x3FF00
 	@@ report success via SYS_EXIT (pass token 0x40)
-	set.zw	rb16, wp0, 0x2000
-	or.w	rb16, wp2, 0xfc00
+	LOAD_ADDR rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]

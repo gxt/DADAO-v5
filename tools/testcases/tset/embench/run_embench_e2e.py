@@ -19,8 +19,8 @@ Pipeline per (benchmark, optimisation level):
           -c support/{main,beebsc}.c <src>/<b>/*.c <boardsupport>.c  -> *.o
     clang ... -c tests/tset/embench/embench_runtime.c                    -> *.o
     llc  -march=dadao -O0 -filetype=obj dadao_mem_runtime.ll        -> *.o
-    llvm-mc --triple=dadao -filetype=obj codegen_crt0.s             -> crt0.o
-    ld.lld -T dadao.lds *.o                                         -> <b>.elf
+    llvm-mc --triple=dadao -filetype=obj minimal_crt0.s             -> crt0.o
+    ld.lld -T dadao-tiny.lds *.o                                         -> <b>.elf
     timeout N qemu-system-dadao -M dadao-m1 -kernel <b>.elf \
             -semihosting-config enable=on,target=native             -> guest exit
 
@@ -64,6 +64,8 @@ REPO_ROOT = os.path.normpath(
 # (tools/infra/paths.py) instead of hardcoding .dadao/.
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 import paths as _dadao_paths  # noqa: E402
+sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
+import machine_profile  # noqa: E402
 
 _TARGET_BIN = str(_dadao_paths.host_toolchain_bin())
 
@@ -76,8 +78,8 @@ DEFAULT_EMBENCH_SRC = ".work/source/embench-iot"
 DEFAULT_INCLUDE = "tests/tset/embench/embench_include"
 DEFAULT_RUNTIME = "tests/tset/embench/embench_runtime.c"
 DEFAULT_MEM_RUNTIME = "tests/shared/runtime/dadao_mem_runtime.ll"
-DEFAULT_CRT0 = "tests/shared/crt0/codegen_crt0.s"
-DEFAULT_LDS = "tests/shared/linker/dadao.lds"
+DEFAULT_CRT0 = "tests/shared/crt0/minimal_crt0.s"
+DEFAULT_LDS = "tests/shared/linker/dadao-tiny.lds"
 DEFAULT_BOARDSUPPORT = "examples/dadao/boardsupport.c"
 # Work dir under the SDK test-artifacts root (ADR-0016 D6 / Process-05 §6),
 # resolved through paths.py (D7); never hardcoded.
@@ -226,7 +228,8 @@ def build_and_run(bench, opt, tools, work_dir, timeout, verbose=False):
     # 5. link (ld.lld).
     elf = os.path.join(outdir, bench + ".elf")
     objs = sorted(glob.glob(os.path.join(outdir, "*.o")))
-    rc, _o, err, timed = _run([tools["ldlld"], "-T", tools["lds"]] + objs + ["-o", elf])
+    rc, _o, err, timed = _run([tools["ldlld"], "-L", os.path.dirname(tools["lds"]),
+                              "-T", tools["lds"]] + objs + ["-o", elf])
     if timed or rc != 0:
         res.reason = f"ld.lld failed (rc={rc}): {err.strip()[:200]}"
         return res
@@ -284,6 +287,10 @@ def main():
     ap.add_argument("--mem-runtime", dest="mem_runtime", default=DEFAULT_MEM_RUNTIME)
     ap.add_argument("--crt0", default=DEFAULT_CRT0)
     ap.add_argument("--lds", default=DEFAULT_LDS)
+    ap.add_argument("--profile",
+                    default=os.environ.get("DADAO_TEST_PROFILE") or "tiny",
+                    choices=sorted(machine_profile.all_profiles()),
+                    help="machine profile (default tiny)")
     ap.add_argument("--work-dir", default=DEFAULT_WORK_DIR)
     ap.add_argument("--opt", default=DEFAULT_OPTS,
                     help="comma-separated optimisation levels, e.g. 'O0,O2'")
@@ -293,6 +300,12 @@ def main():
                     help="counter-example self-test: re-judge one PASSing case "
                          "against a wrong expected value and require FAIL")
     args = ap.parse_args()
+    prof = machine_profile.load(args.profile)
+    if not prof.get("embench", False):
+        sys.stderr.write("ERROR: profile %r does not run embench\n" % prof.name)
+        return 2
+    if args.lds == DEFAULT_LDS:
+        args.lds = "tests/shared/linker/dadao-%s.lds" % prof.name
 
     tools = {
         "clang": _abspath(args.clang),

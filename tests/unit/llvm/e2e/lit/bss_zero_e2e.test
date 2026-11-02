@@ -1,0 +1,14 @@
+# bss_zero_e2e — minimal_crt0 must clear .bss itself (TESTCASES-091t).
+#
+# The C program has a global uninitialized array (lands in .bss).  The linker
+# script provides __bss_start/__bss_end; minimal_crt0 clears the range before
+# calling main().  A non-zero element makes main() return 1.
+#
+# This test is static-only for now: QEMU-079/080 provide the Tiny machine, so
+# the runtime line is intentionally not enabled (BLOCKED, not skipped silently).
+# RUN: %clang -target dadao-unknown-elf -nostdlib -Oz -c %e2e_dir/bss_zero_e2e.c -o %t.o
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %crt0 -o %t.crt0.o
+# RUN: %ld -T %linker_script %t.crt0.o %t.o -o %t.elf
+# RUN: %llvm_objdump -d %t.elf | %FileCheck %s --check-prefix=CLEAR
+#
+# CLEAR: bss_clear

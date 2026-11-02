@@ -12,18 +12,23 @@
 @@ This stub is linked with the entry symbol `_start`; picolibc's crt0.o is linked
 @@ in with `--redefine-sym _start=_picolibc_start` (see the harness), so the flow
 @@ is:
-@@   _start (this stub): set rb1 = RAM top - 64 KiB, then call picolibc `__start`
+@@   _start (this stub): set rb1 = profile SP (0xffff_ff7e_ff00), then call
+@@                       picolibc `_picolibc_start`
 @@   __start (picolibc): init .data/.bss, run constructors, call main, exit()
 @@
-@@ Entry/exit conventions follow tests/shared/crt0/codegen_crt0.s and
+@@ The stub is placed in .text.start at ROM 0xffff_ffff_0000 (Tiny A scheme:
+@@ e_entry in ROM, application in SRAM); picolibc __start clears BSS.
+@@ Entry/exit conventions follow tests/shared/crt0/minimal_crt0.s and
 @@ contract-semihosting.md §3/§5 (SYS_EXIT reaches the host $?).
 
-	.text
+	.include "tests/shared/asm/machine-tiny.inc"
+	.include "tests/shared/asm/machine.inc"
+
+	.section	.text.start,"ax"
 	.globl	_start
 _start:
-	@@ rb1 = 0xFC00_00FF_0000 (48-bit SP, near the RAM top; ADR-0004 D6.5).
-	set.zw	rb1, wp1, 0x00ff
-	or.w	rb1, wp2, 0xfc00
+	@@ rb1 = profile SP (48-bit, near the RAM top).
+	LOAD_ADDR rb1, SP
 
 	@@ Hand control to picolibc's start-up (renamed _picolibc_start).
 	call	[rb0, _picolibc_start]

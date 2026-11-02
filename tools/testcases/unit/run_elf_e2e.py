@@ -7,8 +7,8 @@ expected value (it does NOT rely on lit exit codes):
 
     per TU:  llc -march=dadao -filetype=obj  <tu>.ll     -> <tu>.o
     once:    llvm-mc --triple=dadao -filetype=obj \
-                 tests/shared/crt0/codegen_crt0.s        -> crt0.o
-    link:    ld.lld -T tests/shared/linker/dadao.lds \
+                 tests/shared/crt0/minimal_crt0.s        -> crt0.o
+    link:    ld.lld -T tests/shared/linker/dadao-tiny.lds \
                  crt0.o <tu>.o ... -o <prog>.elf          (ET_EXEC)
     run:     timeout N qemu-system-dadao -M dadao-m1 \
                  -kernel <prog>.elf \
@@ -86,8 +86,8 @@ DEFAULT_LLC = os.path.join(_TOOLCHAIN_BIN, "llc")
 DEFAULT_LLVM_MC = os.path.join(_TOOLCHAIN_BIN, "llvm-mc")
 DEFAULT_LDLLD = os.path.join(_TOOLCHAIN_BIN, "ld.lld")
 DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
-DEFAULT_CRT0 = "tests/shared/crt0/codegen_crt0.s"
-DEFAULT_LDS = "tests/shared/linker/dadao.lds"
+DEFAULT_CRT0 = "tests/shared/crt0/minimal_crt0.s"
+DEFAULT_LDS = "tests/shared/linker/dadao-tiny.lds"
 DEFAULT_VECTORS_DIR = "tests/unit/llvm/codegen/m4"
 DEFAULT_EXPECTED = "tests/unit/llvm/codegen/m4/expected.yaml"
 # Work dir under the SDK test-artifacts root (ADR-0016 D6), resolved through
@@ -214,10 +214,11 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
             return res
         objs.append(obj)
 
-    # 2. ld.lld -T dadao.lds crt0.o <objs> -o <prog>.elf
+    # 2. ld.lld -T dadao-tiny.lds crt0.o <objs> -o <prog>.elf
     elf = os.path.join(work_dir, stem + ".elf")
     rc, _out, err, timed = _run(
-        [tools["ldlld"], "-T", tools["lds"], crt0_o] + objs + ["-o", elf]
+        [tools["ldlld"], "-L", os.path.dirname(tools["lds"]),
+         "-T", tools["lds"], crt0_o] + objs + ["-o", elf]
     )
     if timed or rc != 0:
         res.reason = f"ld.lld failed (rc={rc})" + (

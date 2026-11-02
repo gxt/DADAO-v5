@@ -111,7 +111,7 @@
 | 原内容 | P6 后去向 |
 |---|---|
 | 运行/构建 harness（6：`build_test_binary`/`run_qemu_test`/`run_qemu_smoke`/`verify_harness_dump`/`test_harness_exit_path`/`gen_trampoline`） | `tools/testcases/{lib,inst}/`（迁移期薄 wrapper 已删） |
-| 测试机夹具（bootrom 三件、`trampoline.bin`、`codegen_crt0.s`、`dadao.lds`、`dadao-dyn.lds`） | `tests/shared/bootrom/`、`tools/testcases/lib/trampoline.bin`、`tests/shared/{crt0,linker}/` |
+| 测试机夹具（bootrom 三件、`trampoline.bin`、`minimal_crt0.s`、`dadao-tiny.lds`、`dadao-dyn.lds`） | `tests/shared/bootrom/`、`tools/testcases/lib/trampoline.bin`、`tests/shared/{crt0,linker}/` |
 | 运行时辅助（`dadao_mem_runtime.ll`、`dadao_user_dyn_probe.c`） | `tests/shared/runtime/` |
 | Embench 套件 glue（`embench_runtime.c`/`embench_user_boardsupport.c`/`embench_include/`） | `tests/tset/embench/` |
 

@@ -14,12 +14,11 @@
 #   * every vector is a hand-written `*.s` assembled by the *own* toolchain
 #     (`llvm-mc --triple=dadao-unknown-elf -filetype=obj` then
 #     `llvm-objcopy -O binary --only-section=.text`) to a flat bin;
-#   * the bin is loaded at the RAM base 0xFC00_0000_0000 by `-kernel`
-#     (ADR-0004 D2.3 path B) and entered in *user* mode by the SEE bootrom
-#     (`-bios .dadao/tests/bootrom/bootrom.bin`, QEMU-047t / Machine-01 §2);
-#   * the reset PC is 0xffff_ffff_0000 (cfx_power_hypv_excp_vector), so the
-#     bootrom always runs first and installs the cfx_umon user exception vector
-#     (ROM+0x200, `escape`) before handing off.
+#   * the bin is loaded at the Node profile ENTRY by `-kernel`;
+#   * the reset PC is 0xffff_ffff_0000 (cfx_power_hypv_excp_vector); the Node
+#     BootROM (tests/shared/bootrom/step5/) runs power -> hmon, hmon installs
+#     the page table/PTW and hands the test body to *hypv*.
+#   * arch is Node-only (Tiny has no cfx).
 # No multi-TU ELF is used (ELF loading moved to M6, ISS-168).
 #
 # Observation channels (never "expected value from QEMU"):
@@ -34,8 +33,8 @@
 schema: m5-vectors-v1
 
 conventions:
-  load: "flat bin via llvm-mc -> llvm-objcopy -O binary; -kernel at 0xFC00_0000_0000"
-  entry: "SEE bootrom (-bios) sets cfx vectors/masks then hands off to the app in user mode (Machine-01 §2)"
+  load: "flat bin via llvm-mc -> llvm-objcopy -O binary; -kernel at the profile ENTRY"
+  entry: "Node only: power -> hmon (page tables/PTW) -> test body in hypv (user ruling 2026-11-02)"
   reset_pc: "0xffff_ffff_0000 (cfx_power_hypv_excp_vector; DADAO-12 §2.1)"
   semihosting: "trap cfx_umon, 0x3FF00 (immu18[17:8]==0x3FF (0x3FF00-0x3FFFF)); rd16=service, rb16=argument block, rd8=return (contract-semihosting.md §1/§2)"
   permission: "cfx-level (ILLI / CFXREG / CFXPERM); NUPERM/NJPERM/NSPERM/NHPERM are the PTBR layer and not in M5 (ADR-0020 D9 / ADR-0045 / contract-see.md §3)"
@@ -118,12 +117,12 @@ programs:
       current-mode monitor.  The vector reads cfx_umon.cg5.rc2 (excp_cause_id)
       and requires ILLI (1<<8); pass token 0x50, mismatch token 0xE1.
 
-  - name: m5_perm_mask_illi
-    sources: [m5_perm_mask_illi.s]
+  - name: m5_perm_mask_cfxperm
+    sources: [m5_perm_mask_cfxperm.s]
     category: permission
     expected_exit_code: 0x51
     expected_cause: CFXPERM
-    coverage: [perm.illi.mask, adr0020.d9]
+    coverage: [perm.cfxperm.mask, adr0020.d9]
     derivation: >-
       General `trap cfx_jmon, 0`; cfxha 1 is legal but cfx_jmon's user cfxtrap
       source bit 0 is set (mask 1 = masked, DADAO-12 §3 / ADR-0045 D6), so the

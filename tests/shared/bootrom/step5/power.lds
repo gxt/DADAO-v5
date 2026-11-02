@@ -1,12 +1,13 @@
 /*
  * power.lds — INTEG-046t step5 BootROM power flat segment
  *
- * ADR-0043 D1/D2: the power stage is the last 64 KiB of the 256 KiB BootROM;
- * it is linked at the reset vector 0xffff_ffff_0000.  The image builder packs
- * the flat bytes at ROM offset 0x3_0000.
+ * TESTCASES-091t: Node profile (tests/shared/machine-profiles.yaml).
+ * The power stage is the last 64 KiB of the 4 MiB BootROM; it is linked at the
+ * reset vector (RESET_PC = 0xffff_ffff_0000).  The image builder packs the flat
+ * bytes at image offset bootrom_size - 64 KiB (0x3f_0000).
  *
  * Shared routines are placed at fixed offsets so hmon can call them by
- * absolute ROM address (0xffff_fffc_2000 / 0xffff_fffc_2400).
+ * absolute address (RESET_PC + 0x2000 / + 0x2400).
  */
 
 ENTRY(_start)

@@ -6,9 +6,11 @@ single-TU pipeline and compares the **guest process exit code** against the
 independently-derived expected value (it does NOT rely on lit exit codes):
 
     llc -march=dadao <prog.ll>                 -> <prog>.s
-    cat tests/shared/crt0/codegen_crt0.s <prog>.s -> <prog>.s  (single TU)
+    cat tests/shared/crt0/minimal_crt0.s <prog>.s -> <prog>.s  (single TU)
     llvm-mc --triple=dadao -filetype=obj       -> <prog>.o
-    llvm-objcopy -O binary --only-section=.text-> <prog>.bin
+    llvm-objcopy -O binary --only-section=.text.start --only-section=.text
+                                               -> <prog>.bin
+    prepend profile.kernel_reserved zero bytes (Tiny raw entry = base + 0x100)
     timeout N qemu-system-dadao -M dadao-m1 -bios trampoline.bin \
             -kernel <prog>.bin -semihosting-config enable=on,target=native \
             -display none -nographic
@@ -58,6 +60,17 @@ REPO_ROOT = os.path.normpath(
 # source of truth (D7, tools/infra/paths.py) instead of hardcoding .work/build.
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 import paths as _dadao_paths  # noqa: E402
+sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
+import machine_profile  # noqa: E402
+
+_PROFILE = machine_profile.load()
+RAW_PREFIX = _PROFILE.entry - _PROFILE.get("kernel_base", _PROFILE.entry)
+_DEFSYMS = [
+    "--defsym", "__stack_top=%#x" % _PROFILE.sp,
+    "--defsym", "__exit_block=%#x" % _PROFILE.exit_block,
+    "--defsym", "__bss_start=0",
+    "--defsym", "__bss_end=0",
+]
 
 _TOOLCHAIN_BIN = str(_dadao_paths.host_toolchain_bin())
 
@@ -77,7 +90,7 @@ DEFAULT_LLVM_MC = os.path.join(_TOOLCHAIN_BIN, "llvm-mc")
 DEFAULT_LLVM_OBJCOPY = os.path.join(_TOOLCHAIN_BIN, "llvm-objcopy")
 DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
 DEFAULT_TRAMPOLINE = "tools/testcases/lib/trampoline.bin"
-DEFAULT_CRT0 = "tests/shared/crt0/codegen_crt0.s"
+DEFAULT_CRT0 = "tests/shared/crt0/minimal_crt0.s"
 DEFAULT_VECTORS_DIR = "tests/unit/llvm/codegen"
 DEFAULT_EXPECTED = "tests/unit/llvm/codegen/expected.yaml"
 # Work dir under the SDK test-artifacts root (ADR-0016 D6), resolved through
@@ -194,18 +207,36 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
 
     # 3. llvm-mc --triple=dadao -filetype=obj -> .o
     rc, _out, err, timed = _run(
-        [tools["llvm_mc"], "--triple=dadao", "-filetype=obj", combined_s, "-o", obj_path]
+        [tools["llvm_mc"], "--triple=dadao", "-filetype=obj"]
+        + _DEFSYMS + [combined_s, "-o", obj_path]
     )
     if timed or rc != 0:
         res.reason = f"llvm-mc failed (rc={rc})" + (f": {err.strip()[:200]}" if err.strip() else "")
         return res
 
-    # 4. llvm-objcopy -O binary --only-section=.text -> .bin
-    rc, _out, err, timed = _run(
-        [tools["llvm_objcopy"], "-O", "binary", "--only-section=.text", obj_path, bin_path]
-    )
-    if timed or rc != 0:
-        res.reason = f"llvm-objcopy failed (rc={rc})" + (f": {err.strip()[:200]}" if err.strip() else "")
+    # 4. llvm-objcopy: .text.start then .text, concatenated in execution order.
+    #    Section order in the object is not guaranteed, so extract both and cat.
+    start_bin = os.path.join(work_dir, stem + ".start.bin")
+    text_bin = os.path.join(work_dir, stem + ".text.bin")
+    for section, out in ((".text.start", start_bin), (".text", text_bin)):
+        rc, _out, err, timed = _run(
+            [tools["llvm_objcopy"], "-O", "binary", "--only-section=" + section,
+             obj_path, out]
+        )
+        if timed or rc != 0:
+            res.reason = f"llvm-objcopy({section}) failed (rc={rc})" + (
+                f": {err.strip()[:200]}" if err.strip() else "")
+            return res
+    with open(start_bin, "rb") as fh:
+        start_blob = fh.read()
+    with open(text_bin, "rb") as fh:
+        text_blob = fh.read()
+    with open(bin_path, "wb") as fh:
+        fh.write(b"\x00" * RAW_PREFIX + start_blob + text_blob)
+
+    if tools.get("build_only"):
+        res.passed = True
+        res.reason = "build-only (no QEMU)"
         return res
 
     # 5. timeout N qemu-system-dadao ... -> process exit code == guest exit code
@@ -277,6 +308,8 @@ def main():
     ap.add_argument("--work-dir", default=DEFAULT_WORK_DIR)
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     ap.add_argument("--verbose", "-v", action="store_true")
+    ap.add_argument("--build-only", action="store_true",
+                    help="run llc/llvm-mc/objcopy only; do not start QEMU")
     ap.add_argument("--inject", action="store_true",
                     help="counter-example self-test: flip a baseline-PASSing "
                          "expected value and require the gate to FAIL")
@@ -290,6 +323,7 @@ def main():
         "trampoline": _abspath(args.trampoline),
         "crt0": _abspath(args.crt0),
         "vectors_dir": _abspath(args.vectors_dir),
+        "build_only": args.build_only,
     }
     expected_path = _abspath(args.expected)
     work_dir = _abspath(args.work_dir)
@@ -297,7 +331,8 @@ def main():
     _require_exec(tools["llc"], "llc")
     _require_exec(tools["llvm_mc"], "llvm-mc")
     _require_exec(tools["llvm_objcopy"], "llvm-objcopy")
-    _require_exec(tools["qemu"], "qemu-system-dadao")
+    if not args.build_only:
+        _require_exec(tools["qemu"], "qemu-system-dadao")
     if not os.path.isfile(tools["trampoline"]):
         sys.stderr.write(f"ERROR: trampoline not found: {tools['trampoline']}\n")
         sys.exit(2)

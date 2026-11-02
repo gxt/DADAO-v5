@@ -17,7 +17,7 @@ returned by `@main`**:
 
 - host: `lli` runs `@main` natively and the OS truncates its `i64` return to the
   low byte (verified: `ret i64 300` ⇒ exit `44` = `300 & 0xFF`);
-- target: the startup stub `tests/shared/crt0/codegen_crt0.s` calls `@main`, then
+- target: the startup stub `tests/shared/crt0/minimal_crt0.s` calls `@main`, then
   reports the returned value (`rd8`, the M6 ABI return register) through the
   semihosting `SYS_EXIT` service and QEMU propagates it to the host `$?` (low
   byte).

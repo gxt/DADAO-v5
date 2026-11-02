@@ -32,6 +32,7 @@
 | `deferred_reason` | string | `status=deferred` 时必填（非空） | 暂缓原因（如 `"C-27"`） |
 | `notes` | string | 可选 | 人类可读备注（如 `shamt = rd<k>`、PC 地址来源） |
 | `sequence` | list of string | 可选 | 多条原始编码字，按序连发（QEMU-067t）。用于单条指令无法表达其语义的场景——`sc` 只有在同址 `lr` 之后才可能成功，「失败清保留」需要 `lr → 失败的 sc → sc`。缺省（不写该字段）时 harness 走原单字路径，生成二进制与旧行为**逐字节一致**。当前由 `tests/inst/atomics/*.yaml` 使用 |
+| `profiles` | list of string | 可选 | 仅当 case 语义只对一个 profile 成立时使用（`[tiny]` / `[node]`）；禁止拆成两份 case。validator 对不适用 profile 跳过几何解析/越界断言 |
 
 ### `encoding` 子结构
 
@@ -131,10 +132,19 @@
   notes: ""
 ```
 
-### 内存地址范围（ADR-0004 R3 + rev. 2026-10-11 / ADR-0020 D15）
+### 机器几何、token 与 `profiles`（TESTCASES-091t）
 
-- RAM 窗口（唯一 RAM 段，cfxha 63）：`[0xFC00_0000_0000, 0xFC00_00ff_ffff]`（16 MiB）。
-- `semantic` 类的 `memory` 地址**必须**落在 RAM 窗口内（validator 阻断校验）。
+- 几何真源：`tests/shared/machine-profiles.yaml`（Tiny / Node）。驱动统一接受
+  `--profile {tiny,node}`，环境变量 `DADAO_TEST_PROFILE` 可替代，缺省 `tiny`。
+- 几何敏感字段允许符号 token：`@RAM_BASE`、`@RAM_END`、`@SP`、`@BOOTROM_BASE`、
+  `@ENTRY`、`@RESET_PC`，可带**单个** `+0x…`/`-0x…` 偏移。适用于
+  `input_state.rd/rb/ra`、`input_state.memory[].address/value`、
+  `expected_state` 的寄存器/内存值、`expected_pc`。
+- 解析由 `tools/testcases/lib/machine_profile.py` 的**同一函数**完成；未解析 token、
+  非法偏移、越 48 位地址、`semantic` 内存地址落在所选 profile RAM 外 ⇒ validator 报错。
+- `semantic` 类的 `memory` 地址**必须**落在所选 profile RAM 窗口内（validator 阻断校验）。
+- 仅当某 case 语义只对一个 profile 成立时，才可写可选字段 `profiles: [tiny]`
+  （或 `[node]`）；**禁止**把一个 case 拆成两册/两 ID。
 - `legality` 类可表达越界地址（`expected_fault: CFXMEM` = umon 段 cfxha 0 越界，或 `UNMAPPED` = 其余段越界），不受此限。
 - 非 RAM 地址（ROM `0xffff_ffff_0000`–`0xffff_ffff_ffff`）须显式引用 ADR-0004 章节。
   （旧 exit-port MMIO 停机端口已随 C1 step2 删除；停机协议为 semihosting `SYS_EXIT`。）

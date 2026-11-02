@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""Build the INTEG-046t 256 KiB BootROM image from the three step5 ELFs.
+"""Build the Machine-v5-Node 4 MiB BootROM image from the three step5 ELFs.
 
 Spec sources (task file is the interface truth for this artifact):
   * .tao/tasks/integ/INTEG-046t-Step5启动链落地.md §接口规范 1 (image index
     table: 16-byte big-endian header + 32-byte entries) and §接口规范 2
     (ELF image checks, enforced by the *firmware*; this builder only packs).
-  * .tao/adr/adr-0043-boot-handoff.md D1/D2 (256 KiB BootROM, image index
-    table, ELF images, 64 KiB reset window).
+  * .tao/adr/adr-0043-boot-handoff.md D1/D2 (image index table, ELF images,
+    64 KiB reset window) and the `node` profile in
+    tests/shared/machine-profiles.yaml (4 MiB BootROM).
 
 Layout produced (all big-endian):
   offset 0x00000  header + 2 entries
   offset after header/entries (16-byte aligned)  hmon.elf
   offset after hmon              (16-byte aligned)  smon.elf
   ... zero pad ...
-  offset 0x30000 .. 0x3ffff    power flat bytes (linked at 0xffff_ffff_0000)
+  offset bootrom_size-0x10000 .. end  power flat bytes (linked at RESET_PC)
 
 The table's boot_magic is also patched into the power stage's
 `boot_magic_trap` instruction (symbol address from llvm-nm), so the handoff
@@ -34,14 +35,29 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))), "lib"))
+import machine_profile  # noqa: E402
+
 MAGIC = 0x44424F54
 VERSION = 1
 COUNT = 2
 DEFAULT_BOOT_MAGIC = 0x30001
-BOOTROM_SIZE = 0x40000
-POWER_OFF = 0x30000
+# Machine geometry is filled from the selected profile in main() (Node by
+# default); the module values are placeholders so helpers stay importable.
+BOOTROM_SIZE = None
+POWER_OFF = None
 POWER_WINDOW = 0x10000
-POWER_ORIGIN = 0xFFFF_FFFF_0000
+POWER_ORIGIN = None
+
+
+def _apply_profile(name):
+    global BOOTROM_SIZE, POWER_OFF, POWER_ORIGIN
+    prof = machine_profile.load(name)
+    BOOTROM_SIZE = prof["bootrom_size"]
+    POWER_OFF = BOOTROM_SIZE - POWER_WINDOW
+    POWER_ORIGIN = prof.reset_pc
+    return prof
 DEFAULT_MAX = 0x10000
 FLAG_REQUIRED, FLAG_LOAD, FLAG_VERIFY = 1, 2, 4
 
@@ -305,9 +321,17 @@ def main():
     ap.add_argument("--boot-magic", default=hex(DEFAULT_BOOT_MAGIC))
     ap.add_argument("--hmon-flags", default=hex(FLAG_REQUIRED | FLAG_LOAD | FLAG_VERIFY))
     ap.add_argument("--smon-flags", default=hex(FLAG_REQUIRED | FLAG_LOAD | FLAG_VERIFY))
+    ap.add_argument("--profile", default="node",
+                    choices=sorted(machine_profile.all_profiles()))
     ap.add_argument("--max-image-size", type=int, default=DEFAULT_MAX)
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
+
+    try:
+        _apply_profile(args.profile)
+    except machine_profile.ProfileError as exc:
+        print("step5: profile error: %s" % exc, file=sys.stderr)
+        return 2
 
     boot_magic = int(args.boot_magic, 0)
     hmon_flags = int(args.hmon_flags, 0)

@@ -1,53 +1,63 @@
 /* mcmodel_far.lds -- far code-layout link script (LLVM-131t; ADR-0036 D1/D5).
  *
- * Same RAM base as tests/shared/linker/dadao.lds, but the `.far` output section is
- * placed 64 MiB above `.text` instead of in the 16 MiB RAM window.  The two
- * code regions are therefore 64 MiB apart: far beyond the +/-32 MiB reach of a
- * direct `call`/`jump` (R_DADAO_REL26, 24-bit word offset), so
+ * Geometry follows the tiny profile (tests/shared/machine-profiles.yaml).
+ * `.text.start` (crt stub) sits at the Tiny ROM base; app `.text` starts at the
+ * profile entry.  The `.far` output section is 64 MiB below `.text` (outside the
+ * 8 MiB RAM window and beyond the ±32 MiB REL26 reach).
  *
- *   * a `default` code-model image cannot encode the call at all (link error),
- *   * a `large` code-model image reaches it through a 48-bit absolute address
- *     materialization plus an indirect call.
- *
- * Used only for the link test; the image is not runnable (`.far` is outside
- * RAM by construction).
+ * Used only for link tests; the image is not runnable (`.far` is outside RAM).
  */
 
 ENTRY(_start)
 
+MEMORY
+{
+  ROM (rx)  : ORIGIN = 0xffffffff0000, LENGTH = 64K
+  RAM (rwx) : ORIGIN = 0xffffff000000, LENGTH = 0x800000
+}
+
 PHDRS
 {
-  text PT_LOAD;
-  data PT_LOAD;
-  far  PT_LOAD;
+  start PT_LOAD;
+  text  PT_LOAD;
+  data  PT_LOAD;
+  far   PT_LOAD;
 }
+
+/* Runtime symbols used by minimal_crt0. */
+__stack_top = 0xffffff7eff00;
+__exit_block = 0xffffff7e0000;
 
 SECTIONS
 {
-  . = 0xFC0000000000;
+  .text.start : ALIGN(4) {
+    *(.text.start .text.start.*)
+  } > ROM :start
 
-  .text : ALIGN(4) {
+  .text ORIGIN(RAM) + 0x10100 : ALIGN(4) {
     *(.text .text.*)
-  } :text
+  } > RAM :text
 
   .rodata : ALIGN(8) {
     *(.rodata .rodata.*)
     *(.srodata .srodata.*)
-  } :data
+  } > RAM :data
 
   .data : ALIGN(8) {
     *(.data .data.*)
     *(.sdata .sdata.*)
-  } :data
+  } > RAM :data
 
   .bss : ALIGN(8) {
+    __bss_start = .;
     *(.bss .bss.*)
     *(.sbss .sbss.*)
     *(COMMON)
-  } :data
+    __bss_end = .;
+  } > RAM :data
 
-  /* Second code region: 64 MiB above .text (beyond a REL26 reach). */
-  . = 0xFC0004000000;
+  /* Second code region: 64 MiB below .text (outside RAM and REL26 reach). */
+  . = 0xFFFFFB000000;
   .far : ALIGN(4) {
     *(.far .far.*)
   } :far

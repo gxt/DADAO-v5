@@ -16,7 +16,7 @@ This directory is not yet wired into `make check` / `make test-elf` either —
   `sources:` field of `m4/expected.yaml` (link order).  Every program has
   **>= 2 TUs** — a symbol defined in one TU is called/read from another, which
   is what forces real link-time relocations.
-- Every program defines `define i64 @main()`.  `crt0` (`tests/shared/crt0/codegen_crt0.s`,
+- Every program defines `define i64 @main()`.  `crt0` (`tests/shared/crt0/minimal_crt0.s`,
   linked by `ld.lld`) calls it and reports the returned value through the
   semihosting `SYS_EXIT` service (`ADR-0020 D8`: `SYS_EXIT` replaces the exit
   port, `ADR-0004 D3` superseded); the **guest exit code is the low byte** of

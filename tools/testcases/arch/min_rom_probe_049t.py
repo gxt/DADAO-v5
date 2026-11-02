@@ -6,12 +6,12 @@ convention).
 Spec sources (expectations derived by hand from spec/ + ADRs, never from the
 QEMU implementation):
   - spec/Machine-v5-测试机运行环境.md §1.1 (internal-address-space split:
-    RAM 0xFC00_0000_0000 16 MiB as the single RAM segment / boot ROM; C1
+    RAM RAM_BASE 16 MiB as the single RAM segment / boot ROM; C1
     step2 removed the legacy 0xffff_0000_0000 RAM and the exit-port device)
     and §1.2 (out-of-range access AND fetch both fault; CFXMEM(0x81) vs
     test-machine unmapped(0x87)).
   - .tao/adr/adr-0020-see-semihosting.md D15 and adr-0004-test-machine.md
-    R3 (rev. 2026-10-11: RAM base -> 0xFC00_0000_0000) + D5.8 (frozen
+    R3 (rev. 2026-10-11: RAM base -> RAM_BASE) + D5.8 (frozen
     fault-code table: 0x81 reserved for CFXMEM = 0x80 | (1<<1); 0x87 =
     unmapped convention).
   - spec/DADAO-12-SEE-主管系统运行环境.md §2.1 (cfxha = addr[47:42]; illegal
@@ -45,6 +45,34 @@ import struct
 import subprocess
 import sys
 
+import os, sys
+
+# TESTCASES-091t: probe geometry from the single profile source
+# (tests/shared/machine-profiles.yaml); runtime execution stays BLOCKED until
+# QEMU-079/080 provide the Tiny/Node machines.
+_MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))))
+if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
+    sys.path.insert(0, os.path.join(_MACH_REPO, "tools", "testcases", "lib"))
+import machine_profile as _machine_profile  # noqa: E402
+_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
+RAM_BASE = _MACH.ram_base
+RAM_END = _MACH.ram_end
+SP = _MACH.sp
+SP_OFF = SP - RAM_BASE
+BOOTROM_BASE = _MACH.bootrom_base
+ENTRY = _MACH.entry
+EXIT_BLOCK = _MACH.exit_block
+RAM_W2 = (RAM_BASE >> 32) & 0xFFFF
+RAM_W1 = (RAM_BASE >> 16) & 0xFFFF
+RAM_W0 = RAM_BASE & 0xFFFF
+SP_W2 = (SP >> 32) & 0xFFFF
+SP_W1 = (SP >> 16) & 0xFFFF
+SP_W0 = SP & 0xFFFF
+EXIT_W2 = (EXIT_BLOCK >> 32) & 0xFFFF
+EXIT_W1 = (EXIT_BLOCK >> 16) & 0xFFFF
+EXIT_W0 = EXIT_BLOCK & 0xFFFF
+
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 DEFAULT_QEMU = os.path.join(_REPO, ".work/build/qemu/qemu-system-dadao")
 QEMU = DEFAULT_QEMU
@@ -52,8 +80,8 @@ WORKDIR = "/tmp/opencode/QEMU-049t"
 TIMEOUT = 10
 
 ROM_BASE = 0xFFFF_FFFF_0000
-RAM_BASE = 0xFC00_0000_0000           # single RAM segment (ADR-0004 R3, rev. 2026-10-11)
-RAM_SIZE = 16 * 1024 * 1024           # 16 MiB
+RAM_BASE = _MACH.ram_base
+RAM_SIZE = _MACH["ram_size"]
 OLD_RAM_BASE = 0xFFFF_0000_0000
 OLD_RAM_SIZE = 16 * 1024 * 1024
 
@@ -100,7 +128,7 @@ def swym():              return 0x47880000
 # Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
 SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
-SEMI_BLOCK = 0xFC00_00FF_F000       # argument block {reason, code}, in RAM
+SEMI_BLOCK = EXIT_BLOCK       # argument block {reason, code}, in RAM
 
 
 def load_rd(rd, val):
@@ -130,7 +158,7 @@ def exit_seq(code):
     {reason, code}; rd16 = 0x18 (SYS_EXIT); `trap` with the semihosting tag.
     """
     return ([jump_iiii(1)]
-            + [set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000), or_w_rb(16, 2, 0xFC00)]
+            + [set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000), or_w_rb(16, 2, RAM_W2)]
             + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
             + load_rd(9, code) + [st_o(9, 16, 8)]
             + load_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)])
@@ -205,7 +233,7 @@ def case(name, desc):
 
 
 # -- acc 2: RAM read/write (offset 0x1000) --------------------------------
-@case("ram_rw", "RAM 0xFC00_0000_0000 read/write")
+@case("ram_rw", "RAM RAM_BASE read/write")
 def _ram_rw():
     prog = load_rb(3, RAM_BASE + 0x1000) + load_rd(4, 0xCAFEF00D) + [st_o(4, 3, 0)]
     prog += [ld_o(5, 3, 0)] + exit_seq(0x00)

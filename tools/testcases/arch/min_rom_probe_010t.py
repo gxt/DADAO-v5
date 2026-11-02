@@ -32,6 +32,34 @@ Usage: python3 tools/testcases/arch/min_rom_probe_010t.py
 import struct
 import subprocess
 import sys
+
+import os, sys
+
+# TESTCASES-091t: probe geometry from the single profile source
+# (tests/shared/machine-profiles.yaml); runtime execution stays BLOCKED until
+# QEMU-079/080 provide the Tiny/Node machines.
+_MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))))
+if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
+    sys.path.insert(0, os.path.join(_MACH_REPO, "tools", "testcases", "lib"))
+import machine_profile as _machine_profile  # noqa: E402
+_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
+RAM_BASE = _MACH.ram_base
+RAM_END = _MACH.ram_end
+SP = _MACH.sp
+SP_OFF = SP - RAM_BASE
+BOOTROM_BASE = _MACH.bootrom_base
+ENTRY = _MACH.entry
+EXIT_BLOCK = _MACH.exit_block
+RAM_W2 = (RAM_BASE >> 32) & 0xFFFF
+RAM_W1 = (RAM_BASE >> 16) & 0xFFFF
+RAM_W0 = RAM_BASE & 0xFFFF
+SP_W2 = (SP >> 32) & 0xFFFF
+SP_W1 = (SP >> 16) & 0xFFFF
+SP_W0 = SP & 0xFFFF
+EXIT_W2 = (EXIT_BLOCK >> 32) & 0xFFFF
+EXIT_W1 = (EXIT_BLOCK >> 16) & 0xFFFF
+EXIT_W0 = EXIT_BLOCK & 0xFFFF
 import os
 import tempfile
 
@@ -135,7 +163,7 @@ def trap_sys_exit():
 # Trampoline sets rb16 = SEMI_BLOCK, writes block[0] = 0x20026 and sets
 # rd16 = 0x18 (SYS_EXIT).  Each terminal writes the code into block[1] and traps.
 
-SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
+SEMI_BLOCK = EXIT_BLOCK       # {reason, code} block inside RAM (16 MiB)
 SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 
 def semi_exit(code_rd):
@@ -154,18 +182,18 @@ def build_rom(test_insns):
     Trampoline sets rb1=SP, rb2=rb17=RAM base, and primes the semihosting
     SYS_EXIT argument block (ADR-0020 D8)."""
     trampoline = [
-        set_zw_rb(1, 2, 0xFC00),   # set.zw rb1, wp2, 0xFC00
-        or_w_rb(1, 1, 0x00FF),     # or.w rb1, wp1, 0x00FF -> rb1 = 0xFC0000FF0000 (SP)
-        set_zw_rb(2, 2, 0xFC00),   # set.zw rb2, wp0, 0x0000 -> rb2 = 0 (RAM base)
+        set_zw_rb(1, 2, RAM_W2),   # set.zw rb1, wp2, RAM_W2
+        or_w_rb(1, 1, 0x00FF),     # or.w rb1, wp1, 0x00FF -> rb1 = SP (SP)
+        set_zw_rb(2, 2, RAM_W2),   # set.zw rb2, wp0, 0x0000 -> rb2 = 0 (RAM base)
         set_zw_rb(16, 0, 0x0000),  # set.zw rb16, wp0, 0x0000 -> rb16 = 0
-        or_w_rb(16, 1, 0x00FF),    # or.w rb16, wp1, 0x00FF -> rb16 = 0x00FF0000
-        or_w_rb(16, 0, 0xF000),    # or.w rb16, wp0, 0xF000 -> rb16 = 0xFC00_00FF_F000 (block)
-        or_w_rb(16, 2, 0xFC00),
+        or_w_rb(16, 1, 0x00FF),    # or.w rb16, wp1, 0x00FF -> rb16 = SP_OFF
+        or_w_rb(16, 0, 0xF000),    # or.w rb16, wp0, 0xF000 -> rb16 = EXIT_BLOCK (block)
+        or_w_rb(16, 2, RAM_W2),
         set_zw_rd(8, 0x0026),      # set.zw rd8, wp0, 0x0026
         or_w_rd(8, 1, 0x0002),     # or.w rd8, wp1, 0x0002 -> rd8 = 0x20026
         st_o(8, 16, 0),            # block[0] = 0x20026
         set_zw_rd(16, 0x0018),     # set.zw rd16, wp0, 0x0018 (SYS_EXIT)
-        set_zw_rb(17, 2, 0xFC00),  # set.zw rb17, wp0, 0x0000 -> rb17 = 0 (RAM base)
+        set_zw_rb(17, 2, RAM_W2),  # set.zw rb17, wp0, 0x0000 -> rb17 = 0 (RAM base)
     ]
     rom = b''
     for insn in trampoline:
@@ -211,7 +239,7 @@ TESTS = [
     # T1: encoding — ldm.o-rb rb1, rb3, rd2, 1 with rb3=RAM, rd2=0 → no crash → PASS
     # Covers: mem-rb.yaml encoding vector 0x3A043081
     ("T1 encoding: ldm.o-rb rb1,rb3,rd2,1 no crash",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = 0x0000_FFFF_0000_0000 (RAM base)
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = 0x0000_FFFF_0000_0000 (RAM base)
       set_zw_rd(2, 0),            # rd2 = 0 (offset)
       ldm_o_rb(1, 3, 2, 1),      # ldm.o-rb rb1, rb3, rd2, 1
       set_zw_rd(18, 0),           # rd18 = 0 (PASS)
@@ -222,7 +250,7 @@ TESTS = [
     # T2: ILLI — rbha=rb0 → 0x88
     # Covers: mem-rb.yaml legality ILLI vector 0x3A003081
     ("T2 ILLI: ldm.o-rb rb0 dest",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rd(2, 0),            # rd2 = 0
       ldm_o_rb(0, 3, 2, 1)],     # ldm.o-rb rb0, rb3, rd2, 1 → ILLI
      ILLI_EXIT,
@@ -230,7 +258,7 @@ TESTS = [
 
     # T3: ILLI — immu6=0 → 0x88
     ("T3 ILLI: ldm.o-rb immu6=0",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rd(2, 0),            # rd2 = 0
       ldm_o_rb(1, 3, 2, 0)],     # ldm.o-rb rb1, rb3, rd2, 0 → ILLI
      ILLI_EXIT,
@@ -238,7 +266,7 @@ TESTS = [
 
     # T4: ILLI — rbha+immu6>64 → 0x88
     ("T4 ILLI: ldm.o-rb rb60+8>64",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rd(2, 0),            # rd2 = 0
       ldm_o_rb(60, 3, 2, 8)],    # ldm.o-rb rb60, rb3, rd2, 8 → ILLI (60+8=68>64)
      ILLI_EXIT,
@@ -247,7 +275,7 @@ TESTS = [
     # T5: MALIGN — EA=RAM+7, unaligned (needs 8B align) → 0x8C
     # Covers: mem-rb.yaml legality MALIGN vector (rd2=7)
     ("T5 MALIGN: ldm.o-rb EA=RAM+7",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = 0x0000_FFFF_0000_0000
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = 0x0000_FFFF_0000_0000
       set_zw_rd(2, 7),            # rd2 = 7 (offset)
       ldm_o_rb(1, 3, 2, 1)],     # EA = 0x0000_FFFF_0000_0007 → MALIGN
      MALIGN_EXIT,
@@ -267,7 +295,7 @@ TESTS = [
     # T7: semantic — rb1 <- mem[RAM+0x100] = 0x42 → rb1=0x42
     # Covers: mem-rb.yaml semantic vector (rb1=0x42)
     ("T7 semantic: ldm.o-rb rb1=0x42",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       # Store 0x42 to RAM+0x100
       set_zw_rd(18, 0x0042),      # rd18 = 0x42
       st_o(18, 17, 0x100),        # st.o rd18, rb17, 0x100 → RAM+0x100 = 0x42
@@ -290,7 +318,7 @@ TESTS = [
     # T8: boundary — rb1 <- mem[RAM+0] = 0xDEADBEEF → rb1=0xDEADBEEF
     # Covers: mem-rb.yaml boundary vector
     ("T8 boundary: ldm.o-rb rb1=0xDEADBEEF",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       # Store 0xDEADBEEF to RAM+0
       set_zw_rd(18, 0xBEEF),      # rd18 = 0xBEEF
       or_w_rd(18, 1, 0xDEAD),     # rd18 = 0xDEADBEEF
@@ -314,7 +342,7 @@ TESTS = [
 
     # T9: ILLI — rbha=rb0 + immu6>1 (rb0 dest always ILLI regardless of count)
     ("T9 ILLI: ldm.o-rb rb0 multi",
-     [set_zw_rb(3, 2, 0xFC00),
+     [set_zw_rb(3, 2, RAM_W2),
       set_zw_rd(2, 0),
       ldm_o_rb(0, 3, 2, 4)],     # ldm.o-rb rb0, rb3, rd2, 4 → ILLI
      ILLI_EXIT,
@@ -322,7 +350,7 @@ TESTS = [
 
     # T10: MALIGN — EA=RAM+4 (4-byte aligned but not 8-byte) → 0x8C
     ("T10 MALIGN: ldm.o-rb EA=RAM+4",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rd(2, 4),            # rd2 = 4 (offset)
       ldm_o_rb(1, 3, 2, 1)],     # EA = RAM+4 → MALIGN (needs 8B)
      MALIGN_EXIT,
@@ -330,7 +358,7 @@ TESTS = [
 
     # T11: semantic multi — load 2 regs into rb10,rb11, check rb10=0xAA
     ("T11 semantic: ldm.o-rb 2 regs",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       # Store 0xAA to RAM+0x200 and 0xBB to RAM+0x208
       set_zw_rd(18, 0x00AA),
       st_o(18, 17, 0x200),        # RAM+0x200 = 0xAA
@@ -354,7 +382,7 @@ TESTS = [
 
     # T12: encoding — ldm.o-rb with immu6=3 (multiple regs)
     ("T12 encoding: ldm.o-rb immu6=3",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rd(2, 0x300),        # rd2 = 0x300 (offset in RAM)
       ldm_o_rb(5, 3, 2, 3),      # ldm.o-rb rb5, rb3, rd2, 3 → loads rb5,rb6,rb7
       set_zw_rd(18, 0),
@@ -365,7 +393,7 @@ TESTS = [
     # ── stm.o-rb tests ─────────────────────────────────────────────────
     # T13: encoding — stm.o-rb rb1, rb3, rd2, 1 with rb3=RAM, rd2=0 → no crash
     ("T13 encoding: stm.o-rb rb1,rb3,rd2,1 no crash",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rb(1, 0, 0x0042),   # rb1 = 0x42 (source value)
       set_zw_rd(2, 0x100),       # rd2 = 0x100 (offset in RAM)
       stm_o_rb(1, 3, 2, 1),     # stm.o-rb rb1, rb3, rd2, 1 → store rb1 to RAM+0x100
@@ -379,7 +407,7 @@ TESTS = [
     # the `rbha` field is a data SOURCE; rb0 reads as the current instruction
     # address and is LEGAL (only ld.o/ldm.o destination rb0 is ILLI).
     ("T14 stm.o-rb rb0 (source reads PC, legal)",
-     [set_zw_rb(3, 2, 0xFC00),
+     [set_zw_rb(3, 2, RAM_W2),
       or_w_rb(3, 0, 0x0100),   # rb3 = RAM+0x100
       set_zw_rd(2, 0),           # rd2 = 0
       stm_o_rb(0, 3, 2, 1),      # store rb0 (PC) to RAM+0x100 — legal
@@ -390,7 +418,7 @@ TESTS = [
 
     # T15: ILLI — immu6=0 → 0x88
     ("T15 ILLI: stm.o-rb immu6=0",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rd(2, 0),           # rd2 = 0
       stm_o_rb(1, 3, 2, 0)],    # stm.o-rb rb1, rb3, rd2, 0 → ILLI
      ILLI_EXIT,
@@ -398,7 +426,7 @@ TESTS = [
 
     # T16: ILLI — rbha+immu6>64 → 0x88
     ("T16 ILLI: stm.o-rb rb60+8>64",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rd(2, 0),           # rd2 = 0
       stm_o_rb(60, 3, 2, 8)],   # stm.o-rb rb60, rb3, rd2, 8 → ILLI (60+8=68>64)
      ILLI_EXIT,
@@ -406,7 +434,7 @@ TESTS = [
 
     # T17: MALIGN — EA=RAM+7, unaligned (needs 8B align) → 0x8C
     ("T17 MALIGN: stm.o-rb EA=RAM+7",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rb(1, 0, 0x0042),   # rb1 = 0x42
       set_zw_rd(2, 7),           # rd2 = 7 (offset)
       stm_o_rb(1, 3, 2, 1)],    # EA = RAM+7 → MALIGN
@@ -425,7 +453,7 @@ TESTS = [
 
     # T19: semantic — stm.o-rb stores rb1=0x42 to RAM+0x100, readback via ldm.o-rb + cmp.uo
     ("T19 semantic: stm.o-rb rb1=0x42",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rb(1, 0, 0x0042),   # rb1 = 0x42 (value to store)
       set_zw_rd(2, 0x100),       # rd2 = 0x100 (offset)
       # Store: stm.o-rb rb1, rb3, rd2, 1 → mem[RAM+0x100] = rb1 (0x42)
@@ -446,7 +474,7 @@ TESTS = [
 
     # T20: boundary — stm.o-rb stores rb1=0xDEADBEEF to RAM+0, readback via ldm.o-rb + cmp.uo
     ("T20 boundary: stm.o-rb rb1=0xDEADBEEF",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rb(1, 0, 0xBEEF),   # rb1 = 0xBEEF
       or_w_rb(1, 1, 0xDEAD),     # rb1 = 0xDEADBEEF (value to store)
       set_zw_rd(2, 0),           # rd2 = 0 (offset)
@@ -469,7 +497,7 @@ TESTS = [
     # T21: ILLI — rbha=rb0 + immu6>1 (rb0 src always ILLI regardless of count)
     # NOTE (ISS-120 drift): st.o/stm.o rb0 SOURCE is legal (ADR-0015 D3).
     ("T21 stm.o-rb rb0 multi (source reads PC, legal)",
-     [set_zw_rb(3, 2, 0xFC00),
+     [set_zw_rb(3, 2, RAM_W2),
       or_w_rb(3, 0, 0x0200),   # rb3 = RAM+0x200
       set_zw_rd(2, 0),
       stm_o_rb(0, 3, 2, 4),      # store rb0..rb3 to RAM+0x200 — legal
@@ -480,7 +508,7 @@ TESTS = [
 
     # T22: MALIGN — EA=RAM+4 (4-byte aligned but not 8-byte) → 0x8C
     ("T22 MALIGN: stm.o-rb EA=RAM+4",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rb(1, 0, 0x0042),   # rb1 = 0x42
       set_zw_rd(2, 4),           # rd2 = 4 (offset)
       stm_o_rb(1, 3, 2, 1)],    # EA = RAM+4 → MALIGN (needs 8B)
@@ -489,7 +517,7 @@ TESTS = [
 
     # T23: semantic multi — store 2 regs rb10=0xAA,rb11=0xBB, readback + check
     ("T23 semantic: stm.o-rb 2 regs",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       # Pre-clear RAM so stale data can't pass
       set_zw_rd(18, 0),
       st_o(18, 17, 0x200),       # RAM+0x200 = 0 (clear)
@@ -519,7 +547,7 @@ TESTS = [
 
     # T24: encoding — stm.o-rb with immu6=3 (multiple regs, no crash)
     ("T24 encoding: stm.o-rb immu6=3",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = RAM base
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rb(5, 0, 0x1111),   # rb5 = 0x1111
       set_zw_rb(6, 0, 0x2222),   # rb6 = 0x2222
       set_zw_rb(7, 0, 0x3333),   # rb7 = 0x3333
@@ -535,7 +563,7 @@ TESTS = [
     # EA after truncation = 0x0000_FFFF_0000_0100 (RAM+0x100, mapped)
     # EA without truncation = 0x0001_FFFF_0000_0100 (unmapped → 0x87)
     ("T25 EA truncation: ldm.o-rb high bits",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = 0x0000_FFFF_0000_0000 (RAM base)
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = 0x0000_FFFF_0000_0000 (RAM base)
       or_w_rb(3, 3, 0x0001),     # rb3 = 0x0001_FFFF_0000_0000 (high bits non-zero)
       set_zw_rd(2, 0x100),       # rd2 = 0x100
       # Store 0x42 to RAM+0x100 (using rb17 which is RAM base)
@@ -561,7 +589,7 @@ TESTS = [
     # EA after truncation = 0x0000_FFFF_0000_0100 (RAM+0x100, mapped)
     # EA without truncation = 0x0001_FFFF_0000_0100 (unmapped → 0x87)
     ("T26 EA truncation: stm.o-rb high bits",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = 0x0000_FFFF_0000_0000 (RAM base)
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = 0x0000_FFFF_0000_0000 (RAM base)
       or_w_rb(3, 3, 0x0001),     # rb3 = 0x0001_FFFF_0000_0000 (high bits non-zero)
       set_zw_rd(2, 0x100),       # rd2 = 0x100
       # Store 0x42 to RAM+0x100 using stm.o-rb with rb3 having high bits
@@ -590,7 +618,7 @@ TESTS = [
     # With loop-internal mask: same (redundant but spec-correct)
     # This test verifies multi-reg load with high-bit rb[hb] works correctly.
     ("T27 boundary: ldm.o-rb 2 regs high bits",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = 0x0000_FFFF_0000_0000
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = 0x0000_FFFF_0000_0000
       or_w_rb(3, 3, 0x0001),     # rb3 = 0x0001_FFFF_0000_0000 (bit 48 set)
       set_zw_rd(2, 0),           # rd2 = 0
       # Store test values to RAM base and RAM+8
@@ -618,7 +646,7 @@ TESTS = [
     # EA = (rb3 + 0) & mask = 0x0000_FFFF_0000_0000 (RAM base)
     # Store rb10=0xCC, rb11=0xDD to RAM+0 and RAM+8, readback via ldm.o-rb
     ("T28 boundary: stm.o-rb 2 regs high bits",
-     [set_zw_rb(3, 2, 0xFC00),   # rb3 = 0x0000_FFFF_0000_0000
+     [set_zw_rb(3, 2, RAM_W2),   # rb3 = 0x0000_FFFF_0000_0000
       or_w_rb(3, 3, 0x0001),     # rb3 = 0x0001_FFFF_0000_0000 (bit 48 set)
       set_zw_rd(2, 0),           # rd2 = 0
       # Pre-clear RAM
@@ -654,34 +682,34 @@ TESTS = [
 
 CTL_CHECKS = [
     ("CTL: ldm.o-rb PASS but expect ILLI (wrong)",
-     [set_zw_rb(3, 2, 0xFC00), set_zw_rd(2, 0),
+     [set_zw_rb(3, 2, RAM_W2), set_zw_rd(2, 0),
       ldm_o_rb(1, 3, 2, 1),     # valid → PASS
       set_zw_rd(18, 0), *semi_exit(18)],
      ILLI_EXIT,
      "Self-check FAILED: probe cannot detect valid ldm.o-rb"),
     ("CTL: ldm.o-rb ILLI but expect PASS (wrong)",
-     [set_zw_rb(3, 2, 0xFC00), set_zw_rd(2, 0),
+     [set_zw_rb(3, 2, RAM_W2), set_zw_rd(2, 0),
       ldm_o_rb(0, 3, 2, 1)],    # ILLI (rb0 dest)
      PASS_EXIT,
      "Self-check FAILED: probe cannot detect ILLI"),
     ("CTL: ldm.o-rb MALIGN but expect PASS (wrong)",
-     [set_zw_rb(3, 2, 0xFC00), set_zw_rd(2, 7),
+     [set_zw_rb(3, 2, RAM_W2), set_zw_rd(2, 7),
       ldm_o_rb(1, 3, 2, 1)],    # MALIGN (unaligned)
      PASS_EXIT,
      "Self-check FAILED: probe cannot detect MALIGN"),
     ("CTL: stm.o-rb PASS but expect ILLI (wrong)",
-     [set_zw_rb(3, 2, 0xFC00), set_zw_rb(1, 0, 0x42), set_zw_rd(2, 0),
+     [set_zw_rb(3, 2, RAM_W2), set_zw_rb(1, 0, 0x42), set_zw_rd(2, 0),
       stm_o_rb(1, 3, 2, 1),     # valid → PASS
       set_zw_rd(18, 0), *semi_exit(18)],
      ILLI_EXIT,
      "Self-check FAILED: probe cannot detect valid stm.o-rb"),
     ("CTL: stm.o-rb ILLI but expect PASS (wrong)",
-     [set_zw_rb(3, 2, 0xFC00), set_zw_rd(2, 0),
+     [set_zw_rb(3, 2, RAM_W2), set_zw_rd(2, 0),
       stm_o_rb(0, 3, 2, 1)],    # ILLI (rb0 src)
      PASS_EXIT,
      "Self-check FAILED: probe cannot detect stm.o-rb ILLI"),
     ("CTL: stm.o-rb MALIGN but expect PASS (wrong)",
-     [set_zw_rb(3, 2, 0xFC00), set_zw_rb(1, 0, 0x42), set_zw_rd(2, 7),
+     [set_zw_rb(3, 2, RAM_W2), set_zw_rb(1, 0, 0x42), set_zw_rd(2, 7),
       stm_o_rb(1, 3, 2, 1)],    # MALIGN (unaligned)
      PASS_EXIT,
      "Self-check FAILED: probe cannot detect stm.o-rb MALIGN"),

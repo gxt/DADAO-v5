@@ -1,3 +1,5 @@
 # RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %e2e_dir/smoke_arith.s -o %t.o
-# RUN: %llvm_objcopy -O binary --only-section=.text %t.o %t.bin
-# RUN: timeout 30 %qemu -M dadao-m1 -bios %trampoline -kernel %t.bin -semihosting-config enable=on,target=native -display none -nographic
+# RUN: %llvm_objcopy -O binary --only-section=.text %t.o %t.code
+# RUN: dd if=/dev/zero of=%t.bin bs=256 count=1
+# RUN: cat %t.bin %t.code > %t.raw
+# RUN: timeout 30 %qemu -M dadao-m1 -bios %trampoline -kernel %t.raw -semihosting-config enable=on,target=native -display none -nographic

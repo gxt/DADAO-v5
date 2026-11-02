@@ -50,9 +50,15 @@ SPEC_FENCE = "SimRISC-11: fence"
 
 WIDTH = {"o": 8, "t": 4, "w": 2, "b": 1}
 
-# RAM window (ADR-0004 R3 rev. 2026-10-11): 48-bit canonical form below.
-WORD_A = 0x0000FC0000001000          # 8-byte aligned data word
-WORD_B = 0x0000FC0000001100          # second 8-byte word (address-mismatch cases)
+# Geometry comes from tests/shared/machine-profiles.yaml (TESTCASES-091t); the
+# vectors emit @RAM_BASE tokens, never absolute addresses.
+sys.path.insert(0, os.path.join(ROOT, "tools", "testcases", "lib"))
+import machine_profile as _machine_profile  # noqa: E402
+_PROFILE = _machine_profile.load("tiny")
+RAM_BASE = _PROFILE.ram_base
+RAM_END = _PROFILE.ram_end
+WORD_A = RAM_BASE + 0x1000           # 8-byte aligned data word (oracle arithmetic)
+WORD_B = RAM_BASE + 0x1100           # second 8-byte word (address-mismatch cases)
 BASE_WORD = 0x0102030405060708       # 8 distinct bytes: every k/W shift is visible
 SC_VAL = 0xA1B2C3D4E5F60718          # distinct bytes; high bits prove truncation
 SENTINEL = 0xDEADBEEFCAFEF00D        # untouched-register marker
@@ -78,6 +84,15 @@ def _hex48(v):
     return "0x%012X" % (v & 0xFFFFFFFFFFFF)
 
 
+def _addr(v):
+    """Emit @RAM_BASE(+offset) for addresses in the selected profile RAM."""
+    v &= 0xFFFFFFFFFFFF
+    if RAM_BASE <= v <= RAM_END:
+        off = v - RAM_BASE
+        return "@ENTRY" if off == 0 else "@ENTRY+0x%X" % off
+    return _hex48(v)
+
+
 def be_extract(word, k, width):
     """Independent oracle: big-endian extraction of `width` bytes at offset k."""
     shift = (8 - k - width) * 8
@@ -101,7 +116,7 @@ def mem_chunks(word, base, width):
     out = []
     for i in range(0, 8, width):
         chunk = (word >> ((8 - i - width) * 8)) & ((1 << (width * 8)) - 1)
-        out.append({"address": _hex48(base + i),
+        out.append({"address": _addr(base + i),
                     "value": "0x%0*X" % (width * 2, chunk)})
     return out
 
@@ -131,7 +146,7 @@ def case(rec, cls, word, input_state, expected_state, fault, cite, notes,
 def state(rd=None, rb=None, memory=None):
     return {
         "rd": {k: _hex64(v) for k, v in (rd or {}).items()},
-        "rb": {k: _hex48(v) for k, v in (rb or {}).items()},
+        "rb": {k: _addr(v) for k, v in (rb or {}).items()},
         "ra": {},
         "memory": memory or [],
     }

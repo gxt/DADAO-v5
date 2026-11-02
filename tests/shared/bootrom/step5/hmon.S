@@ -1,17 +1,21 @@
-@@ hmon.S — DADAO-v5 step5 hmon stage (INTEG-046t; ADR-0043 D4/D8/D9/D13/D14)
+@@ hmon.S — Machine-v5-Node hmon stage (TESTCASES-091t).
 @@
-@@ Linked at the hmon SRAM base 0x0fff_0000_0000 (64 KiB) and entered by
-@@ `trap cfx_hmon, <boot_magic>` from power.  It:
-@@   1. checks the trap cause (CFXTRAP + boot magic 0x30001), else exits 0xB7;
-@@   2. looks up the smon entry in the BootROM image index table and loads the
-@@      smon ELF into smon SRAM with the shared ROM loader;
-@@   3. programs cfx_smon's S-mode vector/switch mode and opens the run-time
-@@      cfx permissions needed by smon (cfx_ptw / cfx_pmem / cfx_smon cg
-@@      delegation = 0x8, plus cfx_power supv cfxmem bit2 for the BootROM read);
-@@   4. revokes its own cfx_pmem access (D13), traps into smon and parks.
+@@ Linked at HMON_BASE (0x0fff_0000_0000, 64 KiB) and entered by
+@@ `trap cfx_hmon, <boot_magic>` from the Node power stage.
 @@
-@@ Exit channel: semihosting SYS_EXIT with the argument block in hmon SRAM
-@@ (QEMU's debug translation maps the monitor SRAM windows; see cpu.c).
+@@ Node (user ruling 2026-11-02): hmon drives cfx_pmem, installs a first-level
+@@ page table with four 512 MiB superpages covering PA [0, 2 GiB) (SPF=0xFF),
+@@ enables PTW, sets the cfx_umon hypv vector to the profile ENTRY, and traps
+@@ into the test body in hypv.  smon is reserved and not used by this stage.
+@@
+@@ Page table PTE (spec/DADAO-12 §2.2.3, ADR-0040 D1/D4):
+@@   HSJU=0xF, PPN[55:29]=i, SPF=0xFF, flags P/SP/D/A/G/X/W/R = 0xEF
+@@   i = 0..3 -> PA i*512 MiB; L1 index VA[41:29] selects entry i.
+@@ PTBR = 0 (PA 0) and ptw_enable = 1.  The table template lives in hmon SRAM
+@@ and is copied to PA 0 through cfx_pmem DMA (PTW is off until the copy is done).
+
+	.include "tests/shared/asm/machine-node.inc"
+	.include "tests/shared/asm/machine.inc"
 
 	.macro	LD64 rd, w0, w1, w2, w3
 	set.zw	\rd, wp0, \w0
@@ -29,147 +33,75 @@
 	.text
 	.globl	_start
 _start:
-	LD64	rb1, 0xfff0, 0x0000, 0x0fff, 0x0000	@@ hmon rbsp
-
-	@@ hmon marker: write it into hmon SRAM (0x0e00), read it back and mirror
-	@@ it to RAM PA 0x10008 so smon can report all three stage markers.
-	LD64	rb4, 0x0e00, 0x0000, 0x0fff, 0x0000
-	LD64	rd6, 0x4f4e, 0x484d, 0x0000, 0x0000	@@ "HMON"
-	st.o	rd6, [rb4, 0]
-	ld.o	rd7, [rb4, 0]
-	LD64	rb4, 0x0008, 0x0001, 0xfc00, 0x0000
-	st.o	rd7, [rb4, 0]
+	LOAD_ADDR rb1, SP
 
 	@@ --- 1. trap cause / magic check (CFXTRAP = 1<<0, magic 0x30001) ---
-	cfx2rd	cfx_hmon, cg5, rc2, rd6		@@ cause_id
+	cfx2rd	cfx_hmon, cg5, rc2, rd6
 	LD64	rd7, 0x0001, 0x0000, 0x0000, 0x0000
 	cmp.uo	rd8, rd6, rd7
 	br.nz	{rd8}?, [rb0, hmon_exit_b7]
-	cfx2rd	cfx_hmon, cg5, rc4, rd6		@@ cause_info
+	cfx2rd	cfx_hmon, cg5, rc4, rd6
 	LD64	rd7, 0xffff, 0x0003, 0x0000, 0x0000	@@ 0x0003_ffff
 	and.o	rd6, rd6, rd7
 	LD64	rd7, 0x0001, 0x0003, 0x0000, 0x0000	@@ 0x0003_0001
 	cmp.uo	rd8, rd6, rd7
 	br.nz	{rd8}?, [rb0, hmon_exit_b7]
 
-	@@ --- 2. lookup + load smon ---
-	LD64	rd1, 0x0002, 0x0000, 0x0000, 0x0000	@@ type 2 = smon
-	LD64	rb9, 0x2000, 0xffff, 0xffff, 0x0000
-	call	[rb9, rd0, 0]
-	br.nz	{rd8}?, [rb0, hmon_exit_code]
-	rd2rb	rb14, rd4, 1			@@ save flags across the loader
+	@@ --- 2. page-table template in hmon SRAM (16 PTEs reserved, 4 used) ---
+	LOAD_ADDR rb2, HMON_BASE + 0x1000
+	LOAD_ADDR rb3, PMEM_BASE
+	LD64	rd4, 0xffef, 0x0000, 0x0000, 0xf000	@@ PTE0: PPN 0
+	st.o	rd4, [rb2, 0]
+	st.o	rd4, [rb3, 0]
+	LD64	rd4, 0xffef, 0x2000, 0x0000, 0xf000	@@ PTE1: PPN 0x2000
+	st.o	rd4, [rb2, 8]
+	st.o	rd4, [rb3, 8]
+	LD64	rd4, 0xffef, 0x4000, 0x0000, 0xf000	@@ PTE2: PPN 0x4000
+	st.o	rd4, [rb2, 16]
+	st.o	rd4, [rb3, 16]
+	LD64	rd4, 0xffef, 0x6000, 0x0000, 0xf000	@@ PTE3: PPN 0x6000
+	st.o	rd4, [rb2, 24]
+	st.o	rd4, [rb3, 24]
 
-	LD64	rb2, 0x0000, 0x0000, 0x0bff, 0x0000	@@ smon SRAM base
-	LD64	rb9, 0x2400, 0xffff, 0xffff, 0x0000
-	call	[rb9, rd0, 0]
-	br.z	{rd8}?, [rb0, hmon_smon_loaded]
+	@@ --- 3. cfx_pmem DMA: PMEM SRAM -> PA 0, 32 bytes, DIR=0 ---
+	LOAD_ADDR rd9, PMEM_BASE
+	cfx2rc	cfx_pmem, cg15, rc0, rd9	@@ dma_src
+	cfx2rc	cfx_pmem, cg15, rc1, rd0	@@ dma_dst = PA 0
+	LD64	rd9, 0x0020, 0x0000, 0x0000, 0x0000	@@ dma_size = 32
+	cfx2rc	cfx_pmem, cg15, rc2, rd9
+	LD64	rd9, 0x0001, 0x0000, 0x0000, 0x0000	@@ START, DIR=0
+	cfx2rc	cfx_pmem, cg15, rc3, rd9
+hmon_dma_poll:
+	cfx2rd	cfx_pmem, cg15, rc4, rd9	@@ dma_status
+	LD64	rd10, 0x0001, 0x0000, 0x0000, 0x0000
+	and.o	rd9, rd9, rd10
+	br.nz	{rd9}?, [rb0, hmon_dma_poll]
 
-	@@ load failed: REQUIRED=0 skips the copy and continues (the chain then
-	@@ fails visibly, never silently); REQUIRED=1 reports the loader code.
-	rb2rd	rd7, rb14, 1
-	LD64	rd6, 0x0001, 0x0000, 0x0000, 0x0000
-	and.o	rd7, rd7, rd6
-	br.nz	{rd7}?, [rb0, hmon_exit_code]
-	rb2rd	rd5, rb2, 1			@@ fallback vector = smon base
-hmon_smon_loaded:
-	@@ rd5 = smon e_entry
+	@@ --- 4. invalidate TLB, PTBR=0, ptw_enable=1 ---
+	LD64	rd9, 0x0002, 0x0000, 0x0000, 0x0000	@@ tlb_control = invalid all
+	cfx2rc	cfx_ptw, cg12, rc0, rd9
+	cfx2rc	cfx_ptw, cg9, rc0, rd0		@@ PTBR PPN = 0 (PA 0)
+	LD64	rd9, 0x0001, 0x0000, 0x0000, 0x0000
+	cfx2rc	cfx_ptw, cg8, rc8, rd9		@@ ptw_enable = 1
 
-	@@ --- 3a. cfx_smon: S-mode vector + switch_run_mode = supv ---
-	cfx2rc	cfx_smon, cg3, rc10, rd5
-	LD64	rd6, 0x0002, 0x0000, 0x0000, 0x0000
-	cfx2rc	cfx_smon, cg3, rc8, rd6
+	@@ --- 5. cfx_umon hypv: vector = ENTRY, switch mode = hypv (3), mask 0 ---
+	LOAD_ADDR rd5, ENTRY
+	cfx2rc	cfx_umon, cg3, rc10, rd5
+	LD64	rd6, 0x0003, 0x0000, 0x0000, 0x0000
+	cfx2rc	cfx_umon, cg3, rc8, rd6		@@ switch_run_mode = hypv
+	cfx2rc	cfx_umon, cg3, rc9, rd0		@@ switch_cfx_mask = 0
 
-	@@ --- 3b. run-time cfx permissions (ADR-0043 D9, ADR-0045 D4) ---
-	@@ 0xffff_ffff_ffff_fff3 = default mask with source smon (bit2) and hmon
-	@@ (bit3) cleared; only implemented cfx are touched.
-	LD64	rd6, 0xfff3, 0xffff, 0xffff, 0xffff
-	cfx2rc	cfx_ptw, cg2, rc0, rd6
-	cfx2rc	cfx_ptw, cg2, rc1, rd6
-	cfx2rc	cfx_ptw, cg2, rc2, rd6
-	cfx2rc	cfx_ptw, cg2, rc3, rd6
-	cfx2rc	cfx_pmem, cg2, rc0, rd6
-	cfx2rc	cfx_pmem, cg2, rc1, rd6
-	cfx2rc	cfx_pmem, cg2, rc2, rd6
-	cfx2rc	cfx_pmem, cg2, rc3, rd6
-	@@ cfx_power supv cfxmem: clear bit2 (source smon) only, so that smon may
-	@@ read the power BootROM at its fixed address (INTEG-048t R6).  This is
-	@@ the cfxmem axis, not the delegation axis; the power delegation stays ~0.
-	cfx2rc	cfx_power, cg2, rc1, rd6
-
-	@@ --- 3b2. open the whole cg delegation group for source smon ---
-	@@ 0x8 has only the hardware-fixed bit3 set => cg0-cg2 and cg4-cg63 are
-	@@ all allowed (DADAO-13 §1; the software convention is INTEG-048t R5).
-	LD64	rd6, 0x0008, 0x0000, 0x0000, 0x0000
-	cfx2rc	cfx_ptw, cg3, rc12, rd6
-	cfx2rc	cfx_pmem, cg3, rc12, rd6
-	cfx2rc	cfx_smon, cg3, rc12, rd6
-
-	@@ Read the three delegation registers back for smon's self-check (the
-	@@ mask is not part of the `-d cpu` dump).  Also record cfx_power's supv
-	@@ cfxmem (only bit2 cleared) and its untouched delegation (all ones).
-	LD64	rb4, 0x0018, 0x0001, 0xfc00, 0x0000
-	cfx2rd	cfx_ptw, cg3, rc12, rd6
-	st.o	rd6, [rb4, 0]
-	LD64	rb4, 0x0020, 0x0001, 0xfc00, 0x0000
-	cfx2rd	cfx_pmem, cg3, rc12, rd6
-	st.o	rd6, [rb4, 0]
-	LD64	rb4, 0x0028, 0x0001, 0xfc00, 0x0000
-	cfx2rd	cfx_smon, cg3, rc12, rd6
-	st.o	rd6, [rb4, 0]
-	LD64	rb4, 0x0030, 0x0001, 0xfc00, 0x0000
-	cfx2rd	cfx_power, cg2, rc1, rd6
-	st.o	rd6, [rb4, 0]
-	LD64	rb4, 0x0038, 0x0001, 0xfc00, 0x0000
-	cfx2rd	cfx_power, cg3, rc12, rd6
-	st.o	rd6, [rb4, 0]
-
-	@@ cfx_hmon.supv.cfxtrap: allow source smon to trap back to hmon
-	@@ (poweroff/reset service, D13).  rd6 must be reloaded first: the
-	@@ delegation writes/readbacks above clobbered it.
-	LD64	rd6, 0xfff3, 0xffff, 0xffff, 0xffff
-	cfx2rc	cfx_hmon, cg2, rc0, rd6
-
-	@@ --- 3c. revoke hmon's own cfx_pmem access (D13).  rc2 (cfxreg) is
-	@@ written last: after it hmon can no longer touch cfx_pmem at all.
-	LD64	rd6, 0xffff, 0xffff, 0xffff, 0xffff
-	cfx2rc	cfx_pmem, cg3, rc0, rd6
-	cfx2rc	cfx_pmem, cg3, rc1, rd6
-	cfx2rc	cfx_pmem, cg3, rc3, rd6
-	cfx2rc	cfx_pmem, cg3, rc2, rd6
-
-	@@ --- 4. clear the observation registers, hand off to smon ---
-	LD64	rd5, 0x0000, 0x0000, 0x0000, 0x0000
-	LD64	rd6, 0x0000, 0x0000, 0x0000, 0x0000
-	LD64	rd7, 0x0000, 0x0000, 0x0000, 0x0000
-	LD64	rd8, 0x0000, 0x0000, 0x0000, 0x0000
-	LD64	rd9, 0x0000, 0x0000, 0x0000, 0x0000
-	LD64	rd10, 0x0000, 0x0000, 0x0000, 0x0000
-	LD64	rd11, 0x0000, 0x0000, 0x0000, 0x0000
-	LD64	rd12, 0x0000, 0x0000, 0x0000, 0x0000
-	LD64	rd13, 0x0000, 0x0000, 0x0000, 0x0000
-	LD64	rd14, 0x0000, 0x0000, 0x0000, 0x0000
-	trap	cfx_smon, 0x30001
-
-hmon_park:
-	@@ D14: hmon never returns to power.  Poison word at RAM 0x...0f08.
-	LD64	rb4, 0x0108, 0x0001, 0xfc00, 0x0000
-	LD64	rd6, 0xbeef, 0xdead, 0x0000, 0x0000
-	st.o	rd6, [rb4, 0]
-hmon_spin:
-	jump	[rb0, hmon_spin]
+	@@ --- 6. handoff to the test body in hypv ---
+	trap	cfx_umon, 0
+	swym	0
 
 hmon_exit_b7:
-	LD64	rd8, 0x00b7, 0x0000, 0x0000, 0x0000
-hmon_exit_code:
-	rd2rd	rd1, rd8, 1
-	jump	[rb0, hmon_exit]
-
-hmon_exit:
-	@@ SYS_EXIT block in hmon SRAM (0x0fff_0000_0ff0).
-	LD64	rb16, 0x0ff0, 0x0000, 0x0fff, 0x0000
+	@@ SYS_EXIT with the argument block in hmon SRAM.
+	LOAD_ADDR rb16, HMON_BASE + 0x0d00
 	LD64	rd16, 0x0026, 0x0002, 0x0000, 0x0000
 	st.o	rd16, [rb16, 0]
-	st.o	rd1, [rb16, 8]
+	LD64	rd16, 0x00b7, 0x0000, 0x0000, 0x0000
+	st.o	rd16, [rb16, 8]
 	LD64	rd16, 0x0018, 0x0000, 0x0000, 0x0000
 	trap	cfx_umon, 0x3FF00
 	swym	0

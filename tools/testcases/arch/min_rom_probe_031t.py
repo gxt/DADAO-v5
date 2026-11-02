@@ -16,6 +16,32 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.
 sys.path.insert(0, os.path.join(_REPO_ROOT, 'tools', 'infra'))
 import paths as _paths
 
+# TESTCASES-091t: probe geometry from the single profile source
+# (tests/shared/machine-profiles.yaml); runtime execution stays BLOCKED until
+# QEMU-079/080 provide the Tiny/Node machines.
+_MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))))
+if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
+    sys.path.insert(0, os.path.join(_MACH_REPO, "tools", "testcases", "lib"))
+import machine_profile as _machine_profile  # noqa: E402
+_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
+RAM_BASE = _MACH.ram_base
+RAM_END = _MACH.ram_end
+SP = _MACH.sp
+SP_OFF = SP - RAM_BASE
+BOOTROM_BASE = _MACH.bootrom_base
+ENTRY = _MACH.entry
+EXIT_BLOCK = _MACH.exit_block
+RAM_W2 = (RAM_BASE >> 32) & 0xFFFF
+RAM_W1 = (RAM_BASE >> 16) & 0xFFFF
+RAM_W0 = RAM_BASE & 0xFFFF
+SP_W2 = (SP >> 32) & 0xFFFF
+SP_W1 = (SP >> 16) & 0xFFFF
+SP_W0 = SP & 0xFFFF
+EXIT_W2 = (EXIT_BLOCK >> 32) & 0xFFFF
+EXIT_W1 = (EXIT_BLOCK >> 16) & 0xFFFF
+EXIT_W0 = EXIT_BLOCK & 0xFFFF
+
 def _probe_artifact_dir():
     d = str(_paths.test_artifacts_dir() / 'probes')
     os.makedirs(d, exist_ok=True)
@@ -95,7 +121,7 @@ def load_imm64_rd(rd, value):
 # ── Probe builders ────────────────────────────────────────────────────────
 
 # Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
-SEMI_BLOCK = 0xFC00_00FF_F000       # argument block {reason, code}, in RAM
+SEMI_BLOCK = EXIT_BLOCK       # argument block {reason, code}, in RAM
 SEMIHOST_TAG = 0x3FF00              # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
@@ -161,7 +187,7 @@ def build_probe_jump_taken():
     # rb0 after jump = target = BINARY_BASE + (N+3)*4
     # So expected rd1 = BINARY_BASE + rb2rd_idx * 4
 
-    BINARY_BASE = 0xFFFF_0000_1000
+    BINARY_BASE = ENTRY
     expected_rb0 = BINARY_BASE + rb2rd_idx * 4
 
     # Load expected value into rd2
@@ -206,7 +232,7 @@ def build_probe_not_taken():
     rb2rd_idx = len(words)
     words.append(encode_rb2rd(1, 0, 1))
 
-    BINARY_BASE = 0xFFFF_0000_1000
+    BINARY_BASE = ENTRY
     expected_rb0 = BINARY_BASE + rb2rd_idx * 4
 
     words.extend(load_imm64_rd(2, expected_rb0))

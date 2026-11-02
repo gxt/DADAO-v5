@@ -40,7 +40,7 @@ M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**
 ## 2. L3 执行向量（`tests/arch/umon/`）— 向量 ↔ 能力 ↔ 期望值来源
 
 承载形态 = **bin**（用户 2026-10-08 M5 范围简化裁定）：`llvm-mc` → `llvm-objcopy -O binary` →
-`-kernel` 载入RAM 基址 `0xFC00_0000_0000`（`ADR-0004 D2.3` path B）→ **SEE bootrom**（`-bios`）
+`-kernel` 载入RAM 基址 `the profile ENTRY`（`ADR-0004 D2.3` path B）→ **SEE bootrom**（`-bios`）
 在**复位 PC `0xffff_ffff_0000`** 启动、配置 cfx 向量/掩码后 **hypv→user** 跳应用
 （`QEMU-047t` / `Machine-01 §2`）。**不经** `ld.lld` 多 TU ELF（ELF 加载归 M6，`ISS-168`）。
 
@@ -52,7 +52,7 @@ M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**
 | `m5_semi_exit.s` | semihosting | `SYS_EXIT`(0x18)：`{0x20026, code}` 停机、码传 host `$?` | `contract-semihosting §5`（`ADR-0020 D8`）→ `$?=0x43` |
 | `m5_semi_exit_extended.s` | semihosting | `SYS_EXIT_EXTENDED`(0x20)：带显式退出码停机 | `contract-semihosting §3/§5` → `$?=0x44` |
 | `m5_perm_reserved_illi.s` | permission | 一般 `trap cfx7`（reserved cfxha）⇒ `ILLI` | `contract-see §3`（reserved 6–14/19–61 ⇒ ILLI；`DADAO-12 §5`）→ cause `ILLI`(1<<8)，pass token `0x50` |
-| `m5_perm_mask_illi.s` | permission | 一般 `trap cfx_jmon`（指令类型 mask 禁止）⇒ `ILLI` | `contract-see §3`（mask 禁止 ⇒ ILLI；`DADAO-12 §3`）→ `ILLI`，pass token `0x51` |
+| `m5_perm_mask_cfxperm.s` | permission | 一般 `trap cfx_jmon`（目标 cfxtrap 源 mask 拒绝）⇒ `CFXPERM` | `contract-see §3` / `DADAO-12 §3/§5`；cfxtrap 权限拒绝 = `CFXPERM`，pass token `0x51` |
 | `m5_perm_unimpl_cfxreg.s` | permission | `trap cfx_llc`（未实现 cfx）⇒ `CFXREG` | `contract-see §3`（未实现 cfx ⇒ CFXREG；`DADAO-22 §3`）→ `CFXREG`(1<<2)，pass token `0x52` |
 | `m5_perm_badcombo_cfxreg.s` | permission | `cfx2rd cfx_umon, cg6, rc63`（超数量寄存器组合）⇒ `CFXREG` | `contract-see §3`（不存在组合 ⇒ CFXREG；`DADAO-12 §3` `rc≥scratch_regs_num`）→ `CFXREG`，pass token `0x53` |
 | `m5_trap_escape.s` | trap | 一般 `trap cfx_umon, 0x0123` 进向量 + bootrom handler `escape` 返回 | `contract-see §4`（cause `CFXTRAP`；`DADAO-12 §5`）→ cause `CFXTRAP`(1)、`escape_num==1`，pass token `0x60` |

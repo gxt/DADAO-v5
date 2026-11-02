@@ -51,6 +51,7 @@ missing tool is a failure, never a silent skip.
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -58,12 +59,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import paths  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "tools" / "testcases" / "lib"))
+import machine_profile  # noqa: E402
 
 REPO_ROOT = paths.repo_root()
 TOOLCHAIN_BIN = paths.host_toolchain_bin()
 SYSROOT = paths.target_sysroot_dir()
-CRT0 = REPO_ROOT / "tests" / "shared" / "crt0" / "codegen_crt0.s"
-LDS = REPO_ROOT / "tests" / "shared" / "linker" / "dadao.lds"
+CRT0 = REPO_ROOT / "tests" / "shared" / "crt0" / "minimal_crt0.s"
+LDS = REPO_ROOT / "tests" / "shared" / "linker" / "dadao-tiny.lds"
 
 PROG_C = """\
 #include <stdio.h>
@@ -169,9 +172,19 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--work-dir", default=str(REPO_ROOT / ".work" / "build" / "picolibc-smoke"),
                     help="scratch dir for generated sources/objects (default: <repo>/.work/build/picolibc-smoke)")
+    ap.add_argument("--profile",
+                    default=os.environ.get("DADAO_TEST_PROFILE") or "tiny",
+                    choices=sorted(machine_profile.all_profiles()),
+                    help="machine profile (picolibc smoke is Tiny-only)")
     ap.add_argument("--qemu-timeout", type=int, default=30)
     ap.add_argument("--inject", action="store_true", help="corrupt the expectation to prove FAIL is reachable")
     args = ap.parse_args()
+    prof = machine_profile.load(args.profile)
+    if not prof.get("picolibc", False):
+        print("test-picolibc-smoke: ERROR: profile %r does not run picolibc "
+              "(Tiny-only per user ruling 2026-11-02)" % prof.name,
+              file=sys.stderr)
+        return 2
 
     for tool in ("clang", "llvm-mc", "ld.lld", "qemu-system-dadao"):
         if not (TOOLCHAIN_BIN / tool).exists():
@@ -222,7 +235,8 @@ def main() -> int:
                   f"{missing}; undefined={sorted(undef)})", file=sys.stderr)
             return 1
 
-        res = run([str(TOOLCHAIN_BIN / "ld.lld"), "-T", str(LDS), str(work / "crt0.o"), str(obj),
+        res = run([str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(LDS.parent), "-T", str(LDS),
+         str(work / "crt0.o"), str(obj),
                    str(SYSROOT / "lib" / "libc.a"), str(SYSROOT / "lib" / "libm.a"),
                    str(SYSROOT / "lib" / "libsemihost.a"), "-o", str(elf)])
         if res.returncode != 0:

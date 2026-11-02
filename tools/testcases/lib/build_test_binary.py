@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build test binary from ISA vector YAML for dadao-m1 QEMU testing.
 
-Binary layout (loaded at BINARY_BASE = 0xFC00_0000_0000, the single RAM segment):
+Binary layout (loaded at BINARY_BASE = the selected profile's RAM entry):
   [section 1] loader   - Set rd/rb/ra registers from input_state, write memory
   [section 2] test     - Raw encoding word(s) (struct.pack('>I', w); the
                          optional `sequence:` emits several in order)
@@ -32,17 +32,26 @@ import sys
 import os
 import yaml
 
+# Machine geometry is read from tests/shared/machine-profiles.yaml through the
+# single reader (TESTCASES-091t).  No RAM/ROM/entry literal lives in the harness.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import machine_profile  # noqa: E402
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-# Memory map (ADR-0004 R3 + rev. 2026-10-11 / ADR-0020 D15): the single RAM
-# segment is at 0xFC00_0000_0000 (16 MiB, cfxha 63).
-BINARY_BASE = 0xFC00_0000_0000        # RAM entry point
+# Selected profile: DADAO_TEST_PROFILE / tiny by default; CLI --profile overrides.
+_PROFILE = machine_profile.load()
+
+# Memory map (profile-derived): BINARY_BASE = RAM entry point.
+BINARY_BASE = _PROFILE.entry           # application entry point
+KERNEL_BASE = _PROFILE.get("kernel_base", BINARY_BASE)
+RAW_PREFIX = BINARY_BASE - KERNEL_BASE  # reserved bytes before the entry
 # SYS_EXIT argument block {reason, code} (ADR-0020 D8).  Writable RAM near the
-# top, above the downward-growing stack (SP starts at RAM + 0x00ff_0000).
-EXIT_BLOCK  = 0xFC00_00FD_0000        # SYS_EXIT argument-block address
-DUMP_BASE   = 0xFC00_00FE_0000        # State-dump region base
+# profile-defined exit block, above the downward-growing stack.
+EXIT_BLOCK = _PROFILE.exit_block       # SYS_EXIT argument-block address
+DUMP_BASE = _PROFILE.dump_base         # State-dump region base
 DUMP_SIZE   = 0x408                  # 1032 bytes: rd[0]+rd[1..63]+rb[0]+rb[1..63]+pc
 RD_DUMP_OFF = 0x008                  # rd[1] starts at +0x008 (rd[0] slot at +0x000 is reserved)
 RB_DUMP_OFF = 0x208                  # rb[1] starts at +0x208 (rb[0] slot at +0x200 is reserved)
@@ -62,11 +71,29 @@ MEM_RB      = 61                      # rb61: temp for memory address
 DUMP_RB     = 62                      # rb62: dump pointer
 
 # Window the harness treats as "code of the test image".  Vectors are written
-# with the tested instruction at BINARY_BASE (ADR-0004 D2.2), so a value inside
-# this window denotes a location *in the image* and must move with the loader
+# with the tested instruction at the profile RAM entry, so a value inside this
+# window denotes a location *in the image* and must move with the loader
 # prologue inserted in front of the instruction; anything outside it is an
 # absolute data address (RAS entry, MRPTR, ...) and stays as the vector wrote it.
-IMAGE_WINDOW = 0x10000
+IMAGE_WINDOW = _PROFILE.image_window
+
+
+def set_profile(name):
+    """Select the machine profile for this process (CLI --profile)."""
+    global _PROFILE, BINARY_BASE, KERNEL_BASE, RAW_PREFIX
+    global EXIT_BLOCK, DUMP_BASE, IMAGE_WINDOW
+    _PROFILE = machine_profile.load(name)
+    BINARY_BASE = _PROFILE.entry
+    KERNEL_BASE = _PROFILE.get("kernel_base", BINARY_BASE)
+    RAW_PREFIX = BINARY_BASE - KERNEL_BASE
+    EXIT_BLOCK = _PROFILE.exit_block
+    DUMP_BASE = _PROFILE.dump_base
+    IMAGE_WINDOW = _PROFILE.image_window
+    return _PROFILE
+
+
+def get_profile():
+    return _PROFILE
 
 # ---------------------------------------------------------------------------
 # Instruction encoding helpers (from contracts/opcodes.yaml)
@@ -171,6 +198,22 @@ def encode_trap(cfxha, immu18):
     Fields: cfxha[23:18], immu18[17:0].  immu18[17:8]==0x3FF (0x3FF00-0x3FFFF) selects the
     semihosting short-circuit (contract-semihosting.md §1; ADR-0020 D1)."""
     return (0x7F << 24) | (cfxha << 18) | (immu18 & 0x3FFFF)
+
+
+def _pack_words(words):
+    blob = b"".join(struct.pack(">I", w) for w in words)
+    if RAW_PREFIX:
+        # Tiny raw `-kernel` loads at kernel_base; the first kernel_reserved
+        # bytes are zero and the application entry follows.
+        blob = b"\x00" * RAW_PREFIX + blob
+    return blob
+
+
+def _as_int(value):
+    """Accept an already-resolved integer or a 0x… string."""
+    if isinstance(value, int):
+        return value
+    return int(str(value), 16)
 
 
 def _relocate_code_addr(value, shift):
@@ -645,7 +688,7 @@ def build_branch_test_binary(vector_case, dump_mode=False):
     """
     words = []
     expected_pc = vector_case.get("expected_pc")
-    delta = int(expected_pc, 16) - BINARY_BASE
+    delta = _as_int(expected_pc) - BINARY_BASE
 
     # Section 1: loader (set input_state registers)
     # For call semantic cases, shift the *code* addresses in input_state.ra by
@@ -701,12 +744,7 @@ def build_branch_test_binary(vector_case, dump_mode=False):
     is_call = delta == 8 and vector_case.get("mnemonic") == "call"
     words.extend(build_exit_section(vector_case, dump_mode, loader_words=loader_words, relocate_ra=is_call))
 
-    # Pack as big-endian 32-bit words
-    blob = b""
-    for w in words:
-        blob += struct.pack(">I", w)
-
-    return blob
+    return _pack_words(words)
 
 
 def build_ret_binary(vector_case, dump_mode=False):
@@ -751,7 +789,7 @@ def build_ret_binary(vector_case, dump_mode=False):
         raise ValueError(
             f"{case_label(vector_case)}: `sequence` is not supported for ret "
             f"(the landing-pad layout places exactly one instruction under test)")
-    target = int(expected_pc, 16) if isinstance(expected_pc, str) else expected_pc
+    target = _as_int(expected_pc)
     offset = target - BINARY_BASE
     if offset % 4:
         raise ValueError(
@@ -791,12 +829,7 @@ def build_ret_binary(vector_case, dump_mode=False):
     # No RA relocation: the vector's RA values are the ones that were loaded.
     words.extend(build_exit_section(vector_case, dump_mode, loader_words=0))
 
-    # Pack as big-endian 32-bit words
-    blob = b""
-    for w in words:
-        blob += struct.pack(">I", w)
-
-    return blob
+    return _pack_words(words)
 
 
 def build_test_binary(vector_case, trusted_instrs=None, dump_mode=False):
@@ -810,6 +843,16 @@ def build_test_binary(vector_case, trusted_instrs=None, dump_mode=False):
 
     Returns bytes to be loaded at BINARY_BASE.
     """
+    # A profile-limited case must not be silently built for another machine.
+    profiles = vector_case.get("profiles")
+    if profiles is not None and _PROFILE.name not in profiles:
+        raise ValueError(
+            f"case {vector_case.get('id')!r} applies only to profiles "
+            f"{profiles}, not {_PROFILE.name!r}")
+
+    # Resolve geometry tokens with the selected profile before any layout math.
+    vector_case = machine_profile.resolve_case(vector_case, _PROFILE)
+
     # Routing for control-flow instructions with expected_pc:
     # - ret: landing pad placed at the vector's own expected_pc (build_ret_binary)
     # - call: unconditional jump → TAKEN layout (via build_branch_test_binary)
@@ -841,12 +884,7 @@ def build_test_binary(vector_case, trusted_instrs=None, dump_mode=False):
     # Section 4: exit (compare + write exit code)
     words.extend(build_exit_section(vector_case, dump_mode, loader_words=loader_words))
 
-    # Pack as big-endian 32-bit words
-    blob = b""
-    for w in words:
-        blob += struct.pack(">I", w)
-
-    return blob
+    return _pack_words(words)
 
 
 # ---------------------------------------------------------------------------
@@ -863,7 +901,14 @@ def main():
                         help="Build in dump mode (spin after dumper, no SYS_EXIT)")
     parser.add_argument("-o", "--output", default=None,
                         help="Output binary file path")
+    machine_profile.add_profile_argument(parser, default=None)
     args = parser.parse_args()
+
+    try:
+        set_profile(args.profile)
+    except machine_profile.ProfileError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     # Load vector file
     with open(args.vector_file, "r") as f:

@@ -11,15 +11,15 @@
 @@       encoded verbatim (no longer silently ignored).
 @@
 @@ Entry state (ADR-0004 D6.5):
-@@   rb0=0xFC00_0000_0000 (PC), rb1=0xFC00_0000_00ff_0000 (SP), rb2=0xFC00_0000_0000
+@@   rb0=ENTRY (PC), rb1=SP, rb2=ENTRY
 @@   rd0=0 (hardwired), all other rd/rb/ra = 0
 
 _start:
-    @@ 0. Build the SYS_EXIT argument block at rb16 = 0xFC00_0000_00ff_f000:
+    @@ 0. Build the SYS_EXIT argument block at rb16 = EXIT_BLOCK (0xFFFF_FF7E_0000):
     @@    block[0] = 0x20026 (ADP_Stopped_ApplicationExit).
-    or.w    rb16, wp1, 0x00ff
-    or.w    rb16, wp0, 0xf000
-    or.w    rb16, wp2, 0xfc00
+    set.zw  rb16, wp0, 0x0000
+    or.w    rb16, wp1, 0xff7e
+    or.w    rb16, wp2, 0xffff
     set.zw  rd6, wp1, 0x0002
     or.w    rd6, wp0, 0x0026
     st.o    rd6, [rb16, 0]

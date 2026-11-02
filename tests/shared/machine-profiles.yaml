@@ -1,0 +1,86 @@
+# tests/shared/machine-profiles.yaml — 测试侧机器几何唯一真源（TESTCASES-091t）
+#
+# 本文件只描述**测试资产/harness 使用的** bootrom/RAM/入口/装载参数；QEMU 侧的
+# 真实机器常量由 qemu_* 字段在 QEMU-079t/QEMU-080t 落地后回填，本任务留 null。
+# 修改几何只改这里：tests/inst 的 token、tools/testcases 驱动、链接脚本与
+# bootrom 汇编头均由本表派生或与之交叉核对。
+#
+# 字段（两 profile 同构，缺一即错误）：
+#   bootrom_base / bootrom_size / reset_pc / bootrom_load
+#   ram_base / ram_size / ram_end
+#   entry / sp / host_loader / image_window / kernel_base / kernel_reserved
+#   ptw / hmon / smon / cfx / semihosting / arch / embench / picolibc /
+#   default_run_mode / exit_block / dump_base
+#   qemu_*（QEMU 侧回填；null = DEFERRED，不得静默 PASS）
+#
+# 用户裁定（2026-11-02，第二轮）：
+#   Tiny：地址高 6 位恒 0x3F，**无任何 cfx（含 cfx_power）**、不能 user 模式；
+#         semihosting 允许（trap 不算 cfx 类）。只跑非 cfx 的 inst、embench、
+#         picolibc；不跑 arch。raw -kernel 基址 0xffff_ff01_0000，前 0x100
+#         字节零保留，应用入口 0xffff_ff01_0100；ELF 的 crt 启动 stub 在
+#         0xffff_ffff_0000（e_entry 同址），crt 设 SP 后跳应用入口。
+#   Node：entry=0x100000、sp=0x7fff_0000（初值）；完整 inst + arch + embench；
+#         不跑 picolibc；M11 不覆盖 smon。
+
+profiles:
+  tiny:
+    bootrom_base: 0xFFFF_FFFF_0000
+    bootrom_size: 0x1_0000
+    reset_pc: 0xFFFF_FFFF_0000
+    bootrom_load: bios-flat@base
+    ram_base: 0xFFFF_FF00_0000
+    ram_size: 0x80_0000
+    ram_end: 0xFFFF_FF7F_FFFF
+    entry: 0xFFFF_FF01_0100
+    sp: 0xFFFF_FF7E_FF00
+    host_loader: raw-kernel+elf-ptload
+    image_window: 0x1_0000
+    kernel_base: 0xFFFF_FF01_0000
+    kernel_reserved: 0x100
+    ptw: false
+    hmon: false
+    smon: false
+    cfx: false
+    semihosting: true
+    arch: false
+    embench: true
+    picolibc: true
+    default_run_mode: machine
+    exit_block: 0xFFFF_FF7E_0000
+    dump_base: 0xFFFF_FF7E_8000
+    qemu_ram_base: null
+    qemu_ram_size: null
+    qemu_bootrom_base: null
+    qemu_bootrom_size: null
+    qemu_reset_pc: null
+
+  node:
+    bootrom_base: 0xFFFF_FFC0_0000
+    bootrom_size: 0x40_0000
+    reset_pc: 0xFFFF_FFFF_0000
+    bootrom_load: bios-flat@base
+    ram_base: 0x0000_0000_0000
+    ram_size: 0x8000_0000
+    ram_end: 0x7FFF_FFFF
+    entry: 0x0000_0000_0010_0000
+    sp: 0x0000_0000_7FFF_0000
+    host_loader: elf-ptload
+    image_window: 0x1_0000
+    kernel_base: 0x0000_0000_0010_0000
+    kernel_reserved: 0x0
+    ptw: true
+    hmon: true
+    smon: reserved
+    cfx: true
+    semihosting: true
+    arch: true
+    embench: true
+    picolibc: false
+    default_run_mode: hypv
+    exit_block: 0x7FFD_0000
+    dump_base: 0x7FFE_0000
+    qemu_ram_base: null
+    qemu_ram_size: null
+    qemu_bootrom_base: null
+    qemu_bootrom_size: null
+    qemu_reset_pc: null

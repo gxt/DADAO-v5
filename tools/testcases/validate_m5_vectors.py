@@ -12,8 +12,9 @@ values are re-derived on the host from
     table: number -> name -> behaviour) and §1/§4/§5 (entry tag / return /
     SYS_EXIT), and
   * ``.tao/contracts/contract-see.md`` §3 (cfx permission rules: reserved cfxha
-    and instruction-mask forbids => ILLI; unimplemented cfx / non-existent or
-    over-count register combination => CFXREG),
+    => ILLI; target cfxtrap source-mask denied => CFXPERM; inner instruction
+    cfx-mask denied => ILLI; unimplemented cfx / non-existent or over-count
+    register combination => CFXREG),
 
 cross-checked against the machine-readable ``@@ @m5`` header embedded in every
 vector source (service number, console data bytes, fault rule, expected cause,
@@ -34,9 +35,10 @@ Checks (all fail-closed, exit non-zero on any failure):
      wrong assembly constant, a mutated service number or a changed cause is
      caught here, not only by the end-to-end driver).
   6. Suite coverage: semihosting console (WRITEC/WRITE0/WRITE), EXIT and
-     EXIT_EXTENDED, cfx-level permission counter-examples (ILLI: reserved /
-     mask; CFXREG: unimplemented / bad register combination) and general
-     trap + escape.
+     EXIT_EXTENDED, cfx-level permission counter-examples (ILLI: reserved;
+     CFXPERM: target cfxtrap denied; CFXREG: unimplemented / bad combo) and
+     general trap + escape.  The inner instruction-mask-denied path has no
+     executable vector yet (recorded in the task book as future work).
 
 A green validator is necessary but not sufficient: the true end-to-end execution
 is owned by ``tools/testcases/arch/run_m5_e2e.py`` (gated by
@@ -62,7 +64,7 @@ COVERAGE_VOCAB = {
     "semihosting.console", "semihosting.writec", "semihosting.write0",
     "semihosting.write", "semihosting.open",
     "semihosting.exit", "semihosting.exit_extended",
-    "perm.illi.reserved", "perm.illi.mask",
+    "perm.illi.reserved", "perm.cfxperm.mask",
     "perm.cfxreg.unimpl", "perm.cfxreg.combo",
     "trap.vector", "trap.escape",
     "adr0020.d1", "adr0020.d3", "adr0020.d8", "adr0020.d9", "adr0020.d10",
@@ -71,7 +73,7 @@ COVERAGE_VOCAB = {
 REQUIRED_COVERAGE = {
     "semihosting.writec", "semihosting.write0", "semihosting.write",
     "semihosting.exit", "semihosting.exit_extended",
-    "perm.illi.reserved", "perm.illi.mask",
+    "perm.illi.reserved", "perm.cfxperm.mask",
     "perm.cfxreg.unimpl", "perm.cfxreg.combo",
     "trap.vector", "trap.escape",
 }
@@ -90,13 +92,15 @@ CAUSE_ID = {
 
 # contract-see.md §3 permission rules -> expected cause.  Citation:
 #   reserved_cfxha     : "reserved cfxha (6-14, 19-61) 触发 ILLI"        [DADAO-12 §5]
-#   mask_forbidden     : "cfxha 合法但指令 cfx mask 禁止亦触发 ILLI"     [DADAO-12 §3/§5]
+#   target_cfxtrap_denied   : target cfx's cfxtrap source mask denies -> CFXPERM
+#   inner_cfx_mask_denied   : inner instruction cfx mask denies -> ILLI
 #   unimplemented_cfx  : "访问未实现的核芯功能扩展 ... 触发 CFXREG"       [DADAO-22 §3]
 #   bad_register_combo : non-existent / over-count register combination => CFXREG
 #                        [DADAO-12: 共有寄存器设计规范 rc >= scratch_regs_num; SimRISC-11: 指令域与执行条件]
 RULE_CAUSE = {
     "reserved_cfxha": "ILLI",
-    "mask_forbidden": "ILLI",
+    "target_cfxtrap_denied": "CFXPERM",
+    "inner_cfx_mask_denied": "ILLI",
     "unimplemented_cfx": "CFXREG",
     "bad_register_combo": "CFXREG",
 }
@@ -108,7 +112,7 @@ PASS_TOKEN = {
     "m5_semi_write0": 0x41,
     "m5_semi_write": 0x42,
     "m5_perm_reserved_illi": 0x50,
-    "m5_perm_mask_illi": 0x51,
+    "m5_perm_mask_cfxperm": 0x51,
     "m5_perm_unimpl_cfxreg": 0x52,
     "m5_perm_badcombo_cfxreg": 0x53,
     "m5_trap_escape": 0x60,

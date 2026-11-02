@@ -8,26 +8,24 @@ which have no high-level IR form.
 
 > `TESTCASES-073t`（2026-10-27）从 `tests/unit/llvm/codegen/m5/` 迁入（P3 arch 迁移）；
 > 旧路径 `tests/unit/llvm/codegen/m5/` 保留为**符号链接**（删除见 `TESTCASES-076t`）。
-> cfx 归属：SEE bootrom 装入 **cfx_umon** 用户向量后以 user 模式运行 ⇒ `umon`。
+> cfx 归属：Node only。power → hmon（页表/PTW）→ 测试本体在 **hypv** 运行（用户 2026-11-02 裁定）。Tiny 不跑 arch。
 
 ## Pipeline
 
 ```
 llvm-mc --triple=dadao-unknown-elf -filetype=obj <vector>.s -> <vector>.o
 llvm-objcopy -O binary --only-section=.text <vector>.o        -> <vector>.bin
-qemu-system-dadao -M dadao-m1 -bios .dadao/tests/bootrom/bootrom.bin \
+qemu-system-dadao -M dadao-m1 -bios .dadao/tests/bootrom/step5/bootrom_step5.bin \
     -kernel <vector>.bin \
     -semihosting-config enable=on,target=native,chardev=semi \
     -chardev file,id=semi,path=<console> -d cpu -D <cpu log>
                                                 -> host exit code (+ console/file)
 ```
 
-The flat bin is loaded at the RAM base `0xFC00_0000_0000` (`-kernel`,
-ADR-0004 D2.3 path B); the SEE bootrom (`-bios`, QEMU-047t, sources now in
-`tests/shared/bootrom/`) starts at the reset PC `0xffff_ffff_0000`, installs the
-cfx user exception vector / clears the trap masks, and hands off to the
-application in *user* mode (Machine-01 §2).  No multi-TU ELF is used (ELF
-loading moved to M6, `ISS-168`).
+The flat bin is loaded at the Node profile ENTRY (`-kernel`); the Node BootROM
+(`tests/shared/bootrom/step5/`) starts at reset `0xffff_ffff_0000`, power hands
+to hmon, hmon installs the page table/PTW and hands the test body to **hypv**.
+No multi-TU ELF is used (ELF loading moved to M6, `ISS-168`).
 
 ## Independent oracle
 

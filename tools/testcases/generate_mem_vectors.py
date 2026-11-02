@@ -13,7 +13,7 @@ contracts/opcodes.yaml, .tao/contracts/contract-isa.md, and
 F10 design (方案B):
   - encoding class: base=rb3 (unused register), dest=rd1/ra1 (not rd0/ra0),
     store src=rd1/ra1 (not rd0/ra0), immu6=1 for multi.
-  - input_state presets rb3=0xFC0000000000 (single RAM base, 48-bit).
+  - input_state presets rb3=@RAM_BASE (selected profile RAM base, 48-bit).
   - All encoding cases: expected_state=null, expected_pc=null,
     expected_fault=null, status=active.
 
@@ -61,9 +61,21 @@ M1 = [r for r in ALL if r.get("scope") == "m1"]
 BY_KEY = {(r["id"], r["format"]): r for r in M1}
 
 # ── Constants ─────────────────────────────────────────────────────────
-RAM_BASE = 0xFC00_0000_0000      # rb3 preset value (single RAM base, cfxha 63)
-RAM_BASE_HEX = "0xFC0000000000"
-RAM_END = 0xFC00_00FF_FFFF       # RAM end (16 MiB)
+sys.path.insert(0, os.path.join(REPO, "tools", "testcases", "lib"))
+import machine_profile  # noqa: E402
+
+_RAM_PROFILE = machine_profile.load("tiny")
+RAM_BASE = _RAM_PROFILE.ram_base      # numeric base for oracle arithmetic
+RAM_BASE_HEX = "@ENTRY"            # emitted geometry token
+
+def tok(offset):
+    """Emit a @RAM_BASE token with a single signed offset (never a literal)."""
+    if offset == 0:
+        return "@ENTRY"
+    if offset > 0:
+        return "@ENTRY+0x%X" % offset
+    return "@ENTRY-0x%X" % (-offset)
+
 
 # Register assignments for F10 encoding vectors
 RB_BASE = 3   # rb3
@@ -127,8 +139,8 @@ def hex64(v):
 # ── Case template ────────────────────────────────────────────────────
 def make_case(mnem, insn, fmt, cls, word, input_state, expected_state,
               expected_fault=None, status="active", deferred_reason=None,
-              expected_pc=None, spec_cite="", notes=""):
-    return {
+              expected_pc=None, spec_cite="", notes="", profiles=None):
+    case = {
         "mnemonic": mnem,
         "id": insn,
         "format": fmt,
@@ -143,6 +155,9 @@ def make_case(mnem, insn, fmt, cls, word, input_state, expected_state,
         "spec_cite": spec_cite,
         "notes": notes,
     }
+    if profiles is not None:
+        case["profiles"] = profiles
+    return case
 
 # ── Word builder helper ──────────────────────────────────────────────
 def _build_encoding_word(rec, imms12=0):
@@ -297,18 +312,18 @@ def gen_legality_malign(rec):
     if fmt == "rrii":
         # rrii: encode misalignment into imms12; rd2 has no role in rrii EA
         word = _build_encoding_word(rec, misalign_off)
-        inp = {"rb": {f"rb{RB_BASE}": hex64(RAM_BASE)}}
-        notes = (f"legality MALIGN: EA={hex64(RAM_BASE + misalign_off)} "
+        inp = {"rb": {f"rb{RB_BASE}": tok(0)}}
+        notes = (f"legality MALIGN: EA={tok(misalign_off)} "
                  f"(imms12={misalign_off}), align={align}B → MALIGN (0x8C), "
                  f"contract-isa §4.1.1, legality_rules excp_malign")
     else:
         # rrri: EA = rb3 + rd2; rd2 preset to misalignment offset
         word = _build_encoding_word(rec)
         inp = {
-            "rb": {f"rb{RB_BASE}": hex64(RAM_BASE)},
+            "rb": {f"rb{RB_BASE}": tok(0)},
             "rd": {f"rd{RD_OFF}": hex64(misalign_off)},
         }
-        notes = (f"legality MALIGN: EA={hex64(RAM_BASE + misalign_off)} "
+        notes = (f"legality MALIGN: EA={tok(misalign_off)} "
                  f"(rd{RD_OFF} offset={misalign_off}), align={align}B → MALIGN (0x8C), "
                  f"contract-isa §4.1.1, legality_rules excp_malign")
     return make_case(mnem, insn, fmt, "legality", word, inp, None,
@@ -331,7 +346,8 @@ def gen_legality_cfxmem(rec):
     notes = (f"legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) "
              f"no RAM → CFXMEM (0x81), ADR-0020 D15 / ADR-0004 D5.8")
     return make_case(mnem, insn, fmt, "legality", word, inp, None,
-                     "CFXMEM", "active", None, None, sc, notes)
+                     "CFXMEM", "active", None, None, sc, notes,
+                     profiles=["tiny"])
 
 
 def gen_semantic(rec, addr_offset=0x100, mem_val=0x42):
@@ -359,8 +375,8 @@ def gen_semantic(rec, addr_offset=0x100, mem_val=0x42):
         word = _build_encoding_word(rec, addr_offset)
         if role == "dst":  # load
             inp = {
-                "rb": {f"rb{RB_BASE}": hex64(RAM_BASE)},
-                "memory": [{"address": hex64(ea), "value": hex64(mem_val)}]
+                "rb": {f"rb{RB_BASE}": tok(0)},
+                "memory": [{"address": tok(addr_offset), "value": hex64(mem_val)}]
             }
             if bank == "rd":
                 inp["rd"] = {ha_name: hex64(0)}
@@ -378,11 +394,11 @@ def gen_semantic(rec, addr_offset=0x100, mem_val=0x42):
             else:
                 out["ra"] = {ha_name: hex64(result)}
 
-            notes = (f"{mnem}: {ha_name} <- mem[{hex64(ea)}] = {hex64(mem_val)}, "
+            notes = (f"{mnem}: {ha_name} <- mem[{tok(addr_offset)}] = {hex64(mem_val)}, "
                      f"result={hex64(result)}, imms12=0x{addr_offset:x}")
         else:  # store
             inp = {
-                "rb": {f"rb{RB_BASE}": hex64(RAM_BASE)},
+                "rb": {f"rb{RB_BASE}": tok(0)},
                 "memory": []
             }
             if bank == "rd":
@@ -394,8 +410,8 @@ def gen_semantic(rec, addr_offset=0x100, mem_val=0x42):
 
             stored = _store_truncate(mnem, mem_val)
             out = {"rd": {}, "rb": {}, "ra": {},
-                   "memory": [{"address": hex64(ea), "value": hex64(stored)}]}
-            notes = (f"{mnem}: mem[{hex64(ea)}] <- {ha_name}={hex64(mem_val)}, "
+                   "memory": [{"address": tok(addr_offset), "value": hex64(stored)}]}
+            notes = (f"{mnem}: mem[{tok(addr_offset)}] <- {ha_name}={hex64(mem_val)}, "
                      f"stored={hex64(stored)}, imms12=0x{addr_offset:x}")
 
     else:  # rrri — multi
@@ -403,8 +419,8 @@ def gen_semantic(rec, addr_offset=0x100, mem_val=0x42):
         word = _build_encoding_word(rec)
         inp = {
             "rd": {f"rd{RD_OFF}": hex64(addr_offset)},
-            "rb": {f"rb{RB_BASE}": hex64(RAM_BASE)},
-            "memory": [{"address": hex64(ea), "value": hex64(mem_val)}]
+            "rb": {f"rb{RB_BASE}": tok(0)},
+            "memory": [{"address": tok(addr_offset), "value": hex64(mem_val)}]
         }
         if bank == "rd":
             inp["rd"][ha_name] = hex64(0) if role == "dst" else hex64(mem_val)
@@ -422,14 +438,14 @@ def gen_semantic(rec, addr_offset=0x100, mem_val=0x42):
                 out["rb"] = {ha_name: hex64(result)}
             else:
                 out["ra"] = {ha_name: hex64(result)}
-            notes = (f"{mnem}: {ha_name} <- mem[{hex64(ea)}] = {hex64(mem_val)}, "
+            notes = (f"{mnem}: {ha_name} <- mem[{tok(addr_offset)}] = {hex64(mem_val)}, "
                      f"result={hex64(result)}, rd{RD_OFF}(offset)={hex64(addr_offset)}, "
                      f"immu6={IMMU6}")
         else:  # stm
             stored = _store_truncate(mnem, mem_val)
             out = {"rd": {}, "rb": {}, "ra": {},
-                   "memory": [{"address": hex64(ea), "value": hex64(stored)}]}
-            notes = (f"{mnem}: mem[{hex64(ea)}] <- {ha_name}={hex64(mem_val)}, "
+                   "memory": [{"address": tok(addr_offset), "value": hex64(stored)}]}
+            notes = (f"{mnem}: mem[{tok(addr_offset)}] <- {ha_name}={hex64(mem_val)}, "
                      f"stored={hex64(stored)}, rd{RD_OFF}(offset)={hex64(addr_offset)}, "
                      f"immu6={IMMU6}")
 
@@ -467,8 +483,8 @@ def gen_boundary(rec, addr_offset=0x0, mem_val=0xDEADBEEF):
         word = _build_encoding_word(rec, addr_offset)
         if role == "dst":  # load
             inp = {
-                "rb": {f"rb{RB_BASE}": hex64(RAM_BASE)},
-                "memory": [{"address": hex64(ea), "value": hex64(mem_val)}]
+                "rb": {f"rb{RB_BASE}": tok(0)},
+                "memory": [{"address": tok(addr_offset), "value": hex64(mem_val)}]
             }
             if bank == "rd":
                 inp["rd"] = {ha_name: hex64(0)}
@@ -486,11 +502,11 @@ def gen_boundary(rec, addr_offset=0x0, mem_val=0xDEADBEEF):
             else:
                 out["ra"] = {ha_name: hex64(result)}
 
-            notes = (f"boundary: {ha_name} <- mem[{hex64(ea)}] = {hex64(mem_val)}, "
+            notes = (f"boundary: {ha_name} <- mem[{tok(addr_offset)}] = {hex64(mem_val)}, "
                      f"result={hex64(result)}, imms12=0x{addr_offset:x}")
         else:  # store
             inp = {
-                "rb": {f"rb{RB_BASE}": hex64(RAM_BASE)},
+                "rb": {f"rb{RB_BASE}": tok(0)},
                 "memory": []
             }
             if bank == "rd":
@@ -502,8 +518,8 @@ def gen_boundary(rec, addr_offset=0x0, mem_val=0xDEADBEEF):
 
             stored = _store_truncate(mnem, mem_val)
             out = {"rd": {}, "rb": {}, "ra": {},
-                   "memory": [{"address": hex64(ea), "value": hex64(stored)}]}
-            notes = (f"boundary: mem[{hex64(ea)}] <- {ha_name}={hex64(mem_val)}, "
+                   "memory": [{"address": tok(addr_offset), "value": hex64(stored)}]}
+            notes = (f"boundary: mem[{tok(addr_offset)}] <- {ha_name}={hex64(mem_val)}, "
                      f"stored={hex64(stored)}, imms12=0x{addr_offset:x}")
 
     else:  # rrri — multi
@@ -511,8 +527,8 @@ def gen_boundary(rec, addr_offset=0x0, mem_val=0xDEADBEEF):
         word = _build_encoding_word(rec)
         inp = {
             "rd": {f"rd{RD_OFF}": hex64(addr_offset)},
-            "rb": {f"rb{RB_BASE}": hex64(RAM_BASE)},
-            "memory": [{"address": hex64(ea), "value": hex64(mem_val)}]
+            "rb": {f"rb{RB_BASE}": tok(0)},
+            "memory": [{"address": tok(addr_offset), "value": hex64(mem_val)}]
         }
         if bank == "rd":
             inp["rd"][ha_name] = hex64(0) if role == "dst" else hex64(mem_val)
@@ -530,13 +546,13 @@ def gen_boundary(rec, addr_offset=0x0, mem_val=0xDEADBEEF):
                 out["rb"] = {ha_name: hex64(result)}
             else:
                 out["ra"] = {ha_name: hex64(result)}
-            notes = (f"boundary: {ha_name} <- mem[{hex64(ea)}] = {hex64(mem_val)}, "
+            notes = (f"boundary: {ha_name} <- mem[{tok(addr_offset)}] = {hex64(mem_val)}, "
                      f"result={hex64(result)}, zero offset, immu6={IMMU6}")
         else:  # stm
             stored = _store_truncate(mnem, mem_val)
             out = {"rd": {}, "rb": {}, "ra": {},
-                   "memory": [{"address": hex64(ea), "value": hex64(stored)}]}
-            notes = (f"boundary: mem[{hex64(ea)}] <- {ha_name}={hex64(mem_val)}, "
+                   "memory": [{"address": tok(addr_offset), "value": hex64(stored)}]}
+            notes = (f"boundary: mem[{tok(addr_offset)}] <- {ha_name}={hex64(mem_val)}, "
                      f"stored={hex64(stored)}, zero offset, immu6={IMMU6}")
 
     return make_case(mnem, insn, fmt, "boundary", word, inp, out,

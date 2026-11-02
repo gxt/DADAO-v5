@@ -43,8 +43,11 @@ OPCODES = os.path.join(REPO, "contracts", "opcodes.yaml")
 # Harness primitives (single source of truth for the inst test-binary layout).
 sys.path.insert(0, os.path.join(REPO, "tools", "testcases", "lib"))
 from build_test_binary import (  # noqa: E402
-    BINARY_BASE, emit_load_imm64_rd, encode_illi_poison,
+    set_profile as _set_profile, get_profile,
+    emit_load_imm64_rd, encode_illi_poison,
 )
+_set_profile("tiny")
+BINARY_BASE = get_profile().entry
 
 GENERATOR_PATH = "tools/testcases/generate_misc.py"
 
@@ -111,23 +114,26 @@ def _illegal_escape_sequence(imms18):
     the cfxha/frame check (no frame) => CFXESC into cfx63, whose vector is
     unset => CFXMEM (0x81), so the expected-ILLI case FAILs.
     """
-    def addr(i):
-        return BINARY_BASE + 4 * i
-
-    # Layout: preamble[0..2], escape[3], HANDLER[4..9], exit section[10...].
-    preamble = (emit_load_imm64_rd(22, addr(4))
-                + [_cfx2rc(3, 3, 10, 22)])
+    # Layout: preamble[0..2], escape[3], HANDLER[4..9].
+    # The handler address is built *relative to the current IP* (rb0), not
+    # from a profile-dependent absolute entry: rb2rd copies IP, add.si +16
+    # reaches the handler at word 4.  This keeps the same case valid on both
+    # Tiny and Node.
+    preamble = [
+        _enc("rb2rd_orri_rb", rdhb=22, rbhc=0, immu6=1),  # rd22 = rb0 (IP)
+        _enc("add.si_riii_rd", rdha=22, imms18=16),       # + 4 words
+        _cfx2rc(3, 3, 10, 22),                            # cfx3.hypv.vector
+    ]
     body = [_escape(63, imms18)]
     handler = [
         _cfx2rd(3, 5, 2, 30),            # cfx3 cause_id -> rd30
         _enc("set.zw_rwii_rd", rdha=31, wpN=0, immu16=0x0100),  # ILLI one-hot
         _xor_o(30, 30, 31),              # 0 iff cause == ILLI
-        _br_nz(30, 2),                   # non-ILLI -> UNDI word (index 9)
-        encode_illi_poison(),            # index 8: ILLI path => exit 0x88
-        0x00000000,                      # index 9: reserved word => UNDI 0x89
+        _br_nz(30, 2),                   # non-ILLI -> UNDI word (offset 2)
+        encode_illi_poison(),            # ILLI path => exit 0x88
+        0x00000000,                      # reserved word => UNDI 0x89
     ]
     seq = preamble + body + handler
-    assert len(preamble) == 3, len(preamble)
     assert len(seq) == 10, len(seq)
     return seq
 
@@ -184,7 +190,7 @@ ESCAPE_ILLEGAL_IMMS18 = (
 
 def _case(mnemonic, insn, fmt, cls, word, input_state, expected_state,
           expected_fault=None, expected_pc=None, spec_cite="", notes="",
-          status="active", deferred_reason=None, sequence=None):
+          status="active", deferred_reason=None, sequence=None, profiles=None):
     case = {
         "mnemonic": mnemonic,
         "id": insn,
@@ -202,6 +208,8 @@ def _case(mnemonic, insn, fmt, cls, word, input_state, expected_state,
     }
     if sequence is not None:
         case["sequence"] = [_hex8(w) for w in sequence]
+    if profiles is not None:
+        case["profiles"] = profiles
     return case
 
 
@@ -267,6 +275,7 @@ def generate():
                   "ILLI is observable (non-ILLI exits via UNDI/CFXMEM)."
                   % (imms18, why),
             sequence=_illegal_escape_sequence(imms18),
+            profiles=["node"],
         ))
 
     # ── 原专门非法指令已于 ADR-0012 D3.5 删除（ILLI 异常保留）→ 不再产该向量 ──

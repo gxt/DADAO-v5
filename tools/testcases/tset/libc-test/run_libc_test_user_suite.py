@@ -35,7 +35,7 @@ Pipeline per case::
           <dynamic round only: -fPIC> \
           -c <case>.c  -> <case>.o
 
-    # static line: P1 musl products, lld DEFAULT base (never -T dadao.lds)
+    # static line: P1 musl products, lld DEFAULT base (never -T dadao-tiny.lds)
     # compiler-rt builtins are grouped with libc.a (they reference each other):
     ld.lld -o <case>.elf <musl>/lib/crt1.o <case>.o <libtest.a> \
            --start-group <musl>/lib/libc.a <builtins archive> --end-group
@@ -59,8 +59,8 @@ command line is recorded in the JSON/report so the split is auditable per case
 (``compile_cmd``).
 
 Base address (ISS-247): the link line carries **no** ``-T``/linker script, so
-lld's default base is used; ``tests/shared/linker/dadao.lds`` (``RAM ORIGIN =
-0xFC00_0000_0000``) cannot be loaded by ``qemu-user`` on this 47-bit host VA.
+lld's default base is used; ``tests/shared/linker/dadao-tiny.lds`` (``RAM ORIGIN =
+the old high RAM base``) cannot be loaded by ``qemu-user`` on this 47-bit host VA.
 Every image's minimum ``PT_LOAD`` is read back from the file and an image at
 the scripted base is rejected.
 
@@ -524,7 +524,7 @@ FAULT_NAMES = {
     0x8B: "RASUF", 0x8C: "MALIGN", 0x8D: "IALIGN",
 }
 
-# The scripted base of tests/shared/linker/dadao.lds (ISS-247).
+# The scripted base of tests/shared/linker/dadao-tiny.lds (ISS-247).
 SCRIPTED_BASE = 0xFC0000000000
 
 PT_LOAD = 1
@@ -1143,7 +1143,7 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
         return case
     if case.min_pt_load == SCRIPTED_BASE:
         case.klass = "blocked"
-        case.reason = (f"ELF min PT_LOAD is the scripted dadao.lds base "
+        case.reason = (f"ELF min PT_LOAD is the scripted dadao-tiny.lds base "
                        f"0x{SCRIPTED_BASE:x} (ISS-247)")
         return case
     if cfg["mode"] == "static" and case.interp:

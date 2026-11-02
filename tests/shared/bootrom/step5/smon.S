@@ -25,7 +25,7 @@
 @@   rd14 PTE readback via DMA from PA 0x8000
 @@   rd15 DMA status of the page-table copy (DONE = 2)
 @@   rd17/rd18/rd19 cg_reg_deleg readback of cfx_ptw/cfx_pmem/cfx_smon (0x8)
-@@   rd20 power BootROM header word at 0xffff_fffc_0000 (0x4442_4f54_0001_0002)
+@@   rd20 power BootROM header word at BOOTROM_BASE (0x4442_4f54_0001_0002)
 @@   rd21 cfx_power supv cfxmem (0xffff_ffff_ffff_fff3: only bit2 cleared)
 @@   rd22 cfx_power cg_reg_deleg (all ones: never opened)
 @@
@@ -43,6 +43,9 @@
 	or.w	\rd, wp3, \w3
 	.endif
 	.endm
+
+	.include "tests/shared/asm/machine-node.inc"
+	.include "tests/shared/asm/machine.inc"
 
 	.text
 	.globl	_start
@@ -77,7 +80,7 @@ smon_clear:
 	@@ rd20 is cleared first so a rejected read fails visibly, and it is read
 	@@ after the SRAM clear because the clear loop uses rd8-rd63 as zeros.
 	LD64	rd20, 0x0000, 0x0000, 0x0000, 0x0000
-	LD64	rb4, 0x0000, 0xfffc, 0xffff, 0x0000	@@ 0xffff_fffc_0000
+	LOAD_ADDR rb4, BOOTROM_BASE
 	ld.o	rd20, [rb4, 0]
 
 	@@ --- 2b. L1 PTE at SRAM offset 0x8000 (L1 index 0x1000) ---

@@ -14,7 +14,7 @@ This directory contains the QEMU-based ISA semantic test harness for `dadao-m1`.
 | File | Purpose |
 |------|---------|
 | `gen_trampoline.py` | Generates ROM trampoline blob (`trampoline.bin`) |
-| `trampoline.bin` | ROM trampoline (16 bytes, 4 instructions) |
+| `trampoline.bin` | ROM trampoline (profile-derived size/instructions) |
 | `build_test_binary.py` | Builds test binary from vector YAML |
 | `run_qemu_test.py` | Main test runner |
 | `verify_harness_dump.py` | Harness dump channel verification (QMP protocol, byte layout, 10a `-device loader` channel) |
@@ -28,7 +28,7 @@ This directory contains the QEMU-based ISA semantic test harness for `dadao-m1`.
 python3 tools/testcases/lib/gen_trampoline.py
 ```
 
-This generates `tools/testcases/lib/trampoline.bin` (16 bytes).
+This generates `tools/testcases/lib/trampoline.bin` from the tiny profile (size derived).
 
 ### Run a single test
 
@@ -84,7 +84,8 @@ python3 tools/testcases/lib/run_qemu_test.py --qemu /path/to/qemu-system-dadao .
 
 ## Binary Layout
 
-The test binary is loaded at the RAM base `0xFC00_0000_0000` (ADR-0004 D2.2/R3, rev. 2026-10-11):
+The test binary is loaded at the selected profile RAM entry (`@ENTRY`, see
+`tests/shared/machine-profiles.yaml`):
 
 ```
 [section 1] loader   - Set rd/rb/ra registers from input_state, write memory
@@ -95,7 +96,7 @@ The test binary is loaded at the RAM base `0xFC00_0000_0000` (ADR-0004 D2.2/R3, 
 
 ### PC-affecting cases (`expected_pc`)
 
-Vectors write the tested instruction as if it sat at `0xFC00_0000_0000`, so the
+Vectors write the tested instruction as if it sat at the profile entry (`@ENTRY`), so the
 loader prologue in front of it shifts the picture:
 
 - `call` — emitted as `[loader] [call] [ILLI poison] [exit]`; the return address

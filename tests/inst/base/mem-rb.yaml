@@ -11,7 +11,7 @@
     word: '0x22043000'
   input_state:
     rb:
-      rb3: '0xFC0000000000'
+      rb3: '@ENTRY'
   expected_state: null
   expected_pc: null
   expected_fault: null
@@ -41,15 +41,15 @@
     word: '0x22043007'
   input_state:
     rb:
-      rb3: '0x0000FC0000000000'
+      rb3: '@ENTRY'
   expected_state: null
   expected_pc: null
   expected_fault: MALIGN
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.o'
-  notes: 'legality MALIGN: EA=0x0000FC0000000007 (imms12=7), align=8B → MALIGN (0x8C),
-    contract-isa §4.1.1, legality_rules excp_malign'
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (imms12=7), align=8B → MALIGN (0x8C), contract-isa
+    §4.1.1, legality_rules excp_malign'
 - mnemonic: ld.o
   id: ld.o_rrii_rb
   format: rrii
@@ -67,6 +67,8 @@
   spec_cite: 'SimRISC-01: ld.o'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
     (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+  profiles:
+  - tiny
 - mnemonic: ld.o
   id: ld.o_rrii_rb
   format: rrii
@@ -75,10 +77,10 @@
     word: '0x22043100'
   input_state:
     rb:
-      rb3: '0x0000FC0000000000'
+      rb3: '@ENTRY'
       rb1: '0x0000000000000000'
     memory:
-    - address: '0x0000FC0000000100'
+    - address: '@ENTRY+0x100'
       value: '0x0000000000000042'
   expected_state:
     rd: {}
@@ -91,7 +93,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.o'
-  notes: 'ld.o: rb1 <- mem[0x0000FC0000000100] = 0x0000000000000042, result=0x0000000000000042,
+  notes: 'ld.o: rb1 <- mem[@ENTRY+0x100] = 0x0000000000000042, result=0x0000000000000042,
     imms12=0x100'
 - mnemonic: ld.o
   id: ld.o_rrii_rb
@@ -101,10 +103,10 @@
     word: '0x22043000'
   input_state:
     rb:
-      rb3: '0x0000FC0000000000'
+      rb3: '@ENTRY'
       rb1: '0x0000000000000000'
     memory:
-    - address: '0x0000FC0000000000'
+    - address: '@ENTRY'
       value: '0x00000000DEADBEEF'
   expected_state:
     rd: {}
@@ -117,7 +119,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.o'
-  notes: 'boundary: rb1 <- mem[0x0000FC0000000000] = 0x00000000DEADBEEF, result=0x00000000DEADBEEF,
+  notes: 'boundary: rb1 <- mem[@ENTRY] = 0x00000000DEADBEEF, result=0x00000000DEADBEEF,
     imms12=0x0'
 - mnemonic: st.o
   id: st.o_rrii_rb
@@ -127,7 +129,7 @@
     word: '0x23043000'
   input_state:
     rb:
-      rb3: '0xFC0000000000'
+      rb3: '@ENTRY'
   expected_state: null
   expected_pc: null
   expected_fault: null
@@ -143,15 +145,15 @@
     word: '0x23043007'
   input_state:
     rb:
-      rb3: '0x0000FC0000000000'
+      rb3: '@ENTRY'
   expected_state: null
   expected_pc: null
   expected_fault: MALIGN
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: st.o'
-  notes: 'legality MALIGN: EA=0x0000FC0000000007 (imms12=7), align=8B → MALIGN (0x8C),
-    contract-isa §4.1.1, legality_rules excp_malign'
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (imms12=7), align=8B → MALIGN (0x8C), contract-isa
+    §4.1.1, legality_rules excp_malign'
 - mnemonic: st.o
   id: st.o_rrii_rb
   format: rrii
@@ -169,6 +171,8 @@
   spec_cite: 'SimRISC-01: st.o'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
     (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+  profiles:
+  - tiny
 - mnemonic: st.o
   id: st.o_rrii_rb
   format: rrii
@@ -177,7 +181,7 @@
     word: '0x23043100'
   input_state:
     rb:
-      rb3: '0x0000FC0000000000'
+      rb3: '@ENTRY'
       rb1: '0x0000000000000042'
     memory: []
   expected_state:
@@ -185,14 +189,14 @@
     rb: {}
     ra: {}
     memory:
-    - address: '0x0000FC0000000100'
+    - address: '@ENTRY+0x100'
       value: '0x0000000000000042'
   expected_pc: null
   expected_fault: null
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: st.o'
-  notes: 'st.o: mem[0x0000FC0000000100] <- rb1=0x0000000000000042, stored=0x0000000000000042,
+  notes: 'st.o: mem[@ENTRY+0x100] <- rb1=0x0000000000000042, stored=0x0000000000000042,
     imms12=0x100'
 - mnemonic: st.o
   id: st.o_rrii_rb
@@ -202,7 +206,7 @@
     word: '0x23043000'
   input_state:
     rb:
-      rb3: '0x0000FC0000000000'
+      rb3: '@ENTRY'
       rb1: '0x00000000DEADBEEF'
     memory: []
   expected_state:
@@ -210,14 +214,14 @@
     rb: {}
     ra: {}
     memory:
-    - address: '0x0000FC0000000000'
+    - address: '@ENTRY'
       value: '0x00000000DEADBEEF'
   expected_pc: null
   expected_fault: null
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: st.o'
-  notes: 'boundary: mem[0x0000FC0000000000] <- rb1=0x00000000DEADBEEF, stored=0x00000000DEADBEEF,
+  notes: 'boundary: mem[@ENTRY] <- rb1=0x00000000DEADBEEF, stored=0x00000000DEADBEEF,
     imms12=0x0'
 - mnemonic: ldm.o
   id: ldm.o_rrri_rb
@@ -227,7 +231,7 @@
     word: '0x3A043081'
   input_state:
     rb:
-      rb3: '0xFC0000000000'
+      rb3: '@ENTRY'
   expected_state: null
   expected_pc: null
   expected_fault: null
@@ -257,7 +261,7 @@
     word: '0x3A043081'
   input_state:
     rb:
-      rb3: '0x0000FC0000000000'
+      rb3: '@ENTRY'
     rd:
       rd2: '0x0000000000000007'
   expected_state: null
@@ -266,8 +270,8 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.o'
-  notes: 'legality MALIGN: EA=0x0000FC0000000007 (rd2 offset=7), align=8B → MALIGN
-    (0x8C), contract-isa §4.1.1, legality_rules excp_malign'
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN (0x8C),
+    contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.o
   id: ldm.o_rrri_rb
   format: rrri
@@ -285,6 +289,8 @@
   spec_cite: 'SimRISC-01: ldm.o'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
     (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+  profiles:
+  - tiny
 - mnemonic: ldm.o
   id: ldm.o_rrri_rb
   format: rrri
@@ -295,10 +301,10 @@
     rd:
       rd2: '0x0000000000000100'
     rb:
-      rb3: '0x0000FC0000000000'
+      rb3: '@ENTRY'
       rb1: '0x0000000000000000'
     memory:
-    - address: '0x0000FC0000000100'
+    - address: '@ENTRY+0x100'
       value: '0x0000000000000042'
   expected_state:
     rd: {}
@@ -311,7 +317,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.o'
-  notes: 'ldm.o: rb1 <- mem[0x0000FC0000000100] = 0x0000000000000042, result=0x0000000000000042,
+  notes: 'ldm.o: rb1 <- mem[@ENTRY+0x100] = 0x0000000000000042, result=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: ldm.o
   id: ldm.o_rrri_rb
@@ -323,10 +329,10 @@
     rd:
       rd2: '0x0000000000000000'
     rb:
-      rb3: '0x0000FC0000000000'
+      rb3: '@ENTRY'
       rb1: '0x0000000000000000'
     memory:
-    - address: '0x0000FC0000000000'
+    - address: '@ENTRY'
       value: '0x00000000DEADBEEF'
   expected_state:
     rd: {}
@@ -339,7 +345,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.o'
-  notes: 'boundary: rb1 <- mem[0x0000FC0000000000] = 0x00000000DEADBEEF, result=0x00000000DEADBEEF,
+  notes: 'boundary: rb1 <- mem[@ENTRY] = 0x00000000DEADBEEF, result=0x00000000DEADBEEF,
     zero offset, immu6=1'
 - mnemonic: stm.o
   id: stm.o_rrri_rb
@@ -349,7 +355,7 @@
     word: '0x3B043081'
   input_state:
     rb:
-      rb3: '0xFC0000000000'
+      rb3: '@ENTRY'
   expected_state: null
   expected_pc: null
   expected_fault: null
@@ -379,7 +385,7 @@
     word: '0x3B043081'
   input_state:
     rb:
-      rb3: '0x0000FC0000000000'
+      rb3: '@ENTRY'
     rd:
       rd2: '0x0000000000000007'
   expected_state: null
@@ -388,8 +394,8 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.o'
-  notes: 'legality MALIGN: EA=0x0000FC0000000007 (rd2 offset=7), align=8B → MALIGN
-    (0x8C), contract-isa §4.1.1, legality_rules excp_malign'
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN (0x8C),
+    contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: stm.o
   id: stm.o_rrri_rb
   format: rrri
@@ -407,6 +413,8 @@
   spec_cite: 'SimRISC-01: stm.o'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
     (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+  profiles:
+  - tiny
 - mnemonic: stm.o
   id: stm.o_rrri_rb
   format: rrri
@@ -417,24 +425,24 @@
     rd:
       rd2: '0x0000000000000100'
     rb:
-      rb3: '0x0000FC0000000000'
+      rb3: '@ENTRY'
       rb1: '0x0000000000000042'
     memory:
-    - address: '0x0000FC0000000100'
+    - address: '@ENTRY+0x100'
       value: '0x0000000000000042'
   expected_state:
     rd: {}
     rb: {}
     ra: {}
     memory:
-    - address: '0x0000FC0000000100'
+    - address: '@ENTRY+0x100'
       value: '0x0000000000000042'
   expected_pc: null
   expected_fault: null
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.o'
-  notes: 'stm.o: mem[0x0000FC0000000100] <- rb1=0x0000000000000042, stored=0x0000000000000042,
+  notes: 'stm.o: mem[@ENTRY+0x100] <- rb1=0x0000000000000042, stored=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: stm.o
   id: stm.o_rrri_rb
@@ -446,22 +454,22 @@
     rd:
       rd2: '0x0000000000000000'
     rb:
-      rb3: '0x0000FC0000000000'
+      rb3: '@ENTRY'
       rb1: '0x00000000DEADBEEF'
     memory:
-    - address: '0x0000FC0000000000'
+    - address: '@ENTRY'
       value: '0x00000000DEADBEEF'
   expected_state:
     rd: {}
     rb: {}
     ra: {}
     memory:
-    - address: '0x0000FC0000000000'
+    - address: '@ENTRY'
       value: '0x00000000DEADBEEF'
   expected_pc: null
   expected_fault: null
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.o'
-  notes: 'boundary: mem[0x0000FC0000000000] <- rb1=0x00000000DEADBEEF, stored=0x00000000DEADBEEF,
+  notes: 'boundary: mem[@ENTRY] <- rb1=0x00000000DEADBEEF, stored=0x00000000DEADBEEF,
     zero offset, immu6=1'

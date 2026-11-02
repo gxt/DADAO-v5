@@ -10,9 +10,9 @@
 @@       encoded verbatim (LLVM-045t / ISS-128).
 @@
 @@ Layout:
-@@   [0x00] or.w   rb16, wp1, 0x00ff   ; build SYS_EXIT block address (RAM)
-@@   [0x04] or.w   rb16, wp0, 0xf000   ; rb16 = 0xFC00_0000_00ff_f000
-@@   [0x08] or.w   rb16, wp2, 0xfc00   ; (RAM base high wyde, cfxha 63)
+@@   [0x00] set.zw rb16, wp0, 0x0000   ; build SYS_EXIT block address (RAM)
+@@   [0x04] or.w   rb16, wp1, 0xff7e   ; rb16 = EXIT_BLOCK (0xFFFF_FF7E_0000)
+@@   [0x08] or.w   rb16, wp2, 0xffff   ; (RAM base high wyde, profile tiny)
 @@   [0x0C] set.zw rd6, wp1, 0x0002    ; block[0] = 0x20026
 @@   [0x10] or.w   rd6, wp0, 0x0026
 @@   [0x14] st.o   rd6, [rb16, 0]
@@ -31,14 +31,14 @@
 @@   so it skips the three error-path instructions.
 @@
 @@ Entry state (ADR-0004 D6.5):
-@@   rb0=0xFC00_0000_0000 (PC), rb1=0xFC00_0000_00ff_0000 (SP), rb2=0xFC00_0000_0000
+@@   rb0=ENTRY (PC), rb1=SP, rb2=ENTRY
 @@   rd0=0 (hardwired), all other rd/rb/ra = 0
 
 _start:
-    @@ 1. Build the SYS_EXIT argument block at rb16 = 0xFC00_0000_00ff_f000.
-    or.w    rb16, wp1, 0x00ff
-    or.w    rb16, wp0, 0xf000
-    or.w    rb16, wp2, 0xfc00
+    @@ 1. Build the SYS_EXIT argument block at rb16 = EXIT_BLOCK (0xFFFF_FF7E_0000).
+    set.zw  rb16, wp0, 0x0000
+    or.w    rb16, wp1, 0xff7e
+    or.w    rb16, wp2, 0xffff
     set.zw  rd6, wp1, 0x0002
     or.w    rd6, wp0, 0x0026
     st.o    rd6, [rb16, 0]

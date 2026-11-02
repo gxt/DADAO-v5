@@ -64,8 +64,8 @@
 | `unit/llvm/e2e/lit/*.test` | U | 工具链端到端 smoke/FP/clmul/weak/CM（14）；`TESTCASES-084t` 由顶层 `e2e/` 归入 | `make check-lit` |
 | `unit/llvm/e2e/*.c|*.s|*.lds` | U | 上述 `.test` 的源（9 个已无 runner，见 `INVENTORY §7.4`） | 经 `.test` |
 | `shared/bootrom/` | S 载体 | SEE bootrom 源 + 链接脚本（legacy `bootrom.{S,lds}`/`bootrom_app.S`；step5 `step5/{power,hmon,smon}.{S,lds}` 与 256 KiB BootROM 打包；`make build-bootrom` 用） | — |
-| `shared/crt0/codegen_crt0.s` | 共享 glue | 单 TU/多 TU 端到端启动桩（`_start` → `@main` → `SYS_EXIT`） | 被 `test-codegen`/`test-elf`/lit/e2e 引用 |
-| `shared/linker/{dadao.lds,dadao-dyn.lds}` | 共享 glue | M4 静态布局 / ET_DYN 动态布局链接脚本 | 同上 + musl/P5 驱动（dyn） |
+| `shared/crt0/minimal_crt0.s` | 共享 glue | 单 TU/多 TU 端到端启动桩（`_start` → `@main` → `SYS_EXIT`） | 被 `test-codegen`/`test-elf`/lit/e2e 引用 |
+| `shared/linker/{dadao-tiny.lds,dadao-dyn.lds}` | 共享 glue | M4 静态布局 / ET_DYN 动态布局链接脚本 | 同上 + musl/P5 驱动（dyn） |
 | `shared/runtime/{dadao_mem_runtime.ll,dadao_user_dyn_probe.c}` | 共享 glue | freestanding `mem*` 运行时 + 动态装载 auxv 探针程序 | `test-m6`/embench/手工 |
 | `case-ledger.tsv` | — | 逐条身份清单（1,962 行含表头；生成物） | `make check-case-ledger`（L1） |
 

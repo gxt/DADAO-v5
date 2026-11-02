@@ -22,7 +22,7 @@
 #
 # Entry / exit channel (frozen by the M3 gate, ADR-0004 D3 superseded by
 # ADR-0020 D8): every program defines `define i64 @main()`; the crt0 `_start`
-# stub (tests/shared/crt0/codegen_crt0.s) calls it, reports the returned value from
+# stub (tests/shared/crt0/minimal_crt0.s) calls it, reports the returned value from
 # rd8 (contract-abi.md §6.1, SPEC-124t) through the semihosting SYS_EXIT
 # service, then halts.  The guest process exit code is the low byte of that
 # value, constrained to 0x00..0x7F so it can never collide with a machine-fault
