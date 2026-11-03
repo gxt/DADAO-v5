@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M11
 **依赖**：`QEMU-079t`（profile 运行时化 / Tiny）、`QEMU-080t`（Node 几何，移除 legacy profile）、`TESTCASES-094t`（`integ049t` 期望已按 `spec/Machine-v5 §1.1` 派生，`space_power` 以 BLOCKED 移交本任务）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地（仓库根；组件源树 `.work/source/qemu` 为 base+1 单提交、`git status` 干净；实现落任务分支 `QEMU-082t`，不 merge、不 push）
@@ -135,10 +135,48 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`.work/evidence/QEMU-082t/run.sh --inject` = **25/25 PASS**，`run.EXIT=0`（逐项打印 name/expected/actual/rc）。核心：integ049t Node **12/12**（`[PASS] space_power ... 5/3ff_ffc0_0000/40_0000/5`，rc=0）；Tiny `cfx2rd cfx63,cg7,rc0` 进程退出 **132（0x84 CFXREG）**、输出无描述符值（`!cfx_enabled` 在 `cg==7` 前，helper_cfx2rd 段内 11 < 79 行）；check-interface rc=0；check-arch-smoke rc=0（`Results: 10/10 passed` + 25-service）；check-inst rc=0（Node 963/968、0 failed、5 deferred；Tiny 44/44）。
+**修改文件**：`.work/source/qemu/target/dadao/helper.c`（base+1 amend：c79f328→94dc00a，diffstat 仅该文件 +15/−11）；`components/qemu/patches/target/dadao/helper.c.patch`（`make_patch.py qemu` 重导出 1 written/62 unchanged）；`components/qemu/changelog.md`（`## M11` 条目）；`.tao/knowledge/milestones.md`（QEMU-082t 行→待验收）；本任务书；`.work/evidence/QEMU-082t/run.sh`+`run.EXIT`（gitignored）；日志 `.work/log/qemu/QEMU-082t-*.log`。`git status` 仅上述 4 个跟踪文件。
+**验收结果**：build-qemu rc=0；install-host rc=0；`qemu-system-dadao` md5 `b26c558d7906c47dde3b6a94afe01d9f`、`qemu-dadao` md5 `d214ee09fb9ab7e54994401980ea5a46`，build 树与安装根两两一致。check-patch-tree rc=0；check-source-state rc=0（qemu `count=1 clean=True`）；check-component-changelog / check-milestones-fresh / check-tasks rc=0。L1 `make -k check` **rc=2**：唯一红 `check-knowledge-refs`（131 悬空 `.work/**`，均为既往任务产物；临时 worktree afc4e319 基线 165 条 ⇒ 无新增）。L2 `make -k check-modules` **rc=2**：仅既有红 `DADAO-E2E :: mcmodel.test`（161/162）与 `run_codegen_e2e`（0/19，RASOF，`profile=tiny`）；QEMU-081t 基线日志为 19/19 PASS，两红为 QEMU-079t 后既有、与 cg7 无关。注入：旧值（`0x3FFFFFC0000`/`0x40000`）→ build/install rc=0 → integ049t **rc=1、11 PASS + `space_power` FAIL**（`rd11 got=0x3fffffc0000`、`rd12 got=0x40000`，`(cfxha<<42)|start` 不符）→ `cp`+`md5sum -c` 还原（`f2d818deb06e491cb846fb99d5c70900`，源树 dirty=0）→ 重建重装 → **12/12 rc=0**；全程未用 git 还原。
+**新发现/坑**：① L2 `mcmodel.test` / `run_codegen_e2e` 自 QEMU-079t（Tiny trampoline 变更）起既红，此前未登记，建议主会话记 issue；② 独立 worktree 的 `.work/build` 为空，`install-host` 会重建整个 LLVM；本任务以 `.work/build/{llvm,compiler-rt-builtins}` 软链主树同源产物（源树本就共享），否则不可行；③ `check-knowledge-refs` 在空 `.work` 的新 worktree 恒红，与代码无关。
+**遗留问题**：无本任务遗留。既有红（L1 krefs、L2 mcmodel/codegen）按上述归因，未修（范围外）。
+**收尾结论（architect，2026-11-03 18:30）**：reviewer 第 1 轮 **Accepted**（146/174 行原文保留）；F1 更正为 L2 `mcmodel.test` 失败位置 `162 of 162`（执行序号，非失败数）、F2 更正 L1 同树基线为 **132→131**，均不改「无新增红」结论；F3（`.work/source`/`.dadao` 全仓共享，注入窗口内共享安装根短暂为被注入二进制）记环境口径，后续 QEMU 注入须与前序任务串行。
 
 ## 审阅记录
+
+### 第 1 轮 reviewer 验收（2026-11-03）——判决：**Accepted**
+
+**重跑记录（我的命令/输出/rc，不采信完成区转述；长日志 `.work/log/qemu/QEMU-082t-review-*.log`）**
+
+1. 脚本审计：`run.sh` 每条断言均有可达 FAIL 路径（B 轮证实），计数 `grep -c` 现场统计、逐条捕命令自身 rc、无 `| tee` 吞码 ⇒ 合格。
+2. A `./.work/evidence/QEMU-082t/run.sh --inject` ⇒ **rc=0，25/25 PASS**（17:35:48→17:48:00，732 s）：`2a check-patch-tree rc=0`、`2b check-source-state rc=0 count=1 clean=True`、`3a/3b build/install rc=0`、`3c` md5 `b26c558d7906c47dde3b6a94afe01d9f`/`d214ee09fb9ab7e54994401980ea5a46` build==install、`4a integ049t rc=0 PASS=12 FAIL=0`、`4b space_power PASS`、`5a Tiny exit 132`、`6/7/8 rc=0`（arch-smoke `Results: 10/10 passed`+25-service；inst `968 total,963 passed,0 failed,5 deferred` / `44 total,44 passed`）、`9a L1 rc=2` 唯一红 krefs、`10 L2 rc=2` 非基线 FAIL=0、`11a–11d` 注入回绿全 PASS ⇒ 25/25、`run.EXIT=0`。
+3. B **我独立注入**（只把 `power[2]` 改回 `0x40000ULL`，锚点与 engineer 不同）⇒ `inject_rc=0`，**重跑同一 `run.sh` ⇒ rc=1**：`[FAIL] 2a rc=2`、`[FAIL] 2b dirty`、`[FAIL] 4a integ049t rc=1 PASS=11 FAIL=1`、`[FAIL] 4b space_power not PASS`，其余 17 项 PASS ⇒ `RESULT: FAIL`（556 s）。
+4. 还原（**`cp` + `md5sum -c`，全程未用 git 还原**）⇒ `helper.c: OK / md5_rc=0 / dirty=0`、注入串 grep 无残留；C 重跑同一 `run.sh` ⇒ **rc=0，21/21 PASS**、`run.EXIT=0`（530 s）。
+5. 独立直跑 `DADAO_TEST_PROFILE=node python3 tools/testcases/arch/min_rom_probe_integ049t.py --qemu …` ⇒ **rc=0、PASS=12 FAIL=0**、`[PASS] space_power … spec 5/3ff_ffc0_0000/40_0000/5 (4 MiB ROM)`。
+6. Tiny 用 `subprocess` 复核 ⇒ `returncode = 132`（**正数 ⇒ `exit(0x84)` CFXREG，非 SIGILL/-4**），含描述符值的输出行 **0**；静态 `helper_cfx2rd` 行 11 `!cfx_enabled` < 行 79 `cg == 7`、`helper_cfx2rc` 行 11 < 行 63。
+7. `python3 tools/infra/make_patch.py qemu` ⇒ `rc=0, 0 written, 63 unchanged`，补丁 md5 `06942d25…` 前后不变（幂等，证明补丁由源树导出）。
+
+**约束核验**
+
+- 验收1：`grep "0x3FFFFFC0000\|0x40000ULL\|256 KiB" components/qemu/patches/target/dadao/helper.c.patch` ⇒ **rc=1（0 命中）**；`grep "rom_base\|rom_size"` ⇒ 命中 `:1582 prof->rom_base & ((1ULL << 42) - 1)`、`:1583 prof->rom_size`（`:843` 为既有 TLB 路径）。
+- 验收2：补丁抽出 2759 行与 `.work/source/qemu/target/dadao/helper.c` **逐行相同**（md5 均 `f2d818deb06e491cb846fb99d5c70900`）；源树 clean、`HEAD=94dc00a count=1`；`git diff HEAD@{1}(c79f328)..94dc00a --stat` = **仅 `target/dadao/helper.c`，+15/−11**。
+- 验收3/4/5/6/7/8：见重跑记录第 2、5、6 条（均我自跑 rc=0）。
+- 验收9：L1 `rc=2` 唯一红 `check-knowledge-refs (131 悬空 .work/**)`（同树开工基线 `QEMU-082t-check-L1.log`=132、临时树 afc4e319 基线 165；0 条涉 QEMU-082t）；L2 `rc=2` 唯二红 `DADAO-E2E :: mcmodel.test` + `run_codegen_e2e 0/19 RASOF`，与开工基线 `QEMU-082t-check-modules-k.log` **逐行相同** ⇒ 无本任务新增红。
+- 验收10：engineer `--inject` 循环由我在 A 轮实跑复核（11b `build/install rc=0、probe rc=1、PASS=11 FAIL=1` → 11c md5 OK → 11d `12/12 rc=0`）+ 我的独立注入 B/C ⇒ 注入→FAIL→cp+md5 还原→回绿 **两套证据均真实**。
+- 验收11/12：changelog `## M11` 条目体例同 079/080/081；`check-component-changelog`/`check-milestones-fresh`/`check-tasks` **rc=0**；完成区 **9 行 ≤30**、状态 `待验收`；完成区逐条与我重跑输出对齐。
+- 范围/不改测试：`git status` 仅 4 个允许文件（milestones/任务书/changelog/helper.c.patch）；`git diff -- tests/ spec/ contracts/ .tao/contracts/ .tao/adr/ gem5/ manifests/ Makefile components/qemu/series` **为空**，`BLOCK0[63]` 期望未动；快照对账 milestones/changelog/patch 三文件 md5 与我开工记录**逐字节相同**（任务书 md5 变化 = engineer 补完成区，已声明）；我未 commit、未改任何跟踪文件。
+
+**Findings（文档级/环境级，不阻断，交 architect 收尾处置）**
+
+- F1：完成区写 L2 `mcmodel.test（161/162）`，真实日志两处均为 `FAIL: DADAO-E2E :: mcmodel.test (162 of 162)`（该项为**执行序号**，非失败数）。
+- F2：完成区 L1 基线只引临时树 165；同工作树开工基线实为 **132**（现 131）——「无新增红」结论不受影响。
+- F3（既有环境，非本任务引入）：`.work/source -> /mnt/tao/DADAO-v5/.work/source`、`.dadao -> /mnt/tao/DADAO-v5/.dadao` ⇒ **源树与安装根全仓共享**，注入窗口（约 5 min）内共享安装根曾短暂持有被注入二进制；建议 architect 知悉并记录并发口径。
+
+**判决：Accepted** —— 验收 1–12 在我自己的重跑下全部通过（A `rc=0 25/25`、B `rc=1` 注入 FAIL 可达、C `rc=0 21/21` 回绿、独立直跑 `rc=0 12/12`、Tiny `returncode=132`），硬约束无违反；F1–F3 按 2026-10-22「文档级小错不阻断」裁定记 finding 后放行，最终接受权在 architect。
+
+### 收尾提交与合流（architect，2026-11-03 18:35）
+
+- 档位：reviewer **第 1 轮 Accepted** ⇒ 正常提交（非 `WIP:`）。
+- 文件集：显式 staging 4 文件（`components/qemu/patches/target/dadao/helper.c.patch`、`components/qemu/changelog.md`、本任务书、`.tao/knowledge/milestones.md`）= 完成区「修改文件」声明，逐个路径 `git add`（未用 `-A`）；对账结论：**无漏提 / 无多提 / 无越界**（`.work/evidence|log/**` 为 gitignored 证据，不入库）。
+- 提交：`8300aa04 QEMU-082t: cfx_power 描述符按 profile`（本分支内，**未 push**）。
+- 合流：`git merge master`（含 `2405ada0` M11 更新与 `92599e78` TESTCASES-095t 立册）⇒ 冲突仅 `.tao/knowledge/milestones.md` 流水首两行；解为 `QEMU-082t`（18:30，已验证）在 `TESTCASES-095t`（17:31，待开始）之上、两行均保留；合并提交 = 本分支 HEAD（本记录随合并提交一并落地）。
