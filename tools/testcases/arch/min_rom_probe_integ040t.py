@@ -55,6 +55,7 @@ _MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
     sys.path.insert(0, os.path.join(_MACH_REPO, "tools", "testcases", "lib"))
 import machine_profile as _machine_profile  # noqa: E402
+import node_probe_prelude as _prelude  # noqa: E402
 _MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
 RAM_BASE = _MACH.ram_base
 RAM_END = _MACH.ram_end
@@ -73,13 +74,14 @@ EXIT_W2 = (EXIT_BLOCK >> 32) & 0xFFFF
 EXIT_W1 = (EXIT_BLOCK >> 16) & 0xFFFF
 EXIT_W0 = EXIT_BLOCK & 0xFFFF
 
-_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-DEFAULT_QEMU = os.path.join(_REPO, ".work/build/qemu/qemu-system-dadao")
+DEFAULT_QEMU = _prelude.default_qemu()
 QEMU = DEFAULT_QEMU
-WORKDIR = "/tmp/opencode/INTEG-040t"
+WORKDIR = os.path.join(_prelude.TMP_ROOT, "min_rom_probe_integ040t")
 TIMEOUT = 10
 
-ROM_BASE = 0xFFFF_FFFF_0000
+# TESTCASES-093t: the body runs at RESET_PC + 0x1000 inside the
+# 4 MiB bootrom-image, after the shared power -> hmon identity-PTW prelude.
+ROM_BASE = _prelude.ROM_BASE
 RAM_BASE = _MACH.ram_base
 RAM_SIZE = _MACH["ram_size"]
 
@@ -96,22 +98,31 @@ CAUSE_ID_RC, CAUSE_INFO_RC, CAUSE_IP_RC = 2, 4, 3
 SWITCH_MODE_RC, EXCP_VECTOR_RC = 8, 10
 EXCP_CAUSE_MASK_RC = 11
 
-# Page-table physical layout (all 64 KiB aligned; page tables live in pmem).
-PT_L1_PA = RAM_BASE + 0x00000
-PT_L1B_PA = RAM_BASE + 0x30000
-PT_L2_PA = RAM_BASE + 0x10000
-PT_L2B_PA = RAM_BASE + 0x20000
-DATA_PA = RAM_BASE + 0x400000
-DATA2_PA = RAM_BASE + 0x500000
-DATA3_PA = RAM_BASE + 0x600000
+# Page-table physical layout (TESTCASES-093t §3 category C, D3).
+# The shared prelude already installed an identity table at PT_PA and left
+# PTBR = PT_PA with ptw_enable = 1; a case *extends that live table* instead
+# of switching PTBR away from it, so the entries it does not use keep their
+# identity mapping (RAM data pages, page-table reads and `exit_block` stay
+# reachable).  Table/L2/data pages live in the L1[3] window
+# (0x6000_0000..0x7FFF_FFFF) whose identity superpage the cases never touch.
+PT_L1_PA = _prelude.PT_PA
+PT_L1B_PA = 0x7FF1_0000
+PT_L2_PA = 0x7FF2_0000
+PT_L2B_PA = 0x7FF3_0000
+DATA_PA = 0x6000_0000
+DATA2_PA = 0x6100_0000
+DATA3_PA = 0x6200_0000
 PTBR = PT_L1_PA & 0x00FF_FFFF_FFFF_0000
 
 # PTWERR carrier: a page table inside the boot ROM.  PTBR must be 64 KiB
-# aligned, so the only candidate is ROM_BASE itself; the L1 entry for
-# VA[41:29] = 0x1FFF therefore sits at ROM-BASE + 0x1FFF*8 = +0xFFF8, inside
-# the 64 KiB ROM.  PTE reads succeed, A/D write-back must fail (ROM is RO).
-ROM_PTE_OFF = 0x1FFF * 8
-ROM_PTE_PA = ROM_BASE + ROM_PTE_OFF
+# aligned, so the table base is the reset-window base (RESET_PC), not the body
+# base (ROM_BASE = RESET_PC + 0x1000, TESTCASES-093t §2).  The L1 entry for
+# VA[41:29] = 0x1FFF therefore sits at RESET_PC + 0x1FFF*8 = +0xFFF8, inside
+# the 64 KiB reset window.  PTE reads succeed, A/D write-back must fail
+# (ROM is RO).  VA[47:42] = 0, so the access stays in the PTW memory window.
+ROM_TABLE_PA = _prelude.RESET_PC
+ROM_PTE_PA = ROM_TABLE_PA + 0x1FFF * 8
+ROM_PTE_OFF = ROM_PTE_PA - ROM_BASE
 ROM_L1_IDX = 0x1FFF
 ROM_VA = (ROM_L1_IDX << 29) | 0x40
 
@@ -218,12 +229,13 @@ def load_rb(rb, val):
 
 
 def exit_seq(code):
-    """Report `code` via semihosting SYS_EXIT -> host $? (ADR-0020 D8)."""
-    return ([jump_iiii(1)]
-            + load_rb(16, SEMI_BLOCK)
-            + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
-            + load_rd(9, code) + [st_o(9, 16, 8)]
-            + load_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)])
+    """Semihosting SYS_EXIT with the profile `exit_block` (TESTCASES-093t §2).
+
+    No cfx register access: the epilogue also runs in U/J/S mode where cfx_ptw
+    writes are denied.  Cases keep the prelude's identity table live; only the
+    ones that switch PTBR call `restore_prelude_ptbr()` themselves.
+    """
+    return _prelude.exit_seq(code)
 
 
 # ---------------------------------------------------------------------------
@@ -242,12 +254,30 @@ def load64(p, addr, rd=6, rb=4):
     p.append(ld_o(rd, rb, 0))
 
 
-def setup_ptbr(p, ptbr=PTBR, enable=True):
+def setup_ptbr(p, ptbr=PTBR, enable=True, flush=True):
+    # Category C (TESTCASES-093t §3): switching PTBR does not flush the TLB, so
+    # drop the prelude's identity entries first.  `tlb_ptbr_write_no_flush`
+    # keeps `flush=False` on purpose (it asserts exactly that behaviour).
+    if flush:
+        p += load_rd(17, 0x12)          # tlb_control: invalid, all, ASID_ANY
+        p.append(cfx2rc(PTW_HA, TLB_CG, TLB_CONTROL_RC, 17))
     p += load_rd(17, ptbr)
     p.append(cfx2rc(PTW_HA, PTBR_CG, PTBR_RC, 17))
     if enable:
         p += load_rd(17, 1)
         p.append(cfx2rc(PTW_HA, PTW_ENABLE_CG, PTW_ENABLE_RC, 17))
+
+
+def restore_prelude_ptbr(p):
+    """Category C (TESTCASES-093t §3): hand the address space back to the
+    prelude's identity table so `exit_block` is reachable after a case switched
+    PTBR (writing PTBR does not invalidate the TLB: flush explicitly)."""
+    p += load_rd(17, 1)
+    p.append(cfx2rc(PTW_HA, PTW_ENABLE_CG, PTW_ENABLE_RC, 17))
+    p += load_rd(17, _prelude.PT_PA)
+    p.append(cfx2rc(PTW_HA, PTBR_CG, PTBR_RC, 17))
+    p += load_rd(17, 0x12)
+    p.append(cfx2rc(PTW_HA, TLB_CG, TLB_CONTROL_RC, 17))
 
 
 def set_asid(p, asid):
@@ -352,48 +382,17 @@ def words_to_bytes(ws):
 
 
 def build_rom(prog, handlers=None, words_at=None):
-    rom = bytearray(words_to_bytes(prog))
-    for off in sorted(handlers or {}):
-        while len(rom) < off:
-            rom += words_to_bytes([swym()])
-        rom += words_to_bytes(handlers[off])
-    for off in sorted(words_at or {}):
-        if len(rom) > off:
-            raise ValueError("words_at offset overlaps the program/handlers")
-        while len(rom) < off:
-            rom += words_to_bytes([swym()])
-        rom += words_to_bytes(words_at[off])
-    while len(rom) < 0x500:
-        rom += words_to_bytes([swym()])
-    return bytes(rom)
-
+    """Shared prelude: body at RESET_PC + 0x1000 in the 4 MiB ROM image."""
+    return _prelude.build_rom(prog, handlers, words_at)
 
 # ---------------------------------------------------------------------------
 # QEMU runner + dump parsing
 # ---------------------------------------------------------------------------
 
 def run(rom):
-    os.makedirs(WORKDIR, exist_ok=True)
-    rp = os.path.join(WORKDIR, "rom.bin")
-    kp = os.path.join(WORKDIR, "kernel.bin")
-    lp = os.path.join(WORKDIR, "cpu.log")
-    with open(rp, "wb") as f:
-        f.write(rom)
-    with open(kp, "wb") as f:
-        f.write(b"\x00" * 16)
-    cmd = [QEMU, "-M", "dadao-m1", "-nographic", "-bios", rp, "-kernel", kp,
-           "-semihosting-config", "enable=on,target=native",
-           "-d", "cpu", "-D", lp]
-    try:
-        r = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT, text=True)
-        rc = r.returncode & 0xFF
-        err = r.stderr
-    except subprocess.TimeoutExpired:
-        return None, "", "TIMEOUT"
-    with open(lp) as f:
-        log = f.read()
-    return rc, log, err
-
+    """4 MiB `bootrom-image`, no `-kernel`; returns (rc, cpu_log, stderr)."""
+    rc, log = _prelude.run(rom, WORKDIR, qemu=QEMU, timeout=TIMEOUT)
+    return rc, log, ""
 
 def lasthex(log, pat):
     m = None
@@ -583,13 +582,17 @@ def _tlb_hit_nwperm():
 
 @case("tlb_hit_gpf_fault", "hit checks the page's GPF fragment bit per access")
 def _tlb_hit_gpf_fault():
+    # TESTCASES-093t §3 category C: the entry is filled by a load (A=1, D=0), so
+    # QEMU's soft TLB keeps the page read-only and the *store* below forces a
+    # fill, i.e. the hit-time GPF check of DADAO-12 §2.2.5 runs.  A second load
+    # would be served by QEMU's fast TLB without re-checking the fragment.
     p = []
     install_page(p, l2_idx=0, pa=DATA_PA, frags=1 << 1)   # fragment 1 only
     store64(p, DATA_PA + 0x2040, MAGIC)
     setup_ptw_handler(p, PTW_EXIT_WORDS)
     setup_ptbr(p)
     load_va(p, 0x2040)                      # VA[15:13]=1 present -> fill
-    ip = load_va_fault(p, 0x40)             # same page, VA[15:13]=0
+    ip = store_va_fault(p, 0x40, MAGIC2, rd=4)   # same page, VA[15:13]=0
     p += exit_seq(0xEE)
     return build_rom(p, {OFF_PTW_HANDLER: PTW_EXIT_WORDS}), \
         fault_expect(C_DGPFTRAP, 0x40, ip)
@@ -720,7 +723,7 @@ def _ad_writeback_preserves_fields():
 def rom_pte_setup(p, handler):
     store64(p, RAM_BASE + 0x40, MAGIC)
     setup_ptw_handler(p, handler)
-    setup_ptbr(p, ptbr=ROM_BASE)            # page table lives in the ROM
+    setup_ptbr(p, ptbr=ROM_TABLE_PA)        # page table lives in the ROM
     load_va(p, ROM_VA)                      # fill from the ROM PTE
 
 
@@ -735,9 +738,10 @@ def _ptwerr_clean_keeps_entry():
     tlb_cmd(p, tlb_ctrl(OP_CLEAN, SCOPE_ALL, asid_any=True))    # -> PTWERR
     p += [set_zw_rd(10, 0, 0)]                                  # clear the record
     tlb_cmd(p, tlb_ctrl(OP_CLEAN, SCOPE_ALL, asid_any=True))    # entry kept
+    restore_prelude_ptbr(p)                                     # exit_block
     p += exit_seq(EXIT_PASS)
     return build_rom(p, {OFF_PTW_HANDLER: PTW_SKIP_WORDS},
-                     words_at={ROM_PTE_OFF - BOOTSTRAP_OFF: ROM_PTE_WORDS}), \
+                     words_at={ROM_PTE_OFF: ROM_PTE_WORDS}), \
         {"exit": EXIT_PASS, "rd10": C_PTWERR, "rd11": ROM_PTE_PA,
          "rd5": MAGIC, "syncn4": 2, "cid4": C_PTWERR}
 
@@ -750,9 +754,10 @@ def _ptwerr_flush_keeps_entry():
     load_va(p, ROM_VA, rd=5)                                    # still usable
     p += [set_zw_rd(10, 0, 0)]
     tlb_cmd(p, tlb_ctrl(OP_FLUSH, SCOPE_ALL, asid_any=True))    # PTWERR again
+    restore_prelude_ptbr(p)                                     # exit_block
     p += exit_seq(EXIT_PASS)
     return build_rom(p, {OFF_PTW_HANDLER: PTW_SKIP_WORDS},
-                     words_at={ROM_PTE_OFF - BOOTSTRAP_OFF: ROM_PTE_WORDS}), \
+                     words_at={ROM_PTE_OFF: ROM_PTE_WORDS}), \
         {"exit": EXIT_PASS, "rd10": C_PTWERR, "rd11": ROM_PTE_PA,
          "rd5": MAGIC, "syncn4": 2, "cid4": C_PTWERR}
 
@@ -764,9 +769,10 @@ def _ptwerr_invalid_no_writeback():
     tlb_cmd(p, tlb_ctrl(OP_INVALID, SCOPE_ALL, asid_any=True))  # no write-back
     load64(p, ROM_PTE_PA, rd=6)                                 # ROM PTE: A=0
     load_va(p, ROM_VA, rd=7)                                    # re-walk works
+    restore_prelude_ptbr(p)                                     # exit_block
     p += exit_seq(EXIT_PASS)
     return build_rom(p, {OFF_PTW_HANDLER: PTW_SKIP_WORDS},
-                     words_at={ROM_PTE_OFF - BOOTSTRAP_OFF: ROM_PTE_WORDS}), \
+                     words_at={ROM_PTE_OFF: ROM_PTE_WORDS}), \
         {"exit": EXIT_PASS, "rd10": 0,
          "rd6": pte(pa=RAM_BASE, sp=True, frags=0xFF), "rd7": MAGIC}
 
@@ -978,8 +984,9 @@ def _tlb_ptbr_write_no_flush():
     data_setup(p)
     setup_ptbr(p, ptbr=PTBR)
     load_va(p, 0x0)                         # fill from L1 -> DATA
-    setup_ptbr(p, ptbr=PT_L1B_PA & 0x00FF_FFFF_FFFF_0000, enable=False)
+    setup_ptbr(p, ptbr=PT_L1B_PA & 0x00FF_FFFF_FFFF_0000, enable=False, flush=False)
     load_va(p, 0x0, rd=6)                   # entry kept -> DATA (not DATA2)
+    restore_prelude_ptbr(p)                 # PTBR was switched away
     p += exit_seq(EXIT_PASS)
     return build_rom(p), {"exit": EXIT_PASS, "rd5": MAGIC, "rd6": MAGIC}
 
@@ -1001,52 +1008,10 @@ def _tlb_asid_reg_roundtrip():
 # Driver
 # ---------------------------------------------------------------------------
 
-# ADR-0045 D4: only hmon may access the default-masked cfx resources, so every
-# min-ROM body runs in hmon (cfx3).  The power stage at offset 0 installs the
-# hmon hypv vector and traps hmon; the original body starts at BOOTSTRAP_OFF.
-BOOTSTRAP_OFF = 0x48
-STAGE_OFF = 0x24
-
-
-def bootstrap_prefix():
-    ins = load_rd(22, ROM_BASE + STAGE_OFF) + [cfx2rc(3, 3, 10, 22), trap(3, 0)]
-    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
-    assert len(ins) == STAGE_OFF // 4, len(ins)
-    return ins
-
-
-def bootstrap_stage():
-    # hmon stage: clear cfx_power's cfxmem/cfxexe for user/hypv so the body
-    # and any cfx0 handler can use RAM and fetch this ROM (ADR-0045 D2).
-    ins = load_rd(20, 0)
-    for cg in (0, 1, 2, 3):
-        ins += [cfx2rc(63, cg, 1, 20), cfx2rc(63, cg, 3, 20)]
-    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
-    assert len(ins) == STAGE_OFF // 4, len(ins)
-    return ins
-
-
-def bootstrap_rom(rom):
-    return words_to_bytes(bootstrap_prefix()) + words_to_bytes(bootstrap_stage()) + rom
-
-
-def shift_rom_expect(exp):
-    # Only code-address expectations move with the bootstrap body; handler
-    # addresses (>=0x300) and data values stay put.
-    for k in list(exp):
-        v = exp[k]
-        if (k.startswith("cip") or k == "rd12") and isinstance(v, int) \
-                and ROM_BASE <= v < ROM_BASE + 0x10000:
-            exp[k] = v + BOOTSTRAP_OFF
-    return exp
-
-
 def run_case(name):
     for n, d, fn in CASES:
         if n == name:
             rom, exp = fn()
-            rom = bootstrap_rom(rom)
-            exp = shift_rom_expect(exp)
             # rd12 (cause ip) is not asserted when the expectation omits it:
             # A/D write-back failures are raised from the command write, whose
             # precise PC is checked by the CFXREG cases instead.

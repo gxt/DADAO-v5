@@ -51,26 +51,36 @@ import sys
 
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
-DEFAULT_QEMU = os.path.join(_REPO, ".work/build/qemu/qemu-system-dadao")
+if os.path.join(_REPO, "tools", "testcases", "lib") not in sys.path:
+    sys.path.insert(0, os.path.join(_REPO, "tools", "testcases", "lib"))
+import machine_profile as _machine_profile  # noqa: E402
+import node_probe_prelude as _prelude  # noqa: E402
+_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
+
+DEFAULT_QEMU = _prelude.default_qemu()
 QEMU = DEFAULT_QEMU
-WORKDIR = "/tmp/opencode/INTEG-048t/probe"
+WORKDIR = os.path.join(_prelude.TMP_ROOT, "min_rom_probe_integ048t")
 TIMEOUT = 20
 
-ROM_BASE = 0xFFFF_FFFF_0000
+# TESTCASES-093t: the body runs at RESET_PC + 0x1000 inside the 4 MiB
+# bootrom-image, after the shared power -> hmon identity-PTW prelude.
+ROM_BASE = _prelude.ROM_BASE
 
-# ROM offsets (bytes).  The hmon body starts right after the power prefix;
-# the supv/user bodies and the two handler slots are placed far enough apart.
-BODY_OFF = 0x024       # hmon (cfx3/hypv) setup body
+# Body-relative offsets (bytes).  The shared prelude owns the power -> hmon
+# handoff and the page table, so the hmon body starts at the body base; the
+# supv/user bodies and the handler slots are placed far enough apart.
+BODY_OFF = 0x000       # hmon (cfx3/hypv) setup body
 SUPV_OFF = 0x200       # supv body (cfx0, or cfx2 for self/power cases)
 USER_OFF = 0x300       # user body (cfx0)
 FAULT_OFF = 0x380      # generic fault slot (cfx0 user-row vector)
 HAND_OFF = 0x600       # CFXPERM handler (cfx_smon supv vector, runs hypv)
 EXIT_OFF = 0x780       # split exit slot (ends the body TB before the dump)
-SENTINEL_OFF = 0x1000  # power BootROM word read/written by the power cases
+# The power cases read/write a ROM word through cfx_power's cfxmem axis.  It
+# lives in its own 64 KiB ROM page (the last page before the reset window) so a
+# cached translation of the code page can never hide the permission check.
+SENTINEL_IMAGE_OFF = 0x3E_0000
 SENTINEL = 0x1122_3344_5566_7788
-IMAGE_END = SENTINEL_OFF + 8
-
-POWER_ADDR = ROM_BASE + SENTINEL_OFF   # 0xffff_ffff_1000 (page 2 of -bios)
+POWER_ADDR = _prelude.BOOTROM_BASE + SENTINEL_IMAGE_OFF
 SEMI_BLOCK = 0x0BFF_0000_0FF0          # cfx_smon SRAM (cfx2)
 
 # Run modes (DADAO-12 §1)
@@ -131,68 +141,31 @@ def load_rb(rb, val):
 
 
 def exit_seq(code):
-    """SYS_EXIT with the argument block in cfx_smon SRAM (see module doc)."""
-    return ([set_zw_rb(16, 0, 0x0FF0), or_w_rb(16, 2, 0x0BFF)]
-            + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
-            + load_rd(9, code) + [st_o(9, 16, 8)]
-            + load_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)])
-
+    """Semihosting SYS_EXIT with the profile `exit_block` (TESTCASES-093t §2)."""
+    return _prelude.exit_seq(code)
 
 def words_to_bytes(ws):
     return b"".join(struct.pack(">I", x & 0xFFFFFFFF) for x in ws)
 
 
 def build_rom(body, sections):
-    """power prefix at 0, `body` at BODY_OFF, `sections` = {offset: words}."""
-    rom = bytearray(words_to_bytes(bootstrap_prefix()))
-    if len(rom) > BODY_OFF:
-        raise AssertionError("power prefix overlaps BODY_OFF (%d bytes)" % len(rom))
-    while len(rom) < BODY_OFF:
-        rom += words_to_bytes([swym()])
-    rom += words_to_bytes(body)
-    if len(rom) > min([off for off in sections] + [SENTINEL_OFF]):
-        raise AssertionError("hmon body overlaps the next section (0x%x)" % len(rom))
-    for off in sorted(sections):
-        if len(rom) > off:
-            raise AssertionError("section at 0x%x overlaps (len 0x%x)" % (off, len(rom)))
-        while len(rom) < off:
-            rom += words_to_bytes([swym()])
-        rom += words_to_bytes(sections[off])
-    if len(rom) > SENTINEL_OFF:
-        raise AssertionError("code overlaps the power sentinel (0x%x)" % len(rom))
-    while len(rom) < SENTINEL_OFF:
-        rom += words_to_bytes([swym()])
-    rom += struct.pack(">Q", SENTINEL)
-    if len(rom) != IMAGE_END:
-        raise AssertionError("bad image size %d" % len(rom))
-    return bytes(rom)
+    """Shared prelude: `body` at the body base, `sections` = {offset: words}.
 
+    The former power-stage BootROM word (`SENTINEL`) is placed as plain data at
+    SENTINEL_OFF; the power cases read/write it through POWER_ADDR.
+    """
+    return _prelude.build_rom(
+        body, sections,
+        image_at={SENTINEL_IMAGE_OFF: [(SENTINEL >> 32) & 0xFFFFFFFF,
+                                       SENTINEL & 0xFFFFFFFF]})
 
 # ---------------------------------------------------------------------------
 # QEMU runner + dump parsing
 # ---------------------------------------------------------------------------
 
 def run(rom):
-    os.makedirs(WORKDIR, exist_ok=True)
-    rp = os.path.join(WORKDIR, "rom.bin")
-    kp = os.path.join(WORKDIR, "kernel.bin")
-    lp = os.path.join(WORKDIR, "cpu.log")
-    with open(rp, "wb") as f:
-        f.write(rom)
-    with open(kp, "wb") as f:
-        f.write(b"\x00" * 16)
-    cmd = [QEMU, "-M", "dadao-m1", "-nographic", "-bios", rp, "-kernel", kp,
-           "-semihosting-config", "enable=on,target=native",
-           "-d", "cpu", "-D", lp]
-    try:
-        r = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT, text=True)
-        rc = r.returncode & 0xFF
-    except subprocess.TimeoutExpired:
-        return None, "TIMEOUT"
-    with open(lp) as f:
-        log = f.read()
-    return rc, log
-
+    """4 MiB `bootrom-image`, no `-kernel`, one QEMU process per case."""
+    return _prelude.run(rom, WORKDIR, qemu=QEMU, timeout=TIMEOUT)
 
 def lasthex(log, pat):
     m = None
@@ -245,9 +218,8 @@ def case(name, desc):
 
 
 def bootstrap_prefix():
-    """power(cfx63/hypv) -> hmon(cfx3/hypv): hmon is power's only trap target."""
-    return load_rd(22, ROM_BASE + BODY_OFF) + [cfx2rc(3, 3, 10, 22), trap(3, 0)]
-
+    """Unused: the shared prelude owns the power -> hmon handoff."""
+    return []
 
 def probe_base():
     """Probe-only base installed by hmon/hypv (never firmware policy).
@@ -360,6 +332,10 @@ PTW_PTBR = 0x0000_1234_5678_0000
 def _open_ptw_cg9():
     body = load_rd(20, PTW_PTBR) + [cfx2rc(4, 9, 0, 20)]
     body += [cfx2rd(4, 9, 0, 10)]
+    # TESTCASES-093t §3 category C: hand the address space back to the shared
+    # prelude's identity table before SYS_EXIT (PTBR writes do not flush the TLB).
+    body += load_rd(20, _prelude.PT_PA) + [cfx2rc(4, 9, 0, 20)]
+    body += load_rd(20, 0x12) + [cfx2rc(4, 12, 0, 20)]
     body += exit_seq(0x00)
     prog = probe_base() + set_deleg(4, DELEG_OPEN) + open_supv_cfxreg(4, 0)
     prog += enter_supv_cfx0()
@@ -372,6 +348,11 @@ def _open_ptw_cg8():
     body = load_rd(20, 1) + [cfx2rc(4, 8, 8, 20)]
     body += [cfx2rd(4, 8, 8, 10)]
     body += [cfx2rc(4, 8, 8, 0)] + [cfx2rd(4, 8, 8, 11)]
+    # Category C: re-enable PTW and restore the prelude table before SYS_EXIT
+    # (a ptw_enable=0 epilogue cannot reach `exit_block`).
+    body += load_rd(20, 1) + [cfx2rc(4, 8, 8, 20)]
+    body += load_rd(20, _prelude.PT_PA) + [cfx2rc(4, 9, 0, 20)]
+    body += load_rd(20, 0x12) + [cfx2rc(4, 12, 0, 20)]
     body += exit_seq(0x00)
     prog = probe_base() + set_deleg(4, DELEG_OPEN) + open_supv_cfxreg(4, 0)
     prog += enter_supv_cfx0()
@@ -473,7 +454,11 @@ def _open_power_bootrom():
 @case("closed_power_bootrom", "power cfxmem bit2=1: same ld => CFXPERM")
 def _closed_power_bootrom():
     body = load_rb(4, POWER_ADDR) + [ld_o(20, 4, 0)] + exit_seq(0x00)
+    # TESTCASES-093t §3 category C: QEMU's fast TLB may still hold the ROM page
+    # from the supv fetch, so the ld would be served without a permission check.
+    # Invalidate (hmon, cfx_ptw self) right before entering supv.
     prog = probe_base() + set_power_cfxmem(MASK_DEFAULT)
+    prog += load_rd(20, 0x12) + [cfx2rc(4, 12, 0, 20)]
     prog += enter_supv_cfx2()
     ld_idx = len(load_rb(4, POWER_ADDR))
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})

@@ -55,6 +55,7 @@ _MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
     sys.path.insert(0, os.path.join(_MACH_REPO, "tools", "testcases", "lib"))
 import machine_profile as _machine_profile  # noqa: E402
+import node_probe_prelude as _prelude  # noqa: E402
 _MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
 RAM_BASE = _MACH.ram_base
 RAM_END = _MACH.ram_end
@@ -73,13 +74,14 @@ EXIT_W2 = (EXIT_BLOCK >> 32) & 0xFFFF
 EXIT_W1 = (EXIT_BLOCK >> 16) & 0xFFFF
 EXIT_W0 = EXIT_BLOCK & 0xFFFF
 
-_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-DEFAULT_QEMU = os.path.join(_REPO, ".work/build/qemu/qemu-system-dadao")
+DEFAULT_QEMU = _prelude.default_qemu()
 QEMU = DEFAULT_QEMU
-WORKDIR = "/tmp/opencode/QEMU-049t"
+WORKDIR = os.path.join(_prelude.TMP_ROOT, "min_rom_probe_049t")
 TIMEOUT = 10
 
-ROM_BASE = 0xFFFF_FFFF_0000
+# TESTCASES-093t: the body runs at RESET_PC + 0x1000 inside the
+# 4 MiB bootrom-image, after the shared power -> hmon identity-PTW prelude.
+ROM_BASE = _prelude.ROM_BASE
 RAM_BASE = _MACH.ram_base
 RAM_SIZE = _MACH["ram_size"]
 OLD_RAM_BASE = 0xFFFF_0000_0000
@@ -120,6 +122,7 @@ def st_o(rd, rb, off):   return _rrii(0x21, rd, rb, off)
 def jump_rrii(rb, rd, off): return _rrii(0x71, rb, rd, off)
 def jump_iiii(imms24):   return (0x70 << 24) | (imms24 & 0xFFFFFF)
 def trap(ha, immu18):    return (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF)
+def cfx2rc(ha, cg, rc, rd): return (0x7B << 24) | (ha << 18) | (cg << 12) | (rc << 6) | rd
 
 
 def swym():              return 0x47880000
@@ -150,57 +153,24 @@ def load_rb(rb, val):
 
 
 def exit_seq(code):
-    """Report `code` via semihosting SYS_EXIT (ADR-0020 D8) -> host $?.
-
-    The leading no-op `jump` ends the current TB so the last `-d cpu` dump (the
-    probe's observation channel) captures the caller's state (e.g. the `ld_o`
-    result) before this epilogue; rb16 = argument-block pointer; block =
-    {reason, code}; rd16 = 0x18 (SYS_EXIT); `trap` with the semihosting tag.
-    """
-    return ([jump_iiii(1)]
-            + [set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000), or_w_rb(16, 2, RAM_W2)]
-            + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
-            + load_rd(9, code) + [st_o(9, 16, 8)]
-            + load_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)])
-
+    """Semihosting SYS_EXIT with the profile `exit_block` (TESTCASES-093t §2)."""
+    return _prelude.exit_seq(code)
 
 def words_to_bytes(ws):
     return b"".join(struct.pack(">I", x & 0xFFFFFFFF) for x in ws)
 
 
 def build_rom(prog):
-    """Prog at ROM offset 0; pad with swym to 0x400."""
-    rom = bytearray(words_to_bytes(prog))
-    while len(rom) < 0x400:
-        rom += words_to_bytes([swym()])
-    return bytes(rom)
-
+    """Shared prelude: body at RESET_PC + 0x1000 in the 4 MiB ROM image."""
+    return _prelude.build_rom(prog, {})
 
 # ---------------------------------------------------------------------------
 # QEMU runner + dump parsing
 # ---------------------------------------------------------------------------
 
 def run(rom):
-    os.makedirs(WORKDIR, exist_ok=True)
-    rp = os.path.join(WORKDIR, "rom.bin")
-    kp = os.path.join(WORKDIR, "kernel.bin")
-    lp = os.path.join(WORKDIR, "cpu.log")
-    with open(rp, "wb") as f:
-        f.write(rom)
-    with open(kp, "wb") as f:
-        f.write(b"\x00" * 16)
-    cmd = [QEMU, "-M", "dadao-m1", "-nographic", "-bios", rp, "-kernel", kp,
-           "-semihosting-config", "enable=on,target=native",
-           "-d", "cpu", "-D", lp]
-    try:
-        r = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT, text=True)
-        rc = r.returncode & 0xFF
-    except subprocess.TimeoutExpired:
-        return None, "TIMEOUT"
-    with open(lp) as f:
-        log = f.read()
-    return rc, log
-
+    """4 MiB `bootrom-image`, no `-kernel`, one QEMU process per case."""
+    return _prelude.run(rom, WORKDIR, qemu=QEMU, timeout=TIMEOUT)
 
 def lasthex(log, pat):
     m = None
@@ -283,9 +253,13 @@ def _ram_exec():
 
 
 # -- acc 4: out-of-range DATA access ----------------------------------------
-@case("oob_data_cfxmem", "data access cfxha0 outside RAM => CFXMEM 0x81")
+@case("oob_data_cfxmem", "ptw_enable=0 + data access in the memory window => CFXMEM 0x81")
 def _oob_data_cfxmem():
-    prog = load_rb(3, CFX0_OOB) + [ld_o(5, 3, 0)] + exit_seq(0xEE)
+    # TESTCASES-093t §3 category C: the prelude enables PTW, so the spec's
+    # "memory-window access with ptw_enable=0 => CFXMEM" precondition is
+    # rebuilt explicitly (DADAO-12 §2.2 step 1) instead of relying on the
+    # legacy PTW-off machine.
+    prog = [cfx2rc(4, 8, 8, 0)] + load_rb(3, CFX0_OOB) + [ld_o(5, 3, 0)] + exit_seq(0xEE)
     return build_rom(prog), {"exit": EXIT_CFXMEM}
 
 
@@ -296,9 +270,10 @@ def _oob_data_unmapped():
 
 
 # -- acc 4: out-of-range FETCH (instruction fetch path) ----------------------
-@case("oob_fetch_cfxmem", "fetch cfxha0 outside RAM => CFXMEM 0x81")
+@case("oob_fetch_cfxmem", "ptw_enable=0 + fetch in the memory window => CFXMEM 0x81")
 def _oob_fetch_cfxmem():
-    prog = load_rb(3, CFX0_OOB) + [jump_rrii(3, 0, 0)] + exit_seq(0xEE)
+    # Same category C rebuild as oob_data_cfxmem (DADAO-12 §2.2 step 1).
+    prog = [cfx2rc(4, 8, 8, 0)] + load_rb(3, CFX0_OOB) + [jump_rrii(3, 0, 0)] + exit_seq(0xEE)
     return build_rom(prog), {"exit": EXIT_CFXMEM}
 
 

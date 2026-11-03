@@ -1532,7 +1532,7 @@ _locked-check-arch: check-arch-smoke
 	@mkdir -p .work/log/arch
 	@fail=0; for p in $(ARCH_CFX_PROBES); do \
 	  echo "check-arch: [$$p] cfx min-ROM probe"; \
-	  DADAO_TEST_PROFILE=node $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_$$p.py > .work/log/arch/check-arch-probe-$$p.log 2>&1; \
+	  DADAO_TEST_PROFILE=node $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_$$p.py --qemu $(QEMU_BIN) > .work/log/arch/check-arch-probe-$$p.log 2>&1; \
 	  rc=$$?; \
 	  tail -n 3 .work/log/arch/check-arch-probe-$$p.log; \
 	  if [ $$rc -ne 0 ]; then echo "check-arch: FAIL (min_rom_probe_$$p rc=$$rc)"; fail=1; fi; \

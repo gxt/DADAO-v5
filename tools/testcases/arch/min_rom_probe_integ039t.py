@@ -53,6 +53,7 @@ _MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
     sys.path.insert(0, os.path.join(_MACH_REPO, "tools", "testcases", "lib"))
 import machine_profile as _machine_profile  # noqa: E402
+import node_probe_prelude as _prelude  # noqa: E402
 _MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
 RAM_BASE = _MACH.ram_base
 RAM_END = _MACH.ram_end
@@ -71,13 +72,14 @@ EXIT_W2 = (EXIT_BLOCK >> 32) & 0xFFFF
 EXIT_W1 = (EXIT_BLOCK >> 16) & 0xFFFF
 EXIT_W0 = EXIT_BLOCK & 0xFFFF
 
-_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-DEFAULT_QEMU = os.path.join(_REPO, ".work/build/qemu/qemu-system-dadao")
+DEFAULT_QEMU = _prelude.default_qemu()
 QEMU = DEFAULT_QEMU
-WORKDIR = "/tmp/opencode/INTEG-039t"
+WORKDIR = os.path.join(_prelude.TMP_ROOT, "min_rom_probe_integ039t")
 TIMEOUT = 10
 
-ROM_BASE = 0xFFFF_FFFF_0000
+# TESTCASES-093t: the body runs at RESET_PC + 0x1000 inside the
+# 4 MiB bootrom-image, after the shared power -> hmon identity-PTW prelude.
+ROM_BASE = _prelude.ROM_BASE
 RAM_BASE = _MACH.ram_base
 RAM_SIZE = _MACH["ram_size"]
 
@@ -93,14 +95,20 @@ PTBR_CG, PTBR_RC = 9, 0
 CAUSE_ID_RC, CAUSE_INFO_RC, CAUSE_IP_RC = 2, 4, 3
 SWITCH_MODE_RC, EXCP_VECTOR_RC = 8, 10
 
-# Page-table physical layout (all 64 KiB aligned; PTBR/table pages live in pmem,
-# i.e. the test-machine RAM segment).
-PT_L1_PA = RAM_BASE + 0x00000
-PT_L2_PA = RAM_BASE + 0x10000
-PT_L2B_PA = RAM_BASE + 0x20000
-DATA_PA = RAM_BASE + 0x400000          # 4 MiB into RAM
-DATA2_PA = RAM_BASE + 0x500000         # 5 MiB into RAM
-DATA3_PA = RAM_BASE + 0x600000         # 6 MiB into RAM (superpage offset)
+# Page-table physical layout (TESTCASES-093t §3 category C, D3).
+# The shared prelude already installed an identity table at PT_PA and left
+# PTBR = PT_PA with ptw_enable = 1, so a case *extends that live table*
+# instead of switching PTBR away from it: the entries it does not use keep
+# their identity mapping (RAM data pages and `exit_block` stay reachable).
+# PT_L1_PA = PT_PA therefore needs no PTBR write at all; the L2 pages and data
+# pages live in the L1[3] window (VA/PA 0x6000_0000..0x7FFF_FFFF) whose
+# identity superpage the cases never overwrite.
+PT_L1_PA = _prelude.PT_PA
+PT_L2_PA = 0x7FF2_0000
+PT_L2B_PA = 0x7FF3_0000
+DATA_PA = 0x6000_0000                  # L1[3] identity window
+DATA2_PA = 0x6100_0000
+DATA3_PA = 0x6200_0000
 # PTBR stores PPN[55:16] in place (DADAO-12 §2.2): value == page-table PA
 # with [15:0] cleared, i.e. base = PTBR.
 PTBR = PT_L1_PA & 0x00FF_FFFF_FFFF_0000
@@ -203,12 +211,14 @@ def load_rb(rb, val):
 
 
 def exit_seq(code):
-    """Report `code` via semihosting SYS_EXIT -> host $? (ADR-0020 D8)."""
-    return ([jump_iiii(1)]
-            + load_rb(16, SEMI_BLOCK)
-            + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
-            + load_rd(9, code) + [st_o(9, 16, 8)]
-            + load_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)])
+    """Semihosting SYS_EXIT with the profile `exit_block` (TESTCASES-093t §2).
+
+    No cfx register access here: the epilogue also runs in U/J/S mode
+    (hsju_*_ok), where cfx_ptw writes would be denied with CFXPERM.  Cases
+    keep the prelude's identity table live (category C), so `exit_block` stays
+    reachable without restoring PTBR.
+    """
+    return _prelude.exit_seq(code)
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +233,10 @@ def store64(p, addr, value, rb=3, rd=17):
 
 
 def setup_ptbr(p, enable=True):
+    # Category C (TESTCASES-093t §3): switching PTBR does not flush the TLB, so
+    # drop the prelude's identity entries first (and any earlier case entries).
+    p += load_rd(17, 0x12)              # tlb_control: invalid, all, ASID_ANY
+    p.append(cfx2rc(PTW_HA, 12, 0, 17))
     p += load_rd(17, PTBR)
     p.append(cfx2rc(PTW_HA, PTBR_CG, PTBR_RC, 17))
     if enable:
@@ -297,43 +311,18 @@ def store_code(p, pa, words, rb=3, rd=17):
         store64(p, pa + off, val, rb=rb, rd=rd)
 
 
-def build_rom(prog, handlers=None):
-    rom = bytearray(words_to_bytes(prog))
-    for off in sorted(handlers or {}):
-        while len(rom) < off:
-            rom += words_to_bytes([swym()])
-        rom += words_to_bytes(handlers[off])
-    while len(rom) < 0x500:
-        rom += words_to_bytes([swym()])
-    return bytes(rom)
-
+def build_rom(prog, handlers=None, words_at=None):
+    """Shared prelude: body at RESET_PC + 0x1000 in the 4 MiB ROM image."""
+    return _prelude.build_rom(prog, handlers, words_at)
 
 # ---------------------------------------------------------------------------
 # QEMU runner + dump parsing
 # ---------------------------------------------------------------------------
 
 def run(rom):
-    os.makedirs(WORKDIR, exist_ok=True)
-    rp = os.path.join(WORKDIR, "rom.bin")
-    kp = os.path.join(WORKDIR, "kernel.bin")
-    lp = os.path.join(WORKDIR, "cpu.log")
-    with open(rp, "wb") as f:
-        f.write(rom)
-    with open(kp, "wb") as f:
-        f.write(b"\x00" * 16)
-    cmd = [QEMU, "-M", "dadao-m1", "-nographic", "-bios", rp, "-kernel", kp,
-           "-semihosting-config", "enable=on,target=native",
-           "-d", "cpu", "-D", lp]
-    try:
-        r = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT, text=True)
-        rc = r.returncode & 0xFF
-        err = r.stderr
-    except subprocess.TimeoutExpired:
-        return None, "", "TIMEOUT"
-    with open(lp) as f:
-        log = f.read()
-    return rc, log, err
-
+    """4 MiB `bootrom-image`, no `-kernel`; returns (rc, cpu_log, stderr)."""
+    rc, log = _prelude.run(rom, WORKDIR, qemu=QEMU, timeout=TIMEOUT)
+    return rc, log, ""
 
 def lasthex(log, pat):
     m = None
@@ -876,7 +865,10 @@ def _prio_l2p_over_perm():
 # -- regression: ptw_enable=0 still CFXMEM (Step 1 unchanged) ---------------
 @case("ptw_off_still_cfxmem", "ptw_enable=0 memory window access still CFXMEM")
 def _ptw_off_still_cfxmem():
+    # The prelude enables PTW; rebuild the spec precondition explicitly
+    # (DADAO-12 §2.2 step 1: ptw_enable=0 => memory-window access CFXMEM).
     p = []
+    p += load_rd(17, 0) + [cfx2rc(PTW_HA, PTW_ENABLE_CG, PTW_ENABLE_RC, 17)]
     p += load_rb(3, 0x1000)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0xEE)
@@ -887,52 +879,10 @@ def _ptw_off_still_cfxmem():
 # Driver
 # ---------------------------------------------------------------------------
 
-# ADR-0045 D4: only hmon may access the default-masked cfx resources, so every
-# min-ROM body runs in hmon (cfx3).  The power stage at offset 0 installs the
-# hmon hypv vector and traps hmon; the original body starts at BOOTSTRAP_OFF.
-BOOTSTRAP_OFF = 0x48
-STAGE_OFF = 0x24
-
-
-def bootstrap_prefix():
-    ins = load_rd(22, ROM_BASE + STAGE_OFF) + [cfx2rc(3, 3, 10, 22), trap(3, 0)]
-    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
-    assert len(ins) == STAGE_OFF // 4, len(ins)
-    return ins
-
-
-def bootstrap_stage():
-    # hmon stage: clear cfx_power's cfxmem/cfxexe for user/hypv so the body
-    # and any cfx0 handler can use RAM and fetch this ROM (ADR-0045 D2).
-    ins = load_rd(20, 0)
-    for cg in (0, 1, 2, 3):
-        ins += [cfx2rc(63, cg, 1, 20), cfx2rc(63, cg, 3, 20)]
-    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
-    assert len(ins) == STAGE_OFF // 4, len(ins)
-    return ins
-
-
-def bootstrap_rom(rom):
-    return words_to_bytes(bootstrap_prefix()) + words_to_bytes(bootstrap_stage()) + rom
-
-
-def shift_rom_expect(exp):
-    # Only code-address expectations move with the bootstrap body; handler
-    # addresses (>=0x300) and data values stay put.
-    for k in list(exp):
-        v = exp[k]
-        if (k.startswith("cip") or k == "rd12") and isinstance(v, int) \
-                and ROM_BASE <= v < ROM_BASE + 0x10000:
-            exp[k] = v + BOOTSTRAP_OFF
-    return exp
-
-
 def run_case(name):
     for n, d, fn in CASES:
         if n == name:
             rom, exp = fn()
-            rom = bootstrap_rom(rom)
-            exp = shift_rom_expect(exp)
             rc, log, err = run(rom)
             if rc is None:
                 return False, "TIMEOUT", exp

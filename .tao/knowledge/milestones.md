@@ -12,8 +12,8 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-093t | 已验证 | 2026-11-03 14:30 | L3 探针 F4/prelude + 9 册 167 例；残余 049/050/051/046 拆 094 |
 | TESTCASES-094t | 待开始 | 2026-11-03 14:05（登记） | L3 异步与 boot-chain 收口：integ049/050/051 迁移、TIMER/PMEM_DMA 投递归属、integ046/046t 装载与运行期数据 |
-| TESTCASES-093t | 待开始 | 2026-11-03 12:19（登记） | L3 探针收口：F4 check-arch --qemu、power 复位+hmon identity-PTW prelude、去 -kernel、13+1 册逐例判定；未绿不写 PASS |
 | TESTCASES-092t | 已验证 | 2026-11-03 11:20 | Tiny/Node 执行资产 P0–P5：inst 968+44、arch 10/10、token/profile/hmon；P6 13 探针拆 093 |
 | QEMU-080t | 已验证 | 2026-11-03 08:55 | Machine-v5-Node 系统机：4 MiB BootROM + 2 GiB RAM、hmon/PTW/hypv、identity 4×512 MiB 超页 |
 | GEM5-014t | 已验证 | 2026-11-03 06:55 | G1 SE 平台骨架：SEWorkload/Process/MMU、AtomicSimpleCPU、静态 ELF/栈/MemRAS、最小 libc syscall 面 |

@@ -48,6 +48,7 @@ _MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
     sys.path.insert(0, os.path.join(_MACH_REPO, "tools", "testcases", "lib"))
 import machine_profile as _machine_profile  # noqa: E402
+import node_probe_prelude as _prelude  # noqa: E402
 _MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
 RAM_BASE = _MACH.ram_base
 RAM_END = _MACH.ram_end
@@ -66,13 +67,14 @@ EXIT_W2 = (EXIT_BLOCK >> 32) & 0xFFFF
 EXIT_W1 = (EXIT_BLOCK >> 16) & 0xFFFF
 EXIT_W0 = EXIT_BLOCK & 0xFFFF
 
-_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-DEFAULT_QEMU = os.path.join(_REPO, ".work/build/qemu/qemu-system-dadao")
+DEFAULT_QEMU = _prelude.default_qemu()
 QEMU = DEFAULT_QEMU
-WORKDIR = "/tmp/opencode/INTEG-042t"
+WORKDIR = os.path.join(_prelude.TMP_ROOT, "min_rom_probe_integ042t")
 TIMEOUT = 20
 
-ROM_BASE = 0xFFFF_FFFF_0000
+# TESTCASES-093t: the body runs at RESET_PC + 0x1000 inside the
+# 4 MiB bootrom-image, after the shared power -> hmon identity-PTW prelude.
+ROM_BASE = _prelude.ROM_BASE
 RAM_BASE = _MACH.ram_base
 RAM_SIZE = _MACH["ram_size"]
 
@@ -199,13 +201,8 @@ def load_rb(rb, val):
 
 
 def exit_seq(code):
-    """Report `code` via semihosting SYS_EXIT -> host $? (ADR-0020 D8)."""
-    return ([jump_iiii(1)]
-            + load_rb(16, SEMI_BLOCK)
-            + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
-            + load_rd(9, code) + [st_o(9, 16, 8)]
-            + load_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)])
-
+    """Semihosting SYS_EXIT with the profile `exit_block` (TESTCASES-093t §2)."""
+    return _prelude.exit_seq(code)
 
 # ---------------------------------------------------------------------------
 # Program-building helpers.  Scratch: rd17 (register writes), rd18 (poll mask),
@@ -294,48 +291,17 @@ def words_to_bytes(ws):
 
 
 def build_rom(prog, handlers=None, words_at=None):
-    rom = bytearray(words_to_bytes(prog))
-    for off in sorted(handlers or {}):
-        while len(rom) < off:
-            rom += words_to_bytes([swym()])
-        rom += words_to_bytes(handlers[off])
-    for off in sorted(words_at or {}):
-        if len(rom) > off:
-            raise ValueError("words_at offset overlaps the program/handlers")
-        while len(rom) < off:
-            rom += words_to_bytes([swym()])
-        rom += words_to_bytes(words_at[off])
-    while len(rom) < 0x500:
-        rom += words_to_bytes([swym()])
-    return bytes(rom)
-
+    """Shared prelude: body at RESET_PC + 0x1000 in the 4 MiB ROM image."""
+    return _prelude.build_rom(prog, handlers, words_at)
 
 # ---------------------------------------------------------------------------
 # QEMU runner + dump parsing
 # ---------------------------------------------------------------------------
 
 def run(rom):
-    os.makedirs(WORKDIR, exist_ok=True)
-    rp = os.path.join(WORKDIR, "rom.bin")
-    kp = os.path.join(WORKDIR, "kernel.bin")
-    lp = os.path.join(WORKDIR, "cpu.log")
-    with open(rp, "wb") as f:
-        f.write(rom)
-    with open(kp, "wb") as f:
-        f.write(b"\x00" * 16)
-    cmd = [QEMU, "-M", "dadao-m1", "-nographic", "-bios", rp, "-kernel", kp,
-           "-semihosting-config", "enable=on,target=native",
-           "-d", "cpu", "-D", lp]
-    try:
-        r = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT, text=True)
-        rc = r.returncode & 0xFF
-        err = r.stderr
-    except subprocess.TimeoutExpired:
-        return None, "", "TIMEOUT"
-    with open(lp) as f:
-        log = f.read()
-    return rc, log, err
-
+    """4 MiB `bootrom-image`, no `-kernel`; returns (rc, cpu_log, stderr)."""
+    rc, log = _prelude.run(rom, WORKDIR, qemu=QEMU, timeout=TIMEOUT)
+    return rc, log, ""
 
 def lasthex(log, pat):
     m = None
@@ -561,7 +527,7 @@ def _dma_pa_read_rom():
     p = []
     status_clear(p)
     # First two words of the (bootstrapped) body.
-    dma_start_pa_to_cfx(p, ROM_BASE + BOOTSTRAP_OFF, PMEM_BASE + 0x0300, 8)
+    dma_start_pa_to_cfx(p, ROM_BASE, PMEM_BASE + 0x0300, 8)
     poll_busy_clear(p)
     pmem_r(p, DMA_STATUS_RC, 6)
     load64(p, PMEM_BASE + 0x0300, rd=7)
@@ -761,48 +727,10 @@ def _pmem_cg15_reserved_cfxreg():
 # Driver
 # ---------------------------------------------------------------------------
 
-# ADR-0045 D4: only hmon may access the default-masked cfx resources, so every
-# min-ROM body runs in hmon (cfx3).  The power stage at offset 0 installs the
-# hmon hypv vector and traps hmon; the original body starts at BOOTSTRAP_OFF.
-BOOTSTRAP_OFF = 0x48
-STAGE_OFF = 0x24
-
-
-def bootstrap_prefix():
-    ins = load_rd(22, ROM_BASE + STAGE_OFF) + [cfx2rc(3, 3, 10, 22), trap(3, 0)]
-    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
-    assert len(ins) == STAGE_OFF // 4, len(ins)
-    return ins
-
-
-def bootstrap_stage():
-    # hmon stage: clear cfx_power's cfxmem/cfxexe for user/hypv so the body
-    # and any cfx0 handler can use RAM and fetch this ROM (ADR-0045 D2).
-    ins = load_rd(20, 0)
-    for cg in (0, 1, 2, 3):
-        ins += [cfx2rc(63, cg, 1, 20), cfx2rc(63, cg, 3, 20)]
-    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
-    assert len(ins) == STAGE_OFF // 4, len(ins)
-    return ins
-
-
-def bootstrap_rom(rom):
-    return words_to_bytes(bootstrap_prefix()) + words_to_bytes(bootstrap_stage()) + rom
-
-
-def shift_rom_expect(exp):
-    for k, v in list(exp.items()):
-        if isinstance(v, int) and ROM_BASE <= v < ROM_BASE + 0x100:
-            exp[k] = v + BOOTSTRAP_OFF
-    return exp
-
-
 def run_case(name):
     for n, d, fn in CASES:
         if n == name:
             rom, exp = fn()
-            rom = bootstrap_rom(rom)
-            exp = shift_rom_expect(exp)
             rc, log, err = run(rom)
             if rc is None:
                 return False, "TIMEOUT", exp
