@@ -1,11 +1,11 @@
 # GOLDEN-001t：M1 标量 golden 校正与设计说明
 
-**状态**：待验收
+**状态**：已验证
 **模块**：golden
 **项目里程碑**：维护（M1 标量 + `scope: fp` 66 条；特权/原子/fence 在范围外；原“不扩展浮点”仅指初始范围）
 **依赖**：当前 spec/、contract-isa.md、contracts/opcodes.yaml、tests/inst/schema.md
 
-> **口径说明（2026-10-27）**：本任务书前部“43 tests / 60 FP / sub.uo 待裁定 / 浮点不实现”等为历史记录；当前最终口径见文末“文档口径与已知不足”段（48 tests、66 FP、730 回放、ADR-0049）。
+> **口径说明（2026-10-27）**：本任务书前部“43 tests / 60 FP / sub.uo 待裁定 / 浮点不实现”等为历史记录；当前最终口径见文末“文档口径与已知不足”段（49 tests、66 FP、730 回放、L2 PASS、ADR-0049；以文末“最终验收”为准）。
 
 ## 用户确认
 
@@ -230,7 +230,7 @@ EXIT=0
 
 已知不足（如实记录，未在本次文档更新中修改实现）：
 
-- **f2i**：已按新规范对 finite inexact 置 NX、不再抛 `FPGap`；NaN/Inf/负无符号饱和方向仍缺独立向量。
+- **f2i**：finite inexact 置 NX；负 Inf/负溢出饱和已修复（3156df78），有单测。仍开放：unsigned `-Inf`/±NaN 饱和到 `0xFFFFFFFF` 还是 0，无独立向量（已记录，不阻断本任务）。
 - **FP 共享向量**：`tests/inst/fp` 目前只有 scaleb；fma/rnd/minmax 仍只有单测和 C 探针，差分脚本未入库。
 - **门控**：已新增 `check-golden`（单测 + `tests/inst` 回放 + `check_golden` + 生成器 `--check`），纳入 `make check`（L1）。
 - **注入**：`check_golden.py` 的模型注入未覆盖 `fma/rnd/minmax`。
@@ -248,3 +248,32 @@ EXIT=0
 - **门控**：新增 `make check-golden`（单测 + `tests/inst` 回放 + `check_golden` + 生成器 `--check`），纳入 `make check`（L1）。
 - **验证**：48 项单测 OK；回放 730 条（173/500/0/57，退出码 0）；scaleb 2 encoding + 10 execution 全过；`validate_vectors` 156/156、718 base 用例、0 缺口；`check_golden`、生成器 `--check`、spec changelog 通过。
 - **未完成**：LLVM 构建在 clang 链接阶段被 OOM 杀掉（`ld terminated with signal 9`），L2 尚未跑通；reviewer 未跑；本次改动未提交/未 push。
+
+## 最终验收（2026-11-03）
+
+### 第 2 轮 reviewer 验收
+
+- 初始判决 **Needs Revision**：`fp_ref.convert_to_int` 的负饱和返回未掩码负数，解释器再 `_sext` 导致二次符号扩展；`ft2it` 的 `-Inf` / 负溢出得到 `0xFFFFFFFE80000000`，正确应为 `0xFFFFFFFF80000000`。仅 +Inf 测试覆盖，负侧漏测。
+- 修复：`3156df78` 对所有 `convert_to_int` 返回值统一为宽度位型（`lo & mask`），调用方只做一次符号扩展；补 `-Inf`、`0xCF000001`、端到端 `ft2it` 与 scaleb `OF|NX`/`UF|NX` 断言。
+- reviewer 复验 **Accepted**：`make check-golden` exit 0（Ran 49 tests，730 回放 FAIL=0）；真实路径 `-Inf → 0xFFFFFFFF80000000` + NV；scaleb 溢出 `(0x7F800000, OF|NX=20)`、下溢 `(0, UF|NX=24)`。
+- 前一轮 probe 期望 `3` 判定为 probe 笔误（`NV|DZ`）；按 IEEE 754 / contract-fp §3/§5，正确是 `OF|NX`。
+
+### 架构师交叉复核
+
+**Accepted**：父版本 `3156df78^` 可复现旧值 `0xFFFFFFFE80000000`，HEAD 为 `0xFFFFFFFF80000000`；修复仅限 `fp_ref.py`、`test_fp_v5.py` 与 `docs/fp-oracle-design.md` 路径；无越界。L2 独立日志 exit 0、`module checks (L2): PASS`。L1 唯一失败 `check-knowledge-refs`（78 条历史 `.work/evidence/**` 悬空，与 golden 无关）。
+
+### 最终证据
+
+```text
+make check-golden        Ran 49 tests ... OK
+                         TOTAL 730: PASS-encoding=173 PASS-execution=500
+                         FAIL=0 SKIP-deferred=5 SKIP-scope=4 SKIP-machine=48
+                         EXIT=0
+make check-modules       module checks (L2): PASS   EXIT=0
+make -k check            EXIT=2，仅 check-knowledge-refs（78 悬空，历史/环境）
+validate_vectors         156/156 identities, 718 base cases, 0 gaps
+```
+
+**提交**：`8c6eb294`（迁移/B/ADR-0049）→ `a9d1850a`（合并 52cbcab6）→ `7242e137`（tests/inst、f2i NX、scaleB、sequence、check-golden）→ `b8b3c7a9`（合并 83574646）→ `057a8620`（生成器/ledger/contract cite）→ `3156df78`（f2i 负饱和修复）→ 本文档收尾提交。
+
+**剩余边界（不阻断本任务）**：unsigned f2i `-Inf`/±NaN 的饱和值（`0xFFFFFFFF` vs 0）待裁定/补向量；fma/rnd/minmax 仍无共享 YAML；M9 标量/特权/原子/fence/MMU 不在模型内。
