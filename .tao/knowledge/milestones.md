@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-095t | 待开始 | 2026-11-03 17:31（登记） | lit mcmodel 12 项环境透传 + codegen 19 例 raw/RASOF 基线收口；先判 tests/工具/QEMU 归属 |
 | QEMU-082t | 待开始 | 2026-11-03 15:32（登记） | cfx_power cg7 描述符按 profile 派生（Node 4 MiB、Tiny 不实现）；integ049t space_power 解 BLOCKED |
 | TESTCASES-094t | 已验证 | 2026-11-03 15:10 | L3 异步/boot-chain：050/051/046/046t 全绿、async 6/6；space_power 描述符另立 QEMU |
 | TESTCASES-093t | 已验证 | 2026-11-03 14:30 | L3 探针 F4/prelude + 9 册 167 例；残余 049/050/051/046 拆 094 |
