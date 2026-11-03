@@ -1,0 +1,205 @@
+metadata:
+  task: RTL-012t
+  generator: tools/rtl/generate_dadao_bubble_sort.py
+  immutable_during_test: true
+  initial_values: [5, 1, 4, 2, 3]
+  expected_values: [1, 2, 3, 4, 5]
+program:
+- pc_offset: 0
+  assembly: 'set.zw rd1, wp0, 5'
+  word: '0x4c040005'
+- pc_offset: 4
+  assembly: 'set.zw rd2, wp0, 1'
+  word: '0x4c080001'
+- pc_offset: 8
+  assembly: 'set.zw rd3, wp0, 4'
+  word: '0x4c0c0004'
+- pc_offset: 12
+  assembly: 'set.zw rd4, wp0, 2'
+  word: '0x4c100002'
+- pc_offset: 16
+  assembly: 'set.zw rd5, wp0, 3'
+  word: '0x4c140003'
+- pc_offset: 20
+  assembly: 'cmp.uo rd7, rd1, rd2  # pass 1'
+  word: '0x40a87042'
+- pc_offset: 24
+  assembly: 'br.np rd7, +4'
+  word: '0x6d1c0004'
+- pc_offset: 28
+  assembly: 'rd2rd rd6, rd1, 1'
+  word: '0x40b06041'
+- pc_offset: 32
+  assembly: 'rd2rd rd1, rd2, 1'
+  word: '0x40b01081'
+- pc_offset: 36
+  assembly: 'rd2rd rd2, rd6, 1'
+  word: '0x40b02181'
+- pc_offset: 40
+  assembly: 'cmp.uo rd7, rd2, rd3  # pass 1'
+  word: '0x40a87083'
+- pc_offset: 44
+  assembly: 'br.np rd7, +4'
+  word: '0x6d1c0004'
+- pc_offset: 48
+  assembly: 'rd2rd rd6, rd2, 1'
+  word: '0x40b06081'
+- pc_offset: 52
+  assembly: 'rd2rd rd2, rd3, 1'
+  word: '0x40b020c1'
+- pc_offset: 56
+  assembly: 'rd2rd rd3, rd6, 1'
+  word: '0x40b03181'
+- pc_offset: 60
+  assembly: 'cmp.uo rd7, rd3, rd4  # pass 1'
+  word: '0x40a870c4'
+- pc_offset: 64
+  assembly: 'br.np rd7, +4'
+  word: '0x6d1c0004'
+- pc_offset: 68
+  assembly: 'rd2rd rd6, rd3, 1'
+  word: '0x40b060c1'
+- pc_offset: 72
+  assembly: 'rd2rd rd3, rd4, 1'
+  word: '0x40b03101'
+- pc_offset: 76
+  assembly: 'rd2rd rd4, rd6, 1'
+  word: '0x40b04181'
+- pc_offset: 80
+  assembly: 'cmp.uo rd7, rd4, rd5  # pass 1'
+  word: '0x40a87105'
+- pc_offset: 84
+  assembly: 'br.np rd7, +4'
+  word: '0x6d1c0004'
+- pc_offset: 88
+  assembly: 'rd2rd rd6, rd4, 1'
+  word: '0x40b06101'
+- pc_offset: 92
+  assembly: 'rd2rd rd4, rd5, 1'
+  word: '0x40b04141'
+- pc_offset: 96
+  assembly: 'rd2rd rd5, rd6, 1'
+  word: '0x40b05181'
+- pc_offset: 100
+  assembly: 'cmp.uo rd7, rd1, rd2  # pass 2'
+  word: '0x40a87042'
+- pc_offset: 104
+  assembly: 'br.np rd7, +4'
+  word: '0x6d1c0004'
+- pc_offset: 108
+  assembly: 'rd2rd rd6, rd1, 1'
+  word: '0x40b06041'
+- pc_offset: 112
+  assembly: 'rd2rd rd1, rd2, 1'
+  word: '0x40b01081'
+- pc_offset: 116
+  assembly: 'rd2rd rd2, rd6, 1'
+  word: '0x40b02181'
+- pc_offset: 120
+  assembly: 'cmp.uo rd7, rd2, rd3  # pass 2'
+  word: '0x40a87083'
+- pc_offset: 124
+  assembly: 'br.np rd7, +4'
+  word: '0x6d1c0004'
+- pc_offset: 128
+  assembly: 'rd2rd rd6, rd2, 1'
+  word: '0x40b06081'
+- pc_offset: 132
+  assembly: 'rd2rd rd2, rd3, 1'
+  word: '0x40b020c1'
+- pc_offset: 136
+  assembly: 'rd2rd rd3, rd6, 1'
+  word: '0x40b03181'
+- pc_offset: 140
+  assembly: 'cmp.uo rd7, rd3, rd4  # pass 2'
+  word: '0x40a870c4'
+- pc_offset: 144
+  assembly: 'br.np rd7, +4'
+  word: '0x6d1c0004'
+- pc_offset: 148
+  assembly: 'rd2rd rd6, rd3, 1'
+  word: '0x40b060c1'
+- pc_offset: 152
+  assembly: 'rd2rd rd3, rd4, 1'
+  word: '0x40b03101'
+- pc_offset: 156
+  assembly: 'rd2rd rd4, rd6, 1'
+  word: '0x40b04181'
+- pc_offset: 160
+  assembly: 'cmp.uo rd7, rd1, rd2  # pass 3'
+  word: '0x40a87042'
+- pc_offset: 164
+  assembly: 'br.np rd7, +4'
+  word: '0x6d1c0004'
+- pc_offset: 168
+  assembly: 'rd2rd rd6, rd1, 1'
+  word: '0x40b06041'
+- pc_offset: 172
+  assembly: 'rd2rd rd1, rd2, 1'
+  word: '0x40b01081'
+- pc_offset: 176
+  assembly: 'rd2rd rd2, rd6, 1'
+  word: '0x40b02181'
+- pc_offset: 180
+  assembly: 'cmp.uo rd7, rd2, rd3  # pass 3'
+  word: '0x40a87083'
+- pc_offset: 184
+  assembly: 'br.np rd7, +4'
+  word: '0x6d1c0004'
+- pc_offset: 188
+  assembly: 'rd2rd rd6, rd2, 1'
+  word: '0x40b06081'
+- pc_offset: 192
+  assembly: 'rd2rd rd2, rd3, 1'
+  word: '0x40b020c1'
+- pc_offset: 196
+  assembly: 'rd2rd rd3, rd6, 1'
+  word: '0x40b03181'
+- pc_offset: 200
+  assembly: 'cmp.uo rd7, rd1, rd2  # pass 4'
+  word: '0x40a87042'
+- pc_offset: 204
+  assembly: 'br.np rd7, +4'
+  word: '0x6d1c0004'
+- pc_offset: 208
+  assembly: 'rd2rd rd6, rd1, 1'
+  word: '0x40b06041'
+- pc_offset: 212
+  assembly: 'rd2rd rd1, rd2, 1'
+  word: '0x40b01081'
+- pc_offset: 216
+  assembly: 'rd2rd rd2, rd6, 1'
+  word: '0x40b02181'
+- pc_offset: 220
+  assembly: 'st.w rd1, [rb2, 0]'
+  word: '0x19042000'
+- pc_offset: 224
+  assembly: 'st.w rd2, [rb2, 2]'
+  word: '0x19082002'
+- pc_offset: 228
+  assembly: 'st.w rd3, [rb2, 4]'
+  word: '0x190c2004'
+- pc_offset: 232
+  assembly: 'st.w rd4, [rb2, 6]'
+  word: '0x19102006'
+- pc_offset: 236
+  assembly: 'st.w rd5, [rb2, 8]'
+  word: '0x19142008'
+- pc_offset: 240
+  assembly: 'ld.uw rd8, [rb2, 0]'
+  word: '0x11202000'
+- pc_offset: 244
+  assembly: 'ld.uw rd9, [rb2, 2]'
+  word: '0x11242002'
+- pc_offset: 248
+  assembly: 'ld.uw rd10, [rb2, 4]'
+  word: '0x11282004'
+- pc_offset: 252
+  assembly: 'ld.uw rd11, [rb2, 6]'
+  word: '0x112c2006'
+- pc_offset: 256
+  assembly: 'ld.uw rd12, [rb2, 8]'
+  word: '0x11302008'
+- pc_offset: 260
+  assembly: 'swym 0'
+  word: '0x47880000'
