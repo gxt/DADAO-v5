@@ -1538,6 +1538,11 @@ def generate_file(filename, recs):
         elif fmt == "rrrr":
             c = gen_rrrr_arith_semantic(rec, 100, 30)
             if c: cases.append(c)
+            if rec["mnemonic"] == "sub.uo":
+                # ADR-0049: borrow cases 0-1 and 5-7.
+                for a_val, b_val in ((0, 1), (5, 7)):
+                    c = gen_rrrr_arith_semantic(rec, a_val, b_val)
+                    if c: cases.append(c)
         elif fmt == "orrr" and is_divrem:
             c = gen_semantic_orrr_arith(rec, 100, 7, 0)
             if c: cases.append(c)
@@ -1712,9 +1717,12 @@ def main(argv=None):
                     "位置参数可选：只处理指定册（缺省六册全做）。")
     ap.add_argument("--check", action="store_true",
                     help="只读：重渲染并与 tests/inst/base 现存文件逐字节比较")
-    ap.add_argument("files", nargs="*", choices=sorted(FILE_MAP),
+    ap.add_argument("files", nargs="*",
                     help="只重生成/校验指定的册（如 reg-arith.yaml）")
     args = ap.parse_args(argv)
+    unknown = sorted(set(args.files) - set(FILE_MAP))
+    if unknown:
+        ap.error("unknown file(s): %s" % ", ".join(unknown))
 
     targets = _selected_files(set(args.files))
 

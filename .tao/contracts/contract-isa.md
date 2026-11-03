@@ -513,7 +513,7 @@ RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0�
 | `sub.uo rdha, rdhb, rdhc, rdhd` | 按无符号 64 位相减：`rdhb = (rdhc − rdhd) mod 2^64`；`rdha` 为借位（`rdhc < rdhd` 时 1，否则 0） | [SimRISC-04 §加减操作] |
 | `sub.so rdha, rdhb, rdhc, rdhd` | 源符号扩展（SX）至 128 位，`rdha:rdhb = rdhc − rdhd`，`rdha` 为高 64 位 | [SimRISC-04 §加减操作] |
 
-`sub.uo` 不写 128 位结果的全 1 高半；需要 128 位有符号高半时用 `sub.so`。`add.uo` 的进位与 128 位结果高半恰好一致。
+`sub.uo` 不写 128 位结果的全 1 高半；需要 128 位有符号高半时用 `sub.so`。`add.uo` 的进位与 128 位结果高半恰好一致。[SimRISC-04 §加减操作]
 
 异常条件：[SimRISC-04 §加减操作]
 - `rdha` 与 `rdhb` 同时为 `rd0` → **ILLI**

@@ -1116,6 +1116,8 @@ vector	tests/inst/base/reg-arith.yaml	sub.uo_rrrr_rd	encoding	0x52042000	None	ac
 vector	tests/inst/base/reg-arith.yaml	sub.uo_rrrr_rd	legality	0x52000000	ILLI	active	1
 vector	tests/inst/base/reg-arith.yaml	sub.uo_rrrr_rd	overlap	0x520410c4	ILLI	active	1
 vector	tests/inst/base/reg-arith.yaml	sub.uo_rrrr_rd	semantic	0x520420c4	None	active	1
+vector	tests/inst/base/reg-arith.yaml	sub.uo_rrrr_rd	semantic	0x520420c4	None	active	2
+vector	tests/inst/base/reg-arith.yaml	sub.uo_rrrr_rd	semantic	0x520420c4	None	active	3
 vector	tests/inst/base/reg-arith.yaml	sub.ut_orrr_rd	boundary	0x41a01083	None	active	1
 vector	tests/inst/base/reg-arith.yaml	sub.ut_orrr_rd	encoding	0x41a01000	None	active	1
 vector	tests/inst/base/reg-arith.yaml	sub.ut_orrr_rd	legality	0x41a00000	ILLI	active	1
