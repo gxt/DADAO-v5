@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
 new file mode 100644
-index 0000000..06e4e06
+index 0000000..8ba859c
 --- /dev/null
 +++ b/src/arch/dadao/isa.hh
-@@ -0,0 +1,64 @@
+@@ -0,0 +1,68 @@
 +// DADAO ISA object (B0 skeleton + B6 LR/SC reservation state).
 +#ifndef __ARCH_DADAO_ISA_HH__
 +#define __ARCH_DADAO_ISA_HH__
@@ -46,6 +46,10 @@ index 0000000..06e4e06
 +    void setMiscReg(RegIndex idx, RegVal val) override;
 +
 +    bool inUserMode() const override;
++
++    /** FS reset: Tiny architectural register values and PC = workload entry.
++     *  SE never calls this (the Process sets its own initial state). */
++    void resetThread() override;
 +
 +    // LR/SC reservation (B6): one slot per hart, keyed by the exact address and
 +    // the access width (contract-isa §14.2, SPEC-181t F8.1).  No checkpoint

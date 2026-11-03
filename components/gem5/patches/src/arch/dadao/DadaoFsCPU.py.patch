@@ -1,0 +1,16 @@
+diff --git a/src/arch/dadao/DadaoFsCPU.py b/src/arch/dadao/DadaoFsCPU.py
+new file mode 100644
+index 0000000..f1b838a
+--- /dev/null
++++ b/src/arch/dadao/DadaoFsCPU.py
+@@ -0,0 +1,10 @@
++from m5.objects.DadaoCPU import DadaoAtomicSimpleCPU
++from m5.objects.DadaoFsMMU import DadaoFsMMU
++from m5.params import *
++from m5.SimObject import *
++
++
++class DadaoFsAtomicSimpleCPU(DadaoAtomicSimpleCPU):
++    """AtomicSimpleCPU with the FS (Tiny) identity MMU/TLB."""
++
++    mmu = DadaoFsMMU()

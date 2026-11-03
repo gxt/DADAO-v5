@@ -1,0 +1,13 @@
+diff --git a/src/arch/generic/SConscript b/src/arch/generic/SConscript
+index b2bef74..9f598df 100644
+--- a/src/arch/generic/SConscript
++++ b/src/arch/generic/SConscript
+@@ -40,7 +40,7 @@ Import('*')
+ 
+ Source('htm.cc')
+ Source('mmu.cc')
+-if env['CONF']['USE_ARM_ISA'] or env['CONF']['USE_RISCV_ISA']:
++if env['CONF']['USE_ARM_ISA'] or env['CONF']['USE_RISCV_ISA'] or env['CONF']['USE_DADAO_ISA']:
+      Source('semihosting.cc')
+      SimObject('BaseSemihosting.py', sim_objects=['BaseSemihosting'])
+      DebugFlag('Semihosting')

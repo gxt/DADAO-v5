@@ -1,0 +1,90 @@
+diff --git a/src/arch/dadao/fs_tlb.cc b/src/arch/dadao/fs_tlb.cc
+new file mode 100644
+index 0000000..39c1fef
+--- /dev/null
++++ b/src/arch/dadao/fs_tlb.cc
+@@ -0,0 +1,84 @@
++// DADAO FS TLB -- identity translation with Machine-v5-Tiny segment rules.
++#include "arch/dadao/fs_tlb.hh"
++
++#include <algorithm>
++
++#include "arch/dadao/fs_machine.hh"
++#include "sim/faults.hh"
++
++namespace gem5
++{
++
++namespace DadaoISA
++{
++
++Fault
++FsTLB::translate(const RequestPtr &req, BaseMMU::Mode mode) const
++{
++    const Addr vaddr = req->getVaddr();
++    const Addr size = req->getSize();
++
++    // Instruction fetch must be 4-byte aligned (IALIGN).  Data alignment is
++    // the execution core's MALIGN check, which runs before the access.
++    if (mode == BaseMMU::Execute) {
++        // gem5 masks the fetch address to the decoder alignment before the
++        // request; the unmodified instruction address is carried as req->pc.
++        const Addr pc = req->hasPC() ? req->getPC() : MaxAddr;
++        if ((vaddr & 0x3) != 0 || (pc != MaxAddr && (pc & 0x3) != 0))
++            return machineFault(FaultIALIGN);
++    }
++
++    if (inSegment(romBase, romSize, vaddr, size)) {
++        // BootROM is read/execute only; a store is ILLI (ADR-0004 D5.6).
++        if (mode == BaseMMU::Write)
++            return machineFault(FaultILLI);
++        req->setPaddr(vaddr);
++        return NoFault;
++    }
++
++    if (inSegment(sramBase, sramSize, vaddr, size)) {
++        req->setPaddr(vaddr);
++        return NoFault;
++    }
++
++    // Any other address (addr[47:42] == 0, the gap, or an out-of-range cfxha
++    // 63 address) is CFXMEM on both the fetch and the data path.
++    return machineFault(FaultCFXMEM);
++}
++
++void
++FsTLB::demapPage(Addr vaddr, uint64_t asn)
++{
++    // No TLB entries: identity translation is recomputed every access.
++}
++
++Fault
++FsTLB::translateAtomic(const RequestPtr &req, ThreadContext *tc,
++                       BaseMMU::Mode mode)
++{
++    return translate(req, mode);
++}
++
++void
++FsTLB::translateTiming(const RequestPtr &req, ThreadContext *tc,
++                       BaseMMU::Translation *translation, BaseMMU::Mode mode)
++{
++    translation->finish(translate(req, mode), req, tc, mode);
++}
++
++Fault
++FsTLB::translateFunctional(const RequestPtr &req, ThreadContext *tc,
++                           BaseMMU::Mode mode)
++{
++    return translate(req, mode);
++}
++
++Fault
++FsTLB::finalizePhysical(const RequestPtr &req, ThreadContext *tc,
++                        BaseMMU::Mode mode) const
++{
++    return NoFault;
++}
++
++} // namespace DadaoISA
++} // namespace gem5

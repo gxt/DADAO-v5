@@ -1,0 +1,21 @@
+diff --git a/src/arch/dadao/DadaoFsTlb.py b/src/arch/dadao/DadaoFsTlb.py
+new file mode 100644
+index 0000000..2da8c87
+--- /dev/null
++++ b/src/arch/dadao/DadaoFsTlb.py
+@@ -0,0 +1,15 @@
++from m5.objects.BaseTLB import BaseTLB
++from m5.params import *
++
++
++class DadaoFsTlb(BaseTLB):
++    """Tiny FS identity TLB with BootROM/SRAM segment checks."""
++
++    type = "DadaoFsTlb"
++    cxx_class = "gem5::DadaoISA::FsTLB"
++    cxx_header = "arch/dadao/fs_tlb.hh"
++
++    rom_base = Param.Addr(0xFFFF_FFFF_0000, "BootROM base address")
++    rom_size = Param.Addr(0x1_0000, "BootROM size in bytes")
++    sram_base = Param.Addr(0xFFFF_FF00_0000, "SRAM base address")
++    sram_size = Param.Addr(0x80_0000, "SRAM size in bytes")

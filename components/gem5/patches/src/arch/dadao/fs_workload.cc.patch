@@ -1,0 +1,276 @@
+diff --git a/src/arch/dadao/fs_workload.cc b/src/arch/dadao/fs_workload.cc
+new file mode 100644
+index 0000000..e800eb9
+--- /dev/null
++++ b/src/arch/dadao/fs_workload.cc
+@@ -0,0 +1,270 @@
++// DADAO FS workload implementation.
++#include "arch/dadao/fs_workload.hh"
++
++#include <fstream>
++#include <iterator>
++
++#include "arch/dadao/fs_machine.hh"
++#include "base/loader/elf_object.hh"
++#include "base/logging.hh"
++#include "cpu/thread_context.hh"
++#include "sim/system.hh"
++
++namespace gem5
++{
++
++namespace DadaoISA
++{
++
++namespace
++{
++
++// Minimal ELF64 definitions (the guest ABI is fixed); kept local so the
++// system <elf.h> and gem5's ext/libelf enums cannot collide.
++constexpr unsigned kEiNident = 16;
++constexpr unsigned kEiClass = 4;
++constexpr unsigned kEiData = 5;
++constexpr uint8_t kElfClass64 = 2;
++constexpr uint8_t kElfData2Msb = 2;
++constexpr uint16_t kEtExec = 2;
++constexpr uint32_t kPtLoad = 1;
++constexpr uint32_t kPtInterp = 3;
++constexpr size_t kElf64PhdrSize = 56;
++
++uint16_t
++be16(const std::vector<uint8_t> &d, size_t off)
++{
++    return (uint16_t(d[off]) << 8) | uint16_t(d[off + 1]);
++}
++
++uint32_t
++be32(const std::vector<uint8_t> &d, size_t off)
++{
++    uint32_t v = 0;
++    for (unsigned i = 0; i < 4; ++i)
++        v = (v << 8) | d[off + i];
++    return v;
++}
++
++uint64_t
++be64(const std::vector<uint8_t> &d, size_t off)
++{
++    uint64_t v = 0;
++    for (unsigned i = 0; i < 8; ++i)
++        v = (v << 8) | d[off + i];
++    return v;
++}
++
++std::vector<uint8_t>
++readFile(const std::string &path)
++{
++    std::ifstream in(path, std::ios::binary);
++    fatal_if(!in, "DADAO FS: cannot open %s", path);
++    return std::vector<uint8_t>(std::istreambuf_iterator<char>(in),
++                                std::istreambuf_iterator<char>());
++}
++
++bool
++isElfMagic(const std::vector<uint8_t> &d)
++{
++    return d.size() >= 4 && d[0] == 0x7f && d[1] == 'E' && d[2] == 'L' &&
++           d[3] == 'F';
++}
++
++} // anonymous namespace
++
++FsWorkload::FsWorkload(const Params &p) :
++    Workload(p), p_rom_base(p.rom_base), p_rom_size(p.rom_size),
++    p_sram_base(p.sram_base), p_sram_size(p.sram_size),
++    p_kernel_base(p.kernel_base), p_kernel_reserved(p.kernel_reserved),
++    kernelPath(p.kernel), semihosting(p.semihosting)
++{
++    fatal_if(kernelPath.empty(), "DADAO FS: --kernel is required");
++    fatal_if(p_rom_size == 0 || p_sram_size == 0,
++             "DADAO FS: empty segment geometry");
++
++    const std::vector<uint8_t> kernelFile = readFile(kernelPath);
++    isElf = isElfMagic(kernelFile);
++
++    if (!p.bootrom.empty()) {
++        fatal_if(isElf,
++                 "DADAO FS: --bootrom and an ELF --kernel (%s) cannot be "
++                 "combined: the ELF carries its own BootROM crt",
++                 kernelPath);
++        loadBootrom(p.bootrom, kernelPath);
++    } else if (!isElf) {
++        fatal("DADAO FS: raw --kernel %s requires --bootrom (the raw image has "
++              "no reset stub)", kernelPath);
++    }
++
++    if (isElf) {
++        validateElf(kernelFile);
++        kernelObj = loader::createObjectFile(kernelPath);
++        fatal_if(kernelObj == nullptr,
++                 "DADAO FS: cannot parse ELF %s", kernelPath);
++        symbols.insert(kernelObj->symtab());
++        entry = kernelObj->entryPoint();
++    } else {
++        loadRaw(kernelFile);
++    }
++}
++
++FsWorkload::~FsWorkload()
++{
++    delete kernelObj;
++}
++
++bool
++FsWorkload::inRange(Addr base, Addr size, Addr addr, Addr len) const
++{
++    if (addr < base)
++        return false;
++    const Addr off = addr - base;
++    if (off >= size)
++        return false;
++    return len <= size - off;
++}
++
++bool
++FsWorkload::inSegment(Addr addr, Addr len) const
++{
++    return inRange(p_rom_base, p_rom_size, addr, len) ||
++           inRange(p_sram_base, p_sram_size, addr, len);
++}
++
++void
++FsWorkload::loadBootrom(const std::string &path, const std::string &kernel)
++{
++    (void)kernel;
++    romData = readFile(path);
++    fatal_if(romData.empty(), "DADAO FS: empty --bootrom %s", path);
++    fatal_if(romData.size() > p_rom_size,
++             "DADAO FS: --bootrom %s is %zu bytes, BootROM holds %llu",
++             path, romData.size(),
++             static_cast<unsigned long long>(p_rom_size));
++    entry = p_rom_base;
++}
++
++void
++FsWorkload::validateElf(const std::vector<uint8_t> &d)
++{
++    fatal_if(d.size() < kEiNident + 48, "DADAO FS: ELF %s is truncated",
++             kernelPath);
++
++    fatal_if(d[kEiClass] != kElfClass64,
++             "DADAO FS: ELF %s is not ELFCLASS64", kernelPath);
++    fatal_if(d[kEiData] != kElfData2Msb,
++             "DADAO FS: ELF %s is not ELFDATA2MSB (big-endian)", kernelPath);
++
++    const uint16_t etype = be16(d, 16);
++    const uint16_t emach = be16(d, 18);
++    const uint64_t eentry = be64(d, 24);
++    const uint64_t phoff = be64(d, 32);
++    const uint32_t eflags = be32(d, 48);
++    const uint16_t phentsize = be16(d, 54);
++    const uint16_t phnum = be16(d, 56);
++
++    fatal_if(emach != 0x0DA0, "DADAO FS: ELF %s has e_machine %#x, expected "
++             "EM_DADAO 0x0da0", kernelPath, emach);
++    fatal_if(etype != kEtExec,
++             "DADAO FS: ELF %s is not ET_EXEC (e_type=%u)", kernelPath, etype);
++    fatal_if((eflags & 0xff) != 1,
++             "DADAO FS: ELF %s has e_flags&0xff=%#x, expected 1",
++             kernelPath, eflags & 0xff);
++    fatal_if(phentsize != kElf64PhdrSize,
++             "DADAO FS: ELF %s has e_phentsize %u, expected %zu",
++             kernelPath, phentsize, kElf64PhdrSize);
++
++    bool sawLoad = false;
++    for (unsigned i = 0; i < phnum; ++i) {
++        const size_t off = phoff + size_t(i) * phentsize;
++        fatal_if(off + kElf64PhdrSize > d.size(),
++                 "DADAO FS: ELF %s program header %u lies outside the file",
++                 kernelPath, i);
++        const uint32_t ptype = be32(d, off + 0);
++        const uint64_t pvaddr = be64(d, off + 16);
++        const uint64_t ppaddr = be64(d, off + 24);
++        const uint64_t pfilesz = be64(d, off + 32);
++        const uint64_t pmemsz = be64(d, off + 40);
++
++        fatal_if(ptype == kPtInterp,
++                 "DADAO FS: ELF %s has PT_INTERP (dynamic linking unsupported)",
++                 kernelPath);
++        if (ptype != kPtLoad)
++            continue;
++
++        sawLoad = true;
++        fatal_if(pvaddr != ppaddr,
++                 "DADAO FS: ELF %s segment %u has p_vaddr %#llx != p_paddr "
++                 "%#llx", kernelPath, i,
++                 static_cast<unsigned long long>(pvaddr),
++                 static_cast<unsigned long long>(ppaddr));
++        fatal_if(pfilesz > pmemsz,
++                 "DADAO FS: ELF %s segment %u has p_filesz %llu > p_memsz "
++                 "%llu", kernelPath, i,
++                 static_cast<unsigned long long>(pfilesz),
++                 static_cast<unsigned long long>(pmemsz));
++        fatal_if(pmemsz == 0,
++                 "DADAO FS: ELF %s segment %u is empty", kernelPath, i);
++        fatal_if(!inSegment(ppaddr, pmemsz),
++                 "DADAO FS: ELF %s segment %u [%#llx, %#llx) is outside "
++                 "BootROM/SRAM", kernelPath, i,
++                 static_cast<unsigned long long>(ppaddr),
++                 static_cast<unsigned long long>(ppaddr + pmemsz));
++    }
++
++    fatal_if(!sawLoad, "DADAO FS: ELF %s has no PT_LOAD segment", kernelPath);
++    fatal_if(!inSegment(eentry, 4),
++             "DADAO FS: ELF %s e_entry %#llx is outside BootROM/SRAM",
++             kernelPath, static_cast<unsigned long long>(eentry));
++}
++
++void
++FsWorkload::loadRaw(const std::vector<uint8_t> &d)
++{
++    fatal_if(d.size() < p_kernel_reserved,
++             "DADAO FS: raw image %s is %zu bytes, shorter than the %llu-byte "
++             "reserved prefix", kernelPath, d.size(),
++             static_cast<unsigned long long>(p_kernel_reserved));
++    fatal_if(d.size() > p_sram_size - p_kernel_reserved,
++             "DADAO FS: raw image %s is %zu bytes, larger than SRAM minus "
++             "the reserved prefix (%llu)",
++             kernelPath, d.size(),
++             static_cast<unsigned long long>(p_sram_size - p_kernel_reserved));
++    for (Addr i = 0; i < p_kernel_reserved; ++i) {
++        fatal_if(d[i] != 0,
++                 "DADAO FS: raw image %s has non-zero reserved byte at "
++                 "offset %llu (%#x)", kernelPath,
++                 static_cast<unsigned long long>(i), d[i]);
++    }
++    rawData = d;
++    // The reset vector stays the BootROM base; the raw application entry is
++    // reached by the BootROM trampoline, not by the platform's reset PC.
++    if (romData.empty())
++        entry = p_kernel_base + p_kernel_reserved;
++}
++
++void
++FsWorkload::initState()
++{
++    Workload::initState();
++
++    if (!romData.empty())
++        system->physProxy.writeBlob(p_rom_base, romData.data(), romData.size());
++
++    if (isElf) {
++        fatal_if(!kernelObj->buildImage().write(system->physProxy),
++                 "DADAO FS: failed to write ELF %s into memory", kernelPath);
++    } else if (!rawData.empty()) {
++        system->physProxy.writeBlob(p_kernel_base, rawData.data(),
++                                    rawData.size());
++    }
++
++    for (auto *tc : system->threads) {
++        tc->getIsaPtr()->resetThread();
++        tc->activate();
++    }
++}
++
++} // namespace DadaoISA
++} // namespace gem5

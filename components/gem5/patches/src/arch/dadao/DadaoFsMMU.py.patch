@@ -1,0 +1,18 @@
+diff --git a/src/arch/dadao/DadaoFsMMU.py b/src/arch/dadao/DadaoFsMMU.py
+new file mode 100644
+index 0000000..2c1e7e0
+--- /dev/null
++++ b/src/arch/dadao/DadaoFsMMU.py
+@@ -0,0 +1,12 @@
++from m5.objects.BaseMMU import BaseMMU
++from m5.objects.DadaoFsTlb import DadaoFsTlb
++from m5.params import *
++
++
++class DadaoFsMMU(BaseMMU):
++    type = "DadaoFsMMU"
++    cxx_class = "gem5::DadaoISA::FsMMU"
++    cxx_header = "arch/dadao/fs_mmu.hh"
++
++    itb = DadaoFsTlb(entry_type="instruction")
++    dtb = DadaoFsTlb(entry_type="data")

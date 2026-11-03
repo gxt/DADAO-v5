@@ -1,12 +1,14 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..7c64901
+index 0000000..f0d840b
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,116 @@
+@@ -0,0 +1,140 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
++#include "arch/dadao/fs_machine.hh"
++#include "arch/dadao/fs_workload.hh"
 +#include "arch/dadao/regs/float.hh"
 +#include "arch/dadao/regs/int.hh"
 +#include "base/logging.hh"
@@ -102,10 +104,32 @@ index 0000000..7c64901
 +bool
 +ISA::inUserMode() const
 +{
-+    // G1 SE runs user code only.  FS will replace this with the three-axis
-+    // privilege model; until then "always user" is the honest answer for the
-+    // SE platform (BaseSimpleCPU queries this on every committed inst).
++    // G1 SE runs user code only; the Tiny FS machine runs in its nominal
++    // hypv/cfxha-63 mode and has no path into user mode.  Decided by workload
++    // type, so the SE platform keeps its previous answer.
++    if (isFsMachine(tc))
++        return false;
 +    return true;
++}
++
++void
++ISA::resetThread()
++{
++    FsWorkload *fs = asFsWorkload(tc);
++    panic_if(fs == nullptr,
++             "DADAO ISA: resetThread() is only valid for the FS machine");
++
++    // Reset values frozen by spec/Machine-v5 §1: PC = rb0 = reset vector,
++    // every other GPR/RA is zero, rf0 is the FCSR reset constant (GEM5-014t
++    // §3) and rf1-rf63 are zero.  The platform never pre-sets SP.
++    for (const auto &id : intRegClass)
++        tc->setReg(id, RegVal(0));
++    for (const auto &id : floatRegClass)
++        tc->setReg(id, RegVal(0));
++
++    tc->setReg(RegId(floatRegClass, 0), 0x7FF800007FC00000ULL);
++    tc->pcState(PCState(fs->getEntry()));
++    clearReservations();
 +}
 +
 +void

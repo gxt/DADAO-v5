@@ -1,0 +1,94 @@
+diff --git a/src/arch/dadao/fs_machine.cc b/src/arch/dadao/fs_machine.cc
+new file mode 100644
+index 0000000..2a620e5
+--- /dev/null
++++ b/src/arch/dadao/fs_machine.cc
+@@ -0,0 +1,88 @@
++// DADAO FS machine fault implementation.
++#include "arch/dadao/fs_machine.hh"
++
++#include <memory>
++
++#include "arch/dadao/fs_workload.hh"
++#include "base/cprintf.hh"
++#include "cpu/thread_context.hh"
++#include "sim/sim_exit.hh"
++#include "sim/system.hh"
++
++namespace gem5
++{
++
++namespace DadaoISA
++{
++
++namespace
++{
++
++// The first fault locks the exit code: later faults (a second access in the
++// same instruction, a fault raised while unwinding) must not overwrite it.
++bool faultRaised = false;
++
++} // anonymous namespace
++
++const char *
++machineFaultName(uint8_t code)
++{
++    switch (code) {
++      case FaultCFXMEM:
++        return "CFXMEM";
++      case FaultCFXREG:
++        return "CFXREG";
++      case FaultILLI:
++        return "ILLI";
++      case FaultUNDI:
++        return "UNDI";
++      case FaultRASOF:
++        return "RASOF";
++      case FaultRASUF:
++        return "RASUF";
++      case FaultMALIGN:
++        return "MALIGN";
++      case FaultIALIGN:
++        return "IALIGN";
++      default:
++        return "UNKNOWN";
++    }
++}
++
++FsWorkload *
++asFsWorkload(ThreadContext *tc)
++{
++    if (tc == nullptr)
++        return nullptr;
++    System *system = tc->getSystemPtr();
++    if (system == nullptr)
++        return nullptr;
++    return dynamic_cast<FsWorkload *>(system->workload);
++}
++
++bool
++isFsMachine(ThreadContext *tc)
++{
++    return asFsWorkload(tc) != nullptr;
++}
++
++void
++MachineFault::invoke(ThreadContext *, const StaticInstPtr &)
++{
++    if (faultRaised)
++        return;
++    faultRaised = true;
++
++    // Guest-visible cause name: the config script recognises the prefix and
++    // propagates the low 8 bits to the host exit status.
++    exitSimLoopNow(csprintf("DADAO_FS_FAULT_%s", machineFaultName(code)), code);
++}
++
++Fault
++machineFault(uint8_t code)
++{
++    return std::make_shared<MachineFault>(code);
++}
++
++} // namespace DadaoISA
++} // namespace gem5

@@ -1,23 +1,27 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..476bb4a
+index 0000000..ac5ca25
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,472 @@
+@@ -0,0 +1,538 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
 +#include "arch/dadao/inst.hh"
 +
 +#include <memory>
++#include <string_view>
 +#include <vector>
 +
 +#include "arch/dadao/exec/b7.hh"
 +#include "arch/dadao/exec/dispatch.hh"
 +#include "arch/dadao/faults.hh"
++#include "arch/dadao/fs_machine.hh"
++#include "arch/dadao/fs_workload.hh"
 +#include "arch/dadao/isa.hh"
 +#include "arch/dadao/regs/float.hh"
 +#include "arch/dadao/regs/int.hh"
++#include "arch/dadao/semihosting.hh"
 +#include "base/cprintf.hh"
 +#include "cpu/exec_context.hh"
 +#include "cpu/thread_context.hh"
@@ -245,6 +249,14 @@ index 0000000..476bb4a
 +    void
 +    trapTo(uint8_t cfxha, uint32_t immu18) override
 +    {
++        if (DadaoISA::isFsMachine(tc)) {
++            // Tiny has no cfx vectors.  The semihosting tag is served before
++            // the reserved-cfxha check in DadaoInst::execute(); a trap that
++            // reaches here is a general trap and is ILLI (spec/Machine-v5 §3).
++            DadaoISA::machineFault(DadaoISA::FaultILLI)->invoke(tc, nullptr);
++            return;
++        }
++
 +        // SE entry point: `trap cfx0, 0` is umon / SBI_UMON_SYSCALL
 +        // (contract-syscall §2).  The workload dispatches on rd15 and the CPU
 +        // advances the PC by 4 like any other sequential instruction.
@@ -335,6 +347,7 @@ index 0000000..476bb4a
 +    Fault memFaultValue() const { return memFault; }
 +    uint64_t malignAddress() const { return malignAddr; }
 +    unsigned malignAccessWidth() const { return malignWidth; }
++    ThreadContext *threadContext() const { return tc; }
 +};
 +
 +/** Translate one exec::Fault into the gem5 fault of DadaoInst::execute().
@@ -350,16 +363,22 @@ index 0000000..476bb4a
 +             const DadaoISA::decode::DecodedInst &decoded)
 +{
 +    const char *id = decoded.entry->id;
++    ThreadContext *tc = ctx.threadContext();
++    const bool fs = DadaoISA::isFsMachine(tc);
 +
 +    switch (fault) {
 +      case exec::Fault::None:
 +        return NoFault;
 +      case exec::Fault::Illegal:
++        if (fs)
++            return DadaoISA::machineFault(DadaoISA::FaultILLI);
 +        return std::make_shared<DadaoISA::IllegalInstruction>(word);
 +      case exec::Fault::Malign:
 +        switch (batch) {
 +          case 1:
 +          case 6:
++            if (fs)
++                return DadaoISA::machineFault(DadaoISA::FaultMALIGN);
 +            return std::make_shared<DadaoISA::MalignInstruction>(
 +                    word, ctx.malignAddress(), ctx.malignAccessWidth());
 +          case 5:
@@ -390,6 +409,10 @@ index 0000000..476bb4a
 +      case exec::Fault::RasOverflow:
 +      case exec::Fault::RasUnderflow:
 +        if (batch == 5) {
++            if (fs)
++                return DadaoISA::machineFault(
++                        fault == exec::Fault::RasOverflow ?
++                        DadaoISA::FaultRASOF : DadaoISA::FaultRASUF);
 +            panic("DADAO B5: %s raised %s (architectural trap model not "
 +                  "implemented)", id,
 +                  fault == exec::Fault::RasOverflow ? "RASOF" : "RASUF");
@@ -401,6 +424,8 @@ index 0000000..476bb4a
 +            panic("DADAO B%u: %s raised a cfx fault but B%u has no cfx "
 +                  "access", batch, id, batch);
 +        }
++        if (fs)
++            return DadaoISA::machineFault(DadaoISA::FaultCFXREG);
 +        uint64_t cfxha = 0, cg = 0, rc = 0;
 +        exec::fieldValue(decoded, "cfxha", cfxha);
 +        exec::fieldValue(decoded, "cghb", cg);
@@ -415,6 +440,9 @@ index 0000000..476bb4a
 +            panic("DADAO B%u: %s raised a cfx fault but B%u has no cfx "
 +                  "access", batch, id, batch);
 +        }
++        // Tiny has no SEE frame: `escape` is ILLI (spec/Machine-v5 §3).
++        if (fs)
++            return DadaoISA::machineFault(DadaoISA::FaultILLI);
 +        uint64_t cfxha = 0, imms18 = 0;
 +        exec::fieldValue(decoded, "cfxha", cfxha);
 +        exec::fieldValue(decoded, "imms18", imms18);
@@ -457,8 +485,46 @@ index 0000000..476bb4a
 +Fault
 +DadaoInst::execute(ExecContext *xc, trace::InstRecord *) const
 +{
-+    if (!decoded.ok())
++    ThreadContext *tc = xc->tcBase();
++    const bool fs = DadaoISA::isFsMachine(tc);
++
++    if (!decoded.ok()) {
++        // No opcode-table id: UNDI on the FS machine, ILLI (panic) in SE.
++        if (fs)
++            return DadaoISA::machineFault(DadaoISA::FaultUNDI);
 +        return std::make_shared<DadaoISA::IllegalInstruction>(word);
++    }
++
++    // FS semihosting entry (contract-semihosting §1/§2): `trap <any cfxha>,
++    // 0x3FFxx` is short-circuited before any cfx/vector handling.  The service
++    // number is rd16; the tag itself only selects the semihosting path.
++    if (fs && std::string_view(decoded.entry->id) == "trap_ciii_cfx") {
++        uint64_t immu18 = 0;
++        if (exec::fieldValue(decoded, "immu18", immu18) &&
++            (immu18 & 0x3FF00) == 0x3FF00) {
++            auto *fsWorkload = DadaoISA::asFsWorkload(tc);
++            auto *semi = dynamic_cast<DadaoISA::Semihosting *>(
++                    fsWorkload->getSemihosting());
++            if (semi == nullptr) {
++                // --semihost=off: the trap has no service to enter.
++                return DadaoISA::machineFault(DadaoISA::FaultILLI);
++            }
++            const RegVal op = tc->getReg(RegId(DadaoISA::intRegClass,
++                    DadaoISA::int_reg::RdBase + 16));
++            semi->call(tc, op);
++            // No `escape`: the PC advances past the trap by the normal
++            // sequential step (IP += 4, contract-semihosting §4).
++            return NoFault;
++        }
++    }
++
++    // Tiny implements no cfx register file at all: every cfx2rd/cfx2rc is
++    // CFXREG (0x84), whatever the cfxha (spec/Machine-v5 §3).
++    if (fs) {
++        const std::string_view id(decoded.entry->id);
++        if (id == "cfx2rd_crrr_cfx" || id == "cfx2rc_crrr_cfx")
++            return DadaoISA::machineFault(DadaoISA::FaultCFXREG);
++    }
 +
 +    // The only place an unimplemented instruction is produced: a decoded
 +    // entry outside B1-B7.  Every contract id is in B1-B7 (check_converge.py

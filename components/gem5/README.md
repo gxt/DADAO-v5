@@ -129,15 +129,51 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   改为 `TARGET_PAGE_BITS=16`；本任务现场 `pagesz` 在 gem5 与 qemu 两侧均
   `$?==0`（65536）。
 
+## FS 平台（GEM5-015t，Machine-v5-Tiny）
+
+- **构成**：`DadaoFsAtomicSimpleCPU`（`DadaoAtomicSimpleCPU` 的 Python
+  子类，`mmu = DadaoFsMMU()`）、`DadaoFsTlb`（identity 翻译 + ROM/SRAM 段
+  检查）、`DadaoFsMMU`（独立 SimObject，`itb`/`dtb` 为 `DadaoFsTlb`）、
+  `DadaoFsWorkload`（BootROM/SRAM 装载、复位、ELF 校验）、
+  `DadaoSemihosting`（v5 25 服务、`rd16`/`rb16`/`rd8`、大端 64 位）、
+  `configs/dadao/fs.py`。**无** cache/PTW/PTBR/cfx/user/hmon/smon/设备/GDB/
+  checkpoint/多核；`mem_mode=atomic` 为唯一模式。
+- **几何**（与 `tests/shared/machine-profiles.yaml` `tiny` 逐项一致）：
+  BootROM `0xffff_ffff_0000` 64 KiB（读/取指；写 ⇒ ILLI）；SRAM
+  `0xffff_ff00_0000` 8 MiB；raw 基址 `0xffff_ff01_0000`、前 `0x100` 零、
+  应用入口 `0xffff_ff01_0100`、`SP=0xffff_ff7e_ff00`；ELF `e_entry` 在
+  BootROM（crt 设 SP 后跳应用入口）。`--dump-geometry` 打印实际生效值。
+- **装载**：`--bootrom <flat>`（≤64 KiB）；raw `--kernel` 必须配
+  `--bootrom`（否则 fatal）；ELF 自动识别并校验 `ELFCLASS64`/
+  `ELFDATA2MSB`/`ET_EXEC`/`e_flags&0xff==1`/无 `PT_INTERP`/
+  `p_vaddr==p_paddr`/`p_filesz<=p_memsz`/段与入口均在 ROM∪SRAM；ELF 与
+  `--bootrom` 同给 ⇒ fatal。平台不写 SP。
+- **fault → 退出码**（无异常向量，首个 fault 锁定）：`CFXMEM 0x81`、
+  `CFXREG 0x84`、`ILLI 0x88`、`UNDI 0x89`、`RASOF/RASUF 0x8A/0x8B`、
+  `MALIGN 0x8C`、`IALIGN 0x8D`。SE 仍保持 panic 语义（由 workload 类型
+  判定，不用全局开关）。
+- **semihosting**：`trap <any cfxha>, 0x3FFxx` 短路（不进入向量）；号
+  `rd16`、参数块 `rb16`、返回 `rd8`、完成 `IP += 4`；服务集 = 完整 25 个
+  （含 `SYS_SYNCCACHE 0x19`，`--dump-semihost-services` 输出 C++ 表实际
+  键）；控制台默认 stdout（`--console-out <path>` 可重定向）；`SYS_EXIT`/
+  `SYS_EXIT_EXTENDED` 低 8 位忠实传播；`SYS_SYSTEM` 默认 deny，
+  `--semihost-system=native` 显式开启；未知服务号 `fatal` 带号与 pc。
+- **CLI**：`--kernel`（必填）、`--bootrom`、`--semihost {on,off}`、
+  `--semihost-argv`/`--semihost-arg`、`--semihost-system {deny,native}`、
+  `--console-out`、`--max-ticks`（命中 ⇒ 非 guest 125）、`--dump-geometry`、
+  `--dump-semihost-services`。
+- **已知限制**：无 cfx/PTW/user/hmon/smon/中断/设备/时序；不支持
+  checkpoint/GDB/多核；`SYS_GET_CMDLINE` 来自 `--semihost-argv`。
+
 ## 补丁集
 
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），
   清单见 `series`；规范 `docs/Process-01-组件补丁组织与构建编排.md`。
-- 规模（2026-11-02 现场统计）：**73 份** = 新增 66 + 修改 7
-  （`src/arch/Kconfig`、`src/arch/SConscript`、
-  `src/base/loader/{object_file.hh,object_file.cc,elf_object.hh,elf_object.cc}`、
-  `src/cpu/simple/AtomicSimpleCPU.py`；其余为 `src/arch/dadao/**`、
-  `build_opts/DADAO`、`configs/dadao/se.py` 等新增文件）。
+- 规模（2026-11-03 现场统计，`series` 行数 = 磁盘补丁数）：**89 份**；
+  相对 GEM5-014t 后新增 15（FS 的 `fs_*`/`semihosting.*`/5 个 SimObject/
+  `configs/dadao/fs.py`）+ 修改 1（`src/arch/generic/SConscript` 为 DADAO
+  启用 `BaseSemihosting`），另有 `src/arch/dadao/{SConscript,isa.*,faults.hh,inst.cc}`
+  的 FS 分支修改。
 - 解码表由 `tools/gem5/gen_decode_table.py` 从 `contracts/opcodes.yaml` +
   `GEM5-002t` 矩阵生成；`--check` 为漂移门控（不手工编辑 `.inc`）。
   生成器内置 SPEC-181t 守护：scaleB 第三操作数必须是 `rdhd/rd`（旧 `rfhd/rf`

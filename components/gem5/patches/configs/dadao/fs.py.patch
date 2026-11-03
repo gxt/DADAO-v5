@@ -1,0 +1,185 @@
+diff --git a/configs/dadao/fs.py b/configs/dadao/fs.py
+new file mode 100644
+index 0000000..82d7bd0
+--- /dev/null
++++ b/configs/dadao/fs.py
+@@ -0,0 +1,179 @@
++#!/usr/bin/env python3
++# DADAO FS Machine-v5-Tiny configuration (GEM5-015t).
++#
++# One AtomicSimpleCPU, two physical memories (64 KiB BootROM at
++# 0xffff_ffff_0000, 8 MiB SRAM at 0xffff_ff00_0000), identity translation
++# with segment checks, semihosting and machine-fault -> exit code.  No cache,
++# no PTW, no cfx, no devices (spec/Machine-v5-001 §1/§5).
++#
++# The geometry constants below are the single source consumed by the workload
++# and the TLB; `--dump-geometry` prints the values actually in force.
++
++import argparse
++import shlex
++import sys
++
++import m5
++from m5.objects import *
++
++
++ROM_BASE = 0xFFFF_FFFF_0000
++ROM_SIZE = 0x1_0000
++SRAM_BASE = 0xFFFF_FF00_0000
++SRAM_SIZE = 0x80_0000
++RESET_PC = ROM_BASE
++KERNEL_BASE = 0xFFFF_FF01_0000
++KERNEL_RESERVED = 0x100
++ENTRY = 0xFFFF_FF01_0100
++SP = 0xFFFF_FF7E_FF00
++
++LAST_THREAD_CAUSE = "exiting with last active thread context"
++FAULT_PREFIX = "DADAO_FS_FAULT_"
++SEMI_PREFIX = "semi:"
++NON_GUEST_EXIT = 125
++
++
++def parse_args():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--kernel", required=True,
++                        help="raw or ET_EXEC DADAO ELF image")
++    parser.add_argument("--bootrom", default="",
++                        help="flat BootROM image (required for a raw kernel)")
++    parser.add_argument("--semihost", choices=("on", "off"), default="on",
++                        help="enable semihosting services")
++    parser.add_argument("--semihost-argv", default="",
++                        help="guest command line reported by SYS_GET_CMDLINE")
++    parser.add_argument("--semihost-arg", action="append", default=[],
++                        help="append one guest command-line argument")
++    parser.add_argument("--semihost-system", choices=("deny", "native"),
++                        default="deny",
++                        help="SYS_SYSTEM policy (deny by default)")
++    parser.add_argument("--console-out", default="",
++                        help="host file for SYS_WRITEC/SYS_WRITE0 "
++                             "(default: stdout)")
++    parser.add_argument("--max-ticks", type=int, default=0,
++                        help="safety cap; hitting it is NOT a guest exit")
++    parser.add_argument("--dump-geometry", action="store_true",
++                        help="print the effective geometry and exit")
++    parser.add_argument("--dump-semihost-services", action="store_true",
++                        help="print the C++ semihosting service table and exit")
++    return parser.parse_args()
++
++
++def guest_argv(args):
++    argv = shlex.split(args.semihost_argv)
++    argv.extend(args.semihost_arg)
++    return argv
++
++
++def build(args):
++    system = System()
++    system.mem_mode = "atomic"
++    system.mem_ranges = [AddrRange(ROM_BASE, size=ROM_SIZE),
++                         AddrRange(SRAM_BASE, size=SRAM_SIZE)]
++    system.cache_line_size = 64
++
++    system.voltage_domain = VoltageDomain()
++    system.clk_domain = SrcClockDomain(clock="1GHz",
++                                       voltage_domain=system.voltage_domain)
++
++    system.membus = SystemXBar()
++    system.rom = SimpleMemory(range=AddrRange(ROM_BASE, size=ROM_SIZE))
++    system.sram = SimpleMemory(range=AddrRange(SRAM_BASE, size=SRAM_SIZE))
++    system.rom.port = system.membus.mem_side_ports
++    system.sram.port = system.membus.mem_side_ports
++    system.system_port = system.membus.cpu_side_ports
++
++    semihosting = NULL
++    if args.semihost == "on":
++        semihosting = DadaoSemihosting(
++            cmd_line=" ".join(guest_argv(args)),
++            console_out=args.console_out,
++            semihost_system_native=(args.semihost_system == "native"),
++        )
++
++    system.workload = DadaoFsWorkload(
++        bootrom=args.bootrom,
++        kernel=args.kernel,
++        semihosting=semihosting,
++        rom_base=ROM_BASE,
++        rom_size=ROM_SIZE,
++        sram_base=SRAM_BASE,
++        sram_size=SRAM_SIZE,
++        kernel_base=KERNEL_BASE,
++        kernel_reserved=KERNEL_RESERVED,
++        entry=ENTRY,
++        sp=SP,
++    )
++
++    mmu = DadaoFsMMU()
++    for tb in (mmu.itb, mmu.dtb):
++        tb.rom_base = ROM_BASE
++        tb.rom_size = ROM_SIZE
++        tb.sram_base = SRAM_BASE
++        tb.sram_size = SRAM_SIZE
++
++    system.cpu = DadaoFsAtomicSimpleCPU()
++    system.cpu.mmu = mmu
++    system.cpu.createInterruptController()
++    system.cpu.icache_port = system.membus.cpu_side_ports
++    system.cpu.dcache_port = system.membus.cpu_side_ports
++    system.cpu.createThreads()
++
++    return system, semihosting
++
++
++def main():
++    args = parse_args()
++    system, semihosting = build(args)
++
++    if args.dump_geometry:
++        workload = system.workload
++        values = [
++            ("bootrom_base", workload.rom_base),
++            ("bootrom_size", workload.rom_size),
++            ("sram_base", workload.sram_base),
++            ("sram_size", workload.sram_size),
++            ("reset_pc", RESET_PC),
++            ("kernel_base", workload.kernel_base),
++            ("kernel_reserved", workload.kernel_reserved),
++            ("entry", workload.entry),
++            ("sp", workload.sp),
++        ]
++        for key, value in values:
++            print(f"GEM5_GEOMETRY {key}={int(value):#x}")
++        return 0
++
++    root = Root(full_system=True, system=system)
++    m5.instantiate()
++
++    if args.dump_semihost_services:
++        if semihosting is NULL:
++            print("GEM5_SEMIHOST_SERVICES=")
++        else:
++            print(f"GEM5_SEMIHOST_SERVICES={semihosting.dumpServices()}")
++        return 0
++
++    if args.max_ticks > 0:
++        exit_event = m5.simulate(args.max_ticks)
++    else:
++        exit_event = m5.simulate()
++    cause = exit_event.getCause()
++    print(f"GEM5_EXIT_CAUSE={cause}", file=sys.stderr)
++    print(f"GEM5_EXIT_CODE={exit_event.getCode()}", file=sys.stderr)
++
++    guest_exit = (cause == LAST_THREAD_CAUSE or
++                  cause.startswith(SEMI_PREFIX) or
++                  cause.startswith(FAULT_PREFIX))
++    if not guest_exit:
++        # A non-guest stop (max ticks, panic, ...) must never be mistaken for
++        # the guest's own status.
++        print(f"gem5 FS: simulation ended without a guest exit: {cause}",
++              file=sys.stderr)
++        return NON_GUEST_EXIT
++
++    return exit_event.getCode() & 0xFF
++
++
++if __name__ == "__m5_main__":
++    sys.exit(main())

@@ -1,0 +1,73 @@
+diff --git a/src/arch/dadao/fs_machine.hh b/src/arch/dadao/fs_machine.hh
+new file mode 100644
+index 0000000..b020184
+--- /dev/null
++++ b/src/arch/dadao/fs_machine.hh
+@@ -0,0 +1,67 @@
++// DADAO FS machine (Machine-v5-Tiny) fault model.
++//
++// The Tiny machine has no exception vectors, no hmon/smon and no cfx: every
++// machine fault terminates the simulation with the ADR-0004 D5.8 exit code in
++// the low 8 bits.  The SE platform keeps its own panic-based behaviour; the
++// helpers below decide from the *workload type*, never from a global switch.
++#ifndef __ARCH_DADAO_FS_MACHINE_HH__
++#define __ARCH_DADAO_FS_MACHINE_HH__
++
++#include <cstdint>
++#include <string>
++
++#include "sim/faults.hh"
++
++namespace gem5
++{
++
++class ThreadContext;
++
++namespace DadaoISA
++{
++
++class FsWorkload;
++
++/** FS machine fault codes (ADR-0004 D5.8, frozen order). */
++enum MachineFaultCode : uint8_t
++{
++    FaultCFXMEM = 0x81,
++    FaultCFXREG = 0x84,
++    FaultILLI   = 0x88,
++    FaultUNDI   = 0x89,
++    FaultRASOF  = 0x8A,
++    FaultRASUF  = 0x8B,
++    FaultMALIGN = 0x8C,
++    FaultIALIGN = 0x8D,
++};
++
++const char *machineFaultName(uint8_t code);
++
++/** The FS workload of this thread context, or nullptr for SE / no workload. */
++FsWorkload *asFsWorkload(ThreadContext *tc);
++
++/** True iff *tc* belongs to the DADAO FS machine (SE is false). */
++bool isFsMachine(ThreadContext *tc);
++
++/** Machine fault that stops the simulation with `code` (first fault wins). */
++class MachineFault : public FaultBase
++{
++  private:
++    uint8_t code;
++
++  public:
++    explicit MachineFault(uint8_t code) : code(code) {}
++
++    FaultName name() const override { return machineFaultName(code); }
++
++    void invoke(ThreadContext *tc, const StaticInstPtr &inst) override;
++
++    uint8_t exitCode() const { return code; }
++};
++
++Fault machineFault(uint8_t code);
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_FS_MACHINE_HH__

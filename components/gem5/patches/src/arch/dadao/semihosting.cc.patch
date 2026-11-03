@@ -1,0 +1,152 @@
+diff --git a/src/arch/dadao/semihosting.cc b/src/arch/dadao/semihosting.cc
+new file mode 100644
+index 0000000..8a0dfaf
+--- /dev/null
++++ b/src/arch/dadao/semihosting.cc
+@@ -0,0 +1,146 @@
++// DADAO FS semihosting implementation.
++#include "arch/dadao/semihosting.hh"
++
++#include <cerrno>
++#include <cstdio>
++#include <cstdlib>
++#include <memory>
++#include <vector>
++
++#include "base/cprintf.hh"
++#include "base/logging.hh"
++#include "cpu/thread_context.hh"
++#include "debug/Semihosting.hh"
++#include "mem/translating_port_proxy.hh"
++#include "sim/sim_exit.hh"
++
++namespace gem5
++{
++
++namespace DadaoISA
++{
++
++// The v5 service set is the 24 generic services plus SYS_SYNCCACHE (0x19),
++// which the generic table does not list (ADR-0020 D3; spec/Machine-v5 §5.3).
++const std::map<uint64_t, Semihosting::SemiCall> Semihosting::calls{
++        {SYS_OPEN, {"SYS_OPEN", &Semihosting::callOpen}},
++        {SYS_CLOSE, {"SYS_CLOSE", &Semihosting::callClose}},
++        {SYS_WRITEC, {"SYS_WRITEC", &Semihosting::callConsoleWriteC}},
++        {SYS_WRITE0, {"SYS_WRITE0", &Semihosting::callConsoleWrite0}},
++        {SYS_WRITE, {"SYS_WRITE", &Semihosting::callWrite}},
++        {SYS_READ, {"SYS_READ", &Semihosting::callRead}},
++        {SYS_READC, {"SYS_READC", &Semihosting::callReadC}},
++        {SYS_ISERROR, {"SYS_ISERROR", &Semihosting::callIsError}},
++        {SYS_ISTTY, {"SYS_ISTTY", &Semihosting::callIsTTY}},
++        {SYS_SEEK, {"SYS_SEEK", &Semihosting::callSeek}},
++        {SYS_FLEN, {"SYS_FLEN", &Semihosting::callFLen}},
++        {SYS_TMPNAM, {"SYS_TMPNAM", &Semihosting::callTmpNam}},
++        {SYS_REMOVE, {"SYS_REMOVE", &Semihosting::callRemove}},
++        {SYS_RENAME, {"SYS_RENAME", &Semihosting::callRename}},
++        {SYS_CLOCK, {"SYS_CLOCK", &Semihosting::callClock}},
++        {SYS_TIME, {"SYS_TIME", &Semihosting::callTime}},
++        {SYS_SYSTEM, {"SYS_SYSTEM", &Semihosting::callSystemPolicy}},
++        {SYS_ERRNO, {"SYS_ERRNO", &Semihosting::callErrno}},
++        {SYS_GET_CMDLINE,
++                {"SYS_GET_CMDLINE", &Semihosting::callGetCmdLine}},
++        {SYS_HEAPINFO, {"SYS_HEAPINFO", &Semihosting::callHeapInfo32,
++                               &Semihosting::callHeapInfo64}},
++        {SYS_EXIT, {"SYS_EXIT", &Semihosting::callExit32,
++                           &Semihosting::callExit64}},
++        {SYS_SYNCCACHE, {"SYS_SYNCCACHE", &Semihosting::callSyncCache}},
++        {SYS_EXIT_EXTENDED,
++                {"SYS_EXIT_EXTENDED", &Semihosting::callExitExtended}},
++        {SYS_ELAPSED, {"SYS_ELAPSED", &Semihosting::callElapsed32,
++                              &Semihosting::callElapsed64}},
++        {SYS_TICKFREQ, {"SYS_TICKFREQ", &Semihosting::callTickFreq}},
++};
++
++Semihosting::Semihosting(const Params &p) :
++    BaseSemihosting(p), systemNative(p.semihost_system_native),
++    console(nullptr)
++{
++    if (p.console_out.empty()) {
++        console = stdout;
++    } else {
++        console = std::fopen(p.console_out.c_str(), "wb");
++        fatal_if(console == nullptr, "DADAO FS: cannot open --console-out %s",
++                 p.console_out);
++    }
++}
++
++void
++Semihosting::call(ThreadContext *tc, uint64_t op)
++{
++    auto it = calls.find(op);
++    if (it == calls.end()) {
++        // Unknown service: loud failure with the number and the trap PC.  No
++        // silent -ENOSYS / 0 return (spec/Machine-v5 §5, task rule).
++        const Addr pc = tc->pcState().instAddr();
++        fatal("DADAO FS: semihosting op %#x not implemented (pc=%#x)", op, pc);
++    }
++
++    const SemiCall &call = it->second;
++    DPRINTF(Semihosting, "DADAO semihosting call64: %s\n", call.dump64(tc));
++    auto err = call.call64(this, tc);
++    semiErrno = err.second;
++    DPRINTF(Semihosting, "\t ->: 0x%x, %i\n", err.first, err.second);
++}
++
++std::string
++Semihosting::dumpServices() const
++{
++    std::string out;
++    for (const auto &entry : calls) {
++        if (!out.empty())
++            out += ",";
++        out += csprintf("0x%02x", entry.first);
++    }
++    return out;
++}
++
++Semihosting::RetErrno
++Semihosting::callConsoleWriteC(ThreadContext *tc, InPlaceArg arg)
++{
++    const char c = portProxy(tc).read<char>(arg.addr);
++    DPRINTF(Semihosting, "DADAO SYS_WRITEC('%c')\n", c);
++    std::fwrite(&c, 1, 1, console);
++    std::fflush(console);
++    return retOK(0);
++}
++
++Semihosting::RetErrno
++Semihosting::callConsoleWrite0(ThreadContext *tc, InPlaceArg arg)
++{
++    DPRINTF(Semihosting, "DADAO SYS_WRITE0(...)\n");
++    std::string str;
++    portProxy(tc).readString(str, arg.addr);
++    std::fwrite(str.data(), 1, str.size(), console);
++    std::fflush(console);
++    return retOK(0);
++}
++
++Semihosting::RetErrno
++Semihosting::callSystemPolicy(ThreadContext *tc, Addr cmd_addr,
++                              size_t cmd_size)
++{
++    if (!systemNative) {
++        warn("DADAO FS: SYS_SYSTEM denied (--semihost-system=deny): "
++             "%llu-byte command at %#x", static_cast<unsigned long long>(cmd_size), cmd_addr);
++        return retError(EPERM);
++    }
++    const std::optional<std::string> cmd = readString(tc, cmd_addr, cmd_size);
++    if (!cmd.has_value())
++        return retError(ERANGE);
++    warn("DADAO FS: SYS_SYSTEM native execution: %s", *cmd);
++    return retOK(static_cast<uint64_t>(std::system(cmd->c_str())));
++}
++
++Semihosting::RetErrno
++Semihosting::callSyncCache(ThreadContext *)
++{
++    // No caches in the Tiny machine: architectural no-op.
++    return retOK(0);
++}
++
++} // namespace DadaoISA
++} // namespace gem5

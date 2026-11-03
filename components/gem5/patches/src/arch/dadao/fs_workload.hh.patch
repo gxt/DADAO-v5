@@ -1,0 +1,99 @@
+diff --git a/src/arch/dadao/fs_workload.hh b/src/arch/dadao/fs_workload.hh
+new file mode 100644
+index 0000000..1ca092a
+--- /dev/null
++++ b/src/arch/dadao/fs_workload.hh
+@@ -0,0 +1,93 @@
++// DADAO FS workload (Machine-v5-Tiny): BootROM/SRAM image loading and reset.
++//
++// Two physical segments (BootROM read/execute, SRAM read/write/execute) are
++// described by parameters copied from configs/dadao/fs.py, which in turn
++// matches tests/shared/machine-profiles.yaml.  Loading is fail-closed: every
++// malformed image is a fatal error naming the file/segment/field, never a
++// silent relocation or truncation.
++#ifndef __ARCH_DADAO_FS_WORKLOAD_HH__
++#define __ARCH_DADAO_FS_WORKLOAD_HH__
++
++#include <cstdint>
++#include <string>
++#include <vector>
++
++#include "base/loader/object_file.hh"
++#include "base/loader/symtab.hh"
++#include "enums/ByteOrder.hh"
++#include "params/DadaoFsWorkload.hh"
++#include "sim/workload.hh"
++
++namespace gem5
++{
++
++namespace DadaoISA
++{
++
++class FsWorkload : public Workload
++{
++  public:
++    using Params = DadaoFsWorkloadParams;
++
++    explicit FsWorkload(const Params &p);
++    ~FsWorkload() override;
++
++    void initState() override;
++
++    loader::Arch getArch() const override { return loader::Dadao; }
++    ByteOrder byteOrder() const override { return ByteOrder::big; }
++
++    Addr getEntry() const override { return entry; }
++
++    const loader::SymbolTable &
++    symtab(ThreadContext *tc) override
++    {
++        return symbols;
++    }
++
++    bool
++    insertSymbol(const loader::Symbol &symbol) override
++    {
++        return symbols.insert(symbol);
++    }
++
++    SimObject *getSemihosting() const override { return semihosting; }
++
++    // Geometry actually in force (used by --dump-geometry through the Python
++    // params; kept public for the evidence probe).
++    Addr romBase() const { return p_rom_base; }
++    Addr romSize() const { return p_rom_size; }
++    Addr sramBase() const { return p_sram_base; }
++    Addr sramSize() const { return p_sram_size; }
++    Addr kernelBase() const { return p_kernel_base; }
++    Addr kernelReserved() const { return p_kernel_reserved; }
++
++  private:
++    const Addr p_rom_base;
++    const Addr p_rom_size;
++    const Addr p_sram_base;
++    const Addr p_sram_size;
++    const Addr p_kernel_base;
++    const Addr p_kernel_reserved;
++
++    const std::string kernelPath;
++    loader::ObjectFile *kernelObj = nullptr;
++    loader::SymbolTable symbols;
++
++    std::vector<uint8_t> romData;
++    std::vector<uint8_t> rawData;
++    Addr entry = 0;
++    bool isElf = false;
++    SimObject *semihosting = nullptr;
++
++    bool inRange(Addr base, Addr size, Addr addr, Addr len) const;
++    bool inSegment(Addr addr, Addr len) const;
++    void loadBootrom(const std::string &path, const std::string &kernel);
++    void validateElf(const std::vector<uint8_t> &file);
++    void loadRaw(const std::vector<uint8_t> &file);
++};
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_FS_WORKLOAD_HH__

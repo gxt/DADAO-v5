@@ -1,0 +1,83 @@
+diff --git a/src/arch/dadao/fs_tlb.hh b/src/arch/dadao/fs_tlb.hh
+new file mode 100644
+index 0000000..76c1e9c
+--- /dev/null
++++ b/src/arch/dadao/fs_tlb.hh
+@@ -0,0 +1,77 @@
++// DADAO FS TLB (Machine-v5-Tiny): identity translation with segment checks.
++//
++// Tiny has no PTW, no page table and no TLB fill: VA == PA, and only two
++// segments exist (BootROM, read/execute; SRAM, read/write/execute).  Every
++// access outside them is a machine fault.  The SE TLB (arch/dadao/tlb.*) is a
++// different object and is deliberately left untouched.
++#ifndef __ARCH_DADAO_FS_TLB_HH__
++#define __ARCH_DADAO_FS_TLB_HH__
++
++#include "arch/generic/tlb.hh"
++#include "base/types.hh"
++#include "params/DadaoFsTlb.hh"
++
++namespace gem5
++{
++
++class ThreadContext;
++
++namespace DadaoISA
++{
++
++class FsTLB : public BaseTLB
++{
++  public:
++    using Params = DadaoFsTlbParams;
++
++    explicit FsTLB(const Params &p) :
++        BaseTLB(p), romBase(p.rom_base), romSize(p.rom_size),
++        sramBase(p.sram_base), sramSize(p.sram_size)
++    {}
++
++    void demapPage(Addr vaddr, uint64_t asn) override;
++
++    Fault translateAtomic(const RequestPtr &req, ThreadContext *tc,
++                          BaseMMU::Mode mode) override;
++
++    void translateTiming(const RequestPtr &req, ThreadContext *tc,
++                         BaseMMU::Translation *translation,
++                         BaseMMU::Mode mode) override;
++
++    Fault translateFunctional(const RequestPtr &req, ThreadContext *tc,
++                              BaseMMU::Mode mode) override;
++
++    Fault finalizePhysical(const RequestPtr &req, ThreadContext *tc,
++                           BaseMMU::Mode mode) const override;
++
++    void flushAll() override {}
++    void takeOverFrom(BaseTLB *old) override {}
++
++  private:
++    const Addr romBase;
++    const Addr romSize;
++    const Addr sramBase;
++    const Addr sramSize;
++
++    bool inSegment(Addr base, Addr size, Addr addr, Addr len) const
++    {
++        // A zero-length access is legal at the first byte past the segment?  No:
++        // gem5 never issues one, and accepting it would hide a boundary bug.
++        if (len == 0)
++            return false;
++        if (addr < base)
++            return false;
++        const Addr offset = addr - base;
++        if (offset >= size)
++            return false;
++        return len <= size - offset;
++    }
++
++    /** Identity translation plus the Tiny segment rules. */
++    Fault translate(const RequestPtr &req, BaseMMU::Mode mode) const;
++};
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_FS_TLB_HH__

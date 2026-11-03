@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/SConscript b/src/arch/dadao/SConscript
 new file mode 100644
-index 0000000..698d244
+index 0000000..73e1ea9
 --- /dev/null
 +++ b/src/arch/dadao/SConscript
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,74 @@
 +# DADAO ISA build description (B0 decode + B1/B2/B3/B4/B5/B6/B7 execution).
 +Import('*')
 +
@@ -50,6 +50,13 @@ index 0000000..698d244
 +Source('process.cc', tags=['dadao isa'])
 +Source('se_workload.cc', tags=['dadao isa'])
 +Source('tlb.cc', tags=['dadao isa'])
++# FS Machine-v5-Tiny platform (GEM5-015t): BootROM/SRAM workload, identity
++# segment-checking TLB/MMU, machine-fault -> exit code and semihosting.  These
++# are separate objects from the SE files above; SE behaviour is unchanged.
++Source('fs_machine.cc', tags=['dadao isa'])
++Source('fs_tlb.cc', tags=['dadao isa'])
++Source('fs_workload.cc', tags=['dadao isa'])
++Source('semihosting.cc', tags=['dadao isa'])
 +
 +SimObject('DadaoDecoder.py', sim_objects=['DadaoDecoder'], tags=['dadao isa'])
 +SimObject('DadaoISA.py', sim_objects=['DadaoISA'], tags=['dadao isa'])
@@ -62,5 +69,12 @@ index 0000000..698d244
 +# DadaoCPU.py only assembles existing SimObjects into a CPU class (same shape
 +# as RiscvCPU.py), so it registers no new SimObject of its own.
 +SimObject('DadaoCPU.py', sim_objects=[], tags=['dadao isa'])
++SimObject('DadaoFsTlb.py', sim_objects=['DadaoFsTlb'], tags=['dadao isa'])
++SimObject('DadaoFsMMU.py', sim_objects=['DadaoFsMMU'], tags=['dadao isa'])
++SimObject('DadaoFsWorkload.py', sim_objects=['DadaoFsWorkload'],
++          tags=['dadao isa'])
++SimObject('DadaoSemihosting.py', sim_objects=['DadaoSemihosting'],
++          tags=['dadao isa'])
++SimObject('DadaoFsCPU.py', sim_objects=[], tags=['dadao isa'])
 +
 +ISADesc('isa/main.isa', tags=['dadao isa'])

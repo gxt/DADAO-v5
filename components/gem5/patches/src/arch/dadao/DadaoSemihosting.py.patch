@@ -1,0 +1,24 @@
+diff --git a/src/arch/dadao/DadaoSemihosting.py b/src/arch/dadao/DadaoSemihosting.py
+new file mode 100644
+index 0000000..46080e3
+--- /dev/null
++++ b/src/arch/dadao/DadaoSemihosting.py
+@@ -0,0 +1,18 @@
++from m5.objects.BaseSemihosting import BaseSemihosting
++from m5.params import *
++from m5.SimObject import *
++
++
++class DadaoSemihosting(BaseSemihosting):
++    type = "DadaoSemihosting"
++    cxx_class = "gem5::DadaoISA::Semihosting"
++    cxx_header = "arch/dadao/semihosting.hh"
++
++    console_out = Param.String(
++        "", "Host file for SYS_WRITEC/SYS_WRITE0 (default: stdout)"
++    )
++    semihost_system_native = Param.Bool(
++        False, "Allow SYS_SYSTEM to run host commands (default deny)"
++    )
++
++    cxx_exports = [PyBindMethod("dumpServices")]
