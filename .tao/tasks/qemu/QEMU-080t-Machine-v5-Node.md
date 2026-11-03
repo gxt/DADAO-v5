@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M11
 **依赖**：`QEMU-079t`（profile 运行时化与 Tiny；必须先验收，二者改同一组 `cpu.h`/`cpu.c`/`helper.c`，串行）、`SPEC-183t`、`TESTCASES-091t`、`QEMU-081t`（页 64 KiB）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地（仓库根；组件源树 `.work/source/qemu` 为 base+1 单提交、`git status` 干净；实现落任务分支 `QEMU-080t`，不 merge、不 push）
@@ -139,18 +139,114 @@
 - 「内容溯源，非执行必需」：`DADAO-0628` 的 hmon/smon 移交与页表布局是历史参考，但其 reset PC/几何与本机不同；v5 以 `spec/Machine-v5` + `ADR-0043` 为准，不复用其常量/代码。
 - 0628 时期 QEMU/gem5 的「裸 `-kernel` + host-side syscall 当作启动」是已知坑（见 `SPEC-183t` 参考对照）；Node 必须以 power→hmon→hypv 真实移交验收，不得用宿主代劳。
 
+## 用户授权（2026-11-03，engineer 子会话问答原文）
+
+- 问：Node 启动链实测发现 `tests/shared/bootrom/step5/power.S` 把共享例程调用目标写成 `BOOTROM_BASE + 0x2000/0x2400`（= 0xffff_ffc0_2000），但 `power.lds` 链接在 `RESET_PC + 0x2000/0x2400`（= 0xffff_ffff_2000）——power 在 ROM 偏移 0x2000 执行到全零，启动链死循环。该文件在任务书「禁止：tests/**」内。是否授权做这 2 行最小修复（只改常量，不改测试期望/语义）？
+  答：**「授权 2 行修复（推荐）」**。
+- 问：其余 TESTCASES 资产缺口（R3）无法在本任务允许范围内修复：① `min_rom_probe_046t.py` 仍按 RAM_BASE 装载/寻址 kernel，未适配 profile 的 `kernel_base`；② 5 个 `tests/arch/umon/m5_perm_*.s` 仍按「user 模式 + cfx_umon escape 向量」写，Node 的 hypv/hmon 模型下必然 0xB7/0xE1。拟登记 BLOCKED 并另立 TESTCASES 任务，本任务不修。是否同意？
+  答：**「同意登记 BLOCKED（推荐）」**。
+  > 更正（第 2 轮返工，2026-11-03）：上问 ② 的计数有误——`tests/arch/umon/` 只有 **4 个 `m5_perm_*.s`**（reserved_illi / mask_cfxperm / unimpl_cfxreg / badcombo_cfxreg），arch-smoke 第 5 红是 **`m5_trap_escape`**；BLOCKED 清单以「**4 个 `m5_perm_*` + `m5_trap_escape`**」为准（实测见 `.work/log/arch/`，完成区返工更正同）。
+- **用户裁定（`check-arch` L3，2026-11-03，原文）：「登记 BLOCKED（推荐）」**——针对 Node 下 `check-arch` 13 探针红（`min_rom_probe_044t` 全 0x81 CFXMEM、`integ039t` 1/37，根因为探针在 PTW off 时按**已移除的 legacy 几何**直写 PA 0）；修复须改 `tests/**`，归 TESTCASES 另立任务，本任务留真实日志（`.work/log/arch/node-*.log`）并如实披露 L3 红。
+
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：证据 `.work/evidence/QEMU-080t/run.sh` **36/36 PASS**（返工后；含 hmon-context 4 项）（rc=0；`run.log`/`run.EXIT`），`run.sh --inject` **1/1 PASS**（RAM 1 GiB：high-ELF 129→1；hmon `SPF=0x00`：boot 64→135；均 `cp`+md5 还原回绿；`inject.log`）。Node 实跑：`check-inst-smoke` **90/90**；`check-tset-embench-smoke` **PASS**（qemu-user，profile 无关）；`check-interface` **90/90 PASS**（Node 5 项无 DEFERRED）；`build-qemu`/`install-host` rc=0，build/install `qemu-system-dadao` md5 同为 `0949cb1f85df0cf04fbd7ec6b441129e`。`check-arch-smoke` rc=2：forward **5/10 PASS**（5 个 semihosting 全绿；4 个 `m5_perm_*` + `m5_trap_escape` 为 user-mode 向量模型，Node hypv/hmon 下必然 0xB7/超时（见返工更正），见遗留）。`check-inst`（Node 全量）rc=2：**1012 total / 945 passed / 62 failed / 5 deferred**（**43 条** `profiles:[tiny]` + **19 条** Node 移交模型：12×0xB7、6×`code 0x01`、1×UNMAPPED/UNDI；逐条归 TESTCASES 资产，见返工更正）。L2 `make check-modules` rc=2（停在 arch-smoke；inst-smoke/embench 绿，unit 见下）；L1 `make check` rc=2 仅 `check-patch-tree` 的 **gem5 26 项**（GEM5-014t 补丁未重导出，非本任务文件）；qemu slice 干净。`check-unit` rc=2：lit **161/162**（唯一 `mcmodel.test` 为 LLD REL26 检查，非 QEMU）；`test-codegen` 未跑到（check-unit 停在 lit），079 已登记其 19 条基线红。
+**修改文件**：`components/qemu/patches/target/dadao/{cpu.h,cpu.c,helper.c}.patch`、`components/qemu/patches/hw/dadao/dadao-machine.c.patch`（`make_patch.py` 重导出，4 份）、`components/qemu/changelog.md`、`Makefile`（inst/arch Node 目标环境行与 4 MiB bootrom 选择）、`tests/shared/machine-profiles.yaml`（Node `qemu_*` 回填）、`tests/shared/bootrom/step5/power.S`（2 行，用户授权）、`tools/infra/check_interface_alignment.py`（Node 解析：`#define` 锚定 + ULL product）、`tools/testcases/lib/run_qemu_test.py`、`tools/testcases/arch/run_m5_e2e.py`（profile→装载路径选择）、`.tao/knowledge/issues.yaml`（ISS-340）、本任务书、`milestones.md`、`.work/source/qemu`（组件提交 `c79f328`）、`.work/evidence/QEMU-080t/`。
+**验收结果**：`profile=node` 实跑复位 `0xffff_ffff_0000`→power（`0xffff_ffff_*`）→hmon（`0x0fff_*`）→body `0x10_0000`（hypv），`PTBR=0`/`ptw_enable=1`；PTW body 校验 4 个 L1 PTE（PPN `i*0x2000`、`SPF=0xFF`、flags `0xEF`）、4 个超页访存、L2 64 KiB 普通页 load/store、SP=`0x7fff_0000`。`bootrom-image` 4 MiB rc=0，4 MiB±1 页 rc=1（`expected exactly 4194304`），`-bios`+`bootrom-image` rc=1；Node ELF（entry `0x10_0000`）rc=0x2A 且首 PC 仍为复位，越界段 rc=1（`outside the mapped regions`）。cfx00/02/03/04/15/17/18/63 注册可见、cfx5 不存在、smon（CFX02）保留。
+**新发现/坑**：① `step5/power.S` 的共享例程调用目标用 `BOOTROM_BASE+0x2000`，而链接在 `RESET_PC+0x2000`——启动链此前只在 build-only 下"绿"，真实执行必死循环（已授权修）。② `2048 * 1024 * 1024` 在 C 中是 int 溢出（QEMU `mmap` 收到 2^64−…，报 Cannot allocate memory），2 GiB 常量必须 `2048ULL * 1024 * 1024`。③ Node 测试体以 cfx_umon/hypv 运行，per-cfx 掩码只放行 hmon/power：cfx4/17 等跨 cfx 访问被拒，故 `cfx_ptw` TLB invalidate / fault 向量与 A/D 回写无法由测试体编程（A/D 只在本体自身 TLB 淘汰时回写，实测不可达）。④ 移除 `legacy` 后，按 legacy 几何直写 PA 的 L3 探针（integ039/040/042/050 等）与 `min_rom_probe_046t` 均不可在 Node/Tiny 下真实执行。⑥ Node 的 hmon 直接 `trap` 移交，未清零 rd/rb/RAS；`tests/inst` 载体按复位零态编写，27 条 ctrl-* 因遗留寄存器/RAS 而 FAIL（资产缺口，非 QEMU 指令语义）。⑤ 本 worktree 无 `.work/build/llvm`，`install-host` 需 `LLVM_BUILD/COMPILER_RT_BUILD/CFX_ALIAS_TABLE_BUILD` 指到主树；中断过的默认构建会留下半棵树使 `check_install_tools` 要求 build-tree 对照。
+**遗留问题**：① **BLOCKED（TESTCASES 资产；依据任务书 R3/R5 预授权 + 本册「登记 BLOCKED（推荐）」原话）**：Node 全量 `inst` 62 FAIL = **43 条** `profiles:[tiny]` 向量（aip-si 1、ctrl-br 10、ctrl-call 1、ctrl-jump 1、mem-ra 4、mem-rb 4、mem-rd 22）+ **19 条** Node 移交模型（12×0xB7、6×`code 0x01`、1×UNMAPPED/UNDI；ctrl-call 7、ctrl-ret 7、misc 4、ctrl-jump 1）；arch-smoke 5 红 = **4 个 `m5_perm_*`（reserved_illi/mask_cfxperm/unimpl_cfxreg/badcombo_cfxreg）+ `m5_trap_escape`**（user-mode/umon-escape 模型与 Node hypv/hmon 不符）；`min_rom_probe_046t.py` 未适配 profile `kernel_base`。② **BLOCKED（资产）**：Node 测试体的 cfx4/cfx17/cfx15/18 可达性与 PTW A/D/TLB-invalidate 需 hmon 移交 cfx3 上下文或预装 cfx_ptw 向量，超出本任务。③ 跨模块：`spec/Machine-v5 §6` 的 `0x0200...`/L1 `0x1000–0x1003` 与 identity 实现冲突，按用户口径落地 identity，交 SPEC 订正（R1）。④ L1 `check-patch-tree` gem5 26 项、`check-unit` 的 mcmodel/codegen 为基线红，归 GEM5/TESTCASES。
+
+**返工更正（第 1 轮 reviewer Needs Revision，2026-11-03）**：
+- **arch-smoke 计数更正**：5 红 = 4×`m5_perm_*`（reserved_illi / mask_cfxperm / unimpl_cfxreg / badcombo_cfxreg）+ `m5_trap_escape`（不是 5 个 `m5_perm_*`）。边界 = 这些向量按「user 模式 + cfx_umon escape 向量」写；Node 测试体在 **hypv / cfx_umon**，fault/trap 进入 current-mode monitor `hmon`，故 0xB7/超时。5 个 semihosting 用例全绿。
+- **inst 62 条分类更正**：实测 **43 条**向量 `profiles:[tiny]`（aip-si 1、ctrl-br 10、ctrl-call 1、ctrl-jump 1、mem-ra 4、mem-rb 4、mem-rd 22）+ **19 条** Node 移交模型（12×0xB7、6×`code 0x01`、1×`Expected UNMAPPED got UNDI`；ctrl-call 7、ctrl-ret 7、misc 4、ctrl-jump 1）。
+- **L1 第二红**：`check-knowledge-refs`（87 悬空 `.work/**` 引用，均为历史 gem5/旧任务，QEMU-080t 条目不在悬空列表）；与 `check-patch-tree` 的 gem5 26 项并列，均非本任务文件。
+- **L3 `check-arch`**：Makefile 已把 `check-arch` 探针与 `check-arch-smoke` 第 2 步显式切 `DADAO_TEST_PROFILE=node`；Node 下 044t rc=1（全部 0x81 CFXMEM）、integ039t 1/37（0x81），根因是探针在 PTW off 时直写 PA 0（legacy 几何）；Tiny 下 raw 16 B < 0x100 保留前缀。基线 rc=0 属已按任务书移除的 legacy。现场：`.work/log/arch/node-044t.log`、`node-integ039t.log`。**用户裁定（2026-11-03，原文）：「登记 BLOCKED（推荐）」**——13 个 L3 探针资产另立 TESTCASES，L3 红如实披露。
+- **验收 4/5 新增真实证据**：`.work/evidence/QEMU-080t/hmon_probe.py`（自定义 4 MiB BootROM：真实 power/smon + 合成 hmon = 真实 hmon PTW 建立 + 测试体，运行于 cfx3/hypv）四模式全绿：`success` rc=0（cfx17 DMA DONE + cfx15/18 cfx_id + A/D 回写 + TLB invalidate）、`nwperm` rc=0（W=0 store→`NWPERM` 进 cfx_ptw）、`dgtrap` rc=0（缺页→`DGPTRAP` 进 cfx_ptw）、`cfx5` rc=0x84（`cfx2rd cfx5`→CFXREG 投递到 cfx3 向量）。`run.sh` 现 **36/36 PASS**（含 hmon/smon/pmem 几何断言与精确 semihosting 匹配，修复 `PASS m5_semi_write` 前缀误配）。
+- **越界文件与授权**：`tests/shared/bootrom/step5/power.S`——用户原话「授权 2 行修复（推荐）」；`tests/shared/machine-profiles.yaml` Node `qemu_*`、`Makefile` Node 环境行、`tools/testcases/**` 机器选择——任务书未决 3/用户 2026-11-02 批次授权；`tools/infra/check_interface_alignment.py`——任务书「仅解析常量名/正则」允许，改动为 `#define` 锚定 + ULL product 解析，未降断言强度。
+- **step2 环境行实际执行**：`check-inst-smoke`（日志 `.work/log/qemu/check-inst-smoke-080t.log`，90/90）、`check-inst`（`.work/log/qemu/check-inst.log`，1012/945/62/5）、`check-modules`（`.work/log/qemu/check-modules-080t.log`）均由 Makefile 的 `DADAO_TEST_PROFILE=node` 行实际执行；`check-arch`/`check-arch-smoke` 的 Node 行已落 Makefile，但 **`check-arch-smoke` 第 [2/2] 步（`min_rom_probe_046t`，`DADAO_TEST_PROFILE=node`）因第 [1/2] 步 5 红 `exit $rc` 从未执行**（Makefile 显式 fail-fast），故不声称 step2 已跑；Node arch 证据来自同一 env 的手动 044t/integ039t 执行并留日志，`check-arch` 亦因 arch-smoke 红未进入 13 探针循环。
+- **返工复跑 rc（返工后）**：`run.sh` 36/36 rc=0；`--inject` 1/1 rc=0；`check-inst-smoke` rc=0（90/90）；`check-interface` rc=0（90/90）；`check-inst` rc=2（1012/945/62/5）；`check-arch-smoke` rc=2（5/10）；`check-arch` rc=2（停在 arch-smoke）；`check-inst-smoke`/`check-modules` 的 Node 行已实际执行。
+- **返工新增文件**：`.work/evidence/QEMU-080t/hmon_probe.py`（4 模式 hmon-context 证据）、`.tao/knowledge/issues.yaml`（ISS-340）。
+- **issue 登记**：`ISS-340`（spec §6 Node VA/页表口径 vs identity 实现）已写入 `.tao/knowledge/issues.yaml`（open，`resolved_by: null`）。
+
+**收尾结论（architect，2026-11-03，第 2 轮 reviewer Accepted）**：本任务自身红 **0**；非阻断 finding ①–④ 已处置：① `## 用户授权` 收录 `check-arch` 原话「登记 BLOCKED（推荐）」并把「5 个 `m5_perm_*`」更正为 **4 个 `m5_perm_*` + `m5_trap_escape`**；② 遗留①改按实测 **43 条 `profiles:[tiny]` + 19 条 Node 移交模型**重写，BLOCKED 依据改为任务书 R3/R5 预授权 + 上文原话；③ 明示 `check-arch-smoke` 第 [2/2] 步因第 [1/2] 步 5 红 fail-fast **从未执行**（不声称已跑）；④ `run.sh` 的 smon 断言降级为「cfx02 寄存器文件可见」，smon SRAM 窗口由 `geom_check`（SMON_BASE/SMON_CFX_BASE/MON_SRAM_SIZE）独立断言。状态置 `已验证`，`milestones.md` 流水行同步。本分支不 merge master、不 push。
+
+**同步 master 后 L1（architect，2026-11-03 10:2x）**：`git merge master` rc=0，**无冲突**（`milestones.md` 自动合并；QEMU-080t 行按时间倒序置顶，`check-milestones-fresh` PASS）。`make -k check` **rc=2**，唯一红 `check-knowledge-refs`（**92** 悬空 `.work/**`，**0 条属本任务**；= worktree 缺历史 evidence 87 + master 新入 GEM5-014t 证据路径 5，主树同检查 rc=1/7 ⇒ 基线红）；其余 L1 目标全 PASS：`check-patch-tree` 278 patches、`check-tasks` 241 条、`check-interface` 90/90、`check-milestones-fresh` 30 行、`check-component-changelog`/`check-source-state` 等。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+逐行审查 `cpu.h`/`cpu.c`/`helper.c`/`dadao-machine.c` 与驱动改动，findings 与处置：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+| --- | --- | --- | --- |
+| F1 2 GiB 常量 `2048*1024*1024` 以 int 求值为负，QEMU mmap 失败（实测 `Cannot allocate memory`，strace size=2^64−…） | ✅已修 | `DADAO_RAM_SIZE`/`DADAO_NODE_RAM_SIZE` 改 `2048ULL * 1024 * 1024`；`check_interface` product 解析支持 ULL 后缀 | `build-qemu` rc=0；`profile=node` 启动/证据 32/32 |
+| F2 `check_interface` 的 `RESET_PC` 正则命中注释里的 `DADAO_RESET_PC macros` | ✅已修 | 五个几何正则加 `#define\s+` 锚定（不降断言强度） | `check-interface` 90/90 PASS |
+| F3 移除 legacy 后 `DADAO_PROFILE()` 未设 profile 时仍回退 `dadao_profile_legacy`（链接失败/空指针） | ✅已修 | 回退改 `dadao_profile_node`；`extern` 与 profile 表同步 | `build-qemu` rc=0（user-mode 构建同编） |
+| F4 Node ELF 的 `.rom` 空段可能被范围检查拒绝 | ✅已修（防御） | `p_memsz == 0` 的 PT_LOAD 跳过范围检查 | Node ELF 证据 rc=0x2A |
+| F5 Node 驱动仍走 `-bios` 4 MiB（079 的 arch-smoke 0/10 根因） | ✅已修 | `run_m5_e2e`/`run_qemu_test` 在 node 下用 `bootrom-image=`；Makefile 传 step5 镜像 | arch semihosting 5/5、inst smoke 90/90 |
+| F6 证据脚本注入自检曾"两支同结果"（只校验还原后 rc） | ✅已修 | 注入函数显式要求 `normal->injected` 变化（129→1、64→135）且还原回绿 | `run.sh --inject` 1/1 PASS |
+| F7 `power.S` 调用目标错（`BOOTROM_BASE` vs `RESET_PC`） | ✅已修（用户授权） | 两处 `LOAD_ADDR` 改 `RESET_PC + 0x2000/0x2400` | 修复前 rc=1/死循环；修复后链 e2e、arch/inst 全跑通 |
+| F8 Node 下测试体无法访问 cfx4/cfx17（per-cfx 掩码）——A/D/TLB/fault 不能由本任务证据覆盖 | ⏸延后 | 不修；登记 BLOCKED（需 hmon 移交 cfx3 或预装向量） | 成功证据仅覆盖 PTE/SPF/超页/普通页/SP；其余列遗留 |
+
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**重跑（本人执行，workdir=本任务 worktree；日志 `/tmp/opencode/DADAO-v5/QEMU-080t-review/`，退出码均取 `cmd; echo $?`）**
+- `.work/evidence/QEMU-080t/run.sh` → `== 32 checks, 0 failed`，**rc=0**（与完成区 32/32 一致）；`--inject` → `ram 1GiB normal_rc=129 injected_rc=1`、`SPF=0x00 boot rc=135`、还原 `129/64`，`== 1 checks, 0 failed` **rc=0**，`md5sum -c` 全 OK，`git status --porcelain -uall` 审前/审后 13 行逐行一致。
+- **独立注入**（非 engineer 自检）：`cp` bootrom→`.preinject`+md5 → 把复位窗口 `0x3f0000` 起 4 KiB 清零 → 同一 `run.sh` **12 FAIL/32、rc=1**（PTW body=137、hmon/entry/PTBR absent、4 MiB accepted=137、5 条 semihosting FAIL）→ `cp` 还原+md5 OK → **0 FAIL、rc=0** 回绿。
+- `make check-interface` **rc=0、90/90**（5+36+41+8）、无 `DEFERRED`、Node 5 项 `DADAO_*` PASS；`make check-tasks` **rc=0**；`make check-tset-embench-smoke` **rc=0**。
+- `make check-arch-smoke` **rc=2、`Results: 5/10 passed, 5 failed`**（semihosting 5/5 绿；FAIL=`m5_perm_reserved_illi/mask_cfxperm/unimpl_cfxreg/badcombo_cfxreg` + **`m5_trap_escape`**）——与完成区 5/10 一致。
+- `make check-inst` **rc=2、`1012 total, 945 passed, 62 failed, 5 deferred`**（与完成区逐字一致；全量明细 `.work/log/qemu/check-inst.log`）。
+- `make -k check`（L1 全量，非 -k 会在首个红停止）**rc=2**：红仅 `check-patch-tree`（**gem5 26 项**，本任务未碰 gem5，079 已归 GEM5-014t）与 `check-knowledge-refs`（**87 悬空 `.work/**`**，worktree 缺历史 evidence；主树同检查 rc=1/7 悬空 ⇒ 基线红）；`check-milestones-fresh`/`check-component-changelog`/`check-components`/`check-interface` PASS。
+- `make check-modules`（L2）**rc=2** 停在 arch-smoke，之前 `check-inst-smoke` **90/90 PASS**；`make install-host` **rc=0**；`make check-source-state` **rc=0**（`qemu: OK HEAD=c79f328 count=1 clean=True`）；两 `qemu-system-dadao` md5 同 `0949cb1f85df0cf04fbd7ec6b441129e`。
+- 边界/几何我自测：bootrom `4 MiB±4 B` 均 rc=1 且 `expected exactly 4194304`（覆盖验收 2「±1 页」）、`-bios`+`bootrom-image` rc=1；`cpu.h` vs spec §1.1（0 / 2 GiB / `0xffffffc00000` / 4 MiB / `0xffffffff0000`）逐项相等；hmon/smon/pmem `0x0fff_0000_0000`/`0x0bff_0000_0000`/`0x47ff_0000_0000` + 64 KiB 我手工核对相等（**但证据脚本未断言**，见阻断 4）。
+
+**约束核验**：改动 13 文件全在允许清单内；`tests/**` 仅 `power.S`（实改 3 行=2 常量+1 行注释，授权原话「2 行修复」）与未决 3 授权的 `machine-profiles.yaml` 数据回填；`spec/contracts/adr/gem5/manifests/discussing.md` 未动；组件树 base+1 `c79f328` 且 `git status` 干净；未决 3 跨模块（Makefile/`tools/testcases`）**任务书无用户原话落盘**（硬约束 9，需 architect 追认；批次授权 2026-11-02 已列本任务）；完成区 8 行 ≤30、状态 `待验收`、changelog `## M11` 条目在位；headline 数字与真实输出全部一致，无伪造。
+
+**阻断项**
+1. **验收 7 `make check-arch` 未执行**：我直跑 `min_rom_probe_044t`、`min_rom_probe_integ039t` **全红**（rc=1；根因 `raw kernel …16 bytes, smaller than the reserved prefix of 256 bytes`，缺省已切 tiny；integ039t `0/37`），而基线 `make check-arch` rc=0（INTEG-051t 2026-10-31）⇒ 本任务缺省切换引入的 L3 红：未跑、未逐条归因、未登记 BLOCKED（`新发现④` 仅泛述且根因与实测不同）。
+2. **验收 4/5 未达且 BLOCKED 未获批**：PTW 越界/权限→`cfx_ptw`、A/D 更新、TLB 失效、`cfx17` SRAM+DMA、`cfx15/18` 实测可达、`cfx5 ⇒ 0x84` 均无证据（脚本只断言「cfx 注册可见」）；`遗留②` 自开 BLOCKED，任务书用户授权区无对应原话。
+3. **arch-smoke 5 红的 BLOCKED 覆盖不实**：实测 FAIL = **4×`m5_perm_*` + `m5_trap_escape`**（`tests/arch/umon/` 只有 4 个 `m5_perm_*.s`），完成区与用户授权原文均按「5 个 m5_perm_*」计 ⇒ `m5_trap_escape` 不在已批清单内。
+4. **证据脚本缺陷**：`arch_semihosting` 用 `grep -q "PASS  $c"`，`PASS  m5_semi_writec/write0` 行会命中 `m5_semi_write` 断言（我已复现）⇒ 单例失败可假绿，FAIL 路径不独立可达；且验收 1 明列的 hmon/smon/pmem SRAM 等值断言缺失（值我已核对相等）。
+
+**非阻断 finding**：① 完成区 62 条分类与实测不符（实测 profile 不适用 43 / fault 模型 19；完成区 30/32 把 13 条 profile 不适用算进「hmon 移交」）；② L1 实为 2 红（含 `check-knowledge-refs` 87），「仅 check-patch-tree」因非 `-k` 提前停止未见第二项；③ spec §6 冲突未登记 `issues.yaml`（R1）；④ 完成区「用户同意另立任务」范围超出授权原文；⑤ `check-arch-smoke` step2 的 `DADAO_TEST_PROFILE=tiny` 因 step1 红从未执行；⑥ `smon retained` 与 `cfx02 registered` 用同一条 grep（非独立断言）。
+
+**环境处置（非交付物缺陷，已披露）**：worktree `.work/build/llvm` 半棵树（前次 reviewer 07:30 遗留 + 本人 chain1 续建）使 `check-install-tools` 13/48 红 ⇒ arch-smoke/L2 曾假红；我 `mv` 为 `.work/build/llvm.partial-review-20261103` 并 `make install-cfx-aliases` 后复跑取真值；门控须 `LLVM_BUILD=/mnt/tao/DADAO-v5/.work/build/llvm` 等覆盖（否则在 worktree 本地重建 LLVM，根盘 99%、仅 1.7 G 可用）。审后快照与审前逐行一致，关键文件 md5 全 OK。
+
+**判决：Needs Revision**（阻断 1–4；返工后开第 2 轮复验）
+
+#### 第 2 轮 engineer 自审（返工）
+
+| reviewer finding | 处置 | 改了什么 | 复验证据 |
+| --- | --- | --- | --- |
+| 1 L3 `check-arch` 红；需显式 Node / 复跑到 rc=0 或请裁定 | ✅部分修复 + 用户裁定 BLOCKED | Makefile 的 `check-arch` 探针与 `check-arch-smoke` 第 2 步加 `DADAO_TEST_PROFILE=node`；044t/integ039t Node 现场保留 | `node-044t.log`（0x81）、`node-integ039t.log`（1/37）；用户原话「登记 BLOCKED（推荐）」；`ISS-340` 另记 spec 冲突 |
+| 2 验收 4/5 无证据（cfx_ptw/A-D/TLB/cfx17/cfx15/18/cfx5） | ✅已修 | 新增 `hmon_probe.py`：自定义 BootROM（真实 power/smon + 合成 hmon=真实 PTW 建立+测试体，cfx3/hypv）四模式 | `run.sh` 36/36；`success` rc=0（cfx17 DMA+cfx15/18+A/D+TLB invalidate）、`nwperm`/`dgtrap` rc=0（cfx_ptw）、`cfx5` rc=0x84 |
+| 3 arch-smoke 5 红计数不实 | ✅已修 | 完成区返工更正：4×`m5_perm_*` + `m5_trap_escape`；说明 user-mode vs Node hypv 边界 | `check-arch-smoke` 日志 5/10，逐名列出 |
+| 4 证据脚本 `grep` 前缀误配；缺 hmon/smon/pmem 几何 | ✅已修 | `grep "  PASS  $c  expected="` 精确匹配；geom 增加 HMON/SMON/PMEM + MON/PMEM SRAM size 断言 | `run.sh` 36/36；`m5_semi_write`/`write0` 均真实 PASS |
+| 5 62 分类 43/19；L1 第二红；spec 冲突 issue；越界授权；step2 环境行 | ✅已修 | 完成区返工更正；L1 增报 `check-knowledge-refs` 87 悬空；`issues.yaml` 加 ISS-340；越界逐项列授权原话；环境行执行日志 | `check-inst.log` 1012/945/62/5（43/19）；`make -k check` 两条红；`check_issues` PASS；Makefile 行与运行日志 |
+| F9 `hmon_probe.py` 初版把立即数当寄存器（`and.o`/`st.o` 12-bit 溢出） | ✅已修 | 掩码先 `load_rd` 再寄存器 `and.o`；页内偏移 >0xFFF 改用 `add.si` 改基址 | 四模式 rc 0/0/0/0x84 |
+
+#### 第 2 轮 reviewer 验收（增量复验，2026-11-03）
+
+**重跑（本人执行，rc 取 `cmd; echo $?`；日志 `/tmp/opencode/DADAO-v5/QEMU-080t-review/`）**
+- `run.sh` **36 checks / 0 failed，rc=0**；`run.sh --inject` **1 check / 0 failed，rc=0**（ram 129→1、SPF 135、还原 129/64）——与完成区一致。
+- `hmon_probe.py` 四模式**真实**（我核）：`success` 无 fault handler、4606 条 PC 采样、cfx17 DONE / cfx15=0x0F / cfx18=0x12 / A→D 逐项 `check_eq`（失败码 0xE1–0xE6）；`nwperm`、`dgtrap` 各 **1 次 PC=HMON+0x1900**（cfx_ptw 向量真跑，cause 1<<13 / 1<<20）；`cfx5` **1 次 PC=HMON+0x1800 且 rc=0x84**（cause 1<<2）⇒ 验收 4/5（A/D、TLB invalidate、越界/权限进 `cfx_ptw`、cfx17 DMA、cfx15/18、`cfx5⇒0x84`）为真实执行，非空转。
+- `make check-interface` **rc=0（90/90、无 DEFERRED）**；`check-tset-embench-smoke` **rc=0**；`check-inst-smoke` **rc=0（90/90）**；`check-source-state` **rc=0**（`qemu: OK HEAD=c79f328 count=1 clean=True`）；`check-tasks` **rc=0**；`check_issues` **rc=0**（ISS-340 open / `resolved_by: null`）。
+- `make check-arch-smoke` **rc=2、5/10**：5 条 semihosting 全绿；FAIL = 4×`m5_perm_*` + `m5_trap_escape` ⇒ **计数准确**。
+- `make check-inst` **rc=2、1012 total / 945 passed / 62 failed / 5 deferred**；实测分类 **profile 不适用 43**（aip-si1/ctrl-br10/ctrl-call1/ctrl-jump1/mem-ra4/mem-rb4/mem-rd22）+ **Node 模型 19**（12 行 `0xB7`、6 行 `code 0x01`、1 行 UNMAPPED↔UNDI）⇒ **43/19 与完成区逐项吻合**。
+- `make check-arch` **rc=2**（依赖 arch-smoke 红，13 探针未进循环，与披露一致）；现场 `.work/log/arch/node-044t.log` 13 处 `0x81`、`node-integ039t.log` `1/37` 与完成区一致 ⇒ BLOCKED 记录成立（任务书 L3 条目含用户原话「登记 BLOCKED（推荐）」，13 探针归 TESTCASES）。
+- `make -k check`(L1) **rc=2，恰两红**：`check-patch-tree` 26（全 gem5）+ `check-knowledge-refs` 87 悬空（**0 条属 QEMU-080t**；主树同检查 rc=1/7 ⇒ 基线）；`check-milestones-fresh`、`check-component-changelog`、`check-interface` PASS。`make check-modules`(L2) **rc=2** 停在 arch-smoke（`check-inst-smoke` 先绿）。另单独跑：`check-unit` **rc=2**（lit **161/162**，唯一 `mcmodel.test` = LLD REL26 空输出，QEMU 步已执行成功，非 QEMU）、`check-tset-libc-smoke`/`check-tset-llvm-smoke`/`check-generator-sync` **rc=0**。
+- gem5 红归类：本分支落后 master **3 提交**，`git diff HEAD master -- components/gem5` 含被报全部补丁文件（`inst.cc`/`isa.cc`/`SConscript`/`AtomicSimpleCPU.py`…）⇒ **基线/合成树**（GEM5-014t 补丁未同步到本分支），非本任务红。
+
+**独立注入（与 engineer 的 `cpu.h` RAM / `hmon.S` SPF 均不同）**
+- (a) `.dadao/tests/bootrom/step5/power.elf` ← `smon.elf` → `run.sh` **4 FAIL（hmon-context 全中）、rc=1**；`cp`+md5 还原。
+- (b) `tests/shared/bootrom/step5/hmon.lds` `ORIGIN +0x1000` → **rc=1**，`success` 模式**行为级**失败（`TimeoutExpired 30s`，body 落错地址挂死）⇒ 新断言非恒真；`cp`+md5 还原 → 复跑 **36/36、rc=0**。
+
+**约束/体例**：完成区 5 字段块 5 行、含返工更正 **17 非空行（≤30）**；越界授权逐项落盘（`power.S` 原话 / 未决3+批次 / `check_interface` 仅正则）；ISS-340 入 `issues.yaml`（R1 闭环）；`grep "  PASS  $c  expected="` 精确（我复现 `writec` 行不再命中）；审前后 `git status` **14 行逐行一致**，`cpu.h`/`hmon.S`/`power.S`/bootrom/`hmon.lds`/`power.elf` md5 全 OK；`hmon_probe.py` 落 `.work/evidence/`（未跟踪，符合证据落点）。
+
+**非阻断 finding**：① `## 用户授权` 区未收录 check-arch 的新裁定原话（仅在完成区 L3 条目），且该区仍写「5 个 `m5_perm_*.s`」（实为 4 + `m5_trap_escape`，完成区已更正）；② `遗留①` 仍写「5 个」「用户同意另立任务」，inst 62 的 BLOCKED 依据实为任务书 R3/R5 预授权而非单独问答；③ `check-arch-smoke` step2 已改 `node` 但因 step1 红从未执行；④ `smon retained` 与 `cfx02 registered` 仍同一条 grep（非独立断言）。
+
+**环境处置（已披露）**：注入(b) 期间 arch-smoke 超时用例遗留的 4.2 GB `-d cpu` 日志 + 注入挂死日志把根盘写满（剩 4 KB），致一次 `run.sh` ENOSPC 假红；我删除这些**临时日志**（`/tmp/opencode/QEMU-080t/m5e2e/*.cpu.log`、`evidence/hmon/*.log`）释放 5 GB 后复跑回绿（现 4.6 G 可用）；`.work/source` 11 组件、qemu `c79f328` 干净未受影响；`.work/build/llvm.partial-review-20261103`（20 G，第 1 轮移开的半棵 LLVM）仍在原处。
+
+**判决：Accepted**——本人重跑下**无假绿、计数全对**，**本任务自身红 0**；剩余红全部为「用户已裁定 BLOCKED」（arch 5 红、inst 62、`check-arch` 13 探针）与「外部红」（分支落后 master 的 gem5 补丁 26、worktree 缺历史 evidence 的 knowledge-refs 87、LLD `mcmodel`、079 基线 lit/codegen）。

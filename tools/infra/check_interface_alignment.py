@@ -338,15 +338,19 @@ def check_adr_alignment():
             continue
         qemu_fields = (
             (f"{prefix}RAM_BASE", "qemu_ram_base",
-             rf'{prefix}RAM_BASE\s+(0x[0-9a-fA-F]+)', 16),
+             rf'#define\s+{prefix}RAM_BASE\s+(0x[0-9a-fA-F]+)', 16),
+            # Product factors may carry an integer suffix: 2 GiB needs a
+            # 64-bit constant (2048ULL * 1024 * 1024), a bare 2048 * 1024 *
+            # 1024 would overflow signed int.  The parser below still
+            # requires an exact numeric product (no identifiers/expressions).
             (f"{prefix}RAM_SIZE", "qemu_ram_size",
-             rf'{prefix}RAM_SIZE\s+\((\d+\s*\*\s*\d+\s*\*\s*\d+)\)', "product"),
+             rf'#define\s+{prefix}RAM_SIZE\s+\(([0-9UuLl\s\*]+)\)', "product"),
             (f"{prefix}ROM_BASE", "qemu_bootrom_base",
-             rf'{prefix}ROM_BASE\s+(0x[0-9a-fA-F]+)', 16),
+             rf'#define\s+{prefix}ROM_BASE\s+(0x[0-9a-fA-F]+)', 16),
             (f"{prefix}ROM_SIZE", "qemu_bootrom_size",
-             rf'{prefix}ROM_SIZE\s+\((\d+\s*\*\s*\d+)\)', "product"),
+             rf'#define\s+{prefix}ROM_SIZE\s+\(([0-9UuLl\s\*]+)\)', "product"),
             (f"{prefix}RESET_PC", "qemu_reset_pc",
-             rf'{prefix}RESET_PC\s+(\S+)', "reset"),
+             rf'#define\s+{prefix}RESET_PC\s+(\S+)', "reset"),
         )
         for item, field, pattern, kind in qemu_fields:
             expected = prof.get(field)
@@ -360,8 +364,15 @@ def check_adr_alignment():
                 continue
             if kind == "product":
                 actual = 1
-                for f in m.group(1).split("*"):
-                    actual *= int(f.strip())
+                factors = [f.strip() for f in m.group(1).split("*")]
+                if not factors or any(
+                        not re.fullmatch(r"\d+(?:ULL|UL|LL|U|L)?", f,
+                                         re.IGNORECASE) for f in factors):
+                    record(cat, item, "FAIL",
+                           f"无法解析 SIZE 表达式 {m.group(1)!r}")
+                    continue
+                for f in factors:
+                    actual *= int(re.sub(r"(?i)(ULL|UL|LL|U|L)$", "", f))
             elif kind == "reset":
                 actual = m.group(1).strip()
                 if actual in ("DADAO_BIOS_LOAD_BASE",

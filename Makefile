@@ -649,6 +649,9 @@ _locked-install-cfx-aliases:
 #   $(BOOTROM_DIR)/{bootrom.o,bootrom.elf,bootrom.bin,bootrom_app.o,bootrom_app.bin}
 BOOTROM_DIR = $(TEST_ARTIFACTS_DIR)/bootrom
 STEP5_BOOTROM_DIR = $(BOOTROM_DIR)/step5
+# Machine-v5-Node 4 MiB BootROM (QEMU-080t): supplied through the
+# `bootrom-image` machine property; the flat 64 KiB `-bios` window stays Tiny.
+NODE_BOOTROM = $(STEP5_BOOTROM_DIR)/bootrom_step5.bin
 _locked-build-bootrom:
 	@test -x $(LLVM_MC_BIN) || { echo "build-bootrom: ERROR: $(LLVM_MC_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLD_BIN) || { echo "build-bootrom: ERROR: $(LLD_BIN) not found — run 'make install-host' first"; exit 1; }
@@ -1490,8 +1493,8 @@ _locked-check-arch-smoke: install-host build-bootrom
 	@test -f $(BOOTROM_DIR)/step5/bootrom_step5.bin || { echo "check-arch-smoke: ERROR: $(BOOTROM_DIR)/step5/bootrom_step5.bin not found (run 'make build-bootrom')"; exit 1; }
 	@mkdir -p .work/log/arch
 	@rm -rf $(ARCH_E2E_WORK)
-	@echo "check-arch-smoke: [1/2] forward semihosting + cfx-level permission counter-examples"; \
-	  $(PYTHON) $(ARCH_M5_RUNNER) \
+	@echo "check-arch-smoke: [1/2] forward semihosting + cfx-level permission counter-examples (Node)"; \
+	  DADAO_TEST_PROFILE=node $(PYTHON) $(ARCH_M5_RUNNER) \
 	    --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
 	    --qemu $(QEMU_BIN) --bootrom $(BOOTROM_DIR)/step5/bootrom_step5.bin \
 	    --vectors-dir $(ARCH_M5_DIR) --expected $(ARCH_M5_DIR)/expected.yaml \
@@ -1499,8 +1502,8 @@ _locked-check-arch-smoke: install-host build-bootrom
 	  rc=$$?; \
 	  tail -n 30 $(ARCH_SMOKE_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (forward/permission rc=$$rc)"; exit $$rc; fi
-	@echo "check-arch-smoke: [2/2] 25-service table coverage (min_rom_probe_046t)"; \
-	  $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_046t.py --qemu $(QEMU_BIN) > $(ARCH_PROBE_LOG) 2>&1; \
+	@echo "check-arch-smoke: [2/2] 25-service table coverage (min_rom_probe_046t; Node profile)"; \
+	  DADAO_TEST_PROFILE=node $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_046t.py --qemu $(QEMU_BIN) > $(ARCH_PROBE_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -n 4 $(ARCH_PROBE_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (service coverage rc=$$rc)"; exit $$rc; fi
@@ -1511,7 +1514,7 @@ _locked-check-arch: check-arch-smoke
 	@mkdir -p .work/log/arch
 	@fail=0; for p in $(ARCH_CFX_PROBES); do \
 	  echo "check-arch: [$$p] cfx min-ROM probe"; \
-	  $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_$$p.py > .work/log/arch/check-arch-probe-$$p.log 2>&1; \
+	  DADAO_TEST_PROFILE=node $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_$$p.py > .work/log/arch/check-arch-probe-$$p.log 2>&1; \
 	  rc=$$?; \
 	  tail -n 3 .work/log/arch/check-arch-probe-$$p.log; \
 	  if [ $$rc -ne 0 ]; then echo "check-arch: FAIL (min_rom_probe_$$p rc=$$rc)"; fail=1; fi; \
@@ -1672,11 +1675,12 @@ INST_DIR = $(CURDIR)/tests/inst
 INST_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
 INST_SEM_LOG = .work/log/qemu/check-inst.log
 INST_TRAMPOLINE = tools/testcases/lib/trampoline.bin
-_locked-check-inst:
+_locked-check-inst: build-bootrom
 	@mkdir -p .work/log/qemu || { echo "check-inst: ERROR: cannot create .work/log/qemu"; exit 1; }
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/qemu/semantics_gate.py \
+	@test -f $(NODE_BOOTROM) || { echo "check-inst: ERROR: $(NODE_BOOTROM) not found"; exit 1; }
+	@DADAO_TEST_PROFILE=node $(PYTHON) tools/qemu/semantics_gate.py \
 	    --vectors $(INST_DIR) --gate-dir $(INST_SEM_DIR) \
-	    --qemu $(QEMU_BIN) --trampoline $(INST_TRAMPOLINE) \
+	    --qemu $(QEMU_BIN) --trampoline $(NODE_BOOTROM) \
 	    --jobs $(JOBS) > $(INST_SEM_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -40 $(INST_SEM_LOG); \
@@ -1692,11 +1696,12 @@ _locked-check-inst:
 # 旧名 `check-qemu-smoke` 保留为**别名**（指向本目标）。
 INST_SMOKE_WORK = $(TEST_ARTIFACTS_DIR)/harness/smoke
 INST_SMOKE_LOG = .work/log/qemu/check-inst-smoke.log
-_locked-check-inst-smoke:
+_locked-check-inst-smoke: build-bootrom
 	@mkdir -p .work/log/qemu
 	@test -x $(QEMU_BIN) || { echo "check-inst-smoke: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/inst/run_qemu_smoke.py --qemu $(QEMU_BIN) \
-	    --trampoline $(INST_TRAMPOLINE) --vector-dir tests/inst/base \
+	@test -f $(NODE_BOOTROM) || { echo "check-inst-smoke: ERROR: $(NODE_BOOTROM) not found"; exit 1; }
+	@DADAO_TEST_PROFILE=node $(PYTHON) tools/testcases/inst/run_qemu_smoke.py --qemu $(QEMU_BIN) \
+	    --trampoline $(NODE_BOOTROM) --vector-dir tests/inst/base \
 	    --work-dir $(INST_SMOKE_WORK) --jobs $(JOBS) > $(INST_SMOKE_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -8 $(INST_SMOKE_LOG); \

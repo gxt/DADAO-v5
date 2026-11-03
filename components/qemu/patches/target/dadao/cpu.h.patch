@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..46e713e
+index 0000000..b321f38
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,559 @@
+@@ -0,0 +1,569 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -94,28 +94,24 @@ index 0000000..46e713e
 +    DADAO_EXIT_IALIGN = 0x8D,
 +};
 +
-+/* Memory map constants (per ADR-0004 R3 + rev. 2026-10-11 / ADR-0020 D15).
-+ * RAM is the single RAM segment: base 0xFC00_0000_0000, 16 MiB, cfxha 63
-+ * (power).  The base was moved from all-zero (cfxha 0 / umon) to
-+ * 0xFC00_0000_0000 (rev. 2026-10-11) so the whole effective address space
-+ * stays in the [47:42] == 63 segment while no other cfx is implemented (user
-+ * decision, INTEG-033k #10); the 16 MiB capacity is unchanged.  The legacy
-+ * 0xffff_0000_0000 RAM of C1 step1 and the legacy exit-port MMIO device were
-+ * removed in step2 (halt is now the semihosting SYS_EXIT service, ADR-0020
-+ * D8). */
-+#define DADAO_RAM_BASE      0xFC0000000000ULL
-+#define DADAO_RAM_SIZE      (16 * 1024 * 1024)  /* 16 MiB */
-+/* Boot ROM geometry (ADR-0043 D1/D2): the single non-volatile BootROM is
-+ * 256 KiB at 0xffff_fffc_0000..0xffff_ffff_ffff.  The reset vector stays at
-+ * 0xffff_ffff_0000 (the image's 0x3_0000 offset); the legacy `-bios` path
-+ * keeps loading its 64 KiB trampoline into that same reset window. */
-+#define DADAO_ROM_BASE      0xFFFFFFFC0000ULL
-+#define DADAO_ROM_SIZE      (256 * 1024)         /* 256 KiB */
++/* Memory map constants (canonical = Machine-v5-Node; spec/Machine-v5 §1.1,
++ * ADR-0043 D1/D2; QEMU-080t).  These canonical macros are consumed by
++ * `check-interface` and by the cfx_pmem DMA physical-range check; every other
++ * runtime decision goes through the selected DadaoProfile.
++ *
++ * Node: PA RAM is the single writable memory, 2 GiB at PA 0.  The CPU reaches
++ * it only through the PTW (VA=PA identity in the first page table), so the
++ * canonical base is 0 (= the unmapped-alias constant below).  The single
++ * non-volatile BootROM is 4 MiB at 0xffff_ffc0_0000..0xffff_ffff_ffff; the
++ * reset vector is its last 64 KiB start (0xffff_ffff_0000). */
++#define DADAO_RAM_BASE      0x000000000000ULL
++#define DADAO_RAM_SIZE      (2048ULL * 1024 * 1024)  /* 2 GiB; 64-bit product */
++#define DADAO_ROM_BASE      0xFFFFFFC00000ULL
++#define DADAO_ROM_SIZE      (4 * 1024 * 1024)     /* 4 MiB */
 +#define DADAO_BIOS_LOAD_BASE 0xffffffff0000ULL   /* legacy -bios reset window */
 +#define DADAO_BIOS_WINDOW_SIZE (64 * 1024)       /* legacy -bios limit */
-+/* PA 0 aliases the first 16 MiB of the RAM region (ADR-0043 D10: the first
-+ * page table lives at PA 0 / PTBR=0; page-table reads and cfx_pmem DMA accept
-+ * the low alias as well as DADAO_RAM_BASE). */
++/* PA 0 is the start of the Node RAM (the first page table lives at PA 0 /
++ * PTBR=0); the constant is kept for the DMA range check. */
 +#define DADAO_RAM_ALIAS_BASE 0x000000000000ULL
 +
 +/* Internal address space: cfxha = addr[47:42] (DADAO-12 §2.1).  addr[47:42]
@@ -133,22 +129,22 @@ index 0000000..46e713e
 +#define DADAO_ADDR_CFXHA(a) (((uint64_t)(a) >> DADAO_CFXHA_SHIFT) & DADAO_CFXHA_MASK)
 +
 +/* ===================================================================
-+ * Runtime machine profiles (spec/Machine-v5 §1, ADR-0043; QEMU-079t)
++ * Runtime machine profiles (spec/Machine-v5 §1, ADR-0043; QEMU-079t/080t)
 + *
 + * One machine type (`dadao-m1`) selects its geometry / capability set at
 + * runtime from a DadaoProfile, so the Tiny (64 KiB BootROM + 8 MiB SRAM, no
-+ * cfx) and legacy geometries never share compile-time constants.  The
-+ * canonical DADAO_RAM_BASE / DADAO_RAM_SIZE / DADAO_ROM_BASE /
-+ * DADAO_ROM_SIZE / DADAO_RESET_PC macros above keep the legacy (Node-side,
-+ * `check-interface`) values; every runtime decision goes through env->prof,
-+ * never through those macros.
++ * cfx) and Node (4 MiB BootROM + 2 GiB PA RAM, full cfx/PTW) geometries never
++ * share compile-time constants.  The canonical DADAO_RAM_BASE /
++ * DADAO_RAM_SIZE / DADAO_ROM_BASE / DADAO_ROM_SIZE / DADAO_RESET_PC macros
++ * above are the Node values (`check-interface`); every runtime decision goes
++ * through env->prof, never through those macros.
 + *
 + * Selection: `-machine dadao-m1,profile=<name>` beats the environment
 + * variable `DADAO_TEST_PROFILE` (same names as tests/shared/
-+ * machine-profiles.yaml) which beats the default (`legacy` until QEMU-080t).
++ * machine-profiles.yaml) which beats the default (`tiny`; QEMU-080t).
 + * =================================================================== */
 +typedef struct DadaoProfile {
-+    const char *name;           /* selector value: "legacy" / "tiny" */
++    const char *name;           /* selector value: "tiny" / "node" */
 +    uint64_t ram_base;
 +    uint64_t ram_size;
 +    uint64_t rom_base;          /* BootROM (non-volatile) */
@@ -159,7 +155,7 @@ index 0000000..46e713e
 +    uint64_t kernel_base;       /* raw `-kernel` load base */
 +    uint64_t kernel_entry;      /* raw application entry (base+reserved) */
 +    uint64_t kernel_reserved;   /* leading zero bytes of a raw image */
-+    bool ram_alias;             /* PA 0 aliases RAM (legacy first page table) */
++    bool ram_alias;             /* add a PA-0 alias for the first page table */
 +    bool mon_sram;              /* hmon (cfx3) / smon (cfx2) 64 KiB SRAM */
 +    bool pmem_sram;             /* cfx_pmem (cfx17) 64 KiB SRAM */
 +    bool cfx_enabled;           /* cfx register file / vectors / run modes */
@@ -182,7 +178,20 @@ index 0000000..46e713e
 +#define DADAO_TINY_KERNEL_ENTRY    0xFFFFFF010100ULL
 +#define DADAO_TINY_KERNEL_RESERVED 0x100ULL
 +
-+extern const DadaoProfile dadao_profile_legacy;
++/* Machine-v5-Node geometry (spec/Machine-v5 §1.1/§6; user ruling 2026-11-03):
++ * 4 MiB BootROM, reset at its last 64 KiB start, 2 GiB PA RAM at PA 0 reached
++ * through the PTW identity map, and the test body entry at RAM + 1 MiB.  The
++ * raw -kernel image has no reserved prefix (kernel_base == entry). */
++#define DADAO_NODE_RAM_BASE        0x000000000000ULL
++#define DADAO_NODE_RAM_SIZE        (2048ULL * 1024 * 1024)
++#define DADAO_NODE_ROM_BASE        0xFFFFFFC00000ULL
++#define DADAO_NODE_ROM_SIZE        (4 * 1024 * 1024)
++#define DADAO_NODE_RESET_PC        0xFFFFFFFF0000ULL
++#define DADAO_NODE_KERNEL_BASE     0x000000100000ULL
++#define DADAO_NODE_KERNEL_ENTRY    0x000000100000ULL
++#define DADAO_NODE_KERNEL_RESERVED 0x0ULL
++
++extern const DadaoProfile dadao_profile_node;
 +extern const DadaoProfile dadao_profile_tiny;
 +
 +/*
@@ -203,8 +212,9 @@ index 0000000..46e713e
 +#define DADAO_VA_MASK       0x000003FFFFFFFFFFULL  /* VA[41:0] */
 +#define DADAO_CFXHA_MEM     0
 +
-+/* Reset values (per ADR-0004 D2) */
-+#define DADAO_RESET_PC      DADAO_BIOS_LOAD_BASE
++/* Reset values (per ADR-0004 D2).  The canonical value is the Node reset
++ * window: BootROM base + 0x3f_0000 (spec/Machine-v5 §1.1). */
++#define DADAO_RESET_PC      0xFFFFFFFF0000ULL
 +#define DADAO_RESET_RF0     0x7FF800007FC00000ULL
 +
 +/* ===================================================================
@@ -444,7 +454,7 @@ index 0000000..46e713e
 +
 +    /* Runtime machine profile (QEMU-079t; spec/Machine-v5 §1).  Set by the
 +     * machine before qdev_realize() so reset can derive PC/geometry from it;
-+     * NULL means the legacy profile (safe default for the linux-user build and
++     * NULL means the Node profile (safe default for the linux-user build and
 +     * for a CPU created without a machine). */
 +    const DadaoProfile *prof;
 +
@@ -503,10 +513,10 @@ index 0000000..46e713e
 +    QEMUTimer *hart_timer;
 +} CPUDADAOState;
 +
-+/* Resolve the active profile; an unset pointer means the legacy profile (the
++/* Resolve the active profile; an unset pointer means the Node profile (the
 + * linux-user build never has a machine to set one). */
 +#define DADAO_PROFILE(env) \
-+    ((env)->prof ? (env)->prof : &dadao_profile_legacy)
++    ((env)->prof ? (env)->prof : &dadao_profile_node)
 +
 +/**
 + * DadaoCPU:

@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..24dffe1
+index 0000000..1575364
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,806 @@
+@@ -0,0 +1,811 @@
 +/*
 + * DADAO M1 bare-metal test machine for QEMU
 + *
@@ -21,15 +21,15 @@ index 0000000..24dffe1
 + * You should have received a copy of the GNU General Public License along with
 + * this program.  If not, see <http://www.gnu.org/licenses/>.
 + *
-+ * Machine profiles (QEMU-079t; spec/Machine-v5 §1): `dadao-m1` selects its
-+ * geometry at runtime via `-machine dadao-m1,profile=legacy|tiny` or the
++ * Machine profiles (QEMU-079t/080t; spec/Machine-v5 §1): `dadao-m1` selects
++ * its geometry at runtime via `-machine dadao-m1,profile=tiny|node` or the
 + * DADAO_TEST_PROFILE environment variable (see dadao_machine_select_profile).
-+ * `legacy` is the pre-QEMU-079 geometry kept for the arch baseline:
-+ *   RAM:        0xFC00_0000_0000 .. +16 MiB (RWX; cfxha 63)
-+ *   RAM alias:  0x0000_0000_0000 .. +16 MiB (ADR-0043 D10)
-+ *   Boot ROM:   0xffff_fffc_0000 .. 0xffff_ffff_ffff (256 KiB, RO+X)
-+ *   reset vec:  0xffff_ffff_0000 (legacy -bios window, 64 KiB limit)
-+ *   hmon SRAM / smon SRAM / cfx_pmem SRAM: legacy cfx support
++ * `node` is Machine-v5-Node (default; spec/Machine-v5 §1.1/§6):
++ *   Boot ROM:   0xffff_ffc0_0000 .. 0xffff_ffff_ffff (4 MiB, RO+X)
++ *   reset vec:  0xffff_ffff_0000 (ROM base + 0x3f_0000; last 64 KiB)
++ *   PA RAM:     0 .. 2 GiB (RWX; reached through the PTW identity map)
++ *   hmon SRAM / smon SRAM / cfx_pmem SRAM + full cfx/PTW register file
++ *   `-bios` keeps the 64 KiB reset window; `bootrom-image` takes exactly 4 MiB.
 + * `tiny` is Machine-v5-Tiny (spec/Machine-v5 §1.1/§6):
 + *   Boot ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB, RO+X)
 + *   SRAM:       0xffff_ff00_0000 .. 0xffff_ff7f_ffff (8 MiB, RWX)
@@ -49,7 +49,7 @@ index 0000000..24dffe1
 + *                   version 1 / reserved bits 0, p_filesz <= p_memsz,
 + *                   p_vaddr == p_paddr, segment interval inside the
 + *                   profile's mapped regions; contract-elf.md
-+ *                   §1.3/§5.2/§6.1.2).  Legacy allows RAM only (a boot ROM
++ *                   §1.3/§5.2/§6.1.2).  Node allows PA RAM only (a boot ROM
 + *                   segment is a load error, user decision D, 2026-10-09);
 + *                   Tiny also allows BootROM segments (crt stub, QEMU-079t).
 + *                   The segment placement (VA=PA, .bss zero-fill) and the
@@ -65,9 +65,9 @@ index 0000000..24dffe1
 + *
 + *   path C (BootROM image, ADR-0043 D1/D2):
 + *                   qemu-system-dadao -machine dadao-m1,bootrom-image=bootrom.bin
-+ *                   the image must be exactly the profile ROM size (legacy
-+ *                   256 KiB, Tiny 64 KiB) and is loaded at the profile ROM
-+ *                   base; the CPU still resets to 0xffff_ffff_0000.
++ *                   the image must be exactly the profile ROM size (Node
++ *                   4 MiB, Tiny 64 KiB) and is loaded at the profile ROM
++ *                   base; the CPU still resets to the profile reset PC.
 + *                   -kernel is optional (an ELF is preloaded into RAM without
 + *                   overriding the reset PC); -bios must not be given.
 + *
@@ -120,7 +120,7 @@ index 0000000..24dffe1
 +/*
 + * Regions an ELF PT_LOAD interval may occupy (contract-elf.md §5/§6.1.2).
 + *
-+ * Legacy (Node-side) machine: an ELF loaded over -kernel is a RAM image --
++ * Node: an ELF loaded over -kernel is a PA RAM image (identity VA=PA) --
 + * only RAM is allowed.  A segment in the boot ROM window is a load-stage
 + * error (non-zero exit), never a ROM load.  This table is used only to
 + * validate a segment interval before the load; the placement itself is still
@@ -364,6 +364,13 @@ index 0000000..24dffe1
 +            close(fd);
 +            exit(1);
 +        }
++        /* An empty PT_LOAD (p_memsz == 0) places nothing: skip the range
++         * check.  The Node link script always emits a `.rom` PT_LOAD phdr
++         * even when the section is empty (dadao-node.lds), and a rejected
++         * empty ROM segment would make every Node ELF unloadable. */
++        if (p_memsz == 0) {
++            continue;
++        }
 +        /* VA=PA (contract-elf.md §5.2): the loader places at p_paddr */
 +        if (p_vaddr != p_paddr) {
 +            error_report("dadao-m1: ELF kernel '%s': PT_LOAD segment %u has "
@@ -411,7 +418,7 @@ index 0000000..24dffe1
 +/* DADAO M1 machine */
 +typedef struct DadaoMachineState {
 +    MachineState parent_obj;
-+    /* BootROM image path (ADR-0043 D1/D2); NULL => legacy paths. */
++    /* BootROM image path (ADR-0043 D1/D2); NULL => -bios / ELF paths. */
 +    char *bootrom_image;
 +    /* `-machine dadao-m1,profile=<name>` (QEMU-079t); NULL => env / default. */
 +    char *profile;
@@ -457,22 +464,21 @@ index 0000000..24dffe1
 +
 +static const DadaoProfile *dadao_profile_lookup(const char *name)
 +{
-+    if (g_strcmp0(name, "legacy") == 0) {
-+        return &dadao_profile_legacy;
-+    }
 +    if (g_strcmp0(name, "tiny") == 0) {
 +        return &dadao_profile_tiny;
++    }
++    if (g_strcmp0(name, "node") == 0) {
++        return &dadao_profile_node;
 +    }
 +    return NULL;
 +}
 +
 +/*
-+ * Profile selection (QEMU-079t): `-machine dadao-m1,profile=<name>` beats the
-+ * environment variable `DADAO_TEST_PROFILE` (same names as
-+ * tests/shared/machine-profiles.yaml) which beats the default (`legacy`
-+ * until QEMU-080t flips it to tiny/node).  A fallback through the environment
-+ * is announced on stderr; an unknown name is a hard error, never a silent
-+ * downgrade.
++ * Profile selection (QEMU-079t/080t): `-machine dadao-m1,profile=<name>`
++ * beats the environment variable `DADAO_TEST_PROFILE` (same names as
++ * tests/shared/machine-profiles.yaml) which beats the default (`tiny`,
++ * QEMU-080t).  A fallback through the environment is announced on stderr; an
++ * unknown name is a hard error, never a silent downgrade.
 + */
 +static const DadaoProfile *dadao_machine_select_profile(DadaoMachineState *ms)
 +{
@@ -489,13 +495,13 @@ index 0000000..24dffe1
 +        }
 +    }
 +    if (!name || !*name) {
-+        name = "legacy";
++        name = "tiny";
 +        origin = NULL;
 +    }
 +    prof = dadao_profile_lookup(name);
 +    if (!prof) {
 +        error_report("dadao-m1: unknown machine profile '%s' "
-+                     "(valid: legacy, tiny)", name);
++                     "(valid: tiny, node)", name);
 +        exit(1);
 +    }
 +    if (origin) {
@@ -667,15 +673,15 @@ index 0000000..24dffe1
 +
 +    system_memory = get_system_memory();
 +
-+    /* RAM (profile geometry): legacy 16 MiB at 0xFC00_0000_0000, Tiny 8 MiB
-+     * at 0xffff_ff00_0000 (spec/Machine-v5 §1.1). */
++    /* RAM (profile geometry): Node 2 GiB at PA 0, Tiny 8 MiB at
++     * 0xffff_ff00_0000 (spec/Machine-v5 §1.1). */
 +    ram = g_new(MemoryRegion, 1);
 +    memory_region_init_ram(ram, NULL, "dadao-ram", prof->ram_size,
 +                           &error_fatal);
 +    memory_region_add_subregion(system_memory, prof->ram_base, ram);
 +
-+    /* Legacy only: PA 0 aliases the same RAM (ADR-0043 D10) because the first
-+     * page table is built at PTBR=0.  Tiny has no PTW and no alias. */
++    /* A profile whose RAM is not already at PA 0 would need an alias for the
++     * first page table (PTBR=0).  Node and Tiny both set this false. */
 +    if (prof->ram_alias) {
 +        MemoryRegion *ram_alias = g_new(MemoryRegion, 1);
 +
@@ -685,14 +691,14 @@ index 0000000..24dffe1
 +                                    ram_alias);
 +    }
 +
-+    /* BootROM: legacy 256 KiB at 0xffff_fffc_0000, Tiny 64 KiB at
++    /* BootROM: Node 4 MiB at 0xffff_ffc0_0000, Tiny 64 KiB at
 +     * 0xffff_ffff_0000 (spec/Machine-v5 §1.1/§6). */
 +    rom = g_new(MemoryRegion, 1);
 +    memory_region_init_rom(rom, NULL, "dadao-rom", prof->rom_size,
 +                           &error_fatal);
 +    memory_region_add_subregion(system_memory, prof->rom_base, rom);
 +
-+    /* cfx_pmem SRAM (legacy only): 64 KiB at a host address outside the
++    /* cfx_pmem SRAM (Node only): 64 KiB at a host address outside the
 +     * 56-bit guest PA space, so a guest PA can never alias it. */
 +    if (prof->pmem_sram) {
 +        MemoryRegion *pmem_sram = g_new(MemoryRegion, 1);
@@ -703,7 +709,7 @@ index 0000000..24dffe1
 +                                    pmem_sram);
 +    }
 +
-+    /* hmon (cfx3) / smon (cfx2) SRAM (legacy only), 64 KiB each. */
++    /* hmon (cfx3) / smon (cfx2) SRAM (Node only), 64 KiB each. */
 +    if (prof->mon_sram) {
 +        MemoryRegion *hmon_sram = g_new(MemoryRegion, 1);
 +        MemoryRegion *smon_sram = g_new(MemoryRegion, 1);
@@ -737,7 +743,7 @@ index 0000000..24dffe1
 +        /*
 +         * Path A: ELF.  Header and PT_LOAD rules the upstream loader does not
 +         * enforce are checked first (contract-elf.md §1.3/§5.2/§6.1.2); the
-+         * allowed segment regions follow the profile (legacy: RAM only; Tiny:
++         * allowed segment regions follow the profile (Node: PA RAM only; Tiny:
 +         * RAM + BootROM, the crt stub lives in ROM).  Placement and .bss
 +         * zero-fill stay with the upstream loader.
 +         */
@@ -769,7 +775,7 @@ index 0000000..24dffe1
 +
 +    mc->init = dadao_m1_init;
 +    mc->desc = "DADAO M1 bare-metal test machine "
-+               "(profile=legacy|tiny; DADAO_TEST_PROFILE fallback)";
++               "(profile=tiny|node; DADAO_TEST_PROFILE fallback)";
 +    mc->default_cpus = 1;
 +    mc->min_cpus = 1;
 +    mc->max_cpus = 1;
@@ -786,13 +792,12 @@ index 0000000..24dffe1
 +    object_class_property_set_description(oc, "bootrom-image",
 +        "BootROM image loaded at the profile ROM base (exact ROM size)");
 +
-+    /* Runtime machine profile (QEMU-079t): legacy (default until QEMU-080t)
-+     * or tiny (Machine-v5-Tiny). */
++    /* Runtime machine profile (QEMU-079t/080t): tiny (default) or node. */
 +    object_class_property_add_str(oc, "profile",
 +                                  dadao_m1_get_profile,
 +                                  dadao_m1_set_profile);
 +    object_class_property_set_description(oc, "profile",
-+        "machine profile: legacy (default) or tiny; falls back to "
++        "machine profile: tiny (default) or node; falls back to "
 +        "$DADAO_TEST_PROFILE");
 +}
 +

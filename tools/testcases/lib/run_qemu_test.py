@@ -45,6 +45,27 @@ import paths as _paths
 # Default QEMU binary path: install root (ADR-0016 D9), resolved via paths.py.
 DEFAULT_QEMU = str(_paths.host_toolchain_bin() / "qemu-system-dadao")
 
+# Machine profile selection (TESTCASES-091t / QEMU-080t).  build_test_binary
+# already derives BINARY_BASE/SP from the same table; here we only decide how
+# the ROM/启动链 is supplied:
+#   tiny: a flat `-bios` trampoline (64 KiB reset window)
+#   node: the 4 MiB step5 BootROM via the `bootrom-image` property; its
+#         power -> hmon -> hypv chain enables the PTW identity map that makes
+#         the Node PA-RAM test body reachable.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import machine_profile  # noqa: E402
+
+
+def _selected_profile():
+    return os.environ.get("DADAO_TEST_PROFILE") or "tiny"
+
+
+def _machine_args(profile_name, bootrom_path):
+    """QEMU machine arguments for the selected profile (QEMU-080t)."""
+    if profile_name == "node":
+        return ["-machine", "dadao-m1,profile=node,bootrom-image=" + bootrom_path]
+    return ["-machine", "dadao-m1", "-bios", bootrom_path]
+
 # Default timeout (seconds) - ADR-0004 D3: 9s harness timeout
 DEFAULT_TIMEOUT = 9
 
@@ -340,9 +361,8 @@ def run_qemu(qemu_bin, trampoline_path, test_bin_path, timeout=DEFAULT_TIMEOUT, 
     """
     cmd = [
         qemu_bin,
-        "-machine", "dadao-m1",
+        *_machine_args(_selected_profile(), trampoline_path),
         "-nographic",
-        "-bios", trampoline_path,
         "-kernel", test_bin_path,
         # SYS_EXIT status reaches the host $? only when semihosting is enabled
         # (ADR-0020 D8; the harness explicitly enables 'native', ADR-0020 D7).

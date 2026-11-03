@@ -1,10 +1,10 @@
-# issue 台账（活）
-#
-# 字段约束（`tools/infra/check_issues.py` 机械校验，`INFRA-080t`；用户 2026-10-14 裁定「A」）：
-#   - `status: closed` ⇒ `resolved_by` 必填（非 null / 空串 / 纯空白）；
-#   - `status: open`   ⇒ `resolved_by` 为 `null`。
-#
-# **M10 归档指针（2026-11-01）**：M10 阶段（≤ 达成日 2026-11-01）关闭的 **17** 条已冻结到
-# `.tao/archive/M10/issues-closed.md`（含 id / scope / resolved_by / 关闭提交 / title）；
-# 本文件提取后为空（`0 open / 0 closed`）。新 issue 按 `- id: ISS-nnn` 追加到下方列表。
-[]
+- id: ISS-340
+  scope: [spec, qemu, testcases]
+  status: open
+  resolved_by: null
+  title: >-
+    【P2】spec/Machine-v5 §6 的 Node 页表口径与测试资产/实现冲突：spec 写 L1 index
+    `0x1000`–`0x1003`、VA `0x0200_0000_0000`–`0x0200_7fff_ffff`，而
+    tests/shared/bootrom/step5/hmon.S 与 QEMU-080t 按用户 2026-11-03 口径落地
+    **identity**（L1 index 0–3、VA=PA `[0, 2 GiB)`，entry `0x10_0000`、
+    SP `0x7fff_0000`）。需 SPEC 任务订正 §6（不改 QEMU/测试语义）。

@@ -13,7 +13,7 @@
 @@   * elf_loader         (fixed offset 0x2400): shared ELF validator/loader.
 @@
 @@ hmon calls the two shared routines at their absolute ROM addresses
-@@ (BOOTROM_BASE + 0x2000 / + 0x2400), so the loader exists exactly once
+@@ (RESET_PC + 0x2000 / + 0x2400), so the loader exists exactly once
 @@ even though both power and hmon use it.
 @@
 @@ Register convention of the shared routines (documented in README.md):
@@ -52,13 +52,13 @@ _start:
 
 	@@ Validate the table and look up the hmon entry (type 1).
 	LD64	rd1, 0x0001, 0x0000, 0x0000, 0x0000
-	LOAD_ADDR rb9, BOOTROM_BASE + 0x2000	@@ rom_validate_table
+	LOAD_ADDR rb9, RESET_PC + 0x2000	@@ rom_validate_table
 	call	[rb9, rd0, 0]
 	br.nz	{rd8}?, [rb0, power_exit_code]
 
 	@@ Load the hmon ELF into hmon SRAM (0x0fff_0000_0000).
 	LOAD_ADDR rb2, HMON_BASE
-	LOAD_ADDR rb9, BOOTROM_BASE + 0x2400	@@ elf_loader
+	LOAD_ADDR rb9, RESET_PC + 0x2400	@@ elf_loader
 	call	[rb9, rd0, 0]
 	br.nz	{rd8}?, [rb0, power_exit_code]
 

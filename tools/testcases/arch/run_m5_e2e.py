@@ -276,14 +276,22 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
         res.reason = "build-only (no QEMU)"
         return res
 
-    # 3. qemu: -bios bootrom + -kernel bin + semihosting (-chardev capture)
+    # 3. qemu: bootrom + -kernel bin + semihosting (-chardev capture).
+    #    Node (QEMU-080t) supplies the 4 MiB step5 BootROM through the
+    #    `bootrom-image` property; its power -> hmon -> hypv chain enables the
+    #    PTW identity map before the body runs.  Tiny keeps the flat `-bios`
+    #    trampoline path.
     for stale in (console_path, cpu_log):
         if os.path.exists(stale):
             os.remove(stale)
+    if PROFILE.name == "node":
+        machine_args = ["-machine",
+                        "dadao-m1,profile=node,bootrom-image=" + tools["bootrom"]]
+    else:
+        machine_args = ["-M", "dadao-m1", "-bios", tools["bootrom"]]
     cmd = [
         tools["qemu"],
-        "-M", "dadao-m1",
-        "-bios", tools["bootrom"],
+        *machine_args,
         "-kernel", bin_path,
         "-semihosting-config", "enable=on,target=native,chardev=semi",
         "-chardev", "file,id=semi,path=" + console_path,

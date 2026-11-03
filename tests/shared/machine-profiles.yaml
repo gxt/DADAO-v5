@@ -1,8 +1,8 @@
 # tests/shared/machine-profiles.yaml — 测试侧机器几何唯一真源（TESTCASES-091t）
 #
 # 本文件只描述**测试资产/harness 使用的** bootrom/RAM/入口/装载参数；QEMU 侧的
-# 真实机器常量由 qemu_* 字段回填（QEMU-079t 填 tiny；Node 仍为 null = DEFERRED，
-# 由 QEMU-080t 回填）。修改几何只改这里：tests/inst 的 token、tools/testcases
+# 真实机器常量由 qemu_* 字段回填（QEMU-079t 填 tiny；QEMU-080t 回填 Node）。
+# 修改几何只改这里：tests/inst 的 token、tools/testcases
 # 驱动、链接脚本与 bootrom 汇编头均由本表派生或与之交叉核对。
 #
 # 字段（两 profile 同构，缺一即错误）：
@@ -79,8 +79,8 @@ profiles:
     default_run_mode: hypv
     exit_block: 0x7FFD_0000
     dump_base: 0x7FFE_0000
-    qemu_ram_base: null
-    qemu_ram_size: null
-    qemu_bootrom_base: null
-    qemu_bootrom_size: null
-    qemu_reset_pc: null
+    qemu_ram_base: 0x0000_0000_0000
+    qemu_ram_size: 0x8000_0000
+    qemu_bootrom_base: 0xFFFF_FFC0_0000
+    qemu_bootrom_size: 0x40_0000
+    qemu_reset_pc: 0xFFFF_FFFF_0000

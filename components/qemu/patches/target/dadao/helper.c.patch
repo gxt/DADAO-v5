@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..ba70786
+index 0000000..8eae22d
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2754 @@
+@@ -0,0 +1,2755 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -832,8 +832,8 @@ index 0000000..ba70786
 +        return false;
 +    }
 +
-+    /* RAM (profile geometry): legacy 16 MiB at 0xFC00_0000_0000, Tiny 8 MiB
-+     * at 0xffff_ff00_0000 (spec/Machine-v5 §1.1). */
++    /* RAM (profile geometry): Node 2 GiB at PA 0, Tiny 8 MiB at
++     * 0xffff_ff00_0000 (spec/Machine-v5 §1.1). */
 +    if (addr >= prof->ram_base && addr < prof->ram_base + prof->ram_size) {
 +        prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
 +        paddr = addr;
@@ -1847,8 +1847,9 @@ index 0000000..ba70786
 +    if (pa >= DADAO_RAM_BASE && end <= DADAO_RAM_BASE + DADAO_RAM_SIZE) {
 +        return true;
 +    }
-+    /* PA 0 aliases the same 16 MiB RAM (ADR-0043 D10): the first page table
-+     * lives at PA 0 (PTBR=0), so DMA must reach it there as well. */
++    /* Node RAM starts at PA 0 (the first page table lives at PTBR=0), so the
++     * low alias is the same range; kept for a profile whose RAM base is not
++     * zero (ADR-0043 D10). */
 +    if (pa >= DADAO_RAM_ALIAS_BASE &&
 +        end <= DADAO_RAM_ALIAS_BASE + DADAO_RAM_SIZE) {
 +        return true;
