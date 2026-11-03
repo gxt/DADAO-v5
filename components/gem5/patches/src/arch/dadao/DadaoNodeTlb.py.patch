@@ -1,0 +1,27 @@
+diff --git a/src/arch/dadao/DadaoNodeTlb.py b/src/arch/dadao/DadaoNodeTlb.py
+new file mode 100644
+index 0000000..e02dda1
+--- /dev/null
++++ b/src/arch/dadao/DadaoNodeTlb.py
+@@ -0,0 +1,21 @@
++from m5.objects.BaseTLB import BaseTLB
++from m5.params import *
++
++
++class DadaoNodeTlb(BaseTLB):
++    """Node guest TLB + two-level page-table walker (spec/DADAO-12 §2.2)."""
++
++    type = "DadaoNodeTlb"
++    cxx_class = "gem5::DadaoISA::NodeTLB"
++    cxx_header = "arch/dadao/node_tlb.hh"
++
++    rom_base = Param.Addr(0xFFFF_FFC0_0000, "BootROM base address")
++    rom_size = Param.Addr(0x40_0000, "BootROM size in bytes")
++    ram_base = Param.Addr(0, "PA RAM base address")
++    ram_size = Param.Addr(0x8000_0000, "PA RAM size in bytes")
++    hmon_base = Param.Addr(0x0FFF_0000_0000, "hmon SRAM base")
++    hmon_size = Param.Addr(0x1_0000, "hmon SRAM size")
++    smon_base = Param.Addr(0x0BFF_0000_0000, "smon SRAM base (reserved)")
++    smon_size = Param.Addr(0x1_0000, "smon SRAM size")
++    pmem_base = Param.Addr(0x47FF_0000_0000, "cfx_pmem SRAM base")
++    pmem_size = Param.Addr(0x1_0000, "cfx_pmem SRAM size")

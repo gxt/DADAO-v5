@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/fs_machine.hh b/src/arch/dadao/fs_machine.hh
 new file mode 100644
-index 0000000..b020184
+index 0000000..ab31e05
 --- /dev/null
 +++ b/src/arch/dadao/fs_machine.hh
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,68 @@
 +// DADAO FS machine (Machine-v5-Tiny) fault model.
 +//
 +// The Tiny machine has no exception vectors, no hmon/smon and no cfx: every
@@ -33,6 +33,7 @@ index 0000000..b020184
 +{
 +    FaultCFXMEM = 0x81,
 +    FaultCFXREG = 0x84,
++    FaultUNMAPPED = 0x87,
 +    FaultILLI   = 0x88,
 +    FaultUNDI   = 0x89,
 +    FaultRASOF  = 0x8A,

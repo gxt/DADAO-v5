@@ -12,6 +12,9 @@ src/arch/dadao/DadaoFsWorkload.py.patch
 src/arch/dadao/DadaoISA.py.patch
 src/arch/dadao/DadaoInterrupts.py.patch
 src/arch/dadao/DadaoMMU.py.patch
+src/arch/dadao/DadaoNodeCPU.py.patch
+src/arch/dadao/DadaoNodeMMU.py.patch
+src/arch/dadao/DadaoNodeTlb.py.patch
 src/arch/dadao/DadaoSEWorkload.py.patch
 src/arch/dadao/DadaoSemihosting.py.patch
 src/arch/dadao/DadaoTlb.py.patch
@@ -67,6 +70,11 @@ src/arch/dadao/isa.cc.patch
 src/arch/dadao/isa.hh.patch
 src/arch/dadao/isa/main.isa.patch
 src/arch/dadao/mmu.hh.patch
+src/arch/dadao/node_cfx.cc.patch
+src/arch/dadao/node_cfx.hh.patch
+src/arch/dadao/node_mmu.hh.patch
+src/arch/dadao/node_tlb.cc.patch
+src/arch/dadao/node_tlb.hh.patch
 src/arch/dadao/page_size.hh.patch
 src/arch/dadao/pcstate.hh.patch
 src/arch/dadao/process.cc.patch

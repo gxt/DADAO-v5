@@ -1,0 +1,388 @@
+diff --git a/src/arch/dadao/node_tlb.cc b/src/arch/dadao/node_tlb.cc
+new file mode 100644
+index 0000000..60a0e88
+--- /dev/null
++++ b/src/arch/dadao/node_tlb.cc
+@@ -0,0 +1,382 @@
++// DADAO Node TLB/PTW implementation.
++#include "arch/dadao/node_tlb.hh"
++
++#include <memory>
++
++#include "arch/dadao/fs_machine.hh"
++#include "arch/dadao/isa.hh"
++#include "arch/dadao/node_cfx.hh"
++#include "base/logging.hh"
++#include "cpu/thread_context.hh"
++#include "mem/request.hh"
++#include "sim/system.hh"
++
++namespace gem5
++{
++
++namespace DadaoISA
++{
++
++namespace
++{
++
++/** A page-table-walk fault: delivered to cfx_ptw (spec/DADAO-12 §5.2). */
++class NodePtwFault : public FaultBase
++{
++  private:
++    const uint64_t cause;
++    const uint64_t info;
++    const Addr faultPc;
++
++  public:
++    NodePtwFault(uint64_t cause, uint64_t info, Addr faultPc) :
++        cause(cause), info(info), faultPc(faultPc)
++    {}
++
++    FaultName name() const override { return "DADAO page-table fault"; }
++
++    void
++    invoke(ThreadContext *tc, const StaticInstPtr &) override
++    {
++        auto *isa = dynamic_cast<ISA *>(tc->getIsaPtr());
++        panic_if(isa == nullptr, "DADAO Node: PTW fault without an ISA");
++        nodeCfxRaise(tc, isa->nodeState(), cause, CfxhaPtw, faultPc, info);
++    }
++};
++
++/** A two-axis cfx permission denial (ADR-0045 D6): to the current monitor. */
++class NodePermFault : public FaultBase
++{
++  private:
++    const Addr addr;
++    const Addr faultPc;
++
++  public:
++    NodePermFault(Addr addr, Addr faultPc) : addr(addr), faultPc(faultPc) {}
++
++    FaultName name() const override { return "DADAO cfx permission"; }
++
++    void
++    invoke(ThreadContext *tc, const StaticInstPtr &) override
++    {
++        auto *isa = dynamic_cast<ISA *>(tc->getIsaPtr());
++        panic_if(isa == nullptr, "DADAO Node: CFXPERM without an ISA");
++        NodeState &s = isa->nodeState();
++        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, faultPc, addr);
++    }
++};
++
++constexpr uint64_t kPmemCfxOffset = 0x3FF00000000ULL;
++
++bool
++inRegion(Addr base, Addr size, Addr addr, Addr len)
++{
++    if (len == 0 || addr < base)
++        return false;
++    const Addr off = addr - base;
++    if (off >= size)
++        return false;
++    return len <= size - off;
++}
++
++uint64_t
++readPte(System *system, Addr pa)
++{
++    uint8_t bytes[8] = {0, 0, 0, 0, 0, 0, 0, 0};
++    system->physProxy.readBlobPhys(pa, 0, bytes, 8);
++    uint64_t pte = 0;
++    for (uint8_t b : bytes)
++        pte = (pte << 8) | b;
++    return pte;
++}
++
++void
++writePteOr(System *system, Addr pa, uint64_t bits)
++{
++    uint64_t pte = readPte(system, pa) | bits;
++    uint8_t bytes[8];
++    for (unsigned i = 0; i < 8; ++i)
++        bytes[i] = (pte >> (56 - 8 * i)) & 0xFF;
++    system->physProxy.writeBlobPhys(pa, 0, bytes, 8);
++}
++
++bool
++writablePte(Addr ramBase, Addr ramSize, Addr pa)
++{
++    return inRegion(ramBase, ramSize, pa, 8);
++}
++
++} // anonymous namespace
++
++Fault
++NodeTLB::translate(const RequestPtr &req, ThreadContext *tc,
++                   BaseMMU::Mode mode, bool enterOnFault) const
++{
++    (void)enterOnFault;
++    auto *isa = dynamic_cast<ISA *>(tc->getIsaPtr());
++    panic_if(isa == nullptr, "DADAO Node TLB: thread has no DADAO ISA");
++    NodeState &s = isa->nodeState();
++    panic_if(!s.active, "DADAO Node TLB used outside the Node profile");
++
++    const Addr va = req->getVaddr() & NodeAddrMask;
++    const Addr size = req->getSize();
++    const unsigned cfxha = (va >> 42) & 0x3F;
++    const bool fetch = (mode == BaseMMU::Execute);
++    const bool write = (mode == BaseMMU::Write);
++    const Addr faultPc =
++        (fetch && req->hasPC()) ? req->getPC() : tc->pcState().instAddr();
++    System *system = tc->getSystemPtr();
++
++    // Two-axis cfx permission for direct internal-space accesses
++    // (ADR-0045 D1/D2/D6).  The memory window is not a cfx.
++    if (cfxha != 0 && nodePermDenied(s, cfxha, fetch ? 3 : 1))
++        return std::make_shared<NodePermFault>(va, faultPc);
++
++    if (cfxha == 0) {
++        // Address-space Step 1: no silent pmem pass-through without PTW.
++        if (!(s.ptwEnable & 1))
++            return machineFault(FaultCFXMEM);
++
++        // Step 2: guest TLB lookup.
++        for (auto &e : s.tlb) {
++            if (!e.valid)
++                continue;
++            const uint64_t mask = (1ULL << e.sizeLog2) - 1;
++            if ((va & ~mask) != e.va)
++                continue;
++            if (!e.g && e.asid != static_cast<uint16_t>(s.tlbAsid))
++                continue;
++            // hit path: fragment -> HSJU -> R/W/X (§2.2.6 priority)
++            const bool super = (e.sizeLog2 == NodeSuperShift);
++            const unsigned frag = super ? ((va >> 26) & 0x7) : ((va >> 13) & 0x7);
++            if (!(e.frags & (1u << frag))) {
++                const uint64_t cause = super
++                    ? (fetch ? CauseIspFTrap : CauseDspFTrap)
++                    : (fetch ? CauseIgpFTrap : CauseDgpFTrap);
++                return std::make_shared<NodePtwFault>(cause, va, faultPc);
++            }
++            if (!(e.hsju & (1ULL << (s.runMode & 0x3)))) {
++                uint64_t cause;
++                switch (s.runMode & 0x3) {
++                  case NodeUser: cause = CauseNuPerm; break;
++                  case NodeJail: cause = CauseNjPerm; break;
++                  case NodeSupv: cause = CauseNsPerm; break;
++                  default: cause = CauseNhPerm; break;
++                }
++                return std::make_shared<NodePtwFault>(cause, va, faultPc);
++            }
++            if (fetch && !e.x)
++                return std::make_shared<NodePtwFault>(CauseNxPerm, va, faultPc);
++            if (write && !e.w)
++                return std::make_shared<NodePtwFault>(CauseNwPerm, va, faultPc);
++            if (!fetch && !write && !e.r)
++                return std::make_shared<NodePtwFault>(CauseNrPerm, va, faultPc);
++
++            if (!e.aLocal) {
++                e.aLocal = true;
++                e.aDirty = true;
++            }
++            if (write && !e.dLocal) {
++                e.dLocal = true;
++                e.dDirty = true;
++            }
++            req->setPaddr(e.pa | (va & mask));
++            return NoFault;
++        }
++
++        // Step 3: two-level walk on a miss.
++        const Addr l1pa =
++            (s.ptbr & NodePtbrMask) + (((va >> 29) & 0x1FFF) << 3);
++        if (!inRegion(ramBase, ramSize, l1pa, 8) &&
++            !inRegion(romBase, romSize, l1pa, 8)) {
++            fatal("DADAO Node: page-table access outside physical memory "
++                  "(VA=%#llx, PTBR=%#llx)", va, s.ptbr);
++        }
++        uint64_t pte = readPte(system, l1pa);
++        uint64_t leafPa = l1pa;
++        bool superpage = false;
++
++        if (!(pte & PteP)) {
++            const uint64_t cause = (pte & PteSp)
++                ? (fetch ? CauseIspTrap : CauseDspTrap)
++                : (fetch ? CauseIgpTrap : CauseDgpTrap);
++            return std::make_shared<NodePtwFault>(cause, va, faultPc);
++        }
++
++        if (pte & PteSp) {
++            superpage = true;
++            const unsigned frag = (va >> 26) & 0x7;
++            if (!(pte & (1ULL << (NodeFragShift + frag)))) {
++                const uint64_t cause =
++                    fetch ? CauseIspFTrap : CauseDspFTrap;
++                return std::make_shared<NodePtwFault>(cause, va, faultPc);
++            }
++        } else {
++            const Addr l2pa =
++                (pte & NodePpnMask) + (((va >> 16) & 0x1FFF) << 3);
++            if (!inRegion(ramBase, ramSize, l2pa, 8) &&
++                !inRegion(romBase, romSize, l2pa, 8)) {
++                fatal("DADAO Node: page-table access outside physical memory "
++                      "(VA=%#llx, PTBR=%#llx)", va, s.ptbr);
++            }
++            pte = readPte(system, l2pa);
++            leafPa = l2pa;
++            if (!(pte & PteP)) {
++                const uint64_t cause =
++                    fetch ? CauseIgpTrap : CauseDgpTrap;
++                return std::make_shared<NodePtwFault>(cause, va, faultPc);
++            }
++            const unsigned frag = (va >> 13) & 0x7;
++            if (!(pte & (1ULL << (NodeFragShift + frag)))) {
++                const uint64_t cause =
++                    fetch ? CauseIgpFTrap : CauseDgpFTrap;
++                return std::make_shared<NodePtwFault>(cause, va, faultPc);
++            }
++        }
++
++        const uint64_t hsju = (pte >> 60) & 0xF;
++        if (!(hsju & (1ULL << (s.runMode & 0x3)))) {
++            uint64_t cause;
++            switch (s.runMode & 0x3) {
++              case NodeUser: cause = CauseNuPerm; break;
++              case NodeJail: cause = CauseNjPerm; break;
++              case NodeSupv: cause = CauseNsPerm; break;
++              default: cause = CauseNhPerm; break;
++            }
++            return std::make_shared<NodePtwFault>(cause, va, faultPc);
++        }
++        if (fetch && !(pte & PteX))
++            return std::make_shared<NodePtwFault>(CauseNxPerm, va, faultPc);
++        if (write && !(pte & PteW))
++            return std::make_shared<NodePtwFault>(CauseNwPerm, va, faultPc);
++        if (!fetch && !write && !(pte & PteR))
++            return std::make_shared<NodePtwFault>(CauseNrPerm, va, faultPc);
++
++        const Addr pagePa = superpage ? (pte & NodeSuperPpnMask)
++                                      : (pte & NodePpnMask);
++        const Addr offset = superpage ? (va & 0x1FFFFFFFULL)
++                                      : (va & 0xFFFFULL);
++
++        // Fill: write back a dirty victim first (ADR-0041 D4/D8).
++        NodeTlbEntry &e = s.tlb[s.tlbNext];
++        if (e.valid && (e.aDirty || e.dDirty)) {
++            if (!writablePte(ramBase, ramSize, e.ptePa))
++                return std::make_shared<NodePtwFault>(CausePtwErr, e.ptePa,
++                                                       faultPc);
++            writePteOr(system, e.ptePa,
++                       (e.aDirty ? PteA : 0) | (e.dDirty ? PteD : 0));
++        }
++        s.tlbNext = (s.tlbNext + 1) % NodeNumTlbEntries;
++
++        e = NodeTlbEntry();
++        e.valid = true;
++        e.sizeLog2 = superpage ? NodeSuperShift : NodeNormalShift;
++        e.va = va & ~((1ULL << e.sizeLog2) - 1);
++        e.pa = pagePa;
++        e.ptePa = leafPa;
++        e.hsju = hsju;
++        e.frags = (pte >> NodeFragShift) & 0xFF;
++        e.r = (pte & PteR) != 0;
++        e.w = (pte & PteW) != 0;
++        e.x = (pte & PteX) != 0;
++        e.g = (pte & PteG) != 0;
++        e.asid = static_cast<uint16_t>(s.tlbAsid);
++        e.aLocal = (pte & PteA) != 0;
++        e.dLocal = (pte & PteD) != 0;
++        e.aDirty = false;
++        e.dDirty = false;
++
++        // The fill access is itself an access (§2.2.5): load/fetch set A,
++        // store sets A/D.
++        if (!e.aLocal) {
++            e.aLocal = true;
++            e.aDirty = true;
++        }
++        if (write && !e.dLocal) {
++            e.dLocal = true;
++            e.dDirty = true;
++        }
++
++        req->setPaddr(pagePa | offset);
++        return NoFault;
++    }
++
++    // cfx_pmem SRAM (cfxha 17, internal offset 0x3ff_0000_0000).
++    const Addr off = va & NodeVaMask;
++    if (cfxha == CfxhaPmem) {
++        if (inRegion(kPmemCfxOffset, pmemSize, off, size)) {
++            req->setPaddr(pmemBase + (off - kPmemCfxOffset));
++            return NoFault;
++        }
++        // Out of the SRAM window ⇒ illegal internal-space access (CFXMEM).
++        return machineFault(FaultCFXMEM);
++    }
++    // hmon / smon SRAM (cfxha 3 / 2, same internal offset).
++    if (cfxha == 3 || cfxha == 2) {
++        const Addr base = (cfxha == 3) ? hmonBase : smonBase;
++        const Addr len = (cfxha == 3) ? hmonSize : smonSize;
++        if (inRegion(kPmemCfxOffset, len, off, size)) {
++            req->setPaddr(base + (off - kPmemCfxOffset));
++            return NoFault;
++        }
++        return machineFault(FaultCFXMEM);
++    }
++    // BootROM: read/execute only; a store is ILLI (ADR-0004 D5.6).
++    if (inRegion(romBase, romSize, va, size)) {
++        if (write)
++            return machineFault(FaultILLI);
++        req->setPaddr(va);
++        return NoFault;
++    }
++    // PA RAM (Node addresses it through PTW; kept for a direct profile).
++    if (inRegion(ramBase, ramSize, va, size)) {
++        req->setPaddr(va);
++        return NoFault;
++    }
++
++    if (nodeCfxReserved(cfxha))
++        return machineFault(FaultCFXMEM);
++    return machineFault(FaultUNMAPPED);
++}
++
++void
++NodeTLB::demapPage(Addr vaddr, uint64_t asn)
++{
++    (void)vaddr;
++    (void)asn;
++}
++
++Fault
++NodeTLB::translateAtomic(const RequestPtr &req, ThreadContext *tc,
++                         BaseMMU::Mode mode)
++{
++    return translate(req, tc, mode, true);
++}
++
++void
++NodeTLB::translateTiming(const RequestPtr &req, ThreadContext *tc,
++                         BaseMMU::Translation *translation,
++                         BaseMMU::Mode mode)
++{
++    translation->finish(translate(req, tc, mode, true), req, tc, mode);
++}
++
++Fault
++NodeTLB::translateFunctional(const RequestPtr &req, ThreadContext *tc,
++                             BaseMMU::Mode mode)
++{
++    return translate(req, tc, mode, false);
++}
++
++Fault
++NodeTLB::finalizePhysical(const RequestPtr &req, ThreadContext *tc,
++                          BaseMMU::Mode mode) const
++{
++    (void)req;
++    (void)tc;
++    (void)mode;
++    return NoFault;
++}
++
++} // namespace DadaoISA
++} // namespace gem5

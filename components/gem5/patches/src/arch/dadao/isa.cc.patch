@@ -1,14 +1,17 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..f0d840b
+index 0000000..69fce19
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,140 @@
+@@ -0,0 +1,292 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
++#include <cstdio>
++
 +#include "arch/dadao/fs_machine.hh"
 +#include "arch/dadao/fs_workload.hh"
++#include "arch/dadao/node_cfx.hh"
 +#include "arch/dadao/regs/float.hh"
 +#include "arch/dadao/regs/int.hh"
 +#include "base/logging.hh"
@@ -34,6 +37,9 @@ index 0000000..f0d840b
 +RegClass matRegClass(MatRegClass, MatRegClassName, 0, debug::MatRegs);
 +RegClass ccRegClass(CCRegClass, CCRegClassName, 0, debug::CCRegs);
 +
++// cfxha order of the fixed register dump (spec/DADAO-12 §1).
++constexpr int kTraceCfxha[9] = {0, 1, 2, 3, 4, 15, 17, 18, 63};
++
 +} // anonymous namespace
 +
 +ISA::ISA(const Params &p) : BaseISA(p, "dadao")
@@ -41,6 +47,13 @@ index 0000000..f0d840b
 +    _regClasses = {&intRegClass, &floatRegClass, &vecRegClass,
 +        &vecElemClass, &vecPredRegClass, &matRegClass, &ccRegClass,
 +        &miscRegClass};
++}
++
++ISA::~ISA()
++{
++    nodeFreeEvents(node);
++    if (traceFile != nullptr)
++        std::fclose(traceFile);
 +}
 +
 +void
@@ -105,11 +118,137 @@ index 0000000..f0d840b
 +ISA::inUserMode() const
 +{
 +    // G1 SE runs user code only; the Tiny FS machine runs in its nominal
-+    // hypv/cfxha-63 mode and has no path into user mode.  Decided by workload
-+    // type, so the SE platform keeps its previous answer.
-+    if (isFsMachine(tc))
++    // hypv/cfxha-63 mode and has no path into user mode.  The Node machine
++    // reports the current run mode.
++    if (isFsMachine(tc)) {
++        if (node.active)
++            return (node.runMode & 0x3) == NodeUser;
 +        return false;
++    }
 +    return true;
++}
++
++void
++ISA::traceInstruction(Addr pc, unsigned mode, bool control)
++{
++    if (traceFile == nullptr)
++        return;
++
++    const bool dump = !traceStarted || tracePrevControl || node.traceForce ||
++                      pc != tracePrevPc + 4;
++    traceStarted = true;
++    tracePrevPc = pc;
++    tracePrevControl = control;
++    node.traceForce = false;
++    if (!dump)
++        return;
++
++    // QEMU `-d cpu` compatible state dump (the arch drivers parse these lines
++    // verbatim; fields are spec/DADAO-12 §3 registers plus PTW state).
++    std::FILE *f = traceFile;
++    auto rd = [&](int i) {
++        return static_cast<unsigned long long>(
++            tc->getReg(RegId(intRegClass, int_reg::RdBase + i)));
++    };
++    auto rb = [&](int i) {
++        return static_cast<unsigned long long>(
++            tc->getReg(RegId(intRegClass, int_reg::RbBase + i)));
++    };
++    auto ra = [&](int i) {
++        return static_cast<unsigned long long>(
++            tc->getReg(RegId(intRegClass, int_reg::RaBase + i)));
++    };
++    auto rf = [&](int i) {
++        return static_cast<unsigned long long>(
++            tc->getReg(RegId(floatRegClass, i)));
++    };
++
++    std::fprintf(f, "\nPC: %016llx\n\n",
++                 static_cast<unsigned long long>(pc));
++    for (int i = 0; i < 64; ++i) {
++        std::fprintf(f, "RD[%02d]: %016llx  ", i, i == 0 ? 0ULL : rd(i));
++        if ((i % 4) == 3)
++            std::fprintf(f, "\n");
++    }
++    std::fprintf(f, "\n");
++    for (int i = 0; i < 64; ++i) {
++        std::fprintf(f, "RB[%02d]: %016llx  ", i, i == 0 ? pc : rb(i));
++        if ((i % 4) == 3)
++            std::fprintf(f, "\n");
++    }
++    std::fprintf(f, "\n");
++    for (int i = 0; i < 64; ++i) {
++        std::fprintf(f, "RF[%02d]: %016llx  ", i, rf(i));
++        if ((i % 4) == 3)
++            std::fprintf(f, "\n");
++    }
++    std::fprintf(f, "\n");
++    for (int i = 0; i < 64; ++i) {
++        std::fprintf(f, "RA[%02d]: %016llx  ", i, ra(i));
++        if ((i % 4) == 3)
++            std::fprintf(f, "\n");
++    }
++    std::fprintf(f, "\n");
++
++    std::fprintf(f, "MODE: %u\n", mode);
++    std::fprintf(f, "CFXCODE: %u\n", unsigned(node.cfxCode));
++    std::fprintf(f, "CFXMASK: %016llx\n",
++                 static_cast<unsigned long long>(node.cfxMask));
++    std::fprintf(f, "PTBR: %016llx PTW_ENABLE: %u\n",
++                 static_cast<unsigned long long>(node.ptbr),
++                 unsigned(node.ptwEnable & 1));
++    std::fprintf(f, "TLBASID: %04llx TLBSTART: %016llx TLBSIZE: %016llx\n",
++                 static_cast<unsigned long long>(node.tlbAsid & 0xFFFF),
++                 static_cast<unsigned long long>(node.tlbStart),
++                 static_cast<unsigned long long>(node.tlbSize));
++
++    for (int i = 0; i < 9; ++i) {
++        const NodeCfxRegs &r = node.cfx[i];
++        const int ha = kTraceCfxha[i];
++        std::fprintf(f, "CFX%02d ID:%016llx VER:%016llx TRAPN:%016llx "
++                     "SYNCN:%016llx ASYNCN:%016llx ESCN:%016llx SCRN:%016llx "
++                     "GIM:%016llx\n", ha,
++                     static_cast<unsigned long long>(r.cfxId),
++                     static_cast<unsigned long long>(r.version),
++                     static_cast<unsigned long long>(r.trapNum),
++                     static_cast<unsigned long long>(r.excpSyncNum),
++                     static_cast<unsigned long long>(r.excpAsyncNum),
++                     static_cast<unsigned long long>(r.escapeNum),
++                     static_cast<unsigned long long>(r.scratchRegsNum),
++                     static_cast<unsigned long long>(r.globalCfxIntrMask));
++        std::fprintf(f, "CFX%02d PREVM:%016llx PREVMASK:%016llx CID:%016llx "
++                     "CIP:%016llx CINFO:%016llx PEND:%016llx "
++                     "NONMASK:%016llx\n", ha,
++                     static_cast<unsigned long long>(r.prevRunMode),
++                     static_cast<unsigned long long>(r.prevCfxMask),
++                     static_cast<unsigned long long>(r.causeId),
++                     static_cast<unsigned long long>(r.causeIp),
++                     static_cast<unsigned long long>(r.causeInfo),
++                     static_cast<unsigned long long>(r.pending),
++                     static_cast<unsigned long long>(r.causeNonmaskable));
++        for (int m = 0; m < 4; ++m) {
++            const NodeCfxMode &mr = r.mode[m];
++            std::fprintf(f, "CFX%02d M%d SWMODE:%016llx SWMASK:%016llx "
++                         "VEC:%016llx TRAPMASK:%016llx MEMMASK:%016llx "
++                         "REGMASK:%016llx EXEMASK:%016llx INTRMASK:%016llx "
++                         "CAUSEMASK:%016llx\n", ha, m,
++                         static_cast<unsigned long long>(mr.switchRunMode),
++                         static_cast<unsigned long long>(mr.switchCfxMask),
++                         static_cast<unsigned long long>(mr.excpVector),
++                         static_cast<unsigned long long>(mr.cfxtrap),
++                         static_cast<unsigned long long>(mr.cfxmem),
++                         static_cast<unsigned long long>(mr.cfxreg),
++                         static_cast<unsigned long long>(mr.cfxexe),
++                         static_cast<unsigned long long>(mr.cfxIntrMask),
++                         static_cast<unsigned long long>(mr.excpCauseMask));
++        }
++        for (int j = 0; j < 4; ++j) {
++            std::fprintf(f, "CFX%02d SCR%d:%016llx\n", ha, j,
++                         static_cast<unsigned long long>(r.scratch[j]));
++        }
++    }
++    std::fprintf(f, "\n");
++    std::fflush(f);
 +}
 +
 +void
@@ -130,6 +269,19 @@ index 0000000..f0d840b
 +    tc->setReg(RegId(floatRegClass, 0), 0x7FF800007FC00000ULL);
 +    tc->pcState(PCState(fs->getEntry()));
 +    clearReservations();
++
++    if (fs->nodeProfile()) {
++        nodeResetState(node, tc, fs->romBase(), fs->romSize(), fs->ramBase(),
++                       fs->ramSize(), fs->pmemBase());
++    } else {
++        node.active = false;
++    }
++
++    if (traceFile == nullptr && !fs->traceCpuPath().empty()) {
++        traceFile = std::fopen(fs->traceCpuPath().c_str(), "w");
++        fatal_if(traceFile == nullptr, "DADAO ISA: cannot open --trace-cpu %s",
++                 fs->traceCpuPath());
++    }
 +}
 +
 +void

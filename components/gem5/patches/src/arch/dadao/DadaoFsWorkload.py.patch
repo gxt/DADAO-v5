@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/DadaoFsWorkload.py b/src/arch/dadao/DadaoFsWorkload.py
 new file mode 100644
-index 0000000..674146a
+index 0000000..6e72eb7
 --- /dev/null
 +++ b/src/arch/dadao/DadaoFsWorkload.py
-@@ -0,0 +1,25 @@
+@@ -0,0 +1,33 @@
 +from m5.objects.Workload import Workload
 +from m5.params import *
 +
@@ -13,18 +13,26 @@ index 0000000..674146a
 +    cxx_class = "gem5::DadaoISA::FsWorkload"
 +    cxx_header = "arch/dadao/fs_workload.hh"
 +
++    profile = Param.String("tiny", "FS machine profile: tiny | node")
 +    bootrom = Param.String("", "flat BootROM image loaded at rom_base")
-+    kernel = Param.String("", "raw or ET_EXEC ELF image")
++    kernel = Param.String("", "raw or ET_EXEC ELF image (tiny: required)")
 +    semihosting = Param.SimObject(
 +        NULL, "DADAO semihosting object (NULL disables semihosting)"
++    )
++    trace_cpu = Param.String(
++        "", "host file for the PC:/MODE: instruction trace (empty = off)"
 +    )
 +
 +    rom_base = Param.Addr(0xFFFF_FFFF_0000, "BootROM base address")
 +    rom_size = Param.Addr(0x1_0000, "BootROM size in bytes")
-+    sram_base = Param.Addr(0xFFFF_FF00_0000, "SRAM base address")
-+    sram_size = Param.Addr(0x80_0000, "SRAM size in bytes")
++    sram_base = Param.Addr(0xFFFF_FF00_0000, "SRAM base address (tiny)")
++    sram_size = Param.Addr(0x80_0000, "SRAM size in bytes (tiny)")
++    ram_base = Param.Addr(0, "PA RAM base address (node)")
++    ram_size = Param.Addr(0, "PA RAM size in bytes (node)")
++    pmem_base = Param.Addr(0, "cfx_pmem SRAM physical base (node)")
 +    kernel_base = Param.Addr(0xFFFF_FF01_0000, "raw image load address")
 +    kernel_reserved = Param.Addr(0x100, "raw image reserved zero prefix")
++    reset_pc = Param.Addr(0xFFFF_FFFF_0000, "reset vector (PC = rb0)")
 +    entry = Param.Addr(0xFFFF_FF01_0100, "raw application entry")
 +    sp = Param.Addr(0xFFFF_FF7E_FF00,
 +                    "Tiny stack pointer (set by the guest stub, platform does "

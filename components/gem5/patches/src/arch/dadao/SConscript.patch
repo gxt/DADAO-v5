@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/SConscript b/src/arch/dadao/SConscript
 new file mode 100644
-index 0000000..73e1ea9
+index 0000000..dcb9dee
 --- /dev/null
 +++ b/src/arch/dadao/SConscript
-@@ -0,0 +1,74 @@
+@@ -0,0 +1,81 @@
 +# DADAO ISA build description (B0 decode + B1/B2/B3/B4/B5/B6/B7 execution).
 +Import('*')
 +
@@ -57,6 +57,10 @@ index 0000000..73e1ea9
 +Source('fs_tlb.cc', tags=['dadao isa'])
 +Source('fs_workload.cc', tags=['dadao isa'])
 +Source('semihosting.cc', tags=['dadao isa'])
++# FS Machine-v5-Node platform (GEM5-016t): cfx register file/monitor, PTW/TLB
++# and the address-routing walk.  Separate sources; SE and Tiny stay untouched.
++Source('node_cfx.cc', tags=['dadao isa'])
++Source('node_tlb.cc', tags=['dadao isa'])
 +
 +SimObject('DadaoDecoder.py', sim_objects=['DadaoDecoder'], tags=['dadao isa'])
 +SimObject('DadaoISA.py', sim_objects=['DadaoISA'], tags=['dadao isa'])
@@ -76,5 +80,8 @@ index 0000000..73e1ea9
 +SimObject('DadaoSemihosting.py', sim_objects=['DadaoSemihosting'],
 +          tags=['dadao isa'])
 +SimObject('DadaoFsCPU.py', sim_objects=[], tags=['dadao isa'])
++SimObject('DadaoNodeTlb.py', sim_objects=['DadaoNodeTlb'], tags=['dadao isa'])
++SimObject('DadaoNodeMMU.py', sim_objects=['DadaoNodeMMU'], tags=['dadao isa'])
++SimObject('DadaoNodeCPU.py', sim_objects=[], tags=['dadao isa'])
 +
 +ISADesc('isa/main.isa', tags=['dadao isa'])

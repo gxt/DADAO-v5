@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..ac5ca25
+index 0000000..b0b3627
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,538 @@
+@@ -0,0 +1,629 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -71,6 +71,7 @@ index 0000000..ac5ca25
 +    Fault memFault;
 +    uint64_t malignAddr;
 +    unsigned malignWidth;
++    uint64_t currentWord = 0;
 +
 +    static RegId
 +    intReg(exec::Bank bank, unsigned idx)
@@ -112,11 +113,24 @@ index 0000000..ac5ca25
 +        return isa;
 +    }
 +
++    DadaoISA::ISA *
++    dadaoIsa() const
++    {
++        return dynamic_cast<DadaoISA::ISA *>(tc->getIsaPtr());
++    }
++
++    static bool nodeActive(DadaoISA::ISA *isa)
++    {
++        return isa != nullptr && isa->nodeState().active;
++    }
++
 +  public:
 +    explicit Gem5B1Context(ExecContext *xc) :
 +        xc(xc), tc(xc->tcBase()), memFault(NoFault), malignAddr(0),
 +        malignWidth(0)
 +    {}
++
++    void setCurrentWord(uint64_t word) { currentWord = word; }
 +
 +    uint64_t
 +    readInt(exec::Bank bank, unsigned idx) override
@@ -227,28 +241,31 @@ index 0000000..ac5ca25
 +    bool
 +    readCfx(uint8_t cfxha, uint8_t cg, uint8_t rc, uint64_t &out) override
 +    {
-+        // G1 has no cfx register file: every combination is CFXREG instead of
-+        // a made-up zero (contract-isa §13.6 runtime fault).
-+        (void)cfxha;
-+        (void)cg;
-+        (void)rc;
-+        (void)out;
++        // Node: the cfx register file lives in the ISA state.  Architectural
++        // faults (CFXREG/CFXPERM/ILLI) enter the current monitor and return
++        // true with the PC already redirected.
++        if (DadaoISA::ISA *isa = dadaoIsa(); isa != nullptr && nodeActive(isa))
++            return DadaoISA::nodeCfxRead(tc, isa->nodeState(), cfxha, cg, rc,
++                                         out, currentWord);
 +        return false;
 +    }
 +
 +    bool
 +    writeCfx(uint8_t cfxha, uint8_t cg, uint8_t rc, uint64_t val) override
 +    {
-+        (void)cfxha;
-+        (void)cg;
-+        (void)rc;
-+        (void)val;
++        if (DadaoISA::ISA *isa = dadaoIsa(); isa != nullptr && nodeActive(isa))
++            return DadaoISA::nodeCfxWrite(tc, isa->nodeState(), cfxha, cg, rc,
++                                          val, currentWord);
 +        return false;
 +    }
 +
 +    void
 +    trapTo(uint8_t cfxha, uint32_t immu18) override
 +    {
++        if (DadaoISA::ISA *isa = dadaoIsa(); isa != nullptr && nodeActive(isa)) {
++            DadaoISA::nodeTrap(tc, isa->nodeState(), cfxha, immu18);
++            return;
++        }
 +        if (DadaoISA::isFsMachine(tc)) {
 +            // Tiny has no cfx vectors.  The semihosting tag is served before
 +            // the reserved-cfxha check in DadaoInst::execute(); a trap that
@@ -275,6 +292,9 @@ index 0000000..ac5ca25
 +    bool
 +    escapeFrom(uint8_t cfxha, uint32_t byteOffset) override
 +    {
++        if (DadaoISA::ISA *isa = dadaoIsa(); nodeActive(isa))
++            return DadaoISA::nodeEscape(tc, isa->nodeState(), cfxha,
++                                        byteOffset);
 +        // No SEE frame to return to: explicit CFXESC, never a silent success.
 +        (void)cfxha;
 +        (void)byteOffset;
@@ -488,6 +508,26 @@ index 0000000..ac5ca25
 +    ThreadContext *tc = xc->tcBase();
 +    const bool fs = DadaoISA::isFsMachine(tc);
 +
++    // Node instruction-boundary bookkeeping: count instructions, emit the
++    // optional PC/MODE trace, and deliver one pending async source before the
++    // instruction runs (single-hart, AtomicSimpleCPU granularity).
++    auto *isa = dynamic_cast<DadaoISA::ISA *>(tc->getIsaPtr());
++    if (isa != nullptr && isa->nodeState().active) {
++        DadaoISA::NodeState &node = isa->nodeState();
++        if (isa->tracing()) {
++            const std::string_view idv(decoded.ok() ? decoded.entry->id : "");
++            const bool control =
++                idv.substr(0, 3) == "br_" || idv.substr(0, 5) == "jump_" ||
++                idv.substr(0, 5) == "call_" || idv.substr(0, 4) == "ret_" ||
++                idv.substr(0, 5) == "trap_" || idv.substr(0, 7) == "escape_";
++            isa->traceInstruction(tc->pcState().instAddr(), node.runMode,
++                                  control);
++        }
++        node.insnCount++;
++        if (DadaoISA::nodeDeliverAsync(tc, node))
++            return NoFault;
++    }
++
 +    if (!decoded.ok()) {
 +        // No opcode-table id: UNDI on the FS machine, ILLI (panic) in SE.
 +        if (fs)
@@ -520,10 +560,60 @@ index 0000000..ac5ca25
 +
 +    // Tiny implements no cfx register file at all: every cfx2rd/cfx2rc is
 +    // CFXREG (0x84), whatever the cfxha (spec/Machine-v5 §3).
-+    if (fs) {
++    if (fs && !(isa != nullptr && isa->nodeState().active)) {
 +        const std::string_view id(decoded.entry->id);
 +        if (id == "cfx2rd_crrr_cfx" || id == "cfx2rc_crrr_cfx")
 +            return DadaoISA::machineFault(DadaoISA::FaultCFXREG);
++    }
++
++    // Node: trap/escape/cfx2rd/cfx2rc are serviced by the platform model
++    // directly.  The B6 core rejects reserved cfxha statically (ILLI) and
++    // unimplemented registers (CFXREG); spec/DADAO-12 §5 routes those to the
++    // current-mode monitor instead of terminating the machine (QEMU-080t
++    // helper_cfx_trap/escape/cfx2rd/cfx2rc), so the Node path must run the
++    // full permission/exception-entry flow here.
++    if (isa != nullptr && isa->nodeState().active) {
++        const std::string_view id(decoded.entry->id);
++        DadaoISA::NodeState &node = isa->nodeState();
++        if (id == "trap_ciii_cfx") {
++            uint64_t cfxha = 0, immu18 = 0;
++            exec::fieldValue(decoded, "cfxha", cfxha);
++            exec::fieldValue(decoded, "immu18", immu18);
++            DadaoISA::nodeTrap(tc, node, static_cast<uint8_t>(cfxha),
++                               static_cast<uint32_t>(immu18));
++            return NoFault;
++        }
++        if (id == "escape_ciii_cfx") {
++            uint64_t cfxha = 0, imms18 = 0;
++            exec::fieldValue(decoded, "cfxha", cfxha);
++            exec::fieldValue(decoded, "imms18", imms18);
++            DadaoISA::nodeEscape(tc, node, static_cast<uint8_t>(cfxha),
++                                 static_cast<uint32_t>((imms18 & 0x3FFFF)
++                                                       << 2));
++            return NoFault;
++        }
++        if (id == "cfx2rd_crrr_cfx" || id == "cfx2rc_crrr_cfx") {
++            uint64_t cfxha = 0, cg = 0, rc = 0, rd = 0;
++            exec::fieldValue(decoded, "cfxha", cfxha);
++            exec::fieldValue(decoded, "cghb", cg);
++            exec::fieldValue(decoded, "rchc", rc);
++            exec::fieldValue(decoded, "rdhd", rd);
++            const RegIndex idx = DadaoISA::int_reg::RdBase + unsigned(rd);
++            if (id == "cfx2rd_crrr_cfx") {
++                uint64_t value = 0;
++                DadaoISA::nodeCfxRead(tc, node, uint8_t(cfxha), uint8_t(cg),
++                                      uint8_t(rc), value, word);
++                if (rd != 0)
++                    tc->setReg(RegId(DadaoISA::intRegClass, idx), value);
++            } else {
++                const uint64_t value = (rd == 0)
++                    ? 0
++                    : tc->getReg(RegId(DadaoISA::intRegClass, idx));
++                DadaoISA::nodeCfxWrite(tc, node, uint8_t(cfxha), uint8_t(cg),
++                                       uint8_t(rc), value, word);
++            }
++            return NoFault;
++        }
 +    }
 +
 +    // The only place an unimplemented instruction is produced: a decoded
@@ -536,6 +626,7 @@ index 0000000..ac5ca25
 +    }
 +
 +    Gem5B1Context ctx(xc);
++    ctx.setCurrentWord(word);
 +    return mapExecFault(batch, exec::dispatchBatch(batch, decoded, ctx), ctx,
 +                        word, decoded);
 +}

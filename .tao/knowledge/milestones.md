@@ -12,9 +12,9 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| GEM5-016t | 已验证 | 2026-11-04 05:35 | FS Machine-v5-Node：4 MiB ROM/2 GiB RAM、hmon/PTW/hypv、inst 968/963、embench 38/38 |
 | GEM5-017t | 待开始 | 2026-11-04 05:30（登记） | FS 同模式 parity：Tiny/Node × inst/arch/embench 逐 case 对照 QEMU system，picolibc 旁证 |
 | GEM5-015t | 已验证 | 2026-11-04 00:05 | FS Machine-v5-Tiny：64 KiB ROM/8 MiB SRAM、inst 1003/1003、embench 38/38、semihosting；picolibc math_test 既有 B7 blocked |
-| GEM5-016t | 待开始 | 2026-11-04 00:05（登记） | gem5 FS Node：4 MiB BootROM+2 GiB RAM、hmon/PTW/hypv、identity 超页、inst/arch/embench 对照 QEMU |
 | TESTCASES-095t | 已验证 | 2026-11-03 19:00 | lit mcmodel/12 透传 + codegen 19 + ir-lli 20 收口；QEMU 无缺陷 |
 | QEMU-082t | 已验证 | 2026-11-03 18:30 | cfx_power 描述符按 profile：Node 4 MiB、Tiny 不可达、legacy 退役 |
 | TESTCASES-094t | 已验证 | 2026-11-03 15:10 | L3 异步/boot-chain：050/051/046/046t 全绿、async 6/6；space_power 描述符另立 QEMU |

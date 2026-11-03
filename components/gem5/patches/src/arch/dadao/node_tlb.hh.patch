@@ -1,0 +1,82 @@
+diff --git a/src/arch/dadao/node_tlb.hh b/src/arch/dadao/node_tlb.hh
+new file mode 100644
+index 0000000..d99e17e
+--- /dev/null
++++ b/src/arch/dadao/node_tlb.hh
+@@ -0,0 +1,76 @@
++// DADAO Node TLB/PTW (Machine-v5-Node): guest-visible TLB plus a two-level
++// page-table walk, address routing and cfx_ptw exception delivery.
++//
++// Source of truth: spec/DADAO-12 §2.2.1-§2.2.6/§4.5, spec/Machine-v5 §1.2/§3,
++// ADR-0040 (PTE/page walk), ADR-0041 (TLB/A-D), ADR-0039 (address space).
++// This object is Node-only: the SE TLB (tlb.*) and the Tiny FS TLB (fs_tlb.*)
++// keep their own translation rules.
++#ifndef __ARCH_DADAO_NODE_TLB_HH__
++#define __ARCH_DADAO_NODE_TLB_HH__
++
++#include "arch/generic/tlb.hh"
++#include "base/types.hh"
++#include "params/DadaoNodeTlb.hh"
++
++namespace gem5
++{
++
++class ThreadContext;
++
++namespace DadaoISA
++{
++
++struct NodeState;
++
++class NodeTLB : public BaseTLB
++{
++  public:
++    using Params = DadaoNodeTlbParams;
++
++    explicit NodeTLB(const Params &p) :
++        BaseTLB(p), romBase(p.rom_base), romSize(p.rom_size),
++        ramBase(p.ram_base), ramSize(p.ram_size), hmonBase(p.hmon_base),
++        hmonSize(p.hmon_size), smonBase(p.smon_base), smonSize(p.smon_size),
++        pmemBase(p.pmem_base), pmemSize(p.pmem_size)
++    {}
++
++    void demapPage(Addr vaddr, uint64_t asn) override;
++
++    Fault translateAtomic(const RequestPtr &req, ThreadContext *tc,
++                          BaseMMU::Mode mode) override;
++
++    void translateTiming(const RequestPtr &req, ThreadContext *tc,
++                         BaseMMU::Translation *translation,
++                         BaseMMU::Mode mode) override;
++
++    Fault translateFunctional(const RequestPtr &req, ThreadContext *tc,
++                              BaseMMU::Mode mode) override;
++
++    Fault finalizePhysical(const RequestPtr &req, ThreadContext *tc,
++                           BaseMMU::Mode mode) const override;
++
++    void flushAll() override {}
++    void takeOverFrom(BaseTLB *old) override {}
++
++  private:
++    const Addr romBase;
++    const Addr romSize;
++    const Addr ramBase;
++    const Addr ramSize;
++    const Addr hmonBase;
++    const Addr hmonSize;
++    const Addr smonBase;
++    const Addr smonSize;
++    const Addr pmemBase;
++    const Addr pmemSize;
++
++    /** Translate one guest access.  `enterOnFault` is false for functional
++     *  (debug/semihosting) probes: those never redirect the PC. */
++    Fault translate(const RequestPtr &req, ThreadContext *tc,
++                    BaseMMU::Mode mode, bool enterOnFault) const;
++};
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_NODE_TLB_HH__

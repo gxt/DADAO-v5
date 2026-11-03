@@ -1,19 +1,20 @@
 diff --git a/configs/dadao/fs.py b/configs/dadao/fs.py
 new file mode 100644
-index 0000000..82d7bd0
+index 0000000..625c5f3
 --- /dev/null
 +++ b/configs/dadao/fs.py
-@@ -0,0 +1,179 @@
+@@ -0,0 +1,265 @@
 +#!/usr/bin/env python3
-+# DADAO FS Machine-v5-Tiny configuration (GEM5-015t).
++# DADAO FS configuration (GEM5-015t Tiny, GEM5-016t Node).
 +#
-+# One AtomicSimpleCPU, two physical memories (64 KiB BootROM at
-+# 0xffff_ffff_0000, 8 MiB SRAM at 0xffff_ff00_0000), identity translation
-+# with segment checks, semihosting and machine-fault -> exit code.  No cache,
-+# no PTW, no cfx, no devices (spec/Machine-v5-001 §1/§5).
++# One AtomicSimpleCPU, no caches and no timing.  The profile selects the
++# machine geometry; every constant below is the single source passed to the
++# workload, the TLB and the memories, and `--dump-geometry` prints the values
++# actually in force (they must equal tests/shared/machine-profiles.yaml).
 +#
-+# The geometry constants below are the single source consumed by the workload
-+# and the TLB; `--dump-geometry` prints the values actually in force.
++#   tiny: 64 KiB BootROM + 8 MiB SRAM, identity segment checks, no cfx/PTW.
++#   node: 4 MiB BootROM + 2 GiB PA RAM + hmon/smon/pmem SRAM, PTW identity
++#         map, cfx register file/monitor, cfx_pmem DMA, cfx_time/cfx_hart.
 +
 +import argparse
 +import shlex
@@ -22,29 +23,55 @@ index 0000000..82d7bd0
 +import m5
 +from m5.objects import *
 +
-+
-+ROM_BASE = 0xFFFF_FFFF_0000
-+ROM_SIZE = 0x1_0000
-+SRAM_BASE = 0xFFFF_FF00_0000
-+SRAM_SIZE = 0x80_0000
-+RESET_PC = ROM_BASE
-+KERNEL_BASE = 0xFFFF_FF01_0000
-+KERNEL_RESERVED = 0x100
-+ENTRY = 0xFFFF_FF01_0100
-+SP = 0xFFFF_FF7E_FF00
-+
 +LAST_THREAD_CAUSE = "exiting with last active thread context"
 +FAULT_PREFIX = "DADAO_FS_FAULT_"
 +SEMI_PREFIX = "semi:"
 +NON_GUEST_EXIT = 125
 +
++PROFILES = {
++    # Machine-v5-Tiny (spec/Machine-v5 §1.1; machine-profiles.yaml tiny).
++    "tiny": {
++        "bootrom_base": 0xFFFF_FFFF_0000,
++        "bootrom_size": 0x1_0000,
++        "reset_pc": 0xFFFF_FFFF_0000,
++        "ram_base": 0xFFFF_FF00_0000,
++        "ram_size": 0x80_0000,
++        "kernel_base": 0xFFFF_FF01_0000,
++        "kernel_reserved": 0x100,
++        "entry": 0xFFFF_FF01_0100,
++        "sp": 0xFFFF_FF7E_FF00,
++        "hmon": None,
++        "smon": None,
++        "pmem": None,
++        "exit_block": 0xFFFF_FF7E_0000,
++    },
++    # Machine-v5-Node (spec/Machine-v5 §1.1; machine-profiles.yaml node).
++    "node": {
++        "bootrom_base": 0xFFFF_FFC0_0000,
++        "bootrom_size": 0x40_0000,
++        "reset_pc": 0xFFFF_FFFF_0000,
++        "ram_base": 0x0000_0000_0000,
++        "ram_size": 0x8000_0000,
++        "kernel_base": 0x0000_0000_0010_0000,
++        "kernel_reserved": 0x0,
++        "entry": 0x0000_0000_0010_0000,
++        "sp": 0x0000_0000_7FFF_0000,
++        "hmon": (0x0FFF_0000_0000, 0x1_0000),
++        "smon": (0x0BFF_0000_0000, 0x1_0000),
++        "pmem": (0x47FF_0000_0000, 0x1_0000),
++        "exit_block": 0x7FFD_0000,
++    },
++}
++
 +
 +def parse_args():
 +    parser = argparse.ArgumentParser(description=__doc__)
-+    parser.add_argument("--kernel", required=True,
-+                        help="raw or ET_EXEC DADAO ELF image")
++    parser.add_argument("--profile", choices=("tiny", "node"), default="tiny",
++                        help="FS machine profile (default tiny)")
++    parser.add_argument("--kernel", default="",
++                        help="raw or ET_EXEC DADAO ELF image (tiny: required)")
 +    parser.add_argument("--bootrom", default="",
-+                        help="flat BootROM image (required for a raw kernel)")
++                        help="flat BootROM image (required for a Node run)")
 +    parser.add_argument("--semihost", choices=("on", "off"), default="on",
 +                        help="enable semihosting services")
 +    parser.add_argument("--semihost-argv", default="",
@@ -57,6 +84,8 @@ index 0000000..82d7bd0
 +    parser.add_argument("--console-out", default="",
 +                        help="host file for SYS_WRITEC/SYS_WRITE0 "
 +                             "(default: stdout)")
++    parser.add_argument("--trace-cpu", default="",
++                        help="write a QEMU `-d cpu` compatible PC:/MODE: trace")
 +    parser.add_argument("--max-ticks", type=int, default=0,
 +                        help="safety cap; hitting it is NOT a guest exit")
 +    parser.add_argument("--dump-geometry", action="store_true",
@@ -72,23 +101,69 @@ index 0000000..82d7bd0
 +    return argv
 +
 +
-+def build(args):
++def geometry_lines(name, g):
++    if name == "node":
++        return [
++            ("bootrom_base", g["bootrom_base"]),
++            ("bootrom_size", g["bootrom_size"]),
++            ("reset_pc", g["reset_pc"]),
++            ("ram_base", g["ram_base"]),
++            ("ram_size", g["ram_size"]),
++            ("ram_end", g["ram_base"] + g["ram_size"] - 1),
++            ("entry", g["entry"]),
++            ("sp", g["sp"]),
++            ("kernel_base", g["kernel_base"]),
++            ("kernel_reserved", g["kernel_reserved"]),
++            ("hmon_base", g["hmon"][0]),
++            ("hmon_size", g["hmon"][1]),
++            ("smon_base", g["smon"][0]),
++            ("smon_size", g["smon"][1]),
++            ("pmem_base", g["pmem"][0]),
++            ("pmem_size", g["pmem"][1]),
++            ("exit_block", g["exit_block"]),
++        ]
++    # GEM5-015t compatibility: the Tiny dump keys/order are unchanged.
++    return [
++        ("bootrom_base", g["bootrom_base"]),
++        ("bootrom_size", g["bootrom_size"]),
++        ("sram_base", g["ram_base"]),
++        ("sram_size", g["ram_size"]),
++        ("reset_pc", g["reset_pc"]),
++        ("kernel_base", g["kernel_base"]),
++        ("kernel_reserved", g["kernel_reserved"]),
++        ("entry", g["entry"]),
++        ("sp", g["sp"]),
++    ]
++
++
++def build(args, g):
 +    system = System()
 +    system.mem_mode = "atomic"
-+    system.mem_ranges = [AddrRange(ROM_BASE, size=ROM_SIZE),
-+                         AddrRange(SRAM_BASE, size=SRAM_SIZE)]
 +    system.cache_line_size = 64
 +
-+    system.voltage_domain = VoltageDomain()
-+    system.clk_domain = SrcClockDomain(clock="1GHz",
-+                                       voltage_domain=system.voltage_domain)
++    voltage = VoltageDomain()
++    system.clk_domain = SrcClockDomain(clock="1GHz", voltage_domain=voltage)
 +
 +    system.membus = SystemXBar()
-+    system.rom = SimpleMemory(range=AddrRange(ROM_BASE, size=ROM_SIZE))
-+    system.sram = SimpleMemory(range=AddrRange(SRAM_BASE, size=SRAM_SIZE))
-+    system.rom.port = system.membus.mem_side_ports
-+    system.sram.port = system.membus.mem_side_ports
 +    system.system_port = system.membus.cpu_side_ports
++
++    ranges = []
++
++    def add_memory(obj_name, base, size):
++        memory = SimpleMemory(range=AddrRange(base, size=size))
++        memory.port = system.membus.mem_side_ports
++        setattr(system, obj_name, memory)
++        ranges.append(AddrRange(base, size=size))
++
++    add_memory("rom", g["bootrom_base"], g["bootrom_size"])
++    if args.profile == "node":
++        add_memory("ram", g["ram_base"], g["ram_size"])
++        add_memory("hmon", g["hmon"][0], g["hmon"][1])
++        add_memory("smon", g["smon"][0], g["smon"][1])
++        add_memory("pmem", g["pmem"][0], g["pmem"][1])
++    else:
++        add_memory("sram", g["ram_base"], g["ram_size"])
++    system.mem_ranges = ranges
 +
 +    semihosting = NULL
 +    if args.semihost == "on":
@@ -99,27 +174,48 @@ index 0000000..82d7bd0
 +        )
 +
 +    system.workload = DadaoFsWorkload(
++        profile=args.profile,
 +        bootrom=args.bootrom,
 +        kernel=args.kernel,
 +        semihosting=semihosting,
-+        rom_base=ROM_BASE,
-+        rom_size=ROM_SIZE,
-+        sram_base=SRAM_BASE,
-+        sram_size=SRAM_SIZE,
-+        kernel_base=KERNEL_BASE,
-+        kernel_reserved=KERNEL_RESERVED,
-+        entry=ENTRY,
-+        sp=SP,
++        trace_cpu=args.trace_cpu,
++        rom_base=g["bootrom_base"],
++        rom_size=g["bootrom_size"],
++        sram_base=g["ram_base"],
++        sram_size=g["ram_size"],
++        ram_base=g["ram_base"] if args.profile == "node" else 0,
++        ram_size=g["ram_size"] if args.profile == "node" else 0,
++        pmem_base=g["pmem"][0] if g["pmem"] else 0,
++        kernel_base=g["kernel_base"],
++        kernel_reserved=g["kernel_reserved"],
++        reset_pc=g["reset_pc"],
++        entry=g["entry"],
++        sp=g["sp"],
 +    )
 +
-+    mmu = DadaoFsMMU()
-+    for tb in (mmu.itb, mmu.dtb):
-+        tb.rom_base = ROM_BASE
-+        tb.rom_size = ROM_SIZE
-+        tb.sram_base = SRAM_BASE
-+        tb.sram_size = SRAM_SIZE
++    if args.profile == "node":
++        mmu = DadaoNodeMMU()
++        for tb in (mmu.itb, mmu.dtb):
++            tb.rom_base = g["bootrom_base"]
++            tb.rom_size = g["bootrom_size"]
++            tb.ram_base = g["ram_base"]
++            tb.ram_size = g["ram_size"]
++            tb.hmon_base = g["hmon"][0]
++            tb.hmon_size = g["hmon"][1]
++            tb.smon_base = g["smon"][0]
++            tb.smon_size = g["smon"][1]
++            tb.pmem_base = g["pmem"][0]
++            tb.pmem_size = g["pmem"][1]
++        system.cpu = DadaoNodeAtomicSimpleCPU()
++    else:
++        mmu = DadaoFsMMU()
++        for tb in (mmu.itb, mmu.dtb):
++            tb.rom_base = g["bootrom_base"]
++            tb.rom_size = g["bootrom_size"]
++            tb.sram_base = g["ram_base"]
++            tb.sram_size = g["ram_size"]
++        system.cpu = DadaoFsAtomicSimpleCPU()
 +
-+    system.cpu = DadaoFsAtomicSimpleCPU()
 +    system.cpu.mmu = mmu
 +    system.cpu.createInterruptController()
 +    system.cpu.icache_port = system.membus.cpu_side_ports
@@ -131,24 +227,14 @@ index 0000000..82d7bd0
 +
 +def main():
 +    args = parse_args()
-+    system, semihosting = build(args)
++    g = PROFILES[args.profile]
 +
 +    if args.dump_geometry:
-+        workload = system.workload
-+        values = [
-+            ("bootrom_base", workload.rom_base),
-+            ("bootrom_size", workload.rom_size),
-+            ("sram_base", workload.sram_base),
-+            ("sram_size", workload.sram_size),
-+            ("reset_pc", RESET_PC),
-+            ("kernel_base", workload.kernel_base),
-+            ("kernel_reserved", workload.kernel_reserved),
-+            ("entry", workload.entry),
-+            ("sp", workload.sp),
-+        ]
-+        for key, value in values:
++        for key, value in geometry_lines(args.profile, g):
 +            print(f"GEM5_GEOMETRY {key}={int(value):#x}")
 +        return 0
++
++    system, semihosting = build(args, g)
 +
 +    root = Root(full_system=True, system=system)
 +    m5.instantiate()

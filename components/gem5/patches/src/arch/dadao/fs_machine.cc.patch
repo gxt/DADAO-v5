@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/fs_machine.cc b/src/arch/dadao/fs_machine.cc
 new file mode 100644
-index 0000000..2a620e5
+index 0000000..e95bf3a
 --- /dev/null
 +++ b/src/arch/dadao/fs_machine.cc
-@@ -0,0 +1,88 @@
+@@ -0,0 +1,90 @@
 +// DADAO FS machine fault implementation.
 +#include "arch/dadao/fs_machine.hh"
 +
@@ -38,6 +38,8 @@ index 0000000..2a620e5
 +        return "CFXMEM";
 +      case FaultCFXREG:
 +        return "CFXREG";
++      case FaultUNMAPPED:
++        return "UNMAPPED";
 +      case FaultILLI:
 +        return "ILLI";
 +      case FaultUNDI:

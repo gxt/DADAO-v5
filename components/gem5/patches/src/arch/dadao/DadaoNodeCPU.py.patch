@@ -1,0 +1,16 @@
+diff --git a/src/arch/dadao/DadaoNodeCPU.py b/src/arch/dadao/DadaoNodeCPU.py
+new file mode 100644
+index 0000000..5e633a8
+--- /dev/null
++++ b/src/arch/dadao/DadaoNodeCPU.py
+@@ -0,0 +1,10 @@
++from m5.objects.DadaoCPU import DadaoAtomicSimpleCPU
++from m5.objects.DadaoNodeMMU import DadaoNodeMMU
++from m5.params import *
++from m5.SimObject import *
++
++
++class DadaoNodeAtomicSimpleCPU(DadaoAtomicSimpleCPU):
++    """AtomicSimpleCPU with the Node PTW/TLB MMU (no caches, no timing)."""
++
++    mmu = DadaoNodeMMU()

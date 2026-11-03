@@ -1,16 +1,19 @@
 diff --git a/src/arch/dadao/fs_workload.hh b/src/arch/dadao/fs_workload.hh
 new file mode 100644
-index 0000000..1ca092a
+index 0000000..810a90e
 --- /dev/null
 +++ b/src/arch/dadao/fs_workload.hh
-@@ -0,0 +1,93 @@
-+// DADAO FS workload (Machine-v5-Tiny): BootROM/SRAM image loading and reset.
+@@ -0,0 +1,108 @@
++// DADAO FS workload: boot image loading and reset for the two FS machines.
 +//
-+// Two physical segments (BootROM read/execute, SRAM read/write/execute) are
-+// described by parameters copied from configs/dadao/fs.py, which in turn
-+// matches tests/shared/machine-profiles.yaml.  Loading is fail-closed: every
-+// malformed image is a fatal error naming the file/segment/field, never a
-+// silent relocation or truncation.
++// profile="tiny" (Machine-v5-Tiny): 64 KiB BootROM + 8 MiB SRAM, raw images
++// carry a 0x100-byte zero prefix, ELF images bring their own BootROM crt.
++// profile="node" (Machine-v5-Node): 4 MiB BootROM (exact size) + 2 GiB PA RAM,
++// raw images load at kernel_base with no prefix, ELF PT_LOAD segments must be
++// in PA RAM, and the reset PC is the BootROM reset vector.
++//
++// Loading is fail-closed: every malformed image is a fatal error naming the
++// file/segment/field, never a silent relocation or truncation.
 +#ifndef __ARCH_DADAO_FS_WORKLOAD_HH__
 +#define __ARCH_DADAO_FS_WORKLOAD_HH__
 +
@@ -59,24 +62,36 @@ index 0000000..1ca092a
 +
 +    SimObject *getSemihosting() const override { return semihosting; }
 +
-+    // Geometry actually in force (used by --dump-geometry through the Python
-+    // params; kept public for the evidence probe).
++    bool nodeProfile() const { return isNode; }
++    Addr resetPc() const { return p_reset_pc; }
 +    Addr romBase() const { return p_rom_base; }
 +    Addr romSize() const { return p_rom_size; }
 +    Addr sramBase() const { return p_sram_base; }
 +    Addr sramSize() const { return p_sram_size; }
++    Addr ramBase() const { return p_ram_base; }
++    Addr ramSize() const { return p_ram_size; }
++    Addr pmemBase() const { return p_pmem_base; }
 +    Addr kernelBase() const { return p_kernel_base; }
 +    Addr kernelReserved() const { return p_kernel_reserved; }
++    const std::string &traceCpuPath() const { return traceCpu; }
 +
 +  private:
++    const std::string profileName;
++    const bool isNode;
++
 +    const Addr p_rom_base;
 +    const Addr p_rom_size;
 +    const Addr p_sram_base;
 +    const Addr p_sram_size;
++    const Addr p_ram_base;
++    const Addr p_ram_size;
++    const Addr p_pmem_base;
 +    const Addr p_kernel_base;
 +    const Addr p_kernel_reserved;
++    const Addr p_reset_pc;
 +
 +    const std::string kernelPath;
++    const std::string traceCpu;
 +    loader::ObjectFile *kernelObj = nullptr;
 +    loader::SymbolTable symbols;
 +
@@ -88,7 +103,7 @@ index 0000000..1ca092a
 +
 +    bool inRange(Addr base, Addr size, Addr addr, Addr len) const;
 +    bool inSegment(Addr addr, Addr len) const;
-+    void loadBootrom(const std::string &path, const std::string &kernel);
++    void loadBootrom(const std::string &path);
 +    void validateElf(const std::vector<uint8_t> &file);
 +    void loadRaw(const std::vector<uint8_t> &file);
 +};

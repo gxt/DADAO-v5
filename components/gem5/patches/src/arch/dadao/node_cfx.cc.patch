@@ -1,0 +1,1074 @@
+diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
+new file mode 100644
+index 0000000..c4761a5
+--- /dev/null
++++ b/src/arch/dadao/node_cfx.cc
+@@ -0,0 +1,1068 @@
++// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
++#include "arch/dadao/node_cfx.hh"
++
++#include <cstring>
++#include <vector>
++
++#include "arch/dadao/isa.hh"
++#include "arch/dadao/pcstate.hh"
++#include "base/cprintf.hh"
++#include "base/logging.hh"
++#include "cpu/thread_context.hh"
++#include "mem/port_proxy.hh"
++#include "sim/cur_tick.hh"
++#include "sim/eventq.hh"
++#include "sim/system.hh"
++
++namespace gem5
++{
++
++namespace DadaoISA
++{
++
++namespace
++{
++
++constexpr int kCfxhaMap[9] = {0, 1, 2, 3, 4, 15, 17, 18, 63};
++
++/** cfx_pmem SRAM internal offset (DADAO-12 §2.1/§4.9). */
++constexpr uint64_t kPmemCfxOffset = 0x3FF00000000ULL;
++constexpr uint64_t kPmemSize = 64 * 1024;
++
++/** cfx_pmem DMA register bits (DADAO-12 §4.9). */
++constexpr uint64_t kDmaBusy = 1ULL << 0;
++constexpr uint64_t kDmaDone = 1ULL << 1;
++constexpr uint64_t kDmaError = 1ULL << 2;
++constexpr unsigned kDmaErrShift = 3;
++constexpr uint64_t kDmaErrMask = 0x1FULL << kDmaErrShift;
++constexpr uint64_t kDmaCtrlStart = 1ULL << 0;
++constexpr uint64_t kDmaCtrlDir = 1ULL << 1;
++constexpr uint64_t kDmaCtrlIrqEn = 1ULL << 2;
++// gem5's global tick is 1 ps (a 1 GHz CPU tick = 1000 of them); the DMA
++// completes 1 us later so BUSY is observable for many instructions.
++constexpr uint64_t kPsPerNs = 1000;
++constexpr uint64_t kDmaTimerTicks = 1000 * kPsPerNs;
++
++/** cfx_hart timer bits (DADAO-12 §4.7). */
++constexpr uint64_t kHartEnable = 1ULL << 0;
++constexpr uint64_t kHartImask = 1ULL << 1;
++constexpr uint64_t kHartIstatus = 1ULL << 2;
++
++constexpr uint64_t kTimeFreq = 1000000000ULL;
++
++void
++setPc(ThreadContext *tc, Addr pc)
++{
++    DadaoISA::PCState target(pc);
++    target.npc(pc);
++    tc->pcState(target);
++}
++
++/** Current instruction address (the faulting instruction when called from
++ *  a hook: gem5 keeps the PC at the executing instruction). */
++Addr
++currentPc(ThreadContext *tc)
++{
++    return tc->pcState().instAddr();
++}
++
++class NodeDmaEvent : public Event
++{
++  public:
++    ThreadContext *tc = nullptr;
++    NodeState *state = nullptr;
++
++    void process() override { nodeDmaComplete(tc, *state); }
++
++    const char *
++    description() const override
++    {
++        return "DADAO cfx_pmem DMA completion";
++    }
++};
++
++class NodeTimerEvent : public Event
++{
++  public:
++    ThreadContext *tc = nullptr;
++    NodeState *state = nullptr;
++
++    void process() override { nodeTimerExpire(tc, *state); }
++
++    const char *
++    description() const override
++    {
++        return "DADAO cfx_hart timer expiry";
++    }
++};
++
++void
++reschedule(Event *event, Tick when)
++{
++    EventQueue *queue = curEventQueue();
++    if (event->scheduled())
++        queue->reschedule(event, when);
++    else
++        queue->schedule(event, when);
++}
++
++void
++deschedule(Event *event)
++{
++    if (event->scheduled())
++        curEventQueue()->deschedule(event);
++}
++
++bool
++regionCovers(Addr base, Addr size, Addr addr, Addr len)
++{
++    if (len == 0 || addr < base)
++        return false;
++    const Addr off = addr - base;
++    return off < size && len <= size - off;
++}
++
++} // anonymous namespace
++
++int
++nodeCfxIndex(int cfxha)
++{
++    for (int i = 0; i < 9; ++i)
++        if (kCfxhaMap[i] == cfxha)
++            return i;
++    return -1;
++}
++
++bool
++nodeCfxReserved(uint64_t cfxha)
++{
++    return (cfxha >= 6 && cfxha <= 14) || (cfxha >= 19 && cfxha <= 61);
++}
++
++void
++nodeFreeEvents(NodeState &s)
++{
++    delete s.dmaEvent;
++    delete s.timerEvent;
++    s.dmaEvent = nullptr;
++    s.timerEvent = nullptr;
++}
++
++uint64_t
++nodeTimeValue(const NodeState &s)
++{
++    const Tick now = curTick();
++    // cfx_time counts nanoseconds: gem5's global tick is 1 ps.
++    return now >= s.timeBaseTick ? (now - s.timeBaseTick) / kPsPerNs : 0;
++}
++
++void
++nodeResetState(NodeState &s, ThreadContext *tc, Addr romBase, Addr romSize,
++               Addr ramBase, Addr ramSize, Addr pmemBase)
++{
++    s.active = true;
++    s.tc = tc;
++    s.romBase = romBase;
++    s.romSize = romSize;
++    s.ramBase = ramBase;
++    s.ramSize = ramSize;
++    s.pmemBase = pmemBase;
++
++    s.runMode = NodeHypv;
++    s.cfxCode = CfxhaPower;
++    s.cfxMask = ~0ULL;
++
++    s.ptbr = 0;
++    s.ptwEnable = 0;
++    s.tlbAsid = 0;
++    s.tlbStart = 0;
++    s.tlbSize = 0;
++    s.tlbControl = 0;
++    s.tlbNext = 0;
++    for (auto &entry : s.tlb)
++        entry = NodeTlbEntry();
++
++    s.dma = NodeDmaState();
++
++    s.timeBaseTick = curTick();
++    s.insnCount = 0;
++    s.timerCmp = 0;
++    s.timerCtrl = 0;
++
++    if (s.dmaEvent == nullptr) {
++        auto *event = new NodeDmaEvent;
++        event->tc = tc;
++        event->state = &s;
++        s.dmaEvent = event;
++    } else {
++        deschedule(s.dmaEvent);
++    }
++    if (s.timerEvent == nullptr) {
++        auto *event = new NodeTimerEvent;
++        event->tc = tc;
++        event->state = &s;
++        s.timerEvent = event;
++    } else {
++        deschedule(s.timerEvent);
++    }
++
++    constexpr uint64_t kMaskDefault = 0xFFFFFFFFFFFFFFF7ULL;
++    constexpr uint64_t kMaskHmon = 0x7FFFFFFFFFFFFFF7ULL;
++
++    for (int i = 0; i < 9; ++i) {
++        NodeCfxRegs &r = s.cfx[i];
++        const uint64_t cfxha = kCfxhaMap[i];
++        const uint64_t maskInit = (cfxha == 3) ? kMaskHmon : kMaskDefault;
++
++        r = NodeCfxRegs();
++        for (int m = 0; m < 4; ++m) {
++            NodeCfxMode &mr = r.mode[m];
++            mr.cfxtrap = maskInit;
++            mr.cfxmem = maskInit;
++            mr.cfxreg = maskInit;
++            mr.cfxexe = maskInit;
++            mr.cfxIntrMask = ~0ULL;
++            if (m == NodeHypv) {
++                // DADAO-13 §1 (cg3/hypv rows): H-mode switch values and the
++                // per-cfx vector base (cfxha << 42 | 0x3ff_ffff_0000).
++                mr.switchRunMode = NodeHypv;
++                mr.excpVector = (cfxha << 42) + 0x3FFFFFF0000ULL;
++                mr.cgRegDeleg = ~0ULL;
++            } else {
++                mr.switchRunMode = NodeSupv;
++                mr.excpVector = 0;
++                mr.cgRegDeleg = 0;
++            }
++            mr.switchCfxMask = ~0ULL;
++            mr.excpCauseMask = ~0ULL;
++        }
++        r.globalCfxIntrMask = (cfxha < 4) ? ~0ULL : 0;
++        r.cfxId = cfxha;
++        r.version = 0x00010000ULL;
++        r.scratchRegsNum = 4;
++        r.causeNonmaskable = CauseCfxTrap | CauseCfxMem | CauseCfxReg |
++                             CauseCfxEsc | CauseIlli | CauseUndi | CauseRasOf |
++                             CauseRasUf | CauseMalign | CauseIalign;
++        if (cfxha < 4)
++            r.causeNonmaskable |= CauseCfxPerm;
++        if (cfxha == CfxhaPtw) {
++            r.causeNonmaskable |= CausePtwErr | CauseNuPerm | CauseNjPerm |
++                                  CauseNsPerm | CauseNhPerm | CauseNxPerm |
++                                  CauseNwPerm | CauseNrPerm | CauseIgpTrap |
++                                  CauseIspTrap | CauseIgpFTrap |
++                                  CauseIspFTrap | CauseDgpTrap | CauseDspTrap |
++                                  CauseDgpFTrap | CauseDspFTrap;
++        }
++        if (cfxha == CfxhaPmem) {
++            // PMEM_DMA (1<<8) stays maskable for cfx_pmem (ADR-0042 D7.4).
++            r.causeNonmaskable = CauseCfxTrap | CauseCfxMem | CauseCfxReg |
++                                 CauseCfxEsc;
++        }
++        if (cfxha == CfxhaHart || cfxha == CfxhaTime) {
++            // TIMER (1<<10) / IPI (1<<8) are maskable (DADAO-12 §4.7/§4.10).
++            r.causeNonmaskable = CauseCfxTrap | CauseCfxMem | CauseCfxReg |
++                                 CauseCfxEsc;
++        }
++    }
++}
++
++bool
++nodePermDenied(const NodeState &s, int target, int kind)
++{
++    const int ci = nodeCfxIndex(target);
++    if (ci < 0)
++        return false;
++    if (target == s.cfxCode)
++        return false; // self: the cfx axis is bypassed
++    const NodeCfxMode &m = s.cfx[ci].mode[s.runMode & 0x3];
++    uint64_t mask = 0;
++    switch (kind) {
++      case 0: mask = m.cfxtrap; break;
++      case 1: mask = m.cfxmem; break;
++      case 2: mask = m.cfxreg; break;
++      default: mask = m.cfxexe; break;
++    }
++    return (mask & (1ULL << (s.cfxCode & 0x3F))) != 0;
++}
++
++void
++nodeFrameBlockAsync(NodeState &s, int ci, uint8_t entryMode)
++{
++    const int mon = entryMode & 0x3;
++    s.cfx[ci].savedGlobalIntrMask = s.cfx[mon].globalCfxIntrMask;
++    s.cfx[ci].savedIntrMonitor = mon;
++    s.cfx[mon].globalCfxIntrMask = ~0ULL;
++}
++
++uint64_t
++nodeCfxEnter(NodeState &s, uint64_t cause, int target, uint64_t causeIp,
++             uint64_t causeInfo, bool sync, bool *entered)
++{
++    const uint8_t entryMode = s.runMode;
++    bool redirected = false;
++    int ci;
++    uint64_t vec;
++
++    for (;;) {
++        ci = nodeCfxIndex(target);
++        if (ci < 0) {
++            *entered = false;
++            return 0;
++        }
++        if (!redirected && !(s.cfx[ci].causeNonmaskable & cause)) {
++            // step 3: inner cfx mask (the current cfx itself is not checked)
++            if (target != s.cfxCode && (s.cfxMask & (1ULL << target))) {
++                if (sync) {
++                    cause = CauseIlli;
++                    target = entryMode;
++                    redirected = true;
++                    continue;
++                }
++                s.cfx[ci].pending |= cause;
++                *entered = false;
++                return 0;
++            }
++            if (!sync) {
++                // step 4: two-level interrupt source filter (ADR-0045 D3)
++                const int cur = nodeCfxIndex(s.cfxCode);
++                const uint64_t curMask = (cur >= 0)
++                    ? s.cfx[cur].mode[entryMode].cfxIntrMask : 0;
++                const uint64_t globalMask =
++                    s.cfx[entryMode & 0x3].globalCfxIntrMask;
++                if ((curMask & (1ULL << target)) ||
++                    (globalMask & (1ULL << target))) {
++                    s.cfx[ci].pending |= cause;
++                    *entered = false;
++                    return 0;
++                }
++            }
++            // step 5: exception-cause mask
++            if (s.cfx[ci].mode[entryMode].excpCauseMask & cause) {
++                s.cfx[ci].pending |= cause;
++                *entered = false;
++                return 0;
++            }
++        }
++        break;
++    }
++
++    // step 6: trap / sync / async counter
++    if (cause == CauseCfxTrap)
++        s.cfx[ci].trapNum++;
++    else if (!sync)
++        s.cfx[ci].excpAsyncNum++;
++    else
++        s.cfx[ci].excpSyncNum++;
++
++    // step 7: save the previous run mode / cfx mask
++    s.cfx[ci].prevRunMode = entryMode;
++    s.cfx[ci].prevCfxMask = s.cfxMask;
++
++    // step 8: switch to the entry-mode values
++    vec = s.cfx[ci].mode[entryMode].excpVector;
++    s.runMode = s.cfx[ci].mode[entryMode].switchRunMode & 0x3;
++    s.cfxMask = s.cfx[ci].mode[entryMode].switchCfxMask;
++    s.cfxCode = static_cast<uint8_t>(target);
++
++    // step 9: record cause ip / id / info
++    s.cfx[ci].causeIp = causeIp;
++    s.cfx[ci].causeId = cause;
++    s.cfx[ci].causeInfo = causeInfo;
++
++    // step 10: the caller jumps to the vector
++    *entered = true;
++    return vec;
++}
++
++void
++nodeCfxRaise(ThreadContext *tc, NodeState &s, uint64_t cause, int target,
++             uint64_t causeIp, uint64_t causeInfo)
++{
++    bool entered = false;
++    const uint64_t vec =
++        nodeCfxEnter(s, cause, target, causeIp, causeInfo, true, &entered);
++    setPc(tc, entered ? vec : causeIp + 4);
++    // A masked exception skips one instruction; keep the trace TB boundary.
++    s.traceForce = true;
++}
++
++namespace
++{
++
++uint64_t *
++cfxModeReg(NodeCfxMode *m, int rc)
++{
++    switch (rc) {
++      case 0: return &m->cfxtrap;
++      case 1: return &m->cfxmem;
++      case 2: return &m->cfxreg;
++      case 3: return &m->cfxexe;
++      case 4: return &m->cfxIntrMask;
++      case 8: return &m->switchRunMode;
++      case 9: return &m->switchCfxMask;
++      case 10: return &m->excpVector;
++      case 11: return &m->excpCauseMask;
++      case 12: return &m->cgRegDeleg;
++      default: return nullptr;
++    }
++}
++
++/** cg7 internal-space descriptor (DADAO-12 §3.8; read-only). */
++uint64_t
++cg7SpaceReg(const NodeState &s, int cfxha, unsigned rc)
++{
++    static const uint64_t smon[4] = {0x3, 0x3FF00000000ULL, 0x10000ULL, 0x7};
++    static const uint64_t pmem[4] = {0x3, 0x3FF00000000ULL, 0x10000ULL, 0x3};
++    const uint64_t power[4] = {
++        0x5,
++        s.romBase & ((1ULL << 42) - 1),
++        s.romSize,
++        0x5,
++    };
++    const uint64_t *blk;
++
++    if (rc / 4 != 0)
++        return 0;
++    switch (cfxha) {
++      case 2:
++      case 3: blk = smon; break;
++      case 17: blk = pmem; break;
++      case 63: blk = power; break;
++      default: return 0;
++    }
++    return blk[rc % 4];
++}
++
++/** Resolve (cfxha, cg, rc) to a register; nullptr => CFXREG. */
++uint64_t *
++cfxRegPtr(NodeState &s, int ci, int cg, int rc, bool write)
++{
++    NodeCfxRegs &r = s.cfx[ci];
++    const int cfxha = kCfxhaMap[ci];
++
++    if (cg <= 2) {
++        if (rc <= 4 || (rc >= 8 && rc <= 11))
++            return cfxModeReg(&r.mode[cg], rc);
++        return nullptr;
++    }
++    if (cg == 3) {
++        if (s.runMode != NodeHypv)
++            return nullptr; // cg3 is hypv-only (DADAO-13 §1)
++        if (rc <= 4 || (rc >= 8 && rc <= 12))
++            return cfxModeReg(&r.mode[3], rc);
++        return nullptr;
++    }
++    switch (cg) {
++      case 4:
++        switch (rc) {
++          case 0: return write ? nullptr : &r.cfxId;
++          case 1: return write ? nullptr : &r.version;
++          case 2: return write ? nullptr : &r.trapNum;
++          case 3: return write ? nullptr : &r.excpSyncNum;
++          case 4: return write ? nullptr : &r.excpAsyncNum;
++          case 5: return write ? nullptr : &r.escapeNum;
++          case 6: return write ? nullptr : &r.scratchRegsNum;
++          default: return nullptr;
++        }
++      case 5:
++        switch (rc) {
++          case 0: return &r.prevRunMode;
++          case 1: return &r.prevCfxMask;
++          case 2: return write ? nullptr : &r.causeId;
++          case 3: return &r.causeIp;
++          case 4: return write ? nullptr : &r.causeInfo;
++          case 5: return &r.pending;
++          case 63: return write ? nullptr : &r.causeNonmaskable;
++          default: return nullptr;
++        }
++      case 6:
++        if (static_cast<uint64_t>(rc) >= r.scratchRegsNum)
++            return nullptr;
++        return &r.scratch[rc];
++      case 8:
++        if (cfxha < 4 && rc == 1)
++            return &r.globalCfxIntrMask;
++        return (cfxha == CfxhaPtw && rc == 8) ? &s.ptwEnable : nullptr;
++      case 9:
++        return (cfxha == CfxhaPtw && rc == 0) ? &s.ptbr : nullptr;
++      case 12:
++        if (cfxha != CfxhaPtw)
++            return nullptr;
++        switch (rc) {
++          case 0: return write ? &s.tlbControl : nullptr;
++          case 1: return &s.tlbAsid;
++          case 2: return &s.tlbStart;
++          case 3: return &s.tlbSize;
++          default: return nullptr;
++        }
++      default:
++        return nullptr;
++    }
++}
++
++bool
++delegDenied(const NodeState &s, int ci, int cg)
++{
++    if (s.runMode != NodeSupv || cg > 63)
++        return false;
++    return (s.cfx[ci].mode[NodeHypv].cgRegDeleg & (1ULL << cg)) != 0;
++}
++
++bool
++dmaRegRead(NodeState &s, unsigned rc, uint64_t *val)
++{
++    switch (rc) {
++      case 0: *val = s.dma.src; return true;
++      case 1: *val = s.dma.dst; return true;
++      case 2: *val = s.dma.size & 0x3FFFFFFFULL; return true;
++      case 3: *val = s.dma.ctrl & ~kDmaCtrlStart; return true;
++      case 4: *val = s.dma.status; return true;
++      default: return false;
++    }
++}
++
++bool
++dmaPaOk(const NodeState &s, uint64_t pa, uint64_t len, bool write)
++{
++    const uint64_t end = pa + len;
++    if (end < pa)
++        return false;
++    if (pa >= s.ramBase && end <= s.ramBase + s.ramSize)
++        return true;
++    if (!write && pa >= s.romBase && end <= s.romBase + s.romSize)
++        return true;
++    return false;
++}
++
++void
++dmaStart(ThreadContext *tc, NodeState &s, uint64_t ctrl)
++{
++    const uint64_t dir = (ctrl & kDmaCtrlDir) ? 1 : 0;
++    const uint64_t cfxAddr = (dir ? s.dma.dst : s.dma.src) & NodeVaMask;
++    const uint64_t pa = (dir ? s.dma.src : s.dma.dst) & 0x00FFFFFFFFFFFFFFULL;
++    const uint64_t size = s.dma.size & 0x3FFFFFFFULL;
++    uint64_t err = 0;
++
++    // ERR_CODE is one-hot at status[15:3] (DADAO-12 §4.9).
++    if (size == 0 || size > (1ULL << 29)) {
++        err = 1; // ERR_SIZE
++    } else if (size > kPmemSize) {
++        err = 2; // ERR_CFX_RANGE
++    } else if (cfxAddr < kPmemCfxOffset ||
++               cfxAddr - kPmemCfxOffset > kPmemSize - size) {
++        err = 2; // ERR_CFX_RANGE
++    } else if (size > (1ULL << 56) - pa) {
++        err = 4; // ERR_PA_RANGE
++    } else if (!dmaPaOk(s, pa, size, dir == 0)) {
++        err = 8; // ERR_PA_FAULT
++    }
++
++    if (err) {
++        s.dma.status |= kDmaError | (err << kDmaErrShift);
++        if (s.dma.irqEn) {
++            const int ci = nodeCfxIndex(CfxhaPmem);
++            if (ci >= 0)
++                s.cfx[ci].pending |= CausePmemDma;
++        }
++        return;
++    }
++
++    s.dma.dir = dir;
++    s.dma.cfxOff = cfxAddr - kPmemCfxOffset;
++    s.dma.pa = pa;
++    s.dma.len = size;
++    s.dma.status |= kDmaBusy;
++    reschedule(s.dmaEvent, curTick() + kDmaTimerTicks);
++    (void)tc;
++}
++
++bool
++dmaRegWrite(ThreadContext *tc, NodeState &s, unsigned rc, uint64_t val)
++{
++    const bool busy = (s.dma.status & kDmaBusy) != 0;
++
++    switch (rc) {
++      case 0:
++        if (!busy)
++            s.dma.src = val;
++        return true;
++      case 1:
++        if (!busy)
++            s.dma.dst = val;
++        return true;
++      case 2:
++        if (!busy)
++            s.dma.size = val & 0x3FFFFFFFULL;
++        return true;
++      case 3:
++        if (busy)
++            return true;
++        s.dma.ctrl = val & (kDmaCtrlDir | kDmaCtrlIrqEn);
++        s.dma.irqEn = (val & kDmaCtrlIrqEn) ? 1 : 0;
++        if (val & kDmaCtrlStart)
++            dmaStart(tc, s, val);
++        return true;
++      case 4:
++        if (busy)
++            return true;
++        if (val & kDmaDone)
++            s.dma.status &= ~kDmaDone;
++        if (val & kDmaError)
++            s.dma.status &= ~(kDmaError | kDmaErrMask);
++        return true;
++      default:
++        return false;
++    }
++}
++
++bool
++hartIstatus(const NodeState &s)
++{
++    return (s.timerCtrl & kHartEnable) && s.timerCmp != ~0ULL &&
++           nodeTimeValue(s) >= s.timerCmp;
++}
++
++bool
++hartRegRead(const NodeState &s, unsigned rc, uint64_t *val)
++{
++    switch (rc) {
++      case 0: *val = 0; return true;
++      case 2: *val = nodeTimeValue(s); return true;
++      case 3: *val = s.insnCount; return true;
++      case 4: *val = s.timerCmp; return true;
++      case 5:
++        *val = (s.timerCtrl & (kHartEnable | kHartImask)) |
++               (hartIstatus(s) ? kHartIstatus : 0);
++        return true;
++      default: return false;
++    }
++}
++
++void
++timerArm(ThreadContext *tc, NodeState &s)
++{
++    (void)tc;
++    if (!(s.timerCtrl & kHartEnable) || s.timerCmp == ~0ULL) {
++        deschedule(s.timerEvent);
++        return;
++    }
++    const uint64_t now = nodeTimeValue(s);
++    if (now >= s.timerCmp) {
++        deschedule(s.timerEvent);
++        nodeTimerExpire(s.tc, s);
++        return;
++    }
++    reschedule(s.timerEvent, s.timeBaseTick + s.timerCmp * kPsPerNs);
++}
++
++bool
++hartRegWrite(ThreadContext *tc, NodeState &s, unsigned rc, uint64_t val)
++{
++    const int ci = nodeCfxIndex(CfxhaHart);
++
++    switch (rc) {
++      case 4:
++        s.timerCmp = val;
++        if (ci >= 0)
++            s.cfx[ci].pending &= ~CauseTimer;
++        deschedule(s.timerEvent);
++        timerArm(tc, s);
++        return true;
++      case 5:
++        s.timerCtrl = val & (kHartEnable | kHartImask);
++        if (!(s.timerCtrl & kHartImask) && hartIstatus(s)) {
++            if (ci >= 0)
++                s.cfx[ci].pending |= CauseTimer;
++        }
++        timerArm(tc, s);
++        return true;
++      default:
++        return false;
++    }
++}
++
++bool
++timeRegRead(const NodeState &s, unsigned rc, uint64_t *val)
++{
++    switch (rc) {
++      case 0: *val = kTimeFreq; return true;
++      case 1: *val = nodeTimeValue(s); return true;
++      default: return false;
++    }
++}
++
++/** cfx_ptw cg12 rc0 command (DADAO-12 §4.5; ADR-0041 D3/D6/D7).
++ *  Returns 0 (ok), 1 (CFXREG operand) or 2 (PTWERR with *errPa). */
++int
++tlbControlExec(NodeState &s, uint64_t val, uint64_t *errPa)
++{
++    const unsigned op = val & 0x3;
++    const unsigned scope = (val >> 2) & 0x3;
++    const bool asidAny = (val >> 4) & 0x1;
++    const uint64_t start = s.tlbStart;
++    const uint64_t size = s.tlbSize;
++
++    if (op == 0x0)
++        return 0;
++    if (scope == 0x3)
++        return 1;
++    if (scope == 0x2 && size == 0)
++        return 1;
++
++    for (auto &e : s.tlb) {
++        if (!e.valid)
++            continue;
++        if (!asidAny && (e.g || e.asid != static_cast<uint16_t>(s.tlbAsid)))
++            continue;
++        if (scope == 0x1) {
++            const uint64_t mask = (1ULL << e.sizeLog2) - 1;
++            if ((start & ~mask) != e.va)
++                continue;
++        } else if (scope == 0x2) {
++            uint64_t end = start + size;
++            const uint64_t pageEnd = e.va + (1ULL << e.sizeLog2);
++            if (end < start)
++                end = ~0ULL;
++            if (!(e.va < end && start < pageEnd))
++                continue;
++        }
++        if (op & 0x1) {
++            if (e.aDirty || e.dDirty) {
++                if (!regionCovers(s.ramBase, s.ramSize, e.ptePa, 8)) {
++                    // The backing store is not writable (e.g. a page table in
++                    // the BootROM): PTWERR, entry kept (ADR-0041 D7/D10).
++                    *errPa = e.ptePa;
++                    return 2;
++                }
++                System *system = s.tc->getSystemPtr();
++                uint64_t pte = 0;
++                for (unsigned i = 0; i < 8; ++i) {
++                    uint8_t byte = 0;
++                    system->physProxy.readBlobPhys(e.ptePa + i, 0, &byte, 1);
++                    pte = (pte << 8) | byte;
++                }
++                if (e.aDirty)
++                    pte |= PteA;
++                if (e.dDirty)
++                    pte |= PteD;
++                uint8_t bytes[8];
++                for (unsigned i = 0; i < 8; ++i)
++                    bytes[i] = (pte >> (56 - 8 * i)) & 0xFF;
++                system->physProxy.writeBlobPhys(e.ptePa, 0, bytes, 8);
++                e.aDirty = false;
++                e.dDirty = false;
++            }
++        }
++        if (op & 0x2)
++            e.valid = false;
++    }
++    return 0;
++}
++
++} // anonymous namespace
++
++void
++nodeDmaComplete(ThreadContext *tc, NodeState &s)
++{
++    if (!(s.dma.status & kDmaBusy))
++        return;
++
++    System *system = tc->getSystemPtr();
++    std::vector<uint8_t> buf(s.dma.len);
++    const Addr cfxPhys = s.pmemBase + s.dma.cfxOff;
++    bool ok = true;
++
++    if (s.dma.dir == 0) {
++        system->physProxy.readBlobPhys(cfxPhys, 0, buf.data(), s.dma.len);
++        system->physProxy.writeBlobPhys(s.dma.pa, 0, buf.data(), s.dma.len);
++    } else {
++        system->physProxy.readBlobPhys(s.dma.pa, 0, buf.data(), s.dma.len);
++        system->physProxy.writeBlobPhys(cfxPhys, 0, buf.data(), s.dma.len);
++    }
++
++    s.dma.status &= ~kDmaBusy;
++    if (!ok) {
++        s.dma.status |= kDmaError | (8ULL << kDmaErrShift);
++    } else {
++        s.dma.status |= kDmaDone;
++    }
++
++    if (s.dma.irqEn) {
++        const int ci = nodeCfxIndex(CfxhaPmem);
++        if (ci >= 0)
++            s.cfx[ci].pending |= CausePmemDma;
++    }
++}
++
++void
++nodeTimerExpire(ThreadContext *tc, NodeState &s)
++{
++    (void)tc;
++    const int ci = nodeCfxIndex(CfxhaHart);
++    if (!(s.timerCtrl & kHartEnable) || s.timerCmp == ~0ULL)
++        return;
++    if (nodeTimeValue(s) < s.timerCmp)
++        return;
++    if (ci >= 0)
++        s.cfx[ci].pending |= CauseTimer;
++}
++
++bool
++nodeDeliverAsync(ThreadContext *tc, NodeState &s)
++{
++    struct Source
++    {
++        int cfxha;
++        uint64_t cause;
++    };
++    static const Source sources[] = {
++        {CfxhaHart, CauseTimer},
++        {CfxhaPmem, CausePmemDma},
++    };
++
++    for (const auto &src : sources) {
++        const int ci = nodeCfxIndex(src.cfxha);
++        if (ci < 0 || !(s.cfx[ci].pending & src.cause))
++            continue;
++        if (src.cfxha == CfxhaHart && (s.timerCtrl & kHartImask))
++            continue;
++
++        const uint8_t entryMode = s.runMode;
++        const uint64_t info =
++            (src.cfxha == CfxhaHart) ? 0 : s.dma.status;
++        bool entered = false;
++        const uint64_t vec = nodeCfxEnter(s, src.cause, src.cfxha, currentPc(tc),
++                                          info, false, &entered);
++        if (!entered)
++            continue;
++        s.cfx[ci].pending &= ~src.cause;
++        setPc(tc, vec);
++        nodeFrameBlockAsync(s, ci, entryMode);
++        return true;
++    }
++    return false;
++}
++
++void
++nodeTrap(ThreadContext *tc, NodeState &s, uint8_t cfxha, uint32_t immu18)
++{
++    const uint64_t info = (uint64_t(0x7F) << 24) |
++                          (uint64_t(cfxha & 0x3F) << 18) |
++                          uint64_t(immu18 & 0x3FFFF);
++    const Addr pc = currentPc(tc);
++
++    if (immu18 >= 0x3FF00) {
++        nodeCfxRaise(tc, s, CauseIlli, s.runMode, pc, info);
++        return;
++    }
++    if (nodeCfxReserved(cfxha)) {
++        nodeCfxRaise(tc, s, CauseIlli, s.runMode, pc, info);
++        return;
++    }
++    const int ci = nodeCfxIndex(cfxha);
++    if (ci < 0) {
++        nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
++        return;
++    }
++    if (nodePermDenied(s, cfxha, 0)) {
++        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc, info);
++        return;
++    }
++
++    const uint8_t entryMode = s.runMode;
++    bool entered = false;
++    const uint64_t vec =
++        nodeCfxEnter(s, CauseCfxTrap, cfxha, pc, info, true, &entered);
++    setPc(tc, entered ? vec : pc + 4);
++    s.traceForce = true;
++    if (entered && s.cfxCode == cfxha)
++        nodeFrameBlockAsync(s, ci, entryMode);
++}
++
++bool
++nodeEscape(ThreadContext *tc, NodeState &s, uint8_t cfxha, uint32_t byteOffset)
++{
++    const uint64_t imms18 = (byteOffset >> 2) & 0x3FFFF;
++    const uint64_t info = (uint64_t(0x7E) << 24) |
++                          (uint64_t(cfxha & 0x3F) << 18) | imms18;
++    const Addr pc = currentPc(tc);
++
++    if (imms18 & ~0x1ULL) {
++        nodeCfxRaise(tc, s, CauseIlli, s.runMode, pc, info);
++        return true;
++    }
++    if (nodeCfxReserved(cfxha)) {
++        nodeCfxRaise(tc, s, CauseIlli, s.runMode, pc, info);
++        return true;
++    }
++    const int ci = nodeCfxIndex(s.cfxCode);
++    if (ci < 0 || cfxha != s.cfxCode || s.cfx[ci].causeId == 0) {
++        nodeCfxRaise(tc, s, CauseCfxEsc, s.cfxCode, pc, info);
++        return true;
++    }
++
++    // step 1: restore the monitor's global interrupt mask (D9)
++    const int mon = s.cfx[ci].savedIntrMonitor & 0x3;
++    s.cfx[mon].globalCfxIntrMask = s.cfx[ci].savedGlobalIntrMask;
++    // step 2: restore the per-hart cfx mask and run mode from the frame
++    s.cfxMask = s.cfx[ci].prevCfxMask;
++    s.runMode = s.cfx[ci].prevRunMode & 0x3;
++    // step 3: increment the escape counter
++    s.cfx[ci].escapeNum++;
++    // step 4: return to cause_ip + (imms18 << 2)
++    setPc(tc, s.cfx[ci].causeIp + uint64_t(byteOffset));
++    s.traceForce = true;
++    return true;
++}
++
++bool
++nodeCfxRead(ThreadContext *tc, NodeState &s, uint8_t cfxha, uint8_t cg,
++            uint8_t rc, uint64_t &out, uint64_t instWord)
++{
++    const Addr pc = currentPc(tc);
++    const uint64_t info = instWord;
++
++    if (nodeCfxReserved(cfxha)) {
++        nodeCfxRaise(tc, s, CauseIlli, s.runMode, pc, info);
++        return true;
++    }
++    const int ci = nodeCfxIndex(cfxha);
++    if (ci < 0) {
++        nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
++        return true;
++    }
++    if (nodePermDenied(s, cfxha, 2)) {
++        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc, info);
++        return true;
++    }
++    if (delegDenied(s, ci, cg)) {
++        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc, info);
++        return true;
++    }
++
++    if (cg == 15 && cfxha == CfxhaPmem) {
++        uint64_t value = 0;
++        if (!dmaRegRead(s, rc, &value)) {
++            nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++            return true;
++        }
++        out = value;
++        return true;
++    }
++    if (cg == 10 && cfxha == CfxhaTime) {
++        uint64_t value = 0;
++        if (!timeRegRead(s, rc, &value)) {
++            nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++            return true;
++        }
++        out = value;
++        return true;
++    }
++    if (cg == 8 && cfxha == CfxhaHart) {
++        uint64_t value = 0;
++        if (!hartRegRead(s, rc, &value)) {
++            nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++            return true;
++        }
++        out = value;
++        return true;
++    }
++    if (cg == 7) {
++        out = cg7SpaceReg(s, cfxha, rc);
++        return true;
++    }
++
++    uint64_t *p = cfxRegPtr(s, ci, cg, rc, false);
++    if (p == nullptr) {
++        nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++        return true;
++    }
++    out = *p;
++    return true;
++}
++
++bool
++nodeCfxWrite(ThreadContext *tc, NodeState &s, uint8_t cfxha, uint8_t cg,
++             uint8_t rc, uint64_t val, uint64_t instWord)
++{
++    const Addr pc = currentPc(tc);
++    const uint64_t info = instWord;
++
++    if (nodeCfxReserved(cfxha)) {
++        nodeCfxRaise(tc, s, CauseIlli, s.runMode, pc, info);
++        return true;
++    }
++    const int ci = nodeCfxIndex(cfxha);
++    if (ci < 0) {
++        nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
++        return true;
++    }
++    if (nodePermDenied(s, cfxha, 2)) {
++        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc, info);
++        return true;
++    }
++    if (delegDenied(s, ci, cg)) {
++        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc, info);
++        return true;
++    }
++
++    if (cg == 15 && cfxha == CfxhaPmem) {
++        if (!dmaRegWrite(tc, s, rc, val)) {
++            nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++            return true;
++        }
++        return true;
++    }
++    if (cg == 10 && cfxha == CfxhaTime) {
++        nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++        return true;
++    }
++    if (cg == 8 && cfxha == CfxhaHart) {
++        if (!hartRegWrite(tc, s, rc, val)) {
++            nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++            return true;
++        }
++        return true;
++    }
++    if (cg == 7) {
++        nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++        return true;
++    }
++
++    uint64_t *p = cfxRegPtr(s, ci, cg, rc, true);
++    if (p == nullptr) {
++        nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++        return true;
++    }
++
++    if (p == &s.ptbr) {
++        s.ptbr = val & NodePtbrMask;
++    } else if (p == &s.ptwEnable) {
++        s.ptwEnable = val & 1ULL;
++    } else if (p == &s.tlbAsid) {
++        s.tlbAsid = val & 0xFFFFULL;
++    } else if (p == &s.tlbStart) {
++        s.tlbStart = val & NodeVaMask;
++    } else if (p == &s.tlbSize) {
++        s.tlbSize = val & NodeVaMask;
++    } else if (p == &s.tlbControl) {
++        uint64_t errPa = 0;
++        const int ret = tlbControlExec(s, val, &errPa);
++        if (ret == 1) {
++            nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++            return true;
++        }
++        if (ret == 2) {
++            nodeCfxRaise(tc, s, CausePtwErr, CfxhaPtw, pc, errPa);
++            return true;
++        }
++    } else if (cg == 3 && rc == 12) {
++        *p = val | (1ULL << 3);
++    } else {
++        *p = val;
++    }
++    return true;
++}
++
++} // namespace DadaoISA
++} // namespace gem5

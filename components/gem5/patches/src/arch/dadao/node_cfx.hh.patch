@@ -1,0 +1,290 @@
+diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
+new file mode 100644
+index 0000000..8f3493f
+--- /dev/null
++++ b/src/arch/dadao/node_cfx.hh
+@@ -0,0 +1,284 @@
++// DADAO Node machine model: cfx register file, run modes, monitor entry/exit,
++// the cfx_pmem DMA engine, cfx_time/cfx_hart counters and async arbitration.
++//
++// Source of truth: spec/DADAO-12 §2/§3/§4 (register file, exception-entry
++// flow, cfx_pmem §4.9, cfx_time/cfx_hart §4.7/§4.10), spec/DADAO-13 §1
++// (hypv cg3 rows), spec/Machine-v5 §1-§4 and ADR-0040/ADR-0041/ADR-0042/
++// ADR-0043/ADR-0045.  The Node state is per thread and lives in the ISA
++// object; the SE and Tiny FS paths never touch it.
++#ifndef __ARCH_DADAO_NODE_CFX_HH__
++#define __ARCH_DADAO_NODE_CFX_HH__
++
++#include <cstdint>
++
++#include "base/types.hh"
++
++namespace gem5
++{
++
++class ThreadContext;
++class Event;
++
++namespace DadaoISA
++{
++
++class ISA;
++
++/** Run modes (spec/DADAO-12 §2.2; same encoding as the PTE HSJU bits). */
++enum NodeMode : uint8_t
++{
++    NodeUser = 0,
++    NodeJail = 1,
++    NodeSupv = 2,
++    NodeHypv = 3,
++};
++
++/** cfxha values the Node machine implements. */
++enum NodeCfxha : uint8_t
++{
++    CfxhaPtw = 4,
++    CfxhaHart = 15,
++    CfxhaPmem = 17,
++    CfxhaTime = 18,
++    CfxhaPower = 63,
++};
++
++/** Exception causes (spec/DADAO-12 §4; one-hot). */
++enum NodeCause : uint64_t
++{
++    CauseCfxTrap  = 1ULL << 0,
++    CauseCfxMem   = 1ULL << 1,
++    CauseCfxReg   = 1ULL << 2,
++    CauseCfxEsc   = 1ULL << 3,
++    CauseCfxPerm  = 1ULL << 7,
++    CausePtwErr   = 1ULL << 7,
++    CauseIlli     = 1ULL << 8,
++    CauseUndi     = 1ULL << 9,
++    CauseRasOf    = 1ULL << 10,
++    CauseRasUf    = 1ULL << 11,
++    CauseMalign   = 1ULL << 12,
++    CauseIalign   = 1ULL << 13,
++    CauseNuPerm   = 1ULL << 8,
++    CauseNjPerm   = 1ULL << 9,
++    CauseNsPerm   = 1ULL << 10,
++    CauseNhPerm   = 1ULL << 11,
++    CauseNxPerm   = 1ULL << 12,
++    CauseNwPerm   = 1ULL << 13,
++    CauseNrPerm   = 1ULL << 14,
++    CauseIgpTrap  = 1ULL << 16,
++    CauseIspTrap  = 1ULL << 17,
++    CauseIgpFTrap = 1ULL << 18,
++    CauseIspFTrap = 1ULL << 19,
++    CauseDgpTrap  = 1ULL << 20,
++    CauseDspTrap  = 1ULL << 21,
++    CauseDgpFTrap = 1ULL << 22,
++    CauseDspFTrap = 1ULL << 23,
++    CauseTimer    = 1ULL << 10,
++    CausePmemDma  = 1ULL << 8,
++};
++
++/** PTE / TLB constants (spec/DADAO-12 §2.2.1-§2.2.4). */
++enum : uint64_t
++{
++    PteP = 1ULL << 0,
++    PteSp = 1ULL << 1,
++    PteD = 1ULL << 2,
++    PteA = 1ULL << 3,
++    PteG = 1ULL << 4,
++    PteX = 1ULL << 5,
++    PteW = 1ULL << 6,
++    PteR = 1ULL << 7,
++};
++
++constexpr unsigned NodeSuperShift = 29;
++constexpr unsigned NodeNormalShift = 16;
++constexpr uint64_t NodePpnMask = 0x00FFFFFFFFFF0000ULL;
++constexpr uint64_t NodeSuperPpnMask = 0x00FFFFFFE0000000ULL;
++constexpr uint64_t NodePtbrMask = 0x00FFFFFFFFFF0000ULL;
++constexpr uint64_t NodeVaMask = 0x000003FFFFFFFFFFULL;
++constexpr uint64_t NodeAddrMask = 0x0000FFFFFFFFFFFFULL;
++constexpr unsigned NodeFragShift = 8;
++constexpr unsigned NodeNumTlbEntries = 16;
++
++/** One cfx mode row (cg0-cg3, spec/DADAO-12 §3; DADAO-13 §1 for cg3). */
++struct NodeCfxMode
++{
++    uint64_t cfxtrap = 0;
++    uint64_t cfxmem = 0;
++    uint64_t cfxreg = 0;
++    uint64_t cfxexe = 0;
++    uint64_t cfxIntrMask = 0;
++    uint64_t switchRunMode = 0;
++    uint64_t switchCfxMask = 0;
++    uint64_t excpVector = 0;
++    uint64_t excpCauseMask = 0;
++    uint64_t cgRegDeleg = 0;
++};
++
++/** One implemented cfx (cfx0/1/2/3/4/15/17/18/63). */
++struct NodeCfxRegs
++{
++    NodeCfxMode mode[4];
++    uint64_t scratch[4] = {0, 0, 0, 0};
++    uint64_t cfxId = 0;
++    uint64_t version = 0;
++    uint64_t trapNum = 0;
++    uint64_t excpSyncNum = 0;
++    uint64_t excpAsyncNum = 0;
++    uint64_t escapeNum = 0;
++    uint64_t scratchRegsNum = 0;
++    uint64_t prevRunMode = 0;
++    uint64_t prevCfxMask = 0;
++    uint64_t causeId = 0;
++    uint64_t causeIp = 0;
++    uint64_t causeInfo = 0;
++    uint64_t pending = 0;
++    uint64_t causeNonmaskable = 0;
++    uint64_t globalCfxIntrMask = 0;
++    uint64_t savedGlobalIntrMask = 0;
++    uint64_t savedIntrMonitor = 0;
++};
++
++/** One guest-visible TLB entry (ADR-0041 D8/D9). */
++struct NodeTlbEntry
++{
++    bool valid = false;
++    unsigned sizeLog2 = NodeNormalShift;
++    uint64_t va = 0;
++    uint64_t pa = 0;
++    uint64_t ptePa = 0;
++    uint64_t hsju = 0;
++    uint8_t frags = 0;
++    bool r = false;
++    bool w = false;
++    bool x = false;
++    bool g = false;
++    uint16_t asid = 0;
++    bool aLocal = false;
++    bool dLocal = false;
++    bool aDirty = false;
++    bool dDirty = false;
++};
++
++/** cfx_pmem SRAM + DMA register state (spec/DADAO-12 §4.9). */
++struct NodeDmaState
++{
++    uint64_t src = 0;
++    uint64_t dst = 0;
++    uint64_t size = 0;
++    uint64_t ctrl = 0;
++    uint64_t status = 0;
++    uint64_t dir = 0;
++    uint64_t irqEn = 0;
++    uint64_t cfxOff = 0;
++    uint64_t pa = 0;
++    uint64_t len = 0;
++};
++
++/** Per-thread Node architectural state. */
++struct NodeState
++{
++    bool active = false;
++    ThreadContext *tc = nullptr;
++
++    // Geometry (from the DadaoFsWorkload parameters).
++    Addr romBase = 0;
++    Addr romSize = 0;
++    Addr ramBase = 0;
++    Addr ramSize = 0;
++    Addr pmemBase = 0;
++
++    NodeCfxRegs cfx[9];
++
++    uint8_t runMode = NodeHypv;
++    uint8_t cfxCode = CfxhaPower;
++    uint64_t cfxMask = ~0ULL;
++
++    // Address-space step 1 + step 3 (ADR-0039/ADR-0041).
++    uint64_t ptbr = 0;
++    uint64_t ptwEnable = 0;
++    uint64_t tlbAsid = 0;
++    uint64_t tlbStart = 0;
++    uint64_t tlbSize = 0;
++    uint64_t tlbControl = 0;
++    unsigned tlbNext = 0;
++    NodeTlbEntry tlb[NodeNumTlbEntries];
++
++    NodeDmaState dma;
++
++    // cfx_time / cfx_hart (1 count = 1 ns, 1 GHz test machine).
++    uint64_t timeBaseTick = 0;
++    uint64_t insnCount = 0;
++    uint64_t timerCmp = 0;
++    uint64_t timerCtrl = 0;
++
++    Event *dmaEvent = nullptr;
++    Event *timerEvent = nullptr;
++
++    /** Force the next instruction-boundary trace dump (set when an exception
++     *  is masked and the PC skips one instruction). */
++    bool traceForce = false;
++};
++
++/** Release the two scheduled events (ISA destructor). */
++void nodeFreeEvents(NodeState &s);
++
++/** cfxha -> compact index into NodeState::cfx, or -1 if not implemented. */
++int nodeCfxIndex(int cfxha);
++
++/** True for the reserved cfxha codes (6-14, 19-61; spec/DADAO-12 §1). */
++bool nodeCfxReserved(uint64_t cfxha);
++
++/** Apply the Node reset values (spec/DADAO-12 §2.1/§3, DADAO-13 §1). */
++void nodeResetState(NodeState &s, ThreadContext *tc, Addr romBase,
++                    Addr romSize, Addr ramBase, Addr ramSize, Addr pmemBase);
++
++/** Two-axis permission check (ADR-0045 D1/D2): `kind` 0..3 =
++ *  trap/mem/reg/exe.  Self bypasses the cfx axis only. */
++bool nodePermDenied(const NodeState &s, int target, int kind);
++
++/** Save the monitor's global intr mask and block every async source. */
++void nodeFrameBlockAsync(NodeState &s, int ci, uint8_t entryMode);
++
++/** Exception-entry flow (spec/DADAO-12 §5). Returns the vector and sets
++ *  *entered; a masked exception only records the pending bit. */
++uint64_t nodeCfxEnter(NodeState &s, uint64_t cause, int target,
++                      uint64_t causeIp, uint64_t causeInfo, bool sync,
++                      bool *entered);
++
++/** Raise a synchronous exception into `target` and set the PC (vector on
++ *  entry, pc+4 when masked). */
++void nodeCfxRaise(ThreadContext *tc, NodeState &s, uint64_t cause, int target,
++                  uint64_t causeIp, uint64_t causeInfo);
++
++/** cfx2rd / cfx2rc (spec/DADAO-12 §3/§4.5/§4.7/§4.9/§4.10).
++ *  Both return false only when the platform cannot service the access at all
++ *  (never for an architectural fault: those enter the monitor and return
++ *  true with the PC already redirected). */
++bool nodeCfxRead(ThreadContext *tc, NodeState &s, uint8_t cfxha, uint8_t cg,
++                 uint8_t rc, uint64_t &out, uint64_t instWord);
++bool nodeCfxWrite(ThreadContext *tc, NodeState &s, uint8_t cfxha, uint8_t cg,
++                  uint8_t rc, uint64_t val, uint64_t instWord);
++
++/** trap / escape (spec/DADAO-12 §5). */
++void nodeTrap(ThreadContext *tc, NodeState &s, uint8_t cfxha, uint32_t immu18);
++bool nodeEscape(ThreadContext *tc, NodeState &s, uint8_t cfxha,
++                uint32_t byteOffset);
++
++/** Deliver the lowest pending asynchronous source at an instruction
++ *  boundary.  Returns true when a vector was entered (the caller must not
++ *  execute the current instruction). */
++bool nodeDeliverAsync(ThreadContext *tc, NodeState &s);
++
++/** cfx_time value (ns since reset). */
++uint64_t nodeTimeValue(const NodeState &s);
++
++/** Complete/inspect the cfx_pmem DMA (called by the scheduled event and by
++ *  the register reads/writes). */
++void nodeDmaComplete(ThreadContext *tc, NodeState &s);
++void nodeTimerExpire(ThreadContext *tc, NodeState &s);
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_NODE_CFX_HH__

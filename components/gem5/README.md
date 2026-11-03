@@ -165,15 +165,61 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 - **已知限制**：无 cfx/PTW/user/hmon/smon/中断/设备/时序；不支持
   checkpoint/GDB/多核；`SYS_GET_CMDLINE` 来自 `--semihost-argv`。
 
+## FS 平台（GEM5-016t，Machine-v5-Node）
+
+- **构成**：`DadaoNodeAtomicSimpleCPU`（`DadaoAtomicSimpleCPU` 的 Python
+  子类，`mmu = DadaoNodeMMU()`）、`DadaoNodeTlb`（guest TLB + 两级页表步进 +
+  地址路由 + A/D 回写 + `cfx_ptw` 异常投递）、`DadaoNodeMMU`（`itb`/`dtb`）、
+  `node_cfx.{hh,cc}`（cfx 寄存器文件、运行模式、`trap`/`escape` 帧、
+  权限/委派、cfx_pmem DMA、cfx_time/cfx_hart 与异步仲裁）、
+  `DadaoFsWorkload profile=node`。**无** cache/设备/GDB/checkpoint/多核；
+  `mem_mode=atomic`。
+- **几何**（`--dump-geometry`，与 `machine-profiles.yaml` `node` 逐项一致）：
+  BootROM `0xffff_ffc0_0000` **恰好 4 MiB**（读/取指；写 ⇒ ILLI）、复位
+  `0xffff_ffff_0000`；PA RAM `[0, 2 GiB)`；hmon `0x0fff_0000_0000` /
+  smon `0x0bff_0000_0000`（保留，M11 不启动）/ cfx_pmem
+  `0x47ff_0000_0000` 各 64 KiB；raw/ELF body 基址 `0x10_0000`，
+  `entry=0x10_0000`、`SP=0x7fff_0000`（由 power 设置）。
+- **复位**：`PC=rb0=0xffff_ffff_0000`，`rb1..=0`、`rf0=0x7FF8_0000_7FC0_0000`、
+  其余 GPR/RA=0；`inner_run_mode=hypv`、`inner_cfx_code=63`、`ptw_enable=0`、
+  `PTBR=0`、TLB 空、ASID=0；cfx 复位行按 `spec/DADAO-12 §3` / `DADAO-13 §1`。
+- **地址路由**：`addr[47:42]==0` 且 `ptw_enable=0` ⇒ `CFXMEM`；`ptw_enable=1`
+  ⇒ guest TLB → 两级步进（512 MiB 超页 / 64 KiB 页、SPF/GPF、HSJU、R/W/X、
+  A/D）；页表异常进 `cfx_ptw`（`PTWERR` 的 cause_info = PTE PA）；cfx2/3/17
+  内部 SRAM 段外 ⇒ `CFXMEM`；保留 cfxha 普通 ld/st ⇒ `CFXMEM`；其它未映射
+  ⇒ `0x87`。
+- **cfx/monitor**：cfx0/1/2/3/4/15/17/18/63 寄存器面（cg0–cg7，cg3 仅 hypv，
+  cg6 scratch=4，cg7 只读空间描述符）、`trap`/`escape`/`cfx2rd`/`cfx2rc` 与
+  `switch_run_mode`/`switch_cfx_mask`/`excp_vector`/mask/deleg；`cfx5`
+  （cache）未实现 ⇒ `CFXREG`；保留 cfxha ⇒ `ILLI`；CFXPERM 进当前模式
+  monitor，CFXREG 按访问目标 cfx 成帧。smon（cfx2）SRAM/寄存器保留。
+- **cfx_pmem DMA**：cg15 rc0–rc4（`src`/`dst`/`size`/`ctrl`/`status`），
+  DIR 0=CFX→PA / 1=PA→CFX，BUSY 期间写被忽略、DONE/ERROR W1C；
+  ERR_CODE 一组一热 `status[15:3]`（SIZE/CFX_RANGE/PA_RANGE/PA_FAULT）；
+  `IRQ_EN=1` 时置 `cfx_pmem` pending（`1<<8`）；完成事件在 START 后 1 µs
+  （`AtomicSimpleCPU` 指令边界可观测 BUSY）。**hmon 的页表模板必须经 DMA
+  写到 PA 0**，平台不代写。
+- **时间/中断**：`cfx_time` 1 GHz、64 位，`= (curTick-reset)/1000` ns；
+  `cfx_hart` rc2 `cycle` 同源、rc3 `insn` 每指令递增；TIMER 一次性
+  （cmp/ctrl，ISTATUS 只读位）；异步源按 cfxha 升序（hart 15 → pmem 17），
+  每次最多投递一个，mask/pending 保留与释放补投按 spec。
+- **CLI**：`--profile {tiny,node}`（默认 tiny）、`--kernel`（Node 可选）、
+  `--bootrom`（Node 必需，恰好 4 MiB）、`--trace-cpu <path>`（QEMU `-d cpu`
+  兼容：`PC:` / `RD[nn]` / `RB[nn]` / `RF[nn]` / `RA[nn]` / `MODE:` / `CFX..`
+  块）、`--max-ticks`、
+  `--dump-geometry`、semihosting 选项同 Tiny。
+- **已知限制**：无 cache/时序/设备/GDB/checkpoint/多核；smon 不启动也不验收；
+  `spec/Machine-v5 §6` 的 `0x0200_...` 窗口未实现（依用户口径用 identity，
+  冲突见 `ISS-340`）；picolibc 不跑（`node.picolibc=false`）。
+
 ## 补丁集
 
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），
   清单见 `series`；规范 `docs/Process-01-组件补丁组织与构建编排.md`。
-- 规模（2026-11-03 现场统计，`series` 行数 = 磁盘补丁数）：**89 份**；
-  相对 GEM5-014t 后新增 15（FS 的 `fs_*`/`semihosting.*`/5 个 SimObject/
-  `configs/dadao/fs.py`）+ 修改 1（`src/arch/generic/SConscript` 为 DADAO
-  启用 `BaseSemihosting`），另有 `src/arch/dadao/{SConscript,isa.*,faults.hh,inst.cc}`
-  的 FS 分支修改。
+- 规模（2026-11-04 现场统计，`series` 行数 = 磁盘补丁数）：**97 份**；
+  相对 GEM5-015t 后新增 8（Node 的 `node_{cfx,tlb,mmu}` + 3 个 Python
+  子类/别名），修改 `configs/dadao/fs.py`、`DadaoFsWorkload.py`、`SConscript`、
+  `fs_machine.{hh,cc}`、`fs_workload.{hh,cc}`、`inst.cc`、`isa.{hh,cc}`。
 - 解码表由 `tools/gem5/gen_decode_table.py` 从 `contracts/opcodes.yaml` +
   `GEM5-002t` 矩阵生成；`--check` 为漂移门控（不手工编辑 `.inc`）。
   生成器内置 SPEC-181t 守护：scaleB 第三操作数必须是 `rdhd/rd`（旧 `rfhd/rf`

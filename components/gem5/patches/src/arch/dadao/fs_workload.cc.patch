@@ -1,16 +1,15 @@
 diff --git a/src/arch/dadao/fs_workload.cc b/src/arch/dadao/fs_workload.cc
 new file mode 100644
-index 0000000..e800eb9
+index 0000000..ccb97c5
 --- /dev/null
 +++ b/src/arch/dadao/fs_workload.cc
-@@ -0,0 +1,270 @@
+@@ -0,0 +1,336 @@
 +// DADAO FS workload implementation.
 +#include "arch/dadao/fs_workload.hh"
 +
 +#include <fstream>
 +#include <iterator>
 +
-+#include "arch/dadao/fs_machine.hh"
 +#include "base/loader/elf_object.hh"
 +#include "base/logging.hh"
 +#include "cpu/thread_context.hh"
@@ -80,38 +79,60 @@ index 0000000..e800eb9
 +} // anonymous namespace
 +
 +FsWorkload::FsWorkload(const Params &p) :
-+    Workload(p), p_rom_base(p.rom_base), p_rom_size(p.rom_size),
++    Workload(p), profileName(p.profile), isNode(p.profile == "node"),
++    p_rom_base(p.rom_base), p_rom_size(p.rom_size),
 +    p_sram_base(p.sram_base), p_sram_size(p.sram_size),
-+    p_kernel_base(p.kernel_base), p_kernel_reserved(p.kernel_reserved),
-+    kernelPath(p.kernel), semihosting(p.semihosting)
++    p_ram_base(p.ram_base), p_ram_size(p.ram_size),
++    p_pmem_base(p.pmem_base), p_kernel_base(p.kernel_base),
++    p_kernel_reserved(p.kernel_reserved), p_reset_pc(p.reset_pc),
++    kernelPath(p.kernel), traceCpu(p.trace_cpu), semihosting(p.semihosting)
 +{
-+    fatal_if(kernelPath.empty(), "DADAO FS: --kernel is required");
++    fatal_if(profileName != "tiny" && profileName != "node",
++             "DADAO FS: unknown profile %s (tiny|node)", profileName);
 +    fatal_if(p_rom_size == 0 || p_sram_size == 0,
 +             "DADAO FS: empty segment geometry");
++    fatal_if(isNode && p_ram_size == 0,
++             "DADAO FS: Node profile requires a PA RAM size");
 +
-+    const std::vector<uint8_t> kernelFile = readFile(kernelPath);
-+    isElf = isElfMagic(kernelFile);
++    const bool hasKernel = !kernelPath.empty();
++    fatal_if(!isNode && !hasKernel, "DADAO FS: --kernel is required");
++
++    std::vector<uint8_t> kernelFile;
++    if (hasKernel) {
++        kernelFile = readFile(kernelPath);
++        isElf = isElfMagic(kernelFile);
++    }
 +
 +    if (!p.bootrom.empty()) {
-+        fatal_if(isElf,
++        fatal_if(!isNode && isElf,
 +                 "DADAO FS: --bootrom and an ELF --kernel (%s) cannot be "
-+                 "combined: the ELF carries its own BootROM crt",
-+                 kernelPath);
-+        loadBootrom(p.bootrom, kernelPath);
++                 "combined: the ELF carries its own BootROM crt", kernelPath);
++        loadBootrom(p.bootrom);
++    } else if (isNode) {
++        fatal("DADAO FS: the Node profile requires --bootrom (4 MiB flat "
++              "BootROM image)");
 +    } else if (!isElf) {
 +        fatal("DADAO FS: raw --kernel %s requires --bootrom (the raw image has "
 +              "no reset stub)", kernelPath);
 +    }
 +
-+    if (isElf) {
++    if (hasKernel && isElf) {
 +        validateElf(kernelFile);
 +        kernelObj = loader::createObjectFile(kernelPath);
 +        fatal_if(kernelObj == nullptr,
 +                 "DADAO FS: cannot parse ELF %s", kernelPath);
 +        symbols.insert(kernelObj->symtab());
-+        entry = kernelObj->entryPoint();
-+    } else {
++        if (isNode) {
++            // The Node reset PC is the BootROM vector; the ELF e_entry is the
++            // test body entry installed by hmon's cfx_umon vector.
++            entry = p_reset_pc;
++        } else {
++            entry = kernelObj->entryPoint();
++        }
++    } else if (hasKernel) {
 +        loadRaw(kernelFile);
++    } else {
++        entry = p_reset_pc;
 +    }
 +}
 +
@@ -134,21 +155,30 @@ index 0000000..e800eb9
 +bool
 +FsWorkload::inSegment(Addr addr, Addr len) const
 +{
++    if (isNode)
++        return inRange(p_ram_base, p_ram_size, addr, len) ||
++               inRange(p_rom_base, p_rom_size, addr, len);
 +    return inRange(p_rom_base, p_rom_size, addr, len) ||
 +           inRange(p_sram_base, p_sram_size, addr, len);
 +}
 +
 +void
-+FsWorkload::loadBootrom(const std::string &path, const std::string &kernel)
++FsWorkload::loadBootrom(const std::string &path)
 +{
-+    (void)kernel;
 +    romData = readFile(path);
 +    fatal_if(romData.empty(), "DADAO FS: empty --bootrom %s", path);
-+    fatal_if(romData.size() > p_rom_size,
-+             "DADAO FS: --bootrom %s is %zu bytes, BootROM holds %llu",
-+             path, romData.size(),
-+             static_cast<unsigned long long>(p_rom_size));
-+    entry = p_rom_base;
++    if (isNode) {
++        fatal_if(romData.size() != p_rom_size,
++                 "DADAO FS: --bootrom %s is %zu bytes, the Node BootROM is "
++                 "exactly %llu bytes", path, romData.size(),
++                 static_cast<unsigned long long>(p_rom_size));
++    } else {
++        fatal_if(romData.size() > p_rom_size,
++                 "DADAO FS: --bootrom %s is %zu bytes, BootROM holds %llu",
++                 path, romData.size(),
++                 static_cast<unsigned long long>(p_rom_size));
++    }
++    entry = p_reset_pc;
 +}
 +
 +void
@@ -212,22 +242,58 @@ index 0000000..e800eb9
 +                 static_cast<unsigned long long>(pmemsz));
 +        fatal_if(pmemsz == 0,
 +                 "DADAO FS: ELF %s segment %u is empty", kernelPath, i);
-+        fatal_if(!inSegment(ppaddr, pmemsz),
-+                 "DADAO FS: ELF %s segment %u [%#llx, %#llx) is outside "
-+                 "BootROM/SRAM", kernelPath, i,
-+                 static_cast<unsigned long long>(ppaddr),
-+                 static_cast<unsigned long long>(ppaddr + pmemsz));
++        if (isNode) {
++            fatal_if(!inRange(p_ram_base, p_ram_size, ppaddr, pmemsz),
++                     "DADAO FS: ELF %s segment %u [%#llx, %#llx) is outside "
++                     "PA RAM", kernelPath, i,
++                     static_cast<unsigned long long>(ppaddr),
++                     static_cast<unsigned long long>(ppaddr + pmemsz));
++        } else {
++            fatal_if(!inSegment(ppaddr, pmemsz),
++                     "DADAO FS: ELF %s segment %u [%#llx, %#llx) is outside "
++                     "BootROM/SRAM", kernelPath, i,
++                     static_cast<unsigned long long>(ppaddr),
++                     static_cast<unsigned long long>(ppaddr + pmemsz));
++        }
 +    }
 +
 +    fatal_if(!sawLoad, "DADAO FS: ELF %s has no PT_LOAD segment", kernelPath);
-+    fatal_if(!inSegment(eentry, 4),
-+             "DADAO FS: ELF %s e_entry %#llx is outside BootROM/SRAM",
-+             kernelPath, static_cast<unsigned long long>(eentry));
++    if (isNode) {
++        fatal_if(!inRange(p_ram_base, p_ram_size, eentry, 4),
++                 "DADAO FS: ELF %s e_entry %#llx is outside PA RAM",
++                 kernelPath, static_cast<unsigned long long>(eentry));
++        fatal_if(eentry == p_reset_pc,
++                 "DADAO FS: ELF %s e_entry %#llx overwrites the reset PC",
++                 kernelPath, static_cast<unsigned long long>(eentry));
++        fatal_if((eentry & 0x3) != 0,
++                 "DADAO FS: ELF %s e_entry %#llx is not 4-byte aligned",
++                 kernelPath, static_cast<unsigned long long>(eentry));
++    } else {
++        fatal_if(!inSegment(eentry, 4),
++                 "DADAO FS: ELF %s e_entry %#llx is outside BootROM/SRAM",
++                 kernelPath, static_cast<unsigned long long>(eentry));
++    }
 +}
 +
 +void
 +FsWorkload::loadRaw(const std::vector<uint8_t> &d)
 +{
++    if (isNode) {
++        fatal_if(p_kernel_base < p_ram_base ||
++                 p_kernel_base >= p_ram_base + p_ram_size,
++                 "DADAO FS: Node kernel_base %#llx is outside PA RAM",
++                 static_cast<unsigned long long>(p_kernel_base));
++        fatal_if(d.size() > p_ram_size - (p_kernel_base - p_ram_base),
++                 "DADAO FS: raw image %s is %zu bytes, larger than PA RAM "
++                 "above kernel_base (%llu)", kernelPath, d.size(),
++                 static_cast<unsigned long long>(
++                     p_ram_size - (p_kernel_base - p_ram_base)));
++        rawData = d;
++        // The reset vector stays the BootROM reset PC; the raw application is
++        // reached through hmon's cfx_umon vector, not by the platform.
++        return;
++    }
++
 +    fatal_if(d.size() < p_kernel_reserved,
 +             "DADAO FS: raw image %s is %zu bytes, shorter than the %llu-byte "
 +             "reserved prefix", kernelPath, d.size(),

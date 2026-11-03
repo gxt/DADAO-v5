@@ -1,13 +1,17 @@
 diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
 new file mode 100644
-index 0000000..8ba859c
+index 0000000..0ecb2a5
 --- /dev/null
 +++ b/src/arch/dadao/isa.hh
-@@ -0,0 +1,68 @@
+@@ -0,0 +1,91 @@
 +// DADAO ISA object (B0 skeleton + B6 LR/SC reservation state).
 +#ifndef __ARCH_DADAO_ISA_HH__
 +#define __ARCH_DADAO_ISA_HH__
 +
++#include <cstdio>
++#include <string>
++
++#include "arch/dadao/node_cfx.hh"
 +#include "arch/dadao/pcstate.hh"
 +#include "arch/dadao/regs/misc.hh"
 +#include "arch/generic/isa.hh"
@@ -26,6 +30,7 @@ index 0000000..8ba859c
 +    using Params = DadaoISAParams;
 +
 +    explicit ISA(const Params &p);
++    ~ISA() override;
 +
 +    PCStateBase *
 +    newPCState(Addr addr = 0) const override
@@ -47,6 +52,18 @@ index 0000000..8ba859c
 +
 +    bool inUserMode() const override;
 +
++    /** Node architectural state (cfx register file, PTW, DMA, counters).
++     *  Only meaningful when nodeActive(); the SE and Tiny paths never read it. */
++    NodeState &nodeState() { return node; }
++    const NodeState &nodeState() const { return node; }
++
++    /** QEMU `-d cpu`-compatible trace channel (`--trace-cpu`).  A dump is
++     *  emitted at QEMU translation-block boundaries: the first instruction,
++     *  the instruction after a control transfer, a non-sequential PC, or a
++     *  forced exception boundary. */
++    bool tracing() const { return traceFile != nullptr; }
++    void traceInstruction(Addr pc, unsigned mode, bool control);
++
 +    /** FS reset: Tiny architectural register values and PC = workload entry.
 +     *  SE never calls this (the Process sets its own initial state). */
 +    void resetThread() override;
@@ -62,6 +79,12 @@ index 0000000..8ba859c
 +    bool reservationValid = false;
 +    Addr reservationAddr = 0;
 +    unsigned reservationWidth = 0;
++
++    NodeState node;
++    std::FILE *traceFile = nullptr;
++    Addr tracePrevPc = 0;
++    bool tracePrevControl = false;
++    bool traceStarted = false;
 +
 +  public:
 +

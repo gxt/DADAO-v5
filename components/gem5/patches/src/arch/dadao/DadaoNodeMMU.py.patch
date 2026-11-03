@@ -1,0 +1,20 @@
+diff --git a/src/arch/dadao/DadaoNodeMMU.py b/src/arch/dadao/DadaoNodeMMU.py
+new file mode 100644
+index 0000000..3e75968
+--- /dev/null
++++ b/src/arch/dadao/DadaoNodeMMU.py
+@@ -0,0 +1,14 @@
++from m5.objects.BaseMMU import BaseMMU
++from m5.objects.DadaoNodeTlb import DadaoNodeTlb
++from m5.params import *
++
++
++class DadaoNodeMMU(BaseMMU):
++    """Node MMU: instruction/data TLB pair over the PTW identity map."""
++
++    type = "DadaoNodeMMU"
++    cxx_class = "gem5::DadaoISA::NodeMMU"
++    cxx_header = "arch/dadao/node_mmu.hh"
++
++    itb = DadaoNodeTlb(entry_type="instruction")
++    dtb = DadaoNodeTlb(entry_type="data")
