@@ -1,0 +1,234 @@
+# GEM5-017t: FS 同模式 parity 矩阵（QEMU system ↔ gem5 FS：Tiny/Node × inst/arch/embench）
+
+**模块**：gem5
+**项目里程碑**：M11
+**依赖**：`GEM5-015t`（gem5 FS Tiny，已验证）、`GEM5-016t`（gem5 FS Node，**当前 `待开始`，必须已验证并入 `master` 后本任务才可开工**）、`QEMU-079t`/`QEMU-080t`（QEMU system Tiny/Node，已验证）、`QEMU-082t`（cfx_power 按 profile，已验证）、`TESTCASES-092t`/`TESTCASES-093t`/`TESTCASES-094t`（Tiny/Node 执行资产、arch 10 例、13 个 L3 探针，已验证）、`SPEC-183t`（`spec/Machine-v5-测试机运行环境.md` 与 `tests/shared/machine-profiles.yaml` 真源，已验证）、`ADR-0048`（QEMU/gem5 同模式一致性，Accepted）
+**状态**：待开始
+
+## 执行环境
+**执行环境**：本地（仓库根；从含 `GEM5-016t` 的 `master` 建独立 `git worktree` + 分支 `GEM5-017t`；**只改 `tests/**`、`tools/**` 与任务册**，不重建/不改组件；引擎用当前安装根 `qemu-system-dadao` 与 `.work/build/gem5/**/gem5.opt`）。开工前必须确认 `GEM5-016t` 已 `已验证` 且已合入 `master`、两引擎二进制存在且可跑；否则本任务 **BLOCKED**，不得用 Tiny 机器/旧日志冒充 Node。
+
+## 用户已定口径（2026-11-04，主会话转达）
+
+- **同模式配对**：QEMU system ↔ gem5 FS；按 `tiny`/`node` **各自配对**；**同一 case ID** 比较「通过/失败 + 退出码 + 架构可见结果」；**不比较时序/性能/主机日志格式**（`ADR-0048 D1/D2`）。
+- **覆盖 = FS 全矩阵**：`inst`/`arch`/`embench` × `Tiny`/`Node`；`arch` 仅 Node（Tiny `profile.arch=false`，矩阵记 `N/A` 并给依据，不得静默缺格）。
+- **picolibc 仅作 Tiny 旁证**，不纳入硬 subset；`math_test` 的 B7 blocked **不计入 gem5 通过**，不得改写成 PASS。
+- **硬门**：`QEMU 通过集合 ⊆ gem5 通过集合`（同 case 的 exit/架构可见结果一致）；`gem5 通过而 QEMU 不通过` ⇒ 逐条记录并**另立 QEMU 调试任务**，不阻断本任务；`QEMU 通过而 gem5 不通过` ⇒ 本任务不绿（定位到 gem5/测试资产/spec）。
+- **spec/contracts 不清 ⇒ 保留现场、提交用户裁定**；不得按 RISC-V/ARM 经验或 QEMU/gem5 实测反推期望值。
+- **改动范围（硬）**：只 `tests/**`、`tools/**`、本任务书、`.tao/knowledge/milestones.md`。**不改** `components/**`（QEMU/gem5）、`spec/**`、`contracts/**`、`.tao/contracts/**`、`.tao/adr/**`、`Makefile`、`manifests/**`、`docs/**`；**不复制 0628**（只读、仅吸收结论，标「内容溯源，非执行必需」）。
+- **不纳入本任务**：cfxha 重编号（独立 spec/资产待办）、M11 收尾待办（里程碑关闭/归档/issue 清理）；二者另册。
+- **不可成立 ⇒ BLOCKED**：附 spec 引用、根因、现场日志；不得自行跳过、降级期望、改测试资产或把 QEMU 红算作 gem5 绿。
+
+## 现状与问题根源（2026-11-04 现场核对，只读）
+
+1. **两引擎 FS 已齐，但没有统一的 parity 驱动与矩阵**：`GEM5-015t` 只自证 Tiny（inst 1003/1003、embench 38/38、picolibc 旁证），`GEM5-016t` 只规划 Node；`ADR-0048 D1–D5` 的要求散落在各任务证据里，**没有跨任务、可重跑、逐 case 的对账产物**。
+2. **现有驱动只产出聚合文本**：`semantics_gate.py`/`run_qemu_test.py` 只返回 `total/passed/failed/deferred/errors/fail_details`；`run_m5_e2e.py`/`run_embench_e2e.py` 只逐行打印。无 per-case 机器可读记录 ⇒ 无法机械证明「QEMU 通过集合 ⊆ gem5」。
+3. **case 身份不统一**：inst 的身份是「文件 + 序号 + `id`」（`id` 可重复，如 `tests/inst/base/misc.yaml` 的 `swym_oiii_imm` 出现两次）；arch 是 `expected.yaml` 的 name；L3 探针是「探针 id + 内部 check」；embench 是「benchmark + 优化级」；picolibc 是 test name。无冻结 ID 规则就会出现「同名不同例/同例不同名」。
+4. **计数口径已漂移**：`GEM5-016t` 写 embench「22 × 2」，现场语料 `.work/source/embench-iot/src/` 为 **19** 个 → **38** 例；`TESTCASES-092t` 基线 Node inst `968 = 963 passed / 5 deferred / skipped_profile=44`。本任务一律**现场统计、不写死**。
+5. **Node embench 有机器参数缺口**：`run_embench_e2e.py` 固定 `-M dadao-m1 -kernel <elf>`，不带 Node 的 `profile=node,bootrom-image=…`；直接跑会在 Tiny 机器上执行 Node ELF（假绿）。必须由证据层 wrapper/shim 补齐，且映射逐项入证据。
+6. **picolibc `math_test` 是既有 B7 数值差异**：同 ELF 下 QEMU rc=0/0 error、gem5 rc=1/238 error（`GEM5-015t` 遗留①）。它会使「QEMU 通过 ⊆ gem5」在旁证里出现已知例外，必须显式登记为 blocked，不能算通过。
+7. **门控环境缺口可预期**：`check-knowledge-refs` 可能因其它任务悬空 `.work/**` 而红；L2 可能停在 `install-host → build-builtins`（`GEM5-015t` 现场）。只允许登记 BLOCKED + 现场，不得伪装 PASS。
+
+## 目标
+
+把 QEMU system 与 gem5 FS 的**同模式一致性**做成一个可重跑、可机械判定的矩阵，作为 M11「FS 覆盖 `inst`/`arch`/裸机 E2E」的验收依据：
+
+1. 一个统一驱动：枚举 case、分别驱动两引擎、归一化结果、产出矩阵（JSON + Markdown）与硬门判定。
+2. 覆盖 `inst` / `arch` / `embench` 的 **Tiny/Node 全矩阵**；Tiny arch 记 `N/A`。
+3. `QEMU 通过集合 ⊆ gem5 通过集合`，逐 case 比较通过/失败、退出码、架构可见结果；差异逐条归因。
+4. picolibc Tiny 旁证：除 `math_test` blocked 外分类一致、无新增 fail。
+5. 零退化：SE、B0–B7、现有测试驱动的默认输出/退出码不变。
+6. 落一份**入库矩阵快照**（`tests/parity/matrix-M11.md`）+ 可重生成全量矩阵（证据层）。
+
+## 接口规范
+
+### 0. 配对、比较对象与判定（`ADR-0048 D1/D2/D5`）
+
+- **只允许**：gem5 FS ↔ QEMU system（同 profile）。**禁止** gem5 FS ↔ QEMU user、gem5 SE ↔ QEMU system。
+- **比较**：同一 `case_id` 的 `status`（PASS/FAIL）、host 退出码、架构可见结果；**不比较**时序、性能、PC/日志格式、主机错误文本。
+- **架构可见结果**按 scope 定义（均由资产内 spec 派生断言承载，parity 不另造期望值）：
+  - `inst`：guest 按 `build_test_binary` 第 4 段比较 `expected_state`（RD/RB/RA、内存、`expected_pc`、fault）后的判定 + host exit；
+  - `arch`（10 smoke）：guest exit + 控制台字节（`run_m5_e2e` 已做 byte-exact）；
+  - `arch`（L3 探针）：每个 check 的 PASS/FAIL + exit + 探针内断言的 fault cause/寄存器；
+  - `embench`：guest exit（`0` iff benchmark 自校验通过）；
+  - `picolibc`：分类 `pass/excluded/blocked/fail`（同 ELF、同 argv）。
+- **status 枚举**：`PASS` / `FAIL` / `DEFERRED` / `SKIP_PROFILE` / `BLOCKED` / `ERROR` / `TIMEOUT` / `N/A`。
+- **verdict 枚举**：`AGREE_PASS`（双方 PASS 且 exit/架构可见一致）/ `AGREE_FAIL`（双方均非 PASS 且 exit/架构可见一致）/ `GEM5_ONLY_FAIL`（QEMU PASS、gem5 非 PASS）/ `QEMU_ONLY_FAIL`（gem5 PASS、QEMU 非 PASS）/ `DIFF`（其余 status/exit/架构可见不一致，含双方 PASS 但结果不同）/ `BLOCKED_SIDE` / `N/A`。
+- **判据**：`QEMU PASS ⇒ gem5 PASS 且 exit/架构可见一致`（违反 = `GEM5_ONLY_FAIL`/`DIFF`，rc=1）；双方均 FAIL 的 `DIFF` 必须归因（资产/spec/gem5/QEMU），未归因 rc=1；覆盖完整。`QEMU_ONLY_FAIL` 不阻断，但必须逐条列出交接。
+
+### 1. case ID（冻结，跨引擎/跨轮稳定）
+
+- `inst/<relpath>#<ordinal>:<id>`：`ordinal` 为文件内 **1 基**列表序号（**不是** `tests/case-ledger.tsv` 的 identity 计数），`id` 取向量 `id`；重复 `id` 靠 ordinal 区分。`<relpath>` 相对 `tests/inst/`。
+- `arch/umon/<expected.yaml name>`：`tests/arch/umon/expected.yaml` 的 name。
+- `arch/probe/<probe-id>/<check-name>`：`probe-id` 取 `Makefile::ARCH_CFX_PROBES` 的 13 项 + `min_rom_probe_046t`；`check-name` 取探针 `--list`。
+- `embench/<bench>-O<level>`：`level ∈ {0,2}`。
+- `picolibc/<test>`：picolibc 测试名。
+- 另带 `profile ∈ {tiny,node}`、`scope ∈ {inst,arch,embench,picolibc}`。**禁止**用标题/文本/路径顺序等易变内容作 ID。
+
+### 2. 引擎适配（不改判据，只做参数映射）
+
+- **QEMU system**：安装根 `qemu-system-dadao`；`inst`/`arch` 驱动已按 `DADAO_TEST_PROFILE` 生成 `-M dadao-m1[,profile=node,bootrom-image=…]` / `-bios …`，直接复用。
+- **Node embench wrapper**：仅在该 scope 为 QEMU 注入 `-machine dadao-m1,profile=node,bootrom-image=<4 MiB>`（Tiny 保持 `-bios`），其余 argv 原样；映射逐项写入证据。**不得**改驱动默认、不得改变「guest exit == 0」判据。
+- **gem5 shim**：新增 `tools/testcases/parity/qemu_gem5_shim.py`，只映射下列 QEMU 子集到 `gem5.opt --outdir <work> configs/dadao/fs.py`：
+  `-M`/`-machine`（`tiny|node`、`bootrom-image=`）、`-bios`、`-kernel`、`-semihosting-config enable=on,target=native[,arg=…]`、`-chardev file,id=…,path=…`、`-nographic`、`-display none`、`-monitor none`、`-d cpu` + `-D <log>`（输出与 `run_m5_e2e.parse_cpu_log()` 兼容的块）。
+  **未知参数/`-qmp`/`-S`/`-s` ⇒ rc=2**，不得静默丢弃；不得改变判据（只看 guest exit/控制台/逐 check）。
+- **dump 通道**：arch 探针从 `-d cpu`/`-D` 读取 `RD[NN]`、`PTBR`、`PTW_ENABLE`、`CFXnn …` 等字段。shim 必须把这些字段从 gem5 trace 映射到同一 `-D` 文件；若当前 gem5 `--trace-cpu` 只给 `PC:`/`MODE:`，对应 check 记 **`BLOCKED`**（根因 + 需 gem5 任务），**不得**用 QEMU 结果替代、不得删 check。
+- **`-icount shift=`**：QEMU 时序控制，gem5 atomic 无对应 ⇒ shim rc=2；依赖它的 check 记 `N/A`/`BLOCKED`（spec 语义 + 可行性 + 用户裁定），不得静默跳过。
+- 引擎来源与身份：QEMU `md5`+`--version`；gem5 `md5`+组件源 `git rev-parse`+`configs/dadao/fs.py` md5；bootrom md5；工具链（clang/lld/mc/objcopy）md5。全部现场采集。
+- **绕过 shim 的直跑**：`inst`/`arch-smoke`/`embench` 各至少 1 例直接 `gem5.opt --outdir … configs/dadao/fs.py --profile … --bootrom … --kernel …` 运行（probe 类可用其生成的 ROM 直跑），证明结论不只依赖映射层。
+
+### 3. 矩阵 schema 与产物
+
+- JSON（`--json`）：`{schema:1, generated_at, engines:{qemu,gem5}, toolchain, profiles, counts, cases:[{case_id,profile,scope,qemu:{status,exit,arch_visible},gem5:{…},verdict,note}]}`；行按 `(profile, scope, case_id)` 排序；`counts` 由行现算。
+- Markdown（`--markdown`）：① 引擎/工具链身份；② 每 `profile × scope` 计数（total / agree_pass / agree_fail / gem5_only_fail / qemu_only_fail / diff / deferred / skip_profile / blocked / N/A）；③ **全部非 `AGREE_PASS` 行**（逐 case + 归因）；④ 证据指针。全量逐 case 行只在 JSON（证据层）。
+- **确定性**：同一输入两次运行的 JSON/Markdown 除 `generated_at` 外逐字节一致（`--repro-check` 自检）。
+- 工具默认**不写仓库**；`--markdown` 目标在仓库内时须显式 `--allow-repo-write`。入库快照由证据脚本 `cp` 生成，不手改数字。
+
+### 4. 覆盖矩阵（全量，计数现场派生）
+
+| profile | inst | arch | embench | picolibc |
+| --- | --- | --- | --- | --- |
+| tiny | 适用全集（`case_applies`，含 universal + explicit tiny） | `N/A`（`machine-profiles.yaml` `tiny.arch=false`） | 全 benchmark × O0/O2 | 旁证（见 §6） |
+| node | 适用全集（含 universal + explicit node） | 10 smoke + 13 probes + `046t` | 全 benchmark × O0/O2（Node wrapper） | 不跑 |
+
+- `inst`：`run + deferred + skipped_profile == 现场派生用例总数`（沿用 `semantics_gate` 结构断言）；`deferred` 保留登记、计入覆盖但**不算通过**；`skipped_profile` 同理；不得漏 case/重复 ID。
+- `arch`：10 例取 `tests/arch/umon/expected.yaml`；13 探针从 `Makefile::ARCH_CFX_PROBES` 机械解析（缺项/空集 ⇒ 失败），加 `min_rom_probe_046t`；探针子 check 用 `--list` 现场枚举。Tiny 记 `N/A` 并给 profile 依据。
+- `embench`：现场枚举 `.work/source/embench-iot/src/*`，要求 `executed == discovered`；O0/O2 两档。
+- `picolibc`：Tiny 单列旁证，不并入硬 subset。
+- 所有计数**不写死**；完成区/REPORT 只贴现场数字。
+
+### 5. 驱动接口（`tools/testcases/parity/run_parity.py`）
+
+```sh
+python3 tools/testcases/parity/run_parity.py \
+  --profiles tiny,node --scopes inst,arch,embench,picolibc \
+  --qemu .dadao/cross-toolchain/bin/qemu-system-dadao \
+  --gem5 .work/build/gem5/DADAO/gem5.opt \
+  --gem5-config configs/dadao/fs.py \
+  --bootrom-tiny <tiny bootrom> --bootrom-node tests/shared/bootrom/step5/bootrom_step5.bin \
+  --jobs 8 --timeout 600 \
+  --work-dir /tmp/opencode/GEM5-017t/run \
+  --json /tmp/opencode/GEM5-017t/matrix.json --markdown /tmp/opencode/GEM5-017t/matrix.md
+```
+
+- 选项：`--profiles`/`--scopes`/`--only <case_id>`/`--list`/`--self-test`/`--inject`/`--matrix-only`（对既有 JSON 重判）/`--repro-check`。
+- 退出码：`0` 全绿；`1` parity 红（subset 违反/gem5-only fail/未归因 DIFF/覆盖不全）；`2` setup 错或 **BLOCKED**（缺引擎/bootrom/工具、零 case、未知参数）。
+- 复用而非重写：`inst` 调 `semantics_gate.py`（新增可选 `--json-out`）；`arch` 调 `run_m5_e2e.py`（新增可选 `--json-out`）+ 探针脚本（`--list`/`--only`）；`embench` 调 `run_embench_e2e.py`（新增可选 `--json-out`）。新增 flag 默认关闭、默认输出与退出码不变。
+
+### 6. picolibc 旁证（仅 Tiny，不算硬门）
+
+- 同一 ELF/argv：QEMU `--stage fast --work-dir <dir> --json <qemu.json>` 产出 ELF，再用 gem5 shim 重跑同一 ELF。
+- 分类集合与 QEMU 基线逐项比较：只允许 `math_test` 为 `blocked`（B7 数值差异，`GEM5-015t` 遗留①）；不得出现新增 `fail`；`math_test` **不得**写 PASS、不得计入 gem5 通过数。
+- 结果单列 `picolibc` scope，并在矩阵/REPORT 明确「旁证，不参与 `QEMU 通过集合 ⊆ gem5` 硬门」。
+
+### 7. 差异处置与归属（`ADR-0048 D5`）
+
+- `QEMU PASS / gem5 FAIL`：本任务红。归因到 `测试资产 / spec 不清（用户裁定）/ gem5 缺陷`；gem5 缺陷不在本任务改组件 ⇒ 登记 BLOCKED + 另立 gem5 任务。
+- `gem5 PASS / QEMU FAIL`：非 gem5 缺陷；逐条列名（case_id + exit + 现场）交主会话另立 **QEMU 调试任务**，不阻断本任务，也不得算进 QEMU 通过集合。
+- 双方均 FAIL：比较 exit/架构可见；不一致（`DIFF`）须归因；spec/test asset 不清 ⇒ 用户裁定。
+- 不得用跨模式结果、时序或主机日志差异解释不一致。
+
+### 8. 零退化与门控
+
+- 工具侧：`semantics_gate.py`/`run_m5_e2e.py`/`run_embench_e2e.py` 不带新 flag 时，stdout/rc 与改动前一致；各自 `--inject` 仍通过；`run_qemu_test.py` 既有调用方不受影响。
+- 实现侧（本任务不改）：`make check-gem5-decode` rc=0；`python3 tools/gem5/check_converge.py` B1–B7 计数不变（`[FAIL] 0`）；`configs/dadao/se.py` 的 `hello`/`fail` rc/stdout 与 `GEM5-014t` 基线一致。
+- L1/L2：`make check` rc=0，或「本任务红=0 + 既有红逐条基线复现」；L2 `make check-modules` rc=0，若被共享 `install-host`/`gate.lock` 阻塞则记 BLOCKED + 现场（不得伪装 PASS）。
+
+## 文件范围
+
+**新增**：
+- `tools/testcases/parity/run_parity.py`（矩阵驱动与硬门）
+- `tools/testcases/parity/qemu_gem5_shim.py`（QEMU→gem5 参数映射，未知参数 rc=2）
+- `tools/testcases/parity/README.md`（用法、case ID、退出码、已知限制）
+- `tests/parity/README.md`（矩阵口径：**不是新用例/向量体系**，case 全部复用现有清单/驱动派生；`ADR-0048 D3`）
+- `tests/parity/matrix-M11.md`（现场生成的入库快照：身份/计数/非 AGREE_PASS 行/证据指针）
+
+**修改（均为可选 flag/钩子，默认行为不变）**：
+- `tools/qemu/semantics_gate.py`（`--json-out` per-case 记录）
+- `tools/testcases/lib/run_qemu_test.py`（per-case 采集钩子）
+- `tools/testcases/arch/run_m5_e2e.py`（`--json-out`）
+- `tools/testcases/tset/embench/run_embench_e2e.py`（`--json-out`）
+- 本任务书、`.tao/knowledge/milestones.md`
+
+**不改**：`components/**`、`spec/**`、`contracts/**`、`.tao/contracts/**`、`.tao/adr/**`、`Makefile`、`manifests/**`、`docs/**`、现有 `tests/inst|arch|tset|unit|shared` 用例与期望值。证据/临时物只落 `.work/evidence/GEM5-017t/**`、`.work/log/gem5/**`、`/tmp/opencode/GEM5-017t/**`。
+
+## 验收标准
+
+1. **工具契约**：`--list` 逐 profile/scope 枚举 case（现场统计）；`--self-test` rc=0 且输出 `INJECT: PASS`；`--inject` 真实数据注入可达 FAIL；未知选项/零 case/缺引擎 ⇒ rc=2；shim 未知参数 ⇒ rc=2；`--matrix-only` 可对既有 JSON 重判；`--repro-check` 两次运行除 `generated_at` 外逐字节一致；工具未写仓库（无 `--allow-repo-write` 时）。
+2. **覆盖完整**：每个 `profile × scope` 的计数现场派生；`inst` 满足 `run + deferred + skipped_profile == 现场派生总数`；无重复/缺失 case ID；`arch` = 10 smoke + 13 probe + `046t`（探针子 check 全覆盖，`N/A`/`BLOCKED` 须逐条给依据）；`embench` `executed == discovered`；Tiny arch 显式 `N/A` 且有 profile 依据。
+3. **硬门**：`QEMU PASS ⊆ gem5 PASS` 且同 case 的 exit/架构可见结果一致；`GEM5_ONLY_FAIL == 0`；所有 `DIFF` 有归因（资产/spec/gem5/QEMU）；`QEMU_ONLY_FAIL` 逐条列名并标注「另立 QEMU 任务」；**未比较**时序/性能/日志格式。
+4. **Tiny 矩阵**：`inst` 适用全集（计数对齐 `TESTCASES-092t` 口径但以现场为准）、`embench` 现场 benchmark × O0/O2 全量、picolibc 旁证；两引擎逐 case 对照，无 gem5-only fail。
+5. **Node 矩阵**：`inst` 适用全集（`skipped_profile` 计数）、`arch` 10 + 13 + `046t`、`embench` Node wrapper 下全量 O0/O2；不得在 Tiny 机器上执行 Node case（wrapper/shim 参数入证据）。
+6. **picolibc 旁证**：同 ELF/argv；QEMU 与 gem5 分类逐项一致，唯一允许 `math_test = blocked`；无新增 `fail`；`math_test` 未写 PASS、未计入 gem5 通过；报告明确「B7 blocked（`GEM5-015t` 遗留①）不参与硬门」。
+7. **引擎身份**：QEMU md5/`--version`、gem5 md5/源码 commit/配置 md5、bootrom md5、工具链 md5 全部现场采集；无旧二进制/旧日志冒充；`inst`/`arch-smoke`/`embench` 各至少 1 例绕过 shim 直跑 gem5 并记录。
+8. **零退化**：三个测试驱动不带新 flag 的默认 stdout/rc 与基线一致、各自 `--inject` 通过；`make check-gem5-decode` rc=0；`check_converge.py` B1–B7 计数不变（`[FAIL] 0`）；SE `hello`/`fail` 与 `GEM5-014t` 基线一致。
+9. **L1/L2**：`make check` rc=0，或「本任务红=0」且既有红逐条基线复现；L2 `make check-modules` rc=0，或 BLOCKED（`install-host`/`build-builtins`/`gate.lock`）+ 现场日志。
+10. **范围与门控**：`git diff --name-only <base>` 只命中 `tests/**`、`tools/**`、本任务书、`milestones.md`；`check-tests-index`/`check-dirs`/`check-no-residue`/`check-milestones-fresh` rc=0；`check-tasks` 无本任务新增漏收尾项（既有 `TESTCASES-090t` 待验收项复现即可）；无 `*_tmp*`/`*.orig`/`*.rej`/`__pycache__` 残留入库。
+11. **证据/注入/快照**：`.work/evidence/GEM5-017t/**` 一键 `run.sh`（分 phase，逐项 `*_EXIT=<rc>`）+ `REPORT.md`；`run.sh --inject` 覆盖反例（`cp` 备份 + md5 对账还原，先红后绿）；`tests/parity/matrix-M11.md` 的计数/差异与证据 JSON 逐项一致、由脚本生成（不手改）。
+12. **状态/BLOCKED**：完成区 ≤30 行，状态 `待验收`；任何无法成立的 case/能力按「spec 引用 + 根因 + 现场日志 + 为何不是实现缺陷」登记 BLOCKED 并经用户裁定；不得自行跳过、改期望、改测试资产或把 QEMU 红算作 gem5 绿。
+
+## 必测反例（每类必须有可达 FAIL，不是上限）
+
+1. **subset 违反**：把一条 `QEMU PASS / gem5 PASS` 改成 gem5 `FAIL` ⇒ 驱动 rc=1 并打印该 `case_id`；还原回绿。
+2. **退出码不一致**：改一条 `AGREE_PASS` 的 gem5 exit ⇒ rc=1（`DIFF`/`GEM5_ONLY_FAIL` 命中）；还原回绿。
+3. **架构可见结果不一致**：改一条 arch 的 console/verdict（双方均 PASS 但结果不同）⇒ rc=1；还原回绿。
+4. **覆盖缺口**：删一行/重复一行/漏一个 vector 文件 ⇒ 覆盖断言 rc=1（不得静默少跑）；还原回绿。
+5. **profile 泄漏**：Tiny 跑 Node case，或 Node embench 不加 wrapper（用 Tiny 机器）⇒ 对应用例 FAIL 且驱动记录机器参数；还原回绿。
+6. **blocked 冒充 PASS**：把 picolibc `math_test` 的 gem5 blocked 改写成 PASS ⇒ 旁证门 rc=1；还原回绿。
+7. **QEMU-only-fail 误判**：把 `QEMU_ONLY_FAIL` 标成 `AGREE_PASS` ⇒ rc=1；还原回绿。
+8. **空跑**：scope 为空/`executed != discovered`/零 case ⇒ rc=2（fail-closed），不得绿灯。
+
+## 证据
+
+- `.work/evidence/GEM5-017t/**`：`run.sh`（phase：工具自检 → 引擎身份 → Tiny inst/embench → Node inst/arch（10+13+`046t`）/embench → picolibc 旁证 → 硬门判定 → 零退化 → L1/L2 → 注入），每 phase 落 `*_EXIT=<rc>`；矩阵 `matrix.json`/`matrix.md`；日志落 `.work/log/gem5/**` 与 `/tmp/opencode/GEM5-017t/**`（gem5 `--outdir` 只落后者）。
+- `REPORT.md`：所有数字由脚本现场生成（case 数、agree/only-fail/diff/deferred/skip/blocked、引擎 md5、注入表「注入前 md5 / 注入 rc / 还原后 md5 / 回绿 rc」）。
+- `tests/parity/matrix-M11.md`：入库快照（现场生成后 `cp`），含身份、计数、全部非 `AGREE_PASS` 行、`N/A` 依据、证据指针；不手改。
+- 工具链/依赖缺失（`qemu-system-dadao`、`gem5.opt`、bootrom、`scons`/工具链）⇒ **rc=2 BLOCKED**，不得伪造 PASS。
+
+## 说明（风险 / 非目标 / 溯源 / 待确认）
+
+### 1. 与 GEM5-015/016 的关系
+
+- 本任务**不重复** 015/016 对组件实现的验收，只做**跨引擎、同 case** 的合并对账；015/016 公布的数字仅作输入线索，必须现场重跑。两者计数不一致处（如 embench 19 vs 22）以现场语料为准，并在报告注明差异来源。
+
+### 2. 风险
+
+- **R1 运行时长**：`inst` 约千例 × 2 profile × 2 引擎 ≈ 4k 次 guest 运行；`--jobs 8` 下预计 30–90 分钟，需申报耗时、落 PID/日志/`*_EXIT`，禁 `setsid nohup` 失联。
+- **R2 Node embench wrapper 漂移**：wrapper 只补 `profile=node,bootrom-image`，必须逐项记录映射；若 QEMU Node 缺省行为变化，先核 `QEMU-080t` 口径，不按经验改。
+- **R3 shim 参数/观测面覆盖**：参数子集外一律 rc=2；新增驱动参数时须显式扩展并有反例。探针依赖 `-d cpu` 的 `RD[NN]`/`PTBR`/`CFXnn` 与 `-icount`，若 gem5 侧 trace 不足或无 atomic 对应，逐 check 记 `N/A`/`BLOCKED`（附 gem5 任务），不得静默通过。
+- **R4 工具改动回归**：共享驱动加 `--json-out` 必须默认关闭；L2/L3 的既有调用与 `--inject` 需重跑对照。
+- **R5 2 GiB gem5 内存/长跑**：Node 证据阶段注意宿主内存与超时；`--timeout` 的 `124` 判 FAIL，不判 BLOCKED。
+- **R6 L1/L2 环境缺口**：`check-knowledge-refs`/`install-host`/`build-builtins` 的既有红按基线登记，不冒充。
+
+### 3. 非目标
+
+- cfxha 重编号；M11 关闭/归档/issue 清理；新增测试向量/期望值；时序/性能/缓存/多核；QEMU/gem5 实现修复；spec/contracts 修订；动态链接/TLS/线程；Linux 启动。
+
+### 4. 参考对照（内容溯源，非执行必需）
+
+- `ADR-0048`（D1–D5）；`GEM5-015t`/`GEM5-016t` 的证据形态；`QEMU-079t`/`QEMU-080t` 的同模式机器；`TESTCASES-092t/093t/094t` 的资产口径；`SPEC-183t` 的 profile 表。
+- `DADAO-0628` 的 QEMU/gem5 经验只作**内容溯源，非执行依赖**；不复用其代码/常量/测试。
+
+### 5. 待确认口径（本册已按推荐值写，用户可否决）
+
+- ① `inst` 每 profile 跑「适用全集」（不加 `--only-profile-cases`），`skipped_profile` 计入覆盖但不计通过。
+- ② `arch` 仅 Node；Tiny 记 `N/A`（依据 `machine-profiles.yaml`）。
+- ③ Node embench 用证据层 wrapper 注入机器参数（不改驱动默认）。
+- ④ picolibc 不纳入硬 subset，仅 Tiny 旁证；`math_test` 保持 blocked。
+- ⑤ `QEMU_ONLY_FAIL` 不阻断本任务，但必须逐条列名并交主会话另立 QEMU 调试任务。
+
+## 完成区
+
+**测试结果**：
+**修改文件**：
+**验收结果**：
+**新发现/坑**：
+**遗留问题**：
+
+## 审阅记录
+
+#### 第 1 轮 engineer 自审
+（待填写）
+
+#### 第 1 轮 reviewer 验收
+（待填写）
