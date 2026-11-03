@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| QEMU-082t | 待开始 | 2026-11-03 15:32（登记） | cfx_power cg7 描述符按 profile 派生（Node 4 MiB、Tiny 不实现）；integ049t space_power 解 BLOCKED |
 | TESTCASES-094t | 已验证 | 2026-11-03 15:10 | L3 异步/boot-chain：050/051/046/046t 全绿、async 6/6；space_power 描述符另立 QEMU |
 | TESTCASES-093t | 已验证 | 2026-11-03 14:30 | L3 探针 F4/prelude + 9 册 167 例；残余 049/050/051/046 拆 094 |
 | TESTCASES-092t | 已验证 | 2026-11-03 11:20 | Tiny/Node 执行资产 P0–P5：inst 968+44、arch 10/10、token/profile/hmon；P6 13 探针拆 093 |
