@@ -6,7 +6,10 @@ single-TU pipeline and compares the **guest process exit code** against the
 independently-derived expected value (it does NOT rely on lit exit codes):
 
     llc -march=dadao <prog.ll>                 -> <prog>.s
-    cat tests/shared/crt0/minimal_crt0.s <prog>.s -> <prog>.s  (single TU)
+    cat minimal_crt0.s <prog>.s -> <prog>.s     (single TU; the stub is
+                                                 re-targeted at `.text` so the
+                                                 `call main` resolves without a
+                                                 linker -- see _read_raw_crt0)
     llvm-mc --triple=dadao -filetype=obj       -> <prog>.o
     llvm-objcopy -O binary --only-section=.text.start --only-section=.text
                                                -> <prog>.bin
@@ -42,6 +45,8 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
+import struct
 import subprocess
 import sys
 
@@ -145,6 +150,57 @@ def _require_exec(path: str, what: str) -> None:
         sys.exit(2)
 
 
+# ``minimal_crt0.s`` places ``_start`` in ``.text.start`` so the linked-ELF
+# pipelines can pin the stub at the profile's ROM base.  The raw pipeline has no
+# linker: it assembles crt0+program as ONE translation unit and extracts bytes
+# with objcopy, which does not apply relocations.  A cross-section
+# ``call [rb0, main]`` would therefore stay unrelocated (imm 0 => the guest
+# calls itself forever, surfacing as the RASOF machine fault 0x8A).
+_CRT0_TEXT_START_RE = re.compile(
+    r'^(?P<indent>[ \t]*)\.section[ \t]+\.text\.start\b', re.MULTILINE)
+
+
+def _read_raw_crt0(path: str) -> str:
+    """Return crt0 text re-targeted at ``.text`` for the raw single-TU build."""
+    with open(path, "r", encoding="utf-8") as fh:
+        text = fh.read()
+    # Only the section *name* is rewritten; the flags/type of the original
+    # directive are kept verbatim.
+    rewritten, count = _CRT0_TEXT_START_RE.subn(
+        lambda m: m.group("indent") + ".section\t.text", text)
+    if count != 1:
+        raise ValueError(
+            f"{path}: expected exactly one '.section .text.start' directive, "
+            f"found {count} (raw pipeline needs the stub in .text)")
+    return rewritten
+
+
+def _elf_relocation_section_types(path: str):
+    """Return the ELF section types of relocation sections (SHT_REL*/RELR).
+
+    ``None`` means the file is not an ELF64 object.  An empty list means the
+    object is fully resolved -- the invariant the raw pipeline needs.
+    """
+    with open(path, "rb") as fh:
+        data = fh.read()
+    if len(data) < 64 or data[:4] != b"\x7fELF" or data[4] != 2:
+        return None
+    endian = "<" if data[5] == 1 else ">"
+    shoff = struct.unpack_from(endian + "Q", data, 0x28)[0]
+    shentsize, shnum = struct.unpack_from(endian + "HH", data, 0x3A)
+    types = []
+    for i in range(shnum):
+        sh_type = struct.unpack_from(endian + "I", data,
+                                     shoff + i * shentsize + 4)[0]
+        if sh_type == 4:       # SHT_RELA
+            types.append("SHT_RELA")
+        elif sh_type == 9:     # SHT_REL
+            types.append("SHT_REL")
+        elif sh_type == 19:    # SHT_RELR
+            types.append("SHT_RELR")
+    return types
+
+
 def load_programs(expected_path: str):
     with open(expected_path, "r", encoding="utf-8") as f:
         doc = yaml.safe_load(f)
@@ -153,11 +209,23 @@ def load_programs(expected_path: str):
         sys.exit(2)
     programs = []
     for entry in doc["programs"]:
+        expected = int(entry["expected_exit_code"])
+        # The guest value channel is the low byte of `@main`'s return, kept in
+        # 0x00..0x7F (tests/unit/llvm/codegen/README.md; ISS-147); 0x80..0xFF is
+        # the machine-fault range (ADR-0004 D5.7/D5.8).  A fault must never be
+        # spellable as an expected value, otherwise a faulting guest would PASS.
+        if not 0 <= expected <= 0x7F:
+            sys.stderr.write(
+                f"ERROR: {expected_path}: {entry['name']}: "
+                f"expected_exit_code {expected} is outside the guest range "
+                f"0x00..0x7F; 0x80..0xFF is reserved for machine faults and "
+                f"cannot be a PASS value\n")
+            sys.exit(2)
         programs.append(
             {
                 "name": entry["name"],
                 "category": entry.get("category", "?"),
-                "expected": int(entry["expected_exit_code"]),
+                "expected": expected,
             }
         )
     if not programs:
@@ -190,18 +258,20 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
         res.reason = f"llc failed (rc={rc})" + (f": {err.strip()[:200]}" if err.strip() else "")
         return res
 
-    # 2. cat crt0.s prog.s -> combined single TU .s
+    # 2. crt0 + prog -> combined single TU .s.  The stub is re-targeted at
+    #    ``.text`` (see _read_raw_crt0): the program lands in ``.text`` too, so
+    #    the ``call [rb0, main]`` is resolved by the assembler -- no linker
+    #    exists in this pipeline.
     try:
-        with open(tools["crt0"], "rb") as fh:
-            crt0_bytes = fh.read()
-        with open(prog_s, "rb") as fh:
-            prog_bytes = fh.read()
-        with open(combined_s, "wb") as fh:
-            fh.write(crt0_bytes)
-            if not crt0_bytes.endswith(b"\n"):
-                fh.write(b"\n")
-            fh.write(prog_bytes)
-    except OSError as exc:
+        crt0_text = _read_raw_crt0(tools["crt0"])
+        with open(prog_s, "r", encoding="utf-8") as fh:
+            prog_text = fh.read()
+        with open(combined_s, "w", encoding="utf-8") as fh:
+            fh.write(crt0_text)
+            if not crt0_text.endswith("\n"):
+                fh.write("\n")
+            fh.write(prog_text)
+    except (OSError, ValueError) as exc:
         res.reason = f"concat failed: {exc}"
         return res
 
@@ -212,6 +282,15 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     )
     if timed or rc != 0:
         res.reason = f"llvm-mc failed (rc={rc})" + (f": {err.strip()[:200]}" if err.strip() else "")
+        return res
+    relocations = _elf_relocation_section_types(obj_path)
+    if relocations is None:
+        res.reason = f"llvm-mc output is not an ELF64 object: {obj_path}"
+        return res
+    if relocations:
+        res.reason = ("raw single-TU object is not fully resolved: "
+                      f"{', '.join(relocations)} present (crt0 and the "
+                      "program must share one section)")
         return res
 
     # 4. llvm-objcopy: .text.start then .text, concatenated in execution order.
@@ -259,16 +338,16 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     if rc is None:
         res.reason = "qemu did not return an exit code"
         return res
-    # NOTE on fault detection: the comparison must be primary.  ADR-0004
-    # D5.7/D5.8 reserves 0x80..0xFF for machine faults; the guest (SYS_EXIT)
-    # codes are constrained to 0x00..0x7F (ISS-147, fixed by TESTCASES-034t),
-    # so an unexpected fault (>= 0x80) can never equal an expected guest code.
-    # A *mismatch* is still classified as a fault when it lands in FAULT_NAMES.
-    if rc == prog["expected"]:
+    # NOTE on fault detection: a machine fault (ADR-0004 D5.7/D5.8: 0x80..0xFF
+    # is reserved for `0x80 | spec cause index`) is classified *before* the
+    # expected-value comparison, so a faulting guest can never be a PASS even if
+    # an expected value were wrong (load_programs also rejects such values).
+    # Guest SYS_EXIT codes stay in 0x00..0x7F (ISS-147; fixed by TESTCASES-034t).
+    if rc >= 0x80:
+        res.reason = f"machine fault {FAULT_NAMES.get(rc, 'unknown')} (0x{rc:02X})"
+    elif rc == prog["expected"]:
         res.passed = True
         res.reason = "match"
-    elif rc in FAULT_NAMES:
-        res.reason = f"machine fault {FAULT_NAMES[rc]} (0x{rc:02X})"
     else:
         res.reason = "exit code mismatch"
     if verbose:

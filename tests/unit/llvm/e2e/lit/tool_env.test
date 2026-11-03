@@ -1,0 +1,23 @@
+# Environment passthrough for the E2E lit suite (TESTCASES-095t).
+#
+# lit.cfg.py defines twelve `%` substitutions; `make check-lit` runs in a clean
+# shell that exports no tool variables, so each one must resolve on its own
+# (install root, or the repo-relative test assets).  One RUN line per
+# substitution: a break names the exact item instead of failing inside an
+# unrelated test.  The tools are *executed* (`--version`), not only stat'ed, so
+# a substitution that points at the wrong but existing binary cannot pass
+# silently; data/dir items are checked with `ls`.  `%qemu` and `%ld` also prove
+# the two-candidate qemu fallback and the `%ld -L` directory.
+
+# RUN: %llvm_mc --version > /dev/null
+# RUN: %llvm_objcopy --version > /dev/null
+# RUN: %clang --version > /dev/null
+# RUN: %FileCheck --version > /dev/null
+# RUN: ls %not > /dev/null
+# RUN: %llvm_objdump --version > /dev/null
+# RUN: %qemu --version > /dev/null
+# RUN: %ld --version > /dev/null
+# RUN: ls %trampoline > /dev/null
+# RUN: ls %crt0 > /dev/null
+# RUN: ls %linker_script > /dev/null
+# RUN: ls -d %e2e_dir > /dev/null

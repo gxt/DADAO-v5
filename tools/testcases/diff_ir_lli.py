@@ -9,7 +9,8 @@ them:
   target (DADAO):               llc -march=dadao <ir>         -> <prog>.s
                                 cat crt0.s <prog>.s           -> <prog>.s (single TU)
                                 llvm-mc --triple=dadao -filetype=obj -> <prog>.o
-                                llvm-objcopy -O binary --only-section=.text -> <prog>.bin
+                                llvm-objcopy -O binary --only-section=.text -> payload
+                                prepend profile.kernel_reserved zeros -> <prog>.bin
                                 qemu-system-dadao -bios trampoline.bin \
                                     -kernel <prog>.bin -semihosting-config \
                                     enable=on,target=native -> process exit code
@@ -54,6 +55,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 
@@ -71,6 +73,8 @@ REPO_ROOT = os.path.normpath(
 # instead of hardcoding .work/build.
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 import paths as _dadao_paths  # noqa: E402
+sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
+import machine_profile  # noqa: E402
 
 # Allowed exclusion classes.  `endianness` / `memory-layout` are the two
 # classes the task boundary mandates; the others record IR that is not a
@@ -97,6 +101,36 @@ DEFAULT_TRAMPOLINE = "tools/testcases/lib/trampoline.bin"
 DEFAULT_MANIFEST = "tests/unit/llvm/ir-lli/manifest.yaml"
 DEFAULT_WORK_DIR = str(_dadao_paths.test_artifacts_dir() / "ir-lli-diff")
 DEFAULT_TIMEOUT = 30
+
+# Raw `-kernel` geometry (TESTCASES-095t): the image loads at the profile's
+# kernel_base and the first kernel_reserved bytes must be zero (spec/Machine-v5
+# §6); the trampoline enters at kernel_base+kernel_reserved.
+_PROFILE = machine_profile.load()
+RAW_PREFIX = _PROFILE.entry - _PROFILE["kernel_base"]
+# Runtime symbols of minimal_crt0: the raw pipeline has no linker, so they are
+# supplied to the assembler as absolute symbols (same set as run_codegen_e2e).
+_DEFSYMS = [
+    "--defsym", "__stack_top=%#x" % _PROFILE.sp,
+    "--defsym", "__exit_block=%#x" % _PROFILE.exit_block,
+    "--defsym", "__bss_start=0",
+    "--defsym", "__bss_end=0",
+]
+
+# `minimal_crt0.s` keeps `_start` in `.text.start` for the linked-ELF pipelines;
+# the raw single-TU pipeline has no linker, so the stub is re-targeted at
+# `.text` (otherwise `call main` stays a cross-section relocation and objcopy
+# emits an unrelocated `call [rb0, 0]`).
+_CRT0_TEXT_START_RE = re.compile(
+    r'^(?P<indent>[ \t]*)\.section[ \t]+\.text\.start\b', re.MULTILINE)
+
+# QEMU's own error_report prefix; a machine reject (e.g. raw-prefix violation)
+# exits 1 and must never be read as a guest value.
+_QEMU_ERROR_PREFIX = "qemu-system-dadao:"
+
+# Machine-fault exit-code range (ADR-0004 D5.7/D5.8): 0x80 | spec cause index.
+# Such an rc is a fault, never a value coming back from `@main`, so it must not
+# be compared as one (this would let a faulting guest "match" a host value).
+_FAULT_CODE_BASE = 0x80
 
 # Marker substrings that mean `lli` failed to execute the module rather than
 # returning a value (so an error exit code is never read as a program value).
@@ -263,22 +297,30 @@ def target_value(tools, ir_abs, work_dir, stem, timeout, verbose=False):
     if r_llc != 0:
         return None, f"llc failed (rc={r_llc}): {e_llc.strip()[:200]}", (r_llc, None, None)
 
-    # 2. cat crt0.s <prog>.s -> combined single TU .s
+    # 2. crt0 + prog -> combined single TU .s (stub re-targeted at .text: no
+    #    linker applies relocations in the flat-binary pipeline).
     try:
-        with open(tools["crt0"], "rb") as fh:
-            crt0_bytes = fh.read()
-        with open(prog_s, "rb") as fh:
-            prog_bytes = fh.read()
-        with open(comb_s, "wb") as fh:
-            fh.write(crt0_bytes)
-            if not crt0_bytes.endswith(b"\n"):
-                fh.write(b"\n")
-            fh.write(prog_bytes)
+        with open(tools["crt0"], "r", encoding="utf-8") as fh:
+            crt0_text = fh.read()
+        crt0_text, rewritten = _CRT0_TEXT_START_RE.subn(
+            lambda m: m.group("indent") + ".section\t.text", crt0_text)
+        if rewritten != 1:
+            return (None,
+                    f"crt0 section rewrite: expected one '.section .text.start',"
+                    f" found {rewritten}",
+                    (r_llc, None, None))
+        with open(prog_s, "r", encoding="utf-8") as fh:
+            prog_text = fh.read()
+        with open(comb_s, "w", encoding="utf-8") as fh:
+            fh.write(crt0_text)
+            if not crt0_text.endswith("\n"):
+                fh.write("\n")
+            fh.write(prog_text)
     except OSError as exc:
         return None, f"concat failed: {exc}", (r_llc, None, None)
 
     # 3. llvm-mc --triple=dadao -filetype=obj -> .o
-    cmd = [tools["llvm_mc"], "--triple=dadao", "-filetype=obj", comb_s, "-o", obj]
+    cmd = [tools["llvm_mc"], "--triple=dadao", "-filetype=obj"] + _DEFSYMS + [comb_s, "-o", obj]
     _echo_cmd(cmd, verbose)
     r_mc, _o, e_mc, t_mc = _run(cmd)
     if t_mc:
@@ -286,14 +328,28 @@ def target_value(tools, ir_abs, work_dir, stem, timeout, verbose=False):
     if r_mc != 0:
         return None, f"llvm-mc failed (rc={r_mc}): {e_mc.strip()[:200]}", (r_llc, r_mc, None)
 
-    # 4. llvm-objcopy -O binary --only-section=.text -> .bin
-    cmd = [tools["llvm_objcopy"], "-O", "binary", "--only-section=.text", obj, binp]
+    # 4. llvm-objcopy -O binary --only-section=.text -> payload
+    bodyp = binp + ".body"
+    cmd = [tools["llvm_objcopy"], "-O", "binary", "--only-section=.text", obj, bodyp]
     _echo_cmd(cmd, verbose)
     r_cp, _o, e_cp, t_cp = _run(cmd)
     if t_cp:
         return None, "llvm-objcopy timeout", (r_llc, r_mc, None)
     if r_cp != 0:
         return None, f"llvm-objcopy failed (rc={r_cp}): {e_cp.strip()[:200]}", (r_llc, r_mc, r_cp)
+
+    # 4b. prepend the profile's reserved zero prefix (Tiny raw entry =
+    #     kernel_base + kernel_reserved); QEMU rejects a short/poisoned prefix.
+    try:
+        with open(bodyp, "rb") as fh:
+            body = fh.read()
+        if not body:
+            return (None, "objcopy produced an empty .text payload",
+                    (r_llc, r_mc, r_cp))
+        with open(binp, "wb") as fh:
+            fh.write(b"\x00" * RAW_PREFIX + body)
+    except OSError as exc:
+        return None, f"raw image write failed: {exc}", (r_llc, r_mc, r_cp)
 
     # 5. run under QEMU -> guest exit code
     cmd = [
@@ -308,10 +364,18 @@ def target_value(tools, ir_abs, work_dir, stem, timeout, verbose=False):
         return None, f"qemu timeout after {timeout}s", (r_llc, r_mc, r_cp)
     if r_q is None:
         return None, "qemu gave no exit code", (r_llc, r_mc, r_cp)
+    if _QEMU_ERROR_PREFIX in e_q:
+        # A machine-level reject (bad image, unmapped entry, ...) exits with
+        # QEMU's own rc; that is not a guest value.
+        return (None, f"qemu rejected the image: {e_q.strip()[:200]}",
+                (r_llc, r_mc, r_cp))
     if r_q < 0:
         return None, f"qemu killed by signal {-r_q}", (r_llc, r_mc, r_cp)
-    _ = e_q
-    return r_q & 0xFF, "ok", (r_llc, r_mc, r_cp)
+    value = r_q & 0xFF
+    if value >= _FAULT_CODE_BASE:
+        return (None, f"machine fault code 0x{value:02X} (0x80|idx, "
+                      f"ADR-0004 D5.8; not a value)", (r_llc, r_mc, r_cp))
+    return value, "ok", (r_llc, r_mc, r_cp)
 
 
 def compare_case(entry, tools, corpus_root, work_dir, timeout, verbose):
