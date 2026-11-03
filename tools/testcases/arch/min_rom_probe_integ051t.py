@@ -63,7 +63,6 @@ import argparse
 import os
 import re
 import struct
-import subprocess
 import sys
 
 import os, sys
@@ -76,6 +75,7 @@ _MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
     sys.path.insert(0, os.path.join(_MACH_REPO, "tools", "testcases", "lib"))
 import machine_profile as _machine_profile  # noqa: E402
+import node_probe_prelude as _prelude  # noqa: E402
 _MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
 RAM_BASE = _MACH.ram_base
 RAM_END = _MACH.ram_end
@@ -95,16 +95,18 @@ EXIT_W1 = (EXIT_BLOCK >> 16) & 0xFFFF
 EXIT_W0 = EXIT_BLOCK & 0xFFFF
 
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-DEFAULT_QEMU = os.path.join(_REPO, ".work/build/qemu/qemu-system-dadao")
+DEFAULT_QEMU = _prelude.default_qemu()
 QEMU = DEFAULT_QEMU
-WORKDIR = "/tmp/opencode/INTEG-051t"
+WORKDIR = "/tmp/opencode/TESTCASES-094t/min_rom_probe_integ051t"
 TIMEOUT = 120
 
 CONTRACT_SEE = os.path.join(_REPO, ".tao", "contracts", "contract-see.md")
 PATCH_DIR = os.path.join(_REPO, "components", "qemu", "patches", "target", "dadao")
 PATCH_FILES = ("cpu.h.patch", "cpu.c.patch", "helper.c.patch")
 
-ROM_BASE = 0xFFFF_FFFF_0000
+# TESTCASES-094t §1: the body runs at RESET_PC + 0x1000 inside the 4 MiB
+# bootrom-image, after the shared power -> hmon identity-PTW prelude.
+ROM_BASE = _prelude.ROM_BASE
 RAM_BASE = _MACH.ram_base
 
 HART_HA = 15
@@ -148,9 +150,9 @@ MASK_CROSS = ALL1 & ~((1 << 3) | (1 << 15) | (1 << 17))
 EXIT_PASS = 0x00
 EXIT_FAIL = 0xE1
 
-# ROM layout: prefix (power) -> stage (hmon) -> body (hmon).
-STAGE_OFF = 0x30
-BOOTSTRAP_OFF = 0x120
+# ROM layout: the shared prelude owns the power -> hmon hand-off; this probe's
+# power-mode and hmon-mode setup is appended to the prelude's segments, and the
+# body starts at ROM_BASE (RESET_PC + 0x1000).
 OFF_HART_HND = 0x2000
 OFF_PMEM_HND = 0x2100
 OFF_POISON = 0x2200
@@ -257,12 +259,8 @@ def load_rb(rb, val):
 
 
 def exit_seq(code):
-    """Report `code` via semihosting SYS_EXIT -> host $? (ADR-0020 D8)."""
-    return ([jump_iiii(1)]
-            + load_rb(16, SEMI_BLOCK)
-            + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
-            + load_rd(9, code) + [st_o(9, 16, 8)]
-            + load_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)])
+    """Semihosting SYS_EXIT with the profile `exit_block` (TESTCASES-094t §0)."""
+    return _prelude.exit_seq(code)
 
 
 def words_to_bytes(ws):
@@ -409,7 +407,8 @@ def handlers(pmem_frame=False):
 # ---------------------------------------------------------------------------
 
 def hmon_addr(off):
-    return ROM_BASE + BOOTSTRAP_OFF + off
+    """Body-relative address inside the shared prelude's body image."""
+    return ROM_BASE + off
 
 
 def ram_ld(a, off, rd):
@@ -530,62 +529,40 @@ def delay_loop(a, count, tag, rd=23):
 # QEMU runner + bootstrap
 # ---------------------------------------------------------------------------
 
-def run(rom, icount_shift=None, dump=False):
-    os.makedirs(WORKDIR, exist_ok=True)
-    rp = os.path.join(WORKDIR, "rom.bin")
-    kp = os.path.join(WORKDIR, "kernel.bin")
-    lp = os.path.join(WORKDIR, "cpu.log")
-    with open(rp, "wb") as f:
-        f.write(rom)
-    with open(kp, "wb") as f:
-        f.write(b"\x00" * 16)
-    cmd = [QEMU, "-M", "dadao-m1", "-nographic", "-bios", rp, "-kernel", kp,
-           "-semihosting-config", "enable=on,target=native"]
-    if dump:
-        # `-d cpu` logs a full state block per translated TB: only for short
-        # programs.  Every case here asserts through the SYS_EXIT code instead.
-        cmd += ["-d", "cpu", "-D", lp]
-    if icount_shift is not None:
-        cmd += ["-icount", "shift=%d" % icount_shift]
-    try:
-        r = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT, text=True)
-        rc = r.returncode & 0xFF
-        err = r.stderr
-    except subprocess.TimeoutExpired:
-        return None, "", "TIMEOUT"
-    log = ""
-    if dump and os.path.isfile(lp):
-        with open(lp) as f:
-            log = f.read()
-    return rc, log, err
+def run(rom, icount_shift=None, dump=True):
+    """4 MiB `bootrom-image`, no `-kernel`; returns (rc, cpu_log, stderr)."""
+    rc, log = _prelude.run(rom, WORKDIR, qemu=QEMU, timeout=TIMEOUT,
+                           icount_shift=icount_shift)
+    if not dump:
+        log = ""
+    return rc, log, ""
 
 
 def build_rom(prog, hnd=None):
-    rom = bytearray(words_to_bytes(prog))
-    for off in sorted(hnd or {}):
-        if len(rom) > off:
-            raise ValueError("handlers offset 0x%x overlaps the body (0x%x)" %
-                             (off, len(rom)))
-        while len(rom) < off:
-            rom += words_to_bytes([swym()])
-        rom += words_to_bytes(hnd[off])
-    while len(rom) < ROM_END:
-        rom += words_to_bytes([swym()])
-    return bytes(rom)
+    """Shared prelude: body at RESET_PC + 0x1000; the probe-specific power and
+    hmon setup (cross-cfx masks, handlers, poison vector) runs in the prelude's
+    segments, so `hmon_addr(off)` is body-relative (TESTCASES-094t §1)."""
+    return _prelude.build_rom(prog, hnd, hmon_extra=hmon_setup(),
+                              power_extra=power_setup())
 
 
-def bootstrap_prefix():
-    ins = load_rd(22, ROM_BASE + STAGE_OFF) + [cfx2rc(HMON_HA, 3, CG3_EXCP_VECTOR_RC, 22)]
-    # clear bits 15 (TIMER) and 17 (PMEM_DMA): target cfxhas, step 3.
-    ins += load_rd(22, ALL1 & ~((1 << 15) | (1 << 17)))
-    ins += [cfx2rc(HMON_HA, 3, CG3_SWITCH_CFX_MASK_RC, 22)]
-    ins += [trap(HMON_HA, 0)]
-    ins += [swym()] * (STAGE_OFF // 4 - len(ins))
-    assert len(ins) == STAGE_OFF // 4, len(ins)
-    return ins
+def power_setup():
+    """power-stage setup applied when the prelude traps into hmon.
+
+    cfx_hmon hypv_switch_cfx_mask: clear bits 15 (TIMER) and 17 (PMEM_DMA),
+    the target cfxhas of exception-entry step 3.  The write must happen in
+    power: `switch_cfx_mask` is only applied on entry to hmon, so the same
+    write from the hmon body would not change the current mask
+    (TESTCASES-094t §2).
+    """
+    return (load_rd(22, ALL1 & ~((1 << 15) | (1 << 17)))
+            + [cfx2rc(HMON_HA, 3, CG3_SWITCH_CFX_MASK_RC, 22)])
 
 
-def bootstrap_stage():
+def hmon_setup():
+    # TESTCASES-094t §1: the power->hmon hand-off and the power-mask clearing
+    # live in the shared prelude; only the probe-specific mask/vector/handler
+    # setup stays here.
     ins = load_rb(5, RAM_BASE)                        # handler state block base
     ins += load_rd(21, MASK_CROSS)
     # cfx_hmon: hypv cfx{trap,mem,reg,exe} + cfx_intr_mask; global mask 15/17 off
@@ -617,14 +594,7 @@ def bootstrap_stage():
     # start from a clean pending state (software 0 = cancel)
     ins += [cfx2rc(PMEM_HA, 5, CG5_PENDING_RC, 20)]
     ins += [cfx2rc(HART_HA, 5, CG5_PENDING_RC, 20)]
-    need = (BOOTSTRAP_OFF - STAGE_OFF) // 4
-    assert len(ins) <= need, (len(ins), need)
-    ins += [swym()] * (need - len(ins))
     return ins
-
-
-def bootstrap_rom(rom):
-    return words_to_bytes(bootstrap_prefix()) + words_to_bytes(bootstrap_stage()) + rom
 
 
 # ---------------------------------------------------------------------------
@@ -1183,7 +1153,7 @@ def run_case(name):
     for n, d, fn, icount in CASES:
         if n == name:
             rom, exp = fn()
-            rc, log, err = run(bootstrap_rom(rom), icount_shift=icount)
+            rc, log, err = run(rom, icount_shift=icount)
             if rc is None:
                 return False, "TIMEOUT", exp
             diffs = []

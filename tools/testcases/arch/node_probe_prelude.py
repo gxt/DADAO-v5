@@ -118,6 +118,19 @@ def st_o(rd, rb, off):
     return (0x21 << 24) | (rd << 18) | (rb << 12) | (off & 0xFFF)
 
 
+def ld_o(rd, rb, off):
+    """ld.o: the imm12 field is sign-extended, so offsets stay in [0, 0x7ff]."""
+    return (0x20 << 24) | (rd << 18) | (rb << 12) | (off & 0xFFF)
+
+
+def add_si(rd, imms18):
+    return (0x59 << 24) | (rd << 18) | (imms18 & 0x3FFFF)
+
+
+def escape(ha, imms18):
+    return (0x7E << 24) | (ha << 18) | (imms18 & 0x3FFFF)
+
+
 def cfx2rd(ha, cg, rc, rd):
     return (0x7A << 24) | (ha << 18) | (cg << 12) | (rc << 6) | rd
 
@@ -143,6 +156,73 @@ def br_nz(rdha, imms18):
 def br_z(rdha, imms18):
     """br.z {rdHA}?, [rb0, imms18] (rd bank variant, opcode 0x6a)."""
     return (0x6A << 24) | (rdha << 18) | (imms18 & 0x3FFFF)
+
+
+def br_nn(rdha, imms18):
+    """br.nn {rdHA}?, [rb0, imms18] (rd bank variant, opcode 0x69)."""
+    return (0x69 << 24) | (rdha << 18) | (imms18 & 0x3FFFF)
+
+
+def br_eq(rdha, rdhb, imms12):
+    """br.eq {rdha}?, {rdhb}?, [rb0, imms12] (opcode 0x6e)."""
+    imm = imms12 & 0xFFF
+    hc = (imm >> 6) & 0x3F
+    hd = imm & 0x3F
+    if imms12 < 0:
+        hc |= 0x20
+    return (0x6E << 24) | (rdha << 18) | (rdhb << 12) | (hc << 6) | hd
+
+
+def br_ne(rdha, rdhb, imms12):
+    """br.ne {rdha}?, {rdhb}?, [rb0, imms12] (opcode 0x6f)."""
+    imm = imms12 & 0xFFF
+    hc = (imm >> 6) & 0x3F
+    hd = imm & 0x3F
+    if imms12 < 0:
+        hc |= 0x20
+    return (0x6F << 24) | (rdha << 18) | (rdhb << 12) | (hc << 6) | hd
+
+
+class Seq:
+    """Word list with self-relative label fixups (labels are word indexes).
+
+    Probe bodies only need a handful of instructions, so this stays a word
+    builder rather than a full assembler.
+    """
+
+    def __init__(self):
+        self.w = []
+        self.lab = {}
+        self.fix = []
+
+    def e(self, *ws):
+        self.w.extend(ws)
+
+    def mark(self, name):
+        if name in self.lab:
+            raise ValueError("duplicate label %r" % name)
+        self.lab[name] = len(self.w)
+
+    def b(self, kind, rd, label, rdb=0):
+        self.fix.append((len(self.w), kind, rd, rdb, label))
+        self.w.append(0)
+
+    def resolve(self):
+        for idx, kind, rd, rdb, label in self.fix:
+            off = self.lab[label] - idx
+            if kind == "eq":
+                self.w[idx] = br_eq(rd, rdb, off)
+            elif kind == "ne":
+                self.w[idx] = br_ne(rd, rdb, off)
+            elif kind == "nz":
+                self.w[idx] = br_nz(rd, off)
+            elif kind == "z":
+                self.w[idx] = br_z(rd, off)
+            elif kind == "nn":
+                self.w[idx] = br_nn(rd, off)
+            else:
+                raise ValueError(kind)
+        return self.w
 
 
 def and_o(rdhb, rdhc, rdhd):
@@ -199,13 +279,20 @@ def _pte(i):
 # Prelude segments
 # ---------------------------------------------------------------------------
 
-def power_segment():
+def power_segment(extra=None):
     """cfx63/hypv: install the hmon vector, then trap into hmon.
 
     Power only performs this hand-off (task book §0/D1); every PMEM/PTW body
-    step runs in hmon.
+    step runs in hmon.  `extra` is probe-specific power-mode setup: it runs
+    after the vector install and before the trap, so a write of cfx_hmon's
+    `hypv_switch_cfx_mask` (cg3 rc9) takes effect when the trap re-enters hmon
+    (cfx_enter applies `switch_cfx_mask` only on entry, not on a register
+    write -- TESTCASES-094t §2).
     """
-    ins = load_rd(22, RESET_PC + H_OFF) + [cfx2rc(3, 3, 10, 22), trap(3, 0)]
+    ins = load_rd(22, RESET_PC + H_OFF) + [cfx2rc(3, 3, 10, 22)]
+    if extra:
+        ins += list(extra)
+    ins += [trap(3, 0)]
     return ins
 
 
@@ -295,12 +382,14 @@ def hmon_segment(hmon_extra=None):
 
 
 def build_rom(prog, handlers=None, words_at=None, hmon_extra=None,
-              image_at=None):
+              image_at=None, power_extra=None):
     """Return the full 4 MiB bootrom image.
 
     `prog` is the body at ROM_BASE (RESET_PC + BODY_OFF); `handlers` and
     `words_at` map body-relative byte offsets to word lists (handlers first,
-    then extra data; neither may overlap earlier content).
+    then extra data; neither may overlap earlier content).  `hmon_extra` runs
+    inside the prelude's hmon segment; `power_extra` runs in power before the
+    trap into hmon (see `power_segment`).
     """
     body = bytearray(words_to_bytes(prog))
     for table in (handlers or {}, words_at or {}):
@@ -315,7 +404,7 @@ def build_rom(prog, handlers=None, words_at=None, hmon_extra=None,
 
     prelude_off = H_OFF // 4
     hmon = hmon_segment(hmon_extra)
-    power = power_segment()
+    power = power_segment(power_extra)
     if len(power) > prelude_off:
         raise ValueError("power segment does not fit before hmon (0x%x words)"
                          % prelude_off)
@@ -376,7 +465,7 @@ def run(rom, workdir=None, qemu=None, timeout=TIMEOUT, icount_shift=None):
     except subprocess.TimeoutExpired:
         return None, "TIMEOUT"
     log = ""
-    if os.path.isfile(lp):
+    if icount_shift is None and os.path.isfile(lp):
         with open(lp) as f:
             log = f.read()
     return rc, log

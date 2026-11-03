@@ -3,11 +3,13 @@
 
 Expectations are derived by hand from
   - spec/DADAO-12 §2.1 (core-internal address space: smon/hmon/pmem 64 KiB
-    SRAM at `0x3ff_0000_0000`, power 256 KiB BootROM at `0x3ff_fffc_0000`,
-    `start + size <= 2^42`), §3.8 (cg7 = internal space description; 16 blocks
-    of `rc = 4i+0..3` = desc/start/size/attr; `exists = 0` => start/size/attr
-    read 0; all read-only, a write of any rc => `CFXREG`), and §4/§5 (cause
-    ids, exception entry flow);
+    SRAM at `0x3ff_0000_0000`, `start + size <= 2^42`), §3.8 (cg7 = internal
+    space description; 16 blocks of `rc = 4i+0..3` = desc/start/size/attr;
+    `exists = 0` => start/size/attr read 0; all read-only, a write of any rc
+    => `CFXREG`), and §4/§5 (cause ids, exception entry flow);
+  - spec/Machine-v5 §1.1 (Node test machine: 4 MiB BootROM, i.e. cfx63
+    start/size = `0x3ff_ffc0_0000` / `0x40_0000`; the upstream DADAO-12 §2.1
+    256 KiB window is the pre-v5 baseline and does not apply to this profile);
   - .tao/contracts/contract-see.md §3 (cg7 block-level contract) and §2 (核内
     地址映射);
   - .tao/tasks/integ/INTEG-049t-*.md「已确认口径」(user-given block table,
@@ -38,7 +40,6 @@ import argparse
 import os
 import re
 import struct
-import subprocess
 import sys
 
 import os, sys
@@ -51,6 +52,7 @@ _MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
     sys.path.insert(0, os.path.join(_MACH_REPO, "tools", "testcases", "lib"))
 import machine_profile as _machine_profile  # noqa: E402
+import node_probe_prelude as _prelude  # noqa: E402
 _MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
 RAM_BASE = _MACH.ram_base
 RAM_END = _MACH.ram_end
@@ -71,15 +73,16 @@ EXIT_W0 = EXIT_BLOCK & 0xFFFF
 
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
-DEFAULT_QEMU = os.path.join(_REPO, ".work/build/qemu/qemu-system-dadao")
+DEFAULT_QEMU = _prelude.default_qemu()
 QEMU = DEFAULT_QEMU
-WORKDIR = "/tmp/opencode/INTEG-049t/probe"
+WORKDIR = "/tmp/opencode/TESTCASES-094t/min_rom_probe_integ049t"
 TIMEOUT = 20
 
-ROM_BASE = 0xFFFF_FFFF_0000
-BODY_OFF = 0x024        # hmon (cfx3/hypv) body, right after the power prefix
-HAND_OFF = 0x900        # CFXREG handler slot (cfx_hmon hypv vector)
-IMAGE_END = HAND_OFF + 0x040
+# TESTCASES-094t §1: the body runs at RESET_PC + 0x1000 inside the 4 MiB
+# bootrom-image, after the shared power -> hmon identity-PTW prelude.
+ROM_BASE = _prelude.ROM_BASE
+BODY_OFF = 0x000        # hmon (cfx3/hypv) body (the prelude owns offset 0)
+HAND_OFF = 0x2000       # CFXREG handler slot, body-relative (past every body)
 
 # Run modes (DADAO-12 §1)
 USER, JAIL, SUPV, HYPV = 0, 1, 2, 3
@@ -93,7 +96,12 @@ BLOCK0 = {
     2:  (0x3, 0x3FF_0000_0000, 0x1_0000, 0x7),   # smon  SRAM R|W|X
     3:  (0x3, 0x3FF_0000_0000, 0x1_0000, 0x7),   # hmon  SRAM R|W|X
     17: (0x3, 0x3FF_0000_0000, 0x1_0000, 0x3),   # pmem  SRAM R|W (X=0)
-    63: (0x5, 0x3FF_FFFC_0000, 0x4_0000, 0x5),   # power ROM  R|X
+    # spec/Machine-v5 §1.1: Node BootROM 4 MiB at 0xffff_ffc0_0000, i.e.
+    # offset 0x3ff_ffc0_0000 with size 0x40_0000 (start+size == 2^42).
+    # QEMU's current cg7 table still publishes the old 256 KiB window
+    # (0x3ff_fffc_0000/0x4_0000): `space_power` is BLOCKED against this
+    # spec-derived expectation (TESTCASES-094t §3), never relaxed to QEMU.
+    63: (0x5, 0x3FF_FFC0_0000, 0x40_0000, 0x5),   # power ROM  R|X
 }
 # §2.1 core-internal start addresses (independent of the cg7 read-back)
 FULL_ADDR = {
@@ -143,12 +151,8 @@ def load_rd(rd, val):
 
 
 def exit_seq(code):
-    """SYS_EXIT with the argument block in RAM (same convention as 045t)."""
-    return ([set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF),
-             or_w_rb(16, 0, 0xF000), or_w_rb(16, 2, RAM_W2)]
-            + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
-            + load_rd(9, code) + [st_o(9, 16, 8)]
-            + load_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)])
+    """Semihosting SYS_EXIT with the profile `exit_block` (TESTCASES-094t §0)."""
+    return _prelude.exit_seq(code)
 
 
 def info_rd(ha, cg, rc, rd):
@@ -164,24 +168,8 @@ def words_to_bytes(ws):
 
 
 def build_rom(body, sections):
-    """power prefix at 0, `body` at BODY_OFF, `sections` = {offset: words}."""
-    rom = bytearray(words_to_bytes(bootstrap_prefix()))
-    if len(rom) > BODY_OFF:
-        raise AssertionError("power prefix overlaps BODY_OFF")
-    while len(rom) < BODY_OFF:
-        rom += words_to_bytes([swym()])
-    rom += words_to_bytes(body)
-    for off in sorted(sections):
-        if len(rom) > off:
-            raise AssertionError("section at 0x%x overlaps (len 0x%x)" % (off, len(rom)))
-        while len(rom) < off:
-            rom += words_to_bytes([swym()])
-        rom += words_to_bytes(sections[off])
-    if len(rom) > IMAGE_END:
-        raise AssertionError("image too big (0x%x > 0x%x)" % (len(rom), IMAGE_END))
-    while len(rom) < IMAGE_END:
-        rom += words_to_bytes([swym()])
-    return bytes(rom)
+    """Shared prelude: `body` at the body base, `sections` = {offset: words}."""
+    return _prelude.build_rom(body, sections)
 
 
 # ---------------------------------------------------------------------------
@@ -189,25 +177,8 @@ def build_rom(body, sections):
 # ---------------------------------------------------------------------------
 
 def run(rom):
-    os.makedirs(WORKDIR, exist_ok=True)
-    rp = os.path.join(WORKDIR, "rom.bin")
-    kp = os.path.join(WORKDIR, "kernel.bin")
-    lp = os.path.join(WORKDIR, "cpu.log")
-    with open(rp, "wb") as f:
-        f.write(rom)
-    with open(kp, "wb") as f:
-        f.write(b"\x00" * 16)
-    cmd = [QEMU, "-M", "dadao-m1", "-nographic", "-bios", rp, "-kernel", kp,
-           "-semihosting-config", "enable=on,target=native",
-           "-d", "cpu", "-D", lp]
-    try:
-        r = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT, text=True)
-        rc = r.returncode & 0xFF
-    except subprocess.TimeoutExpired:
-        return None, "TIMEOUT"
-    with open(lp) as f:
-        log = f.read()
-    return rc, log
+    """4 MiB `bootrom-image`, no `-kernel`, one QEMU process per case."""
+    return _prelude.run(rom, WORKDIR, qemu=QEMU, timeout=TIMEOUT)
 
 
 def lasthex(log, pat):
@@ -254,11 +225,6 @@ def case(name, desc):
     return deco
 
 
-def bootstrap_prefix():
-    """power(cfx63/hypv) -> hmon(cfx3/hypv): hmon is power's only trap target."""
-    return load_rd(22, ROM_BASE + BODY_OFF) + [cfx2rc(3, 3, 10, 22), trap(3, 0)]
-
-
 def probe_base():
     """Install the CFXREG vector of the hmon/hypv row (handler slot)."""
     return load_rd(20, ROM_BASE + HAND_OFF) + [cfx2rc(3, 3, 10, 20)]
@@ -288,24 +254,36 @@ def or_accumulate(cfxha, rcs, acc_rd, tmp_rd):
     return out
 
 
-def xor_all(cfxha, acc_rd, tmp_rd, diff_rd, exp_rd):
-    """acc |= xor difference of all 64 rc against BLOCK0[cfxha] (0 if absent)."""
+def xor_all(cfxha, acc_rd, tmp_rd, diff_rd, exp_rd, base_rd=None):
+    """acc |= xor difference of all 64 rc against BLOCK0[cfxha] (0 if absent).
+
+    With `base_rd`, the block-0 words are read into base_rd..base_rd+3 first
+    and used as the reference, so the case checks "only space[0] is populated
+    and the same values read back" without baking a descriptor value into the
+    probe (spec-first: `space_power` is the only case that asserts the §1.1
+    descriptor).
+    """
     blk = BLOCK0.get(cfxha, (0, 0, 0, 0))
     out = [set_zw_rd(acc_rd, 0, 0)]
+    if base_rd is not None:
+        out += read_block(cfxha, base_rd)
     for rc in range(64):
-        exp = blk[rc % 4] if rc < 4 else 0
         out.append(cfx2rd(cfxha, 7, rc, tmp_rd))
-        if exp:
-            out += load_rd(exp_rd, exp)
-            out.append(xor_o(diff_rd, tmp_rd, exp_rd))
+        if rc < 4 and base_rd is not None:
+            out.append(xor_o(diff_rd, tmp_rd, base_rd + rc))
         else:
-            out.append(xor_o(diff_rd, tmp_rd, 0))     # rd0 == 0
+            exp = blk[rc % 4] if (rc < 4 and base_rd is None) else 0
+            if exp:
+                out += load_rd(exp_rd, exp)
+                out.append(xor_o(diff_rd, tmp_rd, exp_rd))
+            else:
+                out.append(xor_o(diff_rd, tmp_rd, 0))     # rd0 == 0
         out.append(or_o(acc_rd, acc_rd, diff_rd))
     return out
 
 
 def space_arith(cfxha):
-    """§2.1/§3.8 arithmetic re-derivation of the observed block 0."""
+    """§1.1 descriptor + §2.1 identity / §3.8 block arithmetic re-derivation."""
     def check(obs):
         errs = []
         desc, start, size, attr = (obs.get("rd10"), obs.get("rd11"),
@@ -320,7 +298,7 @@ def space_arith(cfxha):
             errs.append("power start+size 0x%x != 2^42" % (start + size))
         full = (cfxha << 42) | start
         if full != FULL_ADDR[cfxha]:
-            errs.append("(cfxha<<42)|start 0x%x != §2.1 0x%x"
+            errs.append("(cfxha<<42)|start 0x%x != §1.1 0x%x"
                         % (full, FULL_ADDR[cfxha]))
         return errs
     return check
@@ -352,7 +330,7 @@ def _space_pmem():
     return _space_case(17)
 
 
-@case("space_power", "cfx63 cg7 space[0]: desc/start/size/attr = 5/3ff_fffc_0000/4_0000/5 (X=1)")
+@case("space_power", "cfx63 cg7 space[0]: spec 5/3ff_ffc0_0000/40_0000/5 (4 MiB ROM)")
 def _space_power():
     return _space_case(63)
 
@@ -433,24 +411,25 @@ def _desc_attr_reserved():
 
 # -- 9: every rc of a space-bearing cfx is readable and matches the table --
 
-@case("ro_all_rc", "cfx2/cfx63: rc0..rc63 readable, xor-check vs table; rc0-3/rc60-63 sampled")
+@case("ro_all_rc", "cfx2 vs table; cfx63 rc0..63 readable and self-consistent; rc60-63 sampled 0")
 def _ro_all_rc():
     body = probe_base()
     body += xor_all(2, 10, 11, 12, 25)
-    body += xor_all(63, 13, 11, 12, 25)
-    # disjoint sample windows: cfx2 -> rd30..37, cfx63 -> rd38..45
-    for cfxha, rd in ((2, 30), (63, 38)):
-        body += [cfx2rd(cfxha, 7, rc, rd + rc) for rc in range(4)]
-        body += [cfx2rd(cfxha, 7, rc, rd + 4 + (rc - 60))
-                 for rc in range(60, 64)]
+    # cfx63: the block-0 words are the reference (the §1.1 descriptor itself is
+    # asserted by `space_power`), so this case stays readable/consistency only.
+    body += xor_all(63, 13, 11, 12, 25, base_rd=40)
+    # disjoint sample windows: cfx2 -> rd30..37, cfx63 -> rd44..47
+    body += [cfx2rd(2, 7, rc, 30 + rc) for rc in range(4)]
+    body += [cfx2rd(2, 7, rc, 34 + rc - 60) for rc in range(60, 64)]
+    body += [cfx2rd(63, 7, rc, 44 + rc - 60) for rc in range(60, 64)]
     body += exit_seq(0x00)
     rom = build_rom(body, {HAND_OFF: handler()})
     exp = {"exit": 0x00, "rd10": 0, "rd13": 0}
-    for cfxha, rd in ((2, 30), (63, 38)):
-        for rc in range(4):
-            exp["rd%d" % (rd + rc)] = BLOCK0[cfxha][rc]
-        for rc in range(60, 64):
-            exp["rd%d" % (rd + 4 + (rc - 60))] = 0
+    for rc in range(4):
+        exp["rd%d" % (30 + rc)] = BLOCK0[2][rc]
+    for rc in range(60, 64):
+        exp["rd%d" % (34 + rc - 60)] = 0
+        exp["rd%d" % (44 + rc - 60)] = 0
     return one(rom, exp)
 
 
@@ -487,6 +466,19 @@ def _unimpl_cfx():
 
 # -- 12: reads have no side effects ---------------------------------------
 
+def _read_stable_check(obs):
+    """Same rc read twice returns the same value (spec: cg7 reads are pure)."""
+    errs = []
+    for a, b, label in ((10, 11, "cfx63 start"), (12, 13, "cfx2 size"),
+                        (30, 31, "cfx17 attr")):
+        va, vb = obs.get("rd%d" % a), obs.get("rd%d" % b)
+        if va is None or vb is None:
+            errs.append("%s not observed" % label)
+        elif va != vb:
+            errs.append("%s differs: 0x%x vs 0x%x" % (label, va, vb))
+    return errs
+
+
 @case("read_stable", "same rc read twice returns the same value (no side effect)")
 def _read_stable():
     body = probe_base()
@@ -495,11 +487,7 @@ def _read_stable():
     body += [cfx2rd(17, 7, 3, 30), cfx2rd(17, 7, 3, 31)]
     body += exit_seq(0x00)
     rom = build_rom(body, {HAND_OFF: handler()})
-    exp = {"exit": 0x00,
-           "rd10": BLOCK0[63][1], "rd11": BLOCK0[63][1],
-           "rd12": BLOCK0[2][2], "rd13": BLOCK0[2][2],
-           "rd30": BLOCK0[17][3], "rd31": BLOCK0[17][3]}
-    return one(rom, exp)
+    return one(rom, {"exit": 0x00}, _read_stable_check)
 
 
 # ---------------------------------------------------------------------------
