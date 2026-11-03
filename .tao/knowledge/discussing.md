@@ -93,6 +93,7 @@
 - **2026-11-02 Tiny/Node 澄清与页大小**：Tiny 地址高 6 位恒为全 1（cfxha 63），**不实现任何 cfx（含 `cfx_power`）**，不能进入 user 模式；Tiny 只跑非 cfx 的 `inst` + `embench` + `picolibc`，但**允许 semihosting**（`trap` 只作陷入 host 的开关，不算 cfx 类指令）。Node 跑完整 `inst` + `arch` + `embench`，**不含 `picolibc`**。M11 不覆盖 smon。页大小统一为 **16 位/64 KiB**；QEMU user 当前 `TARGET_PAGE_BITS=12` 是 bug，须改为 16，不得把 4 KiB 当基准。
 - **2026-11-02 SPEC-183 ADR 与 picolibc 裁定**：用户逐条确认 ADR-0004/0039/0040/0043 四项修订；picolibc 自测采用 **A 方案**：ELF 的 crt/启动 stub 在 `0xffff_ffff_0000`，应用 `.text` 在 `0xffff_ff01_0100`，picolibc `__start` 在 SRAM 清 BSS，`e_entry` 在 ROM。`dadao.lds` 改为 `dadao-tiny.lds`，Node 用 `dadao-node.lds`，不保留泛名。
 - **2026-11-02 DADAO-12 异常流程修订待办**：`DADAO-12 §5` 异常进入流程需修订，明确区分两类拒绝——目标 cfx 的 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` 同步来源 mask 拒绝源 cfx ⇒ `CFXPERM`；硬件内部 `inner_cfx_mask` 屏蔽目标 cfx ⇒ `ILLI`。现行 prose/伪代码把两者混在一起，`m5_perm_mask_*` 已暴露该歧义。归 `SPEC-183t` 或单立 SPEC 任务；改只读册前须用户授权并更新 `spec-readonly.lock.toml`。
+- **2026-11-03 cfxha 重编号与作用域（M11 收尾前后执行）**：M11 结尾前后统一重排一次 cfxha：`cfx_pmem` → **32**、`cfx_llc` → **33**、`cfx_time` → **34**。多核系统资源作用域增加一行：**`cfx16–cfx31` = per-task；per-system = `cfx32–cfx63`**。`per-task` 含义：内核或进程需**申请后使用**该 cfx，并在使用完毕后**释放**；使用过程中进程发生上下文切换，**不影响该 cfx 的运行**，即**无需上下文切换**。该改动跨 spec/contracts/QEMU/gem5/tests，须统一任务落地，不得零散改号。
 
 ## Linux（M12 或后续，暂缓）
 
