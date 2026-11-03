@@ -27,7 +27,7 @@
 
 ## 5. 只读册哈希锁机制（MUST）
 
-只读册（上游 20 册 + v5 自定册 `spec/Machine-01`）以 **`manifests/spec-readonly.lock.toml`** 逐册 `sha256` 锁定，由 **`make check-spec-readonly`** 校验（已纳入 `make check`）。确需修改某只读册（**须先经用户授权**，见 §2）时，**同一变更**内**必须**更新该册 `sha256` 锁 + 在完成区记录授权原话；**未更新锁即改册 ⇒ 门控 FAIL**。
+只读册（上游 20 册 + v5 自定册 `spec/Machine-v5`）以 **`manifests/spec-readonly.lock.toml`** 逐册 `sha256` 锁定，由 **`make check-spec-readonly`** 校验（已纳入 `make check`）。确需修改某只读册（**须先经用户授权**，见 §2）时，**同一变更**内**必须**更新该册 `sha256` 锁 + 在完成区记录授权原话；**未更新锁即改册 ⇒ 门控 FAIL**。
 
 - 锁文件体例：`format = 1` + `policy = "readonly-requires-authorization"` + 每册一条 `[[spec]]`（`path` / `group` / `sha256`）。
 - 校验器：`tools/infra/check_spec_readonly.py`——逐册重算 `sha256` 与锁比对；**不符 / 缺失 ⇒ 非零退出**并逐条打印「册 + 期望 / 实际」。
@@ -42,9 +42,9 @@
 | `dadao-2x` | `spec/DADAO-21-ABI-应用程序二进制接口.md`、`spec/DADAO-22-SBI-主管系统二进制接口.md`、`spec/DADAO-23-HBI-超管系统二进制接口.md` |
 | `simrisc-00..12` | `spec/SimRISC-00-指令系统设计.md` … `spec/SimRISC-12-其它指令.md`（共 13 册） |
 | `toolchain-01` | `spec/Toolchain-01-汇编语言.md` |
-| `machine-01` | `spec/Machine-01-测试机运行环境.md` |
+| `machine-v5` | `spec/Machine-v5-测试机运行环境.md` |
 
-> **不在锁内**：`docs/Process-0x`、`spec/README.md` 为 **v5 自定册**，其正当修订由 §2 的授权流程把关（哈希锁只覆盖**锁内只读册**——上游只读册 + `spec/Machine-01`，其「不该被擅改」可由机械门控判定）。
+> **不在锁内**：`docs/Process-0x`、`spec/README.md` 为 **v5 自定册**，其正当修订由 §2 的授权流程把关（哈希锁只覆盖**锁内只读册**——上游只读册 + `spec/Machine-v5`，其「不该被擅改」可由机械门控判定）。
 
 ## 7. 与其它规范的关系
 

@@ -47,7 +47,7 @@ _LOCK_GROUP_TO_INTERLOCK = {
     "dadao-1x": ["aee-abi", "see-sbi", "hee-hbi"],
     "dadao-2x": ["aee-abi", "see-sbi", "hee-hbi"],
     "toolchain-01": [],
-    "machine-01": [],
+    "machine-v5": [],
 }
 
 

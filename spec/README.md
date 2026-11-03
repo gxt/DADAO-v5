@@ -63,7 +63,7 @@
 
 | 分册 | 职责 |
 |------|------|
-| [`Machine-01-测试机运行环境.md`](Machine-01-测试机运行环境.md) | v5 测试机（`dadao-m1`）运行环境与 semihosting 正文：内存映射/复位、运行模式、cfx/权限、`trap`/`escape`/异常进入、semihosting（tag/传参/25 服务/`SYS_EXIT`）、加载/bootrom、退出 |
+| [`Machine-v5-测试机运行环境.md`](Machine-v5-测试机运行环境.md) | v5 测试机（`dadao-m1`）运行环境与 semihosting 正文：内存映射/复位、运行模式、cfx/权限、`trap`/`escape`/异常进入、semihosting（tag/传参/25 服务/`SYS_EXIT`）、加载/bootrom、退出 |
 
 ### 二进制接口
 

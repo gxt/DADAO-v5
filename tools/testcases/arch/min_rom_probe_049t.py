@@ -5,7 +5,7 @@ convention).
 
 Spec sources (expectations derived by hand from spec/ + ADRs, never from the
 QEMU implementation):
-  - spec/Machine-01-测试机运行环境.md §1.1 (internal-address-space split:
+  - spec/Machine-v5-测试机运行环境.md §1.1 (internal-address-space split:
     RAM 0xFC00_0000_0000 16 MiB as the single RAM segment / boot ROM; C1
     step2 removed the legacy 0xffff_0000_0000 RAM and the exit-port device)
     and §1.2 (out-of-range access AND fetch both fault; CFXMEM(0x81) vs

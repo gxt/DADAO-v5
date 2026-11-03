@@ -1,0 +1,54 @@
+diff --git a/src/arch/dadao/exec/dispatch.cc b/src/arch/dadao/exec/dispatch.cc
+new file mode 100644
+index 0000000..87218c7
+--- /dev/null
++++ b/src/arch/dadao/exec/dispatch.cc
+@@ -0,0 +1,48 @@
++// DADAO gem5 execution dispatcher: exactly one case per implementation batch.
++#include "arch/dadao/exec/dispatch.hh"
++
++#include "arch/dadao/exec/b1.hh"
++#include "arch/dadao/exec/b2.hh"
++#include "arch/dadao/exec/b3.hh"
++#include "arch/dadao/exec/b4.hh"
++#include "arch/dadao/exec/b5.hh"
++#include "arch/dadao/exec/b6.hh"
++#include "arch/dadao/exec/b7.hh"
++
++namespace gem5
++{
++namespace DadaoISA
++{
++namespace exec
++{
++
++Fault
++dispatchBatch(uint8_t batch, const decode::DecodedInst &inst, B7Context &ctx)
++{
++    // B7Context derives from B6Context/B5Context/B1Context/RegAccess, so the
++    // same object satisfies every core's context reference.
++    switch (batch) {
++      case 1:
++        return executeB1(inst, ctx);
++      case 2:
++        return executeB2(inst, ctx);
++      case 3:
++        return executeB3(inst, ctx);
++      case 4:
++        return executeB4(inst, ctx);
++      case 5:
++        return executeB5(inst, ctx);
++      case 6:
++        return executeB6(inst, ctx);
++      case 7:
++        return executeB7(inst, ctx);
++      default:
++        // Out-of-range batches are rejected by the caller (inst.cc guard);
++        // there is no eighth batch and no silent "unimplemented" here.
++        __builtin_unreachable();
++    }
++}
++
++} // namespace exec
++} // namespace DadaoISA
++} // namespace gem5

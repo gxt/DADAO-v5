@@ -4,7 +4,7 @@ shared-layer reuse + full 25-service set + SYS_EXIT).
 
 Spec sources (all expectations are derived by hand from spec/ + contracts/,
 never from the QEMU implementation):
-  - spec/Machine-01-测试机运行环境.md §5 (semihosting: entry tag
+  - spec/Machine-v5-测试机运行环境.md §5 (semihosting: entry tag
     immu18[17:8]==0x3FF (0x3FF00-0x3FFFF), calling convention rd16/rb16/rd8, the authoritative
     25-service table, pc+=4 return, SYS_EXIT replaces the legacy MMIO halt device).
   - .tao/adr/adr-0020-see-semihosting.md D1/D2/D3/D4/D5/D6/D8/D10/D14.

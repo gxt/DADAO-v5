@@ -66,7 +66,7 @@ SPEC_PREFIX_MAP = {
     "DADAO-23":   "DADAO-23-HBI-超管系统二进制接口.md",
     # v5 自定册 (INFRA-058t): 与 SimRISC-/DADAO- 同等校验（此前缺席 ⇒ 引用不可见）。
     "Toolchain-01": "Toolchain-01-汇编语言.md",
-    "Machine-01":   "Machine-01-测试机运行环境.md",
+    "Machine-01":   "Machine-v5-测试机运行环境.md",
 }
 
 # ── regex patterns ────────────────────────────────────────────────────────────

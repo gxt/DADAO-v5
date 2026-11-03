@@ -421,7 +421,7 @@ def check_adr_alignment():
                "QEMU patch 未找到 DADAO_CFXHA_UMON")
 
     # --- exit port device removed (C1 step2; ADR-0020 D8) ---
-    # Source: ADR-0020 D8/D15 + spec/Machine-01 §7.  The legacy exit-port MMIO
+    # Source: ADR-0020 D8/D15 + spec/Machine-v5 §7.  The legacy exit-port MMIO
     # device is deleted in step2; the halt protocol is semihosting SYS_EXIT.
     # QEMU-053t therefore asserts the constants/device are GONE (was: the
     # retained QEMU-046t device constant).

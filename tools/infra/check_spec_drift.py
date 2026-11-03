@@ -75,7 +75,7 @@ SPEC_PREFIX_TO_FILENAME = {
     "DADAO-22":   "DADAO-22-SBI-主管系统二进制接口.md",
     "DADAO-23":   "DADAO-23-HBI-超管系统二进制接口.md",
     "Toolchain-01": "Toolchain-01-汇编语言.md",
-    "Machine-01":  "Machine-01-测试机运行环境.md",
+    "Machine-01":  "Machine-v5-测试机运行环境.md",
 }
 
 # ── 正则 ─────────────────────────────────────────────────────────────────────

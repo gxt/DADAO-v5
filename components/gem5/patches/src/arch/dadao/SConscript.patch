@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/SConscript b/src/arch/dadao/SConscript
 new file mode 100644
-index 0000000..44b9344
+index 0000000..f995d04
 --- /dev/null
 +++ b/src/arch/dadao/SConscript
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,45 @@
 +# DADAO ISA build description (B0 decode + B1/B2/B3/B4/B5/B6/B7 execution).
 +Import('*')
 +
@@ -40,6 +40,10 @@ index 0000000..44b9344
 +# the pure-integer IEEE 754 library used only by the B7 core.
 +Source('exec/b7.cc', tags=['dadao isa'])
 +Source('exec/fp_soft.cc', tags=['dadao isa'])
++# Unified batch dispatcher (plain C++; shared by inst.cc and the
++# GEM5-013t convergence harness exec/converge_test.cc, which is compiled
++# by tools/gem5/check_converge.py and is not part of the build).
++Source('exec/dispatch.cc', tags=['dadao isa'])
 +
 +SimObject('DadaoDecoder.py', sim_objects=['DadaoDecoder'], tags=['dadao isa'])
 +SimObject('DadaoISA.py', sim_objects=['DadaoISA'], tags=['dadao isa'])

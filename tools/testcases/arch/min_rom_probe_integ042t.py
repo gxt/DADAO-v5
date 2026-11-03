@@ -9,7 +9,7 @@ QEMU implementation:
     1..2^29, START self-clear, BUSY/DONE(W1C)/ERROR(W1C)/ERR_CODE one-hot,
     PMEM_DMA = 1 << 8 maskable), §3.6 (1<<8 owned by cfx_pmem).
   - .tao/adr/adr-0042-cfx-internal-dma.md D3/D4/D6/D7.1-D7.4.
-  - spec/Machine-01-测试机运行环境.md §1.1 (SRAM window 0x47ff_0000_0000)
+  - spec/Machine-v5-测试机运行环境.md §1.1 (SRAM window 0x47ff_0000_0000)
     and §3 (DMA may read RAM/boot ROM, may write RAM only).
   - contracts/cfx-aliases.txt (cfx_pmem = cfx17, cfx_cache = cfx5).
 

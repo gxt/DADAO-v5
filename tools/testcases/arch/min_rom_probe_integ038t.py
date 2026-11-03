@@ -13,7 +13,7 @@ from the QEMU implementation):
     cfx_ptw_ptbr (cg9 rc0); pahi/pthi/perm entries are gone.
   - spec/DADAO-12 §5.2: reserved cfx (6-14, 19-61) plain ld/st => CFXMEM.
   - .tao/adr/adr-0039-address-space-ptbr-ptw.md D1–D8（Step 1）
-  - spec/Machine-01-测试机运行环境.md §1.2/§3 (test-machine exit codes and the
+  - spec/Machine-v5-测试机运行环境.md §1.2/§3 (test-machine exit codes and the
     Step 1 implementation scope).
   - contracts/opcodes.yaml (ld/st/jump/set.zw/or.w/cfx2rd/cfx2rc encodings).
 
