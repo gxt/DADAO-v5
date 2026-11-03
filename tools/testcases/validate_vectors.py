@@ -192,8 +192,56 @@ def _check_state_banks(state, tag, label, errors):
                               % (tag, label, bank, key))
 
 
+# 复合 token ``<count>:@TOKEN`` 只对 RA/RAS 值有语义（TESTCASES-092t §2 / R7）：
+# ra0 的 RACNT、ra1..ra63 的递归计数、以及 call/ret 的 MemRAS 条目值。
+_RAS_MNEMONICS = ("call", "ret")
+
+
+def _count_token_placement_errors(case, tag):
+    """报出把 ``<count>:@TOKEN`` 误用到非 RA/RAS 字段的用法（可达 FAIL）。
+
+    误用会把 16 位计数推到目的值的 bit63:48（普通寄存器会读成别的高位），
+    因此必须拒绝，不能静默解析。
+    """
+    out = []
+
+    def walk(state_name, bank, reg, value):
+        if machine_profile.is_count_token(value) and bank != "ra":
+            out.append("%s: %s.%s.%s uses the <count>:@TOKEN form but it is "
+                       "only meaningful for RA/RAS values"
+                       % (tag, state_name, bank, reg))
+
+    for state_name in ("input_state", "expected_state"):
+        state = case.get(state_name)
+        if not isinstance(state, dict):
+            continue
+        for bank in ("rd", "rb", "ra"):
+            regs = state.get(bank)
+            if isinstance(regs, dict):
+                for reg, value in regs.items():
+                    walk(state_name, bank, reg, value)
+        mem = state.get("memory")
+        if isinstance(mem, list):
+            mnemonic = (case.get("mnemonic") or "").split(".")[0]
+            for i, entry in enumerate(mem):
+                if not isinstance(entry, dict):
+                    continue
+                if machine_profile.is_count_token(entry.get("address")):
+                    out.append("%s: %s.memory[%d].address uses the "
+                               "<count>:@TOKEN form (addresses are plain "
+                               "tokens)" % (tag, state_name, i))
+                if machine_profile.is_count_token(entry.get("value")) and \
+                        mnemonic not in _RAS_MNEMONICS:
+                    out.append("%s: %s.memory[%d].value uses the "
+                               "<count>:@TOKEN form but %r carries no RAS "
+                               "entry" % (tag, state_name, i, mnemonic))
+    if machine_profile.is_count_token(case.get("expected_pc")):
+        out.append("%s: expected_pc uses the <count>:@TOKEN form (only "
+                   "RA/RAS values carry a count)" % tag)
+    return out
+
+
 def validate_file(filepath, by_key, m1_keys, all_records, errors):
-    """校验单个向量 YAML，返回 case 数。"""
     try:
         with open(filepath) as fh:
             cases = _yaml.safe_load(fh)
@@ -230,6 +278,7 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                 machine_profile.resolve_case(case, PROFILE)
             except machine_profile.ProfileError as exc:
                 errors.append("%s: machine token: %s" % (tag, exc))
+        errors.extend(_count_token_placement_errors(case, tag))
 
         # 1/2/3/4/5. 必填字段、class、status、fault（保留编码仍须有这些字段，值为 null）
         for field in REQUIRED_FIELDS:
@@ -472,9 +521,14 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                               % tag)
         if cls in ("boundary", "overlap"):
             if cls == "boundary":
-                if fault is not None and fault not in ("ILLI", "UNMAPPED"):
+                # TESTCASES-092t §3: Tiny routing gives CFXMEM (below the SRAM
+                # in the cfxha-63 segment) or UNDI (in-SRAM all-zero fetch
+                # word), so those two are legitimate boundary expectations; the
+                # old {ILLI, UNMAPPED} set only described the pre-092t shape.
+                if fault is not None and fault not in ("ILLI", "UNMAPPED",
+                                                       "CFXMEM", "UNDI"):
                     errors.append("%s: %s case expected_fault must be null, "
-                                  "ILLI, or UNMAPPED, got %r"
+                                  "ILLI, UNMAPPED, CFXMEM, or UNDI, got %r"
                                   % (tag, cls, fault))
             else:  # overlap
                 if fault is not None and fault != "ILLI":

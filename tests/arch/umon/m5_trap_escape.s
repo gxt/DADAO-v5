@@ -2,10 +2,20 @@
 @@
 @@ Capability: a general (non-semihosting) `trap cfx_umon, immu18` with
 @@ immu18 < 0x3FF00 records cause CFXTRAP (1<<0) and enters the target cfx
-@@ exception vector; the callee returns with `escape cfx_umon, [excp_cause_ip, 4]`
-@@ (DADAO-12 §5; contract-see.md §4; DADAO-22 §1).  The SEE bootrom installed the
-@@ cfx_umon user exception vector at ROM+0x200 whose handler is exactly that
-@@ `escape`, so the trap round-trips back to the instruction after the trap.
+@@ exception vector of the *current* run mode; the callee returns with
+@@ `escape cfx_umon, [excp_cause_ip, 4]` (DADAO-12 §5; contract-see.md §4;
+@@ DADAO-22 §1).
+@@
+@@ TESTCASES-092t (§4): the body runs in hypv and the earlier boot stage (hmon)
+@@ points cfx_umon's hypv vector at the profile ENTRY, i.e. at the body itself —
+@@ a trap into that vector would restart the body (self-loop).  The body
+@@ therefore installs its own vector first: `cfx2rc cfx_umon, cg3, rc10, <stub>`.
+@@ cfx0 is the body's *own* cfx (self), so the write is legal; cfx_hmon's vector
+@@ is CFXPERM-denied from hypv and cannot be installed.  The stub is the single
+@@ word `escape cfx_umon, [excp_cause_ip, 4]`, placed *immediately before*
+@@ `main`; the installer builds its address as `rb0(main) - 4` (one word back),
+@@ so no absolute label is needed (DADAO has no PC-relative label relocation for
+@@ `add.si`).
 @@
 @@ The vector verifies (a) the recorded cause id is CFXTRAP and (b) escape_num
 @@ (cfx_umon.cg4.rc5) advanced by one, i.e. the escape really executed.
@@ -24,6 +34,18 @@
 	.text
 	.globl	_start
 _start:
+	jump	[rb0, main]			@@ word 0: skip the vector stub
+
+escape_stub:
+	@@ cfx_umon hypv exception vector: return to excp_cause_ip + 4
+	escape	cfx_umon, [excp_cause_ip, 4]
+
+main:
+	@@ cfx_umon.hypv.excp_vector = escape_stub (the word right before main)
+	rb2rd	rd22, rb0, 1			@@ rd22 = address of main
+	add.si	rd22, -4			@@ main - 1 word = escape_stub
+	cfx2rc	cfx_umon, cg3, rc10, rd22
+
 	@@ general trap: immu18 = 0x0123 (below the semihosting range 0x3FF00-0x3FFFF)
 	trap	cfx_umon, 0x0123
 

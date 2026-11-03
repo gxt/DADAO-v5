@@ -57,11 +57,16 @@ IMM_TAKEN = 2                   # imm for taken path (not 0, not 1)
 TARGET_TAKEN = "@ENTRY+0x%X" % (IMM_TAKEN << 2)
 TARGET_NOT_TAKEN = "@ENTRY+0x4"
 
-# Boundary: negative imm → target = rb0 + (imm << 2) falls outside RAM
-# (below the selected profile RAM base ⇒ UNMAPPED 0x87).
-# riii: imms18 = -0x1000 (18-bit: 0x3F000) → target = RB0 - 0x4000
-# rrii: imms12 = -0x400 (12-bit: 0xC00) → target = RB0 - 0x1000
-IMM_BOUNDARY_RIII = (-0x1000) & 0x3FFFF   # 0x3F000
+# Boundary (TESTCASES-092t §3, Tiny is the only profile that runs them):
+# Tiny has no PTW and no unmapped window: the whole cfxha-63 segment outside
+# BootROM/SRAM is CFXMEM (spec/Machine-v5 §1.2), while a target *inside* the
+# 8 MiB SRAM fetches an all-zero word → UNDI (§1.3 / SimRISC 全零字 = 保留编码).
+#   riii: imms18 = -0x2_0000 (18-bit: 0x20000) → target = @ENTRY - 0x8_0000,
+#         below the SRAM base (ENTRY - 0x1_0100) ⇒ CFXMEM (0x81).
+#   rrii: 12-bit imms12 reaches at most -0x800 words = -0x2000 bytes, which
+#         can never leave the 8 MiB SRAM ⇒ keep -0x400 (target @ENTRY-0x1000)
+#         and expect UNDI (0x89), the *in-SRAM zero word* route, not UNMAPPED.
+IMM_BOUNDARY_RIII = (-0x20000) & 0x3FFFF  # 0x20000
 IMM_BOUNDARY_RRII = (-0x400) & 0xFFF      # 0xC00
 # Sign-extend: for n-bit value, if bit (n-1) set → val - (1 << n)
 _imm18_s = IMM_BOUNDARY_RIII - (1 << 18) if IMM_BOUNDARY_RIII & (1 << 17) else IMM_BOUNDARY_RIII
@@ -353,12 +358,14 @@ def _gen_boundary_riii(identity, mnem, op, is_rb):
             reg_label = "rd0=0"
         word = _build_word_riii(op, reg, IMM_BOUNDARY_RIII)
     cases.append(_case(mnem, identity, "riii", "boundary", word, inp,
-                       {}, "UNMAPPED", None, sc,
-                       "boundary UNMAPPED: %s → condition TRUE → TAKEN; "
-                       "imms18=-0x1000 (0x3F000), "
-                       "target=rb0+(imm<<2)=@ENTRY-0x4000 → "
-                       "outside the selected profile RAM window → UNMAPPED (0x87)"
-                       % (reg_label,), profiles=["tiny"]))
+                       {}, "CFXMEM", None, sc,
+                       "boundary CFXMEM (Tiny): %s → condition TRUE → TAKEN; "
+                       "imms18=-0x20000 (0x20000), "
+                       "target=rb0+(imm<<2)=%s → below the 8 MiB SRAM in the "
+                       "cfxha-63 segment ⇒ CFXMEM (0x81, "
+                       "spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口"
+                       % (reg_label, TARGET_BOUNDARY_RIII),
+                       profiles=["tiny"]))
     return cases
 
 
@@ -376,10 +383,13 @@ def _gen_boundary_rrii(identity, mnem, op):
         word = _build_word_rrii(op, 1, 2, IMM_BOUNDARY_RRII)
         inp = {"rd": {"rd1": "0x0000000000000042", "rd2": "0x0000000000000099"}}
     cases.append(_case(mnem, identity, "rrii", "boundary", word, inp,
-                       {}, "UNMAPPED", None, sc,
-                       "boundary UNMAPPED: imms12=-0x400 (0xC00), "
-                       "target=rb0+(imm<<2)=@ENTRY-0x1000 → "
-                       "beyond/below the selected profile RAM → UNMAPPED (0x87)",
+                       {}, "UNDI", None, sc,
+                       "boundary UNDI (Tiny): imms12=-0x400 (0xC00), "
+                       "target=rb0+(imm<<2)=%s → inside the 8 MiB SRAM, so the "
+                       "fetch reads an all-zero word = 保留编码 ⇒ UNDI (0x89)；"
+                       "12 位 imm 最大 ±8 KiB，够不到 SRAM 边界，"
+                       "原 UNMAPPED 意图在两个 profile 都不可表达"
+                       % TARGET_BOUNDARY_RRII,
                        profiles=["tiny"]))
     return cases
 

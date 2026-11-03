@@ -8,3 +8,29 @@
     tests/shared/bootrom/step5/hmon.S 与 QEMU-080t 按用户 2026-11-03 口径落地
     **identity**（L1 index 0–3、VA=PA `[0, 2 GiB)`，entry `0x10_0000`、
     SP `0x7fff_0000`）。需 SPEC 任务订正 §6（不改 QEMU/测试语义）。
+
+- id: ISS-341
+  scope: [spec, qemu, testcases]
+  status: open
+  resolved_by: null
+  title: >-
+    ADR-0004 D5.8 的「exit code = 0x80 | spec_cause_bit_index」与 CFXREG 码不自洽：
+    CFXREG 的 cause 位是 `1<<2`，按公式应是 `0x82`，但 D5.8/`cpu.h.patch`
+    （`DADAO_EXIT_CFXREG`）把 CFXREG 定为 `0x84`；只有 CFXMEM（`1<<1`→`0x81`）
+    符合公式。TESTCASES-092t 的 hmon exit 策略按任务书口径**逐码写死**
+    （CFXMEM 0x81 / CFXREG 0x84 / ILLI 0x88 …），未做算术推导，避免与既有
+    QEMU/ADR 码表冲突；需 SPEC/ADR 任务订正 D5.8 的措辞（公式 or 显式码表）。
+- id: ISS-342
+  scope: [spec, qemu, testcases]
+  status: open
+  resolved_by: null
+  title: >-
+    cfx 寄存器组合错误（CFXREG）与 escape/trap 的异常目标 cfx 不一致：
+    `helper_cfx2rd/cfx2rc` 对「rc ≥ scratch_regs_num / 不存在的寄存器组合」用
+    `cfx_raise(..., cfxha /*被访问的 cfx*/, ...)`，而不是
+    `env->inner_run_mode`（当前模式 monitor）。Node 启动链把 cfx_umon 的 hypv
+    向量设为 profile ENTRY（测试本体），于是这类 fault 会**回到本体开头**
+    （自环，`-d cpu` 恒 PC=ENTRY；m5_perm_badcombo_cfxreg 修复前 timeout）。
+    测试资产的规避方式：body 先自装 cfx_umon 的 hypv 向量为本地 `escape` stub
+    （见 `tests/arch/umon/m5_perm_badcombo_cfxreg.s`）。是否应统一为
+    「current-mode monitor」需 SPEC/QEMU 判定（本任务不改 QEMU）。

@@ -651,7 +651,12 @@ BOOTROM_DIR = $(TEST_ARTIFACTS_DIR)/bootrom
 STEP5_BOOTROM_DIR = $(BOOTROM_DIR)/step5
 # Machine-v5-Node 4 MiB BootROM (QEMU-080t): supplied through the
 # `bootrom-image` machine property; the flat 64 KiB `-bios` window stays Tiny.
+# TESTCASES-092t: two hmon fault-policy variants from the same hmon.S:
+#   bootrom_step5.bin      HMON_FAULT_POLICY=0 (resume: arch / check-arch*)
+#   bootrom_step5_inst.bin HMON_FAULT_POLICY=1 (exit: inst harness observes
+#                          the machine-fault exit code instead of 0xB7)
 NODE_BOOTROM = $(STEP5_BOOTROM_DIR)/bootrom_step5.bin
+NODE_BOOTROM_INST = $(STEP5_BOOTROM_DIR)/bootrom_step5_inst.bin
 _locked-build-bootrom:
 	@test -x $(LLVM_MC_BIN) || { echo "build-bootrom: ERROR: $(LLVM_MC_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLD_BIN) || { echo "build-bootrom: ERROR: $(LLD_BIN) not found — run 'make install-host' first"; exit 1; }
@@ -671,6 +676,9 @@ _locked-build-bootrom:
 	$(LLVM_OBJCOPY_BIN) -O binary $(STEP5_BOOTROM_DIR)/power.elf $(STEP5_BOOTROM_DIR)/power.bin
 	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/step5/hmon.S -o $(STEP5_BOOTROM_DIR)/hmon.o
 	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/step5/hmon.lds $(STEP5_BOOTROM_DIR)/hmon.o -o $(STEP5_BOOTROM_DIR)/hmon.elf
+	@# TESTCASES-092t: the exit-policy hmon variant (same source, --defsym).
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym HMON_FAULT_POLICY=1 tests/shared/bootrom/step5/hmon.S -o $(STEP5_BOOTROM_DIR)/hmon_inst.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/step5/hmon.lds $(STEP5_BOOTROM_DIR)/hmon_inst.o -o $(STEP5_BOOTROM_DIR)/hmon_inst.elf
 	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/step5/smon.S -o $(STEP5_BOOTROM_DIR)/smon.o
 	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/step5/smon.lds $(STEP5_BOOTROM_DIR)/smon.o -o $(STEP5_BOOTROM_DIR)/smon.elf
 	$(PYTHON) tools/testcases/arch/build_step5_bootrom.py \
@@ -679,6 +687,16 @@ _locked-build-bootrom:
 	  --hmon-elf $(STEP5_BOOTROM_DIR)/hmon.elf \
 	  --smon-elf $(STEP5_BOOTROM_DIR)/smon.elf \
 	  --llvm-objcopy $(LLVM_OBJCOPY_BIN) --llvm-nm $(LLVM_NM_BIN)
+	$(PYTHON) tools/testcases/arch/build_step5_bootrom.py \
+	  --out-dir $(STEP5_BOOTROM_DIR) \
+	  --power-elf $(STEP5_BOOTROM_DIR)/power.elf \
+	  --hmon-elf $(STEP5_BOOTROM_DIR)/hmon_inst.elf \
+	  --smon-elf $(STEP5_BOOTROM_DIR)/smon.elf \
+	  --llvm-objcopy $(LLVM_OBJCOPY_BIN) --llvm-nm $(LLVM_NM_BIN) \
+	  --out-name bootrom_step5_inst.bin
+	$(PYTHON) tools/testcases/arch/build_step5_bootrom.py \
+	  --compare $(STEP5_BOOTROM_DIR)/bootrom_step5.bin \
+	            $(STEP5_BOOTROM_DIR)/bootrom_step5_inst.bin
 	$(PYTHON) tools/testcases/arch/build_step5_bootrom.py \
 	  --out-dir $(STEP5_BOOTROM_DIR) \
 	  --power-elf $(STEP5_BOOTROM_DIR)/power.elf \
@@ -1674,21 +1692,42 @@ check-fp-contract:
 INST_DIR = $(CURDIR)/tests/inst
 INST_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
 INST_SEM_LOG = .work/log/qemu/check-inst.log
+INST_TINY_LOG = .work/log/qemu/check-inst-tiny.log
 INST_TRAMPOLINE = tools/testcases/lib/trampoline.bin
+# TESTCASES-092t §6: two segments, each with its own rc; any non-zero ⇒ red.
+#   [1/2] Node 全量：profile=node + the exit-policy BootROM (observed fault codes)
+#   [2/2] Tiny 子集：profile=tiny + the flat 64 KiB trampoline + only the cases
+#         that explicitly name the tiny profile (44)
 _locked-check-inst: build-bootrom
 	@mkdir -p .work/log/qemu || { echo "check-inst: ERROR: cannot create .work/log/qemu"; exit 1; }
 	@test -f $(NODE_BOOTROM) || { echo "check-inst: ERROR: $(NODE_BOOTROM) not found"; exit 1; }
+	@test -f $(NODE_BOOTROM_INST) || { echo "check-inst: ERROR: $(NODE_BOOTROM_INST) not found"; exit 1; }
+	@test -f $(INST_TRAMPOLINE) || { echo "check-inst: ERROR: $(INST_TRAMPOLINE) not found"; exit 1; }
+	@echo "check-inst: [1/2] Node full set (profile=node)"
 	@DADAO_TEST_PROFILE=node $(PYTHON) tools/qemu/semantics_gate.py \
 	    --vectors $(INST_DIR) --gate-dir $(INST_SEM_DIR) \
-	    --qemu $(QEMU_BIN) --trampoline $(NODE_BOOTROM) \
+	    --qemu $(QEMU_BIN) --trampoline $(NODE_BOOTROM_INST) \
 	    --jobs $(JOBS) > $(INST_SEM_LOG) 2>&1; \
 	  rc=$$?; \
-	  tail -40 $(INST_SEM_LOG); \
+	  grep -E "Results:|skipped_profile" $(INST_SEM_LOG) | tail -2; \
+	  tail -20 $(INST_SEM_LOG); \
 	  if [ $$rc -ne 0 ]; then \
-	    echo "check-inst: FAIL (rc=$$rc)"; \
+	    echo "check-inst: FAIL (node segment rc=$$rc)"; \
 	    exit $$rc; \
-	  fi; \
-	  echo "check-inst: PASS"
+	  fi
+	@echo "check-inst: [2/2] Tiny subset (profile=tiny, --only-profile-cases)"
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/qemu/semantics_gate.py \
+	    --vectors $(INST_DIR) --gate-dir $(TEST_ARTIFACTS_DIR)/harness/gate-tiny \
+	    --qemu $(QEMU_BIN) --trampoline $(INST_TRAMPOLINE) \
+	    --only-profile-cases --jobs $(JOBS) > $(INST_TINY_LOG) 2>&1; \
+	  rc=$$?; \
+	  grep -E "Results:|skipped_profile" $(INST_TINY_LOG) | tail -2; \
+	  tail -20 $(INST_TINY_LOG); \
+	  if [ $$rc -ne 0 ]; then \
+	    echo "check-inst: FAIL (tiny segment rc=$$rc)"; \
+	    exit $$rc; \
+	  fi
+	@echo "check-inst: PASS (node full + tiny subset)"
 
 # inst 语义**冒烟**门控 (INFRA-058t, L2; TESTCASES-072t 更名+搬家):
 # `check-inst` 的代表子集。代表集按 (class, mnemonic) **机械派生**（每组取第一条，
@@ -1699,12 +1738,12 @@ INST_SMOKE_LOG = .work/log/qemu/check-inst-smoke.log
 _locked-check-inst-smoke: build-bootrom
 	@mkdir -p .work/log/qemu
 	@test -x $(QEMU_BIN) || { echo "check-inst-smoke: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
-	@test -f $(NODE_BOOTROM) || { echo "check-inst-smoke: ERROR: $(NODE_BOOTROM) not found"; exit 1; }
+	@test -f $(NODE_BOOTROM_INST) || { echo "check-inst-smoke: ERROR: $(NODE_BOOTROM_INST) not found"; exit 1; }
 	@DADAO_TEST_PROFILE=node $(PYTHON) tools/testcases/inst/run_qemu_smoke.py --qemu $(QEMU_BIN) \
-	    --trampoline $(NODE_BOOTROM) --vector-dir tests/inst/base \
+	    --trampoline $(NODE_BOOTROM_INST) --vector-dir tests/inst/base \
 	    --work-dir $(INST_SMOKE_WORK) --jobs $(JOBS) > $(INST_SMOKE_LOG) 2>&1; \
 	  rc=$$?; \
-	  tail -8 $(INST_SMOKE_LOG); \
+	  tail -10 $(INST_SMOKE_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "check-inst-smoke: FAIL (rc=$$rc)"; exit $$rc; fi; \
 	  echo "check-inst-smoke: PASS"
 

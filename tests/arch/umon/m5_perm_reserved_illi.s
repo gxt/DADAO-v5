@@ -6,10 +6,13 @@
 @@ DADAO-12 §5; SimRISC-11 指令域与执行条件).  cfxha 7 is reserved (contract-cfx-aliases
 @@ §1 lists only umon/jmon/smon/hmon/ptw/cache/hart/llc/pmem/time/uart/power).
 @@
-@@ The application runs in user mode after the SEE bootrom handoff; the bootrom
-@@ installed the cfx_umon user exception vector (ROM+0x200, `escape`) so the
-@@ redirect is observable and execution resumes after the trap.  The vector then
-@@ reads cfx_umon.cg5.rc2 (excp_cause_id) and requires it to be ILLI (1<<8).
+@@ TESTCASES-092t (§3/§4): the test body runs in hypv, whose current-mode
+@@ monitor is cfx_hmon.  The fault is delivered to hmon, which records the cause
+@@ in the profile's fault-record slot (FAULT_RECORD: +0 cause id, +8 cause ip;
+@@ both are VAs under the identity page table, so the body can `ld.o` them) and
+@@ then *resumes* at the instruction after the faulting one.  The vector reads
+@@ the recorded cause and requires ILLI (1<<8).  No cross-cfx register read and
+@@ no bootrom-installed user vector is assumed any more.
 @@
 @@ Expected: cause = ILLI (0x100); host $? = 0x50 (SYS_EXIT pass token).
 
@@ -26,10 +29,11 @@
 	.text
 	.globl	_start
 _start:
-	@@ reserved cfxha (7) -> ILLI
+	@@ reserved cfxha (7) -> ILLI, delivered to cfx_hmon (current-mode monitor)
 	trap	cfx7, 0
-	@@ read back the recorded exception cause id
-	cfx2rd	cfx_umon, cg5, rc2, rd10
+	@@ read back the cause the monitor recorded before resuming us
+	LOAD_ADDR rb4, FAULT_RECORD
+	ld.o	rd10, [rb4, 0]			@@ fault-record[0] = cause id
 	set.zw	rd12, wp0, 0x0100		@@ ILLI = 1 << 8
 	cmp.so	rd11, rd10, rd12
 	br.nz	{rd11}?, [rb0, fail]

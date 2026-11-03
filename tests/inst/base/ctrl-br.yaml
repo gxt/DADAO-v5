@@ -54,8 +54,8 @@
 - class: boundary
   deferred_reason: null
   encoding:
-    word: '0x6807F000'
-  expected_fault: UNMAPPED
+    word: '0x68060000'
+  expected_fault: CFXMEM
   expected_pc: null
   expected_state: {}
   format: riii
@@ -64,8 +64,8 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   mnemonic: br.n
-  notes: 'boundary UNMAPPED: rd1=-1(<0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=@ENTRY-0x4000
-    → outside the selected profile RAM window → UNMAPPED (0x87)'
+  notes: 'boundary CFXMEM (Tiny): rd1=-1(<0) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -119,16 +119,16 @@
 - class: boundary
   deferred_reason: null
   encoding:
-    word: '0x6903F000'
-  expected_fault: UNMAPPED
+    word: '0x69020000'
+  expected_fault: CFXMEM
   expected_pc: null
   expected_state: {}
   format: riii
   id: br.nn_riii_rd
   input_state: {}
   mnemonic: br.nn
-  notes: 'boundary UNMAPPED: rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=@ENTRY-0x4000
-    → outside the selected profile RAM window → UNMAPPED (0x87)'
+  notes: 'boundary CFXMEM (Tiny): rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -181,16 +181,16 @@
 - class: boundary
   deferred_reason: null
   encoding:
-    word: '0x6A03F000'
-  expected_fault: UNMAPPED
+    word: '0x6A020000'
+  expected_fault: CFXMEM
   expected_pc: null
   expected_state: {}
   format: riii
   id: br.z_riii_rd
   input_state: {}
   mnemonic: br.z
-  notes: 'boundary UNMAPPED: rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=@ENTRY-0x4000
-    → outside the selected profile RAM window → UNMAPPED (0x87)'
+  notes: 'boundary CFXMEM (Tiny): rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -242,8 +242,8 @@
 - class: boundary
   deferred_reason: null
   encoding:
-    word: '0x6B07F000'
-  expected_fault: UNMAPPED
+    word: '0x6B060000'
+  expected_fault: CFXMEM
   expected_pc: null
   expected_state: {}
   format: riii
@@ -252,8 +252,8 @@
     rd:
       rd1: '0x0000000000000001'
   mnemonic: br.nz
-  notes: 'boundary UNMAPPED: rd1=1(>0/!=0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=@ENTRY-0x4000
-    → outside the selected profile RAM window → UNMAPPED (0x87)'
+  notes: 'boundary CFXMEM (Tiny): rd1=1(>0/!=0) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -305,8 +305,8 @@
 - class: boundary
   deferred_reason: null
   encoding:
-    word: '0x6C07F000'
-  expected_fault: UNMAPPED
+    word: '0x6C060000'
+  expected_fault: CFXMEM
   expected_pc: null
   expected_state: {}
   format: riii
@@ -315,8 +315,8 @@
     rd:
       rd1: '0x0000000000000001'
   mnemonic: br.p
-  notes: 'boundary UNMAPPED: rd1=1(>0/!=0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=@ENTRY-0x4000
-    → outside the selected profile RAM window → UNMAPPED (0x87)'
+  notes: 'boundary CFXMEM (Tiny): rd1=1(>0/!=0) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -369,16 +369,16 @@
 - class: boundary
   deferred_reason: null
   encoding:
-    word: '0x6D03F000'
-  expected_fault: UNMAPPED
+    word: '0x6D020000'
+  expected_fault: CFXMEM
   expected_pc: null
   expected_state: {}
   format: riii
   id: br.np_riii_rd
   input_state: {}
   mnemonic: br.np
-  notes: 'boundary UNMAPPED: rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=@ENTRY-0x4000
-    → outside the selected profile RAM window → UNMAPPED (0x87)'
+  notes: 'boundary CFXMEM (Tiny): rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -437,7 +437,7 @@
   deferred_reason: null
   encoding:
     word: '0x6E041C00'
-  expected_fault: UNMAPPED
+  expected_fault: UNDI
   expected_pc: null
   expected_state: {}
   format: rrii
@@ -446,8 +446,8 @@
     rd:
       rd1: '0x0000000000000042'
   mnemonic: br.eq
-  notes: 'boundary UNMAPPED: imms12=-0x400 (0xC00), target=rb0+(imm<<2)=@ENTRY-0x1000 → beyond/below the selected profile
-    RAM → UNMAPPED (0x87)'
+  notes: 'boundary UNDI (Tiny): imms12=-0x400 (0xC00), target=rb0+(imm<<2)=@ENTRY-0x1000 → inside the 8 MiB SRAM, so the fetch
+    reads an all-zero word = 保留编码 ⇒ UNDI (0x89)；12 位 imm 最大 ±8 KiB，够不到 SRAM 边界，原 UNMAPPED 意图在两个 profile 都不可表达'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -506,7 +506,7 @@
   deferred_reason: null
   encoding:
     word: '0x6F042C00'
-  expected_fault: UNMAPPED
+  expected_fault: UNDI
   expected_pc: null
   expected_state: {}
   format: rrii
@@ -516,8 +516,8 @@
       rd1: '0x0000000000000042'
       rd2: '0x0000000000000099'
   mnemonic: br.ne
-  notes: 'boundary UNMAPPED: imms12=-0x400 (0xC00), target=rb0+(imm<<2)=@ENTRY-0x1000 → beyond/below the selected profile
-    RAM → UNMAPPED (0x87)'
+  notes: 'boundary UNDI (Tiny): imms12=-0x400 (0xC00), target=rb0+(imm<<2)=@ENTRY-0x1000 → inside the 8 MiB SRAM, so the fetch
+    reads an all-zero word = 保留编码 ⇒ UNDI (0x89)；12 位 imm 最大 ±8 KiB，够不到 SRAM 边界，原 UNMAPPED 意图在两个 profile 都不可表达'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -573,8 +573,8 @@
 - class: boundary
   deferred_reason: null
   encoding:
-    word: '0x720FF000'
-  expected_fault: UNMAPPED
+    word: '0x720E0000'
+  expected_fault: CFXMEM
   expected_pc: null
   expected_state: {}
   format: riii
@@ -583,8 +583,8 @@
     rb:
       rb3: '0x0000000000000000'
   mnemonic: br.z
-  notes: 'boundary UNMAPPED: rb3=0(==0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=@ENTRY-0x4000
-    → outside the selected profile RAM window → UNMAPPED (0x87)'
+  notes: 'boundary CFXMEM (Tiny): rb3=0(==0) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -640,8 +640,8 @@
 - class: boundary
   deferred_reason: null
   encoding:
-    word: '0x730FF000'
-  expected_fault: UNMAPPED
+    word: '0x730E0000'
+  expected_fault: CFXMEM
   expected_pc: null
   expected_state: {}
   format: riii
@@ -650,8 +650,8 @@
     rb:
       rb3: '0x0000000000000001'
   mnemonic: br.nz
-  notes: 'boundary UNMAPPED: rb3=1(!=0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=@ENTRY-0x4000
-    → outside the selected profile RAM window → UNMAPPED (0x87)'
+  notes: 'boundary CFXMEM (Tiny): rb3=1(!=0) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'

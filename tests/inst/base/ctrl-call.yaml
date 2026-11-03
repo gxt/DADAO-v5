@@ -29,7 +29,7 @@
   expected_state:
     ra:
       ra0: '0x0001000000000000'
-      ra63: '0x0001FFFFFF010104'
+      ra63: 1:@ENTRY+0x4
   format: iiii
   id: call_iiii_ra
   input_state: {}
@@ -46,13 +46,13 @@
   expected_pc: '@ENTRY+0x8'
   expected_state:
     ra:
-      ra63: '0x0002FFFFFF010104'
+      ra63: 2:@ENTRY+0x4
   format: iiii
   id: call_iiii_ra
   input_state:
     ra:
       ra0: '0x0001000000000000'
-      ra63: '0x0001FFFFFF010104'
+      ra63: 1:@ENTRY+0x4
   mnemonic: call
   notes: 'semantic C2 (recursive fold): ra0=0x0001000000000000, ra63 input [count=1, addr=@RAM_BASE+0x4]; PC+4=@ENTRY+0x4
     == ra63[47:0] → count+1: ra63=[count=2, addr=@RAM_BASE+0x4]; RACNT unchanged (1)'
@@ -68,7 +68,7 @@
     ra:
       ra0: '0x0002000000000000'
       ra62: '0x0001AAAA00000000'
-      ra63: '0x0001FFFFFF010104'
+      ra63: 1:@ENTRY+0x4
   format: iiii
   id: call_iiii_ra
   input_state:
@@ -109,17 +109,17 @@
     - address: '@ENTRY+0x6FFFF8'
       value: '0x0005DDDD00000000'
     ra:
-      ra0: '0x003FFFFFFF7100F8'
-      ra63: '0x0001FFFFFF010104'
+      ra0: 63:@ENTRY+0x6FFFF8
+      ra63: 1:@ENTRY+0x4
   format: iiii
   id: call_iiii_ra
   input_state:
     ra:
-      ra0: '0x003FFFFFFF710100'
+      ra0: 63:@ENTRY+0x700000
       ra1: '0x0005DDDD00000000'
       ra63: '0x0001CCCC00000000'
   mnemonic: call
-  notes: 'semantic C3b (MemRAS spill): ra0=0x003FFFFFFF710100 (RACNT=63, MRPTR=0xFFFFFF710100); ra1=[count=5, addr=0xDDDD00000000]
+  notes: 'semantic C3b (MemRAS spill): ra0=63:@ENTRY+0x700000 (RACNT=63, MRPTR=@ENTRY+0x700000); ra1=[count=5, addr=0xDDDD00000000]
     (oldest, idx=64-63=1); ra63=[count=1, addr=0xCCCC00000000]; PC+4=@ENTRY+0x4 ≠ ra63[47:0] → C3b: MRPTR-=8→@ENTRY+0x6FFFF8,
     spill ra1→MemRAS[@ENTRY+0x6FFFF8], push new ra63=[1, @RAM_BASE+0x4]; RACNT stays 63'
   spec_cite: 'SimRISC-00: 压栈流程; SimRISC-06: 函数调用'
@@ -147,7 +147,7 @@
   expected_state:
     ra:
       ra0: '0x0001000000000000'
-      ra63: '0x0001FFFFFF010104'
+      ra63: 1:@ENTRY+0x4
   format: rrii
   id: call_rrii_ra
   input_state: {}
@@ -164,13 +164,13 @@
   expected_pc: '@ENTRY+0x8'
   expected_state:
     ra:
-      ra63: '0x0002FFFFFF010104'
+      ra63: 2:@ENTRY+0x4
   format: rrii
   id: call_rrii_ra
   input_state:
     ra:
       ra0: '0x0001000000000000'
-      ra63: '0x0001FFFFFF010104'
+      ra63: 1:@ENTRY+0x4
   mnemonic: call
   notes: 'semantic C2 (recursive fold): ra0=0x0001000000000000, ra63 input [count=1, addr=@RAM_BASE+0x4]; PC+4=@ENTRY+0x4
     == ra63[47:0] → count+1: ra63=[count=2, addr=@RAM_BASE+0x4]; RACNT unchanged (1)'
@@ -186,7 +186,7 @@
     ra:
       ra0: '0x0002000000000000'
       ra62: '0x0001AAAA00000000'
-      ra63: '0x0001FFFFFF010104'
+      ra63: 1:@ENTRY+0x4
   format: rrii
   id: call_rrii_ra
   input_state:

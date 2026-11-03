@@ -41,6 +41,11 @@ def render(prof):
         ".equ RESET_PC, %#x" % prof.reset_pc,
         ".equ EXIT_BLOCK, %#x" % prof.exit_block,
         ".equ DUMP_BASE, %#x" % prof.dump_base,
+    ]
+    # hmon 的同步 fault 记录槽（TESTCASES-092t）；无 monitor 的 profile 不定义。
+    if prof.fault_record is not None:
+        lines.append(".equ FAULT_RECORD, %#x" % prof.fault_record)
+    lines += [
         ".equ HMON_BASE, 0x0fff00000000",
         ".equ SMON_BASE, 0x0bff00000000",
         ".equ PMEM_BASE, 0x47ff00000000",

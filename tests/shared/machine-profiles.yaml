@@ -10,8 +10,14 @@
 #   ram_base / ram_size / ram_end
 #   entry / sp / host_loader / image_window / kernel_base / kernel_reserved
 #   ptw / hmon / smon / cfx / semihosting / arch / embench / picolibc /
-#   default_run_mode / exit_block / dump_base
+#   default_run_mode / exit_block / dump_base / fault_record
 #   qemu_*（QEMU 侧回填；null = DEFERRED，不得静默 PASS）
+#
+# fault_record（TESTCASES-092t）：hmon 的同步 fault 记录槽（8 字节对齐，
+# 在 RAM 内、位于 exit_block 之下）。布局（fault 记录 = 16 字节）：
+#   +0  cause（spec cause id，one-hot，DADAO-12 §4）
+#   +8  excp_cause_ip（cfx_hmon cg5 rc3）
+# 只有 Node 的 hmon 写它；Tiny 无 cfx、无 monitor ⇒ null。
 #
 # 用户裁定（2026-11-02，第二轮）：
 #   Tiny：地址高 6 位恒 0x3F，**无任何 cfx（含 cfx_power）**、不能 user 模式；
@@ -48,6 +54,7 @@ profiles:
     default_run_mode: machine
     exit_block: 0xFFFF_FF7E_0000
     dump_base: 0xFFFF_FF7E_8000
+    fault_record: null
     qemu_ram_base: 0xFFFF_FF00_0000
     qemu_ram_size: 0x80_0000
     qemu_bootrom_base: 0xFFFF_FFFF_0000
@@ -79,6 +86,7 @@ profiles:
     default_run_mode: hypv
     exit_block: 0x7FFD_0000
     dump_base: 0x7FFE_0000
+    fault_record: 0x7FFC_0000
     qemu_ram_base: 0x0000_0000_0000
     qemu_ram_size: 0x8000_0000
     qemu_bootrom_base: 0xFFFF_FFC0_0000

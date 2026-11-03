@@ -60,6 +60,18 @@ def _selected_profile():
     return os.environ.get("DADAO_TEST_PROFILE") or "tiny"
 
 
+def case_profiles(case):
+    """显式 ``profiles:`` 列表（无该字段 ⇒ None = 两个 profile 都适用）。"""
+    profs = case.get("profiles")
+    return profs if isinstance(profs, list) else None
+
+
+def case_applies(case, profile_name):
+    """case 是否适用于 ``profile_name``（TESTCASES-092t §1）。"""
+    profs = case_profiles(case)
+    return profs is None or profile_name in profs
+
+
 def _machine_args(profile_name, bootrom_path):
     """QEMU machine arguments for the selected profile (QEMU-080t)."""
     if profile_name == "node":
@@ -556,10 +568,29 @@ def run_single_test(qemu_bin, trampoline_path, vector_file, case_idx=None,
                     timeout=DEFAULT_TIMEOUT, dump_mode=False, verbose=False):
     """Run a single test case.
 
-    Returns (status, description, case_dict, dump_file).
+    Returns (status, description, case_dict, dump_file).  A case that does not
+    apply to the selected profile returns status ``SKIP`` (TESTCASES-092t §1:
+    inapplicable is not a failure and must not be built).
     """
     # Build binary
     try:
+        cases = _load_cases(vector_file)
+        case = None
+        if isinstance(cases, list):
+            if case_idx is not None and 0 <= case_idx < len(cases):
+                case = cases[case_idx]
+            else:
+                case = next((c for c in cases
+                             if c.get("class") in ("semantic", "encoding",
+                                                   "boundary")
+                             and case_applies(c, _selected_profile())), None)
+        if isinstance(case, dict) and not case_applies(case, _selected_profile()):
+            profs = case_profiles(case) or []
+            print(f"  SKIP(profile) {os.path.basename(vector_file)}"
+                  f"[{case_idx}] {case.get('id')} "
+                  f"profiles=[{', '.join(str(p) for p in profs)}] "
+                  f"(running {_selected_profile()})")
+            return "SKIP", "case does not apply to this profile", case, None
         bin_path, case = build_binary(vector_file, case_idx, dump_mode)
     except Exception as e:
         return "ERROR", str(e), None, None
@@ -601,8 +632,17 @@ def run_single_test(qemu_bin, trampoline_path, vector_file, case_idx=None,
 
 
 def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
-              dump_mode=False, verbose=False, jobs=1):
+              dump_mode=False, verbose=False, jobs=1, profile=None,
+              only_profile_cases=False):
     """Run all vector files in a directory.
+
+    Profile applicability (TESTCASES-092t §1): a case whose ``profiles:`` list
+    does not contain the selected profile is **skipped and counted**
+    (``skipped_profile``), never built and never counted as FAIL.  ``total``
+    is the number of cases the gate really owns (run + deferred);
+    ``total + skipped_profile`` equals the on-disk case count.  With
+    ``only_profile_cases`` the run is restricted to the cases that *explicitly*
+    name the current profile (the Tiny sub-gate).
 
     Cases are executed serially when ``jobs <= 1``. With ``jobs > 1`` the
     runnable cases are dispatched to a ``ThreadPoolExecutor``: once the
@@ -614,10 +654,13 @@ def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
     ``(file order, case order)`` — identical to the serial run — so the
     summary counts and ``fail_details`` are independent of ``jobs``.
 
-    Returns (total, passed, failed, deferred, errors, fail_details).
+    Returns (total, passed, failed, deferred, errors, fail_details,
+    skipped_profile).
     """
+    profile_name = profile or _selected_profile()
     total = 0
     deferred = 0
+    skipped = 0
 
     vector_files = sorted([
         os.path.join(vector_dir, f)
@@ -625,7 +668,7 @@ def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
         if f.endswith(".yaml")
     ])
 
-    # Ordered plan: ("deferred"|"run", vector_file, fname, case_idx, case).
+    # Ordered plan: ("deferred"|"skip"|"run", vector_file, fname, case_idx, case).
     # Preserves (file order, case order) so results can be aggregated in
     # deterministic order regardless of completion order.
     plan = []
@@ -638,12 +681,21 @@ def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
             continue
 
         for i, case in enumerate(cases):
-            total += 1
+            profs = case_profiles(case)
+            applies = case_applies(case, profile_name)
+            if only_profile_cases and profs is None:
+                applies = False
+            if not applies:
+                skipped += 1
+                plan.append(("skip", vf, fname, i, case))
+                continue
             if case.get("status", "active") == "deferred":
+                total += 1
                 deferred += 1
                 plan.append(("deferred", vf, fname, i, case))
-            else:
-                plan.append(("run", vf, fname, i, case))
+                continue
+            total += 1
+            plan.append(("run", vf, fname, i, case))
 
     # Execute runnable cases (parallel when jobs > 1).
     workers = max(1, jobs)
@@ -679,6 +731,12 @@ def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
             if verbose:
                 print(f"  DEFERRED {fname}[{i}]: {case.get('mnemonic', '?')}")
             continue
+        if kind == "skip":
+            profs = case_profiles(case) or []
+            print(f"  SKIP(profile) {fname}[{i}] {case.get('id')} "
+                  f"profiles=[{', '.join(str(p) for p in profs)}] "
+                  f"(running {profile_name})")
+            continue
 
         status, desc, _, _dump_file = results[run_cursor]
         run_cursor += 1
@@ -700,7 +758,7 @@ def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
             failed += 1
             fail_details.append(f"  {status} {fname}[{i}]: {desc}")
 
-    return total, passed, failed, deferred, errors, fail_details
+    return total, passed, failed, deferred, errors, fail_details, skipped
 
 
 def main():
@@ -723,6 +781,10 @@ def main():
                              "(default: $JOBS or 1)")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Verbose output")
+    parser.add_argument("--only-profile-cases", action="store_true",
+                        help="Run only cases whose `profiles:` list names the "
+                             "selected profile (the Tiny sub-gate; "
+                             "TESTCASES-092t §1)")
     args = parser.parse_args()
 
     # Parallelism: explicit --jobs wins; else $JOBS; else 1 (serial semantics).
@@ -772,13 +834,14 @@ def main():
             sys.exit(1)
 
         print(f"Running batch tests from {vector_dir}...")
-        total, passed, failed, deferred, errors, fail_details = run_batch(
+        total, passed, failed, deferred, errors, fail_details, skipped = run_batch(
             qemu_bin, trampoline_path, vector_dir, args.timeout, args.dump,
-            args.verbose, jobs
+            args.verbose, jobs, only_profile_cases=args.only_profile_cases
         )
 
         print(f"\nResults: {total} total, {passed} passed, {failed} failed, "
-              f"{deferred} deferred, {errors} errors")
+              f"{deferred} deferred, {errors} errors, "
+              f"skipped_profile={skipped}")
 
         if fail_details:
             print("\nFailed tests:")
@@ -812,7 +875,9 @@ def main():
         if dump_file:
             print(f"  Dump file: {dump_file}")
 
-        sys.exit(0 if status == "PASS" else 1)
+        # SKIP (profile-inapplicable) is neither PASS nor FAIL: it reports 0 so
+        # a driver loop can tell "not applicable" from "failed".
+        sys.exit(0 if status in ("PASS", "SKIP") else 1)
 
 
 if __name__ == "__main__":

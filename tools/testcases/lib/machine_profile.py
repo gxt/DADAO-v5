@@ -18,6 +18,12 @@ token 语法（任务书 §3）：
   ``@RAM_BASE`` / ``@RAM_END`` / ``@SP`` / ``@BOOTROM_BASE`` / ``@ENTRY`` /
   ``@RESET_PC``，可带**单个** ``+0x…`` / ``-0x…`` 偏移。
   未解析 token、非法偏移或解析结果越 64 位 ⇒ 显式报错，绝不静默取 0。
+
+复合计数 token（TESTCASES-092t §2）：
+  ``"<count>:@TOKEN[+0x…|-0x…]"`` —— RA/RAS 值 = ``(count << 48) | addr``，
+  ``count`` 为十进制或 ``0x…``，范围 ``0..0xFFFF``，要求 ``addr < 2^48``。
+  只对带计数字段的 RA 值有语义（``ra0`` 的 RACNT、``ra1..ra63`` 的递归计数、
+  MemRAS 条目值）；误用到 ``rd``/``rb``/地址字段会被 validator 拒绝（R7）。
 """
 from __future__ import annotations
 
@@ -37,6 +43,11 @@ TOKEN_NAMES = ("RAM_BASE", "RAM_END", "SP", "BOOTROM_BASE", "ENTRY", "RESET_PC")
 _TOKEN_RE = re.compile(
     r"^@(?P<name>[A-Z_]+)(?P<sign>[+-])?(?P<off>0[xX][0-9a-fA-F_]+)?$")
 _HEX_RE = re.compile(r"^0[xX][0-9a-fA-F_]+$")
+# ``<count>:@TOKEN[±0x…]``：RA/RAS 值的 (递归) 计数与地址复合写法。
+_COUNT_TOKEN_RE = re.compile(
+    r"^(?P<count>\d+|0[xX][0-9a-fA-F_]+):(?P<token>@.+)$")
+ADDR48_MAX = 0xFFFF_FFFF_FFFF
+COUNT_MAX = 0xFFFF
 REQUIRED_FIELDS = (
     "bootrom_base", "bootrom_size", "reset_pc", "bootrom_load",
     "ram_base", "ram_size", "ram_end",
@@ -44,14 +55,14 @@ REQUIRED_FIELDS = (
     "kernel_base", "kernel_reserved",
     "ptw", "hmon", "smon", "cfx", "semihosting", "arch", "embench",
     "picolibc", "default_run_mode",
-    "exit_block", "dump_base",
+    "exit_block", "dump_base", "fault_record",
     "qemu_ram_base", "qemu_ram_size", "qemu_bootrom_base",
     "qemu_bootrom_size", "qemu_reset_pc",
 )
 _INT_FIELDS = (
     "bootrom_base", "bootrom_size", "reset_pc", "ram_base", "ram_size",
     "ram_end", "entry", "sp", "image_window", "kernel_base",
-    "kernel_reserved", "exit_block", "dump_base",
+    "kernel_reserved", "exit_block", "dump_base", "fault_record",
     "qemu_ram_base", "qemu_ram_size", "qemu_bootrom_base",
     "qemu_bootrom_size", "qemu_reset_pc",
 )
@@ -106,6 +117,27 @@ class Profile:
                 raise ProfileError(
                     "profile %r: %s %#x outside RAM [%#x, %#x]"
                     % (name, field, val, data["ram_base"], data["ram_end"]))
+        fault_record = data["fault_record"]
+        if fault_record is not None:
+            if not isinstance(fault_record, int):
+                raise ProfileError(
+                    "profile %r field 'fault_record' must be an integer or null"
+                    % name)
+            if fault_record % 8:
+                raise ProfileError(
+                    "profile %r: fault_record %#x is not 8-byte aligned"
+                    % (name, fault_record))
+            # 16-byte record, inside RAM and strictly below the exit block so a
+            # fault record can never alias the SYS_EXIT argument block or dump.
+            if not (data["ram_base"] <= fault_record
+                    and fault_record + 16 <= data["exit_block"]):
+                raise ProfileError(
+                    "profile %r: fault_record %#x+16 outside RAM below "
+                    "exit_block %#x" % (name, fault_record, data["exit_block"]))
+            if fault_record in (data["exit_block"], data["dump_base"]):
+                raise ProfileError(
+                    "profile %r: fault_record %#x collides with exit_block/"
+                    "dump_base" % (name, fault_record))
 
     def __getitem__(self, key):
         return self._data[key]
@@ -148,6 +180,11 @@ class Profile:
     @property
     def image_window(self):
         return self._data["image_window"]
+
+    @property
+    def fault_record(self):
+        """hmon 的 fault-record 槽地址；无 monitor 的 profile 为 None。"""
+        return self._data["fault_record"]
 
     def token(self, name):
         """返回 @TOKEN 的数值（不做 48 位截断）。"""
@@ -222,17 +259,50 @@ def is_token(value):
     return isinstance(value, str) and value.strip().startswith("@")
 
 
+def is_count_token(value):
+    """True iff ``value`` uses the ``<count>:@TOKEN`` composite form."""
+    return isinstance(value, str) and _COUNT_TOKEN_RE.match(value.strip()) is not None
+
+
+def _resolve_count_token(value, prof):
+    """``<count>:@TOKEN[±0x…]`` -> ``(count << 48) | resolved_addr``。"""
+    m = _COUNT_TOKEN_RE.match(value.strip())
+    count = int(m.group("count").replace("_", ""), 0)
+    if not 0 <= count <= COUNT_MAX:
+        raise ProfileError(
+            "count token %r: count %d outside 0..0x%X"
+            % (value, count, COUNT_MAX))
+    token = m.group("token")
+    mt = _TOKEN_RE.match(token)
+    if not mt:
+        raise ProfileError(
+            "malformed count token %r (expected <count>:@TOKEN[±0x…])" % value)
+    addr = resolve(token, prof)
+    if addr > ADDR48_MAX:
+        raise ProfileError(
+            "count token %r: resolved address %#x does not fit in 48 bits"
+            % (value, addr))
+    result = (count << 48) | addr
+    if result > 0xFFFF_FFFF_FFFF_FFFF:
+        raise ProfileError(
+            "count token %r resolves outside 64 bits: %#x" % (value, result))
+    return result
+
+
 def resolve(value, profile=None):
     """解析一个 token 或普通整数/十六进制字符串。
 
     * 普通值原样返回整数；
     * ``@TOKEN`` / ``@TOKEN+0x…`` / ``@TOKEN-0x…`` 按 profile 解析；
+    * ``<count>:@TOKEN[+0x…|-0x…]`` ⇒ ``(count << 48) | addr``（RA/RAS 值）；
     * 未解析 token 或非法偏移 ⇒ ProfileError（不静默取 0）。
     """
     prof = profile if isinstance(profile, Profile) else load(profile)
     if not isinstance(value, str):
         return _parse_int(value) if not isinstance(value, int) else value
     s = value.strip()
+    if is_count_token(s):
+        return _resolve_count_token(s, prof)
     if not s.startswith("@"):
         return _parse_int(s)
     m = _TOKEN_RE.match(s)
@@ -304,7 +374,6 @@ def print_profiles():
         print("%-5s bootrom=%#x+%#x ram=%#x..%#x entry=%#x sp=%#x ptw=%s"
               % (name, prof.bootrom_base, prof["bootrom_size"], prof.ram_base,
                  prof.ram_end, prof.entry, prof.sp, prof["ptw"]))
-
 
 if __name__ == "__main__":
     try:

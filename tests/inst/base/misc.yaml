@@ -47,20 +47,10 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-11: escape'
-  notes: 'legality: cfxha=63 (current cfx is cfx0), imms18=0x2 (imms18[1] set); imms18[17:1] != 0 (SBZ) => ILLI; legal offsets
-    are 0/+4. Sequence installs a cause_id discriminator as cfx3''s HYPV monitor vector so monitor-entry ILLI is observable
-    (non-ILLI exits via UNDI/CFXMEM).'
-  sequence:
-  - '0x40D96001'
-  - '0x59580010'
-  - '0x7B0C3296'
-  - '0x7EFC0002'
-  - '0x7A0C509E'
-  - '0x4C7C0100'
-  - '0x4029E79F'
-  - '0x6B780002'
-  - '0x79001000'
-  - '0x00000000'
+  notes: 'legality: imms18=0x2 (imms18[1] set); imms18[17:1] != 0 (SBZ) => ILLI (0x88); legal offsets are 0/+4. The trap body
+    runs in hypv, where the current-mode monitor is cfx_hmon: hmon''s exit policy surfaces the cause as the host exit code
+    (TESTCASES-092t §3), so the expected ILLI is observable without installing a vector (the pre-092t cfx3.hypv vector write
+    is itself CFXPERM-denied from hypv, and would have masked the real cause).'
   profiles:
   - node
 - mnemonic: escape
@@ -76,20 +66,10 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-11: escape'
-  notes: 'legality: cfxha=63 (current cfx is cfx0), imms18=0x3 (imms18[1:0] = 2''b11); imms18[17:1] != 0 (SBZ) => ILLI; legal
-    offsets are 0/+4. Sequence installs a cause_id discriminator as cfx3''s HYPV monitor vector so monitor-entry ILLI is observable
-    (non-ILLI exits via UNDI/CFXMEM).'
-  sequence:
-  - '0x40D96001'
-  - '0x59580010'
-  - '0x7B0C3296'
-  - '0x7EFC0003'
-  - '0x7A0C509E'
-  - '0x4C7C0100'
-  - '0x4029E79F'
-  - '0x6B780002'
-  - '0x79001000'
-  - '0x00000000'
+  notes: 'legality: imms18=0x3 (imms18[1:0] = 2''b11); imms18[17:1] != 0 (SBZ) => ILLI (0x88); legal offsets are 0/+4. The
+    trap body runs in hypv, where the current-mode monitor is cfx_hmon: hmon''s exit policy surfaces the cause as the host
+    exit code (TESTCASES-092t §3), so the expected ILLI is observable without installing a vector (the pre-092t cfx3.hypv
+    vector write is itself CFXPERM-denied from hypv, and would have masked the real cause).'
   profiles:
   - node
 - mnemonic: escape
@@ -105,20 +85,10 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-11: escape'
-  notes: 'legality: cfxha=63 (current cfx is cfx0), imms18=0x3FFFE (negative-offset encoding (imms18 sign bit set)); imms18[17:1]
-    != 0 (SBZ) => ILLI; legal offsets are 0/+4. Sequence installs a cause_id discriminator as cfx3''s HYPV monitor vector
-    so monitor-entry ILLI is observable (non-ILLI exits via UNDI/CFXMEM).'
-  sequence:
-  - '0x40D96001'
-  - '0x59580010'
-  - '0x7B0C3296'
-  - '0x7EFFFFFE'
-  - '0x7A0C509E'
-  - '0x4C7C0100'
-  - '0x4029E79F'
-  - '0x6B780002'
-  - '0x79001000'
-  - '0x00000000'
+  notes: 'legality: imms18=0x3FFFE (negative-offset encoding (imms18 sign bit set)); imms18[17:1] != 0 (SBZ) => ILLI (0x88);
+    legal offsets are 0/+4. The trap body runs in hypv, where the current-mode monitor is cfx_hmon: hmon''s exit policy surfaces
+    the cause as the host exit code (TESTCASES-092t §3), so the expected ILLI is observable without installing a vector (the
+    pre-092t cfx3.hypv vector write is itself CFXPERM-denied from hypv, and would have masked the real cause).'
   profiles:
   - node
 - mnemonic: escape
@@ -134,19 +104,9 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-11: escape'
-  notes: 'legality: cfxha=63 (current cfx is cfx0), imms18=0x1FFFF (max 18-bit value); imms18[17:1] != 0 (SBZ) => ILLI; legal
-    offsets are 0/+4. Sequence installs a cause_id discriminator as cfx3''s HYPV monitor vector so monitor-entry ILLI is observable
-    (non-ILLI exits via UNDI/CFXMEM).'
-  sequence:
-  - '0x40D96001'
-  - '0x59580010'
-  - '0x7B0C3296'
-  - '0x7EFDFFFF'
-  - '0x7A0C509E'
-  - '0x4C7C0100'
-  - '0x4029E79F'
-  - '0x6B780002'
-  - '0x79001000'
-  - '0x00000000'
+  notes: 'legality: imms18=0x1FFFF (max 18-bit value); imms18[17:1] != 0 (SBZ) => ILLI (0x88); legal offsets are 0/+4. The
+    trap body runs in hypv, where the current-mode monitor is cfx_hmon: hmon''s exit policy surfaces the cause as the host
+    exit code (TESTCASES-092t §3), so the expected ILLI is observable without installing a vector (the pre-092t cfx3.hypv
+    vector write is itself CFXPERM-denied from hypv, and would have masked the real cause).'
   profiles:
   - node

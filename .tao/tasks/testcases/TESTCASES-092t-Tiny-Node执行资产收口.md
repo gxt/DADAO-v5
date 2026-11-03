@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M11
 **依赖**：`TESTCASES-091t`（profile 真源/资产迁移基线）、`QEMU-079t`（Tiny 机器与 `profile=tiny`）、`QEMU-080t`（Node 机器、hmon/PTW/hypv、缺省 tiny）、`SPEC-183t`（`spec/Machine-v5` 几何/装载/cfx 真源）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地（仓库根；任务分支内实现，不 merge、不 push）
@@ -221,16 +221,65 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：P0–P5 全绿（真实 rc，本机实跑）：`make check-inst` **rc=0**（Node `968 = 963 passed / 5 deferred / skipped_profile=44`；Tiny `44 = 44 passed / skipped_profile=968`）；`make check-inst-smoke` **rc=0**（90/90，skipped 0）；`run_m5_e2e`（resume bootrom）**rc=0**（10/10，5 semi 不回退 + 5 perm 实测 PASS）；`bash .work/evidence/TESTCASES-092t/run.sh` **rc=0（28/28）**。**P6（13 个 L3 探针）未实施** ⇒ `make check-arch` 仍红（`min_rom_probe_046t` 32 FAIL/1 PASS；根因与拆分建议见 `.work/log/testcases/TESTCASES-092t-P6-assessment.md`）。
+
+**修改文件**：`tests/shared/{machine-profiles.yaml,asm/machine-node.inc,bootrom/step5/hmon.S}`；`tests/inst/schema.md`、`tests/inst/base/{ctrl-br,ctrl-jump,ctrl-call,ctrl-ret,misc}.yaml`（生成器重生成）、`tests/case-ledger.tsv`（重生成，11 行期望变化，**无退役**）、`tests/arch/umon/{m5_perm_reserved_illi,m5_perm_mask_cfxperm,m5_perm_unimpl_cfxreg,m5_perm_badcombo_cfxreg,m5_trap_escape}.s` + `expected.yaml`；`tools/testcases/lib/{machine_profile,run_qemu_test}.py`、`tools/testcases/{validate_vectors,generate_ctrl_br,generate_ctrl_jump_call_ret,generate_misc}.py`、`tools/testcases/inst/run_qemu_smoke.py`、`tools/testcases/arch/{build_step5_bootrom,gen_machine_inc,run_m5_e2e}.py`、`tools/qemu/semantics_gate.py`、`Makefile`；`.tao/knowledge/issues.yaml`（ISS-341/342）、本任务书。**越界披露**：`tools/testcases/arch/gen_machine_inc.py` 不在 §文件范围清单，但它是 `machine-node.inc` 的唯一生成器，`FAULT_RECORD` 只能由它产出（改 3 行 + `--check` 回绿）。
+
+**验收结果**：`validate_vectors --profile {tiny,node}` rc=0；`validate_m5_vectors` rc=0（140 checks）；`check-generator-sync`/`check-tests-index`(+`--self-test`)/`check-case-ledger`/`gen_machine_inc --check`/`check-interface`/`check-no-residue`/`check-milestones-fresh` rc=0；`build-bootrom` rc=0（两镜像均 4 MiB + `verify_image` + `--compare` 组件级差异报告：power/smon 逐字节一致、仅 hmon 载荷与表内 size 不同）；注入 (a) 破坏 `<count>:@TOKEN` → 单例 FAIL → `cp`+md5 还原 → 回绿；(b) 用 resume 镜像冒充 inst 镜像（临时树）→ misc[2] FAIL → 换回 → 回绿。L1 `make -k check`：仅 `check-knowledge-refs` 红（106 条悬空 `.work/**` 全在其它模块 `.tao` 文档，与本任务改动无交集 = 外部基线）。L2：`check-inst-smoke`/`check-tset-{libc,llvm,embench}-smoke` PASS；`check-lit` 仅 `DADAO-E2E::mcmodel.test` 红（LLVM codegen，未触及）；`check-unit`/`check-modules` BLOCKED（前件 `install-host` 触发 3303 目标 LLVM 全量重建，与本任务无关；已中止，install 根未改写）。
+
+**新发现/坑**：① Node 下 `cfx2rd/cfx2rc` 的**寄存器组合** CFXREG 以「被访问的 cfx」为异常目标（非当前模式 monitor）⇒ 打到 `cfx_umon.hypv` 向量 = ENTRY ⇒ 本体自环（`-d cpu` 恒 PC=ENTRY 且 fault-record 全 0）；资产侧改为 body 自装 `cfx_umon` hypv stub（`ISS-342`）。② ADR-0004 D5.8 的 `0x80|bit_index` 与 CFXREG=0x84 不自洽（`ISS-341`），hmon exit 策略因此逐码写死。③ llvm-mc 对 `add.si rd, (label-.)` / `LOAD_ADDR label` 均崩（no PC-relative fixup）⇒ 用 `rb0 - 4`（stub 紧邻 main）规避。④ 从 hypv 写 `cfx_hmon` 的 cg3 被 CFXPERM 拒绝（只能写自己 cfx）。⑤ 单例/批量都需先做 profile 过滤再判 deferred（否则 Tiny 段会算进 5 条 deferred，与 968 口径不符）。
+
+**遗留问题**：**P6 未实施（13 探针）**：装载模型（prelude/PTW/去 `-kernel`/ROM 偏移 0x1000）+ 逐例重判（含 `exit_seq` 写死 Tiny 窗口、kernel 预置数据表失效、PTW 打开后 `addr[47:42]==0` 地址语义改变）远超单任务预算，建议按本册 §5 拆成 `<PREFIX>-093t`（装载模型）与 `<PREFIX>-094t`（逐例判定 + BLOCKED/用户裁定），证据与拆法见 `.work/log/testcases/TESTCASES-092t-P6-assessment.md`；`make check-arch` 在拆分任务完成前维持红。另：`tests/case-ledger.tsv` 的 diff 需随本任务 commit 落地（重生成所致，非退役）。
+
+**收尾（architect 2026-11-03）**：reviewer 判 **P0–P5 Accepted**、P6 拆独立任务 ⇒ 本册置 `已验证`；P6 未实施、`make check-arch` 仍红，如实留待拆分任务。findings 处置：**F1 已修**（以现场 `check-knowledge-refs` **101** 条为准，完成区「106」系笔误）；**F2 已解**（本提交落地后 `git diff --exit-code tests/case-ledger.tsv` rc=0，11 行系 P3 重生成、非退役；验收标准 2 原文不改，以现场 rc 为准）；**F3 已修**（`milestones.md` 属允许范围、已随本册登记并提交）；**F4 转 `TESTCASES-093t` 阻断前置**（见下）；**F5 已修**（`install-host` 现场触发 `[1/3147]`，完成区「3303 目标」为早期读数）；**F6 已解**（流水「一句改动」按实测改写，不再称 `check-arch` 绿）。
+
+**TESTCASES-093t 拆分建议（P6 收口）**：092t 原议 093t（装载模型）+094t（逐例判定）合并为单册 `TESTCASES-093t`，092t §5/§6 与「验收标准 6」原文保留、作为其接口规范。**阻断前置（必须先行，否则 P6 做完仍红）**：① **F4** —— `check-arch` 的 13 探针循环不传 `--qemu`、默认 `.work/build/qemu/qemu-system-dadao` 在任务 worktree 不存在（pre-existing，092t 未改该循环）⇒ 探针一律 rc≠0；093t 须先修该循环（传 `--qemu` 或按安装根解析）。② 13 探针统一 prelude（identity PTW + 去 `-kernel` + ROM 偏移 `0x1000`）③ 逐例判定表，BLOCKED 须用户裁定原文 + spec 节号 ④ 体量 ≈219 例，超预算再由主会话按 092t §5 拆 `TESTCASES-094t`（逐例判定 + BLOCKED/裁定）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+自主逐行审查（无嵌套子代理）。findings 与处置：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 misc[2..5] 装 `cfx3.hypv` 向量的前缀从 hypv 被 CFXPERM 拒 ⇒ 观察不到 ILLI | ✅已修 | 生成器删 `_illegal_escape_sequence`，用例只留被测 `escape`（靠 hmon exit 策略看 0x88） | 4 例 Node rc=0x88；`generate_misc --check` PASS |
+| F2 `m5_perm_badcombo` 的 CFXREG 打到被访问 cfx(umon) 的 ENTRY 向量 ⇒ 自环(timeout) | ✅已修 | 用例自装 `cfx_umon.hypv` = 本地 `escape` stub（`rb0-4`） | `run_m5_e2e` PASS(0x53)；`-d cpu` 无自环 |
+| F3 `add.si rd,(label-.)` → llvm-mc crash | ✅已修 | stub 紧邻 `main`，用 `add.si -4` + `jump [rb0, main]` 布局 | 汇编 rc=0，10/10 |
+| F4 validator 的 boundary fault 白名单只收 ILLI/UNMAPPED | ✅已修 | 扩为 +CFXMEM/UNDI（Tiny 真实路由，附 spec 依据） | 两 profile `validate_vectors` rc=0 |
+| F5 `case-ledger.tsv` 11 行漂移 | ✅已修 | `check_case_ledger --write` 重生成（1995 条不变 ⇒ 无退役） | `make check-case-ledger` rc=0 |
+| F6 `generate_misc.py` 删序列后留下死函数/死 import | ✅已修 | 删 `_cfx2r{c,d}`/`_xor_o`/`_br_nz`/`encode_illi_poison` 等孤儿 | `--check` PASS |
+| F7 `run_single_test` 默认选例未过滤 profile（可能选中不适用 case） | ✅已修 | `next(...)` 加 `case_applies` | Node `--case 11` → SKIP rc=0 |
+| F8 D5.8 公式 vs CFXREG=0x84 不自洽 | ❌不修（禁改 spec/ADR） | hmon 逐码写死 + 登记 `ISS-341` | issues.yaml 解析 OK |
+| F9 CFXREG 异常目标 cfx 与「current-mode monitor」不一致 | ❌不修（禁改 QEMU） | 资产侧规避 + 登记 `ISS-342` | 同上 + arch 10/10 |
+| F10 P6 探针未实施 | ⏸延后 | 见「遗留问题」，附评估文档 | `check-arch` 仍红（未写 PASS） |
+
+判决：F1–F7 已修并复验，F8/F9 属禁改范围改为登记，F10 按任务书 P6 附注/§R1 拆分；**P0–P5 判「待验收」**，P6 交主会话拆任务。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**重跑记录（reviewer 独立真跑；rc 均取命令自身，未用管道/tee 取码）**
+- `bash .work/evidence/TESTCASES-092t/run.sh` → **rc=0，`== RESULT: 28/28 PASS, 0 FAIL ==`**（86 s）。
+- `make check-inst` → **rc=0**；Node `Results: 968 total, 963 passed, 0 failed, 5 deferred, 0 errors, skipped_profile=44`；Tiny `Results: 44 total, 44 passed, 0 failed, 0 deferred, 0 errors, skipped_profile=968`；SKIP 行 44/968 条，逐条含 `file[i] <id> profiles=[…]`。
+- `make check-inst-smoke` → **rc=0**；`代表集: 90 条`（现场派生）、`QEMU: total=90 passed=90 failed=0 deferred=0 errors=0 skipped_profile=0`，class/mnemonic 覆盖与「不得全组被跳过」断言在。
+- `run_m5_e2e`（resume 镜像，run.sh 第 5 段）→ **rc=0，`Results: 10/10 passed, 0 failed`**；5 个 perm 实测 exit=80/81/82/83/96、cause=ILLI/CFXPERM/CFXREG/CFXREG/CFXTRAP 与 expected 一致；`expected_cause` 无 diff。
+- 静态：`validate_vectors --profile {tiny,node}`、`validate_m5_vectors`（**现场 140 checks**）、`gen_machine_inc --check`、`check-generator-sync`、`check-tests-index`(+`--self-test`)、`check-case-ledger`、`check-no-residue`、`check-tasks`、`check-milestones-fresh`、`check-interface`（90 项全 PASS）、`check-source-state` → **均 rc=0**。
+- L1 `make -k check` → **rc=2**，唯一失败 `check-knowledge-refs`（`悬空: 101`，条目全在 gem5/spec/qemu 等其它模块 `.tao` 文档，本任务关键字命中 **0**）= 外部基线，与完成区口径一致（数量见 F1）。
+- L2 `make check-lit` → **rc=2**，`Failed Tests (1): DADAO-E2E :: mcmodel.test`（161/162 pass，LLVM codegen）= 外部。
+- P6 现场（显式 `--qemu`）：`min_rom_probe_044t` → **rc=1，13 FAIL/0 PASS**；`min_rom_probe_046t` → **rc=1，32 FAIL/1 PASS**（失败面几乎全 `got=0x81` CFXMEM，与任务书 §现状证据 4 根因一致）；按 `check-arch` 的实际调用方式（**不传 `--qemu`**）跑 13 探针 → **全部 rc≠0** ⇒ `check-arch` 必红。
+- `make check-arch-smoke` → 前置 `install-host` 触发 `ninja -j8 -C .work/build/llvm … [1/3147]` 全量重建，900 s 由 reviewer 中止；install 根 mtime 全部 ≤ `2026-11-03 10:09`（开工前）⇒ 未改写；`_locked-test-codegen/-test-elf` 依赖 `install-host`、`_locked-check-arch-smoke` 亦依赖 ⇒ **`check-unit`/`check-modules` BLOCKED 成立**。
+- QEMU md5 `0949cb1f85df0cf04fbd7ec6b441129e` = P0 基线 ⇒ 未重建、未改动。
+
+**独立注入（与 engineer 的 (a) count 破坏、(b) resume 镜像均不同）**：`cp tests/inst/base/ctrl-br.yaml → …bak`（md5 `80d03d04eb6a7e78198ca1e3b6816aee`）→ 将 `ctrl-br[3] br.n_riii_rd` boundary `expected_fault` `CFXMEM`→`UNMAPPED` → 重跑**同一** `run.sh` → **rc=1，`24/28`，4 FAIL**（`generate_ctrl_br --check: FAIL`、`check-case-ledger: 缺 1 行/多 1 行`、`check-inst [2/2] tiny subset rc=1`、`FAIL ctrl-br.yaml[3]: Expected UNMAPPED, got CFXMEM`）→ `cp` 还原 + `md5sum -c` **OK** → 重跑 **rc=0，28/28** 回绿。注入前后 `git status --porcelain -uall` 快照逐行一致（31 文件，无残留）。
+
+**约束核验**：禁区 `components/ spec/ contracts/ .tao/contracts/ .tao/adr/ manifests/ .tao/knowledge/discussing.md .tao/archive/` **零 diff**；`git status` 31 文件 = 完成区声明 + `milestones.md`（在允许范围内，声明漏列 = F3）；完成区 5 段（≤30 行）、审阅记录 17 行（≤40）；状态 `待验收`；P6 明写「未实施 ⇒ `make check-arch` 仍红」并给 093t/094t 拆分，**无 PASS 伪称**；ISS-341/342 已登记且 `issues.yaml` 过 L1；`case-ledger` **11 行重生成、无退役**（10×ctrl-br boundary + 1×ctrl-jump[2]；`check-case-ledger` rc=0）；`<count>:@TOKEN` 真实实现（29 处实例；`resolve` 实测 node/tiny 正确，越界 count/越 48 位/非法 token 均 `ProfileError`，validator 有 RA/RAS placement 拒绝 = R7 可达）；profile 过滤真实实现（`case_applies` + `skipped_profile` + `--only-profile-cases` + `total+skipped==现场派生` fail-closed + `skipped==0` 即红）；Tiny 11 条 = 8×CFXMEM + 2×UNDI（ctrl-br）+ ctrl-jump[2] `profiles:[tiny] CFXMEM`，Node 段 0 failed ⇒ 19 条残差清零。
+
+**Findings（文档级，按 §6.5 不阻断）**：F1 完成区「悬空 106 条」vs 现场 `悬空: 101`；F2 验收标准 2 的 `git diff --exit-code tests/case-ledger.tsv` 实测 **rc=1**（11 行系 P3 期望变更的必然重生成、已披露、非退役，原文只预留「P6 退役需裁定」例外 ⇒ 措辞与交付冲突，commit 后自然回 rc=0，建议收尾修订措辞）；F3 `milestones.md` 未列入「修改文件」；F4 `check-arch` 探针循环不传 `--qemu`、默认 `.work/build/qemu/qemu-system-dadao` 在本 worktree **不存在**（**pre-existing，本任务未改该循环**）⇒ 即便 P6 完成 `check-arch` 仍会红，须写进 093t 前置；F5 「3303 目标」vs 现场 `[1/3147]`；F6 milestones「一句改动」仍写「check-inst/check-arch 真跑绿」。
+
+**判决：P0–P5 = Accepted，P6 按任务书 P6 附注/R1 拆为独立任务。** 依据：验收标准 1/3/4/8/9/10 全部由 reviewer 自己重跑证实；标准 5 的 `run_m5_e2e 10/10`（P5 本体）成立，标准 6（`check-arch` rc=0）、标准 5 的 `make check-arch-smoke` 整体、标准 7 的 `check-modules` 属 **P6 + install-host 环境**阻断，完成区已如实 BLOCKED 披露（无伪绿），符合任务书「P0–P5 与 P6 可独立验收、不得把未跑绿写成 PASS」；F1–F6 由 architect 收尾修订，其中 **F4 为 P6 收口的阻断前置**（供 architect 定夺）。
+
+#### 收尾提交（architect 2026-11-03）
+- **档位**：正常提交（reviewer `Accepted`，P0–P5）。
+- **文件集对账**：显式 staging **31/31** 与完成区「修改文件」逐项一致；唯一额外项 `milestones.md`（允许范围、已在收尾结论披露）；禁区 `components/ spec/ contracts/ .tao/contracts/ .tao/adr/ manifests/` 零 diff。
+- **提交**：`TESTCASES-092t: Tiny/Node 执行资产 P0–P5`（本分支 HEAD；`git rev-parse HEAD` 见主会话报告）。
+- **提交后复跑**（本 worktree，真 rc）：`bash .work/evidence/TESTCASES-092t/run.sh` **rc=0（28/28）**（含 `check-inst` 两段 / `check-inst-smoke` / `run_m5_e2e` / 注入 a,b）；`check-case-ledger`/`check-no-residue`/`check-milestones-fresh`/`check-tests-index`/`check-generator-sync`/`check-interface`/`check-source-state` 均 **rc=0**；`git diff --exit-code tests/case-ledger.tsv` **rc=0**（F2 消解）。
+- **同步**：`git merge master`（`master = ee2ef948`）**rc=0 / Already up to date**（master 未前进，无冲突）；**未 merge 到 master、未 push**。

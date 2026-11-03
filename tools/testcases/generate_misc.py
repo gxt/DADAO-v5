@@ -44,7 +44,6 @@ OPCODES = os.path.join(REPO, "contracts", "opcodes.yaml")
 sys.path.insert(0, os.path.join(REPO, "tools", "testcases", "lib"))
 from build_test_binary import (  # noqa: E402
     set_profile as _set_profile, get_profile,
-    emit_load_imm64_rd, encode_illi_poison,
 )
 _set_profile("tiny")
 BINARY_BASE = get_profile().entry
@@ -75,67 +74,8 @@ def _enc(record_id, **fields):
     return word
 
 
-def _cfx2rc(cfxha, cg, rc, rd):
-    return _enc("cfx2rc_crrr_cfx", cfxha=cfxha, cghb=cg, rchc=rc, rdhd=rd)
-
-
 def _escape(cfxha, imms18):
     return _enc("escape_ciii_cfx", cfxha=cfxha, imms18=imms18)
-
-
-def _cfx2rd(cfxha, cg, rc, rd):
-    return _enc("cfx2rd_crrr_cfx", cfxha=cfxha, cghb=cg, rchc=rc, rdhd=rd)
-
-
-def _xor_o(dst, a, b):
-    return _enc("xor.o_orrr_rd", rdhb=dst, rdhc=a, rdhd=b)
-
-
-def _br_nz(rd, imms18):
-    return _enc("br.nz_riii_rd", rdha=rd, imms18=imms18)
-
-
-def _illegal_escape_sequence(imms18):
-    """Sequence that makes an illegal escape observable as ILLI in the inst harness.
-
-    The harness starts in cfx_power (cfx63, HYPV) with no exception frame, so a
-    bare `escape` faults into a monitor vector that is unset => the host would
-    see CFXMEM instead of ILLI.  HYPV's monitor is cfx_hmon (cfx3); install a
-    discriminator as cfx3's HYPV vector:
-
-      preamble : cfx3.hypv.vector = HANDLER
-      BODY     : escape cfx63, <illegal imms18>
-      HANDLER  : rd30 = cfx3 cause_id; if rd30 != ILLI -> UNDI word
-                 fallthrough: static-ILLI poison word (0x88)
-
-    Legal escape (0/+4) never reaches here.  With the SBZ check present the
-    illegal imms18 raises ILLI (cause 0x100) into cfx3 and HANDLER exits 0x88
-    (the expected fault).  With the check removed the escape falls through to
-    the cfxha/frame check (no frame) => CFXESC into cfx63, whose vector is
-    unset => CFXMEM (0x81), so the expected-ILLI case FAILs.
-    """
-    # Layout: preamble[0..2], escape[3], HANDLER[4..9].
-    # The handler address is built *relative to the current IP* (rb0), not
-    # from a profile-dependent absolute entry: rb2rd copies IP, add.si +16
-    # reaches the handler at word 4.  This keeps the same case valid on both
-    # Tiny and Node.
-    preamble = [
-        _enc("rb2rd_orri_rb", rdhb=22, rbhc=0, immu6=1),  # rd22 = rb0 (IP)
-        _enc("add.si_riii_rd", rdha=22, imms18=16),       # + 4 words
-        _cfx2rc(3, 3, 10, 22),                            # cfx3.hypv.vector
-    ]
-    body = [_escape(63, imms18)]
-    handler = [
-        _cfx2rd(3, 5, 2, 30),            # cfx3 cause_id -> rd30
-        _enc("set.zw_rwii_rd", rdha=31, wpN=0, immu16=0x0100),  # ILLI one-hot
-        _xor_o(30, 30, 31),              # 0 iff cause == ILLI
-        _br_nz(30, 2),                   # non-ILLI -> UNDI word (offset 2)
-        encode_illi_poison(),            # ILLI path => exit 0x88
-        0x00000000,                      # reserved word => UNDI 0x89
-    ]
-    seq = preamble + body + handler
-    assert len(seq) == 10, len(seq)
-    return seq
 
 
 def _load_records():
@@ -269,12 +209,16 @@ def generate():
             expected_fault="ILLI",
             expected_pc=None,
             spec_cite="SimRISC-11: escape",
-            notes="legality: cfxha=63 (current cfx is cfx0), imms18=0x%X (%s); imms18[17:1] != 0 (SBZ) => "
-                  "ILLI; legal offsets are 0/+4. Sequence installs a cause_id "
-                  "discriminator as cfx3's HYPV monitor vector so monitor-entry "
-                  "ILLI is observable (non-ILLI exits via UNDI/CFXMEM)."
+            notes="legality: imms18=0x%X (%s); imms18[17:1] != 0 (SBZ) => "
+                  "ILLI (0x88); legal offsets are 0/+4. The trap body runs in "
+                  "hypv, where the current-mode monitor is cfx_hmon: hmon's "
+                  "exit policy surfaces the cause as the host exit code "
+                  "(TESTCASES-092t §3), so the expected ILLI is observable "
+                  "without installing a vector (the pre-092t cfx3.hypv vector "
+                  "write is itself CFXPERM-denied from hypv, and would have "
+                  "masked the real cause)."
                   % (imms18, why),
-            sequence=_illegal_escape_sequence(imms18),
+            sequence=None,
             profiles=["node"],
         ))
 

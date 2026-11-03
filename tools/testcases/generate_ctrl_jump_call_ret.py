@@ -78,15 +78,35 @@ def _tok(offset):
         return "@ENTRY+0x%X" % offset
     return "@ENTRY-0x%X" % (-offset)
 
-# MemRAS test addresses (inside the RAM window, 8-byte aligned).  The single RAM
-# segment geometry comes from tests/shared/machine-profiles.yaml, so the
-# base sits 0x00F0_0000 bytes into it (well below the 16 MiB top).
-MRPTR_BASE = RB0 + 0x00_700000   # MemRAS base (inside the 8 MiB Tiny RAM)
+# MemRAS test address (inside the RAM window, 8-byte aligned), written as an
+# entry-relative token so Tiny and Node resolve it from the same case
+# (TESTCASES-092t §2).  The offset sits 0x00F0_0000 bytes into the RAM segment.
+MRPTR_OFF = 0x00_700000
+MRPTR_BASE = RB0 + MRPTR_OFF     # Tiny value (oracle arithmetic only)
 
 # ── ra0 helpers (D7 bit layout) ───────────────────────────────────────
 def _ra0(racnt, mrptr):
-    """Encode ra0: [53:48]=RACNT, [47:0]=MRPTR."""
+    """Encode ra0 with a *profile-independent* literal MRPTR (0 or a magic
+    absolute data address): [53:48]=RACNT, [47:0]=MRPTR."""
     return RA64_FMT % ((racnt & 0x3F) << 48 | (mrptr & 0xFFFFFFFFFFFF))
+
+
+def _ra_token(count, offset):
+    """RAS entry with an entry-relative address: ``<count>:@ENTRY±0x…``.
+
+    Used for every address that denotes a location in the test image (return
+    address PC+4, MemRAS pointer) so one case resolves correctly on both
+    profiles (TESTCASES-092t §2).  Absolute data addresses (0xAAAA…, 0xCCCC…)
+    stay plain hex.
+    """
+    if offset >= 0:
+        return "%d:@ENTRY+0x%X" % (count, offset)
+    return "%d:@ENTRY-0x%X" % (count, -offset)
+
+
+def _ra_rel(racnt, offset):
+    """ra0/raN with the address field relative to the profile entry."""
+    return _ra_token(racnt, offset)
 
 
 # ── Encoding word builders ────────────────────────────────────────────
@@ -210,11 +230,15 @@ SC_RET_D4B_CFXMEM = ("SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; "
 SC_RET_RD0_IMMS18 = "SimRISC-06: 函数返回; SimRISC-00: 数据寄存器"
 
 
-# ── jump-iiii (unchanged) ─────────────────────────────────────────────
+# ── jump-iiii ─────────────────────────────────────────────────────────
 def _gen_jump_iiii():
     op = int(BY_KEY[("jump_iiii_rb", "iiii")]["opc"], 16)
     word = _build_word_iiii(op, IMM)
-    boundary_imm = (-0x1000) & 0xFFFFFF
+    # TESTCASES-092t: Tiny has no unmapped window below RAM (the whole
+    # cfxha-63 segment outside BootROM/SRAM is CFXMEM, spec/Machine-v5 §1.2),
+    # and a target *inside* the 8 MiB SRAM fetches an all-zero word => UNDI.
+    # imms24 = -0x4_0000 -> target = @ENTRY - 0x10_0000, below the SRAM base.
+    boundary_imm = (-0x40000) & 0xFFFFFF
     boundary_word = _build_word_iiii(op, boundary_imm)
     imm_s = boundary_imm - (1 << 24) if boundary_imm & (1 << 23) else boundary_imm
     target_boundary = _tok(imm_s << 2)
@@ -228,10 +252,12 @@ def _gen_jump_iiii():
               "semantic: rb0=@ENTRY (RAM entry, ADR-0004 D2.2), "
               "imms24=2, Addr=rb0+(imms24<<2)=@ENTRY+0x8; no state change"),
         _case("boundary", "jump_iiii_rb", "iiii", boundary_word, {}, {},
-              "UNMAPPED", None, SC_JUMP_LEG,
-              "boundary UNMAPPED: imms24=-0x1000, "
-              "target=rb0+(imms24<<2)=@RAM_BASE-0x4000 → "
-              "beyond the selected profile RAM → UNMAPPED (0x87)"),
+              "CFXMEM", None, SC_JUMP_LEG,
+              "boundary CFXMEM (Tiny): imms24=-0x40000, "
+              "target=rb0+(imms24<<2)=%s → below the 8 MiB SRAM in the "
+              "cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2); "
+              "Tiny 无 unmapped 窗口，故不是 UNMAPPED"
+              % target_boundary, profiles=["tiny"]),
     ]
 
 
@@ -268,14 +294,14 @@ def _gen_call_iiii():
     #   ra0: RACNT 0→1, MRPTR stays 0
     #   ra63: [63:48]=1, [47:0]=PC+4
     c1_out_ra0 = _ra0(1, 0)
-    c1_out_ra63 = _ra0(1, RB0 + 4)
+    c1_out_ra63 = _ra_rel(1, 4)
 
     # C2: recursive → count +1, RACNT unchanged
     #   input: ra0 has RACNT=1, MRPTR=0; ra63 has count=1, addr=PC+4
     #   output: ra63 count=2, addr=PC+4; ra0 unchanged (RACNT stays 1)
     c2_in_ra0 = _ra0(1, 0)
-    c2_in_ra63 = _ra0(1, RB0 + 4)
-    c2_out_ra63 = _ra0(2, RB0 + 4)
+    c2_in_ra63 = _ra_rel(1, 4)
+    c2_out_ra63 = _ra_rel(2, 4)
 
     # C3a: shift-push → new entry, RACNT += 1
     #   input: RACNT=1, ra63 count=1, addr=0xAAAA00000000
@@ -283,7 +309,7 @@ def _gen_call_iiii():
     c3a_in_ra0 = _ra0(1, 0)
     c3a_in_ra63 = _ra0(1, 0xAAAA_0000_0000)
     c3a_out_ra0 = _ra0(2, 0)
-    c3a_out_ra63 = _ra0(1, RB0 + 4)
+    c3a_out_ra63 = _ra_rel(1, 4)
     c3a_out_ra62 = _ra0(1, 0xAAAA_0000_0000)
 
     # RASOF: RACNT=63, MRPTR=0, different address → C3b → RASOF
@@ -296,12 +322,12 @@ def _gen_call_iiii():
     #   ra1 has count=5, addr=0xDDDD00000000
     #   Spill ra1 to MRPTR-8, then push new entry, MRPTR-=8
     c3b_mrptr = MRPTR_BASE
-    c3b_mrptr_after = _tok(c3b_mrptr - 8 - RB0)
-    c3b_in_ra0 = _ra0(63, c3b_mrptr)
+    c3b_mrptr_after = _tok(MRPTR_OFF - 8)
+    c3b_in_ra0 = _ra_rel(63, MRPTR_OFF)
     c3b_in_ra1 = _ra0(5, 0xDDDD_0000_0000)
     c3b_in_ra63 = _ra0(1, 0xCCCC_0000_0000)
-    c3b_out_ra0 = _ra0(63, c3b_mrptr - 8)
-    c3b_out_ra63 = _ra0(1, RB0 + 4)
+    c3b_out_ra0 = _ra_rel(63, MRPTR_OFF - 8)
+    c3b_out_ra63 = _ra_rel(1, 4)
     c3b_mem_addr = c3b_mrptr_after
     c3b_mem_val = _ra0(5, 0xDDDD_0000_0000)
 
@@ -368,12 +394,12 @@ def _gen_call_iiii():
                    "value": c3b_mem_val,
                }]},
               None, TARGET, SC_CALL_C3b_MEM,
-              "semantic C3b (MemRAS spill): ra0=%s (RACNT=63, MRPTR=0x%X); "
+              "semantic C3b (MemRAS spill): ra0=%s (RACNT=63, MRPTR=%s); "
               "ra1=[count=5, addr=0xDDDD00000000] (oldest, idx=64-63=1); "
               "ra63=[count=1, addr=0xCCCC00000000]; PC+4=@ENTRY+0x4 ≠ "
               "ra63[47:0] → C3b: MRPTR-=8→%s, spill ra1→MemRAS[%s], "
               "push new ra63=[1, @RAM_BASE+0x4]; RACNT stays 63"
-              % (c3b_in_ra0, c3b_mrptr, c3b_mrptr_after, c3b_mem_addr)),
+              % (c3b_in_ra0, _tok(MRPTR_OFF), c3b_mrptr_after, c3b_mem_addr)),
     ]
 
 
@@ -385,18 +411,18 @@ def _gen_call_rrii():
 
     # C1: cold RA → push new entry, RACNT=1
     c1_out_ra0 = _ra0(1, 0)
-    c1_out_ra63 = _ra0(1, RB0 + 4)
+    c1_out_ra63 = _ra_rel(1, 4)
 
     # C2: recursive → count +1
     c2_in_ra0 = _ra0(1, 0)
-    c2_in_ra63 = _ra0(1, RB0 + 4)
-    c2_out_ra63 = _ra0(2, RB0 + 4)
+    c2_in_ra63 = _ra_rel(1, 4)
+    c2_out_ra63 = _ra_rel(2, 4)
 
     # C3a: shift-push (different address)
     c3a_in_ra0 = _ra0(1, 0)
     c3a_in_ra63 = _ra0(1, 0xAAAA_0000_0000)
     c3a_out_ra0 = _ra0(2, 0)
-    c3a_out_ra63 = _ra0(1, RB0 + 4)
+    c3a_out_ra63 = _ra_rel(1, 4)
     c3a_out_ra62 = _ra0(1, 0xAAAA_0000_0000)
 
     return [
@@ -453,14 +479,14 @@ def _gen_ret_riii():
     #   input: RACNT=2, ra63=[count=3, addr=PC+4]
     #   output: ra63=[count=2, addr=PC+4]; RACNT stays 2
     d2_in_ra0 = _ra0(2, 0)
-    d2_in_ra63 = _ra0(3, RB0 + 4)
-    d2_out_ra63 = _ra0(2, RB0 + 4)
+    d2_in_ra63 = _ra_rel(3, 4)
+    d2_out_ra63 = _ra_rel(2, 4)
 
     # D3: RACNT>0, count==1 → pop stack top, RACNT -= 1
     #   input: RACNT=2, ra63=[count=1, addr=PC+4], ra62=[count=1, addr=0xAAAA00000000]
     #   output: ra63=[count=1, addr=0xAAAA00000000] (shifted from ra62), RACNT→1
     d3_in_ra0 = _ra0(2, 0)
-    d3_in_ra63 = _ra0(1, RB0 + 4)
+    d3_in_ra63 = _ra_rel(1, 4)
     d3_in_ra62 = _ra0(1, 0xAAAA_0000_0000)
     d3_out_ra0 = _ra0(1, 0)
     d3_out_ra63 = _ra0(1, 0xAAAA_0000_0000)
@@ -475,24 +501,22 @@ def _gen_ret_riii():
     #   reserved 19–61) faults CFXMEM(0x81) before any state comparison can
     #   run.  The magic shape is kept as a legality case, the RAS bookkeeping
     #   assertions are unchanged.)
-    d4b_mrptr = MRPTR_BASE
-    d4b_mrptr_after = _tok(d4b_mrptr + 8 - RB0)
-    d4b_in_ra0 = _ra0(0, d4b_mrptr)
-    d4b_entry = RB0 + 4
-    d4b_mem_in = RA64_FMT % ((3 << 48) | d4b_entry)
-    d4b_out_ra0 = _ra0(1, d4b_mrptr + 8)
-    d4b_out_ra63 = RA64_FMT % ((2 << 48) | d4b_entry)
+    d4b_mrptr = _tok(MRPTR_OFF)           # entry-relative MemRAS pointer
+    d4b_mrptr_after = _tok(MRPTR_OFF + 8)
+    d4b_in_ra0 = _ra_rel(0, MRPTR_OFF)
+    d4b_mem_in = _ra_rel(3, 4)            # [count=3, return target @ENTRY+4]
+    d4b_out_ra0 = _ra_rel(1, MRPTR_OFF + 8)
+    d4b_out_ra63 = _ra_rel(2, 4)          # [count=2, @ENTRY+4]
     d4b_pc = RETURN_ADDR                  # PC = entry[47:0]
 
     # D4b cnt=1: RACNT==0, MRPTR!=0, MemRAS entry count=1 → consume, no push
     #   MemRAS entry: count=1, addr=<executable return target at PC+4>
     #   After: PC=entry[47:0], MRPTR+=8, RACNT stays 0, no RegRAS change
-    d4b1_mrptr = MRPTR_BASE
-    d4b1_mrptr_after = _tok(d4b1_mrptr + 8 - RB0)
-    d4b1_in_ra0 = _ra0(0, d4b1_mrptr)
-    d4b1_entry = RB0 + 4
-    d4b1_mem_in = RA64_FMT % ((1 << 48) | d4b1_entry)
-    d4b1_out_ra0 = _ra0(0, d4b1_mrptr + 8)
+    d4b1_mrptr = _tok(MRPTR_OFF)
+    d4b1_mrptr_after = _tok(MRPTR_OFF + 8)
+    d4b1_in_ra0 = _ra_rel(0, MRPTR_OFF)
+    d4b1_mem_in = _ra_rel(1, 4)           # [count=1, return target @ENTRY+4]
+    d4b1_out_ra0 = _ra_rel(0, MRPTR_OFF + 8)
     d4b1_pc = RETURN_ADDR                 # PC = entry[47:0]
 
     # D4b CFXMEM: the same MemRAS pop with a reserved-cfx return target
@@ -502,7 +526,7 @@ def _gen_ret_riii():
     d4bu_mem_in = _ra0(1, 0xBBBB_0000_0000)
 
     # D4b cnt=0: RACNT==0, MRPTR!=0, MemRAS entry count=0 → RASUF
-    d4b0_in_ra0 = _ra0(0, d4b_mrptr)
+    d4b0_in_ra0 = _ra_rel(0, MRPTR_OFF)
     d4b0_mem_in = _ra0(0, 0xEEEE_0000_0000)
 
     # D4a: RACNT==0, MRPTR==0 → RASUF
@@ -510,7 +534,7 @@ def _gen_ret_riii():
 
     # TESTCASES-022t: ret rd1, 42 → normal pop (mirrors D3) + rd1 = sign_extend(42)
     rd1_in_ra0 = _ra0(2, 0)
-    rd1_in_ra63 = _ra0(1, RB0 + 4)
+    rd1_in_ra63 = _ra_rel(1, 4)
     rd1_in_ra62 = _ra0(1, 0xAAAA_0000_0000)
     rd1_out_ra0 = _ra0(1, 0)
     rd1_out_ra63 = _ra0(1, 0xAAAA_0000_0000)
@@ -541,11 +565,11 @@ def _gen_ret_riii():
         # D4b cnt>1: restore from MemRAS, push to stack
         _case("semantic", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d4b_in_ra0},
-               "memory": [{"address": _tok(d4b_mrptr - RB0),
+               "memory": [{"address": _tok(MRPTR_OFF),
                            "value": d4b_mem_in}]},
               {"ra": {"ra0": d4b_out_ra0, "ra63": d4b_out_ra63}},
               None, d4b_pc, SC_RET_D4b,
-              "semantic D4b (MemRAS count>1): ra0=%s (RACNT=0, MRPTR=0x%X); "
+              "semantic D4b (MemRAS count>1): ra0=%s (RACNT=0, MRPTR=%s); "
               "MemRAS[MRPTR]=[count=3, addr=%s]; "
               "ret → PC=条目[47:0]=%s; count>1→push to stack: "
               "ra63=[count=2, addr=%s], MRPTR+=8→%s, RACNT=1；"
@@ -557,11 +581,11 @@ def _gen_ret_riii():
         # D4b cnt=1: restore from MemRAS, consume (no push)
         _case("semantic", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d4b1_in_ra0},
-               "memory": [{"address": _tok(d4b1_mrptr - RB0),
+               "memory": [{"address": _tok(MRPTR_OFF),
                            "value": d4b1_mem_in}]},
               {"ra": {"ra0": d4b1_out_ra0}},
               None, d4b1_pc, SC_RET_D4b,
-              "semantic D4b (MemRAS count=1): ra0=%s (RACNT=0, MRPTR=0x%X); "
+              "semantic D4b (MemRAS count=1): ra0=%s (RACNT=0, MRPTR=%s); "
               "MemRAS[MRPTR]=[count=1, addr=%s]; "
               "ret → PC=条目[47:0]=%s; count=1→consume: "
               "MRPTR+=8→%s, RACNT stays 0; no RegRAS change；"
@@ -573,12 +597,12 @@ def _gen_ret_riii():
         # D4b cnt=0: MemRAS entry count=0 → RASUF
         _case("legality", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d4b0_in_ra0},
-               "memory": [{"address": _tok(d4b_mrptr - RB0),
+               "memory": [{"address": _tok(MRPTR_OFF),
                            "value": d4b0_mem_in}]},
               None,
               "RASUF", None, SC_RET_D4B_RASUF,
               "legality D4b RASUF (MemRAS count=0): ra0=%s (RACNT=0, "
-              "MRPTR=0x%X); MemRAS[MRPTR]=[count=0, addr=0xEEEE00000000]; "
+              "MRPTR=%s); MemRAS[MRPTR]=[count=0, addr=0xEEEE00000000]; "
               "ret → read MemRAS: count=0 → RASUF (0x8B)"
               % (d4b0_in_ra0, d4b_mrptr)),
         # D4a: RACNT==0, MRPTR==0 → RASUF (cold RA)
@@ -621,12 +645,12 @@ def _gen_ret_riii():
         # legality 用例。
         _case("legality", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d4b1_in_ra0},
-               "memory": [{"address": _tok(d4b1_mrptr - RB0),
+               "memory": [{"address": _tok(MRPTR_OFF),
                            "value": d4bu_mem_in}]},
               None,
               "CFXMEM", None, SC_RET_D4B_CFXMEM,
               "legality D4b CFXMEM (return target in reserved cfx): ra0=%s "
-              "(RACNT=0, MRPTR=0x%X); MemRAS[MRPTR]=[count=1, "
+              "(RACNT=0, MRPTR=%s); MemRAS[MRPTR]=[count=1, "
               "addr=0xBBBB00000000]; ret → PC=0xBBBB00000000 (cfxha 46, "
               "reserved 19–61) → 取指 CFXMEM (0x81)"
               % (d4b1_in_ra0, d4b1_mrptr)),

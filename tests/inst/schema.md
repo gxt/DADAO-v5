@@ -149,6 +149,18 @@
 - 非 RAM 地址（ROM `0xffff_ffff_0000`–`0xffff_ffff_ffff`）须显式引用 ADR-0004 章节。
   （旧 exit-port MMIO 停机端口已随 C1 step2 删除；停机协议为 semihosting `SYS_EXIT`。）
 
+#### 复合计数 token `<count>:@TOKEN`（TESTCASES-092t）
+
+- 语法：`"<count>:@TOKEN[+0x…|-0x…]"`，`count` 为十进制或 `0x…`，范围 `0..0xFFFF`；
+  解析结果 = `(count << 48) | addr`，要求 `addr < 2^48`。例：`"1:@ENTRY+0x4"`（返回地址）、
+  `"63:@ENTRY+0x700000"`（ra0 的 RACNT=63 + MRPTR）。Tiny/Node 同一份 case 都能正确解析。
+- **只用于带计数字段的 RA/RAS 值**：`ra0`（`[53:48]`=RACNT、`[47:0]`=MRPTR）、
+  `ra1..ra63`（`[63:48]`=递归计数、`[47:0]`=返回地址）、以及 `call`/`ret` 的
+  MemRAS 条目值（`memory[].value`）。**rd/rb、内存地址、`expected_pc` 一律不得使用**
+  （误用会把 16 位计数推到 bit63:48），validator 直接报错（可达 FAIL）。
+- 绝对数据地址（如 `0xAAAA_0000_0000`、MRPTR=0 的 `0x0001_0000_0000_0000`）保持普通十六进制，
+  不替换成 token。
+
 ### `expected_pc`（本版新增）
 
 - 语义：**该指令 retire 后 `rb0` 的期望值**（48-bit 有效地址 hex；`null`/缺省表示不断言 PC）。

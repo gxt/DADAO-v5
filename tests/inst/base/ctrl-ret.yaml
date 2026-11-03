@@ -13,13 +13,13 @@
   expected_pc: '@ENTRY+0x4'
   expected_state:
     ra:
-      ra63: '0x0002FFFFFF010104'
+      ra63: 2:@ENTRY+0x4
   format: riii
   id: ret_riii_ra
   input_state:
     ra:
       ra0: '0x0002000000000000'
-      ra63: '0x0003FFFFFF010104'
+      ra63: 3:@ENTRY+0x4
   mnemonic: ret
   notes: 'semantic D2 (count>1): ra0=0x0002000000000000, ra63=[count=3, addr=@RAM_BASE+0x4]; ret → PC=ra63[47:0]=@RAM_BASE+0x4;
     count 3→2, RACNT unchanged (2); ra63=[count=2, addr=@RAM_BASE+0x4]'
@@ -41,7 +41,7 @@
     ra:
       ra0: '0x0002000000000000'
       ra62: '0x0001AAAA00000000'
-      ra63: '0x0001FFFFFF010104'
+      ra63: 1:@ENTRY+0x4
   mnemonic: ret
   notes: 'semantic D3 (count=1, pop): ra0=0x0002000000000000, ra63=[count=1, addr=@RAM_BASE+0x4], ra62=[count=1, addr=0xAAAA00000000];
     ret → PC=@ENTRY+0x4; count=1 → pop: shift-down, ra62→ra63=[count=1, addr=0xAAAA00000000]; RACNT→1, ra0=0x0001000000000000'
@@ -55,18 +55,18 @@
   expected_pc: '@ENTRY+0x4'
   expected_state:
     ra:
-      ra0: '0x0001FFFFFF710108'
-      ra63: '0x0002FFFFFF010104'
+      ra0: 1:@ENTRY+0x700008
+      ra63: 2:@ENTRY+0x4
   format: riii
   id: ret_riii_ra
   input_state:
     memory:
     - address: '@ENTRY+0x700000'
-      value: '0x0003FFFFFF010104'
+      value: 3:@ENTRY+0x4
     ra:
-      ra0: '0x0000FFFFFF710100'
+      ra0: 0:@ENTRY+0x700000
   mnemonic: ret
-  notes: 'semantic D4b (MemRAS count>1): ra0=0x0000FFFFFF710100 (RACNT=0, MRPTR=0xFFFFFF710100); MemRAS[MRPTR]=[count=3, addr=@ENTRY+0x4];
+  notes: 'semantic D4b (MemRAS count>1): ra0=0:@ENTRY+0x700000 (RACNT=0, MRPTR=@ENTRY+0x700000); MemRAS[MRPTR]=[count=3, addr=@ENTRY+0x4];
     ret → PC=条目[47:0]=@ENTRY+0x4; count>1→push to stack: ra63=[count=2, addr=@ENTRY+0x4], MRPTR+=8→@ENTRY+0x700008, RACNT=1；（TESTCASES-063t:
     条目地址即 ret 的取指目标，须为可执行 RAM ⇒ 用 canonical 返回地址；原 0xBBBB00000000 形态见本册 legality CFXMEM 用例）'
   spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回'
@@ -79,17 +79,17 @@
   expected_pc: '@ENTRY+0x4'
   expected_state:
     ra:
-      ra0: '0x0000FFFFFF710108'
+      ra0: 0:@ENTRY+0x700008
   format: riii
   id: ret_riii_ra
   input_state:
     memory:
     - address: '@ENTRY+0x700000'
-      value: '0x0001FFFFFF010104'
+      value: 1:@ENTRY+0x4
     ra:
-      ra0: '0x0000FFFFFF710100'
+      ra0: 0:@ENTRY+0x700000
   mnemonic: ret
-  notes: 'semantic D4b (MemRAS count=1): ra0=0x0000FFFFFF710100 (RACNT=0, MRPTR=0xFFFFFF710100); MemRAS[MRPTR]=[count=1, addr=@ENTRY+0x4];
+  notes: 'semantic D4b (MemRAS count=1): ra0=0:@ENTRY+0x700000 (RACNT=0, MRPTR=@ENTRY+0x700000); MemRAS[MRPTR]=[count=1, addr=@ENTRY+0x4];
     ret → PC=条目[47:0]=@ENTRY+0x4; count=1→consume: MRPTR+=8→@ENTRY+0x700008, RACNT stays 0; no RegRAS change；（TESTCASES-063t:
     条目地址即 ret 的取指目标，须为可执行 RAM ⇒ 用 canonical 返回地址；原 0xCCCC00000000 形态不可观察，故不再作为 semantic 用例）'
   spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回'
@@ -108,9 +108,9 @@
     - address: '@ENTRY+0x700000'
       value: '0x0000EEEE00000000'
     ra:
-      ra0: '0x0000FFFFFF710100'
+      ra0: 0:@ENTRY+0x700000
   mnemonic: ret
-  notes: 'legality D4b RASUF (MemRAS count=0): ra0=0x0000FFFFFF710100 (RACNT=0, MRPTR=0xFFFFFF710100); MemRAS[MRPTR]=[count=0,
+  notes: 'legality D4b RASUF (MemRAS count=0): ra0=0:@ENTRY+0x700000 (RACNT=0, MRPTR=@ENTRY+0x700000); MemRAS[MRPTR]=[count=0,
     addr=0xEEEE00000000]; ret → read MemRAS: count=0 → RASUF (0x8B)'
   spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; ADR-0004 D5.5'
   status: active
@@ -176,7 +176,7 @@
     ra:
       ra0: '0x0002000000000000'
       ra62: '0x0001AAAA00000000'
-      ra63: '0x0001FFFFFF010104'
+      ra63: 1:@ENTRY+0x4
   mnemonic: ret
   notes: 'semantic ret rd1, 42 (rdha=rd1≠rd0, unconstrained): ra0=0x0002000000000000, ra63=[count=1, addr=@RAM_BASE+0x4],
     ra62=[count=1, addr=0xAAAA00000000]; ret → PC=@ENTRY+0x4; count=1 → pop: ra62→ra63=[count=1, addr=0xAAAA00000000], RACNT→1
@@ -197,9 +197,9 @@
     - address: '@ENTRY+0x700000'
       value: '0x0001BBBB00000000'
     ra:
-      ra0: '0x0000FFFFFF710100'
+      ra0: 0:@ENTRY+0x700000
   mnemonic: ret
-  notes: 'legality D4b CFXMEM (return target in reserved cfx): ra0=0x0000FFFFFF710100 (RACNT=0, MRPTR=0xFFFFFF710100); MemRAS[MRPTR]=[count=1,
+  notes: 'legality D4b CFXMEM (return target in reserved cfx): ra0=0:@ENTRY+0x700000 (RACNT=0, MRPTR=@ENTRY+0x700000); MemRAS[MRPTR]=[count=1,
     addr=0xBBBB00000000]; ret → PC=0xBBBB00000000 (cfxha 46, reserved 19–61) → 取指 CFXMEM (0x81)'
   spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; DADAO-12: 核内地址空间; DADAO-12: 异常进入流程; ADR-0020 D15 / ADR-0004 D5.8'
   status: active

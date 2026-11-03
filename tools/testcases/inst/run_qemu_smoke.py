@@ -87,6 +87,8 @@ def main() -> int:
     src_mnemonics: set = set()
     per_class: dict = {}
     subset_by_file: "OrderedDict[str, list]" = OrderedDict()
+    profile = harness._selected_profile()
+    excluded = 0
 
     for vf in GATE_VECTORS:
         path = os.path.join(vector_dir, vf)
@@ -98,10 +100,23 @@ def main() -> int:
         if not isinstance(cases, list) or not cases:
             print(f"run_qemu_smoke: ERROR: empty/invalid vector file {path}", file=sys.stderr)
             return 1
+        # Profile applicability first (TESTCASES-092t §1): a representative that
+        # the current profile excludes would leave its (class, mnemonic) group
+        # with 0 executed cases, so it must never be picked.
+        applicable = []
         for c in cases:
+            if harness.case_applies(c, profile):
+                applicable.append(c)
+            else:
+                excluded += 1
+        if not applicable:
+            print(f"run_qemu_smoke: ERROR: {vf} has no case for profile "
+                  f"{profile!r}", file=sys.stderr)
+            return 1
+        for c in applicable:
             src_classes.add(c.get("class"))
             src_mnemonics.add(c.get("mnemonic"))
-        groups = select_representatives(cases)
+        groups = select_representatives(applicable)
         subset_by_file[vf] = [c for c in groups.values()]
         for c in groups.values():
             selected.append((vf, c))
@@ -133,13 +148,17 @@ def main() -> int:
             with open(out, "w") as fh:
                 yaml.safe_dump(reps, fh, sort_keys=True)
 
-        total, passed, failed, deferred, errors, fail_details = harness.run_batch(
+        total, passed, failed, deferred, errors, fail_details, skipped = harness.run_batch(
             args.qemu, args.trampoline, work_dir, jobs=args.jobs,
         )
+        print(f"  profile={profile}  (代表集派生时已排除 {excluded} 条不适用用例)")
         print(f"  QEMU: total={total} passed={passed} failed={failed} "
-              f"deferred={deferred} errors={errors}")
+              f"deferred={deferred} errors={errors} skipped_profile={skipped}")
         if total != len(selected):
             errs.append(f"运行条数 {total} != 代表数 {len(selected)}")
+        if skipped:
+            errs.append(f"代表集里有 {skipped} 条被 profile 跳过 ⇒ 该组 0 例，"
+                        "须换代表（TESTCASES-092t §1）")
         if failed or errors or deferred:
             errs.extend(fail_details)
             errs.append(f"非全绿: failed={failed} errors={errors} deferred={deferred}")

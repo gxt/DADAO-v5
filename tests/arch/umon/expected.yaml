@@ -38,6 +38,7 @@ conventions:
   reset_pc: "0xffff_ffff_0000 (cfx_power_hypv_excp_vector; DADAO-12 §2.1)"
   semihosting: "trap cfx_umon, 0x3FF00 (immu18[17:8]==0x3FF (0x3FF00-0x3FFFF)); rd16=service, rb16=argument block, rd8=return (contract-semihosting.md §1/§2)"
   permission: "cfx-level (ILLI / CFXREG / CFXPERM); NUPERM/NJPERM/NSPERM/NHPERM are the PTBR layer and not in M5 (ADR-0020 D9 / ADR-0045 / contract-see.md §3)"
+  observe: "permission causes go to the current-mode monitor (hypv => cfx_hmon): hmon records cause id + cause ip in the profile fault-record slot (FAULT_RECORD) and resumes after the faulting instruction; vectors read that slot, or (register-combo CFXREG / CFXTRAP, whose frame is the accessed cfx) install that cfx's local hypv stub first (TESTCASES-092t §3/§4)"
   exit: "SYS_EXIT (0x18) / SYS_EXIT_EXTENDED (0x20); host $? = guest exit code (contract-semihosting.md §5)"
   oracle: "host-side derivation from contracts/ + the vector's @m5 header; never llvm-mc / QEMU"
 
@@ -114,8 +115,12 @@ programs:
     derivation: >-
       General `trap cfx7, 0`; cfxha 7 is a reserved code (contract-see.md §3 /
       SimRISC-11 指令域与执行条件), so the machine raises ILLI and redirects to the
-      current-mode monitor.  The vector reads cfx_umon.cg5.rc2 (excp_cause_id)
-      and requires ILLI (1<<8); pass token 0x50, mismatch token 0xE1.
+      the current-mode monitor.  The body runs in hypv, whose monitor is
+      cfx_hmon; hmon records the cause in the profile fault-record slot
+      (FAULT_RECORD, tests/shared/machine-profiles.yaml: +0 cause id, +8
+      cause ip; VA=PA identity) and resumes after the faulting instruction
+      (TESTCASES-092t §3/§4).  The vector `ld.o`-reads that slot and requires
+      ILLI (1<<8); pass token 0x50, mismatch token 0xE1.
 
   - name: m5_perm_mask_cfxperm
     sources: [m5_perm_mask_cfxperm.s]
@@ -126,8 +131,11 @@ programs:
     derivation: >-
       General `trap cfx_jmon, 0`; cfxha 1 is legal but cfx_jmon's user cfxtrap
       source bit 0 is set (mask 1 = masked, DADAO-12 §3 / ADR-0045 D6), so the
-      machine raises CFXPERM into the current-mode monitor (cfx_umon).  The
-      vector requires cause_id == CFXPERM; pass token 0x51, mismatch 0xE1.
+      machine raises CFXPERM into the monitor of the current run mode
+      (hypv => cfx_hmon).  hmon records the cause in the fault-record slot and
+      resumes after the faulting instruction (TESTCASES-092t §3/§4); the vector
+      requires the recorded cause == CFXPERM (1<<7); pass token 0x51,
+      mismatch 0xE1.
 
   - name: m5_perm_unimpl_cfxreg
     sources: [m5_perm_unimpl_cfxreg.s]
@@ -139,9 +147,11 @@ programs:
       `trap cfx_llc, 0`; cfxha 16 is allocated but not implemented by the M5
       test machine (cfx0/1/2/3/63 plus cfx_ptw's ptw/tlb registers, cfx_pmem,
       cfx_time and cfx_hart, ADR-0020 D9), so access raises CFXREG
-      (contract-see.md §3 / DADAO-22 §3).  The
-      vector requires cause_id == CFXREG (1<<2); pass token 0x52, mismatch
-      token 0xE1.
+      (contract-see.md §3 / DADAO-22 §3).  The CFXREG is delivered to the
+      current-mode monitor (cfx_hmon), which records it in the fault-record
+      slot and resumes after the faulting instruction (TESTCASES-092t §3/§4).
+      The vector requires the recorded cause == CFXREG (1<<2); pass token
+      0x52, mismatch token 0xE1.
 
   - name: m5_perm_badcombo_cfxreg
     sources: [m5_perm_badcombo_cfxreg.s]
@@ -152,8 +162,14 @@ programs:
     derivation: >-
       `cfx2rd cfx_umon, cg6, rc63, rd10`; cg6 is the scratch bank with
       scratch_regs_num = 4, so rc63 is outside the register file and the access
-      raises CFXREG (contract-see.md §3 / DADAO-12 §3).  The vector requires
-      cause_id == CFXREG; pass token 0x53, mismatch token 0xE1.
+      raises CFXREG (contract-see.md §3 / DADAO-12 §3).  Unlike the other
+      permission vectors this cause is framed on the *accessed* cfx (cfx_umon),
+      not on the current-mode monitor, so the vector first installs cfx_umon's
+      hypv vector (`cfx2rc cfx_umon, cg3, rc10, <stub>`; cfx0 is the body's own
+      cfx, so the write is legal) pointing at the local one-word stub
+      `escape cfx_umon, [excp_cause_ip, 4]`.  After the round trip the vector
+      reads cfx_umon.cg5.rc2 and requires CFXREG (1<<2); pass token 0x53,
+      mismatch token 0xE1 (TESTCASES-092t §4).
 
   - name: m5_trap_escape
     sources: [m5_trap_escape.s]
@@ -163,7 +179,10 @@ programs:
     coverage: [trap.vector, trap.escape, adr0020.d10]
     derivation: >-
       `trap cfx_umon, 0x0123` (immu18 < 0x3FF00) records cause CFXTRAP and
-      enters the cfx_umon user vector; the bootrom handler returns with
-      `escape cfx_umon, [excp_cause_ip, 4]` (DADAO-12 §5 / contract-see.md §4).
-      The vector requires cause_id == CFXTRAP (1<<0) and escape_num == 1 (the
-      escape really ran); pass token 0x60, mismatch token 0xE2.
+      enters the cfx_umon *hypv* vector, which the boot stage (hmon) had left at the
+      profile ENTRY; the body therefore points it at a local one-word stub
+      `escape cfx_umon, [excp_cause_ip, 4]` first (`cfx2rc cfx_umon, cg3, rc10`;
+      cfx_hmon's vector is CFXPERM-denied from hypv) and the stub returns
+      (DADAO-12 §5 / contract-see.md §4; TESTCASES-092t §4).  The vector
+      requires cause_id == CFXTRAP (1<<0) and escape_num == 1 (the escape
+      really ran); pass token 0x60, mismatch token 0xE2.

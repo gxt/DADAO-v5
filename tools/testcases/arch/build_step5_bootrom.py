@@ -24,6 +24,8 @@ Usage:
   build_step5_bootrom.py --out-dir DIR --power-elf P --hmon-elf H \
       --smon-elf S --llvm-objcopy OBJCOPY --llvm-nm NM [--self-test]
   build_step5_bootrom.py ... --max-image-size N     # injection / evidence
+  build_step5_bootrom.py ... --out-name bootrom_step5_inst.bin
+  build_step5_bootrom.py --compare A.bin B.bin      # variant diff report
 
 Exit code: 0 iff the image was produced and every check passed.
 """
@@ -280,6 +282,78 @@ def verify_image(path, boot_magic, hmon_flags, smon_flags):
                          (None if trap_word is None else hex(trap_word)))
 
 
+def compare_images(base_path, other_path):
+    """Report the difference between two step5 variants (TESTCASES-092t §3).
+
+    The two BootROM images are built from the *same* power/smon ELFs and two
+    hmon ELFs assembled from one source with different `HMON_FAULT_POLICY`
+    values.  Their hmon payload sizes differ, so every byte *after* the hmon
+    image sits at a shifted offset; the assertion is therefore component-wise:
+
+      * same total size, same header magic/version/count/boot_magic;
+      * same entry (type, flags) list -- only the hmon payload and the hmon
+        entry's recorded size may differ;
+      * power window byte-identical;
+      * smon payload byte-identical;
+      * hmon payload really differs (otherwise the policy switch is dead).
+
+    A raw contiguous-diff listing is printed for auditability.
+    """
+    with open(base_path, "rb") as f:
+        a = f.read()
+    with open(other_path, "rb") as f:
+        b = f.read()
+    print("compare: %s vs %s" % (base_path, other_path))
+    if len(a) != len(b) or len(a) != BOOTROM_SIZE:
+        raise BuildError("compare: sizes %d/%d != %d" % (len(a), len(b), BOOTROM_SIZE))
+    if a[:8] != b[:8]:
+        raise BuildError("compare: header magic/version/count differ")
+    ents_a = [struct.unpack_from(">IIQQQ", a, 16 + i * 32) for i in range(COUNT)]
+    ents_b = [struct.unpack_from(">IIQQQ", b, 16 + i * 32) for i in range(COUNT)]
+    for (ta, fa, oa, sa, ra), (tb, fb, ob, sb, rb) in zip(ents_a, ents_b):
+        if ta != tb or fa != fb or ra != rb:
+            raise BuildError("compare: entry type/flags/reserved differ (%d)" % ta)
+        print("compare: entry type=%d flags=%#x size %#x -> %#x" % (ta, fa, sa, sb))
+    ha_of, ha_sz = ents_a[0][2], ents_a[0][3]
+    hb_of, hb_sz = ents_b[0][2], ents_b[0][3]
+    if a[ha_of:ha_of + ha_sz] == b[hb_of:hb_of + hb_sz]:
+        raise BuildError("compare: hmon payload identical (fault policy not applied)")
+    pa = a[POWER_OFF:]
+    pb = b[POWER_OFF:]
+    if pa != pb:
+        raise BuildError("compare: power window differs")
+    print("compare: power window identical (%#x bytes)" % len(pa))
+    sa_of, ssa = ents_a[1][2], ents_a[1][3]
+    sb_of, ssb = ents_b[1][2], ents_b[1][3]
+    if a[sa_of:sa_of + ssa] != b[sb_of:sb_of + ssb]:
+        raise BuildError("compare: smon payload differs")
+    print("compare: smon payload identical (%#x bytes)" % ssa)
+    if a[ha_of:ha_of + 4] != b"\x7fELF" or b[hb_of:hb_of + 4] != b"\x7fELF":
+        raise BuildError("compare: hmon payload is not an ELF in one variant")
+
+    # Contiguous raw diff ranges (informational; shifted offsets are expected
+    # once the hmon payload size differs).
+    ranges = []
+    start = None
+    for i in range(min(len(a), len(b))):
+        if a[i] != b[i]:
+            if start is None:
+                start = i
+        elif start is not None:
+            ranges.append((start, i))
+            start = None
+    if start is not None:
+        ranges.append((start, len(a)))
+    ndiff = sum(e - s for s, e in ranges)
+    print("compare: raw diff %d bytes in %d range(s)" % (ndiff, len(ranges)))
+    for s, e in ranges[:8]:
+        print("compare:   [%#07x, %#07x)" % (s, e))
+    if len(ranges) > 8:
+        print("compare:   ... (%d more)" % (len(ranges) - 8))
+    print("compare: PASS (only the hmon image payload + its table size differ)")
+    return 0
+
+
 def self_test(args):
     """Build in a temp dir and prove the size guard can fail."""
     print("self-test: building a private copy")
@@ -312,12 +386,12 @@ def self_test(args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out-dir", required=True)
-    ap.add_argument("--power-elf", required=True)
-    ap.add_argument("--hmon-elf", required=True)
-    ap.add_argument("--smon-elf", required=True)
-    ap.add_argument("--llvm-objcopy", required=True)
-    ap.add_argument("--llvm-nm", required=True)
+    ap.add_argument("--out-dir", default=None)
+    ap.add_argument("--power-elf", default=None)
+    ap.add_argument("--hmon-elf", default=None)
+    ap.add_argument("--smon-elf", default=None)
+    ap.add_argument("--llvm-objcopy", default=None)
+    ap.add_argument("--llvm-nm", default=None)
     ap.add_argument("--boot-magic", default=hex(DEFAULT_BOOT_MAGIC))
     ap.add_argument("--hmon-flags", default=hex(FLAG_REQUIRED | FLAG_LOAD | FLAG_VERIFY))
     ap.add_argument("--smon-flags", default=hex(FLAG_REQUIRED | FLAG_LOAD | FLAG_VERIFY))
@@ -325,12 +399,33 @@ def main():
                     choices=sorted(machine_profile.all_profiles()))
     ap.add_argument("--max-image-size", type=int, default=DEFAULT_MAX)
     ap.add_argument("--self-test", action="store_true")
+    ap.add_argument("--out-name", default="bootrom_step5.bin",
+                    help="output image file name inside --out-dir "
+                         "(bootrom_step5.bin / bootrom_step5_inst.bin)")
+    ap.add_argument("--compare", nargs=2, metavar=("BASE", "OTHER"), default=None,
+                    help="compare two built variants and exit")
     args = ap.parse_args()
 
     try:
         _apply_profile(args.profile)
     except machine_profile.ProfileError as exc:
         print("step5: profile error: %s" % exc, file=sys.stderr)
+        return 2
+
+    if args.compare:
+        try:
+            return compare_images(args.compare[0], args.compare[1])
+        except BuildError as exc:
+            print("step5: compare FAIL: %s" % exc, file=sys.stderr)
+            return 1
+
+    missing = [name for name in ("out_dir", "power_elf", "hmon_elf", "smon_elf",
+                                 "llvm_objcopy", "llvm_nm")
+               if getattr(args, name) is None]
+    if missing:
+        print("step5: FAIL: missing required options: %s"
+              % ", ".join("--" + m.replace("_", "-") for m in missing),
+              file=sys.stderr)
         return 2
 
     boot_magic = int(args.boot_magic, 0)
@@ -347,9 +442,9 @@ def main():
         if args.self_test:
             return self_test(args)
         build(args, args.max_image_size, boot_magic, hmon_flags, smon_flags,
-              "bootrom_step5.bin")
-        verify_image(os.path.join(args.out_dir, "bootrom_step5.bin"),
-                     boot_magic, hmon_flags, smon_flags)
+              args.out_name)
+        out_path = os.path.join(args.out_dir, args.out_name)
+        verify_image(out_path, boot_magic, hmon_flags, smon_flags)
     except BuildError as exc:
         print("step5: FAIL: %s" % exc, file=sys.stderr)
         return 1

@@ -35,16 +35,18 @@
 - class: boundary
   deferred_reason: null
   encoding:
-    word: '0x70FFF000'
-  expected_fault: UNMAPPED
+    word: '0x70FC0000'
+  expected_fault: CFXMEM
   expected_pc: null
   expected_state: {}
   format: iiii
   id: jump_iiii_rb
   input_state: {}
   mnemonic: jump
-  notes: 'boundary UNMAPPED: imms24=-0x1000, target=rb0+(imms24<<2)=@RAM_BASE-0x4000 → beyond the selected profile RAM → UNMAPPED
-    (0x87)'
+  notes: 'boundary CFXMEM (Tiny): imms24=-0x40000, target=rb0+(imms24<<2)=@ENTRY-0x100000 → below the 8 MiB SRAM in the cfxha-63
+    segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2); Tiny 无 unmapped 窗口，故不是 UNMAPPED'
+  profiles:
+  - tiny
   spec_cite: 'SimRISC-06: 无条件跳转指令; ADR-0004 D5.6'
   status: active
 - class: encoding

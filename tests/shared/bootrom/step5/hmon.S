@@ -1,4 +1,4 @@
-@@ hmon.S — Machine-v5-Node hmon stage (TESTCASES-091t).
+@@ hmon.S — Machine-v5-Node hmon stage (TESTCASES-091t; fault policy 092t).
 @@
 @@ Linked at HMON_BASE (0x0fff_0000_0000, 64 KiB) and entered by
 @@ `trap cfx_hmon, <boot_magic>` from the Node power stage.
@@ -13,9 +13,30 @@
 @@   i = 0..3 -> PA i*512 MiB; L1 index VA[41:29] selects entry i.
 @@ PTBR = 0 (PA 0) and ptw_enable = 1.  The table template lives in hmon SRAM
 @@ and is copied to PA 0 through cfx_pmem DMA (PTW is off until the copy is done).
+@@
+@@ --- Fault policy (TESTCASES-092t §3) -------------------------------------
+@@ Entry split (cfx_hmon cg5 rc2 = cause id, cg5 rc4 = boot magic):
+@@   cause == CFXTRAP (1<<0) && magic == 0x30001 => power hand-off, unchanged;
+@@   cause == CFXTRAP && magic != 0x30001      => hmon_exit_b7 (firmware error);
+@@   otherwise (synchronous machine fault in the test body) => hmon_fault:
+@@     * every policy first records the fault in the profile's fault-record
+@@       slot (FAULT_RECORD: +0 cause, +8 excp_cause_ip) so the test body can
+@@       read the cause instead of relying on cross-cfx register reads;
+@@     * HMON_FAULT_POLICY=0 (resume, bootrom_step5.bin): `escape cfx_hmon, 1`
+@@       returns to excp_cause_ip + 4 and the vector self-checks;
+@@     * HMON_FAULT_POLICY=1 (exit, bootrom_step5_inst.bin): exit code =
+@@       0x80 | cause_bit_index (ADR-0004 D5.8) so the inst harness observes
+@@       the machine fault exactly as the vector expects it (no 0xB7 mask).
+@@       CFXPERM (1<<7) has no ADR-0004 D5.8 code and 0x87 already means
+@@       UNMAPPED, so it reports 0x80 (task book §3).
+@@     * An unmatched cause stays on hmon_exit_b7 (unhandled fault).
 
 	.include "tests/shared/asm/machine-node.inc"
 	.include "tests/shared/asm/machine.inc"
+
+	.ifndef	HMON_FAULT_POLICY
+	.equ	HMON_FAULT_POLICY, 0
+	.endif
 
 	.macro	LD64 rd, w0, w1, w2, w3
 	set.zw	\rd, wp0, \w0
@@ -39,7 +60,7 @@ _start:
 	cfx2rd	cfx_hmon, cg5, rc2, rd6
 	LD64	rd7, 0x0001, 0x0000, 0x0000, 0x0000
 	cmp.uo	rd8, rd6, rd7
-	br.nz	{rd8}?, [rb0, hmon_exit_b7]
+	br.nz	{rd8}?, [rb0, hmon_fault]
 	cfx2rd	cfx_hmon, cg5, rc4, rd6
 	LD64	rd7, 0xffff, 0x0003, 0x0000, 0x0000	@@ 0x0003_ffff
 	and.o	rd6, rd6, rd7
@@ -93,6 +114,58 @@ hmon_dma_poll:
 
 	@@ --- 6. handoff to the test body in hypv ---
 	trap	cfx_umon, 0
+	swym	0
+
+@@ --- 7. synchronous machine fault in the test body (TESTCASES-092t) ---
+@@   rd6 still holds the cause id read at entry.  Record it, then follow the
+@@   build-selected policy.  (A fault raised inside hmon's own boot init would
+@@   recurse here; boot init is expected not to fault -- it enables PTW below.)
+hmon_fault:
+	LOAD_ADDR rb4, FAULT_RECORD
+	st.o	rd6, [rb4, 0]			@@ fault-record[0] = cause
+	cfx2rd	cfx_hmon, cg5, rc3, rd7		@@ excp_cause_ip
+	st.o	rd7, [rb4, 8]			@@ fault-record[1] = cause ip
+	.if HMON_FAULT_POLICY == 0
+	@@ resume: back to the instruction after the faulting one
+	escape	cfx_hmon, [excp_cause_ip, 4]
+	swym	0
+	.else
+	@@ exit: explicit cause -> ADR-0004 D5.8 exit code (task book §3).
+	@@ NOTE: ADR-0004 D5.8 writes CFXMEM as 0x81 (== 0x80|bit1) but lists
+	@@ CFXREG as 0x84, which is not 0x80|bit2; the task book freezes the pair
+	@@ (CFXMEM 0x81 / CFXREG 0x84), so the probe list spells every code out
+	@@ instead of deriving it arithmetically (ISS-341).
+	.macro	HMON_FAULT_CODE cause, code
+	LD64	rd7, \cause, 0x0000, 0x0000, 0x0000
+	cmp.uo	rd8, rd6, rd7
+	br.nz	{rd8}?, [rb0, 1f]
+	LD64	rd9, \code, 0x0000, 0x0000, 0x0000
+	jump	[rb0, hmon_exit_rd9]
+1:
+	.endm
+	HMON_FAULT_CODE 0x0002, 0x0081		@@ CFXMEM  (1<<1)
+	HMON_FAULT_CODE 0x0004, 0x0084		@@ CFXREG  (1<<2)
+	HMON_FAULT_CODE 0x0080, 0x0080		@@ CFXPERM (1<<7)
+	HMON_FAULT_CODE 0x0100, 0x0088		@@ ILLI    (1<<8)
+	HMON_FAULT_CODE 0x0200, 0x0089		@@ UNDI    (1<<9)
+	HMON_FAULT_CODE 0x0400, 0x008a		@@ RASOF   (1<<10)
+	HMON_FAULT_CODE 0x0800, 0x008b		@@ RASUF   (1<<11)
+	HMON_FAULT_CODE 0x1000, 0x008c		@@ MALIGN  (1<<12)
+	HMON_FAULT_CODE 0x2000, 0x008d		@@ IALIGN  (1<<13)
+	@@ unmatched cause: firmware "unhandled fault" code
+	jump	[rb0, hmon_exit_b7]
+	.endif
+
+hmon_exit_rd9:
+	LOAD_ADDR rb16, HMON_BASE + 0x0d00
+	LD64	rd16, 0x0026, 0x0002, 0x0000, 0x0000
+	st.o	rd16, [rb16, 0]
+	st.o	rd9, [rb16, 8]
+	jump	[rb0, hmon_sys_exit]
+
+hmon_sys_exit:
+	LD64	rd16, 0x0018, 0x0000, 0x0000, 0x0000
+	trap	cfx_umon, 0x3FF00
 	swym	0
 
 hmon_exit_b7:

@@ -5,8 +5,10 @@
 @@ DADAO-12 §5 / ADR-0045 D6 (permission denial => CFXPERM, current-mode monitor).
 @@
 @@ cfx_jmon (cfxha 1) keeps its reset cfxtrap mask 0xFFFF_FFFF_FFFF_FFF7, so
-@@ source cfx_umon (0) is denied.  The current mode is user, so CFXPERM enters
-@@ cfx_umon and the bootrom handler observes it.
+@@ source cfx_umon (0) is denied.  The body runs in hypv, so CFXPERM is delivered
+@@ to hypv's current-mode monitor (cfx_hmon), which records the cause in the
+@@ profile fault-record slot and resumes after the faulting instruction
+@@ (TESTCASES-092t §3/§4); the vector then reads that slot.
 @@
 @@ Expected: cause = CFXPERM (0x80); host $? = 0x51 (SYS_EXIT pass token).
 
@@ -25,8 +27,9 @@
 _start:
 	@@ legal cfxha (jmon = 1) but cfxtrap source bit 0 is set -> CFXPERM
 	trap	cfx_jmon, 0
-	cfx2rd	cfx_umon, cg5, rc2, rd10
-	set.zw	rd12, wp0, 0x0080		@@ CFXPERM = 1 << 7
+	LOAD_ADDR rb4, FAULT_RECORD
+	ld.o	rd10, [rb4, 0]			@@ fault-record[0] = cause id
+	set.zw	rd12, wp0, 0x0080		@@ CFXPERM
 	cmp.so	rd11, rd10, rd12
 	br.nz	{rd11}?, [rb0, fail]
 

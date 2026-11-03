@@ -114,7 +114,7 @@ def set_profile(name):
 def _defsym_args(prof):
     def h(val):
         return "%#x" % val
-    return [
+    args = [
         "-I", os.path.join(REPO_ROOT, "tests", "shared", "asm"),
         "--defsym", "RAM_BASE=" + h(prof.ram_base),
         "--defsym", "RAM_END=" + h(prof.ram_end),
@@ -123,6 +123,12 @@ def _defsym_args(prof):
         "--defsym", "BOOTROM_BASE=" + h(prof.bootrom_base),
         "--defsym", "RESET_PC=" + h(prof.reset_pc),
     ]
+    # TESTCASES-092t §3/§4: the hmon fault-record slot is profile data, so the
+    # arch vectors read the cause from it (VA=PA identity) instead of relying on
+    # cross-cfx register reads.  Profiles without a monitor define no slot.
+    if prof.fault_record is not None:
+        args += ["--defsym", "FAULT_RECORD=" + h(prof.fault_record)]
+    return args
 
 
 class CaseResult:

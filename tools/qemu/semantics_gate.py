@@ -353,6 +353,9 @@ def main() -> int:
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--check-only", action="store_true",
                     help="只跑结构断言/派生（不执行用例；供证据脚本注入用）")
+    ap.add_argument("--only-profile-cases", action="store_true",
+                    help="只运行显式写了 profiles: 且包含当前 profile 的用例"
+                         "（Tiny 子集段；TESTCASES-092t §1）")
     ap.add_argument("--form-check", action="store_true",
                     help="只跑形态断言（ISS-225；无需 qemu 二进制，供 L1 门控用）")
     args = ap.parse_args()
@@ -451,8 +454,9 @@ def main() -> int:
     print("  gate 目录: %s（symlink 校验通过）" % args.gate_dir)
     print(f"  QEMU: {args.qemu}  jobs={args.jobs}")
     try:
-        total, passed, failed, deferred, errors, fail_details = harness.run_batch(
+        total, passed, failed, deferred, errors, fail_details, skipped = harness.run_batch(
             args.qemu, args.trampoline, args.gate_dir, jobs=args.jobs,
+            only_profile_cases=args.only_profile_cases,
         )
     except Exception as exc:  # harness 异常也要清 gate 目录并显式失败
         shutil.rmtree(args.gate_dir, ignore_errors=True)
@@ -460,12 +464,19 @@ def main() -> int:
         print("check-inst: FAIL (rc=1)")
         return 1
     print(f"  Results: {total} total, {passed} passed, {failed} failed, "
-          f"{deferred} deferred, {errors} errors")
+          f"{deferred} deferred, {errors} errors, skipped_profile={skipped}")
     print(f"  基线差值: total {total} - ISS-235 旧值 {ISS235_BASELINE_TOTAL} = "
           f"{total - ISS235_BASELINE_TOTAL:+d}（旧值为历史登记值，非判据）")
 
-    if total != total_cases:
-        errs.append(f"运行 total {total} != 现场派生用例总数 {total_cases}")
+    # 结构断言（TESTCASES-092t §1）：口径 = 实际运行数 + profile 跳过数。
+    if total + skipped != total_cases:
+        errs.append(f"运行 total {total} + skipped_profile {skipped} != "
+                    f"现场派生用例总数 {total_cases}")
+    if args.only_profile_cases and skipped == 0:
+        errs.append("--only-profile-cases 但 skipped_profile == 0"
+                    "（当前 profile 没有任何专属用例 ⇒ 该段是空跑）")
+    if total == 0:
+        errs.append("0 cases executed（total == 0）")
     if failed or errors:
         errs.extend(fail_details)
         errs.append(f"非全绿: failed={failed} errors={errors}")
