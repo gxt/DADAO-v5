@@ -19,7 +19,7 @@
 ## 2. 接口形态（设计层骨架）
 
 ```text
-tools/golden/fp_ref.py
+components/golden/fp_ref.py
 
   eval(insn: str, ops: list[int], state: FCSRState, fmt: str) -> Result
       # insn : contracts/opcodes.yaml 的 id（如 "ftadd_orrr_rf"）
@@ -78,7 +78,7 @@ tools/golden/fp_ref.py
 - 风险：f64 + 四舍入模式 + 子正规 + UF/NX 的精确判定；`ftrem` 与 `ftsclb` 的边界；NaN payload 逐位传播；`immu6` 块形式的逐对/先读后写顺序；整数宽度（32/64、有/无符号）与饱和边界。
 - 建议分期（先窄后宽）：**先 f32、先 RNE、先 arith**，再扩模式与 f64，最后补转换/比较/分类/符号/root 与块形式。
 - 建议的后续任务（**本任务只登记，不创建**）：
-  - `GOLDEN-001t`：oracle 骨架（`tools/golden/fp_ref.py` 接口 + `FCSRState` + 分派 + 自证 harness；无期望值）。
+  - `GOLDEN-001t`：oracle 骨架（`components/golden/fp_ref.py` 接口 + `FCSRState` + 分派 + 自证 harness；无期望值）。
   - `GOLDEN-002t`：f32 arith + RNE + 标志（自证）。
   - `GOLDEN-003t`：四舍入模式 + f64。
   - `GOLDEN-004t`：转换/比较/分类/符号/root + 块形式。
@@ -86,6 +86,6 @@ tools/golden/fp_ref.py
 
 ## 8. 边界
 
-- 本文档**不含实现**（`tools/golden/**` 不创建代码）、**不含任何期望值或测试向量**。
+- 本文档**不含实现**（`components/golden/**` 不创建代码）、**不含任何期望值或测试向量**。
 - oracle 的期望值产出属后续 `GOLDEN-*` 任务；FP 向量/lit、LLVM/QEMU 实现分别属 `TESTCASES-*` / `LLVM-*` / `QEMU-*` / `INTEG-*`。
 - 语义真源 = `spec/SimRISC-07` 正文 + `.tao/contracts/contract-fp.md`；机器可读输入 = `contracts/fp_semantics.yaml`。

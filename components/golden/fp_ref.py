@@ -300,15 +300,18 @@ def convert_to_int(bits, src, width, signed, mode):
     sign, kind, value, _ = decode(bits, src)
     lo = -(1 << (width - 1)) if signed else 0
     hi = (1 << (width - (1 if signed else 0))) - 1
+    mask = (1 << width) - 1
     if kind in ('nan', 'inf'):
-        return (lo if sign and signed else hi), NV
+        # Return the width-sized bit pattern; the caller sign-extends signed
+        # results exactly once.
+        return ((lo & mask) if sign and signed else hi), NV
     x = abs(value)
     q, rem = divmod(x.numerator, x.denominator)
     if mode == 0 and (2 * rem > x.denominator or (2 * rem == x.denominator and q & 1)): q += 1
     elif mode == 2 and sign and rem: q += 1
     elif mode == 3 and not sign and rem: q += 1
     result = -q if sign else q
-    if result < lo: return lo, NV
+    if result < lo: return lo & mask, NV
     if result > hi: return hi, NV
     # SimRISC-07 §1 / contract-fp §3: finite inexact => NX.
     return result & ((1 << width) - 1), (NX if rem else 0)

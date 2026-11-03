@@ -236,9 +236,23 @@ class FloatingGoldenTests(unittest.TestCase):
                          (0xFFFFFFF8, 0))
         self.assertEqual(fp_ref.convert_to_int(0x7F800000, fp_ref.F32, 32, True, 0),
                          (0x7FFFFFFF, fp_ref.NV))
+        self.assertEqual(fp_ref.convert_to_int(0xFF800000, fp_ref.F32, 32, True, 0),
+                         (0x80000000, fp_ref.NV))
+        self.assertEqual(fp_ref.convert_to_int(0xCF000001, fp_ref.F32, 32, True, 0),
+                         (0x80000000, fp_ref.NV))
         st = self.execute('ft2it_orri_rf', {'rf': {'rf1': 0x3FC00000}},
                           rdhb=2, rfhc=1, immu6=1)
         self.assertEqual((st.rd[2], st.rf[0] & 0x1F), (2, fp_ref.NX))
+        st = self.execute('ft2it_orri_rf', {'rf': {'rf1': 0xCF000001}},
+                          rdhb=2, rfhc=1, immu6=1)
+        self.assertEqual((st.rd[2], st.rf[0] & 0x1F),
+                         (0xFFFFFFFF80000000, fp_ref.NV))
+
+    def test_scaleb_overflow_and_underflow_flags(self):
+        self.assertEqual(fp_ref.scaleb(0x3F800000, 128, fp_ref.F32, 0),
+                         (0x7F800000, fp_ref.OF | fp_ref.NX))
+        self.assertEqual(fp_ref.scaleb(0x00000001, -1, fp_ref.F32, 0),
+                         (0, fp_ref.UF | fp_ref.NX))
 
     def test_scaleb_uses_rd_integer_exponent(self):
         """SimRISC-07 §2.1 / contract-fp §5: third operand is rdHD."""
