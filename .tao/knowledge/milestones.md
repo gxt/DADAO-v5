@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-093t | 待开始 | 2026-11-03 12:19（登记） | L3 探针收口：F4 check-arch --qemu、power 复位+hmon identity-PTW prelude、去 -kernel、13+1 册逐例判定；未绿不写 PASS |
 | TESTCASES-092t | 已验证 | 2026-11-03 11:20 | Tiny/Node 执行资产 P0–P5：inst 968+44、arch 10/10、token/profile/hmon；P6 13 探针拆 093 |
 | QEMU-080t | 已验证 | 2026-11-03 08:55 | Machine-v5-Node 系统机：4 MiB BootROM + 2 GiB RAM、hmon/PTW/hypv、identity 4×512 MiB 超页 |
 | GEM5-014t | 已验证 | 2026-11-03 06:55 | G1 SE 平台骨架：SEWorkload/Process/MMU、AtomicSimpleCPU、静态 ELF/栈/MemRAS、最小 libc syscall 面 |
