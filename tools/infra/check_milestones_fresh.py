@@ -59,7 +59,7 @@ ROW_ID_RE = re.compile(r"^(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5|GOLDEN)-\
 TIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})(（登记）)?$")
 STATUS_RE = re.compile(r"^\*\*状态\*\*[：:]\s*([^\s*]+)", re.MULTILINE)
 TASK_FILE_RE = re.compile(
-    r"^((?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?)-.*\.md$")
+    r"^((?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5|GOLDEN)-\d{3}[a-z]?)-.*\.md$")
 
 
 def task_index(root: Path) -> dict[str, Path]:
