@@ -54,18 +54,18 @@
 
 **重跑记录**（本人在主工作树执行，真实 rc）：
 - `make check-run-artifacts` → **rc=0**；`[PASS] A3 2810 new file(s) checked, 0 illegal, 5939 exempt`；`check-run-artifacts: PASS`（与完成区 2810/0 一致）
-- `make check-knowledge-refs` → **rc=0**（悬空 `.work` 引用 0；小节级 ADR 533 + contract 79）
+- `make check-knowledge-refs` → **rc=0**（悬空运行期引用 0；小节级 ADR 533 + contract 79）
 - `make check-milestones-fresh` → **rc=0**（流水 45 行，状态一致/覆盖/倒序全过）
 - `make check-no-residue` → **rc=0**
 - `git status --porcelain -uall` → 空、rc=0；`git diff HEAD` → 空
 
 **7 条旧日志核对**（清单取自历史门控输出 `.work/log/infra/INFRA-120t-L1-after.log`：`2815 checked, 7 illegal`）：
 - 通用 3 条 `mergetree.out`、`krefs-final.log`、`qemu/disk-free-r2.log` —— 逐个 `[ -e ]` 检查均 gone
-- GEM5-018t 4 条 `GEM5-018t-build{,2}.{EXIT,start}` —— 均 gone；`find .work/log -name 'GEM5-018t*'` 仅剩合法的 `GEM5-018t-build.log`/`build2.log`
+- GEM5-018t 4 条 `GEM5-018t-build{,2}.{EXIT,start}` —— 均 gone；现场检查仅剩合法的 `GEM5-018t-build.log`/`build2.log`
 - **计数闭环**：`2815 − 7 + 2（22:34 后新建 GEM5-019t-build.log / -exit.txt，birth time 证实）= 2810` ⇒ 恰好只删 7 条、无多删
 - 独立复刻 A3 逻辑（不跑门控脚本）：`checked=2810 illegal=0 exempt_baseline=5939`，与门控逐字一致；1218 个旧非法名全在 baseline 且 baseline/epoch mtime 仍为 10-19（未被改动）
 
-**独立反例注入**（新建 `.work/log/review-inject-counterexample.log`，非 git 还原）：
+**独立反例注入**（在运行期日志目录新建临时非法命名文件，非 git 还原）：
 - 注入后 `python3 tools/infra/check_run_artifacts.py` → **rc=1**，`FAIL (1 problem(s))` 列出该文件；`make check-run-artifacts` → **rc=2**（make 包装码，历史日志同为 `Error 1` 口径）
 - `rm` 删除后重跑 → **rc=0**、`2810/0`；`check-no-residue` 复跑 rc=0，注入零残留
 
