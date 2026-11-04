@@ -21,7 +21,7 @@
 ## 问题根源（现场核对，2026-11-05）
 
 1. **DADAO-12 §1 的 cfxha 表仍是旧号**：`16 llc`、`17 pmem`、`18 time`，保留集为 `6–14、19–61`；§1 作用域表仍是 `cfx0–cfx15 per-hart`、`cfx16–cfx63 per-system`，没有 per-task。
-2. **编号散落到多处真源/投影**：DADAO-12 §2.1 的 pmem SRAM 表与 §4.9 的 `cfxha 17`；Machine-v5 的 `17 / pmem` 与 SRAM 基址；DADAO-22 的 `cfx_time = cfx18` 示例；SimRISC-11 与 SimRISC-00 附录的保留集；`contracts/opcodes.yaml` 的 5 条 `15–18` 合法式；`legality_rules.yaml` 的保留集/已分配集。
+2. **编号散落到多处真源/投影**：DADAO-12 §2.1 的 pmem SRAM 表与 §4.9 的 `cfxha 17`；Machine-v5 的 `17 / pmem` 与 SRAM 基址；DADAO-22 的 `cfx_time = cfx18` 示例；`contracts/opcodes.yaml` 的 5 条 `15–18` 合法式；`legality_rules.yaml` 的保留集/已分配集。**SimRISC-11/00 不再列具体编号**：ISA 层只保留“保留 cfxha 由 SEE/DADAO-12 定义，指向保留 cfxha ⇒ ILLI”的描述性规则。
 3. **实现硬编码**：QEMU `DADAO_CFXHA_PMEM=17`/`DADAO_CFXHA_TIME=18`、`DADAO_CFX_IS_RESERVED`、`dadao_cfxha_map`；gem5 `CfxhaPmem=17`/`CfxhaTime=18`、`kCfxhaMap`、`nodeCfxReserved`、`kTraceCfxha`、`cg7SpaceReg` case 17、`fs.py`/`DadaoNodeTlb.py` 的 pmem 基址；生成的 QEMU/gem5 decode 表也内嵌旧合法式。
 4. **测试/探针**：`smon.S` 9 处硬编码 `0x47ff`；`machine-*.inc` 由生成器产出 `PMEM_BASE=0x47ff00000000`；探针 `PMEM_BASE`、`PMEM_HA=17`、`TIME_HA=18`、`cfx16 (llc)`、`FULL_ADDR[17]`；lit `cfx2-space-stride.s` 硬编码 cfxha=17 的编码 `7a44c0c1`；umon 向量/期望说明写 `cfxha 16`。
 5. **pmem 核内基址随 cfxha 变化**：`(17<<42)|0x3ff_0000_0000 = 0x47ff_0000_0000`；改为 32 后为 `(32<<42)|0x3ff_0000_0000 = 0x83ff_0000_0000`。这是 cfx 内部窗口地址，**不是** Node/Tiny 的 BootROM/RAM/hmon/smon 几何。
@@ -31,7 +31,7 @@
 
 1. **单一新编号真源**：DADAO-12 §1 表改为 `32 pmem / 33 llc / 34 time`，保留集改为 `6–14、16–31、35–61`；§2.1 pmem 行与 §4.9 改为 cfxha 32、核内基址 `0x83ff_0000_0000`；append 一条未发布变更记录（不重写旧记录）。
 2. **三段作用域**：DADAO-12 §1 增加 `cfx16–cfx31 per-task`、`cfx32–cfx63 per-system` 两行，并给出 per-task 的申请/释放/不随上下文切换保存恢复定义；`cfx0–cfx15 per-hart` 不变。
-3. **契约/编码真源同步**：SimRISC-11 的保留集、SimRISC-00 未发布变更记录、`contracts/opcodes.yaml` 的合法式、`legality_rules.yaml`、`contract-isa`/`contract-see` 投影、Machine-v5/DADAO-22 中与新号有关的字面全部同步；所有生成物由各自生成器重生成。
+3. **契约/编码真源同步**：`SimRISC-11` 与 `SimRISC-00` **删除具体 cfx 编号/范围**，只保留描述性规则（“保留 cfxha 由 SEE/DADAO-12 定义；指向保留 cfxha ⇒ ILLI”）；`contracts/opcodes.yaml` 的合法式、`legality_rules.yaml`、`contract-isa`/`contract-see` 投影、Machine-v5/DADAO-22 中与新号有关的字面同步；所有生成物由各自生成器重生成，且生成器不得把具体保留集重新写回 SimRISC。
 4. **QEMU/gem5 实现同步**：pmem=32、time=34、llc=33（llc 仍未实现，访问 ⇒ `CFXREG`）；保留集 `6–14、16–31、35–61`；pmem SRAM guest 基址 `0x83ff_0000_0000`；QEMU/gem5 Node/Tiny 构建与代表测试通过。
 5. **测试资产同步**：bootrom、机器头、探针、lit、向量、`case-ledger` 按新号重生成/更新；Tiny 无 cfx 的语义不变，Node 的 cfx/PTW/DMA/时间语义不变。
 6. **只读锁**：本任务改到的 spec 册（`DADAO-12`、`DADAO-22`、`Machine-v5`、`SimRISC-00`、`SimRISC-11`）同笔重算 sha256 并写授权注记；与 `SPEC-184t`/`SPEC-186t` 串行，不并发改锁。
@@ -51,7 +51,7 @@
 | 34 | time | 全局时间计数器 |
 | 35-61 | reserved | 保留，未定义 |
 
-保留集统一写作 **`6–14、16–31、35–61`**；已分配/合法集统一写作 **`0–5、15、32–34、62、63`**（0 = all cfx，汇编别名 `cfx0`/`cfx_umon`）。
+DADAO/合约/实现层的保留集统一写 **`6–14、16–31、35–61`**，已分配/合法集统一写 **`0–5、15、32–34、62、63`**（0 = all cfx，汇编别名 `cfx0`/`cfx_umon`）。`SimRISC-11/00` 不写具体范围，只保留“由 SEE/DADAO-12 定义”的描述。
 
 ### 2. 作用域表与 per-task 定义（DADAO-12 §1）
 
@@ -81,14 +81,14 @@
 - `spec/DADAO-12-SEE-主管系统运行环境.md`：§1 表/作用域/per-task 定义、§2.1 pmem 行与说明、§4.9 `cfxha 17`、§5.2 中的保留集字面（**只替换编号，不改路由/步骤/屏蔽语义**）、附录 `0.7.3-rc` 追加一条（不重写旧条目）。`§5.2` 若与 `SPEC-186t` 重叠，按串行顺序后者基于前者最终文本只做编号字面替换。
 - `spec/DADAO-22-SBI-主管系统二进制接口.md`：`cfx_time = cfx18` 示例注释改 34；附录 `0.7.3-rc` 追加一条。§8/§9/§10 已分别写明 llc/time 为 per-system；pmem 若补作用域，只写“per-system”，不改 SBI 语义。
 - `spec/Machine-v5-测试机运行环境.md`：Node 表的 `17 / pmem` → `32 / pmem` 与 SRAM 基址；§1.1/§1.2/§2 中的 `cfx17`、保留集、附录 `0.3.2-rc` 同步。Node/Tiny 几何与装载语义不动。
-- `spec/SimRISC-11-核芯功能扩展指令.md`：§1/§4/§5 的保留集改 `6–14、16–31、35–61`（附录 B 由 `gen_legality_list.py --apply` 重生成）。
-- `spec/SimRISC-00-指令系统设计.md`：只在附录 `0.5.6-rc` **追加**一条保留集更新记录；旧记录保留为历史，不改写。
+- `spec/SimRISC-11-核芯功能扩展指令.md`：删除 §1/§4/§5/§6 中的具体 cfx 编号/范围（含 `6–14、19–61`），改为“保留 cfxha 的分配由 SEE/DADAO-12 定义；指向保留 cfxha ⇒ ILLI”的描述性规则；附录 B 由 `gen_legality_list.py --apply` 重生成，但生成器必须跳过/改写字面范围，不得把具体保留集重新写回本册。
+- `spec/SimRISC-00-指令系统设计.md`：删除 `0.5.6-rc` 变更记录中的具体 `6–14、19–61`，改为“保留 cfxha 具体分配由 SEE/DADAO-12 定义”；不新增具体范围，不把范围写回 ISA 册。
 
 **contracts / 生成物（禁手改生成物）**
 
 - `tools/spec/generate_opcodes.py`：`CFX_RESERVED_EXPR` 改为 `cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62`，注释同步；运行生成器写 `contracts/opcodes.yaml`。
 - `contracts/legality_rules.yaml`：`encode_cfx_reserved` 的 description 改为新保留集，已分配集改为 `1–5、15、32–34、62、63`。
-- `tools/spec/gen_legality_list.py`：`encode_cfx_reserved` 摘要改新保留集；`--apply` 重生成各册 LEGALITY 段，`--verify` 回归。
+- `tools/spec/gen_legality_list.py`：`encode_cfx_reserved` 摘要改新保留集；`--apply` 重生成各册 LEGALITY 段，`--verify` 回归；**生成 SimRISC-11 附录时不得写入具体 cfx 编号/范围**，改为描述性说明。
 - `tools/spec/check_legality_invariants.py`：`CFX_RESERVED_EXPR` 与 description 断言 token 改 `6–14`/`16–31`/`35–61`。
 - `.tao/contracts/contract-isa.md`：4 处保留集（§ legality 说明/屏障/核芯功能扩展）改新集。
 - `.tao/contracts/contract-see.md`：`cfx_pmem`/`cfx_time` 的 cfxha 与 SRAM 基址、保留集、测试机 cfx 实现集（`cfx17`/`cfx18` → `cfx32`/`cfx34`）同步。
@@ -145,7 +145,7 @@
 ## 验收标准
 
 1. **新号一致**：`spec/DADAO-12`、`Machine-v5`、`DADAO-22`、`contract-isa`、`contract-see`、`contracts/cfx-aliases.txt`、`.tao/contracts/contract-cfx-aliases.md`、QEMU/gem5 实现与测试资产中，pmem/llc/time 的 cfxha 分别为 32/33/34；`cfx16`/`cfx17`/`cfx18` 不再被当作已分配 cfx 使用（历史记录除外）。
-2. **保留集一致**：所有活文件（非历史）统一为 `6–14、16–31、35–61`；`encode_cfx_reserved` 合法式为 `cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62`；边界测试覆盖 6/14/16/31/35/61。
+2. **保留集一致**：DADAO/合约/实现等活文件统一为 `6–14、16–31、35–61`；`encode_cfx_reserved` 合法式为 `cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62`；边界测试覆盖 6/14/16/31/35/61。`SimRISC-11/00` 必须不含具体 cfx 编号/范围，只含描述性规则。
 3. **作用域落地**：DADAO-12 §1 含三段作用域与 per-task 定义；活文件中不再出现“cfx16–cfx63 per-system”或“0–15 每核、16–63 全系统”的旧表述。
 4. **地址自洽**：`(32<<42)|0x3ff_0000_0000 == 0x83ff_0000_0000`；QEMU/gem5 的 pmem SRAM 访问/越界 `CFXMEM`/DMA 双向搬运全部通过；Node/Tiny 几何常量逐项未变。
 5. **全局扫描**：对 `spec/ contracts/ .tao/contracts/ components/qemu/ components/gem5/ tests/ tools/` 运行 `git grep` 扫描下列模式，命中必须清零或逐条登记为“历史/说明”并给文件:行：
