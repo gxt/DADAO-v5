@@ -104,6 +104,7 @@ agent: build
 - 再 `git push`（FF，本任务提交已落地）；**只推送本任务的提交**；**已 push 的提交不得改写历史**（只能追加）。
 - push 前核对 `git show --stat` 的文件集与任务书「修改文件」声明一致（可复用 architect 的审核结论）。
 - 收尾最后核对：**已按队列派出下一件，或说明为何停**（队列续链归主会话，见 `AGENTS.md`「命令与任务执行纪律」）。
+- **清理任务目录**：状态 `已验证` 且分支已合入后，确认证据/日志已复制到主工作树 `.work/evidence`、`.work/log`，再删除任务 worktree 内 `.work/` 与 `/tmp/opencode/<任务ID>/`；共享 `.work/source`、`.work/build` 不得删除，任务不得各建一套。
 
 ## 注意
 
