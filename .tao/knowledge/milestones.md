@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| GEM5-018t | 待开始 | 2026-11-04 11:40（登记） | FS semihosting 修复：WRITEC/WRITE0 无返回标记 + SYS_TICKFREQ=1e9 基线 |
 | GEM5-016t | 已验证 | 2026-11-04 05:35 | FS Machine-v5-Node：4 MiB ROM/2 GiB RAM、hmon/PTW/hypv、inst 968/963、embench 38/38 |
 | GEM5-017t | 待开始 | 2026-11-04 05:30（登记） | FS 同模式 parity：Tiny/Node × inst/arch/embench 逐 case 对照 QEMU system，picolibc 旁证 |
 | GEM5-015t | 已验证 | 2026-11-04 00:05 | FS Machine-v5-Tiny：64 KiB ROM/8 MiB SRAM、inst 1003/1003、embench 38/38、semihosting；picolibc math_test 既有 B7 blocked |
