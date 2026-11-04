@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-090t | 已验证 | 2026-11-04 16:56 | scaleB/sc 测试；LLVM lit/isa matrix 已同步；QEMU/gem5 tiny+node 52/52 AGREE_PASS，F2 复跑通过 |
 | GEM5-018t | 已验证 | 2026-11-04 16:49 | FS semihosting 修复：WRITEC/WRITE0 rd8=0xdeadbeef、SYS_TICKFREQ=1e9；046t 32/32、node/arch 7 条转 AGREE_PASS |
 | SPEC-184t | 待开始 | 2026-11-04 15:25（登记） | spec §6 Node identity 收口（ISS-340）：L1 0–3/VA=PA 2 GiB、entry/SP、ADR/合约投影、锁 sha |
 | INFRA-119t | 待开始 | 2026-11-04 13:56（登记） | LLVM/QEMU 构建入口接 ccache：CMake launcher + configure CC/CXX，全局默认缓存 |
@@ -42,7 +43,6 @@
 | LLVM-142t | 已验证 | 2026-11-02 10:55 | scaleB C1（第三源 rf→rd）+ sc rd0 汇编期 ILLI；LLVM TD/MC/CodeGen |
 | GEM5-005t | 已验证 | 2026-11-02 10:54 | scaleB C1 第三源 rf→rd + sc rd0 的 gem5 decode/断言更新 |
 | SPEC-181t | 已验证 | 2026-11-02 10:53 | gem5 语义契约收口：ADR-0044 Accepted、FP remainder/scaleB/f2i、call IP+4、sc rd0、保留粒度 |
-| TESTCASES-090t | 待验收 | 2026-11-02 07:07（登记） | scaleB/sc 测试；LLVM lit/isa matrix 已同步；QEMU/gem5 对照 BLOCKED |
 | GEM5-004t | 已验证 | 2026-11-01 23:40 | B0 解码核心 + 264 条解码断言（388 反例）；gem5 骨架可构建，B1–B7 留边界 |
 | GEM5-002t | 已验证 | 2026-11-01 22:28 | M11 指令语义重导矩阵：逐条对照当前 spec 与 0628/PR，禁止同助记符默认复用 |
 | GEM5-003t | 已验证 | 2026-11-01 22:02 | gem5 锁定 v25.1.0.1 / c8222cc6；组件暂 disabled，G1 建骨架后启用 |
