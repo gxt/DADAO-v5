@@ -1,7 +1,8 @@
 # ADR-0049: 测试运行环境分层（Tiny / Node / SE）
 
-**状态**：Candidate
+**状态**：Accepted
 **日期**：2026-11-04
+**接受日期**：2026-11-04
 **关联**：ADR-0004（测试机几何）、ADR-0043（Node 启动/页表）、ADR-0048（QEMU/gem5 一致性）、`spec/Machine-v5-测试机运行环境.md`、`spec/DADAO-12`；任务线索 `QEMU-079t`/`QEMU-080t`、`GEM5-014t`/`GEM5-016t`、`TESTCASES-091t`/`TESTCASES-092t`
 
 ## Context（背景）
@@ -69,8 +70,8 @@ M11 需要把三类运行环境固定为**互斥的测试归属**，避免同一
 
 ## 状态说明
 
-本 ADR 为 `Candidate`，D1–D5 尚需用户逐条确认后才能置 `Accepted`。确认前：
+**Accepted**（2026-11-04）：用户审阅后确认本 ADR，D1–D5 全部生效。
 
-- 不修改 `spec/Machine-v5`、ADR-0004、ADR-0043；
-- 不据此重划任务或改测试资产；
-- 现有 Node/SE 结果不得按本 ADR 追溯为已验证。
+- **用户原话**：「adr-0049已审阅，accepted」。
+- 生效后，Tiny / Node / SE 的测试归属按 D1–D5 执行；具体地址几何、PTE 位域与 semihosting 编号仍以 `spec/`、`contract-*`、ADR-0004/0043/0048 为准。
+- 决策变更按 `Process-03` 处理：新增 ADR 或标 `Superseded`，不直接改写已 `Accepted` 的 decision。
