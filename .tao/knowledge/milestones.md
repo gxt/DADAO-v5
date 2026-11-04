@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-121t | 待开始 | 2026-11-05 01:15（登记） | 运行期日志命名清理：check-run-artifacts 7 条既有红 |
 | GEM5-019t | 已验证 | 2026-11-05 01:00 | SYS_ELAPSED 与 SYS_TICKFREQ 统一 1e9 ticks/s；64 位无溢出换算、046t/parity 零退化 |
 | INFRA-120t | 已验证 | 2026-11-04 23:00 | 任务书运行期路径清零：清 42 册具体运行期路径、AGENTS 固化规则 |
 | INFRA-119t | 已验证 | 2026-11-04 22:18 | LLVM/QEMU 构建入口接 ccache：CMake launcher + configure CC/CXX，全局默认缓存 |
