@@ -45,6 +45,14 @@ GEM5_BUILD ?= .work/build/gem5
 # a fake PASS).
 GEM5_SCONS ?= scons
 
+# ccache (INFRA-119t): wired into the LLVM configure (CMake compiler launcher)
+# and the QEMU configure (CC/CXX prefix) below.  Enabled only when ccache is on
+# PATH; `make ... CCACHE=` forces it off, and an empty value also falls back to
+# a plain build.  ccache's own configuration (CCACHE_DIR / max_size /
+# sloppiness) is deliberately left alone — no environment forcing, no PATH
+# shims.
+CCACHE ?= $(shell command -v ccache 2>/dev/null)
+
 DOCKER_TAG ?= dadao-v5-dev:local
 
 .DEFAULT_GOAL := help
@@ -158,8 +166,9 @@ help:
 	@echo "  make build-mc-lite   Build LLVM MC/objdump/FileCheck/not only (no objcopy/readobj/CodeGen/clang/lli)"
 	@echo "  make build-mc-reconfig  Force cmake re-run then build the full LLVM tool set"
 	@echo "  make build-lld       Build LLD linker (bin/ld.lld); shares the one-shot LLVM config"
-	@echo "  make build-qemu      Compile QEMU (skips configure if build.ninja exists)"
+	@echo "  make build-qemu      Compile QEMU (reconfigures only when the stamped config/ccache state changes)"
 	@echo "  make build-qemu-reconfig  Force configure re-run then compile QEMU"
+	@echo "  ccache               $(if $(CCACHE),$(CCACHE) (auto-detected on PATH; pass CCACHE= to disable),off — ccache not on PATH; LLVM uses the cmake compiler launcher, QEMU the CC/CXX prefix)"
 	@echo "  make build-gem5      Build gem5 with the DADAO arch skeleton (SCons; GEM5_SCONS=... if not on PATH; GEM5-004t)"
 	@echo "  make check-gem5-decode  Regenerate/compare the decode table and run the 264-row decode assertions (GEM5-004t)"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
@@ -291,13 +300,17 @@ prepare: fetch apply-series
 # The config is stamped into the disposable build tree; the incremental fast
 # path reconfigures only when the stamp differs, so a stale tree can never be
 # silently reused (use build-mc-reconfig to force).  ADR-0016 D3/D11.
+# INFRA-119t: the stamp also records the ccache decision and, when ccache is
+# available, the compiler launcher is passed on the cmake command line (the
+# CMakeCache is never hand-edited; LLVM_CCACHE_BUILD is intentionally NOT used
+# because it disables PCH and hard-fails when ccache is missing).
 LLVM_TARGETS ?= DADAO;X86
 LLVM_PROJECTS ?= clang;lld
-LLVM_BUILD_CONFIG = targets=$(LLVM_TARGETS) projects=$(LLVM_PROJECTS) build_type=RelWithDebInfo assertions=ON
+LLVM_BUILD_CONFIG = targets=$(LLVM_TARGETS) projects=$(LLVM_PROJECTS) build_type=RelWithDebInfo assertions=ON ccache=$(if $(CCACHE),$(CCACHE),off)
 
 # Single-line shell snippet: (re)configure $(LLVM_BUILD) only when its stamped
 # configuration differs.  A failing cmake aborts before the stamp is written.
-LLVM_CONFIGURE = echo '$(LLVM_BUILD_CONFIG)' | cmp -s - $(LLVM_BUILD)/.dadao-llvm-config 2>/dev/null || { echo "llvm: configuring $(LLVM_BUILD) [$(LLVM_BUILD_CONFIG)]"; cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) -DLLVM_TARGETS_TO_BUILD="$(LLVM_TARGETS)" -DLLVM_ENABLE_PROJECTS="$(LLVM_PROJECTS)" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLLVM_ENABLE_ASSERTIONS=ON || exit 1; echo '$(LLVM_BUILD_CONFIG)' > $(LLVM_BUILD)/.dadao-llvm-config; }
+LLVM_CONFIGURE = echo '$(LLVM_BUILD_CONFIG)' | cmp -s - $(LLVM_BUILD)/.dadao-llvm-config 2>/dev/null || { echo "llvm: configuring $(LLVM_BUILD) [$(LLVM_BUILD_CONFIG)] (ccache: $(if $(CCACHE),$(CCACHE),off))"; cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) -DLLVM_TARGETS_TO_BUILD="$(LLVM_TARGETS)" -DLLVM_ENABLE_PROJECTS="$(LLVM_PROJECTS)" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLLVM_ENABLE_ASSERTIONS=ON $(if $(CCACHE),-DCMAKE_C_COMPILER_LAUNCHER=$(CCACHE) -DCMAKE_CXX_COMPILER_LAUNCHER=$(CCACHE)) || exit 1; echo '$(LLVM_BUILD_CONFIG)' > $(LLVM_BUILD)/.dadao-llvm-config; }
 
 LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm llvm-readelf llvm-dwarfdump FileCheck not LLVMDADAOCodeGen llc lli clang
 LLVM_MC_LITE_TARGETS = llvm-mc llvm-objdump FileCheck not
@@ -356,25 +369,31 @@ _locked-build-lld: manifest-check
 	ninja -j$(JOBS) -C $(LLVM_BUILD) $(LLD_TARGETS)
 	@echo "build-lld: PASS"
 
-# build-qemu skips configure when build.ninja already exists (incremental fast
-# path).  After applying patches that only touch .c/.h files (not meson.build),
-# the incremental path compiles only changed objects (~3s for one file).
+# build-qemu reconfigures only when the stamped configuration differs
+# (INFRA-119t).  The stamp records the configure arguments *and* the ccache
+# decision, so toggling ccache on/off re-runs configure and an old build.ninja
+# generated with a different compiler setup is never silently reused.  After
+# applying patches that only touch .c/.h files (not meson.build), the
+# incremental path compiles only changed objects (~3s for one file).
 # Use build-qemu-reconfig to force a full configure (e.g. after changing
 # meson.build or configure options).
+QEMU_CONFIGURE_ARGS = --target-list=dadao-softmmu,dadao-linux-user --enable-tcg --disable-werror
+QEMU_BUILD_CONFIG = ccache=$(if $(CCACHE),$(CCACHE),off) args=$(QEMU_CONFIGURE_ARGS) cc=$(if $(CCACHE),$(CCACHE) gcc,default) cxx=$(if $(CCACHE),$(CCACHE) g++,default)
+QEMU_STAMP = $(abspath $(QEMU_BUILD)/.dadao-qemu-config)
+
+# Single-line shell snippet, same shape as $(LLVM_CONFIGURE): (re)configure
+# $(QEMU_BUILD) only when the stamped configuration differs.  ccache is passed
+# through the environment variables QEMU's configure reads (CC/CXX); its
+# meson_quote splits `ccache gcc` into ['ccache','gcc'], so no quoting trap.
+# A failing configure aborts before the stamp is written.
+QEMU_CONFIGURE = echo '$(QEMU_BUILD_CONFIG)' | cmp -s - $(QEMU_STAMP) 2>/dev/null || { echo "qemu: configuring $(QEMU_BUILD) [$(QEMU_BUILD_CONFIG)] (ccache: $(if $(CCACHE),$(CCACHE),off))"; mkdir -p $(QEMU_BUILD) && cd $(QEMU_BUILD) && $(if $(CCACHE),CC="$(CCACHE) gcc" CXX="$(CCACHE) g++") $(CURDIR)/$(QEMU_SRC)/configure $(QEMU_CONFIGURE_ARGS) || exit 1; echo '$(QEMU_BUILD_CONFIG)' > $(QEMU_STAMP); }
+
 _locked-build-qemu: manifest-check
 	@$(call component-enabled,qemu) || { \
 	  echo "build-qemu: component 'qemu' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
 	}
-	@if [ -f $(QEMU_BUILD)/build.ninja ]; then \
-	  echo "build-qemu: build.ninja exists, skipping configure (use build-qemu-reconfig to force)"; \
-	else \
-	  mkdir -p $(QEMU_BUILD) && \
-	  cd $(QEMU_BUILD) && $(CURDIR)/$(QEMU_SRC)/configure \
-	    --target-list=dadao-softmmu,dadao-linux-user \
-	    --enable-tcg \
-	    --disable-werror; \
-	fi
+	@$(QEMU_CONFIGURE)
 	PYTHONHASHSEED=0 $(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
 	@echo "build-qemu: PASS"
 
@@ -384,11 +403,8 @@ _locked-build-qemu-reconfig: manifest-check
 	  echo "build-qemu-reconfig: component 'qemu' is not enabled / commit pending; refusing to fake success"; \
 	  exit 1; \
 	}
-	mkdir -p $(QEMU_BUILD)
-	cd $(QEMU_BUILD) && $(CURDIR)/$(QEMU_SRC)/configure \
-	  --target-list=dadao-softmmu,dadao-linux-user \
-	  --enable-tcg \
-	  --disable-werror
+	@rm -f $(QEMU_STAMP)
+	@$(QEMU_CONFIGURE)
 	PYTHONHASHSEED=0 $(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
 	@echo "build-qemu-reconfig: PASS"
 
