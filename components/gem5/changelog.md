@@ -4,6 +4,10 @@
 
 ## M11
 
+- **2026-11-04 GEM5-019t**
+  - 摘要：**`SYS_ELAPSED` 与 `SYS_TICKFREQ` 统一 1e9 ticks/s 基准**。新增共享常量 `DadaoISA::Semihosting::ticksPerSecond = 1e9`（M11 用户裁定；QEMU `DADAO_TIME_FREQ` 与 `contract-see` 的 `cfx_time` 1 GHz 测试机约定同源），`SYS_TICKFREQ` 改用它、值不变；新增 `callElapsed32/64` 覆盖与私有 helper `elapsedTicks()`，按 `floor(curTick() * 1e9 / sim_clock::Frequency)` 从引擎频率独立换算（`unsigned __int128` 中间量避免 64 位乘积溢出，结果 64 位；不减 `timeBaseTick`，基准是引擎起点，同 QEMU `clock_start`）。32 位入口（DADAO 恒 64 位、guest 不可达）共用同一 helper，不留 `semiTick` 旧路径；基类 `src/arch/generic/semihosting.*` 未改。验收：独立单位探针（debug tick 前缀 + 启动横幅 N + `--trace-cpu` 的 `E1/E2/F`）逐样本 `E == floor(T*1e9/N)`、`E2>E1`、旧映射 `T>>8` 不成立；046t `svc_elapsed`/`svc_tickfreq` PASS，全量 case 与 5 条 TICKFREQ 探针、node/arch parity、B0–B7、SE 零退化。
+  - 执行者：engineer
+
 - **2026-11-04 GEM5-018t**
   - 摘要：**FS semihosting 两项缺陷修复（GEM5-017t parity 发现）**。`SYS_WRITEC`/`SYS_WRITE0` 的 `rd8` 由 `0` 改为具名常量 `Semihosting::noReturnMark = 0xdeadbeef`（QEMU 共享层 `common_semi_dead_cb`/QEMU-055t 的「无返回」保留标记；控制台字节与 `IP+=4` 不变）；`SYS_TICKFREQ` 新增 `DadaoISA::Semihosting::callTickFreq` 覆盖基类（`calls` 表 0x31 指向它），返回用户 2026-11-04 裁定基线 `1e9` ticks/s（基类 `semiTick(1e12)=3906250000` 不再用于该服务，`SYS_ELAPSED` 仍走通用 `semiTick`，本任务不动）。验收：046t 全 32 探针与 25 服务覆盖 PASS（`svc_writec`/`svc_write0` `rd8=0xdeadbeef`，5 条 TICKFREQ 探针 `rd8=1000000000`，`ret_rd8` 的 `rd31=0x5A5A`，`svc_readc` 回归 PASS）；node/arch parity 7 条 `BLOCKED` 行转为 `AGREE_PASS`（`GEM5_ONLY_FAIL=0`、`DIFF=0`；`run_parity.py` 的 `KNOWN_GEM5_BLOCKED` 注册表因此 stale，属 tools 侧后续清理）；B0–B7 `264/264 + 388/388 + 28/28 + 2/2`、converge 264 ids/1848 边界 `[FAIL] 0`、SE `hello`/`fail` 逐字节不变。
   - 执行者：engineer

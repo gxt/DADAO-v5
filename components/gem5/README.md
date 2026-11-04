@@ -159,8 +159,10 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `SYS_EXIT_EXTENDED` 低 8 位忠实传播；`SYS_SYSTEM` 默认 deny，
   `--semihost-system=native` 显式开启；未知服务号 `fatal` 带号与 pc。
   `SYS_WRITEC`/`SYS_WRITE0` 无返回，`rd8` 写无返回保留标记 `0xdeadbeef`
-  （QEMU 同模式对照）；`SYS_TICKFREQ` 返回 `1e9` ticks/s（M11 用户裁定
-  基线，spec 只写「ticks/秒」；`SYS_ELAPSED` 仍走通用 `semiTick`）。
+  （QEMU 同模式对照）；`SYS_TICKFREQ` 返回 `1e9` ticks/s，`SYS_ELAPSED`
+  与之共用同一 `ticksPerSecond = 1e9` 基准（`floor(curTick() * 1e9 /
+  sim_clock::Frequency)`，128 位中间量、64 位结果；M11 用户裁定基线，
+  spec 只写「ticks/秒」）。
 - **CLI**：`--kernel`（必填）、`--bootrom`、`--semihost {on,off}`、
   `--semihost-argv`/`--semihost-arg`、`--semihost-system {deny,native}`、
   `--console-out`、`--max-ticks`（命中 ⇒ 非 guest 125）、`--dump-geometry`、

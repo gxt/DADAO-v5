@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/semihosting.hh b/src/arch/dadao/semihosting.hh
 new file mode 100644
-index 0000000..78f0624
+index 0000000..89d2a8a
 --- /dev/null
 +++ b/src/arch/dadao/semihosting.hh
-@@ -0,0 +1,218 @@
+@@ -0,0 +1,233 @@
 +// DADAO FS semihosting (Machine-v5-Tiny): the DADAO ISA adaptor over gem5's
 +// generic BaseSemihosting.
 +//
@@ -71,6 +71,13 @@ index 0000000..78f0624
 +    // an engine-parity convention here, not a spec assertion.
 +    static constexpr uint64_t noReturnMark = 0xdeadbeef;
 +
++    // Target ticks per second, shared by SYS_TICKFREQ (0x31) and SYS_ELAPSED
++    // (0x30).  The value is the M11 QEMU/gem5 baseline (user ruling 2026-11-04,
++    // discussing.md), not spec text: spec §5.3 only says "ticks per second".
++    // It matches QEMU's DADAO_TIME_FREQ and the 1 GHz target-tick convention of
++    // contract-see's cfx_time (1 count = 1 ns).
++    static constexpr uint64_t ticksPerSecond = 1000ULL * 1000 * 1000;
++
 +    enum Operation
 +    {
 +        SYS_OPEN = 0x01,
@@ -135,11 +142,14 @@ index 0000000..78f0624
 +    RetErrno callConsoleWriteC(ThreadContext *tc, InPlaceArg arg);
 +    RetErrno callConsoleWrite0(ThreadContext *tc, InPlaceArg arg);
 +
-+    // SYS_TICKFREQ: the M11 QEMU/gem5 baseline (1e9 ticks/s) is a user ruling
-+    // (discussing.md 2026-11-04), not spec text (spec §5.3 only says "ticks
-+    // per second").  Hides BaseSemihosting::callTickFreq, which reports
-+    // semiTick(sim_clock::Frequency) = 1e12 >> 8; SYS_ELAPSED keeps using the
-+    // generic semiTick and is unchanged by this task.
++    // SYS_TICKFREQ and SYS_ELAPSED share ticksPerSecond.  BaseSemihosting
++    // reports semiTick(sim_clock::Frequency) = 1e12 >> 8 for both, which is
++    // 3906250000 ticks/s and therefore inconsistent with the 1e9 baseline.
++    // Both entries below (and the 32-bit entry, unreachable for DADAO's
++    // always-64-bit ABI) are overridden here so no service keeps the shifted
++    // unit.
++    RetErrno callElapsed32(ThreadContext *tc, InPlaceArg low, InPlaceArg high);
++    RetErrno callElapsed64(ThreadContext *tc, InPlaceArg ticks);
 +    RetErrno callTickFreq(ThreadContext *tc);
 +
 +    // SYS_SYSTEM is denied unless --semihost-system=native was requested.
@@ -152,6 +162,11 @@ index 0000000..78f0624
 +    static const std::map<uint64_t, SemiCall> calls;
 +
 +  private:
++    // floor(tick * ticksPerSecond / sim_clock::Frequency) in 64-bit output.
++    // The product uses a 128-bit intermediate: Tick is uint64_t, so
++    // tick * 1e9 overflows 64 bits above ~1.8e10 ticks.
++    uint64_t elapsedTicks(Tick tick) const;
++
 +    const bool systemNative;
 +    FILE *console;
 +};

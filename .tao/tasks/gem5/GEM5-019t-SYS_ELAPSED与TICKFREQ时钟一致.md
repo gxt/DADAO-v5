@@ -3,7 +3,7 @@
 **模块**：gem5
 **项目里程碑**：M11
 **依赖**：`GEM5-018t`（已验证；`SYS_TICKFREQ` 已按 1e9 返回、046t 基线）、`QEMU-079t` / `QEMU-080t`（已验证；Machine-v5 system 与 target 时钟基线）、`GEM5-017t`（已验证；FS parity 与 shim 工具链）、`GEM5-015t` / `GEM5-016t`（已验证；FS Tiny/Node 平台）、`TESTCASES-094t`（已验证；`min_rom_probe_046t` 资产，只读复用）；`ADR-0020`（semihosting 调用/返回）、`ADR-0048 D1/D2/D5`（同模式一致、不比较时序数值）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 
@@ -182,16 +182,41 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：证据脚本全阶段 p0–p9 PASS（`run.sh` rc=0）；046t 32/32 case + 25 服务 PASS，5 条 TICKFREQ `rd8=0x3b9aca00`、`ret_rd8` `rd31=0x5A5A`；`svc_elapsed` gem5 `rd50=0x437`、QEMU `rd8=0`；单位探针 `T1=1079000/T2=5179000、N=1e12 → E1=1079/E2=5179`、`F=1e9`，旧映射 `T>>8=4214/20230` 不等；parity node/arch 269 行（AGREE_PASS 249、blocked 20、DIFF/GEM5_ONLY/QEMU_ONLY 0），`svc_elapsed` AGREE_PASS；decode 264/264+388/388+28/28+2/2、converge 264/1848 `[FAIL] 0`；SE `hello` stdout `6f6b0a` rc=0、`fail` rc=7；注入 old-mapping/32bit-only/tickfreq-wrong 均红→`cp`+md5 还原→绿（md5 前后同），64 位溢出静态反例被检出。
+**修改文件**：`components/gem5/patches/src/arch/dadao/semihosting.{cc,hh}.patch`（源码树 amend 为 base+1 后由 `make_patch` 导出；97 补丁/97 series 不变）、`components/gem5/README.md`、`components/gem5/changelog.md`、本册、`.tao/knowledge/milestones.md`；运行期证据（`run.sh`/`REPORT.md`/`logs/`，未入库）。
+**验收结果**：真实 rc：`check-patch-tree` 0、`check-source-state` 0（gem5 `count=1 clean=True`）、`build-gem5` 0（`JOBS=32`）、`gem5.opt --help` 0、`check-gem5-decode` 0、`check_converge` 0、`check-modules` 0、parity driver 0；L1 `make check` rc=2 仅既有 `check-run-artifacts`（本任务非法文件 0 / 主工作树基线 7）。
+**新发现/坑**：① ccache 在 PATH 时 `tools/gem5/build_gem5.py` 把 CC/CXX 设为 `"ccache gcc/g++"` 单串，gem5 SConstruct 按单 argv 执行 ⇒ `FileNotFoundError: 'ccache g++'`；本次改用过滤 PATH 构建（tools 缺陷另立 INFRA）。② 删 SCons configure 缓存目录但保留 sconsign 会让缺失 conftest 被判 up-to-date，需 `scons --config=force`。③ 046t `svc_elapsed` 只断言参数块存在，旧 `1e12>>8` 值 4214 仍 PASS——单位必须独立 oracle。④ `.work/log/**` 的 `.EXIT/.start` 命名触发 `check-run-artifacts` A3；本任务产物已用 `.txt`/`.log`。⑤ 任务书 F6/R3 的 stale 注册表已由 `TESTCASES-096t` 清空（`KNOWN_GEM5_BLOCKED={}`），全量 parity driver 实测 rc=0（非任务书预期的 rc=1）。
+**遗留问题**：`tools/gem5/build_gem5.py` 的 ccache 单串缺陷（本任务禁改 tools；建议 INFRA 任务）；其余无。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填写）
+
+**范围**：`semihosting.{hh,cc}` 逐行、导出补丁、README/changelog、`run.sh`/`probe_elapsed.py`/`check_matrix.py`；对照接口规范 1–4 与不变项。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+| --- | --- | --- | --- |
+| 在 `semiTick`/`tickShift` 打补丁会波及其它服务且非虚 | ❌不修（改覆盖 32/64 服务入口） | 新增 `callElapsed32/64` + 私有 `elapsedTicks`；基类零改动 | 25 服务表相等；5 条 TICKFREQ + 046t 全量 PASS |
+| 32 位入口留旧 `semiTick` 路径 | ✅已修 | 32/64 共用 `elapsedTicks` | `32bit-only` 注入红；还原回绿 |
+| 常量两处魔数、与 TICKFREQ 漂移 | ✅已修 | 共享 `ticksPerSecond`，两服务同用 | `tickfreq-wrong` 注入令 5 条 TICKFREQ + 单位探针同红 |
+| 64 位乘积溢出 | ✅已修 | `unsigned __int128` 中间量 + `floor(...)` | 边界 `2^63-1` 复算 `9223372036854775`；64 位形式 wrap 到 `18446744` |
+| 单位探针可能恒真/自证 | ✅已修 | debug tick 前缀 + 启动横幅 N + `--trace-cpu` rd50/51/52 三通道；反空转断言 | `old-mapping` 注入单位探针红（046t 仍 PASS） |
+| README 仍称 ELAPSED 走 semiTick | ✅已修 | README/changelog/本册同步 | p1 静态断言；`check-component-changelog` rc=0 |
+| 构建面 ccache 单串 | ⏸延后（tools 缺陷） | 证据脚本过滤 PATH 关闭 ccache，未改 tools | `build-gem5` rc=0；已登记坑/遗留 |
+
+**判决**：无未处置 finding（⏸ 项为 tools 侧非本任务范围），实现可进入验收。
 
 #### 第 1 轮 reviewer 验收
-（待填写）
+
+**重跑记录（本人执行，命令均在任务 worktree 内、相对路径）**
+- `./.work/evidence/GEM5-019t/run.sh` 全量 p0–p9 ⇒ **rc=0 / `GEM5-019t evidence: PASS`**，`logs/EXITS` 逐项 0（唯一非 0 为 p8-L1=2，见下）。现场：`check-patch-tree: 6 component(s), 302 patches OK`；`make-patch: 0 written, 97 unchanged`（补丁=源树，非手改）；`gem5: OK HEAD=bdeae53 count=1 clean=True`（base `c8222cc`+1）；`build-gem5 PASS`、`gem5.opt --help rc=0`、md5 `22f7ee8f`；服务表 25 与 spec 逐键相等；046t 32/32 PASS、5 条 TICKFREQ `rd8=0x3b9aca00`、`ret_rd8 rd31=0x5a5a`、gem5 `svc_elapsed rd50=0x437`、QEMU `rd8=0`；parity 全量 driver rc=0，269 行 `agree_pass=249 blocked=20 DIFF/GEM5_ONLY_FAIL/QEMU_ONLY_FAIL=0`、`svc_elapsed AGREE_PASS`；decode `264/264+388/388+28/28+2/2 failures 0`；converge `ids 264/264, boundary 1848/1848, [FAIL] 0`；SE hello `6f6b0a` rc=0、fail rc=7；L2 `check-modules rc=0`；p9 六门 rc=0、禁改路径 0、残留 0。
+- L1 `make check rc=2`：本人 grep 全文确认唯一红 = `check-run-artifacts: FAIL (7 problem(s))`，7 条全为既有（`mergetree.out`/`krefs-final.log`/`qemu/disk-free-r2.log`/`GEM5-018t-build*.EXIT|.start`），主工作树基线 7=7、本任务自有违规 0。
+- **独立单位 oracle（本人 Python 大整数复算，不信完成区）**：`1079000*1e9//1e12=1079=E1`、`5179000*1e9//1e12=5179=E2`、ΔT=4100000/ΔE=4100 比例恰 1e-3、`0x437=1079`、旧映射 `T>>8=4214/20230 ≠ E`；边界 `(2^63-1)*1e9//1e12=9223372036854775`、64 位积 wrap=`18446744`。T1/T2 取 debug 前缀、N 取启动横幅，三通道独立，非实现自证。
+- **独立注入（与 engineer 三项均不同：改 `.hh` 共享常量 1e9→1e12）**：`cp`+md5 备份 `abea6515`→注入后 `09045d79` ⇒ 重建 rc=0 ⇒ 单位探针 **FAIL rc=1**（`F=1000000000000`、`E1=1079000≠1079`、`E2=5179000≠5179`）；**046t `svc_elapsed` 仍 PASS rc=0**；046t `svc_tickfreq` FAIL（`got=0xe8d4a51000`）。`cp` 还原 md5=备份、重建 rc=0、单位探针回绿 rc=0、`svc_tickfreq` 回绿、`git status` 源树空。
+- **快照对账**：审查前后 `git status --porcelain -uall` 同 6 行、6 文件 md5 逐个相同（注入只动共享源树 `.work/source/gem5`，一律 `cp`+md5，未用 git 还原）；审阅后唯一新增改动 = 本审阅记录本身。
+
+**约束核验**：`git diff --name-only HEAD` 仅 6 个允许文件（两补丁/README/changelog/本册/milestones）；spec、contracts、QEMU、tools、tests、Makefile、series（97 补丁）零改动；基类 `src/arch/generic/semihosting.*` 未改；共享单常量 `ticksPerSecond=1e9` 两服务同用、`unsigned __int128` 中间量/64 位结果、基准 `curTick()` 不减 `timeBaseTick`；状态 `待验收`；完成区 5 行、engineer 审阅 11 行（限长内）；未跑全量 LLVM 构建。
+
+**发现（不阻断，交 architect）**：① **046t `svc_elapsed` 不能捕获单位错误**（只断言参数块 PRESENT；本次注入 1e12 后 046t 仍 PASS、单位探针才红）⇒ 046t PASS 不得当单位证据，单位判据只认独立 oracle；② 任务书 F6/R3「stale 注册表 ⇒ driver rc=1」前提已被 TESTCASES-096t 清空（`KNOWN_GEM5_BLOCKED={}`），全量实测 rc=0，属文档前提过期，建议收尾时改任务书；③ run.sh p8-L1「仅 check-run-artifacts 红」只 grep 两个门名（偏弱），已由本人全文 grep 补强；④ `.work` 是主工作树符号链接，p8 基线计数必然相等，有效断言是「自有违规 0」；⑤ 注入回绿重建后 `gem5.opt md5=6f2128b4`（同源、内嵌构建时间戳），REPORT 的 `22f7ee8f` 为 p2 时点值。
+
+**判决：Accepted** —— 验收命令块在本人重跑下全部通过、约束无违反；本判决仅作工程师达标证据，终审归 architect。
