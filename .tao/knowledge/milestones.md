@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| GEM5-019t | 待开始 | 2026-11-04 18:38（登记） | SYS_ELAPSED 与 SYS_TICKFREQ 统一 1e9 ticks/s；64 位无溢出换算、046t/parity 零退化 |
 | TESTCASES-090t | 已验证 | 2026-11-04 16:56 | scaleB/sc 测试；LLVM lit/isa matrix 已同步；QEMU/gem5 tiny+node 52/52 AGREE_PASS，F2 复跑通过 |
 | GEM5-018t | 已验证 | 2026-11-04 16:49 | FS semihosting 修复：WRITEC/WRITE0 rd8=0xdeadbeef、SYS_TICKFREQ=1e9；046t 32/32、node/arch 7 条转 AGREE_PASS |
 | SPEC-184t | 待开始 | 2026-11-04 15:25（登记） | spec §6 Node identity 收口（ISS-340）：L1 0–3/VA=PA 2 GiB、entry/SP、ADR/合约投影、锁 sha |
