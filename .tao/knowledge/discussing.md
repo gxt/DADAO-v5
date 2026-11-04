@@ -90,7 +90,7 @@
 - **2026-11-02 双链并行授权**：同时授权两条独立任务链推进——**G1 SE**（`GEM5-014t` SE 骨架 → ELF/args/stack → syscall/VMA → TLS → 静态 tset）与 **FS Machine-v5**（`SPEC-183t` → `TESTCASES-091t` → `QEMU-079t` Tiny / `QEMU-080t` Node → gem5 FS 映射）。SE 为优先线，FS 线可并行；共享文件仍串行；两条链均不需逐任务确认，停止点按 AGENTS。
 - **2026-11-02 G1 SE 验收基线**：full tset 以 QEMU user 的 pass/fail/skip 集合为基线；gem5 SE 不能少通过；若 **gem5 通过而 QEMU 未通过**，不得直接接受 gem5，须新增 QEMU 调试任务定位并修正，使两者一致；若差异根因是 spec 解释不清，提交用户裁定。静态 SE 先做 `ET_EXEC`，不提前做 `ET_DYN`/static PIE。
 - **2026-11-04 gem5 SE 测试范围暂缓**：gem5 上**暂不跑 llvm-ts**；llvm-ts 继续以 QEMU user 为执行/对照环境。gem5 SE 先做 smoke、目标子集、syscall/VMA/TLS 等能力验证；完整 tset 的最终覆盖仍按 ADR-0048 D4 保留，是否恢复/何时恢复由后续用户裁定。该暂缓不改变“QEMU/gem5 同模式双向一致”规则。
-- **2026-11-04 gem5 llvm-ts 夜跑**：gem5 的完整 llvm-ts 放到**夜跑**，不占日间日常验证；下一次夜跑排入完整 llvm-ts（先决：gem5 SE 的 syscall/VMA/TLS 等能力齐备；未齐备则如实记 BLOCKED，不伪 PASS）。QEMU user 仍是日间基线。
+- **2026-11-05 gem5 完整 llvm-ts 回归（M11 收口条件）**：M11 SE 收口前必须跑**完整 llvm-ts 回归**，不称“夜跑”；QEMU user 为基线，gem5 不能少通过；gem5 通过而 QEMU 未通过不得直接接受，须定位到一致。先决：gem5 SE 的 syscall/VMA/TLS 等能力齐备；未齐备项如实记 BLOCKED，不伪 PASS。可用现有 `check-night` 门控承载，但触发时间不限定夜间；QEMU user 仍是日间基线。
 - **2026-11-04 SYS_TICKFREQ M11 基线**：`SYS_TICKFREQ` 统一按 **`1e9` ticks/秒**；QEMU/gem5 同模式一致。spec 当前未定义具体值，M11 先按此约定实现/对照，后续 spec 收口时可固化。
 - **2026-11-05 picolibc `math_test` M11 收口**：`Machine-v5-Tiny` 的 picolibc `math_test` 在 gem5 上记 **BLOCKED**，不得写 PASS：同一 ELF/argv 下 QEMU **0 errors**、gem5 **238/76404 errors**，归因 **B7 浮点数值差异**，不是 FS/PTW/semihosting。M11 接受该已知 BLOCKED；待独立 golden 模型建立后再修 B7 并另立差分任务。报告必须保留 blocked 计数，不得计入 gem5 通过数。
 - **2026-11-04 ccache 接入口径**：ccache 使用**全局缓存**（默认 `~/.cache/ccache`），不做全局 PATH 软链/编译器影子；**每个模块的编译入口单独接入**——gem5 已接；QEMU/musl/picolibc/LLVM 等后续编译任务各自在 `CC`/`CXX` 或 CMake/Meson launcher 加 ccache；Linux 随 Linux 阶段接。各模块不得假设其它模块已代为接入。
