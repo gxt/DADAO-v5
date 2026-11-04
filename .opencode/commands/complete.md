@@ -38,7 +38,9 @@ agent: build
 
 若任务有代码改动，**先调起 `reviewer` 子代理独立验证**，再更新 memory：
 
+- **同一任务同一时刻只允许一个 reviewer**；先查任务书最新审阅记录与已有 reviewer session，已有则复用。
 - **若任务文件的最新一轮 reviewer 验收子区已有 Accepted 判决，则跳过本步骤**（已审查过）
+- HEAD/提交变化只向**原 reviewer session** 追加 follow-up，不新建 reviewer；provider 异常按「子代理返回异常处理」重试原 session。
 - 用 `task` 工具调起 `reviewer` 子代理（**subagent_type**：`reviewer`，模型 = mimo/mimo-v2.5-pro），让它读取任务文件并重跑验收命令
 - 审查者判决 **Needs Revision** → 告知用户，将状态改为 `待返工`，不继续写 memory（等返工）
 - 审查者判决 **Accepted** → 进入「交叉复核」步骤

@@ -113,6 +113,11 @@ DADAO-v5/
 ## 子代理返回异常处理
 `task` 异常返回（`Task cancelled`/空结果）先核对落盘（完成区 + `git status`）；未落盘 ⇒ **重试同一任务，最多 3 次**（每次附失败现场并记录次数 `第 n/3 次`）；**3 次仍异常** ⇒ **停止重试、主动提醒用户并商定拆分任务**；每次异常登记 `issues.yaml`。主会话代行须经用户同意 + reviewer 验收。
 
+## 同一任务单 reviewer
+- **同一任务同一时刻只允许一个 reviewer**；HEAD/提交变化只向**原 reviewer session** 追加 follow-up，不得另开新 reviewer。
+- 派 reviewer 前先查任务书最新审阅记录、任务状态和已有 reviewer session；已有则复用，不重复派单。
+- provider 异常按「子代理返回异常处理」重试**原 session**；仅原 session 明确不可恢复且已停止时，才可新建并登记原因。
+
 ## 角色与流程
 主会话 = **协调者**；四命令 `/plan`（规划）→ `/dispatch`（下发）→ `/complete`（验收收尾）、`/status`（状态）。
 角色 / 任务编号（`<PREFIX>-nnn<suffix>`，模块内递增）/ 四态状态机真源见 `.opencode/agents/*.md`、`.opencode/commands/*.md`。
