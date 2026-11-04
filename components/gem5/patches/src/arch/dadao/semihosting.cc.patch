@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/semihosting.cc b/src/arch/dadao/semihosting.cc
 new file mode 100644
-index 0000000..8a0dfaf
+index 0000000..1dda99c
 --- /dev/null
 +++ b/src/arch/dadao/semihosting.cc
-@@ -0,0 +1,146 @@
+@@ -0,0 +1,157 @@
 +// DADAO FS semihosting implementation.
 +#include "arch/dadao/semihosting.hh"
 +
@@ -111,7 +111,8 @@ index 0000000..8a0dfaf
 +    DPRINTF(Semihosting, "DADAO SYS_WRITEC('%c')\n", c);
 +    std::fwrite(&c, 1, 1, console);
 +    std::fflush(console);
-+    return retOK(0);
++    // No defined return value (spec §5.3): report QEMU's no-return marker.
++    return retOK(noReturnMark);
 +}
 +
 +Semihosting::RetErrno
@@ -122,7 +123,17 @@ index 0000000..8a0dfaf
 +    portProxy(tc).readString(str, arg.addr);
 +    std::fwrite(str.data(), 1, str.size(), console);
 +    std::fflush(console);
-+    return retOK(0);
++    // No defined return value (spec §5.3): report QEMU's no-return marker.
++    return retOK(noReturnMark);
++}
++
++Semihosting::RetErrno
++Semihosting::callTickFreq(ThreadContext *)
++{
++    // User ruling 2026-11-04: SYS_TICKFREQ reports 1e9 ticks/s on both QEMU
++    // and gem5 FS for M11 (spec §5.3 leaves the value open).  No argument is
++    // read and only rd8 is written by Result<Abi, RetErrno>::store.
++    return retOK(1000ULL * 1000 * 1000);
 +}
 +
 +Semihosting::RetErrno

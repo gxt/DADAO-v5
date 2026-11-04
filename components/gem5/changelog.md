@@ -4,6 +4,10 @@
 
 ## M11
 
+- **2026-11-04 GEM5-018t**
+  - 摘要：**FS semihosting 两项缺陷修复（GEM5-017t parity 发现）**。`SYS_WRITEC`/`SYS_WRITE0` 的 `rd8` 由 `0` 改为具名常量 `Semihosting::noReturnMark = 0xdeadbeef`（QEMU 共享层 `common_semi_dead_cb`/QEMU-055t 的「无返回」保留标记；控制台字节与 `IP+=4` 不变）；`SYS_TICKFREQ` 新增 `DadaoISA::Semihosting::callTickFreq` 覆盖基类（`calls` 表 0x31 指向它），返回用户 2026-11-04 裁定基线 `1e9` ticks/s（基类 `semiTick(1e12)=3906250000` 不再用于该服务，`SYS_ELAPSED` 仍走通用 `semiTick`，本任务不动）。验收：046t 全 32 探针与 25 服务覆盖 PASS（`svc_writec`/`svc_write0` `rd8=0xdeadbeef`，5 条 TICKFREQ 探针 `rd8=1000000000`，`ret_rd8` 的 `rd31=0x5A5A`，`svc_readc` 回归 PASS）；node/arch parity 7 条 `BLOCKED` 行转为 `AGREE_PASS`（`GEM5_ONLY_FAIL=0`、`DIFF=0`；`run_parity.py` 的 `KNOWN_GEM5_BLOCKED` 注册表因此 stale，属 tools 侧后续清理）；B0–B7 `264/264 + 388/388 + 28/28 + 2/2`、converge 264 ids/1848 边界 `[FAIL] 0`、SE `hello`/`fail` 逐字节不变。
+  - 执行者：engineer
+
 - **2026-11-02 GEM5-014t**
   - 摘要：**G1 SE 平台骨架（静态 ELF 首跑）**。新增 `src/arch/dadao/page_size.hh`（`PageShift=16`/64 KiB、`AT_PAGESZ=65536`）、`tlb.{hh,cc}`（SE 直通宿主页表，无 PTW/PTBR）、`mmu.hh`（`MMUTranslationGen`）、`interrupts.hh`（无中断源占位）、`process.{hh,cc}`（`ET_EXEC` 校验、BE 初始栈/argv/envp/auxv、`AT_RANDOM` 固定 16 B、1 MiB MemRAS + `MRPTR=区顶−8`、PC/SP/`ra0`/`rf0` 初值）、`se_workload.{hh,cc}`（`Process::Loader` 钩子 + `set_tid_address`/`write`/`writev`/`exit`/`exit_group` + `ioctl` 的 `TIOCGWINSZ`/`TCGETS` 子集，其余号与未建模 ioctl request `fatal` 带号与 pc）、5 个 SimObject 与 `DadaoCPU.py`、`configs/dadao/se.py`（经典式 SE 配置，非 guest 退出 125）；`loader::Arch` 增 `Dadao`（`EM_DADAO=0x0DA0`，强制 ELFCLASS64/ELFDATA2MSB），`ElfObject` 增 `elfType()`/`elfFlags()`；`ISA::inUserMode()` → `true`；`trap cfx0,0` 接 syscall 分发；`AtomicSimpleCPU.py` 增 `USE_DADAO_ISA` 分支。验收：静态 ELF 的 stdout/退出码与 `qemu-dadao` 逐字节一致，B0–B7 无退化；`pagesz`（64 KiB）在 gem5 与修正后的 `qemu-dadao`（`QEMU-081t`，`TARGET_PAGE_BITS=16`）上均通过。
   - 执行者：engineer

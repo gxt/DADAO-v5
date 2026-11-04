@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/semihosting.hh b/src/arch/dadao/semihosting.hh
 new file mode 100644
-index 0000000..24588b5
+index 0000000..78f0624
 --- /dev/null
 +++ b/src/arch/dadao/semihosting.hh
-@@ -0,0 +1,203 @@
+@@ -0,0 +1,218 @@
 +// DADAO FS semihosting (Machine-v5-Tiny): the DADAO ISA adaptor over gem5's
 +// generic BaseSemihosting.
 +//
@@ -62,6 +62,14 @@ index 0000000..24588b5
 +    {};
 +    struct Abi32 : public DadaoSemihostingAbi<uint32_t>
 +    {};
++
++    // rd8 value for services with no defined return value (SYS_WRITEC,
++    // SYS_WRITE0).  spec §5.3 / contract-semihosting §3 only say "no return";
++    // 0xdeadbeef is QEMU's "no defined return value" marker
++    // (semihosting/arm-compat-semi.c `common_semi_dead_cb`, QEMU-055t
++    // archive) and is what 046t's svc_writec/svc_write0 observe in rd8.  It is
++    // an engine-parity convention here, not a spec assertion.
++    static constexpr uint64_t noReturnMark = 0xdeadbeef;
 +
 +    enum Operation
 +    {
@@ -126,6 +134,13 @@ index 0000000..24588b5
 +    // Console services go through the configured sink (--console-out).
 +    RetErrno callConsoleWriteC(ThreadContext *tc, InPlaceArg arg);
 +    RetErrno callConsoleWrite0(ThreadContext *tc, InPlaceArg arg);
++
++    // SYS_TICKFREQ: the M11 QEMU/gem5 baseline (1e9 ticks/s) is a user ruling
++    // (discussing.md 2026-11-04), not spec text (spec §5.3 only says "ticks
++    // per second").  Hides BaseSemihosting::callTickFreq, which reports
++    // semiTick(sim_clock::Frequency) = 1e12 >> 8; SYS_ELAPSED keeps using the
++    // generic semiTick and is unchanged by this task.
++    RetErrno callTickFreq(ThreadContext *tc);
 +
 +    // SYS_SYSTEM is denied unless --semihost-system=native was requested.
 +    RetErrno callSystemPolicy(ThreadContext *tc, Addr cmd_addr,
