@@ -12,7 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| TESTCASES-096t | 待开始 | 2026-11-04 19:25（登记） | parity 清理 7 条 GEM5-018t 已修复的 KNOWN_GEM5_BLOCKED；node/arch rejudge 全绿、stale 0 |
+| TESTCASES-096t | 已验证 | 2026-11-04 20:15 | parity 清理 7 条 GEM5-018t 已修复的 KNOWN_GEM5_BLOCKED；node/arch rejudge 全绿、stale 0 |
 | GEM5-019t | 待开始 | 2026-11-04 18:38（登记） | SYS_ELAPSED 与 SYS_TICKFREQ 统一 1e9 ticks/s；64 位无溢出换算、046t/parity 零退化 |
 | TESTCASES-090t | 已验证 | 2026-11-04 16:56 | scaleB/sc 测试；LLVM lit/isa matrix 已同步；QEMU/gem5 tiny+node 52/52 AGREE_PASS，F2 复跑通过 |
 | GEM5-018t | 已验证 | 2026-11-04 16:49 | FS semihosting 修复：WRITEC/WRITE0 rd8=0xdeadbeef、SYS_TICKFREQ=1e9；046t 32/32、node/arch 7 条转 AGREE_PASS |

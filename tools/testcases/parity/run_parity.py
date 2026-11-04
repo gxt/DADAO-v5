@@ -89,32 +89,13 @@ PICOLIBC_KNOWN_BLOCKED = {
                  "gem5 non-zero; not a FS path regression",
 }
 
-# gem5-side defects found by this parity run (QEMU passes, gem5 does not).  The
-# fix belongs to components/gem5 (out of scope for GEM5-017t, which may not
-# touch the engine); task book §7 says: register BLOCKED with a root cause and
-# a separate gem5 task, never count as PASS.  `raw_status` keeps the raw gem5
-# verdict for audit.  User ruling 2026-11-04: SYS_TICKFREQ baseline is 1e9
-# ticks/s (spec does not define it); a gem5 value of 1e12/256 violates that
-# M11 baseline, so the five TICKFREQ checks are gem5 fixes, not spec-pending.
-KNOWN_GEM5_BLOCKED = {
-    "arch/probe/min_rom_probe_046t/semihost_tag_path":
-        "gem5 semihosting SYS_TICKFREQ returns 0xE8D4A510 (1e12/256), not the "
-        "user-ruled M11 baseline 1e9 ticks/s",
-    "arch/probe/min_rom_probe_046t/semihost_cfxha_agnostic":
-        "gem5 semihosting SYS_TICKFREQ 1e12/256 != user-ruled 1e9 ticks/s",
-    "arch/probe/min_rom_probe_046t/bank_num_rd16":
-        "gem5 semihosting SYS_TICKFREQ 1e12/256 != user-ruled 1e9 ticks/s",
-    "arch/probe/min_rom_probe_046t/ret_rd8":
-        "gem5 semihosting SYS_TICKFREQ 1e12/256 != user-ruled 1e9 ticks/s",
-    "arch/probe/min_rom_probe_046t/svc_tickfreq":
-        "gem5 semihosting SYS_TICKFREQ 1e12/256 != user-ruled 1e9 ticks/s",
-    "arch/probe/min_rom_probe_046t/svc_writec":
-        "gem5 semihosting clobbers rd8 with 0 for SYS_WRITEC (spec: no return "
-        "value, rd8 must stay untouched)",
-    "arch/probe/min_rom_probe_046t/svc_write0":
-        "gem5 semihosting clobbers rd8 with 0 for SYS_WRITE0 (spec: no return "
-        "value, rd8 must stay untouched)",
-}
+# gem5-side defects found by parity runs (QEMU passes, gem5 does not).  The fix
+# belongs to components/gem5; register BLOCKED with a root cause and a separate
+# gem5 task, never count as PASS.  `raw_status` keeps the raw gem5 verdict for
+# audit.  The list is empty now that GEM5-018t fixed the semihosting defects;
+# the mechanism is kept for future gem5-side defects (a registry entry whose
+# gem5 side later PASSes is reported stale and must be removed).
+KNOWN_GEM5_BLOCKED = {}
 
 
 class SetupError(Exception):
@@ -1329,11 +1310,9 @@ def write_markdown(path, ident, rows, counts):
                     if r["case_id"] in KNOWN_GEM5_BLOCKED
                     and r["gem5"]["status"] == "BLOCKED"]
     if gem5_defects:
-        lines.append("- %d gem5 semihosting defect row(s) (%s): QEMU PASS / "
-                     "gem5 non-PASS, registered BLOCKED with `raw_status` kept "
-                     "for audit and handed to a separate gem5 task. The five "
-                     "SYS_TICKFREQ rows follow the user ruling 2026-11-04 "
-                     "(baseline 1e9 ticks/s); `spec/` is unchanged." % (
+        lines.append("- %d gem5 defect row(s) (%s): QEMU PASS / gem5 non-PASS, "
+                     "registered BLOCKED with `raw_status` kept for audit and "
+                     "handed to a separate gem5 task." % (
                          len(gem5_defects),
                          ", ".join("`%s`" % r["case_id"].rsplit("/", 1)[-1]
                                    for r in gem5_defects)))

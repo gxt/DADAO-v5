@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M11
 **依赖**：`GEM5-018t`（已验证；7 条 gem5 semihosting 缺陷已修复，046t 32/32、node/arch 7 条转 `AGREE_PASS`）、`GEM5-017t`（已验证；parity driver 口径与 `judge`/stale 判据）、`TESTCASES-090t`（已验证；node/arch parity 复跑方法）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 
@@ -80,12 +80,51 @@
 
 ## 完成区
 
-**测试结果**：（待填写）
-**修改文件**：（待填写）
-**验收结果**：（待填写）
-**新发现/坑**：（待填写）
-**遗留问题**：（待填写）
+**测试结果**：`run.sh` live node/arch 复跑+rejudge+注入+门控 `checks=38 failed=0`（rc=0）；`--self-test` rc=0；matrix 269 行 = AGREE_PASS 249 + BLOCKED_SIDE 20（全 icount 且带归因）；7 条指定 case 均 `QEMU PASS/gem5 PASS/AGREE_PASS`；`GEM5_ONLY_FAIL=QEMU_ONLY_FAIL=DIFF=stale=0`；`--matrix-only` rc=0。
+**修改文件**：`tools/testcases/parity/run_parity.py`、`tools/testcases/parity/README.md`、本册、`.tao/knowledge/milestones.md`（流水状态行）。
+**验收结果**：
+- registry import `KNOWN_GEM5_BLOCKED == {}` rc=0；7 个 case ID 在 `run_parity.py` 0 命中（grep rc=1）；README 旧「5 条/SYS_WRITEC/WRITE0」0 命中（rc=1），空表+stale 机制文案存在（rc=0）。
+- 注入①：registry 加回 `svc_tickfreq` ⇒ rc=1 且含 `KNOWN_GEM5_BLOCKED is stale`；`cp` 还原 md5 `9e915f6c…→fdc0bb40…→9e915f6c…` ⇒ rc=0。
+- 注入②：矩阵副本 `svc_tickfreq` gem5=FAIL、空 registry ⇒ rc=1 且含 `GEM5_ONLY_FAIL`；还原 `md5sum -c` OK ⇒ rc=0（删 registry 未削弱硬门）。
+- 注入③：缺失矩阵 rc=2、空矩阵 rc=2（fail-closed）；注入④：README 回填旧文案 ⇒ 静态断言 FAIL，还原 PASS。
+- 门控：`check-no-residue` rc=0；`check-tasks` rc=0（本册落「完成区已填+待验收」报告节，advisory）；`check-milestones-fresh` rc=0；`check-knowledge-refs` 现状 rc=1/72 悬空，base `2b2d0255`（同 `.work` 挂载）同样 rc=1/72、引用集一致 ⇒ 本任务新增 0。
+- L1：`make check` rc=2，首个失败成员仅 `check-knowledge-refs`（72 基线）；干净 `2b2d0255` 工作树同 rc=2/同 72（`logs/make-check-base.log`）。
+- 范围：`git -c core.quotepath=false diff --name-only 2b2d0255` = 4 个声明文件；无 `_tmp/.orig/.rej/__pycache__` 残留。
+- 证据：`.work/evidence/TESTCASES-096t/{run.sh,REPORT.md,matrix.json,matrix.md,matrix.md5,logs/}`；矩阵 md5 `b475b770216c04ba51ce3ceda918e572`，引擎身份见 REPORT。
+**新发现/坑**：`--matrix-only` 需显式 `--profiles node --scopes arch`，否则默认全 scope 覆盖检查全红；`--list` 的 icount 行带 ` [icount]` 后缀，解析 case ID 须剥离；首跑 engine identity 对 735MB `gem5.opt` 计 md5 约 2 分钟（日志空窗非卡死）。
+**遗留问题**：无。`build_gem5.py relative_to`、`matrix-M11.md` F3、QEMU/gem5 修复均非本任务。
 
 ## 审阅记录
 
-（待填写）
+### 第 1 轮 engineer 自审（自主逐行）
+
+审查范围：`run_parity.py` registry/注释/`_apply_known_blocked`/markdown 汇总；README「已知例外」；`run.sh` 注入与断言。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 空 registry 下 `_apply_known_blocked` 必须仍自然返回 `None`，不得影响其它分类 | ✅已修（确认无需改语义） | 仅置空 dict；`dict.get` 原路径保留 | import rc=0；269 行分类 249+20 与基线一致 |
+| markdown 的 gem5-defect 汇总文案仍写死「five SYS_TICKFREQ」 | ✅已修 | 改为通用 gem5-defect 文案 | 7 个 case ID grep 0 命中 |
+| `--matrix-only` 默认全 scope 会误判 node/arch 矩阵覆盖 | ✅已修 | `run.sh` 统一加 `--profiles node --scopes arch` | rejudge rc=0；注入 stale/FAIL 均按预期 rc=1 |
+| `--list` 的 icount 行带 ` [icount]` 后缀，直比 ID 会 40 个伪差异 | ✅已修 | 解析时 `split(" [")[0]` | 断言 PASS；live=269 与 matrix 一致 |
+| 临时目录初版与 worktree 根重合，生成物落进仓库工作树 | ✅已修 | TMP 改 `/tmp/opencode/DADAO-v5/TESTCASES-096t`，清残留并**重新现场复跑** | `git status -uall` 仅 4 个声明文件；matrix 重新生成 md5 `b475b77…` |
+| README 与 registry 不一致须能机械判 | ✅已修 | `run.sh` 静态断言 + 注入旧文案→FAIL→cp/md5 还原→PASS | 注入/还原两向均 PASS |
+
+判决：全部 finding 已修，矩阵/注入/门控证据现场生成，状态标 `待验收`。
+
+### 第 1 轮 reviewer 验收（2026-11-04，全部独立重跑）
+
+**重跑记录（我的命令 / 真实输出 / rc）**
+
+- `REUSE_MATRIX=1 bash .work/evidence/TESTCASES-096t/run.sh` ⇒ `=== RESULT: checks=38 failed=0 ===`，`MY_REUSE_EXIT=0`；内含 registry import rc=0、7 个 case ID grep rc=1、README 旧文案 grep rc=1、`--self-test` rc=0、`--matrix-only` rejudge rc=0、注入 stale rc=1 + md5 `9e915f6c…→fdc0bb40…→9e915f6c…`、gem5=FAIL 注入 rc=1、缺失/空矩阵 rc=2/2、README 毒化 FAIL→cp 还原 PASS、`check-no-residue`/`check-milestones-fresh` rc=0、knowledge-refs base=current 72、4 文件范围断言 PASS。
+- 独立解析 `matrix.json`（不采信存储 verdict，按 qemu/gem5 状态自算）：269 行，自算与存储 **0 差异**；AGREE_PASS 249 / BLOCKED_SIDE 20；GEM5_ONLY_FAIL=QEMU_ONLY_FAIL=DIFF=stale=0；20 条 BLOCKED 全 `icount` 且带归因；raw_status 0；7 个目标 case 全 `qemu PASS/0 + gem5 PASS/0 + arch_visible 相等 + AGREE_PASS`；`--list` 现场 269、ID 集对称差 0。
+- 引擎身份（我自己 `md5sum`）：qemu `6b9eb0a7…`、gem5 `d2bf3bad…`、`fs.py` `952b78c4…`、trampoline `a97ad7c6…`、node `e191e483…`、node-inst `bc9f3d08…` ⇒ 与 REPORT/完成区一致；`md5sum -c matrix.md5` ⇒ `matrix.json: OK`（`b475b770…`）。
+- **reviewer 独立注入**（与 engineer 的 registry / 矩阵 gem5=FAIL / README 三项不同；`cp`+md5 还原，未用 git 还原）：A 篡改存储 verdict（`svc_write0`→BLOCKED_SIDE）⇒ rc=1 `stored verdict BLOCKED_SIDE != recomputed AGREE_PASS`，cp 还原 md5 回 `b475b770…` ⇒ rc=0 `269 rows, PASS`；B 篡改 qemu `arch_visible`（`svc_writec`→999）⇒ rc=1 `DIFF (unattributed)` ⇒ 还原 md5 `OK` ⇒ rc=0。
+- 我的两次全量现场复跑：live1（与 `make check` 并发）`run_parity: PASS` rc=0，但 `integ042t/dma_busy_start_ignored` QEMU probe rc=1 ⇒ 248 AGREE_PASS + 1 QEMU_ONLY_FAIL；**live2（无并发）269 = 249 + 20、与入库矩阵 0 行差异**、7 条全 AGREE_PASS。该 probe 单独重跑 **5/5 PASS**（`/tmp/opencode/DADAO-v5/TESTCASES-096t/review/probe-test/run{1..5}.log`）⇒ 判为并发负载偶发，重试 1 次并记录，非交付物缺陷。
+- 门控（我亲跑、取真实 rc）：`--self-test` rc=0；`--matrix-only` rc=0（`matrix-only: 269 rows, PASS`）；`check-no-residue` rc=0；`tools/infra/check_tasks.py` rc=0（本册落「完成区已填 + 待验收」报告节）；`check-milestones-fresh` rc=0；`check_knowledge_refs.py` rc=1 / **72 悬空**（base `2b2d0255` 同 rc=1/72、ref 集 45=45、new=0 ⇒ 本任务新增 0）；`make check` rc=2，唯一失败成员 `check-knowledge-refs`（既有 72 基线）。
+
+**约束核验**：`KNOWN_GEM5_BLOCKED == {}` import rc=0、7 个 case ID 在 `run_parity.py` 0 命中、README 旧「5 条/SYS_WRITEC/WRITE0」0 命中且留「空表 + stale 必删登记」机制文案、README 无 case ID；`_apply_known_blocked()` / `judge()` stale 分支保留（反向注入 rc=1 可达）；`QEMU PASS ⇒ gem5 PASS`、DIFF 必须归因、coverage、picolibc 硬门代码未改且各有可达 FAIL；`git -c core.quotepath=false diff --name-only c3276217` = 恰 4 个声明文件（无 `tests/**`、`components/**`、`spec/**`、`contracts/**`、`Makefile`、`manifests/`）；`git status --porcelain -uall` 空、无 `*_tmp`/`.orig`/`.rej` 残留、无遗留 base worktree；状态 `待验收`、完成区 17 行、审阅记录 15 行；注入前后 5 文件 md5 快照**全等**（reviewer 自建 `__pycache__` 已删除）。
+
+**判决：Accepted**
+
+**findings（不阻断，交 architect 收尾处置）**：F1 `--self-test` 内置注入无 stale 用例（base 亦无、diff 未动），验收 2 括注仅字面未满足，stale 可达性由注入①证明；F2 验收 6「只把本册列入『待开始』附表」与实际不符（本册落「完成区已填+待验收」节，②节为其它 3 册），rc=0；F3 验收 8「逐项 `*_EXIT=<rc>`」实为逐行 `expect rc=/actual rc=` + 外层 `RUN_SH_LIVE_EXIT=0`，无 `tee` 吞码（实质满足）；F4 验收 8「REPORT.md 数字由脚本现场生成」实为人工撰写（`run.sh` 不生成它），我已逐项核对全部与重跑一致；F5 live1 那 1 行 `QEMU_ONLY_FAIL` 属并发偶发（live2 0 差异），如需跟踪另立 QEMU 侧任务；F6 范围外已知遗留 `tests/parity/matrix-M11.md` 仍写 7 条 BLOCKED 与「five SYS_TICKFREQ」（任务书明列 F3 另案、`tests/**` 不改）。
+

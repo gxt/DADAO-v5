@@ -75,10 +75,9 @@ guest exit、`picolibc` 的分类）；**不比较**时序、性能、PC/日志�
 
 - `PICOLIBC_KNOWN_BLOCKED`：仅 `math_test`（B7 数值差异，`GEM5-015t` 遗留①），
   gem5 始终记 `BLOCKED`，不写 PASS、不计入 gem5 通过。
-- `KNOWN_GEM5_BLOCKED`：本任务发现的 **gem5 侧缺陷**（QEMU 通过、gem5 不通过；
-  修复属 `components/gem5`，本任务不得改引擎）：5 条 `SYS_TICKFREQ`（用户裁定
-  2026-11-04：M11 基线 **1e9 ticks/s**，gem5 返回 1e12/256，`spec/` 不改）+
-  `SYS_WRITEC/WRITE0` 把无返回值的 `rd8` 清 0。逐条记 `BLOCKED` + 「另立 gem5
+- `KNOWN_GEM5_BLOCKED`：**gem5 侧缺陷**登记表（QEMU 通过、gem5 不通过；修复属
+  `components/gem5`）。现为**空表**（既有 semihosting 缺陷已由 `GEM5-018t` 全数
+  修复）；后续若发现 gem5 侧缺陷仍登记于此，逐条记 `BLOCKED` + 「另立 gem5
   任务」，`raw_status` 保留；若某条后来变成 PASS，判据会报 stale（必须删登记）。
 
 ## shim 参数子集与限制
