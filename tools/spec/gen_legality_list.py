@@ -77,12 +77,20 @@ RULE_SUMMARY: dict[str, str] = {
     "excp_malign":       "未对齐访问 → MALIGN",
     "excp_ialign":       "IP[1:0]≠0 → IALIGN",
     "encode_sbz":        "SBZ 非零 → ILLI",
-    "encode_cfx_reserved": "保留 cfx（6-14、19-61）→ ILLI",
+    "encode_cfx_reserved": "保留 cfxha（6-14、16-31、35-61）→ ILLI",
     "encode_onehot":     "immu6 非 one-hot 或 ≥ S → ILLI",
     "encode_fp_root_n":  "ftroot/foroot n≠2 → ILLI",
     "excp_undi":         "保留编码 → UNDI",
     "excp_rasof":        "RAS 上溢 → RASOF",
     "excp_rasuf":        "RAS 下溢 → RASUF",
+}
+
+# Chapter-specific summary overrides.  SimRISC-11 (the ISA volume) must stay
+# descriptive: the concrete reserved cfxha allocation belongs to SEE/DADAO-12,
+# so the generated appendix never writes numeric ranges into that volume.
+CHAPTER_RULE_SUMMARY: dict[tuple[str, str], str] = {
+    ("核芯功能扩展", "encode_cfx_reserved"):
+        "保留 cfxha（具体分配由 SEE/DADAO-12 定义）→ ILLI",
 }
 
 # Semantic group display order within each fault group
@@ -195,7 +203,8 @@ def render_chapter_legality(
             for rule, matching_ents in rule_list:
                 rule_id = rule["id"]
                 kind_tag = "（动态）" if rule["kind"] == "dynamic" else ""
-                summary = RULE_SUMMARY.get(rule_id, "")
+                summary = CHAPTER_RULE_SUMMARY.get(
+                    (chapter, rule_id), RULE_SUMMARY.get(rule_id, ""))
                 status_tag = f"（{rule['status']}）" if rule.get("status") != "active" else ""
                 # Build instruction list string
                 if matching_ents:

@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn_trans/trans_ctrl.c.inc b/target/dadao/insn_trans/trans_ctrl.c.inc
 new file mode 100644
-index 0000000..f66c869
+index 0000000..4b5b252
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_ctrl.c.inc
 @@ -0,0 +1,557 @@
@@ -500,7 +500,7 @@ index 0000000..f66c869
 + *   pred  = immu18[11:6]    — cr/cw/ci/co/mr/mw in bits 5..0
 + *   succ  = immu18[5:0]     — same six access classes
 + *
-+ * hb != 0 or a reserved cfx (6-14, 19-61) => ILLI.
++ * hb != 0 or a reserved cfx (6-14, 16-31, 35-61) => ILLI.
 + * pred = succ = 0 => no-op: NO barrier is emitted at all.
 + * Otherwise the (pred, succ) class pair is mapped onto the TCG ordering
 + * matrix (TCG_MO_{LD,ST}_{LD,ST}, "A before B in program order") and emitted
@@ -520,7 +520,7 @@ index 0000000..f66c869
 +static bool fence_cfx_reserved(int cfxha)
 +{
 +    /* Reserved set is shared with trap/escape/cfx2rd/cfx2rc
-+     * (DADAO_CFX_IS_RESERVED: 6-14, 19-61; SimRISC-11 §1). */
++     * (DADAO_CFX_IS_RESERVED: 6-14, 16-31, 35-61; SimRISC-11 §1). */
 +    return (cfxha >= 6 && cfxha <= 14) || (cfxha >= 19 && cfxha <= 61);
 +}
 +

@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/decode/decode_assertions.inc b/src/arch/dadao/decode/decode_assertions.inc
 new file mode 100644
-index 0000000..426a1b9
+index 0000000..71a7033
 --- /dev/null
 +++ b/src/arch/dadao/decode/decode_assertions.inc
 @@ -0,0 +1,796 @@
@@ -133,15 +133,15 @@ index 0000000..426a1b9
 +inline constexpr const char *kAssertRules67[] = {"dst_rd0"};
 +inline constexpr const char *kAssertLegality82[] = {"!(rdha == rd0 && imms18 != 0)"};
 +inline constexpr const char *kAssertRules82[] = {"dst_rd0_nonzero"};
-+inline constexpr const char *kAssertLegality83[] = {"cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"};
++inline constexpr const char *kAssertLegality83[] = {"cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kAssertRules83[] = {"encode_cfx_reserved"};
-+inline constexpr const char *kAssertLegality84[] = {"cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"};
++inline constexpr const char *kAssertLegality84[] = {"cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kAssertRules84[] = {"encode_cfx_reserved"};
-+inline constexpr const char *kAssertLegality85[] = {"imms18[17:1] == 0", "cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"};
++inline constexpr const char *kAssertLegality85[] = {"imms18[17:1] == 0", "cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kAssertRules85[] = {"encode_sbz", "encode_cfx_reserved"};
-+inline constexpr const char *kAssertLegality86[] = {"cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"};
++inline constexpr const char *kAssertLegality86[] = {"cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kAssertRules86[] = {"encode_cfx_reserved"};
-+inline constexpr const char *kAssertLegality87[] = {"immu18[17:12] == 0", "cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"};
++inline constexpr const char *kAssertLegality87[] = {"immu18[17:12] == 0", "cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kAssertRules87[] = {"encode_sbz", "encode_cfx_reserved"};
 +inline constexpr const char *kAssertLegality89[] = {"rdhb == rd0"};
 +inline constexpr const char *kAssertRules89[] = {"encode_sbz"};

@@ -45,7 +45,7 @@ v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位�
 | **PA RAM** | `0`（PA 空间） | 2 GiB | —（内存窗口） | 物理存储器 `[0, 2 GiB)`；CPU 只能经 PTW 从 VA 访问（§1.2），不设核内地址别名 |
 | **hmon SRAM** | `0x0fff_0000_0000` | 64 KiB | 3 / `hmon` | H-mode 异常向量默认等于起始地址；内部偏移 `0x3ff_0000_0000`，越界 ⇒ `CFXMEM` |
 | **smon SRAM** | `0x0bff_0000_0000` | 64 KiB | 2 / `smon` | S-mode 异常向量默认等于起始地址；内部偏移 `0x3ff_0000_0000`，越界 ⇒ `CFXMEM`；M11 保留不使用 |
-| **cfx_pmem SRAM** | `0x47ff_0000_0000` | 64 KiB | 17 / `pmem` | cfx_pmem 内部偏移 `0x3ff_0000_0000`；CPU 用 `ld/st` 访问，越界 ⇒ `CFXMEM` |
+| **cfx_pmem SRAM** | `0x83ff_0000_0000` | 64 KiB | 32 / `pmem` | cfx_pmem 内部偏移 `0x3ff_0000_0000`；CPU 用 `ld/st` 访问，越界 ⇒ `CFXMEM` |
 
 - **BootROM 尺寸**：上游 `DADAO-12` 只要求 `cfx_power` BootROM **≥64 KiB**，实际大小由本册按 profile 规定（Tiny 64 KiB、Node 4 MiB）；复位向量两 profile 均为 `0xffff_ffff_0000`（末 64 KiB 起点，镜像内偏移 = 大小 − 64 KiB）。
 - **不做双映射**：Tiny 的 SRAM 只在 cfxha 63 段的 `0xffff_ff00_0000`；Node 的 PA RAM 只在 `[0, 2 GiB)` 并仅经页表 VA 映射。两 profile 都不设「同一存储的多地址别名」。
@@ -97,8 +97,8 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 - **两个权限层次**：PTW 层权限（`NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`，出自 cfx_ptw 异常原因表）与 **cfx 访问权限**（mask 不允许 ⇒ `CFXPERM`，见 `§5` 异常进入流程）是**不同层次**，不可混同。[ADR-0020 D9][DADAO-12 §4. 专有寄存器设计规范]
 
 - **测试机 cfx 实现范围（按 profile）**：
-  - **`Machine-v5-Tiny`**：**不实现任何 cfx**——cfxha 63 只作地址分区，不提供 `cfx_power` 或其它 cfx 的 cg0–cg7 寄存器/异常向量/权限模型；`trap` 只在 semihosting 区（`immu18[17:8] == 0x3FF`）有效，不进入向量。cfx 寄存器访问与 `cfx2rd`/`cfx2rc` 按未实现 cfx ⇒ `CFXREG`；非 semihosting 的 `trap`/`escape` 按未实现 cfx ⇒ `ILLI`（不进向量、不做模式切换）。**Tiny 不实现 `cfx17`（pmem）/`cfx4`（ptw）/`cfx5`（cache）/时间类 cfx**。
-  - **`Machine-v5-Node`**：实现 **`cfx0`/`cfx1`/`cfx2`/`cfx3`/`cfx63`**（`umon`/`jmon`/`smon`/`hmon`/`power`）以及 **`cfx4`（`ptw`）的 PTW/TLB 寄存器**（`cfx_ptw_ptbr`、`cfx_ptw_enable`、`cfx_ptw_tlb_*`）、**页表步进**、**TLB 命中/填充/失效**与 **A/D 回写**（`DADAO-12 §2.2`、`§4.5`）；并实现 **`cfx17`（`pmem`）的 64 KiB SRAM 与 `cg15` DMA**（`DADAO-12 §2.1`、`§4.9`）。`cfx5`（`cache`）为已分配未实现，测试机按未实现 cfx 处理（访问其寄存器 ⇒ `CFXREG`）。
+  - **`Machine-v5-Tiny`**：**不实现任何 cfx**——cfxha 63 只作地址分区，不提供 `cfx_power` 或其它 cfx 的 cg0–cg7 寄存器/异常向量/权限模型；`trap` 只在 semihosting 区（`immu18[17:8] == 0x3FF`）有效，不进入向量。cfx 寄存器访问与 `cfx2rd`/`cfx2rc` 按未实现 cfx ⇒ `CFXREG`；非 semihosting 的 `trap`/`escape` 按未实现 cfx ⇒ `ILLI`（不进向量、不做模式切换）。**Tiny 不实现 `cfx32`（pmem）/`cfx4`（ptw）/`cfx5`（cache）/`cfx33`（llc）/`cfx34`（time）**。
+  - **`Machine-v5-Node`**：实现 **`cfx0`/`cfx1`/`cfx2`/`cfx3`/`cfx63`**（`umon`/`jmon`/`smon`/`hmon`/`power`）以及 **`cfx4`（`ptw`）的 PTW/TLB 寄存器**（`cfx_ptw_ptbr`、`cfx_ptw_enable`、`cfx_ptw_tlb_*`）、**页表步进**、**TLB 命中/填充/失效**与 **A/D 回写**（`DADAO-12 §2.2`、`§4.5`）；并实现 **`cfx32`（`pmem`）的 64 KiB SRAM 与 `cg15` DMA**（`DADAO-12 §2.1`、`§4.9`）。`cfx5`（`cache`）为已分配未实现，测试机按未实现 cfx 处理（访问其寄存器 ⇒ `CFXREG`）。
   - 上述范围为**测试机约定**（控制首版成本），**不构成对上游 `DADAO-12`/`DADAO-13` 架构的 cfx 数量/编号限制**。[ADR-0020 D9][DADAO-12 §1. 运行模式与核芯功能扩展]
 - **测试机 `cfx_pmem` DMA 约定（仅 Node）**：DMA 只在 `cfx_pmem` SRAM 与物理存储器之间搬运，异步完成（软件须轮询 `dma_status.BUSY` 或使能 `IRQ_EN`）；DMA 可读 RAM 与 boot ROM、只可写 RAM，其余 PA 属 `PA_FAULT`；`PMEM_DMA`（`1 << 8`）直接投递本 hart 的 `cfx_pmem` 异常入口（单 hart）。[DADAO-12 §4.9][ADR-0042 D7.1–D7.4]
 - 对**不存在**的核芯功能扩展（其 cfx 寄存器）的访问触发 **`CFXREG`**；reserved cfxha（`6`–`14`/`19`–`61`）仍按 `§5` 触发 `ILLI`。[ADR-0020 D9][DADAO-22 §3. 系统信息（smon）][DADAO-12 §5. 异常进入与异常退出]
@@ -244,14 +244,14 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 - 内存映射改为 `Machine-v5-Tiny` / `Machine-v5-Node` 两个 profile：Tiny（BootROM 64 KiB + SRAM 8 MiB、无 cfx/无 PTW/无 hmon 与异常路径、`trap` 只作 semihosting 开关）与 Node（BootROM 4 MiB + PA RAM 2 GiB、hmon/PTW/hypv、smon 路径保留）；两 profile 复位地址均为 `0xffff_ffff_0000`。
 - 删除单一几何、物理地址与核内地址别名、双映射两步过渡等旧约定；`power` 不设 SRAM 改为本机约定（非架构禁令）；`DADAO-12` 只要求 BootROM ≥64 KiB，实际大小由本册按 profile 规定。
 - Tiny 装载约定：raw 镜像基址 `0xffff_ff01_0000`（镜像前 `0x100` 全零）、应用入口 `0xffff_ff01_0100`、`SP 0xffff_ff7e_ff00`；ELF 的 crt/启动 stub 在 BootROM、应用段在 SRAM，raw 与 ELF 统一入口与 `SP`。
-- cfx 实现范围按 profile 分述：Tiny 不实现任何 cfx（含 `cfx_power`），只保留 semihosting；Node 保留 `cfx0/1/2/3/63` + `cfx4`（PTW/TLB）+ `cfx17`（SRAM/DMA）+ 时间类 cfx。
+- cfx 实现范围按 profile 分述：Tiny 不实现任何 cfx（含 `cfx_power`），只保留 semihosting；Node 保留 `cfx0/1/2/3/63` + `cfx4`（PTW/TLB）+ `cfx32`（SRAM/DMA）+ 时间类 cfx。
 - 核芯功能扩展指令清单同步：`cfxld`/`cfxst` 已从指令系统删除，只余 `trap`/`escape`/`cfx2rd`/`cfx2rc`（及 `fence`）。
 - cfx 权限表述同步两轴模型：四类同步来源 mask + `cfx_intr_mask`/`global_cfx_intr_mask`；权限拒绝 ⇒ `CFXPERM`，escape 帧/目标错误 ⇒ `CFXESC`。
-- 新增 `cfx_pmem` 的 64 KiB SRAM（`0x47ff_0000_0000`，cfxha 17、内部偏移 `0x3ff_0000_0000`）与 `cg15` DMA 的测试机约定：DMA 可读 RAM/boot ROM、只可写 RAM。
+- 新增 `cfx_pmem` 的 64 KiB SRAM（`0x83ff_0000_0000`，cfxha 32、内部偏移 `0x3ff_0000_0000`）与 `cg15` DMA 的测试机约定：DMA 可读 RAM/boot ROM、只可写 RAM。
 - cfx 编号同步：`cfx5`（`cache`）为已分配未实现；保留 cfx 改为 `6`–`14`、`19`–`61`。
 
 - semihosting 入口判定改为 `immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`），原按 `immu18` 高位两比特的判定作废：§4.1/§4.3 的一般 trap / semihosting 分界、§5.1 判定与调用示例同步；`HBI_<name>_INIT`（`0x30001`）落在该区之外，按一般 trap 进入目标 cfx 向量。
-- 地址空间 Step 1：`addr[47:42] = 0` 且 `ptw_enable=0` 的访存/取指 ⇒ `CFXMEM`；保留 cfx（6–14、19–61）的普通 `ld/st` ⇒ `CFXMEM`。
+- 地址空间 Step 1：`addr[47:42] = 0` 且 `ptw_enable=0` 的访存/取指 ⇒ `CFXMEM`；保留 cfx（6–14、16–31、35–61）的普通 `ld/st` ⇒ `CFXMEM`。
 - 地址空间 Step 2：`ptw_enable=1` 时按单 PTBR 走两级页表（64 KiB 页 / 512 MiB 超页），检查 HSJU 与 R/W/X，页表异常进入 `cfx_ptw`；A/D 更新与 TLB 不在本版。
 - 测试机 cfx 实现范围增加 `cfx4` 的 Step 1 寄存器子集（唯一 `cfx_ptw_ptbr`、`cfx_ptw_enable`）；删除 PTBR 模式权限位图的描述。
 - 测试机 cfx4 实现范围扩展到页表步进与页权限（Step 2）；A/D 更新、TLB 与 `cfx5` 仍留待后续步骤。

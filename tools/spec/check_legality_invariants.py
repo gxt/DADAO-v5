@@ -18,7 +18,7 @@ Covers two invariants that previously had no mechanical gate:
 3. **``encode_cfx_reserved`` coverage**: **every** record carrying a ``cfxha``
    field must reference ``encode_cfx_reserved`` and carry the reserved-number
    legality expression; the rule must exist, be ``active``, fault ``ILLI`` and
-   match the spec's reserved set (6-14 + 19-61).  This is the mechanical
+   match the spec's reserved set (6-14 + 16-31 + 35-61).  This is the mechanical
    coverage test for "所有带 cfxha 的核芯功能扩展指令的保留编号 ⇒ ILLI"
    (SimRISC-11 §1).
 
@@ -43,9 +43,9 @@ OPCODES = ROOT / "contracts" / "opcodes.yaml"
 RULES = ROOT / "contracts" / "legality_rules.yaml"
 CONTRACTS_DIR = ROOT / "contracts"
 
-# cfx reserved-number coverage carrier（真源：SimRISC-11 §1；6-14/19-61 reserved）。
+# cfx reserved-number coverage carrier（真源：SimRISC-11 §1；6-14/16-31/35-61 reserved）。
 CFX_RESERVED_RULE = "encode_cfx_reserved"
-CFX_RESERVED_EXPR = "cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"
+CFX_RESERVED_EXPR = "cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"
 
 # n=2 constraint carrier.
 ROOT_N_MNEMONICS = ("ftroot", "foroot")
@@ -142,7 +142,7 @@ def main() -> int:
                 f"fault={cfx_rule.get('fault')} ≠ ILLI"
             )
         desc = cfx_rule.get("description") or ""
-        for token in ("6–14", "19–61"):
+        for token in ("6–14", "16–31", "35–61"):
             if token not in desc:
                 errors.append(
                     f"legality_rules.yaml: '{CFX_RESERVED_RULE}' description "

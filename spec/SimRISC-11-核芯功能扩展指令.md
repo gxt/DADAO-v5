@@ -17,7 +17,7 @@
 
 汇编器对两种写法等价处理，均编码为 6 位的 cfxha。
 
-`cfxHA` 指向保留核芯功能扩展（6–14、19–61）时，本章所有指令均触发 ILLI 异常。
+`cfxHA` 指向保留核芯功能扩展时，本章所有指令均触发 ILLI 异常；保留 cfxha 的具体分配由 SEE（DADAO-12）定义。
 
 ## 2. 陷入指令
 
@@ -58,7 +58,7 @@ cfx2rc    cfxHA, cgHB, rcHC, rdHD
 cfx2rc 是将 rdHD 的值设置到 cfx_<cfxname>_cgHB_rcHC 中。
 cfx2rd 是将 cfx_<cfxname>_cgHB_rcHC 的值设置到 rdHD 中。
 
-读写不存在的 cfx_<cfxname>_cgHB_rcHC 组合时触发 CFXREG 异常；cfx_<cfxname> 为 reserved 核芯功能扩展（6-14、19-61）时触发 ILLI 异常；读写权限不匹配时，触发非法核芯功能扩展寄存器访问异常（CFXREG）。
+读写不存在的 cfx_<cfxname>_cgHB_rcHC 组合时触发 CFXREG 异常；cfx_<cfxname> 为 reserved 核芯功能扩展时触发 ILLI 异常；读写权限不匹配时，触发非法核芯功能扩展寄存器访问异常（CFXREG）。
 
 > **注意**：cfx2rd/cfx2rc 的数据通路仅连接 rd 寄存器组。若需要将 rb 或 rf 寄存器的值写入核芯功能扩展寄存器，须先通过 `rb2rd rd, rb, 1` 或 `rf2rd rd, rf, 1` 中转至 rd 寄存器。汇编器提供 `set.rd rd, rs` 伪指令简化此操作（展开为 `rb2rd`/`rf2rd`/`rd2rd`）。
 
@@ -137,7 +137,7 @@ fence   cfxHA, immu18
 异常规则：
 
 - `hb != 0` ⇒ ILLI；
-- `cfxHA` 为保留核芯功能扩展（6–14、19–61）⇒ ILLI；
+- `cfxHA` 为保留核芯功能扩展 ⇒ ILLI（保留 cfxha 的分配由 SEE/DADAO-12 定义）；
 - 正常屏障不产生异常。
 
 <!-- ASSEMBLY_LIST_START -->
@@ -157,5 +157,5 @@ fence   cfxHA, immu18
 ## 附录 B：合法性检查
 
 * `encode_sbz`：SBZ 非零 → ILLI — `escape_ciii_cfx`, `fence_ciii_cfx`（2 条）
-* `encode_cfx_reserved`：保留 cfx（6-14、19-61）→ ILLI — `cfx2rc_crrr_cfx`, `cfx2rd_crrr_cfx`, `escape_ciii_cfx`, `fence_ciii_cfx`, `trap_ciii_cfx`（5 条）
+* `encode_cfx_reserved`：保留 cfxha（具体分配由 SEE/DADAO-12 定义）→ ILLI — `cfx2rc_crrr_cfx`, `cfx2rd_crrr_cfx`, `escape_ciii_cfx`, `fence_ciii_cfx`, `trap_ciii_cfx`（5 条）
 <!-- LEGALITY_END -->

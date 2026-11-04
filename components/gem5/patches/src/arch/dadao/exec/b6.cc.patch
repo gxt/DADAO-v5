@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b6.cc b/src/arch/dadao/exec/b6.cc
 new file mode 100644
-index 0000000..cd2e007
+index 0000000..2d53bd2
 --- /dev/null
 +++ b/src/arch/dadao/exec/b6.cc
-@@ -0,0 +1,395 @@
+@@ -0,0 +1,396 @@
 +// DADAO gem5 B6 execution core -- implementation.
 +//
 +// The 30 B6 ids are dispatched through the table below, by `entry->id` (never
@@ -133,11 +133,12 @@ index 0000000..cd2e007
 +}
 +
 +/** Reserved cfx numbers trigger ILLI for every cfx system instruction
-+ * (spec/SimRISC-11 §1: 6-14 and 19-61). */
++ * (spec/SimRISC-11 §1: 6-14, 16-31 and 35-61). */
 +bool
 +cfxReserved(uint64_t cfxha)
 +{
-+    return (cfxha >= 6 && cfxha <= 14) || (cfxha >= 19 && cfxha <= 61);
++    return (cfxha >= 6 && cfxha <= 14) || (cfxha >= 16 && cfxha <= 31) ||
++           (cfxha >= 35 && cfxha <= 61);
 +}
 +
 +/** Big-endian bytes -> value, zero-extended (DADAO is big-endian). */

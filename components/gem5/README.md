@@ -43,7 +43,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `MRPTR`、递归折叠、MemRAS 大端换出/读回、RASOF/RASUF 与访存异常精确）。
 - **B6 执行语义**（`exec/b6.{hh,cc}`，30 条系统/原子/屏障）：
   `swym`（no-op + `swymHint` 时延提示，`immu18` 非功能操作数）；`trap`/
-  `escape`/`cfx2rd`/`cfx2rc`（cfxha 保留 6–14/19–61 ⇒ ILLI；`escape`
+  `escape`/`cfx2rd`/`cfx2rc`（cfxha 保留 6–14/16–31/35–61 ⇒ ILLI；`escape`
   `imms18[17:1] != 0` ⇒ ILLI、字节偏移仅 0/4；`cfx2rd/cfx2rc` 未建模组合 ⇒
   CFXREG、`trap` 控制转移 `trapTo`、帧错误 ⇒ CFXESC；`cfx2rd` 目的 `rd0`
   丢弃写不 ILLI）；`fence`（`immu18[17:12]` SBZ、`pred/succ` 六位掩码、
@@ -183,7 +183,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   BootROM `0xffff_ffc0_0000` **恰好 4 MiB**（读/取指；写 ⇒ ILLI）、复位
   `0xffff_ffff_0000`；PA RAM `[0, 2 GiB)`；hmon `0x0fff_0000_0000` /
   smon `0x0bff_0000_0000`（保留，M11 不启动）/ cfx_pmem
-  `0x47ff_0000_0000` 各 64 KiB；raw/ELF body 基址 `0x10_0000`，
+  `0x83ff_0000_0000` 各 64 KiB；raw/ELF body 基址 `0x10_0000`，
   `entry=0x10_0000`、`SP=0x7fff_0000`（由 power 设置）。
 - **复位**：`PC=rb0=0xffff_ffff_0000`，`rb1..=0`、`rf0=0x7FF8_0000_7FC0_0000`、
   其余 GPR/RA=0；`inner_run_mode=hypv`、`inner_cfx_code=63`、`ptw_enable=0`、

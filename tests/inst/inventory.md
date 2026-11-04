@@ -174,7 +174,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `escape_ciii_cfx` | `ciii` | `misc.yaml` | deferred TESTCASES-033t | ✓ | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 位宽：汇编 `imms20`（合法 0/4）⇔ 编码 `imms18 ∈ {0,1}`；legality = `imms18[17:1]` SBZ 非零 ⇒ ILLI（SPEC-180t）；合法偏移的执行期覆盖见 `min_rom_probe_integ044t.py` escape_return 与 `tests/arch/umon/m5_trap_escape.s` |
 | `trap_ciii_cfx` | `ciii` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上 |
 
-> 保留 cfxha（6–14、19–61）的普通 `ld/st` ⇒ `CFXMEM` 的覆盖位于 `tests/inst/base/reserved.yaml` 的 4 条 legality 例（Case 3–6；TESTCASES-089t），不改变本矩阵行集与门控载体集。
+> 保留 cfxha（6–14、16–31、35–61）的普通 `ld/st` ⇒ `CFXMEM` 的覆盖位于 `tests/inst/base/reserved.yaml` 的 6 条 legality 例（Case 3–8；TESTCASES-089t/INTEG-053t），不改变本矩阵行集与门控载体集。
 
 ## 非 M1 向量（独立文件，不入本矩阵）
 

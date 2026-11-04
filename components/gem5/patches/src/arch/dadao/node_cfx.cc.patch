@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..c4761a5
+index 0000000..7f7dd89
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1068 @@
+@@ -0,0 +1,1069 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
@@ -29,7 +29,7 @@ index 0000000..c4761a5
 +namespace
 +{
 +
-+constexpr int kCfxhaMap[9] = {0, 1, 2, 3, 4, 15, 17, 18, 63};
++constexpr int kCfxhaMap[9] = {0, 1, 2, 3, 4, 15, 32, 34, 63};
 +
 +/** cfx_pmem SRAM internal offset (DADAO-12 §2.1/§4.9). */
 +constexpr uint64_t kPmemCfxOffset = 0x3FF00000000ULL;
@@ -142,7 +142,8 @@ index 0000000..c4761a5
 +bool
 +nodeCfxReserved(uint64_t cfxha)
 +{
-+    return (cfxha >= 6 && cfxha <= 14) || (cfxha >= 19 && cfxha <= 61);
++    return (cfxha >= 6 && cfxha <= 14) || (cfxha >= 16 && cfxha <= 31) ||
++           (cfxha >= 35 && cfxha <= 61);
 +}
 +
 +void
@@ -432,7 +433,7 @@ index 0000000..c4761a5
 +    switch (cfxha) {
 +      case 2:
 +      case 3: blk = smon; break;
-+      case 17: blk = pmem; break;
++      case 32: blk = pmem; break;
 +      case 63: blk = power; break;
 +      default: return 0;
 +    }

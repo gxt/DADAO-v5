@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..69fce19
+index 0000000..254a39d
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
 @@ -0,0 +1,292 @@
@@ -38,7 +38,7 @@ index 0000000..69fce19
 +RegClass ccRegClass(CCRegClass, CCRegClassName, 0, debug::CCRegs);
 +
 +// cfxha order of the fixed register dump (spec/DADAO-12 §1).
-+constexpr int kTraceCfxha[9] = {0, 1, 2, 3, 4, 15, 17, 18, 63};
++constexpr int kTraceCfxha[9] = {0, 1, 2, 3, 4, 15, 32, 34, 63};
 +
 +} // anonymous namespace
 +

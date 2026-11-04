@@ -200,6 +200,6 @@
       ra0: 0:@ENTRY+0x700000
   mnemonic: ret
   notes: 'legality D4b CFXMEM (return target in reserved cfx): ra0=0:@ENTRY+0x700000 (RACNT=0, MRPTR=@ENTRY+0x700000); MemRAS[MRPTR]=[count=1,
-    addr=0xBBBB00000000]; ret → PC=0xBBBB00000000 (cfxha 46, reserved 19–61) → 取指 CFXMEM (0x81)'
+    addr=0xBBBB00000000]; ret → PC=0xBBBB00000000 (cfxha 46, reserved 16–31/35–61) → 取指 CFXMEM (0x81)'
   spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; DADAO-12: 核内地址空间; DADAO-12: 异常进入流程; ADR-0020 D15 / ADR-0004 D5.8'
   status: active

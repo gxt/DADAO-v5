@@ -275,10 +275,10 @@ S06_RET = "SimRISC-06: 函数返回"
 # 核芯功能扩展（SimRISC-11）：`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence` 编码出自 QFC 主表
 # （SimRISC-00）。`cfxld`/`cfxst` 已从 ISA 删除（`crii` 格式一并撤销）。
 S11_FENCE = "SimRISC-11: fence"
-# 保留核芯功能扩展（6-14、19-61）⇒ ILLI：适用于**所有带 cfxha 的**核芯功能扩展
+# 保留核芯功能扩展（6-14、16-31、35-61）⇒ ILLI：适用于**所有带 cfxha 的**核芯功能扩展
 # 指令（trap/escape/cfx2rd/cfx2rc/fence），编解码规则见 SimRISC-11 §1；
-# cfxha = 0 为 all cfx（汇编别名 cfx0 / cfx_umon），15-18/62/63 为已分配 cfx。
-CFX_RESERVED_EXPR = "cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"
+# cfxha = 0 为 all cfx（汇编别名 cfx0 / cfx_umon），15/32-34/62/63 为已分配 cfx。
+CFX_RESERVED_EXPR = "cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"
 
 # 其它指令（SimRISC-12）
 S12_LRSC = "SimRISC-12: LR-SC指令"
@@ -567,7 +567,7 @@ def build_main_table(records):
     # SPEC-115t：trap/escape/cfx2rd/cfx2rc re-scope excluded → m1（已实现，MC 可汇编）。
     # cfxld/cfxst（0x7C/0x7D）已从 ISA 删除（`crii` 格式一并撤销）⇒ 两格空白（UNDI）。
     # 所有带 cfxha 的核芯功能扩展指令共享保留编号规则 encode_cfx_reserved
-    # （cfxha 6-14、19-61 ⇒ ILLI；SimRISC-11 §1）。
+    # （cfxha 6-14、16-31、35-61 ⇒ ILLI；SimRISC-11 §1）。
     records.append(rec("cfx2rd-crrr", "cfx2rd", "crrr", 0x7A,
                        f_crrr(), [CFX_RESERVED_EXPR], S00_QFC, scope="m1"))
     records.append(rec("cfx2rc-crrr", "cfx2rc", "crrr", 0x7B,
@@ -579,7 +579,7 @@ def build_main_table(records):
                        f_ciii("immu18"), [CFX_RESERVED_EXPR], S00_QFC, scope="m1"))
     # ADR-0044：fence 从 OPC-MISC 迁到主表 0111-1001（SimRISC-11）。编码字段
     # ha = cfxha（0 = all cfx，汇编别名 cfx0 / cfx_umon），hb/hc/hd 由 immu18 拆出。
-    # hb = immu18[17:12] 为 SBZ；cfx 6-14/19-61 为 reserved（D8）。scope: m9
+    # hb = immu18[17:12] 为 SBZ；cfx 6-14/16-31/35-61 为 reserved（D8）。scope: m9
     # （已实现，非 M1 身份）。
     records.append(rec("fence", "fence", "ciii", 0x79, f_ciii("immu18"),
                        ["immu18[17:12] == 0", CFX_RESERVED_EXPR],

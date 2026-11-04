@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..b321f38
+index 0000000..311d64f
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,569 @@
+@@ -0,0 +1,570 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -119,7 +119,7 @@ index 0000000..b321f38
 + * CFXMEM (exit 0x81, cause 1<<1) because the window is never a pmem
 + * pass-through; with ptw_enable == 1 the two-level page-table walk runs
 + * (DADAO-12 §2.2.1/§2.2.2; ADR-0040 D1-D10).
-+ * Reserved cfx (6-14, 19-61) plain ld/st are also CFXMEM (ADR-0039 Step 1-c).
++ * Reserved cfx (6-14, 16-31, 35-61) plain ld/st are also CFXMEM (ADR-0039 Step 1-c).
 + * Addresses in every other unmapped segment (incl. the power segment 63,
 + * outside RAM/ROM) keep the test-machine convention 0x87 (ADR-0004 D5.8). */
 +#define DADAO_CFXHA_SHIFT   42
@@ -157,7 +157,7 @@ index 0000000..b321f38
 +    uint64_t kernel_reserved;   /* leading zero bytes of a raw image */
 +    bool ram_alias;             /* add a PA-0 alias for the first page table */
 +    bool mon_sram;              /* hmon (cfx3) / smon (cfx2) 64 KiB SRAM */
-+    bool pmem_sram;             /* cfx_pmem (cfx17) 64 KiB SRAM */
++    bool pmem_sram;             /* cfx_pmem (cfx32) 64 KiB SRAM */
 +    bool cfx_enabled;           /* cfx register file / vectors / run modes */
 +    bool ptw_supported;         /* cfx4 PTW/TLB (memory window can translate) */
 +    bool rom_elf_segments;      /* ELF PT_LOAD may target the BootROM */
@@ -234,15 +234,16 @@ index 0000000..b321f38
 +
 +/* Test-machine implemented cfx set: umon/jmon/smon/hmon/power (ADR-0020 D9,
 + * Machine-01 §3) plus cfx4/ptw's PTW/TLB register subset (ADR-0039 §8.5,
-+ * ADR-0041), cfx17/pmem's 64 KiB SRAM + cg15 DMA (ADR-0042 Step 4), and
-+ * cfx15/cfx18 (single-hart timer + global time, INTEG-050t).  Every other
-+ * cfxha either is reserved (6-14, 19-61 => ILLI) or
++ * ADR-0041), cfx32/pmem's 64 KiB SRAM + cg15 DMA (ADR-0042 Step 4), and
++ * cfx15/cfx34 (single-hart timer + global time, INTEG-050t).  Every other
++ * cfxha either is reserved (6-14, 16-31, 35-61 => ILLI) or
 + * allocated-but-unimplemented here (=> CFXREG). */
 +#define DADAO_NUM_CFX 9
 +extern const int dadao_cfxha_map[DADAO_NUM_CFX]; /* defined in helper.c */
 +
 +#define DADAO_CFX_IS_RESERVED(h)  (((h) >= 6 && (h) <= 14) || \
-+                                   ((h) >= 19 && (h) <= 61))
++                                   ((h) >= 16 && (h) <= 31) || \
++                                   ((h) >= 35 && (h) <= 61))
 +
 +/* Exception cause ids (one-hot, DADAO-12 §4 monitor exception table). */
 +#define DADAO_CAUSE_CFXTRAP   (1ULL << 0)
@@ -279,8 +280,8 @@ index 0000000..b321f38
 +
 +#define DADAO_CFXHA_PTW        4   /* cfx4 / ptw (DADAO-12 §1) */
 +#define DADAO_CFXHA_HART       15  /* cfx15 / hart (DADAO-12 §4.7) */
-+#define DADAO_CFXHA_PMEM       17  /* cfx17 / pmem (DADAO-12 §1) */
-+#define DADAO_CFXHA_TIME       18  /* cfx18 / time (DADAO-12 §4.10) */
++#define DADAO_CFXHA_PMEM       32  /* cfx32 / pmem (DADAO-12 §1) */
++#define DADAO_CFXHA_TIME       34  /* cfx34 / time (DADAO-12 §4.10) */
 +
 +/* ── cfx_hart timer + cfx_time (DADAO-12 §4.7/§4.10; INTEG-050t) ─────────
 + * Single hart only: the timer is one-shot, deadline in the cfx_time domain

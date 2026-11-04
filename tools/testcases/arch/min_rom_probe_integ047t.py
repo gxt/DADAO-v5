@@ -96,8 +96,8 @@ ROM_BASE = _prelude.ROM_BASE
 RAM_BASE = _MACH.ram_base
 
 # cfxha / internal address space (DADAO-12 §2.1, Machine-01 §1.1)
-PMEM_HA = 17
-PMEM_BASE = 0x47ff_0000_0000          # cfx17, SRAM internal offset 0x3ff_0000_0000
+PMEM_HA = 32
+PMEM_BASE = 0x83ff_0000_0000          # cfx32, SRAM internal offset 0x3ff_0000_0000
 PMEM_OLD_BASE = PMEM_HA << 42         # internal offset 0 (outside the SRAM)
 
 # cg15 DMA registers (DADAO-12 §4.9)

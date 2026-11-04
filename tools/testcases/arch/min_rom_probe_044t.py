@@ -345,7 +345,7 @@ def _mask_illi():
 
 
 # -- acc 6: reserved cfxha -> ILLI ------------------------------------------
-@case("reserved_illi", "reserved cfxha (6-14,19-61) => ILLI")
+@case("reserved_illi", "reserved cfxha (6-14,16-31,35-61) => ILLI")
 def _reserved_illi():
     prog = load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]
     trap_idx = len(prog)

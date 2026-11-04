@@ -1,6 +1,6 @@
 # ADR-0042: CFX 核内空间与 cfx_pmem DMA
 
-**状态**：Accepted
+**状态**：Accepted（rev. 2026-11-05: `D3` 按 cfxha 重编号就地修订）
 **日期**：2026-10-30
 **关联**：ADR-0039（地址空间）、ADR-0044（fence）；`spec/DADAO-12` §1/§2.1/§2.2；任务 `INTEG-042t`（Step 4）
 
@@ -12,7 +12,7 @@ cfx1–63 各有一段 42 位核内空间，CPU 可以直接 `ld/st`。此前考
 
 - **D1 核内空间**：cfx1–63 内部空间 42 位；cfx0 无内部空间；核内地址 = 高 6 位 cfx + 低 42 位 offset。
 - **D2 CPU 直接访问**：CPU 对任意 cfx 内部 SRAM/MMIO 用普通 `ld/st`，同步、小数据；非法/越界/未对齐 → CFXMEM。**不设 `cfxin/cfxout` 指令**。
-- **D3 cfx_pmem SRAM**：`cfx_pmem`（cfx17）内配置一段 **64 KiB** SRAM（初版，64 KiB 对齐，核内起始 `0x47ff_0000_0000`，内部偏移 `0x3ff_0000_0000`）；大小/基址可由 cfx_pmem 描述/寄存器报告；CPU 可直接 `ld/st` 访问。
+- **D3 cfx_pmem SRAM**：`cfx_pmem`（cfx32）内配置一段 **64 KiB** SRAM（初版，64 KiB 对齐，核内起始 `0x83ff_0000_0000`，内部偏移 `0x3ff_0000_0000`）；大小/基址可由 cfx_pmem 描述/寄存器报告；CPU 可直接 `ld/st` 访问。
 - **D4 cfx_pmem DMA**：cfx_pmem 内 DMA 只在 **cfx_pmem SRAM ↔ physical memory（PA56）** 之间搬运；PA 不经 PTW/TLB；不直接访问其它 cfx 的 SRAM。
 - **D5 设备通路**：device ↔ pmem 由 CPU 中转：CPU 把 device SRAM 数据搬到 cfx_pmem SRAM，再由 DMA 写 pmem；反向同理。高带宽设备若需直连，后续另加本地 DMA，不改变本模型。
 - **D6 无 per-cfx DMA**：不在每个 cfx 后挂 DMA，不设 `cfx_dma`，不新增 DMA ISA 指令；DMA 只属于 cfx_pmem。
@@ -34,8 +34,16 @@ DMA 是内存侧资源，放在 `cfx_pmem` 最自然；CPU 直接 `ld/st` 访问
 - cfx_pmem 需要 SRAM + DMA 控制/状态寄存器；CPU 与 DMA 并发访问 SRAM，软件必须做所有权/双缓冲/同步。
 - device↔pmem 需 CPU 中转，带宽受 CPU 限制；这是本简化模型的明确代价。
 - 启动仍可在 PTW 关闭时用 SRAM+DMA 建第一张页表。
-- cfx5=cache、cfx6–14/19–61 reserved 的编号安排保留；权限见 Step 6。
+- cfx5=cache、cfx6–14/16–31/35–61 reserved 的编号安排保留；权限见 Step 6。
 
 ## 状态说明
 
 用户已确认“设备↔pmem 由 CPU 中转”和“当前单 hart 简化”。`cfx_pmem` 的 SRAM 大小、DMA 寄存器布局、完成/错误 cause 名留 Step 4 落地前确定。
+
+## 修订
+
+**rev. 2026-11-05（`INTEG-053t`）**：cfxha 重编号与作用域统一，`D3` 就地修订。
+
+- `D3`：`cfx_pmem` 的 cfxha 与核内起始按 SEE 现行 cfxha 表更新为 **32** / **`0x83ff_0000_0000`**（内部偏移 `0x3ff_0000_0000` 不变）。
+- `Consequences` 中保留集同步为 `6–14`、`16–31`、`35–61`（与现行 `spec/DADAO-12 §1` 一致）。
+- 其余 decision（D1/D2/D4–D9）语义不变。

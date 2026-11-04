@@ -1,6 +1,6 @@
 # ADR-0049: 测试运行环境分层（Tiny / Node / SE）
 
-**状态**：Accepted
+**状态**：Accepted（rev. 2026-11-05: cfxha 重编号同步）
 **日期**：2026-11-04
 **接受日期**：2026-11-04
 **关联**：ADR-0004（测试机几何）、ADR-0043（Node 启动/页表）、ADR-0048（QEMU/gem5 一致性）、`spec/Machine-v5-测试机运行环境.md`、`spec/DADAO-12`；任务线索 `QEMU-079t`/`QEMU-080t`、`GEM5-014t`/`GEM5-016t`、`TESTCASES-091t`/`TESTCASES-092t`
@@ -75,3 +75,7 @@ M11 需要把三类运行环境固定为**互斥的测试归属**，避免同一
 - **用户原话**：「adr-0049已审阅，accepted」。
 - 生效后，Tiny / Node / SE 的测试归属按 D1–D5 执行；具体地址几何、PTE 位域与 semihosting 编号仍以 `spec/`、`contract-*`、ADR-0004/0043/0048 为准。
 - 决策变更按 `Process-03` 处理：新增 ADR 或标 `Superseded`，不直接改写已 `Accepted` 的 decision。
+
+## 修订
+
+**rev. 2026-11-05（`INTEG-053t`）**：cfxha 重编号与作用域统一，本 ADR 的 Tiny/Node/SE 分层结论不变；文中 `cfx_pmem` 等 cfx 符号按现行 `spec/DADAO-12 §1` 解析（`cfx_pmem` = cfxha 32）。`D2` 的 Node 启动链仍以 ADR-0043 为准。

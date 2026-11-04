@@ -91,7 +91,7 @@ CAUSE_ID = {
 }
 
 # contract-see.md §3 permission rules -> expected cause.  Citation:
-#   reserved_cfxha     : "reserved cfxha (6-14, 19-61) 触发 ILLI"        [DADAO-12 §5]
+#   reserved_cfxha     : "reserved cfxha (6-14, 16-31, 35-61) 触发 ILLI" [DADAO-12 §5]
 #   target_cfxtrap_denied   : target cfx's cfxtrap source mask denies -> CFXPERM
 #   inner_cfx_mask_denied   : inner instruction cfx mask denies -> ILLI
 #   unimplemented_cfx  : "访问未实现的核芯功能扩展 ... 触发 CFXREG"       [DADAO-22 §3]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Min ROM probe for INTEG-050t: cfx_time (cfxha 18) + single-hart cfx_hart
+"""Min ROM probe for INTEG-050t: cfx_time (cfxha 34) + single-hart cfx_hart
 timer (cfxha 15), including the 64-bit cycle/insn test-machine counters.
 
 Two kinds of checks:
@@ -30,16 +30,16 @@ Observation channels (same convention as min_rom_probe_integ047t.py):
     self-checks and a semihosting SYS_EXIT exit code (that mode has no dump).
 
 Bootstrap (the probe body runs in hmon / cfx3, hypv):
-  1. power stage: set cfx_hmon hypv_excp_vector, clear bit15/bit18 of
+  1. power stage: set cfx_hmon hypv_excp_vector, clear bit15/bit34 of
      cfx_hmon hypv_switch_cfx_mask, then `trap cfx_hmon, 0`.  Bit15 is the
-     TIMER source gate (step 3); bit18 is needed because SBI calls use
+     TIMER source gate (step 3); bit34 is needed because SBI calls use
      `trap cfx_time` (also step 3).
   2. hmon stage: clear cfx_hmon hypv_cfx_intr_mask (cg3 rc4) bit15 and
      cfx_hmon global_cfx_intr_mask (cg8 rc1) bit15 (async step 4), clear
      cfx_hart hypv_excp_cause_mask (cg3 rc11) bit10 (async step 5), install
      the cfx_hart / cfx_time exception vectors, and clear cfx_power's
      cfxmem/cfxexe source masks for all four modes (so the ROM handler stays
-     fetchable / RAM readable while inner_cfx_code = 15/18).
+     fetchable / RAM readable while inner_cfx_code = 15/34).
 
 Usage:
   min_rom_probe_integ050t.py --doc          # doc checks only (offline)
@@ -102,7 +102,7 @@ ROM_BASE = _prelude.ROM_BASE
 RAM_BASE = _MACH.ram_base
 
 HART_HA = 15
-TIME_HA = 18
+TIME_HA = 34
 HART_CG = 8
 TIME_CG = 10
 CG5_CAUSE_ID_RC, CG5_CAUSE_IP_RC, CG5_CAUSE_INFO_RC, CG5_PENDING_RC = 2, 3, 4, 5
@@ -129,7 +129,7 @@ EXIT_FAIL = 0xE1
 # and the body starts at ROM_BASE (RESET_PC + 0x1000).
 OFF_FH3 = 0x700       # CFXREG handler for faults raised at the hmon monitor
 OFF_FH15 = 0x740      # CFXREG handler for faults raised at cfx_hart
-OFF_FH18 = 0x780      # CFXREG handler for faults raised at cfx_time
+OFF_FH34 = 0x780      # CFXREG handler for faults raised at cfx_time
 OFF_HART_PROVIDER = 0x800
 OFF_TIME_PROVIDER = 0x880
 
@@ -351,7 +351,7 @@ def build_time_provider():
 HANDLERS = {
     OFF_FH3: build_fault_handler(3),
     OFF_FH15: build_fault_handler(HART_HA),
-    OFF_FH18: build_fault_handler(TIME_HA),
+    OFF_FH34: build_fault_handler(TIME_HA),
     OFF_HART_PROVIDER: build_hart_provider(),
     OFF_TIME_PROVIDER: build_time_provider(),
 }
@@ -446,23 +446,23 @@ def build_rom(prog, handlers=None):
 def power_setup():
     """power-stage setup applied when the prelude traps into hmon.
 
-    cfx_hmon hypv_switch_cfx_mask: clear bit15 (TIMER source) and bit18
+    cfx_hmon hypv_switch_cfx_mask: clear bit15 (TIMER source) and bit34
     (cfx_time traps) so exception-entry step 3 lets TIMER through.  The write
     must happen in power: `switch_cfx_mask` is only applied on entry to hmon,
     so the same write from the hmon body would not change the current mask
     (TESTCASES-094t §2).
     """
-    return (load_rd(22, 0xFFFF_FFFF_FFFB_7FF7)
+    return (load_rd(22, 0xFFFF_FFFB_FFFF_7FF7)
             + [cfx2rc(3, 3, CG3_SWITCH_CFX_MASK_RC, 22)])
 
 def hmon_setup():
     # TESTCASES-094t §1: the power->hmon hand-off and the power-mask clearing
     # live in the shared prelude; only the probe-specific mask/vector setup
     # stays here.  (This was the former power prefix + hmon stage.)
-    # Source masks are cleared for bit15/bit18 in hmon, cfx_hart and cfx_time
+    # Source masks are cleared for bit15/bit34 in hmon, cfx_hart and cfx_time
     # (hypv row only): once a trap/escape has run, inner_cfx_code stays at the
     # trapped cfx in this model, so later cross-cfx reads must not be denied.
-    MASK_HMON = 0x7FFF_FFFF_FFFB_7FF7
+    MASK_HMON = 0x7FFF_FFFB_FFFF_7FF7
     # rb5 = RAM_BASE, used by the timer handler for its state block.
     ins = load_rb(5, RAM_BASE)
     ins += load_rd(21, MASK_HMON)
@@ -524,7 +524,7 @@ def _time_freq_value():
 @case("time_ro_cfxreg", "cfx_time writes/rc2/rc63 are CFXREG with cid/cip")
 def _time_ro_cfxreg():
     a = Asm()
-    set_vector(a, TIME_HA, OFF_FH18)
+    set_vector(a, TIME_HA, OFF_FH34)
     n = 0
 
     def fault(insn):
@@ -926,7 +926,7 @@ def _sbi_hart_set_timer():
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
 
 
-@case("regress_unimpl_cfx", "cfx5 (cache) and cfx16 (llc) still raise CFXREG")
+@case("regress_unimpl_cfx", "cfx5 (cache) and cfx33 (llc) still raise CFXREG")
 def _regress_unimpl_cfx():
     a = Asm()
     set_vector(a, 3, OFF_FH3)
@@ -941,7 +941,7 @@ def _regress_unimpl_cfx():
 
     fault(cfx2rd(5, 0, 0, 5))
     last_idx = len(a.words)
-    a.emit(cfx2rd(16, 0, 0, 5))
+    a.emit(cfx2rd(33, 0, 0, 5))
     check_frame(a, hmon_addr(0) + last_idx * 4, 2)
     finish(a)
     return build_rom(a.resolve(), HANDLERS), {

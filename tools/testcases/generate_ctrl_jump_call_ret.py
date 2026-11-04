@@ -498,7 +498,7 @@ def _gen_ret_riii():
     #   (ISS-098/TESTCASES-063t: the entry address is the instruction's return
     #   target, so it must be executable RAM — the previous magic 0xBBBB… value
     #   made the case unobservable: `ret` to 0xBBBB00000000 (cfxha 46,
-    #   reserved 19–61) faults CFXMEM(0x81) before any state comparison can
+    #   reserved 16–31/35–61) faults CFXMEM(0x81) before any state comparison can
     #   run.  The magic shape is kept as a legality case, the RAS bookkeeping
     #   assertions are unchanged.)
     d4b_mrptr = _tok(MRPTR_OFF)           # entry-relative MemRAS pointer
@@ -521,7 +521,7 @@ def _gen_ret_riii():
 
     # D4b CFXMEM: the same MemRAS pop with a reserved-cfx return target
     #   (the shape the pre-063t D4b semantic cases used): ret takes PC from the
-    #   entry → instruction fetch at 0xBBBB00000000 (cfxha 46, reserved 19–61)
+    #   entry → instruction fetch at 0xBBBB00000000 (cfxha 46, reserved 16–31/35–61)
     #   → CFXMEM (0x81); the RAS was consumed before the fetch.
     d4bu_mem_in = _ra0(1, 0xBBBB_0000_0000)
 
@@ -640,7 +640,7 @@ def _gen_ret_riii():
               % (rd1_in_ra0, rd1_out_ra0)),
         # ── appended (index 9, 既有用例序号不变): D4b CFXMEM ───────────────
         # MemRAS 条目的返回目标落在 reserved cfx（0xBBBB… ⇒ cfxha 46 ∈
-        # 19–61；063t 之前 D4b semantic 用例用的形态）：ret 取指 → CFXMEM
+        # 16–31/35–61；063t 之前 D4b semantic 用例用的形态）：ret 取指 → CFXMEM
         # (0x81)。该形态语义上无法观察到 ret 之后的寄存器状态，故只能是
         # legality 用例。
         _case("legality", "ret_riii_ra", "riii", word,
@@ -652,7 +652,7 @@ def _gen_ret_riii():
               "legality D4b CFXMEM (return target in reserved cfx): ra0=%s "
               "(RACNT=0, MRPTR=%s); MemRAS[MRPTR]=[count=1, "
               "addr=0xBBBB00000000]; ret → PC=0xBBBB00000000 (cfxha 46, "
-              "reserved 19–61) → 取指 CFXMEM (0x81)"
+              "reserved 16–31/35–61) → 取指 CFXMEM (0x81)"
               % (d4b1_in_ra0, d4b1_mrptr)),
     ]
 

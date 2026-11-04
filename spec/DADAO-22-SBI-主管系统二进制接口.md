@@ -459,7 +459,7 @@ cfx2rc  cfx_time_supv_excp_vector, rd2
 
 @@ 允许 cfx_time 从 supv 触发
 cfx2rd  cfx_time_supv_cfxtrap, rd2
-set.rd   rd3, ~(1<<2)                                @@ cfx_time = cfx18
+set.rd   rd3, ~(1<<2)                                @@ cfx_time = cfx34
 and.o   rd2, rd2, rd3
 cfx2rc  cfx_time_supv_cfxtrap, rd2
 ```
@@ -751,6 +751,7 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 - 正文术语统一：地址空间分区一律写作 `addr[47:42]`（地址高 6 位），不再使用讨论期简写。
 - `cfx_pmem` 增加 DMA 的 SBI 封装（启动、状态查询，等待为预留并返回不支持）；SBI 错误码增加「忙，可重试」；不提供 SRAM 查询。
 - `SBI_HART_SET_TIMER` 的 `timeout` 与 `SBI_TIME_GET` 的返回值明确为 64 位绝对时间（单位同 `cfx_time_value`），语义不变。
+- `cfx_pmem`/`cfx_time` 的 cfxha 随 SEE 重编号为 **32/34**（`cfx_time = cfx34`）；SBI 功能码与语义不变。
 
 ### 0.7.2（2026-10-26）
 

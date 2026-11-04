@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/decode/decode_table.inc b/src/arch/dadao/decode/decode_table.inc
 new file mode 100644
-index 0000000..69d54af
+index 0000000..2e00894
 --- /dev/null
 +++ b/src/arch/dadao/decode/decode_table.inc
 @@ -0,0 +1,1619 @@
@@ -948,15 +948,15 @@ index 0000000..69d54af
 +inline constexpr const char *kRules82[] = {"dst_rd0_nonzero"};
 +inline constexpr const char *kLegality82[] = {"!(rdha == rd0 && imms18 != 0)"};
 +inline constexpr const char *kRules83[] = {"encode_cfx_reserved"};
-+inline constexpr const char *kLegality83[] = {"cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"};
++inline constexpr const char *kLegality83[] = {"cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kRules84[] = {"encode_cfx_reserved"};
-+inline constexpr const char *kLegality84[] = {"cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"};
++inline constexpr const char *kLegality84[] = {"cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kRules85[] = {"encode_sbz", "encode_cfx_reserved"};
-+inline constexpr const char *kLegality85[] = {"imms18[17:1] == 0", "cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"};
++inline constexpr const char *kLegality85[] = {"imms18[17:1] == 0", "cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kRules86[] = {"encode_cfx_reserved"};
-+inline constexpr const char *kLegality86[] = {"cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"};
++inline constexpr const char *kLegality86[] = {"cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kRules87[] = {"encode_sbz", "encode_cfx_reserved"};
-+inline constexpr const char *kLegality87[] = {"immu18[17:12] == 0", "cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"};
++inline constexpr const char *kLegality87[] = {"immu18[17:12] == 0", "cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kRules89[] = {"encode_sbz"};
 +inline constexpr const char *kLegality89[] = {"rdhb == rd0"};
 +inline constexpr const char *kRules90[] = {"encode_sbz"};

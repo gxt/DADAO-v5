@@ -2300,7 +2300,7 @@
     role: dst
     bank: rd
   legality:
-  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
+  - cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62
   spec_cite: 'SimRISC-11: cfx2rd'
   scope: m1
   rule_refs:
@@ -2329,7 +2329,7 @@
     role: dst
     bank: rd
   legality:
-  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
+  - cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62
   spec_cite: 'SimRISC-11: cfx2rc'
   scope: m1
   rule_refs:
@@ -2352,7 +2352,7 @@
     signed: true
   legality:
   - imms18[17:1] == 0
-  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
+  - cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62
   spec_cite: 'SimRISC-11: escape'
   scope: m1
   rule_refs:
@@ -2375,7 +2375,7 @@
     bank: imm
     signed: false
   legality:
-  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
+  - cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62
   spec_cite: 'SimRISC-11: trap'
   scope: m1
   rule_refs:
@@ -2398,7 +2398,7 @@
     signed: false
   legality:
   - immu18[17:12] == 0
-  - cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62
+  - cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62
   spec_cite: 'SimRISC-11: fence'
   scope: m9
   rule_refs:

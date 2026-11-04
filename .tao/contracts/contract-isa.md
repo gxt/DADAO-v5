@@ -1205,7 +1205,7 @@ OPC-MISC 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 - **执行模式**：`trap`/`escape`/`cfx2rd`/`cfx2rc` 可在任意运行模式下执行，具体是否允许由各核芯功能扩展的 cfx mask 寄存器和指令类型 cfx mask 寄存器控制。[SimRISC-11 §指令域与执行条件]
 - **cfxha 写法**：`cfx<cfxha>`（如 `cfx63`）与 `cfx_<cfxname>`（如 `cfx_power`）等价，均编码为 6 位 cfxha。[SimRISC-11 §指令域与执行条件]（别名表见 `contract-cfx-aliases.md`、`ADR-0017`。）
 - **`escape` 位宽关系**：汇编层 `imms20` 为**字节**偏移（合法值只有 0 或 4），编码层为 `imms18 = imms20 >> 2 ∈ {0, 1}`；`imms18[0]` 为字节偏移 bit2，`imms18[17:1]` 为 SBZ（非零 ⇒ ILLI）；实际地址 `Addr = excp_cause_ip + (imms18 << 2)`。[SimRISC-11 §退出指令][Toolchain-01 §3.2]
-- **legality**：这 4 条的静态编码规则为 **`encode_cfx_reserved`**——`cfxha` 为保留核芯功能扩展（6–14、19–61）⇒ **ILLI**（`contracts/opcodes.yaml` 的 `legality`/`rule_refs` 由此派生；`fence` 同）。读写不存在组合 / 权限不匹配 → **CFXREG** 属**实现/运行期**语义，不在汇编/编码期约束（见 `ADR-0020`）。[SimRISC-11 §指令域与执行条件][SimRISC-11 §寄存器传输指令]
+- **legality**：这 4 条的静态编码规则为 **`encode_cfx_reserved`**——`cfxha` 为保留核芯功能扩展（6–14、16–31、35–61）⇒ **ILLI**（`contracts/opcodes.yaml` 的 `legality`/`rule_refs` 由此派生；`fence` 同）。读写不存在组合 / 权限不匹配 → **CFXREG** 属**实现/运行期**语义，不在汇编/编码期约束（见 `ADR-0020`）。[SimRISC-11 §指令域与执行条件][SimRISC-11 §寄存器传输指令]
 - **编码位置**：op = `0111-1010`/`0111-1011`/`0111-1110`/`0111-1111`（0x7A/0x7B/0x7E/0x7F），均 `mask = 0xFF000000`。[SimRISC-00 §SimRISC QFC]
 
 ---
@@ -1226,7 +1226,7 @@ OPC-MISC 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 | `pred` | `immu18[11:6]` | 前序掩码：`cr`/`cw`/`ci`/`co`/`mr`/`mw` |
 | `succ` | `immu18[5:0]` | 后序掩码（位义同 `pred`） |
 
-- `pred = succ = 0` 为合法 no-op；保留 cfx（6–14、19–61）→ ILLI（规则 `encode_cfx_reserved`）。[SimRISC-11 §屏障指令]
+- `pred = succ = 0` 为合法 no-op；保留 cfx（6–14、16–31、35–61）→ ILLI（规则 `encode_cfx_reserved`）。[SimRISC-11 §屏障指令]
 - 编码位置：主表 `0111-1001`（0x79），`mask = 0xFF000000`。[SimRISC-00 §SimRISC QFC]
 
 ### §14.2 LR-SC 原子指令（scope: m9）
@@ -1270,7 +1270,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 - 扩展起始位 `hd > N`。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
 - `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 中 `rdha` 与 `rdhb` 同时为 `rd0`，或为同一非 `rd0` 寄存器。[SimRISC-04 §加减操作][SimRISC-04 §乘除操作]
 - 固定位宽算术/比较/乘除余指令 `rdhb` 为 `rd0`。[SimRISC-04/08/09/10 §加减操作][SimRISC-04/08/09/10 §比较操作][SimRISC-04/08/09/10 §乘除操作]
-- 核芯功能扩展指令（`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence`）的 `cfxha` 为保留编号（6–14、19–61）。[SimRISC-11 §指令域与执行条件]
+- 核芯功能扩展指令（`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence`）的 `cfxha` 为保留编号（6–14、16–31、35–61）。[SimRISC-11 §指令域与执行条件]
 
 ### §15.2 精确异常承诺
 

@@ -74,7 +74,7 @@ EXPECTED_RULES = {
     "sc.b.ar_orrr_rd": _RULE_SC,
 }
 
-_CFX = "cfxha <= 5 || (cfxha >= 15 && cfxha <= 18) || cfxha >= 62"
+_CFX = "cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"
 _SBZ_ESCAPE = "imms18[17:1] == 0"
 _SBZ_FENCE = "immu18[17:12] == 0"
 

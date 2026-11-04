@@ -76,7 +76,7 @@ BODY_OFF = 0x1000        # probe body, reset_pc-relative
 ROM_BASE = RESET_PC + BODY_OFF
 RESET_IMAGE_OFF = RESET_PC - BOOTROM_BASE
 PT_PA = 0x7FF0_0000      # 64 KiB aligned, in RAM, below fault_record/exit
-PMEM_BASE = 0x47FF_0000_0000   # spec/Machine-v5 §1 (cfxha 17)
+PMEM_BASE = 0x83FF_0000_0000   # spec/Machine-v5 §1 (cfxha 32)
 PMEM_STAGE = PMEM_BASE + 0x1000
 
 DEFAULT_QEMU = str(_paths.host_toolchain_bin() / "qemu-system-dadao")
@@ -318,21 +318,21 @@ def hmon_segment(hmon_extra=None):
         ins += load_rd(4, _pte(i)) + [st_o(4, 2, i * 8)]
 
     # 3. cfx_pmem DMA: PMEM SRAM -> PT_PA, 32 bytes, DIR=0.
-    ins += load_rd(9, PMEM_STAGE) + [cfx2rc(17, 15, 0, 9)]
-    ins += load_rd(9, PT_PA) + [cfx2rc(17, 15, 1, 9)]
-    ins += load_rd(9, 32) + [cfx2rc(17, 15, 2, 9)]
-    ins += load_rd(9, 1) + [cfx2rc(17, 15, 3, 9)]
+    ins += load_rd(9, PMEM_STAGE) + [cfx2rc(32, 15, 0, 9)]
+    ins += load_rd(9, PT_PA) + [cfx2rc(32, 15, 1, 9)]
+    ins += load_rd(9, 32) + [cfx2rc(32, 15, 2, 9)]
+    ins += load_rd(9, 1) + [cfx2rc(32, 15, 3, 9)]
 
     # 4. poll dma_status.BUSY (bit0) until the transfer completes.
     poll = len(ins)
-    ins += [cfx2rd(17, 15, 4, 9)]
+    ins += [cfx2rd(32, 15, 4, 9)]
     ins += load_rd(10, 1) + [and_o(9, 9, 10)]
     br = len(ins)
     ins += [br_nz(9, 0)]                 # patched: -> poll
 
     # 5. ERROR (bit2) or no DONE (bit1) => explicit harness failure (0xE0).
     fail_branches = []
-    ins += [cfx2rd(17, 15, 4, 10)]
+    ins += [cfx2rd(32, 15, 4, 10)]
     ins += load_rd(11, 4) + [and_o(11, 10, 11)]
     fail_branches.append(("nz", len(ins)))
     ins += [br_nz(11, 0)]                # patched: -> fail
@@ -353,7 +353,7 @@ def hmon_segment(hmon_extra=None):
     ins += load_rd(20, 0)
     for off in (0, 8, 16, 24):
         ins += [st_o(20, 2, off)]
-    ins += load_rd(9, 2) + [cfx2rc(17, 15, 4, 9)]
+    ins += load_rd(9, 2) + [cfx2rc(32, 15, 4, 9)]
 
     # 7. TLB invalidate (all), PTBR = PT_PA, ptw_enable = 1.
     ins += load_rd(9, 2) + [cfx2rc(4, 12, 0, 9)]

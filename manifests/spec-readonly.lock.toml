@@ -2,6 +2,12 @@ format = 1
 # 只读册（上游 20 册 + v5 自定 1 册）：sha256 锁。修改须用户事先明确允许（授权原话落盘），并在
 # 同一变更内更新此处哈希。见 docs/Process-06-spec目录保护规范.md。
 policy = "readonly-requires-authorization"
+# 2026-11-05（INTEG-053t；用户口径见任务书 §用户口径：「cfx_pmem=32、cfx_llc=33、cfx_time=34；
+#   cfx0–15 per-hart、cfx16–31 per-task、cfx32–63 per-system」「SimRISC-11/00 删除具体 cfx 编号/范围，
+#   只保留描述性规则」「不改退出码/§5.2 路由/Node/Tiny 几何/E2E 语义」）：cfxha 重编号与作用域统一——
+#   DADAO-12 §1 表/作用域/per-task 定义、§2.1 pmem 行与基址 0x83ff_0000_0000、§4.9、§5 保留集字面；
+#   DADAO-22 cfx_time 示例；Machine-v5 Node 表/cfx 实现范围/保留集；SimRISC-00 保留编号描述化；
+#   SimRISC-11 正文 + 附录 B（生成器不写具体范围）。上述 5 册 sha256 同笔重算（其余 16 册不变）。
 # 2026-10-31（INTEG-050t；授权原话摘要：「把 rc 设计现在收干净，并把 spec 变更并入本任务」）：
 #   仅 `DADAO-12`/`DADAO-22` 两册——`cfx_hart` 的 cycle/insn 收为 64 位单寄存器（`cg8 rc2`/`rc3`）、
 #   定时器比较/控制前移至 `rc4`/`rc5`；`cfx_time` 的 `time_freq`/`time_value` 前移至 `cg10 rc0`/`rc1`；
@@ -252,7 +258,7 @@ group = "simrisc-00..12"
 # 2026-11-01（SPEC-181t，授权见任务书 §用户授权 / §已确认口径）：附录 0.5.6-rc 补 6 条
 #   （remainder 边界、scaleB 第三操作数、浮点→整数 NX/饱和、call 返回地址、lr/sc 保留粒度与 sc 目的 rd0）；
 #   sha256 同笔重算。
-sha256 = "f9f905122db5d21be4288c6dc851c050e54389ee7255125e1de576a1f425b713"
+sha256 = "cc3f5a3f36fa1141889f48d07211553945f3a99082ca798c36e2f2e0fdfde12e"
 # 2026-10-22（SPEC-164t，授权原话见 `.tao/tasks/spec/SPEC-164t-OPC-MISC迁移与解excluded.md` §立项来源：「还有一个编码改动过：OPC-MISC的编码改为：0100-0111」「修改编码：ctpop_orri_rd ctlz_orri_rd cttz_orri_rd 从 OPC-octa 改为 OPC-MISC，opx：100-101/100-110/100-111」）：§4 QFC 主表 `OPC-MISC` 由 `0111-0111` 迁 `0100-0111`（原格置空）；§4.1 `100-101/110/111` 填 `ctpop`/`ctlz`/`cttz`；§4.2 删同三格与「借用 OPC-octa 格位」例外说明；附录 0.5.5 两条同步；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -374,7 +380,7 @@ group = "simrisc-00..12"
 # 2026-11-01（SPEC-180t，授权原话见任务书 §用户已确认的设计）：§3 退出指令散文把 `imms20` 由
 #   「须 `%4==0`」收窄为「只允许 0 或 4」，补 `imms18 ∈ {0,1}` / `imms18[17:1]` SBZ 非零 ⇒ ILLI；
 #   汇编速查/合法性生成块由生成器重生成（不手改）；sha256 同笔重算。
-sha256 = "e0e207871f132ded3691d3717dd00939472bef62b5b89d50eba3396e75298340"
+sha256 = "20e17711e2e2c0aac9c6ee47c348f0139eed342d613531e2310061f1447fcdc8"
 # 2026-10-22（SPEC-164t，同授权）：`fence`/`lr`/`sc` 由 `excluded` 转 `m9`，§附录 B 生成区由 `gen_legality_list --apply` 重生成（25 条 `decode ILLI` 条目移出）；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-12-其它指令.md"
@@ -431,7 +437,7 @@ group = "dadao-1x"
 #   `0xffff_ffff_0000`、大小 ≥64 KiB（平台规定）」；说明删「power 不设 SRAM」绝对句、BootROM 段落改「≥64 KiB、
 #   复位向量在末 64 KiB 起点、镜像内偏移 = 大小 − 64 KiB」、cg7 校验示例改 64 KiB/4 MiB 两例；
 #   附录 0.7.3-rc 就地修订 BootROM 条目 + 追加收口条；§5 异常流程未动；版本不变（0.7.3-rc）；sha256 同笔重算。
-sha256 = "2ae94664ee6422ad0af1d3d5353cb1366d4a16a530ad90c86ac7aa84194a770b"
+sha256 = "02f56005b225dd1feb9726f651c2331076043c49e99675cd8a4901e3c5bf7da8"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -491,7 +497,7 @@ group = "dadao-2x"
 # 2026-10-30（INTEG-044t，授权同 SEE 条目）：初始化示例的 `global_cfx_mask` 改按目标 cfx 的 `cfxtrap` 来源 mask（supv 源 = bit 2）；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-31（INTEG-047t，授权原话见任务书 §用户授权原话）：§1 错误码增 -5 SBI_ERR_BUSY；§9 表增 FID 6/7/8（DMA START/STATUS/WAIT）+ 说明段 + 分发示例 3 分支/3 处理器；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-31（INTEG-050t，授权见文件头注释）：§7 `SBI_HART_SET_TIMER` 的 timeout 与 §10 `SBI_TIME_GET` 返回值明确为 64 位（语义不变）；附录 0.7.3-rc 补条目；版本不变（0.7.3-rc）；sha256 同笔重算。
-sha256 = "13893303056fdeb05fbfb57675de0c9932289f91cbce97a18de40f226e4c80ac"
+sha256 = "8991a39d7a9eeac286bf91f1ccf0787f0d680b7bdc7f49ab891e0b0705b6c259"
 
 [[spec]]
 path = "spec/DADAO-23-HBI-超管系统二进制接口.md"
@@ -602,4 +608,4 @@ group = "machine-v5"
 #   无 hmon 与异常路径；Node：BootROM 4 MiB + PA RAM 2 GiB、hmon/PTW/hypv、smon 路径保留）；删单一几何、
 #   地址别名与双映射过渡；§1.2 路由、§2 模式/启动链、§3 cfx 范围、§6 装载按 profile 分述；§4/§5/§7 语义不动；
 #   附录 0.3.2-rc 补条目；版本不变（0.3.2-rc）；sha256 同笔重算。
-sha256 = "002e10123d47cdf82512db15ea28b9643214bffd12837d35319979dfa1527733"
+sha256 = "41f22e712f6190f67232120e77736fee61591853045ef0f4668ed468e4864075"

@@ -66,7 +66,7 @@ _start:
 
 	@@ --- 2a. clear the 64 KiB cfx_pmem SRAM (page-table page) ---
 	@@ rd8-rd63 are still zero here; 146 * 56 octas + 16 octas = 64 KiB.
-	LD64	rb3, 0x0000, 0x0000, 0x47ff, 0x0000
+	LD64	rb3, 0x0000, 0x0000, 0x83ff, 0x0000
 	LD64	rd6, 0x0092, 0x0000, 0x0000, 0x0000	@@ 146
 smon_clear:
 	stm.o	{rd8:rd63}, [rb3, rd0]
@@ -84,7 +84,7 @@ smon_clear:
 	ld.o	rd20, [rb4, 0]
 
 	@@ --- 2b. L1 PTE at SRAM offset 0x8000 (L1 index 0x1000) ---
-	LD64	rb3, 0x0000, 0x0000, 0x47ff, 0x0000
+	LD64	rb3, 0x0000, 0x0000, 0x83ff, 0x0000
 	LD64	rd6, 0x8000, 0x0000, 0x0000, 0x0000
 	add.o	rb4, rb3, rd6
 	LD64	rd6, 0xffe3, 0x0000, 0x0000, 0x4000	@@ 0x4000_0000_0000_ffe3
@@ -92,7 +92,7 @@ smon_clear:
 
 	@@ --- 2c. DMA the 64 KiB page table to PA 0 (CFX->PA) ---
 	LD64	rd2, 0x0001, 0x0000, 0x0000, 0x0000	@@ BUSY mask
-	LD64	rd6, 0x0000, 0x0000, 0x47ff, 0x0000
+	LD64	rd6, 0x0000, 0x0000, 0x83ff, 0x0000
 	cfx2rc	cfx_pmem, cg15, rc0, rd6
 	LD64	rd6, 0x0000, 0x0000, 0x0000, 0x0000
 	cfx2rc	cfx_pmem, cg15, rc1, rd6
@@ -106,14 +106,14 @@ smon_clear:
 	@@ --- 2d. read the PTE back from PA 0x8000 via DMA (rd14) ---
 	LD64	rd6, 0x8000, 0x0000, 0x0000, 0x0000
 	cfx2rc	cfx_pmem, cg15, rc0, rd6
-	LD64	rd6, 0x0e00, 0x0000, 0x47ff, 0x0000
+	LD64	rd6, 0x0e00, 0x0000, 0x83ff, 0x0000
 	cfx2rc	cfx_pmem, cg15, rc1, rd6
 	LD64	rd6, 0x0008, 0x0000, 0x0000, 0x0000
 	cfx2rc	cfx_pmem, cg15, rc2, rd6
 	LD64	rd6, 0x0003, 0x0000, 0x0000, 0x0000	@@ START, DIR=1
 	cfx2rc	cfx_pmem, cg15, rc3, rd6
 	call	[rb0, smon_dma_wait]
-	LD64	rb4, 0x0e00, 0x0000, 0x47ff, 0x0000
+	LD64	rb4, 0x0e00, 0x0000, 0x83ff, 0x0000
 	ld.o	rd14, [rb4, 0]
 
 	@@ --- 3a. PTBR = 0, then enable PTW ---
@@ -133,22 +133,22 @@ smon_clear:
 	@@ 3c. DMA PA 0x12000 -> SRAM 0x0e08, read back (rd6)
 	LD64	rd6, 0x2000, 0x0001, 0x0000, 0x0000
 	cfx2rc	cfx_pmem, cg15, rc0, rd6
-	LD64	rd6, 0x0e08, 0x0000, 0x47ff, 0x0000
+	LD64	rd6, 0x0e08, 0x0000, 0x83ff, 0x0000
 	cfx2rc	cfx_pmem, cg15, rc1, rd6
 	LD64	rd6, 0x0008, 0x0000, 0x0000, 0x0000
 	cfx2rc	cfx_pmem, cg15, rc2, rd6
 	LD64	rd6, 0x0003, 0x0000, 0x0000, 0x0000
 	cfx2rc	cfx_pmem, cg15, rc3, rd6
 	call	[rb0, smon_dma_wait]
-	LD64	rb4, 0x0e08, 0x0000, 0x47ff, 0x0000
+	LD64	rb4, 0x0e08, 0x0000, 0x83ff, 0x0000
 	ld.o	rd6, [rb4, 0]
 	rd2rd	rd3, rd6, 1
 
 	@@ 3d. SRAM 0x0e10 -> DMA PA 0x11000 -> VA read (rd7)
-	LD64	rb4, 0x0e10, 0x0000, 0x47ff, 0x0000
+	LD64	rb4, 0x0e10, 0x0000, 0x83ff, 0x0000
 	LD64	rd6, 0xff00, 0xddee, 0xbbcc, 0x99aa	@@ 0x99aa_bbcc_ddee_ff00
 	st.o	rd6, [rb4, 0]
-	LD64	rd6, 0x0e10, 0x0000, 0x47ff, 0x0000
+	LD64	rd6, 0x0e10, 0x0000, 0x83ff, 0x0000
 	cfx2rc	cfx_pmem, cg15, rc0, rd6
 	LD64	rd6, 0x1000, 0x0001, 0x0000, 0x0000	@@ PA 0x11000
 	cfx2rc	cfx_pmem, cg15, rc1, rd6

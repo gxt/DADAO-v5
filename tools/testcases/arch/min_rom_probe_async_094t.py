@@ -3,7 +3,7 @@
 
 Purpose (ownership decision, not a replacement for INTEG-050t/051t): decide
 whether a failure to deliver TIMER (target cfx_hart, cfxha 15) / PMEM_DMA
-(target cfx_pmem, cfxha 17) is a *test-asset* or a *QEMU* defect.  The probe
+(target cfx_pmem, cfxha 32) is a *test-asset* or a *QEMU* defect.  The probe
 contains no SBI provider, no mask bookkeeping beyond the minimum needed to
 observe one event, and no INTEG-050t/051t harness code.
 
@@ -57,7 +57,7 @@ TIMEOUT = 60
 ROM_BASE = _prelude.ROM_BASE
 RAM_BASE = _prelude.RAM_BASE
 
-HART_HA, PMEM_HA, HMON_HA, POWER_HA = 15, 17, 3, 63
+HART_HA, PMEM_HA, HMON_HA, POWER_HA = 15, 32, 3, 63
 HART_CG, PMEM_DMA_CG = 8, 15
 TIMER = 1 << 10
 PMEM_DMA = 1 << 8
@@ -88,10 +88,10 @@ RAM_INFO17 = 0x048
 DATA_PA = RAM_BASE + 0x4000
 PMEM_SRC = _prelude.PMEM_BASE          # cfx_pmem SRAM window
 
-# cfx_hmon hypv rows: open bits 15/17 in the entry mask, both interrupt-filter
+# cfx_hmon hypv rows: open bits 15/32 in the entry mask, both interrupt-filter
 # levels and the target cause masks (DADAO-12 §5 steps 3/4/5).
-ENTRY_OPEN = ALL1 & ~((1 << 15) | (1 << 17))
-CROSS = ALL1 & ~((1 << 3) | (1 << 15) | (1 << 17))
+ENTRY_OPEN = ALL1 & ~((1 << 15) | (1 << 32))
+CROSS = ALL1 & ~((1 << 3) | (1 << 15) | (1 << 32))
 
 
 # ---------------------------------------------------------------------------
@@ -341,7 +341,7 @@ def _pmem_mask_open():
 
 
 @case("dual_lowest_first",
-      "default clock: both masked pending, release => cfxha 15 then 17")
+      "default clock: both masked pending, release => cfxha 15 then 32")
 def _dual_lowest_first():
     s = Seq()
     set_global(s, ALL1)                        # block both levels of delivery

@@ -3,7 +3,7 @@
 **模块**：integ
 **项目里程碑**：M11
 **依赖**：`QEMU-082t`、`GEM5-019t`、`SPEC-183t`（均已 `已验证`：QEMU/gem5 Node/Tiny 与 Machine-v5 基线）；串行约束 `SPEC-184t`、`SPEC-186t`（同改 `DADAO-12`/`Machine-v5` 与 `manifests/spec-readonly.lock.toml`，三者**不得并发**；本任务可在其前或其后执行，最后由执行顺序末尾的任务基于最终文本重算锁）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 本地（仓库根）。QEMU/gem5 组件源树为 `base+1` 单提交、`git status` 干净；实现落任务分支 `INTEG-053t`，不 merge、不 push。
@@ -172,3 +172,61 @@ DADAO/合约/实现层的保留集统一写 **`6–14、16–31、35–61`**，�
 - 与 `SPEC-184t`/`SPEC-186t` 的锁冲突：严格串行；本任务先落地实现、锁更新按顺序执行；不得在对方未收口时并发改 `manifests/spec-readonly.lock.toml`。
 - `docs/DDLN`（C001/F003）与 `docs/Process-09` 中“0–15 每核、16–63 全系统”的面向读者说明，必须同笔做最小文字同步（非门控硬项，但纳入本任务范围）；不得改其技术结论。
 - 若实现中发现 spec/契约语义确实无法自洽（例如某测试必须保留旧号才能表达），保留现场并留问，不自行改语义。
+
+## 审阅记录
+
+### 第 1 轮 engineer 自审
+
+自主逐行核对 A–G 改动、生成链、实现与测试资产；发现并处置如下：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 首轮探针只改 `PMEM_HA`/`PMEM_BASE`，漏 helper 的 cfxha 实参（042t dump 键 `CFX17`、044t `info` 编码 `17<<18`、048t `set_deleg/open_*_cfxreg/info_rc`） | ✅已修 | 逐处改 32；042t 键改 `asyncn32/cid32` | `check-arch` 首轮红→修复后 13 探针 PASS |
+| 注入 A 用 `cp -p` 还原保留 mtime，ninja 认为无需重编 ⇒ 回绿仍用注入二进制 | ✅已修 | 还原后 `touch`；md5 对账 | 注入 A 二次运行 4/4 PASS（注入 FAIL→还原 PASS） |
+| lit `cfx2-trap-escape.s` 的 `cfx_time` `@enc` 仍为旧 18 | ✅已修 | `7a48a042`→`7a88a042`（34<<18） | `validate_cfx_vectors` 22/22、错误 0 |
+| `check_case_ledger` 清单滞后于 lit 编辑 | ✅已修 | `--write` 重生成 | `check-case-ledger` PASS（1997 条） |
+| `tools/gem5/check_b6.py` 硬编码旧合法式 | ✅已修 | 常量改新式 | `check_b6` 30/30、failures 0 |
+| `make build-gem5` 因 `build_gem5.py` 把 `ccache g++` 当可执行文件而 rc=2 | ⏸绕行（工具缺陷未改） | PATH 去 ccache 后调用同一 target | `make build-gem5 JOBS=32` rc=0；见完成区“坑” |
+
+判决：所有可修 finding 已修，无未修项；状态 → `待验收`。
+
+### 第 1 轮 reviewer 验收（2026-11-05）
+
+**重跑记录（reviewer 独立执行，全部取真实 rc；长输出落 reviewer 侧日志）**：
+- L1 `make check` ⇒ 尾行 `repository checks (L1): PASS`、`EXIT=0`。
+- 逐项 `make <target>` 现场 rc：spec-readonly（21 册 OK）/refs/drift/changelog/numbering/purity/cite-targets、legality-drift/invariants、cfx-aliases/alias-table/vectors、interface、tests-index、case-ledger、milestones-fresh、no-residue、patch-tree（302 OK）/source-state、asm-prose、decodetree-repro、validate-encoding、instrinfo、isa-coverage ⇒ **24/24 rc=0**。
+- 构建/行为：`build-qemu` rc=0；`install-host` rc=0（cfx-alias-install 6 checks PASS）；`check-arch` rc=0（14/14 = arch-smoke + 13 探针，042t/046t/047t/049t/050t/051t 逐项 PASS）；`check-inst` rc=0（Node 965/970、Tiny 44/44）；`check-gem5-decode` rc=0；`check_b6.py --source` rc=0；`check-lit` 163/163 rc=0（含 `cfx2-space-stride.s`/`cfx2-trap-escape.s` 真 llvm-mc 编码断言）。
+- 证据脚本重跑：`.work/evidence/INTEG-053t/run.sh` ⇒ **30/30、EXIT=0**，与完成区逐条一致。
+- 注入（reviewer 亲跑）：A `--inject-a`（PMEM 32→17）probe rc=1 FAIL → `cp`+md5 还原 → 回绿 4/4 EXIT=0；B `--inject-b`（合法式回 15..18）invariants rc=1 → 还原 → rc=0；**另注入一项（非 A/B）**：`machine-node.inc` 的 `PMEM_BASE`→`0x47ff00000000` ⇒ `gen_machine_inc.py --check` rc=1 `DRIFT` → `cp`+md5（前后 `01433d8e…` 相等）→ rc=0；全程禁 git 还原。
+- 快照对账：注入前后 `git status --porcelain -uall` 与开工快照**逐行相同**（72 条全 `M`、无 `??`）；`check-source-state`/`check-patch-tree` 注入后复跑仍 302 OK；QEMU `cpu.h` md5=16270575… 与注入还原值一致。
+
+**约束核验**：pmem/llc/time=32/33/34（DADAO-12 §1/§2.1/§4.9、Machine-v5、DADAO-22、contract-see、cfx-aliases、QEMU define+`dadao_cfxha_map`、gem5 `CfxhaPmem/Time`+`kTraceCfxha` 逐处核对）；基址 `(32<<42)|0x3ff_0000_0000 = 0x83ff_0000_0000`（spec/9 处 smon/机器头/探针/gem5 fs.py+NodeTlb 一致，geometry dump 与 `tests/shared/machine-profiles.yaml` 逐项相等且该文件未改）；§1 三段作用域 + per-task「申请/释放/不随切换保存恢复」三点齐全；保留集 `6–14、16–31、35–61` 与合法式 `<=5 || ==15 || (32..34) || >=62` 在 opcodes/legality_rules/invariants/contract-isa 四处一致，边界例 6/14/16/31/35/61 齐；SimRISC-11/00 仅描述性规则、`gen_legality_list --verify` 绿（生成器不写回）；§5.2 仅编号字面替换，路由/步骤/屏蔽、退出码、Node/Tiny 几何、E2E 语义未动；锁 21 册 sha 全等、恰 5 册变更、授权注记含日期+用户口径；ADR-0042 D3/0043/0049 就地修订带 `rev. 2026-11-05`；DDLN C001/F003/README 最小同步（Process-09 无旧表述、无需改）；活文件旧号扫描（`cfx16/17/18`、`0x47ff`、`19–61`、`15–18`、`16–63`）清零，余项仅锁内历史授权注记与 DADAO-12 附录历史条目（豁免）；完成区 21 行 ≤30、状态 `待验收`、未 commit/push；未跑全量 LLVM、未触碰 SPEC-184t worktree。
+
+**Findings（非阻断，交 architect 收尾修）**：
+1. `components/qemu/patches/target/dadao/cpu.h.patch:454` 注释仍写 `implemented cfx {0,1,2,3,4,15,17,18,63}`（应为 `{0,1,2,3,4,15,32,34,63}`）——接口规范「map 注释同步」漏改一行；行为正确（`dadao_cfxha_map={0,1,2,3,4,15,32,34,63}`），属注释级。
+2. `make build-gem5` 原生 rc=2：`tools/gem5/build_gem5.py`（commit 281adc9e，HEAD 祖先、本任务未改）把 `ccache g++` 当可执行文件，reviewer 亲跑复现 `FileNotFoundError: 'ccache g++'`；绕行 = PATH 去 ccache 跑同一 make target（scons 为系统真链接），gem5.opt 构建晚于源改动、gem5 各门控/FS 代表全绿，**非伪 PASS**；建议后续立独立任务修工具。
+3. 证据目录仅落 inject-a 日志、inject-b 未单独落盘（reviewer 已独立重跑 A/B 均「注入 FAIL → 还原 → 回绿」）；完成区「check-arch（13 探针）」实为 14 项（arch-smoke+13 探针），措辞差。
+
+**判决：Accepted**——验收命令块在 reviewer 自己的重跑下全部通过、硬约束无违反；上述 3 条为注释/工具/落盘类 finding，按「文档级小错不阻断」口径记录，由 architect 在收尾提交中处置。
+
+## 完成区
+
+**测试结果**：通过 30/30（`.work/evidence/INTEG-053t/run.sh`）；L1 `make check` rc=0；`check-arch` rc=0（13 探针）；`check-inst` rc=0（Node 965/5，970 total；Tiny 44/44）；`check-gem5-decode`/`check_b6` rc=0；gem5 Node arch 10/10、Tiny inst 44/44；注入 A/B 均「注入 FAIL → 还原 → 回绿」。
+
+**修改文件**：
+- spec：`DADAO-12`/`DADAO-22`/`Machine-v5`/`SimRISC-00`/`SimRISC-11` + `manifests/spec-readonly.lock.toml`（5 册重算 + 授权注记）。
+- contracts/生成链：`opcodes.yaml`、`legality_rules.yaml`、`cfx-aliases.txt`、`contract-{isa,see,cfx-aliases}`、`generate_opcodes.py`/`gen_legality_list.py`/`check_legality_invariants.py`/`gen_cfx_aliases.py`、`gen_machine_inc.py`（`generate_decodetree.py`/`gen_decode_table.py` 仅运行重生成，未改代码）。
+- QEMU：`components/qemu/patches/{cpu.h,helper.c,insn_trans/trans_ctrl.c.inc}.patch`（源树 base+1，`build-qemu`+`install-host` rc=0）。
+- gem5：10 个补丁 + `decode-assertions.tsv` + `README.md`（源树 base+1，`build-gem5` rc=0）。
+- tests/tools：`smon.S`、`machine-{tiny,node}.inc`、9 个探针/prelude、lit、向量、ledger/inventory、`arch/README`、`tools/gem5/check_b6.py`。
+- 文档/台账：`ADR-0042/0043/0049`（rev. 2026-11-05）、`docs/DDLN` C001/F003/README、`.tao/knowledge/milestones.md`（状态行 `待验收`，L1 一致性门控）。
+
+**验收结果**：pmem/llc/time = 32/33/34；保留集 `6–14、16–31、35–61`；合法式 `cfxha <= 5 || cfxha == 15 || (32..34) || >=62`；`(32<<42)|0x3ff_0000_0000 = 0x83ff_0000_0000`；SimRISC-11/00 仅余描述性规则；DADAO-12 §1 三段作用域 + per-task 定义；`check-spec-readonly` 21 册 OK；`check-patch-tree` 302 OK、source-state qemu/gem5 base+1 clean；stale-scan 0；证据在 `.work/evidence/INTEG-053t/`（日志 + `run.sh` + `scan_stale.py`）。
+
+**新发现/坑**：
+- `tools/gem5/build_gem5.py` 把 `CXX="ccache g++"` 当可执行文件传给 gem5 SCons（预存缺陷）⇒ `make build-gem5` rc=2；绕行 = PATH 去 ccache 后跑同一 target，rc=0。建议后续修工具（本任务未改）。
+- 17/18 语义判定：042t `load_rd(17)`/`cfx2rc(...,17)`=rd17、050t `imm[17]`/`<<18` 编码位宽、051t `ha<<18` 均**不改**；cfxha 常量/位索引/mask（042t `PMEM_HA`、050t `TIME_HA`+bit34、051t `PMEM_HA`+`1<<32`）改。
+- `check-case-ledger` 必须在 lit `@enc` 定稿后重生成，否则 L1 因清单滞后失败。
+- DADAO-12 活文本合法含 `cfx16`（新 per-task 段），stale-scan 以精确白名单登记，非盲豁免。
+
+**遗留问题**：无（`make build-gem5` 的 ccache 绕行已记录为工具缺陷）。

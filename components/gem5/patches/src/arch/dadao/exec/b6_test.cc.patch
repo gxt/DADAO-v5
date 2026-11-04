@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/exec/b6_test.cc b/src/arch/dadao/exec/b6_test.cc
 new file mode 100644
-index 0000000..265cafa
+index 0000000..bfad090
 --- /dev/null
 +++ b/src/arch/dadao/exec/b6_test.cc
 @@ -0,0 +1,1805 @@
@@ -748,15 +748,15 @@ index 0000000..265cafa
 +    MockContext ctx;
 +    initContext(ctx);
 +    WordSpec w;
-+    w.cfxha = 17;
++    w.cfxha = 32;
 +    w.imms18 = 1; // byte offset 4
 +    resetCounters(ctx);
 +    const exec::Fault fault = runWord(ctx, o.id, w);
 +    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
 +          faultName(fault));
-+    check(ctx.escapeCalls == 1 && ctx.escapeCfx == 17 &&
++    check(ctx.escapeCalls == 1 && ctx.escapeCfx == 32 &&
 +              ctx.escapeOffset == 4,
-+          "%s positive: escapeFrom(cfx17, 4)", o.id);
++          "%s positive: escapeFrom(cfx32, 4)", o.id);
 +    check(ctx.writes.empty() && ctx.memReads == 0,
 +          "%s positive: no architectural write", o.id);
 +}
@@ -1103,7 +1103,7 @@ index 0000000..265cafa
 +    }
 +
 +    // Reserved cfx numbers -> ILLI.
-+    for (unsigned cfxha : {6u, 14u, 19u, 61u}) {
++    for (unsigned cfxha : {6u, 14u, 16u, 31u, 35u, 61u}) {
 +        MockContext ctx;
 +        initContext(ctx);
 +        resetCounters(ctx);
@@ -1118,8 +1118,8 @@ index 0000000..265cafa
 +              "fence cfx%u: ordering not called, zero writes", cfxha);
 +    }
 +
-+    // Legal boundary numbers: 0-5, 15-18, 62, 63.
-+    for (unsigned cfxha : {0u, 5u, 15u, 18u, 62u, 63u}) {
++    // Legal boundary numbers: 0-5, 15, 32-34, 62, 63.
++    for (unsigned cfxha : {0u, 5u, 15u, 32u, 33u, 34u, 62u, 63u}) {
 +        MockContext ctx;
 +        initContext(ctx);
 +        resetCounters(ctx);
@@ -1580,7 +1580,7 @@ index 0000000..265cafa
 +    }
 +
 +    // Reserved cfx numbers -> ILLI before the cfx access.
-+    for (unsigned cfxha : {6u, 14u, 19u, 61u}) {
++    for (unsigned cfxha : {6u, 14u, 16u, 31u, 35u, 61u}) {
 +        for (const char *id : {"cfx2rd_crrr_cfx", "cfx2rc_crrr_cfx"}) {
 +            MockContext ctx;
 +            initContext(ctx);
@@ -1648,18 +1648,18 @@ index 0000000..265cafa
 +        initContext(ctx);
 +        resetCounters(ctx);
 +        WordSpec w;
-+        w.cfxha = 16;
++        w.cfxha = 32;
 +        w.immu18 = value;
 +        const exec::Fault fault = runWord(ctx, "trap_ciii_cfx", w);
 +        check(fault == exec::Fault::None && ctx.trapCalls == 1 &&
-+                  ctx.trapCfx == 16 && ctx.trapImm == value,
-+              "trap cfx16, %" PRIu64 ": immu18 delivered unchanged", value);
++                  ctx.trapCfx == 32 && ctx.trapImm == value,
++              "trap cfx32, %" PRIu64 ": immu18 delivered unchanged", value);
 +        check(ctx.writes.empty() && ctx.badWrites == 0 &&
 +                  ctx.memReads == 0,
-+              "trap cfx16, %" PRIu64 ": no GPR/memory access", value);
++              "trap cfx32, %" PRIu64 ": no GPR/memory access", value);
 +    }
 +
-+    for (unsigned cfxha : {6u, 14u, 19u, 61u}) {
++    for (unsigned cfxha : {6u, 14u, 16u, 31u, 35u, 61u}) {
 +        MockContext ctx;
 +        initContext(ctx);
 +        resetCounters(ctx);
@@ -1680,7 +1680,7 @@ index 0000000..265cafa
 +        initContext(ctx);
 +        resetCounters(ctx);
 +        WordSpec w;
-+        w.cfxha = 17;
++        w.cfxha = 32;
 +        w.imms18 = encoded;
 +        const exec::Fault fault = runWord(ctx, "escape_ciii_cfx", w);
 +        check(fault == exec::Fault::None && ctx.escapeCalls == 1 &&
@@ -1697,7 +1697,7 @@ index 0000000..265cafa
 +        initContext(ctx);
 +        resetCounters(ctx);
 +        WordSpec w;
-+        w.cfxha = 17;
++        w.cfxha = 32;
 +        w.imms18 = bad;
 +        const exec::Fault fault = runWord(ctx, "escape_ciii_cfx", w);
 +        check(fault == exec::Fault::Illegal,
@@ -1714,7 +1714,7 @@ index 0000000..265cafa
 +        resetCounters(ctx);
 +        ctx.failEscape = true;
 +        WordSpec w;
-+        w.cfxha = 17;
++        w.cfxha = 32;
 +        w.imms18 = 1;
 +        const exec::Fault fault = runWord(ctx, "escape_ciii_cfx", w);
 +        check(fault == exec::Fault::CfxEsc,
@@ -1724,7 +1724,7 @@ index 0000000..265cafa
 +              "escape CFXESC: no state change, no control transfer");
 +    }
 +
-+    for (unsigned cfxha : {6u, 14u, 19u, 61u}) {
++    for (unsigned cfxha : {6u, 14u, 16u, 31u, 35u, 61u}) {
 +        MockContext ctx;
 +        initContext(ctx);
 +        resetCounters(ctx);

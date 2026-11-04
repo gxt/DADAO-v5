@@ -74,10 +74,10 @@ cfx2rc cfx_power, cg8, rc1, rd2         @@ @enc 7bfc8042
 @@ ASM: cfx2rd cfx_ptw_ptbr, rd2
 cfx2rd cfx_ptw_ptbr, rd2                @@ @enc 7a109002
 
-@@ cfx2rd cfx_time_value, rd2 : (cfxha=18, cg=10, rc=1), rd=2 -> 7a 48 a0 42
-@@ OBJ: {{[0-9a-f]+:}} 7a 48 a0 42{{.*}}cfx2rd cfx_time_value, rd2
+@@ cfx2rd cfx_time_value, rd2 : (cfxha=34, cg=10, rc=1), rd=2 -> 7a 88 a0 42
+@@ OBJ: {{[0-9a-f]+:}} 7a 88 a0 42{{.*}}cfx2rd cfx_time_value, rd2
 @@ ASM: cfx2rd cfx_time_value, rd2
-cfx2rd cfx_time_value, rd2             @@ @enc 7a48a042
+cfx2rd cfx_time_value, rd2             @@ @enc 7a88a042
 
 @@ --- 标量别名等价（`cfx_<name>` ⇔ `cfx<ha>`；acceptance 3）---
 @@ cfx_power ≡ cfx63 (cfxha=63)
@@ -87,7 +87,7 @@ trap cfx_umon, 0                        @@ @enc 7f000000
 trap cfx0, 0                            @@ @enc 7f000000
 
 @@ --- reserved / 未知组合：反汇编裸回退 `cfx<HA>, cgN, rcN`（LLVM-135t）---
-@@ trap cfx20, 0 : cfxha=20（19-61 reserved，无名字）-> 0x7F | 20<<18 = 7f 50 00 00
+@@ trap cfx20, 0 : cfxha=20（16-31 reserved，无名字）-> 0x7F | 20<<18 = 7f 50 00 00
 @@ OBJ: {{[0-9a-f]+:}} 7f 50 00 00{{.*}}trap cfx20, 0
 @@ ASM: trap cfx20, 0
 trap cfx20, 0                           @@ @enc 7f500000

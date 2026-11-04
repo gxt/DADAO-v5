@@ -4,14 +4,14 @@
 Expectations are derived by hand from the frozen spec + ADRs, never from the
 QEMU implementation:
   - spec/DADAO-12 §2.1 (cfx_pmem 64 KiB SRAM at internal offset 0x3ff_0000_0000; reserved
-    cfx 6-14/19-61 => CFXMEM), §4.9 (cg15 DMA registers dma_src/dma_dst/
+    cfx 6-14/16-31/35-61 => CFXMEM), §4.9 (cg15 DMA registers dma_src/dma_dst/
     dma_size/dma_ctrl/dma_status, direction, 42/56-bit masking, 30-bit size
     1..2^29, START self-clear, BUSY/DONE(W1C)/ERROR(W1C)/ERR_CODE one-hot,
     PMEM_DMA = 1 << 8 maskable), §3.6 (1<<8 owned by cfx_pmem).
   - .tao/adr/adr-0042-cfx-internal-dma.md D3/D4/D6/D7.1-D7.4.
-  - spec/Machine-v5-测试机运行环境.md §1.1 (SRAM window 0x47ff_0000_0000)
+  - spec/Machine-v5-测试机运行环境.md §1.1 (SRAM window 0x83ff_0000_0000)
     and §3 (DMA may read RAM/boot ROM, may write RAM only).
-  - contracts/cfx-aliases.txt (cfx_pmem = cfx17, cfx_cache = cfx5).
+  - contracts/cfx-aliases.txt (cfx_pmem = cfx32, cfx_cache = cfx5).
 
 Out of scope (documented as deferred): multi-hart PMEM_DMA receiver rules,
 device-local DMA, cfx access permissions (Step 6), fence.vma/fence.i.
@@ -79,10 +79,10 @@ RAM_BASE = _MACH.ram_base
 RAM_SIZE = _MACH["ram_size"]
 
 # cfxha / internal address space (DADAO-12 §2.1, Machine-01 §1.1)
-PMEM_HA = 17
-PMEM_BASE = 0x47ff_0000_0000          # cfx17, SRAM internal offset 0x3ff_0000_0000
+PMEM_HA = 32
+PMEM_BASE = 0x83ff_0000_0000          # cfx32, SRAM internal offset 0x3ff_0000_0000
 PMEM_SRAM_CFX_OFFSET = 0x3ff_0000_0000
-PMEM_OLD_BASE = PMEM_HA << 42         # 0x0000_4400_0000_0000 (offset 0, now invalid)
+PMEM_OLD_BASE = PMEM_HA << 42         # 0x0000_8000_0000_0000 (offset 0, now invalid)
 PMEM_SRAM_SIZE = 64 * 1024
 assert PMEM_BASE == (PMEM_HA << 42) | PMEM_SRAM_CFX_OFFSET
 CACHE_HA = 5
@@ -314,9 +314,9 @@ def observe(log):
     o = {}
     for n in (5, 6, 7, 8, 9, 10, 11, 12):
         o["rd%d" % n] = lasthex(log, r"RD\[%02d\]: ([0-9a-f]+)" % n)
-    o["pend17"] = lasthex(log, r"CFX17 PREVM:[^\n]* PEND:([0-9a-f]+)")
-    o["cid17"] = lasthex(log, r"CFX17 PREVM:[^\n]* CID:([0-9a-f]+)")
-    o["asyncn17"] = lasthex(log, r"CFX17 ID:[^\n]* ASYNCN:([0-9a-f]+)")
+    o["pend32"] = lasthex(log, r"CFX32 PREVM:[^\n]* PEND:([0-9a-f]+)")
+    o["cid32"] = lasthex(log, r"CFX32 PREVM:[^\n]* CID:([0-9a-f]+)")
+    o["asyncn32"] = lasthex(log, r"CFX32 ID:[^\n]* ASYNCN:([0-9a-f]+)")
     return o
 
 
@@ -342,7 +342,7 @@ def fill_sram(p, off, value=MAGIC, rd=17):
 
 
 # -- CPU direct SRAM access ------------------------------------------------
-@case("sram_ldst_roundtrip", "CPU ld/st the 64 KiB SRAM at the new base 0x47ff_0000_0000")
+@case("sram_ldst_roundtrip", "CPU ld/st the 64 KiB SRAM at the new base 0x83ff_0000_0000")
 def _sram_ldst_roundtrip():
     p = []
     fill_sram(p, 0x0000, MAGIC)
@@ -661,7 +661,7 @@ def _pmem_entry_setup(p, handler_addr, cause_mask, allow_irq=False):
     if allow_irq:
         # Two-level async filter (ADR-0045 D3): current cfx (pmem) source mask
         # and the current-mode monitor (hmon) global mask must both allow
-        # source cfx17.
+        # source cfx32.
         p += load_rd(17, 0)
         p.append(cfx2rc(PMEM_HA, MODE_H, 4, 17))     # cfx_pmem hypv cfx_intr_mask
         p.append(cfx2rc(3, 8, 1, 17))                # cfx_hmon global_cfx_intr_mask
@@ -678,7 +678,7 @@ def _pmem_dma_irq_delivered():
     p += exit_seq(0xEE)                    # not reached: the handler exits
     return build_rom(p, {OFF_PMEM_HANDLER: PMEM_IRQ_HANDLER}), \
         {"exit": EXIT_PASS, "rd10": CAUSE_PMEM_DMA, "rd11": ST_DONE,
-         "rd5": 1, "asyncn17": 1, "cid17": CAUSE_PMEM_DMA}
+         "rd5": 1, "asyncn32": 1, "cid32": CAUSE_PMEM_DMA}
 
 
 @case("pmem_dma_masked_pending", "masked PMEM_DMA only records cfx_pmem pending")
@@ -691,7 +691,7 @@ def _pmem_dma_masked_pending():
     _enter_pmem_via_cfxreg(p)
     p += exit_seq(0xEE)                    # not reached: the handler exits
     return build_rom(p, {OFF_PMEM_HANDLER: PMEM_MASK_HANDLER}), \
-        {"exit": EXIT_PASS, "rd5": 0, "rd8": CAUSE_PMEM_DMA, "asyncn17": 0}
+        {"exit": EXIT_PASS, "rd5": 0, "rd8": CAUSE_PMEM_DMA, "asyncn32": 0}
 
 
 # -- cfx numbering / aliases ---------------------------------------------

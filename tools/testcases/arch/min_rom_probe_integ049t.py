@@ -95,7 +95,7 @@ CFXREG = 1 << 2
 BLOCK0 = {
     2:  (0x3, 0x3FF_0000_0000, 0x1_0000, 0x7),   # smon  SRAM R|W|X
     3:  (0x3, 0x3FF_0000_0000, 0x1_0000, 0x7),   # hmon  SRAM R|W|X
-    17: (0x3, 0x3FF_0000_0000, 0x1_0000, 0x3),   # pmem  SRAM R|W (X=0)
+    32: (0x3, 0x3FF_0000_0000, 0x1_0000, 0x3),   # pmem  SRAM R|W (X=0)
     # spec/Machine-v5 §1.1: Node BootROM 4 MiB at 0xffff_ffc0_0000, i.e.
     # offset 0x3ff_ffc0_0000 with size 0x40_0000 (start+size == 2^42).
     # QEMU's current cg7 table still publishes the old 256 KiB window
@@ -107,7 +107,7 @@ BLOCK0 = {
 FULL_ADDR = {
     2: 0x0BFF_0000_0000,
     3: 0x0FFF_0000_0000,
-    17: 0x47FF_0000_0000,
+    32: 0x83FF_0000_0000,
     63: BOOTROM_BASE,
 }
 POW2_42 = 1 << 42
@@ -202,7 +202,7 @@ def observe(log):
         o["mode"] = int(m.group(1), 10)
     for n in range(5, 56):
         o["rd%d" % n] = lasthex(log, r"RD\[%02d\]: ([0-9a-f]+)" % n)
-    for ha in (0, 1, 2, 3, 4, 17, 63):
+    for ha in (0, 1, 2, 3, 4, 32, 63):
         t = "CFX%02d" % ha
         o["cid:%d" % ha] = lasthex(log, t + r" PREVM:[^\n]* CID:([0-9a-f]+)")
         o["cip:%d" % ha] = lasthex(log, t + r" PREVM:[^\n]*CIP:([0-9a-f]+)")
@@ -325,9 +325,9 @@ def _space_hmon():
     return _space_case(3)
 
 
-@case("space_pmem", "cfx17 cg7 space[0]: desc/start/size/attr = 3/3ff_0000_0000/1_0000/3 (X=0)")
+@case("space_pmem", "cfx32 cg7 space[0]: desc/start/size/attr = 3/3ff_0000_0000/1_0000/3 (X=0)")
 def _space_pmem():
-    return _space_case(17)
+    return _space_case(32)
 
 
 @case("space_power", "cfx63 cg7 space[0]: spec 5/3ff_ffc0_0000/40_0000/5 (4 MiB ROM)")
@@ -356,10 +356,10 @@ def _no_space_ptw():
 
 # -- 7: only space[0] is populated ----------------------------------------
 
-@case("space1_15_zero", "cfx2/3/17/63: rc4..rc63 (space[1..15]) OR-accumulate to 0")
+@case("space1_15_zero", "cfx2/3/32/63: rc4..rc63 (space[1..15]) OR-accumulate to 0")
 def _space1_15_zero():
     body = probe_base()
-    accs = {2: 40, 3: 41, 17: 42, 63: 43}
+    accs = {2: 40, 3: 41, 32: 42, 63: 43}
     for cfxha, acc in accs.items():
         body += or_accumulate(cfxha, range(4, 64), acc, 11)
     body += exit_seq(0x00)
@@ -375,7 +375,7 @@ def _space1_15_zero():
 def _desc_attr_rules(obs):
     errs = []
     pairs = ((2, "rd30", "rd31"), (3, "rd32", "rd33"),
-             (17, "rd34", "rd35"), (63, "rd36", "rd37"))
+             (32, "rd34", "rd35"), (63, "rd36", "rd37"))
     for cfxha, dk, ak in pairs:
         d, a = obs.get(dk), obs.get(ak)
         if d is None or a is None:
@@ -398,12 +398,12 @@ def _desc_attr_rules(obs):
 @case("desc_attr_reserved", "space[0] desc: reserved=0, exists=1, type one-hot; attr: reserved/c/s/v=0")
 def _desc_attr_reserved():
     body = probe_base()
-    for cfxha, rd in ((2, 30), (3, 32), (17, 34), (63, 36)):
+    for cfxha, rd in ((2, 30), (3, 32), (32, 34), (63, 36)):
         body += [cfx2rd(cfxha, 7, 0, rd), cfx2rd(cfxha, 7, 3, rd + 1)]
     body += exit_seq(0x00)
     rom = build_rom(body, {HAND_OFF: handler()})
     exp = {"exit": 0x00}
-    for cfxha, rd in ((2, 30), (3, 32), (17, 34), (63, 36)):
+    for cfxha, rd in ((2, 30), (3, 32), (32, 34), (63, 36)):
         exp["rd%d" % rd] = BLOCK0[cfxha][0]
         exp["rd%d" % (rd + 1)] = BLOCK0[cfxha][3]
     return one(rom, exp, _desc_attr_rules)
@@ -470,7 +470,7 @@ def _read_stable_check(obs):
     """Same rc read twice returns the same value (spec: cg7 reads are pure)."""
     errs = []
     for a, b, label in ((10, 11, "cfx63 start"), (12, 13, "cfx2 size"),
-                        (30, 31, "cfx17 attr")):
+                        (30, 31, "cfx32 attr")):
         va, vb = obs.get("rd%d" % a), obs.get("rd%d" % b)
         if va is None or vb is None:
             errs.append("%s not observed" % label)
@@ -484,7 +484,7 @@ def _read_stable():
     body = probe_base()
     body += [cfx2rd(63, 7, 1, 10), cfx2rd(63, 7, 1, 11)]
     body += [cfx2rd(2, 7, 2, 12), cfx2rd(2, 7, 2, 13)]
-    body += [cfx2rd(17, 7, 3, 30), cfx2rd(17, 7, 3, 31)]
+    body += [cfx2rd(32, 7, 3, 30), cfx2rd(32, 7, 3, 31)]
     body += exit_seq(0x00)
     rom = build_rom(body, {HAND_OFF: handler()})
     return one(rom, {"exit": 0x00}, _read_stable_check)

@@ -362,8 +362,8 @@ def _open_ptw_cg8():
 
 @case("open_pmem_cg15", "deleg=0x8: supv cfx_pmem cg15 rc4 (dma_status) read")
 def _open_pmem_cg15():
-    body = [cfx2rd(17, 15, 4, 10)] + exit_seq(0x00)
-    prog = probe_base() + set_deleg(17, DELEG_OPEN) + open_supv_cfxreg(17, 0)
+    body = [cfx2rd(32, 15, 4, 10)] + exit_seq(0x00)
+    prog = probe_base() + set_deleg(32, DELEG_OPEN) + open_supv_cfxreg(32, 0)
     prog += enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
     # The pre-deleg implementation answered CFXREG (cg15 has no cfx_reg_ptr
@@ -504,7 +504,7 @@ def _power_cg7_closed():
 def _no_power_full_open():
     body = [cfx2rd(63, 4, 0, 10)] + exit_seq(0x00)
     prog = probe_base()
-    prog += set_deleg(4, DELEG_OPEN) + set_deleg(17, DELEG_OPEN)
+    prog += set_deleg(4, DELEG_OPEN) + set_deleg(32, DELEG_OPEN)
     prog += set_deleg(2, DELEG_OPEN) + open_supv_cfxreg(63, 2)
     prog += read_supv_cfxreg(63, 24) + enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
@@ -532,14 +532,14 @@ def _cg3_supv_perm_rd():
 @case("cg3_supv_perm_wr", "supv write of cg3 rc12 => CFXPERM; deleg unchanged")
 def _cg3_supv_perm_wr():
     bad = 0xFFFF_FFFF_FFFF_FFF0     # bit3=0; a wrong write would read 0x...FFF8
-    body = load_rd(20, bad) + [cfx2rc(17, 3, 12, 20)] + exit_seq(0x00)
-    prog = probe_base() + set_deleg(17, DELEG_OPEN) + open_supv_cfxreg(17, 0)
-    prog += read_supv_cfxreg(17, 24) + open_hypv_cfxreg(17, 2)
+    body = load_rd(20, bad) + [cfx2rc(32, 3, 12, 20)] + exit_seq(0x00)
+    prog = probe_base() + set_deleg(32, DELEG_OPEN) + open_supv_cfxreg(32, 0)
+    prog += read_supv_cfxreg(32, 24) + open_hypv_cfxreg(32, 2)
     prog += enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body,
-                           HAND_OFF: handler([cfx2rd(17, 3, 12, 23)])})
+                           HAND_OFF: handler([cfx2rd(32, 3, 12, 23)])})
     return one(rom, {"exit": 0xEE, "cid:2": CFXPERM,
-                     "cinfo:2": info_rc(17, 3, 12, 20),
+                     "cinfo:2": info_rc(32, 3, 12, 20),
                      "cip:2": ROM_BASE + SUPV_OFF + 16,
                      "rd23": DELEG_OPEN, "rd24": ALL1 & ~1})
 

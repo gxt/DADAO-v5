@@ -1,6 +1,6 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..9bd24a8
+index 0000000..bf8725b
 --- /dev/null
 +++ b/target/dadao/helper.c
 @@ -0,0 +1,2759 @@
@@ -653,7 +653,7 @@ index 0000000..9bd24a8
 +     *                        walk on a miss; a successful walk fills the TLB.
 +     *   high6 == 63 -> test-machine RAM/ROM (identity map); OOB keeps the
 +     *                  historical test-machine unmapped convention (0x87).
-+     *   reserved cfx (6-14, 19-61) plain ld/st -> CFXMEM (ADR-0039 Step 1-c).
++     *   reserved cfx (6-14, 16-31, 35-61) plain ld/st -> CFXMEM (ADR-0039 Step 1-c).
 +     *   other high6 -> test-machine unmapped convention (0x87).
 +     */
 +    CPUDADAOState *env = cpu_env(cs);
@@ -786,7 +786,7 @@ index 0000000..9bd24a8
 +        goto map;
 +    }
 +
-+    /* cfx_pmem (cfx17): the 64 KiB SRAM window at internal offset
++    /* cfx_pmem (cfx32): the 64 KiB SRAM window at internal offset
 +     * 0x3ff_0000_0000 (DADAO-12 §2.1/§4.9; ADR-0042 D3).  The test machine backs it with a
 +     * RAM region at a host address outside the 56-bit PA space.  An offset
 +     * outside the SRAM is an illegal internal-space access => CFXMEM. */
@@ -866,7 +866,7 @@ index 0000000..9bd24a8
 +     *  - a profile with no cfx segment map (Tiny) reports every unmapped
 +     *    access/fetch as CFXMEM (0x81, spec/Machine-v5 §1.2) -- both the
 +     *    high6==0 window and "cfxha 63 outside BootROM/SRAM";
-+     *  - reserved cfxha (6-14, 19-61) plain ld/st => CFXMEM (ADR-0039
++     *  - reserved cfxha (6-14, 16-31, 35-61) plain ld/st => CFXMEM (ADR-0039
 +     *    Step 1-c), routed to that cfxha (DADAO-12 §5.2);
 +     *  - every other unmapped segment (incl. the power segment 63 outside
 +     *    RAM/ROM) keeps the historical test-machine unmapped code 0x87
@@ -1513,12 +1513,12 @@ index 0000000..9bd24a8
 + *
 + * Test-machine scope (ADR-0020 D9, Machine-01 §3): only cfx0/1/2/3/63 are
 + * fully implemented, plus cfx4/ptw's Step 1 register subset (PTBR +
-+ * ptw_enable, ADR-0039 §8.5), cfx17/pmem's SRAM+DMA (ADR-0042) and
-+ * cfx15/cfx18 (single-hart timer + global time, INTEG-050t).  Access to any
++ * ptw_enable, ADR-0039 §8.5), cfx32/pmem's SRAM+DMA (ADR-0042) and
++ * cfx15/cfx34 (single-hart timer + global time, INTEG-050t).  Access to any
 + * other allocated-but-unimplemented cfx => CFXREG.
 + * =================================================================== */
 +
-+const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 4, 15, 17, 18, 63 };
++const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 4, 15, 32, 34, 63 };
 +
 +/* cfxha -> compact index into env->cfx[], or -1 if not implemented here. */
 +static int cfx_idx(int cfxha)
@@ -1593,7 +1593,7 @@ index 0000000..9bd24a8
 +    case 3:                     /* cfx_hmon */
 +        blk = smon;
 +        break;
-+    case 17:                    /* cfx_pmem */
++    case 32:                    /* cfx_pmem */
 +        blk = pmem;
 +        break;
 +    case 63:                    /* cfx_power */
@@ -2091,7 +2091,7 @@ index 0000000..9bd24a8
 +#endif /* !CONFIG_USER_ONLY */
 +
 +/* ===================================================================
-+ * cfx_time (cfxha 18) + single-hart cfx_hart timer (cfxha 15)
++ * cfx_time (cfxha 34) + single-hart cfx_hart timer (cfxha 15)
 + * (spec/DADAO-12 §4.7/§4.10; contract-see §3; INTEG-050t/INTEG-051t)
 + *
 + * cfx_time_value and cfx_hart_cycle are derived from QEMU_CLOCK_VIRTUAL
@@ -2200,7 +2200,7 @@ index 0000000..9bd24a8
 +    uint64_t cause;
 +} dadao_async_sources[] = {
 +    { DADAO_CFXHA_HART, DADAO_CAUSE_TIMER },       /* 15 */
-+    { DADAO_CFXHA_PMEM, DADAO_CAUSE_PMEM_DMA },    /* 17 */
++    { DADAO_CFXHA_PMEM, DADAO_CAUSE_PMEM_DMA },    /* 32 */
 +};
 +
 +/* Lowest target cfxha whose pending bit is set and may be delivered.  The

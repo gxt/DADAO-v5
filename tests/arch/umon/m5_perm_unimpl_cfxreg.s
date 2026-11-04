@@ -4,8 +4,8 @@
 @@ core function extension must fail with CFXREG (not ILLI).  contract-see.md §3:
 @@ "访问未实现的核芯功能扩展（其 cfx 寄存器）触发 CFXREG"; DADAO-22 §3;
 @@ SimRISC-11 指令域与执行条件.  The test machine implements cfx0/1/2/3/63,
-@@ cfx_ptw (ptw/tlb registers + page walk), cfx_pmem, cfx_time (cfxha 18) and
-@@ cfx_hart (cfxha 15); cfx_llc (cfxha 16) is allocated by the spec but not
+@@ cfx_ptw (ptw/tlb registers + page walk), cfx_pmem, cfx_time (cfxha 34) and
+@@ cfx_hart (cfxha 15); cfx_llc (cfxha 33) is allocated by the spec but not
 @@ implemented here, so a `trap` to it raises CFXREG.  The fault is delivered
 @@ to the current-mode monitor (cfx_hmon), recorded in the profile fault-record
 @@ slot, and the vector resumes after the faulting instruction; it reads the
@@ -26,7 +26,7 @@
 	.text
 	.globl	_start
 _start:
-	@@ cfxha 16 (cfx_llc) is allocated but not implemented by the test machine
+	@@ cfxha 33 (cfx_llc) is allocated but not implemented by the test machine
 	trap	cfx_llc, 0
 	LOAD_ADDR rb4, FAULT_RECORD
 	ld.o	rd10, [rb4, 0]			@@ fault-record[0] = cause id

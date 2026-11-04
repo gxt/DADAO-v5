@@ -92,7 +92,7 @@ TIMEOUT = 10
 # 4 MiB bootrom-image, after the shared power -> hmon identity-PTW prelude.
 ROM_BASE = _prelude.ROM_BASE
 H = ROM_BASE + 0x100   # handler slot 1
-PMEM_BASE = 0x47FF_0000_0000   # cfx17 SRAM, internal offset 0x3ff_0000_0000
+PMEM_BASE = 0x83FF_0000_0000   # cfx32 SRAM, internal offset 0x3ff_0000_0000
 H2 = ROM_BASE + 0x200  # handler slot 2
 H3 = ROM_BASE + 0x180  # handler slot 3
 
@@ -260,7 +260,7 @@ def _init_masks():
 
 @case("cfxmem_deny", "direct ld/st denied by cfxmem => CFXPERM at current monitor")
 def _cfxmem_deny():
-    p = load_rd(20, 1 << 3) + [cfx2rc(17, 3, 1, 20)]   # pmem cfxmem bit3=1
+    p = load_rd(20, 1 << 3) + [cfx2rc(32, 3, 1, 20)]   # pmem cfxmem bit3=1
     p += load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]        # hmon vector = H
     p += load_rb(3, PMEM_BASE)
     fault_idx = len(p)
@@ -273,7 +273,7 @@ def _cfxmem_deny():
 
 @case("cfxmem_allow", "cfxmem allow (bit clear) lets the access through")
 def _cfxmem_allow():
-    p = load_rd(20, 0) + [cfx2rc(17, 3, 1, 20)]        # pmem cfxmem allow hmon
+    p = load_rd(20, 0) + [cfx2rc(32, 3, 1, 20)]        # pmem cfxmem allow hmon
     p += load_rb(3, PMEM_BASE) + [ld_o(5, 3, 0)]
     p += exit_seq(0x00)
     # PMEM SRAM reset is 0; the load must not raise CFXPERM.
@@ -282,12 +282,12 @@ def _cfxmem_allow():
 
 @case("cfxreg_deny", "cfx2rd denied by cfxreg => CFXPERM")
 def _cfxreg_deny():
-    p = load_rd(20, 1 << 3) + [cfx2rc(17, 3, 2, 20)]   # pmem cfxreg bit3=1
+    p = load_rd(20, 1 << 3) + [cfx2rc(32, 3, 2, 20)]   # pmem cfxreg bit3=1
     p += load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]        # hmon vector = H
     fault_idx = len(p)
-    p += [cfx2rd(17, 0, 0, 5)]
+    p += [cfx2rd(32, 0, 0, 5)]
     p += exit_seq(0xEE)
-    info = (0x7A << 24) | (17 << 18) | (0 << 12) | (0 << 6) | 5
+    info = (0x7A << 24) | (32 << 18) | (0 << 12) | (0 << 6) | 5
     exp = {"exit": 0x22, "cid:3": CFX_PERM, "syncn:3": 1,
            "cinfo:3": info, "cip:3": ROM_BASE + fault_idx * 4}
     return build_rom(p, hand(0x100, 0x22)), exp

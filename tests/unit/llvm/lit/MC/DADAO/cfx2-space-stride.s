@@ -59,10 +59,10 @@ cfx2rd cfx_umon_space_attr[15], rd1     @@ @enc 7a007fc1
 @@ ASM: cfx2rd cfx_umon_scratch_regs[3], rd1
 cfx2rd cfx_umon_scratch_regs[3], rd1    @@ @enc 7a0060c1
 
-@@ cfx_pmem_start[3] : cfxha=17, cg=12, rc=3 -> 7a 44 c0 c1
-@@ OBJ: {{[0-9a-f]+:}} 7a 44 c0 c1{{.*}}cfx2rd cfx_pmem_start[3], rd1
+@@ cfx_pmem_start[3] : cfxha=32, cg=12, rc=3 -> 7a 80 c0 c1
+@@ OBJ: {{[0-9a-f]+:}} 7a 80 c0 c1{{.*}}cfx2rd cfx_pmem_start[3], rd1
 @@ ASM: cfx2rd cfx_pmem_start[3], rd1
-cfx2rd cfx_pmem_start[3], rd1           @@ @enc 7a44c0c1
+cfx2rd cfx_pmem_start[3], rd1           @@ @enc 7a80c0c1
 
 @@ --- format=1 兼容：临时 `reg` 表（stride 1），[5] -> rc5 ---
 @@ V1-OBJ: cfx2rd cfx_bar[5], rd1

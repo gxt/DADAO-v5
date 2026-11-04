@@ -1,6 +1,6 @@
 # ADR-0043: 启动、power/hmon 分层与 SEE 交接
 
-**状态**：Accepted（rev. 2026-11-02: `D1`/`D2`/`D3`/`D10`/`D12` 按 Tiny/Node 两 profile 就地修订）
+**状态**：Accepted（rev. 2026-11-02: `D1`/`D2`/`D3`/`D10`/`D12` 按 Tiny/Node 两 profile 就地修订；rev. 2026-11-05: cfxha 重编号同步）
 **日期**：2026-10-30
 **接受日期**：2026-10-31
 **关联**：ADR-0039（PTBR/PTW）、ADR-0040（PTE）、ADR-0042（cfx_pmem）、ADR-0045（权限）；`spec/DADAO-12` §1/§2
@@ -54,3 +54,5 @@
 - `D10`/`D12`：Node 第一张页表改为 L1 4 个 512 MiB 超页覆盖 PA `[0, 2 GiB)`（VA `0x0200_0000_0000`–`0x0200_7fff_ffff`），`SPF=0xFF`；`D11` 的 PTBR/PTW 开启与验证不变。
 - **用户原话（经主会话转达）**：「Node：BootROM 4 MiB `0xffff_ffc0_0000`..、复位 `0xffff_ffff_0000`；PA RAM 2 GiB；hmon 建 L1 4×512 MiB 超页、`SPF=0xFF`、PTW/hypv；smon 路径保留」「不做双映射；不保留旧 Machine-01 几何」「用户已逐条确认 ADR-0004/0039/0040/0043 四项修订」；逐条口径见 `.tao/tasks/spec/SPEC-183t-Machine-v5-Tiny-Node规范收口.md`。
 - **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-11-02`）。
+
+**rev. 2026-11-05（`INTEG-053t`）**：cfxha 重编号与作用域统一，`D10` 的 cfx_pmem 引用按现行 `spec/DADAO-12 §1` 解析（`cfx_pmem` = cfxha 32、SRAM 核内基址 `0x83ff_0000_0000`）；`D10`/`D11`/`D12` 的页表/PTW/交接语义与地址几何不变。

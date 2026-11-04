@@ -195,8 +195,8 @@ def build_kernel():
     s.e(_prelude.cfx2rd(63, 3, 12, 22))      # cg_reg_deleg
     # hmon observations: delegation rows + the page-table DMA status.
     s.e(_prelude.cfx2rd(4, 3, 12, 17))       # cfx_ptw hypv deleg
-    s.e(_prelude.cfx2rd(17, 3, 12, 18))      # cfx_pmem hypv deleg
-    s.e(_prelude.cfx2rd(17, 15, 4, 19))      # cfx_pmem dma_status
+    s.e(_prelude.cfx2rd(32, 3, 12, 18))      # cfx_pmem hypv deleg
+    s.e(_prelude.cfx2rd(32, 15, 4, 19))      # cfx_pmem dma_status
     # VA -> VA readback, then VA -> PMEM DMA -> PA round trip.
     s.e(*_prelude.load_rb(5, 0x20000))
     s.e(*_prelude.load_rd(4, MAGIC1))
@@ -207,26 +207,26 @@ def build_kernel():
     s.e(*_prelude.load_rd(4, 0))
     s.e(_prelude.st_o(4, 5, 0))              # clear PA 0x20000
     s.e(*_prelude.load_rd(7, PMEM_SRAM))
-    s.e(_prelude.cfx2rc(17, 15, 0, 7))       # dma_src = SRAM
+    s.e(_prelude.cfx2rc(32, 15, 0, 7))       # dma_src = SRAM
     s.e(*_prelude.load_rd(7, 0x20000))
-    s.e(_prelude.cfx2rc(17, 15, 1, 7))       # dma_dst = PA
+    s.e(_prelude.cfx2rc(32, 15, 1, 7))       # dma_dst = PA
     s.e(*_prelude.load_rd(7, 8))
-    s.e(_prelude.cfx2rc(17, 15, 2, 7))       # dma_size
+    s.e(_prelude.cfx2rc(32, 15, 2, 7))       # dma_size
     s.e(*_prelude.load_rd(7, 1))
-    s.e(_prelude.cfx2rc(17, 15, 3, 7))       # START, DIR=0 (CFX -> PA)
+    s.e(_prelude.cfx2rc(32, 15, 3, 7))       # START, DIR=0 (CFX -> PA)
     dma_poll(s)
     s.e(_prelude.ld_o(6, 5, 0))              # rd6 = PA readback (DMA wrote it)
     # Reverse: PA -> SRAM -> VA.
     s.e(*_prelude.load_rd(4, MAGIC2))
     s.e(_prelude.st_o(4, 5, 8))              # PA 0x20008 <- MAGIC2
     s.e(*_prelude.load_rd(7, 0x20008))
-    s.e(_prelude.cfx2rc(17, 15, 0, 7))       # dma_src = PA
+    s.e(_prelude.cfx2rc(32, 15, 0, 7))       # dma_src = PA
     s.e(*_prelude.load_rd(7, PMEM_SRAM + 8))
-    s.e(_prelude.cfx2rc(17, 15, 1, 7))       # dma_dst = SRAM + 8
+    s.e(_prelude.cfx2rc(32, 15, 1, 7))       # dma_dst = SRAM + 8
     s.e(*_prelude.load_rd(7, 8))
-    s.e(_prelude.cfx2rc(17, 15, 2, 7))
+    s.e(_prelude.cfx2rc(32, 15, 2, 7))
     s.e(*_prelude.load_rd(7, 3))             # DIR=1 (PA -> CFX) | START
-    s.e(_prelude.cfx2rc(17, 15, 3, 7))
+    s.e(_prelude.cfx2rc(32, 15, 3, 7))
     dma_poll(s)
     s.e(_prelude.ld_o(7, 6, 8))              # rd7 = SRAM readback of the PA word
     s.e(*_prelude.load_rd(30, MARK_BODY))
@@ -238,7 +238,7 @@ def dma_poll(s, rd=8):
     """Spin until cfx_pmem dma_status.BUSY clears."""
     head = "dma_%d" % len(s.w)
     s.mark(head)
-    s.e(_prelude.cfx2rd(17, 15, 4, rd))
+    s.e(_prelude.cfx2rd(32, 15, 4, rd))
     s.e(*_prelude.load_rd(9, 1))
     s.e(_prelude.and_o(rd, rd, 9))
     s.b("nz", rd, head)

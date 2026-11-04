@@ -48,7 +48,7 @@ def render(prof):
     lines += [
         ".equ HMON_BASE, 0x0fff00000000",
         ".equ SMON_BASE, 0x0bff00000000",
-        ".equ PMEM_BASE, 0x47ff00000000",
+        ".equ PMEM_BASE, 0x83ff00000000",
         "",
     ]
     return "\n".join(lines)

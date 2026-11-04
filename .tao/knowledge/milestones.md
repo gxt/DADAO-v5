@@ -12,7 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| INTEG-053t | 待开始 | 2026-11-05 06:37（登记） | cfxha 重编号 pmem32/llc33/time34；作用域 per-task 16–31、per-system 32–63；保留集 6–14/16–31/35–61 |
+| INTEG-053t | 已验证 | 2026-11-05 07:44 | cfxha 重编号 pmem32/llc33/time34；作用域 per-task 16–31、per-system 32–63；保留集 6–14/16–31/35–61 |
 | SPEC-186t | 待开始 | 2026-11-05 01:46（登记） | DADAO-12 §5.2 重写：同步异常统一路由当前 monitor、拆 inner_cfx_mask 同步屏蔽、异步屏蔽列后续修订 |
 | INFRA-121t | 已验证 | 2026-11-05 01:26 | 运行期日志命名清理：check-run-artifacts 7 条既有红 |
 | GEM5-019t | 已验证 | 2026-11-05 01:00 | SYS_ELAPSED 与 SYS_TICKFREQ 统一 1e9 ticks/s；64 位无溢出换算、046t/parity 零退化 |

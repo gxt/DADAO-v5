@@ -27,10 +27,11 @@ DADAO定义了四种运行模式，用两位编码：
 | 5 | cache | Cache 管理 |
 | 6-14 | reserved | 保留，未定义 |
 | 15 | hart | Hart 管理和本地计数 |
-| 16 | llc | 最后一级缓存，跨 hart 共享 |
-| 17 | pmem | 物理存储器管理 |
-| 18 | time | 全局时间计数器 |
-| 19-61 | reserved | 保留，未定义 |
+| 16-31 | reserved | 保留（per-task 段，未分配） |
+| 32 | pmem | 物理存储器管理 |
+| 33 | llc | 最后一级缓存，跨 hart 共享 |
+| 34 | time | 全局时间计数器 |
+| 35-61 | reserved | 保留，未定义 |
 | 62 | uart | 串口控制器 |
 | 63 | power | 电源管理 |
 
@@ -46,7 +47,10 @@ DADAO定义了四种运行模式，用两位编码：
 |------|:--:|
 | rd/rb/rf/ra、inner_* | per-hart |
 | cfx0-cfx15 | per-hart |
-| cfx16-cfx63 | per-system |
+| cfx16-cfx31 | per-task |
+| cfx32-cfx63 | per-system |
+
+> `per-task`：`cfx16`–`cfx31` 由内核或进程在**申请后使用**，使用完毕**释放**；持有期间即使发生进程上下文切换，该 cfx 的状态与运行不受影响，**不需要**随上下文切换保存/恢复。
 
 > `inner_*` 为硬件内部寄存器（不对外暴露），用于异常处理流程中的中间状态保存。`inner_run_mode`（2 位）记录当前运行模式（0=user, 1=jail, 2=supv, 3=hypv），`inner_cfx_mask`（64 位，per-hart）和 `inner_excp_cause_*` 等用于异常屏蔽判断与现场保存。详细语义见 §异常进入流程。
 
@@ -66,7 +70,7 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 |:---:|------|------|------|------|
 | 2 | smon | `0x0bff_0000_0000` | 64 KiB | SRAM |
 | 3 | hmon | `0x0fff_0000_0000` | 64 KiB | SRAM |
-| 17 | pmem | `0x47ff_0000_0000` | 64 KiB | SRAM |
+| 32 | pmem | `0x83ff_0000_0000` | 64 KiB | SRAM |
 | 63 | power | 自 `2^48` 向下；末 64 KiB 起点 `0xffff_ffff_0000` | **≥64 KiB**（具体由平台规范规定） | BootROM |
 
 说明：
@@ -75,7 +79,7 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 - `cfx2`（smon）与 `cfx3`（hmon）的 SRAM 各 64 KiB；S-mode 与 H-mode 异常向量默认等于各自的起始地址。`cfx_power` 是否设 SRAM 由平台规范规定（不属本册架构约束）。
 - 各 cfx 的内部空间（起始偏移、字节大小、空间类型）由该 cfx 自身的 cg7（§3.8）描述；本表每行必须与对应 cfx 的 cg7 某个空间块一致（`start = 起始地址 − (cfxha << 42)`、`size` 相等、空间类型对应）。校验示例：smon/hmon/pmem 的 `start` 均为 `0x3ff_0000_0000`；power 的 `start = 2^42 − size`、`size ≥ 0x1_0000`，且 `start + size = 2^42` 边界合法（`size = 64 KiB` ⇒ `start = 0x3_ffff_0000`；`size = 4 MiB` ⇒ `start = 0x3_ffc0_0000`）。
 - 对核内地址空间进行非法访问时，会触发对应核芯功能扩展的 CFXMEM 异常。核芯功能扩展由地址高 6 位 `addr[47:42]`（即 cfxha）确定。
-- 保留 cfx（6–14、19–61）的普通 `ld/st` 触发 CFXMEM；`trap`/`escape` 到保留 cfx 触发 ILLI。
+- 保留 cfx（6–14、16–31、35–61）的普通 `ld/st` 触发 CFXMEM；`trap`/`escape` 到保留 cfx 触发 ILLI。
 - cfxha 5 为 `cfx_cache`；未实现的已分配 cfx 由实现约定其未实现行为（测试机按未实现 cfx 处理）。
 - cfx_pmem 的 64 KiB SRAM 固定在内部偏移 0x3ff_0000_0000（§4.9），CPU 用普通 `ld/st` 访问；SRAM 之外的核内偏移触发 CFXMEM。
 - 屏障指令 `fence cfxHA, immu18` 用 `cfxHA` 选择资源域：`cfx0` 与 `cfx_umon` 都表示 **all cfx**，`cfx1`–`cfx63` 表示指定 cfx；`immu18` 中的 `cr`/`cw`/`ci`/`co` 位作用于所选 cfx 的 memory/IO 访问，`mr`/`mw` 位作用于系统内存。屏障只约束本 hart 的访问顺序/可见性，不等待 DMA。
@@ -612,7 +616,7 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 
 cfx_pmem 管理物理存储器（Physical Memory, PM）区域，最多支持 64 个不连续 PM 区域。PM 仅指普通 DRAM 存储器，与 device 或 MMIO 无关——device 的存储空间由各设备核芯功能扩展自行管理。
 
-cfx_pmem 内含一段 **64 KiB SRAM**，固定在 cfx_pmem 内部偏移 0x3ff_0000_0000（核内地址 = cfxha 17、低 42 位偏移）。CPU 用普通 `ld/st` 同步访问该 SRAM；访问超出 64 KiB 的核内偏移触发 CFXMEM。cfx 访问权限不在本章定义。
+cfx_pmem 内含一段 **64 KiB SRAM**，固定在 cfx_pmem 内部偏移 0x3ff_0000_0000（核内地址 = cfxha 32、低 42 位偏移）。CPU 用普通 `ld/st` 同步访问该 SRAM；访问超出 64 KiB 的核内偏移触发 CFXMEM。cfx 访问权限不在本章定义。
 
 SRAM 与物理存储器（PA）之间的块搬运由 cfx_pmem 的 DMA 完成（不新增指令，不设 per-cfx DMA）：
 
@@ -748,7 +752,7 @@ UART寄存器的读写操作通过 `cfx2rd`/`cfx2rc` 指令完成。若寄存器
 
 ### 5.1 指令行为说明
 
-trap/escape/cfx2rd/cfx2rc 指令可以在任意运行模式下执行。若 cfxha 为 reserved 核芯功能扩展（6-14、19-61），硬件触发 ILLI 异常。对于常见的操作系统而言，并不希望由 user/jail 直接陷入或访问 hmon 到 power 之间的核芯功能扩展，则需要在这些核芯功能扩展的初始化代码中，设置好 `cfxtrap`/`cfxreg`/`cfxmem`/`cfxexe` 的来源 mask（缺省只允许 hmon）。
+trap/escape/cfx2rd/cfx2rc 指令可以在任意运行模式下执行。若 cfxha 为 reserved 核芯功能扩展（6-14、16-31、35-61），硬件触发 ILLI 异常。对于常见的操作系统而言，并不希望由 user/jail 直接陷入或访问 hmon 到 power 之间的核芯功能扩展，则需要在这些核芯功能扩展的初始化代码中，设置好 `cfxtrap`/`cfxreg`/`cfxmem`/`cfxexe` 的来源 mask（缺省只允许 hmon）。
 
 `escape` 指令的第一个参数 `cfxha` 必须是**当前执行的 cfx**；返回的 cfx、运行模式和指令指针全部来自当前 cfx 的异常帧。若 `cfxha` 非当前 cfx（目标错误）或当前 cfx 没有有效异常帧（帧错误），硬件在切换前触发当前 cfx 的 `CFXESC`，不改变 cfx/运行模式。
 
@@ -768,7 +772,7 @@ X-mode（任意运行模式）下发生异常时，硬件自动执行以下操�
 1. **确定核芯功能扩展**：
    - 特权指令：
      - trap/cfx2rd/cfx2rc 按 cfxha 路由；
-     - 若 cfxha 为 reserved（6-14、19-61），触发 ILLI 进入当前 monitor；若 cfxha 合法但目标 cfx 的 `cfxtrap`/`cfxreg` mask 拒绝源 cfx，触发 `CFXPERM` 进入当前模式 monitor
+     - 若 cfxha 为 reserved（6-14、16-31、35-61），触发 ILLI 进入当前 monitor；若 cfxha 合法但目标 cfx 的 `cfxtrap`/`cfxreg` mask 拒绝源 cfx，触发 `CFXPERM` 进入当前模式 monitor
    - 其它指令执行触发的 ILLI/UNDI/RASOF/RASUF/IALIGN/MALIGN 异常：
       - 根据发生异常前的运行模式（U-mode/J-mode/S-mode/H-mode）分别判断进入 cfx_umon/cfx_jmon/cfx_smon/cfx_hmon 核芯功能扩展
    - 页表相关异常（页表步进或 TLB 命中时产生的页缺失、权限不符、fragment 缺失、A/D 回写失败等）：判断应进入 cfx_ptw 核芯功能扩展
@@ -795,7 +799,7 @@ X-mode（任意运行模式）下发生异常时，硬件自动执行以下操�
 //     异常原因表中 `1 << n` 的 n 即位索引，cause = 1 << n。
 // 1. 确定核芯功能扩展
 if instruction ∈ {TRAP, ESCAPE, CFX2RD, CFX2RC}:
-    if cfxha ∈ {6..14, 19..61}:
+    if cfxha ∈ {6..14, 16..31, 35..61}:
         cause      <= ILLI
         ; reserved→ILLI，重定向到当前运行模式的 monitor (cfx0-3)
         case inner_run_mode of
@@ -914,7 +918,7 @@ if imms18[17:1] != 0:
     cause <= ILLI                            // SBZ 非零
     ; 进入当前模式 monitor
     goto check_nonmaskable
-if cfxha ∈ {6..14, 19..61}:
+if cfxha ∈ {6..14, 16..31, 35..61}:
     cause <= ILLI
     ; 进入当前模式 monitor
     goto check_nonmaskable
@@ -973,6 +977,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 - 保留 cfx 统一为 `6–14`、`19–61`。
 - `cfx_hart` 计数寄存器由 128 位 `cycle_lo`/`cycle_hi`/`insn_lo`/`insn_hi`（`cg8 rc2`–`rc5`）收为 64 位单寄存器 `cycle`/`insn`（`rc2`/`rc3`）；定时器比较/控制前移至 `rc4`/`rc5`，`rc6`/`rc7` 保留。`cfx_time` 的 `time_freq`/`time_value` 前移至 `cg10 rc0`/`rc1`，`rc2`–`rc63` 保留。
 - BootROM 口径收口：`cfx_power` BootROM 只规定 **≥64 KiB**，实际大小与 `power` 是否设 SRAM 由平台规范规定；复位向量固定 `0xffff_ffff_0000`（BootROM 末 64 KiB 起点，镜像内偏移 = 大小 − 64 KiB）。
+- cfxha 重编号与作用域统一（2026-11-05）：`cfx_pmem`/`cfx_llc`/`cfx_time` 改为 **32/33/34**；保留集改为 **`6–14`、`16–31`、`35–61`**；作用域新增 **`cfx16`–`cfx31` per-task**（申请后使用、用完释放，不随上下文切换保存/恢复），`cfx32`–`cfx63` per-system、`cfx0`–`cfx15` per-hart 不变；`cfx_pmem` SRAM 核内基址随之变为 **`0x83ff_0000_0000`**（内部偏移仍 `0x3ff_0000_0000`）。
 
 ### 0.7.2（2026-10-26）
 

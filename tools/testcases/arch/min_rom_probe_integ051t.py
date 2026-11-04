@@ -8,7 +8,7 @@ The probe checks the test-machine arbitration convention:
     one async ``cfx_enter`` call site, no mask copy in the arbiter).
   * ``runtime`` (min-ROM, QEMU): pending lives in the *target* cfx's
     ``cg5 rc5`` (TIMER ``1<<10`` -> ``cfx_hart``, PMEM_DMA ``1<<8`` ->
-    ``cfx_pmem``), the lowest target cfxha wins (15 before 17), one source per
+    ``cfx_pmem``), the lowest target cfxha wins (15 before 32), one source per
     ``dadao_cpu_exec_interrupt()``, masks keep the pending bit and a later kick
     re-delivers it, and the target cfx is entered directly (no monitor hop).
 
@@ -33,12 +33,12 @@ Observation channels:
 
 Bootstrap (body runs in hmon / cfx3, hypv):
   1. power stage: cfx_hmon hypv_excp_vector = stage, clear
-     ``hypv_switch_cfx_mask`` bits 15 and 17 (target cfxhas of TIMER /
+     ``hypv_switch_cfx_mask`` bits 15 and 32 (target cfxhas of TIMER /
      PMEM_DMA), then ``trap cfx_hmon, 0``.
   2. hmon stage: clear the hypv ``cfxtrap/cfxmem/cfxreg/cfxexe`` and
-     ``cfx_intr_mask`` masks of cfx_hmon / cfx_pmem / cfx_hart for bits 3/15/17
+     ``cfx_intr_mask`` masks of cfx_hmon / cfx_pmem / cfx_hart for bits 3/15/32
      (cross-cfx access after a delivery keeps ``inner_cfx_code`` at the target),
-     clear cfx_hmon ``global_cfx_intr_mask`` bits 15/17, clear the target
+     clear cfx_hmon ``global_cfx_intr_mask`` bits 15/32, clear the target
      ``excp_cause_mask`` bits (pmem bit8, hart bit10), install the cfx_pmem /
      cfx_hart hypv vectors, set cfx_hmon's hypv vector to a poison routine
      (any monitor hop would exit FAIL) and clear cfx_power's cfxmem/cfxexe for
@@ -110,7 +110,7 @@ ROM_BASE = _prelude.ROM_BASE
 RAM_BASE = _MACH.ram_base
 
 HART_HA = 15
-PMEM_HA = 17
+PMEM_HA = 32
 HMON_HA = 3
 POWER_HA = 63
 HART_CG = 8
@@ -140,12 +140,12 @@ DATA_PA = RAM_BASE + 0x4000
 
 ALL1 = (1 << 64) - 1
 # global_cfx_intr_mask: bit = target cfxha, 1 = masked.
-MASK_TIMER_OPEN = ALL1 & ~((1 << 15))    # TIMER (15) open, PMEM_DMA (17) masked
-MASK_PMEM_OPEN = ALL1 & ~((1 << 17))     # PMEM_DMA (17) open, TIMER (15) masked
+MASK_TIMER_OPEN = ALL1 & ~((1 << 15))    # TIMER (15) open, PMEM_DMA (32) masked
+MASK_PMEM_OPEN = ALL1 & ~((1 << 32))     # PMEM_DMA (32) open, TIMER (15) masked
 MASK_BOTH = ALL1                         # both masked
-# cfxtrap/cfxmem/cfxreg/cfxexe + cfx_intr_mask allow bits 3/15/17 (the three
+# cfxtrap/cfxmem/cfxreg/cfxexe + cfx_intr_mask allow bits 3/15/32 (the three
 # cfxhas the body and the handlers read/write across).
-MASK_CROSS = ALL1 & ~((1 << 3) | (1 << 15) | (1 << 17))
+MASK_CROSS = ALL1 & ~((1 << 3) | (1 << 15) | (1 << 32))
 
 EXIT_PASS = 0x00
 EXIT_FAIL = 0xE1
@@ -549,13 +549,13 @@ def build_rom(prog, hnd=None):
 def power_setup():
     """power-stage setup applied when the prelude traps into hmon.
 
-    cfx_hmon hypv_switch_cfx_mask: clear bits 15 (TIMER) and 17 (PMEM_DMA),
+    cfx_hmon hypv_switch_cfx_mask: clear bits 15 (TIMER) and 32 (PMEM_DMA),
     the target cfxhas of exception-entry step 3.  The write must happen in
     power: `switch_cfx_mask` is only applied on entry to hmon, so the same
     write from the hmon body would not change the current mask
     (TESTCASES-094t §2).
     """
-    return (load_rd(22, ALL1 & ~((1 << 15) | (1 << 17)))
+    return (load_rd(22, ALL1 & ~((1 << 15) | (1 << 32)))
             + [cfx2rc(HMON_HA, 3, CG3_SWITCH_CFX_MASK_RC, 22)])
 
 
@@ -565,7 +565,7 @@ def hmon_setup():
     # setup stays here.
     ins = load_rb(5, RAM_BASE)                        # handler state block base
     ins += load_rd(21, MASK_CROSS)
-    # cfx_hmon: hypv cfx{trap,mem,reg,exe} + cfx_intr_mask; global mask 15/17 off
+    # cfx_hmon: hypv cfx{trap,mem,reg,exe} + cfx_intr_mask; global mask 15/32 off
     for rc in (0, 1, 2, 3, CG3_CFX_INTR_MASK_RC):
         ins += [cfx2rc(HMON_HA, 3, rc, 21)]
     ins += [cfx2rc(HMON_HA, 8, 1, 21)]
@@ -751,9 +751,9 @@ def _per_cfx_mask_block():
     a = Asm()
     set_global_mask(a, 0)
     dma_status_clear(a)
-    # Phase 1 (current cfx == hmon): hmon's hypv row masks target cfxha 17 and
-    # cfx_pmem's own row also masks 17 -> the DMA must not be delivered.
-    a.emit(*load_rd(22, 1 << 17))
+    # Phase 1 (current cfx == hmon): hmon's hypv row masks target cfxha 32 and
+    # cfx_pmem's own row also masks 32 -> the DMA must not be delivered.
+    a.emit(*load_rd(22, 1 << 32))
     a.emit(cfx2rc(HMON_HA, 3, CG3_CFX_INTR_MASK_RC, 22))
     a.emit(cfx2rc(PMEM_HA, 3, CG3_CFX_INTR_MASK_RC, 22))
     dma_start(a)
@@ -764,7 +764,7 @@ def _per_cfx_mask_block():
     pend(a, PMEM_HA, 6)
     need_mask_set(a, 6, PMEM_DMA, 0xE2, "pmem_pending_kept")
     # Phase 2 (reverse): release the *current* cfx row only.  cfx_pmem's own row
-    # still masks bit17, so a delivery proves the arbiter/cfx_enter reads the
+    # still masks bit32, so a delivery proves the arbiter/cfx_enter reads the
     # current cfx row with the target cfxha as bit index.
     set_hmon_intr_mask(a, 0)
     delay_loop(a, 400, "release")
@@ -772,7 +772,7 @@ def _per_cfx_mask_block():
     need_eq(a, 7, 1, 0xE3, "current_row_only")
     pend(a, PMEM_HA, 8)
     need_mask_clr(a, 8, PMEM_DMA, 0xE4, "pmem_cleared")
-    # Phase 3: a different source (TIMER, target 15) is not blocked by bit17.
+    # Phase 3: a different source (TIMER, target 15) is not blocked by bit32.
     timer_arm(a, 1000)
     delay_loop(a, 3000, "timer")
     ram_ld(a, RAM_HART_N, 9)
@@ -781,7 +781,7 @@ def _per_cfx_mask_block():
     need_eq(a, 10, 2, 0xE6, "seq_two")
     ram_ld(a, RAM_HART_ID, 11)
     need_eq(a, 11, TIMER, 0xE7, "timer_cid")
-    # cleanup: clear cfx_pmem's own bit17 (from cfx 15, allowed by bootstrap)
+    # cleanup: clear cfx_pmem's own bit32 (from cfx 15, allowed by bootstrap)
     a.emit(*load_rd(22, 0))
     a.emit(cfx2rc(PMEM_HA, 3, CG3_CFX_INTR_MASK_RC, 22))
     a.emit(*exit_seq(EXIT_PASS))
@@ -841,7 +841,7 @@ def _timer_imask_hold():
 
 
 @case("low_cfxha_first",
-      "icount: both pending + one mask write => TIMER (15) first, PMEM (17) after escape",
+      "icount: both pending + one mask write => TIMER (15) first, PMEM (32) after escape",
       icount_shift=0)
 def _low_cfxha_first():
     a = Asm()
@@ -1133,7 +1133,7 @@ def run_structure():
                 src_table.find("DADAO_CFXHA_HART") <
                 src_table.find("DADAO_CFXHA_PMEM"))
     check("lowest_cfxha_order", order_ok,
-          "candidate table lists cfx_hart (15) before cfx_pmem (17)")
+          "candidate table lists cfx_hart (15) before cfx_pmem (32)")
 
     patches = _patch_text()
     check("patch_no_async_enable", "async_enable" not in patches,

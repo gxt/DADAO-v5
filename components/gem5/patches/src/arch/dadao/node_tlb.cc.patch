@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/node_tlb.cc b/src/arch/dadao/node_tlb.cc
 new file mode 100644
-index 0000000..60a0e88
+index 0000000..37143c2
 --- /dev/null
 +++ b/src/arch/dadao/node_tlb.cc
 @@ -0,0 +1,382 @@
@@ -307,7 +307,7 @@ index 0000000..60a0e88
 +        return NoFault;
 +    }
 +
-+    // cfx_pmem SRAM (cfxha 17, internal offset 0x3ff_0000_0000).
++    // cfx_pmem SRAM (cfxha 32, internal offset 0x3ff_0000_0000).
 +    const Addr off = va & NodeVaMask;
 +    if (cfxha == CfxhaPmem) {
 +        if (inRegion(kPmemCfxOffset, pmemSize, off, size)) {

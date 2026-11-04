@@ -14,7 +14,7 @@ the QEMU implementation):
     `imms20` byte offset, legal values only 0/4 => encoding imms18 in {0,1},
     addr = excp_cause_ip + imms20 = excp_cause_ip + (imms18<<2);
     imms18[17:1] is SBZ, non-zero => ILLI; cfx2rd/cfx2rc crrr; reserved
-    cfxha 6-14, 19-61 => ILLI; non-existent register combination /
+    cfxha 6-14, 16-31, 35-61 => ILLI; non-existent register combination /
     RO-write => CFXREG).
   - spec/Machine-v5-测试机运行环境.md §2/§3 (test-machine cfx set
     cfx0/1/2/3/63; hypv+user only).
