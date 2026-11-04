@@ -6,7 +6,7 @@
 **状态**：已验证
 
 ## 执行环境
-**执行环境**：本地（仓库根 `/mnt/tao/DADAO-v5`；临时产物只放 `/tmp/opencode/INFRA-116t/`，证据落 `.work/evidence/<任务ID>/`）
+**执行环境**：本地（仓库根；临时产物只放 `运行期临时目录`，证据落 `运行期证据（已清理，未归档）`）
 
 ## 背景（用户 2026-11-01 已确认，逐条）
 
@@ -52,7 +52,7 @@
 
 ### B. `tools/infra/check_archive.py`（新增，结构门控）
 
-- 扫描 `.tao/archive/M<数字>/`（**排除** `SimRISC-*`），只读、不依赖 `.work/`。
+- 扫描 `.tao/archive/M<数字>/`（**排除** `SimRISC-*`），只读、不依赖 `运行期临时目录`。
 - 每目录检查（任一不满足 ⇒ FAIL，fail-closed）：
   1. **三件套**：`README.md` / `m<i>-retrospective.md` / `issues-closed.md` 存在且非空。
   2. **根文件封闭**：仅允许三件套 + `INTEG-*m-*.md`（历史核验册）；其它根文件 ⇒ FAIL。
@@ -85,10 +85,10 @@
 4. `make check` **rc=0**（L1 已含新目标）；`make check-milestones-fresh` 仍 **rc=0**。
 5. Process-04 逐条核对表：用户 9 条 → 文档节号/行号，9/9 命中；`grep` 不再出现「各模块…各放一个 `m`」强制句。
 6. `git diff --name-only` 仅含 `docs/Process-04*`、`docs/Process-07*`、`tools/infra/check_archive.py`、`Makefile`、本任务书、`milestones.md`；`.tao/archive/**` **零改动**。
-7. 证据脚本 `.work/evidence/<任务ID>/run.sh` 可一键重跑（含反例注入→FAIL→`cp`+md5 还原→回绿），reviewer 独立注入一次。
+7. 证据脚本 `运行期证据脚本（已清理，未归档）` 可一键重跑（含反例注入→FAIL→`cp`+md5 还原→回绿），reviewer 独立注入一次。
 
 ## 完成区
-**测试结果**：任务书验收 7/7 条满足；`.work/evidence/INFRA-116t/run.sh` **37/37** 项 PASS（rc=0）；失败原因：无
+**测试结果**：任务书验收 7/7 条满足；`运行期证据脚本（已清理，未归档）` **37/37** 项 PASS（rc=0）；失败原因：无
 **修改文件**：`Makefile`、`docs/Process-04-里程碑归档规范.md`、`docs/Process-07-门控分层规范.md`、`tools/infra/check_archive.py`（新增）、本任务书、`.tao/knowledge/milestones.md`（状态行）；`.tao/archive/**` 零改动（`git diff --name-only -- .tao/archive` 空）
 **验收结果**（真实 rc）：
 - `python3 tools/infra/check_archive.py --pending-ok` **rc=0**；PENDING **7/7** == `PENDING_117`（M2 两册状态括注、M7/notes、M9/M10 各缺 flow+memory；逐条对账，未命中即 STALE ⇒ 红）
@@ -100,7 +100,7 @@
 **新发现/坑**：
 - **任务书 B.4/A.5「`**项目里程碑**` 值 == `M<i>` 恰好」按字面不可满足**：历史归档 M2/M5/M6/M7/M9/M10 多册带尾随括注（如 `M9（FP 完备性）`），而 117 明确不归一该字段 ⇒ 门控按「里程碑号 == 归档号；允许尾随括注」判定，**新归档要求裸 `M<i>`**；已在 Process-04 §4.1 写明口径。若不这样，严格模式永远红或必须越界改归档。
 - **后缀不映射状态**：M9 根级 `INTEG-037m` 记为 `已验证`（m 后缀但非 `里程碑`）⇒ 只校验值 ∈ {已验证,里程碑}，不校验 `m↔里程碑`。
-- **外部并发改动**：主会话 2026-11-01 13:51 将 116/117 任务书证据路径改为 `.work/evidence/<任务ID>/`，修 base 的 `check-knowledge-refs` 4 条悬空（`make check` 方可达 rc=0）。117 任务书未由本任务改动。
+- **外部并发改动**：主会话 2026-11-01 13:51 将 116/117 任务书证据路径改为 `运行期证据（已清理，未归档）`，修 base 的 `check-knowledge-refs` 4 条悬空（`make check` 方可达 rc=0）。117 任务书未由本任务改动。
 - PENDING_117 须**双向对账**（常量项未命中 ＝ STALE 红），否则 117 归一后常量会静默腐烂。
 **遗留问题**：无。`INFRA-117t` 归一后按 Process-04 §8 / Makefile 注释删除 `PENDING_117` 与 `--pending-ok`（目标改严格默认）。
 
@@ -121,11 +121,11 @@
 
 ### 第 1 轮 reviewer 验收
 
-**重跑记录**（reviewer 独立执行；日志 `/tmp/opencode/INFRA-116t/reviewer-*.log`；退出码取命令自身）：
+**重跑记录**（reviewer 独立执行；日志 `运行期临时日志`；退出码取命令自身）：
 
 | 命令 | 期望 | 实际 |
 |---|---|---|
-| `bash .work/evidence/INFRA-116t/run.sh` | rc=0 | **rc=0，37/37 PASS** |
+| `运行期证据脚本（已清理，未归档）` | rc=0 | **rc=0，37/37 PASS** |
 | `check_archive.py --self-test` | rc=0 | **rc=0，16/16**（基线1+注入12+过渡边界3） |
 | `check_archive.py --pending-ok` | rc=0 | **rc=0**，PENDING **7** == `PENDING_117`，无 STALE |
 | `check_archive.py`（严格） | rc=1 | **rc=1**，**VIOLATION 0 条 + PENDING 7 条**（非全绿，符合 116 过渡态） |

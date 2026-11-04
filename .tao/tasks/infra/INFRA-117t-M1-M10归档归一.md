@@ -6,7 +6,7 @@
 **状态**：已验证
 
 ## 执行环境
-**执行环境**：本地（仓库根 `/mnt/tao/DADAO-v5`；临时产物只放 `/tmp/opencode/INFRA-117t/`，证据落 `.work/evidence/<任务ID>/`）
+**执行环境**：本地（仓库根；临时产物只放 `运行期临时目录`，证据落 `运行期证据（已清理，未归档）`）
 
 ## 预检（只读，已现场核实）
 
@@ -86,11 +86,11 @@
 6. 状态规范化：`grep -n "^\*\*状态\*\*" M2 两册` = 精确 `已验证`，括注在 `> **状态注记**`；`INTEG-023k` 三字段分行且值不变。
 7. `test ! -e .tao/archive/M7/notes`；5 份原文行数合计 **746** 行出现在 retrospective 附录（逐文件计数对账）；`grep -R "M7/notes" docs .tao/archive/M7/README.md` = 0（归档任务书历史引用不计）。
 8. `git diff --name-only` 仅含：`M1–M10/README.md`（M9/M10 为主，M1–M8 仅别名句/指针）、M2 两册、M6 `INTEG-023k`、`M7/m7-retrospective.md`、`M7/README.md`、删除 `M7/notes/**`、`docs/Process-04`（§8 过渡段改最终态）、`docs/Process-07`、`docs/Machine-00`、`milestones.md`、`Makefile`、`tools/infra/check_archive.py`、`tools/infra/check_milestones_fresh.py`（仅必要）、本任务书。**不改** M10 归档 `tasks/m`；不补/不删任何 `m`。
-9. 证据 `.work/evidence/<任务ID>/run.sh` 一键重跑（逐条命令 + rc），reviewer 独立重跑 + 一次反例注入（`cp`+md5 还原）。
+9. 证据 `运行期证据脚本（已清理，未归档）` 一键重跑（逐条命令 + rc），reviewer 独立重跑 + 一次反例注入（`cp`+md5 还原）。
 
 ## 完成区
-**测试结果**：`.work/evidence/INFRA-117t/run.sh` **24/24 PASS、rc=0**；`make check` rc=0；`check_archive.py` 严格 rc=0；`--self-test` 13/13（12 类注入）；`check_milestones_fresh` rc=0（5 行）；`check_tasks`（报告型，验收 4）rc=0、`--strict` rc=0（收尾后）；`check-knowledge-refs` rc=0；`make check-milestone` rc=2（**预期红**：当前 M10 无活 `m` 册）。
-**修改文件**：M1–M10 `README.md`（M9/M10 五节+流水 69/70；M1–M8 仅冻结别名句）；M7 `m7-retrospective.md`（附录 A–E）；`git rm -r .tao/archive/M7/notes/`（5 文件）；M2 `TESTCASES-019t`/`SPEC-064t`；M6 `INTEG-023k`；`.tao/knowledge/milestones.md`；`Makefile`；`tools/infra/check_archive.py`；`docs/Process-04`/`Process-07`/`Machine-00`；本任务书；`.work/evidence/INFRA-117t/run.sh`。
+**测试结果**：`运行期证据脚本（已清理，未归档）` **24/24 PASS、rc=0**；`make check` rc=0；`check_archive.py` 严格 rc=0；`--self-test` 13/13（12 类注入）；`check_milestones_fresh` rc=0（5 行）；`check_tasks`（报告型，验收 4）rc=0、`--strict` rc=0（收尾后）；`check-knowledge-refs` rc=0；`make check-milestone` rc=2（**预期红**：当前 M10 无活 `m` 册）。
+**修改文件**：M1–M10 `README.md`（M9/M10 五节+流水 69/70；M1–M8 仅冻结别名句）；M7 `m7-retrospective.md`（附录 A–E）；`git rm -r .tao/archive/M7/notes/`（5 文件）；M2 `TESTCASES-019t`/`SPEC-064t`；M6 `INTEG-023k`；`.tao/knowledge/milestones.md`；`Makefile`；`tools/infra/check_archive.py`；`docs/Process-04`/`Process-07`/`Machine-00`；本任务书；`运行期证据脚本（已清理，未归档）`。
 **验收结果**：M9 **69** 行（68 模块册+`INTEG-037m`；`SPEC-172t`=已验证/2026-10-24 23:57；全表无登记注），行状态与册 **100% 相等**；M10 **70** 行 == 70 个 `t` 模块册（无 `INTEG-052m`/`INFRA-113t`），状态全等；M7 附录 A–E **5/5** md5+行数（48/355/86/40/217=**746**）；M2 两册状态精确+`状态注记`、M6 三字段独立行；`grep pending-ok\|PENDING_117`=**0**、`grep M7/notes docs`=**0**；`git diff --name-only HEAD` 白名单 **26** 文件；反例注入 M10 状态 → `check_archive` **rc=1** → `cp`+md5 还原 → **rc=0**。
 **新发现/坑**：M9 `SPEC-172t` 完成时间由登记 15:20 改为 23:57 后须按时间前移（已移到 `INTEG-037m` 之后）；现行台账 M10 期含维护项 `INFRA-113t`，按 5 行维护清单剔除后恰 70；`m7-retrospective` 原文自带 `---` 与 `## 附录` 标题，朴素截断会误判，证据脚本改用精确标题边界；非 ASCII 路径须 `git -c core.quotepath=false`。
 **遗留问题**：无功能遗留。`make check-milestone` 预期红（M11 未定义、无活 `m` 册），`check_milestone_tasks.py` 按任务书不改；`check_milestones_fresh.py` 无需调整（A2 已豁免归档号）；`check_tasks --strict` 在待验收阶段为 1、收尾置 `已验证` 后为 0；`INFRA-113t` 仍为 `待开始`（非本任务范围）。
@@ -112,10 +112,10 @@
 
 ### 第 1 轮 reviewer 验收（2026-11-01）
 
-判决：**Accepted**（3 条非阻断建议，见末尾，交 architect 收尾处置）。日志：`/tmp/opencode/INFRA-117t/reviewer-*.log`。完成区数字（24/24、69/70、746、26）与我实测**逐项一致**，无采信项。
+判决：**Accepted**（3 条非阻断建议，见末尾，交 architect 收尾处置）。日志：`运行期临时日志`。完成区数字（24/24、69/70、746、26）与我实测**逐项一致**，无采信项。
 
 **重跑记录（reviewer 独立执行，rc 均为现场实测）**
-- `bash .work/evidence/INFRA-117t/run.sh` → **24/24 PASS，exit=0**：`check-archive 严格 rc=0`、`--self-test rc=0`、`make check rc=0`、`check-milestones-fresh rc=0`、`check-tasks rc=0`、`--strict rc=1`（含「① 漏收尾」，预期红）、`check-knowledge-refs rc=0`、`make check-milestone rc=2`（含「无 m 册」，**预期红如实核**）。
+- `运行期证据脚本（已清理，未归档）` → **24/24 PASS，exit=0**：`check-archive 严格 rc=0`、`--self-test rc=0`、`make check rc=0`、`check-milestones-fresh rc=0`、`check-tasks rc=0`、`--strict rc=1`（含「① 漏收尾」，预期红）、`check-knowledge-refs rc=0`、`make check-milestone rc=2`（含「无 m 册」，**预期红如实核**）。
 - 逐项独立重跑：`check_archive.py` rc=0；`--self-test` 13/13（12 类注入）；`make check` rc=0（`repository checks (L1): PASS`）。
 - **反例注入①（独立，选 M9 非脚本所用的 M10 行）**：`SPEC-172t 已验证→待验收`，md5 `563e71d3→8c19086f` ⇒ rc=**1**，命中 `[M9/flow/SPEC-172t] 流水状态 != 任务书状态`；`cp` 还原 md5 `563e71d3` 相等 ⇒ rc=**0**。
 - **反例注入②（结构性）**：重建 `.tao/archive/M7/notes/r.md` ⇒ rc=1，命中 `[M7/dir/notes]`；`rm -rf` 后 rc=0。前/后 `git status` 快照逐行一致，目标文件 md5 全部复原。

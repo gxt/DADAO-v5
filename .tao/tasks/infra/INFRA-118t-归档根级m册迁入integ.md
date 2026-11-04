@@ -37,12 +37,12 @@
 2. M9 README 模块计数 `integ=1`、总 69；M10 `integ=15`、总 71；`check_archive` 严格 rc=0。
 3. `check_archive.py --self-test` rc=0；根级 `INTEG-*m` 注入可达 FAIL；m 在模块内且流水缺 m 的 M10 形态可达 PASS。
 4. `make check` L1 rc=0；`check_milestones_fresh` rc=0；`check_tasks --strict` rc=0（收尾后）。
-5. 证据 `.work/evidence/<任务ID>/run.sh` 一键重跑；反例注入 `cp`+md5 还原；不跑夜跑。
+5. 证据 `运行期证据脚本（已清理，未归档）` 一键重跑；反例注入 `cp`+md5 还原；不跑夜跑。
 6. 任务书完成区 ≤30 行、状态 `已验证`；milestones 行同步。
 
 ## 完成区
 
-**测试结果**：`.work/evidence/INFRA-118t/run.sh` 12/12 PASS、rc=0；`check_archive` 严格 rc=0、self-test 14/14；`make check` rc=0；`check_milestones_fresh` rc=0；`check_tasks --strict` rc=0；根级 m 注入 rc=1 并已移除。
+**测试结果**：`运行期证据脚本（已清理，未归档）` 12/12 PASS、rc=0；`check_archive` 严格 rc=0、self-test 14/14；`make check` rc=0；`check_milestones_fresh` rc=0；`check_tasks --strict` rc=0；根级 m 注入 rc=1 并已移除。
 **修改文件**：M9/M10 README；M9/M10 根级 m 册 `git mv` 到各自 `integ/`；`tools/infra/check_archive.py`；`Makefile`（注释）；`docs/Process-04`/`docs/Process-07`；本任务书；`milestones.md`。
 **验收结果**：M9/M10 根级均只有 README/retro/issues 三件套；M9 `integ=1` 总数 69，M10 `integ=15` 总数 71；流水 69/70 不变；`check_archive` 严格 PASS；m 册均在模块目录。
 **新发现/坑**：check_archive 原「根级 m 历史例外」与「流水 ID == 全部任务书集合」需同时改：m 册移入 integ 后成为模块册，流水必须允许「t 集合」或「t+m 集合」；已按此实现并加根级 m 注入反例。

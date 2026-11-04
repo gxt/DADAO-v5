@@ -6,7 +6,7 @@
 **状态**：已验证
 
 ## 执行环境
-**执行环境**：本地（仓库根；组件源树 `.work/source/qemu` 现 HEAD=`f98216a`、base+1、`git status` 干净；实现落任务分支 `QEMU-081t`，不 merge、不 push）
+**执行环境**：本地（仓库根；QEMU 组件源树现 HEAD=`f98216a`、base+1、`git status` 干净；实现落任务分支 `QEMU-081t`，不 merge、不 push）
 
 ## 用户裁定（2026-11-02，逐字）
 
@@ -24,12 +24,12 @@
 
 ## 问题根源（2026-11-02 现场核对）
 
-1. 唯一硬编码：`.work/source/qemu/target/dadao/cpu-param.h:22` `#define TARGET_PAGE_BITS 12`；补丁镜像 `components/qemu/patches/target/dadao/cpu-param.h.patch:28` 同。
+1. 唯一硬编码：`QEMU 组件源树中的 target/dadao/cpu-param.h:22` `#define TARGET_PAGE_BITS 12`；补丁镜像 `components/qemu/patches/target/dadao/cpu-param.h.patch:28` 同。
 2. 该宏经 `include/exec/target_page.h` 派生全部 `TARGET_PAGE_SIZE/MASK/ALIGN`，影响两面：
    - **linux-user**：`page_set_flags`/`page_find_range_empty` 粒度；ELF 装载 `ELF_PAGESTART/PAGEOFFSET`、`imgsrc_mmap`、`zero_bss`、`info->brk = TARGET_PAGE_ALIGN`；`target_mmap`（host 4 KiB < target ⇒ `mmap_h_lt_g`）；`do_brk`；`setup_arg_pages`（guard 页）/`copy_elf_strings`（页缓冲）；`AT_PAGESZ`（`linux-user/elfload.c:702`）；`getpagesize` 系统调用（`linux-user/syscall.c:13289`）；`AT_BASE`/`AT_PHDR` 页对齐；`target_mprotect`/`target_munmap` 对齐检查；`TARGET_ARCH_HAS_SIGTRAMP_PAGE` 的 trampoline 页。
    - **softmmu**：`helper.c:868` `tlb_set_page(..., TARGET_PAGE_SIZE)`；`cpu.c` `translate_for_debug` 的 `lg_page_size`（3 处）；`system/physmem.c` 的 subpage 容器（`subpage_init` 以 `TARGET_PAGE_SIZE` 承载 <1 页 MMIO）；`rom_add_elf_program` 的 `romsize`。
 3. 其余 DADAO 补丁无第二处页大小硬编码：`grep -rn "TARGET_PAGE_BITS" components/qemu/patches` 仅 `cpu-param.h` 1 行定义 + `cpu.c` 3 处派生使用。仓库内另有 1 处 4 KiB 假设在测试驱动 `tools/qemu/user_mode_smoke.py:498`（`base % 4096`）。
-4. 现有工具链产物已符合 64 KiB（现场 `llvm-readelf -l`）：静态 `functional_argv.elf`、动态同款、`.work/source/musl/lib/libc.so` 的**所有** `PT_LOAD` 均 `Align 0x10000` 且 `p_offset ≡ p_vaddr (mod 0x10000)`；`e_entry` 不必页对齐（例 `0x21f40`）。
+4. 现有工具链产物已符合 64 KiB（现场 `llvm-readelf -l`）：静态 `functional_argv.elf`、动态同款、`musl 组件源树中的 lib/libc.so` 的**所有** `PT_LOAD` 均 `Align 0x10000` 且 `p_offset ≡ p_vaddr (mod 0x10000)`；`e_entry` 不必页对齐（例 `0x21f40`）。
 5. 系统态各物理区均 64 KiB 对齐（现场常量）：RAM `0xFC00_0000_0000`/16 MiB、ROM `0xFFFF_FFFC_0000`/256 KiB、pmem/hmon/smon host SRAM `0x0100_0000_{0000,0100,0200}_0000`/各 64 KiB、RAM alias `0`/16 MiB；当前机器无 <64 KiB MMIO 设备（exit-port 已删，halt 走 semihosting）。
 
 ## 参考对照（只读；内容溯源，非执行依赖）
@@ -42,13 +42,13 @@
 
 ### 输入
 
-- QEMU 组件源树 `.work/source/qemu`（base+1 单提交、干净）与补丁集 `components/qemu/patches/**`。
-- 现有工具链产物：`.dadao/cross-toolchain/bin/{clang,ld.lld,qemu-dadao,qemu-system-dadao}`、`.work/source/musl/lib/{crt1.o,libc.a,libc.so}`。
+- QEMU 组件源树（base+1 单提交、干净）与补丁集 `components/qemu/patches/**`。
+- 现有工具链产物：`安装根 bin 下的 {clang,ld.lld,qemu-dadao,qemu-system-dadao}`、`musl 组件源树中的 lib/{crt1.o,libc.a,libc.so}`。
 - 已核事实：所有工具链产出 ELF 的 `PT_LOAD` 为 `p_align=0x10000` 且偏移/地址同余。
 
 ### 输出
 
-1. `.work/source/qemu/target/dadao/cpu-param.h`：`TARGET_PAGE_BITS 16`（`TARGET_VIRT_ADDR_SPACE_BITS` 保持 48，不动）。
+1. `QEMU 组件源树中的 target/dadao/cpu-param.h`：`TARGET_PAGE_BITS 16`（`TARGET_VIRT_ADDR_SPACE_BITS` 保持 48，不动）。
 2. `components/qemu/patches/target/dadao/cpu-param.h.patch`：由 `python3 tools/infra/make_patch.py qemu` 重导出（**禁手工编辑**）；源树收敛为 base+1 单提交。
 3. 重建并安装的 `qemu-dadao` 与 `qemu-system-dadao`（安装根与 build 树逐字节一致）。
 4. `tools/qemu/user_mode_smoke.py`：页对齐断言改 64 KiB，并新增 guest 页大小断言（见 D 节）。
@@ -62,17 +62,17 @@
 - 只改 `cpu-param.h` 一处宏；审计中若确认 QEMU 源码另有 4 KiB 假设，**必须先给出现场与依据**再改，并在完成区逐条列出；不得顺手改无关代码。
 - 测试资产（如 `p_align<0x10000` 的 ELF、按 4 KiB 写死的用例）若必须改 ⇒ 登记 BLOCKED 并另立任务，本任务不改。
 - 还原纪律：任何注入/临时改动一律 `cp` 备份 + `md5sum -c` 还原；**禁** `git checkout`/`restore`/`stash`/`show <commit>:<path>`。
-- 临时目录 `/tmp/opencode/QEMU-081t/`；仓库内不留临时/探针文件。
+- 临时目录 `运行期临时目录`；仓库内不留临时/探针文件。
 
 ## 实施与审计清单
 
 ### A. 宏与补丁（唯一源码改动点）
 
 1. 改前自检：`make check-source-state` ⇒ `qemu: OK HEAD=… count=1 clean=True`，记下旧 HEAD。
-2. 改 `.work/source/qemu/target/dadao/cpu-param.h` 的 `12` → `16`（其余字符逐字不变）。
-3. 收敛为 base+1：`git -C .work/source/qemu add target/dadao/cpu-param.h`；`git -C .work/source/qemu commit --amend --no-edit`（保留 `dadao: qemu patch series` 提交信息）；复跑 `make check-source-state` 为 OK。
+2. 改 `QEMU 组件源树中的 target/dadao/cpu-param.h` 的 `12` → `16`（其余字符逐字不变）。
+3. 收敛为 base+1：`git -C <组件源树> add target/dadao/cpu-param.h`；`git -C <组件源树> commit --amend --no-edit`（保留 `dadao: qemu patch series` 提交信息）；复跑 `make check-source-state` 为 OK。
 4. 重导出：`python3 tools/infra/make_patch.py qemu`；期望仅 `cpu-param.h.patch` 被重写（`1 written, N unchanged`）。
-5. 记录 `git -C .work/source/qemu diff <旧HEAD>..<新HEAD> --stat`：应为 `target/dadao/cpu-param.h | 2 +-`（1 行）；若审计要求追加改动，逐条列出理由。
+5. 记录 `git -C <组件源树> diff <旧HEAD>..<新HEAD> --stat`：应为 `target/dadao/cpu-param.h | 2 +-`（1 行）；若审计要求追加改动，逐条列出理由。
 
 ### B. linux-user 影响面审计（逐项给「核对/实测」结论，不猜）
 
@@ -105,10 +105,10 @@
 ## 验收标准
 
 1. **宏与补丁**：
-   - `grep -n "TARGET_PAGE_BITS" .work/source/qemu/target/dadao/cpu-param.h` ⇒ 仅 `#define TARGET_PAGE_BITS 16`；`grep -n "TARGET_PAGE_BITS" components/qemu/patches/target/dadao/cpu-param.h.patch` 同。
+   - `grep -n "TARGET_PAGE_BITS" QEMU 组件源树中的 target/dadao/cpu-param.h` ⇒ 仅 `#define TARGET_PAGE_BITS 16`；`grep -n "TARGET_PAGE_BITS" components/qemu/patches/target/dadao/cpu-param.h.patch` 同。
    - `make check-patch-tree` rc=0；`make check-source-state` rc=0（`qemu: OK HEAD=… count=1 clean=True`）。
-   - `git -C .work/source/qemu diff <旧HEAD>..<新HEAD> --stat` 只含 `target/dadao/cpu-param.h`（+ 审计确认必须改的行，逐条给理由）。
-2. **构建/安装**：`make build-qemu JOBS=8` rc=0；`make install-host` rc=0（若 rc=75 属 gate.lock 占用 ⇒ 等待重跑，不作通过）；`md5sum .work/build/qemu/qemu-dadao .dadao/cross-toolchain/bin/qemu-dadao` 两哈希一致，`qemu-system-dadao` 同。
+   - `git -C <组件源树> diff <旧HEAD>..<新HEAD> --stat` 只含 `target/dadao/cpu-param.h`（+ 审计确认必须改的行，逐条给理由）。
+2. **构建/安装**：`make build-qemu JOBS=8` rc=0；`make install-host` rc=0（若 rc=75 属 gate.lock 占用 ⇒ 等待重跑，不作通过）；`md5sum 运行期 QEMU 构建树中的 qemu-dadao 安装根 bin 下的 qemu-dadao` 两哈希一致，`qemu-system-dadao` 同。
 3. **guest 可见页大小（用户态独立探针）**：静态 musl 程序（配方同 `tools/qemu/user_mode_smoke.py::compile_program/link_static`）逐项输出：
    - `syscall(SYS_getpagesize)` = **65536**；
    - `sysconf(_SC_PAGESIZE)` = **65536**；
@@ -119,28 +119,28 @@
    - 长 argv/env（>100 KiB，跨 64 KiB 页）长度/内容正确；
    - `qemu-dadao -strace` 中出现 `getpagesize() = 65536`。
    宿主 `getconf PAGESIZE` 是主机页（4 KiB），**不得**用作证据。
-4. **静态/动态 smoke**：`python3 tools/qemu/user_mode_smoke.py --qemu .dadao/cross-toolchain/bin/qemu-dadao --work /tmp/opencode/QEMU-081t/smoke` rc=0；动态行 `AT_BASE % 65536 == 0`，`AT_PAGESZ` 断言通过。
+4. **静态/动态 smoke**：`python3 tools/qemu/user_mode_smoke.py --qemu <安装根二进制> --work <运行期临时目录>` rc=0；动态行 `AT_BASE % 65536 == 0`，`AT_PAGESZ` 断言通过。
 5. **系统态回归**：`make check-inst-smoke` rc=0；`make check-inst` rc=0（全量 inst，用户点名的旧 `check-qemu-semantics`；属 L3 单目标，仅此一项）；`make check-arch-smoke` rc=0。
 6. **L2 收尾**：`make check-modules` rc=0（含 `check-inst-smoke`/`check-arch-smoke`/`check-unit`/3 个 tset user-mode smoke）。任一红项须给出归因：若属测试资产按 4 KiB 写死 ⇒ 逐例登记 BLOCKED + 另立任务（保留现场）；若属 QEMU 实现 ⇒ 本任务修；既有红项附基线证据。**不得掩盖、不得为凑绿改范围外文件**。
 7. **旧 4 KiB 残留扫描**：
-   - `grep -rn "TARGET_PAGE_BITS 12" components/qemu/patches .work/source/qemu/target/dadao` ⇒ 0 行（rc=1）。
-   - `grep -rn "4096\|0x1000" components/qemu/patches/{target/dadao,linux-user/dadao,hw/dadao} .work/source/qemu/{target/dadao,linux-user/dadao,hw/dadao} tools/qemu` ⇒ 命中逐条列出并分类；**与页大小相关者必须为 0**（`tools/qemu/user_mode_smoke.py` 的 `% 4096` 必须消失）。
+   - `grep -rn "TARGET_PAGE_BITS 12" components/qemu/patches QEMU 组件源树中的 target/dadao` ⇒ 0 行（rc=1）。
+   - `grep -rn "4096\|0x1000" components/qemu/patches/{target/dadao,linux-user/dadao,hw/dadao} QEMU 组件源树中的 {target/dadao,linux-user/dadao,hw/dadao} tools/qemu` ⇒ 命中逐条列出并分类；**与页大小相关者必须为 0**（`tools/qemu/user_mode_smoke.py` 的 `% 4096` 必须消失）。
    - `grep -rn "TARGET_PAGE_BITS" components/qemu/patches` ⇒ 仅 `cpu-param.h` 定义（16）+ `cpu.c` 3 处派生；无第二个定义。
 8. **反例可达 FAIL（cp + md5，禁 git 还原）**：
    - 静态：把 `tools/qemu/user_mode_smoke.py` 的 `% 65536` 临时改回 `% 4096` ⇒ 证据脚本的源扫描断言 FAIL；`cp` 还原 + `md5sum -c` 后回绿。
    - 运行时：把 `cpu-param.h` 改回 12 → `make build-qemu JOBS=8` + `make install-host` ⇒ 探针 `getpagesize=4096`（或 `brk` 页尾写失败），证据脚本 FAIL；还原 16、重建、重装 ⇒ 回绿。两次构建各记 rc 与耗时。
 9. **体例/台账**：`components/qemu/changelog.md` 在 `## M11` 下追加 `- **2026-11-02 \`QEMU-081t\`**` + `  - 摘要：…` + `  - 执行者：engineer`；`make check-component-changelog` rc=0；`make check-milestones-fresh` rc=0；`make check-tasks` rc=0；完成区 ≤30 行；状态 `待验收`。
-10. **证据与诚实**：`.work/evidence/<任务ID>/run.sh` 一条命令重跑 1–9（逐条取命令自身 rc，禁 `| tee` 吞码），落 `run.EXIT`；日志按 `check-run-artifacts` A3 命名规则落 `.work/log/qemu/`；L1 `make check` 开工前记基线、收尾复跑，红项逐条给归因；**不跑整套 L3（`check-full`）与夜跑**（`check-inst` 单目标按验收 5 执行）；失败保留现场并按「失败处置」推进。
+10. **证据与诚实**：`运行期证据脚本（已清理，未归档）` 一条命令重跑 1–9（逐条取命令自身 rc，禁 `| tee` 吞码），落 `run.EXIT`；日志按 `check-run-artifacts` A3 命名规则落 `运行期日志（已清理，未归档）`；L1 `make check` 开工前记基线、收尾复跑，红项逐条给归因；**不跑整套 L3（`check-full`）与夜跑**（`check-inst` 单目标按验收 5 执行）；失败保留现场并按「失败处置」推进。
 
 ## 文件范围
 
-- 允许：`.work/source/qemu/target/dadao/cpu-param.h`（组件工作树，非 v5 跟踪）、`components/qemu/patches/target/dadao/cpu-param.h.patch`、`components/qemu/changelog.md`、`tools/qemu/user_mode_smoke.py`、本任务书、`.tao/knowledge/milestones.md`、`.work/evidence/<任务ID>/`、`.work/log/qemu/`、`/tmp/opencode/QEMU-081t/`。
+- 允许：`QEMU 组件源树中的 target/dadao/cpu-param.h`（组件工作树，非 v5 跟踪）、`components/qemu/patches/target/dadao/cpu-param.h.patch`、`components/qemu/changelog.md`、`tools/qemu/user_mode_smoke.py`、本任务书、`.tao/knowledge/milestones.md`、`运行期证据（已清理，未归档）`、`运行期日志（已清理，未归档）`、`运行期临时目录`。
 - 禁止：其余一切（尤其 `tests/`、`spec/`、`contracts/`、`.tao/contracts/`、`.tao/adr/`、`.tao/knowledge/discussing.md`、其它组件、`Makefile`、`manifests/`、`components/qemu/series`）。
 
 ## 下发前预检（5 项，现场核）
 
 1. **任务书内部一致**：宏一处、补丁一份、验收 1–10 与文件范围一一对应；编号 `QEMU-081` 未被占用（`.tao/tasks/qemu/` 最大 `QEMU-078t`，`archive/**` 无 081）。
-2. **验证前置可用**：`.work/source/qemu` 在位、`clean=True count=1`；`tools/infra/make_patch.py` 可跑；`make build-qemu`/`install-host` 目标存在；安装根已有两二进制（11-02 08:26）；clang/ld.lld/musl 产物在位；`tools/qemu/user_mode_smoke.py` 可跑。
+2. **验证前置可用**：`QEMU 组件源树` 在位、`clean=True count=1`；`tools/infra/make_patch.py` 可跑；`make build-qemu`/`install-host` 目标存在；安装根已有两二进制（11-02 08:26）；clang/ld.lld/musl 产物在位；`tools/qemu/user_mode_smoke.py` 可跑。
 3. **验收逐条可跑性**：1/7/8/9/10 现在可跑；2–6 需先构建/安装（预计增量 5–20 min，视头文件依赖面）；不跑整套 L3（`check-full`）/夜跑，`check-inst` 单目标按验收 5。
 4. **与 `contracts/`、工具链产物一致**：零改动；已核三例 ELF 的 `p_align=0x10000` 且偏移/地址同余。
 5. **拟改文件 × `spec/` 清单**：全部不在 `spec/` ⇒ **无命中、无 BLOCKED**；`tools/qemu/user_mode_smoke.py` 非 `tests/**`，属测试驱动。
@@ -158,8 +158,8 @@
 
 ## 完成区
 
-**测试结果**：`.work/evidence/QEMU-081t/run.sh` **rc=0（34/34）**；`run.sh --inject` **rc=0（8/8）**；探针 **27/27**；user smoke **55/55**；`check-inst-smoke`/`check-inst`/`check-arch-smoke`/`check-modules` 全 rc=0。耗时：首次 `build-qemu JOBS=8` 164 s、`install-host` 83 s；注入 12 位重建 32 s/装 441 s、还原 16 位重建 11 s/装 60 s（均 rc=0，含 gate.lock 排队）；full run 549 s（首轮 1917 s，含排队）。
-**修改文件**：`components/qemu/patches/target/dadao/cpu-param.h.patch`（12→16，`make_patch.py` 重导出，1 written/62 unchanged）；`tools/qemu/user_mode_smoke.py`（`% 4096`→`% PAGE_SIZE`、新增静态/动态页大小断言、`link_static` 补 compiler-rt builtins）；`components/qemu/changelog.md`（M11 条目）；`.tao/knowledge/milestones.md`；本任务书。组件工作树 `.work/source/qemu/target/dadao/cpu-param.h`（非 v5 跟踪，base+1 clean）；证据 `.work/evidence/QEMU-081t/**`、日志 `.work/log/qemu/QEMU-081t-*.log`。
+**测试结果**：`运行期证据脚本（已清理，未归档）` **rc=0（34/34）**；`run.sh --inject` **rc=0（8/8）**；探针 **27/27**；user smoke **55/55**；`check-inst-smoke`/`check-inst`/`check-arch-smoke`/`check-modules` 全 rc=0。耗时：首次 `build-qemu JOBS=8` 164 s、`install-host` 83 s；注入 12 位重建 32 s/装 441 s、还原 16 位重建 11 s/装 60 s（均 rc=0，含 gate.lock 排队）；full run 549 s（首轮 1917 s，含排队）。
+**修改文件**：`components/qemu/patches/target/dadao/cpu-param.h.patch`（12→16，`make_patch.py` 重导出，1 written/62 unchanged）；`tools/qemu/user_mode_smoke.py`（`% 4096`→`% PAGE_SIZE`、新增静态/动态页大小断言、`link_static` 补 compiler-rt builtins）；`components/qemu/changelog.md`（M11 条目）；`.tao/knowledge/milestones.md`；本任务书。组件工作树 `QEMU 组件源树中的 target/dadao/cpu-param.h`（非 v5 跟踪，base+1 clean）；证据 `运行期证据（已清理，未归档）`、日志 `运行期日志（已清理，未归档）`。
 **验收结果**：
 1. 宏/补丁：源与补丁各恰 1 行 `TARGET_PAGE_BITS 16`、0 行 12；`check-source-state` rc=0（HEAD=base+1 clean）；pre-change blob 比对=「仅 12→16 一行」且 `git diff <旧HEAD>..<新HEAD> --stat` = `cpu-param.h | 2 +-`；`check-patch-tree` 全量仅 gem5 红（外部），qemu 作用域（同一 checker 代码）63 patches rc=0。
 2. 构建/安装：`build-qemu JOBS=8`、`install-host` rc=0；`qemu-dadao`/`qemu-system-dadao` 的 build 树与安装根 md5 逐一致（`fd0ee3d1…` / `47729506…`）。
@@ -171,8 +171,8 @@
 8. 注入（cp+md5，禁 git 还原）：静态 `% 4096` ⇒ 残留扫描 FAIL（打印 `user_mode_smoke.py:571`）⇒ 还原回绿；运行时 12 位 ⇒ 探针 rc=1（`getpagesize=4096`、`sysconf=4096`、`AT_PAGESZ=4096`、`mmap_align=40960`、`brk_align=61440`）⇒ 还原 16 位 ⇒ 27/27 回绿；`cpu-param.h` md5 `a37946f7…`、补丁 md5 `2115509c…` 与注入前备份逐字节相同。
 9. 台账：changelog `## M11` 追加条目；`check-component-changelog`/`check-milestones-fresh`/`check-tasks` rc=0；状态 `待验收`。
 10. 证据/诚实：`run.sh` 一条命令覆盖 1–9，逐条捕命令自身 rc（无 `tee`）；L1 开工基线 rc=2（26 项全为 gem5）、收尾复跑 rc=2（27 项全为 gem5，GEM5-014t 仍在改共享源，无本任务新增红）；未跑 `check-full`/夜跑。
-**新发现/坑**：(a) 页大小只能用 `AT_PAGESZ` 观察——DADAO ABI 取 asm-generic，无 getpagesize（QEMU 的 `TARGET_NR_getpagesize` 分支被 `#ifdef` 掉）；(b) musl 端口 `brk()/sbrk(inc)` 是 `-ENOMEM` 桩，堆须用裸 `brk`(nr 214) 验；(c) musl 重建后 libc.a 的 printf 引 binary128 助手，`link_static` 原配方缺 compiler-rt builtins ⇒ 含 printf 的被测程序一律链不上（基线红、非本任务引入），已按 `run_clmul_probe.py` 同款 `--start-group libc.a builtins --end-group` 修正（不改被测程序语义/期望输出）；(d) `.work` 是主工作树软链，证据脚本 `Path(__file__).resolve()` 会导错到主树 `tools/qemu`，改用 `git rev-parse --show-toplevel`；(e) `physical_memory_set_dirty_lebitmap` 的 `hpratio=host/target` 在 4 KiB host 下为 0，但仅 KVM/MSHV/VFIO 调用，TCG 不经过，记录不改。
-**遗留问题**：① **BLOCKED（验收手段，待裁定）** 验收 3 的 `syscall(SYS_getpagesize)`/`-strace getpagesize()` 两项不可达（证据见「新发现 a」），已用 `AT_PAGESZ` 等价三路覆盖，是否改写该验收条目由主会话/用户裁定。② 外部红：`make check-patch-tree` 全量因 **gem5** 断言⑥⑨ 红（GEM5-014t 在改共享 `.work/source/gem5`；开工基线同红、非本任务引入），qemu 作用域复核 rc=0，待其合入后自愈。③ 观察（禁改范围）：`tests/shared/runtime/dadao_user_dyn_probe.c:54` 的 `AT_BASE % 4096` 仍在（弱断言，64 KiB 下仍成立，属测试资产）。
+**新发现/坑**：(a) 页大小只能用 `AT_PAGESZ` 观察——DADAO ABI 取 asm-generic，无 getpagesize（QEMU 的 `TARGET_NR_getpagesize` 分支被 `#ifdef` 掉）；(b) musl 端口 `brk()/sbrk(inc)` 是 `-ENOMEM` 桩，堆须用裸 `brk`(nr 214) 验；(c) musl 重建后 libc.a 的 printf 引 binary128 助手，`link_static` 原配方缺 compiler-rt builtins ⇒ 含 printf 的被测程序一律链不上（基线红、非本任务引入），已按 `run_clmul_probe.py` 同款 `--start-group libc.a builtins --end-group` 修正（不改被测程序语义/期望输出）；(d) `运行期临时目录` 是主工作树软链，证据脚本 `Path(__file__).resolve()` 会导错到主树 `tools/qemu`，改用 `git rev-parse --show-toplevel`；(e) `physical_memory_set_dirty_lebitmap` 的 `hpratio=host/target` 在 4 KiB host 下为 0，但仅 KVM/MSHV/VFIO 调用，TCG 不经过，记录不改。
+**遗留问题**：① **BLOCKED（验收手段，待裁定）** 验收 3 的 `syscall(SYS_getpagesize)`/`-strace getpagesize()` 两项不可达（证据见「新发现 a」），已用 `AT_PAGESZ` 等价三路覆盖，是否改写该验收条目由主会话/用户裁定。② 外部红：`make check-patch-tree` 全量因 **gem5** 断言⑥⑨ 红（GEM5-014t 在改共享 `gem5 组件源树`；开工基线同红、非本任务引入），qemu 作用域复核 rc=0，待其合入后自愈。③ 观察（禁改范围）：`tests/shared/runtime/dadao_user_dyn_probe.c:54` 的 `AT_BASE % 4096` 仍在（弱断言，64 KiB 下仍成立，属测试资产）。
 **收尾记录（2026-11-03 04:20，architect）**：reviewer 第 1 轮 **Accepted**；收尾只改「状态→已验证 + 本节两行 + milestones 流水状态/时间」，既有正文与审阅记录原文未改；不提请 merge/push（由主会话 `/complete` 后 `merge --squash`）。
 **收尾遗留（reviewer findings ①–⑤，原文见第 1 轮 reviewer 验收，不改其文字）**：① 完成区 `user_mode_smoke.py:571` 现场实为 572（笔误，不影响结论）；② 注入态 `mmap_align=40960` 是当时值、reviewer 实测 28672（运行时变化，`brk_align=61440` 一致）；③ `run.sh` 对 `check-source-state` 未做外部归因分类，共享树并发改脏时整轮红（第 1 轮实证）⇒ 是否补分类待裁定；④ 验收 3 的 `syscall(SYS_getpagesize)`/`-strace getpagesize()` 两项 BLOCKED，改判据待裁定；⑤ `--inject` 的 `--amend` 使 qemu HEAD `f98216a→37b8590→c90144f`、二进制 md5 `fd0ee3d1…→c6f0689a…`（build==install 判据仍成立、源树仍 base+1 干净）。
 
@@ -185,12 +185,12 @@
 | finding | 处置 | 改了什么 | 复验证据 |
 |---|---|---|---|
 | 1. 证据脚本 diffstat 断言用 `git diff HEAD~1 HEAD`，而 `HEAD~1` 是 upstream base（base+1 流程下无「变更前提交」） | ✅已修 | 改为「pre-change blob（`cpu-param.h.pre`）逐字符比对 + `git diff <旧HEAD>..<新HEAD>`」双证 | 全量 run：`current cpu-param.h == pre-change blob + the single 12 -> 16 edit`、`old-HEAD..new-HEAD diff stats only cpu-param.h (2 +-)` 均 PASS |
-| 2. 证据/探针脚本用 `Path(__file__).resolve().parents[3]`：`.work` 是主工作树软链 ⇒ 解析到主树，导入**主树未改版** `tools/qemu/user_mode_smoke.py`（症状：builtins 缺失、`% 4096` 假差异） | ✅已修 | 两脚本改用 `git rev-parse --show-toplevel`；`run.sh` 先 `cd` 到本 worktree 根 | 探针在改后 27/27，smoke 55/55 |
+| 2. 证据/探针脚本用 `Path(__file__).resolve().parents[3]`：`运行期临时目录` 是主工作树软链 ⇒ 解析到主树，导入**主树未改版** `tools/qemu/user_mode_smoke.py`（症状：builtins 缺失、`% 4096` 假差异） | ✅已修 | 两脚本改用 `git rev-parse --show-toplevel`；`run.sh` 先 `cd` 到本 worktree 根 | 探针在改后 27/27，smoke 55/55 |
 | 3. 验收 3 的 `syscall(SYS_getpagesize)` 在本 ABI 不存在（编译失败：`use of undeclared identifier`） | ✅已修 + 登记 BLOCKED | 改 `getpagesize()`/`sysconf(_SC_PAGESIZE)`（musl 两者均取 `libc.page_size`←`AT_PAGESZ`）；脚本内加「syscall.tbl / musl syscall.h.in 均无 getpagesize」机械断言 | `probe getpagesize/sysconf/at_pagesz=65536`；`DADAO syscall table has no getpagesize` PASS；遗留问题 ① |
 | 4. musl 端口 `brk()`/`sbrk(inc)` 是 `-ENOMEM` 桩 ⇒ 首版 `brk(0)` 取值错（打印 65535、`brk_failed=1`） | ✅已修 | 用 `sbrk(0)` 读当前 break、裸 `brk`（nr 214，asm-generic）扩展堆 | `brk_addr=0x50000`、`brk_align=0`、`brk_tail_write=1` |
 | 5. 探针输出解析把 `a=1 b=2` 整行当值 ⇒ 多条断言假 FAIL | ✅已修 | 按空白切 token 再 `split("=",1)`；`want()` 统一 `str(expected)` 比较 | `munmap_*`/`argv_*`/`env_*`/`signal_got` 全 PASS |
 | 6. 首次 full 试跑 rc=2（`syntax error near unexpected token '('`）：**运行中编辑了 run.sh**，bash 按字节偏移续读 | ✅已确认（非逻辑缺陷） | 最终跑前冻结脚本；后续 run 全部在脚本稳定后启动 | 改后 `bash -n` + 全量 run rc=0（34/34） |
-| 7. 早期自建 `.work/log/qemu/QEMU-081t-*.EXIT` 不符 `check-run-artifacts` A3 命名（只允许 `.log/.json/.txt`） | ✅已修 | 删 `.EXIT` 文件，内容汇总进 `.work/evidence/QEMU-081t/builds.txt` | `ls .work/log/qemu/QEMU-081t-*` 仅 `.log`；A3 规则逐条核对 |
+| 7. 早期自建 `运行期日志（已清理，未归档）` 不符 `check-run-artifacts` A3 命名（只允许 `.log/.json/.txt`） | ✅已修 | 删 `.EXIT` 文件，内容汇总进 `运行期证据（已清理，未归档）` | `ls 运行期日志（已清理，未归档）` 仅 `.log`；A3 规则逐条核对 |
 | 8. 范围披露：`link_static` 补 compiler-rt builtins 超出「只改页对齐断言」 | ✅已修（必要） | 按 `tools/testcases/run_clmul_probe.py` 同款 `--start-group libc.a builtins --end-group`；未改被测程序语义/既有期望输出 | 修复前 `ld.lld: undefined symbol __eqtf2`；修复后 smoke 55/55（基线红，非本任务引入） |
 | 9. 记录不改项：`physical_memory_set_dirty_lebitmap` 的 `hpratio=host/target`（4 KiB host ⇒ 0） | ❌不修（记录） | 仅 KVM/MSHV/VFIO 调用，TCG（qemu-system-dadao 唯一加速器）不经过 | `grep` 调用点只有 `accel/{kvm,mshv}` 与 `hw/vfio` |
 | 10. 记录不改项：`tests/shared/runtime/dadao_user_dyn_probe.c:54` 的 `AT_BASE % 4096` | ❌不修（禁改范围） | 测试资产不在本任务范围；64 KiB 对齐是其更强条件，断言仍成立 | 全量 run 里该文件未参与；已登记遗留 ③ |
@@ -200,7 +200,7 @@
 #### 第 1 轮 reviewer 验收
 
 重跑记录（全部由 reviewer 在本 worktree 亲自执行，rc 取命令自身，非采信完成区）：
-- `run.sh` 第 1 轮 **33/34 rc=1**：唯一 FAIL `make check-source-state rc=2`，日志 `qemu: OK HEAD=37b8590 count=1 clean=True` / `gem5: FAIL … M src/arch/dadao/process.cc`（GEM5-014t 并发改共享 `.work/source/gem5`）⇒ 环境并发、非本交付物；随即直跑 `make check-source-state` **rc=0**。已记为重跑第 1 次（未掩盖根因）。
+- `run.sh` 第 1 轮 **33/34 rc=1**：唯一 FAIL `make check-source-state rc=2`，日志 `qemu: OK HEAD=37b8590 count=1 clean=True` / `gem5: FAIL … M src/arch/dadao/process.cc`（GEM5-014t 并发改共享 `gem5 组件源树`）⇒ 环境并发、非本交付物；随即直跑 `make check-source-state` **rc=0**。已记为重跑第 1 次（未掩盖根因）。
 - `run.sh` 第 2 轮、以及注入还原后的第 3 轮均 **34/34 rc=0**：`check-source-state 0`、`check-patch-tree rc=2`（26 problem **全 gem5**，非 gem5 行 grep rc=1）、qemu 作用域 `1 component, 63 patches OK rc=0`、`build-qemu 0`/`install-host 0`、build 树==安装根 md5 逐一致、探针 **27/27**、smoke **55/55**（`AT_BASE % 65536=0`、静态/动态 `getpagesize/sysconf/AT_PAGESZ=65536`）、`check-inst-smoke 0`（90/90）、`check-inst 0`（1007/1012，5 deferred 已登记）、`check-arch-smoke 0`（10/10 + 25 svc）、`check-modules 0`、残留扫描与 changelog/milestones/tasks 三门控全 0。
 - `run.sh --inject` **8/8 rc=0**：静态注入命中 `tools/qemu/user_mode_smoke.py:572` 并被残留扫描抓出；12 位重建重装后探针 **rc=1**（`getpagesize/sysconf/at_pagesz=4096`、`brk_align=61440`）；还原 16 位重建重装后探针 rc=0；两文件 `md5sum -c` OK。
 - **reviewer 独立反例（与 engineer 两次注入不同）**：只改补丁镜像 `cpu-param.h.patch` `16→12`、源树保持 16 ⇒ 全量 `run.sh` **31/34 rc=1**（FAIL×3：`scan_macro`、qemu 作用域 `check-patch-tree rc=1` 断言⑥⑨、`TARGET_PAGE_BITS 12 still present`）；`cp` + `md5sum -c` 还原为 `2115509c…`（与备份逐字节一致）⇒ 回绿 **34/34 rc=0**。全程未用 `git checkout/restore/stash`。
@@ -211,6 +211,6 @@
 - 残留：`grep -E '\b(4096|0x1000)\b'` 在 patches/源树三目录 + `tools/qemu` **0 命中**；smoke 已无 `% 4096`（改 `% PAGE_SIZE`，`PAGE_SIZE=1<<16` 独立于 QEMU 推导）。
 - `getpagesize` 不可达且非静默跳过：`linux-user/dadao/syscall.tbl`、musl `arch/dadao/bits/syscall.h.in`、host `asm-generic/unistd.h` 均无该号，build 树无 `TARGET_NR_getpagesize`，QEMU `syscall.c:13289` 分支被 `#ifdef` 掉；musl `getpagesize()/sysconf(_SC_PAGESIZE)` 均取 `libc.page_size ← aux[AT_PAGESZ]`，另有 `AT_PAGESZ`/mmap 对齐/brk 对齐/EINVAL 等纯 QEMU 行为断言 ⇒ 验收 3 两小条确属 BLOCKED（已登记待裁定）。
 - `link_static` 补 builtins **必要**：reviewer 实测 `be/errno_rd8/enosys_rd8/ioctl_mask/pagesz/probe` 不带 builtins 全部 `undefined symbol: __eqtf2`，带 builtins rc=0 且同用例两版 ELF 字节相同 ⇒ 不改被测程序语义/期望输出；musl 产物 mtime 11-02 09:41（开工前）⇒ 属基线红。
-- 范围/体例：`git status` 仅完成区声明的 5 个文件，未碰 `tests/ spec/ contracts/ .tao/contracts/ gem5/ Makefile manifests`；reviewer 未写主工作树（期间主会话自行新增 QEMU-079t/080t 与 milestones 改动，非本任务产物）；完成区 17 行（≤30）、自审段 18 行（≤40）；`.work/log/qemu/QEMU-081t-*` 全为 `.log`，仓库无 `*_tmp*`/`.orig`/`.rej`/备份残留。
+- 范围/体例：`git status` 仅完成区声明的 5 个文件，未碰 `tests/ spec/ contracts/ .tao/contracts/ gem5/ Makefile manifests`；reviewer 未写主工作树（期间主会话自行新增 QEMU-079t/080t 与 milestones 改动，非本任务产物）；完成区 17 行（≤30）、自审段 18 行（≤40）；`运行期日志（已清理，未归档）` 全为 `.log`，仓库无 `*_tmp*`/`.orig`/`.rej`/备份残留。
 
 判决：**Accepted**。finding（交 architect 收尾处置，不改本判决）：① 完成区 `user_mode_smoke.py:571` 现场实为 **572**；② 完成区注入 `mmap_align=40960`，reviewer 实测 **28672**（运行时变化，`brk_align=61440` 一致）；③ `run.sh` 对 `check-source-state` 未做外部归因分类（`check-patch-tree` 有）⇒ 共享树被并发改脏时整轮红（第 1 轮实证），是否补分类待裁定；④ 验收 3 的 `syscall(SYS_getpagesize)`/`-strace getpagesize() = 65536` 须裁定改写；⑤ `--inject` 的 `--amend` 循环使 qemu HEAD `f98216a→37b8590→c90144f`、二进制 md5 变为 `c6f0689a…`（完成区 `fd0ee3d1…` 为当时值），判据 build==install 仍成立、源树仍 base+1 干净。

@@ -12,7 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| INFRA-120t | 待开始 | 2026-11-04 22:26（登记） | 任务书运行期路径清零：清 42 册具体运行期路径、AGENTS 固化规则 |
+| INFRA-120t | 已验证 | 2026-11-04 23:00 | 任务书运行期路径清零：清 42 册具体运行期路径、AGENTS 固化规则 |
 | INFRA-119t | 已验证 | 2026-11-04 22:18 | LLVM/QEMU 构建入口接 ccache：CMake launcher + configure CC/CXX，全局默认缓存 |
 | TESTCASES-096t | 已验证 | 2026-11-04 20:15 | parity 清理 7 条 GEM5-018t 已修复的 KNOWN_GEM5_BLOCKED；node/arch rejudge 全绿、stale 0 |
 | GEM5-019t | 待开始 | 2026-11-04 18:38（登记） | SYS_ELAPSED 与 SYS_TICKFREQ 统一 1e9 ticks/s；64 位无溢出换算、046t/parity 零退化 |

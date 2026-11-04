@@ -6,7 +6,7 @@
 **状态**：已验证
 
 ## 执行环境
-**执行环境**：本地（仓库根；组件源树 `.work/source/qemu` 为 base+1 单提交、`git status` 干净；实现落任务分支 `QEMU-079t`，不 merge、不 push）
+**执行环境**：本地（仓库根；QEMU 组件源树为 base+1 单提交、`git status` 干净；实现落任务分支 `QEMU-079t`，不 merge、不 push）
 
 ## 用户已定口径（2026-11-02/03，摘要）
 
@@ -84,7 +84,7 @@
 - **C. Tiny 装载**：raw（基址 `0xffff_ff01_0000`、前缀零、入口 `+0x100`）与 ELF（ROM+SRAM 段、`e_entry`）。
 - **D. Tiny cfx/异常/semihosting**：cfx 全 `CFXREG`、非 semihosting `trap/escape` `ILLI`、fault 直出、semihosting 25 服务闭环。
 - **E. 驱动最小连带**（跨模块，见「未决」）：`Makefile` 的 Tiny system 目标环境行加 `DADAO_TEST_PROFILE=tiny`（不改测试脚本/资产/期望值）；arch 目标保持缺省 legacy，直至 `QEMU-080t`。
-- **F. 证据/门控**：`.work/evidence/<任务ID>/run.sh` 一键重跑，逐条取命令自身 rc；注入/还原用 `cp` + `md5sum -c`。
+- **F. 证据/门控**：`运行期证据脚本（已清理，未归档）` 一键重跑，逐条取命令自身 rc；注入/还原用 `cp` + `md5sum -c`。
 
 ## 验收标准
 
@@ -102,12 +102,12 @@
    - `picolibc`：`make check-picolibc-tests`（Tiny 代表集）rc=0。
    - 不跑 `arch`（Tiny 无 arch）。
 8. **L1/L2**：`make check`（L1）rc=0；`make check-modules`（L2）rc=0。arch 相关目标在 `QEMU-080t` 前仍走 legacy，必须保持绿；任一红项给出基线证据/归因。
-9. **构建/补丁**：`make build-qemu JOBS=8` rc=0；`make install-host` rc=0；`md5sum .work/build/qemu/qemu-system-dadao .dadao/cross-toolchain/bin/qemu-system-dadao` 两哈希一致；`make check-patch-tree`、`make check-source-state` rc=0；源树 diff 仅本任务文件。
+9. **构建/补丁**：`make build-qemu JOBS=8` rc=0；`make install-host` rc=0；`md5sum 运行期构建树与安装根中的 qemu-system-dadao` 两哈希一致；`make check-patch-tree`、`make check-source-state` rc=0；源树 diff 仅本任务文件。
 10. **反例可达 FAIL**（`cp` 备份 + `md5sum -c` 还原，禁 `git checkout/restore/stash`）：
     - 把 Tiny SRAM 大小临时改为 4 MiB ⇒ 证据脚本的几何断言/inst smoke 至少一项 FAIL；还原后回绿。
     - 把 raw 入口改回 `kernel_base` ⇒ raw 用例 FAIL；还原后回绿。
 11. **体例/台账**：`components/qemu/changelog.md` 在 `## M11` 下追加 `- **2026-11-03 \`QEMU-079t\`**` + 摘要 + `执行者：engineer`；`make check-component-changelog`、`make check-milestones-fresh`、`make check-tasks` rc=0；完成区 ≤30 行；状态 `待验收`。
-12. **诚实**：证据落 `.work/evidence/<任务ID>/`（`run.sh`、`run.EXIT`、日志），复杂输出留 `.work/log/qemu/`；失败保留现场并按「失败处置」推进；**不伪造 QEMU 执行**。
+12. **诚实**：证据落 `运行期证据（已清理，未归档）`（`run.sh`、`run.EXIT`、日志），复杂输出留 `运行期日志（已清理，未归档）`；失败保留现场并按「失败处置」推进；**不伪造 QEMU 执行**。
 
 ## 未决（下发前需用户裁定）
 
@@ -117,7 +117,7 @@
 
 ## 文件范围
 
-- 允许：`components/qemu/patches/target/dadao/{cpu.h,cpu.c,helper.c}.patch`、`components/qemu/patches/hw/dadao/dadao-machine.c.patch`（及必要的 `hw/dadao/{Kconfig,meson.build}`）、`components/qemu/changelog.md`、`.work/source/qemu/**`（组件工作树，非 v5 跟踪）、`tools/qemu/**`（QEMU 测试驱动）、`Makefile`（仅 Tiny system 目标的 `DADAO_TEST_PROFILE=tiny` 环境行，未决 2 授权时）、本任务书、`.tao/knowledge/milestones.md`、`.work/evidence/<任务ID>/`、`.work/log/qemu/`、`/tmp/opencode/QEMU-079t/`。
+- 允许：`components/qemu/patches/target/dadao/{cpu.h,cpu.c,helper.c}.patch`、`components/qemu/patches/hw/dadao/dadao-machine.c.patch`（及必要的 `hw/dadao/{Kconfig,meson.build}`）、`components/qemu/changelog.md`、`QEMU 组件源树`（组件工作树，非 v5 跟踪）、`tools/qemu/**`（QEMU 测试驱动）、`Makefile`（仅 Tiny system 目标的 `DADAO_TEST_PROFILE=tiny` 环境行，未决 2 授权时）、本任务书、`.tao/knowledge/milestones.md`、`运行期证据（已清理，未归档）`、`运行期日志（已清理，未归档）`、`运行期临时目录`。
 - 禁止：`tests/**`、`tools/testcases/**`、`spec/**`、`contracts/**`、`.tao/contracts/**`、`.tao/adr/**`、`gem5/**`、其它 `components/**`、`manifests/**`、`.tao/knowledge/discussing.md`、`.tao/archive/**`。
 
 ## 风险
@@ -138,11 +138,11 @@
 ## 完成区
 
 **测试结果**：
-- `.work/evidence/QEMU-079t/run.sh` rc=0（59 检查 0 失败，真实输出 `run.log`）；`inject.sh` rc=0（SRAM 4 MiB / trampoline 跳 RAM base 两注入→FAIL→`cp`+md5→回绿）。
+- `运行期证据脚本（已清理，未归档）` rc=0（59 检查 0 失败，真实输出 `run.log`）；`inject.sh` rc=0（SRAM 4 MiB / trampoline 跳 RAM base 两注入→FAIL→`cp`+md5→回绿）。
 - Tiny 真实执行：`check-inst-smoke` 90/90；全量非 cfx inst 992/1012（15 FAIL 逐条归因见遗留）；embench 38/38；picolibc fast 18 pass/2 excluded/0 fail；`test-elf` PASS（ROM crt + SRAM app，e_entry=`0xffffffff0000`，SYS_EXIT 42）。
 - 构建/安装：`build-qemu` PASS、`install-host` PASS、build/install md5 同为 `bc9e2c29a00e9cf2fcb5367c66d2f8f6`。
 - L1 `make check` rc=2，唯一红项 `check-patch-tree` 的 **gem5** 断言（26 项，GEM5-014t 已提交但补丁未重导出）；qemu slice `qemu: OK HEAD=7d5e452 count=1 clean=True`。L2 各目标：inst/libc/llvm-ts/embench/picolibc rc=0；`check-unit` rc=2（lit E2E 12 + test-codegen 15，资产/驱动问题）；`check-arch-smoke` 0/10（Node 未实现基线红）。
-**修改文件**：`components/qemu/patches/{target/dadao/{cpu.h,cpu.c,helper.c},hw/dadao/dadao-machine.c}.patch`（`make_patch.py` 重导出）、`components/qemu/changelog.md`、`Makefile`（Tiny 目标环境行）、`tests/shared/machine-profiles.yaml`（tiny `qemu_*`）、`tools/testcases/lib/{gen_trampoline.py,trampoline.bin}`、`tools/infra/check_interface_alignment.py`（越界披露，见遗留）、`.work/source/qemu`（组件提交 7d5e452）、本任务书、`.tao/knowledge/milestones.md`。
+**修改文件**：`components/qemu/patches/{target/dadao/{cpu.h,cpu.c,helper.c},hw/dadao/dadao-machine.c}.patch`（`make_patch.py` 重导出）、`components/qemu/changelog.md`、`Makefile`（Tiny 目标环境行）、`tests/shared/machine-profiles.yaml`（tiny `qemu_*`）、`tools/testcases/lib/{gen_trampoline.py,trampoline.bin}`、`tools/infra/check_interface_alignment.py`（越界披露，见遗留）、`QEMU 组件源树`（组件提交 7d5e452）、本任务书、`.tao/knowledge/milestones.md`。
 **验收结果**：`profile=tiny` 实跑——raw SYS_EXIT=0x43、SP 观测 0、cfx2rd/cfx2rc=0x84、非 semihosting trap/escape=0x88、`addr[47:42]=0` 与 cfxha63 越界=0x81、guest 写 ROM=0x88；`bootrom-image` 63/65 KiB rc=1（`expected exactly 65536`）、64 KiB rc=0x43；`-bios`+`bootrom-image` rc=1；ELF 42/越界段 rc=1；`check-interface` Tiny 5 项 PASS、Node 1 项 DEFERRED；profile 回退日志可见、未知 profile rc=1、`profile=legacy`/缺省保持 legacy（Tiny raw→0x87）。
 **新发现/坑**：① lit 只透传白名单环境变量，`DADAO_TEST_PROFILE` 不进 E2E 测试（12 例按 legacy 跑）；② raw CodeGen 管线把 `.text.start`/`.text` 直接拼接、不做重定位，`minimal_crt0` 跨 section `call` 位移为 0 → 自环（15 例）；③ `ctrl-br/ctrl-jump` 的 UNMAPPED 预期按「小 RAM 窗口」写，Tiny 8 MiB SRAM 内目标变 UNDI；④ `-bootrom-image` 是机器属性不是 CLI 开关；⑤ QEMU profile 的 `kernel_entry` 只被测试桩 generator 消费（raw 入口由 trampoline 跳转），注入须打在 generator。
 **遗留问题**：① TESTCASES 资产修正（上列 15+15+12 例；`tests/**` 禁改）；② `check-patch-tree` 全量待 GEM5-014t 重导出补丁；③ `check-arch-smoke` 0/10 = Node 未实现基线（min_rom probe 无 env 时 33 FAIL 全 0x87），归 QEMU-080t；④ 越界改 `tools/infra/check_interface_alignment.py`（不在任务允许清单）：qemu_* PASS 与 profile 化 RAM 注册断言必需，请架构师确认。
@@ -163,7 +163,7 @@
 #### 第 1 轮 reviewer 验收
 
 重跑（reviewer 在本 worktree 亲跑，rc 取命令自身；两轮 PASS/FAIL 行逐行一致）：
-- `./.work/evidence/QEMU-079t/run.sh` → **rc=0，59 checks / 0 FAIL**（含 build==install md5 `bc9e2c29…`）；`inject.sh` → **rc=0，6/6**（两注入→FAIL→`cp`+`md5sum -c`→回绿）。
+- `运行期证据脚本（已清理，未归档）` → **rc=0，59 checks / 0 FAIL**（含 build==install md5 `bc9e2c29…`）；`inject.sh` → **rc=0，6/6**（两注入→FAIL→`cp`+`md5sum -c`→回绿）。
 - `make check-inst` → rc=2：`1012 total, 992 passed, 15 failed, 5 deferred`（与完成区逐条同）；`check-inst-smoke` 90/90；embench 38/38；picolibc fast 18 pass/2 excluded/0 fail；`test-elf` rc=0（e_entry=`0xffffffff0000`、SYS_EXIT 42）。
 - `make check`(L1) **rc=2**：`check-patch-tree` 26 problem **全 gem5**（非 gem5 0 项），qemu slice `qemu: OK HEAD=7d5e452 count=1 clean=True`；`make check-interface` rc=0：86 项 85 PASS/0 FAIL/1 MANUAL（`geometry (profile node): DEFERRED`），Tiny `DADAO_TINY_*` 5 项 PASS。
 - `make check-unit` **rc=2**（lit 162 → 150 pass/**12 fail**，全 DADAO-E2E）；`make test-codegen` **rc=2：0/19、19 failed**；`make check-arch-smoke` **rc=2：0/10**；`make check-modules` **rc=2**（arch-smoke 处中断）。
@@ -178,7 +178,7 @@ L1/L2 红归类（含基线核）：
 - `test-codegen` 19 条全 `RASOF(0x8A)`（跨 section `call` 位移 0 自环），源在 `tools/testcases/unit/`（禁改），091t 已登记 BLOCKED ⇒ 基线红，**归 TESTCASES/后续**。
 - `check-arch-smoke` 0/10 实因：`-bios` 4 MiB Node bootrom 撞 `DADAO_BIOS_WINDOW_SIZE = 64 KiB`（reviewer 直跑复现 `rc=1 … exceeds the ROM region size limit of 65536`）；**HEAD 同为 64 KiB** ⇒ 基线红，**归 QEMU-080t/Node**。
 
-独立反例注入（与 engineer 两次不同）：`cp`+md5 备份 `.work/source/qemu/target/dadao/helper.c` → 把 Tiny 未映射分类 `if (prof->unmapped_is_cfxmem || …)` 改 `if (false && …)` → `build-qemu rc=0` → 最小检查 **FAILS=2**（`cfx63_oob 129→135`、build≠install md5）rc=1 → `cp` 还原 + `md5sum -c OK` + 源树 `git status` 空 → 重建 rc=0 → **FAILS=0**、build md5 回 `bc9e2c29…`；全程未用 `git checkout/restore/stash`；末次全量 `run.sh` 仍 **59/0 rc=0**。
+独立反例注入（与 engineer 两次不同）：`cp`+md5 备份 `QEMU 组件源树中的 target/dadao/helper.c` → 把 Tiny 未映射分类 `if (prof->unmapped_is_cfxmem || …)` 改 `if (false && …)` → `build-qemu rc=0` → 最小检查 **FAILS=2**（`cfx63_oob 129→135`、build≠install md5）rc=1 → `cp` 还原 + `md5sum -c OK` + 源树 `git status` 空 → 重建 rc=0 → **FAILS=0**、build md5 回 `bc9e2c29…`；全程未用 `git checkout/restore/stash`；末次全量 `run.sh` 仍 **59/0 rc=0**。
 
 约束核验：完成区 13 行 ≤30、状态 `待验收`；无 `*_tmp*/*.orig/*.rej`/未跟踪残留；**快照对账 before/after 逐行一致**、8 个目标文件 md5 全 OK；源树 base+1 `7d5e452` 干净；`check-patch-tree`/`check-source-state` qemu 作用域 rc=0。
 **越界（登记 BLOCKED，待 architect/用户追认；不追认即须改判）**：① `tools/infra/check_interface_alignment.py`——**必要**（换回 HEAD 版直跑 `check-interface` rc=1、2 FAIL：`RAM hw registration init_ram/add_subregion`），改动限 geometry 检查块、新增 Tiny 5 项（85→86 项），**最小**；② `tests/shared/machine-profiles.yaml`、`tools/testcases/lib/{gen_trampoline.py,trampoline.bin}`（任务书明列禁改，但 §2「trampoline 跳 `0xffff_ff01_0100`」与 091t「`qemu_*` 由 QEMU-079t 回填」本身要求）；③ `Makefile` 环境行扩到 `check-lit/test-codegen/test-elf/check-inst` 等，超「仅 Tiny system 目标」字面范围，**未决 2 无授权记录**，且 `check-lit` 行实测无效（lit 不透传该环境变量）。

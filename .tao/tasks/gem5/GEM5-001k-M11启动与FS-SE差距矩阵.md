@@ -31,7 +31,7 @@
 - 不改 `components/**`/`tests/**`/`spec/**`/`contracts/**`/`Makefile`；只写本任务书与证据。
 - **语义复用禁令**：编码/助记符相同不等于语义可复用；每条指令必须从当前 spec/contracts 重导，G1 先产出语义重导矩阵。
 - 不跑实现/长构建；不复制 0628 代码。
-- 证据落 `.work/evidence/GEM5-001k/`；临时 `/tmp/opencode/GEM5-001k/`。
+- 证据落 `运行期证据（已清理，未归档）`；临时 `运行期临时目录`。
 
 ## 验收
 
@@ -43,7 +43,7 @@
 
 ## 完成区
 
-**测试结果**：分析类，无实现/构建；证据 `.work/evidence/GEM5-001k/REPORT.md`（未入 git）。
+**测试结果**：分析类，无实现/构建；证据 `运行期证据（已清理，未归档）`（未入 git）。
 **修改文件**：本任务书、`.tao/knowledge/milestones.md`；为识别新模块，`tools/infra/check_milestones_fresh.py` / `check_milestone_tasks.py` / `check_run_artifacts.py` 增加 `GEM5` 前缀（仅工具识别，不改判据）；未改 components/tests/spec/contracts/Makefile。
 **验收结果**：完成共用 ISA/SE/FS/测试/其它模块依赖矩阵；确认 264/66/0 与 PR 旧 259/60/27 差异；确认 SE 先行、FS 后接；提出 G1/G2/G3 任务量 10–15/15–25/5–8；测试映射到 inst/arch/tset/unit，禁止 tests/gem5。
 **新发现/坑**：0628 的 SEWorkload/Process 桥、LLD 多段 ELF、QEMU trampoline RB1、RB bank/RegClass、RISC-V clone 都是必须规避的已知坑；PR #3 只有 FS 且旧基线，不能直接作为当前验收。**同编码/同助记符不等于同语义**：G1 必须先做逐指令语义重导矩阵（操作数/结果/异常/FP/标志/内存副作用），不能按旧表搬运。

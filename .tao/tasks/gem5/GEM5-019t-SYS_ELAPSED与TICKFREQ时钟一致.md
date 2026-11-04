@@ -7,11 +7,11 @@
 
 ## 执行环境
 
-**执行环境**：本地（仓库根；从含本册的 `master` 建独立 `git worktree` + 分支 `GEM5-019t`；**只改 `components/gem5/**` + 本册 + `.tao/knowledge/milestones.md`**；证据落 `.work/evidence/GEM5-019t/**`、日志 `.work/log/gem5/**`、临时物 `/tmp/opencode/GEM5-019t/**`）。开工前现场确认：
+**执行环境**：本地（仓库根；从含本册的 `master` 建独立 `git worktree` + 分支 `GEM5-019t`；**只改 `components/gem5/**` + 本册 + `.tao/knowledge/milestones.md`**；证据落 `运行期证据（已清理，未归档）`、日志 `运行期日志（已清理，未归档）`、临时物 `运行期临时目录`）。开工前现场确认：
 
 1. `GEM5-018t` 已 `已验证` 且已合入 `master`；`make check-source-state` 报 `gem5: OK HEAD=<commit> count=1 clean=True`（基线以现场为准；2026-11-04 为 `12a4716`）。
-2. `.work/source/gem5/build/DADAO/gem5.opt` 存在且 `--help` rc=0；`.work/source/gem5` 是 `manifests/components.lock.toml` 锁定 commit + 恰好 1 个 commit 的干净树。
-3. `.dadao/cross-toolchain/bin/qemu-system-dadao`、`.dadao/tests/bootrom/step5/bootrom_step5.bin`、`tools/testcases/arch/min_rom_probe_046t.py`、`tools/testcases/parity/{run_parity.py,qemu_gem5_shim.py}` 存在。
+2. `gem5 构建产物 gem5.opt` 存在且 `--help` rc=0；`gem5 组件源树` 是 `manifests/components.lock.toml` 锁定 commit + 恰好 1 个 commit 的干净树。
+3. `安装根 bin 下的 qemu-system-dadao`、`安装根中的 bootrom_step5.bin`、`tools/testcases/arch/min_rom_probe_046t.py`、`tools/testcases/parity/{run_parity.py,qemu_gem5_shim.py}` 存在。
 4. 任一不成立 ⇒ **rc=2 BLOCKED**（附缺失项与现场），不得用旧日志/旧二进制冒充。
 
 ## 用户口径（2026-11-04，主会话转达）
@@ -54,7 +54,7 @@
 ### F6 工具侧既有状态（不在本任务修）
 
 - `tools/testcases/parity/run_parity.py` 的 `KNOWN_GEM5_BLOCKED` 仍登记 7 条 `GEM5-018t` 已修复项（注册表 stale）⇒ 全量 `--profiles node --scopes arch` 的 driver rc=1 属**预期**；`--only` 时 stale 检查只遍历过滤后的行，故 driver rc=0，但 **`--only` 只是“跑完后过滤行”，仍会执行整组 arch**（2026-11-04 实测 >5 min 未完），须按长任务后台跑。
-- `tools/gem5/build_gem5.py` 末步 `(source/"build").relative_to(build_link.parent)` 在 fresh worktree 且 `.work/build/gem5` 缺失时抛 `ValueError`（scons 已成功）；本任务沿用 `mkdir -p .work/build/gem5` 绕过，修复另立 INFRA 任务。
+- `tools/gem5/build_gem5.py` 末步 `(source/"build").relative_to(build_link.parent)` 在 fresh worktree 且 `运行期 gem5 构建树` 缺失时抛 `ValueError`（scons 已成功）；本任务沿用 `mkdir -p 运行期 gem5 构建树` 绕过，修复另立 INFRA 任务。
 
 ## 接口规范
 
@@ -87,7 +87,7 @@
 ### 5. 补丁/构建流程（`docs/Process-01 §6`）
 
 1. 起点自检 `make check-source-state`（gem5 `HEAD=base+1`、干净）。
-2. 在 `.work/source/gem5` 内改源码并收敛为「base + 恰好 1 commit」（amend/重放均可）；**禁止**手改 `components/gem5/patches/**`。
+2. 在 `gem5 组件源树` 内改源码并收敛为「base + 恰好 1 commit」（amend/重放均可）；**禁止**手改 `components/gem5/patches/**`。
 3. `python3 tools/infra/make_patch.py gem5` 导出（一文件一补丁；`series` 行数 = 磁盘 patch 数，字典序）。
 4. `make check-patch-tree`、`make check-source-state` rc=0。
 5. `make build-gem5`（SCons，`-j8`；增量重编申报耗时；用 background + 日志 + `*_EXIT`，禁 `setsid nohup` 后失联）。
@@ -102,19 +102,19 @@
 - `components/gem5/changelog.md`（`## M11` 节追加 `- **2026-11-04 GEM5-019t**` + `  - 摘要：…` + `  - 执行者：engineer`）
 - `.tao/tasks/gem5/GEM5-019t-SYS_ELAPSED与TICKFREQ时钟一致.md`（本册）、`.tao/knowledge/milestones.md`（流水行）
 
-**不改**：`tools/**`（含 `run_parity.py` 的 stale 表、`build_gem5.py`、`min_rom_probe_046t.py`）、`tests/**`、`spec/**`、`contracts/**`、`.tao/contracts/**`、`.tao/adr/**`、`components/qemu/**`、`components/gem5/series`（**不新增**补丁文件）、`Makefile`、`manifests/**`、`docs/**`。证据/临时物只落 `.work/evidence/GEM5-019t/**`、`.work/log/gem5/**`、`/tmp/opencode/GEM5-019t/**`。
+**不改**：`tools/**`（含 `run_parity.py` 的 stale 表、`build_gem5.py`、`min_rom_probe_046t.py`）、`tests/**`、`spec/**`、`contracts/**`、`.tao/contracts/**`、`.tao/adr/**`、`components/qemu/**`、`components/gem5/series`（**不新增**补丁文件）、`Makefile`、`manifests/**`、`docs/**`。证据/临时物只落 `运行期证据（已清理，未归档）`、`运行期日志（已清理，未归档）`、`运行期临时目录`。
 
 ## 验收标准
 
 1. **补丁/源树/构建**：`make check-patch-tree` rc=0（gem5 作用域；补丁数现场统计）、`make check-source-state` rc=0（gem5 `count=1 clean=True`）、`make build-gem5` rc=0、`gem5.opt --help` rc=0。
 2. **同 case 通过（`ADR-0048 D1/D2`）**：
-   - QEMU system：`DADAO_TEST_PROFILE=node python3 tools/testcases/arch/min_rom_probe_046t.py --only svc_elapsed --qemu .dadao/cross-toolchain/bin/qemu-system-dadao` ⇒ rc=0（`exit=0x75`、`rd8=0`）。
-   - gem5 FS：同上但 `--qemu tools/testcases/parity/qemu_gem5_shim.py`，并设 `PARITY_GEM5=<gem5.opt>`、`PARITY_GEM5_CONFIG=<fs.py>`、`PARITY_GEM5_PROFILE=node`、`PARITY_GEM5_BOOTROM=<step5 bootrom>`、`PARITY_WORK_ROOT=/tmp/opencode/GEM5-019t/shim` ⇒ rc=0，`rd50` 非零。
-   - parity（**一次全量运行同时覆盖本条与第 7 条**）：`python3 tools/testcases/parity/run_parity.py --profiles node --scopes arch --qemu <qemu> --gem5 <gem5.opt> --gem5-config <fs.py> --work-dir /tmp/opencode/GEM5-019t/parity --json <json>` ⇒ JSON 中 `arch/probe/min_rom_probe_046t/svc_elapsed` 行 `qemu=PASS`、`gem5=PASS`、`verdict=AGREE_PASS`。注意 `--only` 只是“跑完后过滤行”，仍会执行整组 arch（含 10 个 umon + 全部 probe，实测 >5 min），**必须 background + 充裕 timeout + 日志/`*_EXIT`**；`--only` 下 driver rc=0（stale 检查不参与），全量下 driver rc=1（见第 7 条）。
+   - QEMU system：`DADAO_TEST_PROFILE=node python3 tools/testcases/arch/min_rom_probe_046t.py --only svc_elapsed --qemu <安装根二进制>` ⇒ rc=0（`exit=0x75`、`rd8=0`）。
+   - gem5 FS：同上但 `--qemu tools/testcases/parity/qemu_gem5_shim.py`，并设 `PARITY_GEM5=<gem5.opt>`、`PARITY_GEM5_CONFIG=<fs.py>`、`PARITY_GEM5_PROFILE=node`、`PARITY_GEM5_BOOTROM=<step5 bootrom>`、`PARITY_WORK_ROOT=<运行期临时目录>` ⇒ rc=0，`rd50` 非零。
+   - parity（**一次全量运行同时覆盖本条与第 7 条**）：`python3 tools/testcases/parity/run_parity.py --profiles node --scopes arch --qemu <qemu> --gem5 <gem5.opt> --gem5-config <fs.py> --work-dir <运行期临时目录> --json <json>` ⇒ JSON 中 `arch/probe/min_rom_probe_046t/svc_elapsed` 行 `qemu=PASS`、`gem5=PASS`、`verdict=AGREE_PASS`。注意 `--only` 只是“跑完后过滤行”，仍会执行整组 arch（含 10 个 umon + 全部 probe，实测 >5 min），**必须 background + 充裕 timeout + 日志/`*_EXIT`**；`--only` 下 driver rc=0（stale 检查不参与），全量下 driver rc=1（见第 7 条）。
 3. **单位一致性（独立 oracle，必须能失败）**：
-   - 证据脚本 `.work/evidence/GEM5-019t/**` 内的 `probe_elapsed.py`（**不入库**，`.work/` 已 ignored）用 046t 的只读 helper（`build_rom`/`sh_call`/`ld_o`/`set_addr`/`exit_seq`）构造一次性 Node ROM：`TICKFREQ` → 存 `rd8`；`ELAPSED` → `E1`；固定长度延迟（`T2-T1 >= 2000` ticks，现场记录指令数）；`ELAPSED` → `E2`；退出前把 `E1/E2/F` 放到 `rd50/51/52`。
+   - 证据脚本 `运行期证据（已清理，未归档）` 内的 `probe_elapsed.py`（**不入库**，`运行期临时目录` 已 ignored）用 046t 的只读 helper（`build_rom`/`sh_call`/`ld_o`/`set_addr`/`exit_seq`）构造一次性 Node ROM：`TICKFREQ` → 存 `rd8`；`ELAPSED` → `E1`；固定长度延迟（`T2-T1 >= 2000` ticks，现场记录指令数）；`ELAPSED` → `E2`；退出前把 `E1/E2/F` 放到 `rd50/51/52`。
    - 直接跑 gem5（保留 outdir 与 debug 日志）：
-     `gem5.opt --outdir <O> --debug-flags=Semihosting --debug-file=<D> .work/source/gem5/configs/dadao/fs.py --profile node --bootrom <rom> --semihost on --semihost-system native --trace-cpu <C>`
+     `gem5.opt --outdir <O> --debug-flags=Semihosting --debug-file=<D> gem5 配置脚本 fs.py --profile node --bootrom <rom> --semihost on --semihost-system native --trace-cpu <C>`
    - `F`（`rd52`）== `1000000000`。
    - 从 `<D>` 取两条 `DADAO semihosting call64: SYS_ELAPSED` 行首的 tick 前缀 `T1/T2`；从 gem5 启动横幅 `Global frequency set at <N> ticks per second` 取 `N`（并核 `src/sim/core.cc` 的 `_ticksPerSecond`）——**不得**用实现自己算出的值反推 `N`。
    - 断言逐样本恒等：`E1 == T1 * 10^9 // N`、`E2 == T2 * 10^9 // N`（Python 大整数）；`E2 > E1`、`T2 - T1 >= 2000`；由此 `E2-E1 == floor(T2*10^9/N) - floor(T1*10^9/N)`。若实测 `curTick()` 与 debug 前缀差 1 tick（CPU 推进时序），允许在实现中加一行 `DPRINTF` 打印 `curTick()` 及换算输入以取得精确值，**不得**放宽容差到掩盖 3.9× 偏差。
@@ -126,7 +126,7 @@
 7. **node/arch parity 无新差异**：全量 `--profiles node --scopes arch` 重跑；矩阵 JSON 中 `DIFF=0`、`GEM5_ONLY_FAIL=0`、`QEMU_ONLY_FAIL=0`，`svc_elapsed` 行为 `AGREE_PASS`，行数与 `AGREE_PASS`/`BLOCKED_SIDE`（icount N/A）计数由现场统计；**driver rc=1 仅由 `KNOWN_GEM5_BLOCKED` 7 条 stale 解释**（`tools/**` 另立任务清理），不得把它算成本任务绿，也不得因此改 tools。
 8. **范围与门控**：`git diff --name-only <base>` 只命中「文件范围」列出的文件；`check-component-changelog`、`check-milestones-fresh`、`check-tasks`、`check-no-residue`、`check-dirs`、`check-knowledge-refs` rc=0（或「本任务新增悬空 0 + 既有红逐条基线复现」，`GEM5-018t` 基线：krefs 72 悬空）；无 `*_tmp*`/`*.orig`/`*.rej`/`m5out/`/`__pycache__` 残留入库。
 9. **L1/L2**：`make check`（L1）rc=0，或「本任务红=0 + 既有红逐条基线复现」；`make check-modules`（L2）rc=0；若被共享 `install-host`/`build-builtins`/`gate.lock` 阻塞 ⇒ 记 **BLOCKED + 现场日志**（不得伪装 PASS）。
-10. **证据/注入/完成区**：`.work/evidence/GEM5-019t/**` 一键 `run.sh`（分 phase，逐项 `*_EXIT=<rc>`）+ `REPORT.md`（数字全部由脚本现场生成）；`run.sh --inject` 对下列反例**可达 FAIL**（`cp` 备份 + md5 对账还原，禁 `git checkout`/`restore`/`stash`），注入后重建、跑红、还原、重建、回绿；完成区 ≤30 行、审阅记录每轮 ≤40 行，状态 `待验收`。
+10. **证据/注入/完成区**：`运行期证据（已清理，未归档）` 一键 `run.sh`（分 phase，逐项 `*_EXIT=<rc>`）+ `REPORT.md`（数字全部由脚本现场生成）；`run.sh --inject` 对下列反例**可达 FAIL**（`cp` 备份 + md5 对账还原，禁 `git checkout`/`restore`/`stash`），注入后重建、跑红、还原、重建、回绿；完成区 ≤30 行、审阅记录每轮 ≤40 行，状态 `待验收`。
 11. **BLOCKED 纪律**：任何无法成立的项按「spec/资产引用 + 根因 + 现场日志 + 为何不是本任务缺陷」登记，并经用户裁定；不得自行跳过、改期望、改 tests/tools/QEMU、把 QEMU 红算 gem5 绿。
 
 ## 必测反例（每类必须有可达 FAIL，不是上限）
@@ -140,7 +140,7 @@
 
 ## 证据
 
-- `.work/evidence/GEM5-019t/**`：`run.sh`（phase：起点自检 → 补丁/门控 → 构建 → 服务表/静态 → 046t 全量 + 5 条 TICKFREQ → 单位探针 → parity 单 case + node/arch 全量 → B0–B7/SE → 协议/范围门控 → L1/L2），每 phase 落 `*_EXIT=<rc>`；日志 `.work/log/gem5/**`、`/tmp/opencode/GEM5-019t/**`。
+- `运行期证据（已清理，未归档）`：`run.sh`（phase：起点自检 → 补丁/门控 → 构建 → 服务表/静态 → 046t 全量 + 5 条 TICKFREQ → 单位探针 → parity 单 case + node/arch 全量 → B0–B7/SE → 协议/范围门控 → L1/L2），每 phase 落 `*_EXIT=<rc>`；日志 `运行期日志（已清理，未归档）`、`运行期临时目录`。
 - `REPORT.md`：数字由脚本现场生成（补丁数、`--dump-semihost-services` 键数、046t case 数、`E1/E2/F/T1/T2/N`、parity 行数与 verdict 计数、注入表「注入前 md5 / 注入 rc / 还原后 md5 / 回绿 rc」）；不得手写数字。
 - 引擎身份：gem5 `md5`、组件源 `git rev-parse HEAD`、`configs/dadao/fs.py` md5、启动横幅的频率行；QEMU `md5`/`--version`；bootrom md5；工具链（clang/lld/mc/objcopy）md5 现场采集。
 - 依赖缺失（`gem5.opt`、`scons`、parity 工具、bootrom、工具链）⇒ **rc=2 BLOCKED**，不得伪造 PASS。
@@ -156,7 +156,7 @@
 - **R1 构建成本**：改 `semihosting.{hh,cc}` 触发 gem5 重编（预估增量 2–10 分钟）；注入需 2 轮重建（红/绿），须申报耗时、落日志与 `*_EXIT`，用 background，禁 `setsid nohup` 后失联。
 - **R2 单位探针的 tick 对齐**：debug 前缀的 tick 与 `curTick()` 在 AtomicSimpleCPU 同一 `tick()` 内应相同；若现场差 1 tick，按第 3 条以 `DPRINTF` 打印 `curTick()` 取精确值，并在证据中说明；不得用实现的输出充当 oracle。
 - **R3 parity stale 注册表**：全量 driver rc=1 是预期（7 条 stale），`--only` 单 case 必须 rc=0；两者都不得记为「本任务失败/成功」的替代证据。
-- **R4 fresh worktree 构建**：`.work/build` 为空时 L2 会做全量 LLVM、`build_picolibc.py` 拒绝符号链接 rmtree；沿用 `GEM5-018t` 的复用策略（仅 gem5 本地构建，picolibc 本地重建），不得污染真实仓库。
+- **R4 fresh worktree 构建**：`运行期构建树` 为空时 L2 会做全量 LLVM、`build_picolibc.py` 拒绝符号链接 rmtree；沿用 `GEM5-018t` 的复用策略（仅 gem5 本地构建，picolibc 本地重建），不得污染真实仓库。
 - **R5 L1 既有红**：`check-knowledge-refs` 在主 worktree 有既有悬空（`GEM5-018t` 评审实测 72 条）；只允许「本任务新增 0 + 既有逐条复现」判 PASS。
 - **R6 语义边界**：若 engineer 认为「ELAPSED 起点应减 `timeBaseTick`」与 QEMU 不一致，须**先停**、留现场并交用户裁定（不得自行改语义）；本册按 QEMU `clock_start`（引擎起点）写判据。
 
@@ -164,7 +164,7 @@
 
 - 不改 QEMU / spec / contracts / tests / tools / Makefile / manifests / docs；不删 `run_parity.py` 的 stale `KNOWN_GEM5_BLOCKED`（另立 **tools** 任务）；不修 `tools/gem5/build_gem5.py` 的 `relative_to` 缺陷（另立 **INFRA** 任务）。
 - 不改 `SYS_CLOCK`/`SYS_TIME`/`SYS_SYNCCACHE` 等其它服务；不做 cfxha 重编号、M11 收尾、B7 数值差异（`math_test`）、SE 行为变更。
-- 不新增 `tools/**` 资产；单位探针是**证据脚本**（`.work/`，不入库）；若需长期保留，另立 `TESTCASES` 任务。
+- 不新增 `tools/**` 资产；单位探针是**证据脚本**（`运行期临时目录`，不入库）；若需长期保留，另立 `TESTCASES` 任务。
 
 ### 4. 参考对照（内容溯源，非执行必需）
 

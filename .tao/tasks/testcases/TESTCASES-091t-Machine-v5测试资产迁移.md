@@ -133,7 +133,7 @@
 11. Tiny `dadao-tiny.lds` 链接最小 ELF：`e_entry=0xffff_ffff_0000`，应用 `.text` 在 `0xffff_ff01_0100`；Node `dadao-node.lds` `e_entry=0x100000`。Tiny picolibc 用 `picolibc-tiny.ld` 静态链接成功（`_start`/`__bss_*`/`__stack` 布局），raw C BSS 测试 `bss_zero_e2e.c` 静态链接成功且 `minimal_crt0` 含 `bss_clear`。
 
 **S3 证据**
-12. `.work/evidence/TESTCASES-091t/*` 有 `run.sh`（一条命令重跑全部静态检查、逐项取真实 rc、无 `tee` 吞码）、日志、注入/还原记录（`cp`+`md5`）、profile 参数核对输出。完成区只写结论 + 证据路径。
+12. `运行期证据（已清理，未归档）` 有 `run.sh`（一条命令重跑全部静态检查、逐项取真实 rc、无 `tee` 吞码）、日志、注入/还原记录（`cp`+`md5`）、profile 参数核对输出。完成区只写结论 + 证据路径。
 
 **BLOCKED（不得声称通过，交后续任务）**
 - 真实 QEMU 执行类：`check-inst-smoke`、`check-arch-smoke`、`check-unit`、`check-tset-*-smoke`、`test-elf`、`test-codegen`、`picolibc-tests` 实跑及所有 `min_rom_probe_*` 实跑——依赖 `QEMU-079t`/`QEMU-080t` 的机器实现。
@@ -142,10 +142,10 @@
 
 ## 完成区
 
-**测试结果**：证据脚本 `.work/evidence/TESTCASES-091t/run.sh` **50/50 PASS, 0 FAIL**（真实输出 `run.log`；含注入/还原与 L1）。`validate_vectors --profile {tiny,node}` rc=0（validate 输出 16 data files / 716 cases；`tests/inst/**` 全量 1488 与迁移前一致；Tiny 构建 1484 / 跳过 4 条 node-only，Node 1445 / 跳过 43 条 tiny-only）；`validate_m5_vectors` **140 checks PASS**（`m5_perm_mask_cfxperm` 归 `target_cfxtrap_denied`）；`make check` rc=0；`check-tests-index` rc=0 且旧几何残留 0；`check-case-ledger` rc=0 且 `case-ledger.tsv` diff=0；`check-generator-sync` rc=0；`check-no-residue` rc=0；`compileall tools` rc=0；`check-interface` 80 PASS / 5 MANUAL（QEMU `qemu_*` 全为 `DEFERRED (QEMU-079)`）。
+**测试结果**：证据脚本 `运行期证据脚本（已清理，未归档）` **50/50 PASS, 0 FAIL**（真实输出 `run.log`；含注入/还原与 L1）。`validate_vectors --profile {tiny,node}` rc=0（validate 输出 16 data files / 716 cases；`tests/inst/**` 全量 1488 与迁移前一致；Tiny 构建 1484 / 跳过 4 条 node-only，Node 1445 / 跳过 43 条 tiny-only）；`validate_m5_vectors` **140 checks PASS**（`m5_perm_mask_cfxperm` 归 `target_cfxtrap_denied`）；`make check` rc=0；`check-tests-index` rc=0 且旧几何残留 0；`check-case-ledger` rc=0 且 `case-ledger.tsv` diff=0；`check-generator-sync` rc=0；`check-no-residue` rc=0；`compileall tools` rc=0；`check-interface` 80 PASS / 5 MANUAL（QEMU `qemu_*` 全为 `DEFERRED (QEMU-079)`）。
 **修改文件**：新增 `tests/shared/machine-profiles.yaml`、`tests/shared/asm/{machine,machine-tiny,machine-node}.inc`、`tests/shared/linker/{dadao-common,dadao-tiny,dadao-node}.lds`、`tests/shared/linker/picolibc-tiny.ld`、`tools/testcases/lib/machine_profile.py`、`tools/testcases/arch/gen_machine_inc.py`、`tests/unit/llvm/e2e/bss_zero_e2e.c`+`lit/bss_zero_e2e.test`；改 `tests/{arch/umon,arch.yaml,inst,shared,unit/llvm/e2e}` 地址/token/lds 引用、`tools/testcases/{lib,arch,unit,picolibc_tests,run_suite}`、`tools/infra/{check_interface_alignment,test_picolibc_smoke,build_musl}`、向量生成器（ctrl/mem/misc/atomics）与 `Makefile` 活跃路径。另改 `.tao/knowledge/milestones.md`（流水状态→待验收，L1 一致性连带）；完整清单见 `git status`。
-**验收结果**：Tiny BootROM 40 B（entry `0xffffffff0000`）；Node BootROM 4194304 B、复位窗口 `0x3f0000` 与 power flat 首字一致；`dadao-tiny.lds` 最小 ELF entry=`0xffffffff0000`、应用 `.text`=`0xffffff010100`，`dadao-node.lds` entry=`0x100000`；`run_m5_e2e --profile node --build-only` 10/10、`--profile tiny` 显式 rc=2；`run_codegen_e2e --build-only` 19/19；picolibc Tiny 静态链接成功且 `e_entry=0xffffffff0000`（`_start` ROM、`_picolibc_start` SRAM），`--profile node` rc=2；BSS C 静态链接并确认 `bss_clear`。证据：`.work/evidence/TESTCASES-091t/{run.sh,run.log,check_node_bootrom.py}`。
-**新发现/坑**：① profile 限定 case 共 47 条（Tiny 跳过 4 条 escape-node-only；Node 跳过 43 条 tiny-only）；② `min_rom_probe_*` 只做几何常量化+编译级迁移，真实字节序列仍需 QEMU-079/080 校准，未伪称通过；③ tset/llvm-ts 三个 `SCRIPTED_BASE` 在扫描白名单（qemu-user/SE，非 Machine-v5）；049t 仅白名单 `0xFFFF_0000_0000` 负例目标；④ 隔离 worktree 跑 L1 需把 `.work/{evidence,log}` 指到主工作树（`check-knowledge-refs` 历史引用），本次已用符号链接完成；⑤ `inner_cfx_mask_denied` 暂无可执行向量，已在 validator/任务书登记待后续向量；⑥ Tiny `dadao-tiny.lds` 对 legacy musl crt1 保留“_start 可在应用入口”的兼容分支（musl crt1 未迁移）。
+**验收结果**：Tiny BootROM 40 B（entry `0xffffffff0000`）；Node BootROM 4194304 B、复位窗口 `0x3f0000` 与 power flat 首字一致；`dadao-tiny.lds` 最小 ELF entry=`0xffffffff0000`、应用 `.text`=`0xffffff010100`，`dadao-node.lds` entry=`0x100000`；`run_m5_e2e --profile node --build-only` 10/10、`--profile tiny` 显式 rc=2；`run_codegen_e2e --build-only` 19/19；picolibc Tiny 静态链接成功且 `e_entry=0xffffffff0000`（`_start` ROM、`_picolibc_start` SRAM），`--profile node` rc=2；BSS C 静态链接并确认 `bss_clear`。证据：`运行期证据（已清理，未归档）`。
+**新发现/坑**：① profile 限定 case 共 47 条（Tiny 跳过 4 条 escape-node-only；Node 跳过 43 条 tiny-only）；② `min_rom_probe_*` 只做几何常量化+编译级迁移，真实字节序列仍需 QEMU-079/080 校准，未伪称通过；③ tset/llvm-ts 三个 `SCRIPTED_BASE` 在扫描白名单（qemu-user/SE，非 Machine-v5）；049t 仅白名单 `0xFFFF_0000_0000` 负例目标；④ 隔离 worktree 跑 L1 需把 `运行期临时目录` 指到主工作树（`check-knowledge-refs` 历史引用），本次已用符号链接完成；⑤ `inner_cfx_mask_denied` 暂无可执行向量，已在 validator/任务书登记待后续向量；⑥ Tiny `dadao-tiny.lds` 对 legacy musl crt1 保留“_start 可在应用入口”的兼容分支（musl crt1 未迁移）。
 **合入前返工（reviewer F1–F3）**：F1 `bss_probe` 改 `volatile __attribute__((used))`，新增 `check_bss.py` 断言 `.bss` 非空且 probe 落在区间；F2 Node `__heap_end` 修正为 `0x7ffef000`，`check-tests-index` 新增 `__heap_end == sp-0x1000` 门控（tiny `0xffffff7eef00` 同构）；F3 `components/{picolibc,musl}/README.md` 路径改 `minimal_crt0.s`/`dadao-tiny.lds`。证据 `run.sh` **50/50 PASS**。
 **遗留问题**：**BLOCKED**：`check-inst-smoke`/`check-arch-smoke`/`check-unit`/`check-tset-*-smoke`/`test-elf`/`test-codegen`/`picolibc-tests` 与全部 `min_rom_probe_*` 实跑依赖 QEMU-079t/080t；Node `entry=1 MiB`、`SP=2 GiB−64 KiB` 待 QEMU-080t 校准；tset/llvm-ts user/SE 地址常量不迁移；`inner_cfx_mask_denied` 向量待后续；legacy musl crt1 布局未迁移。
 **收尾结论**：reviewer 两轮均 `Accepted`（第 1 轮 25 行、第 2 轮 10 行原文保留，第 2 轮为 F1–F3 返工增量复核）；architect 显式 staging 提交本任务分支，未 merge/push。
@@ -162,7 +162,7 @@
 | F4 `machine_profile` 仓库根路径少一层；缺 profile 自洽校验 | ✅已修 | 4 层 dirname；校验 `ram_end`/复位窗口/entry/sp/exit 落在 RAM | `machine_profile.py` 正常打印两 profile |
 | F5 地址扫描会扫到自身 forbidden 表；asm 头漂移无门控 | ✅已修 | 排除扫描器自身；`check_profile_lds` 增 asm header 逐项核对；self-test 增注入⑭⑮⑯ | `--self-test` 17 case PASS |
 | F6 evidence 内联 heredoc 取 Python rc 方式错误（`reset_word` 为空） | ✅已修 | 抽出 `check_node_bootrom.py`，直接取 `$?` | Node 镜像断言 PASS |
-| F7 隔离 worktree 中 `make check` 因历史 `.work` 引用与 `.dadao` 工具链缺失失败 | ✅已处置 | 仅在 worktree 建 `.work/{evidence,log}`、`.dadao/*` 符号链接（不入库）；证据 run.sh 支持 `TC_BIN` | `make check` rc=0 |
+| F7 隔离 worktree 中 `make check` 因历史 `运行期临时目录` 引用与 `运行期安装根` 工具链缺失失败 | ✅已处置 | 仅在 worktree 建 `运行期临时目录`、`运行期安装根中的 *` 符号链接（不入库）；证据 run.sh 支持 `TC_BIN` | `make check` rc=0 |
 | F8 `check-milestones-fresh` 要求流水状态与任务书一致 | ✅已修 | `.tao/knowledge/milestones.md` 行改 `待验收`（连带、已在完成区披露） | 该门控 PASS |
 | F9 `validate_m5_vectors` 3 条 `m5_perm_mask_illi` 失败（rule→ILLI vs cause=CFXPERM） | ✅已修 | 向量改名 `m5_perm_mask_cfxperm`；规则拆 `target_cfxtrap_denied`⇒CFXPERM / `inner_cfx_mask_denied`⇒ILLI；coverage 改 `perm.cfxperm.mask` | `validate_m5_vectors` 140 checks PASS |
 | F12 lds 泛名 `dadao.lds` 与两份脚本漂移风险 | ✅已修 | 改 `dadao-tiny.lds`，公共段抽 `dadao-common.lds` + `INCLUDE`，驱动加 `-L` | `check-tests-index` common/lds 核对 PASS；min ELF entry 正确 |
@@ -171,18 +171,18 @@
 | F10 `min_rom_probe_*` 只做几何常量化，未验证新字节序列 | ⏸延后 | 动态执行依赖 QEMU-079/080；不伪造通过 | 全部登记 BLOCKED；compileall/扫描 PASS |
 | F11 `misc.yaml` 的 escape 非法序列曾把 Tiny 绝对 handler 地址写进 `sequence`，Node 构建会指向错误地址 | ✅已修 | 改为 `rb2rd rd22,rb0,1` + `add.si rd22,16` 的 IP 相对 handler，两 profile 共用同一序列 | misc tiny/node 均构建；`generate_misc --check` PASS |
 
-### 第 1 轮 reviewer 验收（2026-11-02，独立重跑；worktree=`/tmp/opencode/DADAO-v5/TESTCASES-091t`）
+### 第 1 轮 reviewer 验收（2026-11-02，独立重跑；worktree=`运行期临时目录`）
 
-**重跑记录（全部由 reviewer 自己执行，输出留 `/tmp/opencode/TESTCASES-091t-review/`）**
-- `bash .work/evidence/TESTCASES-091t/run.sh` → **rc=0**，`== RESULT: 49/49 PASS, 0 FAIL ==`（`run_stdout.txt` / `run.log:1045`）。
+**重跑记录（全部由 reviewer 自己执行，输出留 `运行期临时目录`）**
+- `运行期证据脚本（已清理，未归档）` → **rc=0**，`== RESULT: 49/49 PASS, 0 FAIL ==`（`run_stdout.txt` / `run.log:1045`）。
 - 逐项独立复跑 rc：`validate_vectors --profile tiny`=0、`--profile node`=0、`make validate-vectors`=0、`validate_m5_vectors`=0（`PASS (140 checks)`）、`check_tests_index`=0、`--self-test`=0、`gen_machine_inc --check`=0、`make check-case-ledger`=0、`git diff --exit-code tests/case-ledger.tsv`=0、`make check-generator-sync`=0、`make check-no-residue`=0、`python3 -m compileall -q tools`=0、`check_interface_alignment`=0（run.log：85 项 = 80 PASS / 0 FAIL / 5 MANUAL，QEMU 项全 `DEFERRED (QEMU-079)`）。
 - 条数现场统计：`tests/inst/**/*.yaml` 在 HEAD 与工作树均为 **1488**（逐文件零差异）；`profiles` 限定共 **47** 条（`[tiny]`=43、`[node]`=4 个 `escape_ciii_cfx`）。
 - **独立注入①**（与 engineer 不同）：`tests/shared/asm/machine-tiny.inc` SP 改 `0xffffff7ef000` → `check_tests_index`=**1**（`ASM HEADER DRIFT`）、`gen_machine_inc --check`=**1** → `cp`+`md5` 还原（`94dab35a…` `md5sum -c OK`）→ 两者回 **0**。
-- **独立注入②**（与 engineer 不同）：`tests/shared/crt0/minimal_crt0.s` `bss_clear`→`bss_wipe` → 同一 `run.sh` **rc=1、47/49**（`[FAIL] minimal_crt0 BSS clear`；同轮 `make check` 因并发写入 `.work/log/qemu/QEMU-081t-*.EXIT` 触发 `check-run-artifacts` A3 红，属环境干扰）→ `cp`+`md5` 还原（`87ab3360…` `md5sum -c OK`）→ 全量 `run.sh` 回 **rc=0 / 49/49**。
+- **独立注入②**（与 engineer 不同）：`tests/shared/crt0/minimal_crt0.s` `bss_clear`→`bss_wipe` → 同一 `run.sh` **rc=1、47/49**（`[FAIL] minimal_crt0 BSS clear`；同轮 `make check` 因并发写入 `运行期日志（已清理，未归档）` 触发 `check-run-artifacts` A3 红，属环境干扰）→ `cp`+`md5` 还原（`87ab3360…` `md5sum -c OK`）→ 全量 `run.sh` 回 **rc=0 / 49/49**。
 - 现场实测：Tiny raw 镜像前 `0x100` 全零、代码起于 `0x100`（`build_test_binary --profile tiny`）；`node` 案例在 tiny 下 `ValueError: applies only to profiles ['node']`；Tiny 链接 `e_entry=0xffffffff0000` 且应用 `.text=0xffffff010100`、Node `e_entry=0x100000`；picolibc 链接 `_start=0xffffffff0000`(ROM)/`_picolibc_start=0xffffff010100`(SRAM)/`__stack=0xffffff7eff00`；`bss.elf` 反汇编含 `bss_clear` 循环（rb2/rb3 取 `__bss_start/__bss_end`，不依赖 loader）。
 - 边界核：`run_m5_e2e --profile tiny`=**2**、`picolibc_tests`/`test_picolibc_smoke --profile node`=**2**（均显式 ERROR 文案，非静默跳过）；`validate_m5_vectors` 规则拆分 `target_cfxtrap_denied→CFXPERM`（源常量 `0x0080` 与 `spec/DADAO-12 §4` 的 `1<<7` 一致）、`inner_cfx_mask_denied→ILLI` 未入 `REQUIRED_COVERAGE`（无伪造）；活跃树无 `m5_perm_mask_illi` / `dadao.lds` / `codegen_crt0` 残留。
 - 快照对账：验收前/后 `git status --porcelain -uall` 均 **151 行**、`diff` 无差异；`spec/`、`contracts/`、`.tao/adr` 未改；无 `*_tmp*`/`*.orig`/`*.rej`；完成区 5 行（≤30）。
-- BLOCKED 属实：`.dadao/host-tools/bin/qemu-system-dadao` **不存在**（仅有 `lli`）⇒ `check-inst-smoke`/`check-arch-smoke`/`check-unit`/`check-tset-*-smoke`/`test-elf`/`test-codegen`/`picolibc-tests`/`min_rom_probe_*` 实跑不可执行；run.log 中 build-only 行标 `(build-only (no QEMU))`、`actual=?`，未伪称执行通过。
+- BLOCKED 属实：`安装根 host-tools 下的 qemu-system-dadao` **不存在**（仅有 `lli`）⇒ `check-inst-smoke`/`check-arch-smoke`/`check-unit`/`check-tset-*-smoke`/`test-elf`/`test-codegen`/`picolibc-tests`/`min_rom_probe_*` 实跑不可执行；run.log 中 build-only 行标 `(build-only (no QEMU))`、`actual=?`，未伪称执行通过。
 
 **约束核验**：S1.1–S1.8、S2.9–S2.12 全部在我自己的重跑下 rc=0；Makefile diff 仅路径同步 + Node arch bootrom（`step5/bootrom_step5.bin`）；case ID/`case-ledger.tsv` 无漂移；未新建平行测试树、`tests/` 根未新增 yaml；`.tao/archive/**` 历史引用未动。
 
@@ -193,7 +193,7 @@
 - F4 完成区把「1488 cases」归给 `validate_vectors` 输出，该脚本实印 `16 data files, 716 cases`（1488 = 全 `tests/inst/**` 条数，已现场核）。
 - F5 `gen_machine_inc.py` 硬编码 `HMON_BASE/SMON_BASE/PMEM_BASE`（不在 profile 表）；`check-tests-index` 未核 `EXIT_BLOCK/DUMP_BASE` 与 profile 一致。
 - F6 `docs/Process-09-测试组织规范.md`、`tests/{README,INVENTORY}.md`、`tools/qemu/generate_atomics_vectors.py` 等改动未逐项进「修改文件」（该区已声明“完整清单见 `git status`”）。
-- 环境提示：`.work/log` 符号链接主工作树，并发会话（QEMU-081t）写 `.work/log/qemu/*.EXIT` 会使本 worktree `make check` 的 `check-run-artifacts` 间歇红（我实测到 1 次），非本任务缺陷。
+- 环境提示：`运行期日志（已清理，未归档）` 符号链接主工作树，并发会话（QEMU-081t）写 `运行期日志（已清理，未归档）` 会使本 worktree `make check` 的 `check-run-artifacts` 间歇红（我实测到 1 次），非本任务缺陷。
 
 **判决：Accepted**（验收命令块在 reviewer 自己的重跑下全部通过、两次反例注入均 FAIL 且 `cp`+`md5` 还原后回绿；上列 findings 由 architect 终审时裁定是否随收尾修）
 
@@ -201,7 +201,7 @@
 
 | finding | 处置 | 改了什么 | 复验证据 |
 |---|---|---|---|
-| F1 `bss_probe` 被 `-Oz` 折叠，`.bss` 可能为空 | ✅已修 | `bss_probe` 改 `static volatile ... __attribute__((used))`；新增 `.work/evidence/TESTCASES-091t/check_bss.py` 断言 `bss_probe` 存在、`__bss_start < __bss_end` 且 probe 落在区间 | `llvm-nm` 见 `bss_probe=0xffffff010158`、`__bss_start=0xffffff010158`、`__bss_end=0xffffff0101d8`；`check_bss.py` rc=0；证据 `[PASS] bss probe non-empty (nm)` |
+| F1 `bss_probe` 被 `-Oz` 折叠，`.bss` 可能为空 | ✅已修 | `bss_probe` 改 `static volatile ... __attribute__((used))`；新增 `运行期证据（已清理，未归档）` 断言 `bss_probe` 存在、`__bss_start < __bss_end` 且 probe 落在区间 | `llvm-nm` 见 `bss_probe=0xffffff010158`、`__bss_start=0xffffff010158`、`__bss_end=0xffffff0101d8`；`check_bss.py` rc=0；证据 `[PASS] bss probe non-empty (nm)` |
 | F2 Node `__heap_end = 0x7fef000` 少一位 | ✅已修 | Node 改 `0x7ffef000`（SP `0x7fff0000` − `0x1000`）；`check_tests_index` 新增 `__heap_end == sp-0x1000` 门控，Tiny 同构核对 `0xffffff7eef00` | 篡改 Node 回 `0x7fef000` ⇒ `check-tests-index` rc=1（`__heap_end ... != sp-0x1000`），`cp`+`md5` 还原后 rc=0；证据 50/50 |
 | F3 components README 旧路径 | ✅已修 | `components/picolibc/README.md` 改 `minimal_crt0.s`/`dadao-tiny.lds`；`components/musl/README.md` 改 `dadao-tiny.lds` | 活跃树无 `codegen_crt0.s`/`dadao.lds` 旧引用（archive 除外） |
 
@@ -218,7 +218,7 @@
 - **F1**：`bss_zero_e2e.c` 现为 `static volatile unsigned long bss_probe[16] __attribute__((used))`；我自己 `clang -Oz`+`llvm-mc`+`ld.lld`（dadao-tiny.lds）→ rc=0/0/0，`llvm-nm`：`bss_probe=0xffffff010158`、`__bss_start=0xffffff010158`、`__bss_end=0xffffff0101d8` ⇒ `.bss` 0x80 非空、`start<end`、探针在区间内；`main` 反汇编确有 `ld.o` 读探针 + `ret` 分支（非恒真）；新增 `check_bss.py` 我实测**负例 rc=1**（用无 `bss_probe` 的旧 ELF：`missing symbols ['bss_probe']`）、**正例 rc=0**。
 - **F2**：`dadao-node.lds __heap_end=0x7ffef000` = SP `0x7fff0000`−`0x1000` ✓；`dadao-tiny.lds 0xffffff7eef00` = SP `0xffffff7eff00`−`0x1000` ✓（同构）；`check_tests_index` 新增校验（`expected_heap = prof.sp - 0x1000`）。**独立注入③**（本轮新反例）：Node 改回 `0x7fef000` ⇒ `check_tests_index` **rc=1**（`LDS: … __heap_end 0x7fef000 != sp-0x1000 0x7ffef000`，`结果: FAIL (1 项)`）⇒ `cp`+`md5`（`f3dd95f8…` `md5sum -c OK`）⇒ **rc=0**（`结果: PASS（241 条…）`）。`--self-test` rc=0（17 case；未新增 heap 专用注入用例，规则实证靠本注入，记为观察项）。
 - **F3**：`components/picolibc/README.md:36` → `tests/shared/{crt0/minimal_crt0.s,linker/dadao-tiny.lds}`、`components/musl/README.md:36` → `dadao-tiny.lds`；全活跃树（排除 `.tao/archive`、changelog）`codegen_crt0|dadao.lds` 命中 0。
-- **重跑（全部 reviewer 执行）**：`bash .work/evidence/TESTCASES-091t/run.sh` → **rc=0，`== RESULT: 50/50 PASS, 0 FAIL ==`**（23:56:40–23:58:43）；`make check` → **rc=0**（`repository checks (L1): PASS`，`check-interface` 85 项 = 80 PASS / 0 FAIL / 5 MANUAL）；`validate_m5_vectors` → **rc=0**（`PASS (140 checks)`）；`check_tests_index` → **rc=0**（`473 个文本文件，旧几何残留 0`、`241 条`）；`check_tests_index --self-test` → **rc=0**；`gen_machine_inc --check` → **rc=0**（两头 `OK`）；`make check-no-residue` → **rc=0**（`PASS`）。
+- **重跑（全部 reviewer 执行）**：`运行期证据脚本（已清理，未归档）` → **rc=0，`== RESULT: 50/50 PASS, 0 FAIL ==`**（23:56:40–23:58:43）；`make check` → **rc=0**（`repository checks (L1): PASS`，`check-interface` 85 项 = 80 PASS / 0 FAIL / 5 MANUAL）；`validate_m5_vectors` → **rc=0**（`PASS (140 checks)`）；`check_tests_index` → **rc=0**（`473 个文本文件，旧几何残留 0`、`241 条`）；`check_tests_index --self-test` → **rc=0**；`gen_machine_inc --check` → **rc=0**（两头 `OK`）；`make check-no-residue` → **rc=0**（`PASS`）。
 - **记录完整性**：第 1 轮 reviewer 验收节 **25 行原文逐段未改**（标题/两次注入 md5/判决均在）；`第 1 轮 engineer 自审`节 19 行未改；本轮结论为**追加**。完成区：`修改文件`/`验收结果`/`新发现/坑`/`遗留问题` 四行原文未动，`测试结果` 行被就地更新（`49/49→50/50`、1488/716 口径按 F4 修正），新增 `合入前返工` 一行 ⇒ 与真实输出一致，记 F4 已闭环；完成区仍 6 行（≤30）。
 - **快照对账**：本轮前/后 `git status --porcelain -uall` 均 **153 行**、`diff` 无差异（仅比上轮多 `components/{picolibc,musl}/README.md`）；注入文件 md5 还原校验通过；无 `*_tmp*`/`*.orig`/`*.rej`/`.bak` 残留；**未 commit**。
 

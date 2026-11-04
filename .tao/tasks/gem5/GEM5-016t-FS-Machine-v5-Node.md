@@ -6,7 +6,7 @@
 **状态**：已验证
 
 ## 执行环境
-**执行环境**：本地（仓库根；从 `master` 建独立 `git worktree` + 分支 `GEM5-016t`；组件源树 `.work/source/gem5` 内收敛为 base+1 个 dadao 提交，不 merge、不 push）。开工前必须确认 `GEM5-015t` 已 `已验证` 且已合入 `master`；否则本任务 **BLOCKED**，不得在未落地的 Tiny FS 上另起一套并行 FS。
+**执行环境**：本地（仓库根；从 `master` 建独立 `git worktree` + 分支 `GEM5-016t`；gem5 组件源树内收敛为 base+1 个 dadao 提交，不 merge、不 push）。开工前必须确认 `GEM5-015t` 已 `已验证` 且已合入 `master`；否则本任务 **BLOCKED**，不得在未落地的 Tiny FS 上另起一套并行 FS。
 
 ## 用户已定口径（2026-11-04，主会话转达）
 
@@ -29,7 +29,7 @@
 4. **cfx 寄存器文件/监视器/权限/DMA 未实现**：Node 的 power/hmon 代码依赖 `cfx2rc/cfx2rd` 访问 cfx3/cfx4/cfx17/cfx63 的 cg3/cg5/cg8/cg9/cg12/cg15 寄存器；hmon 还要用 cfx_pmem DMA 把页表模板写到 PA 0，再开 PTW、设 `cfx_umon` 向量。arch 套件还覆盖 cfx0/1/2/3/63 寄存器面、cg7 描述符、deleg、cfx15/18 时间/hart、异步中断仲裁。现有 B6 只有指令级 `trap`/`escape`/`cfx2rd`/`cfx2rc` 的骨架，无真实寄存器文件与 monitor 进入/退出。
 5. **QEMU Node 已提供同模式参考且测试资产已收口**：`QEMU-080t` 实现 4 MiB BootROM、2 GiB RAM、hmon/PTW/hypv、identity 4×512 MiB 超页、DMA；`TESTCASES-092t`/`093t`/`094t` 已把 Node 全量 `inst`（`968 = 963 passed / 5 deferred / skipped_profile=44`）、`arch-smoke`（10/10）、13 个 L3 探针与 `run_m5_e2e` 收口到可执行/可判定状态。本任务不改 QEMU/测试，只在 gem5 侧重做同模式机器。
 6. **冲突已登记**：`spec/Machine-v5 §6` 写 L1 `0x1000`–`0x1003` / VA `0x0200_0000_0000`–`0x0200_7fff_ffff`；测试资产 `hmon.S` 与 QEMU-080t 按用户口径落地 **identity**（L1 0–3、VA=PA）。`ISS-340` 已登记该冲突，本任务沿用 identity、**不改 spec**（见「说明 §1」）。
-7. **可构建基线**：`.work/source/gem5` = gem5 `v25.1.0.1` / `c8222cc6` + 1 个 dadao 补丁提交；`build/DADAO/gem5.opt` 可增量。Node 新增 SimObject 会重生成 `params/**`，预计增量重编 **15–40 分钟**；2 GiB `SimpleMemory` 会增加宿主内存占用，需在证据脚本中申报。
+7. **可构建基线**：`gem5 组件源树` = gem5 `v25.1.0.1` / `c8222cc6` + 1 个 dadao 补丁提交；`build/DADAO/gem5.opt` 可增量。Node 新增 SimObject 会重生成 `params/**`，预计增量重编 **15–40 分钟**；2 GiB `SimpleMemory` 会增加宿主内存占用，需在证据脚本中申报。
 
 ## 目标
 
@@ -113,11 +113,11 @@
 - `System(mem_mode='atomic')`、`SystemXBar`、多个 `SimpleMemory`（BootROM 4 MiB、PA RAM 2 GiB、hmon/smon/pmem 各 64 KiB），`range` 精确；`system.mem_ranges` 同步；`system.system_port` → `membus.cpu_side_ports`；`system.workload = DadaoFsWorkload(profile='node', ...)`；`cpu.createInterruptController()`、`cpu.createThreads()`；`Root(full_system=True, system=system)`。
 - **无** cache、无平台设备（UART/RTC/CLINT/PCI）、无 GDB、无 checkpoint、无 multi-core、无 KVM；`mem_mode=atomic` 唯一模式；2 GiB `SimpleMemory` 的宿主内存占用须在证据中申报。
 - `configs/dadao/fs.py` 扩展 CLI：`--profile {tiny,node}`（默认 tiny，保持 015 兼容）、`--bootrom <file>`、`--kernel <file>`、`--semihost {on,off}`、`--semihost-argv`/`--semihost-arg`、`--semihost-system {deny,native}`、`--console-out <path>`、`--max-ticks <n>`、`--dump-geometry`、`--dump-semihost-services`、`--trace-cpu <path>`（输出 QEMU `-d cpu` 子集 `PC:`/`MODE:` 块，供 `run_m5_e2e` 的 bootrom 观测）、`--outdir`（gem5 既有）。
-- 退出：`exit_event = m5.simulate()`；`getCause() == "exiting with last active thread context"` ⇒ `sys.exit(exit_event.getCode() & 0xff)`；否则打印 cause 并 `sys.exit(125)`。**禁**在仓库内落 `m5out/`；证据统一 `--outdir /tmp/opencode/GEM5-016t/**`。
+- 退出：`exit_event = m5.simulate()`；`getCause() == "exiting with last active thread context"` ⇒ `sys.exit(exit_event.getCode() & 0xff)`；否则打印 cause 并 `sys.exit(125)`。**禁**在仓库内落 `m5out/`；证据统一 `--outdir <运行期临时目录>`。
 
 ### 7. 同模式对照驱动（证据层，不入 git）
 
-- 提供 **QEMU→gem5 参数映射 shim**（`.work/evidence/GEM5-016t/**` 或 `/tmp/opencode/GEM5-016t/**`，**不进仓库**），接受并只映射：
+- 提供 **QEMU→gem5 参数映射 shim**（`运行期证据（已清理，未归档）` 或 `运行期临时目录`，**不进仓库**），接受并只映射：
   - `-M dadao-m1` / `-machine dadao-m1[,profile=node][,bootrom-image=…]`
   - `-bios <file>`（仅 Tiny/legacy；Node 4 MiB 用 `bootrom-image`）
   - `-kernel <file>`、`-semihosting-config enable=on,target=native[,arg=…][,chardev=…]`
@@ -145,7 +145,7 @@
 - 修改：`src/arch/dadao/SConscript`（`Source()`/`SimObject()`）、`isa.hh`/`isa.cc`（Node reset/mode/cfx 状态/`inUserMode()`）、`faults.hh`（Node fault/页表异常类）、`inst.cc`（`trapTo`/`escapeFrom`/`mapExecFault` 的 Node 分支；SE/Tiny 分支逐字保留）、`DadaoCPU.py`/`DadaoMMU.py`/`DadaoTlb.py`（仅新增 Node 子类，SE 类不改）。
 - `components/gem5/series`（+N，字典序）、`changelog.md`（`## M11` 追加 `- **<日期> GEM5-016t**` + 摘要缩进行 + `  - 执行者：engineer`）、`README.md`（Node FS 段：几何/启动链/CLI/边界/已知限制）。
 
-**仓库侧**：本任务书、`.tao/knowledge/milestones.md`。**不改**：见「用户已定口径」硬范围；证据/临时物只落 `.work/evidence/GEM5-016t/**`、`.work/log/gem5/**`、`/tmp/opencode/GEM5-016t/**`（均不入 git）。
+**仓库侧**：本任务书、`.tao/knowledge/milestones.md`。**不改**：见「用户已定口径」硬范围；证据/临时物只落 `运行期证据（已清理，未归档）`、`运行期日志（已清理，未归档）`、`运行期临时目录`（均不入 git）。
 
 ## 验收标准
 
@@ -160,7 +160,7 @@
 9. **Embench（system E2E）**：`run_embench_e2e.py --profile node --opt O0,O2 --qemu <gem5-shim>`（与 QEMU Node wrapper 同命令）全部 benchmark 的 guest 退出码 0（22 × 2 档，现场统计）；`--inject` 自检返回 **1**（证明判据可失败）；不得用 `check-tset-embench-smoke` 的 qemu-user 结果代替 Node system E2E。
 10. **SE 与 B0–B7 零退化**：`configs/dadao/se.py` 的 `hello`/`fail` fixture rc/stdout 与 `GEM5-014t` 基线一致；SE 源文件 diff 为空/语义不变；`make check-gem5-decode` rc=0（264/264、388/388、28/28、2/2、failures 0）；`python3 tools/gem5/check_converge.py` rc=0 且 B1–B7 计数不变（`[FAIL] 0`）；`GEM5-015t` Tiny 基线不退化。
 11. **L1/L2/隔离/台账**：`make check`（L1）rc=0 或「本任务红 = 0」且逐条基线复现；L2（`make check-modules`）rc=0，若被共享 `install-host`/gate.lock 阻塞则记 BLOCKED + 现场（不得伪装 PASS）；`git diff --name-only <base>` 只命中 `components/gem5/**` + 本任务书 + `milestones.md`；`check-component-changelog`/`check-milestones-fresh`/`check-tasks`/`check-no-residue` rc=0；无 `m5out/`、无 `*_tmp*`/`*.orig`/`*.rej`。
-12. **证据/注入/完成区**：`.work/evidence/GEM5-016t/**` 一键脚本（`run.sh`、`run.EXIT`、`REPORT.md`、日志）+ `run.sh --inject` 覆盖「必测反例」每类「注入 → FAIL（rc≠0/错误行）→ `cp` 备份 + md5 对账还原 → 回绿」；完成区 ≤30 行；状态 `待验收`。
+12. **证据/注入/完成区**：`运行期证据（已清理，未归档）` 一键脚本（`run.sh`、`run.EXIT`、`REPORT.md`、日志）+ `run.sh --inject` 覆盖「必测反例」每类「注入 → FAIL（rc≠0/错误行）→ `cp` 备份 + md5 对账还原 → 回绿」；完成区 ≤30 行；状态 `待验收`。
 13. **BLOCKED 纪律**：任何无法在 gem5 Node 上成立的用例/能力，必须给出「spec 引用 + 根因 + 现场日志 + 为什么不是实现缺陷」，登记 BLOCKED 并经用户明确裁定；不得自行跳过、改期望、改测试资产或把 QEMU 红算作 gem5 绿。
 
 ## 必测反例（每类必须有可达 FAIL，不是上限）
@@ -180,10 +180,10 @@
 
 ## 证据
 
-- `.work/evidence/GEM5-016t/**`：`run.sh`（构建 → 几何/寄存器静态比对 → BootROM/raw/ELF fixtures → `INTEG-046t` boot chain → PTW/TLB/DMA/cfx/arch smoke + 13 probes → `inst` Node 全量 + QEMU 基线逐 case 对照 → embench O0/O2 + `--inject` → SE/B0–B7 → L1/L2 → 隔离），逐项落 `*_EXIT=<rc>`；日志 `.work/log/gem5/**` 与 `/tmp/opencode/GEM5-016t/**`（gem5 `--outdir` 只落此处）。
+- `运行期证据（已清理，未归档）`：`run.sh`（构建 → 几何/寄存器静态比对 → BootROM/raw/ELF fixtures → `INTEG-046t` boot chain → PTW/TLB/DMA/cfx/arch smoke + 13 probes → `inst` Node 全量 + QEMU 基线逐 case 对照 → embench O0/O2 + `--inject` → SE/B0–B7 → L1/L2 → 隔离），逐项落 `*_EXIT=<rc>`；日志 `运行期日志（已清理，未归档）` 与 `运行期临时目录`（gem5 `--outdir` 只落此处）。
 - `REPORT.md`：**数字全部脚本现场生成**（补丁数、sim-object 列表、几何 dump、bootrom 大小边界、PTW/PTE/SPF 观测、arch 逐 check、inst 968 口径、embench 分类、B0–B7 计数、注入表「注入前 md5 / 注入 rc / 还原后 md5 / 回绿 rc」）。
 - **QEMU 基线**：开工时 `master` 的 `qemu-system-dadao` md5 + `check-inst`/`check-arch-smoke`/13 探针/`run_m5_e2e`/embench 的真实 rc 与逐 case 结果；不得用旧二进制/旧日志冒充。
-- **工具链/依赖缺失**（`.dadao/cross-toolchain/bin/{clang,ld.lld,llvm-mc,llvm-objcopy,qemu-system-dadao}`、`.work/source/{gem5,embench-iot}`、`scons`）⇒ **rc=2 BLOCKED**，不得伪造 PASS。
+- **工具链/依赖缺失**（`安装根 bin 下的 {clang,ld.lld,llvm-mc,llvm-objcopy,qemu-system-dadao}`、`组件源树 {gem5,embench-iot}`、`scons`）⇒ **rc=2 BLOCKED**，不得伪造 PASS。
 
 ## 说明（冲突登记 / 风险 / 非目标 / 溯源）
 
@@ -221,12 +221,12 @@
 
 ## 完成区
 
-**测试结果**：`.work/evidence/GEM5-016t/run.sh` 全部 phase 分三批跑（early=meta/geometry/bootrom/reset 16/16、full=ptw/cfx/arch/inst/embench/se_tiny/decode 21/21、l1l2 2/2），每批 `run.EXIT=0`（详见 `REPORT.md` 与 `.work/log/gem5/GEM5-016t-*.log`）：arch smoke **10/10**；13 个 ARCH_CFX_PROBES 全绿（integ039t 37/37、integ040t 34/34、integ042t 25/25、integ046t 16/16、044t/045t/049t/integ044t/048t/049t RESULT PASS、integ047t 6/6、integ050t 16/16、integ051t 14/14）；inst Node **968=963 passed/5 deferred/skipped_profile=44**（与 QEMU 基线同口径，0 failed）；Embench **38/38**（O0/O2，19 bench×2）；Tiny 子集 44/44；SE hello→42 / fail→7；decode 264/264+388/388+28/28+2/2、converge 264/264+1848/1848；几何 17 项与 `machine-profiles.yaml node` 逐项相等；BootROM 4 MiB±1 字节/±1 页、无 bootrom、`--bios` 全 rc≠0 且报实际/期望；复位 10 项实测（rb0=reset_pc、rb1/rd1/ra0=0、rf0=0x7FF8…、mode=3/cfxcode=63/ptbr=0/ptw=0）；未写 RAM 读回 0。注入 12 类（`run.sh --inject`）：10 类首轮通过；`inj_identity_spf`/`inj_reserved_cfx2rd` 的**注入器**修正后重跑通过（`GEM5-016t-inject-rerun.log`）；每类均「注入红 → `cp`+md5 还原 → 回绿」。
-**修改文件**：`components/gem5/patches/**`（新增 8 + 修改 10；`series` 97）、`components/gem5/{series,changelog.md,README.md}`、`.tao/tasks/gem5/GEM5-016t-FS-Machine-v5-Node.md`、`.tao/knowledge/milestones.md`；证据/临时物在 `.work/evidence/GEM5-016t/**`、`.work/log/gem5/**`、`/tmp/opencode/GEM5-016t/**`（不入 git）。组件源树 `.work/source/gem5` 收敛为 base+1（`f86efab`），clean。
-**验收结果**：`check-patch-tree` rc=0（302 patches 全组件）、`check-source-state` gem5 `count=1 clean=True`、`make build-gem5` rc=0、`gem5.opt --help` rc=0、`--list-sim-objects`（200 列 pty）含 `DadaoNodeTlb`/`DadaoNodeMMU`（Python 别名由 live config 导入 + Node 实跑为等价证据）；`--dump-geometry` 17 项。L1 `make -k check` rc=2，唯一红 = `check-knowledge-refs`（157 条其它任务 `.work/**` 悬空；隔离 worktree 无其产物；**本任务悬空 0**）；L2 `check-modules` **BLOCKED**（隔离 worktree 无 `.work/build/llvm`/install-host，会触发 LLVM 全量重建；已在证据中登记，不伪 PASS；等价功能门控 inst/arch/探针已用 shim 直接跑）。`git diff --name-only master` 只命中 `components/gem5/**` + 本册 + `milestones.md`；无 `m5out/`、无 `*_tmp*`/`*.orig`/`*.rej`、无 `.inject-backup` 残留。
-**新发现/坑**：① gem5 全局 tick = 1 ps：cfx_time/DMA/timer 的 ns 必须 `(curTick-base)/1000`，事件 deadline 要 ×1000（首轮 DMA 用了 1000 tick=1 ns 导致 BUSY 不可观测）；② `-d cpu` 兼容 trace 必须按 QEMU TB 边界发（首条/控制转移后/PC 非顺序/异常强制），逐指令发会让探针的「最后一个 block」看到 exit_seq 覆盖后的 rd8；③ gem5 `--list-sim-objects` 在非 tty 下崩（ioctl），需 `script`+`stty cols`；④ 隔离 worktree 的 `.work/source` 是 symlink，`build_gem5.py` 末尾建 `.work/build/gem5` 的相对 symlink 会 ValueError ⇒ 预建目录规避（env 修正，不改仓）；⑤ PTW 的 PTE 可驻 BootROM（只读）：读要允许、A/D 回写失败 ⇒ PTWERR（否则 fatal）；⑥ `trap`/`escape`/`cfx2rd`/`cfx2rc` 的 B6 静态检查（保留 cfxha ⇒ Illegal）与 QEMU 的「进当前 monitor」不同，Node 必须在 `inst.cc` 先拦截这 4 个 id；⑦ cg7/`GVER`/`GCM` 探针字段 QEMU 也不产出（探针未用，无需伪造）；⑧ 组件源树 `.work/source/gem5` 是**跨 worktree 共享**的：本任务 amend 后 HEAD=`f86efab`，主工作树的旧补丁集在合并前与之不匹配（`check-patch-tree` 在别处会红）⇒ 合并前勿在其它 worktree 跑 gem5 门控。
-**遗留问题**：① L1 `check-knowledge-refs` 157 条其它任务 `.work/**` 悬空 = 隔离 worktree 基线（GEM5-015t 同类 150 条），本任务 0 条；② L2 `check-modules` BLOCKED = 隔离 worktree 无 `.work/build/llvm`/install-host（env），未执行全量 LLVM 重建；③ `spec/Machine-v5 §6` 的 `0x0200...` 与 identity 口径冲突仍按 `ISS-340` 登记、本任务不改 spec；④ `fp` 数值类既有 B7 差异（GEM5-015t picolibc math_test）与本任务无关，Node 不跑 picolibc。
-**收口结论**：reviewer 第 1 轮 **Accepted**（本人重跑三批 `run.EXIT=0` + `--phase bootchain` 16/16 + QEMU 五元组/13 探针/arch 逐个同数 + 12 类注入与独立几何注入均「注入红 → `cp`+md5 还原 → 回绿」），`**状态**` 置 `已验证`，`milestones.md` 同步。F1–F6 全为文档/证据级、不返工（逐条见审阅记录「收口」）。**未伪称全绿**：L2 `check-modules` 仍 **BLOCKED**（隔离 worktree 无 `.work/build/llvm`/install-host），L1 唯一红 `check-knowledge-refs`（157/153 条均属其它任务、本任务 0）。
+**测试结果**：`运行期证据脚本（已清理，未归档）` 全部 phase 分三批跑（early=meta/geometry/bootrom/reset 16/16、full=ptw/cfx/arch/inst/embench/se_tiny/decode 21/21、l1l2 2/2），每批 `run.EXIT=0`（详见 `REPORT.md` 与 `运行期日志（已清理，未归档）`）：arch smoke **10/10**；13 个 ARCH_CFX_PROBES 全绿（integ039t 37/37、integ040t 34/34、integ042t 25/25、integ046t 16/16、044t/045t/049t/integ044t/048t/049t RESULT PASS、integ047t 6/6、integ050t 16/16、integ051t 14/14）；inst Node **968=963 passed/5 deferred/skipped_profile=44**（与 QEMU 基线同口径，0 failed）；Embench **38/38**（O0/O2，19 bench×2）；Tiny 子集 44/44；SE hello→42 / fail→7；decode 264/264+388/388+28/28+2/2、converge 264/264+1848/1848；几何 17 项与 `machine-profiles.yaml node` 逐项相等；BootROM 4 MiB±1 字节/±1 页、无 bootrom、`--bios` 全 rc≠0 且报实际/期望；复位 10 项实测（rb0=reset_pc、rb1/rd1/ra0=0、rf0=0x7FF8…、mode=3/cfxcode=63/ptbr=0/ptw=0）；未写 RAM 读回 0。注入 12 类（`run.sh --inject`）：10 类首轮通过；`inj_identity_spf`/`inj_reserved_cfx2rd` 的**注入器**修正后重跑通过（`GEM5-016t-inject-rerun.log`）；每类均「注入红 → `cp`+md5 还原 → 回绿」。
+**修改文件**：`components/gem5/patches/**`（新增 8 + 修改 10；`series` 97）、`components/gem5/{series,changelog.md,README.md}`、`.tao/tasks/gem5/GEM5-016t-FS-Machine-v5-Node.md`、`.tao/knowledge/milestones.md`；证据/临时物在 `运行期证据（已清理，未归档）`、`运行期日志（已清理，未归档）`、`运行期临时目录`（不入 git）。gem5 组件源树收敛为 base+1（`f86efab`），clean。
+**验收结果**：`check-patch-tree` rc=0（302 patches 全组件）、`check-source-state` gem5 `count=1 clean=True`、`make build-gem5` rc=0、`gem5.opt --help` rc=0、`--list-sim-objects`（200 列 pty）含 `DadaoNodeTlb`/`DadaoNodeMMU`（Python 别名由 live config 导入 + Node 实跑为等价证据）；`--dump-geometry` 17 项。L1 `make -k check` rc=2，唯一红 = `check-knowledge-refs`（157 条其它任务 `运行期临时目录` 悬空；隔离 worktree 无其产物；**本任务悬空 0**）；L2 `check-modules` **BLOCKED**（隔离 worktree 无 `运行期 LLVM 构建树`/install-host，会触发 LLVM 全量重建；已在证据中登记，不伪 PASS；等价功能门控 inst/arch/探针已用 shim 直接跑）。`git diff --name-only master` 只命中 `components/gem5/**` + 本册 + `milestones.md`；无 `m5out/`、无 `*_tmp*`/`*.orig`/`*.rej`、无 `.inject-backup` 残留。
+**新发现/坑**：① gem5 全局 tick = 1 ps：cfx_time/DMA/timer 的 ns 必须 `(curTick-base)/1000`，事件 deadline 要 ×1000（首轮 DMA 用了 1000 tick=1 ns 导致 BUSY 不可观测）；② `-d cpu` 兼容 trace 必须按 QEMU TB 边界发（首条/控制转移后/PC 非顺序/异常强制），逐指令发会让探针的「最后一个 block」看到 exit_seq 覆盖后的 rd8；③ gem5 `--list-sim-objects` 在非 tty 下崩（ioctl），需 `script`+`stty cols`；④ 隔离 worktree 的 `组件源树` 是 symlink，`build_gem5.py` 末尾建 `运行期 gem5 构建树` 的相对 symlink 会 ValueError ⇒ 预建目录规避（env 修正，不改仓）；⑤ PTW 的 PTE 可驻 BootROM（只读）：读要允许、A/D 回写失败 ⇒ PTWERR（否则 fatal）；⑥ `trap`/`escape`/`cfx2rd`/`cfx2rc` 的 B6 静态检查（保留 cfxha ⇒ Illegal）与 QEMU 的「进当前 monitor」不同，Node 必须在 `inst.cc` 先拦截这 4 个 id；⑦ cg7/`GVER`/`GCM` 探针字段 QEMU 也不产出（探针未用，无需伪造）；⑧ gem5 组件源树是**跨 worktree 共享**的：本任务 amend 后 HEAD=`f86efab`，主工作树的旧补丁集在合并前与之不匹配（`check-patch-tree` 在别处会红）⇒ 合并前勿在其它 worktree 跑 gem5 门控。
+**遗留问题**：① L1 `check-knowledge-refs` 157 条其它任务 `运行期临时目录` 悬空 = 隔离 worktree 基线（GEM5-015t 同类 150 条），本任务 0 条；② L2 `check-modules` BLOCKED = 隔离 worktree 无 `运行期 LLVM 构建树`/install-host（env），未执行全量 LLVM 重建；③ `spec/Machine-v5 §6` 的 `0x0200...` 与 identity 口径冲突仍按 `ISS-340` 登记、本任务不改 spec；④ `fp` 数值类既有 B7 差异（GEM5-015t picolibc math_test）与本任务无关，Node 不跑 picolibc。
+**收口结论**：reviewer 第 1 轮 **Accepted**（本人重跑三批 `run.EXIT=0` + `--phase bootchain` 16/16 + QEMU 五元组/13 探针/arch 逐个同数 + 12 类注入与独立几何注入均「注入红 → `cp`+md5 还原 → 回绿」），`**状态**` 置 `已验证`，`milestones.md` 同步。F1–F6 全为文档/证据级、不返工（逐条见审阅记录「收口」）。**未伪称全绿**：L2 `check-modules` 仍 **BLOCKED**（隔离 worktree 无 `运行期 LLVM 构建树`/install-host），L1 唯一红 `check-knowledge-refs`（157/153 条均属其它任务、本任务 0）。
 
 ## 审阅记录
 
@@ -245,23 +245,23 @@
 
 - 判决：上述均已复验；未发现未修 finding；已标 `待验收`。
 
-#### 第 1 轮 reviewer 验收（2026-11-04；判决全部基于本人命令输出，日志留 `.work/log/gem5/GEM5-016t-reviewer-*`）
+#### 第 1 轮 reviewer 验收（2026-11-04；判决全部基于本人命令输出，日志留 `运行期日志（已清理，未归档）`）
 
 **重跑记录（rc = 真实退出码）**
-1. `./.work/evidence/GEM5-016t/run.sh --phase meta --phase geometry --phase bootrom --phase reset` → `run.EXIT=0`，SUMMARY **16/16**（patch_tree / source_state / build_gem5 / gem5_help / sim_objects_node=DadaoNodeTlb,DadaoNodeMMU / python_aliases / 几何 17 项 / 4 MiB ±1 字节 ±1 页 / `--bios` / 无 bootrom / reset 10 项 / RAM 零初值 全 rc=0）。
+1. `运行期证据脚本（已清理，未归档） --phase meta --phase geometry --phase bootrom --phase reset` → `run.EXIT=0`，SUMMARY **16/16**（patch_tree / source_state / build_gem5 / gem5_help / sim_objects_node=DadaoNodeTlb,DadaoNodeMMU / python_aliases / 几何 17 项 / 4 MiB ±1 字节 ±1 页 / `--bios` / 无 bootrom / reset 10 项 / RAM 零初值 全 rc=0）。
 2. `run.sh --phase ptw --phase cfx --phase arch --phase inst --phase embench --phase se_tiny --phase decode` → `run.EXIT=0`，**21/21**：integ039t 37/37、integ040t 34/34、integ042t 25/25、044t/045t/049t/integ044t/integ048t/integ049t `RESULT: PASS`、integ047t 6/6、integ050t 16/16、integ051t 14/14；arch `Results: 10/10 passed`；inst `968 total, 963 passed, 0 failed, 5 deferred, skipped_profile=44`；embench `38/38`（源树现场 19 benchmark×2）+ `--inject` `INJECT: PASS`；SE rc=42/7 + hello；tiny `44 total, 44 passed, 0 failed`；decode/converge rc=0。
 3. `run.sh --phase l1 --phase l2` → `run.EXIT=0`，**2/2**：`make -k check` **rc=2**、唯一红 `check-knowledge-refs`；L2 `clang_present=False` → BLOCKED。
 4. `run.sh --phase bootchain` → `run.EXIT=0`，integ046t **16/16**（三批未含此项，本人补跑）。
 5. `make check-inst`（真 QEMU，本人跑）rc=0：node `968/963/0/5/skipped=44`、tiny `44/44`；13 探针 × 真 QEMU 逐个同数；arch 10 向量 × 真 QEMU `Results: 10/10 passed, 0 failed` ⇒ **QEMU 五元组与通过集合 ⊆ gem5**。
-6. 本人另跑 `make -k check` rc=2：唯一红 `check-knowledge-refs`，悬空 **153**（本人先跑 `make check-inst` 落了 4 个 `.work/log/qemu/check-inst*.log`，故少于开工时点的 157；逐条列出**全部属其它任务、`GEM5-016t` 悬空 0**）。
+6. 本人另跑 `make -k check` rc=2：唯一红 `check-knowledge-refs`，悬空 **153**（本人先跑 `make check-inst` 落了 4 个 `运行期日志（已清理，未归档）`，故少于开工时点的 157；逐条列出**全部属其它任务、`GEM5-016t` 悬空 0**）。
 7. `run.sh --inject`（12 类，本人重跑）→ `run.EXIT=0`：每类 `:injected` 目标检查 FAIL（rc=1 / `0/1 passed` / rc=135 / rc=137 / rc=-6），`:restored` `md5_same=True` 且回绿；跑前跑后 82 个源文件 md5 全同、无 `.inject-backup`。
 8. **独立注入（不在 engineer 12 类内）**：几何常量漂移（node `sp` 0x7fff0000→0x7ffe0000，临时树副本 + `GEM5_CONFIG`）：注入 → `run.sh --phase geometry --phase bootrom --phase reset` **rc=1**（`CHECK geometry_matches_profile: … actual=mismatch=sp rc=1`，9/10）；还原 → **rc=0 10/10**；原 `fs.py` md5 前后 `952b78c49550f8940833f1f32243c2c0` 未变。
 9. 证据脚本未覆盖项由本人补验：ELF 正例 rc=0；ET_DYN / 非大端 / PT_INTERP / ROM 段 / 越界段 / `e_flags&0xff≠1` 均 **rc=1** 且打印具体项（`e_entry=复位 PC` 被前序 `outside PA RAM` 拦下，仍 rc=1 + 具体值）；复位首块 **256 个 RD/RB/RF/RA** 全符（rb0=`0xffff_ffff_0000`、rf0=`0x7FF8_0000_7FC0_0000`、其余 0）、mode=3/cfxcode=63/ptbr=0/ptw=0；启动链 power(`0xffff_ffff_0000`)→hmon SRAM(`0x0fff_0000_0000`, 251 块)→body `0x10_0000`，body 块 rb1=`0x7fff0000`；`make check-gem5-decode` rc=0 `264/264+388/388+28/28+2/2, failures 0`、`check_converge.py` rc=0 `ids 264/264, boundary 1848/1848`。
 10. fault 路径对照：`ptw_off_still_cfxmem` 在 QEMU/gem5 均 PASS、exit `0x81`，两边 CPU trace 在 fault 后均未跳 `cfx_hmon` 向量（QEMU 末块 `0x100c`、gem5 末块 `0x1000`）。
 
-**约束核验**：`git diff --name-only master` + untracked 仅 `components/gem5/**`、本任务书、`milestones.md`；`tests/ spec/ contracts/ tools/ Makefile/ manifests/ docs/ components/qemu` 零 diff；分支 0 新 commit（HEAD=master tip）。gem5 **97** 补丁 = series 97 行（`LC_ALL=C sort -c` 通过、disk==series），全组件 302、`check-patch-tree` rc=0；源树 `f86efab` = base+1 且 `git status` 空、`check-source-state` rc=0。SE/Tiny 文件（`fs_tlb.*`/`fs_mmu.hh`/`se_*`/`process.*`/`se.py`）不在 diff；`inst.cc`/`fs_workload.cc` 的 Node 分支以 `isNode`/`nodeState().active` 门控，Tiny/SE 分支逐字保留。`ISS-340` 与 `issues.yaml`/`spec/**` 零 diff。无 `m5out/`、`*_tmp*`、`*.orig`、`*.rej`；开工/收尾 `git status -uall` 与 5 个目标文件 md5 逐行一致。完成区 **7 行**（≤30）、状态 `待验收`。L2 BLOCKED 属实：`LLVM_BUILD ?= .work/build/llvm` 本 worktree 无（主 worktree 有），`check-arch-smoke: install-host → build-mc → $(LLVM_CONFIGURE)+ninja -C $(LLVM_BUILD)` 会触发 LLVM 全量重建；证据记 BLOCKED、未伪 PASS。写入本记录后补跑 `make check-tasks check-milestones-fresh check-component-changelog check-no-residue check-run-artifacts` → rc=0（无 FAIL）。
+**约束核验**：`git diff --name-only master` + untracked 仅 `components/gem5/**`、本任务书、`milestones.md`；`tests/ spec/ contracts/ tools/ Makefile/ manifests/ docs/ components/qemu` 零 diff；分支 0 新 commit（HEAD=master tip）。gem5 **97** 补丁 = series 97 行（`LC_ALL=C sort -c` 通过、disk==series），全组件 302、`check-patch-tree` rc=0；源树 `f86efab` = base+1 且 `git status` 空、`check-source-state` rc=0。SE/Tiny 文件（`fs_tlb.*`/`fs_mmu.hh`/`se_*`/`process.*`/`se.py`）不在 diff；`inst.cc`/`fs_workload.cc` 的 Node 分支以 `isNode`/`nodeState().active` 门控，Tiny/SE 分支逐字保留。`ISS-340` 与 `issues.yaml`/`spec/**` 零 diff。无 `m5out/`、`*_tmp*`、`*.orig`、`*.rej`；开工/收尾 `git status -uall` 与 5 个目标文件 md5 逐行一致。完成区 **7 行**（≤30）、状态 `待验收`。L2 BLOCKED 属实：`LLVM_BUILD ?= 运行期 LLVM 构建树` 本 worktree 无（主 worktree 有），`check-arch-smoke: install-host → build-mc → $(LLVM_CONFIGURE)+ninja -C $(LLVM_BUILD)` 会触发 LLVM 全量重建；证据记 BLOCKED、未伪 PASS。写入本记录后补跑 `make check-tasks check-milestones-fresh check-component-changelog check-no-residue check-run-artifacts` → rc=0（无 FAIL）。
 
-**findings（均不阻断，交 architect 收口）**：F1 `run.sh` 无 ELF fixtures（任务书「证据」列了 `BootROM/raw/ELF fixtures`，验收项 3 的 ELF 子项缺一键证据；本人已补验行为正确）；F2 `bootrom_vs_bios_rejected` 的 rc=2 来自 argparse 未知参数（`fs.py` 无 `--bios`），非「同给冲突」规则；F3 `arch_smoke`/`embench_o0_o2`/`tiny_inst_subset` 只比 `n==m`、不校验绝对计数 10/38/44（本人实测已核）；F4 REPORT §4 自称「13 探针 + 046t」只列 12 行，三批跑未含 `--phase bootchain`；F5 任务书 §1「Node fault 进入 monitor、只有 hmon 的 SYS_EXIT 产生 guest 退出码」与实现及同模式参考 QEMU-080t 不一致（QEMU `dadao_cpu_do_interrupt` 仅 `PTW_FAULT`/`CFXPERM` 走向量，其余直接 `qemu_system_shutdown_request_with_code`；gem5 `MachineFault::invoke`→`exitSimLoopNow`；ADR-0004 D6.1 支持直接映射）⇒ 建议统一任务书措辞，不判实现缺陷；F6 `.work/log/gem5/*` 0 字节残留（具体路径词改用通配，避免删文件后悬空）。
+**findings（均不阻断，交 architect 收口）**：F1 `run.sh` 无 ELF fixtures（任务书「证据」列了 `BootROM/raw/ELF fixtures`，验收项 3 的 ELF 子项缺一键证据；本人已补验行为正确）；F2 `bootrom_vs_bios_rejected` 的 rc=2 来自 argparse 未知参数（`fs.py` 无 `--bios`），非「同给冲突」规则；F3 `arch_smoke`/`embench_o0_o2`/`tiny_inst_subset` 只比 `n==m`、不校验绝对计数 10/38/44（本人实测已核）；F4 REPORT §4 自称「13 探针 + 046t」只列 12 行，三批跑未含 `--phase bootchain`；F5 任务书 §1「Node fault 进入 monitor、只有 hmon 的 SYS_EXIT 产生 guest 退出码」与实现及同模式参考 QEMU-080t 不一致（QEMU `dadao_cpu_do_interrupt` 仅 `PTW_FAULT`/`CFXPERM` 走向量，其余直接 `qemu_system_shutdown_request_with_code`；gem5 `MachineFault::invoke`→`exitSimLoopNow`；ADR-0004 D6.1 支持直接映射）⇒ 建议统一任务书措辞，不判实现缺陷；F6 `运行期日志（已清理，未归档）` 0 字节残留（具体路径词改用通配，避免删文件后悬空）。
 
 **判决：Accepted** —— 验收命令块在我自己的重跑下全部通过（三批 `run.EXIT=0` + bootchain 16/16、QEMU 五元组与 13 探针/arch 逐个同数、12 类注入与本人独立注入均「注入红 → cp/md5 还原 → 回绿」），硬约束无违反；F1–F6 记 finding 交 architect（按文档级/证据覆盖口径不另开返工轮）。
 
@@ -272,7 +272,7 @@
 - **F3（断言偏弱）**：`arch_smoke`/`embench_o0_o2`/`tiny_inst_subset` 仅比 `n==m` ⇒ 绝对值 10/38/44 由 reviewer 实测核对，证据脚本断言强度登记为改进项；**不返工**（结论已有独立实测支撑）。
 - **F4（报告不全）**：`REPORT.md §4` 缺 `probe_integ046t` 行（三批未含 `--phase bootchain`）⇒ 已按 `GEM5-016t-integ046t.log` 补记 `16/16 passed`，并注明该 phase 为 reviewer 补跑；**证据级**，不返工。
 - **F5（任务书措辞）**：§1「fault 进 monitor、仅 hmon `SYS_EXIT` 产退出码」与实现/QEMU-080t 及 `ADR-0004 D6.1` 不符（实为 fault 直接映射退出码，仅 `PTW_FAULT`/`CFXPERM` 走向量）⇒ 判**措辞待统一**，不改实现、不在本册擅改语义；真实行为以本轮证据（`ptw_off_still_cfxmem` 两侧 exit `0x81`）为准，措辞统一归后续文档修订。
-- **F6（残留）**：`0` 字节日志文件已删除；`check-knowledge-refs` 对可判定 `.work/**` 路径做存在性检查，故原路径词改用通配（`.work/log/gem5/*`），仅改 token、不改 finding/判决。
+- **F6（残留）**：`0` 字节日志文件已删除；`check-knowledge-refs` 对可判定 `运行期临时目录` 路径做存在性检查，故原路径词改用通配（`运行期日志（已清理，未归档）`），仅改 token、不改 finding/判决。
 - **不越界声明**：本收口只改本任务书 + `milestones.md`；`spec/`（含 `ISS-340` 既有登记）、`tests/`、`contracts/`、`tools/`、`Makefile`、`manifests/` 零改动。
 
 #### 提交与同步（architect，2026-11-04）
@@ -281,4 +281,4 @@
 - **提交**：`GEM5-016t: FS Machine-v5-Node`，落本任务分支 `GEM5-016t`（提交号见 `git log --oneline -1 GEM5-016t`；本记录随该提交入库，收口时 amend 过一次仅为写入本段）。
 - **同步**：`git merge master`（`master` = `133a90b5`）→ `Already up to date.`（master 为本分支祖先），**无冲突**，HEAD 未产生 merge 提交。
 - **门控（同步后在最终树重跑）**：L1 `make -k check` **rc=2**，唯一红 `check-knowledge-refs`（**153** 悬空，逐条属其它任务；**本任务 0**——首次复跑 154 含本册 1 条，因删 0 字节文件使原路径词悬空，已改通配并复跑至 0）。关键门控：`check-patch-tree` rc=0（302 patches）/ `--source-state` rc=0（gem5 `f86efab` count=1 clean）/ `check-milestones-fresh` rc=0（37 行）/ `check-tasks` rc=0（①漏收尾 1 = `TESTCASES-090t`，非本任务）/ `check-component-changelog` rc=0 / `check-no-residue` rc=0 / `check-run-artifacts` rc=0 / `check-dirs` rc=0。
-- **BLOCKED 如实**：L2 `check-modules` 仍 **BLOCKED**（隔离 worktree 无 `.work/build/llvm`/install-host，会触发 LLVM 全量重建），**未伪称 L2/arch 全绿**；等价功能证据为 L3 账本 inst/arch/探针（QEMU/gem5 同数）。**未 push、未 merge 到 master**（本地合并由主会话执行）。
+- **BLOCKED 如实**：L2 `check-modules` 仍 **BLOCKED**（隔离 worktree 无 `运行期 LLVM 构建树`/install-host，会触发 LLVM 全量重建），**未伪称 L2/arch 全绿**；等价功能证据为 L3 账本 inst/arch/探针（QEMU/gem5 同数）。**未 push、未 merge 到 master**（本地合并由主会话执行）。

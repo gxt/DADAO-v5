@@ -6,7 +6,7 @@
 **状态**：已验证
 
 ## 执行环境
-**执行环境**：本地（仓库根；从含 `GEM5-017t` 的 `master` 建独立 `git worktree` + 分支 `GEM5-018t`；**只改 `components/gem5/**` + 本任务书 + `.tao/knowledge/milestones.md`**；证据落 `.work/evidence/GEM5-018t/**`、`.work/log/gem5/**`、`/tmp/opencode/GEM5-018t/**`）。开工前必须确认：① `GEM5-017t` 已 `已验证` 且已合入 `master`；② `tools/testcases/parity/run_parity.py` 与 `qemu_gem5_shim.py` 存在且能跑 046t（`-chardev ...,input-path=` 被接受）；③ `.work/build/gem5/**/gem5.opt`（或 `.work/source/gem5/build/DADAO/gem5.opt`）存在可跑；任一项不成立 ⇒ **rc=2 BLOCKED**，不得用旧日志/旧二进制冒充。
+**执行环境**：本地（仓库根；从含 `GEM5-017t` 的 `master` 建独立 `git worktree` + 分支 `GEM5-018t`；**只改 `components/gem5/**` + 本任务书 + `.tao/knowledge/milestones.md`**；证据落 `运行期证据（已清理，未归档）`、`运行期日志（已清理，未归档）`、`运行期临时目录`）。开工前必须确认：① `GEM5-017t` 已 `已验证` 且已合入 `master`；② `tools/testcases/parity/run_parity.py` 与 `qemu_gem5_shim.py` 存在且能跑 046t（`-chardev ...,input-path=` 被接受）；③ `运行期 gem5 构建树中的 **/gem5.opt`（或 `gem5 构建产物 gem5.opt`）存在可跑；任一项不成立 ⇒ **rc=2 BLOCKED**，不得用旧日志/旧二进制冒充。
 
 ## 用户已定口径（2026-11-04，主会话转达）
 
@@ -65,7 +65,7 @@
 ### 5. 补丁/构建流程（`docs/Process-01 §6`）
 
 1. 起点自检：`make check-source-state`（gem5 HEAD = base+1、worktree 干净）；不满足先收敛，不得带脏树开改。
-2. 在 `.work/source/gem5` 内改源码（**禁止**手改 `components/gem5/patches/**`），提交并收敛为「base + 恰好 1 commit」。
+2. 在 `gem5 组件源树` 内改源码（**禁止**手改 `components/gem5/patches/**`），提交并收敛为「base + 恰好 1 commit」。
 3. `python3 tools/infra/make_patch.py gem5` 导出补丁（一文件一补丁；`series` 行数 = 磁盘 patch 数、字典序）。
 4. `make check-patch-tree`、`make check-source-state` 均 rc=0。
 5. `make build-gem5`（SCons；`-j8`；增量重编申报耗时，用 background + 日志 + `*_EXIT`，禁 `setsid nohup` 后失联）。
@@ -79,7 +79,7 @@
 - `components/gem5/README.md`（若「当前状态」段列任务覆盖，则补一条；无则不强制）
 - `.tao/tasks/gem5/GEM5-018t-FS-semihosting修复.md`（本册）、`.tao/knowledge/milestones.md`（流水行）
 
-**不改**：`components/qemu/**`、`components/gem5/series`（**不新增补丁文件**）、`spec/**`、`contracts/**`、`.tao/contracts/**`、`.tao/adr/**`、`tests/**`（含 `tools/testcases/arch/min_rom_probe_046t.py`）、`tools/**`、`Makefile`、`manifests/**`、`docs/**`。证据/临时物只落 `.work/evidence/GEM5-018t/**`、`.work/log/gem5/**`、`/tmp/opencode/GEM5-018t/**`。
+**不改**：`components/qemu/**`、`components/gem5/series`（**不新增补丁文件**）、`spec/**`、`contracts/**`、`.tao/contracts/**`、`.tao/adr/**`、`tests/**`（含 `tools/testcases/arch/min_rom_probe_046t.py`）、`tools/**`、`Makefile`、`manifests/**`、`docs/**`。证据/临时物只落 `运行期证据（已清理，未归档）`、`运行期日志（已清理，未归档）`、`运行期临时目录`。
 
 ## 验收标准
 
@@ -93,7 +93,7 @@
 8. **SE 零退化**：`configs/dadao/se.py` 的 `hello`（stdout `ok\n`、rc=0）与 `fail`（rc=7）与 `GEM5-014t` 基线逐字节一致；SE 不受 semihosting 改动影响。
 9. **L1/L2**：`make check`（L1）rc=0，或「本任务红=0 + 既有红逐条基线复现」；`make check-modules`（L2）rc=0，若被共享 `install-host`/`build-builtins`/`gate.lock` 阻塞 ⇒ 记 **BLOCKED + 现场日志**（不得伪装 PASS）。
 10. **范围与门控**：`git diff --name-only <base>` 只命中 `components/gem5/**` + 本册 + `milestones.md`；`check-component-changelog`/`check-milestones-fresh`/`check-tasks`/`check-no-residue`/`check-dirs`/`check-knowledge-refs` rc=0（或本任务悬空 0 + 既有红逐条基线）；无 `*_tmp*`/`*.orig`/`*.rej`/`m5out/`/`__pycache__` 残留入库。
-11. **证据/注入/完成区**：`.work/evidence/GEM5-018t/**` 一键 `run.sh`（分 phase，逐项 `*_EXIT=<rc>`）+ `REPORT.md`；`run.sh --inject` 对 F1/F2 **各至少 1 类**可达 FAIL（`cp` 备份 + md5 对账还原，禁 `git checkout`/`restore`/`stash`），注入后重建、跑红、还原、重建、回绿；完成区 ≤30 行，状态 `待验收`。
+11. **证据/注入/完成区**：`运行期证据（已清理，未归档）` 一键 `run.sh`（分 phase，逐项 `*_EXIT=<rc>`）+ `REPORT.md`；`run.sh --inject` 对 F1/F2 **各至少 1 类**可达 FAIL（`cp` 备份 + md5 对账还原，禁 `git checkout`/`restore`/`stash`），注入后重建、跑红、还原、重建、回绿；完成区 ≤30 行，状态 `待验收`。
 12. **状态/BLOCKED**：任何无法成立的项按「spec/资产引用 + 根因 + 现场日志 + 为何不是本任务缺陷」登记 BLOCKED 并经用户裁定；不得自行跳过、改期望、改 tests/QEMU、把 QEMU 红算 gem5 绿。
 
 ## 必测反例（每类必须有可达 FAIL，不是上限）
@@ -108,7 +108,7 @@
 
 ## 证据
 
-- `.work/evidence/GEM5-018t/**`：`run.sh`（phase：起点自检 → 补丁导出/门控 → 构建 → 服务表/静态比对 → 046t 4 项 + 全量探针 → parity 复跑 → B0–B7 → SE → L1/L2 → 注入），每 phase 落 `*_EXIT=<rc>`；日志 `.work/log/gem5/**` 与 `/tmp/opencode/GEM5-018t/**`（gem5 `--outdir` 只落后者）。
+- `运行期证据（已清理，未归档）`：`run.sh`（phase：起点自检 → 补丁导出/门控 → 构建 → 服务表/静态比对 → 046t 4 项 + 全量探针 → parity 复跑 → B0–B7 → SE → L1/L2 → 注入），每 phase 落 `*_EXIT=<rc>`；日志 `运行期日志（已清理，未归档）` 与 `运行期临时目录`（gem5 `--outdir` 只落后者）。
 - `REPORT.md`：所有数字由脚本现场生成（补丁数、`--dump-semihost-services` 键数、case 计数、`rd8` 观测、注入表「注入前 md5 / 注入 rc / 还原后 md5 / 回绿 rc」）；不得手写数字。
 - 引擎身份：gem5 `md5` + 组件源 `git rev-parse` + `configs/dadao/fs.py` md5；QEMU `md5`/`--version`（parity 对照侧）；bootrom md5；工具链（clang/lld/mc/objcopy）md5 现场采集。
 - 依赖缺失（`gem5.opt`、`scons`、017t parity 工具、bootrom、工具链）⇒ **rc=2 BLOCKED**，不得伪造 PASS。
@@ -116,7 +116,7 @@
 ## 说明（风险 / 非目标 / 溯源 / 待确认）
 
 ### 1. 与 GEM5-015/016/017 的关系
-- 本任务**不重做** 015/016 的 FS 平台验收，只修 017t 发现的 2 条 semihosting 行为差异；017t 的矩阵/REPORT 是本任务的输入（`.work/evidence/GEM5-017t/**`），必须现场复核，不直接引用旧数字。
+- 本任务**不重做** 015/016 的 FS 平台验收，只修 017t 发现的 2 条 semihosting 行为差异；017t 的矩阵/REPORT 是本任务的输入（`运行期证据（已清理，未归档）`），必须现场复核，不直接引用旧数字。
 - 017t 的 `RUN_PARITY` 若对 `arch` 探针全量跑，本任务只重跑受影响 case + 046t 全量；**不重复** 017t 的 inst/embench 全矩阵。
 
 ### 2. 风险
@@ -124,7 +124,7 @@
 - **R2 `rd8` 语义歧义**：用户原话「`WRITEC`/`WRITE0` 不写 `rd8`（按 spec/QEMU 保留）」有两种解读：(a) 写 QEMU/046t 的 `0xdeadbeef` 保留标记（**本册按此落验收**，理由：QEMU 实测 + 046t 期望 + 无返回标记惯例）；(b) 完全不动 `rd8`（保持调用前值）——该解读与 046t `svc_writec`/`svc_write0` 的 `rd8=0xdeadbeef` 及 QEMU 实现直接冲突，且需改通用 `Result::store`，属新语义决策。若用户确认是 (b)，本任务 **BLOCKED + 另立 spec/contracts/tests 任务**，不得自行改资产。
 - **R3 017t 接口漂移**：`run_parity.py`/`qemu_gem5_shim.py` 的 CLI、case ID、trace 字段以 017t 实测为准；若 017t 的 shim 不支持 `-chardev input-path`，046t 整体 rc=2 ⇒ 本任务 BLOCKED（归 017t），不得绕过。
 - **R4 `SYS_ELAPSED` 口径**：`semiTick` 仍按 `1e12>>8` 产出 ticks，与 `TICKFREQ=1e9` 不自洽；本任务**不改** `ELAPSED`（非 2 条缺陷之一，046t `svc_elapsed` 只断言字段存在）；登记为遗留，建议另立任务由用户裁定。
-- **R5 L1/L2 环境缺口**：`check-knowledge-refs` 可能因其它任务 `.work/**` 悬空而红；L2 可能停在 `install-host → build-builtins`。只允许登记 BLOCKED/基线红 + 现场，不得伪装 PASS。
+- **R5 L1/L2 环境缺口**：`check-knowledge-refs` 可能因其它任务 `运行期临时目录` 悬空而红；L2 可能停在 `install-host → build-builtins`。只允许登记 BLOCKED/基线红 + 现场，不得伪装 PASS。
 
 ### 3. 非目标
 - 不改 QEMU/spec/contracts/tests/Makefile/manifests/docs；不改 `SYS_ELAPSED`/`SYS_CLOCK`/`SYS_TIME` 口径；不修 `READC` 的 shim；不做 cfxha 重编号、M11 收尾、B7 数值差异（`math_test`）；不动 SE。
@@ -140,9 +140,9 @@
 
 **测试结果**：046t `--list` 32 case 全 PASS（含 `svc_readc` 回归）；rd8 观测：`svc_writec`/`svc_write0`=0xdeadbeef，5 条 TICKFREQ=0x3b9aca00（`ret_rd8` 另验 rd31=0x5A5A）；node/arch parity 269 行 = AGREE_PASS 249 + icount N/A 20，7 条 GEM5-017t 缺陷行转 `gem5 PASS`/`AGREE_PASS`（无 `raw_status`），GEM5_ONLY_FAIL=0、DIFF=0、QEMU_ONLY_FAIL=0；decode 264/264+388/388+28/28+2/2、converge 264 ids+1848 边界 `[FAIL] 0`；SE hello stdout `ok\n` rc=0、fail rc=7；L2 rc=0；L1 rc=2 仅 `check-knowledge-refs` 既有红（本任务悬空 0，master 基线 72）。
 **修改文件**：`components/gem5/patches/src/arch/dadao/semihosting.cc.patch`、`components/gem5/patches/src/arch/dadao/semihosting.hh.patch`（`noReturnMark=0xdeadbeef`、`callTickFreq()` 返回 1e9；`calls` 0x31 绑定原已指向 `callTickFreq`）、`components/gem5/changelog.md`、`components/gem5/README.md`、本册、`.tao/knowledge/milestones.md`；gem5 源树 base+1 = `12a4716`（仅 `semihosting.{cc,hh}`，其余 95 补丁不变）。
-**验收结果**：`./.work/evidence/GEM5-018t/run.sh` rc=0（p0–p9 全绿；L1/krefs 既有红以「本任务 0 + master 基线复现」判 PASS）、`run.sh --inject` rc=0；`REPORT.md` + `logs/EXITS` 逐项留痕；`check-patch-tree` 302 补丁 OK、`check-source-state` gem5 `count=1 clean=True`、`build-gem5` rc=0、`--dump-semihost-services` 25 项与 `spec/Machine-v5 §5.3` 集合相等（现场派生）；注入表见 `logs/INJECT_TABLE.tsv`。
-**新发现/坑**：① `tools/gem5/build_gem5.py` 末步 `(source/"build").relative_to(build_link.parent)` 在 `.work/build/gem5` 缺失（fresh worktree）时 ValueError ⇒ `make build-gem5` rc=2（scons 实已成功）；本任务按既有形态 `mkdir .work/build/gem5` 绕过，建议另立 INFRA 任务修。② fresh worktree 的 `.work/build` 为空 ⇒ L2 触发全量 LLVM（3573 目标）且 `build_picolibc.py` 拒绝对符号链接 rmtree；证据脚本改用主 worktree 的 llvm/qemu 构建树（picolibc 本地重建）。③ `run_parity.py` 的 `KNOWN_GEM5_BLOCKED` 令修复后 driver rc=1（7 条 stale），绿灯断言须读 matrix 行 + 日志分类。④ 046t `general_trap_path` 的 `services=` 为空，按 `services=0x` 计数会漏 1 例（31 vs 32）。⑤ 并发 L2 满载时 `integ042t/dma_busy_w1c_ignored` 的 QEMU 侧曾超时一次（3/3 重跑 PASS），重跑 parity 为 0 QEMU_ONLY_FAIL。
-**遗留问题**：① 移除 `tools/testcases/parity/run_parity.py` 中 7 条 `KNOWN_GEM5_BLOCKED`（本任务禁改 `tools/**`，需另立 tools 任务；移除后 parity 才能 rc=0）。② 修 `build_gem5.py` 上述 relative_to 缺陷（INFRA）。③ `SYS_ELAPSED` 仍 `1e12>>8`，与 `TICKFREQ=1e9` 不自洽（本任务非目标 R4，需用户裁定另立任务）。④ `check-knowledge-refs` 既有红（worktree 缺其它任务 `.work/**` 证据；master 基线 72 悬空，本任务 0）。
+**验收结果**：`运行期证据脚本（已清理，未归档）` rc=0（p0–p9 全绿；L1/krefs 既有红以「本任务 0 + master 基线复现」判 PASS）、`run.sh --inject` rc=0；`REPORT.md` + `logs/EXITS` 逐项留痕；`check-patch-tree` 302 补丁 OK、`check-source-state` gem5 `count=1 clean=True`、`build-gem5` rc=0、`--dump-semihost-services` 25 项与 `spec/Machine-v5 §5.3` 集合相等（现场派生）；注入表见 `logs/INJECT_TABLE.tsv`。
+**新发现/坑**：① `tools/gem5/build_gem5.py` 末步 `(source/"build").relative_to(build_link.parent)` 在 `运行期 gem5 构建树` 缺失（fresh worktree）时 ValueError ⇒ `make build-gem5` rc=2（scons 实已成功）；本任务按既有形态 `mkdir 运行期 gem5 构建树` 绕过，建议另立 INFRA 任务修。② fresh worktree 的 `运行期构建树` 为空 ⇒ L2 触发全量 LLVM（3573 目标）且 `build_picolibc.py` 拒绝对符号链接 rmtree；证据脚本改用主 worktree 的 llvm/qemu 构建树（picolibc 本地重建）。③ `run_parity.py` 的 `KNOWN_GEM5_BLOCKED` 令修复后 driver rc=1（7 条 stale），绿灯断言须读 matrix 行 + 日志分类。④ 046t `general_trap_path` 的 `services=` 为空，按 `services=0x` 计数会漏 1 例（31 vs 32）。⑤ 并发 L2 满载时 `integ042t/dma_busy_w1c_ignored` 的 QEMU 侧曾超时一次（3/3 重跑 PASS），重跑 parity 为 0 QEMU_ONLY_FAIL。
+**遗留问题**：① 移除 `tools/testcases/parity/run_parity.py` 中 7 条 `KNOWN_GEM5_BLOCKED`（本任务禁改 `tools/**`，需另立 tools 任务；移除后 parity 才能 rc=0）。② 修 `build_gem5.py` 上述 relative_to 缺陷（INFRA）。③ `SYS_ELAPSED` 仍 `1e12>>8`，与 `TICKFREQ=1e9` 不自洽（本任务非目标 R4，需用户裁定另立任务）。④ `check-knowledge-refs` 既有红（worktree 缺其它任务 `运行期临时目录` 证据；master 基线 72 悬空，本任务 0）。
 
 ## 审阅记录
 
@@ -167,7 +167,7 @@
 **判决**：**Accepted**（下列输出全部来自我本人的重跑/注入，不采信 engineer 转述）
 
 **重跑记录**
-- `./.work/evidence/GEM5-018t/run.sh` ⇒ **`RUN_EXIT=0`**，本轮 `logs/EXITS`：`p0..p4=0 p5=0 p6=0 p7=0 p8=0 p9=0`（`p8-L1=2`、`p9-check-knowledge-refs=2` = 既有红，见遗留④）
+- `运行期证据脚本（已清理，未归档）` ⇒ **`RUN_EXIT=0`**，本轮 `logs/EXITS`：`p0..p4=0 p5=0 p6=0 p7=0 p8=0 p9=0`（`p8-L1=2`、`p9-check-knowledge-refs=2` = 既有红，见遗留④）
 - p4 真实输出：`p4-case-count expected=32 actual=32`、`p4-fail-count 0`、`svc_writec`/`svc_write0` `rd8=0xdeadbeef`、5 条 TICKFREQ `0x3b9aca00`、`ret_rd8 rd31=0x5a5a`、`svc_readc rc=0 rd8=0x51`（shim 已接 `input-path`，非冒充 PASS）
 - `run.sh --inject` ⇒ **`INJECT_EXIT=0`**：F1/F2 各 `build-red=0 / probe-red=1 / md5还原相等 / build-green=0 / probe-green=0 / tree-clean=0`；空跑 `no case named` rc=1
 - parity：driver `rc=1`（7 条 stale，预期值）、`p5-matrix=0`、`p5-matrix-selftest=0`、017t 旧矩阵 negative `rc=1`

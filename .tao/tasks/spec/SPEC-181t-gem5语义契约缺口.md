@@ -49,7 +49,7 @@
 
 ## 完成区
 
-**测试结果**：`make -k check` rc=2（唯一 FAIL=`check-isa-coverage`：LLVM 后端仍按旧 `ftsclb/fosclb rf,rf,rf` 汇编；重派生 accept 262/reject 2。按任务边界不改 LLVM）。证据脚本 `.work/evidence/SPEC-181t/run.sh` rc=0（23 个门控 + 语义检查 33/33 PASS；两次注入→FAIL→`cp`+md5 还原→回绿）。其余 L1 全 PASS：`check-legality-invariants`/`check-fp-contract`/`check-scope`/`check-rule-refs`/`check-legality-drift`/`check-asm-list`/`check-asm-list-drift`/`check-spec-drift`/`numbering`/`changelog`/`purity`/`cite-targets`/`refs`/`codeblocks`/`readonly`/`archive`/`archive-verify`/`check-contracts-dir`/`pending`/`check-contract-relocs`/`validate-encoding`/`check-instrinfo`/`check-milestones-fresh` 均 rc=0。
+**测试结果**：`make -k check` rc=2（唯一 FAIL=`check-isa-coverage`：LLVM 后端仍按旧 `ftsclb/fosclb rf,rf,rf` 汇编；重派生 accept 262/reject 2。按任务边界不改 LLVM）。证据脚本 `运行期证据脚本（已清理，未归档）` rc=0（23 个门控 + 语义检查 33/33 PASS；两次注入→FAIL→`cp`+md5 还原→回绿）。其余 L1 全 PASS：`check-legality-invariants`/`check-fp-contract`/`check-scope`/`check-rule-refs`/`check-legality-drift`/`check-asm-list`/`check-asm-list-drift`/`check-spec-drift`/`numbering`/`changelog`/`purity`/`cite-targets`/`refs`/`codeblocks`/`readonly`/`archive`/`archive-verify`/`check-contracts-dir`/`pending`/`check-contract-relocs`/`validate-encoding`/`check-instrinfo`/`check-milestones-fresh` 均 rc=0。
 **修改文件**：`spec/SimRISC-00/06/07/12`；`contracts/opcodes.yaml`、`contracts/legality_rules.yaml`；`.tao/contracts/contract-fp.md`、`contract-isa.md`、`contract-asm-list.md`（生成物）；`.tao/adr/adr-0044-fence-ciii.md`；`tools/spec/generate_opcodes.py`（生成器同步）；`manifests/spec-readonly.lock.toml`（4 册 sha256）；本任务书、`.tao/knowledge/milestones.md`。
 **验收结果**：F2 `ADR-0044` 置 `Accepted`（D1–D8 原文未改）；F5.1 remainder 边界/flag 写明；F5.2 C1 `ftsclb/fosclb` 第三操作数 `rdHD`（有符号 64 位整数指数，`rd0`=0，同 `orrr` 编码，旧 rf 写法失效）；F5.3 `convert_f2i` 有限 inexact⇒NX、NaN/Inf/超范围⇒饱和+NV；F7 `call` 返回地址=当前指令地址+4（相对/绝对一致）；F8.1 保留粒度=精确地址+访问宽度；F8.2 `sc.rdHB=rd0⇒ILLI`（12 条挂 `dst_rd0`，sc 编码未改）。矩阵行回溯：`ftrem_orrr_rf`/`forem_orrr_rf`/`ftsclb_orrr_rf`/`fosclb_orrr_rf`→SimRISC-07 §2.1+opcodes；`ft2it…fo2uo`→§1；`call_iiii_ra`/`call_rrii_ra`→SimRISC-06 §3；`sc.*`（12）→SimRISC-12 §1.1+opcodes `rule_refs`。`fp_semantics` 66 条 id/family/legality_refs 与 opcodes 双向一致（无操作数字段，未改结构）。
 **新发现/坑**：① `generate_opcodes.py` 原缺 SPEC-180t 的 escape `imms18[17:1] == 0`，直接重生成会回退该语义；已补生成器并重生成。② `manifests/spec-readonly.lock.toml` 未列在任务书文件范围，但 Process-06 要求改只读册同笔更新 sha256；已按授权更新并留注。③ `check-isa-coverage` 红是 LLVM 后端未同步的必然结果，不是规范/契约内部不一致。
@@ -74,7 +74,7 @@
 **重跑（我方真实 rc）**：
 - `make -k check` → **rc=0**（FAIL 0；`check-isa-coverage` rc=0：真源 264 / accept 264 / reject 0——集成分支已含 TESTCASES-090t 矩阵，完成区「rc=2、唯一 FAIL=check-isa-coverage」表述**已过期**）。
 - 单跑 rc=0：`check-spec-readonly`（21 册 sha256 OK）、`check-contracts-dir`、`check-legality-invariants`、`check-fp-contract`、`check-rule-refs`、`check-spec-codeblocks`(542 行)、`check-asm-list`(12 册)、`check-asm-list-drift`、`check-legality-drift`、`check-spec-drift`、`check-spec-cite-targets`(unresolved=0)。无 `check-opcodes` 目标（grep 0 命中），等价门控 `validate-encoding`/`check-instrinfo` rc=0。
-- 证据脚本 `bash .work/evidence/SPEC-181t/run.sh` → **rc=0**（23 门控 + semantics 33/33；其两例注入→FAIL→cp+md5 还原→回绿，逐条贴在脚本输出）。
+- 证据脚本 `运行期证据脚本（已清理，未归档）` → **rc=0**（23 门控 + semantics 33/33；其两例注入→FAIL→cp+md5 还原→回绿，逐条贴在脚本输出）。
 - **独立注入（非 engineer 两例）**：`cp` 备份 SimRISC-06 → 删「返回地址 = 当前 call 指令的地址 + 4」句 → 同一 run.sh **rc=1**（`[FAIL] semantics actual=1`、`check-spec-readonly actual=2`）→ `cp` 还原 md5=`bb518cf4…` 与注入前一致 → 重跑 **rc=0**（注入→FAIL→还原→回绿）。
 
 **F1–F8 逐条（依据只取 spec/contracts/ADR，不看实现）**：

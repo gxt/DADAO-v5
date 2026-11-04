@@ -92,7 +92,7 @@ Node 几何句补 identity 限定，不改其它内容：
 
 ## 范围 / 非范围
 
-**在范围内**：`spec/Machine-v5-测试机运行环境.md`（§6 + `0.3.2-rc` 附录）、`manifests/spec-readonly.lock.toml`（仅 `machine-v5` 块）、`.tao/contracts/contract-elf.md`（§5.2）、`.tao/contracts/contract-see.md`（§1 一句）、`.tao/adr/adr-0039|0040|0043-*.md`（经逐条确认的投影/修订）、`.tao/knowledge/issues.yaml`（仅 ISS-340）、本任务书、`.tao/knowledge/milestones.md`（流水行状态）、`.work/evidence/SPEC-184t/`。
+**在范围内**：`spec/Machine-v5-测试机运行环境.md`（§6 + `0.3.2-rc` 附录）、`manifests/spec-readonly.lock.toml`（仅 `machine-v5` 块）、`.tao/contracts/contract-elf.md`（§5.2）、`.tao/contracts/contract-see.md`（§1 一句）、`.tao/adr/adr-0039|0040|0043-*.md`（经逐条确认的投影/修订）、`.tao/knowledge/issues.yaml`（仅 ISS-340）、本任务书、`.tao/knowledge/milestones.md`（流水行状态）、`运行期证据（已清理，未归档）`。
 
 **不在范围内**（违反即越界）：
 
@@ -109,7 +109,7 @@ Node 几何句补 identity 限定，不改其它内容：
    - `tests/shared/bootrom/step5/hmon.S` 的 4 个 PTE（`0xffef`/PPN `0`/`0x2000`/`0x4000`/`0x6000`、`0xf000`）与 §6 的 `SPF=0xFF`/`flags 0xEF`/`HSJU=0xF`/PPN 规则逐位一致；
    - `tests/shared/linker/dadao-node.lds` 的 “VA=PA identity, PTW on”、`tools/infra/check_interface_alignment.py` 的 Node 断言、`components/gem5/patches/src/arch/dadao/node_*` 的 Node 常量与 §6 不矛盾；
    - `make check-interface` **rc=0**（Node 项无 `DEFERRED`）。
-   - 若 `.work/evidence/QEMU-080t/` 或 `.work/evidence/GEM5-016t/` 在现场存在，追加读取其 `entry=0x10_0000`/`SP=0x7fff_0000`/`SPF=0xFF` 记录；不存在则以任务书完成区 + 上述源码/资产交叉核对为准并在证据中注明（不伪造现场日志）。
+   - 若 `运行期证据（已清理，未归档）` 或 `运行期证据（已清理，未归档）` 在现场存在，追加读取其 `entry=0x10_0000`/`SP=0x7fff_0000`/`SPF=0xFF` 记录；不存在则以任务书完成区 + 上述源码/资产交叉核对为准并在证据中注明（不伪造现场日志）。
 3. **门控（逐条贴真实命令 + 命令自身 rc，禁 `| tee` 吞码）**：`make check-spec-readonly`、`check-spec-refs`、`check-spec-drift`、`check-spec-changelog`、`check-spec-numbering`、`check-spec-purity`、`check-spec-cite-targets`、`check-spec-codeblocks`、`check-knowledge-refs`、`check-milestones-fresh`、`check-contracts-dir`、`check-contract-relocs`、`check-issues`、`check-interface` 全 **rc=0**；`make check`（L1）本任务相关项全绿；既有基线红须逐条与 `master` 对账（名称 + rc），不得以基线红掩盖本任务引入的红。
 4. **只读锁**：`sha256sum spec/Machine-v5-测试机运行环境.md` 与锁值逐字相等；锁 diff 仅 `machine-v5` 块（注释 + 1 行 sha256）；`DADAO-12` 与其它册 `sha256` 不变；注记含日期 + 用户口径原话摘要。
 5. **章节编号零漂移**：`git diff -U0` 证明 `Machine-v5` 的所有 `##`/`###` 标题行未变（仅正文/附录 list 变动）。
@@ -120,13 +120,13 @@ Node 几何句补 identity 限定，不改其它内容：
    - 注入/还原后 `git status --porcelain -uall` 与注入前快照逐行一致。
 8. **issue 收口**：`ISS-340` 为 `closed`、`resolved_by: SPEC-184t`，`check-issues` rc=0；`title` 仍能检索到 `ISS-340`。
 9. **归档/禁区零改动**：`git status --porcelain -uall` 与 `git diff --name-only` 不含 `.tao/archive/**`、`tests/**`、`components/**`、`tools/**`、`Makefile`、`spec/DADAO-12-*`；无 `*_tmp*`/`_gate*`/`*.orig`/`*.rej` 残留。
-10. **体例**：完成区 ≤30 行；证据落 `.work/evidence/SPEC-184t/`（`run.sh`、`run.EXIT`、`*.log`）；状态置 `待验收`。
+10. **体例**：完成区 ≤30 行；证据落 `运行期证据（已清理，未归档）`（`run.sh`、`run.EXIT`、`*.log`）；状态置 `待验收`。
 
 ## 证据
 
-- `.work/evidence/SPEC-184t/run.sh`：一条命令重跑“§6 断言 + 交叉核对 + 全部门控 + 锁 sha 对账”，逐项取**被检命令自身** rc；输出 `RUN_EXIT`。
-- `.work/evidence/SPEC-184t/run.sh --inject`：两处注入 / `cp`+`md5sum -c` 还原 / 回绿，输出 `INJECT_EXIT`。
-- `.work/evidence/SPEC-184t/*.log`：门控原始输出、`sha256sum` 前后快照、`git diff --stat`、标题行 `git diff -U0`。
+- `运行期证据脚本（已清理，未归档）`：一条命令重跑“§6 断言 + 交叉核对 + 全部门控 + 锁 sha 对账”，逐项取**被检命令自身** rc；输出 `RUN_EXIT`。
+- `运行期证据脚本（--inject，已清理，未归档）`：两处注入 / `cp`+`md5sum -c` 还原 / 回绿，输出 `INJECT_EXIT`。
+- `运行期证据（已清理，未归档）`：门控原始输出、`sha256sum` 前后快照、`git diff --stat`、标题行 `git diff -U0`。
 - 完成区只写结论 + 命令 rc + 证据路径。
 
 ## 说明

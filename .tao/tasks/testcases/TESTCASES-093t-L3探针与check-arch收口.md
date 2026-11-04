@@ -13,7 +13,7 @@
 收缩后验收口径见「收缩后验收标准」，取代原「验收标准」第 2–6 项。
 
 ## 执行环境
-**执行环境**：本地（仓库根；任务分支 `TESTCASES-093t`；`.dadao/`、`.work/` 已就绪，不重建 QEMU/LLVM，不 merge、不 push）
+**执行环境**：本地（仓库根；任务分支 `TESTCASES-093t`；`运行期安装根`、`运行期临时目录` 已就绪，不重建 QEMU/LLVM，不 merge、不 push）
 
 ## 用户已定口径（继承 092t，自包含）
 
@@ -22,12 +22,12 @@
 - **不重建 QEMU**：QEMU 二进制 md5 开工/收尾不变；`check-source-state` rc=0；不触发 `install-host` 的 LLVM 全量重建（若触发，按环境 BLOCKED 报告，不硬跑）。
 - 092t §5/§6 与「验收标准 6」原文仍是本册接口规范；092t 完成区引用的一份 P6 assessment 在 master 不存在（已核 `git log --all` / `git ls-files`），本册以 092t §5/§6 + 现场基线重建，不凭该文档的转述。
 
-## 现状证据（2026-11-03 规划期，本机真跑；QEMU = `.dadao/cross-toolchain/bin/qemu-system-dadao`，profile=node）
+## 现状证据（2026-11-03 规划期，本机真跑；QEMU = `安装根 bin 下的 qemu-system-dadao`，profile=node）
 
 ### E1 `check-arch` 的 F4（pre-existing）
 
-- `Makefile:1535` 探针循环**不传 `--qemu`**；13 个探针的 `DEFAULT_QEMU` 是 `.work/build/qemu/qemu-system-dadao`（`Makefile:1385` 的安装根是 `.dadao/cross-toolchain/bin`）。任务 worktree 无 `.work/build/qemu` ⇒ 13 探针一律 rc≠0（092t F4）。
-- 现场：`.work/build/qemu/qemu-system-dadao` 存在但早于安装根（02:52 vs 09:52），默认可解析到**旧二进制**；因此只改 Makefile 传参还不够，驱动默认值也要按安装根解析。
+- `Makefile:1535` 探针循环**不传 `--qemu`**；13 个探针的 `DEFAULT_QEMU` 是 `运行期 QEMU 构建树中的 qemu-system-dadao`（`Makefile:1385` 的安装根是 `安装根 bin`）。任务 worktree 无 `运行期 QEMU 构建树` ⇒ 13 探针一律 rc≠0（092t F4）。
+- 现场：`运行期 QEMU 构建树中的 qemu-system-dadao` 存在但早于安装根（02:52 vs 09:52），默认可解析到**旧二进制**；因此只改 Makefile 传参还不够，驱动默认值也要按安装根解析。
 
 ### E2 13 探针基线（显式 `--qemu` 实跑；例数按 `--list` 现场派生，不写死）
 
@@ -65,7 +65,7 @@
 
 ## 目标
 
-1. **F4 收口**：`check-arch` 的探针循环显式传 `--qemu $(QEMU_BIN)`；探针/驱动默认 QEMU 按安装根解析，直接运行也命中 `.dadao/cross-toolchain/bin`。
+1. **F4 收口**：`check-arch` 的探针循环显式传 `--qemu $(QEMU_BIN)`；探针/驱动默认 QEMU 按安装根解析，直接运行也命中 `安装根 bin`。
 2. **统一装载模型**：一份共享 prelude（power 复位 + hmon identity-PTW + 4 MiB `bootrom-image` + 无 `-kernel`）；13 探针 + `min_rom_probe_046t` 共用，禁各写一份。
 3. **逐例判定**：227 + 16 例逐条落 `verdict.tsv`（case/spec 节号/类别/改法/前后 rc）；不可成立者显式 `BLOCKED`（case + spec 引用 + 现场日志 + 需裁定项）。
 4. **`check-arch` 13 探针真实跑绿**（或按用户裁定后的清单）；`check-arch-smoke`（含 046t 25 服务）与 `run_m5_e2e` 10/10、`check-inst`（Node 968 + Tiny 44）不退化。
@@ -106,7 +106,7 @@
 
 - `Makefile` `_locked-check-arch` 循环：`DADAO_TEST_PROFILE=node $(PYTHON) …/min_rom_probe_$$p.py --qemu $(QEMU_BIN) …`；`$(QEMU_BIN)` = 安装根。
 - 驱动默认值：所有本册触及探针的 `DEFAULT_QEMU` 改为 `tools/infra/paths.py::host_toolchain_bin()/qemu-system-dadao`（`--qemu` 仍可覆盖）；共享 prelude 暴露 `default_qemu()` 一份实现。
-- 断言：`make -n check-arch | grep -- '--qemu'` 每册一行；在无 `.work/build/qemu` 的目录运行 `--list`/单例不报 QEMU 缺失；证据落 `.work/evidence/TESTCASES-093t/f4.txt`。
+- 断言：`make -n check-arch | grep -- '--qemu'` 每册一行；在无 `运行期 QEMU 构建树` 的目录运行 `--list`/单例不报 QEMU 缺失；证据落 `运行期证据（已清理，未归档）`。
 
 ### 2. 共享 prelude 契约（新 `tools/testcases/arch/node_probe_prelude.py`，一份实现）
 
@@ -154,7 +154,7 @@
 
 ## 实施清单（按序）
 
-- **P0 基线冻结**：`git rev-parse HEAD`、QEMU md5、`check-source-state`；13+1 探针逐册 rc/失败清单落 `.work/evidence/TESTCASES-093t/runall/`（自查，不是验收）。
+- **P0 基线冻结**：`git rev-parse HEAD`、QEMU md5、`check-source-state`；13+1 探针逐册 rc/失败清单落 `运行期证据（已清理，未归档）`（自查，不是验收）。
 - **P1 F4 + 共享 prelude**：§1/§2；先用 `044t run_mode_0` 单例跑通（RAM 把 `0xCAFE` 写读回 + 退出码正确），再跑 `044t` 全量。
 - **P2 机械迁移**：13+1 驱动的 `ROM_BASE/ROM 上限/run()/exit_seq/bootstrap` 换成共享实现；逐册跑一遍生成 `verdict.tsv` 骨架（每例先归类，未通过不写 PASS）。
 - **P3 批次 1（非 PTW 重）**：`044t 045t 049t integ042t integ044t integ048t integ049t` + `min_rom_probe_046t`（G 类物化）。
@@ -168,30 +168,30 @@
 
 ### 收缩后验收标准（主会话 2026-11-03 裁定，取代本节第 2–6 项）
 
-- **A1 F4**：`Makefile` `check-arch` 探针循环含 `--qemu $(QEMU_BIN)`；无 `.work/build/qemu`
+- **A1 F4**：`Makefile` `check-arch` 探针循环含 `--qemu $(QEMU_BIN)`；无 `运行期 QEMU 构建树`
   的工作树里探针默认解析到安装根 QEMU（证据 `f4.txt`）。
 - **A2 共享 prelude**：`tools/testcases/arch/node_probe_prelude.py` 一份实现，
   9 册驱动均委托它（无各写一份的装载代码）。
 - **A3 9 册 rc=0**：`044t 13/13`、`045t 14/14`、`049t 9/9`、`integ039t 37/37`、
   `integ040t 34/34`、`integ042t 25/25`、`integ044t 6/6`、`integ047t 6/6`、
-  `integ048t 23/23`，合计 **167 例**；日志 `.work/evidence/TESTCASES-093t/runall/`。
+  `integ048t 23/23`，合计 **167 例**；日志 `运行期证据（已清理，未归档）`。
 - **A4 证据**：`run.sh` 一条命令逐册取自身 rc（禁 `tee`）；`inject.sh` 三类互异注入
   均「注入→FAIL→`cp`+`md5sum -c` 还原→回绿」，3/3。
 - **A5 范围**：`components/ spec/ contracts/ .tao/contracts/ .tao/adr/ manifests/` 零 diff；
   QEMU md5 不变；不改期望求绿。
 - **A6 拆分**：上列「本册不再包含」各项已在 094t 立项/移交，清单逐条可追溯。
 
-1. **F4**：`make -n check-arch` 每册含 `--qemu $(QEMU_BIN)`；无 `.work/build/qemu` 时直接跑单例仍解析到 `.dadao/…`；证据含 `DEFAULT_QEMU` 打印与 md5。
-2. **`make check-arch` rc=0**：13 册逐个 rc=0，日志 `.work/evidence/TESTCASES-093t/runall/`；每册通过例数 == `--list` 现场派生（`skipped` 不适用本门控）；BLOCKED 例必须附用户裁定原文 + spec 节号 + 现场日志，否则本项不成立。
+1. **F4**：`make -n check-arch` 每册含 `--qemu $(QEMU_BIN)`；无 `运行期 QEMU 构建树` 时直接跑单例仍解析到 `运行期安装根…`；证据含 `DEFAULT_QEMU` 打印与 md5。
+2. **`make check-arch` rc=0**：13 册逐个 rc=0，日志 `运行期证据（已清理，未归档）`；每册通过例数 == `--list` 现场派生（`skipped` 不适用本门控）；BLOCKED 例必须附用户裁定原文 + spec 节号 + 现场日志，否则本项不成立。
 3. **`make check-arch-smoke` rc=0**：[1/2] 10/10 + [2/2] `min_rom_probe_046t` 25 服务；若 046t 拆 094t，则 [1/2] 必绿且完成区如实披露 [2/2] 红与 094t 阻断前置。
 4. **`run_m5_e2e` rc=0**（10/10，resume bootrom；`--qemu`=安装根）。
 5. **`make check-inst` rc=0 且不退化**：Node `968 = 963 passed / 5 deferred / skipped_profile=44`；Tiny `44 = 44 passed / skipped_profile=968`（口径以现场为准）。
 6. **逐例判定**：`verdict.tsv` 行数 == 13+1 册 `--list` 现场总数；每例有类别与 spec 引用；无「未归类/未跑先写 PASS」。
-7. **证据/注入**：`.work/evidence/TESTCASES-093t/run.sh` 一条命令重跑全部断言、逐项取命令自身 rc（禁 `tee` 吞码）；`inject.sh` ≥3 类互不相同，均「注入→FAIL→`cp`+`md5sum -c` 还原→回绿」，禁 `git checkout/restore/stash/show`：
+7. **证据/注入**：`运行期证据脚本（已清理，未归档）` 一条命令重跑全部断言、逐项取命令自身 rc（禁 `tee` 吞码）；`inject.sh` ≥3 类互不相同，均「注入→FAIL→`cp`+`md5sum -c` 还原→回绿」，禁 `git checkout/restore/stash/show`：
    (a) prelude 的 `ptw_enable=1` 改 0（或删一个 PTE）⇒ 对应 RAM 例 FAIL；
    (b) 把 `ROM_BASE` 回退到 `RESET_PC`（不偏移 0x1000）⇒ 至少一册 FAIL；
    (c) 046t 删掉一个运行期参数块物化 ⇒ 对应服务例 FAIL；
-   (d) F4 回退（去掉 `--qemu`）⇒ 在无 `.work/build/qemu` 的目录 check-arch/单例 FAIL。
+   (d) F4 回退（去掉 `--qemu`）⇒ 在无 `运行期 QEMU 构建树` 的目录 check-arch/单例 FAIL。
 8. **L1/L2**：`make -k check` 中本册触及项全 PASS；外部基线红（如 `check-knowledge-refs` 历史悬空、`check-lit` 的 mcmodel）逐条给主树证据并声明非本任务；`make check-modules` rc=0（若 `install-host` 触发 LLVM 全量重建 ⇒ 环境 BLOCKED + 现场，不强跑）。
 9. **范围**：`git status --porcelain -uall` 仅允许文件；`components/** spec/** contracts/** .tao/contracts/** .tao/adr/** manifests/**` 零 diff；QEMU md5 不变；`check-source-state` rc=0。
 10. **体例/台账**：`make check-tasks`、`make check-milestones-fresh` rc=0；完成区 ≤30 行、审阅记录每轮 ≤40 行；状态 `待验收`；无仓库内临时文件（`check-no-residue`）。
@@ -210,8 +210,8 @@
   - `tools/testcases/lib/**`（仅共享 helper：qemu 默认解析/exit_seq；不改 inst 语义）；
   - `Makefile`（仅 `check-arch` 循环传参、`check-arch-smoke` 如需）；
   - `tests/shared/asm/**`（仅新增共享宏，且先经主会话确认；默认不改）；
-  - 本任务书、`.tao/knowledge/milestones.md`（流水行）、`.work/evidence/TESTCASES-093t/**`、`.work/log/{arch,testcases}/**`、`/tmp/opencode/TESTCASES-093t/**`。
-- **禁止**：`components/**`、`spec/**`、`contracts/**`、`.tao/contracts/**`、`.tao/adr/**`、`manifests/**`、`.tao/knowledge/discussing.md`、`.tao/archive/**`、`.work/source/**` 源码改写；**不提交 git**（提交权归 architect）。
+  - 本任务书、`.tao/knowledge/milestones.md`（流水行）、`运行期证据（已清理，未归档）`、`运行期日志（已清理，未归档）/**`、`运行期临时目录`。
+- **禁止**：`components/**`、`spec/**`、`contracts/**`、`.tao/contracts/**`、`.tao/adr/**`、`manifests/**`、`.tao/knowledge/discussing.md`、`.tao/archive/**`、`组件源树` 源码改写；**不提交 git**（提交权归 architect）。
 
 ## 风险
 
@@ -221,7 +221,7 @@
 - **R4 046t 数据**：`K_*` 参数块从 `-kernel` 改运行期物化，必须逐字节核对（含 64-bit BE 字段、路径串、argv）。
 - **R5 时间**：prelude DMA = 1 ms 虚拟时间；`-icount shift=0` 下 ~1e6 指令，注意 timeout 与计时基线。
 - **R6 上下文**：本体必须在 hmon；若某例确需 power 语义 ⇒ BLOCKED + 裁定，不偷偷改上下文。
-- **R7 日志/磁盘**：4 MiB 镜像 × 243 例 + `-d cpu` 可占数百 MB～GB；一律落 `/tmp/opencode/TESTCASES-093t/`，跑完汇总大小并清理，结论日志留 `.work/evidence/TESTCASES-093t/runall/`。
+- **R7 日志/磁盘**：4 MiB 镜像 × 243 例 + `-d cpu` 可占数百 MB～GB；一律落 `运行期临时目录`，跑完汇总大小并清理，结论日志留 `运行期证据（已清理，未归档）`。
 - **R8 环境**：`check-arch` 依赖 `check-arch-smoke → install-host`；若触发 LLVM 全量重建，停并报 BLOCKED（不在本任务重建）。
 
 ## 参考对照（0628 溯源，非执行必需）
@@ -231,9 +231,9 @@
 ## 完成区
 **测试结果**：**9 册 / 167 例全绿（rc=0）**——044t 13/13、045t 14/14、049t 9/9、integ039t 37/37、integ040t 34/34、integ042t 25/25、integ044t 6/6、integ047t 6/6（runtime）、integ048t 23/23。例数以各册 `--list` 现场派生（13+14+9+37+34+25+6+7+23 =168，减 1 个 `--doc` 例 =167；047t 的 1 例为 `--doc` 离线检查，不算 QEMU 例）。真跑命令：`DADAO_TEST_PROFILE=node python3 -u tools/testcases/arch/min_rom_probe_<id>.py`（rc 逐册见 `runall.out`）。
 **修改文件**：`Makefile`（`check-arch` 循环传 `--qemu $(QEMU_BIN)`，一行）；`tools/testcases/arch/node_probe_prelude.py`（新，共享 prelude）；`min_rom_probe_{044t,045t,049t,integ039t,integ040t,integ042t,integ044t,integ047t,integ048t}.py`（装载/退出/PT 语义迁到 prelude；用例期望未放松）。`components/ spec/ contracts/ .tao/contracts/ .tao/adr/ manifests/` 零 diff；`.tao/knowledge/milestones.md`（093t 流水行，收尾显式 staging 必含）。提交与合并见「收尾结论」。
-**验收结果**：A1 `f4.txt`：`Makefile:1535` 含 `--qemu $(QEMU_BIN)`；本 worktree 无 `.work/build/qemu` 时 `DEFAULT_QEMU=/mnt/tao/DADAO-v5/.dadao/cross-toolchain/bin/qemu-system-dadao`（存在）。A3 见上 167/167。A4 `run.sh`（子集实测 `RESULT: PASS`，逐册取自身 rc、无 `tee`）与 `inject.sh` **3/3**：a `cfx_ptw cg8 rc8=0`→044t run_mode_0 inject rc=1 / restore rc=0；b `ROM_BASE=RESET_PC`→045t inject rc=1 / restore rc=0；c `_pte()=0`→049t ram_rw inject rc=1 / restore rc=0（还原 `cp`+`md5sum -c`，无 git 还原）。`make -n check-arch` 因依赖链 `check-arch-smoke → install-host → build-qemu` 在 dry-run 即失败（R8，未触发重建），F4 以 recipe 文本 + 单例实跑核验。
+**验收结果**：A1 `f4.txt`：`Makefile:1535` 含 `--qemu $(QEMU_BIN)`；本 worktree 无 `运行期 QEMU 构建树` 时 `DEFAULT_QEMU=安装根 bin 下的 qemu-system-dadao`（存在）。A3 见上 167/167。A4 `run.sh`（子集实测 `RESULT: PASS`，逐册取自身 rc、无 `tee`）与 `inject.sh` **3/3**：a `cfx_ptw cg8 rc8=0`→044t run_mode_0 inject rc=1 / restore rc=0；b `ROM_BASE=RESET_PC`→045t inject rc=1 / restore rc=0；c `_pte()=0`→049t ram_rw inject rc=1 / restore rc=0（还原 `cp`+`md5sum -c`，无 git 还原）。`make -n check-arch` 因依赖链 `check-arch-smoke → install-host → build-qemu` 在 dry-run 即失败（R8，未触发重建），F4 以 recipe 文本 + 单例实跑核验。
 **新发现/坑**：(1) prelude 可用：4 MiB `bootrom-image`（无 `-kernel`）+ power→hmon + cfx_pmem DMA 建 identity PT（`PT_PA=0x7FF0_0000`，`PTE=0xF000_0000_0000_FFEF|(i<<29)`）+ `ptw_enable=1`，body 在 `RESET_PC+0x1000`。(2) `br.nz/br.z` 条件寄存器必须用 **rd 变体 0x6B/0x6A**（0x73/0x72 是 rb 变体，`{rd0}` 恒假→死循环）。(3) cfx_ptw 是 **cfxha 4**（18 是 cfx_time）。(4) 写 PTBR 不 flush TLB：切表前后都要 `cg12 rc0=0x12`，否则陈旧 identity 条目遮蔽用例页表。(5) 用例表与 prelude 表「合并」（PTBR 始终 `PT_PA`，数据/页表页放 L1[3] 窗口 `0x6000_0000+`）可让 RAM/`exit_block` 恒可达，只有真换 PTBR 的例需显式 restore。(6) QEMU fast-TLB 命中会跳过 SPF/GPF 与 cfx 权限检查 ⇒ 这类用例须换成触发 fill 的访问或先 invalidate。(7) `-icount` 下 `-d cpu` 落盘会让 prelude 的 1 ms DMA 轮询超时 ⇒ icount 不落 dump。(8) prelude 须清零 scratch（rd4/9/10/11/20/22、rb2），否则「无故障 rd10=0」类断言假红。(9) prelude 不能清 cfx_power 的 **cfxmem**（integ048t 断言 `MASK_DEFAULT`），只清 cfxexe。
-**遗留问题**：按主会话 2026-11-03 裁定**逐条拆分到 094t**（详见「本册不再包含（拆分到 094t）」）：① integ049t `space_power`（cfx_power cg7 start 回读 `0x3fff_fffc_0000` vs spec `0xffff_ffc0_0000`，需裁定）；② integ050t 4 例 + integ051t 12 例（异步 TIMER/PMEM_DMA pending/投递不到达）；③ integ046t 16 例 + min_rom_probe_046t 34 例（未开始）。本册范围内无遗留；上述三项的实现与日志原样留在 worktree（`.work/log/testcases/TESTCASES-093t-progress.md`、`.work/evidence/TESTCASES-093t/runall/`）供 094t 直接接手。
+**遗留问题**：按主会话 2026-11-03 裁定**逐条拆分到 094t**（详见「本册不再包含（拆分到 094t）」）：① integ049t `space_power`（cfx_power cg7 start 回读 `0x3fff_fffc_0000` vs spec `0xffff_ffc0_0000`，需裁定）；② integ050t 4 例 + integ051t 12 例（异步 TIMER/PMEM_DMA pending/投递不到达）；③ integ046t 16 例 + min_rom_probe_046t 34 例（未开始）。本册范围内无遗留；上述三项的实现与日志原样留在 worktree（`运行期日志（已清理，未归档）`、`运行期证据（已清理，未归档）`）供 094t 直接接手。
 
 ## 收尾结论（architect，2026-11-03）
 
@@ -269,23 +269,23 @@
 **判决：Needs Revision** —— 收缩后 A1–A5 实质达标，卡在 **A6 + 验收标准第 8/10 项**（门控 rc 与证据落点）。
 
 **重跑（真实 rc，非采信完成区）**
-- `bash .work/evidence/TESTCASES-093t/run.sh`（默认 12 册）→ **rc=1**：`044t 045t 049t integ039t integ040t integ042t integ044t integ047t integ048t` 全 rc=0；`integ049t rc=1`、`integ050t rc=1 (0/16)`、`integ051t rc=1 (2/14)`（094 范围，worktree 已回退到未迁移态，**未写成 PASS**）。
+- `运行期证据脚本（已清理，未归档）`（默认 12 册）→ **rc=1**：`044t 045t 049t integ039t integ040t integ042t integ044t integ047t integ048t` 全 rc=0；`integ049t rc=1`、`integ050t rc=1 (0/16)`、`integ051t rc=1 (2/14)`（094 范围，worktree 已回退到未迁移态，**未写成 PASS**）。
 - `bash run.sh 044t 045t 049t integ039t integ040t integ042t integ044t integ047t integ048t` → **rc=0 / `RESULT: PASS`**；逐册实数 `[PASS]`＝13+14+9+37+34+25+6+6+23＝**167**（`--list` 现场 168，047t 含 1 个 `--doc` 离线例），0 FAIL / 0 skip。
-- `bash .work/evidence/TESTCASES-093t/inject.sh` → **rc=0，3/3**（a/b/c 注入 rc=1、还原 rc=0），与完成区一致。
-- 独立注入（异于 a/b/c 三类，`/tmp/opencode/TESTCASES-093t/review-inject4.sh`）→ **rc=0**：R1 `DEFAULT_QEMU`→不存在路径 `rc=2→还原0`；R2 power 段 hmon 向量 `rc10→rc21` `rc=1→0`；R3 镜像落点 `RESET_IMAGE_OFF-0x1000` `rc=1→0`；`md5sum` 前后同为 `b3a911fe9ef76e761a7e1a79a19c3ec6`。
-- F4：`Makefile:1535` 实文含 `--qemu $(QEMU_BIN)`（`QEMU_BIN=$(HOST_TOOLCHAIN_BIN)/qemu-system-dadao`）；无 `.work/build/qemu` 下不带 `--qemu` 直跑 `044t --only run_mode_0` **rc=0**。`make -n check-arch` **rc=2**（依赖链进 `build-mc`/`build-qemu`，R8）⇒ A1 的 dry-run grep 不可得，改以 recipe 实文＋单例实跑核验（同完成区口径）。
+- `运行期证据脚本（已清理，未归档）` → **rc=0，3/3**（a/b/c 注入 rc=1、还原 rc=0），与完成区一致。
+- 独立注入（异于 a/b/c 三类，`运行期临时目录`）→ **rc=0**：R1 `DEFAULT_QEMU`→不存在路径 `rc=2→还原0`；R2 power 段 hmon 向量 `rc10→rc21` `rc=1→0`；R3 镜像落点 `RESET_IMAGE_OFF-0x1000` `rc=1→0`；`md5sum` 前后同为 `b3a911fe9ef76e761a7e1a79a19c3ec6`。
+- F4：`Makefile:1535` 实文含 `--qemu $(QEMU_BIN)`（`QEMU_BIN=$(HOST_TOOLCHAIN_BIN)/qemu-system-dadao`）；无 `运行期 QEMU 构建树` 下不带 `--qemu` 直跑 `044t --only run_mode_0` **rc=0**。`make -n check-arch` **rc=2**（依赖链进 `build-mc`/`build-qemu`，R8）⇒ A1 的 dry-run grep 不可得，改以 recipe 实文＋单例实跑核验（同完成区口径）。
 - 门控真实 rc：`make -k check` **rc=2**；`check-milestones-fresh` **rc=2**（主树同命令 **rc=0** ⇒ 本册引入）；`check-knowledge-refs` worktree 128 悬空 / 主树 **rc=2** 30 悬空；`check-tasks` **0**、`check-no-residue` **0**、`check-source-state` **0**；`check-arch-smoke` 尝试 **rc=124**（timeout 1200s，死在 `build-mc`）；L2 `check-modules` 未跑（同链全量构建）——`check-arch`/`check-arch-smoke`/L2 均**在 093 收缩范围外**。
-- 范围：`git status --porcelain -uall` 验前/验后**逐行相同**（10 改＋1 新，即完成区「修改文件」）；`components/ spec/ contracts/ .tao/contracts/ .tao/adr/ manifests/` **零 diff**；QEMU md5 `0949cb1f85df0cf04fbd7ec6b441129e` 开工/收尾不变；`integ046/049/050/051`、`046t` 驱动 grep prelude **0 命中**，`/tmp/opencode/TESTCASES-093t/partial-094.patch` `git apply --check` rc=0（未应用）⇒ **worktree 只剩 093 范围**。
+- 范围：`git status --porcelain -uall` 验前/验后**逐行相同**（10 改＋1 新，即完成区「修改文件」）；`components/ spec/ contracts/ .tao/contracts/ .tao/adr/ manifests/` **零 diff**；QEMU md5 `0949cb1f85df0cf04fbd7ec6b441129e` 开工/收尾不变；`integ046/049/050/051`、`046t` 驱动 grep prelude **0 命中**，`运行期临时目录` `git apply --check` rc=0（未应用）⇒ **worktree 只剩 093 范围**。
 
 **阻断（返工项）**
 1. **验收标准 10**：`make check-milestones-fresh` rc=2 —— `L15 TESTCASES-093t 表=待开始 ≠ 册=待验收`（主树 rc=0）。修：`.tao/knowledge/milestones.md:15` 状态改 `待验收`。
-2. **A3 证据落点**：`.work/evidence/TESTCASES-093t/runall/` **不存在**（13 册日志只在 `/tmp/opencode/TESTCASES-093t/runall/`），完成区却称"日志原样留在 worktree …/runall/ 供 094t 直接接手"。修：日志（含 `partial-094.patch`）落非易失位置，或更正完成区真实路径。
+2. **A3 证据落点**：`运行期证据（已清理，未归档）` **不存在**（13 册日志只在 `运行期临时目录`），完成区却称"日志原样留在 worktree …/runall/ 供 094t 直接接手"。修：日志（含 `partial-094.patch`）落非易失位置，或更正完成区真实路径。
 3. **A6**：无 `TESTCASES-094t-*` 任务书、`milestones.md` 无 094 流水行、`discussing.md` 无记录 ⇒ 只有清单、没有立项。修：主会话立 094＋流水行，或经确认改写 A6 口径。
-4. **`check-knowledge-refs` 中本册自有 7 条悬空**（`runall/`×2、`f4/`、`baseline/`、`verdict.tsv`、`.work/log/arch/`、092t P6）——不能全归"外部基线"，随 1/2 一并清。
+4. **`check-knowledge-refs` 中本册自有 7 条悬空**（`runall/`×2、`f4/`、`baseline/`、`verdict.tsv`、`运行期日志（已清理，未归档）`、092t P6）——不能全归"外部基线"，随 1/2 一并清。
 
 **非阻断 finding**：① `run.sh` 默认 12 册（含 3 册 094 范围）⇒ 裸跑 rc=1，建议默认 9 册；② `inject.sh` 只回显 INJECT rc 未 gate，no-op 注入仍会 PASS（本次三类实测均 FAIL，已复现），建议补 `[ "$rc" -ne 0 ] || fail=1`；③ 同秒同尺寸注入会被 `__pycache__` 顶替（reviewer 实测踩到，删该 pyc 即准）；④ 完成区"worktree 还含 integ049/050/051 部分迁移"已过期；⑤ `integ048t` docstring 仍写 `-bios 64 KiB`；⑥ `integ040t tlb_hit_gpf_fault` load→store（期望未变，自审已披露）。
 
-**环境副作用披露**：为取 `check-arch-smoke` 真实 rc，`make -o install-host -o build-bootrom` 仍触发前置 `build-mc`，timeout 杀停（rc=124），在本 worktree `.work/build/llvm` **留下 4.8G 部分构建树**（`.work/build` 原为空；安装根与全部跟踪文件未动，`git status` 与验前一致）。删除与否请主会话裁定。（复验时已确认 `.work/build` 恢复为空。）
+**环境副作用披露**：为取 `check-arch-smoke` 真实 rc，`make -o install-host -o build-bootrom` 仍触发前置 `build-mc`，timeout 杀停（rc=124），在本 worktree `运行期 LLVM 构建树` **留下 4.8G 部分构建树**（`运行期构建树` 原为空；安装根与全部跟踪文件未动，`git status` 与验前一致）。删除与否请主会话裁定。（复验时已确认 `运行期构建树` 恢复为空。）
 
 ### 第 2 轮 reviewer 增量复验（2026-11-03；命令均自跑）
 
@@ -293,7 +293,7 @@
 
 **阻断项复核**
 1. `make check-milestones-fresh` → **rc=0**（`结果: PASS (32 行…)`），`milestones.md:15` 已 `待验收`。
-2. 证据落点齐：`.work/evidence/TESTCASES-093t/{runall/(13 册), partial-094.patch, f4.txt, run.sh, inject.sh}`、`.work/log/arch/(13 册)`；任务书 `.work/**` 引用逐条 `[ -e ]` **全部 OK**（`.work/build/qemu` 属 gate 豁免的"本 worktree 不存在"语境）。
+2. 证据落点齐：`运行期证据（已清理，未归档）`、`运行期日志（已清理，未归档）`；任务书 `运行期临时目录` 引用逐条 `[ -e ]` **全部 OK**（`运行期 QEMU 构建树` 属 gate 豁免的"本 worktree 不存在"语境）。
 3. A6：master `d7d89e68` 已立 `TESTCASES-094t-L3异步与boot-chain收口.md`（状态 待开始）+ `milestones.md:15` 流水行，任务书 E1–E6 / 目标 1–4 **逐条覆盖** 049 `space_power`、050/051 异步、046t+046t 两册（该 commit 在 master、**不是**本 worktree HEAD 祖先 ⇒ worktree 内看不到属正常分支基线差异，A6 以 master 为准）。
 4. `make check-knowledge-refs` → rc=2，**120 悬空、`grep TESTCASES-093t` = 0**（本册归零）；`milestones.md` 仅命中 1 条"无法判定(跳过)"。按文件聚合全为 QEMU-080t/077t、TESTCASES-092t、GEM5-* 等他册；主树同命令 **rc=2 / 30 悬空**（主树证据，非本任务）。
 
@@ -307,19 +307,19 @@
 
 **档位**：reviewer 第 2 轮 Accepted ⇒ **正常提交**（非 WIP）。
 
-**文件集审核（显式 staging，13 项）**：`git diff --cached --name-status` 与完成区「修改文件」逐项一致 —— `Makefile`、`tools/testcases/arch/node_probe_prelude.py`(A)、9 个驱动、`.tao/knowledge/milestones.md`、本任务书；无漏提/多提/越界（`components/ spec/ contracts/ .tao/contracts/ .tao/adr/ manifests/` 零 diff；`.work/**` 被 `.gitignore` 覆盖，不入库）。
+**文件集审核（显式 staging，13 项）**：`git diff --cached --name-status` 与完成区「修改文件」逐项一致 —— `Makefile`、`tools/testcases/arch/node_probe_prelude.py`(A)、9 个驱动、`.tao/knowledge/milestones.md`、本任务书；无漏提/多提/越界（`components/ spec/ contracts/ .tao/contracts/ .tao/adr/ manifests/` 零 diff；`运行期临时目录` 被 `.gitignore` 覆盖，不入库）。
 
 **提交**：`de0572a3` `TESTCASES-093t: L3 探针 F4/prelude 与 9 册收口`（分支 `TESTCASES-093t`，**未 push**）。
 **合并**：`git merge master`（`d7d89e68`，含 094 任务书）→ 唯一冲突 `.tao/knowledge/milestones.md`，保留 093（已验证 / 14:30）与 094（待开始 / 14:05）两行、按时间倒序；合并提交 `2af71523`。
 
 **reviewer §4 六项处置（④⑤⑥ 脚本侧 + ①②③ 文档侧）**：
 - `run.sh` 默认 9 册：无参 `bash run.sh` → **rc=0 / `RESULT: PASS`**（044t…integ048t 逐册 rc=0）。
-- `inject.sh` rc gate：注入后 rc=0 即判 `INJECT … FAIL`；可达 FAIL 实证（comment-only 注入 → 探针仍绿 → gate 触发，`/tmp/opencode/TESTCASES-093t/inject-gate-reachability.sh` rc=0），正式 3/3 仍 `RESULT: PASS`。
+- `inject.sh` rc gate：注入后 rc=0 即判 `INJECT … FAIL`；可达 FAIL 实证（comment-only 注入 → 探针仍绿 → gate 触发，`运行期临时目录` rc=0），正式 3/3 仍 `RESULT: PASS`。
 - `__pycache__`：`run_probe` 每次运行前 `rm -rf "$arch/__pycache__"`，同秒同尺寸注入不再被陈旧 pyc 顶替。
 
 **合并后门控（真实 rc）**：
-- L1 `make -k check` = **rc=2**，唯一失败 `check-knowledge-refs`（124 悬空，其中 `TESTCASES-093t` **0 条**；`TESTCASES-094t` 4 条源自 master 任务书；主树同命令 35 悬空 / rc=2）⇒ 外部基线 + 新 worktree 缺历史 `.work/`，非本册引入。
+- L1 `make -k check` = **rc=2**，唯一失败 `check-knowledge-refs`（124 悬空，其中 `TESTCASES-093t` **0 条**；`TESTCASES-094t` 4 条源自 master 任务书；主树同命令 35 悬空 / rc=2）⇒ 外部基线 + 新 worktree 缺历史 `运行期临时目录`，非本册引入。
 - `check-tasks` 0 / `check-milestones-fresh` 0（33 行 PASS）/ `check-no-residue` 0 / `check-source-state` 0。
-- `run.sh` 9 册 post-merge = **rc=0 / PASS**（167 例）；`QEMU=/mnt/tao/DADAO-v5/.dadao/cross-toolchain/bin/qemu-system-dadao`。
-- F4：`Makefile:1535` 实文含 `--qemu $(QEMU_BIN)`；无 `.work/build/qemu` 下单例实跑解析到安装根。
+- `run.sh` 9 册 post-merge = **rc=0 / PASS**（167 例）；`QEMU=安装根 bin 下的 qemu-system-dadao`。
+- F4：`Makefile:1535` 实文含 `--qemu $(QEMU_BIN)`；无 `运行期 QEMU 构建树` 下单例实跑解析到安装根。
 - **未** `merge` 到 `master`、**未** `push`。

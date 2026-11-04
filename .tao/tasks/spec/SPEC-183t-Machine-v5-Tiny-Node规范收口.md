@@ -96,13 +96,13 @@
 4. **章节编号零漂移**：`git diff -U0` 证明所有 `##`/`###` 标题行未变（仅正文变动）。
 5. **归档零改动**：`git status --porcelain -uall` 与 `git diff --name-only` 均不含 `.tao/archive/**`。
 6. **反例可达 FAIL**：至少两处注入（把 Tiny BootROM 大小改成 `0x2_0000`、或把 DADAO-12「≥64 KiB」改回「256 KiB」固定）⇒ 证据脚本 FAIL；`cp` 备份 + `md5sum -c` 还原后回绿；**禁** `git checkout/restore/stash`。
-7. **基线诚实**：`check-knowledge-refs` 在**主工作树**为 PASS（现行盘上证据齐全）；在独立 worktree 内因 `.work/` 未随 worktree 复制而显示悬空，须以主工作树结果为准并在证据中记录两侧差异，**不得**为凑绿改任务书或删证据路径。
+7. **基线诚实**：`check-knowledge-refs` 在**主工作树**为 PASS（现行盘上证据齐全）；在独立 worktree 内因 `运行期临时目录` 未随 worktree 复制而显示悬空，须以主工作树结果为准并在证据中记录两侧差异，**不得**为凑绿改任务书或删证据路径。
 8. 完成区 ≤30 行；状态置 `待验收`。
 
 ## 证据
 
-- `.work/evidence/SPEC-183t/run.sh*`：一条命令重跑全部门控，逐项取**命令自身** rc（禁 `| tee` 吞码），输出 profile 自洽断言明细与锁 sha256 对账；`--inject` 走注入/还原（`cp` + `md5sum -c`）。
-- `.work/evidence/SPEC-183t/*.log`：门控原始输出、`sha256sum` 前后快照、`git diff --stat`。
+- `运行期证据脚本（已清理，未归档）*`：一条命令重跑全部门控，逐项取**命令自身** rc（禁 `| tee` 吞码），输出 profile 自洽断言明细与锁 sha256 对账；`--inject` 走注入/还原（`cp` + `md5sum -c`）。
+- `运行期证据（已清理，未归档）`：门控原始输出、`sha256sum` 前后快照、`git diff --stat`。
 - 完成区只写结论 + 命令 rc + 证据路径。
 
 ## 已裁定（2026-11-02，替代旧稿「未决」）
@@ -119,13 +119,13 @@
 
 ## 参考对照（0628 溯源，非执行必需）
 
-- 「内容溯源，非执行必需」：0628 的 `reset→hypv→supv` 核对报告（`.cache/refs/DADAO-0628/docs/reviews/kernel-hypv-supv-handoff-20260721.md`，只读）指出**当时的 QEMU/gem5 都没有真实移交**——`-kernel` 裸加载 + host-side syscall 被当作启动，属已知坑。
+- 「内容溯源，非执行必需」：0628 的 `reset→hypv→supv` 核对报告（`0628 只读参考检出中的核对报告`，只读）指出**当时的 QEMU/gem5 都没有真实移交**——`-kernel` 裸加载 + host-side syscall 被当作启动，属已知坑。
 - 0628 做法 → 本项目差异 → 建议落点：0628 单机几何 + 移交缺口 ⇒ v5 显式分 **Tiny（宿主装载、无 hmon/PTW/异常路径，承认是精简 profile）** 与 **Node（hmon/PTW/hypv + smon 保留，真移交）** ⇒ 落点 = `Machine-v5 §1/§2/§6` 的 profile 分述，禁止把 Tiny 的简化当"完整机器"。
 - 0628 的 ADR-0004 reset PC `0x00100000` 与本机「复位 = `0xffff_ffff_0000`」不同 ⇒ 不复用其机地址。
 
 ## 完成区
 
-**测试结果**：正文断言 **77/77 PASS**（`assert-assert.log`）；spec 门控 **9/9 rc=0**（`gate-*.log`）；反例注入 **2/2**「注入⇒FAIL、`cp`+`md5sum -c` 还原⇒回绿」（`run-inject.out`）；`run.sh` 全量 **RUN_EXIT=0**；`L1 make -k check` rc=2（唯一失败 `check-patch-tree`，gem5 补丁树与共享 `.work/source` 不一致，主工作树同样 rc=2，已基线登记）；`L2 make check-modules` **rc=0**。
+**测试结果**：正文断言 **77/77 PASS**（`assert-assert.log`）；spec 门控 **9/9 rc=0**（`gate-*.log`）；反例注入 **2/2**「注入⇒FAIL、`cp`+`md5sum -c` 还原⇒回绿」（`run-inject.out`）；`run.sh` 全量 **RUN_EXIT=0**；`L1 make -k check` rc=2（唯一失败 `check-patch-tree`，gem5 补丁树与共享 `组件源树` 不一致，主工作树同样 rc=2，已基线登记）；`L2 make check-modules` **rc=0**。
 **修改文件**：`spec/Machine-v5-测试机运行环境.md`、`spec/DADAO-12-SEE-主管系统运行环境.md`、`manifests/spec-readonly.lock.toml`、`.tao/adr/adr-0004|0039|0040|0043-*.md`、`.tao/contracts/contract-see.md`、`.tao/contracts/contract-elf.md`（最小同步）、本任务书、`.tao/knowledge/milestones.md`（流水行状态）。
 **验收结果**：
 - Tiny：BootROM 64 KiB `0xffff_ffff_0000`–`0xffff_ffff_ffff`、SRAM 8 MiB `0xffff_ff00_0000`–`0xffff_ff7f_ffff`、入口 `0xffff_ff01_0100`、SP `0xffff_ff7e_ff00`、raw 基址 `0xffff_ff01_0000`(+0x100=入口) 全部断言 PASS。
@@ -134,8 +134,8 @@
 **新发现/坑**：
 - 原稿 Node VA 末址 `0x027f_ffff_ffff` 与「4×512 MiB」不自洽（实为 1024 超页）；按 `index<<29` 独立重算为 `0x0200_7fff_ffff`，全链修正。
 - `Machine-v5` 已发布历史段（0.3.0/0.2.1）保留旧几何记录；判据改为「正文+`0.3.2-rc` 清零 + 历史段字节不变」。
-- 独立 worktree 不带 `.work`/`.dadao`：符号链接到主工作树后门控/工具链才与主树一致（否则 85 条假悬空）。
-- 并发任务写共享 `.work/log` 会瞬时触发 `check-run-artifacts`（`QEMU-081t-*.EXIT` 非法名）；复跑即绿，非本任务引入（`baseline-说明.md`）。
+- 独立 worktree 不带 `运行期临时目录`/`运行期安装根`：符号链接到主工作树后门控/工具链才与主树一致（否则 85 条假悬空）。
+- 并发任务写共享 `运行期日志（已清理，未归档）` 会瞬时触发 `check-run-artifacts`（`QEMU-081t-*.EXIT` 非法名）；复跑即绿，非本任务引入（`baseline-说明.md`）。
 **遗留问题**：
 - `TESTCASES-091t` §2 的 Tiny `entry`/`sp`/`default_run_mode`、Node `entry=1 MiB`/「VA=PA 恒等」落后本册，交该任务同步（见 §测试侧约束注记）。
 - Node ELF 的 VA→PA 装载口径（`contract-elf §5.2` 的 profile 限定）由 `QEMU-080t` 落地后回写；`dadao.lds` → `dadao-tiny.lds`/`dadao-node.lds` 由 testcases 落地。
@@ -155,12 +155,12 @@
 | F3 `contract-elf`「`PT_LOAD` 落 BootROM ⇒ 加载错误」与 picolibc A（crt 在 ROM）冲突 | ✅已修 | 加 Tiny ROM stub 例外；Node VA→PA 加 profile 限定（`QEMU-080t` 落地） | `check-spec-refs` / `check-spec-drift` rc=0 |
 | F4 `Machine-v5` 已发布历史段（0.3.0/0.2.1）含旧几何字面量；「全文清零」会重写历史 | ❌不修（改判据） | 断言限定「正文 + `0.3.2-rc`」；另断言 `0.3.0` 段与 HEAD 逐字节一致 | `已发布历史未改` PASS |
 | F5 证据脚本初版 stale-token 断言误传第 4 个位置参数 ⇒ 恒 FAIL | ✅已修 | 改为 3 参（`expected=False` + actual 布尔） | 77/77 PASS |
-| F6 worktree 无 `.work`/`.dadao` ⇒ 85 条假悬空 + 工具链缺失 | ✅已修（环境） | 符号链接指向主工作树（git 忽略、不入库），README 记录 | `check-knowledge-refs` rc=0；L1 仅剩基线 `check-patch-tree` |
+| F6 worktree 无 `运行期临时目录`/`运行期安装根` ⇒ 85 条假悬空 + 工具链缺失 | ✅已修（环境） | 符号链接指向主工作树（git 忽略、不入库），README 记录 | `check-knowledge-refs` rc=0；L1 仅剩基线 `check-patch-tree` |
 | F7 Node 入口/SP 未写死具体值 | ⏸延后 | spec 只固定「须落在页表 VA 区间内」；首版值交 `QEMU-080t` 实测校准 | 本任务书 §测试侧约束注记 |
 
 #### 第 1 轮 reviewer 验收
 
-**重跑记录（独立执行，命令自身 rc）**：`./.work/evidence/SPEC-183t/run.sh` → `RUN_EXIT=0`：断言 **77/77**（`合计 77 项，失败 0 项`）、**9/9 spec 门控 rc=0**（readonly/refs/drift/changelog/numbering/cite-targets/purity/knowledge-refs/milestones-fresh，逐条见 `gate-*.log` 尾行）；L1 `make -k check` **rc=2**，失败目标集合 = `check check-patch-tree` ⊆ `baseline-L1.txt`（主树独立复现 `make -s check-patch-tree` → `rc=2`、28 problem，gem5 补丁树 vs 共享 `.work/source`，**非本任务**）；L2 独立重跑 `make -k check-modules` → **rc=0**、`module checks (L2): PASS`。与工程师 `run-full.out` 逐行 diff 一致（仅 `RUN_EXIT` 行）。主树 `make -s check-knowledge-refs` → **rc=0**（验收标准 7 两侧 PASS）。
+**重跑记录（独立执行，命令自身 rc）**：`运行期证据脚本（已清理，未归档）` → `RUN_EXIT=0`：断言 **77/77**（`合计 77 项，失败 0 项`）、**9/9 spec 门控 rc=0**（readonly/refs/drift/changelog/numbering/cite-targets/purity/knowledge-refs/milestones-fresh，逐条见 `gate-*.log` 尾行）；L1 `make -k check` **rc=2**，失败目标集合 = `check check-patch-tree` ⊆ `baseline-L1.txt`（主树独立复现 `make -s check-patch-tree` → `rc=2`、28 problem，gem5 补丁树 vs 共享 `组件源树`，**非本任务**）；L2 独立重跑 `make -k check-modules` → **rc=0**、`module checks (L2): PASS`。与工程师 `run-full.out` 逐行 diff 一致（仅 `RUN_EXIT` 行）。主树 `make -s check-knowledge-refs` → **rc=0**（验收标准 7 两侧 PASS）。
 
 **独立反例注入（与 engineer 两处均不同）**：注入 Node VA 末址 `0x0200_7fff_ffff`→`0x027f_ffff_ffff` → **rc=1**，`FAIL Node.VA区间` + `FAIL 锁.sha256`；`cp` 备份 + `md5sum -c` 还原 → 回绿 **77/77 rc=0**（全程未用 `git checkout/restore/stash`）。另重跑 engineer `run.sh --inject` → `INJECT_RUN_EXIT=0`，2/2「注入⇒FAIL、还原⇒回绿」。
 

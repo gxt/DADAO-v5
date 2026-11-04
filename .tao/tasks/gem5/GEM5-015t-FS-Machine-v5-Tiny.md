@@ -6,7 +6,7 @@
 **状态**：已验证
 
 ## 执行环境
-**执行环境**：本地（仓库根；独立 `git worktree` + 分支 `GEM5-015t`，从 `master` 建；组件源树 `.work/source/gem5` 内部收敛 base+1 提交；不 merge、不 push）
+**执行环境**：本地（仓库根；独立 `git worktree` + 分支 `GEM5-015t`，从 `master` 建；gem5 组件源树内部收敛 base+1 提交；不 merge、不 push）
 
 ## 用户已定口径（2026-11-03，主会话转达 + `spec/Machine-v5-测试机运行环境.md` 真源）
 
@@ -23,7 +23,7 @@
 3. **UNDI/ILLI 未区分**：`decode::DecodedInst::ok()` 为假（空白 opcode 字节/空子表槽）与「已分配 id 的静态合法性违反」目前都落到 `IllegalInstruction`（`0x88`）；Tiny 的 `inst` 向量要求前者为 **UNDI `0x89`**（`tests/inst/schema.md`：`encoding.reserved ⇒ UNDI`）。
 4. **无 semihosting**：SE/Tiny 的停机与控制台协议都是 semihosting（`spec/Machine-v5 §5`、`contract-semihosting §1/§2/§5`；`ADR-0020 D8`）；gem5 侧现无任何服务实现。gem5 上游已有可复用的通用骨架 `src/arch/generic/semihosting.hh`（`BaseSemihosting`，24 个服务 + 文件/时间基础设施；RISC-V 用 `src/arch/riscv/semihosting.*` 做 ISA 适配），本任务**按接口重写 DADAO 适配**，只缺 `SYS_SYNCCACHE (0x19)`。
 5. **QEMU 侧已有同模式参考且已验证**：`QEMU-079t` 实现 `profile=tiny`（`-bios` 64 KiB 复位窗口 + raw/ELF 两条装载、fault 直出、semihosting 25 服务）；测试资产 `tests/shared/**` + `tools/testcases/**` 已按 Tiny 落地（`TESTCASES-091t/092t/093t`）。本任务**不改 QEMU**，只在 gem5 侧重做同模式机器。
-6. **可构建基线**：`.work/source/gem5` = `c8222cc6` + 1 个 dadao 补丁提交（现场 `4c08f32`，干净）；`build/DADAO/gem5.opt` 已存在（2026-11-03 05:02，可增量）。新增 SimObject 会重生成 `params/**`，预计增量重编 **15–40 分钟**。
+6. **可构建基线**：`gem5 组件源树` = `c8222cc6` + 1 个 dadao 补丁提交（现场 `4c08f32`，干净）；`build/DADAO/gem5.opt` 已存在（2026-11-03 05:02，可增量）。新增 SimObject 会重生成 `params/**`，预计增量重编 **15–40 分钟**。
 
 ## 目标
 
@@ -109,11 +109,11 @@
 - CLI：`--kernel <file>`（必填）、`--bootrom <file>`、`--semihost {on,off}`（默认 on）、`--semihost-argv <a,b,…>` 或重复 `--semihost-arg`、`--semihost-system {deny,native}`（默认 deny）、`--console-out <path>`、`--max-ticks <n>`（安全上限，命中 ⇒ 非 guest 退出 125）、`--dump-geometry`、`--dump-semihost-services`、`--outdir`（gem5 既有）。
 - 退出：`exit_event = m5.simulate()`；`getCause() == "exiting with last active thread context"` ⇒ `sys.exit(exit_event.getCode() & 0xff)`；否则打印 cause 并 `sys.exit(125)`。
 - `--dump-geometry` 输出 `GEM5_GEOMETRY key=value` 行（ROM/SRAM/复位/`kernel_base`/`kernel_reserved`/`entry`/`sp`）；`--dump-semihost-services` 输出 C++ 服务表实际键（供 §4 的 25 项机械比对）。
-- **禁**在仓库内落 `m5out/`：证据统一 `--outdir /tmp/opencode/GEM5-015t/**`。
+- **禁**在仓库内落 `m5out/`：证据统一 `--outdir <运行期临时目录>`。
 
 ### 7. 同模式对照驱动（证据层，不入 git）
 
-- 证据层提供 **QEMU→gem5 参数映射 shim**（`/tmp` 或 `.work/evidence/GEM5-015t/**` 下，**不进仓库**），接受并只映射：`-M dadao-m1[,profile=tiny]`、`-bios <file>`、`-kernel <file>`、`-semihosting-config enable=on,target=native[,arg=…]`、`-nographic`、`-display none`、`-monitor none`；转调 `gem5.opt --outdir … configs/dadao/fs.py …`。**未知参数必须报错退出（rc=2）**，不得静默丢弃；不得改变判据（只看 guest 退出码/控制台）。
+- 证据层提供 **QEMU→gem5 参数映射 shim**（`运行期临时目录` 或 `运行期证据（已清理，未归档）` 下，**不进仓库**），接受并只映射：`-M dadao-m1[,profile=tiny]`、`-bios <file>`、`-kernel <file>`、`-semihosting-config enable=on,target=native[,arg=…]`、`-nographic`、`-display none`、`-monitor none`；转调 `gem5.opt --outdir … configs/dadao/fs.py …`。**未知参数必须报错退出（rc=2）**，不得静默丢弃；不得改变判据（只看 guest 退出码/控制台）。
 - 复用现有驱动（只读，不改）：`run_qemu_test.py`/`run_qemu_smoke.py`/`run_embench_e2e.py` 的 `--qemu <shim>`；picolibc（`tools/testcases/picolibc_tests.py` 硬编码 QEMU，无 `--qemu`）用「QEMU 基线产物复用」：`--stage fast --work-dir <dir> --json <qemu.json>` 产出 `<dir>/<name>.elf`，再用 gem5 逐个重跑并与 `qemu.json` 分类逐项比对。
 - 至少 **1 条** 用例必须**绕过 shim**、直接 `gem5.opt configs/dadao/fs.py …` 运行，证明结论不只依赖映射层。
 
@@ -129,7 +129,7 @@
 
 **仓库侧**：`components/gem5/series`（+N，字典序）、`components/gem5/changelog.md`（`## M11` 节追加一条 `- **<日期> GEM5-015t**` + 摘要缩进行 + `  - 执行者：engineer`）、`components/gem5/README.md`（FS 段：构成/CLI/边界/已知限制）、本任务书、`.tao/knowledge/milestones.md`。
 
-**不改**：见「用户已定口径」的硬范围；证据/临时物只落 `.work/evidence/GEM5-015t/**`、`.work/log/gem5/**`、`/tmp/opencode/GEM5-015t/**`（均不入 git）。
+**不改**：见「用户已定口径」的硬范围；证据/临时物只落 `运行期证据（已清理，未归档）`、`运行期日志（已清理，未归档）`、`运行期临时目录`（均不入 git）。
 
 ## 验收标准
 
@@ -144,7 +144,7 @@
 9. **picolibc**：`--stage fast` 的 QEMU 基线 JSON 与 gem5 重跑分类逐项一致（`pass`/`excluded`/`blocked` 集合相同、无新增 `fail`）；同 argv（`SEMIHOST_ARGS_TESTS`）与同 ELF（QEMU work-dir 产物）比较。
 10. **SE 与 B0–B7 零退化**：`configs/dadao/se.py` 的 `hello`/`fail` fixture rc/stdout 与 `GEM5-014t` 基线一致（SE 的 panic/fault 行为不变）；`make check-gem5-decode` rc=0（`264/264`、`388/388`、`28/28`、`2/2`、`failures 0`）；`python3 tools/gem5/check_converge.py` rc=0 且 ids/boundary/B1–B7 计数不变（`[FAIL] 0`）。
 11. **L1/L2/隔离/台账**：`make check`（L1）rc=0 或「本任务红 = 0」且逐条基线复现；L2（`make check-modules`）rc=0，若被共享 `install-host`/gate.lock 阻塞则记 BLOCKED + 现场（不得伪装 PASS）；`git diff --name-only <base>` 只命中 `components/gem5/**` + 两本册；`check-component-changelog`/`check-milestones-fresh`/`check-tasks`/`check-no-residue` rc=0；无 `m5out/`、无 `*_tmp*`/`*.orig`/`*.rej`。
-12. **证据/注入/完成区**：`.work/evidence/GEM5-015t/**` 一键脚本（`run.sh`、`run.EXIT`、`REPORT.md`、日志）+ `run.sh --inject` 覆盖 §必测反例、每类「注入 → FAIL（rc≠0/错误行）→ `cp` 备份 + md5 对账还原 → 回绿」；完成区 ≤30 行；状态 `待验收`。
+12. **证据/注入/完成区**：`运行期证据（已清理，未归档）` 一键脚本（`run.sh`、`run.EXIT`、`REPORT.md`、日志）+ `run.sh --inject` 覆盖 §必测反例、每类「注入 → FAIL（rc≠0/错误行）→ `cp` 备份 + md5 对账还原 → 回绿」；完成区 ≤30 行；状态 `待验收`。
 
 ## 必测反例（每类必须有可达 FAIL，不是上限）
 
@@ -161,9 +161,9 @@
 
 ## 证据
 
-- `.work/evidence/GEM5-015t/**`：`run.sh`（构建 → 几何/semihosting 静态比对 → 本册自带 fixtures → inst 代表集 + 全量对照 → embench e2e + `--inject` → picolibc fast 对照 → SE/B0–B7 回归 → L1/L2 → 隔离），逐项落 `*_EXIT=<rc>`；日志 `.work/log/gem5/**` 与 `/tmp/opencode/GEM5-015t/**`（gem5 `--outdir` 只落此处）。
+- `运行期证据（已清理，未归档）`：`run.sh`（构建 → 几何/semihosting 静态比对 → 本册自带 fixtures → inst 代表集 + 全量对照 → embench e2e + `--inject` → picolibc fast 对照 → SE/B0–B7 回归 → L1/L2 → 隔离），逐项落 `*_EXIT=<rc>`；日志 `运行期日志（已清理，未归档）` 与 `运行期临时目录`（gem5 `--outdir` 只落此处）。
 - `REPORT.md`：**数字全部脚本现场生成**（补丁数、sim-object 列表、几何 dump、25 服务表比对、逐 case 对照统计、embench/picolibc 分类、B0–B7 计数、注入表「注入前 md5 / 注入 rc / 还原后 md5 / 回绿 rc」）。
-- 工具链/依赖缺失（`.dadao/cross-toolchain/bin/{clang,ld.lld,llvm-mc,qemu-system-dadao}`、`.work/source/{gem5,embench-iot,picolibc}`、`scons`）⇒ **rc=2 BLOCKED**，不得伪造 PASS。
+- 工具链/依赖缺失（`安装根 bin 下的 {clang,ld.lld,llvm-mc,qemu-system-dadao}`、`组件源树 {gem5,embench-iot,picolibc}`、`scons`）⇒ **rc=2 BLOCKED**，不得伪造 PASS。
 
 ## 说明（风险 / 非目标 / 溯源）
 
@@ -175,11 +175,11 @@
 
 ## 完成区
 
-**测试结果**：`.work/evidence/GEM5-015t/run.sh`（分 phase 亲跑，日志在 `.work/log/gem5/` 与 `/tmp/opencode/GEM5-015t/`）：meta+fixtures **76 CHECK / 0 FAIL**；inst smoke 90/90（QEMU 与 gem5 同）；inst 全量 **1003/1003 双引擎逐例 PASS**、QEMU 通过集合 ⊆ gem5、无 gem5-only 失败；Embench **38/38**（O0/O2，`--timeout 600`）+ `--inject` 判据可达（检测到错误期望）；picolibc QEMU 基线 18 pass/2 excluded/0 fail，gem5 17 pass/2 excluded/**1 blocked（`math_test`，既有 B7 数值差异，非 FS 路径）**、无新增 fail；SE hello/exit42/exit300 全过；decode 264/264+388/388+28/28+2/2、converge 264/264+1848/1848+B1–B7 全零退化；注入 **10/10**（注入红、`cp`+md5 还原、回绿）。
-**修改文件**：`components/gem5/patches/**`（15 新增 + 6 修改；`series` 89）、`components/gem5/changelog.md`、`components/gem5/README.md`、`.tao/tasks/gem5/GEM5-015t-FS-Machine-v5-Tiny.md`、`.tao/knowledge/milestones.md`、`.work/evidence/GEM5-015t/**`（不入 git）。
-**验收结果**：`--dump-geometry` 9 项与 profile tiny 逐项相等；复位 fixture 观测 `PC=rb0=BASE/ROM`、`rb1=0`、`rf0=0x7FF800007FC00000`、其余 GPR/RA=0、未写 SRAM 读回 0；rawcheck 观测入口 `0xffffff010100` 与 `SP=0xffffff7eff00`；ELF `e_entry=0xffffffff0000`、PT_LOAD 落 ROM/SRAM、`return42→42`、`return300→44`；fault 实测 ROM 写 0x88、`addr[47:42]=0`/gap/cfx63 越界 0x81、MALIGN 0x8C、IALIGN 0x8D、静态 ILLI 0x88、UNDI 0x89、cfx2rd/cfx2rc 0x84、非 semihosting trap/escape 0x88；semihosting 25 服务（C++ 表实际键）与 spec §5.3 集合相等，WRITEC/WRITE0 字节、`SYS_EXIT` 300→44/首退出锁定、GET_CMDLINE=`alpha beta`、未知号 fatal 带 `0x7f`+pc、`--console-out` 文件逐字节、`SYS_SYSTEM` deny 不执行/native 执行均实测；`make check-patch-tree` rc=0（294 patches）、`check-source-state` gem5 HEAD=`5b2bc85` base+1 clean；L1 `make -k check` rc=2、**2 红均 env 缺口（本任务红=0）**：`check-knowledge-refs`（150 条其它任务 `.work/**` 悬空，0 条属本任务；隔离 worktree 缺其产物）+ `check-builtins-freshness`（`expected=present actual=absent`，隔离 worktree 无 builtins 产物）；L2 `check-inst-smoke` PASS 后停在 `install-host → build-builtins`（`ERROR: no configured compiler-rt build tree at .work/build/compiler-rt-builtins -- configure it once (INFRA-079t) first`）⇒ BLOCKED；**不是** `check-arch-smoke` Node 基线（主仓该目标 10/10 + 25 svc PASS，QEMU-080t 已验证）。（收尾修正，finding 1/5。）`git diff` 仅 `components/gem5/**` + 两本册。
-**新发现/坑**：① 服务号按 contract/spec 取 **rd16**（任务书 §4「immu18 低 8 位」与 §5.2/资产冲突；按 spec + 现有 harness 实现并在证据中验证）；② gem5 fetch 在 TLB 前把 PC 掩到 4 字节，IALIGN 必须用 `req->PC` 判；③ `BaseSemihosting` 原只在 ARM/RISC-V 构建注册，需在 generic SConscript 为 DADAO 启用；④ `Param.SimObject(NULL)` 不能传 Python `None`，用 gem5 `NULL`；⑤ 对照 shim 必须接受 `-machine`（驱动用 `-machine` 非 `-M`）；⑥ raw 装载不得覆盖 BootROM 复位 PC；⑦ `math_test` 暴露既有 B7 低位数值差异（238/76404，疑 fma），与 FS 无关；⑧ `.work/build/llvm` 在隔离 worktree 缺失时 `check-modules` 会触发全量 LLVM 重建（本任务按基线停在该目标前）。
-**遗留问题**：① picolibc `math_test` BLOCKED = 既有 B7 数值差异（QEMU 0 error / gem5 238 error；建议另立 B7 差分任务，本任务未改 B7）；② L1 `check-knowledge-refs` 150 条其它任务悬空引用 = 隔离 worktree 无其 `.work/evidence`（基线，非本任务）；③ L2 `check-arch-smoke` 在隔离 worktree 停于 `install-host → build-builtins`（缺 `.work/build/compiler-rt-builtins`，env 缺口；主仓同目标 10/10 PASS）——**非** Node 基线问题（收尾修正，finding 1）；④ 空目录 `m5out/` 已 `rmdir`，`check.py` 增 git 不可见的空目录检查（收尾修正，finding 5）。
+**测试结果**：`运行期证据脚本（已清理，未归档）`（分 phase 亲跑，日志在 `运行期日志（已清理，未归档）` 与 `运行期临时目录`）：meta+fixtures **76 CHECK / 0 FAIL**；inst smoke 90/90（QEMU 与 gem5 同）；inst 全量 **1003/1003 双引擎逐例 PASS**、QEMU 通过集合 ⊆ gem5、无 gem5-only 失败；Embench **38/38**（O0/O2，`--timeout 600`）+ `--inject` 判据可达（检测到错误期望）；picolibc QEMU 基线 18 pass/2 excluded/0 fail，gem5 17 pass/2 excluded/**1 blocked（`math_test`，既有 B7 数值差异，非 FS 路径）**、无新增 fail；SE hello/exit42/exit300 全过；decode 264/264+388/388+28/28+2/2、converge 264/264+1848/1848+B1–B7 全零退化；注入 **10/10**（注入红、`cp`+md5 还原、回绿）。
+**修改文件**：`components/gem5/patches/**`（15 新增 + 6 修改；`series` 89）、`components/gem5/changelog.md`、`components/gem5/README.md`、`.tao/tasks/gem5/GEM5-015t-FS-Machine-v5-Tiny.md`、`.tao/knowledge/milestones.md`、`运行期证据（已清理，未归档）`（不入 git）。
+**验收结果**：`--dump-geometry` 9 项与 profile tiny 逐项相等；复位 fixture 观测 `PC=rb0=BASE/ROM`、`rb1=0`、`rf0=0x7FF800007FC00000`、其余 GPR/RA=0、未写 SRAM 读回 0；rawcheck 观测入口 `0xffffff010100` 与 `SP=0xffffff7eff00`；ELF `e_entry=0xffffffff0000`、PT_LOAD 落 ROM/SRAM、`return42→42`、`return300→44`；fault 实测 ROM 写 0x88、`addr[47:42]=0`/gap/cfx63 越界 0x81、MALIGN 0x8C、IALIGN 0x8D、静态 ILLI 0x88、UNDI 0x89、cfx2rd/cfx2rc 0x84、非 semihosting trap/escape 0x88；semihosting 25 服务（C++ 表实际键）与 spec §5.3 集合相等，WRITEC/WRITE0 字节、`SYS_EXIT` 300→44/首退出锁定、GET_CMDLINE=`alpha beta`、未知号 fatal 带 `0x7f`+pc、`--console-out` 文件逐字节、`SYS_SYSTEM` deny 不执行/native 执行均实测；`make check-patch-tree` rc=0（294 patches）、`check-source-state` gem5 HEAD=`5b2bc85` base+1 clean；L1 `make -k check` rc=2、**2 红均 env 缺口（本任务红=0）**：`check-knowledge-refs`（150 条其它任务 `运行期临时目录` 悬空，0 条属本任务；隔离 worktree 缺其产物）+ `check-builtins-freshness`（`expected=present actual=absent`，隔离 worktree 无 builtins 产物）；L2 `check-inst-smoke` PASS 后停在 `install-host → build-builtins`（`ERROR: no configured compiler-rt build tree at 运行期 compiler-rt 构建树 -- configure it once (INFRA-079t) first`）⇒ BLOCKED；**不是** `check-arch-smoke` Node 基线（主仓该目标 10/10 + 25 svc PASS，QEMU-080t 已验证）。（收尾修正，finding 1/5。）`git diff` 仅 `components/gem5/**` + 两本册。
+**新发现/坑**：① 服务号按 contract/spec 取 **rd16**（任务书 §4「immu18 低 8 位」与 §5.2/资产冲突；按 spec + 现有 harness 实现并在证据中验证）；② gem5 fetch 在 TLB 前把 PC 掩到 4 字节，IALIGN 必须用 `req->PC` 判；③ `BaseSemihosting` 原只在 ARM/RISC-V 构建注册，需在 generic SConscript 为 DADAO 启用；④ `Param.SimObject(NULL)` 不能传 Python `None`，用 gem5 `NULL`；⑤ 对照 shim 必须接受 `-machine`（驱动用 `-machine` 非 `-M`）；⑥ raw 装载不得覆盖 BootROM 复位 PC；⑦ `math_test` 暴露既有 B7 低位数值差异（238/76404，疑 fma），与 FS 无关；⑧ `运行期 LLVM 构建树` 在隔离 worktree 缺失时 `check-modules` 会触发全量 LLVM 重建（本任务按基线停在该目标前）。
+**遗留问题**：① picolibc `math_test` BLOCKED = 既有 B7 数值差异（QEMU 0 error / gem5 238 error；建议另立 B7 差分任务，本任务未改 B7）；② L1 `check-knowledge-refs` 150 条其它任务悬空引用 = 隔离 worktree 无其 `运行期证据（已清理，未归档）`（基线，非本任务）；③ L2 `check-arch-smoke` 在隔离 worktree 停于 `install-host → build-builtins`（缺 `运行期 compiler-rt 构建树`，env 缺口；主仓同目标 10/10 PASS）——**非** Node 基线问题（收尾修正，finding 1）；④ 空目录 `m5out/` 已 `rmdir`，`check.py` 增 git 不可见的空目录检查（收尾修正，finding 5）。
 **收尾结论**：reviewer 第 1 轮判决 **Accepted**（不另开轮）；findings 1–5 均文档/口径级，由 architect 收尾直接处置（见「第 1 轮 architect 收尾」）；状态 `待验收`→`已验证`。**picolibc `math_test` 仍记 blocked，未写 PASS。**
 
 ## 审阅记录
@@ -198,7 +198,7 @@
 | F6 `--dump-semihost-services` 在 SimObject 构造前调用 | ✅已修 | `fs.py` 移到 `m5.instantiate()` 后 | 25 服务集合 == spec §5.3 |
 | F7 `BaseSemihosting` 仅 ARM/RISC-V 注册/编译 | ✅已修 | `src/arch/generic/SConscript` 条件加 `USE_DADAO_ISA` | 构建 rc0 + 25 服务动态执行 |
 | F8 `math_test` gem5 238/76404 errors（B7 低位数值） | ⏸延后 | 未改 B7（本任务未触碰 `exec/b7*`/`fp_soft*`） | QEMU 0 error vs gem5 238；完成区遗留① |
-| F9 L1 `check-knowledge-refs` 150 悬空、L2 停 `build-builtins` | ✅已核（基线非本任务） | 无（隔离 worktree 缺其它任务 `.work` / 缺 `compiler-rt-builtins` 树）；**收尾修正**：原写「L2 = arch-smoke Node 基线」「L1 仅 1 红」有误，改为 env 缺口 + L1 2 红 | L1 本任务红=0；L2 inst-smoke PASS、BLOCKED 于 `install-host`（finding 1/5） |
+| F9 L1 `check-knowledge-refs` 150 悬空、L2 停 `build-builtins` | ✅已核（基线非本任务） | 无（隔离 worktree 缺其它任务 `运行期临时目录` / 缺 `compiler-rt-builtins` 树）；**收尾修正**：原写「L2 = arch-smoke Node 基线」「L1 仅 1 红」有误，改为 env 缺口 + L1 2 红 | L1 本任务红=0；L2 inst-smoke PASS、BLOCKED 于 `install-host`（finding 1/5） |
 | F10 SE 隔离 | ✅已核 | FS 判定 = `dynamic_cast<FsWorkload*>`，无全局开关；`faults.hh` SE 分支逐字保留 panic | SE hello/42/300 全过；注入 `se-cleared-by-fs` 使 SE 红（rc=125），还原回绿 |
 
 代码级复核：区间检查用 `addr-base < size` 且 `len <= size-off`（无溢出）；ROM 写仅 `Write`；首个 `MachineFault` 用 `faultRaised` 锁定并 `exitSimLoopNow`；semihosting 仅在 FS 且 tag 命中时短路，SE `trap cfx0,0` 原路径不变；`resetThread` 仅 FS 调用并拒绝 SE；`--max-ticks`/panic 等非 guest 退出固定 125。注入 10/10（`cp`+md5，未用 git 还原）。
@@ -206,7 +206,7 @@
 #### 第 1 轮 reviewer 验收
 
 **重跑（reviewer 亲跑，rc 为本人终端实测，不采信完成区）**
-- `RUN_INJECT=0 .work/evidence/GEM5-015t/run.sh` → **rc=0**（`run.EXIT=0`）：**109 CHECK / 0 FAIL**，其中 meta+fixtures=**76**；inst smoke 90/90 双引擎；全量 **1003/1003**（`both_fail=0`、`qemu_only_fail=0`、双引擎 PASS 集逐条 diff 为空、4 条 `profiles:[node]` skip、5 deferred）；embench **38/38** 且 `--inject` 检出；picolibc qemu 18 pass / gem5 17 pass+**1 blocked** / `new_fail=0`；SE `0/42/44`；`check-patch-tree` rc=0（`6 component(s), 294 patches OK`）、`check-source-state` rc=0（`5b2bc85` = `c8222cc`+1、clean）、decode `264/388/28/2` failures 0、converge `264/264`+`1848/1848`+B1–B7 `2102/1160/4248/3696/1215/1362/2979` 全 `[FAIL]0`、L1 rc=2、L2 rc=2、隔离 2 项 rc=0。
+- `RUN_INJECT=0 运行期证据脚本（已清理，未归档）` → **rc=0**（`run.EXIT=0`）：**109 CHECK / 0 FAIL**，其中 meta+fixtures=**76**；inst smoke 90/90 双引擎；全量 **1003/1003**（`both_fail=0`、`qemu_only_fail=0`、双引擎 PASS 集逐条 diff 为空、4 条 `profiles:[node]` skip、5 deferred）；embench **38/38** 且 `--inject` 检出；picolibc qemu 18 pass / gem5 17 pass+**1 blocked** / `new_fail=0`；SE `0/42/44`；`check-patch-tree` rc=0（`6 component(s), 294 patches OK`）、`check-source-state` rc=0（`5b2bc85` = `c8222cc`+1、clean）、decode `264/388/28/2` failures 0、converge `264/264`+`1848/1848`+B1–B7 `2102/1160/4248/3696/1215/1362/2979` 全 `[FAIL]0`、L1 rc=2、L2 rc=2、隔离 2 项 rc=0。
 - `./run-inject.sh` → **rc=0**（`inject.EXIT=0`）：10/10 注入红、10/10 `md5 same=True`、`REBUILD restore-green rc=0`、10/10 回绿。
 - **独立注入 2 类**（不在 engineer 的 10 类内）：① `configs/dadao/fs.py` 把 SYS_SYSTEM 恒 `native` ⇒ `sys-system-deny-not-executed` **rc=1**（expected=absent actual=present），`cp`+md5 还原（`md5sum -c OK`）后回绿 69/69 rc=0；② `fs_workload.cc` 关 `ET_EXEC` 校验（`scons` rc=0）⇒ `neg-elf-etdyn-msg` **rc=1**（ET_DYN 被接受、跑到 exit 42），md5 还原 + 重建 rc=0、回绿 69/69 rc=0。
 - 字面验收命令 `semantics_gate.py --vectors tests/inst --only-profile-cases`：gem5 shim **rc=0 44/44**、`qemu-system-dadao` **rc=0 44/44**；44 例由我从 yaml 独立派生，全部包含在 1003 PASS 集内。
@@ -218,9 +218,9 @@
 **约束核验**：改动仅 `components/gem5/**` + 两本册（`git diff` + untracked 双查，无 QEMU/spec/tests/contracts/Makefile/tools 改动）；`series` 89 行 = 磁盘 89 patch 且 `sort -c` 通过；SE 文件无 `fs_`/`machinefault`、SE panic 分支逐字保留；25 服务集合 == spec §5.3（现场派生）；几何 9 项 == `machine-profiles.yaml` tiny；shim 未知参数 rc=2 实测；无 `*_tmp*/*.orig/*.rej`、仓库无 `m5out/` 内容。采信项：仅 `REPORT.md` 聚合数字不采信（见 finding 3），其余全部亲跑。
 
 **findings（不阻断，architect 收尾处置）**
-1. **L2 归因与现场不符**：完成区/遗留③/F9 写「arch-smoke 0/10 = Node 未实现基线」，实际停点是 `install-host → build-builtins: ERROR: no configured compiler-rt build tree at .work/build/compiler-rt-builtins`（隔离 worktree 缺该树）；主仓基线 `check-arch-smoke` **10/10 PASS + 25 svc PASS**、QEMU-080t 状态「已验证」。请改写完成区/审阅记录的现场与 `check.py` 硬编码标签。
+1. **L2 归因与现场不符**：完成区/遗留③/F9 写「arch-smoke 0/10 = Node 未实现基线」，实际停点是 `install-host → build-builtins: ERROR: no configured compiler-rt build tree at 运行期 compiler-rt 构建树`（隔离 worktree 缺该树）；主仓基线 `check-arch-smoke` **10/10 PASS + 25 svc PASS**、QEMU-080t 状态「已验证」。请改写完成区/审阅记录的现场与 `check.py` 硬编码标签。
 2. **验收 8 字面口径与现场不符**：语料 `embench-iot/src/` 实为 **19** 个 benchmark（非 22；QEMU-079t 基线同为 38/38，`executed==discovered` 有断言）；`--inject` 工具契约是「检出⇒rc=0、未检出⇒rc=1」，任务书「必须返回 1」方向相反（实测 rc=0）。实质判据「判据可失败」已证 ⇒ 请更正任务书验收 8 措辞。
-3. **REPORT.md 计数掺入旧分相日志**：`report.py` 合并 `/tmp/opencode/GEM5-015t/check-*.log`，本轮单次全量 109 CHECK 被报成 213（smoke/embench/picolibc 各重复一次），`geometry keys:` 为空 ⇒ 报告器改为只读单次 run 或先清理旧日志。
+3. **REPORT.md 计数掺入旧分相日志**：`report.py` 合并 `运行期临时日志`，本轮单次全量 109 CHECK 被报成 213（smoke/embench/picolibc 各重复一次），`geometry keys:` 为空 ⇒ 报告器改为只读单次 run 或先清理旧日志。
 4. **`math_test` 豁免需落地为任务**：`check.py` 的 `known_blocked={math_test}` 是唯一会把 gem5 `fail` 改判 `blocked` 的点（QEMU 分类器同输入判 `fail`）；归因已独立证实（见上），请按遗留①**另立 B7 数值差分任务**，落地前保留登记。
 5. 仓库根残留**空目录 `m5out/`**（git 不可见，任务书要求「无 m5out/」）；L1 实有 2 红（完成区只写了 knowledge-refs 一项），同属 env 缺口 ⇒ 收尾 `rmdir m5out` 并补记。
 
@@ -232,14 +232,14 @@ reviewer 判决 **Accepted**，不另开轮；findings 1–5 全为文档/口径
 
 | finding | 处置 | 证据 |
 |---|---|---|
-| 1 L2 归因错 | 改写完成区/遗留③/F9 为「停于 `install-host → build-builtins`（隔离 worktree 缺 `.work/build/compiler-rt-builtins`）」；`check.py` 的 L2 判据改为 `check-inst-smoke: PASS` + 该错误串，标签不再写 Node 基线 | 主仓 `make check-arch-smoke` 末「Results: 10/10 passed」+「RESULT: PASS」（含 25 服务；QEMU-080t 已验证）；隔离 worktree 的门控日志 L2 段显示 BLOCKED 于 build-builtins |
-| 2 验收 8 口径 | 「22 benchmark」→**19**（现场 `ls -d .work/source/embench-iot/src/*/` = 19；38 = 19×2，工具 line 360 断言 `executed == discovered`）；`--inject` 契约改为「检出 ⇒ rc=0（`INJECT: PASS`）/ 未检出 ⇒ rc=1 / setup ⇒ rc=2」 | `run_embench_e2e.py` line 299/360/378–400；现场 19 目录 |
+| 1 L2 归因错 | 改写完成区/遗留③/F9 为「停于 `install-host → build-builtins`（隔离 worktree 缺 `运行期 compiler-rt 构建树`）」；`check.py` 的 L2 判据改为 `check-inst-smoke: PASS` + 该错误串，标签不再写 Node 基线 | 主仓 `make check-arch-smoke` 末「Results: 10/10 passed」+「RESULT: PASS」（含 25 服务；QEMU-080t 已验证）；隔离 worktree 的门控日志 L2 段显示 BLOCKED 于 build-builtins |
+| 2 验收 8 口径 | 「22 benchmark」→**19**（现场 `ls -d embench 组件源树中的 src/*` = 19；38 = 19×2，工具 line 360 断言 `executed == discovered`）；`--inject` 契约改为「检出 ⇒ rc=0（`INJECT: PASS`）/ 未检出 ⇒ rc=1 / setup ⇒ rc=2」 | `run_embench_e2e.py` line 299/360/378–400；现场 19 目录 |
 | 3 REPORT 计数 | `report.py` 改为**只读单次 run log**（删掉合并 `check-*.log` 旧分相日志），geometry keys 改由 `CHECK geometry-*` 派生并剔除 `dump`/`keys` 伪键；重生成 REPORT.md | 重生成后：**109 CHECK / 0 FAIL**、geometry 9 项、注入 10 行（原 213 消失） |
 | 4 `math_test` 豁免 | 归因已由 reviewer 独立证实（同 ELF：QEMU 0 error / gem5 238 error；补丁不触 FP/B7）⇒ **保留 blocked 登记（未写 PASS）**；「另立 B7 数值差分任务」留在遗留①，**本次不建册**（新任务属批次外停止点，需主会话确认后立） | 完成区遗留①；REPORT `picolibc` 段 `gem5 pass=17 blocked=1 new_fail=0` |
 | 5 残留 + L1 红数 | 仓库根空目录 `m5out/` 已 `rmdir`（rc=0，复核 `ls` 无该目录）；`check.py` 增「git 不可见的空目录 `m5out/`」residue 检查；完成区补记 L1 **2 红**（`check-knowledge-refs` 150 悬空 + `check-builtins-freshness` 缺产物），均 env 缺口、本任务红=0；L1 判决改为 `make -k check` 全跑 + 红目标 ⊆ 两项 env 缺口 | `check-gates3.log`：`L1-check … reds=['check-builtins-freshness','check-knowledge-refs'] rc=0`、`isolation-no-residue … rc=0` |
 
-**提交前门控（architect 亲跑）**：`check.py --phases gates,isolation --no-build` ⇒ `SUMMARY: all checks passed`，12 条 CHECK 全 rc=0（`check-patch-tree`/`check-source-state`/`check-gem5-decode`/`check-converge`/四本册门控/两条 isolation）；L1 红目标 `['check-builtins-freshness','check-knowledge-refs']`（均 env 缺口、本任务悬空 0），L2 BLOCKED 于 build-builtins（env 缺口，如实记、不伪装 PASS）。日志（同一证据目录）：`.work/evidence/GEM5-015t/check-gates3.log`（提交前全绿）、`.work/evidence/GEM5-015t/check-gates-postmerge.log`（post-merge 首跑，红）、`.work/evidence/GEM5-015t/check-gates-final.log`（修复后全绿，`GATES_EXIT=0`）。
-**门控可达 FAIL 的现场证据（本次收尾真实发生）**：首次 post-merge 跑出 L1 rc=1 —— 本册 finding 1 行引用了主仓工作树里的 arch-smoke 日志路径（隔离 worktree 无该文件）⇒ `check-knowledge-refs` 悬空 151、`ours=True` 判红；改引用、并把门控日志复制到 `.work/evidence/GEM5-015t/` 后重跑全绿。
+**提交前门控（architect 亲跑）**：`check.py --phases gates,isolation --no-build` ⇒ `SUMMARY: all checks passed`，12 条 CHECK 全 rc=0（`check-patch-tree`/`check-source-state`/`check-gem5-decode`/`check-converge`/四本册门控/两条 isolation）；L1 红目标 `['check-builtins-freshness','check-knowledge-refs']`（均 env 缺口、本任务悬空 0），L2 BLOCKED 于 build-builtins（env 缺口，如实记、不伪装 PASS）。日志（同一证据目录）：`运行期证据（已清理，未归档）`（提交前全绿）、`运行期证据（已清理，未归档）`（post-merge 首跑，红）、`运行期证据（已清理，未归档）`（修复后全绿，`GATES_EXIT=0`）。
+**门控可达 FAIL 的现场证据（本次收尾真实发生）**：首次 post-merge 跑出 L1 rc=1 —— 本册 finding 1 行引用了主仓工作树里的 arch-smoke 日志路径（隔离 worktree 无该文件）⇒ `check-knowledge-refs` 悬空 151、`ours=True` 判红；改引用、并把门控日志复制到 `运行期证据（已清理，未归档）` 后重跑全绿。
 **同步**：`git merge master` 实为**有冲突**——`master` 已从 `b3c1f12b` 前进到 `464028f9`（新增 `GEM5-016t` 立册），冲突文件仅 `.tao/knowledge/milestones.md`（新增 GEM5-016t 行 vs 本行改写）；解决 = 两行都保留，按 `check-milestones-fresh` A4「同一时间按编号升序」排为 GEM5-015t → GEM5-016t；merge commit `be430216`（无其它文件冲突）。
-**同步后门控**：`check.py --phases gates,isolation --no-build` ⇒ **12/12 CHECK rc=0、`SUMMARY: all checks passed`、`GATES_EXIT=0`**（L1 红仅 2 项 env 缺口、本任务悬空 0；L2 BLOCKED 于 build-builtins）。日志 `.work/evidence/GEM5-015t/check-gates-merged2.log`（含首跑红 `check-gates-merged.log`：A4 次序错 1 项，已修）。
+**同步后门控**：`check.py --phases gates,isolation --no-build` ⇒ **12/12 CHECK rc=0、`SUMMARY: all checks passed`、`GATES_EXIT=0`**（L1 红仅 2 项 env 缺口、本任务悬空 0；L2 BLOCKED 于 build-builtins）。日志 `运行期证据（已清理，未归档）`（含首跑红 `check-gates-merged.log`：A4 次序错 1 项，已修）。
 **提交**：`GEM5-015t: FS Machine-v5-Tiny`（`a3809976`）—— 显式 staging 26 文件（21 补丁 + `series` + `README.md` + `changelog.md` + 本册 + `milestones.md`），`git diff --cached --name-only` 与完成区「修改文件」逐项对账**空差**（无漏提/多提/越界）；未 `push`、未合入 `master`（合并由主会话执行）。

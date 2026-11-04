@@ -14,8 +14,8 @@
 - **本任务是 G1 SE 链首**：只建**最小可运行 SE 平台骨架**（`SEWorkload` + `Process` 边界、`AtomicSimpleCPU`、静态 ELF 装载、入口、初始栈、最小 libc 启动 syscall 面 `set_tid_address/write/writev/exit/exit_group`）。**不实现**完整 syscall 表 / `brk` / `mmap` / TLS / 线程 / 动态链接（后续任务）。
 - **验收基线（`discussing.md` 2026-11-02，21:40/21:42 两条）**：full tset 以 **QEMU user 的 pass/fail/skip 集合**为基线，gem5 SE **不能少通过**；**若 gem5 通过而 QEMU 未通过，不得直接接受 gem5**，须新增 QEMU 调试任务定位修正；若根因是 spec 解释不清，提交用户裁定。**静态 SE 先做 `ET_EXEC`，不提前做 `ET_DYN`/static PIE**（本册据此拒绝 `ET_DYN`/`PT_INTERP`）。
 - **不改**：`tests/**`、`spec/**`、`contracts/**`（含 `.tao/contracts/**`）、`Makefile`、`manifests/**`、`tools/**`、`components/{llvm-project,qemu,musl,picolibc,embench-iot}/**`、`docs/**`。测试资产另立任务（ADR-0048 D3）。
-- **不复制 0628 / QEMU 实现代码**：`.cache/refs/DADAO-0628/**` 只读、只吸收**结论**并标「内容溯源，非执行依赖」；QEMU user 只作**同模式对照**（ADR-0048 D1/D2），不得作为期望值来源（ADR-0048 D4）。
-- 不提交 git；提交权归 architect。临时目录 `/tmp/opencode/GEM5-014t/`。
+- **不复制 0628 / QEMU 实现代码**：`0628 只读参考检出` 只读、只吸收**结论**并标「内容溯源，非执行依赖」；QEMU user 只作**同模式对照**（ADR-0048 D1/D2），不得作为期望值来源（ADR-0048 D4）。
+- 不提交 git；提交权归 architect。临时目录 `运行期临时目录`。
 
 ## 背景与目标
 
@@ -26,7 +26,7 @@
 ## 事实基线（2026-11-02 现场核对，只读）
 
 - 用户态静态 ELF 现状（现场 `llvm-readelf`）：`ELFCLASS64 / ELFDATA2MSB / ET_EXEC / e_machine=0x0DA0 / e_flags=0x1`，`p_vaddr == p_paddr`，`p_align=0x10000`；lld 默认基址 **0x10000**（首 64 KiB 页留空），`e_entry` 落在第二段（如 `0x20f80`），非 64 KiB 对齐但 **4 字节对齐**。
-- 用户态可用工具链：`.dadao/cross-toolchain/bin/{clang,ld.lld,qemu-dadao}`；静态 musl 产物 `.work/source/musl/lib/{crt1.o,libc.a}`。编译/链接配方见 `tools/qemu/user_mode_smoke.py::compile_program/link_static`（v5 自身工具，**只读复用配方，不改该文件**）。
+- 用户态可用工具链：`安装根 bin 下的 {clang,ld.lld,qemu-dadao}`；静态 musl 产物 `musl 组件源树中的 lib/{crt1.o,libc.a}`。编译/链接配方见 `tools/qemu/user_mode_smoke.py::compile_program/link_static`（v5 自身工具，**只读复用配方，不改该文件**）。
 - `qemu-dadao` 现场可跑该配方产物（`write(1,"ok\n",3); return 0;` ⇒ stdout `ok`、rc=0），是本任务的**同模式对照实现**。
 - gem5 现状：`loader::Arch` 无 Dadao 成员，`ElfObject::determineArch()` 对 `EM_DADAO` 只 `warn("Unknown architecture")` ⇒ `Process::tryLoaders()` 返回空 ⇒ `fatal("Unknown error creating process object")`；`ISA::inUserMode()` 现为 `panic(...)`，而 `BaseSimpleCPU::countCommitInst()` **每条指令**都会调用它 ⇒ 必须先补。
 - `BaseCPU` 要求 `interrupts.size() == numThreads`（`src/cpu/base.cc:497`），且 `BaseCPU` 从 `mmu`/`isa`/`decoder` 参数取对象 ⇒ SE 必须有 `DadaoMMU`/`DadaoTlb`/`DadaoInterrupts`/`DadaoCPU`。
@@ -98,7 +98,7 @@
 
 必需集（缺一即「起不到 `main`」或「看不到结果」，逐条有据）：
 
-- `set_tid_address`(96)：musl `__init_tp` 在 `main` 之前**无条件**调用（`.work/source/musl/src/env/__init_tls.c:22`）⇒ 必实现；返回 `tid`（单线程 = `pid`），把 guest 的 `clear_child_tid` 指针记入 `Process::childClearTID`。
+- `set_tid_address`(96)：musl `__init_tp` 在 `main` 之前**无条件**调用（`musl 组件源树中的 src/env/__init_tls.c:22`）⇒ 必实现；返回 `tid`（单线程 = `pid`），把 guest 的 `clear_child_tid` 指针记入 `Process::childClearTID`。
 - `write`(64)：参数 `fd=int → rd16`、`buf=ptr → rb16`、`count=size_t → rd17`；经 `Process::fds[fd]`（`HBFDEntry::getSimFD()`）落宿主 fd；guest 缓冲用 `SETranslatingPortProxy(tc, Never)` + `tryReadBlob`（**禁 `Always`**：读不得静默分配页）；失败 `-EBADF`/`-EFAULT`。
 - `writev`(66)：`fd → rd16`、`iov=ptr → rb16`、`iovcnt → rd17`；每个 `iovec` 为 `{base(8B), len(8B)}`，**大端**解析；逐段复用 `write` 路径；返回累计字节数（musl stdio 走 `writev`，缺它则 `printf` 类用例全灭）。
 - `ioctl`(29)：musl `__stdout_write` 在 stdout 首次写前无条件发 `TIOCGWINSZ`，故纳入最小面；只接受 `TIOCGWINSZ`（返回 `-ENOTTY`，保持非交互）与 `TCGETS`（返回 `-ENOTTY`），其余 request **fatal**（带号与 pc），不得静默返回 0。
@@ -146,13 +146,13 @@
 5. **初始栈/argv 正确**：`args` 用例（`return argc == 2 ? 0 : 3;`）带 `--args extra` ⇒ `$? == 0`；不带 `--args` ⇒ `$? == 3`（证明 `argc/argv` 向量与 SP/`rb1` 正确，而非「恰好能跑」）。
 5b. **页大小一致**：`pagesz` 用例（`return sysconf(_SC_PAGESIZE) == 65536 ? 0 : 3;`）在 gem5 SE 与修正后的 `qemu-dadao`（`TARGET_PAGE_BITS=16`）上均 `$? == 0`；证明 `AT_PAGESZ`/`PageBytes` 为 64 KiB。
 5c. **MemRAS 已分配**：`deepcall` 用例（100 层 `call`/`ret`，`return 0`）在 gem5 SE 与 `qemu-dadao` 上均 `$? == 0`；证据侧打印 `ra0`（`MRPTR != 0`）并断言 100 层调用不触发 `RASOF`。
-6. **同模式一致（ADR-0048 D1/D2）**：上列用例 + 1 条既有静态 ELF（`.dadao/tests/llvm-ts-user/static/SingleSource_Benchmarks_Shootout_hello/hello.elf`，输出确定、无 malloc/mmap）分别在 `qemu-dadao` 与 gem5 SE 上跑，**stdout 字节逐字节相同、退出码相同**；argv[0] 传同一字符串。若出现「gem5 通过而 QEMU 未通过」或反之，**不得直接接受**：按 `discussing.md` 2026-11-02 基线定位（QEMU 调试任务 / spec 裁定），并在完成区写清归属。
+6. **同模式一致（ADR-0048 D1/D2）**：上列用例 + 1 条既有静态 ELF（`安装根中的 hello.elf`，输出确定、无 malloc/mmap）分别在 `qemu-dadao` 与 gem5 SE 上跑，**stdout 字节逐字节相同、退出码相同**；argv[0] 传同一字符串。若出现「gem5 通过而 QEMU 未通过」或反之，**不得直接接受**：按 `discussing.md` 2026-11-02 基线定位（QEMU 调试任务 / spec 裁定），并在完成区写清归属。
 7. **不支持 syscall 不静默**：`pidsys` 用例（调 `getpid()`）⇒ gem5 **非零退出**且 stderr 含 `syscall` 号与 `pc`；同一 binary 在 `qemu-dadao` 正常退出（证明这是「明确失败报告」而非「静默忽略」）。
 8. **B0–B7 零退化**：`make check-gem5-decode` rc=0（`264/264`、`388/388`、`28/28`、`2/2`、`failures 0`）；`python3 tools/gem5/check_converge.py` rc=0，计数等于 `GEM5-013t` 基线（ids 264/264、boundary 1848/1848、B1–B7 `2102/1160/4248/3696/1215/1362/2979`、`[FAIL]` 0）。
-9. **L1**：`make check` rc=0。若失败，须用 `git archive HEAD` 临时树在**同一命令**下复现，证明该失败**既有且非本任务引入**（逐条列出命令、rc、现场），并在完成区登记；**本任务引入的红项一律不得放过**（`check-knowledge-refs` 等对 `.work/**` 悬空敏感，任务书内引用一律用 `**` 通配形）。
+9. **L1**：`make check` rc=0。若失败，须用 `git archive HEAD` 临时树在**同一命令**下复现，证明该失败**既有且非本任务引入**（逐条列出命令、rc、现场），并在完成区登记；**本任务引入的红项一律不得放过**（`check-knowledge-refs` 等对 `运行期临时目录` 悬空敏感，任务书内引用一律用 `**` 通配形）。
 10. **隔离门控**：`git diff --name-only <base>`（gem5 补丁集）与仓库改动集对 `tests/ spec/ contracts/ .tao/contracts/ Makefile manifests/ tools/ components/{llvm-project,qemu,musl,picolibc,embench-iot}/ docs/` 命中数 = 0；§7 的禁用 token 文本断言计数 0（注释剥离后）。
 11. **反例可达 FAIL**：§必测反例 ≥5 类，每类「注入 → rc≠0 且有 `[FAIL]`/错误行 → `cp` 备份 + md5 对账还原 → 回绿 rc=0」；**禁** `git checkout/restore/stash`。
-12. **证据与完成区**：`.work/evidence/GEM5-014t/**` 一键脚本 + `REPORT.md`（数字全部脚本现场生成，不手写）；完成区 ≤30 行；状态 `待验收`。
+12. **证据与完成区**：`运行期证据（已清理，未归档）` 一键脚本 + `REPORT.md`（数字全部脚本现场生成，不手写）；完成区 ≤30 行；状态 `待验收`。
 
 ## 必测反例（每类必须有可达 FAIL，不是上限）
 
@@ -167,10 +167,10 @@
 
 ## 证据
 
-- `.work/evidence/GEM5-014t/**` 下的 `run.sh`：编译 6 个 fixture（`hello`/`fail`/`args`/`pidsys`/`pagesz`/`deepcall`，配方同 `tools/qemu/user_mode_smoke.py`）→ qemu-dadao 基线 → gem5 SE（`--outdir /tmp/opencode/GEM5-014t/gem5-out/`，**禁**在仓库内落 `m5out`）→ 逐项比对 → 跑验收 1/2/8/9/10 → 落 `*_EXIT=<rc>`；日志 `/tmp/opencode/GEM5-014t/` + `logs/`。
+- `运行期证据（已清理，未归档）` 下的 `run.sh`：编译 6 个 fixture（`hello`/`fail`/`args`/`pidsys`/`pagesz`/`deepcall`，配方同 `tools/qemu/user_mode_smoke.py`）→ qemu-dadao 基线 → gem5 SE（`--outdir <运行期临时目录>`，**禁**在仓库内落 `m5out`）→ 逐项比对 → 跑验收 1/2/8/9/10 → 落 `*_EXIT=<rc>`；日志 `运行期临时目录` + `logs/`。
 - 同目录 `run.sh --inject`：跑 §必测反例，记录「注入前 md5 / 注入后 rc / 还原后 md5 / 回绿 rc」。
 - 同目录 `REPORT.md`：补丁数、sim-object 列表、逐用例「qemu stdout/rc vs gem5 stdout/rc」、`EXIT_CAUSE`、B0–B7 计数、构建结果、注入表、`rf0`/SP/PC 实际值证据（可在配置里打印一次寄存器快照，或由 `--debug-flags=Exec` 抓取）。
-- 工具链/依赖缺失（`.dadao/cross-toolchain/bin/*`、`.work/source/musl/lib/*`）或 SCons 缺失 ⇒ **rc=2 BLOCKED**，不得伪造 PASS。
+- 工具链/依赖缺失（`安装根 bin 下的 *`、`musl 组件源树中的 lib/*`）或 SCons 缺失 ⇒ **rc=2 BLOCKED**，不得伪造 PASS。
 
 ## 说明
 
@@ -182,16 +182,16 @@
 
 ## 完成区
 
-**测试结果**：`./.work/evidence/GEM5-014t/run.sh`（末次含 `RUN_L2=1`）：PASS 55 / FAIL 1 / BLOCKED 2。FAIL 仅 `make -k check` 原始 rc=2；逐目标基线判定后**本任务红 = 0**（`check-knowledge-refs` = 既有红；`check-patch-tree` = 仅共享 qemu 并发红，gem5 无 problem 行）。BLOCKED = `check-patch-tree`（共享 `.work/source/qemu` 正被并行 `QEMU-081t` 改写）与 L2（`check-modules` 先触发 `install-host` 全量 LLVM 重建，300 s 界限内仍在 `[226/1815]`）。`run.sh --inject`：**7/7 PASS、退出码 0、`logs/injections.tsv` 7 行**，6 类源码注入均 `bin_changed`（配置类 `config_only`）。
-**修改文件**：`components/gem5/{series(+20→73，基线 53),README.md,changelog.md,patches/**}`（触碰 23 份补丁文件 = 20 新增 + 3 修改，全部由 `python3 tools/infra/make_patch.py gem5` 导出）；本任务书；`.tao/knowledge/milestones.md`（GEM5-014t 流水行→已验证）；`.work/evidence/GEM5-014t/**`（run.sh/fixtures/REPORT.md/logs，未入 git）。
+**测试结果**：`运行期证据脚本（已清理，未归档）`（末次含 `RUN_L2=1`）：PASS 55 / FAIL 1 / BLOCKED 2。FAIL 仅 `make -k check` 原始 rc=2；逐目标基线判定后**本任务红 = 0**（`check-knowledge-refs` = 既有红；`check-patch-tree` = 仅共享 qemu 并发红，gem5 无 problem 行）。BLOCKED = `check-patch-tree`（共享 `QEMU 组件源树` 正被并行 `QEMU-081t` 改写）与 L2（`check-modules` 先触发 `install-host` 全量 LLVM 重建，300 s 界限内仍在 `[226/1815]`）。`run.sh --inject`：**7/7 PASS、退出码 0、`logs/injections.tsv` 7 行**，6 类源码注入均 `bin_changed`（配置类 `config_only`）。
+**修改文件**：`components/gem5/{series(+20→73，基线 53),README.md,changelog.md,patches/**}`（触碰 23 份补丁文件 = 20 新增 + 3 修改，全部由 `python3 tools/infra/make_patch.py gem5` 导出）；本任务书；`.tao/knowledge/milestones.md`（GEM5-014t 流水行→已验证）；`运行期证据（已清理，未归档）`（run.sh/fixtures/REPORT.md/logs，未入 git）。
 **验收结果**：1) `series` 73 = 磁盘 patch 73（> 基线 53）；`check-source-state` rc=0（gem5 E1 OK）；`check-patch-tree` 整体 rc=2 但 problem 行**只属 qemu 共享源**（gem5 无断言失败），本任务对 qemu 改动 0；2) `build-gem5`/`--help`/`--list-sim-objects` rc=0，含 DadaoISA/DadaoSEWorkload/DadaoMMU/DadaoTlb/DadaoInterrupts（`DadaoAtomicSimpleCPU` 见遗留①）；3) hello：guest `ok\n`、rc=0、EXIT_CAUSE 正确、首条 PC=0x20f80=e_entry；4) fail rc=7、exit300 rc=44；5) args 有/无 `--args extra` rc=0/3；5b) **pagesz：gem5 0、qemu 0**（QEMU-081t 已改 `TARGET_PAGE_BITS=16`，双向对照通过）；5c) deepcall rc=0（双端）、MRPTR=0x5000000ffff8≠0、无 RASOF；6) 既有静态 hello.elf stdout/rc 与 qemu 逐字节一致；7) pidsys gem5 rc=1 且 stderr 含 `syscall 172`+pc，qemu rc=0；8) `check-gem5-decode`/`check_converge` rc=0（264/264、1848/1848、B1–B7 不变、FAIL 0）；9) `make -k check` 全量 2 红：`check-knowledge-refs` 基线同目标 rc=2 = **既有红**，`check-patch-tree` = **共享源红**（gem5 无 problem 行）⇒ 本任务红 0；10) 隔离（含 untracked）forbidden-path 0、FS token 0；11) 注入 7/7（可达 FAIL + cp+md5 还原）；12) REPORT.md 由脚本现场生成。
-**新发现/坑**：① gem5 `fatal_if` 条件串会进格式串，条件含 `%` ⇒ `<bad format>` 崩溃（改位与）；② lld 不按 `p_align` 放置 PT_LOAD（实测 0x2017c 仅 4B 对齐）⇒ §4 `base%8` 不可机械成立，改 4B；③ musl `__stdout_write` 无条件 `ioctl(TIOCGWINSZ)` ⇒ printf 类 tset 需 29 号；④ `MemState::mapRegion` 必须先于 `allocateMem`，且 `argsInit` 末尾 VMA 取整会丢精确 SP（另存 `initialSp`）；⑤ `--list-sim-objects` 对非 tty stdin 的 ioctl 直接崩（用 `script` 包 pty）；⑥ worktree（source 共享/build 本地）下 `build_gem5.py` 相对链接 ValueError（预建 `.work/build/gem5`）；⑦ 并行任务持有 `.dadao/gate.lock` 时 `build-gem5`/L2 会长时间等待——脚本用 `BUILD_TIMEOUT`/`L2_TIMEOUT` 记 BLOCKED 并继续，不伪装 PASS。
+**新发现/坑**：① gem5 `fatal_if` 条件串会进格式串，条件含 `%` ⇒ `<bad format>` 崩溃（改位与）；② lld 不按 `p_align` 放置 PT_LOAD（实测 0x2017c 仅 4B 对齐）⇒ §4 `base%8` 不可机械成立，改 4B；③ musl `__stdout_write` 无条件 `ioctl(TIOCGWINSZ)` ⇒ printf 类 tset 需 29 号；④ `MemState::mapRegion` 必须先于 `allocateMem`，且 `argsInit` 末尾 VMA 取整会丢精确 SP（另存 `initialSp`）；⑤ `--list-sim-objects` 对非 tty stdin 的 ioctl 直接崩（用 `script` 包 pty）；⑥ worktree（source 共享/build 本地）下 `build_gem5.py` 相对链接 ValueError（预建 `运行期 gem5 构建树`）；⑦ 并行任务持有 `gate.lock` 时 `build-gem5`/L2 会长时间等待——脚本用 `BUILD_TIMEOUT`/`L2_TIMEOUT` 记 BLOCKED 并继续，不伪装 PASS。
 **收尾结论（2026-11-03，architect）**：reviewer 第 2 轮 **Accepted**（原文保留、未改写）；`**状态**` → `已验证`，`milestones.md` 流水行同步（`check-milestones-fresh` rc=0：A1 表行 == 册状态）。提交 `e67ad388 GEM5-014t: G1 SE 平台骨架`（显式 staging **28 项** = 23 补丁 + `series`/README/changelog + 本任务书 + `milestones.md`，与完成区「修改文件」逐项对账一致，无漏提/多提）。
 **同步 master**：`git merge master`（`815c2c7b`，含 SPEC-183t/TESTCASES-091t/QEMU-081t/QEMU-079t）→ 冲突 2 文件：`.tao/knowledge/milestones.md`（GEM5 流水行）与本任务书（`**状态**`、验收 5b）；解决 = 状态取「已验证」、5b 取 master 版（QEMU 已 16 位）、流水保留 SPEC/TESTCASES/QEMU 行并置 GEM5-014t 已验证行；merge commit `ee48d7bf`，`git merge-base --is-ancestor master HEAD` 成立（落后 0）。
-**同步后 L1（真实 rc）**：`make -k check` **rc=2**，2 红均**基线红**（本任务红 0）：① `check-patch-tree` 8 problem **全属 qemu**、`check-patch-tree: gem5:` 计数 **0**，本分支 vs master `components/qemu` 改动 **0 文件**，`git archive master` 合成树同命令同 8 problem ⇒ 共享 `.work/source/qemu` 被并行 QEMU-080t 改写（`gate.lock` 07:00:49 外部持有）；② `check-knowledge-refs` **87 悬空**，master 基线同 rc=2 且两边悬空集合差集为空（全部是其它任务 `.work/evidence/**` 不在本 worktree）。`check-no-residue`、`check-milestones-fresh` PASS。首次 L1 曾因收尾临时树误落仓库内出现 `check-no-residue` 假红，移出后复跑 PASS（`/tmp/opencode/GEM5-014t/logs/L1-clean.log`）。
-**关键证据复跑**：`./.work/evidence/GEM5-014t/run.sh` → **PASS 55 / FAIL 1（= 上述 gate9 原始 rc=2）/ BLOCKED 1（gate1 共享源）**；行为类 hello/fail/exit300/args/pagesz/pidsys/deepcall/既有 ELF/initregs/首条 PC 全 PASS，B0–B7 `264/264`+`1848/1848`+`[FAIL] 0`，隔离 0、FS token 0。REPORT/日志在 `.work/evidence/GEM5-014t/`。
+**同步后 L1（真实 rc）**：`make -k check` **rc=2**，2 红均**基线红**（本任务红 0）：① `check-patch-tree` 8 problem **全属 qemu**、`check-patch-tree: gem5:` 计数 **0**，本分支 vs master `components/qemu` 改动 **0 文件**，`git archive master` 合成树同命令同 8 problem ⇒ 共享 `QEMU 组件源树` 被并行 QEMU-080t 改写（`gate.lock` 07:00:49 外部持有）；② `check-knowledge-refs` **87 悬空**，master 基线同 rc=2 且两边悬空集合差集为空（全部是其它任务 `运行期证据（已清理，未归档）` 不在本 worktree）。`check-no-residue`、`check-milestones-fresh` PASS。首次 L1 曾因收尾临时树误落仓库内出现 `check-no-residue` 假红，移出后复跑 PASS（`运行期临时日志`）。
+**关键证据复跑**：`运行期证据脚本（已清理，未归档）` → **PASS 55 / FAIL 1（= 上述 gate9 原始 rc=2）/ BLOCKED 1（gate1 共享源）**；行为类 hello/fail/exit300/args/pagesz/pidsys/deepcall/既有 ELF/initregs/首条 PC 全 PASS，B0–B7 `264/264`+`1848/1848`+`[FAIL] 0`，隔离 0、FS token 0。REPORT/日志在 `运行期证据（已清理，未归档）`。
 **遗留条件（交主会话）**：`check-patch-tree` 的「门控全绿」须在 QEMU-080t 落地、共享源稳定的窗口复跑；`make check-modules`（L2）同因 `install-host` 全量重建未跑完（reviewer 已记 BLOCKED）。
-**收尾复核（master 前进 1 个 docs-only commit `5ecd685b` 后）**：二次 `git merge master` 无冲突 → merge commit `e6ee8820`，分支落后 master 0；该 HEAD 复跑 `make -k check` **rc=2**，仍 2 红且与 `git archive 5ecd685b` 基线逐项相同（`check-patch-tree` 8 problem 全属 qemu / gem5 0；`check-knowledge-refs` 87 悬空、前后集合差集为空）；`check-milestones-fresh` PASS、`check-no-residue` PASS。证据 `/tmp/opencode/GEM5-014t/logs/L1-final.log`。
+**收尾复核（master 前进 1 个 docs-only commit `5ecd685b` 后）**：二次 `git merge master` 无冲突 → merge commit `e6ee8820`，分支落后 master 0；该 HEAD 复跑 `make -k check` **rc=2**，仍 2 红且与 `git archive 5ecd685b` 基线逐项相同（`check-patch-tree` 8 problem 全属 qemu / gem5 0；`check-knowledge-refs` 87 悬空、前后集合差集为空）；`check-milestones-fresh` PASS、`check-no-residue` PASS。证据 `运行期临时日志`。
 **遗留问题**：① 验收 2 字面要求 `--list-sim-objects` 含 `DadaoAtomicSimpleCPU`，但任务书 §2 明确 `sim_objects=[]`——按 §2 保持 Python 别名，以 probe 导入 + 实例化证明（`DADAO_CPU_OK`），请裁定；② `ioctl(29)` 超出 §5 的 5 号最小面（musl printf 必需；仅 TIOCGWINSZ/TCGETS→`-ENOTTY`，其它 fatal），已在 README/changelog 记录，请裁定是否纳入；③ `check-patch-tree` 的 qemu 红待 QEMU-081t 落地后复跑（本任务 qemu 改动 0、gem5 断言 OK）；④ L2 需 `install-host` 全量 LLVM 重建（> 时限且独占共享 gate 锁），本任务未跑完，记 BLOCKED；⑤ `check-knowledge-refs` 既有红（其它任务 evidence 未随 worktree）。
 
 ## 审阅记录
@@ -212,7 +212,7 @@
 | `SEWorkload` 缺 `byteOrder()` 纯虚 ⇒ 不可构造 | ✅已修 | 增 `byteOrder()→big` | SimObject 生成 + 运行 |
 | musl printf 需 `ioctl(TIOCGWINSZ)` | ✅已修 | 29 号最小 ioctl（其它 fatal） | 既有 hello.elf 通过 |
 | `<elf.h>` 与 gem5 libelf 冲突 | ✅已修 | 删系统 `<elf.h>`，用 gelf 常量 | 编译通过 |
-| worktree 下 `build_gem5.py` 相对链接 ValueError | ✅已修（环境） | 预建 `.work/build/gem5` 目录 | `make build-gem5` rc=0 |
+| worktree 下 `build_gem5.py` 相对链接 ValueError | ✅已修（环境） | 预建 `运行期 gem5 构建树` 目录 | `make build-gem5` rc=0 |
 | 反例可达 FAIL | ✅已验 | 7 类注入 | `logs/injections.tsv` 7/7、md5 全等 |
 
 #### 第 2 轮 engineer 自审（返工，对应 reviewer Needs Revision）
@@ -221,34 +221,34 @@
 | finding | 处置 | 改了什么 | 复验证据 |
 |---|---|---|---|
 | R1 多行 spec 被 `IFS='\|' read` 截断（silent-unknown 删错行、build rc=2） | ✅已修 | 改为显式 `maybe_inject` 调用（跨行单引号参数）；每次源码注入后校验二进制 md5 变化（`bin_changed`） | `--inject` 7/7 PASS、退出码 0、`logs/injections.tsv` 7 行、6 类源码注入均 `bin_changed` |
-| R2 gate9 只跑首错目标 | ✅已修 | `make -k check` 全量；逐红在基线树（`git archive <merge-base>` + `.dadao`/`.work/{source,build}` 链接）复现；`check-patch-tree`/`check-source-state` 按共享源 scoped 判定；结果落 `logs/gate9.targets.tsv` | 见 REPORT Gate 9 表 |
+| R2 gate9 只跑首错目标 | ✅已修 | `make -k check` 全量；逐红在基线树（`git archive <merge-base>` + `运行期安装根`/`运行期临时目录` 链接）复现；`check-patch-tree`/`check-source-state` 按共享源 scoped 判定；结果落 `logs/gate9.targets.tsv` | 见 REPORT Gate 9 表 |
 | F1 series 计数写错 | ✅已修 | 完成区改 `+20→73（基线 53）`；README 规模同步 73 | `git show ce604e50:components/gem5/series` = 53 |
 | F2 README/changelog 未提 `ioctl(29)` | ✅已修 | 补 `TIOCGWINSZ`/`TCGETS` 子集与「未建模 request fatal」，删「只有 5 个」 | `grep ioctl` 两文件均命中 |
 | F3 仓库根空 `m5out/` | ✅已修 | `rmdir m5out` | `ls -d m5out` 无 |
 | F4 恒真断言 | ✅已修 | `gate1.patch_count` 改「series 行数 = 磁盘 patch 文件数」+「> 53」；`exit300.mask_evidence` 改 `[NOTE]` 明确非断言 | `logs/CHECKS` 中 patch_count/patch_growth 为可达断言 |
 | F5 gate10 不含 untracked | ✅已修 | 并入 `git ls-files -m -o --exclude-standard` 与 `git diff` 的并集 | forbidden-path 命中 0 |
-| F6 gate9.baseline 对共享源目标误判 | ✅已修 | 按目标类型分流：patch-tree/source-state 用 scoped 判定；其余带 `.work` 链接基线复现，环境性失败单列 | 见 Gate 9 表 |
+| F6 gate9.baseline 对共享源目标误判 | ✅已修 | 按目标类型分流：patch-tree/source-state 用 scoped 判定；其余带 `运行期临时目录` 链接基线复现，环境性失败单列 | 见 Gate 9 表 |
 | F7 L2 未跑 | ✅已修 | 新增 `RUN_L2=1` 模式：`make -k check-modules` 全量 + 逐红基线分类，落 `logs/gate-l2.tsv` | 见 REPORT Gate L2 |
 
 #### 第 1 轮 reviewer 验收
 **判决：Needs Revision**。实现本体与行为类验收在我自己的重跑下全绿；阻断只在**交付的证据脚本不可复现**与 **L1 门控覆盖缺口**两条（脚本/台账层，不动实现）。
 
 **重跑记录（命令 = 我自己跑的，输出为真实 rc，不采信完成区）**
-1. `./.work/evidence/GEM5-014t/run.sh` → `PASS=53 FAIL=2 BLOCKED=1`、`RUN_FULL_EXIT=1`；完成区声明 `54/1/1`，差异全在 gate9（见 3、4）。
+1. `运行期证据脚本（已清理，未归档）` → `PASS=53 FAIL=2 BLOCKED=1`、`RUN_FULL_EXIT=1`；完成区声明 `54/1/1`，差异全在 gate9（见 3、4）。
 2. `./run.sh --inject` → `PASS=6 FAIL=1`、`RUN_INJECT_EXIT=1`：`inject:silent-unknown` `build rc=2`，`logs/inject.build.log`：`se_workload.cc:222 error: expected ';' before ')' token`。根因我用最小 bash 复现：该 spec 跨两行，`IFS='|' read -r name rel old new fn <<< "$spec"` 只读首行 ⇒ `old=首行 / new=空 / fn=空` ⇒ 删掉 `fatal(` 行、且谓词不执行。`run.sh` mtime `23:07:50` 晚于 engineer 注入日志 `22:51:40` ⇒ 交付版改后未重跑；**完成区「注入 7/7」用交付脚本不可复现**（tsv 现 6 行）。
 3. 全 L1 扫描 `make -k <50 目标>`（`review/full-L1-sweep.log`）只有 2 红：① `check-knowledge-refs` 77 悬空 = 基线树（`git archive ce604e50`）同命令 **83 悬空 rc=2**，两份清单 `comm` 差集为空 ⇒ **既有红、非本任务引入**；② `check-milestones-fresh`：`L15 GEM5-014t 表=待开始 ≠ 册=待验收`，基线树 **PASS rc=0** / 本树 **FAIL rc=2** ⇒ **本任务引入的红，完成区未登记**（gate9 只跑首错目标，结构上看不见第 42 个目标）。该红于审查期间 `00:02:14` 被并行方改为「待验收」，我复测 **PASS rc=0**。
-4. 我这轮 `make check` 首错 = `check-patch-tree`（qemu ×2：`TARGET_PAGE_BITS 16` vs 本树补丁 `12`）：共享 `.work/source/qemu` 被并行 QEMU-081t 改写（HEAD `23:31:53`/`23:54:53`），**本任务改动集 qemu 文件 = 0**、gem5 组件无断言问题、`check-source-state` rc=0 ⇒ 并发干扰；重试 2 次仍红（QEMU-081t 未落地），非本任务引入，收尾时须复跑。
+4. 我这轮 `make check` 首错 = `check-patch-tree`（qemu ×2：`TARGET_PAGE_BITS 16` vs 本树补丁 `12`）：共享 `QEMU 组件源树` 被并行 QEMU-081t 改写（HEAD `23:31:53`/`23:54:53`），**本任务改动集 qemu 文件 = 0**、gem5 组件无断言问题、`check-source-state` rc=0 ⇒ 并发干扰；重试 2 次仍红（QEMU-081t 未落地），非本任务引入，收尾时须复跑。
 5. **我自己的反例（第 8 类，与 engineer 7 类不同 = 页大小）**：`page_size.hh` `16→12` → `make build-gem5` rc=0 → `pagesz` **rc=3**（证据脚本断言期望 0 ⇒ FAIL 可达）→ `cp` 备份+md5 `edda575a…` 前后 `match=YES`（**未用** `git checkout/restore/stash`）→ `touch`+重建 rc=0 → `pagesz` **rc=0** 回绿。
    （第 1 次尝试我写错 ELF 路径作废：两次均 `Failed to open file …pagesz.elf` exit 1，现场保留 `review/inj-out/`，不计入证据。）
 
-**逐条核过（我自己的输出）**：73 补丁、`sort -c` 字典序、gem5 `check-patch-tree`/`check-source-state` rc=0；build/`--help`/`--list-sim-objects` rc=0（DadaoISA/DadaoSEWorkload/DadaoMMU/DadaoTlb/DadaoInterrupts 均在；`DadaoAtomicSimpleCPU` 不在 C++ 表 → `probe_cpu.py` rc=0 打 `DADAO_CPU_OK`，且 `se.py:79 system.cpu = DadaoAtomicSimpleCPU()` 实跑 hello）；hello `6f6b0a`+EXIT_CAUSE+首条 PC `0x20f80`=e_entry；fail 7 / exit300 44；args 0/3（qemu 同）；pagesz gem5 0、qemu 3→BLOCKED；deepcall 双端 0、ra0=`0x00045000000ffff8`（RACNT=4、MRPTR=`0x5000000FFFF8`≠0）、host.err 无 RASOF、`d==calls==100`；既有 `hello.elf` stdout `cmp` 逐字节同、rc 0/0；pidsys gem5 rc=1 + `fatal: DADAO SE: syscall 172 not implemented (pc=0x2161c)`、qemu 0；`page_size.hh`=16/65536、`AT_PAGESZ=PageBytes`（musl `sysconf` 走 `libc.page_size=aux[AT_PAGESZ]`，非编译期常量 ⇒ 该用例真验 auxv）；补丁/README/changelog/fixtures 无 4 KiB 页残留；MemRAS `0x0000500000000000`+1 MiB+清零+invalid entry、`ra0=(RACNT<<48)|MRPTR`；decode `264/264+388/388+28/28+2/2 failures 0`、converge `264/264、1848/1848、B1–B7 2102/1160/4248/3696/1215/1362/2979、[FAIL]0`；隔离禁改路径 **0**（含 untracked 手工补核）、FS token 0；完成区 7 行≤30、证据在 `.work/evidence/GEM5-014t/`（非易失）。
+**逐条核过（我自己的输出）**：73 补丁、`sort -c` 字典序、gem5 `check-patch-tree`/`check-source-state` rc=0；build/`--help`/`--list-sim-objects` rc=0（DadaoISA/DadaoSEWorkload/DadaoMMU/DadaoTlb/DadaoInterrupts 均在；`DadaoAtomicSimpleCPU` 不在 C++ 表 → `probe_cpu.py` rc=0 打 `DADAO_CPU_OK`，且 `se.py:79 system.cpu = DadaoAtomicSimpleCPU()` 实跑 hello）；hello `6f6b0a`+EXIT_CAUSE+首条 PC `0x20f80`=e_entry；fail 7 / exit300 44；args 0/3（qemu 同）；pagesz gem5 0、qemu 3→BLOCKED；deepcall 双端 0、ra0=`0x00045000000ffff8`（RACNT=4、MRPTR=`0x5000000FFFF8`≠0）、host.err 无 RASOF、`d==calls==100`；既有 `hello.elf` stdout `cmp` 逐字节同、rc 0/0；pidsys gem5 rc=1 + `fatal: DADAO SE: syscall 172 not implemented (pc=0x2161c)`、qemu 0；`page_size.hh`=16/65536、`AT_PAGESZ=PageBytes`（musl `sysconf` 走 `libc.page_size=aux[AT_PAGESZ]`，非编译期常量 ⇒ 该用例真验 auxv）；补丁/README/changelog/fixtures 无 4 KiB 页残留；MemRAS `0x0000500000000000`+1 MiB+清零+invalid entry、`ra0=(RACNT<<48)|MRPTR`；decode `264/264+388/388+28/28+2/2 failures 0`、converge `264/264、1848/1848、B1–B7 2102/1160/4248/3696/1215/1362/2979、[FAIL]0`；隔离禁改路径 **0**（含 untracked 手工补核）、FS token 0；完成区 7 行≤30、证据在 `运行期证据（已清理，未归档）`（非易失）。
 **我补测（交付脚本未覆盖）ioctl(29)**：TIOCGWINSZ/TCGETS → `-ENOTTY`（gem5 rc=0、qemu rc=0；fixture 在「静默返回 0」时返回 2 ⇒ FAIL 可达）；request `0x1234` → gem5 rc=1 + `fatal: DADAO SE: ioctl request 0x1234 not implemented (pc=0x217d4)`，**非静默 0**。
 
 **返工要求（2 条，均脚本/台账层）**：① 修 `run.sh --inject` 多行 spec 被 `read` 截断（`new`/`fn` 为空），修后重跑须 **7/7、退出码 0、tsv 7 行**；② `gate9` 改 `make -k` **全量**扫 L1、对每个红做基线复现，完成区逐条登记「既有红 / 本任务红」。
 
-**记 finding（不阻断，architect 收尾改）**：完成区 `series(+23→73)` 应为 `+20→73`（基线 53，23 = 被触碰的补丁文件数）；README/changelog 未提 `ioctl(29)`、README「只有 5 个」与实现 6 号不符；仓库根残留空目录 `m5out/`（任务书禁落 m5out）；`gate1.patch_count`、`exit300.mask_evidence` 为恒真断言；`gate10` 用 `git diff` 不含 untracked（我手工补核为 0）；`gate9.baseline` 对依赖 `.work/source` 的目标会误判为 task-introduced（我这轮真实出现一次）。
+**记 finding（不阻断，architect 收尾改）**：完成区 `series(+23→73)` 应为 `+20→73`（基线 53，23 = 被触碰的补丁文件数）；README/changelog 未提 `ioctl(29)`、README「只有 5 个」与实现 6 号不符；仓库根残留空目录 `m5out/`（任务书禁落 m5out）；`gate1.patch_count`、`exit300.mask_evidence` 为恒真断言；`gate10` 用 `git diff` 不含 untracked（我手工补核为 0）；`gate9.baseline` 对依赖 `组件源树` 的目标会误判为 task-introduced（我这轮真实出现一次）。
 
-**约束核验 / 采信边界**：禁改路径 0 命中、未提交 git、未 push、临时物只在 `/tmp/opencode/GEM5-014t/`、反例还原全程 `cp`+md5 ✓。**采信未独立复跑**：补丁由 `make_patch.py` 导出（以 `check-patch-tree` 断言⑥⑨ rc=0 作机械代理）、0628/QEMU 代码未复制（新增文件按 gem5 上游接口重写，未发现反证）。**现场**：审查期间工作树被并行方改动 1 处（`.tao/knowledge/milestones.md` `00:02:14`），前后 `git status --porcelain -uall` 快照 diff 仅此一行；我注入过的 5 个源文件 md5 全部回到原值。
+**约束核验 / 采信边界**：禁改路径 0 命中、未提交 git、未 push、临时物只在 `运行期临时目录`、反例还原全程 `cp`+md5 ✓。**采信未独立复跑**：补丁由 `make_patch.py` 导出（以 `check-patch-tree` 断言⑥⑨ rc=0 作机械代理）、0628/QEMU 代码未复制（新增文件按 gem5 上游接口重写，未发现反证）。**现场**：审查期间工作树被并行方改动 1 处（`.tao/knowledge/milestones.md` `00:02:14`），前后 `git status --porcelain -uall` 快照 diff 仅此一行；我注入过的 5 个源文件 md5 全部回到原值。
 
 #### 第 2 轮 reviewer 验收
 **判决：Accepted**（工程师产出达标；两条未 rc=0 的门控均已查明为「分支基线落后 master + 并行任务改写共享源」，**非本任务引入**，收尾有前置条件，见末条）。
@@ -258,7 +258,7 @@
 2. `./run.sh --inject` → **`PASS=7 FAIL=0`、`RUN2_INJECT_EXIT=0`、`logs/injections.tsv` 7 行**；7 类全部 `inject_rc=1 → green_rc=0`、md5 前后全等，6 类 `bin_changed` + 配置类 `config_only`（新增标记证明注入真的改了产物，非空跑）。上轮 `silent-unknown` 的 `read` 截断缺陷已修，`inject.build.log` 现为 `build-gem5: PASS`。
 3. `pagesz`：**gem5 rc=0、qemu rc=0**（QEMU-081t `TARGET_PAGE_BITS=16` 生效，双向 64 KiB）。
 4. `make -k check` 全量分流表（`logs/gate9.targets.tsv`）：`check-knowledge-refs → 基线 ce604e50 同目标 rc=2（83 悬空）= 既有红`；`check-patch-tree → 共享源红`。我独立复核：`grep -c "check-patch-tree: gem5:" = 0`（本树 10 条、合成树 8 条 problem **全部属 qemu**，gem5 补丁树 0 problem）。
-5. **`check-patch-tree` 本树实测 rc=2，两个根因（均已机械证明非本任务）**：① **分支基线落后 master**——本树 `cpu-param.h.patch` = `TARGET_PAGE_BITS 12`，master(`51afb2c7` 含 QEMU-081t)/共享源 = `16`；本树与 master 的 qemu 补丁集**只差这一个文件**（逐文件 md5 比对）；在 `/tmp` 合成树（`git archive master` + 本任务改动只读复制、软链 `.work`/`.dadao`）跑同一命令，**该条消失**。② **共享源被并行 `QEMU-079t` 改写**（HEAD `7d5e452` 04:37；`dadao-machine.c/cpu.c/cpu.h/helper.c` 与 master 不同，而这 4 个补丁本树==master 逐字节一致）。重试记录：04:25 → 2 problems、04:5x → 10 problems（随 QEMU-079t 进展变化）；本任务改动集 qemu 文件 = **0**。
+5. **`check-patch-tree` 本树实测 rc=2，两个根因（均已机械证明非本任务）**：① **分支基线落后 master**——本树 `cpu-param.h.patch` = `TARGET_PAGE_BITS 12`，master(`51afb2c7` 含 QEMU-081t)/共享源 = `16`；本树与 master 的 qemu 补丁集**只差这一个文件**（逐文件 md5 比对）；在 `运行期临时目录` 合成树（`git archive master` + 本任务改动只读复制、软链 `运行期临时目录`/`运行期安装根`）跑同一命令，**该条消失**。② **共享源被并行 `QEMU-079t` 改写**（HEAD `7d5e452` 04:37；`dadao-machine.c/cpu.c/cpu.h/helper.c` 与 master 不同，而这 4 个补丁本树==master 逐字节一致）。重试记录：04:25 → 2 problems、04:5x → 10 problems（随 QEMU-079t 进展变化）；本任务改动集 qemu 文件 = **0**。
 6. **我的独立注入（第 9 类，本轮新增）**：`process.cc` 的 `auxv Pagesz 65536→4096`（只改 auxv、不动 `PageBytes`/页表，与上轮 `PageShift 16→12` 不同类）→ `build rc=0` → `pagesz` **rc=3**（证据断言期望 0 ⇒ FAIL 可达）→ `cp`+md5 `cb37a148… match=YES`（未用 git checkout/restore/stash）→ 重建 rc=0 → `pagesz` **rc=0** 回绿。上轮页大小 12 反例结论保留（green 0 → 注入 3 → 还原 md5 等 → 回绿 0）。
 
 **返工两项均达标**：① `run.sh --inject` 多行 spec 解析已修（7/7 rc=0 tsv 7 行）；② `gate9` 改 `make -k check` 全量 + 逐红基线分流（表见上），完成区逐条登记既有红/共享源红。
@@ -273,7 +273,7 @@
 
 **Accepted 的前置条件（阻断给 architect，我不自行放行）**：`/complete` 合并 master 后、且避开 `QEMU-079t` 写共享 qemu 源的窗口，**必须复跑 `make check-patch-tree` 与 `make -k check` 取得 rc=0**（我已机械证明同步 master 后 `cpu-param.h` 那条消失；届时若仍红须回到本任务处理），否则「门控全绿」不成立。
 
-**边界**：本轮前后 `git status --porcelain -uall` 快照 **diff=0**；我注入过的 5 个源文件 md5 全部回到原值；HEAD 仍 `ce604e50`，未 commit/push；未改代码与验收标准（本条记录除外）；临时物只在 `/tmp/opencode/GEM5-014t/`。
+**边界**：本轮前后 `git status --porcelain -uall` 快照 **diff=0**；我注入过的 5 个源文件 md5 全部回到原值；HEAD 仍 `ce604e50`，未 commit/push；未改代码与验收标准（本条记录除外）；临时物只在 `运行期临时目录`。
 
 ## 已定 / 下发前确认
 

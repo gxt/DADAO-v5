@@ -62,7 +62,7 @@
 1. **12/12 可定位**：现场断言 12 条 `lr.*` 均 `legality == ["rdhb == rd0"]` 且 `rule_refs == ["encode_sbz"]`；`encode_sbz` 存在且 `status: active`/`fault: ILLI`；`spec/SimRISC-12` 附录 B 的 `encode_sbz` 行恰列这 12 个 id（脚本计数现场派生，不写死）。
 2. **门控**（每条贴真实命令 + rc）：`make check-legality-invariants`、`make check-isa-coverage`、`make check-spec-readonly`、`make check-instrinfo`、`make validate-encoding`、`make check-milestones-fresh`；因改动必然受影响、须一并绿的：`make check-legality-drift`、`make check-rule-refs`、`make check-contracts-pending`。任一红按现场处置并记录。
 3. **编码未变**：重生成前后 12 条 lr 的 `opc/ha/mask/value/fields/id` 逐字段相等；用脚本现场比对并给结论（不贴死值）。
-4. **反例可达 FAIL**：至少一次注入（如把某条 lr 的 `rdhb == rd0` 改为 `rdhb != rd0`，或删一条）⇒ 门控 FAIL；`cp` 备份 + md5 对账还原 ⇒ 回绿。禁 `git checkout/restore/stash`。一键证据脚本落 `.work/evidence/SPEC-182t/`。
+4. **反例可达 FAIL**：至少一次注入（如把某条 lr 的 `rdhb == rd0` 改为 `rdhb != rd0`，或删一条）⇒ 门控 FAIL；`cp` 备份 + md5 对账还原 ⇒ 回绿。禁 `git checkout/restore/stash`。一键证据脚本落 `运行期证据（已清理，未归档）`。
 5. **不越界**：`git status --porcelain -uall` 只列 §文件范围；`spec/SimRISC-12` 的 diff **只有** LEGALITY 块（`git diff -U0` 可证）。
 6. **跨模块影响清单**（写入完成区，不在本任务修）：
    - gem5 `GEM5-011t-B6`（未提交任务书）：`check_b6` 现断言「`encode_sbz` = 2」「12 条 lr `legality`/`rule_refs` 为空」「缺口提示行存在」及「未决问题 1」——本任务后全部过期，B6 派单前须改为 `encode_sbz` = 14、lr 带 `rdhb == rd0`/`encode_sbz`、删缺口提示与未决项。
@@ -71,8 +71,8 @@
 7. 完成区 ≤30 行；状态 `待验收`。
 
 ## 完成区
-**测试结果**：通过 15/15（11 门控 + 2 契约/编码检查 + 2 注入自检）；`./.work/evidence/SPEC-182t/run.sh --inject` rc=0。
-**修改文件**：`contracts/opcodes.yaml`、`contracts/legality_rules.yaml`、`tools/spec/generate_opcodes.py`、`.tao/contracts/contract-isa.md`、`spec/SimRISC-12-其它指令.md`（仅附录 B 生成区 +1 行）、`manifests/spec-readonly.lock.toml`、本任务书、`.tao/knowledge/milestones.md`；证据 `.work/evidence/SPEC-182t/`。
+**测试结果**：通过 15/15（11 门控 + 2 契约/编码检查 + 2 注入自检）；`运行期证据脚本（--inject，已清理，未归档）` rc=0。
+**修改文件**：`contracts/opcodes.yaml`、`contracts/legality_rules.yaml`、`tools/spec/generate_opcodes.py`、`.tao/contracts/contract-isa.md`、`spec/SimRISC-12-其它指令.md`（仅附录 B 生成区 +1 行）、`manifests/spec-readonly.lock.toml`、本任务书、`.tao/knowledge/milestones.md`；证据 `运行期证据（已清理，未归档）`。
 **验收结果**：
 - 12/12：lr 记录数 12（现场派生），全部 `legality == ["rdhb == rd0"]`、`rule_refs == ["encode_sbz"]`；`encode_sbz` active/ILLI/static；附录 B 行 id 数 12 且集合一致、标注（12 条）一致。
 - 编码未变：基线 `git show HEAD:contracts/opcodes.yaml` vs 当前，12 条 lr 的 `id/opc/ha/mask/value/fields` 0 diff（`check_encoding.py` PASS）。
@@ -103,7 +103,7 @@
 
 #### 第 1 轮 reviewer 验收（2026-11-02，独立重跑）
 **现场**：分支 SPEC-182t / HEAD `82e914df`（WIP），审前审后 `git status --porcelain -uall` 均空；`git diff --name-only 8e7f26e6..HEAD` = 恰 8 文件（任务书、milestones、contract-isa、legality_rules、opcodes.yaml、generate_opcodes.py、SimRISC-12、只读锁），无 tests/components/LLVM/QEMU/Makefile 改动。
-**门控重跑（我自己的 rc）**：check-legality-invariants / check-isa-coverage / check-spec-readonly / check-instrinfo / validate-encoding / check-legality-drift / check-rule-refs / check-milestones-fresh **8/8 rc=0**（另 check-contracts-pending rc=0）；注入还原后终检复跑仍 8/8 rc=0。证据脚本 `./.work/evidence/SPEC-182t/run.sh` rc=0、`run.sh --inject` rc=0（inject-A check_contract rc=1、inject-B drift rc=2，与完成区一致）。
+**门控重跑（我自己的 rc）**：check-legality-invariants / check-isa-coverage / check-spec-readonly / check-instrinfo / validate-encoding / check-legality-drift / check-rule-refs / check-milestones-fresh **8/8 rc=0**（另 check-contracts-pending rc=0）；注入还原后终检复跑仍 8/8 rc=0。证据脚本 `运行期证据脚本（已清理，未归档）` rc=0、`run.sh --inject` rc=0（inject-A check_contract rc=1、inject-B drift rc=2，与完成区一致）。
 **12/12**：现场派生 lr 记录 12，全部 `legality==["rdhb == rd0"]`、`rule_refs==["encode_sbz"]`；`encode_sbz` status=active/fault=ILLI/kind=static；附录 B `encode_sbz` 行恰 12 个 id、集合与 lr id 集合相等、标注（12 条）；`gen_legality_list.py --verify` 12 册全 OK。
 **编码 0 diff**：`git show 8e7f26e6:contracts/opcodes.yaml` vs 当前，12 条 lr 的 `id/opc/ha/mask/value/fields` 0 diff，lr 无其它字段变化，非 lr 记录 0 变化（仅头注 `有 rule_refs 231→243`）；重跑 `generate_opcodes.py` 后 md5 `da91e56e…` 不变 ⇒ 生成物非手改。
 **只读锁**：`sha256sum spec/SimRISC-12` = `a1224b92…51d77` 与锁值逐字相等；锁 diff 仅 SimRISC-12 块（4+/1-，含授权注记），未误改其它册条目；check-spec-readonly 21 册 OK。

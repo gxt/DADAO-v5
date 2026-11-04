@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M11
 **依赖**：无（`INFRA-119t` 的完成区/审阅记录属本次清理对象，不作执行依赖）
-**状态**：待开始
+**状态**：已验证
 
 ## 用户授权（2026-11-04，原话摘要）
 
@@ -68,10 +68,47 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：运行期证据脚本 `scan.sh` **PASS（failures=0，rc=0）**；基线运行期 token **776 → 0**；新增行（不豁免占位）**0**。
+**修改文件**：`AGENTS.md`（+2 条规则）；42 册运行期路径清理（gem5 18、infra 6、qemu 6、testcases 7、spec 4、llvm 1）；本册完成区；`.tao/knowledge/milestones.md`（状态行）；共 45 文件，均为路径改写/状态登记，无结论删除。
+**验收结果**：`make check-knowledge-refs` **rc=0、悬空 0**（基线 72）；`check-milestones-fresh` rc=0；`check-no-residue` rc=0；仓库路径 token **2652 ≥ 基线 2643**，不可解析 292 = 292；`spec/README.md`、`contracts/`、`tests/inst/`、`tools/infra/`、`components/`、`.tao/tasks/` 六项 `test -e` 全真；L1 基线失败集 `check / check-knowledge-refs / check-run-artifacts` → 清理后 `check / check-run-artifacts`，**无新增**且 `check-knowledge-refs` 退出失败集。注入①恢复具体运行期路径 ⇒ scan rc=1（count=1）；注入②完成区保留历史证据路径 ⇒ scan rc=1 且 `check-knowledge-refs` rc=2；两者 `cp`+md5 还原（脚本现场打印前后 md5 相等）后均回绿。
+**新发现/坑**：扫描须带标识符边界（`cpu.workload` 不是路径）；仓库 token 统计须排除运行期路径内部的子串（安装根子目录不是 v5 仓库引用）；多行 code span / brace 列表需先整段折叠；`check-run-artifacts` 的 7 条红为共享运行期日志目录既有非法名（mergetree.out、GEM5-018t-*.EXIT 等），非本任务引入。
+**遗留问题**：无本任务遗留；L1 既有 `check-run-artifacts` 7 problem 未处置（共享运行期日志，属其它任务）。
 
 ## 审阅记录
+
+### 第 1 轮 engineer 自审
+
+逐文件审 `git diff`（45 文件）：① 运行期 token 全部改为路径无关叙述，未删除任务号/结论/真实 rc；② 未误改 `cpu.workload` / `.dadao-*-config` 等代码标识；③ 仓库路径 token 计数 ≥ 基线；④ 注入脚本真能红、`cp`+md5 还原后回绿；⑤ 未 commit/push。判决：可提交 `待验收`。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+| --- | --- | --- | --- |
+| F1 多行 code span 被截断 | ✅已修 | transform 先整段折叠 brace/多行列表 | `scan.py --root scan-tree` = 0 |
+| F2 代码标识被误改（`cpu.workload`） | ✅已修 | token 前后加标识符边界 | scan = 0，diff 人工逐行核对 |
+| F3 仓库 token 数下降 | ✅已修 | 排除运行期路径内部子串、保留 `Makefile` 子句 | 2651 ≥ 2643 |
+| F4 状态行不同步 | ✅已修 | `milestones.md` 行改 `待验收` | `check-milestones-fresh` rc=0 |
+| F5 注入可达性 | ✅已验 | 两处注入均先红后绿 | scan rc=1 / krefs rc=2，还原后均 rc=0 |
+
+### 第 1 轮 reviewer 验收
+
+**重跑记录（我本人执行；workdir=任务 worktree，HEAD=`a4539796`）**
+- 一键证据脚本 `scan.sh`（扫描器 `scan.py`，均在运行期证据目录）`--root .` ⇒ `runtime tokens: 0 (files=44)` **rc=0**；`--added 4569f6eb`（不豁免占位）⇒ `added-line runtime tokens: 0 (lines=598)` **rc=0**。
+- 基线复核：`git archive 4569f6eb .tao/tasks` 解到临时树后同扫描器 ⇒ `runtime tokens: 776` **rc=1**（与完成区 776 一致）。
+- `make check-knowledge-refs` **rc=0、`悬空: 0`**；把基线整树 archive 到临时树 + 运行期证据目录软链后跑同一脚本 ⇒ **`悬空: 72`、FAIL rc=1**（基线 72 独立复现，非采信）。
+- `make check-milestones-fresh` **rc=0**；`make check-no-residue` **rc=0**。
+- `make check`（L1）**rc=2**，失败目标集 = `{check, check-run-artifacts}`；L1 内 `check-knowledge-refs` PASS（悬空 0）；7 条 `check-run-artifacts` problem 与基线 L1 日志 `diff` **逐行相同** ⇒ 无新增失败、`check-knowledge-refs` 退出失败集（基线集 `{check, check-knowledge-refs, check-run-artifacts}` 中 krefs 一项由我独立复现为 FAIL）。
+- 仓库路径 token：基线 **2643 → 2652**（≥）；不可解析 token **集合** base/now 逐项相同（unique 91，新增 0、丢失 0）；六项 `test -e` 全真；随机 20 token 抽查 17 可解析、3 个为基线已存在悬空。
+- 证据脚本 `scan.sh` 重跑 ⇒ **rc=0、`RESULT: PASS (failures=0)`**，17 项全 PASS。
+
+**独立注入（`cp` 备份 + `md5`，禁 git 还原）**
+- ① 向 GEM5-002t 追加具体运行期路径 ⇒ scan `count=1` **rc=1**；`cp` 还原 md5 `553b8389…` 前后相等 ⇒ scan **rc=0**、`git status` 空。
+- ② 向本册完成区追加历史证据路径 ⇒ scan **rc=1**、`make check-knowledge-refs` **rc=2（悬空 1）**；还原 md5 `a023973c…` 相等 ⇒ scan **rc=0**、krefs **rc=0**、`git status` 空。
+
+**约束核验**
+- 范围：`git diff --name-only 4569f6eb..HEAD` = **45 个 M**（AGENTS + 43 册任务书 + 本册 + milestones 状态行），无 D/A，无 `tests|spec|contracts|components|tools|Makefile|docs|manifests` 命中，无 `*_tmp*|_gate*|*.orig|*.rej` 残留，工作树无未跟踪文件。
+- AGENTS 两条规则与任务书逐字一致；42 册计数 18+6+6+7+4+1=42 ✓；完成区 5 行 ≤30；状态 `待验收`、milestones 行 `待验收`。
+- 逐行配对 diff（590 增/588 删）：改动行全部为路径改写；数字差异只来自路径内任务号与证据文件名，rc/PASS 计数/结论无丢失；行数仅 GEM5-002t **−2**（证据文件清单 3 行并 1 行）与本册 **+12**（完成区/审阅记录），其余 44 文件行数不变。
+- SPEC-184t：仅 4 行路径改写，identity/页表语义未动；新增 `<...>` 占位只在命令参数（`--source <组件源树>` 等），未用于历史证据行；无门控豁免/测试/契约改动（`tools/`、`Makefile` 0 改动）。
+
+**finding（非阻断，交 architect 收尾改）**：① SPEC-184t 改写后成「若 A 或 A 在现场存在」重复短语，丢失 QEMU-080t/GEM5-016t 两处证据的区分（文档级）；② 审阅记录 F3 行写 `2651 ≥ 2643`，实测与完成区均为 **2652**（数字笔误，非门控读取值）；③ `scan.sh` 的 L1 对账段在两份日志缺失时 `[SKIP]` 且不计 FAIL——已由我本人跑 L1 补证；④ 审查期间 HEAD 由 `df0dec4f` 变为 `a4539796`（engineer 修正完成区计数与 md5 表述、补 findings 表、milestones 置 `待验收`），本轮按 `a4539796` 验收。
+
+**判决：Accepted**——验收命令块在我本人重跑下全部通过、约束无违反；两处注入均「注入→FAIL→`cp`+md5 还原→回绿」；快照对账：审前/审后 `git status --porcelain -uall` 均空，AGENTS `1c467cee…`、milestones `ff724712…`、本册 `a023973c…` 前后未变。
