@@ -1,0 +1,91 @@
+# TESTCASES-096t: parity KNOWN_GEM5_BLOCKED 清理（GEM5-018t 修复后）
+
+**模块**：testcases
+**项目里程碑**：M11
+**依赖**：`GEM5-018t`（已验证；7 条 gem5 semihosting 缺陷已修复，046t 32/32、node/arch 7 条转 `AGREE_PASS`）、`GEM5-017t`（已验证；parity driver 口径与 `judge`/stale 判据）、`TESTCASES-090t`（已验证；node/arch parity 复跑方法）
+**状态**：待开始
+
+## 执行环境
+
+**执行环境**：本地（仓库根；从含 `GEM5-018t` / `GEM5-019t` / `TESTCASES-090t` 的当前 `master` 建独立 `git worktree` + 分支 `TESTCASES-096t`；**只改 `tools/testcases/parity/run_parity.py` + `tools/testcases/parity/README.md` + 本册 + `.tao/knowledge/milestones.md`**；证据落 `.work/evidence/TESTCASES-096t/**`，日志 `.work/log/testcases/**`，临时物 `/tmp/opencode/TESTCASES-096t/**`）。开工前现场确认：
+
+1. `GEM5-018t`、`GEM5-017t`、`TESTCASES-090t` 在任务书状态均已是 `已验证`，且已合入开工基线 `master`。
+2. `tools/testcases/parity/{run_parity.py,qemu_gem5_shim.py}` 存在；`python3 tools/testcases/parity/run_parity.py --self-test` 可运行。
+3. `.dadao/cross-toolchain/bin/qemu-system-dadao`、`.work/source/gem5/build/DADAO/gem5.opt`、`.work/source/gem5/configs/dadao/fs.py`、node BootROM（`tools/testcases/lib/` 下 driver 默认路径）存在且可执行。
+4. 任一不成立 ⇒ **rc=2 BLOCKED**（附缺失项与现场），不得用旧日志/旧矩阵/旧二进制冒充。
+
+## 现场事实（2026-11-04 只读核对；开工后须现场复核）
+
+- `tools/testcases/parity/run_parity.py` 顶部 `KNOWN_GEM5_BLOCKED`（约 99–117 行）仍登记 **7 条**，全部形如 `arch/probe/min_rom_probe_046t/<case>`：`semihost_tag_path`、`semihost_cfxha_agnostic`、`bank_num_rd16`、`ret_rd8`、`svc_tickfreq`、`svc_writec`、`svc_write0`。
+- `_apply_known_blocked()`（约 1158 行）按 registry 把「QEMU PASS / gem5 非 PASS」行改判 `BLOCKED`；`judge()`（约 1184 行）对 registry 命中但 gem5 已 PASS 的行报 `KNOWN_GEM5_BLOCKED is stale ... remove the registry entry`；Markdown 的 gem5-defect 汇总（约 1329 行）按 registry 过滤。
+- `tools/testcases/parity/README.md`「已知例外」段（约 70–86 行）把它描述为「5 条 `SYS_TICKFREQ` + `SYS_WRITEC/WRITE0`」的 7 条缺陷登记，并写明「若某条后来变成 PASS，判据会报 stale（必须删登记）」。
+- `GEM5-018t` 已验收：node/arch matrix **269 行 = AGREE_PASS 249 + 20 条 gem5 N/A（QEMU `-icount` 无对应物）**；上述 7 行均已是 `gem5=PASS` / `AGREE_PASS`，无 `raw_status`。因 registry 未删，当前 driver 对含这 7 行的矩阵判 **rc=1（7 条 stale）**——这是本任务要消除的**工具侧**红灯，不是引擎缺陷。
+- `GEM5-018t` 的现场矩阵只落在其 `/tmp/opencode/GEM5-018t/`，**未入库且已清理**；本任务必须现场复跑生成自己的矩阵，不得引用旧 `/tmp` 数字。
+
+## 接口规范
+
+### 1. 清空 registry（保留判据机制）
+
+- 把 `KNOWN_GEM5_BLOCKED` 置为**空字典**并加简短注释（说明 7 条已由 `GEM5-018t` 修复、判据机制保留给未来 gem5 侧缺陷）；**不要删除** `_apply_known_blocked()` 与 `judge()` 的 stale 分支——反向注入（验收 4）必须仍可达 `rc=1`。
+- 删除与这 7 条具体文案绑定的过时注释/说明；`_apply_known_blocked()` 对空 registry 必须自然返回 `None`（`dict.get` 语义），不得抛异常、不得改变其它行的分类（`PICOLIBC_KNOWN_BLOCKED`、`BLOCKED`/`N/A`、`QEMU_ONLY_FAIL` 均不变）。
+- 除空 registry 外**不改判据语义**：`QEMU PASS ⇒ gem5 PASS` 硬门、`DIFF` 必须归因、`stale` 检查、coverage 检查保持原样。
+
+### 2. README 同步
+
+- `tools/testcases/parity/README.md`「已知例外」段改为反映现状：`KNOWN_GEM5_BLOCKED` 现为**空表**（7 条已由 `GEM5-018t` 修复），保留「后续若登记 gem5 侧缺陷仍走此表、PASS 后必须删登记」的机制说明；`PICOLIBC_KNOWN_BLOCKED`（`math_test`）描述不动。
+- 不把具体 case ID 写回 README（避免下一次 stale 文案）。
+
+### 3. 不变项
+
+- `run_parity.py` 的 CLI、输出 schema、`--self-test`/`--inject`/`--matrix-only`/`--repro-check` 行为不变；其它 scope/profile 的判据不变。
+- 不重新生成 `tests/parity/matrix-M11.md`（F3 另案）；不改任何矩阵入库快照。
+
+## 文件范围
+
+**修改**（仅 4 个入库文件）：
+- `tools/testcases/parity/run_parity.py`
+- `tools/testcases/parity/README.md`
+- `.tao/tasks/testcases/TESTCASES-096t-parity-KNOWN_GEM5_BLOCKED清理.md`（本册）
+- `.tao/knowledge/milestones.md`（流水行）
+
+**新增（不入库）**：`.work/evidence/TESTCASES-096t/**`（`run.sh`、`REPORT.md`、`matrix.json`、`matrix.md`、日志、注入表）。
+
+**不改**：`tests/**`（含 `tests/parity/matrix-M11.md`）、`components/**`（QEMU/gem5）、`spec/**`、`contracts/**`、`.tao/contracts/**`、`.tao/adr/**`、`Makefile`、`manifests/**`、`docs/**`、`.tao/knowledge/discussing.md`。
+
+## 验收标准
+
+1. **registry 清空**：`python3 -c "import run_parity; assert run_parity.KNOWN_GEM5_BLOCKED == {}"`（在 `tools/testcases/parity` 可导入路径下）rc=0；`grep -nE "semihost_tag_path|semihost_cfxha_agnostic|bank_num_rd16|ret_rd8|svc_tickfreq|svc_writec|svc_write0" tools/testcases/parity/run_parity.py` **0 命中**；README 中旧 7 条描述 0 残留（`grep -n "5 条\|SYS_WRITEC/WRITE0" tools/testcases/parity/README.md` 为空或仅剩机制说明）。
+2. **自检**：`python3 tools/testcases/parity/run_parity.py --self-test` rc=0（其内置注入路径必须仍覆盖 stale/判据）。
+3. **现场复跑 + rejudge**：用当前 `master` 的 QEMU/gem5 跑 `--profiles node --scopes arch`（长任务按规则后台 + 日志 + `*_EXIT`），矩阵落 `.work/evidence/TESTCASES-096t/**`；随后 `--matrix-only <matrix.json> --json <rejudge.json>` **rc=0**。独立断言（脚本现场解析，不手写数字）：7 个 case ID 全为 `AGREE_PASS`；`GEM5_ONLY_FAIL=0`、`DIFF=0`、stale=0；`BLOCKED` 行仅为 `icount` 且均带归因；行数与 `--list` 现场枚举一致（参考基线 269 行 / 249 AGREE_PASS / 20 BLOCKED）。引擎身份（QEMU md5/`--version`、gem5 md5、`fs.py` md5、bootrom md5）一并留证。
+   - 若现场确实存在可复用且**来源可核验**的 `GEM5-018t` 矩阵（路径 + md5 + 生成命令 + 引擎身份齐全），可只做 `--matrix-only`，但必须在 `REPORT.md` 写明来源与复用理由；**不得**用已删除的 `/tmp` 路径或手改 JSON 冒充复跑。
+4. **反向注入（必测）**：在副本/临时树中把一条 registry 条目临时加回 `KNOWN_GEM5_BLOCKED`（例如 `arch/probe/min_rom_probe_046t/svc_tickfreq`）⇒ `--matrix-only` **rc=1** 且错误串含 `KNOWN_GEM5_BLOCKED is stale`；用 `cp` 备份 + `md5sum` 对账还原（**禁** `git checkout`/`restore`/`stash`）⇒ 同一命令 **rc=0**。注入表记录「注入前 md5 / 注入 rc / 还原后 md5 / 回绿 rc」。
+5. **不得白洗**：对矩阵副本把上述 7 条之一的 `gem5.status` 改为 `FAIL`（临时树，不入库、不改真矩阵）⇒ `--matrix-only` **rc=1** 且报 `GEM5_ONLY_FAIL`，证明删 registry 不是「一律放过」；还原副本后 rc=0。
+6. **静态门控**：`check-no-residue` rc=0；`python3 tools/infra/check_tasks.py`（非 strict）只把本册列入「待开始」附表；`check-knowledge-refs` 相对 `master` 基线**本任务 0 新增悬空**（基线红逐条复现并记录，不修他人引用）；`check-milestones-fresh` rc=0。
+7. **L1**：`make check` 现场运行并记录真实 rc；若红，逐条给出「本任务新增 0 + 既有红基线复现」的对照证据（不得只写「既有红」而无基线输出）。
+8. **范围/证据/收尾**：`git diff --name-only <base>` 只命中文件范围 4 项；无 `*_tmp*`/`*.orig`/`*.rej`/`__pycache__` 残留；`.work/evidence/TESTCASES-096t/**` 下的 `run.sh` 分 phase、逐项 `*_EXIT=<rc>`、无 `tee` 吞码，`REPORT.md` 数字由脚本现场生成；完成区 ≤30 行，状态 `待验收`。
+
+## 必测反例（须有可达 FAIL）
+
+1. registry 恢复 1 条 ⇒ stale `rc=1`；`cp`+md5 还原 ⇒ `rc=0`。
+2. 矩阵副本把 7 条之一改成 gem5 `FAIL` 且 registry 为空 ⇒ `GEM5_ONLY_FAIL` `rc=1`（证明清空 registry 不削弱硬门）。
+3. `--matrix-only` 指向不存在的/空矩阵 ⇒ `rc=2`（fail-closed，不得绿灯）。
+4. README 与代码不一致（README 仍称 7 条缺陷、registry 已空）⇒ 静态断言 FAIL（脚本 grep，还原后回绿）。
+
+## 说明
+
+- **非目标**：不修 `tools/gem5/build_gem5.py` 的 `relative_to` 缺陷（INFRA 另案）；不重新生成/提交 `tests/parity/matrix-M11.md`（F3 另案）；不改 QEMU/gem5 实现；不动 `SYS_ELAPSED`（`GEM5-019t`）；不改 spec/contracts/tests。
+- **与 GEM5-018t 遗留①的关系**：本任务就是该遗留的承接项；`GEM5-018t` 的引擎证据是输入，但所有数字须现场复核，不直接引用其已清理的 `/tmp` 产物。
+- **参考对照**：本任务为 tools 侧本地清理，无 `DADAO-0628` 依赖（内容溯源，非执行必需）。
+- **BLOCKED**：引擎/工具缺失或共享构建被并发占用，按「缺失项 + 现场日志 + 为何不是本任务缺陷」登记，不得伪造 PASS；长跑与并发门控纪律按 `AGENTS.md` 执行。
+
+## 完成区
+
+**测试结果**：（待填写）
+**修改文件**：（待填写）
+**验收结果**：（待填写）
+**新发现/坑**：（待填写）
+**遗留问题**：（待填写）
+
+## 审阅记录
+
+（待填写）
