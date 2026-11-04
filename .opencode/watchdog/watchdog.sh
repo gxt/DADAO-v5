@@ -142,7 +142,7 @@ fi
 
 payload=$(python3 - <<'PY'
 import json
-print(json.dumps({"text":"定时巡检：检查子代理/后台 shell/EXIT/任务状态。若存在已批准、依赖满足、无阻塞的下一任务，按现有授权直接继续推进（立任务书、派单、验收、合并）；只有需要用户语义裁定、额外授权、破坏性操作或队列空时才停。不要自行修改 SPEC/契约语义，未经授权不要 push。","delivery":"queue"}, ensure_ascii=False))
+print(json.dumps({"text":"定时巡检：先检查子代理/后台 shell/EXIT/任务状态，再盘点队列，不得只看 .tao/tasks 就判空。必须逐项检查：① .tao/tasks 中待开始/待验收/已完成未合并；② discussing.md 中已批准但尚未立册的事项；③ milestones.md 中未完成行；④ issues.yaml 中 open 项；⑤ ADR/任务书中待确认项。只要任一来源存在“已批准、依赖满足、无阻塞”的任务，就当场立任务书、派单、验收或合并；已批准但未立册的必须当场立册，不得以“没有现成任务书”判空；被语义阻塞的任务不等于队列空，应登记阻塞原因并继续找其它可推进项。只有所有来源都没有可推进任务时才停。不要自行修改 SPEC/契约语义，未经授权不要 push。","delivery":"queue"}, ensure_ascii=False))
 PY
 )
 printf 'DRY-RUN would wake session=%s age=%s\n' "$sid" "$age" >> "$LOG"
