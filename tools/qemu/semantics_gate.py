@@ -43,6 +43,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -322,6 +323,51 @@ def check_inventory_coverage(vectors: str, carriers: list, errs: list) -> str:
             if ok else "FAIL")
 
 
+_HARNESS_STATUS = {
+    "PASS": "PASS",
+    "FAIL": "FAIL",
+    "ERROR": "ERROR",
+    "INCONCLUSIVE": "TIMEOUT",
+    "SKIP": "SKIP_PROFILE",
+    "DEFERRED": "DEFERRED",
+}
+
+
+def write_case_json(path: str, profile_name: str, carriers: list,
+                    records: list) -> None:
+    """Write the per-case records (GEM5-017t parity input).
+
+    ``case_id`` is frozen by the task book §1: ``inst/<relpath>#<ordinal>:<id>``
+    where ``ordinal`` is the 1-based position in the carrier file.
+    """
+    rel_by_name = {os.path.basename(c): c for c in carriers}
+    rows = []
+    for rec in records:
+        rel = rel_by_name.get(rec.get("file"), rec.get("file"))
+        idx = rec.get("index")
+        ordinal = (idx + 1) if isinstance(idx, int) else "?"
+        cid = "inst/%s#%s:%s" % (rel, ordinal, rec.get("id"))
+        status = _HARNESS_STATUS.get(rec.get("status"), rec.get("status"))
+        rows.append({
+            "case_id": cid,
+            "profile": profile_name,
+            "scope": "inst",
+            "status": status,
+            "exit": rec.get("exit"),
+            "arch_visible": {
+                "expected_fault": rec.get("expected_fault"),
+                "guest_exit": rec.get("exit"),
+            },
+            "note": rec.get("desc", ""),
+        })
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump({"scope": "inst", "profile": profile_name,
+                   "cases": rows}, fh, indent=1, sort_keys=True)
+        fh.write("\n")
+    os.replace(tmp, path)
+
+
 def live_deferred(gate_dir: str) -> set:
     """gate 目录里 status=deferred 的精确用例集 {(basename, idx)}。"""
     out = set()
@@ -358,7 +404,19 @@ def main() -> int:
                          "（Tiny 子集段；TESTCASES-092t §1）")
     ap.add_argument("--form-check", action="store_true",
                     help="只跑形态断言（ISS-225；无需 qemu 二进制，供 L1 门控用）")
+    ap.add_argument("--profile", default=None,
+                    choices=("tiny", "node"),
+                    help="机器 profile（缺省读 DADAO_TEST_PROFILE，再缺省 tiny；"
+                         "GEM5-017t 供 parity 显式选择）")
+    ap.add_argument("--json-out", default=None,
+                    help="可选：把逐用例记录写到该 JSON 文件（GEM5-017t parity）")
     args = ap.parse_args()
+
+    if args.profile:
+        # machine_profile / build_test_binary / run_qemu_test all read this env
+        # var at runtime, so setting it here is the single selection point.
+        os.environ["DADAO_TEST_PROFILE"] = args.profile
+    profile_name = os.environ.get("DADAO_TEST_PROFILE") or "tiny"
 
     errs: list = []
     form_verdict, form_errs = check_no_umon_takeover(_REPO_ROOT)
@@ -454,15 +512,23 @@ def main() -> int:
     print("  gate 目录: %s（symlink 校验通过）" % args.gate_dir)
     print(f"  QEMU: {args.qemu}  jobs={args.jobs}")
     try:
+        records = []
         total, passed, failed, deferred, errors, fail_details, skipped = harness.run_batch(
             args.qemu, args.trampoline, args.gate_dir, jobs=args.jobs,
-            only_profile_cases=args.only_profile_cases,
+            only_profile_cases=args.only_profile_cases, records=records,
         )
     except Exception as exc:  # harness 异常也要清 gate 目录并显式失败
         shutil.rmtree(args.gate_dir, ignore_errors=True)
         print(f"  FAIL: harness 异常: {type(exc).__name__}: {exc}")
         print("check-inst: FAIL (rc=1)")
         return 1
+    if args.json_out:
+        try:
+            write_case_json(args.json_out, profile_name, carriers, records)
+        except OSError as exc:
+            print(f"  FAIL: --json-out 写入失败: {exc}")
+            shutil.rmtree(args.gate_dir, ignore_errors=True)
+            return 1
     print(f"  Results: {total} total, {passed} passed, {failed} failed, "
           f"{deferred} deferred, {errors} errors, skipped_profile={skipped}")
     print(f"  基线差值: total {total} - ISS-235 旧值 {ISS235_BASELINE_TOTAL} = "

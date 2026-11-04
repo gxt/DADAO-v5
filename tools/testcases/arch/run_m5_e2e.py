@@ -43,6 +43,7 @@ the comparison is live (the gate can fail).
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -134,7 +135,8 @@ def _defsym_args(prof):
 class CaseResult:
     __slots__ = ("name", "category", "expected", "actual", "passed", "reason",
                  "expected_cause", "cmdline",
-                 "console_expected", "console_actual", "console_ok")
+                 "console_expected", "console_actual", "console_ok",
+                 "bootrom_ok", "bootrom_detail")
 
     def __init__(self, name, category, expected):
         self.name = name
@@ -150,6 +152,8 @@ class CaseResult:
         self.console_expected = None
         self.console_actual = None
         self.console_ok = None
+        self.bootrom_ok = None
+        self.bootrom_detail = ""
 
 
 def _abspath(path: str) -> str:
@@ -353,6 +357,8 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
             problems.append(f"file {file_expect['name']}={got!r} != {want!r}")
 
     ok, detail = check_bootrom(log)
+    res.bootrom_ok = ok
+    res.bootrom_detail = detail
     if not ok:
         problems.append(f"bootrom: {detail}")
 
@@ -364,6 +370,45 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     if verbose:
         sys.stdout.write(f"    [bootrom] {detail}\n")
     return res
+
+
+def case_status(res):
+    if res.passed:
+        return "PASS"
+    if res.reason.startswith("qemu timeout"):
+        return "TIMEOUT"
+    if res.actual is None:
+        return "ERROR"
+    return "FAIL"
+
+
+def write_json(path, profile_name, results):
+    rows = []
+    for res in results:
+        rows.append({
+            "case_id": "arch/umon/" + res.name,
+            "profile": profile_name,
+            "scope": "arch",
+            "status": case_status(res),
+            "exit": res.actual,
+            "arch_visible": {
+                "expected_exit": res.expected,
+                "console_expected": (res.console_expected.hex()
+                                     if res.console_expected is not None
+                                     else None),
+                "console_actual": (res.console_actual.hex()
+                                   if res.console_actual is not None else None),
+                "console_ok": res.console_ok,
+                "bootrom_ok": res.bootrom_ok,
+                "bootrom_detail": res.bootrom_detail,
+                "reason": res.reason,
+            },
+            "note": res.reason,
+        })
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"scope": "arch", "profile": profile_name, "cases": rows},
+                  fh, indent=1, sort_keys=True)
+        fh.write("\n")
 
 
 def run_suite(programs, tools, work_dir, timeout, verbose=False):
@@ -411,6 +456,8 @@ def main():
     ap.add_argument("--build-only", action="store_true",
                     help="assemble/objcopy only; do not start QEMU")
     ap.add_argument("--verbose", "-v", action="store_true")
+    ap.add_argument("--json-out", default=None,
+                    help="optional: write one JSON record per program (GEM5-017t)")
     ap.add_argument("--inject", action="store_true",
                     help="counter-example self-test: flip a baseline-PASSing "
                          "expected exit code and require the gate to FAIL, then "
@@ -468,6 +515,14 @@ def main():
         f"run_m5_e2e: profile={prof.name} {len(programs)} programs, "
         f"bootrom {tools['bootrom']}, work dir {work_dir}\n")
     results = run_suite(programs, tools, work_dir, args.timeout, args.verbose)
+
+    if args.json_out:
+        try:
+            write_json(args.json_out, prof.name, results)
+        except OSError as exc:
+            sys.stderr.write(f"ERROR: cannot write --json-out {args.json_out}: "
+                             f"{exc}\n")
+            return 2
 
     failed = [r for r in results if not r.passed]
     sys.stdout.write(

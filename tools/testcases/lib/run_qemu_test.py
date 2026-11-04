@@ -564,13 +564,30 @@ def interpret_exit_code(exit_code, expected_fault=None, dump_mode=False):
     return "FAIL", f"Unknown exit code: {format_exit_code(exit_code)}"
 
 
+def _emit(record_sink, **record):
+    """Optional per-case collection hook (GEM5-017t).
+
+    The default (``record_sink is None``) is a no-op, so every existing caller
+    keeps the exact baseline stdout/exit behaviour.
+    """
+    if record_sink is not None:
+        try:
+            record_sink(record)
+        except Exception:  # a collector must never change the gate verdict
+            pass
+
+
 def run_single_test(qemu_bin, trampoline_path, vector_file, case_idx=None,
-                    timeout=DEFAULT_TIMEOUT, dump_mode=False, verbose=False):
+                    timeout=DEFAULT_TIMEOUT, dump_mode=False, verbose=False,
+                    record_sink=None):
     """Run a single test case.
 
     Returns (status, description, case_dict, dump_file).  A case that does not
     apply to the selected profile returns status ``SKIP`` (TESTCASES-092t §1:
     inapplicable is not a failure and must not be built).
+
+    ``record_sink`` (GEM5-017t) receives one dict per case with the file,
+    index, id, status and host exit code; it is unused unless requested.
     """
     # Build binary
     try:
@@ -590,9 +607,17 @@ def run_single_test(qemu_bin, trampoline_path, vector_file, case_idx=None,
                   f"[{case_idx}] {case.get('id')} "
                   f"profiles=[{', '.join(str(p) for p in profs)}] "
                   f"(running {_selected_profile()})")
+            _emit(record_sink, file=os.path.basename(vector_file),
+                  index=case_idx, id=(case or {}).get("id"),
+                  status="SKIP", exit=None,
+                  expected_fault=(case or {}).get("expected_fault"),
+                  desc="case does not apply to this profile")
             return "SKIP", "case does not apply to this profile", case, None
         bin_path, case = build_binary(vector_file, case_idx, dump_mode)
     except Exception as e:
+        _emit(record_sink, file=os.path.basename(vector_file),
+              index=case_idx, id=None, status="ERROR", exit=None,
+              expected_fault=None, desc=str(e))
         return "ERROR", str(e), None, None
 
     try:
@@ -621,6 +646,10 @@ def run_single_test(qemu_bin, trampoline_path, vector_file, case_idx=None,
             if dump_file:
                 print(f"  Dump file: {dump_file}")
 
+        _emit(record_sink, file=os.path.basename(vector_file),
+              index=case_idx, id=case.get("id"), status=status,
+              exit=None if timed_out else exit_code,
+              expected_fault=case.get("expected_fault"), desc=desc)
         return status, desc, case, dump_file
 
     finally:
@@ -633,7 +662,7 @@ def run_single_test(qemu_bin, trampoline_path, vector_file, case_idx=None,
 
 def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
               dump_mode=False, verbose=False, jobs=1, profile=None,
-              only_profile_cases=False):
+              only_profile_cases=False, records=None):
     """Run all vector files in a directory.
 
     Profile applicability (TESTCASES-092t §1): a case whose ``profiles:`` list
@@ -656,6 +685,10 @@ def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
 
     Returns (total, passed, failed, deferred, errors, fail_details,
     skipped_profile).
+
+    ``records`` (optional list, GEM5-017t) is extended in deterministic plan
+    order with one dict per case: file/index/id/status/exit/expected_fault/
+    profile.  Default ``None`` leaves behaviour and output untouched.
     """
     profile_name = profile or _selected_profile()
     total = 0
@@ -708,15 +741,16 @@ def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
         workers = 1
     run_items = [p for p in plan if p[0] == "run"]
     results = {}
+    run_records = {}
     if run_items:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-            futures = [
-                executor.submit(
+            futures = []
+            for idx, (_, vf, _fname, i, _case) in enumerate(run_items):
+                futures.append(executor.submit(
                     run_single_test,
                     qemu_bin, trampoline_path, vf, i, timeout, dump_mode, False,
-                )
-                for (_, vf, _fname, i, _case) in run_items
-            ]
+                    (lambda rec, slot=idx: run_records.__setitem__(slot, rec)),
+                ))
             for idx, future in enumerate(futures):
                 results[idx] = future.result()
 
@@ -730,15 +764,41 @@ def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
         if kind == "deferred":
             if verbose:
                 print(f"  DEFERRED {fname}[{i}]: {case.get('mnemonic', '?')}")
+            if records is not None:
+                records.append({
+                    "file": fname, "index": i, "id": case.get("id"),
+                    "status": "DEFERRED", "exit": None,
+                    "expected_fault": case.get("expected_fault"),
+                    "profile": profile_name, "desc": "deferred (registered)",
+                })
             continue
         if kind == "skip":
             profs = case_profiles(case) or []
             print(f"  SKIP(profile) {fname}[{i}] {case.get('id')} "
                   f"profiles=[{', '.join(str(p) for p in profs)}] "
                   f"(running {profile_name})")
+            if records is not None:
+                records.append({
+                    "file": fname, "index": i, "id": case.get("id"),
+                    "status": "SKIP", "exit": None,
+                    "expected_fault": case.get("expected_fault"),
+                    "profile": profile_name,
+                    "desc": "case does not apply to this profile",
+                })
             continue
 
         status, desc, _, _dump_file = results[run_cursor]
+        if records is not None:
+            rec = dict(run_records.get(run_cursor, {}))
+            rec.setdefault("file", fname)
+            rec.setdefault("index", i)
+            rec.setdefault("id", case.get("id"))
+            rec.setdefault("status", status)
+            rec.setdefault("exit", None)
+            rec.setdefault("expected_fault", case.get("expected_fault"))
+            rec["profile"] = profile_name
+            rec.setdefault("desc", desc)
+            records.append(rec)
         run_cursor += 1
 
         if verbose:

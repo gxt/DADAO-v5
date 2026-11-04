@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import json
 import os
 import shutil
 import subprocess
@@ -139,15 +140,18 @@ def discover_benchmarks(src_root: str):
 
 
 class CaseResult:
-    __slots__ = ("bench", "opt", "expected", "actual", "passed", "reason")
+    __slots__ = ("bench", "opt", "expected", "actual", "passed", "reason",
+                 "profile", "case_id")
 
-    def __init__(self, bench, opt, expected):
+    def __init__(self, bench, opt, expected, profile="tiny"):
         self.bench = bench
         self.opt = opt
         self.expected = expected
         self.actual = None
         self.passed = False
         self.reason = ""
+        self.profile = profile
+        self.case_id = "embench/%s-%s" % (bench, opt)
 
 
 def verdict(rc, expected):
@@ -166,6 +170,7 @@ def verdict(rc, expected):
 def build_and_run(bench, opt, tools, work_dir, timeout, verbose=False):
     """Build one (benchmark, opt) through the fixed pipeline; run under QEMU."""
     res = CaseResult(bench, opt, 0)
+    res.profile = tools.get("profile", "tiny")
     outdir = os.path.join(work_dir, opt, bench)
     shutil.rmtree(outdir, ignore_errors=True)
     os.makedirs(outdir, exist_ok=True)
@@ -257,6 +262,35 @@ def build_and_run(bench, opt, tools, work_dir, timeout, verbose=False):
     return res
 
 
+def case_status(res):
+    if res.passed:
+        return "PASS"
+    if res.reason.startswith("qemu timeout"):
+        return "TIMEOUT"
+    if res.actual is None:
+        return "ERROR"
+    return "FAIL"
+
+
+def write_json(path, results):
+    rows = [{
+        "case_id": res.case_id,
+        "profile": res.profile,
+        "scope": "embench",
+        "status": case_status(res),
+        "exit": res.actual,
+        "arch_visible": {"guest_exit": res.actual,
+                         "expected_exit": res.expected,
+                         "reason": res.reason},
+        "note": res.reason,
+    } for res in results]
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"scope": "embench", "profile": results[0].profile
+                   if results else None, "cases": rows},
+                  fh, indent=1, sort_keys=True)
+        fh.write("\n")
+
+
 def run_suite(benchmarks, opts, tools, work_dir, timeout, verbose=False):
     results = []
     for opt in opts:
@@ -296,6 +330,9 @@ def main():
                     help="comma-separated optimisation levels, e.g. 'O0,O2'")
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     ap.add_argument("--verbose", "-v", action="store_true")
+    ap.add_argument("--json-out", default=None,
+                    help="optional: write one JSON record per (bench, opt) "
+                         "(GEM5-017t)")
     ap.add_argument("--inject", action="store_true",
                     help="counter-example self-test: re-judge one PASSing case "
                          "against a wrong expected value and require FAIL")
@@ -319,6 +356,7 @@ def main():
         "mem_runtime": _abspath(args.mem_runtime),
         "crt0": _abspath(args.crt0),
         "lds": _abspath(args.lds),
+        "profile": prof.name,
     }
     work_dir = _abspath(args.work_dir)
     opts = [o.strip().lstrip("-") for o in args.opt.split(",") if o.strip()]
@@ -356,6 +394,14 @@ def main():
     sys.stdout.write(f"  benchmarks: {', '.join(benchmarks)}\n")
 
     results = run_suite(benchmarks, opts, tools, work_dir, args.timeout, args.verbose)
+
+    if args.json_out:
+        try:
+            write_json(args.json_out, results)
+        except OSError as exc:
+            sys.stderr.write(f"ERROR: cannot write --json-out {args.json_out}: "
+                             f"{exc}\n")
+            return 2
 
     # Structural closure (§2.21): executed set == discovered set (no silent skip).
     executed = sorted({r.bench for r in results})
