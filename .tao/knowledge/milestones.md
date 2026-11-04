@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-184t | 待开始 | 2026-11-04 15:25（登记） | spec §6 Node identity 收口（ISS-340）：L1 0–3/VA=PA 2 GiB、entry/SP、ADR/合约投影、锁 sha |
 | INFRA-119t | 待开始 | 2026-11-04 13:56（登记） | LLVM/QEMU 构建入口接 ccache：CMake launcher + configure CC/CXX，全局默认缓存 |
 | GEM5-017t | 已验证 | 2026-11-04 13:05 | FS parity：2658 行、AGREE 2301、DIFF/GEM5_ONLY/QEMU_ONLY 0；7 条 semihosting 待 018 |
 | GEM5-018t | 待开始 | 2026-11-04 11:40（登记） | FS semihosting 修复：WRITEC/WRITE0 无返回标记 + SYS_TICKFREQ=1e9 基线 |
