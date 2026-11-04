@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M11
 **依赖**：`INFRA-120t`（已验证；任务书运行期路径清零）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 本地；只清理运行期日志，不改仓库跟踪文件、不改门控逻辑。
@@ -47,3 +47,28 @@
 **验收结果**：`check-run-artifacts` rc=0；保留的日志命名合法；未改门控、未加入 baseline 豁免、未改代码。
 **新发现/坑**：旧任务书正文仍提到这些日志名作为历史说明；不是路径引用，保留。
 **遗留问题**：无。
+
+## 审阅记录
+
+### 第 1 轮 reviewer 验收（2026-11-05）
+
+**重跑记录**（本人在主工作树执行，真实 rc）：
+- `make check-run-artifacts` → **rc=0**；`[PASS] A3 2810 new file(s) checked, 0 illegal, 5939 exempt`；`check-run-artifacts: PASS`（与完成区 2810/0 一致）
+- `make check-knowledge-refs` → **rc=0**（悬空 `.work` 引用 0；小节级 ADR 533 + contract 79）
+- `make check-milestones-fresh` → **rc=0**（流水 45 行，状态一致/覆盖/倒序全过）
+- `make check-no-residue` → **rc=0**
+- `git status --porcelain -uall` → 空、rc=0；`git diff HEAD` → 空
+
+**7 条旧日志核对**（清单取自历史门控输出 `.work/log/infra/INFRA-120t-L1-after.log`：`2815 checked, 7 illegal`）：
+- 通用 3 条 `mergetree.out`、`krefs-final.log`、`qemu/disk-free-r2.log` —— 逐个 `[ -e ]` 检查均 gone
+- GEM5-018t 4 条 `GEM5-018t-build{,2}.{EXIT,start}` —— 均 gone；`find .work/log -name 'GEM5-018t*'` 仅剩合法的 `GEM5-018t-build.log`/`build2.log`
+- **计数闭环**：`2815 − 7 + 2（22:34 后新建 GEM5-019t-build.log / -exit.txt，birth time 证实）= 2810` ⇒ 恰好只删 7 条、无多删
+- 独立复刻 A3 逻辑（不跑门控脚本）：`checked=2810 illegal=0 exempt_baseline=5939`，与门控逐字一致；1218 个旧非法名全在 baseline 且 baseline/epoch mtime 仍为 10-19（未被改动）
+
+**独立反例注入**（新建 `.work/log/review-inject-counterexample.log`，非 git 还原）：
+- 注入后 `python3 tools/infra/check_run_artifacts.py` → **rc=1**，`FAIL (1 problem(s))` 列出该文件；`make check-run-artifacts` → **rc=2**（make 包装码，历史日志同为 `Error 1` 口径）
+- `rm` 删除后重跑 → **rc=0**、`2810/0`；`check-no-residue` 复跑 rc=0，注入零残留
+
+**约束核验**：① 门控 rc=0、0 illegal、7 条已不在 ✓ ② 三门控真实 rc 全 0 ✓ ③ git 干净、无未跟踪残留 ✓；完成区数字与我方输出逐条一致 ✓；两笔提交 `--name-only` 均只有本册 + milestones ✓ ④ 注入→FAIL→还原→回绿 ✓ ⑤ 未改门控脚本/未动 baseline/未加豁免/未改代码（`git diff HEAD` 空）✓；未触碰 SPEC-184t worktree ✓
+
+**判决：Accepted**（口径备注：任务要求的"rc=1"指门控脚本退出码，实测 1；经 `make` 入口为 2，属 make 包装码，非缺陷）
