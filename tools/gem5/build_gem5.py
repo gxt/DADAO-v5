@@ -36,6 +36,8 @@ def main() -> int:
     parser.add_argument("--scons", default=os.environ.get("SCONS", "scons"))
     parser.add_argument("--no-ccache", action="store_true",
                         help="do not wrap CC/CXX with ccache")
+    parser.add_argument("--ccache-dir", default=None,
+                        help="ccache directory (default: ccache global default)")
     args = parser.parse_args()
 
     source = args.source if args.source.is_absolute() else ROOT / args.source
@@ -73,11 +75,12 @@ def main() -> int:
             compiler = env.get(var, default)
             if not any(part == "ccache" for part in compiler.split()):
                 env[var] = "ccache " + compiler
-        env.setdefault("CCACHE_DIR", str(ROOT / ".work" / "cache" / "ccache"))
-        env.setdefault("CCACHE_MAXSIZE", "20G")
+        if args.ccache_dir:
+            env["CCACHE_DIR"] = str(Path(args.ccache_dir).expanduser())
+    ccache_dir = env.get("CCACHE_DIR", "ccache default (global cache)")
     print(f"build-gem5: log: {log.relative_to(ROOT)}")
     print(f"build-gem5: ccache: {'on' if use_ccache else 'off'}"
-          + (f" (dir={env['CCACHE_DIR']})" if use_ccache else ""))
+          + (f" (dir={ccache_dir})" if use_ccache else ""))
     print("build-gem5: run (cwd=%s): %s" %
           (source.relative_to(ROOT), " ".join(cmd)))
     with log.open("w", encoding="utf-8") as stream:
