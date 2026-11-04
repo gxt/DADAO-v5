@@ -34,6 +34,8 @@ def main() -> int:
                         default=Path(".work/build/gem5"))
     parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument("--scons", default=os.environ.get("SCONS", "scons"))
+    parser.add_argument("--no-ccache", action="store_true",
+                        help="do not wrap CC/CXX with ccache")
     args = parser.parse_args()
 
     source = args.source if args.source.is_absolute() else ROOT / args.source
@@ -64,12 +66,23 @@ def main() -> int:
     # os.getcwd(), and `scons -C` is not equivalent here (it leaves the
     # target path anchored at the launch directory).
     cmd = [scons_path, "build/DADAO/gem5.opt", f"-j{args.jobs}"]
+    env = os.environ.copy()
+    use_ccache = (not args.no_ccache and shutil.which("ccache") is not None)
+    if use_ccache:
+        for var, default in (("CC", "gcc"), ("CXX", "g++")):
+            compiler = env.get(var, default)
+            if not any(part == "ccache" for part in compiler.split()):
+                env[var] = "ccache " + compiler
+        env.setdefault("CCACHE_DIR", str(ROOT / ".work" / "cache" / "ccache"))
+        env.setdefault("CCACHE_MAXSIZE", "20G")
     print(f"build-gem5: log: {log.relative_to(ROOT)}")
+    print(f"build-gem5: ccache: {'on' if use_ccache else 'off'}"
+          + (f" (dir={env['CCACHE_DIR']})" if use_ccache else ""))
     print("build-gem5: run (cwd=%s): %s" %
           (source.relative_to(ROOT), " ".join(cmd)))
     with log.open("w", encoding="utf-8") as stream:
         proc = subprocess.run(cmd, cwd=source, stdout=stream,
-                              stderr=subprocess.STDOUT)
+                              stderr=subprocess.STDOUT, env=env)
     print(tail(log, 40))
     if proc.returncode != 0:
         print(f"build-gem5: FAILED rc={proc.returncode}; full log: "
