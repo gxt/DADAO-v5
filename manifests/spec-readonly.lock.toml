@@ -598,7 +598,7 @@ group = "toolchain-01"
 # 2026-11-01（ADR-0017 D10 修订；用户原话「ADR0017：修订D10」，并选择同步 Toolchain-01 §13.7/contract-asm §13.7）：
 #   数组单下标扩展为 `rc = rc_base + N*stride`（`N ∈ [0,count)`；stride 由别名表给出，format=1 按 stride=1 兼容）；
 #   §13.7 + 0.5.4-rc 附录各 1 条；sha256 同笔重算。上述 1 册 sha256 于同一变更内同步重算（其余 20 册不变）。
-sha256 = "025a5cd0907cf888039baadea26ec1ac58dc280bfe46e135763d7bc60be7fd17"
+sha256 = "d7822c7753e9aa216b0b2bff3a68802f135618cb6b5d8c4ff11a029de2edfb16"
 
 [[spec]]
 path = "spec/Machine-v5-测试机运行环境.md"
@@ -646,4 +646,4 @@ group = "machine-v5"
 # 2026-11-05（SPEC-187t，授权原话见任务书 §已定稿口径）：§1.2 增完整退出码分段表（guest pass/fail、
 #   其它 cfx `0x80`–`0xBF`、monitor `0xC0`–`0xFF` 含 11 个位索引）并删旧单公式/未映射独立码；§3 同步
 #   reserved cfx 落当前 monitor；附录 0.3.2-rc 补一条；版本不变（0.3.2-rc）；sha256 同笔重算（其余 20 册不变）。
-sha256 = "180bdb0b5c7e7cb56812b780993a5ac8432ef0f39724659d80c75b0230fa221c"
+sha256 = "b858d55dcbff7c05a4f6d0ee9168f6812c34c2883e2cde6026ccdba83d74d4e0"

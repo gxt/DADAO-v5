@@ -8,9 +8,7 @@
 >
 > **定位**：本册是 v5 自定规范，定义 **DADAO-v5 测试机（`dadao-m1`）运行环境与 semihosting** 的规范正文——面向 QEMU 机器模型、bootrom 固件、harness 与测试向量。上游 `spec/DADAO-*` 与 `spec/SimRISC-*` 仍为**上游基线**；本册不改其架构语义。
 >
-> **来源（决策层）**：`ADR-0020`（`.tao/adr/adr-0020-see-semihosting.md`，`D1`–`D15`）与 `ADR-0004`（`.tao/adr/adr-0004-test-machine.md`，含 rev. 2026-10-07 的 `R1`/`R2`/`R3`）。ADR 只记决策/理由/被否方案，本册承载规范正文（`ADR-0020 D13`）。semihosting 服务号值语义取自 Arm Semihosting（`Semihosting for AArch32 and AArch64`）。
->
-> **标注约定**：正文中「**测试机约定**」项**无上游 spec 依据**，属 v5 架构自定义（附决策出处）；有上游出处的语义给出 `[DADAO-NN §x]`/`[SimRISC-NN §x]` 引用。`cfx0/1/2/3/63` 等实现范围一律为**测试机约定**，不构成对上游 `DADAO-12`/`DADAO-13` 的架构限制。
+> **标注约定**：正文中「**测试机约定**」项**无上游 spec 依据**，属 v5 架构自定义；有上游出处的语义给出 `[DADAO-NN §x]`/`[SimRISC-NN §x]` 引用。`cfx0/1/2/3/63` 等实现范围一律为**测试机约定**，不构成对上游 `DADAO-12`/`DADAO-13` 的架构限制。
 
 ---
 
@@ -25,7 +23,7 @@ v5 测试机分 **`Machine-v5-Tiny`**（宿主装载的精简 FS 平台）与 **
 
 ### 1.1 核内地址空间划分（测试机约定）
 
-v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位核内有效地址；地址区间为**测试机约定**）。[ADR-0020 D15][ADR-0043 D1/D4/D5]
+v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位核内有效地址；地址区间为**测试机约定**）。
 
 **`Machine-v5-Tiny`**
 
@@ -56,7 +54,7 @@ v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位�
 
 - **spec 层语义（`CFXMEM`）**：对核内地址空间进行非法访问时触发 `CFXMEM`；其异常原因编号为 `1 << 1`，执行期同步异常按 `DADAO-12 §5.2` 进入当前运行模式 monitor（`CFXTRAP`/`CFXESC` 除外，见下表）。[DADAO-12 §2.1 核内地址空间][DADAO-12 §4. 专有寄存器设计规范][DADAO-12 §5.2 异常进入流程]
 
-- **完整退出码表（测试机约定）**：`$?` 单值区分 guest pass/fail 与机器 fault；机器 fault 按来源分「其它 cfx」与「monitor」两段。[ADR-0004 D5.8][ADR-0020 D15]
+- **完整退出码表（测试机约定）**：`$?` 单值区分 guest pass/fail 与机器 fault；机器 fault 按来源分「其它 cfx」与「monitor」两段。
 
 | 范围 | 段 | 位域 | 含义 |
 |------|----|------|------|
@@ -86,15 +84,15 @@ v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位�
 - **同步异常落点**：除上述两条外，执行期同步异常均进入**当前运行模式 monitor**，按 monitor 段编码：`CFXMEM`/`CFXREG`/`CFXPERM`/`ILLI`/`UNDI`/`RASOF`/`RASUF`/`MALIGN`/`IALIGN`。[DADAO-12 §5.2 异常进入流程]
 - **未映射与 A/D 回写失败**：无映射的核内地址访问/取指归当前运行模式 monitor 的 `CFXMEM`；A/D 回写失败同样归当前运行模式 monitor 的 `CFXMEM`（`cause_info` = PTE 物理地址）。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §2.2.6 异常检查优先级]
 - **reserved cfx**：reserved cfx（`6`–`14`、`19`–`61`）的普通 `ld/st` 归当前运行模式 monitor 的 `CFXMEM`；其 `trap`/`escape` 归当前运行模式 monitor 的 `ILLI`。[DADAO-12 §5.2 异常进入流程]
-- **层次与适用**：`CFXMEM` 适用于核内地址空间模型内的非法访问/取指（cfxha 段内的非法子区间、越界访问/取指），按上表归当前 monitor。[ADR-0020 D15]
+- **层次与适用**：`CFXMEM` 适用于核内地址空间模型内的非法访问/取指（cfxha 段内的非法子区间、越界访问/取指），按上表归当前 monitor。
 - **精确路由（按 profile）**：
-  - **Tiny**：无 PTW（`ptw_enable` 恒 0）。`addr[47:42] == 0` 的普通访存/取指 ⇒ `CFXMEM`，**不直通物理存储器**；cfxha 63 段内 BootROM/SRAM 之外的地址 ⇒ `CFXMEM`。Tiny 无 hmon/smon 向量，异常**不经向量**，按 `ADR-0004 D5` 的「机器直接映射 fault → 退出码」口径终止。
+  - **Tiny**：无 PTW（`ptw_enable` 恒 0）。`addr[47:42] == 0` 的普通访存/取指 ⇒ `CFXMEM`，**不直通物理存储器**；cfxha 63 段内 BootROM/SRAM 之外的地址 ⇒ `CFXMEM`。Tiny 无 hmon/smon 向量，异常**不经向量**，按「机器直接映射 fault → 退出码」口径终止。
   - **Node**：`addr[47:42] == 0` 且 `ptw_enable=1`：按单 PTBR 走页表（PTE 格式/页表步进/页权限/TLB 见 `DADAO-12 §2.2.1–§2.2.6`、`§4.5`）；页表步进与 TLB 命中产生的异常先进入当前运行模式 monitor：未映射与 A/D 回写失败 ⇒ `CFXMEM`，权限拒绝 ⇒ `CFXPERM`（见 `DADAO-12 §2.2.6`、`§5.2`）。`ptw_enable=0`（仅复位后 power/hmon 的早期初始化）时仍按上一条报 `CFXMEM`。
   - 保留 cfx（`6`–`14`、`19`–`61`）的普通 `ld/st` ⇒ 当前运行模式 monitor 的 `CFXMEM`；`trap`/`escape` 到保留 cfx ⇒ 当前运行模式 monitor 的 `ILLI`。
   - 其余未映射地址（Node 的 `power` 段 BootROM 之外）⇒ 当前运行模式 monitor 的 `CFXMEM`。
-- **取指路径同等对待**：越界**取指**与越界**数据访问**同属非法核内地址访问，**均须报异常**，不得只覆盖数据访问路径；不得静默继续或静默丢弃。[ADR-0020 D15]
-- **编码冻结、不得重排**：退出码分段与 monitor/其它 cfx 位域一经生效**不得重排**；monitor 位索引沿用 DADAO 异常位索引，新增原因不得改变既有索引。[DADAO-12 §5.2 异常进入流程][ADR-0004 D5.8][ADR-0020 D15]
-- 两 profile 的几何与上述路由由 `QEMU-079t`（Tiny）/`QEMU-080t`（Node）落地，并以 `check-interface` 断言固化；旧「唯一 RAM 段 + PA 别名 + 固定容量」口径随本版 profile 划分作废。[ADR-0020 D15]
+- **取指路径同等对待**：越界**取指**与越界**数据访问**同属非法核内地址访问，**均须报异常**，不得只覆盖数据访问路径；不得静默继续或静默丢弃。
+- **编码冻结、不得重排**：退出码分段与 monitor/其它 cfx 位域一经生效**不得重排**；monitor 位索引沿用 DADAO 异常位索引，新增原因不得改变既有索引。[DADAO-12 §5.2 异常进入流程]
+- 两 profile 的几何与上述路由由 `QEMU-079t`（Tiny）/`QEMU-080t`（Node）落地，并以 `check-interface` 断言固化；旧「唯一 RAM 段 + PA 别名 + 固定容量」口径随本版 profile 划分作废。
 
 ---
 
@@ -109,9 +107,9 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 异常进入后，硬件把运行模式改为 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 的值（异常进入流程步骤 6）。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3. 共有寄存器设计规范]
 
 - **运行模式范围（按 profile）**：`Machine-v5-Tiny` 不提供模式切换路径——复位后即在特权态（名义 `hypv` / cfxha 63）执行，**不能进入 `user`/`jail`/`supv`**；`Machine-v5-Node` 启用 `hypv`、`supv` 与 `user`，`jail` 不启用。
-- **异常承载（按 profile）**：`Machine-v5-Node` 由 `hmon`（cfx3）承载 hypv 异常、`smon`（cfx2）承载 supv 异常；`Machine-v5-Tiny` **无异常向量与异常处理路径**，fault 按 `ADR-0004 D5` 直接映射为进程退出码。
-- **启动链（按 profile）**：`Machine-v5-Tiny` 复位后在 BootROM 执行启动 stub，设 `SP` 后**普通跳转**至应用入口（不使用 `trap` 移交，无 cfx）。`Machine-v5-Node` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）；`power → hmon → smon`（supv/cfx2）路径保留：power 从 BootROM 装载 hmon 并 `trap` 移交；hmon 配置 smon 的 S-mode 向量/权限后 `trap` 移交；smon 建立第一张页表、开启 PTW 并接管运行期。M11 测试不覆盖 smon。[ADR-0043 D1/D8/D9]
-- **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变。[ADR-0020 D12][ADR-0004 R1]
+- **异常承载（按 profile）**：`Machine-v5-Node` 由 `hmon`（cfx3）承载 hypv 异常、`smon`（cfx2）承载 supv 异常；`Machine-v5-Tiny` **无异常向量与异常处理路径**，fault 直接映射为进程退出码。
+- **启动链（按 profile）**：`Machine-v5-Tiny` 复位后在 BootROM 执行启动 stub，设 `SP` 后**普通跳转**至应用入口（不使用 `trap` 移交，无 cfx）。`Machine-v5-Node` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）；`power → hmon → smon`（supv/cfx2）路径保留：power 从 BootROM 装载 hmon 并 `trap` 移交；hmon 配置 smon 的 S-mode 向量/权限后 `trap` 移交；smon 建立第一张页表、开启 PTW 并接管运行期。M11 测试不覆盖 smon。
+- **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变。
 
 ---
 
@@ -119,18 +117,18 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 每个核芯功能扩展提供 cg0–cg7 共有寄存器，规范相同；其中 cg0–cg3 为 `user`/`jail`/`supv`/`hypv` 各自的 12 个模式寄存器，cg4–cg6 为配置/现场/暂存寄存器。`cg7` 为内部空间描述寄存器（[DADAO-12 §3.8]）：每 4 个 rc 描述一个内部空间，字段按**数组** `space_{desc,start,size,attr}[i]`（`i = 0..15`）定义，未实现空间以 `exists=0` 表示，全部只读、写触发 `CFXREG`。[DADAO-12 §3. 共有寄存器设计规范]
 
-- 每个 cfx 的 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe`（`rc0`–`rc3`）为四类 64 位同步来源 mask，`rc4` 为 `cfx_intr_mask`：**0=允许，1=屏蔽**，位索引=源 cfx；自身只绕过 cfx 轴。`cfx0`–`cfx3` 的 `cg8`/`rc1` 为 `global_cfx_intr_mask`。[DADAO-12 §3. 共有寄存器设计规范][ADR-0045 D2/D3]
+- 每个 cfx 的 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe`（`rc0`–`rc3`）为四类 64 位同步来源 mask，`rc4` 为 `cfx_intr_mask`：**0=允许，1=屏蔽**，位索引=源 cfx；自身只绕过 cfx 轴。`cfx0`–`cfx3` 的 `cg8`/`rc1` 为 `global_cfx_intr_mask`。[DADAO-12 §3. 共有寄存器设计规范]
 - `switch_run_mode` 为陷入时切换的运行模式。[DADAO-12 §3. 共有寄存器设计规范]
-- reserved cfxha（`6`–`14`、`19`–`61`）的 `trap`/`escape` 触发当前运行模式 monitor 的 `ILLI`；权限拒绝触发 `CFXPERM`（`1<<7`，进入当前模式 monitor），escape 帧/目标错误触发 `CFXESC`（`1<<3`，进入当前 cfx）。[DADAO-12 §4. 专有寄存器设计规范][ADR-0045 D6/D7]
+- reserved cfxha（`6`–`14`、`19`–`61`）的 `trap`/`escape` 触发当前运行模式 monitor 的 `ILLI`；权限拒绝触发 `CFXPERM`（`1<<7`，进入当前模式 monitor），escape 帧/目标错误触发 `CFXESC`（`1<<3`，进入当前 cfx）。[DADAO-12 §4. 专有寄存器设计规范]
 - HSJU 或 R/W/X 不符属于页表/PTW 层权限异常：当前运行模式对应的 HSJU 位为 0，或取指/读/写分别不满足 X/R/W 时触发 `CFXPERM`（当前运行模式 monitor）；地址转换第一步已不再按 `VA[47:42]` 选择 PTBR，也不再有 PTBR 模式权限位图。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw]
-- **两个权限层次**：页表/PTW 层权限（HSJU 或 R/W/X 不符）与 **cfx 访问权限**（`cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` mask 拒绝，见 `§5` 异常进入流程）是**不同层次**，不可混同；两者失败后均归当前运行模式 monitor 的 `CFXPERM`（原因名收敛，权限来源不同）。[ADR-0020 D9][DADAO-12 §4. 专有寄存器设计规范]
+- **两个权限层次**：页表/PTW 层权限（HSJU 或 R/W/X 不符）与 **cfx 访问权限**（`cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` mask 拒绝，见 `§5` 异常进入流程）是**不同层次**，不可混同；两者失败后均归当前运行模式 monitor 的 `CFXPERM`（原因名收敛，权限来源不同）。[DADAO-12 §4. 专有寄存器设计规范]
 
 - **测试机 cfx 实现范围（按 profile）**：
   - **`Machine-v5-Tiny`**：**不实现任何 cfx**——cfxha 63 只作地址分区，不提供 `cfx_power` 或其它 cfx 的 cg0–cg7 寄存器/异常向量/权限模型；`trap` 只在 semihosting 区（`immu18[17:8] == 0x3FF`）有效，不进入向量。cfx 寄存器访问与 `cfx2rd`/`cfx2rc` 按未实现 cfx ⇒ `CFXREG`；非 semihosting 的 `trap`/`escape` 按未实现 cfx ⇒ `ILLI`（不进向量、不做模式切换）。**Tiny 不实现 `cfx32`（pmem）/`cfx4`（ptw）/`cfx5`（cache）/`cfx33`（llc）/`cfx34`（time）**。
   - **`Machine-v5-Node`**：实现 **`cfx0`/`cfx1`/`cfx2`/`cfx3`/`cfx63`**（`umon`/`jmon`/`smon`/`hmon`/`power`）以及 **`cfx4`（`ptw`）的 PTW/TLB 寄存器**（`cfx_ptw_ptbr`、`cfx_ptw_enable`、`cfx_ptw_tlb_*`）、**页表步进**、**TLB 命中/填充/失效**与 **A/D 回写**（`DADAO-12 §2.2`、`§4.5`）；并实现 **`cfx32`（`pmem`）的 64 KiB SRAM 与 `cg15` DMA**（`DADAO-12 §2.1`、`§4.9`）。`cfx5`（`cache`）为已分配未实现，测试机按未实现 cfx 处理（访问其寄存器 ⇒ `CFXREG`）。
-  - 上述范围为**测试机约定**（控制首版成本），**不构成对上游 `DADAO-12`/`DADAO-13` 架构的 cfx 数量/编号限制**。[ADR-0020 D9][DADAO-12 §1. 运行模式与核芯功能扩展]
-- **测试机 `cfx_pmem` DMA 约定（仅 Node）**：DMA 只在 `cfx_pmem` SRAM 与物理存储器之间搬运，异步完成（软件须轮询 `dma_status.BUSY` 或使能 `IRQ_EN`）；DMA 可读 RAM 与 boot ROM、只可写 RAM，其余 PA 属 `PA_FAULT`；`PMEM_DMA`（`1 << 8`）直接投递本 hart 的 `cfx_pmem` 异常入口（单 hart）。[DADAO-12 §4.9][ADR-0042 D7.1–D7.4]
-- 对**不存在**的核芯功能扩展（其 cfx 寄存器）的访问触发 **`CFXREG`**；reserved cfxha（`6`–`14`/`19`–`61`）的 `trap`/`escape` 仍按 `§5` 触发当前运行模式 monitor 的 `ILLI`。[ADR-0020 D9][DADAO-22 §3. 系统信息（smon）][DADAO-12 §5. 异常进入与异常退出]
+  - 上述范围为**测试机约定**（控制首版成本），**不构成对上游 `DADAO-12`/`DADAO-13` 架构的 cfx 数量/编号限制**。[DADAO-12 §1. 运行模式与核芯功能扩展]
+- **测试机 `cfx_pmem` DMA 约定（仅 Node）**：DMA 只在 `cfx_pmem` SRAM 与物理存储器之间搬运，异步完成（软件须轮询 `dma_status.BUSY` 或使能 `IRQ_EN`）；DMA 可读 RAM 与 boot ROM、只可写 RAM，其余 PA 属 `PA_FAULT`；`PMEM_DMA`（`1 << 8`）直接投递本 hart 的 `cfx_pmem` 异常入口（单 hart）。[DADAO-12 §4.9]
+- 对**不存在**的核芯功能扩展（其 cfx 寄存器）的访问触发 **`CFXREG`**；reserved cfxha（`6`–`14`/`19`–`61`）的 `trap`/`escape` 仍按 `§5` 触发当前运行模式 monitor 的 `ILLI`。[DADAO-22 §3. 系统信息（smon）][DADAO-12 §5. 异常进入与异常退出]
 
 ---
 
@@ -140,7 +138,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 `trap cfxha, immu18` 的 `cfxha` 指定服务提供者（目标核芯功能扩展），`immu18` 为功能编号。[DADAO-22 §1. 调用约定]
 
-当 `immu18 < 0x3FF00`（即不在 semihosting 区 `0x3FF00–0x3FFFF`）时，为**一般 trap**：先过权限检查，允许后**走 `DADAO-12 §5` 异常进入流程**（步骤 1–10，含步骤 10「跳转至异常向量」`inner_inst_pointer <= cfx_⟨cfxname⟩_<mode>_excp_vector`）——即**进入该 cfx 的异常向量**。[DADAO-12 §5. 异常进入与异常退出][ADR-0020 D10]
+当 `immu18 < 0x3FF00`（即不在 semihosting 区 `0x3FF00–0x3FFFF`）时，为**一般 trap**：先过权限检查，允许后**走 `DADAO-12 §5` 异常进入流程**（步骤 1–10，含步骤 10「跳转至异常向量」`inner_inst_pointer <= cfx_⟨cfxname⟩_<mode>_excp_vector`）——即**进入该 cfx 的异常向量**。[DADAO-12 §5. 异常进入与异常退出]
 
 `Machine-v5-Tiny` 没有任何 cfx 向量，故一般 trap 一律按未实现 cfx ⇒ `ILLI`（见 `§3`），不进入异常进入流程。
 
@@ -157,7 +155,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 | **一般 trap** | `immu18 < 0x3FF00`（不在 `0x3FF00–0x3FFFF`） | 走 `DADAO-12 §5` 异常进入流程，**进入 cfx 向量** | 由被调方 `escape` 返回 |
 | **semihosting** | `0x3FF00 ≤ immu18 ≤ 0x3FFFF`（`immu18[17:8] == 0x3FF`） | 实现层**译码短路**，**不进入向量**（同构 RISC-V `RISCV_EXCP_SEMIHOST`） | 直接 **IP 步进**返回（见 `§5`） |
 
-两条路由由 `ADR-0020 D10` 冻结：一般 trap 与 semihosting 分离，**不得把 semihosting 混入向量路径**（否则实现者会误让 semihosting 进入向量）。[ADR-0020 D10]
+一般 trap 与 semihosting 分离，**不得把 semihosting 混入向量路径**（否则实现者会误让 semihosting 进入向量）。
 
 ---
 
@@ -170,14 +168,14 @@ semihosting 是 v5 测试机提供的「guest 经 `trap` 请求宿主 I/O」机�
 
 ### 5.1 判定（入口 tag）
 
-- **判定**：`trap cfxHA, immu18` 中 **`immu18[17:8] == 0x3FF`**（即 `0x3FF00–0x3FFFF`）⇒ 该 `trap` 为 **semihosting 调用**（**与 `cfxha` 无关**）。[ADR-0038 D1]
-- **调用形如 `trap <any cfxha>, 0x3FF00`**：semihosting 服务号仍占 `immu18` 低 8 位（`0x3FF00 + op`）；用哪个 `cfxha` 不指定（任意 `cfxha` 等效），判定只依赖 `immu18[17:8]`。[ADR-0038 D1]
-- **`D1` 语义/理由说明（架构自定义）**：该 tag 判定**无上游 spec 依据、属 v5 架构自定义**——`spec/DADAO-22` 只规定 `cfxha` 为服务提供者、`immu18` 为功能编号；`spec/SimRISC-11` 只规定 `immu18` 为功能编号；二者**均无 semihosting 语义**。故本机制在 v5 中由测试机定义，guest/实现共同遵守此 tag。[ADR-0020 D1][DADAO-22 §1. 调用约定][SimRISC-11]
-- **两条路**：`immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`）走 semihosting 短路（本节）；`immu18 < 0x3FF00` 走一般 trap 进入向量（见 `§4.1`）。[ADR-0020 D10]
+- **判定**：`trap cfxHA, immu18` 中 **`immu18[17:8] == 0x3FF`**（即 `0x3FF00–0x3FFFF`）⇒ 该 `trap` 为 **semihosting 调用**（**与 `cfxha` 无关**）。
+- **调用形如 `trap <any cfxha>, 0x3FF00`**：semihosting 服务号仍占 `immu18` 低 8 位（`0x3FF00 + op`）；用哪个 `cfxha` 不指定（任意 `cfxha` 等效），判定只依赖 `immu18[17:8]`。
+- **语义/理由说明（架构自定义）**：该 tag 判定**无上游 spec 依据、属 v5 架构自定义**——`spec/DADAO-22` 只规定 `cfxha` 为服务提供者、`immu18` 为功能编号；`spec/SimRISC-11` 只规定 `immu18` 为功能编号；二者**均无 semihosting 语义**。故本机制在 v5 中由测试机定义，guest/实现共同遵守此 tag。[DADAO-22 §1. 调用约定][SimRISC-11]
+- **两条路**：`immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`）走 semihosting 短路（本节）；`immu18 < 0x3FF00` 走一般 trap 进入向量（见 `§4.1`）。
 
 ### 5.2 调用约定（传参/返回寄存器）
 
-v5 semihosting 为**恒 64 位**、**大端**（`ADR-0003 D1`）[ADR-0020 D6]。寄存器映射如下：
+v5 semihosting 为**恒 64 位**、**大端**。寄存器映射如下：
 
 | 角色 | v5 寄存器 | 说明 |
 |------|-----------|------|
@@ -185,18 +183,18 @@ v5 semihosting 为**恒 64 位**、**大端**（`ADR-0003 D1`）[ADR-0020 D6]。
 | **参数块指针（地址）** | `rb16`（= `rba0`） | 指向 64 位字段组成的参数块 |
 | **返回值** | `rd8` | 标量返回；指针返回才用 `rb8`，semihosting 不用 |
 
-- 号 → `rd16`、参数块指针 → `rb16`、返回 → `rd8`；对齐共享层 `common_semi_arg(cs,0)`=号、`common_semi_arg(cs,1)`=参数块指针。[ADR-0020 D2][ADR-0020 D14]
-- **不另设 `rd15`**：`rd15` 是 `umon`/`jmon` 系统调用号，semihosting 不使用。[ADR-0020 D2][DADAO-21 §系统调用规范]
+- 号 → `rd16`、参数块指针 → `rb16`、返回 → `rd8`；对齐共享层 `common_semi_arg(cs,0)`=号、`common_semi_arg(cs,1)`=参数块指针。
+- **不另设 `rd15`**：`rd15` 是 `umon`/`jmon` 系统调用号，semihosting 不使用。[DADAO-21 §系统调用规范]
 - 传参复用 ABI 约定（数据参数 `rd16–rd31`、地址参数 `rb16–rb31`）；三组寄存器各自独立计数。[DADAO-22 §1. 调用约定][DADAO-21 §参数寄存器：Parameter registers]
-- 参数块字段为 **64 位**，按 target 端序读取（v5 **大端**）。[ADR-0020 D6]
+- 参数块字段为 **64 位**，按 target 端序读取（v5 **大端**）。
 
 ### 5.3 服务表（完整 25 个）
 
-v5 semihosting **服务集 = 完整 25 个**，号值采用 **Arm Semihosting 号值**；服务号值↔入参/出参的权威表即下表。[ADR-0020 D3]
+v5 semihosting **服务集 = 完整 25 个**，号值采用 **Arm Semihosting 号值**；服务号值↔入参/出参的权威表即下表。
 
 - 表中「参数块」= `rb16` 指向的 64 位字段块；「无参数」= 参数寄存器须为 0。
-- 各服务的语义与字段布局遵循 Arm Semihosting（`Semihosting for AArch32 and AArch64`，`Release 2.0`）。[ADR-0020 D3]
-- `SYS_SYNCCACHE (0x19)` 在 Arm Semihosting `Release 2.0` 中列为保留号；v5 沿用共享层既有号值并纳入服务集。[ADR-0020 D3]
+- 各服务的语义与字段布局遵循 Arm Semihosting（`Semihosting for AArch32 and AArch64`，`Release 2.0`）。
+- `SYS_SYNCCACHE (0x19)` 在 Arm Semihosting `Release 2.0` 中列为保留号；v5 沿用共享层既有号值并纳入服务集。
 
 | 号值 | 名称 | 功能 | 入参 / 返回 |
 |------|------|------|-------------|
@@ -228,39 +226,39 @@ v5 semihosting **服务集 = 完整 25 个**，号值采用 **Arm Semihosting �
 
 ### 5.4 返回机制
 
-semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 IP**（`IP += 4`，跳过 `trap`）并写回返回寄存器（`rd8`）；guest 侧不需 `escape` 返回。[ADR-0020 D4]
+semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 IP**（`IP += 4`，跳过 `trap`）并写回返回寄存器（`rd8`）；guest 侧不需 `escape` 返回。
 
-- 该机制与一般 trap 的 `escape cfxha, [excp_cause_ip, 4]` 返回（`§4.2`）不同：semihosting 不进入向量，故不适用通用 `escape` 返回约定（`ADR-0020 D4`）。[ADR-0020 D4][DADAO-22 §1. 调用约定]
+- 该机制与一般 trap 的 `escape cfxha, [excp_cause_ip, 4]` 返回（`§4.2`）不同：semihosting 不进入向量，故不适用通用 `escape` 返回约定。[DADAO-22 §1. 调用约定]
 
 ### 5.5 停机（`SYS_EXIT` 取代 exit port）
 
-- semihosting **`SYS_EXIT`（`0x18`）/`SYS_EXIT_EXTENDED`（`0x20`）取代 exit port**（`ADR-0004 D3`）作为停机协议。[ADR-0020 D8][ADR-0004 R2]
-- 常规应用退出使用原因码 `ADP_Stopped_ApplicationExit`（`0x20026`）；`SYS_EXIT_EXTENDED` 的第二个字段为退出状态码。退出码须忠实传播到 host `$?`，沿用 `ADR-0011` 的确定性 halt 机制（写入后即锁定退出码）。[ADR-0020 D8]
-- **迁移范围 = 全部**：M1–M4 所有依赖 exit port 的向量/harness 已迁 `SYS_EXIT`（`TESTCASES-034t`）；exit-port MMIO 设备已于 C1 step2（`QEMU-053t`）删除——机器模型不再保留 exit port。[ADR-0020 D8][ADR-0020 D15]
+- semihosting **`SYS_EXIT`（`0x18`）/`SYS_EXIT_EXTENDED`（`0x20`）取代 exit port** 作为停机协议。
+- 常规应用退出使用原因码 `ADP_Stopped_ApplicationExit`（`0x20026`）；`SYS_EXIT_EXTENDED` 的第二个字段为退出状态码。退出码须忠实传播到 host `$?`，沿用确定性 halt 机制（写入后即锁定退出码）。
+- **迁移范围 = 全部**：M1–M4 所有依赖 exit port 的向量/harness 已迁 `SYS_EXIT`（`TESTCASES-034t`）；exit-port MMIO 设备已于 C1 step2（`QEMU-053t`）删除——机器模型不再保留 exit port。
 
 ### 5.6 已知风险（`SYS_SYSTEM`）
 
-`SYS_SYSTEM`（`0x12`，执行宿主命令）为**已登记的已知安全风险**：命令在宿主上执行，可能产生非预期后果；v5 **不因此拒绝该服务**（服务集 = 完整 25 个），而以默认 `gdb`/沙箱、`native` 显式开启作为缓解手段。[ADR-0020 D3][ADR-0020 D7]
+`SYS_SYSTEM`（`0x12`，执行宿主命令）为**已登记的已知安全风险**：命令在宿主上执行，可能产生非预期后果；v5 **不因此拒绝该服务**（服务集 = 完整 25 个），而以默认 `gdb`/沙箱、`native` 显式开启作为缓解手段。
 
 ---
 
 ## 6. 加载与 bootrom
 
-M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配置**；bootrom 用**自有工具链**编译（LLVM 新指令的首个真实用户）。[ADR-0020 D12]
+M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配置**；bootrom 用**自有工具链**编译（LLVM 新指令的首个真实用户）。
 
-- **BootROM（按 profile）**：`Machine-v5-Tiny` 为 64 KiB（`0xffff_ffff_0000`–`0xffff_ffff_ffff`），内容**全部**为复位/启动 stub，**无 image index table**；`Machine-v5-Node` 为 4 MiB（`0xffff_ffc0_0000`–`0xffff_ffff_ffff`），偏移 0 放 image index table、其后放 ELF 镜像，末 64 KiB（`0xffff_ffff_0000` 起）留给复位/启动代码。复位向量两 profile 均为 `0xffff_ffff_0000`。[ADR-0043 D1/D2][DADAO-12 §2.1 核内地址空间]
+- **BootROM（按 profile）**：`Machine-v5-Tiny` 为 64 KiB（`0xffff_ffff_0000`–`0xffff_ffff_ffff`），内容**全部**为复位/启动 stub，**无 image index table**；`Machine-v5-Node` 为 4 MiB（`0xffff_ffc0_0000`–`0xffff_ffff_ffff`），偏移 0 放 image index table、其后放 ELF 镜像，末 64 KiB（`0xffff_ffff_0000` 起）留给复位/启动代码。复位向量两 profile 均为 `0xffff_ffff_0000`。[DADAO-12 §2.1 核内地址空间]
 - **装载语义 — `Machine-v5-Tiny`**：应用为 ELF 时，crt/启动 stub 段在 BootROM（`0xffff_ffff_0000`）、应用 `.text/.rodata/.data/.bss` 在 SRAM（`.text` 起 `0xffff_ff01_0100`），`e_entry` 在 BootROM；宿主按 `PT_LOAD` 分别装入 BootROM 与 SRAM，`.bss` 由 picolibc `__start` 在 SRAM 清零，`e_entry` 处的 stub 跳应用入口。raw `-kernel` 镜像基址 `0xffff_ff01_0000`，镜像前 `0x100` 字节须全零（保留区），应用入口 `0xffff_ff01_0100`，`SP = 0xffff_ff7e_ff00`；**raw 与 ELF 统一入口 `0xffff_ff01_0100`、统一 `SP`**。Tiny 无 hmon/PTW/异常处理路径，启动 stub 以普通跳转移交。
-- **装载语义 — `Machine-v5-Node`**：4 MiB BootROM 经 bootrom 镜像装载路径（机器属性 `bootrom-image`）装入；`power` 从 BootROM 把 hmon 装入 hmon SRAM，`power → hmon → smon` 交接后由 smon 建立**首张页表**：把 64 KiB 全零页表页写到 PA 0（`PTBR=0`），在 L1 index `0`–`3` 写 4 个 512 MiB 超页 PTE，映射 `VA [0, 2 GiB) → PA [0, 2 GiB)`（合计 2 GiB）；每项 `H=1`、`S=1`、`U=J=0`、`R=W=X=1`、`P=1`、`SP=1`、`A=D=1`（A/D 硬件维护）、`SPF=0xFF`；随后写 `cfx_ptw_ptbr=0` 并置 `cfx_ptw_enable=1` 开启 PTW。本册只规定该首张页表，不规定测试镜像的段布局、起始执行位置或 SP。[ADR-0043 D2/D10/D11/D12]
-- **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变。[ADR-0020 D12][ADR-0004 R1]
-- **模式移交**：`Machine-v5-Tiny` 无模式移交（同一特权态内跳转）；`Machine-v5-Node` 为 power → hmon → 测试本体（hypv），`power → hmon → smon` 路径保留（同 `§2`）。[ADR-0043 D8–D11]
-- **并存关系**：`-bios` bootrom 启动路径与 M4 的 ELF 单镜像路径（`ADR-0004 D2.2/D2.3` 路径 A）**并存、非替代**——两条启动路径各自可自动化。[ADR-0004 R1]
+- **装载语义 — `Machine-v5-Node`**：4 MiB BootROM 经 bootrom 镜像装载路径（机器属性 `bootrom-image`）装入；`power` 从 BootROM 把 hmon 装入 hmon SRAM，`power → hmon → smon` 交接后由 smon 建立**首张页表**：把 64 KiB 全零页表页写到 PA 0（`PTBR=0`），在 L1 index `0`–`3` 写 4 个 512 MiB 超页 PTE，映射 `VA [0, 2 GiB) → PA [0, 2 GiB)`（合计 2 GiB）；每项 `H=1`、`S=1`、`U=J=0`、`R=W=X=1`、`P=1`、`SP=1`、`A=D=1`（A/D 硬件维护）、`SPF=0xFF`；随后写 `cfx_ptw_ptbr=0` 并置 `cfx_ptw_enable=1` 开启 PTW。本册只规定该首张页表，不规定测试镜像的段布局、起始执行位置或 SP。
+- **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变。
+- **模式移交**：`Machine-v5-Tiny` 无模式移交（同一特权态内跳转）；`Machine-v5-Node` 为 power → hmon → 测试本体（hypv），`power → hmon → smon` 路径保留（同 `§2`）。
+- **并存关系**：`-bios` bootrom 启动路径与 M4 的 ELF 单镜像路径**并存、非替代**——两条启动路径各自可自动化。
 
 ---
 
 ## 7. 退出
 
-- v5 测试机的程序停机协议为 semihosting **`SYS_EXIT`/`SYS_EXIT_EXTENDED`**（见 `§5.5`），**取代** exit port（`ADR-0004 D3`）。[ADR-0020 D8][ADR-0004 R2]
-- exit-port MMIO 设备已在 C1 step2（`QEMU-053t`）**随旧 RAM 段一并删除**。[ADR-0020 D8][ADR-0020 D15][ADR-0004 R2]
+- v5 测试机的程序停机协议为 semihosting **`SYS_EXIT`/`SYS_EXIT_EXTENDED`**（见 `§5.5`），**取代** exit port。
+- exit-port MMIO 设备已在 C1 step2（`QEMU-053t`）**随旧 RAM 段一并删除**。
 
 ---
 
