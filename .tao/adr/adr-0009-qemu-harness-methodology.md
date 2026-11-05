@@ -1,6 +1,6 @@
 # ADR-0009: QEMU Harness Methodology
 
-**状态**：Accepted（用户确认 2026-09-19；头行于 2026-09-22 订正——原误留 `Candidate`，各 decision 小节自始为 `Accepted`）
+**状态**：Accepted（用户确认 2026-09-19；头行于 2026-09-22 订正——原误留 `Candidate`，各 decision 小节自始为 `Accepted`；rev. 2026-11-05：故障码表改为指针（`spec/Machine-v5 §7.1`），D5 退出码同步为三段式，不复制逐码表）
 **日期**：2026-09-19
 **关联**：ADR-0004（Test Machine）、QEMU-014t（harness 实现）
 
@@ -52,13 +52,14 @@ M1 的 QEMU 语义测试需要一个 harness 来构建测试二进制、运行 Q
 
 ### D5 退出码协议对齐 ADR-0004
 
-- `0x00` = PASS
-- `0x01`–`0x7F` = FAIL（细分码见 QEMU-015t）
-- `0x80`–`0xFF` = 机器 fault
+- guest：`0x00`–`0x3F` = PASS，`0x40`–`0x7F` = FAIL（细分码见 `QEMU-015t`）
+- 其它 cfx：`0x80`–`0xBF`（`bit5:0` = cfxHA）
+- monitor：`0xC0`–`0xFF`（`bit5:4` = 运行模式，`bit3:0` = DADAO 异常位索引）
+- 完整分段/位域见 `spec/Machine-v5 §7.1`。
 
 判定只看 `$?`。
 
-**状态**：Accepted（用户确认 2026-09-19）
+**状态**：Accepted（用户确认 2026-09-19；rev. 2026-11-05：退出码分段同步 `spec/Machine-v5 §7.1`）
 
 ### D6 `expected_pc`·`expected_state.ra`·`encoding.reserved` 的消费契约
 
@@ -162,17 +163,17 @@ Located at `0xffff_00fe_0000` (128 KiB below RAM top):
 
 Total: 1032 bytes (0x408).
 
-## Fault Codes (ADR-0004 D5.8)
+## Fault Codes（见 `spec/Machine-v5 §7.1`）
 
-| Code | Fault | Description |
-|------|-------|-------------|
-| `0x87` | UNMAPPED | Access to unmapped memory |
-| `0x88` | ILLI | Illegal instruction |
-| `0x89` | UNDI | Undefined instruction |
-| `0x8A` | RASOF | RAS overflow |
-| `0x8B` | RASUF | RAS underflow |
-| `0x8C` | MALIGN | Memory alignment error |
-| `0x8D` | IALIGN | Instruction alignment error |
+| Fault | Description |
+|-------|-------------|
+| CFXMEM | Illegal core-address-space access |
+| ILLI | Illegal instruction |
+| UNDI | Undefined instruction |
+| RASOF | RAS overflow |
+| RASUF | RAS underflow |
+| MALIGN | Memory alignment error |
+| IALIGN | Instruction alignment error |
 
 ## Rationale
 

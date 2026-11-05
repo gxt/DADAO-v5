@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-191t | 已验证 | 2026-11-05 21:08 | ADR-0004/0009/0041 + DDLN/Machine-00 旧码清理；D3/D5 三段式 |
 | INFRA-123t | 待开始 | 2026-11-05 20:50（登记） | DDLN TT 草稿工作流退役；DD 唯一真源、删除 TT（无备份） |
 | INFRA-124t | 待开始 | 2026-11-05 20:45（登记） | 文档/矩阵小残留：ADR-0013、check_spec_refs、GEM5-017t 指针、Node embench |
 | INTEG-054t | 待开始 | 2026-11-05 20:45（登记） | 5 个屏蔽寄存器实现清理：QEMU/gem5/tests 三阶段 |
@@ -22,7 +23,6 @@
 | SPEC-185t | 已验证 | 2026-11-05 19:40 | spec 非 spec 引用清理：223→0，保留 spec 互引；README 治理节恢复 |
 | TESTCASES-098t | 已验证 | 2026-11-05 19:08 | M11 矩阵重生成：node/arch 249 AGREE、0 fail；14 条红转绿 |
 | GEM5-020t | 已验证 | 2026-11-05 18:20 | gem5 CFXREG 目标对齐当前 monitor；node/arch 249 AGREE、14 红转绿 |
-| SPEC-191t | 待开始 | 2026-11-05 15:40（登记） | 退出码旧码残留清理；ADR decision 待逐条确认 |
 | SPEC-187t | 已验证 | 2026-11-05 15:29 | 退出码迁移 SPEC：Machine-v5 三段表、ADR 指针化、ISS-341 |
 | SPEC-190t | 已验证 | 2026-11-05 14:55 | DADAO-23 §3 与 DDLN 旧 mask 引用清理；TT 已同步主树 |
 | TESTCASES-100t | 已验证 | 2026-11-05 14:54 | libc-test malloc-brk-fail 64K 页修正；夜跑 4/4 绿、night-report 绿 |

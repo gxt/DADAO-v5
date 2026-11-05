@@ -47,7 +47,7 @@
 | ① 加载 ELF / `-bios` | ✓ ELF 直载 + `-bios` bootrom（`ADR-0009`；`QEMU-052t`） | 待定（依据待补） | 待定（依据待补） | 待定（依据待补） |
 | ② **semihosting responder** | ✓ 25 服务（`contract-semihosting`；`Machine-01 §5`） | 待定 | 待定 | 待定 |
 | ③ 内存映射可控（RAM/ROM） | ✓ RAM `0xFC00_0000_0000`（16 MiB）+ ROM 64 KiB（`Machine-01 §1`） | 待定 | 待定 | 待定 |
-| ④ 异常/中断注入 | 部分：fault 码 `0x81`–`0x8D` 可用；**外部中断注入未定义**（待核） | 待定 | 待定 | 待定 |
+| ④ 异常/中断注入 | 部分：机器 fault 退出码三段式（guest pass/fail、其它 cfx、monitor）可用，见 `spec/Machine-v5 §7.1`；**外部中断注入未定义**（待核） | 待定 | 待定 | 待定 |
 | ⑤ 可观测性（dump/回读） | ✓ 探针/harness（`tools/testcases/arch/min_rom_probe_*`） | 待定 | 待定 | 待定 |
 | ⑥ 时序精度（周期/时间） | ✗ **非周期精确**（近似） | 待定 | 待定 | 待定 |
 | ⑦ 吞吐/速度 | 快（本机仿真） | 待定 | 待定 | 待定 |

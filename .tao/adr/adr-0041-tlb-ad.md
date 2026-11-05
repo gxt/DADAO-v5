@@ -1,6 +1,6 @@
 # ADR-0041: TLB 与 A/D 维护
 
-**状态**：Accepted
+**状态**：Accepted（rev. 2026-11-05：A/D 回写失败改为归当前运行模式 monitor 的 `CFXMEM`，见 `spec/Machine-v5 §7.1`）
 **日期**：2026-10-29
 **关联**：ADR-0040（PTE）；`spec/DADAO-12` §2.2.5/§4.6；任务（Step 3，待立）
 
@@ -42,9 +42,9 @@
   - miss 走页表步进，只有 PTE 有效且全部检查通过后才填充；缺页/权限失败不填 TLB、不更新 A/D；
   - 替换/组相联/全相联属实现，替换 dirty 条目按 D4 回写。
 - **D9 G（Global）**：`G=1` 的 TLB 条目跨 ASID 复用；`G=0` 按 ASID 匹配。失效时 `asid_any=1` 包含 G，`asid_any=0` 跳过 G；软件必须保证 G 页在所有地址空间的映射一致。
-- **D10 PTWERR**：A/D 回写失败使用异常原因 **`PTWERR = 1 << 7`**，目标 `cfx_ptw`，不可屏蔽；`cause_info` = 出错的 PTE PA；`CLEAN/FLUSH` 失败保留条目，不静默丢 A/D；`INVALID` 不写回，不受影响。
+- **D10 A/D 回写失败**：A/D 回写失败归**当前运行模式 monitor 的 `CFXMEM`**（不再使用独立页表异常原因/目标 cfx）；`cause_info` = 出错的 PTE PA；`CLEAN/FLUSH` 失败保留条目，不静默丢 A/D；`INVALID` 不写回，不受影响。退出码与落点见 `spec/Machine-v5 §7.1`。
 - **D11 嵌套异常**：`escape`/`inner_cfx_code` 是 M5 遗留，不在本 ADR 改；Step 3 只保证 ptw 异常入口不被无意破坏，另登 issue 复核。
-- **D7 回写失败**：页表页必须可写；A/D 回写失败必须报 `PTWERR`，不能静默丢弃。
+- **D7 回写失败**：页表页必须可写；A/D 回写失败必须报当前运行模式 monitor 的 `CFXMEM`，不能静默丢弃（见 `spec/Machine-v5 §7.1`）。
 
 ## Rationale（理由）
 
@@ -55,8 +55,8 @@
 - `cfx5` 可释放给其他 cfx；`cfx_tlb` 寄存器/异常原因删除或并入 `cfx_ptw`。
 - Step 2 的页表步进需为 Step 3 预留 A/D dirty 结构；Step 2 不验证 A/D 更新。
 - OS 进程切换必须显式 invalidate；不能依赖写 PTBR 自动失效。
-- TLB 条目增加 G bypass；`PTWERR` 占用 cause bit7，Step 3 需同步 spec/QEMU/测试。
+- TLB 条目增加 G bypass；A/D 回写失败归当前运行模式 monitor 的 `CFXMEM`（见 `spec/Machine-v5 §7.1`），Step 3 需同步 spec/QEMU/测试。
 
 ## 状态说明
 
-ASID 16 位、cg12 布局、操作/范围/ASID 正交编码、G 位、A/D dirty 与 PTWERR 已确认；本 ADR 接受。Step 3 落地实现与验证；嵌套 escape 不在本 ADR 范围。
+ASID 16 位、cg12 布局、操作/范围/ASID 正交编码、G 位、A/D dirty 与 A/D 回写失败归 `CFXMEM` 已确认；本 ADR 接受。Step 3 落地实现与验证；嵌套 escape 不在本 ADR 范围。
