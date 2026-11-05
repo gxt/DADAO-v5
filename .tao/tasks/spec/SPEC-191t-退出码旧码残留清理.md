@@ -12,6 +12,7 @@
 
 > 「A：`ADR-0004` 所有活 decision 文本（D1/D3/D4/D5.1–D5.6/D6.2/D6.3/Rationale/Consequences）的旧退出码字面指针化；`## 修订` 历史段不改。」
 > 「A：`ADR-0009` 表删除旧码列，改指针；`ADR-0041` D7/D10 的 `PTWERR` 改为 `CFXMEM` 当前 monitor + 指针；两册 `## 修订` 历史段不改。」
+> 「A：DDLN `D-D002`/`TT-D002` Q4 按新模型改写（不再区分 CFXMEM/unmapped）；`Machine-00` 的 `0x81–0x8D` 改三段式描述；不改规范语义。」
 
 ## 背景
 
@@ -19,7 +20,7 @@
 
 - `ADR-0004` 其它 decision：
   - D1 / D3 / D4 / D6.2 / D6.3 / Rationale / Consequences 仍有 `0x87`/`0x88`/`0x8C` 等旧码
-- `docs/DDLN/D-D002`
+- `docs/DDLN/D-运行平台/DD-D002` 与 `TT-D002`
 - `docs/Machine-00`
 - `ADR-0009`
 - `ADR-0041`
@@ -30,12 +31,12 @@
 
 1. 把上述位置的旧码字面改为指针：“退出码分段/逐码见 `spec/Machine-v5 §7.1`”；不复制逐码表。`ADR-0004` 的 D1/D3/D4/D5.1–D5.6/D6.2/D6.3/Rationale/Consequences 全部纳入；`## 修订` 历史段不改。
 2. `ADR-0004` 其它 decision 只做**指针化修订**，不改决策结论；每处追加 `rev. 2026-11-05` 或集中“修订”注记。
-3. DDLN/Machine-00/ADR-0009/ADR-0041 只改旧码解释，不改技术结论。
+3. DDLN `D-D002`/`TT-D002` 的 Q4 按新模型改写；`Machine-00` 的 `0x81–0x8D` 改三段式；只改旧码解释，不改技术结论。
 4. 不改 QEMU/gem5/tests/contracts；不改 Machine-v5（已由 187t 定稿）。
 
 ## 范围 / 非范围
 
-**在范围内**：`.tao/adr/adr-0004-test-machine.md`（仅旧码字面/指针）、`.tao/adr/adr-0009-*`、`.tao/adr/adr-0041-*`、`docs/DDLN/D-D002`、`docs/Machine-00`、本任务书、`milestones.md`。
+**在范围内**：`.tao/adr/adr-0004-test-machine.md`（仅旧码字面/指针）、`.tao/adr/adr-0009-*`、`.tao/adr/adr-0041-*`、`docs/DDLN/D-运行平台/DD-D002`、`docs/DDLN/D-运行平台/TT-D002`、`docs/Machine-00`、本任务书、`milestones.md`。
 
 **不在范围内**：`spec/Machine-v5`（已定稿）、`DADAO-12/13/22/23`、QEMU/gem5/tests、`contracts/**`、DDLN 其它册。
 
@@ -47,11 +48,11 @@
 4. 门控：`check-spec-refs`/`check-spec-purity`/`check-knowledge-refs`/`check-milestones-fresh`/`make check`（L1）rc=0。
 5. 反例可达 FAIL；完成区 ≤30 行；状态 `待验收`。
 
-## 未决（下发前必须确认）
+## 未决（已裁定）
 
-1. **ADR decision 逐条确认**：`ADR-0004` 已选 A（所有活 decision 指针化，`## 修订` 不改）；`ADR-0009`/`ADR-0041` 已选 A（表/PTWERR 指针化，历史段不改）。
-2. `docs/Machine-00` 是否属规范真源，还是讲义；默认只改旧码说明。
-3. 是否把 DDLN 其它册一并清理；默认只列 D-D002。
+1. ADR decision：`ADR-0004`/`ADR-0009`/`ADR-0041` 均选 A（活 decision 指针化，`## 修订` 不改）。
+2. `docs/Machine-00`：按讲义处理，只改 `0x81–0x8D` 旧码说明，不改技术结论。
+3. DDLN：只改 `D-D002`/`TT-D002`，其它册不动。
 
 ## 完成区
 
