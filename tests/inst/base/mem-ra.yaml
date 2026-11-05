@@ -260,8 +260,8 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.o'
-  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN,
-    contract-isa §4.1.1, legality_rules excp_malign'
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN, contract-isa
+    §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.o
   id: ldm.o_rrri_ra
   format: rrri
@@ -386,8 +386,8 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.o'
-  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN,
-    contract-isa §4.1.1, legality_rules excp_malign'
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN, contract-isa
+    §4.1.1, legality_rules excp_malign'
 - mnemonic: stm.o
   id: stm.o_rrri_ra
   format: rrri

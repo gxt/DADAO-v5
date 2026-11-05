@@ -1360,8 +1360,8 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.uw'
-  notes: 'legality MALIGN: EA=@ENTRY+0x1 (rd2 offset=1), align=2B → MALIGN,
-    contract-isa §4.1.1, legality_rules excp_malign'
+  notes: 'legality MALIGN: EA=@ENTRY+0x1 (rd2 offset=1), align=2B → MALIGN, contract-isa
+    §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.uw
   id: ldm.uw_rrri_rd
   format: rrri
@@ -1484,8 +1484,8 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.ut'
-  notes: 'legality MALIGN: EA=@ENTRY+0x3 (rd2 offset=3), align=4B → MALIGN,
-    contract-isa §4.1.1, legality_rules excp_malign'
+  notes: 'legality MALIGN: EA=@ENTRY+0x3 (rd2 offset=3), align=4B → MALIGN, contract-isa
+    §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.ut
   id: ldm.ut_rrri_rd
   format: rrri
@@ -1713,8 +1713,8 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.sw'
-  notes: 'legality MALIGN: EA=@ENTRY+0x1 (rd2 offset=1), align=2B → MALIGN,
-    contract-isa §4.1.1, legality_rules excp_malign'
+  notes: 'legality MALIGN: EA=@ENTRY+0x1 (rd2 offset=1), align=2B → MALIGN, contract-isa
+    §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.sw
   id: ldm.sw_rrri_rd
   format: rrri
@@ -1837,8 +1837,8 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.st'
-  notes: 'legality MALIGN: EA=@ENTRY+0x3 (rd2 offset=3), align=4B → MALIGN,
-    contract-isa §4.1.1, legality_rules excp_malign'
+  notes: 'legality MALIGN: EA=@ENTRY+0x3 (rd2 offset=3), align=4B → MALIGN, contract-isa
+    §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.st
   id: ldm.st_rrri_rd
   format: rrri
@@ -2068,8 +2068,8 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.w'
-  notes: 'legality MALIGN: EA=@ENTRY+0x1 (rd2 offset=1), align=2B → MALIGN,
-    contract-isa §4.1.1, legality_rules excp_malign'
+  notes: 'legality MALIGN: EA=@ENTRY+0x1 (rd2 offset=1), align=2B → MALIGN, contract-isa
+    §4.1.1, legality_rules excp_malign'
 - mnemonic: stm.w
   id: stm.w_rrri_rd
   format: rrri
@@ -2194,8 +2194,8 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.t'
-  notes: 'legality MALIGN: EA=@ENTRY+0x3 (rd2 offset=3), align=4B → MALIGN,
-    contract-isa §4.1.1, legality_rules excp_malign'
+  notes: 'legality MALIGN: EA=@ENTRY+0x3 (rd2 offset=3), align=4B → MALIGN, contract-isa
+    §4.1.1, legality_rules excp_malign'
 - mnemonic: stm.t
   id: stm.t_rrri_rd
   format: rrri
@@ -2320,8 +2320,8 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.o'
-  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN,
-    contract-isa §4.1.1, legality_rules excp_malign'
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN, contract-isa
+    §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.o
   id: ldm.o_rrri_rd
   format: rrri
@@ -2444,8 +2444,8 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.o'
-  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN,
-    contract-isa §4.1.1, legality_rules excp_malign'
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN, contract-isa
+    §4.1.1, legality_rules excp_malign'
 - mnemonic: stm.o
   id: stm.o_rrri_rd
   format: rrri

@@ -12,8 +12,8 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INTEG-057t | 已验证 | 2026-11-06 07:30 | 其余生成器 notes/折行对齐；check-generator-sync 6/6 绿 |
 | INTEG-056t | 已验证 | 2026-11-06 03:40 | ctrl-jump/call/ret 生成器 notes 对齐，3 册 byte-identical |
-| INTEG-057t | 待开始 | 2026-11-06 03:30（登记） | 其余生成器 notes/格式与 §7.1 对齐，恢复 check-generator-sync |
 | INTEG-055t | 已验证 | 2026-11-06 03:10 | 退出码三段式实现迁移 + 页表异常改投当前 monitor；parity 249/0 |
 | INFRA-125t | 已验证 | 2026-11-05 23:45 | embench/libc-test 迁入 tests/tset；manifest/门控同步 |
 | INFRA-124t | 已验证 | 2026-11-05 23:31 | ADR-0013/check_spec_refs/GEM5-017t/Node embench 小残留清理 |

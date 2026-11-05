@@ -362,8 +362,8 @@ def _gen_boundary_riii(identity, mnem, op, is_rb):
                        "boundary CFXMEM (Tiny): %s → condition TRUE → TAKEN; "
                        "imms18=-0x20000 (0x20000), "
                        "target=rb0+(imm<<2)=%s → below the 8 MiB SRAM in the "
-                       "cfxha-63 segment ⇒ CFXMEM (monitor, "
-                       "spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口"
+                       "cfxha-63 segment ⇒ CFXMEM（当前运行模式 monitor，"
+                       "spec/Machine-v5 §7.1）；Tiny 无 unmapped 窗口"
                        % (reg_label, TARGET_BOUNDARY_RIII),
                        profiles=["tiny"]))
     return cases
@@ -386,7 +386,7 @@ def _gen_boundary_rrii(identity, mnem, op):
                        {}, "UNDI", None, sc,
                        "boundary UNDI (Tiny): imms12=-0x400 (0xC00), "
                        "target=rb0+(imm<<2)=%s → inside the 8 MiB SRAM, so the "
-                       "fetch reads an all-zero word = 保留编码 ⇒ UNDI (0xF9)；"
+                       "fetch reads an all-zero word = 保留编码 ⇒ UNDI；"
                        "12 位 imm 最大 ±8 KiB，够不到 SRAM 边界，"
                        "原 UNMAPPED 意图在两个 profile 都不可表达"
                        % TARGET_BOUNDARY_RRII,

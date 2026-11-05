@@ -344,7 +344,7 @@ def gen_legality_cfxmem(rec):
     # internal-address-space access => CFXMEM (monitor, ADR-0020 D15 / ADR-0004 D5.8).
     inp = {"rb": {f"rb{RB_BASE}": "0x0000000000000000"}}
     notes = (f"legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) "
-             f"no RAM → CFXMEM (monitor), ADR-0020 D15 / ADR-0004 D5.8")
+             f"no RAM → CFXMEM （monitor CFXMEM，spec/Machine-v5 §7.1）")
     return make_case(mnem, insn, fmt, "legality", word, inp, None,
                      "CFXMEM", "active", None, None, sc, notes,
                      profiles=["tiny"])
