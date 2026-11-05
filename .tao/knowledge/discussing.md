@@ -22,7 +22,7 @@
 - `INTEG-055t`（待验收）：退出码实现迁移（QEMU→gem5→tests）；页表/A-D 路由返工后 reviewer 第 2 轮复验中。
 - `INTEG-056t`（待验收）：`generate_ctrl_jump_call_ret.py` notes 对齐（jump/call/ret 3 册 byte-identical）。
 - `INTEG-057t`（待开始）：其余三个生成器（`ctrl_br`/`mem_vectors`/`misc`）notes/格式对齐；`check-generator-sync` 剩余红。
-- `QEMU-084t`（待开始）：guest rlimit 实现（`ISS-343`，P3）；等生成器修复后派单（共享 QEMU 源树）。
+- `QEMU-084t`（待开始）：guest rlimit 实现（`ISS-343`，P3）；**2026-11-06 用户裁定 A**：插在 M11 终验之前做，`INTEG-057t` 合并后即派单，做完再统一跑 L2/L3/夜跑与 m 册。
 - `SPEC-180t` 的 ADR、Linux bring-up charter ADR：仍待用户逐条确认（长期 backlog）。
 
 **Open issue**：仅 `ISS-343`（QEMU guest rlimit no-op），已归 `QEMU-084t`；`ISS-340/341/342/344` 均 closed。
