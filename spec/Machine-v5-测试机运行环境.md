@@ -221,7 +221,7 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 
 - **BootROM（按 profile）**：`Machine-v5-Tiny` 为 64 KiB（`0xffff_ffff_0000`–`0xffff_ffff_ffff`），内容**全部**为复位/启动 stub，**无 image index table**；`Machine-v5-Node` 为 4 MiB（`0xffff_ffc0_0000`–`0xffff_ffff_ffff`），偏移 0 放 image index table、其后放 ELF 镜像，末 64 KiB（`0xffff_ffff_0000` 起）留给复位/启动代码。复位向量两 profile 均为 `0xffff_ffff_0000`。[ADR-0043 D1/D2][DADAO-12 §2.1 核内地址空间]
 - **装载语义 — `Machine-v5-Tiny`**：应用为 ELF 时，crt/启动 stub 段在 BootROM（`0xffff_ffff_0000`）、应用 `.text/.rodata/.data/.bss` 在 SRAM（`.text` 起 `0xffff_ff01_0100`），`e_entry` 在 BootROM；宿主按 `PT_LOAD` 分别装入 BootROM 与 SRAM，`.bss` 由 picolibc `__start` 在 SRAM 清零，`e_entry` 处的 stub 跳应用入口。raw `-kernel` 镜像基址 `0xffff_ff01_0000`，镜像前 `0x100` 字节须全零（保留区），应用入口 `0xffff_ff01_0100`，`SP = 0xffff_ff7e_ff00`；**raw 与 ELF 统一入口 `0xffff_ff01_0100`、统一 `SP`**。Tiny 无 hmon/PTW/异常处理路径，启动 stub 以普通跳转移交。
-- **装载语义 — `Machine-v5-Node`**：4 MiB BootROM 经 bootrom 镜像装载路径（机器属性 `bootrom-image`）装入；power 从 BootROM 把 hmon 装入 hmon SRAM，hmon 建立第一张页表（L1 index `0x1000`–`0x1003` 共 4 个 512 MiB 超页覆盖 PA `[0, 2 GiB)`、`SPF=0xFF`）并开启 PTW，测试本体在 hypv 运行。测试镜像的 `PT_LOAD` 与入口地址须落在第一张页表覆盖的 VA 区间（`0x0200_0000_0000`–`0x0200_7fff_ffff`，映射 PA `0`–2 GiB），否则取指/访存按 `cfx_ptw` 报页异常。[ADR-0043 D2/D10/D11/D12]
+- **装载语义 — `Machine-v5-Node`**：4 MiB BootROM 经 bootrom 镜像装载路径（机器属性 `bootrom-image`）装入；`power` 从 BootROM 把 hmon 装入 hmon SRAM，`power → hmon → smon` 交接后由 smon 建立**首张页表**：把 64 KiB 全零页表页写到 PA 0（`PTBR=0`），在 L1 index `0`–`3` 写 4 个 512 MiB 超页 PTE，映射 `VA [0, 2 GiB) → PA [0, 2 GiB)`（合计 2 GiB）；每项 `H=1`、`S=1`、`U=J=0`、`R=W=X=1`、`P=1`、`SP=1`、`A=D=1`（A/D 硬件维护）、`SPF=0xFF`；随后写 `cfx_ptw_ptbr=0` 并置 `cfx_ptw_enable=1` 开启 PTW。本册只规定该首张页表，不规定测试镜像的段布局、起始执行位置或 SP。[ADR-0043 D2/D10/D11/D12]
 - **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变。[ADR-0020 D12][ADR-0004 R1]
 - **模式移交**：`Machine-v5-Tiny` 无模式移交（同一特权态内跳转）；`Machine-v5-Node` 为 power → hmon → 测试本体（hypv），`power → hmon → smon` 路径保留（同 `§2`）。[ADR-0043 D8–D11]
 - **并存关系**：`-bios` bootrom 启动路径与 M4 的 ELF 单镜像路径（`ADR-0004 D2.2/D2.3` 路径 A）**并存、非替代**——两条启动路径各自可自动化。[ADR-0004 R1]
@@ -264,6 +264,7 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 - `cg7` 改为内部空间描述寄存器：`cg0`–`cg7` 为共有寄存器；每 4 个 rc 描述一个内部空间（存在+类型 one-hot / 42 位起始偏移 / 字节大小 / R-W-X-cacheable-shareable-volatile 属性），16 块用完 `rc0`–`rc63`；寄存器按数组 `space_{desc,start,size,attr}[i]`（`i = 0..15`）定义，未实现空间以 `exists=0` 表示，全部只读、写触发 `CFXREG`。
 - legacy `-bios` 仍按 64 KiB 复位窗口装载，与镜像装载路径并存。
 - 册名与文件改名：`Machine-01` → `Machine-v5`（标题同步为 `Machine-v5：测试机运行环境`；正文语义不变，版本号不变）。
+- Node 首张页表口径订正：由 smon 在 `power → hmon → smon` 交接后建立，`PTBR=0`、L1 index `0`–`3` 四个 512 MiB 超页，映射 `VA [0, 2 GiB) → PA [0, 2 GiB)`；每项 `H=1`、`S=1`、`U=J=0`、`R=W=X=1`、`P=1`、`SP=1`、`A=D=1`、`SPF=0xFF`；随后开启 PTW。
 
 ### 0.3.1（2026-10-16）
 

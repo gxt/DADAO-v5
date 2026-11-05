@@ -1,6 +1,6 @@
 # ADR-0039: 地址空间、PTBR/PTW 与访存异常入口
 
-**状态**：Proposed（rev. 2026-11-02: `D6` 保留区间订正 + 平台口径注记）
+**状态**：Proposed（rev. 2026-11-02: `D6` 保留区间订正 + 平台口径注记；rev. 2026-11-05: 平台口径改低地址线性映射）
 **日期**：2026-10-29
 **关联**：ADR-0040（PTE/页表）、ADR-0041（TLB）、ADR-0042（CFX/DMA）、ADR-0043（启动）；`spec/DADAO-12` §2；任务 `INTEG-038t`
 
@@ -28,7 +28,7 @@
 - `spec/DADAO-12` §2 改为 48 位 CPU 地址、42 位 VA、56 位 PA、单 PTBR、`ptw_enable`。
 - 旧 64 PTBR、`pahi/pthi`、PTBR 模式权限、`ptbr_enable` 全部失效。
 - Step 1 只验证地址分区、PTBR、PTW 关闭/打开和 fail-closed；真正页表步进在 ADR-0040。
-- **平台口径**：PA RAM 大小与映射由平台规范规定——`Machine-v5-Node` 为 PA 2 GiB，经第一张页表的 4 个 512 MiB 超页映射到 VA `0x0200_0000_0000`–`0x0200_7fff_ffff`；`Machine-v5-Tiny` 不设内存窗口与 PTW（`ptw_enable` 恒 0），地址恒在 cfxha 63 段内。
+- **平台口径**：PA RAM 大小与映射由平台规范规定——`Machine-v5-Node` 为 PA 2 GiB，经第一张页表的 4 个 512 MiB 超页做**低地址线性映射**（`VA [0, 2 GiB)` → PA `[0, 2 GiB)`）；`Machine-v5-Tiny` 不设内存窗口与 PTW（`ptw_enable` 恒 0），地址恒在 cfxha 63 段内。
 
 ## 状态说明
 
@@ -40,3 +40,8 @@ Step 1 已由 `INTEG-038t` 落地并验收；本 ADR 仍为 Proposed，待 Step 
 
 - **用户原话（经主会话转达）**：「用户已逐条确认 ADR-0004/0039/0040/0043 四项修订」；四项修订的逐条口径见 `.tao/tasks/spec/SPEC-183t-Machine-v5-Tiny-Node规范收口.md`。
 - **流程说明**：本 ADR 仍为 `Proposed`，本次为经用户确认的就地订正；`**状态**` 行已标 `rev. 2026-11-02`。
+
+**rev. 2026-11-05（`SPEC-184t`，用户 2026-11-05 裁定 A「就地修订」）**：`Consequences` 的平台口径由旧高地址窗口改为 `Machine-v5-Node` 首张页表的**低地址线性映射**（`VA [0, 2 GiB)` → PA `[0, 2 GiB)`）。`D1`–`D8` 决策与 PTBR/PTW 语义**不变**。
+
+- **用户原话（经主会话转达）**：「ADR **A 就地修订**：ADR-0043 D10/D11/D12 + ADR-0039/0040 平台口径；每册 rev. 2026-11-05；不新立 ADR。」
+- **流程说明**：经用户授权的就地订正（不改决策）；`**状态**` 行已标 `rev. 2026-11-05`，不保留与现行 spec 冲突的旧数字。

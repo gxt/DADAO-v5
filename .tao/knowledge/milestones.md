@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-184t | 已验证 | 2026-11-05 08:04 | spec §6 Node D10 收口（ISS-340）：VA/PA 0–2 GiB 4 超页、smon 建表、合约投影、锁 sha |
 | INTEG-053t | 已验证 | 2026-11-05 07:44 | cfxha 重编号 pmem32/llc33/time34；作用域 per-task 16–31、per-system 32–63；保留集 6–14/16–31/35–61 |
 | SPEC-186t | 待开始 | 2026-11-05 01:46（登记） | DADAO-12 §5.2 重写：同步异常统一路由当前 monitor、拆 inner_cfx_mask 同步屏蔽、异步屏蔽列后续修订 |
 | INFRA-121t | 已验证 | 2026-11-05 01:26 | 运行期日志命名清理：check-run-artifacts 7 条既有红 |
@@ -21,7 +22,6 @@
 | TESTCASES-096t | 已验证 | 2026-11-04 20:15 | parity 清理 7 条 GEM5-018t 已修复的 KNOWN_GEM5_BLOCKED；node/arch rejudge 全绿、stale 0 |
 | TESTCASES-090t | 已验证 | 2026-11-04 16:56 | scaleB/sc 测试；LLVM lit/isa matrix 已同步；QEMU/gem5 tiny+node 52/52 AGREE_PASS，F2 复跑通过 |
 | GEM5-018t | 已验证 | 2026-11-04 16:49 | FS semihosting 修复：WRITEC/WRITE0 rd8=0xdeadbeef、SYS_TICKFREQ=1e9；046t 32/32、node/arch 7 条转 AGREE_PASS |
-| SPEC-184t | 待开始 | 2026-11-04 15:25（登记） | spec §6 Node identity 收口（ISS-340）：L1 0–3/VA=PA 2 GiB、entry/SP、ADR/合约投影、锁 sha |
 | GEM5-017t | 已验证 | 2026-11-04 13:05 | FS parity：2658 行、AGREE 2301、DIFF/GEM5_ONLY/QEMU_ONLY 0；7 条 semihosting 待 018 |
 | GEM5-016t | 已验证 | 2026-11-04 05:35 | FS Machine-v5-Node：4 MiB ROM/2 GiB RAM、hmon/PTW/hypv、inst 968/963、embench 38/38 |
 | GEM5-015t | 已验证 | 2026-11-04 00:05 | FS Machine-v5-Tiny：64 KiB ROM/8 MiB SRAM、inst 1003/1003、embench 38/38、semihosting；picolibc math_test 既有 B7 blocked |

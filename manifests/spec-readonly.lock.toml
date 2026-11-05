@@ -608,4 +608,7 @@ group = "machine-v5"
 #   无 hmon 与异常路径；Node：BootROM 4 MiB + PA RAM 2 GiB、hmon/PTW/hypv、smon 路径保留）；删单一几何、
 #   地址别名与双映射过渡；§1.2 路由、§2 模式/启动链、§3 cfx 范围、§6 装载按 profile 分述；§4/§5/§7 语义不动；
 #   附录 0.3.2-rc 补条目；版本不变（0.3.2-rc）；sha256 同笔重算。
-sha256 = "41f22e712f6190f67232120e77736fee61591853045ef0f4668ed468e4864075"
+# 2026-11-05（SPEC-184t，授权原话见本任务书 §用户裁定）：§6 Node 装载语义按 D10 订正（smon 建首张页表、
+#   `PTBR=0`、L1 index 0–3 四个 512 MiB 超页、`VA [0, 2 GiB) → PA [0, 2 GiB)`、`SPF=0xFF`、PTW 开启；删旧
+#   VA 窗口与测试布局/起始地址/SP 规定）；附录 0.3.2-rc 补条目；版本不变（0.3.2-rc）；sha256 同笔重算。
+sha256 = "1dbc7ed1f0121223ec16e4381074ae5737c9e306ab2ef82bd92147392266a2c3"

@@ -1,7 +1,7 @@
 - id: ISS-340
   scope: [spec, qemu, testcases]
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: SPEC-184t
   title: >-
     【P2】spec/Machine-v5 §6 的 Node 页表口径与测试资产/实现冲突：spec 写 L1 index
     `0x1000`–`0x1003`、VA `0x0200_0000_0000`–`0x0200_7fff_ffff`，而

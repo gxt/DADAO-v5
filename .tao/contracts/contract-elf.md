@@ -197,7 +197,7 @@ M1 无 MMU、无页表，加载期不做地址重定位。段的虚拟地址（V
 
 VA=PA 规则同时适用于 **raw-bin 路径**（段连续拼接，§6.1.1）与 **M4 ELF 路径**（`PT_LOAD` 段按 `p_vaddr` 装载，§6.1.2）：ELF 段的加载地址即 `p_vaddr`（`VA=PA`），不另做加载期地址重定位。[ADR-0004 §D2.2]
 
-**profile 限定**：`VA=PA` 只适用于**不启用 PTW** 的 `Machine-v5-Tiny`（`p_vaddr` 即核内地址）。`Machine-v5-Node` 在 PTW 开启后运行，ELF 段的 `p_vaddr` 是**经第一张页表映射的 VA**（`VA 0x0200_0000_0000`–`0x0200_7fff_ffff` → PA `[0, 2 GiB)`，见 `spec/Machine-v5 §6`），加载期按该映射落到 PA；Node 的 VA→PA 装载口径由 `QEMU-080t` 落地并在本合约同步。
+**profile 限定**：`VA=PA` 只适用于**不启用 PTW** 的 `Machine-v5-Tiny`（`p_vaddr` 即核内地址）。`Machine-v5-Node` 的 PTW 开启路径中，ELF 段的 `p_vaddr` 是**经首张页表映射的 VA**（`VA [0, 2 GiB)` → PA `[0, 2 GiB)`，见 `spec/Machine-v5 §6`；首张页表由 `power → hmon → smon` 交接后的 smon 建立），加载期按该映射落到 PA；装载镜像须落在该映射区间内，否则取指/访存按 `cfx_ptw` 报页异常。[Machine-01 §6]
 
 ### §5.3 `PT_LOAD` 段对齐（`p_align`）
 
