@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-125t | 待开始 | 2026-11-05 21:35（登记） | embench-iot/libc-test 补丁集迁入 tests/tset；manifest/门控同步 |
 | INFRA-123t | 已验证 | 2026-11-05 21:15 | DDLN TT 退役：81→0、DD 81；lecnotes agent 删除 |
 | SPEC-191t | 已验证 | 2026-11-05 21:08 | ADR-0004/0009/0041 + DDLN/Machine-00 旧码清理；D3/D5 三段式 |
 | INFRA-124t | 待开始 | 2026-11-05 20:45（登记） | 文档/矩阵小残留：ADR-0013、check_spec_refs、GEM5-017t 指针、Node embench |

@@ -25,6 +25,7 @@
 - `INTEG-055t`（待开始）：退出码实现迁移（QEMU→gem5→tests）。
 - `INFRA-124t`（待开始）：ADR-0013/check_spec_refs/GEM5-017t 指针/Node embench 小项。
 - `QEMU-084t`（待开始）：guest rlimit 实现（`ISS-343`，P3）。
+- `INFRA-125t`（待开始）：`components/embench-iot`、`components/libc-test` 补丁集迁入 `tests/tset/{embench,libc-test}`；manifest/门控同步。
 - TT 删除：`INFRA-123t` 合并后由 architect 在主工作树删除 81 份 `TT-*`（不备份）。
 - `SPEC-180t` 的 ADR、Linux bring-up charter ADR：仍待用户逐条确认（长期 backlog）。
 
