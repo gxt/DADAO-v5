@@ -41,9 +41,9 @@
 
 ## M11 收口验证状态（2026-11-05）
 
-- `make check-full`（L3）：**PASS 8/8**；`check-l3-report` rc=0。
-- `make check-night`：**1/4 red**；`tset:llvm-ts`/`tset:embench`/`arch:cfx` rc=0，`tset:libc-test` dynamic rc=2（`malloc-brk-fail`）。
-- `check-night-report` rc=2，唯一红行 = `tset/libc-test`。
+- `make check-full`（L3）：**PASS 8/8**；`check-l3-report` rc=0（QEMU-083t 后已重跑）。
+- `make check-night`：**4/4 绿**（`tset:libc-test`/`llvm-ts`/`embench`/`arch:cfx`）；`check-night-report` rc=0。
+- `TESTCASES-100t` 修正 libc-test `malloc-brk-fail`（6×32736 prime 启动堆），static 335/0/2、dynamic 338/0/2。
 - 诊断 `TESTCASES-099t`：根因 = musl dynamic loader `reclaim_gaps` 捐赠启动堆；QEMU guest rlimit no-op 是能力缺口（`ISS-343`），非该例直接原因。
 - **处置选 C（测试修正）**：`TESTCASES-100t` 在 libc-test 语料侧消耗 dynamic loader 捐赠的启动堆；libc-test 由 `patchless` 转受补丁组件。A/B 不再采用。`TESTCASES-098t`（矩阵）依赖此项收口。
 - `TESTCASES-099t` 诊断已 Accepted 并合并（`151fd2a5`）；结论 = musl dynamic 启动堆，非 QEMU mmap/rlimit 直接缺陷；`ISS-343` 记录 QEMU guest rlimit no-op（P3）。
