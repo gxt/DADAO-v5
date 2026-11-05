@@ -27,6 +27,7 @@
 > 「保留 cfx（6–14、19–61）普通 `ld/st` → `CFXMEM` 当前 monitor；`trap`/`escape` → `ILLI` 当前 monitor。」
 > 「`unmapped` 归当前运行模式 monitor 的 `CFXMEM`。」
 > 「monitor 异常编号使用 DADAO 位索引：CFXTRAP=0、CFXMEM=1、CFXREG=2、CFXESC=3、CFXPERM=7、ILLI=8、UNDI=9、RASOF=10、RASUF=11、MALIGN=12、IALIGN=13；PTWERR 删除。」
+> 「A/D 回写失败（原 `PTWERR`）按当前运行模式 monitor 的 `CFXMEM` 处理；`cause_info` = PTE 物理地址；不进入 `cfx_ptw` 自己的异常入口，也不归 `CFXPERM`。」（2026-11-05 裁定，用户原话：「不对，还是应该当前运行模式monitor的CFXMEM」）
 > 「异步中断屏蔽不冻结，明确列为后续修订，M11 不承诺完整异步语义。」
 > 「退出码表归 `Machine-v5`，不在本任务；本任务只改 DADAO-12 异常流程/原因路由，不改 QEMU/gem5/tests/tools。」
 
@@ -56,7 +57,8 @@
   - `ptw_enable = 0` 且 `addr[47:42] = 0` 的普通访存；
   - reserved cfx（`6–14`、`19–61`）的普通 `ld/st`；
   - SRAM/MMIO 越界或非法核内偏移；
-  - 页表**未映射**（L1/L2 `P = 0`、SPF/GPF 对应小页位为 0、fragment 缺失）。
+  - 页表**未映射**（L1/L2 `P = 0`、SPF/GPF 对应小页位为 0、fragment 缺失）；
+  - A/D 回写失败（PTE 物理写失败；`cause_info` = PTE 物理地址）。
 - `ILLI`/`UNDI`/`RASOF`/`RASUF`/`MALIGN`/`IALIGN`（非 `trap`/`escape`/`cfx2*` 路径）⇒ 目标 = **当前运行模式 monitor**。
 - `CFXESC`（`escape` 帧或目标错误）⇒ 目标 = **当前核芯功能扩展**（保持既有语义，不属于 monitor 路由）。
 - 当前运行模式到 monitor 的对应关系：`U-mode → cfx_umon (cfx0)`、`J-mode → cfx_jmon (cfx1)`、`S-mode → cfx_smon (cfx2)`、`H-mode → cfx_hmon (cfx3)`；使用异常前运行模式对应的 `<mode>_*` 寄存器行。
@@ -79,7 +81,7 @@
 | `MALIGN` | 12 |
 | `IALIGN` | 13 |
 
-`PTWERR` 不再出现在 §5.2 的 monitor 编号与投递目标中；A/D 回写失败按 `CFXMEM` 目标处理（落点见 §未决 1，未确认前不得自行改写为其它原因）。
+`PTWERR` 不再出现在 §5.2 的 monitor 编号与投递目标中；A/D 回写失败已裁定按 `CFXMEM`（当前运行模式 monitor）处理，`cause_info` = PTE 物理地址；不得改为 `CFXPERM` 或 `cfx_ptw` 闭环。
 
 **（3）异常进入步骤（重排为 8 步，删除原步骤 3）**
 
@@ -142,7 +144,7 @@
 ## 验收标准
 
 1. **§5.2 路由可机械断言（脚本从 §5.2 正文派生）**：
-   - `CFXPERM` 目标含「当前运行模式 monitor」；`CFXREG` 目标含「当前运行模式 monitor」且含「不进入被访问」；`CFXMEM` 目标含「当前运行模式 monitor」；reserved cfx 的 `ld/st` 归 `CFXMEM`、`trap`/`escape` 归 `ILLI` 且均为当前 monitor；未映射页归 `CFXMEM` 当前 monitor；页权限拒绝归 `CFXPERM` 当前 monitor；`CFXTRAP` 目标为目标 cfx；`CFXESC` 目标为当前 cfx。
+   - `CFXPERM` 目标含「当前运行模式 monitor」；`CFXREG` 目标含「当前运行模式 monitor」且含「不进入被访问」；`CFXMEM` 目标含「当前运行模式 monitor」，且含 A/D 回写失败（`cause_info` = PTE 物理地址）、不含 `PTWERR`；reserved cfx 的 `ld/st` 归 `CFXMEM`、`trap`/`escape` 归 `ILLI` 且均为当前 monitor；未映射页归 `CFXMEM` 当前 monitor；页权限拒绝归 `CFXPERM` 当前 monitor；`CFXTRAP` 目标为目标 cfx；`CFXESC` 目标为当前 cfx。
    - monitor 编号 11 项逐项命中：0/1/2/3/7/8/9/10/11/12/13 与名称一一对应。
 2. **`inner_cfx_mask` 同步屏蔽拆除**：§5.2 正文与伪代码中 `inner_cfx_mask` 出现次数为 **0**；无「同步异常触发 ILLI」的 mask 判定；§1 注记不再把它写成同步异常屏蔽层。
 3. **异步边界**：§5.2 明确出现「后续修订」与「M11 不承诺完整异步语义」（或语义等价且可 grep 的表述）；同步路由与异步待修订段落可区分。
@@ -170,11 +172,12 @@
 - **`inner_cfx_mask` 寄存器面**：本任务只拆 §5.2 的同步屏蔽层与 §1 注记；`cfx_⟨cfxname⟩_<mode>_switch_cfx_mask`（含 DADAO-13 的 hypv 行）与 `excp_prev_cfx_mask` 的存废跨 DADAO-12/13、Machine-v5、contracts 与 QEMU，**不在本任务**（见 §未决 3）。
 - **异步不冻结**：异步屏蔽只写「后续修订」，不得把未定稿的 mask/pending 细节写成已定；M11 语义边界以本任务书与 §5.2 为准。
 - **0628 溯源（内容溯源，非执行必需）**：`DADAO-0628` 的异常进入仍是 `inner_cfx_mask`/`global_cfx_mask` 两级门 + `cfx_ptw`/`cfx_tlb` 独立目标；其任务书记录了同步异常绕过 mask 的实测观察。本项目定稿改为「同步统一当前 monitor、`CFXREG` 不进被访问 cfx、页表失败不投 `cfx_ptw`」，差异按本任务书落点，不复用 0628 常量/代码。
+- **A/D 回写失败**：归 `CFXMEM`（当前 monitor），不是 `cfx_ptw` 闭环、不是 `CFXPERM`；`cfx_ptw` 只负责检测/报告。
 - **版本**：不发布，仍 `0.7.3-rc`；附录只追加一条，不改册头。
 
 ## 未决（下发前需处理）
 
-1. **A/D 回写失败（原 `PTWERR`）的最终落点**：用户只给「`PTWERR` 删除」，未指定替代原因。默认按 `CFXMEM`（当前 monitor）写入 §5.2；若用户要求其它原因（如 `CFXPERM` 或暂不定义），须在下发前裁定并落原话，否则该项 BLOCKED、任务不得置 `待验收`。
+1. **A/D 回写失败（原 `PTWERR`）的最终落点（已裁定）**：按 `CFXMEM`（当前运行模式 monitor）处理；`cause_info` = PTE 物理地址；不进入 `cfx_ptw` 异常入口，不归 `CFXPERM`。用户原话：「不对，还是应该当前运行模式monitor的CFXMEM」。
 2. **`cfx_ptw`/`PTWERR` 的跨节同步面**：`DADAO-12 §2.2.6`（页表异常进入 `cfx_ptw`）、`§4.5`（`PTWERR` 行/正文）、`§3.6`（`1 << 7` 在 cfx_ptw 为 `PTWERR`）与 `DADAO-22 §5.3`、`contract-see` 仍写旧口径；本任务范围仅 §5.2+§1。下发前须确认：(A) 允许本任务最小同步 §3.6/§4.5/§2.2.6（推荐，保持 DADAO-12 自洽）；(B) 只改 §5.2，旧口径留后续任务并登记 issue（会暂时保留跨节矛盾）。
 3. **`inner_cfx_mask` 寄存器面**：`switch_cfx_mask`（cg0–cg3 rc9，hypv 在 DADAO-13）与 `excp_prev_cfx_mask`（cg5 rc1）是否保留/删除/标保留，跨多册与实现；本任务默认只拆 §5.2 同步屏蔽层、§1 注记，寄存器面留后续。若用户要求本任务一并删除，须扩大范围并另行授权。
 4. **异步屏蔽「不冻结」的文本边界**：§5.2 可保留「目标 = 中断源 cfx」与「被屏蔽置 pending」的高层描述，但不得写死两级 mask/优先级；下发前确认是否接受该粒度。
