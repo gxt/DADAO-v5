@@ -34,3 +34,15 @@
     测试资产的规避方式：body 先自装 cfx_umon 的 hypv 向量为本地 `escape` stub
     （见 `tests/arch/umon/m5_perm_badcombo_cfxreg.s`）。是否应统一为
     「current-mode monitor」需 SPEC/QEMU 判定（本任务不改 QEMU）。
+
+- id: ISS-343
+  scope: [qemu]
+  status: open
+  resolved_by: null
+  title: >-
+    【P3】QEMU user-mode 对 guest RLIMIT_AS/DATA/STACK 是 no-op：guest setrlimit 返回成功，
+    但 getrlimit 仍返回 RLIM_INFINITY，guest brk/mmap 不受限；与原生 Linux 不一致。
+    证据：TESTCASES-099t 最小探针（RLIMIT_DATA=0 后 RW mmap/malloc 仍成功；原生 Linux
+    返回 ENOMEM）。修复点：linux-user do_brk()/target_mmap() 的限额记账。注意：该缺口
+    不是 libc-test malloc-brk-fail dynamic 的直接原因（该次 malloc 无系统调用）；该例
+    的根因是 musl dynamic loader reclaim_gaps 捐赠启动堆。
