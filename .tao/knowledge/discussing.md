@@ -20,7 +20,8 @@
 > 已完成项不再列；只列仍未收口/未开始的任务。
 
 - `INTEG-055t`（待验收）：退出码实现迁移（QEMU→gem5→tests）；页表/A-D 路由返工后 reviewer 第 2 轮复验中。
-- `QEMU-084t`（待开始）：guest rlimit 实现（`ISS-343`，P3）；须等 `INTEG-055t` 收口（共享 QEMU 源树）。
+- `INTEG-056t`（待开始）：生成器 notes 与 §7.1 对齐；L2 `check-generator-sync` 红（`INTEG-055t` 手工改 yaml 未同步生成器）。
+- `QEMU-084t`（待开始）：guest rlimit 实现（`ISS-343`，P3）；等生成器修复后派单（共享 QEMU 源树）。
 - `SPEC-180t` 的 ADR、Linux bring-up charter ADR：仍待用户逐条确认（长期 backlog）。
 
 **Open issue**：仅 `ISS-343`（QEMU guest rlimit no-op），已归 `QEMU-084t`；`ISS-340/341/342/344` 均 closed。
