@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..7ba4737
+index 0000000..9301453
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2759 @@
+@@ -0,0 +1,2724 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -1542,9 +1542,7 @@ index 0000000..7ba4737
 +    case 3:  return &m->cfxexe;
 +    case 4:  return &m->cfx_intr_mask;
 +    case 8:  return &m->switch_run_mode;
-+    case 9:  return &m->switch_cfx_mask;
 +    case 10: return &m->excp_vector;
-+    case 11: return &m->excp_cause_mask;
 +    case 12: return (ci >= 0) ? &m->cg_reg_deleg : NULL;   /* cg3 only */
 +    default: return NULL;
 +    }
@@ -1649,12 +1647,10 @@ index 0000000..7ba4737
 +    case 5:
 +        switch (rc) {
 +        case 0: return &r->prev_run_mode;
-+        case 1: return &r->prev_cfx_mask;
 +        case 2: return write ? NULL : &r->cause_id;
 +        case 3: return &r->cause_ip;
 +        case 4: return write ? NULL : &r->cause_info;
 +        case 5: return &r->pending;
-+        case 63: return write ? NULL : &r->cause_nonmaskable;
 +        default: return NULL;
 +        }
 +    case 6:
@@ -1698,77 +1694,47 @@ index 0000000..7ba4737
 +}
 +
 +/*
-+ * DADAO-12 §5 exception-entry flow (steps 1-10).  `target` is the initially
++ * DADAO-12 §5.2 exception-entry flow (steps 1-7).  `target` is the initially
 + * determined target cfxha (from step 1); `sync` selects the sync/async
 + * masking behaviour.  Returns the exception vector to jump to; *entered is
 + * set to false when the exception is masked and only records `pending`.
 + *
-+ * Deviation note (documented): spec §5 step 3/4 "goto check_nonmaskable"
-+ * after an ILLI redirect would re-apply the inner/global mask to the
-+ * redirect target (the current-mode monitor) forever; hardware must terminate,
-+ * so a single redirect is performed and the monitor (current-mode cfx0-3) is
-+ * then entered without re-checking the inner/global mask.
++ * Sync exceptions are never masked (§5.2 step 2); async ones are filtered only
++ * by the two source masks (step 3).
 + */
 +static uint64_t cfx_enter(CPUDADAOState *env, uint64_t cause, int target,
 +                          uint64_t cause_ip, uint64_t cause_info,
 +                          bool sync, bool *entered)
 +{
 +    uint8_t entry_mode = env->inner_run_mode;
-+    bool redirected = false;
-+    int ci;
++    int ci = cfx_idx(target);
 +    uint64_t vec;
 +
-+    for (;;) {
-+        ci = cfx_idx(target);
-+        if (ci < 0) {
-+            /* A frame can only exist for an implemented cfx. */
++    if (ci < 0) {
++        /* A frame can only exist for an implemented cfx. */
++        *entered = false;
++        return 0;
++    }
++    /* step 3 (async only): two-level interrupt source filter (ADR-0045 D3).
++     * The current cfx's cfx_intr_mask and the current mode monitor's
++     * global_cfx_intr_mask both mask by source cfxha; either one set =>
++     * pending, no delivery. */
++    if (!sync) {
++        int cur = cfx_idx(env->inner_cfx_code);
++        uint64_t cur_mask = (cur >= 0)
++            ? env->cfx[cur].mode[entry_mode].cfx_intr_mask : 0;
++        uint64_t global_mask =
++            env->cfx[entry_mode & 0x3].global_cfx_intr_mask;
++
++        if ((cur_mask & (1ULL << target)) ||
++            (global_mask & (1ULL << target))) {
++            env->cfx[ci].pending |= cause;
 +            *entered = false;
 +            return 0;
 +        }
-+        if (!redirected && !(env->cfx[ci].cause_nonmaskable & cause)) {
-+            /* step 3: inner_cfx_mask (self cfxha is not checked) */
-+            if (target != env->inner_cfx_code &&
-+                (env->inner_cfx_mask & (1ULL << target))) {
-+                if (sync) {
-+                    cause = DADAO_CAUSE_ILLI;
-+                    target = entry_mode;      /* redirect to current monitor */
-+                    redirected = true;
-+                    continue;
-+                }
-+                env->cfx[ci].pending |= cause;
-+                *entered = false;
-+                return 0;
-+            }
-+            /* step 4 (async only): two-level interrupt source filter
-+             * (ADR-0045 D3).  The current cfx's cfx_intr_mask and the current
-+             * mode monitor's global_cfx_intr_mask both mask by source cfxha;
-+             * either one set => pending, no delivery. */
-+            if (!sync) {
-+                int cur = cfx_idx(env->inner_cfx_code);
-+                uint64_t cur_mask = (cur >= 0)
-+                    ? env->cfx[cur].mode[entry_mode].cfx_intr_mask : 0;
-+                uint64_t global_mask =
-+                    env->cfx[entry_mode & 0x3].global_cfx_intr_mask;
-+
-+                if ((cur_mask & (1ULL << target)) ||
-+                    (global_mask & (1ULL << target))) {
-+                    env->cfx[ci].pending |= cause;
-+                    *entered = false;
-+                    return 0;
-+                }
-+            }
-+            /* step 5: exception-cause mask */
-+            if (env->cfx[ci].mode[entry_mode].excp_cause_mask & cause) {
-+                env->cfx[ci].pending |= cause;
-+                *entered = false;
-+                return 0;
-+            }
-+        }
-+        break;
 +    }
 +
-+    /* step 6: increment the trap / sync / async counter (keyed on the
-+     * (possibly redirected) cause, per §5 step 6). */
++    /* step 4: increment the trap / sync / async counter. */
 +    if (cause == DADAO_CAUSE_CFXTRAP) {
 +        env->cfx[ci].trap_num++;
 +    } else if (!sync) {
@@ -1776,23 +1742,22 @@ index 0000000..7ba4737
 +    } else {
 +        env->cfx[ci].excp_sync_num++;
 +    }
-+    /* step 7: save the previous run mode / cfx mask */
++    /* step 5: save the previous run mode (no independent cfx-mask state). */
 +    env->cfx[ci].prev_run_mode = entry_mode;
-+    env->cfx[ci].prev_cfx_mask = env->inner_cfx_mask;
-+    /* step 8: switch run mode / cfx mask to the <entry_mode> switch values.
++    /* step 6: switch run mode to the <entry_mode> switch value; the cfx
++     * target changes but there is no cfx-mask layer to switch.
 +     * HSJU permission is re-checked on every tlb_fill against the entry, so the
 +     * derived translation cache must not survive a run-mode change: guest TLB
 +     * entries stay (only QEMU's cache of their result is dropped). */
 +    dadao_soft_tlb_flush(env);
 +    vec = env->cfx[ci].mode[entry_mode].excp_vector;
 +    env->inner_run_mode = env->cfx[ci].mode[entry_mode].switch_run_mode & 0x3;
-+    env->inner_cfx_mask = env->cfx[ci].mode[entry_mode].switch_cfx_mask;
 +    env->inner_cfx_code = (uint8_t)target;
-+    /* step 9: record cause ip / id / info */
++    /* step 5 continued: record cause ip / id / info */
 +    env->cfx[ci].cause_ip = cause_ip;
 +    env->cfx[ci].cause_id = cause;
 +    env->cfx[ci].cause_info = cause_info;
-+    /* step 10: jump to the exception vector */
++    /* step 7: jump to the exception vector */
 +    *entered = true;
 +    return vec;
 +}
@@ -2190,8 +2155,8 @@ index 0000000..7ba4737
 + * Every asynchronous source records its pending bit in the *target* cfx's
 + * cg5 rc5 (TIMER -> cfx_hart bit10, PMEM_DMA -> cfx_pmem bit8); cfx_hart is
 + * not a pending store and no cross-cfx bitmap exists.  This arbiter only
-+ * selects: the two-level masks and excp_cause_mask stay in cfx_enter (steps
-+ * 3/4/5), whose `entered` result says whether the pending bit was consumed or
++ * selects: the two-level masks stay in cfx_enter (step 3), whose `entered`
++ * result says whether the pending bit was consumed or
 + * must stay for a later kick.  At most one cfx_enter(async) per call. */
 +
 +/* Sources in target-cfxha order: the lowest deliverable cfxha wins. */
@@ -2506,8 +2471,8 @@ index 0000000..7ba4737
 +     * re-kick so the arbiter can deliver what accumulated meanwhile. */
 +    dadao_async_kick(env);
 +#endif
-+    /* step 2: restore the per-hart cfx mask and run mode from the frame. */
-+    env->inner_cfx_mask = env->cfx[ci].prev_cfx_mask;
++    /* step 2: restore the previous run mode from the frame (no cfx-mask
++     * layer is restored; the trap saved only global_cfx_intr_mask). */
 +    env->inner_run_mode = env->cfx[ci].prev_run_mode & 0x3;
 +    dadao_soft_tlb_flush(env);
 +    /* step 3: increment the escape counter */
@@ -2755,7 +2720,7 @@ index 0000000..7ba4737
 +        dadao_soft_tlb_flush(env);
 +    }
 +#ifndef CONFIG_USER_ONLY
-+    /* A write to a mask / excp_cause_mask / pending register may unblock a
++    /* A write to a mask / pending register may unblock a
 +     * pending async source; re-kick here so the generic write path covers
 +     * every such register (INTEG-051t). */
 +    dadao_async_kick(env);

@@ -293,7 +293,7 @@ def run(image, kernel=None, dump=True):
                     blk["ptbr"] = int(m.group(1), 16)
                     blk["ptw"] = int(m.group(2))
                 m = re.search(r"^CFX([0-9a-f]{2}) M(\d) SWMODE:([0-9a-f]+) "
-                              r"SWMASK:[0-9a-f]+ VEC:([0-9a-f]+)", ln)
+                              r"VEC:([0-9a-f]+)", ln)
                 if m:
                     blk["swmode:%s:%s" % (m.group(1), m.group(2))] = int(m.group(3), 16)
                     blk["vec:%s:%s" % (m.group(1), m.group(2))] = int(m.group(4), 16)

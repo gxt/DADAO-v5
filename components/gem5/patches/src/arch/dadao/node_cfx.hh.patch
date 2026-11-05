@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
 new file mode 100644
-index 0000000..0e69b3a
+index 0000000..8dfb0eb
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.hh
-@@ -0,0 +1,284 @@
+@@ -0,0 +1,280 @@
 +// DADAO Node machine model: cfx register file, run modes, monitor entry/exit,
 +// the cfx_pmem DMA engine, cfx_time/cfx_hart counters and async arbitration.
 +//
@@ -106,7 +106,8 @@ index 0000000..0e69b3a
 +constexpr unsigned NodeFragShift = 8;
 +constexpr unsigned NodeNumTlbEntries = 16;
 +
-+/** One cfx mode row (cg0-cg3, spec/DADAO-12 §3; DADAO-13 §1 for cg3). */
++/** One cfx mode row (cg0-cg3, spec/DADAO-12 §3; DADAO-13 §1 for cg3).
++ *  rc9 / rc11 are reserved holes and keep no state (access => CFXREG). */
 +struct NodeCfxMode
 +{
 +    uint64_t cfxtrap = 0;
@@ -115,9 +116,7 @@ index 0000000..0e69b3a
 +    uint64_t cfxexe = 0;
 +    uint64_t cfxIntrMask = 0;
 +    uint64_t switchRunMode = 0;
-+    uint64_t switchCfxMask = 0;
 +    uint64_t excpVector = 0;
-+    uint64_t excpCauseMask = 0;
 +    uint64_t cgRegDeleg = 0;
 +};
 +
@@ -134,12 +133,10 @@ index 0000000..0e69b3a
 +    uint64_t escapeNum = 0;
 +    uint64_t scratchRegsNum = 0;
 +    uint64_t prevRunMode = 0;
-+    uint64_t prevCfxMask = 0;
 +    uint64_t causeId = 0;
 +    uint64_t causeIp = 0;
 +    uint64_t causeInfo = 0;
 +    uint64_t pending = 0;
-+    uint64_t causeNonmaskable = 0;
 +    uint64_t globalCfxIntrMask = 0;
 +    uint64_t savedGlobalIntrMask = 0;
 +    uint64_t savedIntrMonitor = 0;
@@ -198,7 +195,6 @@ index 0000000..0e69b3a
 +
 +    uint8_t runMode = NodeHypv;
 +    uint8_t cfxCode = CfxhaPower;
-+    uint64_t cfxMask = ~0ULL;
 +
 +    // Address-space step 1 + step 3 (ADR-0039/ADR-0041).
 +    uint64_t ptbr = 0;

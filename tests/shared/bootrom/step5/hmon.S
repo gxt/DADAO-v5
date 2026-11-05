@@ -106,12 +106,11 @@ hmon_dma_poll:
 	LD64	rd9, 0x0001, 0x0000, 0x0000, 0x0000
 	cfx2rc	cfx_ptw, cg8, rc8, rd9		@@ ptw_enable = 1
 
-	@@ --- 5. cfx_umon hypv: vector = ENTRY, switch mode = hypv (3), mask 0 ---
+	@@ --- 5. cfx_umon hypv: vector = ENTRY, switch mode = hypv (3) ---
 	LOAD_ADDR rd5, ENTRY
 	cfx2rc	cfx_umon, cg3, rc10, rd5
 	LD64	rd6, 0x0003, 0x0000, 0x0000, 0x0000
 	cfx2rc	cfx_umon, cg3, rc8, rd6		@@ switch_run_mode = hypv
-	cfx2rc	cfx_umon, cg3, rc9, rd0		@@ switch_cfx_mask = 0
 
 	@@ --- 6. handoff to the test body in hypv ---
 	trap	cfx_umon, 0

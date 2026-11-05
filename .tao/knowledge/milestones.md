@@ -12,11 +12,11 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INTEG-054t | 已验证 | 2026-11-05 23:08 | 5 个屏蔽寄存器实现清理：QEMU/gem5/tests；parity 249/0 |
 | INFRA-125t | 待开始 | 2026-11-05 21:35（登记） | embench-iot/libc-test 补丁集迁入 tests/tset；manifest/门控同步 |
 | INFRA-123t | 已验证 | 2026-11-05 21:15 | DDLN TT 退役：81→0、DD 81；lecnotes agent 删除 |
 | SPEC-191t | 已验证 | 2026-11-05 21:08 | ADR-0004/0009/0041 + DDLN/Machine-00 旧码清理；D3/D5 三段式 |
 | INFRA-124t | 待开始 | 2026-11-05 20:45（登记） | 文档/矩阵小残留：ADR-0013、check_spec_refs、GEM5-017t 指针、Node embench |
-| INTEG-054t | 待开始 | 2026-11-05 20:45（登记） | 5 个屏蔽寄存器实现清理：QEMU/gem5/tests 三阶段 |
 | INTEG-055t | 待开始 | 2026-11-05 20:45（登记） | 退出码实现迁移：QEMU/gem5/tests 三阶段 |
 | QEMU-084t | 待开始 | 2026-11-05 20:45（登记） | QEMU guest rlimit 实现（ISS-343，P3） |
 | SPEC-193t | 已验证 | 2026-11-05 20:23 | spec/README 外部指针修复：5 处悬空清零；L1 绿 |

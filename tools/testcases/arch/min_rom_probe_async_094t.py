@@ -8,9 +8,9 @@ contains no SBI provider, no mask bookkeeping beyond the minimum needed to
 observe one event, and no INTEG-050t/051t harness code.
 
 Expectations are derived by hand from:
-  - spec/DADAO-12 §5 (exception entry steps 3/4/5: inner_cfx_mask, the
-    two-level cfx_intr_mask + global_cfx_intr_mask filter, excp_cause_mask;
-    a masked async source keeps `pending` and is delivered on a later kick);
+  - spec/DADAO-12 §5.2 (exception entry step 3: the two-level cfx_intr_mask +
+    global_cfx_intr_mask source filter; a masked async source keeps `pending`
+    and is delivered on a later kick);
   - spec/DADAO-12 §4.7 (cfx_hart TIMER 1<<10, cause_info 0), §4.9
     (cfx_pmem PMEM_DMA 1<<8, cause_info = dma_status);
   - .tao/contracts/contract-see.md «统一异步中断仲裁（测试机约定）»
@@ -19,12 +19,10 @@ Expectations are derived by hand from:
   - ADR-0045 D3, ADR-0043 (Node monitor layout).
 Not from the QEMU implementation.
 
-The discriminating case pair is `timer_mask_open` vs `timer_mask_shut`:
-`cfx_hmon hypv_switch_cfx_mask` is applied only when the prelude's power
-segment traps into hmon, so a probe that writes it from the hmon body cannot
-open the mask (step 3 keeps blocking, `pending` is recorded, nothing is
-delivered).  If the mask is opened in power, the same body gets the delivery:
-that isolates the INTEG-050t/051t failure to the test prelude, not QEMU.
+The discriminating case pair is `timer_mask_open` vs `timer_mask_shut`: the
+shut case sets bit 15 of the current cfx's `cfx_intr_mask` before arming, so
+step 3 keeps blocking (`pending` is recorded, nothing is delivered); with the
+bit clear the same body gets the delivery.
 
 Observation: every check is in-program; the verdict is the host `$?` of the
 semihosting SYS_EXIT (0 = pass).  TIMER cases run under `-icount shift=0`
@@ -88,9 +86,8 @@ RAM_INFO17 = 0x048
 DATA_PA = RAM_BASE + 0x4000
 PMEM_SRC = _prelude.PMEM_BASE          # cfx_pmem SRAM window
 
-# cfx_hmon hypv rows: open bits 15/32 in the entry mask, both interrupt-filter
-# levels and the target cause masks (DADAO-12 §5 steps 3/4/5).
-ENTRY_OPEN = ALL1 & ~((1 << 15) | (1 << 32))
+# cfx_hmon hypv row: both interrupt-filter levels open bits 15/32
+# (DADAO-12 §5.2 step 3).
 CROSS = ALL1 & ~((1 << 3) | (1 << 15) | (1 << 32))
 
 
@@ -212,16 +209,6 @@ HANDLERS = {
 # Setup: power (entry mask) + hmon (filter masks, vectors, fetch/RAM access)
 # ---------------------------------------------------------------------------
 
-def power_setup():
-    """Open the cfx_hmon hypv entry mask for the two async target cfxhas.
-
-    It must be written in power: the value is applied when the prelude traps
-    into hmon (cfx_enter step 8); a register write from the body is late.
-    """
-    return (load_rd(22, ENTRY_OPEN)
-            + [cfx2rc(HMON_HA, 3, 9, 22)])     # hypv_switch_cfx_mask
-
-
 def hmon_setup():
     s = Seq()
     s.e(*load_rb(5, RAM_BASE))
@@ -229,13 +216,9 @@ def hmon_setup():
     s.e(*load_rd(21, CROSS))
     s.e(cfx2rc(HMON_HA, 3, 4, 21))
     s.e(cfx2rc(HMON_HA, 8, 1, 21))
-    # step 5: target cause masks + vectors
-    s.e(*load_rd(21, ALL1 & ~PMEM_DMA))
-    s.e(cfx2rc(PMEM_HA, 3, 11, 21))
+    # target cfx vectors
     s.e(*load_rd(21, ROM_BASE + OFF_PMEM_HND))
     s.e(cfx2rc(PMEM_HA, 3, 10, 21))
-    s.e(*load_rd(21, ALL1 & ~TIMER))
-    s.e(cfx2rc(HART_HA, 3, 11, 21))
     s.e(*load_rd(21, ROM_BASE + OFF_HART_HND))
     s.e(cfx2rc(HART_HA, 3, 10, 21))
     # cross-cfx register reads after a trap + ROM fetch / RAM store; the
@@ -269,17 +252,15 @@ def hmon_setup():
 CASES = []
 
 
-def case(name, desc, icount=None, open_mask=True):
+def case(name, desc, icount=None):
     def deco(fn):
-        CASES.append((name, desc, fn, icount, open_mask))
+        CASES.append((name, desc, fn, icount))
         return fn
     return deco
 
 
-def build(body, open_mask=True):
-    return _prelude.build_rom(
-        body, HANDLERS, hmon_extra=hmon_setup(),
-        power_extra=power_setup() if open_mask else None)
+def build(body):
+    return _prelude.build_rom(body, HANDLERS, hmon_extra=hmon_setup())
 
 
 @case("timer_mask_open", "icount: entry mask open => TIMER delivered once",
@@ -309,10 +290,13 @@ def _timer_mask_open_default():
 
 
 @case("timer_mask_shut",
-      "icount: entry mask shut => pending bit10 set, no delivery (test-side)",
-      icount=0, open_mask=False)
+      "icount: cfx_intr_mask bit15 set => pending bit10 set, no delivery",
+      icount=0)
 def _timer_mask_shut():
     s = Seq()
+    # current cfx is hmon; block the TIMER source at the lower filter level
+    s.e(*load_rd(21, ALL1))
+    s.e(cfx2rc(HMON_HA, 3, 4, 21))             # cfx_hmon hypv cfx_intr_mask
     timer_arm(s, 2000)
     delay_loop(s, 4000, "ts")
     ram_ld(s, RAM_SEQ, 5)
@@ -320,7 +304,7 @@ def _timer_mask_shut():
     s.e(cfx2rd(HART_HA, 5, 5, 6))
     need_mask_set(s, 6, TIMER, 0xE5, "pending")
     s.e(*exit_seq(0))
-    return build(s.resolve(), open_mask=False), {"exit": 0}
+    return build(s.resolve()), {"exit": 0}
 
 
 @case("pmem_mask_open", "default clock: entry mask open => PMEM_DMA delivered once")
@@ -391,7 +375,7 @@ def _dedup_icount():
 # ---------------------------------------------------------------------------
 
 def run_case(name):
-    for n, d, fn, icount, open_mask in CASES:
+    for n, d, fn, icount in CASES:
         if n != name:
             continue
         rom, exp = fn()
@@ -415,17 +399,16 @@ def main():
         QEMU = args.qemu
 
     if args.list:
-        for n, d, _fn, icount, open_mask in CASES:
-            print("%-26s %s%s%s" % (n, d,
-                                    " [-icount]" if icount is not None else "",
-                                    "" if open_mask else " [entry-mask shut]"))
+        for n, d, _fn, icount in CASES:
+            print("%-26s %s%s" % (n, d,
+                                  " [-icount]" if icount is not None else ""))
         return 0
 
     if not os.path.isfile(QEMU):
         print("[FAIL] QEMU binary not found: %s" % QEMU)
         return 2
 
-    names = [n for n, _d, _fn, _i, _o in CASES]
+    names = [n for n, _d, _fn, _i in CASES]
     if args.only is not None:
         if args.only not in names:
             print("[FAIL] no case named %r" % args.only)

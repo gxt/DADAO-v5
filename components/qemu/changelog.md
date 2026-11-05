@@ -273,3 +273,7 @@
 - **2026-11-05 `QEMU-083t`**
   - 摘要：**`CFXREG` 异常目标改为当前运行模式 monitor（DADAO-12 §5.2；ISS-342）**：`helper_cfx2rd`/`helper_cfx2rc` 的 10 处 `cfx_raise(..., DADAO_CAUSE_CFXREG, cfxha, ...)` 改为 `env->inner_run_mode`（U/J/S/H ⇒ `cfx_umon`/`cfx_jmon`/`cfx_smon`/`cfx_hmon`），覆盖 cg/rc 越界、`rc >= scratch_regs_num`、只读寄存器写、cg7 写与 cg15 保留 rc；合法路径与其它异常（`CFXPERM`/`CFXMEM`/`ILLI`/`CFXESC`）目标不变。补丁 **1 份改**（`helper.c`），`make_patch.py` 重导出（1 written / 62 unchanged）。随语义迁移的最少测试资产修正：`tests/arch/umon/m5_perm_badcombo_cfxreg.s` 删除自装 `cfx_umon` 向量规避、改读 hmon fault-record（退出码/原因期望不变）；`tools/testcases/arch/{min_rom_probe_044t,045t,integ040t,integ042t,integ050t}` 的 CFXREG 用例改从 `cfx_hmon` 取 cause 帧（`integ042t` 的 pmem 入口改用非屏蔽 `trap cfx_pmem` 并在 trap 帧内恢复 hmon 全局源掩码），断言强度不放宽。
   - 执行者：engineer
+
+- **2026-11-05 `INTEG-054t`**
+  - 摘要：**删除 5 个无效屏蔽寄存器的实现（SPEC-188t）**：`cpu.h` 移除 `DADAOCfxModeRegs.{switch_cfx_mask,excp_cause_mask}`、`DADAOCfxRegs.{prev_cfx_mask,cause_nonmaskable}` 与 `inner_cfx_mask`；`cpu.c` 复位值与 `dump_state` 同步移除（不再打印 `CFXMASK`/`PREVMASK`/`NONMASK`/`SWMASK`/`CAUSEMASK`）；`helper.c` 的 `cfx_mode_reg`/`cfx_reg_ptr` 不再解析 `cg0-3 rc9/rc11`、`cg5 rc1/rc63`（访问 ⇒ `CFXREG`），`cfx_enter` 删除 inner/cause 掩码层（同步异常不可屏蔽，异步只按 `cfx_intr_mask`+`global_cfx_intr_mask` 两级来源过滤），`escape` 不再恢复 cfx 屏蔽状态、保留 trap 保存的 `global_cfx_intr_mask` 恢复。补丁 3 份改（`cpu.h`/`cpu.c`/`helper.c`），`make_patch.py` 重导出（3 written / 60 unchanged）。验收：`build-qemu`/`install-host`、`check-inst`、`check-arch`、`check-source-state`/`check-patch-tree`、L1；`matrix-M11` node/arch 无回归。
+  - 执行者：engineer

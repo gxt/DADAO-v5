@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..254a39d
+index 0000000..2fbf573
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,292 @@
+@@ -0,0 +1,285 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
@@ -192,8 +192,6 @@ index 0000000..254a39d
 +
 +    std::fprintf(f, "MODE: %u\n", mode);
 +    std::fprintf(f, "CFXCODE: %u\n", unsigned(node.cfxCode));
-+    std::fprintf(f, "CFXMASK: %016llx\n",
-+                 static_cast<unsigned long long>(node.cfxMask));
 +    std::fprintf(f, "PTBR: %016llx PTW_ENABLE: %u\n",
 +                 static_cast<unsigned long long>(node.ptbr),
 +                 unsigned(node.ptwEnable & 1));
@@ -216,31 +214,26 @@ index 0000000..254a39d
 +                     static_cast<unsigned long long>(r.escapeNum),
 +                     static_cast<unsigned long long>(r.scratchRegsNum),
 +                     static_cast<unsigned long long>(r.globalCfxIntrMask));
-+        std::fprintf(f, "CFX%02d PREVM:%016llx PREVMASK:%016llx CID:%016llx "
-+                     "CIP:%016llx CINFO:%016llx PEND:%016llx "
-+                     "NONMASK:%016llx\n", ha,
++        std::fprintf(f, "CFX%02d PREVM:%016llx CID:%016llx "
++                     "CIP:%016llx CINFO:%016llx PEND:%016llx\n", ha,
 +                     static_cast<unsigned long long>(r.prevRunMode),
-+                     static_cast<unsigned long long>(r.prevCfxMask),
 +                     static_cast<unsigned long long>(r.causeId),
 +                     static_cast<unsigned long long>(r.causeIp),
 +                     static_cast<unsigned long long>(r.causeInfo),
-+                     static_cast<unsigned long long>(r.pending),
-+                     static_cast<unsigned long long>(r.causeNonmaskable));
++                     static_cast<unsigned long long>(r.pending));
 +        for (int m = 0; m < 4; ++m) {
 +            const NodeCfxMode &mr = r.mode[m];
-+            std::fprintf(f, "CFX%02d M%d SWMODE:%016llx SWMASK:%016llx "
++            std::fprintf(f, "CFX%02d M%d SWMODE:%016llx "
 +                         "VEC:%016llx TRAPMASK:%016llx MEMMASK:%016llx "
-+                         "REGMASK:%016llx EXEMASK:%016llx INTRMASK:%016llx "
-+                         "CAUSEMASK:%016llx\n", ha, m,
++                         "REGMASK:%016llx EXEMASK:%016llx INTRMASK:%016llx\n",
++                         ha, m,
 +                         static_cast<unsigned long long>(mr.switchRunMode),
-+                         static_cast<unsigned long long>(mr.switchCfxMask),
 +                         static_cast<unsigned long long>(mr.excpVector),
 +                         static_cast<unsigned long long>(mr.cfxtrap),
 +                         static_cast<unsigned long long>(mr.cfxmem),
 +                         static_cast<unsigned long long>(mr.cfxreg),
 +                         static_cast<unsigned long long>(mr.cfxexe),
-+                         static_cast<unsigned long long>(mr.cfxIntrMask),
-+                         static_cast<unsigned long long>(mr.excpCauseMask));
++                         static_cast<unsigned long long>(mr.cfxIntrMask));
 +        }
 +        for (int j = 0; j < 4; ++j) {
 +            std::fprintf(f, "CFX%02d SCR%d:%016llx\n", ha, j,

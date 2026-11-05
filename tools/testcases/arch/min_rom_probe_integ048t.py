@@ -228,7 +228,7 @@ def probe_base():
       as cfx0 (bit0), handler as cfx2 in hypv (bit2).  cfx_power cfxmem is
       deliberately NOT touched (the power cases assert its reset value).
     * cfx_smon supv monitor = CFXPERM handler, entered in hypv (so it may read
-      cfx_smon cg5); cause/switch masks opened.
+      cfx_smon cg5); no cause/switch mask layer exists.
     * cfx_smon supv cfxmem bit0 = 0: lets the supv cfx0 body place the
       semihosting block in cfx_smon SRAM without opening power's cfxmem.
     """
@@ -238,8 +238,6 @@ def probe_base():
     p += load_rd(20, 0xFFFF_FFFF_FFFF_FFF3) + [cfx2rc(63, HYPV, 3, 20)]
     p += load_rd(22, ROM_BASE + HAND_OFF) + [cfx2rc(2, SUPV, 10, 22)]
     p += load_rd(22, HYPV) + [cfx2rc(2, SUPV, 8, 22)]
-    p += load_rd(22, 0) + [cfx2rc(2, SUPV, 11, 22)]
-    p += load_rd(22, 0) + [cfx2rc(2, SUPV, 9, 22)]
     p += load_rd(20, 0xFFFF_FFFF_FFFF_FFFE) + [cfx2rc(2, SUPV, 1, 20)]
     p += load_rd(20, 0xFFFF_FFFF_FFFF_FFFE) + [cfx2rc(2, USER, 1, 20)]
     return p
@@ -277,8 +275,6 @@ def enter_supv_cfx0():
     """trap cfx0 from hmon: cfx0 hypv row vector/switch = supv body."""
     p = load_rd(22, ROM_BASE + SUPV_OFF) + [cfx2rc(0, 3, 10, 22)]
     p += load_rd(22, SUPV) + [cfx2rc(0, 3, 8, 22)]
-    p += load_rd(22, 0) + [cfx2rc(0, 3, 9, 22)]
-    p += load_rd(22, 0) + [cfx2rc(0, 3, 11, 22)]
     p += [trap(0, 0)]
     return p
 
@@ -623,7 +619,6 @@ def _user_cg3_cfxreg():
     # cfx0 user-row vector -> fault slot; the entry mode (user row switch) is
     # left at its reset value (supv), so the fault slot exits in supv.
     prog += load_rd(22, ROM_BASE + FAULT_OFF) + [cfx2rc(0, USER, 10, 22)]
-    prog += load_rd(22, 0) + [cfx2rc(0, USER, 11, 22)]
     prog += enter_user_cfx0()
     rom = build_rom(prog, {USER_OFF: body, HAND_OFF: handler(),
                            FAULT_OFF: fault_slot(0xCC)})

@@ -190,7 +190,6 @@ def observe(log):
     o = {}
     o["mode"] = lastdec(log, r"MODE: (\d+)")
     o["cfxcode"] = lastdec(log, r"CFXCODE: (\d+)")
-    o["cfxmask"] = lasthex(log, r"CFXMASK: ([0-9a-f]+)")
     for i in range(4):
         o["gver%d" % i] = lasthex(log, r"GVER%d: ([0-9a-f]+)" % i)
         o["gcm%d" % i] = lasthex(log, r"GCM%d: ([0-9a-f]+)" % i)
@@ -205,7 +204,6 @@ def observe(log):
         o["cip:%d" % ha] = lasthex(log, t + r" PREVM:[^\n]*CIP:([0-9a-f]+)")
         o["cinfo:%d" % ha] = lasthex(log, t + r" PREVM:[^\n]*CINFO:([0-9a-f]+)")
         o["prevm:%d" % ha] = lasthex(log, t + r" PREVM:([0-9a-f]+)")
-        o["prevmask:%d" % ha] = lasthex(log, t + r" PREVM:[^\n]*PREVMASK:([0-9a-f]+)")
         for m in range(4):
             o["swmode:%d:%d" % (ha, m)] = lasthex(
                 log, t + r" M%d SWMODE:([0-9a-f]+)" % m)
@@ -304,7 +302,6 @@ def _cfxexe_deny():
     p += load_rd(20, (~(1 << 2)) & ALL1) + [cfx2rc(63, 2, 3, 20)]
     # smon (cfx2) S-mode vector = H2; body still runs in hmon H.
     p += load_rd(20, ROM_BASE + 0x200) + [cfx2rc(2, 2, 10, 20)]
-    p += load_rd(20, 0) + [cfx2rc(2, 2, 11, 20)]      # cause mask = 0
     fault_idx = len(p)
     p += [trap(0, 0)]                                  # hmon -> cfx0, mode S
     p += exit_seq(0xEE)

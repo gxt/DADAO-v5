@@ -195,7 +195,8 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   ⇒ `0x87`。
 - **cfx/monitor**：cfx0/1/2/3/4/15/17/18/63 寄存器面（cg0–cg7，cg3 仅 hypv，
   cg6 scratch=4，cg7 只读空间描述符）、`trap`/`escape`/`cfx2rd`/`cfx2rc` 与
-  `switch_run_mode`/`switch_cfx_mask`/`excp_vector`/mask/deleg；`cfx5`
+  `switch_run_mode`/`excp_vector`/mask/deleg（`cg0`–`cg3` `rc9`/`rc11` 与
+  `cg5` `rc1`/`rc63` 为 reserved，访问 ⇒ `CFXREG`）；`cfx5`
   （cache）未实现 ⇒ `CFXREG`；保留 cfxha ⇒ `ILLI`；CFXPERM/CFXREG 均进
   当前模式 monitor（DADAO-12 §5.2，与 QEMU-083t 一致）。smon（cfx2）
   SRAM/寄存器保留。

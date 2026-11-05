@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..311d64f
+index 0000000..e10cdd5
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,570 @@
+@@ -0,0 +1,566 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -378,7 +378,8 @@ index 0000000..311d64f
 +
 +/* cg0-cg3 shared ("共有") per-mode registers (DADAO-12 §3; ADR-0045 D2/D3).
 + * Four 64-bit source masks (rc0..rc3), the per-cfx interrupt source mask
-+ * (rc4), and the mode-transfer/exception registers (rc8..rc12).  The bit
++ * (rc4), and the mode-transfer/exception registers (rc8, rc10, rc12); rc9 and
++ * rc11 are reserved holes and keep no state (access => CFXREG).  The bit
 + * index of every source mask is the *source* cfxha; self access bypasses the
 + * cfx axis but still uses the current-mode register row (D1). */
 +typedef struct DADAOCfxModeRegs {
@@ -388,9 +389,7 @@ index 0000000..311d64f
 +    uint64_t cfxexe;           /* rc3  direct execution/fetch into this cfx */
 +    uint64_t cfx_intr_mask;    /* rc4  async interrupt source mask */
 +    uint64_t switch_run_mode;  /* rc8  */
-+    uint64_t switch_cfx_mask;  /* rc9  */
 +    uint64_t excp_vector;      /* rc10 */
-+    uint64_t excp_cause_mask;  /* rc11 */
 +    uint64_t cg_reg_deleg;     /* rc12 (cg3/hypv only, DADAO-13 §1) */
 +} DADAOCfxModeRegs;
 +
@@ -413,12 +412,10 @@ index 0000000..311d64f
 +    uint64_t escape_num;        /* cg4 rc5 */
 +    uint64_t scratch_regs_num;  /* cg4 rc6 (RO) */
 +    uint64_t prev_run_mode;     /* cg5 rc0 */
-+    uint64_t prev_cfx_mask;     /* cg5 rc1 */
 +    uint64_t cause_id;          /* cg5 rc2 (RO) */
 +    uint64_t cause_ip;          /* cg5 rc3 */
 +    uint64_t cause_info;        /* cg5 rc4 (RO) */
 +    uint64_t pending;           /* cg5 rc5 */
-+    uint64_t cause_nonmaskable; /* cg5 rc63 (RO) */
 +    uint64_t scratch[4];        /* cg6 rc0..N-1 */
 +} DADAOCfxRegs;
 +
@@ -450,7 +447,6 @@ index 0000000..311d64f
 +    /* ── SEE/HEE state (QEMU-044t) ── */
 +    uint8_t  inner_run_mode;             /* 0..3 (DADAO-12 §1) */
 +    uint8_t  inner_cfx_code;             /* current cfxha 0..63 */
-+    uint64_t inner_cfx_mask;             /* per-hart cfx mask (DADAO-12 §1 注) */
 +    DADAOCfxRegs cfx[DADAO_NUM_CFX];     /* implemented cfx {0,1,2,3,4,15,17,18,63} */
 +
 +    /* Runtime machine profile (QEMU-079t; spec/Machine-v5 §1).  Set by the

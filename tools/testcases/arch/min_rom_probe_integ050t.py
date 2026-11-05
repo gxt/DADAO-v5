@@ -30,16 +30,12 @@ Observation channels (same convention as min_rom_probe_integ047t.py):
     self-checks and a semihosting SYS_EXIT exit code (that mode has no dump).
 
 Bootstrap (the probe body runs in hmon / cfx3, hypv):
-  1. power stage: set cfx_hmon hypv_excp_vector, clear bit15/bit34 of
-     cfx_hmon hypv_switch_cfx_mask, then `trap cfx_hmon, 0`.  Bit15 is the
-     TIMER source gate (step 3); bit34 is needed because SBI calls use
-     `trap cfx_time` (also step 3).
+  1. power stage: set cfx_hmon hypv_excp_vector, then `trap cfx_hmon, 0`.
   2. hmon stage: clear cfx_hmon hypv_cfx_intr_mask (cg3 rc4) bit15 and
-     cfx_hmon global_cfx_intr_mask (cg8 rc1) bit15 (async step 4), clear
-     cfx_hart hypv_excp_cause_mask (cg3 rc11) bit10 (async step 5), install
-     the cfx_hart / cfx_time exception vectors, and clear cfx_power's
-     cfxmem/cfxexe source masks for all four modes (so the ROM handler stays
-     fetchable / RAM readable while inner_cfx_code = 15/34).
+     cfx_hmon global_cfx_intr_mask (cg8 rc1) bit15 (the only async source
+     filter), install the cfx_hart / cfx_time exception vectors, and clear
+     cfx_power's cfxmem/cfxexe source masks for all four modes (so the ROM
+     handler stays fetchable / RAM readable while inner_cfx_code = 15/34).
 
 Usage:
   min_rom_probe_integ050t.py --doc          # doc checks only (offline)
@@ -106,9 +102,8 @@ TIME_HA = 34
 HART_CG = 8
 TIME_CG = 10
 CG5_CAUSE_ID_RC, CG5_CAUSE_IP_RC, CG5_CAUSE_INFO_RC, CG5_PENDING_RC = 2, 3, 4, 5
-CG3_EXCP_VECTOR_RC, CG3_EXCP_CAUSE_MASK_RC = 10, 11
+CG3_EXCP_VECTOR_RC = 10
 CG3_CFX_INTR_MASK_RC = 4
-CG3_SWITCH_CFX_MASK_RC = 9
 
 CFXTRAP = 1 << 0
 CFXREG = 1 << 2
@@ -435,25 +430,12 @@ def build_rom(prog, handlers=None):
     """Shared prelude: body at RESET_PC + 0x1000; the hmon setup (masks and
     exception vectors for cfx_hart/cfx_time) runs inside the prelude's hmon
     segment, so `hmon_addr(off)` is body-relative (TESTCASES-094t §1)."""
-    return _prelude.build_rom(prog, handlers, hmon_extra=hmon_setup(),
-                              power_extra=power_setup())
+    return _prelude.build_rom(prog, handlers, hmon_extra=hmon_setup())
 
 
 # ---------------------------------------------------------------------------
 # Bootstrap
 # ---------------------------------------------------------------------------
-
-def power_setup():
-    """power-stage setup applied when the prelude traps into hmon.
-
-    cfx_hmon hypv_switch_cfx_mask: clear bit15 (TIMER source) and bit34
-    (cfx_time traps) so exception-entry step 3 lets TIMER through.  The write
-    must happen in power: `switch_cfx_mask` is only applied on entry to hmon,
-    so the same write from the hmon body would not change the current mask
-    (TESTCASES-094t §2).
-    """
-    return (load_rd(22, 0xFFFF_FFFB_FFFF_7FF7)
-            + [cfx2rc(3, 3, CG3_SWITCH_CFX_MASK_RC, 22)])
 
 def hmon_setup():
     # TESTCASES-094t §1: the power->hmon hand-off and the power-mask clearing
@@ -476,8 +458,6 @@ def hmon_setup():
     # cfx_time: hypv cfx{trap,mem,reg,exe} (cross-cfx reads after a trap)
     for rc in (0, 1, 2, 3):
         ins += [cfx2rc(TIME_HA, 3, rc, 21)]
-    # cfx_hart hypv_excp_cause_mask bit10 = 0 (async step 5)
-    ins += load_rd(21, 0xFFFF_FFFF_FFFF_FBFF) + [cfx2rc(HART_HA, 3, CG3_EXCP_CAUSE_MASK_RC, 21)]
     # install exception vectors for cfx_hart / cfx_time
     ins += load_rd(21, hmon_addr(OFF_HART_PROVIDER)) + [cfx2rc(HART_HA, 3, CG3_EXCP_VECTOR_RC, 21)]
     ins += load_rd(21, hmon_addr(OFF_TIME_PROVIDER)) + [cfx2rc(TIME_HA, 3, CG3_EXCP_VECTOR_RC, 21)]

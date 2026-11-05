@@ -13,9 +13,9 @@ The probe checks the test-machine arbitration convention:
     re-delivers it, and the target cfx is entered directly (no monitor hop).
 
 Expectations are derived by hand from the frozen spec / contract:
-  - spec/DADAO-12 §5 (exception entry steps 3/4/5: inner_cfx_mask,
-    cfx_intr_mask + global_cfx_intr_mask, excp_cause_mask; pending on a masked
-    source), §4.7 (cfx_hart: TIMER 1<<10, cause_info 0, IMASK),
+  - spec/DADAO-12 §5.2 (exception entry step 3: cfx_intr_mask +
+    global_cfx_intr_mask; pending on a masked source), §4.7
+    (cfx_hart: TIMER 1<<10, cause_info 0, IMASK),
     §4.9 (cfx_pmem: PMEM_DMA 1<<8, cause_info = dma_status).
   - .tao/contracts/contract-see.md «统一异步中断仲裁（测试机约定）» and the
     two-level filter entries.
@@ -32,14 +32,11 @@ Observation channels:
     the default virtual clock and poll ``dma_status.BUSY``.
 
 Bootstrap (body runs in hmon / cfx3, hypv):
-  1. power stage: cfx_hmon hypv_excp_vector = stage, clear
-     ``hypv_switch_cfx_mask`` bits 15 and 32 (target cfxhas of TIMER /
-     PMEM_DMA), then ``trap cfx_hmon, 0``.
+  1. power stage: cfx_hmon hypv_excp_vector = stage, then ``trap cfx_hmon, 0``.
   2. hmon stage: clear the hypv ``cfxtrap/cfxmem/cfxreg/cfxexe`` and
      ``cfx_intr_mask`` masks of cfx_hmon / cfx_pmem / cfx_hart for bits 3/15/32
      (cross-cfx access after a delivery keeps ``inner_cfx_code`` at the target),
-     clear cfx_hmon ``global_cfx_intr_mask`` bits 15/32, clear the target
-     ``excp_cause_mask`` bits (pmem bit8, hart bit10), install the cfx_pmem /
+     clear cfx_hmon ``global_cfx_intr_mask`` bits 15/32, install the cfx_pmem /
      cfx_hart hypv vectors, set cfx_hmon's hypv vector to a poison routine
      (any monitor hop would exit FAIL) and clear cfx_power's cfxmem/cfxexe for
      all four modes (ROM fetch + RAM access from the handler cfx).
@@ -119,8 +116,8 @@ PMEM_DMA_CG = 15
 CG5_CAUSE_ID_RC, CG5_CAUSE_IP_RC, CG5_CAUSE_INFO_RC, CG5_PENDING_RC = 2, 3, 4, 5
 CG4_ASYNC_NUM_RC, CG4_ESCAPE_NUM_RC = 4, 5
 CG3_CFX_INTR_MASK_RC = 4
-CG3_SWITCH_MODE_RC, CG3_SWITCH_CFX_MASK_RC = 8, 9
-CG3_EXCP_VECTOR_RC, CG3_EXCP_CAUSE_MASK_RC = 10, 11
+CG3_SWITCH_MODE_RC = 8
+CG3_EXCP_VECTOR_RC = 10
 DMA_SRC_RC, DMA_DST_RC, DMA_SIZE_RC, DMA_CTRL_RC, DMA_STATUS_RC = 0, 1, 2, 3, 4
 
 TIMER = 1 << 10
@@ -462,11 +459,6 @@ def set_hmon_intr_mask(a, mask):
     a.emit(cfx2rc(HMON_HA, 3, CG3_CFX_INTR_MASK_RC, 22))
 
 
-def set_pmem_cause_mask(a, mask):
-    a.emit(*load_rd(22, mask))
-    a.emit(cfx2rc(PMEM_HA, 3, CG3_EXCP_CAUSE_MASK_RC, 22))
-
-
 def pend(a, ha, rd):
     a.emit(cfx2rd(ha, 5, CG5_PENDING_RC, rd))
 
@@ -542,21 +534,7 @@ def build_rom(prog, hnd=None):
     """Shared prelude: body at RESET_PC + 0x1000; the probe-specific power and
     hmon setup (cross-cfx masks, handlers, poison vector) runs in the prelude's
     segments, so `hmon_addr(off)` is body-relative (TESTCASES-094t §1)."""
-    return _prelude.build_rom(prog, hnd, hmon_extra=hmon_setup(),
-                              power_extra=power_setup())
-
-
-def power_setup():
-    """power-stage setup applied when the prelude traps into hmon.
-
-    cfx_hmon hypv_switch_cfx_mask: clear bits 15 (TIMER) and 32 (PMEM_DMA),
-    the target cfxhas of exception-entry step 3.  The write must happen in
-    power: `switch_cfx_mask` is only applied on entry to hmon, so the same
-    write from the hmon body would not change the current mask
-    (TESTCASES-094t §2).
-    """
-    return (load_rd(22, ALL1 & ~((1 << 15) | (1 << 32)))
-            + [cfx2rc(HMON_HA, 3, CG3_SWITCH_CFX_MASK_RC, 22)])
+    return _prelude.build_rom(prog, hnd, hmon_extra=hmon_setup())
 
 
 def hmon_setup():
@@ -569,19 +547,15 @@ def hmon_setup():
     for rc in (0, 1, 2, 3, CG3_CFX_INTR_MASK_RC):
         ins += [cfx2rc(HMON_HA, 3, rc, 21)]
     ins += [cfx2rc(HMON_HA, 8, 1, 21)]
-    # cfx_pmem: hypv cfg masks + cfx_intr_mask, cause mask bit8 off, vector
+    # cfx_pmem: hypv cfg masks + cfx_intr_mask, vector
     for rc in (0, 1, 2, 3, CG3_CFX_INTR_MASK_RC):
         ins += [cfx2rc(PMEM_HA, 3, rc, 21)]
-    ins += load_rd(21, ALL1 & ~(PMEM_DMA))
-    ins += [cfx2rc(PMEM_HA, 3, CG3_EXCP_CAUSE_MASK_RC, 21)]
     ins += load_rd(21, hmon_addr(OFF_PMEM_HND))
     ins += [cfx2rc(PMEM_HA, 3, CG3_EXCP_VECTOR_RC, 21)]
-    # cfx_hart: hypv cfg masks + cfx_intr_mask, cause mask bit10 off, vector
+    # cfx_hart: hypv cfg masks + cfx_intr_mask, vector
     ins += load_rd(21, MASK_CROSS)
     for rc in (0, 1, 2, 3, CG3_CFX_INTR_MASK_RC):
         ins += [cfx2rc(HART_HA, 3, rc, 21)]
-    ins += load_rd(21, ALL1 & ~(TIMER))
-    ins += [cfx2rc(HART_HA, 3, CG3_EXCP_CAUSE_MASK_RC, 21)]
     ins += load_rd(21, hmon_addr(OFF_HART_HND))
     ins += [cfx2rc(HART_HA, 3, CG3_EXCP_VECTOR_RC, 21)]
     # cfx_power: allow ROM fetch + RAM access from any cfx (cfxmem/cfxexe = 0)
@@ -788,22 +762,23 @@ def _per_cfx_mask_block():
     return build_rom(a.resolve(), handlers()), {"exit": EXIT_PASS}
 
 
-@case("cause_mask_block",
-      "icount: excp_cause_mask bit8 blocks PMEM_DMA; the cfx2rc tail kick refires",
+@case("intr_mask_tail_kick",
+      "icount: cfx_intr_mask bit32 blocks PMEM_DMA; the cfx2rc tail kick refires",
       icount_shift=0)
-def _cause_mask_block():
+def _intr_mask_tail_kick():
     a = Asm()
     set_global_mask(a, 0)
-    set_pmem_cause_mask(a, PMEM_DMA)
+    # delivery filters on the *current* cfx row (hmon, the body's cfx)
+    set_hmon_intr_mask(a, 1 << PMEM_HA)
     dma_status_clear(a)
     dma_start(a)
     dma_wait(a)
     delay_loop(a, 400, "masked")
     ram_ld(a, RAM_PMEM_N, 5)
-    need_eq(a, 5, 0, 0xF1, "cause_blocked")
+    need_eq(a, 5, 0, 0xF1, "filter_blocked")
     pend(a, PMEM_HA, 6)
     need_mask_set(a, 6, PMEM_DMA, 0xF2, "pending_kept")
-    set_pmem_cause_mask(a, 0)                         # generic cfx2rc write tail
+    set_hmon_intr_mask(a, 0)                          # generic cfx2rc write tail
     delay_loop(a, 400, "release")
     ram_ld(a, RAM_PMEM_N, 7)
     need_eq(a, 7, 1, 0xF3, "delivered_once")
@@ -1111,8 +1086,7 @@ def run_structure():
     enter = _function_body(src, "static uint64_t cfx_enter(CPUDADAOState *env")
     check("arbitrate_found", bool(arbitrate), "arbiter body extracted")
     check("cfx_enter_found", bool(enter), "cfx_enter body extracted")
-    for bad in ("cfx_intr_mask", "global_cfx_intr_mask", "excp_cause_mask",
-                "inner_cfx_mask"):
+    for bad in ("cfx_intr_mask", "global_cfx_intr_mask"):
         check("arbiter_no_%s" % bad, bad not in arbitrate,
               "mask decision not copied into the arbiter")
     check("single_async_cfx_enter", src.count(", false, &entered)") == 1,

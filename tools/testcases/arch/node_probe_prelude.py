@@ -295,10 +295,7 @@ def power_segment(extra=None):
 
     Power only performs this hand-off (task book §0/D1); every PMEM/PTW body
     step runs in hmon.  `extra` is probe-specific power-mode setup: it runs
-    after the vector install and before the trap, so a write of cfx_hmon's
-    `hypv_switch_cfx_mask` (cg3 rc9) takes effect when the trap re-enters hmon
-    (cfx_enter applies `switch_cfx_mask` only on entry, not on a register
-    write -- TESTCASES-094t §2).
+    after the vector install and before the trap.
     """
     ins = load_rd(22, RESET_PC + H_OFF) + [cfx2rc(3, 3, 10, 22)]
     if extra:

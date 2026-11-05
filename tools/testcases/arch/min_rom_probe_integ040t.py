@@ -96,7 +96,6 @@ TLB_CG = 12
 TLB_CONTROL_RC, TLB_ASID_RC, TLB_START_RC, TLB_SIZE_RC = 0, 1, 2, 3
 CAUSE_ID_RC, CAUSE_INFO_RC, CAUSE_IP_RC = 2, 4, 3
 SWITCH_MODE_RC, EXCP_VECTOR_RC = 8, 10
-EXCP_CAUSE_MASK_RC = 11
 
 # Page-table physical layout (TESTCASES-093t §3 category C, D3).
 # The shared prelude already installed an identity table at PT_PA and left

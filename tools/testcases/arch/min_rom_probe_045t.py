@@ -7,9 +7,9 @@ Spec sources (expectations derived by hand from spec/ + contracts, never from
 the QEMU implementation):
   - spec/DADAO-12-SEE-主管系统运行环境.md §1 (run modes), §3 (cg0-cg7
     register tables, per-cfx cg4-cg7, RO/RW, scratch_regs_num), §4 (monitor
-    exception table: cause ids), §5 异常进入流程 steps 1-10 + 异常退出流程
-    steps 0-4 (escape: escape_cfx_mask / prev_cfx_mask / prev_run_mode /
-    escape_num++ / PC = excp_cause_ip + (imms18<<2)).
+    exception table: cause ids), §5 异常进入流程 steps 1-7 + 异常退出流程
+    steps 0-4 (escape: prev_run_mode / escape_num++ /
+    PC = excp_cause_ip + (imms18<<2); trap 保存的 global 中断掩码恢复).
   - spec/SimRISC-11-核芯功能扩展指令.md 「指令域与执行条件」 (trap ciii; escape ciii with
     `imms20` byte offset, legal values only 0/4 => encoding imms18 in {0,1},
     addr = excp_cause_ip + imms20 = excp_cause_ip + (imms18<<2);
@@ -46,7 +46,7 @@ Cases (acceptance 2-6):
   escape_illegal_offset (acc 4)   imms18[17:1] != 0 => ILLI; escape_num unchanged.
   escape_cross_mask     (acc 4,6) cross-cfx escape forbidden (step 0) => ILLI.
   escape_cross_allowed  (acc 3)   cross-cfx escape allowed restores non-reset
-                                  prev_run_mode / prev_cfx_mask.
+                                  prev_run_mode.
   cfx2_full_regface     (acc 5)   cfx2rd/cfx2rc cg0-cg7 read/write roundtrip
                                   (RO/RW, scratch, cfx0<->cfx63 sharing;
                                   cg7 is the RO space description, §3.8).
@@ -209,7 +209,6 @@ def observe(log):
     o = {}
     o["mode"] = lastdec(log, r"MODE: (\d+)")
     o["cfxcode"] = lastdec(log, r"CFXCODE: (\d+)")
-    o["cfxmask"] = lasthex(log, r"CFXMASK: ([0-9a-f]+)")
     for i in range(4):
         o["gver%d" % i] = lasthex(log, r"GVER%d: ([0-9a-f]+)" % i)
         o["gcm%d" % i] = lasthex(log, r"GCM%d: ([0-9a-f]+)" % i)
@@ -224,7 +223,6 @@ def observe(log):
         o["cip:%d" % ha] = lasthex(log, t + r" PREVM:[^\n]*CIP:([0-9a-f]+)")
         o["cinfo:%d" % ha] = lasthex(log, t + r" PREVM:[^\n]*CINFO:([0-9a-f]+)")
         o["prevm:%d" % ha] = lasthex(log, t + r" PREVM:([0-9a-f]+)")
-        o["prevmask:%d" % ha] = lasthex(log, t + r" PREVM:[^\n]*PREVMASK:([0-9a-f]+)")
     for n in range(5, 56):
         o["rd%d" % n] = lasthex(log, r"RD\[%02d\]: ([0-9a-f]+)" % n)
     return o
@@ -264,18 +262,17 @@ def _trap_vector_roundtrip():
     prog += [cfx2rd(0, 4, 5, 9)]            # escape_num -> rd9
     prog += [cfx2rd(0, 5, 3, 10)]           # cause_ip   -> rd10
     prog += [cfx2rd(0, 5, 0, 11)]           # prev_run_mode -> rd11
-    prog += [cfx2rd(0, 5, 1, 12)]           # prev_cfx_mask -> rd12
     prog += exit_seq(0x00)
     exp = {
         "exit": 0x00,
-        "cfxcode": 0, "mode": HYPV, "cfxmask": ALL1,
+        "cfxcode": 0, "mode": HYPV,
         "trapn:0": 1, "syncn:0": 0, "escn:0": 1,
         "cid:0": CFXTRAP,
         "cip:0": ROM_BASE + trap_idx * 4,
         "cinfo:0": (0x7F << 24) | (0 << 18) | 0x0123,
-        "prevm:0": HYPV, "prevmask:0": ALL1,
+        "prevm:0": HYPV,
         "rd9": 1, "rd10": ROM_BASE + trap_idx * 4,
-        "rd11": HYPV, "rd12": ALL1,
+        "rd11": HYPV,
     }
     # handler: escape cfx0, imms18=1 (byte offset +4)
     return build_rom(prog, {0x100: [escape(0, 1)]}), exp
@@ -344,9 +341,8 @@ def _escape_cross_mask():
       "cfx2rd/cfx2rc cg0-cg7 roundtrip (cg7 RO readback; cfx0 + cfx63 sharing)")
 def _cfx2_full_regface():
     prog = []
-    # cg4/cg5 RO reads (reset values from DADAO-12 §3/§4): version, scratch_regs_num,
-    # cause_nonmaskable (monitor set = bits 0,1,2,8..13)
-    prog += [cfx2rd(0, 4, 1, 53), cfx2rd(0, 4, 6, 54), cfx2rd(0, 5, 63, 55)]
+    # cg4 RO reads (reset values from DADAO-12 §3): version, scratch_regs_num
+    prog += [cfx2rd(0, 4, 1, 53), cfx2rd(0, 4, 6, 54)]
     # cg0 rc1 cfxmem: write via cfx0, read back via cfx0
     prog += load_rd(20, 0x1111) + [cfx2rc(0, 0, 1, 20), cfx2rd(0, 0, 1, 30)]
     # cg0/1/2/3 rc8 switch_run_mode per mode
@@ -358,10 +354,9 @@ def _cfx2_full_regface():
     prog += load_rd(20, 0xCAFE) + [cfx2rc(0, 3, 12, 20), cfx2rd(0, 3, 12, 35)]
     # cg4 rc0 cfx_id (RO), rc2 trap_num (RO)
     prog += [cfx2rd(0, 4, 0, 36), cfx2rd(0, 4, 2, 37)]
-    # cg5 rc3 cause_ip (RW), rc0 prev_run_mode (RW), rc1 prev_cfx_mask (RW)
+    # cg5 rc3 cause_ip (RW), rc0 prev_run_mode (RW), rc5 pending (RW)
     prog += load_rd(20, 0x5555) + [cfx2rc(0, 5, 3, 20), cfx2rd(0, 5, 3, 38)]
     prog += load_rd(20, 1) + [cfx2rc(0, 5, 0, 20), cfx2rd(0, 5, 0, 39)]
-    prog += load_rd(20, 0x9999) + [cfx2rc(0, 5, 1, 20), cfx2rd(0, 5, 1, 40)]
     prog += load_rd(20, 7) + [cfx2rc(0, 5, 5, 20), cfx2rd(0, 5, 5, 41)]
     prog += [cfx2rd(0, 5, 2, 42)]            # cg5 rc2 cause_id (RO)
     # cg6 scratch rc0 / rc3 (RW, N=4)
@@ -381,11 +376,11 @@ def _cfx2_full_regface():
         "exit": 0x00,
         "rd30": 0x1111, "rd31": 2, "rd32": 1, "rd33": 0, "rd34": 3,
         "rd35": 0xCAFE, "rd36": 0, "rd37": 0,
-        "rd38": 0x5555, "rd39": 1, "rd40": 0x9999, "rd41": 7, "rd42": 0,
+        "rd38": 0x5555, "rd39": 1, "rd41": 7, "rd42": 0,
         "rd43": 0xAAAA, "rd44": 0xBBBB,
         "rd45": 0, "rd46": 0, "rd47": 0x2222,
         "rd48": 0x12345678, "rd49": 0xFFFF,
-        "rd53": 0x00010000, "rd54": 4, "rd55": 0x3F8F,
+        "rd53": 0x00010000, "rd54": 4,
     }
     return build_rom(prog, {}), exp
 

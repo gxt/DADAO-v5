@@ -110,7 +110,9 @@ ERR_PA_FAULT = 1 << 6
 CAUSE_CFXREG = 1 << 2
 CAUSE_PMEM_DMA = 1 << 8
 CG5_CAUSE_ID_RC, CG5_CAUSE_INFO_RC, CG5_PENDING_RC = 2, 4, 5
-CG3_SWITCH_MODE_RC, CG3_EXCP_VECTOR_RC, CG3_EXCP_MASK_RC = 8, 10, 11
+CG3_SWITCH_MODE_RC, CG3_EXCP_VECTOR_RC = 8, 10
+CG3_CFX_INTR_MASK_RC = 4
+INTR_SRC_PMEM = 1 << PMEM_HA          # cfx_intr_mask bit index = source cfxha
 CG3_CFXREG_RC = 2
 CG8_GLOBAL_INTR_MASK_RC = 1
 MODE_H = 3
@@ -283,9 +285,10 @@ def setup_hmon_vector(p, handler):
     p.append(cfx2rc(3, MODE_H, CG3_EXCP_VECTOR_RC, 17))
 
 
-def mask_pmem_dma(p, mask=CAUSE_PMEM_DMA):
+def mask_pmem_dma(p, mask=INTR_SRC_PMEM):
+    """Mask the PMEM_DMA source at the lower (current-cfx) filter level."""
     p += load_rd(17, mask)
-    p.append(cfx2rc(PMEM_HA, MODE_H, CG3_EXCP_MASK_RC, 17))
+    p.append(cfx2rc(PMEM_HA, MODE_H, CG3_CFX_INTR_MASK_RC, 17))
 
 
 def words_to_bytes(ws):
@@ -611,12 +614,10 @@ def _dma_busy_w1c_ignored():
 
 # -- PMEM_DMA async interrupt / masking ----------------------------------
 #
-# PMEM_DMA is maskable, and the reset inner_cfx_mask is all-ones, so an
-# interrupt can only enter a cfx the hart is already executing in: the probe
-# first enters cfx_pmem through a non-maskable CFXREG (a reserved cg15 rc),
-# which switches inner_cfx_mask to cfx_pmem's hypv switch_cfx_mask (0) and
-# makes cfx_pmem the current cfx.  From there the DMA completion is delivered
-# to cfx_pmem itself (DADAO-12 §5.2 steps 3-5, §4.9).
+# PMEM_DMA is maskable; the probe first enters cfx_pmem through a non-maskable
+# trap, which makes cfx_pmem the current cfx.  From there the DMA completion is
+# delivered to cfx_pmem itself, filtered only by the two-level source masks
+# (DADAO-12 §5.2 step 3, §4.9).
 def _make_irq_handler(spin=True):
     w = [cfx2rd(PMEM_HA, 5, CG5_CAUSE_ID_RC, 10),
          cfx2rd(PMEM_HA, 5, CG5_CAUSE_INFO_RC, 11)]
@@ -662,12 +663,8 @@ def _enter_pmem_via_cfxreg(p):
     p.append(trap(PMEM_HA, 0))
 
 
-def _pmem_entry_setup(p, handler_addr, cause_mask, allow_irq=False):
+def _pmem_entry_setup(p, handler_addr, allow_irq=False):
     setup_pmem_vector(p, handler_addr)
-    p += load_rd(17, cause_mask)
-    p.append(cfx2rc(PMEM_HA, MODE_H, CG3_EXCP_MASK_RC, 17))
-    p += load_rd(17, 0)                    # switch_cfx_mask = 0 (unmask on entry)
-    p.append(cfx2rc(PMEM_HA, MODE_H, 9, 17))
     # A trap entry into cfx_pmem saves + masks the current monitor's global
     # source mask (DADAO-12 §5.2); let cfx_pmem restore it from its handler by
     # clearing cfx_hmon's cfxreg source bit for source cfx32.
@@ -685,7 +682,7 @@ def _pmem_entry_setup(p, handler_addr, cause_mask, allow_irq=False):
 @case("pmem_dma_irq_delivered", "IRQ_EN=1 delivers PMEM_DMA to cfx_pmem")
 def _pmem_dma_irq_delivered():
     p = []
-    _pmem_entry_setup(p, PMEM_HANDLER, cause_mask=0, allow_irq=True)
+    _pmem_entry_setup(p, PMEM_HANDLER, allow_irq=True)
     fill_sram(p, 0x0000, MAGIC)
     status_clear(p)
     dma_setup(p, PMEM_BASE, DATA_A, 8, 0)  # latched, not started
@@ -699,7 +696,8 @@ def _pmem_dma_irq_delivered():
 @case("pmem_dma_masked_pending", "masked PMEM_DMA only records cfx_pmem pending")
 def _pmem_dma_masked_pending():
     p = []
-    _pmem_entry_setup(p, PMEM_HANDLER, cause_mask=CAUSE_PMEM_DMA)
+    _pmem_entry_setup(p, PMEM_HANDLER)
+    mask_pmem_dma(p)                       # lower-level source filter blocks it
     fill_sram(p, 0x0000, MAGIC)
     status_clear(p)
     dma_setup(p, PMEM_BASE, DATA_A, 8, 0)

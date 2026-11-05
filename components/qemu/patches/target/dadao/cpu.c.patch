@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..5693dae
+index 0000000..d30b32f
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,648 @@
+@@ -0,0 +1,596 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -243,12 +243,11 @@ index 0000000..5693dae
 +
 +    /* ── SEE/HEE reset state (QEMU-044t) ──
 +     * Reset boots in hypv at cfx_power (DADAO-12 §2.1: reset vector is
-+     * cfx_power_hypv_excp_vector); inner_cfx_mask = all-ones (ADR-0004 D2,
-+     * reference DADAO-0628 scaffold).  Register reset values follow
++     * cfx_power_hypv_excp_vector).  There is no independent cfx-mask layer
++     * (DADAO-12 §5.2).  Register reset values follow
 +     * DADAO-12 §3 (cg0-cg3) and DADAO-13 §1 (cg3/hypv). */
 +    env->inner_run_mode = DADAO_MODE_HYPV;
 +    env->inner_cfx_code = 63;
-+    env->inner_cfx_mask = ~0ULL;
 +
 +    /* ADR-0045 D4: every cfx's four sync source masks default to
 +     * 0xFFFF_FFFF_FFFF_FFF7 (only hmon / cfx3 may access); hmon itself uses
@@ -273,7 +272,7 @@ index 0000000..5693dae
 +            mr->cfx_intr_mask = ~0ULL;        /* rc4 */
 +            if (m == DADAO_MODE_HYPV) {
 +                /* DADAO-13 §1 (cg3): switch_run_mode=3,
-+                 * switch_cfx_mask all-1, excp_vector = cfxha<<42 | 0x3ff_ffff_0000. */
++                 * excp_vector = cfxha<<42 | 0x3ff_ffff_0000. */
 +                mr->switch_run_mode = DADAO_MODE_HYPV;
 +                mr->excp_vector = (cfxha << 42) + 0x3FFFFFF0000ULL;
 +                mr->cg_reg_deleg = ~0ULL;
@@ -284,8 +283,6 @@ index 0000000..5693dae
 +                mr->excp_vector = 0;
 +                mr->cg_reg_deleg = 0;
 +            }
-+            mr->switch_cfx_mask = ~0ULL;      /* rc9 */
-+            mr->excp_cause_mask = ~0ULL;      /* rc11 */
 +        }
 +        /* cg8 rc1 global_cfx_intr_mask: cfx0-3 only, all-1 at reset (D3). */
 +        r->global_cfx_intr_mask = (cfxha < 4) ? ~0ULL : 0;
@@ -299,55 +296,10 @@ index 0000000..5693dae
 +        r->escape_num = 0;                    /* cg4 rc5 */
 +        r->scratch_regs_num = 4;              /* cg4 rc6 (HW; >=2,<=64) */
 +        r->prev_run_mode = 0;                 /* cg5 rc0 */
-+        r->prev_cfx_mask = 0;                 /* cg5 rc1 */
 +        r->cause_id = 0;                      /* cg5 rc2 */
 +        r->cause_ip = 0;                      /* cg5 rc3 */
 +        r->cause_info = 0;                    /* cg5 rc4 */
 +        r->pending = 0;                       /* cg5 rc5 */
-+        /* cg5 rc63: non-maskable set from the cfx exception table
-+         * (DADAO-12 §4: every listed cause is "no").  CFXESC is listed for
-+         * every cfx (ADR-0045 D6); CFXPERM only for the cfx0-3 monitors. */
-+        r->cause_nonmaskable = DADAO_CAUSE_CFXTRAP | DADAO_CAUSE_CFXMEM |
-+                               DADAO_CAUSE_CFXREG | DADAO_CAUSE_CFXESC |
-+                               DADAO_CAUSE_ILLI |
-+                               DADAO_CAUSE_UNDI | DADAO_CAUSE_RASOF |
-+                               DADAO_CAUSE_RASUF | DADAO_CAUSE_MALIGN |
-+                               DADAO_CAUSE_IALIGN;
-+        if (cfxha < 4) {
-+            r->cause_nonmaskable |= DADAO_CAUSE_CFXPERM;
-+        }
-+        /* cfx_ptw additionally owns the page-level causes (DADAO-12 §4.5;
-+         * every entry is "不可屏蔽"). */
-+        if (cfxha == DADAO_CFXHA_PTW) {
-+            r->cause_nonmaskable |= DADAO_CAUSE_PTWERR |
-+                                    DADAO_CAUSE_NUPERM | DADAO_CAUSE_NJPERM |
-+                                    DADAO_CAUSE_NSPERM | DADAO_CAUSE_NHPERM |
-+                                    DADAO_CAUSE_NXPERM | DADAO_CAUSE_NWPERM |
-+                                    DADAO_CAUSE_NRPERM | DADAO_CAUSE_IGPTRAP |
-+                                    DADAO_CAUSE_ISPTRAP |
-+                                    DADAO_CAUSE_IGPFTRAP |
-+                                    DADAO_CAUSE_ISPFTRAP |
-+                                    DADAO_CAUSE_DGPTRAP |
-+                                    DADAO_CAUSE_DSPTRAP |
-+                                    DADAO_CAUSE_DGPFTRAP |
-+                                    DADAO_CAUSE_DSPFTRAP;
-+        }
-+        /* cfx_pmem's exception table lists only CFXTRAP/CFXMEM/CFXREG as
-+         * non-maskable; PMEM_DMA (1 << 8) is maskable (DADAO-12 §4.9;
-+         * ADR-0042 D7.4).  The monitor base set above shares bits 8-13 with
-+         * asynchronous causes, so the per-cfx table wins here. */
-+        if (cfxha == DADAO_CFXHA_PMEM) {
-+            r->cause_nonmaskable = DADAO_CAUSE_CFXTRAP | DADAO_CAUSE_CFXMEM |
-+                                   DADAO_CAUSE_CFXREG | DADAO_CAUSE_CFXESC;
-+        }
-+        /* cfx_hart/cfx_time exception tables list only CFXTRAP/CFXMEM/
-+         * CFXREG/CFXESC as non-maskable: IPI (1 << 8) and TIMER (1 << 10)
-+         * are maskable, so the monitor base set must not leak RASOF/NSPERM
-+         * (= 1 << 10) into cfx_hart (DADAO-12 §4.7/§4.10). */
-+        if (cfxha == DADAO_CFXHA_HART || cfxha == DADAO_CFXHA_TIME) {
-+            r->cause_nonmaskable = DADAO_CAUSE_CFXTRAP | DADAO_CAUSE_CFXMEM |
-+                                   DADAO_CAUSE_CFXREG | DADAO_CAUSE_CFXESC;
-+        }
 +        /* cg6 scratch[]/cg7 left 0 (scratch undefined at reset) */
 +    }
 +}
@@ -451,7 +403,6 @@ index 0000000..5693dae
 +    /* ── SEE/HEE state (QEMU-044t) ── */
 +    qemu_fprintf(f, "MODE: %u\n", env->inner_run_mode);
 +    qemu_fprintf(f, "CFXCODE: %u\n", env->inner_cfx_code);
-+    qemu_fprintf(f, "CFXMASK: %016" PRIx64 "\n", env->inner_cfx_mask);
 +    qemu_fprintf(f, "PTBR: %016" PRIx64 " PTW_ENABLE: %u\n",
 +                 env->ptbr, env->ptw_enable);
 +    qemu_fprintf(f, "TLBASID: %04" PRIx64 " TLBSTART: %016" PRIx64
@@ -468,25 +419,22 @@ index 0000000..5693dae
 +                     dadao_cfxha_map[i], r->cfx_id, r->version, r->trap_num,
 +                     r->excp_sync_num, r->excp_async_num, r->escape_num,
 +                     r->scratch_regs_num, r->global_cfx_intr_mask);
-+        qemu_fprintf(f, "CFX%02d PREVM:%016" PRIx64 " PREVMASK:%016" PRIx64
++        qemu_fprintf(f, "CFX%02d PREVM:%016" PRIx64
 +                     " CID:%016" PRIx64 " CIP:%016" PRIx64
-+                     " CINFO:%016" PRIx64 " PEND:%016" PRIx64
-+                     " NONMASK:%016" PRIx64 "\n",
-+                     dadao_cfxha_map[i], r->prev_run_mode, r->prev_cfx_mask,
-+                     r->cause_id, r->cause_ip, r->cause_info, r->pending,
-+                     r->cause_nonmaskable);
++                     " CINFO:%016" PRIx64 " PEND:%016" PRIx64 "\n",
++                     dadao_cfxha_map[i], r->prev_run_mode,
++                     r->cause_id, r->cause_ip, r->cause_info, r->pending);
 +        for (j = 0; j < 4; j++) {
 +            qemu_fprintf(f, "CFX%02d M%d SWMODE:%016" PRIx64
-+                         " SWMASK:%016" PRIx64 " VEC:%016" PRIx64
++                         " VEC:%016" PRIx64
 +                         " TRAPMASK:%016" PRIx64 " MEMMASK:%016" PRIx64
 +                         " REGMASK:%016" PRIx64 " EXEMASK:%016" PRIx64
-+                         " INTRMASK:%016" PRIx64 " CAUSEMASK:%016" PRIx64 "\n",
++                         " INTRMASK:%016" PRIx64 "\n",
 +                         dadao_cfxha_map[i], j,
-+                         r->mode[j].switch_run_mode, r->mode[j].switch_cfx_mask,
++                         r->mode[j].switch_run_mode,
 +                         r->mode[j].excp_vector, r->mode[j].cfxtrap,
 +                         r->mode[j].cfxmem, r->mode[j].cfxreg,
-+                         r->mode[j].cfxexe, r->mode[j].cfx_intr_mask,
-+                         r->mode[j].excp_cause_mask);
++                         r->mode[j].cfxexe, r->mode[j].cfx_intr_mask);
 +        }
 +        for (j = 0; j < 4; j++) {
 +            qemu_fprintf(f, "CFX%02d SCR%d:%016" PRIx64 "\n",

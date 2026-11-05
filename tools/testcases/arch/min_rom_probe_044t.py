@@ -6,7 +6,7 @@ Spec sources (expectations derived by hand from spec/ + contracts, never from
 the QEMU implementation):
   - spec/DADAO-12-SEE-主管系统运行环境.md §1 (run modes 0/1/2/3),
     §3 (cg0-cg7 shared registers, reset values), §4 (per-cfx regs / monitor
-    exception tables), §5 (exception entry steps 1-10 + exception exit).
+    exception tables), §5 (exception entry steps 1-7 + exception exit).
   - spec/DADAO-13-HEE-超管系统运行环境.md §1 (cg3/hypv reset values).
   - spec/SimRISC-11-核芯功能扩展指令.md 「指令域与执行条件」 (trap/escape/cfx2rd/cfx2rc; reserved => ILLI;
     non-existent register combination => CFXREG).
@@ -37,7 +37,7 @@ Cases (acceptance 2-7):
   mask_illi         (acc 4)     instruction-type trap mask => ILLI redirect
   reserved_illi     (acc 6)     reserved cfxha => ILLI
   cfxreg_unimpl     (acc 6)     unimplemented cfx => CFXREG
-  cfxreg_badcombo   (acc 6)     invalid register combination => CFXREG
+  cfxreg_badcombo   (acc 6)     invalid/reserved register combination => CFXREG
   cfxreg_ro_write   (acc 6)     write to a read-only cfx register => CFXREG
 
 Usage:
@@ -180,7 +180,6 @@ def observe(log):
     o = {}
     o["mode"] = lastdec(log, r"MODE: (\d+)")
     o["cfxcode"] = lastdec(log, r"CFXCODE: (\d+)")
-    o["cfxmask"] = lasthex(log, r"CFXMASK: ([0-9a-f]+)")
     for i in range(4):
         o["gver%d" % i] = lasthex(log, r"GVER%d: ([0-9a-f]+)" % i)
         o["gcm%d" % i] = lasthex(log, r"GCM%d: ([0-9a-f]+)" % i)
@@ -195,7 +194,6 @@ def observe(log):
         o["cip:%d" % ha] = lasthex(log, t + r" PREVM:[^\n]*CIP:([0-9a-f]+)")
         o["cinfo:%d" % ha] = lasthex(log, t + r" PREVM:[^\n]*CINFO:([0-9a-f]+)")
         o["prevm:%d" % ha] = lasthex(log, t + r" PREVM:([0-9a-f]+)")
-        o["prevmask:%d" % ha] = lasthex(log, t + r" PREVM:[^\n]*PREVMASK:([0-9a-f]+)")
         for m in range(4):
             o["swmode:%d:%d" % (ha, m)] = lasthex(
                 log, t + r" M%d SWMODE:([0-9a-f]+)" % m)
@@ -218,14 +216,9 @@ def case(name, desc):
     return deco
 
 
-def base_setup_cfx63(switch_mode=None, clear_cause_mask=True):
-    """hypv/cfx63 setup: optionally clear cause mask / switch mask / set mode."""
+def base_setup_cfx63(switch_mode=None):
+    """hypv/cfx63 setup: optionally set the hypv switch_run_mode."""
     ins = []
-    if clear_cause_mask or switch_mode is not None:
-        ins += [set_zw_rd(20, 0, 0)]
-        if clear_cause_mask:
-            ins += [cfx2rc(63, 3, 11, 20)]   # cfx63 hypv excp_cause_mask = 0
-        ins += [cfx2rc(63, 3, 9, 20)]        # cfx63 hypv switch_cfx_mask = 0
     if switch_mode is not None:
         ins += load_rd(21, switch_mode)
         ins += [cfx2rc(63, 3, 8, 21)]        # cfx63 hypv switch_run_mode = X
@@ -244,10 +237,10 @@ def _run_mode_case(sm):
     prog += [trap(63, 0)]
     prog += exit_seq(0xEE)
     exp = {
-        "exit": 0x11, "mode": sm, "cfxcode": 63, "cfxmask": 0,
+        "exit": 0x11, "mode": sm, "cfxcode": 63,
         "trapn:63": 1, "cid:63": CFXTRAP, "cinfo:63": 0x7FFC0000,
         "cip:63": ROM_BASE + trap_idx * 4,
-        "prevm:63": HYPV, "prevmask:63": ~0 & 0xFFFFFFFFFFFFFFFF,
+        "prevm:63": HYPV,
         "swmode:63:3": sm,
     }
     return build_rom(prog, hand(0x100, 0x11)), exp
@@ -269,9 +262,8 @@ def _reset_values():
     prog = [cfx2rd(3, 7, 0, 5), cfx2rd(3, 7, 1, 6),
             cfx2rd(3, 7, 2, 7), cfx2rd(3, 7, 3, 10)]
     prog += exit_seq(0x00)     # observe reset state (body in hmon)
-    all1 = ~0 & 0xFFFFFFFFFFFFFFFF
     exp = {
-        "exit": 0x00, "mode": HYPV, "cfxcode": 3, "cfxmask": all1,
+        "exit": 0x00, "mode": HYPV, "cfxcode": 3,
         "id:0": 0, "id:1": 1, "id:2": 2, "id:3": 3, "id:63": 63,
         "scrnum:0": 4, "scrnum:63": 4,
         "swmode:63:0": SUPV, "swmode:63:1": SUPV,
@@ -315,7 +307,7 @@ def _trap_counters():
 
 
 # -- acc 3/7: escape -------------------------------------------------------
-@case("escape_return", "escape -> cause_ip+4, escape_num++, prev mode/mask restore")
+@case("escape_return", "escape -> cause_ip+4, escape_num++, prev mode restore")
 def _escape_return():
     prog = base_setup_cfx63()
     prog += load_rd(22, H) + [cfx2rc(63, 3, 10, 22)]
@@ -366,15 +358,24 @@ def _cfxreg_unimpl():
     return build_rom(prog, hand(0x100, 0x44)), exp
 
 
-# -- acc 6: invalid register combination -> CFXREG --------------------------
-@case("cfxreg_badcombo", "invalid cfx register combo (scratch rc>=N) => CFXREG")
+# -- acc 6: invalid / reserved register combinations -> CFXREG --------------
+@case("cfxreg_badcombo",
+      "invalid or reserved cfx register combos (scratch rc>=N; cg0-3 rc9/rc11; "
+      "cg5 rc1/rc63) => CFXREG")
 def _cfxreg_badcombo():
     prog = load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]   # cfx_hmon hypv vector = H
+    prog += load_rd(25, 0)                           # write source value
     prog += [cfx2rd(0, 6, 5, 5)]                     # cfx0 scratch rc5 >= N(4)
-    prog += exit_seq(0xEE)
-    # DADAO-12 §5.2: CFXREG goes to the current-mode monitor (hypv => cfx_hmon)
-    exp = {"exit": 0x45, "cid:3": CFXREG, "syncn:3": 1}
-    return build_rom(prog, hand(0x100, 0x45)), exp
+    prog += [cfx2rd(0, 3, 9, 5)]                     # reserved hypv rc9 (read)
+    prog += [cfx2rd(0, 3, 11, 5)]                    # reserved hypv rc11 (read)
+    prog += [cfx2rd(3, 5, 1, 5)]                     # reserved cg5 rc1 (read)
+    prog += [cfx2rd(3, 5, 63, 5)]                    # reserved cg5 rc63 (read)
+    prog += [cfx2rc(0, 3, 9, 25)]                    # reserved hypv rc9 (write)
+    prog += exit_seq(0x00)                           # only reached via escape
+    # DADAO-12 §5.2: CFXREG goes to the current-mode monitor (hypv => cfx_hmon);
+    # the handler escapes back so the next reserved access is exercised too.
+    exp = {"exit": 0x00, "cid:3": CFXREG, "syncn:3": 6}
+    return build_rom(prog, {0x100: [escape(3, 1)]}), exp
 
 
 # -- acc 6: write to a read-only cfx register -> CFXREG ---------------------

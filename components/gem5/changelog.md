@@ -4,6 +4,10 @@
 
 ## M11
 
+- **2026-11-05 INTEG-054t**
+  - 摘要：**对齐 QEMU 删除 5 个无效屏蔽寄存器（SPEC-188t）**：`node_cfx.hh` 移除 `NodeCfxMode.{switchCfxMask,excpCauseMask}`、`NodeCfxRegs.{prevCfxMask,causeNonmaskable}` 与 `NodeState.cfxMask`；`node_cfx.cc` 复位/寄存器解析/异常进入/`escape` 同步对齐——`cg0`–`cg3` `rc9`/`rc11` 与 `cg5` `rc1`/`rc63` 返回 `nullptr`（⇒ `CFXREG`），同步异常不可屏蔽、异步只按 `cfx_intr_mask`+`globalCfxIntrMask` 两级来源过滤，`escape` 不再恢复 cfx 屏蔽状态、保留 trap 保存的 `globalCfxIntrMask` 恢复；`isa.cc` 的 `-d cpu` 兼容 dump 删除 `CFXMASK`/`PREVMASK`/`NONMASK`/`SWMASK`/`CAUSEMASK`。补丁 3 份改（`isa.cc`/`node_cfx.cc`/`node_cfx.hh`），`make_patch.py` 重导出（3 written / 94 unchanged）。验收：`build-gem5`、`check-gem5-decode`、`check-source-state`/`check-patch-tree`、node/arch parity 无回归。
+  - 执行者：engineer
+
 - **2026-11-04 GEM5-019t**
   - 摘要：**`SYS_ELAPSED` 与 `SYS_TICKFREQ` 统一 1e9 ticks/s 基准**。新增共享常量 `DadaoISA::Semihosting::ticksPerSecond = 1e9`（M11 用户裁定；QEMU `DADAO_TIME_FREQ` 与 `contract-see` 的 `cfx_time` 1 GHz 测试机约定同源），`SYS_TICKFREQ` 改用它、值不变；新增 `callElapsed32/64` 覆盖与私有 helper `elapsedTicks()`，按 `floor(curTick() * 1e9 / sim_clock::Frequency)` 从引擎频率独立换算（`unsigned __int128` 中间量避免 64 位乘积溢出，结果 64 位；不减 `timeBaseTick`，基准是引擎起点，同 QEMU `clock_start`）。32 位入口（DADAO 恒 64 位、guest 不可达）共用同一 helper，不留 `semiTick` 旧路径；基类 `src/arch/generic/semihosting.*` 未改。验收：独立单位探针（debug tick 前缀 + 启动横幅 N + `--trace-cpu` 的 `E1/E2/F`）逐样本 `E == floor(T*1e9/N)`、`E2>E1`、旧映射 `T>>8` 不成立；046t `svc_elapsed`/`svc_tickfreq` PASS，全量 case 与 5 条 TICKFREQ 探针、node/arch parity、B0–B7、SE 零退化。
   - 执行者：engineer
