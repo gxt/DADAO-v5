@@ -2,6 +2,16 @@
 
 > 只记**当前未决/待裁定**事项；任务流水看 `.tao/knowledge/milestones.md`，历史与已落实项不在此保留。
 
+## 2026-11-05 异常/中断入口模型（A）
+
+- **执行过程中的同步异常和异步中断，先进入当前运行模式的 monitor**。
+- monitor 是**第一处理者**（A，非中转）：
+  - 拥有异步来源屏蔽、pending、分发决策；
+  - 可自行处理并 `escape`，也可 `trap` 到源 cfx；
+  - monitor 处理期间的新事件置 pending，不嵌套 monitor。
+- 显式指令仍直接到 cfx：`trap cfx` → 目标 cfx（`CFXTRAP`）；`escape cfx` → 当前 cfx（`CFXESC`）。
+- 覆盖 `SPEC-186t` 第 4 项；第 3 项寄存器面（`inner_cfx_mask`/`switch_cfx_mask`/`excp_prev_cfx_mask`）待裁定。
+
 ## 当前阻塞（2026-11-05）
 
 > 以下均已立册；阻塞原因是语义待裁定或依赖未满足，不是“没有任务”。

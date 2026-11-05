@@ -28,6 +28,7 @@
 > 「`unmapped` 归当前运行模式 monitor 的 `CFXMEM`。」
 > 「monitor 异常编号使用 DADAO 位索引：CFXTRAP=0、CFXMEM=1、CFXREG=2、CFXESC=3、CFXPERM=7、ILLI=8、UNDI=9、RASOF=10、RASUF=11、MALIGN=12、IALIGN=13；PTWERR 删除。」
 > 「A/D 回写失败（原 `PTWERR`）按当前运行模式 monitor 的 `CFXMEM` 处理；`cause_info` = PTE 物理地址；不进入 `cfx_ptw` 自己的异常入口，也不归 `CFXPERM`。」（2026-11-05 裁定，用户原话：「不对，还是应该当前运行模式monitor的CFXMEM」）
+> 「执行过程中的同步异常和异步中断应该先进对应运行模式的 monitor 中。」（2026-11-05 裁定；异步模型选 **A**：monitor 是第一处理者，拥有屏蔽/pending/分发；显式 `trap`/`escape` 仍直接到 cfx；monitor 处理期间新事件置 pending，不嵌套。）
 > 「异步中断屏蔽不冻结，明确列为后续修订，M11 不承诺完整异步语义。」
 > 「退出码表归 `Machine-v5`，不在本任务；本任务只改 DADAO-12 异常流程/原因路由，不改 QEMU/gem5/tests/tools。」
 
@@ -99,14 +100,17 @@
 - §5.2 正文与伪代码中**不得出现 `inner_cfx_mask` 标识符**（同步屏蔽层已拆除；状态保存用「异常前核芯功能扩展掩码状态」描述）。
 - 不得再出现「若 `inner_cfx_mask` 为 1，同步异常触发 `ILLI`」一类语句。
 
-**（5）异步中断边界**
+**（5）异步中断边界（模型 A：monitor 第一处理者）**
 
-- 必须有独立段落/条目写明：异步中断的屏蔽与 pending 语义**列入后续修订，本节不冻结**；`M11` **不承诺完整异步语义**。
-- 不得把未定的异步屏蔽写成已定稿规则；同步路由段落与异步待修订段落须可区分。
+- 必须有独立段落/条目写明：**执行过程中的异步中断先进入当前运行模式的 monitor**，不是直接进入源 cfx。
+- monitor 拥有异步来源屏蔽、pending、分发决策；可自行处理并 `escape`，也可 `trap` 到源 cfx。
+- monitor 处理期间的新事件**置 pending，不嵌套 monitor**；不得写成可递归进入 monitor。
+- 具体的 pending 位布局、优先级/抢占顺序可列为后续修订，但“先入 monitor / 不嵌套 / monitor 可分发给源 cfx”三条必须定稿。
+- 不得把未定的调度细节写成已定稿规则；同步路由段、异步入口段、异步调度待修订段须可区分。
 
 **（6）伪代码**
 
-按 8 步重写现有伪代码：删除 inner mask 判定与 mask 切换；同步分支按上述路由设置 `cause` 与 `temp_cfx_code`；`CFXREG`/`CFXPERM`/`CFXMEM`/`ILLI` 等同步目标均为当前 monitor；`CFXTRAP` 目标为 `cfxha`；`CFXESC` 目标为当前 cfx；异步分支保留「目标 = 中断源 cfx」并标注「屏蔽语义待后续修订」。伪代码注释沿用现有风格，不引入新寄存器名。
+按 8 步重写现有伪代码：删除 inner mask 判定与 mask 切换；同步分支按上述路由设置 `cause` 与 `temp_cfx_code`；`CFXREG`/`CFXPERM`/`CFXMEM`/`ILLI` 等同步目标均为当前 monitor；`CFXTRAP` 目标为 `cfxha`；`CFXESC` 目标为当前 cfx；**异步分支目标 = 当前运行模式 monitor**，monitor 再按来源决定自行处理或 `trap` 到源 cfx，并标注「处理期间新事件置 pending、不嵌套」。伪代码注释沿用现有风格，不引入新寄存器名。
 
 ### 2. `spec/DADAO-12-SEE-主管系统运行环境.md §1`（最小同步）
 
@@ -147,7 +151,7 @@
    - `CFXPERM` 目标含「当前运行模式 monitor」；`CFXREG` 目标含「当前运行模式 monitor」且含「不进入被访问」；`CFXMEM` 目标含「当前运行模式 monitor」，且含 A/D 回写失败（`cause_info` = PTE 物理地址）、不含 `PTWERR`；reserved cfx 的 `ld/st` 归 `CFXMEM`、`trap`/`escape` 归 `ILLI` 且均为当前 monitor；未映射页归 `CFXMEM` 当前 monitor；页权限拒绝归 `CFXPERM` 当前 monitor；`CFXTRAP` 目标为目标 cfx；`CFXESC` 目标为当前 cfx。
    - monitor 编号 11 项逐项命中：0/1/2/3/7/8/9/10/11/12/13 与名称一一对应。
 2. **`inner_cfx_mask` 同步屏蔽拆除**：§5.2 正文与伪代码中 `inner_cfx_mask` 出现次数为 **0**；无「同步异常触发 ILLI」的 mask 判定；§1 注记不再把它写成同步异常屏蔽层。
-3. **异步边界**：§5.2 明确出现「后续修订」与「M11 不承诺完整异步语义」（或语义等价且可 grep 的表述）；同步路由与异步待修订段落可区分。
+3. **异步边界（模型 A）**：§5.2 明确出现「异步中断先入当前运行模式 monitor」「monitor 可分发给源 cfx」「处理期间置 pending、不嵌套」；调度细节可有「后续修订」，但上述三条不得写成未定；同步路由段与异步段可区分。
 4. **门控（逐条贴真实命令 + 命令自身 rc，禁 `| tee` 吞码）**：`make check-spec-readonly`、`check-spec-refs`、`check-spec-drift`、`check-spec-changelog`、`check-spec-numbering`、`check-spec-purity`、`check-spec-cite-targets`、`check-spec-codeblocks`、`check-issues`、`check-milestones-fresh`、`check-sync-nonmaskable` 全 **rc=0**；既有基线红须逐条与 `master` 对账（名称 + rc），不得以基线红掩盖本任务引入的红。
 5. **只读锁**：`sha256sum spec/DADAO-12-SEE-主管系统运行环境.md` 与锁值逐字相等；锁 diff 仅 `dadao-12` 块（注释 + 1 行 sha256）；其它册 sha 不变；注记含日期 + 用户口径摘要。
 6. **编号零漂移**：`git diff -U0` 证明 `DADAO-12` 的所有 `##`/`###` 标题行未变；§5.2 标题仍为 `### 5.2 异常进入流程`。
