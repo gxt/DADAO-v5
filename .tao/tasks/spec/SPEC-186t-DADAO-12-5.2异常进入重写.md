@@ -37,7 +37,7 @@
 ## 目标
 
 1. 整体重写 `spec/DADAO-12-SEE-主管系统运行环境.md §5.2`：执行期同步异常与异步中断都先进入当前运行模式 monitor（模型 A）；monitor 是第一处理者，可自行处理或 `trap` 到源 cfx；删除 `inner_cfx_mask`/`switch_cfx_mask`/`excp_prev_cfx_mask` 的**使用**；处理期间新事件置 pending、不嵌套；调度细节可列后续修订。
-2. 同步 §1 的 `inner_*` 注记（删除 `inner_cfx_mask`；改为 monitor 的 `cfx_intr_mask` + `excp_pending`），保留 §2/§3/§4 其它内容不动；`global_cfx_intr_mask` 保留。
+2. 同步 §1：`inner_*` 注记（删除 `inner_cfx_mask`，改为 monitor 的 `cfx_intr_mask` + `excp_pending`）＋异常归属句/表（同步/异步入口统一当前 monitor；地址转换异常不再进 `cfx_ptw`；外部中断先入 monitor；`umon/jmon/smon/hmon` 表项加异步中断；显式 `trap`/`escape` 仍隶属目标/当前 cfx）。保留 §2/§3/§4 其它内容不动；`global_cfx_intr_mask` 保留。
 3. 在附录 `0.7.3-rc`（未发布）追加一条变更记录；版本号不变（不发布）。
 4. 同笔重算 `manifests/spec-readonly.lock.toml` 中 `DADAO-12` 的 `sha256`，并写授权注记（日期 + 用户口径摘要）；其它册的 `sha256`/注记不动。
 5. 十项门控全绿、两处注入可达 FAIL、证据与完成区真实 rc；状态置 `待验收`。
@@ -86,22 +86,22 @@
 
 `PTWERR` 不再出现在 §5.2 的 monitor 编号与投递目标中；A/D 回写失败已裁定按 `CFXMEM`（当前运行模式 monitor）处理，`cause_info` = PTE 物理地址；不得改为 `CFXPERM` 或 `cfx_ptw` 闭环。
 
-**（3）异常进入步骤（重排为 8 步，删除原步骤 3）**
+**（3）异常进入步骤（重排为 7 步；删除原同步 mask 步骤与 cause mask 步骤）**
 
-1. 确定异常原因与目标（按上表）。
-2. 判断是否不可屏蔽：同步异常全部不可屏蔽，直接进入步骤 5；异步按原因表。
-3. **异步中断来源过滤**（仅异步；`cfx_intr_mask`/`global_cfx_intr_mask`/pending 语义列入后续修订，本节不冻结）。
-4. **异常原因 mask**（仅异步；同步跳过）。
-5. 更新陷入计数（`trap_num`/`excp_sync_num`/`excp_async_num`）。
-6. 保存现场：`excp_prev_run_mode`、异常前核芯功能扩展掩码状态（供 `escape` 恢复）、`excp_cause_ip`/`excp_cause_id`/`excp_cause_info`；`trap` 进入时另保存 `global_cfx_intr_mask` 并置全 1。
-7. 模式/目标切换：`inner_run_mode` 取目标 cfx 的 `<mode>_switch_run_mode`，`inner_cfx_code` 取目标 cfx；**不切换独立 cfx 屏蔽层**。
-8. 跳转至目标 cfx 的 `<mode>_excp_vector`。
+1. 确定异常原因与目标（按上表）；执行期同步异常与异步中断目标均为当前运行模式 monitor。
+2. 同步异常全部不可屏蔽，不查任何 cause mask；异步中断只按来源过滤（下一步），也不查 cause mask。
+3. **异步中断来源过滤**（仅异步）：查 monitor 的 `cfx_intr_mask`（cg0–3 rc4）与 `global_cfx_intr_mask`（cg8 rc1）；被屏蔽时置 monitor `excp_pending`（cg5 rc5），不投递；`excp_cause_mask`/`excp_cause_nonmaskable` 不存在。
+4. 更新陷入计数（`trap_num`/`excp_sync_num`/`excp_async_num`）。
+5. 保存现场：`excp_prev_run_mode`、`excp_cause_ip`/`excp_cause_id`/`excp_cause_info`；`trap` 进入时另保存 `global_cfx_intr_mask` 并置全 1；**不保存 `excp_prev_cfx_mask`**。
+6. 模式/目标切换：`inner_run_mode` 取目标 cfx 的 `<mode>_switch_run_mode`，`inner_cfx_code` 取目标 cfx；**不切换独立 cfx 屏蔽层**。
+7. 跳转至目标 cfx 的 `<mode>_excp_vector`。
 
 **（4）`inner_cfx_mask` 约束**
 
 - §5.2 正文与伪代码中**不得出现 `inner_cfx_mask` 标识符**（同步屏蔽层已拆除；状态保存用「异常前核芯功能扩展掩码状态」描述）。
 - 不得再出现「若 `inner_cfx_mask` 为 1，同步异常触发 `ILLI`」一类语句。
-- A1：§5.2/§1 不再引用 `switch_cfx_mask`/`excp_prev_cfx_mask`；`escape` 不恢复 `excp_prev_cfx_mask`；`global_cfx_intr_mask` 仍按 trap 保存/escape 恢复。异步来源过滤用 monitor 自身 `cfx_intr_mask`（cg0–3 rc4），屏蔽期间 pending 用 monitor `excp_pending`（cg5 rc5）。寄存器定义删除由 `SPEC-188t` 负责，本任务不改 §3.x。
+- A1：§5.2/§1 不再引用 `switch_cfx_mask`/`excp_prev_cfx_mask`/`excp_cause_mask`/`excp_cause_nonmaskable`；`escape` 不恢复 `excp_prev_cfx_mask`；`global_cfx_intr_mask` 仍按 trap 保存/escape 恢复。异步来源过滤用 monitor 自身 `cfx_intr_mask`（cg0–3 rc4），屏蔽期间 pending 用 monitor `excp_pending`（cg5 rc5）。寄存器定义删除由 `SPEC-188t` 负责，本任务不改 §3.x。
+- 同步异常不可屏蔽：不得出现任何“cause mask 屏蔽同步异常”或“被屏蔽时改 ILLI”的语句。
 
 **（5）异步中断边界（模型 A：monitor 第一处理者）**
 
@@ -117,11 +117,11 @@
 
 ### 2. `spec/DADAO-12-SEE-主管系统运行环境.md §1`（最小同步）
 
-只改 `inner_*` 注记一处，改为（语义等价即可）：
+改 `inner_*` 注记，并同步 §1 的异常归属句/表（语义等价即可）：
 
 > `inner_*` 为硬件内部寄存器（不对外暴露），用于异常处理流程中的中间状态保存。`inner_run_mode`（2 位）记录当前运行模式（0=user, 1=jail, 2=supv, 3=hypv），`inner_excp_cause_*` 等用于现场保存；A1 下不再使用 `inner_cfx_mask`，异步来源过滤与 pending 由 monitor 的 `cfx_<monitor>_<mode>_cfx_intr_mask` 与 `cfx_<monitor>_excp_pending` 承担；`switch_cfx_mask`/`excp_prev_cfx_mask` 的寄存器定义删除由后续任务负责。
 
-硬性断言：§1 不再出现「`inner_cfx_mask` … 用于异常屏蔽判断」的表述；保留 `inner_run_mode` 四位编码说明。
+硬性断言：§1 不再出现「`inner_cfx_mask` … 用于异常屏蔽判断」的表述；保留 `inner_run_mode` 四位编码说明。§1 的异常归属句不得再写「页表异常均由 `cfx_ptw` 处理」「外部设备异常由源 cfx 处理」；改为「执行期同步异常/异步中断先入当前 monitor，显式 trap/escape 才隶属 cfx」；`umon/jmon/smon/hmon` 表项含“同步异常与异步中断”。
 
 ### 3. 附录 `0.7.3-rc`（未发布）
 
@@ -153,7 +153,7 @@
 1. **§5.2 路由可机械断言（脚本从 §5.2 正文派生）**：
    - `CFXPERM` 目标含「当前运行模式 monitor」；`CFXREG` 目标含「当前运行模式 monitor」且含「不进入被访问」；`CFXMEM` 目标含「当前运行模式 monitor」，且含 A/D 回写失败（`cause_info` = PTE 物理地址）、不含 `PTWERR`；reserved cfx 的 `ld/st` 归 `CFXMEM`、`trap`/`escape` 归 `ILLI` 且均为当前 monitor；未映射页归 `CFXMEM` 当前 monitor；页权限拒绝归 `CFXPERM` 当前 monitor；`CFXTRAP` 目标为目标 cfx；`CFXESC` 目标为当前 cfx。
    - monitor 编号 11 项逐项命中：0/1/2/3/7/8/9/10/11/12/13 与名称一一对应。
-2. **屏蔽层拆除（A1）**：§5.2 正文与伪代码中 `inner_cfx_mask` 出现次数为 **0**；§5.2/§1 不再引用 `switch_cfx_mask`/`excp_prev_cfx_mask`；无「同步异常触发 ILLI」的 mask 判定；§1 注记不再把它写成同步异常屏蔽层。
+2. **屏蔽层拆除（A1）**：§5.2 正文与伪代码中 `inner_cfx_mask`/`switch_cfx_mask`/`excp_prev_cfx_mask`/`excp_cause_mask`/`excp_cause_nonmaskable` 出现次数均为 **0**；无「同步异常触发 ILLI」的 mask 判定；同步异常不可屏蔽；§1 注记不再把 `inner_cfx_mask` 写成同步异常屏蔽层。
 3. **异步边界（模型 A）**：§5.2 明确出现「异步中断先入当前运行模式 monitor」「monitor 可分发给源 cfx」「处理期间置 pending、不嵌套」；调度细节可有「后续修订」，但上述三条不得写成未定；同步路由段与异步段可区分。
 4. **门控（逐条贴真实命令 + 命令自身 rc，禁 `| tee` 吞码）**：`make check-spec-readonly`、`check-spec-refs`、`check-spec-drift`、`check-spec-changelog`、`check-spec-numbering`、`check-spec-purity`、`check-spec-cite-targets`、`check-spec-codeblocks`、`check-issues`、`check-milestones-fresh`、`check-sync-nonmaskable` 全 **rc=0**；既有基线红须逐条与 `master` 对账（名称 + rc），不得以基线红掩盖本任务引入的红。
 5. **只读锁**：`sha256sum spec/DADAO-12-SEE-主管系统运行环境.md` 与锁值逐字相等；锁 diff 仅 `dadao-12` 块（注释 + 1 行 sha256）；其它册 sha 不变；注记含日期 + 用户口径摘要。

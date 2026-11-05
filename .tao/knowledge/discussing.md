@@ -11,7 +11,7 @@
   - monitor 处理期间的新事件置 pending，不嵌套 monitor。
 - 显式指令仍直接到 cfx：`trap cfx` → 目标 cfx（`CFXTRAP`）；`escape cfx` → 当前 cfx（`CFXESC`）。
 - 第 4 项已定（monitor 第一处理者；处理期间 pending、不嵌套）。
-- 第 3 项选 **A1**：删除 `inner_cfx_mask`/`switch_cfx_mask`/`excp_prev_cfx_mask`；monitor 用 `cfx_intr_mask` + `excp_pending`；`global_cfx_intr_mask` 保留（monitor 全局来源掩码，trap 保存/escape 恢复）。`SPEC-186t` 只改使用模型，寄存器定义删除另立 `SPEC-188t`。
+- 第 3 项选 **A1**：删除 `inner_cfx_mask`/`switch_cfx_mask`/`excp_prev_cfx_mask`/`excp_cause_mask`/`excp_cause_nonmaskable`；编号保留为 reserved，不重排；monitor 用 `cfx_intr_mask` + `excp_pending`；`global_cfx_intr_mask` 保留（monitor 全局来源掩码，trap 保存/escape 恢复）。`SPEC-186t` 只改使用模型，寄存器定义删除归 `SPEC-188t`。
 - 第 2 项选 **B**：`SPEC-186t` 只改 §5.2+§1；`§2.2.6`/`§3.6`/`§4.5` + `DADAO-22 §5.3` + `contract-see` 由 `SPEC-189t` 收口；过渡期 `ISS-344`。
 - 执行顺序：`SPEC-186t → SPEC-188t → SPEC-189t → SPEC-187t（退出码）`；188t/189t 同改 DADAO-12，严格串行。
 

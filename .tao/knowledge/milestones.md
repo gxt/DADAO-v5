@@ -13,7 +13,7 @@
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
 | SPEC-189t | 待开始 | 2026-11-05 11:40（登记） | DADAO-12 §2.2.6/§3.6/§4.5 跨节原因表同步；ISS-344 |
-| SPEC-188t | 待开始 | 2026-11-05 11:38（登记） | 删除 switch_cfx_mask/excp_prev_cfx_mask/inner_cfx_mask 定义 |
+| SPEC-188t | 待开始 | 2026-11-05 11:38（登记） | 删除 5 个无效屏蔽寄存器定义（rc9/rc11/cg5 rc1/cg5 rc63/inner） |
 | TESTCASES-099t | 待开始 | 2026-11-05 11:30（登记） | libc-test dynamic malloc-brk-fail 差异诊断；只诊断不改期望 |
 | QEMU-083t | 待开始 | 2026-11-05 10:33（登记） | CFXREG 异常目标改为当前 monitor；ISS-342 |
 | SPEC-185t | 待开始 | 2026-11-05 10:32（登记） | spec 自包含册头 + README 索引迁移；语义零改动 |

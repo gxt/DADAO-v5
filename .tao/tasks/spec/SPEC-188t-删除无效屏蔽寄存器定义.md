@@ -1,4 +1,4 @@
-# SPEC-188t: 删除异步屏蔽三件套寄存器定义
+# SPEC-188t: 删除无效屏蔽寄存器定义
 
 **模块**：spec
 **项目里程碑**：M11
@@ -15,22 +15,29 @@
 - 删除 `inner_cfx_mask`（内部）
 - 删除 `switch_cfx_mask`（cg0–3 rc9）
 - 删除 `excp_prev_cfx_mask`（cg5 rc1）
+- 删除 `excp_cause_mask`（cg0–3 rc11）：同步异常不可屏蔽，不能有 cause mask
+- 删除 `excp_cause_nonmaskable`（cg5 rc63）：所有同步原因不可屏蔽，RO 位图冗余
 - monitor 用自己的 `cfx_intr_mask`（cg0–3 rc4）过滤异步来源，用 `excp_pending`（cg5 rc5）保存屏蔽期间事件
-- `escape` 不再恢复 mask
+- `global_cfx_intr_mask` 保留（monitor 全局异步来源掩码，trap 保存/escape 恢复）
+- `escape` 不再恢复 `excp_prev_cfx_mask`
 
 但这些寄存器的**定义**仍散落在：
 
 - `DADAO-12 §3.1–3.4`：`<mode>_switch_cfx_mask`（rc9）
 - `DADAO-12 §3.6`：`excp_prev_cfx_mask`（cg5 rc1）
 - `DADAO-13`：hypv 模式对应行
+- `DADAO-12 §3.1–3.4`：`<mode>_excp_cause_mask`（rc11）
+- `DADAO-12 §3.6`：`excp_cause_nonmaskable`（cg5 rc63）
 - `Machine-v5`、`contracts`、`.tao/contracts`：寄存器投影/访问行为
 - `DADAO-12 §1`：`inner_cfx_mask` 注记（186t 已改，本任务复核）
 
 ## 目标
 
-1. 删除三件套的**语义定义**，不重排 `cg/rc`：
+1. 删除以下寄存器的**语义定义**，不重排 `cg/rc`：
    - `cg0`–`cg3` `rc9` 标 `reserved`（不再定义 `switch_cfx_mask`）
+   - `cg0`–`cg3` `rc11` 标 `reserved`（不再定义 `excp_cause_mask`）
    - `cg5` `rc1` 标 `reserved`（不再定义 `excp_prev_cfx_mask`）
+   - `cg5` `rc63` 标 `reserved`（不再定义 `excp_cause_nonmaskable`）
    - `inner_cfx_mask` 从内部寄存器描述中删除
    - 访问 reserved 寄存器 ⇒ `CFXREG`（沿用现有 reserved 规则）
 2. `escape` 文本删除“恢复 `excp_prev_cfx_mask`”的表述；`global_cfx_intr_mask` 的 trap 保存/escape 恢复保留（它是 monitor 的全局中断来源掩码，不在三件套内）。
@@ -42,15 +49,15 @@
 
 ### 1. `DADAO-12`
 
-- §3.1–3.4：删除 rc9 行或改为 `rc9 reserved`（推荐后者，保留编号；访问 ⇒ `CFXREG`）。不重排 rc8/rc10。
-- §3.6：`cg5 rc1` 改为 `reserved`；删除 `excp_prev_cfx_mask` 说明。
+- §3.1–3.4：删除 rc9 与 rc11 行或改为 `reserved`（推荐后者，保留编号；访问 ⇒ `CFXREG`）。不重排 rc8/rc10。
+- §3.6：`cg5 rc1` 与 `cg5 rc63` 改为 `reserved`；删除 `excp_prev_cfx_mask`/`excp_cause_nonmaskable` 说明。
 - §1：`inner_*` 注记删除 `inner_cfx_mask`；如仍出现，改为“A1 下不存在”。
 - §5.1/§5.3：`escape` 文本删除 mask 恢复；`cfx_intr_mask`/`excp_pending` 保留。
 - 历史段不改；变更记录追加一条（无任务号/ADR/ISS）。
 
 ### 2. `DADAO-13`
 
-- hypv 模式 rc9 行改 `reserved`；cg5 rc1 同步；不改其它 HEE 语义。
+- hypv 模式 rc9/rc11 行改 `reserved`；cg5 rc1/rc63 同步；不改其它 HEE 语义。
 - 变更记录追加一条。
 
 ### 3. `Machine-v5` / contracts
@@ -70,8 +77,8 @@
 
 ## 验收标准
 
-1. **活文件清零**：`switch_cfx_mask`、`excp_prev_cfx_mask`、`inner_cfx_mask` 在 `DADAO-12/13/Machine-v5/contracts` 活文件 0 命中（历史段/变更记录除外）。
-2. **reserved 行为**：rc9/cg5 rc1 标 `reserved`；访问 ⇒ `CFXREG`；`escape` 文本不再恢复 `excp_prev_cfx_mask`，但保留 `global_cfx_intr_mask` 的恢复。
+1. **活文件清零**：`switch_cfx_mask`、`excp_prev_cfx_mask`、`inner_cfx_mask`、`excp_cause_mask`、`excp_cause_nonmaskable` 在 `DADAO-12/13/Machine-v5/contracts` 活文件 0 命中（历史段/变更记录除外）。
+2. **reserved 行为**：rc9/rc11/cg5 rc1/cg5 rc63 标 `reserved`；访问 ⇒ `CFXREG`；`escape` 文本不再恢复 `excp_prev_cfx_mask`，但保留 `global_cfx_intr_mask` 的恢复。
 3. **保留项**：`cfx_intr_mask`（cg0–3 rc4）与 `excp_pending`（cg5 rc5）仍定义，作为 monitor 异步来源/pending。
 4. **跨册一致**：DADAO-12/13/Machine-v5/contracts 对同一 rc/cg 的描述一致；锁 sha 与 `sha256sum` 逐字相等，仅三册变化。
 5. **门控**：`check-spec-readonly/refs/drift/changelog/numbering/purity/cite-targets/codeblocks`、`check-contracts-dir`、`check-contract-relocs`、`check-issues`、`check-milestones-fresh`、`make check`（L1）rc=0。
