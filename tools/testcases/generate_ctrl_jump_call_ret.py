@@ -255,7 +255,8 @@ def _gen_jump_iiii():
               "CFXMEM", None, SC_JUMP_LEG,
               "boundary CFXMEM (Tiny): imms24=-0x40000, "
               "target=rb0+(imms24<<2)=%s → below the 8 MiB SRAM in the "
-              "cfxha-63 segment ⇒ CFXMEM (monitor, spec/Machine-v5 §1.2); "
+              "cfxha-63 segment ⇒ CFXMEM（当前运行模式 monitor，"
+              "spec/Machine-v5 §7.1）; "
               "Tiny 无 unmapped 窗口，故不是 UNMAPPED"
               % target_boundary, profiles=["tiny"]),
     ]
@@ -380,7 +381,7 @@ def _gen_call_iiii():
               "RASOF", None, SC_CALL_RASOF,
               "legality RASOF: ra0=%s (RACNT=63, MRPTR=0); "
               "ra63=[count=1, addr=0xCCCC00000000]; PC+4=@ENTRY+0x4 ≠ "
-              "ra63[47:0] → C3b: RACNT==63, MRPTR==0 → RASOF (0xFA)"
+              "ra63[47:0] → C3b: RACNT==63, MRPTR==0 → RASOF"
               % rasof_in_ra0),
         # C3b MemRAS: RACNT=63, MRPTR!=0 → spill oldest to MemRAS
         _case("semantic", "call_iiii_ra", "iiii", word,
@@ -603,14 +604,14 @@ def _gen_ret_riii():
               "RASUF", None, SC_RET_D4B_RASUF,
               "legality D4b RASUF (MemRAS count=0): ra0=%s (RACNT=0, "
               "MRPTR=%s); MemRAS[MRPTR]=[count=0, addr=0xEEEE00000000]; "
-              "ret → read MemRAS: count=0 → RASUF (0xFB)"
+              "ret → read MemRAS: count=0 → RASUF"
               % (d4b0_in_ra0, d4b_mrptr)),
         # D4a: RACNT==0, MRPTR==0 → RASUF (cold RA)
         _case("legality", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d4a_in_ra0}}, None,
               "RASUF", None, SC_RET_RASUF,
               "legality D4a RASUF: ra0=%s (RACNT=0, MRPTR=0); "
-              "ret → D4: RACNT==0, MRPTR==0 → RASUF (0xFB)" % d4a_in_ra0),
+              "ret → D4: RACNT==0, MRPTR==0 → RASUF" % d4a_in_ra0),
         # ── TESTCASES-022t: ret rd0 ⇒ imms18 MUST be 0 (dst_rd0_nonzero) ──
         # rdha=rd0, imms18=1 (≠0) → ILLI
         _case("legality", "ret_riii_ra", "riii", _build_word_riii(op, 0, 1),
