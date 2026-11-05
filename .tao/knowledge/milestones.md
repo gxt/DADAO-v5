@@ -12,6 +12,9 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-185t | 待开始 | 2026-11-05 10:32（登记） | spec 自包含册头 + README 索引迁移；语义零改动 |
+| SPEC-187t | 待开始 | 2026-11-05 10:32（登记） | 退出码迁移 SPEC 阶段：Machine-v5 完整表、ADR 指针化、ISS-341 |
+| TESTCASES-098t | 待开始 | 2026-11-05 10:32（登记） | M11 矩阵原地重生成 + Node inst/embench 历史归类 |
 | TESTCASES-097t | 已验证 | 2026-11-05 10:31 | smon/hmon 页表同步 D10：4 超页、HSJU=0xC、低地址 VA |
 | INFRA-122t | 已验证 | 2026-11-05 10:30 | build_gem5.py ccache 单 argv 缺陷：包装脚本接入，原生 build-gem5 rc=0 |
 | SPEC-184t | 已验证 | 2026-11-05 08:04 | spec §6 Node D10 收口（ISS-340）：VA/PA 0–2 GiB 4 超页、smon 建表、合约投影、锁 sha |
