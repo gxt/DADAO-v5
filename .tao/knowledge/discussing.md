@@ -47,6 +47,8 @@
 - 诊断 `TESTCASES-099t`：根因 = musl dynamic loader `reclaim_gaps` 捐赠启动堆；QEMU guest rlimit no-op 是能力缺口（`ISS-343`），非该例直接原因。
 - **处置选 C（测试修正）**：`TESTCASES-100t` 在 libc-test 语料侧消耗 dynamic loader 捐赠的启动堆；libc-test 由 `patchless` 转受补丁组件。A/B 不再采用。`TESTCASES-098t`（矩阵）依赖此项收口。
 - `TESTCASES-099t` 诊断已 Accepted 并合并（`151fd2a5`）；结论 = musl dynamic 启动堆，非 QEMU mmap/rlimit 直接缺陷；`ISS-343` 记录 QEMU guest rlimit no-op（P3）。
+- **处置 C 已实现**：`TESTCASES-100t` 在 libc-test 语料侧 prime 启动堆（6×32736），static 335/0/2、dynamic 338/0/2；**完整夜跑 4/4 成员 rc=0、check-night-report rc=0**。reviewer Accepted，仅剩 QEMU-083t 并发源树导致 `check-patch-tree`/L1 环境红，待其合并后复跑。
+- `SPEC-189t` 已 Accepted 并合并（`63b90b46`）；`ISS-344` closed。
 
 ## 批次授权
 
