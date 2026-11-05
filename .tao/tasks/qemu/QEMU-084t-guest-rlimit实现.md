@@ -44,13 +44,33 @@
 
 ## 范围 / 非范围
 
-**在范围内**：`components/qemu/patches/linux-user/{syscall.c,mmap.c,elfload.c}`（按现场）、`components/qemu/changelog.md`、本任务书、`milestones.md`、`ISS-343` 关闭。
+**在范围内**：`components/qemu/patches/linux-user/{syscall.c,mmap.c,elfload.c}`（按现场）、`components/qemu/changelog.md`、`tools/qemu/user_mode_smoke.py`（新增 guest rlimit 探针用例，见「探针落点」）、本任务书、`milestones.md`、`ISS-343` 关闭。
 
 **不在范围**：spec/contracts、gem5、tests 期望、其它 QEMU 语义。
 
+## 探针落点
+
+回归探针**入库**，不留在运行期临时目录：加进 `tools/qemu/user_mode_smoke.py`（QEMU 测试驱动，QEMU-081t 先例），沿用其 `compile_program`/`link_static` 与独立 oracle 风格。
+
+探针至少断言：
+
+1. `setrlimit(RLIMIT_DATA, 0)` 成功后 `getrlimit(RLIMIT_DATA)` 的 `rlim_cur == 0`；
+2. 该状态下一次 RW `mmap`（一页 64 KiB 以上）返回 `-ENOMEM`；
+3. 同位探针在**未设置** rlimit 时 `mmap` 成功（防「一律失败」假绿）；
+4. 同上对 `RLIMIT_AS` 各一组。
+
+补充判据须来自独立 oracle（原生 Linux 行为/契约），不读 QEMU 内部日志。
+
+## 已知坑（来自 `TESTCASES-099t` 诊断，避免重复踩）
+
+- musl DADAO 端口的公共 `brk()` 恒返回 `-ENOMEM`（`src/linux/brk.c`），**不能**用它判断 rlimit 记账；
+- 公共 `syscall(SYS_brk, …)` 在该端口经 `va_arg` 传参异常（另见诊断记录），探针勿用；
+- `mallocng` 走 `__syscall` 不受上述影响，可用 `malloc` 复核；
+- 64 KiB 页：探针按页大小 65536 计算，不要写 4096。
+
 ## 说明
 
-- 这是 P3 能力缺口，不是 M11 收口必需；但用户选 4A，现在清理。
+- 这是 P3 能力缺口；2026-11-06 用户裁定 A 插入 M11 终验之前，故属于 M11 期。
 - 若实现需要跨平台通用改动，先做 DADAO target 最小路径，再评估通用化。
 - 不把 no-op 写成“已支持”。
 
