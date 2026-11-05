@@ -27,7 +27,7 @@
 - `SPEC-190t`（待开始）：DADAO-23 §3 + DDLN 旧屏蔽寄存器引用清理；依赖 `SPEC-189t` 的锁串行。
 - `TESTCASES-100t`（待开始）：libc-test `malloc-brk-fail` 64K 页可移植性修正；依赖 `TESTCASES-099t`，改 libc-test 组件补丁策略。
 - QEMU/gem5/tests 的实现删除（rc9/rc11/cg5 rc1/rc63、inner mask、hmon.S 的 rc9 写）待 `SPEC-190t` 定稿后按实际影响立任务。
-- `SPEC-185t`（待开始）：范围/册头模板待确认；与 `SPEC-186t` 的锁串行顺序待确认。
+- `SPEC-185t`（待开始）：**改为非 spec 引用清理（A/A1）**——只删 spec 内对 ADR/contract/.tao/docs/tests/tools/manifests/0628/URL 的引用标记，保留 spec 互引；待执行。
 - `SPEC-187t`（待开始）：依赖 `SPEC-186t` 第 2 项与退出码表落点确认；覆盖 `ISS-341`。
 - `QEMU-083t`（待开始）：依赖 `SPEC-186t` 的 `CFXREG` 目标句定稿；覆盖 `ISS-342`。
 - `TESTCASES-098t`（待开始）：依赖 M11 收口（`SPEC-186t`、退出码迁移、完整 llvm-ts 回归）。

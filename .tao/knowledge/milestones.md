@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-185t | 待开始 | 2026-11-05 18:55（登记） | spec 非 spec 引用清理（A/A1）：删 ADR/contract/... 标记，保留 spec 互引 |
 | GEM5-020t | 已验证 | 2026-11-05 18:20 | gem5 CFXREG 目标对齐当前 monitor；node/arch 249 AGREE、14 红转绿 |
 | SPEC-191t | 待开始 | 2026-11-05 15:40（登记） | 退出码旧码残留清理；ADR decision 待逐条确认 |
 | SPEC-187t | 已验证 | 2026-11-05 15:29 | 退出码迁移 SPEC：Machine-v5 三段表、ADR 指针化、ISS-341 |
@@ -22,7 +23,6 @@
 | SPEC-188t | 已验证 | 2026-11-05 12:25 | 删除 5 个无效屏蔽寄存器定义（rc9/rc11/cg5 rc1/cg5 rc63/inner），reserved 不重排 |
 | SPEC-186t | 已验证 | 2026-11-05 12:15 | DADAO-12 §5.2 重写：A/A1 monitor 入口、7 步、异步 pending、删除 cause mask |
 | TESTCASES-099t | 已验证 | 2026-11-05 12:02 | libc-test dynamic malloc-brk-fail 诊断：musl 启动堆，非 QEMU 直接缺陷 |
-| SPEC-185t | 待开始 | 2026-11-05 10:32（登记） | spec 自包含册头 + README 索引迁移；语义零改动 |
 | TESTCASES-098t | 待开始 | 2026-11-05 10:32（登记） | M11 矩阵原地重生成 + Node inst/embench 历史归类 |
 | TESTCASES-097t | 已验证 | 2026-11-05 10:31 | smon/hmon 页表同步 D10：4 超页、HSJU=0xC、低地址 VA |
 | INFRA-122t | 已验证 | 2026-11-05 10:30 | build_gem5.py ccache 单 argv 缺陷：包装脚本接入，原生 build-gem5 rc=0 |
