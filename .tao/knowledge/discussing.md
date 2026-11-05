@@ -44,6 +44,13 @@
 - 初步判断：musl dynamic 启动堆与测试假设交互，非 QEMU mmap/rlimit 直接失效；待 `TESTCASES-099t` 独立复核。
 - `check-night-report` 在该项解决前为红；处置 A（known-fail）/B（dynamic 排除）/C（测试修正）待用户裁定。
 
+## 2026-11-05 M11 收口与实现决定
+
+- **1B**：M11 按“含实现”收口；5 个屏蔽寄存器实现 + 退出码实现完成后才算 M11 完成。
+- **2B**：实现拆 2 个 INTEG 任务：`INTEG-054t`（5 寄存器）、`INTEG-055t`（退出码），各含 QEMU→gem5→tests 三阶段。
+- **3A**：现在 push 当前 master。
+- **4A**：小项现在清：`INFRA-124t`（ADR-0013/check_spec_refs/GEM5-017t/Node embench）、`QEMU-084t`（ISS-343 guest rlimit）。
+
 ## M11 收口验证状态（2026-11-05）
 
 - `make check-full`（L3）：**PASS 8/8**；`check-l3-report` rc=0（QEMU-083t 后已重跑）。
