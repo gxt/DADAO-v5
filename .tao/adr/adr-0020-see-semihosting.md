@@ -1,6 +1,6 @@
 # ADR-0020: SEE/HEE 运行环境与 semihosting
 
-**状态**：Accepted（rev. 2026-11-05：D15 退出码编码改为指向 `spec/Machine-v5 §1.2`，见 `## 修订`）
+**状态**：Accepted（rev. 2026-11-05：D15 退出码编码改为指向 `spec/Machine-v5 §7.1`，见 `## 修订`）
 **日期**：2026-10-07
 **修订注记（2026-10-26，`ADR-0038`）**：`D1`/`D10` 的 semihosting tag 判定（`immu18[17:16] == 2'b11`）已被 **`ADR-0038 D1`** 取代（新判定 `immu18[17:8] == 0x3FF`，范围 `0x3FF00–0x3FFFF`）；本 ADR 原文保留，仅此注记。
 **关联**：ADR-0004（测试机；本 ADR `D8` 取代其 `D3` 作为停机协议，`D15` 修订其核内地址空间划分口径）、ADR-0011（exit-port 可靠 halt）、ADR-0003（object ABI：大端 / ELF 头）、`INTEG-019k`（M5 规划）、`SPEC-113t`（本 ADR）、`SPEC-114t`（规范正文落点）、`QEMU-044t`/`045t`/`046t`/`047t`/`049t`、`LLVM-060t`、`TESTCASES-033t`/`034t`、`INTEG-020t`；`spec/DADAO-12`、`spec/DADAO-22-SBI-主管系统二进制接口.md`、`spec/SimRISC-11-其它.md`、`.tao/contracts/contract-abi.md`
@@ -58,7 +58,7 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
   | **boot ROM** | `0xffff_ffff_0000` | 64 KiB | 63 / `power` | 复位向量 = `cfx_power_hypv_excp_vector`；`-bios` 加载 |
 
   - **越界访问与越界取指均须报异常（含取指路径）**：访问或取指落入映射之外的核内地址 ⇒ 触发异常；**取指路径与数据访问路径同等对待**（不得只覆盖数据访问）。不得静默继续/静默丢弃。
-  - **异常语义与退出码（spec 层 vs 测试机层）**：spec 层只定义异常原因（见 `DADAO-12` 异常原因表）；测试机退出码的分段、monitor/其它 cfx 编码、`CFXMEM` 落点，以及未映射与 A/D 回写失败的归属，均以 `spec/Machine-v5-测试机运行环境.md §1.2` 为唯一正文。本决策不再维护退出码派生公式或逐码表。
+  - **异常语义与退出码（spec 层 vs 测试机层）**：spec 层只定义异常原因（见 `DADAO-12` 异常原因表）；测试机退出码的分段、monitor/其它 cfx 编码、`CFXMEM` 落点，以及未映射与 A/D 回写失败的归属，均以 `spec/Machine-v5-测试机运行环境.md §7.1` 为唯一正文。本决策不再维护退出码派生公式或逐码表。
   - **精确路由与容量**：按 profile 的越界路由、地址划分与 RAM 容量以 `spec/Machine-v5 §1` 为准。
 
 ## Rationale（理由）
@@ -73,7 +73,7 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
 - **bootrom 用自有工具链、`-bios` 加载（D12）**：bootrom 是 LLVM 新指令（`trap`/`escape`/`cfx2*`）的**首个真实用户**，同时验证工具链与机器模型；`-bios` + 复位向量不变可最小化对既有启动模型的影响。
 - **`SYS_EXIT` 取代 exit-port（D8）**：exit-port 是 v5 自定、非 spec 语义；semihosting `SYS_EXIT` 是标准停机协议，且 `ADR-0011` 已保证 halt 确定性——迁移后可回归上游语义。
 - **默认 `gdb`/沙箱（D7）**：CI 无 GDB 时 `auto` 会退化为 `native`，行为不确定且暴露 `SYSTEM` 宿主命令风险；显式默认 `gdb`/沙箱更安全。
-- **D15 越界必须报异常（含取指）**：核内地址空间模型要求非法访问/取指**显式 fault**，而非静默；`CFXMEM` 是 spec 的对应 cause，测试机退出码的分段、编码与落点见 `spec/Machine-v5 §1.2`。
+- **D15 越界必须报异常（含取指）**：核内地址空间模型要求非法访问/取指**显式 fault**，而非静默；`CFXMEM` 是 spec 的对应 cause，测试机退出码的分段、编码与落点见 `spec/Machine-v5 §7.1`。
 
 ### 被否方案
 
@@ -112,4 +112,4 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
 
 ## 修订
 
-**rev. 2026-11-05（退出码迁移）：D15 改为指针。** D15 中测试机退出码的派生公式、逐码表与未映射独立码表述改为指向 `spec/Machine-v5-测试机运行环境.md §1.2`；退出码采用 guest pass（`0x00`–`0x3F`）/ guest fail（`0x40`–`0x7F`）/ 机器 fault（`0x80`–`0xFF`）三分，机器 fault 再分其它 cfx 段与 monitor 段。D15 的「越界访问与越界取指均须报异常（含取指路径）」结论不变；D1–D14 与 D15 的其余语义不改。
+**rev. 2026-11-05（退出码迁移）：D15 改为指针。** D15 中测试机退出码的派生公式、逐码表与未映射独立码表述改为指向 `spec/Machine-v5-测试机运行环境.md §7.1`；退出码采用 guest pass（`0x00`–`0x3F`）/ guest fail（`0x40`–`0x7F`）/ 机器 fault（`0x80`–`0xFF`）三分，机器 fault 再分其它 cfx 段与 monitor 段。D15 的「越界访问与越界取指均须报异常（含取指路径）」结论不变；D1–D14 与 D15 的其余语义不改。

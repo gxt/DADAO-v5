@@ -52,46 +52,15 @@ v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位�
 
 ### 1.2 越界访问与越界取指异常（含取指路径）
 
-- **spec 层语义（`CFXMEM`）**：对核内地址空间进行非法访问时触发 `CFXMEM`；其异常原因编号为 `1 << 1`，执行期同步异常按 `DADAO-12 §5.2` 进入当前运行模式 monitor（`CFXTRAP`/`CFXESC` 除外，见下表）。[DADAO-12 §2.1 核内地址空间][DADAO-12 §4. 专有寄存器设计规范][DADAO-12 §5.2 异常进入流程]
+- **spec 层语义（`CFXMEM`）**：对核内地址空间进行非法访问时触发 `CFXMEM`；其异常原因编号为 `1 << 1`，执行期同步异常按 `DADAO-12 §5.2` 进入当前运行模式 monitor（`CFXTRAP`/`CFXESC` 除外，见 `§7.1`）。[DADAO-12 §2.1 核内地址空间][DADAO-12 §4. 专有寄存器设计规范][DADAO-12 §5.2 异常进入流程]
 
-- **完整退出码表（测试机约定）**：`$?` 单值区分 guest pass/fail 与机器 fault；机器 fault 按来源分「其它 cfx」与「monitor」两段。
-
-| 范围 | 段 | 位域 | 含义 |
-|------|----|------|------|
-| `0x00`–`0x3F` | guest | — | PASS |
-| `0x40`–`0x7F` | guest | — | FAIL（guest 自定义失败码） |
-| `0x80`–`0xBF` | 其它 cfx | `bit7=1, bit6=0, bit5:0=cfxHA` | 目标/当前 cfx 的同步异常退出码 |
-| `0xC0`–`0xFF` | monitor | `bit7=1, bit6=1, bit5:4=运行模式, bit3:0=异常位索引` | 当前运行模式 monitor 的同步异常退出码 |
-
-- **monitor 段编码**：`bit5:4` 为运行模式——`user`=`00`、`jail`=`01`、`supv`=`10`、`hypv`=`11`；当前运行模式对应 monitor：`user→cfx0`（`umon`）、`jail→cfx1`（`jmon`）、`supv→cfx2`（`smon`）、`hypv→cfx3`（`hmon`）。[DADAO-12 §5.2 异常进入流程]
-- **monitor 段异常位索引（11 项）**：`bit3:0` 取 DADAO 异常位索引，逐项如下；每行使用 `0xC0`–`0xFF` 的 monitor 范围。
-
-| 位索引 | 范围 | 位域 | 含义 |
-|--------|------|------|------|
-| 0 | `0xC0`–`0xFF` | `bit3:0=0` | `CFXTRAP` |
-| 1 | `0xC0`–`0xFF` | `bit3:0=1` | `CFXMEM` |
-| 2 | `0xC0`–`0xFF` | `bit3:0=2` | `CFXREG` |
-| 3 | `0xC0`–`0xFF` | `bit3:0=3` | `CFXESC` |
-| 7 | `0xC0`–`0xFF` | `bit3:0=7` | `CFXPERM` |
-| 8 | `0xC0`–`0xFF` | `bit3:0=8` | `ILLI` |
-| 9 | `0xC0`–`0xFF` | `bit3:0=9` | `UNDI` |
-| 10 | `0xC0`–`0xFF` | `bit3:0=10` | `RASOF` |
-| 11 | `0xC0`–`0xFF` | `bit3:0=11` | `RASUF` |
-| 12 | `0xC0`–`0xFF` | `bit3:0=12` | `MALIGN` |
-| 13 | `0xC0`–`0xFF` | `bit3:0=13` | `IALIGN` |
-
-- **`CFXTRAP`/`CFXESC` 的目标 cfx 编码**：`CFXTRAP`（位索引 0）进入**目标 cfx**、`CFXESC`（位索引 3）进入**当前 cfx** 时，退出码按「其它 cfx」段编码（`0x80`–`0xBF`，`bit7=1`、`bit6=0`、`bit5:0` = 对应 cfx 的 cfxHA），**不**按 monitor 段编码；monitor 表中的 0/3 仅保留位索引定义。
-- **同步异常落点**：除上述两条外，执行期同步异常均进入**当前运行模式 monitor**，按 monitor 段编码：`CFXMEM`/`CFXREG`/`CFXPERM`/`ILLI`/`UNDI`/`RASOF`/`RASUF`/`MALIGN`/`IALIGN`。[DADAO-12 §5.2 异常进入流程]
-- **未映射与 A/D 回写失败**：无映射的核内地址访问/取指归当前运行模式 monitor 的 `CFXMEM`；A/D 回写失败同样归当前运行模式 monitor 的 `CFXMEM`（`cause_info` = PTE 物理地址）。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §2.2.6 异常检查优先级]
-- **reserved cfx**：reserved cfx（`6`–`14`、`19`–`61`）的普通 `ld/st` 归当前运行模式 monitor 的 `CFXMEM`；其 `trap`/`escape` 归当前运行模式 monitor 的 `ILLI`。[DADAO-12 §5.2 异常进入流程]
-- **层次与适用**：`CFXMEM` 适用于核内地址空间模型内的非法访问/取指（cfxha 段内的非法子区间、越界访问/取指），按上表归当前 monitor。
+- **层次与适用**：`CFXMEM` 适用于核内地址空间模型内的非法访问/取指（cfxha 段内的非法子区间、越界访问/取指），按 `§7.1` 的 monitor 段编码归当前 monitor。
 - **精确路由（按 profile）**：
   - **Tiny**：无 PTW（`ptw_enable` 恒 0）。`addr[47:42] == 0` 的普通访存/取指 ⇒ `CFXMEM`，**不直通物理存储器**；cfxha 63 段内 BootROM/SRAM 之外的地址 ⇒ `CFXMEM`。Tiny 无 hmon/smon 向量，异常**不经向量**，按「机器直接映射 fault → 退出码」口径终止。
   - **Node**：`addr[47:42] == 0` 且 `ptw_enable=1`：按单 PTBR 走页表（PTE 格式/页表步进/页权限/TLB 见 `DADAO-12 §2.2.1–§2.2.6`、`§4.5`）；页表步进与 TLB 命中产生的异常先进入当前运行模式 monitor：未映射与 A/D 回写失败 ⇒ `CFXMEM`，权限拒绝 ⇒ `CFXPERM`（见 `DADAO-12 §2.2.6`、`§5.2`）。`ptw_enable=0`（仅复位后 power/hmon 的早期初始化）时仍按上一条报 `CFXMEM`。
   - 保留 cfx（`6`–`14`、`19`–`61`）的普通 `ld/st` ⇒ 当前运行模式 monitor 的 `CFXMEM`；`trap`/`escape` 到保留 cfx ⇒ 当前运行模式 monitor 的 `ILLI`。
   - 其余未映射地址（Node 的 `power` 段 BootROM 之外）⇒ 当前运行模式 monitor 的 `CFXMEM`。
 - **取指路径同等对待**：越界**取指**与越界**数据访问**同属非法核内地址访问，**均须报异常**，不得只覆盖数据访问路径；不得静默继续或静默丢弃。
-- **编码冻结、不得重排**：退出码分段与 monitor/其它 cfx 位域一经生效**不得重排**；monitor 位索引沿用 DADAO 异常位索引，新增原因不得改变既有索引。[DADAO-12 §5.2 异常进入流程]
 - 两 profile 的几何与上述路由由 `QEMU-079t`（Tiny）/`QEMU-080t`（Node）落地，并以 `check-interface` 断言固化；旧「唯一 RAM 段 + PA 别名 + 固定容量」口径随本版 profile 划分作废。
 
 ---
@@ -260,6 +229,40 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 - v5 测试机的程序停机协议为 semihosting **`SYS_EXIT`/`SYS_EXIT_EXTENDED`**（见 `§5.5`），**取代** exit port。
 - exit-port MMIO 设备已在 C1 step2（`QEMU-053t`）**随旧 RAM 段一并删除**。
 
+### 7.1 退出码（测试机约定）
+
+- **完整退出码表（测试机约定）**：`$?` 单值区分 guest pass/fail 与机器 fault；机器 fault 按来源分「其它 cfx」与「monitor」两段。
+
+| 范围 | 段 | 位域 | 含义 |
+|------|----|------|------|
+| `0x00`–`0x3F` | guest | — | PASS |
+| `0x40`–`0x7F` | guest | — | FAIL（guest 自定义失败码） |
+| `0x80`–`0xBF` | 其它 cfx | `bit7=1, bit6=0, bit5:0=cfxHA` | 目标/当前 cfx 的同步异常退出码 |
+| `0xC0`–`0xFF` | monitor | `bit7=1, bit6=1, bit5:4=运行模式, bit3:0=异常位索引` | 当前运行模式 monitor 的同步异常退出码 |
+
+- **monitor 段编码**：`bit5:4` 为运行模式——`user`=`00`、`jail`=`01`、`supv`=`10`、`hypv`=`11`；当前运行模式对应 monitor：`user→cfx0`（`umon`）、`jail→cfx1`（`jmon`）、`supv→cfx2`（`smon`）、`hypv→cfx3`（`hmon`）。[DADAO-12 §5.2 异常进入流程]
+- **monitor 段异常位索引（11 项）**：`bit3:0` 取 DADAO 异常位索引，逐项如下；每行使用 `0xC0`–`0xFF` 的 monitor 范围。
+
+| 位索引 | 范围 | 位域 | 含义 |
+|--------|------|------|------|
+| 0 | `0xC0`–`0xFF` | `bit3:0=0` | `CFXTRAP` |
+| 1 | `0xC0`–`0xFF` | `bit3:0=1` | `CFXMEM` |
+| 2 | `0xC0`–`0xFF` | `bit3:0=2` | `CFXREG` |
+| 3 | `0xC0`–`0xFF` | `bit3:0=3` | `CFXESC` |
+| 7 | `0xC0`–`0xFF` | `bit3:0=7` | `CFXPERM` |
+| 8 | `0xC0`–`0xFF` | `bit3:0=8` | `ILLI` |
+| 9 | `0xC0`–`0xFF` | `bit3:0=9` | `UNDI` |
+| 10 | `0xC0`–`0xFF` | `bit3:0=10` | `RASOF` |
+| 11 | `0xC0`–`0xFF` | `bit3:0=11` | `RASUF` |
+| 12 | `0xC0`–`0xFF` | `bit3:0=12` | `MALIGN` |
+| 13 | `0xC0`–`0xFF` | `bit3:0=13` | `IALIGN` |
+
+- **`CFXTRAP`/`CFXESC` 的目标 cfx 编码**：`CFXTRAP`（位索引 0）进入**目标 cfx**、`CFXESC`（位索引 3）进入**当前 cfx** 时，退出码按「其它 cfx」段编码（`0x80`–`0xBF`，`bit7=1`、`bit6=0`、`bit5:0` = 对应 cfx 的 cfxHA），**不**按 monitor 段编码；monitor 表中的 0/3 仅保留位索引定义。
+- **同步异常落点**：除上述两条外，执行期同步异常均进入**当前运行模式 monitor**，按 monitor 段编码：`CFXMEM`/`CFXREG`/`CFXPERM`/`ILLI`/`UNDI`/`RASOF`/`RASUF`/`MALIGN`/`IALIGN`。[DADAO-12 §5.2 异常进入流程]
+- **未映射与 A/D 回写失败**：无映射的核内地址访问/取指归当前运行模式 monitor 的 `CFXMEM`；A/D 回写失败同样归当前运行模式 monitor 的 `CFXMEM`（`cause_info` = PTE 物理地址）。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §2.2.6 异常检查优先级]
+- **reserved cfx**：reserved cfx（`6`–`14`、`19`–`61`）的普通 `ld/st` 归当前运行模式 monitor 的 `CFXMEM`；其 `trap`/`escape` 归当前运行模式 monitor 的 `ILLI`。[DADAO-12 §5.2 异常进入流程]
+- **编码冻结、不得重排**：退出码分段与 monitor/其它 cfx 位域一经生效**不得重排**；monitor 位索引沿用 DADAO 异常位索引，新增原因不得改变既有索引。[DADAO-12 §5.2 异常进入流程]
+
 ---
 
 ## 附录：版本与变更记录
@@ -294,6 +297,7 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 - Node 首张页表口径订正：由 smon 在 `power → hmon → smon` 交接后建立，`PTBR=0`、L1 index `0`–`3` 四个 512 MiB 超页，映射 `VA [0, 2 GiB) → PA [0, 2 GiB)`；每项 `H=1`、`S=1`、`U=J=0`、`R=W=X=1`、`P=1`、`SP=1`、`A=D=1`、`SPF=0xFF`；随后开启 PTW。
 - 页表异常路由同步：页表步进与 TLB 命中产生的异常先进入当前运行模式 monitor——未映射与 A/D 回写失败 ⇒ `CFXMEM`，HSJU 或 R/W/X 不符 ⇒ `CFXPERM`；`cfx_ptw` 不再是页表异常目标；页表/PTW 层权限与 cfx 访问权限仍是两个层次，失败后原因名均收敛为 `CFXPERM`。
 - 退出码改为三段式：guest `0x00`–`0x3F` / `0x40`–`0x7F`、其它 cfx `0x80`–`0xBF`（`bit5:0` = cfxHA）、monitor `0xC0`–`0xFF`（`bit5:4` = 运行模式、`bit3:0` = DADAO 异常位索引）；补全 monitor 11 个位索引，删除旧的单公式派生与未映射独立码表述。
+- 退出码表由 §1.2（越界访问与越界取指异常）迁至 §7.1（退出码（测试机约定））；§1.2 只保留内存/越界异常语义，退出码分段、位域、monitor 11 个位索引与落点逐字不变。
 
 ### 0.3.1（2026-10-16）
 

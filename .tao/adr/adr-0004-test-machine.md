@@ -202,7 +202,7 @@ M1 范围内的 SBZ 字段示例：`fence` 的 `immu18 bits[17:4]` [contract-isa
 
 #### D5.8 Exit code 汇总
 
-机器 fault 退出码采用**三分**：guest pass（`0x00`–`0x3F`）、guest fail（`0x40`–`0x7F`）、机器 fault（`0x80`–`0xFF`）。机器 fault 再按来源分段：其它 cfx 段（`0x80`–`0xBF`，`bit5:0` = `cfxHA`）与 monitor 段（`0xC0`–`0xFF`，`bit5:4` = 运行模式、`bit3:0` = DADAO 异常位索引）。完整位域、monitor 的 11 个异常位索引，以及 `CFXTRAP`/`CFXESC` 进入目标/当前 cfx 时的编码见 `spec/Machine-v5-测试机运行环境.md §1.2`。[ADR-0020 D15]
+机器 fault 退出码采用**三分**：guest pass（`0x00`–`0x3F`）、guest fail（`0x40`–`0x7F`）、机器 fault（`0x80`–`0xFF`）。机器 fault 再按来源分段：其它 cfx 段（`0x80`–`0xBF`，`bit5:0` = `cfxHA`）与 monitor 段（`0xC0`–`0xFF`，`bit5:4` = 运行模式、`bit3:0` = DADAO 异常位索引）。完整位域、monitor 的 11 个异常位索引，以及 `CFXTRAP`/`CFXESC` 进入目标/当前 cfx 时的编码见 `spec/Machine-v5-测试机运行环境.md §7.1`。[ADR-0020 D15]
 
 - 本决策只保留三分与分段结论；**不再维护逐码表，也不再定义从 spec cause 位派生退出码的公式**。具体码值、位域与落点以 `spec/Machine-v5` 为唯一正文。
 
@@ -400,7 +400,7 @@ jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
 
 **rev. 2026-11-05（用户已定稿；退出码迁移）：D5.7/D5.8 改为三分 + 指针。** 保留「guest pass / guest fail / 机器 fault」三分决策：guest pass = `0x00`–`0x3F`、guest fail = `0x40`–`0x7F`、机器 fault = `0x80`–`0xFF`；机器 fault 再分其它 cfx 段（`0x80`–`0xBF`）与 monitor 段（`0xC0`–`0xFF`）。
 
-- **D5.8 指针化**：删除逐码表与从 spec cause 位派生退出码的公式；完整位域、monitor 的 11 个异常位索引、`CFXTRAP`/`CFXESC` 进入目标/当前 cfx 的编码，以及未映射/A-D 回写失败/reserved cfx 的落点，均以 `spec/Machine-v5-测试机运行环境.md §1.2` 为唯一正文。
+- **D5.8 指针化**：删除逐码表与从 spec cause 位派生退出码的公式；完整位域、monitor 的 11 个异常位索引、`CFXTRAP`/`CFXESC` 进入目标/当前 cfx 的编码，以及未映射/A-D 回写失败/reserved cfx 的落点，均以 `spec/Machine-v5-测试机运行环境.md §7.1` 为唯一正文。
 - **D5.7 分区同步**：`0x00`–`0x3F` = PASS、`0x40`–`0x7F` = FAIL，`0x80`–`0xFF` = 机器 fault 段；harness 判定按区间，不再按单值 `0x00`。
 - **不变**：D1–D4、D5.1–D5.6、D6 的其余决策正文；历史条目保留（`Process-03`）。
 - **流程说明**：本次为经授权的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`」的例外；`**状态**` 行已标 `rev. 2026-11-05`）。
