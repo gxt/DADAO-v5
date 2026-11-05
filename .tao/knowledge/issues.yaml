@@ -22,8 +22,8 @@
     QEMU/ADR 码表冲突；需 SPEC/ADR 任务订正 D5.8 的措辞（公式 or 显式码表）。
 - id: ISS-342
   scope: [spec, qemu, testcases]
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: GEM5-020t
   title: >-
     cfx 寄存器组合错误（CFXREG）与 escape/trap 的异常目标 cfx 不一致：
     `helper_cfx2rd/cfx2rc` 对「rc ≥ scratch_regs_num / 不存在的寄存器组合」用

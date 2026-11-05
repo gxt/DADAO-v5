@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..7f7dd89
+index 0000000..d9754b2
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
 @@ -0,0 +1,1069 @@
@@ -950,7 +950,7 @@ index 0000000..7f7dd89
 +    if (cg == 15 && cfxha == CfxhaPmem) {
 +        uint64_t value = 0;
 +        if (!dmaRegRead(s, rc, &value)) {
-+            nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +            return true;
 +        }
 +        out = value;
@@ -959,7 +959,7 @@ index 0000000..7f7dd89
 +    if (cg == 10 && cfxha == CfxhaTime) {
 +        uint64_t value = 0;
 +        if (!timeRegRead(s, rc, &value)) {
-+            nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +            return true;
 +        }
 +        out = value;
@@ -968,7 +968,7 @@ index 0000000..7f7dd89
 +    if (cg == 8 && cfxha == CfxhaHart) {
 +        uint64_t value = 0;
 +        if (!hartRegRead(s, rc, &value)) {
-+            nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +            return true;
 +        }
 +        out = value;
@@ -981,7 +981,7 @@ index 0000000..7f7dd89
 +
 +    uint64_t *p = cfxRegPtr(s, ci, cg, rc, false);
 +    if (p == nullptr) {
-+        nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++        nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +        return true;
 +    }
 +    out = *p;
@@ -1015,30 +1015,30 @@ index 0000000..7f7dd89
 +
 +    if (cg == 15 && cfxha == CfxhaPmem) {
 +        if (!dmaRegWrite(tc, s, rc, val)) {
-+            nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +            return true;
 +        }
 +        return true;
 +    }
 +    if (cg == 10 && cfxha == CfxhaTime) {
-+        nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++        nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +        return true;
 +    }
 +    if (cg == 8 && cfxha == CfxhaHart) {
 +        if (!hartRegWrite(tc, s, rc, val)) {
-+            nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +            return true;
 +        }
 +        return true;
 +    }
 +    if (cg == 7) {
-+        nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++        nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +        return true;
 +    }
 +
 +    uint64_t *p = cfxRegPtr(s, ci, cg, rc, true);
 +    if (p == nullptr) {
-+        nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++        nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +        return true;
 +    }
 +
@@ -1056,7 +1056,7 @@ index 0000000..7f7dd89
 +        uint64_t errPa = 0;
 +        const int ret = tlbControlExec(s, val, &errPa);
 +        if (ret == 1) {
-+            nodeCfxRaise(tc, s, CauseCfxReg, cfxha, pc, info);
++            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +            return true;
 +        }
 +        if (ret == 2) {
