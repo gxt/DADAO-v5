@@ -19,14 +19,8 @@
 
 > 已完成项不再列；只列仍未收口/未开始的任务。
 
-- `SPEC-191t`（待验收）：ADR-0004/0009/0041、DDLN D-D002/TT-D002、Machine-00 旧码清理；reviewer 复验中。
-- `INFRA-123t`（待验收）：DD 唯一真源、删除 `.opencode/agents/lecnotes.md`、TT 工作流退役；reviewer 复验中。
-- `INTEG-054t`（待开始）：5 个屏蔽寄存器实现清理（QEMU→gem5→tests）。
-- `INTEG-055t`（待开始）：退出码实现迁移（QEMU→gem5→tests）。
-- `INFRA-124t`（待开始）：ADR-0013/check_spec_refs/GEM5-017t 指针/Node embench 小项。
-- `QEMU-084t`（待开始）：guest rlimit 实现（`ISS-343`，P3）。
-- `INFRA-125t`（待开始）：`components/embench-iot`、`components/libc-test` 补丁集迁入 `tests/tset/{embench,libc-test}`；manifest/门控同步。
-- TT 删除：`INFRA-123t` 合并后由 architect 在主工作树删除 81 份 `TT-*`（不备份）。
+- `INTEG-055t`（待验收）：退出码实现迁移（QEMU→gem5→tests）；页表/A-D 路由返工后 reviewer 第 2 轮复验中。
+- `QEMU-084t`（待开始）：guest rlimit 实现（`ISS-343`，P3）；须等 `INTEG-055t` 收口（共享 QEMU 源树）。
 - `SPEC-180t` 的 ADR、Linux bring-up charter ADR：仍待用户逐条确认（长期 backlog）。
 
 **Open issue**：仅 `ISS-343`（QEMU guest rlimit no-op），已归 `QEMU-084t`；`ISS-340/341/342/344` 均 closed。
