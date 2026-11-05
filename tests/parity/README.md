@@ -7,16 +7,18 @@
   picolibc Meson 清单。
 - 驱动：`tools/testcases/parity/run_parity.py`（用法/case ID/退出码/例外见其
   `README.md`）。
-- `matrix-M11.md` 是**现场生成的快照**：由证据脚本
-  `.work/evidence/GEM5-017t/run.sh` 从全量矩阵 `cp` 而来，计数与差异逐项来自
-  证据 JSON，**不手改**。
+- `matrix-M11.md` 是**现场生成的快照**：由重生成该快照的任务证据脚本（当前快照对应
+  `TESTCASES-098t`）从全量矩阵 `cp` 而来，计数与差异逐项来自证据 JSON，**不手改**。
 
 ## 矩阵口径
 
 | profile | inst | arch | embench | picolibc |
 | --- | --- | --- | --- | --- |
 | tiny | 适用全集（universal + explicit tiny） | `N/A`（`machine-profiles.yaml` `tiny.arch=false`） | 全 benchmark × O0/O2 | 旁证（`--stage fast`，不参与硬门） |
-| node | 适用全集（universal + explicit node） | 10 smoke + 13 probes + `046t` | 全 benchmark × O0/O2（Node wrapper） | 不跑（`node.picolibc=false`） |
+| node | 适用全集（universal + explicit node） | 10 smoke + 13 probes + `046t` | N/A（**历史**；M11 Node 不跑 embench） | 不跑（`node.picolibc=false`） |
+
+- **Node embench = 历史，不计入 M11 Node 验收**：`GEM5-016t`/`QEMU-080t` 的 Node
+  `inst`/`embench` 结果仅作历史参考；M11 起 `node/embench` 不再生成。
 
 - 硬门：`QEMU PASS ⊆ gem5 PASS`，且同 case 的 exit/架构可见结果一致；
   `GEM5_ONLY_FAIL == 0`。
@@ -31,9 +33,9 @@
 ```sh
 python3 tools/testcases/parity/run_parity.py --profiles tiny,node \
   --scopes inst,arch,embench,picolibc --jobs 8 --timeout 600 \
-  --work-dir /tmp/opencode/GEM5-017t/run \
-  --json /tmp/opencode/GEM5-017t/matrix.json \
-  --markdown /tmp/opencode/GEM5-017t/matrix.md
+  --work-dir /tmp/opencode/qemu-gem5-parity/run \
+  --json /tmp/opencode/qemu-gem5-parity/matrix.json \
+  --markdown /tmp/opencode/qemu-gem5-parity/matrix.md
 ```
 
 入库快照只允许 `cp` 现场 Markdown；不要手改数字。

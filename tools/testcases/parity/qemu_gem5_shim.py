@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """qemu_gem5_shim.py -- translate the QEMU system CLI subset used by the test
-drivers into a gem5 FS (`configs/dadao/fs.py`) invocation (GEM5-017t).
+drivers into a gem5 FS (`configs/dadao/fs.py`) invocation.
 
 The shim exists so that the existing, unmodified test drivers can run against
 gem5 FS without a second driver implementation: the driver keeps emitting the
@@ -29,7 +29,7 @@ Engine selection (environment, set by the parity driver):
   PARITY_GEM5_CONFIG  fs.py path (default .work/source/gem5/configs/dadao/fs.py)
   PARITY_GEM5_PROFILE default profile when -machine omits `profile=` (tiny)
   PARITY_GEM5_BOOTROM default BootROM when -machine omits `bootrom-image=`
-  PARITY_WORK_ROOT    root for the per-run gem5 --outdir (default /tmp/opencode/GEM5-017t/shim)
+  PARITY_WORK_ROOT    root for the per-run gem5 --outdir (default /tmp/opencode/qemu-gem5-parity/shim)
 
 Exit status is the gem5 FS guest exit code.  A non-guest gem5 stop is reported
 as 125 (`fs.py` NON_GUEST_EXIT); a shim usage error is 2.
@@ -360,7 +360,7 @@ def run(argv: list[str]) -> int:
             print(f"qemu_gem5_shim: ERROR: {what} not found: {path}",
                   file=sys.stderr)
             return SHIM_ERROR
-    root = os.environ.get("PARITY_WORK_ROOT", "/tmp/opencode/GEM5-017t/shim")
+    root = os.environ.get("PARITY_WORK_ROOT", "/tmp/opencode/qemu-gem5-parity/shim")
     os.makedirs(root, exist_ok=True)
     outdir = tempfile.mkdtemp(prefix="gem5-", dir=root)
     cmd = build_gem5_argv(cfg, outdir, gem5, config)

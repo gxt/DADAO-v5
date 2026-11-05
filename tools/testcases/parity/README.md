@@ -1,4 +1,4 @@
-# 跨引擎同模式 parity 驱动（`tools/testcases/parity/`，GEM5-017t）
+# 跨引擎同模式 parity 驱动（`tools/testcases/parity/`）
 
 把 **QEMU system** 与 **gem5 FS** 的同 profile、同 case 结果做成可重跑、可机械判定的矩阵。
 配对**只允许** QEMU system ↔ gem5 FS（同 `tiny`/`node`），见 `ADR-0048 D1/D2`。
@@ -26,9 +26,9 @@ python3 tools/testcases/parity/run_parity.py \
   --bootrom-node .dadao/tests/bootrom/step5/bootrom_step5.bin \
   --bootrom-node-inst .dadao/tests/bootrom/step5/bootrom_step5_inst.bin \
   --jobs 8 --timeout 600 \
-  --work-dir /tmp/opencode/GEM5-017t/run \
-  --json /tmp/opencode/GEM5-017t/matrix.json \
-  --markdown /tmp/opencode/GEM5-017t/matrix.md
+  --work-dir /tmp/opencode/qemu-gem5-parity/run \
+  --json /tmp/opencode/qemu-gem5-parity/matrix.json \
+  --markdown /tmp/opencode/qemu-gem5-parity/matrix.md
 ```
 
 选项：
@@ -110,7 +110,7 @@ gem5 进程 stdin，`SYS_READC` 读到与 QEMU 相同的字节（不再记 BLOCK
 
 ## Node embench wrapper（历史）
 
-> M11 起 Node 不跑 Embench（见上「M11 收口口径」）；本节只说明 `GEM5-017t` 旧快照的 wrapper 机制，当前矩阵不再生成 `node/embench` 行。
+> **Node embench 归历史、不计入 M11 Node 验收**（见上「M11 收口口径」）；M11 起 Node 不跑 Embench，当前矩阵不再生成 `node/embench` 行。本节只说明旧快照时期的 wrapper 机制。
 
 `run_embench_e2e.py` 固定发 `-M dadao-m1`（Tiny 形状）。Node 矩阵的证据层
 wrapper 把它改写为 `dadao-m1,profile=node,bootrom-image=…`，其余 argv 原样，
@@ -120,10 +120,10 @@ Node/embench 行必须含 `profile=node` 且有 wrapper 记录。
 ## 证据与快照
 
 - 全量矩阵 JSON/Markdown 与日志落 `--work-dir`/`--json`/`--markdown`（默认
-  `/tmp/opencode/GEM5-017t/**`，gem5 `--outdir` 亦只落临时区）。
+  `/tmp/opencode/qemu-gem5-parity/**`，gem5 `--outdir` 亦只落临时区）。
 - 入库快照 `tests/parity/matrix-M11.md` 由 `.work/evidence/TESTCASES-098t/run.sh`
   从现场 Markdown `cp`，不手改数字；该脚本同时校验计数自洽、引擎身份、Node
   历史归类、llvm-ts 计数与反例注入。
-- 生成矩阵的标题与尾部 `Evidence script` 行是驱动硬编码的 `GEM5-017t` 文案；
-  本快照实际证据脚本为 `.work/evidence/TESTCASES-098t/run.sh`（不改驱动，避免越界）；
-  把标题/证据指针参数化留待后续小任务。
+- 生成矩阵的标题与尾部 `Evidence script` 行不再硬编码任务号/证据路径（改为通用
+  标题 + 指向本 README「证据与快照」）；`tests/parity/matrix-M11.md` 为改动前生成
+  的快照，其标题/证据行仍是旧文案，下次重生成自动刷新，不手改快照。
