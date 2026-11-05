@@ -19,10 +19,10 @@ DADAO定义了四种运行模式，用两位编码：
 
 | cfxha | cfxname | 说明 |
 |:---:|------|------|
-| 0 | umon | 处理 user 模式下的同步异常 |
-| 1 | jmon | 处理 jail 模式下的同步异常 |
-| 2 | smon | 处理 supv 模式下的同步异常 |
-| 3 | hmon | 处理 hypv 模式下的同步异常 |
+| 0 | umon | 处理 user 模式下的同步异常与异步中断 |
+| 1 | jmon | 处理 jail 模式下的同步异常与异步中断 |
+| 2 | smon | 处理 supv 模式下的同步异常与异步中断 |
+| 3 | hmon | 处理 hypv 模式下的同步异常与异步中断 |
 | 4 | ptw | 页表步进，管理页表与 TLB |
 | 5 | cache | Cache 管理 |
 | 6-14 | reserved | 保留，未定义 |
@@ -37,9 +37,9 @@ DADAO定义了四种运行模式，用两位编码：
 
 每个核芯功能扩展提供自己特有的功能调用，并负责响应和处理所管理设备的中断，因此，异常的进入和退出也都隶属于某个核芯功能扩展：
 
-- 指令执行过程中，核芯触发的同步异常，根据指令执行时的运行模式，分别由 `cfx_umon`/`cfx_jmon`/`cfx_smon`/`cfx_hmon` 进行异常处理
-- 地址转换过程中，地址转换部件触发的异常（页表步进与 TLB 命中），均由 `cfx_ptw` 进行异常处理
-- 外部设备触发的异常，根据中断源，分别由相应的核芯功能扩展进行处理
+- 执行期同步异常与异步中断先进入当前运行模式的 monitor（`cfx_umon`/`cfx_jmon`/`cfx_smon`/`cfx_hmon`），由 monitor 自行处理或 `trap` 分发到源 cfx；显式 `trap` 仍隶属目标 cfx，`escape` 仍隶属当前 cfx
+- 地址转换过程中触发的异常（页表步进与 TLB 命中）先进入当前运行模式 monitor：未映射与 A/D 回写失败归 `CFXMEM`，权限拒绝归 `CFXPERM`；不再由 `cfx_ptw` 处理
+- 外部设备触发的异步中断先进入当前运行模式 monitor，再由 monitor 决定自行处理或 `trap` 到源 cfx
 
 多核系统中各资源的作用域：
 
@@ -52,7 +52,7 @@ DADAO定义了四种运行模式，用两位编码：
 
 > `per-task`：`cfx16`–`cfx31` 由内核或进程在**申请后使用**，使用完毕**释放**；持有期间即使发生进程上下文切换，该 cfx 的状态与运行不受影响，**不需要**随上下文切换保存/恢复。
 
-> `inner_*` 为硬件内部寄存器（不对外暴露），用于异常处理流程中的中间状态保存。`inner_run_mode`（2 位）记录当前运行模式（0=user, 1=jail, 2=supv, 3=hypv），`inner_cfx_mask`（64 位，per-hart）和 `inner_excp_cause_*` 等用于异常屏蔽判断与现场保存。详细语义见 §异常进入流程。
+> `inner_*` 为硬件内部寄存器（不对外暴露），用于异常处理流程中的中间状态保存。`inner_run_mode`（2 位）记录当前运行模式（0=user, 1=jail, 2=supv, 3=hypv），`inner_excp_cause_*` 等用于现场保存。异常进入流程不再使用 `inner_cfx_mask` 作为同步异常屏蔽层；同步异常全部不可屏蔽，不使用异常原因掩码与不可屏蔽掩码；异步来源过滤与 pending 由 monitor 的 `cfx_<monitor>_<mode>_cfx_intr_mask` 与 `cfx_<monitor>_excp_pending` 承担；其余独立 cfx 屏蔽相关寄存器的定义删除由后续任务负责。详细语义见 §5.2。
 
 ## 2. 地址空间
 
@@ -767,140 +767,144 @@ trap/escape/cfx2rd/cfx2rc 指令可以在任意运行模式下执行。若 cfxha
 
 ### 5.2 异常进入流程
 
-X-mode（任意运行模式）下发生异常时，硬件自动执行以下操作序列：
+X-mode（任意运行模式）下发生异常时，硬件自动执行以下操作序列。**执行期同步异常与异步中断都先进入当前运行模式的 monitor**；monitor 是第一处理者，可自行处理并 `escape`，也可 `trap` 到源 cfx。
 
-1. **确定核芯功能扩展**：
-   - 特权指令：
-     - trap/cfx2rd/cfx2rc 按 cfxha 路由；
-     - 若 cfxha 为 reserved（6-14、16-31、35-61），触发 ILLI 进入当前 monitor；若 cfxha 合法但目标 cfx 的 `cfxtrap`/`cfxreg` mask 拒绝源 cfx，触发 `CFXPERM` 进入当前模式 monitor
-   - 其它指令执行触发的 ILLI/UNDI/RASOF/RASUF/IALIGN/MALIGN 异常：
-      - 根据发生异常前的运行模式（U-mode/J-mode/S-mode/H-mode）分别判断进入 cfx_umon/cfx_jmon/cfx_smon/cfx_hmon 核芯功能扩展
-   - 页表相关异常（页表步进或 TLB 命中时产生的页缺失、权限不符、fragment 缺失、A/D 回写失败等）：判断应进入 cfx_ptw 核芯功能扩展
-   - CFXMEM（核内地址空间非法访问：`ptw_enable=0` 的 `addr[47:42] = 0` 访存，或保留 cfx 的普通 `ld/st`）：`addr[47:42] = 0` 时目标是当前运行模式的 cfx；否则根据核内地址高 6 位 bits[47:42] 指定的 cfxha 作为目标核芯功能扩展
-   - 直接 `ld/st`/取指命中另一 cfx 且该 cfx 的 `cfxmem`/`cfxexe` mask 拒绝源 cfx：触发 `CFXPERM` 进入当前模式 monitor（先于地址合法性检查）
-   - 异步中断：根据中断源判断进入对应的核芯功能扩展
-2. **判断是否为不可屏蔽异常**：检查 `cfx_⟨cfxname⟩_excp_cause_nonmaskable` 对应位，若置1则该异常不可屏蔽，跳过步骤3-5直接进入步骤6
-3. **判断 inner_cfx_mask 是否屏蔽**：若目标 cfx 非自身，检查 `inner_cfx_mask` 第 cfxha 位。若为1，同步异常触发 ILLI，异步中断设置 pending
-4. **异步中断来源过滤**：检查当前 cfx 的 `cfx_intr_mask` 与当前 mode monitor 的 `global_cfx_intr_mask` 第 cfxha 位（位索引=中断来源 cfx）；任一为1则不投递，置目标 cfx 的 `excp_pending`
-5. **判断异常原因是否被屏蔽**：检查 `cfx_⟨cfxname⟩_<mode>_excp_cause_mask` 对应位，若为1则该异常原因被屏蔽
-    - 异步中断若被屏蔽，则处于待处理状态（pending），并将对应位置1到 `cfx_⟨cfxname⟩_excp_pending` 寄存器中（OR语义，不影响其他pending位）。软件可通过写0清除对应pending位。
-    - （同步异常均为不可屏蔽，已在步骤 2 跳过步骤 3–5；本步只对异步中断生效。）
-6. **更新陷入计数**：根据异常类型递增 `cfx_⟨cfxname⟩_trap_num`（trap 指令）、`cfx_⟨cfxname⟩_excp_sync_num`（同步异常）或 `cfx_⟨cfxname⟩_excp_async_num`（异步中断）
-7. **保存现场**：`cfx_⟨cfxname⟩_excp_prev_run_mode` 记录异常前的运行模式，`cfx_⟨cfxname⟩_excp_prev_cfx_mask` 保存异常前的核芯功能扩展掩码；`trap` 进入时另保存当前 mode monitor 的 `global_cfx_intr_mask` 并将其置全1
-8. **模式切换**：将运行模式和核芯功能扩展掩码改为 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 和 `cfx_⟨cfxname⟩_<mode>_switch_cfx_mask` 寄存器的值
-9. **保存异常信息**：
-    - `cfx_⟨cfxname⟩_excp_cause_ip`：发生异常的指令地址（同步异常为触发异常的指令地址，异步中断为下一条指令地址）
-    - `cfx_⟨cfxname⟩_excp_cause_id`：异常编号
-    - `cfx_⟨cfxname⟩_excp_cause_info`：异常辅助信息
-10. **跳转至异常向量**：跳转到 `cfx_⟨cfxname⟩_<mode>_excp_vector` 寄存器指示的异常处理程序地址。该地址与普通访存规则一致：`ptw_enable=0` 或地址 `addr[47:42] != 0` 时为核内地址，`ptw_enable=1` 且 `addr[47:42] = 0` 时为虚拟地址。软件须保证异常向量所在页不会发生页缺失，硬件不提供向量缺失的恢复机制。
+- 当前运行模式到 monitor 的对应关系：`U-mode → cfx_umon (cfx0)`、`J-mode → cfx_jmon (cfx1)`、`S-mode → cfx_smon (cfx2)`、`H-mode → cfx_hmon (cfx3)`；使用**异常前**运行模式对应的 `<mode>_*` 寄存器行。
+
+**（一）同步异常路由（全部不可屏蔽）**
+
+| 触发或条件 | 异常原因 | 目标 cfx |
+| --- | --- | --- |
+| `trap`/`cfx2rd`/`cfx2rc`，`cfxha` 为 reserved（`6–14`、`16–31`、`35–61`） | `ILLI` | 当前运行模式 monitor |
+| `trap`/`cfx2rd`/`cfx2rc`，目标 cfx 的 `<mode>_cfxtrap`/`<mode>_cfxreg` 拒绝源 cfx | `CFXPERM` | 当前运行模式 monitor |
+| `trap` 合法且被允许 | `CFXTRAP` | 目标 `cfxha` |
+| `cfx2rd`/`cfx2rc` 合法且被允许 | 无（正常寄存器访问） | 不进入本流程 |
+| 非法核芯功能扩展寄存器访问 | `CFXREG` | 当前运行模式 monitor（不进入被访问的核芯功能扩展） |
+| 两轴权限拒绝（`cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` 来源 mask 拒绝）或页表权限拒绝（HSJU 或 R/W/X 不符） | `CFXPERM` | 当前运行模式 monitor |
+| 核内地址空间或内部存储故障 | `CFXMEM` | 当前运行模式 monitor |
+| 非 `trap`/`escape`/`cfx2*` 路径的 `ILLI`/`UNDI`/`RASOF`/`RASUF`/`MALIGN`/`IALIGN` | 同名原因 | 当前运行模式 monitor |
+| `escape` 帧错误或目标错误 | `CFXESC` | 当前核芯功能扩展（保持既有语义，不属于 monitor 路由） |
+
+- `CFXMEM` 至少覆盖：`ptw_enable = 0` 且 `addr[47:42] = 0` 的普通访存；reserved cfx（`6–14`、`16–31`、`35–61`）的普通 `ld/st`；SRAM/MMIO 越界或非法核内偏移；页表**未映射**（L1/L2 `P = 0`、SPF/GPF 对应小页位为 0、fragment 缺失）；A/D 回写失败（PTE 物理写失败）。
+- A/D 回写失败按当前运行模式 monitor 的 `CFXMEM` 处理，`cause_info` = PTE 物理地址；不进入 `cfx_ptw` 自己的异常入口，也不归 `CFXPERM`。
+- 页表**未映射**归 `CFXMEM`，页表**权限**拒绝（HSJU 或 R/W/X 不符）归 `CFXPERM`，两者目标均为当前运行模式 monitor。
+- reserved cfx 的普通 `ld/st` 归 `CFXMEM`，`trap`/`escape` 归 `ILLI`，两者目标均为当前运行模式 monitor。
+
+**（二）monitor 异常编号**
+
+monitor 的异常原因使用 DADAO 位索引（`excp_cause_id = 1 << n`）：
+
+| 名称 | 位索引 |
+| --- | --- |
+| `CFXTRAP` | 0 |
+| `CFXMEM` | 1 |
+| `CFXREG` | 2 |
+| `CFXESC` | 3 |
+| `CFXPERM` | 7 |
+| `ILLI` | 8 |
+| `UNDI` | 9 |
+| `RASOF` | 10 |
+| `RASUF` | 11 |
+| `MALIGN` | 12 |
+| `IALIGN` | 13 |
+
+monitor 不再有独立的页表异常原因：页表未映射与 A/D 回写失败归 `CFXMEM`，页表权限拒绝归 `CFXPERM`；A/D 回写失败的 `cause_info` = PTE 物理地址。
+
+**（三）异常进入步骤**
+
+1. **确定异常原因与目标 cfx**：同步异常按（一）与（二）确定；执行期同步异常与异步中断的目标均为当前运行模式 monitor（`CFXTRAP` 目标为目标 `cfxha`，`CFXESC` 目标为当前核芯功能扩展）。
+2. **同步异常不可屏蔽**：同步异常全部不可屏蔽，不查任何异常原因掩码；异步中断只按来源过滤（下一步），也不查异常原因掩码。
+3. **异步中断来源过滤**（仅异步）：检查当前运行模式 monitor 的 `cfx_<monitor>_<mode>_cfx_intr_mask`（cg0–3 rc4）与 `cfx_<monitor>_global_cfx_intr_mask`（cg8 rc1）第 cfxha 位（位索引 = 中断来源 cfx）；任一为 1 则不投递，置 monitor 的 `excp_pending`（cg5 rc5）。
+4. **更新陷入计数**：根据异常类型递增目标 cfx 的 `trap_num`（`trap` 指令）、`excp_sync_num`（同步异常）或 `excp_async_num`（异步中断）。
+5. **保存现场**：`excp_prev_run_mode` 记录异常前的运行模式；`excp_cause_ip`（同步为触发指令地址，异步为下一条指令地址）、`excp_cause_id`、`excp_cause_info` 记录异常现场。`trap` 进入时另保存当前模式 monitor 的 `global_cfx_intr_mask`（异常前核芯功能扩展中断掩码状态）并置全 1，供 `escape` 恢复；不保存独立的 cfx 屏蔽状态。
+6. **模式/目标切换**：`inner_run_mode` 取目标 cfx 的 `<mode>_switch_run_mode`，`inner_cfx_code` 取目标 cfx；**不切换独立 cfx 屏蔽层**（同步屏蔽层已拆除；异步来源过滤与 pending 由 monitor 的 `cfx_intr_mask` 与 `excp_pending` 承担）。
+7. **跳转至异常向量**：跳转至目标 cfx 的 `<mode>_excp_vector`。该地址与普通访存规则一致：`ptw_enable=0` 或地址 `addr[47:42] != 0` 时为核内地址，`ptw_enable=1` 且 `addr[47:42] = 0` 时为虚拟地址。软件须保证异常向量所在页不会发生页缺失，硬件不提供向量缺失的恢复机制。
+
+**（四）异步中断（monitor 第一处理者）**
+
+- 执行过程中的异步中断**先进入当前运行模式的 monitor**，不直接进入源 cfx。
+- monitor 拥有异步来源屏蔽、pending 与分发决策：可自行处理并 `escape`，也可 `trap` 到源 cfx。
+- monitor 处理期间到达的新事件**置 pending、不嵌套 monitor**；`excp_pending` 按 OR 语义置位，软件写 0 清位。
+- 异步中断的 pending 位布局、优先级与抢占顺序列入后续修订；本节只冻结「先入当前 monitor」「处理期间不嵌套」「monitor 可分发给源 cfx」三条。
+
+**（五）伪代码**
 
 ```
 // 注：伪代码中 cause 为 one-hot 值（如 CFXTRAP = 1<<0 = 1，ILLI = 1<<8 = 256）；
 //     异常原因表中 `1 << n` 的 n 即位索引，cause = 1 << n。
-// 1. 确定核芯功能扩展
-if instruction ∈ {TRAP, ESCAPE, CFX2RD, CFX2RC}:
+//     同步异常全部不可屏蔽；异步中断先进入当前运行模式 monitor。
+// 1. 确定异常原因与目标 cfx
+// temp_monitor_code 为伪代码临时变量：当前运行模式 monitor（U-mode→0、J-mode→1、S-mode→2、H-mode→3）
+case inner_run_mode of
+    U-mode: temp_monitor_code <= 0
+    J-mode: temp_monitor_code <= 1
+    S-mode: temp_monitor_code <= 2
+    H-mode: temp_monitor_code <= 3
+
+if instruction ∈ {TRAP, CFX2RD, CFX2RC}:
     if cfxha ∈ {6..14, 16..31, 35..61}:
-        cause      <= ILLI
-        ; reserved→ILLI，重定向到当前运行模式的 monitor (cfx0-3)
-        case inner_run_mode of
-            U-mode: temp_cfx_code <= 0
-            J-mode: temp_cfx_code <= 1
-            S-mode: temp_cfx_code <= 2
-            H-mode: temp_cfx_code <= 3
-    elif cfxha != inner_cfx_code and cfx_⟨cfxname⟩_<mode>_cfxtrap & (1 << inner_cfx_code):
-        cause      <= CFXPERM
-        ; 目标 cfxtrap mask 拒绝源 cfx → CFXPERM，进入当前模式 monitor
-        case inner_run_mode of
-            U-mode: temp_cfx_code <= 0
-            J-mode: temp_cfx_code <= 1
-            S-mode: temp_cfx_code <= 2
-            H-mode: temp_cfx_code <= 3
+        cause          <= ILLI
+        temp_cfx_code  <= temp_monitor_code         // reserved → 当前运行模式 monitor
+    elif instruction == TRAP
+       and (cfx_⟨cfxname⟩_<mode>_cfxtrap & (1 << inner_cfx_code)) != 0:
+        cause          <= CFXPERM                   // 目标 cfxtrap mask 拒绝源 cfx → 当前 monitor
+        temp_cfx_code  <= temp_monitor_code
+    elif instruction ∈ {CFX2RD, CFX2RC}
+       and (cfx_⟨cfxname⟩_<mode>_cfxreg & (1 << inner_cfx_code)) != 0:
+        cause          <= CFXPERM                   // 目标 cfxreg mask 拒绝源 cfx → 当前 monitor
+        temp_cfx_code  <= temp_monitor_code
     elif instruction == TRAP:
-        cause          <= CFXTRAP                 // 功能调用
+        cause          <= CFXTRAP                   // 合法且被允许 → 目标 cfx
         temp_cfx_code  <= cfxha
-    elif instruction ∈ {CFX2RD, CFX2RC}:
-        ; cfxreg 权限已在执行阶段检查（拒绝 → CFXPERM）
-        temp_cfx_code  <= cfxha
-    // ESCAPE（非 reserved）：由异常退出流程处理，不在此处路由
-elif sync:
-    case inner_run_mode of
-        U-mode: temp_cfx_code <= 0
-        J-mode: temp_cfx_code <= 1
-        S-mode: temp_cfx_code <= 2
-        H-mode: temp_cfx_code <= 3
-elif mem_access:
-    if cause == CFXMEM:                         // 核内地址空间异常
-        if addr[47:42] == 0:                    // 内存窗口（ptw_enable=0）→ 当前模式 monitor
-            case inner_run_mode of
-                U-mode: temp_cfx_code <= 0
-                J-mode: temp_cfx_code <= 1
-                S-mode: temp_cfx_code <= 2
-                H-mode: temp_cfx_code <= 3
-        else:
-            temp_cfx_code  <= addr[47:42]       // 保留 cfx 的普通 ld/st → 按 cfxha 路由
     else:
-        temp_cfx_code  <= 4                      // 页表相关异常（页表步进或 TLB 命中）→ cfx_ptw
-else:
-    temp_cfx_code          <= intr_cfx               // 异步中断 → 硬件固定路由
+        ; CFX2RD/CFX2RC 合法且被允许 → 正常寄存器访问，不进入本流程
+        return
+elif instruction == ESCAPE:
+    ; escape 帧错误/目标错误 → 当前 cfx（§5.3），不属于 monitor 路由
+    cause          <= CFXESC
+    temp_cfx_code  <= inner_cfx_code
+elif sync_cause ∈ {CFXREG, CFXPERM, CFXMEM, ILLI, UNDI, RASOF, RASUF, MALIGN, IALIGN}:
+    ; 同步异常（非 trap/escape/cfx2* 路径）一律进入当前运行模式 monitor
+    temp_cfx_code  <= temp_monitor_code
+elif async_intr:
+    ; 异步中断先进入当前运行模式 monitor，不直接进入源 cfx
+    temp_cfx_code  <= temp_monitor_code
 
-// 2. 判断是否为不可屏蔽异常
-check_nonmaskable:
-if (cfx_⟨cfxname⟩_excp_cause_nonmaskable & cause) == 0:
+// 2. 同步异常全部不可屏蔽，不查任何异常原因掩码；异步中断只按来源过滤（下一步）
+if async_intr:
 
-    // 3. 判断 inner_cfx_mask 是否屏蔽（自身 cfxha 不检查）
-    if temp_cfx_code != inner_cfx_code
-       and (inner_cfx_mask & (1 << temp_cfx_code)) != 0:
-        if sync:  cause ← ILLI                      // 同步异常被 inner mask 屏蔽 → ILLI
-                  case inner_run_mode of            // 重定向到当前模式 monitor
-                      U-mode: temp_cfx_code <= 0
-                      J-mode: temp_cfx_code <= 1
-                      S-mode: temp_cfx_code <= 2
-                      H-mode: temp_cfx_code <= 3
-                  goto check_nonmaskable            // 继续异常进入流程
-        else:     cfx_⟨cfxname⟩_excp_pending ← cfx_⟨cfxname⟩_excp_pending | cause
-                  return
-
-    // 4. 异步中断来源过滤（仅异步）
-    if not sync:
-        if (cfx_⟨current⟩_<mode>_cfx_intr_mask & (1 << temp_cfx_code)) != 0
-           or (cfx_⟨mode_monitor⟩_global_cfx_intr_mask & (1 << temp_cfx_code)) != 0:
-            cfx_⟨cfxname⟩_excp_pending ← cfx_⟨cfxname⟩_excp_pending | cause
-            return
-
-    // 5. 判断异常原因是否被屏蔽
-    //    异步中断被屏蔽时设置 pending
-    if (cfx_⟨cfxname⟩_<mode>_excp_cause_mask & cause) != 0:
-        cfx_⟨cfxname⟩_excp_pending ← cfx_⟨cfxname⟩_excp_pending | cause   // 仅异步中断会到达此处（同步异常均不可屏蔽，步骤 2 已跳过）
+    // 3. 异步中断来源过滤（仅异步；位索引 = 中断来源 cfx）
+    if (cfx_⟨cfxname⟩_<mode>_cfx_intr_mask & (1 << intr_cfx)) != 0
+       or (cfx_⟨cfxname⟩_global_cfx_intr_mask & (1 << intr_cfx)) != 0:
+        cfx_⟨cfxname⟩_excp_pending ← cfx_⟨cfxname⟩_excp_pending | cause
         return
 
-// 6. 更新陷入计数
+// 4. 更新陷入计数
 if cause == CFXTRAP:
     cfx_⟨cfxname⟩_trap_num        <= cfx_⟨cfxname⟩_trap_num + 1
-elif not sync:                                    // 异步中断
+elif async_intr:
     cfx_⟨cfxname⟩_excp_async_num  <= cfx_⟨cfxname⟩_excp_async_num + 1
-else:                                             // 同步异常（非trap）
+else:
     cfx_⟨cfxname⟩_excp_sync_num   <= cfx_⟨cfxname⟩_excp_sync_num + 1
 
-// 7. 保存现场
+// 5. 保存现场
 cfx_⟨cfxname⟩_excp_prev_run_mode  <= inner_run_mode
-cfx_⟨cfxname⟩_excp_prev_cfx_mask  <= inner_cfx_mask
-if cause == CFXTRAP:                              // trap 自动屏蔽 global 中断源（D9）
-    saved_global_cfx_intr_mask    <= cfx_⟨mode_monitor⟩_global_cfx_intr_mask
+cfx_⟨cfxname⟩_excp_cause_ip       <= inner_excp_cause_ip     // 同步为触发指令地址，异步为下一条指令地址
+cfx_⟨cfxname⟩_excp_cause_id       <= inner_excp_cause_id
+cfx_⟨cfxname⟩_excp_cause_info     <= inner_excp_cause_info
+if cause == CFXTRAP:                              // trap 保存 global 中断源掩码，供 escape 恢复
+    saved_global_cfx_intr_mask             <= cfx_⟨mode_monitor⟩_global_cfx_intr_mask
     cfx_⟨mode_monitor⟩_global_cfx_intr_mask <= 全1
 
-// 8. 模式切换
+// 6. 模式/目标切换（不切换独立 cfx 屏蔽层）
 inner_run_mode           <= cfx_⟨cfxname⟩_<mode>_switch_run_mode
-inner_cfx_mask           <= cfx_⟨cfxname⟩_<mode>_switch_cfx_mask
-inner_cfx_code            <= temp_cfx_code
+inner_cfx_code           <= temp_cfx_code
 
-// 9. 保存异常信息
-cfx_⟨cfxname⟩_excp_cause_ip       <= inner_excp_cause_ip     // 同步异常为触发指令地址，异步中断为下一条指令地址
-cfx_⟨cfxname⟩_excp_cause_id       <= inner_excp_cause_id     // 异常编号
-cfx_⟨cfxname⟩_excp_cause_info     <= inner_excp_cause_info   // 异常辅助信息
-
-// 10. 跳转至异常向量
-inner_inst_pointer           <= cfx_⟨cfxname⟩_<mode>_excp_vector
+// 7. 跳转至异常向量
+inner_inst_pointer       <= cfx_⟨cfxname⟩_<mode>_excp_vector
 ```
+
+异步中断进入 monitor 后，由 monitor 决定自行处理或 `trap` 到源 cfx；monitor 处理期间到达的新事件置 pending，不嵌套进入 monitor。
 
 ### 5.3 异常退出流程
 
@@ -978,6 +982,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 - `cfx_hart` 计数寄存器由 128 位 `cycle_lo`/`cycle_hi`/`insn_lo`/`insn_hi`（`cg8 rc2`–`rc5`）收为 64 位单寄存器 `cycle`/`insn`（`rc2`/`rc3`）；定时器比较/控制前移至 `rc4`/`rc5`，`rc6`/`rc7` 保留。`cfx_time` 的 `time_freq`/`time_value` 前移至 `cg10 rc0`/`rc1`，`rc2`–`rc63` 保留。
 - BootROM 口径收口：`cfx_power` BootROM 只规定 **≥64 KiB**，实际大小与 `power` 是否设 SRAM 由平台规范规定；复位向量固定 `0xffff_ffff_0000`（BootROM 末 64 KiB 起点，镜像内偏移 = 大小 − 64 KiB）。
 - cfxha 重编号与作用域统一（2026-11-05）：`cfx_pmem`/`cfx_llc`/`cfx_time` 改为 **32/33/34**；保留集改为 **`6–14`、`16–31`、`35–61`**；作用域新增 **`cfx16`–`cfx31` per-task**（申请后使用、用完释放，不随上下文切换保存/恢复），`cfx32`–`cfx63` per-system、`cfx0`–`cfx15` per-hart 不变；`cfx_pmem` SRAM 核内基址随之变为 **`0x83ff_0000_0000`**（内部偏移仍 `0x3ff_0000_0000`）。
+- 异常进入流程重写：同步异常统一按「当前运行模式 monitor」路由（`CFXPERM`/`CFXREG`/`CFXMEM`/`ILLI` 等）；`CFXTRAP` 仍进入目标 cfx，`CFXESC` 仍进入当前 cfx；删除同步异常的独立 cfx 屏蔽层；同步异常全部不可屏蔽，不再使用异常原因掩码与不可屏蔽掩码；未映射页归当前 monitor 的 `CFXMEM`，页权限拒绝归 `CFXPERM`；monitor 原因编号沿用 DADAO 位索引，不再使用 `PTWERR` 作为 monitor 原因；异步中断先进入当前运行模式 monitor，屏蔽/pending 由 monitor 管理，处理期间不嵌套；具体调度细节列入后续修订。
 
 ### 0.7.2（2026-10-26）
 

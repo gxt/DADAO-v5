@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M11
 **依赖**：`SPEC-184t`（同改 `manifests/spec-readonly.lock.toml`，本任务须在其后串行，不得并发改锁）；`SPEC-183t`（DADAO-12 现行基线）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -113,7 +113,7 @@
 
 **（6）伪代码**
 
-按 8 步重写现有伪代码：删除 inner mask 判定与 mask 切换；同步分支按上述路由设置 `cause` 与 `temp_cfx_code`；`CFXREG`/`CFXPERM`/`CFXMEM`/`ILLI` 等同步目标均为当前 monitor；`CFXTRAP` 目标为 `cfxha`；`CFXESC` 目标为当前 cfx；**异步分支目标 = 当前运行模式 monitor**，monitor 再按来源决定自行处理或 `trap` 到源 cfx，并标注「处理期间新事件置 pending、不嵌套」。伪代码注释沿用现有风格，不引入新寄存器名。
+按 7 步重写现有伪代码：删除 inner mask 判定与 mask 切换；同步分支按上述路由设置 `cause` 与 `temp_cfx_code`；`CFXREG`/`CFXPERM`/`CFXMEM`/`ILLI` 等同步目标均为当前 monitor；`CFXTRAP` 目标为 `cfxha`；`CFXESC` 目标为当前 cfx；**异步分支目标 = 当前运行模式 monitor**，monitor 再按来源决定自行处理或 `trap` 到源 cfx，并标注「处理期间新事件置 pending、不嵌套」。伪代码注释沿用现有风格，不引入新寄存器名。
 
 ### 2. `spec/DADAO-12-SEE-主管系统运行环境.md §1`（最小同步）
 
@@ -193,14 +193,64 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
+**测试结果**：返工后一键证据 `run.sh` → `RUN_EXIT=0`（断言 49/49 PASS + 门控 12 项 rc=0 + 锁/编号/范围全过）；注入 `--inject` → `INJECT_EXIT=0`（§5.2 注入 `inner_cfx_mask` 屏蔽行 ⇒ rc=1；注入 `excp_cause_mask` 屏蔽同步行 ⇒ rc=1；`CFXPERM` 7→6 ⇒ rc=1；均 `cp`+`md5sum -c` 还原回绿，注入前后 `git status` 逐行一致）。
+**修改文件**：`spec/DADAO-12-SEE-主管系统运行环境.md`（§5.2、§1 注记/归属句/表项、附录 `0.7.3-rc` 一条）、`manifests/spec-readonly.lock.toml`（仅 `dadao-12` 块注记 + 1 行 sha）、`.tao/knowledge/milestones.md`（仅本行状态）、本任务书。
+**验收结果**：`make check-spec-readonly`/`check-spec-refs`/`check-spec-drift`/`check-spec-changelog`/`check-spec-numbering`/`check-spec-purity`/`check-spec-cite-targets`/`check-spec-codeblocks`/`check-sync-nonmaskable`/`check-milestones-fresh`/`check-asm-prose` 全 **rc=0**；`python3 tools/infra/check_issues.py` **rc=0**；`make check`（L1，含 `check-cfx-aliases`）**rc=0**；§5.2 与 §1 的 `excp_cause_mask`/`excp_cause_nonmaskable` 计数均为 **0**（`inner_cfx_mask`/`switch_cfx_mask`/`excp_prev_cfx_mask` 在 §5.2 均为 0）；`sha256sum` = `5a220ea50610d5b36630938f242d85773b59e97c9e1f0f7e9d8c5ef0d88e037f` 与锁逐字相等；标题行零变更；改动文件 4 项、无残留。
 **新发现/坑**：
+- §1 增删行会移动 §3/§4 行号，`check-cfx-aliases` 逐字比对因 `DADAO-12:<line>` 漂移而红；把 §1 归属句并入原 3 条 bullet（保持行数）后 L1 回绿，无需改任务书未列的 `.tao/contracts/**` 生成物。
+- 任务书 §(6) 原写「按 8 步」，与 §(3) 7 步自相矛盾；已按 §(3) 改为 7 步（仅一词）。
+- 任务书保留集 `6–14、19–61` 是 INTEG-053t 前旧集；§5.2 沿用现行 `6–14、16–31、35–61`。
+- §5.2/§1 不写 `excp_cause_mask`/`excp_cause_nonmaskable`/`PTWERR` 字面（连否定句也省略），避免 0 计数断言歧义。
 **遗留问题**：
+- `ISS-344`（未改 `issues.yaml`）：§2.2.6/§3.6/§4.5、`DADAO-22 §5.3`、`Machine-v5`、`contract-see` 仍为旧 `cfx_ptw`/`PTWERR`/`NUPERM` 口径，由 `SPEC-189t` 收口；**未声称全册一致**。
+- `excp_cause_mask`（cg0–3 rc11）/`excp_cause_nonmaskable`（cg5 rc63）的**定义删除**仍待 `SPEC-188t`（本任务只删 §5.2/§1 的使用）。
+- `§5.1`/`§5.3` 仍恢复 `excp_prev_cfx_mask`、`§3.x` 仍定义三件套，均由 `SPEC-188t` 处理。
+- 未决处置：1 A/D→`CFXMEM`；2 跨节只改 §5.2+§1、`ISS-344`；3 只拆使用不删定义；4 三条冻结+调度后续；5 锁串行（基线已含 `SPEC-184t`）。均已落地。
+- 已改 `milestones.md`（本行 `待开始`→`待验收`）；未 commit/push；已 `git merge master`（FF 到 `facd53fb`）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
 
+**自审方式**：自主逐行审查（`subagent_depth=1`，无嵌套子代理）。审查 §5.2 路由/编号/8 步/伪代码、§1 注记、附录条目、锁注记与 sha、改动范围。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 伪代码 step 6 的 `saved_global_cfx_intr_mask` 原写 `cfx_⟨cfxname⟩_global_cfx_intr_mask`（`⟨cfxname⟩`=目标 cfx）；`trap` 到非 monitor cfx 时会取目标而非「当前模式 monitor」，与步骤 6 正文不符 | ✅已修 | 改为 `cfx_⟨mode_monitor⟩_global_cfx_intr_mask`（保存与置全 1 同源） | 断言重跑 35/35 PASS；`run.sh --inject` 回绿；L1 rc=0 |
+| F2 任务书保留集 `6–14、19–61` 与现行 spec（INTEG-053t 后 `6–14、16–31、35–61`）冲突 | ❌不修（以现行 spec 为准） | §5.2 写现行保留集；完成区披露 | §1 表 / §5.1 现行集一致 |
+| F3 任务书 §1 模板点名两寄存器，与验收「0 引用」字面冲突 | ✅已修 | §1 改为不点名（语义等价，保留「后续任务删定义」） | 断言「§1 不引用两标识符」PASS |
+| F4 `check-issues` 非 make 目标，直接 `make` 会 rc=2 假红 | ✅已修（脚本内改直调） | `run.sh` 用 `python3 tools/infra/check_issues.py` | 直调 rc=0 |
+
+**判决**：F1/F3/F4 已修并复验；F2 按 spec 现行口径保留并披露。无未修 finding，状态置 `待验收`。
+
+
+#### 第 2 轮 engineer 自审（返工：7 步 + 删除 cause mask/nonmaskable + §1 归属同步）
+
+**自审方式**：自主逐行审查；已 `git merge master`（FF `d4f04582`→`facd53fb`，autostash 无冲突），按新版任务书重做。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 §5.2 仍保留“不可屏蔽判定 / 异常原因 mask”两步，且伪代码含 `excp_cause_nonmaskable`/`excp_cause_mask` | ✅已修 | 删两步，重排 7 步；伪代码 async 直接按来源过滤，注释重编号 1–7 | 断言 49/49 PASS；两标识符 §5.2/§1 计数 0 |
+| F2 §1 异常归属仍写「均由 `cfx_ptw`」「由相应的核芯功能扩展处理」，表项只写同步异常 | ✅已修 | 表项改「同步异常与异步中断」；三条归属句改 monitor 首处理；`trap`/`escape` 归属并入首条 | §1 归属断言 5 项 PASS |
+| F3 §1 新增一条 bullet 使 §3/§4 行号 +1，`check-cfx-aliases` 逐字比对红（`DADAO-12:434/433`） | ✅已修 | 把「显式 trap/escape」并入首条 bullet，§1 保持 3 行；不改 `.tao/contracts/**` | `make check`（L1）rc=0；`check-cfx-aliases` rc=0 |
+| F4 注入脚本锚定旧步骤 2 文本，返工后失效 | ✅已修 | 改为锚定「（三）异常进入步骤」；新增 cause mask 注入 | `--inject` 三注入均 FAIL→还原回绿，`INJECT_EXIT=0` |
+| F5 任务书 §(6) 仍写「按 8 步」 | ✅已修 | 改为「按 7 步」（一词） | `grep` 无「按 8 步」 |
+
+**判决**：F1–F5 全部已修并复验；无未修 finding，状态保持 `待验收`。
+
+
 #### 第 1 轮 reviewer 验收
+
+**独立重跑**（分支 worktree `SPEC-186t`，HEAD `facd53fb` 未变；判定全部以本人命令输出/退出码为准）：
+
+- 证据脚本 `run.sh`（运行期临时目录 `SPEC-186t-tmp/evidence/`）⇒ `RUN_EXIT=0`：`ASSERT SUMMARY: 49/49 PASS`；11 个 `make check-spec-*`/`check-sync-nonmaskable`/`check-milestones-fresh`/`check-asm-prose` + `python3 tools/infra/check_issues.py` 全 **rc=0**；锁 sha `5a220ea50610d5b36630938f242d85773b59e97c9e1f0f7e9d8c5ef0d88e037f` 与锁值逐字相等（本人另跑 `sha256sum` + 解析 lock，21 册仅 dadao-12 一 hunk）；锁 diff sha 行=2（-/+ 各 1）；`git diff -U0 | grep -E '^[+-]#{2,3} '` **rc=1（标题增删 0）**；改动文件 4 项、无 `*_tmp*/_gate*/*.orig/*.rej`。
+- `run.sh --inject` ⇒ `INJECT_EXIT=0`：`mask`/`causemask`/`cfxperm-idx` 三注入均「非空 md5 变化 → 断言 `rc=1` → `md5sum -c rc=0` → 回绿 `rc=0`」，注入前后 `git status` 逐行相同。
+- **独立注入 A（与任务书两处不同）**：§1「外部设备触发的异步中断先进入当前运行模式 monitor」→「由源 cfx 处理」⇒ `ASSERT §1 外部设备中断先入 monitor: FAIL`、`48/49`、**rc=1**；`cp`+`md5sum -c` 还原 **rc=0** ⇒ `49/49` **rc=0**。
+- **独立注入 B**：§5.2 步骤3 `cfx_<monitor>_global_cfx_intr_mask`（cg8 rc1）→ `inner_cfx_mask` ⇒ `ASSERT §5.2 inner_cfx_mask 计数: FAIL — 实际 1`、**rc=1**；还原 **rc=0** ⇒ `49/49`。还原后 4 文件 md5 与 4 行 `git status` 快照 `diff` 均 **rc=0**（禁 checkout/restore/stash，全程 `cp`+md5）。
+- `make check`（L1）3 次：#1 **rc=2**、#2 **rc=2**（唯一红 `check-run-artifacts`：10 个非法名全在共享 `.work/log/testcases/TESTCASES-099t-review/`，目录 born 12:09:20，为并发 TESTCASES-099t reviewer 写入；**master 主树同门控 rc=2、10 个名称逐条相同** ⇒ 环境/基线红，非本任务引入；未杀进程、未绕锁）；#3 该目录被 099t 清空后 ⇒ **rc=0**、`check-cfx-aliases: PASS (byte-identical)`。
+
+**约束核验（逐条）**：§5.2 `inner_cfx_mask`/`switch_cfx_mask`/`excp_prev_cfx_mask`/`excp_cause_mask`/`excp_cause_nonmaskable`/`PTWERR` 计数均 **0**（§1 除 `inner_cfx_mask` 1 次且为「不再作为同步屏蔽层」否定句外，cause_mask/nonmaskable/PTWERR 均 0）；步骤恰 **7**，无“不可屏蔽判定/异常原因 mask”两步，步骤2 写明同步不可屏蔽，步骤3 仅 `cfx_intr_mask`（cg0–3 rc4，§3.1/§3.2/§3.3 行核对）+ `global_cfx_intr_mask`（cg8 rc1，§4.x 行核对）过滤、屏蔽置 `excp_pending`（cg5 rc5，§3.6 行 388 核对）；伪代码注释 1–7 与 7 步同步、async 直接进来源过滤；`trap` 保存/`escape` 恢复 `global_cfx_intr_mask` 保留（步骤5 + 伪代码 895–897）；A/D 回写失败 = `CFXMEM` 当前 monitor、`cause_info`=PTE 物理地址；§5.2 开篇 +（四）段写明「同步/异步先入当前 monitor、monitor 第一处理者、自行处理或 `trap` 到源 cfx、处理期间置 pending 不嵌套」，`CFXTRAP`→目标 `cfxha`、`CFXESC`→当前 cfx；§1 三句归属（地址转换不再 `cfx_ptw`、外部中断先入 monitor、显式 `trap`/`escape` 隶属 cfx）+ umon/jmon/smon/hmon 表项均含「同步异常与异步中断」；`§2.2.6`/`§3.6`/`§4.5`/`§5.1`/`§5.3` 与 HEAD **逐字相同**，`## 2/## 3/## 4` 行号 57/299/423 **未漂移**；`DADAO-13`/`DADAO-22`/`Machine-v5`/`contracts`/`.tao/adr`/`issues.yaml`/`Makefile` **零 diff**；`excp_cause_mask`（317/341/357）/`excp_cause_nonmaskable`（389）§3.x 定义**仍在**（留 SPEC-188t）；`ISS-344` `status: open`、完成区写明「**未声称全册一致**」；完成区 **17 行**（≤30）、无运行期路径、sha/49/12/rc 与真实输出逐条对齐；任务书仅改 `状态`、`8 步→7 步`（一词）、完成区、审阅记录。
+
+**finding（不阻断，architect 收尾处置）**：F-a 证据未落 `.work/evidence/SPEC-186t/`，而落运行期目录且名带 `-tmp` 后缀，收尾按 `/tmp/opencode/<任务ID>/` 清理会漏删；F-b 任务书 §(6) 由 engineer 改词（8→7 步，与 §(3) 自相矛盾，已在完成区披露，语义与用户口径“删两步=7 步”一致）；F-c L1 的 `check-run-artifacts` 红源于并发 reviewer 的共享 `.work` 日志，建议收尾时以“目录已清空后的 rc=0”为最终口径。
+
+**判决：Accepted**（验收命令在本人重跑下全部通过；L1 三次运行的 rc 差异已按环境/并发对账，非交付物缺陷）

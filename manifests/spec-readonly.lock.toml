@@ -437,7 +437,18 @@ group = "dadao-1x"
 #   `0xffff_ffff_0000`、大小 ≥64 KiB（平台规定）」；说明删「power 不设 SRAM」绝对句、BootROM 段落改「≥64 KiB、
 #   复位向量在末 64 KiB 起点、镜像内偏移 = 大小 − 64 KiB」、cg7 校验示例改 64 KiB/4 MiB 两例；
 #   附录 0.7.3-rc 就地修订 BootROM 条目 + 追加收口条；§5 异常流程未动；版本不变（0.7.3-rc）；sha256 同笔重算。
-sha256 = "02f56005b225dd1feb9726f651c2331076043c49e99675cd8a4901e3c5bf7da8"
+# 2026-11-05（SPEC-186t，授权原话见任务书 §用户口径）：§5.2 整体重写——同步异常统一按「当前运行模式 monitor」
+#   路由（`CFXPERM`/`CFXREG`/`CFXMEM`/`ILLI` 等），`CFXTRAP` 仍进目标 cfx、`CFXESC` 仍进当前 cfx；拆除同步异常的
+#   独立 cfx 屏蔽层（不再使用 `inner_cfx_mask`；monitor 用 `cfx_intr_mask`/`excp_pending`）；页表未映射归当前
+#   monitor 的 `CFXMEM`、页权限拒绝归 `CFXPERM`、A/D 回写失败归 `CFXMEM`（`cause_info` = PTE 物理地址）；
+#   monitor 原因编号沿用 DADAO 位索引、不再使用 `PTWERR`；异步中断先入当前 monitor、屏蔽/pending 由 monitor
+#   管理、处理期间不嵌套（调度细节列后续修订）；§1 注记同步；附录 0.7.3-rc 补一条；版本不变（0.7.3-rc）；
+#   sha256 同笔重算（其余 20 册不变）。
+# 2026-11-05（SPEC-186t 返工，用户裁定：同步异常全部不可屏蔽；删除 `excp_cause_mask`（cg0–3 rc11）与
+#   `excp_cause_nonmaskable`（cg5 rc63）的使用；异常进入重排为 7 步；§1 异常归属同步模型 A）：
+#   §5.2 删除异常原因 mask 与不可屏蔽掩码检查，异步只按 monitor 的 `cfx_intr_mask`+`global_cfx_intr_mask`
+#   过滤；§1 cfxha 表项与异常归属句改为 monitor 首处理；sha256 同笔重算（其余 20 册不变）。
+sha256 = "5a220ea50610d5b36630938f242d85773b59e97c9e1f0f7e9d8c5ef0d88e037f"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"

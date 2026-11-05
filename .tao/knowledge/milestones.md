@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-186t | 已验证 | 2026-11-05 12:15 | DADAO-12 §5.2 重写：A/A1 monitor 入口、7 步、异步 pending、删除 cause mask |
 | TESTCASES-099t | 已验证 | 2026-11-05 12:02 | libc-test dynamic malloc-brk-fail 诊断：musl 启动堆，非 QEMU 直接缺陷 |
 | SPEC-189t | 待开始 | 2026-11-05 11:40（登记） | DADAO-12 §2.2.6/§3.6/§4.5 跨节原因表同步；ISS-344 |
 | SPEC-188t | 待开始 | 2026-11-05 11:38（登记） | 删除 5 个无效屏蔽寄存器定义（rc9/rc11/cg5 rc1/cg5 rc63/inner） |
@@ -23,7 +24,6 @@
 | INFRA-122t | 已验证 | 2026-11-05 10:30 | build_gem5.py ccache 单 argv 缺陷：包装脚本接入，原生 build-gem5 rc=0 |
 | SPEC-184t | 已验证 | 2026-11-05 08:04 | spec §6 Node D10 收口（ISS-340）：VA/PA 0–2 GiB 4 超页、smon 建表、合约投影、锁 sha |
 | INTEG-053t | 已验证 | 2026-11-05 07:44 | cfxha 重编号 pmem32/llc33/time34；作用域 per-task 16–31、per-system 32–63；保留集 6–14/16–31/35–61 |
-| SPEC-186t | 待开始 | 2026-11-05 01:46（登记） | DADAO-12 §5.2 重写：同步异常统一路由当前 monitor、拆 inner_cfx_mask 同步屏蔽、异步屏蔽列后续修订 |
 | INFRA-121t | 已验证 | 2026-11-05 01:26 | 运行期日志命名清理：check-run-artifacts 7 条既有红 |
 | GEM5-019t | 已验证 | 2026-11-05 01:00 | SYS_ELAPSED 与 SYS_TICKFREQ 统一 1e9 ticks/s；64 位无溢出换算、046t/parity 零退化 |
 | INFRA-120t | 已验证 | 2026-11-04 23:00 | 任务书运行期路径清零：清 42 册具体运行期路径、AGENTS 固化规则 |
