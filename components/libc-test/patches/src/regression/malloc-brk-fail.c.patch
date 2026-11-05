@@ -1,0 +1,36 @@
+diff --git a/src/regression/malloc-brk-fail.c b/src/regression/malloc-brk-fail.c
+index d0ccd35..bc490e3 100644
+--- a/src/regression/malloc-brk-fail.c
++++ b/src/regression/malloc-brk-fail.c
+@@ -16,6 +16,31 @@ int main(void)
+ 	size_t n;
+ 	int r;
+ 
++	// Consume the heap donated by the dynamic loader before filling the
++	// address space.  With 64 KiB pages, ldso hands the page-aligned gaps at
++	// the ends of the writable PT_LOAD segments to mallocng
++	// (ldso/dynlink.c reclaim_gaps); on this target those gaps are
++	// single-slot class-39 groups.  Without consuming them, the malloc(10000)
++	// below is served from one of those slots without any brk/mmap syscall,
++	// so "memory is filled" is not true for the allocator.  Six 32736-byte
++	// requests (size class 39, 16-byte aligned) drain the donated groups and
++	// the class-40 arena that follows them.  On the static (lite_malloc) line
++	// they sum to 196416 bytes and leave only 192 bytes of the current brk,
++	// so the same first malloc still has to grow brk/mmap and fails there
++	// too.  The blocks are retained on purpose: freeing them would hand the
++	// slots back to the heap.
++	void *keep[6];
++	int i;
++
++	for (i = 0; i < 6; i++) {
++		keep[i] = malloc(32736);
++		if (!keep[i]) {
++			t_error("prime malloc failed: %s\n", strerror(errno));
++			return 1;
++		}
++	}
++	(void)keep;
++
+ 	// fill memory, largest mmaped area is [p,p+n)
+ 	if (t_vmfill(&p, &n, 1) < 1 || n < 2*65536) {
+ 		t_error("vmfill failed\n");

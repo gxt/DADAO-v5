@@ -223,9 +223,16 @@ role = "C library base for the M8 Linux user-space stack (musl static + musl lds
 
 # libc-test -- the musl/Linux user-space *conformance test suite* feeding M8
 # (ADR-0025 D6): a corpus independent of our own implementation, used to judge
-# whether the musl port (P1 static / P2 dynamic) holds. A reference/test input,
-# not a v5-patched component, so it carries NO patch set (`patchless`, same
-# class as chipyard ADR-0024 D1 / linux / llvm-test-suite / musl).
+# whether the musl port (P1 static / P2 dynamic) holds. It started as a
+# patchless reference input (same class as chipyard ADR-0024 D1 / linux /
+# llvm-test-suite) but is now a lightly patched component: TESTCASES-100t
+# (2026-11-05) makes `src/regression/malloc-brk-fail.c` portable to 64 KiB
+# pages by consuming the heap that musl's dynamic loader donates from the
+# page-aligned PT_LOAD gaps before the test fills the address space (the old
+# assumption that filling the VA + RLIMIT_DATA=0 leaves malloc no room was only
+# true for 4 KiB pages). The test's assertions, magic numbers, exit code and
+# t_vmfill/t_setrlim logic are unchanged; the pin below is still the same
+# upstream commit.
 #
 # User ruling (2026-10-15, original words): "libc-test取最新版本即可" -- with the
 # source fixed on 2026-10-14 ("libc-test: https://github.com/kraj/libc-test").
@@ -255,8 +262,9 @@ enabled = true
 repository = "https://github.com/kraj/libc-test.git"
 commit = "b7ec467969a53756258778fa7d9b045f912d1c93"
 shallow = false
-patchless = true
-role = "musl/Linux user-space conformance test suite (M8 P1/P2 validation input; no v5 patch set)"
+patch_dir = "components/libc-test/patches"
+patch_series = "components/libc-test/series"
+role = "musl/Linux user-space conformance test suite (M8 P1/P2 validation input); carries one portability patch for 64 KiB-page heap donation (TESTCASES-100t)"
 
 [[component.source]]
 name = "gh-proxy"
