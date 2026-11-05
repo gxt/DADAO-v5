@@ -16,9 +16,9 @@
 | 3 | 3 | hypv cfxexe cfx mask | cfx_⟨cfxname⟩_hypv_cfxexe | 同上 | RW | 直接跳转/取指进入该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
 | 3 | 4 | hypv cfx intr mask | cfx_⟨cfxname⟩_hypv_cfx_intr_mask | 全1 | RW | 异步中断来源 cfx 掩码，0=允许，1=屏蔽。按当前 cfx 过滤 |
 | 3 | 8 | hypv switch run mode | cfx_⟨cfxname⟩_hypv_switch_run_mode | 3 (hypv) | RW | 从hypv陷入时切换的运行模式 |
-| 3 | 9 | hypv switch cfx mask | cfx_⟨cfxname⟩_hypv_switch_cfx_mask | 全1 | RW | 从hypv陷入时采用的 per-hart 异常掩码，0=可触发，1=屏蔽 |
+| 3 | 9 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 | 3 | 10 | hypv excp vector | cfx_⟨cfxname⟩_hypv_excp_vector | cfxha<<42 + 0x3ff_ffff_0000 | RW | 从hypv陷入时的异常向量入口地址 |
-| 3 | 11 | hypv excp mask | cfx_⟨cfxname⟩_hypv_excp_cause_mask | 全1 | RW | 异常原因掩码，0=可触发，1=屏蔽 |
+| 3 | 11 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 | 3 | 12 | hypv cg reg delegation | cfx_⟨cfxname⟩_hypv_cg_reg_deleg | 全1 | RW | cg访问授权，bit=0时允许supv访问。bit3固定为1 |
 
 `rc0`–`rc3` 为四类同步来源 mask，`rc4` 为异步中断来源 mask；位索引=源 cfx，`0=允许`、`1=屏蔽`，自身只绕过 cfx 轴。`rc5`–`rc7` 保留，访问触发 `CFXREG`。`cfx0`–`cfx3` 的 `cg8`/`rc1` 为 `global_cfx_intr_mask`（见 SEE §3.1）。
@@ -56,6 +56,7 @@ hmon 为 hypv 下的同步异常处理核芯功能扩展，处理 hypv 下的同
 - 版本号与 HBI 同步（HBI §3 补 `HBI_<name>_INIT` 不落在 semihosting 区 `0x3FF00–0x3FFFF` 的说明）。
 - cg3 按两轴权限模型重排：`rc0`–`rc3` 为 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` 四类同步来源 mask，`rc4` 为 `cfx_intr_mask`；删除 `hypv_global_version` 与 `hypv_global_cfx_mask`；mask 初值与 SEE 一致（hmon 自身 `0x7FFF_FFFF_FFFF_FFF7`，其余 `0xFFFF_FFFF_FFFF_FFF7`）。
 - hmon 异常原因表新增 `CFXESC`（`1 << 3`）与 `CFXPERM`（`1 << 7`）。
+- 删除无效屏蔽寄存器定义：`switch_cfx_mask`（`cg3` `rc9`）与 `excp_cause_mask`（`cg3` `rc11`）保留编号并标为 `reserved`（访问 ⇒ `CFXREG`）。
 
 ### 0.1.3（2026-10-26）
 

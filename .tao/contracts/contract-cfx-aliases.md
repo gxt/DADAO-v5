@@ -46,27 +46,21 @@ Per ADR-0017 D4：寄存器别名查 spec 寄存器表的 `cg`/`rc` 列。
 | `cfx_⟨cfxname⟩_user_cfxexe` | 0 | 3 | — |
 | `cfx_⟨cfxname⟩_user_cfx_intr_mask` | 0 | 4 | — |
 | `cfx_⟨cfxname⟩_user_switch_run_mode` | 0 | 8 | — |
-| `cfx_⟨cfxname⟩_user_switch_cfx_mask` | 0 | 9 | — |
 | `cfx_⟨cfxname⟩_user_excp_vector` | 0 | 10 | — |
-| `cfx_⟨cfxname⟩_user_excp_cause_mask` | 0 | 11 | — |
 | `cfx_⟨cfxname⟩_jail_cfxtrap` | 1 | 0 | — |
 | `cfx_⟨cfxname⟩_jail_cfxmem` | 1 | 1 | — |
 | `cfx_⟨cfxname⟩_jail_cfxreg` | 1 | 2 | — |
 | `cfx_⟨cfxname⟩_jail_cfxexe` | 1 | 3 | — |
 | `cfx_⟨cfxname⟩_jail_cfx_intr_mask` | 1 | 4 | — |
 | `cfx_⟨cfxname⟩_jail_switch_run_mode` | 1 | 8 | — |
-| `cfx_⟨cfxname⟩_jail_switch_cfx_mask` | 1 | 9 | — |
 | `cfx_⟨cfxname⟩_jail_excp_vector` | 1 | 10 | — |
-| `cfx_⟨cfxname⟩_jail_excp_cause_mask` | 1 | 11 | — |
 | `cfx_⟨cfxname⟩_supv_cfxtrap` | 2 | 0 | — |
 | `cfx_⟨cfxname⟩_supv_cfxmem` | 2 | 1 | — |
 | `cfx_⟨cfxname⟩_supv_cfxreg` | 2 | 2 | — |
 | `cfx_⟨cfxname⟩_supv_cfxexe` | 2 | 3 | — |
 | `cfx_⟨cfxname⟩_supv_cfx_intr_mask` | 2 | 4 | — |
 | `cfx_⟨cfxname⟩_supv_switch_run_mode` | 2 | 8 | — |
-| `cfx_⟨cfxname⟩_supv_switch_cfx_mask` | 2 | 9 | — |
 | `cfx_⟨cfxname⟩_supv_excp_vector` | 2 | 10 | — |
-| `cfx_⟨cfxname⟩_supv_excp_cause_mask` | 2 | 11 | — |
 | `cfx_⟨cfxname⟩_cfx_id` | 4 | 0 | — |
 | `cfx_⟨cfxname⟩_version` | 4 | 1 | — |
 | `cfx_⟨cfxname⟩_trap_num` | 4 | 2 | — |
@@ -75,12 +69,10 @@ Per ADR-0017 D4：寄存器别名查 spec 寄存器表的 `cg`/`rc` 列。
 | `cfx_⟨cfxname⟩_escape_num` | 4 | 5 | — |
 | `cfx_⟨cfxname⟩_scratch_regs_num` | 4 | 6 | — |
 | `cfx_⟨cfxname⟩_excp_prev_run_mode` | 5 | 0 | — |
-| `cfx_⟨cfxname⟩_excp_prev_cfx_mask` | 5 | 1 | — |
 | `cfx_⟨cfxname⟩_excp_cause_id` | 5 | 2 | — |
 | `cfx_⟨cfxname⟩_excp_cause_ip` | 5 | 3 | — |
 | `cfx_⟨cfxname⟩_excp_cause_info` | 5 | 4 | — |
 | `cfx_⟨cfxname⟩_excp_pending` | 5 | 5 | — |
-| `cfx_⟨cfxname⟩_excp_cause_nonmaskable` | 5 | 63 | — |
 | `cfx_⟨cfxname⟩_scratch_regs[0..N−1]` | 6 | 0−(N−1) | — |
 | `cfx_⟨cfxname⟩_space_desc[i]` | 7 | 4i+0 | — |
 | `cfx_⟨cfxname⟩_space_start[i]` | 7 | 4i+1 | — |
@@ -92,12 +84,10 @@ Per ADR-0017 D4：寄存器别名查 spec 寄存器表的 `cg`/`rc` 列。
 | `cfx_⟨cfxname⟩_hypv_cfxexe` | 3 | 3 | — |
 | `cfx_⟨cfxname⟩_hypv_cfx_intr_mask` | 3 | 4 | — |
 | `cfx_⟨cfxname⟩_hypv_switch_run_mode` | 3 | 8 | — |
-| `cfx_⟨cfxname⟩_hypv_switch_cfx_mask` | 3 | 9 | — |
 | `cfx_⟨cfxname⟩_hypv_excp_vector` | 3 | 10 | — |
-| `cfx_⟨cfxname⟩_hypv_excp_cause_mask` | 3 | 11 | — |
 | `cfx_⟨cfxname⟩_hypv_cg_reg_deleg` | 3 | 12 | — |
 
-展开后共 1392 条目（12 cfxname × 56 模板；数组模板按 stride 展开）。
+展开后共 1272 条目（12 cfxname × 46 模板；数组模板按 stride 展开）。
 
 ### 2.2 专有寄存器（cg8+，各 cfx 独有）
 
@@ -143,7 +133,7 @@ Per ADR-0017 D4：寄存器别名查 spec 寄存器表的 `cg`/`rc` 列。
 ## 3. 统计
 
 - 标量别名：12 条
-- 寄存器别名（展开后）：1428 条
-  - 通用（cg0-7 展开）：1392 条（12 cfxname × 56 模板）
+- 寄存器别名（展开后）：1308 条
+  - 通用（cg0-7 展开）：1272 条（12 cfxname × 46 模板）
   - 专有（cg8+）：36 条
 

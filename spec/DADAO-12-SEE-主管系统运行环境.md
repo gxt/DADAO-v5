@@ -52,7 +52,7 @@ DADAO定义了四种运行模式，用两位编码：
 
 > `per-task`：`cfx16`–`cfx31` 由内核或进程在**申请后使用**，使用完毕**释放**；持有期间即使发生进程上下文切换，该 cfx 的状态与运行不受影响，**不需要**随上下文切换保存/恢复。
 
-> `inner_*` 为硬件内部寄存器（不对外暴露），用于异常处理流程中的中间状态保存。`inner_run_mode`（2 位）记录当前运行模式（0=user, 1=jail, 2=supv, 3=hypv），`inner_excp_cause_*` 等用于现场保存。异常进入流程不再使用 `inner_cfx_mask` 作为同步异常屏蔽层；同步异常全部不可屏蔽，不使用异常原因掩码与不可屏蔽掩码；异步来源过滤与 pending 由 monitor 的 `cfx_<monitor>_<mode>_cfx_intr_mask` 与 `cfx_<monitor>_excp_pending` 承担；其余独立 cfx 屏蔽相关寄存器的定义删除由后续任务负责。详细语义见 §5.2。
+> `inner_*` 为硬件内部寄存器（不对外暴露），用于异常处理流程中的中间状态保存。`inner_run_mode`（2 位）记录当前运行模式（0=user, 1=jail, 2=supv, 3=hypv），`inner_excp_cause_*` 等用于现场保存。同步异常全部不可屏蔽，不使用异常原因掩码与不可屏蔽掩码；异步来源过滤与 pending 由 monitor 的 `cfx_<monitor>_<mode>_cfx_intr_mask` 与 `cfx_<monitor>_excp_pending` 承担。详细语义见 §5.2。
 
 ## 2. 地址空间
 
@@ -312,9 +312,9 @@ cg0-cg7 为共有寄存器设计，不同的核芯功能扩展设计规范相同
 | 0 | 3 | user cfxexe cfx mask | cfx_⟨cfxname⟩_user_cfxexe | 同上 | RW | 直接跳转/取指进入该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
 | 0 | 4 | user cfx intr mask | cfx_⟨cfxname⟩_user_cfx_intr_mask | 全1 | RW | 异步中断来源 cfx 掩码，0=允许，1=屏蔽。按当前 cfx 过滤 |
 | 0 | 8 | user switch run mode | cfx_⟨cfxname⟩_user_switch_run_mode | 2 (S-mode) | RW | 从user陷入时切换的运行模式 |
-| 0 | 9 | user switch cfx mask | cfx_⟨cfxname⟩_user_switch_cfx_mask | 全1 | RW | 从user陷入时采用的 per-hart 异常掩码，0=可触发，1=屏蔽 |
+| 0 | 9 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 | 0 | 10 | user excp vector | cfx_⟨cfxname⟩_user_excp_vector | 0 | RW | 从user陷入时的异常向量入口地址 |
-| 0 | 11 | user excp mask | cfx_⟨cfxname⟩_user_excp_cause_mask | 全1 | RW | user异常原因掩码，0=可触发，1=屏蔽 |
+| 0 | 11 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 
 `rc0`–`rc3` 为**四类同步来源 mask**，`rc4` 为异步中断来源 mask；位索引均为**源 cfxha**，`0=允许`、`1=屏蔽`。访问自身 cfx 时只绕过 cfx 轴（位测试），仍使用当前运行模式对应的寄存器行（模式轴）。`rc5`–`rc7` 保留，访问触发 `CFXREG`。
 
@@ -336,9 +336,9 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 | 1 | 3 | jail cfxexe cfx mask | cfx_⟨cfxname⟩_jail_cfxexe | 同上 | RW | 直接跳转/取指进入该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
 | 1 | 4 | jail cfx intr mask | cfx_⟨cfxname⟩_jail_cfx_intr_mask | 全1 | RW | 异步中断来源 cfx 掩码，0=允许，1=屏蔽。按当前 cfx 过滤 |
 | 1 | 8 | jail switch run mode | cfx_⟨cfxname⟩_jail_switch_run_mode | 2 (supv) | RW | 从jail陷入时切换的运行模式 |
-| 1 | 9 | jail switch cfx mask | cfx_⟨cfxname⟩_jail_switch_cfx_mask | 全1 | RW | 从jail陷入时采用的 per-hart 异常掩码，0=可触发，1=屏蔽 |
+| 1 | 9 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 | 1 | 10 | jail excp vector | cfx_⟨cfxname⟩_jail_excp_vector | 0 | RW | 从jail陷入时的异常向量入口地址 |
-| 1 | 11 | jail excp mask | cfx_⟨cfxname⟩_jail_excp_cause_mask | 全1 | RW | 异常原因掩码，0=可触发，1=屏蔽 |
+| 1 | 11 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 
 ### 3.3 cg2 - supv mode 寄存器
 
@@ -352,9 +352,9 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 | 2 | 3 | supv cfxexe cfx mask | cfx_⟨cfxname⟩_supv_cfxexe | 同上 | RW | 直接跳转/取指进入该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
 | 2 | 4 | supv cfx intr mask | cfx_⟨cfxname⟩_supv_cfx_intr_mask | 全1 | RW | 异步中断来源 cfx 掩码，0=允许，1=屏蔽。按当前 cfx 过滤 |
 | 2 | 8 | supv switch run mode | cfx_⟨cfxname⟩_supv_switch_run_mode | 2 (supv) | RW | 从supv陷入时切换的运行模式 |
-| 2 | 9 | supv switch cfx mask | cfx_⟨cfxname⟩_supv_switch_cfx_mask | 全1 | RW | 从supv陷入时采用的 per-hart 异常掩码，0=可触发，1=屏蔽 |
+| 2 | 9 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 | 2 | 10 | supv excp vector | cfx_⟨cfxname⟩_supv_excp_vector | 0 | RW | 从supv陷入时的异常向量入口地址 |
-| 2 | 11 | supv excp mask | cfx_⟨cfxname⟩_supv_excp_cause_mask | 全1 | RW | 异常原因掩码，0=可触发，1=屏蔽 |
+| 2 | 11 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 
 ### 3.4 cg3 - hypv mode 寄存器
 
@@ -376,17 +376,17 @@ H-mode 寄存器（cg=3）定义见 HEE。
 
 ### 3.6 cg5 - 异常现场寄存器
 
-每个核芯功能扩展都有以下7个异常寄存器（cg=5）：
+每个核芯功能扩展都有以下异常现场寄存器（cg=5）：
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
 | 5 | 0 | excp prev run mode | cfx_⟨cfxname⟩_excp_prev_run_mode | 0 | RW | 异常前运行模式，硬件陷入时保存，软件可写 |
-| 5 | 1 | excp prev cfx mask | cfx_⟨cfxname⟩_excp_prev_cfx_mask | 0 | RW | 异常前核芯功能扩展掩码，硬件陷入时保存，软件可写 |
+| 5 | 1 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 | 5 | 2 | excp cause id | cfx_⟨cfxname⟩_excp_cause_id | 0 | HW | 异常原因编号（one-hot），硬件在异常进入时写入 |
 | 5 | 3 | excp cause ip | cfx_⟨cfxname⟩_excp_cause_ip | 0 | RW | 异常发生前的指令指针，硬件陷入时保存，软件可写 |
 | 5 | 4 | excp cause info | cfx_⟨cfxname⟩_excp_cause_info | 0 | HW | 发生异常的辅助信息 |
 | 5 | 5 | excp pending | cfx_⟨cfxname⟩_excp_pending | 0 | RW | 待处理异常/中断位图（one-hot，OR语义），写0清位 |
-| 5 | 63 | excp cause nonmaskable | cfx_⟨cfxname⟩_excp_cause_nonmaskable | HW | RO | 不可屏蔽异常掩码，硬件根据异常原因表静态设置 |
+| 5 | 63 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 
 所有异常原因编码为 one-hot（64 位），各核芯功能扩展的异常原因表定义该核芯功能扩展可处理的异常位。表中未列出的位属于保留或未使用，若硬件错误触发此类位，表示该核芯功能扩展出现不可恢复的错误。`1 << 3` 为 `CFXESC`（escape 帧/目标错误，每个 cfx）；`1 << 4` 至 `1 << 6` 保留用于未来扩展（debug 异常等）；`1 << 7` 在 `cfx0`–`cfx3` 为 `CFXPERM`（两轴权限拒绝），在 `cfx_ptw` 为 `PTWERR`（§4.5）；`1 << 8` 由 `cfx_pmem` 用作 `PMEM_DMA`（§4.9），其余核芯功能扩展保留。
 
@@ -763,7 +763,7 @@ trap/escape/cfx2rd/cfx2rc 指令可以在任意运行模式下执行。若 cfxha
 | 重新执行触发异常的指令 | `escape cfxha, [excp_cause_ip, 0]` | cause_ip |
 | 跳过触发指令（继续执行） | `escape cfxha, [excp_cause_ip, 4]` | cause_ip + 4 |
 
-`escape` 恢复 `excp_prev_run_mode`、`excp_prev_cfx_mask`，以及 trap 进入时保存的 `global_cfx_intr_mask`。
+`escape` 恢复 `excp_prev_run_mode`，以及 trap 进入时保存的 `global_cfx_intr_mask`。
 
 ### 5.2 异常进入流程
 
@@ -912,9 +912,8 @@ inner_inst_pointer       <= cfx_⟨cfxname⟩_<mode>_excp_vector
 
 0. **检查目标/帧**：若 `imms18[17:1] != 0`（SBZ 非零），触发 ILLI；若 `cfxha` 为 reserved，触发 ILLI；若 `cfxha` 非当前 cfx，或当前 cfx 无有效异常帧（`excp_cause_id = 0`），在切换任何状态前触发当前 cfx 的 `CFXESC`
 1. **恢复中断屏蔽**：恢复 trap 进入时保存的 `global_cfx_intr_mask`
-2. **恢复核芯功能扩展掩码**：根据 `cfx_⟨cfxname⟩_excp_prev_cfx_mask` 寄存器的值恢复核芯功能扩展掩码
-3. **恢复运行模式**：依据 `cfx_⟨cfxname⟩_excp_prev_run_mode` 还原为异常发生前的运行模式
-4. **更新退出计数并跳转**：`cfx_⟨cfxname⟩_escape_num` 递增 1；返回地址 = `excp_cause_ip + (imms18 << 2)`（编译期固定偏移）
+2. **恢复运行模式**：依据 `cfx_⟨cfxname⟩_excp_prev_run_mode` 还原为异常发生前的运行模式
+3. **更新退出计数并跳转**：`cfx_⟨cfxname⟩_escape_num` 递增 1；返回地址 = `excp_cause_ip + (imms18 << 2)`（编译期固定偏移）
 
 ```
 // 0. 检查目标/帧
@@ -934,11 +933,9 @@ if cfxha != inner_cfx_code or cfx_⟨cfxname⟩_excp_cause_id == 0:
 
 // 1. 恢复 trap 保存的 global 中断屏蔽
 cfx_⟨saved_mode_monitor⟩_global_cfx_intr_mask <= saved_global_cfx_intr_mask
-// 2. 恢复核芯功能扩展掩码
-inner_cfx_mask               <= cfx_⟨cfxname⟩_excp_prev_cfx_mask
-// 3. 恢复运行模式
+// 2. 恢复运行模式
 inner_run_mode               <= cfx_⟨cfxname⟩_excp_prev_run_mode
-// 4. 更新退出计数并跳转
+// 3. 更新退出计数并跳转
 cfx_⟨cfxname⟩_escape_num             <= cfx_⟨cfxname⟩_escape_num + 1
 inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 ```
@@ -983,6 +980,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 - BootROM 口径收口：`cfx_power` BootROM 只规定 **≥64 KiB**，实际大小与 `power` 是否设 SRAM 由平台规范规定；复位向量固定 `0xffff_ffff_0000`（BootROM 末 64 KiB 起点，镜像内偏移 = 大小 − 64 KiB）。
 - cfxha 重编号与作用域统一（2026-11-05）：`cfx_pmem`/`cfx_llc`/`cfx_time` 改为 **32/33/34**；保留集改为 **`6–14`、`16–31`、`35–61`**；作用域新增 **`cfx16`–`cfx31` per-task**（申请后使用、用完释放，不随上下文切换保存/恢复），`cfx32`–`cfx63` per-system、`cfx0`–`cfx15` per-hart 不变；`cfx_pmem` SRAM 核内基址随之变为 **`0x83ff_0000_0000`**（内部偏移仍 `0x3ff_0000_0000`）。
 - 异常进入流程重写：同步异常统一按「当前运行模式 monitor」路由（`CFXPERM`/`CFXREG`/`CFXMEM`/`ILLI` 等）；`CFXTRAP` 仍进入目标 cfx，`CFXESC` 仍进入当前 cfx；删除同步异常的独立 cfx 屏蔽层；同步异常全部不可屏蔽，不再使用异常原因掩码与不可屏蔽掩码；未映射页归当前 monitor 的 `CFXMEM`，页权限拒绝归 `CFXPERM`；monitor 原因编号沿用 DADAO 位索引，不再使用 `PTWERR` 作为 monitor 原因；异步中断先进入当前运行模式 monitor，屏蔽/pending 由 monitor 管理，处理期间不嵌套；具体调度细节列入后续修订。
+- 删除无效屏蔽寄存器定义：`switch_cfx_mask`（`cg0`–`cg3` `rc9`）、`excp_cause_mask`（`cg0`–`cg3` `rc11`）、`excp_prev_cfx_mask`（`cg5` `rc1`）、`excp_cause_nonmaskable`（`cg5` `rc63`）保留编号并标为 `reserved`（访问 ⇒ `CFXREG`）；删除内部 `inner_cfx_mask`；`escape` 不再恢复 cfx 屏蔽状态，`global_cfx_intr_mask` 的 trap 保存/escape 恢复保留；monitor 的 `cfx_intr_mask`/`excp_pending` 不变。
 
 ### 0.7.2（2026-10-26）
 

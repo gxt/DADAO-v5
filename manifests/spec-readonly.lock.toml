@@ -448,7 +448,11 @@ group = "dadao-1x"
 #   `excp_cause_nonmaskable`（cg5 rc63）的使用；异常进入重排为 7 步；§1 异常归属同步模型 A）：
 #   §5.2 删除异常原因 mask 与不可屏蔽掩码检查，异步只按 monitor 的 `cfx_intr_mask`+`global_cfx_intr_mask`
 #   过滤；§1 cfxha 表项与异常归属句改为 monitor 首处理；sha256 同笔重算（其余 20 册不变）。
-sha256 = "5a220ea50610d5b36630938f242d85773b59e97c9e1f0f7e9d8c5ef0d88e037f"
+# 2026-11-05（SPEC-188t，授权原话见任务书 §背景 / 用户已定稿口径「删除以下 5 个无效屏蔽寄存器的语义定义，
+#   编号保留 reserved、不重排 rc」）：§3.1–3.3 rc9/rc11、§3.6 cg5 rc1/rc63 标 reserved；§1 注记删
+#   `inner_cfx_mask`；§5.1/§5.3 的 escape 不再恢复 `excp_prev_cfx_mask`（`global_cfx_intr_mask` 保留）；
+#   附录 0.7.3-rc 补一条；sha256 同笔重算（其余 20 册不变）。
+sha256 = "fb36eb6f51d12adc5d723326385a623f9982cdff1aa04c1944c67229a4103c5a"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -459,7 +463,8 @@ group = "dadao-1x"
 # 2026-10-26（SPEC-175t）：发布 0.1.3（去 -rc）；`hypv_global_version` 常量同步；sha256 同笔重算。
 # 2026-10-26（SPEC-176t）：版本号与 HBI 同步升 0.1.4-rc（互锁组一致；正文不变）；sha256 同笔重算。
 # 2026-10-30（INTEG-044t，授权同 SEE 条目）：cg3 按两轴权限布局重排（rc0–4 + rc8–12），删 hypv_global_version/global_cfx_mask，hmon 增 CFXESC/CFXPERM；附录 0.1.4-rc 补条目；sha256 同笔重算。
-sha256 = "b2cc93773183b71f50532a8977b8e79d3abffcfbc64f664192923081e25ab1d4"
+# 2026-11-05（SPEC-188t，授权同上）：cg3 rc9/rc11 标 reserved；附录 0.1.4-rc 补一条；sha256 同笔重算（其余 20 册不变）。
+sha256 = "5da1af108a1d7bc8f711902f38456de1ab38323a43e185b50b072773660bb180"
 
 [[spec]]
 path = "spec/DADAO-21-ABI-应用程序二进制接口.md"
@@ -622,4 +627,6 @@ group = "machine-v5"
 # 2026-11-05（SPEC-184t，授权原话见本任务书 §用户裁定）：§6 Node 装载语义按 D10 订正（smon 建首张页表、
 #   `PTBR=0`、L1 index 0–3 四个 512 MiB 超页、`VA [0, 2 GiB) → PA [0, 2 GiB)`、`SPF=0xFF`、PTW 开启；删旧
 #   VA 窗口与测试布局/起始地址/SP 规定）；附录 0.3.2-rc 补条目；版本不变（0.3.2-rc）；sha256 同笔重算。
-sha256 = "1dbc7ed1f0121223ec16e4381074ae5737c9e306ab2ef82bd92147392266a2c3"
+# 2026-11-05（SPEC-188t，授权同上）：§2/§3/§4.2 删除 `switch_cfx_mask`/`excp_prev_cfx_mask` 投影；
+#   sha256 同笔重算（其余 20 册不变）。
+sha256 = "2815963948bc56cfc651c41883ce1db428331a025e24ef13e2c17003371c2dce"
