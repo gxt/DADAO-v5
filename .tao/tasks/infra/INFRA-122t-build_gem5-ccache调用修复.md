@@ -72,7 +72,7 @@ FileNotFoundError: [Errno 2] No such file or directory: 'ccache g++'
 
 ## 验收标准
 
-1. **原生构建通过**：`make build-gem5 JOBS=8`（不隐藏 ccache、不手工改 PATH）**rc=0**；日志含 `build-gem5: ccache: on`，且不出现 `FileNotFoundError: 'ccache g++'`。
+1. **原生构建通过**：`make build-gem5 JOBS=32`（不隐藏 ccache、不手工改 PATH）**rc=0**；日志含 `build-gem5: ccache: on`，且不出现 `FileNotFoundError: 'ccache g++'`。
 2. **ccache 实际生效**：构建前后 `ccache -s` 的 cache hit/miss 有变化；或第二次构建（清理单个目标后）出现 hit；证据保留 `ccache -s` 前后快照。
 3. **`--no-ccache` 仍可用**：`python3 tools/gem5/build_gem5.py --no-ccache ...`（或等价入口）rc=0 或至少完成 SCons 配置阶段、无 ccache 包装；不得破坏原路径。
 4. **行为回归**：`make check-gem5-decode` rc=0、`python3 tools/gem5/check_b6.py` rc=0；gem5 Node/Tiny 代表测试不退化（至少 `check-arch` 或既有 smoke，按现场可用目标）。
