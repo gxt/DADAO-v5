@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INTEG-057t | 待开始 | 2026-11-06 03:30（登记） | 其余生成器 notes/格式与 §7.1 对齐，恢复 check-generator-sync |
 | INTEG-056t | 待开始 | 2026-11-06 03:20（登记） | 生成器 notes 与 §7.1 对齐，恢复 check-generator-sync |
 | INTEG-055t | 已验证 | 2026-11-06 03:10 | 退出码三段式实现迁移 + 页表异常改投当前 monitor；parity 249/0 |
 | INFRA-125t | 已验证 | 2026-11-05 23:45 | embench/libc-test 迁入 tests/tset；manifest/门控同步 |
