@@ -68,6 +68,19 @@ guest exit、`picolibc` 的分类）；**不比较**时序、性能、PC/日志�
   （资产/spec/gem5/QEMU），未归因 rc=1。
 - `BLOCKED`/`N/A` 逐条带根因；不得静默通过、不得改写成 PASS。
 
+## M11 收口口径（TESTCASES-098t）
+
+- **矩阵范围**：Tiny/Node 的 `inst`/`arch` + Tiny `picolibc`（`math_test` B7 对照）。Embench 不进本矩阵。
+- **M11 Node 验收范围**：只验收 `arch`（cfx/arch/PTW/模式）。`node/inst` 行仅作现场参考，不进入 Node 验收通过数。
+- **历史归类**：`GEM5-016t`/`QEMU-080t` 的 Node `inst`/`embench` 结果 = **历史，不计入 M11 Node 验收**；`node/embench` 不再生成。
+- **Node 不跑 Embench**：M11 起 Node profile 不跑 Embench。
+- **Embench 归属**：Tiny system/bare-metal = `run_embench_e2e.py`（`make test-m6`，guest exit 0）；SE user = `make check-tset-embench-full`（static/dynamic，夜跑成员）。
+- **SE tset（TESTCASES-100t 夜跑）**：报告 `2026-11-05-13` 4/4 成员 rc=0、`check-night-report` rc=0。llvm-ts static `discovered 222 - excluded 8 = total 214`，pass 214 / fail 0 / blocked 0；dynamic 同；blocked 不计入通过。
+- **math_test**：`picolibc/math_test` 仍 `BLOCKED`（B7 数值差异），现测 QEMU `0 errors / 76404 functions`，gem5 `238 errors / 76404 functions`（exit 1）；BLOCKED 不计入 `AGREE_PASS`。
+- **退出码状态**：快照按当前引擎实现生成；`SPEC-187t` 退出码规范已定稿、QEMU/gem5 实现尚未迁移，迁移后须再生成一次。
+- **本快照（2026-11-05 晚，`GEM5-020t` 后）**：`node/arch` 249 `AGREE_PASS` + 20 `BLOCKED`（`-icount` N/A）、`GEM5_ONLY_FAIL=0`、`DIFF=0`。上一版 14 条 `GEM5_ONLY_FAIL`（`QEMU-083t` 后 gem5 未对齐的历史快照）已由本次替换：14 条逐条转 `AGREE_PASS`，含 `arch/umon/m5_perm_badcombo_cfxreg`（自环已消除）。`GEM5-020t` 将 gem5 的 10 处 CFXREG fault 目标由 `cfxha` 改为当前运行模式 monitor，与 `QEMU-083t` 对齐。
+- **引擎冻结**：`GEM5-020t` 评审期间共享 gem5 二进制被反复重建（实测中途 md5 变化导致整轮矩阵失效）；本快照用重建后二进制的**冻结副本**（md5 `d64b0f9…`，源 commit `1ad69d2…`，配置用源树 `fs.py`）生成，矩阵身份即该副本；证据目录保留冻结件与前后两轮作废日志。
+
 ## 已知例外（**不**参与硬门的 `AGREE_PASS`）
 
 `run_parity.py` 顶部有两张**显式登记表**，每条都有根因，矩阵里保留
@@ -95,7 +108,9 @@ gem5 进程 stdin，`SYS_READC` 读到与 QEMU 相同的字节（不再记 BLOCK
 `PARITY_GEM5`、`PARITY_GEM5_CONFIG`、`PARITY_GEM5_PROFILE`、
 `PARITY_GEM5_BOOTROM`、`PARITY_WORK_ROOT`。
 
-## Node embench wrapper
+## Node embench wrapper（历史）
+
+> M11 起 Node 不跑 Embench（见上「M11 收口口径」）；本节只说明 `GEM5-017t` 旧快照的 wrapper 机制，当前矩阵不再生成 `node/embench` 行。
 
 `run_embench_e2e.py` 固定发 `-M dadao-m1`（Tiny 形状）。Node 矩阵的证据层
 wrapper 把它改写为 `dadao-m1,profile=node,bootrom-image=…`，其余 argv 原样，
@@ -106,4 +121,9 @@ Node/embench 行必须含 `profile=node` 且有 wrapper 记录。
 
 - 全量矩阵 JSON/Markdown 与日志落 `--work-dir`/`--json`/`--markdown`（默认
   `/tmp/opencode/GEM5-017t/**`，gem5 `--outdir` 亦只落临时区）。
-- 入库快照 `tests/parity/matrix-M11.md` 由证据脚本从现场 Markdown `cp`，不手改数字。
+- 入库快照 `tests/parity/matrix-M11.md` 由 `.work/evidence/TESTCASES-098t/run.sh`
+  从现场 Markdown `cp`，不手改数字；该脚本同时校验计数自洽、引擎身份、Node
+  历史归类、llvm-ts 计数与反例注入。
+- 生成矩阵的标题与尾部 `Evidence script` 行是驱动硬编码的 `GEM5-017t` 文案；
+  本快照实际证据脚本为 `.work/evidence/TESTCASES-098t/run.sh`（不改驱动，避免越界）；
+  把标题/证据指针参数化留待后续小任务。

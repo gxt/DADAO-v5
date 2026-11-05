@@ -5,23 +5,21 @@
 
 ## Engine / toolchain identity
 
-- QEMU: `/tmp/opencode/DADAO-v5/GEM5-017t/.dadao/cross-toolchain/bin/qemu-system-dadao` md5 `b26c558d7906c47dde3b6a94afe01d9f` version `QEMU emulator version 11.1.1 (v11.1.1-1-g94dc00a)`
-- gem5: `/tmp/opencode/DADAO-v5/GEM5-017t/.work/source/gem5/build/DADAO/gem5.opt` md5 `917713f9b72a25a100b25d565dfd01bc`; config `/tmp/opencode/DADAO-v5/GEM5-017t/.work/source/gem5/configs/dadao/fs.py` md5 `952b78c49550f8940833f1f32243c2c0`; source `f86efab66af5ee84332a25c21b4bfb22914dd8ef`
-- BootROM `node`: `/tmp/opencode/DADAO-v5/GEM5-017t/.dadao/tests/bootrom/step5/bootrom_step5.bin` md5 `e191e483519ead8cb43e37e79d9dcf46` size 4194304
-- BootROM `node_inst`: `/tmp/opencode/DADAO-v5/GEM5-017t/.dadao/tests/bootrom/step5/bootrom_step5_inst.bin` md5 `bc9f3d0879cdc094b0eddffabf8cad9e` size 4194304
-- BootROM `tiny`: `/tmp/opencode/DADAO-v5/GEM5-017t/tools/testcases/lib/trampoline.bin` md5 `a97ad7c6e3defc50066e2027f2fd3268` size 36
-- Toolchain md5: clang=`ba2d2a6c43e7a5799aafea9ced2bfec0`, ld.lld=`ae18827440077fa9fe78d35ff2c46531`, llc=`0ab44948688fbbcaa92f3d501380502e`, llvm-mc=`3693b3fe118476ace57eb7be29b57a53`, llvm-objcopy=`526cf818ad2d223abd85c01d9525e698`
+- QEMU: `/tmp/opencode/TESTCASES-098t/.dadao/cross-toolchain/bin/qemu-system-dadao` md5 `0a3b8ff649ab585487e642b45464b5d9` version `QEMU emulator version 11.1.1 (v11.1.1-1-g4d604a4)`
+- gem5: `/mnt/tao/DADAO-v5/.work/evidence/TESTCASES-098t/frozen/gem5.opt` md5 `d64b0f9ef55ead69c03b7f59f55c415b`; config `/tmp/opencode/TESTCASES-098t/.work/source/gem5/configs/dadao/fs.py` md5 `dde8e3e529c8ff7c9f3abe66ab80fe84`; source `1ad69d23b13083aa2ef9d69760bfde808b30ae50`
+- BootROM `tiny`: `/tmp/opencode/TESTCASES-098t/tools/testcases/lib/trampoline.bin` md5 `a97ad7c6e3defc50066e2027f2fd3268` size 36
+- BootROM `node`: `/tmp/opencode/TESTCASES-098t/.dadao/tests/bootrom/step5/bootrom_step5.bin` md5 `52f756187f68d7a35c0774e8c38d19d5` size 4194304
+- BootROM `node_inst`: `/tmp/opencode/TESTCASES-098t/.dadao/tests/bootrom/step5/bootrom_step5_inst.bin` md5 `c57e7750a60fd463a40cd93e6898e807` size 4194304
+- Toolchain md5: clang=`ba2d2a6c43e7a5799aafea9ced2bfec0`, llc=`0ab44948688fbbcaa92f3d501380502e`, llvm-mc=`3693b3fe118476ace57eb7be29b57a53`, llvm-objcopy=`526cf818ad2d223abd85c01d9525e698`, ld.lld=`ae18827440077fa9fe78d35ff2c46531`
 
 ## Counts per profile x scope
 
 | profile | scope | total | agree_pass | agree_fail | gem5_only_fail | qemu_only_fail | diff | deferred | skip_profile | blocked | N/A |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| node | arch | 269 | 242 | 0 | 0 | 0 | 0 | 0 | 0 | 27 | 0 |
-| node | embench | 38 | 38 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| node | inst | 1012 | 963 | 0 | 0 | 0 | 0 | 5 | 44 | 0 | 0 |
+| node | arch | 269 | 249 | 0 | 0 | 0 | 0 | 0 | 0 | 20 | 0 |
+| node | inst | 1014 | 965 | 0 | 0 | 0 | 0 | 5 | 44 | 0 | 0 |
 | tiny | arch | 269 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 269 |
-| tiny | embench | 38 | 38 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tiny | inst | 1012 | 1003 | 0 | 0 | 0 | 0 | 5 | 4 | 0 | 0 |
+| tiny | inst | 1014 | 1005 | 0 | 0 | 0 | 0 | 5 | 4 | 0 | 0 |
 | tiny | picolibc | 20 | 17 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 2 |
 
 Cells not run by profile design: `tiny/arch` is N/A (`machine-profiles.yaml` `tiny.arch=false`); `node/picolibc` is not run (`node.picolibc=false`).
@@ -50,13 +48,6 @@ Cells not run by profile design: `tiny/arch` is N/A (`machine-profiles.yaml` `ti
 | node | arch | `arch/probe/integ051t/pmem_pending_in_pmem` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
 | node | arch | `arch/probe/integ051t/timer_imask_hold` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
 | node | arch | `arch/probe/integ051t/timer_pending_in_hart` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/min_rom_probe_046t/bank_num_rd16` | PASS/0 | BLOCKED/1 | BLOCKED_SIDE | gem5-defect (separate gem5 task): gem5 semihosting SYS_TICKFREQ 1e12/256 != user-ruled 1e9 ticks/s |
-| node | arch | `arch/probe/min_rom_probe_046t/ret_rd8` | PASS/0 | BLOCKED/1 | BLOCKED_SIDE | gem5-defect (separate gem5 task): gem5 semihosting SYS_TICKFREQ 1e12/256 != user-ruled 1e9 ticks/s |
-| node | arch | `arch/probe/min_rom_probe_046t/semihost_cfxha_agnostic` | PASS/0 | BLOCKED/1 | BLOCKED_SIDE | gem5-defect (separate gem5 task): gem5 semihosting SYS_TICKFREQ 1e12/256 != user-ruled 1e9 ticks/s |
-| node | arch | `arch/probe/min_rom_probe_046t/semihost_tag_path` | PASS/0 | BLOCKED/1 | BLOCKED_SIDE | gem5-defect (separate gem5 task): gem5 semihosting SYS_TICKFREQ returns 0xE8D4A510 (1e12/256), not the user-ruled M11 baseline 1e9 ticks/s |
-| node | arch | `arch/probe/min_rom_probe_046t/svc_tickfreq` | PASS/0 | BLOCKED/1 | BLOCKED_SIDE | gem5-defect (separate gem5 task): gem5 semihosting SYS_TICKFREQ 1e12/256 != user-ruled 1e9 ticks/s |
-| node | arch | `arch/probe/min_rom_probe_046t/svc_write0` | PASS/0 | BLOCKED/1 | BLOCKED_SIDE | gem5-defect (separate gem5 task): gem5 semihosting clobbers rd8 with 0 for SYS_WRITE0 (spec: no return value, rd8 must stay untouched) |
-| node | arch | `arch/probe/min_rom_probe_046t/svc_writec` | PASS/0 | BLOCKED/1 | BLOCKED_SIDE | gem5-defect (separate gem5 task): gem5 semihosting clobbers rd8 with 0 for SYS_WRITEC (spec: no return value, rd8 must stay untouched) |
 | node | inst | `inst/base/aip-si.yaml#12:aip.si_riii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
 | node | inst | `inst/base/ctrl-br.yaml#12:br.z_riii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
 | node | inst | `inst/base/ctrl-br.yaml#16:br.nz_riii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
@@ -393,11 +384,10 @@ Cells not run by profile design: `tiny/arch` is N/A (`machine-profiles.yaml` `ti
 - `tiny/arch`: `tests/shared/machine-profiles.yaml` `tiny.arch=false` (Tiny has no cfx/monitor).
 - 20 arch probe check(s) are N/A on gem5: QEMU `-icount` has no atomic-model equivalent (task book §2).
 - `picolibc/math_test`: BLOCKED, B7 numeric difference (GEM5-015t leftover 1); never written as PASS and not in the hard subset.
-- 7 gem5 semihosting defect row(s) (`bank_num_rd16`, `ret_rd8`, `semihost_cfxha_agnostic`, `semihost_tag_path`, `svc_tickfreq`, `svc_write0`, `svc_writec`): QEMU PASS / gem5 non-PASS, registered BLOCKED with `raw_status` kept for audit and handed to a separate gem5 task. The five SYS_TICKFREQ rows follow the user ruling 2026-11-04 (baseline 1e9 ticks/s); `spec/` is unchanged.
 
 ## Evidence pointers
 
-- JSON: `/tmp/opencode/GEM5-017t/run/matrix.json`
-- Work dir: `/tmp/opencode/GEM5-017t/run`
+- JSON: `/mnt/tao/DADAO-v5/.work/evidence/TESTCASES-098t/matrix.final3.json`
+- Work dir: `/mnt/tao/DADAO-v5/.work/evidence/TESTCASES-098t/run-frozen2`
 - Evidence script: `.work/evidence/GEM5-017t/run.sh`
 
