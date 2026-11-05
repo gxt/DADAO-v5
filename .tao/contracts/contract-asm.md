@@ -257,7 +257,7 @@
 
 ## §12 机器检查
 
-本规范的机械门控收敛为既有门控名（与 `Toolchain-01 §12` 同落点）——见 `spec/README.md` 投影表 `Toolchain-01` 行 ③ 机械门控列：`tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py`；缺口登记见 `.tao/knowledge/issues.yaml`。[Toolchain-01 §12]
+本规范的机械门控收敛为既有门控名（与 `Toolchain-01 §12` 同落点）：`tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py`；缺口登记见 `.tao/knowledge/issues.yaml`。[Toolchain-01 §12]
 
 ---
 

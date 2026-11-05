@@ -14,7 +14,7 @@
 | 交互目录（`$TAO_ROOT` / 结构 / 模块表） | `.tao/README.md` |
 | 角色 / 流程 / 命令 | `AGENTS.md`「角色与流程」+ `.opencode/agents/`、`.opencode/commands/` |
 | 任务文件 | `.tao/tasks/<module>/` |
-| 技术规范（上游 + v5 自定；索引 / 投影表） | `spec/` + `spec/README.md` |
+| 技术规范（上游 + v5 自定；索引 / 分册清单） | `spec/` + `spec/README.md` |
 | 工程流程规范 + 仓库级索引 | `docs/Process-0x` + `docs/README.md` |
 | DDLN 讲义（篇目索引 / 草稿） | `docs/DDLN/README.md`（**讲义，不是实现判据**；草稿 `TT-*` 由 `.gitignore` 忽略） |
 | 合约（归一化叙述 / 机器可读数据） | `.tao/contracts/contract-*.md` / `contracts/` |
@@ -47,7 +47,7 @@
 ### spec/ — 技术规范正文
 
 - 承载 DADAO 的行为、编码、ABI、异常、测试机等**技术真源**。
-- 入口：`spec/README.md`（分册索引、投影/缺口表）。
+- 入口：`spec/README.md`（分册清单、册维护约定、规范修订流程）。
 - 实现前先查对应分册；DDLN 只作讲义，不作实现判据。
 - 与其它文档冲突时，以 spec + 已 Accepted ADR 为准；冲突未消解时停下问用户。
 

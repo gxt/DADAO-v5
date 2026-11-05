@@ -23,7 +23,7 @@
 | 文件 | 内容 |
 | --- | --- |
 | `docs/repository-layout.md` | **仓库布局**：纳入版本控制的目录（含三分界）、一次性工作区 `.work/`、持久对象库 `.cache/` |
-| `docs/fp-oracle-design.md` | **FP 独立 oracle 方案**（被 `spec/README.md` 投影表、`contract-fp.md`、`contracts/fp_semantics.yaml` 引用） |
+| `docs/fp-oracle-design.md` | **FP 独立 oracle 方案**（被 `contract-fp.md`、`contracts/fp_semantics.yaml` 引用） |
 
 ## 历史与设计理念素材（`DDLN/`）
 

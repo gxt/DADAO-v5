@@ -17,7 +17,7 @@ Agent 不能直接读 spec/——它面向人类、存在歧义，需要归一�
 | `contract-exception.md` | 系统态异常模型（`spec/DADAO-13/23`） | **deferred**（无 M2/M3 消费方：M3 codegen 为 freestanding 单 TU，无 syscall/异常/MMU，未冻结后果可控；上游 `spec/DADAO-13/23` 已存在，补齐不需新造正文；归属 M3+，触发：系统态异常/HBI 消费方落地时须先补齐再实现） |
 | `contract-mmu.md` | 地址转换模型（`spec/DADAO-12`） | **deferred**（无 M2/M3 消费方：M3 codegen 为 freestanding 单 TU，无 syscall/异常/MMU，未冻结后果可控；上游 `spec/DADAO-12`（§2.2 虚实地址转换）已存在，补齐不需新造正文；归属 M3+，触发：MMU/地址转换消费方落地时须先补齐再实现） |
 
-> **deferred** 项为**已登记、暂不落盘**的叙述合约（决策 8：缺失即登记，不臆造；理由与触发的完整口径见 `spec/README.md`「登记缺口（显式 deferred）」表）；四类型投影落点见 `spec/README.md` 投影表。
+> **deferred** 项为**已登记、暂不落盘**的叙述合约（决策 8：缺失即登记，不臆造；理由与触发的完整口径见上表 `deferred` 各行）。
 
 ## 合约写法要点
 
