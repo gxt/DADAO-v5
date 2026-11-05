@@ -29,6 +29,7 @@
 - QEMU/gem5/tests 的实现删除（rc9/rc11/cg5 rc1/rc63、inner mask、hmon.S 的 rc9 写）待 `SPEC-190t` 定稿后按实际影响立任务。
 - `SPEC-185t`（待开始）：**改为非 spec 引用清理（A/A1）**——只删 spec 内对 ADR/contract/.tao/docs/tests/tools/manifests/0628/URL 的引用标记，保留 spec 互引；待执行。
 - `SPEC-192t`（待开始）：退出码表从 `Machine-v5 §1.2` 迁到 `§7.1`，同步 contract-see/ADR-0020/ADR-0004 的 4 处指针；等 SPEC-185t 收口后执行。
+- `SPEC-193t`（待开始）：修 SPEC-185t 删除投影/缺口表后的 5 处外部悬空指针。
 - `SPEC-187t`（待开始）：依赖 `SPEC-186t` 第 2 项与退出码表落点确认；覆盖 `ISS-341`。
 - `QEMU-083t`（待开始）：依赖 `SPEC-186t` 的 `CFXREG` 目标句定稿；覆盖 `ISS-342`。
 - `TESTCASES-098t`（待开始）：依赖 M11 收口（`SPEC-186t`、退出码迁移、完整 llvm-ts 回归）。
