@@ -13,6 +13,14 @@
 - `TESTCASES-098t`（待开始）：依赖 M11 收口（`SPEC-186t`、退出码迁移、完整 llvm-ts 回归）。
 - `SPEC-180t` 的 ADR、Linux bring-up charter ADR：仍待用户逐条确认，未立册。
 
+### M11 夜跑 libc-test dynamic 失败（2026-11-05）
+
+- 夜跑 `check-night`：L3 绿；`tset:llvm-ts`/`tset:embench`/`arch:cfx` 绿；`tset:libc-test` dynamic rc=2。
+- 失败用例 `regression/malloc-brk-fail`：`malloc(10000) succeeded after memory is filled`。
+- 现场：dynamic 启动 `brk(0x50000)→brk(0x70000)`；`t_vmfill`+`RLIMIT_DATA=0` 后成功 `malloc` 无 mmap/brk 系统调用；static 通过。
+- 初步判断：musl dynamic 启动堆与测试假设交互，非 QEMU mmap/rlimit 直接失效；待 `TESTCASES-099t` 独立复核。
+- `check-night-report` 在该项解决前为红；处置 A（known-fail）/B（dynamic 排除）/C（测试修正）待用户裁定。
+
 ## 批次授权
 
 - **2026-11-01 M11 gem5 批次**：B0 解码核心（`GEM5-004t`）+ B1–B7（按 G1 矩阵拆分，任务书待立）+ `SPEC-181t` 语义缺口收口。
