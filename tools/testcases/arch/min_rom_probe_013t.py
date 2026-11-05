@@ -4,26 +4,26 @@ ldm.o-ra/stm.o-ra, rd2ra/ra2rd) + MemRAS support (§5.6.1/§5.6.2 case 3).
 
 Tests cover:
   M1: ld.o-ra/st.o-ra normal (RAM round-trip)
-  M2: ld.o-ra MALIGN (unaligned → 0x8C)
+  M2: ld.o-ra MALIGN (unaligned → 0xFC)
   M3: ldm.o-ra normal (multi-register load from RAM)
   M4: stm.o-ra normal (multi-register store to RAM)
-  M5: ldm.o-ra ILLI (immu6=0 → 0x88)
-  M6: stm.o-ra ILLI (ra+immu6>64 → 0x88)
-  M7: ldm.o-ra MALIGN (unaligned → 0x8C)
+  M5: ldm.o-ra ILLI (immu6=0 → 0xF8)
+  M6: stm.o-ra ILLI (ra+immu6>64 → 0xF8)
+  M7: ldm.o-ra MALIGN (unaligned → 0xFC)
   B1: rd2ra normal (RD→RA block copy)
   B2: ra2rd normal (RA→RD block copy)
   B3: rd2ra→ra2rd round-trip (2 registers)
-  B4: rd2ra ILLI (immu6=0 → 0x88)
-  B5: ra2rd ILLI (immu6=0 → 0x88)
-  B6: ra2rd ILLI (dest=rd0 → 0x88)
-  B7: rd2ra ILLI (range overflow → 0x88)
-  B8: ra2rd ILLI (range overflow → 0x88)
+  B4: rd2ra ILLI (immu6=0 → 0xF8)
+  B5: ra2rd ILLI (immu6=0 → 0xF8)
+  B6: ra2rd ILLI (dest=rd0 → 0xF8)
+  B7: rd2ra ILLI (range overflow → 0xF8)
+  B8: ra2rd ILLI (range overflow → 0xF8)
   B9: rd2ra/ra2rd overlap (ascending order read-before-write)
   R1: MemRAS round-trip (set ra0 buffer, deep calls spill to MemRAS)
-  R2: RASOF without MemRAS (64 calls → 0x8A)
-  X1: MemRAS spill refcount overflow (ra0.hi16=0xFFFF) → RASOF 0x8A
-  X2: MemRAS pop refcount underflow (ra0.hi16=0, low48!=0) → RASUF 0x8B
-  X3: MemRAS invalid content (entry hi16=0) → RASUF 0x8B; ra0 unchanged (precise)
+  R2: RASOF without MemRAS (64 calls → 0xFA)
+  X1: MemRAS spill refcount overflow (ra0.hi16=0xFFFF) → RASOF 0xFA
+  X2: MemRAS pop refcount underflow (ra0.hi16=0, low48!=0) → RASUF 0xFB
+  X3: MemRAS invalid content (entry hi16=0) → RASUF 0xFB; ra0 unchanged (precise)
       (read-back via -d cpu dump, parsed by last_ra_dump)
 
 Usage: python3 tools/testcases/arch/min_rom_probe_013t.py
@@ -281,7 +281,7 @@ def last_ra_dump(log_text):
 
 # ── Exit codes ────────────────────────────────────────────────────────
 
-PASS_EXIT = 0; ILLI_EXIT = 136; RASOF_EXIT = 138; RASUF_EXIT = 139; MALIGN_EXIT = 140
+PASS_EXIT = 0; ILLI_EXIT = 248; RASOF_EXIT = 250; RASUF_EXIT = 251; MALIGN_EXIT = 252
 
 # ── Helper: PASS/FAIL epilogue ────────────────────────────────────────
 # All tests use: set rd18=0, set rd19=1 before the test body.
@@ -320,8 +320,8 @@ TESTS = [
      PASS_EXIT,
      "ld.o-ra/st.o-ra round-trip failed"),
 
-    # M2: ld.o-ra MALIGN (unaligned → 0x8C)
-    ("M2 ld.o-ra MALIGN (unaligned → 0x8C)",
+    # M2: ld.o-ra MALIGN (unaligned → 0xFC)
+    ("M2 ld.o-ra MALIGN (unaligned → 0xFC)",
      [ld_o_ra(10, 17, 1),         # EA = RAM+1 → MALIGN
       set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      MALIGN_EXIT,
@@ -360,15 +360,15 @@ TESTS = [
      "stm.o-ra normal failed"),
 
     # M5-M7: ILLI and MALIGN
-    ("M5 ldm.o-ra ILLI (immu6=0 → 0x88)",
+    ("M5 ldm.o-ra ILLI (immu6=0 → 0xF8)",
      [ldm_o_ra(10, 17, 0, 0), set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      ILLI_EXIT, "ldm.o-ra immu6=0 didn't trigger ILLI"),
 
-    ("M6 stm.o-ra ILLI (ra62+3>64 → 0x88)",
+    ("M6 stm.o-ra ILLI (ra62+3>64 → 0xF8)",
      [stm_o_ra(62, 17, 0, 3), set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      ILLI_EXIT, "stm.o-ra ra62+3 didn't trigger ILLI"),
 
-    ("M7 ldm.o-ra MALIGN (unaligned → 0x8C)",
+    ("M7 ldm.o-ra MALIGN (unaligned → 0xFC)",
      [set_zw_rd(18, 1), ldm_o_ra(10, 17, 18, 1),
       set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      MALIGN_EXIT, "ldm.o-ra unaligned didn't trigger MALIGN"),
@@ -407,23 +407,23 @@ TESTS = [
      PASS_EXIT, "rd2ra→ra2rd round-trip failed"),
 
     # B4-B8: ILLI checks
-    ("B4 rd2ra ILLI (immu6=0 → 0x88)",
+    ("B4 rd2ra ILLI (immu6=0 → 0xF8)",
      [rd2ra(10, 18, 0), set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      ILLI_EXIT, "rd2ra immu6=0 didn't trigger ILLI"),
 
-    ("B5 ra2rd ILLI (immu6=0 → 0x88)",
+    ("B5 ra2rd ILLI (immu6=0 → 0xF8)",
      [ra2rd(18, 10, 0), set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      ILLI_EXIT, "ra2rd immu6=0 didn't trigger ILLI"),
 
-    ("B6 ra2rd ILLI (dest=rd0 → 0x88)",
+    ("B6 ra2rd ILLI (dest=rd0 → 0xF8)",
      [ra2rd(0, 10, 1), set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      ILLI_EXIT, "ra2rd dest=rd0 didn't trigger ILLI"),
 
-    ("B7 rd2ra ILLI (ra62+3>64 → 0x88)",
+    ("B7 rd2ra ILLI (ra62+3>64 → 0xF8)",
      [rd2ra(62, 18, 3), set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      ILLI_EXIT, "rd2ra ra62+3 didn't trigger ILLI"),
 
-    ("B8 ra2rd ILLI (rd62+3>64 → 0x88)",
+    ("B8 ra2rd ILLI (rd62+3>64 → 0xF8)",
      [ra2rd(62, 10, 3), set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      ILLI_EXIT, "ra2rd rd62+3 didn't trigger ILLI"),
 
@@ -469,7 +469,7 @@ TESTS = [
 
     # R2: RASOF without MemRAS (64 chained calls)
     # Same pattern as012t R2b: [call_iiii(1)] * 64 → RASOF
-    ("R2 RASOF without MemRAS (64 calls → 0x8A)",
+    ("R2 RASOF without MemRAS (64 calls → 0xFA)",
      [call_iiii(1)] * 64 +
      [set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      RASOF_EXIT,
@@ -489,7 +489,7 @@ TESTS = [
      PASS_EXIT, "MemRAS spill must not fault (no RASOF per contract §1.3.4)"),
 
     # X2: MemRAS refcount underflow at pop (ra0.hi16==0, low48!=0) → RASUF
-    ("X2 MemRAS pop refcount underflow (ra0.hi16=0) → 0x8B",
+    ("X2 MemRAS pop refcount underflow (ra0.hi16=0) → 0xFB",
      words((3, 0x0000), (2, RAM_W2), (0, 0x8000)) +   # ra0 = (RAM_BASE + 0x8000)
      [rd2ra(0, 18, 1), ret_riii(0, 0),
       set_zw_rd(18, 0x0001), *st_o_rd_pass()],
@@ -497,7 +497,7 @@ TESTS = [
 
     # X3: MemRAS invalid content (entry hi16==0) → RASUF, and ra0 must be UNCHANGED
     # (precise exception, §1.3.4 / ADR-0004 D5.5). Read-back via -d cpu.
-    ("X3 MemRAS invalid content (entry hi16=0) → 0x8B",
+    ("X3 MemRAS invalid content (entry hi16=0) → 0xFB",
      words((3, 0x0001), (2, RAM_W2), (0, 0x8000)) +   # ra0 = 0x0001_0000_0000_8000
      [rd2ra(0, 18, 1), ret_riii(0, 0),
       set_zw_rd(18, 0x0001), *st_o_rd_pass()],

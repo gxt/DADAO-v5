@@ -9,7 +9,7 @@ Spec-first：所有判定依据 `contracts/opcodes.yaml`、`contracts/legality_r
    2. `class` ∈ {encoding, legality, semantic, boundary, overlap}
    3. `status` ∈ {active, deferred}
    4. deferred 一致性（`expected_state`/`expected_pc` 为 null，`deferred_reason` 非空）
-   5. `expected_fault` ∈ {null, ILLI, UNDI, MALIGN, IALIGN, RASOF, RASUF, UNMAPPED, CFXMEM}
+   5. `expected_fault` ∈ {null, ILLI, UNDI, MALIGN, IALIGN, RASOF, RASUF, CFXMEM}
    6. `encoding.word` 合法 hex 且 ≤ 0xFFFFFFFF
    7. `id` 存在于 `opcodes.yaml` 的 M1 身份集
    8. `encoding.word` 与对应 opcode 的 `(word & mask) == value` 一致
@@ -48,7 +48,7 @@ import machine_profile  # noqa: E402
 ALLOWED_CLASSES = {"encoding", "legality", "semantic", "boundary", "overlap"}
 ALLOWED_STATUS = {"active", "deferred"}
 ALLOWED_FAULTS = {None, "ILLI", "UNDI", "MALIGN", "IALIGN",
-                  "RASOF", "RASUF", "UNMAPPED", "CFXMEM"}
+                  "RASOF", "RASUF", "CFXMEM"}
 REQUIRED_FIELDS = ["mnemonic", "id", "format", "class", "encoding",
                    "input_state", "spec_cite"]
 
@@ -524,11 +524,11 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                 # TESTCASES-092t §3: Tiny routing gives CFXMEM (below the SRAM
                 # in the cfxha-63 segment) or UNDI (in-SRAM all-zero fetch
                 # word), so those two are legitimate boundary expectations; the
-                # old {ILLI, UNMAPPED} set only described the pre-092t shape.
-                if fault is not None and fault not in ("ILLI", "UNMAPPED",
-                                                       "CFXMEM", "UNDI"):
+                # UNMAPPED is no longer a legal expectation: spec/Machine-v5
+                # §7.1 folds all unmapped accesses into monitor CFXMEM.
+                if fault is not None and fault not in ("ILLI", "CFXMEM", "UNDI"):
                     errors.append("%s: %s case expected_fault must be null, "
-                                  "ILLI, UNMAPPED, CFXMEM, or UNDI, got %r"
+                                  "ILLI, CFXMEM, or UNDI, got %r"
                                   % (tag, cls, fault))
             else:  # overlap
                 if fault is not None and fault != "ILLI":

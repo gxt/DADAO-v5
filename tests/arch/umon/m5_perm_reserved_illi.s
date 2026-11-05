@@ -14,15 +14,15 @@
 @@ the recorded cause and requires ILLI (1<<8).  No cross-cfx register read and
 @@ no bootrom-installed user vector is assumed any more.
 @@
-@@ Expected: cause = ILLI (0x100); host $? = 0x50 (SYS_EXIT pass token).
+@@ Expected: cause = ILLI (0x100); host $? = 0x20 (SYS_EXIT pass token).
 
 @@ @m5 name=m5_perm_reserved_illi
 @@ @m5 kind=permission
 @@ @m5 rule=reserved_cfxha
 @@ @m5 cause=ILLI
 @@ @m5 op=trap cfx7, 0
-@@ @m5 exit=0x50
-@@ @m5 fail_exit=0xE1
+@@ @m5 exit=0x20
+@@ @m5 fail_exit=0x71
 
 	.include "machine.inc"
 
@@ -38,24 +38,24 @@ _start:
 	cmp.so	rd11, rd10, rd12
 	br.nz	{rd11}?, [rb0, fail]
 
-	@@ pass: SYS_EXIT(0x50)
+	@@ pass: SYS_EXIT(0x20)
 	LOAD_ADDR rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
-	set.zw	rd9, wp0, 0x0050
+	set.zw	rd9, wp0, 0x0020
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
 	trap	cfx_umon, 0x3FF00
 	swym	0
 
 fail:
-	@@ wrong cause -> SYS_EXIT(0xE1)
+	@@ wrong cause -> SYS_EXIT(0x71)
 	LOAD_ADDR rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
-	set.zw	rd9, wp0, 0x00E1
+	set.zw	rd9, wp0, 0x0071
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
 	trap	cfx_umon, 0x3FF00

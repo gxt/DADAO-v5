@@ -26,10 +26,10 @@
 @@     * HMON_FAULT_POLICY=0 (resume, bootrom_step5.bin): `escape cfx_hmon, 1`
 @@       returns to excp_cause_ip + 4 and the vector self-checks;
 @@     * HMON_FAULT_POLICY=1 (exit, bootrom_step5_inst.bin): exit code =
-@@       0x80 | cause_bit_index (ADR-0004 D5.8) so the inst harness observes
-@@       the machine fault exactly as the vector expects it (no 0xB7 mask).
-@@       CFXPERM (1<<7) has no ADR-0004 D5.8 code and 0x87 already means
-@@       UNMAPPED, so it reports 0x80 (task book §3).
+@@       monitor segment 0xC0 | (run_mode << 4) | cause_bit_index
+@@       (spec/Machine-v5 §7.1) so the inst harness observes the machine fault
+@@       exactly as the vector expects it (no 0xB7 mask).  The policy runs in
+@@       hmon, i.e. hypv (bit5:4 = 11), hence the 0xF0 base.
 @@     * An unmatched cause stays on hmon_exit_b7 (unhandled fault).
 
 	.include "tests/shared/asm/machine-node.inc"
@@ -130,11 +130,8 @@ hmon_fault:
 	escape	cfx_hmon, [excp_cause_ip, 4]
 	swym	0
 	.else
-	@@ exit: explicit cause -> ADR-0004 D5.8 exit code (task book §3).
-	@@ NOTE: ADR-0004 D5.8 writes CFXMEM as 0x81 (== 0x80|bit1) but lists
-	@@ CFXREG as 0x84, which is not 0x80|bit2; the task book freezes the pair
-	@@ (CFXMEM 0x81 / CFXREG 0x84), so the probe list spells every code out
-	@@ instead of deriving it arithmetically (ISS-341).
+	@@ exit: explicit cause -> spec/Machine-v5 §7.1 monitor code.
+	@@ The policy runs in hmon (hypv, bit5:4 = 11): code = 0xF0 | index.
 	.macro	HMON_FAULT_CODE cause, code
 	LD64	rd7, \cause, 0x0000, 0x0000, 0x0000
 	cmp.uo	rd8, rd6, rd7
@@ -143,15 +140,15 @@ hmon_fault:
 	jump	[rb0, hmon_exit_rd9]
 1:
 	.endm
-	HMON_FAULT_CODE 0x0002, 0x0081		@@ CFXMEM  (1<<1)
-	HMON_FAULT_CODE 0x0004, 0x0084		@@ CFXREG  (1<<2)
-	HMON_FAULT_CODE 0x0080, 0x0080		@@ CFXPERM (1<<7)
-	HMON_FAULT_CODE 0x0100, 0x0088		@@ ILLI    (1<<8)
-	HMON_FAULT_CODE 0x0200, 0x0089		@@ UNDI    (1<<9)
-	HMON_FAULT_CODE 0x0400, 0x008a		@@ RASOF   (1<<10)
-	HMON_FAULT_CODE 0x0800, 0x008b		@@ RASUF   (1<<11)
-	HMON_FAULT_CODE 0x1000, 0x008c		@@ MALIGN  (1<<12)
-	HMON_FAULT_CODE 0x2000, 0x008d		@@ IALIGN  (1<<13)
+	HMON_FAULT_CODE 0x0002, 0x00F1		@@ CFXMEM  (1<<1)
+	HMON_FAULT_CODE 0x0004, 0x00F2		@@ CFXREG  (1<<2)
+	HMON_FAULT_CODE 0x0080, 0x00F7		@@ CFXPERM (1<<7)
+	HMON_FAULT_CODE 0x0100, 0x00F8		@@ ILLI    (1<<8)
+	HMON_FAULT_CODE 0x0200, 0x00F9		@@ UNDI    (1<<9)
+	HMON_FAULT_CODE 0x0400, 0x00FA		@@ RASOF   (1<<10)
+	HMON_FAULT_CODE 0x0800, 0x00FB		@@ RASUF   (1<<11)
+	HMON_FAULT_CODE 0x1000, 0x00FC		@@ MALIGN  (1<<12)
+	HMON_FAULT_CODE 0x2000, 0x00FD		@@ IALIGN  (1<<13)
 	@@ unmatched cause: firmware "unhandled fault" code
 	jump	[rb0, hmon_exit_b7]
 	.endif

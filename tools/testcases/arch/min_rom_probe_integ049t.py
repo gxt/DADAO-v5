@@ -231,9 +231,9 @@ def probe_base():
 
 
 def handler():
-    """CFXREG handler: record the cfx_hmon cause frame, exit 0xCC."""
+    """CFXREG handler: record the cfx_hmon cause frame, exit 0x2C."""
     h = [cfx2rd(3, 5, 2, 20), cfx2rd(3, 5, 3, 21), cfx2rd(3, 5, 4, 22)]
-    return h + exit_seq(0xCC)
+    return h + exit_seq(0x2C)
 
 
 def one(rom, exp, post=None):
@@ -443,7 +443,7 @@ def _write_cfxreg():
         fault_idx = len(body)
         body += [cfx2rc(3, 7, rc, 25)] + exit_seq(0x00)
         rom = build_rom(body, {HAND_OFF: handler()})
-        exp = {"exit": 0xCC, "cid:3": CFXREG,
+        exp = {"exit": 0x2C, "cid:3": CFXREG,
                "cip:3": ROM_BASE + BODY_OFF + 4 * fault_idx,
                "cinfo:3": info_rc(3, 7, rc, 25), "syncn:3": 1}
         out.append(("rc%d" % rc, rom, exp, None))
@@ -459,7 +459,7 @@ def _unimpl_cfx():
     body += [cfx2rd(5, 7, 0, 30)] + exit_seq(0x00)
     rom = build_rom(body, {HAND_OFF: handler()})
     # ci < 0 is raised with target = the current run mode (hypv => cfx_hmon).
-    return one(rom, {"exit": 0xCC, "cid:3": CFXREG,
+    return one(rom, {"exit": 0x2C, "cid:3": CFXREG,
                      "cip:3": ROM_BASE + BODY_OFF + 4 * fault_idx,
                      "cinfo:3": info_rd(5, 7, 0, 30), "syncn:3": 1})
 

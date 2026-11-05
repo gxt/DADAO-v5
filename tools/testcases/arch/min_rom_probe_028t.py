@@ -12,7 +12,7 @@ CTL self-check:
   CTL1: st.o rd0 expects ILLI (wrong; should PASS) → probe broken if passes
   CTL2: fence expects PASS (wrong) → probe broken if passes
 
-Exit codes: PASS=0, ILLI=136(0x88), UNDI=137(0x89), CRASH=134
+Exit codes: PASS=0, ILLI=248(0xF8), UNDI=249(0xF9), CRASH=134
 
 Usage: python3 tools/testcases/arch/min_rom_probe_028t.py
 """
@@ -232,7 +232,7 @@ def run_test(rom_data, kernel_data=None, timeout=10):
 
 # ── Exit codes ────────────────────────────────────────────────────────
 
-PASS_EXIT = 0; ILLI_EXIT = 136; UNDI_EXIT = 137; CRASH_EXIT = 134
+PASS_EXIT = 0; ILLI_EXIT = 248; UNDI_EXIT = 249; CRASH_EXIT = 134
 
 def _set_rd_to_val(insns, rd, val):
     """Set rd to a 64-bit value using set.zw + or.w."""
@@ -314,8 +314,8 @@ def make_t3_ld_rd0_illi():
     """T3: ld.o rd0, [rb17, 0] → still ILLI (destination=0).
 
     Two outcomes:
-      - ILLI fires → exit=136=PASS (correct behavior)
-      - No ILLI → reaches UNDI=137=FAIL (bug: should have ILLI'd)
+      - ILLI fires → exit=248=PASS (correct behavior)
+      - No ILLI → reaches UNDI=249=FAIL (bug: should have ILLI'd)
     """
     insns = [
         ld_o(0, 17, 0),              # ld.o rd0, [rb17, 0] → ILLI
@@ -338,8 +338,8 @@ def make_t4_st_o_rb0_addr_order():
     Verify: rd4 > rd3 (cmp.uo returns 1, not 0 or -1)
 
     Two outcomes:
-      - rd4 > rd3 → cmp.uo=1 → cmp with expected=1 → 0 → div 1/0 → ILLI(136)=PASS
-      - rd4 <= rd3 → cmp.uo≠1 → cmp≠0 → div 1/nz → UNDI(137)=FAIL
+      - rd4 > rd3 → cmp.uo=1 → cmp with expected=1 → 0 → div 1/0 → ILLI(248)=PASS
+      - rd4 <= rd3 → cmp.uo≠1 → cmp≠0 → div 1/nz → UNDI(249)=FAIL
 
     Branch offset: br_ne used to skip UNDI on mismatch. But we can use the
     div-by-zero trick instead. Let me re-think.
@@ -411,8 +411,8 @@ def make_t5_ld_rb0_base():
     Verify rd5 = 16 → ILLI if match, UNDI if mismatch.
 
     Two outcomes:
-      - rd5 = 16 (correct load from rb0) → cmp.uo=0 → div 1/0 → ILLI(136)=PASS
-      - rd5 ≠ 16 → cmp.uo≠0 → div 1/nz → UNDI(137)=FAIL
+      - rd5 = 16 (correct load from rb0) → cmp.uo=0 → div 1/0 → ILLI(248)=PASS
+      - rd5 ≠ 16 → cmp.uo≠0 → div 1/nz → UNDI(249)=FAIL
     """
     insns = [
         # First store rb0 to memory so we can check it's non-zero
@@ -435,12 +435,12 @@ def make_t5_ld_rb0_base():
 def make_t6_st_o_rd0_no_illi():
     """T6: st.o rd0, [rb17, 0] → should NOT ILLI (rd0 is source, reads as 0).
     This is the direct counterexample test for the fix.
-    If ha==0 check is present → ILLI(136)=FAIL
-    If ha==0 check is removed → stores 0, reaches UNDI(137)=PASS
+    If ha==0 check is present → ILLI(248)=FAIL
+    If ha==0 check is removed → stores 0, reaches UNDI(249)=PASS
 
     Two outcomes:
-      - No ILLI (fix applied) → st.o succeeds → UNDI(137)=PASS
-      - ILLI (regression) → exit=136=FAIL
+      - No ILLI (fix applied) → st.o succeeds → UNDI(249)=PASS
+      - ILLI (regression) → exit=248=FAIL
     """
     insns = [
         st_o(0, 17, 0),              # st.o rd0, [rb17, 0] → should store 0

@@ -428,24 +428,52 @@ def check_adr_alignment():
         record(cat, "RAM hw registration (add_subregion)", "FAIL",
                "QEMU patch 未找到 RAM 的 memory_region_add_subregion 注册")
 
-    # --- CFXMEM exit code = 0x81 (ADR-0004 D5.8; ADR-0020 D15) ---
-    cfxmem_match = re.search(r'DADAO_EXIT_CFXMEM\s*=\s*(0x[0-9a-fA-F]+|\d+)',
-                             patch_content)
-    if cfxmem_match:
-        raw = cfxmem_match.group(1)
-        actual = int(raw, 16) if raw.startswith("0x") else int(raw)
-        if actual == 0x81:
-            record(cat, "EXIT_CFXMEM=0x81", "PASS",
-                   f"QEMU: DADAO_EXIT_CFXMEM = 0x{actual:02X}")
-        else:
-            record(cat, "EXIT_CFXMEM=0x81", "FAIL",
-                   f"期望 0x81, 实际 0x{actual:02X}")
+    # --- Exit code segments (spec/Machine-v5 §7.1) ---
+    # Guest 0x00-0x3F PASS / 0x40-0x7F FAIL; other cfx 0x80-0xBF (cfxHA);
+    # monitor 0xC0-0xFF (run mode + cause index).  The old single-formula
+    # per-cause constants must be gone.
+    formula_text = re.sub(r'(?m)^\+', '', patch_content)
+    monitor_macro = re.search(
+        r'#define\s+DADAO_EXIT_MONITOR\(mode,\s*index\)\s*\\?\s*'
+        r'\(0xC0\s*\|\s*\(\(\(mode\)\s*&\s*0x3\)\s*<<\s*4\)\s*\|\s*'
+        r'\(\(index\)\s*&\s*0xF\)\)', formula_text)
+    if monitor_macro:
+        record(cat, "EXIT_MONITOR(mode,index) formula", "PASS",
+               "QEMU: 0xC0 | ((mode & 3) << 4) | (index & 0xF)")
     else:
-        record(cat, "EXIT_CFXMEM=0x81", "FAIL",
-               "QEMU patch 未找到 DADAO_EXIT_CFXMEM")
+        record(cat, "EXIT_MONITOR(mode,index) formula", "FAIL",
+               "QEMU patch 未找到 spec/Machine-v5 §7.1 monitor 段公式")
+
+    cfx_macro = re.search(
+        r'#define\s+DADAO_EXIT_CFX\(cfxha\)\s*\(0x80\s*\|\s*'
+        r'\(\(cfxha\)\s*&\s*0x3F\)\)', patch_content)
+    if cfx_macro:
+        record(cat, "EXIT_CFX(cfxha) formula", "PASS",
+               "QEMU: 0x80 | (cfxha & 0x3F)")
+    else:
+        record(cat, "EXIT_CFX(cfxha) formula", "FAIL",
+               "QEMU patch 未找到 spec/Machine-v5 §7.1 其它 cfx 段公式")
+
+    stale = sorted(set(re.findall(
+        r'DADAO_EXIT_(?:CFXMEM|CFXREG|CFXPERM|CFXESC|UNMAPPED|ILLI|UNDI|'
+        r'RASOF|RASUF|MALIGN|IALIGN)\b', patch_content)))
+    if stale:
+        record(cat, "old per-cause exit constants removed", "FAIL",
+               "QEMU patch 仍含旧逐码常量: " + ", ".join(stale))
+    else:
+        record(cat, "old per-cause exit constants removed", "PASS",
+               "旧 0x80|cause_bit 逐码常量已删除")
+
+    if "_Static_assert(DADAO_EXIT_MONITOR" in formula_text and \
+       "_Static_assert(DADAO_EXIT_CFX(" in formula_text:
+        record(cat, "EXIT segment compile-time self-check", "PASS",
+               "QEMU: cpu.h _Static_assert 覆盖 monitor/other-cfx 公式")
+    else:
+        record(cat, "EXIT segment compile-time self-check", "FAIL",
+               "QEMU patch 未找到 §7.1 公式编译期自检")
 
     # --- CFXMEM routing boundary: umon segment cfxha == 0 ---
-    # Source: ADR-0020 D15 (routing: cfxha-0 OOB => CFXMEM; others => 0x87).
+    # Source: spec/Machine-v5 §1.2/§7.1 (cfxha-0 OOB and other unmapped => CFXMEM).
     umon_match = re.search(r'DADAO_CFXHA_UMON\s+(\d+)', patch_content)
     if umon_match:
         actual = int(umon_match.group(1))
@@ -486,33 +514,9 @@ def check_adr_alignment():
         record(cat, "dual_image_bios_kernel", "FAIL",
                "QEMU patch 未找到缺少 -bios/-kernel 时的报错退出逻辑")
 
-    # --- Exit code mapping: fault codes ---
-    # Source: ADR-0004 §D5.8
-    expected_fault_codes = {
-        "PASS": 0x00,
-        "UNMAPPED": 0x87,
-        "ILLI": 0x88,
-        "UNDI": 0x89,
-        "RASOF": 0x8A,
-        "RASUF": 0x8B,
-        "MALIGN": 0x8C,
-        "IALIGN": 0x8D,
-    }
-    for name, code in expected_fault_codes.items():
-        pattern = re.compile(rf'DADAO_EXIT_{name}\s*=\s*(0x[0-9a-fA-F]+|\d+)')
-        m = pattern.search(patch_content)
-        if m:
-            raw = m.group(1)
-            actual = int(raw, 16) if raw.startswith("0x") else int(raw)
-            if actual == code:
-                record(cat, f"EXIT_{name}=0x{code:02X}", "PASS",
-                       f"QEMU: DADAO_EXIT_{name} = 0x{actual:02X}")
-            else:
-                record(cat, f"EXIT_{name}=0x{code:02X}", "FAIL",
-                       f"期望 0x{code:02X}, 实際 0x{actual:02X}")
-        else:
-            record(cat, f"EXIT_{name}=0x{code:02X}", "FAIL",
-                   f"QEMU patch 未找到 DADAO_EXIT_{name}")
+    # --- Exit code mapping: per-cause constants are gone (spec/Machine-v5 §7.1) ---
+    # The monitor/other-cfx formulas above are the only mapping; there is no
+    # per-cause 0x80|bit code to assert anymore.
 
     # --- Test-side: harness/linker must be profile-derived (reachable FAIL) ---
     harness_content = load_file("tools/testcases/lib/build_test_binary.py")
@@ -556,28 +560,34 @@ def check_adr_alignment():
                    f"{prow.ram_base:#x}+{prow['ram_size']:#x}")
 
     # --- Harness fault code mapping (run_qemu_test.py) ---
-    # Source: ADR-0004 §D5.8
+    # Source: spec/Machine-v5 §7.1.  The harness decodes the monitor segment
+    # by cause index (bit3:0); there is no per-cause exit constant anymore.
     harness_run_content = load_file("tools/testcases/lib/run_qemu_test.py")
     if harness_run_content:
-        h_fault_match = re.search(r'FAULT_NAMES\s*=\s*\{([^}]+)\}', harness_run_content, re.DOTALL)
-        if h_fault_match:
-            fault_text = h_fault_match.group(1)
-            harness_faults = {}
-            for m in re.finditer(r'(0x[0-9a-fA-F]+)\s*:\s*"(\w+)"', fault_text):
-                harness_faults[m.group(2)] = int(m.group(1), 16)
-            for name, code in expected_fault_codes.items():
-                if name == "PASS":
-                    continue
-                if name in harness_faults:
-                    if harness_faults[name] == code:
-                        record(cat, f"harness.{name}=0x{code:02X}", "PASS",
-                               f"run_qemu_test.py: {name} = 0x{harness_faults[name]:02X}")
-                    else:
-                        record(cat, f"harness.{name}=0x{code:02X}", "FAIL",
-                               f"期望 0x{code:02X}, 实際 0x{harness_faults[name]:02X}")
-                else:
-                    record(cat, f"harness.{name}=0x{code:02X}", "FAIL",
-                           f"run_qemu_test.py FAULT_NAMES 未包含 {name}")
+        expected_monitor = {
+            "CFXMEM": 1, "CFXREG": 2, "CFXPERM": 7, "ILLI": 8, "UNDI": 9,
+            "RASOF": 10, "RASUF": 11, "MALIGN": 12, "IALIGN": 13,
+        }
+        m = re.search(r'MONITOR_FAULT_NAMES\s*=\s*\{([^}]+)\}',
+                      harness_run_content, re.DOTALL)
+        harness_monitor = {}
+        if m:
+            for idx, name in re.findall(
+                    r'(\d+)\s*:\s*"([A-Z]+)"', m.group(1)):
+                harness_monitor[name] = int(idx)
+        for name, idx in expected_monitor.items():
+            if harness_monitor.get(name) == idx:
+                record(cat, f"harness.monitor[{name}]={idx}", "PASS",
+                       f"run_qemu_test.py: {name} -> index {idx}")
+            else:
+                record(cat, f"harness.monitor[{name}]={idx}", "FAIL",
+                       f"run_qemu_test.py MONITOR_FAULT_NAMES 未匹配 {name}")
+        if re.search(r'FAULT_NAMES\s*=\s*\{\s*0x8[0-9A-Fa-f]', harness_run_content):
+            record(cat, "harness old per-cause map removed", "FAIL",
+                   "run_qemu_test.py 仍含旧 0x80|cause 码表")
+        else:
+            record(cat, "harness old per-cause map removed", "PASS",
+                   "run_qemu_test.py 旧 0x80|cause 码表已删除")
 
 
 # ---------------------------------------------------------------------------
@@ -686,7 +696,7 @@ def check_schema_harness():
                    f"schema.md 中未找到 encoding.{sf}")
 
     # --- fault type definitions ---
-    for ft in ("ILLI", "UNDI", "MALIGN", "IALIGN", "RASOF", "RASUF", "UNMAPPED"):
+    for ft in ("ILLI", "UNDI", "MALIGN", "IALIGN", "RASOF", "RASUF", "CFXMEM"):
         if ft in schema_content:
             record(cat, f"schema 定义 fault {ft}", "PASS", "")
         else:

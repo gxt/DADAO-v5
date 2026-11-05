@@ -27,7 +27,7 @@
 |------|------|------|------|
 | `expected_state` | object 或 null | active `semantic`/`boundary`/`overlap` 必填；`encoding`/`legality` 及 deferred 必须为 `null` | 执行后的寄存器/内存状态 |
 | `expected_pc` | string 或 null | 可选（本任务中）；`legality`/`encoding` 不得为非 null | 执行后 PC（`rb0`）的期望值，48-bit 有效地址 hex |
-| `expected_fault` | string 或 null | 可选 | `null` / `ILLI` / `UNDI` / `MALIGN` / `IALIGN` / `RASOF` / `RASUF` / `UNMAPPED` / `CFXMEM` |
+| `expected_fault` | string 或 null | 可选 | `null` / `ILLI` / `UNDI` / `MALIGN` / `IALIGN` / `RASOF` / `RASUF` / `CFXMEM` |
 | `status` | string | 可选，默认 `active` | `active` / `deferred` |
 | `deferred_reason` | string | `status=deferred` 时必填（非空） | 暂缓原因（如 `"C-27"`） |
 | `notes` | string | 可选 | 人类可读备注（如 `shamt = rd<k>`、PC 地址来源） |
@@ -145,7 +145,7 @@
 - `semantic` 类的 `memory` 地址**必须**落在所选 profile RAM 窗口内（validator 阻断校验）。
 - 仅当某 case 语义只对一个 profile 成立时，才可写可选字段 `profiles: [tiny]`
   （或 `[node]`）；**禁止**把一个 case 拆成两册/两 ID。
-- `legality` 类可表达越界地址（`expected_fault: CFXMEM` = umon 段 cfxha 0 越界，或 `UNMAPPED` = 其余段越界），不受此限。
+- `legality` 类可表达越界地址（`expected_fault: CFXMEM` = 越界/未映射（§7.1 全部归当前运行模式 monitor 的 `CFXMEM`）），不受此限。
 - 非 RAM 地址（ROM `0xffff_ffff_0000`–`0xffff_ffff_ffff`）须显式引用 ADR-0004 章节。
   （旧 exit-port MMIO 停机端口已随 C1 step2 删除；停机协议为 semihosting `SYS_EXIT`。）
 
@@ -216,7 +216,7 @@
 | `IALIGN` | 取指非对齐 | §9 |
 | `RASOF` | RegRAS 溢出 | §9.2 |
 | `RASUF` | RegRAS 下溢 | §9.2 |
-| `UNMAPPED` | 地址未映射（测试机约定，退出码 `0x87`） | ADR-0004 D5.8 |
+| `CFXMEM` | 非法核内地址访问；未映射地址也归此项（当前运行模式 monitor） | `spec/Machine-v5 §7.1` |
 
 ## 覆盖率要求
 

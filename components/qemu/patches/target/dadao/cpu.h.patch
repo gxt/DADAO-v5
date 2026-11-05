@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..e10cdd5
+index 0000000..eb8f225
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,566 @@
+@@ -0,0 +1,567 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -61,9 +61,10 @@ index 0000000..e10cdd5
 +     */
 +    DADAO_EXCP_SYSCALL = 10,
 +    /*
-+     * System mode: a page-table walk fault.  The model enters cfx_ptw
-+     * (DADAO-12 §5.2) with env->ptw_fault_cause / env->ptw_fault_info
-+     * instead of mapping straight to an exit code.
++     * System mode: a page-table walk / TLB-hit fault.  The model enters the
++     * current run-mode monitor (DADAO-12 §2.2.6/§5.2) with
++     * env->ptw_fault_cause (CFXMEM or CFXPERM) / env->ptw_fault_info instead
++     * of mapping straight to an exit code.
 +     */
 +    DADAO_EXCP_PTW_FAULT = 11,
 +    /*
@@ -74,25 +75,38 @@ index 0000000..e10cdd5
 +    /*
 +     * System mode: a cfx-register access on a machine that implements no cfx
 +     * at all (Machine-v5-Tiny, spec/Machine-v5 §3).  Tiny has no exception
-+     * vectors, so this is a direct machine fault mapped to exit code 0x84
-+     * (ADR-0004 D5.8), never a cfx_raise() into a vector.
++     * vectors, so this is a direct machine fault routed to the current
++     * run-mode monitor segment (spec/Machine-v5 §7.1), never a cfx_raise()
++     * into a vector.
 +     */
 +    DADAO_EXCP_CFXREG = 13,
 +};
 +
-+/* DADAO exit codes (propagated to host $?, per ADR-0004 D5.8) */
-+enum {
-+    DADAO_EXIT_PASS = 0x00,
-+    DADAO_EXIT_CFXMEM = 0x81,  /* 0x80 | CFXMEM cause bit (1<<1) */
-+    DADAO_EXIT_CFXREG = 0x84,  /* 0x80 | CFXREG cause bit (1<<2) */
-+    DADAO_EXIT_UNMAPPED = 0x87,
-+    DADAO_EXIT_ILLI = 0x88,
-+    DADAO_EXIT_UNDI = 0x89,
-+    DADAO_EXIT_RASOF = 0x8A,
-+    DADAO_EXIT_RASUF = 0x8B,
-+    DADAO_EXIT_MALIGN = 0x8C,
-+    DADAO_EXIT_IALIGN = 0x8D,
-+};
++/*
++ * DADAO exit codes (propagated to host $?, spec/Machine-v5 §7.1):
++ *
++ *   0x00-0x3F  guest PASS
++ *   0x40-0x7F  guest FAIL (guest-defined code)
++ *   0x80-0xBF  other cfx: bit7=1, bit6=0, bit5:0 = cfxHA
++ *   0xC0-0xFF  monitor:  bit7=1, bit6=1, bit5:4 = run mode,
++ *                        bit3:0 = DADAO exception bit index
++ *
++ * The monitor segment is NOT "0x80 | bit index": it carries the current run
++ * mode in bit5:4.  `CFXTRAP`/`CFXESC` that enter the target/current cfx use
++ * the other-cfx segment (DADAO_EXIT_CFX), never the monitor segment.
++ */
++#define DADAO_EXIT_PASS          0x00
++#define DADAO_EXIT_GUEST_FAIL    0x40
++#define DADAO_EXIT_CFX(cfxha)    (0x80 | ((cfxha) & 0x3F))
++#define DADAO_EXIT_MONITOR(mode, index) \
++    (0xC0 | (((mode) & 0x3) << 4) | ((index) & 0xF))
++
++/* spec/Machine-v5 §7.1 formula self-checks (compile-time, never silent). */
++_Static_assert(DADAO_EXIT_CFX(1) == 0x81, "other-cfx segment: cfxHA 1");
++_Static_assert(DADAO_EXIT_CFX(63) == 0xBF, "other-cfx segment: cfxHA 63");
++_Static_assert(DADAO_EXIT_MONITOR(0, 13) == 0xCD, "monitor: user IALIGN");
++_Static_assert(DADAO_EXIT_MONITOR(3, 8) == 0xF8, "monitor: hypv ILLI");
++_Static_assert(DADAO_EXIT_MONITOR(2, 1) == 0xE1, "monitor: supv CFXMEM");
 +
 +/* Memory map constants (canonical = Machine-v5-Node; spec/Machine-v5 §1.1,
 + * ADR-0043 D1/D2; QEMU-080t).  These canonical macros are consumed by
@@ -116,12 +130,12 @@ index 0000000..e10cdd5
 +
 +/* Internal address space: cfxha = addr[47:42] (DADAO-12 §2.1).  addr[47:42]
 + * == 0 is the memory window: with ptw_enable == 0 an access/fetch there is a
-+ * CFXMEM (exit 0x81, cause 1<<1) because the window is never a pmem
-+ * pass-through; with ptw_enable == 1 the two-level page-table walk runs
-+ * (DADAO-12 §2.2.1/§2.2.2; ADR-0040 D1-D10).
-+ * Reserved cfx (6-14, 16-31, 35-61) plain ld/st are also CFXMEM (ADR-0039 Step 1-c).
-+ * Addresses in every other unmapped segment (incl. the power segment 63,
-+ * outside RAM/ROM) keep the test-machine convention 0x87 (ADR-0004 D5.8). */
++ * CFXMEM because the window is never a pmem pass-through; with ptw_enable == 1
++ * the two-level page-table walk runs (DADAO-12 §2.2.1/§2.2.2; ADR-0040
++ * D1-D10).  All of these direct machine faults leave through the current
++ * run-mode monitor segment (spec/Machine-v5 §7.1).
++ * Reserved cfx (6-14, 16-31, 35-61) plain ld/st are also CFXMEM (ADR-0039
++ * Step 1-c); unmapped addresses are reported as CFXMEM too. */
 +#define DADAO_CFXHA_SHIFT   42
 +#define DADAO_CFXHA_MASK    0x3F
 +#define DADAO_CFXHA_UMON    0
@@ -251,32 +265,18 @@ index 0000000..e10cdd5
 +#define DADAO_CAUSE_CFXREG    (1ULL << 2)
 +/* Every cfx: escape frame/target error (DADAO-12 §4; ADR-0045 D6). */
 +#define DADAO_CAUSE_CFXESC    (1ULL << 3)
-+/* cfx0-3 monitors: cfx two-axis permission denial (DADAO-12 §4; ADR-0045 D6). */
++/* cfx0-3 monitors: cfx two-axis permission denial and page-table
++ * HSJU/R/W/X denial (DADAO-12 §2.2.6/§5.2; ADR-0045 D6). */
 +#define DADAO_CAUSE_CFXPERM   (1ULL << 7)
-+/* cfx_ptw only: A/D write-back failure (DADAO-12 §4.5; ADR-0041 D7/D10). */
-+#define DADAO_CAUSE_PTWERR    (1ULL << 7)
 +#define DADAO_CAUSE_ILLI      (1ULL << 8)
 +#define DADAO_CAUSE_UNDI      (1ULL << 9)
 +#define DADAO_CAUSE_RASOF     (1ULL << 10)
 +#define DADAO_CAUSE_RASUF     (1ULL << 11)
 +#define DADAO_CAUSE_MALIGN    (1ULL << 12)
 +#define DADAO_CAUSE_IALIGN    (1ULL << 13)
-+/* cfx_ptw page-level causes (DADAO-12 §4.5 cfx_ptw; ADR-0040 D6/D8). */
-+#define DADAO_CAUSE_NUPERM    (1ULL << 8)
-+#define DADAO_CAUSE_NJPERM    (1ULL << 9)
-+#define DADAO_CAUSE_NSPERM    (1ULL << 10)
-+#define DADAO_CAUSE_NHPERM    (1ULL << 11)
-+#define DADAO_CAUSE_NXPERM    (1ULL << 12)
-+#define DADAO_CAUSE_NWPERM    (1ULL << 13)
-+#define DADAO_CAUSE_NRPERM    (1ULL << 14)
-+#define DADAO_CAUSE_IGPTRAP   (1ULL << 16)
-+#define DADAO_CAUSE_ISPTRAP   (1ULL << 17)
-+#define DADAO_CAUSE_IGPFTRAP  (1ULL << 18)
-+#define DADAO_CAUSE_ISPFTRAP  (1ULL << 19)
-+#define DADAO_CAUSE_DGPTRAP   (1ULL << 20)
-+#define DADAO_CAUSE_DSPTRAP   (1ULL << 21)
-+#define DADAO_CAUSE_DGPFTRAP  (1ULL << 22)
-+#define DADAO_CAUSE_DSPFTRAP  (1ULL << 23)
++/* Page-table missing/fragment and A/D write-back failure are reported as
++ * CFXMEM (DADAO-12 §2.2.6/§5.2 + Machine-v5 §7.1); there is no PTWERR or
++ * page-level one-hot cause any more. */
 +
 +#define DADAO_CFXHA_PTW        4   /* cfx4 / ptw (DADAO-12 §1) */
 +#define DADAO_CFXHA_HART       15  /* cfx15 / hart (DADAO-12 §4.7) */
@@ -372,7 +372,7 @@ index 0000000..e10cdd5
 +/* cfx_ptw_tlb_control command results (DADAO-12 §4.5; ADR-0041 D3/D6/D10). */
 +enum {
 +    DADAO_TLB_CMD_OK = 0,
-+    DADAO_TLB_CMD_PTWERR = -1,   /* A/D write-back failed (*err_pa = PTE PA) */
++    DADAO_TLB_CMD_AD_WB_FAIL = -1,   /* A/D write-back failed -> CFXMEM (*err_pa = PTE PA) */
 +    DADAO_TLB_CMD_CFXREG = -2,   /* illegal operand: scope=11 / range+size=0 */
 +};
 +
@@ -462,9 +462,10 @@ index 0000000..e10cdd5
 +     * both 0; writes are plain stores (no implicit TLB flush). */
 +    uint64_t ptbr;
 +    uint64_t ptw_enable;
-+    /* Pending page-table fault (DADAO_EXCP_PTW_FAULT): one-hot cfx_ptw
-+     * cause id and the faulting virtual address (cause_info).  For PTWERR
-+     * (A/D write-back failure, ADR-0041 D10) cause_info is the PTE PA. */
++    /* Pending page-table fault (DADAO_EXCP_PTW_FAULT): monitor cause id
++     * (CFXMEM for missing/fragment/A-D, CFXPERM for HSJU/R/W/X) and the
++     * faulting virtual address (cause_info).  For an A/D write-back failure
++     * (ADR-0041 D10) cause_info is the failing PTE physical address. */
 +    uint64_t ptw_fault_cause;
 +    uint64_t ptw_fault_info;
 +    /* Pending two-axis permission denial (DADAO_EXCP_CFXPERM): cause_info is

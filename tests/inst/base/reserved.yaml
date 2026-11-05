@@ -67,7 +67,7 @@
   expected_fault: CFXMEM
   status: active
   spec_cite: "SimRISC-01: ld.ub; DADAO-12: 核内地址空间"
-  notes: "reserved cfx 地址空间（addr[47:42]=6，reserved 段 6–14/16–31/35–61）上的普通 ld.ub rd1, [rb3, 0]：word=0x10043000（opc=0x10、ha=1、hb=3、imms12=0），rb3=0x180000000000 ⇒ EA=0x180000000000（imms12=0，EA 对齐；不触发 MALIGN）⇒ CFXMEM (0x81)。"
+  notes: "reserved cfx 地址空间（addr[47:42]=6，reserved 段 6–14/16–31/35–61）上的普通 ld.ub rd1, [rb3, 0]：word=0x10043000（opc=0x10、ha=1、hb=3、imms12=0），rb3=0x180000000000 ⇒ EA=0x180000000000（imms12=0，EA 对齐；不触发 MALIGN）⇒ CFXMEM (monitor)。"
 
 # ── Case 4: reserved cfxha 14（6–14 段上界）普通 ld.o ⇒ CFXMEM ──
 - class: legality
@@ -84,7 +84,7 @@
   expected_fault: CFXMEM
   status: active
   spec_cite: "SimRISC-01: ld.o; DADAO-12: 核内地址空间"
-  notes: "reserved cfx 地址空间（addr[47:42]=14，reserved 段 6–14/16–31/35–61）上的普通 ld.o rd1, [rb3, 0]：word=0x20043000（opc=0x20、ha=1、hb=3、imms12=0），rb3=0x380000000000 ⇒ EA=0x380000000000（imms12=0，EA 8 字节对齐；不触发 MALIGN）⇒ CFXMEM (0x81)。"
+  notes: "reserved cfx 地址空间（addr[47:42]=14，reserved 段 6–14/16–31/35–61）上的普通 ld.o rd1, [rb3, 0]：word=0x20043000（opc=0x20、ha=1、hb=3、imms12=0），rb3=0x380000000000 ⇒ EA=0x380000000000（imms12=0，EA 8 字节对齐；不触发 MALIGN）⇒ CFXMEM (monitor)。"
 
 # ── Case 5: reserved cfxha 16（16–31 段下界）普通 st.b ⇒ CFXMEM ──
 - class: legality
@@ -103,7 +103,7 @@
   expected_fault: CFXMEM
   status: active
   spec_cite: "SimRISC-01: st.b; DADAO-12: 核内地址空间"
-  notes: "reserved cfx 地址空间（addr[47:42]=16，reserved 段 6–14/16–31/35–61）上的普通 st.b rd1, [rb3, 0]：word=0x18043000（opc=0x18、ha=1、hb=3、imms12=0），源值 rd1=0x…42，rb3=0x400000000000 ⇒ EA=0x400000000000（imms12=0，EA 对齐；不触发 MALIGN）⇒ CFXMEM (0x81)。"
+  notes: "reserved cfx 地址空间（addr[47:42]=16，reserved 段 6–14/16–31/35–61）上的普通 st.b rd1, [rb3, 0]：word=0x18043000（opc=0x18、ha=1、hb=3、imms12=0），源值 rd1=0x…42，rb3=0x400000000000 ⇒ EA=0x400000000000（imms12=0，EA 对齐；不触发 MALIGN）⇒ CFXMEM (monitor)。"
 
 # ── Case 6: reserved cfxha 31（16–31 段上界）普通 st.o ⇒ CFXMEM ──
 - class: legality
@@ -122,7 +122,7 @@
   expected_fault: CFXMEM
   status: active
   spec_cite: "SimRISC-01: st.o; DADAO-12: 核内地址空间"
-  notes: "reserved cfx 地址空间（addr[47:42]=31，reserved 段 6–14/16–31/35–61）上的普通 st.o rd1, [rb3, 0]：word=0x21043000（opc=0x21、ha=1、hb=3、imms12=0），源值 rd1=0x…42，rb3=0x7c0000000000 ⇒ EA=0x7c0000000000（imms12=0，EA 8 字节对齐；不触发 MALIGN）⇒ CFXMEM (0x81)。"
+  notes: "reserved cfx 地址空间（addr[47:42]=31，reserved 段 6–14/16–31/35–61）上的普通 st.o rd1, [rb3, 0]：word=0x21043000（opc=0x21、ha=1、hb=3、imms12=0），源值 rd1=0x…42，rb3=0x7c0000000000 ⇒ EA=0x7c0000000000（imms12=0，EA 8 字节对齐；不触发 MALIGN）⇒ CFXMEM (monitor)。"
 
 # ── Case 7: reserved cfxha 35（35–61 段下界）普通 st.b ⇒ CFXMEM ──
 - class: legality
@@ -141,7 +141,7 @@
   expected_fault: CFXMEM
   status: active
   spec_cite: "SimRISC-01: st.b; DADAO-12: 核内地址空间"
-  notes: "reserved cfx 地址空间（addr[47:42]=35，reserved 段 6–14/16–31/35–61）上的普通 st.b rd1, [rb3, 0]：word=0x18043000（opc=0x18、ha=1、hb=3、imms12=0），源值 rd1=0x…42，rb3=0x8c0000000000 ⇒ EA=0x8c0000000000（imms12=0，EA 对齐；不触发 MALIGN）⇒ CFXMEM (0x81)。"
+  notes: "reserved cfx 地址空间（addr[47:42]=35，reserved 段 6–14/16–31/35–61）上的普通 st.b rd1, [rb3, 0]：word=0x18043000（opc=0x18、ha=1、hb=3、imms12=0），源值 rd1=0x…42，rb3=0x8c0000000000 ⇒ EA=0x8c0000000000（imms12=0，EA 对齐；不触发 MALIGN）⇒ CFXMEM (monitor)。"
 
 # ── Case 8: reserved cfxha 61（35–61 段上界）普通 st.o ⇒ CFXMEM ──
 - class: legality
@@ -160,4 +160,4 @@
   expected_fault: CFXMEM
   status: active
   spec_cite: "SimRISC-01: st.o; DADAO-12: 核内地址空间"
-  notes: "reserved cfx 地址空间（addr[47:42]=61，reserved 段 6–14/16–31/35–61）上的普通 st.o rd1, [rb3, 0]：word=0x21043000（opc=0x21、ha=1、hb=3、imms12=0），源值 rd1=0x…42，rb3=0xf40000000000 ⇒ EA=0xf40000000000（imms12=0，EA 8 字节对齐；不触发 MALIGN）⇒ CFXMEM (0x81)。"
+  notes: "reserved cfx 地址空间（addr[47:42]=61，reserved 段 6–14/16–31/35–61）上的普通 st.o rd1, [rb3, 0]：word=0x21043000（opc=0x21、ha=1、hb=3、imms12=0），源值 rd1=0x…42，rb3=0xf40000000000 ⇒ EA=0xf40000000000（imms12=0，EA 8 字节对齐；不触发 MALIGN）⇒ CFXMEM (monitor)。"

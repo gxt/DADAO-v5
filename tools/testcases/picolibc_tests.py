@@ -97,18 +97,19 @@ QEMU = TOOLCHAIN_BIN / "qemu-system-dadao"
 DEFAULT_TIMEOUT = 60
 DEFAULT_JOBS = int(os.environ.get("JOBS", "8"))
 
-# Machine-fault exit codes (ADR-0004 D5.8, ADR-0020 D15); see
-# tools/testcases/lib/run_qemu_test.py FAULT_NAMES.
-FAULT_CODES = {
-    0x81: "CFXMEM",
-    0x87: "UNMAPPED",
-    0x88: "ILLI",
-    0x89: "UNDI",
-    0x8A: "RASOF",
-    0x8B: "RASUF",
-    0x8C: "MALIGN",
-    0x8D: "IALIGN",
+# Machine-fault exit codes (spec/Machine-v5 §7.1): monitor 0xC0-0xFF (run
+# mode + cause index) and other cfx 0x80-0xBF (cfxHA); see
+# tools/testcases/lib/run_qemu_test.py fault_name().
+_MONITOR_FAULT_NAMES = {
+    0: "CFXTRAP", 1: "CFXMEM", 2: "CFXREG", 3: "CFXESC", 7: "CFXPERM",
+    8: "ILLI", 9: "UNDI", 10: "RASOF", 11: "RASUF", 12: "MALIGN",
+    13: "IALIGN",
 }
+FAULT_CODES = {0xC0 | (mode << 4) | idx: name
+               for mode in range(4)
+               for idx, name in _MONITOR_FAULT_NAMES.items()}
+FAULT_CODES.update({code: "CFX%d" % (code & 0x3F)
+                    for code in range(0x80, 0xC0)})
 
 # Meson SKIP convention: a test returning 77 declares itself not applicable.
 SKIP_CODE = 77

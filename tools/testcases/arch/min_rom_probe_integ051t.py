@@ -145,7 +145,7 @@ MASK_BOTH = ALL1                         # both masked
 MASK_CROSS = ALL1 & ~((1 << 3) | (1 << 15) | (1 << 32))
 
 EXIT_PASS = 0x00
-EXIT_FAIL = 0xE1
+EXIT_FAIL = 0x61   # guest FAIL segment (spec/Machine-v5 §7.1)
 
 # ROM layout: the shared prelude owns the power -> hmon hand-off; this probe's
 # power-mode and hmon-mode setup is appended to the prelude's segments, and the
@@ -364,7 +364,7 @@ def build_pmem_handler(frame_probe=False):
         a.emit(ld_o(38, 5, RAM_HART_N))
         ok0 = "frame_nohart"
         a.br("z", 38, 0, ok0)
-        a.emit(*exit_seq(0xD1))                       # nested/early delivery
+        a.emit(*exit_seq(0x71))                       # nested/early delivery
         a.mark(ok0)
         # ... but its pending bit must be recorded in cfx_hart cg5 rc5 bit10
         a.emit(cfx2rd(HART_HA, 5, CG5_PENDING_RC, 38))
@@ -372,7 +372,7 @@ def build_pmem_handler(frame_probe=False):
         a.emit(and_o(38, 38, 39))
         ok1 = "frame_pending"
         a.br("nz", 38, 0, ok1)
-        a.emit(*exit_seq(0xD2))                       # event lost inside frame
+        a.emit(*exit_seq(0x72))                       # event lost inside frame
         a.mark(ok1)
     a.emit(escape(PMEM_HA, 0))
     return a.resolve()
@@ -387,7 +387,7 @@ def build_hart_handler():
 def build_poison():
     """cfx_hmon vector: any monitor hop is a failure (never reached normally)."""
     a = Asm()
-    a.emit(*exit_seq(0xEE))
+    a.emit(*exit_seq(0x7E))
     return a.resolve()
 
 
@@ -695,25 +695,25 @@ def _global_mask_block():
     dma_wait(a)
     delay_loop(a, 400, "dma")
     ram_ld(a, RAM_PMEM_N, 5)
-    need_eq(a, 5, 1, 0xD1, "pmem_delivered")
+    need_eq(a, 5, 1, 0x71, "pmem_delivered")
     ram_ld(a, RAM_HART_N, 6)
-    need_eq(a, 6, 0, 0xD2, "timer_not_yet")
+    need_eq(a, 6, 0, 0x72, "timer_not_yet")
     timer_arm(a, 1000)
     delay_loop(a, 3000, "masked_timer")
     ram_ld(a, RAM_HART_N, 7)
-    need_eq(a, 7, 0, 0xD3, "timer_blocked")
+    need_eq(a, 7, 0, 0x73, "timer_blocked")
     pend(a, HART_HA, 8)
-    need_mask_set(a, 8, TIMER, 0xD4, "timer_pending_kept")
+    need_mask_set(a, 8, TIMER, 0x74, "timer_pending_kept")
     set_global_mask(a, 0)
     delay_loop(a, 400, "unmask")
     ram_ld(a, RAM_HART_N, 9)
-    need_eq(a, 9, 1, 0xD5, "timer_delivered_once")
+    need_eq(a, 9, 1, 0x75, "timer_delivered_once")
     ram_ld(a, RAM_PMEM_N, 10)
-    need_eq(a, 10, 1, 0xD6, "pmem_still_once")
+    need_eq(a, 10, 1, 0x76, "pmem_still_once")
     ram_ld(a, RAM_SEQ, 11)
-    need_eq(a, 11, 2, 0xD7, "seq_two")
+    need_eq(a, 11, 2, 0x77, "seq_two")
     pend(a, HART_HA, 12)
-    need_mask_clr(a, 12, TIMER, 0xD8, "timer_cleared")
+    need_mask_clr(a, 12, TIMER, 0x78, "timer_cleared")
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers()), {"exit": EXIT_PASS}
 
@@ -734,27 +734,27 @@ def _per_cfx_mask_block():
     dma_wait(a)
     delay_loop(a, 400, "masked")
     ram_ld(a, RAM_PMEM_N, 5)
-    need_eq(a, 5, 0, 0xE1, "pmem_blocked")
+    need_eq(a, 5, 0, 0x61, "pmem_blocked")
     pend(a, PMEM_HA, 6)
-    need_mask_set(a, 6, PMEM_DMA, 0xE2, "pmem_pending_kept")
+    need_mask_set(a, 6, PMEM_DMA, 0x62, "pmem_pending_kept")
     # Phase 2 (reverse): release the *current* cfx row only.  cfx_pmem's own row
     # still masks bit32, so a delivery proves the arbiter/cfx_enter reads the
     # current cfx row with the target cfxha as bit index.
     set_hmon_intr_mask(a, 0)
     delay_loop(a, 400, "release")
     ram_ld(a, RAM_PMEM_N, 7)
-    need_eq(a, 7, 1, 0xE3, "current_row_only")
+    need_eq(a, 7, 1, 0x63, "current_row_only")
     pend(a, PMEM_HA, 8)
-    need_mask_clr(a, 8, PMEM_DMA, 0xE4, "pmem_cleared")
+    need_mask_clr(a, 8, PMEM_DMA, 0x64, "pmem_cleared")
     # Phase 3: a different source (TIMER, target 15) is not blocked by bit32.
     timer_arm(a, 1000)
     delay_loop(a, 3000, "timer")
     ram_ld(a, RAM_HART_N, 9)
-    need_eq(a, 9, 1, 0xE5, "timer_not_blocked")
+    need_eq(a, 9, 1, 0x65, "timer_not_blocked")
     ram_ld(a, RAM_SEQ, 10)
-    need_eq(a, 10, 2, 0xE6, "seq_two")
+    need_eq(a, 10, 2, 0x66, "seq_two")
     ram_ld(a, RAM_HART_ID, 11)
-    need_eq(a, 11, TIMER, 0xE7, "timer_cid")
+    need_eq(a, 11, TIMER, 0x67, "timer_cid")
     # cleanup: clear cfx_pmem's own bit32 (from cfx 15, allowed by bootstrap)
     a.emit(*load_rd(22, 0))
     a.emit(cfx2rc(PMEM_HA, 3, CG3_CFX_INTR_MASK_RC, 22))

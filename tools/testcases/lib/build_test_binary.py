@@ -12,7 +12,8 @@ Design decisions (ADR-0009):
   D1: raw-encoding via struct.pack, no llvm-mc
   D2: guest-internal comparison via XOR+ORR accumulator
   D4: RD scratch=rd60-63, RB scratch=rb60-63, RA not scratch
-  D5: exit code 0x00=PASS, 0x01-0x7F=FAIL, 0x80+=machine fault
+  D5: exit code 0x00-0x3F=PASS, 0x40-0x7F=FAIL, 0x80-0xFF=machine fault
+      (spec/Machine-v5 §7.1)
 
 Exit channel (ADR-0020 D8: semihosting SYS_EXIT replaces the legacy MMIO halt device):
   the PASS/FAIL epilogue writes the 64-bit argument block
@@ -20,7 +21,7 @@ Exit channel (ADR-0020 D8: semihosting SYS_EXIT replaces the legacy MMIO halt de
   `rd16 = 0x18 (SYS_EXIT); rb16 = block; trap` -- the reported status is the
   low byte of `code` (contract-semihosting.md §3/§5).  The harness must run
   QEMU with `-semihosting-config enable=on,target=native` (ADR-0020 D7).
-  Machine faults still surface as QEMU's own exit code (0x80|cause_bit), not
+  Machine faults still surface as QEMU's own exit code (0xC0|(mode<<4)|cause_index), not
   through SYS_EXIT.
 
 Instruction encodings from contracts/opcodes.yaml (SimRISC 0.5.3):
@@ -61,6 +62,7 @@ PC_DUMP_OFF = 0x400                  # pc (rb0 via rb2rd→st.o-rd) at +0x400
 SEMIHOST_TAG = 0x3FF00               # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 SYS_EXIT = 0x18                      # SYS_EXIT service number
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
+EXIT_GUEST_FAIL = 0x40               # spec/Machine-v5 §7.1 guest FAIL segment
 
 # Register conventions (ADR-0009 D4)
 TEMP_RD     = 60                      # rd60: temp for loading expected values
@@ -184,7 +186,7 @@ def encode_illi_poison():
 
     `fence` 的 `hb = immu18[17:12]` 为 SBZ，非 0 ⇒ ILLI（`encode_sbz`，SimRISC-11
     §屏障指令）；与 cfx 资源域/权限无关，也不会随指令增删而失效。QEMU
-    `trans_fence_ciii_cfx` 对该编码调 `gen_exception_illegal` ⇒ ILLI(0x88)。
+    `trans_fence_ciii_cfx` 对该编码调 `gen_exception_illegal` ⇒ ILLI(0xF8)。
     """
     return 0x79001000
 
@@ -546,7 +548,7 @@ def build_exit_section(vector_case, dump_mode=False, loader_words=0, relocate_ra
     The exit channel is the semihosting SYS_EXIT service (ADR-0020 D8): the
     epilogue writes {ADP_Stopped_ApplicationExit, code} to RAM and traps with
     the semihosting tag, so the host `$?` is `code`'s low byte.  Machine faults
-    still surface as QEMU's own exit code (0x80|cause_bit).
+    still surface as QEMU's own exit code (0xC0|(mode<<4)|cause_index).
 
     Args:
         loader_words: Number of 32-bit words in the loader section.
@@ -641,7 +643,7 @@ def build_exit_section(vector_case, dump_mode=False, loader_words=0, relocate_ra
     # Report via SYS_EXIT based on the comparison result.
     if expected_fault:
         # Legality case: expect fault, safety net if fault doesn't happen
-        words.extend(emit_load_imm64_rd(EXIT_RD, 1))  # FAIL code
+        words.extend(emit_load_imm64_rd(EXIT_RD, EXIT_GUEST_FAIL))  # FAIL code
         words.extend(emit_sys_exit(EXIT_RD))
     elif dump_mode:
         # Dump mode: spin instead of exiting
@@ -652,11 +654,11 @@ def build_exit_section(vector_case, dump_mode=False, loader_words=0, relocate_ra
         # Layout (word indices from the br.nz itself):
         #   [b]                 br.nz rd61, N  -> if != 0, jump to FAIL block
         #   [b+1 .. b+P]        PASS block: EXIT_RD = 0; SYS_EXIT  (P words)
-        #   [b+P+1 ..]          FAIL block: EXIT_RD = 1; SYS_EXIT
+        #   [b+P+1 ..]          FAIL block: EXIT_RD = 0x40; SYS_EXIT
         # v5 branch base = the br.nz instruction's own PC (ISS-309): the offset
         # is derived from the word indices, so `N = (fail start) - (br index)`.
         pass_block = emit_load_imm64_rd(EXIT_RD, 0) + emit_sys_exit(EXIT_RD)
-        fail_block = emit_load_imm64_rd(EXIT_RD, 1) + emit_sys_exit(EXIT_RD)
+        fail_block = emit_load_imm64_rd(EXIT_RD, EXIT_GUEST_FAIL) + emit_sys_exit(EXIT_RD)
         br_index = len(words)
         fail_index = br_index + 1 + len(pass_block)
         words.append(encode_br_nz_rd(ACCUM_RD, fail_index - br_index))
@@ -675,11 +677,11 @@ def build_branch_test_binary(vector_case, dump_mode=False):
     TAKEN layout (delta=8):
       [loader] [branch] [fence-hb→ILLI poison] [exit section]
       - branch target (imm=2, PC+8) = poison+1 = exit section start → PASS
-      - if branch wrongly NOT taken → falls into poison → ILLI(0x88) → FAIL
+      - if branch wrongly NOT taken → falls into poison → ILLI(0xF8) → FAIL
 
     NOT-TAKEN layout (delta=4):
       [loader] [branch] [trampoline jump→exit] [fence-hb→ILLI poison] [exit section]
-      - branch target (imm=2, PC+8) = poison → ILLI(0x88) if wrongly taken
+      - branch target (imm=2, PC+8) = poison → ILLI(0xF8) if wrongly taken
       - if branch correctly NOT taken → falls through to trampoline → jumps
         over poison to exit section → PASS
 
@@ -777,7 +779,7 @@ def build_ret_binary(vector_case, dump_mode=False):
       - expected_pc must therefore denote an address the harness can populate
         (inside the image window).  A vector that claims an unmapped return
         target cannot be observed by the harness: it is rejected explicitly —
-        that shape belongs in a legality case (`expected_fault: UNMAPPED`).
+        that shape belongs in a legality case (`expected_fault: CFXMEM`).
     """
     expected_pc = vector_case.get("expected_pc")
     if expected_pc is None:
@@ -802,7 +804,7 @@ def build_ret_binary(vector_case, dump_mode=False):
             f"the harness image window [{hex(BINARY_BASE)}, "
             f"{hex(BINARY_BASE + IMAGE_WINDOW)}); `ret` cannot be observed "
             f"landing on unmapped memory — express that shape as a legality "
-            f"case with expected_fault: UNMAPPED")
+            f"case with expected_fault: CFXMEM")
 
     words = [encode_jump_iiii(landing + 1)]      # w0: entry → loader
     words.extend([encode_swym()] * (landing - 1))  # filler, never executed

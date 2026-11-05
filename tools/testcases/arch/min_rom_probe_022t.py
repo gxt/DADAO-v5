@@ -172,7 +172,7 @@ def run_test(rom_data, kernel_data=None, timeout=10):
 
 # ── Exit codes ────────────────────────────────────────────────────────
 
-PASS_EXIT = 0; TIMEOUT_EXIT = 124; ILLI_EXIT = 136
+PASS_EXIT = 0; TIMEOUT_EXIT = 124; ILLI_EXIT = 248
 
 # ── Test case builders ────────────────────────────────────────────────
 

@@ -909,11 +909,18 @@ GUEST_FAULT_NOTES = {
         "qemu instruction semantics and not a backend miscompile.",
 }
 
-# Machine-fault exits (ADR-0004 D5.8): the guest left through a machine fault.
-FAULT_NAMES = {
-    0x87: "UNMAPPED", 0x88: "ILLI", 0x89: "UNDI", 0x8A: "RASOF",
-    0x8B: "RASUF", 0x8C: "MALIGN", 0x8D: "IALIGN",
+# Machine-fault exits (spec/Machine-v5 §7.1): monitor 0xC0-0xFF (run mode +
+# cause index) and other cfx 0x80-0xBF (cfxHA).
+_MONITOR_FAULT_NAMES = {
+    0: "CFXTRAP", 1: "CFXMEM", 2: "CFXREG", 3: "CFXESC", 7: "CFXPERM",
+    8: "ILLI", 9: "UNDI", 10: "RASOF", 11: "RASUF", 12: "MALIGN",
+    13: "IALIGN",
 }
+FAULT_NAMES = {0xC0 | (mode << 4) | idx: name
+               for mode in range(4)
+               for idx, name in _MONITOR_FAULT_NAMES.items()}
+FAULT_NAMES.update({code: "CFX%d" % (code & 0x3F)
+                    for code in range(0x80, 0xC0)})
 
 # The scripted base of tests/shared/linker/dadao-tiny.lds (ISS-247).
 SCRIPTED_BASE = 0xFC0000000000

@@ -79,16 +79,19 @@ _DEFSYMS = [
 
 _TOOLCHAIN_BIN = str(_dadao_paths.host_toolchain_bin())
 
-# Machine fault exit codes (ADR-0004 D5.8): 0x80 | spec cause bit index.
-FAULT_NAMES = {
-    0x87: "UNMAPPED",
-    0x88: "ILLI",
-    0x89: "UNDI",
-    0x8A: "RASOF",
-    0x8B: "RASUF",
-    0x8C: "MALIGN",
-    0x8D: "IALIGN",
+# Machine fault exit codes (spec/Machine-v5 §7.1): monitor 0xC0-0xFF
+# (bit5:4 = run mode, bit3:0 = cause index) and other cfx 0x80-0xBF
+# (bit5:0 = cfxHA).
+_MONITOR_FAULT_NAMES = {
+    0: "CFXTRAP", 1: "CFXMEM", 2: "CFXREG", 3: "CFXESC", 7: "CFXPERM",
+    8: "ILLI", 9: "UNDI", 10: "RASOF", 11: "RASUF", 12: "MALIGN",
+    13: "IALIGN",
 }
+FAULT_NAMES = {0xC0 | (mode << 4) | idx: name
+               for mode in range(4)
+               for idx, name in _MONITOR_FAULT_NAMES.items()}
+FAULT_NAMES.update({code: "CFX%d" % (code & 0x3F)
+                    for code in range(0x80, 0xC0)})
 
 DEFAULT_LLC = os.path.join(_TOOLCHAIN_BIN, "llc")
 DEFAULT_LLVM_MC = os.path.join(_TOOLCHAIN_BIN, "llvm-mc")
@@ -155,7 +158,7 @@ def _require_exec(path: str, what: str) -> None:
 # linker: it assembles crt0+program as ONE translation unit and extracts bytes
 # with objcopy, which does not apply relocations.  A cross-section
 # ``call [rb0, main]`` would therefore stay unrelocated (imm 0 => the guest
-# calls itself forever, surfacing as the RASOF machine fault 0x8A).
+# calls itself forever, surfacing as the RASOF monitor fault 0xFA).
 _CRT0_TEXT_START_RE = re.compile(
     r'^(?P<indent>[ \t]*)\.section[ \t]+\.text\.start\b', re.MULTILINE)
 
@@ -338,11 +341,11 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     if rc is None:
         res.reason = "qemu did not return an exit code"
         return res
-    # NOTE on fault detection: a machine fault (ADR-0004 D5.7/D5.8: 0x80..0xFF
-    # is reserved for `0x80 | spec cause index`) is classified *before* the
-    # expected-value comparison, so a faulting guest can never be a PASS even if
-    # an expected value were wrong (load_programs also rejects such values).
-    # Guest SYS_EXIT codes stay in 0x00..0x7F (ISS-147; fixed by TESTCASES-034t).
+    # NOTE on fault detection: a machine fault (spec/Machine-v5 §7.1: 0x80..0xFF
+    # is the other-cfx/monitor segment) is classified *before* the expected-value
+    # comparison, so a faulting guest can never be a PASS even if an expected
+    # value were wrong (load_programs also rejects such values).  Guest SYS_EXIT
+    # codes are 0x00..0x3F PASS and 0x40..0x7F FAIL.
     if rc >= 0x80:
         res.reason = f"machine fault {FAULT_NAMES.get(rc, 'unknown')} (0x{rc:02X})"
     elif rc == prog["expected"]:

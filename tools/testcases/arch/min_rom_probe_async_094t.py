@@ -194,7 +194,7 @@ def handler(ha, seq_slot, cid_slot, info_slot=None):
 
 def poison():
     s = Seq()
-    s.e(*exit_seq(0xEE))                       # monitor hop == failure
+    s.e(*exit_seq(0x7E))                       # monitor hop == failure
     return s.resolve()
 
 
@@ -270,9 +270,9 @@ def _timer_mask_open():
     timer_arm(s, 2000)
     delay_loop(s, 4000, "t")
     ram_ld(s, RAM_SEQ, 5)
-    need_eq(s, 5, 1, 0xE1, "seq")
+    need_eq(s, 5, 1, 0x61, "seq")
     ram_ld(s, RAM_CID15, 6)
-    need_eq(s, 6, TIMER, 0xE2, "cid")
+    need_eq(s, 6, TIMER, 0x62, "cid")
     s.e(*exit_seq(0))
     return build(s.resolve()), {"exit": 0}
 
@@ -284,7 +284,7 @@ def _timer_mask_open_default():
     timer_arm(s, 2000)
     delay_loop(s, 20000, "td")
     ram_ld(s, RAM_SEQ, 5)
-    need_eq(s, 5, 1, 0xE3, "seq")
+    need_eq(s, 5, 1, 0x63, "seq")
     s.e(*exit_seq(0))
     return build(s.resolve()), {"exit": 0}
 
@@ -300,9 +300,9 @@ def _timer_mask_shut():
     timer_arm(s, 2000)
     delay_loop(s, 4000, "ts")
     ram_ld(s, RAM_SEQ, 5)
-    need_eq(s, 5, 0, 0xE4, "no_delivery")
+    need_eq(s, 5, 0, 0x64, "no_delivery")
     s.e(cfx2rd(HART_HA, 5, 5, 6))
-    need_mask_set(s, 6, TIMER, 0xE5, "pending")
+    need_mask_set(s, 6, TIMER, 0x65, "pending")
     s.e(*exit_seq(0))
     return build(s.resolve()), {"exit": 0}
 
@@ -315,11 +315,11 @@ def _pmem_mask_open():
     dma_wait(s)
     delay_loop(s, 20000, "pd")
     ram_ld(s, RAM_SEQ, 5)
-    need_eq(s, 5, 1, 0xE6, "seq")
+    need_eq(s, 5, 1, 0x66, "seq")
     ram_ld(s, RAM_CID17, 6)
-    need_eq(s, 6, PMEM_DMA, 0xE7, "cid")
+    need_eq(s, 6, PMEM_DMA, 0x67, "cid")
     ram_ld(s, RAM_INFO17, 7)
-    need_eq(s, 7, ST_DONE, 0xE8, "info")
+    need_eq(s, 7, ST_DONE, 0x68, "info")
     s.e(*exit_seq(0))
     return build(s.resolve()), {"exit": 0}
 
@@ -335,17 +335,17 @@ def _dual_lowest_first():
     dma_wait(s)
     delay_loop(s, 20000, "dd")                 # let the timer expire as well
     s.e(cfx2rd(HART_HA, 5, 5, 6))
-    need_mask_set(s, 6, TIMER, 0xE9, "timer_pending")
+    need_mask_set(s, 6, TIMER, 0x69, "timer_pending")
     s.e(cfx2rd(PMEM_HA, 5, 5, 7))
-    need_mask_set(s, 7, PMEM_DMA, 0xEA, "pmem_pending")
+    need_mask_set(s, 7, PMEM_DMA, 0x6A, "pmem_pending")
     set_global(s, 0)                           # release: re-kick both
     delay_loop(s, 20000, "dr")
     ram_ld(s, RAM_SEQ, 5)
-    need_eq(s, 5, 2, 0xEB, "two")
+    need_eq(s, 5, 2, 0x6B, "two")
     ram_ld(s, RAM_SEQ15, 6)
-    need_eq(s, 6, 1, 0xEC, "timer_first")
+    need_eq(s, 6, 1, 0x6C, "timer_first")
     ram_ld(s, RAM_SEQ17, 7)
-    need_eq(s, 7, 2, 0xED, "pmem_second")
+    need_eq(s, 7, 2, 0x6D, "pmem_second")
     s.e(*exit_seq(0))
     return build(s.resolve()), {"exit": 0}
 
@@ -361,11 +361,11 @@ def _dedup_icount():
     timer_arm(s, 500)
     delay_loop(s, 1000, "d2")
     s.e(cfx2rd(HART_HA, 5, 5, 6))
-    need_mask_set(s, 6, TIMER, 0xEE, "pending")
+    need_mask_set(s, 6, TIMER, 0x6E, "pending")
     set_global(s, 0)
     delay_loop(s, 400, "d3")
     ram_ld(s, RAM_SEQ, 5)
-    need_eq(s, 5, 1, 0xEF, "one")
+    need_eq(s, 5, 1, 0x6F, "one")
     s.e(*exit_seq(0))
     return build(s.resolve()), {"exit": 0}
 

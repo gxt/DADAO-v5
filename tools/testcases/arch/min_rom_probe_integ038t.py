@@ -85,8 +85,8 @@ RAM_SIZE = _MACH["ram_size"]
 
 # Exit codes (ADR-0004 D5.8 / Machine-01 §1.2)
 EXIT_PASS = 0x00
-EXIT_CFXMEM = 0x81
-EXIT_UNMAPPED = 0x87
+EXIT_CFXMEM = 0xF1    # monitor: hypv + CFXMEM index 1
+EXIT_UNMAPPED = EXIT_CFXMEM  # unmapped is reported as CFXMEM
 
 # Memory window address (high6 == 0) and reserved cfx address (cfxha 7).
 VA_WINDOW = 0x0000_0000_1000
@@ -236,23 +236,23 @@ def case(name, desc):
 
 
 # -- Step 1-a: ptw_enable = 0, high6 = 0 => CFXMEM (data) -------------------
-@case("ptw_off_data", "ptw_enable=0 + high6=0 data access => CFXMEM 0x81")
+@case("ptw_off_data", "ptw_enable=0 + high6=0 data access => CFXMEM (monitor)")
 def _ptw_off_data():
-    prog = load_rb(3, VA_WINDOW) + [ld_o(5, 3, 0)] + exit_seq(0xEE)
+    prog = load_rb(3, VA_WINDOW) + [ld_o(5, 3, 0)] + exit_seq(0x7E)
     return build_rom(prog), {"exit": EXIT_CFXMEM}
 
 
-@case("ptw_off_store", "ptw_enable=0 + high6=0 store => CFXMEM 0x81")
+@case("ptw_off_store", "ptw_enable=0 + high6=0 store => CFXMEM (monitor)")
 def _ptw_off_store():
     prog = load_rb(3, VA_WINDOW) + load_rd(4, 0x1234) + [st_o(4, 3, 0)]
-    prog += exit_seq(0xEE)
+    prog += exit_seq(0x7E)
     return build_rom(prog), {"exit": EXIT_CFXMEM}
 
 
 # -- Step 1-a: fetch path is treated the same -------------------------------
-@case("ptw_off_fetch", "ptw_enable=0 + high6=0 fetch => CFXMEM 0x81")
+@case("ptw_off_fetch", "ptw_enable=0 + high6=0 fetch => CFXMEM (monitor)")
 def _ptw_off_fetch():
-    prog = load_rb(3, VA_WINDOW) + [jump_rrii(3, 0, 0)] + exit_seq(0xEE)
+    prog = load_rb(3, VA_WINDOW) + [jump_rrii(3, 0, 0)] + exit_seq(0x7E)
     return build_rom(prog), {"exit": EXIT_CFXMEM}
 
 
@@ -310,9 +310,9 @@ CFXREG = 1 << 2
 def _absent_register_case(cg, rc):
     prog = load_rd(24, H) + [cfx2rc(PTW_HA, 3, 10, 24)]   # cfx4 hypv vector
     prog += [cfx2rd(PTW_HA, cg, rc, 5)]                    # absent register
-    prog += exit_seq(0xEE)                                 # must not be reached
-    return build_rom(prog, {0x100: exit_seq(0x52)}), {
-        "exit": 0x52, "cid4": CFXREG, "syncn4": 1}
+    prog += exit_seq(0x7E)                                 # must not be reached
+    return build_rom(prog, {0x100: exit_seq(0x22)}), {
+        "exit": 0x22, "cid4": CFXREG, "syncn4": 1}
 
 
 @case("no_second_ptbr", "single PTBR: cg9 rc1 does not exist => CFXREG")
@@ -326,28 +326,28 @@ def _no_pthi():
 
 
 # -- Step 1-c: reserved cfx plain ld/st => CFXMEM ---------------------------
-@case("reserved_ld", "reserved cfx (7) ld => CFXMEM 0x81")
+@case("reserved_ld", "reserved cfx (7) ld => CFXMEM (monitor)")
 def _reserved_ld():
-    prog = load_rb(3, RESERVED_CFX) + [ld_o(5, 3, 0)] + exit_seq(0xEE)
+    prog = load_rb(3, RESERVED_CFX) + [ld_o(5, 3, 0)] + exit_seq(0x7E)
     return build_rom(prog), {"exit": EXIT_CFXMEM}
 
 
-@case("reserved_st", "reserved cfx (7) st => CFXMEM 0x81")
+@case("reserved_st", "reserved cfx (7) st => CFXMEM (monitor)")
 def _reserved_st():
     prog = load_rb(3, RESERVED_CFX) + load_rd(4, 0x55) + [st_o(4, 3, 0)]
-    prog += exit_seq(0xEE)
+    prog += exit_seq(0x7E)
     return build_rom(prog), {"exit": EXIT_CFXMEM}
 
 
-@case("reserved_fetch", "reserved cfx (7) fetch => CFXMEM 0x81")
+@case("reserved_fetch", "reserved cfx (7) fetch => CFXMEM (monitor)")
 def _reserved_fetch():
-    prog = load_rb(3, RESERVED_CFX) + [jump_rrii(3, 0, 0)] + exit_seq(0xEE)
+    prog = load_rb(3, RESERVED_CFX) + [jump_rrii(3, 0, 0)] + exit_seq(0x7E)
     return build_rom(prog), {"exit": EXIT_CFXMEM}
 
 
-@case("reserved_19", "reserved cfx (19) ld => CFXMEM 0x81")
+@case("reserved_19", "reserved cfx (19) ld => CFXMEM (monitor)")
 def _reserved_19():
-    prog = load_rb(3, 19 << 42) + [ld_o(5, 3, 0)] + exit_seq(0xEE)
+    prog = load_rb(3, 19 << 42) + [ld_o(5, 3, 0)] + exit_seq(0x7E)
     return build_rom(prog), {"exit": EXIT_CFXMEM}
 
 
@@ -368,7 +368,7 @@ def _ptw_on_unbacked_table():
     prog = load_rd(17, 1)
     prog += [cfx2rc(PTW_HA, PTW_ENABLE_CG, PTW_ENABLE_RC, 17)]
     prog += load_rb(3, VA_WINDOW) + [ld_o(5, 3, 0)]
-    prog += exit_seq(0xEE)
+    prog += exit_seq(0x7E)
     return build_rom(prog), {"exit": 1,
                              "stderr_has": "page-table access outside physical memory"}
 

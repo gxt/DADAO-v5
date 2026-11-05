@@ -24,7 +24,7 @@ Loading model (task book §0/§2, spec/Machine-v5 §1 + DADAO-12 §4.5/§4.9):
 
 Why the body cannot run in power: ADR-0045 D4 keeps cfx_pmem/cfx_ptw/cfx0
 default-masked; the same sequence succeeds in hmon (rc=0) and is rejected in
-power (rc=0x81 CFXMEM) — task book E3/E4.
+power (monitor CFXMEM) — task book E3/E4.
 
 Exit sequence: the profile `exit_block` (Node 0x7ffd_0000), not the legacy
 0x00ff_f000 window (task book §2).
@@ -338,7 +338,7 @@ def hmon_segment(hmon_extra=None):
     br = len(ins)
     ins += [br_nz(9, 0)]                 # patched: -> poll
 
-    # 5. ERROR (bit2) or no DONE (bit1) => explicit harness failure (0xE0).
+    # 5. ERROR (bit2) or no DONE (bit1) => explicit harness failure (guest FAIL 0x60).
     fail_branches = []
     ins += [cfx2rd(32, 15, 4, 10)]
     ins += load_rd(11, 4) + [and_o(11, 10, 11)]
@@ -351,7 +351,7 @@ def hmon_segment(hmon_extra=None):
     ins += [jump_rel(0)]                 # patched: skip the failure block
 
     fail = len(ins)
-    fail_seq = exit_seq(0xE0)
+    fail_seq = exit_seq(0x60)
     ins += fail_seq
     ins += [jump_rel(0)]                 # self loop if SYS_EXIT did not exit
     after_fail = len(ins)

@@ -118,7 +118,7 @@ CG8_GLOBAL_INTR_MASK_RC = 1
 MODE_H = 3
 
 EXIT_PASS = 0x00
-EXIT_CFXMEM = 0x81
+EXIT_CFXMEM = 0xF1    # monitor: hypv + CFXMEM index 1
 
 # Data addresses inside RAM
 DATA_A = RAM_BASE + 0x1000
@@ -358,11 +358,11 @@ def _sram_ldst_roundtrip():
     return build_rom(p), {"exit": EXIT_PASS, "rd5": MAGIC, "rd6": MAGIC2}
 
 
-@case("sram_oob_cfxmem", "SRAM offset >= 64 KiB => CFXMEM (0x81)")
+@case("sram_oob_cfxmem", "SRAM offset >= 64 KiB => CFXMEM (monitor)")
 def _sram_oob_cfxmem():
     p = load_rb(3, PMEM_BASE + PMEM_SRAM_SIZE)
     p.append(ld_o(5, 3, 0))
-    p += exit_seq(0xEE)
+    p += exit_seq(0x7E)
     return build_rom(p), {"exit": EXIT_CFXMEM}
 
 
@@ -370,7 +370,7 @@ def _sram_oob_cfxmem():
 def _sram_old_offset_cfxmem():
     p = load_rb(3, PMEM_OLD_BASE)
     p.append(ld_o(5, 3, 0))
-    p += exit_seq(0xEE)
+    p += exit_seq(0x7E)
     return build_rom(p), {"exit": EXIT_CFXMEM}
 
 
@@ -687,7 +687,7 @@ def _pmem_dma_irq_delivered():
     status_clear(p)
     dma_setup(p, PMEM_BASE, DATA_A, 8, 0)  # latched, not started
     _enter_pmem_via_cfxreg(p)
-    p += exit_seq(0xEE)                    # not reached: the handler exits
+    p += exit_seq(0x7E)                    # not reached: the handler exits
     return build_rom(p, {OFF_PMEM_HANDLER: PMEM_IRQ_HANDLER}), \
         {"exit": EXIT_PASS, "rd10": CAUSE_PMEM_DMA, "rd11": ST_DONE,
          "rd5": 1, "asyncn32": 1, "cid32": CAUSE_PMEM_DMA}
@@ -702,7 +702,7 @@ def _pmem_dma_masked_pending():
     status_clear(p)
     dma_setup(p, PMEM_BASE, DATA_A, 8, 0)
     _enter_pmem_via_cfxreg(p)
-    p += exit_seq(0xEE)                    # not reached: the handler exits
+    p += exit_seq(0x7E)                    # not reached: the handler exits
     return build_rom(p, {OFF_PMEM_HANDLER: PMEM_MASK_HANDLER}), \
         {"exit": EXIT_PASS, "rd5": 0, "rd8": CAUSE_PMEM_DMA, "asyncn32": 0}
 
@@ -713,7 +713,7 @@ def _cfx5_cache_cfxreg():
     p = []
     setup_hmon_vector(p, HMON_HANDLER)
     p.append(cfx2rd(CACHE_HA, 8, 0, 5))     # cfx_cache cg8 rc0
-    p += exit_seq(0xEE)
+    p += exit_seq(0x7E)
     return build_rom(p, {OFF_HMON_HANDLER: HMON_CFXREG_HANDLER}), \
         {"exit": EXIT_PASS, "rd10": CAUSE_CFXREG}
 
@@ -722,7 +722,7 @@ def _cfx5_cache_cfxreg():
 def _cfx6_reserved_cfxmem():
     p = load_rb(3, RESERVED_BASE)
     p.append(ld_o(5, 3, 0))
-    p += exit_seq(0xEE)
+    p += exit_seq(0x7E)
     return build_rom(p), {"exit": EXIT_CFXMEM}
 
 
@@ -733,7 +733,7 @@ def _pmem_cg15_reserved_cfxreg():
     # to the accessed cfx_pmem; the monitor records the cause frame.
     setup_hmon_vector(p, HMON_HANDLER)
     p.append(cfx2rd(PMEM_HA, PMEM_DMA_CG, DMA_RESERVED_RC, 5))
-    p += exit_seq(0xEE)                    # not reached: the handler exits
+    p += exit_seq(0x7E)                    # not reached: the handler exits
     return build_rom(p, {OFF_HMON_HANDLER: HMON_CFXREG_HANDLER}), \
         {"exit": EXIT_PASS, "rd10": CAUSE_CFXREG, "rd5": 0}
 

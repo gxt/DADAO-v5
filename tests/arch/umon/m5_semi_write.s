@@ -16,7 +16,7 @@
 @@ Loaded as a flat bin at the profile ENTRY by `-kernel`
 @@ (ADR-0004 D2.3 path B) and entered in user mode by the SEE bootrom.
 @@
-@@ Expected: host file m5_write.txt = "WXYZ"; host $? = 0x42 (SYS_EXIT pass token).
+@@ Expected: host file m5_write.txt = "WXYZ"; host $? = 0x12 (SYS_EXIT pass token).
 
 @@ @m5 name=m5_semi_write
 @@ @m5 kind=semihosting
@@ -26,7 +26,7 @@
 @@ @m5 console_data=5758595a
 @@ @m5 file=m5_write.txt
 @@ @m5 file_data=5758595a
-@@ @m5 exit=0x42
+@@ @m5 exit=0x12
 
 	.include "machine.inc"
 
@@ -99,24 +99,24 @@ _start:
 	cmp.so	rd11, rd8, rd12
 	br.nz	{rd11}?, [rb0, fail]
 
-	@@ report success via SYS_EXIT (pass token 0x42)
+	@@ report success via SYS_EXIT (pass token 0x12)
 	LOAD_ADDR rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
-	set.zw	rd9, wp0, 0x0042
+	set.zw	rd9, wp0, 0x0012
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
 	trap	cfx_umon, 0x3FF00
 	swym	0
 
 fail:
-	@@ SYS_WRITE did not consume the whole buffer -> distinct fail token 0xE1
+	@@ SYS_WRITE did not consume the whole buffer -> distinct fail token 0x71
 	LOAD_ADDR rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
-	set.zw	rd9, wp0, 0x00E1
+	set.zw	rd9, wp0, 0x0071
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
 	trap	cfx_umon, 0x3FF00

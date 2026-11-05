@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..b0b3627
+index 0000000..7e1796c
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
 @@ -0,0 +1,629 @@
@@ -559,7 +559,7 @@ index 0000000..b0b3627
 +    }
 +
 +    // Tiny implements no cfx register file at all: every cfx2rd/cfx2rc is
-+    // CFXREG (0x84), whatever the cfxha (spec/Machine-v5 §3).
++    // CFXREG, whatever the cfxha (spec/Machine-v5 §3).
 +    if (fs && !(isa != nullptr && isa->nodeState().active)) {
 +        const std::string_view id(decoded.entry->id);
 +        if (id == "cfx2rd_crrr_cfx" || id == "cfx2rc_crrr_cfx")

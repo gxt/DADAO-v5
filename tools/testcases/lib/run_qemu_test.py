@@ -11,10 +11,11 @@ Usage (TESTCASES-072t 迁入本目录；TESTCASES-076t 删除旧薄 wrapper):
 `resolve_legacy_vector_path` 机械平移到 `tests/inst/<ext>/`（isa → base）；用例本体
 只在 `tests/inst/`。
 
-Exit code protocol (ADR-0004 D5; SYS_EXIT per ADR-0020 D8):
-  0x00       = PASS
-  0x01-0x7F  = FAIL (test-defined, reported via semihosting SYS_EXIT)
-  0x80-0xFF  = Machine fault (0x81=CFXMEM, 0x87=unmapped, 0x88=ILLI, 0x89=UNDI, etc.)
+Exit code protocol (spec/Machine-v5 §7.1; guest halt via SYS_EXIT, ADR-0020 D8):
+  0x00-0x3F  = PASS (guest defined pass token)
+  0x40-0x7F  = FAIL (guest defined fail code)
+  0x80-0xBF  = Machine fault, other cfx  (bit5:0 = cfxHA)
+  0xC0-0xFF  = Machine fault, monitor    (bit5:4 = run mode, bit3:0 = cause index)
 """
 
 import argparse
@@ -115,24 +116,44 @@ def resolve_legacy_vector_path(path: str) -> str:
     cand = os.sep.join(parts[:i] + ["inst", LEGACY_VECTOR_DIRS[sub]] + parts[i + 2:])
     return cand if os.path.exists(cand) else path
 
-# Exit code ranges
-EXIT_PASS = 0x00
-EXIT_FAIL_MIN = 0x01
+# Exit code ranges (spec/Machine-v5 §7.1)
+EXIT_PASS_MIN = 0x00
+EXIT_PASS_MAX = 0x3F
+EXIT_FAIL_MIN = 0x40
 EXIT_FAIL_MAX = 0x7F
 EXIT_FAULT_MIN = 0x80
 EXIT_FAULT_MAX = 0xFF
+EXIT_MONITOR_MIN = 0xC0
 
-# Fault code names (ADR-0004 D5.8)
-FAULT_NAMES = {
-    0x81: "CFXMEM",
-    0x87: "UNMAPPED",
-    0x88: "ILLI",
-    0x89: "UNDI",
-    0x8A: "RASOF",
-    0x8B: "RASUF",
-    0x8C: "MALIGN",
-    0x8D: "IALIGN",
+# Monitor segment: bit3:0 is the DADAO exception bit index; bit5:4 is the
+# current run mode.  The same cause therefore has four possible codes.
+MONITOR_FAULT_NAMES = {
+    0: "CFXTRAP",
+    1: "CFXMEM",
+    2: "CFXREG",
+    3: "CFXESC",
+    7: "CFXPERM",
+    8: "ILLI",
+    9: "UNDI",
+    10: "RASOF",
+    11: "RASUF",
+    12: "MALIGN",
+    13: "IALIGN",
 }
+
+
+def fault_name(code):
+    """DADAO cause name for a machine-fault exit code (spec/Machine-v5 §7.1).
+
+    Monitor codes decode by cause index; other-cfx codes only identify the
+    target cfxha (the cause itself is not part of that segment).
+    """
+    if EXIT_MONITOR_MIN <= code <= EXIT_FAULT_MAX:
+        return MONITOR_FAULT_NAMES.get(code & 0xF,
+                                       "MONITOR(%d)" % (code & 0xF))
+    if EXIT_FAULT_MIN <= code < EXIT_MONITOR_MIN:
+        return "CFX%d" % (code & 0x3F)
+    return None
 
 # State-dump region (ADR-0009 D7, single source of truth in build_test_binary.py)
 _script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -537,29 +558,28 @@ def interpret_exit_code(exit_code, expected_fault=None, dump_mode=False):
         return "FAIL", (f"QEMU killed by {format_exit_code(exit_code)} — "
                         f"guest did not reach SYS_EXIT (dirty failure)")
 
-    if exit_code == EXIT_PASS:
+    if EXIT_PASS_MIN <= exit_code <= EXIT_PASS_MAX:
         if expected_fault:
-            return "FAIL", f"Expected fault {expected_fault} but got PASS"
-        return "PASS", "Test passed"
+            return "FAIL", (f"Expected fault {expected_fault} but got "
+                            f"PASS (guest code 0x{exit_code:02X})")
+        return "PASS", ("Test passed" if exit_code == EXIT_PASS_MIN
+                        else f"Test passed (guest pass token 0x{exit_code:02X})")
 
-    if EXIT_FAIL_MIN <= exit_code <= EXIT_FAULT_MAX:
+    if EXIT_FAIL_MIN <= exit_code <= EXIT_FAIL_MAX:
         if expected_fault:
-            fault_name = FAULT_NAMES.get(exit_code, f"UNKNOWN(0x{exit_code:02X})")
-            if exit_code >= EXIT_FAULT_MIN:
-                # Machine fault
-                if fault_name == expected_fault:
-                    return "PASS", f"Expected {expected_fault}, got {fault_name}"
-                else:
-                    return "FAIL", f"Expected {expected_fault}, got {fault_name}"
-            else:
-                # Guest fail code
-                return "FAIL", f"Expected fault {expected_fault}, got FAIL(0x{exit_code:02X})"
-        else:
-            if exit_code >= EXIT_FAULT_MIN:
-                fault_name = FAULT_NAMES.get(exit_code, f"UNKNOWN(0x{exit_code:02X})")
-                return "FAIL", f"Unexpected fault: {fault_name} (0x{exit_code:02X})"
-            else:
-                return "FAIL", f"Test failed with code 0x{exit_code:02X}"
+            return "FAIL", (f"Expected fault {expected_fault}, got guest "
+                            f"FAIL(0x{exit_code:02X})")
+        return "FAIL", f"Test failed with code 0x{exit_code:02X}"
+
+    if EXIT_FAULT_MIN <= exit_code <= EXIT_FAULT_MAX:
+        name = fault_name(exit_code)
+        if expected_fault:
+            if name == expected_fault:
+                return "PASS", (f"Expected {expected_fault}, got {name} "
+                                f"(0x{exit_code:02X})")
+            return "FAIL", (f"Expected {expected_fault}, got {name} "
+                            f"(0x{exit_code:02X})")
+        return "FAIL", f"Unexpected fault: {name} (0x{exit_code:02X})"
 
     return "FAIL", f"Unknown exit code: {format_exit_code(exit_code)}"
 

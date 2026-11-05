@@ -240,10 +240,10 @@ def last_ra_dump(log_text, idx=0):
 # ── Exit codes ────────────────────────────────────────────────────────
 
 PASS_EXIT = 0
-ILLI_EXIT = 0x88
-RASOF_EXIT = 0x8A
-RASUF_EXIT = 0x8B
-UNMAPPED_EXIT = 0x87
+ILLI_EXIT = 0xF8
+RASOF_EXIT = 0xFA
+RASUF_EXIT = 0xFB
+UNMAPPED_EXIT = 0xF1
 
 def call_to(frm_idx, to_idx):
     """Return call_iiii instruction jumping from frm_idx to to_idx."""
@@ -325,7 +325,7 @@ def _t4():
         call_iiii(1),
     ]
 
-TESTS.append(("C3b RASOF (RACNT=63, MRPTR=0 → 0x8A)", _t4(), RASOF_EXIT, "RASOF not triggered"))
+TESTS.append(("C3b RASOF (RACNT=63, MRPTR=0 → 0xFA)", _t4(), RASOF_EXIT, "RASOF not triggered"))
 
 # ── Test 5: C3b spill ────────────────────────────────────────────────
 def _t5():
@@ -367,7 +367,7 @@ def _t6():
         ret_riii(0, 0),
     ]
 
-TESTS.append(("D1 RASUF (corrupt count=0 → 0x8B)", _t6(), RASUF_EXIT, "D1 RASUF not triggered"))
+TESTS.append(("D1 RASUF (corrupt count=0 → 0xFB)", _t6(), RASUF_EXIT, "D1 RASUF not triggered"))
 
 # ── Test 7: D2 decrement ─────────────────────────────────────────────
 def _t7():
@@ -423,7 +423,7 @@ TESTS.append(("D3 pop (count 1→0, RACNT 1→0)", _t8(), PASS_EXIT, "D3 pop fai
 def _t9():
     return [ret_riii(0, 0)]
 
-TESTS.append(("D4a RASUF (empty, MRPTR=0 → 0x8B)", _t9(), RASUF_EXIT, "D4a RASUF not triggered"))
+TESTS.append(("D4a RASUF (empty, MRPTR=0 → 0xFB)", _t9(), RASUF_EXIT, "D4a RASUF not triggered"))
 
 # ── Test 10: D4b count=1 ─────────────────────────────────────────────
 def _t10():
@@ -579,7 +579,7 @@ TESTS.append(("Ring buffer slot mapping (ras_base≠0, 3 pushes)", _t16(), PASS_
 def _t17():
     """Precise RASOF: RACNT=63, MRPTR=0, call → RASOF.
     Verify via -d cpu that ra0 (RACNT=63) is unchanged after fault.
-    The probe exits at 0x8A; register verification done externally.
+    The probe exits at 0xFA; register verification done externally.
     Gate: if any RA register were modified before RASOF, the -d cpu
     log would show it (register dump captured at fault time).
     """
@@ -610,7 +610,7 @@ def _t18():
         fence(), fence(), fence(), fence(),  # [1..4]
         set_zw_rd(18, MARKER),      # [5] rd18 = 0xBEEF
         rd2ra(63, 18, 1),           # [6] ra63 = 0xBEEF (count=0, corrupt!)
-        ret_riii(0, 0),             # [7] D1 → RASUF (0x8B)
+        ret_riii(0, 0),             # [7] D1 → RASUF (0xFB)
     ]
     return insns
 
@@ -653,7 +653,7 @@ def verify_precise_rasof():
     rom = build_rom(_t17())
     code, log = run_test_dcpu(rom)
     if code != RASOF_EXIT:
-        print(f"    [FAIL] exit=0x{code:02X} (expect 0x8A RASOF)")
+        print(f"    [FAIL] exit=0x{code:02X} (expect 0xFA RASOF)")
         return False
     ra0 = last_ra_dump(log, 0)
     if ra0 is not None:
@@ -681,7 +681,7 @@ def verify_precise_rasuf():
     rom = build_rom(_t18())
     code, log = run_test_dcpu(rom)
     if code != RASUF_EXIT:
-        print(f"    [FAIL] exit=0x{code:02X} (expect 0x8B RASUF)")
+        print(f"    [FAIL] exit=0x{code:02X} (expect 0xFB RASUF)")
         return False
     ra63 = last_ra_dump(log, 63)
     if ra63 is not None:

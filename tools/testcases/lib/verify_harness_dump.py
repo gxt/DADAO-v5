@@ -338,7 +338,7 @@ def main():
     exit_code, stderr, timed_out, dump_file = run_qemu(
         QEMU, BIOS, test_bin_d, timeout=5, dump_mode=True
     )
-    check("run_qemu returns exit code", exit_code == 0x88,
+    check("run_qemu returns exit code", exit_code == 0xF8,
           f"exit_code=0x{exit_code:02X}")
     check("run_qemu not timed out", not timed_out)
     check("run_qemu no dump (fault case)", dump_file is None)
@@ -347,7 +347,7 @@ def main():
     exit_code2, stderr2, timed_out2, dump_file2 = run_qemu(
         QEMU, BIOS, test_bin_d, timeout=5, dump_mode=False
     )
-    check("run_qemu normal mode exit code", exit_code2 == 0x88,
+    check("run_qemu normal mode exit code", exit_code2 == 0xF8,
           f"exit_code=0x{exit_code2:02X}")
     check("run_qemu normal mode not timed out", not timed_out2)
 

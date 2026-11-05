@@ -95,7 +95,7 @@
       ra63: '0x0001CCCC00000000'
   mnemonic: call
   notes: 'legality RASOF: ra0=0x003F000000000000 (RACNT=63, MRPTR=0); ra63=[count=1, addr=0xCCCC00000000]; PC+4=@ENTRY+0x4
-    ≠ ra63[47:0] → C3b: RACNT==63, MRPTR==0 → RASOF (0x8A)'
+    ≠ ra63[47:0] → C3b: RACNT==63, MRPTR==0 → RASOF'
   spec_cite: 'SimRISC-00: 压栈流程; SimRISC-06: 函数调用; ADR-0004 D5.5'
   status: active
 - class: semantic
@@ -211,7 +211,7 @@
     rb:
       rb3: '0x0000000000000000'
   mnemonic: call
-  notes: 'legality CFXMEM: rbha=rb3=0, rdhb=rd0=0, imms12=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM (0x81), ADR-0020
+  notes: 'legality CFXMEM: rbha=rb3=0, rdhb=rd0=0, imms12=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM (monitor), ADR-0020
     D15 / ADR-0004 D5.8'
   profiles:
   - tiny

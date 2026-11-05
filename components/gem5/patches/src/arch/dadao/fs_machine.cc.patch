@@ -1,15 +1,16 @@
 diff --git a/src/arch/dadao/fs_machine.cc b/src/arch/dadao/fs_machine.cc
 new file mode 100644
-index 0000000..e95bf3a
+index 0000000..ed70d0b
 --- /dev/null
 +++ b/src/arch/dadao/fs_machine.cc
-@@ -0,0 +1,90 @@
+@@ -0,0 +1,118 @@
 +// DADAO FS machine fault implementation.
 +#include "arch/dadao/fs_machine.hh"
 +
 +#include <memory>
 +
 +#include "arch/dadao/fs_workload.hh"
++#include "arch/dadao/isa.hh"
 +#include "base/cprintf.hh"
 +#include "cpu/thread_context.hh"
 +#include "sim/sim_exit.hh"
@@ -28,29 +29,47 @@ index 0000000..e95bf3a
 +// same instruction, a fault raised while unwinding) must not overwrite it.
 +bool faultRaised = false;
 +
++/** Current run mode for the monitor segment.  Tiny has no cfx/run-mode switch
++ *  (spec/Machine-v5 §2: it executes nominally in hypv); Node exposes the live
++ *  mode of its architectural state. */
++uint8_t
++currentRunMode(ThreadContext *tc)
++{
++    if (tc != nullptr) {
++        auto *isa = dynamic_cast<ISA *>(tc->getIsaPtr());
++        if (isa != nullptr && isa->nodeState().active)
++            return isa->nodeState().runMode & 0x3;
++    }
++    return 3;  // nominal hypv (Tiny)
++}
++
 +} // anonymous namespace
 +
 +const char *
-+machineFaultName(uint8_t code)
++machineFaultName(uint8_t cause)
 +{
-+    switch (code) {
-+      case FaultCFXMEM:
++    switch (cause) {
++      case FaultCfxTrap:
++        return "CFXTRAP";
++      case FaultCfxMem:
 +        return "CFXMEM";
-+      case FaultCFXREG:
++      case FaultCfxReg:
 +        return "CFXREG";
-+      case FaultUNMAPPED:
-+        return "UNMAPPED";
-+      case FaultILLI:
++      case FaultCfxEsc:
++        return "CFXESC";
++      case FaultCfxPerm:
++        return "CFXPERM";
++      case FaultIlli:
 +        return "ILLI";
-+      case FaultUNDI:
++      case FaultUndi:
 +        return "UNDI";
-+      case FaultRASOF:
++      case FaultRasof:
 +        return "RASOF";
-+      case FaultRASUF:
++      case FaultRasuf:
 +        return "RASUF";
-+      case FaultMALIGN:
++      case FaultMalign:
 +        return "MALIGN";
-+      case FaultIALIGN:
++      case FaultIalign:
 +        return "IALIGN";
 +      default:
 +        return "UNKNOWN";
@@ -75,21 +94,30 @@ index 0000000..e95bf3a
 +}
 +
 +void
-+MachineFault::invoke(ThreadContext *, const StaticInstPtr &)
++MachineFault::invoke(ThreadContext *tc, const StaticInstPtr &)
 +{
 +    if (faultRaised)
 +        return;
 +    faultRaised = true;
 +
++    const uint8_t code = machineFaultExitCode(cause, currentRunMode(tc),
++                                              targetCfxha);
++
 +    // Guest-visible cause name: the config script recognises the prefix and
 +    // propagates the low 8 bits to the host exit status.
-+    exitSimLoopNow(csprintf("DADAO_FS_FAULT_%s", machineFaultName(code)), code);
++    exitSimLoopNow(csprintf("DADAO_FS_FAULT_%s", machineFaultName(cause)), code);
 +}
 +
 +Fault
-+machineFault(uint8_t code)
++machineFault(uint8_t cause)
 +{
-+    return std::make_shared<MachineFault>(code);
++    return std::make_shared<MachineFault>(cause);
++}
++
++Fault
++machineFaultToCfx(uint8_t cause, uint8_t cfxha)
++{
++    return std::make_shared<MachineFault>(cause, cfxha);
 +}
 +
 +} // namespace DadaoISA

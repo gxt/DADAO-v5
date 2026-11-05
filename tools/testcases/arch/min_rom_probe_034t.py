@@ -8,7 +8,7 @@ Spec sources (expectations are derived by hand from these, never from QEMU):
   - spec/SimRISC-03: 立即数常数赋值：Immediate constant
   - .tao/contracts/contract-fp.md §1 / §10 / §11 / §12 / §13
 Encodings: contracts/opcodes.yaml.
-Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0x88, MALIGN=0x8C).
+Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0xF8, MALIGN=0xFC).
 
 Instructions under test (16):
   rf_mem  (8): ld.t ld.o ldm.t ldm.o st.t st.o stm.t stm.o  (-rf)
@@ -19,7 +19,7 @@ Instructions under test (16):
 Verification channels:
   * value cases  -> QEMU `-d cpu` dump, parsing the *last* RF[]/RD[] dump
                     (state at the start of the fault TB, i.e. after commit).
-  * fault cases  -> process exit code (ILLI 0x88 / MALIGN 0x8C).
+  * fault cases  -> process exit code (ILLI 0xF8 / MALIGN 0xFC).
   * E2E cases    -> in-ROM compare + SYS_EXIT PASS/FAIL epilogue.
 
 Reverse gate (see .work/evidence/QEMU-034t/run.sh --inject): reverting any
@@ -82,12 +82,12 @@ RESET0 = 0x7FF800007FC00000
 FCSR_MASK = 0x000000030000001F
 
 PASS_EXIT = 0x00
-ILLI_EXIT = 0x88
-MALIGN_EXIT = 0x8C
+ILLI_EXIT = 0xF8
+MALIGN_EXIT = 0xFC
 
 # ── Instruction encoding (op / ha values from contracts/opcodes.yaml) ──
 
-ILLI = 0x79001000                 # fence cfx0, hb=1 (encode_sbz) -> ILLI (exit 0x88)
+ILLI = 0x79001000                 # fence cfx0, hb=1 (encode_sbz) -> ILLI (exit 0xF8)
 SWYM = 0x47880000                 # swym (padding)
 UNDI_TERMINATOR = 0x08040001      # 033t convention (never reached)
 
@@ -563,7 +563,7 @@ CASES.append(value_case(
     [cs_n_rf(10, 5, 0, 7)],
     expect_rf={5: RESET0}))
 
-# ── fault cases: ILLI 0x88 / MALIGN 0x8C ──────────────────────────────
+# ── fault cases: ILLI 0xF8 / MALIGN 0xFC ──────────────────────────────
 CASES.append(Case("F1 rd2rf hd=0 -> ILLI", [rd2rf(10, 2, 0)], expect_exit=ILLI_EXIT))
 CASES.append(Case("F2 rf2rd hd=0 -> ILLI", [rf2rd(20, 10, 0)], expect_exit=ILLI_EXIT))
 CASES.append(Case("F3 rd2rf rfhb+hd>64 -> ILLI", [rd2rf(62, 2, 4)], expect_exit=ILLI_EXIT))

@@ -26,7 +26,7 @@ Case model (all assertions have a reachable FAIL path):
 NaN policy: contract-fp.md §18 fixes the canonical qNaN result
 (0x7FC00000 / 0x7FF8000000000000) for qNaN and sNaN inputs; sNaN also sets NV.
 
-Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0x88).
+Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0xF8).
 Usage: min_rom_probe_072t.py [--selftest|--oracle]
 """
 import os
@@ -82,7 +82,7 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 RESET0 = 0x7FF800007FC00000
 
 PASS_EXIT = 0x00
-ILLI_EXIT = 0x88
+ILLI_EXIT = 0xF8
 
 FLAG_NV = 0x01
 FLAG_NX = 0x10
@@ -597,7 +597,7 @@ CASES.append(value_case(
     set_rf(10, 0xFFC00000) + set_fcsr_mode(0) + [ftrnd(5, 10, 0x20)],
     expect_rf={5: FT_QNAN}, expect_flags=0, expect_mode=0))
 
-# ILLI cases (fault epilogue: a missing legality check exits 0 != 0x88)
+# ILLI cases (fault epilogue: a missing legality check exits 0 != 0xF8)
 CASES.append(Case("IL1 ftrnd immu6=0x03 (non-one-hot) -> ILLI",
                   [ftrnd(5, 10, 0x03)], expect_exit=ILLI_EXIT))
 CASES.append(Case("IL2 fornd immu6=0 -> ILLI",

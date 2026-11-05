@@ -235,7 +235,7 @@ def _run_mode_case(sm):
     prog += load_rd(22, H) + [cfx2rc(63, 3, 10, 22)]   # cfx63 hypv vector = H
     trap_idx = len(prog)
     prog += [trap(63, 0)]
-    prog += exit_seq(0xEE)
+    prog += exit_seq(0x7E)
     exp = {
         "exit": 0x11, "mode": sm, "cfxcode": 63,
         "trapn:63": 1, "cid:63": CFXTRAP, "cinfo:63": 0x7FFC0000,
@@ -298,7 +298,7 @@ def _trap_counters():
     prog += load_rd(22, H) + [cfx2rc(63, 3, 10, 22)]
     trap_idx = len(prog)
     prog += [trap(63, 0x0123)]
-    prog += exit_seq(0xEE)
+    prog += exit_seq(0x7E)
     exp = {"exit": 0x11, "mode": HYPV, "trapn:63": 1, "syncn:63": 0,
            "cid:63": CFXTRAP, "cip:63": ROM_BASE + trap_idx * 4,
            "cinfo:63": 0x7F000000 | (63 << 18) | 0x0123,
@@ -330,7 +330,7 @@ def _mask_illi():
     prog += load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]      # cfx_hmon hypv vector = H
     trap_idx = len(prog)
     prog += [trap(0, 0)]
-    prog += exit_seq(0xEE)
+    prog += exit_seq(0x7E)
     exp = {"exit": 0x22, "cid:3": CFXPERM, "syncn:3": 1,
            "cip:3": ROM_BASE + trap_idx * 4}
     return build_rom(prog, hand(0x100, 0x22)), exp
@@ -342,7 +342,7 @@ def _reserved_illi():
     prog = load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]
     trap_idx = len(prog)
     prog += [trap(7, 0)]
-    prog += exit_seq(0xEE)
+    prog += exit_seq(0x7E)
     exp = {"exit": 0x33, "cid:3": ILLI, "syncn:3": 1,
            "cip:3": ROM_BASE + trap_idx * 4}
     return build_rom(prog, hand(0x100, 0x33)), exp
@@ -353,9 +353,9 @@ def _reserved_illi():
 def _cfxreg_unimpl():
     prog = load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]
     prog += [cfx2rd(5, 0, 0, 5)]
-    prog += exit_seq(0xEE)
-    exp = {"exit": 0x44, "cid:3": CFXREG, "syncn:3": 1}
-    return build_rom(prog, hand(0x100, 0x44)), exp
+    prog += exit_seq(0x7E)
+    exp = {"exit": 0x14, "cid:3": CFXREG, "syncn:3": 1}
+    return build_rom(prog, hand(0x100, 0x14)), exp
 
 
 # -- acc 6: invalid / reserved register combinations -> CFXREG --------------
@@ -384,10 +384,10 @@ def _cfxreg_ro_write():
     prog = load_rd(24, H) + [cfx2rc(63, 3, 10, 24)]  # cfx_power hypv vector = H
     prog += load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]  # cfx_hmon hypv vector = H
     prog += [cfx2rc(63, 4, 0, 25)]                   # write cfx_id (RO)
-    prog += exit_seq(0xEE)
+    prog += exit_seq(0x7E)
     # DADAO-12 §5.2: CFXREG goes to the current-mode monitor (hypv => cfx_hmon)
-    exp = {"exit": 0x46, "cid:3": CFXREG, "syncn:3": 1}
-    return build_rom(prog, hand(0x100, 0x46)), exp
+    exp = {"exit": 0x16, "cid:3": CFXREG, "syncn:3": 1}
+    return build_rom(prog, hand(0x100, 0x16)), exp
 
 
 # ---------------------------------------------------------------------------

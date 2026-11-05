@@ -148,10 +148,12 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `ELFDATA2MSB`/`ET_EXEC`/`e_flags&0xff==1`/无 `PT_INTERP`/
   `p_vaddr==p_paddr`/`p_filesz<=p_memsz`/段与入口均在 ROM∪SRAM；ELF 与
   `--bootrom` 同给 ⇒ fatal。平台不写 SP。
-- **fault → 退出码**（无异常向量，首个 fault 锁定）：`CFXMEM 0x81`、
-  `CFXREG 0x84`、`ILLI 0x88`、`UNDI 0x89`、`RASOF/RASUF 0x8A/0x8B`、
-  `MALIGN 0x8C`、`IALIGN 0x8D`。SE 仍保持 panic 语义（由 workload 类型
-  判定，不用全局开关）。
+- **fault → 退出码**（无异常向量，首个 fault 锁定；spec/Machine-v5 §7.1）：
+  monitor 段 `0xC0 | (运行模式 << 4) | 异常位索引`（`CFXMEM`=1、
+  `CFXREG`=2、`CFXPERM`=7、`ILLI`=8、`UNDI`=9、`RASOF`=10、`RASUF`=11、
+  `MALIGN`=12、`IALIGN`=13；未映射归 `CFXMEM`）；`CFXTRAP`/`CFXESC` 进
+  目标/当前 cfx 时用其它 cfx 段 `0x80 | cfxHA`。Tiny 名义 hypv（`bit5:4=11`）。
+  SE 仍保持 panic 语义（由 workload 类型判定，不用全局开关）。
 - **semihosting**：`trap <any cfxha>, 0x3FFxx` 短路（不进入向量）；号
   `rd16`、参数块 `rb16`、返回 `rd8`、完成 `IP += 4`；服务集 = 完整 25 个
   （含 `SYS_SYNCCACHE 0x19`，`--dump-semihost-services` 输出 C++ 表实际
@@ -192,7 +194,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   ⇒ guest TLB → 两级步进（512 MiB 超页 / 64 KiB 页、SPF/GPF、HSJU、R/W/X、
   A/D）；页表异常进 `cfx_ptw`（`PTWERR` 的 cause_info = PTE PA）；cfx2/3/17
   内部 SRAM 段外 ⇒ `CFXMEM`；保留 cfxha 普通 ld/st ⇒ `CFXMEM`；其它未映射
-  ⇒ `0x87`。
+  ⇒ `CFXMEM`（不再有独立的 `0x87`）。
 - **cfx/monitor**：cfx0/1/2/3/4/15/17/18/63 寄存器面（cg0–cg7，cg3 仅 hypv，
   cg6 scratch=4，cg7 只读空间描述符）、`trap`/`escape`/`cfx2rd`/`cfx2rc` 与
   `switch_run_mode`/`excp_vector`/mask/deleg（`cg0`–`cg3` `rc9`/`rc11` 与

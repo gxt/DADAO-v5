@@ -296,10 +296,10 @@ def enter_user_cfx0():
 
 
 def handler(extra=()):
-    """CFXPERM handler: record cause frame, optional readback, exit 0xEE."""
+    """CFXPERM handler: record cause frame, optional readback, CFXPERM handler code."""
     h = [cfx2rd(2, 5, 2, 20), cfx2rd(2, 5, 3, 21), cfx2rd(2, 5, 4, 22)]
     h += list(extra)
-    h += exit_seq(0xEE)
+    h += exit_seq(0x2E)
     return h
 
 
@@ -363,7 +363,7 @@ def _open_pmem_cg15():
     prog += enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
     # The pre-deleg implementation answered CFXREG (cg15 has no cfx_reg_ptr
-    # entry); a CFXPERM or a CFXREG would both leave exit 0xEE.
+    # entry); a CFXPERM or a CFXREG would both leave the CFXPERM handler code.
     return one(rom, {"exit": 0x00, "rd10": 0})
 
 
@@ -398,7 +398,7 @@ def _closed_hmon_cg0():
         prog += read_supv_cfxreg(3, 24) + enter_supv_cfx0()
         rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
         if deleg == ALL1:
-            exp = {"exit": 0xEE, "cid:2": CFXPERM,
+            exp = {"exit": 0x2E, "cid:2": CFXPERM,
                    "cinfo:2": info_rd(3, 0, 0, 10), "cip:2": ROM_BASE + SUPV_OFF}
         else:
             exp = {"exit": 0x00, "rd10": MASK_HMON}
@@ -413,7 +413,7 @@ def _closed_hmon_cg8():
     prog = probe_base() + set_deleg(3, ALL1) + open_supv_cfxreg(3, 0)
     prog += read_supv_cfxreg(3, 24) + enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0xEE, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
                      "cinfo:2": info_rd(3, 8, 1, 10),
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~1})
@@ -427,7 +427,7 @@ def _closed_power_cg4():
     prog = probe_base() + set_deleg(63, ALL1) + open_supv_cfxreg(63, 2)
     prog += read_supv_cfxreg(63, 24) + enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0xEE, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
                      "cinfo:2": info_rd(63, 4, 0, 10),
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~(1 << 2)})
@@ -458,19 +458,19 @@ def _closed_power_bootrom():
     prog += enter_supv_cfx2()
     ld_idx = len(load_rb(4, POWER_ADDR))
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0xEE, "cid:2": CFXPERM, "cinfo:2": POWER_ADDR,
+    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM, "cinfo:2": POWER_ADDR,
                      "cip:2": ROM_BASE + SUPV_OFF + 4 * ld_idx})
 
 
-@case("power_bootrom_store", "power cfxmem bit2=0: st.o boot ROM => ILLI (exit 0x88)")
+@case("power_bootrom_store", "power cfxmem bit2=0: st.o boot ROM => ILLI (monitor: supv + index 8)")
 def _power_bootrom_store():
     body = load_rb(4, POWER_ADDR) + [st_o(20, 4, 0)] + exit_seq(0x00)
     prog = probe_base() + set_power_cfxmem(POWER_CFXMEM_OPEN)
     prog += enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
     # ADR-0004 D5.6: ROM is read-only; the store never reaches a handler, the
-    # test machine reports ILLI (0x80 | ... -> DADAO_EXIT_ILLI = 0x88).
-    return one(rom, {"exit": 0x88})
+    # test machine reports ILLI as monitor code 0xE8 (supv mode + ILLI index 8).
+    return one(rom, {"exit": 0xE8})
 
 
 @case("power_control_write", "default axes: supv write cfx_power cg2 rc1 => CFXPERM")
@@ -478,7 +478,7 @@ def _power_control_write():
     body = [cfx2rc(63, 2, 1, 0)] + exit_seq(0x00)
     prog = probe_base() + enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0xEE, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
                      "cinfo:2": info_rc(63, 2, 1, 0),
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "memmask:63:2": MASK_DEFAULT})
@@ -490,7 +490,7 @@ def _power_cg7_closed():
     prog = probe_base() + set_deleg(63, ALL1) + open_supv_cfxreg(63, 2)
     prog += read_supv_cfxreg(63, 24) + enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0xEE, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
                      "cinfo:2": info_rd(63, 7, 0, 10),
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~(1 << 2)})
@@ -504,7 +504,7 @@ def _no_power_full_open():
     prog += set_deleg(2, DELEG_OPEN) + open_supv_cfxreg(63, 2)
     prog += read_supv_cfxreg(63, 24) + enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0xEE, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
                      "cinfo:2": info_rd(63, 4, 0, 10),
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~(1 << 2),
@@ -519,7 +519,7 @@ def _cg3_supv_perm_rd():
     prog = probe_base() + set_deleg(4, DELEG_OPEN) + open_supv_cfxreg(4, 0)
     prog += read_supv_cfxreg(4, 24) + enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0xEE, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
                      "cinfo:2": info_rd(4, 3, 0, 10),
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~1})
@@ -534,7 +534,7 @@ def _cg3_supv_perm_wr():
     prog += enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body,
                            HAND_OFF: handler([cfx2rd(32, 3, 12, 23)])})
-    return one(rom, {"exit": 0xEE, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
                      "cinfo:2": info_rc(32, 3, 12, 20),
                      "cip:2": ROM_BASE + SUPV_OFF + 16,
                      "rd23": DELEG_OPEN, "rd24": ALL1 & ~1})
@@ -548,7 +548,7 @@ def _cg3_bit3_locked():
     prog += enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body,
                            HAND_OFF: handler([cfx2rd(4, 3, 12, 23)])})
-    return one(rom, {"exit": 0xEE, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
                      "cinfo:2": info_rd(4, 3, 0, 10),
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd23": DELEG_OPEN, "rd24": ALL1 & ~1})
@@ -585,7 +585,7 @@ def _self_not_exempt():
         prog = probe_base() + set_deleg(2, deleg) + enter_supv_cfx2()
         rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
         if deleg == ALL1:
-            exp = {"exit": 0xEE, "cid:2": CFXPERM,
+            exp = {"exit": 0x2E, "cid:2": CFXPERM,
                    "cinfo:2": info_rd(2, 5, 2, 10),
                    "cip:2": ROM_BASE + SUPV_OFF}
         else:
@@ -608,7 +608,7 @@ def _user_unaffected():
     prog = probe_base() + set_deleg(4, ALL1) + open_user_cfxreg(4, 0)
     prog += enter_user_cfx0()
     rom = build_rom(prog, {USER_OFF: body, HAND_OFF: handler(),
-                           FAULT_OFF: fault_slot(0xCC)})
+                           FAULT_OFF: fault_slot(0x2C)})
     return one(rom, {"exit": 0x00, "rd10": MASK_DEFAULT, "mode": 0})
 
 
@@ -621,8 +621,8 @@ def _user_cg3_cfxreg():
     prog += load_rd(22, ROM_BASE + FAULT_OFF) + [cfx2rc(0, USER, 10, 22)]
     prog += enter_user_cfx0()
     rom = build_rom(prog, {USER_OFF: body, HAND_OFF: handler(),
-                           FAULT_OFF: fault_slot(0xCC)})
-    return one(rom, {"exit": 0xCC, "cid:0": CFXREG,
+                           FAULT_OFF: fault_slot(0x2C)})
+    return one(rom, {"exit": 0x2C, "cid:0": CFXREG,
                      "cinfo:0": info_rd(0, 3, 0, 10),
                      "cip:0": ROM_BASE + USER_OFF})
 
@@ -637,6 +637,7 @@ def run_case(name):
             continue
         ok = True
         details = []
+        codes = []
         for label, rom, exp in fn():
             rc, log = run(rom)
             tag = name + (":" + label if label else "")
@@ -644,6 +645,7 @@ def run_case(name):
                 ok = False
                 details.append("%s TIMEOUT" % tag)
                 continue
+            codes.append(rc)
             obs = observe(log)
             obs["exit"] = rc
             diffs = []
@@ -655,7 +657,9 @@ def run_case(name):
             if diffs:
                 ok = False
                 details.append("%s %s" % (tag, "; ".join(diffs)))
-        return ok, ("ok" if ok else " | ".join(details))
+        exits = ",".join("0x%02x" % c for c in codes)
+        return ok, (("ok exit=" + exits) if ok else
+                    (" | ".join(details) + " exit=" + exits))
     raise KeyError(name)
 
 

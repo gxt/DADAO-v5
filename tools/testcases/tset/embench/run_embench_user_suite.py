@@ -54,7 +54,7 @@ Classification (counted live, never hard-coded)
 -----------------------------------------------
 * ``pass``       built + ran + guest exit 0 + the three board markers observed.
 * ``fail``       built + ran, but the case's own verdict is non-zero (guest exit
-                 != 0, including a machine fault exit ``0x80|cause``) or the
+                 != 0, including a machine fault exit ``0xC0|(mode<<4)|cause_index``) or the
                  markers are missing although the exit is 0.  A real defect.
 * ``known-fail`` the build/run failure is attributable to **ISS-246**
                  (``__thread``: clang ``thread-local storage is not supported
@@ -135,13 +135,20 @@ ISS246_PATTERNS = (
 )
 ISS246_ID = "ISS-246"
 
-# Machine fault exits (ADR-0004 D5.8): a guest exited through a machine fault;
-# the case reached the benchmark and its own verdict failed -> `fail`, not a
-# harness `blocked`.
-FAULT_NAMES = {
-    0x87: "UNMAPPED", 0x88: "ILLI", 0x89: "UNDI", 0x8A: "RASOF",
-    0x8B: "RASUF", 0x8C: "MALIGN", 0x8D: "IALIGN",
+# Machine fault exits (spec/Machine-v5 §7.1): monitor 0xC0-0xFF (run mode +
+# cause index) and other cfx 0x80-0xBF (cfxHA); a guest exited through a
+# machine fault, the case reached the benchmark and its own verdict failed ->
+# `fail`, not a harness `blocked`.
+_MONITOR_FAULT_NAMES = {
+    0: "CFXTRAP", 1: "CFXMEM", 2: "CFXREG", 3: "CFXESC", 7: "CFXPERM",
+    8: "ILLI", 9: "UNDI", 10: "RASOF", 11: "RASUF", 12: "MALIGN",
+    13: "IALIGN",
 }
+FAULT_NAMES = {0xC0 | (mode << 4) | idx: name
+               for mode in range(4)
+               for idx, name in _MONITOR_FAULT_NAMES.items()}
+FAULT_NAMES.update({code: "CFX%d" % (code & 0x3F)
+                    for code in range(0x80, 0xC0)})
 
 # The scripted base of tests/shared/linker/dadao-tiny.lds (ISS-247) -- an image linked
 # there cannot be loaded by qemu-user on this host and is rejected here.

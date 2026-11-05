@@ -46,29 +46,29 @@ programs:
   - name: m5_semi_writec
     sources: [m5_semi_writec.s]
     category: semihosting
-    expected_exit_code: 0x40
+    expected_exit_code: 0x10
     expected_console: "A"
     coverage: [semihosting.console, semihosting.writec, adr0020.d1, adr0020.d3]
     derivation: >-
       SYS_WRITEC (0x03) writes the single byte at rb16 (contract-semihosting.md
       §3).  The vector stores 0x41 at RAM+0x1000, so the console output is
-      exactly "A".  The pass token (SYS_EXIT subcode) is 0x40.
+      exactly "A".  The pass token (SYS_EXIT subcode) is 0x10.
 
   - name: m5_semi_write0
     sources: [m5_semi_write0.s]
     category: semihosting
-    expected_exit_code: 0x41
+    expected_exit_code: 0x11
     expected_console: "OK\n"
     coverage: [semihosting.console, semihosting.write0, adr0020.d3]
     derivation: >-
       SYS_WRITE0 (0x04) writes the NUL-terminated string at rb16.  The vector
       stores 4f 4b 0a 00 ("OK\n" + NUL) at RAM+0x1000, so the console output is
-      the three bytes 4f 4b 0a.  Pass token 0x41.
+      the three bytes 4f 4b 0a.  Pass token 0x11.
 
   - name: m5_semi_write
     sources: [m5_semi_write.s]
     category: semihosting
-    expected_exit_code: 0x42
+    expected_exit_code: 0x12
     expected_console: ""
     expected_file:
       name: m5_write.txt
@@ -81,35 +81,35 @@ programs:
       Both are contract-semihosting.md §3 services, and both service returns are
       read from rd8 (contract-semihosting.md §2/§4; Machine-01 §5.2).  The
       vector additionally self-checks that the SYS_WRITE return (rd8, unwritten
-      bytes) is 0.  Pass token 0x42.
+      bytes) is 0.  Pass token 0x12.
 
   - name: m5_semi_exit
     sources: [m5_semi_exit.s]
     category: semihosting
-    expected_exit_code: 0x43
+    expected_exit_code: 0x13
     expected_console: ""
     coverage: [semihosting.exit, adr0020.d8]
     derivation: >-
       SYS_EXIT (0x18) with the block {ADP_Stopped_ApplicationExit (0x20026),
-      0x43}.  Since v5 is 64-bit (ADR-0020 D6), SYS_EXIT takes the extended
+      0x13}.  Since v5 is 64-bit (ADR-0020 D6), SYS_EXIT takes the extended
       parameter block and the subcode becomes the host exit status
-      (contract-semihosting.md §5), so $? = 0x43.
+      (contract-semihosting.md §5), so $? = 0x13.
 
   - name: m5_semi_exit_extended
     sources: [m5_semi_exit_extended.s]
     category: semihosting
-    expected_exit_code: 0x44
+    expected_exit_code: 0x14
     expected_console: ""
     coverage: [semihosting.exit_extended, adr0020.d8]
     derivation: >-
-      SYS_EXIT_EXTENDED (0x20) with {ADP_Stopped_ApplicationExit, 0x44}; the
-      second field is the explicit exit status, so $? = 0x44
+      SYS_EXIT_EXTENDED (0x20) with {ADP_Stopped_ApplicationExit, 0x14}; the
+      second field is the explicit exit status, so $? = 0x14
       (contract-semihosting.md §3/§5).
 
   - name: m5_perm_reserved_illi
     sources: [m5_perm_reserved_illi.s]
     category: permission
-    expected_exit_code: 0x50
+    expected_exit_code: 0x20
     expected_cause: ILLI
     coverage: [perm.illi.reserved, adr0020.d9]
     derivation: >-
@@ -120,12 +120,12 @@ programs:
       (FAULT_RECORD, tests/shared/machine-profiles.yaml: +0 cause id, +8
       cause ip; VA=PA identity) and resumes after the faulting instruction
       (TESTCASES-092t §3/§4).  The vector `ld.o`-reads that slot and requires
-      ILLI (1<<8); pass token 0x50, mismatch token 0xE1.
+      ILLI (1<<8); pass token 0x20, mismatch token 0x71.
 
   - name: m5_perm_mask_cfxperm
     sources: [m5_perm_mask_cfxperm.s]
     category: permission
-    expected_exit_code: 0x51
+    expected_exit_code: 0x21
     expected_cause: CFXPERM
     coverage: [perm.cfxperm.mask, adr0020.d9]
     derivation: >-
@@ -134,13 +134,13 @@ programs:
       machine raises CFXPERM into the monitor of the current run mode
       (hypv => cfx_hmon).  hmon records the cause in the fault-record slot and
       resumes after the faulting instruction (TESTCASES-092t §3/§4); the vector
-      requires the recorded cause == CFXPERM (1<<7); pass token 0x51,
-      mismatch 0xE1.
+      requires the recorded cause == CFXPERM (1<<7); pass token 0x21,
+      mismatch 0x71.
 
   - name: m5_perm_unimpl_cfxreg
     sources: [m5_perm_unimpl_cfxreg.s]
     category: permission
-    expected_exit_code: 0x52
+    expected_exit_code: 0x22
     expected_cause: CFXREG
     coverage: [perm.cfxreg.unimpl, adr0020.d9]
     derivation: >-
@@ -151,12 +151,12 @@ programs:
       current-mode monitor (cfx_hmon), which records it in the fault-record
       slot and resumes after the faulting instruction (TESTCASES-092t §3/§4).
       The vector requires the recorded cause == CFXREG (1<<2); pass token
-      0x52, mismatch token 0xE1.
+      0x22, mismatch token 0x71.
 
   - name: m5_perm_badcombo_cfxreg
     sources: [m5_perm_badcombo_cfxreg.s]
     category: permission
-    expected_exit_code: 0x53
+    expected_exit_code: 0x23
     expected_cause: CFXREG
     coverage: [perm.cfxreg.combo, adr0020.d9]
     derivation: >-
@@ -167,14 +167,14 @@ programs:
       the body runs in hypv, so cfx_hmon records the cause id + cause ip in the
       profile fault-record slot and resumes after the faulting instruction
       (TESTCASES-092t §3/§4).  The vector reads the recorded cause from that
-      slot and requires CFXREG (1<<2); pass token 0x53, mismatch token 0xE1.
+      slot and requires CFXREG (1<<2); pass token 0x23, mismatch token 0x71.
       It installs no local cfx_umon hypv stub, so passing does not depend on
       the pre-QEMU-083t workaround for ISS-342.
 
   - name: m5_trap_escape
     sources: [m5_trap_escape.s]
     category: trap
-    expected_exit_code: 0x60
+    expected_exit_code: 0x30
     expected_cause: CFXTRAP
     coverage: [trap.vector, trap.escape, adr0020.d10]
     derivation: >-
@@ -185,4 +185,4 @@ programs:
       cfx_hmon's vector is CFXPERM-denied from hypv) and the stub returns
       (DADAO-12 §5 / contract-see.md §4; TESTCASES-092t §4).  The vector
       requires cause_id == CFXTRAP (1<<0) and escape_num == 1 (the escape
-      really ran); pass token 0x60, mismatch token 0xE2.
+      really ran); pass token 0x30, mismatch token 0x72.

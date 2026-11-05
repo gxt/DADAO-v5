@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Min ROM probe for QEMU-032t: ret rd0 with imms18 != 0 → ILLI 0x88.
+"""Min ROM probe for QEMU-032t: ret rd0 with imms18 != 0 → ILLI 0xF8.
 
 Spec: SimRISC-06: 函数返回 / contract-isa: 1.3.1 / §8.5.
 Rule: contracts/legality_rules.yaml `dst_rd0_nonzero` (kind: static, fault: ILLI).
-Exit code: ADR-0004 D5.8 — ILLI = 0x88.
+Exit code: ADR-0004 D5.8 — ILLI = 0xF8.
 
 Cases:
   1. positive  : `ret rd0, 0`   (rd0 + imms18 == 0) → legal, normal pop → exit 0
-  2. negative  : `ret rd0, 1`   (rd0 + imms18 != 0) → ILLI 0x88
-  3. negative  : `ret rd0, -1`  (rd0 + imms18 != 0) → ILLI 0x88
+  2. negative  : `ret rd0, 1`   (rd0 + imms18 != 0) → ILLI 0xF8
+  3. negative  : `ret rd0, -1`  (rd0 + imms18 != 0) → ILLI 0xF8
   4. non-rd0   : `ret rd1, 42`  (rdha != rd0)       → legal, rd1=42, normal pop → exit 0
 
 Reverse gate: if the translate-time check is removed, cases 2/3 no longer
-produce 0x88 (they fall through to RASUF 0x8B on an empty RAS) ⇒ probe FAILs.
+produce 0xF8 (they fall through to RASUF 0xFB on an empty RAS) ⇒ probe FAILs.
 
 Layout convention (same as min_rom_probe_030t.py): ROM at 0xFFFFFFFF0000 with a
 6-instruction trampoline; test instructions start at TEST_BASE = ROM_BASE+0x18.
@@ -208,7 +208,7 @@ def run_test(rom_data, timeout=10):
 # ── Exit codes (ADR-0004 D5.8) ─────────────────────────────────────────
 
 PASS_EXIT = 0x00
-ILLI_EXIT = 0x88
+ILLI_EXIT = 0xF8
 
 
 def call_to(frm_idx, to_idx):
@@ -232,13 +232,13 @@ def case_positive_ret_rd0_0():
 
 
 def case_negative_ret_rd0_1():
-    """`ret rd0, 1` — illegal (rd0 with imms18 != 0) → ILLI 0x88.
-    If the check is removed, an empty RAS yields RASUF 0x8B instead."""
+    """`ret rd0, 1` — illegal (rd0 with imms18 != 0) → ILLI 0xF8.
+    If the check is removed, an empty RAS yields RASUF 0xFB instead."""
     return [ret_riii(0, 1)], ILLI_EXIT
 
 
 def case_negative_ret_rd0_neg1():
-    """`ret rd0, -1` (18-bit two's complement 0x3FFFF) → ILLI 0x88."""
+    """`ret rd0, -1` (18-bit two's complement 0x3FFFF) → ILLI 0xF8."""
     return [ret_riii(0, 0x3FFFF)], ILLI_EXIT
 
 
@@ -261,9 +261,9 @@ def case_nonrd0_ret_rd1_42():
 CASES = [
     ("positive: ret rd0, 0 → normal pop (exit 0)",
      case_positive_ret_rd0_0()),
-    ("negative: ret rd0, 1 → ILLI (0x88)",
+    ("negative: ret rd0, 1 → ILLI (0xF8)",
      case_negative_ret_rd0_1()),
-    ("negative: ret rd0, -1 → ILLI (0x88)",
+    ("negative: ret rd0, -1 → ILLI (0xF8)",
      case_negative_ret_rd0_neg1()),
     ("non-rd0: ret rd1, 42 → rd1=42, normal pop (exit 0)",
      case_nonrd0_ret_rd1_42()),
@@ -277,7 +277,7 @@ def main():
         return 1
 
     print("=" * 70)
-    print("QEMU-032t Min ROM Probe (ret rd0, imms18 != 0 → ILLI 0x88)")
+    print("QEMU-032t Min ROM Probe (ret rd0, imms18 != 0 → ILLI 0xF8)")
     print("=" * 70)
 
     passed = failed = 0

@@ -1,15 +1,24 @@
 diff --git a/src/arch/dadao/fs_machine.hh b/src/arch/dadao/fs_machine.hh
 new file mode 100644
-index 0000000..ab31e05
+index 0000000..8d7cf78
 --- /dev/null
 +++ b/src/arch/dadao/fs_machine.hh
-@@ -0,0 +1,68 @@
-+// DADAO FS machine (Machine-v5-Tiny) fault model.
+@@ -0,0 +1,121 @@
++// DADAO FS machine fault model.
 +//
-+// The Tiny machine has no exception vectors, no hmon/smon and no cfx: every
-+// machine fault terminates the simulation with the ADR-0004 D5.8 exit code in
-+// the low 8 bits.  The SE platform keeps its own panic-based behaviour; the
-+// helpers below decide from the *workload type*, never from a global switch.
++// A machine fault has no exception vector: it terminates the simulation with
++// the spec/Machine-v5 §7.1 exit code.  The exit-code segment is chosen by the
++// fault destination:
++//
++//   0x80-0xBF  other cfx: bit7=1, bit6=0, bit5:0 = cfxHA
++//   0xC0-0xFF  monitor:  bit7=1, bit6=1, bit5:4 = run mode,
++//                        bit3:0 = DADAO exception bit index
++//
++// The monitor segment is NOT "0x80 | bit index"; the current run mode is part
++// of the code.  `CFXTRAP`/`CFXESC` that enter the target/current cfx use the
++// other-cfx segment, never the monitor segment.  The SE platform keeps its own
++// panic-based behaviour; the helpers below decide from the *workload type*,
++// never from a global switch.
 +#ifndef __ARCH_DADAO_FS_MACHINE_HH__
 +#define __ARCH_DADAO_FS_MACHINE_HH__
 +
@@ -28,21 +37,55 @@ index 0000000..ab31e05
 +
 +class FsWorkload;
 +
-+/** FS machine fault codes (ADR-0004 D5.8, frozen order). */
-+enum MachineFaultCode : uint8_t
++/** DADAO exception bit indices (spec/DADAO-12 §5.2(二)). */
++enum MachineFaultCause : uint8_t
 +{
-+    FaultCFXMEM = 0x81,
-+    FaultCFXREG = 0x84,
-+    FaultUNMAPPED = 0x87,
-+    FaultILLI   = 0x88,
-+    FaultUNDI   = 0x89,
-+    FaultRASOF  = 0x8A,
-+    FaultRASUF  = 0x8B,
-+    FaultMALIGN = 0x8C,
-+    FaultIALIGN = 0x8D,
++    FaultCfxTrap = 0,
++    FaultCfxMem  = 1,
++    FaultCfxReg  = 2,
++    FaultCfxEsc  = 3,
++    FaultCfxPerm = 7,
++    FaultIlli    = 8,
++    FaultUndi    = 9,
++    FaultRasof   = 10,
++    FaultRasuf   = 11,
++    FaultMalign  = 12,
++    FaultIalign  = 13,
++
++    // Call-site spellings kept from the old exit-code enum.
++    FaultCFXMEM = FaultCfxMem,
++    FaultCFXREG = FaultCfxReg,
++    FaultILLI   = FaultIlli,
++    FaultUNDI   = FaultUndi,
++    FaultRASOF  = FaultRasof,
++    FaultRASUF  = FaultRasuf,
++    FaultMALIGN = FaultMalign,
++    FaultIALIGN = FaultIalign,
 +};
 +
-+const char *machineFaultName(uint8_t code);
++/** Exit code for a machine fault (spec/Machine-v5 §7.1).  `targetCfxha < 0`
++ *  means the fault belongs to the current run-mode monitor. */
++constexpr uint8_t
++machineFaultExitCode(uint8_t cause, uint8_t runMode, int targetCfxha)
++{
++    if (targetCfxha >= 0)
++        return static_cast<uint8_t>(0x80 | (targetCfxha & 0x3F));
++    return static_cast<uint8_t>(0xC0 | ((runMode & 0x3) << 4) | (cause & 0xF));
++}
++
++// spec/Machine-v5 §7.1 formula self-checks (compile-time, never silent).
++static_assert(machineFaultExitCode(FaultCfxTrap, 3, 7) == 0x87,
++              "other-cfx segment: cfxHA 7");
++static_assert(machineFaultExitCode(FaultCfxTrap, 3, 63) == 0xBF,
++              "other-cfx segment: cfxHA 63");
++static_assert(machineFaultExitCode(FaultCfxMem, 2, -1) == 0xE1,
++              "monitor: supv CFXMEM");
++static_assert(machineFaultExitCode(FaultIlli, 3, -1) == 0xF8,
++              "monitor: hypv ILLI");
++static_assert(machineFaultExitCode(FaultIalign, 0, -1) == 0xCD,
++              "monitor: user IALIGN");
++
++const char *machineFaultName(uint8_t cause);
 +
 +/** The FS workload of this thread context, or nullptr for SE / no workload. */
 +FsWorkload *asFsWorkload(ThreadContext *tc);
@@ -50,23 +93,33 @@ index 0000000..ab31e05
 +/** True iff *tc* belongs to the DADAO FS machine (SE is false). */
 +bool isFsMachine(ThreadContext *tc);
 +
-+/** Machine fault that stops the simulation with `code` (first fault wins). */
++/** Machine fault that stops the simulation with the §7.1 exit code (first
++ *  fault wins).  `targetCfxha < 0` selects the current run-mode monitor. */
 +class MachineFault : public FaultBase
 +{
 +  private:
-+    uint8_t code;
++    uint8_t cause;
++    int targetCfxha;
 +
 +  public:
-+    explicit MachineFault(uint8_t code) : code(code) {}
++    explicit MachineFault(uint8_t cause, int targetCfxha = -1) :
++        cause(cause), targetCfxha(targetCfxha)
++    {}
 +
-+    FaultName name() const override { return machineFaultName(code); }
++    FaultName name() const override { return machineFaultName(cause); }
 +
 +    void invoke(ThreadContext *tc, const StaticInstPtr &inst) override;
 +
-+    uint8_t exitCode() const { return code; }
++    uint8_t causeIndex() const { return cause; }
 +};
 +
-+Fault machineFault(uint8_t code);
++Fault machineFault(uint8_t cause);
++
++/** Machine fault whose exit code belongs to the other-cfx segment
++ *  (`0x80 | cfxHA`).  Current QEMU/gem5 machines route CFXTRAP/CFXESC into
++ *  vectors, so there is no call site yet; this is the explicit other-cfx form
++ *  of the spec/Machine-v5 §7.1 mapping (never the monitor segment). */
++Fault machineFaultToCfx(uint8_t cause, uint8_t cfxha);
 +
 +} // namespace DadaoISA
 +} // namespace gem5

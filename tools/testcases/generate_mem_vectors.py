@@ -21,7 +21,7 @@ Legality cases per instruction:
   - ILLI: rd0/rb0 **目的**（load）；st/stm 的 rd0（源）/rb0（基址）合法
     ⇒ 不生成（legality 覆盖由 CFXMEM/MALIGN 承担）；多寄存器 store 用 immu6=0
   - MALIGN: misaligned address (only for instructions with align > 0)
-  - CFXMEM: addr=0 (base rb3=0 → umon segment cfxha 0, no RAM there ⇒ 0x81)
+  - CFXMEM: addr=0 (base rb3=0 → umon segment cfxha 0, no RAM there ⇒ monitor CFXMEM)
 
 Boundary cases per instruction:
   - Valid edge addresses (zero offset, near RAM end), expected_fault=null,
@@ -314,7 +314,7 @@ def gen_legality_malign(rec):
         word = _build_encoding_word(rec, misalign_off)
         inp = {"rb": {f"rb{RB_BASE}": tok(0)}}
         notes = (f"legality MALIGN: EA={tok(misalign_off)} "
-                 f"(imms12={misalign_off}), align={align}B → MALIGN (0x8C), "
+                 f"(imms12={misalign_off}), align={align}B → MALIGN, "
                  f"contract-isa §4.1.1, legality_rules excp_malign")
     else:
         # rrri: EA = rb3 + rd2; rd2 preset to misalignment offset
@@ -324,7 +324,7 @@ def gen_legality_malign(rec):
             "rd": {f"rd{RD_OFF}": hex64(misalign_off)},
         }
         notes = (f"legality MALIGN: EA={tok(misalign_off)} "
-                 f"(rd{RD_OFF} offset={misalign_off}), align={align}B → MALIGN (0x8C), "
+                 f"(rd{RD_OFF} offset={misalign_off}), align={align}B → MALIGN, "
                  f"contract-isa §4.1.1, legality_rules excp_malign")
     return make_case(mnem, insn, fmt, "legality", word, inp, None,
                      "MALIGN", "active", None, None, sc, notes)
@@ -341,10 +341,10 @@ def gen_legality_cfxmem(rec):
 
     # rb3 not preset → default 0 → EA=0 → cfxha 0 (umon); the single RAM segment
     # is now in the power segment (cfxha 63), so a umon access is an illegal
-    # internal-address-space access => CFXMEM (0x81, ADR-0020 D15 / ADR-0004 D5.8).
+    # internal-address-space access => CFXMEM (monitor, ADR-0020 D15 / ADR-0004 D5.8).
     inp = {"rb": {f"rb{RB_BASE}": "0x0000000000000000"}}
     notes = (f"legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) "
-             f"no RAM → CFXMEM (0x81), ADR-0020 D15 / ADR-0004 D5.8")
+             f"no RAM → CFXMEM (monitor), ADR-0020 D15 / ADR-0004 D5.8")
     return make_case(mnem, insn, fmt, "legality", word, inp, None,
                      "CFXMEM", "active", None, None, sc, notes,
                      profiles=["tiny"])

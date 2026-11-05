@@ -12,7 +12,7 @@
 @@ contract (see tools/testcases/validate_m5_vectors.py); they are never taken
 @@ from QEMU output.
 @@
-@@ Expected: console "A"; host $? = 0x40 (SYS_EXIT pass token).
+@@ Expected: console "A"; host $? = 0x10 (SYS_EXIT pass token).
 
 @@ @m5 name=m5_semi_writec
 @@ @m5 kind=semihosting
@@ -20,7 +20,7 @@
 @@ @m5 service_name=SYS_WRITEC
 @@ @m5 console=41
 @@ @m5 console_data=41
-@@ @m5 exit=0x40
+@@ @m5 exit=0x10
 
 	.include "machine.inc"
 
@@ -36,12 +36,12 @@ _start:
 	@@ immu18[17:8] = 0x3FF, i.e. 0x3FF00-0x3FFFF)
 	set.zw	rd16, wp0, 0x0003
 	trap	cfx_umon, 0x3FF00
-	@@ report success via SYS_EXIT (pass token 0x40)
+	@@ report success via SYS_EXIT (pass token 0x10)
 	LOAD_ADDR rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
-	set.zw	rd9, wp0, 0x0040
+	set.zw	rd9, wp0, 0x0010
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
 	trap	cfx_umon, 0x3FF00

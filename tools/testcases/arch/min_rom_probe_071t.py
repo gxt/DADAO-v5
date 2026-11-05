@@ -27,7 +27,7 @@ Case model (every assertion has a reachable FAIL path):
   * ILLI: destination rf0 for all four instructions (fault epilogue, so a
     missing legality check cannot pass).
 
-Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0x88).
+Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0xF8).
 Usage: min_rom_probe_071t.py [--selftest|--oracle]
 """
 import os
@@ -83,7 +83,7 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 RESET0 = 0x7FF800007FC00000
 
 PASS_EXIT = 0x00
-ILLI_EXIT = 0x88
+ILLI_EXIT = 0xF8
 
 FLAG_NV = 0x01
 FLAG_NX = 0x10

@@ -121,9 +121,7 @@ Node/embench 行必须含 `profile=node` 且有 wrapper 记录。
 
 - 全量矩阵 JSON/Markdown 与日志落 `--work-dir`/`--json`/`--markdown`（默认
   `/tmp/opencode/qemu-gem5-parity/**`，gem5 `--outdir` 亦只落临时区）。
-- 入库快照 `tests/parity/matrix-M11.md` 由 `.work/evidence/TESTCASES-098t/run.sh`
-  从现场 Markdown `cp`，不手改数字；该脚本同时校验计数自洽、引擎身份、Node
-  历史归类、llvm-ts 计数与反例注入。
-- 生成矩阵的标题与尾部 `Evidence script` 行不再硬编码任务号/证据路径（改为通用
-  标题 + 指向本 README「证据与快照」）；`tests/parity/matrix-M11.md` 为改动前生成
-  的快照，其标题/证据行仍是旧文案，下次重生成自动刷新，不手改快照。
+- 入库快照 `tests/parity/matrix-M11.md` 由收口任务的证据层从现场 Markdown `cp`，
+  不手改数字；证据脚本同时校验计数自洽、引擎身份、Node 历史归类与反例注入。
+- 生成矩阵的标题与尾部 `Evidence script` 行不硬编码任务号/证据路径（改为通用标题
+  + 指向本 README「证据与快照」）；快照随 M11 收口重生成自动刷新，不手改。

@@ -117,7 +117,7 @@ ALL1 = (1 << 64) - 1
 BIT63 = 1 << 63
 
 EXIT_PASS = 0x00
-EXIT_FAIL = 0xE1
+EXIT_FAIL = 0x61   # guest FAIL segment (spec/Machine-v5 §7.1)
 
 # ROM layout: the shared prelude owns the power -> hmon hand-off; this probe's
 # hmon-mode setup (masks, vectors) is appended to the prelude's hmon segment,
@@ -631,13 +631,13 @@ def _cycle_insn_monotonic():
     a.emit(add_si(20, N - 4096))
     a.emit(cmp_uo(21, 7, 20))
     a.br("nn", 21, 0, okc)
-    a.emit(*exit_seq(0xE1))
+    a.emit(*exit_seq(0x61))
     a.mark(okc)
     a.emit(and_o(20, 6, 6))
     a.emit(add_si(20, N - 4096))
     a.emit(cmp_uo(21, 8, 20))
     a.br("nn", 21, 0, oki)
-    a.emit(*exit_seq(0xE2))
+    a.emit(*exit_seq(0x62))
     a.mark(oki)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
@@ -671,7 +671,7 @@ def _timer_istatus():
     a.emit(and_o(20, 5, 20))
     ok = "ist_set"
     a.br("nz", 20, 0, ok)
-    a.emit(*exit_seq(0xE1))
+    a.emit(*exit_seq(0x61))
     a.mark(ok)
     a.emit(*load_rd(22, ALL1))
     a.emit(cfx2rc(HART_HA, HART_CG, 4, 22))          # cmp = ~0 -> never matches
@@ -680,7 +680,7 @@ def _timer_istatus():
     a.emit(and_o(20, 6, 20))
     ok2 = "ist_clear"
     a.br("z", 20, 0, ok2)
-    a.emit(*exit_seq(0xE2))
+    a.emit(*exit_seq(0x62))
     a.mark(ok2)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
@@ -704,14 +704,14 @@ def _timer_cmp_clears():
     a.emit(and_o(20, 5, 20))
     ok = "cmp_ist_clear"
     a.br("z", 20, 0, ok)
-    a.emit(*exit_seq(0xE1))
+    a.emit(*exit_seq(0x61))
     a.mark(ok)
     delay_loop(a, 22, 2000, "second")                # 4000 ns << 1e6 ns
     ram_load(a, RAM_STATE + 0x18, 6)
     a.emit(*load_rd(20, 1))
     ok2 = "cmp_one"
     a.br("eq", 6, 20, ok2)
-    a.emit(*exit_seq(0xE2))
+    a.emit(*exit_seq(0x62))
     a.mark(ok2)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
@@ -730,12 +730,12 @@ def _timer_ones_disable():
     a.emit(and_o(20, 5, 20))
     ok = "ones_ist"
     a.br("z", 20, 0, ok)
-    a.emit(*exit_seq(0xE1))
+    a.emit(*exit_seq(0x61))
     a.mark(ok)
     ram_load(a, RAM_STATE + 0x18, 6)
     ok2 = "ones_no_irq"
     a.br("z", 6, 0, ok2)
-    a.emit(*exit_seq(0xE2))
+    a.emit(*exit_seq(0x62))
     a.mark(ok2)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
@@ -755,25 +755,25 @@ def _timer_interrupt():
     a.emit(*load_rd(20, 1))
     ok1 = "irq_count"
     a.br("eq", 5, 20, ok1)
-    a.emit(*exit_seq(0xE1))
+    a.emit(*exit_seq(0x61))
     a.mark(ok1)
     ram_load(a, RAM_STATE + 0x00, 6)
     a.emit(*load_rd(20, TIMER))
     ok2 = "irq_cid"
     a.br("eq", 6, 20, ok2)
-    a.emit(*exit_seq(0xE2))
+    a.emit(*exit_seq(0x62))
     a.mark(ok2)
     ram_load(a, RAM_STATE + 0x08, 7)
     ok3 = "irq_cinfo"
     a.br("z", 7, 0, ok3)
-    a.emit(*exit_seq(0xE3))
+    a.emit(*exit_seq(0x63))
     a.mark(ok3)
     a.emit(cfx2rd(HART_HA, HART_CG, 5, 8))
     a.emit(*load_rd(20, CTRL_ISTATUS))
     a.emit(and_o(20, 8, 20))
     ok4 = "irq_istatus"
     a.br("nz", 20, 0, ok4)
-    a.emit(*exit_seq(0xE4))
+    a.emit(*exit_seq(0x64))
     a.mark(ok4)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
@@ -792,21 +792,21 @@ def _timer_imask_pending():
     ram_load(a, RAM_STATE + 0x18, 5)
     ok1 = "imask_count0"
     a.br("z", 5, 0, ok1)
-    a.emit(*exit_seq(0xE1))
+    a.emit(*exit_seq(0x61))
     a.mark(ok1)
     a.emit(cfx2rd(HART_HA, HART_CG, 5, 6))
     a.emit(*load_rd(20, CTRL_ISTATUS))
     a.emit(and_o(20, 6, 20))
     ok2 = "imask_istatus"
     a.br("nz", 20, 0, ok2)
-    a.emit(*exit_seq(0xE2))
+    a.emit(*exit_seq(0x62))
     a.mark(ok2)
     a.emit(cfx2rd(HART_HA, 5, CG5_PENDING_RC, 7))
     a.emit(*load_rd(20, TIMER))
     a.emit(and_o(20, 7, 20))
     ok3 = "imask_pending"
     a.br("nz", 20, 0, ok3)
-    a.emit(*exit_seq(0xE3))
+    a.emit(*exit_seq(0x63))
     a.mark(ok3)
     a.emit(*load_rd(21, CTRL_ENABLE))
     a.emit(cfx2rc(HART_HA, HART_CG, 5, 21))          # release IMASK -> deliver
@@ -815,14 +815,14 @@ def _timer_imask_pending():
     a.emit(*load_rd(20, 1))
     ok4 = "imask_delivered"
     a.br("eq", 8, 20, ok4)
-    a.emit(*exit_seq(0xE4))
+    a.emit(*exit_seq(0x64))
     a.mark(ok4)
     a.emit(cfx2rd(HART_HA, 5, CG5_PENDING_RC, 9))
     a.emit(*load_rd(20, TIMER))
     a.emit(and_o(20, 9, 20))
     ok5 = "imask_pending_clear"
     a.br("z", 20, 0, ok5)
-    a.emit(*exit_seq(0xE5))
+    a.emit(*exit_seq(0x65))
     a.mark(ok5)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
@@ -843,7 +843,7 @@ def _timer_retrigger():
         a.emit(*load_rd(20, want))
         ok = "retrig_%s" % tag
         a.br("eq", 5, 20, ok)
-        a.emit(*exit_seq(0xE1 if want == 1 else 0xE2))
+        a.emit(*exit_seq(0x61 if want == 1 else 0x62))
         a.mark(ok)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
@@ -864,13 +864,13 @@ def _sbi_time_monotonic():
     a.emit(cmp_uo(21, 6, 20))
     ok = "sbi_time_delta"
     a.br("nn", 21, 0, ok)
-    a.emit(*exit_seq(0xE1))
+    a.emit(*exit_seq(0x61))
     a.mark(ok)
     a.emit(cfx2rd(TIME_HA, TIME_CG, 0, 7))
     a.emit(*load_rd(20, TIME_FREQ))
     ok2 = "sbi_time_freq"
     a.br("eq", 7, 20, ok2)
-    a.emit(*exit_seq(0xE2))
+    a.emit(*exit_seq(0x62))
     a.mark(ok2)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
@@ -887,20 +887,20 @@ def _sbi_hart_set_timer():
     a.emit(and_o(5, 8, 8))                           # SBI return value
     ok1 = "sbi_st_ret"
     a.br("z", 5, 0, ok1)
-    a.emit(*exit_seq(0xE1))
+    a.emit(*exit_seq(0x61))
     a.mark(ok1)
     delay_loop(a, 22, 4000, "sbi_st")
     ram_load(a, RAM_STATE + 0x18, 6)
     a.emit(*load_rd(20, 1))
     ok2 = "sbi_st_count"
     a.br("eq", 6, 20, ok2)
-    a.emit(*exit_seq(0xE2))
+    a.emit(*exit_seq(0x62))
     a.mark(ok2)
     ram_load(a, RAM_STATE + 0x00, 7)
     a.emit(*load_rd(20, TIMER))
     ok3 = "sbi_st_cid"
     a.br("eq", 7, 20, ok3)
-    a.emit(*exit_seq(0xE3))
+    a.emit(*exit_seq(0x63))
     a.mark(ok3)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}

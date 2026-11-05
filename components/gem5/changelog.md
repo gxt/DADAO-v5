@@ -71,3 +71,7 @@
 - **2026-11-05 GEM5-020t**
   - 摘要：**Node `cfx2rd`/`cfx2rc` 的 `CFXREG` 目标改为当前运行模式 monitor（DADAO-12 §5.2；对齐 QEMU-083t；ISS-342）**。`node_cfx.cc` 的 10 处 `nodeCfxRaise(..., CauseCfxReg, cfxha, ...)` 改为 `s.runMode`（U/J/S/H ⇒ cfx0/1/2/3），覆盖 cg15 pmem/cg10 time/cg8 hart 的非法 rc、cg7 写、cg/rc 越界与 TLB ctrl 保留位；helper 入口 `ci < 0` 的三处既有 `s.runMode` 与 `trap`/`escape` 未动，`CFXPERM`/`CFXMEM`/`ILLI`/`CFXESC`、合法读写、Tiny 直通 fault 不变。补丁 **1 份改**（`node_cfx.cc`），`make_patch.py` 重导出（1 written / 96 unchanged）。验收：`build-gem5`、`check-gem5-decode`、`check_b6.py`、`check-arch`、`check-inst`、L1 `check` 全 rc=0；`m5_perm_badcombo_cfxreg` gem5 由 TIMEOUT 转为 exit=83；node/arch 的 14 条 `GEM5_ONLY_FAIL` 全部转 `AGREE_PASS`；注入回 `cfxha` ⇒ timeout/FAIL，`cp`+md5 还原回绿。
   - 执行者：engineer
+
+- **2026-11-05 `INTEG-055t`**
+  - 摘要：**退出码实现迁移到 `spec/Machine-v5 §7.1` 三段式（gem5 侧，对齐 QEMU）**：`fs_machine.{hh,cc}` 的 `MachineFaultCode` 旧码改为 DADAO 异常位索引 `MachineFaultCause`，新增 `machineFaultExitCode(cause, runMode, targetCfxha)`（monitor `0xC0 | mode<<4 | index`、其它 cfx `0x80 | cfxHA`）；`MachineFault::invoke()` 从 Node `runMode`/Tiny 名义 hypv 取当前模式并编 monitor 段，`machineFaultName` 改按 cause 索引；`node_tlb` 的 `FaultUNMAPPED` 归 `FaultCFXMEM`。**页表异常改投当前 monitor**：`NodePtwFault::invoke` 改 `nodeCfxRaise(..., s.runMode, ...)`，缺页/碎片/A-D 回写失败编 `CauseCfxMem`、HSJU/R/W/X 编 `CauseCfxPerm`；删除 `CausePtwErr` 与页级 one-hot cause，TLB control 的 A/D 失败同样进 monitor `CFXMEM`。补丁 4 份改（`fs_machine.{hh,cc}`/`inst.cc`/`node_tlb.cc`），`make_patch.py` 重导出。
+  - 执行者：engineer

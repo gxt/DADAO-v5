@@ -25,12 +25,12 @@ Observation channels:
     convention as min_rom_probe_034t..049t).  The final `jump` of the exit
     epilogue forces a TB boundary so the last dump already contains the result
     of the measured instruction.
-  * fault codes -> process exit code via QEMU's fault mapping (0x88 = ILLI,
-    0x89 = UNDI); normal pass/fail -> semihosting SYS_EXIT (ADR-0020 D8).
+  * fault codes -> process exit code via QEMU's fault mapping (0xF8 = ILLI,
+    0xF9 = UNDI); normal pass/fail -> semihosting SYS_EXIT (ADR-0020 D8).
 
 What the cases discriminate (each expectation is derived from ROM_BASE + the
 instruction's own index, i.e. from the spec + the ROM layout, not from QEMU):
-  * `aip_zero`            - base is IP, and 0x5A is NOT UNDI (rc would be 0x89);
+  * `aip_zero`            - base is IP, and 0x5A is NOT UNDI (rc would be 0xF9);
                             a `PC+4`-style base (DADAO-0628 wording) would give
                             ROM_BASE+4 and fail.
   * `aip_pos_block`       - scale is << 12 (4 KiB), not << 2 / bytes.
@@ -41,7 +41,7 @@ instruction's own index, i.e. from the spec + the ROM layout, not from QEMU):
   * `aip_max_pos`         - imms18 = +131071 pushes bit 48 => the full 64-bit
                             result is kept (48-bit truncation would fail).
   * `aip_min_neg`         - imms18 = -131072 (signed lower bound).
-  * `aip_dst_rb0_illi`    - destination rb0 => ILLI (0x88).
+  * `aip_dst_rb0_illi`    - destination rb0 => ILLI (0xF8).
 
 Usage:
   min_rom_probe_061t.py                 # run all checks
@@ -97,8 +97,8 @@ ROM_BASE = 0xFFFF_FFFF_0000          # DADAO_ROM_BASE / DADAO_RESET_PC (cpu.h)
 
 # Exit codes (ADR-0004 D5.8)
 EXIT_PASS = 0x00
-EXIT_ILLI = 0x88
-EXIT_UNDI = 0x89
+EXIT_ILLI = 0xF8
+EXIT_UNDI = 0xF9
 
 MASK64 = 0xFFFF_FFFF_FFFF_FFFF
 
@@ -303,9 +303,9 @@ def _aip_min_neg():
     return build_rom(prog), {"exit": EXIT_PASS, "rb7": expected_result(idx, -131072)}
 
 
-@case("aip_dst_rb0_illi", "aip.si rb0, 0: destination rb0 => ILLI 0x88")
+@case("aip_dst_rb0_illi", "aip.si rb0, 0: destination rb0 => ILLI 0xF8")
 def _aip_dst_rb0_illi():
-    prog = [aip_si(0, 0)] + exit_seq(0xEE)
+    prog = [aip_si(0, 0)] + exit_seq(0x7E)
     return build_rom(prog), {"exit": EXIT_ILLI}
 
 

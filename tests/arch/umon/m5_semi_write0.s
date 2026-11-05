@@ -8,7 +8,7 @@
 @@ (ADR-0004 D2.3 path B) and entered in user mode by the SEE bootrom
 @@ (QEMU-047t / Machine-01 §2).
 @@
-@@ Expected: console "OK\n"; host $? = 0x41 (SYS_EXIT pass token).
+@@ Expected: console "OK\n"; host $? = 0x11 (SYS_EXIT pass token).
 
 @@ @m5 name=m5_semi_write0
 @@ @m5 kind=semihosting
@@ -16,7 +16,7 @@
 @@ @m5 service_name=SYS_WRITE0
 @@ @m5 console=4f4b0a
 @@ @m5 console_data=4f4b0a00
-@@ @m5 exit=0x41
+@@ @m5 exit=0x11
 
 	.include "machine.inc"
 
@@ -36,12 +36,12 @@ _start:
 	@@ SYS_WRITE0 = 0x04
 	set.zw	rd16, wp0, 0x0004
 	trap	cfx_umon, 0x3FF00
-	@@ report success via SYS_EXIT (pass token 0x41)
+	@@ report success via SYS_EXIT (pass token 0x11)
 	LOAD_ADDR rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
-	set.zw	rd9, wp0, 0x0041
+	set.zw	rd9, wp0, 0x0011
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
 	trap	cfx_umon, 0x3FF00

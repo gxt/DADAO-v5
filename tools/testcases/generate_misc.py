@@ -210,7 +210,7 @@ def generate():
             expected_pc=None,
             spec_cite="SimRISC-11: escape",
             notes="legality: imms18=0x%X (%s); imms18[17:1] != 0 (SBZ) => "
-                  "ILLI (0x88); legal offsets are 0/+4. The trap body runs in "
+                  "ILLI; legal offsets are 0/+4. The trap body runs in "
                   "hypv, where the current-mode monitor is cfx_hmon: hmon's "
                   "exit policy surfaces the cause as the host exit code "
                   "(TESTCASES-092t §3), so the expected ILLI is observable "

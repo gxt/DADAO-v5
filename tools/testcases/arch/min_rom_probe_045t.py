@@ -285,7 +285,7 @@ def _trap_mask_illi():
     prog += set_cfx_vector(3, 3, H)                     # cfx3 hypv excp_vector = H
     trap_idx = len(prog)
     prog += [trap(0, 0)]
-    prog += exit_seq(0xEE)
+    prog += exit_seq(0x7E)
     exp = {"exit": 0x22, "cid:3": CFXPERM, "syncn:3": 1,
            "cip:3": ROM_BASE + trap_idx * 4}
     return build_rom(prog, hand(0x100, 0x22)), exp
@@ -304,10 +304,10 @@ def _escape_fwd_offset():
     j3 = len(prog)
     prog += [jump_to(j3, EXIT_C)]      # cause_ip + 12
     handlers = {0x100: [escape(0, 1)],
-                EXIT_A: exit_seq(0x66),
-                EXIT_B: exit_seq(0x77),
-                EXIT_C: exit_seq(0x99)}
-    exp = {"exit": 0x66, "escn:0": 1, "trapn:0": 1}
+                EXIT_A: exit_seq(0x26),
+                EXIT_B: exit_seq(0x37),
+                EXIT_C: exit_seq(0x19)}
+    exp = {"exit": 0x26, "escn:0": 1, "trapn:0": 1}
     return build_rom(prog, handlers), exp
 
 
@@ -318,7 +318,7 @@ def _escape_illegal_offset():
     prog = set_cfx_vector(3, 3, H)     # current mode monitor (hmon) vector
     fault_idx = len(prog)
     prog += [escape(0, -1)]            # cfxha=0 valid; SBZ violated => ILLI
-    prog += exit_seq(0xEE)             # taken only if the illegal offset ran
+    prog += exit_seq(0x7E)             # taken only if the illegal offset ran
     exp = {"exit": 0x33, "cid:3": ILLI, "syncn:3": 1,
            "cip:3": ROM_BASE + fault_idx * 4,
            "escn:0": 0}
@@ -331,10 +331,10 @@ def _escape_cross_mask():
     prog = set_cfx_vector(3, 3, H)                  # cfx3 hypv excp_vector = H
     fault_idx = len(prog)
     prog += [escape(0, 0)]                          # current cfx is hmon (3)
-    prog += exit_seq(0xEE)
-    exp = {"exit": 0xCC, "cid:3": CFXESC, "syncn:3": 1,
+    prog += exit_seq(0x7E)
+    exp = {"exit": 0x2C, "cid:3": CFXESC, "syncn:3": 1,
            "cip:3": ROM_BASE + fault_idx * 4}
-    return build_rom(prog, hand(0x100, 0xCC)), exp
+    return build_rom(prog, hand(0x100, 0x2C)), exp
 
 
 @case("cfx2_full_regface",
@@ -394,9 +394,9 @@ def _cfx2_cg3_nonhypv():
     prog += load_rd(20, USER) + [cfx2rc(0, 3, 8, 20)]   # switch to user
     prog += load_rd(20, 0) + [cfx2rc(0, 0, 2, 20)]     # user cfxreg mask = 0
     prog += [trap(0, 0)]
-    exp = {"exit": 0xCC, "cid:0": CFXREG, "syncn:0": 1}
-    handlers = {0x100: [cfx2rd(0, 3, 1, 30)] + exit_seq(0xEE),
-                EXIT_CONT: exit_seq(0xCC)}
+    exp = {"exit": 0x2C, "cid:0": CFXREG, "syncn:0": 1}
+    handlers = {0x100: [cfx2rd(0, 3, 1, 30)] + exit_seq(0x7E),
+                EXIT_CONT: exit_seq(0x2C)}
     return build_rom(prog, handlers), exp
 
 
@@ -405,10 +405,10 @@ def _cfxreg_cg_oor():
     prog = set_cfx_vector(3, 3, H)          # current monitor (hmon) vector
     fault_idx = len(prog)
     prog += [cfx2rd(0, 8, 0, 30)]
-    prog += exit_seq(0xEE)
-    exp = {"exit": 0xCC, "cid:3": CFXREG, "syncn:3": 1,
+    prog += exit_seq(0x7E)
+    exp = {"exit": 0x2C, "cid:3": CFXREG, "syncn:3": 1,
            "cip:3": ROM_BASE + fault_idx * 4}
-    return build_rom(prog, hand(0x100, 0xCC)), exp
+    return build_rom(prog, hand(0x100, 0x2C)), exp
 
 
 # -- acc 6: non-existent rc (cg0 rc12) => CFXREG ---------------------------
@@ -417,10 +417,10 @@ def _cfxreg_rc_oor():
     prog = set_cfx_vector(3, 3, H)          # current monitor (hmon) vector
     fault_idx = len(prog)
     prog += [cfx2rd(0, 0, 12, 30)]
-    prog += exit_seq(0xEE)
-    exp = {"exit": 0xCC, "cid:3": CFXREG, "syncn:3": 1,
+    prog += exit_seq(0x7E)
+    exp = {"exit": 0x2C, "cid:3": CFXREG, "syncn:3": 1,
            "cip:3": ROM_BASE + fault_idx * 4}
-    return build_rom(prog, hand(0x100, 0xCC)), exp
+    return build_rom(prog, hand(0x100, 0x2C)), exp
 
 
 # -- acc 6: scratch rc >= scratch_regs_num => CFXREG -----------------------
@@ -429,10 +429,10 @@ def _cfxreg_scratch_oor():
     prog = set_cfx_vector(3, 3, H)          # current monitor (hmon) vector
     fault_idx = len(prog)
     prog += [cfx2rd(0, 6, 4, 30)]
-    prog += exit_seq(0xEE)
-    exp = {"exit": 0xCC, "cid:3": CFXREG, "syncn:3": 1,
+    prog += exit_seq(0x7E)
+    exp = {"exit": 0x2C, "cid:3": CFXREG, "syncn:3": 1,
            "cip:3": ROM_BASE + fault_idx * 4}
-    return build_rom(prog, hand(0x100, 0xCC)), exp
+    return build_rom(prog, hand(0x100, 0x2C)), exp
 
 
 # -- acc 6: write to RO register => CFXREG ---------------------------------
@@ -442,10 +442,10 @@ def _cfxreg_ro_write():
     prog += load_rd(25, 0x1234)
     fault_idx = len(prog)
     prog += [cfx2rc(0, 4, 0, 25)]
-    prog += exit_seq(0xEE)
-    exp = {"exit": 0xCC, "cid:3": CFXREG, "syncn:3": 1,
+    prog += exit_seq(0x7E)
+    exp = {"exit": 0x2C, "cid:3": CFXREG, "syncn:3": 1,
            "cip:3": ROM_BASE + fault_idx * 4}
-    return build_rom(prog, hand(0x100, 0xCC)), exp
+    return build_rom(prog, hand(0x100, 0x2C)), exp
 
 
 # -- acc 6: write to any cg7 rc => CFXREG (cg7 is read-only, DADAO-12 §3.8) --
@@ -455,10 +455,10 @@ def _cfxreg_cg7_write():
     prog += load_rd(25, 0x1234)
     fault_idx = len(prog)
     prog += [cfx2rc(0, 7, 63, 25)]
-    prog += exit_seq(0xEE)
-    exp = {"exit": 0xCC, "cid:3": CFXREG, "syncn:3": 1,
+    prog += exit_seq(0x7E)
+    exp = {"exit": 0x2C, "cid:3": CFXREG, "syncn:3": 1,
            "cip:3": ROM_BASE + fault_idx * 4}
-    return build_rom(prog, hand(0x100, 0xCC)), exp
+    return build_rom(prog, hand(0x100, 0x2C)), exp
 
 
 # -- acc 6: reserved cfxha via cfx2rd => ILLI ------------------------------
@@ -467,7 +467,7 @@ def _reserved_illi():
     prog = set_cfx_vector(3, 3, H)
     fault_idx = len(prog)
     prog += [cfx2rd(7, 0, 0, 30)]
-    prog += exit_seq(0xEE)
+    prog += exit_seq(0x7E)
     exp = {"exit": 0x33, "cid:3": ILLI, "syncn:3": 1,
            "cip:3": ROM_BASE + fault_idx * 4}
     return build_rom(prog, hand(0x100, 0x33)), exp
@@ -479,7 +479,7 @@ def _trap_reserved_illi():
     prog = set_cfx_vector(3, 3, H)
     fault_idx = len(prog)
     prog += [trap(7, 0)]
-    prog += exit_seq(0xEE)
+    prog += exit_seq(0x7E)
     exp = {"exit": 0x33, "cid:3": ILLI, "syncn:3": 1,
            "cip:3": ROM_BASE + fault_idx * 4}
     return build_rom(prog, hand(0x100, 0x33)), exp

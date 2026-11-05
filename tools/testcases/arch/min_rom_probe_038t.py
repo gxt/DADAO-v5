@@ -7,7 +7,7 @@ Spec sources (expectations derived by hand from these, never from QEMU/LLVM):
   - .tao/contracts/contract-fp.md §3 / §8 / §9 / §12 / §15
   - contracts/legality_rules.yaml `dst_rd0` (active)
   - contracts/fp_semantics.yaml (legality_refs include dst_rd0 for these 15)
-Encodings: contracts/opcodes.yaml.  Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0x88).
+Encodings: contracts/opcodes.yaml.  Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0xF8).
 
 Instructions under test (15 rd-destination forms, all destination field = a->hb):
   convert_f2i (8): ft2it ft2io ft2ut ft2uo fo2it fo2io fo2ut fo2uo   (orri)
@@ -15,14 +15,14 @@ Instructions under test (15 rd-destination forms, all destination field = a->hb)
   compare     (4): ftqcmp ftscmp foqcmp foscmp                        (orrr)
   rf_move     (1): rf2rd                                              (orri)
 
-Rule (Spec-first): the destination start register == rd0 ⇒ ILLI (0x88).  This is
+Rule (Spec-first): the destination start register == rd0 ⇒ ILLI (0xF8).  This is
 checked at translate time, so it is a fault on *execution* of the offending
 encoding.  `rd1`.. destinations execute normally; `rf0` as a *source* (rfHC /
 rdHC) is unaffected; `rd2rf` (RF destination) is not part of this rule.
 
 Verification channels (same conventions as min_rom_probe_034t/035t/036t/037t):
   * value cases  -> QEMU `-d cpu` dump, parsing the *last* RD[] dump.
-  * fault cases  -> process exit code (ILLI 0x88).
+  * fault cases  -> process exit code (ILLI 0xF8).
   * non-rd0 control cases -> same body + PASS epilogue; must exit 0x00.
   * E2E cases    -> in-ROM compare + SYS_EXIT PASS/FAIL epilogue.
 
@@ -81,9 +81,9 @@ def _probe_artifact_dir():
 QEMU = ".work/build/qemu/qemu-system-dadao"
 
 PASS_EXIT = 0x00
-ILLI_EXIT = 0x88
+ILLI_EXIT = 0xF8
 
-ILLI = 0x79001000                 # fence cfx0, hb=1 (encode_sbz) -> ILLI (exit 0x88)
+ILLI = 0x79001000                 # fence cfx0, hb=1 (encode_sbz) -> ILLI (exit 0xF8)
 SWYM = 0x47880000
 
 # ft / fo operand bit patterns (used only to give executed controls a value)
@@ -279,9 +279,9 @@ def build_body_rom(test_insns):
     """Fault / control ROM: body + PASS epilogue.
 
     If the instruction under test does NOT fault (fault case) the PASS epilogue
-    reports 0 via SYS_EXIT -> exit 0x00 != 0x88 => FAIL.  For control cases
+    reports 0 via SYS_EXIT -> exit 0x00 != 0xF8 => FAIL.  For control cases
     the same epilogue is the expected "no fault" exit 0x00; an unexpected fault
-    gives 0x88 != 0x00 => FAIL.  Either way every case has a reachable FAIL
+    gives 0xF8 != 0x00 => FAIL.  Either way every case has a reachable FAIL
     path."""
     return (b''.join(TRAMPOLINE) + b''.join(test_insns) +
             b''.join([set_zw_rd(18, 0)] + semi_exit(18)))
@@ -409,7 +409,7 @@ def encode_under_test(tag, dest, count=1):
 
 CASES = []
 
-# ── fault: destination rd0 -> ILLI 0x88 (one per instruction, 15) ─────────
+# ── fault: destination rd0 -> ILLI 0xF8 (one per instruction, 15) ─────────
 for _tag in ALL_15:
     CASES.append(Case(f"RD0-{_tag} dest rd0 -> ILLI",
                       [encode_under_test(_tag, 0, 1)], expect_exit=ILLI_EXIT))
@@ -523,7 +523,7 @@ def selftest():
     ok2, _ = run_case(c2)
     results.append(("fault exit-code FAIL path", ok2 is False))
 
-    # 3. control exit code: an rd0 op expected NOT to fault actually faults 0x88
+    # 3. control exit code: an rd0 op expected NOT to fault actually faults 0xF8
     c3 = Case("selftest control", [ft2it(0, 8, 1)], expect_exit=PASS_EXIT)
     ok3, _ = run_case(c3)
     results.append(("no-fault control FAIL path", ok3 is False))

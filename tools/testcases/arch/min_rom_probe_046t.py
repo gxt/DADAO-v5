@@ -262,8 +262,8 @@ def _semihost_tag_path():
     # Semihosting is short-circuited before cfx permission/vector logic, so it
     # must be served even when no vector is installed (ADR-0045 D6).
     prog = sh_call(0x31, 0)          # TICKFREQ: returns 1000000000
-    prog += exit_seq(0x5A)
-    exp = {"exit": 0x5A, "rd8": 1000000000, "rd30": 0,
+    prog += exit_seq(0x1A)
+    exp = {"exit": 0x1A, "rd8": 1000000000, "rd30": 0,
            "cid:0": 0, "trapn:0": 0}
     return build_rom(prog), b"", exp
 
@@ -277,8 +277,8 @@ def _semihost_cfxha_agnostic():
     # With the semihosting tag it must still be served, proving the tag decides
     # and cfxha is irrelevant (Machine-01 §5.1 / ADR-0020 D1).
     prog = sh_call(0x31, 0, cfxha=7)
-    prog += exit_seq(0x5E)
-    exp = {"exit": 0x5E, "rd8": 1000000000}
+    prog += exit_seq(0x1E)
+    exp = {"exit": 0x1E, "rd8": 1000000000}
     return build_rom(prog), b"", exp
 
 
@@ -290,9 +290,9 @@ def _general_trap_path():
     # source cfx3, so a general trap to cfx_umon enters its vector.
     prog = load_rd(22, H) + [cfx2rc(0, 3, 10, 22)]
     prog += [trap(0, 0x0123)]        # tag miss
-    prog += exit_seq(0xEE)           # only reached if the vector was NOT taken
-    exp = {"exit": 0x42, "cid:0": CFXTRAP, "trapn:0": 1}
-    return build_rom(prog, handlers={0x2000: exit_seq(0x42)}), b"", exp
+    prog += exit_seq(0x7E)           # only reached if the vector was NOT taken
+    exp = {"exit": 0x02, "cid:0": CFXTRAP, "trapn:0": 1}
+    return build_rom(prog, handlers={0x2000: exit_seq(0x02)}), b"", exp
 
 
 # -- acc 3: bank selection (n=0 -> rd16) ------------------------------------
@@ -303,8 +303,8 @@ def _bank_num_rd16():
     # register the responder would dispatch TIME and rd8 would not be 1e9.
     prog = load_rd(17, 0x11) + load_rd(16, 0x31)
     prog += set_addr(16, 0) + [trap(0, TAG)]
-    prog += exit_seq(0x5B)
-    exp = {"exit": 0x5B, "rd8": 1000000000}
+    prog += exit_seq(0x1B)
+    exp = {"exit": 0x1B, "rd8": 1000000000}
     return build_rom(prog), b"", exp
 
 
@@ -318,8 +318,8 @@ def _bank_arg_rb16():
     prog += set_addr(16, RAM_BASE + K_SVC)
     prog += set_addr(17, RAM_BASE + K_BUF)
     prog += [trap(0, TAG)]
-    prog += exit_seq(0x5C)
-    exp = {"exit": 0x5C, "rd8": 1}
+    prog += exit_seq(0x1C)
+    exp = {"exit": 0x1C, "rd8": 1}
     data = {K_SVC: blk(0xFFFFFFFFFFFFFFFF), K_BUF: blk(0)}
     return build_rom(prog, data), b"", exp
 
@@ -333,8 +333,8 @@ def _ret_rd8():
     # generic scratch register rd31 is not touched by the semihosting hook.
     prog = load_rd(31, 0x5A5A)
     prog += sh_call(0x31, 0)
-    prog += exit_seq(0x5D)
-    exp = {"exit": 0x5D, "rd8": 1000000000, "rd31": 0x5A5A}
+    prog += exit_seq(0x1D)
+    exp = {"exit": 0x1D, "rd8": 1000000000, "rd31": 0x5A5A}
     return build_rom(prog), b"", exp
 
 
@@ -343,9 +343,9 @@ def _ret_rd8():
 def _svc_open():
     path = _file("semi_a.txt").encode() + b"\0"
     prog = sh_call(0x01, RAM_BASE + K_OPEN)
-    prog += exit_seq(0x60)
+    prog += exit_seq(0x20)
     data = {K_OPEN: blk(RAM_BASE + K_PATH, 0, len(path) - 1), K_PATH: path}
-    exp = {"exit": 0x60, "rd8": 1}
+    exp = {"exit": 0x20, "rd8": 1}
     return build_rom(prog, data), b"", exp
 
 
@@ -357,9 +357,9 @@ def _svc_close():
     prog += sh_call(0x01, RAM_BASE + K_OPEN)   # OPEN
     prog += [st_o(8, 1, K_SVC + 0)]           # handle -> svc block
     prog += sh_call(0x02, RAM_BASE + K_SVC)    # CLOSE
-    prog += exit_seq(0x61)
+    prog += exit_seq(0x21)
     data = {K_OPEN: blk(RAM_BASE + K_PATH, 0, len(path) - 1), K_PATH: path}
-    exp = {"exit": 0x61, "rd8": 0}
+    exp = {"exit": 0x21, "rd8": 0}
     return build_rom(prog, data), b"", exp
 
 
@@ -368,8 +368,8 @@ def _svc_close():
       services=[0x03])
 def _svc_writec():
     prog = sh_call(0x03, RAM_BASE + K_STR)
-    prog += exit_seq(0x62)
-    exp = {"exit": 0x62, "rd8": 0xdeadbeef, "out": b"Y"}
+    prog += exit_seq(0x22)
+    exp = {"exit": 0x22, "rd8": 0xdeadbeef, "out": b"Y"}
     return build_rom(prog, {K_STR: b"Y"}), b"", exp
 
 
@@ -378,8 +378,8 @@ def _svc_writec():
       services=[0x04])
 def _svc_write0():
     prog = sh_call(0x04, RAM_BASE + K_STR)
-    prog += exit_seq(0x63)
-    exp = {"exit": 0x63, "rd8": 0xdeadbeef, "out": b"hi046"}
+    prog += exit_seq(0x23)
+    exp = {"exit": 0x23, "rd8": 0xdeadbeef, "out": b"hi046"}
     return build_rom(prog, {K_STR: b"hi046\0"}), b"", exp
 
 
@@ -393,11 +393,11 @@ def _svc_write():
     prog += sh_call(0x01, RAM_BASE + K_OPEN)   # OPEN(write)
     prog += [st_o(8, 1, K_SVC + 0)]           # handle
     prog += sh_call(0x05, RAM_BASE + K_SVC)    # WRITE
-    prog += exit_seq(0x64)
+    prog += exit_seq(0x24)
     data = {K_OPEN: blk(RAM_BASE + K_PATH, 4, len(path) - 1),
             K_SVC: blk(0, RAM_BASE + K_BUF, 4),
             K_PATH: path, K_BUF: b"WXYZ"}
-    exp = {"exit": 0x64, "rd8": 0, "file": ("semi_b.txt", b"WXYZ")}
+    exp = {"exit": 0x24, "rd8": 0, "file": ("semi_b.txt", b"WXYZ")}
     return build_rom(prog, data), b"", exp
 
 
@@ -411,10 +411,10 @@ def _svc_read():
     prog += [st_o(8, 1, K_SVC + 0)]           # handle
     prog += sh_call(0x06, RAM_BASE + K_SVC)    # READ
     prog += [ld_o(50, 1, K_BUF)]
-    prog += exit_seq(0x65)
+    prog += exit_seq(0x25)
     data = {K_OPEN: blk(RAM_BASE + K_PATH, 0, len(path) - 1),
             K_SVC: blk(0, RAM_BASE + K_BUF, 8), K_PATH: path}
-    exp = {"exit": 0x65, "rd8": 0, "rd50": 0x4142434445464748}
+    exp = {"exit": 0x25, "rd8": 0, "rd50": 0x4142434445464748}
     return build_rom(prog, data), b"", exp
 
 
@@ -425,8 +425,8 @@ def _svc_readc():
     # READC uses common_semi_stack_bottom()-1 = rb1-1 as the 1-byte buffer.
     prog = set_addr(1, RAM_BASE + K_BUF + 1)
     prog += sh_call(0x07, 0)
-    prog += exit_seq(0x66)
-    exp = {"exit": 0x66, "rd8": 0x51}
+    prog += exit_seq(0x26)
+    exp = {"exit": 0x26, "rd8": 0x51}
     return build_rom(prog), b"Q", exp
 
 
@@ -435,8 +435,8 @@ def _svc_readc():
       services=[0x08])
 def _svc_iserror():
     prog = sh_call(0x08, RAM_BASE + K_SVC)
-    prog += exit_seq(0x67)
-    exp = {"exit": 0x67, "rd8": 1}
+    prog += exit_seq(0x27)
+    exp = {"exit": 0x27, "rd8": 1}
     return build_rom(prog, {K_SVC: blk(0xFFFFFFFFFFFFFFFF)}), b"", exp
 
 
@@ -448,9 +448,9 @@ def _svc_istty():
     prog += sh_call(0x01, RAM_BASE + K_OPEN)
     prog += [st_o(8, 1, K_SVC + 0)]
     prog += sh_call(0x09, RAM_BASE + K_SVC)
-    prog += exit_seq(0x68)
+    prog += exit_seq(0x28)
     data = {K_OPEN: blk(RAM_BASE + K_PATH, 0, len(path) - 1), K_PATH: path}
-    exp = {"exit": 0x68, "rd8": 0}
+    exp = {"exit": 0x28, "rd8": 0}
     return build_rom(prog, data), b"", exp
 
 
@@ -462,10 +462,10 @@ def _svc_seek():
     prog += sh_call(0x01, RAM_BASE + K_OPEN)
     prog += [st_o(8, 1, K_SVC + 0)]
     prog += sh_call(0x0a, RAM_BASE + K_SVC)   # {handle, offset=4}
-    prog += exit_seq(0x69)
+    prog += exit_seq(0x29)
     data = {K_OPEN: blk(RAM_BASE + K_PATH, 0, len(path) - 1),
             K_SVC: blk(0, 4), K_PATH: path}
-    exp = {"exit": 0x69, "rd8": 0}
+    exp = {"exit": 0x29, "rd8": 0}
     return build_rom(prog, data), b"", exp
 
 
@@ -477,9 +477,9 @@ def _svc_flen():
     prog += sh_call(0x01, RAM_BASE + K_OPEN)
     prog += [st_o(8, 1, K_SVC + 0)]
     prog += sh_call(0x0c, RAM_BASE + K_SVC)
-    prog += exit_seq(0x6A)
+    prog += exit_seq(0x2A)
     data = {K_OPEN: blk(RAM_BASE + K_PATH, 0, len(path) - 1), K_PATH: path}
-    exp = {"exit": 0x6A, "rd8": 8}
+    exp = {"exit": 0x2A, "rd8": 8}
     return build_rom(prog, data), b"", exp
 
 
@@ -490,9 +490,9 @@ def _svc_tmpnam():
     prog = set_addr(1, RAM_BASE)
     prog += sh_call(0x0d, RAM_BASE + K_SVC)    # {buf, id, buflen}
     prog += [ld_o(50, 1, K_BUF + 0), ld_o(51, 1, K_BUF + 8)]
-    prog += exit_seq(0x6B)
+    prog += exit_seq(0x2B)
     data = {K_SVC: blk(RAM_BASE + K_BUF, 0x11, 128)}
-    exp = {"exit": 0x6B, "rd8": 0, "rd50": PRESENT}
+    exp = {"exit": 0x2B, "rd8": 0, "rd50": PRESENT}
     return build_rom(prog, data), b"", exp
 
 
@@ -505,9 +505,9 @@ def _svc_remove():
         f.write(b"remove-me")
     path = c.encode() + b"\0"
     prog = sh_call(0x0e, RAM_BASE + K_SVC)
-    prog += exit_seq(0x6C)
+    prog += exit_seq(0x2C)
     data = {K_SVC: blk(RAM_BASE + K_PATH, len(path) - 1), K_PATH: path}
-    exp = {"exit": 0x6C, "rd8": 0, "file_absent": "semi_c.txt"}
+    exp = {"exit": 0x2C, "rd8": 0, "file_absent": "semi_c.txt"}
     return build_rom(prog, data), b"", exp
 
 
@@ -525,11 +525,11 @@ def _svc_rename():
     op = d.encode() + b"\0"
     np = d2.encode() + b"\0"
     prog = sh_call(0x0f, RAM_BASE + K_SVC)     # {oname, olen, nname, nlen}
-    prog += exit_seq(0x6D)
+    prog += exit_seq(0x2D)
     data = {K_SVC: blk(RAM_BASE + K_PATH, len(op) - 1,
                        RAM_BASE + K_SVC2, len(np) - 1),
             K_PATH: op, K_SVC2: np}
-    exp = {"exit": 0x6D, "rd8": 0,
+    exp = {"exit": 0x2D, "rd8": 0,
            "file_absent": "semi_d.txt", "file_present": "semi_d2.txt"}
     return build_rom(prog, data), b"", exp
 
@@ -538,8 +538,8 @@ def _svc_rename():
 @case("svc_clock", "SYS_CLOCK returns a value", services=[0x10])
 def _svc_clock():
     prog = sh_call(0x10, 0)
-    prog += exit_seq(0x6E)
-    exp = {"exit": 0x6E, "rd8": PRESENT}
+    prog += exit_seq(0x2E)
+    exp = {"exit": 0x2E, "rd8": PRESENT}
     return build_rom(prog), b"", exp
 
 
@@ -547,8 +547,8 @@ def _svc_clock():
 @case("svc_time", "SYS_TIME returns epoch seconds", services=[0x11])
 def _svc_time():
     prog = sh_call(0x11, 0)
-    prog += exit_seq(0x6F)
-    exp = {"exit": 0x6F, "rd8": PRESENT}
+    prog += exit_seq(0x2F)
+    exp = {"exit": 0x2F, "rd8": PRESENT}
     return build_rom(prog), b"", exp
 
 
@@ -557,9 +557,9 @@ def _svc_time():
 def _svc_system():
     cmd = b"exit 7\0"
     prog = sh_call(0x12, RAM_BASE + K_SVC)     # {cmd, len}
-    prog += exit_seq(0x70)
+    prog += exit_seq(0x30)
     data = {K_SVC: blk(RAM_BASE + K_STR, len(cmd) - 1), K_STR: cmd}
-    exp = {"exit": 0x70, "rd8": 0x700}
+    exp = {"exit": 0x30, "rd8": 0x700}
     return build_rom(prog, data), b"", exp
 
 
@@ -568,8 +568,8 @@ def _svc_system():
       services=[0x13])
 def _svc_errno():
     prog = sh_call(0x13, 0)
-    prog += exit_seq(0x71)
-    exp = {"exit": 0x71, "rd8": 0}
+    prog += exit_seq(0x31)
+    exp = {"exit": 0x31, "rd8": 0}
     return build_rom(prog), b"", exp
 
 
@@ -580,10 +580,10 @@ def _svc_get_cmdline():
     prog = set_addr(1, RAM_BASE)
     prog += sh_call(0x15, RAM_BASE + K_SVC)    # {buf, buflen}
     prog += [ld_o(50, 1, K_BUF)]
-    prog += exit_seq(0x72)
+    prog += exit_seq(0x32)
     data = {K_SVC: blk(RAM_BASE + K_BUF, 128)}
     # arg=dadao046 -> cmdline "dadao046"; first 8 bytes big-endian.
-    exp = {"exit": 0x72, "rd8": 0, "rd50": 0x646164616F303436}
+    exp = {"exit": 0x32, "rd8": 0, "rd50": 0x646164616F303436}
     return build_rom(prog, data), b"", exp
 
 
@@ -596,9 +596,9 @@ def _svc_heapinfo():
     # (Arm Semihosting SYS_HEAPINFO); point it at a 4x u64 buffer in RAM.
     prog += sh_call(0x16, RAM_BASE + K_SVC)    # args[0] = output pointer
     prog += [ld_o(50, 1, K_SVC + 0)]
-    prog += exit_seq(0x73)
+    prog += exit_seq(0x33)
     data = {K_SVC: blk(RAM_BASE + K_BUF), K_BUF: blk(0, 0, 0, 0)}
-    exp = {"exit": 0x73, "rd8": 0, "rd50": PRESENT}
+    exp = {"exit": 0x33, "rd8": 0, "rd50": PRESENT}
     return build_rom(prog, data), b"", exp
 
 
@@ -607,9 +607,9 @@ def _svc_heapinfo():
       services=[0x18])
 def _svc_exit():
     prog = sh_call(0x18, RAM_BASE + K_SVC)     # {reason, subcode}
-    prog += exit_seq(0xEE)                     # unreachable if EXIT works
-    data = {K_SVC: blk(ADP_STOPPED_APPLICATION_EXIT, 0x42)}
-    exp = {"exit": 0x42}
+    prog += exit_seq(0x7E)                     # unreachable if EXIT works
+    data = {K_SVC: blk(ADP_STOPPED_APPLICATION_EXIT, 0x02)}
+    exp = {"exit": 0x02}
     return build_rom(prog, data), b"", exp
 
 
@@ -617,8 +617,8 @@ def _svc_exit():
 @case("svc_synccache", "SYS_SYNCCACHE returns success", services=[0x19])
 def _svc_synccache():
     prog = sh_call(0x19, 0)
-    prog += exit_seq(0x74)
-    exp = {"exit": 0x74, "rd8": 0}
+    prog += exit_seq(0x34)
+    exp = {"exit": 0x34, "rd8": 0}
     return build_rom(prog), b"", exp
 
 
@@ -627,9 +627,9 @@ def _svc_synccache():
       services=[0x20])
 def _svc_exit_extended():
     prog = sh_call(0x20, RAM_BASE + K_SVC)     # {reason, exitcode}
-    prog += exit_seq(0xEE)
-    data = {K_SVC: blk(ADP_STOPPED_APPLICATION_EXIT, 0x43)}
-    exp = {"exit": 0x43}
+    prog += exit_seq(0x7E)
+    data = {K_SVC: blk(ADP_STOPPED_APPLICATION_EXIT, 0x03)}
+    exp = {"exit": 0x03}
     return build_rom(prog, data), b"", exp
 
 
@@ -640,9 +640,9 @@ def _svc_elapsed():
     prog = set_addr(1, RAM_BASE)
     prog += sh_call(0x30, RAM_BASE + K_SVC)
     prog += [ld_o(50, 1, K_SVC + 0)]
-    prog += exit_seq(0x75)
+    prog += exit_seq(0x35)
     data = {K_SVC: blk(0)}
-    exp = {"exit": 0x75, "rd8": 0, "rd50": PRESENT}
+    exp = {"exit": 0x35, "rd8": 0, "rd50": PRESENT}
     return build_rom(prog, data), b"", exp
 
 
@@ -651,8 +651,8 @@ def _svc_elapsed():
       services=[0x31])
 def _svc_tickfreq():
     prog = sh_call(0x31, 0)
-    prog += exit_seq(0x76)
-    exp = {"exit": 0x76, "rd8": 1000000000}
+    prog += exit_seq(0x36)
+    exp = {"exit": 0x36, "rd8": 1000000000}
     return build_rom(prog), b"", exp
 
 
@@ -664,8 +664,8 @@ def _iserror_be64():
     # A little-endian read (0x0100000000000080) or a 32-bit read would be
     # positive => ISERROR=0.
     prog = sh_call(0x08, RAM_BASE + K_SVC)
-    prog += exit_seq(0x77)
-    exp = {"exit": 0x77, "rd8": 1}
+    prog += exit_seq(0x37)
+    exp = {"exit": 0x37, "rd8": 1}
     return build_rom(prog, {K_SVC: blk(0x8000000000000001)}), b"", exp
 
 

@@ -30,7 +30,7 @@ Case model (every assertion has a reachable FAIL path):
   * IL   destination rf0 ⇒ ILLI.
 Every value case also asserts rf0[4:0] flags and that rf0[33:32] is preserved.
 
-Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0x88).
+Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0xF8).
 Usage: min_rom_probe_070t.py [--selftest|--oracle]
 """
 import os
@@ -86,7 +86,7 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 RESET0 = 0x7FF800007FC00000
 
 PASS_EXIT = 0x00
-ILLI_EXIT = 0x88
+ILLI_EXIT = 0xF8
 
 # rf0[4:0] exception bits (SimRISC-00 table / softfloat enum)
 FLAG_NV = 0x01

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..0d6117c
+index 0000000..6a60a22
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1016 @@
+@@ -0,0 +1,1017 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
@@ -646,7 +646,8 @@ index 0000000..0d6117c
 +}
 +
 +/** cfx_ptw cg12 rc0 command (DADAO-12 §4.5; ADR-0041 D3/D6/D7).
-+ *  Returns 0 (ok), 1 (CFXREG operand) or 2 (PTWERR with *errPa). */
++ *  Returns 0 (ok), 1 (CFXREG operand) or 2 (A/D write-back failure with
++ *  *errPa; delivered to the current monitor as CFXMEM). */
 +int
 +tlbControlExec(NodeState &s, uint64_t val, uint64_t *errPa)
 +{
@@ -684,7 +685,7 @@ index 0000000..0d6117c
 +            if (e.aDirty || e.dDirty) {
 +                if (!regionCovers(s.ramBase, s.ramSize, e.ptePa, 8)) {
 +                    // The backing store is not writable (e.g. a page table in
-+                    // the BootROM): PTWERR, entry kept (ADR-0041 D7/D10).
++                    // the BootROM): monitor CFXMEM, entry kept (ADR-0041 D7/D10).
 +                    *errPa = e.ptePa;
 +                    return 2;
 +                }
@@ -1007,7 +1008,7 @@ index 0000000..0d6117c
 +            return true;
 +        }
 +        if (ret == 2) {
-+            nodeCfxRaise(tc, s, CausePtwErr, CfxhaPtw, pc, errPa);
++            nodeCfxRaise(tc, s, CauseCfxMem, s.runMode, pc, errPa);
 +            return true;
 +        }
 +    } else if (cg == 3 && rc == 12) {

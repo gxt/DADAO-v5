@@ -49,7 +49,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.ub'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ld.ub
@@ -151,7 +151,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.uw'
-  notes: 'legality MALIGN: EA=@ENTRY+0x1 (imms12=1), align=2B → MALIGN (0x8C), contract-isa
+  notes: 'legality MALIGN: EA=@ENTRY+0x1 (imms12=1), align=2B → MALIGN, contract-isa
     §4.1.1, legality_rules excp_malign'
 - mnemonic: ld.uw
   id: ld.uw_rrii_rd
@@ -169,7 +169,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.uw'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ld.uw
@@ -271,7 +271,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.ut'
-  notes: 'legality MALIGN: EA=@ENTRY+0x3 (imms12=3), align=4B → MALIGN (0x8C), contract-isa
+  notes: 'legality MALIGN: EA=@ENTRY+0x3 (imms12=3), align=4B → MALIGN, contract-isa
     §4.1.1, legality_rules excp_malign'
 - mnemonic: ld.ut
   id: ld.ut_rrii_rd
@@ -289,7 +289,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.ut'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ld.ut
@@ -392,7 +392,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.sb'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ld.sb
@@ -494,7 +494,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.sw'
-  notes: 'legality MALIGN: EA=@ENTRY+0x1 (imms12=1), align=2B → MALIGN (0x8C), contract-isa
+  notes: 'legality MALIGN: EA=@ENTRY+0x1 (imms12=1), align=2B → MALIGN, contract-isa
     §4.1.1, legality_rules excp_malign'
 - mnemonic: ld.sw
   id: ld.sw_rrii_rd
@@ -512,7 +512,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.sw'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ld.sw
@@ -614,7 +614,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.st'
-  notes: 'legality MALIGN: EA=@ENTRY+0x3 (imms12=3), align=4B → MALIGN (0x8C), contract-isa
+  notes: 'legality MALIGN: EA=@ENTRY+0x3 (imms12=3), align=4B → MALIGN, contract-isa
     §4.1.1, legality_rules excp_malign'
 - mnemonic: ld.st
   id: ld.st_rrii_rd
@@ -632,7 +632,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.st'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ld.st
@@ -721,7 +721,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: st.b'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: st.b
@@ -807,7 +807,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: st.w'
-  notes: 'legality MALIGN: EA=@ENTRY+0x1 (imms12=1), align=2B → MALIGN (0x8C), contract-isa
+  notes: 'legality MALIGN: EA=@ENTRY+0x1 (imms12=1), align=2B → MALIGN, contract-isa
     §4.1.1, legality_rules excp_malign'
 - mnemonic: st.w
   id: st.w_rrii_rd
@@ -825,7 +825,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: st.w'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: st.w
@@ -911,7 +911,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: st.t'
-  notes: 'legality MALIGN: EA=@ENTRY+0x3 (imms12=3), align=4B → MALIGN (0x8C), contract-isa
+  notes: 'legality MALIGN: EA=@ENTRY+0x3 (imms12=3), align=4B → MALIGN, contract-isa
     §4.1.1, legality_rules excp_malign'
 - mnemonic: st.t
   id: st.t_rrii_rd
@@ -929,7 +929,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: st.t'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: st.t
@@ -1029,7 +1029,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.o'
-  notes: 'legality MALIGN: EA=@ENTRY+0x7 (imms12=7), align=8B → MALIGN (0x8C), contract-isa
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (imms12=7), align=8B → MALIGN, contract-isa
     §4.1.1, legality_rules excp_malign'
 - mnemonic: ld.o
   id: ld.o_rrii_rd
@@ -1047,7 +1047,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.o'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ld.o
@@ -1135,7 +1135,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: st.o'
-  notes: 'legality MALIGN: EA=@ENTRY+0x7 (imms12=7), align=8B → MALIGN (0x8C), contract-isa
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (imms12=7), align=8B → MALIGN, contract-isa
     §4.1.1, legality_rules excp_malign'
 - mnemonic: st.o
   id: st.o_rrii_rd
@@ -1153,7 +1153,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: st.o'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: st.o
@@ -1254,7 +1254,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.ub'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ldm.ub
@@ -1360,7 +1360,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.uw'
-  notes: 'legality MALIGN: EA=@ENTRY+0x1 (rd2 offset=1), align=2B → MALIGN (0x8C),
+  notes: 'legality MALIGN: EA=@ENTRY+0x1 (rd2 offset=1), align=2B → MALIGN,
     contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.uw
   id: ldm.uw_rrri_rd
@@ -1378,7 +1378,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.uw'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ldm.uw
@@ -1484,7 +1484,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.ut'
-  notes: 'legality MALIGN: EA=@ENTRY+0x3 (rd2 offset=3), align=4B → MALIGN (0x8C),
+  notes: 'legality MALIGN: EA=@ENTRY+0x3 (rd2 offset=3), align=4B → MALIGN,
     contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.ut
   id: ldm.ut_rrri_rd
@@ -1502,7 +1502,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.ut'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ldm.ut
@@ -1607,7 +1607,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.sb'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ldm.sb
@@ -1713,7 +1713,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.sw'
-  notes: 'legality MALIGN: EA=@ENTRY+0x1 (rd2 offset=1), align=2B → MALIGN (0x8C),
+  notes: 'legality MALIGN: EA=@ENTRY+0x1 (rd2 offset=1), align=2B → MALIGN,
     contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.sw
   id: ldm.sw_rrri_rd
@@ -1731,7 +1731,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.sw'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ldm.sw
@@ -1837,7 +1837,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.st'
-  notes: 'legality MALIGN: EA=@ENTRY+0x3 (rd2 offset=3), align=4B → MALIGN (0x8C),
+  notes: 'legality MALIGN: EA=@ENTRY+0x3 (rd2 offset=3), align=4B → MALIGN,
     contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.st
   id: ldm.st_rrri_rd
@@ -1855,7 +1855,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.st'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ldm.st
@@ -1960,7 +1960,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.b'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: stm.b
@@ -2068,7 +2068,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.w'
-  notes: 'legality MALIGN: EA=@ENTRY+0x1 (rd2 offset=1), align=2B → MALIGN (0x8C),
+  notes: 'legality MALIGN: EA=@ENTRY+0x1 (rd2 offset=1), align=2B → MALIGN,
     contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: stm.w
   id: stm.w_rrri_rd
@@ -2086,7 +2086,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.w'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: stm.w
@@ -2194,7 +2194,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.t'
-  notes: 'legality MALIGN: EA=@ENTRY+0x3 (rd2 offset=3), align=4B → MALIGN (0x8C),
+  notes: 'legality MALIGN: EA=@ENTRY+0x3 (rd2 offset=3), align=4B → MALIGN,
     contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: stm.t
   id: stm.t_rrri_rd
@@ -2212,7 +2212,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.t'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: stm.t
@@ -2320,7 +2320,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.o'
-  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN (0x8C),
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN,
     contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.o
   id: ldm.o_rrri_rd
@@ -2338,7 +2338,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.o'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ldm.o
@@ -2444,7 +2444,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.o'
-  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN (0x8C),
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN,
     contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: stm.o
   id: stm.o_rrri_rd
@@ -2462,7 +2462,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.o'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: stm.o

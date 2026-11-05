@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
 new file mode 100644
-index 0000000..8dfb0eb
+index 0000000..5a19688
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.hh
-@@ -0,0 +1,280 @@
+@@ -0,0 +1,267 @@
 +// DADAO Node machine model: cfx register file, run modes, monitor entry/exit,
 +// the cfx_pmem DMA engine, cfx_time/cfx_hart counters and async arbitration.
 +//
@@ -57,28 +57,15 @@ index 0000000..8dfb0eb
 +    CauseCfxReg   = 1ULL << 2,
 +    CauseCfxEsc   = 1ULL << 3,
 +    CauseCfxPerm  = 1ULL << 7,
-+    CausePtwErr   = 1ULL << 7,
 +    CauseIlli     = 1ULL << 8,
 +    CauseUndi     = 1ULL << 9,
 +    CauseRasOf    = 1ULL << 10,
 +    CauseRasUf    = 1ULL << 11,
 +    CauseMalign   = 1ULL << 12,
 +    CauseIalign   = 1ULL << 13,
-+    CauseNuPerm   = 1ULL << 8,
-+    CauseNjPerm   = 1ULL << 9,
-+    CauseNsPerm   = 1ULL << 10,
-+    CauseNhPerm   = 1ULL << 11,
-+    CauseNxPerm   = 1ULL << 12,
-+    CauseNwPerm   = 1ULL << 13,
-+    CauseNrPerm   = 1ULL << 14,
-+    CauseIgpTrap  = 1ULL << 16,
-+    CauseIspTrap  = 1ULL << 17,
-+    CauseIgpFTrap = 1ULL << 18,
-+    CauseIspFTrap = 1ULL << 19,
-+    CauseDgpTrap  = 1ULL << 20,
-+    CauseDspTrap  = 1ULL << 21,
-+    CauseDgpFTrap = 1ULL << 22,
-+    CauseDspFTrap = 1ULL << 23,
++    /* Page-table missing/fragment and A/D write-back failure are reported as
++     * CauseCfxMem; HSJU/R/W/X denial as CauseCfxPerm (DADAO-12
++     * §2.2.6/§5.2 + Machine-v5 §7.1).  No PTWERR/page-level one-hot cause. */
 +    CauseTimer    = 1ULL << 10,
 +    CausePmemDma  = 1ULL << 8,
 +};

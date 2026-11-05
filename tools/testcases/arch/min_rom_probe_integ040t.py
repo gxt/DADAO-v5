@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Min ROM probe for INTEG-040t: address-space Step 3 (TLB / G / A-D / PTWERR).
+"""Min ROM probe for INTEG-040t: address-space Step 3 (TLB / G / A-D / CFXMEM).
 
 Expectations are derived by hand from the frozen spec + ADRs, never from the
 QEMU implementation:
   - spec/DADAO-12 §2.2.1/§2.2.2 第二步 (TLB lookup: no tlb_enable, ASID match
     with G bypass, page-granular match, hit does not re-read the PTE, only a
-    successful walk fills, miss faults go straight to cfx_ptw),
+    successful walk fills, miss faults go to the current run-mode monitor),
     §2.2.5 (G semantics, A/D maintenance), §4.5 (cg12 interface: control
-    op/scope/ASID_ANY, 16-bit ASID, start/size, PTWERR = 1 << 7 with cause_info
+    op/scope/ASID_ANY, 16-bit ASID, start/size; A/D write-back failure => monitor
+    CFXMEM with cause_info
     = PTE PA).
   - .tao/adr/adr-0041-tlb-ad.md D2-D10; .tao/adr/adr-0040-pte-pagewalk-
     permissions.md D11 (G).
@@ -19,14 +20,14 @@ Linux user/kernel split.
 
 Observation channels (same convention as min_rom_probe_034t..integ039t):
   * register results -> QEMU `-d cpu` dump (last dump block);
-  * fault cause -> cfx_ptw's cause id copied to rd10 by the probe handler,
-    cause info -> rd11 (faulting VA, or the PTE PA for PTWERR), cause ip ->
+  * fault cause -> current run-mode monitor's cause id copied to rd10,
+    cause info -> rd11 (faulting VA, or the PTE PA for CFXMEM), cause ip ->
     rd12; TLB ASID register read back -> `TLBASID` dump line;
   * pass/fail -> semihosting SYS_EXIT (ADR-0020 D8).
 
 The handler comes in two flavours:
   * EXIT -- record rd10/rd11/rd12 and leave (the fault ends the case);
-  * SKIP -- record and `escape cfx_ptw, [excp_cause_ip, 4]`, so the case can
+  * SKIP -- record and `escape cfx<mon>, [excp_cause_ip, 4]`, so the case can
     keep running and observe the state a failed/faulting operation left behind.
 
 Usage:
@@ -86,7 +87,7 @@ RAM_BASE = _MACH.ram_base
 RAM_SIZE = _MACH["ram_size"]
 
 EXIT_PASS = 0x00
-EXIT_CFXMEM = 0x81
+EXIT_CFXMEM = 0xF1    # monitor: hypv + CFXMEM index 1
 
 # cfx_ptw (cfx4) register coordinates (DADAO-12 §4.5)
 PTW_HA = 4
@@ -113,7 +114,7 @@ DATA2_PA = 0x6100_0000
 DATA3_PA = 0x6200_0000
 PTBR = PT_L1_PA & 0x00FF_FFFF_FFFF_0000
 
-# PTWERR carrier: a page table inside the boot ROM.  PTBR must be 64 KiB
+# CFXMEM carrier: a page table inside the boot ROM.  PTBR must be 64 KiB
 # aligned, so the table base is the reset-window base (RESET_PC), not the body
 # base (ROM_BASE = RESET_PC + 0x1000, TESTCASES-093t §2).  The L1 entry for
 # VA[41:29] = 0x1FFF therefore sits at RESET_PC + 0x1FFF*8 = +0xFFF8, inside
@@ -147,24 +148,13 @@ PTE_R = 1 << 7
 PPN_MASK = 0x00FF_FFFF_FFFF_0000
 SPPN_MASK = 0x00FF_FFFF_E000_0000
 
-# cfx_ptw cause ids (DADAO-12 §4.5)
+# monitor cause ids (DADAO-12 §2.2.6/§5.2 + Machine-v5 §7.1)
 C_CFXREG = 1 << 2
-C_PTWERR = 1 << 7
-C_NUPERM = 1 << 8
-C_NJPERM = 1 << 9
-C_NSPERM = 1 << 10
-C_NHPERM = 1 << 11
-C_NXPERM = 1 << 12
-C_NWPERM = 1 << 13
-C_NRPERM = 1 << 14
-C_IGPTRAP = 1 << 16
-C_ISPTRAP = 1 << 17
-C_IGPFTRAP = 1 << 18
-C_ISPFTRAP = 1 << 19
-C_DGPTRAP = 1 << 20
-C_DSPTRAP = 1 << 21
-C_DGPFTRAP = 1 << 22
-C_DSPFTRAP = 1 << 23
+# Page-table / TLB-hit faults go to the current run-mode monitor
+# (DADAO-12 §2.2.6/§5.2 + Machine-v5 §7.1): missing/fragment/A-D => CFXMEM,
+# HSJU/R/W/X => CFXPERM.  There is no PTWERR or page-level one-hot cause.
+C_CFXMEM = 1 << 1
+C_CFXPERM = 1 << 7
 
 # cfx_ptw_tlb_control encoding (DADAO-12 §4.5): op[1:0], scope[3:2], bit4=ASID_ANY
 OP_NONE, OP_CLEAN, OP_INVALID, OP_FLUSH = 0, 1, 2, 3
@@ -300,14 +290,17 @@ def tlb_range(p, start, size):
     tlb_reg(p, TLB_SIZE_RC, size)
 
 
-def setup_ptw_handler(p, words):
-    """Route cfx_ptw faults to OFF_PTW_HANDLER from every run mode, and make
-    cfx_ptw entry always switch to H-mode."""
+def setup_ptw_handler(p, words=None):
+    """Route page-table/TLB-hit faults to the current run-mode monitor: each
+    cfx0-3 row m gets its own handler variant (self cause read + self escape)."""
     for m in range(4):
+        # Run the handler in hypv so cfx cg5 cause reads are not blocked by
+        # the supv cg_reg_deleg check; H is the only source cfx allowed to
+        # read the other monitors' cg5 frames.
         p += load_rd(17, MODE_H)
-        p.append(cfx2rc(PTW_HA, m, SWITCH_MODE_RC, 17))
-        p += load_rd(17, PTW_HANDLER)
-        p.append(cfx2rc(PTW_HA, m, EXCP_VECTOR_RC, 17))
+        p.append(cfx2rc(m, m, SWITCH_MODE_RC, 17))
+        p += load_rd(17, PTW_HANDLER + m * 0x40)
+        p.append(cfx2rc(m, m, EXCP_VECTOR_RC, 17))
 
 
 def setup_hmon_handler(p, words):
@@ -416,10 +409,11 @@ def observe(log):
     for n in (5, 6, 7, 10, 11, 12):
         o["rd%d" % n] = lasthex(log, r"RD\[%02d\]: ([0-9a-f]+)" % n)
     o["tblasid"] = lasthex(log, r"TLBASID: ([0-9a-f]+)")
-    o["cid4"] = lasthex(log, r"CFX04 PREVM:[^\n]* CID:([0-9a-f]+)")
-    o["syncn4"] = lasthex(log, r"CFX04 ID:[^\n]* SYNCN:([0-9a-f]+)")
-    o["cid3"] = lasthex(log, r"CFX03 PREVM:[^\n]* CID:([0-9a-f]+)")
-    o["syncn3"] = lasthex(log, r"CFX03 ID:[^\n]* SYNCN:([0-9a-f]+)")
+    for cfxha in range(4):
+        o["cid%d" % cfxha] = lasthex(
+            log, r"CFX%02d PREVM:[^\n]* CID:([0-9a-f]+)" % cfxha)
+        o["syncn%d" % cfxha] = lasthex(
+            log, r"CFX%02d ID:[^\n]* SYNCN:([0-9a-f]+)" % cfxha)
     return o
 
 
@@ -428,6 +422,9 @@ def observe(log):
 # ---------------------------------------------------------------------------
 
 CASES = []
+# Extra checks run only on demand (`--only`), so the parity matrix's frozen
+# case set/count stays unchanged.
+EXTRA_CASES = []
 MAGIC = 0x1122_3344_5566_7788
 MAGIC2 = 0x99AA_BBCC_DDEE_FF00
 MAGIC3 = 0x0F1E_2D3C_4B5A_6978
@@ -440,16 +437,24 @@ def case(name, desc):
     return deco
 
 
-PTW_EXIT_WORDS = ([cfx2rd(PTW_HA, 5, CAUSE_ID_RC, 10),
-                   cfx2rd(PTW_HA, 5, CAUSE_INFO_RC, 11),
-                   cfx2rd(PTW_HA, 5, CAUSE_IP_RC, 12)]
-                  + exit_seq(EXIT_PASS))
+def extra_case(name, desc):
+    def deco(fn):
+        EXTRA_CASES.append((name, desc, fn))
+        return fn
+    return deco
 
-# Records the fault and resumes at the next instruction (precise exception).
-PTW_SKIP_WORDS = ([cfx2rd(PTW_HA, 5, CAUSE_ID_RC, 10),
-                   cfx2rd(PTW_HA, 5, CAUSE_INFO_RC, 11),
-                   cfx2rd(PTW_HA, 5, CAUSE_IP_RC, 12),
-                   escape(PTW_HA, 1)])
+
+def monitor_words(cfxha, skip):
+    """Read the faulted monitor's cfx cg5 cause frame and exit/escape."""
+    words = [cfx2rd(cfxha, 5, CAUSE_ID_RC, 10),
+             cfx2rd(cfxha, 5, CAUSE_INFO_RC, 11),
+             cfx2rd(cfxha, 5, CAUSE_IP_RC, 12)]
+    return words + ([escape(cfxha, 1)] if skip else exit_seq(EXIT_PASS))
+
+
+def monitor_handler_dict(skip):
+    return {OFF_PTW_HANDLER + m * 0x40: monitor_words(m, skip)
+            for m in range(4)}
 
 # Current-mode monitor (cfx_hmon) equivalent: the CFXREG from a cfx2rd/cfx2rc
 # is delivered to the hypv monitor (DADAO-12 §5.2), so read its cause frame.
@@ -474,9 +479,9 @@ def fault_at(p):
     return ROM_BASE + 4 * len(p)
 
 
-def fault_expect(cause, va, ip, **extra):
+def fault_expect(cause, va, ip, cfxha=MODE_H, **extra):
     exp = {"exit": EXIT_PASS, "rd10": cause, "rd11": va, "rd12": ip,
-           "syncn4": 1, "cid4": cause}
+           "syncn%d" % cfxha: 1, "cid%d" % cfxha: cause}
     exp.update(extra)
     return exp
 
@@ -586,16 +591,17 @@ def _tlb_hit_hsju_perm():
     p = []
     install_page(p, l2_idx=0, pa=DATA_PA, hsju=HSJU_OF_MODE[MODE_S])
     data_setup(p)
-    setup_ptw_handler(p, PTW_EXIT_WORDS)
+    setup_ptw_handler(p)
     setup_mode_handler(p, 2, MODE_S)        # cfx_smon trap enters S mode
     setup_ptbr(p)
     p += load_rb(3, 0x0)
     p.append(trap(2, 0))                    # S-mode load fills the entry
     set_page_pte(p, pa=DATA_PA, hsju=HSJU_ALL)  # a walk would now succeed
-    ip = load_va_fault(p, 0x0)              # H mode: entry HSJU=S -> NHPERM
-    p += exit_seq(0xEE)
-    handlers = {OFF_PTW_HANDLER: PTW_EXIT_WORDS, OFF_MODE_HANDLER: mode_handler(2)}
-    return build_rom(p, handlers), fault_expect(C_NHPERM, 0x0, ip)
+    ip = load_va_fault(p, 0x0)              # H mode: entry HSJU=S -> CFXPERM
+    p += exit_seq(0x7E)
+    handlers = monitor_handler_dict(False)
+    handlers[OFF_MODE_HANDLER] = mode_handler(2)
+    return build_rom(p, handlers), fault_expect(C_CFXPERM, 0x0, ip)
 
 
 @case("tlb_hit_nwperm", "hit uses the entry's W, not the edited PTE")
@@ -603,14 +609,14 @@ def _tlb_hit_nwperm():
     p = []
     install_page(p, l2_idx=0, pa=DATA_PA, w=False)
     data_setup(p)
-    setup_ptw_handler(p, PTW_EXIT_WORDS)
+    setup_ptw_handler(p)
     setup_ptbr(p)
     load_va(p, 0x0)                         # read fill (W=0 stored in entry)
     set_page_pte(p, pa=DATA_PA, w=True)     # a walk would now allow the store
-    ip = store_va_fault(p, 0x0, MAGIC2)     # hit -> NWPERM
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_EXIT_WORDS}), \
-        fault_expect(C_NWPERM, 0x0, ip)
+    ip = store_va_fault(p, 0x0, MAGIC2)     # hit -> CFXPERM
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict(False)), \
+        fault_expect(C_CFXPERM, 0x0, ip)
 
 
 @case("tlb_hit_gpf_fault", "hit checks the page's GPF fragment bit per access")
@@ -622,29 +628,29 @@ def _tlb_hit_gpf_fault():
     p = []
     install_page(p, l2_idx=0, pa=DATA_PA, frags=1 << 1)   # fragment 1 only
     store64(p, DATA_PA + 0x2040, MAGIC)
-    setup_ptw_handler(p, PTW_EXIT_WORDS)
+    setup_ptw_handler(p)
     setup_ptbr(p)
     load_va(p, 0x2040)                      # VA[15:13]=1 present -> fill
     ip = store_va_fault(p, 0x40, MAGIC2, rd=4)   # same page, VA[15:13]=0
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_EXIT_WORDS}), \
-        fault_expect(C_DGPFTRAP, 0x40, ip)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict(False)), \
+        fault_expect(C_CFXMEM, 0x40, ip)
 
 
 # -- fill only after a fully valid walk ------------------------------------
 @case("tlb_no_fill_on_perm_fault", "permission fault does not fill the TLB")
 def _tlb_no_fill_on_perm_fault():
     p = []
-    install_page(p, l2_idx=0, pa=DATA_PA, r=False)        # NRPERM on read
+    install_page(p, l2_idx=0, pa=DATA_PA, r=False)        # CFXPERM on read
     data_setup(p)
-    setup_ptw_handler(p, PTW_SKIP_WORDS)
+    setup_ptw_handler(p)
     setup_ptbr(p)
-    ip = load_va_fault(p, 0x0)              # NRPERM -> handler skips
+    ip = load_va_fault(p, 0x0)              # CFXPERM -> handler skips
     set_page_pte(p, pa=DATA2_PA)            # now readable, maps DATA2
     load_va(p, 0x0, rd=6)                   # must re-walk -> DATA2
     p += exit_seq(EXIT_PASS)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_SKIP_WORDS}), \
-        fault_expect(C_NRPERM, 0x0, ip, rd5=0, rd6=MAGIC2)
+    return build_rom(p, monitor_handler_dict(True)), \
+        fault_expect(C_CFXPERM, 0x0, ip, rd5=0, rd6=MAGIC2)
 
 
 # -- A/D maintenance --------------------------------------------------------
@@ -752,10 +758,10 @@ def _ad_writeback_preserves_fields():
                           "rd6": pte(pa=DATA_PA, a=True, d=True, reserved=0xF)}
 
 
-# -- PTWERR: A/D write-back into the read-only boot ROM --------------------
-def rom_pte_setup(p, handler):
+# -- CFXMEM: A/D write-back into the read-only boot ROM --------------------
+def rom_pte_setup(p):
     store64(p, RAM_BASE + 0x40, MAGIC)
-    setup_ptw_handler(p, handler)
+    setup_ptw_handler(p)
     setup_ptbr(p, ptbr=ROM_TABLE_PA)        # page table lives in the ROM
     load_va(p, ROM_VA)                      # fill from the ROM PTE
 
@@ -764,47 +770,66 @@ ROM_PTE_WORDS = [((pte(pa=RAM_BASE, sp=True, frags=0xFF) >> 32) & 0xFFFFFFFF),
                  (pte(pa=RAM_BASE, sp=True, frags=0xFF) & 0xFFFFFFFF)]
 
 
-@case("ptwerr_clean_keeps_entry", "failed CLEAN reports PTWERR and keeps the entry")
+@case("ptwerr_clean_keeps_entry", "failed CLEAN reports CFXMEM and keeps the entry")
 def _ptwerr_clean_keeps_entry():
     p = []
-    rom_pte_setup(p, PTW_SKIP_WORDS)
-    tlb_cmd(p, tlb_ctrl(OP_CLEAN, SCOPE_ALL, asid_any=True))    # -> PTWERR
+    rom_pte_setup(p)
+    tlb_cmd(p, tlb_ctrl(OP_CLEAN, SCOPE_ALL, asid_any=True))    # -> CFXMEM
     p += [set_zw_rd(10, 0, 0)]                                  # clear the record
     tlb_cmd(p, tlb_ctrl(OP_CLEAN, SCOPE_ALL, asid_any=True))    # entry kept
     restore_prelude_ptbr(p)                                     # exit_block
     p += exit_seq(EXIT_PASS)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_SKIP_WORDS},
+    return build_rom(p, monitor_handler_dict(True),
                      words_at={ROM_PTE_OFF: ROM_PTE_WORDS}), \
-        {"exit": EXIT_PASS, "rd10": C_PTWERR, "rd11": ROM_PTE_PA,
-         "rd5": MAGIC, "syncn4": 2, "cid4": C_PTWERR}
+        {"exit": EXIT_PASS, "rd10": C_CFXMEM, "rd11": ROM_PTE_PA,
+         "rd5": MAGIC, "syncn3": 2, "cid3": C_CFXMEM}
 
 
 @case("ptwerr_flush_keeps_entry", "failed FLUSH keeps the dirty entry")
 def _ptwerr_flush_keeps_entry():
     p = []
-    rom_pte_setup(p, PTW_SKIP_WORDS)
-    tlb_cmd(p, tlb_ctrl(OP_FLUSH, SCOPE_ALL, asid_any=True))    # -> PTWERR
+    rom_pte_setup(p)
+    tlb_cmd(p, tlb_ctrl(OP_FLUSH, SCOPE_ALL, asid_any=True))    # -> CFXMEM
     load_va(p, ROM_VA, rd=5)                                    # still usable
     p += [set_zw_rd(10, 0, 0)]
-    tlb_cmd(p, tlb_ctrl(OP_FLUSH, SCOPE_ALL, asid_any=True))    # PTWERR again
+    tlb_cmd(p, tlb_ctrl(OP_FLUSH, SCOPE_ALL, asid_any=True))    # CFXMEM again
     restore_prelude_ptbr(p)                                     # exit_block
     p += exit_seq(EXIT_PASS)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_SKIP_WORDS},
+    return build_rom(p, monitor_handler_dict(True),
                      words_at={ROM_PTE_OFF: ROM_PTE_WORDS}), \
-        {"exit": EXIT_PASS, "rd10": C_PTWERR, "rd11": ROM_PTE_PA,
-         "rd5": MAGIC, "syncn4": 2, "cid4": C_PTWERR}
+        {"exit": EXIT_PASS, "rd10": C_CFXMEM, "rd11": ROM_PTE_PA,
+         "rd5": MAGIC, "syncn3": 2, "cid3": C_CFXMEM}
 
 
-@case("ptwerr_invalid_no_writeback", "INVALID needs no write-back (no PTWERR)")
+@extra_case("ptwerr_monitor_cfxmem_exit",
+      "A/D write-back failure with an invalid monitor vector exits as monitor CFXMEM")
+def _ptwerr_monitor_cfxmem_exit():
+    p = []
+    store64(p, RAM_BASE + 0x40, MAGIC)
+    # No monitor handler: point cfx_hmon's hypv vector at an unmapped cfxha63
+    # address.  The A/D write-back fault enters the H monitor, whose fetch of
+    # that vector raises the direct machine fault; the exit code must be the
+    # monitor CFXMEM segment for hypv (0xF1).
+    p += load_rd(17, 0xFFFF_0000_0000)
+    p.append(cfx2rc(3, MODE_H, EXCP_VECTOR_RC, 17))
+    setup_ptbr(p, ptbr=ROM_TABLE_PA)
+    load_va(p, ROM_VA)                      # fill a dirty entry from the ROM PTE
+    tlb_cmd(p, tlb_ctrl(OP_CLEAN, SCOPE_ALL, asid_any=True))  # A/D write-back fails
+    p += exit_seq(EXIT_PASS)                # unreachable on success
+    return build_rom(p, words_at={ROM_PTE_OFF: ROM_PTE_WORDS}), \
+        {"exit": EXIT_CFXMEM}
+
+
+@case("ptwerr_invalid_no_writeback", "INVALID needs no write-back (no monitor fault)")
 def _ptwerr_invalid_no_writeback():
     p = []
-    rom_pte_setup(p, PTW_SKIP_WORDS)
+    rom_pte_setup(p)
     tlb_cmd(p, tlb_ctrl(OP_INVALID, SCOPE_ALL, asid_any=True))  # no write-back
     load64(p, ROM_PTE_PA, rd=6)                                 # ROM PTE: A=0
     load_va(p, ROM_VA, rd=7)                                    # re-walk works
     restore_prelude_ptbr(p)                                     # exit_block
     p += exit_seq(EXIT_PASS)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_SKIP_WORDS},
+    return build_rom(p, monitor_handler_dict(True),
                      words_at={ROM_PTE_OFF: ROM_PTE_WORDS}), \
         {"exit": EXIT_PASS, "rd10": 0,
          "rd6": pte(pa=RAM_BASE, sp=True, frags=0xFF), "rd7": MAGIC}
@@ -830,14 +855,14 @@ def _tlb_op_none_scope_reserved():
     p = []
     install_page(p, l2_idx=0, pa=DATA_PA)
     data_setup(p)
-    setup_ptw_handler(p, PTW_SKIP_WORDS)
+    setup_ptw_handler(p)
     setup_ptbr(p)
     load_va(p, 0x0)
     set_page_pte(p, pa=DATA2_PA)
     tlb_cmd(p, tlb_ctrl(OP_NONE, SCOPE_RESERVED))   # must be a silent no-op
     load_va(p, 0x0, rd=6)                           # entry untouched -> DATA
     p += exit_seq(EXIT_PASS)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_SKIP_WORDS}), \
+    return build_rom(p, monitor_handler_dict(True)), \
         {"exit": EXIT_PASS, "rd10": 0, "rd6": MAGIC}
 
 
@@ -846,7 +871,7 @@ def _tlb_op_none_range_size0():
     p = []
     install_page(p, l2_idx=0, pa=DATA_PA)
     data_setup(p)
-    setup_ptw_handler(p, PTW_SKIP_WORDS)
+    setup_ptw_handler(p)
     setup_ptbr(p)
     load_va(p, 0x0)
     set_page_pte(p, pa=DATA2_PA)
@@ -854,7 +879,7 @@ def _tlb_op_none_range_size0():
     tlb_cmd(p, tlb_ctrl(OP_NONE, SCOPE_RANGE))      # must be a silent no-op
     load_va(p, 0x0, rd=6)                           # entry untouched -> DATA
     p += exit_seq(EXIT_PASS)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_SKIP_WORDS}), \
+    return build_rom(p, monitor_handler_dict(True)), \
         {"exit": EXIT_PASS, "rd10": 0, "rd6": MAGIC}
 
 
@@ -869,7 +894,7 @@ def _tlb_scope_reserved_cfxreg():
     p += load_rd(17, tlb_ctrl(OP_INVALID, SCOPE_RESERVED))
     ip = fault_at(p)
     p.append(cfx2rc(PTW_HA, TLB_CG, TLB_CONTROL_RC, 17))
-    p += exit_seq(0xEE)
+    p += exit_seq(0x7E)
     return build_rom(p, {OFF_HMON_HANDLER: HMON_EXIT_WORDS}), \
         fault_expect_hmon(C_CFXREG, None, ip, rd11=None)
 
@@ -1005,7 +1030,7 @@ def _tlb_bypass_ptw_off():
     p += load_rd(17, 0)
     p.append(cfx2rc(PTW_HA, PTW_ENABLE_CG, PTW_ENABLE_RC, 17))
     load_va(p, 0x0)                         # ptw off -> CFXMEM
-    p += exit_seq(0xEE)
+    p += exit_seq(0x7E)
     return build_rom(p), {"exit": EXIT_CFXMEM}
 
 
@@ -1042,7 +1067,7 @@ def _tlb_asid_reg_roundtrip():
 # ---------------------------------------------------------------------------
 
 def run_case(name):
-    for n, d, fn in CASES:
+    for n, d, fn in CASES + EXTRA_CASES:
         if n == name:
             rom, exp = fn()
             # rd12 (cause ip) is not asserted when the expectation omits it:

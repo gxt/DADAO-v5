@@ -9,11 +9,11 @@ oracle is now the *current* contract:
 - `rbha = IP + (sign_extend(imms18) << 12)`, full 64-bit arithmetic
 - `IP` = address of the executing instruction itself (= `rb0` read value),
   no `±4` pipeline bias and **no page masking**
-- `ha==0` (rb0 destination) → ILLI (0x88)
+- `ha==0` (rb0 destination) → ILLI (0xF8)
 - the destination's previous high 16 bits are ignored (full 64-bit result)
 
 Exit codes (ADR-0004 D5.8):
-  0x00 = PASS, 0x88 = ILLI, 0x89 = UNDI, 0x8A = RASOF, 0x8B = RASUF
+  0x00 = PASS, 0xF8 = ILLI, 0xF9 = UNDI, 0xFA = RASOF, 0xFB = RASUF
 
 Usage: python3 tools/testcases/arch/min_rom_probe_009t.py
 """
@@ -283,11 +283,11 @@ def run_test(rom_data, kernel_data=None, timeout=10):
 # ── Exit codes ────────────────────────────────────────────────────────
 
 PASS_EXIT = 0
-ILLI_EXIT = 136    # 0x88
-UNDI_EXIT = 137    # 0x89
-RASOF_EXIT = 138   # 0x8A
-RASUF_EXIT = 139   # 0x8B
-MALIGN_EXIT = 140  # 0x8C
+ILLI_EXIT = 248    # 0xF8
+UNDI_EXIT = 249    # 0xF9
+RASOF_EXIT = 250   # 0xFA
+RASUF_EXIT = 251   # 0xFB
+MALIGN_EXIT = 252  # 0xFC
 
 # ── Helper: set up rb18 as a scratch address ──────────────────────────
 # rb18 = 0x0000_FFFF_0000_0100 (RAM + 0x100)

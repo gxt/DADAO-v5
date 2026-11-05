@@ -7,13 +7,13 @@ Kernel binary provides test data (loaded at RAM base).
 Tests cover:
 - SYS_EXIT terminal (store code + trap) → PASS (0x00)
 - Legal ld.o from aligned RAM → no crash
-- Unaligned ld.o/st.o → MALIGN (0x8C)
+- Unaligned ld.o/st.o → MALIGN (0xFC)
 - ILLI: rdha=0, immu6=0, rdha+immu6>64
 - br.nz rd: taken/not-taken
 - stm.o/ldm.o round-trip
 
 Exit codes (ADR-0004 D5.8):
-  0x00 = PASS, 0x88 = ILLI, 0x89 = UNDI, 0x8C = MALIGN
+  0x00 = PASS, 0xF8 = ILLI, 0xF9 = UNDI, 0xFC = MALIGN
 
 Usage: python3 tools/testcases/arch/min_rom_probe_006t.py
 """
@@ -264,10 +264,10 @@ def run_test(rom_data, kernel_data=None, timeout=10):
 # ── Exit codes ────────────────────────────────────────────────────────
 
 PASS_EXIT = 0
-ILLI_EXIT = 136    # 0x88
-UNDI_EXIT = 137    # 0x89
-MALIGN_EXIT = 140  # 0x8C
-UNMAPPED_EXIT = 135 # 0x87
+ILLI_EXIT = 248    # 0xF8
+UNDI_EXIT = 249    # 0xF9
+MALIGN_EXIT = 252  # 0xFC
+UNMAPPED_EXIT = 241 # 0xF1
 
 # ── Test cases ────────────────────────────────────────────────────────
 # After trampoline: rb16=SYS_EXIT argument block, rb17=rb2=RAM base
@@ -461,7 +461,7 @@ TESTS = [
     # RAM base has kernel = fence-hb poison (ILLI) → ILLI exit (not crash)
     ("T23 jump-rrii → no crash (ILLI)",
      [jump_rrii(2, 0, 0)],               # jump to RAM base (trampoline set rb2=RAM base)
-     ILLI_EXIT,                           # kernel is fence-hb poison → 0x88
+     ILLI_EXIT,                           # kernel is fence-hb poison → 0xF8
      "jump-rrii crashed (SIGABRT)"),
 
     # T24: br.nz taken with correct PC target (J2 fix)

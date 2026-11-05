@@ -15,8 +15,8 @@ Value comparison method (br.ne-based, v4):
   4. set.zw rd_zero, 0
   5. br.ne rd_cmp, rd_zero, 2 → if mismatch, skip 2 → fence
   6. set.zw rd1, 1; br.ne rd1, rd0, 2 → unconditional skip fence → UNDI
-  7. fence → exit 136
-  So: UNDI(137) = PASS (match), ILLI(136) = FAIL (mismatch).
+  7. fence → exit 248
+  So: UNDI(249) = PASS (match), ILLI(248) = FAIL (mismatch).
 
 Usage: python3 tools/testcases/arch/min_rom_probe_005t.py
 """
@@ -141,8 +141,8 @@ def run_rom(rom_data, kernel_data=None, timeout=10):
     finally:
         os.unlink(rom_path); os.unlink(kernel_path)
 
-ILLI_EXIT = 136
-UNDI_EXIT = 137
+ILLI_EXIT = 248
+UNDI_EXIT = 249
 CRASH_EXIT = 134
 
 # ── Helper: exact-value comparison (br.ne-based, v4) ─────────────────
@@ -156,8 +156,8 @@ CRASH_EXIT = 134
 #   [N+K+4] br.ne rd1, rd0, 2          # unconditional → skip fence → UNDI
 #   [N+K+5] fence                        # mismatch target
 #
-# Match:   cmp=0 → br.ne NOT taken → set.zw(1,1) → br.ne(1,0,2) TAKEN → UNDI(137)
-# Mismatch: cmp≠0 → br.ne TAKEN → fence(136)
+# Match:   cmp=0 → br.ne NOT taken → set.zw(1,1) → br.ne(1,0,2) TAKEN → UNDI(249)
+# Mismatch: cmp≠0 → br.ne TAKEN → fence(248)
 
 def _set_rd_to_val(insns, rd, val):
     """Set rd to a 64-bit value. Handles small values via set.zw+add_si."""
@@ -176,7 +176,7 @@ def _set_rd_to_val(insns, rd, val):
             insns.append(add_si(rd, remaining & 0x3FFFF))
 
 def _exact_cmp(insns, rd_result, rd_expected, val_expected):
-    """Append comparison + branch sequence. UNDI(137)=PASS, ILLI(136)=FAIL."""
+    """Append comparison + branch sequence. UNDI(249)=PASS, ILLI(248)=FAIL."""
     _set_rd_to_val(insns, rd_expected, val_expected)
     insns.append(cmp_uo(7, rd_result, rd_expected))
     insns.append(set_zw(1, 0))
@@ -276,8 +276,8 @@ TESTS = [
     # ── SPEC-069t: value semantics — high bits must be written (not preserved) ──
     # 3-tuple format: _append_comparison appends the _exact_cmp sequence.
     # Pre-set destination register with non-zero high bits (0xDEADBEEF00000000).
-    # NEW semantics: high bits zeroed → result matches expected → UNDI(137).
-    # OLD semantics: high bits preserved → mismatch → ILLI(136).
+    # NEW semantics: high bits zeroed → result matches expected → UNDI(249).
+    # OLD semantics: high bits preserved → mismatch → ILLI(248).
     ("V1 shl.ut 0xFF<<4: high bits zeroed (rd1 had 0xDEADBEEF...)",
      [set_zw(2, 0xFF),
       set_zw(1, 0), or_w_rwii(1, 2, 0xBEEF), or_w_rwii(1, 3, 0xDEAD),
@@ -297,17 +297,17 @@ TESTS = [
 ]
 
 # ── CTL self-check ────────────────────────────────────────────────────
-# With br.ne: match→UNDI(137), mismatch→cmp.uo(0,0,0)→ILLI(136).
+# With br.ne: match→UNDI(249), mismatch→cmp.uo(0,0,0)→ILLI(248).
 # CTL expects ILLI for a MATCH case → should get UNDI → FAIL.
 CTL_CHECKS = [
-    ("CTL: shr.ub 0xFF>>2=0x3F but expect 7 (wrong; match→UNDI=137)",
+    ("CTL: shr.ub 0xFF>>2=0x3F but expect 7 (wrong; match→UNDI=249)",
      [set_zw(2, 0xFF), shr_ub_orri(1, 2, 2),  # rd1 = 0x3F (shr.ub 0xFF>>2)
       set_zw(6, 0x3F),                           # rd6 = 0x3F (correct value)
       cmp_uo(7, 1, 6),                           # rd7 = 0 (match)
       set_zw(1, 0), br_ne(7, 1, 2),              # match → not taken → continue
       set_zw(1, 1), br_ne(1, 0, 2),              # unconditional → skip 2 → UNDI
       cmp_uo(0, 0, 0)],                          # (not reached on match)
-     ILLI_EXIT,  # WRONG: will get UNDI (137) because values match
+     ILLI_EXIT,  # WRONG: will get UNDI (249) because values match
      "Self-check FAILED: probe cannot detect wrong values"),
 ]
 
@@ -406,7 +406,7 @@ def main():
     print("QEMU-005t Min ROM Probe (v4: br.ne-based, SPEC-066t)")
     print("=" * 70)
     print(f"  Exit codes: ILLI={ILLI_EXIT}, UNDI={UNDI_EXIT}, CRASH={CRASH_EXIT}")
-    print(f"  Comparison: cmp.uo + br.ne → UNDI=match(137), ILLI=mismatch(136)")
+    print(f"  Comparison: cmp.uo + br.ne → UNDI=match(249), ILLI=mismatch(248)")
     print()
 
     # Build tests with comparison sequences

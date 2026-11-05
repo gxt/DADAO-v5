@@ -263,7 +263,7 @@ def _cfxmem_deny():
     p += load_rb(3, PMEM_BASE)
     fault_idx = len(p)
     p += [ld_o(5, 3, 0)]
-    p += exit_seq(0xEE)
+    p += exit_seq(0x7E)
     exp = {"exit": 0x22, "cid:3": CFX_PERM, "syncn:3": 1,
            "cinfo:3": PMEM_BASE, "cip:3": ROM_BASE + fault_idx * 4}
     return build_rom(p, hand(0x100, 0x22)), exp
@@ -284,7 +284,7 @@ def _cfxreg_deny():
     p += load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]        # hmon vector = H
     fault_idx = len(p)
     p += [cfx2rd(32, 0, 0, 5)]
-    p += exit_seq(0xEE)
+    p += exit_seq(0x7E)
     info = (0x7A << 24) | (32 << 18) | (0 << 12) | (0 << 6) | 5
     exp = {"exit": 0x22, "cid:3": CFX_PERM, "syncn:3": 1,
            "cinfo:3": info, "cip:3": ROM_BASE + fault_idx * 4}
@@ -304,10 +304,10 @@ def _cfxexe_deny():
     p += load_rd(20, ROM_BASE + 0x200) + [cfx2rc(2, 2, 10, 20)]
     fault_idx = len(p)
     p += [trap(0, 0)]                                  # hmon -> cfx0, mode S
-    p += exit_seq(0xEE)
+    p += exit_seq(0x7E)
     exp = {"exit": 0x33, "cid:2": CFX_PERM, "syncn:2": 1,
            "cinfo:2": H, "cip:2": H}
-    handlers = {0x100: exit_seq(0xEE), 0x200: exit_seq(0x33)}
+    handlers = {0x100: exit_seq(0x7E), 0x200: exit_seq(0x33)}
     return build_rom(p, handlers), exp
 
 

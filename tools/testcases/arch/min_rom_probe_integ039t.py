@@ -22,8 +22,8 @@ boot handoff, cfx access permissions and the Linux user/kernel split.
 
 Observation channels (same convention as min_rom_probe_034t..049t):
   * register results -> QEMU `-d cpu` dump (last dump block);
-  * fault cause -> cfx_ptw's cause id copied to rd10 by the probe handler
-    (proves the fault entered cfx_ptw), cause info (faulting VA) -> rd11 and
+  * fault cause -> current run-mode monitor's cause id copied to rd10 by the
+    probe handler (proves monitor routing), cause info (faulting VA) -> rd11 and
     cause ip (precise faulting IP; the VA itself for fetch faults) -> rd12;
   * pass/fail -> semihosting SYS_EXIT (ADR-0020 D8).
 
@@ -84,9 +84,9 @@ RAM_BASE = _MACH.ram_base
 RAM_SIZE = _MACH["ram_size"]
 
 # Exit codes (ADR-0004 D5.8 / Machine-01 §1.2): a page-table fault that reaches
-# cfx_ptw is handled by the probe handler, so every case exits with SYS_EXIT 0.
+# monitor fault is handled by the probe handler, so every case exits with SYS_EXIT 0.
 EXIT_PASS = 0x00
-EXIT_CFXMEM = 0x81
+EXIT_CFXMEM = 0xF1    # monitor: hypv + CFXMEM index 1
 
 # cfx_ptw (cfx4) register coordinates (DADAO-12 §4.5)
 PTW_HA = 4
@@ -113,7 +113,8 @@ DATA3_PA = 0x6200_0000
 # with [15:0] cleared, i.e. base = PTBR.
 PTBR = PT_L1_PA & 0x00FF_FFFF_FFFF_0000
 
-# Page-table fault handler (runs in cfx_ptw / hypv): copy the cause id and
+# Page-table fault handler (runs in the current monitor, switched to hypv):
+# copy the cause id and
 # cause info, then leave via semihosting.  Its host exit code is always 0; the
 # probe judges the (rd10, rd11) pair.
 OFF_PTW_HANDLER = 0x300
@@ -139,22 +140,12 @@ PTE_R = 1 << 7
 PPN_MASK = 0x00FF_FFFF_FFFF_0000
 SPPN_MASK = 0x00FF_FFFF_E000_0000
 
-# cfx_ptw cause ids (DADAO-12 §4.5)
-C_NUPERM = 1 << 8
-C_NJPERM = 1 << 9
-C_NSPERM = 1 << 10
-C_NHPERM = 1 << 11
-C_NXPERM = 1 << 12
-C_NWPERM = 1 << 13
-C_NRPERM = 1 << 14
-C_IGPTRAP = 1 << 16
-C_ISPTRAP = 1 << 17
-C_IGPFTRAP = 1 << 18
-C_ISPFTRAP = 1 << 19
-C_DGPTRAP = 1 << 20
-C_DSPTRAP = 1 << 21
-C_DGPFTRAP = 1 << 22
-C_DSPFTRAP = 1 << 23
+# monitor cause ids (DADAO-12 §2.2.6/§5.2 + Machine-v5 §7.1)
+# Page-table faults go to the current run-mode monitor (DADAO-12
+# §2.2.6/§5.2 + Machine-v5 §7.1): missing/fragment => CFXMEM,
+# HSJU/R/W/X => CFXPERM.  No page-level one-hot cause any more.
+C_CFXMEM = 1 << 1
+C_CFXPERM = 1 << 7
 
 SEMIHOST_TAG = 0x3FF00
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
@@ -245,13 +236,16 @@ def setup_ptbr(p, enable=True):
 
 
 def setup_ptw_handler(p):
-    """Route cfx_ptw faults to OFF_PTW_HANDLER from every run mode, and make
-    cfx_ptw entry always switch to H-mode (so the handler can use cg5/cg3)."""
+    """Route page-table faults to the current run-mode monitor: each cfx0-3
+    row m gets its own handler variant (self cause read, then exit)."""
     for m in range(4):
+        # Run the handler in hypv so cfx cg5 cause reads are not blocked by
+        # the supv cg_reg_deleg check; H is the only source cfx allowed to
+        # read the other monitors' cg5 frames.
         p += load_rd(17, MODE_H)
-        p.append(cfx2rc(PTW_HA, m, SWITCH_MODE_RC, 17))
-        p += load_rd(17, PTW_HANDLER)
-        p.append(cfx2rc(PTW_HA, m, EXCP_VECTOR_RC, 17))
+        p.append(cfx2rc(m, m, SWITCH_MODE_RC, 17))
+        p += load_rd(17, PTW_HANDLER + m * 0x40)
+        p.append(cfx2rc(m, m, EXCP_VECTOR_RC, 17))
 
 
 def setup_mode_handler(p, target_ha, mode):
@@ -337,8 +331,11 @@ def observe(log):
         o["rd%d" % n] = lasthex(log, r"RD\[%02d\]: ([0-9a-f]+)" % n)
     o["ptbr"] = lasthex(log, r"PTBR: ([0-9a-f]+)")
     o["ptw_enable"] = lasthex(log, r"PTW_ENABLE: (\d+)")
-    o["cid4"] = lasthex(log, r"CFX04 PREVM:[^\n]* CID:([0-9a-f]+)")
-    o["syncn4"] = lasthex(log, r"CFX04 ID:[^\n]* SYNCN:([0-9a-f]+)")
+    for cfxha in range(4):
+        o["cid%d" % cfxha] = lasthex(
+            log, r"CFX%02d PREVM:[^\n]* CID:([0-9a-f]+)" % cfxha)
+        o["syncn%d" % cfxha] = lasthex(
+            log, r"CFX%02d ID:[^\n]* SYNCN:([0-9a-f]+)" % cfxha)
     return o
 
 
@@ -359,10 +356,15 @@ def case(name, desc):
     return deco
 
 
-PTW_HANDLER_WORDS = ([cfx2rd(PTW_HA, 5, CAUSE_ID_RC, 10),
-                      cfx2rd(PTW_HA, 5, CAUSE_INFO_RC, 11),
-                      cfx2rd(PTW_HA, 5, CAUSE_IP_RC, 12)]
-                     + exit_seq(EXIT_PASS))
+def monitor_words(cfxha):
+    return ([cfx2rd(cfxha, 5, CAUSE_ID_RC, 10),
+             cfx2rd(cfxha, 5, CAUSE_INFO_RC, 11),
+             cfx2rd(cfxha, 5, CAUSE_IP_RC, 12)]
+            + exit_seq(EXIT_PASS))
+
+
+def monitor_handler_dict():
+    return {OFF_PTW_HANDLER + m * 0x40: monitor_words(m) for m in range(4)}
 
 
 def mode_handler(target_ha, rd=5):
@@ -377,9 +379,9 @@ def fault_at(p):
     return ROM_BASE + 4 * len(p)
 
 
-def fault_expect(cause, va, ip, **extra):
+def fault_expect(cause, va, ip, cfxha=MODE_H, **extra):
     exp = {"exit": EXIT_PASS, "rd10": cause, "rd11": va, "rd12": ip,
-           "syncn4": 1, "cid4": cause}
+           "syncn%d" % cfxha: 1, "cid%d" % cfxha: cause}
     exp.update(extra)
     return exp
 
@@ -506,7 +508,7 @@ def _fetch_translated():
     setup_ptbr(p)
     p += load_rb(3, 0x0000_0000_0000)
     p.append(jump_rrii(3, 0, 0))
-    p += exit_seq(0xEE)
+    p += exit_seq(0x7E)
     return build_rom(p), {"exit": EXIT_PASS, "rd5": 0x1234}
 
 
@@ -554,7 +556,7 @@ def _spf_frag0_ok():
     return build_rom(p), {"exit": EXIT_PASS, "rd5": MAGIC}
 
 
-@case("spf_frag1_fault", "superpage SPF bit0 only: VA[28:26]=1 -> DSPFTRAP")
+@case("spf_frag1_fault", "superpage SPF bit0 only: VA[28:26]=1 -> CFXMEM")
 def _spf_frag1_fault():
     # Fragment 1 lies at offset 64-128 MiB, outside the 16 MiB test RAM, so the
     # selection is proven by the *fault* (bit8 alone is not enough for VA[28:26]=1).
@@ -567,11 +569,11 @@ def _spf_frag1_fault():
     p += load_rb(3, va)
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_DSPFTRAP, va, ip)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
 
 
-@case("spf_frag0_fault", "superpage SPF bit for VA[28:26]=0 clear -> DSPFTRAP")
+@case("spf_frag0_fault", "superpage SPF bit for VA[28:26]=0 clear -> CFXMEM")
 def _spf_frag0_fault():
     p = []
     frag = 1
@@ -582,8 +584,8 @@ def _spf_frag0_fault():
     p += load_rb(3, va)
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_DSPFTRAP, va, ip)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
 
 
 @case("gpf_frag1_ok", "normal page GPF bit for VA[15:13]=1 present -> access ok")
@@ -600,7 +602,7 @@ def _gpf_frag1_ok():
     return build_rom(p), {"exit": EXIT_PASS, "rd5": MAGIC}
 
 
-@case("gpf_frag0_fault", "normal page GPF bit for VA[15:13]=0 clear -> DGPFTRAP")
+@case("gpf_frag0_fault", "normal page GPF bit for VA[15:13]=0 clear -> CFXMEM")
 def _gpf_frag0_fault():
     p = []
     frag = 1
@@ -611,12 +613,12 @@ def _gpf_frag0_fault():
     p += load_rb(3, va)
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_DGPFTRAP, va, ip)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
 
 
 # -- page misses ------------------------------------------------------------
-@case("l1_p0_dgtrap", "L1 P=0 SP=0 data access -> DGPTRAP")
+@case("l1_p0_dgtrap", "L1 P=0 SP=0 data access -> CFXMEM")
 def _l1_p0_dgtrap():
     p = []
     va = 0x1000
@@ -626,11 +628,11 @@ def _l1_p0_dgtrap():
     p += load_rb(3, va)
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_DGPTRAP, va, ip)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
 
 
-@case("l1_p0_isptrap", "L1 P=0 SP=1 fetch -> ISPTRAP")
+@case("l1_p0_isptrap", "L1 P=0 SP=1 fetch -> CFXMEM")
 def _l1_p0_isptrap():
     p = []
     va = 0x0000_2000_1000
@@ -639,11 +641,11 @@ def _l1_p0_isptrap():
     setup_ptbr(p)
     p += load_rb(3, va)
     p.append(jump_rrii(3, 0, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_ISPTRAP, va, va)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, va)
 
 
-@case("l2_p0_igtrap", "L2 P=0 fetch -> IGPTRAP")
+@case("l2_p0_igtrap", "L2 P=0 fetch -> CFXMEM")
 def _l2_p0_igtrap():
     p = []
     va = 0x1000
@@ -653,11 +655,11 @@ def _l2_p0_igtrap():
     setup_ptbr(p)
     p += load_rb(3, va)
     p.append(jump_rrii(3, 0, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_IGPTRAP, va, va)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, va)
 
 
-@case("l2_p0_dgtrap", "L2 P=0 -> DGPTRAP (store path)")
+@case("l2_p0_dgtrap", "L2 P=0 -> CFXMEM (store path)")
 def _l2_p0_dgtrap():
     p = []
     va = 0x1000
@@ -669,8 +671,8 @@ def _l2_p0_dgtrap():
     p += load_rd(4, MAGIC)
     ip = fault_at(p)
     p.append(st_o(4, 3, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_DGPTRAP, va, ip)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
 
 
 # -- HSJU: four run modes ---------------------------------------------------
@@ -690,7 +692,7 @@ def _hsju_case(mode, ok):
         if ok:
             exp = {"exit": EXIT_PASS, "rd5": MAGIC}
         else:
-            exp = fault_expect(C_NHPERM, va, ip)
+            exp = fault_expect(C_CFXPERM, va, ip)
     else:
         setup_mode_handler(p, target_ha, mode)
         p.append(trap(target_ha, 0))
@@ -698,10 +700,8 @@ def _hsju_case(mode, ok):
         if ok:
             exp = {"exit": EXIT_PASS, "rd5": MAGIC, "rd10": 0}
         else:
-            exp = fault_expect(
-                {MODE_U: C_NUPERM, MODE_J: C_NJPERM, MODE_S: C_NSPERM}[mode],
-                va, MODE_HANDLER + 4)
-    handlers = {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}
+            exp = fault_expect(C_CFXPERM, va, MODE_HANDLER + 4, cfxha=mode)
+    handlers = monitor_handler_dict()
     if mode != MODE_H:
         handlers[OFF_MODE_HANDLER] = mode_handler(target_ha)
     return build_rom(p, handlers), exp
@@ -712,7 +712,7 @@ def _hsju_u_ok():
     return _hsju_case(MODE_U, True)
 
 
-@case("hsju_u_fail", "U-mode page without U bit -> NUPERM")
+@case("hsju_u_fail", "U-mode page without U bit -> CFXPERM")
 def _hsju_u_fail():
     return _hsju_case(MODE_U, False)
 
@@ -722,7 +722,7 @@ def _hsju_j_ok():
     return _hsju_case(MODE_J, True)
 
 
-@case("hsju_j_fail", "J-mode page without J bit -> NJPERM")
+@case("hsju_j_fail", "J-mode page without J bit -> CFXPERM")
 def _hsju_j_fail():
     return _hsju_case(MODE_J, False)
 
@@ -732,7 +732,7 @@ def _hsju_s_ok():
     return _hsju_case(MODE_S, True)
 
 
-@case("hsju_s_fail", "S-mode page without S bit -> NSPERM")
+@case("hsju_s_fail", "S-mode page without S bit -> CFXPERM")
 def _hsju_s_fail():
     return _hsju_case(MODE_S, False)
 
@@ -742,13 +742,13 @@ def _hsju_h_ok():
     return _hsju_case(MODE_H, True)
 
 
-@case("hsju_h_fail", "H-mode page without H bit -> NHPERM")
+@case("hsju_h_fail", "H-mode page without H bit -> CFXPERM")
 def _hsju_h_fail():
     return _hsju_case(MODE_H, False)
 
 
 # -- R/W/X ------------------------------------------------------------------
-@case("nrperm", "R=0 load -> NRPERM")
+@case("nrperm", "R=0 load -> CFXPERM")
 def _nrperm():
     p = []
     va = 0x80
@@ -758,11 +758,11 @@ def _nrperm():
     p += load_rb(3, va)
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_NRPERM, va, ip)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXPERM, va, ip)
 
 
-@case("nwperm", "W=0 store -> NWPERM")
+@case("nwperm", "W=0 store -> CFXPERM")
 def _nwperm():
     p = []
     va = 0x80
@@ -773,11 +773,11 @@ def _nwperm():
     p += load_rd(4, MAGIC)
     ip = fault_at(p)
     p.append(st_o(4, 3, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_NWPERM, va, ip)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXPERM, va, ip)
 
 
-@case("nxperm", "X=0 fetch -> NXPERM")
+@case("nxperm", "X=0 fetch -> CFXPERM")
 def _nxperm():
     p = []
     va = 0x0000_0000_0100
@@ -786,12 +786,12 @@ def _nxperm():
     setup_ptbr(p)
     p += load_rb(3, va)
     p.append(jump_rrii(3, 0, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_NXPERM, va, va)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXPERM, va, va)
 
 
 # -- exception priority (ADR-0040 D8) --------------------------------------
-@case("prio_p0_over_perm", "L1 P=0 + HSJU=0 + R=0 -> IGPTRAP (missing page wins)")
+@case("prio_p0_over_perm", "L1 P=0 + HSJU=0 + R=0 -> CFXMEM (missing page wins)")
 def _prio_p0_over_perm():
     p = []
     va = 0x1000
@@ -801,11 +801,11 @@ def _prio_p0_over_perm():
     p += load_rb(3, va)
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_DGPTRAP, va, ip)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
 
 
-@case("prio_spf_over_perm", "SPF bit 0 + HSJU=0 + R=0 -> DSPFTRAP")
+@case("prio_spf_over_perm", "SPF bit 0 + HSJU=0 + R=0 -> CFXMEM")
 def _prio_spf_over_perm():
     p = []
     va = 0x0000_2000_0080
@@ -815,11 +815,11 @@ def _prio_spf_over_perm():
     p += load_rb(3, va)
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_DSPFTRAP, va, ip)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
 
 
-@case("prio_gpf_over_perm", "GPF bit 0 + HSJU=0 + R=0 -> DGPFTRAP")
+@case("prio_gpf_over_perm", "GPF bit 0 + HSJU=0 + R=0 -> CFXMEM")
 def _prio_gpf_over_perm():
     p = []
     va = 0x80
@@ -829,11 +829,11 @@ def _prio_gpf_over_perm():
     p += load_rb(3, va)
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_DGPFTRAP, va, ip)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
 
 
-@case("prio_hsju_over_rwx", "HSJU=0 + R=0 -> NHPERM (HSJU wins over R)")
+@case("prio_hsju_over_rwx", "HSJU=0 + R=0 -> CFXPERM (HSJU wins over R)")
 def _prio_hsju_over_rwx():
     p = []
     va = 0x80
@@ -843,11 +843,11 @@ def _prio_hsju_over_rwx():
     p += load_rb(3, va)
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_NHPERM, va, ip)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXPERM, va, ip)
 
 
-@case("prio_l2p_over_perm", "L2 P=0 + HSJU=0 + R=0 -> DGPTRAP")
+@case("prio_l2p_over_perm", "L2 P=0 + HSJU=0 + R=0 -> CFXMEM")
 def _prio_l2p_over_perm():
     p = []
     va = 0x80
@@ -858,8 +858,8 @@ def _prio_l2p_over_perm():
     p += load_rb(3, va)
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
-    p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_HANDLER_WORDS}), fault_expect(C_DGPTRAP, va, ip)
+    p += exit_seq(0x7E)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
 
 
 # -- regression: ptw_enable=0 still CFXMEM (Step 1 unchanged) ---------------
@@ -871,7 +871,7 @@ def _ptw_off_still_cfxmem():
     p += load_rd(17, 0) + [cfx2rc(PTW_HA, PTW_ENABLE_CG, PTW_ENABLE_RC, 17)]
     p += load_rb(3, 0x1000)
     p.append(ld_o(5, 3, 0))
-    p += exit_seq(0xEE)
+    p += exit_seq(0x7E)
     return build_rom(p), {"exit": EXIT_CFXMEM}
 
 

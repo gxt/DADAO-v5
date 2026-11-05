@@ -111,7 +111,7 @@
       ra0: 0:@ENTRY+0x700000
   mnemonic: ret
   notes: 'legality D4b RASUF (MemRAS count=0): ra0=0:@ENTRY+0x700000 (RACNT=0, MRPTR=@ENTRY+0x700000); MemRAS[MRPTR]=[count=0,
-    addr=0xEEEE00000000]; ret → read MemRAS: count=0 → RASUF (0x8B)'
+    addr=0xEEEE00000000]; ret → read MemRAS: count=0 → RASUF'
   spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; ADR-0004 D5.5'
   status: active
 - class: legality
@@ -127,7 +127,7 @@
     ra:
       ra0: '0x0000000000000000'
   mnemonic: ret
-  notes: 'legality D4a RASUF: ra0=0x0000000000000000 (RACNT=0, MRPTR=0); ret → D4: RACNT==0, MRPTR==0 → RASUF (0x8B)'
+  notes: 'legality D4a RASUF: ra0=0x0000000000000000 (RACNT=0, MRPTR=0); ret → D4: RACNT==0, MRPTR==0 → RASUF'
   spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; ADR-0004 D5.5'
   status: active
 - class: legality
@@ -141,7 +141,7 @@
   id: ret_riii_ra
   input_state: {}
   mnemonic: ret
-  notes: 'legality dst_rd0_nonzero: rdha=rd0, imms18=1 (≠0) → ILLI (0x88); word=0x76<<24|0<<18|1=0x76000001'
+  notes: 'legality dst_rd0_nonzero: rdha=rd0, imms18=1 (≠0) → ILLI; word=0x76<<24|0<<18|1=0x76000001'
   spec_cite: 'SimRISC-06: 函数返回; SimRISC-00: 数据寄存器'
   status: active
 - class: legality
@@ -155,7 +155,7 @@
   id: ret_riii_ra
   input_state: {}
   mnemonic: ret
-  notes: 'legality dst_rd0_nonzero: rdha=rd0, imms18=-1 (0x3FFFF, ≠0) → ILLI (0x88); word=0x76<<24|0<<18|0x3FFFF=0x7603FFFF'
+  notes: 'legality dst_rd0_nonzero: rdha=rd0, imms18=-1 (0x3FFFF, ≠0) → ILLI; word=0x76<<24|0<<18|0x3FFFF=0x7603FFFF'
   spec_cite: 'SimRISC-06: 函数返回; SimRISC-00: 数据寄存器'
   status: active
 - class: semantic
@@ -200,6 +200,6 @@
       ra0: 0:@ENTRY+0x700000
   mnemonic: ret
   notes: 'legality D4b CFXMEM (return target in reserved cfx): ra0=0:@ENTRY+0x700000 (RACNT=0, MRPTR=@ENTRY+0x700000); MemRAS[MRPTR]=[count=1,
-    addr=0xBBBB00000000]; ret → PC=0xBBBB00000000 (cfxha 46, reserved 16–31/35–61) → 取指 CFXMEM (0x81)'
+    addr=0xBBBB00000000]; ret → PC=0xBBBB00000000 (cfxha 46, reserved 16–31/35–61) → 取指 CFXMEM (monitor)'
   spec_cite: 'SimRISC-00: 弹栈流程; SimRISC-06: 函数返回; DADAO-12: 核内地址空间; DADAO-12: 异常进入流程; ADR-0020 D15 / ADR-0004 D5.8'
   status: active

@@ -65,7 +65,7 @@
       rd1: '0xFFFFFFFFFFFFFFFF'
   mnemonic: br.n
   notes: 'boundary CFXMEM (Tiny): rd1=-1(<0) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
-    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM（当前运行模式 monitor，spec/Machine-v5 §7.1）；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -128,7 +128,7 @@
   input_state: {}
   mnemonic: br.nn
   notes: 'boundary CFXMEM (Tiny): rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
-    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM（当前运行模式 monitor，spec/Machine-v5 §7.1）；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -190,7 +190,7 @@
   input_state: {}
   mnemonic: br.z
   notes: 'boundary CFXMEM (Tiny): rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
-    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM（当前运行模式 monitor，spec/Machine-v5 §7.1）；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -253,7 +253,7 @@
       rd1: '0x0000000000000001'
   mnemonic: br.nz
   notes: 'boundary CFXMEM (Tiny): rd1=1(>0/!=0) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
-    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM（当前运行模式 monitor，spec/Machine-v5 §7.1）；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -316,7 +316,7 @@
       rd1: '0x0000000000000001'
   mnemonic: br.p
   notes: 'boundary CFXMEM (Tiny): rd1=1(>0/!=0) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
-    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM（当前运行模式 monitor，spec/Machine-v5 §7.1）；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -378,7 +378,7 @@
   input_state: {}
   mnemonic: br.np
   notes: 'boundary CFXMEM (Tiny): rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
-    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM（当前运行模式 monitor，spec/Machine-v5 §7.1）；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -447,7 +447,7 @@
       rd1: '0x0000000000000042'
   mnemonic: br.eq
   notes: 'boundary UNDI (Tiny): imms12=-0x400 (0xC00), target=rb0+(imm<<2)=@ENTRY-0x1000 → inside the 8 MiB SRAM, so the fetch
-    reads an all-zero word = 保留编码 ⇒ UNDI (0x89)；12 位 imm 最大 ±8 KiB，够不到 SRAM 边界，原 UNMAPPED 意图在两个 profile 都不可表达'
+    reads an all-zero word = 保留编码 ⇒ UNDI；12 位 imm 最大 ±8 KiB，够不到 SRAM 边界，原 UNMAPPED 意图在两个 profile 都不可表达'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -517,7 +517,7 @@
       rd2: '0x0000000000000099'
   mnemonic: br.ne
   notes: 'boundary UNDI (Tiny): imms12=-0x400 (0xC00), target=rb0+(imm<<2)=@ENTRY-0x1000 → inside the 8 MiB SRAM, so the fetch
-    reads an all-zero word = 保留编码 ⇒ UNDI (0x89)；12 位 imm 最大 ±8 KiB，够不到 SRAM 边界，原 UNMAPPED 意图在两个 profile 都不可表达'
+    reads an all-zero word = 保留编码 ⇒ UNDI；12 位 imm 最大 ±8 KiB，够不到 SRAM 边界，原 UNMAPPED 意图在两个 profile 都不可表达'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -584,7 +584,7 @@
       rb3: '0x0000000000000000'
   mnemonic: br.z
   notes: 'boundary CFXMEM (Tiny): rb3=0(==0) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
-    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM（当前运行模式 monitor，spec/Machine-v5 §7.1）；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'
@@ -651,7 +651,7 @@
       rb3: '0x0000000000000001'
   mnemonic: br.nz
   notes: 'boundary CFXMEM (Tiny): rb3=1(!=0) → condition TRUE → TAKEN; imms18=-0x20000 (0x20000), target=rb0+(imm<<2)=@ENTRY-0x80000
-    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2)；Tiny 无 unmapped 窗口'
+    → below the 8 MiB SRAM in the cfxha-63 segment ⇒ CFXMEM（当前运行模式 monitor，spec/Machine-v5 §7.1）；Tiny 无 unmapped 窗口'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 条件跳转指令; ADR-0004 D5'

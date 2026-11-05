@@ -18,7 +18,7 @@ Tests cover:
 - ILLI checks: rb0 dest for RB ops
 
 Exit codes (ADR-0004 D5.8):
-  0x00 = PASS, 0x88 = ILLI, 0x89 = UNDI, 0x8A = RASOF, 0x8B = RASUF
+  0x00 = PASS, 0xF8 = ILLI, 0xF9 = UNDI, 0xFA = RASOF, 0xFB = RASUF
 
 Usage: python3 tools/testcases/arch/min_rom_probe_008t.py
 """
@@ -346,11 +346,11 @@ def run_test(rom_data, kernel_data=None, timeout=10):
 # ── Exit codes ────────────────────────────────────────────────────────
 
 PASS_EXIT = 0
-ILLI_EXIT = 136    # 0x88
-UNDI_EXIT = 137    # 0x89
-RASOF_EXIT = 138   # 0x8A
-RASUF_EXIT = 139   # 0x8B
-MALIGN_EXIT = 140  # 0x8C
+ILLI_EXIT = 248    # 0xF8
+UNDI_EXIT = 249    # 0xF9
+RASOF_EXIT = 250   # 0xFA
+RASUF_EXIT = 251   # 0xFB
+MALIGN_EXIT = 252  # 0xFC
 
 # ── Helper: set up rb18 as a scratch address ──────────────────────────
 # rb18 = RAM_BASE_0100 (RAM + 0x100)

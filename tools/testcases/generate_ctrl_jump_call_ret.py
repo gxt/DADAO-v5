@@ -4,7 +4,7 @@
 Covers M1 identities (jump-iiii, jump-rrii, call-iiii, call-rrii, ret-riii) with:
   - encoding cases (jump/call only; ret-riii excluded: return target depends on harness layout)
   - semantic/boundary cases with expected_pc, expected_state (ra + memory)
-  - legality cases (UNMAPPED, CFXMEM, RASOF, RASUF)
+  - legality cases (CFXMEM (unmapped/out-of-range), RASOF, RASUF)
 
 Spec-first: all encoding words, expected values, and spec_cite derived from
 contracts/opcodes.yaml, spec/SimRISC-00: 返回地址栈 (D7),
@@ -255,7 +255,7 @@ def _gen_jump_iiii():
               "CFXMEM", None, SC_JUMP_LEG,
               "boundary CFXMEM (Tiny): imms24=-0x40000, "
               "target=rb0+(imms24<<2)=%s → below the 8 MiB SRAM in the "
-              "cfxha-63 segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2); "
+              "cfxha-63 segment ⇒ CFXMEM (monitor, spec/Machine-v5 §1.2); "
               "Tiny 无 unmapped 窗口，故不是 UNMAPPED"
               % target_boundary, profiles=["tiny"]),
     ]
@@ -280,7 +280,7 @@ def _gen_jump_rrii():
               {"rb": {"rb3": "0x0000000000000000"}}, None,
               "CFXMEM", None, SC_JUMP_LEG,
               "legality CFXMEM: rbha=rb3=0, rdhb=rd0=0, imms12=0 → "
-              "addr=0 → umon segment (cfxha 0) no RAM → CFXMEM (0x81), "
+              "addr=0 → umon segment (cfxha 0) no RAM → CFXMEM (monitor), "
               "ADR-0020 D15 / ADR-0004 D5.8", profiles=["tiny"]),
     ]
 
@@ -380,7 +380,7 @@ def _gen_call_iiii():
               "RASOF", None, SC_CALL_RASOF,
               "legality RASOF: ra0=%s (RACNT=63, MRPTR=0); "
               "ra63=[count=1, addr=0xCCCC00000000]; PC+4=@ENTRY+0x4 ≠ "
-              "ra63[47:0] → C3b: RACNT==63, MRPTR==0 → RASOF (0x8A)"
+              "ra63[47:0] → C3b: RACNT==63, MRPTR==0 → RASOF (0xFA)"
               % rasof_in_ra0),
         # C3b MemRAS: RACNT=63, MRPTR!=0 → spill oldest to MemRAS
         _case("semantic", "call_iiii_ra", "iiii", word,
@@ -465,7 +465,7 @@ def _gen_call_rrii():
               {"rb": {"rb3": "0x0000000000000000"}}, None,
               "CFXMEM", None, SC_CALL_LEG,
               "legality CFXMEM: rbha=rb3=0, rdhb=rd0=0, imms12=0 → "
-              "addr=0 → umon segment (cfxha 0) no RAM → CFXMEM (0x81), "
+              "addr=0 → umon segment (cfxha 0) no RAM → CFXMEM (monitor), "
               "ADR-0020 D15 / ADR-0004 D5.8", profiles=["tiny"]),
     ]
 
@@ -498,7 +498,7 @@ def _gen_ret_riii():
     #   (ISS-098/TESTCASES-063t: the entry address is the instruction's return
     #   target, so it must be executable RAM — the previous magic 0xBBBB… value
     #   made the case unobservable: `ret` to 0xBBBB00000000 (cfxha 46,
-    #   reserved 16–31/35–61) faults CFXMEM(0x81) before any state comparison can
+    #   reserved 16–31/35–61) faults CFXMEM (monitor) before any state comparison can
     #   run.  The magic shape is kept as a legality case, the RAS bookkeeping
     #   assertions are unchanged.)
     d4b_mrptr = _tok(MRPTR_OFF)           # entry-relative MemRAS pointer
@@ -522,7 +522,7 @@ def _gen_ret_riii():
     # D4b CFXMEM: the same MemRAS pop with a reserved-cfx return target
     #   (the shape the pre-063t D4b semantic cases used): ret takes PC from the
     #   entry → instruction fetch at 0xBBBB00000000 (cfxha 46, reserved 16–31/35–61)
-    #   → CFXMEM (0x81); the RAS was consumed before the fetch.
+    #   → CFXMEM (monitor); the RAS was consumed before the fetch.
     d4bu_mem_in = _ra0(1, 0xBBBB_0000_0000)
 
     # D4b cnt=0: RACNT==0, MRPTR!=0, MemRAS entry count=0 → RASUF
@@ -603,20 +603,20 @@ def _gen_ret_riii():
               "RASUF", None, SC_RET_D4B_RASUF,
               "legality D4b RASUF (MemRAS count=0): ra0=%s (RACNT=0, "
               "MRPTR=%s); MemRAS[MRPTR]=[count=0, addr=0xEEEE00000000]; "
-              "ret → read MemRAS: count=0 → RASUF (0x8B)"
+              "ret → read MemRAS: count=0 → RASUF (0xFB)"
               % (d4b0_in_ra0, d4b_mrptr)),
         # D4a: RACNT==0, MRPTR==0 → RASUF (cold RA)
         _case("legality", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d4a_in_ra0}}, None,
               "RASUF", None, SC_RET_RASUF,
               "legality D4a RASUF: ra0=%s (RACNT=0, MRPTR=0); "
-              "ret → D4: RACNT==0, MRPTR==0 → RASUF (0x8B)" % d4a_in_ra0),
+              "ret → D4: RACNT==0, MRPTR==0 → RASUF (0xFB)" % d4a_in_ra0),
         # ── TESTCASES-022t: ret rd0 ⇒ imms18 MUST be 0 (dst_rd0_nonzero) ──
         # rdha=rd0, imms18=1 (≠0) → ILLI
         _case("legality", "ret_riii_ra", "riii", _build_word_riii(op, 0, 1),
               {}, None,
               "ILLI", None, SC_RET_RD0_IMMS18,
-              "legality dst_rd0_nonzero: rdha=rd0, imms18=1 (≠0) → ILLI (0x88); "
+              "legality dst_rd0_nonzero: rdha=rd0, imms18=1 (≠0) → ILLI; "
               "word=0x76<<24|0<<18|1=0x76000001"),
         # rdha=rd0, imms18=-1 (0x3FFFF, ≠0) → ILLI
         _case("legality", "ret_riii_ra", "riii",
@@ -624,7 +624,7 @@ def _gen_ret_riii():
               {}, None,
               "ILLI", None, SC_RET_RD0_IMMS18,
               "legality dst_rd0_nonzero: rdha=rd0, imms18=-1 (0x3FFFF, ≠0) → "
-              "ILLI (0x88); word=0x76<<24|0<<18|0x3FFFF=0x7603FFFF"),
+              "ILLI; word=0x76<<24|0<<18|0x3FFFF=0x7603FFFF"),
         # rdha=rd1 (≠rd0), imms18=42 → legal; normal pop (mirrors D3) + rd1 write
         _case("semantic", "ret_riii_ra", "riii", rd1_word,
               {"ra": {"ra0": rd1_in_ra0, "ra63": rd1_in_ra63,
@@ -641,7 +641,7 @@ def _gen_ret_riii():
         # ── appended (index 9, 既有用例序号不变): D4b CFXMEM ───────────────
         # MemRAS 条目的返回目标落在 reserved cfx（0xBBBB… ⇒ cfxha 46 ∈
         # 16–31/35–61；063t 之前 D4b semantic 用例用的形态）：ret 取指 → CFXMEM
-        # (0x81)。该形态语义上无法观察到 ret 之后的寄存器状态，故只能是
+        # (monitor CFXMEM)。该形态语义上无法观察到 ret 之后的寄存器状态，故只能是
         # legality 用例。
         _case("legality", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d4b1_in_ra0},
@@ -652,7 +652,7 @@ def _gen_ret_riii():
               "legality D4b CFXMEM (return target in reserved cfx): ra0=%s "
               "(RACNT=0, MRPTR=%s); MemRAS[MRPTR]=[count=1, "
               "addr=0xBBBB00000000]; ret → PC=0xBBBB00000000 (cfxha 46, "
-              "reserved 16–31/35–61) → 取指 CFXMEM (0x81)"
+              "reserved 16–31/35–61) → 取指 CFXMEM (monitor)"
               % (d4b1_in_ra0, d4b1_mrptr)),
     ]
 

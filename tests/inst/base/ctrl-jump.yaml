@@ -44,7 +44,7 @@
   input_state: {}
   mnemonic: jump
   notes: 'boundary CFXMEM (Tiny): imms24=-0x40000, target=rb0+(imms24<<2)=@ENTRY-0x100000 → below the 8 MiB SRAM in the cfxha-63
-    segment ⇒ CFXMEM (0x81, spec/Machine-v5 §1.2); Tiny 无 unmapped 窗口，故不是 UNMAPPED'
+    segment ⇒ CFXMEM（当前运行模式 monitor，spec/Machine-v5 §7.1）; Tiny 无 unmapped 窗口，故不是 UNMAPPED'
   profiles:
   - tiny
   spec_cite: 'SimRISC-06: 无条件跳转指令; ADR-0004 D5.6'
@@ -90,7 +90,7 @@
     rb:
       rb3: '0x0000000000000000'
   mnemonic: jump
-  notes: 'legality CFXMEM: rbha=rb3=0, rdhb=rd0=0, imms12=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM (0x81), ADR-0020
+  notes: 'legality CFXMEM: rbha=rb3=0, rdhb=rd0=0, imms12=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM (monitor), ADR-0020
     D15 / ADR-0004 D5.8'
   profiles:
   - tiny

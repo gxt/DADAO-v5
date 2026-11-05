@@ -10,7 +10,7 @@ from the §7 table of spec/SimRISC-07 (`load_class_bits_from_spec`); a missing
 or malformed table is an explicit non-zero FAIL.  `--oracle` prints the parsed
 category↔bit mapping and cross-checks it against all 20 sample values.
 Encodings: contracts/opcodes.yaml.
-Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0x88).
+Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0xF8).
 
 Instructions under test (10):
   sign     (4): ftsgnj ftsgnn fosgnj fosgnn   (orrr)
@@ -31,7 +31,7 @@ Agreed per-format conventions (spec open points, see task §1.4):
 
 Verification channels (same as min_rom_probe_034t.py):
   * value cases  -> QEMU `-d cpu` dump, parsing the *last* RF[]/RD[] dump.
-  * fault cases  -> process exit code (ILLI 0x88).
+  * fault cases  -> process exit code (ILLI 0xF8).
   * E2E cases    -> in-ROM compare + SYS_EXIT PASS/FAIL epilogue.
 
 Reverse gate (.work/evidence/QEMU-035t/run.sh --inject): reverting any of the
@@ -92,14 +92,14 @@ ROM_BASE = 0xFFFFFFFF0000
 RESET0 = 0x7FF800007FC00000
 
 PASS_EXIT = 0x00
-ILLI_EXIT = 0x88
+ILLI_EXIT = 0xF8
 
 # ── Instruction encoding (op / ha values from contracts/opcodes.yaml) ──
 
 # ROM terminator: a deterministic ILLI word.  A plain `fence` is legal, but
 # `fence` with hb (= immu18[17:12]) != 0 violates `encode_sbz` -> ILLI, which
 # is independent of cfx resource domains and of ISA revisions.
-ILLI = 0x79001000                 # fence cfx0, hb=1 -> ILLI (exit 0x88)
+ILLI = 0x79001000                 # fence cfx0, hb=1 -> ILLI (exit 0xF8)
 SWYM = 0x47880000                 # swym (padding, op=0x47 ha=0x22)
 
 

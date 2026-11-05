@@ -34,7 +34,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.o'
-  notes: 'legality MALIGN: EA=@ENTRY+0x7 (imms12=7), align=8B → MALIGN (0x8C), contract-isa
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (imms12=7), align=8B → MALIGN, contract-isa
     §4.1.1, legality_rules excp_malign'
 - mnemonic: ld.o
   id: ld.o_rrii_ra
@@ -52,7 +52,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ld.o'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ld.o
@@ -140,7 +140,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: st.o'
-  notes: 'legality MALIGN: EA=@ENTRY+0x7 (imms12=7), align=8B → MALIGN (0x8C), contract-isa
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (imms12=7), align=8B → MALIGN, contract-isa
     §4.1.1, legality_rules excp_malign'
 - mnemonic: st.o
   id: st.o_rrii_ra
@@ -158,7 +158,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: st.o'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: st.o
@@ -260,7 +260,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.o'
-  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN (0x8C),
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN,
     contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.o
   id: ldm.o_rrri_ra
@@ -278,7 +278,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: ldm.o'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: ldm.o
@@ -386,7 +386,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.o'
-  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN (0x8C),
+  notes: 'legality MALIGN: EA=@ENTRY+0x7 (rd2 offset=7), align=8B → MALIGN,
     contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: stm.o
   id: stm.o_rrri_ra
@@ -404,7 +404,7 @@
   deferred_reason: null
   spec_cite: 'SimRISC-01: stm.o'
   notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
-    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
+    （monitor CFXMEM，spec/Machine-v5 §7.1）'
   profiles:
   - tiny
 - mnemonic: stm.o

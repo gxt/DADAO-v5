@@ -20,7 +20,7 @@ Tests cover:
   R4: RA §5.6.1 case 1+3 combined — nested call/ret (2 levels, shift push/pop)
 
 Exit codes (ADR-0004 D5.8):
-  0x00 = PASS, 0x88 = ILLI, 0x89 = UNDI, 0x8A = RASOF, 0x8B = RASUF
+  0x00 = PASS, 0xF8 = ILLI, 0xF9 = UNDI, 0xFA = RASOF, 0xFB = RASUF
 
 Usage: python3 tools/testcases/arch/min_rom_probe_012t.py
 """
@@ -256,10 +256,10 @@ def run_test(rom_data, kernel_data=None, timeout=10):
 # ── Exit codes ────────────────────────────────────────────────────────
 
 PASS_EXIT = 0
-ILLI_EXIT = 136    # 0x88
-UNDI_EXIT = 137    # 0x89
-RASOF_EXIT = 138   # 0x8A
-RASUF_EXIT = 139   # 0x8B
+ILLI_EXIT = 248    # 0xF8
+UNDI_EXIT = 249    # 0xF9
+RASOF_EXIT = 250   # 0xFA
+RASUF_EXIT = 251   # 0xFB
 
 # ── Test cases ────────────────────────────────────────────────────────
 # After trampoline: rb16=SYS_EXIT argument block, rb17=rb2=RAM base
@@ -407,7 +407,7 @@ TESTS = [
     #   64 iterations → ra63 refcount = 64 (case 2: same addr → count+1), which
     #   does NOT consume depth → NO overflow → exit 0x00.
     # Discriminator: if case 2 were broken (treated as case 3 shift-down), the
-    #   64 entries would fill ra1..ra63 → RASOF (0x8A) instead of 0x00.
+    #   64 entries would fill ra1..ra63 → RASOF (0xFA) instead of 0x00.
     ("R2 RA same-address recursion (case 2: refcount increments)",
      [set_zw_rd(18, 64),        # t0: counter = 64
       call_iiii(2),             # t1 L: target t3(S); RA = addr(t2) — SAME every iteration

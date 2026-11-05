@@ -17,17 +17,17 @@ Test categories:
   RO0-RO3: INT_MIN%-1 → 0
   E0-E15: Encoding tests (rdhd=rd0, all 16 div/rem variants)
 
-Exit codes: ILLI=136(0x88), UNDI=137(0x89), CRASH=134
+Exit codes: ILLI=248(0xF8), UNDI=249(0xF9), CRASH=134
 
 Value comparison method (br.ne-based, v2):
   1. Compute result via div/rem
   2. Load expected value
   3. cmp.uo rd_cmp, result, expected → rd_cmp=0 if equal, ±1 if not
   4. set.zw rd_zero, 0
-  5. br.ne rd_cmp, rd_zero, 2 → if mismatch (rd_cmp!=0), skip 2 → fence → 136
-  6. set.zw rd1, 1; br.ne rd1, rd0, 2 → unconditional: skip fence → UNDI(137)
-  7. fence → exit 136 (mismatch path)
-  So: UNDI(137) = PASS (match), ILLI(136) = FAIL (mismatch).
+  5. br.ne rd_cmp, rd_zero, 2 → if mismatch (rd_cmp!=0), skip 2 → fence → 248
+  6. set.zw rd1, 1; br.ne rd1, rd0, 2 → unconditional: skip fence → UNDI(249)
+  7. fence → exit 248 (mismatch path)
+  So: UNDI(249) = PASS (match), ILLI(248) = FAIL (mismatch).
 
 Usage: python3 tools/testcases/arch/min_rom_probe_011t.py
 """
@@ -169,8 +169,8 @@ def run_rom(rom_data, kernel_data=None, timeout=10):
         os.unlink(rom_path)
         os.unlink(kernel_path)
 
-ILLI_EXIT = 136
-UNDI_EXIT = 137
+ILLI_EXIT = 248
+UNDI_EXIT = 249
 CRASH_EXIT = 134
 
 # ── Helpers ───────────────────────────────────────────────────────────
@@ -207,14 +207,14 @@ def _exact_cmp(insns, rd_result, rd_expected, val_expected):
     [K+1] set.zw rd_zero, 0
     [K+2] br.ne rd_cmp, rd_zero, 2   # mismatch → skip 2 → cmp.uo(0,0,0) → ILLI
     [K+3] set.zw rd1, 1              # match: prep unconditional skip
-    [K+4] br.ne rd1, rd0, 1          # unconditional → skip 1 → UNDI(137)
-    [K+5] cmp.uo(0, 0, 0)            # mismatch target → rdhb=0 → ILLI(136)
+    [K+4] br.ne rd1, rd0, 1          # unconditional → skip 1 → UNDI(249)
+    [K+5] cmp.uo(0, 0, 0)            # mismatch target → rdhb=0 → ILLI(248)
     → UNDI terminator
 
-    Match:   cmp=0 → br.ne NOT taken → set.zw(1,1) → br.ne TAKEN → UNDI(137)
-    Mismatch: cmp≠0 → br.ne TAKEN → cmp.uo(0,0,0) → ILLI(136)
+    Match:   cmp=0 → br.ne NOT taken → set.zw(1,1) → br.ne TAKEN → UNDI(249)
+    Mismatch: cmp≠0 → br.ne TAKEN → cmp.uo(0,0,0) → ILLI(248)
 
-    Exit: UNDI(137) = PASS, ILLI(136) = FAIL."""
+    Exit: UNDI(249) = PASS, ILLI(248) = FAIL."""
     _set_rd_to_val(insns, rd_expected, val_expected)
     insns.append(cmp_uo(7, rd_result, rd_expected))
     insns.append(set_zw(1, 0))
@@ -298,7 +298,7 @@ def _int_min_rem_neg1_test(name, rem_fn, int_min_val, expected_val, size_desc):
     return (name, insns, UNDI_EXIT, f"{size_desc} INT_MIN/-1 rem != {hex(expected_val)}")
 
 def _encoding_rdhd_rd0_test(name, insn_bytes, size_desc):
-    """Encoding test: rdhd=rd0 should not fault → UNDI(137)."""
+    """Encoding test: rdhd=rd0 should not fault → UNDI(249)."""
     return (name, list(insn_bytes), UNDI_EXIT,
             f"{size_desc} rdhd=rd0 encoding rejected")
 
@@ -386,18 +386,18 @@ TESTS = [
 
 # CTL self-check: expect ILLI for a MATCH case → should get UNDI → FAIL.
 # The comparison result MATCHES (correct expected value), so the probe should
-# produce UNDI(137). We expect ILLI(136) instead → FAIL → probe can detect.
+# produce UNDI(249). We expect ILLI(248) instead → FAIL → probe can detect.
 CTL_CHECKS = [
-    ("CTL: div.uo 100/7=14 expect ILLI (wrong; match→UNDI=137)",
+    ("CTL: div.uo 100/7=14 expect ILLI (wrong; match→UNDI=249)",
      [set_zw(10, 100), set_zw(11, 7), div_uo(5, 10, 11),
       set_zw(6, 14),                   # expected=14 (CORRECT → match)
       cmp_uo(7, 5, 6),                 # rd7 = cmp(14, 14) = 0 (match)
       set_zw(1, 0),                    # rd1 = 0
       br_ne(7, 1, 2),                  # match → NOT taken → continue
       set_zw(1, 1),
-      br_ne(1, 0, 2),                  # unconditional → skip 2 → UNDI(137)
+      br_ne(1, 0, 2),                  # unconditional → skip 2 → UNDI(249)
       cmp_uo(0, 0, 0)],               # (not reached on match)
-     ILLI_EXIT,  # WRONG: match gives UNDI(137), not ILLI(136)
+     ILLI_EXIT,  # WRONG: match gives UNDI(249), not ILLI(248)
      "Self-check FAILED: probe cannot detect wrong values"),
 ]
 
@@ -432,7 +432,7 @@ def main():
     print("SPEC-066t Min ROM Probe: div/rem defined-value semantics (v2)")
     print("=" * 70)
     print(f"  Exit codes: ILLI={ILLI_EXIT}, UNDI={UNDI_EXIT}, CRASH={CRASH_EXIT}")
-    print(f"  Comparison: cmp.uo + br.ne → UNDI=match(137), ILLI=mismatch(136)")
+    print(f"  Comparison: cmp.uo + br.ne → UNDI=match(249), ILLI=mismatch(248)")
     print(f"  Tests: {len(TESTS)} main + {len(CTL_CHECKS)} CTL")
     print()
     print("-" * 70)

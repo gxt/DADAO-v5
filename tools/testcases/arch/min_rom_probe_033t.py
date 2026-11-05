@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Min ROM probe for QEMU-033t: mreg_range_overlap run-time ILLI 0x88.
+"""Min ROM probe for QEMU-033t: mreg_range_overlap run-time ILLI 0xF8.
 
 Spec: SimRISC-02: 寄存器组之间块赋值.
 Rule: contracts/legality_rules.yaml `mreg_range_overlap` (kind: static, fault: ILLI).
       Same-group block copies (rd2rd / rb2rb) whose source range and destination
       range intersect (complete coincidence included) are illegal.
-Exit code: ADR-0004 D5.8 — ILLI = 0x88 (returncode 136).
+Exit code: ADR-0004 D5.8 — ILLI = 0xF8 (returncode 248).
 
 Cases (encodings taken from contracts/opcodes.yaml, not from QEMU):
   T1 rd2rd {rd4:rd5}, {rd2:rd3}  dst=[4,6) src=[2,4) disjoint      -> PASS (copy verified)
-  T2 rd2rd {rd3:rd4}, {rd2:rd3}  dst=[3,5) src=[2,4) partial       -> ILLI 0x88
-  T3 rd2rd {rd3:rd3}, {rd3:rd3}  dst=[3,4) src=[3,4) complete      -> ILLI 0x88
-  T4 rd2rd {rd2:rd3}, {rd3:rd4}  dst=[2,4) src=[3,5) partial       -> ILLI 0x88
+  T2 rd2rd {rd3:rd4}, {rd2:rd3}  dst=[3,5) src=[2,4) partial       -> ILLI 0xF8
+  T3 rd2rd {rd3:rd3}, {rd3:rd3}  dst=[3,4) src=[3,4) complete      -> ILLI 0xF8
+  T4 rd2rd {rd2:rd3}, {rd3:rd4}  dst=[2,4) src=[3,5) partial       -> ILLI 0xF8
   T5 rb2rb {rb4:rb5}, {rb2:rb3}  dst=[4,6) src=[2,4) disjoint      -> PASS (copy verified)
-  T6 rb2rb {rb3:rb4}, {rb2:rb3}  dst=[3,5) src=[2,4) partial       -> ILLI 0x88
-  T7 rb2rb {rb3:rb3}, {rb3:rb3}  dst=[3,4) src=[3,4) complete      -> ILLI 0x88
+  T6 rb2rb {rb3:rb4}, {rb2:rb3}  dst=[3,5) src=[2,4) partial       -> ILLI 0xF8
+  T7 rb2rb {rb3:rb3}, {rb3:rb3}  dst=[3,4) src=[3,4) complete      -> ILLI 0xF8
   T8 rd2ra {ra3:ra4}, {rd3:rd4}  cross-group (RD->RA, same index)  -> PASS (copy verified)
   T9 rd2rb {rb3:rb4}, {rd3:rd4}  cross-group (RD->RB, same index)  -> PASS (copy verified)
 
@@ -22,7 +22,7 @@ Cross-group controls T8/T9 prove the check is applied to rd2rd/rb2rb only
 (structurally non-overlapping groups are not affected).
 
 Reverse gate: removing the overlap check makes T2/T3/T4/T6/T7 fall through to
-the UNDI terminator (exit 0x89) instead of ILLI 0x88 => probe FAILs.
+the UNDI terminator (exit 0xF9) instead of ILLI 0xF8 => probe FAILs.
 
 Layout convention (same as min_rom_probe_032t.py): ROM at 0xFFFFFFFF0000 with a
 6-instruction trampoline; test instructions start at TEST_BASE = ROM_BASE+0x18.
@@ -256,7 +256,7 @@ def run_test(rom_data, timeout=10):
 # ── Exit codes (ADR-0004 D5.8) ─────────────────────────────────────────
 
 PASS_EXIT = 0x00
-ILLI_EXIT = 0x88
+ILLI_EXIT = 0xF8
 
 # Expected values: set.zw writes word0 (bits[63:48]); the other 48 bits are 0.
 VAL_A = 0x1111
@@ -347,17 +347,17 @@ def case_t9_rd2rb_cross_group():
 CASES = [
     ("T1 rd2rd {rd4:rd5},{rd2:rd3} disjoint -> PASS",
      case_t1_rd2rd_disjoint()),
-    ("T2 rd2rd {rd3:rd4},{rd2:rd3} partial -> ILLI 0x88",
+    ("T2 rd2rd {rd3:rd4},{rd2:rd3} partial -> ILLI 0xF8",
      case_t2_rd2rd_partial()),
-    ("T3 rd2rd {rd3:rd3},{rd3:rd3} complete -> ILLI 0x88",
+    ("T3 rd2rd {rd3:rd3},{rd3:rd3} complete -> ILLI 0xF8",
      case_t3_rd2rd_complete()),
-    ("T4 rd2rd {rd2:rd3},{rd3:rd4} partial (dst first) -> ILLI 0x88",
+    ("T4 rd2rd {rd2:rd3},{rd3:rd4} partial (dst first) -> ILLI 0xF8",
      case_t4_rd2rd_partial_dst_first()),
     ("T5 rb2rb {rb4:rb5},{rb2:rb3} disjoint -> PASS",
      case_t5_rb2rb_disjoint()),
-    ("T6 rb2rb {rb3:rb4},{rb2:rb3} partial -> ILLI 0x88",
+    ("T6 rb2rb {rb3:rb4},{rb2:rb3} partial -> ILLI 0xF8",
      case_t6_rb2rb_partial()),
-    ("T7 rb2rb {rb3:rb3},{rb3:rb3} complete -> ILLI 0x88",
+    ("T7 rb2rb {rb3:rb3},{rb3:rb3} complete -> ILLI 0xF8",
      case_t7_rb2rb_complete()),
     ("T8 rd2ra {ra3:ra4},{rd3:rd4} cross-group -> PASS",
      case_t8_rd2ra_cross_group()),
@@ -373,7 +373,7 @@ def main():
         return 1
 
     print("=" * 70)
-    print("QEMU-033t Min ROM Probe (mreg_range_overlap run-time ILLI 0x88)")
+    print("QEMU-033t Min ROM Probe (mreg_range_overlap run-time ILLI 0xF8)")
     print("=" * 70)
 
     passed = failed = 0

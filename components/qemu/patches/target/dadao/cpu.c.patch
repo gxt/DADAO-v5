@@ -1,6 +1,6 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..d30b32f
+index 0000000..b7b71d3
 --- /dev/null
 +++ b/target/dadao/cpu.c
 @@ -0,0 +1,596 @@
@@ -510,7 +510,7 @@ index 0000000..d30b32f
 +                                                      int mmu_idx, uintptr_t retaddr)
 +{
 +    /* MALIGN precise exception: faulting PC preserved, no register/memory commit.
-+     * Per ADR-0004 D4: exit code 0x8C. */
++     * Per spec/Machine-v5 §7.1 this is a MALIGN direct fault. */
 +    cs->exception_index = DADAO_EXCP_MALIGN;
 +    cpu_loop_exit_restore(cs, retaddr);
 +}

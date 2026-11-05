@@ -80,7 +80,11 @@ STATUSES = ("PASS", "FAIL", "DEFERRED", "SKIP_PROFILE", "BLOCKED", "ERROR",
             "TIMEOUT", "N/A")
 VERDICTS = ("AGREE_PASS", "AGREE_FAIL", "GEM5_ONLY_FAIL", "QEMU_ONLY_FAIL",
             "DIFF", "BLOCKED_SIDE", "N/A")
-FAULT_CODES = {0x81, 0x87, 0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x8D}
+# Machine-fault exit codes (spec/Machine-v5 §7.1): other cfx 0x80-0xBF and
+# monitor 0xC0-0xFF.  Guest PASS is 0x00-0x3F and guest FAIL 0x40-0x7F, so a
+# process status is a machine fault iff it is >= 0x80.
+def _is_machine_fault(rc):
+    return 0x80 <= rc <= 0xFF
 
 # Known, spec-attributed differences.  Only picolibc math_test is allowed (B7
 # numeric difference carried from GEM5-015t); it must stay BLOCKED, never PASS.
@@ -599,7 +603,7 @@ def _classify_gem5_picolibc(name, rc, mod):
         return "PASS", "exit 0"
     if rc == 77:
         return "N/A", "picolibc self-skip (exit 77)"
-    if rc in FAULT_CODES:
+    if _is_machine_fault(rc):
         return "BLOCKED", "machine fault 0x%02X" % rc
     return "FAIL", "exit %s" % rc
 

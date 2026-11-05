@@ -5,17 +5,17 @@ Covers 12 vectors from tests/inst/base/mem-rb.yaml for ldm.o-rb + stm.o-rb:
 
 ldm.o-rb (6 vectors):
   1. encoding: ldm.o-rb rb1,rb3,rd2,1 with rb3=RAM base → no crash
-  2. legality ILLI: rb0 as dest → 0x88
-  3. legality MALIGN: EA unaligned (rd2=7) → 0x8C
-  4. legality UNMAPPED: rb3=0 → EA=0 → 0x87
+  2. legality ILLI: rb0 as dest → 0xF8
+  3. legality MALIGN: EA unaligned (rd2=7) → 0xFC
+  4. legality UNMAPPED: rb3=0 → EA=0 → 0xF1
   5. semantic: rb1 <- mem[RAM+0x100] = 0x42 → rb1=0x42
   6. boundary: rb1 <- mem[RAM+0] = 0xDEADBEEF → rb1=0xDEADBEEF
 
 stm.o-rb (6 vectors):
   7. encoding: stm.o-rb rb1,rb3,rd2,1 with rb3=RAM base → no crash
-  8. legality ILLI: rb0 as src → 0x88
-  9. legality MALIGN: EA unaligned (rd2=7) → 0x8C
-  10. legality UNMAPPED: rb3=0 → EA=0 → 0x87
+  8. legality ILLI: rb0 as src → 0xF8
+  9. legality MALIGN: EA unaligned (rd2=7) → 0xFC
+  10. legality UNMAPPED: rb3=0 → EA=0 → 0xF1
   11. semantic: mem[RAM+0x100] = rb1 (0x42), readback via ldm.o-rb + cmp.uo
   12. boundary: mem[RAM+0] = rb1 (0xDEADBEEF), readback via ldm.o-rb + cmp.uo
 
@@ -24,7 +24,7 @@ Additional tests:
   25-26. EA 48-bit truncation verification (ldm.o-rb + stm.o-rb)
 
 Exit codes (ADR-0004 D5.8):
-  0x00 = PASS, 0x87 = UNMAPPED, 0x88 = ILLI, 0x8C = MALIGN
+  0x00 = PASS, 0xF1 = UNMAPPED, 0xF8 = ILLI, 0xFC = MALIGN
 
 Usage: python3 tools/testcases/arch/min_rom_probe_010t.py
 """
@@ -227,9 +227,9 @@ def run_test(rom_data, kernel_data=None, timeout=10):
 # ── Exit codes ────────────────────────────────────────────────────────
 
 PASS_EXIT = 0
-ILLI_EXIT = 136    # 0x88
-UNMAPPED_EXIT = 135 # 0x87
-MALIGN_EXIT = 140  # 0x8C
+ILLI_EXIT = 248    # 0xF8
+UNMAPPED_EXIT = 241 # 0xF1
+MALIGN_EXIT = 252  # 0xFC
 
 # ── Test cases ────────────────────────────────────────────────────────
 # After trampoline: rb16=SYS_EXIT argument block, rb17=rb2=RAM base
@@ -247,7 +247,7 @@ TESTS = [
      PASS_EXIT,
      "ldm.o-rb encoding crashed"),
 
-    # T2: ILLI — rbha=rb0 → 0x88
+    # T2: ILLI — rbha=rb0 → 0xF8
     # Covers: mem-rb.yaml legality ILLI vector 0x3A003081
     ("T2 ILLI: ldm.o-rb rb0 dest",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
@@ -256,7 +256,7 @@ TESTS = [
      ILLI_EXIT,
      "ldm.o-rb rb0 dest not ILLI"),
 
-    # T3: ILLI — immu6=0 → 0x88
+    # T3: ILLI — immu6=0 → 0xF8
     ("T3 ILLI: ldm.o-rb immu6=0",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rd(2, 0),            # rd2 = 0
@@ -264,7 +264,7 @@ TESTS = [
      ILLI_EXIT,
      "ldm.o-rb immu6=0 not ILLI"),
 
-    # T4: ILLI — rbha+immu6>64 → 0x88
+    # T4: ILLI — rbha+immu6>64 → 0xF8
     ("T4 ILLI: ldm.o-rb rb60+8>64",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rd(2, 0),            # rd2 = 0
@@ -272,7 +272,7 @@ TESTS = [
      ILLI_EXIT,
      "ldm.o-rb rb60+8 not ILLI"),
 
-    # T5: MALIGN — EA=RAM+7, unaligned (needs 8B align) → 0x8C
+    # T5: MALIGN — EA=RAM+7, unaligned (needs 8B align) → 0xFC
     # Covers: mem-rb.yaml legality MALIGN vector (rd2=7)
     ("T5 MALIGN: ldm.o-rb EA=RAM+7",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = 0x0000_FFFF_0000_0000
@@ -281,7 +281,7 @@ TESTS = [
      MALIGN_EXIT,
      "ldm.o-rb unaligned not MALIGN"),
 
-    # T6: UNMAPPED — rb3=0, rd2=0, EA=0 → unmapped → 0x87
+    # T6: UNMAPPED — rb3=0, rd2=0, EA=0 → unmapped → 0xF1
     # Covers: mem-rb.yaml legality UNMAPPED vector
     # NOTE (ISS-165 step2): with RAM, EA=0 is now MAPPED, so the UNMAPPED case
     # uses an address clearly outside RAM (RAM = 0x0..0xFF_FFFF).
@@ -348,7 +348,7 @@ TESTS = [
      ILLI_EXIT,
      "ldm.o-rb rb0 multi not ILLI"),
 
-    # T10: MALIGN — EA=RAM+4 (4-byte aligned but not 8-byte) → 0x8C
+    # T10: MALIGN — EA=RAM+4 (4-byte aligned but not 8-byte) → 0xFC
     ("T10 MALIGN: ldm.o-rb EA=RAM+4",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rd(2, 4),            # rd2 = 4 (offset)
@@ -402,7 +402,7 @@ TESTS = [
      PASS_EXIT,
      "stm.o-rb encoding crashed"),
 
-    # T14: ILLI — rbha=rb0 → 0x88
+    # T14: ILLI — rbha=rb0 → 0xF8
     # NOTE (ISS-120 drift): contract-isa §1.3.2 (ADR-0015 D3) — for st.o/stm.o
     # the `rbha` field is a data SOURCE; rb0 reads as the current instruction
     # address and is LEGAL (only ld.o/ldm.o destination rb0 is ILLI).
@@ -416,7 +416,7 @@ TESTS = [
      PASS_EXIT,
      "stm.o-rb rb0 source should be legal"),
 
-    # T15: ILLI — immu6=0 → 0x88
+    # T15: ILLI — immu6=0 → 0xF8
     ("T15 ILLI: stm.o-rb immu6=0",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rd(2, 0),           # rd2 = 0
@@ -424,7 +424,7 @@ TESTS = [
      ILLI_EXIT,
      "stm.o-rb immu6=0 not ILLI"),
 
-    # T16: ILLI — rbha+immu6>64 → 0x88
+    # T16: ILLI — rbha+immu6>64 → 0xF8
     ("T16 ILLI: stm.o-rb rb60+8>64",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rd(2, 0),           # rd2 = 0
@@ -432,7 +432,7 @@ TESTS = [
      ILLI_EXIT,
      "stm.o-rb rb60+8 not ILLI"),
 
-    # T17: MALIGN — EA=RAM+7, unaligned (needs 8B align) → 0x8C
+    # T17: MALIGN — EA=RAM+7, unaligned (needs 8B align) → 0xFC
     ("T17 MALIGN: stm.o-rb EA=RAM+7",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rb(1, 0, 0x0042),   # rb1 = 0x42
@@ -441,7 +441,7 @@ TESTS = [
      MALIGN_EXIT,
      "stm.o-rb unaligned not MALIGN"),
 
-    # T18: UNMAPPED — rb3=0, rd2=0, EA=0 → unmapped → 0x87
+    # T18: UNMAPPED — rb3=0, rd2=0, EA=0 → unmapped → 0xF1
     # NOTE (ISS-165 step2): with RAM, EA=0 is now MAPPED — use an out-of-RAM EA.
     ("T18 UNMAPPED: stm.o-rb EA outside RAM",
      [set_zw_rb(3, 2, 0x0400),   # rb3 = 0x0000_0400_0000_0000 (cfxha=1)
@@ -506,7 +506,7 @@ TESTS = [
      PASS_EXIT,
      "stm.o-rb rb0 multi source should be legal"),
 
-    # T22: MALIGN — EA=RAM+4 (4-byte aligned but not 8-byte) → 0x8C
+    # T22: MALIGN — EA=RAM+4 (4-byte aligned but not 8-byte) → 0xFC
     ("T22 MALIGN: stm.o-rb EA=RAM+4",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rb(1, 0, 0x0042),   # rb1 = 0x42
@@ -561,7 +561,7 @@ TESTS = [
     # T25: EA truncation — ldm.o-rb with rb[hb] high 16 bits non-zero
     # rb3 = 0x0001_FFFF_0000_0000, rd2 = 0x100
     # EA after truncation = 0x0000_FFFF_0000_0100 (RAM+0x100, mapped)
-    # EA without truncation = 0x0001_FFFF_0000_0100 (unmapped → 0x87)
+    # EA without truncation = 0x0001_FFFF_0000_0100 (unmapped → 0xF1)
     ("T25 EA truncation: ldm.o-rb high bits",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = 0x0000_FFFF_0000_0000 (RAM base)
       or_w_rb(3, 3, 0x0001),     # rb3 = 0x0001_FFFF_0000_0000 (high bits non-zero)
@@ -587,7 +587,7 @@ TESTS = [
     # T26: EA truncation — stm.o-rb with rb[hb] high 16 bits non-zero
     # rb3 = 0x0001_FFFF_0000_0000, rd2 = 0x100
     # EA after truncation = 0x0000_FFFF_0000_0100 (RAM+0x100, mapped)
-    # EA without truncation = 0x0001_FFFF_0000_0100 (unmapped → 0x87)
+    # EA without truncation = 0x0001_FFFF_0000_0100 (unmapped → 0xF1)
     ("T26 EA truncation: stm.o-rb high bits",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = 0x0000_FFFF_0000_0000 (RAM base)
       or_w_rb(3, 3, 0x0001),     # rb3 = 0x0001_FFFF_0000_0000 (high bits non-zero)

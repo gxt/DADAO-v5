@@ -277,3 +277,7 @@
 - **2026-11-05 `INTEG-054t`**
   - 摘要：**删除 5 个无效屏蔽寄存器的实现（SPEC-188t）**：`cpu.h` 移除 `DADAOCfxModeRegs.{switch_cfx_mask,excp_cause_mask}`、`DADAOCfxRegs.{prev_cfx_mask,cause_nonmaskable}` 与 `inner_cfx_mask`；`cpu.c` 复位值与 `dump_state` 同步移除（不再打印 `CFXMASK`/`PREVMASK`/`NONMASK`/`SWMASK`/`CAUSEMASK`）；`helper.c` 的 `cfx_mode_reg`/`cfx_reg_ptr` 不再解析 `cg0-3 rc9/rc11`、`cg5 rc1/rc63`（访问 ⇒ `CFXREG`），`cfx_enter` 删除 inner/cause 掩码层（同步异常不可屏蔽，异步只按 `cfx_intr_mask`+`global_cfx_intr_mask` 两级来源过滤），`escape` 不再恢复 cfx 屏蔽状态、保留 trap 保存的 `global_cfx_intr_mask` 恢复。补丁 3 份改（`cpu.h`/`cpu.c`/`helper.c`），`make_patch.py` 重导出（3 written / 60 unchanged）。验收：`build-qemu`/`install-host`、`check-inst`、`check-arch`、`check-source-state`/`check-patch-tree`、L1；`matrix-M11` node/arch 无回归。
   - 执行者：engineer
+
+- **2026-11-05 `INTEG-055t`**
+  - 摘要：**退出码实现迁移到 `spec/Machine-v5 §7.1` 三段式（QEMU 侧）**：删除 `DADAO_EXIT_CFXMEM/CFXREG/UNMAPPED/ILLI/...` 旧码与 `0x80 | cause_bit` 派生，新增 `DADAO_EXIT_CFX(cfxHA)` 与 `DADAO_EXIT_MONITOR(mode,index)`；`dadao_excp_to_exit_code()` 改按 `env->inner_run_mode` 编 monitor 段（`UNMAPPED` 归 `CFXMEM` index 1），guest SYS_EXIT 传播不变；`cpu.h` 加 §7.1 公式编译期自检。**页表异常改投当前 monitor（DADAO-12 §2.2.6/§5.2）**：`dadao_tlb_check`/`dadao_ptw_walk` 的缺页/碎片/A-D 回写失败统一编 `CFXMEM`、HSJU/R/W/X 编 `CFXPERM`，删除 `PTWERR` 与页级 one-hot cause；`DADAO_EXCP_PTW_FAULT` 由 `cfx_enter(...cfx_ptw...)` 改为进入 `env->inner_run_mode` 的 monitor，A/D 回写失败的 `cause_info` 仍为 PTE PA。补丁 3 份改（`cpu.h`/`cpu.c`/`helper.c`），`make_patch.py` 重导出。
+  - 执行者：engineer

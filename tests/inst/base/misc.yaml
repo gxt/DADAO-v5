@@ -47,7 +47,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-11: escape'
-  notes: 'legality: imms18=0x2 (imms18[1] set); imms18[17:1] != 0 (SBZ) => ILLI (0x88); legal offsets are 0/+4. The trap body
+  notes: 'legality: imms18=0x2 (imms18[1] set); imms18[17:1] != 0 (SBZ) => ILLI; legal offsets are 0/+4. The trap body
     runs in hypv, where the current-mode monitor is cfx_hmon: hmon''s exit policy surfaces the cause as the host exit code
     (TESTCASES-092t §3), so the expected ILLI is observable without installing a vector (the pre-092t cfx3.hypv vector write
     is itself CFXPERM-denied from hypv, and would have masked the real cause).'
@@ -66,7 +66,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-11: escape'
-  notes: 'legality: imms18=0x3 (imms18[1:0] = 2''b11); imms18[17:1] != 0 (SBZ) => ILLI (0x88); legal offsets are 0/+4. The
+  notes: 'legality: imms18=0x3 (imms18[1:0] = 2''b11); imms18[17:1] != 0 (SBZ) => ILLI; legal offsets are 0/+4. The
     trap body runs in hypv, where the current-mode monitor is cfx_hmon: hmon''s exit policy surfaces the cause as the host
     exit code (TESTCASES-092t §3), so the expected ILLI is observable without installing a vector (the pre-092t cfx3.hypv
     vector write is itself CFXPERM-denied from hypv, and would have masked the real cause).'
@@ -85,7 +85,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-11: escape'
-  notes: 'legality: imms18=0x3FFFE (negative-offset encoding (imms18 sign bit set)); imms18[17:1] != 0 (SBZ) => ILLI (0x88);
+  notes: 'legality: imms18=0x3FFFE (negative-offset encoding (imms18 sign bit set)); imms18[17:1] != 0 (SBZ) => ILLI;
     legal offsets are 0/+4. The trap body runs in hypv, where the current-mode monitor is cfx_hmon: hmon''s exit policy surfaces
     the cause as the host exit code (TESTCASES-092t §3), so the expected ILLI is observable without installing a vector (the
     pre-092t cfx3.hypv vector write is itself CFXPERM-denied from hypv, and would have masked the real cause).'
@@ -104,7 +104,7 @@
   status: active
   deferred_reason: null
   spec_cite: 'SimRISC-11: escape'
-  notes: 'legality: imms18=0x1FFFF (max 18-bit value); imms18[17:1] != 0 (SBZ) => ILLI (0x88); legal offsets are 0/+4. The
+  notes: 'legality: imms18=0x1FFFF (max 18-bit value); imms18[17:1] != 0 (SBZ) => ILLI; legal offsets are 0/+4. The
     trap body runs in hypv, where the current-mode monitor is cfx_hmon: hmon''s exit policy surfaces the cause as the host
     exit code (TESTCASES-092t §3), so the expected ILLI is observable without installing a vector (the pre-092t cfx3.hypv
     vector write is itself CFXPERM-denied from hypv, and would have masked the real cause).'

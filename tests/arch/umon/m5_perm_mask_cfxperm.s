@@ -10,15 +10,15 @@
 @@ profile fault-record slot and resumes after the faulting instruction
 @@ (TESTCASES-092t §3/§4); the vector then reads that slot.
 @@
-@@ Expected: cause = CFXPERM (0x80); host $? = 0x51 (SYS_EXIT pass token).
+@@ Expected: cause = CFXPERM (0x80); host $? = 0x21 (SYS_EXIT pass token).
 
 @@ @m5 name=m5_perm_mask_cfxperm
 @@ @m5 kind=permission
 @@ @m5 rule=target_cfxtrap_denied
 @@ @m5 cause=CFXPERM
 @@ @m5 op=trap cfx_jmon, 0
-@@ @m5 exit=0x51
-@@ @m5 fail_exit=0xE1
+@@ @m5 exit=0x21
+@@ @m5 fail_exit=0x71
 
 	.include "machine.inc"
 
@@ -33,12 +33,12 @@ _start:
 	cmp.so	rd11, rd10, rd12
 	br.nz	{rd11}?, [rb0, fail]
 
-	@@ pass: SYS_EXIT(0x51)
+	@@ pass: SYS_EXIT(0x21)
 	LOAD_ADDR rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
-	set.zw	rd9, wp0, 0x0051
+	set.zw	rd9, wp0, 0x0021
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
 	trap	cfx_umon, 0x3FF00
@@ -49,7 +49,7 @@ fail:
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
-	set.zw	rd9, wp0, 0x00E1
+	set.zw	rd9, wp0, 0x0071
 	st.o	rd9, [rb16, 8]
 	set.zw	rd16, wp0, 0x0018
 	trap	cfx_umon, 0x3FF00

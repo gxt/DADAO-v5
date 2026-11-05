@@ -8,21 +8,20 @@ QEMU implementation):
   - spec/Machine-v5-测试机运行环境.md §1.1 (internal-address-space split:
     RAM RAM_BASE 16 MiB as the single RAM segment / boot ROM; C1
     step2 removed the legacy 0xffff_0000_0000 RAM and the exit-port device)
-    and §1.2 (out-of-range access AND fetch both fault; CFXMEM(0x81) vs
-    test-machine unmapped(0x87)).
+    and §1.2 (out-of-range access AND fetch both fault; CFXMEM (monitor) vs
+    test-machine unmapped -> CFXMEM).
   - .tao/adr/adr-0020-see-semihosting.md D15 and adr-0004-test-machine.md
     R3 (rev. 2026-10-11: RAM base -> RAM_BASE) + D5.8 (frozen
-    fault-code table: 0x81 reserved for CFXMEM = 0x80 | (1<<1); 0x87 =
-    unmapped convention).
+    fault-code table: CFXMEM monitor index 1; unmapped => CFXMEM).
   - spec/DADAO-12-SEE-主管系统运行环境.md §2.1 (cfxha = addr[47:42]; illegal
     internal-address-space access => CFXMEM).
   - contracts/opcodes.yaml (ld.o/st.o/jump/set.zw/or.w encodings).
 
 Routing implemented by QEMU-049t (ADR-0020 D15):
-  * address inside the umon segment (cfxha 0) but outside RAM => CFXMEM 0x81
+  * address inside the umon segment (cfxha 0) but outside RAM => CFXMEM (monitor)
     (both data access and instruction fetch).
   * any other unmapped address (incl. the power segment, cfxha 63, and the
-    removed legacy RAM 0xffff_0000_0000) => unmapped 0x87.
+    removed legacy RAM 0xffff_0000_0000) => CFXMEM (monitor).
 
 Observation channels:
   * register results / mapped reads -> QEMU `-d cpu` dump (parses the LAST
@@ -89,12 +88,12 @@ OLD_RAM_SIZE = 16 * 1024 * 1024
 
 # Exit codes (ADR-0004 D5.8 + ADR-0020 D15)
 EXIT_PASS = 0x00
-EXIT_CFXMEM = 0x81
-EXIT_UNMAPPED = 0x87
+EXIT_CFXMEM = 0xF1    # monitor: hypv + CFXMEM index 1
+EXIT_UNMAPPED = EXIT_CFXMEM  # unmapped is reported as CFXMEM
 
 # Out-of-range addresses
-CFX0_OOB = 0x0000_0100_0000           # cfxha 0 (umon): no RAM there => CFXMEM 0x81
-CFX63_OOB = RAM_BASE + RAM_SIZE       # cfxha 63 (power): outside RAM/ROM => UNMAPPED 0x87
+CFX0_OOB = 0x0000_0100_0000           # cfxha 0 (umon): no RAM there => CFXMEM (monitor)
+CFX63_OOB = 0xFFC0_0000_0000           # cfxha 63 (power): outside RAM/ROM => CFXMEM
 
 
 # ---------------------------------------------------------------------------
@@ -211,17 +210,17 @@ def _ram_rw():
 
 
 # -- acc 2: legacy RAM segment removed (C1 step2) --------------------------
-@case("old_ram_unmapped", "legacy RAM 0xffff_0000_0000 removed => data access UNMAPPED 0x87")
+@case("old_ram_unmapped", "legacy RAM 0xffff_0000_0000 removed => data access CFXMEM (monitor)")
 def _old_ram_unmapped():
-    prog = load_rb(3, OLD_RAM_BASE + 0x1000) + [ld_o(5, 3, 0)] + exit_seq(0xEE)
+    prog = load_rb(3, OLD_RAM_BASE + 0x1000) + [ld_o(5, 3, 0)] + exit_seq(0x7E)
     return build_rom(prog), {"exit": EXIT_UNMAPPED}
 
 
 # -- acc 2: no second mapped RAM region -------------------------------------
-@case("legacy_ram_gone", "write to 0xffff_0000_0000 => UNMAPPED 0x87 (RAM is the only RAM)")
+@case("legacy_ram_gone", "write to 0xffff_0000_0000 => CFXMEM (monitor) (RAM is the only RAM)")
 def _legacy_ram_gone():
     prog = load_rb(3, OLD_RAM_BASE + 0x2000) + load_rd(4, 0xAAAA_5555) + [st_o(4, 3, 0)]
-    prog += exit_seq(0xEE)
+    prog += exit_seq(0x7E)
     return build_rom(prog), {"exit": EXIT_UNMAPPED}
 
 
@@ -238,48 +237,48 @@ def _ram_top():
 def _ram_exec():
     # The fragment executed from RAM is the semihosting SYS_EXIT trap: the
     # main program pre-loads rd16 = 0x18, rb16 = SEMI_BLOCK and the {0x20026,
-    # 0x5A} block, then stores the trap word into RAM and jumps to it.
+    # 0x1A} block, then stores the trap word into RAM and jumps to it.
     fragment_word = trap(0, SEMIHOST_TAG)    # SYS_EXIT trap, executed from RAM
     prog = load_rd(8, ADP_STOPPED_APPLICATION_EXIT)
     prog += load_rb(16, SEMI_BLOCK) + [st_o(8, 16, 0)]     # block[0] = 0x20026
-    prog += load_rd(9, 0x5A) + [st_o(9, 16, 8)]            # block[1] = 0x5A
+    prog += load_rd(9, 0x1A) + [st_o(9, 16, 8)]            # block[1] = 0x1A
     prog += load_rd(16, 0x18)                # rd16 = SYS_EXIT service number
     prog += load_rb(2, RAM_BASE + 0x2000)   # code target in RAM
     prog += load_rd(7, fragment_word << 32)  # place word in the high 32 bits
     prog += [st_o(7, 2, 0)]                  # store word at RAM 0x2000
     prog += [jump_rrii(2, 0, 0)]             # fetch/execute it
-    prog += exit_seq(0xEE)                   # not reached
-    return build_rom(prog), {"exit": 0x5A}
+    prog += exit_seq(0x7E)                   # not reached
+    return build_rom(prog), {"exit": 0x1A}
 
 
 # -- acc 4: out-of-range DATA access ----------------------------------------
-@case("oob_data_cfxmem", "ptw_enable=0 + data access in the memory window => CFXMEM 0x81")
+@case("oob_data_cfxmem", "ptw_enable=0 + data access in the memory window => CFXMEM (monitor)")
 def _oob_data_cfxmem():
     # TESTCASES-093t §3 category C: the prelude enables PTW, so the spec's
     # "memory-window access with ptw_enable=0 => CFXMEM" precondition is
     # rebuilt explicitly (DADAO-12 §2.2 step 1) instead of relying on the
     # legacy PTW-off machine.
-    prog = [cfx2rc(4, 8, 8, 0)] + load_rb(3, CFX0_OOB) + [ld_o(5, 3, 0)] + exit_seq(0xEE)
+    prog = [cfx2rc(4, 8, 8, 0)] + load_rb(3, CFX0_OOB) + [ld_o(5, 3, 0)] + exit_seq(0x7E)
     return build_rom(prog), {"exit": EXIT_CFXMEM}
 
 
-@case("oob_data_unmapped", "data access cfxha63 unmapped => 0x87")
+@case("oob_data_unmapped", "data access cfxha63 unmapped => CFXMEM")
 def _oob_data_unmapped():
-    prog = load_rb(3, CFX63_OOB) + [ld_o(5, 3, 0)] + exit_seq(0xEE)
+    prog = load_rb(3, CFX63_OOB) + [ld_o(5, 3, 0)] + exit_seq(0x7E)
     return build_rom(prog), {"exit": EXIT_UNMAPPED}
 
 
 # -- acc 4: out-of-range FETCH (instruction fetch path) ----------------------
-@case("oob_fetch_cfxmem", "ptw_enable=0 + fetch in the memory window => CFXMEM 0x81")
+@case("oob_fetch_cfxmem", "ptw_enable=0 + fetch in the memory window => CFXMEM (monitor)")
 def _oob_fetch_cfxmem():
     # Same category C rebuild as oob_data_cfxmem (DADAO-12 §2.2 step 1).
-    prog = [cfx2rc(4, 8, 8, 0)] + load_rb(3, CFX0_OOB) + [jump_rrii(3, 0, 0)] + exit_seq(0xEE)
+    prog = [cfx2rc(4, 8, 8, 0)] + load_rb(3, CFX0_OOB) + [jump_rrii(3, 0, 0)] + exit_seq(0x7E)
     return build_rom(prog), {"exit": EXIT_CFXMEM}
 
 
-@case("oob_fetch_unmapped", "fetch cfxha63 unmapped => 0x87")
+@case("oob_fetch_unmapped", "fetch cfxha63 unmapped => CFXMEM")
 def _oob_fetch_unmapped():
-    prog = load_rb(3, CFX63_OOB) + [jump_rrii(3, 0, 0)] + exit_seq(0xEE)
+    prog = load_rb(3, CFX63_OOB) + [jump_rrii(3, 0, 0)] + exit_seq(0x7E)
     return build_rom(prog), {"exit": EXIT_UNMAPPED}
 
 

@@ -70,17 +70,19 @@ import machine_profile  # noqa: E402
 _TOOLCHAIN_BIN = str(_dadao_paths.host_toolchain_bin())
 _TEST_ARTIFACTS = _dadao_paths.test_artifacts_dir()
 
-# Machine fault exit codes (ADR-0004 D5.8): 0x80 | spec cause bit index.  Used
-# only to *explain* a mismatch; the primary comparison is exact.
-FAULT_NAMES = {
-    0x87: "UNMAPPED",
-    0x88: "ILLI",
-    0x89: "UNDI",
-    0x8A: "RASOF",
-    0x8B: "RASUF",
-    0x8C: "MALIGN",
-    0x8D: "IALIGN",
+# Machine fault exit codes (spec/Machine-v5 §7.1): monitor 0xC0-0xFF
+# (bit5:4 = run mode, bit3:0 = cause index) and other cfx 0x80-0xBF (cfxHA).
+# Used only to *explain* a mismatch; the primary comparison is exact.
+_MONITOR_FAULT_NAMES = {
+    0: "CFXTRAP", 1: "CFXMEM", 2: "CFXREG", 3: "CFXESC", 7: "CFXPERM",
+    8: "ILLI", 9: "UNDI", 10: "RASOF", 11: "RASUF", 12: "MALIGN",
+    13: "IALIGN",
 }
+FAULT_NAMES = {0xC0 | (mode << 4) | idx: name
+               for mode in range(4)
+               for idx, name in _MONITOR_FAULT_NAMES.items()}
+FAULT_NAMES.update({code: "CFX%d" % (code & 0x3F)
+                    for code in range(0x80, 0xC0)})
 
 DEFAULT_LLVM_MC = os.path.join(_TOOLCHAIN_BIN, "llvm-mc")
 DEFAULT_LLVM_OBJCOPY = os.path.join(_TOOLCHAIN_BIN, "llvm-objcopy")

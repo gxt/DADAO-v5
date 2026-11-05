@@ -112,7 +112,7 @@ loader prologue in front of it shifts the picture:
   `expected_pc`, so a return to any other address cannot reach the exit
   section. `expected_pc` must therefore lie inside the image window — an
   unmapped return target is not observable and belongs to a legality case with
-  `expected_fault: UNMAPPED`.
+  `expected_fault: CFXMEM`（未映射归 monitor CFXMEM）.
 
 ### Loader (section 1)
 
@@ -152,14 +152,14 @@ For **semantic/boundary** cases with `expected_state`:
 4. For RA: `ra2rd` copies actual RA into scratch RD, then XOR with expected
 5. OR all differences into accumulator
 6. If accumulator == 0 → report `0x00` (PASS) via semihosting `SYS_EXIT`
-7. If accumulator != 0 → report `0x01` (FAIL) via semihosting `SYS_EXIT`
+7. If accumulator != 0 → report `0x40` (guest FAIL) via semihosting `SYS_EXIT`
 
 For **encoding** cases (no expected_state, no expected_fault):
 - Report `0x00` (PASS) via `SYS_EXIT` after the test instruction
 
 For **legality** cases with `expected_fault`:
 - Report a safety-net FAIL code if the fault doesn't happen
-- QEMU handles the fault and exits with its own fault code (e.g. `0x88`)
+- QEMU handles the fault and exits with its §7.1 machine-fault code (e.g. `0xF8` for hypv ILLI)
 
 The `SYS_EXIT` epilogue writes the 64-bit argument block
 `{ADP_Stopped_ApplicationExit (0x20026), code}` into RAM at
@@ -167,25 +167,19 @@ The `SYS_EXIT` epilogue writes the 64-bit argument block
 `trap` (semihosting tag).  The harness runs QEMU with
 `-semihosting-config enable=on,target=native` (ADR-0020 D7/D8).
 
-## Exit Code Protocol (ADR-0004 D5.7/D5.8; SYS_EXIT per ADR-0020 D8)
+## Exit Code Protocol (spec/Machine-v5 §7.1; SYS_EXIT per ADR-0020 D8)
 
 | Range | Source | Meaning |
 |-------|--------|---------|
-| `0x00` | `SYS_EXIT` (guest) | PASS |
-| `0x01`-`0x7F` | `SYS_EXIT` (guest) | FAIL (test-defined) |
-| `0x80`-`0xFF` | Machine fault | See below |
+| `0x00`-`0x3F` | `SYS_EXIT` (guest) | PASS (guest pass token) |
+| `0x40`-`0x7F` | `SYS_EXIT` (guest) | FAIL (guest-defined code) |
+| `0x80`-`0xBF` | Machine fault, other cfx | `0x80 | cfxHA` (`CFXTRAP`/`CFXESC` entering the target/current cfx) |
+| `0xC0`-`0xFF` | Machine fault, monitor | `0xC0 | (run_mode << 4) | cause_index` |
 
-Machine fault codes (ADR-0004 D5.8):
-
-| Code | Fault | Description |
-|------|-------|-------------|
-| `0x87` | UNMAPPED | Access to unmapped memory |
-| `0x88` | ILLI | Illegal instruction |
-| `0x89` | UNDI | Undefined instruction |
-| `0x8A` | RASOF | RAS overflow |
-| `0x8B` | RASUF | RAS underflow |
-| `0x8C` | MALIGN | Memory alignment error |
-| `0x8D` | IALIGN | Instruction alignment error |
+Monitor cause indices: `CFXTRAP`=0, `CFXMEM`=1 (`UNMAPPED` also maps here),
+`CFXREG`=2, `CFXESC`=3, `CFXPERM`=7, `ILLI`=8, `UNDI`=9, `RASOF`=10,
+`RASUF`=11, `MALIGN`=12, `IALIGN`=13.  Run modes: user/jail/supv/hypv =
+00/01/10/11.  The monitor code is **not** `0x80 | index`.
 
 ## Register Conventions (D4)
 

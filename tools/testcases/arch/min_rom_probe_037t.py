@@ -6,7 +6,7 @@ Spec sources (expectations derived by hand from these, never from QEMU/LLVM):
   - spec/SimRISC-00: 浮点寄存器 / 浮点状态寄存器
   - .tao/contracts/contract-fp.md §1 / §5 / §6 / §16
 Encodings: contracts/opcodes.yaml.  Exit codes: ADR-0004 D5.8 (PASS=0x00,
-ILLI=0x88).
+ILLI=0xF8).
 
 Instructions under test (14):
   arith (12): ftadd ftsub ftmul ftdiv ftrem ftsclb
@@ -28,7 +28,7 @@ Expected-value provenance (task §6.1):
 
 Verification channels (same as min_rom_probe_034t/035t/036t):
   * value cases -> QEMU `-d cpu` dump, parsing the *last* RF[] dump.
-  * fault cases -> process exit code (ILLI 0x88).
+  * fault cases -> process exit code (ILLI 0xF8).
   * E2E cases   -> in-ROM compare + SYS_EXIT PASS epilogue.
 
 Reverse gate (.work/evidence/QEMU-037t/run.sh --inject) injects individually
@@ -90,7 +90,7 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 RESET0 = 0x7FF800007FC00000
 
 PASS_EXIT = 0x00
-ILLI_EXIT = 0x88
+ILLI_EXIT = 0xF8
 
 # rf0[4:0] accrued exception bits
 NV = 0x01
@@ -101,7 +101,7 @@ NX = 0x10
 FLAG_OF_NX = OF | NX
 FLAG_UF_NX = UF | NX
 
-ILLI = 0x79001000                 # fence cfx0, hb=1 (encode_sbz) -> ILLI (exit 0x88)
+ILLI = 0x79001000                 # fence cfx0, hb=1 (encode_sbz) -> ILLI (exit 0xF8)
 SWYM = 0x47880000
 
 # rf0[33:32] rounding mode selectors (SimRISC-00: 浮点状态寄存器)
@@ -302,7 +302,7 @@ def build_rom(test_insns):
 
 
 def build_fault_rom(test_insns):
-    """Body + PASS epilogue: a missing fault exits 0x00 != 0x88."""
+    """Body + PASS epilogue: a missing fault exits 0x00 != 0xF8."""
     return (b''.join(TRAMPOLINE) + b''.join(test_insns) +
             b''.join([set_zw_rd(18, 0)] + semi_exit(18)))
 

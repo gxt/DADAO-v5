@@ -4,20 +4,20 @@
 Spec: ADR-0012 D9.1 / SimRISC-05: 加减操作.
 Encoding (contracts/opcodes.yaml): op=0x40, ha=0x33, mask=0xFFFC0000, value=0x40CC0000.
 Semantics: rdhb = rbhc − rbhd (full 64-bit two's-complement). ILLI: rdhb == rd0.
-Exit codes (ADR-0004 D5.8): ILLI = 0x88 (136), UNDI = 0x89 (137).
+Exit codes (ADR-0004 D5.8): ILLI = 0xF8 (248), UNDI = 0xF9 (249).
 
 Cases (encodings taken from contracts/opcodes.yaml, not from QEMU):
   T1 sub.o rd18, rb2, rb3   rb2=5,  rb3=2        -> rd18=3            (PASS)
   T2 sub.o rd18, rb2, rb3   rb2=2,  rb3=5        -> rd18=-3 (0xFF..FFFD)  (PASS)
   T3 sub.o rd18, rb2, rb3   rb2=0x2_0000_0000,
                             rb3=0x1_0000_0000    -> rd18=0x1_0000_0000  (full 64-bit, PASS)
-  T4 sub.o rd0,  rb2, rb3   destination rd0      -> ILLI 0x88
-  T5 reserved OPC-octa slot (110-111, ha=0x37)  -> UNDI 0x89 (decode still open)
+  T4 sub.o rd0,  rb2, rb3   destination rd0      -> ILLI 0xF8
+  T5 reserved OPC-octa slot (110-111, ha=0x37)  -> UNDI 0xF9 (decode still open)
   T6 sub.o rd18, rb0, rb3   rb0 as source (legal) -> rd18 = instr_addr - 4  (PASS)
 
 Reverse gate: reverting trans_sub_o_orrr_dbb to an ILLI stub makes T1/T2/T3/T6
-fall to ILLI 0x88 (not their expected values); widening the decode pattern so
-that ha=0x37 also matches makes T5 exit 0 instead of UNDI 0x89.
+fall to ILLI 0xF8 (not their expected values); widening the decode pattern so
+that ha=0x37 also matches makes T5 exit 0 instead of UNDI 0xF9.
 
 Layout convention (same as min_rom_probe_033t.py): ROM at 0xFFFFFFFF0000 with a
 6-instruction trampoline; test instructions start at TEST_BASE = ROM_BASE+0x18.
@@ -241,8 +241,8 @@ def run_test(rom_data, timeout=10):
 # ── Exit codes (ADR-0004 D5.8) ─────────────────────────────────────────
 
 PASS_EXIT = 0x00
-ILLI_EXIT = 0x88
-UNDI_EXIT = 0x89
+ILLI_EXIT = 0xF8
+UNDI_EXIT = 0xF9
 
 
 # ── Test cases ─────────────────────────────────────────────────────────
@@ -315,8 +315,8 @@ CASES = [
     ("T1 sub.o rd18,rb2,rb3 (5-2=3) -> PASS", case_t1_positive()),
     ("T2 sub.o rd18,rb2,rb3 (2-5=-3, full 64-bit) -> PASS", case_t2_negative()),
     ("T3 sub.o rd18,rb2,rb3 (bit32 difference) -> PASS", case_t3_full64_high_bits()),
-    ("T4 sub.o rd0,rb2,rb3 (dst rd0) -> ILLI 0x88", case_t4_rd0_illi()),
-    ("T5 reserved octa slot ha=0x37 -> UNDI 0x89", case_t5_reserved_neighbor_undi()),
+    ("T4 sub.o rd0,rb2,rb3 (dst rd0) -> ILLI 0xF8", case_t4_rd0_illi()),
+    ("T5 reserved octa slot ha=0x37 -> UNDI 0xF9", case_t5_reserved_neighbor_undi()),
     ("T6 sub.o rd18,rb0,rb3 (rb0 source legal) -> PASS", case_t6_rb0_source_legal()),
 ]
 
