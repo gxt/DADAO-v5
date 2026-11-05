@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -24,6 +25,59 @@ def tail(path: Path, lines: int = 80) -> str:
     except OSError:
         return ""
     return "\n".join(data[-lines:])
+
+
+def strip_ccache(value: str, default: str) -> str:
+    """Return the real compiler command, dropping an existing ccache prefix.
+
+    ``CC``/``CXX`` are consumed by gem5's SCons as *one* argv element, so a
+    value like ``ccache g++`` cannot be handed over directly; the wrapper
+    scripts take that role instead.
+    """
+    parts = [part for part in shlex.split(value) if Path(part).name != "ccache"]
+    return " ".join(parts) if parts else default
+
+
+def find_ccache() -> tuple[str | None, bool]:
+    """Locate ccache on PATH; return ``(path or None, is_executable)``.
+
+    ``shutil.which`` skips non-executable files, but a ccache that exists yet
+    cannot be run must be reported as an error rather than silently ignored.
+    """
+    found = shutil.which("ccache")
+    if found:
+        return found, True
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if not entry:
+            continue
+        candidate = Path(entry) / "ccache"
+        if candidate.is_file():
+            return str(candidate), os.access(candidate, os.X_OK)
+    return None, False
+
+
+def write_ccache_wrappers(wrapper_dir: Path, ccache: str,
+                          compilers: dict) -> dict:
+    """Write ``ccache-cc``/``ccache-cxx`` shims, return their paths.
+
+    Each shim is a single executable file so gem5's ``readCommand([CXX, ...])``
+    works.  Existing shims are replaced wholesale (no stale contents).
+    """
+    wrapper_dir.mkdir(parents=True, exist_ok=True)
+    wrappers = {}
+    for var, (real, name) in compilers.items():
+        argv = [shlex.quote(ccache)]
+        argv.extend(shlex.quote(part) for part in shlex.split(real))
+        script = "#!/bin/sh\nexec " + " ".join(argv) + ' "$@"\n'
+        path = wrapper_dir / name
+        if path.is_symlink() or path.exists():
+            path.unlink()
+        path.write_text(script, encoding="utf-8")
+        path.chmod(0o755)
+        if not os.access(path, os.X_OK):
+            raise OSError(f"ccache wrapper {path} is not executable")
+        wrappers[var] = path
+    return wrappers
 
 
 def main() -> int:
@@ -69,14 +123,40 @@ def main() -> int:
     # target path anchored at the launch directory).
     cmd = [scons_path, "build/DADAO/gem5.opt", f"-j{args.jobs}"]
     env = os.environ.copy()
-    use_ccache = (not args.no_ccache and shutil.which("ccache") is not None)
+    # gem5's SCons runs `readCommand([CXX, '--version'])`, i.e. CC/CXX must be
+    # a single executable -- never a "ccache g++" command string.  Wrap ccache
+    # in a shim script under gem5's build dir instead (runtime artifact).
+    compilers = {}
+    for var, default, name in (("CC", "gcc", "ccache-cc"),
+                               ("CXX", "g++", "ccache-cxx")):
+        compilers[var] = (strip_ccache(env.get(var, default), default), name)
+    ccache, ccache_ok = find_ccache()
+    use_ccache = not args.no_ccache and ccache is not None
+    wrapper_dir = source / "build" / "ccache-bin"
+    wrappers = {}
     if use_ccache:
-        for var, default in (("CC", "gcc"), ("CXX", "g++")):
-            compiler = env.get(var, default)
-            if not any(part == "ccache" for part in compiler.split()):
-                env[var] = "ccache " + compiler
+        if not ccache_ok:
+            print(f"build-gem5: ccache at {ccache} is not executable",
+                  file=sys.stderr)
+            return 1
+        try:
+            wrappers = write_ccache_wrappers(wrapper_dir, ccache, compilers)
+        except OSError as exc:
+            print(f"build-gem5: failed to create ccache wrappers: {exc}",
+                  file=sys.stderr)
+            return 1
+        for var, path in wrappers.items():
+            env[var] = str(path)
+            print(f"build-gem5: {var}={path} "
+                  f"(real={compilers[var][0]}, ccache={ccache})")
         if args.ccache_dir:
             env["CCACHE_DIR"] = str(Path(args.ccache_dir).expanduser())
+    else:
+        # No ccache: keep the real compiler, dropping any inherited ccache
+        # prefix so the plain build path still works.
+        for var, (real, _name) in compilers.items():
+            if var in env and env[var] != real:
+                env[var] = real
     ccache_dir = env.get("CCACHE_DIR", "ccache default (global cache)")
     print(f"build-gem5: log: {log.relative_to(ROOT)}")
     print(f"build-gem5: ccache: {'on' if use_ccache else 'off'}"
