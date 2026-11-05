@@ -23,6 +23,7 @@
 - `SPEC-188t`（待开始）：删除三件套寄存器定义；依赖 `SPEC-186t` 的 A1 定稿。
 - `SPEC-189t`（待开始）：DADAO-12 跨节异常原因表同步；依赖 `SPEC-186t`/`SPEC-188t`，覆盖 `ISS-344`。
 - `SPEC-190t`（待开始）：DADAO-23 §3 + DDLN 旧屏蔽寄存器引用清理；依赖 `SPEC-189t` 的锁串行。
+- `TESTCASES-100t`（待开始）：libc-test `malloc-brk-fail` 64K 页可移植性修正；依赖 `TESTCASES-099t`，改 libc-test 组件补丁策略。
 - QEMU/gem5/tests 的实现删除（rc9/rc11/cg5 rc1/rc63、inner mask、hmon.S 的 rc9 写）待 `SPEC-190t` 定稿后按实际影响立任务。
 - `SPEC-185t`（待开始）：范围/册头模板待确认；与 `SPEC-186t` 的锁串行顺序待确认。
 - `SPEC-187t`（待开始）：依赖 `SPEC-186t` 第 2 项与退出码表落点确认；覆盖 `ISS-341`。
@@ -44,7 +45,7 @@
 - `make check-night`：**1/4 red**；`tset:llvm-ts`/`tset:embench`/`arch:cfx` rc=0，`tset:libc-test` dynamic rc=2（`malloc-brk-fail`）。
 - `check-night-report` rc=2，唯一红行 = `tset/libc-test`。
 - 诊断 `TESTCASES-099t`：根因 = musl dynamic loader `reclaim_gaps` 捐赠启动堆；QEMU guest rlimit no-op 是能力缺口（`ISS-343`），非该例直接原因。
-- 处置 A（known-fail）/B（dynamic 排除）/C（测试修正）待用户裁定；`TESTCASES-098t`（矩阵）依赖此项收口。
+- **处置选 C（测试修正）**：`TESTCASES-100t` 在 libc-test 语料侧消耗 dynamic loader 捐赠的启动堆；libc-test 由 `patchless` 转受补丁组件。A/B 不再采用。`TESTCASES-098t`（矩阵）依赖此项收口。
 - `TESTCASES-099t` 诊断已 Accepted 并合并（`151fd2a5`）；结论 = musl dynamic 启动堆，非 QEMU mmap/rlimit 直接缺陷；`ISS-343` 记录 QEMU guest rlimit no-op（P3）。
 
 ## 批次授权
