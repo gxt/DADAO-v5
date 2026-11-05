@@ -128,8 +128,10 @@ ROM_VA = (ROM_L1_IDX << 29) | 0x40
 
 OFF_PTW_HANDLER = 0x300
 OFF_MODE_HANDLER = 0x400
+OFF_HMON_HANDLER = 0x500
 MODE_HANDLER = ROM_BASE + OFF_MODE_HANDLER
 PTW_HANDLER = ROM_BASE + OFF_PTW_HANDLER
+HMON_HANDLER = ROM_BASE + OFF_HMON_HANDLER
 
 MODE_U, MODE_J, MODE_S, MODE_H = 0, 1, 2, 3
 HSJU_ALL = 0xF
@@ -309,6 +311,15 @@ def setup_ptw_handler(p, words):
         p.append(cfx2rc(PTW_HA, m, EXCP_VECTOR_RC, 17))
 
 
+def setup_hmon_handler(p, words):
+    """Route CFXREG faults raised in hypv to the current-mode monitor
+    (cfx_hmon; DADAO-12 §5.2)."""
+    p += load_rd(17, MODE_H)
+    p.append(cfx2rc(3, MODE_H, SWITCH_MODE_RC, 17))
+    p += load_rd(17, HMON_HANDLER)
+    p.append(cfx2rc(3, MODE_H, EXCP_VECTOR_RC, 17))
+
+
 def setup_mode_handler(p, target_ha, mode):
     """trap target_ha (from H) enters MODE_HANDLER with inner_run_mode = mode."""
     p += load_rd(17, mode)
@@ -408,6 +419,8 @@ def observe(log):
     o["tblasid"] = lasthex(log, r"TLBASID: ([0-9a-f]+)")
     o["cid4"] = lasthex(log, r"CFX04 PREVM:[^\n]* CID:([0-9a-f]+)")
     o["syncn4"] = lasthex(log, r"CFX04 ID:[^\n]* SYNCN:([0-9a-f]+)")
+    o["cid3"] = lasthex(log, r"CFX03 PREVM:[^\n]* CID:([0-9a-f]+)")
+    o["syncn3"] = lasthex(log, r"CFX03 ID:[^\n]* SYNCN:([0-9a-f]+)")
     return o
 
 
@@ -439,6 +452,18 @@ PTW_SKIP_WORDS = ([cfx2rd(PTW_HA, 5, CAUSE_ID_RC, 10),
                    cfx2rd(PTW_HA, 5, CAUSE_IP_RC, 12),
                    escape(PTW_HA, 1)])
 
+# Current-mode monitor (cfx_hmon) equivalent: the CFXREG from a cfx2rd/cfx2rc
+# is delivered to the hypv monitor (DADAO-12 §5.2), so read its cause frame.
+HMON_EXIT_WORDS = ([cfx2rd(3, 5, CAUSE_ID_RC, 10),
+                    cfx2rd(3, 5, CAUSE_INFO_RC, 11),
+                    cfx2rd(3, 5, CAUSE_IP_RC, 12)]
+                   + exit_seq(EXIT_PASS))
+
+HMON_SKIP_WORDS = ([cfx2rd(3, 5, CAUSE_ID_RC, 10),
+                    cfx2rd(3, 5, CAUSE_INFO_RC, 11),
+                    cfx2rd(3, 5, CAUSE_IP_RC, 12),
+                    escape(3, 1)])
+
 
 def mode_handler(target_ha, rd=5):
     """S/J/U handler body: do the access, escape back to the trap PC+4."""
@@ -453,6 +478,15 @@ def fault_at(p):
 def fault_expect(cause, va, ip, **extra):
     exp = {"exit": EXIT_PASS, "rd10": cause, "rd11": va, "rd12": ip,
            "syncn4": 1, "cid4": cause}
+    exp.update(extra)
+    return exp
+
+
+def fault_expect_hmon(cause, va, ip, **extra):
+    """Same observation, but the CFXREG frame lives on the current-mode
+    monitor (cfx_hmon, DADAO-12 §5.2)."""
+    exp = {"exit": EXIT_PASS, "rd10": cause, "rd11": va, "rd12": ip,
+           "syncn3": 1, "cid3": cause}
     exp.update(extra)
     return exp
 
@@ -830,15 +864,15 @@ def _tlb_scope_reserved_cfxreg():
     p = []
     install_page(p, l2_idx=0, pa=DATA_PA)
     data_setup(p)
-    setup_ptw_handler(p, PTW_EXIT_WORDS)
+    setup_hmon_handler(p, HMON_EXIT_WORDS)
     setup_ptbr(p)
     load_va(p, 0x0)
     p += load_rd(17, tlb_ctrl(OP_INVALID, SCOPE_RESERVED))
     ip = fault_at(p)
     p.append(cfx2rc(PTW_HA, TLB_CG, TLB_CONTROL_RC, 17))
     p += exit_seq(0xEE)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_EXIT_WORDS}), \
-        fault_expect(C_CFXREG, None, ip, rd11=None)
+    return build_rom(p, {OFF_HMON_HANDLER: HMON_EXIT_WORDS}), \
+        fault_expect_hmon(C_CFXREG, None, ip, rd11=None)
 
 
 @case("tlb_range_size0_cfxreg", "range with size=0 => CFXREG and no deletion")
@@ -846,7 +880,7 @@ def _tlb_range_size0_cfxreg():
     p = []
     install_page(p, l2_idx=0, pa=DATA_PA)
     data_setup(p)
-    setup_ptw_handler(p, PTW_SKIP_WORDS)
+    setup_hmon_handler(p, HMON_SKIP_WORDS)
     setup_ptbr(p)
     load_va(p, 0x0)
     set_page_pte(p, pa=DATA2_PA)
@@ -856,8 +890,8 @@ def _tlb_range_size0_cfxreg():
     p.append(cfx2rc(PTW_HA, TLB_CG, TLB_CONTROL_RC, 17))
     load_va(p, 0x0, rd=6)                   # entry untouched -> DATA
     p += exit_seq(EXIT_PASS)
-    return build_rom(p, {OFF_PTW_HANDLER: PTW_SKIP_WORDS}), \
-        fault_expect(C_CFXREG, None, ip, rd11=None, rd6=MAGIC)
+    return build_rom(p, {OFF_HMON_HANDLER: HMON_SKIP_WORDS}), \
+        fault_expect_hmon(C_CFXREG, None, ip, rd11=None, rd6=MAGIC)
 
 
 @case("tlb_scope_va", "scope=VA matches only the page containing start")

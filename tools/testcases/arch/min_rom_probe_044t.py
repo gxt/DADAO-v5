@@ -369,11 +369,11 @@ def _cfxreg_unimpl():
 # -- acc 6: invalid register combination -> CFXREG --------------------------
 @case("cfxreg_badcombo", "invalid cfx register combo (scratch rc>=N) => CFXREG")
 def _cfxreg_badcombo():
-    prog = load_rd(24, H) + [cfx2rc(0, 3, 10, 24)]   # cfx_umon hypv vector = H
-    prog += load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]  # cfx_hmon hypv vector = H
+    prog = load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]   # cfx_hmon hypv vector = H
     prog += [cfx2rd(0, 6, 5, 5)]                     # cfx0 scratch rc5 >= N(4)
     prog += exit_seq(0xEE)
-    exp = {"exit": 0x45, "cid:0": CFXREG, "syncn:0": 1}
+    # DADAO-12 §5.2: CFXREG goes to the current-mode monitor (hypv => cfx_hmon)
+    exp = {"exit": 0x45, "cid:3": CFXREG, "syncn:3": 1}
     return build_rom(prog, hand(0x100, 0x45)), exp
 
 
@@ -381,9 +381,11 @@ def _cfxreg_badcombo():
 @case("cfxreg_ro_write", "write to read-only cfx register (cfx_id) => CFXREG")
 def _cfxreg_ro_write():
     prog = load_rd(24, H) + [cfx2rc(63, 3, 10, 24)]  # cfx_power hypv vector = H
+    prog += load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]  # cfx_hmon hypv vector = H
     prog += [cfx2rc(63, 4, 0, 25)]                   # write cfx_id (RO)
     prog += exit_seq(0xEE)
-    exp = {"exit": 0x46, "cid:63": CFXREG, "syncn:63": 1}
+    # DADAO-12 §5.2: CFXREG goes to the current-mode monitor (hypv => cfx_hmon)
+    exp = {"exit": 0x46, "cid:3": CFXREG, "syncn:3": 1}
     return build_rom(prog, hand(0x100, 0x46)), exp
 
 

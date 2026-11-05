@@ -38,7 +38,7 @@ conventions:
   reset_pc: "0xffff_ffff_0000 (cfx_power_hypv_excp_vector; DADAO-12 §2.1)"
   semihosting: "trap cfx_umon, 0x3FF00 (immu18[17:8]==0x3FF (0x3FF00-0x3FFFF)); rd16=service, rb16=argument block, rd8=return (contract-semihosting.md §1/§2)"
   permission: "cfx-level (ILLI / CFXREG / CFXPERM); NUPERM/NJPERM/NSPERM/NHPERM are the PTBR layer and not in M5 (ADR-0020 D9 / ADR-0045 / contract-see.md §3)"
-  observe: "permission causes go to the current-mode monitor (hypv => cfx_hmon): hmon records cause id + cause ip in the profile fault-record slot (FAULT_RECORD) and resumes after the faulting instruction; vectors read that slot, or (register-combo CFXREG / CFXTRAP, whose frame is the accessed cfx) install that cfx's local hypv stub first (TESTCASES-092t §3/§4)"
+  observe: "permission causes go to the current-mode monitor (hypv => cfx_hmon): hmon records cause id + cause ip in the profile fault-record slot (FAULT_RECORD) and resumes after the faulting instruction; vectors read that slot, or (CFXTRAP, whose frame is the accessed cfx) install that cfx's local hypv stub first (TESTCASES-092t §3/§4; DADAO-12 §5.2)"
   exit: "SYS_EXIT (0x18) / SYS_EXIT_EXTENDED (0x20); host $? = guest exit code (contract-semihosting.md §5)"
   oracle: "host-side derivation from contracts/ + the vector's @m5 header; never llvm-mc / QEMU"
 
@@ -162,14 +162,14 @@ programs:
     derivation: >-
       `cfx2rd cfx_umon, cg6, rc63, rd10`; cg6 is the scratch bank with
       scratch_regs_num = 4, so rc63 is outside the register file and the access
-      raises CFXREG (contract-see.md §3 / DADAO-12 §3).  Unlike the other
-      permission vectors this cause is framed on the *accessed* cfx (cfx_umon),
-      not on the current-mode monitor, so the vector first installs cfx_umon's
-      hypv vector (`cfx2rc cfx_umon, cg3, rc10, <stub>`; cfx0 is the body's own
-      cfx, so the write is legal) pointing at the local one-word stub
-      `escape cfx_umon, [excp_cause_ip, 4]`.  After the round trip the vector
-      reads cfx_umon.cg5.rc2 and requires CFXREG (1<<2); pass token 0x53,
-      mismatch token 0xE1 (TESTCASES-092t §4).
+      raises CFXREG (contract-see.md §3 / DADAO-12 §3).  Per DADAO-12 §5.2 the
+      fault is delivered to the current-mode monitor, not to the accessed cfx:
+      the body runs in hypv, so cfx_hmon records the cause id + cause ip in the
+      profile fault-record slot and resumes after the faulting instruction
+      (TESTCASES-092t §3/§4).  The vector reads the recorded cause from that
+      slot and requires CFXREG (1<<2); pass token 0x53, mismatch token 0xE1.
+      It installs no local cfx_umon hypv stub, so passing does not depend on
+      the pre-QEMU-083t workaround for ISS-342.
 
   - name: m5_trap_escape
     sources: [m5_trap_escape.s]

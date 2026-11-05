@@ -269,3 +269,7 @@
 - **2026-11-03 `QEMU-082t`**
   - 摘要：**cg7 `power` 空间描述符按活动 profile 派生（spec/Machine-v5 §1.1）**：`dadao_cg7_space_reg()` 新增 `const DadaoProfile *` 参数（调用点传 `DADAO_PROFILE(env)`），`power[1] = rom_base & ((1<<42)-1)`、`power[2] = rom_size`，`desc=0x5`/`attr=0x5` 不变；退役 M1–M3 遗留的 256 KiB 常量（`0x3FFFFFC0000`/`0x40000`）与「power 256 KiB」注释。Node 实测 `0x5 / 0x3ff_ffc0_0000 / 0x40_0000 / 0x5`（`start+size == 2^42`）；Tiny 由 `!cfx_enabled` 前置门挡在 `cg == 7` 之前，cg7 不可达（探针退出码 `0x84` CFXREG）。`smon/hmon/pmem` 常量与 `space[1..15]=0` 不变。补丁 **1 份改**（`helper.c`），`make_patch.py` 重导出（1 written / 62 unchanged）。证据 `.work/evidence/QEMU-082t/run.sh`（integ049t 12/12、Tiny cfx_power 探针、check-interface/arch-smoke/inst/L1/L2）+ 注入（`power[1]`↔`power[2]` 旧值 → `space_power` FAIL → `cp`+md5 还原 → 12/12 回绿）。
   - 执行者：engineer
+
+- **2026-11-05 `QEMU-083t`**
+  - 摘要：**`CFXREG` 异常目标改为当前运行模式 monitor（DADAO-12 §5.2；ISS-342）**：`helper_cfx2rd`/`helper_cfx2rc` 的 10 处 `cfx_raise(..., DADAO_CAUSE_CFXREG, cfxha, ...)` 改为 `env->inner_run_mode`（U/J/S/H ⇒ `cfx_umon`/`cfx_jmon`/`cfx_smon`/`cfx_hmon`），覆盖 cg/rc 越界、`rc >= scratch_regs_num`、只读寄存器写、cg7 写与 cg15 保留 rc；合法路径与其它异常（`CFXPERM`/`CFXMEM`/`ILLI`/`CFXESC`）目标不变。补丁 **1 份改**（`helper.c`），`make_patch.py` 重导出（1 written / 62 unchanged）。随语义迁移的最少测试资产修正：`tests/arch/umon/m5_perm_badcombo_cfxreg.s` 删除自装 `cfx_umon` 向量规避、改读 hmon fault-record（退出码/原因期望不变）；`tools/testcases/arch/{min_rom_probe_044t,045t,integ040t,integ042t,integ050t}` 的 CFXREG 用例改从 `cfx_hmon` 取 cause 帧（`integ042t` 的 pmem 入口改用非屏蔽 `trap cfx_pmem` 并在 trap 帧内恢复 hmon 全局源掩码），断言强度不放宽。
+  - 执行者：engineer

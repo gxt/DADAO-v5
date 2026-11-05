@@ -524,7 +524,7 @@ def _time_freq_value():
 @case("time_ro_cfxreg", "cfx_time writes/rc2/rc63 are CFXREG with cid/cip")
 def _time_ro_cfxreg():
     a = Asm()
-    set_vector(a, TIME_HA, OFF_FH34)
+    set_vector(a, 3, OFF_FH3)          # DADAO-12 §5.2: CFXREG -> current monitor (hmon)
     n = 0
 
     def fault(insn):
@@ -560,7 +560,7 @@ def _hart_id_zero():
 @case("hart_reserved_unimpl", "cfx_hart rc1/rc6/rc7 and RO writes => CFXREG")
 def _hart_reserved_unimpl():
     a = Asm()
-    set_vector(a, HART_HA, OFF_FH15)
+    set_vector(a, 3, OFF_FH3)          # DADAO-12 §5.2: CFXREG -> current monitor (hmon)
     n = 0
 
     def fault(insn):
@@ -621,7 +621,7 @@ def _cycle_insn_read():
     a.emit(*load_rd(flag, 5))
     a.mark(ok5)
     # writes to RO rc2/rc3 => CFXREG
-    set_vector(a, HART_HA, OFF_FH15)
+    set_vector(a, 3, OFF_FH3)          # DADAO-12 §5.2: CFXREG -> current monitor (hmon)
     a.emit(*load_rd(22, 0))
     for n, rc in ((1, 2), (2, 3)):
         idx = len(a.words)

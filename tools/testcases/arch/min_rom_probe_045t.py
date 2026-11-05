@@ -407,62 +407,62 @@ def _cfx2_cg3_nonhypv():
 
 @case("cfxreg_cg_oor", "non-existent cg (cg8) => CFXREG")
 def _cfxreg_cg_oor():
-    prog = set_cfx_vector(0, 3, H) + set_cfx_vector(0, 0, H)
+    prog = set_cfx_vector(3, 3, H)          # current monitor (hmon) vector
     fault_idx = len(prog)
     prog += [cfx2rd(0, 8, 0, 30)]
     prog += exit_seq(0xEE)
-    exp = {"exit": 0xCC, "cid:0": CFXREG, "syncn:0": 1,
-           "cip:0": ROM_BASE + fault_idx * 4}
+    exp = {"exit": 0xCC, "cid:3": CFXREG, "syncn:3": 1,
+           "cip:3": ROM_BASE + fault_idx * 4}
     return build_rom(prog, hand(0x100, 0xCC)), exp
 
 
 # -- acc 6: non-existent rc (cg0 rc12) => CFXREG ---------------------------
 @case("cfxreg_rc_oor", "non-existent rc (cg0 rc12) => CFXREG")
 def _cfxreg_rc_oor():
-    prog = set_cfx_vector(0, 3, H) + set_cfx_vector(0, 0, H)
+    prog = set_cfx_vector(3, 3, H)          # current monitor (hmon) vector
     fault_idx = len(prog)
     prog += [cfx2rd(0, 0, 12, 30)]
     prog += exit_seq(0xEE)
-    exp = {"exit": 0xCC, "cid:0": CFXREG, "syncn:0": 1,
-           "cip:0": ROM_BASE + fault_idx * 4}
+    exp = {"exit": 0xCC, "cid:3": CFXREG, "syncn:3": 1,
+           "cip:3": ROM_BASE + fault_idx * 4}
     return build_rom(prog, hand(0x100, 0xCC)), exp
 
 
 # -- acc 6: scratch rc >= scratch_regs_num => CFXREG -----------------------
 @case("cfxreg_scratch_oor", "scratch rc >= scratch_regs_num (=4) => CFXREG")
 def _cfxreg_scratch_oor():
-    prog = set_cfx_vector(0, 3, H) + set_cfx_vector(0, 0, H)
+    prog = set_cfx_vector(3, 3, H)          # current monitor (hmon) vector
     fault_idx = len(prog)
     prog += [cfx2rd(0, 6, 4, 30)]
     prog += exit_seq(0xEE)
-    exp = {"exit": 0xCC, "cid:0": CFXREG, "syncn:0": 1,
-           "cip:0": ROM_BASE + fault_idx * 4}
+    exp = {"exit": 0xCC, "cid:3": CFXREG, "syncn:3": 1,
+           "cip:3": ROM_BASE + fault_idx * 4}
     return build_rom(prog, hand(0x100, 0xCC)), exp
 
 
 # -- acc 6: write to RO register => CFXREG ---------------------------------
 @case("cfxreg_ro_write", "write to RO register (cg4 rc0 cfx_id) => CFXREG")
 def _cfxreg_ro_write():
-    prog = set_cfx_vector(0, 3, H) + set_cfx_vector(0, 0, H)
+    prog = set_cfx_vector(3, 3, H)          # current monitor (hmon) vector
     prog += load_rd(25, 0x1234)
     fault_idx = len(prog)
     prog += [cfx2rc(0, 4, 0, 25)]
     prog += exit_seq(0xEE)
-    exp = {"exit": 0xCC, "cid:0": CFXREG, "syncn:0": 1,
-           "cip:0": ROM_BASE + fault_idx * 4}
+    exp = {"exit": 0xCC, "cid:3": CFXREG, "syncn:3": 1,
+           "cip:3": ROM_BASE + fault_idx * 4}
     return build_rom(prog, hand(0x100, 0xCC)), exp
 
 
 # -- acc 6: write to any cg7 rc => CFXREG (cg7 is read-only, DADAO-12 §3.8) --
 @case("cfxreg_cg7_write", "write to cg7 rc63 (space attr of block 15) => CFXREG")
 def _cfxreg_cg7_write():
-    prog = set_cfx_vector(0, 3, H) + set_cfx_vector(0, 0, H)
+    prog = set_cfx_vector(3, 3, H)          # current monitor (hmon) vector
     prog += load_rd(25, 0x1234)
     fault_idx = len(prog)
     prog += [cfx2rc(0, 7, 63, 25)]
     prog += exit_seq(0xEE)
-    exp = {"exit": 0xCC, "cid:0": CFXREG, "syncn:0": 1,
-           "cip:0": ROM_BASE + fault_idx * 4}
+    exp = {"exit": 0xCC, "cid:3": CFXREG, "syncn:3": 1,
+           "cip:3": ROM_BASE + fault_idx * 4}
     return build_rom(prog, hand(0x100, 0xCC)), exp
 
 

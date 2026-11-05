@@ -111,6 +111,8 @@ CAUSE_CFXREG = 1 << 2
 CAUSE_PMEM_DMA = 1 << 8
 CG5_CAUSE_ID_RC, CG5_CAUSE_INFO_RC, CG5_PENDING_RC = 2, 4, 5
 CG3_SWITCH_MODE_RC, CG3_EXCP_VECTOR_RC, CG3_EXCP_MASK_RC = 8, 10, 11
+CG3_CFXREG_RC = 2
+CG8_GLOBAL_INTR_MASK_RC = 1
 MODE_H = 3
 
 EXIT_PASS = 0x00
@@ -627,6 +629,12 @@ def _make_irq_handler(spin=True):
     w += exit_seq(EXIT_PASS)
     first = len(w)
     w[br_idx] = br_ne(10, 17, first - br_idx)
+    # Trap entry saved + masked the current monitor's global_cfx_intr_mask
+    # (DADAO-12 §5.2 / cfx_frame_block_async).  Restore it so PMEM_DMA can be
+    # delivered; _pmem_entry_setup cleared cfx_hmon's cfxreg source bit so this
+    # cross-cfx write is permitted.
+    w += load_rd(17, 0)
+    w += [cfx2rc(3, 8, CG8_GLOBAL_INTR_MASK_RC, 17)]
     w += load_rd(17, CTRL_START | CTRL_IRQ_EN)
     w += [cfx2rc(PMEM_HA, PMEM_DMA_CG, DMA_CTRL_RC, 17)]
     w += load_rd(18, 1)
@@ -647,9 +655,11 @@ PMEM_MASK_HANDLER = _make_irq_handler(spin=False)
 
 
 def _enter_pmem_via_cfxreg(p):
-    """Enter cfx_pmem with a non-maskable CFXREG (reserved cg15 rc); the
-    handler takes over from there."""
-    p.append(cfx2rd(PMEM_HA, PMEM_DMA_CG, DMA_RESERVED_RC, 5))
+    """Enter cfx_pmem with a non-maskable trap; CFXTRAP is non-maskable and
+    targets cfx_pmem, so the pmem hypv handler takes over (DADAO-12 §5.2).
+    (Pre-QEMU-083t this used a reserved-cg15 CFXREG, whose frame used to be
+    routed to the accessed cfx; CFXREG now goes to the current-mode monitor.)"""
+    p.append(trap(PMEM_HA, 0))
 
 
 def _pmem_entry_setup(p, handler_addr, cause_mask, allow_irq=False):
@@ -658,6 +668,11 @@ def _pmem_entry_setup(p, handler_addr, cause_mask, allow_irq=False):
     p.append(cfx2rc(PMEM_HA, MODE_H, CG3_EXCP_MASK_RC, 17))
     p += load_rd(17, 0)                    # switch_cfx_mask = 0 (unmask on entry)
     p.append(cfx2rc(PMEM_HA, MODE_H, 9, 17))
+    # A trap entry into cfx_pmem saves + masks the current monitor's global
+    # source mask (DADAO-12 §5.2); let cfx_pmem restore it from its handler by
+    # clearing cfx_hmon's cfxreg source bit for source cfx32.
+    p += load_rd(17, 0x7FFFFFFEFFFFFFF7)
+    p.append(cfx2rc(3, MODE_H, CG3_CFXREG_RC, 17))
     if allow_irq:
         # Two-level async filter (ADR-0045 D3): current cfx (pmem) source mask
         # and the current-mode monitor (hmon) global mask must both allow
@@ -713,13 +728,15 @@ def _cfx6_reserved_cfxmem():
     return build_rom(p), {"exit": EXIT_CFXMEM}
 
 
-@case("pmem_cg15_reserved_cfxreg", "cg15 rc5 is reserved => CFXREG in cfx_pmem")
+@case("pmem_cg15_reserved_cfxreg", "cg15 rc5 is reserved => CFXREG")
 def _pmem_cg15_reserved_cfxreg():
     p = []
-    _pmem_entry_setup(p, PMEM_HANDLER, cause_mask=0)
-    _enter_pmem_via_cfxreg(p)
+    # DADAO-12 §5.2: CFXREG goes to the current-mode monitor (cfx_hmon), not
+    # to the accessed cfx_pmem; the monitor records the cause frame.
+    setup_hmon_vector(p, HMON_HANDLER)
+    p.append(cfx2rd(PMEM_HA, PMEM_DMA_CG, DMA_RESERVED_RC, 5))
     p += exit_seq(0xEE)                    # not reached: the handler exits
-    return build_rom(p, {OFF_PMEM_HANDLER: PMEM_CFXREG_HANDLER}), \
+    return build_rom(p, {OFF_HMON_HANDLER: HMON_CFXREG_HANDLER}), \
         {"exit": EXIT_PASS, "rd10": CAUSE_CFXREG, "rd5": 0}
 
 
