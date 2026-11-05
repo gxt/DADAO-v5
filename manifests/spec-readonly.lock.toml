@@ -531,7 +531,10 @@ group = "dadao-2x"
 # 2026-10-26（SPEC-175t）：发布 0.1.3（去 -rc）；§3 启动移交重写（`0x30001` 逐 cfx 初始化 → 移交 smon；`rb17` 设备树）+ 版本常量；sha256 同笔重算。
 # 2026-10-26（SPEC-176t）：§3 补 `HBI_<name>_INIT` 不落在 semihosting 区（`0x3FF00–0x3FFFF`）+ 附录 0.1.4-rc；sha256 同笔重算。
 # 2026-10-30（INTEG-044t，授权同 SEE 条目）：§3 初始化约定改两轴权限模型（四类同步 mask / 两类中断 mask / cfxtrap 源位授权）；附录 0.1.4-rc 补条目；sha256 同笔重算。
-sha256 = "9ee5cc8a72e0a41b3e370fe729e2ab4113dc9ae7c263ca0b0f1737323bd3e368"
+# 2026-11-05（SPEC-190t，授权同 SPEC-188t 条目）：§3 删除 `inner_cfx_mask`/`switch_cfx_mask`/`excp_prev_cfx_mask`
+#   的初始化与移交句，异步中断屏蔽改由 monitor 的 `cfx_intr_mask`/`global_cfx_intr_mask` 承担；附录 0.1.4-rc
+#   补条目；sha256 同笔重算（其余 20 册不变）。
+sha256 = "efcb7d428923520fd4bcd70ba19b4760ea289c1369b561977734b05382b57e56"
 
 [[spec]]
 path = "spec/Toolchain-01-汇编语言.md"
