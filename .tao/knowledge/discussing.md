@@ -21,6 +21,14 @@
 - 初步判断：musl dynamic 启动堆与测试假设交互，非 QEMU mmap/rlimit 直接失效；待 `TESTCASES-099t` 独立复核。
 - `check-night-report` 在该项解决前为红；处置 A（known-fail）/B（dynamic 排除）/C（测试修正）待用户裁定。
 
+## M11 收口验证状态（2026-11-05）
+
+- `make check-full`（L3）：**PASS 8/8**；`check-l3-report` rc=0。
+- `make check-night`：**1/4 red**；`tset:llvm-ts`/`tset:embench`/`arch:cfx` rc=0，`tset:libc-test` dynamic rc=2（`malloc-brk-fail`）。
+- `check-night-report` rc=2，唯一红行 = `tset/libc-test`。
+- 诊断 `TESTCASES-099t`：根因 = musl dynamic loader `reclaim_gaps` 捐赠启动堆；QEMU guest rlimit no-op 是能力缺口（`ISS-343`），非该例直接原因。
+- 处置 A（known-fail）/B（dynamic 排除）/C（测试修正）待用户裁定；`TESTCASES-098t`（矩阵）依赖此项收口。
+
 ## 批次授权
 
 - **2026-11-01 M11 gem5 批次**：B0 解码核心（`GEM5-004t`）+ B1–B7（按 G1 矩阵拆分，任务书待立）+ `SPEC-181t` 语义缺口收口。
