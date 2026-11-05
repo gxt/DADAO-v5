@@ -40,8 +40,9 @@ The expectation is **never** derived from LLVM, QEMU or anything in this repo:
   result.  So *guest exit status 0* is the benchmark's self-check passing --
   the expectation is the constant ``0`` fixed by the upstream source, not a
   value read back from the implementation.
-* The suite source tree is manifest-locked (``components/embench-iot``), so the
-  corpus itself is the upstream benchmark set.
+* The suite source tree is manifest-locked (component ``embench-iot``), so the
+  corpus itself is the upstream benchmark set.  The v5 patch set lives with the
+  suite at ``tests/tset/embench/`` (``patches/`` + ``series``).
 * The three board hooks (``initialise_board`` / ``start_trigger`` /
   ``stop_trigger``) are hosted-shimmed by ``tests/tset/embench/embench_user_boardsupport.c``
   (the component's semihosting board shim cannot work in user mode); each hook

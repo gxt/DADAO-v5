@@ -88,7 +88,8 @@ The expectation is **never** derived from LLVM, QEMU or anything in this repo:
   print.c) sets ``t_status`` and ``main`` returns it, so *guest exit status 0*
   means the case's own checks passed.  The expected value is the constant ``0``
   fixed by the corpus source;
-* the corpus is manifest-locked (``components/libc-test``);
+* the corpus is manifest-locked (component ``libc-test``); its v5 patch set
+  lives with the suite at ``tests/tset/libc-test/``;
 * ``src/musl/pleval.c`` checks musl's own plural evaluator against values
   computed by the compiler from the same rule (``_w = e``) -- independent of
   this repository's toolchain beyond plain C semantics;

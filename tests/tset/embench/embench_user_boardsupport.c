@@ -21,9 +21,9 @@
  * iff ``verify_benchmark`` accepted the result).  The markers only make the
  * hook invocations observable in the captured stdout.
  *
- * This file is *not* part of the component tree: ``components/embench-iot/``
- * and ``.work/source/embench-iot/`` stay untouched (TESTCASES-046t hard
- * constraints).
+ * This file is *not* part of the patched upstream tree: the patch set lives in
+ * ``tests/tset/embench/patches/`` and ``.work/source/embench-iot/`` stays
+ * untouched (TESTCASES-046t hard constraints).
  */
 
 #include <unistd.h>

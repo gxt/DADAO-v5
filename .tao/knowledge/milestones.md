@@ -12,9 +12,9 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-125t | 已验证 | 2026-11-05 23:45 | embench/libc-test 迁入 tests/tset；manifest/门控同步 |
 | INFRA-124t | 已验证 | 2026-11-05 23:31 | ADR-0013/check_spec_refs/GEM5-017t/Node embench 小残留清理 |
 | INTEG-054t | 已验证 | 2026-11-05 23:08 | 5 个屏蔽寄存器实现清理：QEMU/gem5/tests；parity 249/0 |
-| INFRA-125t | 待开始 | 2026-11-05 21:35（登记） | embench-iot/libc-test 补丁集迁入 tests/tset；manifest/门控同步 |
 | INFRA-123t | 已验证 | 2026-11-05 21:15 | DDLN TT 退役：81→0、DD 81；lecnotes agent 删除 |
 | SPEC-191t | 已验证 | 2026-11-05 21:08 | ADR-0004/0009/0041 + DDLN/Machine-00 旧码清理；D3/D5 三段式 |
 | INTEG-055t | 待开始 | 2026-11-05 20:45（登记） | 退出码实现迁移：QEMU/gem5/tests 三阶段 |

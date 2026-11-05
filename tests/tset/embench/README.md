@@ -11,6 +11,21 @@
 `TESTCASES-075t` 从旧共享区迁入；迁移期符号链接已在 `TESTCASES-076t`（P6）删除。`tests/shared/runtime/dadao_mem_runtime.ll` 是**共享**运行时，未随本
 套件移动。
 
+## 补丁集
+
+- 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），清单见 `series`；
+  规范见 `docs/Process-01-组件补丁组织与构建编排.md`；上位决策：`ADR-0002 D4`、`ADR-0022`。
+- 上游基线与补丁序列由 `manifests/components.lock.toml` 锁定（`ADR-0022`：上游
+  `embench/embench-iot`，精确 commit）；`make fetch` + `make apply-series` 在
+  `.work/source/embench-iot` 建档。
+- 现行补丁（`INFRA-051t` + `TESTCASES-039t`，`QEMU-076t` 重写）：**DADAO 板级接入** ——
+  `examples/dadao/{README.md,boardsupport.c,boardsupport.h}`（board shim 3 函数）+
+  `src/md5sum/md5.c`（大端适配）。
+- 校验：`make check`（含 `check-patch-tree` + `check-index-blobs`）、`make check-component-changelog`。
+
+本目录的 `embench_*.c` / `embench_include/` 是**套件 glue**，不入上游树、不进补丁集；
+补丁只改上游语料。补丁集由 `INFRA-125t` 归位到本目录（上游 commit 不变）。
+
 ## 入口
 
 | 用途 | 命令 |

@@ -14,6 +14,8 @@
 
 **承载位置**：本 ADR 只记**决策/理由**；`manifests/components.lock.toml` 的字段填写与 `enabled` 翻转由 `INFRA-051t` 执行，组件补丁骨架（`components/embench-iot/{patches,series,changelog}`）与 `make fetch` 亦归 `INFRA-051t`（本 ADR 不改 `manifests`）。
 
+> **rev. 2026-11-05（`INFRA-125t`）**：补丁集位置由 `components/embench-iot/{patches,series,changelog}` 迁至 `tests/tset/embench/{patches,series,changelog}`（资产归位，manifest 的 `patch_dir`/`patch_series` 同步）；**D1–D3 决策不变**（上游 URL、pin commit、用 commit 不用 tag）。本注记只记位置，不改决策。
+
 ## Decision（决策）
 
 **D1 — 上游仓库**

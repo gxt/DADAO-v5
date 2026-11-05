@@ -11,7 +11,7 @@ DADAO-v5 仓库布局与一次性工作区（`.work/`）约定。
 - `.tao/`：agent 交互目录（任务 / 知识 / 契约 / 日志），详见 `.tao/README.md`。
 - `manifests/`：不可变输入——规范与参考组件的锁文件（精确 commit）。
 - `spec/`：**技术规范**（上游 SimRISC/DADAO + v5 自定技术册 Toolchain/Machine）；总索引 `spec/README.md`（spec 模块任务可改，见 ADR-0012 D4）。
-- `components/`：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁）+ 组件专属文档（`README.md`/`changelog.md`）。规范见 `docs/Process-01-组件补丁组织与构建编排.md`。
+- `components/`：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁）+ 组件专属文档（`README.md`/`changelog.md`）。**测试集补丁集**（只改测试语料的套件）随套件落在 `tests/tset/<suite>/`（同形态 `patches/` + `series` + `README.md`/`changelog.md`；两处台账 = `components/*/changelog.md` + `tests/tset/*/changelog.md`）。规范见 `docs/Process-01-组件补丁组织与构建编排.md`。
 - `tools/<module>/`：各模块工具脚本（`tools/infra/` 含 fetch / 准备 / 校验 / 状态等，Python 标准库）。
 - `containers/`：开发容器定义。
 - `contracts/`：**规范派生的机器可读数据**（编码表、合法性规则、ABI）；**人读契约正文在 `.tao/contracts/`（归一化叙述，为其源）——本目录是它的派生投影**。

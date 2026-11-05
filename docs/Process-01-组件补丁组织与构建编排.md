@@ -10,7 +10,7 @@
 ## 1. 范围与术语
 
 - **组件（component）**：由 `manifests/components.lock.toml` 锁定、并在 `.work/source/<name>` 建立工作树的上游仓库（当前为 `llvm-project`、`qemu`）。
-- **补丁集（patch set）**：`components/<name>/patches/` 下的全部补丁，用于把上游工作树从其锁定 base commit 改造为 DADAO 定制状态。
+- **补丁集（patch set）**：`components/<name>/patches/`（**测试集套件**则在 `tests/tset/<suite>/patches/`）下的全部补丁，用于把上游工作树从其锁定 base commit 改造为 DADAO 定制状态。
 - **树形补丁（tree-shaped patch）**：目录结构镜像上游源码树、文件名等于「上游相对路径 + `.patch`」的补丁文件。
 - **目标路径（target path）**：一份补丁所作用的上游相对路径。
 - **终态（final state）**：某路径在补丁集**全部应用后**的内容。
@@ -27,6 +27,7 @@ components/<name>/
 ```
 
 - `patches/` 下的目录结构**必须**镜像上游源码树；补丁文件路径**必须**为 `<上游相对路径>.patch`。
+- **测试集补丁集**（补丁只改测试语料/胶水的套件，如 `embench`、`libc-test`）形态相同，位置随套件：`tests/tset/<suite>/{README.md,changelog.md,series,patches/}`；对应 manifest 的 `patch_dir`/`patch_series` 指向该目录（`INFRA-125t` 起）。
 - `patches/` **必须**为**纯镜像**：其下**只**允许 `<上游相对路径>.patch` 文件；清单等元数据一律置于 `patches/` **之外**。
 - **必须**保留 `components/<name>/series`，其内容为补丁相对 `patches/` 的路径，一行一个，**顺序按路径字典序**。
 - 上述两个路径**必须**在 `manifests/components.lock.toml` 中显式声明：`patch_dir`（镜像树根）与 `patch_series`（清单文件）；脚本**不得**从其一推导其二。
@@ -153,13 +154,13 @@ components/<name>/
 ## 9. 应用后一致性
 
 - 补丁集全量应用后，工作树的**最终内容**必须与 DADAO 定制状态一致；校验方式为**逐组件比对 tree hash**（`git write-tree` 或等价）与参考值一致。
-- 参考值由 M1 补丁集重整时记录（见 `components/<name>/changelog.md`）。
+- 参考值由 M1 补丁集重整时记录（见组件/测试集 changelog：`components/*/changelog.md` + `tests/tset/*/changelog.md`）。
 - 断言 ⑥（§8）进一步验证：补丁集应用到 base 后各受影响文件的 blob 必须等于 `.work/source/<name>` 中对应文件的 blob（内容一致性，捕获 `@@` 头错误等手工编辑事故）。
 
 ## 10. 文档约定
 
-- `components/<name>/README.md`：**简明扼要**，供人查阅；说明该组件是什么、补丁集概况（不写逐补丁开发史）。
-- `components/<name>/changelog.md`：记录**每次改动**，简洁；**按任务一条**，追加式。**体例 = 列表式（不用表格）+ 按里程碑分节**：每条 = `- **<日期> <任务号或 —>**` + **摘要另起缩进行** `  - 摘要：<正文，逐字保留>`（原表其余列各占一条缩进行）；节 = `## M<k>`（节序 M1→M2→…，**节内按日期升序**；**新里程碑到来时在文末开新节**，不留空节）。形态由 L1 门控 `check-component-changelog`（`tools/infra/check_component_changelog.py`）机械校验。**入本文件判据 = 「模块 = `<name>` 的任务」∪「落地提交改过 `components/<name>/**` 的任务（本组件本体/生成物；台账本文件除外，不限模块字段）」**——两类任务收尾均须在「同一变更」内追加一条（即与改动同批提交，不留断档；早期任务书无 `**模块**` 字段者按该任务「变更主体是否本模块」判；**仅顺带改 `tests/**`/`docs/**`/其它模块的 `tools/**` 等、未动本组件目录者不入本文件**，属各自模块台账；口径由 `INFRA-069t` 定、2026-10-15 `LLVM-092t` 订正）。
+- `components/<name>/README.md`：**简明扼要**，供人查阅；说明该组件是什么、补丁集概况（不写逐补丁开发史）。**测试集补丁集**的 README 随套件落在 `tests/tset/<suite>/README.md`，同一要求。
+- `components/<name>/changelog.md` + `tests/tset/<suite>/changelog.md`（**测试集补丁台账在 tset 目录**）：记录**每次改动**，简洁；**按任务一条**，追加式。**体例 = 列表式（不用表格）+ 按里程碑分节**：每条 = `- **<日期> <任务号或 —>**` + **摘要另起缩进行** `  - 摘要：<正文，逐字保留>`（原表其余列各占一条缩进行）；节 = `## M<k>`（节序 M1→M2→…，**节内按日期升序**；**新里程碑到来时在文末开新节**，不留空节）。形态由 L1 门控 `check-component-changelog`（`tools/infra/check_component_changelog.py`）机械校验（扫描面 = `components/*/changelog.md` + `tests/tset/*/changelog.md`）。**入本文件判据 = 「模块 = `<name>` 的任务」∪「落地提交改过 `components/<name>/**` 的任务（本组件本体/生成物；台账本文件除外，不限模块字段）」**——两类任务收尾均须在「同一变更」内追加一条（即与改动同批提交，不留断档；早期任务书无 `**模块**` 字段者按该任务「变更主体是否本模块」判；**仅顺带改 `tests/**`/`docs/**`/其它模块的 `tools/**` 等、未动本组件目录者不入本文件**，属各自模块台账；口径由 `INFRA-069t` 定、2026-10-15 `LLVM-092t` 订正）。
 - 补丁的开发脉络**不**在补丁集内叙述；必要时写入代码注释、组件 README/changelog 或仓库级文档。
 
 ## 11. 组件源文件规模约定
@@ -203,4 +204,5 @@ components/<name>/
 - **rev. 2026-10-03（INFRA-028t）**：新增 §11「组件源文件规模约定」（口径 A＝我们新增文件的整文件行数；口径 B＝修改上游文件只看我们的增量行；**非强制、不进门控**），并新增报告工具 `make size-report`（`tools/infra/size_report.py`，报告型、退出码恒 0）；原 §11 边界情况、§12 迁移与变更记录顺延为 §12、§13。属**新增约定**，**不改**原有各节正文与 `ADR-0002 D4`。
 - **rev. 2026-10-12（INFRA-069t）**：§10 增维护规则「模块 = `<name>` 的任务，任务收尾须在同一变更内追加一行」（该规则口径于 2026-10-15 经 `LLVM-092t` 由路径式口径订正，并最终定案为「模块 = `<name>` 的任务 ∪ 落地提交改过 `components/<name>/**` 的任务」，见 §10）；配套把三道机械检查 `check-isa-coverage`（`tools/llvm/gen_isa_coverage.py --check`）/`check-spec-numbering`（`tools/spec/check_numbering.py`）/`check-spec-changelog`（`tools/spec/check_spec_changelog.py`）并入 L1 `make check`。属**新增约定/门控**，**不改**原有各节正文与 `ADR-0002 D4`。
 - **rev. 2026-10-15（INFRA-084t）**：§10 补明组件 changelog **体例 = 列表式（不用表格）+ 按里程碑分节 + 摘要另起缩进行 + 新里程碑文末开新节**（4 个 `components/*/changelog.md` 由表格迁为列表、照旧信息无损；判据内容不变，仅「追加一行」改「追加一条」、判据标签「入表判据/不入本表」统一为「入本文件判据/不入本文件」）；§2 目录树注同步。新增 **L1 形态门控** `check-component-changelog`（`tools/infra/check_component_changelog.py`，并入 `make check`，`docs/Process-07 §1` 登记；**只做形态断言**）。属**新增约定/门控**，**不改**原有各节正文与 `ADR-0002 D4`。
+- **rev. 2026-11-05（INFRA-125t）**：**测试集补丁集**（`embench`、`libc-test`）随套件落 `tests/tset/<suite>/`（manifest `patch_dir`/`patch_series` 指向该目录，上游 commit 不变）；§1/§2/§9/§10 的台账/位置表述同步为 `components/*/changelog.md` + `tests/tset/*/changelog.md`（测试集补丁台账在 tset 目录），`check-component-changelog` 扫描面同步（**5 条断言与门控逻辑不变**）。属位置/文档同步，**不改** `ADR-0002 D4`。
 - 相关决策变更记录见 `.tao/adr/adr-0002-build-orchestration.md` 的 `## 修订`（rev. 2026-09-23）。

@@ -1205,11 +1205,13 @@ check-knowledge-dir:
 check-contracts-dir:
 	@$(PYTHON) tools/infra/check_contracts_dir.py
 
-# 组件 changelog 形态门控 (INFRA-084t, L1 成员): `components/*/` 下的组件变更记录必须为
+# 组件 changelog 形态门控 (INFRA-084t, L1 成员): `components/*/changelog.md` +
+# `tests/tset/*/changelog.md`（测试集补丁台账在 tset 目录）下的变更记录必须为
 # 「列表式（无表格）+ 按里程碑分节」形态（体例真源 docs/Process-01 §10）——① 无表格分隔行
 # ② 条目 `- **<日期> …**` ③ 条目紧接 `  - 摘要：` 缩进行 ④ `## M<k>` 节序严格递增
-# ⑤ 覆盖全部（glob 现场派生；空集 vacuous FAIL）。**只做形态断言**，不做内容校验；
-# 计数现场统计、不写死。可达 FAIL 见 `--self-test`。
+# ⑤ 覆盖两处扫描面（glob 现场派生；空集 vacuous FAIL；带 `series` 的 tset 套件缺
+# changelog 即 FAIL）。**只做形态断言**，不做内容校验；计数现场统计、不写死。
+# 可达 FAIL 见 `--self-test`。
 # syscall 参数银行三载体一致性 (ISS-249, L1): musl __dadao_argmask / 可取消 asm 派发 /
 # QEMU dadao_argmask 逐项一致 + 完整性（musl 能发出的 syscall 名全覆盖）。
 # 有 .work/source 时读工作树，否则退回 components/ 下的补丁（新克隆也能跑）。

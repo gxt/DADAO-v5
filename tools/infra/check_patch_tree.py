@@ -13,8 +13,8 @@ Assertions (all fail-closed):
      temporary index, so the caller's worktree is not touched); skipped with a
      notice when ``.work/source/<name>`` is absent
   5. ``patches/`` is a pure mirror of the upstream tree: every file under it is
-     ``<upstream-relative-path>.patch`` (the manifest list lives outside, at
-     ``components/<name>/series``)
+     ``<upstream-relative-path>.patch`` (the manifest list lives outside
+     ``patches/``, at the component's ``patch_series``)
   6. content consistency: after applying the full patch set to the base commit
      via a scratch index, every affected path's blob must equal the
      corresponding file in ``.work/source/<name>``; mismatch means the patches

@@ -52,9 +52,12 @@ name = "embench-iot"
 enabled = true
 repository = "https://github.com/embench/embench-iot.git"
 commit = "09c2ed8c3b7008c95d08b038de4a3f6dc103ed70"
-patch_dir = "components/embench-iot/patches"
-patch_series = "components/embench-iot/series"
-role = "IoT benchmark suite (M6 compilation-correctness tests)"
+# The v5 patch set is test-side glue, so it lives with the suite under
+# tests/tset/embench/ (moved here by INFRA-125t; the upstream pin above is
+# unchanged).
+patch_dir = "tests/tset/embench/patches"
+patch_series = "tests/tset/embench/series"
+role = "IoT benchmark suite (M6 compilation-correctness tests; patch set under tests/tset/embench)"
 
 [[component]]
 name = "picolibc"
@@ -262,9 +265,12 @@ enabled = true
 repository = "https://github.com/kraj/libc-test.git"
 commit = "b7ec467969a53756258778fa7d9b045f912d1c93"
 shallow = false
-patch_dir = "components/libc-test/patches"
-patch_series = "components/libc-test/series"
-role = "musl/Linux user-space conformance test suite (M8 P1/P2 validation input); carries one portability patch for 64 KiB-page heap donation (TESTCASES-100t)"
+# The v5 patch set is test-side glue, so it lives with the suite under
+# tests/tset/libc-test/ (moved here by INFRA-125t; the upstream pin above is
+# unchanged).
+patch_dir = "tests/tset/libc-test/patches"
+patch_series = "tests/tset/libc-test/series"
+role = "musl/Linux user-space conformance test suite (M8 P1/P2 validation input); carries one portability patch for 64 KiB-page heap donation (TESTCASES-100t; patch set under tests/tset/libc-test)"
 
 [[component.source]]
 name = "gh-proxy"
