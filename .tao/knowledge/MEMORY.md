@@ -16,7 +16,7 @@
 | 任务文件 | `.tao/tasks/<module>/` |
 | 技术规范（上游 + v5 自定；索引 / 分册清单） | `spec/` + `spec/README.md` |
 | 工程流程规范 + 仓库级索引 | `docs/Process-0x` + `docs/README.md` |
-| DDLN 讲义（篇目索引 / 草稿） | `docs/DDLN/README.md`（**讲义，不是实现判据**；草稿 `TT-*` 由 `.gitignore` 忽略） |
+| DDLN 讲义（篇目索引） | `docs/DDLN/README.md`（**讲义，不是实现判据**；`DD-*` 是唯一真源，直接编辑） |
 | 合约（归一化叙述 / 机器可读数据） | `.tao/contracts/contract-*.md` / `contracts/` |
 | 代码模型 / 打包规范（REL26 边 ≤ 32 MiB；单 DSO 可执行区跨度 < 30 MiB） | `.tao/adr/adr-0036-code-model.md` §D4/D7 + `make check-code-range` |
 | 参考仓库（只读工作树 / 锁文件） | `.cache/refs/` + `manifests/` |
