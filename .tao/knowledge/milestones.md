@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-191t | 待开始 | 2026-11-05 15:40（登记） | 退出码旧码残留清理；ADR decision 待逐条确认 |
 | SPEC-187t | 已验证 | 2026-11-05 15:29 | 退出码迁移 SPEC：Machine-v5 三段表、ADR 指针化、ISS-341 |
 | SPEC-190t | 已验证 | 2026-11-05 14:55 | DADAO-23 §3 与 DDLN 旧 mask 引用清理；TT 已同步主树 |
 | TESTCASES-100t | 已验证 | 2026-11-05 14:54 | libc-test malloc-brk-fail 64K 页修正；夜跑 4/4 绿、night-report 绿 |
