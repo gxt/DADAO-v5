@@ -33,7 +33,7 @@
    - `cg5` `rc1` 标 `reserved`（不再定义 `excp_prev_cfx_mask`）
    - `inner_cfx_mask` 从内部寄存器描述中删除
    - 访问 reserved 寄存器 ⇒ `CFXREG`（沿用现有 reserved 规则）
-2. `escape` 文本删除“恢复 `excp_prev_cfx_mask`”与“恢复 mask”的表述；只恢复运行模式、cause 等必要现场。
+2. `escape` 文本删除“恢复 `excp_prev_cfx_mask`”的表述；`global_cfx_intr_mask` 的 trap 保存/escape 恢复保留（它是 monitor 的全局中断来源掩码，不在三件套内）。
 3. 同步 `DADAO-13` hypv 行、`Machine-v5` 与 contracts 投影；`cfx_intr_mask`（rc4）与 `excp_pending`（cg5 rc5）保留，作为 monitor 的异步来源表/pending。
 4. 同笔重算 `manifests/spec-readonly.lock.toml` 的 `dadao-12`/`dadao-13`/`machine-v5` sha；其它册不变。
 5. 登记后续实现任务（QEMU/gem5/tests）的范围，不在本任务改实现。
@@ -71,7 +71,7 @@
 ## 验收标准
 
 1. **活文件清零**：`switch_cfx_mask`、`excp_prev_cfx_mask`、`inner_cfx_mask` 在 `DADAO-12/13/Machine-v5/contracts` 活文件 0 命中（历史段/变更记录除外）。
-2. **reserved 行为**：rc9/cg5 rc1 标 `reserved`；访问 ⇒ `CFXREG`；`escape` 文本无 mask 恢复。
+2. **reserved 行为**：rc9/cg5 rc1 标 `reserved`；访问 ⇒ `CFXREG`；`escape` 文本不再恢复 `excp_prev_cfx_mask`，但保留 `global_cfx_intr_mask` 的恢复。
 3. **保留项**：`cfx_intr_mask`（cg0–3 rc4）与 `excp_pending`（cg5 rc5）仍定义，作为 monitor 异步来源/pending。
 4. **跨册一致**：DADAO-12/13/Machine-v5/contracts 对同一 rc/cg 的描述一致；锁 sha 与 `sha256sum` 逐字相等，仅三册变化。
 5. **门控**：`check-spec-readonly/refs/drift/changelog/numbering/purity/cite-targets/codeblocks`、`check-contracts-dir`、`check-contract-relocs`、`check-issues`、`check-milestones-fresh`、`make check`（L1）rc=0。

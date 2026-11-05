@@ -11,7 +11,9 @@
   - monitor 处理期间的新事件置 pending，不嵌套 monitor。
 - 显式指令仍直接到 cfx：`trap cfx` → 目标 cfx（`CFXTRAP`）；`escape cfx` → 当前 cfx（`CFXESC`）。
 - 第 4 项已定（monitor 第一处理者；处理期间 pending、不嵌套）。
-- 第 3 项选 **A1**：删除 `inner_cfx_mask`/`switch_cfx_mask`/`excp_prev_cfx_mask`；monitor 用 `cfx_intr_mask` + `excp_pending`。`SPEC-186t` 只改使用模型，寄存器定义删除另立 `SPEC-188t`。
+- 第 3 项选 **A1**：删除 `inner_cfx_mask`/`switch_cfx_mask`/`excp_prev_cfx_mask`；monitor 用 `cfx_intr_mask` + `excp_pending`；`global_cfx_intr_mask` 保留（monitor 全局来源掩码，trap 保存/escape 恢复）。`SPEC-186t` 只改使用模型，寄存器定义删除另立 `SPEC-188t`。
+- 第 2 项选 **B**：`SPEC-186t` 只改 §5.2+§1；`§2.2.6`/`§3.6`/`§4.5` + `DADAO-22 §5.3` + `contract-see` 由 `SPEC-189t` 收口；过渡期 `ISS-344`。
+- 执行顺序：`SPEC-186t → SPEC-188t → SPEC-189t → SPEC-187t（退出码）`；188t/189t 同改 DADAO-12，严格串行。
 
 ## 当前阻塞（2026-11-05）
 
@@ -19,6 +21,7 @@
 
 - `SPEC-186t`（待开始）：第 2 项跨节同步范围 **A/B/C**；第 3 项 `inner_cfx_mask` 寄存器面存废；第 4 项异步屏蔽文本粒度。
 - `SPEC-188t`（待开始）：删除三件套寄存器定义；依赖 `SPEC-186t` 的 A1 定稿。
+- `SPEC-189t`（待开始）：DADAO-12 跨节异常原因表同步；依赖 `SPEC-186t`/`SPEC-188t`，覆盖 `ISS-344`。
 - `SPEC-185t`（待开始）：范围/册头模板待确认；与 `SPEC-186t` 的锁串行顺序待确认。
 - `SPEC-187t`（待开始）：依赖 `SPEC-186t` 第 2 项与退出码表落点确认；覆盖 `ISS-341`。
 - `QEMU-083t`（待开始）：依赖 `SPEC-186t` 的 `CFXREG` 目标句定稿；覆盖 `ISS-342`。

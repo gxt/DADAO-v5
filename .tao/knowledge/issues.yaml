@@ -46,3 +46,12 @@
     返回 ENOMEM）。修复点：linux-user do_brk()/target_mmap() 的限额记账。注意：该缺口
     不是 libc-test malloc-brk-fail dynamic 的直接原因（该次 malloc 无系统调用）；该例
     的根因是 musl dynamic loader reclaim_gaps 捐赠启动堆。
+
+- id: ISS-344
+  scope: [spec]
+  status: open
+  resolved_by: null
+  title: >-
+    【P2】DADAO-12 §2.2.6/§3.6/§4.5 仍写页表异常进入 cfx_ptw、PTWERR/NUPERM 等旧原因，
+    与 §5.2 的“执行期事件先入当前 monitor”冲突；同批 DADAO-22 §5.3、Machine-v5、
+    contract-see 仍是旧口径。由 SPEC-189t 收口；过渡期不得声称全册一致。
