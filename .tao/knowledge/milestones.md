@@ -12,8 +12,8 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-097t | 已验证 | 2026-11-05 10:31 | smon/hmon 页表同步 D10：4 超页、HSJU=0xC、低地址 VA |
 | INFRA-122t | 已验证 | 2026-11-05 10:30 | build_gem5.py ccache 单 argv 缺陷：包装脚本接入，原生 build-gem5 rc=0 |
-| TESTCASES-097t | 待开始 | 2026-11-05 08:38（登记） | smon/hmon 页表同步 D10：4 超页、HSJU=0xC、低地址 VA |
 | SPEC-184t | 已验证 | 2026-11-05 08:04 | spec §6 Node D10 收口（ISS-340）：VA/PA 0–2 GiB 4 超页、smon 建表、合约投影、锁 sha |
 | INTEG-053t | 已验证 | 2026-11-05 07:44 | cfxha 重编号 pmem32/llc33/time34；作用域 per-task 16–31、per-system 32–63；保留集 6–14/16–31/35–61 |
 | SPEC-186t | 待开始 | 2026-11-05 01:46（登记） | DADAO-12 §5.2 重写：同步异常统一路由当前 monitor、拆 inner_cfx_mask 同步屏蔽、异步屏蔽列后续修订 |

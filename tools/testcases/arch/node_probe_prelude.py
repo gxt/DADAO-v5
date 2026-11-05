@@ -11,8 +11,11 @@ Loading model (task book §0/§2, spec/Machine-v5 §1 + DADAO-12 §4.5/§4.9):
     RESET_PC + H_OFF` and `trap cfx_hmon, 0`;
   * hmon segment (reset_pc + H_OFF, 0x200): clears the cfx_power
     cfxmem/cfxexe mask for cg0-cg3 (former `bootstrap_stage`), writes four
-    identity superpage PTEs (0xF000_0000_0000_FFEF | (i << 29), bit-identical
-    to tests/shared/bootrom/step5/hmon.S) into cfx_pmem SRAM, copies them to
+    identity superpage PTEs (0xC000_0000_0000_FFEF | (i << 29); HSJU=0xC =
+    H=1/S=1/U=J=0, D10 bit-identical to
+    tests/shared/bootrom/step5/hmon.S; L1[3] additionally grants U+J so the
+    user/jail probes can write their exception frame and SYS_EXIT block) into
+    cfx_pmem SRAM, copies them to
     `PT_PA` with the cfx_pmem DMA, invalidates the TLB, sets PTBR and
     `ptw_enable = 1`, then jumps to the body;
   * body (reset_pc + BODY_OFF, 0x1000): the probe, in hmon (cfx3/hypv).
@@ -271,8 +274,16 @@ def words_to_bytes(ws):
 
 
 def _pte(i):
-    """spec/DADAO-12 §2.2.3 + hmon.S: HSJU=0xF, PPN=i, SPF=0xFF, flags=0xEF."""
-    return 0xF000_0000_0000_FFEF | (i << 29)
+    """spec/DADAO-12 §2.2.3 + hmon.S: HSJU=0xC (H=1,S=1,U=J=0), PPN=i, SPF=0xFF, flags=0xEF.
+
+    D10 base, bit-identical to tests/shared/bootrom/step5/hmon.S, for L1 0-2.
+    L1 index 3 covers PA/VA [0x6000_0000, 0x8000_0000), which holds FAULT_RECORD
+    (0x7FFC_0000) and EXIT_BLOCK (0x7FFD_0000): the user/jail probes must reach
+    their exception frame and SYS_EXIT block, so that one superpage also
+    enables U+J (runtime top nibble becomes 0xC|U|J).  Indices 0-2 stay
+    exactly D10 (0xC).
+    """
+    return 0xC000_0000_0000_FFEF | (i << 29) | (0x3000_0000_0000_0000 if i == 3 else 0)
 
 
 # ---------------------------------------------------------------------------

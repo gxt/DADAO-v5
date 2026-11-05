@@ -8,8 +8,8 @@ implementation:
     user ruling 2026-11-02 / ADR-0043 D1/D4);
   * .tao/tasks/integ/INTEG-046t-Step5启动链落地.md §接口规范 1/2/5 (image
     index table, ELF checks, failure codes 0xB1-0xB8);
-  * spec/DADAO-12 §2.2.3 + ADR-0040 D1/D4 (identity superpage PTE:
-    HSJU=0xF, PPN[55:29]=i, SPF=0xFF, flags 0xEF); DADAO-13 §1 +
+  * spec/DADAO-12 §2.2.3 + ADR-0043 D10 (identity superpage PTE:
+    HSJU=0xC (H=1,S=1,U=J=0), PPN[55:29]=i, SPF=0xFF, flags 0xEF); DADAO-13 §1 +
     ADR-0045 D4 (hypv cg3 reset rows / cg_reg_deleg).
   * tests/shared/machine-profiles.yaml (node) for every address/size.
 
@@ -86,9 +86,9 @@ POWER_OFF = BOOTROM_SIZE - POWER_WINDOW
 POWER_WIN = (RESET_PC, POWER_WINDOW)
 BODY_WIN = (ENTRY, IMAGE_WINDOW)
 
-# Identity superpage PTE (spec/DADAO-12 §2.2.3; ADR-0040 D1/D4):
-# HSJU=0xF, PPN[55:29]=i, SPF=0xFF, flags P/A/D/SP/X/W/R = 0xEF.
-PTE = [0xF000_0000_0000_FFEF | (i << 29) for i in range(4)]
+# Identity superpage PTE (spec/DADAO-12 §2.2.3; ADR-0043 D10):
+# HSJU=0xC (H=1,S=1,U=J=0), PPN[55:29]=i, SPF=0xFF, flags P/A/D/SP/X/W/R = 0xEF.
+PTE = [0xC000_0000_0000_FFEF | (i << 29) for i in range(4)]
 # cfx_hmon/cfx_power hypv reset rows (DADAO-13 §1; ADR-0045 D4).
 MASK_DEFAULT = 0xFFFF_FFFF_FFFF_FFF7
 DELEG_RESET = 0xFFFF_FFFF_FFFF_FFFF

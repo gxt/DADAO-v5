@@ -43,7 +43,7 @@ Flags used: `REQUIRED=1`, `LOAD=2`, `VERIFY=4` (default `0x7`).
   `cfx_hmon.hypv.excp_vector = e_entry` and `switch_run_mode = 3`, then
   `trap cfx_hmon, <boot_magic>`.
 - hmon checks `CFXTRAP` + the magic, builds four 512 MiB superpage PTEs in
-  hmon SRAM (`HSJU=0xF`, `SPF=0xFF`, `PPN=i`), DMAs them to PA 0 through
+  hmon SRAM (`HSJU=0xC` = `H=1/S=1/U=J=0`, `SPF=0xFF`, `PPN=i`), DMAs them to PA 0 through
   `cfx_pmem` (`DIR=0`), invalidates the TLB, sets `PTBR=0` then
   `PTW_ENABLE=1`, programs `cfx_umon.hypv.excp_vector = ENTRY` with
   `switch_run_mode = hypv`, then `trap cfx_umon`.

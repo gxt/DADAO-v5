@@ -3,9 +3,10 @@
 @@ Linked at the smon SRAM base 0x0bff_0000_0000 (64 KiB) and entered by
 @@ `trap cfx_smon, <boot_magic>` from hmon.  It:
 @@   1. checks the trap cause (CFXTRAP + boot magic 0x30001), else exits 0xB8;
-@@   2. builds the first page table in cfx_pmem SRAM and copies it to PA 0 with
-@@      the cg15 DMA: PTBR=0, one 512 MiB superpage at L1 index 0x1000 mapping
-@@      VA 0x0200_0000_0000..0x021f_ffff_ffff -> PA 0..0x1fff_ffff;
+@@   2. builds the first page table in cfx_pmem SRAM (64 KiB zero page, four
+@@      PTEs at offset 0) and copies it to PA 0 with the cg15 DMA: PTBR=0,
+@@      four 512 MiB superpages at L1 index 0-3 mapping
+@@      VA [0, 2 GiB) -> PA [0, 2 GiB) (ADR-0043 D10);
 @@   3. enables PTW and checks VA->PA in both data directions with DMA;
 @@   4. reads the power BootROM header at its fixed address (hmon opened only
 @@      cfx_power supv cfxmem bit2 for this; the power delegation stays closed);
@@ -22,7 +23,7 @@
 @@   rd11 hmon marker (mirrored by hmon to RAM 0x10008)
 @@   rd12 smon marker (smon SRAM 0x0e00, mirrored to RAM 0x10010)
 @@   rd13 OR of the power/hmon poison words (must stay 0)
-@@   rd14 PTE readback via DMA from PA 0x8000
+@@   rd14 PTE0 readback via DMA from PA 0 (PTE1-3 kept in rd23-rd25)
 @@   rd15 DMA status of the page-table copy (DONE = 2)
 @@   rd17/rd18/rd19 cg_reg_deleg readback of cfx_ptw/cfx_pmem/cfx_smon (0x8)
 @@   rd20 power BootROM header word at BOOTROM_BASE (0x4442_4f54_0001_0002)
@@ -83,14 +84,24 @@ smon_clear:
 	LOAD_ADDR rb4, BOOTROM_BASE
 	ld.o	rd20, [rb4, 0]
 
-	@@ --- 2b. L1 PTE at SRAM offset 0x8000 (L1 index 0x1000) ---
+	@@ --- 2b. four L1 PTEs at SRAM offset 0 (L1 index 0-3) ---
+	@@ HSJU=0xC (H=1, S=1, U=J=0), PPN[55:29]=i, SPF=0xFF,
+	@@ flags P/SP/D/A/G/X/W/R = 0xEF (spec/DADAO-12 §2.2.3, ADR-0043 D10).
+	@@ The template starts at PMEM_BASE + 0 so the 2c copy lands the PTEs at
+	@@ PA 0..0x18; a non-zero offset here would put them at that PA instead.
 	LD64	rb3, 0x0000, 0x0000, 0x83ff, 0x0000
-	LD64	rd6, 0x8000, 0x0000, 0x0000, 0x0000
+	LD64	rd6, 0x0000, 0x0000, 0x0000, 0x0000	@@ template offset 0 in PMEM SRAM
 	add.o	rb4, rb3, rd6
-	LD64	rd6, 0xffe3, 0x0000, 0x0000, 0x4000	@@ 0x4000_0000_0000_ffe3
+	LD64	rd6, 0xffef, 0x0000, 0x0000, 0xc000	@@ PTE0: PPN 0
 	st.o	rd6, [rb4, 0]
+	LD64	rd6, 0xffef, 0x2000, 0x0000, 0xc000	@@ PTE1: PPN 0x2000
+	st.o	rd6, [rb4, 8]
+	LD64	rd6, 0xffef, 0x4000, 0x0000, 0xc000	@@ PTE2: PPN 0x4000
+	st.o	rd6, [rb4, 16]
+	LD64	rd6, 0xffef, 0x6000, 0x0000, 0xc000	@@ PTE3: PPN 0x6000
+	st.o	rd6, [rb4, 24]
 
-	@@ --- 2c. DMA the 64 KiB page table to PA 0 (CFX->PA) ---
+	@@ --- 2c. DMA the 64 KiB zero page (4 PTEs at offset 0) to PA 0 ---
 	LD64	rd2, 0x0001, 0x0000, 0x0000, 0x0000	@@ BUSY mask
 	LD64	rd6, 0x0000, 0x0000, 0x83ff, 0x0000
 	cfx2rc	cfx_pmem, cg15, rc0, rd6
@@ -103,18 +114,24 @@ smon_clear:
 	call	[rb0, smon_dma_wait]
 	rd2rd	rd15, rd6, 1
 
-	@@ --- 2d. read the PTE back from PA 0x8000 via DMA (rd14) ---
-	LD64	rd6, 0x8000, 0x0000, 0x0000, 0x0000
+	@@ --- 2d. read all four PTEs back from PA 0 via DMA (32 bytes) ---
+	@@ rd14 keeps PTE0 for the observation dump; rd23-rd25 hold PTE1-3 for
+	@@ the self-check below.  The DMA source is PA 0 (L1 index 0), not the
+	@@ old single-entry PA 0x8000.
+	LD64	rd6, 0x0000, 0x0000, 0x0000, 0x0000
 	cfx2rc	cfx_pmem, cg15, rc0, rd6
 	LD64	rd6, 0x0e00, 0x0000, 0x83ff, 0x0000
 	cfx2rc	cfx_pmem, cg15, rc1, rd6
-	LD64	rd6, 0x0008, 0x0000, 0x0000, 0x0000
+	LD64	rd6, 0x0020, 0x0000, 0x0000, 0x0000	@@ 32 bytes = 4 PTEs
 	cfx2rc	cfx_pmem, cg15, rc2, rd6
 	LD64	rd6, 0x0003, 0x0000, 0x0000, 0x0000	@@ START, DIR=1
 	cfx2rc	cfx_pmem, cg15, rc3, rd6
 	call	[rb0, smon_dma_wait]
 	LD64	rb4, 0x0e00, 0x0000, 0x83ff, 0x0000
 	ld.o	rd14, [rb4, 0]
+	ld.o	rd23, [rb4, 8]
+	ld.o	rd24, [rb4, 16]
+	ld.o	rd25, [rb4, 24]
 
 	@@ --- 3a. PTBR = 0, then enable PTW ---
 	LD64	rd6, 0x0000, 0x0000, 0x0000, 0x0000
@@ -125,7 +142,7 @@ smon_clear:
 	cfx2rd	cfx_ptw, cg8, rc8, rd9
 
 	@@ --- 3b. VA write -> VA read (PA 0x12000) ---
-	LD64	rb4, 0x2000, 0x0001, 0x0200, 0x0000	@@ 0x0200_0001_2000
+	LD64	rb4, 0x2000, 0x0001, 0x0000, 0x0000	@@ 0x0000_0001_2000
 	LD64	rd6, 0x7788, 0x5566, 0x3344, 0x1122
 	st.o	rd6, [rb4, 0]
 	ld.o	rd5, [rb4, 0]
@@ -157,7 +174,7 @@ smon_clear:
 	LD64	rd6, 0x0001, 0x0000, 0x0000, 0x0000
 	cfx2rc	cfx_pmem, cg15, rc3, rd6
 	call	[rb0, smon_dma_wait]
-	LD64	rb4, 0x1000, 0x0001, 0x0200, 0x0000	@@ 0x0200_0001_1000
+	LD64	rb4, 0x1000, 0x0001, 0x0000, 0x0000	@@ 0x0000_0001_1000
 	ld.o	rd7, [rb4, 0]
 	rd2rd	rd4, rd7, 1
 
@@ -166,33 +183,33 @@ smon_clear:
 	LD64	rd6, 0x4f4e, 0x534d, 0x0000, 0x0000	@@ "SMON"
 	st.o	rd6, [rb4, 0]
 	ld.o	rd6, [rb4, 0]
-	LD64	rb4, 0x0010, 0x0001, 0x0200, 0x0000
+	LD64	rb4, 0x0010, 0x0001, 0x0000, 0x0000
 	st.o	rd6, [rb4, 0]
 
-	LD64	rb4, 0x0000, 0x0001, 0x0200, 0x0000
+	LD64	rb4, 0x0000, 0x0001, 0x0000, 0x0000
 	ld.o	rd10, [rb4, 0]			@@ power marker
-	LD64	rb4, 0x0008, 0x0001, 0x0200, 0x0000
+	LD64	rb4, 0x0008, 0x0001, 0x0000, 0x0000
 	ld.o	rd11, [rb4, 0]			@@ hmon marker
-	LD64	rb4, 0x0010, 0x0001, 0x0200, 0x0000
+	LD64	rb4, 0x0010, 0x0001, 0x0000, 0x0000
 	ld.o	rd12, [rb4, 0]			@@ smon marker
 
 	@@ poison words: RAM 0x10100 (power) / 0x10108 (hmon)
-	LD64	rb4, 0x0100, 0x0001, 0x0200, 0x0000
+	LD64	rb4, 0x0100, 0x0001, 0x0000, 0x0000
 	ld.o	rd6, [rb4, 0]
-	LD64	rb4, 0x0108, 0x0001, 0x0200, 0x0000
+	LD64	rb4, 0x0108, 0x0001, 0x0000, 0x0000
 	ld.o	rd7, [rb4, 0]
 	or.o	rd13, rd6, rd7
 	@@ hmon's cg_reg_deleg readbacks (stored at PA 0x10018/0x10020/0x10028)
 	@@ and cfx_power's supv cfxmem / delegation (PA 0x10030/0x10038).
-	LD64	rb4, 0x0018, 0x0001, 0x0200, 0x0000
+	LD64	rb4, 0x0018, 0x0001, 0x0000, 0x0000
 	ld.o	rd17, [rb4, 0]
-	LD64	rb4, 0x0020, 0x0001, 0x0200, 0x0000
+	LD64	rb4, 0x0020, 0x0001, 0x0000, 0x0000
 	ld.o	rd18, [rb4, 0]
-	LD64	rb4, 0x0028, 0x0001, 0x0200, 0x0000
+	LD64	rb4, 0x0028, 0x0001, 0x0000, 0x0000
 	ld.o	rd19, [rb4, 0]
-	LD64	rb4, 0x0030, 0x0001, 0x0200, 0x0000
+	LD64	rb4, 0x0030, 0x0001, 0x0000, 0x0000
 	ld.o	rd21, [rb4, 0]
-	LD64	rb4, 0x0038, 0x0001, 0x0200, 0x0000
+	LD64	rb4, 0x0038, 0x0001, 0x0000, 0x0000
 	ld.o	rd22, [rb4, 0]
 	rd2rd	rd6, rd3, 1
 	rd2rd	rd7, rd4, 1
@@ -224,8 +241,17 @@ smon_clear:
 	LD64	rd1, 0x0000, 0x0000, 0x0000, 0x0000
 	cmp.uo	rd2, rd13, rd1
 	br.nz	{rd2}?, [rb0, smon_fail]
-	LD64	rd1, 0xffe3, 0x0000, 0x0000, 0x4000
+	LD64	rd1, 0xffef, 0x0000, 0x0000, 0xc000	@@ PTE0 (rd14)
 	cmp.uo	rd2, rd14, rd1
+	br.nz	{rd2}?, [rb0, smon_fail]
+	LD64	rd1, 0xffef, 0x2000, 0x0000, 0xc000	@@ PTE1 (rd23)
+	cmp.uo	rd2, rd23, rd1
+	br.nz	{rd2}?, [rb0, smon_fail]
+	LD64	rd1, 0xffef, 0x4000, 0x0000, 0xc000	@@ PTE2 (rd24)
+	cmp.uo	rd2, rd24, rd1
+	br.nz	{rd2}?, [rb0, smon_fail]
+	LD64	rd1, 0xffef, 0x6000, 0x0000, 0xc000	@@ PTE3 (rd25)
+	cmp.uo	rd2, rd25, rd1
 	br.nz	{rd2}?, [rb0, smon_fail]
 	LD64	rd1, 0x0002, 0x0000, 0x0000, 0x0000
 	cmp.uo	rd2, rd15, rd1

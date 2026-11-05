@@ -8,8 +8,9 @@
 @@ enables PTW, sets the cfx_umon hypv vector to the profile ENTRY, and traps
 @@ into the test body in hypv.  smon is reserved and not used by this stage.
 @@
-@@ Page table PTE (spec/DADAO-12 §2.2.3, ADR-0040 D1/D4):
-@@   HSJU=0xF, PPN[55:29]=i, SPF=0xFF, flags P/SP/D/A/G/X/W/R = 0xEF
+@@ Page table PTE (spec/DADAO-12 §2.2.3, ADR-0043 D10):
+@@   HSJU=0xC (H=1, S=1, U=J=0), PPN[55:29]=i, SPF=0xFF,
+@@   flags P/SP/D/A/G/X/W/R = 0xEF
 @@   i = 0..3 -> PA i*512 MiB; L1 index VA[41:29] selects entry i.
 @@ PTBR = 0 (PA 0) and ptw_enable = 1.  The table template lives in hmon SRAM
 @@ and is copied to PA 0 through cfx_pmem DMA (PTW is off until the copy is done).
@@ -71,16 +72,16 @@ _start:
 	@@ --- 2. page-table template in hmon SRAM (16 PTEs reserved, 4 used) ---
 	LOAD_ADDR rb2, HMON_BASE + 0x1000
 	LOAD_ADDR rb3, PMEM_BASE
-	LD64	rd4, 0xffef, 0x0000, 0x0000, 0xf000	@@ PTE0: PPN 0
+	LD64	rd4, 0xffef, 0x0000, 0x0000, 0xc000	@@ PTE0: PPN 0
 	st.o	rd4, [rb2, 0]
 	st.o	rd4, [rb3, 0]
-	LD64	rd4, 0xffef, 0x2000, 0x0000, 0xf000	@@ PTE1: PPN 0x2000
+	LD64	rd4, 0xffef, 0x2000, 0x0000, 0xc000	@@ PTE1: PPN 0x2000
 	st.o	rd4, [rb2, 8]
 	st.o	rd4, [rb3, 8]
-	LD64	rd4, 0xffef, 0x4000, 0x0000, 0xf000	@@ PTE2: PPN 0x4000
+	LD64	rd4, 0xffef, 0x4000, 0x0000, 0xc000	@@ PTE2: PPN 0x4000
 	st.o	rd4, [rb2, 16]
 	st.o	rd4, [rb3, 16]
-	LD64	rd4, 0xffef, 0x6000, 0x0000, 0xf000	@@ PTE3: PPN 0x6000
+	LD64	rd4, 0xffef, 0x6000, 0x0000, 0xc000	@@ PTE3: PPN 0x6000
 	st.o	rd4, [rb2, 24]
 	st.o	rd4, [rb3, 24]
 
