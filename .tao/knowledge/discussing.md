@@ -15,34 +15,22 @@
 - 第 2 项选 **B**：`SPEC-186t` 只改 §5.2+§1；`§2.2.6`/`§3.6`/`§4.5` + `DADAO-22 §5.3` + `contract-see` 由 `SPEC-189t` 收口；过渡期 `ISS-344`。
 - 执行顺序：`SPEC-186t → SPEC-188t → SPEC-189t → SPEC-187t（退出码）`；188t/189t 同改 DADAO-12，严格串行。
 
-## 当前阻塞（2026-11-05）
+## 当前任务状态（2026-11-05）
 
-> 以下均已立册；阻塞原因是语义待裁定或依赖未满足，不是“没有任务”。
+> 已完成项不再列；只列仍未收口/未开始的任务。
 
-- `SPEC-186t`（待开始）：第 2 项跨节同步范围 **A/B/C**；第 3 项 `inner_cfx_mask` 寄存器面存废；第 4 项异步屏蔽文本粒度。
-- `SPEC-188t`（待开始）：删除三件套寄存器定义；依赖 `SPEC-186t` 的 A1 定稿。
-- `SPEC-189t`（待开始）：DADAO-12 跨节异常原因表同步；依赖 `SPEC-186t`/`SPEC-188t`，覆盖 `ISS-344`。
-- `SPEC-191t`（待开始）：ADR-0004 其它 decision + DDLN D-D002 + Machine-00 + ADR-0009/0041 旧退出码清理；**ADR decision 待逐条确认**，未确认不派单。
-- `INFRA-123t`（待开始）：DDLN TT 草稿工作流退役；DD 唯一真源，删除 81 份 TT（用户明确无需备份）。
-- `GEM5-020t`（待开始）：gem5 对齐 QEMU-083t 的 CFXREG 目标；修好后重跑 TESTCASES-098t 矩阵。
-- `SPEC-190t`（待开始）：DADAO-23 §3 + DDLN 旧屏蔽寄存器引用清理；依赖 `SPEC-189t` 的锁串行。
-- `TESTCASES-100t`（待开始）：libc-test `malloc-brk-fail` 64K 页可移植性修正；依赖 `TESTCASES-099t`，改 libc-test 组件补丁策略。
-- QEMU/gem5/tests 的实现删除（rc9/rc11/cg5 rc1/rc63、inner mask、hmon.S 的 rc9 写）待 `SPEC-190t` 定稿后按实际影响立任务。
-- `SPEC-185t`（待开始）：**改为非 spec 引用清理（A/A1）**——只删 spec 内对 ADR/contract/.tao/docs/tests/tools/manifests/0628/URL 的引用标记，保留 spec 互引；待执行。
-- `SPEC-192t`（待开始）：退出码表从 `Machine-v5 §1.2` 迁到 `§7.1`，同步 contract-see/ADR-0020/ADR-0004 的 4 处指针；等 SPEC-185t 收口后执行。
-- `SPEC-193t`（待开始）：修 SPEC-185t 删除投影/缺口表后的 5 处外部悬空指针。
-- `SPEC-187t`（待开始）：依赖 `SPEC-186t` 第 2 项与退出码表落点确认；覆盖 `ISS-341`。
-- `QEMU-083t`（待开始）：依赖 `SPEC-186t` 的 `CFXREG` 目标句定稿；覆盖 `ISS-342`。
-- `TESTCASES-098t`（待开始）：依赖 M11 收口（`SPEC-186t`、退出码迁移、完整 llvm-ts 回归）。
-- `SPEC-180t` 的 ADR、Linux bring-up charter ADR：仍待用户逐条确认，未立册。
+- `SPEC-191t`（待验收）：ADR-0004/0009/0041、DDLN D-D002/TT-D002、Machine-00 旧码清理；reviewer 复验中。
+- `INFRA-123t`（待验收）：DD 唯一真源、删除 `.opencode/agents/lecnotes.md`、TT 工作流退役；reviewer 复验中。
+- `INTEG-054t`（待开始）：5 个屏蔽寄存器实现清理（QEMU→gem5→tests）。
+- `INTEG-055t`（待开始）：退出码实现迁移（QEMU→gem5→tests）。
+- `INFRA-124t`（待开始）：ADR-0013/check_spec_refs/GEM5-017t 指针/Node embench 小项。
+- `QEMU-084t`（待开始）：guest rlimit 实现（`ISS-343`，P3）。
+- TT 删除：`INFRA-123t` 合并后由 architect 在主工作树删除 81 份 `TT-*`（不备份）。
+- `SPEC-180t` 的 ADR、Linux bring-up charter ADR：仍待用户逐条确认（长期 backlog）。
 
-### M11 夜跑 libc-test dynamic 失败（2026-11-05）
+**Open issue**：仅 `ISS-343`（QEMU guest rlimit no-op），已归 `QEMU-084t`；`ISS-340/341/342/344` 均 closed。
 
-- 夜跑 `check-night`：L3 绿；`tset:llvm-ts`/`tset:embench`/`arch:cfx` 绿；`tset:libc-test` dynamic rc=2。
-- 失败用例 `regression/malloc-brk-fail`：`malloc(10000) succeeded after memory is filled`。
-- 现场：dynamic 启动 `brk(0x50000)→brk(0x70000)`；`t_vmfill`+`RLIMIT_DATA=0` 后成功 `malloc` 无 mmap/brk 系统调用；static 通过。
-- 初步判断：musl dynamic 启动堆与测试假设交互，非 QEMU mmap/rlimit 直接失效；待 `TESTCASES-099t` 独立复核。
-- `check-night-report` 在该项解决前为红；处置 A（known-fail）/B（dynamic 排除）/C（测试修正）待用户裁定。
+**已解决（历史）**：libc-test dynamic `malloc-brk-fail` 已由 `TESTCASES-100t` 修正；夜跑 4/4 绿、`check-night-report` rc=0；A/B/C 不再待裁定。
 
 ## 2026-11-05 M11 收口与实现决定
 
