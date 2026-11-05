@@ -12,12 +12,12 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-189t | 已验证 | 2026-11-05 13:45 | DADAO-12/22/Machine-v5/contract-see 页表异常原因表同步为当前 monitor 的 CFXMEM/CFXPERM |
 | TESTCASES-100t | 待开始 | 2026-11-05 12:40（登记） | libc-test malloc-brk-fail 64K 页修正：消耗 dynamic 启动堆 |
 | SPEC-190t | 待开始 | 2026-11-05 12:30（登记） | DADAO-23 §3 与 DDLN 屏蔽寄存器旧引用清理 |
 | SPEC-188t | 已验证 | 2026-11-05 12:25 | 删除 5 个无效屏蔽寄存器定义（rc9/rc11/cg5 rc1/cg5 rc63/inner），reserved 不重排 |
 | SPEC-186t | 已验证 | 2026-11-05 12:15 | DADAO-12 §5.2 重写：A/A1 monitor 入口、7 步、异步 pending、删除 cause mask |
 | TESTCASES-099t | 已验证 | 2026-11-05 12:02 | libc-test dynamic malloc-brk-fail 诊断：musl 启动堆，非 QEMU 直接缺陷 |
-| SPEC-189t | 待开始 | 2026-11-05 11:40（登记） | DADAO-12 §2.2.6/§3.6/§4.5 跨节原因表同步；ISS-344 |
 | QEMU-083t | 待开始 | 2026-11-05 10:33（登记） | CFXREG 异常目标改为当前 monitor；ISS-342 |
 | SPEC-185t | 待开始 | 2026-11-05 10:32（登记） | spec 自包含册头 + README 索引迁移；语义零改动 |
 | SPEC-187t | 待开始 | 2026-11-05 10:32（登记） | 退出码迁移 SPEC 阶段：Machine-v5 完整表、ADR 指针化、ISS-341 |

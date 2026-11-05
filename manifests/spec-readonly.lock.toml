@@ -452,7 +452,12 @@ group = "dadao-1x"
 #   编号保留 reserved、不重排 rc」）：§3.1–3.3 rc9/rc11、§3.6 cg5 rc1/rc63 标 reserved；§1 注记删
 #   `inner_cfx_mask`；§5.1/§5.3 的 escape 不再恢复 `excp_prev_cfx_mask`（`global_cfx_intr_mask` 保留）；
 #   附录 0.7.3-rc 补一条；sha256 同笔重算（其余 20 册不变）。
-sha256 = "fb36eb6f51d12adc5d723326385a623f9982cdff1aa04c1944c67229a4103c5a"
+# 2026-11-05（SPEC-189t，授权见任务书 §背景/§目标 与主会话转达的已定稿口径）：§2.2.1/§2.2.2/§2.2.5/§2.2.6
+#   页表异常原因名与目标同步——未映射（ptw_enable=0、P=0、SPF/GPF/fragment 缺失）与 A/D 回写失败归当前运行模式
+#   monitor 的 `CFXMEM`（A/D 的 cause_info = PTE 物理地址），HSJU/R/W/X 不符归 `CFXPERM`；删除 I/D 前缀原因名与
+#   「进入 cfx_ptw」；§3.6 `1<<7` 在 cfx_ptw 标保留；§4.5 原因表只留 `CFXTRAP`/`CFXESC`、A/D 回写失败改 `CFXMEM`；
+#   §5 编号示例与精确异常段同步；附录 0.7.3-rc 补一条；版本不变（0.7.3-rc）；sha256 同笔重算（其余 20 册不变）。
+sha256 = "271d20dbee1168fcf62cb78918d68d198cb6358d66998c9788b050c0292cb58a"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -513,7 +518,10 @@ group = "dadao-2x"
 # 2026-10-30（INTEG-044t，授权同 SEE 条目）：初始化示例的 `global_cfx_mask` 改按目标 cfx 的 `cfxtrap` 来源 mask（supv 源 = bit 2）；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-31（INTEG-047t，授权原话见任务书 §用户授权原话）：§1 错误码增 -5 SBI_ERR_BUSY；§9 表增 FID 6/7/8（DMA START/STATUS/WAIT）+ 说明段 + 分发示例 3 分支/3 处理器；附录 0.7.3-rc 补条目；sha256 同笔重算。
 # 2026-10-31（INTEG-050t，授权见文件头注释）：§7 `SBI_HART_SET_TIMER` 的 timeout 与 §10 `SBI_TIME_GET` 返回值明确为 64 位（语义不变）；附录 0.7.3-rc 补条目；版本不变（0.7.3-rc）；sha256 同笔重算。
-sha256 = "8991a39d7a9eeac286bf91f1ccf0787f0d680b7bdc7f49ab891e0b0705b6c259"
+# 2026-11-05（SPEC-189t，授权同 SEE 条目）：§4 页表异常由当前运行模式 monitor 接收、经 `SBI_PTW_*` 委托
+#   `cfx_ptw`；§5.3 A/D 回写失败改 `CFXMEM`（`excp_cause_info` = PTE 物理地址、失败条目保留），删除 `PTWERR`；
+#   附录 0.7.3-rc 补一条；版本不变（0.7.3-rc）；sha256 同笔重算（其余 20 册不变）。
+sha256 = "573d4792c135c1d7d7e1f3140ca9a26801681ba84c48425fed9ebfbaee381e1e"
 
 [[spec]]
 path = "spec/DADAO-23-HBI-超管系统二进制接口.md"
@@ -629,4 +637,7 @@ group = "machine-v5"
 #   VA 窗口与测试布局/起始地址/SP 规定）；附录 0.3.2-rc 补条目；版本不变（0.3.2-rc）；sha256 同笔重算。
 # 2026-11-05（SPEC-188t，授权同上）：§2/§3/§4.2 删除 `switch_cfx_mask`/`excp_prev_cfx_mask` 投影；
 #   sha256 同笔重算（其余 20 册不变）。
-sha256 = "2815963948bc56cfc651c41883ce1db428331a025e24ef13e2c17003371c2dce"
+# 2026-11-05（SPEC-189t，授权同 SEE 条目）：§1.2 页表异常按当前运行模式 monitor 路由（未映射/A/D 回写失败
+#   ⇒ `CFXMEM`，权限拒绝 ⇒ `CFXPERM`）；§3 页表权限与 cfx 访问权限改名 `CFXPERM` 并保留两层结论；附录 0.3.2-rc
+#   补一条；版本不变（0.3.2-rc）；sha256 同笔重算（其余 20 册不变）。
+sha256 = "aa6fae18d45c10e626c7f82364119666b711b93c1865617c29a2f19bd1ba16bb"

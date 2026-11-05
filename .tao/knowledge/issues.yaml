@@ -49,8 +49,8 @@
 
 - id: ISS-344
   scope: [spec]
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: SPEC-189t
   title: >-
     【P2】DADAO-12 §2.2.6/§3.6/§4.5 仍写页表异常进入 cfx_ptw、PTWERR/NUPERM 等旧原因，
     与 §5.2 的“执行期事件先入当前 monitor”冲突；同批 DADAO-22 §5.3、Machine-v5、

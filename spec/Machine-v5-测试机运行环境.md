@@ -60,7 +60,7 @@ v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位�
 - **层次与适用**：`CFXMEM`（`0x81`）适用于核内地址空间模型内的非法访问/取指（cfxha 段内的非法子区间、越界访问/取指）；`0x87`（unmapped）保留为测试机历史约定，用于无 cfx 归属的 unmapped 访问。[ADR-0020 D15]
 - **精确路由（按 profile）**：
   - **Tiny**：无 PTW（`ptw_enable` 恒 0）。`addr[47:42] == 0` 的普通访存/取指 ⇒ `CFXMEM`（`0x81`），**不直通物理存储器**；cfxha 63 段内 BootROM/SRAM 之外的地址 ⇒ `CFXMEM`。Tiny 无 hmon/smon 向量，异常**不经向量**，按 `ADR-0004 D5` 的「机器直接映射 fault → 退出码」口径终止。
-  - **Node**：`addr[47:42] == 0` 且 `ptw_enable=1`：按单 PTBR 走页表（PTE 格式/页表步进/页权限/TLB 见 `DADAO-12 §2.2.1–§2.2.6`、`§4.5`）；页表步进与 TLB 命中产生的异常都进入 `cfx_ptw`（`cfx4`）。`ptw_enable=0`（仅复位后 power/hmon 的早期初始化）时仍按上一条报 `CFXMEM`。
+  - **Node**：`addr[47:42] == 0` 且 `ptw_enable=1`：按单 PTBR 走页表（PTE 格式/页表步进/页权限/TLB 见 `DADAO-12 §2.2.1–§2.2.6`、`§4.5`）；页表步进与 TLB 命中产生的异常先进入当前运行模式 monitor：未映射与 A/D 回写失败 ⇒ `CFXMEM`，权限拒绝 ⇒ `CFXPERM`（见 `DADAO-12 §2.2.6`、`§5.2`）。`ptw_enable=0`（仅复位后 power/hmon 的早期初始化）时仍按上一条报 `CFXMEM`。
   - 保留 cfx（`6`–`14`、`19`–`61`）的普通 `ld/st` ⇒ `CFXMEM`（`0x81`），目标为该 cfxha；`trap`/`escape` 到保留 cfx 仍为 `ILLI`。
   - 其余未映射地址（Node 的 `power` 段 BootROM 之外）⇒ 测试机约定 `unmapped`（`0x87`）。
 - **取指路径同等对待**：越界**取指**与越界**数据访问**同属非法核内地址访问，**均须报异常**，不得只覆盖数据访问路径；不得静默继续或静默丢弃。[ADR-0020 D15]
@@ -93,8 +93,8 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 - 每个 cfx 的 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe`（`rc0`–`rc3`）为四类 64 位同步来源 mask，`rc4` 为 `cfx_intr_mask`：**0=允许，1=屏蔽**，位索引=源 cfx；自身只绕过 cfx 轴。`cfx0`–`cfx3` 的 `cg8`/`rc1` 为 `global_cfx_intr_mask`。[DADAO-12 §3. 共有寄存器设计规范][ADR-0045 D2/D3]
 - `switch_run_mode` 为陷入时切换的运行模式。[DADAO-12 §3. 共有寄存器设计规范]
 - reserved cfxha（`6`–`14`、`19`–`61`）触发 `ILLI`；权限拒绝触发 `CFXPERM`（`1<<7`，进入当前模式 monitor），escape 帧/目标错误触发 `CFXESC`（`1<<3`，进入当前 cfx）。[DADAO-12 §4. 专有寄存器设计规范][ADR-0045 D6/D7]
-- `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM` 属于页级/PTW 权限异常：当前运行模式对应的 HSJU 位为 0 时触发（U/J/S/H 分别对应 `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`）；地址转换第一步已不再按 `VA[47:42]` 选择 PTBR，也不再有 PTBR 模式权限位图。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw]
-- **两个权限层次**：PTW 层权限（`NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`，出自 cfx_ptw 异常原因表）与 **cfx 访问权限**（mask 不允许 ⇒ `CFXPERM`，见 `§5` 异常进入流程）是**不同层次**，不可混同。[ADR-0020 D9][DADAO-12 §4. 专有寄存器设计规范]
+- HSJU 或 R/W/X 不符属于页表/PTW 层权限异常：当前运行模式对应的 HSJU 位为 0，或取指/读/写分别不满足 X/R/W 时触发 `CFXPERM`（当前运行模式 monitor）；地址转换第一步已不再按 `VA[47:42]` 选择 PTBR，也不再有 PTBR 模式权限位图。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw]
+- **两个权限层次**：页表/PTW 层权限（HSJU 或 R/W/X 不符）与 **cfx 访问权限**（`cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` mask 拒绝，见 `§5` 异常进入流程）是**不同层次**，不可混同；两者失败后均归当前运行模式 monitor 的 `CFXPERM`（原因名收敛，权限来源不同）。[ADR-0020 D9][DADAO-12 §4. 专有寄存器设计规范]
 
 - **测试机 cfx 实现范围（按 profile）**：
   - **`Machine-v5-Tiny`**：**不实现任何 cfx**——cfxha 63 只作地址分区，不提供 `cfx_power` 或其它 cfx 的 cg0–cg7 寄存器/异常向量/权限模型；`trap` 只在 semihosting 区（`immu18[17:8] == 0x3FF`）有效，不进入向量。cfx 寄存器访问与 `cfx2rd`/`cfx2rc` 按未实现 cfx ⇒ `CFXREG`；非 semihosting 的 `trap`/`escape` 按未实现 cfx ⇒ `ILLI`（不进向量、不做模式切换）。**Tiny 不实现 `cfx32`（pmem）/`cfx4`（ptw）/`cfx5`（cache）/`cfx33`（llc）/`cfx34`（time）**。
@@ -265,6 +265,7 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 - legacy `-bios` 仍按 64 KiB 复位窗口装载，与镜像装载路径并存。
 - 册名与文件改名：`Machine-01` → `Machine-v5`（标题同步为 `Machine-v5：测试机运行环境`；正文语义不变，版本号不变）。
 - Node 首张页表口径订正：由 smon 在 `power → hmon → smon` 交接后建立，`PTBR=0`、L1 index `0`–`3` 四个 512 MiB 超页，映射 `VA [0, 2 GiB) → PA [0, 2 GiB)`；每项 `H=1`、`S=1`、`U=J=0`、`R=W=X=1`、`P=1`、`SP=1`、`A=D=1`、`SPF=0xFF`；随后开启 PTW。
+- 页表异常路由同步：页表步进与 TLB 命中产生的异常先进入当前运行模式 monitor——未映射与 A/D 回写失败 ⇒ `CFXMEM`，HSJU 或 R/W/X 不符 ⇒ `CFXPERM`；`cfx_ptw` 不再是页表异常目标；页表/PTW 层权限与 cfx 访问权限仍是两个层次，失败后原因名均收敛为 `CFXPERM`。
 
 ### 0.3.1（2026-10-16）
 

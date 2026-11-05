@@ -118,18 +118,18 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 
 - TLB 属于 `cfx_ptw`，没有独立的 TLB 使能位：`ptw_enable = 1` 即参与查找，`ptw_enable = 0` 时地址转换整体旁路（见第一步）。
 - TLB 按「虚拟地址所在页 + ASID」匹配：条目的虚拟页必须覆盖本次访问地址，且条目 `G = 0` 时条目 ASID 等于 `cfx_ptw_tlb_asid`，`G = 1` 时跨 ASID 匹配（见 §2.2.5）。
-- TLB 命中时不重读 PTE，直接用条目中的 SPF/GPF、HSJU 与 R/W/X 检查：小页标记位为 0 触发对应 `I/DPFTRAP` 异常，HSJU 或 R/W/X 不符触发对应 PERM 异常；检查顺序与 §2.2.6 相同。TLB 命中产生的异常属于 `cfx_ptw` 异常原因的子集，直接进入 `cfx_ptw`。
+- TLB 命中时不重读 PTE，直接用条目中的 SPF/GPF、HSJU 与 R/W/X 检查：小页标记位为 0 触发 `CFXMEM`，HSJU 或 R/W/X 不符触发 `CFXPERM`；检查顺序与 §2.2.6 相同。TLB 命中产生的异常按当前运行模式 monitor 路由（见 §2.2.6、§5.2）。
 - 命中且权限符合时跳过第三步（页表步进），更新 A/D（见 §4.5）后进入第四步（形成最终物理地址）。
 - 未命中时继续执行第三步；只有步进得到的 PTE 有效且全部检查通过后才把结果填入 TLB（缺页/权限失败不填充，也不更新 A/D）。替换策略由实现决定；替换或失效带未回写 A/D 的条目时须回写（§4.5）。
 
 **第三步：页表步进**
 
 - 用 `VA[41:29]` × 8 计算 L1 页表项偏移，从 PTBR 基址读取 8 字节 PTE。
-- 若 Present 位为 0（`P = 0`）且 Superpage 位为 1（`SP = 1`），则为超页缺失，触发 `ISPTRAP`/`DSPTRAP` 异常。
-- 若 Present 位为 0（`P = 0`）且 Superpage 位为 0（`SP = 0`），则该条目不是超页，按 §2.2.2 报 `IGPTRAP`/`DGPTRAP` 异常。
+- 若 Present 位为 0（`P = 0`）且 Superpage 位为 1（`SP = 1`），则为超页缺失，触发 `CFXMEM`（当前运行模式 monitor）。
+- 若 Present 位为 0（`P = 0`）且 Superpage 位为 0（`SP = 0`），则该条目不是超页，按 §2.2.2 报 `CFXMEM`。
 - 若 Present 位为 1 且 Superpage 位为 0（`SP = 0`），则该条目不是超页，按 §2.2.2 走二级页表。
-- 若 Present 位为 1 且 Superpage 位为 1（`SP = 1`），则检查 SPF 字段中对应小页的标记位（`VA[28:26]` 选位；见 §2.2.3）；若对应位为 0，触发 `ISPFTRAP`/`DSPFTRAP` 异常。
-- 小页存在时依次检查 HSJU 与读/写/执行权限（见 §2.2.5），任一不符触发对应 PERM 异常。
+- 若 Present 位为 1 且 Superpage 位为 1（`SP = 1`），则检查 SPF 字段中对应小页的标记位（`VA[28:26]` 选位；见 §2.2.3）；若对应位为 0，触发 `CFXMEM`（当前运行模式 monitor）。
+- 小页存在时依次检查 HSJU 与读/写/执行权限（见 §2.2.5），任一不符触发 `CFXPERM`。
 
 **第四步：形成最终物理地址**
 
@@ -162,14 +162,14 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 **第三步：页表步进**
 
 - 用 `VA[41:29]` × 8 计算 L1 页表项偏移，从 PTBR 基址读取 8 字节 PTE。
-- 若 Present 位为 0（`P = 0`），触发 `IGPTRAP`/`DGPTRAP` 异常（`SP = 1` 时按 §2.2.1 报超页缺失）。
+- 若 Present 位为 0（`P = 0`），触发 `CFXMEM`（`SP = 1` 时按 §2.2.1 报超页缺失）。
 - 若 Present 位为 1 且 Superpage 位为 1（`SP = 1`），则该条目为超页，按 §2.2.1 处理。
 - 若 Present 位为 1 且 Superpage 位为 0（`SP = 0`），生成二级页表的访问地址并读取 8 字节 L2 PTE：
   - 一级页表项给出的物理页号作为二级页表基址 `PA[55:16]`
   - 用 `VA[28:16]` × 8 计算二级页表的索引，即 L2 页表项偏移 `L2PA[15:3]`
-- 若 L2 表项 Present 位为 0，触发 `IGPTRAP`/`DGPTRAP` 异常。
-- 若 L2 表项 Present 位为 1，则检查 GPF 字段中对应小页的标记位（`VA[15:13]` 选位；见 §2.2.4）；若对应位为 0，触发 `IGPFTRAP`/`DGPFTRAP` 异常。
-- 小页存在时依次检查 HSJU 与读/写/执行权限（见 §2.2.5），任一不符触发对应 PERM 异常。
+- 若 L2 表项 Present 位为 0，触发 `CFXMEM`。
+- 若 L2 表项 Present 位为 1，则检查 GPF 字段中对应小页的标记位（`VA[15:13]` 选位；见 §2.2.4）；若对应位为 0，触发 `CFXMEM`。
+- 小页存在时依次检查 HSJU 与读/写/执行权限（见 §2.2.5），任一不符触发 `CFXPERM`。
 
 **第四步：形成最终物理地址**
 
@@ -236,8 +236,8 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 
 **页访问权限（HSJU / R / W / X）**
 
-- `HSJU` 是当前运行模式的访问许可掩码：U-mode 对应 `bit60`、J-mode 对应 `bit61`、S-mode 对应 `bit62`、H-mode 对应 `bit63`。当前运行模式对应的位为 1 才允许访问，否则分别触发 `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`。硬件不做「S 模式自动覆盖 U 页」「H 模式自动覆盖 S 页」之类的隐含放宽；用户页/内核页的组合策略由操作系统决定，架构不强制。
-- `R`/`W`/`X` 与 HSJU 正交：取指要求 `X = 1`（否则 `NXPERM`），读要求 `R = 1`（否则 `NRPERM`），写要求 `W = 1`（否则 `NWPERM`）。
+- `HSJU` 是当前运行模式的访问许可掩码：U-mode 对应 `bit60`、J-mode 对应 `bit61`、S-mode 对应 `bit62`、H-mode 对应 `bit63`。当前运行模式对应的位为 1 才允许访问，否则触发 `CFXPERM`（当前运行模式 monitor）。硬件不做「S 模式自动覆盖 U 页」「H 模式自动覆盖 S 页」之类的隐含放宽；用户页/内核页的组合策略由操作系统决定，架构不强制。
+- `R`/`W`/`X` 与 HSJU 正交：取指要求 `X = 1`（否则 `CFXPERM`），读要求 `R = 1`（否则 `CFXPERM`），写要求 `W = 1`（否则 `CFXPERM`）。
 - 同一访问可同时违反多个条件时，只报 §2.2.6 规定的最高优先级异常。
 
 **A/D 位**
@@ -248,7 +248,7 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 - 权限通过的访问：读/取指在 `A_local = 0` 时置 `A_local = 1`、`A_dirty = 1`；写在置 `A` 的同时，`D_local = 0` 时置 `D_local = 1`、`D_dirty = 1`。该规则对「命中」与「本次访问触发填充」同样适用（填充只拷贝 PTE 的 `A`/`D`，本次访问随即按访问类型置位）。
 - 缺页/权限失败：不更新 A/D，也不填充条目。
 - `CLEAN`/`FLUSH`/条目替换：只把挂起的 `A`/`D` 位原子 OR 回写 PTE（保留其他字段），回写后清挂起位；`CLEAN` 保留条目，`FLUSH` 回写后删除条目，`INVALID` 不写回直接删除。
-- 回写失败见 §4.5 `PTWERR`；页表页必须可写。软件清 `A`/`D` 后必须显式 invalidate 对应条目。
+- 回写失败按当前运行模式 monitor 的 `CFXMEM` 处理（`cause_info` = PTE 物理地址，见 §4.5）；页表页必须可写。软件清 `A`/`D` 后必须显式 invalidate 对应条目。
 
 **Global 位**
 
@@ -286,15 +286,15 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 
 **页表步进内部优先级**（`P = 0` / 超页缺失 → SPF/GPF 对应位 = 0 → HSJU 不符 → R/W/X 不符）：
 
-1. `ptw_enable = 0` → CFXMEM（不发生页表步进）
-2. L1 `P = 0`：`SP = 1`（超页缺失）→ `ISPTRAP`/`DSPTRAP`；`SP = 0` → `IGPTRAP`/`DGPTRAP`
-3. L1 `P = 1`、`SP = 1`、SPF 对应小页位 = 0 → `ISPFTRAP`/`DSPFTRAP`
-4. L2 `P = 0`（普通页缺失）→ `IGPTRAP`/`DGPTRAP`
-5. L2 `P = 1`、GPF 对应小页位 = 0 → `IGPFTRAP`/`DGPFTRAP`
-6. HSJU 不符 → `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`（按当前运行模式）
-7. R/W/X 不符 → 取指 `NXPERM`、写 `NWPERM`、读 `NRPERM`
+1. `ptw_enable = 0` → `CFXMEM`（不发生页表步进）
+2. L1 `P = 0`：`SP = 1`（超页缺失）→ `CFXMEM`；`SP = 0` → `CFXMEM`
+3. L1 `P = 1`、`SP = 1`、SPF 对应小页位 = 0 → `CFXMEM`
+4. L2 `P = 0`（普通页缺失）→ `CFXMEM`
+5. L2 `P = 1`、GPF 对应小页位 = 0 → `CFXMEM`
+6. HSJU 不符 → `CFXPERM`（按当前运行模式）
+7. R/W/X 不符 → `CFXPERM`
 
-仅触发优先级最高的异常，后续检查不再执行。取指异常用 `I` 前缀（`IGPTRAP`/`ISPTRAP`/`IGPFTRAP`/`ISPFTRAP`）并进入 cfx_ptw，数据读写异常用 `D` 前缀（`DGPTRAP`/`DSPTRAP`/`DGPFTRAP`/`DSPFTRAP`），异常原因编号与 `excp_cause_info` 见 §4.5 cfx_ptw 异常原因表；页表步进或 TLB 命中产生的异常都进入 `cfx_ptw`（§5.2）。
+仅触发优先级最高的异常，后续检查不再执行。页表未映射（缺页/超页缺失/小页缺失）与 A/D 回写失败归 `CFXMEM`，HSJU 或 R/W/X 不符归 `CFXPERM`，目标均为当前运行模式 monitor（§5.2）；A/D 回写失败的 `cause_info` = PTE 物理地址。异常原因编号与 `excp_cause_info` 见 §5.2 monitor 异常编号。
 
 ## 3. 共有寄存器设计规范
 
@@ -388,7 +388,7 @@ H-mode 寄存器（cg=3）定义见 HEE。
 | 5 | 5 | excp pending | cfx_⟨cfxname⟩_excp_pending | 0 | RW | 待处理异常/中断位图（one-hot，OR语义），写0清位 |
 | 5 | 63 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 
-所有异常原因编码为 one-hot（64 位），各核芯功能扩展的异常原因表定义该核芯功能扩展可处理的异常位。表中未列出的位属于保留或未使用，若硬件错误触发此类位，表示该核芯功能扩展出现不可恢复的错误。`1 << 3` 为 `CFXESC`（escape 帧/目标错误，每个 cfx）；`1 << 4` 至 `1 << 6` 保留用于未来扩展（debug 异常等）；`1 << 7` 在 `cfx0`–`cfx3` 为 `CFXPERM`（两轴权限拒绝），在 `cfx_ptw` 为 `PTWERR`（§4.5）；`1 << 8` 由 `cfx_pmem` 用作 `PMEM_DMA`（§4.9），其余核芯功能扩展保留。
+所有异常原因编码为 one-hot（64 位），各核芯功能扩展的异常原因表定义该核芯功能扩展可处理的异常位。表中未列出的位属于保留或未使用，若硬件错误触发此类位，表示该核芯功能扩展出现不可恢复的错误。`1 << 3` 为 `CFXESC`（escape 帧/目标错误，每个 cfx）；`1 << 4` 至 `1 << 6` 保留用于未来扩展（debug 异常等）；`1 << 7` 在 `cfx0`–`cfx3` 为 `CFXPERM`（两轴权限拒绝），在 `cfx_ptw` 保留（见 §4.5）；`1 << 8` 由 `cfx_pmem` 用作 `PMEM_DMA`（§4.9），其余核芯功能扩展保留。
 
 ### 3.7 cg6 - 暂存寄存器
 
@@ -491,7 +491,7 @@ cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不�
 | 12 | 2 | tlb addr start | cfx_ptw_tlb_addr_start | 0 | RW | 失效操作的起始虚拟地址（`VA[41:0]`） |
 | 12 | 3 | tlb addr size | cfx_ptw_tlb_addr_size | 0 | RW | 失效操作的地址范围大小（字节） |
 
-PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.2.1–§2.2.6。TLB 并入本核芯功能扩展：没有独立的 TLB 核芯功能扩展，也没有 `tlb_enable`/`tlb_exist`；TLB 命中时产生的同类异常直接进入 `cfx_ptw`。
+PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.2.1–§2.2.6。TLB 并入本核芯功能扩展：没有独立的 TLB 核芯功能扩展，也没有 `tlb_enable`/`tlb_exist`；TLB 命中时产生的异常按当前运行模式 monitor 路由（见 §2.2.6、§5.2）。
 
 **TLB 与 ASID**
 
@@ -506,14 +506,14 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 - 条目填充：`A_local = PTE.A`、`D_local = PTE.D`、`A_dirty = D_dirty = 0`（填充本身不产生回写）。
 - 读/取指命中且权限通过：`A_local = 0` ⇒ `A_local = 1`、`A_dirty = 1`；写命中且权限通过：`A_local = 0` ⇒ `A_local = 1`、`A_dirty = 1`，且 `D_local = 0` ⇒ `D_local = 1`、`D_dirty = 1`。
 - 缺页/权限失败：不更新 A/D，不填充条目。
-- 回写只把挂起的 `A`/`D` 位做**原子 OR** 写入 PTE（保留其他字段）；回写成功后清挂起位。页表页必须可写；软件清 A/D 后必须显式失效对应条目。
+- 回写只把挂起的 `A`/`D` 位做**原子 OR** 写入 PTE（保留其他字段）；回写成功后清挂起位。页表页必须可写；回写失败（PTE 物理写失败）按当前运行模式 monitor 的 `CFXMEM` 处理，`cause_info` = PTE 物理地址，失败条目保留。软件清 A/D 后必须显式失效对应条目。
 
 **失效接口（正交语义）**
 
 - `cfx_ptw_tlb_control` 的三个维度互相独立：操作（`[1:0]`）、地址范围（`[3:2]`）、ASID（`bit4` = `ASID_ANY`，`1` = 所有 ASID，`0` = 匹配 `cfx_ptw_tlb_asid`）。
 - **判序**：先判操作（`[1:0]`），再判地址范围与操作数。
   - `00 = none`：**无条件 no-op**——不报异常，且不检查地址范围编码与 `size`（`scope = 11` 或 `range` 且 `size = 0` 在该操作下同样不报异常）；`ASID_ANY`/start/size 均被忽略。
-  - `01 = clean`：回写 A/D，保留条目。`10 = invalid`：只删除条目，不回写。`11 = flush`：回写 A/D 后删除条目；回写失败时**不删除该条目**并报 `PTWERR`。这三种操作才校验地址范围编码。
+  - `01 = clean`：回写 A/D，保留条目。`10 = invalid`：只删除条目，不回写。`11 = flush`：回写 A/D 后删除条目；回写失败时**不删除该条目**，按当前运行模式 monitor 的 `CFXMEM` 处理（`cause_info` = PTE 物理地址）。这三种操作才校验地址范围编码。
 - 地址范围（仅 `clean`/`invalid`/`flush` 生效）：`00 = all` 忽略 start/size；`01 = VA` 只匹配包含 `tlb_addr_start` 的条目（忽略 size）；`10 = range` 匹配与 `[start, start+size)` 相交的条目；`11 = reserved` 或 `range` 且 `size = 0` ⇒ `CFXREG`（非法操作数）。
 - ASID 维度与 `G`：`ASID_ANY = 1` 时包含 `G = 1` 的条目；`ASID_ANY = 0` 时只处理 `G = 0` 且 ASID 匹配的条目，**不碰 `G` 条目**。
 - 正常完成（含 `none`）不产生异常；只有 `clean`/`invalid`/`flush` 的非法编码/操作数触发 `CFXREG`。
@@ -523,25 +523,9 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 | excp cause id | 名称     | 触发条件      | 是否可屏蔽 | excp cause info |
 | --------   | ------ | --------- | ---------- | ---------    |
 | `1 << 0`   | CFXTRAP  | 功能调用      | 否 | 指令编码         |
-| `1 << 1`   | CFXMEM   | 访问核内地址空间或内部存储块故障 | 否 | 访存地址         |
-| `1 << 2`   | CFXREG   | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
 | `1 << 3`   | CFXESC   | escape 帧或目标错误 | 否 | 指令编码         |
-| `1 << 7`   | PTWERR   | A/D 回写失败  | 否 | 出错的 PTE 物理地址 |
-| `1 << 8`   | NUPERM   | U-mode无权访问  | 否 | 访存地址         |
-| `1 << 9`   | NJPERM   | J-mode无权访问  | 否 | 访存地址         |
-| `1 << 10`  | NSPERM   | S-mode无权访问  | 否 | 访存地址         |
-| `1 << 11`  | NHPERM   | H-mode无权访问  | 否 | 访存地址         |
-| `1 << 12`  | NXPERM   | 执行不可执行页   | 否 | 取指地址         |
-| `1 << 13`  | NWPERM   | 写不可写页     | 否 | 读写地址         |
-| `1 << 14`  | NRPERM   | 读不可读页     | 否 | 读写地址         |
-| `1 << 16`  | IGPTRAP  | 取指普通页缺失  | 否 | 取指地址         |
-| `1 << 17`  | ISPTRAP  | 取指超页缺失    | 否 | 取指地址         |
-| `1 << 18`  | IGPFTRAP | 取指普通页小页缺失 | 否 | 取指地址         |
-| `1 << 19`  | ISPFTRAP | 取指超页小页缺失  | 否 | 取指地址         |
-| `1 << 20`  | DGPTRAP  | 数据读写普通页缺失 | 否 | 读写地址         |
-| `1 << 21`  | DSPTRAP  | 数据读写超页缺失  | 否 | 读写地址         |
-| `1 << 22`  | DGPFTRAP | 数据读写普通页小页缺失 | 否 | 读写地址         |
-| `1 << 23`  | DSPFTRAP | 数据读写超页小页缺失 | 否 | 读写地址         |
+
+`cfx_ptw` 不再定义页表异常原因：页表未映射与 A/D 回写失败归当前运行模式 monitor 的 `CFXMEM`，页表权限拒绝（HSJU 或 R/W/X 不符）归 `CFXPERM`（§2.2.6、§5.2）。表中未列出的位（含 `1 << 1`/`1 << 2`/`1 << 7` 等）为保留。
 
 ### 4.6 cfx_cache - cache organization
 
@@ -740,9 +724,9 @@ UART寄存器的读写操作通过 `cfx2rd`/`cfx2rc` 指令完成。若寄存器
 
 ## 5. 异常进入与异常退出
 
-**重要**：异常原因编码（`excp cause id`，即 `1 << n` 中的位索引 `n`）在各核芯功能扩展间 **独立编址**，不存在跨 cfx 冲突。例如 `1<<8` 在 cfx_umon 中为 ILLI，在 cfx_ptw 中为 NUPERM，在 cfx_hart 中为 IPI——它们属于不同 cfx 的异常表，互不干扰。每个 cfx 的异常原因编码空间为 0-63，硬件通过 cfxha 区分目标。
+**重要**：异常原因编码（`excp cause id`，即 `1 << n` 中的位索引 `n`）在各核芯功能扩展间 **独立编址**，不存在跨 cfx 冲突。例如 `1<<8` 在 cfx_umon 中为 ILLI，在 cfx_hart 中为 IPI——它们属于不同 cfx 的异常表，互不干扰。每个 cfx 的异常原因编码空间为 0-63，硬件通过 cfxha 区分目标。
 
-**精确异常**：所有同步异常和异步中断均为精确异常——IP 指向触发指令（同步）或下一条指令边界（异步），指令未完成，目标寄存器/内存/RA 未更新（无副作用）。页表步进异常（`I/DGPTRAP`、`I/DSPTRAP`、`I/DPFTRAP`、`NRPERM`/`NWPERM`/`NXPERM`）同为精确——访存未执行。IALIGN 为精确异常——取指前检测 IP[1:0] ≠ 00，IP 停留在非法地址。浮点指令不触发异常，始终按 IEEE 754 标准返回结果，异常状态记录在 rf0[4:0] 中。
+**精确异常**：所有同步异常和异步中断均为精确异常——IP 指向触发指令（同步）或下一条指令边界（异步），指令未完成，目标寄存器/内存/RA 未更新（无副作用）。页表步进异常（页表未映射 `CFXMEM`、权限拒绝 `CFXPERM`）同为精确——访存未执行。IALIGN 为精确异常——取指前检测 IP[1:0] ≠ 00，IP 停留在非法地址。浮点指令不触发异常，始终按 IEEE 754 标准返回结果，异常状态记录在 rf0[4:0] 中。
 
 **中断信号为电平触发**：硬件源持续有效且 mask 开启时，中断在指令边界检查并触发。mask 解除后若 pending 仍置 1，在下一指令边界触发中断。多个 pending 位同时置 1 或不同 cfx 同时产生中断时，低编号 cfxha 优先。
 
@@ -981,6 +965,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 - cfxha 重编号与作用域统一（2026-11-05）：`cfx_pmem`/`cfx_llc`/`cfx_time` 改为 **32/33/34**；保留集改为 **`6–14`、`16–31`、`35–61`**；作用域新增 **`cfx16`–`cfx31` per-task**（申请后使用、用完释放，不随上下文切换保存/恢复），`cfx32`–`cfx63` per-system、`cfx0`–`cfx15` per-hart 不变；`cfx_pmem` SRAM 核内基址随之变为 **`0x83ff_0000_0000`**（内部偏移仍 `0x3ff_0000_0000`）。
 - 异常进入流程重写：同步异常统一按「当前运行模式 monitor」路由（`CFXPERM`/`CFXREG`/`CFXMEM`/`ILLI` 等）；`CFXTRAP` 仍进入目标 cfx，`CFXESC` 仍进入当前 cfx；删除同步异常的独立 cfx 屏蔽层；同步异常全部不可屏蔽，不再使用异常原因掩码与不可屏蔽掩码；未映射页归当前 monitor 的 `CFXMEM`，页权限拒绝归 `CFXPERM`；monitor 原因编号沿用 DADAO 位索引，不再使用 `PTWERR` 作为 monitor 原因；异步中断先进入当前运行模式 monitor，屏蔽/pending 由 monitor 管理，处理期间不嵌套；具体调度细节列入后续修订。
 - 删除无效屏蔽寄存器定义：`switch_cfx_mask`（`cg0`–`cg3` `rc9`）、`excp_cause_mask`（`cg0`–`cg3` `rc11`）、`excp_prev_cfx_mask`（`cg5` `rc1`）、`excp_cause_nonmaskable`（`cg5` `rc63`）保留编号并标为 `reserved`（访问 ⇒ `CFXREG`）；删除内部 `inner_cfx_mask`；`escape` 不再恢复 cfx 屏蔽状态，`global_cfx_intr_mask` 的 trap 保存/escape 恢复保留；monitor 的 `cfx_intr_mask`/`excp_pending` 不变。
+- 页表异常原因表同步：页表未映射（L1/L2 `P = 0`、SPF/GPF 对应小页位为 0、fragment 缺失）与 A/D 回写失败归当前运行模式 monitor 的 `CFXMEM`（A/D 的 `cause_info` = PTE 物理地址），HSJU 与 R/W/X 不符归 `CFXPERM`；删除 `cfx_ptw` 的 `PTWERR`/`NUPERM`–`NRPERM`/`IGPTRAP`–`DSPFTRAP` 原因，`§4.5` 只保留 `CFXTRAP`/`CFXESC`，`§3.6` 的 `1 << 7` 在 `cfx_ptw` 标保留；`§2.2` 对应步骤只改原因名与目标，优先级顺序不变。
 
 ### 0.7.2（2026-10-26）
 

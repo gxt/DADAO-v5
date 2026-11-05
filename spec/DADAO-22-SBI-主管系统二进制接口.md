@@ -132,7 +132,7 @@ cfx_ptw 为地址转换部件，管理页表和 PTBR。
 | 1 | SBI_PTW_GET_PTBR | — | rb8 = base | 读取唯一 PTBR 的值 |
 | 2 | SBI_PTW_SET_PTW_ENABLE | rd16 = enable | — | 设置 PTW 使能：0=关闭（`addr[47:42] = 0` 的访存触发 CFXMEM），1=开启。写 1 不隐含 TLB invalidate |
 | 3 | SBI_PTW_SET_PTE | rd16 = level, rb16 = va, rd18 = pte | — | 设置 level 页表（1=L1, 2=L2）中 VA 对应索引的 PTE 为 pte（页表项格式在后续步骤定义） |
-| 4 | SBI_PTW_HANDLE_FAULT | rb16 = fault_addr, rd16 = cause | rd8 = page_mask | 处理页表异常。成功返回页面对齐掩码（如 0xFFFFFFFFFFFF0000 = 64KiB，0xFFFFFFFFE0000000 = 512MiB），失败返回 0 |
+| 4 | SBI_PTW_HANDLE_FAULT | rb16 = fault_addr, rd16 = cause | rd8 = page_mask | 处理页表步进/缺页（由 monitor 委托）。成功返回页面对齐掩码（如 0xFFFFFFFFFFFF0000 = 64KiB，0xFFFFFFFFE0000000 = 512MiB），失败返回 0 |
 
 > **单 PTBR**：`cfx_ptw_ptbr` 只有一份，存放 `PPN[55:16]`（页表基地址 64KiB 对齐）；没有数组下标，也没有 `pthi`/`pahi` 高 16 位拼接。`ptw_enable` 决定是否翻译 `addr[47:42] = 0` 的访存；写 PTBR / 写使能 1 都不隐含 TLB 失效，软件须显式 invalidate。
 >
@@ -142,7 +142,7 @@ cfx_ptw 为地址转换部件，管理页表和 PTBR。
 
 > 初始化方式与其他 cfx 一致：探测 cfx_ptw 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_ptw 为 per-hart cfx，每个 hart 独立初始化。
 
-cfx_ptw 的异常入口处理——页表步进异常与 TLB 命中异常均由硬件直接路由至此：
+cfx_ptw 的 `CFXTRAP` 入口处理——页表异常按当前运行模式 monitor 路由（见 `DADAO-12 §2.2.6`、`§5.2`）；monitor 可经 `SBI_PTW_*` 服务委托 `cfx_ptw` 完成页表步进与缺页处理：
 
 ```simrisc
 cfx_ptw_supv_excp_handler:
@@ -152,7 +152,7 @@ cfx_ptw_supv_excp_handler:
     set.rd   rd3, 1
     br.eq {rd2, rd3}?, [rb0, cfx_ptw_trap_dispatch]
 
-    @@ 页缺失异常 → 委托 cfx_pmem 分配物理页，修复 PTE
+    @@ 页表维护请求（经 monitor 转来）→ 委托 cfx_pmem 分配物理页，修复 PTE
     @@ 具体处理根据 cause_id 分发
 
 cfx_ptw_unknown:
@@ -202,7 +202,7 @@ cfx_ptw_handle_fault:
     escape cfx_ptw, [excp_cause_ip, 4]
 ```
 
-各 cfx 之间的委托关系：页表异常（含 TLB 命中产生的异常）统一由 `cfx_ptw` 处理，`cfx_ptw` 委托 `cfx_pmem` 申请物理页。
+各 cfx 之间的委托关系：页表异常由当前运行模式 monitor 接收（未映射与 A/D 回写失败 → `CFXMEM`，权限拒绝 → `CFXPERM`）；monitor 可经 `SBI_PTW_*` 服务委托 `cfx_ptw` 完成页表步进与缺页处理，`cfx_ptw` 委托 `cfx_pmem` 申请物理页。
 
 ## 5. TLB维护（cfx_ptw）
 
@@ -219,7 +219,7 @@ TLB 并入 `cfx_ptw`（DADAO-12 §4.5），没有独立的 TLB 核芯功能扩�
 
 - 三个维度正交，匹配条件 = `(ASID 匹配) AND (地址匹配)`：`all` 忽略 start/size；`VA` 只匹配包含 start 的条目；`range` 匹配与 `[start, start+size)` 相交的条目；`scope = 11`，或 `range` 且 `size = 0` ⇒ `CFXREG`（**仅** `clean`/`invalid`/`flush`；`op = none` 优先按 no-op，不报异常）。
 - ASID 维度：`ASID_ANY = 1` 包含 `G = 1` 的条目；`ASID_ANY = 0` 只处理 `G = 0` 且 ASID 等于 `cfx_ptw_tlb_asid` 的条目（不碰 `G` 条目）。
-- 操作：`clean` 回写 A/D 并保留条目；`invalid` 只删除、不回写；`flush` 回写后删除（回写失败保留条目并报 `PTWERR`）；`none` 为无操作。
+- 操作：`clean` 回写 A/D 并保留条目；`invalid` 只删除、不回写；`flush` 回写后删除（回写失败保留条目，按当前运行模式 monitor 的 `CFXMEM` 处理）；`none` 为无操作。
 - 写 PTBR、写 ASID、写 `cfx_ptw_enable` 都不隐含 TLB 失效，软件须显式失效。
 
 ### 5.2 失效示例
@@ -246,9 +246,9 @@ set.rd   rd2, 0x11
 cfx2rc  cfx_ptw_tlb_control, rd2
 ```
 
-### 5.3 A/D 回写失败（PTWERR）
+### 5.3 A/D 回写失败（CFXMEM）
 
-页表页不可写导致 A/D 回写失败时，`clean`/`flush` 报 `cfx_ptw` 的 `PTWERR`（`1 << 7`），`excp_cause_info` = 出错的 PTE 物理地址，且失败条目保留（不静默丢弃 A/D）。`invalid` 不回写，不受影响。
+页表页不可写导致 A/D 回写失败时，`clean`/`flush` 按当前运行模式 monitor 的 `CFXMEM` 进入异常处理，`excp_cause_info` = 出错的 PTE 物理地址，且失败条目保留（不静默丢弃 A/D）；不再进入 `cfx_ptw` 异常入口，也不归 `CFXPERM`。`invalid` 不回写，不受影响。
 
 ## 6. Cache管理（cfx_cache）
 
@@ -752,6 +752,7 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 - `cfx_pmem` 增加 DMA 的 SBI 封装（启动、状态查询，等待为预留并返回不支持）；SBI 错误码增加「忙，可重试」；不提供 SRAM 查询。
 - `SBI_HART_SET_TIMER` 的 `timeout` 与 `SBI_TIME_GET` 的返回值明确为 64 位绝对时间（单位同 `cfx_time_value`），语义不变。
 - `cfx_pmem`/`cfx_time` 的 cfxha 随 SEE 重编号为 **32/34**（`cfx_time = cfx34`）；SBI 功能码与语义不变。
+- A/D 回写失败改为按当前运行模式 monitor 的 `CFXMEM` 处理（`excp_cause_info` = PTE 物理地址，失败条目保留），不再使用 `cfx_ptw` 的 `PTWERR`；`flush` 回写失败同样保留条目；页表异常由当前运行模式 monitor 接收、经 `SBI_PTW_*` 委托 `cfx_ptw` 完成页表步进与缺页处理。
 
 ### 0.7.2（2026-10-26）
 
