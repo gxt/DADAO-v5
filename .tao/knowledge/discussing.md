@@ -10,13 +10,15 @@
   - 可自行处理并 `escape`，也可 `trap` 到源 cfx；
   - monitor 处理期间的新事件置 pending，不嵌套 monitor。
 - 显式指令仍直接到 cfx：`trap cfx` → 目标 cfx（`CFXTRAP`）；`escape cfx` → 当前 cfx（`CFXESC`）。
-- 覆盖 `SPEC-186t` 第 4 项；第 3 项寄存器面（`inner_cfx_mask`/`switch_cfx_mask`/`excp_prev_cfx_mask`）待裁定。
+- 第 4 项已定（monitor 第一处理者；处理期间 pending、不嵌套）。
+- 第 3 项选 **A1**：删除 `inner_cfx_mask`/`switch_cfx_mask`/`excp_prev_cfx_mask`；monitor 用 `cfx_intr_mask` + `excp_pending`。`SPEC-186t` 只改使用模型，寄存器定义删除另立 `SPEC-188t`。
 
 ## 当前阻塞（2026-11-05）
 
 > 以下均已立册；阻塞原因是语义待裁定或依赖未满足，不是“没有任务”。
 
 - `SPEC-186t`（待开始）：第 2 项跨节同步范围 **A/B/C**；第 3 项 `inner_cfx_mask` 寄存器面存废；第 4 项异步屏蔽文本粒度。
+- `SPEC-188t`（待开始）：删除三件套寄存器定义；依赖 `SPEC-186t` 的 A1 定稿。
 - `SPEC-185t`（待开始）：范围/册头模板待确认；与 `SPEC-186t` 的锁串行顺序待确认。
 - `SPEC-187t`（待开始）：依赖 `SPEC-186t` 第 2 项与退出码表落点确认；覆盖 `ISS-341`。
 - `QEMU-083t`（待开始）：依赖 `SPEC-186t` 的 `CFXREG` 目标句定稿；覆盖 `ISS-342`。
