@@ -23,6 +23,7 @@
 - `SPEC-188t`（待开始）：删除三件套寄存器定义；依赖 `SPEC-186t` 的 A1 定稿。
 - `SPEC-189t`（待开始）：DADAO-12 跨节异常原因表同步；依赖 `SPEC-186t`/`SPEC-188t`，覆盖 `ISS-344`。
 - `SPEC-191t`（待开始）：ADR-0004 其它 decision + DDLN D-D002 + Machine-00 + ADR-0009/0041 旧退出码清理；**ADR decision 待逐条确认**，未确认不派单。
+- `GEM5-020t`（待开始）：gem5 对齐 QEMU-083t 的 CFXREG 目标；修好后重跑 TESTCASES-098t 矩阵。
 - `SPEC-190t`（待开始）：DADAO-23 §3 + DDLN 旧屏蔽寄存器引用清理；依赖 `SPEC-189t` 的锁串行。
 - `TESTCASES-100t`（待开始）：libc-test `malloc-brk-fail` 64K 页可移植性修正；依赖 `TESTCASES-099t`，改 libc-test 组件补丁策略。
 - QEMU/gem5/tests 的实现删除（rc9/rc11/cg5 rc1/rc63、inner mask、hmon.S 的 rc9 写）待 `SPEC-190t` 定稿后按实际影响立任务。
