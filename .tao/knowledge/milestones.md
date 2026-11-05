@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| SPEC-187t | 已验证 | 2026-11-05 15:29 | 退出码迁移 SPEC：Machine-v5 三段表、ADR 指针化、ISS-341 |
 | SPEC-190t | 已验证 | 2026-11-05 14:55 | DADAO-23 §3 与 DDLN 旧 mask 引用清理；TT 已同步主树 |
 | TESTCASES-100t | 已验证 | 2026-11-05 14:54 | libc-test malloc-brk-fail 64K 页修正；夜跑 4/4 绿、night-report 绿 |
 | QEMU-083t | 已验证 | 2026-11-05 14:52 | CFXREG 目标改当前 monitor；10 处 helper、复现 exit=0x53 |
@@ -20,7 +21,6 @@
 | SPEC-186t | 已验证 | 2026-11-05 12:15 | DADAO-12 §5.2 重写：A/A1 monitor 入口、7 步、异步 pending、删除 cause mask |
 | TESTCASES-099t | 已验证 | 2026-11-05 12:02 | libc-test dynamic malloc-brk-fail 诊断：musl 启动堆，非 QEMU 直接缺陷 |
 | SPEC-185t | 待开始 | 2026-11-05 10:32（登记） | spec 自包含册头 + README 索引迁移；语义零改动 |
-| SPEC-187t | 待开始 | 2026-11-05 10:32（登记） | 退出码迁移 SPEC 阶段：Machine-v5 完整表、ADR 指针化、ISS-341 |
 | TESTCASES-098t | 待开始 | 2026-11-05 10:32（登记） | M11 矩阵原地重生成 + Node inst/embench 历史归类 |
 | TESTCASES-097t | 已验证 | 2026-11-05 10:31 | smon/hmon 页表同步 D10：4 超页、HSJU=0xC、低地址 VA |
 | INFRA-122t | 已验证 | 2026-11-05 10:30 | build_gem5.py ccache 单 argv 缺陷：包装脚本接入，原生 build-gem5 rc=0 |

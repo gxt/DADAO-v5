@@ -1,6 +1,6 @@
 # ADR-0004: SimRISC M1 裸机测试机（Test Machine）
 
-**状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型；rev. 2026-10-06: D2.2/D2.3 启动/加载扩展为 ELF + raw-bin 双路径；rev. 2026-10-07: 新 bootrom 加载模型（与 M4 ELF 路径并存）、`SYS_EXIT` 取代 exit-port、RAM 基址改全 0 + C1 双映射两步；rev. 2026-10-11: RAM 基址改 `0xFC00_0000_0000`（cfx63 段）；rev. 2026-11-02: 测试机几何改由 `spec/Machine-v5` 的 Tiny/Node 两 profile 规定，见 `## 修订`）
+**状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型；rev. 2026-10-06: D2.2/D2.3 启动/加载扩展为 ELF + raw-bin 双路径；rev. 2026-10-07: 新 bootrom 加载模型（与 M4 ELF 路径并存）、`SYS_EXIT` 取代 exit-port、RAM 基址改全 0 + C1 双映射两步；rev. 2026-10-11: RAM 基址改 `0xFC00_0000_0000`（cfx63 段）；rev. 2026-11-02: 测试机几何改由 `spec/Machine-v5` 的 Tiny/Node 两 profile 规定；rev. 2026-11-05: D5.7/D5.8 退出码改为三分 + 指针，见 `## 修订`）
 **日期**：2026-09-13
 **关联**：ADR-0001（greenfield 重建）、ADR-0003（object ABI / artifact pipeline，`SPEC-005t`）、任务 `SPEC-006t`、`.tao/contracts/contract-isa.md`（SimRISC 0.5.4）、`.tao/contracts/contract-abi.md`（AEE·ABI 0.9.2）、`contracts/legality_rules.yaml`、`contracts/opcodes.yaml`
 
@@ -198,28 +198,13 @@ M1 范围内的 SBZ 字段示例：`fence` 的 `immu18 bits[17:4]` [contract-isa
 
 #### D5.7 区分 fault 与正常 exit
 
-退出码分区（见 D5.8 汇总表）：`0x00` = PASS，`0x01`–`0x7F` = FAIL（均来自 exit port），`0x80`–`0xFF` = 机器 fault 段（具体码见 D5.8）。harness 判定：`$? == 0x00` 为 pass；`0x01`–`0x7F` 为 fail；`$? ≥ 0x80` 视为 fault/协议外。期望 fault 但得到 `0x00`/`0x01`–`0x7F` 则报失败。测试程序**不得**向 exit port 写入 `0x80`–`0xFF`，以保持该分区无歧义。
+退出码分区（见 D5.8）：`0x00`–`0x3F` = PASS，`0x40`–`0x7F` = FAIL（均来自 exit port），`0x80`–`0xFF` = 机器 fault 段。harness 判定：`$?` 落在 PASS 区间为 pass；落在 FAIL 区间为 fail；`$? ≥ 0x80` 视为 fault/协议外。期望 fault 但得到 guest 段值则报失败。测试程序**不得**向 exit port 写入 `0x80`–`0xFF`，以保持该分区无歧义。
 
 #### D5.8 Exit code 汇总
 
-**映射规则**：机器 fault 退出码 = **`0x80 | spec_cause_bit_index`**（cause 位见 [DADAO-12 §cfx_umon 异常原因表][DADAO-13 §HEE 异常原因表]）。
+机器 fault 退出码采用**三分**：guest pass（`0x00`–`0x3F`）、guest fail（`0x40`–`0x7F`）、机器 fault（`0x80`–`0xFF`）。机器 fault 再按来源分段：其它 cfx 段（`0x80`–`0xBF`，`bit5:0` = `cfxHA`）与 monitor 段（`0xC0`–`0xFF`，`bit5:4` = 运行模式、`bit3:0` = DADAO 异常位索引）。完整位域、monitor 的 11 个异常位索引，以及 `CFXTRAP`/`CFXESC` 进入目标/当前 cfx 时的编码见 `spec/Machine-v5-测试机运行环境.md §1.2`。[ADR-0020 D15]
 
-| 范围 | 来源 | 含义 | spec cause |
-|------|------|------|-----------|
-| `0x00` | Exit port | PASS | — |
-| `0x01`–`0x7F` | Exit port | FAIL（测试自定义码） | — |
-| `0x80` | — | Reserved | — |
-| `0x81`–`0x86` | 机器 fault | Reserved（对应 spec cause 位 1–6，M1 未用） | `1<<1`–`1<<6` |
-| `0x87` | 机器 fault | Unmapped access（测试机约定） | — |
-| `0x88` | 机器 fault | ILLI | `1 << 8` |
-| `0x89` | 机器 fault | UNDI | `1 << 9` |
-| `0x8A` | 机器 fault | RASOF | `1 << 10` |
-| `0x8B` | 机器 fault | RASUF | `1 << 11` |
-| `0x8C` | 机器 fault | MALIGN | `1 << 12` |
-| `0x8D` | 机器 fault | IALIGN | `1 << 13` |
-| `0x8E`–`0xFF` | 机器 fault | Reserved | — |
-
-> `0x88`–`0x8D` 由 spec 的异常原因位派生（可回溯）；`0x87`（unmapped）为测试机约定，与 spec cause 位无关。`0x87`–`0x8D` 一经冻结不得重排（下游 QEMU/harness/向量依赖）。
+- 本决策只保留三分与分段结论；**不再维护逐码表，也不再定义从 spec cause 位派生退出码的公式**。具体码值、位域与落点以 `spec/Machine-v5` 为唯一正文。
 
 ### D6 测试签名规范
 
@@ -412,3 +397,10 @@ jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
 - **不变**：`-bios` 64 KiB 复位窗口语义、`SYS_EXIT` 停机协议（`R2`）、fault 码表 `D5.8`（`0x87`–`0x8D` 冻结不重排）、`D6` 测试 pattern 结构、复位地址 `0xffff_ffff_0000`、raw/ELF 两条启动路径并存。
 - **用户逐条确认（2026-11-02）**：本 ADR 与 `ADR-0039`/`ADR-0040`/`ADR-0043` 四项修订逐条确认；逐条口径与原始记录见 `.tao/tasks/spec/SPEC-183t-Machine-v5-Tiny-Node规范收口.md`。
 - **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-11-02`）。
+
+**rev. 2026-11-05（用户已定稿；退出码迁移）：D5.7/D5.8 改为三分 + 指针。** 保留「guest pass / guest fail / 机器 fault」三分决策：guest pass = `0x00`–`0x3F`、guest fail = `0x40`–`0x7F`、机器 fault = `0x80`–`0xFF`；机器 fault 再分其它 cfx 段（`0x80`–`0xBF`）与 monitor 段（`0xC0`–`0xFF`）。
+
+- **D5.8 指针化**：删除逐码表与从 spec cause 位派生退出码的公式；完整位域、monitor 的 11 个异常位索引、`CFXTRAP`/`CFXESC` 进入目标/当前 cfx 的编码，以及未映射/A-D 回写失败/reserved cfx 的落点，均以 `spec/Machine-v5-测试机运行环境.md §1.2` 为唯一正文。
+- **D5.7 分区同步**：`0x00`–`0x3F` = PASS、`0x40`–`0x7F` = FAIL，`0x80`–`0xFF` = 机器 fault 段；harness 判定按区间，不再按单值 `0x00`。
+- **不变**：D1–D4、D5.1–D5.6、D6 的其余决策正文；历史条目保留（`Process-03`）。
+- **流程说明**：本次为经授权的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`」的例外；`**状态**` 行已标 `rev. 2026-11-05`）。

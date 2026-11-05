@@ -643,4 +643,7 @@ group = "machine-v5"
 # 2026-11-05（SPEC-189t，授权同 SEE 条目）：§1.2 页表异常按当前运行模式 monitor 路由（未映射/A/D 回写失败
 #   ⇒ `CFXMEM`，权限拒绝 ⇒ `CFXPERM`）；§3 页表权限与 cfx 访问权限改名 `CFXPERM` 并保留两层结论；附录 0.3.2-rc
 #   补一条；版本不变（0.3.2-rc）；sha256 同笔重算（其余 20 册不变）。
-sha256 = "aa6fae18d45c10e626c7f82364119666b711b93c1865617c29a2f19bd1ba16bb"
+# 2026-11-05（SPEC-187t，授权原话见任务书 §已定稿口径）：§1.2 增完整退出码分段表（guest pass/fail、
+#   其它 cfx `0x80`–`0xBF`、monitor `0xC0`–`0xFF` 含 11 个位索引）并删旧单公式/未映射独立码；§3 同步
+#   reserved cfx 落当前 monitor；附录 0.3.2-rc 补一条；版本不变（0.3.2-rc）；sha256 同笔重算（其余 20 册不变）。
+sha256 = "180bdb0b5c7e7cb56812b780993a5ac8432ef0f39724659d80c75b0230fa221c"

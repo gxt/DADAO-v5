@@ -11,8 +11,8 @@
 
 - id: ISS-341
   scope: [spec, qemu, testcases]
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: SPEC-187t
   title: >-
     ADR-0004 D5.8 的「exit code = 0x80 | spec_cause_bit_index」与 CFXREG 码不自洽：
     CFXREG 的 cause 位是 `1<<2`，按公式应是 `0x82`，但 D5.8/`cpu.h.patch`
