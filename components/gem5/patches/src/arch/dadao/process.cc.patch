@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/process.cc b/src/arch/dadao/process.cc
 new file mode 100644
-index 0000000..2c73fe4
+index 0000000..dad6dfe
 --- /dev/null
 +++ b/src/arch/dadao/process.cc
-@@ -0,0 +1,245 @@
+@@ -0,0 +1,267 @@
 +// DADAO syscall-emulation process -- implementation.
 +#include "arch/dadao/process.hh"
 +
@@ -69,6 +69,17 @@ index 0000000..2c73fe4
 +                                          max_stack_size,
 +                                          next_thread_stack_base,
 +                                          MmapWindowEnd);
++
++    // Resource limits (prlimit64): every resource starts unlimited except
++    // RLIMIT_NOFILE, which is the size of the emulated fd table -- that is
++    // the only fd space the guest can actually get, so reporting more would
++    // be a lie (Linux reports the kernel's own limit).
++    for (auto &limit : limits) {
++        limit.cur = RlimInfinity;
++        limit.max = RlimInfinity;
++    }
++    limits[RlimitNofile].cur = fds->getSize();
++    limits[RlimitNofile].max = fds->getSize();
 +
 +    validateStaticElf();
 +}
@@ -155,6 +166,17 @@ index 0000000..2c73fe4
 +    const Addr mrptr = MemRasBase + MemRasSize - 8;
 +    const uint64_t invalidEntry = 0;
 +    initVirtMem->writeBlob(mrptr, &invalidEntry, sizeof(invalidEntry));
++
++    // Signal trampoline page: `set.zw rd15, wp0, 139` then `trap cfx0, 0`,
++    // big-endian words (llvm-mc: 0x4c3c008b / 0x7f000000).  A signal handler
++    // returns through it because the guest ABI has no SA_RESTORER.
++    memState->mapRegion(SigTrampBase, PageBytes, "sigtramp");
++    allocateMem(SigTrampBase, PageBytes);
++    const uint8_t sigtramp[8] = {
++        0x4c, 0x3c, 0x00, 0x8b,
++        0x7f, 0x00, 0x00, 0x00,
++    };
++    initVirtMem->writeBlob(SigTrampBase, sigtramp, sizeof(sigtramp));
 +
 +    for (ContextID ctx : contextIds) {
 +        auto *tc = system->threads[ctx];

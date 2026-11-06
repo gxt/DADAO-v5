@@ -4,6 +4,10 @@
 
 ## M11
 
+- **2026-11-07 GEM5-024t**
+  - 摘要：**gem5 SE 信号、资源限制与进程信息面落地**。`se_workload.cc` 新增单进程信号面：`rt_sigaction`(134)/`rt_sigprocmask`(135)/`rt_sigpending`(136)/`rt_sigreturn`(139)/`sigaltstack`(132)/`kill`(129)/`tkill`(130)/`tgkill`(131)——屏蔽/挂起/解除后投递、`SIG_IGN`、默认动作（`SIGCHLD`/`SIGURG`/`SIGWINCH`/`SIGCONT` 忽略，其余 `128+N` 终止）、`SA_ONSTACK`/`SA_NODEFER`/`SA_RESETHAND`/`SA_SIGINFO`；信号帧按 guest ABI（128 B `siginfo_t` + 1200 B `ucontext_t`，`uc_mcontext`@168 = `{pc,rd[0..63],rb[0..63]}`，大端）写在 guest 栈/备用栈上，handler 经 RegRAS/MemRAS 上的 sigtramp 页（`set.zw rd15,wp0,139; trap cfx0,0`）返回，`sigreturn` 从 `rb1` 的帧恢复 PC/rd/rb/掩码/备用栈并允许 handler 原地改写帧；`process.cc` 新增 sigtramp 页与每进程信号/限制状态。资源限制：`prlimit64`(261) + 旧号 `getrlimit`/`setrlimit`，16 个 `RLIMIT_*` 保存/回读，`RLIMIT_NOFILE` 在 fd 分配处强制（`EMFILE`），`RLIMIT_DATA` 在 `brk` 增长处按 `may_expand_vm()` 口径（含 `cur=0` Valgrind workaround）。进程信息：`uname`(160，host 身份 + `machine="dadao"`)、`sysinfo`(179)、`getpid`/`gettid`/`getppid`/`getuid`/`geteuid`/`getgid`/`getegid`、`getcwd`(17)。验收：独立 guest 探针 77 条断言全 PASS（帧布局按 musl 自己的 `ucontext_t`/`siginfo_t` 校验；默认终止 `raise(SIGUSR1)`=138、`SIGKILL`=137、默认 `SIGCHLD` 忽略），三桶 blocked 归零（其余转到 threads/futex、IPC、time budget、文件映射等已登记缺口）。
+  - 执行者：engineer
+
 - **2026-11-06 GEM5-023t**
   - 摘要：**gem5 SE 文件 I/O 与时钟面落地**。`se_workload.cc` 新增 `openat`/`close`/`read`/`readv`/`pread64`/`lseek`/`fstat`/`newfstatat`/`getdents64`/`dup`/`dup3`/`fcntl`/`statfs`/`faccessat`（含 `faccessat2`）/`utimensat`/`readlinkat`/`unlinkat`/`mkdirat`（guest fd 表复用 `FDArray`/`FileFDEntry`，路径按 `tgtCwd`/redirect 解析并支持 dirfd 相对组合，`stat`/`statfs`/`dirent64`/`timespec` 按大端 asm-generic 64-bit 布局打包，错误码取宿主 `errno`）与 `clock_gettime`/`clock_getres`/`gettimeofday`/`time`/`nanosleep`（单调/CPU 时钟用 `floor(curTick×1e9/Frequency)` 模拟纳秒，同 `GEM5-019t` 口径；REALTIME 与 `gettimeofday`/`time` 走宿主透传同 QEMU user）。验收：独立双引擎探针 72/72（guest 与宿主逐项一致）、文件 I/O 与 time/clocks 两桶 blocked 归零（其余转为 signals/time budget 等已登记缺口）。
   - 执行者：engineer

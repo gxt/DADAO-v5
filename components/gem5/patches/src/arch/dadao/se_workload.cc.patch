@@ -1,17 +1,20 @@
 diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
 new file mode 100644
-index 0000000..888eeba
+index 0000000..a53f7a3
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.cc
-@@ -0,0 +1,1864 @@
+@@ -0,0 +1,2692 @@
 +// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
 +#include "arch/dadao/se_workload.hh"
 +
 +#include <fcntl.h>
++#include <sys/resource.h>
 +#include <sys/stat.h>
 +#include <sys/syscall.h>
++#include <sys/sysinfo.h>
 +#include <sys/time.h>
 +#include <sys/uio.h>
++#include <sys/utsname.h>
 +#include <sys/vfs.h>
 +#include <time.h>
 +#include <unistd.h>
@@ -26,6 +29,7 @@ index 0000000..888eeba
 +#include <vector>
 +
 +#include "arch/dadao/process.hh"
++#include "arch/dadao/pcstate.hh"
 +#include "arch/dadao/regs/int.hh"
 +#include "base/intmath.hh"
 +#include "base/logging.hh"
@@ -76,12 +80,35 @@ index 0000000..888eeba
 +constexpr uint64_t SysNanosleep = 101;
 +constexpr uint64_t SysClockGettime = 113;
 +constexpr uint64_t SysClockGetres = 114;
++// Signals (GEM5-024t).
++constexpr uint64_t SysKill = 129;
++constexpr uint64_t SysTkill = 130;
++constexpr uint64_t SysTgkill = 131;
++constexpr uint64_t SysSigaltstack = 132;
++constexpr uint64_t SysRtSigaction = 134;
++constexpr uint64_t SysRtSigprocmask = 135;
++constexpr uint64_t SysRtSigpending = 136;
++constexpr uint64_t SysRtSigreturn = 139;
++// Process information / resource limits (GEM5-024t).
++constexpr uint64_t SysGetcwd = 17;
++constexpr uint64_t SysUname = 160;
++constexpr uint64_t SysGetrlimit = 163;
++constexpr uint64_t SysSetrlimit = 164;
 +constexpr uint64_t SysGettimeofday = 169;
++constexpr uint64_t SysGetpid = 172;
++constexpr uint64_t SysGetppid = 173;
++constexpr uint64_t SysGetuid = 174;
++constexpr uint64_t SysGeteuid = 175;
++constexpr uint64_t SysGetgid = 176;
++constexpr uint64_t SysGetegid = 177;
++constexpr uint64_t SysGettid = 178;
++constexpr uint64_t SysSysinfo = 179;
 +constexpr uint64_t SysBrk = 214;
 +constexpr uint64_t SysMunmap = 215;
 +constexpr uint64_t SysMremap = 216;
 +constexpr uint64_t SysMmap = 222;
 +constexpr uint64_t SysMprotect = 226;
++constexpr uint64_t SysPrlimit64 = 261;
 +constexpr uint64_t SysFaccessat2 = 439;
 +
 +// time(2) has no number in the locked asm-generic 64-bit table (musl routes
@@ -153,6 +180,62 @@ index 0000000..888eeba
 +constexpr size_t GuestDirent64Off = 8;
 +constexpr size_t GuestDirent64Reclen = 16;
 +constexpr size_t GuestDirent64Type = 18;
++
++// --- Signals (GEM5-024t) -------------------------------------------------
++//
++// The numbers, flags and dispositions are the Linux/asm-generic ones musl's
++// DADAO port uses (arch/dadao/bits/signal.h); the frame layout is the one that
++// header names and that musl's ucontext_t/siginfo_t define, not a new ABI.
++constexpr int NumSignals = 64; // musl _NSIG-1; bit (sig-1) of an 8-byte sigset
++constexpr uint64_t SigDfl = 0; // SIG_DFL
++constexpr uint64_t SigIgn = 1; // SIG_IGN
++constexpr uint64_t SaOnStack = 0x08000000;
++constexpr uint64_t SaNodefer = 0x40000000;
++constexpr uint64_t SaResethand = 0x80000000;
++constexpr int SigBlock = 0;
++constexpr int SigUnblock = 1;
++constexpr int SigSetmask = 2;
++constexpr int SsOnstack = 1;
++constexpr int SsDisable = 2;
++constexpr uint64_t MinSigStkSz = 2048; // arch/dadao/bits/signal.h MINSIGSTKSZ
++constexpr int SigKill = 9;
++constexpr int SigSegv = 11;
++constexpr int SigChld = 17;
++constexpr int SigCont = 18;
++constexpr int SigStop = 19;
++constexpr int SigUrg = 23;
++constexpr int SigWinch = 28;
++constexpr int SiUser = 0;  // kill(2)
++constexpr int SiTkill = -6; // tkill(2)/tgkill(2)
++
++// rt_sigaction's kernel struct on this ABI (musl arch/dadao/ksigaction.h
++// without SA_RESTORER): handler(8), flags(8), mask[2](8), unused(8) = 32 B.
++constexpr size_t GuestSigactionSize = 32;
++constexpr size_t GuestSigactionHandler = 0;
++constexpr size_t GuestSigactionFlags = 8;
++constexpr size_t GuestSigactionMask = 16;
++
++// struct sigaltstack: ss_sp(8), ss_flags(4)+pad(4), ss_size(8) = 24 B.
++constexpr size_t GuestStacktSize = 24;
++
++// Signal frame: siginfo_t (128 B) then ucontext_t (1200 B).  Inside the
++// ucontext, uc_mcontext sits at 168 and holds __gregs[129] = {pc, rd[0..63],
++// rb[0..63]} -- exactly what musl's mcontext_t names.
++constexpr size_t GuestSiginfoSize = 128;
++constexpr size_t GuestUcontextSize = 1200;
++constexpr size_t GuestSigframeSize = GuestSiginfoSize + GuestUcontextSize;
++constexpr size_t GuestUcMcontext = 168;
++constexpr size_t GuestMcPc = 0;
++constexpr size_t GuestMcRd = 8;
++constexpr size_t GuestMcRb = 8 + 8 * 64;
++
++// struct utsname (6 x 65 bytes) and the asm-generic 64-bit struct sysinfo
++// payload (the 112 bytes the kernel fills; musl's struct has reserved room
++// after it that the kernel never touches).
++constexpr size_t GuestUtsnameField = 65;
++constexpr size_t GuestUtsnameSize = 6 * GuestUtsnameField;
++constexpr size_t GuestSysinfoSize = 112;
++constexpr size_t GuestRlimitSize = 16;
 +
 +// mmap(2) flag and protection values (asm-generic uapi, the same numbers the
 +// locked RISC-V table uses).  Only the flags the guest memory management of
@@ -290,12 +373,17 @@ index 0000000..888eeba
 +    return 0;
 +}
 +
-+/** Lowest free guest fd, or -EMFILE.  Unlike FDArray::allocFD this never
-+ * aborts the simulation when the table is full (Linux returns EMFILE). */
++/** Lowest free guest fd below the RLIMIT_NOFILE soft limit, or -EMFILE.
++ *  Unlike FDArray::allocFD this never aborts the simulation when the table
++ *  is full (Linux returns EMFILE). */
 +int
 +allocGuestFd(DadaoISA::Process *process, std::shared_ptr<FDEntry> entry)
 +{
-+    for (int i = 0; i < process->fds->getSize(); ++i) {
++    int limit = process->fds->getSize();
++    const auto &nofile = process->limits[DadaoISA::RlimitNofile];
++    if (nofile.cur < static_cast<uint64_t>(limit))
++        limit = static_cast<int>(nofile.cur);
++    for (int i = 0; i < limit; ++i) {
 +        if (!(*process->fds)[i]) {
 +            process->fds->setFDEntry(i, entry);
 +            return i;
@@ -694,7 +782,8 @@ index 0000000..888eeba
 +        return static_cast<RegVal>(-EINVAL);
 +    if (old_fd == new_fd)
 +        return static_cast<RegVal>(-EINVAL);
-+    if (new_fd < 0 || new_fd >= process->fds->getSize())
++    if (new_fd < 0 || new_fd >= process->fds->getSize() ||
++        static_cast<uint64_t>(new_fd) >= process->limits[DadaoISA::RlimitNofile].cur)
 +        return static_cast<RegVal>(-EBADF);
 +
 +    std::shared_ptr<FDEntry> entry;
@@ -750,10 +839,13 @@ index 0000000..888eeba
 +      case FDupfd:
 +      case FDupfdCloexec: {
 +        int first = static_cast<int>(arg);
-+        if (first < 0 || first >= process->fds->getSize())
++        int limit = process->fds->getSize();
++        const auto &nofile = process->limits[DadaoISA::RlimitNofile];
++        if (nofile.cur < static_cast<uint64_t>(limit))
++            limit = static_cast<int>(nofile.cur);
++        if (first < 0 || first >= limit)
 +            return static_cast<RegVal>(-EINVAL);
-+        for (int candidate = first; candidate < process->fds->getSize();
-+             ++candidate) {
++        for (int candidate = first; candidate < limit; ++candidate) {
 +            if ((*process->fds)[candidate])
 +                continue;
 +            int new_fd = ::dup(sim_fd);
@@ -1234,6 +1326,10 @@ index 0000000..888eeba
 +    return roundUp(process->image.maxAddr(), process->pTable->pageSize());
 +}
 +
++// Defined with the other resource-limit helpers below; declared here because
++// brk(2) is the place the limit is enforced.
++bool dataLimitAllows(const DadaoISA::Process *process, Addr bytes);
++
 +/** brk(2): move the program break (the anonymous heap).
 + *
 + * Linux semantics (the reference for numbers, flags and errno is the locked
@@ -1258,6 +1354,14 @@ index 0000000..888eeba
 +        return old_brk;
 +
 +    if (new_brk < heapFloor(process) || new_brk > heap_limit)
++        return old_brk;
++
++    // RLIMIT_DATA: a growing heap must fit (kernel may_expand_vm, including
++    // its Valgrind workaround -- see dataLimitAllows()).  brk failure returns
++    // the old break, never -ENOMEM.
++    if (new_brk > old_brk &&
++        !dataLimitAllows(process, roundUp(new_brk - old_brk,
++                                          process->pTable->pageSize())))
 +        return old_brk;
 +
 +    mem_state->updateBrkRegion(old_brk, new_brk);
@@ -1501,6 +1605,582 @@ index 0000000..888eeba
 +    return 0;
 +}
 +
++// --- Signals -------------------------------------------------------------
++//
++// Linux delivers a signal "on the way back to user mode": a self-raised
++// signal (kill/tkill/tgkill), or one unblocked by rt_sigprocmask, is handled
++// after the syscall has written its result.  SE has exactly one thread and no
++// other sender, so that is the only delivery point; the frame is what
++// musl's ucontext_t/siginfo_t name (the same frame QEMU's linux-user builds
++// for this port).
++
++uint64_t
++signalBit(int sig)
++{
++    return uint64_t(1) << (sig - 1);
++}
++
++bool
++onAltStack(const DadaoISA::Process *process, Addr sp)
++{
++    const auto &state = process->signals;
++    return state.altStackSize != 0 && sp - state.altStackSp < state.altStackSize;
++}
++
++int
++altStackFlags(const DadaoISA::Process *process, Addr sp)
++{
++    if (process->signals.altStackSize == 0)
++        return SsDisable;
++    return onAltStack(process, sp) ? SsOnstack : 0;
++}
++
++/** Redirect the guest PC (the same full-width write B5 branches use). */
++void
++redirectTo(ThreadContext *tc, Addr target)
++{
++    DadaoISA::PCState state(target);
++    state.npc(target);
++    tc->pcState(state);
++}
++
++/** End the simulation the way an uncaught signal kills a Linux process: the
++ *  status a parent sees is 128+N (QEMU user mode does the same). */
++void
++terminateWithSignal(ThreadContext *tc, int sig)
++{
++    warn("DADAO SE: signal %d terminates the guest (default action)", sig);
++    tc->halt();
++    exitSimLoop("exiting with last active thread context", (128 + sig) & 0xff);
++}
++
++/** Push one return address onto the architectural RAS (RegRAS then MemRAS).
++ *
++ * This is the same C1/C2/C3a/C3b transition as exec/b5.cc:pushRas(), applied
++ * to the thread context: the guest's `ret` at the end of the handler pops it,
++ * so the handler returns to the sigtramp page.  The RAS state itself
++ * (ra0/RACNT/MRPTR) is architectural state the guest owns.
++ */
++bool
++pushRasReturn(ThreadContext *tc, Addr address)
++{
++    constexpr uint64_t Mask48 = (uint64_t(1) << 48) - 1;
++    constexpr uint64_t RecursionMax = 0xFFFF;
++    constexpr unsigned NumRaSlots = 63;
++    constexpr uint64_t SbzMask = 0xFFC0000000000000ULL;
++
++    auto readRa = [&](unsigned idx) {
++        return tc->getReg(intReg(DadaoISA::int_reg::RaBase + idx));
++    };
++    auto writeRa = [&](unsigned idx, uint64_t value) {
++        tc->setReg(intReg(DadaoISA::int_reg::RaBase + idx), value);
++    };
++    auto writeHeader = [&](uint64_t racnt, uint64_t mrptr) {
++        writeRa(0, (readRa(0) & SbzMask) | ((racnt & 0x3F) << 48) |
++                       (mrptr & Mask48));
++    };
++
++    const uint64_t ra0 = readRa(0);
++    const uint64_t racnt = (ra0 >> 48) & 0x3F;
++    const uint64_t mrptr = ra0 & Mask48;
++    const uint64_t entry = (uint64_t(1) << 48) | (address & Mask48);
++
++    if (racnt == 0) { // C1: empty stack
++        writeRa(NumRaSlots, entry);
++        writeHeader(1, mrptr);
++        return true;
++    }
++
++    const uint64_t top = readRa(NumRaSlots);
++    const uint64_t topCount = top >> 48;
++    const uint64_t topAddr = top & Mask48;
++    if (topAddr == (address & Mask48) && topCount < RecursionMax) { // C2
++        writeRa(NumRaSlots, (((topCount + 1) & 0xFFFF) << 48) | topAddr);
++        return true;
++    }
++
++    if (racnt < NumRaSlots) { // C3a: one free register slot
++        for (uint64_t j = 64 - racnt; j <= NumRaSlots; ++j)
++            writeRa(j - 1, readRa(j));
++        writeRa(NumRaSlots, entry);
++        writeHeader(racnt + 1, mrptr);
++        return true;
++    }
++
++    if (mrptr == 0) // C3b: overflow and no MemRAS
++        return false;
++    const uint64_t newPtr = mrptr - 8;
++    uint8_t bytes[8];
++    writeBigEndian64(bytes, readRa(64 - racnt));
++    SETranslatingPortProxy proxy(tc);
++    if (!proxy.tryWriteBlob(newPtr, bytes, sizeof(bytes)))
++        return false;
++    for (uint64_t j = 2; j <= NumRaSlots; ++j)
++        writeRa(j - 1, readRa(j));
++    writeRa(NumRaSlots, entry);
++    writeHeader(NumRaSlots, newPtr);
++    return true;
++}
++
++/** Build the signal frame on the guest stack and enter the handler.
++ *
++ * Returns true when a handler was entered (the PC is redirected); false when
++ * the signal was consumed without one (SIG_IGN, or a default ignore).  A
++ * default *terminate* ends the simulation inside this call.
++ */
++bool
++deliverSignal(ThreadContext *tc, DadaoISA::Process *process, int sig,
++              Addr resumePc, int siCode)
++{
++    auto &state = process->signals;
++    const DadaoISA::SignalDisposition action = state.actions[sig];
++
++    if (action.handler == SigIgn)
++        return false;
++
++    if (action.handler == SigDfl) {
++        // Default dispositions of the signals SE can raise.  The ignore set
++        // is the one QEMU's linux-user applies; everything else terminates.
++        if (sig == SigChld || sig == SigUrg || sig == SigWinch ||
++            sig == SigCont)
++            return false;
++        terminateWithSignal(tc, sig);
++        return false;
++    }
++
++    const Addr sp = tc->getReg(rb(1));
++    Addr base = sp;
++    if ((action.flags & SaOnStack) && state.altStackSize != 0 &&
++        !onAltStack(process, sp))
++        base = state.altStackSp + state.altStackSize;
++
++    if (base < GuestSigframeSize) {
++        warn("DADAO SE: signal %d has no room for a frame (sp=%#x)", sig, sp);
++        terminateWithSignal(tc, SigSegv);
++        return false;
++    }
++    const Addr frame = (base - GuestSigframeSize) & ~Addr(0xf);
++    if (base != sp && frame < state.altStackSp) {
++        warn("DADAO SE: sigaltstack is too small for signal %d", sig);
++        terminateWithSignal(tc, SigSegv);
++        return false;
++    }
++
++    std::vector<uint8_t> raw(GuestSigframeSize, 0);
++    uint8_t *siginfo = raw.data();
++    uint8_t *uc = raw.data() + GuestSiginfoSize;
++
++    // siginfo_t: 3 x int, then the union at offset 16 ({si_pid, si_uid}
++    // first in __si_common.__first.__piduid; musl include/signal.h).
++    writeBigEndian32(siginfo + 0, sig);
++    writeBigEndian32(siginfo + 4, 0);
++    writeBigEndian32(siginfo + 8, static_cast<uint32_t>(siCode));
++    writeBigEndian32(siginfo + 16, process->pid());
++    writeBigEndian32(siginfo + 20, static_cast<uint32_t>(::geteuid()));
++
++    // ucontext_t: uc_flags, uc_link, uc_stack, uc_sigmask, uc_mcontext.
++    writeBigEndian64(uc + 0, 0);
++    writeBigEndian64(uc + 8, 0);
++    writeBigEndian64(uc + 16, state.altStackSp);
++    writeBigEndian32(uc + 24, altStackFlags(process, sp));
++    writeBigEndian64(uc + 32, state.altStackSize);
++    // uc_sigmask saves the pre-signal mask (the one sigreturn restores); the
++    // handler runs with old | sa_mask | sig instead.
++    writeBigEndian64(uc + 40, state.blocked);
++
++    writeBigEndian64(uc + GuestUcMcontext + GuestMcPc, resumePc);
++    for (unsigned i = 0; i < 64; ++i) {
++        const uint64_t rdValue = (i == 0) ? 0 : tc->getReg(rd(i));
++        const uint64_t rbValue = (i == 0) ? resumePc : tc->getReg(rb(i));
++        writeBigEndian64(uc + GuestUcMcontext + GuestMcRd + 8 * i, rdValue);
++        writeBigEndian64(uc + GuestUcMcontext + GuestMcRb + 8 * i, rbValue);
++    }
++
++    if (!writeGuestBlob(tc, frame, raw.data(), raw.size())) {
++        warn("DADAO SE: cannot write the signal frame for %d at %#x", sig,
++             frame);
++        terminateWithSignal(tc, SigSegv);
++        return false;
++    }
++
++    uint64_t handlerMask = state.blocked | action.mask;
++    if (!(action.flags & SaNodefer))
++        handlerMask |= signalBit(sig);
++    state.blocked = handlerMask;
++    if (action.flags & SaResethand)
++        state.actions[sig].handler = SigDfl;
++
++    if (!pushRasReturn(tc, DadaoISA::SigTrampBase)) {
++        warn("DADAO SE: cannot push the sigreturn trampoline for signal %d",
++             sig);
++        terminateWithSignal(tc, SigSegv);
++        return false;
++    }
++
++    // Handler entry (contract-abi §4.1/§4.4, the same registers QEMU sets):
++    // sp = the frame, rd16 = sig, rb16 = &siginfo, rb17 = &ucontext.
++    tc->setReg(rb(1), frame);
++    tc->setReg(rd(16), sig);
++    tc->setReg(rb(16), frame);
++    tc->setReg(rb(17), frame + GuestSiginfoSize);
++    redirectTo(tc, action.handler);
++    return true;
++}
++
++/** Deliver the lowest-numbered pending signal that is not blocked.  Stops
++ *  after entering one handler: the next delivery happens when that handler
++ *  returns through rt_sigreturn. */
++void
++maybeDeliverSignals(ThreadContext *tc, DadaoISA::Process *process,
++                    Addr resumePc)
++{
++    auto &state = process->signals;
++    for (int sig = 1; sig <= NumSignals; ++sig) {
++        const uint64_t bit = signalBit(sig);
++        if (!(state.pending & bit))
++            continue;
++        const bool unblockable = (sig == SigKill || sig == SigStop);
++        if (!unblockable && (state.blocked & bit))
++            continue;
++        state.pending &= ~bit;
++        if (sig == SigKill) {
++            terminateWithSignal(tc, SigKill);
++            return;
++        }
++        if (sig == SigStop) {
++            // SE has no job control; a stopped process could only hang.
++            warn("DADAO SE: SIGSTOP ignored (no job control in SE)");
++            continue;
++        }
++        if (deliverSignal(tc, process, sig, resumePc, state.pendingCode[sig]))
++            return;
++    }
++}
++
++/** rt_sigaction(2). */
++RegVal
++doSigaction(ThreadContext *tc, DadaoISA::Process *process, int sig, Addr act,
++            Addr oldAct, uint64_t sigsetsize)
++{
++    if (sigsetsize != 8)
++        return static_cast<RegVal>(-EINVAL);
++    if (sig < 1 || sig > NumSignals)
++        return static_cast<RegVal>(-EINVAL);
++    if (act != 0 && (sig == SigKill || sig == SigStop))
++        return static_cast<RegVal>(-EINVAL); // uncatchable
++
++    DadaoISA::SignalDisposition &action = process->signals.actions[sig];
++    uint8_t raw[GuestSigactionSize];
++
++    if (oldAct != 0) {
++        std::memset(raw, 0, sizeof(raw));
++        writeBigEndian64(raw + GuestSigactionHandler, action.handler);
++        writeBigEndian64(raw + GuestSigactionFlags, action.flags);
++        writeBigEndian64(raw + GuestSigactionMask, action.mask);
++        if (!writeGuestBlob(tc, oldAct, raw, sizeof(raw)))
++            return static_cast<RegVal>(-EFAULT);
++    }
++
++    if (act != 0) {
++        if (!readGuestBlob(tc, act, raw, sizeof(raw)))
++            return static_cast<RegVal>(-EFAULT);
++        action.handler = readBigEndian64(raw + GuestSigactionHandler);
++        action.flags = readBigEndian64(raw + GuestSigactionFlags);
++        action.mask = readBigEndian64(raw + GuestSigactionMask);
++    }
++    return 0;
++}
++
++/** rt_sigprocmask(2). */
++RegVal
++doSigprocmask(ThreadContext *tc, DadaoISA::Process *process, int how,
++              Addr setAddr, Addr oldAddr, uint64_t sigsetsize)
++{
++    if (sigsetsize != 8)
++        return static_cast<RegVal>(-EINVAL);
++    if (how < SigBlock || how > SigSetmask)
++        return static_cast<RegVal>(-EINVAL);
++
++    uint8_t raw[8];
++    uint64_t set = 0;
++    if (setAddr != 0) {
++        if (!readGuestBlob(tc, setAddr, raw, sizeof(raw)))
++            return static_cast<RegVal>(-EFAULT);
++        set = readBigEndian64(raw);
++    }
++
++    const uint64_t old = process->signals.blocked;
++    if (oldAddr != 0) {
++        uint8_t oldRaw[8];
++        writeBigEndian64(oldRaw, old);
++        if (!writeGuestBlob(tc, oldAddr, oldRaw, sizeof(oldRaw)))
++            return static_cast<RegVal>(-EFAULT);
++    }
++
++    if (setAddr != 0) {
++        uint64_t blocked = old;
++        switch (how) {
++          case SigBlock: blocked |= set; break;
++          case SigUnblock: blocked &= ~set; break;
++          case SigSetmask: blocked = set; break;
++        }
++        // SIGKILL and SIGSTOP can never be blocked (Linux drops those bits
++        // silently rather than failing the call).
++        blocked &= ~(signalBit(SigKill) | signalBit(SigStop));
++        process->signals.blocked = blocked;
++    }
++    return 0;
++}
++
++/** rt_sigpending(2): signals pending *and* blocked. */
++RegVal
++doSigpending(ThreadContext *tc, DadaoISA::Process *process, Addr setAddr,
++             uint64_t sigsetsize)
++{
++    if (sigsetsize != 8)
++        return static_cast<RegVal>(-EINVAL);
++    uint8_t raw[8];
++    writeBigEndian64(raw, process->signals.pending & process->signals.blocked);
++    if (!writeGuestBlob(tc, setAddr, raw, sizeof(raw)))
++        return static_cast<RegVal>(-EFAULT);
++    return 0;
++}
++
++/** sigaltstack(2); the validation order is the kernel's
++ *  (kernel/signal.c:do_sigaltstack). */
++RegVal
++doSigaltstack(ThreadContext *tc, DadaoISA::Process *process, Addr ssAddr,
++              Addr oldSsAddr)
++{
++    uint8_t raw[GuestStacktSize];
++    uint8_t old[GuestStacktSize];
++
++    if (oldSsAddr != 0) {
++        std::memset(old, 0, sizeof(old));
++        writeBigEndian64(old + 0, process->signals.altStackSp);
++        writeBigEndian32(old + 8, altStackFlags(process, tc->getReg(rb(1))));
++        writeBigEndian64(old + 16, process->signals.altStackSize);
++    }
++
++    if (ssAddr != 0) {
++        if (!readGuestBlob(tc, ssAddr, raw, sizeof(raw)))
++            return static_cast<RegVal>(-EFAULT);
++        Addr ssSp = readBigEndian64(raw);
++        const int flags = static_cast<int>(
++            static_cast<int32_t>(readBigEndian32(raw + 8)));
++        uint64_t ssSize = readBigEndian64(raw + 16);
++
++        if (onAltStack(process, tc->getReg(rb(1))))
++            return static_cast<RegVal>(-EPERM);
++        switch (flags) {
++          case SsDisable:
++            ssSp = 0;
++            ssSize = 0;
++            break;
++          case 0:
++          case SsOnstack:
++            if (ssSize < MinSigStkSz)
++                return static_cast<RegVal>(-ENOMEM);
++            break;
++          default:
++            return static_cast<RegVal>(-EINVAL);
++        }
++        process->signals.altStackSp = ssSp;
++        process->signals.altStackSize = ssSize;
++    }
++
++    if (oldSsAddr != 0 &&
++        !writeGuestBlob(tc, oldSsAddr, old, sizeof(old)))
++        return static_cast<RegVal>(-EFAULT);
++    return 0;
++}
++
++/** rt_sigreturn(2): restore the interrupted context from the frame at sp.
++ *  The handler may have edited the frame in place (musl's cancellation
++ *  handler rewrites MC_PC and uc_sigmask), which is why the frame is read
++ *  here rather than kept in host state. */
++void
++doSigreturn(ThreadContext *tc, DadaoISA::Process *process)
++{
++    const Addr frame = tc->getReg(rb(1));
++    std::vector<uint8_t> raw(GuestSigframeSize);
++    if (!readGuestBlob(tc, frame, raw.data(), raw.size())) {
++        warn("DADAO SE: rt_sigreturn with an unreadable frame at %#x", frame);
++        terminateWithSignal(tc, SigSegv);
++        return;
++    }
++    const uint8_t *uc = raw.data() + GuestSiginfoSize;
++
++    const Addr pc = readBigEndian64(uc + GuestUcMcontext + GuestMcPc);
++    const uint64_t mask = readBigEndian64(uc + 40);
++    if ((pc & 3) != 0) {
++        warn("DADAO SE: rt_sigreturn with a corrupt frame at %#x", frame);
++        terminateWithSignal(tc, SigSegv);
++        return;
++    }
++
++    // Restore the alternate-stack descriptor (kernel restore_altstack ignores
++    // validation errors: an invalid saved value simply leaves it unchanged).
++    const Addr ssSp = readBigEndian64(uc + 16);
++    const int ssFlags = static_cast<int32_t>(readBigEndian32(uc + 24));
++    const uint64_t ssSize = readBigEndian64(uc + 32);
++    if (ssFlags == SsDisable) {
++        process->signals.altStackSp = 0;
++        process->signals.altStackSize = 0;
++    } else if (ssFlags == 0 || ssFlags == SsOnstack) {
++        process->signals.altStackSp = ssSp;
++        process->signals.altStackSize = ssSize;
++    }
++
++    process->signals.blocked = mask;
++
++    for (unsigned i = 1; i < 64; ++i) {
++        tc->setReg(rd(i),
++                   readBigEndian64(uc + GuestUcMcontext + GuestMcRd + 8 * i));
++        tc->setReg(rb(i),
++                   readBigEndian64(uc + GuestUcMcontext + GuestMcRb + 8 * i));
++    }
++    redirectTo(tc, pc);
++
++    // A handler can unblock a pending signal by editing uc_sigmask.
++    maybeDeliverSignals(tc, process, pc);
++}
++
++/** kill(2)/tkill(2)/tgkill(2) for the single-process SE: queue the signal
++ *  for the self; the actual delivery happens on the way back to user mode. */
++RegVal
++doKill(DadaoISA::Process *process, int pid, int sig, int siCode)
++{
++    if (sig < 0 || sig > NumSignals)
++        return static_cast<RegVal>(-EINVAL);
++    if (!(pid == 0 || pid == -1 || pid == static_cast<int>(process->pid()) ||
++          pid == -static_cast<int>(process->pid())))
++        return static_cast<RegVal>(-ESRCH); // no other process exists in SE
++    if (sig == 0)
++        return 0;
++    process->signals.pending |= signalBit(sig);
++    process->signals.pendingCode[sig] = siCode;
++    return 0;
++}
++
++// --- Resource limits -----------------------------------------------------
++
++/** prlimit64(2) body; getrlimit/setrlimit share it (musl routes both through
++ *  prlimit64 on this ABI). */
++RegVal
++doPrlimit64(ThreadContext *tc, DadaoISA::Process *process, int pid,
++            int resource, Addr newAddr, Addr oldAddr)
++{
++    if (resource < 0 ||
++        resource >= static_cast<int>(DadaoISA::NumResourceLimits))
++        return static_cast<RegVal>(-EINVAL);
++    if (pid != 0 && pid != static_cast<int>(process->pid()))
++        return static_cast<RegVal>(-ESRCH);
++
++    uint8_t raw[GuestRlimitSize];
++    if (newAddr != 0) {
++        if (!readGuestBlob(tc, newAddr, raw, sizeof(raw)))
++            return static_cast<RegVal>(-EFAULT);
++        const uint64_t cur = readBigEndian64(raw);
++        const uint64_t max = readBigEndian64(raw + 8);
++        if (cur > max)
++            return static_cast<RegVal>(-EINVAL);
++        // Raising the *hard* limit needs CAP_SYS_RESOURCE (kernel do_prlimit);
++        // SE has no privilege model, so like an unprivileged QEMU it refuses.
++        if (max > process->limits[resource].max)
++            return static_cast<RegVal>(-EPERM);
++        process->limits[resource].cur = cur;
++        process->limits[resource].max = max;
++    }
++
++    if (oldAddr != 0) {
++        writeBigEndian64(raw, process->limits[resource].cur);
++        writeBigEndian64(raw + 8, process->limits[resource].max);
++        if (!writeGuestBlob(tc, oldAddr, raw, sizeof(raw)))
++            return static_cast<RegVal>(-EFAULT);
++    }
++    return 0;
++}
++
++/** May the heap (brk) grow by `bytes` under RLIMIT_DATA?
++ *
++ * This is the kernel's may_expand_vm() data branch, including its Valgrind
++ * workaround: a *soft* limit of 0 means "no soft limit" and the hard limit
++ * still applies, so a test may lower only rlim_cur to 0 and keep mapping
++ * (libc-test's malloc-brk-fail depends on exactly that).
++ */
++bool
++dataLimitAllows(const DadaoISA::Process *process, Addr bytes)
++{
++    const auto &limit = process->limits[DadaoISA::RlimitData];
++    const Addr floor =
++        roundUp(process->image.maxAddr(), process->pTable->pageSize());
++    const Addr used = process->memState->getBrkPoint() - floor;
++    if (limit.cur == 0)
++        return limit.max == DadaoISA::RlimInfinity ||
++               used + bytes <= limit.max;
++    return limit.cur == DadaoISA::RlimInfinity || used + bytes <= limit.cur;
++}
++
++// --- Process information -------------------------------------------------
++
++/** uname(2): host identity with the emulated machine name, like QEMU. */
++RegVal
++doUname(ThreadContext *tc, Addr bufAddr)
++{
++    struct utsname host;
++    if (::uname(&host) < 0)
++        return static_cast<RegVal>(-errno);
++
++    uint8_t raw[GuestUtsnameSize];
++    std::memset(raw, 0, sizeof(raw));
++    const char *fields[6] = {host.sysname, host.nodename, host.release,
++                             host.version, "dadao",
++#ifdef _GNU_SOURCE
++                             host.domainname
++#else
++                             host.__domainname
++#endif
++    };
++    for (unsigned i = 0; i < 6; ++i) {
++        const size_t len = std::min(std::strlen(fields[i]),
++                                    GuestUtsnameField - 1);
++        std::memcpy(raw + i * GuestUtsnameField, fields[i], len);
++    }
++    if (!writeGuestBlob(tc, bufAddr, raw, sizeof(raw)))
++        return static_cast<RegVal>(-EFAULT);
++    return 0;
++}
++
++/** sysinfo(2): the host's numbers in the guest's big-endian layout. */
++RegVal
++doSysinfo(ThreadContext *tc, Addr bufAddr)
++{
++    struct sysinfo host;
++    if (::sysinfo(&host) < 0)
++        return static_cast<RegVal>(-errno);
++
++    uint8_t raw[GuestSysinfoSize];
++    std::memset(raw, 0, sizeof(raw));
++    writeBigEndian64(raw + 0, host.uptime);
++    writeBigEndian64(raw + 8, host.loads[0]);
++    writeBigEndian64(raw + 16, host.loads[1]);
++    writeBigEndian64(raw + 24, host.loads[2]);
++    writeBigEndian64(raw + 32, host.totalram);
++    writeBigEndian64(raw + 40, host.freeram);
++    writeBigEndian64(raw + 48, host.sharedram);
++    writeBigEndian64(raw + 56, host.bufferram);
++    writeBigEndian64(raw + 64, host.totalswap);
++    writeBigEndian64(raw + 72, host.freeswap);
++    writeBigEndian16(raw + 80, host.procs);
++    writeBigEndian64(raw + 88, host.totalhigh);
++    writeBigEndian64(raw + 96, host.freehigh);
++    writeBigEndian32(raw + 104, host.mem_unit);
++    if (!writeGuestBlob(tc, bufAddr, raw, sizeof(raw)))
++        return static_cast<RegVal>(-EFAULT);
++    return 0;
++}
++
 +class DadaoLoader : public Process::Loader
 +{
 +  public:
@@ -1570,6 +2250,149 @@ index 0000000..888eeba
 +        // musl __init_tp calls this unconditionally before main().
 +        process->childClearTID = tc->getReg(rb(16));
 +        result = process->pid();
++        break;
++      }
++
++      // Signals (GEM5-024t).  Argument banks follow contract-syscall §3 and
++      // musl's __dadao_argmask (arch/dadao/syscall_arch.h).
++      case SysKill: {
++        result = doKill(process, static_cast<int>(tc->getReg(rd(16))),
++                        static_cast<int>(tc->getReg(rd(17))), SiUser);
++        break;
++      }
++
++      case SysTkill: {
++        const int tid = static_cast<int>(tc->getReg(rd(16)));
++        if (tid != static_cast<int>(process->pid()))
++            result = static_cast<RegVal>(-ESRCH);
++        else
++            result = doKill(process, tid,
++                            static_cast<int>(tc->getReg(rd(17))), SiTkill);
++        break;
++      }
++
++      case SysTgkill: {
++        const int tgid = static_cast<int>(tc->getReg(rd(16)));
++        const int tid = static_cast<int>(tc->getReg(rd(17)));
++        if (tgid != static_cast<int>(process->pid()) ||
++            tid != static_cast<int>(process->pid()))
++            result = static_cast<RegVal>(-ESRCH);
++        else
++            result = doKill(process, tgid,
++                            static_cast<int>(tc->getReg(rd(18))), SiTkill);
++        break;
++      }
++
++      case SysSigaltstack: {
++        result = doSigaltstack(tc, process, tc->getReg(rb(16)),
++                               tc->getReg(rb(17)));
++        break;
++      }
++
++      case SysRtSigaction: {
++        result = doSigaction(tc, process, static_cast<int>(tc->getReg(rd(16))),
++                             tc->getReg(rb(16)), tc->getReg(rb(17)),
++                             tc->getReg(rd(17)));
++        break;
++      }
++
++      case SysRtSigprocmask: {
++        result = doSigprocmask(tc, process,
++                               static_cast<int>(tc->getReg(rd(16))),
++                               tc->getReg(rb(16)), tc->getReg(rb(17)),
++                               tc->getReg(rd(17)));
++        break;
++      }
++
++      case SysRtSigpending: {
++        result = doSigpending(tc, process, tc->getReg(rb(16)),
++                              tc->getReg(rd(16)));
++        break;
++      }
++
++      case SysRtSigreturn: {
++        // No return value: sigreturn restores the whole interrupted context.
++        doSigreturn(tc, process);
++        return;
++      }
++
++      // Process information (GEM5-024t).  Identity matches the host (the
++      // same owner the stat* layer reports, so libc-test's st_uid==geteuid()
++      // holds); pid/ppid are the SE process's own ids.
++      case SysGetcwd: {
++        const Addr buf = tc->getReg(rb(16));
++        const uint64_t size = tc->getReg(rd(16));
++        const std::string &cwd = process->tgtCwd;
++        if (size < cwd.size() + 1) {
++            result = static_cast<RegVal>(-ERANGE);
++            break;
++        }
++        if (!writeGuestBlob(tc, buf, cwd.c_str(), cwd.size() + 1)) {
++            result = static_cast<RegVal>(-EFAULT);
++            break;
++        }
++        result = static_cast<RegVal>(cwd.size() + 1);
++        break;
++      }
++
++      case SysUname: {
++        result = doUname(tc, tc->getReg(rb(16)));
++        break;
++      }
++
++      case SysGetpid:
++      case SysGettid: {
++        result = process->pid();
++        break;
++      }
++
++      case SysGetppid: {
++        result = process->ppid();
++        break;
++      }
++
++      case SysGetuid: {
++        result = ::getuid();
++        break;
++      }
++
++      case SysGeteuid: {
++        result = ::geteuid();
++        break;
++      }
++
++      case SysGetgid: {
++        result = ::getgid();
++        break;
++      }
++
++      case SysGetegid: {
++        result = ::getegid();
++        break;
++      }
++
++      case SysSysinfo: {
++        result = doSysinfo(tc, tc->getReg(rb(16)));
++        break;
++      }
++
++      // Resource limits (GEM5-024t).  getrlimit/setrlimit are the legacy
++      // entries; musl's getrlimit()/setrlimit() route through prlimit64(2).
++      case SysGetrlimit:
++      case SysSetrlimit: {
++        const int resource = static_cast<int>(tc->getReg(rd(16)));
++        const Addr rlim = tc->getReg(rb(16));
++        result = doPrlimit64(tc, process, 0, resource,
++                             nr == SysSetrlimit ? rlim : Addr(0),
++                             nr == SysGetrlimit ? rlim : Addr(0));
++        break;
++      }
++
++      case SysPrlimit64: {
++        result = doPrlimit64(tc, process,
++                             static_cast<int>(tc->getReg(rd(16))),
++                             static_cast<int>(tc->getReg(rd(17))),
++                             tc->getReg(rb(16)), tc->getReg(rb(17)));
 +        break;
 +      }
 +
@@ -1864,6 +2687,11 @@ index 0000000..888eeba
 +    }
 +
 +    tc->setReg(rd(8), result);
++
++    // Linux delivers pending unblocked signals on the way back to user mode.
++    // The syscall's return value is already in rd8, so the frame saved in a
++    // handler carries it; resume at the instruction after the trap.
++    maybeDeliverSignals(tc, process, pc + 4);
 +}
 +
 +} // namespace DadaoISA

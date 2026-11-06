@@ -116,8 +116,9 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 - **边界**：仅静态 `ET_EXEC`（明确拒绝 `ET_DYN`/static PIE/`PT_INTERP`）；
   syscall 面 = `set_tid_address`/`write`/`writev`/`exit`/`exit_group` +
   `ioctl` 的 `TIOCGWINSZ`/`TCGETS` 子集（musl `__stdout_write` 探测终端所需，
-  返回 `-ENOTTY`）+ 下列 guest 内存管理、文件 I/O、时钟；其余号与未建模的
-  ioctl request 一律 `fatal` **带号与 pc**（不静默）；无信号、TLS、线程、动态链接。
+  返回 `-ENOTTY`）+ 下列 guest 内存管理、文件 I/O、时钟、信号、资源限制、
+  进程信息；其余号与未建模的 ioctl request 一律 `fatal` **带号与 pc**
+  （不静默）；无 TLS、线程、动态链接。
 - **guest 内存管理（GEM5-022t）**：`brk`(214，Linux 语义：`brk(0)` 查询、
   失败返回旧 brk；堆不吞映像、不越过 mmap 窗口)、`mmap`(222，匿名
   `MAP_PRIVATE`/`MAP_SHARED` 与 `MAP_FIXED`/`MAP_FIXED_NOREPLACE`)、
@@ -152,6 +153,42 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `gettimeofday`/`time`（宿主，同 QEMU user 的透传口径，使宿主文件时间戳
   可比）、`nanosleep`（按 Linux 规则校验后立即成功：SE 无线程可调度，
   真实睡眠只会阻塞宿主，且不推进模拟时间）。未知 clock id 返回 `-EINVAL`。
+- **信号与进程信息（GEM5-024t）**：`rt_sigaction`(134)/
+  `rt_sigprocmask`(135)/`rt_sigpending`(136)/`rt_sigreturn`(139)/
+  `sigaltstack`(132)/`kill`(129)/`tkill`(130)/`tgkill`(131) 的单进程自投递面：
+  屏蔽/挂起/解除后投递、`SIG_IGN`、默认动作（`SIGCHLD`/`SIGURG`/`SIGWINCH`/
+  `SIGCONT` 忽略，其余终止并以 `128+N` 结束仿真）、`SA_ONSTACK`/
+  `SA_NODEFER`/`SA_RESETHAND`/`SA_SIGINFO`。信号帧写在 guest 栈（或备用栈）
+  上并按 guest ABI 布局：128 B `siginfo_t` + 1200 B `ucontext_t`
+  （`uc_mcontext` 在 168，`__gregs[129] = {pc, rd[0..63], rb[0..63]}`，
+  musl `arch/dadao/bits/signal.h`），全部大端；handler 入口 `rb1=frame`、
+  `rd16=sig`、`rb16=&siginfo`、`rb17=&ucontext`，返回地址压入 RegRAS/MemRAS
+  指向 sigtramp 页（`set.zw rd15,wp0,139; trap cfx0,0`）。`sigreturn` 从
+  `rb1` 的帧恢复 PC/rd/rb/掩码/备用栈——handler 可原地改写帧（musl 的取消
+  处理依赖 `uc_mcontext.MC_PC` 与 `uc_sigmask` 可写）。进程信息：`uname`(160，
+  宿主身份 + `machine="dadao"`，同 QEMU)、`sysinfo`(179，宿主值按
+  asm-generic 64-bit 布局)、`getpid`/`gettid`（SE 进程 id）、`getppid`、
+  `getuid`/`geteuid`/`getgid`/`getegid`（宿主身份，与 `stat` 报告的
+  st_uid/gid 一致）、`getcwd`(17)。**已知限制**：单进程/单线程——`kill`/
+  `tgkill` 只对 self 投递（`pid` 为 0、-1 或 `-pid` 时也按 self 处理，其余
+  `ESRCH`）；`SIGSTOP`/`SIGTSTP` 等 stop 系按终止处理（无作业控制）；
+  `rt_sigsuspend` 未实现（显式 `fatal`）；`ss_flags` 带 `SS_AUTODISARM`
+  返回 `EINVAL`；页错误不转成 guest `SIGSEGV`（SE 平台既有行为，guest
+  空指针仍是 simulator/loader 的 panic）；RAS 不在信号帧内（同 QEMU
+  linux-user 口径）。
+- **资源限制（GEM5-024t）**：`prlimit64`(261)（musl 的 `getrlimit`/
+  `setrlimit` 也走它；旧号 163/164 同样实现）。16 个 `RLIMIT_*` 按进程保存，
+  初值 `RLIM_INFINITY`；`RLIMIT_NOFILE` 初值 = guest fd 表大小 1024，并在 fd
+  分配（`dup`/`dup3`/`openat`/`fcntl(F_DUPFD)`）处强制（超限 `EMFILE`，
+  `dup3` 目标越界 `EBADF`）；`RLIMIT_DATA` 在 `brk` 增长处按内核
+  `may_expand_vm()` 口径强制，含 `cur=0` 的 Valgrind workaround（软限 0 时
+  按硬限判断）。**已知限制**：`RLIMIT_AS`/`RLIMIT_STACK`/`RLIMIT_CORE` 等
+  只保存/回读、不强制（SE 地址空间是固定 8 GiB 窗口、栈惰性映射）。
+  **与 QEMU user 的已知差异**：QEMU 侧在模拟器内强制 guest `RLIMIT_AS` 与
+  `RLIMIT_DATA`（不升硬限也不做特权检查）；SE 目前只在 `brk` 处强制
+  `RLIMIT_DATA`，`RLIMIT_AS` 不强制；未设 `RLIMIT_STACK` 时读回
+  `RLIM_INFINITY`（QEMU 读回宿主值 8 MiB）；升硬限 SE 返回 `EPERM`
+  （QEMU 允许）。这些差异未被当前语料触达，基线无新增 `gem5_only_fail`。
 - **页大小**：`PageShift = 16`（64 KiB），`AT_PAGESZ = 65536`（与架构页一致）。
 - **初始状态**：PC = `e_entry`、SP = `rb1`、`rf0 = 0x7FF800007FC00000`、
   `ra0` 指向 1 MiB 预置 MemRAS（`MRPTR = 区顶 − 8`，invalid entry = 0）。
