@@ -113,11 +113,11 @@ rules:
       多寄存器与块赋值指令 immu6=0 时触发 ILLI 异常。覆盖寄存器组：
       RD/RB：ldm.*/stm.*（RD、RB）、rd2rd/rb2rd/rd2rb/rb2rb；
       RA：ldm.o-ra/stm.o-ra、ra2rd/rd2ra；
-      RF（scope: fp，共 28 条）：convert_ff（ft2ft/ft2fo/fo2ft/fo2fo）、
-      convert_f2i（ft2it/ft2io/ft2ut/ft2uo/fo2it/fo2io/fo2ut/fo2uo）、
-      convert_i2f（it2ft/io2ft/ut2ft/uo2ft/it2fo/io2fo/ut2fo/uo2fo）、
+      RF（scope: fp，共 10 条）：convert_ff 的复制两条（ft2ft/fo2fo）、
       classify（ftcls/focls）、RF 多寄存器存取（ldm.t/stm.t/ldm.o/stm.o）、
       RF↔RD 块赋值（rd2rf/rf2rd）。
+      格式转换的其余 18 条**不适用**——其低 6 位不是个数：结果依赖舍入的 15 条取
+      舍入方向六档（见 encode_onehot），精确的 3 条（ft2fo/it2fo/ut2fo）为 SBZ（见 encode_sbz）。
       不适用于移位/扩展指令的立即数（orri）形式——其 immu6=0 是合法移位量/起始位；
       不适用于 root 的 immu6（其含义为 n，见 encode_fp_root_n）；
       不适用于单寄存器存取（ld.t/st.t/ld.o/st.o）与 set.w。
@@ -132,10 +132,11 @@ rules:
       **源与目的起始寄存器均检查**。覆盖寄存器组：
       RD/RB：ldm.*/stm.*；块赋值目的 rdhb/rbhb 与源 rdhc/rbhc；
       RA：ldm.o-ra/stm.o-ra 目的/源、ra2rd、rd2ra；
-      RF（scope: fp，共 28 条，清单同 mreg_zero）：目的起始（convert_ff/convert_i2f 的 rfhb、
-      convert_f2i/classify 的 rdhb）与源起始（convert_ff/convert_f2i/classify 的 rfhc、
-      convert_i2f 的 rdhc）**都检查**；ldm.*/stm.* 的 rfha、rd2rf 的 rfhb 与 rdhc、
+      RF（scope: fp，共 10 条，清单同 mreg_zero）：目的起始（ft2ft/fo2fo 的 rfhb、
+      classify 的 rdhb）与源起始（ft2ft/fo2fo/classify 的 rfhc）**都检查**；
+      ldm.*/stm.* 的 rfha、rd2rf 的 rfhb 与 rdhc、
       rf2rd 的 rdhb 与 rfhc 同样检查。
+      格式转换的其余 18 条不适用（低 6 位不是个数，见 mreg_zero）。
       不适用于 root 的 immu6（其含义为 n，且仅 n=2）、单寄存器存取与 set.w。
 
   - id: mreg_range_overlap
@@ -146,9 +147,11 @@ rules:
     description: >
       同寄存器组块赋值指令中，源范围与目的范围有任何交集（**含完全重合**）时触发 ILLI 异常。
       覆盖：rd2rd（rdhb↔rdhc）、rb2rb（rbhb↔rbhc）；
-      以及 scope: fp 的 convert_ff 四条（ft2fo/fo2ft/ft2ft/fo2fo，rfhb↔rfhc）。共 6 条。
+      以及 scope: fp 的复制类 ft2ft/fo2fo（rfhb↔rfhc）。共 4 条。
       跨组指令（ra2rd/rd2ra/rd2rb/rb2rd、rd2rf/rf2rd、convert_f2i、convert_i2f、classify）
       不适用——源与目的分属不同寄存器组，结构性不可能重叠。
+      格式转换中除 ft2ft/fo2fo 外的 18 条亦不适用——其低 6 位是舍入方向档或 SBZ，
+      不是寄存器窗口（无可重叠的范围）。
 
   # ── 异常规则 ──────────────────────────────────────────────────────────────────
   - id: excp_malign
@@ -191,6 +194,9 @@ rules:
       ext.uw/ext.sw、ext.ut/ext.st 已删除）；
       lr 指令的 hb（rdhb）是 SBZ 固定零字段（数据目的为 rdhc），
       手工编码 hb ≠ 0 触发 ILLI 异常（静态）；12 条 lr.* 由 rule_refs 覆盖。
+      精确格式转换的低 6 位（`ft2fo`/`it2fo`/`ut2fo`，`scope: fp`，共 3 条）：
+      这些转换的结果恒可精确表示，低 6 位为 SBZ（必须为 0，非 0 ⇒ ILLI），
+      不涉舍入、不置 NX（与 inexact 才置 NX 的口径一致）。
 
   - id: encode_cfx_reserved
     fault: ILLI
@@ -214,8 +220,14 @@ rules:
       .w {1,2,4,8}、.b {1,2,4}；即 k 须为 2 的幂且 k < S（S = 该后缀块大小：
       .o 64 / .t 32 / .w 16 / .b 8），排除 k = S 恒等档。
       非 one-hot（0/3/5/6/…/63）或 k ≥ S 时触发 ILLI 异常（静态）。
-      本规则 active；由 rule_refs 覆盖（6 条：`rev.o/.t/.w/.b` 4 条，`scope: m8`；
-      `ftrnd`/`fornd` 2 条，`scope: fp`，`SPEC-162t` 起）。
+      另有两族复用同一条「恰一位为 1」文法，但档位集合固定为六档
+      0x01/0x02/0x04/0x08/0x10/0x20（不含 0x00，也不做 k ≥ S 一类的上界判断）：
+      - 取整 `ftrnd`/`fornd` 的 immu6 = 取整模式（`scope: fp`）；
+      - 格式转换中结果依赖舍入的 15 条（convert_f2i 8 条；
+        convert_i2f 的 it2ft/io2ft/ut2ft/uo2ft/io2fo/uo2fo；
+        convert_ff 的 fo2ft）的 immu6 = 舍入方向，0x20 = 动态（读 rf0[33:32]）。
+      本规则 active；由 rule_refs 覆盖（21 条：`rev.o/.t/.w/.b` 4 条，`scope: m8`；
+      `ftrnd`/`fornd` 2 条与上述转换 15 条，`scope: fp`）。
       来源：ADR-0012 D10（用户 2026-10-14 裁定 Q3：「ILLI；需要增加 encode_onehot
       合法性规则，配合 encode_sbz 合法性规则；此外，还有 dst_rd0」）。
 

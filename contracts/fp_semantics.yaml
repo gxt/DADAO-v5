@@ -129,7 +129,7 @@ instructions:
     family: convert_ff
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_ff"
-    legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow, mreg_range_overlap]
+    legality_refs: [dst_rf0, encode_sbz]
   - id: ft2ft_orri_rf
     family: convert_ff
     spec_cite: "SimRISC-07: 格式转换指令"
@@ -139,7 +139,7 @@ instructions:
     family: convert_ff
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_ff"
-    legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow, mreg_range_overlap]
+    legality_refs: [dst_rf0, encode_onehot]
   - id: fo2fo_orri_rf
     family: convert_ff
     spec_cite: "SimRISC-07: 格式转换指令"
@@ -151,84 +151,84 @@ instructions:
     family: convert_f2i
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
-    legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rd0, encode_onehot]
   - id: ft2io_orri_rf
     family: convert_f2i
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
-    legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rd0, encode_onehot]
   - id: ft2ut_orri_rf
     family: convert_f2i
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
-    legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rd0, encode_onehot]
   - id: ft2uo_orri_rf
     family: convert_f2i
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
-    legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rd0, encode_onehot]
   - id: fo2it_orri_rf
     family: convert_f2i
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
-    legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rd0, encode_onehot]
   - id: fo2io_orri_rf
     family: convert_f2i
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
-    legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rd0, encode_onehot]
   - id: fo2ut_orri_rf
     family: convert_f2i
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
-    legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rd0, encode_onehot]
   - id: fo2uo_orri_rf
     family: convert_f2i
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_f2i"
-    legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rd0, encode_onehot]
 
   # convert_i2f（8）
   - id: it2ft_orri_rf
     family: convert_i2f
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
-    legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rf0, encode_onehot]
   - id: io2ft_orri_rf
     family: convert_i2f
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
-    legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rf0, encode_onehot]
   - id: ut2ft_orri_rf
     family: convert_i2f
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
-    legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rf0, encode_onehot]
   - id: uo2ft_orri_rf
     family: convert_i2f
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
-    legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rf0, encode_onehot]
   - id: it2fo_orri_rf
     family: convert_i2f
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
-    legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rf0, encode_sbz]
   - id: io2fo_orri_rf
     family: convert_i2f
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
-    legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rf0, encode_onehot]
   - id: ut2fo_orri_rf
     family: convert_i2f
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
-    legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rf0, encode_sbz]
   - id: uo2fo_orri_rf
     family: convert_i2f
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_i2f"
-    legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow]
+    legality_refs: [dst_rf0, encode_onehot]
 
   # arith（12）
   - id: ftadd_orrr_rf

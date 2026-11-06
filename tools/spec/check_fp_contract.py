@@ -69,6 +69,9 @@ def classify_legality_expr(expr: str) -> str | None:
         return ZERO_COMPARE_RULES.get(m.group(2))
     if e == "immu6 != 0":
         return "mreg_zero"
+    if e == "immu6 == 0":
+        # 精确格式转换（ft2fo/it2fo/ut2fo）：低 6 位为 SBZ 固定零字段。
+        return "encode_sbz"
     if RE_RANGE_OVERFLOW.match(e):
         return "mreg_range_overflow"
     if e.startswith("no_overlap("):

@@ -7,47 +7,78 @@
 
 ## 1. 格式转换指令
 
-格式转换指令包括不同格式之间以及同格式之间的数据转换，操作数类型为 `orri`，指令如下：
+格式转换指令在整型与浮点格式之间、以及同格式之间转换数据，操作数类型为 `orri`，每条指令一个目的、一个源。其中 it 表示32位有符号整数，io表示64位有符号整数，ut表示32位无符号整数，uo表示64位无符号整数，ft表示32位单精浮点数，fo表示64位双精浮点数。
+
+低 6 位 `immu6` 的语义按「结果是否依赖舍入」分为三类，三者互斥：
+
+| 类别 | 条数 | 指令 | `immu6` 语义 |
+|---|---|---|---|
+| 舍入方向六档 | 15 | `ft2it`/`ft2io`/`ft2ut`/`ft2uo`、`fo2it`/`fo2io`/`fo2ut`/`fo2uo`、`fo2ft`、`it2ft`/`io2ft`/`ut2ft`/`uo2ft`、`io2fo`/`uo2fo` | 舍入方向（§1.1） |
+| 精确转换 | 3 | `ft2fo`、`it2fo`、`ut2fo` | SBZ，必须为 0（§1.2） |
+| 复制 | 4 | `ft2ft`、`fo2fo`（`rd2rf`/`rf2rd` 同属此类，见 SimRISC-02） | 连续寄存器个数 1–63（§1.3） |
+
+**读写顺序**：每条指令只访问一个目的与一个源（复制类为一段源窗口与一段目的窗口），硬件先读全部源再写目的，源与目的可为同一寄存器，行为确定。
+
+### 1.1 舍入方向六档
+
+结果依赖舍入的 15 条转换在 `immu6` 中显式携带舍入方向，取值为 6 位 one-hot（恰一位为 1），与取整指令的六档按位序一致：
+
+| `immu6` | 舍入方向 | 读 `rf0[33:32]` |
+|---|---|---|
+| `0x01` | 就近取偶（RNE） | 否 |
+| `0x02` | 就近、平局远离 0（RNA） | 否 |
+| `0x04` | 向 0（RTZ） | 否 |
+| `0x08` | 向 +∞（RUP） | 否 |
+| `0x10` | 向 −∞（RDN） | 否 |
+| `0x20` | 动态：按 `rf0[33:32]`（`00` RNE / `01` RTZ / `10` RDN / `11` RUP） | 是 |
+
+- 5 个静态档**不受** `rf0[33:32]` 影响；**只有** `0x20` 读 `rf0[33:32]`。
+- `immu6` 必须是上述六值之一；其他取值（含 `0x00`）⇒ ILLI。
+- 方向是运算属性而非环境属性：同一指令在任何 `rf0` 取值下结果确定（`0x20` 除外，其语义即「跟随环境」）。
+
+字段与格式：
+
+| 指令 | 目的 | 源 |
+|---|---|---|
+| `ft2it`/`ft2io`/`ft2ut`/`ft2uo` | `rdHB`（ft→32/64 位有符号/无符号整数） | `rfHC`（ft） |
+| `fo2it`/`fo2io`/`fo2ut`/`fo2uo` | `rdHB`（fo→32/64 位有符号/无符号整数） | `rfHC`（fo） |
+| `it2ft`/`io2ft`/`ut2ft`/`uo2ft` | `rfHB`（ft） | `rdHC`（32/64 位有符号/无符号整数） |
+| `io2fo`/`uo2fo` | `rfHB`（fo） | `rdHC`（64 位有符号/无符号整数） |
+| `fo2ft` | `rfHB`（ft） | `rfHC`（fo） |
+
+### 1.2 精确转换（SBZ）
+
+`ft2fo`（f32→f64）、`it2fo`（int32→f64）、`ut2fo`（uint32→f64）的结果总能被目标格式精确表示，因此**不涉舍入**：低 6 位为 SBZ，必须为 0，非 0 ⇒ ILLI；不读 `rf0[33:32]`，不置 NX/OF/UF。字段为 `rfHB`（目的）与源（`ft2fo` 为 `rfHC`，`it2fo`/`ut2fo` 为 `rdHC`）。
+
+### 1.3 复制
+
+`ft2ft`、`fo2fo` 只在同类浮点寄存器之间搬移数据（64 位二进制不变，ft 只用低 32 位），`immu6` 指定连续搬移的寄存器个数（1–63）：
 
 ```simrisc
-ft2fo   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
-fo2ft   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
-
-ft2ft   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}          @@ 浮点寄存器间搬移
-fo2fo   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}          @@ 浮点寄存器间搬移
-
-ft2it   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
-ft2io   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
-ft2ut   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
-ft2uo   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
-
-it2ft   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
-io2ft   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
-ut2ft   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
-uo2ft   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
-
-fo2it   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
-fo2io   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
-fo2ut   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
-fo2uo   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
-
-it2fo   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
-io2fo   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
-ut2fo   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
-uo2fo   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
+ft2ft   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
+fo2fo   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
 ```
 
-其中it表示32位有符号整数，io表示64位有符号整数，ut表示32位无符号整数，uo表示64位无符号整数，ft表示32位单精浮点数，fo表示64位双精浮点数。immu6 指定连续转换的寄存器数量（1-63）。例如 `ft2fo {rf4:rf6}, {rf8:rf10}` 将 rf8→rf4、rf9→rf5、rf10→rf6。源范围与目的范围不可有任何交集（含完全重合），否则触发 ILLI 异常（与 SimRISC-02 一致）；无交集时转换按序号递增逐对进行，先读后写。
+例如 `ft2ft {rf4:rf6}, {rf8:rf10}` 将 rf8→rf4、rf9→rf5、rf10→rf6。源范围与目的范围不可有任何交集（含完全重合），否则触发 ILLI 异常；无交集时按序号递增逐对进行，先读后写。本类不涉舍入，不置任何标志。限制：`immu6` = 0 ⇒ ILLI；任一起始寄存器 + `immu6` > 64 ⇒ ILLI。
 
-浮点格式转换遵循 IEEE 754 标准：浮点→浮点（fo2ft/ft2fo）溢出返回 ±Inf（设置 OF），下溢（结果 **tiny 且 inexact**）按舍入模式处理并置 UF（同时置 NX），NaN 传播 payload。整数→浮点转换可能 inexact（精度损失）。浮点→整数转换按 IEEE 754-2019：有限值转换结果 inexact（不能精确表示）⇒ 置 NX；NaN/Inf/超出目标整型范围 ⇒ 返回整型饱和值（最大/最小）并置 NV。sNaN 作为算术输入时设置 NV 并返回 qNaN。舍入模式由 rf0[33:32] 控制，异常标志在 rf0[4:0]。
+### 1.4 异常与标志
+
+转换族只实现「inexact 即报告」的形态：**结果 inexact 一律置 NX**，不提供「舍入但不置标志」的变体。
+
+- **浮点→整数**（8 条）：有限值结果无法精确表示 ⇒ 置 NX；NaN/Inf/超出目标整型范围 ⇒ 返回整型饱和值（最大/最小）并置 **NV**，**不置 NX**。
+- **整数→浮点**（8 条：6 条六档 + 精确的 `it2fo`/`ut2fo`）：精度损失 ⇒ 置 NX；结果超出目标格式范围 ⇒ ±Inf 并置 OF；结果 **tiny 且 inexact** ⇒ 按方向处理并置 UF（同时置 NX）。两条精确转换恒不置标志。
+- **浮点→浮点**（`fo2ft` 六档 / `ft2fo` 精确）：`fo2ft` 溢出返回 ±Inf（置 OF）、下溢（结果 **tiny 且 inexact**）按方向处理并置 UF（同时置 NX）、NaN 传播 payload、sNaN 作为算术输入置 NV 并返回 qNaN；`ft2fo` 为精确转换，不置标志。
 
 **异常标志口径（IEEE 754-2019 §7.5）**：`UF` 仅在结果 **tiny 且 inexact** 时置位——结果 tiny 但可精确表示时**不置** `UF`（也不置 `NX`）；`NX` 与 `UF` **相互独立**（inexact 但非 tiny ⇒ 只置 `NX`）。**tininess 检测点 = 舍入后**（after rounding：按目标格式舍入后再判结果是否小于最小正规数）。标志为 **sticky**（置位后保持到软件清零，见 `SimRISC-00 §浮点状态寄存器`）。
 
-限制如下：
+### 1.5 合法性
 
-- `immu6` = 0 时触发 ILLI 异常
-- 任一起始寄存器 + immu6 > 64 时触发 ILLI 异常
-- 源范围与目的范围有任何交集（含完全重合）时触发 ILLI 异常
+- 目的为 `rd` 组的 8 条浮点→整数：`rdHB` = `rd0` ⇒ ILLI（目的不可为 `rd0`）。
+- 目的为 `rf` 组的 12 条（`fo2ft`/`ft2fo`/`ft2ft`/`fo2fo`、8 条整数→浮点）：`rfHB` = `rf0` ⇒ ILLI；`rf0` 作**源**合法（`fo2ft`/`ft2ft`/`fo2fo` 读出 FCSR 中的 qNaN 位型）。
+- 18 条非复制类转换（15 条六档 + 3 条精确）**不是**块转换：`immu6` 不是个数 ⇒ 不存在 `immu6` = 0、起始 + `immu6` > 64、源/目的范围重叠三项限制；其 `immu6` 的合法取值分别见 §1.1（六档 one-hot，非 one-hot ⇒ ILLI）与 §1.2（SBZ，非 0 ⇒ ILLI）。
+- 复制类（`ft2ft`/`fo2fo`）保留块转换的全部限制，见 §1.3。
+
+> `附录 A` 的「汇编形式」列按编码几何机械派生，沿用了寄存器窗口记法；18 条非复制类转换的第三个域实为 `immu6` 的语义值（§1.1 舍入档 / §1.2 SBZ），不作窗口使用。
 
 ## 2. 浮点运算指令
 
@@ -377,9 +408,10 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 
 * `dst_rd0`：目的 rd0 → ILLI — `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `focls_orri_rf`, `foqcmp_orrr_rf`, `foscmp_orrr_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftcls_orri_rf`, `ftqcmp_orrr_rf`, `ftscmp_orrr_rf`（14 条）
 * `dst_rf0`：浮点目的 rf0 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `foadd_orrr_rf`, `fodiv_orrr_rf`, `fofma_rrrr_rf`, `fomax_orrr_rf`, `fomin_orrr_rf`, `fomul_orrr_rf`, `forem_orrr_rf`, `fornd_orri_rf`, `foroot_orri_rf`, `fosclb_orrr_rf`, `fosgnj_orrr_rf`, `fosgnn_orrr_rf`, `fosub_orrr_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`, `ftadd_orrr_rf`, `ftdiv_orrr_rf`, `ftfma_rrrr_rf`, `ftmax_orrr_rf`, `ftmin_orrr_rf`, `ftmul_orrr_rf`, `ftrem_orrr_rf`, `ftrnd_orri_rf`, `ftroot_orri_rf`, `ftsclb_orrr_rf`, `ftsgnj_orrr_rf`, `ftsgnn_orrr_rf`, `ftsub_orrr_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（38 条）
-* `mreg_zero`：immu6=0 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `focls_orri_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftcls_orri_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（22 条）
-* `mreg_range_overflow`：起始+immu6>64 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `focls_orri_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftcls_orri_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（22 条）
-* `mreg_range_overlap`：源/目的范围交集 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`（4 条）
-* `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `fornd_orri_rf`, `ftrnd_orri_rf`（2 条）
+* `mreg_zero`：immu6=0 → ILLI — `fo2fo_orri_rf`, `focls_orri_rf`, `ft2ft_orri_rf`, `ftcls_orri_rf`（4 条）
+* `mreg_range_overflow`：起始+immu6>64 → ILLI — `fo2fo_orri_rf`, `focls_orri_rf`, `ft2ft_orri_rf`, `ftcls_orri_rf`（4 条）
+* `mreg_range_overlap`：源/目的范围交集 → ILLI — `fo2fo_orri_rf`, `ft2ft_orri_rf`（2 条）
+* `encode_sbz`：SBZ 非零 → ILLI — `ft2fo_orri_rf`, `it2fo_orri_rf`, `ut2fo_orri_rf`（3 条）
+* `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `fo2ft_orri_rf`, `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `fornd_orri_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftrnd_orri_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2ft_orri_rf`（17 条）
 * `encode_fp_root_n`：ftroot/foroot n≠2 → ILLI — `foroot_orri_rf`, `ftroot_orri_rf`（2 条）
 <!-- LEGALITY_END -->

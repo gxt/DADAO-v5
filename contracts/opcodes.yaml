@@ -5830,19 +5830,14 @@
     role: imm
     bank: imm
     signed: false
-  legality: &id002
+  legality:
   - rfhb != rf0
-  - immu6 != 0
-  - rfhb + immu6 <= 64
-  - rfhc + immu6 <= 64
-  - no_overlap(rfhb, rfhc, immu6)
+  - immu6 == 0
   spec_cite: 'SimRISC-07: ft2fo'
   scope: fp
   rule_refs:
   - dst_rf0
-  - mreg_zero
-  - mreg_range_overflow
-  - mreg_range_overlap
+  - encode_sbz
 - id: ft2ft_orri_rf
   mnemonic: ft2ft
   format: orri
@@ -5864,7 +5859,12 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id002
+  legality: &id002
+  - rfhb != rf0
+  - immu6 != 0
+  - rfhb + immu6 <= 64
+  - rfhc + immu6 <= 64
+  - no_overlap(rfhb, rfhc, immu6)
   spec_cite: 'SimRISC-07: ft2ft'
   scope: fp
   rule_refs:
@@ -5950,14 +5950,15 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id002
+  legality:
+  - rfhb != rf0
+  - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 ==
+    32
   spec_cite: 'SimRISC-07: fo2ft'
   scope: fp
   rule_refs:
   - dst_rf0
-  - mreg_zero
-  - mreg_range_overflow
-  - mreg_range_overlap
+  - encode_onehot
 - id: fo2fo_orri_rf
   mnemonic: fo2fo
   format: orri
@@ -6037,15 +6038,13 @@
     signed: false
   legality: &id005
   - rdhb != rd0
-  - immu6 != 0
-  - rdhb + immu6 <= 64
-  - rfhc + immu6 <= 64
+  - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 ==
+    32
   spec_cite: 'SimRISC-07: ft2it'
   scope: fp
   rule_refs:
   - dst_rd0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_onehot
 - id: ft2io_orri_rf
   mnemonic: ft2io
   format: orri
@@ -6072,8 +6071,7 @@
   scope: fp
   rule_refs:
   - dst_rd0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_onehot
 - id: ft2ut_orri_rf
   mnemonic: ft2ut
   format: orri
@@ -6100,8 +6098,7 @@
   scope: fp
   rule_refs:
   - dst_rd0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_onehot
 - id: ft2uo_orri_rf
   mnemonic: ft2uo
   format: orri
@@ -6128,8 +6125,7 @@
   scope: fp
   rule_refs:
   - dst_rd0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_onehot
 - id: it2ft_orri_rf
   mnemonic: it2ft
   format: orri
@@ -6153,15 +6149,13 @@
     signed: false
   legality: &id006
   - rfhb != rf0
-  - immu6 != 0
-  - rfhb + immu6 <= 64
-  - rdhc + immu6 <= 64
+  - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 ==
+    32
   spec_cite: 'SimRISC-07: it2ft'
   scope: fp
   rule_refs:
   - dst_rf0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_onehot
 - id: io2ft_orri_rf
   mnemonic: io2ft
   format: orri
@@ -6188,8 +6182,7 @@
   scope: fp
   rule_refs:
   - dst_rf0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_onehot
 - id: ut2ft_orri_rf
   mnemonic: ut2ft
   format: orri
@@ -6216,8 +6209,7 @@
   scope: fp
   rule_refs:
   - dst_rf0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_onehot
 - id: uo2ft_orri_rf
   mnemonic: uo2ft
   format: orri
@@ -6244,8 +6236,7 @@
   scope: fp
   rule_refs:
   - dst_rf0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_onehot
 - id: fo2it_orri_rf
   mnemonic: fo2it
   format: orri
@@ -6272,8 +6263,7 @@
   scope: fp
   rule_refs:
   - dst_rd0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_onehot
 - id: fo2io_orri_rf
   mnemonic: fo2io
   format: orri
@@ -6300,8 +6290,7 @@
   scope: fp
   rule_refs:
   - dst_rd0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_onehot
 - id: fo2ut_orri_rf
   mnemonic: fo2ut
   format: orri
@@ -6328,8 +6317,7 @@
   scope: fp
   rule_refs:
   - dst_rd0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_onehot
 - id: fo2uo_orri_rf
   mnemonic: fo2uo
   format: orri
@@ -6356,8 +6344,7 @@
   scope: fp
   rule_refs:
   - dst_rd0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_onehot
 - id: it2fo_orri_rf
   mnemonic: it2fo
   format: orri
@@ -6379,13 +6366,14 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id006
+  legality: &id007
+  - rfhb != rf0
+  - immu6 == 0
   spec_cite: 'SimRISC-07: it2fo'
   scope: fp
   rule_refs:
   - dst_rf0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_sbz
 - id: io2fo_orri_rf
   mnemonic: io2fo
   format: orri
@@ -6412,8 +6400,7 @@
   scope: fp
   rule_refs:
   - dst_rf0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_onehot
 - id: ut2fo_orri_rf
   mnemonic: ut2fo
   format: orri
@@ -6435,13 +6422,12 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id006
+  legality: *id007
   spec_cite: 'SimRISC-07: ut2fo'
   scope: fp
   rule_refs:
   - dst_rf0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_sbz
 - id: uo2fo_orri_rf
   mnemonic: uo2fo
   format: orri
@@ -6468,8 +6454,7 @@
   scope: fp
   rule_refs:
   - dst_rf0
-  - mreg_zero
-  - mreg_range_overflow
+  - encode_onehot
 - id: ftrnd_orri_rf
   mnemonic: ftrnd
   format: orri
