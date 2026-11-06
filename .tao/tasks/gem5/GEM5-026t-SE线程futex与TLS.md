@@ -10,7 +10,7 @@
 - 基线 `GEM5-021t` 中 threads/futex 4 例：`futex`(98)（`functional/pthread_mutex_pi`）、`get_robust_list`(100)（`pthread_robust`、`pthread-robust-detach`）、`clone`(220)（`functional/vfork`）
 - 大量 `libc-test` 的 `tls_*` 与部分 `pthread_*` 用例在信号/内存面补齐后会转而依赖 **TLS**；static 语料当前由 `rt_sigprocmask`/`mmap` 先挡住，需在本任务验证
 - `GEM5-014t` 的 SE 只做了单线程、最小启动 syscall 面；未实现 `clone`/`futex`/per-thread TLS
-- TP（线程指针）寄存器/`set_tid_address` 语义须先按 `spec/` + `contract-abi`/`contract-syscall` 核对；规范未明确处**不猜**，提交用户裁定
+- **TP 已明确定义**：`spec/DADAO-21 ABI` 规定 `rb3 = rbtp`；TLS 变体/TP 偏置由 `contract-dynlink §2.4/§7` 下放给 musl arch 宏（`TLS_ABOVE_TP`、`TP_OFFSET 0`、`DTP_OFFSET 0`），线程模型已在 musl 实现、QEMU 已验证 ⇒ **无需裁定，按既有定义实现**
 
 ## 目标
 

@@ -15,20 +15,32 @@
 - 第 2 项选 **B**：`SPEC-186t` 只改 §5.2+§1；`§2.2.6`/`§3.6`/`§4.5` + `DADAO-22 §5.3` + `contract-see` 由 `SPEC-189t` 收口；过渡期 `ISS-344`。
 - 执行顺序：`SPEC-186t → SPEC-188t → SPEC-189t → SPEC-187t（退出码）`；188t/189t 同改 DADAO-12，严格串行。
 
-## 当前任务状态（2026-11-05）
+## 当前任务状态（2026-11-06 夜）
 
-> 已完成项不再列；只列仍未收口/未开始的任务。
+> 只列未收口任务；已完成项看 `milestones.md`。
 
-- `INFRA-127t`（待开始）：夜跑独立化 —— `night-run` 目标（无别名）、`night.lock` 独立锁、meta 补 host/machine/commit/工具链、成员不抢共享 `gate.lock`。
-- `GEM5-021t`（待开始）：gem5 SE tset 基线调查（static 先行）；**用户裁定** M11 按 D4 字面「补完整 tset」，并授权改 `tools/testcases` 驱动加 SE 路径。
-- `TESTCASES-102t`（待开始）：timing 探针去 icount 化（20 例）；**用户裁定 A**：全部去 icount，改轮询/窗口断言，换取两引擎同探针可比。
-- `GEM5-022t`（待开始）：gem5 SE heap/VMA —— `brk`（114 例阻塞）+ `mmap/munmap/mprotect`（21 例）；G1 syscall/VMA 首段。
-- **M11 进度**：L1/L2 rc=0；L3 `20261106T010620Z` 8/8 绿；夜跑按观测口径重跑（不阻断收口）。**但 M11 未达成**：G1 SE 剩余阶段（syscall/VMA → TLS → 静态 tset → 动态 → 线程/futex）未做，完整 tset 在 gem5 SE 上覆盖为 0。
-- `SPEC-180t` 的 ADR、Linux bring-up charter ADR：仍待用户逐条确认（长期 backlog）。
+- `GEM5-023t`（进行中）：SE 文件 I/O + 时钟。
+- `GEM5-024t`（待开始，依赖 023t）：SE 信号 + 资源限制 + 进程信息。
+- `GEM5-025t`（待开始，依赖 024t）：SE IPC/多进程（pipe2/socket、execve/fork/wait4）。
+- `GEM5-026t`（待开始，依赖 025t）：SE 线程/futex/robust + 每线程 TLS 验收切片（`rb3` 已在 spec 定义、TLS 由 musl 完成）。
+- `GEM5-027t`（待开始，依赖 026t）：动态装载器（`ET_EXEC+PT_INTERP` / auxv / `interp-dir`+`redirect`）。
+- `GEM5-028t`（待开始，依赖 027t）：文件映射 `mmap` + ldso 装载 DSO + 解释器窗口约束。
+- `TESTCASES-103t`（待开始，依赖 023t）：SE 基线预算 120s→按套件 600s，`timeout` 单列。
+- `TESTCASES-104t`（待开始，依赖 027t/028t）：SE 动态档驱动 + QEMU dynamic 基线刷新 + 全量对照。
+- `INTEG-059t`（待开始，依赖 023t–028t + 103t/104t）：G3 完整 tset 双向一致性 + 矩阵重生成。
+- M11 `m` 册：G3 收口后另立。
 
-**Open issue**：0（`ISS-343` 已由 `QEMU-084t` 关闭；`ISS-340/341/342/344` 亦 closed）。
+**本轮范围裁定（architect，按调研结论；可推翻）**：
 
-**已解决（历史）**：libc-test dynamic `malloc-brk-fail` 已由 `TESTCASES-100t` 修正；夜跑 4/4 绿、`check-night-report` rc=0；A/B/C 不再待裁定。
+- `mprotect` 真权限不纳入动态线（保持已登记限制，另立任务再评估）
+- 主程序 `-pie`/`ET_DYN` 不支持；动态驱动用非 PIE `ET_EXEC+PT_INTERP`
+- 动态语料按 `ADR-0048 D4` 全量（libc-test 337 + llvm-ts 214 + embench 38）
+- llvm-ts scope B/C 的两个 TLS 例不纳入（现有 scope A 口径不变）
+- 单线程 TLS 由 musl 完成、gem5 0 改动，作为 `GEM5-026t` 的验收切片
+
+**规范/契约已明确、无需裁定**：`rb3=rbtp`（`DADAO-21 ABI`）、TLS 变体与 TP 偏置下放 musl（`contract-dynlink §2.4/§7`）、`PT_INTERP=/lib/ld-musl-dadao.so.1` 与 auxv 集合（`§6.1–§6.4`）、TLS 重定位编号 10–13（`contract-elf §2.2`）。实现发现新语义才停下提交。
+
+**Open issue**：0。
 
 ## 2026-11-06 convert_f2i 舍入语义（已裁定）
 
@@ -142,7 +154,7 @@
 - **2026-11-02 双链并行授权**：同时授权两条独立任务链推进——**G1 SE**（`GEM5-014t` SE 骨架 → ELF/args/stack → syscall/VMA → TLS → 静态 tset）与 **FS Machine-v5**（`SPEC-183t` → `TESTCASES-091t` → `QEMU-079t` Tiny / `QEMU-080t` Node → gem5 FS 映射）。SE 为优先线，FS 线可并行；共享文件仍串行；两条链均不需逐任务确认，停止点按 AGENTS。
 - **2026-11-02 G1 SE 验收基线**：full tset 以 QEMU user 的 pass/fail/skip 集合为基线；gem5 SE 不能少通过；若 **gem5 通过而 QEMU 未通过**，不得直接接受 gem5，须新增 QEMU 调试任务定位并修正，使两者一致；若差异根因是 spec 解释不清，提交用户裁定。静态 SE 先做 `ET_EXEC`，不提前做 `ET_DYN`/static PIE。
 - **2026-11-04 gem5 SE 测试范围暂缓**：gem5 上**暂不跑 llvm-ts**；llvm-ts 继续以 QEMU user 为执行/对照环境。gem5 SE 先做 smoke、目标子集、syscall/VMA/TLS 等能力验证；完整 tset 的最终覆盖仍按 ADR-0048 D4 保留，是否恢复/何时恢复由后续用户裁定。该暂缓不改变“QEMU/gem5 同模式双向一致”规则。
-- **2026-11-06 用户裁定：SE 要全面支持**：重申 M11 子阶段 G0→G1→G2→G3→G4 不变；`2026-11-04` 的「gem5 暂不跑 llvm-ts」**作废**。G1 剩余按序列推进：`GEM5-021t`（SE tset 基线调查，static 先行）→ `GEM5-022t`（syscall/VMA）→ `GEM5-023t`（TLS）→ `GEM5-024t`（静态 tset 与 QEMU user 逐 case 对齐）→ `GEM5-025t`（动态链接 ET_DYN/PT_INTERP/ldso）→ `GEM5-026t`（线程/futex）→ `GEM5-027t`（G3：完整 tset 双向一致性 + 矩阵重生成）。当前 SE 实测仅有 6 个 syscall（`ioctl/write/writev/exit/exit_group/set_tid_address`）。
+- **2026-11-06 用户裁定：SE 要全面支持**：重申 M11 子阶段 G0→G1→G2→G3→G4 不变；`2026-11-04` 的「gem5 暂不跑 llvm-ts」**作废**。G1 剩余按已核对序列推进：`021t`（基线）→ `022t`（brk/mmap）→ `023t`（文件 I/O+时钟）→ `024t`（信号/limits/进程信息）→ `025t`（IPC/多进程）→ `026t`（线程/futex + TLS 切片）→ `027t`（动态装载器）→ `028t`（文件映射/ldso）→ `TESTCASES-103t/104t`（预算/动态驱动）→ `INTEG-059t`（G3）。当前 SE 实测仅有 6 个 syscall（`ioctl/write/writev/exit/exit_group/set_tid_address`）。
 - **2026-11-05 gem5 完整 llvm-ts 回归（M11 收口条件）**：M11 SE 收口前必须跑**完整 llvm-ts 回归**，不称“夜跑”；QEMU user 为基线，gem5 不能少通过；gem5 通过而 QEMU 未通过不得直接接受，须定位到一致。先决：gem5 SE 的 syscall/VMA/TLS 等能力齐备；未齐备项如实记 BLOCKED，不伪 PASS。可用现有 `check-night` 门控承载，但触发时间不限定夜间；QEMU user 仍是日间基线。
 - **2026-11-04 SYS_TICKFREQ M11 基线**：`SYS_TICKFREQ` 统一按 **`1e9` ticks/秒**；QEMU/gem5 同模式一致。spec 当前未定义具体值，M11 先按此约定实现/对照，后续 spec 收口时可固化。
 - **2026-11-05 picolibc `math_test` M11 收口**：`Machine-v5-Tiny` 的 picolibc `math_test` 在 gem5 上记 **BLOCKED**，不得写 PASS：同一 ELF/argv 下 QEMU **0 errors**、gem5 **238/76404 errors**，归因 **B7 浮点数值差异**，不是 FS/PTW/semihosting。M11 接受该已知 BLOCKED；待独立 golden 模型建立后再修 B7 并另立差分任务。报告必须保留 blocked 计数，不得计入 gem5 通过数。
