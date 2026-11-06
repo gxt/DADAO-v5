@@ -40,7 +40,12 @@
 - `INTEG-058t`（待开始，依赖 `SPEC-194t`）：LLVM/QEMU/gem5/tests 按 ADR-0050 迁移。
 - `GEM5-023t`（进行中）：SE 文件 I/O + 时钟。
 - `GEM5-024t`（待开始，依赖 023t）：SE 信号(21)+资源限制(2)+进程信息(1)。
-- 后续（待立册）：IPC/多进程、线程/futex + TLS、动态链接、完整 tset 一致性（G3）、M11 `m` 册。
+- `GEM5-025t`（待开始，依赖 024t）：IPC/多进程（pipe2/socket、execve/fork/wait4）。
+- `GEM5-026t`（待开始，依赖 025t）：线程/futex + TLS。
+- `GEM5-027t`（待开始，依赖 026t）：动态链接（ET_DYN/PT_INTERP/auxv/ldso + mprotect 真权限）。
+- `TESTCASES-103t`（待开始，依赖 023t）：SE 基线预算 120s→按套件 600s，timeout 单列。
+- `INTEG-059t`（待开始，依赖 023t–027t + 103t）：G3 完整 tset 双向一致性 + 矩阵。
+- M11 `m` 册：G3 收口后另立（本轮不立）。
 
 ## 2026-11-05 M11 收口与实现决定
 

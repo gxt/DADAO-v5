@@ -12,6 +12,11 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| GEM5-025t | 待开始 | 2026-11-06 20:30（登记） | gem5 SE IPC/多进程：pipe2/socket + execve/fork/wait4 |
+| GEM5-026t | 待开始 | 2026-11-06 20:30（登记） | gem5 SE 线程/futex + TLS：clone/futex/robust_list/TP |
+| GEM5-027t | 待开始 | 2026-11-06 20:30（登记） | gem5 SE 动态链接：ET_DYN/PT_INTERP/auxv/ldso + mprotect 真权限 |
+| INTEG-059t | 待开始 | 2026-11-06 20:30（登记） | G3 完整 tset 双向一致性（static+dynamic）+ 矩阵重生成 |
+| TESTCASES-103t | 待开始 | 2026-11-06 20:30（登记） | SE 基线预算 120s→按套件 600s；timeout 单列并重跑 |
 | GEM5-024t | 待开始 | 2026-11-06 20:20（登记） | gem5 SE 信号(21)+资源限制(2)+进程信息(1)；依赖 GEM5-023t |
 | INTEG-058t | 已验证 | 2026-11-06 20:00 | 转换舍入编码迁移：LLVM/QEMU/gem5/tests；9 math+pi 转绿、parity 269/0 |
 | TESTCASES-102t | 已验证 | 2026-11-06 17:40 | timing 探针去 icount：20 例轮询/窗口断言；node/arch 269/269 blocked 0 |
