@@ -15,14 +15,14 @@
 
 ## 阶段（串行）
 
-1. **LLVM**：MC/AsmParser/反汇编接受新语义；`FP_TO_SINT/FP_TO_UINT`（含 saturating）发 `0x04`；f32/f64 之间的 `FP_ROUND/FP_EXTEND` 与整→浮发 `0x20`（`ft2fo` 发 0）；更新 `tests/unit/llvm/lit/MC/DADAO{,-gen}` 期望与 `tests/case-ledger.tsv` 相关行。
+1. **LLVM**：MC/AsmParser/反汇编接受新语义；**汇编形式**：15 条六档与 3 条 SBZ 改为**单寄存器、无花括号**，第三操作数必须显式（SBZ 写 `0`，六档写六值之一），如 `fo2io rd8, rf1, 0x04`、`ft2fo rf4, rf8, 0`；4 条复制保留 `{a:b}`；同步 `tools/llvm/gen_asm_list.py`（按 `encode_onehot`/`encode_sbz` 判单寄存器形式与示例值）、`tools/spec/check_asm_prose.py` 的 `_BLOCK_COPY_RE`（18 条移出块复制集合）、重生成 spec 汇编列表；`FP_TO_SINT/FP_TO_UINT`（含 saturating）发 `0x04`；f32/f64 之间的 `FP_ROUND/FP_EXTEND` 与整→浮发 `0x20`（`ft2fo` 发 0）；更新 `tests/unit/llvm/lit/MC/DADAO{,-gen}` 期望与 `tests/case-ledger.tsv` 相关行。
 2. **QEMU**：8 条 `f2i` 与 6 条 `i2f`、`fo2ft` 按字段方向（`0x20` 读 `rf0`）；`ft2fo`/`it2fo`/`ut2fo` 校验 SBZ；复制类仍按计数；NX/NV 按 D5。
 3. **gem5**：同上（当前总是读 `rf0`，改为按字段）。
 4. **tests/一致性**：补各方向/NX/OF/UF 断言（至少 RTZ/RNE/RUP/RDN 各一组，`f2i` 越界饱和+NV、`fo2ft` 溢出/下溢）；`tools/gem5/check_b7.py` 的规则计数更新；`GEM5-021t` 基线重跑（`gem5_only_fail` 的 9 个 `math/*` + `Olden/power` 应转绿）；parity 与 `node/arch` 269 例保持 0 diff。
 
 ## 范围 / 非范围
 
-**在范围内**：`components/llvm-project/**`（MC/AsmParser/ISel/CodeGen + lit 期望）、`components/qemu/**`、`components/gem5/**`、`tests/unit/llvm/**`、`tests/case-ledger.tsv`、`tools/gem5/check_b7.py`、`tools/testcases`（仅向量/期望如需要）、本任务书、`milestones.md`。
+**在范围内**：`components/llvm-project/**`（MC/AsmParser/ISel/CodeGen + lit 期望）、`tools/llvm/gen_asm_list.py`、`tools/spec/check_asm_prose.py`（判据随汇编形式同步，不改断言强度）、spec 汇编列表重生成、`components/qemu/**`、`components/gem5/**`、`tests/unit/llvm/**`、`tests/case-ledger.tsv`、`tools/gem5/check_b7.py`、`tools/testcases`（仅向量/期望如需要）、本任务书、`milestones.md`。
 
 **不在范围**：`spec/**` 与 `contracts/**`（`SPEC-194t` 已改）、复制类编码、块转换语义、其它 FP 指令。
 
