@@ -116,8 +116,8 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 - **边界**：仅静态 `ET_EXEC`（明确拒绝 `ET_DYN`/static PIE/`PT_INTERP`）；
   syscall 面 = `set_tid_address`/`write`/`writev`/`exit`/`exit_group` +
   `ioctl` 的 `TIOCGWINSZ`/`TCGETS` 子集（musl `__stdout_write` 探测终端所需，
-  返回 `-ENOTTY`）+ 下列 guest 内存管理；其余号与未建模的 ioctl request
-  一律 `fatal` **带号与 pc**（不静默）；无文件 I/O、TLS、线程/信号、动态链接。
+  返回 `-ENOTTY`）+ 下列 guest 内存管理、文件 I/O、时钟；其余号与未建模的
+  ioctl request 一律 `fatal` **带号与 pc**（不静默）；无信号、TLS、线程、动态链接。
 - **guest 内存管理（GEM5-022t）**：`brk`(214，Linux 语义：`brk(0)` 查询、
   失败返回旧 brk；堆不吞映像、不越过 mmap 窗口)、`mmap`(222，匿名
   `MAP_PRIVATE`/`MAP_SHARED` 与 `MAP_FIXED`/`MAP_FIXED_NOREPLACE`)、
@@ -127,7 +127,31 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   惰性分配；mmap 窗口上界 `DadaoISA::MmapWindowEnd` = 8 GiB（堆与 mmap
   共用 `[映像末, 8 GiB)` 相向增长）。**已知限制**：SE 无按页权限模型，
   `mprotect` 的 `PROT_NONE` 不被强制（同上游 RISC-V SE 的 `ignoreFunc`）；
-  文件映射返回 `-ENODEV`（`open` 属后续能力）。
+  文件映射仍返回 `-ENODEV`（`GEM5-023t` 只落文件描述符/读写，不做 mmap 文件映射）。
+- **文件 I/O（GEM5-023t）**：`openat`/`close`/`read`/`readv`/`pread64`/
+  `lseek`/`fstat`/`newfstatat`/`getdents64`/`dup`/`dup3`/`fcntl`
+  （`F_GETFD`/`F_SETFD`/`F_GETFL`/`F_SETFL`/`F_DUPFD`/`F_DUPFD_CLOEXEC`/
+  `F_GETLK`/`F_SETLK`/`F_SETLKW`）/`statfs`/`faccessat`（含 `faccessat2`）/`utimensat`（`pathname == NULL`
+  即 `futimens`）/`readlinkat`/`unlinkat`/`mkdirat`。guest fd 表复用
+  `FDArray`/`FileFDEntry`（guest fd → 宿主 fd 透传），路径按
+  `Process::tgtCwd`/redirect 解析并支持 dirfd 相对路径组合；`stat`/
+  `statfs`/`linux_dirent64`/`timespec` 按 `contract-abi §1.7` 大端和
+  asm-generic 64-bit 布局打包；错误码取宿主 `errno`（`EBADF`/`ENOENT`/
+  `EISDIR`/`ENOTDIR`/`EEXIST`/`EINVAL`/`EMFILE`…）。**已知限制**：无权限
+  模型，宿主权限透传；`fcntl` 只实现 tset 用到的命令，其余 `fatal`；
+  `getdents64` 的本机转换假定宿主 `linux_dirent64` 与 guest 同宽（64 位
+  宿主成立）；`faccessat` 的 `AT_EMPTY_PATH` 返回 `-EINVAL`（比 Linux 严；
+  musl 的 `access()` 不触发该路径）。**输出捕获口径**：SE 驱动分别捕获
+  stdout/stderr 再拼接，对 stderr 行序敏感的用例（如 `bison`、
+  `pcompress2`）会与 QEMU `2>&1` 交织结果产生 diff，属捕获模型差异、非
+  文件 I/O 能力问题。
+- **时钟（GEM5-023t）**：`clock_gettime`（`CLOCK_REALTIME` 宿主时钟；
+  `CLOCK_MONOTONIC`/`CLOCK_PROCESS_CPUTIME_ID`/`CLOCK_THREAD_CPUTIME_ID`
+  为 `floor(curTick × 1e9 / sim_clock::Frequency)` 的模拟纳秒，与
+  `GEM5-019t` 的 1e9 ticks/s 口径同源）、`clock_getres`（1 ns）、
+  `gettimeofday`/`time`（宿主，同 QEMU user 的透传口径，使宿主文件时间戳
+  可比）、`nanosleep`（按 Linux 规则校验后立即成功：SE 无线程可调度，
+  真实睡眠只会阻塞宿主，且不推进模拟时间）。未知 clock id 返回 `-EINVAL`。
 - **页大小**：`PageShift = 16`（64 KiB），`AT_PAGESZ = 65536`（与架构页一致）。
 - **初始状态**：PC = `e_entry`、SP = `rb1`、`rf0 = 0x7FF800007FC00000`、
   `ra0` 指向 1 MiB 预置 MemRAS（`MRPTR = 区顶 − 8`，invalid entry = 0）。

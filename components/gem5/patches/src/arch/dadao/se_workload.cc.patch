@@ -1,19 +1,28 @@
 diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
 new file mode 100644
-index 0000000..f12e93f
+index 0000000..888eeba
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.cc
-@@ -0,0 +1,571 @@
+@@ -0,0 +1,1864 @@
 +// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
 +#include "arch/dadao/se_workload.hh"
 +
++#include <fcntl.h>
++#include <sys/stat.h>
++#include <sys/syscall.h>
++#include <sys/time.h>
++#include <sys/uio.h>
++#include <sys/vfs.h>
++#include <time.h>
 +#include <unistd.h>
 +
 +#include <algorithm>
 +#include <cerrno>
 +#include <cstdint>
++#include <cstring>
 +#include <limits>
 +#include <memory>
++#include <string>
 +#include <vector>
 +
 +#include "arch/dadao/process.hh"
@@ -22,6 +31,9 @@ index 0000000..f12e93f
 +#include "base/logging.hh"
 +#include "cpu/thread_context.hh"
 +#include "mem/se_translating_port_proxy.hh"
++#include "sim/core.hh"
++#include "sim/cur_tick.hh"
++#include "sim/fd_array.hh"
 +#include "sim/fd_entry.hh"
 +#include "sim/process.hh"
 +#include "sim/sim_exit.hh"
@@ -34,18 +46,113 @@ index 0000000..f12e93f
 +
 +// Linux/RISC-V syscall numbers used by the G1 static-musl startup path
 +// (contract-syscall §1.1: numbers live in rd15; values from the locked
-+// upstream table, contract-syscall §1.2).
++// upstream table, contract-syscall §1.2).  The table is extended only with
++// the numbers the static tset actually reaches (GEM5-023t), never with a
++// "whole syscall table".
++constexpr uint64_t SysDup = 23;
++constexpr uint64_t SysDup3 = 24;
++constexpr uint64_t SysFcntl = 25;
 +constexpr uint64_t SysIoctl = 29;
++constexpr uint64_t SysMkdirat = 34;
++constexpr uint64_t SysUnlinkat = 35;
++constexpr uint64_t SysStatfs = 43;
++constexpr uint64_t SysFaccessat = 48;
++constexpr uint64_t SysOpenat = 56;
++constexpr uint64_t SysClose = 57;
++constexpr uint64_t SysGetdents64 = 61;
++constexpr uint64_t SysLseek = 62;
++constexpr uint64_t SysRead = 63;
 +constexpr uint64_t SysWrite = 64;
++constexpr uint64_t SysReadv = 65;
 +constexpr uint64_t SysWritev = 66;
++constexpr uint64_t SysPread64 = 67;
++constexpr uint64_t SysReadlinkat = 78;
++constexpr uint64_t SysNewfstatat = 79;
++constexpr uint64_t SysFstat = 80;
++constexpr uint64_t SysUtimensat = 88;
 +constexpr uint64_t SysExit = 93;
 +constexpr uint64_t SysExitGroup = 94;
 +constexpr uint64_t SysSetTidAddress = 96;
++constexpr uint64_t SysNanosleep = 101;
++constexpr uint64_t SysClockGettime = 113;
++constexpr uint64_t SysClockGetres = 114;
++constexpr uint64_t SysGettimeofday = 169;
 +constexpr uint64_t SysBrk = 214;
 +constexpr uint64_t SysMunmap = 215;
 +constexpr uint64_t SysMremap = 216;
 +constexpr uint64_t SysMmap = 222;
 +constexpr uint64_t SysMprotect = 226;
++constexpr uint64_t SysFaccessat2 = 439;
++
++// time(2) has no number in the locked asm-generic 64-bit table (musl routes
++// time() through clock_gettime(CLOCK_REALTIME)); 1062 is the legacy number
++// gem5's own RISC-V table keeps for it.  It is implemented so a guest that
++// calls syscall(__NR_time) directly still gets Linux semantics.
++constexpr uint64_t SysTimeLegacy = 1062;
++
++// AT_* constants from the locked asm-generic uapi.
++constexpr int AtFdcwd = -100;
++constexpr int AtSymlinkNofollow = 0x100;
++constexpr int AtRemovedir = 0x200;
++constexpr int AtEaccess = 0x200;
++constexpr int AtNoAutomount = 0x800;
++constexpr int AtEmptyPath = 0x1000;
++
++// Guest open(2) flags (asm-generic uapi, contract-syscall §1.2).  The values
++// are the guest ABI's, not the host's: the two happen to agree on x86-64 for
++// everything except O_LARGEFILE, which is mapped explicitly below.
++constexpr uint64_t TgtOCreat = 0x000040;
++constexpr uint64_t TgtOExcl = 0x000080;
++constexpr uint64_t TgtONoctty = 0x000100;
++constexpr uint64_t TgtOTrunc = 0x000200;
++constexpr uint64_t TgtOAppend = 0x000400;
++constexpr uint64_t TgtONonblock = 0x000800;
++constexpr uint64_t TgtODsync = 0x001000;
++constexpr uint64_t TgtODirect = 0x004000;
++constexpr uint64_t TgtOLargefile = 0x008000;
++constexpr uint64_t TgtODirectory = 0x010000;
++constexpr uint64_t TgtONofollow = 0x020000;
++constexpr uint64_t TgtONoatime = 0x040000;
++constexpr uint64_t TgtOCloexec = 0x080000;
++constexpr uint64_t TgtOSync = 0x101000;
++constexpr uint64_t TgtOPath = 0x200000;
++constexpr uint64_t TgtOTmpfile = 0x410000;
++
++// Target struct layouts consumed by the static tset (asm-generic 64-bit
++// uapi; contract-abi §1.7: every multi-byte field is big-endian).  The
++// offsets are written out explicitly because the guest kernel ABI, not the
++// host compiler's padding, defines them.
++constexpr size_t GuestStatSize = 128;
++constexpr size_t GuestStatDev = 0;
++constexpr size_t GuestStatIno = 8;
++constexpr size_t GuestStatMode = 16;
++constexpr size_t GuestStatNlink = 20;
++constexpr size_t GuestStatUid = 24;
++constexpr size_t GuestStatGid = 28;
++constexpr size_t GuestStatRdev = 32;
++constexpr size_t GuestStatSizeField = 48;
++constexpr size_t GuestStatBlksize = 56;
++constexpr size_t GuestStatBlocks = 64;
++constexpr size_t GuestStatAtime = 72;
++constexpr size_t GuestStatAtimeNsec = 80;
++constexpr size_t GuestStatMtime = 88;
++constexpr size_t GuestStatMtimeNsec = 96;
++constexpr size_t GuestStatCtime = 104;
++constexpr size_t GuestStatCtimeNsec = 112;
++
++constexpr size_t GuestStatfsSize = 120;
++constexpr size_t GuestStatfsBlocks = 16;
++constexpr size_t GuestStatfsFsid = 56;
++constexpr size_t GuestStatfsNamelen = 64;
++
++constexpr size_t GuestTimespecSize = 16;
++constexpr size_t GuestTimevalSize = 16;
++
++// struct linux_dirent64: d_ino(8) d_off(8) d_reclen(2) d_type(1) d_name[].
++constexpr size_t GuestDirent64Ino = 0;
++constexpr size_t GuestDirent64Off = 8;
++constexpr size_t GuestDirent64Reclen = 16;
++constexpr size_t GuestDirent64Type = 18;
 +
 +// mmap(2) flag and protection values (asm-generic uapi, the same numbers the
 +// locked RISC-V table uses).  Only the flags the guest memory management of
@@ -87,6 +194,275 @@ index 0000000..f12e93f
 +    return value;
 +}
 +
++uint16_t
++readBigEndian16(const uint8_t *bytes)
++{
++    return static_cast<uint16_t>((bytes[0] << 8) | bytes[1]);
++}
++
++uint32_t
++readBigEndian32(const uint8_t *bytes)
++{
++    return (static_cast<uint32_t>(bytes[0]) << 24) |
++           (static_cast<uint32_t>(bytes[1]) << 16) |
++           (static_cast<uint32_t>(bytes[2]) << 8) | bytes[3];
++}
++
++void
++writeBigEndian16(uint8_t *bytes, uint16_t value)
++{
++    bytes[0] = value >> 8;
++    bytes[1] = value;
++}
++
++void
++writeBigEndian32(uint8_t *bytes, uint32_t value)
++{
++    bytes[0] = value >> 24;
++    bytes[1] = value >> 16;
++    bytes[2] = value >> 8;
++    bytes[3] = value;
++}
++
++void
++writeBigEndian64(uint8_t *bytes, uint64_t value)
++{
++    for (unsigned i = 0; i < 8; ++i)
++        bytes[i] = value >> (56 - 8 * i);
++}
++
++/** Copy a guest buffer in/out with Never allocation.
++ *
++ * A bad guest pointer must become EFAULT, never silently allocate a page:
++ * the same rule the existing write path uses.
++ */
++bool
++readGuestBlob(ThreadContext *tc, Addr addr, void *dst, uint64_t size)
++{
++    if (size == 0)
++        return true;
++    SETranslatingPortProxy proxy(tc, SETranslatingPortProxy::Never);
++    return proxy.tryReadBlob(addr, dst, size);
++}
++
++bool
++writeGuestBlob(ThreadContext *tc, Addr addr, const void *src, uint64_t size)
++{
++    if (size == 0)
++        return true;
++    // copy_to_user semantics: a page inside a valid VMA is faulted in on
++    // first touch (the heap is lazy in this SE), while a pointer with no VMA
++    // still fails.  read(2) into a fresh malloc() buffer depends on this.
++    SETranslatingPortProxy proxy(tc);
++    return proxy.tryWriteBlob(addr, src, size);
++}
++
++bool
++readGuestString(ThreadContext *tc, Addr addr, std::string &value)
++{
++    if (addr == 0)
++        return false;
++    SETranslatingPortProxy proxy(tc, SETranslatingPortProxy::Never);
++    return proxy.tryReadString(value, addr);
++}
++
++/** Return the open entry for a guest fd, or -EBADF. */
++int
++guestFdEntry(DadaoISA::Process *process, int fd,
++             std::shared_ptr<FDEntry> &entry)
++{
++    if (fd < 0 || fd >= process->fds->getSize())
++        return -EBADF;
++    entry = (*process->fds)[fd];
++    return entry ? 0 : -EBADF;
++}
++
++int
++hostFdOf(DadaoISA::Process *process, int fd, int &host_fd)
++{
++    std::shared_ptr<FDEntry> entry;
++    if (int status = guestFdEntry(process, fd, entry); status != 0)
++        return status;
++    auto host_entry = std::dynamic_pointer_cast<HBFDEntry>(entry);
++    if (!host_entry)
++        return -EBADF;
++    host_fd = host_entry->getSimFD();
++    return 0;
++}
++
++/** Lowest free guest fd, or -EMFILE.  Unlike FDArray::allocFD this never
++ * aborts the simulation when the table is full (Linux returns EMFILE). */
++int
++allocGuestFd(DadaoISA::Process *process, std::shared_ptr<FDEntry> entry)
++{
++    for (int i = 0; i < process->fds->getSize(); ++i) {
++        if (!(*process->fds)[i]) {
++            process->fds->setFDEntry(i, entry);
++            return i;
++        }
++    }
++    return -EMFILE;
++}
++
++struct OpenFlagMap
++{
++    uint64_t guest;
++    int host;
++};
++
++// Checked in this order: O_SYNC carries O_DSYNC's bit and O_TMPFILE carries
++// O_DIRECTORY's, so the superset has to consume the bits first.
++const OpenFlagMap OpenFlags[] = {
++    {TgtOCreat, O_CREAT},
++    {TgtOExcl, O_EXCL},
++    {TgtONoctty, O_NOCTTY},
++    {TgtOTrunc, O_TRUNC},
++    {TgtOAppend, O_APPEND},
++    {TgtONonblock, O_NONBLOCK},
++    {TgtOSync, O_SYNC},
++    {TgtODsync, O_DSYNC},
++#ifdef O_DIRECT
++    {TgtODirect, O_DIRECT},
++#endif
++#ifdef O_TMPFILE
++    {TgtOTmpfile, O_TMPFILE},
++#endif
++    {TgtODirectory, O_DIRECTORY},
++    {TgtONofollow, O_NOFOLLOW},
++#ifdef O_NOATIME
++    {TgtONoatime, O_NOATIME},
++#endif
++    {TgtOCloexec, O_CLOEXEC},
++#ifdef O_PATH
++    {TgtOPath, O_PATH},
++#endif
++    {TgtOLargefile, O_LARGEFILE},
++};
++
++int
++hostOpenFlags(uint64_t guest_flags)
++{
++    int host_flags = guest_flags & O_ACCMODE;
++    uint64_t rest = guest_flags & ~static_cast<uint64_t>(O_ACCMODE);
++
++    for (const auto &mapping : OpenFlags) {
++        if ((rest & mapping.guest) == mapping.guest) {
++            host_flags |= mapping.host;
++            rest &= ~mapping.guest;
++        }
++    }
++    // Flags whose host value is 0 (O_LARGEFILE on 64-bit hosts) still have to
++    // be consumed above; anything left is a flag this SE layer does not know.
++    warn_if(rest, "DADAO SE: open flags %#llx not decoded", rest);
++    return host_flags;
++}
++
++int
++guestOpenFlags(int host_flags)
++{
++    int guest_flags = host_flags & O_ACCMODE;
++
++    for (const auto &mapping : OpenFlags) {
++        if (mapping.host && (host_flags & mapping.host) == mapping.host)
++            guest_flags |= mapping.guest;
++    }
++    return guest_flags;
++}
++
++/** Resolve an openat-style guest path to a host path.
++ *
++ * Relative paths go through the process cwd (and any redirect paths); a
++ * non-AT_FDCWD dirfd contributes the guest name recorded when that directory
++ * was opened.  An absolute path ignores dirfd, exactly as Linux does.
++ */
++int
++resolveGuestPath(DadaoISA::Process *process, int dirfd,
++                 const std::string &path, std::string &host_path,
++                 std::string *guest_path = nullptr)
++{
++    std::string full = path;
++
++    if (dirfd != AtFdcwd && !path.empty() && path[0] != '/') {
++        std::shared_ptr<FDEntry> entry;
++        if (int status = guestFdEntry(process, dirfd, entry); status != 0)
++            return status;
++        auto file_entry = std::dynamic_pointer_cast<FileFDEntry>(entry);
++        if (!file_entry)
++            return -ENOTDIR;
++        full = file_entry->getFileName() + "/" + path;
++    }
++
++    if (guest_path)
++        *guest_path = full;
++    host_path = process->checkPathRedirect(full);
++    return 0;
++}
++
++void
++packGuestStat(const struct stat &host, uint8_t *out)
++{
++    std::memset(out, 0, GuestStatSize);
++    writeBigEndian64(out + GuestStatDev, host.st_dev);
++    writeBigEndian64(out + GuestStatIno, host.st_ino);
++    writeBigEndian32(out + GuestStatMode, host.st_mode);
++    writeBigEndian32(out + GuestStatNlink, host.st_nlink);
++    writeBigEndian32(out + GuestStatUid, host.st_uid);
++    writeBigEndian32(out + GuestStatGid, host.st_gid);
++    writeBigEndian64(out + GuestStatRdev, host.st_rdev);
++    writeBigEndian64(out + GuestStatSizeField, host.st_size);
++    writeBigEndian32(out + GuestStatBlksize, host.st_blksize);
++    writeBigEndian64(out + GuestStatBlocks, host.st_blocks);
++    writeBigEndian64(out + GuestStatAtime, host.st_atim.tv_sec);
++    writeBigEndian64(out + GuestStatAtimeNsec, host.st_atim.tv_nsec);
++    writeBigEndian64(out + GuestStatMtime, host.st_mtim.tv_sec);
++    writeBigEndian64(out + GuestStatMtimeNsec, host.st_mtim.tv_nsec);
++    writeBigEndian64(out + GuestStatCtime, host.st_ctim.tv_sec);
++    writeBigEndian64(out + GuestStatCtimeNsec, host.st_ctim.tv_nsec);
++}
++
++void
++packGuestStatfs(const struct statfs &host, uint8_t *out)
++{
++    // struct statfs (asm-generic 64-bit): all members are 64-bit except the
++    // two 32-bit fsid words.
++    std::memset(out, 0, GuestStatfsSize);
++    writeBigEndian64(out + 0, host.f_type);
++    writeBigEndian64(out + 8, host.f_bsize);
++    writeBigEndian64(out + GuestStatfsBlocks, host.f_blocks);
++    writeBigEndian64(out + 24, host.f_bfree);
++    writeBigEndian64(out + 32, host.f_bavail);
++    writeBigEndian64(out + 40, host.f_files);
++    writeBigEndian64(out + 48, host.f_ffree);
++    writeBigEndian32(out + GuestStatfsFsid, host.f_fsid.__val[0]);
++    writeBigEndian32(out + GuestStatfsFsid + 4, host.f_fsid.__val[1]);
++    writeBigEndian64(out + GuestStatfsNamelen, host.f_namelen);
++    writeBigEndian64(out + 72, host.f_frsize);
++    writeBigEndian64(out + 80, host.f_flags);
++}
++
++/** Fill a guest timespec from seconds/nanoseconds (big-endian). */
++void
++packGuestTimespec(uint8_t *out, int64_t sec, int64_t nsec)
++{
++    writeBigEndian64(out, sec);
++    writeBigEndian64(out + 8, nsec);
++}
++
++/** Simulated time in nanoseconds.
++ *
++ * GEM5-019t fixes the target-tick convention at 1e9 ticks/s (1 tick = 1 ns)
++ * and derives it from gem5's own clock, never from the 1 ps default.  The SE
++ * monotonic/CPU clocks use the same derivation, so the two engines agree on
++ * the unit even though their absolute values are not comparable.
++ */
++uint64_t
++simulatedNanoseconds()
++{
++    const unsigned __int128 scaled =
++        static_cast<unsigned __int128>(curTick()) * 1000000000ULL;
++    return static_cast<uint64_t>(scaled / sim_clock::Frequency);
++}
++
 +/** write(2) on a host-backed guest file descriptor.
 + *
 + * Guest memory is read with Never allocation: a bad pointer must fail with
@@ -121,6 +497,734 @@ index 0000000..f12e93f
 +    if (written < 0)
 +        return static_cast<RegVal>(-errno);
 +    return static_cast<RegVal>(written);
++}
++
++/** read(2) on a host-backed guest file descriptor. */
++RegVal
++doRead(ThreadContext *tc, DadaoISA::Process *process, int fd, Addr buf,
++       uint64_t count)
++{
++    int sim_fd;
++    if (int status = hostFdOf(process, fd, sim_fd); status != 0)
++        return static_cast<RegVal>(status);
++
++    std::vector<uint8_t> data(count);
++    ssize_t bytes_read;
++    do {
++        bytes_read = ::read(sim_fd, data.data(), count);
++    } while (bytes_read < 0 && errno == EINTR);
++
++    if (bytes_read < 0)
++        return static_cast<RegVal>(-errno);
++    if (bytes_read > 0 && !writeGuestBlob(tc, buf, data.data(), bytes_read))
++        return static_cast<RegVal>(-EFAULT);
++    return static_cast<RegVal>(bytes_read);
++}
++
++/** pread64(2): read at an explicit offset without moving the file offset. */
++RegVal
++doPread64(ThreadContext *tc, DadaoISA::Process *process, int fd, Addr buf,
++          uint64_t count, int64_t offset)
++{
++    if (offset < 0)
++        return static_cast<RegVal>(-EINVAL);
++
++    int sim_fd;
++    if (int status = hostFdOf(process, fd, sim_fd); status != 0)
++        return static_cast<RegVal>(status);
++
++    std::vector<uint8_t> data(count);
++    ssize_t bytes_read;
++    do {
++        bytes_read = ::pread(sim_fd, data.data(), count, offset);
++    } while (bytes_read < 0 && errno == EINTR);
++
++    if (bytes_read < 0)
++        return static_cast<RegVal>(-errno);
++    if (bytes_read > 0 && !writeGuestBlob(tc, buf, data.data(), bytes_read))
++        return static_cast<RegVal>(-EFAULT);
++    return static_cast<RegVal>(bytes_read);
++}
++
++/** readv(2) on a host-backed guest file descriptor. */
++RegVal
++doReadv(ThreadContext *tc, DadaoISA::Process *process, int fd, Addr iov,
++        uint64_t iovcnt)
++{
++    constexpr uint64_t IovecSize = 16;
++
++    if (iovcnt > 1024)
++        return static_cast<RegVal>(-EINVAL);
++
++    int sim_fd;
++    if (int status = hostFdOf(process, fd, sim_fd); status != 0)
++        return static_cast<RegVal>(status);
++
++    std::vector<uint8_t> raw(iovcnt * IovecSize);
++    if (!readGuestBlob(tc, iov, raw.data(), raw.size()))
++        return static_cast<RegVal>(-EFAULT);
++
++    RegVal total = 0;
++    for (uint64_t i = 0; i < iovcnt; ++i) {
++        // struct iovec (contract-abi §1.7): {base, len}, 8 bytes each, BE.
++        const Addr base = readBigEndian64(&raw[i * IovecSize]);
++        const uint64_t len = readBigEndian64(&raw[i * IovecSize + 8]);
++        if (len == 0)
++            continue;
++
++        std::vector<uint8_t> data(len);
++        ssize_t bytes_read;
++        do {
++            bytes_read = ::read(sim_fd, data.data(), len);
++        } while (bytes_read < 0 && errno == EINTR);
++
++        if (bytes_read < 0) {
++            if (total > 0)
++                return total;
++            return static_cast<RegVal>(-errno);
++        }
++        if (bytes_read > 0 &&
++            !writeGuestBlob(tc, base, data.data(), bytes_read)) {
++            return static_cast<RegVal>(-EFAULT);
++        }
++        total += bytes_read;
++        if (static_cast<uint64_t>(bytes_read) < len)
++            break;
++    }
++    return total;
++}
++
++/** openat(2): pass the path through to the host and record a guest fd. */
++RegVal
++doOpenat(ThreadContext *tc, DadaoISA::Process *process, int dirfd,
++         Addr path_addr, uint64_t flags, uint32_t mode)
++{
++    std::string path;
++    if (!readGuestString(tc, path_addr, path))
++        return static_cast<RegVal>(-EFAULT);
++
++    std::string guest_path;
++    std::string host_path;
++    if (int status =
++            resolveGuestPath(process, dirfd, path, host_path, &guest_path);
++        status != 0)
++        return static_cast<RegVal>(status);
++
++    const int host_flags = hostOpenFlags(flags);
++    int sim_fd;
++    do {
++        sim_fd = ::open(host_path.c_str(), host_flags, mode);
++    } while (sim_fd < 0 && errno == EINTR);
++
++    if (sim_fd < 0)
++        return static_cast<RegVal>(-errno);
++
++    // The resolved guest path (not the host one) is kept so a later openat()
++    // relative to this descriptor resolves through the same cwd / redirect
++    // rules, including a directory that was itself opened through a dirfd.
++    auto entry = std::make_shared<FileFDEntry>(
++        sim_fd, host_flags, guest_path, 0, flags & TgtOCloexec);
++    const int guest_fd = allocGuestFd(process, entry);
++    if (guest_fd < 0) {
++        ::close(sim_fd);
++        return static_cast<RegVal>(guest_fd);
++    }
++    return guest_fd;
++}
++
++/** close(2). */
++RegVal
++doClose(DadaoISA::Process *process, int fd)
++{
++    std::shared_ptr<FDEntry> entry;
++    if (int status = guestFdEntry(process, fd, entry); status != 0)
++        return static_cast<RegVal>(status);
++
++    // closeFDEntry() closes the host fd (except the three std fds) and clears
++    // the slot.  It reports -1, not -errno, on a host failure.
++    if (process->fds->closeFDEntry(fd) < 0)
++        return static_cast<RegVal>(-errno);
++    return 0;
++}
++
++/** lseek(2). */
++RegVal
++doLseek(DadaoISA::Process *process, int fd, int64_t offset, int whence)
++{
++    int sim_fd;
++    if (int status = hostFdOf(process, fd, sim_fd); status != 0)
++        return static_cast<RegVal>(status);
++
++    off_t result = ::lseek(sim_fd, offset, whence);
++    return result < 0 ? static_cast<RegVal>(-errno) : result;
++}
++
++/** dup(2). */
++RegVal
++doDup(DadaoISA::Process *process, int fd)
++{
++    std::shared_ptr<FDEntry> entry;
++    if (int status = guestFdEntry(process, fd, entry); status != 0)
++        return static_cast<RegVal>(status);
++
++    auto host_entry = std::dynamic_pointer_cast<HBFDEntry>(entry);
++    if (!host_entry)
++        return static_cast<RegVal>(-EBADF);
++
++    int sim_fd = ::dup(host_entry->getSimFD());
++    if (sim_fd < 0)
++        return static_cast<RegVal>(-errno);
++
++    auto clone = std::dynamic_pointer_cast<HBFDEntry>(entry->clone());
++    clone->setSimFD(sim_fd);
++    clone->setCOE(false);
++    const int guest_fd = allocGuestFd(process, clone);
++    if (guest_fd < 0) {
++        ::close(sim_fd);
++        return static_cast<RegVal>(guest_fd);
++    }
++    return guest_fd;
++}
++
++/** dup3(2). */
++RegVal
++doDup3(DadaoISA::Process *process, int old_fd, int new_fd, uint64_t flags)
++{
++    if (flags & ~TgtOCloexec)
++        return static_cast<RegVal>(-EINVAL);
++    if (old_fd == new_fd)
++        return static_cast<RegVal>(-EINVAL);
++    if (new_fd < 0 || new_fd >= process->fds->getSize())
++        return static_cast<RegVal>(-EBADF);
++
++    std::shared_ptr<FDEntry> entry;
++    if (int status = guestFdEntry(process, old_fd, entry); status != 0)
++        return static_cast<RegVal>(status);
++
++    auto host_entry = std::dynamic_pointer_cast<HBFDEntry>(entry);
++    if (!host_entry)
++        return static_cast<RegVal>(-EBADF);
++
++    int sim_fd = ::dup(host_entry->getSimFD());
++    if (sim_fd < 0)
++        return static_cast<RegVal>(-errno);
++
++    if ((*process->fds)[new_fd])
++        process->fds->closeFDEntry(new_fd);
++
++    auto clone = std::dynamic_pointer_cast<HBFDEntry>(entry->clone());
++    clone->setSimFD(sim_fd);
++    clone->setCOE(flags & TgtOCloexec);
++    process->fds->setFDEntry(new_fd, clone);
++    return new_fd;
++}
++
++/** Guest struct flock (asm-generic 64-bit): short type, short whence,
++ * 4 bytes padding, three 64-bit values.  The host layout is identical apart
++ * from byte order, so only the fields are converted. */
++constexpr size_t GuestFlockSize = 32;
++
++RegVal
++doFcntl(ThreadContext *tc, DadaoISA::Process *process, int fd, int cmd,
++        uint64_t arg)
++{
++    constexpr int FDupfd = 0;
++    constexpr int FDupfdCloexec = 1030;
++    constexpr int FGetfd = 1;
++    constexpr int FSetfd = 2;
++    constexpr int FGetfl = 3;
++    constexpr int FSetfl = 4;
++    constexpr int FGetlk = 5;
++    constexpr int FSetlk = 6;
++    constexpr int FSetlkw = 7;
++
++    int sim_fd;
++    if (int status = hostFdOf(process, fd, sim_fd); status != 0)
++        return static_cast<RegVal>(status);
++
++    std::shared_ptr<FDEntry> entry;
++    guestFdEntry(process, fd, entry);
++    auto host_entry = std::dynamic_pointer_cast<HBFDEntry>(entry);
++
++    switch (cmd) {
++      case FDupfd:
++      case FDupfdCloexec: {
++        int first = static_cast<int>(arg);
++        if (first < 0 || first >= process->fds->getSize())
++            return static_cast<RegVal>(-EINVAL);
++        for (int candidate = first; candidate < process->fds->getSize();
++             ++candidate) {
++            if ((*process->fds)[candidate])
++                continue;
++            int new_fd = ::dup(sim_fd);
++            if (new_fd < 0)
++                return static_cast<RegVal>(-errno);
++            auto clone = std::dynamic_pointer_cast<HBFDEntry>(entry->clone());
++            clone->setSimFD(new_fd);
++            clone->setCOE(cmd == FDupfdCloexec);
++            process->fds->setFDEntry(candidate, clone);
++            return candidate;
++        }
++        return static_cast<RegVal>(-EMFILE);
++      }
++
++      case FGetfd:
++        return (host_entry->getCOE() ? FD_CLOEXEC : 0);
++
++      case FSetfd:
++        host_entry->setCOE(arg & FD_CLOEXEC);
++        return 0;
++
++      case FGetfl: {
++        int result = ::fcntl(sim_fd, F_GETFL);
++        return result < 0 ? static_cast<RegVal>(-errno) :
++                            guestOpenFlags(result);
++      }
++
++      case FSetfl: {
++        int host_flags = hostOpenFlags(arg);
++        int result = ::fcntl(sim_fd, F_SETFL, host_flags);
++        if (result < 0)
++            return static_cast<RegVal>(-errno);
++        host_entry->setFlags(host_flags);
++        return 0;
++      }
++
++      case FGetlk:
++      case FSetlk:
++      case FSetlkw: {
++        if (static_cast<Addr>(arg) == 0)
++            return static_cast<RegVal>(-EFAULT);
++
++        uint8_t raw[GuestFlockSize];
++        if (!readGuestBlob(tc, static_cast<Addr>(arg), raw, sizeof(raw)))
++            return static_cast<RegVal>(-EFAULT);
++
++        struct flock host_lock;
++        std::memset(&host_lock, 0, sizeof(host_lock));
++        host_lock.l_type = readBigEndian16(raw);
++        host_lock.l_whence = readBigEndian16(raw + 2);
++        host_lock.l_start = readBigEndian64(raw + 8);
++        host_lock.l_len = readBigEndian64(raw + 16);
++        host_lock.l_pid = readBigEndian32(raw + 24);
++
++        int host_cmd = (cmd == FGetlk) ? F_GETLK :
++                       (cmd == FSetlk) ? F_SETLK : F_SETLKW;
++        int result = ::fcntl(sim_fd, host_cmd, &host_lock);
++        if (result < 0)
++            return static_cast<RegVal>(-errno);
++
++        if (cmd == FGetlk) {
++            std::memset(raw, 0, sizeof(raw));
++            writeBigEndian16(raw, host_lock.l_type);
++            writeBigEndian16(raw + 2, host_lock.l_whence);
++            writeBigEndian64(raw + 8, host_lock.l_start);
++            writeBigEndian64(raw + 16, host_lock.l_len);
++            writeBigEndian32(raw + 24, host_lock.l_pid);
++            if (!writeGuestBlob(tc, static_cast<Addr>(arg), raw, sizeof(raw)))
++                return static_cast<RegVal>(-EFAULT);
++        }
++        return 0;
++      }
++
++      default:
++        fatal("DADAO SE: fcntl command %d not implemented (fd=%d)", cmd, fd);
++    }
++}
++
++/** fstat(2). */
++RegVal
++doFstat(ThreadContext *tc, DadaoISA::Process *process, int fd, Addr stat_addr)
++{
++    int sim_fd;
++    if (int status = hostFdOf(process, fd, sim_fd); status != 0)
++        return static_cast<RegVal>(status);
++
++    struct stat host_stat;
++    if (::fstat(sim_fd, &host_stat) < 0)
++        return static_cast<RegVal>(-errno);
++
++    uint8_t raw[GuestStatSize];
++    packGuestStat(host_stat, raw);
++    if (!writeGuestBlob(tc, stat_addr, raw, sizeof(raw)))
++        return static_cast<RegVal>(-EFAULT);
++    return 0;
++}
++
++/** newfstatat(2) / fstatat64(2). */
++RegVal
++doNewfstatat(ThreadContext *tc, DadaoISA::Process *process, int dirfd,
++             Addr path_addr, Addr stat_addr, int flags)
++{
++    if (flags & ~(AtSymlinkNofollow | AtEmptyPath | AtNoAutomount))
++        return static_cast<RegVal>(-EINVAL);
++
++    struct stat host_stat;
++    bool use_fd = path_addr == 0;
++    std::string path;
++
++    if (path_addr != 0 && !readGuestString(tc, path_addr, path))
++        return static_cast<RegVal>(-EFAULT);
++    if (path_addr != 0 && path.empty())
++        use_fd = flags & AtEmptyPath;
++    if (path_addr == 0 && !(flags & AtEmptyPath))
++        return static_cast<RegVal>(-EFAULT);
++
++    if (use_fd) {
++        int sim_fd;
++        if (int status = hostFdOf(process, dirfd, sim_fd); status != 0)
++            return static_cast<RegVal>(status);
++        if (::fstat(sim_fd, &host_stat) < 0)
++            return static_cast<RegVal>(-errno);
++    } else {
++        std::string host_path;
++        if (int status = resolveGuestPath(process, dirfd, path, host_path);
++            status != 0)
++            return static_cast<RegVal>(status);
++        const int result = (flags & AtSymlinkNofollow) ?
++            ::lstat(host_path.c_str(), &host_stat) :
++            ::stat(host_path.c_str(), &host_stat);
++        if (result < 0)
++            return static_cast<RegVal>(-errno);
++    }
++
++    uint8_t raw[GuestStatSize];
++    packGuestStat(host_stat, raw);
++    if (!writeGuestBlob(tc, stat_addr, raw, sizeof(raw)))
++        return static_cast<RegVal>(-EFAULT);
++    return 0;
++}
++
++/** statfs(2). */
++RegVal
++doStatfs(ThreadContext *tc, DadaoISA::Process *process, Addr path_addr,
++         Addr buf_addr)
++{
++    std::string path;
++    if (!readGuestString(tc, path_addr, path))
++        return static_cast<RegVal>(-EFAULT);
++
++    std::string host_path;
++    if (int status = resolveGuestPath(process, AtFdcwd, path, host_path);
++        status != 0)
++        return static_cast<RegVal>(status);
++
++    struct statfs host_statfs;
++    if (::statfs(host_path.c_str(), &host_statfs) < 0)
++        return static_cast<RegVal>(-errno);
++
++    uint8_t raw[GuestStatfsSize];
++    packGuestStatfs(host_statfs, raw);
++    if (!writeGuestBlob(tc, buf_addr, raw, sizeof(raw)))
++        return static_cast<RegVal>(-EFAULT);
++    return 0;
++}
++
++/** faccessat(2).  SE has no permission model, so the host's answer is the
++ * guest's (same as QEMU user mode); only the flag validation is local. */
++RegVal
++doFaccessat(ThreadContext *tc, DadaoISA::Process *process, int dirfd,
++            Addr path_addr, int mode, int flags)
++{
++    if (flags & ~(AtEaccess | AtSymlinkNofollow))
++        return static_cast<RegVal>(-EINVAL);
++
++    std::string path;
++    if (!readGuestString(tc, path_addr, path))
++        return static_cast<RegVal>(-EFAULT);
++
++    std::string host_path;
++    if (int status = resolveGuestPath(process, dirfd, path, host_path);
++        status != 0)
++        return static_cast<RegVal>(status);
++
++    const int result = ::faccessat(AT_FDCWD, host_path.c_str(), mode, flags);
++    return result < 0 ? static_cast<RegVal>(-errno) : 0;
++}
++
++/** getdents64(2).
++ *
++ * The host's struct linux_dirent64 has the same field widths and alignment as
++ * the guest's, so the buffer is converted in place (only the three integer
++ * fields change byte order) and keeps its exact length.
++ */
++RegVal
++doGetdents64(ThreadContext *tc, DadaoISA::Process *process, int fd,
++             Addr dir_addr, uint64_t count)
++{
++    if (count == 0)
++        return static_cast<RegVal>(-EINVAL);
++
++    int sim_fd;
++    if (int status = hostFdOf(process, fd, sim_fd); status != 0)
++        return static_cast<RegVal>(status);
++
++    std::vector<uint8_t> data(count);
++    long bytes_read;
++    do {
++        bytes_read = ::syscall(SYS_getdents64, sim_fd, data.data(), count);
++    } while (bytes_read < 0 && errno == EINTR);
++
++    if (bytes_read < 0)
++        return static_cast<RegVal>(-errno);
++    if (bytes_read == 0)
++        return 0;
++
++    size_t offset = 0;
++    while (offset < static_cast<size_t>(bytes_read)) {
++        if (offset + GuestDirent64Type + 1 > static_cast<size_t>(bytes_read))
++            return static_cast<RegVal>(-EINVAL);
++
++        uint64_t ino;
++        int64_t d_off;
++        uint16_t reclen;
++        std::memcpy(&ino, &data[offset + GuestDirent64Ino], sizeof(ino));
++        std::memcpy(&d_off, &data[offset + GuestDirent64Off], sizeof(d_off));
++        std::memcpy(&reclen, &data[offset + GuestDirent64Reclen],
++                    sizeof(reclen));
++        if (reclen < GuestDirent64Type + 1 ||
++            offset + reclen > static_cast<size_t>(bytes_read))
++            return static_cast<RegVal>(-EINVAL);
++
++        writeBigEndian64(&data[offset + GuestDirent64Ino], ino);
++        writeBigEndian64(&data[offset + GuestDirent64Off], d_off);
++        writeBigEndian16(&data[offset + GuestDirent64Reclen], reclen);
++        // d_type is a single byte: no byte-order conversion.
++        offset += reclen;
++    }
++
++    if (!writeGuestBlob(tc, dir_addr, data.data(), bytes_read))
++        return static_cast<RegVal>(-EFAULT);
++    return static_cast<RegVal>(bytes_read);
++}
++
++/** utimensat(2); a null pathname means "operate on dirfd" (musl's futimens
++ * is implemented as utimensat(fd, 0, times, 0)). */
++RegVal
++doUtimensat(ThreadContext *tc, DadaoISA::Process *process, int dirfd,
++            Addr path_addr, Addr times_addr, int flags)
++{
++    if (flags & ~AtSymlinkNofollow)
++        return static_cast<RegVal>(-EINVAL);
++
++    struct timespec times[2];
++    const struct timespec *times_ptr = nullptr;
++    if (times_addr != 0) {
++        uint8_t raw[2 * GuestTimespecSize];
++        if (!readGuestBlob(tc, times_addr, raw, sizeof(raw)))
++            return static_cast<RegVal>(-EFAULT);
++        times[0].tv_sec = readBigEndian64(raw);
++        times[0].tv_nsec = readBigEndian64(raw + 8);
++        times[1].tv_sec = readBigEndian64(raw + 16);
++        times[1].tv_nsec = readBigEndian64(raw + 24);
++        times_ptr = times;
++    }
++
++    int result;
++    if (path_addr == 0) {
++        int sim_fd;
++        if (int status = hostFdOf(process, dirfd, sim_fd); status != 0)
++            return static_cast<RegVal>(status);
++        result = ::futimens(sim_fd, times_ptr);
++    } else {
++        std::string path;
++        if (!readGuestString(tc, path_addr, path))
++            return static_cast<RegVal>(-EFAULT);
++        std::string host_path;
++        if (int status = resolveGuestPath(process, dirfd, path, host_path);
++            status != 0)
++            return static_cast<RegVal>(status);
++        result = ::utimensat(AT_FDCWD, host_path.c_str(), times_ptr,
++                             (flags & AtSymlinkNofollow) ?
++                                 AT_SYMLINK_NOFOLLOW : 0);
++    }
++
++    return result < 0 ? static_cast<RegVal>(-errno) : 0;
++}
++
++/** readlinkat(2). */
++RegVal
++doReadlinkat(ThreadContext *tc, DadaoISA::Process *process, int dirfd,
++             Addr path_addr, Addr buf_addr, uint64_t bufsiz)
++{
++    std::string path;
++    if (!readGuestString(tc, path_addr, path))
++        return static_cast<RegVal>(-EFAULT);
++
++    std::string host_path;
++    if (int status = resolveGuestPath(process, dirfd, path, host_path);
++        status != 0)
++        return static_cast<RegVal>(status);
++
++    std::vector<char> data(bufsiz);
++    ssize_t result = ::readlink(host_path.c_str(), data.data(), bufsiz);
++    if (result < 0)
++        return static_cast<RegVal>(-errno);
++    if (result > 0 && !writeGuestBlob(tc, buf_addr, data.data(), result))
++        return static_cast<RegVal>(-EFAULT);
++    return static_cast<RegVal>(result);
++}
++
++/** unlinkat(2). */
++RegVal
++doUnlinkat(ThreadContext *tc, DadaoISA::Process *process, int dirfd,
++           Addr path_addr, int flags)
++{
++    if (flags & ~AtRemovedir)
++        return static_cast<RegVal>(-EINVAL);
++
++    std::string path;
++    if (!readGuestString(tc, path_addr, path))
++        return static_cast<RegVal>(-EFAULT);
++
++    std::string host_path;
++    if (int status = resolveGuestPath(process, dirfd, path, host_path);
++        status != 0)
++        return static_cast<RegVal>(status);
++
++    const int result = (flags & AtRemovedir) ?
++        ::rmdir(host_path.c_str()) : ::unlink(host_path.c_str());
++    return result < 0 ? static_cast<RegVal>(-errno) : 0;
++}
++
++/** mkdirat(2). */
++RegVal
++doMkdirat(ThreadContext *tc, DadaoISA::Process *process, int dirfd,
++          Addr path_addr, uint32_t mode)
++{
++    std::string path;
++    if (!readGuestString(tc, path_addr, path))
++        return static_cast<RegVal>(-EFAULT);
++
++    std::string host_path;
++    if (int status = resolveGuestPath(process, dirfd, path, host_path);
++        status != 0)
++        return static_cast<RegVal>(status);
++
++    return ::mkdir(host_path.c_str(), mode) < 0 ?
++        static_cast<RegVal>(-errno) : 0;
++}
++
++/** clock_gettime(2). */
++RegVal
++doClockGettime(ThreadContext *tc, int clock_id, Addr tp_addr)
++{
++    int64_t sec = 0;
++    int64_t nsec = 0;
++
++    switch (clock_id) {
++      case CLOCK_REALTIME: {
++        // Wall-clock time stays host-backed (QEMU user mode passes it
++        // through too); the guest compares it against host file timestamps.
++        struct timespec now;
++        if (::clock_gettime(CLOCK_REALTIME, &now) < 0)
++            return static_cast<RegVal>(-errno);
++        sec = now.tv_sec;
++        nsec = now.tv_nsec;
++        break;
++      }
++      case CLOCK_MONOTONIC:
++      case CLOCK_PROCESS_CPUTIME_ID:
++      case CLOCK_THREAD_CPUTIME_ID: {
++        // Simulated nanoseconds, derived from curTick() at the GEM5-019t
++        // 1e9-ticks/s baseline.  SE is single-threaded, so thread CPU time
++        // and process CPU time are the same simulated-time counter.
++        const uint64_t elapsed = simulatedNanoseconds();
++        sec = elapsed / 1000000000ULL;
++        nsec = elapsed % 1000000000ULL;
++        break;
++      }
++      default:
++        return static_cast<RegVal>(-EINVAL);
++    }
++
++    uint8_t raw[GuestTimespecSize];
++    packGuestTimespec(raw, sec, nsec);
++    if (!writeGuestBlob(tc, tp_addr, raw, sizeof(raw)))
++        return static_cast<RegVal>(-EFAULT);
++    return 0;
++}
++
++/** clock_getres(2). */
++RegVal
++doClockGetres(ThreadContext *tc, int clock_id, Addr tp_addr)
++{
++    switch (clock_id) {
++      case CLOCK_REALTIME:
++      case CLOCK_MONOTONIC:
++      case CLOCK_PROCESS_CPUTIME_ID:
++      case CLOCK_THREAD_CPUTIME_ID:
++        break;
++      default:
++        return static_cast<RegVal>(-EINVAL);
++    }
++
++    if (tp_addr != 0) {
++        uint8_t raw[GuestTimespecSize];
++        packGuestTimespec(raw, 0, 1);
++        if (!writeGuestBlob(tc, tp_addr, raw, sizeof(raw)))
++            return static_cast<RegVal>(-EFAULT);
++    }
++    return 0;
++}
++
++/** gettimeofday(2). */
++RegVal
++doGettimeofday(ThreadContext *tc, Addr tv_addr, Addr tz_addr)
++{
++    struct timeval now;
++    if (::gettimeofday(&now, nullptr) < 0)
++        return static_cast<RegVal>(-errno);
++
++    uint8_t raw[GuestTimevalSize];
++    writeBigEndian64(raw, now.tv_sec);
++    writeBigEndian64(raw + 8, now.tv_usec);
++    if (!writeGuestBlob(tc, tv_addr, raw, sizeof(raw)))
++        return static_cast<RegVal>(-EFAULT);
++
++    if (tz_addr != 0) {
++        uint8_t tz[8] = {0, 0, 0, 0, 0, 0, 0, 0};
++        if (!writeGuestBlob(tc, tz_addr, tz, sizeof(tz)))
++            return static_cast<RegVal>(-EFAULT);
++    }
++    return 0;
++}
++
++/** nanosleep(2).
++ *
++ * SE has no other runnable work, so actually sleeping would only stall the
++ * host process; the request is validated (Linux EINVAL rules) and succeeds
++ * immediately, which is gem5's existing SE convention.  The limitation is
++ * recorded in README.
++ */
++RegVal
++doNanosleep(ThreadContext *tc, Addr req_addr)
++{
++    uint8_t raw[GuestTimespecSize];
++    if (!readGuestBlob(tc, req_addr, raw, sizeof(raw)))
++        return static_cast<RegVal>(-EFAULT);
++
++    const int64_t sec = readBigEndian64(raw);
++    const int64_t nsec = readBigEndian64(raw + 8);
++    if (sec < 0 || nsec < 0 || nsec >= 1000000000LL)
++        return static_cast<RegVal>(-EINVAL);
++    return 0;
++}
++
++/** time(2). */
++RegVal
++doTime(ThreadContext *tc, Addr tloc_addr)
++{
++    const time_t now = ::time(nullptr);
++    if (now == static_cast<time_t>(-1))
++        return static_cast<RegVal>(-errno);
++    if (tloc_addr != 0) {
++        uint8_t raw[8];
++        writeBigEndian64(raw, now);
++        if (!writeGuestBlob(tc, tloc_addr, raw, sizeof(raw)))
++            return static_cast<RegVal>(-EFAULT);
++    }
++    return static_cast<RegVal>(now);
 +}
 +
 +/** First page of the heap: the heap must never unmap the loaded image. */
@@ -512,6 +1616,195 @@ index 0000000..f12e93f
 +        const uint64_t length = tc->getReg(rd(16));
 +        const uint64_t prot = tc->getReg(rd(17));
 +        result = doMprotect(process, start, length, prot);
++        break;
++      }
++
++      // File descriptor and file I/O surface (GEM5-023t).  Argument banks:
++      // scalars in rd16.. and pointers in rb16.. (contract-syscall §3).
++      case SysDup: {
++        result = doDup(process, static_cast<int>(tc->getReg(rd(16))));
++        break;
++      }
++
++      case SysDup3: {
++        const int old_fd = static_cast<int>(tc->getReg(rd(16)));
++        const int new_fd = static_cast<int>(tc->getReg(rd(17)));
++        const uint64_t flags = tc->getReg(rd(18));
++        result = doDup3(process, old_fd, new_fd, flags);
++        break;
++      }
++
++      case SysFcntl: {
++        const int fd = static_cast<int>(tc->getReg(rd(16)));
++        const int cmd = static_cast<int>(tc->getReg(rd(17)));
++        // fcntl's kernel prototype is (fd, cmd, unsigned long arg), so musl's
++        // argmask keeps all three in the RD bank -- a lock pointer arrives as
++        // the integer value in rd18, not as an RB pointer (contract-syscall
++        // §3 assigns banks by the *syscall* prototype; arch/dadao/
++        // syscall_arch.h lists SYS_fcntl in the mask-0 set).
++        const uint64_t arg = tc->getReg(rd(18));
++        result = doFcntl(tc, process, fd, cmd, arg);
++        break;
++      }
++
++      case SysOpenat: {
++        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
++        const Addr path = tc->getReg(rb(16));
++        const uint64_t flags = tc->getReg(rd(17));
++        const uint32_t mode = tc->getReg(rd(18));
++        result = doOpenat(tc, process, dirfd, path, flags, mode);
++        break;
++      }
++
++      case SysClose: {
++        result = doClose(process, static_cast<int>(tc->getReg(rd(16))));
++        break;
++      }
++
++      case SysRead: {
++        const int fd = static_cast<int>(tc->getReg(rd(16)));
++        const Addr buf = tc->getReg(rb(16));
++        const uint64_t count = tc->getReg(rd(17));
++        result = doRead(tc, process, fd, buf, count);
++        break;
++      }
++
++      case SysReadv: {
++        const int fd = static_cast<int>(tc->getReg(rd(16)));
++        const Addr iov = tc->getReg(rb(16));
++        const uint64_t iovcnt = tc->getReg(rd(17));
++        result = doReadv(tc, process, fd, iov, iovcnt);
++        break;
++      }
++
++      case SysPread64: {
++        const int fd = static_cast<int>(tc->getReg(rd(16)));
++        const Addr buf = tc->getReg(rb(16));
++        const uint64_t count = tc->getReg(rd(17));
++        const int64_t offset = static_cast<int64_t>(tc->getReg(rd(18)));
++        result = doPread64(tc, process, fd, buf, count, offset);
++        break;
++      }
++
++      case SysLseek: {
++        const int fd = static_cast<int>(tc->getReg(rd(16)));
++        const int64_t offset = static_cast<int64_t>(tc->getReg(rd(17)));
++        const int whence = static_cast<int>(tc->getReg(rd(18)));
++        result = doLseek(process, fd, offset, whence);
++        break;
++      }
++
++      case SysFstat: {
++        const int fd = static_cast<int>(tc->getReg(rd(16)));
++        const Addr stat_addr = tc->getReg(rb(16));
++        result = doFstat(tc, process, fd, stat_addr);
++        break;
++      }
++
++      case SysNewfstatat: {
++        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
++        const Addr path = tc->getReg(rb(16));
++        const Addr stat_addr = tc->getReg(rb(17));
++        const int flags = static_cast<int>(tc->getReg(rd(17)));
++        result = doNewfstatat(tc, process, dirfd, path, stat_addr, flags);
++        break;
++      }
++
++      case SysStatfs: {
++        const Addr path = tc->getReg(rb(16));
++        const Addr buf = tc->getReg(rb(17));
++        result = doStatfs(tc, process, path, buf);
++        break;
++      }
++
++      case SysFaccessat:
++      case SysFaccessat2: {
++        // faccessat2 is the flag-carrying form musl tries first when the
++        // caller passes AT_EACCESS/AT_SYMLINK_NOFOLLOW; both share one body.
++        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
++        const Addr path = tc->getReg(rb(16));
++        const int mode = static_cast<int>(tc->getReg(rd(17)));
++        const int flags = static_cast<int>(tc->getReg(rd(18)));
++        result = doFaccessat(tc, process, dirfd, path, mode, flags);
++        break;
++      }
++
++      case SysGetdents64: {
++        const int fd = static_cast<int>(tc->getReg(rd(16)));
++        const Addr dir_addr = tc->getReg(rb(16));
++        const uint64_t count = tc->getReg(rd(17));
++        result = doGetdents64(tc, process, fd, dir_addr, count);
++        break;
++      }
++
++      case SysUtimensat: {
++        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
++        const Addr path = tc->getReg(rb(16));
++        const Addr times = tc->getReg(rb(17));
++        const int flags = static_cast<int>(tc->getReg(rd(17)));
++        result = doUtimensat(tc, process, dirfd, path, times, flags);
++        break;
++      }
++
++      case SysReadlinkat: {
++        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
++        const Addr path = tc->getReg(rb(16));
++        const Addr buf = tc->getReg(rb(17));
++        const uint64_t bufsiz = tc->getReg(rd(17));
++        result = doReadlinkat(tc, process, dirfd, path, buf, bufsiz);
++        break;
++      }
++
++      case SysUnlinkat: {
++        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
++        const Addr path = tc->getReg(rb(16));
++        const int flags = static_cast<int>(tc->getReg(rd(17)));
++        result = doUnlinkat(tc, process, dirfd, path, flags);
++        break;
++      }
++
++      case SysMkdirat: {
++        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
++        const Addr path = tc->getReg(rb(16));
++        const uint32_t mode = tc->getReg(rd(17));
++        result = doMkdirat(tc, process, dirfd, path, mode);
++        break;
++      }
++
++      // Clock surface (GEM5-023t): the monotonic/CPU clocks are simulated
++      // time at the GEM5-019t 1e9-ticks/s baseline; REALTIME/gettimeofday/
++      // time stay host-backed like QEMU user mode so file timestamps compare
++      // correctly.
++      case SysClockGettime: {
++        const int clock_id = static_cast<int>(tc->getReg(rd(16)));
++        const Addr tp = tc->getReg(rb(16));
++        result = doClockGettime(tc, clock_id, tp);
++        break;
++      }
++
++      case SysClockGetres: {
++        const int clock_id = static_cast<int>(tc->getReg(rd(16)));
++        const Addr tp = tc->getReg(rb(16));
++        result = doClockGetres(tc, clock_id, tp);
++        break;
++      }
++
++      case SysGettimeofday: {
++        const Addr tv = tc->getReg(rb(16));
++        const Addr tz = tc->getReg(rb(17));
++        result = doGettimeofday(tc, tv, tz);
++        break;
++      }
++
++      case SysNanosleep: {
++        const Addr req = tc->getReg(rb(16));
++        result = doNanosleep(tc, req);
++        break;
++      }
++
++      case SysTimeLegacy: {
++        const Addr tloc = tc->getReg(rb(16));
++        result = doTime(tc, tloc);
 +        break;
 +      }
 +

@@ -4,6 +4,10 @@
 
 ## M11
 
+- **2026-11-06 GEM5-023t**
+  - 摘要：**gem5 SE 文件 I/O 与时钟面落地**。`se_workload.cc` 新增 `openat`/`close`/`read`/`readv`/`pread64`/`lseek`/`fstat`/`newfstatat`/`getdents64`/`dup`/`dup3`/`fcntl`/`statfs`/`faccessat`（含 `faccessat2`）/`utimensat`/`readlinkat`/`unlinkat`/`mkdirat`（guest fd 表复用 `FDArray`/`FileFDEntry`，路径按 `tgtCwd`/redirect 解析并支持 dirfd 相对组合，`stat`/`statfs`/`dirent64`/`timespec` 按大端 asm-generic 64-bit 布局打包，错误码取宿主 `errno`）与 `clock_gettime`/`clock_getres`/`gettimeofday`/`time`/`nanosleep`（单调/CPU 时钟用 `floor(curTick×1e9/Frequency)` 模拟纳秒，同 `GEM5-019t` 口径；REALTIME 与 `gettimeofday`/`time` 走宿主透传同 QEMU user）。验收：独立双引擎探针 72/72（guest 与宿主逐项一致）、文件 I/O 与 time/clocks 两桶 blocked 归零（其余转为 signals/time budget 等已登记缺口）。
+  - 执行者：engineer
+
 - **2026-11-05 INTEG-054t**
   - 摘要：**对齐 QEMU 删除 5 个无效屏蔽寄存器（SPEC-188t）**：`node_cfx.hh` 移除 `NodeCfxMode.{switchCfxMask,excpCauseMask}`、`NodeCfxRegs.{prevCfxMask,causeNonmaskable}` 与 `NodeState.cfxMask`；`node_cfx.cc` 复位/寄存器解析/异常进入/`escape` 同步对齐——`cg0`–`cg3` `rc9`/`rc11` 与 `cg5` `rc1`/`rc63` 返回 `nullptr`（⇒ `CFXREG`），同步异常不可屏蔽、异步只按 `cfx_intr_mask`+`globalCfxIntrMask` 两级来源过滤，`escape` 不再恢复 cfx 屏蔽状态、保留 trap 保存的 `globalCfxIntrMask` 恢复；`isa.cc` 的 `-d cpu` 兼容 dump 删除 `CFXMASK`/`PREVMASK`/`NONMASK`/`SWMASK`/`CAUSEMASK`。补丁 3 份改（`isa.cc`/`node_cfx.cc`/`node_cfx.hh`），`make_patch.py` 重导出（3 written / 94 unchanged）。验收：`build-gem5`、`check-gem5-decode`、`check-source-state`/`check-patch-tree`、node/arch parity 无回归。
   - 执行者：engineer
