@@ -7,7 +7,18 @@
 
 ## 用户裁定（2026-11-06）
 
-> 「A：改语料用 {cur=0,max=inf}（推荐）」——改 libc-test 补丁：用 cur=0、保留 max=inf 代替 `t_setrlim`；测试意图不变（VA 满时 malloc 失败、腾出后成功），与内核 Valgrind workaround 一致。
+> 「2：按用例意图改语料（两侧都改）」
+
+即：认定上游用例的限值写法在 post-4.7 内核下已过时；改语料为 `{cur=0,max=inf}`，并**在宿主上做同样改动后验证 PASS**，目标是宿主与目标**两侧都 PASS**（不是「对齐宿主现状的 FAIL」）。
+
+## 宿主对照（architect 实测，2026-11-06）
+
+宿主：musl 1.2.6（按锁 commit 自建静态工具链）+ Linux 6.8 + 4 KiB 页。
+
+- 上游原样（`t_setrlim(RLIMIT_DATA, 0)`，cur/max 均为 0）⇒ **FAIL**（rc=1，`malloc(10000) failed (eventhough 64k is available to mmap): Out of memory`）
+- 只降 `cur`、保留 `max=infinity` ⇒ **PASS**（rc=0）
+
+结论：本任务改语料后，宿主（同改）与目标应**同为 PASS**；页大小 4 KiB/64 KiB 不是该用例的失败原因。
 
 ## 现状
 
@@ -52,7 +63,8 @@ rlimit(RLIMIT_DATA) == 0 && 请求量 <= rlimit_max(RLIMIT_DATA)
 2. `make check-tset-libc-smoke` rc=0；`make check-tset-libc-full`（static+dynamic）rc=0。
 3. `make check-patch-tree`、`make check-source-state`（libc-test base+1 clean）、`make check-index-blobs`、`make check`（L1）rc=0。
 4. 反例：把补丁改回 `t_setrlim(RLIMIT_DATA, 0)` ⇒ 该用例 FAIL；`cp`+`md5sum -c` 还原并重建后回绿（禁 git 还原）。
-5. 完成区 ≤30 行；状态 `待验收`。
+5. 宿主对照：用同一条改法在宿主（musl 1.2.6 + Linux 6.8）跑该用例 ⇒ PASS；目标侧同改 ⇒ PASS（两侧一致，均 rc=0）。宿主命令/输出写入完成区（不写运行期路径）。
+6. 完成区 ≤30 行；状态 `待验收`。
 
 ## 说明
 
