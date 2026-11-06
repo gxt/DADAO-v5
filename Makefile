@@ -200,7 +200,7 @@ help:
 	@echo "  make check-modules   Run L2 = the four scopes' smoke sets (inst/arch/unit + tset x3; no FP probes)"
 	@echo "  make check-full      Run L3 = check-inst + check-arch + check-unit-full + 4 FP probes + test-m6; writes .dadao/tests/l3/<UTC>/ (tset smoke is L2-only; tset full is night-only; TESTCASES-082t/083t)"
 	@echo "  make check-night     Run the night set (tset full x3 + long arch) and write .dadao/tests/night/<date>/ (setsid nohup; TESTCASES-076t)"
-	@echo "  make check-night-report  Gate: the night report exists and is structurally complete + green (milestone closure; TESTCASES-076t)"
+	@echo "  make check-night-report  Observe: night report exists + structurally complete + green (on-demand diagnostics, NOT a milestone gate; TESTCASES-076t)"
 	@echo "  make check-l3-report  Gate: the latest L3 report exists, covers four scopes, and is fully green (milestone closure; TESTCASES-083t)"
 	@echo "  make clean-tests     Remove one scope's generated artifacts (SCOPE=inst|arch|unit|tset|night|l3|all; DRY_RUN=1 to list; TESTCASES-076t)"
 	@echo "  make test-repro      Prove build products regenerate byte-identically (SCOPE=...; TESTCASES-076t)"
@@ -219,7 +219,7 @@ help:
 	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
 	@echo "  make check-milestones-fresh  milestones.md task-flow table gate: status/coverage/length/order/format (L1; INFRA-091t)"
 	@echo "  make check-archive   .tao/archive/M<i>/ structure + task-book fields + README five sections + issues snapshot (L1; INFRA-116t)"
-	@echo "  make check-milestone  Milestone closure: SIMRISC archive + sha + sync-nonmaskable + m-book + night report + L3 report + check-tasks --strict (not L1)"
+	@echo "  make check-milestone  Milestone closure: SIMRISC archive + sha + sync-nonmaskable + m-book + L3 report + check-tasks --strict (not L1; night run is observation only)"
 	@echo "  make check-sync-nonmaskable  Sync exception causes must not be maskable (only IPI/TIMER/UART*/… may; SPEC-175t; not L1)"
 	@echo "  make check-interface  Check cross-module interface alignment (L1)"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
@@ -1164,15 +1164,16 @@ check-run-artifacts:
 # ③ 接 `check_tasks.py --strict`（漏收尾 = 0）。
 # ④ 同步异常不可屏蔽（`check-sync-nonmaskable`，用户 2026-10-26 裁定「同步异常全部不可屏蔽；
 #    仅异步可屏蔽」）——扫 DADAO-12/22/23 异常原因表，异步源（IPI/TIMER/UART*/…）之外出现「可」即红。
-# ⑤ 夜跑报告存在性/结构/结果（`check-night-report`，TESTCASES-076t）——没跑夜跑即红
-#    （`.dadao/tests/night/<YYYY-MM-DD>/` 三件套 + tset×3/arch 行 + 全 rc=0）。
+# ⑤ 夜跑**不阻断收口**（用户 2026-11-06 裁定 A）：夜跑 = 观测，成员/期望/known-fail
+#    随演进随时调整；`check-night-report` 保留为**按需诊断**（`make check-night-report`，
+#    判据与 `--self-test` 不变），**不列入本目标依赖**。
 # ⑥ L3 报告存在性/结构/四 scope 覆盖/结果（`check-l3-report`，TESTCASES-083t）——没跑
 #    L3 即红（`.dadao/tests/l3/<UTC>/` 三件套 + 四 scope + 全 rc=0 + exit marker 一致）。
 # 不并入 L1 的理由：`m` 册未建前本目标**必然红**（预期的收口信号），日常 L1 不应常态红。
-check-milestone: check-spec-archive check-spec-archive-verify check-sync-nonmaskable check-night-report check-l3-report
+check-milestone: check-spec-archive check-spec-archive-verify check-sync-nonmaskable check-l3-report
 	@$(PYTHON) tools/infra/check_milestone_tasks.py
 	@$(PYTHON) tools/infra/check_tasks.py --strict
-	@echo "check-milestone: PASS (归档结构 + 内容 sha + 同步不可屏蔽 + 夜跑报告 + L3 报告 + m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
+	@echo "check-milestone: PASS (归档结构 + 内容 sha + 同步不可屏蔽 + L3 报告 + m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
 
 # 同步异常不可屏蔽 (SPEC-175t; 里程碑层): 扫 DADAO-12/22/23 异常原因表的「是否可屏蔽」列，
 # 只有异步源（IPI / TIMER / UART* / 占位行 …）允许「可」；`--self-test` 内置注入→FAIL→还原→PASS。
@@ -1793,8 +1794,9 @@ _locked-test-repro:
 _locked-check-night:
 	@$(PYTHON) tools/testcases/night_run.py --root "$(TESTS_ROOT)" $(if $(NIGHT_DATE),--date $(NIGHT_DATE),) $(if $(NIGHT_DRY_RUN),--dry-run,) $(if $(NIGHT_ALLOW_OVERWRITE),--allow-overwrite,)
 
-# make check-night-report —— 里程碑层：报告**存在性 + 结构 + 结果**（不跑长套件）；
-# 未跑夜跑 ⇒ 明确 FAIL（不是 SKIP）。`NIGHT_DATE=` 指定日期，默认最新。
+# make check-night-report —— **按需诊断**（观测口径，**不入**里程碑收口；用户 2026-11-06
+# 裁定 A）：报告**存在性 + 结构 + 结果**（不跑长套件）；未跑夜跑 ⇒ 明确 FAIL（不是 SKIP）。
+# `NIGHT_DATE=` 指定日期，默认最新。
 check-night-report:
 	@$(PYTHON) tools/testcases/check_night_report.py --root "$(TESTS_ROOT)" $(if $(NIGHT_DATE),--date $(NIGHT_DATE),)
 
