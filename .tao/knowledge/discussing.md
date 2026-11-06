@@ -29,6 +29,13 @@
 
 **已解决（历史）**：libc-test dynamic `malloc-brk-fail` 已由 `TESTCASES-100t` 修正；夜跑 4/4 绿、`check-night-report` rc=0；A/B/C 不再待裁定。
 
+## 2026-11-06 待裁定：convert_f2i 舍入语义（A 方案待确认）
+
+- **事实**：`SPEC/SimRISC-07` + `contract-fp §3` 写「浮点→整数转换舍入由 `rf0[33:32]` 控制」（默认 RNE）；编译器对 `(long long)x` 只发裸 `fo2io`（不写 rf0）；QEMU 截断（2.7→2），gem5 按 rf0 舍入（2.7→3）。
+- **影响**：`GEM5-021t` 中 9 个 `libc-test math/*` + 1 个 `llvm-ts pi` 的差异全部由此解释（musl 依赖 cast 截断）。
+- **已讨论方案**：A 固定 RTZ（推荐：指令纯函数、与 `fornd` 正交、NX 正确、每 cast 1 条指令）；D 编译器发 `fornd(0x04)+convert`（不动 SPEC，但每 cast 2 条指令、cast 的 NX 永久丢失）；B 每条 cast 写/恢复 rf0；C 新增静态 RTZ 变体编码。
+- **状态**：用户 2026-11-06「先做别的，我考虑好再跟你讨论」⇒ **待用户裁定，不落实现、不写 ADR**。`GEM5-021t` findings 中的归属按「SPEC/工具链不一致」记录，暂不判 gem5 单方缺陷。
+
 ## 2026-11-05 M11 收口与实现决定
 
 - **1B**：M11 按“含实现”收口；5 个屏蔽寄存器实现 + 退出码实现完成后才算 M11 完成。
