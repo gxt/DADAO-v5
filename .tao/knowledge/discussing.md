@@ -35,7 +35,7 @@
 - **事实**：`SPEC/SimRISC-07` + `contract-fp §3` 写「浮点→整数转换舍入由 `rf0[33:32]` 控制」（默认 RNE）；编译器对 `(long long)x` 只发裸 `fo2io`（不写 rf0）；QEMU 截断（2.7→2），gem5 按 rf0 舍入（2.7→3）。
 - **影响**：`GEM5-021t` 中 9 个 `libc-test math/*` + 1 个 `llvm-ts pi` 的差异全部由此解释（musl 依赖 cast 截断）。
 - **已讨论方案**：A 固定 RTZ（推荐：指令纯函数、与 `fornd` 正交、NX 正确、每 cast 1 条指令）；D 编译器发 `fornd(0x04)+convert`（不动 SPEC，但每 cast 2 条指令、cast 的 NX 永久丢失）；B 每条 cast 写/恢复 rf0；C 新增静态 RTZ 变体编码。
-- **状态**：用户 2026-11-06 改为 **B 方案**（rf0 控制 + 编译器按 C cast 插桩），随后按 ISA 设计重新讨论，倾向「显式方向」；已起草 `ADR-0050`（Proposed，D1–D7）：15 条六档 one-hot（8 f2i + fo2ft + 6 条不精确 i2f）、3 条精确 SBZ（ft2fo/it2fo/ut2fo）、4 条复制保留计数；待用户逐条确认 decision 后置 Accepted。`GEM5-021t` findings 中的归属按「SPEC/工具链不一致」记录，暂不判 gem5 单方缺陷。
+- **状态**：用户 2026-11-06 改为 **B 方案**（rf0 控制 + 编译器按 C cast 插桩），随后按 ISA 设计重新讨论，倾向「显式方向」；`ADR-0050` 已 `Accepted`（2026-11-06 用户「ADR0050确认」，D1–D7）；内容：15 条六档 one-hot（8 f2i + fo2ft + 6 条不精确 i2f）、3 条精确 SBZ（ft2fo/it2fo/ut2fo）、4 条复制保留计数。`GEM5-021t` findings 中的归属按「SPEC/工具链不一致」记录，暂不判 gem5 单方缺陷。
 
 ## 2026-11-05 M11 收口与实现决定
 
