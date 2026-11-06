@@ -33,7 +33,8 @@
 - `GEM5-023t`（进行中）：SE 文件 I/O + 时钟。
 - `GEM5-024t`（待开始，依赖 023t）：SE 信号 + 资源限制 + 进程信息。
 - `GEM5-025t`（待开始，依赖 024t）：SE IPC/多进程（pipe2/socket、execve/fork/wait4）。
-- `GEM5-026t`（待开始，依赖 025t）：SE 线程/futex/robust + 每线程 TLS 验收切片（`rb3` 已在 spec 定义、TLS 由 musl 完成）。
+- `GEM5-026t`（进行中）：SE 线程/futex/robust + 每线程 TLS 验收切片（`rb3` 已在 spec 定义、TLS 由 musl 完成）。
+- **环境缺口（2026-11-07 裁定）**：`popen`/`spawn`/`vfork`/`execle-env`/`unix-smail` 5 例需要 guest 根内的 DADAO `/bin/sh`、`echo`；SE 返回 `ENOEXEC` 正确。QEMU 侧「通过」是执行宿主 x86-64 二进制（`strace` 证实），**非同架构 baseline**，不计 gem5 能力欠账；不采纳宿主原生执行旁路。DADAO shell/guest root 与「QEMU static 档补 `-L`」登记为 backlog。
 - `GEM5-027t`（待开始，依赖 026t）：动态装载器（`ET_EXEC+PT_INTERP` / auxv / `interp-dir`+`redirect`）。
 - `GEM5-028t`（待开始，依赖 027t）：文件映射 `mmap` + ldso 装载 DSO + 解释器窗口约束。
 - `TESTCASES-103t`（待开始，依赖 023t）：SE 基线预算 120s→按套件 600s，`timeout` 单列。
