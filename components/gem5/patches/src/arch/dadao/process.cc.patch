@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/process.cc b/src/arch/dadao/process.cc
 new file mode 100644
-index 0000000..301dc4b
+index 0000000..2c73fe4
 --- /dev/null
 +++ b/src/arch/dadao/process.cc
-@@ -0,0 +1,244 @@
+@@ -0,0 +1,245 @@
 +// DADAO syscall-emulation process -- implementation.
 +#include "arch/dadao/process.hh"
 +
@@ -31,9 +31,9 @@ index 0000000..301dc4b
 +{
 +
 +// SE address-space convention (48-bit guest VA, ADR-0048 D1).  Not a spec
-+// assertion and not shared with the FS memory window.
++// assertion and not shared with the FS memory window.  The mmap window top is
++// shared with the syscall layer (DadaoISA::MmapWindowEnd).
 +constexpr Addr StackBase = 0x0000FFFFFFFF0000ULL;
-+constexpr Addr MmapEnd = 0x0000400000000000ULL;
 +
 +// MemRAS backing store: 1 MiB of guest-readable/writable pages.  Placed above
 +// the mmap region and well below the stack so it cannot collide with either.
@@ -67,7 +67,8 @@ index 0000000..301dc4b
 +
 +    memState = std::make_shared<MemState>(this, brk_point, StackBase,
 +                                          max_stack_size,
-+                                          next_thread_stack_base, MmapEnd);
++                                          next_thread_stack_base,
++                                          MmapWindowEnd);
 +
 +    validateStaticElf();
 +}

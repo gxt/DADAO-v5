@@ -1,21 +1,24 @@
 diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
 new file mode 100644
-index 0000000..5935a0a
+index 0000000..f12e93f
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.cc
-@@ -0,0 +1,229 @@
+@@ -0,0 +1,571 @@
 +// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
 +#include "arch/dadao/se_workload.hh"
 +
 +#include <unistd.h>
 +
++#include <algorithm>
 +#include <cerrno>
 +#include <cstdint>
++#include <limits>
 +#include <memory>
 +#include <vector>
 +
 +#include "arch/dadao/process.hh"
 +#include "arch/dadao/regs/int.hh"
++#include "base/intmath.hh"
 +#include "base/logging.hh"
 +#include "cpu/thread_context.hh"
 +#include "mem/se_translating_port_proxy.hh"
@@ -30,13 +33,32 @@ index 0000000..5935a0a
 +{
 +
 +// Linux/RISC-V syscall numbers used by the G1 static-musl startup path
-+// (contract-syscall §1.1: numbers live in rd15).
++// (contract-syscall §1.1: numbers live in rd15; values from the locked
++// upstream table, contract-syscall §1.2).
 +constexpr uint64_t SysIoctl = 29;
 +constexpr uint64_t SysWrite = 64;
 +constexpr uint64_t SysWritev = 66;
 +constexpr uint64_t SysExit = 93;
 +constexpr uint64_t SysExitGroup = 94;
 +constexpr uint64_t SysSetTidAddress = 96;
++constexpr uint64_t SysBrk = 214;
++constexpr uint64_t SysMunmap = 215;
++constexpr uint64_t SysMremap = 216;
++constexpr uint64_t SysMmap = 222;
++constexpr uint64_t SysMprotect = 226;
++
++// mmap(2) flag and protection values (asm-generic uapi, the same numbers the
++// locked RISC-V table uses).  Only the flags the guest memory management of
++// the static tset needs are interpreted; the advisory ones are ignored, as
++// the kernel does.
++constexpr uint64_t MapShared = 0x01;
++constexpr uint64_t MapPrivate = 0x02;
++constexpr uint64_t MapFixed = 0x10;
++constexpr uint64_t MapAnonymous = 0x20;
++constexpr uint64_t MapFixedNoreplace = 0x100000;
++constexpr uint64_t ProtRead = 0x1;
++constexpr uint64_t ProtWrite = 0x2;
++constexpr uint64_t ProtExec = 0x4;
 +
 +RegId
 +intReg(RegIndex idx)
@@ -99,6 +121,280 @@ index 0000000..5935a0a
 +    if (written < 0)
 +        return static_cast<RegVal>(-errno);
 +    return static_cast<RegVal>(written);
++}
++
++/** First page of the heap: the heap must never unmap the loaded image. */
++Addr
++heapFloor(DadaoISA::Process *process)
++{
++    return roundUp(process->image.maxAddr(), process->pTable->pageSize());
++}
++
++/** brk(2): move the program break (the anonymous heap).
++ *
++ * Linux semantics (the reference for numbers, flags and errno is the locked
++ * upstream table, contract-syscall §1.2/§5): brk(0) queries and returns the
++ * current break; a successful move returns the new break; a failed one
++ * returns the *old* break and never -ENOMEM.  The heap may neither unmap the
++ * loaded image nor grow past the SE mmap window (the two share [image end,
++ * MmapWindowEnd) and grow towards each other, as they do on Linux).  Pages
++ * are mapped lazily: the VMA is registered here and the physical page is
++ * allocated on first touch by MemState::fixupFault(), the same path the stack
++ * uses.
++ */
++RegVal
++doBrk(DadaoISA::Process *process, Addr new_brk)
++{
++    const std::shared_ptr<MemState> mem_state = process->memState;
++    const Addr old_brk = mem_state->getBrkPoint();
++    const Addr heap_limit =
++        std::min<Addr>(mem_state->getStackMin(), DadaoISA::MmapWindowEnd);
++
++    if (new_brk == 0 || new_brk == old_brk)
++        return old_brk;
++
++    if (new_brk < heapFloor(process) || new_brk > heap_limit)
++        return old_brk;
++
++    mem_state->updateBrkRegion(old_brk, new_brk);
++    return mem_state->getBrkPoint();
++}
++
++/** Place an anonymous mapping of `length` bytes in the SE mmap window.
++ *
++ * The window grows downwards from its top (MmapWindowEnd); 0 means the window
++ * is exhausted.  The scan is bounded by the image end so an address-space
++ * fill cannot walk into the loaded image (whose pages have no VMA).
++ */
++Addr
++extendMmap(DadaoISA::Process *process, Addr length)
++{
++    const std::shared_ptr<MemState> mem_state = process->memState;
++    const Addr page_bytes = process->pTable->pageSize();
++    const Addr floor = heapFloor(process);
++    Addr start = mem_state->getMmapEnd();
++
++    while (start >= floor && start - floor >= length) {
++        start -= length;
++        if (mem_state->isUnmapped(start, length)) {
++            mem_state->setMmapEnd(start);
++            return start;
++        }
++        start -= page_bytes;
++    }
++    return 0;
++}
++
++/** mmap(2) for anonymous memory (MAP_PRIVATE|MAP_SHARED, MAP_FIXED). */
++RegVal
++doMmap(DadaoISA::Process *process, Addr hint, uint64_t length, uint64_t prot,
++       uint64_t flags, int fd, uint64_t offset)
++{
++    const std::shared_ptr<MemState> mem_state = process->memState;
++    const Addr page_bytes = process->pTable->pageSize();
++    const Addr max_addr = std::numeric_limits<Addr>::max();
++
++    if (length == 0)
++        return static_cast<RegVal>(-EINVAL);
++    if (offset & (page_bytes - 1))
++        return static_cast<RegVal>(-EINVAL);
++    if (prot & ~(ProtRead | ProtWrite | ProtExec))
++        return static_cast<RegVal>(-EINVAL);
++
++    const bool is_private = flags & MapPrivate;
++    const bool is_shared = flags & MapShared;
++    if (is_private == is_shared)  // exactly one of the two is required
++        return static_cast<RegVal>(-EINVAL);
++
++    if (length > max_addr - page_bytes)
++        return static_cast<RegVal>(-ENOMEM);
++    length = roundUp(length, page_bytes);
++    if (length > max_addr - hint)
++        return static_cast<RegVal>(-ENOMEM);
++
++    if (!(flags & MapAnonymous)) {
++        // A descriptor is only valid when it is actually open.  A valid but
++        // non-mappable descriptor (stdin/stdout/stderr here) gets ENODEV,
++        // which is what Linux reports for fds without an mmap method.
++        if (fd < 0 || fd >= process->fds->getSize() ||
++            !(*process->fds)[fd])
++            return static_cast<RegVal>(-EBADF);
++        return static_cast<RegVal>(-ENODEV);
++    }
++
++    const Addr floor = heapFloor(process);
++    const bool fixed = flags & (MapFixed | MapFixedNoreplace);
++
++    if (fixed) {
++        // MAP_FIXED requires an aligned address (Linux: EINVAL otherwise).
++        if (hint & (page_bytes - 1))
++            return static_cast<RegVal>(-EINVAL);
++        // The SE guest VA convention bounds anonymous mappings to the mmap
++        // window; outside of it there is no guest memory to map.
++        if (hint < floor || hint + length > DadaoISA::MmapWindowEnd)
++            return static_cast<RegVal>(-ENOMEM);
++        if (flags & MapFixedNoreplace) {
++            if (!mem_state->isUnmapped(hint, length))
++                return static_cast<RegVal>(-EEXIST);
++        } else {
++            // Linux replaces whatever is mapped in the range (VMAs and any
++            // allocated pages), which is also how the heap guard page of
++            // mallocng is installed below the current break.
++            mem_state->unmapRegion(hint, length);
++        }
++    } else {
++        // Without MAP_FIXED the address is only a hint: Linux rounds it down
++        // to a page boundary and falls back to its own placement if taken.
++        hint &= ~(page_bytes - 1);
++        const bool use_hint = hint != 0 && hint >= floor &&
++                              hint + length <= DadaoISA::MmapWindowEnd &&
++                              mem_state->isUnmapped(hint, length);
++        if (!use_hint) {
++            hint = extendMmap(process, length);
++            if (hint == 0)
++                return static_cast<RegVal>(-ENOMEM);
++        }
++    }
++
++    mem_state->mapRegion(hint, length, "anon");
++    return hint;
++}
++
++/** munmap(2): drop the VMA and the physical pages of the range. */
++RegVal
++doMunmap(DadaoISA::Process *process, Addr start, uint64_t length)
++{
++    const Addr page_bytes = process->pTable->pageSize();
++    const Addr max_addr = std::numeric_limits<Addr>::max();
++
++    if (!length || (start & (page_bytes - 1)) || length > max_addr - start)
++        return static_cast<RegVal>(-EINVAL);
++
++    const Addr mapped = roundUp(length, page_bytes);
++
++    // unmapRegion() also flushes the TLB and deallocates the pages, so a
++    // later access faults (SE has no protection bits, but it does have the
++    // host page table: an unmapped page is a real fault).
++    process->memState->unmapRegion(start, mapped);
++
++    // Let the next anonymous mapping reuse the freed top of the window.  The
++    // kernel does this; without it a probe/fill sequence such as libc-test's
++    // t_vmfill() (mmap a candidate size, munmap it, then mmap the accepted
++    // size) leaks every probe range above MemState's mmap end.
++    if (start + mapped > process->memState->getMmapEnd() &&
++        start + mapped <= DadaoISA::MmapWindowEnd)
++        process->memState->setMmapEnd(start + mapped);
++    return 0;
++}
++
++/** mremap(2): resize/move an existing mapping (mallocng realloc path).
++ *
++ * The kernel rounds both lengths up to the page size before doing anything,
++ * which is also how a guest page size of 64 KiB is honoured (mallocng works
++ * in 4096-byte granules internally).
++ */
++RegVal
++doMremap(DadaoISA::Process *process, Addr old_addr, uint64_t old_size,
++         uint64_t new_size, uint64_t flags, Addr new_addr)
++{
++    constexpr uint64_t MremapMaymove = 0x1;
++    constexpr uint64_t MremapFixed = 0x2;
++    constexpr uint64_t MremapDontunmap = 0x4;
++
++    const std::shared_ptr<MemState> mem_state = process->memState;
++    const Addr page_bytes = process->pTable->pageSize();
++    const Addr max_addr = std::numeric_limits<Addr>::max();
++
++    if (!old_size || !new_size || (old_addr & (page_bytes - 1)))
++        return static_cast<RegVal>(-EINVAL);
++    if (flags & ~(MremapMaymove | MremapFixed | MremapDontunmap))
++        return static_cast<RegVal>(-EINVAL);
++    if ((flags & MremapFixed) && !(flags & MremapMaymove))
++        return static_cast<RegVal>(-EINVAL);
++    if (flags & MremapDontunmap)
++        return static_cast<RegVal>(-EINVAL);  // not modelled
++    if (old_size > max_addr - old_addr || new_size > max_addr - page_bytes)
++        return static_cast<RegVal>(-EINVAL);
++
++    old_size = roundUp(old_size, page_bytes);
++    new_size = roundUp(new_size, page_bytes);
++
++    // mremap only moves memory that is actually mapped.
++    if (mem_state->isUnmapped(old_addr, old_size))
++        return static_cast<RegVal>(-EFAULT);
++
++    const bool fixed = flags & MremapFixed;
++
++    if (!fixed && new_size <= old_size) {
++        if (new_size < old_size)
++            mem_state->unmapRegion(old_addr + new_size, old_size - new_size);
++        return old_addr;
++    }
++
++    // Plain growth may extend in place when the window has room.  A fixed
++    // request always moves to the requested address.
++    const Addr grow = new_size > old_size ? new_size - old_size : 0;
++    const Addr old_end = old_addr + old_size;
++    if (!fixed && grow > 0 && old_end <= DadaoISA::MmapWindowEnd &&
++        grow <= DadaoISA::MmapWindowEnd - old_end &&
++        mem_state->isUnmapped(old_end, grow)) {
++        mem_state->mapRegion(old_end, grow, "anon");
++        return old_addr;
++    }
++    if (!(flags & MremapMaymove))
++        return static_cast<RegVal>(-ENOMEM);
++
++    Addr dest;
++    if (fixed) {
++        if ((new_addr & (page_bytes - 1)) ||
++            new_addr < heapFloor(process) ||
++            new_addr > max_addr - new_size ||
++            new_addr + new_size > DadaoISA::MmapWindowEnd)
++            return static_cast<RegVal>(-EINVAL);
++        // Linux rejects a MREMAP_FIXED target that overlaps the old range
++        // (including the same start), so the old pages are never both the
++        // source and the destination of the move.
++        if (new_addr < old_end && old_addr < new_addr + new_size)
++            return static_cast<RegVal>(-EINVAL);
++        dest = new_addr;
++    } else {
++        dest = extendMmap(process, new_size);
++        if (dest == 0)
++            return static_cast<RegVal>(-ENOMEM);
++    }
++
++    // remapRegion() moves both the VMA slices and the existing page table
++    // entries; the pages that were never touched stay lazy at the new
++    // address.  The grown tail is a fresh VMA and a shrunk tail is dropped.
++    const Addr move_len = std::min(old_size, new_size);
++    mem_state->remapRegion(old_addr, dest, move_len);
++    if (new_size > move_len)
++        mem_state->mapRegion(dest + move_len, new_size - move_len, "anon");
++    if (old_size > move_len)
++        mem_state->unmapRegion(old_addr + move_len, old_size - move_len);
++    return dest;
++}
++
++/** mprotect(2).
++ *
++ * SE keeps no per-page permission state (the DADAO SE TLB translates straight
++ * through the host page table; gem5's RISC-V SE maps mprotect to ignoreFunc).
++ * The request is validated and accepted, but PROT_NONE is not enforced: this
++ * is a recorded SE limitation, not a silent success of an unimplemented call.
++ */
++RegVal
++doMprotect(DadaoISA::Process *process, Addr start, uint64_t length,
++           uint64_t prot)
++{
++    const Addr page_bytes = process->pTable->pageSize();
++
++    if (length == 0)
++        return 0;
++    if (start & (page_bytes - 1))
++        return static_cast<RegVal>(-EINVAL);
++    if (prot & ~(ProtRead | ProtWrite | ProtExec))
++        return static_cast<RegVal>(-EINVAL);
++    return 0;
 +}
 +
 +class DadaoLoader : public Process::Loader
@@ -170,6 +466,52 @@ index 0000000..5935a0a
 +        // musl __init_tp calls this unconditionally before main().
 +        process->childClearTID = tc->getReg(rb(16));
 +        result = process->pid();
++        break;
++      }
++
++      // Guest memory management (contract-syscall §3: pointers in rb, scalars
++      // in rd, both banks counted from 16).
++      case SysBrk: {
++        result = doBrk(process, tc->getReg(rb(16)));
++        break;
++      }
++
++      case SysMmap: {
++        const Addr hint = tc->getReg(rb(16));
++        const uint64_t length = tc->getReg(rd(16));
++        const uint64_t prot = tc->getReg(rd(17));
++        const uint64_t flags = tc->getReg(rd(18));
++        const int fd = static_cast<int>(tc->getReg(rd(19)));
++        const uint64_t offset = tc->getReg(rd(20));
++        result = doMmap(process, hint, length, prot, flags, fd, offset);
++        break;
++      }
++
++      case SysMunmap: {
++        const Addr start = tc->getReg(rb(16));
++        const uint64_t length = tc->getReg(rd(16));
++        result = doMunmap(process, start, length);
++        break;
++      }
++
++      case SysMremap: {
++        // contract-syscall §3 type-based banks: old_addr and new_addr are
++        // pointers (rb16/rb17), the three sizes/flags are data (rd16-rd18).
++        const Addr old_addr = tc->getReg(rb(16));
++        const uint64_t old_size = tc->getReg(rd(16));
++        const uint64_t new_size = tc->getReg(rd(17));
++        const uint64_t flags = tc->getReg(rd(18));
++        const Addr new_addr = tc->getReg(rb(17));
++        result = doMremap(process, old_addr, old_size, new_size, flags,
++                          new_addr);
++        break;
++      }
++
++      case SysMprotect: {
++        const Addr start = tc->getReg(rb(16));
++        const uint64_t length = tc->getReg(rd(16));
++        const uint64_t prot = tc->getReg(rd(17));
++        result = doMprotect(process, start, length, prot);
 +        break;
 +      }
 +

@@ -116,8 +116,18 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 - **边界**：仅静态 `ET_EXEC`（明确拒绝 `ET_DYN`/static PIE/`PT_INTERP`）；
   syscall 面 = `set_tid_address`/`write`/`writev`/`exit`/`exit_group` +
   `ioctl` 的 `TIOCGWINSZ`/`TCGETS` 子集（musl `__stdout_write` 探测终端所需，
-  返回 `-ENOTTY`）；其余号与未建模的 ioctl request 一律 `fatal` **带号与 pc**
-  （不静默）；无 `brk`/`mmap`/TLS/线程/动态链接。
+  返回 `-ENOTTY`）+ 下列 guest 内存管理；其余号与未建模的 ioctl request
+  一律 `fatal` **带号与 pc**（不静默）；无文件 I/O、TLS、线程/信号、动态链接。
+- **guest 内存管理（GEM5-022t）**：`brk`(214，Linux 语义：`brk(0)` 查询、
+  失败返回旧 brk；堆不吞映像、不越过 mmap 窗口)、`mmap`(222，匿名
+  `MAP_PRIVATE`/`MAP_SHARED` 与 `MAP_FIXED`/`MAP_FIXED_NOREPLACE`)、
+  `munmap`(215)、`mremap`(216，原地伸缩 / `MREMAP_MAYMOVE` / `MREMAP_FIXED`)、
+  `mprotect`(226，校验后接受)。VMA 走 `MemState::mapRegion`/
+  `unmapRegion`/`updateBrkRegion`/`remapRegion`，物理页仍由 `fixupFault`
+  惰性分配；mmap 窗口上界 `DadaoISA::MmapWindowEnd` = 8 GiB（堆与 mmap
+  共用 `[映像末, 8 GiB)` 相向增长）。**已知限制**：SE 无按页权限模型，
+  `mprotect` 的 `PROT_NONE` 不被强制（同上游 RISC-V SE 的 `ignoreFunc`）；
+  文件映射返回 `-ENODEV`（`open` 属后续能力）。
 - **页大小**：`PageShift = 16`（64 KiB），`AT_PAGESZ = 65536`（与架构页一致）。
 - **初始状态**：PC = `e_entry`、SP = `rb1`、`rf0 = 0x7FF800007FC00000`、
   `ra0` 指向 1 MiB 预置 MemRAS（`MRPTR = 区顶 − 8`，invalid entry = 0）。
