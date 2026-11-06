@@ -406,6 +406,7 @@ ILLI（illegal instruction，非法指令）异常由**非法操作数、非法�
 - `ftrem`/`forem` 明确为 IEEE 754 remainder：`rfHC` 为 ±Inf、`rfHD` 为 ±0、任一源为 sNaN ⇒ NV + qNaN；`rfHD` 为 ±Inf（`rfHC` 有限）⇒ 返回 `rfHC`；不置 NX/OF/UF。
 - `ftsclb`/`fosclb` 第三操作数由 `rfHD` 改为 `rdHD`（`rd` 组的**有符号 64 位整数指数**；`rdHD = rd0` 表示指数 0），沿用原 `orrr` 编码、不新增 opcode；旧 `rf` 第三操作数写法失效。
 - 浮点→整数转换（`ft2it`/`ft2io`/`ft2ut`/`ft2uo`/`fo2it`/`fo2io`/`fo2ut`/`fo2uo`）：有限值结果 inexact ⇒ 置 NX；NaN/Inf/超出目标整型范围 ⇒ 饱和（最大/最小）+ NV。
+- **格式转换指令低 6 位语义重定义（编码不兼容）**：15 条有舍入的转换（8 条浮点→整数、`fo2ft`、`io2fo`/`uo2fo`/`it2ft`/`ut2ft`/`io2ft`/`uo2ft`）由「连续寄存器个数」改为**舍入方向 one-hot**（`0x01` RNE、`0x02` RNA、`0x04` RTZ、`0x08` RUP、`0x10` RDN、`0x20` dynamic=读 `rf0[33:32]`）；3 条精确转换（`ft2fo`/`it2fo`/`ut2fo`）改为 **SBZ**（非 0 ⇒ ILLI）；`ft2ft`/`fo2fo`/`rd2rf`/`rf2rd` 仍保留 1–63 计数。汇编层：前 18 条改为单寄存器、无花括号、第三操作数显式（SBZ 写 0，六档写六值之一），复制类保留 `{a:b}` 范围形式。
 - `call` 的返回地址明确为 **当前指令地址 + 4**（相对地址与绝对地址两种形式一致）。
 - `lr`/`sc`：保留标记粒度 = **精确地址 + 访问宽度**；`sc` 的 `rdHB` 为成功/失败结果，`rdHB = rd0` ⇒ ILLI。
 - `SimRISC QFC` 布局说明去掉版本号限定（布局表随版本演进，不再绑定单一版本号）。
