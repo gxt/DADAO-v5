@@ -12,11 +12,11 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| GEM5-025t | 已验证 | 2026-11-07 07:50 | gem5 SE IPC/多进程；pass 418/blocked 164，两桶清零；5 例环境缺口 |
 | GEM5-024t | 已验证 | 2026-11-07 03:13 | gem5 SE 信号+资源限制+进程信息；pass 409/blocked 178，三桶清零 |
 | GEM5-023t | 已验证 | 2026-11-06 23:47 | gem5 SE 文件 I/O + 时钟；pass 399/blocked 188，两桶清零 |
 | GEM5-028t | 待开始 | 2026-11-06 21:15（登记） | gem5 SE 文件映射 mmap + ldso 装载；解释器窗口约束 |
 | TESTCASES-104t | 待开始 | 2026-11-06 21:15（登记） | SE 动态档驱动 + QEMU dynamic 基线刷新 + 全量对照 |
-| GEM5-025t | 待开始 | 2026-11-06 20:30（登记） | gem5 SE IPC/多进程：pipe2/socket + execve/fork/wait4 |
 | GEM5-026t | 待开始 | 2026-11-06 20:30（登记） | gem5 SE 线程/futex + TLS：clone/futex/robust_list/TP |
 | GEM5-027t | 待开始 | 2026-11-06 20:30（登记） | gem5 SE 动态装载器：ET_EXEC+PT_INTERP/auxv/interp-dir+redirect |
 | INTEG-059t | 待开始 | 2026-11-06 20:30（登记） | G3 完整 tset 双向一致性（static+dynamic）+ 矩阵重生成 |

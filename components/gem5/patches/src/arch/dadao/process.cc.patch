@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/process.cc b/src/arch/dadao/process.cc
 new file mode 100644
-index 0000000..dad6dfe
+index 0000000..661be4f
 --- /dev/null
 +++ b/src/arch/dadao/process.cc
-@@ -0,0 +1,267 @@
+@@ -0,0 +1,271 @@
 +// DADAO syscall-emulation process -- implementation.
 +#include "arch/dadao/process.hh"
 +
@@ -152,6 +152,10 @@ index 0000000..dad6dfe
 +void
 +DadaoISA::Process::initState()
 +{
++    if (initialStateBuilt)
++        return;
++    initialStateBuilt = true;
++
 +    gem5::Process::initState();
 +
 +    argsInit<uint64_t>(PageBytes);

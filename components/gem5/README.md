@@ -169,9 +169,9 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   宿主身份 + `machine="dadao"`，同 QEMU)、`sysinfo`(179，宿主值按
   asm-generic 64-bit 布局)、`getpid`/`gettid`（SE 进程 id）、`getppid`、
   `getuid`/`geteuid`/`getgid`/`getegid`（宿主身份，与 `stat` 报告的
-  st_uid/gid 一致）、`getcwd`(17)。**已知限制**：单进程/单线程——`kill`/
-  `tgkill` 只对 self 投递（`pid` 为 0、-1 或 `-pid` 时也按 self 处理，其余
-  `ESRCH`）；`SIGSTOP`/`SIGTSTP` 等 stop 系按终止处理（无作业控制）；
+  st_uid/gid 一致）、`getcwd`(17)。**已知限制**：`kill`/
+  `tgkill` 的自投递面为 GEM5-024t 口径；GEM5-025t 起正 pid 会查 alive
+  进程表（含 fork 子进程），未知 pid 仍 `ESRCH`；`tgkill` 只对 self；`SIGSTOP`/`SIGTSTP` 等 stop 系按终止处理（无作业控制）；
   `rt_sigsuspend` 未实现（显式 `fatal`）；`ss_flags` 带 `SS_AUTODISARM`
   返回 `EINVAL`；页错误不转成 guest `SIGSEGV`（SE 平台既有行为，guest
   空指针仍是 simulator/loader 的 panic）；RAS 不在信号帧内（同 QEMU
@@ -189,6 +189,57 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `RLIMIT_DATA`，`RLIMIT_AS` 不强制；未设 `RLIMIT_STACK` 时读回
   `RLIM_INFINITY`（QEMU 读回宿主值 8 MiB）；升硬限 SE 返回 `EPERM`
   （QEMU 允许）。这些差异未被当前语料触达，基线无新增 `gem5_only_fail`。
+- **IPC 与多进程（GEM5-025t）**：`pipe2`(59)、`socket`(198)/`socketpair`(199)/
+  `bind`(200)/`listen`(201)/`accept`(202)/`accept4`(242)/`connect`(203)/
+  `getsockname`(204)/`getpeername`(205)/`sendto`(206)/`recvfrom`(207)/
+  `setsockopt`(208)/`getsockopt`(209)/`shutdown`(210)、`chdir`(49)、
+  `clone`(220)（musl 的 `fork`/`vfork`/`posix_spawn` 都走它）、`execve`(221)、
+  `wait4`(260)。
+  - **pipe 是 guest 对象**：两端都在 guest fd 表里（`DadaoPipeFDEntry`），
+    64 KiB 缓冲与两端打开计数由模拟器持有；`dup`/`fork` 共享同一 open file
+    description（`FDEntry::clone`）。短读、写端全关 ⇒ `EOF`、读端全关 ⇒
+    `EPIPE` + 挂起 `SIGPIPE`。宿主 pipe 会阻塞**模拟器**（能喂数据的是另一
+    guest 进程），故不使用。`pipe`(22) 未实现（musl 只发 `pipe2`）。
+  - **阻塞统一表达为 `SyscallRetryFault`**：空 pipe 读、写满的 pipe 写、
+    子进程未退出且非 `WNOHANG` 的 `wait4`、无连接可取的 `accept`/
+    `recvfrom` 都让 CPU 重执行同一 trap（`inst.cc` 读
+    `SEWorkload::syscallRetry`），绝不阻塞宿主线程；`O_NONBLOCK` fd 返回
+    `EAGAIN`。
+  - **socket 只做三个族**：`AF_UNIX`/`AF_INET`/`AF_INET6` 透传宿主
+    （sockaddr 的 2 字节 `sa_family` 在 guest 大端与宿主序之间转换，其余
+    字段要么是网络序、要么是 `sockaddr_un` 的不透明路径；`SO_RCVTIMEO`/
+    `SO_SNDTIMEO` 的 `timeval` 逐字段转换）；其它族 `EAFNOSUPPORT`，未知
+    `SOCK_*` 类型 `ESOCKTNOSUPPORT`。
+  - **多进程**：一个 guest 进程 = 一个 gem5 `Process` + 一个
+    `ThreadContext`（`se.py --num-threads`，默认 8；`system.multi_thread`
+    随之打开）。`clone` 复制地址空间与 fd 表（表真共享时 `CLONE_FILES`）、
+    子进程 `rb1 = newsp`、`rd8 = 0`；`CLONE_VFORK` 挂起父进程到子进程
+    exec/exit。`execve` 重建映像（argv/envp/auxv 仍由 `initState` 那套栈
+    构造），保留 pid/ppid/子进程表/`RLIMIT_*`/信号屏蔽与 `SIG_IGN`、按
+    `FD_CLOEXEC` 关 fd。`wait4` 返回原始 wait status（`WIFEXITED`/
+    `WEXITSTATUS`/`WIFSIGNALED`/`WTERMSIG`）、支持 `WNOHANG` 与 `ECHILD`。
+    最后一个进程退出才结束仿真，退出码取主进程状态（同单进程口径）。
+  - **已知限制**：① `CLONE_THREAD`（真线程）未实现，仍 `fatal` 带号
+    （`GEM5-026t`），threads/futex 桶保持 blocked；② `execve` 只接受 DADAO
+    `ET_EXEC`，宿主可执行/其它架构返回 `ENOEXEC`（不崩、不静默）——因此
+    需要 guest 根里 DADAO `/bin/sh`、`echo` 的 `functional/popen`/
+    `functional/spawn`/`regression/execle-env` 在当前语料下是真实失败
+    （QEMU 之所以过，是它把宿主 x86-64 `/bin/sh` 交给宿主内核执行）；
+    ③ 无 `poll`/`select`/`epoll`、无 `sendmsg`/`recvmsg`、无 `waitid`；
+    pipe 上的 `fcntl` 文件锁返回 `EINVAL`；④ 被信号唤醒的阻塞 syscall 以
+    「重新执行」处理（近似 ERESTARTSYS），不是精确的 `EINTR`；
+    ⑤ `RLIMIT_NPROC`/`RLIMIT_SIGPENDING` 不强制。
+  - **已知限制**：socket fd 上的 `read`/`write` 仍走宿主阻塞调用（语料只用
+    `sendto`/`recvfrom`/`accept`，未触发）；`wait4` 在「目标不是子进程、但存在
+    其它子进程」时不会返回 `ECHILD` 而是继续阻塞；进程 pid 不复用；
+    `execve` 遇到存在但不可读的 ELF 会经 loader 直接中止（未按 Linux 返回
+    `EACCES`）；guest 缓冲非法时 pipe/socket 读会先消费数据再报 `EFAULT`
+    （与既有文件读同款，语料不可达）。**环境缺口**：语料里的 `popen`/
+    `spawn`/`vfork`/`execle-env`/`unix-smail` 需要 guest 根内有 DADAO
+    `/bin/sh`、`echo`；SE 没有，`execve` 按语义返回 `ENOEXEC`。QEMU 侧
+    之所以通过，是把宿主 x86-64 二进制交给宿主内核执行，属**非同架构
+    baseline**，不能据此判 gem5 能力不足。
+
 - **页大小**：`PageShift = 16`（64 KiB），`AT_PAGESZ = 65536`（与架构页一致）。
 - **初始状态**：PC = `e_entry`、SP = `rb1`、`rf0 = 0x7FF800007FC00000`、
   `ra0` 指向 1 MiB 预置 MemRAS（`MRPTR = 区顶 − 8`，invalid entry = 0）。

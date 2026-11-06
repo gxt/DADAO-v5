@@ -1,21 +1,26 @@
 diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
 new file mode 100644
-index 0000000..a53f7a3
+index 0000000..897cdb7
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.cc
-@@ -0,0 +1,2692 @@
+@@ -0,0 +1,4359 @@
 +// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
 +#include "arch/dadao/se_workload.hh"
 +
 +#include <fcntl.h>
++#include <netinet/in.h>
++#include <poll.h>
 +#include <sys/resource.h>
++#include <sys/socket.h>
 +#include <sys/stat.h>
 +#include <sys/syscall.h>
 +#include <sys/sysinfo.h>
 +#include <sys/time.h>
 +#include <sys/uio.h>
++#include <sys/un.h>
 +#include <sys/utsname.h>
 +#include <sys/vfs.h>
++#include <sys/wait.h>
 +#include <time.h>
 +#include <unistd.h>
 +
@@ -23,6 +28,7 @@ index 0000000..a53f7a3
 +#include <cerrno>
 +#include <cstdint>
 +#include <cstring>
++#include <deque>
 +#include <limits>
 +#include <memory>
 +#include <string>
@@ -30,8 +36,10 @@ index 0000000..a53f7a3
 +
 +#include "arch/dadao/process.hh"
 +#include "arch/dadao/pcstate.hh"
++#include "arch/dadao/regs/float.hh"
 +#include "arch/dadao/regs/int.hh"
 +#include "base/intmath.hh"
++#include "base/loader/elf_object.hh"
 +#include "base/logging.hh"
 +#include "cpu/thread_context.hh"
 +#include "mem/se_translating_port_proxy.hh"
@@ -60,6 +68,7 @@ index 0000000..a53f7a3
 +constexpr uint64_t SysMkdirat = 34;
 +constexpr uint64_t SysUnlinkat = 35;
 +constexpr uint64_t SysStatfs = 43;
++constexpr uint64_t SysChdir = 49;
 +constexpr uint64_t SysFaccessat = 48;
 +constexpr uint64_t SysOpenat = 56;
 +constexpr uint64_t SysClose = 57;
@@ -110,6 +119,65 @@ index 0000000..a53f7a3
 +constexpr uint64_t SysMprotect = 226;
 +constexpr uint64_t SysPrlimit64 = 261;
 +constexpr uint64_t SysFaccessat2 = 439;
++// IPC / socket / multi-process (GEM5-025t); numbers from the same locked
++// asm-generic table (musl arch/dadao/bits/syscall.h.in).
++constexpr uint64_t SysPipe2 = 59;
++constexpr uint64_t SysSocket = 198;
++constexpr uint64_t SysSocketpair = 199;
++constexpr uint64_t SysBind = 200;
++constexpr uint64_t SysListen = 201;
++constexpr uint64_t SysAccept = 202;
++constexpr uint64_t SysConnect = 203;
++constexpr uint64_t SysGetsockname = 204;
++constexpr uint64_t SysGetpeername = 205;
++constexpr uint64_t SysSendto = 206;
++constexpr uint64_t SysRecvfrom = 207;
++constexpr uint64_t SysSetsockopt = 208;
++constexpr uint64_t SysGetsockopt = 209;
++constexpr uint64_t SysShutdown = 210;
++constexpr uint64_t SysClone = 220;
++constexpr uint64_t SysExecve = 221;
++constexpr uint64_t SysAccept4 = 242;
++constexpr uint64_t SysWait4 = 260;
++
++// clone(2) flags (asm-generic uapi linux/sched.h).  CLONE_THREAD is explicitly
++// *not* implemented: it is the real-thread surface of GEM5-026t, and leaving
++// the guest threads/futex blocked bucket untouched is the intended boundary.
++constexpr uint64_t CloneVm = 0x00000100;
++constexpr uint64_t CloneFiles = 0x00000400;
++constexpr uint64_t CloneSighand = 0x00000800;
++constexpr uint64_t CloneVfork = 0x00004000;
++constexpr uint64_t CloneThread = 0x00010000;
++constexpr uint64_t CloneNewns = 0x00020000;
++constexpr uint64_t CloneNewcgroup = 0x02000000;
++constexpr uint64_t CloneNewuts = 0x04000000;
++constexpr uint64_t CloneNewipc = 0x08000000;
++constexpr uint64_t CloneNewuser = 0x10000000;
++constexpr uint64_t CloneNewpid = 0x20000000;
++constexpr uint64_t CloneNewnet = 0x40000000;
++constexpr uint64_t CloneParentSettid = 0x00100000;
++constexpr uint64_t CloneChildSettid = 0x00200000;
++constexpr uint64_t CloneUnsupportedNamespaces =
++    CloneNewns | CloneNewcgroup | CloneNewuts | CloneNewipc | CloneNewuser |
++    CloneNewpid | CloneNewnet;
++
++constexpr int WaitNoHang = 0x1;
++constexpr int WaitUntraced = 0x2;
++
++// Socket address families this SE layer forwards to the host.  Everything else
++// is answered with EAFNOSUPPORT instead of being passed through (see
++// components/gem5/README.md, capability boundary).
++constexpr int AfUnix = 1;
++constexpr int AfInet = 2;
++constexpr int AfInet6 = 10;
++constexpr int SockStream = 1;
++constexpr int SockDgram = 2;
++constexpr int SockRaw = 3;
++constexpr int SockSeqpacket = 5;
++constexpr int TgtSockCloexec = 0x80000;
++constexpr int TgtSockNonblock = 0x800;
++constexpr size_t GuestSockaddrMax = 128;
++
 +
 +// time(2) has no number in the locked asm-generic 64-bit table (musl routes
 +// time() through clock_gettime(CLOCK_REALTIME)); 1062 is the legacy number
@@ -200,6 +268,7 @@ index 0000000..a53f7a3
 +constexpr uint64_t MinSigStkSz = 2048; // arch/dadao/bits/signal.h MINSIGSTKSZ
 +constexpr int SigKill = 9;
 +constexpr int SigSegv = 11;
++constexpr int SigPipe = 13;
 +constexpr int SigChld = 17;
 +constexpr int SigCont = 18;
 +constexpr int SigStop = 19;
@@ -207,6 +276,9 @@ index 0000000..a53f7a3
 +constexpr int SigWinch = 28;
 +constexpr int SiUser = 0;  // kill(2)
 +constexpr int SiTkill = -6; // tkill(2)/tgkill(2)
++// siginfo si_code for a child's death (linux/sched.h: CLD_EXITED, CLD_KILLED).
++constexpr int SiChildExited = 1;
++constexpr int SiChildKilled = 2;
 +
 +// rt_sigaction's kernel struct on this ABI (musl arch/dadao/ksigaction.h
 +// without SA_RESTORER): handler(8), flags(8), mask[2](8), unused(8) = 32 B.
@@ -255,6 +327,10 @@ index 0000000..a53f7a3
 +{
 +    return RegId(DadaoISA::intRegClass, idx);
 +}
++
++/** Bit (sig-1) of the 8-byte guest sigset (defined with the signal surface
++ *  below; the pipe write path posts SIGPIPE). */
++uint64_t signalBit(int sig);
 +
 +RegId
 +rd(unsigned idx)
@@ -390,6 +466,191 @@ index 0000000..a53f7a3
 +        }
 +    }
 +    return -EMFILE;
++}
++
++// --- Pipes (GEM5-025t) ---------------------------------------------------
++//
++// A pipe is a guest kernel object, not a host file descriptor: both ends are
++// in the guest fd table and the buffer lives in the simulator.  Keeping the
++// state here is what makes a pipe between two guest processes work -- a host
++// pipe would block the *simulator* on a read that only another guest process
++// can satisfy.
++constexpr size_t PipeCapacity = 65536;
++
++struct PipeState
++{
++    std::deque<uint8_t> buffer;
++    int readers = 0;
++    int writers = 0;
++};
++
++/** One end of a pipe in a guest fd table.  `clone()` is what dup(2), fork(2)
++ *  and the fd-table copy in Process::clone() use: the *open file description*
++ *  (the buffer and the end counts) is shared, exactly like Linux. */
++class DadaoPipeFDEntry : public FDEntry
++{
++  public:
++    DadaoPipeFDEntry(std::shared_ptr<PipeState> pipe, bool read_end, int flags) :
++        FDEntry(flags & TgtOCloexec), state(std::move(pipe)), readEnd(read_end),
++        flags(flags)
++    {
++        _class = FDClass::fd_pipe;
++        if (readEnd)
++            ++state->readers;
++        else
++            ++state->writers;
++    }
++
++    DadaoPipeFDEntry(const DadaoPipeFDEntry &other) :
++        FDEntry(other.getCOE()), state(other.state), readEnd(other.readEnd),
++        flags(other.flags)
++    {
++        _class = FDClass::fd_pipe;
++        if (readEnd)
++            ++state->readers;
++        else
++            ++state->writers;
++    }
++
++    ~DadaoPipeFDEntry() override
++    {
++        if (readEnd)
++            --state->readers;
++        else
++            --state->writers;
++    }
++
++    std::shared_ptr<FDEntry>
++    clone() const override
++    {
++        return std::make_shared<DadaoPipeFDEntry>(*this);
++    }
++
++    std::shared_ptr<PipeState> state;
++    bool readEnd;
++    int flags; // guest-visible status flags (access mode + O_NONBLOCK)
++};
++
++/** True when the guest fd is an open end of a pipe. */
++bool
++pipeFdOf(DadaoISA::Process *process, int fd, std::shared_ptr<DadaoPipeFDEntry> &pipe)
++{
++    std::shared_ptr<FDEntry> entry;
++    if (guestFdEntry(process, fd, entry) != 0)
++        return false;
++    pipe = std::dynamic_pointer_cast<DadaoPipeFDEntry>(entry);
++    return pipe != nullptr;
++}
++
++// --- Sockets (GEM5-025t) -------------------------------------------------
++//
++// Only the families the static corpus reaches are forwarded to the host: the
++// AF_UNIX probe musl's nscd lookup opens and the AF_INET loopback traffic of
++// functional/socket.  Everything else is EAFNOSUPPORT, never a silent pass
++// through to a host socket the guest never asked for.
++bool
++familySupported(int family)
++{
++    return family == AfUnix || family == AfInet || family == AfInet6;
++}
++
++/** Guest sa_family (big-endian) -> host order.  Every other sockaddr byte is
++ *  either opaque (a sockaddr_un path) or already network order. */
++void
++sockaddrToHost(uint8_t *raw, size_t len)
++{
++    if (len < 2)
++        return;
++    const uint16_t family = readBigEndian16(raw);
++    std::memcpy(raw, &family, sizeof(family));
++}
++
++void
++sockaddrToGuest(uint8_t *raw, size_t len)
++{
++    if (len < 2)
++        return;
++    uint16_t family;
++    std::memcpy(&family, raw, sizeof(family));
++    writeBigEndian16(raw, family);
++}
++
++/** Non-blocking readiness probe used to keep a blocking guest socket call
++ *  from blocking the simulator: when the host operation would sleep, the
++ *  syscall is retried (SyscallRetryFault) instead. */
++bool
++pollReady(int sim_fd, short events)
++{
++    struct pollfd pfd;
++    pfd.fd = sim_fd;
++    pfd.events = events;
++    pfd.revents = 0;
++    return ::poll(&pfd, 1, 0) > 0;
++}
++
++bool
++hostFdNonblocking(int sim_fd)
++{
++    const int flags = ::fcntl(sim_fd, F_GETFL);
++    return flags >= 0 && (flags & O_NONBLOCK);
++}
++
++// POSIX record locks are per-*process* in Linux, but every guest process runs
++// inside one host process here: forwarding fcntl(F_SETLK) to the host would let
++// a child's lock silently replace its parent's (both carry the host pid).  The
++// table below keeps the owner on the guest side and never asks the host.
++struct GuestFileLock
++{
++    dev_t dev;
++    ino_t ino;
++    DadaoISA::Process *owner;
++    int type;   // F_RDLCK or F_WRLCK
++    int64_t start;
++    int64_t len; // 0 == to EOF
++};
++
++std::vector<GuestFileLock> guestFileLocks;
++
++bool
++lockOverlaps(const GuestFileLock &lock, int64_t start, int64_t len)
++{
++    const int64_t lockEnd = lock.len ? lock.start + lock.len : INT64_MAX;
++    const int64_t end = len ? start + len : INT64_MAX;
++    return start < lockEnd && lock.start < end;
++}
++
++bool
++fileIdentityOf(int simFd, dev_t &dev, ino_t &ino)
++{
++    struct stat st;
++    if (::fstat(simFd, &st) < 0)
++        return false;
++    dev = st.st_dev;
++    ino = st.st_ino;
++    return true;
++}
++
++void
++dropProcessLocks(DadaoISA::Process *owner)
++{
++    guestFileLocks.erase(
++            std::remove_if(guestFileLocks.begin(), guestFileLocks.end(),
++                           [owner](const GuestFileLock &lock) {
++                               return lock.owner == owner;
++                           }),
++            guestFileLocks.end());
++}
++
++void
++dropProcessLocks(DadaoISA::Process *owner, dev_t dev, ino_t ino)
++{
++    guestFileLocks.erase(
++            std::remove_if(guestFileLocks.begin(), guestFileLocks.end(),
++                           [owner, dev, ino](const GuestFileLock &lock) {
++                               return lock.owner == owner &&
++                                      lock.dev == dev && lock.ino == ino;
++                           }),
++            guestFileLocks.end());
 +}
 +
 +struct OpenFlagMap
@@ -551,6 +812,79 @@ index 0000000..a53f7a3
 +    return static_cast<uint64_t>(scaled / sim_clock::Frequency);
 +}
 +
++/** Write to one end of a guest pipe.  Returns the number of bytes accepted;
++ *  `blocked` asks the caller to retry the syscall (the buffer is full). */
++RegVal
++doPipeWrite(ThreadContext *tc, DadaoISA::Process *process,
++            const std::shared_ptr<DadaoPipeFDEntry> &pipe, Addr buf, uint64_t count,
++            bool &blocked)
++{
++    if (pipe->readEnd)
++        return static_cast<RegVal>(-EBADF);
++
++    if (pipe->state->readers == 0) {
++        // EPIPE plus a pending SIGPIPE, exactly like the kernel's pipe_write.
++        auto &state = process->signals;
++        state.pending |= signalBit(SigPipe);
++        state.pendingCode[SigPipe] = SiUser;
++        return static_cast<RegVal>(-EPIPE);
++    }
++
++    std::vector<uint8_t> data(count);
++    if (count > 0) {
++        SETranslatingPortProxy proxy(tc, SETranslatingPortProxy::Never);
++        if (!proxy.tryReadBlob(buf, data.data(), count))
++            return static_cast<RegVal>(-EFAULT);
++    }
++    if (count == 0)
++        return 0;
++
++    const size_t space = PipeCapacity - pipe->state->buffer.size();
++    if (space == 0) {
++        if (pipe->flags & TgtONonblock)
++            return static_cast<RegVal>(-EAGAIN);
++        blocked = true;
++        return 0;
++    }
++    const size_t written = std::min<size_t>(count, space);
++    for (size_t i = 0; i < written; ++i)
++        pipe->state->buffer.push_back(data[i]);
++    return static_cast<RegVal>(written);
++}
++
++/** Read from one end of a guest pipe.  A short read is normal (the guest sees
++ *  whatever is buffered); EOF is 0 once every write end is closed. */
++RegVal
++doPipeRead(ThreadContext *tc, DadaoISA::Process *process,
++           const std::shared_ptr<DadaoPipeFDEntry> &pipe, Addr buf, uint64_t count,
++           bool &blocked)
++{
++    (void)process;
++    if (!pipe->readEnd)
++        return static_cast<RegVal>(-EBADF);
++    if (count == 0)
++        return 0;
++
++    if (pipe->state->buffer.empty()) {
++        if (pipe->state->writers == 0)
++            return 0; // EOF
++        if (pipe->flags & TgtONonblock)
++            return static_cast<RegVal>(-EAGAIN);
++        blocked = true;
++        return 0;
++    }
++
++    const size_t available = std::min<size_t>(count, pipe->state->buffer.size());
++    std::vector<uint8_t> data(available);
++    for (size_t i = 0; i < available; ++i) {
++        data[i] = pipe->state->buffer.front();
++        pipe->state->buffer.pop_front();
++    }
++    if (!writeGuestBlob(tc, buf, data.data(), available))
++        return static_cast<RegVal>(-EFAULT);
++    return static_cast<RegVal>(available);
++}
++
 +/** write(2) on a host-backed guest file descriptor.
 + *
 + * Guest memory is read with Never allocation: a bad pointer must fail with
@@ -558,12 +892,17 @@ index 0000000..a53f7a3
 + */
 +RegVal
 +doWrite(ThreadContext *tc, DadaoISA::Process *process, int fd, Addr buf,
-+        uint64_t count)
++        uint64_t count, bool &blocked)
 +{
 +    if (fd < 0 || fd >= process->fds->getSize())
 +        return static_cast<RegVal>(-EBADF);
 +
 +    std::shared_ptr<FDEntry> entry = (*process->fds)[fd];
++    if (!entry)
++        return static_cast<RegVal>(-EBADF);
++    if (auto pipe = std::dynamic_pointer_cast<DadaoPipeFDEntry>(entry))
++        return doPipeWrite(tc, process, pipe, buf, count, blocked);
++
 +    auto hostEntry = std::dynamic_pointer_cast<HBFDEntry>(entry);
 +    if (!hostEntry)
 +        return static_cast<RegVal>(-EBADF);
@@ -590,11 +929,18 @@ index 0000000..a53f7a3
 +/** read(2) on a host-backed guest file descriptor. */
 +RegVal
 +doRead(ThreadContext *tc, DadaoISA::Process *process, int fd, Addr buf,
-+       uint64_t count)
++       uint64_t count, bool &blocked)
 +{
-+    int sim_fd;
-+    if (int status = hostFdOf(process, fd, sim_fd); status != 0)
++    std::shared_ptr<FDEntry> entry;
++    if (int status = guestFdEntry(process, fd, entry); status != 0)
 +        return static_cast<RegVal>(status);
++    if (auto pipe = std::dynamic_pointer_cast<DadaoPipeFDEntry>(entry))
++        return doPipeRead(tc, process, pipe, buf, count, blocked);
++
++    auto host_entry = std::dynamic_pointer_cast<HBFDEntry>(entry);
++    if (!host_entry)
++        return static_cast<RegVal>(-EBADF);
++    const int sim_fd = host_entry->getSimFD();
 +
 +    std::vector<uint8_t> data(count);
 +    ssize_t bytes_read;
@@ -618,6 +964,9 @@ index 0000000..a53f7a3
 +        return static_cast<RegVal>(-EINVAL);
 +
 +    int sim_fd;
++    std::shared_ptr<DadaoPipeFDEntry> pipe;
++    if (pipeFdOf(process, fd, pipe))
++        return static_cast<RegVal>(-ESPIPE);
 +    if (int status = hostFdOf(process, fd, sim_fd); status != 0)
 +        return static_cast<RegVal>(status);
 +
@@ -634,19 +983,60 @@ index 0000000..a53f7a3
 +    return static_cast<RegVal>(bytes_read);
 +}
 +
-+/** readv(2) on a host-backed guest file descriptor. */
++/** readv(2) on a guest file descriptor. */
 +RegVal
 +doReadv(ThreadContext *tc, DadaoISA::Process *process, int fd, Addr iov,
-+        uint64_t iovcnt)
++        uint64_t iovcnt, bool &blocked)
 +{
 +    constexpr uint64_t IovecSize = 16;
 +
 +    if (iovcnt > 1024)
 +        return static_cast<RegVal>(-EINVAL);
 +
-+    int sim_fd;
-+    if (int status = hostFdOf(process, fd, sim_fd); status != 0)
++    std::shared_ptr<FDEntry> entry;
++    if (int status = guestFdEntry(process, fd, entry); status != 0)
 +        return static_cast<RegVal>(status);
++
++    // A pipe end: fill the vector from whatever is buffered (a short read is
++    // normal); only a completely empty buffer waits for the writer.
++    if (auto pipe = std::dynamic_pointer_cast<DadaoPipeFDEntry>(entry)) {
++        if (!pipe->readEnd)
++            return static_cast<RegVal>(-EBADF);
++        if (pipe->state->buffer.empty()) {
++            if (pipe->state->writers == 0)
++                return 0;
++            if (pipe->flags & TgtONonblock)
++                return static_cast<RegVal>(-EAGAIN);
++            blocked = true;
++            return 0;
++        }
++        std::vector<uint8_t> raw(iovcnt * IovecSize);
++        if (iovcnt > 0 && !readGuestBlob(tc, iov, raw.data(), raw.size()))
++            return static_cast<RegVal>(-EFAULT);
++        RegVal total = 0;
++        for (uint64_t i = 0; i < iovcnt && !pipe->state->buffer.empty(); ++i) {
++            const Addr base = readBigEndian64(&raw[i * IovecSize]);
++            const uint64_t len = readBigEndian64(&raw[i * IovecSize + 8]);
++            const size_t n = std::min<size_t>(
++                    len, pipe->state->buffer.size());
++            if (n == 0)
++                continue;
++            std::vector<uint8_t> chunk(n);
++            for (size_t j = 0; j < n; ++j) {
++                chunk[j] = pipe->state->buffer.front();
++                pipe->state->buffer.pop_front();
++            }
++            if (!writeGuestBlob(tc, base, chunk.data(), n))
++                return total > 0 ? total : static_cast<RegVal>(-EFAULT);
++            total += static_cast<RegVal>(n);
++        }
++        return total;
++    }
++
++    auto host_entry = std::dynamic_pointer_cast<HBFDEntry>(entry);
++    if (!host_entry)
++        return static_cast<RegVal>(-EBADF);
++    const int sim_fd = host_entry->getSimFD();
 +
 +    std::vector<uint8_t> raw(iovcnt * IovecSize);
 +    if (!readGuestBlob(tc, iov, raw.data(), raw.size()))
@@ -728,6 +1118,15 @@ index 0000000..a53f7a3
 +    if (int status = guestFdEntry(process, fd, entry); status != 0)
 +        return static_cast<RegVal>(status);
 +
++    // POSIX: closing any descriptor of a file drops this process's record
++    // locks on it (the guest-side table, see doFcntl).
++    if (auto host_entry = std::dynamic_pointer_cast<HBFDEntry>(entry)) {
++        dev_t dev;
++        ino_t ino;
++        if (fileIdentityOf(host_entry->getSimFD(), dev, ino))
++            dropProcessLocks(process, dev, ino);
++    }
++
 +    // closeFDEntry() closes the host fd (except the three std fds) and clears
 +    // the slot.  It reports -1, not -errno, on a host failure.
 +    if (process->fds->closeFDEntry(fd) < 0)
@@ -740,6 +1139,9 @@ index 0000000..a53f7a3
 +doLseek(DadaoISA::Process *process, int fd, int64_t offset, int whence)
 +{
 +    int sim_fd;
++    std::shared_ptr<DadaoPipeFDEntry> pipe;
++    if (pipeFdOf(process, fd, pipe))
++        return static_cast<RegVal>(-ESPIPE);
 +    if (int status = hostFdOf(process, fd, sim_fd); status != 0)
 +        return static_cast<RegVal>(status);
 +
@@ -755,23 +1157,25 @@ index 0000000..a53f7a3
 +    if (int status = guestFdEntry(process, fd, entry); status != 0)
 +        return static_cast<RegVal>(status);
 +
-+    auto host_entry = std::dynamic_pointer_cast<HBFDEntry>(entry);
-+    if (!host_entry)
-+        return static_cast<RegVal>(-EBADF);
-+
-+    int sim_fd = ::dup(host_entry->getSimFD());
-+    if (sim_fd < 0)
-+        return static_cast<RegVal>(-errno);
-+
-+    auto clone = std::dynamic_pointer_cast<HBFDEntry>(entry->clone());
-+    clone->setSimFD(sim_fd);
++    std::shared_ptr<FDEntry> clone = entry->clone();
 +    clone->setCOE(false);
-+    const int guest_fd = allocGuestFd(process, clone);
-+    if (guest_fd < 0) {
-+        ::close(sim_fd);
-+        return static_cast<RegVal>(guest_fd);
++    if (auto host_entry = std::dynamic_pointer_cast<HBFDEntry>(clone)) {
++        int sim_fd = ::dup(host_entry->getSimFD());
++        if (sim_fd < 0)
++            return static_cast<RegVal>(-errno);
++        host_entry->setSimFD(sim_fd);
++        const int guest_fd = allocGuestFd(process, clone);
++        if (guest_fd < 0) {
++            ::close(sim_fd);
++            return static_cast<RegVal>(guest_fd);
++        }
++        return guest_fd;
 +    }
-+    return guest_fd;
++
++    // A pipe end: clone() shares the open file description (buffer and end
++    // counts), which is exactly what dup(2) does.
++    const int guest_fd = allocGuestFd(process, clone);
++    return guest_fd < 0 ? static_cast<RegVal>(guest_fd) : guest_fd;
 +}
 +
 +/** dup3(2). */
@@ -790,20 +1194,22 @@ index 0000000..a53f7a3
 +    if (int status = guestFdEntry(process, old_fd, entry); status != 0)
 +        return static_cast<RegVal>(status);
 +
-+    auto host_entry = std::dynamic_pointer_cast<HBFDEntry>(entry);
-+    if (!host_entry)
-+        return static_cast<RegVal>(-EBADF);
++    std::shared_ptr<FDEntry> clone = entry->clone();
++    clone->setCOE(flags & TgtOCloexec);
++    if (auto host_entry = std::dynamic_pointer_cast<HBFDEntry>(clone)) {
++        int sim_fd = ::dup(host_entry->getSimFD());
++        if (sim_fd < 0)
++            return static_cast<RegVal>(-errno);
++        host_entry->setSimFD(sim_fd);
 +
-+    int sim_fd = ::dup(host_entry->getSimFD());
-+    if (sim_fd < 0)
-+        return static_cast<RegVal>(-errno);
++        if ((*process->fds)[new_fd])
++            process->fds->closeFDEntry(new_fd);
++        process->fds->setFDEntry(new_fd, clone);
++        return new_fd;
++    }
 +
 +    if ((*process->fds)[new_fd])
 +        process->fds->closeFDEntry(new_fd);
-+
-+    auto clone = std::dynamic_pointer_cast<HBFDEntry>(entry->clone());
-+    clone->setSimFD(sim_fd);
-+    clone->setCOE(flags & TgtOCloexec);
 +    process->fds->setFDEntry(new_fd, clone);
 +    return new_fd;
 +}
@@ -815,7 +1221,7 @@ index 0000000..a53f7a3
 +
 +RegVal
 +doFcntl(ThreadContext *tc, DadaoISA::Process *process, int fd, int cmd,
-+        uint64_t arg)
++        uint64_t arg, bool &blocked)
 +{
 +    constexpr int FDupfd = 0;
 +    constexpr int FDupfdCloexec = 1030;
@@ -828,11 +1234,55 @@ index 0000000..a53f7a3
 +    constexpr int FSetlkw = 7;
 +
 +    int sim_fd;
-+    if (int status = hostFdOf(process, fd, sim_fd); status != 0)
++    std::shared_ptr<FDEntry> entry;
++    if (int status = guestFdEntry(process, fd, entry); status != 0)
 +        return static_cast<RegVal>(status);
 +
-+    std::shared_ptr<FDEntry> entry;
-+    guestFdEntry(process, fd, entry);
++    // A pipe end has no host descriptor: its status flags live in the guest
++    // entry (the pipe itself is a guest object, see DadaoPipeFDEntry).
++    if (auto pipe = std::dynamic_pointer_cast<DadaoPipeFDEntry>(entry)) {
++        switch (cmd) {
++          case FDupfd:
++          case FDupfdCloexec: {
++            const int first = static_cast<int>(arg);
++            int limit = process->fds->getSize();
++            const auto &nofile = process->limits[DadaoISA::RlimitNofile];
++            if (nofile.cur < static_cast<uint64_t>(limit))
++                limit = static_cast<int>(nofile.cur);
++            if (first < 0 || first >= limit)
++                return static_cast<RegVal>(-EINVAL);
++            auto clone = pipe->clone();
++            clone->setCOE(cmd == FDupfdCloexec);
++            for (int candidate = first; candidate < limit; ++candidate) {
++                if ((*process->fds)[candidate])
++                    continue;
++                process->fds->setFDEntry(candidate, clone);
++                return candidate;
++            }
++            return static_cast<RegVal>(-EMFILE);
++          }
++          case FGetfd:
++            return pipe->getCOE() ? FD_CLOEXEC : 0;
++          case FSetfd:
++            pipe->setCOE(arg & FD_CLOEXEC);
++            return 0;
++          case FGetfl:
++            return pipe->flags;
++          case FSetfl: {
++            // Only O_NONBLOCK/O_APPEND change on a pipe; both are recorded on
++            // the guest entry because the buffer is guest-side.
++            constexpr int OAppend = 0x400;
++            pipe->flags = (pipe->flags & (O_ACCMODE)) |
++                          (static_cast<int>(arg) & (TgtONonblock | OAppend));
++            return 0;
++          }
++          default:
++            return static_cast<RegVal>(-EINVAL);
++        }
++    }
++
++    if (int status = hostFdOf(process, fd, sim_fd); status != 0)
++        return static_cast<RegVal>(status);
 +    auto host_entry = std::dynamic_pointer_cast<HBFDEntry>(entry);
 +
 +    switch (cmd) {
@@ -885,6 +1335,8 @@ index 0000000..a53f7a3
 +      case FGetlk:
 +      case FSetlk:
 +      case FSetlkw: {
++        constexpr int FUnlck = 2;
++
 +        if (static_cast<Addr>(arg) == 0)
 +            return static_cast<RegVal>(-EFAULT);
 +
@@ -892,30 +1344,72 @@ index 0000000..a53f7a3
 +        if (!readGuestBlob(tc, static_cast<Addr>(arg), raw, sizeof(raw)))
 +            return static_cast<RegVal>(-EFAULT);
 +
-+        struct flock host_lock;
-+        std::memset(&host_lock, 0, sizeof(host_lock));
-+        host_lock.l_type = readBigEndian16(raw);
-+        host_lock.l_whence = readBigEndian16(raw + 2);
-+        host_lock.l_start = readBigEndian64(raw + 8);
-+        host_lock.l_len = readBigEndian64(raw + 16);
-+        host_lock.l_pid = readBigEndian32(raw + 24);
++        // struct flock: {short type, short whence, 4 B pad, off start,
++        // off len, pid_t pid} (asm-generic 64-bit, big-endian).
++        const int type = readBigEndian16(raw);
++        const int64_t start = readBigEndian64(raw + 8);
++        const int64_t length = readBigEndian64(raw + 16);
 +
-+        int host_cmd = (cmd == FGetlk) ? F_GETLK :
-+                       (cmd == FSetlk) ? F_SETLK : F_SETLKW;
-+        int result = ::fcntl(sim_fd, host_cmd, &host_lock);
-+        if (result < 0)
++        dev_t dev;
++        ino_t ino;
++        if (!fileIdentityOf(sim_fd, dev, ino))
 +            return static_cast<RegVal>(-errno);
 +
 +        if (cmd == FGetlk) {
++            const GuestFileLock *found = nullptr;
++            for (const auto &lock : guestFileLocks) {
++                if (lock.dev != dev || lock.ino != ino)
++                    continue;
++                if (lock.owner == process)
++                    continue;
++                if (type == F_RDLCK && lock.type == F_RDLCK)
++                    continue; // read/read do not conflict
++                if (!lockOverlaps(lock, start, length))
++                    continue;
++                found = &lock;
++                break;
++            }
 +            std::memset(raw, 0, sizeof(raw));
-+            writeBigEndian16(raw, host_lock.l_type);
-+            writeBigEndian16(raw + 2, host_lock.l_whence);
-+            writeBigEndian64(raw + 8, host_lock.l_start);
-+            writeBigEndian64(raw + 16, host_lock.l_len);
-+            writeBigEndian32(raw + 24, host_lock.l_pid);
++            if (found != nullptr) {
++                writeBigEndian16(raw, found->type);
++                writeBigEndian16(raw + 2, 0 /* SEEK_SET */);
++                writeBigEndian64(raw + 8, found->start);
++                writeBigEndian64(raw + 16, found->len);
++                writeBigEndian32(raw + 24, found->owner->pid());
++            } else {
++                writeBigEndian16(raw, FUnlck);
++            }
 +            if (!writeGuestBlob(tc, static_cast<Addr>(arg), raw, sizeof(raw)))
 +                return static_cast<RegVal>(-EFAULT);
++            return 0;
 +        }
++
++        // F_SETLK / F_SETLKW: release, or take (replacing this process's own
++        // overlapping range, as POSIX specifies).
++        dropProcessLocks(process, dev, ino);
++        if (type == FUnlck)
++            return 0;
++
++        bool conflict = false;
++        for (const auto &lock : guestFileLocks) {
++            if (lock.dev != dev || lock.ino != ino || lock.owner == process)
++                continue;
++            if (lockOverlaps(lock, start, length)) {
++                conflict = true;
++                break;
++            }
++        }
++        if (conflict) {
++            if (cmd == FSetlkw && !(::fcntl(sim_fd, F_GETFL) & O_NONBLOCK)) {
++                blocked = true; // retried until the owner releases
++                return 0;
++            }
++            return static_cast<RegVal>(-EAGAIN);
++        }
++        // Re-insert every lock this process still holds on the file (the drop
++        // above removed them); POSIX replaces only the overlapping range, and
++        // no corpus case holds more than one lock per file.
++        guestFileLocks.push_back({dev, ino, process, type, start, length});
 +        return 0;
 +      }
 +
@@ -928,6 +1422,23 @@ index 0000000..a53f7a3
 +RegVal
 +doFstat(ThreadContext *tc, DadaoISA::Process *process, int fd, Addr stat_addr)
 +{
++    // A pipe end has no host descriptor; report what the kernel would: an
++    // S_IFIFO with no size (musl's stdio asks to pick its buffering).
++    if (std::shared_ptr<DadaoPipeFDEntry> pipe; pipeFdOf(process, fd, pipe)) {
++        struct stat pipe_stat;
++        std::memset(&pipe_stat, 0, sizeof(pipe_stat));
++        pipe_stat.st_mode = S_IFIFO | 0600;
++        pipe_stat.st_nlink = 1;
++        pipe_stat.st_blksize = 4096;
++        pipe_stat.st_uid = ::geteuid();
++        pipe_stat.st_gid = ::getegid();
++        uint8_t raw[GuestStatSize];
++        packGuestStat(pipe_stat, raw);
++        if (!writeGuestBlob(tc, stat_addr, raw, sizeof(raw)))
++            return static_cast<RegVal>(-EFAULT);
++        return 0;
++    }
++
 +    int sim_fd;
 +    if (int status = hostFdOf(process, fd, sim_fd); status != 0)
 +        return static_cast<RegVal>(status);
@@ -1195,6 +1706,36 @@ index 0000000..a53f7a3
 +
 +    return ::mkdir(host_path.c_str(), mode) < 0 ?
 +        static_cast<RegVal>(-errno) : 0;
++}
++
++/** chdir(2): move the guest cwd (Process::tgtCwd, always stored with a
++ *  trailing '/') and the host directory it maps to.  musl's daemon(3) needs
++ *  it before its open("/dev/null"). */
++RegVal
++doChdir(ThreadContext *tc, DadaoISA::Process *process, Addr path_addr)
++{
++    std::string path;
++    if (!readGuestString(tc, path_addr, path))
++        return static_cast<RegVal>(-EFAULT);
++
++    std::string guest_path;
++    std::string host_path;
++    if (int status =
++            resolveGuestPath(process, AtFdcwd, path, host_path, &guest_path);
++        status != 0)
++        return static_cast<RegVal>(status);
++
++    struct stat st;
++    if (::stat(host_path.c_str(), &st) < 0)
++        return static_cast<RegVal>(-errno);
++    if (!S_ISDIR(st.st_mode))
++        return static_cast<RegVal>(-ENOTDIR);
++
++    if (guest_path.empty() || guest_path.back() != '/')
++        guest_path += '/';
++    process->tgtCwd = guest_path;
++    process->hostCwd = process->checkPathRedirect(guest_path);
++    return 0;
 +}
 +
 +/** clock_gettime(2). */
@@ -1644,14 +2185,24 @@ index 0000000..a53f7a3
 +    tc->pcState(state);
 +}
 +
-+/** End the simulation the way an uncaught signal kills a Linux process: the
-+ *  status a parent sees is 128+N (QEMU user mode does the same). */
++/** End the process the way an uncaught signal kills a Linux process: the
++ *  status a parent sees is 128+N (QEMU user mode does the same).  A signal
++ *  death of the last process still ends the simulation with that status. */
++// Defined with the multi-process surface below (it has to release the
++// process's descriptors and thread contexts, not just the simulation).
++void
++doExit(ThreadContext *tc, DadaoISA::Process *process, int status, int sig,
++       bool group);
++
++DadaoISA::Process *
++findLiveProcess(uint64_t pid);
++
 +void
 +terminateWithSignal(ThreadContext *tc, int sig)
 +{
 +    warn("DADAO SE: signal %d terminates the guest (default action)", sig);
-+    tc->halt();
-+    exitSimLoop("exiting with last active thread context", (128 + sig) & 0xff);
++    auto *process = dynamic_cast<DadaoISA::Process *>(tc->getProcessPtr());
++    doExit(tc, process, 0, sig, false);
 +}
 +
 +/** Push one return address onto the architectural RAS (RegRAS then MemRAS).
@@ -1836,6 +2387,8 @@ index 0000000..a53f7a3
 +{
 +    auto &state = process->signals;
 +    for (int sig = 1; sig <= NumSignals; ++sig) {
++        if (process->hasExited)
++            return; // the last delivery ended the process
 +        const uint64_t bit = signalBit(sig);
 +        if (!(state.pending & bit))
 +            continue;
@@ -2053,13 +2606,32 @@ index 0000000..a53f7a3
 +{
 +    if (sig < 0 || sig > NumSignals)
 +        return static_cast<RegVal>(-EINVAL);
-+    if (!(pid == 0 || pid == -1 || pid == static_cast<int>(process->pid()) ||
-+          pid == -static_cast<int>(process->pid())))
-+        return static_cast<RegVal>(-ESRCH); // no other process exists in SE
++
++    // Which process?  pid 0/-1 mean "this process group" in Linux; SE has no
++    // process groups beyond this one, so they name the caller.  A positive pid
++    // is looked up among the live processes (fork children, and a parent a
++    // child signals back, as libc-test's popen does).
++    DadaoISA::Process *target = nullptr;
++    if (pid == 0 || pid == -1 || pid == static_cast<int>(process->pid()) ||
++        pid == -static_cast<int>(process->pid())) {
++        target = process;
++    } else if (pid > 0) {
++        target = findLiveProcess(pid);
++    }
++    if (target == nullptr)
++        return static_cast<RegVal>(-ESRCH);
 +    if (sig == 0)
 +        return 0;
-+    process->signals.pending |= signalBit(sig);
-+    process->signals.pendingCode[sig] = siCode;
++
++    target->signals.pending |= signalBit(sig);
++    target->signals.pendingCode[sig] = siCode;
++    // A process asleep in a syscall must run again to take its signal (the
++    // handler resumes at the trap, like ERESTARTSYS).
++    for (ContextID ctx : target->contextIds) {
++        ThreadContext *ttc = target->system->threads[ctx];
++        if (ttc->status() == ThreadContext::Suspended)
++            ttc->activate();
++    }
 +    return 0;
 +}
 +
@@ -2181,6 +2753,10 @@ index 0000000..a53f7a3
 +    return 0;
 +}
 +
++/** The multi-process registry (defined with the syscall surface below): the
++ *  first image loaded becomes the simulation's main process. */
++void adoptAsMainProcess(DadaoISA::Process *process);
++
 +class DadaoLoader : public Process::Loader
 +{
 +  public:
@@ -2198,9 +2774,936 @@ index 0000000..a53f7a3
 +        if (opsys != loader::Linux)
 +            return nullptr;
 +
-+        return new DadaoISA::Process(params, obj);
++        auto *process = new DadaoISA::Process(params, obj);
++        // The first image loaded is the simulation's main process; later ones
++        // (fork/execve) register themselves with the same registry.
++        adoptAsMainProcess(process);
++        return process;
 +    }
 +};
++
++// --- Pipes, sockets and multiple processes (GEM5-025t) -------------------
++//
++// One gem5 Process object per guest process and one ThreadContext per
++// runnable process; the CPU interleaves them the way a kernel interleaves
++// processes.  A syscall that would sleep in the kernel is answered with
++// "retry" (SyscallRetryFault, see inst.cc) instead of blocking the host
++// thread: the process that could satisfy the call is itself a guest, so a host
++// sleep would deadlock the simulation.
++
++std::vector<DadaoISA::Process *> liveProcesses;
++DadaoISA::Process *mainProcess = nullptr;
++
++void
++registerLiveProcess(DadaoISA::Process *process)
++{
++    liveProcesses.push_back(process);
++}
++
++/** The first image loaded is the simulation's main process.  fork/execve
++ *  images are registered by their own paths, so a later call is a no-op. */
++void
++adoptAsMainProcess(DadaoISA::Process *process)
++{
++    if (mainProcess != nullptr)
++        return;
++    mainProcess = process;
++    registerLiveProcess(process);
++}
++
++void
++unregisterLiveProcess(DadaoISA::Process *process)
++{
++    liveProcesses.erase(std::remove(liveProcesses.begin(), liveProcesses.end(),
++                                    process), liveProcesses.end());
++}
++
++DadaoISA::Process *
++findLiveProcess(uint64_t pid)
++{
++    for (auto *process : liveProcesses) {
++        if (process->pid() == pid && !process->replacedByExec)
++            return process;
++    }
++    return nullptr;
++}
++
++/** End one guest process: record the wait status, notify the parent with
++ *  SIGCHLD, release its fds and thread contexts, and end the simulation when
++ *  the last process is gone.  `sig` != 0 means "killed by signal". */
++void
++doExit(ThreadContext *tc, DadaoISA::Process *process, int status, int sig,
++       bool group)
++{
++    (void)group;
++    if (process == nullptr || process->hasExited)
++        return;
++    process->hasExited = true;
++    process->waitStatus = sig ? (sig & 0x7f) : ((status & 0xff) << 8);
++
++    // A clone(CLONE_VFORK) parent is asleep until this child execs or dies.
++    for (ContextID ctx : process->vforkContexts) {
++        ThreadContext *ptc = process->system->threads[ctx];
++        if (ptc->status() == ThreadContext::Suspended)
++            ptc->activate();
++    }
++    process->vforkContexts.clear();
++
++    if (auto *parent = process->parentProcess) {
++        auto &pstate = parent->signals;
++        pstate.pending |= signalBit(SigChld);
++        pstate.pendingCode[SigChld] = sig ? SiChildKilled : SiChildExited;
++    }
++
++    // POSIX record locks die with the process.
++    dropProcessLocks(process);
++
++    // Close the process's descriptors -- unless the table is shared with the
++    // parent (clone(CLONE_FILES)), in which case the parent still owns it.
++    if (!process->sharesFdTable) {
++        for (int i = 0; i < process->fds->getSize(); ++i) {
++            if ((*process->fds)[i])
++                process->fds->closeFDEntry(i);
++        }
++    }
++
++    for (ContextID ctx : process->contextIds) {
++        ThreadContext *ptc = process->system->threads[ctx];
++        if (ptc->status() != ThreadContext::Halted)
++            ptc->halt();
++    }
++    process->contextIds.clear();
++    unregisterLiveProcess(process);
++
++    if (liveProcesses.empty()) {
++        int code = 0;
++        if (mainProcess != nullptr && mainProcess->hasExited) {
++            code = (mainProcess->waitStatus & 0x7f)
++                       ? ((mainProcess->waitStatus & 0x7f) | 0x80)
++                       : ((mainProcess->waitStatus >> 8) & 0xff);
++        }
++        exitSimLoop("exiting with last active thread context", code & 0xff);
++    }
++}
++
++/** pipe2(2).  Both ends are guest objects (DadaoPipeFDEntry); O_NONBLOCK and
++ *  O_CLOEXEC are the guest ABI's bits and are recorded on the entry. */
++RegVal
++doPipe2(ThreadContext *tc, DadaoISA::Process *process, Addr fildesAddr,
++        uint64_t flags)
++{
++    if (flags & ~static_cast<uint64_t>(TgtOCloexec | TgtONonblock))
++        return static_cast<RegVal>(-EINVAL);
++    if (fildesAddr == 0)
++        return static_cast<RegVal>(-EFAULT);
++
++    auto state = std::make_shared<PipeState>();
++    const int nonblock = (flags & TgtONonblock) ? TgtONonblock : 0;
++    // F_GETFL reports the access mode of the end (O_RDONLY == 0, O_WRONLY == 1).
++    auto readEnd = std::make_shared<DadaoPipeFDEntry>(state, true, nonblock);
++    auto writeEnd = std::make_shared<DadaoPipeFDEntry>(state, false,
++                                                       O_WRONLY | nonblock);
++    readEnd->setCOE(flags & TgtOCloexec);
++    writeEnd->setCOE(flags & TgtOCloexec);
++
++    const int readFd = allocGuestFd(process, readEnd);
++    if (readFd < 0)
++        return static_cast<RegVal>(readFd);
++    const int writeFd = allocGuestFd(process, writeEnd);
++    if (writeFd < 0) {
++        process->fds->closeFDEntry(readFd);
++        return static_cast<RegVal>(writeFd);
++    }
++
++    uint8_t raw[8];
++    writeBigEndian32(raw, readFd);
++    writeBigEndian32(raw + 4, writeFd);
++    if (!writeGuestBlob(tc, fildesAddr, raw, sizeof(raw))) {
++        process->fds->closeFDEntry(readFd);
++        process->fds->closeFDEntry(writeFd);
++        return static_cast<RegVal>(-EFAULT);
++    }
++    return 0;
++}
++
++/** socket(2): AF_UNIX/AF_INET/AF_INET6 are forwarded to the host, every other
++ *  family is EAFNOSUPPORT (the corpus only uses these three). */
++RegVal
++doSocket(DadaoISA::Process *process, int domain, int type, int protocol)
++{
++    if (!familySupported(domain))
++        return static_cast<RegVal>(-EAFNOSUPPORT);
++
++    const int baseType = type & ~(TgtSockCloexec | TgtSockNonblock);
++    if (baseType != SockStream && baseType != SockDgram &&
++        baseType != SockRaw && baseType != SockSeqpacket)
++        return static_cast<RegVal>(-ESOCKTNOSUPPORT);
++
++    const int simFd = ::socket(domain, type, protocol);
++    if (simFd < 0)
++        return static_cast<RegVal>(-errno);
++
++    auto entry = std::make_shared<SocketFDEntry>(
++            simFd, domain, baseType, protocol, (type & TgtSockCloexec) != 0);
++    const int guestFd = allocGuestFd(process, entry);
++    if (guestFd < 0) {
++        ::close(simFd);
++        return static_cast<RegVal>(guestFd);
++    }
++    return guestFd;
++}
++
++/** Read a guest sockaddr into `raw` (family still big-endian). */
++bool
++readGuestSockaddr(ThreadContext *tc, Addr addr, int addrlen, uint8_t *raw)
++{
++    if (addrlen < 0 || static_cast<size_t>(addrlen) > GuestSockaddrMax)
++        return false;
++    std::memset(raw, 0, GuestSockaddrMax);
++    if (addrlen == 0)
++        return true;
++    return readGuestBlob(tc, addr, raw, addrlen);
++}
++
++/** Copy a host sockaddr back to the guest, honouring the guest's buffer size
++ *  the way the kernel does (family back to big-endian, length clamped). */
++bool
++writeGuestSockaddr(ThreadContext *tc, Addr addrAddr, Addr lenAddr,
++                   const uint8_t *raw, int addrlen, int guestLen)
++{
++    if (addrAddr != 0 && guestLen > 0) {
++        const int copy = std::min(addrlen, guestLen);
++        std::vector<uint8_t> out(raw, raw + copy);
++        sockaddrToGuest(out.data(), copy);
++        if (!writeGuestBlob(tc, addrAddr, out.data(), copy))
++            return false;
++    }
++    if (lenAddr != 0) {
++        uint8_t rawLen[4];
++        writeBigEndian32(rawLen, static_cast<uint32_t>(addrlen));
++        if (!writeGuestBlob(tc, lenAddr, rawLen, sizeof(rawLen)))
++            return false;
++    }
++    return true;
++}
++
++bool
++readGuestSocklen(ThreadContext *tc, Addr lenAddr, int &len)
++{
++    if (lenAddr == 0) {
++        len = 0;
++        return true;
++    }
++    uint8_t raw[4];
++    if (!readGuestBlob(tc, lenAddr, raw, sizeof(raw)))
++        return false;
++    len = static_cast<int>(readBigEndian32(raw));
++    return true;
++}
++
++RegVal
++doBind(ThreadContext *tc, DadaoISA::Process *process, int fd, Addr addrAddr,
++       int addrlen)
++{
++    int simFd;
++    if (int status = hostFdOf(process, fd, simFd); status != 0)
++        return static_cast<RegVal>(status);
++    uint8_t raw[GuestSockaddrMax];
++    if (!readGuestSockaddr(tc, addrAddr, addrlen, raw))
++        return static_cast<RegVal>(-EINVAL);
++    sockaddrToHost(raw, addrlen);
++    if (::bind(simFd, reinterpret_cast<struct sockaddr *>(raw), addrlen) < 0)
++        return static_cast<RegVal>(-errno);
++    return 0;
++}
++
++RegVal
++doConnect(ThreadContext *tc, DadaoISA::Process *process, int fd, Addr addrAddr,
++          int addrlen, bool &blocked)
++{
++    int simFd;
++    if (int status = hostFdOf(process, fd, simFd); status != 0)
++        return static_cast<RegVal>(status);
++    uint8_t raw[GuestSockaddrMax];
++    if (!readGuestSockaddr(tc, addrAddr, addrlen, raw))
++        return static_cast<RegVal>(-EINVAL);
++    sockaddrToHost(raw, addrlen);
++
++    const int guestFlags = ::fcntl(simFd, F_GETFL);
++    const bool guestBlocking = guestFlags >= 0 && !(guestFlags & O_NONBLOCK);
++    if (guestBlocking)
++        ::fcntl(simFd, F_SETFL, guestFlags | O_NONBLOCK);
++
++    const int rc = ::connect(simFd, reinterpret_cast<struct sockaddr *>(raw),
++                             addrlen);
++    const int err = errno;
++    if (guestBlocking)
++        ::fcntl(simFd, F_SETFL, guestFlags);
++
++    if (rc == 0 || err == EISCONN)
++        return 0;
++    if (err != EINPROGRESS && err != EALREADY)
++        return static_cast<RegVal>(-err);
++    if (!guestBlocking)
++        return static_cast<RegVal>(err == EINPROGRESS ? -EINPROGRESS : -EALREADY);
++    if (!pollReady(simFd, POLLOUT)) {
++        blocked = true;
++        return 0;
++    }
++    int soError = 0;
++    socklen_t soLen = sizeof(soError);
++    if (::getsockopt(simFd, SOL_SOCKET, SO_ERROR, &soError, &soLen) < 0)
++        return static_cast<RegVal>(-errno);
++    return soError ? static_cast<RegVal>(-soError) : 0;
++}
++
++RegVal
++doListen(DadaoISA::Process *process, int fd, int backlog)
++{
++    int simFd;
++    if (int status = hostFdOf(process, fd, simFd); status != 0)
++        return static_cast<RegVal>(status);
++    if (::listen(simFd, backlog) < 0)
++        return static_cast<RegVal>(-errno);
++    return 0;
++}
++
++/** accept(2)/accept4(2): the accepted socket becomes a guest fd. */
++RegVal
++doAccept(ThreadContext *tc, DadaoISA::Process *process, int fd, Addr addrAddr,
++         Addr lenAddr, int flags, bool &blocked)
++{
++    std::shared_ptr<FDEntry> entry;
++    if (int status = guestFdEntry(process, fd, entry); status != 0)
++        return static_cast<RegVal>(status);
++    auto listener = std::dynamic_pointer_cast<SocketFDEntry>(entry);
++    if (!listener)
++        return static_cast<RegVal>(-ENOTSOCK);
++    const int simFd = listener->getSimFD();
++
++    int guestLen = 0;
++    if (!readGuestSocklen(tc, lenAddr, guestLen))
++        return static_cast<RegVal>(-EFAULT);
++
++    if (!pollReady(simFd, POLLIN)) {
++        if (hostFdNonblocking(simFd))
++            return static_cast<RegVal>(-EAGAIN);
++        blocked = true;
++        return 0;
++    }
++
++    uint8_t raw[GuestSockaddrMax];
++    std::memset(raw, 0, sizeof(raw));
++    socklen_t addrlen = sizeof(raw);
++    const int hostFlags =
++        (flags & (TgtSockCloexec | TgtSockNonblock));
++    const int newFd = ::accept4(simFd, reinterpret_cast<struct sockaddr *>(raw),
++                                &addrlen, hostFlags);
++    if (newFd < 0)
++        return static_cast<RegVal>(-errno);
++
++    if (!writeGuestSockaddr(tc, addrAddr, lenAddr, raw,
++                            static_cast<int>(addrlen), guestLen)) {
++        ::close(newFd);
++        return static_cast<RegVal>(-EFAULT);
++    }
++
++    auto accepted = std::make_shared<SocketFDEntry>(
++            newFd, listener->_domain, listener->_type, listener->_protocol,
++            (flags & TgtSockCloexec) != 0);
++    const int guestFd = allocGuestFd(process, accepted);
++    if (guestFd < 0) {
++        ::close(newFd);
++        return static_cast<RegVal>(guestFd);
++    }
++    return guestFd;
++}
++
++RegVal
++doSendto(ThreadContext *tc, DadaoISA::Process *process, int fd, Addr buf,
++         uint64_t len, int flags, Addr addrAddr, int addrlen, bool &blocked)
++{
++    int simFd;
++    if (int status = hostFdOf(process, fd, simFd); status != 0)
++        return static_cast<RegVal>(status);
++
++    std::vector<uint8_t> data(len);
++    if (len > 0) {
++        SETranslatingPortProxy proxy(tc, SETranslatingPortProxy::Never);
++        if (!proxy.tryReadBlob(buf, data.data(), len))
++            return static_cast<RegVal>(-EFAULT);
++    }
++
++    uint8_t raw[GuestSockaddrMax];
++    struct sockaddr *addr = nullptr;
++    socklen_t hostAddrLen = 0;
++    if (addrAddr != 0) {
++        if (!readGuestSockaddr(tc, addrAddr, addrlen, raw))
++            return static_cast<RegVal>(-EINVAL);
++        sockaddrToHost(raw, addrlen);
++        addr = reinterpret_cast<struct sockaddr *>(raw);
++        hostAddrLen = addrlen;
++    }
++
++    if (!hostFdNonblocking(simFd) && !pollReady(simFd, POLLOUT)) {
++        blocked = true;
++        return 0;
++    }
++    ssize_t sent;
++    do {
++        sent = ::sendto(simFd, data.data(), len, flags, addr, hostAddrLen);
++    } while (sent < 0 && errno == EINTR);
++    if (sent < 0)
++        return static_cast<RegVal>(-errno);
++    return static_cast<RegVal>(sent);
++}
++
++RegVal
++doRecvfrom(ThreadContext *tc, DadaoISA::Process *process, int fd, Addr buf,
++           uint64_t len, int flags, Addr addrAddr, Addr lenAddr, bool &blocked)
++{
++    int simFd;
++    if (int status = hostFdOf(process, fd, simFd); status != 0)
++        return static_cast<RegVal>(status);
++
++    int guestLen = 0;
++    if (!readGuestSocklen(tc, lenAddr, guestLen))
++        return static_cast<RegVal>(-EFAULT);
++
++    if (!hostFdNonblocking(simFd) && !pollReady(simFd, POLLIN)) {
++        blocked = true;
++        return 0;
++    }
++
++    std::vector<uint8_t> data(len);
++    uint8_t raw[GuestSockaddrMax];
++    std::memset(raw, 0, sizeof(raw));
++    socklen_t addrlen = sizeof(raw);
++    ssize_t received;
++    do {
++        received = ::recvfrom(simFd, data.data(), len, flags,
++                              addrAddr != 0
++                                  ? reinterpret_cast<struct sockaddr *>(raw)
++                                  : nullptr,
++                              addrAddr != 0 ? &addrlen : nullptr);
++    } while (received < 0 && errno == EINTR);
++    if (received < 0)
++        return static_cast<RegVal>(-errno);
++
++    if (addrAddr != 0 && !writeGuestSockaddr(tc, addrAddr, lenAddr, raw,
++                                             static_cast<int>(addrlen),
++                                             guestLen))
++        return static_cast<RegVal>(-EFAULT);
++    if (received > 0 && !writeGuestBlob(tc, buf, data.data(), received))
++        return static_cast<RegVal>(-EFAULT);
++    return static_cast<RegVal>(received);
++}
++
++RegVal
++doSetsockopt(ThreadContext *tc, DadaoISA::Process *process, int fd, int level,
++             int optname, Addr optval, int optlen)
++{
++    constexpr int SolSocket = 1;
++    constexpr int SoRcvTimeo = 20;
++    constexpr int SoSndTimeo = 21;
++
++    int simFd;
++    if (int status = hostFdOf(process, fd, simFd); status != 0)
++        return static_cast<RegVal>(status);
++    if (optlen < 0 || optlen > 256)
++        return static_cast<RegVal>(-EINVAL);
++    std::vector<uint8_t> raw(optlen);
++    if (optlen > 0 && !readGuestBlob(tc, optval, raw.data(), optlen))
++        return static_cast<RegVal>(-EFAULT);
++
++    // struct timeval (SO_RCVTIMEO/SO_SNDTIMEO) is two 64-bit fields and the
++    // guest is big-endian; every other option is an opaque integer/struct.
++    if (level == SolSocket && (optname == SoRcvTimeo || optname == SoSndTimeo) &&
++        optlen == 16) {
++        struct timeval tv;
++        tv.tv_sec = readBigEndian64(raw.data());
++        tv.tv_usec = readBigEndian64(raw.data() + 8);
++        if (::setsockopt(simFd, level, optname, &tv, sizeof(tv)) < 0)
++            return static_cast<RegVal>(-errno);
++        return 0;
++    }
++
++    if (::setsockopt(simFd, level, optname, raw.data(), optlen) < 0)
++        return static_cast<RegVal>(-errno);
++    return 0;
++}
++
++RegVal
++doGetsockopt(ThreadContext *tc, DadaoISA::Process *process, int fd, int level,
++             int optname, Addr optval, Addr optlenAddr)
++{
++    int simFd;
++    if (int status = hostFdOf(process, fd, simFd); status != 0)
++        return static_cast<RegVal>(status);
++    int guestLen = 0;
++    if (!readGuestSocklen(tc, optlenAddr, guestLen))
++        return static_cast<RegVal>(-EFAULT);
++    if (guestLen < 0 || guestLen > 256)
++        return static_cast<RegVal>(-EINVAL);
++
++    std::vector<uint8_t> raw(guestLen > 0 ? guestLen : 1);
++    socklen_t len = guestLen;
++    if (::getsockopt(simFd, level, optname, raw.data(), &len) < 0)
++        return static_cast<RegVal>(-errno);
++    if (len > 0 && !writeGuestBlob(tc, optval, raw.data(), len))
++        return static_cast<RegVal>(-EFAULT);
++    return writeGuestSockaddr(tc, 0, optlenAddr, nullptr, len, 0)
++               ? static_cast<RegVal>(0)
++               : static_cast<RegVal>(-EFAULT);
++}
++
++RegVal
++doGetSockName(ThreadContext *tc, DadaoISA::Process *process, int fd,
++              Addr addrAddr, Addr lenAddr, bool peer)
++{
++    int simFd;
++    if (int status = hostFdOf(process, fd, simFd); status != 0)
++        return static_cast<RegVal>(status);
++    int guestLen = 0;
++    if (!readGuestSocklen(tc, lenAddr, guestLen))
++        return static_cast<RegVal>(-EFAULT);
++
++    uint8_t raw[GuestSockaddrMax];
++    std::memset(raw, 0, sizeof(raw));
++    socklen_t addrlen = sizeof(raw);
++    const int rc = peer
++        ? ::getpeername(simFd, reinterpret_cast<struct sockaddr *>(raw), &addrlen)
++        : ::getsockname(simFd, reinterpret_cast<struct sockaddr *>(raw), &addrlen);
++    if (rc < 0)
++        return static_cast<RegVal>(-errno);
++    if (!writeGuestSockaddr(tc, addrAddr, lenAddr, raw,
++                            static_cast<int>(addrlen), guestLen))
++        return static_cast<RegVal>(-EFAULT);
++    return 0;
++}
++
++RegVal
++doShutdown(DadaoISA::Process *process, int fd, int how)
++{
++    int simFd;
++    if (int status = hostFdOf(process, fd, simFd); status != 0)
++        return static_cast<RegVal>(status);
++    if (::shutdown(simFd, how) < 0)
++        return static_cast<RegVal>(-errno);
++    return 0;
++}
++
++RegVal
++doSocketpair(ThreadContext *tc, DadaoISA::Process *process, int domain,
++             int type, int protocol, Addr svAddr)
++{
++    if (!familySupported(domain))
++        return static_cast<RegVal>(-EAFNOSUPPORT);
++    if (svAddr == 0)
++        return static_cast<RegVal>(-EFAULT);
++    const int baseType = type & ~(TgtSockCloexec | TgtSockNonblock);
++    int sv[2];
++    if (::socketpair(domain, type, protocol, sv) < 0)
++        return static_cast<RegVal>(-errno);
++
++    auto first = std::make_shared<SocketFDEntry>(
++            sv[0], domain, baseType, protocol, (type & TgtSockCloexec) != 0);
++    auto second = std::make_shared<SocketFDEntry>(
++            sv[1], domain, baseType, protocol, (type & TgtSockCloexec) != 0);
++    const int fd0 = allocGuestFd(process, first);
++    if (fd0 < 0) {
++        ::close(sv[0]);
++        ::close(sv[1]);
++        return static_cast<RegVal>(fd0);
++    }
++    const int fd1 = allocGuestFd(process, second);
++    if (fd1 < 0) {
++        process->fds->closeFDEntry(fd0);
++        ::close(sv[1]);
++        return static_cast<RegVal>(fd1);
++    }
++    uint8_t raw[8];
++    writeBigEndian32(raw, fd0);
++    writeBigEndian32(raw + 4, fd1);
++    if (!writeGuestBlob(tc, svAddr, raw, sizeof(raw))) {
++        process->fds->closeFDEntry(fd0);
++        process->fds->closeFDEntry(fd1);
++        return static_cast<RegVal>(-EFAULT);
++    }
++    return 0;
++}
++
++/** clone(2) -- the fork/vfork/posix_spawn entry point of musl (which calls
++ *  clone even for fork(2)).  CLONE_THREAD stays unimplemented: that is the
++ *  real-thread surface of GEM5-026t, and those cases must keep failing at
++ *  this syscall rather than silently degrading. */
++RegVal
++doClone(ThreadContext *tc, DadaoISA::Process *process, uint64_t flags,
++        Addr newsp, Addr parentTidPtr, uint64_t tls, Addr childTidPtr,
++        bool &suspendSelf)
++{
++    (void)tls; // CLONE_SETTLS lands in GEM5-026t with the thread work
++
++    if (flags & CloneThread) {
++        warn("DADAO SE: clone(CLONE_THREAD) -- real threads belong to "
++             "GEM5-026t");
++        // Keep the exact "syscall N not implemented" wording: the tset driver
++        // buckets a blocked case by that line (gem5_se_engine.py).
++        fatal("DADAO SE: syscall %d not implemented (pc=%#x)",
++              static_cast<int>(SysClone), tc->pcState().instAddr());
++    }
++    if (flags & CloneUnsupportedNamespaces)
++        return static_cast<RegVal>(-EINVAL);
++    if ((flags & CloneSighand) && !(flags & CloneVm))
++        return static_cast<RegVal>(-EINVAL);
++    if ((flags & CloneVm) && newsp == 0)
++        return static_cast<RegVal>(-EINVAL);
++
++    // RLIMIT_NPROC (asm-generic 6): the kernel refuses fork/clone past the
++    // limit with EAGAIN, which libc-test's pthread_atfork-errno-clobber relies
++    // on.  SE has no uid-wide process count, so the guest process count is it.
++    const uint64_t nprocLimit = process->limits[DadaoISA::RlimitNproc].cur;
++    if (nprocLimit != DadaoISA::RlimInfinity &&
++        liveProcesses.size() >= nprocLimit)
++        return static_cast<RegVal>(-EAGAIN);
++
++    ThreadContext *ctc = tc->getSystemPtr()->threads.findFree();
++    if (ctc == nullptr)
++        return static_cast<RegVal>(-EAGAIN);
++
++    // First free PID below System::maxPID, exactly like the kernel's alloc_pid
++    // (gem5 keeps the set of live PIDs in System::PIDs).
++    const std::set<int> &pids = process->system->PIDs;
++    int pid = *pids.begin();
++    do {
++        ++pid;
++    } while (pids.find(pid) != pids.end());
++    if (pid >= System::maxPID)
++        fatal("DADAO SE: clone: no free pid below %d "
++              "(System::maxPID)", pid);
++
++    ProcessParams *pp = new ProcessParams();
++    pp->executable = process->progName();
++    pp->cmd = process->argv;
++    pp->env = process->envp;
++    pp->system = process->system;
++    pp->cwd = process->tgtCwd;
++    pp->input = "stdin";
++    pp->output = "stdout";
++    pp->errout = "stderr";
++    pp->uid = process->uid();
++    pp->euid = process->euid();
++    pp->gid = process->gid();
++    pp->egid = process->egid();
++    pp->release = process->release;
++    pp->maxStackSize = process->memState->getMaxStackSize();
++    pp->useArchPT = process->useArchPT;
++    pp->kvmInSE = process->kvmInSE;
++    pp->pid = pid;
++    pp->ppid = process->pid();
++    auto *child = dynamic_cast<DadaoISA::Process *>(pp->create());
++    fatal_if(child == nullptr, "DADAO SE: clone: loader produced no DADAO process");
++
++    gem5::Process *owner = ctc->getProcessPtr();
++    ctc->setProcessPtr(child);
++    child->assignThreadContext(ctc->contextId());
++    if (owner != nullptr &&
++        std::find(owner->contextIds.begin(), owner->contextIds.end(),
++                  ctc->contextId()) != owner->contextIds.end())
++        owner->revokeThreadContext(ctc->contextId());
++
++    child->initState();
++    process->clone(tc, ctc, child, flags);
++
++    child->parentProcess = process;
++    process->children.push_back(child);
++    child->signals = process->signals;
++    child->signals.pending = 0;
++    for (unsigned i = 0; i < DadaoISA::NumResourceLimits; ++i)
++        child->limits[i] = process->limits[i];
++    // The table is only really shared when clone() shared it (gem5 copies it
++    // unless the CLONE_FILES macros are visible; ask the object, not the flag).
++    child->sharesFdTable = child->fds == process->fds;
++    *child->sigchld = true;
++    registerLiveProcess(child);
++
++    // Child register state: a copy of the parent's, returning 0 from the trap
++    // (the parent returns the child pid further down).
++    for (unsigned i = 0; i < 64; ++i) {
++        ctc->setReg(intReg(DadaoISA::int_reg::RdBase + i),
++                    tc->getReg(intReg(DadaoISA::int_reg::RdBase + i)));
++        ctc->setReg(intReg(DadaoISA::int_reg::RbBase + i),
++                    tc->getReg(intReg(DadaoISA::int_reg::RbBase + i)));
++        ctc->setReg(intReg(DadaoISA::int_reg::RaBase + i),
++                    tc->getReg(intReg(DadaoISA::int_reg::RaBase + i)));
++        const RegId rf(DadaoISA::floatRegClass, i);
++        ctc->setReg(rf, tc->getReg(rf));
++    }
++    // The child is a copy of the caller at the point where the trap has just
++    // completed: the next instruction is the one after the trap (pc), and the
++    // one after that is pc + 4 (npc) -- exactly what the parent's advancePC
++    // will produce, so the first instruction after fork runs once.
++    const Addr trapPc = tc->pcState().instAddr();
++    ctc->pcState(DadaoISA::PCState(trapPc + 4));
++
++    // Linux gives the child the stack pointer it was cloned with (musl's
++    // __clone reserves 16 bytes there for func/arg and reads them back in the
++    // child); newsp == 0 means "keep the caller's stack" (fork/vfork).
++    if (newsp != 0)
++        ctc->setReg(rb(1), newsp);
++    ctc->setReg(rd(8), RegVal(0));
++
++    if (flags & CloneParentSettid) {
++        uint8_t rawPid[4];
++        writeBigEndian32(rawPid, static_cast<uint32_t>(child->pid()));
++        writeGuestBlob(tc, parentTidPtr, rawPid, sizeof(rawPid));
++    }
++    if (flags & CloneChildSettid) {
++        uint8_t rawPid[4];
++        writeBigEndian32(rawPid, static_cast<uint32_t>(child->pid()));
++        writeGuestBlob(ctc, childTidPtr, rawPid, sizeof(rawPid));
++    }
++
++    ctc->activate();
++
++    if (flags & CloneVfork) {
++        child->vforkContexts.push_back(tc->contextId());
++        suspendSelf = true;
++    }
++
++    return static_cast<RegVal>(child->pid());
++}
++
++/** execve(2): replace the calling process image with a new DADAO ET_EXEC
++ *  binary.  A non-DADAO file is ENOEXEC (Linux's "unrecognised executable
++ *  format"), never a fatal: the SE platform cannot run host code. */
++void
++doExecve(ThreadContext *tc, DadaoISA::Process *process, Addr pathAddr,
++         Addr argvAddr, Addr envpAddr, RegVal &result, bool &replaced)
++{
++    constexpr size_t MaxVector = 4096;
++
++    std::string path;
++    if (!readGuestString(tc, pathAddr, path)) {
++        result = static_cast<RegVal>(-EFAULT);
++        return;
++    }
++
++    const auto readVector = [tc](Addr addr, std::vector<std::string> &out) {
++        for (size_t i = 0; addr != 0; ++i) {
++            if (i >= MaxVector)
++                return false;
++            uint8_t raw[8];
++            if (!readGuestBlob(tc, addr + 8 * i, raw, sizeof(raw)))
++                return false;
++            const Addr item = readBigEndian64(raw);
++            if (item == 0)
++                return true;
++            std::string value;
++            if (!readGuestString(tc, item, value))
++                return false;
++            out.push_back(value);
++        }
++        return true;
++    };
++
++    std::vector<std::string> argv;
++    std::vector<std::string> envp;
++    if (!readVector(argvAddr, argv)) {
++        result = static_cast<RegVal>(-EFAULT);
++        return;
++    }
++    if (!readVector(envpAddr, envp)) {
++        result = static_cast<RegVal>(-EFAULT);
++        return;
++    }
++    if (argv.empty()) {
++        result = static_cast<RegVal>(-EFAULT);
++        return;
++    }
++
++    std::string hostPath;
++    if (int status = resolveGuestPath(process, AtFdcwd, path, hostPath); status != 0) {
++        result = static_cast<RegVal>(status);
++        return;
++    }
++    if (hostPath.empty()) {
++        result = static_cast<RegVal>(-ENOENT);
++        return;
++    }
++
++    // stat() first: gem5's loader fatals when it cannot open the file, but a
++    // missing interpreter is just ENOENT for execve (and ENOEXEC for a file
++    // that is not a runnable ELF).
++    struct stat st;
++    if (::stat(hostPath.c_str(), &st) < 0) {
++        result = static_cast<RegVal>(-errno);
++        return;
++    }
++    if (!S_ISREG(st.st_mode)) {
++        result = static_cast<RegVal>(-EACCES);
++        return;
++    }
++
++    loader::ObjectFile *obj = loader::createObjectFile(hostPath);
++    if (obj == nullptr) {
++        result = static_cast<RegVal>(-ENOEXEC);
++        return;
++    }
++    const bool runnable =
++        obj->getArch() == loader::Dadao &&
++        obj->getByteOrder() == ByteOrder::big &&
++        dynamic_cast<loader::ElfObject *>(obj) != nullptr &&
++        dynamic_cast<loader::ElfObject *>(obj)->elfType() == ET_EXEC &&
++        obj->getInterpreter() == nullptr &&
++        (dynamic_cast<loader::ElfObject *>(obj)->elfFlags() & 0xff) == 1 &&
++        (dynamic_cast<loader::ElfObject *>(obj)->elfFlags() >> 8) == 0;
++    if (!runnable) {
++        delete obj;
++        result = static_cast<RegVal>(-ENOEXEC);
++        return;
++    }
++
++    ProcessParams *pp = new ProcessParams();
++    pp->executable = hostPath;
++    pp->cmd = argv;
++    pp->env = envp;
++    pp->system = process->system;
++    pp->cwd = process->tgtCwd;
++    pp->input = "stdin";
++    pp->output = "stdout";
++    pp->errout = "stderr";
++    pp->uid = process->uid();
++    pp->euid = process->euid();
++    pp->gid = process->gid();
++    pp->egid = process->egid();
++    pp->release = process->release;
++    pp->maxStackSize = process->memState->getMaxStackSize();
++    pp->useArchPT = process->useArchPT;
++    pp->kvmInSE = process->kvmInSE;
++    pp->pid = process->pid();
++    pp->ppid = process->ppid();
++
++    // The PID stays reserved by this image until the new one takes it over.
++    process->system->PIDs.erase(process->pid());
++    DadaoISA::Process *newProcess =
++        dynamic_cast<DadaoISA::Process *>(Process::tryLoaders(*pp, obj));
++    if (newProcess == nullptr) {
++        process->system->PIDs.insert(process->pid());
++        result = static_cast<RegVal>(-ENOEXEC);
++        return;
++    }
++
++    newProcess->fds = process->fds;
++    for (int i = 0; i < newProcess->fds->getSize(); ++i) {
++        std::shared_ptr<FDEntry> entry = (*newProcess->fds)[i];
++        if (entry && entry->getCOE())
++            newProcess->fds->closeFDEntry(i);
++    }
++    // Signal state across execve: dispositions reset to SIG_DFL except the
++    // ignored ones, the blocked mask and the alternate stack are kept.
++    newProcess->signals = process->signals;
++    newProcess->signals.pending = 0;
++    for (int sig = 1; sig <= NumSignals; ++sig) {
++        if (newProcess->signals.actions[sig].handler != SigIgn)
++            newProcess->signals.actions[sig] = DadaoISA::SignalDisposition();
++    }
++    for (unsigned i = 0; i < DadaoISA::NumResourceLimits; ++i)
++        newProcess->limits[i] = process->limits[i];
++    newProcess->parentProcess = process->parentProcess;
++    newProcess->sharesFdTable = process->sharesFdTable;
++    *newProcess->sigchld = true;
++    if (auto *parent = process->parentProcess) {
++        for (auto *&child : parent->children) {
++            if (child == process)
++                child = newProcess;
++        }
++    }
++    if (mainProcess == process)
++        mainProcess = newProcess;
++
++    process->replacedByExec = true;
++    process->contextIds.clear();
++    unregisterLiveProcess(process);
++    registerLiveProcess(newProcess);
++
++    for (ContextID ctx : process->vforkContexts) {
++        ThreadContext *ptc = process->system->threads[ctx];
++        if (ptc->status() == ThreadContext::Suspended)
++            ptc->activate();
++    }
++    process->vforkContexts.clear();
++
++    tc->clearArchRegs();
++    tc->setProcessPtr(newProcess);
++    newProcess->assignThreadContext(tc->contextId());
++    newProcess->init();
++    newProcess->initState();
++
++    // initState() leaves PCState(entry) (npc = entry + 4), but the CPU advances
++    // this thread once more after the trap returns: make that advance land on
++    // the new image's entry point (advance() is pc = npc, npc += 4).
++    const Addr entryPoint = newProcess->getStartPC();
++    DadaoISA::PCState entryState(entryPoint);
++    entryState.npc(entryPoint);
++    tc->pcState(entryState);
++
++    tc->activate();
++
++    replaced = true;
++}
++
++/** wait4(2): reap a child, or ask for a retry when a live child has not
++ *  exited yet.  The status is the raw Linux wait status. */
++RegVal
++doWait4(ThreadContext *tc, DadaoISA::Process *process, int pid, Addr statAddr,
++        int options, Addr rusageAddr, bool &blocked)
++{
++    const auto matches = [&](DadaoISA::Process *child) {
++        if (pid == -1)
++            return true;
++        if (pid > 0)
++            return static_cast<int>(child->pid()) == pid;
++        if (pid == 0)
++            return child->pgid() == process->pgid();
++        return static_cast<int>(child->pgid()) == -pid;
++    };
++
++    DadaoISA::Process *found = nullptr;
++    for (auto *child : process->children) {
++        if (child->hasExited && matches(child)) {
++            found = child;
++            break;
++        }
++    }
++    if (found == nullptr) {
++        if (process->children.empty())
++            return static_cast<RegVal>(-ECHILD);
++        if (options & WaitNoHang)
++            return 0;
++        blocked = true;
++        return 0;
++    }
++
++    if (statAddr != 0) {
++        uint8_t raw[4];
++        writeBigEndian32(raw, static_cast<uint32_t>(found->waitStatus));
++        if (!writeGuestBlob(tc, statAddr, raw, sizeof(raw)))
++            return static_cast<RegVal>(-EFAULT);
++    }
++    if (rusageAddr != 0) {
++        // struct rusage: two timevals plus 14 longs; SE reports zeros.
++        std::vector<uint8_t> zeros(144, 0);
++        if (!writeGuestBlob(tc, rusageAddr, zeros.data(), zeros.size()))
++            return static_cast<RegVal>(-EFAULT);
++    }
++
++    const int childPid = static_cast<int>(found->pid());
++    process->children.erase(std::remove(process->children.begin(),
++                                        process->children.end(), found),
++                            process->children.end());
++    return childPid;
++}
 +
 +DadaoLoader dadaoLoader;
 +
@@ -2221,6 +3724,11 @@ index 0000000..a53f7a3
 +    const uint64_t nr = tc->getReg(rd(15));
 +    const Addr pc = tc->pcState().instAddr();
 +    RegVal result = 0;
++    // Set by a syscall that cannot make progress yet: the CPU re-executes the
++    // trap instead of seeing a (wrong) result (see inst.cc, SyscallRetryFault).
++    bool retry = false;
++    bool suspendSelf = false;
++    syscallRetry = false;
 +
 +    switch (nr) {
 +      case SysExit:
@@ -2228,8 +3736,7 @@ index 0000000..a53f7a3
 +        // contract-syscall §6: process exit is a syscall, not an exit port.
 +        // The status is truncated to 8 bits, exactly like exitImpl.
 +        const int status = static_cast<int>(tc->getReg(rd(16)));
-+        tc->halt();
-+        exitSimLoop("exiting with last active thread context", status & 0xff);
++        doExit(tc, process, status, 0, nr == SysExitGroup);
 +        return; // not reached
 +      }
 +
@@ -2466,7 +3973,7 @@ index 0000000..a53f7a3
 +        // §3 assigns banks by the *syscall* prototype; arch/dadao/
 +        // syscall_arch.h lists SYS_fcntl in the mask-0 set).
 +        const uint64_t arg = tc->getReg(rd(18));
-+        result = doFcntl(tc, process, fd, cmd, arg);
++        result = doFcntl(tc, process, fd, cmd, arg, retry);
 +        break;
 +      }
 +
@@ -2488,7 +3995,7 @@ index 0000000..a53f7a3
 +        const int fd = static_cast<int>(tc->getReg(rd(16)));
 +        const Addr buf = tc->getReg(rb(16));
 +        const uint64_t count = tc->getReg(rd(17));
-+        result = doRead(tc, process, fd, buf, count);
++        result = doRead(tc, process, fd, buf, count, retry);
 +        break;
 +      }
 +
@@ -2496,7 +4003,7 @@ index 0000000..a53f7a3
 +        const int fd = static_cast<int>(tc->getReg(rd(16)));
 +        const Addr iov = tc->getReg(rb(16));
 +        const uint64_t iovcnt = tc->getReg(rd(17));
-+        result = doReadv(tc, process, fd, iov, iovcnt);
++        result = doReadv(tc, process, fd, iov, iovcnt, retry);
 +        break;
 +      }
 +
@@ -2514,6 +4021,11 @@ index 0000000..a53f7a3
 +        const int64_t offset = static_cast<int64_t>(tc->getReg(rd(17)));
 +        const int whence = static_cast<int>(tc->getReg(rd(18)));
 +        result = doLseek(process, fd, offset, whence);
++        break;
++      }
++
++      case SysChdir: {
++        result = doChdir(tc, process, tc->getReg(rb(16)));
 +        break;
 +      }
 +
@@ -2635,7 +4147,7 @@ index 0000000..a53f7a3
 +        const int fd = static_cast<int>(tc->getReg(rd(16)));
 +        const Addr buf = tc->getReg(rb(16));
 +        const uint64_t count = tc->getReg(rd(17));
-+        result = doWrite(tc, process, fd, buf, count);
++        result = doWrite(tc, process, fd, buf, count, retry);
 +        break;
 +      }
 +
@@ -2664,8 +4176,16 @@ index 0000000..a53f7a3
 +            // struct iovec (contract-abi §1.7): {base, len}, 8 bytes each, BE.
 +            const uint64_t base = readBigEndian64(&raw[i * 16]);
 +            const uint64_t len = readBigEndian64(&raw[i * 16 + 8]);
-+            const int64_t written =
-+                static_cast<int64_t>(doWrite(tc, process, fd, base, len));
++            bool blocked = false;
++            const int64_t written = static_cast<int64_t>(
++                    doWrite(tc, process, fd, base, len, blocked));
++            if (blocked) {
++                // A short write is a legal result: return what already went
++                // out instead of re-executing the whole vector.
++                if (total == 0)
++                    retry = true;
++                break;
++            }
 +            if (written < 0) {
 +                result = total > 0 ? total : static_cast<RegVal>(written);
 +                failed = true;
@@ -2673,8 +4193,144 @@ index 0000000..a53f7a3
 +            }
 +            total += static_cast<RegVal>(written);
 +        }
-+        if (!failed)
++        if (!failed && !retry)
 +            result = total;
++        break;
++      }
++
++      // IPC (GEM5-025t): pipes are guest objects (DadaoPipeFDEntry), sockets are
++      // forwarded to the host for the three families the corpus uses.
++      case SysPipe2: {
++        const Addr fildes = tc->getReg(rb(16));
++        const uint64_t flags = tc->getReg(rd(16));
++        result = doPipe2(tc, process, fildes, flags);
++        break;
++      }
++
++      case SysSocket: {
++        result = doSocket(process, static_cast<int>(tc->getReg(rd(16))),
++                          static_cast<int>(tc->getReg(rd(17))),
++                          static_cast<int>(tc->getReg(rd(18))));
++        break;
++      }
++
++      case SysSocketpair: {
++        result = doSocketpair(tc, process,
++                              static_cast<int>(tc->getReg(rd(16))),
++                              static_cast<int>(tc->getReg(rd(17))),
++                              static_cast<int>(tc->getReg(rd(18))),
++                              tc->getReg(rb(16)));
++        break;
++      }
++
++      case SysBind: {
++        result = doBind(tc, process, static_cast<int>(tc->getReg(rd(16))),
++                        tc->getReg(rb(16)),
++                        static_cast<int>(tc->getReg(rd(17))));
++        break;
++      }
++
++      case SysConnect: {
++        result = doConnect(tc, process, static_cast<int>(tc->getReg(rd(16))),
++                           tc->getReg(rb(16)),
++                           static_cast<int>(tc->getReg(rd(17))), retry);
++        break;
++      }
++
++      case SysListen: {
++        result = doListen(process, static_cast<int>(tc->getReg(rd(16))),
++                          static_cast<int>(tc->getReg(rd(17))));
++        break;
++      }
++
++      case SysAccept:
++      case SysAccept4: {
++        result = doAccept(tc, process, static_cast<int>(tc->getReg(rd(16))),
++                          tc->getReg(rb(16)), tc->getReg(rb(17)),
++                          nr == SysAccept4
++                              ? static_cast<int>(tc->getReg(rd(17)))
++                              : 0,
++                          retry);
++        break;
++      }
++
++      case SysSendto: {
++        result = doSendto(tc, process, static_cast<int>(tc->getReg(rd(16))),
++                          tc->getReg(rb(16)), tc->getReg(rd(17)),
++                          static_cast<int>(tc->getReg(rd(18))),
++                          tc->getReg(rb(17)),
++                          static_cast<int>(tc->getReg(rd(19))), retry);
++        break;
++      }
++
++      case SysRecvfrom: {
++        result = doRecvfrom(tc, process, static_cast<int>(tc->getReg(rd(16))),
++                            tc->getReg(rb(16)), tc->getReg(rd(17)),
++                            static_cast<int>(tc->getReg(rd(18))),
++                            tc->getReg(rb(17)), tc->getReg(rb(18)), retry);
++        break;
++      }
++
++      case SysSetsockopt: {
++        result = doSetsockopt(tc, process, static_cast<int>(tc->getReg(rd(16))),
++                              static_cast<int>(tc->getReg(rd(17))),
++                              static_cast<int>(tc->getReg(rd(18))),
++                              tc->getReg(rb(16)),
++                              static_cast<int>(tc->getReg(rd(19))));
++        break;
++      }
++
++      case SysGetsockopt: {
++        result = doGetsockopt(tc, process, static_cast<int>(tc->getReg(rd(16))),
++                              static_cast<int>(tc->getReg(rd(17))),
++                              static_cast<int>(tc->getReg(rd(18))),
++                              tc->getReg(rb(16)), tc->getReg(rb(17)));
++        break;
++      }
++
++      case SysGetsockname: {
++        result = doGetSockName(tc, process,
++                               static_cast<int>(tc->getReg(rd(16))),
++                               tc->getReg(rb(16)), tc->getReg(rb(17)), false);
++        break;
++      }
++
++      case SysGetpeername: {
++        result = doGetSockName(tc, process,
++                               static_cast<int>(tc->getReg(rd(16))),
++                               tc->getReg(rb(16)), tc->getReg(rb(17)), true);
++        break;
++      }
++
++      case SysShutdown: {
++        result = doShutdown(process, static_cast<int>(tc->getReg(rd(16))),
++                            static_cast<int>(tc->getReg(rd(17))));
++        break;
++      }
++
++      // Process creation / exec (GEM5-025t).  musl's fork()/vfork() and
++      // posix_spawn() all arrive at clone(2); CLONE_THREAD stays unimplemented.
++      case SysClone: {
++        result = doClone(tc, process, tc->getReg(rd(16)), tc->getReg(rd(17)),
++                         tc->getReg(rb(16)), tc->getReg(rd(18)),
++                         tc->getReg(rb(17)), suspendSelf);
++        break;
++      }
++
++      case SysExecve: {
++        bool replaced = false;
++        doExecve(tc, process, tc->getReg(rb(16)), tc->getReg(rb(17)),
++                 tc->getReg(rb(18)), result, replaced);
++        if (replaced)
++            return; // the new image is already running; no register write
++        break;
++      }
++
++      case SysWait4: {
++        result = doWait4(tc, process, static_cast<int>(tc->getReg(rd(16))),
++                         tc->getReg(rb(16)),
++                         static_cast<int>(tc->getReg(rd(17))),
++                         tc->getReg(rb(17)), retry);
 +        break;
 +      }
 +
@@ -2686,12 +4342,23 @@ index 0000000..a53f7a3
 +              static_cast<int>(nr), pc);
 +    }
 +
++    if (retry) {
++        syscallRetry = true;
++        return; // re-execute the trap (SyscallRetryFault, see inst.cc)
++    }
++
 +    tc->setReg(rd(8), result);
 +
 +    // Linux delivers pending unblocked signals on the way back to user mode.
 +    // The syscall's return value is already in rd8, so the frame saved in a
 +    // handler carries it; resume at the instruction after the trap.
 +    maybeDeliverSignals(tc, process, pc + 4);
++
++    // clone(CLONE_VFORK): the parent stays asleep until the child execs or
++    // exits (Linux vfork semantics).  The result is already in rd8, and the
++    // CPU advances the PC of the suspended context before it stops ticking.
++    if (suspendSelf)
++        tc->suspend();
 +}
 +
 +} // namespace DadaoISA

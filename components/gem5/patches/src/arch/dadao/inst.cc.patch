@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..7e1796c
+index 0000000..60d378e
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,629 @@
+@@ -0,0 +1,647 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -22,11 +22,13 @@ index 0000000..7e1796c
 +#include "arch/dadao/regs/float.hh"
 +#include "arch/dadao/regs/int.hh"
 +#include "arch/dadao/semihosting.hh"
++#include "arch/dadao/se_workload.hh"
 +#include "base/cprintf.hh"
 +#include "cpu/exec_context.hh"
 +#include "cpu/thread_context.hh"
 +#include "mem/request.hh"
 +#include "sim/system.hh"
++#include "sim/faults.hh"
 +
 +namespace gem5
 +{
@@ -129,6 +131,11 @@ index 0000000..7e1796c
 +        xc(xc), tc(xc->tcBase()), memFault(NoFault), malignAddr(0),
 +        malignWidth(0)
 +    {}
++
++    /** The trap handler asked for the instruction to run again (a syscall
++     *  that would have blocked: pipe/wait4/socket).  execute() turns this
++     *  into a SyscallRetryFault, which leaves the PC on the trap. */
++    bool syscallRetry = false;
 +
 +    void setCurrentWord(uint64_t word) { currentWord = word; }
 +
@@ -276,9 +283,15 @@ index 0000000..7e1796c
 +
 +        // SE entry point: `trap cfx0, 0` is umon / SBI_UMON_SYSCALL
 +        // (contract-syscall §2).  The workload dispatches on rd15 and the CPU
-+        // advances the PC by 4 like any other sequential instruction.
++        // advances the PC by 4 like any other sequential instruction -- unless
++        // the call cannot make progress yet, in which case execute() reports a
++        // SyscallRetryFault and the trap runs again later.
 +        if (cfxha == 0 && immu18 == 0) {
-+            tc->getSystemPtr()->workload->syscall(tc);
++            auto *workload = dynamic_cast<DadaoISA::SEWorkload *>(
++                    tc->getSystemPtr()->workload);
++            workload->syscall(tc);
++            if (workload->syscallRetry)
++                syscallRetry = true;
 +            return;
 +        }
 +
@@ -627,8 +640,13 @@ index 0000000..7e1796c
 +
 +    Gem5B1Context ctx(xc);
 +    ctx.setCurrentWord(word);
-+    return mapExecFault(batch, exec::dispatchBatch(batch, decoded, ctx), ctx,
-+                        word, decoded);
++    Fault fault = mapExecFault(batch, exec::dispatchBatch(batch, decoded, ctx),
++                               ctx, word, decoded);
++    // A syscall that could not make progress runs again from the same trap
++    // (SyscallRetryFault leaves the PC alone, sim/faults.cc).
++    if (ctx.syscallRetry)
++        return std::make_shared<SyscallRetryFault>();
++    return fault;
 +}
 +
 +} // namespace DadaoISAInst

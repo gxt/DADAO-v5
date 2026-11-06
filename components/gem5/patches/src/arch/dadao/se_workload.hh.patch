@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/se_workload.hh b/src/arch/dadao/se_workload.hh
 new file mode 100644
-index 0000000..5b32ce4
+index 0000000..77b3ba7
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.hh
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,46 @@
 +// DADAO syscall-emulation workload: the SE "OS" object.
 +//
 +// It owns the loader hook (an ET_EXEC DADAO object becomes a DADAO Process)
@@ -37,6 +37,13 @@ index 0000000..5b32ce4
 +
 +    /** Entry point of `trap cfx0, 0` (umon, SBI_UMON_SYSCALL). */
 +    void syscall(ThreadContext *tc) override;
++
++    /** Set when the last syscall could not make progress (an empty pipe, a
++     *  child that has not exited, a socket with nothing to read).  inst.cc
++     *  turns it into a SyscallRetryFault, which re-executes the trap instead
++     *  of writing a made-up result -- blocking the host thread would deadlock
++     *  the simulation, because the peer is another guest process. */
++    bool syscallRetry = false;
 +};
 +
 +} // namespace DadaoISA
