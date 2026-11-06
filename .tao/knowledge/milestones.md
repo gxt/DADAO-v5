@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-127t | 待开始 | 2026-11-06 10:20（登记） | 夜跑独立化：night-run + night.lock + meta 机器信息；不保留别名 |
 | INFRA-126t | 待开始 | 2026-11-06 10:05（登记） | 夜跑退出里程碑收口门控：改观测口径，check-milestone 去 night-report 依赖 |
 | TESTCASES-101t | 待开始 | 2026-11-06 09:40（登记） | libc-test malloc-brk-fail 改用 cur=0/max=inf；收口 rlimit 实现后的夜跑红 |
 | QEMU-084t | 已验证 | 2026-11-06 09:02 | QEMU user-mode guest rlimit 记账：AS/DATA/STACK；39 条断言入库；ISS-343 关闭 |
