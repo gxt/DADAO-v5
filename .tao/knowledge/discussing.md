@@ -38,6 +38,7 @@
 - **状态**：用户 2026-11-06 改为 **B 方案**（rf0 控制 + 编译器按 C cast 插桩），随后按 ISA 设计重新讨论，倾向「显式方向」；`ADR-0050` 已 `Accepted`（2026-11-06 用户「ADR0050确认」，D1–D7）；内容：15 条六档 one-hot（8 f2i + fo2ft + 6 条不精确 i2f）、3 条精确 SBZ（ft2fo/it2fo/ut2fo）、4 条复制保留计数。`GEM5-021t` findings 中的归属按「SPEC/工具链不一致」记录，暂不判 gem5 单方缺陷。
 - `SPEC-194t`（待开始）：按 ADR-0050 改 spec/contracts（15 六档 / 3 SBZ / 4 计数）；实现迁移随后由 `INTEG-058t` 承担。
 - `INTEG-058t`（待开始，依赖 `SPEC-194t`）：LLVM/QEMU/gem5/tests 按 ADR-0050 迁移。
+- `GEM5-023t`（待开始，依赖 `INTEG-058t`）：SE 文件 I/O（66 例）+ 时钟（29 例）；与 INTEG-058t 串行改 gem5 补丁。
 
 ## 2026-11-05 M11 收口与实现决定
 
