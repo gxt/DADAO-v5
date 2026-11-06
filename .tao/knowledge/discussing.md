@@ -22,6 +22,7 @@
 - `INFRA-127t`（待开始）：夜跑独立化 —— `night-run` 目标（无别名）、`night.lock` 独立锁、meta 补 host/machine/commit/工具链、成员不抢共享 `gate.lock`。
 - `GEM5-021t`（待开始）：gem5 SE tset 基线调查（static 先行）；**用户裁定** M11 按 D4 字面「补完整 tset」，并授权改 `tools/testcases` 驱动加 SE 路径。
 - `TESTCASES-102t`（待开始）：timing 探针去 icount 化（20 例）；**用户裁定 A**：全部去 icount，改轮询/窗口断言，换取两引擎同探针可比。
+- `GEM5-022t`（待开始）：gem5 SE heap/VMA —— `brk`（114 例阻塞）+ `mmap/munmap/mprotect`（21 例）；G1 syscall/VMA 首段。
 - **M11 进度**：L1/L2 rc=0；L3 `20261106T010620Z` 8/8 绿；夜跑按观测口径重跑（不阻断收口）。**但 M11 未达成**：G1 SE 剩余阶段（syscall/VMA → TLS → 静态 tset → 动态 → 线程/futex）未做，完整 tset 在 gem5 SE 上覆盖为 0。
 - `SPEC-180t` 的 ADR、Linux bring-up charter ADR：仍待用户逐条确认（长期 backlog）。
 
