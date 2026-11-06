@@ -10,8 +10,11 @@ Scope (ADR-0048 D1/D2/D5; task book §0/§1/§4):
   * hard gate: ``QEMU PASS => gem5 PASS`` with the same exit/visible result
     (``GEM5_ONLY_FAIL == 0``); ``QEMU_ONLY_FAIL`` is listed for a separate QEMU
     debug task but does not make this gate red;
-  * case-level ``BLOCKED`` (a gem5 capability gap such as QEMU ``-icount``) is
-    reported explicitly with a reason and never counted as PASS.
+  * case-level ``BLOCKED`` (a real gem5 capability gap) is reported explicitly
+    with a reason and never counted as PASS.  Probes are expected to run on
+    both engines with the same input (no engine-specific timing override), so
+    an option that has no gem5 equivalent is a setup/ERROR on the gem5 side,
+    not a silent N/A.
 
 The driver reuses the existing engines instead of re-implementing them:
 
@@ -306,8 +309,7 @@ def _parse_probe_list(path, profile="node"):
                 or line.startswith("required service ids"):
             continue
         name = line.split()[0]
-        checks.append({"name": name, "icount": "[-icount]" in line,
-                       "desc": line[len(name):].strip(" -")})
+        checks.append({"name": name, "desc": line[len(name):].strip(" -")})
     if not checks:
         raise SetupError(f"probe --list returned zero checks: {path}")
     return checks
@@ -354,7 +356,7 @@ def enumerate_arch(profile):
                                                           check["name"]),
                          "profile": profile, "scope": "arch", "kind": "probe",
                          "probe": probe["id"], "script": probe["script"],
-                         "check": check["name"], "icount": check["icount"]})
+                         "check": check["name"]})
     return rows
 
 
@@ -474,13 +476,7 @@ def _arch_smoke_run(args, profile, engine, out_json, log_path):
     return rc, _cache_by_case(out_json, "arch")
 
 
-def _probe_run(args, profile, engine, probe, check, icount, log_path):
-    if engine == "gem5" and icount:
-        return {"status": "N/A", "exit": None,
-                "arch_visible": {"check": check, "reason":
-                                 "QEMU -icount has no gem5 atomic equivalent "
-                                 "(task book §2); case not compared"},
-                "note": "icount timing control unsupported on gem5 FS"}
+def _probe_run(args, profile, engine, probe, check, log_path):
     env = _engine_env(args, profile, gem5=(engine == "gem5"))
     env["DADAO_TEST_PROFILE"] = "node"
     cmd = [sys.executable, probe["script"], "--only", check,
@@ -773,13 +769,11 @@ def build_rows(args, live):
                     else:
                         qr = _probe_run(
                             args, profile, "qemu", t, t["check"],
-                            t["icount"],
                             os.path.join(args.work_dir, "logs",
                                          f"probe-{t['probe']}-{t['check']}"
                                          "-qemu.log"))
                         gr = _probe_run(
                             args, profile, "gem5", t, t["check"],
-                            t["icount"],
                             os.path.join(args.work_dir, "logs",
                                          f"probe-{t['probe']}-{t['check']}"
                                          "-gem5.log"))
@@ -1056,9 +1050,6 @@ def _check_coverage(rows, live):
                 if not matching:
                     continue
                 row = matching[0]
-                if t.get("icount") and row["gem5"]["status"] != "N/A":
-                    errs.append(f"{t['case_id']}: -icount check must stay N/A "
-                                f"on gem5, got {row['gem5']['status']}")
                 if profile == "tiny" and (
                         row["qemu"]["status"] != "N/A"
                         or row["gem5"]["status"] != "N/A"):
@@ -1300,12 +1291,6 @@ def write_markdown(path, ident, rows, counts):
     if any(r["profile"] == "tiny" and r["scope"] == "arch" for r in rows):
         lines.append("- `tiny/arch`: `tests/shared/machine-profiles.yaml` "
                      "`tiny.arch=false` (Tiny has no cfx/monitor).")
-    icount = [r for r in rows if (r["gem5"].get("arch_visible") or {}).get(
-        "check") and "icount" in (r["gem5"].get("note") or "")]
-    if icount:
-        lines.append(f"- {len(icount)} arch probe check(s) are N/A on gem5: "
-                     "QEMU `-icount` has no atomic-model equivalent (task "
-                     "book §2).")
     if any(r["case_id"].endswith("/math_test") for r in rows):
         lines.append("- `picolibc/math_test`: BLOCKED, B7 numeric difference "
                      "(GEM5-015t leftover 1); never written as PASS and not in "
@@ -1679,8 +1664,6 @@ def main(argv=None):
                     extra = ""
                     if t.get("expected"):
                         extra = f" [{t['expected']}]"
-                    elif t.get("icount"):
-                        extra = " [icount]"
                     print(f"  {t['case_id']}{extra}")
             return 0
         os.makedirs(args.work_dir, exist_ok=True)

@@ -26,8 +26,19 @@ Expectations are derived by hand from the frozen spec / contract:
 
 Observation channels (same convention as min_rom_probe_integ047t.py):
   * register / fault-frame results -> QEMU `-d cpu` dump (last dump block);
-  * timer cases -> `-icount shift=0` (1 ns/instruction) with in-program
-    self-checks and a semihosting SYS_EXIT exit code (that mode has no dump).
+  * timer / counter cases -> in-program self-checks with a semihosting
+    SYS_EXIT exit code (no `-d cpu` dump).
+
+Timing model (TESTCASES-102t): the probe uses no instruction clock.  A wait
+reads the current `cfx_time`, sets a relative deadline, and polls it with a
+bounded loop.  Assertions are architecture-visible properties: nothing fires
+before the deadline, the event is visible inside a bounded window, ISTATUS /
+pending semantics, one-shot vs re-trigger, monotonicity, and the `cmp = ~0`
+disable.  The window is deliberately wide (see `DELTA_NS` / `WINDOW_NS`): with
+the default virtual clock QEMU drives `cfx_time` from host time, so a timer
+delivery can slip by the host scheduling latency (measured 0.5-7 ms on a
+loaded host), which no instruction-count bound can cover while still being
+comparable on gem5.
 
 Bootstrap (the probe body runs in hmon / cfx3, hypv):
   1. power stage: set cfx_hmon hypv_excp_vector, then `trap cfx_hmon, 0`.
@@ -119,6 +130,25 @@ BIT63 = 1 << 63
 EXIT_PASS = 0x00
 EXIT_FAIL = 0x61   # guest FAIL segment (spec/Machine-v5 §7.1)
 
+# Timing-model-neutral bounds (TESTCASES-102t).  DELTA_NS is the nominal
+# relative deadline; WINDOW_NS is the tolerated delay between the deadline and
+# the architecture-visible event.  Basis: without an instruction clock QEMU's
+# QEMU_CLOCK_VIRTUAL is host-time driven, so the observed delivery slip was
+# 0.5-7 ms on this (loaded) host; the 10 ms nominal deadline leaves >10x that
+# slip available *before* the deadline, and the 1 s window (100x nominal)
+# still fails an event that never arrives (the bounded poll records zero).
+DELTA_NS = 10_000_000
+WINDOW_NS = 1_000_000_000
+# Bounded poll: one iteration is ~7 instructions, so reaching the 10 ms
+# deadline needs ~1.4M iterations on gem5 (1 ns/instruction); 4M gives >2x
+# margin (on QEMU that is ~300 ms of head room).  The bound is only the
+# lost-event safety net: a passing case exits at the deadline.
+MAX_WAIT = 4_000_000
+
+# Wait-loop scratch registers.  The cfx_hart timer handler uses rd20/rd21, so
+# the body keeps its timing state in rd22..rd28.
+W_NOW, W_CMP, W_DEAD, W_BOUND, W_MAX, W_WIT, W_TMP = range(22, 29)
+
 # ROM layout: the shared prelude owns the power -> hmon hand-off; this probe's
 # hmon-mode setup (masks, vectors) is appended to the prelude's hmon segment,
 # and the body starts at ROM_BASE (RESET_PC + 0x1000).
@@ -176,6 +206,15 @@ def and_o(rdhb, rdhc, rdhd):
 
 def cmp_uo(rdhb, rdhc, rdhd):
     return _orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
+
+
+def add_uo(lo, hi, src_a, src_b):
+    """add.uo {hi, lo}, src_a, src_b: 128-bit unsigned add (carry -> hi).
+
+    Used only to build `deadline + WINDOW`; the two destinations must differ
+    (SimRISC-04 §1.1 legality), and `hi` is discarded.
+    """
+    return _orrr(0x50, hi, lo, src_a, src_b)
 
 
 def br_ne(rdha, rdhb, imms12):
@@ -402,13 +441,187 @@ def delay_loop(a, rd, count, tag):
 
 
 # ---------------------------------------------------------------------------
+# Model-neutral timing helpers (TESTCASES-102t)
+# ---------------------------------------------------------------------------
+
+def _timer_count_cond(want, off=0x18):
+    """Witness: cmp(RAM_STATE+off, want) -> 0 iff the count equals `want`."""
+
+    def emit(a, rd):
+        a.emit(*load_rb(3, RAM_BASE))
+        a.emit(ld_o(rd, 3, RAM_STATE + off))
+        a.emit(*load_rd(W_TMP, want))
+        a.emit(cmp_uo(rd, rd, W_TMP))
+
+    return emit
+
+
+def _cfx_mask_cond(read_cfx, mask):
+    """Witness: read_cfx(rd) & mask -> non-zero iff the bit is set."""
+
+    def emit(a, rd):
+        a.emit(read_cfx(rd))
+        a.emit(*load_rd(W_TMP, mask))
+        a.emit(and_o(rd, rd, W_TMP))
+
+    return emit
+
+
+def _pending_timer(rd):
+    return cfx2rd(HART_HA, 5, CG5_PENDING_RC, rd)
+
+
+def _ctrl_istatus(rd):
+    return cfx2rd(HART_HA, HART_CG, 5, rd)
+
+
+ARM_RETRIES = 8
+
+
+def arm_timer(a, delta=DELTA_NS, ctrl=CTRL_ENABLE, base=0, tag="a"):
+    """Cancel, then arm cmp = now + delta and program ctrl.
+
+    `base` is the probe's delivery-counter baseline (the counter is probe
+    bookkeeping in RAM, not hardware state).  The arm is retried if the host
+    clock already passed the deadline by the time the write landed: without a
+    deterministic instruction clock a host preemption between the time read
+    and the cmp write would otherwise arm an already-expired timer and fire
+    before the probe's "nothing before the deadline" check.  `cmp = ~0` plus
+    `pending = 0` cancel a half-armed timer (DADAO-12 §4.7).
+    """
+    retry = "arm_%s_reset" % tag
+    done = "arm_%s_ok" % tag
+    a.emit(*load_rd(W_MAX, ARM_RETRIES))
+    a.mark(retry)
+    a.emit(*load_rd(W_TMP, ALL1))                    # cmp = ~0: cancel
+    a.emit(cfx2rc(HART_HA, HART_CG, 4, W_TMP))
+    a.emit(*load_rd(W_TMP, 0))                       # ctrl = 0
+    a.emit(cfx2rc(HART_HA, HART_CG, 5, W_TMP))
+    a.emit(cfx2rc(HART_HA, 5, CG5_PENDING_RC, W_TMP))
+    a.emit(*load_rb(3, RAM_BASE))                    # witness baseline
+    a.emit(*load_rd(W_TMP, base))
+    a.emit(st_o(W_TMP, 3, RAM_STATE + 0x18))
+    a.emit(cfx2rd(TIME_HA, TIME_CG, 1, W_NOW))
+    a.emit(*load_rd(W_TMP, delta))                   # >= 10 ms: not imms18
+    a.emit(add_uo(W_DEAD, W_CMP, W_NOW, W_TMP))      # W_DEAD = now + delta
+    a.emit(cfx2rc(HART_HA, HART_CG, 4, W_DEAD))
+    _set_bound(a, W_DEAD)
+    a.emit(*load_rd(W_TMP, ctrl))
+    a.emit(cfx2rc(HART_HA, HART_CG, 5, W_TMP))
+    a.emit(cfx2rd(TIME_HA, TIME_CG, 1, W_CMP))       # still in the future?
+    a.emit(cmp_uo(W_CMP, W_CMP, W_DEAD))
+    a.emit(*load_rd(W_TMP, 1))
+    a.br("ne", W_CMP, W_TMP, done)                   # <= deadline -> armed
+    a.emit(add_si(W_MAX, -1))
+    a.br("nz", W_MAX, 0, retry)
+    a.emit(*exit_seq(0x7A))                          # cannot arm in the future
+    a.mark(done)
+
+
+def arm_timer_sbi(a, delta=DELTA_NS, tag="sbi"):
+    """arm_timer() through SBI_HART_SET_TIMER, with the same cancel+retry guard.
+
+    The provider writes cmp/ctrl from rd16; the trap and the provider body sit
+    between the time read and the cmp write, so a host preemption there could
+    arm an already-expired timer.  Cancel (cmp = ~0) and retry, exactly as in
+    arm_timer().
+    """
+    retry = "arms_%s_reset" % tag
+    done = "arms_%s_ok" % tag
+    a.emit(*load_rd(W_MAX, ARM_RETRIES))
+    a.mark(retry)
+    a.emit(*load_rd(W_TMP, ALL1))                    # cmp = ~0: cancel
+    a.emit(cfx2rc(HART_HA, HART_CG, 4, W_TMP))
+    a.emit(*load_rd(W_TMP, 0))
+    a.emit(cfx2rc(HART_HA, HART_CG, 5, W_TMP))
+    a.emit(cfx2rc(HART_HA, 5, CG5_PENDING_RC, W_TMP))
+    a.emit(*load_rb(3, RAM_BASE))
+    a.emit(st_o(W_TMP, 3, RAM_STATE + 0x18))         # baseline 0
+    a.emit(cfx2rd(TIME_HA, TIME_CG, 1, W_NOW))
+    a.emit(*load_rd(W_TMP, delta))                   # >= 10 ms: not imms18
+    a.emit(add_uo(W_DEAD, W_CMP, W_NOW, W_TMP))      # W_DEAD = now + delta
+    _set_bound(a, W_DEAD)
+    a.emit(and_o(16, W_DEAD, W_DEAD))
+    a.emit(trap(HART_HA, 1))
+    a.emit(and_o(5, 8, 8))
+    a.br("z", 5, 0, "arms_%s_ret" % tag)
+    a.emit(*exit_seq(0x61))
+    a.mark("arms_%s_ret" % tag)
+    a.emit(cfx2rd(TIME_HA, TIME_CG, 1, W_CMP))
+    a.emit(cmp_uo(W_CMP, W_CMP, W_DEAD))
+    a.emit(*load_rd(W_TMP, 1))
+    a.br("ne", W_CMP, W_TMP, done)
+    a.emit(add_si(W_MAX, -1))
+    a.br("nz", W_MAX, 0, retry)
+    a.emit(*exit_seq(0x7A))
+    a.mark(done)
+
+
+def _set_bound(a, deadline_rd):
+    """W_BOUND = deadline + WINDOW_NS (add.uo: lo=W_BOUND, hi=W_CMP)."""
+    a.emit(*load_rd(W_TMP, WINDOW_NS))
+    a.emit(add_uo(W_BOUND, W_CMP, deadline_rd, W_TMP))
+
+
+def check_quiet(a, deadline_rd, cond, zero_is_met, code, tag):
+    """Assert `cond` is NOT met while cfx_time < deadline.
+
+    Sampling order matters: the witness is read *first*, then the clock.  If
+    the clock sample is still before the deadline, the witness sample was
+    taken even earlier, so a met condition is a genuine early delivery.  If
+    the clock already passed the deadline the check is inconclusive (the
+    guest cannot turn the host clock back) and is skipped; sampling the clock
+    first would misjudge a preemption between the two reads as an early
+    delivery.
+    """
+    done = "q_%s" % tag
+    cond(a, W_WIT)
+    a.emit(cfx2rd(TIME_HA, TIME_CG, 1, W_NOW))
+    a.emit(cmp_uo(W_CMP, W_NOW, deadline_rd))
+    a.br("nn", W_CMP, 0, done)
+    a.br("nz" if zero_is_met else "z", W_WIT, 0, done)
+    a.emit(*exit_seq(code))
+    a.mark(done)
+
+
+def wait_cond(a, bound_rd, cond, zero_is_met, tag, code_late, code_lost):
+    """Bounded poll for `cond`, with a two-sided window.
+
+    `bound_rd` is deadline + WINDOW_NS: an event seen after it is "late"
+    (`code_late`), an event never seen before the bound or MAX_WAIT is "lost"
+    (`code_lost`).  Both fail paths are reachable.
+    """
+    head = "w_%s" % tag
+    got = head + "_got"
+    lost = head + "_lost"
+    ok = head + "_ok"
+    a.emit(*load_rd(W_MAX, MAX_WAIT))
+    a.mark(head)
+    a.emit(cfx2rd(TIME_HA, TIME_CG, 1, W_NOW))
+    cond(a, W_WIT)
+    a.br("z" if zero_is_met else "nz", W_WIT, 0, got)
+    a.emit(cmp_uo(W_CMP, W_NOW, bound_rd))
+    a.br("nn", W_CMP, 0, lost)
+    a.emit(add_si(W_MAX, -1))
+    a.br("nz", W_MAX, 0, head)
+    a.mark(lost)
+    a.emit(*exit_seq(code_lost))
+    a.mark(got)
+    a.emit(cmp_uo(W_CMP, W_NOW, bound_rd))
+    a.emit(*load_rd(W_TMP, 1))
+    a.br("ne", W_CMP, W_TMP, ok)                     # now <= bound
+    a.emit(*exit_seq(code_late))
+    a.mark(ok)
+
+
+# ---------------------------------------------------------------------------
 # QEMU runner + dump parsing
 # ---------------------------------------------------------------------------
 
-def run(rom, icount_shift=None):
+def run(rom, dump=True):
     """4 MiB `bootrom-image`, no `-kernel`; returns (rc, cpu_log, stderr)."""
     rc, log = _prelude.run(rom, WORKDIR, qemu=QEMU, timeout=TIMEOUT,
-                           icount_shift=icount_shift)
+                           dump=dump)
     return rc, log, ""
 
 
@@ -475,9 +688,9 @@ def hmon_setup():
 CASES = []
 
 
-def case(name, desc, icount_shift=None):
+def case(name, desc, dump=True):
     def deco(fn):
-        CASES.append((name, desc, fn, icount_shift))
+        CASES.append((name, desc, fn, dump))
         return fn
     return deco
 
@@ -616,29 +829,31 @@ def _cycle_insn_read():
 
 
 @case("cycle_insn_monotonic",
-      "icount: cycle/insn advance by >= N-4096 over a 100k-instruction loop",
-      icount_shift=0)
+      "cycle strictly advances and insn delta >= N over a 100k-iteration loop",
+      dump=False)
 def _cycle_insn_monotonic():
     N = 100000
     a = Asm()
     a.emit(cfx2rd(HART_HA, HART_CG, 2, 5))
     a.emit(cfx2rd(HART_HA, HART_CG, 3, 6))
-    delay_loop(a, 22, N, "main")
+    delay_loop(a, 22, N, "main")                     # >= 2 instructions/iter
     a.emit(cfx2rd(HART_HA, HART_CG, 2, 7))
     a.emit(cfx2rd(HART_HA, HART_CG, 3, 8))
-    okc, oki = "mono_c", "mono_i"
-    a.emit(and_o(20, 5, 5))
-    a.emit(add_si(20, N - 4096))
-    a.emit(cmp_uo(21, 7, 20))
-    a.br("nn", 21, 0, okc)
+    # cycle = virtual-clock ns: the loop must make it strictly increase.
+    # (How many ns per instruction is engine-defined; only monotonicity and
+    # the per-instruction `insn` counter are contract properties.)
+    a.emit(cmp_uo(20, 7, 5))
+    a.emit(*load_rd(21, 1))
+    a.br("eq", 20, 21, "mono_c")
     a.emit(*exit_seq(0x61))
-    a.mark(okc)
+    a.mark("mono_c")
+    # insn counts executed instructions: each iteration is >= 2 of them.
     a.emit(and_o(20, 6, 6))
-    a.emit(add_si(20, N - 4096))
+    a.emit(add_si(20, N))
     a.emit(cmp_uo(21, 8, 20))
-    a.br("nn", 21, 0, oki)
+    a.br("nn", 21, 0, "mono_i")
     a.emit(*exit_seq(0x62))
-    a.mark(oki)
+    a.mark("mono_i")
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
 
@@ -659,67 +874,62 @@ def _timer_ctrl_rw():
     }
 
 
-@case("timer_istatus", "icount: ISTATUS = ENABLE && cmp!=~0 && time>=cmp", icount_shift=0)
+@case("timer_istatus", "ISTATUS = ENABLE && cmp!=~0 && time>=cmp", dump=False)
 def _timer_istatus():
     a = Asm()
+    # cmp is read before the ENABLE write, so the monotonic clock has already
+    # reached it when timer_ctrl lands: ISTATUS must read as set.
     a.emit(cfx2rd(TIME_HA, TIME_CG, 1, 22))          # now (ENABLE still 0)
     a.emit(cfx2rc(HART_HA, HART_CG, 4, 22))          # cmp = now
-    a.emit(*load_rd(21, CTRL_ENABLE))
-    a.emit(cfx2rc(HART_HA, HART_CG, 5, 21))
+    a.emit(*load_rd(W_TMP, CTRL_ENABLE))
+    a.emit(cfx2rc(HART_HA, HART_CG, 5, W_TMP))
     a.emit(cfx2rd(HART_HA, HART_CG, 5, 5))
-    a.emit(*load_rd(20, CTRL_ISTATUS))
-    a.emit(and_o(20, 5, 20))
+    a.emit(*load_rd(W_TMP, CTRL_ISTATUS))
+    a.emit(and_o(5, 5, W_TMP))
     ok = "ist_set"
-    a.br("nz", 20, 0, ok)
+    a.br("nz", 5, 0, ok)
     a.emit(*exit_seq(0x61))
     a.mark(ok)
     a.emit(*load_rd(22, ALL1))
     a.emit(cfx2rc(HART_HA, HART_CG, 4, 22))          # cmp = ~0 -> never matches
     a.emit(cfx2rd(HART_HA, HART_CG, 5, 6))
-    a.emit(*load_rd(20, CTRL_ISTATUS))
-    a.emit(and_o(20, 6, 20))
+    a.emit(*load_rd(W_TMP, CTRL_ISTATUS))
+    a.emit(and_o(6, 6, W_TMP))
     ok2 = "ist_clear"
-    a.br("z", 20, 0, ok2)
+    a.br("z", 6, 0, ok2)
     a.emit(*exit_seq(0x62))
     a.mark(ok2)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
 
 
-@case("timer_cmp_clears", "icount: writing a new cmp clears ISTATUS and re-arms",
-      icount_shift=0)
+@case("timer_cmp_clears",
+      "writing a new cmp clears ISTATUS and re-arms (second delivery)",
+      dump=False)
 def _timer_cmp_clears():
     a = Asm()
-    a.emit(cfx2rd(TIME_HA, TIME_CG, 1, 22))
-    a.emit(add_si(22, 1000))
-    a.emit(cfx2rc(HART_HA, HART_CG, 4, 22))
-    a.emit(*load_rd(21, CTRL_ENABLE))
-    a.emit(cfx2rc(HART_HA, HART_CG, 5, 21))
-    delay_loop(a, 22, 2000, "first")
-    a.emit(cfx2rd(TIME_HA, TIME_CG, 1, 22))
-    a.emit(add_si(22, 100000))                       # fits imms18 (positive)
-    a.emit(cfx2rc(HART_HA, HART_CG, 4, 22))          # new cmp: ISTATUS -> 0
+    arm_timer(a)
+    check_quiet(a, W_DEAD, _timer_count_cond(1), True, 0x61, "cmpq")
+    wait_cond(a, W_BOUND, _timer_count_cond(1), True, "cmp1", 0x62, 0x63)
+    # New cmp at now+DELTA: the arm must clear ISTATUS and re-arm.
+    arm_timer(a, base=1, tag="cmp2")
     a.emit(cfx2rd(HART_HA, HART_CG, 5, 5))
-    a.emit(*load_rd(20, CTRL_ISTATUS))
-    a.emit(and_o(20, 5, 20))
-    ok = "cmp_ist_clear"
-    a.br("z", 20, 0, ok)
-    a.emit(*exit_seq(0x61))
-    a.mark(ok)
-    delay_loop(a, 22, 2000, "second")                # 4000 ns << 1e6 ns
-    ram_load(a, RAM_STATE + 0x18, 6)
-    a.emit(*load_rd(20, 1))
-    ok2 = "cmp_one"
-    a.br("eq", 6, 20, ok2)
-    a.emit(*exit_seq(0x62))
-    a.mark(ok2)
+    a.emit(*load_rd(W_TMP, CTRL_ISTATUS))
+    a.emit(and_o(5, 5, W_TMP))
+    a.br("z", 5, 0, "cmp_ist")
+    a.emit(*exit_seq(0x64))
+    a.mark("cmp_ist")
+    # ISTATUS is clear; the re-armed timer must still deliver once more.
+    wait_cond(a, W_BOUND, _timer_count_cond(2), True, "cmp2", 0x65, 0x66)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
 
 
-@case("timer_ones_disable", "icount: cmp=~0 + ENABLE=1 never matches", icount_shift=0)
+@case("timer_ones_disable", "cmp=~0 + ENABLE=1 never matches", dump=False)
 def _timer_ones_disable():
     a = Asm()
+    # cmp = ~0 is "disabled" regardless of how fast the clock runs, so the
+    # fixed work loop below is a valid model-neutral check (no deadline).
     a.emit(*load_rd(22, ALL1))
     a.emit(cfx2rc(HART_HA, HART_CG, 4, 22))
     a.emit(*load_rd(21, CTRL_ENABLE))
@@ -741,126 +951,102 @@ def _timer_ones_disable():
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
 
 
-@case("timer_interrupt", "icount: expiry delivers TIMER (0x400, info 0) once",
-      icount_shift=0)
+@case("timer_interrupt", "expiry delivers TIMER (0x400, info 0) once",
+      dump=False)
 def _timer_interrupt():
     a = Asm()
-    a.emit(cfx2rd(TIME_HA, TIME_CG, 1, 22))
-    a.emit(add_si(22, 2000))
-    a.emit(cfx2rc(HART_HA, HART_CG, 4, 22))
-    a.emit(*load_rd(21, CTRL_ENABLE))
-    a.emit(cfx2rc(HART_HA, HART_CG, 5, 21))
-    delay_loop(a, 22, 4000, "irq")
-    ram_load(a, RAM_STATE + 0x18, 5)
-    a.emit(*load_rd(20, 1))
-    ok1 = "irq_count"
-    a.br("eq", 5, 20, ok1)
-    a.emit(*exit_seq(0x61))
-    a.mark(ok1)
+    arm_timer(a)
+    check_quiet(a, W_DEAD, _timer_count_cond(1), True, 0x61, "irqq")
+    wait_cond(a, W_BOUND, _timer_count_cond(1), True, "irq", 0x62, 0x63)
     ram_load(a, RAM_STATE + 0x00, 6)
     a.emit(*load_rd(20, TIMER))
     ok2 = "irq_cid"
     a.br("eq", 6, 20, ok2)
-    a.emit(*exit_seq(0x62))
+    a.emit(*exit_seq(0x64))
     a.mark(ok2)
     ram_load(a, RAM_STATE + 0x08, 7)
     ok3 = "irq_cinfo"
     a.br("z", 7, 0, ok3)
-    a.emit(*exit_seq(0x63))
+    a.emit(*exit_seq(0x65))
     a.mark(ok3)
     a.emit(cfx2rd(HART_HA, HART_CG, 5, 8))
-    a.emit(*load_rd(20, CTRL_ISTATUS))
-    a.emit(and_o(20, 8, 20))
+    a.emit(*load_rd(W_TMP, CTRL_ISTATUS))
+    a.emit(and_o(8, 8, W_TMP))
     ok4 = "irq_istatus"
-    a.br("nz", 20, 0, ok4)
-    a.emit(*exit_seq(0x64))
+    a.br("nz", 8, 0, ok4)
+    a.emit(*exit_seq(0x66))
     a.mark(ok4)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
 
 
-@case("timer_imask_pending", "icount: IMASK defers TIMER into cg5 rc5 bit10",
-      icount_shift=0)
+@case("timer_imask_pending", "IMASK defers TIMER into cg5 rc5 bit10",
+      dump=False)
 def _timer_imask_pending():
     a = Asm()
-    a.emit(cfx2rd(TIME_HA, TIME_CG, 1, 22))
-    a.emit(add_si(22, 1000))
-    a.emit(cfx2rc(HART_HA, HART_CG, 4, 22))
-    a.emit(*load_rd(21, CTRL_ENABLE | CTRL_IMASK))
-    a.emit(cfx2rc(HART_HA, HART_CG, 5, 21))
-    delay_loop(a, 22, 3000, "masked")
+    arm_timer(a, DELTA_NS, CTRL_ENABLE | CTRL_IMASK)
+    check_quiet(a, W_DEAD, _timer_count_cond(1), True, 0x61, "imq")
+    wait_cond(a, W_BOUND, _cfx_mask_cond(_pending_timer, TIMER), False,
+              "imp", 0x62, 0x63)
+    # Still no delivery while IMASK is set.
     ram_load(a, RAM_STATE + 0x18, 5)
     ok1 = "imask_count0"
     a.br("z", 5, 0, ok1)
-    a.emit(*exit_seq(0x61))
-    a.mark(ok1)
-    a.emit(cfx2rd(HART_HA, HART_CG, 5, 6))
-    a.emit(*load_rd(20, CTRL_ISTATUS))
-    a.emit(and_o(20, 6, 20))
-    ok2 = "imask_istatus"
-    a.br("nz", 20, 0, ok2)
-    a.emit(*exit_seq(0x62))
-    a.mark(ok2)
-    a.emit(cfx2rd(HART_HA, 5, CG5_PENDING_RC, 7))
-    a.emit(*load_rd(20, TIMER))
-    a.emit(and_o(20, 7, 20))
-    ok3 = "imask_pending"
-    a.br("nz", 20, 0, ok3)
-    a.emit(*exit_seq(0x63))
-    a.mark(ok3)
-    a.emit(*load_rd(21, CTRL_ENABLE))
-    a.emit(cfx2rc(HART_HA, HART_CG, 5, 21))          # release IMASK -> deliver
-    delay_loop(a, 22, 2000, "unmasked")
-    ram_load(a, RAM_STATE + 0x18, 8)
-    a.emit(*load_rd(20, 1))
-    ok4 = "imask_delivered"
-    a.br("eq", 8, 20, ok4)
     a.emit(*exit_seq(0x64))
-    a.mark(ok4)
+    a.mark(ok1)
+    # ISTATUS is set at expiry even while masked.
+    a.emit(cfx2rd(HART_HA, HART_CG, 5, 6))
+    a.emit(*load_rd(W_TMP, CTRL_ISTATUS))
+    a.emit(and_o(6, 6, W_TMP))
+    ok2 = "imask_istatus"
+    a.br("nz", 6, 0, ok2)
+    a.emit(*exit_seq(0x65))
+    a.mark(ok2)
+    # Release IMASK -> the pending bit re-kicks and delivers exactly once.
+    a.emit(*load_rd(21, CTRL_ENABLE))
+    a.emit(cfx2rc(HART_HA, HART_CG, 5, 21))
+    a.emit(cfx2rd(TIME_HA, TIME_CG, 1, W_NOW))
+    _set_bound(a, W_NOW)
+    wait_cond(a, W_BOUND, _timer_count_cond(1), True, "imrel", 0x66, 0x67)
     a.emit(cfx2rd(HART_HA, 5, CG5_PENDING_RC, 9))
     a.emit(*load_rd(20, TIMER))
     a.emit(and_o(20, 9, 20))
     ok5 = "imask_pending_clear"
     a.br("z", 20, 0, ok5)
-    a.emit(*exit_seq(0x65))
+    a.emit(*exit_seq(0x68))
     a.mark(ok5)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
 
 
-@case("timer_retrigger", "icount: one-shot timer can be re-armed (2 deliveries)",
-      icount_shift=0)
+@case("timer_retrigger", "one-shot timer can be re-armed (2 deliveries)",
+      dump=False)
 def _timer_retrigger():
     a = Asm()
     for tag, want in (("first", 1), ("second", 2)):
-        a.emit(cfx2rd(TIME_HA, TIME_CG, 1, 22))
-        a.emit(add_si(22, 1000))
-        a.emit(cfx2rc(HART_HA, HART_CG, 4, 22))
-        a.emit(*load_rd(21, CTRL_ENABLE))
-        a.emit(cfx2rc(HART_HA, HART_CG, 5, 21))
-        delay_loop(a, 22, 4000, tag)
-        ram_load(a, RAM_STATE + 0x18, 5)
-        a.emit(*load_rd(20, want))
-        ok = "retrig_%s" % tag
-        a.br("eq", 5, 20, ok)
-        a.emit(*exit_seq(0x61 if want == 1 else 0x62))
-        a.mark(ok)
+        arm_timer(a, base=want - 1, tag=tag)
+        check_quiet(a, W_DEAD, _timer_count_cond(want), True,
+                    0x61 if want == 1 else 0x63, "rtq_%s" % tag)
+        wait_cond(a, W_BOUND, _timer_count_cond(want), True,
+                  "rt_%s" % tag, 0x62 if want == 1 else 0x64,
+                  0x65 if want == 1 else 0x66)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
 
 
-@case("sbi_time_monotonic", "icount: SBI_TIME_GET advances with instruction count",
-      icount_shift=0)
+@case("sbi_time_monotonic", "SBI_TIME_GET is strictly monotonic over a work loop",
+      dump=False)
 def _sbi_time_monotonic():
-    N = 10000
+    N = 5000
     a = Asm()
     a.emit(trap(TIME_HA, 0))
-    a.emit(and_o(5, 8, 8))
-    delay_loop(a, 22, N // 2, "sbi_time")            # 2 insns/iter => N insns
+    a.emit(and_o(5, 8, 8))                           # t1
+    delay_loop(a, 22, N, "sbi_time")                 # 2 instructions/iter
     a.emit(trap(TIME_HA, 0))
-    a.emit(and_o(6, 8, 8))
+    a.emit(and_o(6, 8, 8))                           # t2
+    # t2 >= t1 + 1: strictly increasing (how fast is engine-defined)
     a.emit(and_o(20, 5, 5))
-    a.emit(add_si(20, N))
+    a.emit(add_si(20, 1))
     a.emit(cmp_uo(21, 6, 20))
     ok = "sbi_time_delta"
     a.br("nn", 21, 0, ok)
@@ -876,31 +1062,18 @@ def _sbi_time_monotonic():
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
 
 
-@case("sbi_hart_set_timer", "icount: SBI_HART_SET_TIMER arms and delivers TIMER",
-      icount_shift=0)
+@case("sbi_hart_set_timer", "SBI_HART_SET_TIMER arms and delivers TIMER",
+      dump=False)
 def _sbi_hart_set_timer():
     a = Asm()
-    a.emit(cfx2rd(TIME_HA, TIME_CG, 1, 21))
-    a.emit(add_si(21, 2000))
-    a.emit(and_o(16, 21, 21))
-    a.emit(trap(HART_HA, 1))
-    a.emit(and_o(5, 8, 8))                           # SBI return value
-    ok1 = "sbi_st_ret"
-    a.br("z", 5, 0, ok1)
-    a.emit(*exit_seq(0x61))
-    a.mark(ok1)
-    delay_loop(a, 22, 4000, "sbi_st")
-    ram_load(a, RAM_STATE + 0x18, 6)
-    a.emit(*load_rd(20, 1))
-    ok2 = "sbi_st_count"
-    a.br("eq", 6, 20, ok2)
-    a.emit(*exit_seq(0x62))
-    a.mark(ok2)
+    arm_timer_sbi(a)
+    check_quiet(a, W_DEAD, _timer_count_cond(1), True, 0x62, "sbiq")
+    wait_cond(a, W_BOUND, _timer_count_cond(1), True, "sbi", 0x63, 0x64)
     ram_load(a, RAM_STATE + 0x00, 7)
     a.emit(*load_rd(20, TIMER))
     ok3 = "sbi_st_cid"
     a.br("eq", 7, 20, ok3)
-    a.emit(*exit_seq(0x63))
+    a.emit(*exit_seq(0x65))
     a.mark(ok3)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), HANDLERS), {"exit": EXIT_PASS}
@@ -1069,13 +1242,13 @@ def run_doc():
 # ---------------------------------------------------------------------------
 
 def run_case(name):
-    for n, d, fn, icount in CASES:
+    for n, d, fn, dump in CASES:
         if n == name:
             rom, exp = fn()
-            rc, log, err = run(rom, icount_shift=icount)
+            rc, log, err = run(rom, dump=dump)
             if rc is None:
                 return False, "TIMEOUT", exp
-            obs = observe(log) if icount is None else {}
+            obs = observe(log) if dump else {}
             obs["exit"] = rc
             diffs = []
             for k, v in exp.items():
@@ -1108,8 +1281,8 @@ def main():
 
     if args.list:
         print("%-26s %s" % (DOC_CASE, "doc: spec/contract rc layout + 64-bit wording"))
-        for n, d, _fn, icount in CASES:
-            print("%-26s %s%s" % (n, d, " [-icount]" if icount is not None else ""))
+        for n, d, _fn, _dump in CASES:
+            print("%-26s %s" % (n, d))
         return 0
 
     if args.only:

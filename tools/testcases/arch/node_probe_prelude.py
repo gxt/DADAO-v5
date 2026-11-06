@@ -441,11 +441,18 @@ def build_rom(prog, handlers=None, words_at=None, hmon_extra=None,
 # QEMU runner
 # ---------------------------------------------------------------------------
 
-def run(rom, workdir=None, qemu=None, timeout=TIMEOUT, icount_shift=None):
+def run(rom, workdir=None, qemu=None, timeout=TIMEOUT, dump=True):
     """Run one probe image; returns (exit_code_or_None, cpu_log).
 
     Loading: 4 MiB `bootrom-image`, no `-kernel` (task book §2/E3); each case
     is its own QEMU process.
+
+    ``dump`` selects the observation channel: ``-d cpu -D <log>`` (register
+    dump, the default) or none.  Self-checking cases pass ``dump=False``:
+    they report through the semihosting exit code only, and the per-TB dump
+    would cost gigabytes while a timing case polls the virtual clock.  There
+    is no instruction-clock override: timing cases must stay model-neutral
+    and comparable on gem5 (TESTCASES-102t).
     """
     if workdir is None:
         stem = os.path.splitext(os.path.basename(sys.argv[0] or "probe"))[0]
@@ -460,20 +467,15 @@ def run(rom, workdir=None, qemu=None, timeout=TIMEOUT, icount_shift=None):
     cmd = [qemu, "-machine",
            "dadao-m1,profile=%s,bootrom-image=%s" % (PROFILE.name, rp),
            "-nographic", "-semihosting-config", "enable=on,target=native"]
-    if icount_shift is None:
+    if dump:
         cmd += ["-d", "cpu", "-D", lp]
-    else:
-        # `-icount` cases self-check through the exit code (no dump channel);
-        # the per-instruction dump would make the 1 ms prelude DMA window cost
-        # gigabytes of I/O and time the case out.
-        cmd += ["-icount", "shift=%d" % icount_shift]
     try:
         r = subprocess.run(cmd, capture_output=True, timeout=timeout, text=True)
         rc = r.returncode & 0xFF
     except subprocess.TimeoutExpired:
         return None, "TIMEOUT"
     log = ""
-    if icount_shift is None and os.path.isfile(lp):
+    if dump and os.path.isfile(lp):
         with open(lp) as f:
             log = f.read()
     return rc, log

@@ -19,8 +19,8 @@ Supported QEMU subset (ADR-0048 D1/D2; task book §2):
                                    PC windows, so the probe's "last block"
                                    observation is byte-for-byte the QEMU one
 
-Everything else -- including `-qmp`, `-S`, `-s`, `-icount` -- is rejected with
-exit code 2.  Nothing is silently dropped: `-chardev …,input-path=P` is wired
+Everything else -- including `-qmp`, `-S`, `-s` and any option without a gem5
+FS equivalent -- is rejected with exit code 2.  Nothing is silently dropped: `-chardev …,input-path=P` is wired
 to the gem5 process stdin so `SYS_READC` sees the same bytes as QEMU.
 
 Engine selection (environment, set by the parity driver):
@@ -52,7 +52,7 @@ USAGE = """usage: qemu_gem5_shim.py [QEMU system argv subset]
   -chardev file,id=ID,path=PATH[,input-path=PATH]
   -nographic | -display none | -monitor none | -serial none
   -d cpu -D LOG
-Unsupported (exit 2): -qmp -S -s -icount, unknown options, unknown machine
+Unsupported (exit 2): -qmp -S -s, unknown options, unknown machine
 properties, semihosting target != native, debug items other than `cpu`.
 """
 
@@ -241,8 +241,8 @@ def parse(argv: list[str]) -> dict:
                 raise ShimError("-D: missing value")
             cfg["trace"] = argv[i + 1]
             i += 2
-        elif arg in ("-qmp", "-S", "-s", "-icount"):
-            raise ShimError(f"{arg}: no gem5 FS equivalent (atomic model)")
+        elif arg in ("-qmp", "-S", "-s"):
+            raise ShimError(f"{arg}: no gem5 FS equivalent")
         elif arg.startswith("-"):
             raise ShimError(f"unsupported option {arg!r}")
         else:

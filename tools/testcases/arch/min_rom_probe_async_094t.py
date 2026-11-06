@@ -25,8 +25,9 @@ step 3 keeps blocking (`pending` is recorded, nothing is delivered); with the
 bit clear the same body gets the delivery.
 
 Observation: every check is in-program; the verdict is the host `$?` of the
-semihosting SYS_EXIT (0 = pass).  TIMER cases run under `-icount shift=0`
-(deterministic virtual ns); PMEM/dual cases use the default virtual clock.
+semihosting SYS_EXIT (0 = pass).  All cases use the default virtual clock and
+no CPU dump; the settle loops are sized so a 1-2 us timer deadline expires in
+both the QEMU host-driven clock and the gem5 instruction clock.
 
 Usage:
   min_rom_probe_async_094t.py [--qemu PATH] [--only NAME] [--list]
@@ -252,9 +253,9 @@ def hmon_setup():
 CASES = []
 
 
-def case(name, desc, icount=None):
+def case(name, desc):
     def deco(fn):
-        CASES.append((name, desc, fn, icount))
+        CASES.append((name, desc, fn))
         return fn
     return deco
 
@@ -263,8 +264,7 @@ def build(body):
     return _prelude.build_rom(body, HANDLERS, hmon_extra=hmon_setup())
 
 
-@case("timer_mask_open", "icount: entry mask open => TIMER delivered once",
-      icount=0)
+@case("timer_mask_open", "entry mask open => TIMER delivered once")
 def _timer_mask_open():
     s = Seq()
     timer_arm(s, 2000)
@@ -290,8 +290,7 @@ def _timer_mask_open_default():
 
 
 @case("timer_mask_shut",
-      "icount: cfx_intr_mask bit15 set => pending bit10 set, no delivery",
-      icount=0)
+      "cfx_intr_mask bit15 set => pending bit10 set, no delivery")
 def _timer_mask_shut():
     s = Seq()
     # current cfx is hmon; block the TIMER source at the lower filter level
@@ -350,10 +349,9 @@ def _dual_lowest_first():
     return build(s.resolve()), {"exit": 0}
 
 
-@case("dedup_icount",
-      "icount: two masked expiries of one source => exactly one delivery",
-      icount=0)
-def _dedup_icount():
+@case("dedup_timer",
+      "two masked expiries of one source => exactly one delivery")
+def _dedup_timer():
     s = Seq()
     set_global(s, ALL1)                        # block TIMER (bit15 set)
     timer_arm(s, 500)
@@ -375,12 +373,12 @@ def _dedup_icount():
 # ---------------------------------------------------------------------------
 
 def run_case(name):
-    for n, d, fn, icount in CASES:
+    for n, d, fn in CASES:
         if n != name:
             continue
         rom, exp = fn()
         rc, _log = _prelude.run(rom, WORKDIR, qemu=QEMU, timeout=TIMEOUT,
-                                icount_shift=icount)
+                                dump=False)
         if rc is None:
             return False, "TIMEOUT"
         ok = (rc == exp["exit"])
@@ -399,16 +397,15 @@ def main():
         QEMU = args.qemu
 
     if args.list:
-        for n, d, _fn, icount in CASES:
-            print("%-26s %s%s" % (n, d,
-                                  " [-icount]" if icount is not None else ""))
+        for n, d, _fn in CASES:
+            print("%-26s %s" % (n, d))
         return 0
 
     if not os.path.isfile(QEMU):
         print("[FAIL] QEMU binary not found: %s" % QEMU)
         return 2
 
-    names = [n for n, _d, _fn, _i in CASES]
+    names = [n for n, _d, _fn in CASES]
     if args.only is not None:
         if args.only not in names:
             print("[FAIL] no case named %r" % args.only)

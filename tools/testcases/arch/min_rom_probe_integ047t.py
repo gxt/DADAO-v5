@@ -27,13 +27,13 @@ The encoder / run() / observe() / bootstrap_rom() helpers are copied in place
 from min_rom_probe_integ042t.py (no import, to keep the two case tables
 independent); that file is not modified.
 
-The ``start_busy_returns_busy`` case needs the 1 ms BUSY window to survive
-between two traps.  Under the default virtual clock the host-side `-d cpu`
-dump between traps is slow enough to consume that window (pre-check: not
-observable).  The case therefore runs with ``-icount shift=0`` (1 ns per
-instruction, so 1 ms >> a few dozen instructions) and self-checks its result,
-reporting pass/fail through the semihosting exit code.  ``-icount`` disables
-the register dump in this QEMU build, hence the self-check channel.
+The ``start_busy_returns_busy`` case needs the BUSY window to survive between
+two traps.  It runs with the default virtual clock and self-checks its result
+through the semihosting exit code (no ``-d cpu`` dump).  The model-independent
+property is "the first START returns 0 and a back-to-back second START returns
+-5": both engines keep BUSY for at least 1 us (gem5 DMA event 1 us, QEMU timer
+1 ms), while the gap between the two traps is a few hundred ns at most, so no
+instruction-count timing assumption is needed (TESTCASES-102t).
 
 Usage:
   min_rom_probe_integ047t.py --doc          # doc checks only (offline)
@@ -376,10 +376,10 @@ def build_rom(prog, handlers=None):
 # QEMU runner + dump parsing
 # ---------------------------------------------------------------------------
 
-def run(rom, icount_shift=None):
+def run(rom, dump=True):
     """4 MiB `bootrom-image`, no `-kernel`; returns (rc, cpu_log, stderr)."""
     rc, log = _prelude.run(rom, WORKDIR, qemu=QEMU, timeout=TIMEOUT,
-                           icount_shift=icount_shift)
+                           dump=dump)
     return rc, log, ""
 
 def lasthex(log, pat):
@@ -403,9 +403,9 @@ def observe(log):
 CASES = []
 
 
-def case(name, desc, icount_shift=None):
+def case(name, desc, dump=True):
     def deco(fn):
-        CASES.append((name, desc, fn, icount_shift))
+        CASES.append((name, desc, fn, dump))
         return fn
     return deco
 
@@ -504,8 +504,7 @@ def _wait_not_supported():
 
 
 @case("start_busy_returns_busy",
-      "two back-to-back STARTs: first 0, second -5 (icount; self-checked)",
-      icount_shift=0)
+      "two back-to-back STARTs: first 0, second -5 (self-checked)")
 def _start_busy_returns_busy():
     a = Asm()
     setup_provider(a)
@@ -526,12 +525,13 @@ def _start_busy_returns_busy():
     a.emit(*exit_seq(EXIT_BUSY_SECOND))
     a.mark("second_ok")
     # Completion / copy correctness is covered by start_cfx_to_pa; polling to
-    # completion here would need ~1e6 instructions (1 ms at shift=0) and is
-    # irrelevant to the busy contract.
+    # completion here would need a long virtual-time wait and is irrelevant to
+    # the busy contract.
     a.emit(*exit_seq(EXIT_PASS))
-    # -icount shift=0 => 1 ns/instr, so the 1 ms BUSY window spans ~1e6
-    # instructions.  The register dump is empty under -icount, so the case
-    # self-checks and reports through the semihosting exit code.
+    # Both engines keep BUSY for at least 1 us while the gap between the two
+    # START traps is a few dozen instructions (< 1 us in either engine), so
+    # the second START must observe BUSY.  No instruction-count timing
+    # assumption is involved (TESTCASES-102t).
     return build_rom(a.resolve(), {OFF_PMEM_HANDLER: PROVIDER}), {"exit": EXIT_PASS}
 
 
@@ -672,13 +672,13 @@ def run_doc():
 # ---------------------------------------------------------------------------
 
 def run_case(name):
-    for n, d, fn, icount in CASES:
+    for n, d, fn, dump in CASES:
         if n == name:
             rom, exp = fn()
-            rc, log, err = run(rom, icount_shift=icount)
+            rc, log, err = run(rom, dump=dump)
             if rc is None:
                 return False, "TIMEOUT", exp
-            obs = observe(log) if icount is None else {}
+            obs = observe(log) if dump else {}
             obs["exit"] = rc
             diffs = []
             for k, v in exp.items():
@@ -705,8 +705,8 @@ def main():
 
     if args.list:
         print("%-28s %s" % (DOC_CASE, "doc: spec/contract SBI table shape (offline)"))
-        for n, d, _fn, icount in CASES:
-            print("%-28s %s%s" % (n, d, " [-icount]" if icount is not None else ""))
+        for n, d, _fn, _dump in CASES:
+            print("%-28s %s" % (n, d))
         return 0
 
     if args.only:

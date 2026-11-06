@@ -78,7 +78,8 @@ guest exit、`picolibc` 的分类）；**不比较**时序、性能、PC/日志�
 - **SE tset（TESTCASES-100t 夜跑）**：报告 `2026-11-05-13` 4/4 成员 rc=0、`check-night-report` rc=0。llvm-ts static `discovered 222 - excluded 8 = total 214`，pass 214 / fail 0 / blocked 0；dynamic 同；blocked 不计入通过。
 - **math_test**：`picolibc/math_test` 仍 `BLOCKED`（B7 数值差异），现测 QEMU `0 errors / 76404 functions`，gem5 `238 errors / 76404 functions`（exit 1）；BLOCKED 不计入 `AGREE_PASS`。
 - **退出码状态**：快照按当前引擎实现生成；`SPEC-187t` 退出码规范已定稿、QEMU/gem5 实现尚未迁移，迁移后须再生成一次。
-- **本快照（2026-11-05 晚，`GEM5-020t` 后）**：`node/arch` 249 `AGREE_PASS` + 20 `BLOCKED`（`-icount` N/A）、`GEM5_ONLY_FAIL=0`、`DIFF=0`。上一版 14 条 `GEM5_ONLY_FAIL`（`QEMU-083t` 后 gem5 未对齐的历史快照）已由本次替换：14 条逐条转 `AGREE_PASS`，含 `arch/umon/m5_perm_badcombo_cfxreg`（自环已消除）。`GEM5-020t` 将 gem5 的 10 处 CFXREG fault 目标由 `cfxha` 改为当前运行模式 monitor，与 `QEMU-083t` 对齐。
+- **`TESTCASES-102t` 起 arch 探针去 icount 化**：20 个 timing 用例改为读时设 deadline + 有界轮询（窗口 ≥10× 名义值），QEMU 与 gem5 用同一份探针实际对照；下方 2026-11-05 快照里的 20 个 `BLOCKED` 已过时，等矩阵任务重生成 `tests/parity/matrix-M11.md`。
+- **本快照（2026-11-05 晚，`GEM5-020t` 后）**：`node/arch` 249 `AGREE_PASS` + 20 `BLOCKED`（icount N/A）、`GEM5_ONLY_FAIL=0`、`DIFF=0`。上一版 14 条 `GEM5_ONLY_FAIL`（`QEMU-083t` 后 gem5 未对齐的历史快照）已由本次替换：14 条逐条转 `AGREE_PASS`，含 `arch/umon/m5_perm_badcombo_cfxreg`（自环已消除）。`GEM5-020t` 将 gem5 的 10 处 CFXREG fault 目标由 `cfxha` 改为当前运行模式 monitor，与 `QEMU-083t` 对齐。
 - **引擎冻结**：`GEM5-020t` 评审期间共享 gem5 二进制被反复重建（实测中途 md5 变化导致整轮矩阵失效）；本快照用重建后二进制的**冻结副本**（md5 `d64b0f9…`，源 commit `1ad69d2…`，配置用源树 `fs.py`）生成，矩阵身份即该副本；证据目录保留冻结件与前后两轮作废日志。
 
 ## 已知例外（**不**参与硬门的 `AGREE_PASS`）
@@ -101,7 +102,7 @@ guest exit、`picolibc` 的分类）；**不比较**时序、性能、PC/日志�
 `-serial none`、`-d cpu -D <log>`、`-dfilter <base+size,…>`（对 gem5 trace 做
 同样的 block 过滤，保证探针「最后一个 block」观测等价）。
 
-`-qmp`/`-S`/`-s`/`-icount`/未知选项 ⇒ rc=2。`-chardev …,input-path=P` 接到
+`-qmp`/`-S`/`-s`/未知选项 ⇒ rc=2。`-chardev …,input-path=P` 接到
 gem5 进程 stdin，`SYS_READC` 读到与 QEMU 相同的字节（不再记 BLOCKED）。
 
 引擎路径通过环境变量传给 shim（由 `run_parity.py` 设置）：

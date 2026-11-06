@@ -23,7 +23,7 @@
 - 硬门：`QEMU PASS ⊆ gem5 PASS`，且同 case 的 exit/架构可见结果一致；
   `GEM5_ONLY_FAIL == 0`。
 - `QEMU_ONLY_FAIL` 逐条列名，交主会话另立 QEMU 调试任务；不阻断本矩阵。
-- `BLOCKED`/`N/A` 逐条给根因（QEMU `-icount` 无 atomic 对应、gem5 侧缺陷登记、
+- `BLOCKED`/`N/A` 逐条给根因（真实能力缺口、gem5 侧缺陷登记、
   picolibc B7 等），不得静默通过或改写成 PASS。
 - 只比较 status/exit/架构可见结果；**不比较**时序、性能、PC/日志格式
   （`ADR-0048 D1/D2`）。

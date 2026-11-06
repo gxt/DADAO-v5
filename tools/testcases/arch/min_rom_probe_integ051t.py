@@ -26,10 +26,12 @@ Observation channels:
     checked in-program and reported through the semihosting SYS_EXIT code, so
     no case depends on a ``-d cpu`` dump block.  ``-d cpu`` logs a full state
     block per translated TB, which would explode while polling a DMA that
-    needs a million virtual ns;
-  * timer / DMA / two-source cases: ``-icount shift=0`` (1 ns per instruction)
-    so QEMUTimer deadlines are deterministic; the two DMA-latency cases run on
-    the default virtual clock and poll ``dma_status.BUSY``.
+    needs a million virtual ns, so the run uses no dump at all;
+  * timer cases read the current cycle/cfx_time, set a relative deadline and
+    poll it with a bounded loop (``DELTA_NS``/``MAX_WAIT``); async waits poll
+    the pending bit or the handler counter with a time window and an
+    iteration bound.  Nothing assumes an instruction clock, so QEMU and gem5
+    run the same probe (TESTCASES-102t).
 
 Bootstrap (body runs in hmon / cfx3, hypv):
   1. power stage: cfx_hmon hypv_excp_vector = stage, then ``trap cfx_hmon, 0``.
@@ -147,6 +149,30 @@ MASK_CROSS = ALL1 & ~((1 << 3) | (1 << 15) | (1 << 32))
 EXIT_PASS = 0x00
 EXIT_FAIL = 0x61   # guest FAIL segment (spec/Machine-v5 §7.1)
 
+# Timing-model-neutral bounds (TESTCASES-102t).  DELTA_NS = nominal relative
+# deadline; WINDOW_NS = tolerated deadline-to-event delay.  Without an
+# instruction clock QEMU drives cfx_time from host time, so a delivery can
+# slip by the host scheduling latency (measured 0.5-7 ms, more under load).
+# The 10 ms nominal deadline leaves >10x that slip before the deadline; the
+# 1 s window (100x nominal) still bounds a lost event, which also ends the
+# poll at MAX_WAIT.
+DELTA_NS = 10_000_000
+WINDOW_NS = 1_000_000_000
+# Poll iterations: reaching the 10 ms deadline needs ~1.4M iterations on
+# gem5 (1 ns/instruction, ~7 instructions/iteration); 4M gives >2x margin.
+MAX_WAIT = 4_000_000
+# A DMA completion takes 1 us on gem5 and 1 ms on QEMU (test-machine
+# latencies); 300k iterations (~5 instructions each) cover the QEMU 1 ms with
+# a wide margin.
+MAX_DMA_WAIT = 300_000
+ARM_RETRIES = 8
+
+# Wait-loop scratch.  Async handlers use rd30..rd39 and the body keeps its
+# recorded values in rd5..rd13, so the timing helpers use rd19..rd29.
+W_TMP = 19
+W_NOW, W_CMP = 20, 21
+W_DEAD, W_BOUND, W_MAX, W_WIT = 26, 27, 28, 29
+
 # ROM layout: the shared prelude owns the power -> hmon hand-off; this probe's
 # power-mode and hmon-mode setup is appended to the prelude's segments, and the
 # body starts at ROM_BASE (RESET_PC + 0x1000).
@@ -213,6 +239,20 @@ def and_o(rdhb, rdhc, rdhd):
     return _orrr(0x40, 0x08, rdhb, rdhc, rdhd)
 
 
+def cmp_uo(rdhb, rdhc, rdhd):
+    """cmp.uo rdHB, rdHC, rdHD -> -1/0/1 (contracts/opcodes.yaml, ha 0x2A)."""
+    return _orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
+
+
+def add_uo(lo, hi, src_a, src_b):
+    """add.uo {hi, lo}, src_a, src_b: 128-bit unsigned add (carry -> hi).
+
+    Only used to build `deadline + WINDOW`; the two destinations must differ
+    (SimRISC-04 §1.1) and `hi` is discarded.
+    """
+    return _orrr(0x50, hi, lo, src_a, src_b)
+
+
 def br_ne(rdha, rdhb, imms12):
     imm = imms12 & 0xFFF
     hc = (imm >> 6) & 0x3F
@@ -233,6 +273,7 @@ def br_eq(rdha, rdhb, imms12):
 
 def br_nz(rdha, imms18):  return (0x6B << 24) | (rdha << 18) | (imms18 & 0x3FFFF)
 def br_z(rdha, imms18):   return (0x6A << 24) | (rdha << 18) | (imms18 & 0x3FFFF)
+def br_nn(rdha, imms18):  return (0x69 << 24) | (rdha << 18) | (imms18 & 0x3FFFF)
 
 
 def load_rd(rd, val):
@@ -297,6 +338,8 @@ class Asm:
                 self.words[idx] = br_nz(rd_a, off)
             elif kind == "z":
                 self.words[idx] = br_z(rd_a, off)
+            elif kind == "nn":
+                self.words[idx] = br_nn(rd_a, off)
             else:
                 raise ValueError("bad branch kind %r" % kind)
         return self.words
@@ -467,14 +510,6 @@ def timer_now(a, rd):
     a.emit(cfx2rd(HART_HA, HART_CG, 2, rd))           # cycle == cfx_time value
 
 
-def timer_arm(a, delta, ctrl=CTRL_ENABLE, rd=22):
-    timer_now(a, rd)
-    a.emit(add_si(rd, delta))
-    a.emit(cfx2rc(HART_HA, HART_CG, 4, rd))
-    a.emit(*load_rd(rd, ctrl))
-    a.emit(cfx2rc(HART_HA, HART_CG, 5, rd))
-
-
 def dma_setup(a, src, dst, size, ctrl, rd=22):
     for rc, val in ((DMA_SRC_RC, src), (DMA_DST_RC, dst),
                     (DMA_SIZE_RC, size), (DMA_CTRL_RC, ctrl)):
@@ -492,12 +527,24 @@ def dma_status_clear(a):
 
 
 def dma_wait(a, rd=6):
-    """Spin until dma_status.BUSY clears (rd18 = 1 while looping)."""
+    """Poll dma_status.BUSY until it clears, with a bounded iteration count.
+
+    Without an instruction clock the DMA latency is 1 us on gem5 and 1 ms on
+    QEMU; both are finite, so a bound (not an instruction-time assumption)
+    keeps this from hanging.  Exhaustion is an explicit guest FAIL.
+    """
+    poll = "dma_poll_%d" % len(a.words)
+    done = poll + "_done"
     a.emit(*load_rd(18, 1))
-    start = len(a.words)
+    a.emit(*load_rd(20, MAX_DMA_WAIT))
+    a.mark(poll)
     a.emit(cfx2rd(PMEM_HA, PMEM_DMA_CG, DMA_STATUS_RC, rd))
     a.emit(and_o(rd, rd, 18))
-    a.emit(br_ne(rd, 0, start - len(a.words)))
+    a.br("z", rd, 0, done)
+    a.emit(add_si(20, -1))
+    a.br("nz", 20, 0, poll)
+    a.emit(*exit_seq(0x7D))                          # DMA never completed
+    a.mark(done)
 
 
 def delay_loop(a, count, tag, rd=23):
@@ -518,13 +565,153 @@ def delay_loop(a, count, tag, rd=23):
 
 
 # ---------------------------------------------------------------------------
+# Model-neutral timing helpers (TESTCASES-102t)
+# ---------------------------------------------------------------------------
+
+def _count_cond(off, want):
+    """Witness: cmp(RAM_BASE+off, want) -> 0 iff the counter equals `want`."""
+
+    def emit(a, rd):
+        a.emit(ld_o(rd, 5, off))
+        a.emit(*load_rd(W_TMP, want))
+        a.emit(cmp_uo(rd, rd, W_TMP))
+
+    return emit
+
+
+def _mask_cond(read_cfx, mask):
+    """Witness: read_cfx(rd) & mask -> non-zero iff the bit is set."""
+
+    def emit(a, rd):
+        a.emit(read_cfx(rd))
+        a.emit(*load_rd(W_TMP, mask))
+        a.emit(and_o(rd, rd, W_TMP))
+
+    return emit
+
+
+def _pending_hart(rd):
+    return cfx2rd(HART_HA, 5, CG5_PENDING_RC, rd)
+
+
+def _pending_pmem(rd):
+    return cfx2rd(PMEM_HA, 5, CG5_PENDING_RC, rd)
+
+
+def _set_bound(a, deadline_rd):
+    """W_BOUND = deadline + WINDOW_NS (add.uo: lo = W_BOUND, hi = W_CMP)."""
+    a.emit(*load_rd(W_TMP, WINDOW_NS))
+    a.emit(add_uo(W_BOUND, W_CMP, deadline_rd, W_TMP))
+
+
+def settle_bound(a):
+    """W_BOUND = now + WINDOW_NS (bound for an event expected right away)."""
+    timer_now(a, W_NOW)
+    _set_bound(a, W_NOW)
+
+
+def check_quiet(a, deadline_rd, cond, zero_is_met, code, tag):
+    """Assert `cond` is NOT met while the clock is still before the deadline.
+
+    The witness is sampled *first*, then the clock: if the clock is still
+    before the deadline, the witness sample was taken even earlier, so a met
+    condition is a genuine early delivery.  If the clock already passed the
+    deadline the check is inconclusive and skipped; clock-first sampling
+    would misjudge a preemption between the two reads as an early delivery.
+    """
+    done = "q_%s" % tag
+    cond(a, W_WIT)
+    timer_now(a, W_NOW)
+    a.emit(cmp_uo(W_CMP, W_NOW, deadline_rd))
+    a.br("nn", W_CMP, 0, done)
+    a.br("nz" if zero_is_met else "z", W_WIT, 0, done)
+    a.emit(*exit_seq(code))
+    a.mark(done)
+
+
+def wait_cond(a, bound_rd, cond, zero_is_met, tag, code_late, code_lost):
+    """Bounded poll for `cond` with a two-sided window.
+
+    `bound_rd` = deadline + WINDOW_NS: an event first seen after it is "late"
+    (`code_late`); an event never seen before the bound or MAX_WAIT is "lost"
+    (`code_lost`).  Both fail paths are reachable.
+    """
+    head = "w_%s" % tag
+    got = head + "_got"
+    lost = head + "_lost"
+    ok = head + "_ok"
+    a.emit(*load_rd(W_MAX, MAX_WAIT))
+    a.mark(head)
+    timer_now(a, W_NOW)
+    cond(a, W_WIT)
+    a.br("z" if zero_is_met else "nz", W_WIT, 0, got)
+    a.emit(cmp_uo(W_CMP, W_NOW, bound_rd))
+    a.br("nn", W_CMP, 0, lost)
+    a.emit(add_si(W_MAX, -1))
+    a.br("nz", W_MAX, 0, head)
+    a.mark(lost)
+    a.emit(*exit_seq(code_lost))
+    a.mark(got)
+    a.emit(cmp_uo(W_CMP, W_NOW, bound_rd))
+    a.emit(*load_rd(W_TMP, 1))
+    a.br("ne", W_CMP, W_TMP, ok)                     # now <= bound
+    a.emit(*exit_seq(code_late))
+    a.mark(ok)
+
+
+def timer_arm_window(a, delta=DELTA_NS, ctrl=CTRL_ENABLE, base_hart=0,
+                     base_seq=0, tag="t"):
+    """Cancel, then arm cmp = now + delta; leaves W_DEAD/W_BOUND.
+
+    Without a deterministic instruction clock a host preemption between the
+    clock read and the cmp write would arm an already-expired timer; cancel
+    (cmp = ~0, ctrl = 0, pending = 0) and retry while the clock is not yet in
+    the future.  The witness counters are restored to the given baseline
+    (probe bookkeeping in RAM, not hardware state).
+    """
+    retry = "tw_%s_reset" % tag
+    done = "tw_%s_ok" % tag
+    a.emit(*load_rd(W_MAX, ARM_RETRIES))
+    a.mark(retry)
+    a.emit(*load_rd(W_TMP, ALL1))                    # cmp = ~0: cancel
+    a.emit(cfx2rc(HART_HA, HART_CG, 4, W_TMP))
+    a.emit(*load_rd(W_TMP, 0))                       # ctrl = 0
+    a.emit(cfx2rc(HART_HA, HART_CG, 5, W_TMP))
+    a.emit(cfx2rc(HART_HA, 5, CG5_PENDING_RC, W_TMP))
+    a.emit(*load_rd(W_TMP, base_hart))               # witness baseline
+    a.emit(st_o(W_TMP, 5, RAM_HART_N))
+    a.emit(*load_rd(W_TMP, base_seq))
+    a.emit(st_o(W_TMP, 5, RAM_SEQ))
+    timer_now(a, W_NOW)
+    a.emit(*load_rd(W_TMP, delta))                   # >= 10 ms: not imms18
+    a.emit(add_uo(W_DEAD, W_CMP, W_NOW, W_TMP))      # W_DEAD = now + delta
+    a.emit(cfx2rc(HART_HA, HART_CG, 4, W_DEAD))
+    _set_bound(a, W_DEAD)
+    a.emit(*load_rd(W_TMP, ctrl))
+    a.emit(cfx2rc(HART_HA, HART_CG, 5, W_TMP))
+    timer_now(a, W_CMP)                              # still in the future?
+    a.emit(cmp_uo(W_CMP, W_CMP, W_DEAD))
+    a.emit(*load_rd(W_TMP, 1))
+    a.br("ne", W_CMP, W_TMP, done)
+    a.emit(add_si(W_MAX, -1))
+    a.br("nz", W_MAX, 0, retry)
+    a.emit(*exit_seq(0x7A))
+    a.mark(done)
+
+
+# ---------------------------------------------------------------------------
 # QEMU runner + bootstrap
 # ---------------------------------------------------------------------------
 
-def run(rom, icount_shift=None, dump=True):
-    """4 MiB `bootrom-image`, no `-kernel`; returns (rc, cpu_log, stderr)."""
+def run(rom, dump=False):
+    """4 MiB `bootrom-image`, no `-kernel`; returns (rc, cpu_log, stderr).
+
+    Every check is in-program, so no case needs a `-d cpu` dump; keeping it
+    off avoids a full state block per TB while polling a DMA that takes
+    1 ms of QEMU virtual time.
+    """
     rc, log = _prelude.run(rom, WORKDIR, qemu=QEMU, timeout=TIMEOUT,
-                           icount_shift=icount_shift)
+                           dump=dump)
     if not dump:
         log = ""
     return rc, log, ""
@@ -578,16 +765,15 @@ def hmon_setup():
 CASES = []
 
 
-def case(name, desc, icount_shift=None):
+def case(name, desc, dump=False):
     def deco(fn):
-        CASES.append((name, desc, fn, icount_shift))
+        CASES.append((name, desc, fn, dump))
         return fn
     return deco
 
 
 @case("pmem_pending_in_pmem",
-      "icount: masked PMEM_DMA pending lands in cfx_pmem cg5 rc5 bit8 only",
-      icount_shift=0)
+      "masked PMEM_DMA pending lands in cfx_pmem cg5 rc5 bit8 only")
 def _pmem_pending_in_pmem():
     a = Asm()
     set_global_mask(a, MASK_TIMER_OPEN)
@@ -601,7 +787,9 @@ def _pmem_pending_in_pmem():
     ram_ld(a, RAM_SEQ, 7)
     need_eq(a, 7, 0, 0xA3, "no_deliver")
     set_global_mask(a, 0)
-    delay_loop(a, 400, "unmask")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "pp",
+              0xA9, 0xAA)
     ram_ld(a, RAM_PMEM_N, 8)
     need_eq(a, 8, 1, 0xA4, "pmem_once")
     ram_ld(a, RAM_PMEM_ID, 9)
@@ -617,13 +805,13 @@ def _pmem_pending_in_pmem():
 
 
 @case("timer_pending_in_hart",
-      "icount: masked TIMER pending lands in cfx_hart cg5 rc5 bit10 only",
-      icount_shift=0)
+      "masked TIMER pending lands in cfx_hart cg5 rc5 bit10 only")
 def _timer_pending_in_hart():
     a = Asm()
     set_global_mask(a, MASK_PMEM_OPEN)
-    timer_arm(a, 1000)
-    delay_loop(a, 3000, "armed")
+    timer_arm_window(a, tag="tph")
+    wait_cond(a, W_BOUND, _mask_cond(_pending_hart, TIMER), False, "tph",
+              0xB8, 0xB9)
     ram_ld(a, RAM_SEQ, 5)
     need_eq(a, 5, 0, 0xB1, "no_deliver")
     pend(a, HART_HA, 6)
@@ -631,7 +819,9 @@ def _timer_pending_in_hart():
     pend(a, PMEM_HA, 7)
     need_mask_clr(a, 7, TIMER, 0xB3, "p_no_pend")
     set_global_mask(a, 0)
-    delay_loop(a, 400, "unmask")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_HART_N, 1), True, "tphd",
+              0xBA, 0xBB)
     ram_ld(a, RAM_HART_N, 8)
     need_eq(a, 8, 1, 0xB4, "hart_once")
     ram_ld(a, RAM_HART_ID, 9)
@@ -645,16 +835,17 @@ def _timer_pending_in_hart():
 
 
 @case("pending_no_cross_cfx",
-      "icount: S/H pending stay in their own target cfx; release order 15 then 17",
-      icount_shift=0)
+      "S/H pending stay in their own target cfx; release order 15 then 32")
 def _pending_no_cross_cfx():
     a = Asm()
     set_global_mask(a, MASK_BOTH)
     dma_status_clear(a)
-    timer_arm(a, 1000)
+    timer_arm_window(a, tag="pnc")
     dma_start(a)
     dma_wait(a)
-    delay_loop(a, 1500, "settle")
+    wait_cond(a, W_BOUND, _mask_cond(_pending_hart, TIMER), False, "pnct",
+              0xCC, 0xCD)
+    delay_loop(a, 400, "settle")                     # DMA completion settle
     pend(a, HART_HA, 5)
     need_mask_set(a, 5, TIMER, 0xC1, "h_timer")
     need_mask_clr(a, 5, PMEM_DMA, 0xC2, "h_no_pmem")
@@ -665,7 +856,9 @@ def _pending_no_cross_cfx():
     need_eq(a, 7, 0, 0xC5, "none_yet")
     # release TIMER only: PMEM_DMA must stay pending in cfx_pmem
     set_global_mask(a, MASK_TIMER_OPEN)
-    delay_loop(a, 400, "rel15")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_HART_N, 1), True, "pnc15",
+              0xCE, 0xCF)
     ram_ld(a, RAM_HART_N, 8)
     need_eq(a, 8, 1, 0xC6, "timer_first")
     ram_ld(a, RAM_PMEM_N, 9)
@@ -673,7 +866,9 @@ def _pending_no_cross_cfx():
     pend(a, PMEM_HA, 10)
     need_mask_set(a, 10, PMEM_DMA, 0xC8, "pmem_pending_kept")
     set_global_mask(a, 0)
-    delay_loop(a, 400, "rel17")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "pnc32",
+              0xD0, 0xD1)
     ram_ld(a, RAM_PMEM_N, 11)
     need_eq(a, 11, 1, 0xC9, "pmem_after")
     ram_ld(a, RAM_SEQ, 12)
@@ -685,27 +880,31 @@ def _pending_no_cross_cfx():
 
 
 @case("global_mask_block",
-      "icount: global bit15 blocks TIMER only; PMEM_DMA still delivered; re-kick",
-      icount_shift=0)
+      "global bit15 blocks TIMER only; PMEM_DMA still delivered; re-kick")
 def _global_mask_block():
     a = Asm()
     set_global_mask(a, MASK_PMEM_OPEN)                # TIMER masked
     dma_status_clear(a)
     dma_start(a)
     dma_wait(a)
-    delay_loop(a, 400, "dma")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "gmbp",
+              0x79, 0x7A)
     ram_ld(a, RAM_PMEM_N, 5)
     need_eq(a, 5, 1, 0x71, "pmem_delivered")
     ram_ld(a, RAM_HART_N, 6)
     need_eq(a, 6, 0, 0x72, "timer_not_yet")
-    timer_arm(a, 1000)
-    delay_loop(a, 3000, "masked_timer")
+    timer_arm_window(a, base_seq=1, tag="gmb")
+    wait_cond(a, W_BOUND, _mask_cond(_pending_hart, TIMER), False, "gmbt",
+              0x7B, 0x7C)
     ram_ld(a, RAM_HART_N, 7)
     need_eq(a, 7, 0, 0x73, "timer_blocked")
     pend(a, HART_HA, 8)
     need_mask_set(a, 8, TIMER, 0x74, "timer_pending_kept")
     set_global_mask(a, 0)
-    delay_loop(a, 400, "unmask")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_HART_N, 1), True, "gmbd",
+              0x7D, 0x7E)
     ram_ld(a, RAM_HART_N, 9)
     need_eq(a, 9, 1, 0x75, "timer_delivered_once")
     ram_ld(a, RAM_PMEM_N, 10)
@@ -719,8 +918,7 @@ def _global_mask_block():
 
 
 @case("per_cfx_mask_block",
-      "icount: cfx_intr_mask reads the *current* cfx row, indexed by target cfxha",
-      icount_shift=0)
+      "cfx_intr_mask reads the *current* cfx row, indexed by target cfxha")
 def _per_cfx_mask_block():
     a = Asm()
     set_global_mask(a, 0)
@@ -732,7 +930,9 @@ def _per_cfx_mask_block():
     a.emit(cfx2rc(PMEM_HA, 3, CG3_CFX_INTR_MASK_RC, 22))
     dma_start(a)
     dma_wait(a)
-    delay_loop(a, 400, "masked")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _mask_cond(_pending_pmem, PMEM_DMA), False, "pcm1",
+              0x6B, 0x6C)
     ram_ld(a, RAM_PMEM_N, 5)
     need_eq(a, 5, 0, 0x61, "pmem_blocked")
     pend(a, PMEM_HA, 6)
@@ -741,14 +941,17 @@ def _per_cfx_mask_block():
     # still masks bit32, so a delivery proves the arbiter/cfx_enter reads the
     # current cfx row with the target cfxha as bit index.
     set_hmon_intr_mask(a, 0)
-    delay_loop(a, 400, "release")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "pcm2",
+              0x6D, 0x6E)
     ram_ld(a, RAM_PMEM_N, 7)
     need_eq(a, 7, 1, 0x63, "current_row_only")
     pend(a, PMEM_HA, 8)
     need_mask_clr(a, 8, PMEM_DMA, 0x64, "pmem_cleared")
     # Phase 3: a different source (TIMER, target 15) is not blocked by bit32.
-    timer_arm(a, 1000)
-    delay_loop(a, 3000, "timer")
+    timer_arm_window(a, base_seq=1, tag="pcm")
+    wait_cond(a, W_BOUND, _count_cond(RAM_HART_N, 1), True, "pcm3",
+              0x6F, 0x70)
     ram_ld(a, RAM_HART_N, 9)
     need_eq(a, 9, 1, 0x65, "timer_not_blocked")
     ram_ld(a, RAM_SEQ, 10)
@@ -763,8 +966,7 @@ def _per_cfx_mask_block():
 
 
 @case("intr_mask_tail_kick",
-      "icount: cfx_intr_mask bit32 blocks PMEM_DMA; the cfx2rc tail kick refires",
-      icount_shift=0)
+      "cfx_intr_mask bit32 blocks PMEM_DMA; the cfx2rc tail kick refires")
 def _intr_mask_tail_kick():
     a = Asm()
     set_global_mask(a, 0)
@@ -773,13 +975,17 @@ def _intr_mask_tail_kick():
     dma_status_clear(a)
     dma_start(a)
     dma_wait(a)
-    delay_loop(a, 400, "masked")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _mask_cond(_pending_pmem, PMEM_DMA), False, "imt1",
+              0xF6, 0xF7)
     ram_ld(a, RAM_PMEM_N, 5)
     need_eq(a, 5, 0, 0xF1, "filter_blocked")
     pend(a, PMEM_HA, 6)
     need_mask_set(a, 6, PMEM_DMA, 0xF2, "pending_kept")
     set_hmon_intr_mask(a, 0)                          # generic cfx2rc write tail
-    delay_loop(a, 400, "release")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "imt2",
+              0xF8, 0xF9)
     ram_ld(a, RAM_PMEM_N, 7)
     need_eq(a, 7, 1, 0xF3, "delivered_once")
     ram_ld(a, RAM_PMEM_ID, 8)
@@ -791,20 +997,23 @@ def _intr_mask_tail_kick():
 
 
 @case("timer_imask_hold",
-      "icount: IMASK holds TIMER in cfx_hart pending; ctrl release delivers once",
-      icount_shift=0)
+      "IMASK holds TIMER in cfx_hart pending; ctrl release delivers once")
 def _timer_imask_hold():
     a = Asm()
     set_global_mask(a, 0)
-    timer_arm(a, 1000, ctrl=CTRL_ENABLE | CTRL_IMASK)
-    delay_loop(a, 3000, "imask")
+    timer_arm_window(a, ctrl=CTRL_ENABLE | CTRL_IMASK, tag="tih")
+    check_quiet(a, W_DEAD, _count_cond(RAM_HART_N, 1), True, 0x109, "tihq")
+    wait_cond(a, W_BOUND, _mask_cond(_pending_hart, TIMER), False, "tihp",
+              0x106, 0x107)
     ram_ld(a, RAM_HART_N, 5)
     need_eq(a, 5, 0, 0x101, "not_delivered")
     pend(a, HART_HA, 6)
     need_mask_set(a, 6, TIMER, 0x102, "pending_kept")
     a.emit(*load_rd(22, CTRL_ENABLE))
     a.emit(cfx2rc(HART_HA, HART_CG, 5, 22))           # release IMASK
-    delay_loop(a, 400, "release")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_HART_N, 1), True, "tihd",
+              0x10A, 0x10B)
     ram_ld(a, RAM_HART_N, 7)
     need_eq(a, 7, 1, 0x103, "delivered_once")
     ram_ld(a, RAM_HART_ID, 8)
@@ -816,20 +1025,23 @@ def _timer_imask_hold():
 
 
 @case("low_cfxha_first",
-      "icount: both pending + one mask write => TIMER (15) first, PMEM (32) after escape",
-      icount_shift=0)
+      "both pending + one mask write => TIMER (15) first, PMEM (32) after escape")
 def _low_cfxha_first():
     a = Asm()
     set_global_mask(a, MASK_BOTH)
     dma_status_clear(a)
-    timer_arm(a, 1000)
+    timer_arm_window(a, tag="lcf")
     dma_start(a)
     dma_wait(a)
-    delay_loop(a, 1500, "settle")
+    wait_cond(a, W_BOUND, _mask_cond(_pending_hart, TIMER), False, "lcft",
+              0x11A, 0x11B)
+    delay_loop(a, 400, "settle")
     ram_ld(a, RAM_SEQ, 5)
     need_eq(a, 5, 0, 0x111, "none_yet")
     set_global_mask(a, 0)                             # single write, both ready
-    delay_loop(a, 800, "both")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_SEQ, 2), True, "lcf2",
+              0x11C, 0x11D)
     ram_ld(a, RAM_HART_N, 6)
     need_eq(a, 6, 1, 0x112, "timer_once")
     ram_ld(a, RAM_PMEM_N, 7)
@@ -853,15 +1065,19 @@ def _low_cfxha_first():
 
 
 @case("escape_kick",
-      "icount: TIMER expiry inside a cfx_pmem frame is held, delivered after escape",
-      icount_shift=0)
+      "TIMER expiry inside a cfx_pmem frame is held, delivered after escape")
 def _escape_kick():
     a = Asm()
     set_global_mask(a, 0)
     dma_status_clear(a)
     dma_start(a)
     dma_wait(a)
-    delay_loop(a, 800, "frame")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "esk1",
+              0x127, 0x128)
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_HART_N, 1), True, "esk2",
+              0x129, 0x12A)
     ram_ld(a, RAM_PMEM_N, 5)
     need_eq(a, 5, 1, 0x121, "pmem_frame")
     ram_ld(a, RAM_HART_N, 6)
@@ -879,8 +1095,7 @@ def _escape_kick():
 
 
 @case("direct_target",
-      "icount: both sources land in their own cfx handler; cfx_hmon poison silent",
-      icount_shift=0)
+      "both sources land in their own cfx handler; cfx_hmon poison silent")
 def _direct_target():
     a = Asm()
     set_global_mask(a, 0)
@@ -888,13 +1103,16 @@ def _direct_target():
     a.emit(cfx2rd(HMON_HA, 4, CG4_ASYNC_NUM_RC, 5))   # monitor async count (before)
     dma_start(a)
     dma_wait(a)
-    delay_loop(a, 400, "pmem")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "dt1",
+              0x137, 0x138)
     ram_ld(a, RAM_PMEM_N, 6)
     need_eq(a, 6, 1, 0x131, "pmem_own")
     # The TIMER event is the only pending source now: its own kick must wake the
     # vCPU (no mask write happens between the expiry and this check).
-    timer_arm(a, 1000)
-    delay_loop(a, 3000, "timer")
+    timer_arm_window(a, base_seq=1, tag="dt")
+    wait_cond(a, W_BOUND, _count_cond(RAM_HART_N, 1), True, "dt2",
+              0x139, 0x13A)
     ram_ld(a, RAM_HART_N, 7)
     need_eq(a, 7, 1, 0x132, "hart_own")
     ram_ld(a, RAM_PMEM_ID, 8)
@@ -925,12 +1143,14 @@ def _dedup_same_source():
     ram_ld(a, RAM_SEQ, 6)
     need_eq(a, 6, 0, 0x142, "none_yet")
     set_global_mask(a, 0)
-    delay_loop(a, 2000, "release")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "dd",
+              0x146, 0x147)
     ram_ld(a, RAM_PMEM_N, 7)
     need_eq(a, 7, 1, 0x143, "merged_once")
     pend(a, PMEM_HA, 8)
     need_mask_clr(a, 8, PMEM_DMA, 0x144, "cleared")
-    delay_loop(a, 5000, "still")
+    delay_loop(a, 5000, "still")                      # bounded work, no deadline
     ram_ld(a, RAM_PMEM_N, 9)
     need_eq(a, 9, 1, 0x145, "still_once")
     a.emit(*exit_seq(EXIT_PASS))
@@ -944,7 +1164,9 @@ def _pmem_error_info():
     set_global_mask(a, 0)
     dma_status_clear(a)
     dma_setup(a, PMEM_BASE, ROM_BASE + 0x1000, 8, CTRL_START | CTRL_IRQ_EN)
-    delay_loop(a, 2000, "err")
+    settle_bound(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "perr",
+              0x156, 0x157)
     ram_ld(a, RAM_PMEM_N, 5)
     need_eq(a, 5, 1, 0x151, "delivered")
     ram_ld(a, RAM_PMEM_ID, 6)
@@ -1124,10 +1346,10 @@ def run_structure():
 # ---------------------------------------------------------------------------
 
 def run_case(name):
-    for n, d, fn, icount in CASES:
+    for n, d, fn, dump in CASES:
         if n == name:
             rom, exp = fn()
-            rc, log, err = run(rom, icount_shift=icount)
+            rc, log, err = run(rom, dump=dump)
             if rc is None:
                 return False, "TIMEOUT", exp
             diffs = []
@@ -1155,8 +1377,8 @@ def main():
     if args.list:
         print("%-26s %s" % (DOC_CASE, "offline: contract arbitration entry"))
         print("%-26s %s" % (STRUCT_CASE, "offline: no async_enable / mask copy"))
-        for n, d, _fn, icount in CASES:
-            print("%-26s %s%s" % (n, d, " [-icount]" if icount is not None else ""))
+        for n, d, _fn, _dump in CASES:
+            print("%-26s %s" % (n, d))
         return 0
 
     if args.only:
