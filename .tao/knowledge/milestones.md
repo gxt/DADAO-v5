@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| TESTCASES-101t | 待开始 | 2026-11-06 09:40（登记） | libc-test malloc-brk-fail 改用 cur=0/max=inf；收口 rlimit 实现后的夜跑红 |
 | QEMU-084t | 已验证 | 2026-11-06 09:02 | QEMU user-mode guest rlimit 记账：AS/DATA/STACK；39 条断言入库；ISS-343 关闭 |
 | INTEG-057t | 已验证 | 2026-11-06 07:30 | 其余生成器 notes/折行对齐；check-generator-sync 6/6 绿 |
 | INTEG-056t | 已验证 | 2026-11-06 03:40 | ctrl-jump/call/ret 生成器 notes 对齐，3 册 byte-identical |

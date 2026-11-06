@@ -19,7 +19,8 @@
 
 > 已完成项不再列；只列仍未收口/未开始的任务。
 
-- **M11 实现全部完成**（`INTEG-054t`/`055t`/`056t`/`057t`、`QEMU-084t` 均 `已验证`；`ISS-343` 已关闭）。当前在跑 L2，随后 L3 + 完整夜跑 + `m` 册 + `check-milestone`。
+- `TESTCASES-101t`（待开始）：libc-test `malloc-brk-fail` 改用 `{cur=0,max=inf}`；用户裁定 A。
+- **M11 终验进度**：L1/L2 rc=0；L3 `20261106T010620Z` 8/8 绿；夜跑首轮暴露上述用例红（`QEMU-084t` 让 rlimit 生效后语料假设不成立）⇒ 修好后重跑完整夜跑，再 `m` 册 + `check-milestone`。
 - `SPEC-180t` 的 ADR、Linux bring-up charter ADR：仍待用户逐条确认（长期 backlog）。
 
 **Open issue**：0（`ISS-343` 已由 `QEMU-084t` 关闭；`ISS-340/341/342/344` 亦 closed）。
