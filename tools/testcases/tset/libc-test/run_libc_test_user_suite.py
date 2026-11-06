@@ -144,6 +144,7 @@ prints both numbers.  A silently skipped case makes the run fail.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import glob
 import json
 import os
@@ -159,9 +160,11 @@ REPO_ROOT = os.path.normpath(
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
 import paths as _paths  # noqa: E402
 import run_artifacts as _run_artifacts  # noqa: E402
 import proc_reap  # noqa: E402  (TESTCASES-085t: reap qemu on external signals)
+import gem5_se_engine  # noqa: E402  (GEM5-021t: second engine, driver layer)
 
 TOOLCHAIN_BIN = str(_paths.host_toolchain_bin())
 
@@ -172,6 +175,7 @@ DEFAULT_SRC = ".work/source/libc-test"
 DEFAULT_MUSL = ".work/source/musl"
 DEFAULT_WORK_DIR = str(_paths.test_artifacts_dir() / "libc-test-user")
 DEFAULT_TIMEOUT = 60
+DEFAULT_GEM5_TIMEOUT = 120
 DYNAMIC_LINKER = "/lib/ld-musl-dadao.so.1"
 
 # qemu-user guest address-space reservation (TESTCASES-068t / ISS-255, ISS-257).
@@ -790,7 +794,8 @@ class Case:
     __slots__ = ("cid", "path", "sources", "klass", "exit", "reason",
                  "first_error", "elf", "min_pt_load", "interp", "uses_thread",
                  "tls_hits", "link_cmd", "compile_cmds", "outdir", "stdout",
-                 "notes", "known_fail_basis", "known_fail_evidence")
+                 "notes", "known_fail_basis", "known_fail_evidence",
+                 "engine", "run_cmd", "gap", "seconds", "sim_log")
 
     def __init__(self, cid, path, sources=None):
         self.cid = cid                       # e.g. "functional/argv" / "api/main"
@@ -812,12 +817,22 @@ class Case:
         self.notes = []
         self.known_fail_basis = ""           # ISS-246 / ISS-251, else ""
         self.known_fail_evidence = ""        # live evidence for that basis
+        # GEM5-021t: engine that produced this observation and, for gem5 SE,
+        # the capability gap that stopped a BLOCKED case (None when the guest
+        # really reached its own verdict).
+        self.engine = ""
+        self.run_cmd = []
+        self.gap = None
+        self.seconds = 0.0
+        self.sim_log = ""
 
     def as_dict(self):
         return dict(case=self.cid, path=self.path, klass=self.klass,
                     exit=self.exit, reason=self.reason,
                     first_error=self.first_error, notes=self.notes,
                     elf=self.elf,
+                    engine=self.engine, gap=self.gap,
+                    run_seconds=self.seconds, sim_log=self.sim_log,
                     min_pt_load=(None if self.min_pt_load is None
                                  else hex(self.min_pt_load)),
                     pt_interp=self.interp,
@@ -826,7 +841,8 @@ class Case:
                     known_fail_basis=self.known_fail_basis,
                     known_fail_evidence=self.known_fail_evidence,
                     compile_cmd=self.compile_cmds,
-                    link_cmd=self.link_cmd, work_dir=self.outdir)
+                    link_cmd=self.link_cmd, run_cmd=self.run_cmd,
+                    work_dir=self.outdir)
 
 
 def discover(src_root: str, dynamic: bool = False):
@@ -1162,12 +1178,20 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
                        f"{DYNAMIC_LINKER!r}")
         return case
 
+    # GEM5-021t: the engine is a driver-level choice; the corpus, the build
+    # line and the expected exit value are unchanged.  gem5 SE runs the same
+    # image through `configs/dadao/se.py --binary`.
+    if cfg["engine"] == "gem5-se":
+        return run_gem5_se_case(case, cfg, outdir)
+
+    case.engine = "qemu"
     cmd = [cfg["qemu"]]
     if cfg["mode"] == "dynamic":
         cmd += ["-L", cfg["guest_root"]]
     if cfg["reserved_va"]:
         cmd += ["-R", cfg["reserved_va"]]
     cmd += [elf]
+    case.run_cmd = cmd
     # Cases with DSO helpers run from their output directory (the helpers --
     # and, for the source-relative dlopen() paths, the mirrored
     # `src/functional/` tree -- live there).  Every other case keeps its
@@ -1193,6 +1217,15 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
         # re-check it, exactly as ISS-251 re-checks the case's own diagnostic.
         case.first_error = f"qemu killed by host signal {-rc}"
         return case
+    return attribute_guest_exit(case, rc, stdout, stderr)
+
+
+def attribute_guest_exit(case, rc, stdout, stderr):
+    """libc-test verdict from a real guest exit status (same for both engines).
+
+    The oracle is the constant ``EXPECTED_GUEST_EXIT``: every case's ``main``
+    returns its own ``t_status``.
+    """
     case.exit = rc
     if rc == EXPECTED_GUEST_EXIT:
         case.klass = "pass"
@@ -1216,6 +1249,34 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
         case.reason = f"guest exit {rc}, expected {EXPECTED_GUEST_EXIT}: " \
                       f"{case.first_error[:240]}"
     return case
+
+
+def run_gem5_se_case(case, cfg, outdir):
+    """Run one libc-test ELF on gem5 SE and classify it (GEM5-021t).
+
+    A platform gap (static-ELF gate, unimplemented syscall, timeout, non-guest
+    simulation end) is ``blocked`` with its evidence -- never a ``pass`` and
+    never a ``fail`` of the case's own verdict.  A real guest exit is judged by
+    the same ``t_status`` oracle as the QEMU round.
+    """
+    case.engine = "gem5-se"
+    res = gem5_se_engine.evaluate(
+        case.elf, os.path.join(outdir, "gem5-se"),
+        gem5=cfg["gem5"], config=cfg["gem5_config"],
+        timeout=cfg["gem5_timeout"], musl_root=cfg["musl_root"])
+    case.run_cmd = res["cmd"]
+    case.gap = res["gap"]
+    case.seconds = res["seconds"]
+    case.sim_log = res["sim_log"] or ""
+    stdout = res["stdout"].decode("utf-8", "replace")
+    stderr = res["stderr"].decode("utf-8", "replace")
+    case.stdout = stdout
+    if res["status"] == "BLOCKED":
+        case.klass = "blocked"
+        case.reason = res["reason"]
+        case.first_error = first_error_line(stdout, stderr)
+        return case
+    return attribute_guest_exit(case, res["exit"], stdout, stderr)
 
 
 def attribute_port_gaps(case, mode):
@@ -1265,6 +1326,23 @@ def main() -> int:
                          "host and abort qemu itself (ISS-255 / ISS-257)")
     ap.add_argument("--filter", default=None,
                     help="only cases whose id matches this regex (pilots)")
+    ap.add_argument("--engine", choices=gem5_se_engine.ENGINES, default="qemu",
+                    help="run engine: qemu-user (default) or gem5 syscall "
+                         "emulation (GEM5-021t; static ET_EXEC only).  The "
+                         "corpus, build line and expected value do not change")
+    ap.add_argument("--gem5", default=None,
+                    help="gem5.opt binary (default: $GEM5_SE_BIN or the "
+                         "component build tree)")
+    ap.add_argument("--gem5-config", default=None,
+                    help="SE configuration script (default: $GEM5_SE_CONFIG or "
+                         "the component's configs/dadao/se.py)")
+    ap.add_argument("--gem5-timeout", type=int, default=DEFAULT_GEM5_TIMEOUT,
+                    help="per-case SE timeout in seconds (a timeout is "
+                         "BLOCKED, never a verdict)")
+    ap.add_argument("--jobs", type=int, default=None,
+                    help="parallel cases (default: $JOBS or 1).  Only the "
+                         "per-case build/run is parallel; results are emitted "
+                         "in enumeration order, so --jobs cannot change them")
     ap.add_argument("--json-out", required=True,
                     help="per-case JSON result file (required; relative paths "
                          "resolve against the caller's CWD).  The driver also "
@@ -1277,6 +1355,20 @@ def main() -> int:
     # TESTCASES-085t: reap children when an external signal kills the runner
     # (must precede any spawn).
     proc_reap.install()
+    jobs = args.jobs
+    if jobs is None:
+        env_jobs = os.environ.get("JOBS")
+        if env_jobs:
+            try:
+                jobs = int(env_jobs)
+            except ValueError:
+                sys.stderr.write(f"ERROR: invalid JOBS value {env_jobs!r}\n")
+                return 2
+        else:
+            jobs = 1
+    if jobs < 1:
+        sys.stderr.write(f"ERROR: --jobs must be >= 1 (got {jobs})\n")
+        return 2
     if args.reserved_va.lower() == RESERVED_VA_NONE:
         reserved_va = None
     elif RESERVED_VA_RE.match(args.reserved_va):
@@ -1301,14 +1393,20 @@ def main() -> int:
     mode = args.link_mode
     cfg = {
         "mode": mode,
+        "engine": args.engine,
         "clang": abspath(args.clang),
         "ldlld": abspath(args.ldlld),
         "qemu": abspath(args.qemu),
+        "gem5": abspath(args.gem5 or gem5_se_engine.default_gem5()),
+        "gem5_config": abspath(args.gem5_config
+                               or gem5_se_engine.default_se_config()),
+        "gem5_timeout": args.gem5_timeout,
         "src": abspath(args.src),
         "timeout": args.timeout,
         "reserved_va": reserved_va,
     }
     musl = abspath(args.musl)
+    cfg["musl_root"] = musl
     cfg["musl_incs"] = ["-nostdinc"]
     for d in MUSL_USER_INCLUDE_DIRS:
         cfg["musl_incs"] += ["-I", os.path.join(musl, d)]
@@ -1321,7 +1419,11 @@ def main() -> int:
     try:
         require_exec(cfg["clang"], "clang")
         require_exec(cfg["ldlld"], "ld.lld")
-        require_exec(cfg["qemu"], "qemu-dadao")
+        if cfg["engine"] == "qemu":
+            require_exec(cfg["qemu"], "qemu-dadao")
+        else:
+            require_exec(cfg["gem5"], "gem5.opt")
+            require_file(cfg["gem5_config"], "gem5 SE configuration")
         require_file(cfg["crt1"], "musl crt1.o")
         require_file(cfg["libc"], f"musl {os.path.basename(cfg['libc'])}")
         for d in MUSL_USER_INCLUDE_DIRS:
@@ -1390,9 +1492,14 @@ def main() -> int:
         lines.append(text)
 
     discovered = len(cases) + len(excluded)
-    emit(f"run_libc_test_user_suite: mode={mode} "
+    emit(f"run_libc_test_user_suite: mode={mode} engine={cfg['engine']} "
          f"discovered={discovered} excluded={len(excluded)} "
          f"cases={len(cases)} (现场统计, 非写死)")
+    if cfg["engine"] == "gem5-se":
+        emit(f"  engine: gem5 syscall emulation ({cfg['gem5_config']} "
+             f"--binary <elf>; static ET_EXEC only)")
+        emit(f"  SE timeout: {cfg['gem5_timeout']}s per case "
+             f"(timeout/syscall-gap => blocked, never a verdict)")
     emit(f"  corpus: {cfg['src']} (patchless, manifest-locked)")
     emit(f"  harness: {len(common_objs)} TU archived into libtest.a "
          f"(src/common/*.c minus runtest.c)")
@@ -1447,10 +1554,30 @@ def main() -> int:
         emit(f"    TLS-HIT {cid}: {', '.join(hits)}")
     tls_ids = {cid for cid, _ in tls_cases}
 
-    for case in selected:
+    progress = {"n": 0}
+
+    def run_case(case):
         build_and_run(case, cfg, work_dir, api_inc)
         attribute_port_gaps(case, mode)
         attribute_known_fail_bases(case, musl)
+        # stderr progress only (the report stays the deterministic stdout);
+        # an SE round can take tens of minutes, so silence would hide a stall.
+        progress["n"] += 1
+        sys.stderr.write(f"[{progress['n']}/{len(selected)}] "
+                         f"{case.klass.upper():10s} {case.cid}\n")
+        sys.stderr.flush()
+        return case
+
+    # Per-case work (own output directory) is independent, so the SE round can
+    # be parallel; results are emitted in enumeration order either way, which
+    # keeps the counts and the closure check independent of --jobs.
+    if jobs <= 1:
+        results = [run_case(c) for c in selected]
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
+            results = list(pool.map(run_case, selected))
+
+    for case in results:
         act = "?" if case.exit is None else str(case.exit)
         base = "?" if case.min_pt_load is None else hex(case.min_pt_load)
         emit(f"  {case.klass.upper():10s} {case.cid} exit={act} base={base} "
@@ -1460,7 +1587,6 @@ def main() -> int:
                  f"-- {case.known_fail_evidence}")
         for note in case.notes:
             emit(f"             note: {note}")
-        results.append(case)
 
     # Structural closure: every selected case was executed exactly once, and
     # the selection itself is the discovered set minus the declared exclusions.
@@ -1509,6 +1635,11 @@ def main() -> int:
                      if r.klass == "pass" and r.cid in tls_ids]
     classification_ok = not (bad_known or missed_basis
                              or missed_iss255 or unexplained_fail)
+    if cfg["engine"] == "gem5-se":
+        # A gem5 SE FAIL row is a *finding* of the baseline investigation, not
+        # an attribution defect: the corpus verdict really is non-zero.  What
+        # still must hold is that every known-fail row's basis is live.
+        classification_ok = not (bad_known or missed_basis or missed_iss255)
     emit("  known-fail basis per case (recomputed live):")
     rows = [r for r in results if r.klass == "known-fail"]
     if rows:
@@ -1526,11 +1657,16 @@ def main() -> int:
         emit(f"[FAIL] live ISS-255 host-SIGBUS case(s) not admitted as "
              f"known-fail: {missed_iss255}")
     if unexplained_fail:
-        emit(f"[FAIL] unclassified failure(s) remain: {unexplained_fail}")
+        if cfg["engine"] == "gem5-se":
+            emit(f"  NOTE gem5 SE FAIL row(s) (baseline findings, judged by "
+                 f"the corpus oracle): {unexplained_fail}")
+        else:
+            emit(f"[FAIL] unclassified failure(s) remain: {unexplained_fail}")
     if tls_that_pass:
         emit(f"  note: TLS-hit case(s) that pass (legitimately not in the "
              f"table): {tls_that_pass}")
-    emit(f"\nlibc-test-user: mode={mode} discovered={discovered} "
+    emit(f"\nlibc-test-user: mode={mode} engine={cfg['engine']} "
+         f"discovered={discovered} "
          f"excluded={len(excluded)} total={total} pass={counts['pass']} "
          f"fail={counts['fail']} known-fail={counts['known-fail']} "
          f"blocked={counts['blocked']}")
@@ -1542,7 +1678,12 @@ def main() -> int:
     if args.filter:
         emit("  note: --filter run (pilot); counts are a subset")
 
-    record = dict(mode=mode, expected_exit=EXPECTED_GUEST_EXIT,
+    record = dict(mode=mode, engine=cfg["engine"],
+                  gem5=(cfg["gem5"] if cfg["engine"] == "gem5-se" else None),
+                  gem5_timeout=(cfg["gem5_timeout"]
+                                if cfg["engine"] == "gem5-se" else None),
+                  jobs=jobs,
+                  expected_exit=EXPECTED_GUEST_EXIT,
                   reserved_va=cfg["reserved_va"],
                   discovered=discovered, total=total, counts=counts,
                   excluded=[dict(id=n, reason=r) for n, r in excluded],

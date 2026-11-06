@@ -12,10 +12,10 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| GEM5-022t | 待开始 | 2026-11-06 11:20（登记） | gem5 SE heap/VMA：brk(114) + mmap/munmap/mprotect(21) |
+| GEM5-021t | 已验证 | 2026-11-06 13:28 | gem5 SE tset 基线调查：qemu 587/gem5 310/blocked 270/9 f2i |
+| GEM5-022t | 待开始 | 2026-11-06 11:20（登记） | gem5 SE heap/VMA：brk+mmap+munmap+mremap |
 | TESTCASES-102t | 待开始 | 2026-11-06 11:00（登记） | timing 探针去 icount 化：20 例改轮询/窗口断言，解 gem5 BLOCKED |
 | INFRA-127t | 已验证 | 2026-11-06 10:55 | 夜跑独立化：night-run（无别名）+ night.lock 独立锁 + meta 机器信息 |
-| GEM5-021t | 待开始 | 2026-11-06 10:35（登记） | gem5 SE tset 基线调查（static 先行）：libc-test/llvm-ts/embench + 缺口分类 |
 | INFRA-126t | 已验证 | 2026-11-06 10:11 | 夜跑退出里程碑收口门控：check-milestone 去 night-report 依赖 |
 | TESTCASES-101t | 已验证 | 2026-11-06 09:55 | malloc-brk-fail 改 cur=0/max=inf；宿主与目标两侧 PASS |
 | QEMU-084t | 已验证 | 2026-11-06 09:02 | QEMU user-mode guest rlimit 记账：AS/DATA/STACK；39 条断言入库；ISS-343 关闭 |

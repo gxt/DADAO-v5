@@ -87,6 +87,7 @@ Counting is live: total = discovered benchmarks x requested opt levels.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import glob
 import json
 import os
@@ -101,9 +102,11 @@ REPO_ROOT = os.path.normpath(
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
 import paths as _paths  # noqa: E402
 import run_artifacts as _run_artifacts  # noqa: E402
 import proc_reap  # noqa: E402  (TESTCASES-085t: reap qemu on external signals)
+import gem5_se_engine  # noqa: E402  (GEM5-021t: second engine, driver layer)
 
 TOOLCHAIN_BIN = str(_paths.host_toolchain_bin())
 
@@ -116,6 +119,7 @@ DEFAULT_SHIM = "tests/tset/embench/embench_user_boardsupport.c"
 DEFAULT_WORK_DIR = str(_paths.test_artifacts_dir() / "embench-user")
 DEFAULT_OPTS = "O0,O2"
 DEFAULT_TIMEOUT = 60
+DEFAULT_GEM5_TIMEOUT = 120
 DYNAMIC_LINKER = "/lib/ld-musl-dadao.so.1"
 
 # musl port include set -- identical to tools/infra/build_musl.py and
@@ -257,7 +261,8 @@ def discover(src_root: str):
 
 class Case:
     __slots__ = ("bench", "opt", "klass", "exit", "reason", "elf",
-                 "min_pt_load", "interp", "markers", "link_cmd", "outdir")
+                 "min_pt_load", "interp", "markers", "link_cmd", "outdir",
+                 "engine", "run_cmd", "gap", "seconds", "sim_log")
 
     def __init__(self, bench, opt):
         self.bench = bench
@@ -271,6 +276,12 @@ class Case:
         self.markers = []
         self.link_cmd = []
         self.outdir = ""
+        # GEM5-021t: engine + the capability gap of a BLOCKED SE result.
+        self.engine = ""
+        self.run_cmd = []
+        self.gap = None
+        self.seconds = 0.0
+        self.sim_log = ""
 
     def as_dict(self, mode):
         return dict(mode=mode, benchmark=self.bench, opt=self.opt,
@@ -278,7 +289,10 @@ class Case:
                     elf=self.elf, min_pt_load=(None if self.min_pt_load is None
                                                else hex(self.min_pt_load)),
                     pt_interp=self.interp, board_markers=self.markers,
-                    link_cmd=self.link_cmd, work_dir=self.outdir)
+                    engine=self.engine, gap=self.gap,
+                    run_seconds=self.seconds, sim_log=self.sim_log,
+                    link_cmd=self.link_cmd, run_cmd=self.run_cmd,
+                    work_dir=self.outdir)
 
 
 def iss246_hit(text: str):
@@ -389,10 +403,17 @@ def build_and_run(bench, opt, cfg, work_dir):
                       "link line is an archive, not libc.so)")
         return res
 
+    # GEM5-021t: the engine is a driver-level choice; the corpus, build line
+    # and expected value (verify_benchmark + the three board markers) remain.
+    if cfg["engine"] == "gem5-se":
+        return run_gem5_se_case(res, cfg, outdir)
+
+    res.engine = "qemu"
     cmd = [cfg["qemu"]]
     if cfg["mode"] == "dynamic":
         cmd += ["-L", cfg["guest_root"]]
     cmd += [elf]
+    res.run_cmd = cmd
     rc, stdout, stderr, timed = run(cmd, timeout=cfg["timeout"])
     res.markers = [m.decode() for m in BOARD_MARKERS if m in stdout.encode()]
     if timed:
@@ -434,6 +455,50 @@ def build_and_run(bench, opt, cfg, work_dir):
     return res
 
 
+def run_gem5_se_case(res, cfg, outdir):
+    """Run one benchmark ELF on gem5 SE (GEM5-021t).
+
+    ``pass`` keeps the benchmark's own oracle: exit 0 **and** the three board
+    markers.  A platform gap (static-ELF gate, unimplemented syscall, timeout,
+    non-guest simulation end) is ``blocked`` with its evidence; a real non-zero
+    guest exit is the benchmark's own ``fail``.
+    """
+    res.engine = "gem5-se"
+    out = gem5_se_engine.evaluate(
+        res.elf, os.path.join(outdir, "gem5-se"),
+        gem5=cfg["gem5"], config=cfg["gem5_config"],
+        timeout=cfg["gem5_timeout"], musl_root=cfg["musl_root"])
+    res.run_cmd = out["cmd"]
+    res.gap = out["gap"]
+    res.seconds = out["seconds"]
+    res.sim_log = out["sim_log"] or ""
+    stdout = out["stdout"]
+    res.markers = [m.decode() for m in BOARD_MARKERS if m in stdout]
+    if out["status"] == "BLOCKED":
+        res.klass = "blocked"
+        res.reason = out["reason"]
+        return res
+    rc = out["exit"]
+    res.exit = rc
+    if rc != EXPECTED_GUEST_EXIT:
+        res.klass = "fail"
+        if rc in FAULT_NAMES:
+            res.reason = (f"machine fault {FAULT_NAMES[rc]} (0x{rc:02X}); "
+                          f"expected exit {EXPECTED_GUEST_EXIT}")
+        else:
+            res.reason = f"guest exit {rc}, expected {EXPECTED_GUEST_EXIT}"
+        return res
+    missing = [m.decode() for m in BOARD_MARKERS
+               if m.decode() not in res.markers]
+    if missing:
+        res.klass = "fail"
+        res.reason = f"exit 0 but board markers missing: {missing}"
+        return res
+    res.klass = "pass"
+    res.reason = "exit 0 (verify_benchmark passed) + 3 board markers"
+    return res
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Embench-IoT user-mode suite (TESTCASES-046t)")
@@ -455,6 +520,19 @@ def main() -> int:
                     help="comma-separated optimisation levels (default O0,O2)")
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT,
                     help="per-case timeout in seconds (124/timeout => blocked)")
+    ap.add_argument("--engine", choices=gem5_se_engine.ENGINES, default="qemu",
+                    help="run engine: qemu-user (default) or gem5 syscall "
+                         "emulation (GEM5-021t; static ET_EXEC only)")
+    ap.add_argument("--gem5", default=None,
+                    help="gem5.opt binary (default: $GEM5_SE_BIN or the "
+                         "component build tree)")
+    ap.add_argument("--gem5-config", default=None,
+                    help="SE configuration script (default: $GEM5_SE_CONFIG)")
+    ap.add_argument("--gem5-timeout", type=int, default=DEFAULT_GEM5_TIMEOUT,
+                    help="per-case SE timeout in seconds (BLOCKED, not a "
+                         "verdict)")
+    ap.add_argument("--jobs", type=int, default=None,
+                    help="parallel (benchmark, opt) cases (default: $JOBS or 1)")
     ap.add_argument("--json-out", required=True,
                     help="per-case JSON result file (required; relative paths "
                          "resolve against the caller's CWD).  The driver also "
@@ -467,6 +545,20 @@ def main() -> int:
     # TESTCASES-085t: reap children when an external signal kills the runner
     # (must precede any spawn).
     proc_reap.install()
+    jobs = args.jobs
+    if jobs is None:
+        env_jobs = os.environ.get("JOBS")
+        if env_jobs:
+            try:
+                jobs = int(env_jobs)
+            except ValueError:
+                sys.stderr.write(f"ERROR: invalid JOBS value {env_jobs!r}\n")
+                return 2
+        else:
+            jobs = 1
+    if jobs < 1:
+        sys.stderr.write(f"ERROR: --jobs must be >= 1 (got {jobs})\n")
+        return 2
     started_utc = _run_artifacts.iso_utc()
     json_out = abspath(args.json_out)
     report_out = (abspath(args.report_out) if args.report_out else
@@ -475,14 +567,20 @@ def main() -> int:
     mode = args.link_mode
     cfg = {
         "mode": mode,
+        "engine": args.engine,
         "clang": abspath(args.clang),
         "ldlld": abspath(args.ldlld),
         "qemu": abspath(args.qemu),
+        "gem5": abspath(args.gem5 or gem5_se_engine.default_gem5()),
+        "gem5_config": abspath(args.gem5_config
+                               or gem5_se_engine.default_se_config()),
+        "gem5_timeout": args.gem5_timeout,
         "embench_src": abspath(args.embench_src),
         "shim": abspath(args.shim),
         "timeout": args.timeout,
     }
     musl = abspath(args.musl)
+    cfg["musl_root"] = musl
     cfg["musl_include_dirs"] = [os.path.join(musl, d) for d in MUSL_INCLUDE_DIRS]
     cfg["crt1"] = os.path.join(musl, "lib", "crt1.o")
     cfg["libc"] = (abspath(args.libc) if args.libc else
@@ -493,7 +591,11 @@ def main() -> int:
     try:
         require_exec(cfg["clang"], "clang")
         require_exec(cfg["ldlld"], "ld.lld")
-        require_exec(cfg["qemu"], "qemu-dadao")
+        if cfg["engine"] == "qemu":
+            require_exec(cfg["qemu"], "qemu-dadao")
+        else:
+            require_exec(cfg["gem5"], "gem5.opt")
+            require_file(cfg["gem5_config"], "gem5 SE configuration")
         require_file(cfg["shim"], "hosted board shim")
         require_file(cfg["crt1"], "musl crt1.o")
         require_file(cfg["libc"], f"libc {os.path.basename(cfg['libc'])}")
@@ -534,24 +636,43 @@ def main() -> int:
         sys.stdout.flush()
         lines.append(text)
 
-    emit(f"run_embench_user_suite: mode={mode} "
+    emit(f"run_embench_user_suite: mode={mode} engine={cfg['engine']} "
          f"{len(benchmarks)} benchmark(s) x {len(opts)} opt level(s) {opts} "
          f"(现场统计, 非写死)")
+    if cfg["engine"] == "gem5-se":
+        emit(f"  engine: gem5 syscall emulation ({cfg['gem5_config']} "
+             f"--binary <elf>; static ET_EXEC only)")
+        emit(f"  SE timeout: {cfg['gem5_timeout']}s per case "
+             f"(timeout/syscall-gap => blocked, never a verdict)")
     emit(f"  benchmarks: {', '.join(benchmarks)}")
     emit(f"  oracle: expected guest exit {EXPECTED_GUEST_EXIT} "
          f"(support/main.c returns !correct; verify_benchmark is the case's own check)")
     emit(f"  link base: lld default (no -T / no linker script; ISS-247)")
     emit(f"  work dir: {work_dir}")
 
-    results = []
-    for opt in opts:
-        for bench in benchmarks:
-            res = build_and_run(bench, opt, cfg, work_dir)
-            act = "?" if res.exit is None else str(res.exit)
-            base = "?" if res.min_pt_load is None else hex(res.min_pt_load)
-            emit(f"  {res.klass.upper():10s} {bench} (-{opt}) exit={act} "
-                 f"base={base} markers={len(res.markers)}/3  ({res.reason})")
-            results.append(res)
+    progress = {"n": 0, "total": len(benchmarks) * len(opts)}
+
+    def run_one(pair):
+        bench, opt = pair
+        res = build_and_run(bench, opt, cfg, work_dir)
+        progress["n"] += 1
+        sys.stderr.write(f"[{progress['n']}/{progress['total']}] "
+                         f"{res.klass.upper():10s} {bench} (-{opt})\n")
+        sys.stderr.flush()
+        return res
+
+    pairs = [(b, o) for o in opts for b in benchmarks]
+    if jobs <= 1:
+        results = [run_one(p) for p in pairs]
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
+            results = list(pool.map(run_one, pairs))
+
+    for res in results:
+        act = "?" if res.exit is None else str(res.exit)
+        base = "?" if res.min_pt_load is None else hex(res.min_pt_load)
+        emit(f"  {res.klass.upper():10s} {res.bench} (-{res.opt}) exit={act} "
+             f"base={base} markers={len(res.markers)}/3  ({res.reason})")
 
     # Structural closure: executed set == discovered set (per opt level).
     executed = sorted({(r.bench, r.opt) for r in results})
@@ -565,7 +686,7 @@ def main() -> int:
               for k in ("pass", "fail", "known-fail", "excluded", "blocked")}
     counts["excluded"] = len(excluded)
     total = len(results)
-    emit(f"\nembench-user: mode={mode} total={total} pass={counts['pass']} "
+    emit(f"\nembench-user: mode={mode} engine={cfg['engine']} total={total} pass={counts['pass']} "
          f"fail={counts['fail']} known-fail={counts['known-fail']} "
          f"excluded={counts['excluded']} blocked={counts['blocked']}")
     for name, reason in excluded:
@@ -576,7 +697,12 @@ def main() -> int:
                 emit(f"  KNOWN-FAIL {r.bench} (-{r.opt}): {r.reason}")
 
     # Artifacts: JSON records + human-readable report.
-    record = dict(mode=mode, expected_exit=EXPECTED_GUEST_EXIT,
+    record = dict(mode=mode, engine=cfg["engine"],
+                  gem5=(cfg["gem5"] if cfg["engine"] == "gem5-se" else None),
+                  gem5_timeout=(cfg["gem5_timeout"]
+                                if cfg["engine"] == "gem5-se" else None),
+                  jobs=jobs, expected_exit=EXPECTED_GUEST_EXIT,
+                  discovered=len(benchmarks) + len(excluded),
                   total=total, counts=counts,
                   excluded=[dict(benchmark=n, reason=r)
                             for n, r in excluded],

@@ -357,9 +357,11 @@ REPO_ROOT = os.path.normpath(
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
 import paths as _paths  # noqa: E402
 import run_artifacts as _run_artifacts  # noqa: E402
 import proc_reap  # noqa: E402  (TESTCASES-085t: reap qemu on external signals)
+import gem5_se_engine  # noqa: E402  (GEM5-021t: second engine, driver layer)
 
 TOOLCHAIN_BIN = str(_paths.host_toolchain_bin())
 
@@ -377,6 +379,7 @@ DEFAULT_WORK_DIR = str(_paths.test_artifacts_dir() / "llvm-ts-user")
 # 0.11 s in both link modes (TESTCASES-054t), well inside this baseline.
 DEFAULT_TIMEOUT = 300
 DEFAULT_JOBS = 4
+DEFAULT_GEM5_TIMEOUT = 120
 BUILD_TIMEOUT = 300
 
 # Per-case run timeouts (TESTCASES-050t, re-measured in TESTCASES-054t): six
@@ -1500,7 +1503,7 @@ class Case:
                  "stdout_sha256", "stdout_size", "tls_hits",
                  "known_fail_basis", "known_fail_evidence", "notes",
                  "run_seconds", "run_timeout", "guest_signal",
-                 "guest_signal_detail")
+                 "guest_signal_detail", "engine", "gap", "sim_log")
 
     def __init__(self, cid, tree, kind, unit_dir, sources, target=None):
         self.cid = cid
@@ -1543,6 +1546,10 @@ class Case:
         self.run_timeout = None  # effective run timeout used for this case
         self.guest_signal = ""   # e.g. "SIGSEGV" when qemu forwarded one
         self.guest_signal_detail = ""  # the -strace delivery line
+        # GEM5-021t: engine + the capability gap of a BLOCKED SE result.
+        self.engine = ""
+        self.gap = None
+        self.sim_log = ""
 
     def as_dict(self, mode):
         return dict(mode=mode, case=self.cid, tree=self.tree, kind=self.kind,
@@ -1566,6 +1573,7 @@ class Case:
                     pt_interp=self.interp,
                     known_fail_basis=self.known_fail_basis,
                     known_fail_evidence=self.known_fail_evidence,
+                    engine=self.engine, gap=self.gap, sim_log=self.sim_log,
                     guest_signal=self.guest_signal,
                     guest_signal_detail=self.guest_signal_detail,
                     tls_hits=self.tls_hits,
@@ -2401,22 +2409,62 @@ def _build_and_run(case: Case, cfg, work_dir):
                        "line is an archive, not libc.so)")
         return case
 
-    cmd = [cfg["qemu"]]
-    if cfg["mode"] == "dynamic":
-        cmd += ["-L", cfg["guest_root"]]
-    cmd += [elf] + list(case.run_argv)
-    case.run_cmd = cmd
     stdin_path = (os.path.join(run_dir, case.stdin_name)
                   if case.stdin_name else None)
     # Per-case timeout table (TESTCASES-050t): five programs are genuinely slow
     # and were truncated at 300 s in TESTCASES-048t; their measured durations
     # widen the budget for those cases only.  ``--timeout`` remains a floor.
     case.run_timeout = max(cfg["timeout"], CASE_TIMEOUTS.get(case.cid, 0))
-    run_started = time.monotonic()
-    rc, stdout, timed = run_stream(
-        cmd, os.path.join(outdir, "combined.out"), timeout=case.run_timeout,
-        cwd=run_dir, stdin_path=stdin_path)
-    case.run_seconds = time.monotonic() - run_started
+    case.engine = cfg["engine"]
+    if cfg["engine"] == "gem5-se":
+        # GEM5-021t: same image, same argv/stdin/cwd through the SE path.  The
+        # guest's fd 1/2 are separate host files there, so the run document is
+        # stdout followed by stderr; the qemu round interleaves them (2>&1).
+        # The corpus oracle (reference output / md5 / exit) is unchanged.
+        case.run_timeout = cfg["gem5_timeout"]
+        run_started = time.monotonic()
+        se = gem5_se_engine.evaluate(
+            elf, os.path.join(outdir, "gem5-se"),
+            gem5=cfg["gem5"], config=cfg["gem5_config"],
+            timeout=case.run_timeout, musl_root=cfg["musl_root"],
+            argv=case.run_argv, stdin_path=stdin_path, cwd=run_dir)
+        case.run_seconds = time.monotonic() - run_started
+        case.run_cmd = se["cmd"]
+        case.gap = se["gap"]
+        case.sim_log = se["sim_log"] or ""
+        rc, timed = se["exit"], False
+        stdout = se["stdout"] + se["stderr"]
+        with open(os.path.join(outdir, "combined.out"), "wb") as fh:
+            fh.write(stdout)
+        if se["status"] == "BLOCKED":
+            case.klass = "blocked"
+            case.reason = se["reason"]
+            case.first_error = first_output_line(se["stdout"], se["stderr"])
+            case.stdout = se["stdout"] + se["stderr"]
+            case.stdout_sha256 = sha256_bytes(case.stdout)
+            case.stdout_size = len(case.stdout)
+            return case
+        if rc is not None and rc < 0:
+            # A host signal is a simulator/host event, never a guest verdict;
+            # the qemu -strace probe below does not apply to the SE engine.
+            case.klass = "blocked"
+            case.reason = f"gem5 killed by host signal {-rc} (not a verdict)"
+            case.first_error = first_output_line(se["stdout"], se["stderr"])
+            case.stdout = se["stdout"] + se["stderr"]
+            case.stdout_sha256 = sha256_bytes(case.stdout)
+            case.stdout_size = len(case.stdout)
+            return case
+    else:
+        cmd = [cfg["qemu"]]
+        if cfg["mode"] == "dynamic":
+            cmd += ["-L", cfg["guest_root"]]
+        cmd += [elf] + list(case.run_argv)
+        case.run_cmd = cmd
+        run_started = time.monotonic()
+        rc, stdout, timed = run_stream(
+            cmd, os.path.join(outdir, "combined.out"),
+            timeout=case.run_timeout, cwd=run_dir, stdin_path=stdin_path)
+        case.run_seconds = time.monotonic() - run_started
     case.stdout = stdout
     case.stdout_sha256 = sha256_bytes(stdout)
     case.stdout_size = len(stdout)
@@ -2923,8 +2971,13 @@ def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
 
     oracle_counts = {k: sum(1 for c in cases if c.oracle_kind == k)
                      for k in ("stdout", "md5", "raw", "none")}
-    emit(f"run_llvm_ts_user: mode={mode} cases={len(cases)} "
-         f"(现场枚举, 非写死)")
+    emit(f"run_llvm_ts_user: mode={mode} engine={cfg['engine']} "
+         f"cases={len(cases)} (现场枚举, 非写死)")
+    if cfg["engine"] == "gem5-se":
+        emit(f"  engine: gem5 syscall emulation ({cfg['gem5_config']} "
+             f"--binary <elf>; static ET_EXEC only)")
+        emit(f"  SE timeout: {cfg['gem5_timeout']}s per case "
+             f"(timeout/syscall-gap => blocked, never a verdict)")
     emit(f"  suite: {cfg['src']} (patchless, manifest-locked)")
     emit(f"  link base: lld default (no -T / no linker script; ISS-247)")
     emit(f"  musl headers: -nostdinc + public user view "
@@ -3000,7 +3053,8 @@ def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
     if audit["unexplained"]:
         emit(f"[FAIL] unclassified failure(s) remain: {audit['unexplained']}")
 
-    emit(f"\nllvm-ts-user: mode={mode} total={counts['total']} "
+    emit(f"\nllvm-ts-user: mode={mode} engine={cfg['engine']} "
+         f"total={counts['total']} "
          f"pass={counts['pass']} fail={counts['fail']} "
          f"known-fail={counts['known-fail']} blocked={counts['blocked']} "
          f"excluded={counts['excluded']}")
@@ -3033,7 +3087,14 @@ def write_artifacts(cfg, cases, results, counts, audit, census, args,
     report_out = abspath(args.report_out)
     json_out = _round_path(json_out, mode, both)
     report_out = _round_path(report_out, mode, both)
-    record = dict(mode=mode, suite=cfg["src"],
+    record = dict(mode=mode, engine=cfg["engine"],
+                  gem5=(cfg["gem5"] if cfg["engine"] == "gem5-se" else None),
+                  gem5_timeout=(cfg["gem5_timeout"]
+                                if cfg["engine"] == "gem5-se" else None),
+                  gem5_output_order=("guest stdout then stderr (SE fd1/fd2 are "
+                                    "separate host files)"
+                                    if cfg["engine"] == "gem5-se" else None),
+                  suite=cfg["src"],
                   seed=dict(target=TARGET, base="lld default",
                             musl_headers=list(MUSL_USER_INCLUDE_DIRS),
                             base_cflags=list(BASE_CFLAGS),
@@ -3082,6 +3143,18 @@ def main() -> int:
                          "a floor: CASE_TIMEOUTS entries win when larger")
     ap.add_argument("--jobs", type=int, default=DEFAULT_JOBS,
                     help="parallel cases (default 4; never all cores)")
+    ap.add_argument("--engine", choices=gem5_se_engine.ENGINES, default="qemu",
+                    help="run engine: qemu-user (default) or gem5 syscall "
+                         "emulation (GEM5-021t; static ET_EXEC only).  The "
+                         "corpus, build line and reference oracle do not change")
+    ap.add_argument("--gem5", default=None,
+                    help="gem5.opt binary (default: $GEM5_SE_BIN or the "
+                         "component build tree)")
+    ap.add_argument("--gem5-config", default=None,
+                    help="SE configuration script (default: $GEM5_SE_CONFIG)")
+    ap.add_argument("--gem5-timeout", type=int, default=DEFAULT_GEM5_TIMEOUT,
+                    help="per-case SE timeout in seconds (BLOCKED, not a "
+                         "verdict)")
     ap.add_argument("--only", action="append", default=None,
                     help="run only cases whose id matches this regex "
                          "(repeatable; pilots)")
@@ -3136,9 +3209,15 @@ def main() -> int:
     work_dir = abspath(args.work_dir)
     cfg = {
         "src": suite_root,
+        "engine": args.engine,
         "clang": abspath(args.clang),
         "ldlld": abspath(args.ldlld),
         "qemu": abspath(args.qemu),
+        "gem5": abspath(args.gem5 or gem5_se_engine.default_gem5()),
+        "gem5_config": abspath(args.gem5_config
+                               or gem5_se_engine.default_se_config()),
+        "gem5_timeout": args.gem5_timeout,
+        "musl_root": musl,
         "timeout": args.timeout,
         "work_dir": work_dir,
     }
@@ -3149,7 +3228,11 @@ def main() -> int:
     try:
         require_exec(cfg["clang"], "clang")
         require_exec(cfg["ldlld"], "ld.lld")
-        require_exec(cfg["qemu"], "qemu-dadao")
+        if cfg["engine"] == "qemu":
+            require_exec(cfg["qemu"], "qemu-dadao")
+        else:
+            require_exec(cfg["gem5"], "gem5.opt")
+            require_file(cfg["gem5_config"], "gem5 SE configuration")
         require_file(os.path.join(musl, "lib", "crt1.o"), "musl crt1.o")
         require_file(os.path.join(musl, "lib", "libc.a"), "musl libc.a")
         require_file(os.path.join(musl, "lib", "libc.so"), "musl libc.so")
