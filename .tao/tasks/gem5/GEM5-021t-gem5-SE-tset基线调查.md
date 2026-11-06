@@ -133,7 +133,7 @@ JOBS=32 python3 tools/testcases/tset/gem5-se-baseline/run_gem5_se_baseline.py \
 | A（阻断）C4 断言 `memstream ⇒ blocked:brk`，`GEM5-022t` 落地后必红 | ✅已修 | C4 改为**能力无关**的驱动契约检查（引擎=gem5-se、每案有状态、非 pass 必有 reason、blocked 必有归因、至少 1 例 pass）；新增 C4b（llvm-ts 单例同契约）。具体 blocked 名单不进断言 | 默认轮 PASS=12 FAIL=0；`RUN_L1=1 INJECT=1` PASS=18 FAIL=0 BLOCKED=1 |
 | B 9 例归因写成单一 `__rem_pio2_large` + 「gem5 核心缺陷」单方定性 | ✅已修 | findings §1/§2 改为三方口径不一致（SPEC `rf0[33:32]` / 工具链不写 rf0 / QEMU 截断），列出三处 cast 位点；归属**待用户裁定**（`discussing.md` A/D/B/C），删除单方定性 | findings §2 与完成区① 逐条核对 musl 源码行号 |
 | 非阻断：summary 补引擎版本 + 快照说明 | ✅已修 | 摘要新增「引擎与快照」节（lock commit / series / 版本 / 编译时间；sha256 不可复原的说明）+ 文首快照注记 | 摘要渲染见 `.tao/knowledge/refs/GEM5-021t-baseline-summary.md` 首两节 |
-| 非阻断：`sanitize()` 硬编码绝对路径 | ✅已修 | 改为仅按仓库相对根标记（`.work/`、`.dadao/`）剥前缀，不再硬编码任何宿主路径 | 摘要内绝对路径前缀计数 0；C6 复算 PASS |
+| 非阻断：`sanitize()` 硬编码绝对路径 | ✅已修 | 改为仅按仓库相对根标记剥前缀，不再硬编码任何宿主路径 | 摘要内绝对路径前缀计数 0；C6 复算 PASS |
 | L1 红需归因而非伪造绿 | ✅已修 | `make -k check` 全量；若唯一红是 `check-patch-tree` 的 gem5 断言且本任务 `components/gem5` 改动 0 ⇒ 记 `BLOCKED` + 归属（不记 PASS） | `BLOCKED C7.make_check rc=2; 仅 check-patch-tree 的 gem5 断言红（6 条）；共享源被 GEM5-022t 改写`；`git status components/gem5` 0 |
 
 #### 第 2 轮 reviewer 验收（2026-11-06）
@@ -141,7 +141,7 @@ JOBS=32 python3 tools/testcases/tset/gem5-se-baseline/run_gem5_se_baseline.py \
 **判决：Accepted**（A/B 均已复验；`make check` 红按 BLOCKED 归因，机械可核）。以下全为本人现场重跑；前后 `git status --porcelain -uall` 快照逐行一致、14 个文件 `md5sum -c` 全 OK、注入残留 0、`tests/` 与 `components/` 改动 0。
 
 **重跑记录（真实 rc）**
-- 默认轮 `./.work/evidence/GEM5-021t/run.sh` → **`PASS=12 FAIL=0 BLOCKED=0 rc=0`**（注入前、还原后各一次）；`RUN_L1=1 INJECT=1` → **`PASS=18 FAIL=0 BLOCKED=1 rc=0`**，脚本自带 I1/I2 均「注入→FAIL→`cp`+md5→回绿」。
+- 默认轮运行期证据脚本 → **`PASS=12 FAIL=0 BLOCKED=0 rc=0`**（注入前、还原后各一次）；`RUN_L1=1 INJECT=1` → **`PASS=18 FAIL=0 BLOCKED=1 rc=0`**，脚本自带 I1/I2 均「注入→FAIL→`cp`+md5→回绿」。
 - **A（能力无关契约）**：当前树 `functional/memstream` 已由 `GEM5-022t` 的 `brk` 转 **pass**（我实测 `drv-libc.json` 3/3 pass、`drv-lts.json` Bubblesort pass），C4/C4b 仍绿 ⇒ 断言不再绑定具体能力状态。
 - **断言非恒真（我的两次独立注入）**：① libc 驱动 `record.engine="qemu"`（JSON mtime 13:12:29 为新产物）⇒ `FAIL C4 actual=cases=3 engine=qemu`、rc=1；② llvm 驱动同字段（mtime 13:22:30）⇒ `FAIL C4b actual=engine=qemu`、rc=1；`cp`+`md5sum -c … OK` 还原后回 `PASS=12 FAIL=0`。
 - **B（位点我逐行看源码核对）**：`__rem_pio2_large.c:303/304/311`（另 `:378/379`）`(int32_t)` ✓；`expm1.c:153` `k = invln2*x ± 0.5`（`int k`）✓；`lgamma_r.c:156` `n = (int)(x*4.0)`、`:255` `i = (int)x` ✓；`llvm-test-suite/SingleSource/Benchmarks/Misc/pi.c:49` `(long int)(iprod/74383)`、`:52` `(long int)(prod/ymod)` ✓。refs+任务书扫描无「gem5 缺陷/单方缺陷」定性（仅存「**不判**「gem5 单方缺陷」」的否定句）。
