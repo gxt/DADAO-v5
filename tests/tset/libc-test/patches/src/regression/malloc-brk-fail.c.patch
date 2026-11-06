@@ -1,8 +1,8 @@
 diff --git a/src/regression/malloc-brk-fail.c b/src/regression/malloc-brk-fail.c
-index d0ccd35..bc490e3 100644
+index d0ccd35..9427321 100644
 --- a/src/regression/malloc-brk-fail.c
 +++ b/src/regression/malloc-brk-fail.c
-@@ -16,6 +16,31 @@ int main(void)
+@@ -16,13 +16,55 @@ int main(void)
  	size_t n;
  	int r;
  
@@ -34,3 +34,28 @@ index d0ccd35..bc490e3 100644
  	// fill memory, largest mmaped area is [p,p+n)
  	if (t_vmfill(&p, &n, 1) < 1 || n < 2*65536) {
  		t_error("vmfill failed\n");
+ 		return 1;
+ 	}
++	// Lower only the soft RLIMIT_DATA value: t_setrlim() sets rlim_max to 0
++	// too, and the kernel's may_expand_vm() Valgrind workaround only lets a
++	// data mapping through when rlimit(RLIMIT_DATA) == 0 *and* the mapping
++	// still fits in rlimit_max(RLIMIT_DATA).  With max also 0 that workaround
++	// never applies, so the mmap(64 KiB) done after the munmap below would be
++	// refused as well.  Keeping the (unlimited) hard limit preserves the
++	// intent of the test: malloc fails while the address space is full and
++	// succeeds once 64 KiB is unmapped.
++	struct rlimit rl;
+ 	errno = 0;
+-	T(t_setrlim(RLIMIT_DATA, 0));
++	if (getrlimit(RLIMIT_DATA, &rl) != 0) {
++		t_error("getrlimit(RLIMIT_DATA) failed: %s\n", strerror(errno));
++		return 1;
++	}
++	rl.rlim_cur = 0;
++	if (setrlimit(RLIMIT_DATA, &rl) != 0) {
++		t_error("setrlimit(RLIMIT_DATA) failed: %s\n", strerror(errno));
++		return 1;
++	}
+ 
+ 	// malloc should fail here
+ 	errno = 0;
