@@ -51,10 +51,20 @@ ctlz rd8, rd9, 1
 @@ ASM: fo2fo {rf8}, {rf9}
 fo2fo {rf8}, {rf9}
 
+@@ @src fo2ft_orri_rf 44248244 | SimRISC-07: fo2ft
+@@ OBJ: {{[0-9a-f]+:}} 44 24 82 44{{.*}}fo2ft
+@@ ASM: fo2ft rf8, rf9, 4
+fo2ft rf8, rf9, 4
+
 @@ @src foroot_orri_rf 44388242 | SimRISC-07: foroot
 @@ OBJ: {{[0-9a-f]+:}} 44 38 82 42{{.*}}foroot
 @@ ASM: foroot rf8, rf9, 2
 foroot rf8, rf9, 2
+
+@@ @src ft2fo_orri_rf 44048240 | SimRISC-07: ft2fo
+@@ OBJ: {{[0-9a-f]+:}} 44 04 82 40{{.*}}ft2fo
+@@ ASM: ft2fo rf8, rf9, 0
+ft2fo rf8, rf9, 0
 
 @@ @src add.o_orrr_bbd 40c0824a | SimRISC-05: add.o
 @@ OBJ: {{[0-9a-f]+:}} 40 c0 82 4a{{.*}}add.o

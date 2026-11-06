@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..9dfccd6df
+index 000000000..8a633561c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,1253 @@
+@@ -0,0 +1,1256 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1181,26 +1181,29 @@ index 000000000..9dfccd6df
 +def : Pat<(store f32:$val, (DADAOAddr GPRB:$base, simm12imm:$off)),
 +          (st_t_rrii_rf f32:$val, GPRB:$base, simm12imm:$off)>;
 +
-+// --- FP format conversions (orri; immu6 = 1 register) ---
-+// fpext f32->f64 = ft2fo ; fptrunc f64->f32 = fo2ft (contract-fp.md §2).
-+def : Pat<(f64 (fpextend f32:$a)), (ft2fo_orri_rf f32:$a, 1)>;
-+def : Pat<(f32 (fpround f64:$a)), (fo2ft_orri_rf f64:$a, 1)>;
++// --- FP format conversions (orri; single register + explicit low-6-bit field) ---
++// fpext f32->f64 = ft2fo (exact, SBZ 0); fptrunc f64->f32 = fo2ft
++// (inexact, follows rf0 = dynamic 0x20) -- ADR-0050 D3/D6.
++def : Pat<(f64 (fpextend f32:$a)), (ft2fo_orri_rf f32:$a, 0)>;
++def : Pat<(f32 (fpround f64:$a)), (fo2ft_orri_rf f64:$a, 0x20)>;
 +
 +// --- FP <-> integer conversions (orri; the int side is always i64) ---
 +// fp_to_sint / fp_to_uint -> i octa (fo2io/ft2io for octa floats; signed i,
 +// unsigned u).  A narrower (i32/i16/i8) integer result is promoted to i64 by
-+// the type legalizer and truncated afterwards.
-+def : Pat<(i64 (fp_to_sint f64:$a)), (fo2io_orri_rf f64:$a, 1)>;
-+def : Pat<(i64 (fp_to_sint f32:$a)), (ft2io_orri_rf f32:$a, 1)>;
-+def : Pat<(i64 (fp_to_uint f64:$a)), (fo2uo_orri_rf f64:$a, 1)>;
-+def : Pat<(i64 (fp_to_uint f32:$a)), (ft2uo_orri_rf f32:$a, 1)>;
++// the type legalizer and truncated afterwards.  C casts must truncate
++// regardless of fesetround, so they carry the explicit RTZ code 0x04
++// (ADR-0050 D6).
++def : Pat<(i64 (fp_to_sint f64:$a)), (fo2io_orri_rf f64:$a, 0x04)>;
++def : Pat<(i64 (fp_to_sint f32:$a)), (ft2io_orri_rf f32:$a, 0x04)>;
++def : Pat<(i64 (fp_to_uint f64:$a)), (fo2uo_orri_rf f64:$a, 0x04)>;
++def : Pat<(i64 (fp_to_uint f32:$a)), (ft2uo_orri_rf f32:$a, 0x04)>;
 +// sint_to_fp / uint_to_fp <- i octa (io2fo/uo2fo).  A narrower integer source
 +// is promoted to i64 before the conversion, so only the i64 patterns are
-+// reachable.
-+def : Pat<(f64 (sint_to_fp (i64 GPRD:$a))), (io2fo_orri_rf (i64 GPRD:$a), 1)>;
-+def : Pat<(f32 (sint_to_fp (i64 GPRD:$a))), (io2ft_orri_rf (i64 GPRD:$a), 1)>;
-+def : Pat<(f64 (uint_to_fp (i64 GPRD:$a))), (uo2fo_orri_rf (i64 GPRD:$a), 1)>;
-+def : Pat<(f32 (uint_to_fp (i64 GPRD:$a))), (uo2ft_orri_rf (i64 GPRD:$a), 1)>;
++// reachable.  Integer->float follows rf0 (0x20, dynamic; ADR-0050 D6).
++def : Pat<(f64 (sint_to_fp (i64 GPRD:$a))), (io2fo_orri_rf (i64 GPRD:$a), 0x20)>;
++def : Pat<(f32 (sint_to_fp (i64 GPRD:$a))), (io2ft_orri_rf (i64 GPRD:$a), 0x20)>;
++def : Pat<(f64 (uint_to_fp (i64 GPRD:$a))), (uo2fo_orri_rf (i64 GPRD:$a), 0x20)>;
++def : Pat<(f32 (uint_to_fp (i64 GPRD:$a))), (uo2ft_orri_rf (i64 GPRD:$a), 0x20)>;
 +
 +// --- FP <-> integer bitcast (LLVM-079t) ---
 +// `rd2rf` / `rf2rd` are the RD<->RF block moves (contract-fp.md §12): they copy

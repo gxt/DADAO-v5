@@ -41,31 +41,31 @@ lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	43648241	rol.b	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	43688241	shr.ub	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	436c8241	shr.sb	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44008241	ftcls	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44048241	ft2fo	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44048240	ft2fo	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44088241	ft2ft	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	440c8241	ftrnd	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44188242	ftroot	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44208241	focls	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44248241	fo2ft	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44248244	fo2ft	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44288241	fo2fo	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	442c8241	fornd	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44388242	foroot	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44c08241	ft2it	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44c48241	ft2io	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44c88241	ft2ut	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44cc8241	ft2uo	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44d08241	it2ft	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44d48241	io2ft	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44d88241	ut2ft	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44dc8241	uo2ft	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44e08241	fo2it	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44e48241	fo2io	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44e88241	fo2ut	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44ec8241	fo2uo	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44f08241	it2fo	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44f48241	io2fo	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44f88241	ut2fo	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44fc8241	uo2fo	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44c08244	ft2it	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44c48244	ft2io	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44c88244	ft2ut	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44cc8244	ft2uo	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44d08244	it2ft	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44d48244	io2ft	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44d88244	ut2ft	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44dc8244	uo2ft	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44e08244	fo2it	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44e48244	fo2io	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44e88244	fo2ut	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44ec8244	fo2uo	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44f08240	it2fo	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44f48244	io2fo	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44f88240	ut2fo	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44fc8244	uo2fo	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	47948241	ctpop	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	47988241	ctlz	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	479c8241	cttz	1
@@ -329,11 +329,11 @@ lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	3f408243	stm.o	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	40f4a383	rd2rf	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	40f8e483	rf2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44004203	ftcls	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44044203	ft2fo	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44044200	ft2fo	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	4408a383	ft2ft	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44184182	ftroot	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44208303	focls	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44244203	fo2ft	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44244204	fo2ft	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	4428a383	fo2fo	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44384182	foroot	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44404188	ftadd	1
@@ -356,22 +356,22 @@ lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44804188	ftqcmp	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44844188	ftscmp	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44a04188	foqcmp	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44a44188	foscmp	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44c04203	ft2it	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44c4a383	ft2io	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44c88303	ft2ut	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44cce483	ft2uo	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44d04203	it2ft	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44d4a383	io2ft	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44d88303	ut2ft	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44dce483	uo2ft	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44e04203	fo2it	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44e4a383	fo2io	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44e88303	fo2ut	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44ece483	fo2uo	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44f04203	it2fo	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44f48303	io2fo	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44f84203	ut2fo	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44fca383	uo2fo	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44c04201	ft2it	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44c4a382	ft2io	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44c88304	ft2ut	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44cce488	ft2uo	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44d04210	it2ft	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44d4a3a0	io2ft	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44d88304	ut2ft	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44dce482	uo2ft	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44e04208	fo2it	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44e4a390	fo2io	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44e88320	fo2ut	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44ece481	fo2uo	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44f04200	it2fo	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44f48304	io2fo	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44f84200	ut2fo	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44fca3a0	uo2fo	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	4f101234	set.w	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	61304188	cs.n	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	6338a30e	cs.z	1
@@ -391,6 +391,8 @@ lit	tests/unit/llvm/lit/MC/DADAO/fp-round-encoding.s	442cb320	fornd	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	24209008	ld.o	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	3c200241	ldm.o	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	40c0824a	add.o	1
+lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	44048240	ft2fo	1
+lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	44248244	fo2ft	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	44288241	fo2fo	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	44388242	foroot	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	471c0241	lr.b.an	1
@@ -1861,6 +1863,21 @@ vector	tests/inst/clmul/clmul.yaml	clmul.o_rrrr_rd	semantic	0x560420c4	None	acti
 vector	tests/inst/clmul/clmul.yaml	clmul.o_rrrr_rd	semantic	0x560420c4	None	active	9
 vector	tests/inst/clmul/clmul.yaml	clmul.o_rrrr_rd	semantic	0x561400c4	None	active	1
 vector	tests/inst/clmul/clmul.yaml	clmul.o_rrrr_rd	semantic	0x561400c4	None	active	2
+vector	tests/inst/fp/convert.yaml	fo2ft_orri_rf	boundary	0x44244041	None	active	1
+vector	tests/inst/fp/convert.yaml	fo2ft_orri_rf	boundary	0x44244044	None	active	1
+vector	tests/inst/fp/convert.yaml	fo2io_orri_rf	semantic	0x44e45041	None	active	1
+vector	tests/inst/fp/convert.yaml	ft2it_orri_rf	boundary	0x44c05044	None	active	1
+vector	tests/inst/fp/convert.yaml	ft2it_orri_rf	legality	0x44c05043	ILLI	active	1
+vector	tests/inst/fp/convert.yaml	ft2it_orri_rf	semantic	0x44c05041	None	active	1
+vector	tests/inst/fp/convert.yaml	ft2it_orri_rf	semantic	0x44c05042	None	active	1
+vector	tests/inst/fp/convert.yaml	ft2it_orri_rf	semantic	0x44c05044	None	active	1
+vector	tests/inst/fp/convert.yaml	ft2it_orri_rf	semantic	0x44c05044	None	active	2
+vector	tests/inst/fp/convert.yaml	ft2it_orri_rf	semantic	0x44c05048	None	active	1
+vector	tests/inst/fp/convert.yaml	ft2it_orri_rf	semantic	0x44c05050	None	active	1
+vector	tests/inst/fp/convert.yaml	ft2it_orri_rf	semantic	0x44c05060	None	active	1
+vector	tests/inst/fp/convert.yaml	io2ft_orri_rf	semantic	0x44d44048	None	active	1
+vector	tests/inst/fp/convert.yaml	io2ft_orri_rf	semantic	0x44d44060	None	active	1
+vector	tests/inst/fp/convert.yaml	ut2fo_orri_rf	semantic	0x44f84040	None	active	1
 vector	tests/inst/fp/scaleb.yaml	fosclb_orrr_rf	boundary	0x44744043	None	active	1
 vector	tests/inst/fp/scaleb.yaml	fosclb_orrr_rf	boundary	0x44744043	None	active	2
 vector	tests/inst/fp/scaleb.yaml	fosclb_orrr_rf	boundary	0x44744043	None	active	3

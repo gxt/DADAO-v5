@@ -250,5 +250,6 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `atomics/sc-rd0.yaml` | — | ✓ |
 | `clmul/clmul.yaml` | — | ✓ |
 | `fp/scaleb.yaml` | — | ✓ |
+| `fp/convert.yaml` | — | ✓ |
 | `rev/rev.yaml` | — | — |
 | `bitcnt/bitcnt.yaml` | — | — |

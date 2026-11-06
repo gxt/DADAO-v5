@@ -1,0 +1,417 @@
+# 格式转换舍入编码三分（ADR-0050；contract-fp §2/§3/§4）。
+#
+# 15 条结果依赖舍入的转换：低 6 位 = 六档 one-hot（0x01 RNE / 0x02 RNA /
+# 0x04 RTZ / 0x08 RUP / 0x10 RDN / 0x20 dynamic）；3 条精确转换（ft2fo /
+# it2fo / ut2fo）低 6 位 SBZ = 0。期望值独立派生自 IEEE 754-2019 的方向定义
+# 与 contract-fp §3/§4 的 NX/NV/OF/UF 口径，**不**从 QEMU 运行结果反推。
+#
+# rf 组无 input_state 通道，故用 `ld.o rf` 装载 64 位源（ft 用低 32 位）、
+# 用 `st.t`/`st.o` + `ld.o rd` 读回结果（大端 8 字节装载 ⇒ f32 落在 [63:32]），用 `rf2rd {rd6}, {rf0}` 读取
+# FCSR（rf0 复位值 0x7FF800007FC00000，低 5 位为累积标志）。
+#
+# 覆盖：RNE/RTZ/RUP/RDN 各一组（ft2it 2.7f）、f2i 越界饱和+NV（2^31）、
+# fo2ft 溢出（+Inf + OF|NX）与下溢（tiny+inexact ⇒ UF|NX）、io2ft 动态 0x20
+# 跟随 rf0（set.w wp2 置 RTZ）、ut2fo 精确（SBZ 0，无标志）。
+
+- class: semantic
+  encoding:
+    word: '0x44C05044'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000002'
+      rd6: '0x7FF800007FC00010'
+  format: orri
+  id: ft2it_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000402CCCCD'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ft2it
+  notes: 'ft2it rd5, rf1, 4（RTZ）：2.7f → 2 + NX；C cast 恒截断'
+  sequence:
+  - '0x26041000'
+  - '0x44C05044'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ft2it'
+  status: active
+
+- class: semantic
+  encoding:
+    word: '0x44C05041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000003'
+      rd6: '0x7FF800007FC00010'
+  format: orri
+  id: ft2it_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000402CCCCD'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ft2it
+  notes: 'ft2it rd5, rf1, 1（RNE）：2.7f → 3 + NX'
+  sequence:
+  - '0x26041000'
+  - '0x44C05041'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ft2it'
+  status: active
+
+- class: semantic
+  encoding:
+    word: '0x44C05048'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000003'
+      rd6: '0x7FF800007FC00010'
+  format: orri
+  id: ft2it_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000402CCCCD'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ft2it
+  notes: 'ft2it rd5, rf1, 8（RUP）：2.7f → 3 + NX'
+  sequence:
+  - '0x26041000'
+  - '0x44C05048'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ft2it'
+  status: active
+
+- class: semantic
+  encoding:
+    word: '0x44C05050'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000002'
+      rd6: '0x7FF800007FC00010'
+  format: orri
+  id: ft2it_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000402CCCCD'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ft2it
+  notes: 'ft2it rd5, rf1, 16（RDN）：2.7f → 2 + NX'
+  sequence:
+  - '0x26041000'
+  - '0x44C05050'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ft2it'
+  status: active
+
+- class: semantic
+  encoding:
+    word: '0x44C05044'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0xFFFFFFFFFFFFFFFE'
+      rd6: '0x7FF800007FC00010'
+  format: orri
+  id: ft2it_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000C02CCCCD'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ft2it
+  notes: 'ft2it rd5, rf1, 4（RTZ）：-2.7f → -2，符号扩展到 64 位 + NX'
+  sequence:
+  - '0x26041000'
+  - '0x44C05044'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ft2it'
+  status: active
+
+- class: boundary
+  encoding:
+    word: '0x44C05044'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000007FFFFFFF'
+      rd6: '0x7FF800007FC00001'
+  format: orri
+  id: ft2it_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000004F000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ft2it
+  notes: 'ft2it rd5, rf1, 4（RTZ）：2^31 越界 ⇒ INT32_MAX + NV（不置 NX）'
+  sequence:
+  - '0x26041000'
+  - '0x44C05044'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ft2it'
+  status: active
+
+- class: semantic
+  encoding:
+    word: '0x44E45041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000003'
+      rd6: '0x7FF800007FC00010'
+  format: orri
+  id: fo2io_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x400599999999999A'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fo2io
+  notes: 'fo2io rd5, rf1, 1（RNE）：2.7 → 3 + NX'
+  sequence:
+  - '0x26041000'
+  - '0x44E45041'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fo2io'
+  status: active
+
+- class: semantic
+  encoding:
+    word: '0x44D44048'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x4B80000100000000'
+      rd6: '0x7FF800007FC00010'
+  format: orri
+  id: io2ft_orri_rf
+  input_state:
+    rd:
+      rd1: '0x0000000001000001'
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: io2ft
+  notes: 'io2ft rf4, rd1, 8（RUP）：2^24+1 → 2^24+2 + NX（大端 8 字节读回：f32 在 [63:32]）'
+  sequence:
+  - '0x44D44048'
+  - '0x17101008'
+  - '0x20141008'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: io2ft'
+  status: active
+
+- class: semantic
+  encoding:
+    word: '0x44D44060'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x4B80000000000000'
+      rd6: '0x7FF800017FC00010'
+  format: orri
+  id: io2ft_orri_rf
+  input_state:
+    rd:
+      rd1: '0x0000000001000001'
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: io2ft
+  notes: 'io2ft rf4, rd1, 0x20（dynamic）：set.w rf0, wp2, 1 置 RTZ ⇒ 2^24 + NX（f32 在 [63:32]）'
+  sequence:
+  - '0x4F020001'
+  - '0x44D44060'
+  - '0x17101008'
+  - '0x20141008'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: io2ft'
+  status: active
+
+- class: semantic
+  encoding:
+    word: '0x44F84040'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x41EFFFFFFFE00000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ut2fo_orri_rf
+  input_state:
+    rd:
+      rd1: '0x00000000FFFFFFFF'
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ut2fo
+  notes: 'ut2fo rf4, rd1, 0（SBZ）：UINT32_MAX 精确装入 f64，无标志'
+  sequence:
+  - '0x44F84040'
+  - '0x27101008'
+  - '0x20141008'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ut2fo'
+  status: active
+
+- class: boundary
+  encoding:
+    word: '0x44244044'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x7F80000000000000'
+      rd6: '0x7FF800007FC00014'
+  format: orri
+  id: fo2ft_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FEFFFFFFFFFFFFF'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fo2ft
+  notes: 'fo2ft rf4, rf1, 4（RTZ）：f64 最大有限 → +Inf + OF|NX（f32 在 [63:32]）'
+  sequence:
+  - '0x26041000'
+  - '0x44244044'
+  - '0x17101008'
+  - '0x20141008'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fo2ft'
+  status: active
+
+- class: boundary
+  encoding:
+    word: '0x44244041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00018'
+  format: orri
+  id: fo2ft_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3690000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fo2ft
+  notes: 'fo2ft rf4, rf1, 1（RNE）：2^-150 tiny+inexact ⇒ 0 + UF|NX'
+  sequence:
+  - '0x26041000'
+  - '0x44244041'
+  - '0x17101008'
+  - '0x20141008'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fo2ft'
+  status: active
+
+- class: semantic
+  encoding:
+    word: '0x44C05060'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000002'
+      rd6: '0x7FF800017FC00010'
+  format: orri
+  id: ft2it_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000402CCCCD'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ft2it
+  notes: 'ft2it rd5, rf1, 0x20（dynamic）：set.w rf0, wp2, 1 置 RTZ ⇒ 2.7f → 2 + NX'
+  sequence:
+  - '0x4F020001'
+  - '0x26041000'
+  - '0x44C05060'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ft2it'
+  status: active
+
+- class: semantic
+  encoding:
+    word: '0x44C05042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000003'
+      rd6: '0x7FF800007FC00010'
+  format: orri
+  id: ft2it_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000040200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ft2it
+  notes: 'ft2it rd5, rf1, 2（RNA）：2.5f 为偶数间 tie，远离零 ⇒ 3 + NX'
+  sequence:
+  - '0x26041000'
+  - '0x44C05042'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ft2it'
+  status: active
+
+- class: legality
+  encoding:
+    word: '0x44C05043'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  id: ft2it_orri_rf
+  input_state: {}
+  mnemonic: ft2it
+  notes: 'ft2it rd5, rf1, 3：immu6 非 one-hot ⇒ 运行期 ILLI（encode_onehot）'
+  spec_cite: 'SimRISC-07: ft2it'
+  status: active

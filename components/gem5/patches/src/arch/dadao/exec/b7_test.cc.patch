@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b7_test.cc b/src/arch/dadao/exec/b7_test.cc
 new file mode 100644
-index 0000000..90a05d4
+index 0000000..29a7da4
 --- /dev/null
 +++ b/src/arch/dadao/exec/b7_test.cc
-@@ -0,0 +1,1969 @@
+@@ -0,0 +1,2044 @@
 +/*
 + * DADAO gem5 B7 execution assertions (GEM5-012t).
 + *
@@ -520,6 +520,8 @@ index 0000000..90a05d4
 +        legal |= exec::LegalOnehot;
 +    if (countOfRule(entry, "encode_fp_root_n"))
 +        legal |= exec::LegalRootN;
++    if (countOfRule(entry, "encode_sbz"))
++        legal |= exec::LegalSbz;
 +    return legal;
 +}
 +
@@ -691,7 +693,7 @@ index 0000000..90a05d4
 +        if (spec.immField != nullptr)
 +            w.immu6 = 2;  // root n
 +        if (spec.modeField != nullptr)
-+            w.immu6 = 0x01;  // roundint ties-to-even
++            w.immu6 = (spec.legal & exec::LegalSbz) ? 0 : 0x01;
 +
 +        MockContext ctx;
 +        initContext(ctx);
@@ -783,7 +785,7 @@ index 0000000..90a05d4
 +        if (spec.immField != nullptr)
 +            base.immu6 = 2;
 +        if (spec.modeField != nullptr)
-+            base.immu6 = 0x01;
++            base.immu6 = (spec.legal & exec::LegalSbz) ? 0 : 0x01;
 +
 +        if (spec.legal & exec::LegalDstRf0) {
 +            WordSpec w = base;
@@ -801,8 +803,8 @@ index 0000000..90a05d4
 +            checkIlli(spec.id, w, "dst rd0");
 +        }
 +        if (spec.legal & exec::LegalCount) {
-+            // The block shapes are: classify/f2i (rd dst, rf src), i2f
-+            // (rf dst, rd src) and convert_ff (rf dst, rf src).
++            // The block shapes are: classify (rd dst, rf src) and the pure
++            // copies ft2ft/fo2fo (rf dst, rf src).
 +            const bool dstIsRf = spec.dst == exec::Target::Rf;
 +            const bool srcIsRf = spec.src == exec::Target::Rf;
 +            WordSpec w = base;
@@ -848,6 +850,14 @@ index 0000000..90a05d4
 +                WordSpec w = base;
 +                w.immu6 = code;
 +                checkIlli(spec.id, w, "non-one-hot immu6");
++            }
++        }
++        if (spec.legal & exec::LegalSbz) {
++            const uint64_t bad[] = {0x01, 0x04, 0x20, 0x3F};
++            for (uint64_t code : bad) {
++                WordSpec w = base;
++                w.immu6 = code;
++                checkIlli(spec.id, w, "non-zero SBZ");
 +            }
 +        }
 +        if (spec.legal & exec::LegalRootN) {
@@ -1139,7 +1149,7 @@ index 0000000..90a05d4
 +    WordSpec w;
 +    w.rfhb = 2;
 +    w.rfhc = 3;
-+    w.immu6 = 1;
++    w.immu6 = 0;  // ft2fo is exact: SBZ
 +    const exec::Fault fault = runWord(ctx, "ft2fo_orri_rf", w);
 +    check(fault == exec::Fault::None && ctx.rf[2] == 0x3FF8000000000000ull,
 +          "ft2fo 1.5 is exact (actual 0x%016" PRIx64 ")", ctx.rf[2]);
@@ -1164,10 +1174,12 @@ index 0000000..90a05d4
 +    initContext(ctx);
 +    ctx.rf[3] = kFtSNaN;
 +    (void)runWord(ctx, "ft2ft_orri_rf", w);
-+    check(ft(ctx, 2) == 0x7FC00001ull && flagsOf(ctx) == kFlagNV,
-+          "ft2ft sNaN => NV + quieted (payload preserved)");
-+    // fo2ft: overflow, underflow (tiny+inexact) and NX.
++    check(ft(ctx, 2) == kFtSNaN && flagsOf(ctx) == 0,
++          "ft2ft sNaN is a bit copy: no quieting, no NV");
++    // fo2ft: overflow, underflow (tiny+inexact) and NX.  Code 0x20 follows
++    // rf0 (RNE by default), matching the old rf0-driven behaviour.
 +    initContext(ctx);
++    w.immu6 = 0x20;
 +    ctx.rf[3] = kFoMax;  // 1.797...e308 -> +Inf in ft
 +    (void)runWord(ctx, "fo2ft_orri_rf", w);
 +    check(ft(ctx, 2) == kFtInf && flagsOf(ctx) == (kFlagOF | kFlagNX),
@@ -1181,8 +1193,31 @@ index 0000000..90a05d4
 +    ctx.rf[3] = 0x3FF0000000000000ull;  // 1.0: exactly representable in ft
 +    (void)runWord(ctx, "fo2ft_orri_rf", w);
 +    check(ft(ctx, 2) == kFtOne && flagsOf(ctx) == 0, "fo2ft 1.0 is exact");
++    // fo2ft static directions must beat rf0: 0x3FF0000000000000 + tiny is
++    // inexact in ft; RUP gives the next value up, RDN the value down.
++    initContext(ctx);
++    w.immu6 = 0x08;  // RUP
++    ctx.rf[3] = 0x3FF0000010000000ull;  // 1 + 2^-24 (exact tie in binary32)
++    (void)runWord(ctx, "fo2ft_orri_rf", w);
++    check(ft(ctx, 2) == 0x3F800001ull && flagsOf(ctx) == kFlagNX,
++          "fo2ft RUP => next value up + NX (actual 0x%08" PRIx64 ")",
++          ft(ctx, 2));
++    initContext(ctx);
++    w.immu6 = 0x10;  // RDN
++    ctx.rf[3] = 0x3FF0000010000000ull;
++    (void)runWord(ctx, "fo2ft_orri_rf", w);
++    check(ft(ctx, 2) == 0x3F800000ull && flagsOf(ctx) == kFlagNX,
++          "fo2ft RDN => value down + NX");
++    initContext(ctx);
++    w.immu6 = 0x02;  // RNA ties away
++    ctx.rf[3] = 0x3FF0000010000000ull;  // 1 + 2^-24: exact tie in binary32
++    (void)runWord(ctx, "fo2ft_orri_rf", w);
++    check(ft(ctx, 2) == 0x3F800001ull && flagsOf(ctx) == kFlagNX,
++          "fo2ft RNA => tie away + NX (actual 0x%08" PRIx64 ")",
++          ft(ctx, 2));
 +    // fo2fo: bit identical for a normal number.
 +    initContext(ctx);
++    w.immu6 = 1;
 +    ctx.rf[3] = 0x123456789ABCDEF0ull;
 +    (void)runWord(ctx, "fo2fo_orri_rf", w);
 +    check(ctx.rf[2] == 0x123456789ABCDEF0ull, "fo2fo copies the 64 bits");
@@ -1220,15 +1255,15 @@ index 0000000..90a05d4
 +    bool ok = false;
 +    // ft2it: 2^31 saturates to INT32_MAX + NV (rd destination).
 +    uint64_t r = 0;
-+    auto runToInt = [](const char *id, uint64_t bits, unsigned mode,
-+                       uint64_t &out, uint64_t &flags) {
++    auto runToInt = [](const char *id, uint64_t bits, uint8_t code,
++                       unsigned rfMode, uint64_t &out, uint64_t &flags) {
 +        MockContext ctx;
 +        initContext(ctx);
-+        ctx.rf[0] = withMode(kFcsrReset, mode);
++        ctx.rf[0] = withMode(kFcsrReset, rfMode);
 +        WordSpec w;
 +        w.rdhb = 2;
 +        w.rfhc = 3;
-+        w.immu6 = 1;
++        w.immu6 = code;
 +        ctx.rf[2] = 0;
 +        ctx.rf[3] = bits;
 +        const exec::Fault fault = runWord(ctx, id, w);
@@ -1236,48 +1271,69 @@ index 0000000..90a05d4
 +        flags = flagsOf(ctx);
 +        return fault == exec::Fault::None;
 +    };
-+    ok = runToInt("ft2it_orri_rf", 0x4F000000ull, 0, r, f);  // 2^31
++    ok = runToInt("ft2it_orri_rf", 0x4F000000ull, 0x01, 0, r, f);  // 2^31
 +    check(ok && r == 0x7FFFFFFFull && f == kFlagNV,
 +          "ft2it 2^31 saturates to INT32_MAX + NV (0x%" PRIx64 ")", r);
-+    ok = runToInt("ft2it_orri_rf", 0xCF000000ull, 0, r, f);  // -2^31
++    ok = runToInt("ft2it_orri_rf", 0xCF000000ull, 0x01, 0, r, f);  // -2^31
 +    check(ok && r == 0xFFFFFFFF80000000ull && f == 0,
 +          "ft2it -2^31 is exact, sign-extended to 64 bits (0x%" PRIx64 ")", r);
-+    ok = runToInt("ft2it_orri_rf", 0x3FC00000ull, 0, r, f);  // 1.5
++    ok = runToInt("ft2it_orri_rf", 0x3FC00000ull, 0x01, 0, r, f);  // 1.5 RNE
 +    check(ok && r == 2 && f == kFlagNX, "ft2it 1.5 RNE = 2 + NX");
-+    ok = runToInt("ft2it_orri_rf", 0x3FC00000ull, 1, r, f);  // RTZ
++    ok = runToInt("ft2it_orri_rf", 0x3FC00000ull, 0x04, 0, r, f);  // RTZ
 +    check(ok && r == 1 && f == kFlagNX, "ft2it 1.5 RTZ = 1 + NX");
-+    ok = runToInt("ft2ut_orri_rf", 0xBF800000ull, 0, r, f);  // -1.0
++    // Static directions must win over rf0: rf0 says RTZ but code 0x01 is RNE.
++    ok = runToInt("ft2it_orri_rf", 0x3FC00000ull, 0x01, 1, r, f);
++    check(ok && r == 2 && f == kFlagNX, "ft2it static RNE beats rf0 RTZ");
++    // 0x20 is dynamic: it reads rf0.
++    ok = runToInt("ft2it_orri_rf", 0x3FC00000ull, 0x20, 1, r, f);
++    check(ok && r == 1 && f == kFlagNX, "ft2it dynamic 0x20 follows rf0 RTZ");
++    ok = runToInt("ft2it_orri_rf", 0x3FC00000ull, 0x08, 0, r, f);  // RUP
++    check(ok && r == 2 && f == kFlagNX, "ft2it 1.5 RUP = 2 + NX");
++    ok = runToInt("ft2it_orri_rf", 0x3FC00000ull, 0x10, 0, r, f);  // RDN
++    check(ok && r == 1 && f == kFlagNX, "ft2it 1.5 RDN = 1 + NX");
++    ok = runToInt("ft2it_orri_rf", 0x3FC00000ull, 0x02, 0, r, f);  // RNA
++    check(ok && r == 2 && f == kFlagNX, "ft2it 1.5 RNA = 2 + NX");
++    // Negative direction: -1.5 with RUP goes toward +Inf (-1).
++    ok = runToInt("ft2it_orri_rf", 0xBFC00000ull, 0x08, 0, r, f);
++    check(ok && r == 0xFFFFFFFFFFFFFFFFull && f == kFlagNX,
++          "ft2it -1.5 RUP = -1 + NX");
++    ok = runToInt("ft2ut_orri_rf", 0xBF800000ull, 0x01, 0, r, f);  // -1.0
 +    check(ok && r == 0 && f == kFlagNV, "ft2ut -1 saturates to 0 + NV");
-+    ok = runToInt("ft2ut_orri_rf", 0x4F800000ull, 0, r, f);  // 2^32
++    ok = runToInt("ft2ut_orri_rf", 0x4F800000ull, 0x01, 0, r, f);  // 2^32
 +    check(ok && r == 0xFFFFFFFFull && f == kFlagNV,
 +          "ft2ut 2^32 saturates to UINT32_MAX + NV");
-+    ok = runToInt("fo2uo_orri_rf", 0x43F0000000000000ull, 0, r, f);  // 2^64
++    ok = runToInt("fo2uo_orri_rf", 0x43F0000000000000ull, 0x01, 0, r, f);
 +    check(ok && r == 0xFFFFFFFFFFFFFFFFull && f == kFlagNV,
 +          "fo2uo 2^64 saturates to UINT64_MAX + NV");
-+    ok = runToInt("fo2io_orri_rf", kFoQNaN, 0, r, f);
++    ok = runToInt("fo2io_orri_rf", kFoQNaN, 0x01, 0, r, f);
 +    check(ok && r == 0x7FFFFFFFFFFFFFFFull && f == kFlagNV,
 +          "fo2io NaN saturates to INT64_MAX + NV");
-+    ok = runToInt("fo2io_orri_rf", kFoSign | kFoInf, 0, r, f);
++    ok = runToInt("fo2io_orri_rf", kFoSign | kFoInf, 0x01, 0, r, f);
 +    check(ok && r == 0x8000000000000000ull && f == kFlagNV,
 +          "fo2io -Inf saturates to INT64_MIN + NV");
-+    ok = runToInt("fo2io_orri_rf", kFoMinSub, 0, r, f);
++    ok = runToInt("fo2io_orri_rf", kFoMinSub, 0x01, 0, r, f);
 +    check(ok && r == 0 && f == kFlagNX, "fo2io minSub => 0 + NX");
-+    ok = runToInt("fo2it_orri_rf", 0x41E0000000000000ull, 0, r, f);  // 2^31 f64
++    ok = runToInt("fo2it_orri_rf", 0x41E0000000000000ull, 0x01, 0, r, f);
 +    check(ok && r == 0x7FFFFFFFull && f == kFlagNV, "fo2it 2^31 saturates");
++    // encode_onehot: 0x00 and non-one-hot codes are ILLI (zero accesses).
++    ok = runToInt("ft2it_orri_rf", 0x3FC00000ull, 0x00, 0, r, f);
++    check(!ok, "ft2it mode 0x00 is ILLI");
++    ok = runToInt("fo2io_orri_rf", 0x3FF0000000000000ull, 0x03, 0, r, f);
++    check(!ok, "fo2io mode 0x03 is ILLI");
 +}
 +
 +void
 +checkI2F()
 +{
-+    auto runFromInt = [](const char *id, uint64_t value, unsigned mode,
-+                         uint64_t &out, uint64_t &flags) {
++    auto runFromInt = [](const char *id, uint64_t value, uint8_t code,
++                         unsigned rfMode, uint64_t &out, uint64_t &flags) {
 +        MockContext ctx;
 +        initContext(ctx);
-+        ctx.rf[0] = withMode(kFcsrReset, mode);
++        ctx.rf[0] = withMode(kFcsrReset, rfMode);
 +        WordSpec w;
 +        w.rfhb = 2;
 +        w.rdhc = 3;
-+        w.immu6 = 1;
++        w.immu6 = code;
 +        ctx.rf[2] = 0;
 +        ctx.rd[3] = value;
 +        const exec::Fault fault = runWord(ctx, id, w);
@@ -1286,35 +1342,54 @@ index 0000000..90a05d4
 +        return fault == exec::Fault::None;
 +    };
 +    uint64_t r = 0, f = 0;
-+    bool ok = runFromInt("it2ft_orri_rf", uint64_t(int64_t(-1)), 0, r, f);
++    bool ok = runFromInt("it2ft_orri_rf", uint64_t(int64_t(-1)), 0x20, 0, r, f);
 +    check(ok && (r & 0xFFFFFFFF) == (kFtSign | kFtOne) && f == 0,
 +          "it2ft -1 = -1.0");
-+    ok = runFromInt("it2ft_orri_rf", 0x80000000ull, 0, r, f);  // INT32_MIN
++    ok = runFromInt("it2ft_orri_rf", 0x80000000ull, 0x20, 0, r, f);
 +    check(ok && (r & 0xFFFFFFFF) == 0xCF000000ull && f == 0,
 +          "it2ft INT32_MIN = -2^31 exactly");
-+    ok = runFromInt("ut2ft_orri_rf", 0xFFFFFFFFull, 0, r, f);  // UINT32_MAX
++    ok = runFromInt("ut2ft_orri_rf", 0xFFFFFFFFull, 0x20, 0, r, f);
 +    check(ok && (r & 0xFFFFFFFF) == 0x4F800000ull && f == (kFlagNX),
 +          "ut2ft UINT32_MAX = 2^32 + NX (actual 0x%08" PRIx64 ")",
 +          r & 0xFFFFFFFF);
-+    ok = runFromInt("io2fo_orri_rf", 0x8000000000000000ull, 0, r, f);
++    // it2fo/ut2fo are exact: SBZ 0 and no flags.
++    ok = runFromInt("it2fo_orri_rf", uint64_t(int64_t(-7)), 0, 0, r, f);
++    check(ok && r == 0xC01C000000000000ull && f == 0,
++          "it2fo -7 is exact, no flags");
++    ok = runFromInt("ut2fo_orri_rf", 0xFFFFFFFFull, 0, 0, r, f);
++    check(ok && r == 0x41EFFFFFFFE00000ull && f == 0,
++          "ut2fo UINT32_MAX is exact, no flags");
++    ok = runFromInt("it2fo_orri_rf", 1, 0x01, 0, r, f);
++    check(!ok, "it2fo non-zero SBZ is ILLI");
++    ok = runFromInt("io2fo_orri_rf", 0x8000000000000000ull, 0x20, 0, r, f);
 +    check(ok && r == 0xC3E0000000000000ull && f == 0,
 +          "io2fo INT64_MIN = -2^63 exactly");
-+    ok = runFromInt("uo2fo_orri_rf", 0xFFFFFFFFFFFFFFFFull, 0, r, f);
++    ok = runFromInt("uo2fo_orri_rf", 0xFFFFFFFFFFFFFFFFull, 0x20, 0, r, f);
 +    check(ok && r == 0x43F0000000000000ull && f == kFlagNX,
 +          "uo2fo UINT64_MAX = 2^64 + NX");
-+    // Four modes on an inexact value: 2^24+1 in ft.
-+    ok = runFromInt("io2ft_orri_rf", (uint64_t(1) << 24) + 1, 0, r, f);
++    // Four directions on an inexact value: 2^24+1 in ft.
++    ok = runFromInt("io2ft_orri_rf", (uint64_t(1) << 24) + 1, 0x01, 0, r, f);
 +    check(ok && (r & 0xFFFFFFFF) == 0x4B800000ull && f == kFlagNX,
 +          "io2ft 2^24+1 RNE => 2^24 + NX");
-+    ok = runFromInt("io2ft_orri_rf", (uint64_t(1) << 24) + 1, 1, r, f);
++    ok = runFromInt("io2ft_orri_rf", (uint64_t(1) << 24) + 1, 0x04, 0, r, f);
 +    check(ok && (r & 0xFFFFFFFF) == 0x4B800000ull && f == kFlagNX,
 +          "io2ft 2^24+1 RTZ => 2^24 + NX");
-+    ok = runFromInt("io2ft_orri_rf", -(uint64_t(1) << 24) - 1, 3, r, f);
++    ok = runFromInt("io2ft_orri_rf", (uint64_t(1) << 24) + 1, 0x02, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0x4B800001ull && f == kFlagNX,
++          "io2ft 2^24+1 RNA => 2^24+2 + NX");
++    ok = runFromInt("io2ft_orri_rf", (uint64_t(1) << 24) + 1, 0x08, 0, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0x4B800001ull && f == kFlagNX,
++          "io2ft 2^24+1 RUP => 2^24+2 + NX");
++    ok = runFromInt("io2ft_orri_rf", -(uint64_t(1) << 24) - 1, 0x08, 0, r, f);
 +    check(ok && (r & 0xFFFFFFFF) == 0xCB800000ull && f == kFlagNX,
 +          "io2ft -(2^24+1) RUP => -2^24 + NX");
-+    ok = runFromInt("io2ft_orri_rf", -(uint64_t(1) << 24) - 1, 2, r, f);
++    ok = runFromInt("io2ft_orri_rf", -(uint64_t(1) << 24) - 1, 0x10, 0, r, f);
 +    check(ok && (r & 0xFFFFFFFF) == 0xCB800001ull && f == kFlagNX,
 +          "io2ft -(2^24+1) RDN => -(2^24+2) + NX");
++    // 0x20 follows rf0: rf0 RTZ picks 2^24.
++    ok = runFromInt("io2ft_orri_rf", (uint64_t(1) << 24) + 1, 0x20, 1, r, f);
++    check(ok && (r & 0xFFFFFFFF) == 0x4B800000ull && f == kFlagNX,
++          "io2ft dynamic 0x20 follows rf0 RTZ");
 +}
 +
 +void

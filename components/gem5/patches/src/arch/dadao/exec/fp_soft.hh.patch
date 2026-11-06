@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/fp_soft.hh b/src/arch/dadao/exec/fp_soft.hh
 new file mode 100644
-index 0000000..a687bda
+index 0000000..f9bb195
 --- /dev/null
 +++ b/src/arch/dadao/exec/fp_soft.hh
-@@ -0,0 +1,113 @@
+@@ -0,0 +1,114 @@
 +// DADAO gem5 B7 execution core: pure-integer IEEE 754-2019 arithmetic.
 +//
 +// Plain C++17 with no gem5 headers and -- on purpose -- no host floating point:
@@ -52,6 +52,7 @@ index 0000000..a687bda
 +    RTZ = 1,
 +    RDN = 2,
 +    RUP = 3,
++    RNA = 4,  // ties away from zero (encoding-only; rf0 has no RNA code)
 +};
 +
 +/** rf0[4:0] accrued exception bits (contract-fp §1). */

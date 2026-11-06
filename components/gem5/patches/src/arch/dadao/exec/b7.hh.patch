@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b7.hh b/src/arch/dadao/exec/b7.hh
 new file mode 100644
-index 0000000..02af343
+index 0000000..74c8a69
 --- /dev/null
 +++ b/src/arch/dadao/exec/b7.hh
-@@ -0,0 +1,153 @@
+@@ -0,0 +1,154 @@
 +// DADAO gem5 B7 execution core: the 55 floating-point ids (dispatch + state).
 +//
 +// Plain C++ (no gem5 headers), like the B0 decode core, so the *same* code is
@@ -70,8 +70,9 @@ index 0000000..02af343
 +    LegalDstRd0 = 1u << 1,   // dst_rd0: integer destination rd0 => ILLI
 +    LegalCount = 1u << 2,    // mreg_zero + mreg_range_overflow (block forms)
 +    LegalOverlap = 1u << 3,  // mreg_range_overlap (convert_ff only)
-+    LegalOnehot = 1u << 4,   // encode_onehot (roundint six codes)
++    LegalOnehot = 1u << 4,   // encode_onehot (roundint + 15 conversions)
 +    LegalRootN = 1u << 5,    // encode_fp_root_n (root: n == 2)
++    LegalSbz = 1u << 6,      // encode_sbz (3 exact conversions: field == 0)
 +};
 +
 +/** One decoded B7 id.  This is also the dispatch table (55 rows).

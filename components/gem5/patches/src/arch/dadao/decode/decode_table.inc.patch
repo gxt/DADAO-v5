@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/decode/decode_table.inc b/src/arch/dadao/decode/decode_table.inc
 new file mode 100644
-index 0000000..2e00894
+index 0000000..142477b
 --- /dev/null
 +++ b/src/arch/dadao/decode/decode_table.inc
 @@ -0,0 +1,1619 @@
@@ -1209,52 +1209,52 @@ index 0000000..2e00894
 +inline constexpr const char *kLegality213[] = {"rdhb != rd0", "immu6 == 1 || immu6 == 2 || immu6 == 4"};
 +inline constexpr const char *kRules214[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow"};
 +inline constexpr const char *kLegality214[] = {"rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rfhc + immu6 <= 64"};
-+inline constexpr const char *kRules215[] = {"dst_rf0", "mreg_zero", "mreg_range_overflow", "mreg_range_overlap"};
-+inline constexpr const char *kLegality215[] = {"rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64", "rfhc + immu6 <= 64", "no_overlap(rfhb, rfhc, immu6)"};
++inline constexpr const char *kRules215[] = {"dst_rf0", "encode_sbz"};
++inline constexpr const char *kLegality215[] = {"rfhb != rf0", "immu6 == 0"};
 +inline constexpr const char *kRules216[] = {"dst_rf0", "mreg_zero", "mreg_range_overflow", "mreg_range_overlap"};
 +inline constexpr const char *kLegality216[] = {"rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64", "rfhc + immu6 <= 64", "no_overlap(rfhb, rfhc, immu6)"};
 +inline constexpr const char *kRules217[] = {"dst_rf0", "encode_fp_root_n"};
 +inline constexpr const char *kLegality217[] = {"rfhb != rf0", "immu6 == 2"};
 +inline constexpr const char *kRules218[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow"};
 +inline constexpr const char *kLegality218[] = {"rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rfhc + immu6 <= 64"};
-+inline constexpr const char *kRules219[] = {"dst_rf0", "mreg_zero", "mreg_range_overflow", "mreg_range_overlap"};
-+inline constexpr const char *kLegality219[] = {"rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64", "rfhc + immu6 <= 64", "no_overlap(rfhb, rfhc, immu6)"};
++inline constexpr const char *kRules219[] = {"dst_rf0", "encode_onehot"};
++inline constexpr const char *kLegality219[] = {"rfhb != rf0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
 +inline constexpr const char *kRules220[] = {"dst_rf0", "mreg_zero", "mreg_range_overflow", "mreg_range_overlap"};
 +inline constexpr const char *kLegality220[] = {"rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64", "rfhc + immu6 <= 64", "no_overlap(rfhb, rfhc, immu6)"};
 +inline constexpr const char *kRules221[] = {"dst_rf0", "encode_fp_root_n"};
 +inline constexpr const char *kLegality221[] = {"rfhb != rf0", "immu6 == 2"};
-+inline constexpr const char *kRules222[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality222[] = {"rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rfhc + immu6 <= 64"};
-+inline constexpr const char *kRules223[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality223[] = {"rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rfhc + immu6 <= 64"};
-+inline constexpr const char *kRules224[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality224[] = {"rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rfhc + immu6 <= 64"};
-+inline constexpr const char *kRules225[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality225[] = {"rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rfhc + immu6 <= 64"};
-+inline constexpr const char *kRules226[] = {"dst_rf0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality226[] = {"rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64", "rdhc + immu6 <= 64"};
-+inline constexpr const char *kRules227[] = {"dst_rf0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality227[] = {"rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64", "rdhc + immu6 <= 64"};
-+inline constexpr const char *kRules228[] = {"dst_rf0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality228[] = {"rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64", "rdhc + immu6 <= 64"};
-+inline constexpr const char *kRules229[] = {"dst_rf0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality229[] = {"rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64", "rdhc + immu6 <= 64"};
-+inline constexpr const char *kRules230[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality230[] = {"rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rfhc + immu6 <= 64"};
-+inline constexpr const char *kRules231[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality231[] = {"rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rfhc + immu6 <= 64"};
-+inline constexpr const char *kRules232[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality232[] = {"rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rfhc + immu6 <= 64"};
-+inline constexpr const char *kRules233[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality233[] = {"rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rfhc + immu6 <= 64"};
-+inline constexpr const char *kRules234[] = {"dst_rf0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality234[] = {"rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64", "rdhc + immu6 <= 64"};
-+inline constexpr const char *kRules235[] = {"dst_rf0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality235[] = {"rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64", "rdhc + immu6 <= 64"};
-+inline constexpr const char *kRules236[] = {"dst_rf0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality236[] = {"rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64", "rdhc + immu6 <= 64"};
-+inline constexpr const char *kRules237[] = {"dst_rf0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality237[] = {"rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64", "rdhc + immu6 <= 64"};
++inline constexpr const char *kRules222[] = {"dst_rd0", "encode_onehot"};
++inline constexpr const char *kLegality222[] = {"rdhb != rd0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
++inline constexpr const char *kRules223[] = {"dst_rd0", "encode_onehot"};
++inline constexpr const char *kLegality223[] = {"rdhb != rd0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
++inline constexpr const char *kRules224[] = {"dst_rd0", "encode_onehot"};
++inline constexpr const char *kLegality224[] = {"rdhb != rd0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
++inline constexpr const char *kRules225[] = {"dst_rd0", "encode_onehot"};
++inline constexpr const char *kLegality225[] = {"rdhb != rd0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
++inline constexpr const char *kRules226[] = {"dst_rf0", "encode_onehot"};
++inline constexpr const char *kLegality226[] = {"rfhb != rf0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
++inline constexpr const char *kRules227[] = {"dst_rf0", "encode_onehot"};
++inline constexpr const char *kLegality227[] = {"rfhb != rf0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
++inline constexpr const char *kRules228[] = {"dst_rf0", "encode_onehot"};
++inline constexpr const char *kLegality228[] = {"rfhb != rf0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
++inline constexpr const char *kRules229[] = {"dst_rf0", "encode_onehot"};
++inline constexpr const char *kLegality229[] = {"rfhb != rf0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
++inline constexpr const char *kRules230[] = {"dst_rd0", "encode_onehot"};
++inline constexpr const char *kLegality230[] = {"rdhb != rd0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
++inline constexpr const char *kRules231[] = {"dst_rd0", "encode_onehot"};
++inline constexpr const char *kLegality231[] = {"rdhb != rd0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
++inline constexpr const char *kRules232[] = {"dst_rd0", "encode_onehot"};
++inline constexpr const char *kLegality232[] = {"rdhb != rd0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
++inline constexpr const char *kRules233[] = {"dst_rd0", "encode_onehot"};
++inline constexpr const char *kLegality233[] = {"rdhb != rd0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
++inline constexpr const char *kRules234[] = {"dst_rf0", "encode_sbz"};
++inline constexpr const char *kLegality234[] = {"rfhb != rf0", "immu6 == 0"};
++inline constexpr const char *kRules235[] = {"dst_rf0", "encode_onehot"};
++inline constexpr const char *kLegality235[] = {"rfhb != rf0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
++inline constexpr const char *kRules236[] = {"dst_rf0", "encode_sbz"};
++inline constexpr const char *kLegality236[] = {"rfhb != rf0", "immu6 == 0"};
++inline constexpr const char *kRules237[] = {"dst_rf0", "encode_onehot"};
++inline constexpr const char *kLegality237[] = {"rfhb != rf0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
 +inline constexpr const char *kRules238[] = {"dst_rf0", "encode_onehot"};
 +inline constexpr const char *kLegality238[] = {"rfhb != rf0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32"};
 +inline constexpr const char *kRules239[] = {"dst_rf0", "encode_onehot"};
@@ -1524,29 +1524,29 @@ index 0000000..2e00894
 +    {"rem.sb_orrr_rd", "rem.sb", "orrr", "m1", "contract-isa §12.1.2", "SimRISC-10: rem.sb", 0xfffc0000u, 0x43ec0000u, 0x43, 59, 653, 3, 4, kRules212, 1, kLegality212, 1},
 +    {"rev.b_orri_rd", "rev.b", "orri", "m8", "contract-isa §6.4.3", "SimRISC-10: rev.b", 0xfffc0000u, 0x43300000u, 0x43, 12, 656, 3, 4, kRules213, 2, kLegality213, 2},
 +    {"ftcls_orri_rf", "ftcls", "orri", "fp", "contract-fp §9", "SimRISC-07: ftcls", 0xfffc0000u, 0x44000000u, 0x44, 0, 659, 3, 7, kRules214, 3, kLegality214, 4},
-+    {"ft2fo_orri_rf", "ft2fo", "orri", "fp", "contract-fp §2", "SimRISC-07: ft2fo", 0xfffc0000u, 0x44040000u, 0x44, 1, 662, 3, 7, kRules215, 4, kLegality215, 5},
++    {"ft2fo_orri_rf", "ft2fo", "orri", "fp", "contract-fp §2", "SimRISC-07: ft2fo", 0xfffc0000u, 0x44040000u, 0x44, 1, 662, 3, 7, kRules215, 2, kLegality215, 2},
 +    {"ft2ft_orri_rf", "ft2ft", "orri", "fp", "contract-fp §2", "SimRISC-07: ft2ft", 0xfffc0000u, 0x44080000u, 0x44, 2, 665, 3, 7, kRules216, 4, kLegality216, 5},
 +    {"ftroot_orri_rf", "ftroot", "orri", "fp", "contract-fp §6", "SimRISC-07: ftroot", 0xfffc0000u, 0x44180000u, 0x44, 6, 668, 3, 7, kRules217, 2, kLegality217, 2},
 +    {"focls_orri_rf", "focls", "orri", "fp", "contract-fp §9", "SimRISC-07: focls", 0xfffc0000u, 0x44200000u, 0x44, 8, 671, 3, 7, kRules218, 3, kLegality218, 4},
-+    {"fo2ft_orri_rf", "fo2ft", "orri", "fp", "contract-fp §2", "SimRISC-07: fo2ft", 0xfffc0000u, 0x44240000u, 0x44, 9, 674, 3, 7, kRules219, 4, kLegality219, 5},
++    {"fo2ft_orri_rf", "fo2ft", "orri", "fp", "contract-fp §2", "SimRISC-07: fo2ft", 0xfffc0000u, 0x44240000u, 0x44, 9, 674, 3, 7, kRules219, 2, kLegality219, 2},
 +    {"fo2fo_orri_rf", "fo2fo", "orri", "fp", "contract-fp §2", "SimRISC-07: fo2fo", 0xfffc0000u, 0x44280000u, 0x44, 10, 677, 3, 7, kRules220, 4, kLegality220, 5},
 +    {"foroot_orri_rf", "foroot", "orri", "fp", "contract-fp §6", "SimRISC-07: foroot", 0xfffc0000u, 0x44380000u, 0x44, 14, 680, 3, 7, kRules221, 2, kLegality221, 2},
-+    {"ft2it_orri_rf", "ft2it", "orri", "fp", "contract-fp §3", "SimRISC-07: ft2it", 0xfffc0000u, 0x44c00000u, 0x44, 48, 683, 3, 7, kRules222, 3, kLegality222, 4},
-+    {"ft2io_orri_rf", "ft2io", "orri", "fp", "contract-fp §3", "SimRISC-07: ft2io", 0xfffc0000u, 0x44c40000u, 0x44, 49, 686, 3, 7, kRules223, 3, kLegality223, 4},
-+    {"ft2ut_orri_rf", "ft2ut", "orri", "fp", "contract-fp §3", "SimRISC-07: ft2ut", 0xfffc0000u, 0x44c80000u, 0x44, 50, 689, 3, 7, kRules224, 3, kLegality224, 4},
-+    {"ft2uo_orri_rf", "ft2uo", "orri", "fp", "contract-fp §3", "SimRISC-07: ft2uo", 0xfffc0000u, 0x44cc0000u, 0x44, 51, 692, 3, 7, kRules225, 3, kLegality225, 4},
-+    {"it2ft_orri_rf", "it2ft", "orri", "fp", "contract-fp §4", "SimRISC-07: it2ft", 0xfffc0000u, 0x44d00000u, 0x44, 52, 695, 3, 7, kRules226, 3, kLegality226, 4},
-+    {"io2ft_orri_rf", "io2ft", "orri", "fp", "contract-fp §4", "SimRISC-07: io2ft", 0xfffc0000u, 0x44d40000u, 0x44, 53, 698, 3, 7, kRules227, 3, kLegality227, 4},
-+    {"ut2ft_orri_rf", "ut2ft", "orri", "fp", "contract-fp §4", "SimRISC-07: ut2ft", 0xfffc0000u, 0x44d80000u, 0x44, 54, 701, 3, 7, kRules228, 3, kLegality228, 4},
-+    {"uo2ft_orri_rf", "uo2ft", "orri", "fp", "contract-fp §4", "SimRISC-07: uo2ft", 0xfffc0000u, 0x44dc0000u, 0x44, 55, 704, 3, 7, kRules229, 3, kLegality229, 4},
-+    {"fo2it_orri_rf", "fo2it", "orri", "fp", "contract-fp §3", "SimRISC-07: fo2it", 0xfffc0000u, 0x44e00000u, 0x44, 56, 707, 3, 7, kRules230, 3, kLegality230, 4},
-+    {"fo2io_orri_rf", "fo2io", "orri", "fp", "contract-fp §3", "SimRISC-07: fo2io", 0xfffc0000u, 0x44e40000u, 0x44, 57, 710, 3, 7, kRules231, 3, kLegality231, 4},
-+    {"fo2ut_orri_rf", "fo2ut", "orri", "fp", "contract-fp §3", "SimRISC-07: fo2ut", 0xfffc0000u, 0x44e80000u, 0x44, 58, 713, 3, 7, kRules232, 3, kLegality232, 4},
-+    {"fo2uo_orri_rf", "fo2uo", "orri", "fp", "contract-fp §3", "SimRISC-07: fo2uo", 0xfffc0000u, 0x44ec0000u, 0x44, 59, 716, 3, 7, kRules233, 3, kLegality233, 4},
-+    {"it2fo_orri_rf", "it2fo", "orri", "fp", "contract-fp §4", "SimRISC-07: it2fo", 0xfffc0000u, 0x44f00000u, 0x44, 60, 719, 3, 7, kRules234, 3, kLegality234, 4},
-+    {"io2fo_orri_rf", "io2fo", "orri", "fp", "contract-fp §4", "SimRISC-07: io2fo", 0xfffc0000u, 0x44f40000u, 0x44, 61, 722, 3, 7, kRules235, 3, kLegality235, 4},
-+    {"ut2fo_orri_rf", "ut2fo", "orri", "fp", "contract-fp §4", "SimRISC-07: ut2fo", 0xfffc0000u, 0x44f80000u, 0x44, 62, 725, 3, 7, kRules236, 3, kLegality236, 4},
-+    {"uo2fo_orri_rf", "uo2fo", "orri", "fp", "contract-fp §4", "SimRISC-07: uo2fo", 0xfffc0000u, 0x44fc0000u, 0x44, 63, 728, 3, 7, kRules237, 3, kLegality237, 4},
++    {"ft2it_orri_rf", "ft2it", "orri", "fp", "contract-fp §3", "SimRISC-07: ft2it", 0xfffc0000u, 0x44c00000u, 0x44, 48, 683, 3, 7, kRules222, 2, kLegality222, 2},
++    {"ft2io_orri_rf", "ft2io", "orri", "fp", "contract-fp §3", "SimRISC-07: ft2io", 0xfffc0000u, 0x44c40000u, 0x44, 49, 686, 3, 7, kRules223, 2, kLegality223, 2},
++    {"ft2ut_orri_rf", "ft2ut", "orri", "fp", "contract-fp §3", "SimRISC-07: ft2ut", 0xfffc0000u, 0x44c80000u, 0x44, 50, 689, 3, 7, kRules224, 2, kLegality224, 2},
++    {"ft2uo_orri_rf", "ft2uo", "orri", "fp", "contract-fp §3", "SimRISC-07: ft2uo", 0xfffc0000u, 0x44cc0000u, 0x44, 51, 692, 3, 7, kRules225, 2, kLegality225, 2},
++    {"it2ft_orri_rf", "it2ft", "orri", "fp", "contract-fp §4", "SimRISC-07: it2ft", 0xfffc0000u, 0x44d00000u, 0x44, 52, 695, 3, 7, kRules226, 2, kLegality226, 2},
++    {"io2ft_orri_rf", "io2ft", "orri", "fp", "contract-fp §4", "SimRISC-07: io2ft", 0xfffc0000u, 0x44d40000u, 0x44, 53, 698, 3, 7, kRules227, 2, kLegality227, 2},
++    {"ut2ft_orri_rf", "ut2ft", "orri", "fp", "contract-fp §4", "SimRISC-07: ut2ft", 0xfffc0000u, 0x44d80000u, 0x44, 54, 701, 3, 7, kRules228, 2, kLegality228, 2},
++    {"uo2ft_orri_rf", "uo2ft", "orri", "fp", "contract-fp §4", "SimRISC-07: uo2ft", 0xfffc0000u, 0x44dc0000u, 0x44, 55, 704, 3, 7, kRules229, 2, kLegality229, 2},
++    {"fo2it_orri_rf", "fo2it", "orri", "fp", "contract-fp §3", "SimRISC-07: fo2it", 0xfffc0000u, 0x44e00000u, 0x44, 56, 707, 3, 7, kRules230, 2, kLegality230, 2},
++    {"fo2io_orri_rf", "fo2io", "orri", "fp", "contract-fp §3", "SimRISC-07: fo2io", 0xfffc0000u, 0x44e40000u, 0x44, 57, 710, 3, 7, kRules231, 2, kLegality231, 2},
++    {"fo2ut_orri_rf", "fo2ut", "orri", "fp", "contract-fp §3", "SimRISC-07: fo2ut", 0xfffc0000u, 0x44e80000u, 0x44, 58, 713, 3, 7, kRules232, 2, kLegality232, 2},
++    {"fo2uo_orri_rf", "fo2uo", "orri", "fp", "contract-fp §3", "SimRISC-07: fo2uo", 0xfffc0000u, 0x44ec0000u, 0x44, 59, 716, 3, 7, kRules233, 2, kLegality233, 2},
++    {"it2fo_orri_rf", "it2fo", "orri", "fp", "contract-fp §4", "SimRISC-07: it2fo", 0xfffc0000u, 0x44f00000u, 0x44, 60, 719, 3, 7, kRules234, 2, kLegality234, 2},
++    {"io2fo_orri_rf", "io2fo", "orri", "fp", "contract-fp §4", "SimRISC-07: io2fo", 0xfffc0000u, 0x44f40000u, 0x44, 61, 722, 3, 7, kRules235, 2, kLegality235, 2},
++    {"ut2fo_orri_rf", "ut2fo", "orri", "fp", "contract-fp §4", "SimRISC-07: ut2fo", 0xfffc0000u, 0x44f80000u, 0x44, 62, 725, 3, 7, kRules236, 2, kLegality236, 2},
++    {"uo2fo_orri_rf", "uo2fo", "orri", "fp", "contract-fp §4", "SimRISC-07: uo2fo", 0xfffc0000u, 0x44fc0000u, 0x44, 63, 728, 3, 7, kRules237, 2, kLegality237, 2},
 +    {"ftrnd_orri_rf", "ftrnd", "orri", "fp", "contract-fp §18", "SimRISC-07: ftrnd", 0xfffc0000u, 0x440c0000u, 0x44, 3, 731, 3, 7, kRules238, 2, kLegality238, 2},
 +    {"fornd_orri_rf", "fornd", "orri", "fp", "contract-fp §18", "SimRISC-07: fornd", 0xfffc0000u, 0x442c0000u, 0x44, 11, 734, 3, 7, kRules239, 2, kLegality239, 2},
 +    {"ftadd_orrr_rf", "ftadd", "orrr", "fp", "contract-fp §5", "SimRISC-07: ftadd", 0xfffc0000u, 0x44400000u, 0x44, 16, 737, 3, 7, kRules240, 1, kLegality240, 1},

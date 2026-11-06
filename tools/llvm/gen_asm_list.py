@@ -47,13 +47,21 @@ _DUAL_TARGET_MNEMONICS = frozenset({"add.uo", "add.so", "sub.uo", "sub.so", "mul
 _MULTI_REG_MNEMONICS = frozenset({
     # 寄存器复制（8 条）
     "ra2rd", "rb2rb", "rb2rd", "rd2ra", "rd2rb", "rd2rd", "rd2rf", "rf2rd",
-    # 浮点格式转换（20 条）
-    "ft2fo", "fo2ft", "ft2ft", "fo2fo", "ft2it", "ft2io", "ft2ut", "ft2uo",
-    "fo2it", "fo2io", "fo2ut", "fo2uo", "it2ft", "io2ft", "ut2ft", "uo2ft",
-    "it2fo", "io2fo", "ut2fo", "uo2fo",
+    # 浮点纯复制（2 条，ADR-0050 D4）
+    "ft2ft", "fo2fo",
     # 浮点分类（2 条）
     "focls", "ftcls",
 })
+
+# 结果依赖舍入的 15 条格式转换（ADR-0050 D2）：低 6 位 = 六档 one-hot，
+# 单寄存器写法 + 显式第三操作数；示例固定用 RTZ 0x04。
+_ONEHOT_CONVERT = frozenset({
+    "ft2it", "ft2io", "ft2ut", "ft2uo", "fo2it", "fo2io", "fo2ut", "fo2uo",
+    "it2ft", "io2ft", "ut2ft", "uo2ft", "io2fo", "uo2fo", "fo2ft",
+})
+
+# 3 条精确格式转换（ADR-0050 D3）：低 6 位 SBZ，必须写 0。
+_SBZ_CONVERT = frozenset({"ft2fo", "it2fo", "ut2fo"})
 
 # Immediate width/signedness from the field base name (e.g. imms18 -> s18).
 IMM_RE = re.compile(r"^imm([us]?)(\d+)$")
@@ -282,6 +290,17 @@ def example_line(entry: dict, ops: list[dict], attempt: int) -> str:
             inner = ", ".join(EXAMPLES["rd"][(attempt + i) % len(EXAMPLES["rd"])] for i in range(2))
             rest = ", ".join(EXAMPLES["rd"][(attempt + i + 2) % len(EXAMPLES["rd"])] for i in range(2))
             return f"{entry['mnemonic']} {{{inner}}}, {rest}"
+    # 格式转换（ADR-0050）：单寄存器 + 显式低 6 位（六档示例 0x04 / SBZ 0）
+    if entry["format"] == "orri" and entry["mnemonic"] in _ONEHOT_CONVERT:
+        reg_ops = [op for op in ops if op["kind"] == "reg"]
+        if len(reg_ops) >= 2:
+            return (f"{entry['mnemonic']} {_reg(reg_ops[0], attempt)}, "
+                    f"{_reg(reg_ops[1], attempt + 1)}, 0x04")
+    if entry["format"] == "orri" and entry["mnemonic"] in _SBZ_CONVERT:
+        reg_ops = [op for op in ops if op["kind"] == "reg"]
+        if len(reg_ops) >= 2:
+            return (f"{entry['mnemonic']} {_reg(reg_ops[0], attempt)}, "
+                    f"{_reg(reg_ops[1], attempt + 1)}, 0")
     # 多寄存器指令（orri 格式，immu6 = 连续寄存器个数）—— 源和目的都用组记法
     if entry["format"] == "orri" and entry["mnemonic"] in _MULTI_REG_MNEMONICS:
         reg_ops = [op for op in ops if op["kind"] == "reg"]

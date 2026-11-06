@@ -285,3 +285,7 @@
 - **2026-11-06 `QEMU-084t`**
   - 摘要：**guest `RLIMIT_AS`/`RLIMIT_DATA`/`RLIMIT_STACK` 记账（ISS-343）**：此前 `setrlimit`/`prlimit64` 对这三项直接返回成功而不记录（透传给宿主会限制 QEMU 自身分配），guest 永远读回 `RLIM_INFINITY` 且 `mmap`/`brk` 不受限。新增 `linux-user/mmap.c` 内的 guest 限额存储（仅 `TARGET_DADAO`）+ `guest_rlimit_check_mmap()`：`target_mmap()` 在 mmap 锁内按 `walk_memory_regions()` 现读页表现算总量，`RLIMIT_AS` 管总 VA、`RLIMIT_DATA` 管可写私有映射（含 `do_brk()` 经 `target_mmap()` 的堆增长，并按内核 `may_expand_vm()` 的 cur=0/max 未动「Valgrind workaround」放行），`MAP_GROWSDOWN` 映射按 `RLIMIT_STACK` 限长，超限 ⇒ `ENOMEM`；`syscall.c` 的 `prlimit64`/`setrlimit`/`getrlimit` 对这三项改读写 guest 值（`getrlimit` 返回所设值，`prlimit64` 只支持 self，其它 pid ⇒ `ESRCH`），其余资源与既有语义不变。`user-mmap.h` 增三接口声明。未设限的 `RLIMIT_STACK` 报告 loader 实际映射的主栈大小（`max(guest_stack_size, 32 页)`，默认 8 MiB）而非 `RLIM_INFINITY`，使报告值与真实约束一致（宿主 `RLIMIT_STACK` 不参与：宿主 unlimited 时区域仍是 8 MiB，宿主更小时区域也不缩）。补丁 3 份：2 新增（`linux-user/mmap.c.patch`、`linux-user/user-mmap.h.patch`）+ 1 改（`linux-user/syscall.c.patch`），`make_patch.py` 重导出（65 份）。
   - 执行者：engineer
+
+- **2026-11-06 `INTEG-058t`**
+  - 摘要：**转换指令舍入编码三分（ADR-0050 / SPEC-194t）落地**：8 条 `f2i`、6 条不精确 `i2f` 与 `fo2ft` 的 immu6 改为六档 one-hot（`0x01`/`0x02`/`0x04`/`0x08`/`0x10`/`0x20`），`0x20` 读 `rf0[33:32]`、静态档不受 rf0 影响；`ft2fo`/`it2fo`/`ut2fo` 校验 SBZ=0；18 条转换改单寄存器、去掉旧计数循环与 `mreg_*` 校验；复制类 `ft2ft`/`fo2fo` 仍按 1–63 计数与重叠规则。`helper_fp_cvt_f2i` 改用按方向舍入的 softfloat 入口并按 D5 合并 NX（有限不精确）与 NV（NaN/Inf/越界饱和、不置 NX）；`fo2ft` 溢出按契约恒返 ±Inf + OF|NX。补丁 2 份改（`helper.c`/`trans_fp.c.inc`），`make_patch.py` 重导出。
+  - 执行者：engineer

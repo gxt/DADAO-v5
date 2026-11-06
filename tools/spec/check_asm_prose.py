@@ -30,7 +30,12 @@ R6  Operand shape from opcodes.yaml — for each mnemonic, ``opcodes.yaml`` list
     The ``rrrr`` brace requirement follows the **actual shape** (``fields[].role``):
     2 ``dst`` fields (dual-dst) ⇒ ``{…}`` required; 1 ``dst`` field (``ftfma``/``fofma``
     = 1 dst + 3 src) ⇒ ``{…}`` forbidden; ``cs.*`` braces are conditions (R2b).
-    Block-copy/format-convert (``ra2rd``, ``ft2fo``, etc.) additionally require ``{…}``.
+    Block-copy/pure-copy (``ra2rd``, ``ft2ft``, ``fo2fo``, etc.) additionally
+    require ``{…}``.
+R6c Conversion form (ADR-0050) — the 18 non-copy format conversions MUST be
+    ``dst, src, code`` with single registers, no braces anywhere; the 15
+    result-dependent ones take one of the six one-hot codes and the 3 exact
+    ones accept only literal ``0`` (SBZ).
 
 Scan scope
 ----------
@@ -59,6 +64,19 @@ from typing import List, Optional
 # ---------------------------------------------------------------------------
 
 ROOT = Path(__file__).resolve().parents[2]
+
+# ADR-0050 conversion assembly forms: 15 result-dependent conversions take a
+# single destination, single source and a six-way one-hot code; 3 exact ones
+# take SBZ 0.  Braces are NOT part of this syntax (the 4 pure copies keep
+# `{a:b}` and are deliberately absent here).
+_SINGLE_REG_ONEHOT = {
+    "ft2it", "ft2io", "ft2ut", "ft2uo", "fo2it", "fo2io", "fo2ut", "fo2uo",
+    "it2ft", "io2ft", "ut2ft", "uo2ft", "io2fo", "uo2fo", "fo2ft",
+}
+_SINGLE_REG_SBZ = {"ft2fo", "it2fo", "ut2fo"}
+_REG_ONE_RE = re.compile(r"^(rd|rf)\d+$")
+_ONEHOT_CODES = {"0x01", "0x02", "0x04", "0x08", "0x10", "0x20",
+                 "1", "2", "4", "8", "16", "32"}
 
 # Files explicitly excluded
 _EXCLUDE_FILES = {
@@ -664,23 +682,45 @@ def _check_line(
                             "R6(rrrr缺{})", stripped
                         ))
 
-    # R6b: Block-copy / format-convert (ra2rd, rb2rb, etc. and ft2fo, etc.)
-    # These are orri format with immu6 = count
+    # R6b: Block-copy (ra2rd, rb2rb, ... and the FP pure copies ft2ft/fo2fo).
+    # These are orri format with immu6 = count (ADR-0050 D4); the other 18
+    # format conversions are single-register forms with an explicit low-6-bit
+    # rounding code / SBZ, so they are NOT block copies.
     # Old: ra2rd rd8, ra1, 3  (3 operands)
     # New: ra2rd {rd8:rd10}, {ra1:ra3}
     _BLOCK_COPY_RE = re.compile(
         r"^\s*"
         r"(ra2rd|rb2rb|rb2rd|rd2ra|rd2rb|rd2rd|rd2rf|rf2rd"
-        r"|ft2fo|fo2ft|ft2ut|ut2ft|ft2uo|uo2ft|ft2so|so2ft"
-        r"|fo2ut|ut2fo|fo2uo|uo2fo|fo2so|so2fo"
-        r"|ut2uo|uo2ut|ut2so|so2ut"
-        r"|uo2so|so2uo)"
+        r"|ft2ft|fo2fo)"
         r"\s"
     )
     if _BLOCK_COPY_RE.match(code_part):
         after_mn = code_part[len(mnemonic):].strip()
         if "{" not in after_mn:
             violations.append(Violation(filepath, lineno, "R6(块复制/格式转换缺{})", stripped))
+
+    # R6c: the 18 non-copy format conversions use the single-register form:
+    # exactly `dst, src, code` with no braces anywhere; SBZ forms accept only
+    # literal zero and the other 15 accept one of the six one-hot constants
+    # (ADR-0050 assembly ruling).
+    if mnemonic in _SINGLE_REG_ONEHOT or mnemonic in _SINGLE_REG_SBZ:
+        after_mn = code_part[len(mnemonic):].strip()
+        parts = [p.strip() for p in after_mn.split(",")]
+        ok = len(parts) == 3 and not any("{" in p or "}" in p for p in parts)
+        if ok:
+            ok = bool(_REG_ONE_RE.match(parts[0])) and \
+                 bool(_REG_ONE_RE.match(parts[1]))
+        if ok:
+            code = parts[2].replace(" ", "")
+            if mnemonic in _SINGLE_REG_SBZ:
+                ok = code in ("0", "0x0", "0x00")
+            else:
+                ok = code in _ONEHOT_CODES
+        if not ok:
+            violations.append(Violation(
+                filepath, lineno,
+                "R6c(格式转换须单寄存器+显式低6位)",
+                stripped))
 
     # R4 (inline): Check for # used as inline comment (after an instruction)
     # e.g. "set.rd rd2, 0  # loop variable"

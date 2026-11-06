@@ -41,30 +41,30 @@ ext.uo rd8, rd9, 1
 @@ ASM: fo2fo {rf8}, {rf9}
 fo2fo {rf8}, {rf9}
 
-@@ @src fo2ft_orri_rf 44248241 | SimRISC-07: fo2ft
-@@ OBJ: {{[0-9a-f]+:}} 44 24 82 41{{.*}}fo2ft
-@@ ASM: fo2ft {rf8}, {rf9}
-fo2ft {rf8}, {rf9}
+@@ @src fo2ft_orri_rf 44248244 | SimRISC-07: fo2ft
+@@ OBJ: {{[0-9a-f]+:}} 44 24 82 44{{.*}}fo2ft
+@@ ASM: fo2ft rf8, rf9, 4
+fo2ft rf8, rf9, 4
 
-@@ @src fo2io_orri_rf 44e48241 | SimRISC-07: fo2io
-@@ OBJ: {{[0-9a-f]+:}} 44 e4 82 41{{.*}}fo2io
-@@ ASM: fo2io {rd8}, {rf9}
-fo2io {rd8}, {rf9}
+@@ @src fo2io_orri_rf 44e48244 | SimRISC-07: fo2io
+@@ OBJ: {{[0-9a-f]+:}} 44 e4 82 44{{.*}}fo2io
+@@ ASM: fo2io rd8, rf9, 4
+fo2io rd8, rf9, 4
 
-@@ @src fo2it_orri_rf 44e08241 | SimRISC-07: fo2it
-@@ OBJ: {{[0-9a-f]+:}} 44 e0 82 41{{.*}}fo2it
-@@ ASM: fo2it {rd8}, {rf9}
-fo2it {rd8}, {rf9}
+@@ @src fo2it_orri_rf 44e08244 | SimRISC-07: fo2it
+@@ OBJ: {{[0-9a-f]+:}} 44 e0 82 44{{.*}}fo2it
+@@ ASM: fo2it rd8, rf9, 4
+fo2it rd8, rf9, 4
 
-@@ @src fo2uo_orri_rf 44ec8241 | SimRISC-07: fo2uo
-@@ OBJ: {{[0-9a-f]+:}} 44 ec 82 41{{.*}}fo2uo
-@@ ASM: fo2uo {rd8}, {rf9}
-fo2uo {rd8}, {rf9}
+@@ @src fo2uo_orri_rf 44ec8244 | SimRISC-07: fo2uo
+@@ OBJ: {{[0-9a-f]+:}} 44 ec 82 44{{.*}}fo2uo
+@@ ASM: fo2uo rd8, rf9, 4
+fo2uo rd8, rf9, 4
 
-@@ @src fo2ut_orri_rf 44e88241 | SimRISC-07: fo2ut
-@@ OBJ: {{[0-9a-f]+:}} 44 e8 82 41{{.*}}fo2ut
-@@ ASM: fo2ut {rd8}, {rf9}
-fo2ut {rd8}, {rf9}
+@@ @src fo2ut_orri_rf 44e88244 | SimRISC-07: fo2ut
+@@ OBJ: {{[0-9a-f]+:}} 44 e8 82 44{{.*}}fo2ut
+@@ ASM: fo2ut rd8, rf9, 4
+fo2ut rd8, rf9, 4
 
 @@ @src focls_orri_rf 44208241 | SimRISC-07: focls
 @@ OBJ: {{[0-9a-f]+:}} 44 20 82 41{{.*}}focls
@@ -81,35 +81,35 @@ fornd rf8, rf9, 1
 @@ ASM: foroot rf8, rf9, 2
 foroot rf8, rf9, 2
 
-@@ @src ft2fo_orri_rf 44048241 | SimRISC-07: ft2fo
-@@ OBJ: {{[0-9a-f]+:}} 44 04 82 41{{.*}}ft2fo
-@@ ASM: ft2fo {rf8}, {rf9}
-ft2fo {rf8}, {rf9}
+@@ @src ft2fo_orri_rf 44048240 | SimRISC-07: ft2fo
+@@ OBJ: {{[0-9a-f]+:}} 44 04 82 40{{.*}}ft2fo
+@@ ASM: ft2fo rf8, rf9, 0
+ft2fo rf8, rf9, 0
 
 @@ @src ft2ft_orri_rf 44088241 | SimRISC-07: ft2ft
 @@ OBJ: {{[0-9a-f]+:}} 44 08 82 41{{.*}}ft2ft
 @@ ASM: ft2ft {rf8}, {rf9}
 ft2ft {rf8}, {rf9}
 
-@@ @src ft2io_orri_rf 44c48241 | SimRISC-07: ft2io
-@@ OBJ: {{[0-9a-f]+:}} 44 c4 82 41{{.*}}ft2io
-@@ ASM: ft2io {rd8}, {rf9}
-ft2io {rd8}, {rf9}
+@@ @src ft2io_orri_rf 44c48244 | SimRISC-07: ft2io
+@@ OBJ: {{[0-9a-f]+:}} 44 c4 82 44{{.*}}ft2io
+@@ ASM: ft2io rd8, rf9, 4
+ft2io rd8, rf9, 4
 
-@@ @src ft2it_orri_rf 44c08241 | SimRISC-07: ft2it
-@@ OBJ: {{[0-9a-f]+:}} 44 c0 82 41{{.*}}ft2it
-@@ ASM: ft2it {rd8}, {rf9}
-ft2it {rd8}, {rf9}
+@@ @src ft2it_orri_rf 44c08244 | SimRISC-07: ft2it
+@@ OBJ: {{[0-9a-f]+:}} 44 c0 82 44{{.*}}ft2it
+@@ ASM: ft2it rd8, rf9, 4
+ft2it rd8, rf9, 4
 
-@@ @src ft2uo_orri_rf 44cc8241 | SimRISC-07: ft2uo
-@@ OBJ: {{[0-9a-f]+:}} 44 cc 82 41{{.*}}ft2uo
-@@ ASM: ft2uo {rd8}, {rf9}
-ft2uo {rd8}, {rf9}
+@@ @src ft2uo_orri_rf 44cc8244 | SimRISC-07: ft2uo
+@@ OBJ: {{[0-9a-f]+:}} 44 cc 82 44{{.*}}ft2uo
+@@ ASM: ft2uo rd8, rf9, 4
+ft2uo rd8, rf9, 4
 
-@@ @src ft2ut_orri_rf 44c88241 | SimRISC-07: ft2ut
-@@ OBJ: {{[0-9a-f]+:}} 44 c8 82 41{{.*}}ft2ut
-@@ ASM: ft2ut {rd8}, {rf9}
-ft2ut {rd8}, {rf9}
+@@ @src ft2ut_orri_rf 44c88244 | SimRISC-07: ft2ut
+@@ OBJ: {{[0-9a-f]+:}} 44 c8 82 44{{.*}}ft2ut
+@@ ASM: ft2ut rd8, rf9, 4
+ft2ut rd8, rf9, 4
 
 @@ @src ftcls_orri_rf 44008241 | SimRISC-07: ftcls
 @@ OBJ: {{[0-9a-f]+:}} 44 00 82 41{{.*}}ftcls
@@ -126,25 +126,25 @@ ftrnd rf8, rf9, 1
 @@ ASM: ftroot rf8, rf9, 2
 ftroot rf8, rf9, 2
 
-@@ @src io2fo_orri_rf 44f48241 | SimRISC-07: io2fo
-@@ OBJ: {{[0-9a-f]+:}} 44 f4 82 41{{.*}}io2fo
-@@ ASM: io2fo {rf8}, {rd9}
-io2fo {rf8}, {rd9}
+@@ @src io2fo_orri_rf 44f48244 | SimRISC-07: io2fo
+@@ OBJ: {{[0-9a-f]+:}} 44 f4 82 44{{.*}}io2fo
+@@ ASM: io2fo rf8, rd9, 4
+io2fo rf8, rd9, 4
 
-@@ @src io2ft_orri_rf 44d48241 | SimRISC-07: io2ft
-@@ OBJ: {{[0-9a-f]+:}} 44 d4 82 41{{.*}}io2ft
-@@ ASM: io2ft {rf8}, {rd9}
-io2ft {rf8}, {rd9}
+@@ @src io2ft_orri_rf 44d48244 | SimRISC-07: io2ft
+@@ OBJ: {{[0-9a-f]+:}} 44 d4 82 44{{.*}}io2ft
+@@ ASM: io2ft rf8, rd9, 4
+io2ft rf8, rd9, 4
 
-@@ @src it2fo_orri_rf 44f08241 | SimRISC-07: it2fo
-@@ OBJ: {{[0-9a-f]+:}} 44 f0 82 41{{.*}}it2fo
-@@ ASM: it2fo {rf8}, {rd9}
-it2fo {rf8}, {rd9}
+@@ @src it2fo_orri_rf 44f08240 | SimRISC-07: it2fo
+@@ OBJ: {{[0-9a-f]+:}} 44 f0 82 40{{.*}}it2fo
+@@ ASM: it2fo rf8, rd9, 0
+it2fo rf8, rd9, 0
 
-@@ @src it2ft_orri_rf 44d08241 | SimRISC-07: it2ft
-@@ OBJ: {{[0-9a-f]+:}} 44 d0 82 41{{.*}}it2ft
-@@ ASM: it2ft {rf8}, {rd9}
-it2ft {rf8}, {rd9}
+@@ @src it2ft_orri_rf 44d08244 | SimRISC-07: it2ft
+@@ OBJ: {{[0-9a-f]+:}} 44 d0 82 44{{.*}}it2ft
+@@ ASM: it2ft rf8, rd9, 4
+it2ft rf8, rd9, 4
 
 @@ @src ra2rd_orri_ra 40b88241 | SimRISC-02: ra2rd
 @@ OBJ: {{[0-9a-f]+:}} 40 b8 82 41{{.*}}ra2rd
@@ -286,22 +286,22 @@ shr.ut rd8, rd9, 1
 @@ ASM: shr.uw rd8, rd9, 1
 shr.uw rd8, rd9, 1
 
-@@ @src uo2fo_orri_rf 44fc8241 | SimRISC-07: uo2fo
-@@ OBJ: {{[0-9a-f]+:}} 44 fc 82 41{{.*}}uo2fo
-@@ ASM: uo2fo {rf8}, {rd9}
-uo2fo {rf8}, {rd9}
+@@ @src uo2fo_orri_rf 44fc8244 | SimRISC-07: uo2fo
+@@ OBJ: {{[0-9a-f]+:}} 44 fc 82 44{{.*}}uo2fo
+@@ ASM: uo2fo rf8, rd9, 4
+uo2fo rf8, rd9, 4
 
-@@ @src uo2ft_orri_rf 44dc8241 | SimRISC-07: uo2ft
-@@ OBJ: {{[0-9a-f]+:}} 44 dc 82 41{{.*}}uo2ft
-@@ ASM: uo2ft {rf8}, {rd9}
-uo2ft {rf8}, {rd9}
+@@ @src uo2ft_orri_rf 44dc8244 | SimRISC-07: uo2ft
+@@ OBJ: {{[0-9a-f]+:}} 44 dc 82 44{{.*}}uo2ft
+@@ ASM: uo2ft rf8, rd9, 4
+uo2ft rf8, rd9, 4
 
-@@ @src ut2fo_orri_rf 44f88241 | SimRISC-07: ut2fo
-@@ OBJ: {{[0-9a-f]+:}} 44 f8 82 41{{.*}}ut2fo
-@@ ASM: ut2fo {rf8}, {rd9}
-ut2fo {rf8}, {rd9}
+@@ @src ut2fo_orri_rf 44f88240 | SimRISC-07: ut2fo
+@@ OBJ: {{[0-9a-f]+:}} 44 f8 82 40{{.*}}ut2fo
+@@ ASM: ut2fo rf8, rd9, 0
+ut2fo rf8, rd9, 0
 
-@@ @src ut2ft_orri_rf 44d88241 | SimRISC-07: ut2ft
-@@ OBJ: {{[0-9a-f]+:}} 44 d8 82 41{{.*}}ut2ft
-@@ ASM: ut2ft {rf8}, {rd9}
-ut2ft {rf8}, {rd9}
+@@ @src ut2ft_orri_rf 44d88244 | SimRISC-07: ut2ft
+@@ OBJ: {{[0-9a-f]+:}} 44 d8 82 44{{.*}}ut2ft
+@@ ASM: ut2ft rf8, rd9, 4
+ut2ft rf8, rd9, 4

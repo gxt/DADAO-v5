@@ -3,15 +3,26 @@
 @@ RUN: echo 'ftadd rf0, rf2, rf3' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
 @@ RUN: echo 'ftmin rf0, rf2, rf3' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
 @@ RUN: echo 'fomax rf0, rf2, rf3' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
-@@ RUN: echo 'it2ft {rf0}, {rd2}' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
+@@ RUN: echo 'it2ft rf0, rd2, 4' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
 @@ RUN: echo 'cs.n {rd1}?, rf0, rf2, rf3' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-DST
-@@ RUN: echo 'ft2fo {rf3:rf4}, {rf2:rf3}' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-OVL
+@@ RUN: echo 'ft2ft {rf3:rf4}, {rf2:rf3}' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-OVL
 @@ RUN: echo 'ft2ft {rf3:rf3}, {rf3:rf3}' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-OVL
 @@ RUN: echo 'fo2fo {rf2:rf3}, {rf3:rf4}' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-OVL
 @@ RUN: echo 'ftroot rf1, rf2, 3' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-ROOT
 @@ RUN: echo 'foroot rf1, rf2, 0' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-ROOT
-@@ RUN: echo 'ft2fo {rf0:rf63}, {rf1:rf62}' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-OVF
+@@ RUN: echo 'ft2ft {rf0:rf63}, {rf1:rf62}' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-OVF
 @@ RUN: echo 'ldm.t {rf0:rf63}, [rb1, rd0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-OVF
+@@ RUN: echo 'fo2io {rd8:rd10}, {rf1:rf3}, 0x04' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-BRACE
+@@ RUN: echo 'ft2it {rd4:rd6}, {rf8:rf10}, 4' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-BRACE
+@@ RUN: echo 'it2fo {rf4:rf6}, {rd8:rd10}, 0' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-BRACE
+@@ RUN: echo 'fo2io {rd8}, {rf1}, 4' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-BRACE
+@@ RUN: echo 'fo2io rd8, rf1' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-MISS
+@@ RUN: echo 'fo2io rd8, rf1, 0' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-ONEHOT
+@@ RUN: echo 'fo2io rd8, rf1, 3' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-ONEHOT
+@@ RUN: echo 'it2ft rf4, rd8, 0x11' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-ONEHOT
+@@ RUN: echo 'ft2fo rf4, rf8, 1' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-SBZ
+@@ RUN: echo 'it2fo rf4, rd8, 4' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-SBZ
+@@ RUN: echo 'ut2fo rf4, rd8, 0x20' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-SBZ
 
 @@ FP assemble-time static legality checks (SPEC-088t; contracts/legality_rules.yaml):
 @@   dst_rf0              -- rf0 is the FCSR and cannot be an FP destination
@@ -22,7 +33,7 @@
 @@                           ftmin/ftmax/fomin/fomax (LLVM-124t) carry the same
 @@                           rule (4 more scalar orrr forms).
 @@   mreg_range_overlap   -- the two same-bank RF `{start:end}` groups of a
-@@                           convert_ff instruction must be disjoint (any
+@@                           copy (ft2ft/fo2fo) must be disjoint (any
 @@                           intersection, including complete coincidence, is
 @@                           illegal).
 @@   mreg_range_overflow  -- the shared immu6 element count is 6 bits (0..63);
@@ -50,10 +61,10 @@
 @@ OK: encoding: [0x4f,0x00,0x00,0x01]
 @@ OK: encoding: [0x44,0x18,0x10,0x82]
 @@ OK: encoding: [0x44,0x38,0x10,0x82]
-@@ OK: encoding: [0x44,0x04,0x42,0x03]
-@@ OK: encoding: [0x44,0x04,0x10,0x01]
-@@ OK: encoding: [0x44,0xd0,0x42,0x03]
-@@ OK: encoding: [0x44,0xc0,0x42,0x03]
+@@ OK: encoding: [0x44,0x04,0x42,0x00]
+@@ OK: encoding: [0x44,0x04,0x10,0x00]
+@@ OK: encoding: [0x44,0xd0,0x42,0x04]
+@@ OK: encoding: [0x44,0xc0,0x42,0x04]
 @@ OK: encoding: [0x44,0x00,0x42,0x03]
 @@ OK: encoding: [0x44,0x80,0x40,0x83]
 @@ OK: encoding: [0x61,0x04,0x40,0x08]
@@ -72,10 +83,10 @@ stm.t {rf4:rf6}, [rb1, rd0]
 set.w rf0, wp0, 1
 ftroot rf1, rf2, 2
 foroot rf1, rf2, 2
-ft2fo {rf4:rf6}, {rf8:rf10}
-ft2fo {rf1}, {rf0}
-it2ft {rf4:rf6}, {rd8:rd10}
-ft2it {rd4:rd6}, {rf8:rf10}
+ft2fo rf4, rf8, 0
+ft2fo rf1, rf0, 0
+it2ft rf4, rd8, 4
+ft2it rd4, rf8, 4
 ftcls {rd4:rd6}, {rf8:rf10}
 ftqcmp rd4, rf2, rf3
 cs.n {rd1}?, rf4, rf0, rf8
@@ -90,5 +101,16 @@ cs.n {rd1}?, rf4, rf0, rf8
 @@ encode_fp_root_n: n != 2 (both ftroot and foroot).
 @@ ERR-ROOT: error: invalid '{{[a-z0-9.]+}}': root order n must be the constant 2 (encode_fp_root_n)
 @@
-@@ mreg_range_overflow: `{rf0:rf63}` (count 64) in a convert_ff and an RF ldm.
+@@ mreg_range_overflow: `{rf0:rf63}` (count 64) in a copy and an RF ldm.
 @@ ERR-OVF: error: invalid '{{[a-z0-9.]+}}': register range too long (mreg_range_overflow)
+@@
+@@ Braces are not part of the 18 single-register conversion forms (ADR-0050):
+@@ both `{r}` and `{a:b}` are rejected instead of silently dropping the range,
+@@ and the low-6-bit third operand is mandatory.
+@@ ERR-BRACE: error: invalid '{{[a-z0-9.]+}}': this conversion takes single registers plus an explicit low-6-bit operand; brace/range notation is not accepted (ADR-0050)
+@@ ERR-MISS: error: invalid '{{[a-z0-9.]+}}': expected exactly 3 operands (destination, source, rounding code/SBZ)
+@@ encode_onehot: the 15 result-dependent conversions take a six-way one-hot code.
+@@ ERR-ONEHOT: error: invalid '{{[a-z0-9.]+}}': rounding mode must be one of the one-hot constants 0x01/0x02/0x04/0x08/0x10/0x20 (encode_onehot)
+@@
+@@ encode_sbz: the 3 exact conversions require a zero low six-bit field.
+@@ ERR-SBZ: error: invalid '{{[a-z0-9.]+}}': this conversion is exact; the low six bits are SBZ and must be 0 (encode_sbz)

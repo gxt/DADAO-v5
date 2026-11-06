@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/fp_soft.cc b/src/arch/dadao/exec/fp_soft.cc
 new file mode 100644
-index 0000000..3f1d599
+index 0000000..866e730
 --- /dev/null
 +++ b/src/arch/dadao/exec/fp_soft.cc
-@@ -0,0 +1,1029 @@
+@@ -0,0 +1,1035 @@
 +// DADAO gem5 B7 execution core -- pure-integer IEEE 754-2019 arithmetic.
 +//
 +// Every operation is a bit-exact integer algorithm; no host float/double takes
@@ -154,7 +154,7 @@ index 0000000..3f1d599
 +overflowBits(Fmt fmt, bool sign, Mode mode)
 +{
 +    const Info &f = infoOf(fmt);
-+    const bool toInf = mode == Mode::RNE ||
++    const bool toInf = mode == Mode::RNE || mode == Mode::RNA ||
 +                       (mode == Mode::RUP && !sign) ||
 +                       (mode == Mode::RDN && sign);
 +    if (toInf)
@@ -239,6 +239,9 @@ index 0000000..3f1d599
 +        switch (mode) {
 +          case Mode::RNE:
 +            increment = halfCmp > 0 || (halfCmp == 0 && (kept & 1) != 0);
++            break;
++          case Mode::RNA:
++            increment = halfCmp >= 0;
 +            break;
 +          case Mode::RTZ:
 +            increment = false;
@@ -449,6 +452,9 @@ index 0000000..3f1d599
 +    switch (mode) {
 +      case Mode::RNE:
 +        increment = halfCmp > 0 || (halfCmp == 0 && (kept & 1) != 0);
++        break;
++      case Mode::RNA:
++        increment = halfCmp >= 0;
 +        break;
 +      case Mode::RTZ:
 +        increment = false;

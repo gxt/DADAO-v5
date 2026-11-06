@@ -27,7 +27,7 @@
 @@   3.75 = 1.111b x 2^1 -> sign=0, exp=128=0x80, mant=0x700000
 @@                        -> 0_10000000_11100000000000000000000 = 0x40700000
 @@
-@@   ft2it (float->int): 3.75 -> 3.  Round-toward-zero truncation is the
+@@   ft2it (float->int, explicit RTZ 0x04): 3.75 -> 3.  Truncation is the
 @@   project-established f->i semantics (contract-fp.md §3; SimRISC-07
 @@   §格式转换指令; the task's own candidate scenario states
 @@   "ft2it 向零截断 -> 3"). Result is 3 = 0x00000003.
@@ -69,7 +69,7 @@ _start:
     ftadd   rf3, rf1, rf2
 
     @@ 5. f32 -> int32: rd3 = trunc(3.75) = 3
-    ft2it   {rd3}, {rf3}
+    ft2it   rd3, rf3, 4
 
     @@ 6. Compare against hand-derived expectation 3 (cmp.so -> 0 iff equal)
     set.zw  rd4, wp0, 3

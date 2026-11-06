@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..e92c074c2
+index 000000000..415fb0162
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2613 @@
+@@ -0,0 +1,2680 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1360,17 +1360,42 @@ index 000000000..e92c074c2
 +
 +// FP block mnemonics (scope: fp) whose orri form carries a single immu6 that
 +// encodes the element count shared by both `{start:end}` groups.  `rd2rf` and
-+// `rf2rd` are FP block moves too and are handled alongside these 22 mnemonics
-+// at the two call sites below.
++// `rf2rd` are FP block moves too and are handled alongside these mnemonics at
++// the two call sites below.
++//
++// ADR-0050 D1/D4: the format conversions are split in three.  Only the pure
++// copies (`ft2ft`/`fo2fo` here, `rd2rf`/`rf2rd` at the call sites) keep the
++// 1..63 element count.  The other 18 conversions use lower 6 bits as a
++// six-way one-hot rounding code (15) or SBZ (3) and are written as *single*
++// registers with an explicit third operand -- see isFPOnehotConvertMnemonic /
++// isFPSbzConvertMnemonic below.
 +static bool isFPBlockMnemonic(StringRef Mnem) {
-+  return Mnem == "ft2fo" || Mnem == "fo2ft" || Mnem == "ft2ft" ||
-+         Mnem == "fo2fo" || Mnem == "ft2it" || Mnem == "ft2io" ||
-+         Mnem == "ft2ut" || Mnem == "ft2uo" || Mnem == "fo2it" ||
-+         Mnem == "fo2io" || Mnem == "fo2ut" || Mnem == "fo2uo" ||
-+         Mnem == "it2ft" || Mnem == "io2ft" || Mnem == "ut2ft" ||
-+         Mnem == "uo2ft" || Mnem == "it2fo" || Mnem == "io2fo" ||
-+         Mnem == "ut2fo" || Mnem == "uo2fo" || Mnem == "ftcls" ||
++  return Mnem == "ft2ft" || Mnem == "fo2fo" || Mnem == "ftcls" ||
 +         Mnem == "focls";
++}
++
++// The 15 format conversions whose low 6 bits carry the six-way one-hot
++// rounding direction (`encode_onehot`, contract-fp §3/§4): the 8 convert_f2i,
++// the 6 inexact convert_i2f and `fo2ft`.
++static bool isFPOnehotConvertMnemonic(StringRef M) {
++  return M == "ft2it" || M == "ft2io" || M == "ft2ut" || M == "ft2uo" ||
++         M == "fo2it" || M == "fo2io" || M == "fo2ut" || M == "fo2uo" ||
++         M == "it2ft" || M == "io2ft" || M == "ut2ft" || M == "uo2ft" ||
++         M == "io2fo" || M == "uo2fo" || M == "fo2ft";
++}
++
++// The 3 exact format conversions whose low 6 bits are SBZ and must be zero
++// (`encode_sbz`, contract-fp §2/§4): f32->f64 and the two 32-bit int->f64.
++static bool isFPSbzConvertMnemonic(StringRef M) {
++  return M == "ft2fo" || M == "it2fo" || M == "ut2fo";
++}
++
++// The 18 format conversions that use the single-register form (15 one-hot and
++// 3 SBZ) -- ADR-0050: braces (both `{r}` and `{a:b}`) are not part of this
++// syntax, and the low-6-bit third operand is mandatory.  The 4 pure copies
++// (ft2ft/fo2fo/rd2rf/rf2rd) keep the block form and are NOT in this set.
++static bool isFPSingleRegConvertMnemonic(StringRef M) {
++  return isFPOnehotConvertMnemonic(M) || isFPSbzConvertMnemonic(M);
 +}
 +
 +// FP instructions subject to the `dst_rf0` rule (SPEC-088t) whose destination
@@ -1419,23 +1444,24 @@ index 000000000..e92c074c2
 +         M == "rf2rd";
 +}
 +
-+// FP convert_ff instructions (SPEC-088t `mreg_range_overlap`): two same-bank
-+// RF `{start:end}` groups that share one immu6 element count and must not
-+// overlap (any intersection, including complete coincidence, is illegal).
++// FP convert_ff instructions (SPEC-088t `mreg_range_overlap`): the two pure
++// copies `ft2ft`/`fo2fo` carry two same-bank RF `{start:end}` groups that share
++// one immu6 element count and must not overlap (any intersection, including
++// complete coincidence, is illegal).  `ft2fo`/`fo2ft` are single-register
++// conversions after ADR-0050 and have no register window, so the rule no
++// longer applies to them.
 +static bool isFPConvertFFMnemonic(StringRef M) {
-+  return M == "ft2fo" || M == "fo2ft" || M == "ft2ft" || M == "fo2fo";
++  return M == "ft2ft" || M == "fo2fo";
 +}
 +
 +// FP multi-register instructions subject to `mreg_range_overflow` (SPEC-088t):
 +// every `{start:end}` group they carry is checked for an element count > 63.
 +// The four FP ldm.*/stm.* forms are handled separately because their mnemonic
-+// is shared with the M1 RD forms, which are out of this task's scope.
++// is shared with the M1 RD forms, which are out of this task's scope.  After
++// ADR-0050 the 18 non-copy conversions are single-register forms, so only the
++// copies/classify remain.
 +static bool isFPMregMnemonic(StringRef M) {
-+  return isFPConvertFFMnemonic(M) || M == "ft2it" || M == "ft2io" ||
-+         M == "ft2ut" || M == "ft2uo" || M == "fo2it" || M == "fo2io" ||
-+         M == "fo2ut" || M == "fo2uo" || M == "it2ft" || M == "io2ft" ||
-+         M == "ut2ft" || M == "uo2ft" || M == "it2fo" || M == "io2fo" ||
-+         M == "ut2fo" || M == "uo2fo" || M == "ftcls" || M == "focls" ||
++  return isFPConvertFFMnemonic(M) || M == "ftcls" || M == "focls" ||
 +         M == "rd2rf" || M == "rf2rd";
 +}
 +
@@ -1461,13 +1487,14 @@ index 000000000..e92c074c2
 +         M == "stm.t" || M == "stm.o" || isM1BlockMnemonic(M);
 +}
 +
-+// orri block moves / floating-point format conversions that carry *two*
-+// `{start:end}` groups sharing one immu6 element count: the 8 register copies
-+// (ra2rd/rb2rb/rb2rd/rd2ra/rd2rb/rd2rd/rd2rf/rf2rd) and the 20 FP conversions
-+// (contract-asm.md §4.2).  Classify (ftcls/focls) also has two groups, but it
-+// is deliberately excluded: the spec's multi-to-single scope is 8+20.  The
-+// FP root instructions are excluded too (their immu6 is the root order n, not
-+// a register count).
++// orri block moves / floating-point pure copies that carry *two* `{start:end}`
++// groups sharing one immu6 element count: the 8 register copies
++// (ra2rd/rb2rb/rb2rd/rd2ra/rd2rb/rd2rd/rd2rf/rf2rd) and the two FP copies
++// ft2ft/fo2fo (contract-asm.md §4.2; ADR-0050 D4).  Classify (ftcls/focls)
++// also has two groups, but it is deliberately excluded: the spec's
++// multi-to-single scope is 8+2.  The FP root instructions are excluded too
++// (their immu6 is the root order n, not a register count), and so are the 18
++// single-register format conversions (rounding code / SBZ).
 +static bool isMultiToSingleOrriMnemonic(StringRef M) {
 +  return M == "ra2rd" || M == "rb2rb" || M == "rb2rd" || M == "rd2ra" ||
 +         M == "rd2rb" || M == "rd2rd" || M == "rd2rf" || M == "rf2rd" ||
@@ -2010,6 +2037,30 @@ index 000000000..e92c074c2
 +                                     ErrorInfo, MatchingInlineAsm);
 +  }
 +
++  // ADR-0050 assembly form for the 18 non-copy format conversions: a single
++  // destination, a single source and an explicit low-6-bit third operand
++  // (one-hot code or SBZ 0).  Braces are not part of this syntax -- reject
++  // `{r}` and `{a:b}` explicitly instead of letting the group decomposition
++  // silently drop the range, and require the third operand.
++  if (Operands.size() >= 1 && Operands[0]->isToken()) {
++    StringRef M = static_cast<DADAOOperand *>(Operands[0].get())->getToken();
++    if (isFPSingleRegConvertMnemonic(M)) {
++      for (size_t I = 1; I < Operands.size(); ++I) {
++        auto *Op = static_cast<DADAOOperand *>(Operands[I].get());
++        if (Op && (Op->Kind == DADAOOperand::kRegGroup ||
++                   Op->Kind == DADAOOperand::kRegGroupCond))
++          return Error(Op->getStartLoc(),
++                       "invalid '" + M.str() + "': this conversion takes "
++                       "single registers plus an explicit low-6-bit operand; "
++                       "brace/range notation is not accepted (ADR-0050)");
++      }
++      if (Operands.size() != 4)
++        return Error(IDLoc,
++                     "invalid '" + M.str() + "': expected exactly 3 operands "
++                     "(destination, source, rounding code/SBZ)");
++    }
++  }
++
 +  // Reject old flat syntax for dual-purpose rrrr instructions.
 +  // add.uo rd8, rd9, rd10, rd11 → must use add.uo {rd8, rd9}, rd10, rd11
 +  // Only applies to rrrr format (4 operands), not orrr format (3 operands).
@@ -2524,10 +2575,13 @@ index 000000000..e92c074c2
 +                       "(encode_fp_root_n)");
 +  }
 +
-+  // `encode_onehot` (SPEC-161t; SimRISC-07 §2.3 roundToIntegral): the orri
-+  // immu6 of ftrnd/fornd is a one-hot rounding-mode selector.  A non-constant
-+  // operand (symbol/relocation) cannot be proven one-hot, so it is rejected too.
-+  if (isFPRoundMnemonic(Mnemonic) && Flat.size() >= 4 && Flat[3]->isImm()) {
++  // `encode_onehot` (SPEC-161t roundToIntegral; ADR-0050 D2 for the format
++  // conversions): the orri immu6 of ftrnd/fornd and the 15 result-dependent
++  // format conversions is a one-hot rounding-direction selector.  A
++  // non-constant operand (symbol/relocation) cannot be proven one-hot, so it
++  // is rejected too.
++  if ((isFPRoundMnemonic(Mnemonic) || isFPOnehotConvertMnemonic(Mnemonic)) &&
++      Flat.size() >= 4 && Flat[3]->isImm()) {
 +    auto *NOp = static_cast<DADAOOperand *>(Flat[3].get());
 +    int64_t Mode = NOp->getImm();
 +    if (NOp->getImmExpr() != nullptr ||
@@ -2537,6 +2591,19 @@ index 000000000..e92c074c2
 +                   "invalid '" + Mnemonic.str() +
 +                       "': rounding mode must be one of the one-hot constants "
 +                       "0x01/0x02/0x04/0x08/0x10/0x20 (encode_onehot)");
++  }
++
++  // `encode_sbz` (ADR-0050 D3): the 3 exact format conversions
++  // (`ft2fo`/`it2fo`/`ut2fo`) have a zero low-6-bit field.  A non-constant
++  // operand cannot be proven zero and is rejected too.
++  if (isFPSbzConvertMnemonic(Mnemonic) && Flat.size() >= 4 &&
++      Flat[3]->isImm()) {
++    auto *NOp = static_cast<DADAOOperand *>(Flat[3].get());
++    if (NOp->getImmExpr() != nullptr || NOp->getImm() != 0)
++      return Error(Flat[3]->getStartLoc(),
++                   "invalid '" + Mnemonic.str() +
++                       "': this conversion is exact; the low six bits are SBZ "
++                       "and must be 0 (encode_sbz)");
 +  }
 +
 +  // `dst_rd0` (SPEC-181t F8.2; SimRISC-12 §1.1): `sc rdHB, rdHC, [rbHD]` writes

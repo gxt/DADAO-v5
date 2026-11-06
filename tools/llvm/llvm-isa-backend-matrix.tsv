@@ -66,11 +66,11 @@ ext.uo_orri_rd	ext.uo	orri	m1	ext_uo_orri	accept	ok	ext.uo rd8, rd9, 1	yes	isel-
 ext.uo_orrr_rd	ext.uo	orrr	m1	ext_uo_orrr	accept	ok	ext.uo rd8, rd9, rd10	no		
 fence_ciii_cfx	fence	ciii	m9	fence	accept	ok	fence cfx63, 64	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:804:fence	
 fo2fo_orri_rf	fo2fo	orri	fp	fo2fo_orri_rf	accept	ok	fo2fo {rf8}, {rf9}	no		DADAOInstrInfo.cpp.patch:90
-fo2ft_orri_rf	fo2ft	orri	fp	fo2ft_orri_rf	accept	ok	fo2ft {rf8}, {rf9}	yes	pat:DADAOCodeGen.td.patch:1187:fo2ft_orri_rf	
-fo2io_orri_rf	fo2io	orri	fp	fo2io_orri_rf	accept	ok	fo2io {rd8}, {rf9}	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:894:fo2io_orri_rf;pat:DADAOCodeGen.td.patch:1193:fo2io_orri_rf	
-fo2it_orri_rf	fo2it	orri	fp	fo2it_orri_rf	accept	ok	fo2it {rd8}, {rf9}	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:894:fo2it_orri_rf	
-fo2uo_orri_rf	fo2uo	orri	fp	fo2uo_orri_rf	accept	ok	fo2uo {rd8}, {rf9}	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:894:fo2uo_orri_rf;pat:DADAOCodeGen.td.patch:1195:fo2uo_orri_rf	
-fo2ut_orri_rf	fo2ut	orri	fp	fo2ut_orri_rf	accept	ok	fo2ut {rd8}, {rf9}	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:895:fo2ut_orri_rf	
+fo2ft_orri_rf	fo2ft	orri	fp	fo2ft_orri_rf	accept	ok	fo2ft rf8, rf9, 4	yes	pat:DADAOCodeGen.td.patch:1188:fo2ft_orri_rf	
+fo2io_orri_rf	fo2io	orri	fp	fo2io_orri_rf	accept	ok	fo2io rd8, rf9, 4	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:894:fo2io_orri_rf;pat:DADAOCodeGen.td.patch:1196:fo2io_orri_rf	
+fo2it_orri_rf	fo2it	orri	fp	fo2it_orri_rf	accept	ok	fo2it rd8, rf9, 4	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:894:fo2it_orri_rf	
+fo2uo_orri_rf	fo2uo	orri	fp	fo2uo_orri_rf	accept	ok	fo2uo rd8, rf9, 4	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:894:fo2uo_orri_rf;pat:DADAOCodeGen.td.patch:1198:fo2uo_orri_rf	
+fo2ut_orri_rf	fo2ut	orri	fp	fo2ut_orri_rf	accept	ok	fo2ut rd8, rf9, 4	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:895:fo2ut_orri_rf	
 foadd_orrr_rf	foadd	orrr	fp	foadd_orrr_rf	accept	ok	foadd rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:981:foadd_orrr_rf	
 focls_orri_rf	focls	orri	fp	focls_orri_rf	accept	ok	focls {rd8}, {rf9}	yes	pat:DADAOCodeGen.td.patch:1095:focls_orri_rf	
 fodiv_orrr_rf	fodiv	orrr	fp	fodiv_orrr_rf	accept	ok	fodiv rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:995:fodiv_orrr_rf	
@@ -87,12 +87,12 @@ foscmp_orrr_rf	foscmp	orrr	fp	foscmp_orrr_rf	accept	ok	foscmp rd8, rf9, rf10	no
 fosgnj_orrr_rf	fosgnj	orrr	fp	fosgnj_orrr_rf	accept	ok	fosgnj rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:1008:fosgnj_orrr_rf;pat:DADAOCodeGen.td.patch:1010:fosgnj_orrr_rf	
 fosgnn_orrr_rf	fosgnn	orrr	fp	fosgnn_orrr_rf	accept	ok	fosgnn rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:999:fosgnn_orrr_rf	
 fosub_orrr_rf	fosub	orrr	fp	fosub_orrr_rf	accept	ok	fosub rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:982:fosub_orrr_rf	
-ft2fo_orri_rf	ft2fo	orri	fp	ft2fo_orri_rf	accept	ok	ft2fo {rf8}, {rf9}	yes	pat:DADAOCodeGen.td.patch:1186:ft2fo_orri_rf	
+ft2fo_orri_rf	ft2fo	orri	fp	ft2fo_orri_rf	accept	ok	ft2fo rf8, rf9, 0	yes	pat:DADAOCodeGen.td.patch:1187:ft2fo_orri_rf	
 ft2ft_orri_rf	ft2ft	orri	fp	ft2ft_orri_rf	accept	ok	ft2ft {rf8}, {rf9}	no		
-ft2io_orri_rf	ft2io	orri	fp	ft2io_orri_rf	accept	ok	ft2io {rd8}, {rf9}	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:895:ft2io_orri_rf;pat:DADAOCodeGen.td.patch:1194:ft2io_orri_rf	
-ft2it_orri_rf	ft2it	orri	fp	ft2it_orri_rf	accept	ok	ft2it {rd8}, {rf9}	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:896:ft2it_orri_rf	
-ft2uo_orri_rf	ft2uo	orri	fp	ft2uo_orri_rf	accept	ok	ft2uo {rd8}, {rf9}	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:895:ft2uo_orri_rf;pat:DADAOCodeGen.td.patch:1196:ft2uo_orri_rf	
-ft2ut_orri_rf	ft2ut	orri	fp	ft2ut_orri_rf	accept	ok	ft2ut {rd8}, {rf9}	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:896:ft2ut_orri_rf	
+ft2io_orri_rf	ft2io	orri	fp	ft2io_orri_rf	accept	ok	ft2io rd8, rf9, 4	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:895:ft2io_orri_rf;pat:DADAOCodeGen.td.patch:1197:ft2io_orri_rf	
+ft2it_orri_rf	ft2it	orri	fp	ft2it_orri_rf	accept	ok	ft2it rd8, rf9, 4	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:896:ft2it_orri_rf	
+ft2uo_orri_rf	ft2uo	orri	fp	ft2uo_orri_rf	accept	ok	ft2uo rd8, rf9, 4	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:895:ft2uo_orri_rf;pat:DADAOCodeGen.td.patch:1199:ft2uo_orri_rf	
+ft2ut_orri_rf	ft2ut	orri	fp	ft2ut_orri_rf	accept	ok	ft2ut rd8, rf9, 4	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:896:ft2ut_orri_rf	
 ftadd_orrr_rf	ftadd	orrr	fp	ftadd_orrr_rf	accept	ok	ftadd rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:1013:ftadd_orrr_rf	
 ftcls_orri_rf	ftcls	orri	fp	ftcls_orri_rf	accept	ok	ftcls {rd8}, {rf9}	yes	pat:DADAOCodeGen.td.patch:1096:ftcls_orri_rf	
 ftdiv_orrr_rf	ftdiv	orrr	fp	ftdiv_orrr_rf	accept	ok	ftdiv rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:1018:ftdiv_orrr_rf	
@@ -109,10 +109,10 @@ ftscmp_orrr_rf	ftscmp	orrr	fp	ftscmp_orrr_rf	accept	ok	ftscmp rd8, rf9, rf10	no
 ftsgnj_orrr_rf	ftsgnj	orrr	fp	ftsgnj_orrr_rf	accept	ok	ftsgnj rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:1024:ftsgnj_orrr_rf;pat:DADAOCodeGen.td.patch:1026:ftsgnj_orrr_rf	
 ftsgnn_orrr_rf	ftsgnn	orrr	fp	ftsgnn_orrr_rf	accept	ok	ftsgnn rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:1020:ftsgnn_orrr_rf	
 ftsub_orrr_rf	ftsub	orrr	fp	ftsub_orrr_rf	accept	ok	ftsub rf8, rf9, rf10	yes	pat:DADAOCodeGen.td.patch:1014:ftsub_orrr_rf	
-io2fo_orri_rf	io2fo	orri	fp	io2fo_orri_rf	accept	ok	io2fo {rf8}, {rd9}	yes	pat:DADAOCodeGen.td.patch:1200:io2fo_orri_rf	
-io2ft_orri_rf	io2ft	orri	fp	io2ft_orri_rf	accept	ok	io2ft {rf8}, {rd9}	yes	pat:DADAOCodeGen.td.patch:1201:io2ft_orri_rf	
-it2fo_orri_rf	it2fo	orri	fp	it2fo_orri_rf	accept	ok	it2fo {rf8}, {rd9}	no		
-it2ft_orri_rf	it2ft	orri	fp	it2ft_orri_rf	accept	ok	it2ft {rf8}, {rd9}	no		
+io2fo_orri_rf	io2fo	orri	fp	io2fo_orri_rf	accept	ok	io2fo rf8, rd9, 4	yes	pat:DADAOCodeGen.td.patch:1203:io2fo_orri_rf	
+io2ft_orri_rf	io2ft	orri	fp	io2ft_orri_rf	accept	ok	io2ft rf8, rd9, 4	yes	pat:DADAOCodeGen.td.patch:1204:io2ft_orri_rf	
+it2fo_orri_rf	it2fo	orri	fp	it2fo_orri_rf	accept	ok	it2fo rf8, rd9, 0	no		
+it2ft_orri_rf	it2ft	orri	fp	it2ft_orri_rf	accept	ok	it2ft rf8, rd9, 4	no		
 jump_iiii_rb	jump	iiii	m1	jump_iiii;tailjmp_iiii	accept	ok	jump [rb0, 12]	yes	buildmi:DADAOInstrInfo.cpp.patch:741:jump_iiii;buildmi:DADAOInstrInfo.cpp.patch:761:jump_iiii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:789:tailjmp_iiii;pat:DADAOCodeGen.td.patch:969:jump_iiii	DADAOInstrInfo.cpp.patch:741;DADAOInstrInfo.cpp.patch:761;DADAOInstrInfo.cpp.patch:806
 jump_rrii_rb	jump	rrii	m1	jump_rrii;tailjmp_rrii	accept	ok	jump [rb8, rd9, 96]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:677:jump_rrii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:699:jump_rrii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:789:tailjmp_rrii	
 ld.o_rrii_ra	ld.o	rrii	m1	ld_o_ra	accept	ok	ld.o ra8, [rb9, 8]	no		
@@ -166,7 +166,7 @@ rb2rd_orri_rb	rb2rd	orri	m1	rb2rd	accept	ok	rb2rd {rd8}, {rb9}	yes	isel-cpp:DADA
 rd2ra_orri_ra	rd2ra	orri	m1	rd2ra	accept	ok	rd2ra {ra8}, {rd9}	no		
 rd2rb_orri_rb	rd2rb	orri	m1	rd2rb	accept	ok	rd2rb {rb8}, {rd9}	no		DADAOInstrInfo.cpp.patch:100
 rd2rd_orri_rd	rd2rd	orri	m1	rd2rd	accept	ok	rd2rd {rd8}, {rd9}	yes	buildmi:DADAOInstrInfo.cpp.patch:313:rd2rd;pseudo:DADAOCodeGen.td.patch:364:rd2rd:ADD_IMM_PSEUDO	DADAOInstrInfo.cpp.patch:35;DADAOInstrInfo.cpp.patch:98;DADAOInstrInfo.cpp.patch:313
-rd2rf_orri_rf	rd2rf	orri	fp	rd2rf_orri_rf	accept	ok	rd2rf {rf8}, {rd9}	yes	buildmi:DADAOISelLowering.cpp.patch:3004:rd2rf_orri_rf;isel-cpp:DADAOISelDAGToDAG.cpp.patch:375:rd2rf_orri_rf;isel-cpp:DADAOISelLowering.cpp.patch:3004:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:716:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:1010:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:1026:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:1211:rd2rf_orri_rf	DADAOInstrInfo.cpp.patch:92
+rd2rf_orri_rf	rd2rf	orri	fp	rd2rf_orri_rf	accept	ok	rd2rf {rf8}, {rd9}	yes	buildmi:DADAOISelLowering.cpp.patch:3004:rd2rf_orri_rf;isel-cpp:DADAOISelDAGToDAG.cpp.patch:375:rd2rf_orri_rf;isel-cpp:DADAOISelLowering.cpp.patch:3004:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:716:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:1010:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:1026:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:1214:rd2rf_orri_rf	DADAOInstrInfo.cpp.patch:92
 rem.sb_orrr_rd	rem.sb	orrr	m1	rem_sb	accept	ok	rem.sb rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:588:rem_sb;pat:DADAOCodeGen.td.patch:625:rem_sb	
 rem.so_orrr_rd	rem.so	orrr	m1	rem_so	accept	ok	rem.so rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:553:rem_so	
 rem.st_orrr_rd	rem.st	orrr	m1	rem_st	accept	ok	rem.st rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:586:rem_st;pat:DADAOCodeGen.td.patch:605:rem_st	
@@ -180,7 +180,7 @@ rev.b_orri_rd	rev.b	orri	m8	rev_b_orri_rd	accept	ok	rev.b rd8, rd9, 1	no
 rev.o_orri_rd	rev.o	orri	m8	rev_o_orri_rd	accept	ok	rev.o rd8, rd9, 1	yes	pat:DADAOCodeGen.td.patch:544:rev_o_orri_rd;pat:DADAOCodeGen.td.patch:545:rev_o_orri_rd	
 rev.t_orri_rd	rev.t	orri	m8	rev_t_orri_rd	accept	ok	rev.t rd8, rd9, 1	yes	pat:DADAOCodeGen.td.patch:655:rev_t_orri_rd	
 rev.w_orri_rd	rev.w	orri	m8	rev_w_orri_rd	accept	ok	rev.w rd8, rd9, 1	yes	pat:DADAOCodeGen.td.patch:656:rev_w_orri_rd	
-rf2rd_orri_rf	rf2rd	orri	fp	rf2rd_orri_rf	accept	ok	rf2rd {rd8}, {rf9}	yes	pat:DADAOCodeGen.td.patch:717:rf2rd_orri_rf;pat:DADAOCodeGen.td.patch:1212:rf2rd_orri_rf	DADAOInstrInfo.cpp.patch:94
+rf2rd_orri_rf	rf2rd	orri	fp	rf2rd_orri_rf	accept	ok	rf2rd {rd8}, {rf9}	yes	pat:DADAOCodeGen.td.patch:717:rf2rd_orri_rf;pat:DADAOCodeGen.td.patch:1215:rf2rd_orri_rf	DADAOInstrInfo.cpp.patch:94
 rol.b_orri_rd	rol.b	orri	m9	rol_b_orri	accept	ok	rol.b rd8, rd9, 1	no		
 rol.b_orrr_rd	rol.b	orrr	m9	rol_b_orrr	accept	ok	rol.b rd8, rd9, rd10	no		
 rol.o_orri_rd	rol.o	orri	m9	rol_o_orri	accept	ok	rol.o rd8, rd9, 1	yes	pat:DADAOCodeGen.td.patch:493:rol_o_orri	
@@ -257,9 +257,9 @@ sub.ut_orrr_rd	sub.ut	orrr	m1	sub_ut	accept	ok	sub.ut rd8, rd9, rd10	yes	pat:DAD
 sub.uw_orrr_rd	sub.uw	orrr	m1	sub_uw	accept	ok	sub.uw rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:609:sub_uw	
 swym_oiii_imm	swym	oiii	m1	swym_oiii	accept	ok	swym 8	no		
 trap_ciii_cfx	trap	ciii	m1	trap_ciii	accept	ok	trap cfx63, 1	no		
-uo2fo_orri_rf	uo2fo	orri	fp	uo2fo_orri_rf	accept	ok	uo2fo {rf8}, {rd9}	yes	pat:DADAOCodeGen.td.patch:1202:uo2fo_orri_rf	
-uo2ft_orri_rf	uo2ft	orri	fp	uo2ft_orri_rf	accept	ok	uo2ft {rf8}, {rd9}	yes	pat:DADAOCodeGen.td.patch:1203:uo2ft_orri_rf	
-ut2fo_orri_rf	ut2fo	orri	fp	ut2fo_orri_rf	accept	ok	ut2fo {rf8}, {rd9}	no		
-ut2ft_orri_rf	ut2ft	orri	fp	ut2ft_orri_rf	accept	ok	ut2ft {rf8}, {rd9}	no		
+uo2fo_orri_rf	uo2fo	orri	fp	uo2fo_orri_rf	accept	ok	uo2fo rf8, rd9, 4	yes	pat:DADAOCodeGen.td.patch:1205:uo2fo_orri_rf	
+uo2ft_orri_rf	uo2ft	orri	fp	uo2ft_orri_rf	accept	ok	uo2ft rf8, rd9, 4	yes	pat:DADAOCodeGen.td.patch:1206:uo2ft_orri_rf	
+ut2fo_orri_rf	ut2fo	orri	fp	ut2fo_orri_rf	accept	ok	ut2fo rf8, rd9, 0	no		
+ut2ft_orri_rf	ut2ft	orri	fp	ut2ft_orri_rf	accept	ok	ut2ft rf8, rd9, 4	no		
 xnor.o_orrr_rd	xnor.o	orrr	m1	xnor_o	accept	ok	xnor.o rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:465:xnor_o	
 xor.o_orrr_rd	xor.o	orrr	m1	xor_o	accept	ok	xor.o rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:456:xor_o	

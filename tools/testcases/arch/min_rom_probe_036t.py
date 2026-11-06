@@ -9,9 +9,9 @@ Encodings: contracts/opcodes.yaml.  Exit codes: ADR-0004 D5.8 (PASS=0x00,
 ILLI=0xF8).
 
 Instructions under test (20):
-  convert_ff  (4): ft2ft ft2fo fo2ft fo2fo        (orri, block immu6 1..63)
-  convert_f2i (8): ft2it ft2io ft2ut ft2uo fo2it fo2io fo2ut fo2uo
-  convert_i2f (8): it2ft io2ft ut2ft uo2ft it2fo io2fo ut2fo uo2fo
+  convert_ff  (4): ft2ft/fo2fo 复制 (immu6 1..63)；ft2fo SBZ 0；fo2ft 六档
+  convert_f2i (8): ft2it ft2io ft2ut ft2uo fo2it fo2io fo2ut fo2uo（六档）
+  convert_i2f (8): it2ft io2ft ut2ft uo2ft io2fo uo2fo（六档）；it2fo/ut2fo（SBZ）
 
 Expected-value provenance (task §6.1, see /tmp derivation in completion notes):
   * RNE float->float bit patterns use the host struct anchor.
@@ -108,6 +108,10 @@ SWYM = 0x47880000
 
 # rf0[33:32] rounding mode selectors (SimRISC-00: 浮点状态寄存器)
 RNE, RTZ, RDN, RUP = 0, 1, 2, 3
+# Format-conversion low-6-bit codes (ADR-0050 D2/D3).
+C_RNE, C_RNA, C_RTZ, C_RUP, C_RDN, C_DYN = (
+    0x01, 0x02, 0x04, 0x08, 0x10, 0x20)
+C_SBZ = 0
 
 
 def encode_rwii(op, ha, wpN, immu16):
@@ -629,78 +633,77 @@ CASES = []
 
 CASES.append(value_case(
     "FF01 ft2fo +1.0f -> +1.0d (exact, no flags)",
-    set_rf(8, FT_1) + [ft2fo(4, 8, 1)],
+    set_rf(8, FT_1) + [ft2fo(4, 8, C_SBZ)],
     expect_rf={4: FO_1, 0: rf0_with()}))
 
 CASES.append(value_case(
     "FF02 ft2fo 1.5f -> 1.5d (exact)",
-    set_rf(8, FT_1_5) + [ft2fo(4, 8, 1)],
+    set_rf(8, FT_1_5) + [ft2fo(4, 8, C_SBZ)],
     expect_rf={4: FO_1_5}))
 
 CASES.append(value_case(
     "FF03 ft2fo -2.5f -> -2.5d (sign preserved)",
-    set_rf(8, FT_N2_5) + [ft2fo(4, 8, 1)],
+    set_rf(8, FT_N2_5) + [ft2fo(4, 8, C_SBZ)],
     expect_rf={4: FO_N2_5}))
 
 CASES.append(value_case(
     "FF04 ft2fo ignores source high 32 bits",
-    set_rf(8, 0xDEADBEEF3F800000) + [ft2fo(4, 8, 1)],
+    set_rf(8, 0xDEADBEEF3F800000) + [ft2fo(4, 8, C_SBZ)],
     expect_rf={4: FO_1}))
 
 CASES.append(value_case(
-    "FF05 ft2fo block of 3 {rf4:rf6},{rf8:rf10}",
-    set_rf(8, FT_1) + set_rf(9, FT_1_5) + set_rf(10, FT_N2_5) +
-    [ft2fo(4, 8, 3)],
-    expect_rf={4: FO_1, 5: FO_1_5, 6: FO_N2_5}))
+    "FF05 ft2fo single register dst==src is exact",
+    set_rf(4, FT_1) + [ft2fo(4, 4, C_SBZ)],
+    expect_rf={4: FO_1}))
 
 CASES.append(value_case(
     "FF06 fo2ft +1.0d -> +1.0f (high 32 zero-extended)",
-    set_rf(8, FO_1) + [fo2ft(4, 8, 1)],
+    set_rf(8, FO_1) + [fo2ft(4, 8, C_RNE)],
     expect_rf={4: FT_1, 0: rf0_with()}))
 
 CASES.append(value_case(
     "FF07 fo2ft 1.5d -> 1.5f (exact)",
-    set_rf(8, FO_1_5) + [fo2ft(4, 8, 1)],
+    set_rf(8, FO_1_5) + [fo2ft(4, 8, C_RNE)],
     expect_rf={4: FT_1_5}))
 
 CASES.append(value_case(
     "FF08 fo2ft 2^-150 -> +0 with UF|NX",
-    set_rf(8, FO_2N150) + [fo2ft(4, 8, 1)],
+    set_rf(8, FO_2N150) + [fo2ft(4, 8, C_RNE)],
     expect_rf={4: 0x00000000, 0: rf0_with(0, FLAG_UF_NX)}))
 
 CASES.append(value_case(
     "FF09 fo2ft 1.25*2^-149 -> subnormal 0x1 with UF|NX",
-    set_rf(8, FO_125_2N149) + [fo2ft(4, 8, 1)],
+    set_rf(8, FO_125_2N149) + [fo2ft(4, 8, C_RNE)],
     expect_rf={4: 0x00000001, 0: rf0_with(0, FLAG_UF_NX)}))
 
 CASES.append(value_case(
     "FF10 fo2ft +DBL_MAX -> +Inf with OF|NX",
-    set_rf(8, FO_DBL_MAX) + [fo2ft(4, 8, 1)],
+    set_rf(8, FO_DBL_MAX) + [fo2ft(4, 8, C_RNE)],
     expect_rf={4: 0x7F800000, 0: rf0_with(0, FLAG_OF_NX)}))
 
 CASES.append(value_case(
     "FF11 fo2ft -DBL_MAX -> -Inf with OF|NX",
-    set_rf(8, FO_N_DBL_MAX) + [fo2ft(4, 8, 1)],
+    set_rf(8, FO_N_DBL_MAX) + [fo2ft(4, 8, C_RNE)],
     expect_rf={4: 0xFF800000, 0: rf0_with(0, FLAG_OF_NX)}))
 
 CASES.append(value_case(
     "FF12 fo2ft qNaN payload narrowed -> 0x7FC12345",
-    set_rf(8, FO_QNAN_PAY) + [fo2ft(4, 8, 1)],
+    set_rf(8, FO_QNAN_PAY) + [fo2ft(4, 8, C_RNE)],
     expect_rf={4: FT_QNAN_PAY, 0: rf0_with()}))
 
 CASES.append(value_case(
     "FF13 fo2ft sNaN -> qNaN + NV",
-    set_rf(8, FO_SNAN) + [fo2ft(4, 8, 1)],
+    set_rf(8, FO_SNAN) + [fo2ft(4, 8, C_RNE)],
     expect_rf={4: FT_QNAN, 0: rf0_with(0, NV)}))
 
 CASES.append(value_case(
     "FF14 ft2fo qNaN payload widened -> 0x7FF82468A0000000",
-    set_rf(8, FT_QNAN_PAY) + [ft2fo(4, 8, 1)],
+    set_rf(8, FT_QNAN_PAY) + [ft2fo(4, 8, C_SBZ)],
     expect_rf={4: FO_QNAN_PAY, 0: rf0_with()}))
 
 CASES.append(value_case(
     "FF15 ft2fo sNaN -> qNaN + NV",
-    set_rf(8, FT_SNAN) + [ft2fo(4, 8, 1)],
+    set_rf(8, FT_SNAN) + [ft2fo(4, 8, C_SBZ)],
     expect_rf={4: 0x7FF8000020000000, 0: rf0_with(0, NV)}))
 
 CASES.append(value_case(
@@ -727,225 +730,223 @@ CASES.append(value_case(
     expect_rf={4: FO_1, 5: FO_1_5, 6: FO_N2_5}))
 
 CASES.append(value_case(
-    "FF20 ft2fo adjacent ranges (dest 4..6, src 7..9) legal",
-    set_rf(7, FT_1) + set_rf(8, FT_1_5) + set_rf(9, FT_N2_5) +
-    [ft2fo(4, 7, 3)],
-    expect_rf={4: FO_1, 5: FO_1_5, 6: FO_N2_5}))
+    "FF20 ft2fo ignores the source high 32 bits (single register)",
+    set_rf(8, 0xDEADBEEF3F800000) + [ft2fo(4, 8, C_SBZ)],
+    expect_rf={4: FO_1}))
 
 # ── convert_ff rounding modes (results distinguishable) ───────────────────
 # tie = 1 + 2^-24 exactly between f32 neighbours 1.0 (even) and 1+2^-23
 CASES.append(value_case(
     "FF21 fo2ft RNE tie -> lower (even)",
-    set_round_mode(RNE) + set_rf(8, 0x3FF0000010000000) + [fo2ft(4, 8, 1)],
+    set_round_mode(RNE) + set_rf(8, 0x3FF0000010000000) + [fo2ft(4, 8, C_DYN)],
     expect_rf={4: FT_1, 0: rf0_with(RNE, NX)}))
 CASES.append(value_case(
     "FF22 fo2ft RUP tie -> upper",
-    set_round_mode(RUP) + set_rf(8, 0x3FF0000010000000) + [fo2ft(4, 8, 1)],
+    set_round_mode(RUP) + set_rf(8, 0x3FF0000010000000) + [fo2ft(4, 8, C_DYN)],
     expect_rf={4: 0x3F800001, 0: rf0_with(RUP, NX)}))
 CASES.append(value_case(
     "FF23 fo2ft RTZ tie -> lower",
-    set_round_mode(RTZ) + set_rf(8, 0x3FF0000010000000) + [fo2ft(4, 8, 1)],
+    set_round_mode(RTZ) + set_rf(8, 0x3FF0000010000000) + [fo2ft(4, 8, C_DYN)],
     expect_rf={4: FT_1, 0: rf0_with(RTZ, NX)}))
 CASES.append(value_case(
     "FF24 fo2ft RDN positive tie -> lower",
-    set_round_mode(RDN) + set_rf(8, 0x3FF0000010000000) + [fo2ft(4, 8, 1)],
+    set_round_mode(RDN) + set_rf(8, 0x3FF0000010000000) + [fo2ft(4, 8, C_DYN)],
     expect_rf={4: FT_1, 0: rf0_with(RDN, NX)}))
 CASES.append(value_case(
     "FF25 fo2ft RNE above tie -> upper",
-    set_round_mode(RNE) + set_rf(8, 0x3FF0000010400000) + [fo2ft(4, 8, 1)],
+    set_round_mode(RNE) + set_rf(8, 0x3FF0000010400000) + [fo2ft(4, 8, C_DYN)],
     expect_rf={4: 0x3F800001, 0: rf0_with(RNE, NX)}))
 CASES.append(value_case(
     "FF26 fo2ft RTZ above tie -> lower",
-    set_round_mode(RTZ) + set_rf(8, 0x3FF0000010400000) + [fo2ft(4, 8, 1)],
+    set_round_mode(RTZ) + set_rf(8, 0x3FF0000010400000) + [fo2ft(4, 8, C_DYN)],
     expect_rf={4: FT_1, 0: rf0_with(RTZ, NX)}))
 CASES.append(value_case(
     "FF27 fo2ft RDN negative tie -> more negative",
-    set_round_mode(RDN) + set_rf(8, 0xBFF0000010000000) + [fo2ft(4, 8, 1)],
+    set_round_mode(RDN) + set_rf(8, 0xBFF0000010000000) + [fo2ft(4, 8, C_DYN)],
     expect_rf={4: 0xBF800001, 0: rf0_with(RDN, NX)}))
 CASES.append(value_case(
     "FF28 fo2ft RUP negative tie -> toward zero",
-    set_round_mode(RUP) + set_rf(8, 0xBFF0000010000000) + [fo2ft(4, 8, 1)],
+    set_round_mode(RUP) + set_rf(8, 0xBFF0000010000000) + [fo2ft(4, 8, C_DYN)],
     expect_rf={4: 0xBF800000, 0: rf0_with(RUP, NX)}))
 
 # ── convert_ff legality ───────────────────────────────────────────────────
-CASES.append(Case("FL01 ft2fo partial overlap -> ILLI",
-                  [ft2fo(4, 3, 3)], expect_exit=ILLI_EXIT))
-CASES.append(Case("FL02 ft2fo complete coincidence -> ILLI",
-                  [ft2fo(4, 4, 3)], expect_exit=ILLI_EXIT))
+CASES.append(Case("FL01 ft2fo non-zero SBZ -> ILLI",
+                  [ft2fo(4, 8, 1)], expect_exit=ILLI_EXIT))
+CASES.append(Case("FL02 ft2fo dynamic code is not SBZ -> ILLI",
+                  [ft2fo(4, 8, 0x20)], expect_exit=ILLI_EXIT))
 CASES.append(Case("FL03 ft2ft complete coincidence -> ILLI",
                   [ft2ft(4, 4, 3)], expect_exit=ILLI_EXIT))
-CASES.append(Case("FL04 fo2ft overlap (src inside dest) -> ILLI",
-                  [fo2ft(4, 4, 2)], expect_exit=ILLI_EXIT))
+CASES.append(Case("FL04 fo2ft non-one-hot code 3 -> ILLI",
+                  [fo2ft(4, 8, 3)], expect_exit=ILLI_EXIT))
 CASES.append(Case("FL05 fo2fo overlap (dest inside src) -> ILLI",
                   [fo2fo(5, 4, 3)], expect_exit=ILLI_EXIT))
 CASES.append(Case("FL06 ft2fo dst rf0 -> ILLI",
-                  [ft2fo(0, 8, 1)], expect_exit=ILLI_EXIT))
+                  [ft2fo(0, 8, C_SBZ)], expect_exit=ILLI_EXIT))
 CASES.append(Case("FL07 ft2ft dst rf0 -> ILLI",
                   [ft2ft(0, 8, 1)], expect_exit=ILLI_EXIT))
 CASES.append(Case("FL08 fo2ft dst rf0 -> ILLI",
-                  [fo2ft(0, 8, 1)], expect_exit=ILLI_EXIT))
+                  [fo2ft(0, 8, C_RNE)], expect_exit=ILLI_EXIT))
 CASES.append(Case("FL09 fo2fo dst rf0 -> ILLI",
                   [fo2fo(0, 8, 1)], expect_exit=ILLI_EXIT))
-CASES.append(Case("FL10 ft2fo immu6=0 -> ILLI",
-                  [ft2fo(4, 8, 0)], expect_exit=ILLI_EXIT))
-CASES.append(Case("FL11 ft2fo dest 62+4>64 -> ILLI",
-                  [ft2fo(62, 8, 4)], expect_exit=ILLI_EXIT))
-CASES.append(Case("FL12 ft2fo src 62+4>64 -> ILLI",
-                  [ft2fo(4, 62, 4)], expect_exit=ILLI_EXIT))
+CASES.append(Case("FL10 fo2ft one-hot code 0 -> ILLI",
+                  [fo2ft(4, 8, 0)], expect_exit=ILLI_EXIT))
+CASES.append(Case("FL11 fo2ft one-hot code 0x40 -> ILLI",
+                  [fo2ft(4, 8, 0x40)], expect_exit=ILLI_EXIT))
+CASES.append(Case("FL12 ft2fo non-zero SBZ 0x02 -> ILLI",
+                  [ft2fo(4, 8, 0x02)], expect_exit=ILLI_EXIT))
 
 # ══════════════════════════════════════════════════════════════════════════
 #  convert_f2i value cases
 # ══════════════════════════════════════════════════════════════════════════
 
 CASES.append(value_case(
-    "FI01 ft2it 2.75 -> 2 (truncate, no NX)",
-    set_rf(8, FT_2_75) + [ft2it(4, 8, 1)],
-    expect_rd={4: 2}, expect_rf={0: rf0_with()}))
+    "FI01 ft2it 2.75 -> 2 (truncate + NX)",
+    set_rf(8, FT_2_75) + [ft2it(4, 8, C_RTZ)],
+    expect_rd={4: 2}, expect_rf={0: rf0_with(0, NX)}))
 CASES.append(value_case(
-    "FI02 ft2it -2.75 -> -2 (truncate toward zero)",
-    set_rf(8, FT_N2_75) + [ft2it(4, 8, 1)],
-    expect_rd={4: 0xFFFFFFFFFFFFFFFE}))
+    "FI02 ft2it -2.75 -> -2 (truncate toward zero + NX)",
+    set_rf(8, FT_N2_75) + [ft2it(4, 8, C_RTZ)],
+    expect_rd={4: 0xFFFFFFFFFFFFFFFE}, expect_rf={0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "FI03 ft2it qNaN -> INT32_MAX + NV",
-    set_rf(8, FT_QNAN) + [ft2it(4, 8, 1)],
+    set_rf(8, FT_QNAN) + [ft2it(4, 8, C_RTZ)],
     expect_rd={4: INT32_MAX}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
     "FI04 ft2it +Inf -> INT32_MAX + NV",
-    set_rf(8, 0x7F800000) + [ft2it(4, 8, 1)],
+    set_rf(8, 0x7F800000) + [ft2it(4, 8, C_RTZ)],
     expect_rd={4: INT32_MAX}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
     "FI05 ft2it -Inf -> INT32_MIN (sign-extended) + NV",
-    set_rf(8, 0xFF800000) + [ft2it(4, 8, 1)],
+    set_rf(8, 0xFF800000) + [ft2it(4, 8, C_RTZ)],
     expect_rd={4: INT32_MIN_SEXT}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
     "FI06 ft2it 3.0e9 overflow -> INT32_MAX + NV",
-    set_rf(8, FT_3E9) + [ft2it(4, 8, 1)],
+    set_rf(8, FT_3E9) + [ft2it(4, 8, C_RTZ)],
     expect_rd={4: INT32_MAX}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
-    "FI07 ft2it subnormal 2^-149 -> 0 (no NX)",
-    set_rf(8, FT_SUB) + [ft2it(4, 8, 1)],
-    expect_rd={4: 0}, expect_rf={0: rf0_with()}))
+    "FI07 ft2it subnormal 2^-149 -> 0 + NX",
+    set_rf(8, FT_SUB) + [ft2it(4, 8, C_RTZ)],
+    expect_rd={4: 0}, expect_rf={0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "FI08 ft2io 2.75 -> 2",
-    set_rf(8, FT_2_75) + [ft2io(4, 8, 1)],
-    expect_rd={4: 2}))
+    set_rf(8, FT_2_75) + [ft2io(4, 8, C_RTZ)],
+    expect_rd={4: 2}, expect_rf={0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "FI09 ft2io 3.0e9 -> 3000000000",
-    set_rf(8, FT_3E9) + [ft2io(4, 8, 1)],
+    set_rf(8, FT_3E9) + [ft2io(4, 8, C_RTZ)],
     expect_rd={4: 3000000000}))
 CASES.append(value_case(
     "FI10 ft2io +Inf -> INT64_MAX + NV",
-    set_rf(8, 0x7F800000) + [ft2io(4, 8, 1)],
+    set_rf(8, 0x7F800000) + [ft2io(4, 8, C_RTZ)],
     expect_rd={4: INT64_MAX}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
     "FI11 ft2io -Inf -> INT64_MIN + NV",
-    set_rf(8, 0xFF800000) + [ft2io(4, 8, 1)],
+    set_rf(8, 0xFF800000) + [ft2io(4, 8, C_RTZ)],
     expect_rd={4: INT64_MIN}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
     "FI12 ft2io 1.0e30 overflow -> INT64_MAX + NV",
-    set_rf(8, FT_1E30) + [ft2io(4, 8, 1)],
+    set_rf(8, FT_1E30) + [ft2io(4, 8, C_RTZ)],
     expect_rd={4: INT64_MAX}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
-    "FI13 ft2ut 2.75 -> 2",
-    set_rf(8, FT_2_75) + [ft2ut(4, 8, 1)],
-    expect_rd={4: 2}))
+    "FI13 ft2ut 2.75 -> 2 + NX",
+    set_rf(8, FT_2_75) + [ft2ut(4, 8, C_RTZ)],
+    expect_rd={4: 2}, expect_rf={0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "FI14 ft2ut -2.75 -> 0 + NV",
-    set_rf(8, FT_N2_75) + [ft2ut(4, 8, 1)],
+    set_rf(8, FT_N2_75) + [ft2ut(4, 8, C_RTZ)],
     expect_rd={4: 0}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
     "FI15 ft2ut qNaN -> UINT32_MAX + NV",
-    set_rf(8, FT_QNAN) + [ft2ut(4, 8, 1)],
+    set_rf(8, FT_QNAN) + [ft2ut(4, 8, C_RTZ)],
     expect_rd={4: UINT32_MAX}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
     "FI16 ft2ut 1.0e10 overflow -> UINT32_MAX + NV",
-    set_rf(8, FT_1E10) + [ft2ut(4, 8, 1)],
+    set_rf(8, FT_1E10) + [ft2ut(4, 8, C_RTZ)],
     expect_rd={4: UINT32_MAX}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
-    "FI17 ft2uo 2.75 -> 2",
-    set_rf(8, FT_2_75) + [ft2uo(4, 8, 1)],
-    expect_rd={4: 2}))
+    "FI17 ft2uo 2.75 -> 2 + NX",
+    set_rf(8, FT_2_75) + [ft2uo(4, 8, C_RTZ)],
+    expect_rd={4: 2}, expect_rf={0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "FI18 ft2uo -2.75 -> 0 + NV",
-    set_rf(8, FT_N2_75) + [ft2uo(4, 8, 1)],
+    set_rf(8, FT_N2_75) + [ft2uo(4, 8, C_RTZ)],
     expect_rd={4: 0}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
     "FI19 ft2uo -Inf -> 0 + NV",
-    set_rf(8, 0xFF800000) + [ft2uo(4, 8, 1)],
+    set_rf(8, 0xFF800000) + [ft2uo(4, 8, C_RTZ)],
     expect_rd={4: 0}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
     "FI20 ft2uo 1.0e30 overflow -> UINT64_MAX + NV",
-    set_rf(8, FT_1E30) + [ft2uo(4, 8, 1)],
+    set_rf(8, FT_1E30) + [ft2uo(4, 8, C_RTZ)],
     expect_rd={4: UINT64_MAX}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
-    "FI21 fo2it 2.75 -> 2",
-    set_rf(8, FO_2_75) + [fo2it(4, 8, 1)],
-    expect_rd={4: 2}))
+    "FI21 fo2it 2.75 -> 2 + NX",
+    set_rf(8, FO_2_75) + [fo2it(4, 8, C_RTZ)],
+    expect_rd={4: 2}, expect_rf={0: rf0_with(0, NX)}))
 CASES.append(value_case(
-    "FI22 fo2it -2.75 -> -2",
-    set_rf(8, FO_N2_75) + [fo2it(4, 8, 1)],
-    expect_rd={4: 0xFFFFFFFFFFFFFFFE}))
+    "FI22 fo2it -2.75 -> -2 + NX",
+    set_rf(8, FO_N2_75) + [fo2it(4, 8, C_RTZ)],
+    expect_rd={4: 0xFFFFFFFFFFFFFFFE}, expect_rf={0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "FI23 fo2it qNaN -> INT32_MAX + NV",
-    set_rf(8, FO_QNAN_LOW) + [fo2it(4, 8, 1)],
+    set_rf(8, FO_QNAN_LOW) + [fo2it(4, 8, C_RTZ)],
     expect_rd={4: INT32_MAX}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
     "FI24 fo2it +Inf -> INT32_MAX + NV",
-    set_rf(8, 0x7FF0000000000000) + [fo2it(4, 8, 1)],
+    set_rf(8, 0x7FF0000000000000) + [fo2it(4, 8, C_RTZ)],
     expect_rd={4: INT32_MAX}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
     "FI25 fo2it -Inf -> INT32_MIN sign-extended + NV",
-    set_rf(8, 0xFFF0000000000000) + [fo2it(4, 8, 1)],
+    set_rf(8, 0xFFF0000000000000) + [fo2it(4, 8, C_RTZ)],
     expect_rd={4: INT32_MIN_SEXT}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
-    "FI26 fo2io 2.75 -> 2",
-    set_rf(8, FO_2_75) + [fo2io(4, 8, 1)],
-    expect_rd={4: 2}))
+    "FI26 fo2io 2.75 -> 2 + NX",
+    set_rf(8, FO_2_75) + [fo2io(4, 8, C_RTZ)],
+    expect_rd={4: 2}, expect_rf={0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "FI27 fo2io qNaN -> INT64_MAX + NV",
-    set_rf(8, FO_QNAN_LOW) + [fo2io(4, 8, 1)],
+    set_rf(8, FO_QNAN_LOW) + [fo2io(4, 8, C_RTZ)],
     expect_rd={4: INT64_MAX}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
     "FI28 fo2io 1.0e30 overflow -> INT64_MAX + NV",
-    set_rf(8, FO_1E30) + [fo2io(4, 8, 1)],
+    set_rf(8, FO_1E30) + [fo2io(4, 8, C_RTZ)],
     expect_rd={4: INT64_MAX}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
-    "FI29 fo2ut 2.75 -> 2",
-    set_rf(8, FO_2_75) + [fo2ut(4, 8, 1)],
-    expect_rd={4: 2}))
+    "FI29 fo2ut 2.75 -> 2 + NX",
+    set_rf(8, FO_2_75) + [fo2ut(4, 8, C_RTZ)],
+    expect_rd={4: 2}, expect_rf={0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "FI30 fo2ut qNaN -> UINT32_MAX + NV",
-    set_rf(8, FO_QNAN_LOW) + [fo2ut(4, 8, 1)],
+    set_rf(8, FO_QNAN_LOW) + [fo2ut(4, 8, C_RTZ)],
     expect_rd={4: UINT32_MAX}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
-    "FI31 fo2uo 2.75 -> 2",
-    set_rf(8, FO_2_75) + [fo2uo(4, 8, 1)],
-    expect_rd={4: 2}))
+    "FI31 fo2uo 2.75 -> 2 + NX",
+    set_rf(8, FO_2_75) + [fo2uo(4, 8, C_RTZ)],
+    expect_rd={4: 2}, expect_rf={0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "FI32 fo2uo qNaN -> UINT64_MAX + NV",
-    set_rf(8, FO_QNAN_LOW) + [fo2uo(4, 8, 1)],
+    set_rf(8, FO_QNAN_LOW) + [fo2uo(4, 8, C_RTZ)],
     expect_rd={4: UINT64_MAX}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
     "FI33 fo2uo -Inf -> 0 + NV",
-    set_rf(8, 0xFFF0000000000000) + [fo2uo(4, 8, 1)],
+    set_rf(8, 0xFFF0000000000000) + [fo2uo(4, 8, C_RTZ)],
     expect_rd={4: 0}, expect_rf={0: rf0_with(0, NV)}))
 CASES.append(value_case(
-    "FI34 ft2it block of 3 {rd4:rd6},{rf8:rf10}",
-    set_rf(8, FT_2_75) + set_rf(9, 0x40600000) + set_rf(10, 0xBFA00000) +
-    [ft2it(4, 8, 3)],
-    expect_rd={4: 2, 5: 3, 6: 0xFFFFFFFFFFFFFFFF}))
+    "FI34 ft2it 2.5 with static RNE -> 2 + NX (static beats default)",
+    set_rf(8, 0x40200000) + [ft2it(4, 8, C_RNE)],
+    expect_rd={4: 2}, expect_rf={0: rf0_with(0, NX)}))
 
 # ── convert_f2i legality ──────────────────────────────────────────────────
-CASES.append(Case("FJ01 ft2it immu6=0 -> ILLI",
+CASES.append(Case("FJ01 ft2it one-hot code 0 -> ILLI",
                   [ft2it(4, 8, 0)], expect_exit=ILLI_EXIT))
-CASES.append(Case("FJ02 ft2it dest rd62+4>64 -> ILLI",
-                  [ft2it(62, 8, 4)], expect_exit=ILLI_EXIT))
-CASES.append(Case("FJ03 ft2it src rf62+4>64 -> ILLI",
-                  [ft2it(4, 62, 4)], expect_exit=ILLI_EXIT))
-CASES.append(Case("FJ04 fo2uo immu6=0 -> ILLI",
+CASES.append(Case("FJ02 ft2it non-one-hot code 3 -> ILLI",
+                  [ft2it(4, 8, 3)], expect_exit=ILLI_EXIT))
+CASES.append(Case("FJ03 ft2it non-one-hot code 0x40 -> ILLI",
+                  [ft2it(4, 8, 0x40)], expect_exit=ILLI_EXIT))
+CASES.append(Case("FJ04 fo2uo one-hot code 0 -> ILLI",
                   [fo2uo(4, 8, 0)], expect_exit=ILLI_EXIT))
-CASES.append(Case("FJ05 fo2uo src rf63+2>64 -> ILLI",
-                  [fo2uo(4, 63, 2)], expect_exit=ILLI_EXIT))
+CASES.append(Case("FJ05 fo2uo non-one-hot code 3 -> ILLI",
+                  [fo2uo(4, 8, 3)], expect_exit=ILLI_EXIT))
 
 # ══════════════════════════════════════════════════════════════════════════
 #  convert_i2f value cases
@@ -953,132 +954,131 @@ CASES.append(Case("FJ05 fo2uo src rf63+2>64 -> ILLI",
 
 CASES.append(value_case(
     "IF01 it2ft 16 -> 16.0f (no flags)",
-    set_rd(8, 16) + [it2ft(4, 8, 1)],
+    set_rd(8, 16) + [it2ft(4, 8, C_RNE)],
     expect_rf={4: 0x41800000, 0: rf0_with()}))
 CASES.append(value_case(
     "IF02 it2ft -16 (rd=all ones..F0) -> -16.0f",
-    set_rd(8, 0xFFFFFFFFFFFFFFF0) + [it2ft(4, 8, 1)],
+    set_rd(8, 0xFFFFFFFFFFFFFFF0) + [it2ft(4, 8, C_RNE)],
     expect_rf={4: 0xC1800000}))
 CASES.append(value_case(
     "IF03 it2ft sign-extends source low 32 bits",
-    set_rd(8, 0x00000000FFFFFFF0) + [it2ft(4, 8, 1)],
+    set_rd(8, 0x00000000FFFFFFF0) + [it2ft(4, 8, C_RNE)],
     expect_rf={4: 0xC1800000}))
 CASES.append(value_case(
     "IF04 it2ft 2^24+1 -> RNE 2^24 (NX)",
-    set_rd(8, 0x01000001) + [it2ft(4, 8, 1)],
+    set_rd(8, 0x01000001) + [it2ft(4, 8, C_RNE)],
     expect_rf={4: 0x4B800000, 0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "IF05 it2ft 2^24+3 -> RNE 2^24+4 (NX)",
-    set_rd(8, 0x01000003) + [it2ft(4, 8, 1)],
+    set_rd(8, 0x01000003) + [it2ft(4, 8, C_RNE)],
     expect_rf={4: 0x4B800002, 0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "IF06 it2ft 2^24+3 RTZ -> 2^24+2 (NX)",
-    set_round_mode(RTZ) + set_rd(8, 0x01000003) + [it2ft(4, 8, 1)],
+    set_round_mode(RTZ) + set_rd(8, 0x01000003) + [it2ft(4, 8, C_DYN)],
     expect_rf={4: 0x4B800001, 0: rf0_with(RTZ, NX)}))
 CASES.append(value_case(
     "IF07 it2ft 2^24+3 RDN -> 2^24+2 (NX)",
-    set_round_mode(RDN) + set_rd(8, 0x01000003) + [it2ft(4, 8, 1)],
+    set_round_mode(RDN) + set_rd(8, 0x01000003) + [it2ft(4, 8, C_DYN)],
     expect_rf={4: 0x4B800001, 0: rf0_with(RDN, NX)}))
 CASES.append(value_case(
     "IF08 it2ft 2^24+3 RUP -> 2^24+4 (NX)",
-    set_round_mode(RUP) + set_rd(8, 0x01000003) + [it2ft(4, 8, 1)],
+    set_round_mode(RUP) + set_rd(8, 0x01000003) + [it2ft(4, 8, C_DYN)],
     expect_rf={4: 0x4B800002, 0: rf0_with(RUP, NX)}))
 CASES.append(value_case(
     "IF09 it2ft 0 -> +0.0f (no flags)",
-    set_rd(8, 0) + [it2ft(4, 8, 1)],
+    set_rd(8, 0) + [it2ft(4, 8, C_RNE)],
     expect_rf={4: 0x00000000, 0: rf0_with()}))
 CASES.append(value_case(
     "IF10 io2ft -16 -> -16.0f",
-    set_rd(8, 0xFFFFFFFFFFFFFFF0) + [io2ft(4, 8, 1)],
+    set_rd(8, 0xFFFFFFFFFFFFFFF0) + [io2ft(4, 8, C_RNE)],
     expect_rf={4: 0xC1800000}))
 CASES.append(value_case(
     "IF11 io2ft 2^24+1 -> RNE 2^24 (NX)",
-    set_rd(8, 0x01000001) + [io2ft(4, 8, 1)],
+    set_rd(8, 0x01000001) + [io2ft(4, 8, C_RNE)],
     expect_rf={4: 0x4B800000, 0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "IF12 ut2ft 0xFFFFFFFF -> 2^32 (NX)",
-    set_rd(8, 0xFFFFFFFF) + [ut2ft(4, 8, 1)],
+    set_rd(8, 0xFFFFFFFF) + [ut2ft(4, 8, C_RNE)],
     expect_rf={4: 0x4F800000, 0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "IF13 ut2ft 2^28 -> exact (no flags)",
-    set_rd(8, 0x10000000) + [ut2ft(4, 8, 1)],
+    set_rd(8, 0x10000000) + [ut2ft(4, 8, C_RNE)],
     expect_rf={4: 0x4D800000, 0: rf0_with()}))
 CASES.append(value_case(
     "IF14 uo2ft 2^64-1 -> 2^64 (NX)",
-    set_rd(8, UINT64_MAX) + [uo2ft(4, 8, 1)],
+    set_rd(8, UINT64_MAX) + [uo2ft(4, 8, C_RNE)],
     expect_rf={4: 0x5F800000, 0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "IF15 it2fo -16 -> -16.0d",
-    set_rd(8, 0xFFFFFFFFFFFFFFF0) + [it2fo(4, 8, 1)],
+    set_rd(8, 0xFFFFFFFFFFFFFFF0) + [it2fo(4, 8, C_SBZ)],
     expect_rf={4: 0xC030000000000000}))
 CASES.append(value_case(
     "IF16 it2fo INT32_MAX -> exact double (no flags)",
-    set_rd(8, INT32_MAX) + [it2fo(4, 8, 1)],
+    set_rd(8, INT32_MAX) + [it2fo(4, 8, C_SBZ)],
     expect_rf={4: 0x41DFFFFFFFC00000, 0: rf0_with()}))
 CASES.append(value_case(
     "IF17 io2fo -16 -> -16.0d",
-    set_rd(8, 0xFFFFFFFFFFFFFFF0) + [io2fo(4, 8, 1)],
+    set_rd(8, 0xFFFFFFFFFFFFFFF0) + [io2fo(4, 8, C_RNE)],
     expect_rf={4: 0xC030000000000000}))
 CASES.append(value_case(
     "IF18 io2fo 2^53+1 -> RNE 2^53 (NX)",
-    set_rd(8, 0x0020000000000001) + [io2fo(4, 8, 1)],
+    set_rd(8, 0x0020000000000001) + [io2fo(4, 8, C_RNE)],
     expect_rf={4: 0x4340000000000000, 0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "IF19 io2fo 2^53 -> exact (no flags)",
-    set_rd(8, 0x0020000000000000) + [io2fo(4, 8, 1)],
+    set_rd(8, 0x0020000000000000) + [io2fo(4, 8, C_RNE)],
     expect_rf={4: 0x4340000000000000, 0: rf0_with()}))
 CASES.append(value_case(
     "IF20 ut2fo 0xFFFFFFFF -> 4294967295.0d exact",
-    set_rd(8, 0xFFFFFFFF) + [ut2fo(4, 8, 1)],
+    set_rd(8, 0xFFFFFFFF) + [ut2fo(4, 8, C_SBZ)],
     expect_rf={4: 0x41EFFFFFFFE00000, 0: rf0_with()}))
 CASES.append(value_case(
     "IF21 uo2fo 2^64-1 -> RNE 2^64 (NX)",
-    set_rd(8, UINT64_MAX) + [uo2fo(4, 8, 1)],
+    set_rd(8, UINT64_MAX) + [uo2fo(4, 8, C_RNE)],
     expect_rf={4: 0x43F0000000000000, 0: rf0_with(0, NX)}))
 CASES.append(value_case(
-    "IF22 it2ft block of 3 {rf4:rf6},{rd8:rd10}",
-    set_rd(8, 16) + set_rd(9, 0xFFFFFFFFFFFFFFF0) + set_rd(10, 0) +
-    [it2ft(4, 8, 3)],
-    expect_rf={4: 0x41800000, 5: 0xC1800000, 6: 0x00000000}))
+    "IF22 it2ft 2^24+3 with static RUP -> 2^24+4 (NX)",
+    set_rd(8, 0x01000003) + [it2ft(4, 8, C_RUP)],
+    expect_rf={4: 0x4B800002, 0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "IF23 it2ft ignores source high 32 bits",
-    set_rd(8, 0xDEADBEEF00000010) + [it2ft(4, 8, 1)],
+    set_rd(8, 0xDEADBEEF00000010) + [it2ft(4, 8, C_RNE)],
     expect_rf={4: 0x41800000}))
 CASES.append(value_case(
     "IF24 uo2ft uses all 64 source bits",
-    set_rd(8, UINT64_MAX) + [uo2ft(4, 8, 1)],
+    set_rd(8, UINT64_MAX) + [uo2ft(4, 8, C_RNE)],
     expect_rf={4: 0x5F800000, 0: rf0_with(0, NX)}))
 CASES.append(value_case(
     "IF25 it2ft source rd0 reads as 0 -> +0.0f",
-    [it2ft(4, 0, 1)],
+    [it2ft(4, 0, C_RNE)],
     expect_rf={4: 0x00000000, 0: rf0_with()}))
 
 # ── convert_i2f legality ──────────────────────────────────────────────────
 CASES.append(Case("IG01 it2ft dst rf0 -> ILLI",
-                  [it2ft(0, 8, 1)], expect_exit=ILLI_EXIT))
+                  [it2ft(0, 8, C_RNE)], expect_exit=ILLI_EXIT))
 CASES.append(Case("IG02 it2fo dst rf0 -> ILLI",
-                  [it2fo(0, 8, 1)], expect_exit=ILLI_EXIT))
-CASES.append(Case("IG03 it2ft immu6=0 -> ILLI",
+                  [it2fo(0, 8, C_SBZ)], expect_exit=ILLI_EXIT))
+CASES.append(Case("IG03 it2ft one-hot code 0 -> ILLI",
                   [it2ft(4, 8, 0)], expect_exit=ILLI_EXIT))
-CASES.append(Case("IG04 it2ft dest rf62+4>64 -> ILLI",
-                  [it2ft(62, 8, 4)], expect_exit=ILLI_EXIT))
-CASES.append(Case("IG05 it2ft src rd62+4>64 -> ILLI",
-                  [it2ft(4, 62, 4)], expect_exit=ILLI_EXIT))
+CASES.append(Case("IG04 it2ft non-one-hot code 3 -> ILLI",
+                  [it2ft(4, 8, 3)], expect_exit=ILLI_EXIT))
+CASES.append(Case("IG05 it2ft non-one-hot code 0x40 -> ILLI",
+                  [it2ft(4, 8, 0x40)], expect_exit=ILLI_EXIT))
 CASES.append(Case("IG06 ut2fo dst rf0 -> ILLI",
-                  [ut2fo(0, 8, 1)], expect_exit=ILLI_EXIT))
+                  [ut2fo(0, 8, C_SBZ)], expect_exit=ILLI_EXIT))
 
 # ── E2E cases (in-ROM compare + SYS_EXIT) ────────────────────────────────
-_e1 = (set_rf(8, FT_1_5) + [ft2fo(4, 8, 1)] + [rf2rd(20, 4, 1)] +
+_e1 = (set_rf(8, FT_1_5) + [ft2fo(4, 8, C_SBZ)] + [rf2rd(20, 4, 1)] +
        load_imm64_rd(22, FO_1_5) + e2e_epilogue([(20, 22, 24)], 0x45))
 CASES.append(Case("E1 ft2fo 1.5f -> 1.5d (SYS_EXIT assertion)", _e1,
                   expect_exit=PASS_EXIT, e2e=True))
 
-_e2 = (set_rd(8, 16) + [it2ft(4, 8, 1)] + [rf2rd(20, 4, 1)] +
+_e2 = (set_rd(8, 16) + [it2ft(4, 8, C_RNE)] + [rf2rd(20, 4, 1)] +
        load_imm64_rd(22, 0x41800000) + e2e_epilogue([(20, 22, 24)], 0x46))
 CASES.append(Case("E2 it2ft 16 -> 16.0f (SYS_EXIT assertion)", _e2,
                   expect_exit=PASS_EXIT, e2e=True))
 
-_e3 = (set_rf(8, FT_2_75) + [ft2it(4, 8, 1)] +
+_e3 = (set_rf(8, FT_2_75) + [ft2it(4, 8, C_RTZ)] +
        load_imm64_rd(22, 2) + e2e_epilogue([(4, 22, 24)], 0x47))
 CASES.append(Case("E3 ft2it 2.75 -> 2 (SYS_EXIT assertion)", _e3,
                   expect_exit=PASS_EXIT, e2e=True))
@@ -1137,33 +1137,33 @@ def selftest():
 
     # 1. RF value comparison (wrong expected rf value)
     c1 = value_case("selftest rf-value",
-                    set_rf(8, FT_1) + [ft2fo(4, 8, 1)],
+                    set_rf(8, FT_1) + [ft2fo(4, 8, C_SBZ)],
                     expect_rf={4: 0x0000000000000000})
     ok1, _ = run_case(c1)
     results.append(("RF value comparison FAIL path", ok1 is False))
 
     # 2. RF flags comparison (wrong expected FCSR flags)
     c2 = value_case("selftest rf-flags",
-                    set_rf(8, FO_DBL_MAX) + [fo2ft(4, 8, 1)],
+                    set_rf(8, FO_DBL_MAX) + [fo2ft(4, 8, C_RNE)],
                     expect_rf={4: 0x7F800000, 0: rf0_with()})
     ok2, _ = run_case(c2)
     results.append(("FCSR flags comparison FAIL path", ok2 is False))
 
     # 3. RD value comparison (wrong expected rd value)
     c3 = value_case("selftest rd-value",
-                    set_rf(8, FT_2_75) + [ft2it(4, 8, 1)],
+                    set_rf(8, FT_2_75) + [ft2it(4, 8, C_RTZ)],
                     expect_rd={4: 0})
     ok3, _ = run_case(c3)
     results.append(("RD value comparison FAIL path", ok3 is False))
 
     # 4. fault case: a legal conversion expected to fault runs to completion and
     #    exits 0 != ILLI, so the (wrong) fault expectation must be detected.
-    c4 = Case("selftest fault", [ft2fo(4, 8, 1)], expect_exit=ILLI_EXIT)
+    c4 = Case("selftest fault", [ft2fo(4, 8, C_SBZ)], expect_exit=ILLI_EXIT)
     ok4, _ = run_case(c4)
     results.append(("fault exit-code FAIL path", ok4 is False))
 
     # 5. E2E SYS_EXIT assertion (wrong expected -> FAIL arm -> exit != 0)
-    insns = (set_rf(8, FT_2_75) + [ft2it(4, 8, 1)] +
+    insns = (set_rf(8, FT_2_75) + [ft2it(4, 8, C_RTZ)] +
              load_imm64_rd(22, 0) + e2e_epilogue([(4, 22, 24)], 0x48))
     c5 = Case("selftest e2e", insns, expect_exit=PASS_EXIT, e2e=True)
     ok5, _ = run_case(c5)

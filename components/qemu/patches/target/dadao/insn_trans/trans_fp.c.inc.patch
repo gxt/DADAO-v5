@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..13e82d9
+index 0000000..fd82499
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
-@@ -0,0 +1,1110 @@
+@@ -0,0 +1,1154 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/*
 + * DADAO FP (rf) instruction translation routines.
@@ -604,76 +604,120 @@ index 0000000..13e82d9
 +    FP_I2F_IT2FO,    FP_I2F_IO2FO, FP_I2F_UT2FO, FP_I2F_UO2FO,
 +};
 +
++/* ADR-0050 D2: the low 6 bits of a result-dependent conversion are six-way
++ * one-hot: 0x01 RNE / 0x02 RNA / 0x04 RTZ / 0x08 RUP / 0x10 RDN / 0x20
++ * dynamic.  Any other value (including 0x00) is ILLI. */
++static bool conv_onehot(uint32_t code)
++{
++    return code == 0x01 || code == 0x02 || code == 0x04 || code == 0x08 ||
++           code == 0x10 || code == 0x20;
++}
++
++static bool conv_check_onehot(DisasContext *ctx, uint32_t code)
++{
++    if (!conv_onehot(code)) {
++        gen_exception_illegal(ctx);
++        return false;
++    }
++    return true;
++}
++
++/* ADR-0050 D3: exact conversions have a zero low-6-bit field (SBZ). */
++static bool conv_check_sbz(DisasContext *ctx, uint32_t code)
++{
++    if (code != 0) {
++        gen_exception_illegal(ctx);
++        return false;
++    }
++    return true;
++}
++
++/* Packed conversion operand for the helpers: kind in the low 8 bits, the
++ * 6-bit direction field in bits [15:8]. */
++static uint32_t conv_packed(uint32_t kind, uint32_t code)
++{
++    return kind | (code << 8);
++}
++
 +/* convert_ff: destination rf (a->hb), source rf (a->hc). `move` selects the
-+ * same-format register move (ft2ft/fo2fo), which is a plain 64-bit move. */
++ * same-format pure copy (ft2ft/fo2fo), which keeps the 1..63 element count
++ * (ADR-0050 D4).  The two real conversions are single-register forms:
++ * `ft2fo` is exact (SBZ) and `fo2ft` carries a one-hot direction. */
 +static bool gen_convert_ff(DisasContext *ctx, arg_misc *a,
 +                           uint32_t kind, bool move)
 +{
 +    if (!fp_check_dst_rf0(ctx, a->hb)) {
 +        return true;
 +    }
-+    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rfHB */
-+        return true;
-+    }
-+    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rfHC */
-+        return true;
-+    }
-+    if (!fp_check_mreg_overlap(ctx, a->hb, a->hc, a->hd)) {
-+        return true;
-+    }
-+    for (int i = 0; i < a->hd; i++) {
-+        TCGv_i64 src = load_rf(a->hc + i);
-+        TCGv_i64 res = tcg_temp_new_i64();
-+        if (move) {
-+            tcg_gen_mov_i64(res, src);
-+        } else {
-+            gen_helper_fp_cvt_ff(res, tcg_env, src,
-+                                 tcg_constant_i32(kind));
++    if (move) {
++        if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rfHB */
++            return true;
 +        }
-+        store_rf(a->hb + i, res);
++        if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rfHC */
++            return true;
++        }
++        if (!fp_check_mreg_overlap(ctx, a->hb, a->hc, a->hd)) {
++            return true;
++        }
++        for (int i = 0; i < a->hd; i++) {
++            TCGv_i64 src = load_rf(a->hc + i);
++            store_rf(a->hb + i, src);
++        }
++        return true;
 +    }
++    if (kind == FP_FF_FT2FO) {
++        if (!conv_check_sbz(ctx, a->hd)) {
++            return true;
++        }
++    } else if (!conv_check_onehot(ctx, a->hd)) {
++        return true;
++    }
++    TCGv_i64 src = load_rf(a->hc);
++    TCGv_i64 res = tcg_temp_new_i64();
++    gen_helper_fp_cvt_ff(res, tcg_env, src,
++                         tcg_constant_i32(conv_packed(kind, a->hd)));
++    store_rf(a->hb, res);
 +    return true;
 +}
 +
-+/* convert_f2i: destination rd (a->hb), source rf (a->hc). */
++/* convert_f2i: destination rd (a->hb), source rf (a->hc); single register, the
++ * low 6 bits are the six-way one-hot rounding direction (ADR-0050 D2). */
 +static bool gen_convert_f2i(DisasContext *ctx, arg_misc *a, uint32_t kind)
 +{
 +    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
 +        return true;
 +    }
-+    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rdHB */
++    if (!conv_check_onehot(ctx, a->hd)) {
 +        return true;
 +    }
-+    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rfHC */
-+        return true;
-+    }
-+    for (int i = 0; i < a->hd; i++) {
-+        TCGv_i64 src = load_rf(a->hc + i);
-+        TCGv_i64 res = tcg_temp_new_i64();
-+        gen_helper_fp_cvt_f2i(res, tcg_env, src, tcg_constant_i32(kind));
-+        store_rd(a->hb + i, res);
-+    }
++    TCGv_i64 src = load_rf(a->hc);
++    TCGv_i64 res = tcg_temp_new_i64();
++    gen_helper_fp_cvt_f2i(res, tcg_env, src,
++                          tcg_constant_i32(conv_packed(kind, a->hd)));
++    store_rd(a->hb, res);
 +    return true;
 +}
 +
-+/* convert_i2f: destination rf (a->hb), source rd (a->hc). */
++/* convert_i2f: destination rf (a->hb), source rd (a->hc).  Single register:
++ * the 6 inexact conversions take a one-hot direction, the two 32-bit exact
++ * ones (`it2fo`/`ut2fo`) require SBZ 0 (ADR-0050 D2/D3). */
 +static bool gen_convert_i2f(DisasContext *ctx, arg_misc *a, uint32_t kind)
 +{
 +    if (!fp_check_dst_rf0(ctx, a->hb)) {
 +        return true;
 +    }
-+    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rfHB */
++    if (kind == FP_I2F_IT2FO || kind == FP_I2F_UT2FO) {
++        if (!conv_check_sbz(ctx, a->hd)) {
++            return true;
++        }
++    } else if (!conv_check_onehot(ctx, a->hd)) {
 +        return true;
 +    }
-+    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rdHC */
-+        return true;
-+    }
-+    for (int i = 0; i < a->hd; i++) {
-+        TCGv_i64 src = load_rd(a->hc + i);
-+        TCGv_i64 res = tcg_temp_new_i64();
-+        gen_helper_fp_cvt_i2f(res, tcg_env, src, tcg_constant_i32(kind));
-+        store_rf(a->hb + i, res);
-+    }
++    TCGv_i64 src = load_rd(a->hc);
++    TCGv_i64 res = tcg_temp_new_i64();
++    gen_helper_fp_cvt_i2f(res, tcg_env, src,
++                          tcg_constant_i32(conv_packed(kind, a->hd)));
++    store_rf(a->hb, res);
 +    return true;
 +}
 +

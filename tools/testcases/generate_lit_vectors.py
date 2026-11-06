@@ -112,14 +112,20 @@ FAST_FILE = os.path.join(REPO, "tests", "unit", "llvm", "lit", "MC", "DADAO", "g
 FULL_DIR = os.path.join(REPO, "tests", "unit", "llvm", "lit", "MC", "DADAO-gen")
 
 # ── 操作数形态分类（用于「受控子集」机械选取；不手工挑拣）──────────────
-# orri 的「多寄存器块赋值/格式转换」形态：目的/源均为 {start:end} 组，
-# immu6 = 连续寄存器个数。其余 orri 为「立即数」形态。
+# orri 的「多寄存器块赋值/纯复制」形态：目的/源均为 {start:end} 组，
+# immu6 = 连续寄存器个数（ADR-0050 D4）。其余 orri 为「立即数」形态。
 ORRI_BLOCK = {
     "rd2rd", "rd2ra", "ra2rd", "rb2rb", "rd2rb", "rb2rd", "rd2rf", "rf2rd",
-    "ft2fo", "ft2ft", "fo2ft", "fo2fo", "ftcls", "focls",
-    "it2ft", "io2ft", "ut2ft", "uo2ft", "it2fo", "io2fo", "ut2fo", "uo2fo",
+    "ft2ft", "fo2fo", "ftcls", "focls",
+}
+# 结果依赖舍入的 15 条格式转换（ADR-0050 D2）：单寄存器 + 六档 one-hot；
+# 正例统一取 RTZ 0x04。
+ORRI_ONEHOT = {
+    "it2ft", "io2ft", "ut2ft", "uo2ft", "io2fo", "uo2fo", "fo2ft",
     "ft2it", "ft2io", "ft2ut", "ft2uo", "fo2it", "fo2io", "fo2ut", "fo2uo",
 }
+# 3 条精确格式转换（ADR-0050 D3）：低 6 位 SBZ，必须为 0。
+ORRI_SBZ = {"ft2fo", "it2fo", "ut2fo"}
 # ftroot/foroot：spec §7 用「标量 3 操作数」形态，immu6 = n（仅 n=2）。
 ORRI_ROOTN = {"ftroot", "foroot"}
 
@@ -318,6 +324,14 @@ def _build_positive(rec):
             # {dst:…}, {src:…}，count=1
             return ("%s {%s}, {%s}" % (mn, _reg(a["bank"], 8), _reg(b["bank"], 9)),
                     {a["name"]: 8, b["name"]: 9, c["name"]: 1}, "orri-block")
+        if mn in ORRI_ONEHOT:
+            # 单寄存器，低 6 位 = 六档 one-hot（示例取 RTZ 0x04）
+            return ("%s %s, %s, 4" % (mn, _reg(a["bank"], 8), _reg(b["bank"], 9)),
+                    {a["name"]: 8, b["name"]: 9, c["name"]: 4}, "orri-onehot")
+        if mn in ORRI_SBZ:
+            # 单寄存器，低 6 位 SBZ = 0
+            return ("%s %s, %s, 0" % (mn, _reg(a["bank"], 8), _reg(b["bank"], 9)),
+                    {a["name"]: 8, b["name"]: 9, c["name"]: 0}, "orri-sbz")
         # 立即数形态：ext./shr./shl. dst, src, imm
         return ("%s %s, %s, 1" % (mn, _reg(a["bank"], 8), _reg(b["bank"], 9)),
                 {a["name"]: 8, b["name"]: 9, c["name"]: 1}, "orri-imm")

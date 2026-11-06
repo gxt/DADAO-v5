@@ -111,10 +111,63 @@ def classify(fmt, bits):
     return ofma.classify(mask_bits(fmt, bits), fmt)
 
 
+def _round_quantum_rna(a, sign):
+    """Round a >= 0 to an integer with RNA (nearest, ties away from zero)."""
+    fl = a.numerator // a.denominator
+    inexact = a.denominator != 1
+    rem = a - Fraction(1, 2)
+    fl_half = fl + rem  # floor + 1/2
+    if a > fl_half:
+        n = fl + 1
+    elif a < fl_half:
+        n = fl
+    else:
+        n = fl + 1 if sign == 0 else fl
+    return n, inexact
+
+
+def _encode_rna(value, fmt):
+    """Encode a Fraction with ties-away rounding (ADR-0050 D2, code 0x02)."""
+    f = FMT[fmt]
+    sign = 1 if value < 0 else 0
+    a = -value if value < 0 else value
+    if a == 0:
+        return sign << f["signpos"], 0
+    e = ofma.floor_log2(a)
+    if e > f["emax"]:
+        return _overflow_bits(fmt, sign, 0), F_OF | F_NX
+    if e >= f["emin"]:
+        q = a / (Fraction(2) ** (e - f["fracbits"]))
+        n, inexact = _round_quantum_rna(q, sign)
+        if n == (1 << f["p"]):
+            n >>= 1
+            e += 1
+            if e > f["emax"]:
+                return _overflow_bits(fmt, sign, 0), F_OF | F_NX
+        bits = ((sign << f["signpos"]) | ((e + f["bias"]) << f["fracbits"]) |
+                (n - (1 << f["fracbits"])))
+        return bits, (F_NX if inexact else 0)
+    q = a / (Fraction(2) ** (f["emin"] - f["fracbits"]))
+    n, inexact = _round_quantum_rna(q, sign)
+    if n == 0:
+        return sign << f["signpos"], F_UF | F_NX
+    if n >= (1 << f["fracbits"]):
+        return ((sign << f["signpos"]) | (1 << f["fracbits"])), \
+            (F_NX if inexact else 0)
+    return ((sign << f["signpos"]) | n), \
+        ((F_UF | F_NX) if inexact else 0)
+
+
 def encode(value, fmt, mode, zero_sign=0):
-    """Round an exact Fraction with ONE rounding; returns (bits, flags)."""
+    """Round an exact Fraction with ONE rounding; returns (bits, flags).
+
+    ``mode`` is 0 RNE / 1 RTZ / 2 RDN / 3 RUP (rf0), plus the conversion-only
+    4 RNA (ADR-0050 D2, one-hot code 0x02).
+    """
     if value == 0:
         return zero_bits(fmt, zero_sign), 0
+    if mode == 4:
+        return _encode_rna(value, fmt)
     return ofma.encode(value, fmt, mode)
 
 
@@ -341,7 +394,7 @@ def op_from_int(fmt, mode, value, width, signed):
 
 
 def _round_to_integer(value: Fraction, mode):
-    """Round a signed Fraction to an integer (0 RNE / 1 RTZ / 2 RDN / 3 RUP)."""
+    """Round a signed Fraction (0 RNE / 1 RTZ / 2 RDN / 3 RUP / 4 RNA)."""
     n, d = value.numerator, value.denominator
     k, r = divmod(n, d)  # floor semantics, r >= 0
     if r == 0:
@@ -355,6 +408,13 @@ def _round_to_integer(value: Fraction, mode):
         return (k + 1 if value < 0 else k), True
     if mode == 2:  # toward -Inf
         return k, True
+    if mode == 4:  # RNA: nearest, ties away from zero
+        half = 2 * r
+        if half > d:
+            return k + 1, True
+        if half < d:
+            return k, True
+        return (k + 1 if value > 0 else k), True
     return k + 1, True  # toward +Inf
 
 
@@ -415,7 +475,12 @@ def op_convert_ff(dst_fmt, mode, src_fmt, bits):
         return inf_bits(dst_fmt, k["sign"]), 0
     if k["kind"] == "zero":
         return zero_bits(dst_fmt, k["sign"]), 0
-    return encode(k["value"], dst_fmt, mode)
+    out, flags = encode(k["value"], dst_fmt, mode)
+    if flags & F_OF:
+        # contract-fp §2 / SimRISC-07: conversion overflow => ±Inf + OF for
+        # every direction (IEEE would keep max finite under RTZ/RDN/RUP).
+        out = inf_bits(dst_fmt, k["sign"])
+    return out, flags
 
 
 def op_round_int(fmt, bits, onehot, rf_mode):
@@ -607,6 +672,14 @@ def entry_fields(inst_id):
 
 
 # ── vector model ──────────────────────────────────────────────────────────
+def conv_mode(code, rf_mode):
+    """One-hot conversion code -> reference mode (4 = RNA, 0x20 = rf0)."""
+    table = {0x01: 0, 0x02: 4, 0x04: 1, 0x08: 3, 0x10: 2}
+    if code not in table:
+        raise AssertionError("bad conversion code 0x%02x" % code)
+    return table[code]
+
+
 def _init_regs(vec):
     rf = {i: (0xF00D000000000000 + i) & MASK64 for i in range(64)}
     rd = {i: (0xDAD0000000000000 + i) & MASK64 for i in range(64)}
@@ -672,15 +745,22 @@ def model(vec):
             writes.append(("rd", dst0 + i, rd[dst0 + i]))
     elif kind == "cvt_ff":
         src_fmt, dst_fmt = op[1], op[2]
-        count = fields[imm_field.name]
         dst0 = fields[dst_field.name]
         src0 = fields[src_fields[0].name]
-        for i in range(count):
-            value = mask_bits(src_fmt, rf[src0 + i])
-            out, f = op_convert_ff(dst_fmt, mode, src_fmt, value)
+        if src_fmt == dst_fmt:
+            # Pure copy (ft2ft/fo2fo): 1..63 pairs, no rounding, no flags.
+            for i in range(fields[imm_field.name]):
+                rf[dst0 + i] = _write_float(dst_fmt, rf[dst0 + i],
+                                            mask_bits(src_fmt, rf[src0 + i]))
+                writes.append(("rf", dst0 + i, rf[dst0 + i]))
+        else:
+            code = fields[imm_field.name]
+            m = 0 if code == 0 else conv_mode(code, mode)
+            value = mask_bits(src_fmt, rf[src0])
+            out, f = op_convert_ff(dst_fmt, m, src_fmt, value)
             flags |= f
-            rf[dst0 + i] = _write_float(dst_fmt, rf[dst0 + i], out)
-            writes.append(("rf", dst0 + i, rf[dst0 + i]))
+            rf[dst0] = _write_float(dst_fmt, rf[dst0], out)
+            writes.append(("rf", dst0, rf[dst0]))
     elif kind == "root":
         fmt = op[1]
         _, value = read_float(fmt, src_fields[0].name)
@@ -690,25 +770,24 @@ def model(vec):
         writes.append(("rf", dst, rf[dst]))
     elif kind == "f2i":
         fmt, width, signed = op[1], op[2], op[3]
-        count = fields[imm_field.name]
         dst0 = fields[dst_field.name]
         src0 = fields[src_fields[0].name]
-        for i in range(count):
-            value = mask_bits(fmt, rf[src0 + i])
-            out, f = op_to_int(fmt, mode, value, width, signed)
-            flags |= f
-            rd[dst0 + i] = out
-            writes.append(("rd", dst0 + i, rd[dst0 + i]))
+        m = conv_mode(fields[imm_field.name], mode)
+        value = mask_bits(fmt, rf[src0])
+        out, f = op_to_int(fmt, m, value, width, signed)
+        flags |= f
+        rd[dst0] = out
+        writes.append(("rd", dst0, rd[dst0]))
     elif kind == "i2f":
         fmt, width, signed = op[1], op[2], op[3]
-        count = fields[imm_field.name]
         dst0 = fields[dst_field.name]
         src0 = fields[src_fields[0].name]
-        for i in range(count):
-            out, f = op_from_int(fmt, mode, rd[src0 + i], width, signed)
-            flags |= f
-            rf[dst0 + i] = _write_float(fmt, rf[dst0 + i], out)
-            writes.append(("rf", dst0 + i, rf[dst0 + i]))
+        code = fields[imm_field.name]
+        m = 0 if code == 0 else conv_mode(code, mode)
+        out, f = op_from_int(fmt, m, rd[src0], width, signed)
+        flags |= f
+        rf[dst0] = _write_float(fmt, rf[dst0], out)
+        writes.append(("rf", dst0, rf[dst0]))
     elif kind == "rnd":
         fmt = op[1]
         onehot = fields[imm_field.name]
@@ -860,13 +939,31 @@ def gen_family(family, seed, per_id):
             elif kind == "cs":
                 rd[6] = (0 - (k % 3)) & MASK64  # -1/0/1 cycling
                 srcs = [(6, "rd"), (3, "rf"), (4, "rf")]
-            elif kind in ("classify", "cvt_ff", "f2i"):
+            elif kind == "classify":
                 count = 1 + (k % 3)
                 fields[imm_field.name] = count
                 srcs = [(8 + k % 2, "rf")]
+            elif kind == "cvt_ff":
+                if op[1] == op[2]:  # pure copy: 1..63 pairs
+                    fields[imm_field.name] = 1 + (k % 3)
+                else:  # single register: one-hot code (ft2fo uses SBZ 0)
+                    codes = (0x01, 0x02, 0x04, 0x08, 0x10, 0x20)
+                    fields[imm_field.name] = (
+                        0 if inst_id == "ft2fo_orri_rf"
+                        else codes[(k + mode) % 6])
+                srcs = [(8 + k % 2, "rf")]
+            elif kind == "f2i":
+                # Single register: low 6 bits are the one-hot direction.
+                codes = (0x01, 0x02, 0x04, 0x08, 0x10, 0x20)
+                fields[imm_field.name] = codes[(k + mode) % 6]
+                srcs = [(8 + k % 2, "rf")]
             elif kind == "i2f":
-                count = 1 + (k % 3)
-                fields[imm_field.name] = count
+                # Single register: 6 inexact forms take one-hot; the two
+                # 32-bit exact forms (it2fo/ut2fo) require SBZ 0.
+                codes = (0x01, 0x02, 0x04, 0x08, 0x10, 0x20)
+                fields[imm_field.name] = (
+                    0 if inst_id in ("it2fo_orri_rf", "ut2fo_orri_rf")
+                    else codes[(k + mode) % 6])
                 srcs = [(8 + k % 2, "rd")]
             elif kind == "root":
                 fields[imm_field.name] = 2
@@ -1139,14 +1236,14 @@ def edge_vectors():
                     "fo2ut_orri_rf", "fo2uo_orri_rf"):
         fmt = OPS[inst_id][1]
         values = f2i_values32 if fmt == "ft" else f2i_values64
-        for mode in range(4):
+        for mode, code in enumerate((0x01, 0x04, 0x08, 0x10)):
             for pos, value in enumerate(values):
                 if pos % 2 and mode != (pos % 4):
                     continue  # keep the set bounded but cover all modes
                 rf = {0: (RF0_RESET & ~RF0_WRITABLE) | (mode << 32),
                       3: value}
                 add(inst_id, f"m{mode}-{pos}", {"rdhb": 2, "rfhc": 3,
-                                                "immu6": 1}, rf)
+                                                "immu6": code}, rf)
     # ---- convert_i2f: integer extremes -----------------------------------
     i2f_values = [0, 1, (1 << 31) - 1, 1 << 31, (1 << 32) - 1,
                   (1 << 63) - 1, 1 << 63, MASK64, (1 << 24) + 1,
@@ -1154,14 +1251,15 @@ def edge_vectors():
     for inst_id in ("it2ft_orri_rf", "io2ft_orri_rf", "ut2ft_orri_rf",
                     "uo2ft_orri_rf", "it2fo_orri_rf", "io2fo_orri_rf",
                     "ut2fo_orri_rf", "uo2fo_orri_rf"):
-        for mode in range(4):
+        exact = inst_id in ("it2fo_orri_rf", "ut2fo_orri_rf")
+        for mode, code in enumerate((0x01, 0x04, 0x08, 0x10)):
             for pos, value in enumerate(i2f_values):
                 if pos % 2 and mode != (pos % 4):
                     continue
                 rf = {0: (RF0_RESET & ~RF0_WRITABLE) | (mode << 32)}
                 add(inst_id, f"m{mode}-{pos}", {"rfhb": 2, "rdhc": 3,
-                                                "immu6": 1}, rf,
-                    {3: value & MASK64})
+                                                "immu6": 0 if exact else code},
+                    rf, {3: value & MASK64})
     # ---- roundint: six modes x ties / zeros / specials -------------------
     rnd_values32 = [0, 0x80000000, half32, 0xBF000000, 0x3FC00000,
                     0xC0000000, 0x40200000, 0xC0200000, 0x4B402000,
@@ -1302,8 +1400,14 @@ def edge_vectors():
                     continue
                 rf = {0: (RF0_RESET & ~RF0_WRITABLE) | (mode << 32),
                       8: value, 2: 0xAAAA000000000000}
+                if src == dst:      # pure copy: element count
+                    code = 1
+                elif inst_id == "ft2fo_orri_rf":  # exact widening: SBZ
+                    code = 0
+                else:               # fo2ft: one-hot direction
+                    code = (0x01, 0x04, 0x08, 0x10)[mode]
                 add(inst_id, f"m{mode}-{pos}", {"rfhb": 2, "rfhc": 8,
-                                                "immu6": 1}, rf)
+                                                "immu6": code}, rf)
     # ---- sign: abs/neg/copy/negate with a NaN payload --------------------
     for fmt, (isgnn, isgnj) in (("ft", ("ftsgnn_orrr_rf", "ftsgnj_orrr_rf")),
                                 ("fo", ("fosgnn_orrr_rf",

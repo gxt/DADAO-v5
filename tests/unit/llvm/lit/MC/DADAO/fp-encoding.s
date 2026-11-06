@@ -13,7 +13,12 @@
 @@   rrrr : ha=ra, hb=rb, hc=rc, hd=rd
 @@   orrr : ha=opx, hb=rb, hc=rc, hd=rd
 @@   orri : ha=opx, hb=rb, hc=rc, hd=immu6
-@@ Block forms: {start:end} count = end-start+1, encoded into the shared imm6.
+@@ Copy forms (ft2ft/fo2fo/rd2rf/rf2rd): {start:end} count = end-start+1,
+@@ encoded into the shared imm6 (ADR-0050 D4).
+@@ The 18 non-copy conversions are single-register forms whose low six bits are
+@@ an explicit third operand (ADR-0050 D2/D3): the 15 result-dependent ones take
+@@ one one-hot rounding code 0x01/0x02/0x04/0x08/0x10/0x20, and
+@@ ft2fo/it2fo/ut2fo take SBZ 0.
 
 
 @@ ld.t rf4, [rb2, 16]
@@ -214,11 +219,11 @@ foscmp rd4, rf6, rf8
 @@ ASM: ftcls {rd4:rd6}, {rf8:rf10}
 ftcls {rd4:rd6}, {rf8:rf10}
 
-@@ ft2fo {rf4:rf6}, {rf8:rf10}
-@@ op=0x44 ha=0x01(opx)  word = 0x44044203  bytes = 44 04 42 03
-@@ OBJ: {{[0-9a-f]+:}} 44 04 42 03{{.*}}ft2fo{{.*}}{rf4:rf6}, {rf8:rf10}
-@@ ASM: ft2fo {rf4:rf6}, {rf8:rf10}
-ft2fo {rf4:rf6}, {rf8:rf10}
+@@ ft2fo rf4, rf8, 0
+@@ op=0x44 ha=0x01(opx)  word = 0x44044200  bytes = 44 04 42 00
+@@ OBJ: {{[0-9a-f]+:}} 44 04 42 00{{.*}}ft2fo{{.*}}rf4, rf8, 0
+@@ ASM: ft2fo rf4, rf8, 0
+ft2fo rf4, rf8, 0
 
 @@ ft2ft {rf10:rf12}, {rf14:rf16}
 @@ op=0x44 ha=0x02(opx)  word = 0x4408A383  bytes = 44 08 a3 83
@@ -238,11 +243,11 @@ ftroot rf4, rf6, 2
 @@ ASM: focls {rd8:rd10}, {rf12:rf14}
 focls {rd8:rd10}, {rf12:rf14}
 
-@@ fo2ft {rf4:rf6}, {rf8:rf10}
-@@ op=0x44 ha=0x09(opx)  word = 0x44244203  bytes = 44 24 42 03
-@@ OBJ: {{[0-9a-f]+:}} 44 24 42 03{{.*}}fo2ft{{.*}}{rf4:rf6}, {rf8:rf10}
-@@ ASM: fo2ft {rf4:rf6}, {rf8:rf10}
-fo2ft {rf4:rf6}, {rf8:rf10}
+@@ fo2ft rf4, rf8, 4
+@@ op=0x44 ha=0x09(opx)  word = 0x44244204  bytes = 44 24 42 04
+@@ OBJ: {{[0-9a-f]+:}} 44 24 42 04{{.*}}fo2ft{{.*}}rf4, rf8, 4
+@@ ASM: fo2ft rf4, rf8, 4
+fo2ft rf4, rf8, 4
 
 @@ fo2fo {rf10:rf12}, {rf14:rf16}
 @@ op=0x44 ha=0x0A(opx)  word = 0x4428A383  bytes = 44 28 a3 83
@@ -256,83 +261,83 @@ fo2fo {rf10:rf12}, {rf14:rf16}
 @@ ASM: foroot rf4, rf6, 2
 foroot rf4, rf6, 2
 
-@@ ft2it {rd4:rd6}, {rf8:rf10}
-@@ op=0x44 ha=0x30(opx)  word = 0x44C04203  bytes = 44 c0 42 03
-@@ OBJ: {{[0-9a-f]+:}} 44 c0 42 03{{.*}}ft2it{{.*}}{rd4:rd6}, {rf8:rf10}
-@@ ASM: ft2it {rd4:rd6}, {rf8:rf10}
-ft2it {rd4:rd6}, {rf8:rf10}
+@@ ft2it rd4, rf8, 1
+@@ op=0x44 ha=0x30(opx)  word = 0x44C04201  bytes = 44 c0 42 01
+@@ OBJ: {{[0-9a-f]+:}} 44 c0 42 01{{.*}}ft2it{{.*}}rd4, rf8, 1
+@@ ASM: ft2it rd4, rf8, 1
+ft2it rd4, rf8, 1
 
-@@ ft2io {rd10:rd12}, {rf14:rf16}
-@@ op=0x44 ha=0x31(opx)  word = 0x44C4A383  bytes = 44 c4 a3 83
-@@ OBJ: {{[0-9a-f]+:}} 44 c4 a3 83{{.*}}ft2io{{.*}}{rd10:rd12}, {rf14:rf16}
-@@ ASM: ft2io {rd10:rd12}, {rf14:rf16}
-ft2io {rd10:rd12}, {rf14:rf16}
+@@ ft2io rd10, rf14, 2
+@@ op=0x44 ha=0x31(opx)  word = 0x44C4A382  bytes = 44 c4 a3 82
+@@ OBJ: {{[0-9a-f]+:}} 44 c4 a3 82{{.*}}ft2io{{.*}}rd10, rf14, 2
+@@ ASM: ft2io rd10, rf14, 2
+ft2io rd10, rf14, 2
 
-@@ ft2ut {rd8:rd10}, {rf12:rf14}
-@@ op=0x44 ha=0x32(opx)  word = 0x44C88303  bytes = 44 c8 83 03
-@@ OBJ: {{[0-9a-f]+:}} 44 c8 83 03{{.*}}ft2ut{{.*}}{rd8:rd10}, {rf12:rf14}
-@@ ASM: ft2ut {rd8:rd10}, {rf12:rf14}
-ft2ut {rd8:rd10}, {rf12:rf14}
+@@ ft2ut rd8, rf12, 4
+@@ op=0x44 ha=0x32(opx)  word = 0x44C88304  bytes = 44 c8 83 04
+@@ OBJ: {{[0-9a-f]+:}} 44 c8 83 04{{.*}}ft2ut{{.*}}rd8, rf12, 4
+@@ ASM: ft2ut rd8, rf12, 4
+ft2ut rd8, rf12, 4
 
-@@ ft2uo {rd14:rd16}, {rf18:rf20}
-@@ op=0x44 ha=0x33(opx)  word = 0x44CCE483  bytes = 44 cc e4 83
-@@ OBJ: {{[0-9a-f]+:}} 44 cc e4 83{{.*}}ft2uo{{.*}}{rd14:rd16}, {rf18:rf20}
-@@ ASM: ft2uo {rd14:rd16}, {rf18:rf20}
-ft2uo {rd14:rd16}, {rf18:rf20}
+@@ ft2uo rd14, rf18, 8
+@@ op=0x44 ha=0x33(opx)  word = 0x44CCE488  bytes = 44 cc e4 88
+@@ OBJ: {{[0-9a-f]+:}} 44 cc e4 88{{.*}}ft2uo{{.*}}rd14, rf18, 8
+@@ ASM: ft2uo rd14, rf18, 8
+ft2uo rd14, rf18, 8
 
-@@ it2ft {rf4:rf6}, {rd8:rd10}
-@@ op=0x44 ha=0x34(opx)  word = 0x44D04203  bytes = 44 d0 42 03
-@@ OBJ: {{[0-9a-f]+:}} 44 d0 42 03{{.*}}it2ft{{.*}}{rf4:rf6}, {rd8:rd10}
-@@ ASM: it2ft {rf4:rf6}, {rd8:rd10}
-it2ft {rf4:rf6}, {rd8:rd10}
+@@ it2ft rf4, rd8, 16
+@@ op=0x44 ha=0x34(opx)  word = 0x44D04210  bytes = 44 d0 42 10
+@@ OBJ: {{[0-9a-f]+:}} 44 d0 42 10{{.*}}it2ft{{.*}}rf4, rd8, 16
+@@ ASM: it2ft rf4, rd8, 16
+it2ft rf4, rd8, 16
 
-@@ io2ft {rf10:rf12}, {rd14:rd16}
-@@ op=0x44 ha=0x35(opx)  word = 0x44D4A383  bytes = 44 d4 a3 83
-@@ OBJ: {{[0-9a-f]+:}} 44 d4 a3 83{{.*}}io2ft{{.*}}{rf10:rf12}, {rd14:rd16}
-@@ ASM: io2ft {rf10:rf12}, {rd14:rd16}
-io2ft {rf10:rf12}, {rd14:rd16}
+@@ io2ft rf10, rd14, 32
+@@ op=0x44 ha=0x35(opx)  word = 0x44D4A3A0  bytes = 44 d4 a3 a0
+@@ OBJ: {{[0-9a-f]+:}} 44 d4 a3 a0{{.*}}io2ft{{.*}}rf10, rd14, 32
+@@ ASM: io2ft rf10, rd14, 32
+io2ft rf10, rd14, 32
 
-@@ ut2ft {rf8:rf10}, {rd12:rd14}
-@@ op=0x44 ha=0x36(opx)  word = 0x44D88303  bytes = 44 d8 83 03
-@@ OBJ: {{[0-9a-f]+:}} 44 d8 83 03{{.*}}ut2ft{{.*}}{rf8:rf10}, {rd12:rd14}
-@@ ASM: ut2ft {rf8:rf10}, {rd12:rd14}
-ut2ft {rf8:rf10}, {rd12:rd14}
+@@ ut2ft rf8, rd12, 4
+@@ op=0x44 ha=0x36(opx)  word = 0x44D88304  bytes = 44 d8 83 04
+@@ OBJ: {{[0-9a-f]+:}} 44 d8 83 04{{.*}}ut2ft{{.*}}rf8, rd12, 4
+@@ ASM: ut2ft rf8, rd12, 4
+ut2ft rf8, rd12, 4
 
-@@ uo2ft {rf14:rf16}, {rd18:rd20}
-@@ op=0x44 ha=0x37(opx)  word = 0x44DCE483  bytes = 44 dc e4 83
-@@ OBJ: {{[0-9a-f]+:}} 44 dc e4 83{{.*}}uo2ft{{.*}}{rf14:rf16}, {rd18:rd20}
-@@ ASM: uo2ft {rf14:rf16}, {rd18:rd20}
-uo2ft {rf14:rf16}, {rd18:rd20}
+@@ uo2ft rf14, rd18, 2
+@@ op=0x44 ha=0x37(opx)  word = 0x44DCE482  bytes = 44 dc e4 82
+@@ OBJ: {{[0-9a-f]+:}} 44 dc e4 82{{.*}}uo2ft{{.*}}rf14, rd18, 2
+@@ ASM: uo2ft rf14, rd18, 2
+uo2ft rf14, rd18, 2
 
-@@ fo2it {rd4:rd6}, {rf8:rf10}
-@@ op=0x44 ha=0x38(opx)  word = 0x44E04203  bytes = 44 e0 42 03
-@@ OBJ: {{[0-9a-f]+:}} 44 e0 42 03{{.*}}fo2it{{.*}}{rd4:rd6}, {rf8:rf10}
-@@ ASM: fo2it {rd4:rd6}, {rf8:rf10}
-fo2it {rd4:rd6}, {rf8:rf10}
+@@ fo2it rd4, rf8, 8
+@@ op=0x44 ha=0x38(opx)  word = 0x44E04208  bytes = 44 e0 42 08
+@@ OBJ: {{[0-9a-f]+:}} 44 e0 42 08{{.*}}fo2it{{.*}}rd4, rf8, 8
+@@ ASM: fo2it rd4, rf8, 8
+fo2it rd4, rf8, 8
 
-@@ fo2io {rd10:rd12}, {rf14:rf16}
-@@ op=0x44 ha=0x39(opx)  word = 0x44E4A383  bytes = 44 e4 a3 83
-@@ OBJ: {{[0-9a-f]+:}} 44 e4 a3 83{{.*}}fo2io{{.*}}{rd10:rd12}, {rf14:rf16}
-@@ ASM: fo2io {rd10:rd12}, {rf14:rf16}
-fo2io {rd10:rd12}, {rf14:rf16}
+@@ fo2io rd10, rf14, 16
+@@ op=0x44 ha=0x39(opx)  word = 0x44E4A390  bytes = 44 e4 a3 90
+@@ OBJ: {{[0-9a-f]+:}} 44 e4 a3 90{{.*}}fo2io{{.*}}rd10, rf14, 16
+@@ ASM: fo2io rd10, rf14, 16
+fo2io rd10, rf14, 16
 
-@@ fo2ut {rd8:rd10}, {rf12:rf14}
-@@ op=0x44 ha=0x3A(opx)  word = 0x44E88303  bytes = 44 e8 83 03
-@@ OBJ: {{[0-9a-f]+:}} 44 e8 83 03{{.*}}fo2ut{{.*}}{rd8:rd10}, {rf12:rf14}
-@@ ASM: fo2ut {rd8:rd10}, {rf12:rf14}
-fo2ut {rd8:rd10}, {rf12:rf14}
+@@ fo2ut rd8, rf12, 32
+@@ op=0x44 ha=0x3A(opx)  word = 0x44E88320  bytes = 44 e8 83 20
+@@ OBJ: {{[0-9a-f]+:}} 44 e8 83 20{{.*}}fo2ut{{.*}}rd8, rf12, 32
+@@ ASM: fo2ut rd8, rf12, 32
+fo2ut rd8, rf12, 32
 
-@@ fo2uo {rd14:rd16}, {rf18:rf20}
-@@ op=0x44 ha=0x3B(opx)  word = 0x44ECE483  bytes = 44 ec e4 83
-@@ OBJ: {{[0-9a-f]+:}} 44 ec e4 83{{.*}}fo2uo{{.*}}{rd14:rd16}, {rf18:rf20}
-@@ ASM: fo2uo {rd14:rd16}, {rf18:rf20}
-fo2uo {rd14:rd16}, {rf18:rf20}
+@@ fo2uo rd14, rf18, 1
+@@ op=0x44 ha=0x3B(opx)  word = 0x44ECE481  bytes = 44 ec e4 81
+@@ OBJ: {{[0-9a-f]+:}} 44 ec e4 81{{.*}}fo2uo{{.*}}rd14, rf18, 1
+@@ ASM: fo2uo rd14, rf18, 1
+fo2uo rd14, rf18, 1
 
-@@ it2fo {rf4:rf6}, {rd8:rd10}
-@@ op=0x44 ha=0x3C(opx)  word = 0x44F04203  bytes = 44 f0 42 03
-@@ OBJ: {{[0-9a-f]+:}} 44 f0 42 03{{.*}}it2fo{{.*}}{rf4:rf6}, {rd8:rd10}
-@@ ASM: it2fo {rf4:rf6}, {rd8:rd10}
-it2fo {rf4:rf6}, {rd8:rd10}
+@@ it2fo rf4, rd8, 0
+@@ op=0x44 ha=0x3C(opx)  word = 0x44F04200  bytes = 44 f0 42 00
+@@ OBJ: {{[0-9a-f]+:}} 44 f0 42 00{{.*}}it2fo{{.*}}rf4, rd8, 0
+@@ ASM: it2fo rf4, rd8, 0
+it2fo rf4, rd8, 0
 
 @@ rd2rf {rf10:rf12}, {rd14:rd16}
 @@ op=0x40 ha=0x3D(opx)  word = 0x40F4A383  bytes = 40 f4 a3 83
@@ -340,11 +345,11 @@ it2fo {rf4:rf6}, {rd8:rd10}
 @@ ASM: rd2rf {rf10:rf12}, {rd14:rd16}
 rd2rf {rf10:rf12}, {rd14:rd16}
 
-@@ io2fo {rf8:rf10}, {rd12:rd14}
-@@ op=0x44 ha=0x3D(opx)  word = 0x44F48303  bytes = 44 f4 83 03
-@@ OBJ: {{[0-9a-f]+:}} 44 f4 83 03{{.*}}io2fo{{.*}}{rf8:rf10}, {rd12:rd14}
-@@ ASM: io2fo {rf8:rf10}, {rd12:rd14}
-io2fo {rf8:rf10}, {rd12:rd14}
+@@ io2fo rf8, rd12, 4
+@@ op=0x44 ha=0x3D(opx)  word = 0x44F48304  bytes = 44 f4 83 04
+@@ OBJ: {{[0-9a-f]+:}} 44 f4 83 04{{.*}}io2fo{{.*}}rf8, rd12, 4
+@@ ASM: io2fo rf8, rd12, 4
+io2fo rf8, rd12, 4
 
 @@ rf2rd {rd14:rd16}, {rf18:rf20}
 @@ op=0x40 ha=0x3E(opx)  word = 0x40F8E483  bytes = 40 f8 e4 83
@@ -352,19 +357,19 @@ io2fo {rf8:rf10}, {rd12:rd14}
 @@ ASM: rf2rd {rd14:rd16}, {rf18:rf20}
 rf2rd {rd14:rd16}, {rf18:rf20}
 
-@@ ut2fo {rf4:rf6}, {rd8:rd10}
-@@ op=0x44 ha=0x3E(opx)  word = 0x44F84203  bytes = 44 f8 42 03
-@@ OBJ: {{[0-9a-f]+:}} 44 f8 42 03{{.*}}ut2fo{{.*}}{rf4:rf6}, {rd8:rd10}
-@@ ASM: ut2fo {rf4:rf6}, {rd8:rd10}
-ut2fo {rf4:rf6}, {rd8:rd10}
+@@ ut2fo rf4, rd8, 0
+@@ op=0x44 ha=0x3E(opx)  word = 0x44F84200  bytes = 44 f8 42 00
+@@ OBJ: {{[0-9a-f]+:}} 44 f8 42 00{{.*}}ut2fo{{.*}}rf4, rd8, 0
+@@ ASM: ut2fo rf4, rd8, 0
+ut2fo rf4, rd8, 0
 
 @@ ftsclb/fosclb: third operand is rdHD (signed 64-bit integer in an RD
 @@ register, SimRISC-07 §S2D1).  The old rfHD spelling is rejected (negative
 @@ cases checked by the OLD-RF RUN lines at the top).
 @@ OLD-RF: error: invalid operand for instruction
 
-@@ uo2fo {rf10:rf12}, {rd14:rd16}
-@@ op=0x44 ha=0x3F(opx)  word = 0x44FCA383  bytes = 44 fc a3 83
-@@ OBJ: {{[0-9a-f]+:}} 44 fc a3 83{{.*}}uo2fo{{.*}}{rf10:rf12}, {rd14:rd16}
-@@ ASM: uo2fo {rf10:rf12}, {rd14:rd16}
-uo2fo {rf10:rf12}, {rd14:rd16}
+@@ uo2fo rf10, rd14, 32
+@@ op=0x44 ha=0x3F(opx)  word = 0x44FCA3A0  bytes = 44 fc a3 a0
+@@ OBJ: {{[0-9a-f]+:}} 44 fc a3 a0{{.*}}uo2fo{{.*}}rf10, rd14, 32
+@@ ASM: uo2fo rf10, rd14, 32
+uo2fo rf10, rd14, 32

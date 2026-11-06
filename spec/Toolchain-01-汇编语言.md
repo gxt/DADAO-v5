@@ -107,7 +107,8 @@
   - 例：`ldm.ub {rd8:rd10}, [rb0, rd1]` ≡ 旧写法 `ldm.ub rd8, rb0, rd1, 3`。
   - **MUST** 校验：`{}` 不得为空；起点+个数**MUST NOT**越出 `rd63`；个数为 0 **MUST** 报错。
   - `ldm` 的组是**目的**（内存→寄存器），`stm` 的组是**源**（寄存器→内存）。
-- **多寄存器组记法扩展**：组记法用于指令的寄存器操作数（源或目的），当 `immu6` 表示连续寄存器个数时。适用于：寄存器复制指令（`ra2rd`/`rb2rb`/`rb2rd`/`rd2ra`/`rd2rb`/`rd2rd`/`rd2rf`/`rf2rd`，`orri` 格式）和浮点格式转换指令（`ft2fo`/`fo2ft`/…/`ut2fo`，`orri` 格式）。源和目的**都用** `{start:end}` 范围记法。示例：`ra2rd {rd8:rd10}, {ra1:ra3}`、`ft2fo {rf4:rf6}, {rf8:rf10}`。
+- **多寄存器组记法扩展**：组记法用于指令的寄存器操作数（源或目的），当 `immu6` 表示连续寄存器个数时。仅适用于**复制类**：寄存器复制指令（`ra2rd`/`rb2rb`/`rb2rd`/`rd2ra`/`rd2rb`/`rd2rd`/`rd2rf`/`rf2rd`，`orri` 格式）与浮点纯复制（`ft2ft`/`fo2fo`）。源和目的**都用** `{start:end}` 范围记法。示例：`ra2rd {rd8:rd10}, {ra1:ra3}`、`ft2ft {rf4:rf6}, {rf8:rf10}`。
+- **格式转换（18 条，ADR-0050 汇编层裁定）**：`convert_ff` 的 `ft2fo`/`fo2ft`、`convert_f2i` 8 条、`convert_i2f` 8 条采用**单寄存器 + 显式低 6 位第三操作数**，**MUST NOT** 使用 `{}`：15 条结果依赖舍入的转换写六档 one-hot（`0x01` RNE / `0x02` RNA / `0x04` RTZ / `0x08` RUP / `0x10` RDN / `0x20` dynamic），3 条精确转换（`ft2fo`/`it2fo`/`ut2fo`）写 `0`（SBZ）。示例：`fo2io rd8, rf1, 0x04`、`ft2fo rf4, rf8, 0`。
 
 ### 4.3 示例
 | 场景 | 写法 |
@@ -120,7 +121,7 @@
 | 多寄存器访存 | `ldm.o {rd8:rd11}, [rb0, rd1]` |
 | 双目的（`add.uo`） | `add.uo {rd8, rd9}, rd10, rd11` |
 | 多寄存器块赋值 | `ra2rd {rd8:rd10}, {ra1:ra3}` |
-| 多寄存器格式转换 | `ft2fo {rf4:rf6}, {rf8:rf10}` |
+| 格式转换（单寄存器） | `fo2io rd8, rf1, 0x04`；`ft2fo rf4, rf8, 0` |
 
 ### 4.4 `{...}` 用途速查表
 
@@ -150,7 +151,8 @@
 | `rwii` | `助记符 dst, wpN, immu16` | `set.zw rd8, wp2, 0x1234` | wyde 位置保持 `wpN` |
 | `orrr` | `助记符 dst, src1, src2` | `or.o rd8, rd9, rd10` | — |
 | `orri` | `助记符 dst, src, immu6` | `ext.uo rd8, rd0, 1` | — |
-| `orri`（块赋值/格式转换） | `助记符 {dst:…}, {src:…}` | `ra2rd {rd8:rd10}, {ra1:ra3}` | `immu6` = 连续寄存器个数 |
+| `orri`（块赋值/纯复制） | `助记符 {dst:…}, {src:…}` | `ra2rd {rd8:rd10}, {ra1:ra3}` | `immu6` = 连续寄存器个数 |
+| `orri`（格式转换） | `助记符 dst, src, immu6` | `fo2io rd8, rf1, 0x04`；`ft2fo rf4, rf8, 0` | 六档 one-hot / SBZ 0 |
 | `oiii` | `助记符 immu18` | `swym 0` | 纯立即数，不加 `[]` |
 | `ciii`（`fence`） | `助记符 cfxHA, immu18` | `fence cfx0, immu18` | `cfx0`/`cfx_umon` = all cfx；立即数整体书写 |
 

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
 new file mode 100644
-index 000000000..3530b56c6
+index 000000000..8eae7fdca
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
-@@ -0,0 +1,594 @@
+@@ -0,0 +1,595 @@
 +//===-- DADAOInstrInfoFP.td - DADAO FP instruction defs ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -365,6 +365,10 @@ index 000000000..3530b56c6
 +}
 +
 +// --- orri format (28 instructions) ---
++//
++// ADR-0050 splits the 18 format conversions: 15 carry a six-way one-hot
++// rounding code in immu6, 3 (`ft2fo`/`it2fo`/`ut2fo`) require SBZ 0, and only
++// the pure copies `ft2ft`/`fo2fo` keep the 1..63 element count.
 +
 +def ftcls_orri_rf : DADAOOrri<"ftcls"> {
 +  let OutOperandList = (outs GPRD:$rb);
@@ -377,12 +381,9 @@ index 000000000..3530b56c6
 +def ft2fo_orri_rf : DADAOOrri<"ft2fo"> {
 +  let OutOperandList = (outs GPRF:$rb);
 +  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
-+  // contract-fp.md §2: the source and destination register ranges of a
-+  // convert_ff instruction must be disjoint, otherwise ILLI
-+  // (mreg_range_overlap).  Model the destination as an early clobber so the
-+  // register allocator never coalesces `ft2fo {rfN}, {rfN}` (which the hardware
-+  // rejects); it inserts a copy instead.
-+  let Constraints = "@earlyclobber $rb";
++  // ADR-0050 D3: exact f32->f64, single register + SBZ low six bits; no
++  // register window, so the old mreg_range_overlap early-clobber does not
++  // apply and dst == src is a legal (exact) conversion.
 +  let op = 0x44;
 +  let ha = 0x01;
 +  let Pattern = [];
@@ -424,7 +425,7 @@ index 000000000..3530b56c6
 +def fo2ft_orri_rf : DADAOOrri<"fo2ft"> {
 +  let OutOperandList = (outs GPRF:$rb);
 +  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
-+  let Constraints = "@earlyclobber $rb"; // convert_ff: dst range must not overlap src
++  // ADR-0050 D2: single register, low six bits = one-hot rounding direction.
 +  let op = 0x44;
 +  let ha = 0x09;
 +  let Pattern = [];

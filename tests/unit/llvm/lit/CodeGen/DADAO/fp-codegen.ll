@@ -8,7 +8,7 @@
 ;   * `double f(double, double)` -> args rf16/rf17, return rf8;
 ;     the f64 S2D1 ops select fo{add,sub,mul,div};
 ;   * an HFA `{double,double}` -> return rf8/rf9, args rf16/rf17;
-;   * fptosi -> fo2io, sitofp -> io2fo;
+;   * fptosi -> fo2io (explicit RTZ 0x04), sitofp -> io2fo (dynamic 0x20);
 ;   * fcmp -> foqcmp (result in rd, feeding br.*).
 ;
 
@@ -24,14 +24,14 @@ define double @fp_arith(double %a, double %b) {
 }
 
 ; CHECK-LABEL: fp_to_i:
-; CHECK:         fo2io {rd8}, {rf16}
+; CHECK:         fo2io rd8, rf16, 4
 define i64 @fp_to_i(double %a) {
   %i = fptosi double %a to i64
   ret i64 %i
 }
 
 ; CHECK-LABEL: i_to_fp:
-; CHECK:         io2fo {rf8}, {rd16}
+; CHECK:         io2fo rf8, rd16, 32
 define double @i_to_fp(i64 %a) {
   %f = sitofp i64 %a to double
   ret double %f

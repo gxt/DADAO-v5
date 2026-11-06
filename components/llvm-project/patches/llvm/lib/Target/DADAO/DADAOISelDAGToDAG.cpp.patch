@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..a9267835e
+index 000000000..8f9fcf071
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 @@ -0,0 +1,941 @@
@@ -896,7 +896,7 @@ index 000000000..a9267835e
 +        DADAO::ft2it_orri_rf, DADAO::ft2ut_orri_rf};
 +    assert(Kind < 8 && "DADAO: bad saturating-conversion kind");
 +    CurDAG->SelectNodeTo(Node, Opcodes[Kind], MVT::i64, Node->getOperand(0),
-+                         CurDAG->getTargetConstant(1, DL, MVT::i64));
++                         CurDAG->getTargetConstant(0x04, DL, MVT::i64));
 +    return;
 +  }
 +  case DADAOISD::WRITE_FCSR_RM: {

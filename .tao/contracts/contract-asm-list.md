@@ -178,11 +178,11 @@
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `fo2fo` | `orri` | `rf` | `fo2fo {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `fo2fo_orri_rf` |
-| `fo2ft` | `orri` | `rf` | `fo2ft {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `fo2ft_orri_rf` |
-| `fo2io` | `orri` | `rf` | `fo2io {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `fo2io_orri_rf` |
-| `fo2it` | `orri` | `rf` | `fo2it {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `fo2it_orri_rf` |
-| `fo2uo` | `orri` | `rf` | `fo2uo {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `fo2uo_orri_rf` |
-| `fo2ut` | `orri` | `rf` | `fo2ut {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `fo2ut_orri_rf` |
+| `fo2ft` | `orri` | `rf` | `fo2ft rfHB, rfHC, immu6` | `fo2ft_orri_rf` |
+| `fo2io` | `orri` | `rf` | `fo2io rdHB, rfHC, immu6` | `fo2io_orri_rf` |
+| `fo2it` | `orri` | `rf` | `fo2it rdHB, rfHC, immu6` | `fo2it_orri_rf` |
+| `fo2uo` | `orri` | `rf` | `fo2uo rdHB, rfHC, immu6` | `fo2uo_orri_rf` |
+| `fo2ut` | `orri` | `rf` | `fo2ut rdHB, rfHC, immu6` | `fo2ut_orri_rf` |
 | `foadd` | `orrr` | `rf` | `foadd rfHB, rfHC, rfHD` | `foadd_orrr_rf` |
 | `focls` | `orri` | `rf` | `focls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `focls_orri_rf` |
 | `fodiv` | `orrr` | `rf` | `fodiv rfHB, rfHC, rfHD` | `fodiv_orrr_rf` |
@@ -199,12 +199,12 @@
 | `fosgnj` | `orrr` | `rf` | `fosgnj rfHB, rfHC, rfHD` | `fosgnj_orrr_rf` |
 | `fosgnn` | `orrr` | `rf` | `fosgnn rfHB, rfHC, rfHD` | `fosgnn_orrr_rf` |
 | `fosub` | `orrr` | `rf` | `fosub rfHB, rfHC, rfHD` | `fosub_orrr_rf` |
-| `ft2fo` | `orri` | `rf` | `ft2fo {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ft2fo_orri_rf` |
+| `ft2fo` | `orri` | `rf` | `ft2fo rfHB, rfHC, immu6` | `ft2fo_orri_rf` |
 | `ft2ft` | `orri` | `rf` | `ft2ft {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ft2ft_orri_rf` |
-| `ft2io` | `orri` | `rf` | `ft2io {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ft2io_orri_rf` |
-| `ft2it` | `orri` | `rf` | `ft2it {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ft2it_orri_rf` |
-| `ft2uo` | `orri` | `rf` | `ft2uo {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ft2uo_orri_rf` |
-| `ft2ut` | `orri` | `rf` | `ft2ut {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ft2ut_orri_rf` |
+| `ft2io` | `orri` | `rf` | `ft2io rdHB, rfHC, immu6` | `ft2io_orri_rf` |
+| `ft2it` | `orri` | `rf` | `ft2it rdHB, rfHC, immu6` | `ft2it_orri_rf` |
+| `ft2uo` | `orri` | `rf` | `ft2uo rdHB, rfHC, immu6` | `ft2uo_orri_rf` |
+| `ft2ut` | `orri` | `rf` | `ft2ut rdHB, rfHC, immu6` | `ft2ut_orri_rf` |
 | `ftadd` | `orrr` | `rf` | `ftadd rfHB, rfHC, rfHD` | `ftadd_orrr_rf` |
 | `ftcls` | `orri` | `rf` | `ftcls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ftcls_orri_rf` |
 | `ftdiv` | `orrr` | `rf` | `ftdiv rfHB, rfHC, rfHD` | `ftdiv_orrr_rf` |
@@ -221,14 +221,14 @@
 | `ftsgnj` | `orrr` | `rf` | `ftsgnj rfHB, rfHC, rfHD` | `ftsgnj_orrr_rf` |
 | `ftsgnn` | `orrr` | `rf` | `ftsgnn rfHB, rfHC, rfHD` | `ftsgnn_orrr_rf` |
 | `ftsub` | `orrr` | `rf` | `ftsub rfHB, rfHC, rfHD` | `ftsub_orrr_rf` |
-| `io2fo` | `orri` | `rf` | `io2fo {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `io2fo_orri_rf` |
-| `io2ft` | `orri` | `rf` | `io2ft {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `io2ft_orri_rf` |
-| `it2fo` | `orri` | `rf` | `it2fo {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `it2fo_orri_rf` |
-| `it2ft` | `orri` | `rf` | `it2ft {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `it2ft_orri_rf` |
-| `uo2fo` | `orri` | `rf` | `uo2fo {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `uo2fo_orri_rf` |
-| `uo2ft` | `orri` | `rf` | `uo2ft {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `uo2ft_orri_rf` |
-| `ut2fo` | `orri` | `rf` | `ut2fo {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `ut2fo_orri_rf` |
-| `ut2ft` | `orri` | `rf` | `ut2ft {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `ut2ft_orri_rf` |
+| `io2fo` | `orri` | `rf` | `io2fo rfHB, rdHC, immu6` | `io2fo_orri_rf` |
+| `io2ft` | `orri` | `rf` | `io2ft rfHB, rdHC, immu6` | `io2ft_orri_rf` |
+| `it2fo` | `orri` | `rf` | `it2fo rfHB, rdHC, immu6` | `it2fo_orri_rf` |
+| `it2ft` | `orri` | `rf` | `it2ft rfHB, rdHC, immu6` | `it2ft_orri_rf` |
+| `uo2fo` | `orri` | `rf` | `uo2fo rfHB, rdHC, immu6` | `uo2fo_orri_rf` |
+| `uo2ft` | `orri` | `rf` | `uo2ft rfHB, rdHC, immu6` | `uo2ft_orri_rf` |
+| `ut2fo` | `orri` | `rf` | `ut2fo rfHB, rdHC, immu6` | `ut2fo_orri_rf` |
+| `ut2ft` | `orri` | `rf` | `ut2ft rfHB, rdHC, immu6` | `ut2ft_orri_rf` |
 
 ### 32位数据运算（21 条）
 

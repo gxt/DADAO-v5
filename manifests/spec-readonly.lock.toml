@@ -356,7 +356,9 @@ group = "simrisc-00..12"
 #   块转换三项限制；§1.1 速查表与 §2 合法性生成区同步重生成。sha256 同笔重算（其余 20 册不变）。
 # 2026-11-06（SPEC-194t 收尾，授权同 ADR-0050「ADR0050确认」）：§1.5 目的 rf 组计数 14→12、
 #   contract-fp §12 其余格式转换计数 16→18（均为计数勘误，语义/编码不变）；sha256 同笔重算。
-sha256 = "13ad832c57a3860389eeea4aaa4b31c3c140163d202d4859d11eb9ec4355f2d1"
+# 2026-11-06（INTEG-058t，授权同 ADR-0050「ADR0050确认」）：附录 A 汇编速查中 18 条格式转换按
+#   ADR-0050 改单寄存器 + 显式低 6 位（六档 / SBZ），由 `gen_asm_list.py` 重生成；sha256 同笔重算。
+sha256 = "d77721c61f468db8b0fcd63002e086b802dd19ed72d8216a6cfa7adcca5adef4"
 
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"
@@ -607,7 +609,9 @@ group = "toolchain-01"
 # 2026-11-01（ADR-0017 D10 修订；用户原话「ADR0017：修订D10」，并选择同步 Toolchain-01 §13.7/contract-asm §13.7）：
 #   数组单下标扩展为 `rc = rc_base + N*stride`（`N ∈ [0,count)`；stride 由别名表给出，format=1 按 stride=1 兼容）；
 #   §13.7 + 0.5.4-rc 附录各 1 条；sha256 同笔重算。上述 1 册 sha256 于同一变更内同步重算（其余 20 册不变）。
-sha256 = "d7822c7753e9aa216b0b2bff3a68802f135618cb6b5d8c4ff11a029de2edfb16"
+# 2026-11-06（INTEG-058t，授权同 ADR-0050 §确认记录「ADR0050确认」的汇编层裁定）：§4.2/§4.3/§5 的
+#   18 条格式转换示例改单寄存器 + 显式低 6 位（六档 / SBZ），复制类保留组记法；sha256 同笔重算。
+sha256 = "0fac09979c8515b94b7864fa47c871fec7d5e4cc5b2c713676ed0e6c30d60b90"
 
 [[spec]]
 path = "spec/Machine-v5-测试机运行环境.md"

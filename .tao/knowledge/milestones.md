@@ -12,11 +12,11 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INTEG-058t | 已验证 | 2026-11-06 20:00 | 转换舍入编码迁移：LLVM/QEMU/gem5/tests；9 math+pi 转绿、parity 269/0 |
 | TESTCASES-102t | 已验证 | 2026-11-06 17:40 | timing 探针去 icount：20 例轮询/窗口断言；node/arch 269/269 blocked 0 |
 | SPEC-194t | 已验证 | 2026-11-06 16:10 | 转换指令舍入编码三分（ADR-0050）：15 六档 / 3 SBZ / 4 计数 |
 | GEM5-023t | 待开始 | 2026-11-06 16:00（登记） | gem5 SE 文件 I/O(66) + 时钟(29)；与 INTEG-058t 串行 |
 | GEM5-022t | 已验证 | 2026-11-06 15:55 | gem5 SE heap/VMA：brk+mmap+munmap+mremap；blocked 270→217 |
-| INTEG-058t | 待开始 | 2026-11-06 14:10（登记） | 转换舍入编码实现迁移：LLVM/QEMU/gem5/tests 对齐 ADR-0050 |
 | GEM5-021t | 已验证 | 2026-11-06 13:28 | gem5 SE tset 基线调查：qemu 587/gem5 310/blocked 270/9 f2i |
 | INFRA-127t | 已验证 | 2026-11-06 10:55 | 夜跑独立化：night-run（无别名）+ night.lock 独立锁 + meta 机器信息 |
 | INFRA-126t | 已验证 | 2026-11-06 10:11 | 夜跑退出里程碑收口门控：check-milestone 去 night-report 依赖 |

@@ -24,7 +24,7 @@ declare i8 @llvm.fptosi.sat.i8.f64(double)
 
 define i64 @sat_signed64(double %x) {
 ; CHECK-LABEL: sat_signed64:
-; CHECK-COUNT-1: fo2io
+; CHECK-COUNT-1: fo2io {{rd[0-9]+}}, rf{{[0-9]+}}, 4
 ; CHECK-COUNT-1: foqcmp
 ; CHECK-NOT:     call
   %r = call i64 @llvm.fptosi.sat.i64.f64(double %x)
@@ -33,7 +33,7 @@ define i64 @sat_signed64(double %x) {
 
 define i64 @sat_unsigned64(double %x) {
 ; CHECK-LABEL: sat_unsigned64:
-; CHECK-COUNT-1: fo2uo
+; CHECK-COUNT-1: fo2uo {{rd[0-9]+}}, rf{{[0-9]+}}, 4
 ; CHECK-COUNT-1: foqcmp
 ; CHECK-NOT:     call
   %r = call i64 @llvm.fptoui.sat.i64.f64(double %x)
@@ -42,7 +42,7 @@ define i64 @sat_unsigned64(double %x) {
 
 define i32 @sat_signed32(double %x) {
 ; CHECK-LABEL: sat_signed32:
-; CHECK-COUNT-1: fo2it
+; CHECK-COUNT-1: fo2it {{rd[0-9]+}}, rf{{[0-9]+}}, 4
 ; CHECK-COUNT-1: foqcmp
 ; CHECK-NOT:     call
   %r = call i32 @llvm.fptosi.sat.i32.f64(double %x)
@@ -51,7 +51,7 @@ define i32 @sat_signed32(double %x) {
 
 define i32 @sat_unsigned32(double %x) {
 ; CHECK-LABEL: sat_unsigned32:
-; CHECK-COUNT-1: fo2ut
+; CHECK-COUNT-1: fo2ut {{rd[0-9]+}}, rf{{[0-9]+}}, 4
 ; CHECK-COUNT-1: foqcmp
 ; CHECK-NOT:     call
   %r = call i32 @llvm.fptoui.sat.i32.f64(double %x)
@@ -60,7 +60,7 @@ define i32 @sat_unsigned32(double %x) {
 
 define i64 @sat_signed64_f32(float %x) {
 ; CHECK-LABEL: sat_signed64_f32:
-; CHECK-COUNT-1: ft2io
+; CHECK-COUNT-1: ft2io {{rd[0-9]+}}, rf{{[0-9]+}}, 4
 ; CHECK-COUNT-1: ftqcmp
 ; CHECK-NOT:     call
   %r = call i64 @llvm.fptosi.sat.i64.f32(float %x)

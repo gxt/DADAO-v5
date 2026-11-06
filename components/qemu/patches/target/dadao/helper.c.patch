@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..65f5665
+index 0000000..8bf5e4a
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2716 @@
+@@ -0,0 +1,2751 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -1156,90 +1156,125 @@ index 0000000..65f5665
 +    env->rf[0] |= (uint64_t)(get_float_exception_flags(st) & 0x1F);
 +}
 +
-+/* Only the IEEE invalid (NV) flag is propagated for float→int conversions.
-+ * Per contract-fp.md §16 the spec does not say whether precision loss also
-+ * raises NX, so we do not invent one: only the saturation/NV behaviour is
-+ * observable. */
-+static void fp_status_commit_nv_only(CPUDADAOState *env, float_status *st)
++/* Map a conversion's 6-bit direction field to a softfloat rounding mode
++ * (ADR-0050 D2): one-hot 0x01 RNE / 0x02 RNA / 0x04 RTZ / 0x08 RUP /
++ * 0x10 RDN, and 0x20 dynamic (read rf0[33:32]).  Anything else is ILLI and
++ * is rejected by the translator before the helper runs. */
++static FloatRoundMode conv_round_mode(CPUDADAOState *env, uint32_t code)
 +{
-+    env->rf[0] |= (uint64_t)(get_float_exception_flags(st) & float_flag_invalid);
++    switch (code) {
++    case 0x01:
++        return float_round_nearest_even;
++    case 0x02:
++        return float_round_ties_away;
++    case 0x04:
++        return float_round_to_zero;
++    case 0x08:
++        return float_round_up;
++    case 0x10:
++        return float_round_down;
++    default: /* 0x20 dynamic */
++        return rf0_round_mode(env->rf[0]);
++    }
++}
++
++/* Decode the packed conversion operand: low 8 bits = kind, bits [15:8] = the
++ * 6-bit direction field. */
++static void conv_select_mode(CPUDADAOState *env, float_status *st,
++                             uint32_t packed)
++{
++    set_float_rounding_mode(conv_round_mode(env, (packed >> 8) & 0x3F), st);
 +}
 +
 +/* convert_ff (float→float):
-+ *   kind 0 ft2fo (widening, exact)
-+ *   kind 1 fo2ft (narrowing, rf0 rounding mode; result zero-extended to 64b)
++ *   kind 0 ft2fo (widening, exact, SBZ)
++ *   kind 1 fo2ft (narrowing, low 6 bits = rounding direction)
 + * ft is held in the low 32 bits of the rf register. */
-+uint64_t helper_fp_cvt_ff(CPUDADAOState *env, uint64_t src, uint32_t kind)
++uint64_t helper_fp_cvt_ff(CPUDADAOState *env, uint64_t src, uint32_t packed)
 +{
 +    float_status st;
 +    uint64_t res;
++    uint32_t kind = packed & 0xFF;
 +
 +    fp_status_init(env, &st);
++    conv_select_mode(env, &st, packed);
 +    if (kind == 0) {
 +        res = (uint64_t)float32_to_float64((float32)src, &st);
 +    } else {
 +        res = (uint64_t)(uint32_t)float64_to_float32((float64)src, &st);
++        /* contract-fp §2 / SimRISC-07: conversion overflow returns ±Inf and
++         * sets OF regardless of the rounding direction (IEEE 754 would return
++         * the largest finite under RTZ/RDN/RUP). */
++        if (get_float_exception_flags(&st) & float_flag_overflow) {
++            res = (src >> 63) ? 0xFF800000ull : 0x7F800000ull;
++        }
 +    }
 +    fp_status_commit(env, &st);
 +    return res;
 +}
 +
-+/* convert_f2i (float→int): saturating, round-toward-zero, NV on NaN/Inf/
-+ * out-of-range (spec §格式转换指令).  The 32-bit results are sign- or
-+ * zero-extended to the 64-bit rd width following the SimRISC convention.
++/* convert_f2i (float→int): saturating, direction from the low 6 bits (one-hot
++ * or 0x20 dynamic), NV on NaN/Inf/out-of-range and NX on a finite inexact
++ * result (ADR-0050 D5).  The 32-bit results are sign- or zero-extended to the
++ * 64-bit rd width following the SimRISC convention.
 + *
 + * kind: 0 ft2it, 1 ft2io, 2 ft2ut, 3 ft2uo,
 + *       4 fo2it, 5 fo2io, 6 fo2ut, 7 fo2uo */
-+uint64_t helper_fp_cvt_f2i(CPUDADAOState *env, uint64_t src, uint32_t kind)
++uint64_t helper_fp_cvt_f2i(CPUDADAOState *env, uint64_t src, uint32_t packed)
 +{
 +    float_status st;
 +    uint64_t res;
 +    float32 f32 = (float32)src;
 +    float64 f64 = (float64)src;
++    uint32_t kind = packed & 0xFF;
 +
 +    fp_status_init(env, &st);
++    conv_select_mode(env, &st, packed);
 +    switch (kind) {
 +    case 0:  /* ft2it */
-+        res = (uint64_t)(int64_t)float32_to_int32_round_to_zero(f32, &st);
++        res = (uint64_t)(int64_t)float32_to_int32(f32, &st);
 +        break;
 +    case 1:  /* ft2io */
-+        res = (uint64_t)float32_to_int64_round_to_zero(f32, &st);
++        res = (uint64_t)float32_to_int64(f32, &st);
 +        break;
 +    case 2:  /* ft2ut */
-+        res = (uint64_t)(uint32_t)float32_to_uint32_round_to_zero(f32, &st);
++        res = (uint64_t)(uint32_t)float32_to_uint32(f32, &st);
 +        break;
 +    case 3:  /* ft2uo */
-+        res = (uint64_t)float32_to_uint64_round_to_zero(f32, &st);
++        res = (uint64_t)float32_to_uint64(f32, &st);
 +        break;
 +    case 4:  /* fo2it */
-+        res = (uint64_t)(int64_t)float64_to_int32_round_to_zero(f64, &st);
++        res = (uint64_t)(int64_t)float64_to_int32(f64, &st);
 +        break;
 +    case 5:  /* fo2io */
-+        res = (uint64_t)float64_to_int64_round_to_zero(f64, &st);
++        res = (uint64_t)float64_to_int64(f64, &st);
 +        break;
 +    case 6:  /* fo2ut */
-+        res = (uint64_t)(uint32_t)float64_to_uint32_round_to_zero(f64, &st);
++        res = (uint64_t)(uint32_t)float64_to_uint32(f64, &st);
 +        break;
 +    default: /* fo2uo */
-+        res = (uint64_t)float64_to_uint64_round_to_zero(f64, &st);
++        res = (uint64_t)float64_to_uint64(f64, &st);
 +        break;
 +    }
-+    fp_status_commit_nv_only(env, &st);
++    fp_status_commit(env, &st);
 +    return res;
 +}
 +
-+/* convert_i2f (int→float): rf0 rounding mode, IEEE flags (may be inexact).
-+ * 32-bit source integers live in the low 32 bits of rd and are sign- or
-+ * zero-extended according to signedness; ft results are zero-extended to 64b.
++/* convert_i2f (int→float): direction from the low 6 bits (one-hot or 0x20
++ * dynamic), IEEE flags (may be inexact).  32-bit source integers live in the
++ * low 32 bits of rd and are sign- or zero-extended according to signedness;
++ * ft results are zero-extended to 64b.
 + *
 + * kind: 0 it2ft, 1 io2ft, 2 ut2ft, 3 uo2ft,
 + *       4 it2fo, 5 io2fo, 6 ut2fo, 7 uo2fo */
-+uint64_t helper_fp_cvt_i2f(CPUDADAOState *env, uint64_t src, uint32_t kind)
++uint64_t helper_fp_cvt_i2f(CPUDADAOState *env, uint64_t src, uint32_t packed)
 +{
 +    float_status st;
 +    uint64_t res;
++    uint32_t kind = packed & 0xFF;
 +
 +    fp_status_init(env, &st);
++    conv_select_mode(env, &st, packed);
 +    switch (kind) {
 +    case 0:  /* it2ft: int32 (sign-extend low 32) */
 +        res = (uint64_t)(uint32_t)int32_to_float32((int32_t)(uint32_t)src, &st);

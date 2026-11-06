@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b7.cc b/src/arch/dadao/exec/b7.cc
 new file mode 100644
-index 0000000..38cb12b
+index 0000000..c497f79
 --- /dev/null
 +++ b/src/arch/dadao/exec/b7.cc
-@@ -0,0 +1,605 @@
+@@ -0,0 +1,640 @@
 +// DADAO gem5 B7 execution core -- the 55 floating-point ids.
 +//
 +// Dispatch is by `entry->id` only: `ft*`/`fo*`, `ft2it`/`ft2ut`,
@@ -45,6 +45,9 @@ index 0000000..38cb12b
 +constexpr uint16_t kBlockRfOverlap = kBlockRf | LegalOverlap;
 +constexpr uint16_t kBlockRd = LegalDstRd0 | LegalCount;
 +constexpr uint16_t kOnehotRf = LegalDstRf0 | LegalOnehot;
++constexpr uint16_t kOnehotRd = LegalDstRd0 | LegalOnehot;
++// ADR-0050: the 3 exact conversions keep a zero low-6-bit field (SBZ).
++constexpr uint16_t kSbzRf = LegalDstRf0 | LegalSbz;
 +constexpr uint16_t kRootRf = LegalDstRf0 | LegalRootN;
 +
 +// one row per contracts/opcodes.yaml B7 id (55 rows).
@@ -71,11 +74,11 @@ index 0000000..38cb12b
 +     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRd},
 +    // ---- D. convert_ff (4) --------------------------------------------
 +    {"ft2fo_orri_rf", B7Op::ConvertFF, F32, F64, TRf, TRf, "rfhb", "rfhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRfOverlap},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kSbzRf},
 +    {"ft2ft_orri_rf", B7Op::ConvertFF, F32, F32, TRf, TRf, "rfhb", "rfhc",
 +     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRfOverlap},
 +    {"fo2ft_orri_rf", B7Op::ConvertFF, F64, F32, TRf, TRf, "rfhb", "rfhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRfOverlap},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRf},
 +    {"fo2fo_orri_rf", B7Op::ConvertFF, F64, F64, TRf, TRf, "rfhb", "rfhc",
 +     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRfOverlap},
 +    // ---- E. root (2): only n == 2 -------------------------------------
@@ -85,38 +88,38 @@ index 0000000..38cb12b
 +     nullptr, nullptr, nullptr, nullptr, "immu6", nullptr, kRootRf},
 +    // ---- F. convert_f2i (8): rdHB <- rfHC, saturating ------------------
 +    {"ft2it_orri_rf", B7Op::ConvertF2I, F32, F32, TRd, TRf, "rdhb", "rfhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRd, 32, true},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRd, 32, true},
 +    {"ft2io_orri_rf", B7Op::ConvertF2I, F32, F32, TRd, TRf, "rdhb", "rfhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRd, 64, true},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRd, 64, true},
 +    {"ft2ut_orri_rf", B7Op::ConvertF2I, F32, F32, TRd, TRf, "rdhb", "rfhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRd, 32, false},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRd, 32, false},
 +    {"ft2uo_orri_rf", B7Op::ConvertF2I, F32, F32, TRd, TRf, "rdhb", "rfhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRd, 64, false},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRd, 64, false},
 +    {"fo2it_orri_rf", B7Op::ConvertF2I, F64, F64, TRd, TRf, "rdhb", "rfhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRd, 32, true},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRd, 32, true},
 +    {"fo2io_orri_rf", B7Op::ConvertF2I, F64, F64, TRd, TRf, "rdhb", "rfhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRd, 64, true},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRd, 64, true},
 +    {"fo2ut_orri_rf", B7Op::ConvertF2I, F64, F64, TRd, TRf, "rdhb", "rfhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRd, 32, false},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRd, 32, false},
 +    {"fo2uo_orri_rf", B7Op::ConvertF2I, F64, F64, TRd, TRf, "rdhb", "rfhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRd, 64, false},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRd, 64, false},
 +    // ---- G. convert_i2f (8): rfHB <- rdHC -----------------------------
 +    {"it2ft_orri_rf", B7Op::ConvertI2F, F32, F32, TRf, TRd, "rfhb", "rdhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRf, 32, true},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRf, 32, true},
 +    {"io2ft_orri_rf", B7Op::ConvertI2F, F32, F32, TRf, TRd, "rfhb", "rdhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRf, 64, true},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRf, 64, true},
 +    {"ut2ft_orri_rf", B7Op::ConvertI2F, F32, F32, TRf, TRd, "rfhb", "rdhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRf, 32, false},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRf, 32, false},
 +    {"uo2ft_orri_rf", B7Op::ConvertI2F, F32, F32, TRf, TRd, "rfhb", "rdhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRf, 64, false},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRf, 64, false},
 +    {"it2fo_orri_rf", B7Op::ConvertI2F, F64, F64, TRf, TRd, "rfhb", "rdhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRf, 32, true},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kSbzRf, 32, true},
 +    {"io2fo_orri_rf", B7Op::ConvertI2F, F64, F64, TRf, TRd, "rfhb", "rdhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRf, 64, true},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRf, 64, true},
 +    {"ut2fo_orri_rf", B7Op::ConvertI2F, F64, F64, TRf, TRd, "rfhb", "rdhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRf, 32, false},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kSbzRf, 32, false},
 +    {"uo2fo_orri_rf", B7Op::ConvertI2F, F64, F64, TRf, TRd, "rfhb", "rdhc",
-+     nullptr, nullptr, nullptr, "immu6", nullptr, nullptr, kBlockRf, 64, false},
++     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRf, 64, false},
 +    // ---- H. roundint (2): immu6 is the one-hot rounding code ----------
 +    {"ftrnd_orri_rf", B7Op::RoundInt, F32, F32, TRf, TRf, "rfhb", "rfhc",
 +     nullptr, nullptr, nullptr, nullptr, nullptr, "immu6", kOnehotRf},
@@ -213,6 +216,22 @@ index 0000000..38cb12b
 +           code == 0x10 || code == 0x20;
 +}
 +
++/** Map a six-way one-hot direction field to a softfloat rounding mode
++ * (ADR-0050 D2).  0x20 is dynamic: read rf0[33:32]. */
++fp::Mode
++modeFromCode(uint64_t code, fp::Mode rfMode)
++{
++    switch (code) {
++      case 0x01: return fp::Mode::RNE;
++      case 0x02: return fp::Mode::RNA;
++      case 0x04: return fp::Mode::RTZ;
++      case 0x08: return fp::Mode::RUP;
++      case 0x10: return fp::Mode::RDN;
++      case 0x20: return rfMode;
++      default: internalError("bad conversion rounding code"); return rfMode;
++    }
++}
++
 +/** Static legality, before any register read (contract-fp §15). */
 +bool
 +staticIllegal(const decode::DecodedInst &inst, const B7Spec &spec)
@@ -234,6 +253,8 @@ index 0000000..38cb12b
 +            return true;
 +    }
 +    if ((spec.legal & LegalOnehot) && !onehot6(field(inst, spec.modeField)))
++        return true;
++    if ((spec.legal & LegalSbz) && field(inst, spec.modeField) != 0)
 +        return true;
 +    if ((spec.legal & LegalRootN) && field(inst, spec.immField) != 2)
 +        return true;
@@ -335,20 +356,40 @@ index 0000000..38cb12b
 +Fault
 +Executor::runConvertFF()
 +{
-+    const unsigned count = unsigned(field(inst, spec.countField));
 +    const unsigned dst = unsigned(field(inst, spec.dstField));
 +    const unsigned src = unsigned(field(inst, spec.srcField));
 +    uint8_t flags = 0;
-+    // Ranges do not overlap (static legality), so per-pair read-then-write in
-+    // ascending order is the contract's "先读后写" sequence.
-+    for (unsigned i = 0; i < count; ++i) {
-+        const uint64_t raw = ctx.readFloat(src + i);
-+        const uint64_t value = spec.fmt == F32 ? (raw & 0xFFFFFFFFull) : raw;
-+        const fp::Val result =
-+            fp::convert(spec.outFmt, mode, spec.fmt, value);
-+        writeF(spec.outFmt, dst + i, result.bits);
-+        flags = uint8_t(flags | result.flags);
++    if (spec.legal & LegalCount) {
++        // Pure copy (ft2ft/fo2fo): 1..63 pairs, no rounding and no flags.
++        const unsigned count = unsigned(field(inst, spec.countField));
++        // Ranges do not overlap (static legality), so per-pair read-then-write
++        // in ascending order is the contract's "先读后写" sequence.
++        for (unsigned i = 0; i < count; ++i) {
++            const uint64_t raw = ctx.readFloat(src + i);
++            writeF(spec.outFmt, dst + i, raw);
++        }
++        return Fault::None;
 +    }
++    // Single-register conversion: `ft2fo` is exact (SBZ), `fo2ft` carries the
++    // one-hot direction (ADR-0050 D2/D3).
++    const uint64_t raw = ctx.readFloat(src);
++    const uint64_t value = spec.fmt == F32 ? (raw & 0xFFFFFFFFull) : raw;
++    const fp::Mode m = (spec.legal & LegalSbz)
++                           ? fp::Mode::RNE
++                           : modeFromCode(field(inst, spec.modeField), mode);
++    fp::Val result = fp::convert(spec.outFmt, m, spec.fmt, value);
++    if (result.flags & fp::OF) {
++        // contract-fp §2 / SimRISC-07: conversion overflow returns ±Inf and
++        // sets OF regardless of the direction (IEEE would keep max finite
++        // under RTZ/RDN/RUP).
++        const bool sign = spec.fmt == F32 ? (raw >> 31) & 1 : (raw >> 63) & 1;
++        result.bits = sign ? (spec.outFmt == F32 ? 0xFF800000ull
++                                                 : 0xFFF0000000000000ull)
++                           : (spec.outFmt == F32 ? 0x7F800000ull
++                                                 : 0x7FF0000000000000ull);
++    }
++    writeF(spec.outFmt, dst, result.bits);
++    flags = result.flags;
 +    ctx.accrueFlags(flags);
 +    return Fault::None;
 +}
@@ -366,37 +407,31 @@ index 0000000..38cb12b
 +Fault
 +Executor::runConvertF2I()
 +{
-+    const unsigned count = unsigned(field(inst, spec.countField));
 +    const unsigned dst = unsigned(field(inst, spec.dstField));
 +    const unsigned src = unsigned(field(inst, spec.srcField));
-+    uint8_t flags = 0;
-+    for (unsigned i = 0; i < count; ++i) {
-+        const uint64_t raw = ctx.readFloat(src + i);
-+        const uint64_t value = spec.fmt == F32 ? (raw & 0xFFFFFFFFull) : raw;
-+        const fp::Val result =
-+            fp::toInt(spec.fmt, mode, value, spec.intWidth, spec.intSigned);
-+        ctx.writeInt(Bank::Rd, dst + i, result.bits);
-+        flags = uint8_t(flags | result.flags);
-+    }
-+    ctx.accrueFlags(flags);
++    const uint64_t raw = ctx.readFloat(src);
++    const uint64_t value = spec.fmt == F32 ? (raw & 0xFFFFFFFFull) : raw;
++    const fp::Mode m = modeFromCode(field(inst, spec.modeField), mode);
++    const fp::Val result =
++        fp::toInt(spec.fmt, m, value, spec.intWidth, spec.intSigned);
++    ctx.writeInt(Bank::Rd, dst, result.bits);
++    ctx.accrueFlags(result.flags);
 +    return Fault::None;
 +}
 +
 +Fault
 +Executor::runConvertI2F()
 +{
-+    const unsigned count = unsigned(field(inst, spec.countField));
 +    const unsigned dst = unsigned(field(inst, spec.dstField));
 +    const unsigned src = unsigned(field(inst, spec.srcField));
-+    uint8_t flags = 0;
-+    for (unsigned i = 0; i < count; ++i) {
-+        const uint64_t value = ctx.readInt(Bank::Rd, src + i);
-+        const fp::Val result = fp::fromInt(spec.outFmt, mode, value,
-+                                           spec.intWidth, spec.intSigned);
-+        writeF(spec.outFmt, dst + i, result.bits);
-+        flags = uint8_t(flags | result.flags);
-+    }
-+    ctx.accrueFlags(flags);
++    const uint64_t value = ctx.readInt(Bank::Rd, src);
++    const fp::Mode m = (spec.legal & LegalSbz)
++                           ? fp::Mode::RNE
++                           : modeFromCode(field(inst, spec.modeField), mode);
++    const fp::Val result =
++        fp::fromInt(spec.outFmt, m, value, spec.intWidth, spec.intSigned);
++    writeF(spec.outFmt, dst, result.bits);
++    ctx.accrueFlags(result.flags);
 +    return Fault::None;
 +}
 +

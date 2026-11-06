@@ -215,6 +215,12 @@
   - system
   level: full
   requires: []
+- id: inst-fp-002
+  file: inst/fp/convert.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-minmax-001
   file: inst/minmax/minmax_c23.c
   platforms:

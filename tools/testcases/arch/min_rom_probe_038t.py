@@ -83,6 +83,10 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 PASS_EXIT = 0x00
 ILLI_EXIT = 0xF8
 
+# ADR-0050 D2: low-6-bit conversion codes.  This probe keeps the C-cast
+# truncation semantics by using explicit RTZ (0x04).
+C_RTZ = 0x04
+
 ILLI = 0x79001000                 # fence cfx0, hb=1 (encode_sbz) -> ILLI (exit 0xF8)
 SWYM = 0x47880000
 
@@ -434,7 +438,7 @@ CASES.append(Case("CTL rf2rd {rd1:rd3} dest rd1 -> no fault",
 # ── value: executed non-rd0 result read back via `-d cpu` ─────────────────
 CASES.append(value_case(
     "V1 ft2it rd5,rf8,1 (3.0 -> 3)",
-    set_rf(8, F3) + [ft2it(5, 8, 1)],
+    set_rf(8, F3) + [ft2it(5, 8, C_RTZ)],
     expect_rd={5: 3}))
 CASES.append(value_case(
     "V2 ftcls rd5,rf8,1 (1.0 -> positiveNormal bit6 = 0x40)",
@@ -450,7 +454,7 @@ CASES.append(value_case(
     expect_rd={20: RF_SCRATCH}))
 
 # ── E2E: non-rd0 execution + SYS_EXIT assertion (>= 2) ───────────────────
-_e1 = (set_rf(8, F3) + [ft2it(5, 8, 1)] +
+_e1 = (set_rf(8, F3) + [ft2it(5, 8, C_RTZ)] +
        load_imm64_rd(22, 3) + e2e_epilogue([(5, 22, 24)], 0x47))
 CASES.append(Case("E1 ft2it rd5,rf8,1 = 3 (SYS_EXIT assertion)", _e1,
                   expect_exit=PASS_EXIT, e2e=True))
@@ -513,23 +517,23 @@ def selftest():
     results = []
 
     # 1. RD value comparison (wrong expected rd value)
-    c1 = value_case("selftest rd-value", set_rf(8, F3) + [ft2it(5, 8, 1)],
+    c1 = value_case("selftest rd-value", set_rf(8, F3) + [ft2it(5, 8, C_RTZ)],
                     expect_rd={5: 0xDEAD})
     ok1, _ = run_case(c1)
     results.append(("RD value comparison FAIL path", ok1 is False))
 
     # 2. fault exit code: a legal non-rd0 op expected to fault runs to exit 0
-    c2 = Case("selftest fault", [ft2it(1, 8, 1)], expect_exit=ILLI_EXIT)
+    c2 = Case("selftest fault", [ft2it(1, 8, C_RTZ)], expect_exit=ILLI_EXIT)
     ok2, _ = run_case(c2)
     results.append(("fault exit-code FAIL path", ok2 is False))
 
     # 3. control exit code: an rd0 op expected NOT to fault actually faults 0xF8
-    c3 = Case("selftest control", [ft2it(0, 8, 1)], expect_exit=PASS_EXIT)
+    c3 = Case("selftest control", [ft2it(0, 8, C_RTZ)], expect_exit=PASS_EXIT)
     ok3, _ = run_case(c3)
     results.append(("no-fault control FAIL path", ok3 is False))
 
     # 4. E2E SYS_EXIT assertion (wrong expected -> FAIL arm -> exit != 0)
-    insns = (set_rf(8, F3) + [ft2it(5, 8, 1)] +
+    insns = (set_rf(8, F3) + [ft2it(5, 8, C_RTZ)] +
              load_imm64_rd(22, 4) + e2e_epilogue([(5, 22, 24)], 0x4A))
     c4 = Case("selftest e2e", insns, expect_exit=PASS_EXIT, e2e=True)
     ok4, _ = run_case(c4)
