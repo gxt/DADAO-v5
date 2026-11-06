@@ -20,6 +20,7 @@
 > 已完成项不再列；只列仍未收口/未开始的任务。
 
 - `TESTCASES-101t`（待开始）：libc-test `malloc-brk-fail` 改用 `{cur=0,max=inf}`；**用户裁定 2**：按用例意图改语料，宿主与目标两侧都改、都 PASS。
+- `INFRA-126t`（待开始）：夜跑改为观测口径，退出 `check-milestone` 依赖；**用户裁定 A**。
 - **M11 终验进度**：L1/L2 rc=0；L3 `20261106T010620Z` 8/8 绿；夜跑首轮暴露上述用例红（`QEMU-084t` 让 rlimit 生效后语料假设不成立）⇒ 修好后重跑完整夜跑，再 `m` 册 + `check-milestone`。
 - `SPEC-180t` 的 ADR、Linux bring-up charter ADR：仍待用户逐条确认（长期 backlog）。
 
