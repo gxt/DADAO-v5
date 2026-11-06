@@ -17,7 +17,7 @@
 1. **线程**：`clone`（`CLONE_VM|CLONE_THREAD|CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID` 等按语料）、每线程栈、线程退出与 join；`set_tid_address` 的 clear-tid 语义。
 2. **futex**：`FUTEX_WAIT`/`WAKE`/`REQUEUE`/`WAIT_BITSET`（按语料）；与 gem5 事件队列/多 CPU 上下文配合，不得忙等。
 3. **robust list**：`get_robust_list`/`set_robust_list`。
-4. **TLS**：每线程 TLS block 的分配与 TP 设置；musl static TLS（`__aeabi`/`tls_*`）验证；与信号/`clone` 的交互。
+4. **TLS（验收切片，不做 TLS 模型）**：事实是 TLS block 分配与 TP 初值都在 musl 用户态完成（`__init_tls`/`__set_thread_area` 写 `rb3`），spec 只定义 `rb3=rbtp`、TLS 变体由 `contract-dynlink §2.4/§7` 下放给 musl arch 宏 ⇒ **gem5 只在 `clone` 的 `CLONE_SETTLS` 路径把 `tls` 参数写入子线程 `rb3`**，不另造 TLS 模型、不分配 TLS block。验收切片：静态单线程 `functional/tls_align`（现基线已 pass）回归；每线程 `functional/tls_init`、`functional/tls_local_exec` 通过；两线程 `__get_tp()` 不同且各自 `TP+TPOFF` 落盘。
 5. 不改测试用例/期望；不改 QEMU。
 
 ## 范围 / 非范围
@@ -36,5 +36,6 @@
 
 ## 说明
 
-- 若 `spec/` 未定义 TP 寄存器/线程模型，先提交问题并停在该点；不得用 RISC-V 经验补全。
+- **规范前提已核实**：`spec/DADAO-21 ABI` 只定义 `rb3=rbtp`；TLS 变体/TP 偏置归 `contract-dynlink §2.4/§7`，musl 端口已定值（`TLS_ABOVE_TP`、`TP_OFFSET 0`、`DTP_OFFSET 0`）并在 QEMU 验证 ⇒ **无需新 spec、无需新裁定**；若实现中发现 spec 未覆盖的新语义，再停下提交。
+- gem5 缺 OS 常量层（`OS::TGT_CLONE_*`/`archClone`）：按最小实现手写 clone 分支，或在 DADAO 侧补最小 `linux.hh`，二选一在完成区说明理由。
 - 与 `GEM5-024t` 的信号帧、`GEM5-025t` 的多进程共享 `Process` 状态，注意回归。

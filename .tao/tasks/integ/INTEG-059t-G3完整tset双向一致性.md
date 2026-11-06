@@ -2,7 +2,7 @@
 
 **模块**：integ
 **项目里程碑**：M11
-**依赖**：`GEM5-023t`～`GEM5-027t`（SE 文件 I/O/时钟、信号、IPC/多进程、线程/TLS、动态链接）、`TESTCASES-103t`（预算口径）
+**依赖**：`GEM5-023t`～`GEM5-028t`（SE 文件 I/O/时钟、信号、IPC/多进程、线程/TLS、动态装载器、文件映射）、`TESTCASES-103t`（预算）、`TESTCASES-104t`（动态驱动与 QEMU 动态基线）
 **状态**：待开始
 
 ## 背景与目标
@@ -22,7 +22,7 @@
 
 **在范围内**：`tools/testcases/tset/gem5-se-baseline/**`（扩展为完整 tset 双档）、`tools/testcases/parity/**`（SE 段）、`tests/parity/**`（矩阵快照）、`.tao/knowledge/refs/**`、本任务书、`milestones.md`。
 
-**不在范围**：能力实现（前置任务）、spec/contracts、M11 `m` 册（收口任务另立）。
+**不在范围**：能力实现（前置任务）、spec/contracts、M11 `m` 册（收口任务另立）、`mprotect` 真权限与主程序 PIE（本轮登记为限制/backlog）。
 
 ## 验收标准
 
