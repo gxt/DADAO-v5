@@ -30,22 +30,11 @@
 
 **已解决（历史）**：libc-test dynamic `malloc-brk-fail` 已由 `TESTCASES-100t` 修正；夜跑 4/4 绿、`check-night-report` rc=0；A/B/C 不再待裁定。
 
-## 2026-11-06 待裁定：convert_f2i 舍入语义（A 方案待确认）
+## 2026-11-06 convert_f2i 舍入语义（已裁定）
 
-- **事实**：`SPEC/SimRISC-07` + `contract-fp §3` 写「浮点→整数转换舍入由 `rf0[33:32]` 控制」（默认 RNE）；编译器对 `(long long)x` 只发裸 `fo2io`（不写 rf0）；QEMU 截断（2.7→2），gem5 按 rf0 舍入（2.7→3）。
-- **影响**：`GEM5-021t` 中 9 个 `libc-test math/*` + 1 个 `llvm-ts pi` 的差异全部由此解释（musl 依赖 cast 截断）。
-- **已讨论方案**：A 固定 RTZ（推荐：指令纯函数、与 `fornd` 正交、NX 正确、每 cast 1 条指令）；D 编译器发 `fornd(0x04)+convert`（不动 SPEC，但每 cast 2 条指令、cast 的 NX 永久丢失）；B 每条 cast 写/恢复 rf0；C 新增静态 RTZ 变体编码。
-- **状态**：用户 2026-11-06 改为 **B 方案**（rf0 控制 + 编译器按 C cast 插桩），随后按 ISA 设计重新讨论，倾向「显式方向」；`ADR-0050` 已 `Accepted`（2026-11-06 用户「ADR0050确认」，D1–D7）；内容：15 条六档 one-hot（8 f2i + fo2ft + 6 条不精确 i2f）、3 条精确 SBZ（ft2fo/it2fo/ut2fo）、4 条复制保留计数。`GEM5-021t` findings 中的归属按「SPEC/工具链不一致」记录，暂不判 gem5 单方缺陷。
-- `SPEC-194t`（待开始）：按 ADR-0050 改 spec/contracts（15 六档 / 3 SBZ / 4 计数）；实现迁移随后由 `INTEG-058t` 承担。
-- `INTEG-058t`（待开始，依赖 `SPEC-194t`）：LLVM/QEMU/gem5/tests 按 ADR-0050 迁移。
-- `GEM5-023t`（进行中）：SE 文件 I/O + 时钟。
-- `GEM5-024t`（待开始，依赖 023t）：SE 信号(21)+资源限制(2)+进程信息(1)。
-- `GEM5-025t`（待开始，依赖 024t）：IPC/多进程（pipe2/socket、execve/fork/wait4）。
-- `GEM5-026t`（待开始，依赖 025t）：线程/futex + TLS。
-- `GEM5-027t`（待开始，依赖 026t）：动态链接（ET_DYN/PT_INTERP/auxv/ldso + mprotect 真权限）。
-- `TESTCASES-103t`（待开始，依赖 023t）：SE 基线预算 120s→按套件 600s，timeout 单列。
-- `INTEG-059t`（待开始，依赖 023t–027t + 103t）：G3 完整 tset 双向一致性 + 矩阵。
-- M11 `m` 册：G3 收口后另立（本轮不立）。
+- **结论**：`ADR-0050` 已 `Accepted`（用户「ADR0050确认」，D1–D7）；15 条六档 one-hot / 3 条 SBZ / 4 条复制计数；汇编层 18 条单寄存器、无花括号、第三操作数显式。
+- **落地**：`SPEC-194t`（规范/契约）→ `INTEG-058t`（LLVM/QEMU/gem5/tests）均已 `已验证`；9 个 `math/*` + `Olden/power` 双引擎转绿，parity 269/0 diff。
+- **待用户定**：`SimRISC-00` 版本号是否单独开 `0.5.7-rc`（当前追加在 `0.5.6-rc（未发布）` 段）。
 
 ## 2026-11-05 M11 收口与实现决定
 
