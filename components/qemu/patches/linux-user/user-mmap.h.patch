@@ -1,0 +1,26 @@
+diff --git a/linux-user/user-mmap.h b/linux-user/user-mmap.h
+index dfc4477..0d7b480 100644
+--- a/linux-user/user-mmap.h
++++ b/linux-user/user-mmap.h
+@@ -47,4 +47,21 @@ abi_ulong target_shmat(CPUArchState *cpu_env, int shmid,
+                        abi_ulong shmaddr, int shmflg);
+ abi_long target_shmdt(abi_ulong shmaddr);
+ 
++#ifdef TARGET_DADAO
++/*
++ * Guest RLIMIT_AS / RLIMIT_DATA / RLIMIT_STACK accounting (QEMU-084t,
++ * ISS-343).  Implemented in mmap.c next to the address-space code; the
++ * setrlimit/prlimit64 branches in syscall.c keep the guest-visible values
++ * here instead of handing them to the host kernel (where they would limit
++ * qemu's own allocations).  guest_rlimit_get() answers true for exactly these
++ * three resources (RLIM_INFINITY until the guest sets a value, except
++ * RLIMIT_STACK whose default is the mapped main-stack size) and false for
++ * everything else, which keeps the plain host pass-through for the rest.
++ */
++void guest_rlimit_set(int resource, uint64_t cur, uint64_t max);
++bool guest_rlimit_get(int resource, uint64_t *cur, uint64_t *max);
++abi_long guest_rlimit_check_mmap(abi_ulong len, int target_prot,
++                                 int host_flags);
++#endif
++
+ #endif /* LINUX_USER_USER_MMAP_H */

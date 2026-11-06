@@ -1,5 +1,5 @@
 diff --git a/linux-user/syscall.c b/linux-user/syscall.c
-index cfa68df..64b604f 100644
+index cfa68df..02d5027 100644
 --- a/linux-user/syscall.c
 +++ b/linux-user/syscall.c
 @@ -8212,6 +8212,73 @@ static int do_safe_futex(int *uaddr, int op, int val,
@@ -106,7 +106,55 @@ index cfa68df..64b604f 100644
  
  #define RISCV_HWPROBE_KEY_MVENDORID     0
  #define RISCV_HWPROBE_KEY_MARCHID       1
-@@ -13550,6 +13631,59 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
+@@ -10973,11 +11054,24 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
+             /*
+              * If we just passed through resource limit settings for memory then
+              * they would also apply to QEMU's own allocations, and QEMU will
+-             * crash or hang or die if its allocations fail. Ideally we would
+-             * track the guest allocations in QEMU and apply the limits ourselves.
+-             * For now, just tell the guest the call succeeded but don't actually
+-             * limit anything.
++             * crash or hang or die if its allocations fail.  QEMU-084t
++             * (ISS-343) therefore keeps the guest's value and enforces it in
++             * target_mmap()/do_brk() -- for DADAO only, which is the single
++             * target this tree ships; other targets keep the historical no-op.
+              */
++#ifdef TARGET_DADAO
++            {
++                uint64_t gcur, gmax;
++
++                if (guest_rlimit_get(resource, &gcur, &gmax)) {
++                    if (rlim.rlim_cur > rlim.rlim_max) {
++                        return -TARGET_EINVAL;
++                    }
++                    guest_rlimit_set(resource, rlim.rlim_cur, rlim.rlim_max);
++                    return 0;
++                }
++            }
++#endif
+             if (resource != RLIMIT_AS &&
+                 resource != RLIMIT_DATA &&
+                 resource != RLIMIT_STACK) {
+@@ -10993,6 +11087,18 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
+             int resource = target_to_host_resource(arg1);
+             struct target_rlimit *target_rlim;
+             struct rlimit rlim;
++#ifdef TARGET_DADAO
++            uint64_t gcur, gmax;
++
++            if (guest_rlimit_get(resource, &gcur, &gmax)) {
++                if (!lock_user_struct(VERIFY_WRITE, target_rlim, arg2, 0))
++                    return -TARGET_EFAULT;
++                target_rlim->rlim_cur = host_to_target_rlim((rlim_t)gcur);
++                target_rlim->rlim_max = host_to_target_rlim((rlim_t)gmax);
++                unlock_user_struct(target_rlim, arg2, 1);
++                return 0;
++            }
++#endif
+ 
+             ret = get_errno(getrlimit(resource, &rlim));
+             if (!is_error(ret)) {
+@@ -13550,6 +13656,59 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
                           target_to_host_signal(arg3)));
  
  #ifdef TARGET_NR_set_robust_list
@@ -166,7 +214,7 @@ index cfa68df..64b604f 100644
      case TARGET_NR_set_robust_list:
      case TARGET_NR_get_robust_list:
          /* The ABI for supporting robust futexes has userspace pass
-@@ -13566,6 +13700,7 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
+@@ -13566,6 +13725,7 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
           */
          return -TARGET_ENOSYS;
  #endif
@@ -174,7 +222,59 @@ index cfa68df..64b604f 100644
  
  #if defined(TARGET_NR_utimensat)
      case TARGET_NR_utimensat:
-@@ -14477,10 +14612,23 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
+@@ -14059,6 +14219,51 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
+         struct target_rlimit64 *target_rnew, *target_rold;
+         struct host_rlimit64 rnew, rold, *rnewp = 0;
+         int resource = target_to_host_resource(arg2);
++#ifdef TARGET_DADAO
++        uint64_t guest_cur, guest_max;
++
++        /*
++         * QEMU-084t (ISS-343): the three memory limits are kept by the
++         * emulator and enforced in target_mmap()/do_brk(), so the guest gets
++         * back what it set instead of RLIM_INFINITY.  Only "self" is
++         * implemented (pid 0, getpid() or gettid()): qemu-user has no
++         * per-pid lookup for guest limits, and answering another pid with
++         * this process's value would be a made-up answer, so it fails
++         * explicitly with ESRCH as the kernel does for an unknown pid.
++         */
++        if (guest_rlimit_get(resource, &guest_cur, &guest_max)) {
++            uint64_t old_cur = guest_cur, old_max = guest_max;
++
++            if (arg1 != 0 && arg1 != (abi_ulong)getpid() &&
++                arg1 != (abi_ulong)sys_gettid()) {
++                return -TARGET_ESRCH;
++            }
++            if (arg3) {
++                if (!lock_user_struct(VERIFY_READ, target_rnew, arg3, 1)) {
++                    return -TARGET_EFAULT;
++                }
++                __get_user(rnew.rlim_cur, &target_rnew->rlim_cur);
++                __get_user(rnew.rlim_max, &target_rnew->rlim_max);
++                unlock_user_struct(target_rnew, arg3, 0);
++                /* Same shape as the kernel: an inverted pair is EINVAL, and
++                 * a raised hard limit is not privilege-checked (the emulator
++                 * is not a privilege boundary; nothing is lost by it). */
++                if (rnew.rlim_cur > rnew.rlim_max) {
++                    return -TARGET_EINVAL;
++                }
++                guest_rlimit_set(resource, rnew.rlim_cur, rnew.rlim_max);
++            }
++            if (arg4) {
++                if (!lock_user_struct(VERIFY_WRITE, target_rold, arg4, 1)) {
++                    return -TARGET_EFAULT;
++                }
++                __put_user(old_cur, &target_rold->rlim_cur);
++                __put_user(old_max, &target_rold->rlim_max);
++                unlock_user_struct(target_rold, arg4, 1);
++            }
++            return 0;
++        }
++#endif
+ 
+         if (arg3 && (resource != RLIMIT_AS &&
+                      resource != RLIMIT_DATA &&
+@@ -14477,10 +14682,23 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
          return ret;
  #endif
  

@@ -1,0 +1,264 @@
+diff --git a/linux-user/mmap.c b/linux-user/mmap.c
+index cc0c2ee..70c48db 100644
+--- a/linux-user/mmap.c
++++ b/linux-user/mmap.c
+@@ -18,11 +18,13 @@
+  */
+ #include "qemu/osdep.h"
+ #include <sys/shm.h>
++#include <sys/resource.h>
+ #include "trace.h"
+ #include "exec/log.h"
+ #include "exec/page-protection.h"
+ #include "exec/mmap-lock.h"
+ #include "qemu.h"
++#include "loader.h"
+ #include "user/page-protection.h"
+ #include "user/mmap-min-addr.h"
+ #include "user-internals.h"
+@@ -166,6 +168,227 @@ static int target_to_host_prot(int prot)
+            (prot & PROT_EXEC ? PROT_READ : 0);
+ }
+ 
++#ifdef TARGET_DADAO
++/*
++ * QEMU-084t (ISS-343): guest RLIMIT_AS / RLIMIT_DATA / RLIMIT_STACK.
++ *
++ * Upstream linux-user deliberately turns these three limits into a no-op:
++ * handing them to the host kernel would also cap qemu's own allocations (see
++ * the setrlimit/prlimit64 branches in linux-user/syscall.c), so a guest that
++ * asked for a limit got "success" and kept seeing RLIM_INFINITY afterwards.
++ * Here the guest value is kept in the emulator and enforced where the guest
++ * address space actually grows:
++ *
++ *  - target_mmap() checks RLIMIT_AS against the total guest VA and RLIMIT_DATA
++ *    against writable private mappings.  do_brk() grows the heap through
++ *    target_mmap(), so an enlarged brk is covered by the same check, as on a
++ *    native kernel (may_expand_vm()).
++ *  - MAP_GROWSDOWN mappings are the stack-shaped mmap(), so they are capped by
++ *    RLIMIT_STACK.  The main thread stack is mapped eagerly by the loader with
++ *    a size fixed by -s / the host rlimit; a runtime RLIMIT_STACK does not
++ *    resize it (documented limitation, not silently pretended away), and an
++ *    unset RLIMIT_STACK reports that mapped size rather than infinity.
++ *
++ * The usage totals are read back from the emulator's own page table with
++ * walk_memory_regions() instead of being maintained as counters: a counter
++ * would drift whenever a mapping fails half way or the loader tears an image
++ * down, and a counter cannot tell that a page was unmapped.  The page table
++ * records writability but neither mapping privacy nor "this is a stack", so
++ * the data total also includes writable MAP_SHARED mappings and the eagerly
++ * mapped main stack (the kernel keeps both out of data_vm).  That can only
++ * make the limit fire earlier than on a native kernel, never later.
++ *
++ * Only DADAO is wired up: enabling this for every linux-user target would
++ * change behaviour upstream owns, and DADAO is the only target this tree
++ * ships.  The stored values are the guest-visible 64-bit rlim_t (i.e. after
++ * target_to_host_rlim() would have been applied).  A resource the guest never
++ * set reads back as RLIM_INFINITY, except RLIMIT_STACK: its default reports
++ * the main-stack region qemu-user actually mapped (see guest_rlimit_get()).
++ */
++#define GUEST_RLIM_AS    0
++#define GUEST_RLIM_DATA  1
++#define GUEST_RLIM_STACK 2
++#define GUEST_RLIM_NR    3
++
++struct guest_rlimit_state {
++    bool set;
++    uint64_t cur;
++    uint64_t max;
++};
++
++static struct guest_rlimit_state guest_rlim[GUEST_RLIM_NR];
++
++static int guest_rlimit_index(int resource)
++{
++    switch (resource) {
++    case RLIMIT_AS:
++        return GUEST_RLIM_AS;
++    case RLIMIT_DATA:
++        return GUEST_RLIM_DATA;
++    case RLIMIT_STACK:
++        return GUEST_RLIM_STACK;
++    default:
++        return -1;
++    }
++}
++
++void guest_rlimit_set(int resource, uint64_t cur, uint64_t max)
++{
++    int i = guest_rlimit_index(resource);
++
++    assert(i >= 0);
++    /* The mmap path reads these under the mmap lock; take the same lock here
++     * so a limit change cannot be observed half-way by another guest thread. */
++    mmap_lock();
++    guest_rlim[i].set = true;
++    guest_rlim[i].cur = cur;
++    guest_rlim[i].max = max;
++    mmap_unlock();
++}
++
++bool guest_rlimit_get(int resource, uint64_t *cur, uint64_t *max)
++{
++    int i = guest_rlimit_index(resource);
++    bool set;
++
++    if (i < 0) {
++        return false;
++    }
++    mmap_lock();
++    set = guest_rlim[i].set;
++    if (set) {
++        *cur = guest_rlim[i].cur;
++        *max = guest_rlim[i].max;
++    }
++    mmap_unlock();
++    if (!set) {
++        /*
++         * Never set by the guest.
++         *
++         * AS/DATA start unlimited: the host's own limits are irrelevant to a
++         * guest address space, and handing them through is what made the
++         * kernel's value visible in the first place.
++         *
++         * STACK is different: the guest's main stack *is* already capped, by
++         * the fixed region the loader mapped (elfload.c setup_arg_pages():
++         * max(guest_stack_size, 32 target pages)).  Reporting RLIM_INFINITY
++         * there would claim head-room the guest does not have, so report that
++         * region instead.  Note it is the region, not the host's
++         * RLIMIT_STACK: a host "unlimited" still leaves exactly one default
++         * region, and a host limit below that default does not shrink it.
++         */
++        *cur = *max = RLIM_INFINITY;
++        if (i == GUEST_RLIM_STACK) {
++            *cur = *max = MAX((uint64_t)guest_stack_size,
++                              (uint64_t)32 * TARGET_PAGE_SIZE);
++        }
++    }
++    return true;
++}
++
++struct guest_vm_usage {
++    uint64_t total_pages;
++    uint64_t data_pages;
++};
++
++static int guest_vm_usage_cb(void *opaque, vaddr start, vaddr end, int flags)
++{
++    struct guest_vm_usage *u = opaque;
++    uint64_t pages = (end - start) >> TARGET_PAGE_BITS;
++
++    u->total_pages += pages;
++    /*
++     * PAGE_WRITE_ORG survives the write-protection round trip of COW and
++     * self-modifying code, so a writable mapping stays counted while it is
++     * temporarily mapped read-only.  PAGE_VALID keeps the walker's holes out.
++     */
++    if ((flags & PAGE_VALID) && (flags & (PAGE_WRITE | PAGE_WRITE_ORG))) {
++        u->data_pages += pages;
++    }
++    return 0;
++}
++
++/* Would used + add exceed limit?  Both counts are in guest pages. */
++static bool guest_rlimit_exceeds(uint64_t used_pages, uint64_t add_pages,
++                                 uint64_t limit)
++{
++    uint64_t limit_pages;
++
++    if (limit == RLIM_INFINITY) {
++        return false;
++    }
++    limit_pages = limit >> TARGET_PAGE_BITS;
++    return add_pages > limit_pages || used_pages > limit_pages - add_pages;
++}
++
++/*
++ * RLIMIT_DATA, mirroring may_expand_vm() in mm/linux 7.2 mm/mmap.c: the limit
++ * is the *soft* one, but with RLIMIT_DATA == 0 the kernel keeps allowing
++ * mappings whose data total still fits in rlim_max ("Workaround for
++ * Valgrind", i.e. the common cur=0/max-untouched shape must not break
++ * existing programs).  ignore_rlimit_data is not modelled (it defaults off).
++ */
++static bool guest_rlimit_exceeds_data(uint64_t used_pages, uint64_t add_pages,
++                                      uint64_t cur, uint64_t max)
++{
++    if (!guest_rlimit_exceeds(used_pages, add_pages, cur)) {
++        return false;
++    }
++    return !(cur == 0 && !guest_rlimit_exceeds(used_pages, add_pages, max));
++}
++
++/*
++ * Return -TARGET_ENOMEM if adding this mapping would exceed a guest limit
++ * that the guest has actually set, 0 otherwise.  Context: mmap lock held.
++ */
++abi_long guest_rlimit_check_mmap(abi_ulong len, int target_prot, int host_flags)
++{
++    uint64_t pages = len >> TARGET_PAGE_BITS;
++    bool want_stack = host_flags & MAP_GROWSDOWN;
++    bool want_data = !want_stack &&
++                     (host_flags & MAP_TYPE) == MAP_PRIVATE &&
++                     (target_prot & PROT_WRITE);
++    struct guest_vm_usage usage;
++
++    /* Fast path: no limit set (the state of every process that never asked),
++     * so the walker is never run for it. */
++    if (!guest_rlim[GUEST_RLIM_AS].set &&
++        !guest_rlim[GUEST_RLIM_DATA].set &&
++        !guest_rlim[GUEST_RLIM_STACK].set) {
++        return 0;
++    }
++
++    if (want_stack && guest_rlim[GUEST_RLIM_STACK].set &&
++        guest_rlimit_exceeds(0, pages, guest_rlim[GUEST_RLIM_STACK].cur)) {
++        return -TARGET_ENOMEM;
++    }
++
++    if (!guest_rlim[GUEST_RLIM_AS].set &&
++        !(want_data && guest_rlim[GUEST_RLIM_DATA].set)) {
++        return 0;
++    }
++
++    memset(&usage, 0, sizeof(usage));
++    if (walk_memory_regions(&usage, guest_vm_usage_cb)) {
++        /* The walker never asks us to stop; be explicit about it anyway. */
++        return -TARGET_ENOMEM;
++    }
++
++    if (guest_rlim[GUEST_RLIM_AS].set &&
++        guest_rlimit_exceeds(usage.total_pages, pages,
++                             guest_rlim[GUEST_RLIM_AS].cur)) {
++        return -TARGET_ENOMEM;
++    }
++    if (want_data && guest_rlim[GUEST_RLIM_DATA].set &&
++        guest_rlimit_exceeds_data(usage.data_pages, pages,
++                                  guest_rlim[GUEST_RLIM_DATA].cur,
++                                  guest_rlim[GUEST_RLIM_DATA].max)) {
++        return -TARGET_ENOMEM;
++    }
++    return 0;
++}
++#endif /* TARGET_DADAO */
++
+ /* Target bits to be cleared by mprotect if not present in target_prot. */
+ #ifdef TARGET_AARCH64
+ #define TARGET_PAGE_NOTSTICKY  PAGE_BTI
+@@ -1004,6 +1227,17 @@ abi_long target_mmap(abi_ulong start, abi_ulong len, int target_prot,
+ 
+     mmap_lock();
+ 
++#ifdef TARGET_DADAO
++    /* QEMU-084t (ISS-343): guest RLIMIT_AS/DATA/STACK accounting.  Checked
++     * under the mmap lock so the page-table totals cannot move underneath us;
++     * walk_memory_regions() re-enters the (per-thread counted) lock safely. */
++    if (guest_rlimit_check_mmap(len, target_prot, flags) < 0) {
++        mmap_unlock();
++        errno = ENOMEM;
++        return -1;
++    }
++#endif
++
+     ret = target_mmap__locked(start, len, target_prot, flags,
+                               page_flags, fd, offset);
+ 

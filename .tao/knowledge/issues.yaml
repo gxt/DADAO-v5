@@ -37,8 +37,8 @@
 
 - id: ISS-343
   scope: [qemu]
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: QEMU-084t
   title: >-
     【P3】QEMU user-mode 对 guest RLIMIT_AS/DATA/STACK 是 no-op：guest setrlimit 返回成功，
     但 getrlimit 仍返回 RLIM_INFINITY，guest brk/mmap 不受限；与原生 Linux 不一致。

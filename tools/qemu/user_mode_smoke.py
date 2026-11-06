@@ -20,6 +20,17 @@ Independent oracle (contract-syscall.md §5 / contract-dynlink.md §8)
 * the guest page size (64 KiB) is fixed here from spec/DADAO-12 §2.2.2
   (``VA[15:00]`` in-page offset) and contract-elf.md §5.3 (``p_align`` 0x10000),
   not read back from qemu;
+* the guest rlimit expectations (RLIMIT_AS caps every mapping, RLIMIT_DATA caps
+  writable private mappings with the kernel's cur=0 workaround, read-only and
+  shared writable mappings are not data) come from the reference kernel's
+  ``may_expand_vm()`` (mm/mmap.c), not from qemu;
+* the RLIMIT_STACK group asserts the documented qemu-user policy (the main
+  stack is pre-mapped by the loader, so the limit is applied at
+  ``mmap(MAP_GROWSDOWN)`` time; a native kernel would defer it to stack
+  growth), and the untouched-value default is derived here from qemu's
+  documented ``-s`` default (8 MiB) plus main.c's rule of raising it to the
+  host's RLIMIT_STACK when that is finite and larger -- not read back from
+  qemu at run time;
 * nothing is read back from qemu's own logs or implementation.
 
 The syscall numbers used by the raw-trap probes come from the *guest* header
@@ -34,6 +45,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import resource
 import shutil
 import struct
 import subprocess
@@ -200,6 +212,225 @@ int main(void)
     r = ioctl(1, TCGETS, &t);
     n = snprintf(out, sizeof out, "r=%d errno=%d\n", r, errno);
     write(1, out, n);
+    return 0;
+}
+"""
+
+# QEMU-084t (ISS-343): the guest-visible RLIMIT_AS / RLIMIT_DATA / RLIMIT_STACK
+# must be the values the guest set, and once a limit is in force the guest's
+# own mapping calls must fail with ENOMEM exactly where the kernel's
+# may_expand_vm() would say no.  The expected values below come from the
+# reference kernel rule (mm/mmap.c: RLIMIT_AS caps total_vm for any mapping;
+# RLIMIT_DATA caps writable private mappings, with the "Workaround for
+# Valgrind" that keeps cur=0/max-untouched working; read-only and shared
+# writable mappings are not data), not from qemu.
+#
+# The page size is written as 65536 here on purpose: the probe must not learn
+# it from the emulator (spec/DADAO-12 §2.2.2).
+#
+# Not probed: brk().  The DADAO musl port's public brk() returns -ENOMEM
+# unconditionally and its syscall(SYS_brk, ...) wrapper mis-passes the
+# argument (TESTCASES-099t diagnosis), so neither can judge rlimit
+# accounting; do_brk() grows the heap through target_mmap(), i.e. the same
+# path the RW mmap below exercises.
+RLIMIT_C = r"""
+#include <unistd.h>
+#include <errno.h>
+#include <sys/mman.h>
+#include <sys/resource.h>
+#include <sys/syscall.h>
+
+#define PROBE_PAGE 65536UL
+
+static char obuf[2048];
+static int olen;
+
+static void put_str(const char *s)
+{
+    while (*s) obuf[olen++] = *s++;
+}
+
+static void put_dec(unsigned long v)
+{
+    char t[24];
+    int i = 0;
+    if (!v) t[i++] = '0';
+    while (v) { t[i++] = (char)('0' + v % 10); v /= 10; }
+    while (i) obuf[olen++] = t[--i];
+}
+
+static void put_hex(unsigned long v)
+{
+    char t[20];
+    int i = 0;
+    if (!v) t[i++] = '0';
+    while (v) {
+        unsigned d = (unsigned)(v & 15);
+        t[i++] = (char)(d < 10 ? '0' + d : 'a' + d - 10);
+        v >>= 4;
+    }
+    while (i) obuf[olen++] = t[--i];
+}
+
+static void put_kv(const char *k, const char *v)
+{
+    put_str(k); obuf[olen++] = '='; put_str(v); obuf[olen++] = '\n';
+}
+
+static void put_kv_dec(const char *k, long v)
+{
+    put_str(k); obuf[olen++] = '=';
+    if (v < 0) { obuf[olen++] = '-'; put_dec((unsigned long)-v); }
+    else put_dec((unsigned long)v);
+    obuf[olen++] = '\n';
+}
+
+static void put_kv_hex(const char *k, unsigned long v)
+{
+    put_str(k); obuf[olen++] = '='; put_hex(v); obuf[olen++] = '\n';
+}
+
+static void *map_rw_flags(unsigned long len, int flags)
+{
+    errno = 0;
+    return mmap(0, len, PROT_READ | PROT_WRITE,
+                MAP_PRIVATE | MAP_ANONYMOUS | flags, -1, 0);
+}
+
+static void *map_rw(void)
+{
+    return map_rw_flags(PROBE_PAGE, 0);
+}
+
+int main(void)
+{
+    struct rlimit lim, got;
+    void *p;
+
+    /* RLIMIT_STACK read before anything is set: the guest's main stack is a
+     * fixed region mapped by the loader, so the reported value must be that
+     * region (the driver derives it from qemu's documented -s default plus
+     * main.c's raise-to-the-host-limit rule), never RLIM_INFINITY. */
+    put_kv_dec("stack_default_getrlimit_rc", getrlimit(RLIMIT_STACK, &got));
+    put_kv_hex("stack_default_cur", (unsigned long)got.rlim_cur);
+    put_kv_hex("stack_default_max", (unsigned long)got.rlim_max);
+
+    /* control: nothing was asked for, so a RW anonymous page must map */
+    p = map_rw();
+    put_kv("unset_mmap", p == MAP_FAILED ? "fail" : "ok");
+    if (p != MAP_FAILED) munmap(p, PROBE_PAGE);
+
+    /* RLIMIT_AS, soft only (max stays unlimited), so it can be restored:
+     * 0 caps every mapping, since the image/stack are already mapped. */
+    lim.rlim_cur = 0;
+    lim.rlim_max = RLIM_INFINITY;
+    put_kv_dec("as_setrlimit_rc", setrlimit(RLIMIT_AS, &lim));
+    put_kv_dec("as_getrlimit_rc", getrlimit(RLIMIT_AS, &got));
+    put_kv_hex("as_getrlimit_cur", (unsigned long)got.rlim_cur);
+    p = map_rw();
+    put_kv_dec("as_mmap_rc", p == MAP_FAILED ? -1 : 0);
+    put_kv_dec("as_mmap_errno", p == MAP_FAILED ? errno : 0);
+    if (p != MAP_FAILED) munmap(p, PROBE_PAGE);
+
+    /* RLIMIT_AS back to unlimited: the limit must not be one-way */
+    lim.rlim_cur = RLIM_INFINITY;
+    lim.rlim_max = RLIM_INFINITY;
+    put_kv_dec("as_restore_rc", setrlimit(RLIMIT_AS, &lim));
+    put_kv_dec("as_restore_getrlimit_rc", getrlimit(RLIMIT_AS, &got));
+    put_kv_hex("as_restore_cur", (unsigned long)got.rlim_cur);
+    p = map_rw();
+    put_kv("as_restore_mmap", p == MAP_FAILED ? "fail" : "ok");
+    if (p != MAP_FAILED) munmap(p, PROBE_PAGE);
+
+    /* RLIMIT_DATA soft only: the kernel's Valgrind workaround keeps this
+     * usable (data total still fits in rlim_max), so the mapping must work. */
+    lim.rlim_cur = 0;
+    lim.rlim_max = RLIM_INFINITY;
+    put_kv_dec("data_soft_setrlimit_rc", setrlimit(RLIMIT_DATA, &lim));
+    put_kv_dec("data_soft_getrlimit_rc", getrlimit(RLIMIT_DATA, &got));
+    put_kv_hex("data_soft_getrlimit_cur", (unsigned long)got.rlim_cur);
+    p = map_rw();
+    put_kv("data_soft_mmap", p == MAP_FAILED ? "fail" : "ok");
+    if (p != MAP_FAILED) munmap(p, PROBE_PAGE);
+    lim.rlim_cur = RLIM_INFINITY;
+    put_kv_dec("data_restore_rc", setrlimit(RLIMIT_DATA, &lim));
+    p = map_rw();
+    put_kv("data_restore_mmap", p == MAP_FAILED ? "fail" : "ok");
+    if (p != MAP_FAILED) munmap(p, PROBE_PAGE);
+
+    /* RLIMIT_STACK, soft only (reversible): the value must be reported back,
+     * stack-shaped (MAP_GROWSDOWN) mappings must be capped at the soft limit,
+     * and ordinary mappings must be untouched.  The MAP_GROWSDOWN caps are the
+     * qemu-user policy documented in the driver: the main stack is pre-mapped
+     * and cannot grow on demand here, so the limit is applied at mmap time
+     * (a native kernel defers the same limit to stack growth, i.e. it would
+     * accept the 256 KiB request -- that part is NOT asserted against native). */
+    lim.rlim_cur = 128 * 1024;
+    lim.rlim_max = RLIM_INFINITY;
+    put_kv_dec("stack_setrlimit_rc", setrlimit(RLIMIT_STACK, &lim));
+    put_kv_dec("stack_getrlimit_rc", getrlimit(RLIMIT_STACK, &got));
+    put_kv_hex("stack_getrlimit_cur", (unsigned long)got.rlim_cur);
+    put_kv_hex("stack_getrlimit_max", (unsigned long)got.rlim_max);
+    p = map_rw_flags(256 * 1024, MAP_GROWSDOWN);
+    put_kv_dec("stack_growsdown_256k_rc", p == MAP_FAILED ? -1 : 0);
+    put_kv_dec("stack_growsdown_256k_errno", p == MAP_FAILED ? errno : 0);
+    if (p != MAP_FAILED) munmap(p, 256 * 1024);
+    p = map_rw_flags(128 * 1024, MAP_GROWSDOWN);
+    put_kv("stack_growsdown_128k_mmap", p == MAP_FAILED ? "fail" : "ok");
+    if (p != MAP_FAILED) munmap(p, 128 * 1024);
+    p = map_rw_flags(256 * 1024, 0);
+    put_kv("stack_plain_256k_mmap", p == MAP_FAILED ? "fail" : "ok");
+    if (p != MAP_FAILED) munmap(p, 256 * 1024);
+    lim.rlim_cur = RLIM_INFINITY;
+    lim.rlim_max = RLIM_INFINITY;
+    put_kv_dec("stack_restore_rc", setrlimit(RLIMIT_STACK, &lim));
+    put_kv_dec("stack_restore_getrlimit_rc", getrlimit(RLIMIT_STACK, &got));
+    put_kv_hex("stack_restore_cur", (unsigned long)got.rlim_cur);
+    p = map_rw_flags(256 * 1024, MAP_GROWSDOWN);
+    put_kv("stack_restore_growsdown_256k", p == MAP_FAILED ? "fail" : "ok");
+    if (p != MAP_FAILED) munmap(p, 256 * 1024);
+
+    /* Raw syscall numbers 163/164 (SYS_getrlimit/SYS_setrlimit): musl's
+     * libc wrappers use prlimit64, so these two branches need their own
+     * probe.  Reversible: soft 0 with max untouched, then restore. */
+    lim.rlim_cur = 0;
+    lim.rlim_max = RLIM_INFINITY;
+    put_kv_dec("raw_setrlimit_rc", syscall(SYS_setrlimit, RLIMIT_DATA, &lim));
+    put_kv_dec("raw_getrlimit_rc", syscall(SYS_getrlimit, RLIMIT_DATA, &got));
+    put_kv_hex("raw_getrlimit_cur", (unsigned long)got.rlim_cur);
+    lim.rlim_cur = RLIM_INFINITY;
+    put_kv_dec("raw_restore_rc", syscall(SYS_setrlimit, RLIMIT_DATA, &lim));
+    put_kv_dec("raw_restore_getrlimit_rc",
+               syscall(SYS_getrlimit, RLIMIT_DATA, &got));
+    put_kv_hex("raw_restore_cur", (unsigned long)got.rlim_cur);
+
+    /* RLIMIT_DATA = {0, 0}: now writable private mappings are data and must
+     * fail, while read-only and shared writable ones are not data.  This is
+     * the irreversible one (max cannot be raised back unprivileged), so it
+     * runs last. */
+    lim.rlim_cur = 0;
+    lim.rlim_max = 0;
+    put_kv_dec("data_zero_setrlimit_rc", setrlimit(RLIMIT_DATA, &lim));
+    put_kv_dec("data_zero_getrlimit_rc", getrlimit(RLIMIT_DATA, &got));
+    put_kv_hex("data_zero_getrlimit_cur", (unsigned long)got.rlim_cur);
+    put_kv_hex("data_zero_getrlimit_max", (unsigned long)got.rlim_max);
+    p = map_rw();
+    put_kv_dec("data_zero_mmap_rc", p == MAP_FAILED ? -1 : 0);
+    put_kv_dec("data_zero_mmap_errno", p == MAP_FAILED ? errno : 0);
+    if (p != MAP_FAILED) munmap(p, PROBE_PAGE);
+
+    errno = 0;
+    p = mmap(0, PROBE_PAGE, PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    put_kv("data_zero_ro_mmap", p == MAP_FAILED ? "fail" : "ok");
+    if (p != MAP_FAILED) munmap(p, PROBE_PAGE);
+
+    errno = 0;
+    p = mmap(0, PROBE_PAGE, PROT_READ | PROT_WRITE,
+             MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    put_kv("data_zero_shared_mmap", p == MAP_FAILED ? "fail" : "ok");
+    if (p != MAP_FAILED) munmap(p, PROBE_PAGE);
+
+    write(1, obuf, olen);
     return 0;
 }
 """
@@ -458,6 +689,120 @@ def check_guest_page_size(c: Checks, label: str, qemu: Path, elf: Path,
     c.add(f"{label}: mmap(NULL,1) address % PAGE_SIZE", 0, addr % PAGE_SIZE)
 
 
+def check_guest_rlimit(c: Checks, label: str, qemu: Path, elf: Path) -> None:
+    """Guest RLIMIT_AS/DATA/STACK: reported values and mmap enforcement.
+
+    Expected values are the reference kernel rule (see RLIMIT_C) plus the
+    host uapi ENOMEM; nothing is taken from the guest's own output meaning
+    "the emulator said so" -- the program only reports what man 2 mmap /
+    man 2 getrlimit say must happen.
+    """
+    r = qemu_run(qemu, [elf])
+    c.add(f"{label}: exit", 0, r.returncode)
+    kv: dict[str, str] = {}
+    for line in r.stdout.decode(errors="replace").splitlines():
+        if "=" in line:
+            key, _, value = line.partition("=")
+            kv[key] = value
+
+    enomem = uapi_errno("ENOMEM")
+    infinity = "ffffffffffffffff"      # guest RLIM_INFINITY is ~0UL (musl)
+
+    c.add(f"{label}: unset RW mmap succeeds", "ok", kv.get("unset_mmap"))
+
+    # RLIMIT_STACK default: qemu-user maps the main stack up front, so an
+    # untouched limit must report that region, not RLIM_INFINITY.  The size is
+    # derived here from qemu's documented -s default (8 MiB) and main.c's rule
+    # (raise to the host's RLIMIT_STACK only when finite and larger).
+    mapped_stack = 8 << 20
+    host_stack = resource.getrlimit(resource.RLIMIT_STACK)[0]
+    if host_stack != resource.RLIM_INFINITY and host_stack > mapped_stack:
+        mapped_stack = host_stack
+    c.add(f"{label}: unset RLIMIT_STACK getrlimit rc", "0",
+          kv.get("stack_default_getrlimit_rc"))
+    c.add(f"{label}: unset RLIMIT_STACK reports the mapped main stack "
+          f"({mapped_stack} B)", f"{mapped_stack:x}", kv.get("stack_default_cur"))
+    c.add(f"{label}: unset RLIMIT_STACK default rlim_max", f"{mapped_stack:x}",
+          kv.get("stack_default_max"))
+
+    c.add(f"{label}: setrlimit(RLIMIT_AS, {{0,inf}}) rc", "0",
+          kv.get("as_setrlimit_rc"))
+    c.add(f"{label}: getrlimit(RLIMIT_AS).rlim_cur == 0", "0",
+          kv.get("as_getrlimit_cur"))
+    c.add(f"{label}: RLIMIT_AS=0 RW mmap rc", "-1", kv.get("as_mmap_rc"))
+    c.add(f"{label}: RLIMIT_AS=0 RW mmap errno == ENOMEM", str(enomem),
+          kv.get("as_mmap_errno"))
+    c.add(f"{label}: RLIMIT_AS restored rc", "0", kv.get("as_restore_rc"))
+    c.add(f"{label}: getrlimit(RLIMIT_AS).rlim_cur == RLIM_INFINITY",
+          infinity, kv.get("as_restore_cur"))
+    c.add(f"{label}: RLIMIT_AS restored RW mmap succeeds", "ok",
+          kv.get("as_restore_mmap"))
+
+    c.add(f"{label}: setrlimit(RLIMIT_DATA, {{0,inf}}) rc", "0",
+          kv.get("data_soft_setrlimit_rc"))
+    c.add(f"{label}: getrlimit(RLIMIT_DATA).rlim_cur == 0", "0",
+          kv.get("data_soft_getrlimit_cur"))
+    # may_expand_vm(): "Workaround for Valgrind" -- cur=0 with max untouched
+    # keeps working, so this mapping must not be rejected.
+    c.add(f"{label}: RLIMIT_DATA={{0,inf}} RW mmap succeeds (kernel cur=0 "
+          f"workaround)", "ok", kv.get("data_soft_mmap"))
+    c.add(f"{label}: RLIMIT_DATA restored rc", "0", kv.get("data_restore_rc"))
+    c.add(f"{label}: RLIMIT_DATA restored RW mmap succeeds", "ok",
+          kv.get("data_restore_mmap"))
+
+    # {0,0}: writable private mappings are data and must fail; read-only and
+    # shared writable mappings are not data and must still work.
+    c.add(f"{label}: setrlimit(RLIMIT_DATA, {{0,0}}) rc", "0",
+          kv.get("data_zero_setrlimit_rc"))
+    c.add(f"{label}: getrlimit(RLIMIT_DATA) cur/max == 0",
+          "0/0", f"{kv.get('data_zero_getrlimit_cur')}/"
+                 f"{kv.get('data_zero_getrlimit_max')}")
+    c.add(f"{label}: RLIMIT_DATA={{0,0}} RW mmap rc", "-1",
+          kv.get("data_zero_mmap_rc"))
+    c.add(f"{label}: RLIMIT_DATA={{0,0}} RW mmap errno == ENOMEM", str(enomem),
+          kv.get("data_zero_mmap_errno"))
+    c.add(f"{label}: RLIMIT_DATA={{0,0}} read-only mmap still succeeds", "ok",
+          kv.get("data_zero_ro_mmap"))
+    c.add(f"{label}: RLIMIT_DATA={{0,0}} shared RW mmap still succeeds", "ok",
+          kv.get("data_zero_shared_mmap"))
+
+    # RLIMIT_STACK: set/value round trip, stack-shaped mappings capped, plain
+    # mappings untouched (qemu-user policy, see the probe source).
+    c.add(f"{label}: setrlimit(RLIMIT_STACK, 128 KiB) rc", "0",
+          kv.get("stack_setrlimit_rc"))
+    c.add(f"{label}: getrlimit(RLIMIT_STACK).rlim_cur == 128 KiB", "20000",
+          kv.get("stack_getrlimit_cur"))
+    c.add(f"{label}: getrlimit(RLIMIT_STACK).rlim_max == RLIM_INFINITY",
+          infinity, kv.get("stack_getrlimit_max"))
+    c.add(f"{label}: RLIMIT_STACK=128 KiB MAP_GROWSDOWN 256 KiB rc", "-1",
+          kv.get("stack_growsdown_256k_rc"))
+    c.add(f"{label}: RLIMIT_STACK=128 KiB MAP_GROWSDOWN 256 KiB errno == ENOMEM",
+          str(enomem), kv.get("stack_growsdown_256k_errno"))
+    c.add(f"{label}: RLIMIT_STACK=128 KiB MAP_GROWSDOWN 128 KiB succeeds", "ok",
+          kv.get("stack_growsdown_128k_mmap"))
+    c.add(f"{label}: RLIMIT_STACK=128 KiB plain 256 KiB mmap unaffected", "ok",
+          kv.get("stack_plain_256k_mmap"))
+    c.add(f"{label}: RLIMIT_STACK restored rc", "0", kv.get("stack_restore_rc"))
+    c.add(f"{label}: getrlimit(RLIMIT_STACK) back to RLIM_INFINITY", infinity,
+          kv.get("stack_restore_cur"))
+    c.add(f"{label}: RLIMIT_STACK restored MAP_GROWSDOWN 256 KiB succeeds", "ok",
+          kv.get("stack_restore_growsdown_256k"))
+
+    # Raw SYS_setrlimit / SYS_getrlimit (musl's libc uses prlimit64).
+    c.add(f"{label}: raw SYS_setrlimit(RLIMIT_DATA, {{0,inf}}) rc", "0",
+          kv.get("raw_setrlimit_rc"))
+    c.add(f"{label}: raw SYS_getrlimit(RLIMIT_DATA) rc", "0",
+          kv.get("raw_getrlimit_rc"))
+    c.add(f"{label}: raw SYS_getrlimit(RLIMIT_DATA).rlim_cur == 0", "0",
+          kv.get("raw_getrlimit_cur"))
+    c.add(f"{label}: raw SYS_setrlimit restore rc", "0",
+          kv.get("raw_restore_rc"))
+    c.add(f"{label}: raw SYS_getrlimit after restore rc", "0",
+          kv.get("raw_restore_getrlimit_rc"))
+    c.add(f"{label}: raw SYS_getrlimit after restore", infinity,
+          kv.get("raw_restore_cur"))
+
+
 def check_identity(c: Checks, label: str, elf: Path, want_interp: bool) -> dict:
     info = parse_elf(elf)
     c.add(f"{label}: EI_CLASS/EI_DATA (2/2 == ELFCLASS64/ELFDATA2MSB)",
@@ -513,7 +858,7 @@ def main() -> int:
     for name, src in (("hello", HELLO_C), ("exit_code", EXIT_C),
                       ("be", BE_C), ("errno_rd8", RAW_C),
                       ("enosys_rd8", ENOSYS_C), ("ioctl_mask", IOCTL_C),
-                      ("pagesz", PAGESZ_C)):
+                      ("pagesz", PAGESZ_C), ("rlimit", RLIMIT_C)):
         cases[name] = link_static(name, compile_program(name, src, work, env), work)
 
     info = check_identity(c, "static hello", cases["hello"], want_interp=False)
@@ -554,6 +899,10 @@ def main() -> int:
     r = qemu_run(qemu, [cases["ioctl_mask"]])
     c.add("static ioctl(arg in rb16): r/errno", f"r=-1 errno={enotty}",
           r.stdout.strip().decode())
+
+    # QEMU-084t (ISS-343): guest RLIMIT_AS/DATA must be reported back and
+    # enforced on the guest's own mmap calls.
+    check_guest_rlimit(c, "static rlimit", qemu, cases["rlimit"])
 
     # ── dynamic line ───────────────────────────────────────────────────────
     if not args.skip_dynamic:
