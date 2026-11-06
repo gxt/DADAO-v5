@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""night_run.py -- `make check-night` 的实现（TESTCASES-076t，P6）。
+"""night_run.py -- `make night-run` 的实现（TESTCASES-076t，P6；INFRA-127t 独立锁）。
 
 夜跑 = **tset full（libc-test / llvm-ts / Embench）+ 长 arch**，由调用者
-``setsid nohup make check-night > log 2>&1 &`` 脱离会话（不自带 `nohup`，避免嵌套）。
+``setsid nohup make night-run > log 2>&1 &`` 脱离会话（不自带 `nohup`，避免嵌套）。
 每次跑建一个只读报告目录（`docs/Process-09 §8`）：
 
     <test-artifacts>/night/<local YYYY-MM-DD-HH>/
         manifest.tsv   scope<TAB>suite<TAB>rc<TAB>log（逐成员一行）
         meta.json      command / started_utc / finished_utc / members
+                       + host / machine_id / git_commit / toolchain_id
         run.log        汇总（各成员 rc + 日志指针）
 
 纪律
@@ -27,7 +28,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -59,6 +62,47 @@ def today() -> str:
     return datetime.now().astimezone().strftime("%Y-%m-%d-%H")
 
 
+def host_name() -> str:
+    return socket.gethostname()
+
+
+def machine_id(cli_value: str | None = None) -> str:
+    """Machine label: ``--machine`` > ``NIGHT_MACHINE_ID`` > hostname."""
+    for candidate in (cli_value, os.environ.get("NIGHT_MACHINE_ID"), host_name()):
+        if candidate and candidate.strip():
+            return candidate.strip()
+    return host_name()
+
+
+def git_commit() -> str:
+    try:
+        res = subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT,
+                             capture_output=True, text=True)
+    except OSError:
+        return ""
+    return res.stdout.strip() if res.returncode == 0 else ""
+
+
+def toolchain_summary() -> str:
+    """Installed clang/ld.lld content identity (build-id/sha256), for cross-machine comparison."""
+    sys.path.insert(0, str(REPO_ROOT / "tools" / "infra"))
+    try:
+        import paths  # noqa: PLC0415
+        import toolchain_id as tid  # noqa: PLC0415
+    except ImportError:
+        return ""
+    bin_dir = paths.host_toolchain_bin()
+    parts: list[str] = []
+    for name in ("clang", "ld.lld"):
+        tool = bin_dir / name
+        if not tool.is_file():
+            parts.append(f"{name}=absent")
+            continue
+        kind, value = tid.content_id(tool)
+        parts.append(f"{name}={kind}:{value}")
+    return ";".join(parts)
+
+
 def parse_member(raw: str) -> tuple[str, str, str]:
     try:
         key, cmd = raw.split("=", 1)
@@ -71,7 +115,8 @@ def parse_member(raw: str) -> tuple[str, str, str]:
 
 
 def run_night(root: Path, date: str, members: list[tuple[str, str, str]],
-              allow_overwrite: bool, logdir: Path | None = None) -> int:
+              allow_overwrite: bool, logdir: Path | None = None,
+              machine: str | None = None) -> int:
     report = root / "night" / date
     if report.exists() and any(report.iterdir()) and not allow_overwrite:
         sys.stderr.write(
@@ -100,9 +145,13 @@ def run_night(root: Path, date: str, members: list[tuple[str, str, str]],
 
     report_io.write_manifest(report, rows)
     report_io.write_meta(report, {
-        "command": "make check-night",
+        "command": "make night-run",
         "started_utc": started,
         "finished_utc": finished,
+        "host": host_name(),
+        "machine_id": machine_id(machine),
+        "git_commit": git_commit(),
+        "toolchain_id": toolchain_summary(),
         "members": [{"scope": s, "suite": u, "cmd": cmd} for s, u, cmd in members],
     })
     (report / "run.log").write_text(
@@ -180,6 +229,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="scope:suite=cmd（可重复；默认 tset full × 3 + arch）")
     ap.add_argument("--allow-overwrite", action="store_true")
     ap.add_argument("--log-dir", default=None)
+    ap.add_argument("--machine", default=None,
+                    help="meta.machine_id（默认 NIGHT_MACHINE_ID，再默认 hostname）")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--keep", action="store_true")
@@ -197,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {scope}:{suite}  $ {cmd}")
         return 0
     return run_night(Path(args.root), date, members, args.allow_overwrite,
-                     Path(args.log_dir) if args.log_dir else None)
+                     Path(args.log_dir) if args.log_dir else None, args.machine)
 
 
 if __name__ == "__main__":

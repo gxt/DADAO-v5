@@ -68,7 +68,7 @@
 - `tests/`：341 文件 / 13 个顶层项；`llvm`(216)、`e2e`(45)、`scripts`(30)、`vectors`(25)、`atomics/clmul/fma/minmax/roundint`、`qemu`(1)。
 - `.dadao/tests/`：**19,967 文件 / 1.13 GB**，18 个子目录；含任务专属目录（如 `llvm-ts-user-050t`）、无 `clean` 目标、约 210 MB 不可重生成。
 - 向量：1,456 例 / 193 个 opcode 身份 / 22 个 YAML；ledger 1,956 条；lit 154。
-- 现行门控（2026-10-27，`TESTCASES-076t`）：`check`（L1）、`check-modules`（L2）、`check-full`（L3）、`check-night`（夜跑）、`check-milestone`；tset full 只在夜跑。
+- 现行门控（2026-10-27，`TESTCASES-076t`）：`check`（L1）、`check-modules`（L2）、`check-full`（L3）、`night-run`（夜跑，独立锁）、`check-milestone`；tset full 只在夜跑。
 - 工具分散（迁移前快照，P6 后已删除）：`tests/scripts/`（inst harness）、`tools/testcases/`（生成器/oracle/套件驱动）、`tools/integ/`（集成驱动），有重复（embench runtime、两套 runner）。
 - 平台：宿主 Linux x86-64；guest `qemu-system-dadao` / `qemu-dadao`；**无硬件在环**。
 
@@ -141,7 +141,7 @@ tests/
   `--inject CMD` 在两次生产之间执行一次注入，用于证明比较可达 FAIL（证据脚本用）。
 - **夜跑报告**（`Process-09 §8` Night 层）落 `night/<本地 YYYY-MM-DD-HH>/`，三件：
   `manifest.tsv`（表头 `scope<TAB>suite<TAB>rc<TAB>log`，逐成员一行）、
-  `meta.json`（`command`/`started_utc`/`finished_utc`）、`run.log`（汇总）。
+  `meta.json`（`command`/`started_utc`/`finished_utc` + `host`/`machine_id`/`git_commit`/`toolchain_id`）、`run.log`（汇总）。
   同日不覆盖（重跑须换日期或显式 `NIGHT_ALLOW_OVERWRITE=1`）。
 - **L3 报告**（`Process-09 §8` L3 层，`TESTCASES-083t`）落 `l3/<YYYYMMDDTHHMMSSZ>/`，三件
   同格式：`manifest.tsv`（逐成员 `scope<TAB>suite<TAB>rc<TAB>log`）、`meta.json`
@@ -186,7 +186,7 @@ tools/testcases/
     embench/    # run_embench_user_suite.py（L2 跑全量 benchmark）
   gen/          # 向量/oracle 生成器（ISA/rev/bitcnt/atomics/...）
   manage_tests.py       # make clean-tests / test-repro 的实现（scope→目录映射单一真源）
-  night_run.py          # make check-night 的实现（tset full×3 + 长 arch → 报告）
+  night_run.py          # make night-run 的实现（tset full×3 + 长 arch → 报告）
   check_night_report.py # 夜跑报告存在性/结构/结果检查（按需诊断；不阻断收口）
   l3_run.py             # make check-full 的实现（L3 逐成员执行 → l3/<UTC>/ 报告）
   check_l3_report.py    # L3 报告存在性/结构/覆盖/结果门控（里程碑层）
@@ -236,7 +236,7 @@ tools/testcases/
   - **tset 不在 L3 直接列出**（`TESTCASES-082t`，2026-10-27）：`check-tset-{libc,llvm,embench}-smoke`
     只在 **L2**；tset **full** 只在**夜跑**；`test-m6` 的 Embench E2E 属集成步骤，不构成 tset smoke 重复。
 - **里程碑（Milestone）**：`check-milestone` = 归档结构/内容 sha + 同步不可屏蔽 + knowledge 白名单 + `m` 册/任务号 + **L3 报告存在性/结构/四 scope 覆盖/结果**（`check-l3-report`）；**不内联跑长套件**。L3 报告缺失 ⇒ **明确 FAIL**（不是 SKIP）。**夜跑报告不在其中**（观测，按需 `check-night-report`，`INFRA-126t`）。
-- **夜跑（Night）**：`make check-night` = `tset` full ×3（libc-test / llvm-ts / Embench，各 static+dynamic）+ 长 arch；由**主会话** `setsid nohup` 启动 + `[exit marker] rc=N`；报告落 `.dadao/tests/night/<本地 YYYY-MM-DD-HH>/`（`manifest.tsv`/`meta.json`/`run.log`；目录用本地日期，meta 记 UTC），供**按需诊断**（`make check-night-report`）消费；红项按「真缺陷 / 语料假设过时 / 环境」分诊——**观测结果不阻断收口**（2026-11-06 用户裁定 A，`INFRA-126t`）。
+- **夜跑（Night）**：`make night-run` = `tset` full ×3（libc-test / llvm-ts / Embench，各 static+dynamic）+ 长 arch；由**主会话** `setsid nohup` 启动 + `[exit marker] rc=N`；**独立锁 `.dadao/night.lock`**（`NIGHT_LOCK`/`NIGHT_LOCK_WAIT`，不占 `gate.lock`、不阻断门控）；报告落 `.dadao/tests/night/<本地 YYYY-MM-DD-HH>/`（`manifest.tsv`/`meta.json`/`run.log`；目录用本地日期，meta 记 UTC），供**按需诊断**（`make check-night-report`）消费；红项按「真缺陷 / 语料假设过时 / 环境」分诊——**观测结果不阻断收口**（2026-11-06 用户裁定 A，`INFRA-126t`；独立化 `INFRA-127t`）。
 
 ---
 
@@ -279,7 +279,7 @@ cmd: make check-inst-smoke CASE=base/add
 - **P6 收口**（**已完成：`TESTCASES-076t`**）：删旧入口（三个目录 + 旧目标名）；共享 glue →
   `tests/shared/`；门控重写（L2 = 四 scope 代表集、L3 = 四 scope 全量 + `test-m6`；tset
   smoke 后由 `TESTCASES-082t` 收口为「只 L2」、full 只夜跑）；新增
-  `make check-night` / `check-night-report` / `clean-tests` / `test-repro`。
+  `make night-run` / `check-night-report` / `clean-tests` / `test-repro`。
 
 ### §12 资产 → scope 映射（P0）
 

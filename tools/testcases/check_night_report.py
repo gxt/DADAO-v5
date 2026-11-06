@@ -6,7 +6,7 @@
 报告根：``<test-artifacts>/night/<YYYY-MM-DD>/``
 
 1. **存在性**：``night/`` 下至少一个本地日期 ``YYYY-MM-DD-HH`` 目录；``--date`` 指定时该目录
-   必须存在。否则 ⇒ FAIL（提示「先跑 ``make check-night``」，**不是** SKIP）。
+   必须存在。否则 ⇒ FAIL（提示「先跑 ``make night-run``」，**不是** SKIP）。
 2. **三件套**：``manifest.tsv`` / ``meta.json`` / ``run.log`` 均存在且非空；
    ``meta.json`` 的 ``command`` / ``started_utc`` / ``finished_utc`` 非空。
 3. **结构**：``manifest.tsv`` 表头 = ``scope\tsuite\trc\tlog``，数据行 ≥1、四列、
@@ -59,7 +59,7 @@ def check(root: Path, date: str | None) -> Report:
     rep = Report()
     night_root = root / "night"
     if not night_root.is_dir():
-        rep.fail(f"夜跑报告目录不存在：{night_root}（先跑 `make check-night`；"
+        rep.fail(f"夜跑报告目录不存在：{night_root}（先跑 `make night-run`；"
                  "它由主会话 setsid nohup 启动）")
         return rep
 
@@ -71,7 +71,7 @@ def check(root: Path, date: str | None) -> Report:
     else:
         target = latest_date_dir(night_root)
         if target is None:
-            rep.fail(f"{night_root} 下没有 <YYYY-MM-DD> 报告目录（先跑 `make check-night`）")
+            rep.fail(f"{night_root} 下没有 <YYYY-MM-DD> 报告目录（先跑 `make night-run`）")
             return rep
     rep.ok(f"report dir = {target}")
 
@@ -164,7 +164,7 @@ def _write_report(dirp: Path, rows: list[tuple[str, str, int]], *, meta: bool = 
     (dirp / "run.log").write_text("night summary\n")
     if meta:
         (dirp / "meta.json").write_text(json.dumps({
-            "command": "make check-night",
+            "command": "make night-run",
             "started_utc": "2026-10-27-00T00:00:00Z",
             "finished_utc": "2026-10-27-00T02:00:00Z",
         }) + "\n")

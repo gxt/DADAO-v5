@@ -68,7 +68,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-inst check-inst-smoke check-tests-index check-arch check-arch-smoke \
         check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
         check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
-        clean-tests test-repro check-night check-night-report check-l3-report \
+        clean-tests test-repro night-run check-night-report check-l3-report \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
@@ -120,7 +120,7 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       check-inst check-inst-smoke check-arch check-arch-smoke \
                       check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
                       check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
-                      clean-tests test-repro check-night \
+                      clean-tests test-repro \
                       check-picolibc-tests check-picolibc-tests-full check-rnd-probe \
                       check-minmax-probe check-fma-probe check-clmul-probe \
                       check-testcases-suites check-testcases-suites-full \
@@ -144,6 +144,22 @@ $(1):
 endef
 $(foreach t,$(GATE_LOCKED_TARGETS),$(eval $(call gate-locked-rule,$(t))))
 .PHONY: $(GATE_LOCKED_TARGETS) $(addprefix _locked-,$(GATE_LOCKED_TARGETS))
+
+# ── 夜跑独立锁 (INFRA-127t) ───────────────────────────────────────────────────
+# 夜跑是**观测**（只读构建产物、只写自己的报告目录），不是门控 ⇒ 用**独立锁**
+# `.dadao/night.lock`，**不列入** `GATE_LOCKED_TARGETS`，不占共享 `.dadao/gate.lock`：
+# 夜跑跑一小时期间，L1/L2/L3 与手动构建照常拿 gate.lock，不被夜跑挡住。
+# 外层 gate_lock.py 串行化两次夜跑；子 make 用 `GATE_LOCK=$(NIGHT_LOCK)` 继承，
+# 夜跑成员（`check-tset-*-full` / `check-arch`）经 ancestor 嵌套检测直接放行，
+# 因此成员也不会去抢共享锁。规范见 docs/Process-07 §2。
+NIGHT_LOCK      ?= $(REPO_ROOT)/.dadao/night.lock
+NIGHT_LOCK_WAIT ?= $(GATE_LOCK_WAIT)
+# 只跑一个成员（自测/分片）：NIGHT_MEMBERS='scope:suite=cmd'；空 = 默认 4 成员。
+NIGHT_MEMBERS   ?=
+
+night-run:
+	+@$(GATE_LOCK_TOOL) run --lock "$(NIGHT_LOCK)" --wait $(NIGHT_LOCK_WAIT) --failfast $(GATE_LOCK_FAILFAST) --target night-run -- $(MAKE) -f $(firstword $(MAKEFILE_LIST)) --no-print-directory GATE_LOCK=$(NIGHT_LOCK) _locked-night-run
+.PHONY: night-run _locked-night-run
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -199,7 +215,7 @@ help:
 	@echo "  make check           Run repository-level structural checks (L1: static + component smoke)"
 	@echo "  make check-modules   Run L2 = the four scopes' smoke sets (inst/arch/unit + tset x3; no FP probes)"
 	@echo "  make check-full      Run L3 = check-inst + check-arch + check-unit-full + 4 FP probes + test-m6; writes .dadao/tests/l3/<UTC>/ (tset smoke is L2-only; tset full is night-only; TESTCASES-082t/083t)"
-	@echo "  make check-night     Run the night set (tset full x3 + long arch) and write .dadao/tests/night/<date>/ (setsid nohup; TESTCASES-076t)"
+	@echo "  make night-run       Run the night set (tset full x3 + long arch) into .dadao/tests/night/<date>/ under its own lock; observation only, does not block gates (setsid nohup; TESTCASES-076t/INFRA-127t)"
 	@echo "  make check-night-report  Observe: night report exists + structurally complete + green (on-demand diagnostics, NOT a milestone gate; TESTCASES-076t)"
 	@echo "  make check-l3-report  Gate: the latest L3 report exists, covers four scopes, and is fully green (milestone closure; TESTCASES-083t)"
 	@echo "  make clean-tests     Remove one scope's generated artifacts (SCOPE=inst|arch|unit|tset|night|l3|all; DRY_RUN=1 to list; TESTCASES-076t)"
@@ -938,7 +954,7 @@ _locked-check-tset-embench-smoke:
 
 # ── tset full（夜跑成员；TESTCASES-076t，P6）────────────────────────────────────
 # 「full」= 该套件的**全部可枚举用例 × 两种链接档**（static / dynamic），**只在**
-# `make check-night` 里跑；不进 L2/L3（否则每次 check-full 变成夜跑）。
+# `make night-run` 里跑；不进 L2/L3（否则每次 check-full 变成夜跑）。
 # 三个驱动的 `--link-mode` 口径：libc-test / embench 只接受 static|dynamic，llvm-ts
 # 另有 both —— 这里**逐档各跑一次**，三套件同一口径（日志、rc 逐档记录）。
 TSET_FULL_MODES ?= static dynamic
@@ -1036,8 +1052,8 @@ _locked-clean-work:
 # L2 `make check-modules`（几十~几百秒）= **四 scope 代表集**（inst/arch/unit + tset×3）
 # L3 `make check-full`（几百~几千秒）   = **全量**（check-inst/check-arch/check-unit-full
 #                                        + 4 个 FP 探针）+ test-m6（全量 lit + ir-lli + Embench E2E）
-# 夜跑 `make check-night`（小时级）     = tset full×3 + 长 arch；报告 `.dadao/tests/night/<date>/`
-# tset（TESTCASES-082t）：smoke 只在 L2（`check-modules`），full 只在夜跑（`check-night`）；
+# 夜跑 `make night-run`（小时级）     = tset full×3 + 长 arch；报告 `.dadao/tests/night/<date>/`
+# tset（TESTCASES-082t）：smoke 只在 L2（`check-modules`），full 只在夜跑（`night-run`）；
 # L3 不直接列 tset smoke ⇒ 「一个检查只在一层」（docs/Process-07 §4）。
 # 说明（TESTCASES-076t）：`check-interface`/`check-code-range` 只做静态/合成 fixture 断言
 # ⇒ 按 docs/Process-07 §3 判据 1 归 L1（原在 L2）。四个 FP 探针（rnd/minmax/fma/clmul）
@@ -1064,7 +1080,7 @@ _locked-check-modules: check-inst-smoke check-arch-smoke check-unit check-tset-l
 #   inst 全量 : check-inst；arch 全量 : check-arch
 #   unit 全量 : check-unit-full（= check-unit + check-lit-full）；`check-unit` 只在 L2 **直接**列出，
 #               此处经**前置依赖**间接跑到 ⇒ 符合 Process-07 §4「被上层前置依赖不算重复」
-#   tset      : **不直接列出**（L2 已有 smoke；tset full 只在夜跑 check-night）；
+#   tset      : **不直接列出**（L2 已有 smoke；tset full 只在夜跑 night-run）；
 #               `test-m6` 的 Embench E2E 是集成步骤，不算 tset smoke 重复
 #   fp 语义   : 4 个 FP 探针（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖；已移出 L2，只在 L3）
 #   整链      : test-m6（Embench E2E + ir-lli + 全量 lit；其 [1/3] 亦跑 check-lit-full）
@@ -1788,11 +1804,14 @@ _locked-clean-tests:
 _locked-test-repro:
 	@$(PYTHON) tools/testcases/manage_tests.py repro --scope "$(SCOPE)" --root "$(TESTS_ROOT)" $(if $(DRY_RUN),--dry-run,) $(if $(PRODUCER),--producer "$(PRODUCER)",) $(if $(INJECT),--inject "$(INJECT)",)
 
-# make check-night  —— **由主会话** `setsid nohup make check-night > log 2>&1 &` 启动
+# make night-run  —— **由主会话** `setsid nohup make night-run > log 2>&1 &` 启动
 # （本目标不自带 nohup，避免嵌套）；成员 = tset full×3 + 长 arch；报告只读落
-# `<TESTS_ROOT>/night/<YYYY-MM-DD>/`（manifest.tsv / meta.json / run.log）。
-_locked-check-night:
-	@$(PYTHON) tools/testcases/night_run.py --root "$(TESTS_ROOT)" $(if $(NIGHT_DATE),--date $(NIGHT_DATE),) $(if $(NIGHT_DRY_RUN),--dry-run,) $(if $(NIGHT_ALLOW_OVERWRITE),--allow-overwrite,)
+# `<TESTS_ROOT>/night/<YYYY-MM-DD-HH>/`（manifest.tsv / meta.json / run.log）。
+# 独立锁（`NIGHT_LOCK`，不在 `GATE_LOCKED_TARGETS` 内）⇒ 夜跑不阻断 L1/L2/L3。
+# `NIGHT_MEMBERS='scope:suite=cmd'` 只跑单个成员（自测/分片）；`NIGHT_MACHINE_ID`
+# 覆盖 meta.machine_id（默认 hostname）。
+_locked-night-run:
+	@GATE_LOCK="$(GATE_LOCK)" $(PYTHON) tools/testcases/night_run.py --root "$(TESTS_ROOT)" $(if $(NIGHT_DATE),--date $(NIGHT_DATE),) $(if $(NIGHT_DRY_RUN),--dry-run,) $(if $(NIGHT_ALLOW_OVERWRITE),--allow-overwrite,) $(if $(NIGHT_MEMBERS),--member "$(NIGHT_MEMBERS)",) $(if $(NIGHT_MACHINE_ID),--machine "$(NIGHT_MACHINE_ID)",)
 
 # make check-night-report —— **按需诊断**（观测口径，**不入**里程碑收口；用户 2026-11-06
 # 裁定 A）：报告**存在性 + 结构 + 结果**（不跑长套件）；未跑夜跑 ⇒ 明确 FAIL（不是 SKIP）。

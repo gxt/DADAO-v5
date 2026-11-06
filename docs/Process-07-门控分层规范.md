@@ -16,7 +16,7 @@
 | **L1 完整性 / 可用性** | `make check`（**默认**） | **仓库完整性静态检查**（不跑被测语义：patch-tree / spec-drift / 索引卫生 / 编码·合法性·scope·fp 一致性 / ISA 覆盖矩阵漂移 / 引用审计 / 目录·残留·只读 / **组件 changelog 形态**（`check-component-changelog`：列表式 + 按里程碑分节）等）**+ 组件可用性冒烟**（`llc` / `clang --print-targets` / `qemu-system-dadao` 可执行且认识 `dadao`；**不跑被测语义**）**+ issue 台账校验 / `compileall tools`** | 秒 ~ 几十秒 |
 | **L2 四 scope smoke** | `make check-modules` | 四个固定 scope 的 **smoke** 集（`Process-09 §8`）：`check-inst-smoke` + `check-arch-smoke` + `check-unit` + `check-tset-{libc,llvm,embench}-smoke`。**不含** FP 探针（2026-10-27 用户裁定「L2 只保留四 scope smoke」） | 几十 ~ 几百秒 |
 | **L3 全量** | `make check-full` | **inst/arch/unit 全量 + FP 探针 + 集成链**：`check-inst`（`tests/inst` **全量**载体：`base` + `rol`/`atomics`/`clmul`；`rev`/`bitcnt` 未纳入，见 `tests/inst/inventory.md`「门控覆盖」）+ `check-arch`（全 cfx）+ `check-unit-full`（= `check-unit` + `check-lit-full`，见下）+ **4 个 FP 探针**（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖）+ `test-m6`（全量 lit 生成档 + ir-lli + Embench E2E）。**tset 不直接列出**：smoke 只在 L2、full 只在夜跑；`test-m6` 的 Embench E2E 属集成步骤，**不算** tset smoke 重复（§4；`TESTCASES-082t`）。运行由 `tools/testcases/l3_run.py` 逐成员执行（成员清单真源 = `l3_run.DEFAULT_MEMBERS`），并写只读报告 `<test-artifacts>/l3/<YYYYMMDDTHHMMSSZ>/`（`manifest.tsv`/`meta.json`/`run.log`，与夜跑同格式）| 几百 ~ 几千秒 |
-| **夜跑（非三层之一）** | `make check-night` | `tset` full ×3（各 static+dynamic）+ 长 `check-arch`；结果只落只读报告 `.dadao/tests/night/<date>/`，按需消费（`check-night-report`，**观测口径，不阻断收口**）；触发点 = 队列空档，`setsid nohup`（`Process-09 §8`） | 小时级 |
+| **夜跑（非三层之一）** | `make night-run` | `tset` full ×3（各 static+dynamic）+ 长 `check-arch`；结果只落只读报告 `.dadao/tests/night/<date>/`，按需消费（`check-night-report`，**观测口径，不阻断收口**）；**独立锁 `night.lock`**（不占 `gate.lock`，不阻断 L1/L2/L3，`NIGHT_LOCK`）；触发点 = 队列空档，`setsid nohup`（`Process-09 §8`） | 小时级 |
 | **按需（模块完整）** | 各 `test-*`/`check-*` **单独调** | 模块**全量**、profiling | 不定 |
 
 - **L1 判据**：**只看"仓库是否完整 + 组件是否可用"**，**不得**依赖被测语义的执行结果（那是 L2/L3）。
@@ -58,9 +58,9 @@
 - **任务收尾**（`/dispatch` 后、`/complete` 前）：跑 **L2**（`make check-modules`）。
 - **归档结构**（`check-archive`）：属 **L1**（`make check` 默认包含）——归档是只读历史，结构与册字段可随时静态核；**不新增收尾专项**（`INFRA-116t`）。
 - **里程碑 / `/complete`**：跑 **L3**（`make check-full`；它逐成员落 `.dadao/tests/l3/<UTC>/` 报告）；里程碑收尾另跑 **`make check-milestone`**（归档结构 + 内容 sha + `m` 册 + 漏收尾 = 0 + **L3 报告** `check-l3-report`）——归档门控**只在此触发**（`INFRA-109t`）；**夜跑报告不参与收口**（观测，按需 `check-night-report`，`INFRA-126t`）。
-- **夜跑**：队列空档由**主会话** `setsid nohup make check-night > log 2>&1 &` 启动（一次只跑一个）；报告供**按需诊断**（`make check-night-report`）消费，红项按「真缺陷 / 语料假设过时 / 环境」分诊——**观测结果不阻断收口**（2026-11-06 用户裁定 A，`INFRA-126t`）。
+- **夜跑**：队列空档由**主会话** `setsid nohup make night-run > log 2>&1 &` 启动（一次只跑一个；**独立锁 `night.lock`**，与日常门控互不阻塞）；报告供**按需诊断**（`make check-night-report`）消费，红项按「真缺陷 / 语料假设过时 / 环境」分诊——**观测结果不阻断收口**（2026-11-06 用户裁定 A，`INFRA-126t`；独立化 `INFRA-127t`）。
 - **某模块全量**：按需**单独调**该模块目标（不进 L1/L2）。
-- **同工作树互斥（MUST）**：写共享状态的目标（构建树 `.work/build/**`、安装根 `.dadao/**`、SDK 产物目录 `.dadao/tests/**`）与跑这些写者的门控**串行化**——`Makefile` 的 `GATE_LOCKED_TARGETS`（**单一真源**，文档不另列清单）经 `tools/infra/gate_lock.py` 在 `.dadao/gate.lock` 上取 `flock(2)`，独立进程**排队**或 fail-fast，嵌套（同一 make 树）放行。语义：等待上界 `GATE_LOCK_WAIT`（默认 3600 s，超时 rc=75 并打印持有者 pid/开始时间/目标/命令，**不得**无限阻塞）；`GATE_LOCK_FAILFAST=1` ⇒ 立即 rc=75；锁不可用（父目录不可写 / 无 `flock`）⇒ rc=69 且**不运行**目标（禁静默跳过）。`--self-test` 覆盖「嵌套放行 / 独立进程拒绝 / 锁不可用报错」三类。源 = `ISS-229`（L2/L3 与 `install-host` 并发读到瞬态不完整的安装根 ⇒ Embench 假 FAIL；手动 `build-mc` 与 L2 内 `install-host` 并发 ⇒ 构建树写坏）。
+- **同工作树互斥（MUST）**：写共享状态的目标（构建树 `.work/build/**`、安装根 `.dadao/**`、SDK 产物目录 `.dadao/tests/**`）与跑这些写者的门控**串行化**——`Makefile` 的 `GATE_LOCKED_TARGETS`（**单一真源**，文档不另列清单）经 `tools/infra/gate_lock.py` 在 `.dadao/gate.lock` 上取 `flock(2)`，独立进程**排队**或 fail-fast，嵌套（同一 make 树）放行。语义：等待上界 `GATE_LOCK_WAIT`（默认 3600 s，超时 rc=75 并打印持有者 pid/开始时间/目标/命令，**不得**无限阻塞）；`GATE_LOCK_FAILFAST=1` ⇒ 立即 rc=75；锁不可用（父目录不可写 / 无 `flock`）⇒ rc=69 且**不运行**目标（禁静默跳过）。`--self-test` 覆盖「嵌套放行 / 独立进程拒绝 / 锁不可用报错」三类。**夜跑不在此列**（`INFRA-127t`）：它只读产物、只写自己的报告目录，用**独立锁** `NIGHT_LOCK`（`.dadao/night.lock`，`NIGHT_LOCK_WAIT` 可配），由外层 `night-run` 持有并把 `GATE_LOCK=$(NIGHT_LOCK)` 传给成员 ⇒ 夜跑小时级运行期间 L1/L2/L3 与构建照常拿 `gate.lock`，互不阻塞。源 = `ISS-229`（L2/L3 与 `install-host` 并发读到瞬态不完整的安装根 ⇒ Embench 假 FAIL；手动 `build-mc` 与 L2 内 `install-host` 并发 ⇒ 构建树写坏）。
 - **安装根的工具链二进制只由 `install-host` 写入（MUST）**：`make install-host` 管理的二进制（`HOST_TOOLCHAIN_BIN` / `HOST_TOOLS_BIN` 等）不得手工替换。手工 `cp`/替换安装根属**例外手法**（`QEMU-066t` 先例），仅限「重建不可行或紧急兜底」，且必须：① 完成区写明理由与来源（构建树路径）；② 逐件核对 md5/sha256 与构建树一致；③ 之后补跑 `make install-host` 回归正轨。**例外手法不改变新鲜度判据**（`check-install-tools`/`check-builtins-freshness`/`check-musl-freshness` 比的是「安装根 vs 构建树」，副本不一致照样红）⇒ 只能兜底、不能替代重建。源 = `ISS-300`。
 - **理由**：分层后「L1 绿、L2/L3 红」会成为常态 ⇒ **触发点缺失则"按需层"必然腐烂**（设计稿已识别此风险）。
 
@@ -85,7 +85,7 @@
   既拿到 unit 全量，又不违反「一层一列」。**不设任何例外。**
 - **tset scope 的 L2/夜跑分工（2026-10-27 用户裁定，`TESTCASES-082t`）**：
   `check-tset-{libc,llvm,embench}-smoke` **只在 L2** 直接列出；tset **full** 只在夜跑
-  （`check-night`）；**L3 不直接列任何 tset 目标**（`test-m6` 的 Embench E2E 是集成步骤，
+  （`night-run`）；**L3 不直接列任何 tset 目标**（`test-m6` 的 Embench E2E 是集成步骤，
   不构成 tset smoke 的重复）。同样**不设例外**。
 - `Makefile` 中以注释标注每层成员与"已从 L1 移出"的目标，作为**机械可核**的层归属记录。
 

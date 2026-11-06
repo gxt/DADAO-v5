@@ -24,7 +24,7 @@
   `tests/tset/embench/`；门控 `check-tset-{libc,llvm,embench}-smoke`。
 - **P6 收口**（`TESTCASES-076t`）：删旧入口三目录与旧 Make 目标名；共享 glue →
   `tests/shared/{crt0,linker,runtime}/`；集成驱动 → `tools/testcases/{unit,tset}/` +
-  `tools/infra/`；门控重写（L2/L3）+ `check-night` / `clean-tests` / `test-repro`。
+  `tools/infra/`；门控重写（L2/L3）+ `night-run` / `clean-tests` / `test-repro`。
   原顶层 `e2e/` 于 P6 未动；`TESTCASES-084t` 已归 `tests/unit/llvm/e2e/`（工具链 E2E 属 unit）。
 
 | scope | 测什么 | `platforms` 允许值 | 目录 |
@@ -79,8 +79,8 @@
 make check            # L1：仓库完整性（不跑被测语义）
 make check-modules    # L2：四 scope smoke（inst/arch/unit + tset×3；不含 FP 探针）
 make check-full       # L3：check-inst + check-arch + check-unit-full + 4 个 FP 探针 + test-m6（慢；tset smoke 仅在 L2、tset full 仅在夜跑）；逐成员报告落 .dadao/tests/l3/<UTC>/
-make check-night      # 夜跑（tset full×3 + 长 arch；主会话 setsid nohup 启动；小时级）
-make check-night-report  # 里程碑层：夜跑报告存在性/结构/结果（未跑 ⇒ 明确 FAIL）
+make night-run        # 夜跑（tset full×3 + 长 arch；独立 night.lock；主会话 setsid nohup 启动；小时级）
+make check-night-report  # 按需诊断：夜跑报告存在性/结构/结果（未跑 ⇒ 明确 FAIL；观测，不阻断收口）
 make check-l3-report  # 里程碑层：L3 报告存在性/结构/四 scope 覆盖/全绿（未跑 ⇒ 明确 FAIL）
 
 make check-unit       # unit 代表集（仅 L2：lit + codegen/elf + ir-lli + picolibc fast）
