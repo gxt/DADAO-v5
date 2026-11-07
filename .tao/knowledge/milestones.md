@@ -12,7 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| INFRA-133t | 待开始 | 2026-11-07 22:25（登记） | 节点 chipyard/Verilator/RISC-V 工具链环境 + 构建冒烟 |
+| INFRA-133t | 待验收 | 2026-11-08 02:15（登记） | 节点 chipyard/Verilator/RISC-V 环境；两台 RocketConfig 构建通过、conda 包一致 |
 | INFRA-132t | 已验证 | 2026-11-07 22:23 | 节点 `.cache` 增量同步（rsync，无 --delete）+ 逐 commit 校验；不做挂载 |
 | INFRA-131t | 已验证 | 2026-11-07 21:35 | remote.py 假绿根除（cd 失败即非零）+ `~/` 展开 + git 失败不再报假状态 |
 | INFRA-130t | 已验证 | 2026-11-07 21:11 | 节点引导 bootstrap_node.sh（8 步幂等）+ 远程派单 remote.py（status/preflight/run/collect） |
