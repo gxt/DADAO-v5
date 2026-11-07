@@ -132,3 +132,32 @@
 - 长任务（>10 min）：主控机后台启动、落 PID/日志/`*_EXIT`，主会话监督；子代理不得在会话内等长跑。
 
 **停止点（需先问用户，不自行决定）**：新增/减少节点、破坏性或硬件操作（烧录/复位）、装 license 工具、改动 SPEC/契约语义、跨模块修改、push。
+
+## 11. RTL / 综合环境（chipyard + Verilator + RISC-V 工具链）
+
+**用户裁定（2026-11-07）**：用 chipyard 官方 conda 依赖；含一次真实构建冒烟；综合工具**只要 Verilator**（Yosys/OpenROAD/商业工具不装）。
+
+### 11.1 装了什么、在哪
+
+- `conda`（Miniforge）在 `~/miniforge3`；conda-forge 走清华镜像，`ucb-bar`/`litex-hub` 走官方。
+- 环境在 `<repo>/.work/source/chipyard/.conda-env`（**repo 相对路径**，与 chipyard 默认一致）：约 **6.1 GiB**（含 riscv-tools 626 MiB）。
+- 版本：`verilator 5.022`、`openjdk 20.0.2`、`sbt`（conda 包）、`riscv64-unknown-elf-gcc 13.2.0`、`riscv64-unknown-linux-gnu-gcc 13.2.0`、`firtool`（CIRCT 1.75.0 / LLVM 19.0.0git）。
+- riscv 工具在 `<env>/riscv-tools/bin`，由 `activate.d/activate-riscv-tools.sh` 注入 PATH；`sims/` 的构建还需要 `RISCV=<env>/riscv-tools`。
+- chipyard 源码 + 最小子模块约 **2.9 GiB**。最小子模块集由 `scripts/init-submodules-no-riscv-tools.sh` 决定（默认 29/55，其余为可选加速器/核）。
+
+### 11.2 建环境时必须补的三处（官方 `build-setup.sh` 之外）
+
+1. **`firtool` 不在 conda 依赖里**：需装 CIRCT 静态包（`firtool-1.75.0`，**759 MB**）。直连 GitHub release 会截断（`Unexpected EOF`）⇒ 用 `wget -c` 断点续传循环，校验字节数后再解包到 `<env>`。
+2. **conda `riscv-tools` 不含 fesvr**：`sims/` 的 C++ 测试驱动需要 `fesvr/*.h` 与 `libfesvr.a` ⇒ 用 chipyard 自带 `toolchains/riscv-tools/riscv-isa-sim` 源码 `configure --prefix=<env>/riscv-tools && make && make install`。
+3. **GitHub 时通时不通**：子模块 clone 会 135 s 超时。**优先从主控机已有检出 rsync**（工作树 + `.git/modules` 元数据，按相同绝对路径），不要反复重试 clone。
+
+### 11.3 冒烟判据（实测）
+
+- `sims/verilator`（默认 `RocketConfig`，`-j32`）构建成功，产物 `simulator-chipyard.harness-RocketConfig` 约 **11 MB**；单次 clean 构建为 **20–30 分钟量级**。
+- **`--help` 的退出码是 255（上游行为）**：chipyard 仿真器打印 help 后会 `terminate called ... User queried htif_t help text`。判据应看「输出含 `Usage:` / `EMULATOR OPTIONS`」，**不能**用 rc=0。
+- 两台的 `conda list` 逐包比对 **190 项、0 差异**（环境可复现）。
+
+### 11.4 已知限制
+
+- conda 版 riscv 工具链**没有 `htif_nano.specs`**（只有 `nano.specs`）⇒ chipyard 自带 `tests/` 裸机测试暂时编不了；要用需补 riscv-pk / newlib 的 htif 支持，属后续任务。
+- 两台目前**不共享** conda 环境：各自本地建（包清单一致）；chipyard 源码树走主控机中继。节点间尚未配置 SSH 免密（如需 P2P 传输要先经用户同意再分发密钥）。
