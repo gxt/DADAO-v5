@@ -109,3 +109,26 @@
 - **前提**：同步期间主控机与节点都不要跑 `make fetch`（rsync 读的是活仓库，正在写的 pack 可能被复制半截；partial transfer rc 23/24 会保留为非零，不做兜底）。
 - **不做 NFS/sshfs 挂载**（用户 2026-11-07 裁定）：跨 Tailscale（含 DERP 中继）挂载在断链时**挂起**而非报错；只读挂载与 `fetch.py` 写 `.cache` 的路径冲突；运行期还会引入主控机单点依赖。
 - **主控机缓存须先齐全**：新节点上线前先 `make fetch`；主控机缺某个 bare repo 时校验会明确报 `missing bare repository`（与「缺 commit」同为 FAIL），不得跳过校验掩盖。
+
+## 10. 任务分配规则（哪类活上哪台）
+
+**分工主轴：实现留主控机，执行上节点。**
+
+- **只在主控机做**：改 `components/**` 补丁集（单写者，避免多台各持一份未提交补丁）、改 `Makefile`/`contracts/`/`tests/inst/` 等共享文件、文档与台账、门控脚本。
+- **优先给节点**：纯执行类 — tset 各档全量、门控复跑（L1/L2/L3）、夜跑、timeout 预算实验、矩阵重生成、RTL 构建与仿真回归。
+- **一段活只在一台跑**：同一次对照里，QEMU 腿与 gem5 腿分到不同机器，结果回主控机汇总，不来回搬产物。
+- **构建与基线不同机**：同机并发会让 `timeout` 判成失败（已有 `Quicksort` 120 s 临界实例）。
+
+**派单前必须过三条**（缺一不派）：
+
+1. 同 commit：`git rev-parse HEAD` 一致（节点用 bundle/`remote.py` 同步）；
+2. 同源码树：比 **tree hash**，不比 commit id（各机 `apply-series` 的本地 commit SHA 天然不同）；
+3. 二进制可比：gem5/QEMU 由同一补丁集构建；要判确定性时比对二进制 md5 或 `build-id`。
+
+**动作与留痕**：
+
+- 派单命令：`python3 tools/infra/remote.py run --hosts 'gxt@<node>,…' --repo '~/DADAO-v5' --log-prefix <任务号> -- <命令>`；日志落 `<运行期日志目录>/<任务号>/remote/<任务号>-run-<主机>.log`。
+- 结果核对**不看单一 rc**：rc + 计数 + 失败集合逐条对齐；`gem5_only_fail` / `qemu_only_fail` 要列名归因。
+- 长任务（>10 min）：主控机后台启动、落 PID/日志/`*_EXIT`，主会话监督；子代理不得在会话内等长跑。
+
+**停止点（需先问用户，不自行决定）**：新增/减少节点、破坏性或硬件操作（烧录/复位）、装 license 工具、改动 SPEC/契约语义、跨模块修改、push。
