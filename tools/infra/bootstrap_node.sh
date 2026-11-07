@@ -187,13 +187,16 @@ for tool in "${TOOLS[@]}"; do
   fi
 done
 
-DEV_OK=0
+# DEV_BAD=1 means at least one -dev package is unusable.  The name states what
+# "true" means; the earlier name claimed "ok" while 0 meant fine, and that
+# double negative was once flipped into "all present => exit 2".
+DEV_BAD=0
 for pkg in glib-2.0 pixman-1 zlib; do
   if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists "$pkg"; then
     say "[step 1] dev $pkg: ok"
   else
     say "[step 1] dev $pkg: MISSING"
-    DEV_OK=1
+    DEV_BAD=1
   fi
 done
 if command -v cc >/dev/null 2>&1; then
@@ -201,25 +204,33 @@ if command -v cc >/dev/null 2>&1; then
     say "[step 1] dev libfdt: ok"
   else
     say "[step 1] dev libfdt: MISSING"
-    DEV_OK=1
+    DEV_BAD=1
   fi
 else
   say '[step 1] dev libfdt: UNKNOWN (cc not on PATH)'
-  DEV_OK=1
+  DEV_BAD=1
 fi
 
-if [ "${#MISSING[@]}" -ne 0 ] || [ "$DEV_OK" -ne 0 ]; then
+if [ "${#MISSING[@]}" -ne 0 ] || [ "$DEV_BAD" -ne 0 ]; then
   say "[step 1] rc=2"
   say '[step 1] pending install list (install these, then re-run bootstrap):'
+  # ar/ranlib/nm all come from binutils: map each missing tool to its package
+  # and emit every package once (`SEEN_PACKAGES` is order-preserving).
+  SEEN_PACKAGES=" "
   for tool in "${MISSING[@]}"; do
     case "$tool" in
-      ninja)            say '  - ninja-build' ;;
-      ar|ranlib|nm)     say '  - binutils' ;;
-      make)             say '  - make' ;;
-      *)                say "  - $tool" ;;
+      ninja)        pkg='ninja-build' ;;
+      ar|ranlib|nm) pkg='binutils' ;;
+      make)         pkg='make' ;;
+      *)            pkg="$tool" ;;
     esac
+    case "$SEEN_PACKAGES" in
+      *" $pkg "*) continue ;;
+    esac
+    SEEN_PACKAGES="$SEEN_PACKAGES$pkg "
+    say "  - $pkg"
   done
-  [ "$DEV_OK" -ne 0 ] && say '  - pkg-config libglib2.0-dev libpixman-1-dev zlib1g-dev libfdt-dev'
+  [ "$DEV_BAD" -ne 0 ] && say '  - pkg-config libglib2.0-dev libpixman-1-dev zlib1g-dev libfdt-dev'
   command -v cc >/dev/null 2>&1 || say '  - build-essential'
   exit 2
 fi

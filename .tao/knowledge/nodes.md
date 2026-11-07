@@ -91,6 +91,7 @@
 - tset 全量（static / dynamic 分档）可拆到多节点并行，但需保证 **同 commit、同工具链**；结果汇总后逐字比对。
 - 主控机负责会话与合并；节点只回报 rc 与日志，不改共享台账。
 - **派单日志命名**：`<任务号>-<子命令>-<主机>.log`，落在主控机的运行期日志目录（按任务号分子目录），由 `remote.py --log-prefix <任务号>` 指定（默认沿用引入工具的 `INFRA-130t`）。前缀**必须是任务号**：`check-run-artifacts` 只接受 `check-<name>.log` 或 `<TASK-ID>-<purpose>.log`，用工具名作前缀会让 L1 直接红。
+- **`--repo` 必须是仓库根**：节点进入后比对 `git rev-parse --show-toplevel` 与 `--repo` 的物理路径；指向子目录 / 非仓库 / 裸仓库 ⇒ 该节点 rc=2（`--repo is not a repository root`），不再拿父仓库的 commit 冒充目标仓库。
 
 ## 8. 新增节点流程
 

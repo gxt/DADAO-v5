@@ -26,6 +26,12 @@ same scripts on this host (self-test only); node labels still come from
 not be entered the node fails with rc=2 and no status lines are printed - a
 node whose repository is missing must never look like a clean node.
 
+``--repo`` must also be the *root* of a git work tree: after entering it the
+node compares ``git rev-parse --show-toplevel`` with the physical path of that
+directory.  A subdirectory of a repository would otherwise ``cd`` fine and
+silently report the parent repository's commit, so a mismatch fails the node
+with rc=2 and ``--repo is not a repository root``.
+
 Exit status is 0 only when every node succeeded; the final summary always
 prints ``host -> rc``.
 
@@ -240,6 +246,12 @@ def enter_repo(repo: str) -> str:
     A plain ``cd PATH && <multi-line script>`` only guards the first line: the
     remaining lines still run and the final command decides the exit status,
     which turns a missing repository into a fake PASS.
+
+    The preamble also rejects anything that is not a *root* of a git work
+    tree.  A subdirectory would ``cd`` fine and ``git rev-parse`` would then
+    read the parent repository's commit, reporting it for a ``--repo`` the
+    caller never named; a directory outside any work tree has no root at all.
+    Both fail the node instead of running against the wrong target.
     """
     return (
         f"repo_dir={quote_remote_path(repo)}\n"
@@ -248,6 +260,18 @@ def enter_repo(repo: str) -> str:
         "  exit 2\n"
         "fi\n"
         "unset repo_dir\n"
+        'repo_here="$(pwd -P)"\n'
+        'repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"\n'
+        "repo_root_rc=$?\n"
+        'if [ "$repo_root_rc" -ne 0 ]; then\n'
+        "  printf 'remote.py: --repo is not a repository root: %s (git rev-parse --show-toplevel failed)\\n' \"$repo_here\" >&2\n"
+        "  exit 2\n"
+        "fi\n"
+        'if [ "$repo_root" != "$repo_here" ]; then\n'
+        "  printf 'remote.py: --repo is not a repository root: %s (git toplevel: %s)\\n' \"$repo_here\" \"$repo_root\" >&2\n"
+        "  exit 2\n"
+        "fi\n"
+        "unset repo_here repo_root repo_root_rc\n"
     )
 
 

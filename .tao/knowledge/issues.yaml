@@ -77,8 +77,8 @@
 
 - id: ISS-347
   scope: [infra]
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: INFRA-134t
   title: >-
     【P3】`tools/infra/bootstrap_node.sh` 清理项：① 变量 `DEV_OK` 实为「问题标志」（0=正常），
     名实相反易被后人改回反逻辑，应改名 `DEV_BAD` 并同步三处引用；② 证据缺「仅 dev 缺失、
@@ -86,8 +86,8 @@
 
 - id: ISS-348
   scope: [infra]
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: INFRA-134t
   title: >-
     【P3】`tools/infra/remote.py` 的 `--repo` 指向某 git 仓库的**子目录**时 `cd` 成功、
     `git rev-parse` 读到父仓库 commit ⇒ 报出「不是目标仓库」的状态而不报错。应校验
