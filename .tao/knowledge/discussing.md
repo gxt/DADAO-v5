@@ -58,6 +58,11 @@
 
 **Open issue**：0。
 
+## 2026-11-07 新节点 L1 红：运行期证据引用
+
+- fresh clone 上 `check-knowledge-refs` 报 20 处悬空——任务书/知识文件写了具体运行期证据文件；主控机因文件存在而假绿。
+- 立 `INFRA-129t` 清理这些引用（只改措辞，不改结论）；完成后新节点可直接 L1 绿。
+
 ## 2026-11-07 用户批准：QEMU SS_AUTODISARM 补丁
 
 - `GEM5-029t` 为使 QEMU 与 Linux 一致，改了 `components/qemu/linux-user/{signal.c,dadao/signal.c}`（`SS_AUTODISARM`）。任务书本写「不在范围：QEMU」，属跨模块变更。
