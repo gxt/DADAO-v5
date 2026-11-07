@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/process.hh b/src/arch/dadao/process.hh
 new file mode 100644
-index 0000000..d3034e6
+index 0000000..9733abd
 --- /dev/null
 +++ b/src/arch/dadao/process.hh
-@@ -0,0 +1,174 @@
+@@ -0,0 +1,314 @@
 +// DADAO syscall-emulation process: static ET_EXEC image, initial stack vector
 +// and the SE platform's initial architectural state.
 +//
@@ -12,9 +12,12 @@ index 0000000..d3034e6
 +#ifndef __ARCH_DADAO_PROCESS_HH__
 +#define __ARCH_DADAO_PROCESS_HH__
 +
++#include <cstdint>
 +#include <map>
++#include <memory>
 +#include <vector>
 +
++#include "arch/dadao/page_size.hh"
 +#include "params/Process.hh"
 +#include "sim/process.hh"
 +
@@ -23,6 +26,7 @@ index 0000000..d3034e6
 +
 +namespace loader
 +{
++class ElfObject;
 +class ObjectFile;
 +} // namespace loader
 +
@@ -119,6 +123,111 @@ index 0000000..d3034e6
 +
 +    SignalState signals;
 +    ResourceLimit limits[NumResourceLimits];
++    /** True once the guest called setrlimit/prlimit64 for that resource.  Only
++     *  RLIMIT_STACK needs it: until set, its guest-visible value is the stack
++     *  region the loader mapped (QEMU-084t, same rule), not RLIM_INFINITY. */
++    bool limitsSet[NumResourceLimits] = {};
++
++    // PROT_* bits (asm-generic uapi) as stored in the SE page-protection map.
++    static constexpr uint8_t ProtNone = 0;
++    static constexpr uint8_t ProtRead = 1;
++    static constexpr uint8_t ProtWrite = 2;
++    static constexpr uint8_t ProtExec = 4;
++
++    /** One contiguous range of pages with the same protection. */
++    struct ProtRange
++    {
++        Addr end = 0;
++        uint8_t prot = 0;
++        bool growdown = false;
++    };
++
++    // --- SE page protection (mprotect(2), GEM5-030t) --------------------
++    //
++    // SE has no hardware page table and the host page table has no per-page
++    // permissions, so the guest-visible protection of a mapped range is kept
++    // here and checked by arch/dadao/tlb.cc on every CPU-issued access.
++    // Ranges are page-aligned and disjoint; a page with no entry is untracked
++    // (the pre-GEM5-030t behaviour: readable/writable/executable, and not
++    // counted by the address-space accounting).  The image, the stack, the
++    // MemRAS, the trampoline and every mmap/brk page are registered, so a
++    // guest access to an untracked page can only be one with no mapping at
++    // all (the page-table fault path handles that).
++
++    /** Install `prot` over [start,end) (rounded out to pages), splitting any
++     *  range it overlaps.  This is mmap/brk/exec: it may create entries. */
++    void setProtection(Addr start, Addr end, uint8_t prot,
++                       bool growdown = false);
++
++    /** Drop all protection entries in [start,end) (munmap/brk shrink). */
++    void clearProtection(Addr start, Addr end);
++
++    /** Move the entries in [start,end) to `dest` (mremap); the source range is
++     *  left untracked.  `dest` must have been cleared first. */
++    void moveProtection(Addr start, Addr end, Addr dest);
++
++    /** Apply `prot` to the *mapped* pages of [start,end), leaving holes alone
++     *  (mprotect).  Untracked pages are not created: a hole has no mapping to
++     *  protect, and counting it as mapped would corrupt RLIMIT_AS.  The
++     *  MAP_GROWSDOWN attribute of each range is kept (it belongs to the VMA,
++     *  not to the protection). */
++    void protectMapped(Addr start, Addr end, uint8_t prot);
++
++    /** Protection of the page containing `vaddr`; false when untracked.
++     *  Defined inline (not in process.cc): tlb.cc calls it on every CPU
++     *  access, so the 16-entry cache hit is the hot path and the std::map
++     *  lookup only runs after a miss. */
++    bool protectionAt(Addr vaddr, uint8_t &prot, bool &growdown) const
++    {
++        const Addr vpage = vaddr & ~Addr(PageBytes - 1);
++        const ProtCache &cache =
++            protCache[(vaddr >> PageShift) & (ProtCacheEntries - 1)];
++        if (cache.epoch == protEpoch && cache.page == vpage) {
++            if (!cache.tracked)
++                return false;
++            prot = cache.prot;
++            growdown = cache.growdown;
++            return true;
++        }
++        return protectionSlow(vpage, prot, growdown);
++    }
++
++    /** mm/mprotect.c PROT_GROWSDOWN: find the first VMA overlapping
++     *  [start,end); false = no overlap (ENOMEM).  On success `regionStart`
++     *  is that VMA's start (the kernel's `start = vma->vm_start`, valid for
++     *  interior and below-but-overlapping starts too) and `growdown` says
++     *  whether it is a MAP_GROWSDOWN VMA (else EINVAL). */
++    bool growDownRegion(Addr start, Addr end, Addr &regionStart,
++                        bool &growdown) const;
++
++    /** Fault-time downward growth of a MAP_GROWSDOWN range: extend it to the
++     *  page of `vaddr` when the gap is free, RLIMIT_STACK/RLIMIT_AS allow it
++     *  and no other mapping is in the way (Linux expand_downwards()).  Denied
++     *  means "this was a stack-growth fault that may not grow": the caller
++     *  turns it into the guest SIGSEGV instead of a page-table fixup. */
++    enum class GrowResult { NotStack, Grown, Denied };
++    GrowResult growDown(Addr vaddr);
++
++    /** Bytes covered by any protection entry (RLIMIT_AS usage). */
++    uint64_t trackedBytes() const;
++    /** Bytes covered by a writable entry (RLIMIT_DATA usage). */
++    uint64_t writableBytes() const;
++
++    /** Would growing the address space by `bytes` stay inside the guest's
++     *  RLIMIT_AS?  (Same arithmetic as QEMU-084t guest_rlimit_exceeds.) */
++    bool asLimitAllows(Addr bytes) const;
++    /** RLIMIT_DATA, including the kernel's cur==0 Valgrind workaround. */
++    bool dataLimitAllows(Addr bytes) const;
++    /** RLIMIT_STACK on a MAP_GROWSDOWN mapping; unlimited until the guest sets
++     *  the limit (the default readback is the mapped stack region). */
++    bool stackLimitAllows(Addr bytes) const;
++
++    /** Fork/exec inheritance: share the map on CLONE_VM, copy it otherwise. */
++    void inheritProtection(const Process *parent, bool share);
++
++    /** Deliver the guest-visible fault of a denied access (SIGSEGV with
++     *  si_code=siCode and si_addr=vaddr); SIG_DFL terminates the guest. */
++    void memoryFault(ThreadContext *tc, Addr vaddr, int siCode);
 +
 +    /** Live threads of this process, keyed by gem5 context id.  The main
 +     *  thread's tid equals pid(); clone(CLONE_THREAD) adds entries and SYS_exit
@@ -164,6 +273,10 @@ index 0000000..d3034e6
 +    /** Fail closed on anything but a big-endian, static, flat ET_EXEC. */
 +    void validateStaticElf();
 +
++    /** Register the loaded image's per-page protection from the ELF program
++     *  headers (PT_LOAD p_flags), instead of the pre-030t blanket RWX. */
++    void registerImageProtection(loader::ElfObject *elf);
++
 +    /** The SE configuration lists the same Process once per thread context
 +     *  (the CPU requires one workload per context), so instantiate() calls
 +     *  initState() several times on one object; only the first builds the
@@ -172,6 +285,33 @@ index 0000000..d3034e6
 +
 +    /** Exact initial stack pointer (before the VMA page rounding). */
 +    Addr initialSp = 0;
++
++    /** Page protection intervals, keyed by page-aligned start.  Shared by
++     *  clone(CLONE_VM) threads, copied by fork (see inheritProtection). */
++    std::shared_ptr<std::map<Addr, ProtRange>> protMap =
++        std::make_shared<std::map<Addr, ProtRange>>();
++
++    /** Direct-mapped cache for the TLB hot path (GEM5-030t): a benchmark
++     *  touches a handful of pages over and over, and a std::map lookup on
++     *  every load/store/fetch is measurable (four llvm-ts cases sit within
++     *  seconds of the 120 s budget).  Any protection change bumps `epoch`
++     *  and invalidates the whole cache. */
++    struct ProtCache
++    {
++        Addr page = ~Addr(0);
++        uint64_t epoch = ~uint64_t(0);
++        uint8_t prot = 0;
++        bool growdown = false;
++        bool tracked = false;
++    };
++    static constexpr unsigned ProtCacheEntries = 16;
++    mutable ProtCache protCache[ProtCacheEntries];
++    mutable uint64_t protEpoch = 0;
++
++    /** Cold half of protectionAt(): map lookup plus cache fill. */
++    bool protectionSlow(Addr vpage, uint8_t &prot, bool &growdown) const;
++
++    void flushProtCache() { ++protEpoch; }
 +};
 +
 +} // namespace DadaoISA

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
 new file mode 100644
-index 0000000..10d7106
+index 0000000..6d8860a
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.cc
-@@ -0,0 +1,5582 @@
+@@ -0,0 +1,5708 @@
 +// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
 +#include "arch/dadao/se_workload.hh"
 +
@@ -335,10 +335,19 @@ index 0000000..10d7106
 +constexpr uint64_t MapPrivate = 0x02;
 +constexpr uint64_t MapFixed = 0x10;
 +constexpr uint64_t MapAnonymous = 0x20;
++constexpr uint64_t MapGrowsdown = 0x0100;
 +constexpr uint64_t MapFixedNoreplace = 0x100000;
 +constexpr uint64_t ProtRead = 0x1;
 +constexpr uint64_t ProtWrite = 0x2;
 +constexpr uint64_t ProtExec = 0x4;
++// PROT_SEM (asm-generic 0x8): accepted and ignored, like every host (the
++// QEMU oracle takes it through validate_prot_to_pageflags()).
++constexpr uint64_t ProtSem = 0x8;
++// PROT_GROWSDOWN (asm-generic 0x01000000): apply the protection from the
++// start of the MAP_GROWSDOWN mapping.
++constexpr uint64_t ProtGrowsdown = 0x01000000;
++// The PROT_* bits the shadow really stores.
++constexpr uint8_t ProtMask = ProtRead | ProtWrite | ProtExec;
 +
 +RegId
 +intReg(RegIndex idx)
@@ -2177,10 +2186,6 @@ index 0000000..10d7106
 +    return roundUp(process->image.maxAddr(), process->pTable->pageSize());
 +}
 +
-+// Defined with the other resource-limit helpers below; declared here because
-+// brk(2) is the place the limit is enforced.
-+bool dataLimitAllows(const DadaoISA::Process *process, Addr bytes);
-+
 +/** brk(2): move the program break (the anonymous heap).
 + *
 + * Linux semantics (the reference for numbers, flags and errno is the locked
@@ -2207,16 +2212,33 @@ index 0000000..10d7106
 +    if (new_brk < heapFloor(process) || new_brk > heap_limit)
 +        return old_brk;
 +
-+    // RLIMIT_DATA: a growing heap must fit (kernel may_expand_vm, including
-+    // its Valgrind workaround -- see dataLimitAllows()).  brk failure returns
-+    // the old break, never -ENOMEM.
-+    if (new_brk > old_brk &&
-+        !dataLimitAllows(process, roundUp(new_brk - old_brk,
-+                                          process->pTable->pageSize())))
-+        return old_brk;
++    // Address-space limits: a growing heap is a mapping like any other, so
++    // both RLIMIT_AS and RLIMIT_DATA apply (kernel may_expand_vm(); QEMU's
++    // do_brk() grows through target_mmap()).  Failure returns the old break,
++    // never -ENOMEM.
++    if (new_brk > old_brk) {
++        const Addr growth =
++            roundUp(new_brk - old_brk, process->pTable->pageSize());
++        if (!process->asLimitAllows(growth) ||
++            !process->dataLimitAllows(growth))
++            return old_brk;
++    }
 +
 +    mem_state->updateBrkRegion(old_brk, new_brk);
-+    return mem_state->getBrkPoint();
++    // Mirror the VMA move in the protection shadow (the heap is read/write,
++    // no execute).  updateBrkRegion() may silently refuse when the range is
++    // occupied, so follow the break it actually set.
++    const Addr now = mem_state->getBrkPoint();
++    const Addr page_bytes = process->pTable->pageSize();
++    if (now > old_brk)
++        process->setProtection(roundUp(old_brk, page_bytes),
++                               roundUp(now, page_bytes),
++                               DadaoISA::Process::ProtRead |
++                                   DadaoISA::Process::ProtWrite);
++    else if (now < old_brk)
++        process->clearProtection(roundUp(now, page_bytes),
++                                 roundUp(old_brk, page_bytes));
++    return now;
 +}
 +
 +/** Place an anonymous mapping of `length` bytes in the SE mmap window.
@@ -2257,8 +2279,9 @@ index 0000000..10d7106
 +        return static_cast<RegVal>(-EINVAL);
 +    if (offset & (page_bytes - 1))
 +        return static_cast<RegVal>(-EINVAL);
-+    if (prot & ~(ProtRead | ProtWrite | ProtExec))
++    if (prot & ~(ProtRead | ProtWrite | ProtExec | ProtSem))
 +        return static_cast<RegVal>(-EINVAL);
++    prot &= ProtMask;
 +
 +    const bool is_private = flags & MapPrivate;
 +    const bool is_shared = flags & MapShared;
@@ -2269,6 +2292,19 @@ index 0000000..10d7106
 +        return static_cast<RegVal>(-ENOMEM);
 +    length = roundUp(length, page_bytes);
 +    if (length > max_addr - hint)
++        return static_cast<RegVal>(-ENOMEM);
++
++    // Guest address-space limits (GEM5-030t).  QEMU's target_mmap() checks
++    // these before touching the address space; MAP_GROWSDOWN is the
++    // stack-shaped mapping and is charged to RLIMIT_STACK instead of the
++    // private-writable RLIMIT_DATA branch.
++    const bool growsdown = flags & MapGrowsdown;
++    if (!process->asLimitAllows(length))
++        return static_cast<RegVal>(-ENOMEM);
++    if (growsdown && !process->stackLimitAllows(length))
++        return static_cast<RegVal>(-ENOMEM);
++    if (!growsdown && is_private && (prot & ProtWrite) &&
++        !process->dataLimitAllows(length))
 +        return static_cast<RegVal>(-ENOMEM);
 +
 +    if (!(flags & MapAnonymous)) {
@@ -2300,6 +2336,7 @@ index 0000000..10d7106
 +            // allocated pages), which is also how the heap guard page of
 +            // mallocng is installed below the current break.
 +            mem_state->unmapRegion(hint, length);
++            process->clearProtection(hint, hint + length);
 +        }
 +    } else {
 +        // Without MAP_FIXED the address is only a hint: Linux rounds it down
@@ -2316,6 +2353,8 @@ index 0000000..10d7106
 +    }
 +
 +    mem_state->mapRegion(hint, length, "anon");
++    process->setProtection(hint, hint + length, static_cast<uint8_t>(prot),
++                           growsdown);
 +    return hint;
 +}
 +
@@ -2332,9 +2371,11 @@ index 0000000..10d7106
 +    const Addr mapped = roundUp(length, page_bytes);
 +
 +    // unmapRegion() also flushes the TLB and deallocates the pages, so a
-+    // later access faults (SE has no protection bits, but it does have the
-+    // host page table: an unmapped page is a real fault).
++    // later access faults.  The protection shadow must forget the range too:
++    // otherwise RLIMIT_AS/DATA keep counting unmapped pages and a later
++    // access could be checked against a stale permission (GEM5-030t).
 +    process->memState->unmapRegion(start, mapped);
++    process->clearProtection(start, start + mapped);
 +
 +    // Let the next anonymous mapping reuse the freed top of the window.  The
 +    // kernel does this; without it a probe/fill sequence such as libc-test's
@@ -2384,9 +2425,17 @@ index 0000000..10d7106
 +
 +    const bool fixed = flags & MremapFixed;
 +
++    // Protection of the mapping being resized; a move keeps it, the grown
++    // tail inherits it (Linux mremap keeps the VMA's protection).
++    uint8_t prot = DadaoISA::Process::ProtRead | DadaoISA::Process::ProtWrite;
++    bool growdown = false;
++    process->protectionAt(old_addr, prot, growdown);
++
 +    if (!fixed && new_size <= old_size) {
-+        if (new_size < old_size)
++        if (new_size < old_size) {
 +            mem_state->unmapRegion(old_addr + new_size, old_size - new_size);
++            process->clearProtection(old_addr + new_size, old_addr + old_size);
++        }
 +        return old_addr;
 +    }
 +
@@ -2397,7 +2446,14 @@ index 0000000..10d7106
 +    if (!fixed && grow > 0 && old_end <= DadaoISA::MmapWindowEnd &&
 +        grow <= DadaoISA::MmapWindowEnd - old_end &&
 +        mem_state->isUnmapped(old_end, grow)) {
++        // A growing mapping is bounded by RLIMIT_AS, and by RLIMIT_DATA when
++        // it is writable (QEMU's mremap grows through target_mmap).
++        if (!process->asLimitAllows(grow) ||
++            ((prot & DadaoISA::Process::ProtWrite) &&
++             !process->dataLimitAllows(grow)))
++            return static_cast<RegVal>(-ENOMEM);
 +        mem_state->mapRegion(old_end, grow, "anon");
++        process->setProtection(old_end, new_size + old_addr, prot, growdown);
 +        return old_addr;
 +    }
 +    if (!(flags & MremapMaymove))
@@ -2422,37 +2478,80 @@ index 0000000..10d7106
 +            return static_cast<RegVal>(-ENOMEM);
 +    }
 +
++    // A moved mapping costs the address space it occupies at the new address
++    // until the old pages are released; the kernel checks the growth of the
++    // mapping, which is what the limits are about.
++    if (new_size > old_size &&
++        !process->asLimitAllows(new_size - old_size))
++        return static_cast<RegVal>(-ENOMEM);
++
 +    // remapRegion() moves both the VMA slices and the existing page table
 +    // entries; the pages that were never touched stay lazy at the new
 +    // address.  The grown tail is a fresh VMA and a shrunk tail is dropped.
 +    const Addr move_len = std::min(old_size, new_size);
 +    mem_state->remapRegion(old_addr, dest, move_len);
-+    if (new_size > move_len)
++    process->clearProtection(dest, dest + new_size);
++    process->moveProtection(old_addr, old_addr + move_len, dest);
++    if (new_size > move_len) {
 +        mem_state->mapRegion(dest + move_len, new_size - move_len, "anon");
-+    if (old_size > move_len)
++        process->setProtection(dest + move_len, dest + new_size, prot,
++                               growdown);
++    }
++    if (old_size > move_len) {
 +        mem_state->unmapRegion(old_addr + move_len, old_size - move_len);
++        process->clearProtection(old_addr + move_len, old_addr + old_size);
++    }
 +    return dest;
 +}
 +
 +/** mprotect(2).
 + *
-+ * SE keeps no per-page permission state (the DADAO SE TLB translates straight
-+ * through the host page table; gem5's RISC-V SE maps mprotect to ignoreFunc).
-+ * The request is validated and accepted, but PROT_NONE is not enforced: this
-+ * is a recorded SE limitation, not a silent success of an unimplemented call.
++ * SE keeps the guest-visible page protection in DadaoISA::Process (the host
++ * page table has none); arch/dadao/tlb.cc enforces it and raises SIGSEGV on a
++ * denied CPU access (GEM5-030t).  A hole inside the range is accepted and
++ * left alone, which is what QEMU's page_set_flags() over the reserved guest
++ * VA does (Linux would return ENOMEM; the QEMU user-mode answer is the SE
++ * reference, ADR-0048 D1).
 + */
 +RegVal
 +doMprotect(DadaoISA::Process *process, Addr start, uint64_t length,
 +           uint64_t prot)
 +{
 +    const Addr page_bytes = process->pTable->pageSize();
++    const Addr max_addr = std::numeric_limits<Addr>::max();
 +
 +    if (length == 0)
 +        return 0;
 +    if (start & (page_bytes - 1))
 +        return static_cast<RegVal>(-EINVAL);
-+    if (prot & ~(ProtRead | ProtWrite | ProtExec))
++    if (prot & ~(ProtRead | ProtWrite | ProtExec | ProtSem | ProtGrowsdown))
 +        return static_cast<RegVal>(-EINVAL);
++    if (length > max_addr - start)
++        return static_cast<RegVal>(-ENOMEM);
++
++    Addr end = start + length;
++
++    // PROT_GROWSDOWN is the stack special case of the kernel (mm/mprotect.c
++    // do_mprotect_pkey): the requested [start,end) must overlap a VMA, and
++    // that VMA fixes the protection start -- start=vma->vm_start for an
++    // interior start, a start below the VMA while still overlapping, or an
++    // exact vm_start start.  No overlapping VMA is ENOMEM; a non-growdown VMA
++    // is EINVAL.  QEMU's linux-user rejects the bit for this target (it is
++    // HPPA-only there), so the kernel behaviour is implemented here and
++    // recorded as a QEMU-parity difference.  `end` stays start+length
++    // (start_orig+len), exactly as the kernel leaves it.
++    if (prot & ProtGrowsdown) {
++        Addr region_start;
++        bool growdown = false;
++        if (!process->growDownRegion(start, end, region_start, growdown))
++            return static_cast<RegVal>(-ENOMEM);
++        if (!growdown)
++            return static_cast<RegVal>(-EINVAL);
++        start = region_start;
++    }
++
++    process->protectMapped(start, end,
++                           static_cast<uint8_t>(prot & ProtMask));
 +    return 0;
 +}
 +
@@ -2608,11 +2707,13 @@ index 0000000..10d7106
 + *
 + * Returns true when a handler was entered (the PC is redirected); false when
 + * the signal was consumed without one (SIG_IGN, or a default ignore).  A
-+ * default *terminate* ends the simulation inside this call.
++ * default *terminate* ends the simulation inside this call.  `faultAddr` is
++ * the si_addr of a hardware-detected fault (SIGSEGV/SIGBUS); 0 for a signal
++ * that has no fault address (kill(2) and friends).
 + */
 +bool
 +deliverSignal(ThreadContext *tc, DadaoISA::Process *process, int sig,
-+              Addr resumePc, int siCode)
++              Addr resumePc, int siCode, Addr faultAddr = 0)
 +{
 +    auto &state = process->signals;
 +    DadaoISA::ThreadState &thread = threadOf(process, tc);
@@ -2653,13 +2754,18 @@ index 0000000..10d7106
 +    uint8_t *siginfo = raw.data();
 +    uint8_t *uc = raw.data() + GuestSiginfoSize;
 +
-+    // siginfo_t: 3 x int, then the union at offset 16 ({si_pid, si_uid}
-+    // first in __si_common.__first.__piduid; musl include/signal.h).
++    // siginfo_t: 3 x int, then the union at offset 16.  SIGSEGV/SIGBUS carry
++    // `si_addr` there (musl's _sigfault.si_addr); the process-directed
++    // signals carry {si_pid, si_uid} (__si_common.__first.__piduid).
 +    writeBigEndian32(siginfo + 0, sig);
 +    writeBigEndian32(siginfo + 4, 0);
 +    writeBigEndian32(siginfo + 8, static_cast<uint32_t>(siCode));
-+    writeBigEndian32(siginfo + 16, process->pid());
-+    writeBigEndian32(siginfo + 20, static_cast<uint32_t>(::geteuid()));
++    if (sig == SigSegv) {
++        writeBigEndian64(siginfo + 16, faultAddr);
++    } else {
++        writeBigEndian32(siginfo + 16, process->pid());
++        writeBigEndian32(siginfo + 20, static_cast<uint32_t>(::geteuid()));
++    }
 +
 +    // ucontext_t: uc_flags, uc_link, uc_stack, uc_sigmask, uc_mcontext.
 +    writeBigEndian64(uc + 0, 0);
@@ -3627,40 +3733,33 @@ index 0000000..10d7106
 +        if (cur > max)
 +            return static_cast<RegVal>(-EINVAL);
 +        // Raising the *hard* limit needs CAP_SYS_RESOURCE (kernel do_prlimit);
-+        // SE has no privilege model, so like an unprivileged QEMU it refuses.
++        // SE has no privilege model, so like an unprivileged process it
++        // refuses.  (QEMU-084t chose not to enforce this; Linux is the
++        // reference here and the difference is recorded.)
 +        if (max > process->limits[resource].max)
 +            return static_cast<RegVal>(-EPERM);
 +        process->limits[resource].cur = cur;
 +        process->limits[resource].max = max;
++        process->limitsSet[resource] = true;
 +    }
 +
 +    if (oldAddr != 0) {
-+        writeBigEndian64(raw, process->limits[resource].cur);
-+        writeBigEndian64(raw + 8, process->limits[resource].max);
++        uint64_t cur = process->limits[resource].cur;
++        uint64_t max = process->limits[resource].max;
++        // An RLIMIT_STACK the guest never set reads back as the main-stack
++        // region the loader mapped -- QEMU-084t's guest_rlimit_get() rule.
++        // Reporting RLIM_INFINITY would claim head-room the guest has not.
++        if (resource == static_cast<int>(DadaoISA::RlimitStack) &&
++            !process->limitsSet[resource]) {
++            cur = max = std::max<Addr>(process->memState->getMaxStackSize(),
++                                       32 * process->pTable->pageSize());
++        }
++        writeBigEndian64(raw, cur);
++        writeBigEndian64(raw + 8, max);
 +        if (!writeGuestBlob(tc, oldAddr, raw, sizeof(raw)))
 +            return static_cast<RegVal>(-EFAULT);
 +    }
 +    return 0;
-+}
-+
-+/** May the heap (brk) grow by `bytes` under RLIMIT_DATA?
-+ *
-+ * This is the kernel's may_expand_vm() data branch, including its Valgrind
-+ * workaround: a *soft* limit of 0 means "no soft limit" and the hard limit
-+ * still applies, so a test may lower only rlim_cur to 0 and keep mapping
-+ * (libc-test's malloc-brk-fail depends on exactly that).
-+ */
-+bool
-+dataLimitAllows(const DadaoISA::Process *process, Addr bytes)
-+{
-+    const auto &limit = process->limits[DadaoISA::RlimitData];
-+    const Addr floor =
-+        roundUp(process->image.maxAddr(), process->pTable->pageSize());
-+    const Addr used = process->memState->getBrkPoint() - floor;
-+    if (limit.cur == 0)
-+        return limit.max == DadaoISA::RlimInfinity ||
-+               used + bytes <= limit.max;
-+    return limit.cur == DadaoISA::RlimInfinity || used + bytes <= limit.cur;
 +}
 +
 +// --- Process information -------------------------------------------------
@@ -4520,8 +4619,14 @@ index 0000000..10d7106
 +        childThread.altStackSp = parentThread.altStackSp;
 +        childThread.altStackSize = parentThread.altStackSize;
 +    }
-+    for (unsigned i = 0; i < DadaoISA::NumResourceLimits; ++i)
++    for (unsigned i = 0; i < DadaoISA::NumResourceLimits; ++i) {
 +        child->limits[i] = process->limits[i];
++        child->limitsSet[i] = process->limitsSet[i];
++    }
++    // Page protection: threads (CLONE_VM) share it, fork gets a copy.  The
++    // fork copy replaces the child's own freshly built map so the parent's
++    // mprotect/mmap state is what the guest sees.
++    child->inheritProtection(process, flags & CloneVm);
 +    // The table is only really shared when clone() shared it (gem5 copies it
 +    // unless the CLONE_FILES macros are visible; ask the object, not the flag).
 +    child->sharesFdTable = child->fds == process->fds;
@@ -4726,8 +4831,10 @@ index 0000000..10d7106
 +        if (newProcess->signals.actions[sig].handler != SigIgn)
 +            newProcess->signals.actions[sig] = DadaoISA::SignalDisposition();
 +    }
-+    for (unsigned i = 0; i < DadaoISA::NumResourceLimits; ++i)
++    for (unsigned i = 0; i < DadaoISA::NumResourceLimits; ++i) {
 +        newProcess->limits[i] = process->limits[i];
++        newProcess->limitsSet[i] = process->limitsSet[i];
++    }
 +    newProcess->parentProcess = process->parentProcess;
 +    newProcess->sharesFdTable = process->sharesFdTable;
 +    *newProcess->sigchld = true;
@@ -4850,6 +4957,25 @@ index 0000000..10d7106
 +
 +namespace DadaoISA
 +{
++
++void
++Process::memoryFault(ThreadContext *tc, Addr vaddr, int siCode)
++{
++    if (hasExited)
++        return;
++    const Addr resumePc = tc->pcState().instAddr();
++    // A fault is delivered "on the way to user mode", like a self-raised
++    // signal: build the frame, redirect the PC and return.  sigreturn resumes
++    // at the faulting instruction, which faults again -- the same loop Linux
++    // has for a handler that returns.
++    if (!deliverSignal(tc, this, SigSegv, resumePc, siCode, vaddr)) {
++        // SIG_DFL already terminated inside deliverSignal(); SIG_IGN is
++        // undefined for SIGSEGV on Linux, so fail closed rather than let the
++        // instruction silently retry forever.
++        if (!hasExited)
++            terminateWithSignal(tc, SigSegv);
++    }
++}
 +
 +bool
 +SEWorkload::deliverPendingSignal(ThreadContext *tc)

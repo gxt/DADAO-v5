@@ -1,13 +1,14 @@
 diff --git a/src/arch/dadao/process.cc b/src/arch/dadao/process.cc
 new file mode 100644
-index 0000000..3e2c00d
+index 0000000..73921ff
 --- /dev/null
 +++ b/src/arch/dadao/process.cc
-@@ -0,0 +1,303 @@
+@@ -0,0 +1,708 @@
 +// DADAO syscall-emulation process -- implementation.
 +#include "arch/dadao/process.hh"
 +
 +#include <algorithm>
++#include <iterator>
 +#include <memory>
 +#include <vector>
 +
@@ -50,6 +51,28 @@ index 0000000..3e2c00d
 +    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
 +    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
 +};
++
++// ELF64 program header access for the image's per-segment permissions.  The
++// loader keeps the guest VA of the header table (e_phoff inside the first
++// PT_LOAD); the table has already been written when initState() runs.
++constexpr uint32_t PtLoad = 1;
++constexpr uint32_t PfExec = 1;
++constexpr uint32_t PfWrite = 2;
++constexpr uint32_t PfRead = 4;
++constexpr unsigned Elf64PhdrSize = 56;
++
++uint32_t
++readBe32(const uint8_t *p)
++{
++    return (uint32_t(p[0]) << 24) | (uint32_t(p[1]) << 16) |
++           (uint32_t(p[2]) << 8) | uint32_t(p[3]);
++}
++
++uint64_t
++readBe64(const uint8_t *p)
++{
++    return (uint64_t(readBe32(p)) << 32) | readBe32(p + 4);
++}
 +
 +} // anonymous namespace
 +
@@ -154,6 +177,67 @@ index 0000000..3e2c00d
 +}
 +
 +void
++DadaoISA::Process::registerImageProtection(loader::ElfObject *elf)
++{
++    const Addr page = pTable->pageSize();
++    const unsigned count = elf->programHeaderCount();
++    const unsigned size = elf->programHeaderSize();
++    std::map<Addr, uint8_t> pages;
++
++    if (count != 0 && size >= Elf64PhdrSize) {
++        std::vector<uint8_t> raw(count * size);
++        if (initVirtMem->tryReadBlob(elf->programHeaderTable(), raw.data(),
++                                     raw.size())) {
++            for (unsigned i = 0; i < count; ++i) {
++                const uint8_t *ph = raw.data() + i * size;
++                if (readBe32(ph) != PtLoad)
++                    continue;
++                const uint32_t flags = readBe32(ph + 4);
++                const Addr vaddr = readBe64(ph + 16);
++                const Addr memsz = readBe64(ph + 40);
++                if (memsz == 0 || vaddr + memsz < vaddr)
++                    continue;
++                const uint8_t prot =
++                    ((flags & PfRead) ? ProtRead : 0) |
++                    ((flags & PfWrite) ? ProtWrite : 0) |
++                    ((flags & PfExec) ? ProtExec : 0);
++                for (Addr a = roundDown(vaddr, page);
++                     a < roundUp(vaddr + memsz, page); a += page)
++                    pages[a] |= prot;
++            }
++        }
++    }
++
++    // The PT_LOAD view is authoritative; also register any image section it
++    // did not cover (the legacy loader view), so the accounting sees every
++    // loaded page.  Such pages keep the pre-GEM5-030t RWX behaviour.
++    for (const auto &seg : image.segments()) {
++        if (seg.size == 0)
++            continue;
++        for (Addr a = roundDown(seg.base, page);
++             a < roundUp(seg.base + seg.size, page); a += page) {
++            if (pages.find(a) == pages.end())
++                pages[a] = ProtRead | ProtWrite | ProtExec;
++        }
++    }
++
++    // Install the page map as few ranges as possible.
++    for (auto it = pages.begin(); it != pages.end();) {
++        const Addr start = it->first;
++        const uint8_t prot = it->second;
++        Addr end = start + page;
++        auto next = std::next(it);
++        while (next != pages.end() && next->first == end &&
++               next->second == prot) {
++            end += page;
++            ++next;
++        }
++        setProtection(start, end, prot);
++        it = next;
++    }
++}
++
++void
 +DadaoISA::Process::initState()
 +{
 +    if (initialStateBuilt)
@@ -161,6 +245,15 @@ index 0000000..3e2c00d
 +    initialStateBuilt = true;
 +
 +    gem5::Process::initState();
++
++    // The loaded image has no per-segment permission information in gem5's
++    // MemoryImage; read the ELF program headers instead (PT_LOAD p_flags) so
++    // a write to .text or an execute of .data faults as it does under QEMU
++    // (GEM5-030t).  The table lives in the image, which initState() above has
++    // just written.
++    auto *elfObject = dynamic_cast<loader::ElfObject *>(objFile);
++    fatal_if(elfObject == nullptr, "DADAO SE: object file is not an ELF file");
++    registerImageProtection(elfObject);
 +
 +    argsInit<uint64_t>(PageBytes);
 +
@@ -176,6 +269,7 @@ index 0000000..3e2c00d
 +    // entry (MRPTR) pre-set to the invalid entry 0.  The VMA must exist
 +    // before the physical pages are allocated.
 +    memState->mapRegion(MemRasBase, MemRasSize, "memras");
++    setProtection(MemRasBase, MemRasBase + MemRasSize, ProtRead | ProtWrite);
 +    allocateMem(MemRasBase, MemRasSize);
 +    initVirtMem->memsetBlob(MemRasBase, 0, MemRasSize);
 +    const Addr mrptr = MemRasBase + MemRasSize - 8;
@@ -186,6 +280,8 @@ index 0000000..3e2c00d
 +    // big-endian words (llvm-mc: 0x4c3c008b / 0x7f000000).  A signal handler
 +    // returns through it because the guest ABI has no SA_RESTORER.
 +    memState->mapRegion(SigTrampBase, PageBytes, "sigtramp");
++    setProtection(SigTrampBase, SigTrampBase + PageBytes,
++                  ProtRead | ProtExec);
 +    allocateMem(SigTrampBase, PageBytes);
 +    const uint8_t sigtramp[8] = {
 +        0x4c, 0x3c, 0x00, 0x8b,
@@ -251,6 +347,11 @@ index 0000000..3e2c00d
 +    memState->setStackSize(stack_base - sp);
 +    memState->mapRegion(roundDown(sp, pageSize),
 +                        roundUp(memState->getStackSize(), pageSize), "stack");
++    // The whole RLIMIT_STACK reservation is the guest-visible stack region
++    // (Linux and QEMU report it that way; the unused part is faulted in
++    // lazily by MemState::fixupFault).  Readable/writable, not executable.
++    setProtection(stack_base - memState->getMaxStackSize(), stack_base,
++                  ProtRead | ProtWrite);
 +
 +    // AT_RANDOM contents are a fixed pattern: SE has no security boundary.
 +    initVirtMem->writeBlob(randomAddr, AtRandomBytes, RandomBytes);
@@ -283,6 +384,310 @@ index 0000000..3e2c00d
 +
 +    initialSp = sp;
 +    memState->setStackMin(roundDown(sp, pageSize));
++}
++
++// --- SE page protection (GEM5-030t) -------------------------------------
++
++void
++DadaoISA::Process::setProtection(Addr start, Addr end, uint8_t prot,
++                                 bool growdown)
++{
++    const Addr page = pTable->pageSize();
++    start = roundDown(start, page);
++    end = roundUp(end, page);
++    if (start >= end)
++        return;
++    flushProtCache();
++
++    // Split every existing range that the new one overlaps; keep the parts
++    // outside [start,end) with their old protection.
++    std::vector<std::pair<Addr, ProtRange>> keep;
++    auto it = protMap->lower_bound(start);
++    if (it != protMap->begin()) {
++        auto prev = std::prev(it);
++        if (prev->second.end > start)
++            it = prev;
++    }
++    while (it != protMap->end() && it->first < end) {
++        const Addr oldStart = it->first;
++        const Addr oldEnd = it->second.end;
++        const ProtRange old = it->second;
++        if (oldStart < start)
++            keep.emplace_back(oldStart,
++                              ProtRange{std::min(oldEnd, start), old.prot,
++                                        old.growdown});
++        if (oldEnd > end)
++            keep.emplace_back(end,
++                              ProtRange{oldEnd, old.prot, old.growdown});
++        it = protMap->erase(it);
++    }
++    for (auto &entry : keep)
++        protMap->emplace(entry.first, entry.second);
++
++    auto ins = protMap->emplace(start, ProtRange{end, prot, growdown}).first;
++    auto next = std::next(ins);
++    if (next != protMap->end() && next->first == end &&
++        next->second.prot == prot && next->second.growdown == growdown) {
++        ins->second.end = next->second.end;
++        protMap->erase(next);
++    }
++    if (ins != protMap->begin()) {
++        auto prev = std::prev(ins);
++        if (prev->second.end == start && prev->second.prot == prot &&
++            prev->second.growdown == growdown) {
++            prev->second.end = ins->second.end;
++            protMap->erase(ins);
++        }
++    }
++}
++
++void
++DadaoISA::Process::clearProtection(Addr start, Addr end)
++{
++    const Addr page = pTable->pageSize();
++    start = roundDown(start, page);
++    end = roundUp(end, page);
++    if (start >= end)
++        return;
++    flushProtCache();
++
++    std::vector<std::pair<Addr, ProtRange>> keep;
++    auto it = protMap->lower_bound(start);
++    if (it != protMap->begin()) {
++        auto prev = std::prev(it);
++        if (prev->second.end > start)
++            it = prev;
++    }
++    while (it != protMap->end() && it->first < end) {
++        const Addr oldStart = it->first;
++        const Addr oldEnd = it->second.end;
++        const ProtRange old = it->second;
++        if (oldStart < start)
++            keep.emplace_back(oldStart,
++                              ProtRange{std::min(oldEnd, start), old.prot,
++                                        old.growdown});
++        if (oldEnd > end)
++            keep.emplace_back(end,
++                              ProtRange{oldEnd, old.prot, old.growdown});
++        it = protMap->erase(it);
++    }
++    for (auto &entry : keep)
++        protMap->emplace(entry.first, entry.second);
++}
++
++void
++DadaoISA::Process::moveProtection(Addr start, Addr end, Addr dest)
++{
++    const Addr page = pTable->pageSize();
++    start = roundDown(start, page);
++    end = roundUp(end, page);
++    if (start >= end || dest == start)
++        return;
++
++    std::vector<std::pair<Addr, ProtRange>> moved;
++    auto it = protMap->lower_bound(start);
++    if (it != protMap->begin()) {
++        auto prev = std::prev(it);
++        if (prev->second.end > start)
++            it = prev;
++    }
++    while (it != protMap->end() && it->first < end) {
++        const Addr s = std::max(it->first, start);
++        const Addr e = std::min(it->second.end, end);
++        const ProtRange range = it->second;
++        it = protMap->erase(it);
++        if (e > s)
++            moved.emplace_back(dest + (s - start),
++                               ProtRange{dest + (e - start), range.prot,
++                                         range.growdown});
++    }
++    for (auto &entry : moved)
++        setProtection(entry.first, entry.second.end, entry.second.prot,
++                      entry.second.growdown);
++}
++
++void
++DadaoISA::Process::protectMapped(Addr start, Addr end, uint8_t prot)
++{
++    const Addr page = pTable->pageSize();
++    start = roundDown(start, page);
++    end = roundUp(end, page);
++    if (start >= end)
++        return;
++
++    // Only the existing entries change: a hole is not a mapping, and turning
++    // it into one would inflate the RLIMIT_AS/DATA accounting (QEMU's
++    // page_set_flags on a hole returns success and leaves the hole alone).
++    struct Hit
++    {
++        Addr start;
++        Addr end;
++        bool growdown;
++    };
++    std::vector<Hit> hits;
++    for (const auto &entry : *protMap) {
++        if (entry.first < end && entry.second.end > start)
++            hits.push_back(Hit{std::max(entry.first, start),
++                               std::min(entry.second.end, end),
++                               entry.second.growdown});
++    }
++    for (const auto &hit : hits)
++        setProtection(hit.start, hit.end, prot, hit.growdown);
++}
++
++bool
++DadaoISA::Process::protectionSlow(Addr vpage, uint8_t &prot,
++                                  bool &growdown) const
++{
++    ProtCache &cache =
++        protCache[(vpage >> PageShift) & (ProtCacheEntries - 1)];
++
++    bool tracked = false;
++    auto it = protMap->upper_bound(vpage);
++    if (it != protMap->begin()) {
++        --it;
++        if (vpage < it->second.end) {
++            tracked = true;
++            prot = it->second.prot;
++            growdown = it->second.growdown;
++        }
++    }
++
++    cache.page = vpage;
++    cache.epoch = protEpoch;
++    cache.tracked = tracked;
++    cache.prot = tracked ? prot : 0;
++    cache.growdown = tracked ? growdown : false;
++    return tracked;
++}
++
++/** mm/mprotect.c (do_mprotect_pkey) PROT_GROWSDOWN branch: the request range
++ *  [start,end) must overlap a VMA (`vma_find(&vmi, end)`); that VMA then
++ *  fixes the protection start -- the kernel writes `start = vma->vm_start`
++ *  for every overlap, including a start *inside* the VMA (interior) or below
++ *  it while still overlapping.  A range that only touches the VMA start
++ *  boundary, or a hole below it, has no overlap and the kernel returns
++ *  ENOMEM.  Returns false on "no overlapping VMA" (ENOMEM caller) and sets
++ *  `growdown` so the caller can raise EINVAL for a non-MAP_GROWSDOWN VMA.
++ */
++bool
++DadaoISA::Process::growDownRegion(Addr start, Addr end, Addr &regionStart,
++                                  bool &growdown) const
++{
++    const Addr page = pTable->pageSize();
++    start = roundDown(start, page);
++    end = roundUp(end, page);
++
++    auto it = protMap->upper_bound(start);
++    if (it != protMap->begin()) {
++        auto prev = std::prev(it);
++        if (prev->second.end > start)
++            it = prev;
++    }
++    // protMap is disjoint and sorted, so `it` is the first range that could
++    // overlap [start,end).  No range, or one starting at/after `end`, means
++    // the requested range does not overlap any mapping.
++    if (it == protMap->end() || it->first >= end)
++        return false;
++    regionStart = it->first;
++    growdown = it->second.growdown;
++    return true;
++}
++
++DadaoISA::Process::GrowResult
++DadaoISA::Process::growDown(Addr vaddr)
++{
++    const Addr page = pTable->pageSize();
++    const Addr vpage = roundDown(vaddr, page);
++
++    // The first tracked range above the faulting page must be the stack-shaped
++    // mapping, and the gap between them must be free: Linux expand_downwards()
++    // refuses to skip over another VMA.
++    auto it = protMap->lower_bound(vpage);
++    if (it == protMap->end() || !it->second.growdown || vpage >= it->first)
++        return GrowResult::NotStack;
++    const Addr start = it->first;
++    const Addr end = it->second.end;
++    const ProtRange range = it->second;
++    if (!memState->isUnmapped(vpage, start - vpage))
++        return GrowResult::Denied;
++
++    // Both limits come from the current guest state; RLIMIT_STACK is checked
++    // only once the guest has set it (the default value is a readback, not a
++    // cap -- QEMU's guest_rlimit_get()).
++    if (!stackLimitAllows(end - vpage))
++        return GrowResult::Denied;
++    if (!asLimitAllows(start - vpage))
++        return GrowResult::Denied;
++
++    memState->mapRegion(vpage, start - vpage, "stack");
++    setProtection(vpage, start, range.prot, true);
++    return GrowResult::Grown;
++}
++
++uint64_t
++DadaoISA::Process::trackedBytes() const
++{
++    uint64_t total = 0;
++    for (const auto &entry : *protMap)
++        total += entry.second.end - entry.first;
++    return total;
++}
++
++uint64_t
++DadaoISA::Process::writableBytes() const
++{
++    uint64_t total = 0;
++    for (const auto &entry : *protMap) {
++        if (entry.second.prot & ProtWrite)
++            total += entry.second.end - entry.first;
++    }
++    return total;
++}
++
++bool
++DadaoISA::Process::asLimitAllows(Addr bytes) const
++{
++    const uint64_t limit = limits[RlimitAs].cur;
++    if (limit == RlimInfinity)
++        return true;
++    const uint64_t used = trackedBytes();
++    return bytes <= limit && used <= limit - bytes;
++}
++
++bool
++DadaoISA::Process::dataLimitAllows(Addr bytes) const
++{
++    const uint64_t cur = limits[RlimitData].cur;
++    const uint64_t max = limits[RlimitData].max;
++    const uint64_t used = writableBytes();
++    const auto exceeds = [used, bytes](uint64_t limit) {
++        return limit != RlimInfinity && (bytes > limit || used > limit - bytes);
++    };
++    if (!exceeds(cur))
++        return true;
++    // Valgrind workaround (mm/mmap.c may_expand_vm): a soft limit of 0 still
++    // allows a mapping that fits the hard limit.
++    return cur == 0 && !exceeds(max);
++}
++
++bool
++DadaoISA::Process::stackLimitAllows(Addr bytes) const
++{
++    if (!limitsSet[RlimitStack])
++        return true;
++    const uint64_t cur = limits[RlimitStack].cur;
++    return cur == RlimInfinity || bytes <= cur;
++}
++
++void
++DadaoISA::Process::inheritProtection(const Process *parent, bool share)
++{
++    flushProtCache();
++    if (share)
++        protMap = parent->protMap;
++    else
++        protMap = std::make_shared<std::map<Addr, ProtRange>>(*parent->protMap);
 +}
 +
 +DadaoISA::ThreadState *

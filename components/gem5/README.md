@@ -119,15 +119,28 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   返回 `-ENOTTY`）+ 下列 guest 内存管理、文件 I/O、时钟、信号、资源限制、
   进程信息；其余号与未建模的 ioctl request 一律 `fatal` **带号与 pc**
   （不静默）；无 TLS、线程、动态链接。
-- **guest 内存管理（GEM5-022t）**：`brk`(214，Linux 语义：`brk(0)` 查询、
+- **guest 内存管理（GEM5-022t / GEM5-030t）**：`brk`(214，Linux 语义：`brk(0)` 查询、
   失败返回旧 brk；堆不吞映像、不越过 mmap 窗口)、`mmap`(222，匿名
-  `MAP_PRIVATE`/`MAP_SHARED` 与 `MAP_FIXED`/`MAP_FIXED_NOREPLACE`)、
-  `munmap`(215)、`mremap`(216，原地伸缩 / `MREMAP_MAYMOVE` / `MREMAP_FIXED`)、
-  `mprotect`(226，校验后接受)。VMA 走 `MemState::mapRegion`/
-  `unmapRegion`/`updateBrkRegion`/`remapRegion`，物理页仍由 `fixupFault`
-  惰性分配；mmap 窗口上界 `DadaoISA::MmapWindowEnd` = 8 GiB（堆与 mmap
-  共用 `[映像末, 8 GiB)` 相向增长）。**已知限制**：SE 无按页权限模型，
-  `mprotect` 的 `PROT_NONE` 不被强制（同上游 RISC-V SE 的 `ignoreFunc`）；
+  `MAP_PRIVATE`/`MAP_SHARED` 与 `MAP_FIXED`/`MAP_FIXED_NOREPLACE`/
+  `MAP_GROWSDOWN`)、`munmap`(215)、`mremap`(216，原地伸缩 / `MREMAP_MAYMOVE` /
+  `MREMAP_FIXED`)、`mprotect`(226，**真实按页权限**，`PROT_GROWSDOWN` 按内核
+  `mm/mprotect.c`：请求区间与 VMA 重叠时从 `vma->vm_start` 生效（起点在 VMA
+  内部或之下但仍有重叠都返回 0），无重叠 `ENOMEM`，非 `MAP_GROWSDOWN`
+  `EINVAL`；`PROT_SEM` 接受并忽略)。
+  VMA 走 `MemState::mapRegion`/`unmapRegion`/`updateBrkRegion`/`remapRegion`，
+  物理页仍由 `fixupFault` 惰性分配；mmap 窗口上界
+  `DadaoISA::MmapWindowEnd` = 8 GiB（堆与 mmap 共用 `[映像末, 8 GiB)`
+  相向增长）。权限影子 `Process::protMap`（页对齐、R/W/X 三位）由
+  `arch/dadao/tlb.cc` 在每次 CPU 取指/读写前检查：映像按 ELF `PT_LOAD` 的
+  `p_flags` 注册，栈/堆/MemRAS/sigtramp/每个 mmap 与 brk 页按各自属性注册，
+  `munmap`/`mremap`/`fork`(`CLONE_VM` 共享、fork 复制) 同步维护。写只读页、
+  访问 `PROT_NONE`、执行不可执行页都会成为 guest 可见的 `SIGSEGV`
+  （`si_code=SEGV_ACCERR`，`si_addr` 是触址；handler `sigreturn` 后重试故障
+  指令，与 Linux 相同），不再静默成功。`MAP_GROWSDOWN` 映射触到下方未映射页时
+  按 Linux `expand_downwards()` 向下增长，受 `RLIMIT_STACK`/`RLIMIT_AS` 约束，
+  越限投递 guest `SIGSEGV` 而不是模拟器 abort。系统调用的功能拷贝不做权限
+  检查（缓冲区复制走 `SETranslatingPortProxy`，失败仍是 `EFAULT`）。**已知限制**：
+  `mprotect` 对地址空洞按 QEMU user 口径返回 0 且不建映射（内核会 `ENOMEM`）；
   文件映射仍返回 `-ENODEV`（`GEM5-023t` 只落文件描述符/读写，不做 mmap 文件映射）。
 - **文件 I/O（GEM5-023t）**：`openat`/`close`/`read`/`readv`/`pread64`/
   `lseek`/`fstat`/`newfstatat`/`getdents64`/`dup`/`dup3`/`fcntl`
@@ -180,22 +193,31 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   可指向其它进程的线程）；`sigaltstack` 接受 `SS_AUTODISARM`（Linux
   `SS_FLAG_BITS` 口径，交付时置 `sas_ss_reset`、sigreturn 从帧恢复），
   其它未知位才 `EINVAL`；`SIGSTOP`/`SIGTSTP` 等 stop 系按终止处理（无作业控制）；
-  `rt_sigsuspend` 未实现（显式 `fatal`）；页错误不转成 guest `SIGSEGV`（SE
-  平台既有行为，guest 空指针仍是 simulator/loader 的 panic）；RAS 不在信号
+  `rt_sigsuspend` 未实现（显式 `fatal`）；访问权限违例已按 guest `SIGSEGV`
+  投递（GEM5-030t，`si_code=SEGV_ACCERR`）；无映射的页错误仍是
+  simulator/loader 的 panic（SE 平台既有行为，guest 空指针即此）；RAS 不在信号
   帧内（同 QEMU linux-user 口径）。
-- **资源限制（GEM5-024t）**：`prlimit64`(261)（musl 的 `getrlimit`/
+- **资源限制（GEM5-024t / GEM5-030t）**：`prlimit64`(261)（musl 的 `getrlimit`/
   `setrlimit` 也走它；旧号 163/164 同样实现）。16 个 `RLIMIT_*` 按进程保存，
   初值 `RLIM_INFINITY`；`RLIMIT_NOFILE` 初值 = guest fd 表大小 1024，并在 fd
   分配（`dup`/`dup3`/`openat`/`fcntl(F_DUPFD)`）处强制（超限 `EMFILE`，
-  `dup3` 目标越界 `EBADF`）；`RLIMIT_DATA` 在 `brk` 增长处按内核
-  `may_expand_vm()` 口径强制，含 `cur=0` 的 Valgrind workaround（软限 0 时
-  按硬限判断）。**已知限制**：`RLIMIT_AS`/`RLIMIT_STACK`/`RLIMIT_CORE` 等
-  只保存/回读、不强制（SE 地址空间是固定 8 GiB 窗口、栈惰性映射）。
-  **与 QEMU user 的已知差异**：QEMU 侧在模拟器内强制 guest `RLIMIT_AS` 与
-  `RLIMIT_DATA`（不升硬限也不做特权检查）；SE 目前只在 `brk` 处强制
-  `RLIMIT_DATA`，`RLIMIT_AS` 不强制；未设 `RLIMIT_STACK` 时读回
-  `RLIM_INFINITY`（QEMU 读回宿主值 8 MiB）；升硬限 SE 返回 `EPERM`
-  （QEMU 允许）。这些差异未被当前语料触达，基线无新增 `gem5_only_fail`。
+  `dup3` 目标越界 `EBADF`）。三个内存限额按 guest 地址空间记账并强制：
+  `RLIMIT_AS` 用量 = 权限影子里的全部已映射页（主栈按映射区间计入），
+  `mmap`/`brk`/`mremap` 增长时超限分别 `ENOMEM`/返回旧 brk；`RLIMIT_DATA`
+  用量 = 可写页（含主栈），私有可写 `mmap` 与 `brk` 增长都检查，`munmap`
+  立即把页从记账中移除，`cur=0` 的 Valgrind workaround 与内核/QEMU 一致
+  （软限 0 时按硬限）；`RLIMIT_STACK` 未设时读回主栈映射区间
+  `MAX(--max-stack, 32 页)`（默认 8 MiB，与 QEMU 相同），设置后限制
+  `MAP_GROWSDOWN` 映射的申请与向下增长。**与 QEMU user 的已知差异**（按 Linux
+  口径实现，双引擎探针里标 `local:`）：升硬限 SE 返回 `EPERM`（QEMU-084t
+  不做特权检查）；`mprotect(PROT_GROWSDOWN)` SE 按内核 `mm/mprotect.c` 实施
+  （内部/之下但重叠 ⇒ 从 `vma->vm_start`、0；无重叠 ⇒ `ENOMEM`；非
+  `MAP_GROWSDOWN` ⇒ `EINVAL`），QEMU user 对该 target 恒返回 `EINVAL`；
+  `MAP_GROWSDOWN` 的运行时向下增长 SE 按 Linux 实现（QEMU user 交给宿主
+  `mmap`，不按 guest `RLIMIT_STACK` 记账）；`mremap` 增长处的 `RLIMIT_AS`
+  SE 按 Linux `may_expand_vm` 检查（4 MiB→100 MiB 增长为 `ENOMEM`），
+  QEMU-084t 只覆盖 `target_mmap` 的 `mmap` 路径、`mremap` 增长漏检。
+  这些差异未触达当前静态语料（基线无新增 `gem5_only_fail`）。
 - **IPC 与多进程（GEM5-025t）**：`pipe2`(59)、`socket`(198)/`socketpair`(199)/
   `bind`(200)/`listen`(201)/`accept`(202)/`accept4`(242)/`connect`(203)/
   `getsockname`(204)/`getpeername`(205)/`sendto`(206)/`recvfrom`(207)/

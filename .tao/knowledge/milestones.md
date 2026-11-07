@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| GEM5-030t | 已验证 | 2026-11-08 04:00 | SE mprotect 真权限 + RLIMIT_AS/DATA/STACK；GROWSDOWN 四支与内核一致；434/148、6/0 |
 | INFRA-134t | 待开始 | 2026-11-08 02:40（登记） | bootstrap 语义改名与隔离用例；remote.py 仓库根校验（ISS-347/348） |
 | INFRA-133t | 待验收 | 2026-11-08 02:15（登记） | 节点 chipyard/Verilator/RISC-V 环境；两台 RocketConfig 构建通过、conda 包一致 |
 | INFRA-132t | 已验证 | 2026-11-07 22:23 | 节点 `.cache` 增量同步（rsync，无 --delete）+ 逐 commit 校验；不做挂载 |
@@ -20,7 +21,6 @@
 | INFRA-129t | 已验证 | 2026-11-07 20:28 | 清理运行期证据引用 23 处；空转判据按 found==0（用户裁定 A） |
 | GEM5-029t | 已验证 | 2026-11-07 17:03 | SE syscall 语义对齐 7 项；436/146、6/0 不变；QEMU SS_AUTODISARM 补丁 |
 | GEM5-026t | 已验证 | 2026-11-07 12:40 | gem5 SE 线程/futex/TLS；pass 435/blocked 147，threads 桶清零 |
-| GEM5-030t | 待开始 | 2026-11-07 08:40（登记） | SE mprotect 真权限 + RLIMIT_AS/STACK 强制；高回归风险 |
 | INTEG-060t | 待开始 | 2026-11-07 08:20（登记） | gem5 SE syscall 参数 bank（三方 argmask 门控）+ 路径解析探针 |
 | GEM5-025t | 已验证 | 2026-11-07 07:50 | gem5 SE IPC/多进程；pass 418/blocked 164，两桶清零；5 例环境缺口 |
 | GEM5-024t | 已验证 | 2026-11-07 03:13 | gem5 SE 信号+资源限制+进程信息；pass 409/blocked 178，三桶清零 |

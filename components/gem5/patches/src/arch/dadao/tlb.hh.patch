@@ -1,19 +1,24 @@
 diff --git a/src/arch/dadao/tlb.hh b/src/arch/dadao/tlb.hh
 new file mode 100644
-index 0000000..2c6e826
+index 0000000..eb29826
 --- /dev/null
 +++ b/src/arch/dadao/tlb.hh
-@@ -0,0 +1,54 @@
+@@ -0,0 +1,87 @@
 +// DADAO SE TLB: a direct pass-through onto the host-side page table.
 +//
 +// Syscall-emulation does not model a hardware page table walk, PTBR or TLB
 +// fill: translation is exactly "ask Process::pTable".  The FS page-table
 +// machinery (ADR-0039) is deliberately absent from this file.
++//
++// GEM5-030t adds the one thing a Linux page table also carries: per-page
++// read/write/execute permission.  The host page table has none, so the
++// shadow is kept in DadaoISA::Process and consulted here before translating.
 +#ifndef __ARCH_DADAO_TLB_HH__
 +#define __ARCH_DADAO_TLB_HH__
 +
 +#include "arch/generic/tlb.hh"
 +#include "params/DadaoTlb.hh"
++#include "sim/faults.hh"
 +
 +namespace gem5
 +{
@@ -22,6 +27,26 @@ index 0000000..2c6e826
 +
 +namespace DadaoISA
 +{
++
++/** Guest-visible access-permission fault (GEM5-030t).
++ *
++ * Returned instead of a page-table fault when the shadow protection denies the
++ * access.  It must not go through Process::fixupFault(): the page may well be
++ * mapped (PROT_NONE) or lazily allocatable (read-only), and either way the
++ * guest has to see SIGSEGV/SEGV_ACCERR, exactly as under QEMU's linux-user.
++ */
++class AccessFault : public FaultBase
++{
++  public:
++    explicit AccessFault(Addr vaddr) : vaddr(vaddr) {}
++
++    FaultName name() const override { return "DADAO access fault"; }
++
++    void invoke(ThreadContext *tc, const StaticInstPtr &inst) override;
++
++  private:
++    const Addr vaddr;
++};
 +
 +class TLB : public BaseTLB
 +{
@@ -50,8 +75,16 @@ index 0000000..2c6e826
 +    void takeOverFrom(BaseTLB *old) override {}
 +
 +  private:
-+    /** Translate through Process::pTable.  Nothing is cached. */
-+    Fault translate(const RequestPtr &req, ThreadContext *tc);
++    /** Translate through Process::pTable.  Nothing is cached.
++     *
++     * `guestAccess` is true for CPU-issued fetches/loads/stores and false for
++     * the functional copies the syscall layer performs on the guest's behalf
++     * (SETranslatingPortProxy).  Only the former is subject to the protection
++     * shadow: a kernel copy into a read-only buffer must return EFAULT, not
++     * redirect the guest PC into a signal handler in the middle of a syscall.
++     */
++    Fault translate(const RequestPtr &req, ThreadContext *tc,
++                    BaseMMU::Mode mode, bool guestAccess);
 +};
 +
 +} // namespace DadaoISA

@@ -1,14 +1,16 @@
 diff --git a/src/arch/dadao/tlb.cc b/src/arch/dadao/tlb.cc
 new file mode 100644
-index 0000000..421466f
+index 0000000..079b4d8
 --- /dev/null
 +++ b/src/arch/dadao/tlb.cc
-@@ -0,0 +1,66 @@
-+// DADAO SE TLB -- direct pass-through translation.
+@@ -0,0 +1,107 @@
++// DADAO SE TLB -- direct pass-through translation plus the permission shadow.
 +#include "arch/dadao/tlb.hh"
 +
 +#include <memory>
 +
++#include "arch/dadao/process.hh"
++#include "base/logging.hh"
 +#include "cpu/thread_context.hh"
 +#include "mem/page_table.hh"
 +#include "sim/faults.hh"
@@ -20,13 +22,51 @@ index 0000000..421466f
 +namespace DadaoISA
 +{
 +
-+Fault
-+TLB::translate(const RequestPtr &req, ThreadContext *tc)
++void
++AccessFault::invoke(ThreadContext *tc, const StaticInstPtr &inst)
 +{
-+    Process *process = tc->getProcessPtr();
++    auto *process = dynamic_cast<DadaoISA::Process *>(tc->getProcessPtr());
++    fatal_if(process == nullptr,
++             "DADAO SE: access fault on a non-DADAO process");
++    // SEGV_ACCERR (asm-generic): the mapping exists but the protection does
++    // not allow this access.  The Linux page-fault path reports the same code.
++    process->memoryFault(tc, vaddr, 2);
++}
++
++Fault
++TLB::translate(const RequestPtr &req, ThreadContext *tc, BaseMMU::Mode mode,
++               bool guestAccess)
++{
++    // The DADAO SE TLB is only ever attached to a DADAO SE process; a
++    // dynamic_cast here would run on every memory access.
++    auto *process = static_cast<Process *>(tc->getProcessPtr());
++
++    if (guestAccess) {
++        uint8_t prot = 0;
++        bool growdown = false;
++        if (process->protectionAt(req->getVaddr(), prot, growdown)) {
++            const uint8_t needed = mode == BaseMMU::Write
++                ? Process::ProtWrite
++                : (mode == BaseMMU::Execute ? Process::ProtExec
++                                            : Process::ProtRead);
++            if ((prot & needed) == 0)
++                return std::make_shared<AccessFault>(req->getVaddr());
++        }
++    }
++
 +    Addr paddr;
-+    if (!process->pTable->translate(req->getVaddr(), paddr))
++    if (!process->pTable->translate(req->getVaddr(), paddr)) {
++        // A MAP_GROWSDOWN mapping grows downwards on the fault that touches
++        // the page below it (Linux expand_downwards).  The grown page is still
++        // lazy: MemState::fixupFault() allocates it on the retry.  A refused
++        // growth (RLIMIT_STACK/AS, or a mapping in the gap) is the guest's
++        // SIGSEGV, not an emulator abort.
++        if (guestAccess && mode != BaseMMU::Execute &&
++            process->growDown(req->getVaddr()) ==
++                Process::GrowResult::Denied)
++            return std::make_shared<AccessFault>(req->getVaddr());
 +        return std::make_shared<GenericPageTableFault>(req->getVaddr());
++    }
 +
 +    req->setPaddr(paddr);
 +    return NoFault;
@@ -42,14 +82,14 @@ index 0000000..421466f
 +TLB::translateAtomic(const RequestPtr &req, ThreadContext *tc,
 +                     BaseMMU::Mode mode)
 +{
-+    return translate(req, tc);
++    return translate(req, tc, mode, true);
 +}
 +
 +void
 +TLB::translateTiming(const RequestPtr &req, ThreadContext *tc,
 +                     BaseMMU::Translation *translation, BaseMMU::Mode mode)
 +{
-+    translation->finish(translate(req, tc), req, tc, mode);
++    translation->finish(translate(req, tc, mode, true), req, tc, mode);
 +}
 +
 +Fault
@@ -57,8 +97,9 @@ index 0000000..421466f
 +                         BaseMMU::Mode mode)
 +{
 +    // Used by SETranslatingPortProxy: the same host page table lookup, minus
-+    // the request/translation bookkeeping.
-+    return translate(req, tc);
++    // the request/translation bookkeeping and minus the protection check --
++    // the syscall layer must see a failed copy (EFAULT), not a guest signal.
++    return translate(req, tc, mode, false);
 +}
 +
 +Fault
