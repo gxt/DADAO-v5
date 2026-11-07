@@ -92,3 +92,14 @@
     【P3】`tools/infra/remote.py` 的 `--repo` 指向某 git 仓库的**子目录**时 `cd` 成功、
     `git rev-parse` 读到父仓库 commit ⇒ 报出「不是目标仓库」的状态而不报错。应校验
     `git rev-parse --show-toplevel` 与 `--repo` 一致，不一致即该节点 FAIL。
+
+- id: ISS-349
+  scope: [infra]
+  status: open
+  resolved_by: null
+  title: >-
+    【P2】主控机 `.cache` 缺 `gem5.git`，而 `manifests/components.lock.toml` 把 gem5 列为 enabled：
+    `sync_cache.py` 以主控机为源，即源端缺件却可能判 PASS（节点靠历史缓存）。全新节点会明确
+    FAIL `gem5: missing bare repository`，但根因在主控机。实测两台节点的 `gem5.git` 都在且
+    含锁定的 commit（19M），**可离线回拷**（无需公网）。修复方式：把节点 `.cache/gem5.git`
+    rsync 回主控机并校验 `git cat-file -e <commit>`，再跑 `sync_cache.py` 复核。
