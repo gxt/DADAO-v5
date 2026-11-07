@@ -28,6 +28,12 @@ node whose repository is missing must never look like a clean node.
 
 Exit status is 0 only when every node succeeded; the final summary always
 prints ``host -> rc``.
+
+Log file names are ``<task-id>-<subcommand>-<host>.log`` under
+``.work/log/infra/<task-id>/remote/`` (host sanitised).  ``--log-prefix`` names
+the *dispatching task* (default ``INFRA-130t``, the task that introduced this
+tool); it must be a task id, because ``check-run-artifacts`` rejects any other
+shape -- a tool-name prefix such as ``remote-`` would turn L1 red.
 """
 from __future__ import annotations
 
@@ -42,7 +48,15 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SSH_BASE = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10"]
-LOG_PREFIX = "INFRA-130t"
+
+# Log-file names must satisfy `check-run-artifacts` (`<TASK-ID>-<purpose>.log`),
+# so the prefix is a *task id*, not a tool name: name the logs after the task
+# dispatching the run.  The pattern is imported from the gate so the two cannot
+# drift; `DEFAULT_LOG_PREFIX` is only the fallback for ad-hoc runs.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from check_run_artifacts import TASK_ID as _TASK_ID_RE  # noqa: E402  (gate is the single source)
+
+DEFAULT_LOG_PREFIX = "INFRA-130t"
 
 STATUS_SCRIPT = r"""set -u
 if ! commit="$(git rev-parse HEAD 2>&1)"; then
@@ -187,8 +201,18 @@ def require_repo(args: argparse.Namespace) -> str:
     return args.repo
 
 
+def log_prefix(args: argparse.Namespace) -> str:
+    prefix = args.log_prefix or DEFAULT_LOG_PREFIX
+    if not re.fullmatch(_TASK_ID_RE, prefix):
+        fail(
+            f"--log-prefix must be a task id matching {_TASK_ID_RE} "
+            f"(got {prefix!r}); check-run-artifacts rejects any other log name"
+        )
+    return prefix
+
+
 def log_root(args: argparse.Namespace) -> Path:
-    root = Path(args.log_dir)
+    root = Path(args.log_dir) if args.log_dir else Path(".work/log/infra") / log_prefix(args) / "remote"
     return root if root.is_absolute() else REPO_ROOT / root
 
 
@@ -287,10 +311,10 @@ def command_status(args: argparse.Namespace) -> int:
         try:
             proc = run_node(args, host, script)
         except OSError as exc:
-            path = log_root(args) / f"{LOG_PREFIX}-{args.subcommand}-{safe_name(host)}.log"
+            path = log_root(args) / f"{log_prefix(args)}-{args.subcommand}-{safe_name(host)}.log"
             write_log(path, host, 127, "", f"{type(exc).__name__}: {exc}")
             return 127, path
-        path = write_log(log_root(args) / f"{LOG_PREFIX}-{args.subcommand}-{safe_name(host)}.log", host, proc.returncode, proc.stdout, proc.stderr)
+        path = write_log(log_root(args) / f"{log_prefix(args)}-{args.subcommand}-{safe_name(host)}.log", host, proc.returncode, proc.stdout, proc.stderr)
         return proc.returncode, path
 
     rows = parallel(args, one)
@@ -312,10 +336,10 @@ def command_run(args: argparse.Namespace) -> int:
         try:
             proc = run_node(args, host, script)
         except OSError as exc:
-            path = log_root(args) / f"{LOG_PREFIX}-run-{safe_name(host)}.log"
+            path = log_root(args) / f"{log_prefix(args)}-run-{safe_name(host)}.log"
             write_log(path, host, 127, "", f"{type(exc).__name__}: {exc}")
             return 127, path
-        path = write_log(log_root(args) / f"{LOG_PREFIX}-run-{safe_name(host)}.log", host, proc.returncode, proc.stdout, proc.stderr)
+        path = write_log(log_root(args) / f"{log_prefix(args)}-run-{safe_name(host)}.log", host, proc.returncode, proc.stdout, proc.stderr)
         return proc.returncode, path
 
     rows = parallel(args, one)
@@ -338,7 +362,7 @@ def command_collect(args: argparse.Namespace) -> int:
     )
 
     def one(host: str):
-        log = log_root(args) / f"{LOG_PREFIX}-collect-{safe_name(host)}.log"
+        log = log_root(args) / f"{log_prefix(args)}-collect-{safe_name(host)}.log"
         try:
             proc = run_node(args, host, script, binary=True)
         except OSError as exc:
@@ -363,7 +387,8 @@ def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--hosts", help="comma/space separated node list (default: $DADAO_NODES)")
     common.add_argument("--repo", default="", help="remote repository path (required; a leading ~/ is expanded on the node)")
-    common.add_argument("--log-dir", default=".work/log/infra/INFRA-130t/remote", help="local log directory (repo-relative by default)")
+    common.add_argument("--log-dir", default="", help="local log directory (default: .work/log/infra/<log-prefix>/remote)")
+    common.add_argument("--log-prefix", default=DEFAULT_LOG_PREFIX, help=f"task id used in log file names (default: {DEFAULT_LOG_PREFIX}; must match {_TASK_ID_RE})")
     common.add_argument("--jobs", type=int, default=8, help="parallel nodes (default: 8)")
     common.add_argument("--local", action="store_true", help="run on this host instead of ssh (self-test only)")
     common.add_argument("--ssh-arg", action="append", default=[], metavar="ARG", help="extra ssh option (repeatable)")
