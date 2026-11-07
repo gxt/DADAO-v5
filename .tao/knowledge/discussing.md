@@ -41,6 +41,9 @@
 - `TESTCASES-104t`（待开始，依赖 027t/028t）：SE 动态档驱动 + QEMU dynamic 基线刷新 + 全量对照。
 - `INTEG-059t`（待开始，依赖 023t–028t + 103t/104t）：G3 完整 tset 双向一致性 + 矩阵重生成。
 - `INTEG-060t`（待开始，依赖 026t）：gem5 SE 参数 bank 三方 argmask 门控 + 路径解析探针（防 rd/rb 混用、dirfd/redirect 拼接错误）。
+- `GEM5-029t`（待开始，依赖 026t）：SE syscall 语义对齐（QEMU 已实现项）。
+- `GEM5-030t`（待开始，依赖 029t）：SE `mprotect` 真权限 + `RLIMIT_AS/STACK` 强制。
+- **口径（2026-11-07 用户）**：QEMU 自己实现的 syscall，gem5 必须有一份等价实现；此类差异不是「可接受限制」，要上报并修复。
 - M11 `m` 册：G3 收口后另立。
 
 **本轮范围裁定（architect，按调研结论；可推翻）**：
