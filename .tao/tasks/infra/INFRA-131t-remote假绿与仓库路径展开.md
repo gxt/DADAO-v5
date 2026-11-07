@@ -67,7 +67,7 @@ bash: line 1: cd: ~/DADAO-v5: No such file or directory
 ## 完成区
 
 **测试结果**：证据脚本 12/12 通过；`--inject` 18/18（3 组注入→FAIL→`cp`+md5 还原→回绿）；`INFRA-130t` 旧证据 16/16 仍绿。
-**修改文件**：`tools/infra/remote.py`、`.work/evidence/INFRA-131t/run.sh`（新增）、本任务书、`.tao/knowledge/milestones.md`。
+**修改文件**：`tools/infra/remote.py`、运行期证据脚本（新增，未归档）、本任务书、`.tao/knowledge/milestones.md`。
 **验收结果**（真实 rc，均现场自跑）：
 - 修复前复现：`--local` 指向不存在目录 ⇒ `overall rc=0`、节点 `rc=0 (PASS)`，日志有 `commit=fatal: not a git repository`、`worktree=clean`、`dirty_files=0`，stderr 有 `cd: ... No such file or directory`；两台真实节点用 `--repo '~/<repo>'` 同样假绿（rc=0）。
 - 修复后同一命令 ⇒ 节点 `rc=2 (FAIL)`、`overall rc=1`，日志含 `repository not found`，且**不打印** `worktree=clean`/`dirty_files=0`；真实节点同路径亦 `rc=2`。
@@ -109,7 +109,7 @@ bash: line 1: cd: ~/DADAO-v5: No such file or directory
 6. 证据脚本：default ⇒ rc=**0** `PASS=12 FAIL=0`；`--inject` ⇒ rc=**0** `PASS=18 FAIL=0`（3 组变异 md5 均 ≠ 原件，还原后 md5 回到原件）。**reviewer 自选注入点**（非其已有三组：令 `command_run` 脚体吞 rc `shlex.join(command) + ' || true'`）：变异 md5 `b8c93abf…` ≠ 原件 `9f68b262…` ⇒ 转红 `FAIL C10-run-exit3-propagates`、`PASS=11 FAIL=1`、rc=**1**；`cp` 还原 + md5 相等 ⇒ 回绿 `PASS=12 FAIL=0`、rc=**0**（全程未用 git 还原）。
 7. 回归：INFRA-130t 证据脚本 ⇒ rc=**0** `PASS=16 FAIL=0 SKIP=0`（与主仓副本 md5 相同，未被改动）；`bash -n` 两个 run.sh 均 rc=**0**；`python3 -m py_compile tools/infra/remote.py` rc=**0**（本轮无 shell 产物改动）。
 8. L1：`make -k check` ⇒ **EXIT=2**，`[PASS]=1212`、`[FAIL]=0`，唯一 Error = `check-patch-tree`（10 problem = 5 文件 × 断言⑥⑨），`check-knowledge-refs` 悬空 0、`check-no-residue` PASS。归属核验：共享 gem5 源树 HEAD 的该 5 文件 diff 与并发任务工作树**未提交**的 5 个 `.patch` **5/5 字节一致**，且该任务工作树改动清单正是这 5 个文件 ⇒ 外部占用，非本任务回归。
-9. 完成区 15 行 ≤30、无运行期绝对路径/节点地址（扫描仅命中背景节占位符与 `.work/evidence/` 仓库相对路径）；`milestones.md` 与任务书状态均为 `待验收`，一致；改动面 = `tools/infra/remote.py` + 本任务书 + `milestones.md` + 证据脚本，未越界；本轮 reviewer 未 commit/push、注入用 `cp`+md5。
+9. 完成区 15 行 ≤30、无运行期绝对路径/节点地址（扫描仅命中背景节占位符）；`milestones.md` 与任务书状态均为 `待验收`，一致；改动面 = `tools/infra/remote.py` + 本任务书 + `milestones.md` + 证据脚本，未越界；本轮 reviewer 未 commit/push、注入用 `cp`+md5。
 
 **核验范围**：以上 1–9 全部由 reviewer 自跑验证，**未采信 engineer 转述**；其完成区数字（12/18/16、rc=2/1/3/0、L1 rc=2 唯一红）与我实测逐条一致。
 **文档级 finding（不阻断，交 architect 收尾改）**：完成区称 `GEM5-030t`「待验收」，其任务书实为「待开始」（该任务工作树已有大量未提交改动）——措辞笔误，归属结论不受影响。
