@@ -64,7 +64,7 @@
 | 0x8（PROT_SEM）被 gem5 拒绝而 QEMU 接受；升硬限 QEMU/gem5 不同 | ⏸记录 | 接受并忽略 `PROT_SEM`；升硬限按 Linux 保留 `EPERM` | p1 `mprotect-prot-sem`；p5 `local:` 断言 |
 | 自审判决 | — | 全部可修 finding 已修 | 探针/注入/基线/门控全绿，状态 `待验收` |
 
-### 第 1 轮 reviewer 验收（2026-11-07，全部独立重跑；证据 `.work/evidence/GEM5-030t/review/`）
+### 第 1 轮 reviewer 验收（2026-11-07，全部独立重跑；证据在运行期证据目录，未归档）
 
 **重跑记录**（rc 均取命令自身，不经管道）
 - 门控我方 `gates.sh` 独立跑：build-gem5 / check-gem5-decode / check-patch-tree / check-source-state / L1 / L2 / check-inst / check-arch **8/8 rc=0**（`runtime/gates.rc`）；`run.sh` 内再跑一遍同样 8/8 rc=0。
@@ -96,10 +96,10 @@
 | [阻断] `PROT_GROWSDOWN` 三支与内核 `mm/mprotect.c` 不一致 | ✅已修 | `process.{hh,cc}`：`growDownStart` 改为 `growDownRegion(start,end,…)`——按 `vma_find` 取首个与 [start,end) 重叠的 VMA，重叠即 `start=vma->vm_start`（interior/below-with-overlap/vm_start 同），无重叠 `ENOMEM`，非 GROWSDOWN `EINVAL`；改正写反的注释。`se_workload.cc::doMprotect` 按此返回 `0/0/ENOMEM/0` 与 `EINVAL`，`end` 保持 `start_orig+len` | reviewer `rv1_probe`：gem5 `G-interior=0`、`G-vm-start=0`、`G-below-no-overlap=ENOMEM`、`G-below-with-overlap=0`；QEMU 四项仍 `EINVAL`（`local:`）；共享 75 条逐行一致、两侧 `SUMMARY fails=0` |
 | [必修] mremap 增长 `RLIMIT_AS` 未记为 QEMU 差异 | ✅已修 | README「与 QEMU user 已知差异」补第 4 条（SE 按 Linux `may_expand_vm`，QEMU-084t 只覆盖 `target_mmap`、`mremap` 增长漏检）；changelog 同步 | `rv1_probe` `E-mremap-grow`：gem5 `denied=1`（4 MiB→100 MiB ENOMEM），QEMU `INFO` 实测成功 |
 | [文档] 完成区数字：共享断言 65 非 66；5 份补丁全部有内容变更 | ✅已修 | 完成区/本表已改；补丁由源树重导出后 5 份均与基线不同 | `git diff --stat` 5 份 `components/gem5/patches/...` 均非空；`check-patch-tree` rc=0 |
-| [文档] `--inject` / `run.sh` SUMMARY、baseline `run.log` 未落盘 | ✅已修 | `bash run.sh --inject` 输出落 `.work/log/gem5/GEM5-030t-runsh-inject.log`；`bash run.sh` 落 `GEM5-030t-runsh.log`（含 `== SUMMARY passes=… fails=0 ==`）；baseline `run.log` 由基线 runner 落盘于运行期证据目录 | 三份日志存在且 `check-run-artifacts` PASS |
+| [文档] `--inject` / `run.sh` SUMMARY、baseline `run.log` 未落盘 | ✅已修 | `bash run.sh --inject` 与 `bash run.sh` 的输出均按任务号落盘到运行期日志目录（含 `== SUMMARY passes=… fails=0 ==`）；baseline `run.log` 由基线 runner 落盘于运行期证据目录 | 三份日志存在且 `check-run-artifacts` PASS |
 | [记录] `TIME_BUDGET_JITTER` 写死 Quicksort 易碎 | ⏸记录 | 保留显式白名单并注明理由（对照同源无检查构建仍超 120 s）；未放宽为“任意 timeout 可接受”，避免掩盖真回退 | `run.sh` baseline 断言仍拒绝任何白名单外的 pass→blocked/fail |
 
-### 第 2 轮 reviewer 验收（2026-11-08，全部独立重跑；证据 `.work/evidence/GEM5-030t/review/`）
+### 第 2 轮 reviewer 验收（2026-11-08，全部独立重跑；证据在运行期证据目录，未归档）
 
 **重跑记录**（rc 均取命令自身）
 - **读码**：`growDownRegion` 以 `upper_bound`+`prev` 取**首个与 [start,end) 重叠**的区间，`it->first >= end` ⇒ false（内核 `vma->vm_start >= end` ⇒ ENOMEM），否则 `regionStart = it->first`（内核 `start = vma->vm_start`）；`doMprotect` 的 `end = start+length` 在 GROWSDOWN 块**之前**算好、块内只改 `start` ⇒ `end` 保持 `start_orig+len`；返回顺序 **先 ENOMEM 后 EINVAL**，与 `mm/mprotect.c:884-891` 逐句一致；非 GROWSDOWN 分支仍 `protectMapped` 直返 0（QEMU 空洞口径未变）。旧的反例函数/写反注释**零残留**（`grep growDownStart|start inside the VMA` 无命中）。
