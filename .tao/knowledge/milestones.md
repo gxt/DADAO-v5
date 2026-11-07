@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-134t | 待开始 | 2026-11-08 02:40（登记） | bootstrap 语义改名与隔离用例；remote.py 仓库根校验（ISS-347/348） |
 | INFRA-133t | 待验收 | 2026-11-08 02:15（登记） | 节点 chipyard/Verilator/RISC-V 环境；两台 RocketConfig 构建通过、conda 包一致 |
 | INFRA-132t | 已验证 | 2026-11-07 22:23 | 节点 `.cache` 增量同步（rsync，无 --delete）+ 逐 commit 校验；不做挂载 |
 | INFRA-131t | 已验证 | 2026-11-07 21:35 | remote.py 假绿根除（cd 失败即非零）+ `~/` 展开 + git 失败不再报假状态 |
