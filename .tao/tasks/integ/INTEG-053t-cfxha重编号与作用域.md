@@ -196,7 +196,7 @@ DADAO/合约/实现层的保留集统一写 **`6–14、16–31、35–61`**，�
 - L1 `make check` ⇒ 尾行 `repository checks (L1): PASS`、`EXIT=0`。
 - 逐项 `make <target>` 现场 rc：spec-readonly（21 册 OK）/refs/drift/changelog/numbering/purity/cite-targets、legality-drift/invariants、cfx-aliases/alias-table/vectors、interface、tests-index、case-ledger、milestones-fresh、no-residue、patch-tree（302 OK）/source-state、asm-prose、decodetree-repro、validate-encoding、instrinfo、isa-coverage ⇒ **24/24 rc=0**。
 - 构建/行为：`build-qemu` rc=0；`install-host` rc=0（cfx-alias-install 6 checks PASS）；`check-arch` rc=0（14/14 = arch-smoke + 13 探针，042t/046t/047t/049t/050t/051t 逐项 PASS）；`check-inst` rc=0（Node 965/970、Tiny 44/44）；`check-gem5-decode` rc=0；`check_b6.py --source` rc=0；`check-lit` 163/163 rc=0（含 `cfx2-space-stride.s`/`cfx2-trap-escape.s` 真 llvm-mc 编码断言）。
-- 证据脚本重跑：`.work/evidence/INTEG-053t/run.sh` ⇒ **30/30、EXIT=0**，与完成区逐条一致。
+- 证据脚本重跑：INTEG-053t 运行期证据脚本（未归档） ⇒ **30/30、EXIT=0**，与完成区逐条一致。
 - 注入（reviewer 亲跑）：A `--inject-a`（PMEM 32→17）probe rc=1 FAIL → `cp`+md5 还原 → 回绿 4/4 EXIT=0；B `--inject-b`（合法式回 15..18）invariants rc=1 → 还原 → rc=0；**另注入一项（非 A/B）**：`machine-node.inc` 的 `PMEM_BASE`→`0x47ff00000000` ⇒ `gen_machine_inc.py --check` rc=1 `DRIFT` → `cp`+md5（前后 `01433d8e…` 相等）→ rc=0；全程禁 git 还原。
 - 快照对账：注入前后 `git status --porcelain -uall` 与开工快照**逐行相同**（72 条全 `M`、无 `??`）；`check-source-state`/`check-patch-tree` 注入后复跑仍 302 OK；QEMU `cpu.h` md5=16270575… 与注入还原值一致。
 
@@ -211,7 +211,7 @@ DADAO/合约/实现层的保留集统一写 **`6–14、16–31、35–61`**，�
 
 ## 完成区
 
-**测试结果**：通过 30/30（`.work/evidence/INTEG-053t/run.sh`）；L1 `make check` rc=0；`check-arch` rc=0（13 探针）；`check-inst` rc=0（Node 965/5，970 total；Tiny 44/44）；`check-gem5-decode`/`check_b6` rc=0；gem5 Node arch 10/10、Tiny inst 44/44；注入 A/B 均「注入 FAIL → 还原 → 回绿」。
+**测试结果**：通过 30/30（INTEG-053t 运行期证据脚本，未归档）；L1 `make check` rc=0；`check-arch` rc=0（13 探针）；`check-inst` rc=0（Node 965/5，970 total；Tiny 44/44）；`check-gem5-decode`/`check_b6` rc=0；gem5 Node arch 10/10、Tiny inst 44/44；注入 A/B 均「注入 FAIL → 还原 → 回绿」。
 
 **修改文件**：
 - spec：`DADAO-12`/`DADAO-22`/`Machine-v5`/`SimRISC-00`/`SimRISC-11` + `manifests/spec-readonly.lock.toml`（5 册重算 + 授权注记）。
@@ -221,7 +221,7 @@ DADAO/合约/实现层的保留集统一写 **`6–14、16–31、35–61`**，�
 - tests/tools：`smon.S`、`machine-{tiny,node}.inc`、9 个探针/prelude、lit、向量、ledger/inventory、`arch/README`、`tools/gem5/check_b6.py`。
 - 文档/台账：`ADR-0042/0043/0049`（rev. 2026-11-05）、`docs/DDLN` C001/F003/README、`.tao/knowledge/milestones.md`（状态行 `待验收`，L1 一致性门控）。
 
-**验收结果**：pmem/llc/time = 32/33/34；保留集 `6–14、16–31、35–61`；合法式 `cfxha <= 5 || cfxha == 15 || (32..34) || >=62`；`(32<<42)|0x3ff_0000_0000 = 0x83ff_0000_0000`；SimRISC-11/00 仅余描述性规则；DADAO-12 §1 三段作用域 + per-task 定义；`check-spec-readonly` 21 册 OK；`check-patch-tree` 302 OK、source-state qemu/gem5 base+1 clean；stale-scan 0；证据在 `.work/evidence/INTEG-053t/`（日志 + `run.sh` + `scan_stale.py`）。
+**验收结果**：pmem/llc/time = 32/33/34；保留集 `6–14、16–31、35–61`；合法式 `cfxha <= 5 || cfxha == 15 || (32..34) || >=62`；`(32<<42)|0x3ff_0000_0000 = 0x83ff_0000_0000`；SimRISC-11/00 仅余描述性规则；DADAO-12 §1 三段作用域 + per-task 定义；`check-spec-readonly` 21 册 OK；`check-patch-tree` 302 OK、source-state qemu/gem5 base+1 clean；stale-scan 0；证据为运行期证据（未归档；日志 + `run.sh` + `scan_stale.py`）。
 
 **新发现/坑**：
 - `tools/gem5/build_gem5.py` 把 `CXX="ccache g++"` 当可执行文件传给 gem5 SCons（预存缺陷）⇒ `make build-gem5` rc=2；绕行 = PATH 去 ccache 后跑同一 target，rc=0。建议后续修工具（本任务未改）。

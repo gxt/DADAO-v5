@@ -59,7 +59,7 @@
 - `make check-no-residue` → **rc=0**
 - `git status --porcelain -uall` → 空、rc=0；`git diff HEAD` → 空
 
-**7 条旧日志核对**（清单取自历史门控输出 `.work/log/infra/INFRA-120t-L1-after.log`：`2815 checked, 7 illegal`）：
+**7 条旧日志核对**（清单取自历史门控输出（运行期日志，未归档）：`2815 checked, 7 illegal`）：
 - 通用 3 条 `mergetree.out`、`krefs-final.log`、`qemu/disk-free-r2.log` —— 逐个 `[ -e ]` 检查均 gone
 - GEM5-018t 4 条 `GEM5-018t-build{,2}.{EXIT,start}` —— 均 gone；现场检查仅剩合法的 `GEM5-018t-build.log`/`build2.log`
 - **计数闭环**：`2815 − 7 + 2（22:34 后新建 GEM5-019t-build.log / -exit.txt，birth time 证实）= 2810` ⇒ 恰好只删 7 条、无多删

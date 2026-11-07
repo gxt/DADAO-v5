@@ -43,7 +43,7 @@
   - 占位/示意设计符（`DN`、`N` 等非真实编号/名称）⇒ 跳过；
   - 其它无法判定的设计符形 ⇒ 跳过并列明细（供人工复核）。
 
-fail-closed: (A) 或 (B) 有悬空 → exit 1；任一扫描面**空转**（无任何可判定 token）→ exit 1；
+fail-closed: (A) 扫描不到任何 `.work/**` 引用（扫描面为空）或 (B) 有悬空 → exit 1；任一扫描面**空转**（无任何可判定 token）→ exit 1；
 否则 exit 0。
 
 Usage:
@@ -432,12 +432,14 @@ def audit(root: Path) -> int:
     if sec["dangling"]:
         print(f"结果: FAIL ({len(sec['dangling'])} 悬空小节级互指)")
         return 1
-    # §2.20 自证命中：两个扫描面 (A)/(B) 都必须确有 token 被判定，(B) 的每个目录面亦然，
-    # 否则判为「空转」而 FAIL。
-    if checked == 0:
-        print("ERROR: 无任何可校验的 `.work/**` 引用（扫描面为空 ⇒ 门控空转，fail-closed）",
+    # §2.20 自证命中：两个扫描面 (A)/(B) 都必须确有 token 被扫描到，(B) 的每个目录面亦然，
+    # 否则判为「空转」而 FAIL。(A) 面按**扫描到的 `.work/` 引用数**判定：`.work/**` 整体
+    # 被 gitignore，正确清理后 fresh clone 上可校验的具体路径必然为 0（INFRA-129t，
+    # 用户 2026-11-07 裁定「A：按扫描到的引用数判空转」），故不得以 `checked == 0` 作为空转判据。
+    if found == 0:
+        print("ERROR: 未扫描到任何 `.work/**` 引用（扫描面为空 ⇒ 门控空转，fail-closed）",
               file=sys.stderr)
-        print("结果: FAIL (vacuous: no checkable .work/** refs)")
+        print("结果: FAIL (vacuous: no .work/** refs scanned)")
         return 1
     vacuous_faces = [d for d, n in sec["face_checked"].items() if n == 0]
     if vacuous_faces:

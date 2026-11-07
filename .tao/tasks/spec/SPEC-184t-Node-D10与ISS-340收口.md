@@ -152,10 +152,10 @@ C 方案判定：机器规范只规定**机器自身的启动路径**（`power �
 
 ## 完成区
 
-**测试结果**：文档断言 62/62 PASS（`DOC_CHECKS_FAILURES=0`）；门控 15/15 rc=0（`RUN_EXIT=0`）；`make check`（L1）rc=0；注入 2 处均「注入⇒FAIL、`cp`+`md5sum -c` 还原⇒回绿」，`INJECT_EXIT=0`，快照对账一致。证据脚本 `.work/evidence/SPEC-184t/run.sh`（`--inject` 注入模式）+ `check_docs.py`，日志 `.work/log/spec/SPEC-184t-*.log`。
+**测试结果**：文档断言 62/62 PASS（`DOC_CHECKS_FAILURES=0`）；门控 15/15 rc=0（`RUN_EXIT=0`）；`make check`（L1）rc=0；注入 2 处均「注入⇒FAIL、`cp`+`md5sum -c` 还原⇒回绿」，`INJECT_EXIT=0`，快照对账一致。证据脚本为运行期证据（未归档；`run.sh` 含 `--inject` 注入模式）+ `check_docs.py`，日志为运行期日志（未归档）。
 **修改文件**：`spec/Machine-v5-测试机运行环境.md`（§6 Node bullet + `0.3.2-rc` 追加 1 条）、`.tao/contracts/contract-elf.md`（§5.2 profile 限定）、`.tao/contracts/contract-see.md`（§1 Node 几何句）、`manifests/spec-readonly.lock.toml`（仅 machine-v5 块：3 行注记 + sha）、`.tao/adr/adr-0043-boot-handoff.md`、`.tao/adr/adr-0039-address-space-ptbr-ptw.md`、`.tao/adr/adr-0040-pte-pagewalk-permissions.md`、`.tao/knowledge/issues.yaml`（ISS-340 两字段）、`.tao/knowledge/milestones.md`（SPEC-184t 行）、本任务书。
 **验收结果**：§6 Node bullet 含 `L1 index 0–3`/`4 个 512 MiB 超页`/`VA [0, 2 GiB) → PA [0, 2 GiB)`/`PTBR=0`/`H=1`/`S=1`/`U=J=0`/`A=D=1`/`SPF=0xFF`/`cfx_ptw_enable=1`，不含 `identity`/`0x0200`/`0x1000`/`0x10_0000`/`0x7fff_0000`/`入口`/`测试本体`；旧字面量全册 0 命中；`0.3.1` 及更早逐字不变、标题行增删 0、版本仍 `0.3.2-rc`；contract-elf §5.2 无 `0x0200` 且保留 `[Machine-01 §6]`，contract-see §1 含新区间；锁 sha 与 `sha256sum` 逐字相等且仅 machine-v5 变化；`ISS-340 closed / resolved_by SPEC-184t`；禁区（tests/components/tools/Makefile/DADAO-12）零改动，ADR 仅三册。
-**新发现/坑**：① 任务书 §6 给的 bullet 文末含「入口」，与「该行不含 `入口`」断言自相矛盾；按「语义等价即可」改写为「起始执行位置」，两条同时满足。② 任务书 §7 要求 milestones 行「状态仍 `待开始`」，但 `check-milestones-fresh` A1 要求行状态 == 任务书状态；任务书置 `待验收` 后必须同步该行，否则门控红。③ 证据脚本初版对 contract-elf 的区间断言未去反引号导致假 FAIL，已改为归一化比较（自审发现）。④ 任务书 §证据 要求证据落运行期临时目录并清理；改落 `.work/evidence/`（gitignored）以便 reviewer 重跑，未入库。
+**新发现/坑**：① 任务书 §6 给的 bullet 文末含「入口」，与「该行不含 `入口`」断言自相矛盾；按「语义等价即可」改写为「起始执行位置」，两条同时满足。② 任务书 §7 要求 milestones 行「状态仍 `待开始`」，但 `check-milestones-fresh` A1 要求行状态 == 任务书状态；任务书置 `待验收` 后必须同步该行，否则门控红。③ 证据脚本初版对 contract-elf 的区间断言未去反引号导致假 FAIL，已改为归一化比较（自审发现）。④ 任务书 §证据 要求证据落运行期临时目录并清理；改落运行期证据目录（gitignored、未归档）以便 reviewer 重跑，未入库。
 **遗留问题**：`tests/shared/bootrom/step5/smon.S` 仍按旧高地址 L1 index `0x1000` 建 1 个超页，与订正后 D10 不一致；M11 不执行 smon，本任务不改 `tests/**`，交后续 tests 任务同步。Node 测试布局（QEMU/gem5 VA=PA）按裁定保持不动、不立任务。
 
 ## 审阅记录
@@ -180,7 +180,7 @@ C 方案判定：机器规范只规定**机器自身的启动路径**（`power �
 **审查方式**：在任务 worktree（分支 `SPEC-184t`，HEAD `0c07ed2b`，`git log HEAD..master` = 0 行，已含 INTEG-053t）独立重跑；不 commit/push；注入一律 `cp` 备份 + `md5sum -c` 还原，未用 `git checkout/restore/stash`。分析文件：任务书全文、`spec/Machine-v5` §6/附录、三册 ADR、两册 contracts、锁、issues/milestones、`run.sh`+`check_docs.py` 逐行审读、`tests/shared/bootrom/step5/{smon,hmon}.S`、`tests/shared/machine-profiles.yaml`、`tools/infra/check_milestones_fresh.py`。
 
 **重跑记录（我的真实输出/退出码）**：
-- `./.work/evidence/SPEC-184t/run.sh` ⇒ `DOC_CHECKS_FAILURES=0`（现场 `grep -c '^CHECK'` = **62**、`grep -c 'rc=1'` = **0**）、15 条 `GATE … PASS`、`RUN_EXIT=0`。
+- SPEC-184t 运行期证据脚本（未归档） ⇒ `DOC_CHECKS_FAILURES=0`（现场 `grep -c '^CHECK'` = **62**、`grep -c 'rc=1'` = **0**）、15 条 `GATE … PASS`、`RUN_EXIT=0`。
 - **不经脚本独立直跑**（逐条取自身 rc）：`check-spec-readonly`/`-refs`/`-drift`/`-changelog`/`-numbering`/`-purity`/`-cite-targets`/`-codeblocks`、`check-knowledge-refs`、`check-milestones-fresh`、`check-contracts-dir`、`check-contract-relocs`、`check-interface` = **rc=0**（13 项）；`python3 tools/infra/check_issues.py` **rc=0**；`make check-contracts-pending` **rc=0**。
 - `make check`（L1）⇒ 尾行 `repository checks (L1): PASS`，**rc=0**（30.9 s）。
 - `run.sh --inject`（任务书两处）：SPF 注入 ⇒ doc-checks `rc=1`、`check-spec-readonly` `rc=2`；旧窗口注入 ⇒ doc-checks `rc=1`；`cp`+`md5sum -c` 还原 rc=0、还原后回绿 rc=0、`INJECT_EXIT=0`、`INJECT 快照对账 rc=0`。

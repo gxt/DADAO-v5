@@ -84,7 +84,7 @@
 
 ## 完成区
 
-**测试结果**：一键证据 `.work/evidence/SPEC-185t/run.sh` 19/19 PASS（RUN_RC=0）；基线审计 223 → 改后 0；9 门控 + `make check`（L1）全 rc=0；反例注入 FAIL→`cp`+md5 还原 PASS。
+**测试结果**：一键证据（运行期，未归档）19/19 PASS（RUN_RC=0）；基线审计 223 → 改后 0；9 门控 + `make check`（L1）全 rc=0；反例注入 FAIL→`cp`+md5 还原 PASS。
 **修改文件**：`spec/README.md`、`spec/Machine-v5-测试机运行环境.md`、`spec/Toolchain-01-汇编语言.md`、`manifests/spec-readonly.lock.toml`、`.tao/knowledge/milestones.md`、本任务书。
 **验收结果**：
 - 审计（audit.py）：`spec/*.md` 非 spec token 223→0；按类 ADR 78 / contract- 50 / .tao 25 / contracts 29 / docs 18 / tests 7 / tools 15 / manifests 1；http(s)/0628 基线即 0。日志 `.work/log/spec/SPEC-185t-audit-{before,after}.log`。
@@ -110,7 +110,7 @@
 | reviewer：README 整节过度删除（定位/修订流程/维护约定/Rationale/投影表） | ✅已修 | 从 HEAD 恢复五节，仅删非 spec 指针；投影表改 spec-only 锚点句 | audit 0 / semantics PASS / 门控 rc=0 |
 | README 删表后内部引用总数变化 | ✅已核对 | 互引判据为「21 册跨册互引逐册不变」；README 链接 21/21；未新增规范内容 | semantics.py PASS |
 | Toolchain §11/§12 成空节 | ⏸延后（披露） | 指针句整句删除；保留标题以保编号连续；空心句按 A1 不润色 | check-spec-numbering rc=0 |
-| 基线/注入树放 `.work/log` 触发 check-run-artifacts A3 | ✅已修 | 运行期临时树移出 `.work/log/**` | `make check` rc=0 |
+| 基线/注入树放运行期日志目录触发 check-run-artifacts A3 | ✅已修 | 运行期临时树移出 `.work/log/**` | `make check` rc=0 |
 | worktree `.work` 软链致审计扫到主工作树 | ✅已修 | audit.py 加 `--root`；run.sh 用 `git rev-parse --show-toplevel` | 基线 223 / 改后 0 |
 | 是否存在非删除式改写 | ✅已核对 | semantics.py 子序列 + 删除段 token/强度词断言 | semantics PASS |
 | reviewer F5：配对被跳过的旧行未入整行删除断言 | ✅已修 | `pair_lines` 返回全部未配旧行并逐行断言含 token | semantics PASS |
@@ -122,7 +122,7 @@
 **重跑（reviewer 本人执行，任务 worktree HEAD=`f0d1253c`，不采信完成区转述）**
 - 自写审计（非采信 223 转述）：基线 `git archive HEAD spec` 非 spec token **223**（ADR-78 / contract-50 / .tao25 / contracts29 / docs18 / tests7 / tools15 / manifests1；0628、http=0）；工作树 22 册 **0**（逐类 0；`grep -rnE 'ADR-|contract-|\.tao/|contracts/|docs/|tests/|tools/|manifests/|0628|https?://' spec/*.md` ⇒ 0 行）。
 - 门控 9 项本人重跑 **rc=0**：check-spec-readonly（21 volumes OK）/refs（0 violations）/drift/changelog/numbering/purity/cite-targets/codeblocks/milestones-fresh；`make check`（L1）**rc=0**（`repository checks (L1): PASS`）。
-- 证据脚本重跑：`.work/evidence/SPEC-185t/run.sh` ⇒ **RC=0，PASS 19 / FAIL 0**（与完成区 19/19 一致；逐项输出见 `.work/log/spec/SPEC-185t-*.log`）。
+- 证据脚本重跑：运行期证据脚本（未归档）⇒ **RC=0，PASS 19 / FAIL 0**（与完成区 19/19 一致；逐项输出见运行期日志（未归档））。
 - **独立注入（改真实被测产物，非脚本自检）**：`cp` 备份 + md5 `f89cac2c…` ⇒ Machine-v5 §1.1 行尾写回 `[ADR-0043 D1/D4/D5]`（md5 变 `b476ff8b…`）⇒ 重跑同一 run.sh ⇒ **RC=1、FAILS=5**（after audit actual=1；check-spec-readonly rc=2；make check rc=2）⇒ `cp` 还原 + `md5sum -c` OK（回 `f89cac2c…`）⇒ 再跑 ⇒ **RC=0、19/19**；注入前后 6 文件 md5 与 `git status` 与审查开始快照逐项一致。
 - 锁：21 条 sha 与 `sha256sum` 现值**全等**；仅 Toolchain-01 `025a5cd0→d7822c77`、Machine-v5 `180bdb0b→b858d55d` 变化，其余 19 册锁值与 HEAD 内容**逐字未变**。
 - 语义（reviewer 自写字符级核验）：**无任何新增行**；删除段仅为「引用 token + 包裹标点」或指针短语（Machine-v5 43 行内删 + 2 整行、Toolchain 15 行内删 + 4 整行指针 + 2 空行、README −101 纯删除）；被删规范强度词 **0**；未见语法残句。

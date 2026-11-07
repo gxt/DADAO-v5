@@ -9,7 +9,7 @@
 ## 对照分析
 
 > **性质**：全节 **内容溯源，非执行必需**（`AGENTS.md`「参考来源与任务自包含」）。0628 侧**只读**（`.cache/refs/DADAO-0628`，锁 `head = 2d270604b778d609e1a09b4047271b5309005ffc`）；**不复制实现**（单条引文 ≤3 行）；**本产出不作任何实现任务的执行依赖**。
-> **路径约定**：`0628:` 前缀 = `.cache/refs/DADAO-0628/`；`linux:` 前缀 = `.work/source/linux/`（v5 锁定的内核 `7.2.10`，`commit 7b20d05f…`，可由 `make fetch` 重建）。**全节所有行号均本次现场读取**（`sed -n '<行>p'`），由 `.work/evidence/SPEC-144t/run.sh` 逐条复核（全文 `path:line` 引用 **72** 条全部实读命中，含可达 FAIL 注入）。凡写作 `:N` 而**本条 bullet 内**未带全路径者，均指**同一 bullet 内此前已给出全路径的同一文件**。
+> **路径约定**：`0628:` 前缀 = `.cache/refs/DADAO-0628/`；`linux:` 前缀 = `.work/source/linux/`（v5 锁定的内核 `7.2.10`，`commit 7b20d05f…`，可由 `make fetch` 重建）。**全节所有行号均本次现场读取**（`sed -n '<行>p'`），由 SPEC-144t 运行期证据脚本（未归档）逐条复核（全文 `path:line` 引用 **72** 条全部实读命中，含可达 FAIL 注入）。凡写作 `:N` 而**本条 bullet 内**未带全路径者，均指**同一 bullet 内此前已给出全路径的同一文件**。
 > **v5 侧**：只**引用**既有载体（ADR / 契约 / 任务书 / `docs/`），不新建规范正文。
 
 ### 汇总（6 项 × 5 列）
@@ -73,7 +73,7 @@
 
 ### 项 2：`pk`（proxy kernel）路线
 
-**① 它怎么做**：**完全没有 `pk`**。本次现场全仓检索（`.md`/`.yaml`/`.toml`/全文件，剔除 `.git`）对 `\bpk\b`、`Chipyard`、`FireMarshal`、`proxy kernel` **均 0 命中**（复核入口：`.work/evidence/SPEC-144t/run.sh --only=pk`，四个模式各 `0 files`）。其路线 = **裸加载 + 真内核**：QEMU/gem5 直接 `-kernel`/ELF 裸加载、**无引导固件层、无 FDT/DTB**（`0628:docs/adr/0015-kernel-bringup-charter.md:28`）；分阶段 **K0–K4**（`:36`–`:40`），其中 `K3` = `arch/dadao` 从零写 + **Linux 5.4** 树（`:39`）、`K4` = `Run /init` 真正跑 **musl 链接的用户程序**（`:40`）；锁条目 `linux` 现场为 `enabled = true`、`commit = "219d54332a09e8d8741c1e1982f5eae56099de85"`、`role = "Linux 5.4 baseline for the fresh DADAO K3 architecture port"`（`0628:manifests/components.lock.toml:56`–`:61`）。
+**① 它怎么做**：**完全没有 `pk`**。本次现场全仓检索（`.md`/`.yaml`/`.toml`/全文件，剔除 `.git`）对 `\bpk\b`、`Chipyard`、`FireMarshal`、`proxy kernel` **均 0 命中**（复核入口：SPEC-144t 运行期证据脚本（未归档）的 `--only=pk` 模式，四个模式各 `0 files`）。其路线 = **裸加载 + 真内核**：QEMU/gem5 直接 `-kernel`/ELF 裸加载、**无引导固件层、无 FDT/DTB**（`0628:docs/adr/0015-kernel-bringup-charter.md:28`）；分阶段 **K0–K4**（`:36`–`:40`），其中 `K3` = `arch/dadao` 从零写 + **Linux 5.4** 树（`:39`）、`K4` = `Run /init` 真正跑 **musl 链接的用户程序**（`:40`）；锁条目 `linux` 现场为 `enabled = true`、`commit = "219d54332a09e8d8741c1e1982f5eae56099de85"`、`role = "Linux 5.4 baseline for the fresh DADAO K3 architecture port"`（`0628:manifests/components.lock.toml:56`–`:61`）。
 
 **② 我们怎么做**：**无内核目标**（`.tao/adr/adr-0025-m8-scope-linux-compat.md:28`，用户原话「无内核目标（推荐）」）。`pk` 仅出现在 **Chipyard 参考平台冒烟**语境：M8 判据「参考平台能跑通 `pk`（+ 可选 Linux）并与我们 QEMU 的结果对照」（`.tao/adr/adr-0024-chipyard-baseline.md:38`），且**未闭环**（`PK_EXIT=2`，`.tao/knowledge/milestones.md:130` 待办①；`.tao/adr/adr-0025-m8-scope-linux-compat.md:74`「`pk` 未闭环」）；用户 2026-10-14 裁定 chipyard 后续任务后置于 M8 之后、暂不推进（`.tao/knowledge/milestones.md:134`）。
 

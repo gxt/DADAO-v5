@@ -57,4 +57,4 @@ printf("a=%lld b=%lld\n", (long long)a, (long long)b);
 - llvm-ts 只覆盖驱动声明的 scope A（214 例），scope B/C 未运行（驱动原有口径）。
 - SE 的 guest fd1/fd2 是两个宿主文件，llvm-ts 的比较文档 = stdout 后接 stderr（QEMU 轮是 `2>&1` 交错）；JSON 记录该口径。本轮没有案例因此产生差异（gem5_only_fail 均为数值/输出差异，非顺序差异）。
 - **快照时点**：本轮数字早于 `GEM5-022t`；该任务落地 `brk` 后，指向同一子集的回归复跑里 `functional/memstream` 已由 blocked 转 pass（embench full 仍 38/38）。summary 首行已注明快照属性。
-- 复跑与反例见 `.work/evidence/GEM5-021t/run.sh`（`INJECT=1` 自带两处注入；`RUN_L1=1` 附带 `make check`）。
+- 复跑与反例见 GEM5-021t 运行期证据脚本（未归档；`INJECT=1` 自带两处注入；`RUN_L1=1` 附带 `make check`）。
