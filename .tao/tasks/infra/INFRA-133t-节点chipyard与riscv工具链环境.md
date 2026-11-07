@@ -80,7 +80,7 @@
 
 #### 第 1 轮 reviewer 验收（2026-11-08）
 
-方式：无 `.work/evidence/INFRA-133t/`（未产证据脚本，故无 run.sh 可审可重跑）；reviewer 用 `tools/infra/remote.py run` 对两台节点逐项亲跑，rc 取命令自身，日志落 `.work/log/infra/INFRA-133t/remote/`。
+方式：本任务未产证据脚本（无 `run.sh` 可审可重跑）；reviewer 用 `tools/infra/remote.py run` 对两台节点逐项亲跑，rc 取命令自身，日志按任务号归档到运行期日志目录。
 
 - **版本（验收1）**：两台 `verilator`=5.022、`java`=20.0.2-internal、`riscv64-unknown-elf-gcc`/`riscv64-unknown-linux-gnu-gcc`=13.2.0、`firtool`=CIRCT 1.75.0 / LLVM 19.0.0git、`sbt --version` rc=0 ⇒ 两台全过。
 - **`--help`（验收3 更正项）**：两台各跑一次，**真实 rc=255**（非 0），输出 41 行含 `Usage:`/`EMULATOR OPTIONS`，stderr `terminate called … User queried htif_t help text` ⇒ 与完成区逐字一致；源码 `riscv-isa-sim/fesvr/htif.cc:336-337` 为 `case 'h': usage(argv[0]); throw std::invalid_argument("User queried htif_t help text")` ⇒ **上游既定行为、非环境损坏**。
