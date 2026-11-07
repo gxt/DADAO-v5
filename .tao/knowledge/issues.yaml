@@ -122,3 +122,13 @@
     【P3】QEMU linux-user 的 `target_mremap` 未检查 guest `RLIMIT_AS`（`GEM5-030t` 实测 4 MiB→100 MiB
     成功），gem5 SE 按 Linux `may_expand_vm` 拒绝。属 QEMU 侧能力缺口，已在 gem5 README 记为已知差异；
     如需两侧完全对齐，应给 QEMU 补 mremap 的限额检查并加双引擎探针。
+
+- id: ISS-352
+  scope: [infra]
+  status: open
+  resolved_by: null
+  title: >-
+    【P2】`check-knowledge-refs` 在本机只按「文件是否存在」判悬空，而 `.work/**` 是被 gitignore 的
+    运行期目录：主控机上有文件时不报，换到新节点/fresh clone 就红。近期已因此复发三次
+    （任务书/审阅记录写具体运行期路径）。建议改为按 **git 跟踪树**（或 `git archive` 临时树）判定：
+    任何具体 `.work/**` 引用一律视为不可复现。属门控语义变更，需用户裁定后再动。
