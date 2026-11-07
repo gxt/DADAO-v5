@@ -100,3 +100,12 @@
 4. `tools/infra/bootstrap_node.sh`：`fetch → apply-series → compiler-rt configure → install-host → make check`。
 5. 验收：`make check` rc=0、`make check-inst` 与本机同 commit 结果一致；用 `tools/infra/remote.py status/preflight` 确认。
 6. 在本文件「1. 当前清单」与「5. 就绪判据」补一行实测值。
+
+## 9. 缓存维护（主控机 → 节点 `.cache`）
+
+- **同步 + 校验一条命令**：`python3 tools/infra/sync_cache.py --hosts 'gxt@<node>,gxt@<node2>' --repo '~/DADAO-v5'`（节点清单也可从 `DADAO_NODES` 取；**无内置清单**）。`--dry-run` 只打印计划、不写远端；`--jobs` 控制并发。
+- **增量**：`rsync -a` 推送 `.cache/`（裸仓库对象 append-only，第二次运行应近似 0 字节）。**不用 `--delete`**：节点可能持有主控机没有的对象，静默删除比留残留更危险。
+- **校验判据**：对 `manifests/components.lock.toml` 每个 enabled 组件，在节点执行 `git -C <repo>/.cache/<name>.git cat-file -e <commit>^{commit}`；缺任一 commit（或整个裸仓库缺失）即该节点 FAIL，提示「缓存过期，请重新同步」。逐节点汇总 `host -> rc`，任一非零整体非零。
+- **前提**：同步期间主控机与节点都不要跑 `make fetch`（rsync 读的是活仓库，正在写的 pack 可能被复制半截；partial transfer rc 23/24 会保留为非零，不做兜底）。
+- **不做 NFS/sshfs 挂载**（用户 2026-11-07 裁定）：跨 Tailscale（含 DERP 中继）挂载在断链时**挂起**而非报错；只读挂载与 `fetch.py` 写 `.cache` 的路径冲突；运行期还会引入主控机单点依赖。
+- **主控机缓存须先齐全**：新节点上线前先 `make fetch`；主控机缺某个 bare repo 时校验会明确报 `missing bare repository`（与「缺 commit」同为 FAIL），不得跳过校验掩盖。
