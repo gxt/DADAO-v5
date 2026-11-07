@@ -55,3 +55,13 @@
     【P2】DADAO-12 §2.2.6/§3.6/§4.5 仍写页表异常进入 cfx_ptw、PTWERR/NUPERM 等旧原因，
     与 §5.2 的“执行期事件先入当前 monitor”冲突；同批 DADAO-22 §5.3、Machine-v5、
     contract-see 仍是旧口径。由 SPEC-189t 收口；过渡期不得声称全册一致。
+
+- id: ISS-345
+  scope: [gem5]
+  status: open
+  resolved_by: null
+  title: >-
+    【P3】gem5 SE futex 细节与 Linux/QEMU 不完全一致：`FUTEX_UNLOCK_PI` 未校验调用者是否为 owner
+    （Linux 返回 EPERM）；`FUTEX_REQUEUE` 返回值语义（唤醒+改挂之和）待与内核/QEMU 对齐；
+    `parkOnFutex` 在等待队列 deadline 分支提前返回时漏 `delete FutexWaiter`（宿主内存小泄漏）。
+    语料当前不可达；随下一次 futex 任务修。

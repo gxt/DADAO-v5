@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/se_workload.hh b/src/arch/dadao/se_workload.hh
 new file mode 100644
-index 0000000..77b3ba7
+index 0000000..be9c58b
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.hh
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,52 @@
 +// DADAO syscall-emulation workload: the SE "OS" object.
 +//
 +// It owns the loader hook (an ET_EXEC DADAO object becomes a DADAO Process)
@@ -37,6 +37,12 @@ index 0000000..77b3ba7
 +
 +    /** Entry point of `trap cfx0, 0` (umon, SBI_UMON_SYSCALL). */
 +    void syscall(ThreadContext *tc) override;
++
++    /** Deliver a queued, unblocked signal to `tc` at an instruction boundary
++     *  (asynchronous delivery: a thread that never enters the kernel -- musl's
++     *  cancellation of a spinning thread -- still sees its signals).  Returns
++     *  true when a handler was entered, i.e. the PC moved. */
++    bool deliverPendingSignal(ThreadContext *tc);
 +
 +    /** Set when the last syscall could not make progress (an empty pipe, a
 +     *  child that has not exited, a socket with nothing to read).  inst.cc

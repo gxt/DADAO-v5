@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/process.cc b/src/arch/dadao/process.cc
 new file mode 100644
-index 0000000..661be4f
+index 0000000..3e2c00d
 --- /dev/null
 +++ b/src/arch/dadao/process.cc
-@@ -0,0 +1,271 @@
+@@ -0,0 +1,303 @@
 +// DADAO syscall-emulation process -- implementation.
 +#include "arch/dadao/process.hh"
 +
@@ -60,6 +60,10 @@ index 0000000..661be4f
 +{
 +    fatal_if(params.useArchPT,
 +             "DADAO SE: architecture page tables are not supported");
++
++    // Tids are allocated after the pid so a thread's tid never collides with
++    // the main thread's (Linux allocates both from one space).
++    nextThreadTid = params.pid + 1;
 +
 +    const Addr max_stack_size = params.maxStackSize;
 +    const Addr next_thread_stack_base = StackBase - max_stack_size;
@@ -159,6 +163,13 @@ index 0000000..661be4f
 +    gem5::Process::initState();
 +
 +    argsInit<uint64_t>(PageBytes);
++
++    // The first context is the main thread (gem5::Process::initState has just
++    // activated it).  Linux gives the main thread the pid as its tid.
++    ThreadState &mainThread = threads[contextIds[0]];
++    mainThread.tid = pid();
++    mainThread.cid = contextIds[0];
++    mainThread.live = true;
 +
 +    // MemRAS: contract-isa §1.3.4 requires a user process to start with the
 +    // MemRAS allocated and ra0 set.  One MiB, zero-filled, with the top
@@ -272,6 +283,27 @@ index 0000000..661be4f
 +
 +    initialSp = sp;
 +    memState->setStackMin(roundDown(sp, pageSize));
++}
++
++DadaoISA::ThreadState *
++DadaoISA::Process::findThreadByTid(int tid)
++{
++    for (auto &entry : threads) {
++        if (entry.second.live && entry.second.tid == tid)
++            return &entry.second;
++    }
++    return nullptr;
++}
++
++size_t
++DadaoISA::Process::liveThreadCount() const
++{
++    size_t count = 0;
++    for (const auto &entry : threads) {
++        if (entry.second.live)
++            count++;
++    }
++    return count;
 +}
 +
 +} // namespace gem5

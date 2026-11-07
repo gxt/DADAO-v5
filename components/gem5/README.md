@@ -211,7 +211,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
     `SO_SNDTIMEO` 的 `timeval` 逐字段转换）；其它族 `EAFNOSUPPORT`，未知
     `SOCK_*` 类型 `ESOCKTNOSUPPORT`。
   - **多进程**：一个 guest 进程 = 一个 gem5 `Process` + 一个
-    `ThreadContext`（`se.py --num-threads`，默认 8；`system.multi_thread`
+    `ThreadContext`（`se.py --num-threads`，默认 64；`system.multi_thread`
     随之打开）。`clone` 复制地址空间与 fd 表（表真共享时 `CLONE_FILES`）、
     子进程 `rb1 = newsp`、`rd8 = 0`；`CLONE_VFORK` 挂起父进程到子进程
     exec/exit。`execve` 重建映像（argv/envp/auxv 仍由 `initState` 那套栈
@@ -219,8 +219,8 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
     `FD_CLOEXEC` 关 fd。`wait4` 返回原始 wait status（`WIFEXITED`/
     `WEXITSTATUS`/`WIFSIGNALED`/`WTERMSIG`）、支持 `WNOHANG` 与 `ECHILD`。
     最后一个进程退出才结束仿真，退出码取主进程状态（同单进程口径）。
-  - **已知限制**：① `CLONE_THREAD`（真线程）未实现，仍 `fatal` 带号
-    （`GEM5-026t`），threads/futex 桶保持 blocked；② `execve` 只接受 DADAO
+  - **已知限制**：① `CLONE_THREAD`（真线程）由 `GEM5-026t` 接续实现，
+    见下一节；② `execve` 只接受 DADAO
     `ET_EXEC`，宿主可执行/其它架构返回 `ENOEXEC`（不崩、不静默）——因此
     需要 guest 根里 DADAO `/bin/sh`、`echo` 的 `functional/popen`/
     `functional/spawn`/`regression/execle-env` 在当前语料下是真实失败
@@ -239,6 +239,53 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
     `/bin/sh`、`echo`；SE 没有，`execve` 按语义返回 `ENOEXEC`。QEMU 侧
     之所以通过，是把宿主 x86-64 二进制交给宿主内核执行，属**非同架构
     baseline**，不能据此判 gem5 能力不足。
+
+- **线程、futex 与 TLS（GEM5-026t）**：`clone`(220) 的 `CLONE_THREAD` 面
+  （`CLONE_VM|CLONE_SIGHAND` 必须置位、私有栈必须给、`CLONE_SETTLS`）、
+  `futex`(98)、`set_robust_list`(99)/`get_robust_list`(100)，以及
+  `set_tid_address`/`gettid`/`tkill`/`tgkill` 的每线程口径。
+  - **一个线程 = 同一 `Process` 的第二个 `ThreadContext`**：地址空间、
+    fd 表、信号 disposition 共享；栈、`rb3`（TP）与每线程 Linux 状态
+    （`ThreadState`：阻塞掩码、pending 集合、备用栈、clear-tid、robust
+    list、tid）私有。`CLONE_SETTLS` 把 `tls` 参数写进子线程 `rb3`
+    （QEMU `cpu_set_tls` 等价，spec/DADAO-21 + contract-dynlink §2.4/§7
+    既有的 `rb3=rbtp` 定义）；不分配 TLS block、不另造 TLS 模型。
+  - **futex 与 gem5 事件队列**：`FUTEX_WAIT`/`WAIT_BITSET` 把该线程
+    `suspend()` 并挂到模拟器自己的等待队列（键 = (进程, 地址) + bitset），
+    `FUTEX_WAKE`/`WAKE_BITSET`/`REQUEUE`/`CMP_REQUEUE` 直接把结果写回
+    `rd8` 再 `activate()`；带超时的等待在 gem5 事件队列上挂一个
+    `AutoDelete` 事件（到时写 `-ETIMEDOUT`）。**不忙等**、不重执行 trap。
+    `FUTEX_LOCK_PI`/`UNLOCK_PI`/`TRYLOCK_PI` 按 futex 字里的 owner tid +
+    `FUTEX_OWNER_DIED` 建模（SE 无优先级，PI 只做所有权移交；musl 的
+    userspace trylock 由 `OWNER_DIED` 位得到 `EOWNERDEAD`）。
+  - **robust list**：`set_robust_list` 保存每线程链表头（长度必须
+    `3*sizeof(long)`，否则 `EINVAL`）；`get_robust_list` 回读该头并总是
+    报告内核长度（未注册时头为 NULL，同 Linux）。线程退出时按
+    `exit_robust_list()` 走一遍链表，把仍被本线程持有的 robust mutex 标
+    `FUTEX_OWNER_DIED` 并 wake 一个等待者。
+  - **线程退出/join**：`SYS_exit` 只结束本线程（最后一个线程才结束进程）；
+    退出时清 `CLONE_CHILD_CLEARTID`/`set_tid_address` 的字并 wake 一个
+    等待者（musl 的 `__tl_lock` 靠它放锁），`exit_group` 与致命信号仍结束
+    整个进程。`pthread_join` 走 `detach_state` futex，无需额外 wait 面。
+  - **信号每线程化**：阻塞掩码/pending/备用栈移到 `ThreadState`，
+    disposition 仍进程共享；信号可在**指令边界**投递（`ISA::pendingSignal`
+    每指令一个 bool 检查），因此纯用户态自旋的线程也能被
+    `pthread_cancel`（musl 异步取消）。`rt_sigreturn` 用投递时记录的帧栈
+    （`ThreadState::signalFrames`）而不是只信 `rb1`：musl 的取消处理器
+    返回 trampoline 时 SP 可以不等于帧基址。
+  - **LR/SC 跨 hart 失效**：任何 hart 的 store 都会清掉**另一** hart 对
+    「同一精确地址 + 同一访问宽度」的保留标记（contract-isa §LR-SC），
+    这是 musl 的 `a_cas`/引用计数在多线程下不丢更新的前提。
+  - **上下文数**：`se.py --num-threads` 默认 64（每个活动线程/进程各占一个
+    `ThreadContext`；语料里 `pthread_cond-smasher` 需要 11 个、`raise-race`
+    需要上百个短命 fork 子进程）。
+  - **已知限制**：① `clone` 的 `CLONE_VM`（无 `CLONE_THREAD`）仍按 fork
+    语义复制地址空间（同 025t），`pshared` 语义只在同一进程内成立；② 线程
+    数受 `--num-threads` 限制，超出返回 `EAGAIN`（musl 把任何 clone 失败
+    翻成 `EAGAIN`）；③ `FUTEX_WAKE_OP`/`FUTEX_FD` 未建模（显式 `ENOSYS`）；
+    ④ `RLIMIT_NPROC` 按活动线程数计；⑤ `regression/raise-race`（100 次
+    fork + 1000 次信号）在 120 s 预算内跑不完，归 time budget（能力已有，
+    非能力缺口）。
 
 - **页大小**：`PageShift = 16`（64 KiB），`AT_PAGESZ = 65536`（与架构页一致）。
 - **初始状态**：PC = `e_entry`、SP = `rb1`、`rf0 = 0x7FF800007FC00000`、

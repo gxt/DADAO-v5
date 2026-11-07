@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..2fbf573
+index 0000000..6aba712
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,285 @@
+@@ -0,0 +1,309 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
@@ -64,9 +64,13 @@ index 0000000..2fbf573
 +    clearReservations();
 +}
 +
++std::vector<ISA *> ISA::holders;
++
 +void
 +ISA::setReservation(Addr addr, unsigned width)
 +{
++    if (!reservationValid)
++        holders.push_back(this);
 +    reservationValid = true;
 +    reservationAddr = addr;
 +    reservationWidth = width;
@@ -82,9 +86,29 @@ index 0000000..2fbf573
 +void
 +ISA::clearReservations()
 +{
++    if (reservationValid) {
++        for (auto it = holders.begin(); it != holders.end(); ++it) {
++            if (*it == this) {
++                holders.erase(it);
++                break;
++            }
++        }
++    }
 +    reservationValid = false;
 +    reservationAddr = 0;
 +    reservationWidth = 0;
++}
++
++bool
++ISA::anyReservationHeld()
++{
++    return !holders.empty();
++}
++
++const std::vector<ISA *> &
++ISA::reservationHolders()
++{
++    return holders;
 +}
 +
 +RegVal

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..60d378e
+index 0000000..e8548e7
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,647 @@
+@@ -0,0 +1,679 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -65,6 +65,25 @@ index 0000000..60d378e
 + * ISA object, single slot, exact address + width (SPEC-181t F8.1); no
 + * checkpoint state.
 + */
++/** A guest store by `tc` clears every *other* hart's LR/SC reservation for
++ *  the same exact address and width (contract-isa §LR-SC).  The scan is
++ *  skipped entirely while no hart holds a reservation. */
++void
++invalidatePeerReservations(ThreadContext *tc, Addr addr, unsigned width)
++{
++    if (!DadaoISA::ISA::anyReservationHeld())
++        return;
++    auto *mine = dynamic_cast<DadaoISA::ISA *>(tc->getIsaPtr());
++    // Copy first: clearReservations() shrinks the holder list.
++    std::vector<DadaoISA::ISA *> hit;
++    for (DadaoISA::ISA *isa : DadaoISA::ISA::reservationHolders()) {
++        if (isa != mine && isa->hasReservation(addr, width))
++            hit.push_back(isa);
++    }
++    for (DadaoISA::ISA *isa : hit)
++        isa->clearReservations();
++}
++
 +class Gem5B1Context : public exec::B7Context
 +{
 +  private:
@@ -374,6 +393,7 @@ index 0000000..60d378e
 +            memFault = fault;
 +            return false;
 +        }
++        invalidatePeerReservations(tc, addr, bytes);
 +        return true;
 +    }
 +
@@ -538,6 +558,18 @@ index 0000000..60d378e
 +        }
 +        node.insnCount++;
 +        if (DadaoISA::nodeDeliverAsync(tc, node))
++            return NoFault;
++    }
++
++    // Asynchronous signal delivery (GEM5-026t): a queued, unblocked signal is
++    // taken at an instruction boundary, so a thread that never issues a
++    // syscall -- musl's asynchronously cancelled spinner -- still sees it.
++    // The interrupted instruction is re-executed after the handler returns
++    // (the frame records this PC).
++    if (!fs && isa != nullptr && isa->hasPendingSignal()) {
++        auto *seWorkload = dynamic_cast<DadaoISA::SEWorkload *>(
++                tc->getSystemPtr()->workload);
++        if (seWorkload != nullptr && seWorkload->deliverPendingSignal(tc))
 +            return NoFault;
 +    }
 +

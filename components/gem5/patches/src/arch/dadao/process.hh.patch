@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/process.hh b/src/arch/dadao/process.hh
 new file mode 100644
-index 0000000..8e2b4ee
+index 0000000..4904243
 --- /dev/null
 +++ b/src/arch/dadao/process.hh
-@@ -0,0 +1,120 @@
+@@ -0,0 +1,171 @@
 +// DADAO syscall-emulation process: static ET_EXEC image, initial stack vector
 +// and the SE platform's initial architectural state.
 +//
@@ -11,6 +11,9 @@ index 0000000..8e2b4ee
 +// SE only ever compares with QEMU user mode), not an architectural assertion.
 +#ifndef __ARCH_DADAO_PROCESS_HH__
 +#define __ARCH_DADAO_PROCESS_HH__
++
++#include <map>
++#include <vector>
 +
 +#include "params/Process.hh"
 +#include "sim/process.hh"
@@ -51,17 +54,12 @@ index 0000000..8e2b4ee
 +    uint64_t mask = 0;  // 8-byte sigset: bit (sig-1) for signals 1..64
 +};
 +
-+/** Per-process Linux signal state.  SE is single-threaded in this round, so
-+ *  one blocked mask and one pending set are enough (Linux keeps them per
-+ *  thread); the frame layout is the one musl's ucontext_t names. */
++/** Process-wide signal *actions* (rt_sigaction).  Linux shares the
++ *  dispositions between the threads of a process; the mask, the pending set
++ *  and the alternate stack are per thread (ThreadState). */
 +struct SignalState
 +{
-+    uint64_t blocked = 0;
-+    uint64_t pending = 0;
-+    int pendingCode[65] = {};     // siginfo si_code for the pending signal
 +    SignalDisposition actions[65]; // [1..64] addressable; [0] unused
-+    Addr altStackSp = 0;
-+    uint64_t altStackSize = 0;     // 0 == SS_DISABLE
 +};
 +
 +/** struct rlimit value pair (prlimit64).  RLIM_INFINITY is all ones. */
@@ -80,6 +78,37 @@ index 0000000..8e2b4ee
 +constexpr unsigned RlimitNproc = 6;
 +constexpr unsigned RlimitAs = 9;
 +
++/** Per-thread Linux state (GEM5-026t).  One entry per *live* thread of the
++ *  process, keyed by the gem5 context id that runs it.  Signal *actions* are
++ *  process-wide (SignalState); everything below is per thread exactly as
++ *  Linux keeps it: the blocked mask, the pending set, the alternate stack, the
++ *  clear-tid address of set_tid_address(2)/clone(CLONE_CHILD_CLEARTID) and the
++ *  robust-list head of set_robust_list(2). */
++struct ThreadState
++{
++    int tid = 0;                 // Linux tid; the main thread's is the pid
++    ContextID cid = 0;           // gem5 context running this thread
++    bool live = false;
++    Addr clearTid = 0;           // set_tid_address(2) / CLONE_CHILD_CLEARTID
++    Addr robustList = 0;         // set_robust_list(2) head
++    uint64_t robustLen = 0;
++    uint64_t blocked = 0;        // signal mask (bit sig-1)
++    uint64_t pending = 0;        // signals queued for this thread
++    int pendingCode[65] = {};    // siginfo si_code of a pending signal
++    Addr altStackSp = 0;
++    uint64_t altStackSize = 0;   // 0 == SS_DISABLE
++    /** Non-zero while this thread sleeps on a futex (GEM5-026t): the futex
++     *  wait queue keeps the completion state, this is only the address, so an
++     *  exiting thread can be dropped from the queue. */
++    Addr futexWaitAddr = 0;
++
++    /** Signal frames pushed on this thread, innermost last.  rt_sigreturn
++     *  reads the top one instead of trusting rb1: an ABI-legal handler (and
++     *  musl's cancellation handler in particular) may return to the
++     *  trampoline with a stack pointer that is not the frame base. */
++    std::vector<Addr> signalFrames;
++};
++
 +class Process : public gem5::Process
 +{
 +  public:
@@ -87,6 +116,28 @@ index 0000000..8e2b4ee
 +
 +    SignalState signals;
 +    ResourceLimit limits[NumResourceLimits];
++
++    /** Live threads of this process, keyed by gem5 context id.  The main
++     *  thread's tid equals pid(); clone(CLONE_THREAD) adds entries and SYS_exit
++     *  of a non-last thread removes one. */
++    std::map<ContextID, ThreadState> threads;
++
++    /** Next tid to hand out to a clone(CLONE_THREAD) child. */
++    int nextThreadTid = 0;
++
++    ThreadState &threadState(ContextID cid) { return threads[cid]; }
++
++    ThreadState *findThread(ContextID cid)
++    {
++        auto it = threads.find(cid);
++        return it == threads.end() ? nullptr : &it->second;
++    }
++
++    /** Live thread with this Linux tid, or nullptr. */
++    ThreadState *findThreadByTid(int tid);
++
++    /** How many threads of this process are still running. */
++    size_t liveThreadCount() const;
 +
 +    // Multi-process state (GEM5-025t).  fork(2)/clone(2) create a second
 +    // Process object whose parentProcess is the caller; wait4(2) reaps it.

@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| GEM5-026t | 已验证 | 2026-11-07 12:40 | gem5 SE 线程/futex/TLS；pass 435/blocked 147，threads 桶清零 |
 | GEM5-029t | 待开始 | 2026-11-07 08:40（登记） | SE syscall 语义对齐（QEMU 已实现项）：nanosleep/wait4/execve/EFAULT/kill/altstack/faccessat |
 | GEM5-030t | 待开始 | 2026-11-07 08:40（登记） | SE mprotect 真权限 + RLIMIT_AS/STACK 强制；高回归风险 |
 | INTEG-060t | 待开始 | 2026-11-07 08:20（登记） | gem5 SE syscall 参数 bank（三方 argmask 门控）+ 路径解析探针 |
@@ -20,7 +21,6 @@
 | GEM5-023t | 已验证 | 2026-11-06 23:47 | gem5 SE 文件 I/O + 时钟；pass 399/blocked 188，两桶清零 |
 | GEM5-028t | 待开始 | 2026-11-06 21:15（登记） | gem5 SE 文件映射 mmap + ldso 装载；解释器窗口约束 |
 | TESTCASES-104t | 待开始 | 2026-11-06 21:15（登记） | SE 动态档驱动 + QEMU dynamic 基线刷新 + 全量对照 |
-| GEM5-026t | 待开始 | 2026-11-06 20:30（登记） | gem5 SE 线程/futex + TLS：clone/futex/robust_list/TP |
 | GEM5-027t | 待开始 | 2026-11-06 20:30（登记） | gem5 SE 动态装载器：ET_EXEC+PT_INTERP/auxv/interp-dir+redirect |
 | INTEG-059t | 待开始 | 2026-11-06 20:30（登记） | G3 完整 tset 双向一致性（static+dynamic）+ 矩阵重生成 |
 | TESTCASES-103t | 待开始 | 2026-11-06 20:30（登记） | SE 基线预算 120s→按套件 600s；timeout 单列并重跑 |

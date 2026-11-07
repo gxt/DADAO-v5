@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
 new file mode 100644
-index 0000000..897cdb7
+index 0000000..06448a6
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.cc
-@@ -0,0 +1,4359 @@
+@@ -0,0 +1,5186 @@
 +// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
 +#include "arch/dadao/se_workload.hh"
 +
@@ -29,11 +29,13 @@ index 0000000..897cdb7
 +#include <cstdint>
 +#include <cstring>
 +#include <deque>
++#include <list>
 +#include <limits>
 +#include <memory>
 +#include <string>
 +#include <vector>
 +
++#include "arch/dadao/isa.hh"
 +#include "arch/dadao/process.hh"
 +#include "arch/dadao/pcstate.hh"
 +#include "arch/dadao/regs/float.hh"
@@ -45,6 +47,7 @@ index 0000000..897cdb7
 +#include "mem/se_translating_port_proxy.hh"
 +#include "sim/core.hh"
 +#include "sim/cur_tick.hh"
++#include "sim/eventq.hh"
 +#include "sim/fd_array.hh"
 +#include "sim/fd_entry.hh"
 +#include "sim/process.hh"
@@ -86,6 +89,9 @@ index 0000000..897cdb7
 +constexpr uint64_t SysExit = 93;
 +constexpr uint64_t SysExitGroup = 94;
 +constexpr uint64_t SysSetTidAddress = 96;
++constexpr uint64_t SysFutex = 98;
++constexpr uint64_t SysSetRobustList = 99;
++constexpr uint64_t SysGetRobustList = 100;
 +constexpr uint64_t SysNanosleep = 101;
 +constexpr uint64_t SysClockGettime = 113;
 +constexpr uint64_t SysClockGetres = 114;
@@ -144,10 +150,14 @@ index 0000000..897cdb7
 +// *not* implemented: it is the real-thread surface of GEM5-026t, and leaving
 +// the guest threads/futex blocked bucket untouched is the intended boundary.
 +constexpr uint64_t CloneVm = 0x00000100;
++constexpr uint64_t CloneFs = 0x00000200;
 +constexpr uint64_t CloneFiles = 0x00000400;
 +constexpr uint64_t CloneSighand = 0x00000800;
 +constexpr uint64_t CloneVfork = 0x00004000;
 +constexpr uint64_t CloneThread = 0x00010000;
++constexpr uint64_t CloneSysvsem = 0x00040000;
++constexpr uint64_t CloneSetTls = 0x00080000;
++constexpr uint64_t CloneDetached = 0x00400000;
 +constexpr uint64_t CloneNewns = 0x00020000;
 +constexpr uint64_t CloneNewcgroup = 0x02000000;
 +constexpr uint64_t CloneNewuts = 0x04000000;
@@ -156,7 +166,10 @@ index 0000000..897cdb7
 +constexpr uint64_t CloneNewpid = 0x20000000;
 +constexpr uint64_t CloneNewnet = 0x40000000;
 +constexpr uint64_t CloneParentSettid = 0x00100000;
-+constexpr uint64_t CloneChildSettid = 0x00200000;
++// CLONE_CHILD_CLEARTID records the clear-tid address; CLONE_CHILD_SETTID is
++// the (different) flag that asks for the tid to be stored immediately.
++constexpr uint64_t CloneChildCleartid = 0x00200000;
++constexpr uint64_t CloneChildSettid = 0x01000000;
 +constexpr uint64_t CloneUnsupportedNamespaces =
 +    CloneNewns | CloneNewcgroup | CloneNewuts | CloneNewipc | CloneNewuser |
 +    CloneNewpid | CloneNewnet;
@@ -331,6 +344,15 @@ index 0000000..897cdb7
 +/** Bit (sig-1) of the 8-byte guest sigset (defined with the signal surface
 + *  below; the pipe write path posts SIGPIPE). */
 +uint64_t signalBit(int sig);
++
++/** Queue a process-directed signal (defined with the signal surface below;
++ *  the pipe write path posts SIGPIPE). */
++void postProcessSignal(DadaoISA::Process *process, int sig, int siCode);
++
++/** Refresh the per-thread deliverable-signal hint (defined with the futex and
++ *  thread surface below). */
++void syncPendingSignal(DadaoISA::Process *process,
++                       const DadaoISA::ThreadState &thread);
 +
 +RegId
 +rd(unsigned idx)
@@ -824,9 +846,7 @@ index 0000000..897cdb7
 +
 +    if (pipe->state->readers == 0) {
 +        // EPIPE plus a pending SIGPIPE, exactly like the kernel's pipe_write.
-+        auto &state = process->signals;
-+        state.pending |= signalBit(SigPipe);
-+        state.pendingCode[SigPipe] = SiUser;
++        postProcessSignal(process, SigPipe, SiUser);
 +        return static_cast<RegVal>(-EPIPE);
 +    }
 +
@@ -2161,19 +2181,31 @@ index 0000000..897cdb7
 +    return uint64_t(1) << (sig - 1);
 +}
 +
-+bool
-+onAltStack(const DadaoISA::Process *process, Addr sp)
++/** The calling thread's per-thread state (mask, pending set, altstack,
++ *  clear-tid, robust list).  Every runnable context of a process has an
++ *  entry, created by initState() for the main thread and by clone(2). */
++DadaoISA::ThreadState &
++threadOf(DadaoISA::Process *process, ThreadContext *tc)
 +{
-+    const auto &state = process->signals;
-+    return state.altStackSize != 0 && sp - state.altStackSp < state.altStackSize;
++    DadaoISA::ThreadState *state = process->findThread(tc->contextId());
++    fatal_if(state == nullptr,
++             "DADAO SE: context %d has no thread state (pid %d)",
++             tc->contextId(), process->pid());
++    return *state;
++}
++
++bool
++onAltStack(const DadaoISA::ThreadState &thread, Addr sp)
++{
++    return thread.altStackSize != 0 && sp - thread.altStackSp < thread.altStackSize;
 +}
 +
 +int
-+altStackFlags(const DadaoISA::Process *process, Addr sp)
++altStackFlags(const DadaoISA::ThreadState &thread, Addr sp)
 +{
-+    if (process->signals.altStackSize == 0)
++    if (thread.altStackSize == 0)
 +        return SsDisable;
-+    return onAltStack(process, sp) ? SsOnstack : 0;
++    return onAltStack(thread, sp) ? SsOnstack : 0;
 +}
 +
 +/** Redirect the guest PC (the same full-width write B5 branches use). */
@@ -2284,6 +2316,7 @@ index 0000000..897cdb7
 +              Addr resumePc, int siCode)
 +{
 +    auto &state = process->signals;
++    DadaoISA::ThreadState &thread = threadOf(process, tc);
 +    const DadaoISA::SignalDisposition action = state.actions[sig];
 +
 +    if (action.handler == SigIgn)
@@ -2301,9 +2334,9 @@ index 0000000..897cdb7
 +
 +    const Addr sp = tc->getReg(rb(1));
 +    Addr base = sp;
-+    if ((action.flags & SaOnStack) && state.altStackSize != 0 &&
-+        !onAltStack(process, sp))
-+        base = state.altStackSp + state.altStackSize;
++    if ((action.flags & SaOnStack) && thread.altStackSize != 0 &&
++        !onAltStack(thread, sp))
++        base = thread.altStackSp + thread.altStackSize;
 +
 +    if (base < GuestSigframeSize) {
 +        warn("DADAO SE: signal %d has no room for a frame (sp=%#x)", sig, sp);
@@ -2311,7 +2344,7 @@ index 0000000..897cdb7
 +        return false;
 +    }
 +    const Addr frame = (base - GuestSigframeSize) & ~Addr(0xf);
-+    if (base != sp && frame < state.altStackSp) {
++    if (base != sp && frame < thread.altStackSp) {
 +        warn("DADAO SE: sigaltstack is too small for signal %d", sig);
 +        terminateWithSignal(tc, SigSegv);
 +        return false;
@@ -2332,12 +2365,12 @@ index 0000000..897cdb7
 +    // ucontext_t: uc_flags, uc_link, uc_stack, uc_sigmask, uc_mcontext.
 +    writeBigEndian64(uc + 0, 0);
 +    writeBigEndian64(uc + 8, 0);
-+    writeBigEndian64(uc + 16, state.altStackSp);
-+    writeBigEndian32(uc + 24, altStackFlags(process, sp));
-+    writeBigEndian64(uc + 32, state.altStackSize);
++    writeBigEndian64(uc + 16, thread.altStackSp);
++    writeBigEndian32(uc + 24, altStackFlags(thread, sp));
++    writeBigEndian64(uc + 32, thread.altStackSize);
 +    // uc_sigmask saves the pre-signal mask (the one sigreturn restores); the
 +    // handler runs with old | sa_mask | sig instead.
-+    writeBigEndian64(uc + 40, state.blocked);
++    writeBigEndian64(uc + 40, thread.blocked);
 +
 +    writeBigEndian64(uc + GuestUcMcontext + GuestMcPc, resumePc);
 +    for (unsigned i = 0; i < 64; ++i) {
@@ -2353,11 +2386,12 @@ index 0000000..897cdb7
 +        terminateWithSignal(tc, SigSegv);
 +        return false;
 +    }
++    thread.signalFrames.push_back(frame);
 +
-+    uint64_t handlerMask = state.blocked | action.mask;
++    uint64_t handlerMask = thread.blocked | action.mask;
 +    if (!(action.flags & SaNodefer))
 +        handlerMask |= signalBit(sig);
-+    state.blocked = handlerMask;
++    thread.blocked = handlerMask;
 +    if (action.flags & SaResethand)
 +        state.actions[sig].handler = SigDfl;
 +
@@ -2385,17 +2419,17 @@ index 0000000..897cdb7
 +maybeDeliverSignals(ThreadContext *tc, DadaoISA::Process *process,
 +                    Addr resumePc)
 +{
-+    auto &state = process->signals;
++    DadaoISA::ThreadState &thread = threadOf(process, tc);
 +    for (int sig = 1; sig <= NumSignals; ++sig) {
 +        if (process->hasExited)
 +            return; // the last delivery ended the process
 +        const uint64_t bit = signalBit(sig);
-+        if (!(state.pending & bit))
++        if (!(thread.pending & bit))
 +            continue;
 +        const bool unblockable = (sig == SigKill || sig == SigStop);
-+        if (!unblockable && (state.blocked & bit))
++        if (!unblockable && (thread.blocked & bit))
 +            continue;
-+        state.pending &= ~bit;
++        thread.pending &= ~bit;
 +        if (sig == SigKill) {
 +            terminateWithSignal(tc, SigKill);
 +            return;
@@ -2405,7 +2439,7 @@ index 0000000..897cdb7
 +            warn("DADAO SE: SIGSTOP ignored (no job control in SE)");
 +            continue;
 +        }
-+        if (deliverSignal(tc, process, sig, resumePc, state.pendingCode[sig]))
++        if (deliverSignal(tc, process, sig, resumePc, thread.pendingCode[sig]))
 +            return;
 +    }
 +}
@@ -2462,7 +2496,8 @@ index 0000000..897cdb7
 +        set = readBigEndian64(raw);
 +    }
 +
-+    const uint64_t old = process->signals.blocked;
++    DadaoISA::ThreadState &thread = threadOf(process, tc);
++    const uint64_t old = thread.blocked;
 +    if (oldAddr != 0) {
 +        uint8_t oldRaw[8];
 +        writeBigEndian64(oldRaw, old);
@@ -2480,7 +2515,8 @@ index 0000000..897cdb7
 +        // SIGKILL and SIGSTOP can never be blocked (Linux drops those bits
 +        // silently rather than failing the call).
 +        blocked &= ~(signalBit(SigKill) | signalBit(SigStop));
-+        process->signals.blocked = blocked;
++        thread.blocked = blocked;
++        syncPendingSignal(process, thread);
 +    }
 +    return 0;
 +}
@@ -2493,7 +2529,8 @@ index 0000000..897cdb7
 +    if (sigsetsize != 8)
 +        return static_cast<RegVal>(-EINVAL);
 +    uint8_t raw[8];
-+    writeBigEndian64(raw, process->signals.pending & process->signals.blocked);
++    const DadaoISA::ThreadState &thread = threadOf(process, tc);
++    writeBigEndian64(raw, thread.pending & thread.blocked);
 +    if (!writeGuestBlob(tc, setAddr, raw, sizeof(raw)))
 +        return static_cast<RegVal>(-EFAULT);
 +    return 0;
@@ -2505,14 +2542,15 @@ index 0000000..897cdb7
 +doSigaltstack(ThreadContext *tc, DadaoISA::Process *process, Addr ssAddr,
 +              Addr oldSsAddr)
 +{
++    DadaoISA::ThreadState &thread = threadOf(process, tc);
 +    uint8_t raw[GuestStacktSize];
 +    uint8_t old[GuestStacktSize];
 +
 +    if (oldSsAddr != 0) {
 +        std::memset(old, 0, sizeof(old));
-+        writeBigEndian64(old + 0, process->signals.altStackSp);
-+        writeBigEndian32(old + 8, altStackFlags(process, tc->getReg(rb(1))));
-+        writeBigEndian64(old + 16, process->signals.altStackSize);
++        writeBigEndian64(old + 0, thread.altStackSp);
++        writeBigEndian32(old + 8, altStackFlags(thread, tc->getReg(rb(1))));
++        writeBigEndian64(old + 16, thread.altStackSize);
 +    }
 +
 +    if (ssAddr != 0) {
@@ -2523,7 +2561,7 @@ index 0000000..897cdb7
 +            static_cast<int32_t>(readBigEndian32(raw + 8)));
 +        uint64_t ssSize = readBigEndian64(raw + 16);
 +
-+        if (onAltStack(process, tc->getReg(rb(1))))
++        if (onAltStack(thread, tc->getReg(rb(1))))
 +            return static_cast<RegVal>(-EPERM);
 +        switch (flags) {
 +          case SsDisable:
@@ -2538,8 +2576,8 @@ index 0000000..897cdb7
 +          default:
 +            return static_cast<RegVal>(-EINVAL);
 +        }
-+        process->signals.altStackSp = ssSp;
-+        process->signals.altStackSize = ssSize;
++        thread.altStackSp = ssSp;
++        thread.altStackSize = ssSize;
 +    }
 +
 +    if (oldSsAddr != 0 &&
@@ -2555,7 +2593,14 @@ index 0000000..897cdb7
 +void
 +doSigreturn(ThreadContext *tc, DadaoISA::Process *process)
 +{
-+    const Addr frame = tc->getReg(rb(1));
++    DadaoISA::ThreadState &thread = threadOf(process, tc);
++    // The frame the matching delivery pushed; fall back to the ABI stack
++    // convention only if the handler returned without a recorded frame.
++    const Addr frame = thread.signalFrames.empty()
++                           ? tc->getReg(rb(1))
++                           : thread.signalFrames.back();
++    if (!thread.signalFrames.empty())
++        thread.signalFrames.pop_back();
 +    std::vector<uint8_t> raw(GuestSigframeSize);
 +    if (!readGuestBlob(tc, frame, raw.data(), raw.size())) {
 +        warn("DADAO SE: rt_sigreturn with an unreadable frame at %#x", frame);
@@ -2578,14 +2623,15 @@ index 0000000..897cdb7
 +    const int ssFlags = static_cast<int32_t>(readBigEndian32(uc + 24));
 +    const uint64_t ssSize = readBigEndian64(uc + 32);
 +    if (ssFlags == SsDisable) {
-+        process->signals.altStackSp = 0;
-+        process->signals.altStackSize = 0;
++        thread.altStackSp = 0;
++        thread.altStackSize = 0;
 +    } else if (ssFlags == 0 || ssFlags == SsOnstack) {
-+        process->signals.altStackSp = ssSp;
-+        process->signals.altStackSize = ssSize;
++        thread.altStackSp = ssSp;
++        thread.altStackSize = ssSize;
 +    }
 +
-+    process->signals.blocked = mask;
++    thread.blocked = mask;
++    syncPendingSignal(process, thread);
 +
 +    for (unsigned i = 1; i < 64; ++i) {
 +        tc->setReg(rd(i),
@@ -2599,18 +2645,19 @@ index 0000000..897cdb7
 +    maybeDeliverSignals(tc, process, pc);
 +}
 +
-+/** kill(2)/tkill(2)/tgkill(2) for the single-process SE: queue the signal
-+ *  for the self; the actual delivery happens on the way back to user mode. */
++/** kill(2): queue a process-directed signal on the target process (the
++ *  caller, a fork child, or a parent a child signals back). */
 +RegVal
-+doKill(DadaoISA::Process *process, int pid, int sig, int siCode)
++doKill(ThreadContext *tc, DadaoISA::Process *process, int pid, int sig,
++       int siCode)
 +{
++    (void)tc;
 +    if (sig < 0 || sig > NumSignals)
 +        return static_cast<RegVal>(-EINVAL);
 +
-+    // Which process?  pid 0/-1 mean "this process group" in Linux; SE has no
-+    // process groups beyond this one, so they name the caller.  A positive pid
-+    // is looked up among the live processes (fork children, and a parent a
-+    // child signals back, as libc-test's popen does).
++    // pid 0/-1 mean "this process group" in Linux; SE has no process groups
++    // beyond this one, so they name the caller.  A positive pid is looked up
++    // among the live processes.
 +    DadaoISA::Process *target = nullptr;
 +    if (pid == 0 || pid == -1 || pid == static_cast<int>(process->pid()) ||
 +        pid == -static_cast<int>(process->pid())) {
@@ -2623,16 +2670,576 @@ index 0000000..897cdb7
 +    if (sig == 0)
 +        return 0;
 +
-+    target->signals.pending |= signalBit(sig);
-+    target->signals.pendingCode[sig] = siCode;
-+    // A process asleep in a syscall must run again to take its signal (the
-+    // handler resumes at the trap, like ERESTARTSYS).
-+    for (ContextID ctx : target->contextIds) {
-+        ThreadContext *ttc = target->system->threads[ctx];
-+        if (ttc->status() == ThreadContext::Suspended)
-+            ttc->activate();
-+    }
++    postProcessSignal(target, sig, siCode);
 +    return 0;
++}
++
++// --- Threads, futexes and the robust list (GEM5-026t) ---------------------
++//
++// A thread is a second ThreadContext of the *same* Process: the address space,
++// the fd table and the signal dispositions are shared, while the stack pointer,
++// the thread pointer (rb3) and the per-thread Linux state (ThreadState) are
++// not.  A syscall that would sleep in the kernel is a *suspend* of that thread
++// context, never a host sleep and never a retry poll: the futex wait queue
++// below holds the sleeping thread, and FUTEX_WAKE/timeout/signal hands it the
++// syscall result and reactivates it through gem5's event queue.
++
++constexpr uint32_t FutexWaitersBit = 0x80000000u; // FUTEX_WAITERS
++constexpr uint32_t FutexOwnerDied = 0x40000000u;  // FUTEX_OWNER_DIED
++constexpr uint32_t FutexTidMask = 0x3fffffffu;
++
++// futex(2) operations (asm-generic linux/futex.h) that the corpus reaches.
++constexpr uint64_t FutexWaitOp = 0;
++constexpr uint64_t FutexWakeOp = 1;
++constexpr uint64_t FutexFdOp = 2;
++constexpr uint64_t FutexRequeueOp = 3;
++constexpr uint64_t FutexCmpRequeueOp = 4;
++constexpr uint64_t FutexWakeOpOp = 5;
++constexpr uint64_t FutexLockPiOp = 6;
++constexpr uint64_t FutexUnlockPiOp = 7;
++constexpr uint64_t FutexTrylockPiOp = 8;
++constexpr uint64_t FutexWaitBitsetOp = 9;
++constexpr uint64_t FutexWakeBitsetOp = 10;
++constexpr uint64_t FutexPrivateFlag = 128;
++constexpr uint64_t FutexClockRealtimeFlag = 256;
++constexpr uint64_t FutexCmdMask = ~(FutexPrivateFlag | FutexClockRealtimeFlag);
++constexpr uint32_t FutexBitsetAny = 0xffffffffu;
++
++/** One thread asleep in futex(2).  heap-allocated: the timeout event holds a
++ *  pointer to it and the list is searched by address. */
++struct FutexWaiter
++{
++    DadaoISA::Process *process = nullptr;
++    ContextID cid = 0;
++    int tid = 0;                 // owner tid handed over by FUTEX_UNLOCK_PI
++    Addr addr = 0;
++    uint32_t bitset = FutexBitsetAny;
++    bool pi = false;             // FUTEX_LOCK_PI waiter
++    Event *timeout = nullptr;
++};
++
++std::list<FutexWaiter *> futexWaiters;
++
++bool
++readGuestWord(ThreadContext *tc, Addr addr, uint32_t &value)
++{
++    uint8_t raw[4];
++    if (!readGuestBlob(tc, addr, raw, sizeof(raw)))
++        return false;
++    value = readBigEndian32(raw);
++    return true;
++}
++
++bool
++writeGuestWord(ThreadContext *tc, Addr addr, uint32_t value)
++{
++    uint8_t raw[4];
++    writeBigEndian32(raw, value);
++    return writeGuestBlob(tc, addr, raw, sizeof(raw));
++}
++
++
++void
++cancelFutexTimeout(FutexWaiter *waiter)
++{
++    Event *event = waiter->timeout;
++    waiter->timeout = nullptr;
++    if (event == nullptr)
++        return;
++    // The timeout event is created with AutoDelete (Managed): the queue frees
++    // it both after dispatch and on deschedule, so it must never be deleted
++    // here.  A non-null pointer means "still scheduled" -- the callback
++    // clears the field before it can fire twice.
++    if (event->scheduled())
++        getEventQueue(0)->deschedule(event);
++}
++
++/** Resolve a futex timeout argument to an absolute tick.  Returns 0, -EFAULT
++ *  or -EINVAL; *expired is set when the deadline is already in the past
++ *  (Linux returns ETIMEDOUT without sleeping in that case). */
++int
++futexDeadline(ThreadContext *tc, Addr tsAddr, bool absolute, bool realtime,
++              Tick &when, bool &expired)
++{
++    uint8_t raw[GuestTimespecSize];
++    if (!readGuestBlob(tc, tsAddr, raw, sizeof(raw)))
++        return -EFAULT;
++    const int64_t sec = readBigEndian64(raw);
++    const int64_t nsec = readBigEndian64(raw + 8);
++    if (sec < 0 || nsec < 0 || nsec >= 1000000000LL)
++        return -EINVAL;
++
++    const unsigned __int128 requested =
++        static_cast<unsigned __int128>(sec) * 1000000000ULL +
++        static_cast<uint64_t>(nsec);
++    unsigned __int128 remaining = requested;
++    if (absolute) {
++        unsigned __int128 current;
++        if (realtime) {
++            struct timespec now;
++            if (::clock_gettime(CLOCK_REALTIME, &now) < 0)
++                return -errno;
++            current = static_cast<unsigned __int128>(now.tv_sec) *
++                          1000000000ULL +
++                      static_cast<uint64_t>(now.tv_nsec);
++        } else {
++            current = simulatedNanoseconds();
++        }
++        remaining = requested > current ? requested - current : 0;
++    }
++    expired = (remaining == 0);
++    if (expired)
++        return 0;
++    // 1 tick == 1 ns at the GEM5-019t 1e9-ticks/s baseline; derive it from the
++    // engine clock so a different sim frequency still means the same time.
++    const unsigned __int128 ticks =
++        remaining * static_cast<unsigned __int128>(sim_clock::Frequency) /
++        1000000000ULL;
++    when = curTick() + static_cast<Tick>(ticks == 0 ? 1 : ticks);
++    return 0;
++}
++
++void
++futexTimeout(FutexWaiter *waiter);
++
++/** Park the calling thread on `addr` (suspend the context; the result is
++ *  written when something wakes it).  Returns 0 when parked, or the futex
++ *  error a timeout argument has already earned. */
++int
++parkOnFutex(ThreadContext *tc, DadaoISA::Process *process, Addr addr,
++            uint32_t bitset, bool pi, Addr timeoutAddr, bool absolute,
++            bool realtime)
++{
++    auto *waiter = new FutexWaiter();
++    waiter->process = process;
++    waiter->cid = tc->contextId();
++    waiter->addr = addr;
++    waiter->bitset = bitset;
++    waiter->pi = pi;
++    waiter->tid = threadOf(process, tc).tid;
++
++    if (timeoutAddr != 0) {
++        Tick when = 0;
++        bool expired = false;
++        const int status = futexDeadline(tc, timeoutAddr, absolute, realtime,
++                                        when, expired);
++        if (status != 0)
++            return status;
++        if (expired)
++            return -ETIMEDOUT;
++        {
++            auto *event = new EventFunctionWrapper(
++                    [waiter] { futexTimeout(waiter); },
++                    "dadao-futex-timeout", true);
++            waiter->timeout = event;
++            getEventQueue(0)->schedule(event, when);
++        }
++    }
++
++    futexWaiters.push_back(waiter);
++    threadOf(process, tc).futexWaitAddr = addr;
++    tc->suspend();
++    return 0;
++}
++
++/** Complete a parked futex wait: cancel the timeout, remove the waiter from
++ *  the queue, hand the syscall result to the thread and run it again. */
++void
++finishFutexWaiter(FutexWaiter *waiter, RegVal result)
++{
++    futexWaiters.remove(waiter);
++    cancelFutexTimeout(waiter);
++    if (DadaoISA::ThreadState *thread =
++                waiter->process->findThread(waiter->cid)) {
++        thread->futexWaitAddr = 0;
++    }
++    ThreadContext *tc = waiter->process->system->threads[waiter->cid];
++    tc->setReg(rd(8), result);
++    if (tc->status() == ThreadContext::Suspended)
++        tc->activate();
++    delete waiter;
++}
++
++void
++futexTimeout(FutexWaiter *waiter)
++{
++    // The event queue deletes the event itself after process() returns.
++    waiter->timeout = nullptr;
++    if (std::find(futexWaiters.begin(), futexWaiters.end(), waiter) ==
++        futexWaiters.end())
++        return; // woken and dropped before this fired
++    futexWaiters.remove(waiter);
++    if (DadaoISA::ThreadState *thread =
++                waiter->process->findThread(waiter->cid)) {
++        thread->futexWaitAddr = 0;
++    }
++    ThreadContext *tc = waiter->process->system->threads[waiter->cid];
++    tc->setReg(rd(8), static_cast<RegVal>(-ETIMEDOUT));
++    if (tc->status() == ThreadContext::Suspended)
++        tc->activate();
++    delete waiter;
++}
++
++/** A contended FUTEX_LOCK_PI wake: the futex word is the only source of
++ *  truth, so the woken thread re-reads it and takes ownership when the word
++ *  no longer names an owner (Linux keeps FUTEX_OWNER_DIED across the hand
++ *  over, which is what makes musl's userspace trylock report EOWNERDEAD).
++ *  Returns false when somebody else still owns the futex: the thread stays
++ *  parked. */
++bool
++acquirePi(DadaoISA::Process *process, FutexWaiter *waiter)
++{
++    ThreadContext *tc = process->system->threads[waiter->cid];
++    uint32_t word = 0;
++    if (!readGuestWord(tc, waiter->addr, word))
++        return false;
++    if ((word & FutexTidMask) != 0 &&
++        (word & FutexTidMask) != static_cast<uint32_t>(waiter->tid))
++        return false;
++    const uint32_t owned =
++        static_cast<uint32_t>(waiter->tid) | (word & FutexOwnerDied);
++    return writeGuestWord(tc, waiter->addr, owned);
++}
++
++/** Wake up to `count` threads waiting on `addr` whose bitset intersects. */
++size_t
++wakeFutexWaiters(DadaoISA::Process *process, Addr addr, uint32_t bitset,
++                 size_t count)
++{
++    std::vector<FutexWaiter *> woken;
++    for (auto *waiter : futexWaiters) {
++        if (woken.size() >= count)
++            break;
++        if (waiter->process != process || waiter->addr != addr)
++            continue;
++        if ((waiter->bitset & bitset) == 0)
++            continue;
++        // A PI waiter is woken by a plain FUTEX_WAKE too (musl's robust-list
++        // processing in __pthread_exit does exactly that); it takes the futex
++        // itself or keeps waiting.
++        if (waiter->pi && !acquirePi(process, waiter))
++            continue;
++        woken.push_back(waiter);
++    }
++    for (auto *waiter : woken)
++        finishFutexWaiter(waiter, 0);
++    return woken.size();
++}
++
++/** Move up to `count` threads waiting on `from` to the futex word `to`. */
++size_t
++requeueFutexWaiters(DadaoISA::Process *process, Addr from, Addr to,
++                    size_t count)
++{
++    size_t moved = 0;
++    for (auto *waiter : futexWaiters) {
++        if (moved >= count)
++            break;
++        if (waiter->process != process || waiter->addr != from || waiter->pi)
++            continue;
++        waiter->addr = to;
++        if (DadaoISA::ThreadState *thread =
++                    process->findThread(waiter->cid)) {
++            thread->futexWaitAddr = to;
++        }
++        moved++;
++    }
++    return moved;
++}
++
++/** Drop a thread's futex wait (thread exit) without waking anything. */
++void
++dropFutexWaiters(DadaoISA::Process *process, ContextID cid)
++{
++    std::vector<FutexWaiter *> dropped;
++    for (auto *waiter : futexWaiters) {
++        if (waiter->process == process && waiter->cid == cid)
++            dropped.push_back(waiter);
++    }
++    for (auto *waiter : dropped) {
++        futexWaiters.remove(waiter);
++        cancelFutexTimeout(waiter);
++        delete waiter;
++    }
++}
++
++void
++dropProcessFutexWaiters(DadaoISA::Process *process)
++{
++    std::vector<FutexWaiter *> dropped;
++    for (auto *waiter : futexWaiters) {
++        if (waiter->process == process)
++            dropped.push_back(waiter);
++    }
++    for (auto *waiter : dropped) {
++        futexWaiters.remove(waiter);
++        cancelFutexTimeout(waiter);
++        delete waiter;
++    }
++}
++
++/** The kernel's exit_robust_list(): mark every robust mutex this thread still
++ *  owns as FUTEX_OWNER_DIED and wake one waiter on each. */
++void
++processRobustList(ThreadContext *tc, DadaoISA::Process *process,
++                  const DadaoISA::ThreadState &thread)
++{
++    if (thread.robustList == 0 || thread.tid == 0)
++        return;
++    uint8_t raw[8];
++    if (!readGuestBlob(tc, thread.robustList, raw, sizeof(raw)))
++        return;
++    Addr entry = readBigEndian64(raw);
++    // futex_offset sits right after the list head pointer.
++    if (!readGuestBlob(tc, thread.robustList + 8, raw, sizeof(raw)))
++        return;
++    const int64_t futexOffset = static_cast<int64_t>(readBigEndian64(raw));
++
++    for (unsigned guard = 0; guard < 4096; ++guard) {
++        if (entry == 0 || entry == thread.robustList)
++            return;
++        uint32_t word = 0;
++        const Addr uaddr = entry + futexOffset;
++        if (readGuestWord(tc, uaddr, word) &&
++            (word & FutexTidMask) == static_cast<uint32_t>(thread.tid)) {
++            if (writeGuestWord(tc, uaddr, word | FutexOwnerDied))
++                wakeFutexWaiters(process, uaddr, FutexBitsetAny, 1);
++        }
++        if (!readGuestBlob(tc, entry, raw, sizeof(raw)))
++            return;
++        entry = readBigEndian64(raw);
++    }
++}
++
++/** Refresh the per-thread "deliverable signal queued" hint the instruction
++ *  loop tests. */
++void
++syncPendingSignal(DadaoISA::Process *process,
++                  const DadaoISA::ThreadState &thread)
++{
++    auto *isa = dynamic_cast<DadaoISA::ISA *>(
++            process->system->threads[thread.cid]->getIsaPtr());
++    if (isa != nullptr)
++        isa->setPendingSignal((thread.pending & ~thread.blocked) != 0);
++}
++
++/** Queue a signal on one thread; a thread asleep in a syscall is woken so it
++ *  can take it (a futex wait returns -EINTR after the handler has run). */
++void
++queueThreadSignal(DadaoISA::Process *process, DadaoISA::ThreadState &thread,
++                  int sig, int siCode)
++{
++    thread.pending |= signalBit(sig);
++    thread.pendingCode[sig] = siCode;
++    syncPendingSignal(process, thread);
++
++    ThreadContext *tc = process->system->threads[thread.cid];
++    if (tc->status() != ThreadContext::Suspended)
++        return; // delivered on the way back from its next syscall
++
++    if (thread.futexWaitAddr != 0) {
++        FutexWaiter *waiter = nullptr;
++        for (auto *candidate : futexWaiters) {
++            if (candidate->process == process && candidate->cid == thread.cid) {
++                waiter = candidate;
++                break;
++            }
++        }
++        if (waiter != nullptr) {
++            futexWaiters.remove(waiter);
++            cancelFutexTimeout(waiter);
++            delete waiter;
++        }
++        thread.futexWaitAddr = 0;
++        // The interrupted syscall returns -EINTR, but only after the handler
++        // has run: build the frame now, resume after the trap on sigreturn.
++        tc->setReg(rd(8), static_cast<RegVal>(-EINTR));
++        thread.pending &= ~signalBit(sig);
++        const Addr resumePc = tc->pcState().instAddr();
++        deliverSignal(tc, process, sig, resumePc, siCode);
++    }
++    if (tc->status() == ThreadContext::Suspended)
++        tc->activate();
++}
++
++/** Process-directed signal (kill(2), SIGCHLD): pick one thread that can take
++ *  it, preferring a thread that does not block it. */
++void
++postProcessSignal(DadaoISA::Process *process, int sig, int siCode)
++{
++    DadaoISA::ThreadState *chosen = nullptr;
++    for (auto &entry : process->threads) {
++        if (!entry.second.live)
++            continue;
++        if ((entry.second.blocked & signalBit(sig)) == 0) {
++            chosen = &entry.second;
++            break;
++        }
++        if (chosen == nullptr)
++            chosen = &entry.second;
++    }
++    if (chosen == nullptr)
++        return;
++    queueThreadSignal(process, *chosen, sig, siCode);
++}
++
++/** Thread-directed signal (tkill(2)/tgkill(2)). */
++RegVal
++doThreadKill(DadaoISA::Process *process, int tid, int sig, int siCode)
++{
++    if (sig < 0 || sig > NumSignals)
++        return static_cast<RegVal>(-EINVAL);
++    DadaoISA::ThreadState *thread = process->findThreadByTid(tid);
++    if (thread == nullptr)
++        return static_cast<RegVal>(-ESRCH);
++    if (sig == 0)
++        return 0;
++    queueThreadSignal(process, *thread, sig, siCode);
++    return 0;
++}
++
++/** futex(2).  `parked` reports that the calling thread was suspended: its
++ *  result is written when the wait is completed, so the dispatcher must not
++ *  write rd8 or deliver signals now. */
++RegVal
++doFutex(ThreadContext *tc, DadaoISA::Process *process, Addr uaddr,
++        uint64_t opRaw, uint32_t val, uint64_t val2, Addr uaddr2,
++        uint32_t val3, bool &parked)
++{
++    const uint64_t op = opRaw & FutexCmdMask;
++    const bool realtime = (opRaw & FutexClockRealtimeFlag) != 0;
++
++    switch (op) {
++      case FutexWaitOp:
++      case FutexWaitBitsetOp: {
++        uint32_t word = 0;
++        if (!readGuestWord(tc, uaddr, word))
++            return static_cast<RegVal>(-EFAULT);
++        if (word != val)
++            return static_cast<RegVal>(-EAGAIN);
++        uint32_t bitset = FutexBitsetAny;
++        if (op == FutexWaitBitsetOp) {
++            if (val3 == 0)
++                return static_cast<RegVal>(-EINVAL);
++            bitset = val3;
++        }
++        const DadaoISA::ThreadState &thread = threadOf(process, tc);
++        if ((thread.pending & ~thread.blocked) != 0)
++            return static_cast<RegVal>(-EINTR);
++        const bool absolute = (op == FutexWaitBitsetOp);
++        const int status = parkOnFutex(tc, process, uaddr, bitset, false,
++                                       tc->getReg(rb(17)), absolute, realtime);
++        if (status != 0)
++            return static_cast<RegVal>(status);
++        parked = true;
++        return 0;
++      }
++
++      case FutexWakeOp:
++      case FutexWakeBitsetOp: {
++        uint32_t bitset = FutexBitsetAny;
++        if (op == FutexWakeBitsetOp) {
++            if (val3 == 0)
++                return static_cast<RegVal>(-EINVAL);
++            bitset = val3;
++        }
++        return static_cast<RegVal>(wakeFutexWaiters(process, uaddr, bitset,
++                                                   val));
++      }
++
++      case FutexRequeueOp: {
++        const size_t woken = wakeFutexWaiters(process, uaddr, FutexBitsetAny,
++                                             val);
++        return static_cast<RegVal>(
++                woken + requeueFutexWaiters(process, uaddr, uaddr2, val2));
++      }
++
++      case FutexCmpRequeueOp: {
++        uint32_t word = 0;
++        if (!readGuestWord(tc, uaddr, word))
++            return static_cast<RegVal>(-EFAULT);
++        if (word != val3)
++            return static_cast<RegVal>(-EAGAIN);
++        const size_t woken = wakeFutexWaiters(process, uaddr, FutexBitsetAny,
++                                             val);
++        return static_cast<RegVal>(
++                woken + requeueFutexWaiters(process, uaddr, uaddr2, val2));
++      }
++
++      case FutexLockPiOp: {
++        uint32_t word = 0;
++        if (!readGuestWord(tc, uaddr, word))
++            return static_cast<RegVal>(-EFAULT);
++        const int tid = threadOf(process, tc).tid;
++        if ((word & FutexTidMask) == 0) {
++            // Free (possibly with FUTEX_OWNER_DIED left by a dead owner): take
++            // it and preserve the owner-died bit for musl's trylock.
++            const uint32_t owned =
++                static_cast<uint32_t>(tid) | (word & FutexOwnerDied);
++            if (!writeGuestWord(tc, uaddr, owned))
++                return static_cast<RegVal>(-EFAULT);
++            return 0;
++        }
++        if ((word & FutexTidMask) == static_cast<uint32_t>(tid))
++            return static_cast<RegVal>(-EDEADLK);
++        if ((word & FutexWaitersBit) == 0 &&
++            !writeGuestWord(tc, uaddr, word | FutexWaitersBit))
++            return static_cast<RegVal>(-EFAULT);
++        const int status = parkOnFutex(tc, process, uaddr, FutexBitsetAny,
++                                       true, tc->getReg(rb(17)), true,
++                                       realtime);
++        if (status != 0)
++            return static_cast<RegVal>(status);
++        parked = true;
++        return 0;
++      }
++
++      case FutexUnlockPiOp: {
++        FutexWaiter *next = nullptr;
++        bool more = false;
++        for (auto *waiter : futexWaiters) {
++            if (waiter->process != process || waiter->addr != uaddr ||
++                !waiter->pi)
++                continue;
++            if (next == nullptr)
++                next = waiter;
++            else
++                more = true;
++        }
++        uint32_t word = 0;
++        if (next != nullptr) {
++            word = static_cast<uint32_t>(next->tid);
++            if (more)
++                word |= FutexWaitersBit;
++        }
++        if (!writeGuestWord(tc, uaddr, word))
++            return static_cast<RegVal>(-EFAULT);
++        if (next != nullptr)
++            finishFutexWaiter(next, 0);
++        return 0;
++      }
++
++      case FutexTrylockPiOp: {
++        uint32_t word = 0;
++        if (!readGuestWord(tc, uaddr, word))
++            return static_cast<RegVal>(-EFAULT);
++        const int tid = threadOf(process, tc).tid;
++        if (word != 0)
++            return static_cast<RegVal>(-EBUSY);
++        if (!writeGuestWord(tc, uaddr, static_cast<uint32_t>(tid)))
++            return static_cast<RegVal>(-EFAULT);
++        return 0;
++      }
++
++      case FutexFdOp:
++      case FutexWakeOpOp:
++        warn("DADAO SE: futex operation %d is not modelled", (int)op);
++        return static_cast<RegVal>(-ENOSYS);
++
++      default:
++        warn("DADAO SE: futex operation %d is not supported", (int)op);
++        return static_cast<RegVal>(-EINVAL);
++    }
 +}
 +
 +// --- Resource limits -----------------------------------------------------
@@ -2828,16 +3435,56 @@ index 0000000..897cdb7
 +    return nullptr;
 +}
 +
-+/** End one guest process: record the wait status, notify the parent with
-+ *  SIGCHLD, release its fds and thread contexts, and end the simulation when
-+ *  the last process is gone.  `sig` != 0 means "killed by signal". */
++/** End one thread of a process that still has other live threads: process
++ *  state (address space, fds, signal dispositions) survives, only the
++ *  per-thread state, the clear-tid word and the robust list are settled. */
++void
++doExitThread(ThreadContext *tc, DadaoISA::Process *process, int status)
++{
++    (void)status;
++    DadaoISA::ThreadState *state = process->findThread(tc->contextId());
++    if (state == nullptr || !state->live)
++        return;
++    const ContextID cid = tc->contextId();
++    const Addr clearTid = state->clearTid;
++    const DadaoISA::ThreadState snapshot = *state;
++
++    // A thread cannot be asleep in the kernel while it runs SYS_exit, but a
++    // timed wait queued for it must never fire against a dead context.
++    dropFutexWaiters(process, cid);
++
++    // exit_robust_list(): orphan every robust mutex this thread still owns.
++    processRobustList(tc, process, snapshot);
++
++    state->live = false;
++    process->threads.erase(cid);
++
++    // set_tid_address(2)/CLONE_CHILD_CLEARTID: the word is cleared last, and
++    // the wake is what releases __tl_lock waiters in musl.
++    if (clearTid != 0) {
++        uint8_t zero[4] = {0, 0, 0, 0};
++        if (writeGuestBlob(tc, clearTid, zero, sizeof(zero)))
++            wakeFutexWaiters(process, clearTid, FutexBitsetAny, 1);
++    }
++
++    process->revokeThreadContext(cid);
++    tc->halt();
++}
++
 +void
 +doExit(ThreadContext *tc, DadaoISA::Process *process, int status, int sig,
 +       bool group)
 +{
-+    (void)group;
 +    if (process == nullptr || process->hasExited)
 +        return;
++
++    // SYS_exit from one of several threads terminates just that thread;
++    // exit_group and a fatal signal take the whole process (Linux semantics).
++    if (!group && sig == 0 && process->liveThreadCount() > 1) {
++        doExitThread(tc, process, status);
++        return;
++    }
++
 +    process->hasExited = true;
 +    process->waitStatus = sig ? (sig & 0x7f) : ((status & 0xff) << 8);
 +
@@ -2850,9 +3497,9 @@ index 0000000..897cdb7
 +    process->vforkContexts.clear();
 +
 +    if (auto *parent = process->parentProcess) {
-+        auto &pstate = parent->signals;
-+        pstate.pending |= signalBit(SigChld);
-+        pstate.pendingCode[SigChld] = sig ? SiChildKilled : SiChildExited;
++        // SIGCHLD is process-directed: queue it on a thread that can take it.
++        postProcessSignal(parent, SigChld,
++                          sig ? SiChildKilled : SiChildExited);
 +    }
 +
 +    // POSIX record locks die with the process.
@@ -2866,6 +3513,11 @@ index 0000000..897cdb7
 +                process->fds->closeFDEntry(i);
 +        }
 +    }
++
++    dropProcessFutexWaiters(process);
++    for (auto &entry : process->threads)
++        entry.second.live = false;
++    process->threads.clear();
 +
 +    for (ContextID ctx : process->contextIds) {
 +        ThreadContext *ptc = process->system->threads[ctx];
@@ -3333,25 +3985,99 @@ index 0000000..897cdb7
 +    return 0;
 +}
 +
++/** clone(CLONE_THREAD): add a thread to the *calling process* -- same address
++ *  space, fd table and signal dispositions, its own stack, thread pointer and
++ *  per-thread kernel state.  The new thread runs on a free ThreadContext of
++ *  the same CPU, so the CPU interleaves the two like a kernel does. */
++RegVal
++doCloneThread(ThreadContext *tc, DadaoISA::Process *process, uint64_t flags,
++              Addr newsp, Addr parentTidPtr, uint64_t tls, Addr childTidPtr)
++{
++    // CLONE_THREAD requires a shared address space and shared handlers; a
++    // thread also needs the private stack musl's __clone always passes.
++    if (!(flags & CloneVm) || !(flags & CloneSighand))
++        return static_cast<RegVal>(-EINVAL);
++    if (newsp == 0)
++        return static_cast<RegVal>(-EINVAL);
++    if (flags & CloneUnsupportedNamespaces)
++        return static_cast<RegVal>(-EINVAL);
++
++    // RLIMIT_NPROC counts the tasks of the process, threads included.
++    const uint64_t nprocLimit = process->limits[DadaoISA::RlimitNproc].cur;
++    if (nprocLimit != DadaoISA::RlimInfinity &&
++        process->liveThreadCount() >= nprocLimit)
++        return static_cast<RegVal>(-EAGAIN);
++
++    ThreadContext *ctc = tc->getSystemPtr()->threads.findFree();
++    if (ctc == nullptr)
++        return static_cast<RegVal>(-EAGAIN);
++
++    const ContextID cid = ctc->contextId();
++    gem5::Process *owner = ctc->getProcessPtr();
++    ctc->setProcessPtr(process);
++    if (owner != nullptr && owner != process &&
++        std::find(owner->contextIds.begin(), owner->contextIds.end(), cid) !=
++            owner->contextIds.end())
++        owner->revokeThreadContext(cid);
++    if (std::find(process->contextIds.begin(), process->contextIds.end(),
++                  cid) == process->contextIds.end())
++        process->assignThreadContext(cid);
++
++    const DadaoISA::ThreadState &parentThread = threadOf(process, tc);
++    DadaoISA::ThreadState &childThread = process->threadState(cid);
++    childThread = DadaoISA::ThreadState();
++    childThread.tid = process->nextThreadTid++;
++    childThread.cid = cid;
++    childThread.live = true;
++    childThread.blocked = parentThread.blocked; // inherited; altstack is not
++    if (flags & CloneChildCleartid)
++        childThread.clearTid = childTidPtr;
++
++    // The child is the caller at the point where the trap has completed: the
++    // same register file, the stack it was cloned with, rd8 = 0.
++    for (unsigned i = 0; i < 64; ++i) {
++        ctc->setReg(intReg(DadaoISA::int_reg::RdBase + i),
++                    tc->getReg(intReg(DadaoISA::int_reg::RdBase + i)));
++        ctc->setReg(intReg(DadaoISA::int_reg::RbBase + i),
++                    tc->getReg(intReg(DadaoISA::int_reg::RbBase + i)));
++        ctc->setReg(intReg(DadaoISA::int_reg::RaBase + i),
++                    tc->getReg(intReg(DadaoISA::int_reg::RaBase + i)));
++        const RegId rf(DadaoISA::floatRegClass, i);
++        ctc->setReg(rf, tc->getReg(rf));
++    }
++    const Addr trapPc = tc->pcState().instAddr();
++    ctc->pcState(DadaoISA::PCState(trapPc + 4));
++    ctc->setReg(rb(1), newsp);
++    ctc->setReg(rd(8), RegVal(0));
++    // CLONE_SETTLS installs the thread pointer: rb3 = rbtp (spec/DADAO-21 ABI,
++    // contract-abi §1.2).  This is QEMU's cpu_set_tls equivalent; musl's
++    // __clone stub also writes it, which is why a raw clone needs this one.
++    if (flags & CloneSetTls)
++        ctc->setReg(rb(3), tls);
++
++    uint8_t rawPid[4];
++    writeBigEndian32(rawPid, static_cast<uint32_t>(childThread.tid));
++    if ((flags & CloneParentSettid) &&
++        !writeGuestBlob(tc, parentTidPtr, rawPid, sizeof(rawPid)))
++        return static_cast<RegVal>(-EFAULT);
++    if ((flags & CloneChildSettid) &&
++        !writeGuestBlob(ctc, childTidPtr, rawPid, sizeof(rawPid)))
++        return static_cast<RegVal>(-EFAULT);
++
++    ctc->activate();
++    return static_cast<RegVal>(childThread.tid);
++}
++
 +/** clone(2) -- the fork/vfork/posix_spawn entry point of musl (which calls
-+ *  clone even for fork(2)).  CLONE_THREAD stays unimplemented: that is the
-+ *  real-thread surface of GEM5-026t, and those cases must keep failing at
-+ *  this syscall rather than silently degrading. */
++ *  clone even for fork(2)), and (CLONE_THREAD) the pthread_create entry. */
 +RegVal
 +doClone(ThreadContext *tc, DadaoISA::Process *process, uint64_t flags,
 +        Addr newsp, Addr parentTidPtr, uint64_t tls, Addr childTidPtr,
 +        bool &suspendSelf)
 +{
-+    (void)tls; // CLONE_SETTLS lands in GEM5-026t with the thread work
-+
-+    if (flags & CloneThread) {
-+        warn("DADAO SE: clone(CLONE_THREAD) -- real threads belong to "
-+             "GEM5-026t");
-+        // Keep the exact "syscall N not implemented" wording: the tset driver
-+        // buckets a blocked case by that line (gem5_se_engine.py).
-+        fatal("DADAO SE: syscall %d not implemented (pc=%#x)",
-+              static_cast<int>(SysClone), tc->pcState().instAddr());
-+    }
++    if (flags & CloneThread)
++        return doCloneThread(tc, process, flags, newsp, parentTidPtr, tls,
++                             childTidPtr);
 +    if (flags & CloneUnsupportedNamespaces)
 +        return static_cast<RegVal>(-EINVAL);
 +    if ((flags & CloneSighand) && !(flags & CloneVm))
@@ -3417,8 +4143,16 @@ index 0000000..897cdb7
 +
 +    child->parentProcess = process;
 +    process->children.push_back(child);
-+    child->signals = process->signals;
-+    child->signals.pending = 0;
++    child->signals = process->signals; // dispositions are process-wide
++    {
++        // The calling thread's mask and alternate stack are inherited; pending
++        // signals are not (Linux fork: the child starts with an empty queue).
++        const DadaoISA::ThreadState &parentThread = threadOf(process, tc);
++        DadaoISA::ThreadState &childThread = threadOf(child, ctc);
++        childThread.blocked = parentThread.blocked;
++        childThread.altStackSp = parentThread.altStackSp;
++        childThread.altStackSize = parentThread.altStackSize;
++    }
 +    for (unsigned i = 0; i < DadaoISA::NumResourceLimits; ++i)
 +        child->limits[i] = process->limits[i];
 +    // The table is only really shared when clone() shared it (gem5 copies it
@@ -3462,6 +4196,11 @@ index 0000000..897cdb7
 +        uint8_t rawPid[4];
 +        writeBigEndian32(rawPid, static_cast<uint32_t>(child->pid()));
 +        writeGuestBlob(ctc, childTidPtr, rawPid, sizeof(rawPid));
++    }
++    if (flags & CloneChildCleartid) {
++        // The child clears this word (and wakes a waiter) when it exits.
++        DadaoISA::ThreadState &childThread = threadOf(child, ctc);
++        childThread.clearTid = childTidPtr;
 +    }
 +
 +    ctc->activate();
@@ -3603,7 +4342,6 @@ index 0000000..897cdb7
 +    // Signal state across execve: dispositions reset to SIG_DFL except the
 +    // ignored ones, the blocked mask and the alternate stack are kept.
 +    newProcess->signals = process->signals;
-+    newProcess->signals.pending = 0;
 +    for (int sig = 1; sig <= NumSignals; ++sig) {
 +        if (newProcess->signals.actions[sig].handler != SigIgn)
 +            newProcess->signals.actions[sig] = DadaoISA::SignalDisposition();
@@ -3639,6 +4377,15 @@ index 0000000..897cdb7
 +    newProcess->assignThreadContext(tc->contextId());
 +    newProcess->init();
 +    newProcess->initState();
++
++    // execve keeps the calling thread's mask and alternate stack.
++    {
++        const DadaoISA::ThreadState &oldThread = threadOf(process, tc);
++        DadaoISA::ThreadState &newThread = threadOf(newProcess, tc);
++        newThread.blocked = oldThread.blocked;
++        newThread.altStackSp = oldThread.altStackSp;
++        newThread.altStackSize = oldThread.altStackSize;
++    }
 +
 +    // initState() leaves PCState(entry) (npc = entry + 4), but the CPU advances
 +    // this thread once more after the trap returns: make that advance land on
@@ -3712,6 +4459,28 @@ index 0000000..897cdb7
 +namespace DadaoISA
 +{
 +
++bool
++SEWorkload::deliverPendingSignal(ThreadContext *tc)
++{
++    auto *process = dynamic_cast<DadaoISA::Process *>(tc->getProcessPtr());
++    if (process == nullptr || process->hasExited)
++        return false;
++    DadaoISA::ThreadState *thread = process->findThread(tc->contextId());
++    if (thread == nullptr)
++        return false;
++    if ((thread->pending & ~thread->blocked) == 0) {
++        syncPendingSignal(process, *thread);
++        return false;
++    }
++
++    const Addr resumePc = tc->pcState().instAddr();
++    maybeDeliverSignals(tc, process, resumePc);
++    syncPendingSignal(process, *thread);
++    // Only a handler entry moves the PC; an ignored signal must let the
++    // interrupted instruction run normally.
++    return process->hasExited || tc->pcState().instAddr() != resumePc;
++}
++
 +void
 +SEWorkload::syscall(ThreadContext *tc)
 +{
@@ -3728,6 +4497,7 @@ index 0000000..897cdb7
 +    // trap instead of seeing a (wrong) result (see inst.cc, SyscallRetryFault).
 +    bool retry = false;
 +    bool suspendSelf = false;
++    bool futexParked = false;
 +    syscallRetry = false;
 +
 +    switch (nr) {
@@ -3754,39 +4524,92 @@ index 0000000..897cdb7
 +      }
 +
 +      case SysSetTidAddress: {
-+        // musl __init_tp calls this unconditionally before main().
-+        process->childClearTID = tc->getReg(rb(16));
-+        result = process->pid();
++        // musl __init_tp calls this unconditionally in every thread; the
++        // address is per thread and is cleared (with a futex wake) on exit.
++        DadaoISA::ThreadState &thread = threadOf(process, tc);
++        thread.clearTid = tc->getReg(rb(16));
++        result = thread.tid;
++        break;
++      }
++
++      // Threads and futexes (GEM5-026t).  The futex argument banks follow
++      // musl's __dadao_argmask mask 0x19: address arguments sit in slots 0, 3
++      // and 4, so uaddr -> rb16, utime -> rb17, uaddr2 -> rb18; op/val/val3
++      // are integers in rd16/rd17/rd18.
++      case SysFutex: {
++        result = doFutex(tc, process, tc->getReg(rb(16)),
++                         tc->getReg(rd(16)),
++                         static_cast<uint32_t>(tc->getReg(rd(17))),
++                         tc->getReg(rb(17)), tc->getReg(rb(18)),
++                         static_cast<uint32_t>(tc->getReg(rd(18))),
++                         futexParked);
++        if (futexParked)
++            return; // the result is written when the wait is completed
++        break;
++      }
++
++      case SysSetRobustList: {
++        const Addr head = tc->getReg(rb(16));
++        const uint64_t len = tc->getReg(rd(16));
++        // The kernel only accepts sizeof(struct robust_list_head) on 64-bit
++        // (three 8-byte fields); musl passes exactly that.
++        if (len != 24)
++            result = static_cast<RegVal>(-EINVAL);
++        else {
++            DadaoISA::ThreadState &thread = threadOf(process, tc);
++            thread.robustList = head;
++            thread.robustLen = len;
++            result = 0;
++        }
++        break;
++      }
++
++      case SysGetRobustList: {
++        const int pid = static_cast<int>(tc->getReg(rd(16)));
++        const Addr headPtr = tc->getReg(rb(16));
++        const Addr lenPtr = tc->getReg(rb(17));
++        DadaoISA::ThreadState *thread = &threadOf(process, tc);
++        if (pid != 0 && pid != thread->tid)
++            thread = process->findThreadByTid(pid);
++        if (thread == nullptr)
++            result = static_cast<RegVal>(-ESRCH);
++        else {
++            // Linux reports the registered head (NULL until set_robust_list)
++            // and always sizeof(struct robust_list_head) as the length.
++            uint8_t raw[8];
++            writeBigEndian64(raw, thread->robustList);
++            bool ok = writeGuestBlob(tc, headPtr, raw, sizeof(raw));
++            writeBigEndian64(raw, sizeof(uint64_t) * 3);
++            ok = writeGuestBlob(tc, lenPtr, raw, sizeof(raw)) && ok;
++            result = ok ? 0 : static_cast<RegVal>(-EFAULT);
++        }
 +        break;
 +      }
 +
 +      // Signals (GEM5-024t).  Argument banks follow contract-syscall §3 and
 +      // musl's __dadao_argmask (arch/dadao/syscall_arch.h).
 +      case SysKill: {
-+        result = doKill(process, static_cast<int>(tc->getReg(rd(16))),
++        result = doKill(tc, process, static_cast<int>(tc->getReg(rd(16))),
 +                        static_cast<int>(tc->getReg(rd(17))), SiUser);
 +        break;
 +      }
 +
 +      case SysTkill: {
-+        const int tid = static_cast<int>(tc->getReg(rd(16)));
-+        if (tid != static_cast<int>(process->pid()))
-+            result = static_cast<RegVal>(-ESRCH);
-+        else
-+            result = doKill(process, tid,
-+                            static_cast<int>(tc->getReg(rd(17))), SiTkill);
++        // tkill(tid, sig) names a thread of the calling process.
++        result = doThreadKill(process, static_cast<int>(tc->getReg(rd(16))),
++                              static_cast<int>(tc->getReg(rd(17))), SiTkill);
 +        break;
 +      }
 +
 +      case SysTgkill: {
 +        const int tgid = static_cast<int>(tc->getReg(rd(16)));
 +        const int tid = static_cast<int>(tc->getReg(rd(17)));
-+        if (tgid != static_cast<int>(process->pid()) ||
-+            tid != static_cast<int>(process->pid()))
++        if (tgid != static_cast<int>(process->pid()))
 +            result = static_cast<RegVal>(-ESRCH);
 +        else
-+            result = doKill(process, tgid,
-+                            static_cast<int>(tc->getReg(rd(18))), SiTkill);
++            result = doThreadKill(process, tid,
++                                  static_cast<int>(tc->getReg(rd(18))),
++                                  SiTkill);
 +        break;
 +      }
 +
@@ -3847,9 +4670,13 @@ index 0000000..897cdb7
 +        break;
 +      }
 +
-+      case SysGetpid:
-+      case SysGettid: {
++      case SysGetpid: {
 +        result = process->pid();
++        break;
++      }
++
++      case SysGettid: {
++        result = threadOf(process, tc).tid;
 +        break;
 +      }
 +

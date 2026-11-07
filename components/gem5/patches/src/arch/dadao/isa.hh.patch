@@ -1,14 +1,15 @@
 diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
 new file mode 100644
-index 0000000..0ecb2a5
+index 0000000..486fc7f
 --- /dev/null
 +++ b/src/arch/dadao/isa.hh
-@@ -0,0 +1,91 @@
+@@ -0,0 +1,114 @@
 +// DADAO ISA object (B0 skeleton + B6 LR/SC reservation state).
 +#ifndef __ARCH_DADAO_ISA_HH__
 +#define __ARCH_DADAO_ISA_HH__
 +
 +#include <cstdio>
++#include <vector>
 +#include <string>
 +
 +#include "arch/dadao/node_cfx.hh"
@@ -75,10 +76,32 @@ index 0000000..0ecb2a5
 +    bool hasReservation(Addr addr, unsigned width) const;
 +    void clearReservations();
 +
++    /** True while any hart of this system holds a reservation.  The store
++     *  path uses it to skip the per-store scan in the common case. */
++    static bool anyReservationHeld();
++
++    /** Every hart that currently holds a reservation.  The store path walks
++     *  this instead of every thread context of the system, which keeps the
++     *  single-threaded cost at zero extra iterations (only a hart that did an
++     *  `lr` and has not consumed it appears here). */
++    static const std::vector<ISA *> &reservationHolders();
++
++    /** Per-thread "a queued signal is not blocked" hint.  The SE instruction
++     *  loop tests it once per instruction, so a thread that is cancelled
++     *  while spinning in user code (no syscall in sight) still takes the
++     *  signal (GEM5-026t, musl's asynchronous cancellation). */
++    bool hasPendingSignal() const { return pendingSignal; }
++    void setPendingSignal(bool pending) { pendingSignal = pending; }
++
 +  private:
 +    bool reservationValid = false;
 +    Addr reservationAddr = 0;
 +    unsigned reservationWidth = 0;
++
++    /** Harts that currently hold a reservation (store-side invalidation). */
++    static std::vector<ISA *> holders;
++
++    bool pendingSignal = false;
 +
 +    NodeState node;
 +    std::FILE *traceFile = nullptr;
