@@ -95,8 +95,8 @@
 
 - id: ISS-349
   scope: [infra]
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: INFRA-132t 收尾（architect 从节点回拷 .cache/gem5.git，19M，含锁定 commit）
   title: >-
     【P2】主控机 `.cache` 缺 `gem5.git`，而 `manifests/components.lock.toml` 把 gem5 列为 enabled：
     `sync_cache.py` 以主控机为源，即源端缺件却可能判 PASS（节点靠历史缓存）。全新节点会明确
