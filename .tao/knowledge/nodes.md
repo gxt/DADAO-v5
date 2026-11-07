@@ -71,6 +71,7 @@
 ## 6. 已知坑（四类，均已固化进脚本）
 
 1. **缺 git 身份**：新机没有 `user.name/user.email` ⇒ `apply-series` 末尾 `git commit` 退出 128。
+   - **口径（2026-11-07 起）**：直接**复制主控机的 `~/.gitconfig`** 到节点（身份 + 别名全量一致），而不是逐项 `git config`；该文件只含身份与别名（无签名、无凭据、无机器相关路径），可整份复制。`bootstrap_node.sh` 的「缺身份则设置」仅作兜底。
 2. **`install-host` 不会自动 `apply-series`**：跳过时 CMake 报 `The target 'DADAO' is not a core tier target`（源树是未打补丁的上游 commit）。顺序必须 `fetch → apply-series → install-host`。
 3. **compiler-rt builtins 需一次性手工 configure**：`COMPILER_RT_DEFAULT_TARGET_ONLY=ON` 时缺 `CMAKE_C_COMPILER_TARGET` / `CMAKE_CXX_COMPILER_TARGET` 会直接报错；两值都须为 `dadao-unknown-elf`。
 4. **公网不可达**：GitHub 大传输会 `curl 28` / `GnuTLS recv error` ⇒ 仓库走 bundle、组件走本地 `.cache/*.git`，不把「直连公网」当唯一路径。
