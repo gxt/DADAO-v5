@@ -19,6 +19,7 @@
 | DDLN 讲义（篇目索引） | `docs/DDLN/README.md`（**讲义，不是实现判据**；`DD-*` 是唯一真源，直接编辑） |
 | 合约（归一化叙述 / 机器可读数据） | `.tao/contracts/contract-*.md` / `contracts/` |
 | 代码模型 / 打包规范（REL26 边 ≤ 32 MiB；单 DSO 可执行区跨度 < 30 MiB） | `.tao/adr/adr-0036-code-model.md` §D4/D7 + `make check-code-range` |
+| 构建 / 测试节点（机型 / 组网 / 软件包 / 就绪判据） | `.tao/knowledge/nodes.md` |
 | 参考仓库（只读工作树 / 锁文件） | `.cache/refs/` + `manifests/` |
 | issue / 教训 | `.tao/knowledge/issues.yaml` / `.tao/knowledge/lessons.md` |
 | 历史归档 | `.tao/archive/M*/`（M1–M10） |
