@@ -58,6 +58,12 @@
 
 **Open issue**：0。
 
+## 2026-11-07 两台构建节点就绪
+
+- 两台 64C/128G 节点已完成引导（软件包、仓库同步、`fetch` → `apply-series` → `install-host`），工具链与主控机同版本。
+- 就绪验证：`make check`（L1）两机均 rc=0，各约 64s；`make check-inst` 两机均 rc=0（44/44、载体 23 册，node 全量 + tiny 子集），结果行逐字一致 ⇒ 可作确定性对比基线。
+- 后续重活（LLVM/gem5 重建、tset 全量）可外派；引导步骤与跨机派单已立 `INFRA-130t` 固化为脚本。
+
 ## 2026-11-07 `check-knowledge-refs` 空转判据（用户裁定 A）
 
 - **背景**：清理任务书运行期证据引用后，fresh clone 上 `.work/**` 整体被 gitignore ⇒ `checked==0` 触发 vacuous FAIL，与「任务书不写运行期路径」冲突。
