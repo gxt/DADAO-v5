@@ -58,6 +58,12 @@
 
 **Open issue**：0。
 
+## 2026-11-07 并发派单事故（watchdog）
+
+- **事实**：另一会话（`lecnotes`，2026-10-25 创建）在 13:31 自行派了 `GEM5-027t` engineer 子代理，工作目录在 OpenCode 数据目录下的 worktree，并开始 `make build-gem5`；与本会话的 `GEM5-029t` 共用 `.work/source/gem5`，形成两个 gem5 写者。
+- **处置（用户选 A）**：中断该子会话（API `interrupt`）、终止其构建；其 worktree 无改动（clean，`964131ad`）已删除；`GEM5-027t` 回到队列，等 `029t`/`030t` 后再派。
+- **规则（待写入 AGENTS）**：外部会话/watchdog 派单前必须查 `job` 表或 gate lock，**同一组件同一时刻只允许一个写者**；共享 `.work` 的任务必须串行。
+
 ## 2026-11-06 convert_f2i 舍入语义（已裁定）
 
 - **结论**：`ADR-0050` 已 `Accepted`（用户「ADR0050确认」，D1–D7）；15 条六档 one-hot / 3 条 SBZ / 4 条复制计数；汇编层 18 条单寄存器、无花括号、第三操作数显式。
