@@ -99,6 +99,7 @@
 2. 装 4.2 的包（或让 `bootstrap_node.sh` step 1 报清单后照单安装）。
 3. 同步仓库（bundle 或内网 rsync）+ 本地 `.cache/*.git`。
 4. `tools/infra/bootstrap_node.sh`：`fetch → apply-series → compiler-rt configure → install-host → make check`。
+   - **补丁集变更后必须先 reset**：`apply-series` 只接受「base」或「base+1 且内容等于补丁集」；上游 v5 的补丁集更新后，节点源树仍是旧的 base+1 ⇒ 它会拒绝并退出非零。做法：`git -C .work/source/<组件> reset --hard <manifests 里的 commit>`，再 `make apply-series`。
 5. 验收：`make check` rc=0、`make check-inst` 与本机同 commit 结果一致；用 `tools/infra/remote.py status/preflight` 确认。
 6. 在本文件「1. 当前清单」与「5. 就绪判据」补一行实测值。
 
