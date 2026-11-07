@@ -74,3 +74,12 @@
     【P3】gem5 SE 未实现 `chmod`/`fchmodat`：`GEM5-029t` 探针只能用 mode 000 创建文件来构造
     `EACCES` 场景。QEMU linux-user 有对应实现（模拟器内改宿主文件权限）；按「QEMU 实现了的
     syscall 必须对齐」的口径应补实现，并加双引擎探针。
+
+- id: ISS-347
+  scope: [infra]
+  status: open
+  resolved_by: null
+  title: >-
+    【P3】`tools/infra/bootstrap_node.sh` 清理项：① 变量 `DEV_OK` 实为「问题标志」（0=正常），
+    名实相反易被后人改回反逻辑，应改名 `DEV_BAD` 并同步三处引用；② 证据缺「仅 dev 缺失、
+    工具齐全」隔离用例；③ 全缺时待安装清单 `- binutils` 重复 3 次，应去重。
