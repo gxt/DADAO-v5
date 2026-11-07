@@ -141,8 +141,9 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `EISDIR`/`ENOTDIR`/`EEXIST`/`EINVAL`/`EMFILE`…）。**已知限制**：无权限
   模型，宿主权限透传；`fcntl` 只实现 tset 用到的命令，其余 `fatal`；
   `getdents64` 的本机转换假定宿主 `linux_dirent64` 与 guest 同宽（64 位
-  宿主成立）；`faccessat` 的 `AT_EMPTY_PATH` 返回 `-EINVAL`（比 Linux 严；
-  musl 的 `access()` 不触发该路径）。**输出捕获口径**：SE 驱动分别捕获
+  宿主成立）；`faccessat`/`faccessat2` 支持 `AT_EMPTY_PATH`（空路径按 fd
+  操作、`AT_FDCWD` 取工作目录、pipe fd 按 0600 inode 判定；无该标志的空
+  路径 `ENOENT`，未知位 `EINVAL`，其余转发宿主 `faccessat2`）。**输出捕获口径**：SE 驱动分别捕获
   stdout/stderr 再拼接，对 stderr 行序敏感的用例（如 `bison`、
   `pcompress2`）会与 QEMU `2>&1` 交织结果产生 diff，属捕获模型差异、非
   文件 I/O 能力问题。
@@ -151,8 +152,11 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   为 `floor(curTick × 1e9 / sim_clock::Frequency)` 的模拟纳秒，与
   `GEM5-019t` 的 1e9 ticks/s 口径同源）、`clock_getres`（1 ns）、
   `gettimeofday`/`time`（宿主，同 QEMU user 的透传口径，使宿主文件时间戳
-  可比）、`nanosleep`（按 Linux 规则校验后立即成功：SE 无线程可调度，
-  真实睡眠只会阻塞宿主，且不推进模拟时间）。未知 clock id 返回 `-EINVAL`。
+  可比）、`nanosleep`（Linux 语义：请求按 `EINVAL` 规则校验、零请求立即
+  返回、`rem == NULL` 合法；睡眠本身是**事件队列上的 guest 时间推进**——
+  挂起调用线程、到点由事件写 `rd8 = 0` 并激活，被信号打断则由该信号的
+  投递路径取消事件、回写剩余时间并返回 `EINTR`，不阻塞宿主线程）。
+  未知 clock id 返回 `-EINVAL`。
 - **信号与进程信息（GEM5-024t）**：`rt_sigaction`(134)/
   `rt_sigprocmask`(135)/`rt_sigpending`(136)/`rt_sigreturn`(139)/
   `sigaltstack`(132)/`kill`(129)/`tkill`(130)/`tgkill`(131) 的单进程自投递面：
@@ -169,13 +173,16 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   宿主身份 + `machine="dadao"`，同 QEMU)、`sysinfo`(179，宿主值按
   asm-generic 64-bit 布局)、`getpid`/`gettid`（SE 进程 id）、`getppid`、
   `getuid`/`geteuid`/`getgid`/`getegid`（宿主身份，与 `stat` 报告的
-  st_uid/gid 一致）、`getcwd`(17)。**已知限制**：`kill`/
-  `tgkill` 的自投递面为 GEM5-024t 口径；GEM5-025t 起正 pid 会查 alive
-  进程表（含 fork 子进程），未知 pid 仍 `ESRCH`；`tgkill` 只对 self；`SIGSTOP`/`SIGTSTP` 等 stop 系按终止处理（无作业控制）；
-  `rt_sigsuspend` 未实现（显式 `fatal`）；`ss_flags` 带 `SS_AUTODISARM`
-  返回 `EINVAL`；页错误不转成 guest `SIGSEGV`（SE 平台既有行为，guest
-  空指针仍是 simulator/loader 的 panic）；RAS 不在信号帧内（同 QEMU
-  linux-user 口径）。
+  st_uid/gid 一致）、`getcwd`(17)。**已知限制**：`kill` 按 Linux 选目标
+  （`pid>0` 查 alive 进程表、`0` 同进程组、`-1` 全部可发进程、`<-1` 进程组
+  `-pid`、`sig==0` 只做存在性探测、无目标 `ESRCH`）；`tgkill` 校验 tgid
+  （`tgid<=0||tid<=0` ⇒ `EINVAL`，tgid/tid 不在同一线程组 ⇒ `ESRCH`，
+  可指向其它进程的线程）；`sigaltstack` 接受 `SS_AUTODISARM`（Linux
+  `SS_FLAG_BITS` 口径，交付时置 `sas_ss_reset`、sigreturn 从帧恢复），
+  其它未知位才 `EINVAL`；`SIGSTOP`/`SIGTSTP` 等 stop 系按终止处理（无作业控制）；
+  `rt_sigsuspend` 未实现（显式 `fatal`）；页错误不转成 guest `SIGSEGV`（SE
+  平台既有行为，guest 空指针仍是 simulator/loader 的 panic）；RAS 不在信号
+  帧内（同 QEMU linux-user 口径）。
 - **资源限制（GEM5-024t）**：`prlimit64`(261)（musl 的 `getrlimit`/
   `setrlimit` 也走它；旧号 163/164 同样实现）。16 个 `RLIMIT_*` 按进程保存，
   初值 `RLIM_INFINITY`；`RLIMIT_NOFILE` 初值 = guest fd 表大小 1024，并在 fd
@@ -230,11 +237,14 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
     「重新执行」处理（近似 ERESTARTSYS），不是精确的 `EINTR`；
     ⑤ `RLIMIT_NPROC`/`RLIMIT_SIGPENDING` 不强制。
   - **已知限制**：socket fd 上的 `read`/`write` 仍走宿主阻塞调用（语料只用
-    `sendto`/`recvfrom`/`accept`，未触发）；`wait4` 在「目标不是子进程、但存在
-    其它子进程」时不会返回 `ECHILD` 而是继续阻塞；进程 pid 不复用；
-    `execve` 遇到存在但不可读的 ELF 会经 loader 直接中止（未按 Linux 返回
-    `EACCES`）；guest 缓冲非法时 pipe/socket 读会先消费数据再报 `EFAULT`
-    （与既有文件读同款，语料不可达）。**环境缺口**：语料里的 `popen`/
+    `sendto`/`recvfrom`/`accept`，未触发）。**Linux 语义对齐（GEM5-029t）**：
+    `wait4` 在「目标不是子进程」时按 Linux 返回 `ECHILD`（存在其它存活子进程
+    也不阻塞）；被 `wait4` 回收的 pid 从 `System::PIDs` 释放并按
+    `alloc_pid` 规则复用（fork/wait 循环不再无界增长）；`execve` 先用
+    `open(O_RDONLY)` 探测可读性（不可读 ELF ⇒ `EACCES`，其它打开失败按
+    errno），不再经 loader 的 fatal 中止；`read`/`readv` 在消费数据前先验证
+    guest 目的缓冲（映射页直接通过、VMA 页按 `copy_to_user` 惰性分配、
+    其余 `EFAULT`），pipe/socket 的 `EFAULT` 不再丢数据。**环境缺口**：语料里的 `popen`/
     `spawn`/`vfork`/`execle-env`/`unix-smail` 需要 guest 根内有 DADAO
     `/bin/sh`、`echo`；SE 没有，`execve` 按语义返回 `ENOEXEC`。QEMU 侧
     之所以通过，是把宿主 x86-64 二进制交给宿主内核执行，属**非同架构

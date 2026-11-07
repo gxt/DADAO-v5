@@ -1,0 +1,53 @@
+diff --git a/linux-user/signal.c b/linux-user/signal.c
+index f0a2257..555c9db 100644
+--- a/linux-user/signal.c
++++ b/linux-user/signal.c
+@@ -258,6 +258,15 @@ int on_sig_stack(unsigned long sp)
+ {
+     TaskState *ts = get_task_state(thread_cpu);
+ 
++    /*
++     * Linux on_sig_stack(): with SS_AUTODISARM set the altstack is disabled
++     * for the handler by construction, so the stack pointer cannot be on it
++     * (this task's AUTODISARM support, kernel/signal.c semantics).
++     */
++    if (ts->sigaltstack_used.ss_flags & TARGET_SS_AUTODISARM) {
++        return 0;
++    }
++
+     return (sp - ts->sigaltstack_used.ss_sp
+             < ts->sigaltstack_used.ss_size);
+ }
+@@ -288,7 +297,9 @@ void target_save_altstack(target_stack_t *uss, CPUArchState *env)
+     TaskState *ts = get_task_state(thread_cpu);
+ 
+     __put_user(ts->sigaltstack_used.ss_sp, &uss->ss_sp);
+-    __put_user(sas_ss_flags(get_sp_from_cpustate(env)), &uss->ss_flags);
++    __put_user(sas_ss_flags(get_sp_from_cpustate(env)) |
++               (ts->sigaltstack_used.ss_flags & TARGET_SS_FLAG_BITS),
++               &uss->ss_flags);
+     __put_user(ts->sigaltstack_used.ss_size, &uss->ss_size);
+ }
+ 
+@@ -314,7 +325,12 @@ abi_long target_restore_altstack(target_stack_t *uss, CPUArchState *env)
+         return -TARGET_EPERM;
+     }
+ 
+-    switch (ss.ss_flags) {
++    /*
++     * The mode is ss_flags & ~SS_FLAG_BITS (kernel/signal.c:do_sigaltstack):
++     * SS_AUTODISARM is a flag that may accompany any legal mode, and only
++     * bits outside SS_FLAG_BITS are EINVAL.
++     */
++    switch (ss.ss_flags & ~TARGET_SS_FLAG_BITS) {
+     default:
+         return -TARGET_EINVAL;
+ 
+@@ -333,6 +349,7 @@ abi_long target_restore_altstack(target_stack_t *uss, CPUArchState *env)
+ 
+     ts->sigaltstack_used.ss_sp = ss.ss_sp;
+     ts->sigaltstack_used.ss_size = ss.ss_size;
++    ts->sigaltstack_used.ss_flags = ss.ss_flags;
+     return 0;
+ }
+ 

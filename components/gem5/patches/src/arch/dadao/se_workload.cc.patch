@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
 new file mode 100644
-index 0000000..06448a6
+index 0000000..10d7106
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.cc
-@@ -0,0 +1,5186 @@
+@@ -0,0 +1,5582 @@
 +// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
 +#include "arch/dadao/se_workload.hh"
 +
@@ -278,6 +278,11 @@ index 0000000..06448a6
 +constexpr int SigSetmask = 2;
 +constexpr int SsOnstack = 1;
 +constexpr int SsDisable = 2;
++/** linux/signal.h SS_AUTODISARM: the only bit in SS_FLAG_BITS.  Linux keeps
++ *  it in sas_ss_flags; a signal delivered with it set disables the alternate
++ *  stack for the handler and sigreturn restores it from the frame. */
++constexpr int SsAutodisarm = static_cast<int>(1u << 31);
++constexpr int SsFlagBits = SsAutodisarm;
 +constexpr uint64_t MinSigStkSz = 2048; // arch/dadao/bits/signal.h MINSIGSTKSZ
 +constexpr int SigKill = 9;
 +constexpr int SigSegv = 11;
@@ -445,6 +450,33 @@ index 0000000..06448a6
 +        return false;
 +    SETranslatingPortProxy proxy(tc, SETranslatingPortProxy::Never);
 +    return proxy.tryReadString(value, addr);
++}
++
++/** The "can I write this guest range?" half of copy_to_user, performed
++ *  *before* a read consumes data (QEMU's lock_user(VERIFY_WRITE) order).
++ *
++ *  A page that is already mapped passes; a page inside a VMA (the heap, the
++ *  stack, an mmap) is faulted in exactly as the copy itself would fault it;
++ *  anything else is EFAULT.  The check does not modify memory, so an EFAULT
++ *  leaves the pipe/socket contents untouched.
++ */
++bool
++guestRangeWritable(DadaoISA::Process *process, Addr addr, uint64_t size)
++{
++    if (size == 0)
++        return true;
++    const Addr end = addr + size;
++    if (end < addr) // wraps the 64-bit address space
++        return false;
++    const Addr pageBytes = process->pTable->pageSize();
++    for (Addr page = roundDown(addr, pageBytes); page < end;
++         page += pageBytes) {
++        if (process->pTable->lookup(page) != nullptr)
++            continue;
++        if (!process->fixupFault(page))
++            return false;
++    }
++    return true;
 +}
 +
 +/** Return the open entry for a guest fd, or -EBADF. */
@@ -894,6 +926,9 @@ index 0000000..06448a6
 +        return 0;
 +    }
 +
++    if (!guestRangeWritable(process, buf, count))
++        return static_cast<RegVal>(-EFAULT);
++
 +    const size_t available = std::min<size_t>(count, pipe->state->buffer.size());
 +    std::vector<uint8_t> data(available);
 +    for (size_t i = 0; i < available; ++i) {
@@ -961,6 +996,12 @@ index 0000000..06448a6
 +    if (!host_entry)
 +        return static_cast<RegVal>(-EBADF);
 +    const int sim_fd = host_entry->getSimFD();
++
++    // Verify the whole destination before ::read consumes anything: a socket
++    // or file must keep its bytes for the next call after an EFAULT, exactly
++    // like QEMU's lock_user(VERIFY_WRITE) ordering.
++    if (!guestRangeWritable(process, buf, count))
++        return static_cast<RegVal>(-EFAULT);
 +
 +    std::vector<uint8_t> data(count);
 +    ssize_t bytes_read;
@@ -1041,6 +1082,10 @@ index 0000000..06448a6
 +                    len, pipe->state->buffer.size());
 +            if (n == 0)
 +                continue;
++            // Same verify-before-consume rule as read(2): checking this
++            // iovec first keeps the bytes in the pipe on EFAULT.
++            if (!guestRangeWritable(process, base, n))
++                return total > 0 ? total : static_cast<RegVal>(-EFAULT);
 +            std::vector<uint8_t> chunk(n);
 +            for (size_t j = 0; j < n; ++j) {
 +                chunk[j] = pipe->state->buffer.front();
@@ -1069,6 +1114,9 @@ index 0000000..06448a6
 +        const uint64_t len = readBigEndian64(&raw[i * IovecSize + 8]);
 +        if (len == 0)
 +            continue;
++
++        if (!guestRangeWritable(process, base, len))
++            return total > 0 ? total : static_cast<RegVal>(-EFAULT);
 +
 +        std::vector<uint8_t> data(len);
 +        ssize_t bytes_read;
@@ -1543,26 +1591,80 @@ index 0000000..06448a6
 +    return 0;
 +}
 +
-+/** faccessat(2).  SE has no permission model, so the host's answer is the
-+ * guest's (same as QEMU user mode); only the flag validation is local. */
++/** faccessat(2)/faccessat2(2).  SE has no permission model of its own, so the
++ *  host's answer is the guest's (same as QEMU user mode); the flag and mode
++ *  validation is the kernel's (fs/open.c: do_faccessat). */
++int
++hostFaccessat(int dirfd, const std::string &path, int mode, int flags)
++{
++    // faccessat2 is the flag-carrying form; the guest ABI's flag values are
++    // the host's, so they pass through unchanged.
++#ifdef SYS_faccessat2
++    const int result =
++        ::syscall(SYS_faccessat2, dirfd, path.c_str(), mode, flags);
++    if (result >= 0)
++        return 0;
++    if (errno != ENOSYS)
++        return -errno;
++    // Pre-5.8 host: only the legacy call exists, and it has no flags.
++    if (flags != 0)
++        return -ENOSYS;
++    return ::faccessat(dirfd, path.c_str(), mode, 0) < 0 ? -errno : 0;
++#else
++    if (flags != 0)
++        return -ENOSYS;
++    return ::faccessat(dirfd, path.c_str(), mode, 0) < 0 ? -errno : 0;
++#endif
++}
++
 +RegVal
 +doFaccessat(ThreadContext *tc, DadaoISA::Process *process, int dirfd,
 +            Addr path_addr, int mode, int flags)
 +{
-+    if (flags & ~(AtEaccess | AtSymlinkNofollow))
++    // Kernel validation order: unknown mode bits and unknown flags are EINVAL
++    // before the path is even touched.
++    if (mode & ~(R_OK | W_OK | X_OK))
++        return static_cast<RegVal>(-EINVAL);
++    if (flags & ~(AtEaccess | AtSymlinkNofollow | AtEmptyPath))
 +        return static_cast<RegVal>(-EINVAL);
 +
 +    std::string path;
 +    if (!readGuestString(tc, path_addr, path))
 +        return static_cast<RegVal>(-EFAULT);
 +
++    // AT_EMPTY_PATH: an empty path operates on the descriptor itself.  Without
++    // the flag an empty path simply does not name anything (ENOENT).
++    if (path.empty()) {
++        if (!(flags & AtEmptyPath))
++            return static_cast<RegVal>(-ENOENT);
++        if (dirfd == AtFdcwd) {
++            // The kernel substitutes the working directory for AT_FDCWD.
++            std::string host_cwd = process->checkPathRedirect(process->tgtCwd);
++            return static_cast<RegVal>(
++                hostFaccessat(AT_FDCWD, host_cwd, mode,
++                              flags & ~AtEmptyPath));
++        }
++        std::shared_ptr<FDEntry> entry;
++        if (int status = guestFdEntry(process, dirfd, entry); status != 0)
++            return static_cast<RegVal>(status);
++        if (auto hostEntry = std::dynamic_pointer_cast<HBFDEntry>(entry))
++            return static_cast<RegVal>(
++                hostFaccessat(hostEntry->getSimFD(), "", mode, flags));
++        if (std::dynamic_pointer_cast<DadaoPipeFDEntry>(entry)) {
++            // A pipe inode is 0600 for its owner: any access except execute
++            // passes (the host would say the same for its own pipe fd).
++            return static_cast<RegVal>((mode & X_OK) ? -EACCES : 0);
++        }
++        return static_cast<RegVal>(-EACCES);
++    }
++
 +    std::string host_path;
 +    if (int status = resolveGuestPath(process, dirfd, path, host_path);
 +        status != 0)
 +        return static_cast<RegVal>(status);
 +
-+    const int result = ::faccessat(AT_FDCWD, host_path.c_str(), mode, flags);
-+    return result < 0 ? static_cast<RegVal>(-errno) : 0;
++    return static_cast<RegVal>(
++        hostFaccessat(AT_FDCWD, host_path, mode, flags & ~AtEmptyPath));
 +}
 +
 +/** getdents64(2).
@@ -1843,15 +1945,183 @@ index 0000000..06448a6
 +    return 0;
 +}
 +
++/** Write a timespec in guest order (nanosleep's `rem`). */
++bool
++writeGuestTimespecNs(ThreadContext *tc, Addr addr, uint64_t nanoseconds)
++{
++    if (addr == 0)
++        return true;
++    uint8_t raw[GuestTimespecSize];
++    packGuestTimespec(raw, nanoseconds / 1000000000ULL,
++                      nanoseconds % 1000000000ULL);
++    return writeGuestBlob(tc, addr, raw, sizeof(raw));
++}
++
++uint64_t
++ticksToNanoseconds(Tick ticks)
++{
++    if (ticks <= 0)
++        return 0;
++    const unsigned __int128 ns =
++        static_cast<unsigned __int128>(ticks) * 1000000000ULL;
++    return static_cast<uint64_t>(ns / sim_clock::Frequency);
++}
++
++Tick
++nanosecondsToTicks(uint64_t nanoseconds)
++{
++    const unsigned __int128 ticks = static_cast<unsigned __int128>(nanoseconds) *
++                                    sim_clock::Frequency / 1000000000ULL;
++    return static_cast<Tick>(ticks == 0 ? 1 : ticks);
++}
++
++/** One thread asleep in nanosleep(2) (GEM5-029t).
++ *
++ * SE has no host-side clock to sleep on: the wait is a gem5 event at the
++ * deadline in *guest* time, so the simulator advances its own clock the same
++ * way it does for a futex timeout, and the caller's context is suspended (the
++ * CPU keeps running every other process/thread).  A signal that arrives before
++ * the deadline cancels the event and returns EINTR with the remaining time.
++ */
++struct SleepWaiter
++{
++    DadaoISA::Process *process = nullptr;
++    ContextID cid = 0;
++    Addr remAddr = 0;
++    Tick deadline = 0;
++    Event *timeout = nullptr;
++};
++
++std::list<SleepWaiter *> sleepWaiters;
++
++void
++nanosleepTimeout(SleepWaiter *waiter);
++
++/** The event is AutoDelete (Managed): the queue frees it after dispatch and on
++ *  deschedule, so a non-null pointer means "still scheduled". */
++void
++cancelSleepTimeout(SleepWaiter *waiter)
++{
++    Event *event = waiter->timeout;
++    waiter->timeout = nullptr;
++    if (event != nullptr && event->scheduled())
++        getEventQueue(0)->deschedule(event);
++}
++
++SleepWaiter *
++findSleepWaiter(DadaoISA::Process *process, ContextID cid)
++{
++    for (auto *waiter : sleepWaiters) {
++        if (waiter->process == process && waiter->cid == cid)
++            return waiter;
++    }
++    return nullptr;
++}
++
++void
++dropSleepWaiter(SleepWaiter *waiter)
++{
++    sleepWaiters.remove(waiter);
++    cancelSleepTimeout(waiter);
++    delete waiter;
++}
++
++void
++dropThreadSleepWaiters(DadaoISA::Process *process, ContextID cid)
++{
++    std::vector<SleepWaiter *> dropped;
++    for (auto *waiter : sleepWaiters) {
++        if (waiter->process == process && waiter->cid == cid)
++            dropped.push_back(waiter);
++    }
++    for (auto *waiter : dropped)
++        dropSleepWaiter(waiter);
++}
++
++void
++dropProcessSleepWaiters(DadaoISA::Process *process)
++{
++    std::vector<SleepWaiter *> dropped;
++    for (auto *waiter : sleepWaiters) {
++        if (waiter->process == process)
++            dropped.push_back(waiter);
++    }
++    for (auto *waiter : dropped)
++        dropSleepWaiter(waiter);
++}
++
++/** Park the calling thread until `nanoseconds` of guest time have elapsed.
++ *  The deadline event writes rd8 = 0 and reactivates the context. */
++void
++parkNanosleep(ThreadContext *tc, DadaoISA::Process *process,
++              uint64_t nanoseconds, Addr remAddr)
++{
++    auto *waiter = new SleepWaiter();
++    waiter->process = process;
++    waiter->cid = tc->contextId();
++    waiter->remAddr = remAddr;
++    waiter->deadline = curTick() + nanosecondsToTicks(nanoseconds);
++
++    auto *event = new EventFunctionWrapper([waiter] { nanosleepTimeout(waiter); },
++                                           "dadao-nanosleep-timeout", true);
++    waiter->timeout = event;
++    getEventQueue(0)->schedule(event, waiter->deadline);
++
++    sleepWaiters.push_back(waiter);
++    tc->suspend();
++}
++
++void
++nanosleepTimeout(SleepWaiter *waiter)
++{
++    // The queue deletes the event itself after process() returns.
++    waiter->timeout = nullptr;
++    if (std::find(sleepWaiters.begin(), sleepWaiters.end(), waiter) ==
++        sleepWaiters.end())
++        return; // interrupted before this fired
++    sleepWaiters.remove(waiter);
++    ThreadContext *tc = waiter->process->system->threads[waiter->cid];
++    tc->setReg(rd(8), static_cast<RegVal>(0)); // rem untouched on success
++    if (tc->status() == ThreadContext::Suspended)
++        tc->activate();
++    delete waiter;
++}
++
++/** A signal reached a thread asleep in nanosleep(2): cancel the deadline and
++ *  hand the interrupted call back with EINTR and the remaining guest time in
++ *  `rem` (Linux only writes rem when it returns EINTR).  Returns true when the
++ *  thread was asleep. */
++bool
++interruptNanosleep(ThreadContext *tc, DadaoISA::Process *process,
++                   DadaoISA::ThreadState &thread)
++{
++    SleepWaiter *waiter = findSleepWaiter(process, tc->contextId());
++    if (waiter == nullptr)
++        return false;
++    const Tick now = curTick();
++    const uint64_t remaining =
++        waiter->deadline > now ? ticksToNanoseconds(waiter->deadline - now) : 0;
++    const Addr remAddr = waiter->remAddr;
++    dropSleepWaiter(waiter);
++    // Linux writes rem first and reports EFAULT when that copy fails, even
++    // though the sleep was interrupted (hrtimer_nanosleep's put_timespec64).
++    const bool wrote = writeGuestTimespecNs(tc, remAddr, remaining);
++    tc->setReg(rd(8), static_cast<RegVal>(wrote ? -EINTR : -EFAULT));
++    (void)thread;
++    return true;
++}
++
 +/** nanosleep(2).
 + *
-+ * SE has no other runnable work, so actually sleeping would only stall the
-+ * host process; the request is validated (Linux EINVAL rules) and succeeds
-+ * immediately, which is gem5's existing SE convention.  The limitation is
-+ * recorded in README.
++ * Linux semantics: validate the request (EINVAL), return 0 for a zero
++ * request, return EINTR + `rem` when a signal interrupts the sleep, ignore
++ * `rem` otherwise, and take `rem == NULL`.  The sleep itself advances guest
++ * time through the event queue (see SleepWaiter above); it never blocks the
++ * host process, because other guest processes/threads must keep running.
 + */
 +RegVal
-+doNanosleep(ThreadContext *tc, Addr req_addr)
++doNanosleep(ThreadContext *tc, DadaoISA::Process *process, Addr req_addr,
++            Addr rem_addr, bool &parked)
 +{
 +    uint8_t raw[GuestTimespecSize];
 +    if (!readGuestBlob(tc, req_addr, raw, sizeof(raw)))
@@ -1861,6 +2131,26 @@ index 0000000..06448a6
 +    const int64_t nsec = readBigEndian64(raw + 8);
 +    if (sec < 0 || nsec < 0 || nsec >= 1000000000LL)
 +        return static_cast<RegVal>(-EINVAL);
++
++    const unsigned __int128 requested =
++        static_cast<unsigned __int128>(sec) * 1000000000ULL +
++        static_cast<uint64_t>(nsec);
++    if (requested == 0)
++        return 0;
++
++    // An already pending, unblocked signal ends the call before it sleeps:
++    // EINTR with the whole request still to go (delivered on the way out).
++    if (DadaoISA::ThreadState *thread = process->findThread(tc->contextId())) {
++        if ((thread->pending & ~thread->blocked) != 0) {
++            if (!writeGuestTimespecNs(tc, rem_addr,
++                                      static_cast<uint64_t>(requested)))
++                return static_cast<RegVal>(-EFAULT);
++            return static_cast<RegVal>(-EINTR);
++        }
++    }
++
++    parkNanosleep(tc, process, static_cast<uint64_t>(requested), rem_addr);
++    parked = true;
 +    return 0;
 +}
 +
@@ -2197,15 +2487,21 @@ index 0000000..06448a6
 +bool
 +onAltStack(const DadaoISA::ThreadState &thread, Addr sp)
 +{
++    // Linux on_sig_stack(): with SS_AUTODISARM set the kernel cannot be on the
++    // alternate stack by construction, so the test always reports "no".
++    if (thread.altStackFlags & SsAutodisarm)
++        return false;
 +    return thread.altStackSize != 0 && sp - thread.altStackSp < thread.altStackSize;
 +}
 +
 +int
 +altStackFlags(const DadaoISA::ThreadState &thread, Addr sp)
 +{
-+    if (thread.altStackSize == 0)
-+        return SsDisable;
-+    return onAltStack(thread, sp) ? SsOnstack : 0;
++    const int mode =
++        thread.altStackSize == 0
++            ? SsDisable
++            : (onAltStack(thread, sp) ? SsOnstack : 0);
++    return mode | (thread.altStackFlags & SsFlagBits);
 +}
 +
 +/** Redirect the guest PC (the same full-width write B5 branches use). */
@@ -2228,6 +2524,9 @@ index 0000000..06448a6
 +
 +DadaoISA::Process *
 +findLiveProcess(uint64_t pid);
++
++/** The registry of live processes (defined with the multi-process surface). */
++extern std::vector<DadaoISA::Process *> liveProcesses;
 +
 +void
 +terminateWithSignal(ThreadContext *tc, int sig)
@@ -2387,6 +2686,14 @@ index 0000000..06448a6
 +        return false;
 +    }
 +    thread.signalFrames.push_back(frame);
++
++    // signal_delivered(): an SS_AUTODISARM stack is disabled for the handler
++    // and comes back with the frame's uc_stack on sigreturn.
++    if (thread.altStackFlags & SsAutodisarm) {
++        thread.altStackSp = 0;
++        thread.altStackSize = 0;
++        thread.altStackFlags = 0;
++    }
 +
 +    uint64_t handlerMask = thread.blocked | action.mask;
 +    if (!(action.flags & SaNodefer))
@@ -2563,7 +2870,7 @@ index 0000000..06448a6
 +
 +        if (onAltStack(thread, tc->getReg(rb(1))))
 +            return static_cast<RegVal>(-EPERM);
-+        switch (flags) {
++        switch (flags & ~SsFlagBits) {
 +          case SsDisable:
 +            ssSp = 0;
 +            ssSize = 0;
@@ -2578,6 +2885,7 @@ index 0000000..06448a6
 +        }
 +        thread.altStackSp = ssSp;
 +        thread.altStackSize = ssSize;
++        thread.altStackFlags = flags;
 +    }
 +
 +    if (oldSsAddr != 0 &&
@@ -2622,12 +2930,15 @@ index 0000000..06448a6
 +    const Addr ssSp = readBigEndian64(uc + 16);
 +    const int ssFlags = static_cast<int32_t>(readBigEndian32(uc + 24));
 +    const uint64_t ssSize = readBigEndian64(uc + 32);
-+    if (ssFlags == SsDisable) {
++    const int ssMode = ssFlags & ~SsFlagBits;
++    if (ssMode == SsDisable) {
 +        thread.altStackSp = 0;
 +        thread.altStackSize = 0;
-+    } else if (ssFlags == 0 || ssFlags == SsOnstack) {
++        thread.altStackFlags = ssFlags & SsFlagBits;
++    } else if (ssMode == 0 || ssMode == SsOnstack) {
 +        thread.altStackSp = ssSp;
 +        thread.altStackSize = ssSize;
++        thread.altStackFlags = ssFlags & SsFlagBits;
 +    }
 +
 +    thread.blocked = mask;
@@ -2645,8 +2956,18 @@ index 0000000..06448a6
 +    maybeDeliverSignals(tc, process, pc);
 +}
 +
-+/** kill(2): queue a process-directed signal on the target process (the
-+ *  caller, a fork child, or a parent a child signals back). */
++/** kill(2): queue a process-directed signal.
++ *
++ * Linux target selection (kernel/signal.c: kill_something_info):
++ *   pid > 0   that process only                    -> ESRCH if not live
++ *   pid == 0  the caller's process group
++ *   pid == -1 every process the caller may signal (SE: every live process,
++ *             the caller included -- there is no init process to spare)
++ *   pid < -1  the process group -pid               -> ESRCH if the group has
++ *             no live process
++ * sig == 0 is the existence/permission probe: nothing is delivered, and the
++ * call succeeds when at least one target exists.
++ */
 +RegVal
 +doKill(ThreadContext *tc, DadaoISA::Process *process, int pid, int sig,
 +       int siCode)
@@ -2655,22 +2976,26 @@ index 0000000..06448a6
 +    if (sig < 0 || sig > NumSignals)
 +        return static_cast<RegVal>(-EINVAL);
 +
-+    // pid 0/-1 mean "this process group" in Linux; SE has no process groups
-+    // beyond this one, so they name the caller.  A positive pid is looked up
-+    // among the live processes.
-+    DadaoISA::Process *target = nullptr;
-+    if (pid == 0 || pid == -1 || pid == static_cast<int>(process->pid()) ||
-+        pid == -static_cast<int>(process->pid())) {
-+        target = process;
-+    } else if (pid > 0) {
-+        target = findLiveProcess(pid);
++    std::vector<DadaoISA::Process *> targets;
++    if (pid > 0) {
++        if (DadaoISA::Process *target = findLiveProcess(pid))
++            targets.push_back(target);
++    } else if (pid == 0 || pid < -1) {
++        const uint64_t group =
++            pid == 0 ? process->pgid() : static_cast<uint64_t>(-pid);
++        for (auto *candidate : liveProcesses) {
++            if (candidate->pgid() == group)
++                targets.push_back(candidate);
++        }
++    } else { // pid == -1
++        targets = liveProcesses;
 +    }
-+    if (target == nullptr)
++    if (targets.empty())
 +        return static_cast<RegVal>(-ESRCH);
 +    if (sig == 0)
 +        return 0;
-+
-+    postProcessSignal(target, sig, siCode);
++    for (auto *target : targets)
++        postProcessSignal(target, sig, siCode);
 +    return 0;
 +}
 +
@@ -3057,6 +3382,12 @@ index 0000000..06448a6
 +        thread.pending &= ~signalBit(sig);
 +        const Addr resumePc = tc->pcState().instAddr();
 +        deliverSignal(tc, process, sig, resumePc, siCode);
++    } else if (interruptNanosleep(tc, process, thread)) {
++        // Same shape for nanosleep(2): EINTR plus the remaining time, and the
++        // handler resumes after the trap (the PC has not advanced yet).
++        thread.pending &= ~signalBit(sig);
++        const Addr resumePc = tc->pcState().instAddr() + 4;
++        deliverSignal(tc, process, sig, resumePc, siCode);
 +    }
 +    if (tc->status() == ThreadContext::Suspended)
 +        tc->activate();
@@ -3089,12 +3420,43 @@ index 0000000..06448a6
 +{
 +    if (sig < 0 || sig > NumSignals)
 +        return static_cast<RegVal>(-EINVAL);
++    // Linux: tkill's pid <= 0 is EINVAL (sys_tkill), and an unknown tid is
++    // ESRCH.
++    if (tid <= 0)
++        return static_cast<RegVal>(-EINVAL);
 +    DadaoISA::ThreadState *thread = process->findThreadByTid(tid);
 +    if (thread == nullptr)
 +        return static_cast<RegVal>(-ESRCH);
 +    if (sig == 0)
 +        return 0;
 +    queueThreadSignal(process, *thread, sig, siCode);
++    return 0;
++}
++
++/** tgkill(2): a thread of a specific thread group.
++ *
++ * Linux (kernel/signal.c: sys_tgkill / do_send_specific): pid <= 0 or
++ * tgid <= 0 is EINVAL; the (tgid, tid) pair must name a live task of that
++ * group, and any mismatch is ESRCH (not EINVAL) so that a recycled tid cannot
++ * be signalled by a stale tgid.
++ */
++RegVal
++doTgkill(DadaoISA::Process *caller, int tgid, int tid, int sig)
++{
++    if (sig < 0 || sig > NumSignals)
++        return static_cast<RegVal>(-EINVAL);
++    if (tgid <= 0 || tid <= 0)
++        return static_cast<RegVal>(-EINVAL);
++
++    DadaoISA::Process *target = findLiveProcess(tgid);
++    if (target == nullptr)
++        return static_cast<RegVal>(-ESRCH);
++    DadaoISA::ThreadState *thread = target->findThreadByTid(tid);
++    if (thread == nullptr)
++        return static_cast<RegVal>(-ESRCH);
++    if (sig == 0)
++        return 0;
++    queueThreadSignal(target, *thread, sig, SiTkill);
 +    return 0;
 +}
 +
@@ -3452,6 +3814,7 @@ index 0000000..06448a6
 +    // A thread cannot be asleep in the kernel while it runs SYS_exit, but a
 +    // timed wait queued for it must never fire against a dead context.
 +    dropFutexWaiters(process, cid);
++    dropThreadSleepWaiters(process, cid);
 +
 +    // exit_robust_list(): orphan every robust mutex this thread still owns.
 +    processRobustList(tc, process, snapshot);
@@ -3515,6 +3878,7 @@ index 0000000..06448a6
 +    }
 +
 +    dropProcessFutexWaiters(process);
++    dropProcessSleepWaiters(process);
 +    for (auto &entry : process->threads)
 +        entry.second.live = false;
 +    process->threads.clear();
@@ -4127,6 +4491,9 @@ index 0000000..06448a6
 +    pp->kvmInSE = process->kvmInSE;
 +    pp->pid = pid;
 +    pp->ppid = process->pid();
++    // Linux fork(2)/clone(2) without CLONE_THREAD places the child in the
++    // parent's process group; kill(0, sig) and wait4(0, ...) need it.
++    pp->pgid = process->pgid();
 +    auto *child = dynamic_cast<DadaoISA::Process *>(pp->create());
 +    fatal_if(child == nullptr, "DADAO SE: clone: loader produced no DADAO process");
 +
@@ -4284,6 +4651,18 @@ index 0000000..06448a6
 +        return;
 +    }
 +
++    // Readability is checked here, before the loader: gem5's ImageFileData
++    // fatals when the file cannot be opened, while execve must report the
++    // host's errno (a mode-0000 ELF is EACCES).  The open also catches the
++    // other "cannot even read it" failures (ELOOP, EMFILE, ENOMEM, ...) so
++    // they never reach the fatal path.
++    const int probeFd = ::open(hostPath.c_str(), O_RDONLY);
++    if (probeFd < 0) {
++        result = static_cast<RegVal>(-errno);
++        return;
++    }
++    ::close(probeFd);
++
 +    loader::ObjectFile *obj = loader::createObjectFile(hostPath);
 +    if (obj == nullptr) {
 +        result = static_cast<RegVal>(-ENOEXEC);
@@ -4322,6 +4701,7 @@ index 0000000..06448a6
 +    pp->kvmInSE = process->kvmInSE;
 +    pp->pid = process->pid();
 +    pp->ppid = process->ppid();
++    pp->pgid = process->pgid(); // execve(2) keeps the process group
 +
 +    // The PID stays reserved by this image until the new one takes it over.
 +    process->system->PIDs.erase(process->pid());
@@ -4385,6 +4765,7 @@ index 0000000..06448a6
 +        newThread.blocked = oldThread.blocked;
 +        newThread.altStackSp = oldThread.altStackSp;
 +        newThread.altStackSize = oldThread.altStackSize;
++        newThread.altStackFlags = oldThread.altStackFlags;
 +    }
 +
 +    // initState() leaves PCState(entry) (npc = entry + 4), but the CPU advances
@@ -4417,14 +4798,21 @@ index 0000000..06448a6
 +    };
 +
 +    DadaoISA::Process *found = nullptr;
++    // Linux reports ECHILD when no child *matches* the request, even if other
++    // children exist and are alive; only a matching child that has not exited
++    // keeps the caller waiting.
++    bool anyMatch = false;
 +    for (auto *child : process->children) {
-+        if (child->hasExited && matches(child)) {
++        if (!matches(child))
++            continue;
++        anyMatch = true;
++        if (child->hasExited) {
 +            found = child;
 +            break;
 +        }
 +    }
 +    if (found == nullptr) {
-+        if (process->children.empty())
++        if (!anyMatch)
 +            return static_cast<RegVal>(-ECHILD);
 +        if (options & WaitNoHang)
 +            return 0;
@@ -4449,6 +4837,10 @@ index 0000000..06448a6
 +    process->children.erase(std::remove(process->children.begin(),
 +                                        process->children.end(), found),
 +                            process->children.end());
++    // Linux frees the pid when the zombie is reaped, so the slot can be
++    // reused.  Without this the SE pid table only ever grows and fork(2)
++    // eventually dies at System::maxPID.
++    process->system->PIDs.erase(found->pid());
 +    return childPid;
 +}
 +
@@ -4498,6 +4890,7 @@ index 0000000..06448a6
 +    bool retry = false;
 +    bool suspendSelf = false;
 +    bool futexParked = false;
++    bool sleepParked = false;
 +    syscallRetry = false;
 +
 +    switch (nr) {
@@ -4604,12 +4997,8 @@ index 0000000..06448a6
 +      case SysTgkill: {
 +        const int tgid = static_cast<int>(tc->getReg(rd(16)));
 +        const int tid = static_cast<int>(tc->getReg(rd(17)));
-+        if (tgid != static_cast<int>(process->pid()))
-+            result = static_cast<RegVal>(-ESRCH);
-+        else
-+            result = doThreadKill(process, tid,
-+                                  static_cast<int>(tc->getReg(rd(18))),
-+                                  SiTkill);
++        result = doTgkill(process, tgid, tid,
++                          static_cast<int>(tc->getReg(rd(18))));
 +        break;
 +      }
 +
@@ -4883,10 +5272,14 @@ index 0000000..06448a6
 +      case SysFaccessat2: {
 +        // faccessat2 is the flag-carrying form musl tries first when the
 +        // caller passes AT_EACCESS/AT_SYMLINK_NOFOLLOW; both share one body.
++        // The legacy faccessat has no flags argument at all, so it must not
++        // read rd18 (musl leaves an unrelated value there).
 +        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
 +        const Addr path = tc->getReg(rb(16));
 +        const int mode = static_cast<int>(tc->getReg(rd(17)));
-+        const int flags = static_cast<int>(tc->getReg(rd(18)));
++        const int flags = nr == SysFaccessat2
++                              ? static_cast<int>(tc->getReg(rd(18)))
++                              : 0;
 +        result = doFaccessat(tc, process, dirfd, path, mode, flags);
 +        break;
 +      }
@@ -4960,7 +5353,10 @@ index 0000000..06448a6
 +
 +      case SysNanosleep: {
 +        const Addr req = tc->getReg(rb(16));
-+        result = doNanosleep(tc, req);
++        const Addr rem = tc->getReg(rb(17));
++        result = doNanosleep(tc, process, req, rem, sleepParked);
++        if (sleepParked)
++            return; // the result is written by the deadline event
 +        break;
 +      }
 +

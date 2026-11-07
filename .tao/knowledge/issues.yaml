@@ -65,3 +65,12 @@
     （Linux 返回 EPERM）；`FUTEX_REQUEUE` 返回值语义（唤醒+改挂之和）待与内核/QEMU 对齐；
     `parkOnFutex` 在等待队列 deadline 分支提前返回时漏 `delete FutexWaiter`（宿主内存小泄漏）。
     语料当前不可达；随下一次 futex 任务修。
+
+- id: ISS-346
+  scope: [gem5]
+  status: open
+  resolved_by: null
+  title: >-
+    【P3】gem5 SE 未实现 `chmod`/`fchmodat`：`GEM5-029t` 探针只能用 mode 000 创建文件来构造
+    `EACCES` 场景。QEMU linux-user 有对应实现（模拟器内改宿主文件权限）；按「QEMU 实现了的
+    syscall 必须对齐」的口径应补实现，并加双引擎探针。

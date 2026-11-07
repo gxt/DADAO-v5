@@ -31,6 +31,7 @@ linux-user/dadao/termbits.h.patch
 linux-user/meson.build.patch
 linux-user/mmap.c.patch
 linux-user/qemu.h.patch
+linux-user/signal.c.patch
 linux-user/syscall.c.patch
 linux-user/syscall_defs.h.patch
 linux-user/user-mmap.h.patch

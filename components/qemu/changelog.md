@@ -289,3 +289,7 @@
 - **2026-11-06 `INTEG-058t`**
   - 摘要：**转换指令舍入编码三分（ADR-0050 / SPEC-194t）落地**：8 条 `f2i`、6 条不精确 `i2f` 与 `fo2ft` 的 immu6 改为六档 one-hot（`0x01`/`0x02`/`0x04`/`0x08`/`0x10`/`0x20`），`0x20` 读 `rf0[33:32]`、静态档不受 rf0 影响；`ft2fo`/`it2fo`/`ut2fo` 校验 SBZ=0；18 条转换改单寄存器、去掉旧计数循环与 `mreg_*` 校验；复制类 `ft2ft`/`fo2fo` 仍按 1–63 计数与重叠规则。`helper_fp_cvt_f2i` 改用按方向舍入的 softfloat 入口并按 D5 合并 NX（有限不精确）与 NV（NaN/Inf/越界饱和、不置 NX）；`fo2ft` 溢出按契约恒返 ±Inf + OF|NX。补丁 2 份改（`helper.c`/`trans_fp.c.inc`），`make_patch.py` 重导出。
   - 执行者：engineer
+
+- **2026-11-07 `GEM5-029t`**
+  - 摘要：**`sigaltstack(2)` 的 `SS_AUTODISARM` 支持（用户裁定 2026-11-07：gem5 按 Linux 实现，同时给 QEMU 补 patch）**。`linux-user/signal.c`：`on_sig_stack()` 在 `sas_ss_flags` 带 `SS_AUTODISARM` 时按 Linux 返回 0；`target_save_altstack()` 回写 `sas_ss_flags(sp) | (ss_flags & SS_FLAG_BITS)`；`target_restore_altstack()` 改为按 `ss_flags & ~SS_FLAG_BITS` 判模式（接受 `SS_AUTODISARM`，仅未知位 `EINVAL`）并记录 `ss_flags`。`linux-user/dadao/signal.c`：`setup_ucontext()` 保存 `uc_stack` 后按 `sas_ss_reset` 语义禁用自动拆除的备用栈，由 sigreturn 从帧恢复。此前 QEMU 对 `SS_AUTODISARM` 返回 `EINVAL`，与 Linux 不符，使双引擎探针无法以 QEMU 为 oracle。
+  - 执行者：engineer

@@ -1,9 +1,9 @@
 diff --git a/linux-user/dadao/signal.c b/linux-user/dadao/signal.c
 new file mode 100644
-index 0000000..b36108c
+index 0000000..9f45a08
 --- /dev/null
 +++ b/linux-user/dadao/signal.c
-@@ -0,0 +1,234 @@
+@@ -0,0 +1,250 @@
 +/*
 + * DADAO signal frames for linux-user (P3).
 + *
@@ -132,6 +132,22 @@ index 0000000..b36108c
 +    __put_user(0, &uc->uc_link);
 +
 +    target_save_altstack(&uc->uc_stack, env);
++
++    /*
++     * signal_delivered(): an SS_AUTODISARM stack is disabled while the
++     * handler runs and comes back from the frame's uc_stack on sigreturn
++     * (kernel/signal.c: sas_ss_reset).  The save above already captured the
++     * descriptor the handler must get back.
++     */
++    {
++        TaskState *ts = get_task_state(thread_cpu);
++
++        if (ts->sigaltstack_used.ss_flags & TARGET_SS_AUTODISARM) {
++            ts->sigaltstack_used.ss_sp = 0;
++            ts->sigaltstack_used.ss_size = 0;
++            ts->sigaltstack_used.ss_flags = TARGET_SS_DISABLE;
++        }
++    }
 +
 +    for (i = 0; i < TARGET_NSIG_WORDS; i++) {
 +        __put_user(set->sig[i], &uc->uc_sigmask.sig[i]);

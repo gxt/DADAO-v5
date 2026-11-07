@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/process.hh b/src/arch/dadao/process.hh
 new file mode 100644
-index 0000000..4904243
+index 0000000..d3034e6
 --- /dev/null
 +++ b/src/arch/dadao/process.hh
-@@ -0,0 +1,171 @@
+@@ -0,0 +1,174 @@
 +// DADAO syscall-emulation process: static ET_EXEC image, initial stack vector
 +// and the SE platform's initial architectural state.
 +//
@@ -97,6 +97,9 @@ index 0000000..4904243
 +    int pendingCode[65] = {};    // siginfo si_code of a pending signal
 +    Addr altStackSp = 0;
 +    uint64_t altStackSize = 0;   // 0 == SS_DISABLE
++    /** The SS_* flags the guest installed (SS_AUTODISARM is the only bit the
++     *  kernel keeps; SS_DISABLE/SS_ONSTACK are derived from size/SP). */
++    int altStackFlags = 0;
 +    /** Non-zero while this thread sleeps on a futex (GEM5-026t): the futex
 +     *  wait queue keeps the completion state, this is only the address, so an
 +     *  exiting thread can be dropped from the queue. */
