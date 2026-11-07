@@ -21,6 +21,11 @@ key fails loudly instead of prompting.  ``--local`` skips ssh and runs the
 same scripts on this host (self-test only); node labels still come from
 ``--hosts``.
 
+``--repo`` may start with ``~/``: it is expanded against the *remote* ``$HOME``
+(quoting a path would stop the shell from expanding it).  If the directory can
+not be entered the node fails with rc=2 and no status lines are printed - a
+node whose repository is missing must never look like a clean node.
+
 Exit status is 0 only when every node succeeded; the final summary always
 prints ``host -> rc``.
 """
@@ -40,8 +45,18 @@ SSH_BASE = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10"]
 LOG_PREFIX = "INFRA-130t"
 
 STATUS_SCRIPT = r"""set -u
-printf 'commit=%s\n' "$(git rev-parse HEAD 2>&1 | head -n1)"
-dirty="$(git status --porcelain 2>/dev/null)"
+if ! commit="$(git rev-parse HEAD 2>&1)"; then
+  printf 'commit=MISSING\n'
+  printf 'commit_error=%s\n' "$commit"
+  exit 2
+fi
+printf 'commit=%s\n' "$commit"
+if ! dirty="$(git status --porcelain 2>/dev/null)"; then
+  printf 'worktree=UNKNOWN\n'
+  printf 'dirty_files=UNKNOWN\n'
+  printf 'status_error=git status failed\n'
+  exit 2
+fi
 if [ -n "$dirty" ]; then printf 'worktree=dirty\n'; else printf 'worktree=clean\n'; fi
 files=0
 if [ -n "$dirty" ]; then files=$(printf '%s\n' "$dirty" | wc -l | tr -d ' '); fi
@@ -177,12 +192,47 @@ def log_root(args: argparse.Namespace) -> Path:
     return root if root.is_absolute() else REPO_ROOT / root
 
 
+def quote_remote_path(path: str) -> str:
+    """Quote *path* for a remote shell, expanding a leading ``~/`` correctly.
+
+    ``shlex.quote`` protects the path but also neutralises a leading ``~``, so
+    the shell would look for a literal directory named ``~``.  A path starting
+    with ``~/`` is therefore rebuilt as ``"$HOME"/rest``; other ``~user`` forms
+    are rejected instead of silently mis-expanding.
+    """
+    if path == "~":
+        return '"$HOME"'
+    if path.startswith("~/"):
+        rest = path[2:]
+        return '"$HOME"/' + (shlex.quote(rest) if rest else '""')
+    if path.startswith("~"):
+        fail(f"only '~/' (or '~') is supported for remote paths, got {path!r}")
+    return shlex.quote(path)
+
+
+def enter_repo(repo: str) -> str:
+    """Return a preamble that enters *repo* or aborts the whole script.
+
+    A plain ``cd PATH && <multi-line script>`` only guards the first line: the
+    remaining lines still run and the final command decides the exit status,
+    which turns a missing repository into a fake PASS.
+    """
+    return (
+        f"repo_dir={quote_remote_path(repo)}\n"
+        'if ! CDPATH= cd "$repo_dir"; then\n'
+        "  printf 'remote.py: repository not found: %s\\n' \"$repo_dir\" >&2\n"
+        "  exit 2\n"
+        "fi\n"
+        "unset repo_dir\n"
+    )
+
+
 def build_shell(args: argparse.Namespace, host: str, script: str) -> list[str]:
     """Return the argv that runs *script* on one node."""
+    payload = enter_repo(args.repo) + script
     if args.local:
-        return ["bash", "-c", f"cd {shlex.quote(args.repo)} && {script}"]
-    remote = f"cd {shlex.quote(args.repo)} && {script}"
-    return [*SSH_BASE, *args.ssh_arg, host, remote]
+        return ["bash", "-c", payload]
+    return [*SSH_BASE, *args.ssh_arg, host, payload]
 
 
 def run_node(args: argparse.Namespace, host: str, script: str, *, binary: bool = False) -> subprocess.CompletedProcess:
@@ -279,9 +329,12 @@ def command_collect(args: argparse.Namespace) -> int:
     if not dest_root.is_absolute():
         dest_root = REPO_ROOT / dest_root
     script = (
-        f"test -d {shlex.quote(args.remote_dir)} || "
-        f"{{ printf 'collect: remote directory not found: %s\\n' {shlex.quote(args.remote_dir)} >&2; exit 2; }}; "
-        f"tar -C {shlex.quote(args.remote_dir)} -czf - ."
+        f"remote_dir={quote_remote_path(args.remote_dir)}\n"
+        'if [ ! -d "$remote_dir" ]; then\n'
+        "  printf 'collect: remote directory not found: %s\\n' \"$remote_dir\" >&2\n"
+        "  exit 2\n"
+        "fi\n"
+        'tar -C "$remote_dir" -czf - .'
     )
 
     def one(host: str):
@@ -309,7 +362,7 @@ def command_collect(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--hosts", help="comma/space separated node list (default: $DADAO_NODES)")
-    common.add_argument("--repo", default="", help="remote repository path (required)")
+    common.add_argument("--repo", default="", help="remote repository path (required; a leading ~/ is expanded on the node)")
     common.add_argument("--log-dir", default=".work/log/infra/INFRA-130t/remote", help="local log directory (repo-relative by default)")
     common.add_argument("--jobs", type=int, default=8, help="parallel nodes (default: 8)")
     common.add_argument("--local", action="store_true", help="run on this host instead of ssh (self-test only)")
@@ -329,7 +382,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.set_defaults(func=command_run)
 
     collect = sub.add_parser("collect", parents=[common], help="fetch a remote directory")
-    collect.add_argument("--remote-dir", required=True, help="remote directory to copy")
+    collect.add_argument("--remote-dir", required=True, help="remote directory to copy (a leading ~/ is expanded on the node)")
     collect.add_argument("--dest-dir", required=True, help="local destination root (one subdirectory per host)")
     collect.set_defaults(func=command_collect)
 
