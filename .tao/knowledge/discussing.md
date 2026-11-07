@@ -58,6 +58,12 @@
 
 **Open issue**：0。
 
+## 2026-11-07 用户批准：QEMU SS_AUTODISARM 补丁
+
+- `GEM5-029t` 为使 QEMU 与 Linux 一致，改了 `components/qemu/linux-user/{signal.c,dadao/signal.c}`（`SS_AUTODISARM`）。任务书本写「不在范围：QEMU」，属跨模块变更。
+- **用户裁定（原话）：「同意」**——保留该补丁；它只是给 QEMU 补 Linux 已有语义，不改变对照方向。
+- 收尾时把该批准与补丁范围写进任务书；QEMU 侧仍须 `build-qemu`/`install-host` 绿。
+
 ## 2026-11-07 并发派单事故（watchdog）
 
 - **事实**：另一会话（`lecnotes`，2026-10-25 创建）在 13:31 自行派了 `GEM5-027t` engineer 子代理，工作目录在 OpenCode 数据目录下的 worktree，并开始 `make build-gem5`；与本会话的 `GEM5-029t` 共用 `.work/source/gem5`，形成两个 gem5 写者。
