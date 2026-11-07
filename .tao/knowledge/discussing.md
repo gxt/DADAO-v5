@@ -40,6 +40,7 @@
 - `TESTCASES-103t`（待开始，依赖 023t）：SE 基线预算 120s→按套件 600s，`timeout` 单列。
 - `TESTCASES-104t`（待开始，依赖 027t/028t）：SE 动态档驱动 + QEMU dynamic 基线刷新 + 全量对照。
 - `INTEG-059t`（待开始，依赖 023t–028t + 103t/104t）：G3 完整 tset 双向一致性 + 矩阵重生成。
+- `INTEG-060t`（待开始，依赖 026t）：gem5 SE 参数 bank 三方 argmask 门控 + 路径解析探针（防 rd/rb 混用、dirfd/redirect 拼接错误）。
 - M11 `m` 册：G3 收口后另立。
 
 **本轮范围裁定（architect，按调研结论；可推翻）**：
