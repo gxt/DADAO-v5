@@ -50,6 +50,14 @@
 - **未装**：OpenCode、任何 AI 会话运行时（节点纯执行）。
 - 这些包名与版本判据已固化进 `tools/infra/bootstrap_node.sh` 的 step 1 预检；缺包时脚本只**报告待安装清单**并退出非零，不擅自 `apt install`。
 
+### 4.2.1 ccache
+
+- 节点装了 `ccache 4.9.1`，且构建**确实在用**（`Makefile` 把 `ccache` 接到 LLVM 的 CMake launcher 与 QEMU 的 `CC/CXX` 前缀）。
+- **不要整份复制主控机的 `~/.config/ccache/ccache.conf`**：其中的 `cache_dir = /mnt/tao/ccache` 是主控机大磁盘路径，节点不存在。
+- 节点口径：`cache_dir` 保持默认本地路径；`max_size = 50G`（默认 5G 在首次 LLVM 构建后就到 4.0G，会开始淘汰）；其余项保持默认（不设 `sloppiness`、不设 `base_dir`）。
+- **不做跨机共享缓存**：主控机构建路径 `/mnt/tao/...` 与节点 `/home/gxt/...` 不同，ccache 命中键含路径，要共享就得改 `base_dir`/哈希语义，正确性风险大于收益。
+
+
 ### 4.3 工具链（仓库内自建，不是系统包）
 
 - 节点上的 `clang` / `qemu-dadao` 来自**仓库内构建并安装**的 `.dadao/cross-toolchain/`，不是 apt 包。
