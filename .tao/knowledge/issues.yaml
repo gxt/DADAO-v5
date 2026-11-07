@@ -103,3 +103,13 @@
     FAIL `gem5: missing bare repository`，但根因在主控机。实测两台节点的 `gem5.git` 都在且
     含锁定的 commit（19M），**可离线回拷**（无需公网）。修复方式：把节点 `.cache/gem5.git`
     rsync 回主控机并校验 `git cat-file -e <commit>`，再跑 `sync_cache.py` 复核。
+
+- id: ISS-350
+  scope: [infra]
+  status: open
+  resolved_by: null
+  title: >-
+    【P3】两台节点的 chipyard 子模块集合与主控机不同（节点 30 / 主控机 34）：
+    `riscv-pk`/`riscv-tests`/`libgloss`/`riscv-spike-devices` 未初始化（脚本 blocklist）。
+    若后续 RTL 线要用 riscv-tests 作负载，或要编 chipyard `tests/` 裸机用例（还需
+    `htif_nano.specs`），须另行初始化这些子模块并补 htif 支持。

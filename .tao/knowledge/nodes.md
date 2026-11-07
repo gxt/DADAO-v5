@@ -143,7 +143,7 @@
 - 环境在 `<repo>/.work/source/chipyard/.conda-env`（**repo 相对路径**，与 chipyard 默认一致）：约 **6.1 GiB**（含 riscv-tools 626 MiB）。
 - 版本：`verilator 5.022`、`openjdk 20.0.2`、`sbt`（conda 包）、`riscv64-unknown-elf-gcc 13.2.0`、`riscv64-unknown-linux-gnu-gcc 13.2.0`、`firtool`（CIRCT 1.75.0 / LLVM 19.0.0git）。
 - riscv 工具在 `<env>/riscv-tools/bin`，由 `activate.d/activate-riscv-tools.sh` 注入 PATH；`sims/` 的构建还需要 `RISCV=<env>/riscv-tools`。
-- chipyard 源码 + 最小子模块约 **2.9 GiB**。最小子模块集由 `scripts/init-submodules-no-riscv-tools.sh` 决定（默认 29/55，其余为可选加速器/核）。
+- chipyard 源码 + 最小子模块约 **2.9 GiB**。最小子模块集由 `scripts/init-submodules-no-riscv-tools.sh` 决定（两台实测 **30/55**，其余 25 个均在脚本 blocklist 内：可选加速器/核 + `riscv-pk`/`riscv-tests`/`libgloss`/`riscv-spike-devices`）。
 
 ### 11.2 建环境时必须补的三处（官方 `build-setup.sh` 之外）
 
