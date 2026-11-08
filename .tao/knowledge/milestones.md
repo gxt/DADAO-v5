@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-138t | 待开始 | 2026-11-08 10:30（登记） | chipyard 子模块离线镜像 + fetch/sync_cache 集成 |
 | INFRA-133t | 已验证 | 2026-11-08 10:26 | 节点 chipyard/Verilator/RISC-V 环境；两台 RocketConfig 构建通过、conda 包一致 |
 | SPEC-195t | 已验证 | 2026-11-08 09:44 | Machine-v5 发布 0.4.0；版本与变更记录按重要性重排（8 组带标签） |
 | GEM5-027t | 已验证 | 2026-11-08 09:43 | SE 动态装载器：ET_EXEC+PT_INTERP、auxv（宿主 creds）、--interp-dir/--redirect |
