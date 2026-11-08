@@ -91,6 +91,13 @@
 - 用户决定改回磁盘，但**推迟到明天，由用户自行找时间执行**；`sudo` 由用户操作。
 - **不要再主动提醒重启**；切换前置 = `/tmp/opencode` 下无活动 worktree（当前有任务在跑，届时由主会话在切换前清理/迁移）。
 
+## 2026-11-08 机器命名最终口径（用户裁定）
+
+- **机器名**：`dadao-tiny` / **`dadao-vast`**（不再用 `dadao-m1`，也不再考虑 `dadao-node`/`mega`/`huge`）。
+- **范围 B（一次到位）**：profile 概念同步改名 **Tiny / Vast**（`Machine-v5 §1`、`profile=tiny|vast`、`DADAO_TEST_PROFILE=tiny|vast`、qemu profile 字符串、contracts、docs）。
+- **不改**：已 Accepted 的 ADR 原文（历史记录）、历史任务书、组件 changelog。
+- **已授权**：`spec/Machine-v5` 的机器名/profile 改名 + 同笔更新只读锁；contracts 命令行示例同步。
+
 ## 2026-11-08 M12 计划修订（用户裁定）
 
 - **riscv-tests 移出 M12**：M12 只用 `inst`/`tset` 中已被 qemu/gem5 验证过的子集；riscv-tests 的移植与调整放 **M13**（下一波专门讨论）。
