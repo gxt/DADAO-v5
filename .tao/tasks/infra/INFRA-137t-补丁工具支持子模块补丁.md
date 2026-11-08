@@ -52,7 +52,11 @@ submodule_patches = [{ name = "testchipip", path = "generators/testchipip" }]
 
 ### 4. `check_patch_tree.py`
 
-- **父仓**：期望树 = base 树 + 父仓补丁，**并把 `<path>` 的 gitlink 覆盖为子模块 HEAD**；断言 ④⑥ 只针对父仓补丁条目（子模块补丁不得参与 scratch-index 应用）。
+- **父仓**：期望树 = base 树 + 父仓补丁，**并把 `<path>` 的 gitlink 覆盖为「本机子模块 HEAD」**；断言 ④⑥ 只针对父仓补丁条目（子模块补丁不得参与 scratch-index 应用）。
+- **跨机比较口径（关键）**：子模块的补丁提交由各机 `apply-series` **本地生成**，其 SHA 含时间戳 ⇒ 父仓 gitlink 的值**逐机不同**。因此：
+  - 父仓「期望树」只能在本机内部自洽（用本机子模块 HEAD 代入），**禁止**把父仓 tree hash 与 gitlink SHA 跨机比较；
+  - 跨机一致性一律比 **子模块 tree hash**（与组件层现有「比 tree 不比 commit id」口径一致）；
+  - 任何断言不得要求两台机器的 gitlink SHA 相等。
 - **子模块**：断言「HEAD == 子模块 base + 1」「worktree clean」「HEAD 树 == base 树 + 子模块补丁」。
 - 断言 ⑦⑧（`--source-state`）对父仓仍适用；子模块的 clean/base+1 作为**新增断言**（编号顺延，文档同步）。
 - 输出须逐条可读：`chipyard:testchipip: assertion N: …`。
@@ -88,6 +92,7 @@ submodule_patches = [{ name = "testchipip", path = "generators/testchipip" }]
 
 ## 说明
 
+- 子模块 `generators/testchipip` 当前 base = `26f821be94252b9c4c83511a3376a51ffc138551`（父仓 gitlink，chipyard 共 55 个子模块；`sims/verilator` 属 chipyard 自身，不在本次改动内）。
 - 这是**主流程改动**，务必先记录改前的 `check-patch-tree`/`check-source-state`/`apply-series` 输出作为基线，再逐项对照。
 - 允许分两次提交（工具+清单、文档），但同一次下发内完成。
 - 若实现中发现设计与现有断言不可兼容（例如 ⑦⑧ 依赖单一 HEAD），**停下报告**并给出替代设计，不要私自放宽断言。
