@@ -41,7 +41,7 @@
 ## 技术风险（必须在完成区给结论）
 
 - **`BaseTile` 自写端口**：不与 `CoreParams` 绑定时，`BaseTile` 的哪些抽象成员必须实现（`HartidKey`/`TileVisibilityNodeKey`/中断节点）——逐项记录。
-- **边界确认**：本方案的「不用 Rocket」= 不用 Rocket **核**与 RISC-V 语义（CSR/MMU/TLB/misa/异常码）；**保留** rocket-chip 库的 Diplomacy/TileLink/`BaseTile` 与 chipyard 仿真基础设施（BootROM/内存模型/Verilator harness）。
+- **边界（用户裁定 A，2026-11-08）**：抛开 Rocket **核**与 RISC-V 语义（CSR/MMU/TLB/misa/异常码）；**保留** rocket-chip 库的 Diplomacy/TileLink/`BaseTile` 与 chipyard 仿真基础设施（BootROM/内存模型/Verilator harness）。
 
 ## 说明
 

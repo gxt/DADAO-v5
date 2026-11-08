@@ -48,6 +48,7 @@
 - **chipyard 构建/运行/调试全部在 `server207`**，串行；**所有对仓库的修改仍在主控机**（已写入 `AGENTS.md` 与 `nodes.md`）。
 - **m 册门控取消**（用户选 B）：由 `m12-infra-002` 执行；M11 收口改用 `INTEG-061t` 核验（无 m 后缀）。
 - **判据**：Tiny 阶段不涉及 syscall；测试判据 = 与 qemu/gem5 一致，**不用独立 oracle**。
+- **rocket 边界 = A（用户 2026-11-08）**：抛开 **Rocket 核**与 RISC-V 语义（CSR/misa/PMP/MMU/TLB/异常码），**保留** rocket-chip 库（Diplomacy / TileLink / `BaseTile`）与 chipyard 仿真基础设施（Verilator harness / BootROM / 内存模型 / `loadmem`）；核完全自研，只挂在 TL 上。
 - **`dadao-wuming` 外壳 = B（用户 2026-11-08）**：自写最小 Tile（只用 `BaseTile` 接口 + 自己声明 TL 端口），**不继承 `CoreParams`** 的 RISC-V 语义（misa/PMP/mtvec/断点/异常码）；参考实现虽走 `BaseTile + CoreParams`，但本仓库不沿用其语义壳。
 
 ## 机器命名定稿（用户裁定）
