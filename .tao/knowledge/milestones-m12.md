@@ -29,13 +29,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m12-integ-001 | 2026-11-09 02:27 | 0.5–1 h | 移除过渡别名（`dadao-m1`、`profile=node`） |
 | m12-chipyard-002 | 2026-11-09 01:27 | 2–3 h | Tiny 地址图落地（BootROM `0xffff_ffff_0000` + SRAM 8 MiB，paddrBits≥48） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m12-integ-001 | 2026-11-09 03:17 | 移除过渡别名（`dadao-m1`、`profile=node`） |
 | m12-testcases-001 | 2026-11-09 02:27 | 测试与 profile 迁移到 `tiny`/`vast`（yaml/inc/env/46 文件） |
 | m12-chipyard-001 | 2026-11-09 01:25 | chipyard 补丁集接入 + `dadao-wuming` 最小骨架（外壳 B，core 桩） |
 | m12-infra-002 | 2026-11-09 01:25 | 取消 m 册门控（m 册从必需改为可选，其余校验项保留） |

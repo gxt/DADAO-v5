@@ -91,9 +91,6 @@ def _split_kv(value: str, what: str) -> list[tuple[str, str]]:
 # M12 (`spec/Machine-v5 §1`): the profile is fixed by the machine name; the
 # two machines are separate `-M` entries (no `profile=` property).
 FIXED_MACHINES = {"dadao-tiny": "tiny", "dadao-vast": "vast"}
-# `node` is the pre-M12 spelling of the Vast profile; accepted as an alias
-# (environment / legacy callers) until m12-integ-001, never returned.
-PROFILE_ALIASES = {"node": "vast"}
 
 
 def parse_machine(value: str) -> tuple[str | None, str | None, str | None]:
@@ -263,7 +260,6 @@ def parse(argv: list[str]) -> dict:
 
 def build_gem5_argv(cfg: dict, outdir: str, gem5: str, config: str) -> list[str]:
     profile = cfg["profile"] or os.environ.get("PARITY_GEM5_PROFILE", "tiny")
-    profile = PROFILE_ALIASES.get(profile, profile)
     if profile not in ("tiny", "vast"):
         raise ShimError(f"profile {profile!r} unsupported")
     bootrom = cfg["bootrom"] or os.environ.get("PARITY_GEM5_BOOTROM")

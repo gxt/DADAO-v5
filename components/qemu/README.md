@@ -5,7 +5,7 @@ DADAO 的 QEMU 目标（CPU 模型 + 解码 + 标量执行 + 裸机测试机）�
 ## 机器（machine）
 
 - 两台机器类型（M12 起，`spec/Machine-v5 §1`）：`-M dadao-tiny`（64 KiB BootROM + 8 MiB SRAM，无 cfx/PTW）与 `-M dadao-vast`（4 MiB BootROM + 2 GiB PA RAM，完整 cfx/PTW）。几何与能力在注册时按机器类型固定（`DadaoProfile`），**不再有运行期 `profile=` 选择器**。
-- 过渡别名（`deprecated since M12`，仅保留到 `m12-integ-001`）：`-M dadao-m1` 等同 `dadao-tiny`，其 `profile=tiny|vast` 与 `profile=node`（`node` 映射 `vast`）以及 `DADAO_TEST_PROFILE` 环境变量仍可用；`-M help` 中该机型的描述文本标 `(deprecated)`；**未**使用 `MachineClass::deprecation_reason`（其启动警告会带统一 `qemu-system-dadao:` 前缀，被 `tools/testcases/diff_ir_lli.py` 误判为装载拒绝）。
+- 过渡别名已移除（`m12-integ-001`）：旧机器名与旧 profile 名不再接受，`-M help` 只列 `dadao-tiny`/`dadao-vast`；用旧名字启动得到明确的 machine not found / invalid choice 错误，不再静默映射。
 - 安装根 `qemu-system-dadao` 由 `make install-host` 写入（ADR-0016 D9）。
 
 ## 补丁集

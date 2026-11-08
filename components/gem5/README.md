@@ -498,9 +498,9 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   块）、`--max-ticks`、
   `--dump-geometry`、semihosting 选项同 Tiny。
 - **profile 命名**：profile 概念 `Node` → `Vast`（用户裁定 2026-11-08；
-  `spec/Machine-v5` 同版改名）。`--profile node` 是**过渡别名**：映射到
-  `vast` 并在 stderr 打印 deprecated 提示，退出码/输出与 `--profile vast`
-  一致；别名在 `m12-integ-001` 与其它过渡别名一起移除。C++ 侧机器 id
+  `spec/Machine-v5` 同版改名）。过渡别名（`--profile node`）已在
+  `m12-integ-001` 移除：`--profile` 只接受 `tiny`/`vast`，旧名按 argparse
+  invalid choice（rc=2）拒绝，不再映射。C++ 侧机器 id
   （`fs_workload.cc` 的 `profile` 取值、`NodeState`/`node_*` 源文件名）
   不在本次改名范围，Python profile 名由 `fs.py` 映射到该内部 id。
 - **已知限制**：无 cache/时序/设备/GDB/checkpoint/多核；smon 不启动也不验收；

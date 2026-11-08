@@ -1,6 +1,6 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..1d86b8c
+index 0000000..ad3542f
 --- /dev/null
 +++ b/target/dadao/cpu.c
 @@ -0,0 +1,597 @@
@@ -41,12 +41,12 @@ index 0000000..1d86b8c
 + * `vast` is Machine-v5-Vast: 4 MiB BootROM at 0xffff_ffc0_0000 (reset at its
 + * last 64 KiB start), 2 GiB PA RAM at PA 0 (reached through the PTW identity
 + * map), hmon/smon/pmem SRAM, full cfx register file + PTW, hypv/supv/user.
-+ * It backs both `-machine dadao-vast` and the deprecated `dadao-m1,profile=node`
-+ * alias; the canonical DADAO_* macros carry the same geometry.
++ * It backs `-machine dadao-vast`; the canonical DADAO_* macros carry the same
++ * geometry.
 + *
 + * `tiny` is Machine-v5-Tiny: 64 KiB BootROM + 8 MiB SRAM, no cfx (not even
 + * cfx_power), no PTW, no monitor/pmem SRAM, no PA alias, semihosting only.
-+ * It backs `-machine dadao-tiny` (and the deprecated `dadao-m1` alias).
++ * It backs `-machine dadao-tiny`.
 + * =================================================================== */
 +const DadaoProfile dadao_profile_vast = {
 +    .name = "vast",

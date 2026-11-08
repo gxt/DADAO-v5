@@ -303,3 +303,7 @@
 - **2026-11-08 `m12-qemu-001`**
   - 摘要：**拆两台机器 `dadao-tiny` / `dadao-vast`（M12；`spec/Machine-v5 §1`）**：`hw/dadao/dadao-machine.c` 由「单机型 + 运行期 `profile=`」改为按机器类型固定 `DadaoProfile`，注册 `dadao-tiny-machine` / `dadao-vast-machine` / `dadao-m1-machine` 三个 QOM 类型（同一 `DadaoMachineState`/`DadaoMachineClass`，`class_data` 携带 profile）；`profile` 属性只挂在过渡别名 `dadao-m1` 上，`dadao-tiny`/`dadao-vast` 传 `profile=` 直接报 property not found（双入口移除）。`cpu.{h,c}` 的 `dadao_profile_node` → `dadao_profile_vast`（`.name = "vast"`）、`DADAO_NODE_*` 几何宏 → `DADAO_VAST_*`；canonical `DADAO_RAM_*`/`DADAO_ROM_*`/`DADAO_RESET_PC` 口径不变（仍是 Vast 值）。兼容别名（`deprecated since M12`，仅到 `m12-integ-001`）：`dadao-m1` == tiny，`profile=tiny|vast` 与旧值 `node`→vast，`DADAO_TEST_PROFILE` 回退保留；`-M help` 的描述文本标 `(deprecated)`；**未**使用 `mc->deprecation_reason`（启动警告会污染 stderr，被 `diff_ir_lli` 误判为装载拒绝）。补丁 3 份改，`git apply` 重生成（hunk 计数与 index 由 `git diff --cached` 产出）。文档：`README.md` 增「机器（machine）」节。
   - 执行者：engineer
+
+- **2026-11-09 `m12-integ-001`**
+  - 摘要：**移除过渡别名 `dadao-m1` 与 `profile=node`**。`hw/dadao/dadao-machine.c` 删除 `dadao-m1` 机器类型、`profile` 属性、`profile=node`→vast 映射与 `DADAO_TEST_PROFILE` 回退；`DadaoMachineState`/`DadaoMachineDesc`/`DadaoMachineClass` 去掉 `profile`/`legacy_alias` 字段，`dadao_machine_select_profile()` 删除，profile 直接取 `class_data`；错误信息前缀 `dadao-m1:` 改为 `dadao:`，`-M dadao-m1` 现报 machine not found（不再静默映射）。`cpu.{h,c}` 注释同步。补丁 3 份改（hunk 计数由 `git diff <base>` 产出）。`README.md` 记录别名移除。
+  - 执行者：engineer

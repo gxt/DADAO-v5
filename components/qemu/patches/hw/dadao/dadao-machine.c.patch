@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..619d26e
+index 0000000..1fa5818
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,898 @@
+@@ -0,0 +1,774 @@
 +/*
 + * DADAO Machine-v5 bare-metal test machines for QEMU
 + *
@@ -23,9 +23,7 @@ index 0000000..619d26e
 + *
 + * Machine types (M12; spec/Machine-v5 §1): `dadao-tiny` and `dadao-vast` each
 + * fix their profile at the machine type; there is no runtime `profile=`
-+ * selector.  `dadao-m1[,profile=tiny|node]` and the DADAO_TEST_PROFILE
-+ * environment variable remain only as deprecated compatibility aliases
-+ * (`dadao-m1` == tiny, `node` == vast) until m12-integ-001 removes them.
++ * selector and no compatibility machine-name alias.
 + * `vast` is Machine-v5-Vast (spec/Machine-v5 §1.1/§6):
 + *   Boot ROM:   0xffff_ffc0_0000 .. 0xffff_ffff_ffff (4 MiB, RO+X)
 + *   reset vec:  0xffff_ffff_0000 (ROM base + 0x3f_0000; last 64 KiB)
@@ -240,7 +238,7 @@ index 0000000..619d26e
 +    n = read(fd, hdr, sizeof(hdr));
 +    close(fd);
 +    if (n != (ssize_t)sizeof(hdr)) {
-+        error_report("dadao-m1: ELF kernel '%s' is smaller than Elf64_Ehdr",
++        error_report("dadao: ELF kernel '%s' is smaller than Elf64_Ehdr",
 +                     filename);
 +        exit(1);
 +    }
@@ -250,18 +248,18 @@ index 0000000..619d26e
 +              ((uint32_t)hdr[f_off + 2] << 8) | (uint32_t)hdr[f_off + 3];
 +
 +    if (e_type != ET_EXEC) {
-+        error_report("dadao-m1: ELF kernel '%s' has e_type %u, expected "
++        error_report("dadao: ELF kernel '%s' has e_type %u, expected "
 +                     "ET_EXEC (%u)", filename, e_type, ET_EXEC);
 +        exit(1);
 +    }
 +    if ((e_flags & DADAO_EFLAGS_VERSION_MASK) != DADAO_EFLAGS_VERSION_1) {
-+        error_report("dadao-m1: ELF kernel '%s' has e_flags %#x: version "
++        error_report("dadao: ELF kernel '%s' has e_flags %#x: version "
 +                     "(e_flags[7:0]) %u is not 1",
 +                     filename, e_flags, e_flags & DADAO_EFLAGS_VERSION_MASK);
 +        exit(1);
 +    }
 +    if (e_flags & DADAO_EFLAGS_RESERVED_MASK) {
-+        error_report("dadao-m1: ELF kernel '%s' has e_flags %#x with reserved "
++        error_report("dadao: ELF kernel '%s' has e_flags %#x with reserved "
 +                     "bits [31:8] set (must be 0)", filename, e_flags);
 +        exit(1);
 +    }
@@ -282,7 +280,7 @@ index 0000000..619d26e
 +        return 0;
 +    }
 +    if ((uint64_t)size > limit) {
-+        error_report("dadao-m1: %s image '%s' is %" PRId64 " bytes, exceeds the "
++        error_report("dadao: %s image '%s' is %" PRId64 " bytes, exceeds the "
 +                     "%s region size limit of %" PRIu64 " bytes",
 +                     what, filename, size, what, limit);
 +        return -1;
@@ -360,7 +358,7 @@ index 0000000..619d26e
 +
 +        /* consistency: p_filesz <= p_memsz (contract-elf.md §6.1.2) */
 +        if (p_filesz > p_memsz) {
-+            error_report("dadao-m1: ELF kernel '%s': PT_LOAD segment %u has "
++            error_report("dadao: ELF kernel '%s': PT_LOAD segment %u has "
 +                         "p_filesz %#" PRIx64 " > p_memsz %#" PRIx64,
 +                         filename, i, p_filesz, p_memsz);
 +            close(fd);
@@ -375,7 +373,7 @@ index 0000000..619d26e
 +        }
 +        /* VA=PA (contract-elf.md §5.2): the loader places at p_paddr */
 +        if (p_vaddr != p_paddr) {
-+            error_report("dadao-m1: ELF kernel '%s': PT_LOAD segment %u has "
++            error_report("dadao: ELF kernel '%s': PT_LOAD segment %u has "
 +                         "p_vaddr %#" PRIx64 " != p_paddr %#" PRIx64
 +                         " (VA=PA required)",
 +                         filename, i, p_vaddr, p_paddr);
@@ -385,7 +383,7 @@ index 0000000..619d26e
 +        /* range + overflow (contract-elf.md §6.1.2) */
 +        end = p_vaddr + p_memsz;
 +        if (end < p_vaddr) {
-+            error_report("dadao-m1: ELF kernel '%s': PT_LOAD segment %u "
++            error_report("dadao: ELF kernel '%s': PT_LOAD segment %u "
 +                         "interval [%#" PRIx64 ", %#" PRIx64 ") overflows",
 +                         filename, i, p_vaddr, end);
 +            close(fd);
@@ -401,7 +399,7 @@ index 0000000..619d26e
 +            }
 +        }
 +        if (!mapped) {
-+            error_report("dadao-m1: ELF kernel '%s': PT_LOAD segment %u "
++            error_report("dadao: ELF kernel '%s': PT_LOAD segment %u "
 +                         "interval [%#" PRIx64 ", %#" PRIx64 ") is outside the "
 +                         "mapped regions (RAM %#" PRIx64 " + %" PRIu64 " bytes%s)",
 +                         filename, i, p_vaddr, end, (uint64_t)prof->ram_base,
@@ -417,28 +415,22 @@ index 0000000..619d26e
 +    close(fd);
 +}
 +
-+/* DADAO Machine-v5 machine state.  All three registered types share it; only
-+ * the deprecated `dadao-m1` alias exposes the `profile` property. */
++/* DADAO Machine-v5 machine state.  Both registered types share it. */
 +typedef struct DadaoMachineState {
 +    MachineState parent_obj;
 +    /* BootROM image path (ADR-0043 D1/D2); NULL => -bios / ELF paths. */
 +    char *bootrom_image;
-+    /* Deprecated `-machine dadao-m1,profile=<name>` compatibility alias (M12).
-+     * NULL for `dadao-tiny` / `dadao-vast`: their profile is fixed by type. */
-+    char *profile;
 +} DadaoMachineState;
 +
 +/* One registered machine type (M12): the profile is fixed per type. */
 +typedef struct DadaoMachineDesc {
 +    const char *desc;
 +    const DadaoProfile *profile;
-+    bool legacy_alias;          /* pre-M12 `dadao-m1` compatibility name */
 +} DadaoMachineDesc;
 +
 +typedef struct DadaoMachineClass {
 +    MachineClass parent_class;
 +    const DadaoProfile *profile;
-+    bool legacy_alias;
 +} DadaoMachineClass;
 +
 +/* Every registered type uses this instance/class size, so the casts below are
@@ -469,85 +461,6 @@ index 0000000..619d26e
 +    ms->bootrom_image = g_strdup(value);
 +}
 +
-+static char *dadao_machine_get_profile(Object *obj, Error **errp)
-+{
-+    DadaoMachineState *ms = dadao_machine_state(MACHINE(obj));
-+
-+    return g_strdup(ms->profile);
-+}
-+
-+static void dadao_machine_set_profile(Object *obj, const char *value,
-+                                      Error **errp)
-+{
-+    DadaoMachineState *ms = dadao_machine_state(MACHINE(obj));
-+
-+    g_free(ms->profile);
-+    ms->profile = g_strdup(value);
-+}
-+
-+/*
-+ * Deprecated profile aliases (M12): `tiny` stays Tiny, `node` (the pre-M12
-+ * Machine-v5-Node name) maps to Vast.  Only the `dadao-m1` compatibility
-+ * machine consults this; the M12 machine types have no profile selector.
-+ */
-+static const DadaoProfile *dadao_legacy_profile_lookup(const char *name)
-+{
-+    if (g_strcmp0(name, "tiny") == 0) {
-+        return &dadao_profile_tiny;
-+    }
-+    if (g_strcmp0(name, "vast") == 0) {
-+        return &dadao_profile_vast;
-+    }
-+    if (g_strcmp0(name, "node") == 0) {
-+        warn_report("dadao-m1: profile 'node' is deprecated since M12 "
-+                    "(use 'vast' or -machine dadao-vast)");
-+        return &dadao_profile_vast;
-+    }
-+    return NULL;
-+}
-+
-+/*
-+ * Resolve the active profile (M12).  `dadao-tiny` / `dadao-vast` fix it in
-+ * class_init and ignore every selector.  The deprecated `dadao-m1` alias keeps
-+ * the pre-M12 order -- `-machine profile=` beats $DADAO_TEST_PROFILE beats
-+ * tiny -- so the tests can migrate one commit at a time.  An unknown name is a
-+ * hard error, never a silent downgrade.
-+ */
-+static const DadaoProfile *dadao_machine_select_profile(DadaoMachineState *ms,
-+                                                        DadaoMachineClass *dc)
-+{
-+    const char *name;
-+    const char *origin = "-machine profile=";
-+    const DadaoProfile *prof;
-+
-+    if (!dc->legacy_alias) {
-+        return dc->profile;
-+    }
-+
-+    name = ms->profile;
-+    if (!name || !*name) {
-+        const char *env = getenv("DADAO_TEST_PROFILE");
-+
-+        if (env && *env) {
-+            name = env;
-+            origin = "environment DADAO_TEST_PROFILE";
-+        }
-+    }
-+    if (!name || !*name) {
-+        return dc->profile;     /* `dadao-m1` defaults to tiny */
-+    }
-+    prof = dadao_legacy_profile_lookup(name);
-+    if (!prof) {
-+        error_report("dadao-m1: unknown machine profile '%s' "
-+                     "(valid: tiny, vast; 'node' is a deprecated alias of "
-+                     "vast)", name);
-+        exit(1);
-+    }
-+    info_report("dadao-m1: machine profile '%s' selected from %s "
-+                "(deprecated alias)", prof->name, origin);
-+    return prof;
-+}
-+
 +/*
 + * Raw -kernel reserved prefix (spec/Machine-v5 §6): Tiny's raw image starts at
 + * kernel_base and the first kernel_reserved bytes are reserved and must be
@@ -566,7 +479,7 @@ index 0000000..619d26e
 +        return 0;
 +    }
 +    if (reserved > SIZE_MAX) {
-+        error_report("dadao-m1: raw kernel reserved prefix is too large "
++        error_report("dadao: raw kernel reserved prefix is too large "
 +                     "(%" PRIu64 " bytes)", reserved);
 +        return -1;
 +    }
@@ -582,7 +495,7 @@ index 0000000..619d26e
 +        return 0;
 +    }
 +    if ((uint64_t)n < reserved) {
-+        error_report("dadao-m1: raw kernel '%s' is %" PRId64 " bytes, smaller "
++        error_report("dadao: raw kernel '%s' is %" PRId64 " bytes, smaller "
 +                     "than the reserved prefix of %" PRIu64 " bytes",
 +                     filename, (int64_t)n, reserved);
 +        g_free(buf);
@@ -590,7 +503,7 @@ index 0000000..619d26e
 +    }
 +    for (i = 0; i < reserved; i++) {
 +        if (buf[i] != 0) {
-+            error_report("dadao-m1: raw kernel '%s': reserved prefix byte %"
++            error_report("dadao: raw kernel '%s': reserved prefix byte %"
 +                         PRIu64 " is %#x, the first %" PRIu64 " bytes must be "
 +                         "zero", filename, i, buf[i], reserved);
 +            g_free(buf);
@@ -618,7 +531,7 @@ index 0000000..619d26e
 +    kernel_size = load_image_targphys_as(filename, prof->kernel_base, limit,
 +                                         &address_space_memory, &err);
 +    if (kernel_size < 0) {
-+        error_report("dadao-m1: could not load kernel image '%s': %s",
++        error_report("dadao: could not load kernel image '%s': %s",
 +                     filename, err ? error_get_pretty(err) : "unknown error");
 +        exit(1);
 +    }
@@ -636,12 +549,12 @@ index 0000000..619d26e
 +    elf_size = load_elf(filename, NULL, NULL, NULL, &entry, NULL,
 +                        NULL, NULL, ELFDATA2MSB, DADAO_EM_MACHINE, 0, 0);
 +    if (elf_size < 0) {
-+        error_report("dadao-m1: could not load ELF kernel '%s': %s",
++        error_report("dadao: could not load ELF kernel '%s': %s",
 +                     filename, load_elf_strerror(elf_size));
 +        exit(1);
 +    }
 +    if (!dadao_addr_mapped(prof, entry)) {
-+        error_report("dadao-m1: ELF kernel '%s': e_entry %#" PRIx64 " is "
++        error_report("dadao: ELF kernel '%s': e_entry %#" PRIx64 " is "
 +                     "outside the mapped regions", filename, entry);
 +        exit(1);
 +    }
@@ -657,7 +570,7 @@ index 0000000..619d26e
 +    bios_size = load_image_targphys_as(filename, prof->rom_base, prof->rom_size,
 +                                       &address_space_memory, &err);
 +    if (bios_size != (ssize_t)prof->rom_size) {
-+        error_report("dadao-m1: bootrom-image '%s' is %" PRId64 " bytes, "
++        error_report("dadao: bootrom-image '%s' is %" PRId64 " bytes, "
 +                     "expected exactly %" PRIu64 " bytes",
 +                     filename, (int64_t)bios_size, prof->rom_size);
 +        exit(1);
@@ -677,7 +590,7 @@ index 0000000..619d26e
 +                                       prof->bios_window_size,
 +                                       &address_space_memory, &err);
 +    if (bios_size < 0) {
-+        error_report("dadao-m1: could not load ROM image '%s': %s",
++        error_report("dadao: could not load ROM image '%s': %s",
 +                     filename, err ? error_get_pretty(err) : "unknown error");
 +        exit(1);
 +    }
@@ -686,8 +599,8 @@ index 0000000..619d26e
 +static void dadao_machine_init(MachineState *machine)
 +{
 +    DadaoMachineState *ms = dadao_machine_state(machine);
-+    DadaoMachineClass *dc = dadao_machine_class(MACHINE_GET_CLASS(machine));
-+    const DadaoProfile *prof = dadao_machine_select_profile(ms, dc);
++    const DadaoProfile *prof =
++        dadao_machine_class(MACHINE_GET_CLASS(machine))->profile;
 +    DadaoCPU *cpu;
 +    MemoryRegion *ram, *rom;
 +    MemoryRegion *system_memory;
@@ -695,11 +608,11 @@ index 0000000..619d26e
 +    const char *bootrom = ms->bootrom_image;
 +
 +    if (!kernel && !bootrom) {
-+        error_report("dadao-m1: -kernel test.bin is required");
++        error_report("dadao: -kernel test.bin is required");
 +        exit(1);
 +    }
 +    if (bootrom && machine->firmware) {
-+        error_report("dadao-m1: bootrom-image and -bios cannot be combined");
++        error_report("dadao: bootrom-image and -bios cannot be combined");
 +        exit(1);
 +    }
 +
@@ -798,7 +711,7 @@ index 0000000..619d26e
 +     * profile (Tiny: kernel_base + 0x100) and reached by the trampoline.
 +     */
 +    if (!machine->firmware) {
-+        error_report("dadao-m1: kernel image '%s' is not an ELF (bad magic); "
++        error_report("dadao: kernel image '%s' is not an ELF (bad magic); "
 +                     "-bios rom.bin is required for the raw-bin path", kernel);
 +        exit(1);
 +    }
@@ -814,7 +727,6 @@ index 0000000..619d26e
 +    DadaoMachineClass *dc = dadao_machine_class(mc);
 +
 +    dc->profile = desc->profile;
-+    dc->legacy_alias = desc->legacy_alias;
 +
 +    mc->init = dadao_machine_init;
 +    mc->desc = desc->desc;
@@ -833,47 +745,21 @@ index 0000000..619d26e
 +                                  dadao_machine_set_bootrom_image);
 +    object_class_property_set_description(oc, "bootrom-image",
 +        "BootROM image loaded at the profile ROM base (exact ROM size)");
-+
-+    if (desc->legacy_alias) {
-+        /* Deprecated since M12: the profile selector and the environment
-+         * fallback exist only so the pre-M12 command lines keep working until
-+         * m12-integ-001 removes them.  The deprecation is surfaced through the
-+         * `-M help` description and the profile= warnings rather than
-+         * MachineClass::deprecation_reason, which would also print on every
-+         * pre-M12 command line and disturb stderr-driven harnesses. */
-+        object_class_property_add_str(oc, "profile",
-+                                      dadao_machine_get_profile,
-+                                      dadao_machine_set_profile);
-+        object_class_property_set_description(oc, "profile",
-+            "DEPRECATED since M12: tiny (default) or vast; 'node' is a "
-+            "deprecated alias of vast; falls back to $DADAO_TEST_PROFILE");
-+    }
 +}
 +
 +/*
-+ * Registered machine types (M12; spec/Machine-v5 §1).  `dadao-m1` is kept only
-+ * as the deprecated compatibility name until m12-integ-001 drops it.
++ * Registered machine types (M12; spec/Machine-v5 §1).
 + */
 +static const DadaoMachineDesc dadao_tiny_machine = {
 +    .desc = "DADAO Machine-v5-Tiny bare-metal test machine "
 +            "(64 KiB BootROM + 8 MiB SRAM; no cfx/PTW)",
 +    .profile = &dadao_profile_tiny,
-+    .legacy_alias = false,
 +};
 +
 +static const DadaoMachineDesc dadao_vast_machine = {
 +    .desc = "DADAO Machine-v5-Vast bare-metal test machine "
 +            "(4 MiB BootROM + 2 GiB PA RAM; full cfx/PTW)",
 +    .profile = &dadao_profile_vast,
-+    .legacy_alias = false,
-+};
-+
-+static const DadaoMachineDesc dadao_m1_machine = {
-+    .desc = "DADAO M1 bare-metal test machine (deprecated: use dadao-tiny "
-+            "or dadao-vast)",
-+    /* Pre-M12 `dadao-m1` behaved as tiny unless profile= said otherwise. */
-+    .profile = &dadao_profile_tiny,
-+    .legacy_alias = true,
 +};
 +
 +#define DADAO_MACHINE_TYPE_INFO(_name, _desc)                                \
@@ -889,16 +775,6 @@ index 0000000..619d26e
 +static const TypeInfo dadao_machine_types[] = {
 +    DADAO_MACHINE_TYPE_INFO("dadao-tiny", dadao_tiny_machine),
 +    DADAO_MACHINE_TYPE_INFO("dadao-vast", dadao_vast_machine),
-+    {
-+        /* Written out literally (not through the helper macro) so the
-+         * interface gate keeps finding the machine name. */
-+        .name = MACHINE_TYPE_NAME("dadao-m1"),
-+        .parent = TYPE_MACHINE,
-+        .instance_size = sizeof(DadaoMachineState),
-+        .class_size = sizeof(DadaoMachineClass),
-+        .class_init = dadao_machine_class_init,
-+        .class_data = &dadao_m1_machine,
-+    },
 +};
 +
 +DEFINE_TYPES(dadao_machine_types)

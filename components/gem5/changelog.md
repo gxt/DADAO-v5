@@ -131,3 +131,7 @@
 - **2026-11-08 m12-gem5-001**
   - 摘要：**FS profile 概念改名 `node` → `vast`（`Tiny`/`Vast`，与 `spec/Machine-v5` 0.4.1-rc 对齐）**。`configs/dadao/fs.py`：`PROFILES` 键、`--profile` 的 `choices`、注释与帮助文本改为 `tiny`/`vast`，`geometry_lines()` 与 `build()` 的分支判定同步；**过渡期保留 `node`**：`PROFILE_ALIASES = {"node": "vast"}` 在 `resolve_profile()` 里映射到 `vast` 并向 stderr 打印 `fs.py: --profile node is deprecated, use --profile vast`，随后全程只用规范名，故 `--profile vast` 与 `--profile node` 的退出码与 stdout 逐字节一致（仅 stderr 多一行提示）。C++ 侧机器 id 未改名（`fs_workload.cc` 的 `profile` 取值 `tiny|node`、`NodeState`/`node_*` 源文件名），`fs.py` 用 `WORKLOAD_PROFILES` 显式映射 `vast → node`，profile 改名不影响 workload 语义。别名与其它过渡别名一起在 `m12-integ-001` 移除（测试侧键名迁移见 `m12-testcases-001`）。
   - 执行者：engineer
+
+- **2026-11-09 m12-integ-001**
+  - 摘要：**移除 `--profile node` 过渡别名**。`configs/dadao/fs.py` 删除 `PROFILE_ALIASES` 与 `resolve_profile()`，`--profile` 的 `choices` 去掉 `node`；旧名现按 argparse invalid choice（rc=2）拒绝，不再映射到 `vast`。C++ 内部机器 id（`tiny|node`）与 `WORKLOAD_PROFILES` 的 `vast → node` 映射保留，仅用户可见别名移除。`README.md` 同步。
+  - 执行者：engineer
