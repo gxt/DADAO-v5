@@ -21,6 +21,7 @@
 - **磁盘**：根分区 823 GiB，构建前可用约 **700 GiB**；两台都是单盘 `/dev/sda2`，无独立数据盘
 - **OS**：Ubuntu **24.04.5 LTS**；内核 6.8.0-149 / 6.8.0-139（两台小版本不同，未影响构建）
 - **权限**：`gxt` 账号，`sudo` 免密
+- **时区**：**`Asia/Shanghai`（CST, UTC+8）**，与主控机一致（2026-11-09 统一；两台原为 `Etc/UTC`，跨机比对日志时间曾因此误判）
 - **没有 GPU**：本仓库当前构建/测试链路不依赖 GPU
 
 判据含义：64 vCPU 支持 `JOBS=32`（单机一半核）稳定跑；128 GiB 内存使 LLVM/gem5 并行链接不触发 swap。
@@ -96,6 +97,7 @@
 ## 8. 新增节点流程
 
 1. 装 `tailscale` 并加入同一 tailnet；确认 `tailscaled` 常驻、`gxt` 免密 `sudo` 可用。
+   - **时区必须设为 `Asia/Shanghai`**：`sudo timedatectl set-timezone Asia/Shanghai`，并 `date` 与主控机比对（差异 ≤ 1 s）。节点原厂多为 `Etc/UTC`；不统一会让跨机日志时间戳差 8 h，导致「任务到底在哪台做」判断错误（2026-11-09 实际发生过）。
 2. 装 4.2 的包（或让 `bootstrap_node.sh` step 1 报清单后照单安装）。
 3. 同步仓库（bundle 或内网 rsync）+ 本地 `.cache/*.git`。
 4. `tools/infra/bootstrap_node.sh`：`fetch → apply-series → compiler-rt configure → install-host → make check`。
