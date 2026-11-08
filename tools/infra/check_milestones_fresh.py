@@ -106,14 +106,18 @@ STATUS_VALUES = ("待开始", "待验收", "待返工", "已验证")
 
 MAX_SUMMARY = 120
 
-TASK_ID_RE = re.compile(r"\b(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?\b")
-ROW_ID_RE = re.compile(r"^(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?$")
+# 旧格式（M11 及以前）：`<PREFIX>-nnn<suffix>`；新格式（M12 起，用户 2026-11-08）：
+# `<mNN>-<module>-<NNNN>`（无 k/t/m 后缀）。两种并存，旧编号不迁移。
+_OLD_ID = r"(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?"
+_NEW_ID = r"m\d{2}-[a-z][a-z0-9]*-\d{3,4}"
+TASK_ID_RE = re.compile(rf"\b(?:{_OLD_ID}|{_NEW_ID})\b")
+ROW_ID_RE = re.compile(rf"^(?:{_OLD_ID}|{_NEW_ID})$")
 TIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})(（登记）)?$")
 DISPATCH_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$")
 EST_RE = re.compile(r"^\d+(?:\.\d+)?(?:–\d+(?:\.\d+)?)?\s*(?:h|天|min)$")
 STATUS_RE = re.compile(r"^\*\*状态\*\*[：:]\s*([^\s*]+)", re.MULTILINE)
 TASK_FILE_RE = re.compile(
-    r"^((?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?)-.*\.md$")
+    rf"^((?:{_OLD_ID}|{_NEW_ID}))-.*\.md$")
 
 
 def task_index(root: Path) -> dict[str, Path]:

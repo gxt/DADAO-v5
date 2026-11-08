@@ -25,6 +25,7 @@
 | TESTCASES-104t | 5–8 h | SE 动态档驱动 + QEMU dynamic 基线刷新 + 全量对照 |
 | INTEG-059t | 10–16 h | G3 完整 tset 双向一致性（static+dynamic）+ 矩阵重生成 |
 | TESTCASES-103t | 3–4 h | SE 基线预算 120s→按套件 600s；timeout 单列并重跑 |
+| m12-infra-001 | 2–3 h | M12 编号与独立台账脚手架（自举） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 

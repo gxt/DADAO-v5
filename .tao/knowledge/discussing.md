@@ -85,6 +85,14 @@
 - **用户裁定（2026-11-08，原话）**：「A：改 auxv 为宿主 creds（推荐）」⇒ gem5 SE 的 `AT_UID/EUID/GID/EGID` 取 `::getuid()/geteuid()/getgid()/getegid()`，与 `getuid` 系统调用同源；探针由 `local:` 分侧改为跨引擎逐值相等。
 - **落点**：`GEM5-027t` 任务书验收第 2 条按裁定改写并注明；README/changelog 同步；由 engineer 重跑双引擎探针与门控。
 
+## 2026-11-08 M12 计划修订（用户裁定）
+
+- **riscv-tests 移出 M12**：M12 只用 `inst`/`tset` 中已被 qemu/gem5 验证过的子集；riscv-tests 的移植与调整放 **M13**（下一波专门讨论）。
+- **chipyard 构建/运行/调试全部在 `server207`**，串行；**所有对仓库的修改仍在主控机**（已写入 `AGENTS.md` 与 `nodes.md`）。
+- **任务编号**：`m12-<module>-<NNNN>`（3–4 位），无 k/t/m 后缀；M12 用独立台账 `milestones-m12.md`。
+- **m 册门控取消**（用户选 B）：由 `m12-infra-002` 执行。
+- M13 = 三个模拟平台（qemu/gem5/chipyard）的**差分对齐**，含指令语义，尤其是**浮点**语义。
+
 ## 2026-11-08 chipyard 命名/补丁方式/里程碑（用户裁定）
 
 - **按实现分类，不按 tiny/node**：`dadao-wuming`（单周期）、`dadao-wuqing`（五周期）、`dadao-wuxing`（超标量）；每种实现内部再按 **Tiny / Node** 做测试与验证配置。
