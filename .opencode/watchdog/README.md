@@ -66,7 +66,7 @@ tail -n 20 .work/check-opencode-watchdog.log
 SHELL=/bin/bash
 PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin
 MAILTO=""
-*/15 * * * * /mnt/tao/DADAO-v5/.opencode/watchdog/watchdog.sh >> /mnt/tao/DADAO-v5/.work/check-opencode-watchdog-cron.log 2>&1
+*/30 * * * * /mnt/tao/DADAO-v5/.opencode/watchdog/watchdog.sh >> /mnt/tao/DADAO-v5/.work/check-opencode-watchdog-cron.log 2>&1
 ```
 
 停用：删除对应 cron 行。
