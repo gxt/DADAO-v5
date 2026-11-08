@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
 new file mode 100644
-index 0000000..0e32a95
+index 0000000..c23a95c
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.cc
-@@ -0,0 +1,6264 @@
+@@ -0,0 +1,6369 @@
 +// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
 +#include "arch/dadao/se_workload.hh"
 +
@@ -125,6 +125,12 @@ index 0000000..0e32a95
 +constexpr uint64_t SysMprotect = 226;
 +constexpr uint64_t SysPrlimit64 = 261;
 +constexpr uint64_t SysFaccessat2 = 439;
++// chmod family (GEM5-031t).  The locked asm-generic table has no chmod(2)
++// number (musl's chmod() is fchmodat(AT_FDCWD, ...)), so these three -- the
++// same set QEMU's dadao syscall.tbl carries -- are the whole guest surface.
++constexpr uint64_t SysFchmod = 52;
++constexpr uint64_t SysFchmodat = 53;
++constexpr uint64_t SysFchmodat2 = 452;
 +// IPC / socket / multi-process (GEM5-025t); numbers from the same locked
 +// asm-generic table (musl arch/dadao/bits/syscall.h.in).
 +constexpr uint64_t SysPipe2 = 59;
@@ -2092,6 +2098,84 @@ index 0000000..0e32a95
 +
 +    return static_cast<RegVal>(
 +        hostFaccessat(AT_FDCWD, host_path, mode, flags & ~AtEmptyPath));
++}
++
++/** fchmod(2): change the mode of the file behind a guest descriptor.
++ *
++ *  SE has no permission model of its own, so the host's file is the one that
++ *  changes -- the same answer QEMU user mode gives by forwarding the call.  A
++ *  pipe inode has no host descriptor; doFstat() models it as a fixed
++ *  `S_IFIFO | 0600`, and the host accepts a chmod of a pipe it owns, so the
++ *  call succeeds (the modelled bits do not change; see the component README).
++ */
++RegVal
++doFchmod(DadaoISA::Process *process, int fd, uint32_t mode)
++{
++    std::shared_ptr<FDEntry> entry;
++    if (int status = guestFdEntry(process, fd, entry); status != 0)
++        return static_cast<RegVal>(status);
++    if (std::dynamic_pointer_cast<DadaoPipeFDEntry>(entry))
++        return 0;
++    auto host_entry = std::dynamic_pointer_cast<HBFDEntry>(entry);
++    if (!host_entry)
++        return static_cast<RegVal>(-EBADF);
++    return ::fchmod(host_entry->getSimFD(), mode) < 0 ?
++        static_cast<RegVal>(-errno) : static_cast<RegVal>(0);
++}
++
++/** fchmodat(2) / fchmodat2(2).
++ *
++ *  The legacy fchmodat has no flags argument at all (its guest ABI is
++ *  `(dirfd, path, mode)`), so `flags` is 0 for it and `fchmodat2` is the only
++ *  caller that can pass `AT_SYMLINK_NOFOLLOW` / `AT_EMPTY_PATH`.  Validation
++ *  order and errno are the kernel's (`fs/open.c: do_fchmodat`): unknown flag
++ *  bits are EINVAL before the path is copied in, an empty path without
++ *  AT_EMPTY_PATH is ENOENT, and everything else is the host's answer.
++ */
++RegVal
++doFchmodat(ThreadContext *tc, DadaoISA::Process *process, int dirfd,
++           Addr path_addr, uint32_t mode, int flags)
++{
++    if (flags & ~(AtSymlinkNofollow | AtEmptyPath))
++        return static_cast<RegVal>(-EINVAL);
++
++    std::string path;
++    if (!readGuestString(tc, path_addr, path))
++        return static_cast<RegVal>(-EFAULT);
++
++    // AT_EMPTY_PATH: an empty path operates on the descriptor itself.  Without
++    // the flag an empty path simply does not name anything (ENOENT).
++    if (path.empty()) {
++        if (!(flags & AtEmptyPath))
++            return static_cast<RegVal>(-ENOENT);
++        if (dirfd == AtFdcwd) {
++            // The kernel substitutes the working directory for AT_FDCWD.
++            std::string host_cwd = process->checkPathRedirect(process->tgtCwd);
++            return ::chmod(host_cwd.c_str(), mode) < 0 ?
++                static_cast<RegVal>(-errno) : static_cast<RegVal>(0);
++        }
++        return doFchmod(process, dirfd, mode);
++    }
++
++    std::string host_path;
++    if (int status = resolveGuestPath(process, dirfd, path, host_path);
++        status != 0)
++        return static_cast<RegVal>(status);
++
++    if (flags & AtSymlinkNofollow) {
++        // fchmodat2 is the only host entry point that takes the flag; a host
++        // without it answers ENOSYS, which is what QEMU forwards as well.
++#ifdef SYS_fchmodat2
++        return ::syscall(SYS_fchmodat2, AT_FDCWD, host_path.c_str(), mode,
++                         AT_SYMLINK_NOFOLLOW) < 0 ?
++            static_cast<RegVal>(-errno) : static_cast<RegVal>(0);
++#else
++        return static_cast<RegVal>(-ENOSYS);
++#endif
++    }
++    // chmod(2) semantics: a final symlink is followed (there is no lchmod).
++    return ::chmod(host_path.c_str(), mode) < 0 ?
++        static_cast<RegVal>(-errno) : static_cast<RegVal>(0);
 +}
 +
 +/** getdents64(2).
@@ -5989,6 +6073,27 @@ index 0000000..0e32a95
 +        const Addr dir_addr = args[1];
 +        const uint64_t count = args[2];
 +        result = doGetdents64(tc, process, fd, dir_addr, count);
++        break;
++      }
++
++      // chmod family (GEM5-031t).  The legacy fchmodat has no flags argument,
++      // so slot 3 belongs to fchmodat2 alone.
++      case SysFchmod: {
++        const int fd = static_cast<int>(args[0]);
++        const uint32_t mode = static_cast<uint32_t>(args[1]);
++        result = doFchmod(process, fd, mode);
++        break;
++      }
++
++      case SysFchmodat:
++      case SysFchmodat2: {
++        const int dirfd = static_cast<int>(args[0]);
++        const Addr path = args[1];
++        const uint32_t mode = static_cast<uint32_t>(args[2]);
++        const int flags = nr == SysFchmodat2
++                              ? static_cast<int>(args[3])
++                              : 0;
++        result = doFchmodat(tc, process, dirfd, path, mode, flags);
 +        break;
 +      }
 +

@@ -215,6 +215,26 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   stdout/stderr 再拼接，对 stderr 行序敏感的用例（如 `bison`、
   `pcompress2`）会与 QEMU `2>&1` 交织结果产生 diff，属捕获模型差异、非
   文件 I/O 能力问题。
+- **文件权限（GEM5-031t，ISS-346）**：`fchmod`(52)/`fchmodat`(53)/
+  `fchmodat2`(452)。锁定号表里**没有** `chmod(2)` 号——musl 的 `chmod()` 就是
+  `fchmodat(AT_FDCWD, path, mode)`，QEMU 的 dadao 号表同样只有这三个——故三个
+  入口即 guest 全部 chmod 面。SE 无自有权限模型，改的是宿主文件（与 QEMU
+  user mode 透传同口径）：`ENOENT`/`ENOTDIR`/`EACCES`/`EPERM`/`ELOOP`/
+  `EBADF` 都是内核答案；`mode` 取 `S_IALLUGO` 位（高位静默丢弃，**不**
+  `EINVAL`）；末级符号链接默认跟随（Linux 无 `lchmod`）。`fchmodat2` 的
+  `AT_SYMLINK_NOFOLLOW` 走宿主 `fchmodat2`（宿主无此调用 ⇒ `ENOSYS`，与
+  QEMU 一致；对符号链接 `EOPNOTSUPP`），`AT_EMPTY_PATH` 空路径按 fd 操作
+  （`AT_FDCWD` 取工作目录），无该标志的空路径 `ENOENT`，未知标志位
+  `EINVAL`（先于读路径）。目标路径经 `resolveGuestPath()`（dirfd 相对、
+  `..`、redirect）解析，与其它路径 syscall 同一逻辑。**已知限制**：pipe fd
+  的 inode 模式是 `doFstat` 的固定 `S_IFIFO|0600`，chmod 一个 pipe 返回成功
+  但不改该固定值（宿主对自有 pipe 也返回成功），故 stat 回的 pipe 模式不随
+  chmod 变化。探针 `tools/testcases/se/check_se_chmod.py`：同一 C 源在宿主
+  Linux（oracle）、gem5 SE、qemu-user 三引擎各跑一棵**独立**树，54 条断言
+  逐行一致、三侧 `SUMMARY fails=0`。**不入跨引擎断言的已知差异**：①
+  `fchmodat(bad_dirfd, 绝对路径)` 宿主 glibc 判 `EBADF`、内核忽略 dirfd（gem5
+  按内核）；② `fchmod(O_PATH fd)` 内核 `EBADF`，musl 的 `/proc/self/fd/<fd>`
+  回退在 QEMU（guest fd == 宿主 fd）下成功、gem5 下仍失败。
 - **时钟（GEM5-023t）**：`clock_gettime`（`CLOCK_REALTIME` 宿主时钟；
   `CLOCK_MONOTONIC`/`CLOCK_PROCESS_CPUTIME_ID`/`CLOCK_THREAD_CPUTIME_ID`
   为 `floor(curTick × 1e9 / sim_clock::Frequency)` 的模拟纳秒，与
