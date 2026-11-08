@@ -7,11 +7,13 @@
 
 白名单（仅约束**顶层**；子目录内容不扫）：
   - **子目录**（任意名，如 ``archive``/``refs``）——递归内容不受本门控约束；
-  - **台账 / 索引集合**（显式名单 ``_ALLOWED_FILES``）。
+  - **台账 / 索引集合**（显式名单 ``_ALLOWED_FILES`` + glob ``_ALLOWED_GLOBS``）。
 
 > **Phase B 已落地（INFRA-071t，2026-10-14）**：11 份 ``contract-*.md`` 已迁入 ``.tao/contracts/``
-> ⇒ 原 ``contract-*.md`` 顶层通配**作废**（``_ALLOWED_GLOBS`` 清空；``.tao/knowledge/`` 顶层
-> 再出现 ``contract-*.md`` 即白名单外 ⇒ FAIL）。新落点白名单见 ``check_contracts_dir.py``。
+> ⇒ 原 ``contract-*.md`` 顶层通配**作废**（``.tao/knowledge/`` 顶层再出现 ``contract-*.md``
+> 即白名单外 ⇒ FAIL）。新落点白名单见 ``check_contracts_dir.py``。
+> **按里程碑分册台账（m12-infra-001，用户 2026-11-08）**：``milestones-*.md``（如
+> ``milestones-m12.md``）为允许的台账分册，**显式列于** ``_ALLOWED_FILES``；新的分册须人工登记（不做通配，保持「新增台账必须显式放行」的绊线）。
 
 设计要点：
   - **计数现场统计、不写死**；
@@ -36,6 +38,7 @@ KNOWLEDGE_REL = Path(".tao") / "knowledge"
 
 # ── 顶层允许的**文件**（显式名单；子目录不受限）────────────────────────────────
 _ALLOWED_FILES = frozenset({
+    "milestones-m12.md",              # M12 分册台账（用户 2026-11-08）
     "MEMORY.md",                     # 入口指针 + 上游↔v5 偏离台账
     "issues.yaml",                   # issue 台账
     "lessons.md",                    # 教训/判据
@@ -46,8 +49,9 @@ _ALLOWED_FILES = frozenset({
     "nodes.md",                      # 构建/测试节点台账（机型/组网/软件包/就绪判据）
 })
 
-# 顶层允许的 glob 模式（空）：`contract-*.md` 已由 INFRA-071t 迁入 `.tao/contracts/`
-# ⇒ 原通配作废（迁出后 `.tao/knowledge/` 顶层再出现该模式即白名单外 ⇒ FAIL）。
+# 顶层不设 glob（M12 分册台账以显式名单放行，防通配放行任意 `milestones-*.md`）
+# 「milestones.md 也改为 milestones-m12.md」⇒ `milestones-m12.md`、将来的 `milestones-m13.md`…）。
+# `contract-*.md` 已由 INFRA-071t 迁入 `.tao/contracts/` ⇒ 该通配作废（再出现即 FAIL）。
 _ALLOWED_GLOBS: tuple[str, ...] = ()
 
 

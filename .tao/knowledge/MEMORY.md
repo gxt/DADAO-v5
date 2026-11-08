@@ -7,7 +7,7 @@
 | 主题 | 真源 |
 | --- | --- |
 | 项目总览 / 里程碑 / 版本号 | 根 `README.md` |
-| 当前进度 / 任务台账（待开始·进行中·已验证） / 裁定 | `.tao/knowledge/milestones.md` |
+| 当前进度 / 任务台账（待开始·进行中·已验证） / 裁定 | `.tao/knowledge/milestones.md`（M11 及以前）+ `.tao/knowledge/milestones-m12.md`（M12 起，按任务书 `**项目里程碑**` 分派） |
 | M10 归档 / 回顾 / 关闭 issue | `.tao/archive/M10/`（`README.md` / `m10-retrospective.md` / `issues-closed.md`） |
 | M1–M9 历史 | `.tao/archive/M1/` … `.tao/archive/M9/` |
 | 决策（ADR：架构 / 契约 / 流程） | `.tao/adr/` |
@@ -73,7 +73,7 @@
 
 ## 历史与归档
 
-- 任务台账：`.tao/knowledge/milestones.md`（三分表：待开始 / 进行中 / 已验证；历史见 `.tao/archive/`）。
+- 任务台账：`.tao/knowledge/milestones.md`（M11 及以前）+ `.tao/knowledge/milestones-m12.md`（M12 起；均三分表：待开始 / 进行中 / 已验证；按任务书 `**项目里程碑**` 分派，历史见 `.tao/archive/`）。
 - M10 完成任务书与 issue 快照：`.tao/archive/M10/`。
 - 已归档 issue：`.tao/archive/M*/issues-closed.md`；活 `issues.yaml` 只留未关闭项。
 - 一次性过程与长日志：运行期日志目录（可删、未归档）；临时产物：`/tmp/opencode/<任务ID>/`。

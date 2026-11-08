@@ -33,7 +33,7 @@
      进行中表 ⇒ 任务书 ∈ {`待开始`（已派单、实现中）, `待验收`, `待返工`}
      **且派单时间必填**；已验证表 ⇒ 任务书 `已验证`。
 
-五断言（每条均有可达 FAIL，见 `--self-test` 十四类注入）：
+六断言（每条均有可达 FAIL，见 `--self-test`：十四类注入 + A6 双台账八类 + R1 六类）：
   A1 **分类一致**：表行所属表 == 任务书 `**状态**` 的映射（见上）；不一致 ⇒ FAIL。
   A2 **覆盖**：三表并集覆盖 `.tao/tasks/**` 的每份任务书、`INTEG-*m` 册列出的任务号、
      `milestones.md` 正文出现的任务号；**已归档**任务号（`.tao/archive/**` 有册）豁免，
@@ -46,9 +46,16 @@
      `YYYY-MM-DD HH:MM` 且不带 `（登记）`；**任何表不得出现状态列/状态值**；
      同一编号不重复、且不得跨表重复；「一句改动」不得含 `.work/`。
 
+A6 **台账路由（双台账；用户 2026-11-08「milestones.md 改为 milestones-m12.md」）**：
+   每份台账取其头部 `项目里程碑 = M<n>` 断言（缺失 ⇒ FAIL）；`.tao/knowledge/milestones*.md`
+   按断言各自拥有该号（`milestones.md` 另兜底 ≤ 自身号的历史号）。任务号按**任务书
+   `**项目里程碑**` 字段**（无活册的新格式号按 `mNN-` 前缀）定所属台账；行/正文号
+   落在**非所属**台账 ⇒ FAIL（跨台账错放）。归档册豁免（历史行不迁移）。
+
 R1 **台账一致性（靠规则，不靠记忆；INFRA-145t）**：读 `git worktree list --porcelain`
   与本地分支（`git for-each-ref refs/heads/`；已并入 `master`/`main` 的分支豁免），
-  凡任务号匹配 `<PREFIX>-\\d{3}[a-z]?` 者（= 有 worktree 或未合并分支 ⇒ 在跑）：
+  凡任务号匹配 `<PREFIX>-\\d{3}[a-z]?` 或 `mNN-<module>-NNNN` 者（= 有 worktree 或
+  未合并分支 ⇒ 在跑；**只核属本台账的号**）：
     - 该任务号**不得**在「待开始」表（逐条指名 `L??`）；
     - 必须在「进行中」表（派单时间格式已由 A5 校验）；若其任务书 `**状态**` 已是
       `已验证`，则必须在「已验证」表；
@@ -58,7 +65,8 @@ fail-closed：任一标题/表头/分隔行缺失、三表皆空 ⇒ FAIL。
 不依赖 `.work/**`（易失）；只读仓库内文件。
 
 Usage:
-    python3 tools/infra/check_milestones_fresh.py [--root DIR] [--self-test]
+    python3 tools/infra/check_milestones_fresh.py [--file PATH] [--root DIR] [--self-test]
+       `--file` 默认 `.tao/knowledge/milestones.md`；`--root` 下按同一相对路径解析。
 Exit code: 0 = PASS；1 = FAIL。
 """
 from __future__ import annotations
@@ -75,6 +83,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MILESTONES_REL = Path(".tao/knowledge/milestones.md")
+MILESTONES_M12_REL = Path(".tao/knowledge/milestones-m12.md")
+KNOWLEDGE_REL = Path(".tao/knowledge")
+LEDGER_GLOB = "milestones*.md"
 TASKS_REL = Path(".tao/tasks")
 ARCHIVE_REL = Path(".tao/archive")
 INTEG_M_GLOB = "INTEG-*m-*.md"
@@ -119,6 +130,76 @@ STATUS_RE = re.compile(r"^\*\*状态\*\*[：:]\s*([^\s*]+)", re.MULTILINE)
 TASK_FILE_RE = re.compile(
     rf"^((?:{_OLD_ID}|{_NEW_ID}))-.*\.md$")
 
+# 台账路由（A6）：任务书头 `**项目里程碑**：M12` 与台账头 `项目里程碑 = M12` 断言。
+MILESTONE_FIELD_RE = re.compile(r"^\*\*项目里程碑\*\*[：:]\s*M(\d+)\b", re.MULTILINE)
+LEDGER_ASSERT_RE = re.compile(r"项目里程碑\s*=\s*M(\d+)\b")
+NEW_PREFIX_RE = re.compile(r"^m(\d{2})-")
+
+
+def book_milestone(path: Path) -> int | None:
+    """任务书 `**项目里程碑**` 字段 → 里程碑号（`M12` ⇒ 12）。
+
+    兼容归档册的尾注（`M9（用户 2026-10-24 裁定…）`）；字段缺失 ⇒ None。
+    """
+    m = MILESTONE_FIELD_RE.search(path.read_text(encoding="utf-8"))
+    return int(m.group(1)) if m else None
+
+
+def ledger_milestone(path: Path) -> int | None:
+    """台账头 `项目里程碑 = M<n>` 断言 → 里程碑号；缺失 ⇒ None（调用方 fail-closed）。"""
+    if not path.is_file():
+        return None
+    m = LEDGER_ASSERT_RE.search(path.read_text(encoding="utf-8"))
+    return int(m.group(1)) if m else None
+
+
+def id_milestone(tid: str) -> int | None:
+    """新格式号的里程碑前缀（`m12-infra-001` ⇒ 12）；旧格式 ⇒ None。"""
+    m = NEW_PREFIX_RE.match(tid)
+    return int(m.group(1)) if m else None
+
+
+def _file_task_id(path: Path) -> str:
+    """任务书文件名 → 任务号（不匹配 ⇒ 空串）。"""
+    m = TASK_FILE_RE.match(path.name)
+    return m.group(1) if m else ""
+
+
+def tid_milestone(tid: str, index: dict[str, Path]) -> int | None:
+    """任务号 → 里程碑号：活册 `**项目里程碑**` 字段优先，其次新格式 `mNN-` 前缀。"""
+    p = index.get(tid)
+    if p is not None:
+        n = book_milestone(p)
+        if n is not None:
+            return n
+    return id_milestone(tid)
+
+
+def ledger_owners(root: Path) -> dict[int, Path]:
+    """里程碑号 → 台账路径（现场扫描 `.tao/knowledge/milestones*.md` 的断言）。"""
+    owners: dict[int, Path] = {}
+    kdir = root / KNOWLEDGE_REL
+    if not kdir.is_dir():
+        return owners
+    for p in sorted(kdir.glob(LEDGER_GLOB)):
+        n = ledger_milestone(p)
+        if n is not None:
+            owners.setdefault(n, p.resolve())
+    return owners
+
+
+def home_ledger(root: Path, ms: int | None, owners: dict[int, Path]) -> Path | None:
+    """任务号所属台账：`M<n>` 自有台账；`≤ milestones.md 断言号` 归历史台账；其余无主。"""
+    if ms is None:
+        return None
+    if ms in owners:
+        return owners[ms]
+    legacy = (root / MILESTONES_REL).resolve()
+    legacy_ms = ledger_milestone(legacy)
+    if legacy_ms is not None and ms <= legacy_ms:
+        return legacy
+    return None
+
 
 def task_index(root: Path) -> dict[str, Path]:
     """任务号 → 任务书路径（`.tao/tasks/**` 优先，其次 `.tao/archive/**`）。"""
@@ -140,7 +221,7 @@ def book_status(path: Path) -> str | None:
 
 
 # 任务号（分支名/worktree 分支须**整串**匹配，避免 `INFRA-145t-fix` 之类误命中）
-BRANCH_TASK_RE = re.compile(r"^(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?$")
+BRANCH_TASK_RE = re.compile(rf"^(?:{_OLD_ID}|{_NEW_ID})$")
 
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str] | None:
@@ -322,7 +403,8 @@ def check_rows(
             tid, tcell, summary = cells
             dcell = None
         if not ROW_ID_RE.match(tid):
-            errors.append(f"`{heading}` L{lineno}: 编号 `{tid}` 不合 `<PREFIX>-nnn<suffix>`")
+            errors.append(f"`{heading}` L{lineno}: 编号 `{tid}` 不合"
+                          f"`<PREFIX>-nnn<suffix>` / `mNN-<module>-NNNN`")
         if tid in seen:
             prev_h, prev_l = seen[tid]
             kind_word = "同表重复" if prev_h == heading else "跨表重复"
@@ -362,18 +444,30 @@ def check_rows(
     return parsed
 
 
-def audit(root: Path) -> int:
+def audit(root: Path, ledger_rel: Path = MILESTONES_REL) -> int:
     print("=" * 72)
-    print("check-milestones-fresh — 待开始 / 进行中 / 已验证（L1）")
+    print(f"check-milestones-fresh — 待开始 / 进行中 / 已验证（L1）；台账 = {ledger_rel}")
     print("=" * 72)
     errors: list[str] = []
 
-    ms_path = root / MILESTONES_REL
+    ms_path = root / ledger_rel
     if not ms_path.is_file():
-        print(f"  ERROR: 台账不存在: {MILESTONES_REL} ⇒ fail-closed")
+        print(f"  ERROR: 台账不存在: {ledger_rel} ⇒ fail-closed")
         print("结果: FAIL (1 项)")
         return 1
     text = ms_path.read_text(encoding="utf-8")
+
+    me = ledger_milestone(ms_path)
+    if me is None:
+        print(f"  ERROR: 台账缺 `项目里程碑 = M<n>` 断言（A6 路由依据）"
+              f": {ledger_rel} ⇒ fail-closed")
+        print("结果: FAIL (1 项)")
+        return 1
+    owners = ledger_owners(root)
+    mine = ms_path.resolve()
+
+    def owned(ms: int | None) -> bool:
+        return home_ledger(root, ms, owners) == mine
 
     sections: dict[str, list[tuple[int, str, list[str]]]] = {}
     missing: list[str] = []
@@ -409,10 +503,18 @@ def audit(root: Path) -> int:
         print("结果: FAIL (1 项)")
         return 1
 
-    # 只有 `t` 册（普通任务）必须在表；`k`/`m` 是启动/里程碑册，按「所列任务号」核
-    todo_books = {i: p for i, p in index.items()
-                  if TASKS_REL.as_posix() in p.as_posix() and i.endswith("t")}
-    print(f"  任务书索引（现场统计）: 活册 {len(todo_books)} / 含归档 {len(index)}")
+    # 只有 `t` 册（普通任务）与新格式 `mNN-<module>-NNNN` 册必须在表；`k`/`m` 是
+    # 启动/里程碑册，按「所列任务号」核。本台账只收**所属**任务号（A6 路由）。
+    live = {i: p for i, p in index.items() if TASKS_REL.as_posix() in p.as_posix()}
+    task_books = {i: p for i, p in live.items()
+                  if i.endswith("t") or NEW_PREFIX_RE.match(i)}
+    for tid, p in sorted(task_books.items()):
+        if book_milestone(p) is None:
+            errors.append(f"A6: 活任务册 {tid} 无头部 `**项目里程碑**` 字段"
+                          f"（{p.relative_to(root)}；台账路由依据）")
+    todo_books = {i: p for i, p in task_books.items() if owned(book_milestone(p))}
+    print(f"  任务书索引（现场统计）: 属本台账活任务册 {len(todo_books)}"
+          f" / 活任务册 {len(task_books)} / 含归档 {len(index)}")
 
     # ---------- A5 格式 + A3 长度（三表逐行） ----------
     seen: dict[str, tuple[str, int]] = {}
@@ -440,17 +542,39 @@ def audit(root: Path) -> int:
     print(f"    A1 核验 " + " + ".join(
         f"{heading[3:]} {len(parsed[heading])} 行" for heading, _h, _s, _k in TABLES))
 
+    # ---------- A6 台账路由（行号所属台账 == 本台账） ----------
+    print("-" * 72)
+    print("  A6 台账路由（行所属里程碑台账 == 本台账；归档册豁免）")
+    routed = 0
+    for heading, _header, _statuses, _kind in TABLES:
+        for lineno, tid, _dt in parsed[heading]:
+            p = index.get(tid)
+            if p is None or ARCHIVE_REL.as_posix() in p.as_posix():
+                continue
+            ms = tid_milestone(tid, index)
+            home = home_ledger(root, ms, owners)
+            routed += 1
+            if home != mine:
+                where = home.relative_to(root).as_posix() if home else "无台账（该里程碑未建）"
+                ms_label = f"M{ms}" if ms is not None else "?"
+                errors.append(f"A6: `{heading}` L{lineno} {tid}: 册 `**项目里程碑**` = "
+                              f"{ms_label}，所属台账 `{where}` ≠ 本台账 `{ledger_rel.as_posix()}`"
+                              f"（跨台账错放）")
+    print(f"    A6 逐条核验 {routed} 个活册行（归档册豁免）")
+
     # ---------- R1 台账一致性（worktree / 未合并分支 ⇒ 进行中） ----------
     print("-" * 72)
     print("  R1 台账一致性（在跑任务号不得在「待开始」；须在「进行中」/「已验证」）")
-    running, note = running_tasks(root)
+    running_all, note = running_tasks(root)
+    running = {t: s for t, s in running_all.items() if owned(tid_milestone(t, index))}
     print(f"    {note}")
+    print(f"    属本台账在跑 {len(running)} 个 / 在跑合计 {len(running_all)} 个（异台账略过）")
     check_running_consistency(running, seen, index, errors)
     print(f"    R1 逐条核验 {len(running)} 个在跑任务号")
 
     # ---------- A2 覆盖 ----------
     print("-" * 72)
-    print("  A2 覆盖（三表并集 ⊇ 活册 / m 册列号 / 正文号）")
+    print("  A2 覆盖（三表并集 ⊇ 本台账活册 / 本台账 m 册列号 / 正文号）")
     table_ids = set(seen)
     for tid, p in sorted(todo_books.items()):
         if tid not in table_ids:
@@ -464,6 +588,7 @@ def audit(root: Path) -> int:
         m_books_src = ARCHIVE_REL.as_posix()
     if not m_books:
         errors.append("覆盖: `.tao/tasks/integ/` 与 `.tao/archive/**` 均无 `INTEG-*m-*.md` 核验册 ⇒ vacuous")
+    m_books = [p for p in m_books if owned(tid_milestone(_file_task_id(p), index))]
     for p in m_books:
         for tid in sorted(set(TASK_ID_RE.findall(p.read_text(encoding="utf-8")))):
             if tid not in table_ids and not (ARCHIVE_REL.as_posix() in index.get(tid, Path()).as_posix()):
@@ -473,6 +598,11 @@ def audit(root: Path) -> int:
         if tid in table_ids:
             continue
         p = index.get(tid)
+        home = home_ledger(root, tid_milestone(tid, index), owners)
+        if home is None and p is None and id_milestone(tid) is None:
+            home = (root / MILESTONES_REL).resolve()  # 旧格式悬空号归历史台账
+        if home != mine:
+            continue
         if p is None:
             errors.append(f"覆盖: 正文任务号 {tid} 全仓无册（悬空号）")
         elif ARCHIVE_REL.as_posix() not in p.as_posix():
@@ -509,6 +639,8 @@ def audit(root: Path) -> int:
 # --------------------------------------------------------------------------
 BASE_MS = """# 项目里程碑
 
+> **项目里程碑 = M11**
+
 ## 待开始（未开工）
 
 | 编号 | 预估时间 | 一句改动 |
@@ -540,25 +672,34 @@ BOOKS = {
 
 
 def write_tree(root: Path, ms: str, books: dict[str, str],
-               m_body: str = "列出 `SPEC-101t` / `INFRA-102t`。") -> None:
-    (root / ".tao/knowledge").mkdir(parents=True)
+               m_body: str = "列出 `SPEC-101t` / `INFRA-102t`。",
+               ledger: str | None = None) -> None:
+    (root / ".tao/knowledge").mkdir(parents=True, exist_ok=True)
     for mod in ("infra", "spec", "qemu", "integ", "testcases"):
-        (root / ".tao/tasks" / mod).mkdir(parents=True)
+        (root / ".tao/tasks" / mod).mkdir(parents=True, exist_ok=True)
     (root / MILESTONES_REL).write_text(ms, encoding="utf-8")
+    if ledger is not None:
+        (root / MILESTONES_M12_REL).write_text(ledger, encoding="utf-8")
     mod_of = {"SPEC": "spec", "INFRA": "infra", "QEMU": "qemu",
               "TESTCASES": "testcases"}
     for tid, body in books.items():
-        mod = mod_of[tid.split("-")[0]]
+        mod = mod_of.get(tid.split("-")[0]) or tid.split("-")[1]
         (root / ".tao/tasks" / mod / f"{tid}-x.md").write_text(
-            f"# {tid}\n\n{body}\n", encoding="utf-8")
+            f"# {tid}\n\n{book_milestone_field(tid)}\n{body}\n", encoding="utf-8")
     (root / ".tao/tasks/integ/INTEG-900m-x.md").write_text(
-        f"**状态**：待开始\n\n{m_body}\n", encoding="utf-8")
+        f"**项目里程碑**：M11\n**状态**：待开始\n\n{m_body}\n", encoding="utf-8")
 
 
-def _run(root: Path) -> tuple[int, str]:
+def book_milestone_field(tid: str) -> str:
+    """任务书头的 `**项目里程碑**` 字段（新格式取 `mNN` 前缀，旧格式默认 M11）。"""
+    n = id_milestone(tid)
+    return f"**项目里程碑**：M{n if n is not None else 11}"
+
+
+def _run(root: Path, ledger: Path = MILESTONES_REL) -> tuple[int, str]:
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        rc = audit(root)
+        rc = audit(root, ledger)
     return rc, buf.getvalue()
 
 
@@ -574,6 +715,8 @@ def _swap_done_first(ms: str) -> str:
 # R1 self-test：真 git 临时仓库 + worktree / 未合并分支 / 已合并分支
 # --------------------------------------------------------------------------
 R1_MS = """# 项目里程碑
+
+> **项目里程碑 = M11**
 
 ## 待开始（未开工）
 
@@ -687,7 +830,7 @@ def r1_self_test() -> bool:
 
 def self_test() -> int:
     print("=" * 72)
-    print("check-milestones-fresh --self-test（干净基线 PASS + 十四类注入各自 FAIL）")
+    print("check-milestones-fresh --self-test（十四类注入 + A6 双台账八类 + R1 六类，各自可达 FAIL）")
     print("=" * 72)
     ok = True
 
@@ -751,6 +894,69 @@ def self_test() -> int:
         "| QEMU-103t | 1 h | 见 .work/log/x |"), "`.work/` 路径")
 
     print("-" * 72)
+    print("  A6 双台账路由（M11 → milestones.md；M12 → milestones-m12.md；跨台账错放 FAIL）")
+
+    def route(name: str, ms11: str, ms12: str | None, books: dict[str, str],
+              ledger: Path, want_rc: int, marker: str, mutate=None) -> None:
+        nonlocal ok
+        with tempfile.TemporaryDirectory(prefix="milestones-route-") as td:
+            root = Path(td)
+            write_tree(root, ms11, books, ledger=ms12)
+            if mutate is not None:
+                mutate(root)
+            rc, out = _run(root, ledger)
+        good = rc == want_rc and marker in out
+        ok &= good
+        print(f"  {'PASS' if good else 'FAIL'}  {name}: rc={rc} 期望 {want_rc}"
+              f" marker={marker!r}")
+
+    M12_MS = """# 项目里程碑
+
+> **项目里程碑 = M12**
+
+## 待开始（未开工）
+
+| 编号 | 预估时间 | 一句改动 |
+| --- | --- | --- |
+| m12-infra-902 | 1 h | M12 待开始行 |
+
+## 进行中（已派单：待开始 / 待验收 / 待返工）
+
+| 编号 | 派单时间 | 预估时间 | 一句改动 |
+| --- | --- | --- | --- |
+| m12-infra-901 | 2026-11-08 21:00 | 1 h | M12 进行中行 |
+
+## 已验证
+
+| 编号 | 完成时间 | 一句改动 |
+| --- | --- | --- |
+"""
+    m12_wip = "| m12-infra-901 | 2026-11-08 21:00 | 1 h | M12 进行中行 |"
+    m12_book = {**BOOKS, "m12-infra-901": "**状态**：待开始\n",
+                "m12-infra-902": "**状态**：待开始\n"}
+    route("A6 基线① M11 台账 PASS", BASE_MS, M12_MS, m12_book,
+          MILESTONES_REL, 0, "结果: PASS")
+    route("A6 基线② M12 台账（--file）PASS", BASE_MS, M12_MS, m12_book,
+          MILESTONES_M12_REL, 0, "结果: PASS")
+    route("A6 注入① M12 行写进 M11 台账 ⇒ 跨台账 FAIL", BASE_MS.replace(
+        wip_row, wip_row + "\n| m12-infra-901 | 2026-11-08 21:00 | 1 h | 错放 M11 |"),
+        M12_MS, m12_book, MILESTONES_REL, 1, "跨台账错放")
+    route("A6 注入② M11 行写进 M12 台账 ⇒ 跨台账 FAIL", BASE_MS, M12_MS.replace(
+        m12_wip, m12_wip + "\n| QEMU-103t | 2026-11-08 21:00 | 1 h | 错放 M12 |"),
+        m12_book, MILESTONES_M12_REL, 1, "跨台账错放")
+    route("A6 注入③ M12 活册未列入 M12 台账 ⇒ 覆盖 FAIL", BASE_MS, M12_MS.replace(
+        m12_wip + "\n", ""), m12_book, MILESTONES_M12_REL, 1, "未列入台账三表")
+    route("A6 基线③ M12 台账不存在 ⇒ M12 册不属 M11（跳过、非 vacuous）",
+          BASE_MS, None, m12_book, MILESTONES_REL, 0, "结果: PASS")
+    route("A6 注入④ 跳过不等于 vacuous：M11 台账坏仍 FAIL", BASE_MS.replace(
+        "| QEMU-103t | 1 h | 未开工：待开始表 |\n", ""), None, m12_book,
+        MILESTONES_REL, 1, "未列入台账三表")
+    route("A6 注入⑤ 活任务册缺 `**项目里程碑**` 字段 ⇒ FAIL", BASE_MS, M12_MS,
+          m12_book, MILESTONES_REL, 1, "无头部 `**项目里程碑**` 字段",
+          mutate=lambda root: (root / ".tao/tasks/spec/SPEC-101t-x.md").write_text(
+              "# SPEC-101t\n\n**状态**：已验证\n", encoding="utf-8"))
+
+    print("-" * 72)
     print("  R1 台账一致性（真 git 临时仓库：worktree / 未合并分支 / 已合并分支）")
     ok &= r1_self_test()
 
@@ -762,6 +968,8 @@ def self_test() -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", type=Path, default=None, help="检查另一棵树（默认仓库根）")
+    ap.add_argument("--file", type=Path, default=MILESTONES_REL,
+                    help="台账相对路径（默认 `.tao/knowledge/milestones.md`）")
     ap.add_argument("--self-test", action="store_true", help="跑内置十四类注入自检")
     args = ap.parse_args()
     if args.self_test:
@@ -770,7 +978,7 @@ def main() -> int:
     if not root.is_dir():
         print(f"check-milestones-fresh: ERROR: --root 不存在: {root}", file=sys.stderr)
         return 1
-    return audit(root)
+    return audit(root, args.file)
 
 
 if __name__ == "__main__":

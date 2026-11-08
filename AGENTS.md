@@ -126,6 +126,7 @@ DADAO-v5/
 ## 角色与流程
 主会话 = **协调者**；四命令 `/plan`（规划）→ `/dispatch`（下发）→ `/complete`（验收收尾）、`/status`（状态）。
 角色 / 任务编号（`<PREFIX>-nnn<suffix>`，模块内递增）/ 四态状态机真源见 `.opencode/agents/*.md`、`.opencode/commands/*.md`。
+- **任务编号（M12 起）**：`mNN-<module>-<NNN[N]>`（模块小写，序号 **3–4 位**，**无** k/t/m 后缀）；旧编号（M11 及以前）不迁移，台账双轨见 `docs/Process-07 §1.1`。
 
 ## 任务收尾（`/complete`）（强制）
 - **生命周期**：`/dispatch`（实现 + 填完成区，→ `待验收`）→ reviewer 独立重跑验收 → `/complete`（交叉复核 + 知识沉淀，→ `已验证`）→ 提交（须已含收尾）。**逐任务收尾，禁积压/批量**。

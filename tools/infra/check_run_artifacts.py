@@ -51,7 +51,10 @@ DRIVERS = (
     os.path.join("tset", "embench", "run_embench_user_suite.py"),
 )
 RUN_DIR_RE = re.compile(r"^\d{8}T\d{6}Z-")
-TASK_ID = r"(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?"
+# 任务号两种并存（用户 2026-11-08，m12-infra-001）：旧 `PREFIX-nnn[suffix]` 与新
+# `mNN-<module>-<NNNN>`（3–4 位、无 k/t/m 后缀）。
+TASK_ID = (r"(?:(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?"
+           r"|m\d{2}-[a-z][a-z0-9]*-\d{3,4})")
 LEGAL_LOG_NAMES = (
     re.compile(r"^check-[A-Za-z0-9][A-Za-z0-9._-]*\.log$"),
     re.compile(rf"^{TASK_ID}-[A-Za-z0-9][A-Za-z0-9._-]*\.(?:log|json|txt)$"),
@@ -474,6 +477,24 @@ def self_test(base: str) -> int:
     out = []
     rc = 1 if run_checks(tree, out.append) else 0
     outcomes.append(("A3 illegal log name", 1, rc))
+    shutil.rmtree(tree, ignore_errors=True)
+
+    # 6b. A3: 新编号（M12 起）`mNN-<module>-<NNNN>-<purpose>.log` 合法。
+    tree = fresh()
+    _write(os.path.join(tree, ".work", "log", "testcases",
+                        "m12-test-001-demo.log"), "x\n")
+    out = []
+    rc = 1 if run_checks(tree, out.append) else 0
+    outcomes.append(("A3 new-format log name allowed", 0, rc))
+    shutil.rmtree(tree, ignore_errors=True)
+
+    # 6c. A3: 形似新编号但缺序号（`m12-test-demo.log`）⇒ 仍非法。
+    tree = fresh()
+    _write(os.path.join(tree, ".work", "log", "testcases",
+                        "m12-test-demo.log"), "x\n")
+    out = []
+    rc = 1 if run_checks(tree, out.append) else 0
+    outcomes.append(("A3 new-format without number rejected", 1, rc))
     shutil.rmtree(tree, ignore_errors=True)
 
     ok = True
