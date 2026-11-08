@@ -55,11 +55,29 @@
 - **验证方式**：同一 ELF 在 qemu / gem5 / chipyard 三平台的 stdout 与退出码一致（M12 判据）；不写独立 oracle。
 - **备选（不推荐首选）**：接 fesvr 的 syscall proxy（TSI 已具备）——但 fesvr 实现的是 RISC-V newlib syscall ABI，不是 Arm semihosting，需要一层映射，语义易漂。
 
-### 实现任务拆分（待确认）
+### 实现任务拆分（用户 2026-11-08 裁定）
 
-拟 11–13 个任务（`001` 骨架+`WumingTinyConfig` → `002` BootROM+loadmem 最小闭环 → `003` semihosting 应答者 → `004` 解码+整数 ALU+寄存器堆 → `005` 访存 → `006` 控制流+RAS → `007` 位操作与整数补齐 → `008` 浮点算术/比较/FMA → `009` 浮点转换/分类/特殊值 → `010` T0 冒烟（三平台比对）→ `011` T1 适配集+M12 验收 → `012` TSI 硬件端点 → `013` fesvr 接入+极简 htif 运行时）。
+**范围收缩**：Tiny 只用 `loadmem` 预载；**TSI 不在 M12 实现**；**M12 不考虑 fesvr/pk**；semihosting 应答者在 **harness 侧**（`003`）。
 
-- **待用户确认**：粒度是否合适（FP 拆两个、TSI 拆两个）；`012/013` 是否真放 M12（也可挪 M13）。
+拟 14 个任务，每件 ≤2–3 h：
+
+- `001` 骨架 + `build.sbt` + `WumingTinyConfig`（接线 + 编译）
+- `002` BootROM + `loadmem` 最小闭环（Tiny SRAM 基址与 `load_elf` 目标窗口对齐）
+- `003` harness 侧 semihosting 应答者（最小 5 服务 + 核内 `trap` 抬边界）
+- `004` 解码器 + 整数 ALU + 寄存器堆
+- `005` 访存
+- `006` 控制流 + RAS
+- `007` 位操作与整数补齐
+- `008` FP 基础设施：recFN 编解码 + 六档舍入 + 异常标志 + 分类/符号（hardfloat `recFNFromFN`/`fNFromRecFN`/`RoundAnyRawFNToRecFN`/`classifyRecFN`）
+- `009` FP 转换：`ft2i*`/`fo2i*`/`fo2ft`/SBZ/复制（hardfloat `INToRecFN`/`RecFNToIN`/`RecFNToRecFN`/`resizeRawFloat`）
+- `010` FP 算术：加/乘/FMA/比较/最小最大（hardfloat `AddRecFN`/`MulRecFN`/`MulAddRecFN`/`CompareRecFN`）
+- `011` FP 除法/开方/取余（hardfloat `DivSqrtRecFN_small`）
+- `012` FP 取整/缩放/符号操作（`fornd`/`fosclb`/`fosgnj`）
+- `013` T0 冒烟：inst/tset 已验证子集，qemu/gem5/chipyard 三平台比对
+- `014` T1 适配集 + M12 验收
+
+- **FP 分组依据（用户建议参考 berkeley-hardfloat）**：按 hardfloat 的原语边界切——转换 / 算术 / 除法开方 / 取整缩放，每组对应一组 `RecFN` 原语，便于复用 IP 与逐组比对（本地 chipyard 子模块 `generators/hardfloat/hardfloat` 即该库）。
+- **DADAO FP 指令集共 47 条**（`spec/SimRISC-07`）：转换、运算（加/乘/FMA/除/余/开方/取整/缩放/最小最大）、符号位、比较、分类。
 
 ## chipyard 定位与技术结论
 
@@ -70,8 +88,8 @@
 
 ## M12 未决
 
-- 实现任务拆分与 `012/013` 归属（见上）。
-- Tiny 的 SRAM 基址与 `loadmem` 目标窗口需在 `002` 定稿（`load_elf` 目标基址必须与 Tiny 地址图一致）。
+- **FP 覆盖范围**：实现全部 5 组，还是只做 inst/tset 实测覆盖到的指令族（建议全做，避免 M13 返工）。
+- **Tiny 的 SRAM 基址与 `loadmem` 目标窗口**需在 `002` 定稿（`load_elf` 目标基址必须与 Tiny 地址图一致）。
 
 ---
 
@@ -229,53 +247,3 @@
 
 - `reserved.yaml` 是否拆册（当前同册承载「保留编码 ⇒ UNDI」与「reserved cfx 地址空间 ⇒ CFXMEM」两类语义）。
 - `trap`/`escape` → reserved cfx 的 active 向量仍 deferred（`TESTCASES-033t`）。
-
-### 异常/中断入口模型（已定 A）
-
-- **执行过程中的同步异常和异步中断，先进入当前运行模式的 monitor**；monitor 是**第一处理者**（拥有异步来源屏蔽、pending、分发决策；可自行 `escape`，也可 `trap` 到源 cfx；处理期间的新事件置 pending，不嵌套 monitor）。
-- 显式指令仍直接到 cfx：`trap cfx` → 目标 cfx（`CFXTRAP`）；`escape cfx` → 当前 cfx（`CFXESC`）。
-- 第 3 项选 **A1**：删除 `inner_cfx_mask`/`switch_cfx_mask`/`excp_prev_cfx_mask`/`excp_cause_mask`/`excp_cause_nonmaskable`；编号保留为 reserved，不重排；monitor 用 `cfx_intr_mask` + `excp_pending`；`global_cfx_intr_mask` 保留。
-- 落点：`SPEC-186t`（§5.2+§1）→ `SPEC-188t`（寄存器定义删除）→ `SPEC-189t`（§2.2.6/§3.6/§4.5 + `DADAO-22 §5.3` + `contract-see`）→ `SPEC-187t`（退出码）；188t/189t 同改 `DADAO-12`，严格串行。
-
-## 基础设施与规则
-
-### `/tmp` 改回磁盘（推迟，用户自理）
-
-- 现状：主控机 `/tmp` 由 `/etc/fstab` 配成 16G tmpfs；节点 `/tmp` 已在 ext4 磁盘上。
-- 用户决定改回磁盘，**推迟到明天，由用户自行找时间执行**；`sudo` 由用户操作。
-- **不要再主动提醒重启**；切换前置 = `/tmp/opencode` 下无活动 worktree（届时由主会话清理/迁移）。
-
-### 两台构建节点
-
-- 两台 64C/128G 节点已完成引导（软件包、仓库同步、`fetch` → `apply-series` → `install-host`），工具链与主控机同版本；chipyard/Verilator（5.022）/openjdk 20/riscv gcc 13.2/firtool 1.75 就绪，`RocketConfig` 构建通过。
-- 就绪验证：`make check`（L1）两机均 rc=0（各约 64s）；`make check-inst` 两机均 rc=0（44/44、载体 23 册），结果行逐字一致 ⇒ 可作确定性对比基线。
-- **节点只承担 chipyard 的构建/运行/调试**；仓库修改只在主控机；**冲突必须串行**。
-- **与节点交互的中转文件禁止放 `/tmp`**（tmpfs 耗光会断任务链）：主控机侧放 `.work/`，节点侧放仓库内或家目录持久路径。
-
-### 并发与派单纪律
-
-- **同一组件同一时刻只允许一个写者**；共享 `.work` 的任务必须串行。
-- 历史事故（2026-11-07）：另一会话自行派 `GEM5-027t` 并开始 `make build-gem5`，与本会话共用 gem5 源树 ⇒ 中断该子会话、终止构建、删其 clean worktree。
-- **收到「完成」通知先核盘上事实**（`git log` / `*.EXIT` / 任务书状态），再续链。
-
-### `check-knowledge-refs` 判据（用户裁定 A）
-
-- **具体 `.work/**` 引用一律 FAIL**，不看本机是否存在（fresh clone 不可复现；主控机会假绿）。
-- 空转判据：`found == 0`（没有任何 `.work/**` 引用）才判空转失败。
-- `<>`/`*`/`$` 形与以 `-` 结尾的前缀截断引用不可判定 ⇒ 跳过；`.work/build/**`、`.work/source/**` 显式豁免。
-- 被引用的材料须改为运行期措辞，或升格到 `.tao/knowledge/refs/`。
-
-### 已处置教训：脚本假绿（2026-11-07）
-
-- `INFRA-130t` 验收全绿，但真实节点第一次 `remote.py status` 报 rc=0 PASS 而仓库根本没进去。
-- 根因：`cd <repo> && <多行脚本>` 中换行等价 `;`，`&&` 只护住首行；叠加 `shlex.quote("~/x")` 使 `~` 不展开。
-- 处置：`INFRA-131t` 修 cd 语义、`~/` 展开与 rc 传播；要求**每个前置步骤都要有可达 FAIL 断言**。
-
-### QEMU `SS_AUTODISARM` 补丁（已批准保留）
-
-- `GEM5-029t` 为使 QEMU 与 Linux 一致，改了 `components/qemu/linux-user/{signal.c,dadao/signal.c}`；用户「同意」保留，属「给 QEMU 补 Linux 已有语义」，不改变对照方向。
-
-## 现行约定（非讨论项）
-
-- 任务流水体例由 `make check-milestones-fresh` 机械校验（状态一致 / 覆盖 / ≤120 字符 / 倒序 / 格式），不在本文复述。
-- 双台账：M11 及以前 → `milestones.md`；M12 起 → `milestones-m12.md`（按任务书 `**项目里程碑**` 路由）。

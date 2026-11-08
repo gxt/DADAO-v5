@@ -178,3 +178,9 @@
 - 必需子模块集 = `manifests/chipyard-submodules.lock.toml` 中 **`lite = true`（上游最小集，29 条）∪ `dadao_extra = true`（本仓库额外需要，1 条：`toolchains/riscv-tools/riscv-isa-sim`，因 conda `riscv-tools` 不含 fesvr）**，共 **30** 条（`tomllib` 现场统计；`grep -c 'lite = true'` 报 30 是文件头注释里也有该字样）。`lite` 语义保持上游原义，不再被本仓库的额外需求改写。
 - 主控机把它镜像成 `.cache/submodules/<path 派生名>.git`（`generators/testchipip` → `generators__testchipip.git`）：主控机联网用 `fetch.py --populate-submodules` 建镜像；节点只从主控机 `sync_cache.py` 同步，缺镜像时 `make fetch` 明确失败并指向该脚本（节点不向 GitHub 拉子模块）。
 - 约定正文（镜像布局 / 命名 / 失败语义）见 `docs/Process-01 §14「子模块（submodule）的获取与镜像」`。
+
+## 12. 主控机 `/tmp`（待切回磁盘，用户自理）
+
+- 现状：主控机 `/tmp` 由 `/etc/fstab` 配成 16G tmpfs；节点 `/tmp` 已在 ext4 磁盘上（无需改）。
+- 用户 2026-11-08 决定改回磁盘，**推迟到用户自行选时间执行**（`sudo` 由用户操作）。
+- **不再主动提醒重启**；切换前置 = `/tmp/opencode` 下无活动 worktree（由主会话在切换前清理/迁移）。

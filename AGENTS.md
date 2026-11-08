@@ -16,6 +16,7 @@
 
 ## 进入项目
 首读 `.tao/README.md`（角色/命令/流程/结构）+ `.tao/knowledge/MEMORY.md`（当前状态），再读 `.tao/tasks/` 下当前模块任务。
+- **台账双册**：M11 及以前 → `milestones.md`；M12 起 → `milestones-m12.md`；按任务书 `**项目里程碑**` 路由，`check-milestones-fresh` 机械校验（跨册错放 FAIL）。
 
 ## 核心原则
 - **Spec-first**：编码/语义期望值来自 `.tao/contracts/contract-*.md`，不从实现反推。
@@ -59,7 +60,8 @@ DADAO-v5/
 
 ## 文档分层与单一真源
 - **三分界（主判据 = 给谁看）**：`spec/` = **技术规范正文**（唯一真源）；`docs/` = **工程流程规范 + 索引 + `DDLN/`**（给别人看）；`.tao/knowledge/` = **结论/设计/口径**（含长文，给自己看）。
-- **落点**：一次性过程 → 运行期日志目录（可删）；历史 → `.tao/archive/M*/`；**被引用的材料一律不得只放 `.work/`**（`check-knowledge-refs` 门控，悬空即红）。
+- **落点**：一次性过程 → 运行期日志目录（可删）；历史 → `.tao/archive/M*/`；**被引用的材料一律不得只放 `.work/`**（`check-knowledge-refs` 门控）。
+- **`.work/**` 引用判据（用户 2026-11-08 裁定 A）**：任务书/知识/契约/spec 里**具体 `.work/**` 路径一律 FAIL**，不看本机是否存在（fresh clone 不可复现）；`<>`/`*`/`$` 形与 `.work/build|source/**` 豁免；被引材料改「运行期…」措辞或升格 `.tao/knowledge/refs/`。
 - **新增文档三问**（**皆否**才允许新增到 `.tao/knowledge/`）：① 能门控机械判？⇒ 只加门控 + 一行指针；② 与既有重复？⇒ 改既有；③ 只服务当前任务？⇒ 落运行期日志目录。
 - **新增台账条目**：按 `lessons.md` 头部判据写入；**关键是精简**（不复述任务细节/路径/文件名），细节进任务书 / 运行期日志目录。
 
@@ -142,6 +144,7 @@ DADAO-v5/
 - 同时在跑的子代理任务 **≤ 8**；达到上限等已有任务完成再下发。
 - **同改共享文件**（`contracts/`、`Makefile`、`tests/inst/`、`spec/SimRISC-0x` 等）的任务**一律串行**，不得并行。
 - **同一工作树同一时间只允许一个写工作树（切分支 / 写文件）的子代理**；需并行则各自开 `git worktree`，大任务优先独立 worktree（判据 `lessons §3.8`）。
+- **同一组件同一时刻只允许一个写者**：`.work/source/<name>`（及对应 `components/<name>/`）同时只有一个任务在改；多个任务要用同一组件须串行，其它会话/watcher 派单前先查 gate lock。
 
 ## 长任务（长构建 / 长命令）
 - **默认可见、可追踪**：长任务优先前台或 OpenCode background shell 运行；每任务落 `PID`、日志路径、`*_EXIT=$rc`，并在 `.work/` 留可查状态。禁止只 `setsid nohup` 后失联。
