@@ -1,15 +1,16 @@
 diff --git a/src/arch/dadao/process.cc b/src/arch/dadao/process.cc
 new file mode 100644
-index 0000000..73921ff
+index 0000000..0e2c013
 --- /dev/null
 +++ b/src/arch/dadao/process.cc
-@@ -0,0 +1,708 @@
+@@ -0,0 +1,781 @@
 +// DADAO syscall-emulation process -- implementation.
 +#include "arch/dadao/process.hh"
 +
 +#include <algorithm>
 +#include <iterator>
 +#include <memory>
++#include <unistd.h>
 +#include <vector>
 +
 +#include "arch/dadao/page_size.hh"
@@ -108,11 +109,28 @@ index 0000000..73921ff
 +    limits[RlimitNofile].cur = fds->getSize();
 +    limits[RlimitNofile].max = fds->getSize();
 +
-+    validateStaticElf();
++    validateElf();
 +}
 +
 +void
-+DadaoISA::Process::validateStaticElf()
++DadaoISA::Process::init()
++{
++    // The SE configuration lists this Process once per thread context (the
++    // CPU wants one workload per context), so SimObject::init() runs several
++    // times on the same object.  gem5::Process::init() is not idempotent: it
++    // calls updateBias(), which adds the interpreter's load bias to the same
++    // ElfObject image and entry point on every call -- N calls put the
++    // interpreter N x 8 GiB too high while AT_BASE names the first bias.
++    // The bias is a property of the process, so apply it once.
++    if (initialized)
++        return;
++    initialized = true;
++
++    gem5::Process::init();
++}
++
++void
++DadaoISA::Process::validateElf()
 +{
 +    fatal_if(objFile->getArch() != loader::Dadao,
 +             "DADAO SE: object file is not DADAO (%s)",
@@ -124,9 +142,12 @@ index 0000000..73921ff
 +    fatal_if(elf == nullptr, "DADAO SE: object file is not an ELF file");
 +
 +    // contract-elf §1/§1.3: ET_EXEC only, e_flags[7:0] == 1, e_flags[31:8] == 0.
++    // A dynamically linked executable is still ET_EXEC: the interpreter is
++    // named by PT_INTERP and loaded by gem5::Process (updateBias/interpImage).
++    // ET_DYN (the PIE form) stays rejected until it is implemented.
 +    fatal_if(elf->elfType() != ET_EXEC,
-+             "DADAO SE: only ET_EXEC is supported (e_type=%u; ET_DYN/static "
-+             "PIE is a later milestone)", elf->elfType());
++             "DADAO SE: only ET_EXEC is supported (e_type=%u; ET_DYN/PIE is "
++             "not implemented)", elf->elfType());
 +    fatal_if((elf->elfFlags() & 0xff) != 1,
 +             "DADAO SE: unsupported object/ABI version e_flags[7:0]=%u",
 +             elf->elfFlags() & 0xff);
@@ -134,9 +155,32 @@ index 0000000..73921ff
 +             "DADAO SE: reserved e_flags[31:8] must be zero (0x%08x)",
 +             elf->elfFlags());
 +
-+    // Dynamic linking is out of scope for G1: reject rather than ignore.
-+    fatal_if(objFile->getInterpreter() != nullptr,
-+             "DADAO SE: PT_INTERP (dynamic linking) is not supported");
++    // PT_INTERP (GEM5-027t): gem5::Process::init() carves the interpreter's
++    // footprint out of the top of the mmap window, applies the load bias and
++    // writes interpImage in initState(); getStartPC() then starts the guest at
++    // the interpreter's entry and AT_BASE tells the loader where its own
++    // image is (contract-dynlink §6.2/§6.3).  Only a position-independent
++    // (ET_DYN) interpreter can be placed that way; an absolute ET_EXEC one
++    // must be rejected here rather than be started at its link address on top
++    // of the main image (which faults at VA 0 instead of reporting why).
++    if (auto *interp = objFile->getInterpreter()) {
++        fatal_if(interp->getArch() != loader::Dadao,
++                 "DADAO SE: interpreter is not DADAO (%s)",
++                 loader::archToString(interp->getArch()));
++        fatal_if(interp->getByteOrder() != ByteOrder::big,
++                 "DADAO SE: interpreter is not big-endian");
++        auto *interpElf = dynamic_cast<loader::ElfObject *>(interp);
++        fatal_if(interpElf == nullptr,
++                 "DADAO SE: interpreter is not an ELF file");
++        // ObjectFile::relocatable() cannot be used here: ElfObject's
++        // `relocate` flag has no assignment anywhere in this tree (it is
++        // always true), so that predicate never fails.  The ELF type is the
++        // fact updateBias()/getStartPC() actually depend on.
++        fatal_if(interpElf->elfType() != ET_DYN,
++                 "DADAO SE: PT_INTERP must name a position-independent "
++                 "(ET_DYN) interpreter; e_type=%u would be started at its "
++                 "link address", interpElf->elfType());
++    }
 +
 +    const Addr stack_limit =
 +        memState->getStackBase() - memState->getMaxStackSize();
@@ -144,8 +188,13 @@ index 0000000..73921ff
 +    bool entry_covered = false;
 +
 +    for (const auto &seg : image.segments()) {
-+        fatal_if(seg.size == 0, "DADAO SE: empty loadable segment '%s'",
-+                 seg.name);
++        // A PT_LOAD with p_filesz == 0 is legal (an all-BSS segment): the
++        // loader records a zero-length file part next to the BSS part.  Only
++        // that file part is empty and it contributes no address space, so it
++        // is skipped here -- an empty *program header* (p_memsz == 0) never
++        // reaches the image at all.
++        if (seg.size == 0)
++            continue;
 +        // lld packs PT_LOAD segments back to back (only p_offset is aligned
 +        // to p_align), so a segment base is 4-byte aligned, not 64 KiB.  The
 +        // architectural requirement is instruction/word alignment; 8-byte
@@ -328,7 +377,19 @@ index 0000000..73921ff
 +        str -= env.size() + 1;
 +        envPointers.push_back(str);
 +    }
++    // AT_EXECFN names the file execve() was given (the kernel's bprm->p; QEMU
++    // builds it from the same filename).  It is not necessarily argv[0], so it
++    // gets its own copy rather than pointing into the argument strings.
++    str -= executable.size() + 1;
++    const Addr execfnAddr = str;
 +    str &= -addrSize;
++
++    // The auxiliary vector.  A dynamic executable (PT_INTERP) needs AT_BASE --
++    // the interpreter's load base -- for musl's _dlstart_c to find the
++    // interpreter's own dynamic section; the identity fields are the ones
++    // ldso reads before it can make a syscall (contract-dynlink §6.2/§6.3).
++    // AT_BASE is 0 for a static image, exactly as the kernel and QEMU report.
++    const Addr interpBase = objFile->getInterpreter() ? getBias() : 0;
 +
 +    std::vector<gem5::auxv::AuxVector<IntType>> auxv;
 +    auxv.emplace_back(gem5::auxv::Entry, objFile->entryPoint());
@@ -337,6 +398,17 @@ index 0000000..73921ff
 +    auxv.emplace_back(gem5::auxv::Phdr, elfObject->programHeaderTable());
 +    auxv.emplace_back(gem5::auxv::Pagesz, PageBytes);
 +    auxv.emplace_back(gem5::auxv::Random, randomAddr);
++    auxv.emplace_back(gem5::auxv::Base, interpBase);
++    auxv.emplace_back(gem5::auxv::Flags, 0);
++    // Host credentials, the same source as the SE getuid/geteuid/getgid/getegid
++    // syscalls (se_workload.cc) and QEMU's create_elf_tables(): both engines
++    // report the host ids, so the guest sees one value either way.
++    auxv.emplace_back(gem5::auxv::Uid, ::getuid());
++    auxv.emplace_back(gem5::auxv::Euid, ::geteuid());
++    auxv.emplace_back(gem5::auxv::Gid, ::getgid());
++    auxv.emplace_back(gem5::auxv::Egid, ::getegid());
++    auxv.emplace_back(gem5::auxv::Secure, 0);
++    auxv.emplace_back(gem5::auxv::Execfn, execfnAddr);
 +    auxv.emplace_back(gem5::auxv::Null, 0);
 +
 +    const Addr vectorBytes =
@@ -355,6 +427,7 @@ index 0000000..73921ff
 +
 +    // AT_RANDOM contents are a fixed pattern: SE has no security boundary.
 +    initVirtMem->writeBlob(randomAddr, AtRandomBytes, RandomBytes);
++    initVirtMem->writeString(execfnAddr, executable.c_str());
 +    for (size_t i = 0; i < argv.size(); ++i)
 +        initVirtMem->writeString(argPointers[i], argv[i].c_str());
 +    for (size_t i = 0; i < envp.size(); ++i)

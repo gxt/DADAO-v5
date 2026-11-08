@@ -1,11 +1,12 @@
 diff --git a/src/arch/dadao/process.hh b/src/arch/dadao/process.hh
 new file mode 100644
-index 0000000..9733abd
+index 0000000..cf3b825
 --- /dev/null
 +++ b/src/arch/dadao/process.hh
-@@ -0,0 +1,314 @@
-+// DADAO syscall-emulation process: static ET_EXEC image, initial stack vector
-+// and the SE platform's initial architectural state.
+@@ -0,0 +1,322 @@
++// DADAO syscall-emulation process: ET_EXEC image (static or with a PT_INTERP
++// interpreter), initial stack vector and the SE platform's initial
++// architectural state.
 +//
 +// The address-space layout below is an SE platform convention (ADR-0048 D1:
 +// SE only ever compares with QEMU user mode), not an architectural assertion.
@@ -263,6 +264,11 @@ index 0000000..9733abd
 +    // The SE loader and execve(2) build the initial stack/register state here.
 +    void initState() override;
 +
++    /** One-shot front half: gem5::Process::init() carves the interpreter's
++     *  footprint and applies its load bias, which must happen once even
++     *  though this Process is listed once per thread context. */
++    void init() override;
++
 +  protected:
 +
 +    /** Build argc/argv/envp/auxv on the initial stack (big-endian fields). */
@@ -270,8 +276,9 @@ index 0000000..9733abd
 +    void argsInit(Addr pageSize);
 +
 +  private:
-+    /** Fail closed on anything but a big-endian, static, flat ET_EXEC. */
-+    void validateStaticElf();
++    /** Fail closed on anything but a big-endian ET_EXEC with a relocatable
++     *  interpreter (ET_DYN PIE executables are not implemented). */
++    void validateElf();
 +
 +    /** Register the loaded image's per-page protection from the ELF program
 +     *  headers (PT_LOAD p_flags), instead of the pre-030t blanket RWX. */
@@ -279,8 +286,9 @@ index 0000000..9733abd
 +
 +    /** The SE configuration lists the same Process once per thread context
 +     *  (the CPU requires one workload per context), so instantiate() calls
-+     *  initState() several times on one object; only the first builds the
-+     *  image, the stack and the MemRAS. */
++     *  init()/initState() several times on one object; only the first builds
++     *  the image, the stack and the MemRAS and applies the interpreter bias. */
++    bool initialized = false;
 +    bool initialStateBuilt = false;
 +
 +    /** Exact initial stack pointer (before the VMA page rounding). */

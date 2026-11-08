@@ -112,13 +112,32 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `DadaoDecoder`/`DadaoMMU`/`DadaoInterrupts`）、`DadaoMMU`/`DadaoTlb`
   （宿主页表直通翻译，无 PTW/PTBR）、`DadaoInterrupts`（无中断源）、
   `DadaoSEWorkload`（`Process::Loader` 钩子 + syscall 分发）、
-  `DadaoISA::Process`（ET_EXEC 装载、初始栈/argv/auxv、MemRAS）。
-- **边界**：仅静态 `ET_EXEC`（明确拒绝 `ET_DYN`/static PIE/`PT_INTERP`）；
+  `DadaoISA::Process`（ET_EXEC 装载、初始栈/argv/auxv、MemRAS；`PT_INTERP`
+  解释器由 gem5 既有 `ElfObject`/`updateBias`/`interpImage` 装载）。
+- **边界**：`ET_EXEC`（`ET_DYN`/PIE 显式拒绝；`PT_INTERP` 见「动态链接装载器」）；
   syscall 面 = `set_tid_address`/`write`/`writev`/`exit`/`exit_group` +
   `ioctl` 的 `TIOCGWINSZ`/`TCGETS` 子集（musl `__stdout_write` 探测终端所需，
   返回 `-ENOTTY`）+ 下列 guest 内存管理、文件 I/O、时钟、信号、资源限制、
   进程信息；其余号与未建模的 ioctl request 一律 `fatal` **带号与 pc**
-  （不静默）；无 TLS、线程、动态链接。
+  （不静默）。
+- **动态链接装载器（GEM5-027t）**：`ET_EXEC` + `PT_INTERP` 放行——解释器由
+  gem5 既有 `ElfObject`/`Process::updateBias`/`interpImage` 装到 mmap 窗口
+  顶（`getStartPC()` = 解释器入口）；解释器须 DADAO/大端/**`ET_DYN`**（静态
+  `ET_EXEC` 解释器明确 `fatal`，不静默进入 VA 0 fault），主程序 `ET_DYN`/PIE
+  仍显式 `fatal`（不静默）。auxv 补齐 musl ldso 启动所需：`AT_BASE`（解释器装载基址，静态
+  为 0）/`AT_FLAGS`/`AT_UID`/`AT_EUID`/`AT_GID`/`AT_EGID`/`AT_SECURE`/`AT_EXECFN`
+  （执行文件名，独立于 `argv[0]`），保留 `AT_PHDR`/`AT_PHNUM`/`AT_PHENT`/
+  `AT_ENTRY`/`AT_PAGESZ`/`AT_RANDOM`；身份字段 `AT_UID/EUID/GID/EGID` 取**宿主
+  creds**（`::getuid()` 等，与 SE `getuid` 系统调用及 QEMU `create_elf_tables()`
+  同源；用户 2026-11-08 裁定「A：改 auxv 为宿主 creds」），`AT_SECURE=0`。
+  `configs/dadao/se.py` 增
+  `--interp-dir`（`m5.core.setInterpDir`，须在 `Process()` 构造前——`PT_INTERP`
+  在 `ElfObject` 构造时解析）与 `--redirect APP=HOST`（`System.redirect_paths`，
+  等价 QEMU `-L` 的 guest 根）。`Process::init()` 在 SE 配置里按线程上下文重复
+  调用，而基类 `updateBias()` 不幂等（会把解释器按 8 GiB × 次数上移），故
+  DADAO 侧只应用一次。**边界**：本轮只保证 ldso 启动并越过 `_dlstart_c` 的
+  `AT_BASE` 分支；其它 DSO 的文件映射 `mmap` 归 `GEM5-028t`（当前 `mmap`
+  不做文件内容映射），解释器页亦未进权限影子（同上）。
 - **guest 内存管理（GEM5-022t / GEM5-030t）**：`brk`(214，Linux 语义：`brk(0)` 查询、
   失败返回旧 brk；堆不吞映像、不越过 mmap 窗口)、`mmap`(222，匿名
   `MAP_PRIVATE`/`MAP_SHARED` 与 `MAP_FIXED`/`MAP_FIXED_NOREPLACE`/
