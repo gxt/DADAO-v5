@@ -117,8 +117,8 @@
 **重跑记录**（worktree 内相对路径，未 commit/push；`git status` 前后快照逐行相同、6 个目标文件 md5 前后一致）：
 1. `make check-milestones-fresh` ⇒ rc=0；M11 3/1/105、M12 0/1/0（与完成区一致）；`--file nope.md` ⇒ rc=1「台账不存在」；移走 M12 册 ⇒ make rc=0 且打印「不存在 ⇒ 跳过」。
 2. `check_milestones_fresh.py --self-test` ⇒ rc=0，29/29（14 基础 + 8 A6 + 6 R1）；`check_run_artifacts.py --self-test` ⇒ rc=0，8/8。
-3. 证据脚本 `bash .work/evidence/m12-infra-001/run.sh` ⇒ rc=0，PASS=15 FAIL=0（脚本逐项有可达 FAIL 路径、注入在临时树、无两支同果）。
-4. 独立注入（真实树；`cp` 备份 + md5 `02107736…` 前后相等还原；无残留文件）：① M12 行写进 `milestones.md` ⇒ rc=1「跨台账错放」指名 `m12-infra-001`，还原 rc=0；② 造 `m12-test-001-demo.md`（M12/待开始）⇒ M12 rc=1「未列入台账三表」、M11 仍 rc=0，删文件；③ 删 `GEM5-031t` 行 ⇒ rc=1 指名，还原 rc=0；④ `.work/log/m12-test-001-demo.log` ⇒ rc=0、`m12-test-demo.log` ⇒ rc=1 指名，删后 rc=0。
+3. 证据脚本（运行期证据目录下的 `run.sh`）⇒ rc=0，PASS=15 FAIL=0（脚本逐项有可达 FAIL 路径、注入在临时树、无两支同果）。
+4. 独立注入（真实树；`cp` 备份 + md5 `02107736…` 前后相等还原；无残留文件）：① M12 行写进 `milestones.md` ⇒ rc=1「跨台账错放」指名 `m12-infra-001`，还原 rc=0；② 造 `m12-test-001-demo.md`（M12/待开始）⇒ M12 rc=1「未列入台账三表」、M11 仍 rc=0，删文件；③ 删 `GEM5-031t` 行 ⇒ rc=1 指名，还原 rc=0；④ 运行期日志目录下的 `m12-test-001-demo.log` ⇒ rc=0、`m12-test-demo.log` ⇒ rc=1 指名，删后 rc=0。
 5. `make -k check`（L1）⇒ rc=2，唯一失败 `check-patch-tree`：gem5 `se_workload.cc` 断言⑨⑥ 共 2 problem；主树干净检出 `bd9379f6`（含 d693971e，其间 4 提交零 `components/` 改动）同样 rc=2 同两行 ⇒ 该门控输入等价复现，非本任务引入；本任务 diff 零 `components/` 文件。
 6. 正则：`_NEW_ID`/`_OLD_ID` 与 `check_run_artifacts.TASK_ID` 两段子串全等，8 个样例（新旧/形似缺号）判定逐一对齐。
 7. `check_knowledge_dir.py` rc=0（允许 glob `['milestones-*.md']`）；`MEMORY.md` 指引表 + 历史节两处已补 M12 指针；完成区 26 行 ≤30、grep `/tmp|/mnt|~/|/home/` 零命中；`m12-infra-001` 表行全仓仅 `milestones-m12.md` 一处，`milestones.md` git diff 仅删该行。
