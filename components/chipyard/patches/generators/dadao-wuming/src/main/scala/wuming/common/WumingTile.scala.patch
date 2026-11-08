@@ -1,0 +1,108 @@
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
+new file mode 100644
+index 0000000..ca92296
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
+@@ -0,0 +1,102 @@
++// See LICENSE for license details.
++//
++// DADAO "wuming" tile skeleton (m12-chipyard-001).
++//
++// Shell option B (user, 2026-11-08): `WumingTile extends BaseTile` only to
++// borrow the wiring abstractions (hartid / reset vector / interrupt /
++// TileLink ports), while `WumingCoreParams` stays free of RISC-V fields.
++// The core inside is still a stub (see `WumingCoreStub`).
++
++package wuming.common
++
++import chisel3._
++import org.chipsalliance.cde.config._
++import freechips.rocketchip.diplomacy._
++import freechips.rocketchip.interrupts._
++import freechips.rocketchip.prci.ClockCrossingType
++import freechips.rocketchip.subsystem._
++import freechips.rocketchip.tile._
++import freechips.rocketchip.tilelink._
++
++class WumingTile(
++  val wumingTileParams: WumingTileParams,
++  crossing: ClockCrossingType,
++  lookup: LookupByHartIdImpl,
++  q: Parameters
++) extends BaseTile(wumingTileParams, crossing, lookup, q)
++    with SourcesExternalNotifications {
++
++  // Private constructor ensures the altered LazyModule.p is used implicitly.
++  def this(
++    params: WumingTileParams,
++    crossing: HierarchicalElementCrossingParamsLike,
++    lookup: LookupByHartIdImpl
++  )(implicit p: Parameters) =
++    this(params, crossing.crossingType, lookup, p)
++
++  // ---- ports required by BaseTile --------------------------------------
++  // Interrupts into the tile (debug, msip, mtip; seip only with supervisor
++  // mode, which this core does not have).  Nothing inside consumes them yet:
++  // the tile-internal xbar (BaseHierarchicalElement) aggregates every source
++  // and the sink terminates the bundle -- no RISC-V interrupt controller.
++  val intInwardNode = intXbar.intnode :=* IntNameNode("wuming_int_local")
++  private val intSinkNode = IntSinkNode(IntSinkPortSimple())
++  intSinkNode := intXbar.intnode
++
++  /** No interrupt sources inside the tile (no BEU / no PLIC sources yet). */
++  val intOutwardNode: Option[IntOutwardNode] = None
++
++  // ---- the core's own TileLink master port -----------------------------
++  // Declared here instead of inherited from a Rocket core: this is the one
++  // concrete instance of what "borrow the wiring only" means.
++  val coreMasterNode: TLClientNode = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(
++    TLMasterParameters.v1(
++      name = s"WumingCore ${tileId}",
++      sourceId = IdRange(0, 2),
++      requestFifo = true)))))
++
++  // Master path copied from rocket-chip's TraceGenTile (the canonical custom
++  // tile in this tree): client -> visibilityNode -> identity -> tile port.
++  val masterNode: TLOutwardNode = TLIdentityNode() := visibilityNode := coreMasterNode
++
++  /** Slave port: nothing is mapped inside the tile yet (m12-002 adds it). */
++  val slaveNode: TLInwardNode = TLIdentityNode()
++
++  override lazy val module = new WumingTileModuleImp(this)
++}
++
++class WumingTileModuleImp(outer: WumingTile) extends BaseTileModuleImp(outer) {
++  val (coreTl, coreEdge) = outer.coreMasterNode.out(0)
++
++  val hartidBits = outer.hartIdSinkNode.bundle.getWidth
++  val resetVectorBits = outer.resetVectorSinkNode.bundle.getWidth
++  // BaseTile itself only mixes in HasNonDiplomaticTileParameters; the
++  // diplomatically-negotiated `paddrBits` lives in HasTileParameters, which is
++  // not part of the tile class.  Read the negotiated bundle directly.
++  val paddrBits = p(TileVisibilityNodeKey).edges.out.head.bundle.addressBits
++
++  // Elaboration-time record of the negotiated physical address width -- this
++  // is the value m12-002 needs when it lands the 48-bit Tiny address map.
++  println(
++    s"WumingTile: tileId=${outer.tileId} xLen=${outer.xLen} usingVM=${outer.usingVM} " +
++      s"maxPAddrBits=${outer.maxPAddrBits} paddrBits=$paddrBits " +
++      s"hartidBits=$hartidBits resetVectorBits=$resetVectorBits")
++
++  val core = Module(new WumingCoreStub(
++    coreEdge, outer.wumingTileParams.wumingParams, hartidBits, resetVectorBits))
++
++  // Client-side handshake: the stub drives a/d, the tile wire is the bus side.
++  coreTl.a.valid := core.io.tl.a.valid
++  coreTl.a.bits := core.io.tl.a.bits
++  core.io.tl.a.ready := coreTl.a.ready
++  core.io.tl.d.valid := coreTl.d.valid
++  core.io.tl.d.bits := coreTl.d.bits
++  coreTl.d.ready := core.io.tl.d.ready
++
++  core.io.hartid := outer.hartIdSinkNode.bundle
++  core.io.resetVector := outer.resetVectorSinkNode.bundle
++
++  outer.reportHalt(None)
++  outer.reportWFI(None)
++  outer.reportCease(Some(core.io.halted))
++}

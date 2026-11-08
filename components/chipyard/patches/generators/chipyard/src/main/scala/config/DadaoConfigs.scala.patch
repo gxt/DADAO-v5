@@ -1,0 +1,27 @@
+diff --git a/generators/chipyard/src/main/scala/config/DadaoConfigs.scala b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
+new file mode 100644
+index 0000000..4066eb2
+--- /dev/null
++++ b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
+@@ -0,0 +1,21 @@
++// See LICENSE for license details.
++//
++// DADAO SoC configurations (m12-chipyard-001).
++//
++// `WumingTinyConfig` is the first DADAO configuration to elaborate.  "Tiny"
++// in the final sense means the 48-bit BootROM/SRAM address map; that map and
++// its PAddrBits evaluation land in m12-002, so this config still uses the
++// stock chipyard address map.
++
++package chipyard
++
++import org.chipsalliance.cde.config.Config
++
++class WumingTinyConfig extends Config(
++  // BootROM image name is a fragment-level knob (see the PeripheralFragments
++  // patch).  The DADAO image itself lands in m12-003, so use the stock rv64
++  // image for now; the stub core never fetches from it.
++  new chipyard.config.WithBootROM(
++    contentFileName = Some("/testchipip/bootrom/bootrom.rv64.img")) ++
++  new wuming.common.WithNWumingTiles(1) ++
++  new chipyard.config.AbstractConfig)

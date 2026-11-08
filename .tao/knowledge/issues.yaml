@@ -159,3 +159,12 @@
     【P2】`tools/gem5/build_gem5.py:191` 在 `.work/build/gem5` 不存在时抛 `ValueError`：
     首次 `make build-gem5` rc=2，需先跑 `check-gem5-decode` 才能建出构建目录（`m12-gem5-001` 实测）。
     建议改为按需 `mkdir -p` 或明确报错「先跑 X」；属工具缺陷，不阻塞任务但影响新机器首建。
+
+- id: ISS-356
+  scope: [infra]
+  status: open
+  resolved_by: null
+  title: >-
+    【P3】`check_milestone_tasks.py` 两处基线残留：① 新式核验册名 `mNN-<module>-*` 不被
+    `MBOOK_NAME_RE` 命中，会按「无 m 册」跳过；② m 册标题自引自身文件名号可绕 vacuous 检查。
+    两者均非本次（m12-infra-002）引入；当前 m 册已可选，影响低，登记待清理。

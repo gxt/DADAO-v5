@@ -1,0 +1,7 @@
+build.sbt.patch
+generators/chipyard/src/main/scala/config/DadaoConfigs.scala.patch
+generators/chipyard/src/main/scala/config/fragments/PeripheralFragments.scala.patch
+generators/dadao-wuming/build.sbt.patch
+generators/dadao-wuming/src/main/scala/wuming/common/WumingCoreStub.scala.patch
+generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala.patch
+generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala.patch

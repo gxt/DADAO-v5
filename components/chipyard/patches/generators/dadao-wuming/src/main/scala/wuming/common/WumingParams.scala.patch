@@ -1,0 +1,135 @@
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
+new file mode 100644
+index 0000000..0b0d1c7
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
+@@ -0,0 +1,129 @@
++// See LICENSE for license details.
++//
++// DADAO "wuming" tile parameters (m12-chipyard-001).
++//
++// Boundary ruling (user, 2026-11-08, option A): the Rocket *core* and its
++// RISC-V semantics (CSR / misa / PMP / MMU / TLB / exception codes) are out of
++// scope; the rocket-chip *library* (Diplomacy / TileLink / BaseTile) and
++// chipyard's simulation infrastructure stay.  `WumingCoreParams` therefore
++// does NOT extend `CoreParams` and carries no RISC-V field.
++//
++// One legacy concession is unavoidable: `BaseTile`'s public constructor takes
++// `TileParams`, and `TileParams.core` is typed `CoreParams`.  The adapter
++// below (`WumingCompatCoreParams`) fills that socket with neutral values so
++// the tile can borrow BaseTile's wiring; the core never reads it and it is
++// never treated as an ISA description.
++
++package wuming.common
++
++import org.chipsalliance.cde.config._
++import freechips.rocketchip.subsystem._
++import freechips.rocketchip.tile._
++import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, MulDivParams}
++import freechips.rocketchip.prci.ClockSinkParameters
++
++/** DADAO core parameters: no RISC-V semantics. */
++case class WumingCoreParams(
++  bootFreqHz: BigInt = BigInt(1000000000),
++  // With useVM = false, `BaseTile.maxPAddrBits` is exactly xLen, so a 64-bit
++  // core may express any physical address the TileLink address map negotiates.
++  xLen: Int = 64,
++  retireWidth: Int = 1,
++  nLocalInterrupts: Int = 0,
++  // Stub-only knobs (m12-chipyard-001): the placeholder core issues one
++  // PutFull to `testAddress` and then halts.  Replaced by the real core in
++  // m12-002.
++  testAddress: BigInt = BigInt("80000000", 16),
++  testData: BigInt = BigInt("deadbeefcafebabe", 16)
++)
++
++/** Wiring-only adapter: `TileParams.core` is typed `CoreParams`. */
++private[common] case class WumingCompatCoreParams(w: WumingCoreParams) extends CoreParams {
++  val bootFreqHz = w.bootFreqHz
++  val xLen = w.xLen
++  val retireWidth = w.retireWidth
++  val nLocalInterrupts = w.nLocalInterrupts
++
++  // No virtual memory / privilege / debug / atomics / compressed ISA state.
++  val useVM = false
++  val useHypervisor = false
++  val useUser = false
++  val useSupervisor = false
++  val useDebug = false
++  val useAtomics = false
++  val useAtomicsOnlyForIO = false
++  val useCompressed = false
++  val useRVE = false
++  val useConditionalZero = false
++  val useZba = false
++  val useZbb = false
++  val useZbs = false
++  val mulDiv: Option[MulDivParams] = None
++  val fpu: Option[FPUParams] = None
++  val fetchWidth = 1
++  val decodeWidth = 1
++  val instBits = 16
++  val useNMI = false
++  val nPMPs = 0
++  val pmpGranularity = 4
++  val nBreakpoints = 0
++  val useBPWatch = false
++  val mcontextWidth = 0
++  val scontextWidth = 0
++  val nPerfCounters = 0
++  val haveBasicCounters = false
++  val haveFSDirty = false
++  val misaWritable = false
++  val haveCFlush = false
++  val nL2TLBEntries = 0
++  val nL2TLBWays = 0
++  val nPTECacheEntries = 0
++  val mtvecInit: Option[BigInt] = None
++  val mtvecWritable = false
++  val traceHasWdata = false
++  val pgLevels = 3
++  val lrscCycles = 1
++}
++
++case class WumingTileParams(
++  name: Option[String] = Some("wuming_tile"),
++  tileId: Int = 0,
++  wumingParams: WumingCoreParams = WumingCoreParams()
++) extends InstantiableTileParams[WumingTile] {
++  val core: CoreParams = WumingCompatCoreParams(wumingParams)
++  val baseName: String = name.getOrElse("wuming_tile")
++  val uniqueName: String = s"${baseName}_$tileId"
++  val icache: Option[ICacheParams] = None
++  val dcache: Option[DCacheParams] = None
++  val btb: Option[BTBParams] = None
++  val blockerCtrlAddr: Option[BigInt] = None
++  val clockSinkParams: ClockSinkParameters = ClockSinkParameters()
++  def instantiate(
++    crossing: HierarchicalElementCrossingParamsLike,
++    lookup: LookupByHartIdImpl
++  )(implicit p: Parameters): WumingTile =
++    new WumingTile(this, crossing, lookup)
++}
++
++case class WumingTileAttachParams(
++  tileParams: WumingTileParams,
++  crossingParams: HierarchicalElementCrossingParamsLike = RocketCrossingParams()
++) extends CanAttachTile {
++  type TileType = WumingTile
++}
++
++/** Attach `n` wuming tiles to the subsystem (single-core for now). */
++class WithNWumingTiles(n: Int = 1, wumingParams: WumingCoreParams = WumingCoreParams())
++    extends Config((site, here, up) => {
++  case TilesLocated(InSubsystem) =>
++    val prev = up(TilesLocated(InSubsystem), site)
++    val idOffset = up(NumTiles)
++    (0 until n).map { i =>
++      WumingTileAttachParams(
++        tileParams = WumingTileParams(tileId = i + idOffset, wumingParams = wumingParams)
++      )
++    } ++ prev
++  case NumTiles => up(NumTiles) + n
++}) {
++  require(n >= 1, "WithNWumingTiles: n must be >= 1")
++}

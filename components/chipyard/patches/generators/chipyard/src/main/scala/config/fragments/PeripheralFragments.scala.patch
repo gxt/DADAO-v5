@@ -1,0 +1,26 @@
+diff --git a/generators/chipyard/src/main/scala/config/fragments/PeripheralFragments.scala b/generators/chipyard/src/main/scala/config/fragments/PeripheralFragments.scala
+index cf1af46..872cd86 100644
+--- a/generators/chipyard/src/main/scala/config/fragments/PeripheralFragments.scala
++++ b/generators/chipyard/src/main/scala/config/fragments/PeripheralFragments.scala
+@@ -28,15 +28,18 @@ import chipyard.{ExtTLMem}
+   * @param address the address of the BootROM device
+   * @param size the size of the BootROM
+   * @param hang the power-on reset vector, i.e. the program counter will be set to this value on reset
+-  * @param contentFileName the path to the BootROM image
++  * @param contentFileName the classpath resource holding the BootROM image
++  *        (default: the upstream testchipip image for the widest tile xLen)
+   */
+-class WithBootROM(address: BigInt = 0x10000, size: Int = 0x10000, hang: BigInt = 0x10000) extends Config((site, here, up) => {
++class WithBootROM(address: BigInt = 0x10000, size: Int = 0x10000, hang: BigInt = 0x10000,
++                  contentFileName: Option[String] = None) extends Config((site, here, up) => {
+   case BootROMLocated(x) => up(BootROMLocated(x), site)
+       .map(_.copy(
+         address = address,
+         size = size,
+         hang = hang,
+-        contentFileName = ResourceFileName(s"/testchipip/bootrom/bootrom.rv${site(MaxXLen)}.img")
++        contentFileName = ResourceFileName(contentFileName.getOrElse(
++          s"/testchipip/bootrom/bootrom.rv${site(MaxXLen)}.img"))
+       ))
+ })
+ 

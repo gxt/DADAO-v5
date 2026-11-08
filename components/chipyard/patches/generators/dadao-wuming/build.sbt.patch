@@ -1,0 +1,18 @@
+diff --git a/generators/dadao-wuming/build.sbt b/generators/dadao-wuming/build.sbt
+new file mode 100644
+index 0000000..faf1a15
+--- /dev/null
++++ b/generators/dadao-wuming/build.sbt
+@@ -0,0 +1,12 @@
++// DADAO "wuming" generator (m12-chipyard-001).
++//
++// The sbt project is declared in the chipyard root `build.sbt` (`lazy val
++// wuming`), because it has to be wired into the `chipyard` project's
++// dependency set there.  This file is deliberately inert: chipyard only reads
++// `build.sbt` at the repository root, so keeping it here documents the
++// generator without creating a second build definition.
++
++organization := "dadao"
++version := "0.1"
++name := "wuming"
++scalaVersion := "2.13.16"

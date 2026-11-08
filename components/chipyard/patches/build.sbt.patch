@@ -1,0 +1,28 @@
+diff --git a/build.sbt b/build.sbt
+index f56621c..92d4b73 100644
+--- a/build.sbt
++++ b/build.sbt
+@@ -163,6 +163,15 @@ lazy val rocketchip = freshProject("rocketchip", rocketChipDir)
+   )
+ lazy val rocketLibDeps = (rocketchip / Keys.libraryDependencies)
+ 
++// -- DADAO "wuming" core (m12-chipyard-001) --
++// Kept in its own project under generators/dadao-wuming; `chipyard` depends
++// on it below so `WumingTile` / `WumingTinyConfig` end up on the generator
++// classpath used by the Verilator flow.
++lazy val wuming = freshProject("wuming", file("generators/dadao-wuming"))
++  .dependsOn(rocketchip)
++  .settings(libraryDependencies ++= rocketLibDeps.value)
++  .settings(commonSettings)
++
+ 
+ // -- Chipyard-managed External Projects --
+ 
+@@ -180,6 +189,7 @@ lazy val chipyard = {
+       testchipip, rocketchip, boom, rocketchip_blocks, rocketchip_inclusive_cache,
+       icenet, tracegen,
+       constellation, barf, shuttle, rerocc,
++      wuming,
+     ).map(sbt.Project.projectToRef) ++
+     (if (useChisel7) Seq() else Seq(sbt.Project.projectToRef(firrtl2_bridge))) ++
+     (if (useChisel7) Seq() else Seq(sbt.Project.projectToRef(dsptools), sbt.Project.projectToRef(rocket_dsp_utils)))

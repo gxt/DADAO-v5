@@ -70,10 +70,12 @@ patch_dir = "components/picolibc/patches"
 patch_series = "components/picolibc/series"
 role = "C library for embedded systems + its upstream test suite (M7 test focus)"
 
-# Chipyard is a *reference platform* (ADR-0024 D1), not a v5 delivered
-# component: it carries NO patch set (ADR-0024 "Chipyard does not enter the v5
-# component patch set"). Its exact baseline is the pinned commit plus the
-# submodule snapshot in manifests/chipyard-submodules.lock.toml (ADR-0024 D2).
+# Chipyard is a *reference platform* (ADR-0024 D1) **and** the target platform
+# the DADAO cores are migrated into.  D1 was revised in place on 2026-11-08
+# (user ruling): chipyard now DOES carry a v5 patch set under
+# components/chipyard/, so it is no longer `patchless`.  Its exact baseline is
+# still the pinned commit plus the submodule snapshot in
+# manifests/chipyard-submodules.lock.toml (ADR-0024 D2).
 [[component]]
 name = "chipyard"
 enabled = true
@@ -81,17 +83,17 @@ repository = "https://github.com/ucb-bar/chipyard.git"
 commit = "0acc1e1de2d3284bcd4d876956932a013ffe1949"
 shallow = true
 shallow_ref = "1.14.0"
-# Explicit "reference-only, no patch set" flag (ADR-0024 D1): it is what lets
-# the gates accept the ABSENCE of patch_dir/patch_series for this component
-# only. Declaring patch_dir/patch_series alongside it is rejected (no smuggling
-# patches into a component the patch-tree gate skips).
-patchless = true
+# v5 patch set (m12-chipyard-001): the DADAO "wuming" generator
+# (generators/dadao-wuming/**) plus the top-level wiring (build.sbt,
+# PeripheralFragments.scala).  One upstream file per patch, per Process-01.
+patch_dir = "components/chipyard/patches"
+patch_series = "components/chipyard/series"
 # The pinned submodule snapshot (ADR-0024 D2).  `fetch.py` requires a bare
 # mirror of each `lite = true` entry under .cache/submodules/ and checks those
 # submodules out from the local mirror (offline).  `lite = false` entries are
 # nested/optional and stay out of the managed set.
 submodule_lock = "manifests/chipyard-submodules.lock.toml"
-role = "RTL SoC simulation (Verilator/RTL reference platform)"
+role = "RTL SoC simulation (Verilator) + DADAO core migration target"
 
 [[component.source]]
 name = "gitclone"
@@ -106,7 +108,7 @@ url = "https://ghfast.top/https://github.com/ucb-bar/chipyard"
 # SPEC-138t pins against (asm-generic/unistd.h +
 # arch/riscv/include/uapi/asm/unistd.h); v5 neither builds nor patches any of
 # it, so it carries NO patch set (see `patchless` below, same class as
-# chipyard / ADR-0024 D1).
+# linux / ADR-0024 D1).
 #
 # Source form: a git baseline (user ruling 2026-10-14), so any local change can
 # always be turned into a diff/patch. The signed tarball in .cache/
@@ -147,7 +149,7 @@ url = "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
 # LLVM test-suite — a *benchmark/baseline suite* input for M8 (user ruling
 # 2026-10-14: source github.com/llvm/llvm-test-suite, tag 23.1.3). A reference
 # input, not a v5-patched component, so it carries NO patch set (`patchless`,
-# same class as chipyard ADR-0024 D1 / linux).
+# same class as linux).
 #
 # Tag form (2026-10-14, `git cat-file -t`): `llvmorg-23.1.3` is an *annotated*
 # tag (type = tag, PGP-signed); its tag object is
@@ -195,8 +197,8 @@ url = "https://gitclone.com/github.com/llvm/llvm-test-suite.git"
 # itself, ADR-0025 D3) both build on this tree. It is fetched at the pin below
 # and locked here.
 #
-# It carries NO v5 patch set yet (`patchless`, same class as chipyard
-# ADR-0024 D1 / linux / llvm-test-suite), because the `arch/dadao` port does
+# It carries NO v5 patch set yet (`patchless`, same class as linux /
+# llvm-test-suite), because the `arch/dadao` port does
 # not exist yet -- that is a separate follow-up task. This flag is what lets
 # the gates accept the ABSENCE of patch_dir/patch_series; declaring either
 # alongside it is rejected (no smuggling patches into a component the
@@ -232,8 +234,8 @@ role = "C library base for the M8 Linux user-space stack (musl static + musl lds
 # libc-test -- the musl/Linux user-space *conformance test suite* feeding M8
 # (ADR-0025 D6): a corpus independent of our own implementation, used to judge
 # whether the musl port (P1 static / P2 dynamic) holds. It started as a
-# patchless reference input (same class as chipyard ADR-0024 D1 / linux /
-# llvm-test-suite) but is now a lightly patched component: TESTCASES-100t
+# patchless reference input (same class as linux / llvm-test-suite) but is now
+# a lightly patched component: TESTCASES-100t
 # (2026-11-05) makes `src/regression/malloc-brk-fail.c` portable to 64 KiB
 # pages by consuming the heap that musl's dynamic loader donates from the
 # page-aligned PT_LOAD gaps before the test fills the address space (the old
