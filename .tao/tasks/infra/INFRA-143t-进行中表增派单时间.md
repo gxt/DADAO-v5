@@ -105,7 +105,7 @@
 **重跑记录（命令 / 真实输出 / 退出码）**
 - `make check-milestones-fresh` → `rc=0`；`结果: PASS（待开始 4 行 / 进行中 4 行 / 已验证 97 行；分类一致 / 覆盖 / ≤120 字符 / 已验证倒序 / 格式 / 无状态列）`
 - `python3 tools/infra/check_milestones_fresh.py --self-test` → `rc=0`；干净基线 + 注入①–⑭ 共 15 行 `PASS`、`FAIL` 行数 0
-- 证据脚本（在任务 worktree 内）`SKIP_L1=1 ./.work/evidence/INFRA-143t/run.sh` → `EVID_RC=0`，`结果: PASS=36 FAIL=0`；注入前 md5 `0e101594…`、终态同值（S5 校验）
+- 任务证据脚本（运行期、未归档）在任务 worktree 内以 `SKIP_L1=1` 运行 → `EVID_RC=0`，`结果: PASS=36 FAIL=0`；注入前 md5 `0e101594…`、终态同值（S5 校验）
 - **独立注入（reviewer 自造，非脚本用例）**：删 `INFRA-140t` 派单时间后**重跑同一脚本** → `RUN_RC=1`、`结果: PASS=29 FAIL=7`（S1/S3 均 FAIL）；`cp` 备份还原 → md5 回 `0e101594…` → 重跑 `EVID_RC=0`、`36/36`。另有 5 类真树注入逐条 `python3 …` `rc=1`（make 包装为 rc=2）、命中「缺派单时间」「不得含派单时间」「须为 `YYYY-MM-DD HH:MM`」「A1 MISMATCH」「A4 逆序」，及 2 类附加注入（待验收行入待开始表 → A1 MISMATCH；未派单行入进行中无派单时间 → 宽度错），每次 `cp`+md5 还原、回绿 `rc=0`
 - `make -k check`（L1）→ `rc=2`，唯一红：`check-patch-tree: 4 problem(s)` = qemu `linux-user/mmap.c` ⑥⑨ + gem5 `src/arch/dadao/se_workload.cc` ⑥⑨；其余全 PASS（含 `check-run-artifacts: PASS`、`check-milestones-fresh` PASS）。**归属核实**：在主树 master 上 `make check-patch-tree` 同样 `rc=2` 同 4 条；本分支 `git diff --name-only` 仅 6 个任务范围文件、`components/` 零改动；`components/qemu/patches/linux-user/mmap.c.patch` 与 `components/gem5/.../se_workload.cc.patch` 中 `mremap`/`mmapCeiling` 均 0 处 ⇒ 红来自并发 QEMU-085t/GEM5-028t
 - **快照对账**：验收前后 `git status --porcelain -uall` 均为同一 6 文件，md5 逐文件相等（`8c276b19…/0e101594…/cf96b83b…/131950f7…/8aa54289…/82772476…`），与完成区「修改文件」声明一致；主树 `git status` 干净、主树台账 md5 `4ae56b90…` 未被我误跑的脚本污染（trap 已还原，主树门控仍 `rc=0`）
