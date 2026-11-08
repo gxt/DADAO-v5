@@ -96,7 +96,7 @@ EXIT_W0 = EXIT_BLOCK & 0xFFFF
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 DEFAULT_QEMU = _prelude.default_qemu()
 QEMU = DEFAULT_QEMU
-WORKDIR = "/tmp/opencode/TESTCASES-094t/min_rom_probe_integ050t"
+WORKDIR = os.path.join(_prelude.TMP_ROOT, "min_rom_probe_integ050t")
 TIMEOUT = 90
 
 SPEC_SEE = os.path.join(_REPO, "spec", "DADAO-12-SEE-主管系统运行环境.md")

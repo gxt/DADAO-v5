@@ -84,7 +84,10 @@ PMEM_STAGE = PMEM_BASE + 0x1000
 
 DEFAULT_QEMU = str(_paths.host_toolchain_bin() / "qemu-system-dadao")
 QEMU = DEFAULT_QEMU
-TMP_ROOT = "/tmp/opencode/TESTCASES-093t"
+# Probe scratch root: the persistent, git-ignored test-artifact tree
+# (INFRA-146t).  Never under /tmp: an L1 gate flags non-active /tmp/opencode
+# directories older than 2 h, while this root is only refreshed by L2/L3.
+TMP_ROOT = str(_paths.test_artifacts_dir() / "arch" / "probes")
 TIMEOUT = 10
 
 # Semihosting SYS_EXIT (ADR-0020 D8): trap immu18[17:8] == 0x3FF.

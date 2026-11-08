@@ -64,7 +64,7 @@ RAM_BASE = _MACH.ram_base
 
 DEFAULT_QEMU = _prelude.default_qemu()
 QEMU = DEFAULT_QEMU
-WORKDIR = "/tmp/opencode/TESTCASES-094t/min_rom_probe_046t"
+WORKDIR = os.path.join(_prelude.TMP_ROOT, "min_rom_probe_046t")
 TIMEOUT = 20
 
 # TESTCASES-094t §5: body at RESET_PC + 0x1000 inside the 4 MiB bootrom image,

@@ -50,7 +50,7 @@ import node_probe_prelude as _prelude  # noqa: E402
 
 DEFAULT_QEMU = _prelude.default_qemu()
 QEMU = DEFAULT_QEMU
-WORKDIR = "/tmp/opencode/TESTCASES-094t/min_rom_probe_async_094t"
+WORKDIR = os.path.join(_prelude.TMP_ROOT, "min_rom_probe_async_094t")
 TIMEOUT = 60
 
 ROM_BASE = _prelude.ROM_BASE

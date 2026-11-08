@@ -226,7 +226,7 @@ help:
 	@echo "  make check-inst      inst semantic full set (tests/inst; L3; TESTCASES-072t)"
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
-	@echo "  make check-temp-dirs  Stale task temp dirs (non-active worktree, mtime > 2 h) + /tmp usage > 70% gate; report only, never delete (L1; INFRA-145t)"
+	@echo "  make check-temp-dirs  Stale task temp dirs (non-active worktree, in-use task exempt, mtime > 2 h) + stale large files (> 100 MiB) + /tmp usage > 70% gate; report only, never delete (L1; INFRA-145t/146t)"
 	@echo "  make check-width-sizes  64-bit width + ELF64/rela/got + DWARF64 addr_size probe (L1; LLVM-130t)"
 	@echo "  make check-code-range  DADAO code-span gate: REL26 edge ≤ 32 MiB + exec_span < 30 MiB (L1; ADR-0036/INFRA-106t)"
 	@echo "  make check-contracts-dir  Whitelist gate for .tao/contracts/ + contracts/ top level (L1; INFRA-071t)"
@@ -262,7 +262,7 @@ help:
 	@echo "  make check-lit-full   Run full generated lit MC suite from contracts/opcodes.yaml (opt-in; TESTCASES-037t)"
 	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t; check-unit member)"
 	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t; check-unit member)"
-	@echo "  make check-arch-smoke  arch smoke: SEE/semihosting + cfx permission + 25 svc (L2; TESTCASES-073t)"
+	@echo "  make check-arch-smoke  arch smoke: SEE/semihosting + cfx permission + 25 svc (L2; TESTCASES-073t; probe root under TEST_ARTIFACTS_DIR — INFRA-146t)"
 	@echo "  make check-arch      arch full cfx set: arch-smoke + cfx min-ROM probes (L3; TESTCASES-073t)"
 	@echo "  make test-m6          Run M6 E2E gate (lli value-level diff + Embench all benches -O0/-O2 + full lit MC suite; opt-in, INTEG-025t)"
 	@echo "  make check-patch-tree  Check component patch tree (docs/Process-01, 9 assertions)"
@@ -1172,13 +1172,16 @@ check-tasks:
 check-run-artifacts:
 	@$(PYTHON) tools/infra/check_run_artifacts.py
 
-# 陈旧临时目录 + /tmp 占用门控 (INFRA-145t, L1): 扫 `/tmp/opencode` 与 `$TMPDIR/opencode`
-# 的**直接子目录**，排除 `git worktree list` 的活动 worktree；非活动目录 **mtime > 2 h**
-# ⇒ FAIL（`du` 体积前 5 大 + 陈旧总数/总体积）；根所在文件系统**占用 > 70%** ⇒ FAIL
+# 陈旧临时目录 / 陈旧大文件 + /tmp 占用门控 (INFRA-145t/146t, L1): 扫 `/tmp/opencode`
+# 与 `$TMPDIR/opencode` 的**直接子目录**，排除 `git worktree list` 的活动 worktree；
+# **在用任务豁免**（目录名以任务号开头且任务书状态 ∈ 待开始/待验收/待返工）；其余
+# 目录 **mtime > 2 h** ⇒ FAIL（`du` 体积前 5 大 + 陈旧总数/总体积）；根**直接子文件**
+# **> 100 MiB 且 mtime > 2 h** ⇒ 列清单后 FAIL；根所在文件系统**占用 > 70%** ⇒ FAIL
 # （`df` 实测、不写死）。**只报告不删除**（清理由任务收尾执行）；无 `/tmp/opencode`
 # ⇒ PASS（不 vacuous 失败）。用户授权：「临时目录没有清理，这种事情不要一再发生…
 # 不要靠记忆，而是靠规则」。`--self-test` 覆盖：陈旧 ⇒ FAIL / 活动 worktree 豁免 /
-# 缺根 PASS / 占用阈值注入 / 只列前 5 大 / 只报告不删除。
+# 在用任务豁免 / 已验证任务 FAIL / 缺根 PASS / 占用阈值注入 / 大文件 FAIL /
+# 只列前 5 大 / 只报告不删除。
 check-temp-dirs:
 	@$(PYTHON) tools/infra/check_temp_dirs.py
 
@@ -1540,6 +1543,10 @@ ARCH_M5_DIR = tests/arch/umon
 ARCH_M5_RUNNER = tools/testcases/arch/run_m5_e2e.py
 ARCH_MIN_ROM_DIR = tools/testcases/arch
 ARCH_E2E_WORK = $(TEST_ARTIFACTS_DIR)/arch/m5-e2e
+# Probe scratch root (INFRA-146t): persistent, git-ignored artifact tree.  It must
+# **not** live under `/tmp`: `check-temp-dirs` (L1) flags non-active `/tmp/opencode`
+# dirs older than 2 h, and this root is refreshed by L2/L3 only ⇒ self-triggered red.
+ARCH_PROBE_WORK = $(TEST_ARTIFACTS_DIR)/arch/probes
 ARCH_SMOKE_LOG = .work/log/arch/check-arch-smoke.log
 ARCH_PROBE_LOG = .work/log/arch/check-arch-smoke-svc.log
 # L3 追加的 cfx 场景探针（原 min_rom_probe_*）：SEE/trap/escape 语义面 + RAM 映射/CFXMEM。
@@ -1560,7 +1567,7 @@ _locked-check-arch-smoke: install-host build-bootrom
 	@test -f $(ARCH_MIN_ROM_DIR)/min_rom_probe_046t.py || { echo "check-arch-smoke: ERROR: min_rom_probe_046t.py not found"; exit 1; }
 	@test -f $(BOOTROM_DIR)/step5/bootrom_step5.bin || { echo "check-arch-smoke: ERROR: $(BOOTROM_DIR)/step5/bootrom_step5.bin not found (run 'make build-bootrom')"; exit 1; }
 	@mkdir -p .work/log/arch
-	@rm -rf $(ARCH_E2E_WORK)
+	@rm -rf $(ARCH_E2E_WORK) $(ARCH_PROBE_WORK)
 	@echo "check-arch-smoke: [1/2] forward semihosting + cfx-level permission counter-examples (Node)"; \
 	  DADAO_TEST_PROFILE=node $(PYTHON) $(ARCH_M5_RUNNER) \
 	    --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \

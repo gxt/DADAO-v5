@@ -67,7 +67,7 @@ EXIT_BLOCK = _MACH.exit_block
 DEFAULT_QEMU = _prelude.default_qemu()
 DEFAULT_BOOTROM = os.path.join(_REPO, ".dadao/tests/bootrom/step5/"
                                      "bootrom_step5.bin")
-WORKDIR = "/tmp/opencode/TESTCASES-094t/min_rom_probe_integ046t"
+WORKDIR = os.path.join(_prelude.TMP_ROOT, "min_rom_probe_integ046t")
 TIMEOUT = 60
 
 QEMU = DEFAULT_QEMU
