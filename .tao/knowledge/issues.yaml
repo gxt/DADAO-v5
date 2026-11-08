@@ -132,3 +132,12 @@
     运行期目录：主控机上有文件时不报，换到新节点/fresh clone 就红。近期已因此复发三次
     （任务书/审阅记录写具体运行期路径）。建议改为按 **git 跟踪树**（或 `git archive` 临时树）判定：
     任何具体 `.work/**` 引用一律视为不可复现。属门控语义变更，需用户裁定后再动。
+
+- id: ISS-353
+  scope: [infra]
+  status: open
+  resolved_by: null
+  title: >-
+    【P3】`tools/infra/check_knowledge_refs.py` 清理项：改为「具体 `.work/**` 一律 FAIL」后，
+    `checked` 计数只写不读、(A) 面的 `dangling` 分支已不可达。清理时只删死代码/死计数，
+    **不得改判据**（具体引用一律 FAIL + 四类豁免 + `found==0` 空转）。

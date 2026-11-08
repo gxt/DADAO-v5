@@ -12,9 +12,9 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-135t | 已验证 | 2026-11-08 08:59 | check-knowledge-refs 具体 `.work` 引用一律 FAIL（ISS-352，用户裁定 A） |
 | SPEC-195t | 待验收 | 2026-11-08 08:57（登记） | Machine-v5 发布 0.3.2（-rc 去 rc + 日期 + 锁重算） |
 | INFRA-136t | 待开始 | 2026-11-08 08:53（登记） | chipyard 补丁集：SimTSI 首构造 try/catch，修 --help 崩溃 |
-| INFRA-135t | 待验收 | 2026-11-08 08:52（登记） | check-knowledge-refs 按「不可复现」判定具体 .work 引用（ISS-352，用户裁定 A） |
 | INFRA-134t | 已验证 | 2026-11-08 04:01 | bootstrap 语义改名 + 隔离用例；remote.py 仓库根校验；L1 断言改 -k 封闭假绿（ISS-347/348） |
 | GEM5-030t | 已验证 | 2026-11-08 04:00 | SE mprotect 真权限 + RLIMIT_AS/DATA/STACK；GROWSDOWN 四支与内核一致；434/148、6/0 |
 | INFRA-133t | 待验收 | 2026-11-08 02:15（登记） | 节点 chipyard/Verilator/RISC-V 环境；两台 RocketConfig 构建通过、conda 包一致 |
