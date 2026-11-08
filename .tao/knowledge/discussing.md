@@ -93,7 +93,7 @@
 
 **范围收缩**：Tiny 只用 `loadmem` 预载；**TSI 不在 M12 实现**；**M12 不考虑 fesvr/pk**；semihosting 应答者在 **harness 侧**（`003`）。
 
-拟 14 个任务，每件 ≤2–3 h：
+拟 14 个任务（正式编号 `m12-chipyard-001`…`014`），每件 ≤2–3 h：
 
 - `001` 骨架 + `build.sbt` + `WumingTinyConfig`（接线 + 编译）
 - `002` BootROM + `loadmem` 最小闭环（Tiny SRAM 基址与 `load_elf` 目标窗口对齐）
