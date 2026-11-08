@@ -32,10 +32,16 @@
 6. `make check`（L1）rc=0
 7. 完成区 ≤30 行、无运行期路径
 
+## 地址宽度说明（已核实，**不是**限制）
+
+- `BaseTile.maxPAddrBits`：`usingVM=false` 时 = **xLen**（64 位核 ⇒ 64 位物理地址）；实际 `paddrBits` 由 TileLink 协商（`tlBundleParams.addressBits`），由地址图（BootROM/SRAM 的 `AddressSet` 基址）决定。
+- 因此 Tiny 的 `0xffff_ffff_0000` / `0xffff_ff00_0000` 在 64 位核、无 MMU 下可直接表达；「32 位」只是默认地址图的结果，不是 Rocket 的限制（用户 2026-11-08 指出，已核实）。
+- 本任务仍须记录：`usingVM=false`、地址图配置的正确写法与实测协商结果，作为 `m12-002` 的输入。
+
 ## 技术风险（必须在完成区给结论）
 
-- **48 位物理地址 vs chipyard 默认 `PAddrBits=32`**：本任务只需骨架跑通（可暂用 32 位），但须实测记录「`PAddrBits` 能否设为 48 / 需要哪些配套参数」，作为 `m12-002` 的输入。
 - **`BaseTile` 自写端口**：不与 `CoreParams` 绑定时，`BaseTile` 的哪些抽象成员必须实现（`HartidKey`/`TileVisibilityNodeKey`/中断节点）——逐项记录。
+- **边界确认**：本方案的「不用 Rocket」= 不用 Rocket **核**与 RISC-V 语义（CSR/MMU/TLB/misa/异常码）；**保留** rocket-chip 库的 Diplomacy/TileLink/`BaseTile` 与 chipyard 仿真基础设施（BootROM/内存模型/Verilator harness）。
 
 ## 说明
 
