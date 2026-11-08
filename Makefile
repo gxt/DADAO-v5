@@ -57,7 +57,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .DEFAULT_GOAL := help
 
-.PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
+.PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare sync-node-repo \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
         build-builtins build-qemu build-qemu-reconfig build-gem5 check-gem5-decode build-bootrom build-picolibc \
         build-musl build-musl-shared test-picolibc-smoke install-host install-cfx-aliases docker-image docker-shell check \
@@ -302,6 +302,11 @@ fetch-refs: manifest-check
 # "dadao: <component> patch series") so the worktree ends clean at base+1.
 apply-series: manifest-check
 	@$(PYTHON) tools/infra/apply_series.py
+
+# 节点仓库同步（用户 2026-11-09）：每次远程任务后把 master 推到节点并恢复干净工作树。
+# 节点清单来自 DADAO_NODES；仓库路径来自 REPO（默认 ~/DADAO-v5）。
+sync-node-repo:
+	@tools/infra/sync_node_repo.sh
 
 prepare: fetch apply-series
 
