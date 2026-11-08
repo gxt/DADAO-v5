@@ -237,7 +237,7 @@ help:
 	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
 	@echo "  make check-milestones-fresh  milestone ledgers three-table gate: class/coverage/length/order/format + per-milestone ledger routing (milestones.md 必有 / milestones-m12.md 存在则校验) (L1; INFRA-091t/INFRA-141t/m12-infra-001)"
 	@echo "  make check-archive   .tao/archive/M<i>/ structure + task-book fields + README five sections + issues snapshot (L1; INFRA-116t)"
-	@echo "  make check-milestone  Milestone closure: SIMRISC archive + sha + sync-nonmaskable + m-book + L3 report + check-tasks --strict (not L1; night run is observation only)"
+	@echo "  make check-milestone  Milestone closure: SIMRISC archive + sha + sync-nonmaskable + m-book (optional; validated when present) + L3 report + check-tasks --strict (not L1; night run is observation only)"
 	@echo "  make check-sync-nonmaskable  Sync exception causes must not be maskable (only IPI/TIMER/UART*/… may; SPEC-175t; not L1)"
 	@echo "  make check-interface  Check cross-module interface alignment (L1)"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
@@ -1188,9 +1188,11 @@ check-temp-dirs:
 # 里程碑收尾门控 (2026-10-17, A2; 归 **L2 层 / 里程碑收尾专项**，**不入** `check-modules`):
 # ⓪ SimRISC 归档：结构（`check-spec-archive`）+ 内容 sha256（`check-spec-archive-verify`）
 #    ——归档只在发布/里程碑边界变化，故不入 L1（INFRA-109t；用户 2026-10-25 裁定）；
-# ① 当前里程碑（`milestones.md` 中 `项目里程碑 = M<n>` 断言的最大 n）在 `.tao/tasks/**`
-#    下有对应 `m` 册（命名惯例 `<PREFIX>-<nnn>m-*.md`；自报里程碑须与当前一致）；
-# ② 该 `m` 册列出的全部任务号须在 `.tao/tasks/**`（或 `.tao/archive/**`，已完成并归档）
+# ① 当前里程碑（`milestones.md` 中 `项目里程碑 = M<n>` 断言的最大 n）的 `m` 册**可选**
+#    （用户 2026-11-08 裁定：M11 起不建 m 册、M12 起编号 `m12-<module>-<NNNN>`）：
+#    无 m 册 ⇒ 打印「不建 m 册，跳过」分支、不判失败；有 m 册 ⇒ 按原规则校验
+#    （命名惯例 `<PREFIX>-<nnn>m-*.md`；自报里程碑须与当前一致；不得以旧册顶替）；
+# ② 有 m 册时，该 `m` 册列出的全部任务号须在 `.tao/tasks/**`（或 `.tao/archive/**`，已完成并归档）
 #    有对应任务书；册内零任务号 ⇒ vacuous FAIL（防「漏立任务」）；
 # ③ 接 `check_tasks.py --strict`（漏收尾 = 0）。
 # ④ 同步异常不可屏蔽（`check-sync-nonmaskable`，用户 2026-10-26 裁定「同步异常全部不可屏蔽；
@@ -1200,11 +1202,12 @@ check-temp-dirs:
 #    判据与 `--self-test` 不变），**不列入本目标依赖**。
 # ⑥ L3 报告存在性/结构/四 scope 覆盖/结果（`check-l3-report`，TESTCASES-083t）——没跑
 #    L3 即红（`.dadao/tests/l3/<UTC>/` 三件套 + 四 scope + 全 rc=0 + exit marker 一致）。
-# 不并入 L1 的理由：`m` 册未建前本目标**必然红**（预期的收口信号），日常 L1 不应常态红。
+# 不并入 L1 的理由：收尾专项依赖归档 / L3 报告等收口产物（日常不存在）⇒ 必然红，
+# 日常 L1 不应常态红。
 check-milestone: check-spec-archive check-spec-archive-verify check-sync-nonmaskable check-l3-report
 	@$(PYTHON) tools/infra/check_milestone_tasks.py
 	@$(PYTHON) tools/infra/check_tasks.py --strict
-	@echo "check-milestone: PASS (归档结构 + 内容 sha + 同步不可屏蔽 + L3 报告 + m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
+	@echo "check-milestone: PASS (归档结构 + 内容 sha + 同步不可屏蔽 + L3 报告 + m 册可选 + 漏收尾 = 0)"
 
 # 同步异常不可屏蔽 (SPEC-175t; 里程碑层): 扫 DADAO-12/22/23 异常原因表的「是否可屏蔽」列，
 # 只有异步源（IPI / TIMER / UART* / 占位行 …）允许「可」；`--self-test` 内置注入→FAIL→还原→PASS。
