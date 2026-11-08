@@ -70,7 +70,7 @@
 **审阅对象**：`fs.py.patch`（+ 应用后 `fs.py` 287 行）、`README.md`、`changelog.md`、本任务书、`run.sh`、`fs_workload.cc:84/109`、`machine-profiles.yaml`、`spec/Machine-v5`、`m12-integ-001`/`m12-testcases-001`。
 
 **重跑（reviewer 亲跑，命令 / 真实输出 / 退出码）**
-- `bash .work/evidence/m12-gem5-001/run.sh` → `12/12 checks passed, 0 failed`、`RUNSH_EXIT=0`（还原后复跑同）。
+- 运行期证据目录下的 `run.sh` → `12/12 checks passed, 0 failed`、`RUNSH_EXIT=0`（还原后复跑同）。
 - `--profile vast|node --dump-geometry`：rc=0/0；vast 17 键、node 17 键、tiny 9 键；去横幅后 `cmp rc=0`（各 583 B）；node stderr 恰 1 行 `fs.py: --profile node is deprecated, use --profile vast`，stdout 无该行；`--profile bogus` rc=2（choices `{tiny,vast,node}`）。
 - 真跑（BootROM md5 `eb75b865…` + `m5_semi_exit.bin`）：vast rc=19、node rc=19，stdout 去横幅逐字节相同，stderr 仅多 1 行 deprecated。
 - **改动前基线对照**（用 `git show HEAD:` 的 `fs.py.patch` 重建 265 行旧 `fs.py`）：旧 `node` 几何 payload `diff` 空、真跑 rc=19、stderr **无** deprecated 行、旧 `--profile vast` rc=2 ⇒ 别名与原 `node` 行为等价，唯一差异即新增的 stderr 行。

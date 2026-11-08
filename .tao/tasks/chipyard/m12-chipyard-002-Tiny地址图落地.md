@@ -27,7 +27,7 @@
 3. Verilator 构建 rc=0（`server207`）；有界运行能从 `0xffff_ffff_0000` 取指（打印取指地址或等价证据）
 4. 与 QEMU `dadao-tiny` 的同一最小镜像（放 BootROM）行为一致（退出码或等价可观测结果）
 5. `make apply-series` / `check-source-state` / `check-patch-tree` / L1 / L2 rc=0
-6. 一键证据脚本 `.work/evidence/m12-chipyard-002/run.sh`（含可达 FAIL 注入）
+6. 一键证据脚本（运行期证据目录下的 `run.sh`，含可达 FAIL 注入）
 7. 完成区 ≤30 行、无运行期路径
 
 ## 非范围
