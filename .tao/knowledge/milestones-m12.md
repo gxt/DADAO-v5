@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m12-spec-001 | 1–2 h | 机器命名定稿 Tiny/Vast（spec + contracts + docs，含锁更新） |
 | m12-qemu-001 | 2–3 h | QEMU 拆两台机器 `dadao-tiny`/`dadao-vast`（保留 m1 过渡别名） |
 | m12-gem5-001 | 0.5–1 h | gem5 FS profile `node`→`vast`（保留 node 过渡别名） |
 | m12-testcases-001 | 2–3 h | 测试与 profile 迁移到 `tiny`/`vast`（yaml/inc/env/46 文件） |
@@ -34,6 +33,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m12-spec-001 | 2026-11-08 22:07 | 1–2 h | 机器命名定稿 Tiny/Vast（spec + contracts + docs，含锁更新） |
 
 ## 已验证
 
