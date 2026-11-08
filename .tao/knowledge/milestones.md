@@ -22,6 +22,8 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| SPEC-196t | 1–2 h | SimRISC 发布 0.5.6 + 版本与变更记录重整理 |
+| TESTCASES-105t | 3–4 h | 回归运行（原夜跑）加 gem5 SE+FS 成员与报告接入 |
 | TESTCASES-104t | 5–8 h | SE 动态档驱动 + QEMU dynamic 基线刷新 + 全量对照 |
 | INTEG-059t | 10–16 h | G3 完整 tset 双向一致性（static+dynamic）+ 矩阵重生成 |
 | TESTCASES-103t | 3–4 h | SE 基线预算 120s→按套件 600s；timeout 单列并重跑 |

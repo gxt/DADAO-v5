@@ -7,7 +7,7 @@
 
 ## 背景
 
-用户 2026-11-08 裁定：M11 的模块 `m` 册门控**取消**（选 B）；M11 收口改为**立一个 integ 核验任务**（无 `m` 后缀）——「该检查任务状态检查任务状态，该归档归档即可」。本任务即该核验任务，**不新建 `m` 册**。
+用户 2026-11-08 裁定：M11 的模块 `m` 册门控**取消**（选 B）；M11 收口判据 = **已知功能都实现 + 已知 bug 都解决 + 该做的验证都做完**，不要求回归跑（原「夜跑」）完成；M11 收口改为**立一个 integ 核验任务**（无 `m` 后缀）——「该检查任务状态检查任务状态，该归档归档即可」。本任务即该核验任务，**不新建 `m` 册**。
 
 ## 目标
 
@@ -21,7 +21,7 @@
 ### 2. 里程碑判据复核（真实重跑）
 
 - `make check-full`（L3）rc=0；`check-l3-report` rc=0
-- `make check-night` 4/4 绿、`check-night-report` rc=0（若 059t 已包含同一证据，注明并复核其落盘结果即可，不重复跑）
+- 回归跑（原「夜跑」）**不是收口条件**（用户 2026-11-08）：若已有结果则复核落盘证据；未完成不阻塞，只在报告中记录状态
 - QEMU ↔ gem5 双向一致性矩阵存在且与 059t 结论一致；`tests/parity/matrix-M11.md` 已重生成
 - 已知 BLOCKED 项（picolibc `math_test` B7 浮点）在报告中保留且不计入通过数
 
@@ -36,7 +36,7 @@
 ## 验收标准
 
 1. `make check-tasks` rc=0 且 `--strict` 漏收尾 = 0；`make check-milestones-fresh` rc=0
-2. `make check-full`（L3）rc=0、`check-l3-report` rc=0；`check-night` 4/4 与 `check-night-report` rc=0
+2. `make check-full`（L3）rc=0、`check-l3-report` rc=0；回归跑状态如实在报告中记录（不作为通过条件）
 3. `make check-archive` rc=0（含新 M11 归档，`--self-test` 亦 rc=0）
 4. `git mv` 后无任务书遗留于 `.tao/tasks/`（M11 已完成项）；`.tao/archive/M11/README.md` 五节齐备
 5. 核验报告写明：M11 任务总数、已验证数、残留项去向、已知 BLOCKED 项

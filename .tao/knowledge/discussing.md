@@ -18,6 +18,7 @@
 
 ## 仍然生效的口径
 
+- **M11 收口判据（用户 2026-11-08 修订）**：**不要求回归跑（原「夜跑」）完成**；判据 = 已知功能都实现 + 已知 bug 都解决 + 该做的验证都做完。
 - **执行顺序**：改名波次优先于 `103t`/`104t`（用户 2026-11-08 选 A）。
 - **QEMU/gem5 一致性方向**：QEMU 已实现的 syscall，gem5 必须有等价实现；差异不是「可接受限制」；gem5 通过而 QEMU 未通过不得直接接受，须定位到一致。
 - **环境缺口（2026-11-07 裁定）**：`popen`/`spawn`/`vfork`/`execle-env`/`unix-smail` 5 例需要 guest 根内的 DADAO `/bin/sh`、`echo`；SE 返回 `ENOEXEC` 正确。QEMU 侧「通过」是执行宿主 x86-64 二进制，**非同架构 baseline**，不计 gem5 能力欠账；不采纳宿主原生执行旁路。
@@ -25,6 +26,7 @@
 - **picolibc `math_test` 已知 BLOCKED**：Tiny 在 gem5 上 `238/76404 errors`（QEMU 0 errors），归因 B7 浮点数值差异；报告须保留 blocked 计数，不得计 PASS；修复另立差分任务（M13）。
 - **退出码定稿**：guest `0x00–0x3F` = PASS、`0x40–0x7F` = FAIL；机器 fault `0xC0–0xFF` = monitor（`bit7=1,bit6=1,bit5:4=模式,bit3:0=DADAO 异常位索引`）、`0x80–0xBF` = 其它 cfx（`bit7=1,bit6=0,bit5:0=cfxHA`）；`PTWERR`/`unmapped`/旧 `0x84`/`0xE1` 已删。
 - **`SYS_TICKFREQ`**：统一 `1e9` ticks/秒，QEMU/gem5 同模式一致（spec 未定义具体值，暂按此对照）。
+- **`SYS_chmod` 不新增号段（用户 2026-11-08 同意）**：`chmod()` 经 musl 走 `fchmodat`；不虚构 ABI 号。
 - **m 册门控取消**（用户选 B）：M11 不建 `m` 册，`make check-milestone` 报「无 m 册」属预期；改由 `INTEG-061t` 核验。`check_milestone_tasks.py` 的处置归 `m12-infra-002`。
 
 ## M11 历史裁定（仍有效）
@@ -46,6 +48,7 @@
 - **chipyard 构建/运行/调试全部在 `server207`**，串行；**所有对仓库的修改仍在主控机**（已写入 `AGENTS.md` 与 `nodes.md`）。
 - **m 册门控取消**（用户选 B）：由 `m12-infra-002` 执行；M11 收口改用 `INTEG-061t` 核验（无 m 后缀）。
 - **判据**：Tiny 阶段不涉及 syscall；测试判据 = 与 qemu/gem5 一致，**不用独立 oracle**。
+- **`dadao-wuming` 外壳 = B（用户 2026-11-08）**：自写最小 Tile（只用 `BaseTile` 接口 + 自己声明 TL 端口），**不继承 `CoreParams`** 的 RISC-V 语义（misa/PMP/mtvec/断点/异常码）；参考实现虽走 `BaseTile + CoreParams`，但本仓库不沿用其语义壳。
 
 ## 机器命名定稿（用户裁定）
 
@@ -107,6 +110,8 @@
 - `013` T0 冒烟：inst/tset 已验证子集，qemu/gem5/chipyard 三平台比对
 - `014` T1 适配集 + M12 验收
 
+- **FP 覆盖范围（用户 2026-11-08）**：**全做 5 组**；原则是「所有非 cfx 指令都应实现」。
+- **`fence` 评估结论（architect 2026-11-08，待用户确认是否纳入 M12）**：`fence` 属核芯功能扩展（`SimRISC-11 §5`，`fence_ciii_cfx`），但 **inst 测试集含 fence 用例**（`tests/inst/atomics/atomics-fence.yaml`，生成自 `contracts/opcodes.yaml` + spec）；qemu（`trans_fence_ciii_cfx`：`hb!=0` 或保留 cfxa ⇒ ILLI、`pred==succ==0` ⇒ no-op）与 gem5（`b6_test.cc` 同判据）均已实现。单周期核无 cache/store buffer/乱序，非零掩码的屏障语义天然满足 ⇒ 实现成本 ≈ 20 行。**建议 M12 实现**（否则 T0 子集缺一条指令，M13 也要补）。
 - **FP 分组依据（用户建议参考 berkeley-hardfloat）**：按 hardfloat 的原语边界切——转换 / 算术 / 除法开方 / 取整缩放，每组对应一组 `RecFN` 原语，便于复用 IP 与逐组比对（本地 chipyard 子模块 `generators/hardfloat/hardfloat` 即该库）。
 - **DADAO FP 指令集共 47 条**（`spec/SimRISC-07`）：转换、运算（加/乘/FMA/除/余/开方/取整/缩放/最小最大）、符号位、比较、分类。
 
@@ -119,7 +124,7 @@
 
 ## M12 未决
 
-- **FP 覆盖范围**：实现全部 5 组，还是只做 inst/tset 实测覆盖到的指令族（建议全做，避免 M13 返工）。
+- **`fence` 是否纳入 M12**：architect 建议纳入（见上），待用户确认。
 - **Tiny 的 SRAM 基址与 `loadmem` 目标窗口**需在 `002` 定稿（`load_elf` 目标基址必须与 Tiny 地址图一致）。
 
 ---
@@ -202,6 +207,12 @@
 ---
 
 # 三个里程碑之外
+
+## 发布与回归（不阻塞 M11 收口）
+
+- **回归运行（原「夜跑」）加 gem5（用户 2026-11-08）**：「夜跑」是**全量回归成员集**的意思，不是只在夜里跑；成员应含 **gem5 SE + gem5 FS**。拟立 `TESTCASES-105t`。
+- **SimRISC 发布 `0.5.6`（用户 2026-11-08）**：可以发布；须**重新整理版本与变更记录**（13 册册头统一、变更记录按重要性/主题归并、去 `-rc`）。拟立 `SPEC-196t`。
+- 两者均**不是 M11 收口条件**（收口判据见 M11 节）。
 
 ## 待用户裁定：ADR
 
