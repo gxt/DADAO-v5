@@ -150,3 +150,12 @@
     【P3】chipyard 子模块 `lite` 集（29）不含 `toolchains/riscv-tools/riscv-isa-sim`，而 conda
     `riscv-tools` 不含 fesvr，我们用该源码编了 fesvr ⇒ **全新机器重建 RTL 环境时仍缺这一个源**。
     建议把它纳入镜像集（或单列 `dadao_extra` 标记），让新机器离线即可完成 RTL 环境。
+
+- id: ISS-355
+  scope: [infra, gem5]
+  status: open
+  resolved_by: null
+  title: >-
+    【P2】`tools/gem5/build_gem5.py:191` 在 `.work/build/gem5` 不存在时抛 `ValueError`：
+    首次 `make build-gem5` rc=2，需先跑 `check-gem5-decode` 才能建出构建目录（`m12-gem5-001` 实测）。
+    建议改为按需 `mkdir -p` 或明确报错「先跑 X」；属工具缺陷，不阻塞任务但影响新机器首建。
