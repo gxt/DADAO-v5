@@ -26,7 +26,6 @@
 | INTEG-059t | 10–16 h | G3 完整 tset 双向一致性（static+dynamic）+ 矩阵重生成 |
 | TESTCASES-103t | 3–4 h | SE 基线预算 120s→按套件 600s；timeout 单列并重跑 |
 | GEM5-031t | 2–3 h | SE 补 `chmod`/`fchmodat`（ISS-346） |
-| INFRA-145t | 1–2 h | 台账一致性 + 临时目录门控（靠规则不靠记忆） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
@@ -38,6 +37,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| INFRA-145t | 2026-11-08 17:28 | 台账一致性 + 临时目录门控（靠规则不靠记忆） |
 | INFRA-144t | 2026-11-08 16:23 | 引用门控死代码清理（ISS-353，判定零改动） |
 | QEMU-085t | 2026-11-08 15:25 | mremap 增长的 guest RLIMIT_AS 检查（ISS-351）；双引擎 43 条一致 |
 | GEM5-028t | 2026-11-08 14:44 | SE 文件映射 mmap（FileFDEntry→mapRegion）+ ldso 装 DSO 进 main；基线 337 例零回退 |

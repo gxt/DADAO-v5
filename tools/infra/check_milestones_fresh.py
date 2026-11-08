@@ -46,6 +46,14 @@
      `YYYY-MM-DD HH:MM` 且不带 `（登记）`；**任何表不得出现状态列/状态值**；
      同一编号不重复、且不得跨表重复；「一句改动」不得含 `.work/`。
 
+R1 **台账一致性（靠规则，不靠记忆；INFRA-145t）**：读 `git worktree list --porcelain`
+  与本地分支（`git for-each-ref refs/heads/`；已并入 `master`/`main` 的分支豁免），
+  凡任务号匹配 `<PREFIX>-\\d{3}[a-z]?` 者（= 有 worktree 或未合并分支 ⇒ 在跑）：
+    - 该任务号**不得**在「待开始」表（逐条指名 `L??`）；
+    - 必须在「进行中」表（派单时间格式已由 A5 校验）；若其任务书 `**状态**` 已是
+      `已验证`，则必须在「已验证」表；
+    - 未列入任何表 ⇒ FAIL。非 git 树（`--root` 自检树）⇒ 打印跳过。
+
 fail-closed：任一标题/表头/分隔行缺失、三表皆空 ⇒ FAIL。
 不依赖 `.work/**`（易失）；只读仓库内文件。
 
@@ -59,6 +67,7 @@ import argparse
 import contextlib
 import io
 import re
+import subprocess
 import sys
 import tempfile
 from datetime import datetime
@@ -124,6 +133,91 @@ def task_index(root: Path) -> dict[str, Path]:
 def book_status(path: Path) -> str | None:
     m = STATUS_RE.search(path.read_text(encoding="utf-8"))
     return m.group(1) if m else None
+
+
+# 任务号（分支名/worktree 分支须**整串**匹配，避免 `INFRA-145t-fix` 之类误命中）
+BRANCH_TASK_RE = re.compile(r"^(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?$")
+
+
+def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str] | None:
+    try:
+        return subprocess.run(["git", "-C", str(root), *args],
+                              capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def running_tasks(root: Path) -> tuple[dict[str, str], str]:
+    """在跑任务号 → 来源（`worktree` / `branch`）；非 git 树 ⇒ 空集。
+
+    「在跑」= `git worktree list` 里检出的任务分支，或**未合并**的本地任务分支
+    （已并入 `master`/`main` 的分支 = 已落地，豁免；分支未删不应把已验证任务拉回
+    进行中）。用 `--root` 指向自检树（无 git）时返回空集并注明跳过。
+    """
+    probe = _git(root, "rev-parse", "--git-dir")
+    if probe is None:
+        return {}, "git 不可用 ⇒ R1 跳过"
+    if probe.returncode != 0:
+        return {}, "非 git 仓库（--root 自检树）⇒ R1 跳过"
+
+    found: dict[str, str] = {}
+    wt = _git(root, "worktree", "list", "--porcelain")
+    if wt is not None and wt.returncode == 0:
+        for line in wt.stdout.splitlines():
+            if line.startswith("branch refs/heads/"):
+                name = line[len("branch refs/heads/"):]
+                if BRANCH_TASK_RE.match(name):
+                    found.setdefault(name, "worktree")
+
+    refs = _git(root, "for-each-ref", "--format=%(refname:short)", "refs/heads/")
+    all_branches = refs.stdout.split() if refs is not None and refs.returncode == 0 else []
+    base = None
+    for cand in ("master", "main"):
+        r = _git(root, "rev-parse", "--verify", "-q", f"refs/heads/{cand}")
+        if r is not None and r.returncode == 0:
+            base = cand
+            break
+    if base is None:
+        base = next((b for b in all_branches if not BRANCH_TASK_RE.match(b)), None)
+    for b in all_branches:
+        if not BRANCH_TASK_RE.match(b) or b in found:
+            continue
+        merged = False
+        if base is not None:
+            mb = _git(root, "merge-base", "--is-ancestor",
+                      f"refs/heads/{b}", f"refs/heads/{base}")
+            merged = mb is not None and mb.returncode == 0
+        if not merged:
+            found[b] = "branch"
+    return found, f"R1 在跑任务号（worktree/未合并分支，现场统计）: {len(found)} 个"
+
+
+def check_running_consistency(
+    running: dict[str, str],
+    seen: dict[str, tuple[str, int]],
+    index: dict[str, Path],
+    errors: list[str],
+) -> None:
+    """R1：在跑任务号 ⇒ 不得在「待开始」；在「进行中」（或已验证表，若册已`已验证`）。"""
+    for tid in sorted(running):
+        src = "worktree" if running[tid] == "worktree" else "未合并分支"
+        loc = seen.get(tid)
+        heading, lineno = loc if loc else ("", 0)
+        if loc and heading == TODO_HEADING:
+            errors.append(f"R1: `{TODO_HEADING}` L{lineno} {tid}: 有 {src} 但台账在「待开始」"
+                          f"（派单即须移入「进行中」并填派单时间）")
+        elif loc and heading == WIP_HEADING:
+            pass  # 派单时间格式由 A5 校验
+        elif loc and heading == DONE_HEADING:
+            pass  # 册状态一致性由 A1 校验
+        else:
+            errors.append(f"R1: {tid}: 有 {src} 但未列入「进行中」/「已验证」表")
+        p = index.get(tid)
+        bs = book_status(p) if p else None
+        if bs == "已验证" and not (loc and heading == DONE_HEADING):
+            where = f"`{heading}` L{lineno}" if loc else "三表之外"
+            errors.append(f"R1: {tid}: 任务书 `**状态**` 已 `已验证`，但台账在 {where}"
+                          f"（须在「已验证」表）")
 
 
 def split_row(line: str) -> list[str]:
@@ -342,6 +436,14 @@ def audit(root: Path) -> int:
     print(f"    A1 核验 " + " + ".join(
         f"{heading[3:]} {len(parsed[heading])} 行" for heading, _h, _s, _k in TABLES))
 
+    # ---------- R1 台账一致性（worktree / 未合并分支 ⇒ 进行中） ----------
+    print("-" * 72)
+    print("  R1 台账一致性（在跑任务号不得在「待开始」；须在「进行中」/「已验证」）")
+    running, note = running_tasks(root)
+    print(f"    {note}")
+    check_running_consistency(running, seen, index, errors)
+    print(f"    R1 逐条核验 {len(running)} 个在跑任务号")
+
     # ---------- A2 覆盖 ----------
     print("-" * 72)
     print("  A2 覆盖（三表并集 ⊇ 活册 / m 册列号 / 正文号）")
@@ -433,17 +535,20 @@ BOOKS = {
 }
 
 
-def write_tree(root: Path, ms: str, books: dict[str, str]) -> None:
+def write_tree(root: Path, ms: str, books: dict[str, str],
+               m_body: str = "列出 `SPEC-101t` / `INFRA-102t`。") -> None:
     (root / ".tao/knowledge").mkdir(parents=True)
-    for mod in ("infra", "spec", "qemu", "integ"):
+    for mod in ("infra", "spec", "qemu", "integ", "testcases"):
         (root / ".tao/tasks" / mod).mkdir(parents=True)
     (root / MILESTONES_REL).write_text(ms, encoding="utf-8")
+    mod_of = {"SPEC": "spec", "INFRA": "infra", "QEMU": "qemu",
+              "TESTCASES": "testcases"}
     for tid, body in books.items():
-        mod = {"SPEC": "spec", "INFRA": "infra", "QEMU": "qemu"}[tid.split("-")[0]]
+        mod = mod_of[tid.split("-")[0]]
         (root / ".tao/tasks" / mod / f"{tid}-x.md").write_text(
             f"# {tid}\n\n{body}\n", encoding="utf-8")
     (root / ".tao/tasks/integ/INTEG-900m-x.md").write_text(
-        "**状态**：待开始\n\n列出 `SPEC-101t` / `INFRA-102t`。\n", encoding="utf-8")
+        f"**状态**：待开始\n\n{m_body}\n", encoding="utf-8")
 
 
 def _run(root: Path) -> tuple[int, str]:
@@ -459,6 +564,121 @@ def _swap_done_first(ms: str) -> str:
     done_idx = next(i for i, s in enumerate(sections) if s.startswith(DONE_HEADING[3:]))
     done = sections.pop(done_idx)
     return head + "\n## " + done + "".join("\n## " + s for s in sections)
+
+
+# --------------------------------------------------------------------------
+# R1 self-test：真 git 临时仓库 + worktree / 未合并分支 / 已合并分支
+# --------------------------------------------------------------------------
+R1_MS = """# 项目里程碑
+
+## 待开始（未开工）
+
+| 编号 | 预估时间 | 一句改动 |
+| --- | --- | --- |
+{todo}
+
+## 进行中（已派单：待开始 / 待验收 / 待返工）
+
+| 编号 | 派单时间 | 预估时间 | 一句改动 |
+| --- | --- | --- | --- |
+{wip}
+
+## 已验证
+
+| 编号 | 完成时间 | 一句改动 |
+| --- | --- | --- |
+{done}
+"""
+
+
+def _r1_ms(todo: str = "", wip: str = "", done: str = "") -> str:
+    return R1_MS.format(todo=todo, wip=wip, done=done)
+
+
+def _git_run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+
+
+def _init_git(root: Path) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    for args in (("init", "-q"), ("symbolic-ref", "HEAD", "refs/heads/master"),
+                 ("-c", "user.email=selftest@example.invalid",
+                  "-c", "user.name=selftest", "commit", "-q", "--allow-empty",
+                  "-m", "init")):
+        p = _git_run(root, *args)
+        if p.returncode != 0:
+            raise RuntimeError(f"git {args[0]} 失败: {p.stderr.strip()}")
+
+
+def r1_self_test() -> bool:
+    ok = True
+
+    def case(name: str, ms: str, books: dict[str, str], setup, want_rc: int,
+             marker: str) -> None:
+        nonlocal ok
+        with tempfile.TemporaryDirectory(prefix="milestones-r1-") as td:
+            base = Path(td)
+            repo = base / "repo"
+            _init_git(repo)
+            write_tree(repo, ms, books, m_body="列出 `SPEC-101t`。")
+            _git_run(repo, "add", "-A")
+            _git_run(repo, "commit", "-q", "-m", "ledger")
+            setup(repo, base)
+            rc, out = _run(repo)
+        good = rc == want_rc and marker in out
+        ok &= good
+        print(f"  {'PASS' if good else 'FAIL'}  {name}: rc={rc} 期望 {want_rc}"
+              f" marker={marker!r}")
+
+    spec_done = "| SPEC-101t | 2026-10-02 10:00 | 完成短句 |"
+    wip_row = "| TESTCASES-901t | 2026-11-08 10:00 | 1 h | 已派单实现中 |"
+    todo_row = "| TESTCASES-901t | 1 h | 在跑却留待开始 |"
+    book_open = {"TESTCASES-901t": "**状态**：待开始\n",
+                 "SPEC-101t": "**状态**：已验证\n"}
+    book_done = {"TESTCASES-901t": "**状态**：已验证\n",
+                 "SPEC-101t": "**状态**：已验证\n"}
+
+    def wt(tid: str):
+        def setup(repo: Path, base: Path) -> None:
+            _git_run(repo, "worktree", "add", "-q", "-b", tid, str(base / f"wt-{tid}"))
+        return setup
+
+    def branch(tid: str):
+        """仅本地分支、无 worktree，且**未合并**（在 master 之上多一个提交）。"""
+        def setup(repo: Path, base: Path) -> None:
+            _git_run(repo, "branch", tid)
+            tree = _git_run(repo, "write-tree").stdout.strip()
+            commit = _git_run(repo, "-c", "user.email=selftest@example.invalid",
+                              "-c", "user.name=selftest", "commit-tree", tree,
+                              "-p", "master", "-m", "advance").stdout.strip()
+            _git_run(repo, "update-ref", f"refs/heads/{tid}", commit)
+        return setup
+
+    def merged(tid: str):
+        def setup(repo: Path, base: Path) -> None:
+            _git_run(repo, "branch", tid, "master")
+        return setup
+
+    case("R1 注入① worktree 在跑却留「待开始」⇒ FAIL 指名",
+         _r1_ms(todo=todo_row, done=spec_done), book_open, wt("TESTCASES-901t"),
+         1, "有 worktree 但台账在「待开始」")
+    case("R1 基线① worktree 在跑且已移入「进行中」⇒ PASS",
+         _r1_ms(wip=wip_row, done=spec_done), book_open, wt("TESTCASES-901t"),
+         0, "R1 在跑任务号")
+    case("R1 注入② 仅未合并本地分支却留「待开始」⇒ FAIL 指名",
+         _r1_ms(todo=todo_row, done=spec_done), book_open, branch("TESTCASES-901t"),
+         1, "有 未合并分支 但台账在「待开始」")
+    case("R1 基线② 已并入 master 的分支 ⇒ 豁免（已验证行 PASS）",
+         _r1_ms(done="| QEMU-903t | 2026-10-03 10:00 | 合并后已删 |\n" + spec_done),
+         {"QEMU-903t": "**状态**：已验证\n", "SPEC-101t": "**状态**：已验证\n"},
+         merged("QEMU-903t"), 0, "R1 在跑任务号")
+    case("R1 注入③ 册已 `已验证` 但行留「进行中」⇒ FAIL",
+         _r1_ms(wip=wip_row, done=spec_done), book_done, wt("TESTCASES-901t"),
+         1, "任务书 `**状态**` 已 `已验证`")
+    case("R1 基线③ 册已 `已验证` 且在「已验证」表 ⇒ PASS",
+         _r1_ms(done="| TESTCASES-901t | 2026-10-03 10:00 | 完成短句 |\n" + spec_done),
+         book_done, wt("TESTCASES-901t"), 0, "R1 在跑任务号")
+    return ok
 
 
 def self_test() -> int:
@@ -525,6 +745,10 @@ def self_test() -> int:
     case("注入⑭ 一句改动含 `.work` 路径", BASE_MS.replace(
         "| QEMU-103t | 1 h | 未开工：待开始表 |",
         "| QEMU-103t | 1 h | 见 .work/log/x |"), "`.work/` 路径")
+
+    print("-" * 72)
+    print("  R1 台账一致性（真 git 临时仓库：worktree / 未合并分支 / 已合并分支）")
+    ok &= r1_self_test()
 
     print("-" * 72)
     print("self-test: PASS" if ok else "self-test: FAIL")

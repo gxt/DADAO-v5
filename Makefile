@@ -76,6 +76,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-cfx-alias-table check-cfx-alias-install check-cfx-vectors \
         check-lit-full \
         check-run-artifacts \
+        check-temp-dirs \
         test-codegen test-elf test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-musl-freshness check-builtins-freshness check-install-tools check-milestones-fresh \
@@ -225,6 +226,7 @@ help:
 	@echo "  make check-inst      inst semantic full set (tests/inst; L3; TESTCASES-072t)"
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
+	@echo "  make check-temp-dirs  Stale task temp dirs (non-active worktree, mtime > 2 h) + /tmp usage > 70% gate; report only, never delete (L1; INFRA-145t)"
 	@echo "  make check-width-sizes  64-bit width + ELF64/rela/got + DWARF64 addr_size probe (L1; LLVM-130t)"
 	@echo "  make check-code-range  DADAO code-span gate: REL26 edge ≤ 32 MiB + exec_span < 30 MiB (L1; ADR-0036/INFRA-106t)"
 	@echo "  make check-contracts-dir  Whitelist gate for .tao/contracts/ + contracts/ top level (L1; INFRA-071t)"
@@ -1062,7 +1064,7 @@ _locked-clean-work:
 # 旧名 `check-qemu-semantics`/`check-qemu-smoke`/`test-semihost`/`check-{libc-test,llvm-ts,embench}-smoke`
 # 已于 TESTCASES-076t 删除（P6 收口）；现行名 = check-inst / check-inst-smoke / check-arch-smoke /
 # check-tset-{libc,llvm,embench}-smoke。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components check-interface check-code-range check-runner-reap
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components check-interface check-code-range check-runner-reap check-temp-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1170,6 +1172,16 @@ check-tasks:
 check-run-artifacts:
 	@$(PYTHON) tools/infra/check_run_artifacts.py
 
+# 陈旧临时目录 + /tmp 占用门控 (INFRA-145t, L1): 扫 `/tmp/opencode` 与 `$TMPDIR/opencode`
+# 的**直接子目录**，排除 `git worktree list` 的活动 worktree；非活动目录 **mtime > 2 h**
+# ⇒ FAIL（`du` 体积前 5 大 + 陈旧总数/总体积）；根所在文件系统**占用 > 70%** ⇒ FAIL
+# （`df` 实测、不写死）。**只报告不删除**（清理由任务收尾执行）；无 `/tmp/opencode`
+# ⇒ PASS（不 vacuous 失败）。用户授权：「临时目录没有清理，这种事情不要一再发生…
+# 不要靠记忆，而是靠规则」。`--self-test` 覆盖：陈旧 ⇒ FAIL / 活动 worktree 豁免 /
+# 缺根 PASS / 占用阈值注入 / 只列前 5 大 / 只报告不删除。
+check-temp-dirs:
+	@$(PYTHON) tools/infra/check_temp_dirs.py
+
 # 里程碑收尾门控 (2026-10-17, A2; 归 **L2 层 / 里程碑收尾专项**，**不入** `check-modules`):
 # ⓪ SimRISC 归档：结构（`check-spec-archive`）+ 内容 sha256（`check-spec-archive-verify`）
 #    ——归档只在发布/里程碑边界变化，故不入 L1（INFRA-109t；用户 2026-10-25 裁定）；
@@ -1264,6 +1276,8 @@ check-install-tools:
 # 台账三分表门控 (INFRA-141t, L1；前身双表 INFRA-091t/139t): 分类（待开始 / 进行中 待验收+待返工 /
 # 已验证）== 任务书 `**状态**` / 三表并集覆盖 / 一句改动 ≤120 字符 / 仅已验证按完成时间倒序 /
 # 三表各 3 格且无状态列 / 预估时间格式 / 完成时间不带 `（登记）`；规则见 docs/Process-07 §1.1。
+# R1 台账一致性 (INFRA-145t)：`git worktree list` 检出的任务分支或**未合并**本地任务分支
+# ⇒ 该任务号不得在「待开始」，须在「进行中」（册已 `已验证` 则须在「已验证」表），逐条指名。
 check-milestones-fresh:
 	@$(PYTHON) tools/infra/check_milestones_fresh.py
 
