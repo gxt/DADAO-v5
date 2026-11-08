@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..0b0d1c7
+index 0000000..62af014
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,129 @@
+@@ -0,0 +1,131 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -36,10 +36,12 @@ index 0000000..0b0d1c7
 +  xLen: Int = 64,
 +  retireWidth: Int = 1,
 +  nLocalInterrupts: Int = 0,
-+  // Stub-only knobs (m12-chipyard-001): the placeholder core issues one
-+  // PutFull to `testAddress` and then halts.  Replaced by the real core in
-+  // m12-002.
-+  testAddress: BigInt = BigInt("80000000", 16),
++  // Stub-only knobs: the placeholder core probes the address map and halts.
++  // `testAddress` is the Machine-v5-Tiny writable SRAM base
++  // (`spec/Machine-v5 §1.1`): the stub writes `testData` there and reads it
++  // back, which proves that the 48-bit SRAM is a working TL slave port.  The
++  // real core replaces this module later.
++  testAddress: BigInt = BigInt("ffffff000000", 16),
 +  testData: BigInt = BigInt("deadbeefcafebabe", 16)
 +)
 +

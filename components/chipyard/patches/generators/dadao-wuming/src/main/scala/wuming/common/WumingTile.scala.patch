@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
 new file mode 100644
-index 0000000..ca92296
+index 0000000..64c568a
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,104 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile skeleton (m12-chipyard-001).
@@ -65,7 +65,9 @@ index 0000000..ca92296
 +  // tile in this tree): client -> visibilityNode -> identity -> tile port.
 +  val masterNode: TLOutwardNode = TLIdentityNode() := visibilityNode := coreMasterNode
 +
-+  /** Slave port: nothing is mapped inside the tile yet (m12-002 adds it). */
++  /** Slave port: the tile exposes no memory of its own.  Machine-v5-Tiny main
++    * memory (the 8 MiB SRAM) is a system-level TL slave on the memory bus, not
++    * a tile-local port (m12-002, `spec/Machine-v5 §1.1`). */
 +  val slaveNode: TLInwardNode = TLIdentityNode()
 +
 +  override lazy val module = new WumingTileModuleImp(this)

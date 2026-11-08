@@ -1,27 +1,97 @@
 diff --git a/generators/chipyard/src/main/scala/config/DadaoConfigs.scala b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
 new file mode 100644
-index 0000000..4066eb2
+index 0000000..43467e3
 --- /dev/null
 +++ b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
-@@ -0,0 +1,21 @@
+@@ -0,0 +1,91 @@
 +// See LICENSE for license details.
 +//
-+// DADAO SoC configurations (m12-chipyard-001).
++// DADAO SoC configurations.
 +//
-+// `WumingTinyConfig` is the first DADAO configuration to elaborate.  "Tiny"
-+// in the final sense means the 48-bit BootROM/SRAM address map; that map and
-+// its PAddrBits evaluation land in m12-002, so this config still uses the
-+// stock chipyard address map.
++// m12-chipyard-001: `WumingTinyConfig` is the first DADAO configuration to
++// elaborate (one `wuming` tile, stock chipyard address map).
++//
++// m12-002: land the `Machine-v5-Tiny` core-internal address map from
++// `spec/Machine-v5 §1.1`:
++//
++//   BootROM 0xffff_ffff_0000, 64 KiB, reset vector = base  (executable)
++//   SRAM    0xffff_ff00_0000, 8 MiB,  writable main memory  (TL slave port)
++//
++// Both are 48-bit core-internal addresses.  The tile runs with `useVM=false`
++// (no MMU/TLB) and there is no cfx / PTW in this machine; the only thing that
++// changes versus stock chipyard is *where* the two memories sit, so the
++// TileLink address map negotiates >= 48 address bits.
++//
++// No new upstream `AddressMap`: chipyard builds its map from the
++// `BootROMLocated` and `BankedScratchpadKey` fields, plus the `ExtMem` /
++// `ExtTLMem` backing-memory ports.  The fragment below re-points exactly those
++// fields (`components/chipyard/README.md` records the choice).
 +
 +package chipyard
 +
 +import org.chipsalliance.cde.config.Config
++import freechips.rocketchip.devices.tilelink.BootROMLocated
++import freechips.rocketchip.subsystem.{ExtMem, MBUS}
++import testchipip.soc.{BankedScratchpadKey, BankedScratchpadParams}
++
++/** `spec/Machine-v5 §1.1` — Machine-v5-Tiny core-internal address map. */
++object WumingTinyAddressMap {
++  /** BootROM: 0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB), reset vector = base. */
++  val bootROMBase: BigInt = BigInt("ffffffff0000", 16)
++  val bootROMSize: Int = 0x10000
++
++  /** SRAM: 0xffff_ff00_0000 .. 0xffff_ff7f_ffff (8 MiB), the only writable memory. */
++  val sramBase: BigInt = BigInt("ffffff000000", 16)
++  val sramSize: BigInt = 8 << 20
++
++  /**
++   * Classpath resource of the Tiny bootrom image.
++   *
++   * The image source is a *text* hex file (`dadao/bootrom/bootrom.tiny.hex` in
++   * the `wuming` generator) because a component patch set cannot carry binary
++   * blobs; the `wuming` project's `resourceGenerators` decodes it into this
++   * classpath resource at build time.  m12-003 owns the image content.
++   */
++  val bootROMImage: String = "/dadao/bootrom/bootrom.tiny.img"
++}
++
++/**
++  * Machine-v5-Tiny memory map fragment.
++  *
++  * Replaces chipyard's stock devices instead of adding a new `AddressMap`:
++  * the BootROM geometry comes from `WithBootROM`, the SRAM replaces the
++  * default 64 KiB scratchpad, and the stock AXI/TL backing memory is removed
++  * (the SRAM *is* main memory on this machine, and Tiny has no DRAM).
++  */
++class WithDadaoTinyAddressMap extends Config((site, here, up) => {
++  // Tiny's BootROM holds only the reset/boot stub: no image index table and
++  // no appended chipyard DTB (`spec/Machine-v5 §1.1`, §6).
++  case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(appendDTB = false))
++
++  // No backing memory behind the buses; the on-chip SRAM below is the main
++  // memory.  Both chipyard backing-memory ports must be empty.
++  case ExtMem => None
++  case ExtTLMem => None
++
++  // SRAM as an 8 MiB TL slave port on the memory bus, at the spec address.
++  // `dtsEnabled` keeps the `memory` node advertised in the generated DTS.
++  case BankedScratchpadKey => Seq(BankedScratchpadParams(
++    base = WumingTinyAddressMap.sramBase,
++    size = WumingTinyAddressMap.sramSize,
++    busWhere = MBUS,
++    banks = 1,
++    subBanks = 1,
++    name = "dadao-tiny-sram",
++    dtsEnabled = true))
++})
 +
 +class WumingTinyConfig extends Config(
-+  // BootROM image name is a fragment-level knob (see the PeripheralFragments
-+  // patch).  The DADAO image itself lands in m12-003, so use the stock rv64
-+  // image for now; the stub core never fetches from it.
++  // BootROM geometry / reset vector / image name (`spec/Machine-v5 §1.1`).
 +  new chipyard.config.WithBootROM(
-+    contentFileName = Some("/testchipip/bootrom/bootrom.rv64.img")) ++
++    address = WumingTinyAddressMap.bootROMBase,
++    size = WumingTinyAddressMap.bootROMSize,
++    hang = WumingTinyAddressMap.bootROMBase,
++    contentFileName = Some(WumingTinyAddressMap.bootROMImage)) ++
++  new WithDadaoTinyAddressMap ++
 +  new wuming.common.WithNWumingTiles(1) ++
 +  new chipyard.config.AbstractConfig)

@@ -1,0 +1,20 @@
+diff --git a/generators/dadao-wuming/src/main/resources/dadao/bootrom/bootrom.tiny.hex b/generators/dadao-wuming/src/main/resources/dadao/bootrom/bootrom.tiny.hex
+new file mode 100644
+index 0000000..78353ea
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/resources/dadao/bootrom/bootrom.tiny.hex
+@@ -0,0 +1,14 @@
++# Machine-v5-Tiny bootrom image (m12-chipyard-002) — hex source of the
++# classpath resource `/dadao/bootrom/bootrom.tiny.img`.
++#
++# Bytes are the flat ROM image produced by `make build-bootrom` from
++# `tests/shared/bootrom/bootrom.S` (the Tiny reset stub: load SP, load the
++# application entry, jump there).  The `wuming` project's resource generator
++# decodes this text into the binary resource; a component patch set cannot
++# carry binary blobs.  m12-003 owns the image content and the loadmem
++# closed loop — keep this file in sync with the bootrom the harness ships.
++4e 04 ff 00 4a 05 ff 7e
++4a 06 ff ff 4a 07 00 00
++4e 08 01 00 4a 09 ff 01
++4a 0a ff ff 4a 0b 00 00
++71 08 00 00 47 88 00 00

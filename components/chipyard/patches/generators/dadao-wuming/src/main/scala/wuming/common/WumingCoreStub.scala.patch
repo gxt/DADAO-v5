@@ -1,17 +1,26 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCoreStub.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCoreStub.scala
 new file mode 100644
-index 0000000..9e68ee3
+index 0000000..6b11ee4
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCoreStub.scala
-@@ -0,0 +1,74 @@
+@@ -0,0 +1,112 @@
 +// See LICENSE for license details.
 +//
-+// DADAO "wuming" core placeholder (m12-chipyard-001).
++// DADAO "wuming" core placeholder.
 +//
-+// Purpose: exercise the tile<->TileLink wiring with a fixed, observable
-+// behaviour before any DADAO instruction execution exists.  After reset it
-+// waits `startDelay` cycles, issues one PutFullData to `testAddress`, then
-+// halts (and reports cease).  The real core replaces this module in m12-002.
++// Purpose: exercise the tile<->TileLink wiring and the Machine-v5-Tiny address
++// map before any DADAO instruction execution exists.  After reset the stub
++// probes the map in three steps and then halts (and reports cease):
++//
++//   1. fetch  -- a Get of one beat at the reset vector, i.e. the address the
++//                core is supposed to start fetching from.  On Tiny this must
++//                be the BootROM base 0xffff_ffff_0000 (`spec/Machine-v5 §1.1`).
++//   2. put    -- a PutFull of one beat at the SRAM base (writable main memory).
++//   3. read   -- a Get of the same beat back, which shows the SRAM really
++//                stores what the core wrote.
++//
++// The real core replaces this module later; nothing here is instruction
++// execution.
 +
 +package wuming.common
 +
@@ -35,45 +44,74 @@ index 0000000..9e68ee3
 +
 +  val tl = io.tl
 +  val startDelay = 64
-+  val lgSize = log2Ceil(8)
++  val beatBytes = edge.bundle.dataBits / 8
++  require(beatBytes > 0 && (beatBytes & (beatBytes - 1)) == 0,
++    "WumingCoreStub: TL data width must be a power-of-two byte count")
++  // One whole beat: the smallest transfer that every manager on the Tiny map
++  // serves without fragmenting the response into several d beats.
++  val lgSize = log2Ceil(beatBytes)
 +
 +  val cycle = RegInit(0.U(32.W))
-+  val sIdle :: sSend :: sWait :: sDone :: Nil = Enum(4)
++  val sIdle :: sFetch :: sFetchWait :: sPut :: sPutWait :: sRead :: sReadWait :: sDone :: Nil = Enum(8)
 +  val state = RegInit(sIdle)
 +
++  // 1. instruction fetch at the reset vector (BootROM on Tiny).
++  val (fetchLegal, fetchBits) = edge.Get(0.U, io.resetVector, lgSize.U)
++  // 2. write the SRAM base.
++  val (putLegal, putBits) = edge.Put(0.U, params.testAddress.U, lgSize.U, params.testData.U)
++  // 3. read it back.
++  val (readLegal, readBits) = edge.Get(0.U, params.testAddress.U, lgSize.U)
++
++  // TileLink puts byte k of a beat in bits [8k+7, 8k] (little-endian lanes).  A
++  // fetch, however, is about the *instruction word at the address*: DADAO is
++  // big-endian, so print the beat in address order to make the value directly
++  // comparable with a disassembly of the same image at the same address.
++  val fetchWord = Cat((0 until beatBytes).map(i => tl.d.bits.data(8 * i + 7, 8 * i)))
++
 +  switch(state) {
-+    is(sIdle) { when(cycle >= startDelay.U) { state := sSend } }
-+    is(sSend) { when(tl.a.ready) { state := sWait } }
-+    is(sWait) { when(tl.d.fire) { state := sDone } }
++    is(sIdle) { when(cycle >= startDelay.U) { state := sFetch } }
++    is(sFetch) { when(tl.a.ready) { state := sFetchWait } }
++    is(sFetchWait) { when(tl.d.fire) { state := sPut } }
++    is(sPut) { when(tl.a.ready) { state := sPutWait } }
++    is(sPutWait) { when(tl.d.fire) { state := sRead } }
++    is(sRead) { when(tl.a.ready) { state := sReadWait } }
++    is(sReadWait) { when(tl.d.fire) { state := sDone } }
 +    is(sDone) { }
 +  }
 +  cycle := cycle + 1.U
 +
-+  val (putLegal, putBits) =
-+    edge.Put(0.U, params.testAddress.U, lgSize.U, params.testData.U)
-+  tl.a.valid := state === sSend
-+  tl.a.bits := putBits
++  tl.a.valid := state === sFetch || state === sPut || state === sRead
++  tl.a.bits := MuxLookup(state, fetchBits)(Seq(
++    sPut -> putBits,
++    sRead -> readBits))
 +  tl.d.ready := true.B
 +
-+  assert(
-+    state =/= sSend || putLegal,
-+    "WumingCoreStub: test address is not backed by a PutFull-capable manager")
-+  assert(
-+    !(tl.d.valid && tl.d.bits.denied),
++  assert(state =/= sFetch || fetchLegal,
++    "WumingCoreStub: reset vector is not backed by a readable manager")
++  assert(state =/= sPut || putLegal,
++    "WumingCoreStub: SRAM base is not backed by a PutFull-capable manager")
++  assert(state =/= sRead || readLegal,
++    "WumingCoreStub: SRAM base is not backed by a readable manager")
++  assert(!(tl.d.valid && tl.d.bits.denied),
 +    "WumingCoreStub: TileLink denied the stub access")
 +
 +  when(state === sIdle && cycle === (startDelay - 1).U) {
 +    printf(p"WumingCoreStub: hartid=${io.hartid} reset_vector=0x${Hexadecimal(io.resetVector)}\n")
 +  }
-+  when(cycle >= 60.U && cycle < 90.U) {
++  when(state === sFetchWait && tl.d.fire) {
 +    printf(
-+      p"WumingCoreStub: dbg cyc=$cycle state=$state aValid=${tl.a.valid} " +
-+        p"aReady=${tl.a.ready} dValid=${tl.d.valid}\n")
++      p"WumingCoreStub: fetch 0x${Hexadecimal(io.resetVector)} -> " +
++        p"0x${Hexadecimal(fetchWord)} ok (byte order = address order)\n")
 +  }
-+  when(tl.d.fire) {
++  when(state === sPutWait && tl.d.fire) {
 +    printf(
-+      p"WumingCoreStub: PutFull 0x${Hexadecimal(params.testAddress.U)} <= " +
++      p"WumingCoreStub: sram put 0x${Hexadecimal(params.testAddress.U)} <= " +
 +        p"0x${Hexadecimal(params.testData.U)} ok (cycle=${cycle})\n")
++  }
++  when(state === sReadWait && tl.d.fire) {
++    printf(
++      p"WumingCoreStub: sram get 0x${Hexadecimal(params.testAddress.U)} -> " +
++        p"0x${Hexadecimal(tl.d.bits.data)} ok\n")
 +  }
 +
 +  io.halted := state === sDone

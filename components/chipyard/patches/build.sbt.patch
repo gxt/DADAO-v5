@@ -1,8 +1,8 @@
 diff --git a/build.sbt b/build.sbt
-index f56621c..92d4b73 100644
+index f56621c..56d2c35 100644
 --- a/build.sbt
 +++ b/build.sbt
-@@ -163,6 +163,15 @@ lazy val rocketchip = freshProject("rocketchip", rocketChipDir)
+@@ -163,6 +163,32 @@ lazy val rocketchip = freshProject("rocketchip", rocketChipDir)
    )
  lazy val rocketLibDeps = (rocketchip / Keys.libraryDependencies)
  
@@ -14,11 +14,28 @@ index f56621c..92d4b73 100644
 +  .dependsOn(rocketchip)
 +  .settings(libraryDependencies ++= rocketLibDeps.value)
 +  .settings(commonSettings)
++  .settings(
++    // m12-002: the Machine-v5-Tiny BootROM image is checked in as a *text* hex
++    // file (a component patch set cannot carry binary blobs).  Decode it into
++    // the classpath resource that `WithBootROM` names; the resource rides the
++    // wuming jar into the elaboration classpath.
++    Compile / resourceGenerators += Def.task {
++      val hex = IO.read((Compile / resourceDirectory).value / "dadao" / "bootrom" / "bootrom.tiny.hex")
++      val digits = hex.linesIterator.map(_.takeWhile(_ != '#').filterNot(_.isWhitespace)).mkString
++      require(digits.nonEmpty && digits.length % 2 == 0,
++        "wuming: dadao/bootrom/bootrom.tiny.hex must hold an even number of hex digits")
++      val bytes = digits.grouped(2).map(d => Integer.parseInt(d, 16).toByte).toArray
++      val out = (Compile / resourceManaged).value / "dadao" / "bootrom" / "bootrom.tiny.img"
++      IO.createDirectory(out.getParentFile)
++      IO.write(out, bytes)
++      Seq(out)
++    }.taskValue
++  )
 +
  
  // -- Chipyard-managed External Projects --
  
-@@ -180,6 +189,7 @@ lazy val chipyard = {
+@@ -180,6 +206,7 @@ lazy val chipyard = {
        testchipip, rocketchip, boom, rocketchip_blocks, rocketchip_inclusive_cache,
        icenet, tracegen,
        constellation, barf, shuttle, rerocc,
