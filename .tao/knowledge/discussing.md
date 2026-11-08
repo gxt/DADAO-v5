@@ -85,6 +85,13 @@
 - **用户裁定（2026-11-08，原话）**：「A：改 auxv 为宿主 creds（推荐）」⇒ gem5 SE 的 `AT_UID/EUID/GID/EGID` 取 `::getuid()/geteuid()/getgid()/getegid()`，与 `getuid` 系统调用同源；探针由 `local:` 分侧改为跨引擎逐值相等。
 - **落点**：`GEM5-027t` 任务书验收第 2 条按裁定改写并注明；README/changelog 同步；由 engineer 重跑双引擎探针与门控。
 
+## 2026-11-08 chipyard 命名/补丁方式/里程碑（用户裁定）
+
+- **按实现分类，不按 tiny/node**：`dadao-wuming`（单周期）、`dadao-wuqing`（五周期）、`dadao-wuxing`（超标量）；每种实现内部再按 **Tiny / Node** 做测试与验证配置。
+- **补丁方式：A**（全部进 chipyard 补丁集；newfiles 也写成补丁）。
+- **三线 = 三个里程碑，分开进行**：`M12`（chipyard-tiny）/ `M13`（inst-golden）/ `M14`（linux-bootup）；**讨论清楚一个就开一个**，不并行开三个。
+- **参考实现**：`.cache/refs/DADAO/SOC-chipyard/`（`chipyard-0111-newfiles/generators/dadao-wuming` + 5 个接线补丁 + `chipyard.mk`）；riscv-sodor 为第二参考。PR #4 仅参考。
+
 ## 2026-11-08 队列与阻塞（巡检记录）
 
 - **进行中**：`INTEG-060t`（argmask 三方门控，gem5 补丁唯一写者）。
