@@ -24,6 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-002 | 2–3 h | Tiny 地址图落地（BootROM `0xffff_ffff_0000` + SRAM 8 MiB，paddrBits≥48） |
 | m12-testcases-001 | 2–3 h | 测试与 profile 迁移到 `tiny`/`vast`（yaml/inc/env/46 文件） |
 | m12-integ-001 | 0.5–1 h | 移除过渡别名（`dadao-m1`、`profile=node`） |
 
