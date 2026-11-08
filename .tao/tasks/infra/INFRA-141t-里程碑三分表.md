@@ -123,8 +123,8 @@
 **重跑记录**（workdir 内相对路径；退出码均取命令自身）
 - `python3 tools/infra/check_milestones_fresh.py` ⇒ **rc=0**：待开始 7 / 进行中 1 / 已验证 95、活册 102 / 含归档 725、A1+A2+A4 全过。
 - `... --self-test` ⇒ **rc=0**：干净基线 + 十一类注入逐条 `rc=1 marker=True`。
-- **五类现场注入**（`cp` 备份 + md5 → 改 → 跑 → `cp` 还原 → md5 相等 → 回绿；全程未用 git 还原）：① 待开始行进进行中 **rc=1** `A1 … QEMU-085t MISMATCH`；② 预估 `soon` **rc=1** `预估时间 … 不合格式`；③ 完成时间带 `（登记）` **rc=1** `不得带`；④ 同号跨表 **rc=1** 且 `gate-inj4.log` 恰 2 条 VIOLATION（跨表重复 + MISMATCH）；⑤ 第三表末两行对调 **rc=1** `A4 … 逆序`。每次还原 md5 == `17605c987c1f8068168c6bc1550e2420`、还原后 rc=0。
-- 重跑 `.work/evidence/INFRA-141t/run.sh` ⇒ **rc=0，结果 PASS（19 PASS / 0 FAIL）**，收尾台账 md5 与开工前逐字节相同。
+- **五类现场注入**（`cp` 备份 + md5 → 改 → 跑 → `cp` 还原 → md5 相等 → 回绿；全程未用 git 还原）：① 待开始行进进行中 **rc=1** `A1 … QEMU-085t MISMATCH`；② 预估 `soon` **rc=1** `预估时间 … 不合格式`；③ 完成时间带 `（登记）` **rc=1** `不得带`；④ 同号跨表 **rc=1** 且 运行期注入日志恰 2 条 VIOLATION（跨表重复 + MISMATCH）；⑤ 第三表末两行对调 **rc=1** `A4 … 逆序`。每次还原 md5 == `17605c987c1f8068168c6bc1550e2420`、还原后 rc=0。
+- 重跑运行期证据脚本（未归档）⇒ **rc=0，结果 PASS（19 PASS / 0 FAIL）**，收尾台账 md5 与开工前逐字节相同。
 - L1：先按验收优先试 `timeout 45 make -k check` ⇒ **被共享 gate 锁阻塞**（`gate-lock: WAIT … held by pid=2160521 target=check-modules … waits up to 3600s`，42.5s 才 ACQUIRED；同期 5 个并发 gate 用户）⇒ 改跑同 recipe 体 `make -k _locked-check` ⇒ **rc=2，`grep '\*\*\*'` 唯一红 = `check-patch-tree`**（4 问题），其余 L1 全绿（含 `check-milestones-fresh: PASS`、`check-run-artifacts: PASS`、`check-knowledge-refs: PASS 悬空 0`）。
 - **归属核实**：`python3 tools/infra/check_patch_tree.py` 在**主工作树**（master、`git status` 干净、零本任务改动）复现**同样 4 条** ⇒ 与本任务无关；共享 `.work/source/qemu` 本地 commit `2c6ab04` committer 时间 **2026-11-08 11:52**、`/tmp/opencode/QEMU-085t` 工作树 `M components/qemu/patches/linux-user/mmap.c.patch` ⇒ 红归并发 **QEMU-085t（mmap.c）/ GEM5-028t（se_workload.cc）**；本任务 8 改动文件命中 `components/` **0**。
 
