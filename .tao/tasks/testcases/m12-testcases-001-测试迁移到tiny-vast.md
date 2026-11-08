@@ -16,7 +16,7 @@
 5. `tools/qemu/semantics_gate.py` 散文改 `dadao-v5`（历史裁定引用保留原意）
 6. `docs/DDLN/D-运行平台/DD-D002-运行平台--测试机运行环境.md` 的 2 处 `Node`（`m12-spec-001` reviewer F-a：讲义，非规范）
 7. `tools/testcases/arch/min_rom_probe_integ046t.py`、`build_step5_bootrom.py` 的 docstring `Machine-v5-Node`（`m12-spec-001` 范围外发现）
-8. **术语**：代码/文档中的「夜跑」统一改为「**回归运行**」（用户 2026-11-08：该词有歧义，指的是全量回归成员集）
+8. **术语**：面向人的文档与 `make help`/输出文本中的「夜跑」改为「**回归运行**」（用户 2026-11-08：该词指全量回归成员集，易误解为只在夜间跑）；**不改**脚本文件名与 Make 目标名（`night_run.py` / `night-run`），仅在注释说明语义
 
 ## 验收标准
 
