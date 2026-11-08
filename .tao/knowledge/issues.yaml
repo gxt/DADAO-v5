@@ -135,8 +135,8 @@
 
 - id: ISS-353
   scope: [infra]
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: INFRA-144t（删除死代码/死计数：`checked` 计数 + (A) 面 `dangling` 分支；判据不变）
   title: >-
     【P3】`tools/infra/check_knowledge_refs.py` 清理项：改为「具体 `.work/**` 一律 FAIL」后，
     `checked` 计数只写不读、(A) 面的 `dangling` 分支已不可达。清理时只删死代码/死计数，

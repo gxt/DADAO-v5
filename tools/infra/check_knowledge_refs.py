@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""check-knowledge-refs: (A) 被引用的 `.work/**` 材料不得悬空 (INFRA-058t / INTEG-037t)；
+"""check-knowledge-refs: (A) 被引用的 `.work/**` **具体路径一律不可复现**
+（INFRA-058t / INTEG-037t 立，INFRA-135t 改判据）；
 (B) `.tao/knowledge/**` 内的**小节级互指**须指向真实存在的文档小节 (INFRA-080t)。
 
 背景（用户 2026-10-11 裁定「认 + 并入 INFRA-058t」，`lessons §3.16`）：
@@ -8,7 +9,7 @@
   - 归类判据（四分类）：`spec/` = 规范正文；`.tao/knowledge/` = 结论/设计/口径（含长文）；
     `.work/log/` = 一次性过程（可删）；**凡被引用的材料，一律不得只放 `.work/`**。
 
-(A) 检查（**悬空即红**）：
+(A) 检查（**具体引用一律 FAIL**）：
   扫描 `AGENTS.md` / `spec/**/*.md` / `.tao/knowledge/**/*.md` / `.tao/tasks/**/*.md`
   / `.tao/contracts/**/*.md` 中对 `.work/**` 的引用。
   **可判定的具体路径一律 FAIL**（用户 2026-11-08 裁定「A」，`ISS-352`）：`.work/**` 整体
@@ -345,7 +346,6 @@ def audit_section_refs(root: Path) -> dict:
         "contract": n_contract,
         "contract_checked": n_contract_checked,
         "contract_bare": n_contract_bare,
-        "checked": n_adr_checked + n_contract_checked,
         "face_checked": face_checked,
         "dangling": dangling,
         "skipped": skipped,
@@ -372,8 +372,6 @@ def audit(root: Path) -> int:
         return 1
 
     found = 0                 # total `.work/` refs seen
-    checked = 0               # concrete paths existence-checked
-    dangling: list[tuple[str, int, str]] = []
     concrete: list[tuple[str, int, str]] = []
     n_placeholder = 0
     n_prefix = 0
@@ -403,7 +401,6 @@ def audit(root: Path) -> int:
                 if any(mk in line for mk in _DELETION_MARKERS):
                     n_deleted += 1
                     continue
-                checked += 1
                 tok = raw.rstrip(".")
                 concrete.append((str(f.relative_to(root)), lineno, tok))
 
@@ -417,7 +414,6 @@ def audit(root: Path) -> int:
     print(f"    构建/源码 (豁免): {n_exempt}")
     print(f"    删除语境 (历史): {n_deleted}")
     print(f"    具体路径 (不可复现): {len(concrete)}")
-    print(f"  悬空: {len(dangling)}")
     if concrete:
         print()
         print("  [ISS-352] 具体 `.work/**` 引用一律不可复现（.work 被 gitignore）：")
@@ -429,13 +425,10 @@ def audit(root: Path) -> int:
 
     print("-" * 72)
 
-    # 判据顺序：先报**悬空**（两扫描面各自可达 FAIL），再报**空转**（fail-closed）。
-    # 注：原实现只有 (A)，`checked == 0` 与 `dangling` 互斥 ⇒ 本顺序不改变 (A) 的既有行为。
+    # 判据顺序：先报**具体引用**（(A) 面唯一 FAIL 入口），再报 (B) **悬空**，最后**空转**
+    # （fail-closed）。
     if concrete:
         print(f"结果: FAIL ({len(concrete)} 具体 `.work/**` 引用不可复现)")
-        return 1
-    if dangling:
-        print(f"结果: FAIL ({len(dangling)} 悬空 `.work/**` 引用)")
         return 1
     if sec["dangling"]:
         print(f"结果: FAIL ({len(sec['dangling'])} 悬空小节级互指)")
@@ -443,7 +436,7 @@ def audit(root: Path) -> int:
     # §2.20 自证命中：两个扫描面 (A)/(B) 都必须确有 token 被扫描到，(B) 的每个目录面亦然，
     # 否则判为「空转」而 FAIL。(A) 面按**扫描到的 `.work/` 引用数**判定：`.work/**` 整体
     # 被 gitignore，正确清理后 fresh clone 上可校验的具体路径必然为 0（INFRA-129t，
-    # 用户 2026-11-07 裁定「A：按扫描到的引用数判空转」），故不得以 `checked == 0` 作为空转判据。
+    # 用户 2026-11-07 裁定「A：按扫描到的引用数判空转」），故不得以「具体路径数为 0」作为空转判据。
     if found == 0:
         print("ERROR: 未扫描到任何 `.work/**` 引用（扫描面为空 ⇒ 门控空转，fail-closed）",
               file=sys.stderr)
@@ -455,7 +448,7 @@ def audit(root: Path) -> int:
               f"（fail-closed）", file=sys.stderr)
         print("结果: FAIL (vacuous: no checkable section-level cross-refs)")
         return 1
-    print(f"结果: PASS (0 悬空 `.work/**` 引用; 0 悬空小节级互指；"
+    print(f"结果: PASS (0 具体 `.work/**` 引用; 0 悬空小节级互指；"
           f"小节级: ADR {sec['adr_checked']} + contract {sec['contract_checked']} 已校验)")
     return 0
 
