@@ -1,9 +1,40 @@
 # 讨论项
 
-> **组织方式（用户 2026-11-08）**：按 **M12 / M13 / M14** 三个里程碑分节；**不在这三个里程碑内**的事项集中到「三个里程碑之外」。
+> **组织方式（用户 2026-11-08）**：按里程碑分节，**M11（收尾中）/ M12 / M13 / M14** 各为一级标题；**不在这些里程碑内**的事项集中到「三个里程碑之外」。
 > 只记**当前未决/待裁定**与**仍然生效的口径**；任务流水看 `milestones.md`（M11 及以前）/ `milestones-m12.md`（M12 起），历史与已落地项见 `.tao/archive/`。
 
 ---
+
+# M11：gem5 SE/FS 收口（收尾中，与 M12 并行）
+
+> M11 仍在收尾（剩余 4 个任务，见下）；M12 已开始，两条线并行推进，M11 完成后归档。
+
+## 剩余任务
+
+- `TESTCASES-103t`（3–4 h）：SE 基线预算 120s→按套件 600s，`timeout` 单列并重跑。
+- `TESTCASES-104t`（5–8 h）：SE 动态档驱动 + QEMU dynamic 基线刷新 + 全量对照。
+- `INTEG-059t`（10–16 h）：G3 完整 tset 双向一致性（static+dynamic）+ 矩阵重生成。
+- `INTEG-061t`（2–3 h）：**M11 里程碑核验与归档**（无 m 后缀；查任务状态 + 按 `docs/Process-04` 归档）。依赖以上三件。
+
+## 仍然生效的口径
+
+- **执行顺序**：改名波次优先于 `103t`/`104t`（用户 2026-11-08 选 A）。
+- **QEMU/gem5 一致性方向**：QEMU 已实现的 syscall，gem5 必须有等价实现；差异不是「可接受限制」；gem5 通过而 QEMU 未通过不得直接接受，须定位到一致。
+- **环境缺口（2026-11-07 裁定）**：`popen`/`spawn`/`vfork`/`execle-env`/`unix-smail` 5 例需要 guest 根内的 DADAO `/bin/sh`、`echo`；SE 返回 `ENOEXEC` 正确。QEMU 侧「通过」是执行宿主 x86-64 二进制，**非同架构 baseline**，不计 gem5 能力欠账；不采纳宿主原生执行旁路。
+- **动态线范围**：`mprotect` 真权限不纳入（另立任务）；主程序 `-pie`/`ET_DYN` 不支持，用非 PIE `ET_EXEC+PT_INTERP`；语料按 `ADR-0048 D4` 全量（libc-test 337 + llvm-ts 214 + embench 38）；单线程 TLS 由 musl 完成、gem5 0 改动。
+- **picolibc `math_test` 已知 BLOCKED**：Tiny 在 gem5 上 `238/76404 errors`（QEMU 0 errors），归因 B7 浮点数值差异；报告须保留 blocked 计数，不得计 PASS；修复另立差分任务（M13）。
+- **退出码定稿**：guest `0x00–0x3F` = PASS、`0x40–0x7F` = FAIL；机器 fault `0xC0–0xFF` = monitor（`bit7=1,bit6=1,bit5:4=模式,bit3:0=DADAO 异常位索引`）、`0x80–0xBF` = 其它 cfx（`bit7=1,bit6=0,bit5:0=cfxHA`）；`PTWERR`/`unmapped`/旧 `0x84`/`0xE1` 已删。
+- **`SYS_TICKFREQ`**：统一 `1e9` ticks/秒，QEMU/gem5 同模式一致（spec 未定义具体值，暂按此对照）。
+- **m 册门控取消**（用户选 B）：M11 不建 `m` 册，`make check-milestone` 报「无 m 册」属预期；改由 `INTEG-061t` 核验。`check_milestone_tasks.py` 的处置归 `m12-infra-002`。
+
+## M11 历史裁定（仍有效）
+
+- **1B**：M11 按「含实现」收口；5 个屏蔽寄存器实现 + 退出码实现完成才算完成。
+- **2B**：实现拆 2 个 INTEG 任务（`INTEG-054t` 5 寄存器、`INTEG-055t` 退出码），各含 QEMU→gem5→tests 三阶段。
+- **批次授权（2026-11-01）**：M11 gem5 批次 B0 + B1–B7 + `SPEC-181t`；批次内可直接建任务书/派单/验证/合并，不逐任务确认；停止点 = 批次外新任务、新增或改变 SPEC/契约语义、跨模块修改、push、破坏性/硬件操作、验收标准变更。
+- **`convert_f2i` 定稿**：`ADR-0050` Accepted（D1–D7）；15 条六档 one-hot / 3 条 SBZ / 4 条复制计数；汇编层 18 条单寄存器、无花括号、第三操作数显式。版本保持 `0.5.6-rc（未发布）`，M11 收口时再决定是否去 `-rc`。
+- **`AT_UID/EUID/GID/EGID` 口径（2026-11-08，用户选 A）**：gem5 SE 取 `::getuid()/geteuid()/getgid()/getegid()`，与 `getuid` syscall 同源；探针改跨引擎逐值相等。
+- **M11 收口旧记录**：`make check-full` 曾 PASS 8/8、`check-night` 4/4；`TESTCASES-100t` 修正 `malloc-brk-fail`；`ISS-343`（QEMU guest rlimit no-op，P3）仍开。
 
 # M12：chipyard 上跑 `Machine-v5-Tiny` + 单周期 `dadao-wuming`
 
@@ -171,35 +202,6 @@
 ---
 
 # 三个里程碑之外
-
-## M11 收尾（未完成）
-
-### 剩余任务
-
-- `TESTCASES-103t`（3–4 h）：SE 基线预算 120s→按套件 600s，`timeout` 单列并重跑。
-- `TESTCASES-104t`（5–8 h）：SE 动态档驱动 + QEMU dynamic 基线刷新 + 全量对照。
-- `INTEG-059t`（10–16 h）：G3 完整 tset 双向一致性（static+dynamic）+ 矩阵重生成。
-- `INTEG-061t`（2–3 h）：**M11 里程碑核验与归档**（无 m 后缀；查任务状态 + 按 `docs/Process-04` 归档）。依赖以上三件。
-
-### 仍然生效的口径
-
-- **执行顺序**：改名波次优先于 `103t`/`104t`（用户 2026-11-08 选 A）。
-- **QEMU/gem5 一致性方向**：QEMU 已实现的 syscall，gem5 必须有等价实现；差异不是「可接受限制」；gem5 通过而 QEMU 未通过不得直接接受，须定位到一致。
-- **环境缺口（2026-11-07 裁定）**：`popen`/`spawn`/`vfork`/`execle-env`/`unix-smail` 5 例需要 guest 根内的 DADAO `/bin/sh`、`echo`；SE 返回 `ENOEXEC` 正确。QEMU 侧「通过」是执行宿主 x86-64 二进制，**非同架构 baseline**，不计 gem5 能力欠账；不采纳宿主原生执行旁路。
-- **动态线范围**：`mprotect` 真权限不纳入（另立任务）；主程序 `-pie`/`ET_DYN` 不支持，用非 PIE `ET_EXEC+PT_INTERP`；语料按 `ADR-0048 D4` 全量（libc-test 337 + llvm-ts 214 + embench 38）；单线程 TLS 由 musl 完成、gem5 0 改动。
-- **picolibc `math_test` 已知 BLOCKED**：Tiny 在 gem5 上 `238/76404 errors`（QEMU 0 errors），归因 B7 浮点数值差异；报告须保留 blocked 计数，不得计 PASS；修复另立差分任务（M13）。
-- **退出码定稿**：guest `0x00–0x3F` = PASS、`0x40–0x7F` = FAIL；机器 fault `0xC0–0xFF` = monitor（`bit7=1,bit6=1,bit5:4=模式,bit3:0=DADAO 异常位索引`）、`0x80–0xBF` = 其它 cfx（`bit7=1,bit6=0,bit5:0=cfxHA`）；`PTWERR`/`unmapped`/旧 `0x84`/`0xE1` 已删。
-- **`SYS_TICKFREQ`**：统一 `1e9` ticks/秒，QEMU/gem5 同模式一致（spec 未定义具体值，暂按此对照）。
-- **m 册门控取消**（用户选 B）：M11 不建 `m` 册，`make check-milestone` 报「无 m 册」属预期；改由 `INTEG-061t` 核验。`check_milestone_tasks.py` 的处置归 `m12-infra-002`。
-
-### M11 历史裁定（仍有效）
-
-- **1B**：M11 按「含实现」收口；5 个屏蔽寄存器实现 + 退出码实现完成才算完成。
-- **2B**：实现拆 2 个 INTEG 任务（`INTEG-054t` 5 寄存器、`INTEG-055t` 退出码），各含 QEMU→gem5→tests 三阶段。
-- **批次授权（2026-11-01）**：M11 gem5 批次 B0 + B1–B7 + `SPEC-181t`；批次内可直接建任务书/派单/验证/合并，不逐任务确认；停止点 = 批次外新任务、新增或改变 SPEC/契约语义、跨模块修改、push、破坏性/硬件操作、验收标准变更。
-- **`convert_f2i` 定稿**：`ADR-0050` Accepted（D1–D7）；15 条六档 one-hot / 3 条 SBZ / 4 条复制计数；汇编层 18 条单寄存器、无花括号、第三操作数显式。版本保持 `0.5.6-rc（未发布）`，M11 收口时再决定是否去 `-rc`。
-- **`AT_UID/EUID/GID/EGID` 口径（2026-11-08，用户选 A）**：gem5 SE 取 `::getuid()/geteuid()/getgid()/getegid()`，与 `getuid` syscall 同源；探针改跨引擎逐值相等。
-- **M11 收口旧记录**：`make check-full` 曾 PASS 8/8、`check-night` 4/4；`TESTCASES-100t` 修正 `malloc-brk-fail`；`ISS-343`（QEMU guest rlimit no-op，P3）仍开。
 
 ## 待用户裁定：ADR
 
