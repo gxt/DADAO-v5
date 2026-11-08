@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
 new file mode 100644
-index 0000000..df99d72
+index 0000000..0e32a95
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.cc
-@@ -0,0 +1,5875 @@
+@@ -0,0 +1,6264 @@
 +// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
 +#include "arch/dadao/se_workload.hh"
 +
@@ -379,6 +379,362 @@ index 0000000..df99d72
 +{
 +    return intReg(DadaoISA::int_reg::RbBase + idx);
 +}
++
++/** The positional syscall arguments (contract-syscall §3).
++ *
++ * Bit i of a syscall's mask is set iff positional argument i is an address:
++ * address arguments travel in the RB bank, scalars in the RD bank, and the two
++ * banks are counted independently -- so the n-th address argument is rb(16+n)
++ * and the n-th data argument rd(16+n).  The table below carries the same rows
++ * as musl's __dadao_argmask() (arch/dadao/syscall_arch.h) and QEMU's
++ * linux-user/dadao/cpu_loop.c:dadao_argmask(); the three copies are a protocol
++ * invariant, not an oracle, and tools/qemu/check_syscall_abi.py fails when they
++ * drift apart.  Numbers are from the locked asm-generic table
++ * (contract-syscall §1.1/§1.2); every dispatch arm below takes its arguments
++ * through SyscallArgs, so the bank choice is made here once and never by hand.
++ *
++ * A number that is absent yields mask 0 (everything in RD) -- musl's documented
++ * default -- but no dispatch arm may rely on it: the gate asserts that every
++ * number this workload dispatches has an explicit row.  Two rows are gem5-only
++ * because musl's sources never name those numbers: tgkill(2) (musl's table
++ * omits it, all three arguments are scalars, mask 0) and the legacy time(2)
++ * number 1062 (one address argument, mask 0x01).
++ */
++uint32_t
++dadaoArgmask(uint64_t nr)
++{
++    switch (nr) {
++      /* mask 0x00 (72): no address argument */
++      case 57: /* close */
++      case 23: /* dup */
++      case 24: /* dup3 */
++      case 20: /* epoll_create1 */
++      case 19: /* eventfd2 */
++      case 93: /* exit */
++      case 94: /* exit_group */
++      case 223: /* fadvise64 */
++      case 47: /* fallocate */
++      case 262: /* fanotify_init */
++      case 50: /* fchdir */
++      case 52: /* fchmod */
++      case 55: /* fchown */
++      case 25: /* fcntl */
++      case 83: /* fdatasync */
++      case 32: /* flock */
++      case 82: /* fsync */
++      case 46: /* ftruncate */
++      case 177: /* getegid */
++      case 175: /* geteuid */
++      case 176: /* getgid */
++      case 155: /* getpgid */
++      case 172: /* getpid */
++      case 173: /* getppid */
++      case 141: /* getpriority */
++      case 156: /* getsid */
++      case 178: /* gettid */
++      case 174: /* getuid */
++      case 26: /* inotify_init1 */
++      case 28: /* inotify_rm_watch */
++      case 129: /* kill */
++      case 201: /* listen */
++      case 62: /* lseek */
++      case 283: /* membarrier */
++      case 230: /* mlockall */
++      case 186: /* msgget */
++      case 231: /* munlockall */
++      case 92: /* personality */
++      case 167: /* prctl */
++      case 213: /* readahead */
++      case 139: /* rt_sigreturn */
++      case 125: /* sched_get_priority_max */
++      case 126: /* sched_get_priority_min */
++      case 120: /* sched_getscheduler */
++      case 124: /* sched_yield */
++      case 190: /* semget */
++      case 152: /* setfsgid */
++      case 151: /* setfsuid */
++      case 144: /* setgid */
++      case 268: /* setns */
++      case 154: /* setpgid */
++      case 140: /* setpriority */
++      case 143: /* setregid */
++      case 149: /* setresgid */
++      case 147: /* setresuid */
++      case 145: /* setreuid */
++      case 157: /* setsid */
++      case 146: /* setuid */
++      case 194: /* shmget */
++      case 210: /* shutdown */
++      case 198: /* socket */
++      case 81: /* sync */
++      case 84: /* sync_file_range */
++      case 267: /* syncfs */
++      case 77: /* tee */
++      case 111: /* timer_delete */
++      case 109: /* timer_getoverrun */
++      case 85: /* timerfd_create */
++      case 130: /* tkill */
++      case 166: /* umask */
++      case 97: /* unshare */
++      case 58: /* vhangup */
++        return 0x00;
++      /* mask 0x01 (34): address arguments in 0 */
++      case 89: /* acct */
++      case 171: /* adjtimex */
++      case 214: /* brk */
++      case 49: /* chdir */
++      case 51: /* chroot */
++      case 106: /* delete_module */
++      case 17: /* getcwd */
++      case 278: /* getrandom */
++      case 233: /* madvise */
++      case 279: /* memfd_create */
++      case 228: /* mlock */
++      case 284: /* mlock2 */
++      case 222: /* mmap */
++      case 226: /* mprotect */
++      case 181: /* mq_unlink */
++      case 227: /* msync */
++      case 229: /* munlock */
++      case 215: /* munmap */
++      case 59: /* pipe2 */
++      case 234: /* remap_file_pages */
++      case 136: /* rt_sigpending */
++      case 133: /* rt_sigsuspend */
++      case 99: /* set_robust_list */
++      case 96: /* set_tid_address */
++      case 162: /* setdomainname */
++      case 161: /* sethostname */
++      case 197: /* shmdt */
++      case 225: /* swapoff */
++      case 224: /* swapon */
++      case 179: /* sysinfo */
++      case 153: /* times */
++      case 45: /* truncate */
++      case 39: /* umount2 */
++      case 160: /* uname */
++        return 0x01;
++      /* mask 0x02 (54): address arguments in 1 */
++      case 200: /* bind */
++      case 266: /* clock_adjtime */
++      case 114: /* clock_getres */
++      case 113: /* clock_gettime */
++      case 112: /* clock_settime */
++      case 203: /* connect */
++      case 48: /* faccessat */
++      case 439: /* faccessat2 */
++      case 53: /* fchmodat */
++      case 452: /* fchmodat2 */
++      case 54: /* fchownat */
++      case 13: /* flistxattr */
++      case 16: /* fremovexattr */
++      case 80: /* fstat */
++      case 44: /* fstatfs */
++      case 61: /* getdents64 */
++      case 158: /* getgroups */
++      case 102: /* getitimer */
++      case 163: /* getrlimit */
++      case 165: /* getrusage */
++      case 27: /* inotify_add_watch */
++      case 34: /* mkdirat */
++      case 33: /* mknodat */
++      case 184: /* mq_notify */
++      case 188: /* msgrcv */
++      case 189: /* msgsnd */
++      case 265: /* open_by_handle_at */
++      case 56: /* openat */
++      case 67: /* pread64 */
++      case 69: /* preadv */
++      case 286: /* preadv2 */
++      case 68: /* pwrite64 */
++      case 70: /* pwritev */
++      case 287: /* pwritev2 */
++      case 63: /* read */
++      case 65: /* readv */
++      case 212: /* recvmsg */
++      case 121: /* sched_getparam */
++      case 127: /* sched_rr_get_interval */
++      case 118: /* sched_setparam */
++      case 193: /* semop */
++      case 269: /* sendmmsg */
++      case 211: /* sendmsg */
++      case 159: /* setgroups */
++      case 164: /* setrlimit */
++      case 196: /* shmat */
++      case 74: /* signalfd4 */
++      case 116: /* syslog */
++      case 108: /* timer_gettime */
++      case 87: /* timerfd_gettime */
++      case 35: /* unlinkat */
++      case 75: /* vmsplice */
++      case 64: /* write */
++      case 66: /* writev */
++        return 0x02;
++      /* mask 0x03 (12): address arguments in 0,1 */
++      case 90: /* capget */
++      case 91: /* capset */
++      case 169: /* gettimeofday */
++      case 11: /* listxattr */
++      case 12: /* llistxattr */
++      case 15: /* lremovexattr */
++      case 101: /* nanosleep */
++      case 41: /* pivot_root */
++      case 14: /* removexattr */
++      case 170: /* settimeofday */
++      case 132: /* sigaltstack */
++      case 43: /* statfs */
++        return 0x03;
++      /* mask 0x04 (8): address arguments in 2 */
++      case 29: /* ioctl */
++      case 187: /* msgctl */
++      case 138: /* rt_sigqueueinfo */
++      case 123: /* sched_getaffinity */
++      case 122: /* sched_setaffinity */
++      case 119: /* sched_setscheduler */
++      case 71: /* sendfile */
++      case 195: /* shmctl */
++        return 0x04;
++      /* mask 0x05 (3): address arguments in 0,2 */
++      case 105: /* init_module */
++      case 232: /* mincore */
++      case 36: /* symlinkat */
++        return 0x05;
++      /* mask 0x06 (15): address arguments in 1,2 */
++      case 202: /* accept */
++      case 242: /* accept4 */
++      case 10: /* fgetxattr */
++      case 7: /* fsetxattr */
++      case 100: /* get_robust_list */
++      case 205: /* getpeername */
++      case 204: /* getsockname */
++      case 185: /* mq_getsetattr */
++      case 79: /* newfstatat */
++      case 78: /* readlinkat */
++      case 134: /* rt_sigaction */
++      case 135: /* rt_sigprocmask */
++      case 103: /* setitimer */
++      case 107: /* timer_create */
++      case 88: /* utimensat */
++        return 0x06;
++      /* mask 0x07 (9): address arguments in 0,1,2 */
++      case 221: /* execve */
++      case 168: /* getcpu */
++      case 150: /* getresgid */
++      case 148: /* getresuid */
++      case 8: /* getxattr */
++      case 9: /* lgetxattr */
++      case 6: /* lsetxattr */
++      case 137: /* rt_sigtimedwait */
++      case 5: /* setxattr */
++        return 0x07;
++      /* mask 0x08 (5): address arguments in 3 */
++      case 21: /* epoll_ctl */
++      case 142: /* reboot */
++      case 191: /* semctl */
++      case 208: /* setsockopt */
++      case 199: /* socketpair */
++        return 0x08;
++      /* mask 0x09 (1): address arguments in 0,3 */
++      case 180: /* mq_open */
++        return 0x09;
++      /* mask 0x0a (9): address arguments in 1,3 */
++      case 285: /* copy_file_range */
++      case 37: /* linkat */
++      case 270: /* process_vm_readv */
++      case 271: /* process_vm_writev */
++      case 60: /* quotactl */
++      case 276: /* renameat2 */
++      case 192: /* semtimedop */
++      case 76: /* splice */
++      case 260: /* wait4 */
++        return 0x0a;
++      /* mask 0x0c (5): address arguments in 2,3 */
++      case 115: /* clock_nanosleep */
++      case 261: /* prlimit64 */
++      case 117: /* ptrace */
++      case 110: /* timer_settime */
++      case 86: /* timerfd_settime */
++        return 0x0c;
++      /* mask 0x0d (1): address arguments in 0,2,3 */
++      case 73: /* ppoll */
++        return 0x0d;
++      /* mask 0x0e (2): address arguments in 1,2,3 */
++      case 281: /* execveat */
++      case 264: /* name_to_handle_at */
++        return 0x0e;
++      /* mask 0x10 (1): address arguments in 4 */
++      case 263: /* fanotify_mark */
++        return 0x10;
++      /* mask 0x11 (1): address arguments in 0,4 */
++      case 216: /* mremap */
++        return 0x11;
++      /* mask 0x12 (5): address arguments in 1,4 */
++      case 22: /* epoll_pwait */
++      case 182: /* mq_timedsend */
++      case 243: /* recvmmsg */
++      case 206: /* sendto */
++      case 291: /* statx */
++        return 0x12;
++      /* mask 0x14 (2): address arguments in 2,4 */
++      case 220: /* clone */
++      case 95: /* waitid */
++        return 0x14;
++      /* mask 0x17 (1): address arguments in 0,1,2,4 */
++      case 40: /* mount */
++        return 0x17;
++      /* mask 0x18 (1): address arguments in 3,4 */
++      case 209: /* getsockopt */
++        return 0x18;
++      /* mask 0x19 (1): address arguments in 0,3,4 */
++      case 98: /* futex */
++        return 0x19;
++      /* mask 0x1a (1): address arguments in 1,3,4 */
++      case 183: /* mq_timedreceive */
++        return 0x1a;
++      /* mask 0x32 (1): address arguments in 1,4,5 */
++      case 207: /* recvfrom */
++        return 0x32;
++      /* mask 0x3e (1): address arguments in 1,2,3,4,5 */
++      case 72: /* pselect6 */
++        return 0x3e;
++      case 131: /* tgkill (absent from musl's table: all scalars) */
++        return 0x00;
++      case 1062: /* time (gem5 legacy number, one address argument) */
++        return 0x01;
++    }
++    return 0x00;
++}
++
++/** Positional syscall arguments, decoded through the mask table.
++ *
++ * The six slots the mask covers are read eagerly (contract-syscall §3: the stub
++ * declares the last slot pair, rd21/rb21), so a dispatch arm can index them in
++ * prototype order regardless of which bank each argument came from.
++ */
++class SyscallArgs
++{
++  public:
++    SyscallArgs(ThreadContext *tc, uint64_t nr)
++    {
++        const uint32_t mask = dadaoArgmask(nr);
++        unsigned rdi = 0;
++        unsigned rbi = 0;
++        for (unsigned i = 0; i < MaxArgs; ++i) {
++            if (mask & (1u << i))
++                values[i] = tc->getReg(rb(16 + rbi++));
++            else
++                values[i] = tc->getReg(rd(16 + rdi++));
++        }
++    }
++
++    RegVal operator[](unsigned i) const { return values[i]; }
++
++  private:
++    /** contract-syscall §3: six positional slots, both last ones declared. */
++    static constexpr unsigned MaxArgs = 6;
++    RegVal values[MaxArgs] = {};
++};
++
 +
 +uint64_t
 +readBigEndian64(const uint8_t *bytes)
@@ -781,11 +1137,65 @@ index 0000000..df99d72
 +    return guest_flags;
 +}
 +
++/** Lexically normalise an absolute guest path.
++ *
++ * Collapses "//", drops ".", resolves ".." against the preceding component and
++ * clamps it at the guest root, and keeps a trailing directory requirement
++ * ("x/", "x/." and "x/.." all name a directory) because the host kernel turns
++ * that into ENOTDIR for a non-directory.
++ *
++ * The host kernel still resolves the result, symlinks included; normalising
++ * here is what keeps ".." from walking out of a redirected guest root --
++ * without it a guest "/.." would name whatever host directory sits above the
++ * redirect target.  The one place this can differ from a chroot is ".." after
++ * a component that is a symlink to a deeper directory: the clamp is textual, so
++ * the ".." pops the link rather than its target (documented in the component
++ * README's known differences).
++ */
++std::string
++normalizeGuestPath(const std::string &absolute)
++{
++    std::vector<std::string> parts;
++    bool dir_required = absolute.empty() || absolute.back() == '/';
++    std::string last;
++
++    for (std::string::size_type i = 0; i <= absolute.size();) {
++        auto slash = absolute.find('/', i);
++        if (slash == std::string::npos)
++            slash = absolute.size();
++        const std::string part = absolute.substr(i, slash - i);
++        if (!part.empty())
++            last = part;
++        if (part == "..") {
++            if (!parts.empty())
++                parts.pop_back();
++        } else if (!part.empty() && part != ".") {
++            parts.push_back(part);
++        }
++        i = slash + 1;
++    }
++    if (last == "." || last == "..")
++        dir_required = true;
++
++    std::string normalised = "/";
++    for (std::size_t i = 0; i < parts.size(); ++i) {
++        if (i)
++            normalised += '/';
++        normalised += parts[i];
++    }
++    if (dir_required && normalised.back() != '/')
++        normalised += '/';
++    return normalised;
++}
++
 +/** Resolve an openat-style guest path to a host path.
 + *
 + * Relative paths go through the process cwd (and any redirect paths); a
 + * non-AT_FDCWD dirfd contributes the guest name recorded when that directory
-+ * was opened.  An absolute path ignores dirfd, exactly as Linux does.
++ * was opened.  An absolute path ignores dirfd, exactly as Linux does.  The
++ * guest path is made absolute and normalised before redirecting, so the name
++ * recorded on a descriptor and the name a later openat() appends to it never
++ * carry "." or ".." components (and cannot climb above the guest root).
 + */
 +int
 +resolveGuestPath(DadaoISA::Process *process, int dirfd,
@@ -803,6 +1213,11 @@ index 0000000..df99d72
 +            return -ENOTDIR;
 +        full = file_entry->getFileName() + "/" + path;
 +    }
++
++    // An empty path names nothing: leave it alone so the host's ENOENT is the
++    // guest's answer (Linux raises ENOENT, not EFAULT, for "").
++    if (!full.empty())
++        full = normalizeGuestPath(process->absolutePath(full, false));
 +
 +    if (guest_path)
 +        *guest_path = full;
@@ -1540,15 +1955,18 @@ index 0000000..df99d72
 +        return static_cast<RegVal>(-EINVAL);
 +
 +    struct stat host_stat;
-+    bool use_fd = path_addr == 0;
 +    std::string path;
 +
-+    if (path_addr != 0 && !readGuestString(tc, path_addr, path))
++    // A NULL user pointer is EFAULT with or without AT_EMPTY_PATH (the kernel
++    // faults on the copy-in first); the flag is what lets "" name the fd.
++    if (path_addr == 0)
 +        return static_cast<RegVal>(-EFAULT);
-+    if (path_addr != 0 && path.empty())
-+        use_fd = flags & AtEmptyPath;
-+    if (path_addr == 0 && !(flags & AtEmptyPath))
++    if (!readGuestString(tc, path_addr, path))
 +        return static_cast<RegVal>(-EFAULT);
++
++    // AT_EMPTY_PATH: an empty path operates on the descriptor itself.  Without
++    // the flag an empty path simply does not name anything (ENOENT).
++    const bool use_fd = path.empty() && (flags & AtEmptyPath);
 +
 +    if (use_fd) {
 +        int sim_fd;
@@ -5176,6 +5594,7 @@ index 0000000..df99d72
 +    process->gem5::Process::syscall(tc);
 +
 +    const uint64_t nr = tc->getReg(rd(15));
++    const SyscallArgs args(tc, nr);
 +    const Addr pc = tc->pcState().instAddr();
 +    RegVal result = 0;
 +    // Set by a syscall that cannot make progress yet: the CPU re-executes the
@@ -5191,7 +5610,7 @@ index 0000000..df99d72
 +      case SysExitGroup: {
 +        // contract-syscall §6: process exit is a syscall, not an exit port.
 +        // The status is truncated to 8 bits, exactly like exitImpl.
-+        const int status = static_cast<int>(tc->getReg(rd(16)));
++        const int status = static_cast<int>(args[0]);
 +        doExit(tc, process, status, 0, nr == SysExitGroup);
 +        return; // not reached
 +      }
@@ -5201,7 +5620,7 @@ index 0000000..df99d72
 +        // flush; a non-tty returns -ENOTTY and musl falls back to full
 +        // buffering.  Only the two terminal probes of the static-musl startup
 +        // surface are answered; any other request is an explicit failure.
-+        const uint64_t req = tc->getReg(rd(17));
++        const uint64_t req = args[1];
 +        if (req == 0x5413 /* TIOCGWINSZ */ || req == 0x5401 /* TCGETS */) {
 +            result = static_cast<RegVal>(-ENOTTY);
 +            break;
@@ -5213,30 +5632,26 @@ index 0000000..df99d72
 +        // musl __init_tp calls this unconditionally in every thread; the
 +        // address is per thread and is cleared (with a futex wake) on exit.
 +        DadaoISA::ThreadState &thread = threadOf(process, tc);
-+        thread.clearTid = tc->getReg(rb(16));
++        thread.clearTid = args[0];
 +        result = thread.tid;
 +        break;
 +      }
 +
-+      // Threads and futexes (GEM5-026t).  The futex argument banks follow
-+      // musl's __dadao_argmask mask 0x19: address arguments sit in slots 0, 3
-+      // and 4, so uaddr -> rb16, utime -> rb17, uaddr2 -> rb18; op/val/val3
-+      // are integers in rd16/rd17/rd18.
++      // Threads and futexes (GEM5-026t).  futex's mask is 0x19: the address
++      // arguments occupy slots 0, 3 and 4 (uaddr, timeout, uaddr2), the three
++      // integers slots 1, 2 and 5 (op, val, val3).
 +      case SysFutex: {
-+        result = doFutex(tc, process, tc->getReg(rb(16)),
-+                         tc->getReg(rd(16)),
-+                         static_cast<uint32_t>(tc->getReg(rd(17))),
-+                         tc->getReg(rb(17)), tc->getReg(rb(18)),
-+                         static_cast<uint32_t>(tc->getReg(rd(18))),
-+                         futexParked);
++        result = doFutex(tc, process, args[0], args[1],
++                         static_cast<uint32_t>(args[2]), args[3], args[4],
++                         static_cast<uint32_t>(args[5]), futexParked);
 +        if (futexParked)
 +            return; // the result is written when the wait is completed
 +        break;
 +      }
 +
 +      case SysSetRobustList: {
-+        const Addr head = tc->getReg(rb(16));
-+        const uint64_t len = tc->getReg(rd(16));
++        const Addr head = args[0];
++        const uint64_t len = args[1];
 +        // The kernel only accepts sizeof(struct robust_list_head) on 64-bit
 +        // (three 8-byte fields); musl passes exactly that.
 +        if (len != 24)
@@ -5251,9 +5666,9 @@ index 0000000..df99d72
 +      }
 +
 +      case SysGetRobustList: {
-+        const int pid = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr headPtr = tc->getReg(rb(16));
-+        const Addr lenPtr = tc->getReg(rb(17));
++        const int pid = static_cast<int>(args[0]);
++        const Addr headPtr = args[1];
++        const Addr lenPtr = args[2];
 +        DadaoISA::ThreadState *thread = &threadOf(process, tc);
 +        if (pid != 0 && pid != thread->tid)
 +            thread = process->findThreadByTid(pid);
@@ -5275,50 +5690,44 @@ index 0000000..df99d72
 +      // Signals (GEM5-024t).  Argument banks follow contract-syscall §3 and
 +      // musl's __dadao_argmask (arch/dadao/syscall_arch.h).
 +      case SysKill: {
-+        result = doKill(tc, process, static_cast<int>(tc->getReg(rd(16))),
-+                        static_cast<int>(tc->getReg(rd(17))), SiUser);
++        result = doKill(tc, process, static_cast<int>(args[0]),
++                        static_cast<int>(args[1]), SiUser);
 +        break;
 +      }
 +
 +      case SysTkill: {
 +        // tkill(tid, sig) names a thread of the calling process.
-+        result = doThreadKill(process, static_cast<int>(tc->getReg(rd(16))),
-+                              static_cast<int>(tc->getReg(rd(17))), SiTkill);
++        result = doThreadKill(process, static_cast<int>(args[0]),
++                              static_cast<int>(args[1]), SiTkill);
 +        break;
 +      }
 +
 +      case SysTgkill: {
-+        const int tgid = static_cast<int>(tc->getReg(rd(16)));
-+        const int tid = static_cast<int>(tc->getReg(rd(17)));
-+        result = doTgkill(process, tgid, tid,
-+                          static_cast<int>(tc->getReg(rd(18))));
++        const int tgid = static_cast<int>(args[0]);
++        const int tid = static_cast<int>(args[1]);
++        result = doTgkill(process, tgid, tid, static_cast<int>(args[2]));
 +        break;
 +      }
 +
 +      case SysSigaltstack: {
-+        result = doSigaltstack(tc, process, tc->getReg(rb(16)),
-+                               tc->getReg(rb(17)));
++        result = doSigaltstack(tc, process, args[0], args[1]);
 +        break;
 +      }
 +
 +      case SysRtSigaction: {
-+        result = doSigaction(tc, process, static_cast<int>(tc->getReg(rd(16))),
-+                             tc->getReg(rb(16)), tc->getReg(rb(17)),
-+                             tc->getReg(rd(17)));
++        result = doSigaction(tc, process, static_cast<int>(args[0]),
++                             args[1], args[2], args[3]);
 +        break;
 +      }
 +
 +      case SysRtSigprocmask: {
-+        result = doSigprocmask(tc, process,
-+                               static_cast<int>(tc->getReg(rd(16))),
-+                               tc->getReg(rb(16)), tc->getReg(rb(17)),
-+                               tc->getReg(rd(17)));
++        result = doSigprocmask(tc, process, static_cast<int>(args[0]),
++                               args[1], args[2], args[3]);
 +        break;
 +      }
 +
 +      case SysRtSigpending: {
-+        result = doSigpending(tc, process, tc->getReg(rb(16)),
-+                              tc->getReg(rd(16)));
++        result = doSigpending(tc, process, args[0], args[1]);
 +        break;
 +      }
 +
@@ -5332,8 +5741,8 @@ index 0000000..df99d72
 +      // same owner the stat* layer reports, so libc-test's st_uid==geteuid()
 +      // holds); pid/ppid are the SE process's own ids.
 +      case SysGetcwd: {
-+        const Addr buf = tc->getReg(rb(16));
-+        const uint64_t size = tc->getReg(rd(16));
++        const Addr buf = args[0];
++        const uint64_t size = args[1];
 +        const std::string &cwd = process->tgtCwd;
 +        if (size < cwd.size() + 1) {
 +            result = static_cast<RegVal>(-ERANGE);
@@ -5348,7 +5757,7 @@ index 0000000..df99d72
 +      }
 +
 +      case SysUname: {
-+        result = doUname(tc, tc->getReg(rb(16)));
++        result = doUname(tc, args[0]);
 +        break;
 +      }
 +
@@ -5388,7 +5797,7 @@ index 0000000..df99d72
 +      }
 +
 +      case SysSysinfo: {
-+        result = doSysinfo(tc, tc->getReg(rb(16)));
++        result = doSysinfo(tc, args[0]);
 +        break;
 +      }
 +
@@ -5396,8 +5805,8 @@ index 0000000..df99d72
 +      // entries; musl's getrlimit()/setrlimit() route through prlimit64(2).
 +      case SysGetrlimit:
 +      case SysSetrlimit: {
-+        const int resource = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr rlim = tc->getReg(rb(16));
++        const int resource = static_cast<int>(args[0]);
++        const Addr rlim = args[1];
 +        result = doPrlimit64(tc, process, 0, resource,
 +                             nr == SysSetrlimit ? rlim : Addr(0),
 +                             nr == SysGetrlimit ? rlim : Addr(0));
@@ -5405,55 +5814,53 @@ index 0000000..df99d72
 +      }
 +
 +      case SysPrlimit64: {
-+        result = doPrlimit64(tc, process,
-+                             static_cast<int>(tc->getReg(rd(16))),
-+                             static_cast<int>(tc->getReg(rd(17))),
-+                             tc->getReg(rb(16)), tc->getReg(rb(17)));
++        result = doPrlimit64(tc, process, static_cast<int>(args[0]),
++                             static_cast<int>(args[1]), args[2], args[3]);
 +        break;
 +      }
 +
 +      // Guest memory management (contract-syscall §3: pointers in rb, scalars
 +      // in rd, both banks counted from 16).
 +      case SysBrk: {
-+        result = doBrk(process, tc->getReg(rb(16)));
++        result = doBrk(process, args[0]);
 +        break;
 +      }
 +
 +      case SysMmap: {
-+        const Addr hint = tc->getReg(rb(16));
-+        const uint64_t length = tc->getReg(rd(16));
-+        const uint64_t prot = tc->getReg(rd(17));
-+        const uint64_t flags = tc->getReg(rd(18));
-+        const int fd = static_cast<int>(tc->getReg(rd(19)));
-+        const uint64_t offset = tc->getReg(rd(20));
++        const Addr hint = args[0];
++        const uint64_t length = args[1];
++        const uint64_t prot = args[2];
++        const uint64_t flags = args[3];
++        const int fd = static_cast<int>(args[4]);
++        const uint64_t offset = args[5];
 +        result = doMmap(process, hint, length, prot, flags, fd, offset);
 +        break;
 +      }
 +
 +      case SysMunmap: {
-+        const Addr start = tc->getReg(rb(16));
-+        const uint64_t length = tc->getReg(rd(16));
++        const Addr start = args[0];
++        const uint64_t length = args[1];
 +        result = doMunmap(process, start, length);
 +        break;
 +      }
 +
 +      case SysMremap: {
-+        // contract-syscall §3 type-based banks: old_addr and new_addr are
-+        // pointers (rb16/rb17), the three sizes/flags are data (rd16-rd18).
-+        const Addr old_addr = tc->getReg(rb(16));
-+        const uint64_t old_size = tc->getReg(rd(16));
-+        const uint64_t new_size = tc->getReg(rd(17));
-+        const uint64_t flags = tc->getReg(rd(18));
-+        const Addr new_addr = tc->getReg(rb(17));
++        // mremap's mask is 0x11: old_addr and new_addr (slots 0 and 4) are
++        // addresses, the two sizes and flags (slots 1-3) are data.
++        const Addr old_addr = args[0];
++        const uint64_t old_size = args[1];
++        const uint64_t new_size = args[2];
++        const uint64_t flags = args[3];
++        const Addr new_addr = args[4];
 +        result = doMremap(process, old_addr, old_size, new_size, flags,
 +                          new_addr);
 +        break;
 +      }
 +
 +      case SysMprotect: {
-+        const Addr start = tc->getReg(rb(16));
-+        const uint64_t length = tc->getReg(rd(16));
-+        const uint64_t prot = tc->getReg(rd(17));
++        const Addr start = args[0];
++        const uint64_t length = args[1];
++        const uint64_t prot = args[2];
 +        result = doMprotect(process, start, length, prot);
 +        break;
 +      }
@@ -5461,102 +5868,102 @@ index 0000000..df99d72
 +      // File descriptor and file I/O surface (GEM5-023t).  Argument banks:
 +      // scalars in rd16.. and pointers in rb16.. (contract-syscall §3).
 +      case SysDup: {
-+        result = doDup(process, static_cast<int>(tc->getReg(rd(16))));
++        result = doDup(process, static_cast<int>(args[0]));
 +        break;
 +      }
 +
 +      case SysDup3: {
-+        const int old_fd = static_cast<int>(tc->getReg(rd(16)));
-+        const int new_fd = static_cast<int>(tc->getReg(rd(17)));
-+        const uint64_t flags = tc->getReg(rd(18));
++        const int old_fd = static_cast<int>(args[0]);
++        const int new_fd = static_cast<int>(args[1]);
++        const uint64_t flags = args[2];
 +        result = doDup3(process, old_fd, new_fd, flags);
 +        break;
 +      }
 +
 +      case SysFcntl: {
-+        const int fd = static_cast<int>(tc->getReg(rd(16)));
-+        const int cmd = static_cast<int>(tc->getReg(rd(17)));
++        const int fd = static_cast<int>(args[0]);
++        const int cmd = static_cast<int>(args[1]);
 +        // fcntl's kernel prototype is (fd, cmd, unsigned long arg), so musl's
 +        // argmask keeps all three in the RD bank -- a lock pointer arrives as
-+        // the integer value in rd18, not as an RB pointer (contract-syscall
++        // the integer value in slot 2, not as an RB pointer (contract-syscall
 +        // §3 assigns banks by the *syscall* prototype; arch/dadao/
 +        // syscall_arch.h lists SYS_fcntl in the mask-0 set).
-+        const uint64_t arg = tc->getReg(rd(18));
++        const uint64_t arg = args[2];
 +        result = doFcntl(tc, process, fd, cmd, arg, retry);
 +        break;
 +      }
 +
 +      case SysOpenat: {
-+        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr path = tc->getReg(rb(16));
-+        const uint64_t flags = tc->getReg(rd(17));
-+        const uint32_t mode = tc->getReg(rd(18));
++        const int dirfd = static_cast<int>(args[0]);
++        const Addr path = args[1];
++        const uint64_t flags = args[2];
++        const uint32_t mode = args[3];
 +        result = doOpenat(tc, process, dirfd, path, flags, mode);
 +        break;
 +      }
 +
 +      case SysClose: {
-+        result = doClose(process, static_cast<int>(tc->getReg(rd(16))));
++        result = doClose(process, static_cast<int>(args[0]));
 +        break;
 +      }
 +
 +      case SysRead: {
-+        const int fd = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr buf = tc->getReg(rb(16));
-+        const uint64_t count = tc->getReg(rd(17));
++        const int fd = static_cast<int>(args[0]);
++        const Addr buf = args[1];
++        const uint64_t count = args[2];
 +        result = doRead(tc, process, fd, buf, count, retry);
 +        break;
 +      }
 +
 +      case SysReadv: {
-+        const int fd = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr iov = tc->getReg(rb(16));
-+        const uint64_t iovcnt = tc->getReg(rd(17));
++        const int fd = static_cast<int>(args[0]);
++        const Addr iov = args[1];
++        const uint64_t iovcnt = args[2];
 +        result = doReadv(tc, process, fd, iov, iovcnt, retry);
 +        break;
 +      }
 +
 +      case SysPread64: {
-+        const int fd = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr buf = tc->getReg(rb(16));
-+        const uint64_t count = tc->getReg(rd(17));
-+        const int64_t offset = static_cast<int64_t>(tc->getReg(rd(18)));
++        const int fd = static_cast<int>(args[0]);
++        const Addr buf = args[1];
++        const uint64_t count = args[2];
++        const int64_t offset = static_cast<int64_t>(args[3]);
 +        result = doPread64(tc, process, fd, buf, count, offset);
 +        break;
 +      }
 +
 +      case SysLseek: {
-+        const int fd = static_cast<int>(tc->getReg(rd(16)));
-+        const int64_t offset = static_cast<int64_t>(tc->getReg(rd(17)));
-+        const int whence = static_cast<int>(tc->getReg(rd(18)));
++        const int fd = static_cast<int>(args[0]);
++        const int64_t offset = static_cast<int64_t>(args[1]);
++        const int whence = static_cast<int>(args[2]);
 +        result = doLseek(process, fd, offset, whence);
 +        break;
 +      }
 +
 +      case SysChdir: {
-+        result = doChdir(tc, process, tc->getReg(rb(16)));
++        result = doChdir(tc, process, args[0]);
 +        break;
 +      }
 +
 +      case SysFstat: {
-+        const int fd = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr stat_addr = tc->getReg(rb(16));
++        const int fd = static_cast<int>(args[0]);
++        const Addr stat_addr = args[1];
 +        result = doFstat(tc, process, fd, stat_addr);
 +        break;
 +      }
 +
 +      case SysNewfstatat: {
-+        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr path = tc->getReg(rb(16));
-+        const Addr stat_addr = tc->getReg(rb(17));
-+        const int flags = static_cast<int>(tc->getReg(rd(17)));
++        const int dirfd = static_cast<int>(args[0]);
++        const Addr path = args[1];
++        const Addr stat_addr = args[2];
++        const int flags = static_cast<int>(args[3]);
 +        result = doNewfstatat(tc, process, dirfd, path, stat_addr, flags);
 +        break;
 +      }
 +
 +      case SysStatfs: {
-+        const Addr path = tc->getReg(rb(16));
-+        const Addr buf = tc->getReg(rb(17));
++        const Addr path = args[0];
++        const Addr buf = args[1];
 +        result = doStatfs(tc, process, path, buf);
 +        break;
 +      }
@@ -5566,55 +5973,55 @@ index 0000000..df99d72
 +        // faccessat2 is the flag-carrying form musl tries first when the
 +        // caller passes AT_EACCESS/AT_SYMLINK_NOFOLLOW; both share one body.
 +        // The legacy faccessat has no flags argument at all, so it must not
-+        // read rd18 (musl leaves an unrelated value there).
-+        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr path = tc->getReg(rb(16));
-+        const int mode = static_cast<int>(tc->getReg(rd(17)));
++        // read slot 3 (musl leaves an unrelated value there).
++        const int dirfd = static_cast<int>(args[0]);
++        const Addr path = args[1];
++        const int mode = static_cast<int>(args[2]);
 +        const int flags = nr == SysFaccessat2
-+                              ? static_cast<int>(tc->getReg(rd(18)))
++                              ? static_cast<int>(args[3])
 +                              : 0;
 +        result = doFaccessat(tc, process, dirfd, path, mode, flags);
 +        break;
 +      }
 +
 +      case SysGetdents64: {
-+        const int fd = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr dir_addr = tc->getReg(rb(16));
-+        const uint64_t count = tc->getReg(rd(17));
++        const int fd = static_cast<int>(args[0]);
++        const Addr dir_addr = args[1];
++        const uint64_t count = args[2];
 +        result = doGetdents64(tc, process, fd, dir_addr, count);
 +        break;
 +      }
 +
 +      case SysUtimensat: {
-+        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr path = tc->getReg(rb(16));
-+        const Addr times = tc->getReg(rb(17));
-+        const int flags = static_cast<int>(tc->getReg(rd(17)));
++        const int dirfd = static_cast<int>(args[0]);
++        const Addr path = args[1];
++        const Addr times = args[2];
++        const int flags = static_cast<int>(args[3]);
 +        result = doUtimensat(tc, process, dirfd, path, times, flags);
 +        break;
 +      }
 +
 +      case SysReadlinkat: {
-+        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr path = tc->getReg(rb(16));
-+        const Addr buf = tc->getReg(rb(17));
-+        const uint64_t bufsiz = tc->getReg(rd(17));
++        const int dirfd = static_cast<int>(args[0]);
++        const Addr path = args[1];
++        const Addr buf = args[2];
++        const uint64_t bufsiz = args[3];
 +        result = doReadlinkat(tc, process, dirfd, path, buf, bufsiz);
 +        break;
 +      }
 +
 +      case SysUnlinkat: {
-+        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr path = tc->getReg(rb(16));
-+        const int flags = static_cast<int>(tc->getReg(rd(17)));
++        const int dirfd = static_cast<int>(args[0]);
++        const Addr path = args[1];
++        const int flags = static_cast<int>(args[2]);
 +        result = doUnlinkat(tc, process, dirfd, path, flags);
 +        break;
 +      }
 +
 +      case SysMkdirat: {
-+        const int dirfd = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr path = tc->getReg(rb(16));
-+        const uint32_t mode = tc->getReg(rd(17));
++        const int dirfd = static_cast<int>(args[0]);
++        const Addr path = args[1];
++        const uint32_t mode = args[2];
 +        result = doMkdirat(tc, process, dirfd, path, mode);
 +        break;
 +      }
@@ -5624,29 +6031,29 @@ index 0000000..df99d72
 +      // time stay host-backed like QEMU user mode so file timestamps compare
 +      // correctly.
 +      case SysClockGettime: {
-+        const int clock_id = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr tp = tc->getReg(rb(16));
++        const int clock_id = static_cast<int>(args[0]);
++        const Addr tp = args[1];
 +        result = doClockGettime(tc, clock_id, tp);
 +        break;
 +      }
 +
 +      case SysClockGetres: {
-+        const int clock_id = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr tp = tc->getReg(rb(16));
++        const int clock_id = static_cast<int>(args[0]);
++        const Addr tp = args[1];
 +        result = doClockGetres(tc, clock_id, tp);
 +        break;
 +      }
 +
 +      case SysGettimeofday: {
-+        const Addr tv = tc->getReg(rb(16));
-+        const Addr tz = tc->getReg(rb(17));
++        const Addr tv = args[0];
++        const Addr tz = args[1];
 +        result = doGettimeofday(tc, tv, tz);
 +        break;
 +      }
 +
 +      case SysNanosleep: {
-+        const Addr req = tc->getReg(rb(16));
-+        const Addr rem = tc->getReg(rb(17));
++        const Addr req = args[0];
++        const Addr rem = args[1];
 +        result = doNanosleep(tc, process, req, rem, sleepParked);
 +        if (sleepParked)
 +            return; // the result is written by the deadline event
@@ -5654,23 +6061,23 @@ index 0000000..df99d72
 +      }
 +
 +      case SysTimeLegacy: {
-+        const Addr tloc = tc->getReg(rb(16));
++        const Addr tloc = args[0];
 +        result = doTime(tc, tloc);
 +        break;
 +      }
 +
 +      case SysWrite: {
-+        const int fd = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr buf = tc->getReg(rb(16));
-+        const uint64_t count = tc->getReg(rd(17));
++        const int fd = static_cast<int>(args[0]);
++        const Addr buf = args[1];
++        const uint64_t count = args[2];
 +        result = doWrite(tc, process, fd, buf, count, retry);
 +        break;
 +      }
 +
 +      case SysWritev: {
-+        const int fd = static_cast<int>(tc->getReg(rd(16)));
-+        const Addr iov = tc->getReg(rb(16));
-+        const uint64_t iovcnt = tc->getReg(rd(17));
++        const int fd = static_cast<int>(args[0]);
++        const Addr iov = args[1];
++        const uint64_t iovcnt = args[2];
 +
 +        if (iovcnt > 1024) {
 +            result = static_cast<RegVal>(-EINVAL);
@@ -5717,136 +6124,118 @@ index 0000000..df99d72
 +      // IPC (GEM5-025t): pipes are guest objects (DadaoPipeFDEntry), sockets are
 +      // forwarded to the host for the three families the corpus uses.
 +      case SysPipe2: {
-+        const Addr fildes = tc->getReg(rb(16));
-+        const uint64_t flags = tc->getReg(rd(16));
++        const Addr fildes = args[0];
++        const uint64_t flags = args[1];
 +        result = doPipe2(tc, process, fildes, flags);
 +        break;
 +      }
 +
 +      case SysSocket: {
-+        result = doSocket(process, static_cast<int>(tc->getReg(rd(16))),
-+                          static_cast<int>(tc->getReg(rd(17))),
-+                          static_cast<int>(tc->getReg(rd(18))));
++        result = doSocket(process, static_cast<int>(args[0]),
++                          static_cast<int>(args[1]), static_cast<int>(args[2]));
 +        break;
 +      }
 +
 +      case SysSocketpair: {
-+        result = doSocketpair(tc, process,
-+                              static_cast<int>(tc->getReg(rd(16))),
-+                              static_cast<int>(tc->getReg(rd(17))),
-+                              static_cast<int>(tc->getReg(rd(18))),
-+                              tc->getReg(rb(16)));
++        result = doSocketpair(tc, process, static_cast<int>(args[0]),
++                              static_cast<int>(args[1]),
++                              static_cast<int>(args[2]), args[3]);
 +        break;
 +      }
 +
 +      case SysBind: {
-+        result = doBind(tc, process, static_cast<int>(tc->getReg(rd(16))),
-+                        tc->getReg(rb(16)),
-+                        static_cast<int>(tc->getReg(rd(17))));
++        result = doBind(tc, process, static_cast<int>(args[0]), args[1],
++                        static_cast<int>(args[2]));
 +        break;
 +      }
 +
 +      case SysConnect: {
-+        result = doConnect(tc, process, static_cast<int>(tc->getReg(rd(16))),
-+                           tc->getReg(rb(16)),
-+                           static_cast<int>(tc->getReg(rd(17))), retry);
++        result = doConnect(tc, process, static_cast<int>(args[0]), args[1],
++                           static_cast<int>(args[2]), retry);
 +        break;
 +      }
 +
 +      case SysListen: {
-+        result = doListen(process, static_cast<int>(tc->getReg(rd(16))),
-+                          static_cast<int>(tc->getReg(rd(17))));
++        result = doListen(process, static_cast<int>(args[0]),
++                          static_cast<int>(args[1]));
 +        break;
 +      }
 +
 +      case SysAccept:
 +      case SysAccept4: {
-+        result = doAccept(tc, process, static_cast<int>(tc->getReg(rd(16))),
-+                          tc->getReg(rb(16)), tc->getReg(rb(17)),
-+                          nr == SysAccept4
-+                              ? static_cast<int>(tc->getReg(rd(17)))
-+                              : 0,
-+                          retry);
++        result = doAccept(tc, process, static_cast<int>(args[0]),
++                          args[1], args[2], nr == SysAccept4
++                              ? static_cast<int>(args[3])
++                              : 0, retry);
 +        break;
 +      }
 +
 +      case SysSendto: {
-+        result = doSendto(tc, process, static_cast<int>(tc->getReg(rd(16))),
-+                          tc->getReg(rb(16)), tc->getReg(rd(17)),
-+                          static_cast<int>(tc->getReg(rd(18))),
-+                          tc->getReg(rb(17)),
-+                          static_cast<int>(tc->getReg(rd(19))), retry);
++        result = doSendto(tc, process, static_cast<int>(args[0]),
++                          args[1], args[2], static_cast<int>(args[3]), args[4],
++                          static_cast<int>(args[5]), retry);
 +        break;
 +      }
 +
 +      case SysRecvfrom: {
-+        result = doRecvfrom(tc, process, static_cast<int>(tc->getReg(rd(16))),
-+                            tc->getReg(rb(16)), tc->getReg(rd(17)),
-+                            static_cast<int>(tc->getReg(rd(18))),
-+                            tc->getReg(rb(17)), tc->getReg(rb(18)), retry);
++        result = doRecvfrom(tc, process, static_cast<int>(args[0]),
++                            args[1], args[2], static_cast<int>(args[3]),
++                            args[4], args[5], retry);
 +        break;
 +      }
 +
 +      case SysSetsockopt: {
-+        result = doSetsockopt(tc, process, static_cast<int>(tc->getReg(rd(16))),
-+                              static_cast<int>(tc->getReg(rd(17))),
-+                              static_cast<int>(tc->getReg(rd(18))),
-+                              tc->getReg(rb(16)),
-+                              static_cast<int>(tc->getReg(rd(19))));
++        result = doSetsockopt(tc, process, static_cast<int>(args[0]),
++                              static_cast<int>(args[1]),
++                              static_cast<int>(args[2]), args[3],
++                              static_cast<int>(args[4]));
 +        break;
 +      }
 +
 +      case SysGetsockopt: {
-+        result = doGetsockopt(tc, process, static_cast<int>(tc->getReg(rd(16))),
-+                              static_cast<int>(tc->getReg(rd(17))),
-+                              static_cast<int>(tc->getReg(rd(18))),
-+                              tc->getReg(rb(16)), tc->getReg(rb(17)));
++        result = doGetsockopt(tc, process, static_cast<int>(args[0]),
++                              static_cast<int>(args[1]),
++                              static_cast<int>(args[2]), args[3], args[4]);
 +        break;
 +      }
 +
 +      case SysGetsockname: {
-+        result = doGetSockName(tc, process,
-+                               static_cast<int>(tc->getReg(rd(16))),
-+                               tc->getReg(rb(16)), tc->getReg(rb(17)), false);
++        result = doGetSockName(tc, process, static_cast<int>(args[0]),
++                               args[1], args[2], false);
 +        break;
 +      }
 +
 +      case SysGetpeername: {
-+        result = doGetSockName(tc, process,
-+                               static_cast<int>(tc->getReg(rd(16))),
-+                               tc->getReg(rb(16)), tc->getReg(rb(17)), true);
++        result = doGetSockName(tc, process, static_cast<int>(args[0]),
++                               args[1], args[2], true);
 +        break;
 +      }
 +
 +      case SysShutdown: {
-+        result = doShutdown(process, static_cast<int>(tc->getReg(rd(16))),
-+                            static_cast<int>(tc->getReg(rd(17))));
++        result = doShutdown(process, static_cast<int>(args[0]),
++                            static_cast<int>(args[1]));
 +        break;
 +      }
 +
 +      // Process creation / exec (GEM5-025t).  musl's fork()/vfork() and
 +      // posix_spawn() all arrive at clone(2); CLONE_THREAD stays unimplemented.
 +      case SysClone: {
-+        result = doClone(tc, process, tc->getReg(rd(16)), tc->getReg(rd(17)),
-+                         tc->getReg(rb(16)), tc->getReg(rd(18)),
-+                         tc->getReg(rb(17)), suspendSelf);
++        result = doClone(tc, process, args[0], args[1], args[2], args[3],
++                         args[4], suspendSelf);
 +        break;
 +      }
 +
 +      case SysExecve: {
 +        bool replaced = false;
-+        doExecve(tc, process, tc->getReg(rb(16)), tc->getReg(rb(17)),
-+                 tc->getReg(rb(18)), result, replaced);
++        doExecve(tc, process, args[0], args[1], args[2], result, replaced);
 +        if (replaced)
 +            return; // the new image is already running; no register write
 +        break;
 +      }
 +
 +      case SysWait4: {
-+        result = doWait4(tc, process, static_cast<int>(tc->getReg(rd(16))),
-+                         tc->getReg(rb(16)),
-+                         static_cast<int>(tc->getReg(rd(17))),
-+                         tc->getReg(rb(17)), retry);
++        result = doWait4(tc, process, static_cast<int>(args[0]), args[1],
++                         static_cast<int>(args[2]), args[3], retry);
 +        break;
 +      }
 +

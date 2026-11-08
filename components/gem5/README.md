@@ -179,6 +179,24 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   越限投递 guest `SIGSEGV` 而不是模拟器 abort。系统调用的功能拷贝不做权限
   检查（缓冲区复制走 `SETranslatingPortProxy`，失败仍是 `EFAULT`）。**已知限制**：
   `mprotect` 对地址空洞按 QEMU user 口径返回 0 且不建映射（内核会 `ENOMEM`）。
+- **参数 bank 与路径解析（INTEG-060t）**：SE 侧的 `dadaoArgmask()` 与 musl
+  `arch/dadao/syscall_arch.h:__dadao_argmask()`、QEMU
+  `linux-user/dadao/cpu_loop.c:dadao_argmask()` 逐项相同（L1 门控
+  `check-syscall-abi` 三方比对，含 mask `0x00` 行；另有两个 musl 无此名的
+  gem5 专有号：`tgkill`(131) mask 0，legacy `time`(1062) mask `0x01`）。
+  dispatch 的每个 arm 只经 `SyscallArgs` 按位置取参（第 i 个参数由 mask 决定
+  在 RD 还是 RB，两 bank 各自从 16 计数），源码里不再逐处手写 `rd16`/`rb16`
+  —— 门控同时断言 dispatch 无直接 bank 读取、且每个 `case` 都有表行。路径
+  解析把 guest 路径先绝对化再做词法归一化（折叠 `//`、去掉 `.`、`..` 在 guest
+  根处截断、保留结尾 `/` 与 `.`/`..` 的目录要求）才做 redirect 映射：root
+  redirect 下 `/..` 仍是 guest 根，`chdir` 后的 cwd 也成为绝对名（此前相对
+  cwd 在 redirect 下会落到宿主 cwd）。`newfstatat` 的 `pathname == NULL`
+  与 Linux 一致返回 `EFAULT`（`AT_EMPTY_PATH` 也要求 `""` 才操作 fd）。
+  **已知差异**：归一化是词法的，`link/../x`（`link` 指向更深的目录）会弹出
+  链接本身而非其目标——未实现 guest 符号链接解析器，跟随符号链接仍由宿主内核
+  完成。探针 `tools/testcases/se/check_se_path_resolution.py` 与宿主 Linux
+  逐项对照（绝对+dirfd、相对+dirfd+redirect、`..`、空路径/`AT_EMPTY_PATH`、
+  `/` 与非 `/` 结尾）。
 - **文件 I/O（GEM5-023t）**：`openat`/`close`/`read`/`readv`/`pread64`/
   `lseek`/`fstat`/`newfstatat`/`getdents64`/`dup`/`dup3`/`fcntl`
   （`F_GETFD`/`F_SETFD`/`F_GETFL`/`F_SETFL`/`F_DUPFD`/`F_DUPFD_CLOEXEC`/

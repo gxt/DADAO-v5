@@ -7,33 +7,43 @@ The facts, each derived from a different artefact:
    must be byte-identical to the qemu tree's ``linux-user/riscv/syscall.tbl``,
    whose sha256 the contract pins (contract-syscall.md §1.2).  The expected
    digest is *read from the contract*, not from the tree.
-2. **argument routing, three carriers** -- the guest stub decides where each
+2. **argument routing, four carriers** -- the guest stub decides where each
    argument goes (data bank rd16+ / address bank rb16+) from the syscall
-   NUMBER, and the host must rebuild the positional list with the SAME mask:
+   NUMBER, and every host must rebuild the positional list with the SAME mask:
 
    * musl ``arch/dadao/syscall_arch.h:__dadao_argmask`` (the C path),
    * QEMU ``linux-user/dadao/cpu_loop.c:dadao_argmask`` (the host path),
+   * gem5 ``src/arch/dadao/se_workload.cc:dadaoArgmask`` (the SE path),
    * musl ``src/thread/dadao/syscall_cp.s`` (the cancellable path).
 
-   Guest and host tables must agree number for number; the asm dispatch must
-   agree with them on every number it dispatches, and each of its blocks must
-   move exactly the arguments its mask says.
-3. **table completeness** -- every syscall name this libc can issue (the SYS_*
+   The three tables must agree number for number; the asm dispatch must agree
+   with them on every number it dispatches, and each of its blocks must move
+   exactly the arguments its mask says.  The gem5 table is a *copy*, so a
+   syscall added or re-masked on one side only fails this gate instead of
+   reading the neighbouring bank; the only rows allowed beyond musl's are the
+   two documented gem5-only numbers below.
+3. **gem5 dispatch takes arguments through the table, never by hand** -- every
+   ``case Sys*`` in ``SEWorkload::syscall`` must resolve to a table row, and no
+   arm may read a bank directly: the only ``tc->getReg(rd(15))`` allowed is the
+   syscall number itself.  A hand-written bank choice is exactly the defect
+   GEM5-023t's fcntl arm hit.
+4. **table completeness** -- every syscall name this libc can issue (the SYS_*
    names in musl's sources ∩ the names the port's ``bits/syscall.h.in``
    defines ∩ the locked number table) must have an entry.  An absent number
    silently falls back to "everything in RD", which is the defect ISS-249
    fixed; a number added to musl's sources later must not slip back in.
-4. **AUDIT_ARCH_DADAO** -- preprocessed out of
+5. **AUDIT_ARCH_DADAO** -- preprocessed out of
    ``linux-user/dadao/target_syscall.h`` and compared with the contract's
    ruling (EM_DADAO | AUDIT_ARCH_64BIT, no AUDIT_ARCH_LE bit).
-5. **routing covers six slots** -- masks are 6 bits wide and the C stub
+6. **routing covers six slots** -- masks are 6 bits wide and the C stub
    declares both last slots (rd21 / rb21); a seventh-argument syscall would
    otherwise be silently truncated.
 
 Sources: the live component trees under ``.work/source/`` when they exist,
 otherwise the committed patch set under ``components/`` -- so the gate also
-runs on a fresh clone that has never executed ``make prepare`` (checks 1-2 and
-5 work from patches; checks 3-4 need the musl sources and are reported SKIP).
+runs on a fresh clone that has never executed ``make prepare`` (checks 1-3 and
+6 work from patches; check 4 needs the musl sources and check 5 the qemu ones,
+and either is reported SKIP).
 
 Exit status: 0 only when every check passes.
 """
@@ -53,11 +63,22 @@ CONTRACT = ROOT / ".tao" / "contracts" / "contract-syscall.md"
 
 QEMU_PATCHES = ROOT / "components" / "qemu" / "patches"
 MUSL_PATCHES = ROOT / "components" / "musl" / "patches"
+GEM5 = ROOT / ".work" / "source" / "gem5"
+GEM5_PATCHES = ROOT / "components" / "gem5" / "patches"
 
 ABIS = {"common", "64", "riscv", "rlimit", "memfd_secret"}
 
+# Rows the gem5 table carries that musl's sources never name: musl's table
+# omits tgkill(2) altogether (all three arguments are scalars, so the default
+# mask 0 is right) and has no __NR_time at all (musl routes time() through
+# clock_gettime; gem5 still answers the legacy number for a guest that calls
+# it directly).  Listed here so a *new* extra row is a gate failure, not a
+# silent fork of the protocol.
+GEM5_ONLY_MASKS = {131: 0x00, 1062: 0x01}
+
 GUEST_TABLE = ("arch/dadao/syscall_arch.h", MUSL, MUSL_PATCHES)
 HOST_TABLE = ("linux-user/dadao/cpu_loop.c", QEMU, QEMU_PATCHES)
+SE_TABLE = ("src/arch/dadao/se_workload.cc", GEM5, GEM5_PATCHES)
 GUEST_CP = ("src/thread/dadao/syscall_cp.s", MUSL, MUSL_PATCHES)
 SYSCALL_TBL = ("linux-user/dadao/syscall.tbl", QEMU, QEMU_PATCHES)
 TARGET_SYSCALL_H = QEMU / "linux-user" / "dadao" / "target_syscall.h"
@@ -177,6 +198,52 @@ def port_nr_names(text: str) -> set[str]:
     return set(re.findall(r"^#define\s+__NR_([a-z0-9_]+)\s", text, re.M))
 
 
+SE_CASE_RE = re.compile(r"case (\d+): /\* (\w+)")
+SE_RETURN_RE = re.compile(r"^[ \t]*return (0x[0-9a-fA-F]+);")
+SE_DISPATCH_RE = re.compile(r"^      case (Sys\w+):", re.M)
+SE_BANK_READ_RE = re.compile(r"getReg\((rd|rb)\((\d+)\)\)")
+# tc->getReg(rd(15)) is the syscall number itself; every *argument* must come
+# through SyscallArgs, so any other direct bank read in the dispatch is the
+# hand-written bank choice this gate exists to forbid.
+SE_ALLOWED_BANK_READS = {("rd", 15)}
+
+
+def parse_se_table(text: str) -> dict[int, tuple[str, int]]:
+    """number -> (comment name, mask) out of gem5's dadaoArgmask()."""
+    start = text.find("dadaoArgmask(uint64_t nr)")
+    if start < 0:
+        raise SystemExit("cannot find dadaoArgmask() in the gem5 SE workload")
+    table: dict[int, tuple[str, int]] = {}
+    pending: list[tuple[int, str]] = []
+    for line in text[start:].splitlines():
+        m = SE_CASE_RE.search(line)
+        if m:
+            pending.append((int(m.group(1)), m.group(2)))
+            continue
+        m = SE_RETURN_RE.match(line)
+        if m and pending:
+            mask = int(m.group(1), 0)
+            for nr, name in pending:
+                if nr in table:
+                    check(f"gem5 routing table: duplicate case {nr}",
+                          "unique", "duplicate")
+                table[nr] = (name, mask)
+            pending = []
+    return table
+
+
+def parse_se_dispatch(text: str) -> tuple[dict[str, int | None], str]:
+    """(case name -> number constant, the dispatch body)."""
+    start = text.find("SEWorkload::syscall(ThreadContext *tc)")
+    if start < 0:
+        raise SystemExit("cannot find SEWorkload::syscall() in the gem5 tree")
+    body = text[start:]
+    constants = {name: int(value, 0) for name, value in
+                 re.findall(r"constexpr uint64_t (Sys\w+) = (\d+);", text)}
+    names = SE_DISPATCH_RE.findall(body)
+    return {name: constants.get(name) for name in names}, body
+
+
 def preprocess_audit_arch() -> int:
     """Evaluate AUDIT_ARCH_DADAO with the host C compiler."""
     src = (f'#include <stdio.h>\n#include "{TARGET_SYSCALL_H}"\n'
@@ -261,6 +328,65 @@ def main() -> int:
               f"{6 - ptrs} rd", f"({ptrs}, {6 - ptrs})", str(blocks[mask]))
     unused = sorted(set(blocks) - set(dispatch.values()))
     check("routing: cp asm has no unused mask block", "[]", str(unused))
+
+    # 3b. gem5 SE carrier -- the same table, and a dispatch that uses it
+    se_text, se_origin = source(SE_TABLE)
+    print(f"# gem5 SE carrier: {se_origin}")
+    se = parse_se_table(se_text)
+    check("gem5 routing table non-empty", "True", str(bool(se)))
+    unmapped = sorted(set(guest) - set(nums))
+    check("routing: every musl table name is in the locked number table",
+          "[]", str(unmapped))
+    musl_by_nr = {nums[name]: mask for name, mask in guest.items()
+                  if name in nums}
+    expected = dict(musl_by_nr)
+    expected.update(GEM5_ONLY_MASKS)
+    check("gem5 routing: same number set as musl (+ documented extras)",
+          sorted(expected), sorted(se))
+    wrong = [nr for nr in sorted(set(se) & set(expected))
+             if se[nr][1] != expected[nr]]
+    for nr in wrong:
+        print(f"[FAIL] gem5 routing mask {se[nr][0]} ({nr}): "
+              f"musl={expected[nr]:#04x} gem5={se[nr][1]:#04x}")
+    check("gem5 routing: every shared entry has the same mask",
+          f"{len(set(se) & set(expected))} equal", f"{len(wrong)} unequal",
+          not wrong)
+    name_by_nr: dict[int, str] = {}
+    for name, nr in nums.items():
+        name_by_nr.setdefault(nr, name)
+    # A right mask attached to the wrong comment is a stale copy, not a right
+    # row: the comment must name the syscall the locked table gives that
+    # number.
+    misnamed = [f"{nr}: {name} != {name_by_nr[nr]}"
+                for nr, (name, _mask) in sorted(se.items())
+                if nr in musl_by_nr and name != name_by_nr[nr]]
+    check("gem5 routing: every row comment names its number", "[]",
+          str(misnamed))
+    extras = sorted(set(se) - set(musl_by_nr))
+    check("gem5 routing: rows beyond musl's are exactly the documented pair",
+          sorted(GEM5_ONLY_MASKS), extras)
+    extra_names = sorted(se[nr][0] for nr in extras if nr in se)
+    check("gem5 routing: the extra rows are named", ["tgkill", "time"],
+          extra_names)
+
+    dispatch, se_body = parse_se_dispatch(se_text)
+    check("gem5 dispatch: case list non-empty", "True", str(bool(dispatch)))
+    unbound = sorted(name for name, nr in dispatch.items() if nr is None)
+    check("gem5 dispatch: every case has a number constant", "[]",
+          str(unbound))
+    missing = sorted(f"{name} ({nr})" for name, nr in dispatch.items()
+                     if nr is not None and nr not in se)
+    for item in missing:
+        print(f"[FAIL] gem5 dispatch case without a routing row: {item}")
+    check("gem5 dispatch: every dispatched number has a routing row", "[]",
+          str(missing))
+    direct = sorted({f"{bank}({idx})" for bank, idx in
+                     SE_BANK_READ_RE.findall(se_body)
+                     if (bank, int(idx)) not in SE_ALLOWED_BANK_READS})
+    for item in direct:
+        print(f"[FAIL] gem5 dispatch reads a bank by hand: tc->getReg({item})")
+    check("gem5 dispatch: no arm reads an argument bank by hand", "[]",
+          str(direct))
 
     # 4. completeness -- needs musl's sources
     if (MUSL / "src").exists():

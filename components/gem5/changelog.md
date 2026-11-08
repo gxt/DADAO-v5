@@ -2,6 +2,10 @@
 
 > 粒度：**按任务一条**，追加式。**体例 = 列表式（不用表格）+ 按里程碑分节**：每条 = `- **<日期> <任务号或 —>**`，**摘要另起缩进行** `  - 摘要：<摘要正文，逐字保留>`；原表其余列各占一条缩进行（如 `  - 执行者：engineer`）。节 = `## M<k>`（节序 M1→M2→…），**节内按日期升序**；**新里程碑到来时在文末开新节**（不留空节）。补丁集的生成/应用/校验规范见 `docs/Process-01-组件补丁组织与构建编排.md §10`。
 
+- **2026-11-08 INTEG-060t**
+  - 摘要：**SE 参数 bank 统一为 musl 同源 argmask 表 + 路径解析门控**。`se_workload.cc` 新增 `dadaoArgmask()`（与 musl `__dadao_argmask()`、QEMU `dadao_argmask()` 逐项相同，245 行含 72 行 mask `0x00`（另有 34 行 `0x01` 组），另加两个 musl 无此名的 gem5 专有号 `tgkill`(131)=`0x00`、legacy `time`(1062)=`0x01`）与 `SyscallArgs`（按 mask 把第 i 个位置参数落到 `rd(16+n)`/`rb(16+n)`，两 bank 各自计数），dispatch 的 193 处手写 `tc->getReg(rd/rb(…))` 全部改为 `args[i]`（行为不变：逐 arm 的 bank 与 musl mask 逐位一致，唯一变化是 `tgkill`/`time` 显式入表）。`tools/qemu/check_syscall_abi.py` 由「musl ↔ QEMU 两方」扩为「musl ↔ QEMU ↔ gem5 三方」：全 245 行逐项比对、行注释须命名其号、表外行只允许上述两号、dispatch 每个 `case` 必须有表行、dispatch 内除 `rd(15)` 外禁止直接读 bank；新增/改动 syscall 任一方未同步即门控红。路径解析：`normalizeGuestPath()` 把 guest 路径绝对化并词法归一（`//`/`.`/`..` 在 guest 根截断、保留结尾 `/` 与 `.`/`..` 的目录要求），`resolveGuestPath()` 在 redirect 之前归一——root redirect 下 `/..` 不再走到宿主父目录，`chdir` 后的相对 cwd 也成为绝对名；`newfstatat` 的 `pathname == NULL` 改为 Linux 口径 `EFAULT`（`AT_EMPTY_PATH` 只接受 `""`）。新探针 `tools/testcases/se/{path_resolve_probe.c,check_se_path_resolution.py}`：同一 C 源在宿主 Linux（oracle）、gem5 SE（无 redirect）、gem5 SE（root redirect）、qemu-user 四个引擎上跑，22 条共享断言逐行一致、两侧 `SUMMARY fails=0`，另 1 条 redirect 专有断言（`local:S5`，根处 `..` 截断）。补丁 1 份改（`se_workload.cc`），`make_patch.py` 重导出。
+  - 执行者：engineer
+
 ## M11
 
 - **2026-11-07 GEM5-026t**
