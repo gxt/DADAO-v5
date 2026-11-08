@@ -110,15 +110,16 @@
    - `git -C <组件源树> diff <旧HEAD>..<新HEAD> --stat` 只含 `target/dadao/cpu-param.h`（+ 审计确认必须改的行，逐条给理由）。
 2. **构建/安装**：`make build-qemu JOBS=8` rc=0；`make install-host` rc=0（若 rc=75 属 gate.lock 占用 ⇒ 等待重跑，不作通过）；`md5sum 运行期 QEMU 构建树中的 qemu-dadao 安装根 bin 下的 qemu-dadao` 两哈希一致，`qemu-system-dadao` 同。
 3. **guest 可见页大小（用户态独立探针）**：静态 musl 程序（配方同 `tools/qemu/user_mode_smoke.py::compile_program/link_static`）逐项输出：
-   - `syscall(SYS_getpagesize)` = **65536**；
+   - ~~`syscall(SYS_getpagesize)` = **65536**~~ ⇒ **BLOCKED（无此 syscall 号）**，见验收 3 末尾注；
    - `sysconf(_SC_PAGESIZE)` = **65536**；
    - `getauxval(AT_PAGESZ)` = **65536**；
    - `mmap(NULL,1,…)` 返回地址 `% 65536 == 0`；
    - 首个 `brk(0)` `% 65536 == 0`；`brk(cur+1)` 后写 `ROUND_UP(cur+1,65536)-8` 成功；
    - `mmap(fd, offset=4096)` ⇒ `-1/EINVAL`；`munmap(addr+4096,4096)` ⇒ `-1/EINVAL`；`munmap(addr,1)` ⇒ `0`；
    - 长 argv/env（>100 KiB，跨 64 KiB 页）长度/内容正确；
-   - `qemu-dadao -strace` 中出现 `getpagesize() = 65536`。
+   - ~~`qemu-dadao -strace` 中出现 `getpagesize() = 65536`~~ ⇒ **BLOCKED（无此 syscall 号）**，见下方注。
    宿主 `getconf PAGESIZE` 是主机页（4 KiB），**不得**用作证据。
+   **注（2026-11-08 architect 收尾）**：`SYS_getpagesize` 在 musl DADAO 表、QEMU `linux-user/dadao/syscall.tbl`、host `asm-generic/unistd.h` 中**均无号**；musl `getpagesize()` 走 `sysconf(_SC_PAGESIZE)`（读 `AT_PAGESZ`）。该两项**不可能通过**，不改判据为「跳过」而是标 BLOCKED；等价覆盖 = `sysconf(_SC_PAGESIZE)` + `getauxval(AT_PAGESZ)` + mmap/brk 对齐三路（均已在验收 3 内，实测 65536）。
 4. **静态/动态 smoke**：`python3 tools/qemu/user_mode_smoke.py --qemu <安装根二进制> --work <运行期临时目录>` rc=0；动态行 `AT_BASE % 65536 == 0`，`AT_PAGESZ` 断言通过。
 5. **系统态回归**：`make check-inst-smoke` rc=0；`make check-inst` rc=0（全量 inst，用户点名的旧 `check-qemu-semantics`；属 L3 单目标，仅此一项）；`make check-arch-smoke` rc=0。
 6. **L2 收尾**：`make check-modules` rc=0（含 `check-inst-smoke`/`check-arch-smoke`/`check-unit`/3 个 tset user-mode smoke）。任一红项须给出归因：若属测试资产按 4 KiB 写死 ⇒ 逐例登记 BLOCKED + 另立任务（保留现场）；若属 QEMU 实现 ⇒ 本任务修；既有红项附基线证据。**不得掩盖、不得为凑绿改范围外文件**。
