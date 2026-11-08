@@ -1,11 +1,11 @@
 diff --git a/configs/dadao/fs.py b/configs/dadao/fs.py
 new file mode 100644
-index 0000000..876f853
+index 0000000..d5ee32b
 --- /dev/null
 +++ b/configs/dadao/fs.py
-@@ -0,0 +1,265 @@
+@@ -0,0 +1,287 @@
 +#!/usr/bin/env python3
-+# DADAO FS configuration (GEM5-015t Tiny, GEM5-016t Node).
++# DADAO FS configuration (GEM5-015t Tiny, GEM5-016t Vast).
 +#
 +# One AtomicSimpleCPU, no caches and no timing.  The profile selects the
 +# machine geometry; every constant below is the single source passed to the
@@ -13,7 +13,7 @@ index 0000000..876f853
 +# actually in force (they must equal tests/shared/machine-profiles.yaml).
 +#
 +#   tiny: 64 KiB BootROM + 8 MiB SRAM, identity segment checks, no cfx/PTW.
-+#   node: 4 MiB BootROM + 2 GiB PA RAM + hmon/smon/pmem SRAM, PTW identity
++#   vast: 4 MiB BootROM + 2 GiB PA RAM + hmon/smon/pmem SRAM, PTW identity
 +#         map, cfx register file/monitor, cfx_pmem DMA, cfx_time/cfx_hart.
 +
 +import argparse
@@ -45,8 +45,8 @@ index 0000000..876f853
 +        "pmem": None,
 +        "exit_block": 0xFFFF_FF7E_0000,
 +    },
-+    # Machine-v5-Node (spec/Machine-v5 §1.1; machine-profiles.yaml node).
-+    "node": {
++    # Machine-v5-Vast (spec/Machine-v5 §1.1; machine-profiles.yaml vast).
++    "vast": {
 +        "bootrom_base": 0xFFFF_FFC0_0000,
 +        "bootrom_size": 0x40_0000,
 +        "reset_pc": 0xFFFF_FFFF_0000,
@@ -63,15 +63,36 @@ index 0000000..876f853
 +    },
 +}
 +
++# The C++ FsWorkload keeps the machine id in its own spelling
++# (src/arch/dadao/fs_workload.cc: "tiny" | "node").  The Python profile name
++# is not passed through, so a profile rename here never changes that id.
++WORKLOAD_PROFILES = {"tiny": "tiny", "vast": "node"}
++
++# Transitional alias (user ruling 2026-11-08): `node` was the pre-M12 name of
++# the Vast profile; it stays accepted until m12-integ-001 removes it.
++PROFILE_ALIASES = {"node": "vast"}
++
++
++def resolve_profile(name):
++    """Return the canonical profile name; a deprecated alias is reported."""
++    canonical = PROFILE_ALIASES.get(name)
++    if canonical is None:
++        return name
++    print(f"fs.py: --profile {name} is deprecated, use --profile {canonical}",
++          file=sys.stderr)
++    return canonical
++
 +
 +def parse_args():
 +    parser = argparse.ArgumentParser(description=__doc__)
-+    parser.add_argument("--profile", choices=("tiny", "node"), default="tiny",
-+                        help="FS machine profile (default tiny)")
++    parser.add_argument("--profile", choices=("tiny", "vast", "node"),
++                        default="tiny",
++                        help="FS machine profile (default tiny; "
++                             "node = deprecated alias of vast)")
 +    parser.add_argument("--kernel", default="",
 +                        help="raw or ET_EXEC DADAO ELF image (tiny: required)")
 +    parser.add_argument("--bootrom", default="",
-+                        help="flat BootROM image (required for a Node run)")
++                        help="flat BootROM image (required for a Vast run)")
 +    parser.add_argument("--semihost", choices=("on", "off"), default="on",
 +                        help="enable semihosting services")
 +    parser.add_argument("--semihost-argv", default="",
@@ -102,7 +123,7 @@ index 0000000..876f853
 +
 +
 +def geometry_lines(name, g):
-+    if name == "node":
++    if name == "vast":
 +        return [
 +            ("bootrom_base", g["bootrom_base"]),
 +            ("bootrom_size", g["bootrom_size"]),
@@ -156,7 +177,7 @@ index 0000000..876f853
 +        ranges.append(AddrRange(base, size=size))
 +
 +    add_memory("rom", g["bootrom_base"], g["bootrom_size"])
-+    if args.profile == "node":
++    if args.profile == "vast":
 +        add_memory("ram", g["ram_base"], g["ram_size"])
 +        add_memory("hmon", g["hmon"][0], g["hmon"][1])
 +        add_memory("smon", g["smon"][0], g["smon"][1])
@@ -174,7 +195,7 @@ index 0000000..876f853
 +        )
 +
 +    system.workload = DadaoFsWorkload(
-+        profile=args.profile,
++        profile=WORKLOAD_PROFILES[args.profile],
 +        bootrom=args.bootrom,
 +        kernel=args.kernel,
 +        semihosting=semihosting,
@@ -183,8 +204,8 @@ index 0000000..876f853
 +        rom_size=g["bootrom_size"],
 +        sram_base=g["ram_base"],
 +        sram_size=g["ram_size"],
-+        ram_base=g["ram_base"] if args.profile == "node" else 0,
-+        ram_size=g["ram_size"] if args.profile == "node" else 0,
++        ram_base=g["ram_base"] if args.profile == "vast" else 0,
++        ram_size=g["ram_size"] if args.profile == "vast" else 0,
 +        pmem_base=g["pmem"][0] if g["pmem"] else 0,
 +        kernel_base=g["kernel_base"],
 +        kernel_reserved=g["kernel_reserved"],
@@ -193,7 +214,7 @@ index 0000000..876f853
 +        sp=g["sp"],
 +    )
 +
-+    if args.profile == "node":
++    if args.profile == "vast":
 +        mmu = DadaoNodeMMU()
 +        for tb in (mmu.itb, mmu.dtb):
 +            tb.rom_base = g["bootrom_base"]
@@ -227,6 +248,7 @@ index 0000000..876f853
 +
 +def main():
 +    args = parse_args()
++    args.profile = resolve_profile(args.profile)
 +    g = PROFILES[args.profile]
 +
 +    if args.dump_geometry:

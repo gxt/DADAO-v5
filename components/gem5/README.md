@@ -451,16 +451,17 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 - **已知限制**：无 cfx/PTW/user/hmon/smon/中断/设备/时序；不支持
   checkpoint/GDB/多核；`SYS_GET_CMDLINE` 来自 `--semihost-argv`。
 
-## FS 平台（GEM5-016t，Machine-v5-Node）
+## FS 平台（GEM5-016t，Machine-v5-Vast）
 
 - **构成**：`DadaoNodeAtomicSimpleCPU`（`DadaoAtomicSimpleCPU` 的 Python
   子类，`mmu = DadaoNodeMMU()`）、`DadaoNodeTlb`（guest TLB + 两级页表步进 +
   地址路由 + A/D 回写 + `cfx_ptw` 异常投递）、`DadaoNodeMMU`（`itb`/`dtb`）、
   `node_cfx.{hh,cc}`（cfx 寄存器文件、运行模式、`trap`/`escape` 帧、
   权限/委派、cfx_pmem DMA、cfx_time/cfx_hart 与异步仲裁）、
-  `DadaoFsWorkload profile=node`。**无** cache/设备/GDB/checkpoint/多核；
-  `mem_mode=atomic`。
-- **几何**（`--dump-geometry`，与 `machine-profiles.yaml` `node` 逐项一致）：
+  `DadaoFsWorkload`（`profile` 参数仍取内部机器 id `node`，见下「profile
+  命名」）。**无** cache/设备/GDB/checkpoint/多核；`mem_mode=atomic`。
+- **几何**（`--dump-geometry`，与 `machine-profiles.yaml` `node` 逐项一致；
+  测试侧键名迁移见 `m12-testcases-001`）：
   BootROM `0xffff_ffc0_0000` **恰好 4 MiB**（读/取指；写 ⇒ ILLI）、复位
   `0xffff_ffff_0000`；PA RAM `[0, 2 GiB)`；hmon `0x0fff_0000_0000` /
   smon `0x0bff_0000_0000`（保留，M11 不启动）/ cfx_pmem
@@ -491,14 +492,20 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `cfx_hart` rc2 `cycle` 同源、rc3 `insn` 每指令递增；TIMER 一次性
   （cmp/ctrl，ISTATUS 只读位）；异步源按 cfxha 升序（hart 15 → pmem 17），
   每次最多投递一个，mask/pending 保留与释放补投按 spec。
-- **CLI**：`--profile {tiny,node}`（默认 tiny）、`--kernel`（Node 可选）、
-  `--bootrom`（Node 必需，恰好 4 MiB）、`--trace-cpu <path>`（QEMU `-d cpu`
+- **CLI**：`--profile {tiny,vast}`（默认 tiny）、`--kernel`（Vast 可选）、
+  `--bootrom`（Vast 必需，恰好 4 MiB）、`--trace-cpu <path>`（QEMU `-d cpu`
   兼容：`PC:` / `RD[nn]` / `RB[nn]` / `RF[nn]` / `RA[nn]` / `MODE:` / `CFX..`
   块）、`--max-ticks`、
   `--dump-geometry`、semihosting 选项同 Tiny。
+- **profile 命名**：profile 概念 `Node` → `Vast`（用户裁定 2026-11-08；
+  `spec/Machine-v5` 同版改名）。`--profile node` 是**过渡别名**：映射到
+  `vast` 并在 stderr 打印 deprecated 提示，退出码/输出与 `--profile vast`
+  一致；别名在 `m12-integ-001` 与其它过渡别名一起移除。C++ 侧机器 id
+  （`fs_workload.cc` 的 `profile` 取值、`NodeState`/`node_*` 源文件名）
+  不在本次改名范围，Python profile 名由 `fs.py` 映射到该内部 id。
 - **已知限制**：无 cache/时序/设备/GDB/checkpoint/多核；smon 不启动也不验收；
   `spec/Machine-v5 §6` 的 `0x0200_...` 窗口未实现（依用户口径用 identity，
-  冲突见 `ISS-340`）；picolibc 不跑（`node.picolibc=false`）。
+  冲突见 `ISS-340`）；picolibc 不跑（Vast profile）。
 
 ## 补丁集
 

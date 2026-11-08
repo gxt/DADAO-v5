@@ -125,3 +125,9 @@
 - **2026-11-08 `QEMU-085t`**
   - 摘要：**README「与 QEMU user 的已知差异」的 `mremap` 增长 `RLIMIT_AS` 条目改为「已对齐（QEMU-085t）」**，保留「对齐前 QEMU-084t 只覆盖 `target_mmap` 的 `mmap` 路径、`mremap` 增长漏检」的历史说明；gem5 实现未改（其行为本就与内核 `may_expand_vm` 一致）。双引擎探针 43 条断言逐行一致（QEMU 侧新增增长检查）。
   - 执行者：engineer
+
+## M12
+
+- **2026-11-08 m12-gem5-001**
+  - 摘要：**FS profile 概念改名 `node` → `vast`（`Tiny`/`Vast`，与 `spec/Machine-v5` 0.4.1-rc 对齐）**。`configs/dadao/fs.py`：`PROFILES` 键、`--profile` 的 `choices`、注释与帮助文本改为 `tiny`/`vast`，`geometry_lines()` 与 `build()` 的分支判定同步；**过渡期保留 `node`**：`PROFILE_ALIASES = {"node": "vast"}` 在 `resolve_profile()` 里映射到 `vast` 并向 stderr 打印 `fs.py: --profile node is deprecated, use --profile vast`，随后全程只用规范名，故 `--profile vast` 与 `--profile node` 的退出码与 stdout 逐字节一致（仅 stderr 多一行提示）。C++ 侧机器 id 未改名（`fs_workload.cc` 的 `profile` 取值 `tiny|node`、`NodeState`/`node_*` 源文件名），`fs.py` 用 `WORKLOAD_PROFILES` 显式映射 `vast → node`，profile 改名不影响 workload 语义。别名与其它过渡别名一起在 `m12-integ-001` 移除（测试侧键名迁移见 `m12-testcases-001`）。
+  - 执行者：engineer
