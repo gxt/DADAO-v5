@@ -10,7 +10,11 @@
 
 (A) 检查（**悬空即红**）：
   扫描 `AGENTS.md` / `spec/**/*.md` / `.tao/knowledge/**/*.md` / `.tao/tasks/**/*.md`
-  / `.tao/contracts/**/*.md` 中对 `.work/**` 的引用；对**可判定的具体路径**做存在性检查，不存在即 FAIL。
+  / `.tao/contracts/**/*.md` 中对 `.work/**` 的引用。
+  **可判定的具体路径一律 FAIL**（用户 2026-11-08 裁定「A」，`ISS-352`）：`.work/**` 整体
+  被 gitignore，本机存在与否都不代表 fresh clone 上可复现 —— 若按「存在即放行」，主控机会
+  假绿、节点/新机器才红（12 小时内复发 3 次）。被引用的材料须改为运行期措辞，或升格到
+  `.tao/knowledge/refs/`。
 
 引用形态口径（详见 AGENTS.md「文档分层与单一真源」与 lessons §3.16）：
   - `<>` / `*` / `$` 形（占位或通配，如 `.work/log/<模块>/`、`.work/log/**`、
@@ -19,7 +23,7 @@
   - 位于「删除语境」行（含 `已删`/`删旧`/`删除`/`deleted`/`removed`）的引用 ⇒ 记录
     「历史/删除引用」，**不要求存在**；
   - `.work/build/**`、`.work/source/**`（构建/源码树，`clean-work` 即清）⇒ **显式豁免**；
-  - 其余具体路径 ⇒ **要求存在**（文件或目录），不存在即红。
+  - 其余具体路径 ⇒ **一律 FAIL**（不可复现），不看本机是否存在。
 
 (B) 检查（**悬空即红**；用户 2026-10-14 裁定「A」= 两条都补、并入 L1；任务 `INFRA-080t`）：
   扫描面 = `.tao/knowledge/**/*.md` **+** `.tao/contracts/**/*.md`（后者 `SPEC-171t` 并入：
@@ -370,6 +374,7 @@ def audit(root: Path) -> int:
     found = 0                 # total `.work/` refs seen
     checked = 0               # concrete paths existence-checked
     dangling: list[tuple[str, int, str]] = []
+    concrete: list[tuple[str, int, str]] = []
     n_placeholder = 0
     n_prefix = 0
     n_exempt = 0
@@ -400,8 +405,7 @@ def audit(root: Path) -> int:
                     continue
                 checked += 1
                 tok = raw.rstrip(".")
-                if not (root / tok).exists():
-                    dangling.append((str(f.relative_to(root)), lineno, tok))
+                concrete.append((str(f.relative_to(root)), lineno, tok))
 
     print("=" * 72)
     print("check-knowledge-refs — 被引用 `.work/**` 材料悬空检查")
@@ -412,11 +416,12 @@ def audit(root: Path) -> int:
     print(f"    前缀截断 (跳过): {n_prefix}")
     print(f"    构建/源码 (豁免): {n_exempt}")
     print(f"    删除语境 (历史): {n_deleted}")
-    print(f"    具体路径 (校验): {checked}")
+    print(f"    具体路径 (不可复现): {len(concrete)}")
     print(f"  悬空: {len(dangling)}")
-    if dangling:
+    if concrete:
         print()
-        for rel, lineno, tok in dangling:
+        print("  [ISS-352] 具体 `.work/**` 引用一律不可复现（.work 被 gitignore）：")
+        for rel, lineno, tok in concrete:
             print(f"    {rel}:{lineno}  {tok}")
 
     # ---- (B) 小节级互指（INFRA-080t）----
@@ -426,6 +431,9 @@ def audit(root: Path) -> int:
 
     # 判据顺序：先报**悬空**（两扫描面各自可达 FAIL），再报**空转**（fail-closed）。
     # 注：原实现只有 (A)，`checked == 0` 与 `dangling` 互斥 ⇒ 本顺序不改变 (A) 的既有行为。
+    if concrete:
+        print(f"结果: FAIL ({len(concrete)} 具体 `.work/**` 引用不可复现)")
+        return 1
     if dangling:
         print(f"结果: FAIL ({len(dangling)} 悬空 `.work/**` 引用)")
         return 1

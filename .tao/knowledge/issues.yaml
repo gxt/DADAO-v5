@@ -125,8 +125,8 @@
 
 - id: ISS-352
   scope: [infra]
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: INFRA-135t（门控改为具体 .work 引用一律 FAIL，用户裁定 A）
   title: >-
     【P2】`check-knowledge-refs` 在本机只按「文件是否存在」判悬空，而 `.work/**` 是被 gitignore 的
     运行期目录：主控机上有文件时不报，换到新节点/fresh clone 就红。近期已因此复发三次
