@@ -101,17 +101,18 @@
 - `004` 解码器 + 整数 ALU + 寄存器堆
 - `005` 访存
 - `006` 控制流 + RAS
-- `007` 位操作与整数补齐
+- `007` 位操作 + 原子 + 杂项（用户 2026-11-08 确认）：位操作与整数补齐 + `lr`/`sc`/`swym`（`SimRISC-12`）+ `fence`（`SimRISC-11 §5`：`hb!=0` 或保留 `cfxha` ⇒ ILLI，其余 no-op；单周期核天然满足屏障语义）
 - `008` FP 基础设施：recFN 编解码 + 六档舍入 + 异常标志 + 分类/符号（hardfloat `recFNFromFN`/`fNFromRecFN`/`RoundAnyRawFNToRecFN`/`classifyRecFN`）
 - `009` FP 转换：`ft2i*`/`fo2i*`/`fo2ft`/SBZ/复制（hardfloat `INToRecFN`/`RecFNToIN`/`RecFNToRecFN`/`resizeRawFloat`）
 - `010` FP 算术：加/乘/FMA/比较/最小最大（hardfloat `AddRecFN`/`MulRecFN`/`MulAddRecFN`/`CompareRecFN`）
 - `011` FP 除法/开方/取余（hardfloat `DivSqrtRecFN_small`）
 - `012` FP 取整/缩放/符号操作（`fornd`/`fosclb`/`fosgnj`）
-- `013` T0 冒烟：inst/tset 已验证子集，qemu/gem5/chipyard 三平台比对
+- `013` T0 冒烟：inst（全部非 cfx）+ tset 已验证子集，qemu/gem5/chipyard 三平台比对
 - `014` T1 适配集 + M12 验收
 
 - **FP 覆盖范围（用户 2026-11-08）**：**全做 5 组**；原则是「所有非 cfx 指令都应实现」。
-- **`fence` 评估结论（architect 2026-11-08，待用户确认是否纳入 M12）**：`fence` 属核芯功能扩展（`SimRISC-11 §5`，`fence_ciii_cfx`），但 **inst 测试集含 fence 用例**（`tests/inst/atomics/atomics-fence.yaml`，生成自 `contracts/opcodes.yaml` + spec）；qemu（`trans_fence_ciii_cfx`：`hb!=0` 或保留 cfxa ⇒ ILLI、`pred==succ==0` ⇒ no-op）与 gem5（`b6_test.cc` 同判据）均已实现。单周期核无 cache/store buffer/乱序，非零掩码的屏障语义天然满足 ⇒ 实现成本 ≈ 20 行。**建议 M12 实现**（否则 T0 子集缺一条指令，M13 也要补）。
+- **M12 指令覆盖（用户 2026-11-08）**：**全部非 cfx 指令**（不再只是 inst 子集），含 `fence`、`lr`/`sc`、`swym`；cfx 本身（`trap`/`escape`/`cfx2rd`/`cfx2rc`）不在 Tiny 实现，`trap` 仅用于 semihosting。
+- **`fence` 已确认纳入 M12（用户 2026-11-08）**：`fence` 属核芯功能扩展（`SimRISC-11 §5`，`fence_ciii_cfx`），但 **inst 测试集含 fence 用例**（`tests/inst/atomics/atomics-fence.yaml`，生成自 `contracts/opcodes.yaml` + spec）；qemu（`trans_fence_ciii_cfx`：`hb!=0` 或保留 cfxa ⇒ ILLI、`pred==succ==0` ⇒ no-op）与 gem5（`b6_test.cc` 同判据）均已实现。单周期核无 cache/store buffer/乱序，非零掩码的屏障语义天然满足 ⇒ 实现成本 ≈ 20 行。**建议 M12 实现**（否则 T0 子集缺一条指令，M13 也要补）。
 - **FP 分组依据（用户建议参考 berkeley-hardfloat）**：按 hardfloat 的原语边界切——转换 / 算术 / 除法开方 / 取整缩放，每组对应一组 `RecFN` 原语，便于复用 IP 与逐组比对（本地 chipyard 子模块 `generators/hardfloat/hardfloat` 即该库）。
 - **DADAO FP 指令集共 47 条**（`spec/SimRISC-07`）：转换、运算（加/乘/FMA/除/余/开方/取整/缩放/最小最大）、符号位、比较、分类。
 
@@ -124,7 +125,6 @@
 
 ## M12 未决
 
-- **`fence` 是否纳入 M12**：architect 建议纳入（见上），待用户确认。
 - **Tiny 的 SRAM 基址与 `loadmem` 目标窗口**需在 `002` 定稿（`load_elf` 目标基址必须与 Tiny 地址图一致）。
 
 ---
