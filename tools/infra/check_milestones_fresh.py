@@ -7,31 +7,42 @@
     可以删除」
   ⇒ 三分表、待开始置前、前两类写**预估时间**、第三类写**完成时间**、**删除状态列**。
 
+用户 2026-11-08 追加授权（逐字，INFRA-143t）：
+  「这个问题的关键不是引入新状态，而是派单后，应该把对应任务移动到第二类表格中，
+    第二类表格应该增加：派单时间」
+  ⇒ **不引入新状态**：**派单即**把该行移入「进行中」表并填**派单时间**
+    （`YYYY-MM-DD HH:MM`）；「待开始」表 = 尚未派单。
+
 沿革（用户 2026-10-18 原话，逐字）：
   「milestones.md中的任务流水表格又乱了，这个表格换成列表，而且按时间序，未完成
     的任务也需要列上；这个要求明确写到文档里，不要再乱了；另外，该文档后面的信息
     应按时更新；最后的历史台账指针没用，删除」
 
-体例硬约束（三分表后）：
+体例硬约束（三分表 + 派单时间后）：
   1. 三个二级标题**必须都存在**（顺序：待开始 → 进行中 → 已验证）：
-     `## 待开始（未开工）`、`## 进行中（已提交待验收 / 待返工）`、`## 已验证`。
-  2. 待开始表 / 进行中表列 = `| 编号 | 预估时间 | 一句改动 |`；已验证表列 =
-     `| 编号 | 完成时间 | 一句改动 |`。**无状态列**——类别即状态。
-  3. 预估时间格式 `N h` / `N–M h` / `N 天` / `N–M 天`（亦允许 `min`）；
-     完成时间 `YYYY-MM-DD HH:MM`，**不得带 `（登记）`**。
+     `## 待开始（未开工）`、
+     `## 进行中（已派单：待开始 / 待验收 / 待返工）`、`## 已验证`。
+  2. 待开始表列 = `| 编号 | 预估时间 | 一句改动 |`；进行中表列 =
+     `| 编号 | 派单时间 | 预估时间 | 一句改动 |`；已验证表列 =
+     `| 编号 | 完成时间 | 一句改动 |`。**无状态列**——表位置即状态。
+  3. 派单时间 / 完成时间格式 `YYYY-MM-DD HH:MM`（完成时间**不得带 `（登记）`**）；
+     预估时间格式 `N h` / `N–M h` / `N 天` / `N–M 天`（亦允许 `min`）。
   4. 三表「一句改动」均 ≤120 字符，且不得含 `.work/<具体路径>`；细节写各任务书。
-  5. 类别 = 任务书 `**状态**`：`待开始` → 待开始表；`待验收` / `待返工` → 进行中表；
-     `已验证` → 已验证表。
+  5. 表位置映射（**可判定性**：`待开始` 册可出现在前两表任一）：
+     待开始表 ⇒ 任务书 `待开始`（未派单）；
+     进行中表 ⇒ 任务书 ∈ {`待开始`（已派单、实现中）, `待验收`, `待返工`}
+     **且派单时间必填**；已验证表 ⇒ 任务书 `已验证`。
 
-五断言（每条均有可达 FAIL，见 `--self-test` 十一类注入）：
-  A1 **分类一致**：表行所属类别 == 任务书 `**状态**` 的映射（见上）；不一致 ⇒ FAIL。
+五断言（每条均有可达 FAIL，见 `--self-test` 十四类注入）：
+  A1 **分类一致**：表行所属表 == 任务书 `**状态**` 的映射（见上）；不一致 ⇒ FAIL。
   A2 **覆盖**：三表并集覆盖 `.tao/tasks/**` 的每份任务书、`INTEG-*m` 册列出的任务号、
      `milestones.md` 正文出现的任务号；**已归档**任务号（`.tao/archive/**` 有册）豁免，
      正文出现但全仓无册的任务号 ⇒ FAIL（悬空号）。
   A3 **长度**：三表每行「一句改动」≤ 120 字符（中文按 1 字符计）。
   A4 **次序**：**只对已验证表**按完成时间**倒序**（同一时间按编号升序）；前两表不判。
-  A5 **格式**：三表各恰好 3 格；三表须按 `待开始 → 进行中 → 已验证` 排列；
-     待开始/进行中时间列 = 预估格式；已验证时间列 =
+  A5 **格式**：待开始 / 已验证表各恰好 3 格，进行中表恰好 4 格；三表须按
+     `待开始 → 进行中 → 已验证` 排列；待开始表**不得含派单时间**（未派单）；
+     进行中表派单时间 `YYYY-MM-DD HH:MM` + 预估格式；已验证表时间列 =
      `YYYY-MM-DD HH:MM` 且不带 `（登记）`；**任何表不得出现状态列/状态值**；
      同一编号不重复、且不得跨表重复；「一句改动」不得含 `.work/`。
 
@@ -60,25 +71,28 @@ ARCHIVE_REL = Path(".tao/archive")
 INTEG_M_GLOB = "INTEG-*m-*.md"
 
 TODO_HEADING = "## 待开始（未开工）"
-WIP_HEADING = "## 进行中（已提交待验收 / 待返工）"
+WIP_HEADING = "## 进行中（已派单：待开始 / 待验收 / 待返工）"
 DONE_HEADING = "## 已验证"
 
 TODO_HEADER = ("编号", "预估时间", "一句改动")
-WIP_HEADER = ("编号", "预估时间", "一句改动")
+WIP_HEADER = ("编号", "派单时间", "预估时间", "一句改动")
 DONE_HEADER = ("编号", "完成时间", "一句改动")
 
+# `待开始` 可出现在前两表任一：表位置区分「未派单 / 已派单」（不引入新状态）。
 TODO_STATUSES = ("待开始",)
-WIP_STATUSES = ("待验收", "待返工")
+WIP_STATUSES = ("待开始", "待验收", "待返工")
 DONE_STATUSES = ("已验证",)
 
-# (标题, 表头, 允许的任务书状态, 时间列种类)
+# (标题, 表头, 允许的任务书状态, 表种类)
 TABLES = (
-    (TODO_HEADING, TODO_HEADER, TODO_STATUSES, "est"),
-    (WIP_HEADING, WIP_HEADER, WIP_STATUSES, "est"),
+    (TODO_HEADING, TODO_HEADER, TODO_STATUSES, "todo"),
+    (WIP_HEADING, WIP_HEADER, WIP_STATUSES, "wip"),
     (DONE_HEADING, DONE_HEADER, DONE_STATUSES, "done"),
 )
 
-# 类别即状态：任何表都不得再出现这些值作为独立单元格（状态列）。
+CELL_NAMES = {"todo": TODO_HEADER, "wip": WIP_HEADER, "done": DONE_HEADER}
+
+# 表位置即状态：任何表都不得再出现这些值作为独立单元格（状态列）。
 STATUS_VALUES = ("待开始", "待验收", "待返工", "已验证")
 
 MAX_SUMMARY = 120
@@ -86,6 +100,7 @@ MAX_SUMMARY = 120
 TASK_ID_RE = re.compile(r"\b(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?\b")
 ROW_ID_RE = re.compile(r"^(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?$")
 TIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})(（登记）)?$")
+DISPATCH_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$")
 EST_RE = re.compile(r"^\d+(?:\.\d+)?(?:–\d+(?:\.\d+)?)?\s*(?:h|天|min)$")
 STATUS_RE = re.compile(r"^\*\*状态\*\*[：:]\s*([^\s*]+)", re.MULTILINE)
 TASK_FILE_RE = re.compile(
@@ -149,7 +164,9 @@ def section_rows(
         problems.append(
             f"表头须为 `| {' | '.join(header)} |`，实得 {got_header}")
         if any("状态" in c for c in got_header):
-            problems.append("不得出现状态列（类别即状态）")
+            problems.append("不得出现状态列（表位置即状态）")
+        if header is TODO_HEADER and any("派单时间" in c for c in got_header):
+            problems.append("「待开始」表不得有派单时间列（未派单任务）")
     data_at = 1
     if len(tlines) < 2 or not is_sep(tlines[1][1]):
         problems.append("表头后缺分隔行（`| --- |`）")
@@ -170,6 +187,16 @@ def parse_time(cell: str) -> tuple[datetime, bool] | None:
     return dt, bool(m.group(3))
 
 
+def parse_dispatch(cell: str) -> datetime | None:
+    m = DISPATCH_RE.match(cell)
+    if not m:
+        return None
+    try:
+        return datetime.strptime(f"{m.group(1)} {m.group(2)}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        return None
+
+
 def check_rows(
     heading: str,
     rows: list[tuple[int, str, list[str]]],
@@ -179,12 +206,23 @@ def check_rows(
 ) -> list[tuple[int, str, datetime | None]]:
     """逐行格式 / 长度 / 状态列 / 重复检查；返回 `(行号, 编号, 完成时间|None)`。"""
     parsed: list[tuple[int, str, datetime | None]] = []
+    width = 4 if kind == "wip" else 3
     for lineno, _raw, cells in rows:
-        if len(cells) != 3:
-            errors.append(f"`{heading}` L{lineno}: 行须恰好 3 格"
-                          f"（`| 编号 | 时间 | 一句改动 |`；或含内嵌 `|`），实得 {len(cells)} 格")
+        if len(cells) != width:
+            hint = ""
+            if kind == "wip" and len(cells) == 3:
+                hint = "（缺派单时间：进行中行必须填 `YYYY-MM-DD HH:MM`）"
+            elif kind == "todo" and len(cells) == 4:
+                hint = "（「待开始」表行不得含派单时间：派单后须移入进行中表）"
+            errors.append(f"`{heading}` L{lineno}: 行须恰好 {width} 格"
+                          f"（`| {' | '.join(CELL_NAMES[kind])} |`；或含内嵌 `|`），"
+                          f"实得 {len(cells)} 格{hint}")
             continue
-        tid, tcell, summary = cells
+        if kind == "wip":
+            tid, dcell, tcell, summary = cells
+        else:
+            tid, tcell, summary = cells
+            dcell = None
         if not ROW_ID_RE.match(tid):
             errors.append(f"`{heading}` L{lineno}: 编号 `{tid}` 不合 `<PREFIX>-nnn<suffix>`")
         if tid in seen:
@@ -196,8 +234,12 @@ def check_rows(
             seen[tid] = (heading, lineno)
         bad = [c for c in cells if c in STATUS_VALUES]
         if bad:
-            errors.append(f"`{heading}` L{lineno}: 表内不得出现状态值/状态列 {bad}（类别即状态）")
-        if kind == "est":
+            errors.append(f"`{heading}` L{lineno}: 表内不得出现状态值/状态列 {bad}（表位置即状态）")
+        if kind == "wip":
+            if parse_dispatch(dcell) is None:
+                errors.append(f"`{heading}` L{lineno} {tid}: 派单时间 `{dcell}`"
+                              f"须为 `YYYY-MM-DD HH:MM`")
+        if kind in ("todo", "wip"):
             if not EST_RE.match(tcell):
                 errors.append(f"`{heading}` L{lineno} {tid}: 预估时间 `{tcell}` 不合格式"
                               f"（`N h` / `N–M h` / `N 天` / `N–M 天` / `min`）")
@@ -282,7 +324,7 @@ def audit(root: Path) -> int:
 
     # ---------- A1 分类一致 ----------
     print("-" * 72)
-    print("  A1 分类一致（表类别 == 任务书 `**状态**` 映射）")
+    print("  A1 分类一致（表位置 == 任务书 `**状态**` 映射）")
     for heading, _header, statuses, _kind in TABLES:
         for lineno, tid, _dt in parsed[heading]:
             p = index.get(tid)
@@ -295,7 +337,7 @@ def audit(root: Path) -> int:
                 errors.append(f"A1: `{heading}` L{lineno} {tid}: 任务书无头部 `**状态**`"
                               f"（{p.relative_to(root)}）")
             elif bs not in statuses:
-                errors.append(f"A1: `{heading}` L{lineno} {tid}: MISMATCH 表类别={heading}"
+                errors.append(f"A1: `{heading}` L{lineno} {tid}: MISMATCH 表={heading}"
                               f"（允许 {list(statuses)}）册={bs}（{p.relative_to(root)}）")
     print(f"    A1 核验 " + " + ".join(
         f"{heading[3:]} {len(parsed[heading])} 行" for heading, _h, _s, _k in TABLES))
@@ -357,7 +399,7 @@ def audit(root: Path) -> int:
 
 
 # --------------------------------------------------------------------------
-# self-test：临时树 + 十一类注入（各自可达 FAIL）
+# self-test：临时树 + 十四类注入（各自可达 FAIL）
 # --------------------------------------------------------------------------
 BASE_MS = """# 项目里程碑
 
@@ -367,11 +409,12 @@ BASE_MS = """# 项目里程碑
 | --- | --- | --- |
 | QEMU-103t | 1 h | 未开工：待开始表 |
 
-## 进行中（已提交待验收 / 待返工）
+## 进行中（已派单：待开始 / 待验收 / 待返工）
 
-| 编号 | 预估时间 | 一句改动 |
-| --- | --- | --- |
-| INFRA-102t | 2–3 h | 待验收：进行中短句 |
+| 编号 | 派单时间 | 预估时间 | 一句改动 |
+| --- | --- | --- | --- |
+| INFRA-102t | 2026-10-01 08:00 | 2–3 h | 待验收：进行中短句 |
+| QEMU-105t | 2026-10-02 09:00 | 1 h | 待开始：已派单实现中 |
 
 ## 已验证
 
@@ -386,6 +429,7 @@ BOOKS = {
     "INFRA-102t": "**状态**：待验收\n",
     "QEMU-103t": "**状态**：待开始\n",
     "INFRA-104t": "**状态**：已验证\n",
+    "QEMU-105t": "**状态**：待开始\n",
 }
 
 
@@ -419,7 +463,7 @@ def _swap_done_first(ms: str) -> str:
 
 def self_test() -> int:
     print("=" * 72)
-    print("check-milestones-fresh --self-test（干净基线 PASS + 十一类注入各自 FAIL）")
+    print("check-milestones-fresh --self-test（干净基线 PASS + 十四类注入各自 FAIL）")
     print("=" * 72)
     ok = True
 
@@ -441,36 +485,44 @@ def self_test() -> int:
     print(f"  {'PASS' if rc == 0 else 'FAIL'}  干净基线: rc={rc}")
     ok &= rc == 0
 
-    case("注入① 待开始行放进进行中表", BASE_MS.replace(
-        "| QEMU-103t | 1 h | 未开工：待开始表 |\n", "").replace(
-        "| INFRA-102t | 2–3 h | 待验收：进行中短句 |",
-        "| INFRA-102t | 2–3 h | 待验收：进行中短句 |\n"
-        "| QEMU-103t | 1 h | 未开工：待开始表 |"), "MISMATCH")
-    case("注入② 预估时间格式非法", BASE_MS.replace(
-        "| QEMU-103t | 1 h |", "| QEMU-103t | soon |"), "预估时间")
-    case("注入③ 完成时间带（登记）", BASE_MS.replace(
-        "2026-10-02 10:00 |", "2026-10-02 10:00（登记） |"), "不得带")
-    case("注入④ 同号跨表重复", BASE_MS.replace(
-        "| INFRA-102t | 2–3 h | 待验收：进行中短句 |",
-        "| INFRA-102t | 2–3 h | 待验收：进行中短句 |\n"
-        "| QEMU-103t | 1 h | 重复行 |"), "跨表重复")
+    wip_row = "| INFRA-102t | 2026-10-01 08:00 | 2–3 h | 待验收：进行中短句 |"
+    case("注入① 进行中行缺派单时间", BASE_MS.replace(
+        wip_row, "| INFRA-102t | 2–3 h | 待验收：进行中短句 |"), "缺派单时间")
+    case("注入② 待开始表行带派单时间", BASE_MS.replace(
+        "| QEMU-103t | 1 h | 未开工：待开始表 |",
+        "| QEMU-103t | 2026-11-01 10:00 | 1 h | 未开工：待开始表 |"),
+        "不得含派单时间")
+    case("注入③ 派单时间格式非法", BASE_MS.replace(
+        wip_row, "| INFRA-102t | 2026/10/01 08:00 | 2–3 h | 待验收：进行中短句 |"),
+        "须为 `YYYY-MM-DD HH:MM`")
+    case("注入④ 状态映射不符（已验证行留进行中）", BASE_MS.replace(
+        "| INFRA-104t | 2026-10-01 09:00 | 更早：完成，短句 |\n", "").replace(
+        wip_row, wip_row + "\n| INFRA-104t | 2026-10-03 10:00 | 1 h | 已验证却留进行中 |"),
+        "MISMATCH")
     case("注入⑤ 已验证表次序打乱", BASE_MS.replace(
         "| SPEC-101t | 2026-10-02 10:00 | 第二新：完成，短句 |\n"
         "| INFRA-104t | 2026-10-01 09:00 | 更早：完成，短句 |",
         "| INFRA-104t | 2026-10-01 09:00 | 更早：完成，短句 |\n"
         "| SPEC-101t | 2026-10-02 10:00 | 第二新：完成，短句 |"), "逆序")
-    case("注入⑥ 已验证表加回状态列", BASE_MS.replace(
+    case("注入⑥ 预估时间格式非法", BASE_MS.replace(
+        "| QEMU-103t | 1 h |", "| QEMU-103t | soon |"), "预估时间")
+    case("注入⑦ 完成时间带（登记）", BASE_MS.replace(
+        "2026-10-02 10:00 |", "2026-10-02 10:00（登记） |"), "不得带")
+    case("注入⑧ 同号跨表重复", BASE_MS.replace(
+        wip_row, wip_row + "\n"
+        "| QEMU-103t | 2026-10-03 11:00 | 1 h | 重复行 |"), "跨表重复")
+    case("注入⑨ 已验证表加回状态列", BASE_MS.replace(
         "| 编号 | 完成时间 | 一句改动 |\n| --- | --- | --- |\n",
         "| 编号 | 状态 | 完成时间 | 一句改动 |\n| --- | --- | --- | --- |\n"), "状态列")
-    case("注入⑦ 三表次序打乱（已验证置前）", _swap_done_first(BASE_MS), "三表须按")
-    case("注入⑧ 待开始行缺失（覆盖）", BASE_MS.replace(
+    case("注入⑩ 三表次序打乱（已验证置前）", _swap_done_first(BASE_MS), "三表须按")
+    case("注入⑪ 待开始行缺失（覆盖）", BASE_MS.replace(
         "| QEMU-103t | 1 h | 未开工：待开始表 |\n", ""), "未列入台账三表")
-    case("注入⑨ 缺「进行中」小节", BASE_MS.replace(
-        "\n## 进行中（已提交待验收 / 待返工）\n", "\n"), "缺小节")
-    case("注入⑩ 一句改动超长（A3）", BASE_MS.replace(
+    case("注入⑫ 缺「进行中」小节", BASE_MS.replace(
+        "\n## 进行中（已派单：待开始 / 待验收 / 待返工）\n", "\n"), "缺小节")
+    case("注入⑬ 一句改动超长（A3）", BASE_MS.replace(
         "| QEMU-103t | 1 h | 未开工：待开始表 |",
         "| QEMU-103t | 1 h | " + "长" * 121 + " |"), f"字符 > {MAX_SUMMARY}")
-    case("注入⑪ 一句改动含 `.work` 路径", BASE_MS.replace(
+    case("注入⑭ 一句改动含 `.work` 路径", BASE_MS.replace(
         "| QEMU-103t | 1 h | 未开工：待开始表 |",
         "| QEMU-103t | 1 h | 见 .work/log/x |"), "`.work/` 路径")
 
@@ -482,7 +534,7 @@ def self_test() -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", type=Path, default=None, help="检查另一棵树（默认仓库根）")
-    ap.add_argument("--self-test", action="store_true", help="跑内置十一类注入自检")
+    ap.add_argument("--self-test", action="store_true", help="跑内置十四类注入自检")
     args = ap.parse_args()
     if args.self_test:
         return self_test()
