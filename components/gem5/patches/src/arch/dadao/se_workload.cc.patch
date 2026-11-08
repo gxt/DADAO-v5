@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
 new file mode 100644
-index 0000000..6d8860a
+index 0000000..df99d72
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.cc
-@@ -0,0 +1,5708 @@
+@@ -0,0 +1,5875 @@
 +// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
 +#include "arch/dadao/se_workload.hh"
 +
@@ -2186,6 +2186,9 @@ index 0000000..6d8860a
 +    return roundUp(process->image.maxAddr(), process->pTable->pageSize());
 +}
 +
++/** Top of the guest mmap window (defined with extendMmap() below). */
++Addr mmapCeiling(DadaoISA::Process *process);
++
 +/** brk(2): move the program break (the anonymous heap).
 + *
 + * Linux semantics (the reference for numbers, flags and errno is the locked
@@ -2203,8 +2206,10 @@ index 0000000..6d8860a
 +{
 +    const std::shared_ptr<MemState> mem_state = process->memState;
 +    const Addr old_brk = mem_state->getBrkPoint();
++    // The interpreter (PT_INTERP) sits at the top of the mmap window but is
++    // not a VMA, so the heap must stop below it as well (GEM5-028t).
 +    const Addr heap_limit =
-+        std::min<Addr>(mem_state->getStackMin(), DadaoISA::MmapWindowEnd);
++        std::min<Addr>(mem_state->getStackMin(), mmapCeiling(process));
 +
 +    if (new_brk == 0 || new_brk == old_brk)
 +        return old_brk;
@@ -2241,6 +2246,115 @@ index 0000000..6d8860a
 +    return now;
 +}
 +
++/** Top of the guest mmap window.
++ *
++ * Process::updateBias() carves the PT_INTERP image out of the top of the
++ * window and applies its load bias; MemState's mmap end is lowered to that
++ * bias (mmapGrowsDown() is true).  The interpreter is not in the VMA list, so
++ * every address-space path that still used MmapWindowEnd (brk, MAP_FIXED
++ * probes, mremap, munmap's window reuse) could grow into it: bound them all
++ * by the interpreter base instead.  (This gem5 tree never assigns
++ * ElfObject::ldMin/ldMax, so mapSize() is 0 and the base is 8 GiB today; the
++ * bound stays correct if that is ever fixed.)
++ */
++Addr
++mmapCeiling(DadaoISA::Process *process)
++{
++    return process->getInterpreter() ? process->getBias()
++                                     : DadaoISA::MmapWindowEnd;
++}
++
++/** Read exactly `len` bytes at `off` from a host file (pread, so the fd's
++ *  own offset is untouched and a guest lseek() is never disturbed). */
++bool
++preadExact(int fd, void *buf, size_t len, off_t off)
++{
++    uint8_t *p = static_cast<uint8_t *>(buf);
++    while (len > 0) {
++        const ssize_t n = ::pread(fd, p, len, off);
++        if (n <= 0)
++            return false;
++        p += n;
++        len -= static_cast<size_t>(n);
++        off += n;
++    }
++    return true;
++}
++
++uint16_t
++fileBe16(const uint8_t *p)
++{
++    return uint16_t((uint16_t(p[0]) << 8) | uint16_t(p[1]));
++}
++
++uint32_t
++fileBe32(const uint8_t *p)
++{
++    return (uint32_t(p[0]) << 24) | (uint32_t(p[1]) << 16) |
++           (uint32_t(p[2]) << 8) | uint32_t(p[3]);
++}
++
++uint64_t
++fileBe64(const uint8_t *p)
++{
++    return (uint64_t(fileBe32(p)) << 32) | fileBe32(p + 4);
++}
++
++/** Reject a DADAO ELF whose PT_LOAD segments are not 64 KiB-congruent.
++ *
++ * ldso maps each PT_LOAD at `base + (p_vaddr & -PAGE)`, i.e. it rounds the
++ * virtual address *and* the file offset down to the target page size and
++ * expects the kernel to return the same page offset for both.  With a 64 KiB
++ * target page that only holds when (p_vaddr - p_offset) % 65536 == 0; lld's
++ * defaultMaxPageSize=0x10000 produces such images, but a segment that breaks
++ * the rule would be silently misplaced (wrong bytes at the wrong address).
++ * Failing closed here is the only way the guest can report it.
++ *
++ * The fd is the host descriptor behind the guest's FileFDEntry, so this sees
++ * exactly the bytes ldso will map, independent of the guest path.
++ */
++void
++checkMappedElfSegments(int fd, const std::string &name)
++{
++    uint8_t eh[64];
++    if (!preadExact(fd, eh, sizeof(eh), 0))
++        return;
++    if (eh[0] != 0x7f || eh[1] != 'E' || eh[2] != 'L' || eh[3] != 'F')
++        return;  // not an ELF: nothing to check (data files are valid)
++    if (eh[4] != 2 || eh[5] != 2 || eh[6] != 1)
++        return;  // not ELFCLASS64 / ELFDATA2MSB / EV_CURRENT
++    if (fileBe16(eh + 18) != 0x0da0)
++        return;  // not DADAO (EM_DADAO)
++
++    const uint64_t phoff = fileBe64(eh + 32);
++    const uint16_t phentsize = fileBe16(eh + 54);
++    const uint16_t phnum = fileBe16(eh + 56);
++    if (phentsize < 56 || phnum == 0 || phnum > 512)
++        return;
++
++    std::vector<uint8_t> phdrs(size_t(phentsize) * phnum);
++    if (!preadExact(fd, phdrs.data(), phdrs.size(), phoff))
++        fatal("DADAO SE: cannot read the program headers of '%s'",
++              name.c_str());
++
++    for (unsigned i = 0; i < phnum; ++i) {
++        const uint8_t *ph = phdrs.data() + size_t(i) * phentsize;
++        if (fileBe32(ph) != 1)  // PT_LOAD
++            continue;
++        const uint64_t offset = fileBe64(ph + 8);
++        const uint64_t vaddr = fileBe64(ph + 16);
++        if ((vaddr - offset) & (DadaoISA::PageBytes - 1))
++            fatal("DADAO SE: '%s' PT_LOAD %u has p_vaddr=%#llx, "
++                  "p_offset=%#llx: (p_vaddr - p_offset) %% %llu != 0, so the "
++                  "64 KiB target page cannot map it without misaligning the "
++                  "segment",
++                  name.c_str(), i,
++                  static_cast<unsigned long long>(vaddr),
++                  static_cast<unsigned long long>(offset),
++                  static_cast<unsigned long long>(DadaoISA::PageBytes));
++    }
++}
++
 +/** Place an anonymous mapping of `length` bytes in the SE mmap window.
 + *
 + * The window grows downwards from its top (MmapWindowEnd); 0 means the window
@@ -2266,7 +2380,11 @@ index 0000000..6d8860a
 +    return 0;
 +}
 +
-+/** mmap(2) for anonymous memory (MAP_PRIVATE|MAP_SHARED, MAP_FIXED). */
++/** mmap(2): anonymous and file-backed mappings (MAP_PRIVATE|MAP_SHARED,
++ *  MAP_FIXED).  A non-anonymous descriptor is resolved through its
++ *  FileFDEntry and handed to MemState::mapRegion(), whose VMA copies the file
++ *  (host mmap) lazily into guest pages on first touch; the host mapping is
++ *  created here, so closing the guest fd afterwards cannot invalidate it. */
 +RegVal
 +doMmap(DadaoISA::Process *process, Addr hint, uint64_t length, uint64_t prot,
 +       uint64_t flags, int fd, uint64_t offset)
@@ -2307,26 +2425,74 @@ index 0000000..6d8860a
 +        !process->dataLimitAllows(length))
 +        return static_cast<RegVal>(-ENOMEM);
 +
++    int sim_fd = -1;
++    Addr file_offset = 0;
++    std::string region_name = "anon";
++
 +    if (!(flags & MapAnonymous)) {
 +        // A descriptor is only valid when it is actually open.  A valid but
-+        // non-mappable descriptor (stdin/stdout/stderr here) gets ENODEV,
-+        // which is what Linux reports for fds without an mmap method.
++        // non-mappable descriptor (stdin/stdout/stderr or a pipe/socket)
++        // gets ENODEV, which is what Linux reports for fds without an mmap
++        // method.
 +        if (fd < 0 || fd >= process->fds->getSize() ||
 +            !(*process->fds)[fd])
 +            return static_cast<RegVal>(-EBADF);
-+        return static_cast<RegVal>(-ENODEV);
++        auto ffdp =
++            std::dynamic_pointer_cast<FileFDEntry>((*process->fds)[fd]);
++        if (!ffdp)
++            return static_cast<RegVal>(-ENODEV);
++        sim_fd = ffdp->getSimFD();
++        region_name = ffdp->getFileName();
++
++        struct stat st;
++        if (sim_fd < 0 || ::fstat(sim_fd, &st) != 0)
++            return static_cast<RegVal>(-EBADF);
++        // Only a regular file has page contents to map.  Linux answers
++        // ENODEV for a directory or socket; gem5's VMA would panic trying
++        // to host-mmap one, so fail here instead.
++        if (!S_ISREG(st.st_mode))
++            return static_cast<RegVal>(-ENODEV);
++        // Linux answers EACCES for a PROT_READ mapping of a write-only fd and
++        // for a writable MAP_SHARED mapping without write permission; both
++        // would otherwise reach VMA's host mmap and panic there.
++        const int accmode = ::fcntl(sim_fd, F_GETFL) & O_ACCMODE;
++        if (accmode == O_WRONLY ||
++            ((flags & MapShared) && (prot & ProtWrite) && accmode != O_RDWR))
++            return static_cast<RegVal>(-EACCES);
++
++        // The segment congruence rule the 64 KiB guest page imposes on a
++        // DSO is a property of the file ldso maps, checked before the VMA
++        // is built (GEM5-028t; requirement: never silently misplace).
++        checkMappedElfSegments(sim_fd, region_name);
++
++        // offset page alignment was checked above.  Linux does not bound
++        // offset+length by the file size (a mapping past EOF is legal and
++        // faults with SIGBUS on access); QEMU is more helpful and turns a
++        // mapping that starts at/after EOF into an anonymous one
++        // (linux-user/mmap.c mmap_h_lt_g).  VMA cannot back a region with an
++        // empty host buffer, so follow the QEMU oracle there.  A mapping
++        // that merely crosses EOF is clamped by VMA's host buffer and the
++        // tail reads as zero -- the same substitution QEMU makes with an
++        // anonymous tail for a 64 KiB target page.
++        if (st.st_size <= 0 || offset >= Addr(st.st_size)) {
++            sim_fd = -1;
++            region_name = "anon";
++        } else {
++            file_offset = offset;
++        }
 +    }
 +
 +    const Addr floor = heapFloor(process);
++    const Addr ceiling = mmapCeiling(process);
 +    const bool fixed = flags & (MapFixed | MapFixedNoreplace);
 +
 +    if (fixed) {
 +        // MAP_FIXED requires an aligned address (Linux: EINVAL otherwise).
 +        if (hint & (page_bytes - 1))
 +            return static_cast<RegVal>(-EINVAL);
-+        // The SE guest VA convention bounds anonymous mappings to the mmap
-+        // window; outside of it there is no guest memory to map.
-+        if (hint < floor || hint + length > DadaoISA::MmapWindowEnd)
++        // The SE guest VA convention bounds mappings to the mmap window,
++        // and the interpreter (when present) occupies its top.
++        if (hint < floor || hint + length > ceiling)
 +            return static_cast<RegVal>(-ENOMEM);
 +        if (flags & MapFixedNoreplace) {
 +            if (!mem_state->isUnmapped(hint, length))
@@ -2343,7 +2509,7 @@ index 0000000..6d8860a
 +        // to a page boundary and falls back to its own placement if taken.
 +        hint &= ~(page_bytes - 1);
 +        const bool use_hint = hint != 0 && hint >= floor &&
-+                              hint + length <= DadaoISA::MmapWindowEnd &&
++                              hint + length <= ceiling &&
 +                              mem_state->isUnmapped(hint, length);
 +        if (!use_hint) {
 +            hint = extendMmap(process, length);
@@ -2352,7 +2518,7 @@ index 0000000..6d8860a
 +        }
 +    }
 +
-+    mem_state->mapRegion(hint, length, "anon");
++    mem_state->mapRegion(hint, length, region_name, sim_fd, file_offset);
 +    process->setProtection(hint, hint + length, static_cast<uint8_t>(prot),
 +                           growsdown);
 +    return hint;
@@ -2382,7 +2548,7 @@ index 0000000..6d8860a
 +    // t_vmfill() (mmap a candidate size, munmap it, then mmap the accepted
 +    // size) leaks every probe range above MemState's mmap end.
 +    if (start + mapped > process->memState->getMmapEnd() &&
-+        start + mapped <= DadaoISA::MmapWindowEnd)
++        start + mapped <= mmapCeiling(process))
 +        process->memState->setMmapEnd(start + mapped);
 +    return 0;
 +}
@@ -2443,8 +2609,9 @@ index 0000000..6d8860a
 +    // request always moves to the requested address.
 +    const Addr grow = new_size > old_size ? new_size - old_size : 0;
 +    const Addr old_end = old_addr + old_size;
-+    if (!fixed && grow > 0 && old_end <= DadaoISA::MmapWindowEnd &&
-+        grow <= DadaoISA::MmapWindowEnd - old_end &&
++    const Addr ceiling = mmapCeiling(process);
++    if (!fixed && grow > 0 && old_end <= ceiling &&
++        grow <= ceiling - old_end &&
 +        mem_state->isUnmapped(old_end, grow)) {
 +        // A growing mapping is bounded by RLIMIT_AS, and by RLIMIT_DATA when
 +        // it is writable (QEMU's mremap grows through target_mmap).
@@ -2464,7 +2631,7 @@ index 0000000..6d8860a
 +        if ((new_addr & (page_bytes - 1)) ||
 +            new_addr < heapFloor(process) ||
 +            new_addr > max_addr - new_size ||
-+            new_addr + new_size > DadaoISA::MmapWindowEnd)
++            new_addr + new_size > ceiling)
 +            return static_cast<RegVal>(-EINVAL);
 +        // Linux rejects a MREMAP_FIXED target that overlaps the old range
 +        // (including the same start), so the old pages are never both the

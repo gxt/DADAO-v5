@@ -136,12 +136,31 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   等价 QEMU `-L` 的 guest 根）。`Process::init()` 在 SE 配置里按线程上下文重复
   调用，而基类 `updateBias()` 不幂等（会把解释器按 8 GiB × 次数上移），故
   DADAO 侧只应用一次。**边界**：本轮只保证 ldso 启动并越过 `_dlstart_c` 的
-  `AT_BASE` 分支；其它 DSO 的文件映射 `mmap` 归 `GEM5-028t`（当前 `mmap`
-  不做文件内容映射），解释器页亦未进权限影子（同上）。
+  `AT_BASE` 分支；其它 DSO 的文件映射 `mmap` 见下条（GEM5-028t），解释器页
+  亦未进权限影子（同上）。
+- **文件映射 `mmap` 与 ldso 装载（GEM5-028t）**：非匿名 `mmap` 经
+  `FileFDEntry` 取宿主 fd，交 `MemState::mapRegion(..., sim_fd, offset)`
+  由 VMA 建宿主文件映射、首触页时拷贝；宿主映射在 `mapRegion` 时即建立，
+  **guest `close(fd)` 后映射仍有效**。校验：`offset` 必须 64 KiB 页对齐
+  （`EINVAL`）；fd 必须已打开且为常规文件（否则 `EBADF`/`ENODEV`；只写 fd
+  上的 `PROT_READ` 与非只读 fd 上的可写 `MAP_SHARED` 为 `EACCES`）；
+  `PROT` 只接受 R/W/X/SEM，`MAP_SHARED`/`MAP_PRIVATE` 恰取一个。`offset` 起点在 EOF 之后时按 QEMU `mmap_h_lt_g()` 转为匿名映射；
+  跨 EOF 的尾页由 VMA 截断成零页（Linux 为 SIGBUS，SE 无该模型）。
+  每个被映射的 DADAO ELF 在映射前逐 `PT_LOAD` 断言
+  `(p_vaddr − p_offset) % 65536 == 0`，不满足则 `fatal` 带段号/值（lld
+  `defaultMaxPageSize=0x10000` 的产物满足；不静默错位）。地址窗口：
+  `brk` 上限与 `MAP_FIXED`/`mremap`/`munmap` 复用上界统一取
+  `min(stackMin, 解释器基址)`（`mmapCeiling()`）；本棵 gem5 的
+  `ElfObject::mapSize()` 恒为 0，故解释器基址实测 = `MmapWindowEnd`（8 GiB），
+  窗口约束对现有产物是强校验（越过 8 GiB 的 `brk`/`MAP_FIXED` 被拒），
+  解释器区间无需占位 VMA。`mprotect` 沿用 GEM5-030t 的真实按页权限
+  （RELRO 的只读保护生效），未新增建模；**已知限制**：`MAP_SHARED` 只读语义
+  保留，写回文件不建模（VMA 是宿主 `MAP_PRIVATE` 拷贝，与 GEM5-023t 的文件
+  I/O 同口径）。
 - **guest 内存管理（GEM5-022t / GEM5-030t）**：`brk`(214，Linux 语义：`brk(0)` 查询、
-  失败返回旧 brk；堆不吞映像、不越过 mmap 窗口)、`mmap`(222，匿名
-  `MAP_PRIVATE`/`MAP_SHARED` 与 `MAP_FIXED`/`MAP_FIXED_NOREPLACE`/
-  `MAP_GROWSDOWN`)、`munmap`(215)、`mremap`(216，原地伸缩 / `MREMAP_MAYMOVE` /
+  失败返回旧 brk；堆不吞映像、不越过 mmap 窗口)、`mmap`(222，**匿名与
+  文件** `MAP_PRIVATE`/`MAP_SHARED` 与 `MAP_FIXED`/`MAP_FIXED_NOREPLACE`/
+  `MAP_GROWSDOWN`；文件映射见下条 GEM5-028t)、`munmap`(215)、`mremap`(216，原地伸缩 / `MREMAP_MAYMOVE` /
   `MREMAP_FIXED`)、`mprotect`(226，**真实按页权限**，`PROT_GROWSDOWN` 按内核
   `mm/mprotect.c`：请求区间与 VMA 重叠时从 `vma->vm_start` 生效（起点在 VMA
   内部或之下但仍有重叠都返回 0），无重叠 `ENOMEM`，非 `MAP_GROWSDOWN`
@@ -159,8 +178,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   按 Linux `expand_downwards()` 向下增长，受 `RLIMIT_STACK`/`RLIMIT_AS` 约束，
   越限投递 guest `SIGSEGV` 而不是模拟器 abort。系统调用的功能拷贝不做权限
   检查（缓冲区复制走 `SETranslatingPortProxy`，失败仍是 `EFAULT`）。**已知限制**：
-  `mprotect` 对地址空洞按 QEMU user 口径返回 0 且不建映射（内核会 `ENOMEM`）；
-  文件映射仍返回 `-ENODEV`（`GEM5-023t` 只落文件描述符/读写，不做 mmap 文件映射）。
+  `mprotect` 对地址空洞按 QEMU user 口径返回 0 且不建映射（内核会 `ENOMEM`）。
 - **文件 I/O（GEM5-023t）**：`openat`/`close`/`read`/`readv`/`pread64`/
   `lseek`/`fstat`/`newfstatat`/`getdents64`/`dup`/`dup3`/`fcntl`
   （`F_GETFD`/`F_SETFD`/`F_GETFL`/`F_SETFL`/`F_DUPFD`/`F_DUPFD_CLOEXEC`/
