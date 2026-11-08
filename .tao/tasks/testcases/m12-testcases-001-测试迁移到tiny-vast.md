@@ -14,6 +14,9 @@
 3. `tools/testcases/**`（约 46 个文件）：`-M dadao-m1` → `-M dadao-tiny`；`dadao-m1,profile=vast` → `-M dadao-vast`；`DADAO_TEST_PROFILE=node` → `=vast`
 4. `Makefile` 中机器名/参数同步
 5. `tools/qemu/semantics_gate.py` 散文改 `dadao-v5`（历史裁定引用保留原意）
+6. `docs/DDLN/D-运行平台/DD-D002-运行平台--测试机运行环境.md` 的 2 处 `Node`（`m12-spec-001` reviewer F-a：讲义，非规范）
+7. `tools/testcases/arch/min_rom_probe_integ046t.py`、`build_step5_bootrom.py` 的 docstring `Machine-v5-Node`（`m12-spec-001` 范围外发现）
+8. **术语**：代码/文档中的「夜跑」统一改为「**回归运行**」（用户 2026-11-08：该词有歧义，指的是全量回归成员集）
 
 ## 验收标准
 
@@ -21,7 +24,8 @@
 2. `make check`（L1）rc=0；`make check-modules`（L2）rc=0
 3. `check-arch` / `check-arch-smoke` / `check-inst` rc=0（Tiny 与 Vast 各至少一个代表用例）
 4. `machine-profiles.yaml` 与派生 `.inc` 一致（派生脚本 rc=0）
-5. 完成区 ≤30 行、无运行期路径
+5. `grep -rn 'Machine-v5-Node\|dadao-node' tools/ tests/ docs/ spec/ Makefile` 为 0（历史任务书/ADR/changelog/archive 除外）
+6. 完成区 ≤30 行、无运行期路径
 
 ## 说明
 
