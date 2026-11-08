@@ -7,7 +7,7 @@
 | 主题 | 真源 |
 | --- | --- |
 | 项目总览 / 里程碑 / 版本号 | 根 `README.md` |
-| 当前进度 / 任务流水 / 规划中 / 裁定 | `.tao/knowledge/milestones.md` |
+| 当前进度 / 任务台账（待开始·进行中·已验证） / 裁定 | `.tao/knowledge/milestones.md` |
 | M10 归档 / 回顾 / 关闭 issue | `.tao/archive/M10/`（`README.md` / `m10-retrospective.md` / `issues-closed.md`） |
 | M1–M9 历史 | `.tao/archive/M1/` … `.tao/archive/M9/` |
 | 决策（ADR：架构 / 契约 / 流程） | `.tao/adr/` |

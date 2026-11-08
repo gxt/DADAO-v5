@@ -1,38 +1,41 @@
 #!/usr/bin/env python3
-"""check-milestones-fresh: 里程碑台账「任务流水（已开工）」+「待开始（未开工）」双表门控（L1）。
+"""check-milestones-fresh: 里程碑台账三表门控（待开始 / 进行中 / 已验证；L1）。
 
-背景（用户 2026-10-18 原话，逐字）：
+用户 2026-11-08 授权（逐字）：
+  「milestones：把待开始的列表放在任务流水前面，或者分为三类，第一类待开始，第二类
+    进行中，第三类已验证；前两类，写一个预估时间；第三类，写完成时间；状态这一栏
+    可以删除」
+  ⇒ 三分表、待开始置前、前两类写**预估时间**、第三类写**完成时间**、**删除状态列**。
+
+沿革（用户 2026-10-18 原话，逐字）：
   「milestones.md中的任务流水表格又乱了，这个表格换成列表，而且按时间序，未完成
     的任务也需要列上；这个要求明确写到文档里，不要再乱了；另外，该文档后面的信息
     应按时更新；最后的历史台账指针没用，删除」
 
-用户 2026-11-08 授权（逐字）：
-  「milestone中，是不是把待开始的任务单独列出来，要不然实在找不到，其完成时间
-    可以不写，只会增加困惑性」
-  ⇒ 未开工任务单独成表、**不写时间**；流水表只留已开工 / 已完成的。
+体例硬约束（三分表后）：
+  1. 三个二级标题**必须都存在**（顺序：待开始 → 进行中 → 已验证）：
+     `## 待开始（未开工）`、`## 进行中（已提交待验收 / 待返工）`、`## 已验证`。
+  2. 待开始表 / 进行中表列 = `| 编号 | 预估时间 | 一句改动 |`；已验证表列 =
+     `| 编号 | 完成时间 | 一句改动 |`。**无状态列**——类别即状态。
+  3. 预估时间格式 `N h` / `N–M h` / `N 天` / `N–M 天`（亦允许 `min`）；
+     完成时间 `YYYY-MM-DD HH:MM`，**不得带 `（登记）`**。
+  4. 三表「一句改动」均 ≤120 字符，且不得含 `.work/<具体路径>`；细节写各任务书。
+  5. 类别 = 任务书 `**状态**`：`待开始` → 待开始表；`待验收` / `待返工` → 进行中表；
+     `已验证` → 已验证表。
 
-体例硬约束（拆表后）：
-  1. 两个二级标题**必须都存在**：`## 任务流水（已开工）`、`## 待开始（未开工）`。
-  2. 流水表列 = `| 编号 | 状态 | 完成时间 | 一句改动 |`，状态 ∈ {`待验收`,
-     `待返工`,`已验证`}——**`待开始` 不得出现在流水表**；`已验证` 不带 `（登记）`，
-     其余带；**按完成时间倒序**（同一时间按编号升序）。
-  3. 待开始表列 = `| 编号 | 一句改动 |`——**恰好 2 格**（无时间列、无状态列），
-     不判次序；任务书状态必须是 `待开始`。
-  4. 两表「一句改动」均 ≤120 字符，且不得含 `.work/<具体路径>`；细节写各任务书。
-  5. 状态以任务书 `**状态**` 为准（不一致 ⇒ FAIL）。
-
-五断言（每条均有可达 FAIL，见 `--self-test` 五类注入）：
-  A1 **状态一致**：流水行状态 == 任务书 `**状态**`；待开始行任务书状态 == `待开始`。
-  A2 **覆盖**：两表并集覆盖 `.tao/tasks/**` 的每份任务书、`INTEG-*m` 册列出的任务号、
+五断言（每条均有可达 FAIL，见 `--self-test` 十一类注入）：
+  A1 **分类一致**：表行所属类别 == 任务书 `**状态**` 的映射（见上）；不一致 ⇒ FAIL。
+  A2 **覆盖**：三表并集覆盖 `.tao/tasks/**` 的每份任务书、`INTEG-*m` 册列出的任务号、
      `milestones.md` 正文出现的任务号；**已归档**任务号（`.tao/archive/**` 有册）豁免，
      正文出现但全仓无册的任务号 ⇒ FAIL（悬空号）。
-  A3 **长度**：两表每行「一句改动」≤ 120 字符（中文按 1 字符计）。
-  A4 **次序**：**只对流水表**按完成时间**倒序**；同一时间按编号升序。待开始表不判。
-  A5 **格式**：流水表恰好 4 格、状态枚举、时间 = `YYYY-MM-DD HH:MM` + `（登记）` 规则；
-     待开始表恰好 2 格、同一编号不重复；两表编号不得重复出现；「一句改动」不得含
-     `.work/`（细节归任务书）。
+  A3 **长度**：三表每行「一句改动」≤ 120 字符（中文按 1 字符计）。
+  A4 **次序**：**只对已验证表**按完成时间**倒序**（同一时间按编号升序）；前两表不判。
+  A5 **格式**：三表各恰好 3 格；三表须按 `待开始 → 进行中 → 已验证` 排列；
+     待开始/进行中时间列 = 预估格式；已验证时间列 =
+     `YYYY-MM-DD HH:MM` 且不带 `（登记）`；**任何表不得出现状态列/状态值**；
+     同一编号不重复、且不得跨表重复；「一句改动」不得含 `.work/`。
 
-fail-closed：任一小节缺失 / 小节无表 / 表头不符 / 两表皆空 ⇒ FAIL。
+fail-closed：任一标题/表头/分隔行缺失、三表皆空 ⇒ FAIL。
 不依赖 `.work/**`（易失）；只读仓库内文件。
 
 Usage:
@@ -56,19 +59,34 @@ TASKS_REL = Path(".tao/tasks")
 ARCHIVE_REL = Path(".tao/archive")
 INTEG_M_GLOB = "INTEG-*m-*.md"
 
-FLOW_HEADING = "## 任务流水（已开工）"
 TODO_HEADING = "## 待开始（未开工）"
-FLOW_HEADER = ("编号", "状态", "完成时间", "一句改动")
-TODO_HEADER = ("编号", "一句改动")
+WIP_HEADING = "## 进行中（已提交待验收 / 待返工）"
+DONE_HEADING = "## 已验证"
 
-TODO_STATUS = "待开始"
-FLOW_STATUSES = ("待验收", "待返工", "已验证")
-FINAL = "已验证"
+TODO_HEADER = ("编号", "预估时间", "一句改动")
+WIP_HEADER = ("编号", "预估时间", "一句改动")
+DONE_HEADER = ("编号", "完成时间", "一句改动")
+
+TODO_STATUSES = ("待开始",)
+WIP_STATUSES = ("待验收", "待返工")
+DONE_STATUSES = ("已验证",)
+
+# (标题, 表头, 允许的任务书状态, 时间列种类)
+TABLES = (
+    (TODO_HEADING, TODO_HEADER, TODO_STATUSES, "est"),
+    (WIP_HEADING, WIP_HEADER, WIP_STATUSES, "est"),
+    (DONE_HEADING, DONE_HEADER, DONE_STATUSES, "done"),
+)
+
+# 类别即状态：任何表都不得再出现这些值作为独立单元格（状态列）。
+STATUS_VALUES = ("待开始", "待验收", "待返工", "已验证")
+
 MAX_SUMMARY = 120
 
 TASK_ID_RE = re.compile(r"\b(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?\b")
 ROW_ID_RE = re.compile(r"^(?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?$")
 TIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})(（登记）)?$")
+EST_RE = re.compile(r"^\d+(?:\.\d+)?(?:–\d+(?:\.\d+)?)?\s*(?:h|天|min)$")
 STATUS_RE = re.compile(r"^\*\*状态\*\*[：:]\s*([^\s*]+)", re.MULTILINE)
 TASK_FILE_RE = re.compile(
     r"^((?:INFRA|SPEC|LLVM|QEMU|TESTCASES|INTEG|GEM5)-\d{3}[a-z]?)-.*\.md$")
@@ -126,9 +144,12 @@ def section_rows(
     if not tlines:
         return [], ["小节无表格"]
     problems: list[str] = []
-    if tuple(split_row(tlines[0][1])) != header:
+    got_header = split_row(tlines[0][1])
+    if tuple(got_header) != header:
         problems.append(
-            f"表头须为 `| {' | '.join(header)} |`，实得 {split_row(tlines[0][1])}")
+            f"表头须为 `| {' | '.join(header)} |`，实得 {got_header}")
+        if any("状态" in c for c in got_header):
+            problems.append("不得出现状态列（类别即状态）")
     data_at = 1
     if len(tlines) < 2 or not is_sep(tlines[1][1]):
         problems.append("表头后缺分隔行（`| --- |`）")
@@ -149,9 +170,61 @@ def parse_time(cell: str) -> tuple[datetime, bool] | None:
     return dt, bool(m.group(3))
 
 
+def check_rows(
+    heading: str,
+    rows: list[tuple[int, str, list[str]]],
+    kind: str,
+    errors: list[str],
+    seen: dict[str, tuple[str, int]],
+) -> list[tuple[int, str, datetime | None]]:
+    """逐行格式 / 长度 / 状态列 / 重复检查；返回 `(行号, 编号, 完成时间|None)`。"""
+    parsed: list[tuple[int, str, datetime | None]] = []
+    for lineno, _raw, cells in rows:
+        if len(cells) != 3:
+            errors.append(f"`{heading}` L{lineno}: 行须恰好 3 格"
+                          f"（`| 编号 | 时间 | 一句改动 |`；或含内嵌 `|`），实得 {len(cells)} 格")
+            continue
+        tid, tcell, summary = cells
+        if not ROW_ID_RE.match(tid):
+            errors.append(f"`{heading}` L{lineno}: 编号 `{tid}` 不合 `<PREFIX>-nnn<suffix>`")
+        if tid in seen:
+            prev_h, prev_l = seen[tid]
+            kind_word = "同表重复" if prev_h == heading else "跨表重复"
+            errors.append(f"`{heading}` L{lineno}: 编号 `{tid}` {kind_word}"
+                          f"（首次 `{prev_h}` L{prev_l}）")
+        else:
+            seen[tid] = (heading, lineno)
+        bad = [c for c in cells if c in STATUS_VALUES]
+        if bad:
+            errors.append(f"`{heading}` L{lineno}: 表内不得出现状态值/状态列 {bad}（类别即状态）")
+        if kind == "est":
+            if not EST_RE.match(tcell):
+                errors.append(f"`{heading}` L{lineno} {tid}: 预估时间 `{tcell}` 不合格式"
+                              f"（`N h` / `N–M h` / `N 天` / `N–M 天` / `min`）")
+            parsed.append((lineno, tid, None))
+        else:
+            got = parse_time(tcell)
+            if got is None:
+                errors.append(f"`{heading}` L{lineno} {tid}: 完成时间 `{tcell}`"
+                              f"须为 `YYYY-MM-DD HH:MM`")
+            else:
+                dt, registered = got
+                if registered:
+                    errors.append(f"`{heading}` L{lineno} {tid}: `已验证` 完成时间不得带"
+                                  f" `（登记）`（须为落地时间）")
+                parsed.append((lineno, tid, dt))
+        if len(summary) > MAX_SUMMARY:
+            errors.append(f"`{heading}` L{lineno} {tid}: 一句改动 {len(summary)} 字符 > {MAX_SUMMARY}")
+        if ".work/" in summary:
+            errors.append(f"`{heading}` L{lineno} {tid}: 一句改动含 `.work/` 路径（细节归任务书）")
+        if not summary:
+            errors.append(f"`{heading}` L{lineno} {tid}: 一句改动为空")
+    return parsed
+
+
 def audit(root: Path) -> int:
     print("=" * 72)
-    print("check-milestones-fresh — 任务流水（已开工）+ 待开始（未开工）（L1）")
+    print("check-milestones-fresh — 待开始 / 进行中 / 已验证（L1）")
     print("=" * 72)
     errors: list[str] = []
 
@@ -162,28 +235,33 @@ def audit(root: Path) -> int:
         return 1
     text = ms_path.read_text(encoding="utf-8")
 
-    flow_rows, flow_problems = section_rows(text, FLOW_HEADING, FLOW_HEADER)
-    todo_rows, todo_problems = section_rows(text, TODO_HEADING, TODO_HEADER)
-
-    missing = [h for h, r in ((FLOW_HEADING, flow_rows), (TODO_HEADING, todo_rows))
-               if r is None]
+    sections: dict[str, list[tuple[int, str, list[str]]]] = {}
+    missing: list[str] = []
+    for heading, header, _statuses, _kind in TABLES:
+        rows, problems = section_rows(text, heading, header)
+        if rows is None:
+            missing.append(heading)
+            continue
+        sections[heading] = rows
+        for p in problems:
+            errors.append(f"`{heading}`: {p}")
     if missing:
         for h in missing:
             print(f"  ERROR: 缺小节 `{h}` ⇒ fail-closed")
         print(f"结果: FAIL ({len(missing)} 项)")
         return 1
-    assert flow_rows is not None and todo_rows is not None
-    for h, problems in ((FLOW_HEADING, flow_problems), (TODO_HEADING, todo_problems)):
-        for p in problems:
-            errors.append(f"{h}: {p}")
-            print(f"  ERROR: `{h}` {p}")
-    if not flow_rows and not todo_rows:
-        errors.append("两表皆空 ⇒ vacuous FAIL")
-        print("  ERROR: 「任务流水」与「待开始」两表皆无数据行 ⇒ vacuous FAIL")
-        print(f"结果: FAIL ({len(errors)} 项)")
+    lines = text.split("\n")
+    order = [next(i for i, l in enumerate(lines) if l.strip() == heading)
+             for heading, _h, _s, _k in TABLES]
+    if order != sorted(order):
+        errors.append("A5 次序: 三表须按 `待开始 → 进行中 → 已验证` 排列，"
+                      f"实得标题行号 {order}")
+    if all(not rows for rows in sections.values()):
+        print("  ERROR: 三表皆无数据行 ⇒ vacuous FAIL")
+        print("结果: FAIL (1 项)")
         return 1
-    print(f"  流水行（现场统计）: {len(flow_rows)}")
-    print(f"  待开始行（现场统计）: {len(todo_rows)}")
+    for heading, header, statuses, kind in TABLES:
+        print(f"  {heading[3:]} 行（现场统计）: {len(sections[heading])}")
 
     index = task_index(root)
     if not index:
@@ -196,110 +274,39 @@ def audit(root: Path) -> int:
                   if TASKS_REL.as_posix() in p.as_posix() and i.endswith("t")}
     print(f"  任务书索引（现场统计）: 活册 {len(todo_books)} / 含归档 {len(index)}")
 
-    # ---------- 流水表：格式 + 长度 + 状态 ----------
-    seen_flow: dict[str, int] = {}
-    flow_parsed: list[tuple[int, str, datetime, str]] = []
-    for lineno, _raw, cells in flow_rows:
-        if len(cells) != 4:
-            errors.append(f"L{lineno}: 流水表须 4 格，实得 {len(cells)} 格（或含内嵌 `|`）")
-            print(f"  L{lineno} FAIL 格式: {len(cells)} 格")
-            continue
-        tid, status, tcell, summary = cells
-        if not ROW_ID_RE.match(tid):
-            errors.append(f"L{lineno}: 编号 `{tid}` 不合 `<PREFIX>-nnn<suffix>`")
-        if tid in seen_flow:
-            errors.append(f"L{lineno}: 编号 `{tid}` 重复（首次 L{seen_flow[tid]}）")
-        seen_flow[tid] = lineno
-        if status not in FLOW_STATUSES:
-            if status == TODO_STATUS:
-                errors.append(f"L{lineno} {tid}: 流水表不得出现 `待开始`"
-                              f"（未开工须入「待开始（未开工）」表）")
-                print(f"    L{lineno} {tid} 流水表不得出现 `待开始`")
-            else:
-                errors.append(f"L{lineno} {tid}: 状态 `{status}` 不在 {FLOW_STATUSES}")
-        got = parse_time(tcell)
-        if got is None:
-            errors.append(f"L{lineno} {tid}: 时间 `{tcell}` 须为 `YYYY-MM-DD HH:MM`"
-                          f"{'' if status == FINAL else ' + `（登记）`'}")
-        else:
-            dt, registered = got
-            if status == FINAL and registered:
-                errors.append(f"L{lineno} {tid}: `已验证` 不得带 `（登记）`"
-                              f"（完成时间须为落地时间）")
-            if status != FINAL and not registered:
-                errors.append(f"L{lineno} {tid}: 未完成任务时间须加注 `（登记）`")
-            flow_parsed.append((lineno, tid, dt, status))
-        if len(summary) > MAX_SUMMARY:
-            errors.append(f"L{lineno} {tid}: 一句改动 {len(summary)} 字符 > {MAX_SUMMARY}")
-        if ".work/" in summary:
-            errors.append(f"L{lineno} {tid}: 一句改动含 `.work/` 路径（细节归任务书）")
-        if "\n" in summary or not summary:
-            errors.append(f"L{lineno} {tid}: 一句改动为空或跨行")
+    # ---------- A5 格式 + A3 长度（三表逐行） ----------
+    seen: dict[str, tuple[str, int]] = {}
+    parsed: dict[str, list[tuple[int, str, datetime | None]]] = {}
+    for heading, _header, _statuses, kind in TABLES:
+        parsed[heading] = check_rows(heading, sections[heading], kind, errors, seen)
 
-    # ---------- 待开始表：格式 + 长度 ----------
-    seen_todo: dict[str, int] = {}
-    todo_parsed: list[tuple[int, str]] = []
-    for lineno, _raw, cells in todo_rows:
-        if len(cells) != 2:
-            errors.append(f"L{lineno}: 待开始行须恰好 2 格（无时间列、无状态列），"
-                          f"实得 {len(cells)} 格")
-            print(f"  L{lineno} FAIL 格式: 待开始行 {len(cells)} 格（须 2 格）")
-            continue
-        tid, summary = cells
-        if not ROW_ID_RE.match(tid):
-            errors.append(f"L{lineno}: 编号 `{tid}` 不合 `<PREFIX>-nnn<suffix>`")
-        if tid in seen_todo:
-            errors.append(f"L{lineno}: 编号 `{tid}` 在待开始表重复（首次 L{seen_todo[tid]}）")
-        seen_todo[tid] = lineno
-        if len(summary) > MAX_SUMMARY:
-            errors.append(f"L{lineno} {tid}: 一句改动 {len(summary)} 字符 > {MAX_SUMMARY}")
-        if ".work/" in summary:
-            errors.append(f"L{lineno} {tid}: 一句改动含 `.work/` 路径（细节归任务书）")
-        if not summary:
-            errors.append(f"L{lineno} {tid}: 一句改动为空")
-        todo_parsed.append((lineno, tid))
-
-    for tid in sorted(set(seen_flow) & set(seen_todo)):
-        errors.append(f"编号 `{tid}` 同时出现在流水表与待开始表")
-
-    # ---------- A1 状态一致 ----------
+    # ---------- A1 分类一致 ----------
     print("-" * 72)
-    print("  A1 状态一致（流水行 == 任务书；待开始行任务书 == `待开始`）")
-    for lineno, tid, _dt, status in flow_parsed:
-        p = index.get(tid)
-        if p is None:
-            errors.append(f"L{lineno} {tid}: 无任务书（.tao/tasks/** 与 archive/** 均无）")
-            print(f"    L{lineno} {tid} MISSING 任务书")
-            continue
-        bs = book_status(p)
-        if bs is None:
-            errors.append(f"L{lineno} {tid}: 任务书无头部 `**状态**`（{p.relative_to(root)}）")
-        elif bs != status:
-            errors.append(f"L{lineno} {tid}: 表 `{status}` ≠ 任务书 `{bs}`"
-                          f"（{p.relative_to(root)}）")
-            print(f"    L{lineno} {tid} MISMATCH 表={status} 册={bs}")
-    for lineno, tid in todo_parsed:
-        p = index.get(tid)
-        if p is None:
-            errors.append(f"L{lineno} {tid}: 无任务书（.tao/tasks/** 与 archive/** 均无）")
-            print(f"    L{lineno} {tid} MISSING 任务书")
-            continue
-        bs = book_status(p)
-        if bs is None:
-            errors.append(f"L{lineno} {tid}: 任务书无头部 `**状态**`（{p.relative_to(root)}）")
-        elif bs != TODO_STATUS:
-            errors.append(f"L{lineno} {tid}: 待开始表行任务书状态须为 `{TODO_STATUS}`，"
-                          f"实为 `{bs}`（{p.relative_to(root)}）")
-            print(f"    L{lineno} {tid} 待开始表行状态不符 表={TODO_STATUS} 册={bs}")
-    print(f"    A1 核验 {len(flow_parsed)} 流水行 + {len(todo_parsed)} 待开始行")
+    print("  A1 分类一致（表类别 == 任务书 `**状态**` 映射）")
+    for heading, _header, statuses, _kind in TABLES:
+        for lineno, tid, _dt in parsed[heading]:
+            p = index.get(tid)
+            if p is None:
+                errors.append(f"A1: `{heading}` L{lineno} {tid}: 无任务书"
+                              f"（.tao/tasks/** 与 archive/** 均无）")
+                continue
+            bs = book_status(p)
+            if bs is None:
+                errors.append(f"A1: `{heading}` L{lineno} {tid}: 任务书无头部 `**状态**`"
+                              f"（{p.relative_to(root)}）")
+            elif bs not in statuses:
+                errors.append(f"A1: `{heading}` L{lineno} {tid}: MISMATCH 表类别={heading}"
+                              f"（允许 {list(statuses)}）册={bs}（{p.relative_to(root)}）")
+    print(f"    A1 核验 " + " + ".join(
+        f"{heading[3:]} {len(parsed[heading])} 行" for heading, _h, _s, _k in TABLES))
 
     # ---------- A2 覆盖 ----------
     print("-" * 72)
-    print("  A2 覆盖（两表并集 ⊇ 活册 / m 册列号 / 正文号）")
-    table_ids = set(seen_flow) | set(seen_todo)
+    print("  A2 覆盖（三表并集 ⊇ 活册 / m 册列号 / 正文号）")
+    table_ids = set(seen)
     for tid, p in sorted(todo_books.items()):
         if tid not in table_ids:
-            errors.append(f"覆盖: 活任务册 {tid} 未列入台账表（{p.relative_to(root)}）")
+            errors.append(f"覆盖: 活任务册 {tid} 未列入台账三表（{p.relative_to(root)}）")
     m_books = sorted((root / TASKS_REL).rglob(INTEG_M_GLOB))
     m_books_src = TASKS_REL.as_posix()
     if not m_books:
@@ -312,7 +319,7 @@ def audit(root: Path) -> int:
     for p in m_books:
         for tid in sorted(set(TASK_ID_RE.findall(p.read_text(encoding="utf-8")))):
             if tid not in table_ids and not (ARCHIVE_REL.as_posix() in index.get(tid, Path()).as_posix()):
-                errors.append(f"覆盖: `{p.name}` 列出的 {tid} 未列入台账表")
+                errors.append(f"覆盖: `{p.name}` 列出的 {tid} 未列入台账三表")
     body = re.sub(r"(?ms)^\|.*?$", "", text)  # 去表行后扫正文
     for tid in sorted(set(TASK_ID_RE.findall(body))):
         if tid in table_ids:
@@ -321,20 +328,21 @@ def audit(root: Path) -> int:
         if p is None:
             errors.append(f"覆盖: 正文任务号 {tid} 全仓无册（悬空号）")
         elif ARCHIVE_REL.as_posix() not in p.as_posix():
-            errors.append(f"覆盖: 正文任务号 {tid} 未列入台账表（{p.relative_to(root)}）")
+            errors.append(f"覆盖: 正文任务号 {tid} 未列入台账三表（{p.relative_to(root)}）")
     print(f"    活册 {len(todo_books)} 份 / m 册 {len(m_books)} 份（源 = {m_books_src}）"
-          f" / 两表 {len(table_ids)} 行（流水 {len(seen_flow)} + 待开始 {len(seen_todo)}）")
+          f" / 三表 {len(table_ids)} 行（" + " + ".join(
+              f"{heading[3:]} {len(parsed[heading])}" for heading, _h, _s, _k in TABLES) + "）")
 
-    # ---------- A4 次序（仅流水表） ----------
+    # ---------- A4 次序（仅已验证表） ----------
     print("-" * 72)
-    print("  A4 次序（仅流水表：时间倒序；同一时间按编号升序；待开始表不判）")
-    for (pl, pt, pd, _ps), (cl, ct, cd, _cs) in zip(flow_parsed, flow_parsed[1:]):
+    print("  A4 次序（仅已验证表：完成时间倒序；同一时间按编号升序；前两表不判）")
+    done = [(lineno, tid, dt) for lineno, tid, dt in parsed[DONE_HEADING] if dt is not None]
+    for (pl, pt, pd), (cl, ct, cd) in zip(done, done[1:]):
         if pd > cd or (pd == cd and pt < ct):
             continue
-        errors.append(f"次序: L{cl} {ct}（{cd:%Y-%m-%d %H:%M}）应排在 "
-                      f"L{pl} {pt}（{pd:%Y-%m-%d %H:%M}）之前")
-        print(f"    L{pl} {pt} → L{cl} {ct} 逆序")
-    print(f"    相邻对 {max(0, len(flow_parsed) - 1)} 个（现场统计）")
+        errors.append(f"A4 次序: L{cl} {ct}（{cd:%Y-%m-%d %H:%M}）应排在 "
+                      f"L{pl} {pt}（{pd:%Y-%m-%d %H:%M}）之前（逆序）")
+    print(f"    相邻对 {max(0, len(done) - 1)} 个（现场统计）")
 
     print("-" * 72)
     if errors:
@@ -342,43 +350,49 @@ def audit(root: Path) -> int:
             print(f"  VIOLATION: {e}")
         print(f"结果: FAIL ({len(errors)} 项)")
         return 1
-    print(f"结果: PASS（流水 {len(flow_parsed)} 行 / 待开始 {len(todo_parsed)} 行；"
-          f"状态一致 / 覆盖 / ≤{MAX_SUMMARY} 字符 / 流水倒序 / 格式）")
+    print("结果: PASS（" + " / ".join(
+        f"{heading[3:]} {len(parsed[heading])} 行" for heading, _h, _s, _k in TABLES)
+        + f"；分类一致 / 覆盖 / ≤{MAX_SUMMARY} 字符 / 已验证倒序 / 格式 / 无状态列）")
     return 0
 
 
 # --------------------------------------------------------------------------
-# self-test：临时树 + 五类注入（各自可达 FAIL）
+# self-test：临时树 + 十一类注入（各自可达 FAIL）
 # --------------------------------------------------------------------------
 BASE_MS = """# 项目里程碑
 
-## 任务流水（已开工）
-
-| 编号 | 状态 | 完成时间 | 一句改动 |
-| --- | --- | --- | --- |
-| SPEC-101t | 已验证 | 2026-10-02 10:00 | 第二新：完成，短句 |
-| INFRA-102t | 待验收 | 2026-10-01 09:00（登记） | 未完成：带登记注 |
-
 ## 待开始（未开工）
 
-| 编号 | 一句改动 |
-| --- | --- |
-| QEMU-103t | 未开工：待开始表 |
+| 编号 | 预估时间 | 一句改动 |
+| --- | --- | --- |
+| QEMU-103t | 1 h | 未开工：待开始表 |
+
+## 进行中（已提交待验收 / 待返工）
+
+| 编号 | 预估时间 | 一句改动 |
+| --- | --- | --- |
+| INFRA-102t | 2–3 h | 待验收：进行中短句 |
+
+## 已验证
+
+| 编号 | 完成时间 | 一句改动 |
+| --- | --- | --- |
+| SPEC-101t | 2026-10-02 10:00 | 第二新：完成，短句 |
+| INFRA-104t | 2026-10-01 09:00 | 更早：完成，短句 |
 """
 
 BOOKS = {
     "SPEC-101t": "**状态**：已验证\n",
     "INFRA-102t": "**状态**：待验收\n",
     "QEMU-103t": "**状态**：待开始\n",
+    "INFRA-104t": "**状态**：已验证\n",
 }
 
 
 def write_tree(root: Path, ms: str, books: dict[str, str]) -> None:
     (root / ".tao/knowledge").mkdir(parents=True)
-    (root / ".tao/tasks/infra").mkdir(parents=True)
-    (root / ".tao/tasks/spec").mkdir(parents=True)
-    (root / ".tao/tasks/qemu").mkdir(parents=True)
-    (root / ".tao/tasks/integ").mkdir(parents=True)
+    for mod in ("infra", "spec", "qemu", "integ"):
+        (root / ".tao/tasks" / mod).mkdir(parents=True)
     (root / MILESTONES_REL).write_text(ms, encoding="utf-8")
     for tid, body in books.items():
         mod = {"SPEC": "spec", "INFRA": "infra", "QEMU": "qemu"}[tid.split("-")[0]]
@@ -395,9 +409,17 @@ def _run(root: Path) -> tuple[int, str]:
     return rc, buf.getvalue()
 
 
+def _swap_done_first(ms: str) -> str:
+    """把「已验证」节移到最前（三表次序反例）。"""
+    head, *sections = ms.split("\n## ")
+    done_idx = next(i for i, s in enumerate(sections) if s.startswith(DONE_HEADING[3:]))
+    done = sections.pop(done_idx)
+    return head + "\n## " + done + "".join("\n## " + s for s in sections)
+
+
 def self_test() -> int:
     print("=" * 72)
-    print("check-milestones-fresh --self-test（干净基线 PASS + 五类注入各自 FAIL）")
+    print("check-milestones-fresh --self-test（干净基线 PASS + 十一类注入各自 FAIL）")
     print("=" * 72)
     ok = True
 
@@ -419,24 +441,38 @@ def self_test() -> int:
     print(f"  {'PASS' if rc == 0 else 'FAIL'}  干净基线: rc={rc}")
     ok &= rc == 0
 
-    case("注入① 待开始放回流水表", BASE_MS.replace(
-        "| QEMU-103t | 未开工：待开始表 |\n", "").replace(
-        "| INFRA-102t | 待验收 | 2026-10-01 09:00（登记） | 未完成：带登记注 |",
-        "| INFRA-102t | 待验收 | 2026-10-01 09:00（登记） | 未完成：带登记注 |\n"
-        "| QEMU-103t | 待开始 | 2026-10-01 09:00（登记） | 未开工：待开始表 |"),
-        "流水表不得出现")
-    case("注入② 删待开始行（覆盖缺失）", BASE_MS.replace(
-        "| QEMU-103t | 未开工：待开始表 |\n", ""), "未列入台账表")
-    case("注入③ 待开始行带时间列", BASE_MS.replace(
-        "| QEMU-103t | 未开工：待开始表 |",
-        "| QEMU-103t | 2026-10-01 09:00（登记） | 未开工：待开始表 |"), "须恰好 2 格")
-    case("注入④ 表状态与任务书不符", BASE_MS.replace(
-        "| INFRA-102t | 待验收 |", "| INFRA-102t | 待返工 |"), "MISMATCH")
-    case("注入⑤ 流水表次序打乱", BASE_MS.replace(
-        "| SPEC-101t | 已验证 | 2026-10-02 10:00 | 第二新：完成，短句 |\n"
-        "| INFRA-102t | 待验收 | 2026-10-01 09:00（登记） | 未完成：带登记注 |",
-        "| INFRA-102t | 待验收 | 2026-10-01 09:00（登记） | 未完成：带登记注 |\n"
-        "| SPEC-101t | 已验证 | 2026-10-02 10:00 | 第二新：完成，短句 |"), "逆序")
+    case("注入① 待开始行放进进行中表", BASE_MS.replace(
+        "| QEMU-103t | 1 h | 未开工：待开始表 |\n", "").replace(
+        "| INFRA-102t | 2–3 h | 待验收：进行中短句 |",
+        "| INFRA-102t | 2–3 h | 待验收：进行中短句 |\n"
+        "| QEMU-103t | 1 h | 未开工：待开始表 |"), "MISMATCH")
+    case("注入② 预估时间格式非法", BASE_MS.replace(
+        "| QEMU-103t | 1 h |", "| QEMU-103t | soon |"), "预估时间")
+    case("注入③ 完成时间带（登记）", BASE_MS.replace(
+        "2026-10-02 10:00 |", "2026-10-02 10:00（登记） |"), "不得带")
+    case("注入④ 同号跨表重复", BASE_MS.replace(
+        "| INFRA-102t | 2–3 h | 待验收：进行中短句 |",
+        "| INFRA-102t | 2–3 h | 待验收：进行中短句 |\n"
+        "| QEMU-103t | 1 h | 重复行 |"), "跨表重复")
+    case("注入⑤ 已验证表次序打乱", BASE_MS.replace(
+        "| SPEC-101t | 2026-10-02 10:00 | 第二新：完成，短句 |\n"
+        "| INFRA-104t | 2026-10-01 09:00 | 更早：完成，短句 |",
+        "| INFRA-104t | 2026-10-01 09:00 | 更早：完成，短句 |\n"
+        "| SPEC-101t | 2026-10-02 10:00 | 第二新：完成，短句 |"), "逆序")
+    case("注入⑥ 已验证表加回状态列", BASE_MS.replace(
+        "| 编号 | 完成时间 | 一句改动 |\n| --- | --- | --- |\n",
+        "| 编号 | 状态 | 完成时间 | 一句改动 |\n| --- | --- | --- | --- |\n"), "状态列")
+    case("注入⑦ 三表次序打乱（已验证置前）", _swap_done_first(BASE_MS), "三表须按")
+    case("注入⑧ 待开始行缺失（覆盖）", BASE_MS.replace(
+        "| QEMU-103t | 1 h | 未开工：待开始表 |\n", ""), "未列入台账三表")
+    case("注入⑨ 缺「进行中」小节", BASE_MS.replace(
+        "\n## 进行中（已提交待验收 / 待返工）\n", "\n"), "缺小节")
+    case("注入⑩ 一句改动超长（A3）", BASE_MS.replace(
+        "| QEMU-103t | 1 h | 未开工：待开始表 |",
+        "| QEMU-103t | 1 h | " + "长" * 121 + " |"), f"字符 > {MAX_SUMMARY}")
+    case("注入⑪ 一句改动含 `.work` 路径", BASE_MS.replace(
+        "| QEMU-103t | 1 h | 未开工：待开始表 |",
+        "| QEMU-103t | 1 h | 见 .work/log/x |"), "`.work/` 路径")
 
     print("-" * 72)
     print("self-test: PASS" if ok else "self-test: FAIL")
@@ -446,7 +482,7 @@ def self_test() -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", type=Path, default=None, help="检查另一棵树（默认仓库根）")
-    ap.add_argument("--self-test", action="store_true", help="跑内置五类注入自检")
+    ap.add_argument("--self-test", action="store_true", help="跑内置十一类注入自检")
     args = ap.parse_args()
     if args.self_test:
         return self_test()

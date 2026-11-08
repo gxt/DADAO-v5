@@ -233,7 +233,7 @@ help:
 	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
 	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
-	@echo "  make check-milestones-fresh  milestones.md task-flow table gate: status/coverage/length/order/format (L1; INFRA-091t)"
+	@echo "  make check-milestones-fresh  milestones.md three-table gate: class/coverage/length/order/format (L1; INFRA-091t/INFRA-141t)"
 	@echo "  make check-archive   .tao/archive/M<i>/ structure + task-book fields + README five sections + issues snapshot (L1; INFRA-116t)"
 	@echo "  make check-milestone  Milestone closure: SIMRISC archive + sha + sync-nonmaskable + m-book + L3 report + check-tasks --strict (not L1; night run is observation only)"
 	@echo "  make check-sync-nonmaskable  Sync exception causes must not be maskable (only IPI/TIMER/UART*/… may; SPEC-175t; not L1)"
@@ -1261,8 +1261,9 @@ check-builtins-freshness:
 check-install-tools:
 	@$(PYTHON) tools/infra/check_install_tools.py
 
-# 台账双表门控 (INFRA-091t/139t, L1): 流水表只允许 待验收/待返工/已验证（出现 `待开始` 即红）、
-# 状态 == 任务书 / 两表并集覆盖 / 一句改动 ≤120 字符 / 流水按时间倒序 / 格式；规则见 docs/Process-07 §1.1。
+# 台账三分表门控 (INFRA-141t, L1；前身双表 INFRA-091t/139t): 分类（待开始 / 进行中 待验收+待返工 /
+# 已验证）== 任务书 `**状态**` / 三表并集覆盖 / 一句改动 ≤120 字符 / 仅已验证按完成时间倒序 /
+# 三表各 3 格且无状态列 / 预估时间格式 / 完成时间不带 `（登记）`；规则见 docs/Process-07 §1.1。
 check-milestones-fresh:
 	@$(PYTHON) tools/infra/check_milestones_fresh.py
 
