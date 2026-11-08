@@ -199,6 +199,23 @@ def scan_large_files(root: Path, max_age_h: float, min_bytes: int) -> list[Stale
     return out
 
 
+def scan_staging_files(root: Path) -> list[Path]:
+    """节点交互中转文件（bundle 等）**无论时龄**都不得留在临时根（AGENTS「节点交互不走 /tmp」）。"""
+    out: list[Path] = []
+    try:
+        entries = list(os.scandir(root))
+    except OSError:
+        return out
+    for entry in entries:
+        if not entry.is_file(follow_symlinks=False):
+            continue
+        name = entry.name
+        if name.endswith(".bundle") or ".bundle." in name:
+            out.append(Path(entry.path))
+    out.sort()
+    return out
+
+
 def usage_percent(path: Path) -> tuple[float, int, int]:
     total, used, _free = shutil.disk_usage(path)
     return (100.0 * used / total if total else 0.0), used, total
@@ -282,6 +299,16 @@ def audit(
                     f"，mtime {s.age_h:.1f} h > {max_age_h:g} h")
         else:
             print(f"    陈旧大文件（> {large_mib:g} MiB 且 mtime > {max_age_h:g} h）: 0 个")
+        staging = scan_staging_files(root)
+        if staging:
+            print(f"    节点交互中转文件（不得放临时根）: {len(staging)} 个")
+            for p in staging[:top]:
+                print(f"      S {p.name}")
+                errors.append(
+                    f"{p}: 节点交互中转文件不得放 `/tmp`（tmpfs 耗光会断任务链；"
+                    "bundle 等应放 .work/ 或节点持久路径）")
+        else:
+            print("    节点交互中转文件（不得放临时根）: 0 个")
         pct, used, total = usage_percent(root)
         print(f"    文件系统占用: {pct:.1f}% ({_human(used)} / {_human(total)})；"
               f"阈值 > {usage_max:g}%")
