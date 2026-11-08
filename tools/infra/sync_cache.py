@@ -20,6 +20,10 @@ This tool fixes that in one command:
    ``manifests/components.lock.toml`` run
    ``git -C <cache>/<name>.git cat-file -e <commit>^{commit}`` on the node;
    any missing commit fails the node with a "cache stale, re-run sync" hint.
+   The same check covers the submodule mirrors of a component that declares
+   ``submodule_lock``: for every ``lite = true`` entry the node must hold
+   ``<cache>/submodules/<sanitized-path>.git`` with the pinned commit, because
+   ``fetch.py`` refuses to clone those from GitHub on a build node.
 
 Node inventory
 --------------
@@ -108,6 +112,42 @@ def require_repo(args: argparse.Namespace) -> None:
             f"--repo must be absolute or start with '~/' (got {repo!r}); "
             "a relative path has no meaning on the node"
         )
+
+
+def submodule_mirror_name(path: str) -> str:
+    """Mirror directory name of a submodule path (must match ``fetch.py``)."""
+    clean = path.strip("/")
+    if not clean or clean != path:
+        fail(f"invalid submodule path {path!r}")
+    return clean.replace("/", "__")
+
+
+def load_submodules() -> list[tuple[str, str, str]]:
+    """``(path, mirror-name, commit)`` for every required (lite) submodule."""
+    manifest = REPO_ROOT / "manifests" / "components.lock.toml"
+    try:
+        data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        fail(f"cannot read {manifest}: {exc}")
+    found: list[tuple[str, str, str]] = []
+    for comp in data.get("component", []):
+        lock = comp.get("submodule_lock")
+        if not comp.get("enabled") or not lock:
+            continue
+        lock_path = REPO_ROOT / lock
+        try:
+            lock_data = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            fail(f"cannot read {lock_path}: {exc}")
+        for entry in lock_data.get("submodule", []):
+            if not entry.get("lite"):
+                continue
+            path = entry.get("path", "")
+            commit = entry.get("commit", "")
+            if not path or not commit:
+                fail(f"{lock}: lite submodule {path!r} has no path/commit")
+            found.append((path, submodule_mirror_name(path), commit))
+    return found
 
 
 def load_components() -> list[tuple[str, str]]:
@@ -204,7 +244,11 @@ def transferred_bytes(stdout: str) -> int | None:
     return int(match.group(1).replace(",", "")) if match else None
 
 
-def verify_script(dest: str, components: list[tuple[str, str]]) -> str:
+def verify_script(
+    dest: str,
+    components: list[tuple[str, str]],
+    submodules: list[tuple[str, str, str]],
+) -> str:
     """Build the node-side check: one ``cat-file -e`` per pinned commit."""
     lines = [
         "set -u",
@@ -228,17 +272,44 @@ def verify_script(dest: str, components: list[tuple[str, str]]) -> str:
             "  fail=1",
             "fi",
         ]
+    for path, mirror_name, commit in submodules:
+        repo = f'"$cache"/submodules/{mirror_name}.git'
+        lines += [
+            f'if [ ! -d {repo} ]; then',
+            f'  printf "FAIL submodule {path}: missing bare mirror '
+            f'.cache/submodules/{mirror_name}.git\\n"',
+            "  fail=1",
+            f'elif git -C {repo} cat-file -e '
+            f"{shlex.quote(commit + '^{commit}')} 2>/dev/null; then",
+            f'  printf "PASS submodule {path} {commit}\\n"',
+            "else",
+            f'  printf "FAIL submodule {path} {commit}: 缓存过期，请重新同步 '
+            f'(cache stale, re-run sync)\\n"',
+            "  fail=1",
+            "fi",
+        ]
     lines.append('exit "$fail"')
     return "\n".join(lines) + "\n"
 
 
-def run_verify(host: str, dest: str, components: list[tuple[str, str]], local: bool) -> subprocess.CompletedProcess:
-    script = verify_script(dest, components)
+def run_verify(
+    host: str,
+    dest: str,
+    components: list[tuple[str, str]],
+    submodules: list[tuple[str, str, str]],
+    local: bool,
+) -> subprocess.CompletedProcess:
+    script = verify_script(dest, components, submodules)
     argv = ["bash", "-c", script] if local else ssh_argv(host, script)
     return subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
-def process_host(args: argparse.Namespace, host: str, components: list[tuple[str, str]]) -> tuple[int, list[str]]:
+def process_host(
+    args: argparse.Namespace,
+    host: str,
+    components: list[tuple[str, str]],
+    submodules: list[tuple[str, str, str]],
+) -> tuple[int, list[str]]:
     lines: list[str] = []
     try:
         dest = cache_path(host, args.repo, args.local)
@@ -262,8 +333,12 @@ def process_host(args: argparse.Namespace, host: str, components: list[tuple[str
         if args.dry_run:
             lines.append(f"dry-run: would verify {len(components)} component(s):")
             lines += [f"  {name} {commit}" for name, commit in components]
+            lines.append(
+                f"dry-run: would verify {len(submodules)} required submodule(s):"
+            )
+            lines += [f"  {path} {commit}" for path, _mirror, commit in submodules]
             return 0, lines
-        verify = run_verify(host, dest, components, args.local)
+        verify = run_verify(host, dest, components, submodules, args.local)
         lines += [line for line in verify.stdout.splitlines() if line.strip()]
         if verify.stderr.strip():
             lines += [f"verify stderr: {line}" for line in verify.stderr.strip().splitlines()]
@@ -278,12 +353,19 @@ def process_host(args: argparse.Namespace, host: str, components: list[tuple[str
         return 127, lines
 
 
-def parallel(args: argparse.Namespace, components: list[tuple[str, str]]):
+def parallel(
+    args: argparse.Namespace,
+    components: list[tuple[str, str]],
+    submodules: list[tuple[str, str, str]],
+):
     hosts = args.resolved_hosts
     workers = max(1, min(args.jobs, len(hosts)))
     results: dict[str, tuple[int, list[str]]] = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(process_host, args, host, components): host for host in hosts}
+        futures = {
+            pool.submit(process_host, args, host, components, submodules): host
+            for host in hosts
+        }
         for future in concurrent.futures.as_completed(futures):
             host = futures[future]
             results[host] = future.result()
@@ -312,8 +394,9 @@ def main(argv: list[str] | None = None) -> int:
     if not LOCAL_CACHE.is_dir():
         fail(f"local cache not found: {LOCAL_CACHE} (run `make fetch` first)")
     components = load_components()
+    submodules = load_submodules()
 
-    rows = parallel(args, components)
+    rows = parallel(args, components, submodules)
     worst = 0
     for host, rc, lines in rows:
         print(f"=== {host} rc={rc} ===")

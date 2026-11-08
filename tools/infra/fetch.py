@@ -14,15 +14,37 @@ Two layers keep large upstream repositories from being re-downloaded:
 
 ``.work/`` may be cleaned at any time; rebuilding from ``.cache/`` needs no
 network.
+
+Submodule mirrors
+-----------------
+A component may also pin the submodules of its checkout with
+``submodule_lock = "manifests/<name>.toml"`` (currently only chipyard).  Every
+entry marked ``lite = true`` is a *required* submodule and gets its own bare
+mirror at ``.cache/submodules/<sanitized-path>.git`` (``generators/testchipip``
+-> ``generators__testchipip.git`` -- derived from the full path, never the
+basename, so two ``utils`` submodules cannot collide).
+
+Mirrors are created on the master only, by an explicit
+``fetch.py --populate-submodules`` (needs the network; retried).  Build nodes
+must never reach GitHub: for them a missing mirror is a hard error that points
+at ``sync_cache.py``.  Once the mirror exists the submodule is initialized
+with its ``submodule.<path>.url`` rewritten to the local mirror, then checked
+out at the pinned commit.  A submodule already at the pinned commit is left
+alone, so re-running ``make fetch`` is a no-op.
 """
 from __future__ import annotations
 
+import argparse
 import os
+import re
+import shutil
 import subprocess
 import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+SHA1 = re.compile(r"^[0-9a-f]{40}$")
+SUBMODULE_MIRROR_DIR = "submodules"
 
 
 def run(*args: str, cwd: Path | None = None) -> None:
@@ -45,6 +67,233 @@ def head_of(repo: Path) -> str:
         text=True,
         check=True,
     ).stdout.strip()
+
+
+def sanitize_submodule_path(path: str) -> str:
+    """Derive the mirror name of a submodule from its path (deterministic).
+
+    ``generators/testchipip`` -> ``generators__testchipip``.  The whole path is
+    used, not the basename: nested submodules in different parents (e.g. the
+    several ``fixedpoint`` / ``cde`` copies) must not share one mirror.
+    """
+    clean = path.strip("/")
+    if not clean or clean != path:
+        raise SystemExit(f"fetch: invalid submodule path {path!r}")
+    return clean.replace("/", "__")
+
+
+def load_submodule_lock(relpath: str, component: str) -> list[dict]:
+    """Read the ``lite = true`` entries of a component's submodule lock."""
+    path = ROOT / relpath
+    if not path.is_file():
+        raise SystemExit(f"fetch: {component}: submodule_lock {relpath} does not exist")
+    try:
+        with path.open("rb") as stream:
+            data = tomllib.load(stream)
+    except tomllib.TOMLDecodeError as exc:
+        raise SystemExit(f"fetch: cannot parse {relpath}: {exc}") from exc
+    entries: list[dict] = []
+    for entry in data.get("submodule", []):
+        if not entry.get("lite"):
+            continue
+        spath = entry.get("path", "")
+        url = entry.get("url", "")
+        commit = entry.get("commit", "")
+        if not spath or not url or not SHA1.fullmatch(commit):
+            raise SystemExit(
+                f"fetch: {relpath}: lite submodule {spath!r} needs a full "
+                "path/url/commit"
+            )
+        entries.append({"path": spath, "url": url, "commit": commit})
+    if not entries:
+        raise SystemExit(f"fetch: {relpath}: no lite = true submodule")
+    return entries
+
+
+def submodule_mirror(mirror_root: Path, submodule_path: str) -> Path:
+    return mirror_root / SUBMODULE_MIRROR_DIR / (
+        sanitize_submodule_path(submodule_path) + ".git"
+    )
+
+
+def missing_mirror_error(component: str, sub_path: str, mirror: Path) -> str:
+    return (
+        f"fetch: {component}: submodule {sub_path}: mirror {mirror} is missing\n"
+        "       build nodes must not clone from GitHub; copy .cache/submodules "
+        "from the master first\n"
+        "       (master: python3 tools/infra/sync_cache.py --hosts <node> "
+        "--repo <node repo>; or populate it here with "
+        "`fetch.py --populate-submodules` while online)"
+    )
+
+
+def clone_mirror(mirror: Path, url: str, retries: int, label: str) -> None:
+    """``git clone --mirror`` with a small, recorded retry budget."""
+    attempts = max(1, retries)
+    last_rc = 0
+    for attempt in range(1, attempts + 1):
+        proc = subprocess.run(["git", "clone", "--mirror", url, str(mirror)])
+        if proc.returncode == 0:
+            print(f"fetch: submodule mirror {label} cloned (attempt {attempt}/{attempts})")
+            return
+        last_rc = proc.returncode
+        print(
+            f"fetch: submodule mirror {label} clone failed "
+            f"(attempt {attempt}/{attempts}, rc={last_rc})"
+        )
+        shutil.rmtree(mirror, ignore_errors=True)
+    raise SystemExit(
+        f"fetch: cannot clone submodule mirror {mirror} from {url} "
+        f"after {attempts} attempt(s), last rc={last_rc}"
+    )
+
+
+def prepare_submodule_mirror(
+    component: str,
+    entry: dict,
+    mirror_root: Path,
+    populate: bool,
+    retries: int,
+) -> Path:
+    """Make sure the lite submodule's bare mirror holds the pinned commit."""
+    mirror = submodule_mirror(mirror_root, entry["path"])
+    commit = entry["commit"]
+    if not mirror.exists():
+        if not populate:
+            raise SystemExit(missing_mirror_error(component, entry["path"], mirror))
+        mirror.parent.mkdir(parents=True, exist_ok=True)
+        clone_mirror(mirror, entry["url"], retries, mirror.name)
+    if has_commit(mirror, commit):
+        print(f"fetch: submodule mirror {mirror.name} has {commit[:12]}")
+        return mirror
+    if populate:
+        attempts = max(1, retries)
+        for attempt in range(1, attempts + 1):
+            rc = subprocess.run(["git", "-C", str(mirror), "fetch", "--prune"]).returncode
+            if rc == 0 or has_commit(mirror, commit):
+                break
+            print(
+                f"fetch: submodule mirror {mirror.name} fetch failed "
+                f"(attempt {attempt}/{attempts}, rc={rc})"
+            )
+    if not has_commit(mirror, commit):
+        raise SystemExit(
+            f"fetch: {component}: submodule {entry['path']}: mirror {mirror} "
+            f"lacks pinned commit {commit}\n"
+            "       the mirror is stale; re-sync .cache/submodules from the "
+            "master, or refresh it online with `fetch.py --populate-submodules`"
+        )
+    print(f"fetch: submodule mirror {mirror.name} updated")
+    return mirror
+
+
+def submodule_worktree(target: Path, sub_path: str) -> Path:
+    return target / sub_path
+
+
+def rev_parse(repo: Path) -> str:
+    """``rev-parse HEAD`` that tolerates an unpopulated/broken repository."""
+    proc = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+    )
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def submodule_ready(target: Path, sub_path: str, commit: str) -> tuple[bool, str]:
+    """``(is_at_pinned_commit, detail)`` for one checked-out submodule.
+
+    An empty/broken module git dir (e.g. an aborted clone leaves only
+    ``.git/modules/<path>`` without any object) is reported as not ready
+    instead of raising, so the next step can seed it from the local mirror.
+    """
+    work = submodule_worktree(target, sub_path)
+    if not (work / ".git").exists():
+        return False, "not checked out"
+    head = rev_parse(work)
+    if not head:
+        return False, "HEAD unreadable (empty or damaged checkout)"
+    if head != commit:
+        return False, f"HEAD {head[:12]} != {commit[:12]}"
+    return True, head
+
+
+def init_component_submodules(
+    component: str,
+    target: Path,
+    entries: list[dict],
+    mirror_root: Path,
+    populate: bool,
+    retries: int,
+) -> None:
+    """Check out every lite submodule from the local mirrors."""
+    # Refuse before touching anything if a mirror is missing: a partial init
+    # would leave the checkout in a state the next run has to repair.
+    mirrors = {
+        entry["path"]: prepare_submodule_mirror(
+            component, entry, mirror_root, populate, retries
+        )
+        for entry in entries
+    }
+    for entry in entries:
+        sub_path, commit = entry["path"], entry["commit"]
+        # ``resolve()`` keeps the URL recorded in .git/config stable when the
+        # repository is driven through a worktree whose .cache is a symlink.
+        mirror = mirrors[sub_path].resolve()
+        ready, detail = submodule_ready(target, sub_path, commit)
+        if ready:
+            print(f"fetch: {component} submodule {sub_path} already initialized at {commit}")
+            continue
+        work = submodule_worktree(target, sub_path)
+        run("git", "-C", str(target), "submodule", "init", "--", sub_path)
+        run(
+            "git",
+            "-C",
+            str(target),
+            "config",
+            f"submodule.{sub_path}.url",
+            str(mirror),
+        )
+        if (work / ".git").exists():
+            dirty = subprocess.run(
+                ["git", "-C", str(work), "status", "--porcelain=v1"],
+                capture_output=True, text=True,
+            )
+            if dirty.returncode == 0 and dirty.stdout.strip():
+                raise SystemExit(
+                    f"fetch: {component} submodule {sub_path} is at {detail} "
+                    "and dirty; refusing to overwrite local changes"
+                )
+            # Reused module: point its origin at the local mirror and seed the
+            # object store from it, so nothing that follows can go online.
+            subprocess.run(
+                ["git", "-C", str(work), "config", "remote.origin.url", str(mirror)],
+                stdout=subprocess.DEVNULL,
+            )
+            run("git", "-C", str(work), "fetch", "--no-tags", str(mirror), commit)
+            # Checked out here rather than by ``submodule update``: an
+            # interrupted clone leaves ``.git/modules/<path>`` without any
+            # HEAD, and update then dies with "unable to find current
+            # revision".  The commit objects are already seeded above, so a
+            # direct detached checkout reaches the same state update would.
+            run("git", "-C", str(work), "checkout", "--detach", commit)
+        else:
+            # git >= 2.38 refuses the ``file`` transport for submodule clones
+            # (``transport 'file' not allowed``); reading a submodule straight
+            # out of the local mirror is exactly what a build node must do, so
+            # the permission is granted for this one command, not globally.
+            run(
+                "git", "-c", "protocol.file.allow=always", "-C", str(target),
+                "submodule", "update", "--init", "--checkout", "--", sub_path,
+            )
+        head = rev_parse(work)
+        if head != commit:
+            raise SystemExit(
+                f"fetch: {component} submodule {sub_path}: HEAD {head} after "
+                f"update, expected {commit}"
+            )
+        print(f"fetch: {component} submodule {sub_path} -> {commit}")
 
 
 def sync_mirror(
@@ -123,7 +372,108 @@ def select_source(component: dict) -> tuple[str, str]:
     return (repository, "canonical")
 
 
-def main() -> int:
+def sync_component(component: dict, source_root: Path, mirror_root: Path) -> Path:
+    """Mirror + worktree for one component; returns the worktree path."""
+    name = component["name"]
+    commit = component["commit"]
+    mirror = mirror_root / f"{name}.git"
+    target = source_root / name
+
+    source_url, src_label = select_source(component)
+    shallow = bool(component.get("shallow", False))
+    shallow_ref = component.get("shallow_ref", "")
+    print(f"fetch: {name} using source '{src_label}' ({source_url})")
+    sync_mirror(mirror, source_url, commit,
+                shallow=shallow, shallow_ref=shallow_ref)
+
+    if target.exists() and not (target / ".git").exists():
+        raise SystemExit(
+            f"fetch: {target} exists but is not a git worktree; refusing to touch it"
+        )
+
+    if not target.exists():
+        run("git", "clone", "--no-checkout", str(mirror), str(target))
+        # A `--no-checkout` clone's HEAD points at the mirror's default
+        # branch tip, not the pinned commit -- and that tip is usually a
+        # *descendant* of the pin, so the "already patched" ancestor check
+        # below would false-positive and skip the checkout entirely,
+        # leaving the working tree empty and HEAD on the wrong commit.
+        # There cannot be any patch commits applied yet in a clone this
+        # same call just created, so go straight to the pinned commit.
+        run("git", "fetch", "--no-tags", "origin", commit, cwd=target)
+        run("git", "checkout", "--detach", commit, cwd=target)
+        print(f"fetch: {name} -> {commit}")
+        return target
+
+    # Fetching first (safe: never touches the working tree/HEAD) makes the
+    # pinned commit available locally for the ancestor check below, even
+    # on a component that was already fetched+patched in a prior run.
+    run("git", "fetch", "--no-tags", "origin", commit, cwd=target)
+
+    head = head_of(target)
+    if head == commit:
+        # HEAD is exactly the pinned base commit.  Under commit-based patch
+        # application (E5, see docs/Process-01-组件补丁组织与构建编排.md)
+        # applying the series creates a local base+1 commit, so a clean
+        # worktree at base means "already fetched, not yet patched" (this
+        # is also the fresh-clone state).  Either way there is nothing to
+        # do here: leave it alone.
+        print(f"fetch: {name} already at {commit}")
+        return target
+    is_patched = subprocess.run(
+        ["git", "-C", str(target), "merge-base", "--is-ancestor", commit, "HEAD"],
+    ).returncode == 0
+    if is_patched:
+        # HEAD already has the pinned commit as an ancestor -- i.e. this
+        # working tree has the patch series' commits applied on top
+        # (apply_series.py's job), not a bare fresh checkout.
+        # `git checkout --detach <pinned commit>` below is *destructive*
+        # in this case: it silently discards every one of those applied
+        # commits whenever the working tree happens to be clean. Leave an
+        # already-patched component alone.
+        print(
+            f"fetch: {name} HEAD ({head[:12]}) already has {commit[:12]} as an "
+            "ancestor (patches applied on top) -- leaving it alone"
+        )
+        return target
+
+    # Only here is `git checkout --detach` about to discard work, so only
+    # here must a dirty worktree be refused.
+    dirty = subprocess.check_output(
+        ["git", "-C", str(target), "status", "--porcelain=v1"], text=True
+    )
+    if dirty:
+        raise SystemExit(f"fetch: {target} is dirty; refusing to overwrite")
+
+    run("git", "checkout", "--detach", commit, cwd=target)
+    print(f"fetch: {name} -> {commit}")
+    return target
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="mirror the pinned components/submodules into .cache/ and "
+                    "build their .work/source worktrees (offline after the first run)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--populate-submodules",
+        action="store_true",
+        help="create/refresh missing .cache/submodules/*.git mirrors from their "
+             "upstream URLs (network; master only). Without it a missing "
+             "submodule mirror is a hard error pointing at sync_cache.py",
+    )
+    parser.add_argument(
+        "--submodule-retries",
+        type=int,
+        default=3,
+        help="clone/fetch attempts per submodule mirror (default: 3)",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
     with (ROOT / "manifests/components.lock.toml").open("rb") as stream:
         manifest = tomllib.load(stream)
     work_root = ROOT / manifest.get("work_root", ".work")
@@ -138,78 +488,17 @@ def main() -> int:
     mirror_root.mkdir(parents=True, exist_ok=True)
     for component in enabled:
         name = component["name"]
-        commit = component["commit"]
-        mirror = mirror_root / f"{name}.git"
-        target = source_root / name
-
-        source_url, src_label = select_source(component)
-        shallow = bool(component.get("shallow", False))
-        shallow_ref = component.get("shallow_ref", "")
-        print(f"fetch: {name} using source '{src_label}' ({source_url})")
-        sync_mirror(mirror, source_url, commit,
-                    shallow=shallow, shallow_ref=shallow_ref)
-
-        if target.exists() and not (target / ".git").exists():
-            raise SystemExit(
-                f"fetch: {target} exists but is not a git worktree; refusing to touch it"
+        target = sync_component(component, source_root, mirror_root)
+        lock = component.get("submodule_lock")
+        if lock:
+            init_component_submodules(
+                name,
+                target,
+                load_submodule_lock(lock, name),
+                mirror_root,
+                populate=args.populate_submodules,
+                retries=args.submodule_retries,
             )
-
-        if not target.exists():
-            run("git", "clone", "--no-checkout", str(mirror), str(target))
-            # A `--no-checkout` clone's HEAD points at the mirror's default
-            # branch tip, not the pinned commit -- and that tip is usually a
-            # *descendant* of the pin, so the "already patched" ancestor check
-            # below would false-positive and skip the checkout entirely,
-            # leaving the working tree empty and HEAD on the wrong commit.
-            # There cannot be any patch commits applied yet in a clone this
-            # same call just created, so go straight to the pinned commit.
-            run("git", "fetch", "--no-tags", "origin", commit, cwd=target)
-            run("git", "checkout", "--detach", commit, cwd=target)
-            print(f"fetch: {name} -> {commit}")
-            continue
-
-        # Fetching first (safe: never touches the working tree/HEAD) makes the
-        # pinned commit available locally for the ancestor check below, even
-        # on a component that was already fetched+patched in a prior run.
-        run("git", "fetch", "--no-tags", "origin", commit, cwd=target)
-
-        head = head_of(target)
-        if head == commit:
-            # HEAD is exactly the pinned base commit.  Under commit-based patch
-            # application (E5, see docs/Process-01-组件补丁组织与构建编排.md)
-            # applying the series creates a local base+1 commit, so a clean
-            # worktree at base means "already fetched, not yet patched" (this
-            # is also the fresh-clone state).  Either way there is nothing to
-            # do here: leave it alone.
-            print(f"fetch: {name} already at {commit}")
-            continue
-        is_patched = subprocess.run(
-            ["git", "-C", str(target), "merge-base", "--is-ancestor", commit, "HEAD"],
-        ).returncode == 0
-        if is_patched:
-            # HEAD already has the pinned commit as an ancestor -- i.e. this
-            # working tree has the patch series' commits applied on top
-            # (apply_series.py's job), not a bare fresh checkout.
-            # `git checkout --detach <pinned commit>` below is *destructive*
-            # in this case: it silently discards every one of those applied
-            # commits whenever the working tree happens to be clean. Leave an
-            # already-patched component alone.
-            print(
-                f"fetch: {name} HEAD ({head[:12]}) already has {commit[:12]} as an "
-                "ancestor (patches applied on top) -- leaving it alone"
-            )
-            continue
-
-        # Only here is `git checkout --detach` about to discard work, so only
-        # here must a dirty worktree be refused.
-        dirty = subprocess.check_output(
-            ["git", "-C", str(target), "status", "--porcelain=v1"], text=True
-        )
-        if dirty:
-            raise SystemExit(f"fetch: {target} is dirty; refusing to overwrite")
-
-        run("git", "checkout", "--detach", commit, cwd=target)
-        print(f"fetch: {name} -> {commit}")
     return 0
 
 

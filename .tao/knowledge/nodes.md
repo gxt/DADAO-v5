@@ -107,7 +107,7 @@
 
 - **同步 + 校验一条命令**：`python3 tools/infra/sync_cache.py --hosts 'gxt@<node>,gxt@<node2>' --repo '~/DADAO-v5'`（节点清单也可从 `DADAO_NODES` 取；**无内置清单**）。`--dry-run` 只打印计划、不写远端；`--jobs` 控制并发。
 - **增量**：`rsync -a` 推送 `.cache/`（裸仓库对象 append-only，第二次运行应近似 0 字节）。**不用 `--delete`**：节点可能持有主控机没有的对象，静默删除比留残留更危险。
-- **校验判据**：对 `manifests/components.lock.toml` 每个 enabled 组件，在节点执行 `git -C <repo>/.cache/<name>.git cat-file -e <commit>^{commit}`；缺任一 commit（或整个裸仓库缺失）即该节点 FAIL，提示「缓存过期，请重新同步」。逐节点汇总 `host -> rc`，任一非零整体非零。
+- **校验判据**：对 `manifests/components.lock.toml` 每个 enabled 组件，在节点执行 `git -C <repo>/.cache/<name>.git cat-file -e <commit>^{commit}`；缺任一 commit（或整个裸仓库缺失）即该节点 FAIL，提示「缓存过期，请重新同步」。组件的 `submodule_lock` 所列 `lite` 子模块镜像同样逐个校验（§11.5）。逐节点汇总 `host -> rc`，任一非零整体非零。
 - **前提**：同步期间主控机与节点都不要跑 `make fetch`（rsync 读的是活仓库，正在写的 pack 可能被复制半截；partial transfer rc 23/24 会保留为非零，不做兜底）。
 - **不做 NFS/sshfs 挂载**（用户 2026-11-07 裁定）：跨 Tailscale（含 DERP 中继）挂载在断链时**挂起**而非报错；只读挂载与 `fetch.py` 写 `.cache` 的路径冲突；运行期还会引入主控机单点依赖。
 - **主控机缓存须先齐全**：新节点上线前先 `make fetch`；主控机缺某个 bare repo 时校验会明确报 `missing bare repository`（与「缺 commit」同为 FAIL），不得跳过校验掩盖。
@@ -151,7 +151,7 @@
 - 环境在 `<repo>/.work/source/chipyard/.conda-env`（**repo 相对路径**，与 chipyard 默认一致）：约 **6.1 GiB**（含 riscv-tools 626 MiB）。
 - 版本：`verilator 5.022`、`openjdk 20.0.2`、`sbt`（conda 包）、`riscv64-unknown-elf-gcc 13.2.0`、`riscv64-unknown-linux-gnu-gcc 13.2.0`、`firtool`（CIRCT 1.75.0 / LLVM 19.0.0git）。
 - riscv 工具在 `<env>/riscv-tools/bin`，由 `activate.d/activate-riscv-tools.sh` 注入 PATH；`sims/` 的构建还需要 `RISCV=<env>/riscv-tools`。
-- chipyard 源码 + 最小子模块约 **2.9 GiB**。最小子模块集由 `scripts/init-submodules-no-riscv-tools.sh` 决定（两台实测 **30/55**，其余 25 个均在脚本 blocklist 内：可选加速器/核 + `riscv-pk`/`riscv-tests`/`libgloss`/`riscv-spike-devices`）。
+- chipyard 源码 + 最小子模块约 **2.9 GiB**。最小子模块集由 `scripts/init-submodules-no-riscv-tools.sh` 决定（两台实测 **30/55**，其余 25 个均在脚本 blocklist 内：可选加速器/核 + `riscv-pk`/`riscv-tests`/`libgloss`/`riscv-spike-devices`）。**现行口径**以 `manifests/chipyard-submodules.lock.toml` 的 `lite = true` 为准（29 条，见 §11.5）。
 
 ### 11.2 建环境时必须补的三处（官方 `build-setup.sh` 之外）
 
@@ -169,3 +169,9 @@
 
 - conda 版 riscv 工具链**没有 `htif_nano.specs`**（只有 `nano.specs`）⇒ chipyard 自带 `tests/` 裸机测试暂时编不了；要用需补 riscv-pk / newlib 的 htif 支持，属后续任务。
 - 两台目前**不共享** conda 环境：各自本地建（包清单一致）；chipyard 源码树走主控机中继。节点间尚未配置 SSH 免密（如需 P2P 传输要先经用户同意再分发密钥）。
+
+### 11.5 子模块来源与镜像
+
+- 必需子模块集由 `manifests/chipyard-submodules.lock.toml` 的 `lite = true` 决定（当前 **29** 条，`tomllib` 现场统计；`grep -c 'lite = true'` 报 30 是文件头注释里也有该字样）。
+- 主控机把它镜像成 `.cache/submodules/<path 派生名>.git`（`generators/testchipip` → `generators__testchipip.git`）：主控机联网用 `fetch.py --populate-submodules` 建镜像；节点只从主控机 `sync_cache.py` 同步，缺镜像时 `make fetch` 明确失败并指向该脚本（节点不向 GitHub 拉子模块）。
+- 约定正文（镜像布局 / 命名 / 失败语义）见 `docs/Process-01 §14「子模块（submodule）的获取与镜像」`。

@@ -86,6 +86,11 @@ shallow_ref = "1.14.0"
 # only. Declaring patch_dir/patch_series alongside it is rejected (no smuggling
 # patches into a component the patch-tree gate skips).
 patchless = true
+# The pinned submodule snapshot (ADR-0024 D2).  `fetch.py` requires a bare
+# mirror of each `lite = true` entry under .cache/submodules/ and checks those
+# submodules out from the local mirror (offline).  `lite = false` entries are
+# nested/optional and stay out of the managed set.
+submodule_lock = "manifests/chipyard-submodules.lock.toml"
 role = "RTL SoC simulation (Verilator/RTL reference platform)"
 
 [[component.source]]

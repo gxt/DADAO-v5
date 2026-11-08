@@ -141,3 +141,12 @@
     【P3】`tools/infra/check_knowledge_refs.py` 清理项：改为「具体 `.work/**` 一律 FAIL」后，
     `checked` 计数只写不读、(A) 面的 `dangling` 分支已不可达。清理时只删死代码/死计数，
     **不得改判据**（具体引用一律 FAIL + 四类豁免 + `found==0` 空转）。
+
+- id: ISS-354
+  scope: [infra]
+  status: open
+  resolved_by: null
+  title: >-
+    【P3】chipyard 子模块 `lite` 集（29）不含 `toolchains/riscv-tools/riscv-isa-sim`，而 conda
+    `riscv-tools` 不含 fesvr，我们用该源码编了 fesvr ⇒ **全新机器重建 RTL 环境时仍缺这一个源**。
+    建议把它纳入镜像集（或单列 `dadao_extra` 标记），让新机器离线即可完成 RTL 环境。
