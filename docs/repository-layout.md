@@ -35,6 +35,7 @@ DADAO-v5 仓库布局与一次性工作区（`.work/`）约定。
 ## 持久对象库 `.cache/`（整体忽略，不入库）
 
 `.cache/<name>.git` 存放上游组件的 **bare mirror（本地对象库）**，`.cache/refs/<id>.git` 存放参考仓库的 bare mirror，分别由 `tools/infra/fetch.py` / `tools/infra/fetch_refs.py`
+`.cache/submodules/<由 path 派生的名字>.git` 存放**带子模块组件的最小集子模块镜像**（当前为 chipyard 的 `lite` 集，`manifests/chipyard-submodules.lock.toml` 锁定），由 `fetch.py --populate-submodules` 建立、`sync_cache.py` 校验并在节点间分发；子模块的获取与镜像规则见 `docs/Process-01 §14`。
 首次 `git clone --mirror` 下载一次、以后只增量 `git fetch`。`.cache/` **持久保留**（`clean_work`
 不删除），使 `.work/` 下的工作树即使被清空也能从本地 mirror 重建、无需重新下载大仓库。
 
