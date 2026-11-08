@@ -26,6 +26,7 @@
 | INTEG-059t | 10–16 h | G3 完整 tset 双向一致性（static+dynamic）+ 矩阵重生成 |
 | TESTCASES-103t | 3–4 h | SE 基线预算 120s→按套件 600s；timeout 单列并重跑 |
 | GEM5-031t | 2–3 h | SE 补 `chmod`/`fchmodat`（ISS-346） |
+| INFRA-146t | 1–2 h | 共享探针根迁出 `/tmp`；R2 豁免收紧 + 陈旧大文件报告 |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
