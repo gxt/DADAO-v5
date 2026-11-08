@@ -53,7 +53,7 @@ REQUIRED_FIELDS = ["mnemonic", "id", "format", "class", "encoding",
                    "input_state", "spec_cite"]
 
 # ADR-0004 R3 + 用户 2026-11-02 裁定：RAM 几何按 profile（Tiny 8 MiB cfxha63 /
-# Node 2 GiB 内存窗口）。**不在本文件写死**，从 tests/shared/machine-profiles.yaml
+# Vast 2 GiB 内存窗口）。**不在本文件写死**，从 tests/shared/machine-profiles.yaml
 # 读取；token 解析与 harness 共用 machine_profile.resolve()。
 ADDR48_MAX = 0xFFFF_FFFF_FFFF
 

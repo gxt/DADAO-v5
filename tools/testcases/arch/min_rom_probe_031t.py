@@ -18,7 +18,7 @@ import paths as _paths
 
 # TESTCASES-091t: probe geometry from the single profile source
 # (tests/shared/machine-profiles.yaml); runtime execution stays BLOCKED until
-# QEMU-079/080 provide the Tiny/Node machines.
+# QEMU-079/080 provide the Tiny/Vast machines.
 _MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
 if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
@@ -281,7 +281,7 @@ def run_probe(binary_data, label, qemu_bin, trampoline_path, timeout=10):
     try:
         cmd = [
             qemu_bin,
-            '-machine', 'dadao-m1',
+            '-machine', 'dadao-tiny',
             '-nographic',
             '-bios', trampoline_path,
             '-kernel', bin_path,

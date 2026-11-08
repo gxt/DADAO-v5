@@ -24,7 +24,7 @@ Design
   ``should_fail`` set, iff it exits non-zero) — i.e. the verdict comes from the
   test's own assertions, never from any DADAO-side expectation.
 
-* **Run path.**  QEMU loads the test ELF with ``-machine dadao-m1`` ("path A":
+* **Run path.**  QEMU loads the test ELF with ``-machine dadao-tiny`` ("path A":
   PC := e_entry, registers at reset — rb1 == 0).  picolibc's own
   ``crt0-semihost.o`` assumes the architecture start-up code already set the
   stack, so the harness links it with ``--redefine-sym _start=_picolibc_start``
@@ -302,7 +302,7 @@ def run_qemu(elf, argv=None, timeout=DEFAULT_TIMEOUT):
     cfg = "enable=on,target=native"
     if argv:
         cfg = ",".join([cfg, *[f"arg={a}" for a in argv]])
-    cmd = [str(QEMU), "-M", "dadao-m1", "-kernel", str(elf),
+    cmd = [str(QEMU), "-M", "dadao-tiny", "-kernel", str(elf),
            "-semihosting-config", cfg, "-display", "none", "-nographic", "-monitor", "none"]
     try:
         res = run(cmd, timeout=timeout)

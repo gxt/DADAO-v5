@@ -163,8 +163,8 @@
 |---|---|
 | L1 `make check` | 仓库完整性静态检查 + 组件可用性冒烟；P6 起含 `check-interface`（跨模块静态一致性）与 `check-code-range`（合成 fixture 自检） |
 | L2 `make check-modules` | 四 scope **smoke**：`check-inst-smoke`、`check-arch-smoke`、`check-unit`、`check-tset-{libc,llvm,embench}-smoke`（**不含** FP 探针） |
-| L3 `make check-full` | 全量（inst/arch/unit）+ 集成链：`check-inst`、`check-arch`、`check-unit-full`（= `check-unit` + `check-lit-full`）、4 个 **FP 探针**、`test-m6`；**tset 不直接列出**（smoke 仅在 L2、full 仅在夜跑；`test-m6` 的 Embench E2E 属集成步骤） |
-| 夜跑（小时级） | `night-run`（tset full×3 + 长 arch；独立 `night.lock`，不阻断门控）→ 报告 `.dadao/tests/night/<date>/`；`check-night-report` 按需诊断（观测，不阻断收口） |
+| L3 `make check-full` | 全量（inst/arch/unit）+ 集成链：`check-inst`、`check-arch`、`check-unit-full`（= `check-unit` + `check-lit-full`）、4 个 **FP 探针**、`test-m6`；**tset 不直接列出**（smoke 仅在 L2、full 仅在回归运行；`test-m6` 的 Embench E2E 属集成步骤） |
+| 回归运行（小时级） | `night-run`（tset full×3 + 长 arch；独立 `night.lock`，不阻断门控）→ 报告 `.dadao/tests/night/<date>/`；`check-night-report` 按需诊断（观测，不阻断收口） |
 | 按需 / opt-in | `check-lit-full`、`check-picolibc-tests-full`、`check-testcases-suites(-full)`、`test-picolibc-smoke`、`build-bootrom`、`check-milestone`、`check-install-tools`、`clean-tests`、`test-repro` |
 
 ### 5.2 逐目标（跑什么 / 产物去哪 / 日志）

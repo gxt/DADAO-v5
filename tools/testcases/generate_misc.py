@@ -219,7 +219,7 @@ def generate():
                   "masked the real cause)."
                   % (imms18, why),
             sequence=None,
-            profiles=["node"],
+            profiles=["vast"],
         ))
 
     # ── 原专门非法指令已于 ADR-0012 D3.5 删除（ILLI 异常保留）→ 不再产该向量 ──

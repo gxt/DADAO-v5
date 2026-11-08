@@ -67,7 +67,7 @@ M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**
 
 ```
 .dadao/cross-toolchain/bin/qemu-system-dadao \
-    -M dadao-m1 \
+    -M dadao-tiny \
     -bios .dadao/tests/bootrom/bootrom.bin \
     -kernel <work-dir>/<vector>.bin \
     -semihosting-config enable=on,target=native,chardev=semi \

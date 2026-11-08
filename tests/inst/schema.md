@@ -32,7 +32,7 @@
 | `deferred_reason` | string | `status=deferred` 时必填（非空） | 暂缓原因（如 `"C-27"`） |
 | `notes` | string | 可选 | 人类可读备注（如 `shamt = rd<k>`、PC 地址来源） |
 | `sequence` | list of string | 可选 | 多条原始编码字，按序连发（QEMU-067t）。用于单条指令无法表达其语义的场景——`sc` 只有在同址 `lr` 之后才可能成功，「失败清保留」需要 `lr → 失败的 sc → sc`。缺省（不写该字段）时 harness 走原单字路径，生成二进制与旧行为**逐字节一致**。当前由 `tests/inst/atomics/*.yaml` 使用 |
-| `profiles` | list of string | 可选 | 仅当 case 语义只对一个 profile 成立时使用（`[tiny]` / `[node]`）；禁止拆成两份 case。validator 对不适用 profile 跳过几何解析/越界断言 |
+| `profiles` | list of string | 可选 | 仅当 case 语义只对一个 profile 成立时使用（`[tiny]` / `[vast]`）；禁止拆成两份 case。validator 对不适用 profile 跳过几何解析/越界断言 |
 
 ### `encoding` 子结构
 
@@ -134,8 +134,8 @@
 
 ### 机器几何、token 与 `profiles`（TESTCASES-091t）
 
-- 几何真源：`tests/shared/machine-profiles.yaml`（Tiny / Node）。驱动统一接受
-  `--profile {tiny,node}`，环境变量 `DADAO_TEST_PROFILE` 可替代，缺省 `tiny`。
+- 几何真源：`tests/shared/machine-profiles.yaml`（Tiny / Vast）。驱动统一接受
+  `--profile {tiny,vast}`，环境变量 `DADAO_TEST_PROFILE` 可替代，缺省 `tiny`。
 - 几何敏感字段允许符号 token：`@RAM_BASE`、`@RAM_END`、`@SP`、`@BOOTROM_BASE`、
   `@ENTRY`、`@RESET_PC`，可带**单个** `+0x…`/`-0x…` 偏移。适用于
   `input_state.rd/rb/ra`、`input_state.memory[].address/value`、
@@ -144,7 +144,7 @@
   非法偏移、越 48 位地址、`semantic` 内存地址落在所选 profile RAM 外 ⇒ validator 报错。
 - `semantic` 类的 `memory` 地址**必须**落在所选 profile RAM 窗口内（validator 阻断校验）。
 - 仅当某 case 语义只对一个 profile 成立时，才可写可选字段 `profiles: [tiny]`
-  （或 `[node]`）；**禁止**把一个 case 拆成两册/两 ID。
+  （或 `[vast]`）；**禁止**把一个 case 拆成两册/两 ID。
 - `legality` 类可表达越界地址（`expected_fault: CFXMEM` = 越界/未映射（§7.1 全部归当前运行模式 monitor 的 `CFXMEM`）），不受此限。
 - 非 RAM 地址（ROM `0xffff_ffff_0000`–`0xffff_ffff_ffff`）须显式引用 ADR-0004 章节。
   （旧 exit-port MMIO 停机端口已随 C1 step2 删除；停机协议为 semihosting `SYS_EXIT`。）
@@ -153,7 +153,7 @@
 
 - 语法：`"<count>:@TOKEN[+0x…|-0x…]"`，`count` 为十进制或 `0x…`，范围 `0..0xFFFF`；
   解析结果 = `(count << 48) | addr`，要求 `addr < 2^48`。例：`"1:@ENTRY+0x4"`（返回地址）、
-  `"63:@ENTRY+0x700000"`（ra0 的 RACNT=63 + MRPTR）。Tiny/Node 同一份 case 都能正确解析。
+  `"63:@ENTRY+0x700000"`（ra0 的 RACNT=63 + MRPTR）。Tiny/Vast 同一份 case 都能正确解析。
 - **只用于带计数字段的 RA/RAS 值**：`ra0`（`[53:48]`=RACNT、`[47:0]`=MRPTR）、
   `ra1..ra63`（`[63:48]`=递归计数、`[47:0]`=返回地址）、以及 `call`/`ret` 的
   MemRAS 条目值（`memory[].value`）。**rd/rb、内存地址、`expected_pc` 一律不得使用**

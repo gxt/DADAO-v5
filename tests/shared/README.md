@@ -5,11 +5,11 @@
 
 | 子目录 / 文件 | 内容 | 谁用 |
 |---|---|---|
-| `bootrom/` | Tiny trampoline（`bootrom.S`）与 Node power→hmon BootROM（`step5/`）+ 链接脚本 | `make build-bootrom` → `check-arch{,-smoke}` |
+| `bootrom/` | Tiny trampoline（`bootrom.S`）与 Vast power→hmon BootROM（`step5/`）+ 链接脚本 | `make build-bootrom` → `check-arch{,-smoke}` |
 | `crt0/` | `minimal_crt0.s`（`_start` → `@main` → `SYS_EXIT` 的最小启动桩） | `test-codegen` / `test-elf` / `tests/unit/llvm/e2e`（lit）/ embench 系统态 E2E |
-| `linker/` | `dadao-common.lds`（公共段/符号）/ `dadao-tiny.lds`（Tiny）/ `dadao-node.lds`（Node 2 GiB、entry 1 MiB）/ `picolibc-tiny.ld` / `dadao-dyn.lds`（ET_DYN） | 同上 + `build_musl.py` / `run_suite.py` / tset 驱动 |
-| `machine-profiles.yaml` | Tiny/Node 的 BootROM/RAM/entry/SP/装载/PTW **唯一几何真源**（TESTCASES-091t） | 所有测试驱动 + 生成器 + `check-tests-index` |
-| `asm/` | `machine.inc`（`LOAD_ADDR` 宏）+ 由 profile 生成的 `machine-{tiny,node}.inc` | bootrom / crt0 / arch 向量 |
+| `linker/` | `dadao-common.lds`（公共段/符号）/ `dadao-tiny.lds`（Tiny）/ `dadao-vast.lds`（Vast 2 GiB、entry 1 MiB）/ `picolibc-tiny.ld` / `dadao-dyn.lds`（ET_DYN） | 同上 + `build_musl.py` / `run_suite.py` / tset 驱动 |
+| `machine-profiles.yaml` | Tiny/Vast 的 BootROM/RAM/entry/SP/装载/PTW **唯一几何真源**（TESTCASES-091t） | 所有测试驱动 + 生成器 + `check-tests-index` |
+| `asm/` | `machine.inc`（`LOAD_ADDR` 宏）+ 由 profile 生成的 `machine-{tiny,vast}.inc` | bootrom / crt0 / arch 向量 |
 | `runtime/` | `dadao_mem_runtime.ll`（freestanding `mem*` 运行时）/ `dadao_user_dyn_probe.c`（动态装载 auxv 探针程序） | `test-m6` / Embench / 手工探针 |
 
 ## 纪律

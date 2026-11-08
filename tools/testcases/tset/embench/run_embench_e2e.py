@@ -21,7 +21,7 @@ Pipeline per (benchmark, optimisation level):
     llc  -march=dadao -O0 -filetype=obj dadao_mem_runtime.ll        -> *.o
     llvm-mc --triple=dadao -filetype=obj minimal_crt0.s             -> crt0.o
     ld.lld -T dadao-tiny.lds *.o                                         -> <b>.elf
-    timeout N qemu-system-dadao -M dadao-m1 -kernel <b>.elf \
+    timeout N qemu-system-dadao -M dadao-tiny -kernel <b>.elf \
             -semihosting-config enable=on,target=native             -> guest exit
 
 Judgement (fail-closed):
@@ -249,7 +249,7 @@ def build_and_run(bench, opt, tools, work_dir, timeout, verbose=False):
 
     # 6. run under QEMU; guest exit code == process exit code.
     rc, _o, err, timed = _run(
-        [tools["qemu"], "-M", "dadao-m1", "-kernel", elf,
+        [tools["qemu"], "-M", "dadao-tiny", "-kernel", elf,
          "-semihosting-config", "enable=on,target=native",
          "-display", "none", "-nographic"],
         timeout=timeout,

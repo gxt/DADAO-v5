@@ -48,7 +48,7 @@ import os, sys
 
 # TESTCASES-091t: probe geometry from the single profile source
 # (tests/shared/machine-profiles.yaml); runtime execution stays BLOCKED until
-# QEMU-079/080 provide the Tiny/Node machines.
+# QEMU-079/080 provide the Tiny/Vast machines.
 _MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
 if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
@@ -318,7 +318,7 @@ def write_tmp(name, data):
 
 
 def run_qemu(elf_path=None, bios=None, kernel=None):
-    args = [QEMU, "-M", "dadao-m1", "-nographic",
+    args = [QEMU, "-M", "dadao-tiny", "-nographic",
             "-semihosting-config", "enable=on,target=native"]
     if bios:
         args += ["-bios", bios]

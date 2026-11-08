@@ -3,7 +3,7 @@
 
 Scope (ADR-0048 D1/D2/D5; task book §0/§1/§4):
 
-  * pairing is **QEMU system profile X <-> gem5 FS profile X** (tiny/node);
+  * pairing is **QEMU system profile X <-> gem5 FS profile X** (tiny/vast);
   * a case is the same frozen ``case_id`` on both engines; the comparison is
     ``status`` (PASS/FAIL/...), the host exit code and the architecture-visible
     result.  Timing, performance and host log formatting are never compared;
@@ -28,7 +28,7 @@ The driver reuses the existing engines instead of re-implementing them:
 
 Usage:
 
-  python3 tools/testcases/parity/run_parity.py --profiles tiny,node \\
+  python3 tools/testcases/parity/run_parity.py --profiles tiny,vast \\
       --scopes inst,arch,embench,picolibc \\
       --qemu .dadao/cross-toolchain/bin/qemu-system-dadao \\
       --gem5 .work/source/gem5/build/DADAO/gem5.opt \\
@@ -78,7 +78,7 @@ PICOLIBC_TESTS = os.path.join(_REPO_ROOT, "tools", "testcases",
 ARCH_DIR = os.path.join(_REPO_ROOT, "tools", "testcases", "arch")
 
 SCOPES = ("inst", "arch", "embench", "picolibc")
-PROFILES = ("tiny", "node")
+PROFILES = ("tiny", "vast")
 STATUSES = ("PASS", "FAIL", "DEFERRED", "SKIP_PROFILE", "BLOCKED", "ERROR",
             "TIMEOUT", "N/A")
 VERDICTS = ("AGREE_PASS", "AGREE_FAIL", "GEM5_ONLY_FAIL", "QEMU_ONLY_FAIL",
@@ -181,10 +181,10 @@ def _engine_env(args, profile, gem5=False):
     env["PARITY_GEM5"] = args.gem5
     env["PARITY_GEM5_CONFIG"] = args.gem5_config
     env["PARITY_GEM5_PROFILE"] = profile
-    if profile == "node":
-        # Node needs the 4 MiB BootROM; Tiny ELF runs carry their own crt and
+    if profile == "vast":
+        # Vast needs the 4 MiB BootROM; Tiny ELF runs carry their own crt and
         # must NOT get a --bootrom (fs.py rejects bootrom + ELF).
-        env["PARITY_GEM5_BOOTROM"] = args.bootrom_node
+        env["PARITY_GEM5_BOOTROM"] = args.bootrom_vast
     env["PARITY_WORK_ROOT"] = os.path.join(args.work_dir, "shim")
     if not gem5:
         env.pop("PARITY_GEM5", None)
@@ -205,10 +205,10 @@ def engine_identity(args):
     _require_exec(args.qemu, "qemu-system-dadao")
     _require_file(args.gem5, "gem5.opt")
     _require_file(args.gem5_config, "gem5 fs.py")
-    if "node" in args.profiles:
-        _require_file(args.bootrom_node, "Node BootROM")
+    if "vast" in args.profiles:
+        _require_file(args.bootrom_vast, "Vast BootROM")
         if "inst" in args.scopes:
-            _require_file(args.bootrom_node_inst, "Node inst BootROM")
+            _require_file(args.bootrom_vast_inst, "Vast inst BootROM")
     qver = subprocess.run([args.qemu, "--version"], capture_output=True,
                           text=True)
     ident["engines"]["qemu"] = {
@@ -229,8 +229,8 @@ def engine_identity(args):
         "source": source_root,
         "source_commit": commit.stdout.strip() if commit.returncode == 0 else "",
     }
-    for key, path in (("tiny", args.bootrom_tiny), ("node", args.bootrom_node),
-                      ("node_inst", args.bootrom_node_inst)):
+    for key, path in (("tiny", args.bootrom_tiny), ("vast", args.bootrom_vast),
+                      ("vast_inst", args.bootrom_vast_inst)):
         if os.path.isfile(path):
             ident["bootrom"][key] = {"path": os.path.abspath(path),
                                      "md5": _md5(path),
@@ -295,7 +295,7 @@ def enumerate_inst(profile):
     return rows
 
 
-def _parse_probe_list(path, profile="node"):
+def _parse_probe_list(path, profile="vast"):
     env = dict(os.environ)
     env["DADAO_TEST_PROFILE"] = profile
     proc = subprocess.run([sys.executable, path, "--list"], capture_output=True,
@@ -339,8 +339,8 @@ def _arch_probe_ids():
 
 
 def enumerate_arch(profile):
-    if not machine_profile.load("node").get("arch", False):
-        raise SetupError("machine-profiles.yaml: node.arch is false")
+    if not machine_profile.load("vast").get("arch", False):
+        raise SetupError("machine-profiles.yaml: vast.arch is false")
     expected = os.path.join(_REPO_ROOT, "tests", "arch", "umon", "expected.yaml")
     with open(expected, "r", encoding="utf-8") as fh:
         import yaml
@@ -415,7 +415,7 @@ def enumerate_all(args):
                 # are enumerated so the matrix has no silent gap.
                 if profile == "tiny" and not machine_profile.load("tiny").get(
                         "arch", False):
-                    live[key] = enumerate_arch("node")
+                    live[key] = enumerate_arch("vast")
                     for row in live[key]:
                         row["profile"] = "tiny"
                         row["expected_status"] = "N/A"
@@ -425,7 +425,7 @@ def enumerate_all(args):
                 live[key] = enumerate_embench(args, profile)
             elif scope == "picolibc":
                 if profile != "tiny":
-                    live[key] = []  # Node picolibc is not run (profile table)
+                    live[key] = []  # Vast picolibc is not run (profile table)
                 else:
                     live[key] = enumerate_picolibc()
     return live
@@ -445,7 +445,7 @@ def _gem5_cmd(args):
 
 def _semantics_run(args, profile, engine, out_json, log_path):
     env = _engine_env(args, profile, gem5=(engine == "gem5"))
-    trampoline = (args.bootrom_node_inst if profile == "node"
+    trampoline = (args.bootrom_vast_inst if profile == "vast"
                   else args.bootrom_tiny)
     cmd = [sys.executable, SEMANTICS_GATE, "--profile", profile,
            "--gate-dir", os.path.join(args.work_dir,
@@ -464,7 +464,7 @@ def _arch_smoke_run(args, profile, engine, out_json, log_path):
     env = _engine_env(args, profile, gem5=(engine == "gem5"))
     cmd = [sys.executable, RUN_M5, "--profile", profile,
            "--qemu", _gem5_cmd(args) if engine == "gem5" else _qemu_cmd(args),
-           "--bootrom", args.bootrom_node,
+           "--bootrom", args.bootrom_vast,
            "--work-dir", os.path.join(args.work_dir,
                                       "arch-%s-%s" % (profile, engine)),
            "--timeout", str(min(args.timeout, 120)),
@@ -478,7 +478,7 @@ def _arch_smoke_run(args, profile, engine, out_json, log_path):
 
 def _probe_run(args, profile, engine, probe, check, log_path):
     env = _engine_env(args, profile, gem5=(engine == "gem5"))
-    env["DADAO_TEST_PROFILE"] = "node"
+    env["DADAO_TEST_PROFILE"] = "vast"
     cmd = [sys.executable, probe["script"], "--only", check,
            "--qemu", _gem5_cmd(args) if engine == "gem5" else _qemu_cmd(args)]
     rc = _run_logged(cmd, log_path, env=env, timeout=args.timeout + 30)
@@ -495,10 +495,10 @@ def _embench_run(args, profile, engine, out_json, log_path, wrapper_log):
     env = _engine_env(args, profile, gem5=(engine == "gem5"))
     if engine == "gem5":
         qemu = _gem5_cmd(args)
-    elif profile == "node":
-        qemu = os.path.join(args.work_dir, "wrappers", "qemu-node-embench.py")
+    elif profile == "vast":
+        qemu = os.path.join(args.work_dir, "wrappers", "qemu-vast-embench.py")
         env["PARITY_QEMU_REAL"] = _qemu_cmd(args)
-        env["PARITY_QEMU_BOOTROM"] = os.path.abspath(args.bootrom_node)
+        env["PARITY_QEMU_BOOTROM"] = os.path.abspath(args.bootrom_vast)
         env["PARITY_WRAPPER_LOG"] = wrapper_log
     else:
         qemu = _qemu_cmd(args)
@@ -515,15 +515,15 @@ def _embench_run(args, profile, engine, out_json, log_path, wrapper_log):
 
 
 def _make_embench_wrapper(args):
-    path = os.path.join(args.work_dir, "wrappers", "qemu-node-embench.py")
+    path = os.path.join(args.work_dir, "wrappers", "qemu-vast-embench.py")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
         fh.write("""#!/usr/bin/env python3
-\"\"\"QEMU Node embench wrapper (generated by run_parity.py).
+\"\"\"QEMU Vast embench wrapper (generated by run_parity.py).
 
-The embench driver is Tiny-shaped: it always passes `-M dadao-m1`.  For the
-Node matrix run the evidence layer rewrites that machine into
-`dadao-m1,profile=node,bootrom-image=...` and leaves every other argv item
+The embench driver is Tiny-shaped: it always passes `-M dadao-tiny`.  For the
+Vast matrix run the evidence layer rewrites that machine into
+`dadao-vast,bootrom-image=...` and leaves every other argv item
 untouched.  Each rewritten argv is logged as JSON for the parity matrix.
 \"\"\"
 import json, os, subprocess, sys
@@ -535,15 +535,15 @@ out, i, replaced = [], 0, False
 while i < len(args):
     a = args[i]
     if a in ("-M", "-machine") and i + 1 < len(args) \\
-            and args[i + 1].split(",")[0] == "dadao-m1":
-        out += ["-machine", "dadao-m1,profile=node,bootrom-image=" + rom]
+            and args[i + 1].split(",")[0] == "dadao-tiny":
+        out += ["-machine", "dadao-vast,bootrom-image=" + rom]
         replaced = True
         i += 2
         continue
     out.append(a)
     i += 1
 if not replaced:
-    sys.stderr.write("qemu-node-embench: ERROR: no -M/-machine dadao-m1 in argv\\n")
+    sys.stderr.write("qemu-vast-embench: ERROR: no -M/-machine dadao-tiny in argv\\n")
     sys.exit(2)
 with open(log, "a", encoding="utf-8") as fh:
     fh.write(json.dumps({"argv": out}) + "\\n")
@@ -619,7 +619,7 @@ def _picolibc_gem5(args, qdoc, qwork, log_path):
             continue
         argv = (mod.SEMIHOST_ARGV
                 if name in getattr(mod, "SEMIHOST_ARGS_TESTS", set()) else None)
-        cmd = [_gem5_cmd(args), "-M", "dadao-m1", "-kernel", elf,
+        cmd = [_gem5_cmd(args), "-M", "dadao-tiny", "-kernel", elf,
                "-display", "none", "-nographic", "-monitor", "none"]
         cfg = "enable=on,target=native"
         if argv:
@@ -663,8 +663,8 @@ def _rec(status, exit_code, visible, machine="", note="", wrapper=None):
 def build_rows(args, live):
     rows = []
     sources = {"runs": [], "picolibc_json": None}
-    wrapper_log = os.path.join(args.work_dir, "wrapper-node-embench.jsonl")
-    if "embench" in args.scopes and "node" in args.profiles:
+    wrapper_log = os.path.join(args.work_dir, "wrapper-vast-embench.jsonl")
+    if "embench" in args.scopes and "vast" in args.profiles:
         _make_embench_wrapper(args)
         if os.path.exists(wrapper_log):
             os.remove(wrapper_log)
@@ -699,10 +699,10 @@ def build_rows(args, live):
                 for t in templates:
                     q = qmap.get(t["case_id"])
                     g = gmap.get(t["case_id"])
-                    machine = ("dadao-m1,profile=node,bootrom-image=" +
-                               os.path.abspath(args.bootrom_node)
-                               if profile == "node" else
-                               "dadao-m1 -bios " + os.path.abspath(
+                    machine = ("dadao-vast,bootrom-image=" +
+                               os.path.abspath(args.bootrom_vast)
+                               if profile == "vast" else
+                               "dadao-tiny -bios " + os.path.abspath(
                                    args.bootrom_tiny))
                     qr = _rec(q["status"], q.get("exit"),
                               q.get("arch_visible"), machine,
@@ -727,7 +727,7 @@ def build_rows(args, live):
                             _rec("N/A", None, {"basis":
                                  "tests/shared/machine-profiles.yaml "
                                  "tiny.arch=false"}, ""),
-                            note="arch is Node-only (profile Tiny arch=false)"))
+                            note="arch is Vast-only (profile Tiny arch=false)"))
                     continue
                 qjson = os.path.join(args.work_dir, f"arch-{profile}-qemu.json")
                 gjson = os.path.join(args.work_dir, f"arch-{profile}-gem5.json")
@@ -749,8 +749,8 @@ def build_rows(args, live):
                      os.path.join(args.work_dir, "logs",
                                   f"arch-{profile}-gem5.log")},
                 ]
-                machine = ("dadao-m1,profile=node,bootrom-image=" +
-                           os.path.abspath(args.bootrom_node))
+                machine = ("dadao-vast,bootrom-image=" +
+                           os.path.abspath(args.bootrom_vast))
                 for t in templates:
                     if t["kind"] == "smoke":
                         q = qmap.get(t["case_id"])
@@ -762,9 +762,9 @@ def build_rows(args, live):
                             "missing from QEMU run_m5_e2e JSON")
                         gr = _rec(g["status"], g.get("exit"),
                                   g.get("arch_visible"),
-                                  "gem5 --profile node", g.get("note", "")) \
+                                  "gem5 --profile vast", g.get("note", "")) \
                             if g else _rec(
-                            "ERROR", None, {}, "gem5 --profile node",
+                            "ERROR", None, {}, "gem5 --profile vast",
                             "missing from gem5 run_m5_e2e JSON")
                     else:
                         qr = _probe_run(
@@ -778,7 +778,7 @@ def build_rows(args, live):
                                          f"probe-{t['probe']}-{t['check']}"
                                          "-gem5.log"))
                         qr.setdefault("machine", machine)
-                        gr.setdefault("machine", "gem5 --profile node")
+                        gr.setdefault("machine", "gem5 --profile vast")
                     rows.append(_row(t, qr, gr))
             elif scope == "embench":
                 qjson = os.path.join(args.work_dir,
@@ -803,13 +803,13 @@ def build_rows(args, live):
                      os.path.join(args.work_dir, "logs",
                                   f"emb-{profile}-gem5.log")},
                 ]
-                qmachine = "dadao-m1"
+                qmachine = "dadao-tiny"
                 gmachine = "gem5 --profile " + profile
                 qwrap = None
-                if profile == "node":
+                if profile == "vast":
                     qmachine = _last_wrapper_machine(wrapper_log) or ""
-                    qwrap = "qemu-node-embench.py"
-                    gmachine += " (PARITY_GEM5_PROFILE=node)"
+                    qwrap = "qemu-vast-embench.py"
+                    gmachine += " (PARITY_GEM5_PROFILE=vast)"
                 for t in templates:
                     q = qmap.get(t["case_id"])
                     g = gmap.get(t["case_id"])
@@ -861,7 +861,7 @@ def build_rows(args, live):
                                   "missing from picolibc QEMU JSON")
                     else:
                         qr = _rec(q["status"], q.get("exit"),
-                                  q.get("arch_visible"), "dadao-m1",
+                                  q.get("arch_visible"), "dadao-tiny",
                                   q.get("note", ""))
                     if g is None:
                         if q and q["status"] in ("N/A", "PASS", "BLOCKED"):
@@ -1092,21 +1092,21 @@ def _check_machines(rows):
         profile, scope = row["profile"], row["scope"]
         qm = (row["qemu"].get("machine") or "")
         gm = (row["gem5"].get("machine") or "")
-        if scope == "embench" and profile == "node":
-            if "profile=node" not in qm:
-                errs.append(f"{row['case_id']}: Node embench QEMU machine "
-                            f"lacks profile=node (wrapper not applied): "
+        if scope == "embench" and profile == "vast":
+            if "dadao-vast" not in qm:
+                errs.append(f"{row['case_id']}: Vast embench QEMU machine "
+                            f"lacks dadao-vast (wrapper not applied): "
                             f"{qm!r}")
-            if row["qemu"].get("wrapper") != "qemu-node-embench.py":
-                errs.append(f"{row['case_id']}: Node embench wrapper not "
+            if row["qemu"].get("wrapper") != "qemu-vast-embench.py":
+                errs.append(f"{row['case_id']}: Vast embench wrapper not "
                             f"recorded")
-            if "profile node" not in gm and "profile=node" not in gm:
-                errs.append(f"{row['case_id']}: gem5 Node embench run not "
-                            f"recorded as node: {gm!r}")
-        if scope == "arch" and profile == "node":
-            if "profile=node" not in qm:
-                errs.append(f"{row['case_id']}: Node arch QEMU machine lacks "
-                            f"profile=node")
+            if "profile vast" not in gm and "profile=vast" not in gm:
+                errs.append(f"{row['case_id']}: gem5 Vast embench run not "
+                            f"recorded as vast: {gm!r}")
+        if scope == "arch" and profile == "vast":
+            if "dadao-vast" not in qm:
+                errs.append(f"{row['case_id']}: Vast arch QEMU machine lacks "
+                            f"dadao-vast")
     return errs
 
 
@@ -1265,8 +1265,8 @@ def write_markdown(path, ident, rows, counts):
             profile, scope, " | ".join(str(c[k]) for k in keys)))
     lines.append("")
     lines.append("Cells not run by profile design: `tiny/arch` is N/A "
-                 "(`machine-profiles.yaml` `tiny.arch=false`); `node/picolibc` "
-                 "is not run (`node.picolibc=false`).")
+                 "(`machine-profiles.yaml` `tiny.arch=false`); `vast/picolibc` "
+                 "is not run (`vast.picolibc=false`).")
     lines.append("")
     lines.append("## Non-AGREE_PASS rows")
     lines.append("")
@@ -1336,29 +1336,29 @@ def _synth_rows():
     good.append(_row({"case_id": "inst/base/x.yaml#1:add", "profile": "tiny",
                       "scope": "inst"},
                      _rec("PASS", 0, {"expected_fault": None},
-                          "dadao-m1 -bios t", ""),
+                          "dadao-tiny -bios t", ""),
                      _rec("PASS", 0, {"expected_fault": None},
                           "gem5 tiny", "")))
     good.append(_row({"case_id": "arch/umon/m5_semi_writec",
-                      "profile": "node", "scope": "arch"},
+                      "profile": "vast", "scope": "arch"},
                      _rec("PASS", 64, {"console_expected": "41",
                                        "console_actual": "41",
                                        "console_ok": True,
                                        "bootrom_ok": True,
-                                       "machine": "dadao-m1,profile=node"},
-                          "dadao-m1,profile=node", ""),
+                                       "machine": "dadao-vast"},
+                          "dadao-vast", ""),
                      _rec("PASS", 64, {"console_expected": "41",
                                        "console_actual": "41",
                                        "console_ok": True,
                                        "bootrom_ok": True},
-                          "gem5 node", "")))
-    good.append(_row({"case_id": "embench/crc32-O0", "profile": "node",
+                          "gem5 vast", "")))
+    good.append(_row({"case_id": "embench/crc32-O0", "profile": "vast",
                       "scope": "embench"},
                      _rec("PASS", 0, {"guest_exit": 0},
-                          "dadao-m1,profile=node", "",
-                          "qemu-node-embench.py"),
+                          "dadao-vast", "",
+                          "qemu-vast-embench.py"),
                      _rec("PASS", 0, {"guest_exit": 0},
-                          "gem5 --profile node", "")))
+                          "gem5 --profile vast", "")))
     good.append(_row({"case_id": "picolibc/math_test", "profile": "tiny",
                       "scope": "picolibc"},
                      _rec("PASS", None, {"qemu_class": "pass"}, "", ""),
@@ -1383,8 +1383,8 @@ def _mutations(rows):
     agree_pass = pick(lambda r: r["verdict"] == "AGREE_PASS")
     agree_arch = pick(lambda r: r["verdict"] == "AGREE_PASS"
                       and r["scope"] == "arch")
-    node_emb = pick(lambda r: r["verdict"] == "AGREE_PASS"
-                    and r["scope"] == "embench" and r["profile"] == "node")
+    vast_emb = pick(lambda r: r["verdict"] == "AGREE_PASS"
+                    and r["scope"] == "embench" and r["profile"] == "vast")
     pico = pick(lambda r: r["case_id"].endswith("/math_test"))
 
     def subset(doc):
@@ -1435,23 +1435,23 @@ def _mutations(rows):
         doc["cases"].append(copy.deepcopy(doc["cases"][0]))
     out.append(("coverage_duplicate_row", dup_row))
 
-    if node_emb:
+    if vast_emb:
         def profile_leak(doc):
             r = next(x for x in doc["cases"]
-                     if x["case_id"] == node_emb["case_id"]
-                     and x["profile"] == "node")
+                     if x["case_id"] == vast_emb["case_id"]
+                     and x["profile"] == "vast")
             r["qemu"].pop("wrapper", None)
-            r["qemu"]["machine"] = "dadao-m1"
-        out.append(("node_embench_no_wrapper", profile_leak))
+            r["qemu"]["machine"] = "dadao-tiny"
+        out.append(("vast_embench_no_wrapper", profile_leak))
 
     tiny_row = pick(lambda r: r["profile"] == "tiny" and r["scope"] != "arch")
     if tiny_row:
-        def tiny_runs_node(doc):
+        def tiny_runs_vast(doc):
             r = next(x for x in doc["cases"]
                      if x["case_id"] == tiny_row["case_id"]
                      and x["profile"] == "tiny")
-            r["profile"] = "node"
-        out.append(("tiny_profile_leak", tiny_runs_node))
+            r["profile"] = "vast"
+        out.append(("tiny_profile_leak", tiny_runs_vast))
 
     if pico:
         def blocked_as_pass(doc):
@@ -1584,7 +1584,7 @@ def matrix_only(args):
 def parse_args(argv):
     ap = argparse.ArgumentParser(
         description="QEMU system <-> gem5 FS same-mode parity")
-    ap.add_argument("--profiles", default="tiny,node")
+    ap.add_argument("--profiles", default="tiny,vast")
     ap.add_argument("--scopes", default="inst,arch,embench,picolibc")
     ap.add_argument("--qemu", default=".dadao/cross-toolchain/bin/"
                                      "qemu-system-dadao")
@@ -1593,13 +1593,13 @@ def parse_args(argv):
                     default=".work/source/gem5/configs/dadao/fs.py")
     ap.add_argument("--bootrom-tiny", default="tools/testcases/lib/"
                                               "trampoline.bin")
-    ap.add_argument("--bootrom-node",
+    ap.add_argument("--bootrom-vast",
                     default=".dadao/tests/bootrom/step5/"
                             "bootrom_step5.bin")
-    ap.add_argument("--bootrom-node-inst",
+    ap.add_argument("--bootrom-vast-inst",
                     default=".dadao/tests/bootrom/step5/"
                             "bootrom_step5_inst.bin",
-                    help="Node inst matrix BootROM (Makefile NODE_BOOTROM_INST)")
+                    help="Vast inst matrix BootROM (Makefile VAST_BOOTROM_INST)")
     ap.add_argument("--embench-src", default=".work/source/embench-iot")
     ap.add_argument("--work-dir",
                     default="/tmp/opencode/qemu-gem5-parity/run")
@@ -1628,8 +1628,8 @@ def parse_args(argv):
     bad = [s for s in args.scopes if s not in SCOPES]
     if bad:
         ap.error(f"unknown scope(s): {bad}")
-    if args.profiles == ["node"] and "picolibc" in args.scopes:
-        ap.error("picolibc is Tiny-only (node.picolibc=false)")
+    if args.profiles == ["vast"] and "picolibc" in args.scopes:
+        ap.error("picolibc is Tiny-only (vast.picolibc=false)")
     return args
 
 
@@ -1730,8 +1730,8 @@ def _run_gem5_direct(args, profile, extra, log_path, bootrom=None):
     cmd = [os.path.abspath(args.gem5), "--outdir",
            os.path.join(args.work_dir, "direct-out", profile),
            os.path.abspath(args.gem5_config), "--profile", profile]
-    if bootrom is None and profile == "node":
-        bootrom = os.path.abspath(args.bootrom_node)
+    if bootrom is None and profile == "vast":
+        bootrom = os.path.abspath(args.bootrom_vast)
     if bootrom:
         cmd += ["--bootrom", os.path.abspath(bootrom)]
     cmd += extra
@@ -1791,7 +1791,7 @@ def direct_check(args, rows):
         if row["profile"] == "tiny":
             direct_bootrom = os.path.abspath(args.bootrom_tiny)
         else:
-            direct_bootrom = os.path.abspath(args.bootrom_node_inst)
+            direct_bootrom = os.path.abspath(args.bootrom_vast_inst)
         rc = _run_gem5_direct(args, row["profile"], extra,
                               os.path.join(args.work_dir, "direct",
                                            "inst.log"),
@@ -1805,14 +1805,14 @@ def direct_check(args, rows):
     row = picked.get("arch")
     if row and row["case_id"].startswith("arch/umon/"):
         name = row["case_id"].rsplit("/", 1)[1]
-        bin_path = os.path.join(args.work_dir, "arch-node-gem5", name + ".bin")
+        bin_path = os.path.join(args.work_dir, "arch-vast-gem5", name + ".bin")
         if not os.path.isfile(bin_path):
             errs.append(f"arch direct: artifact missing {bin_path}")
         else:
             console = os.path.join(args.work_dir, "direct", name + ".console")
             trace = os.path.join(args.work_dir, "direct", name + ".cpu.log")
             rc = _run_gem5_direct(
-                args, "node",
+                args, "vast",
                 ["--kernel", bin_path, "--console-out", console,
                  "--trace-cpu", trace],
                 os.path.join(args.work_dir, "direct", name + ".log"))

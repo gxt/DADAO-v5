@@ -43,7 +43,7 @@ echo "Running 100 st.o-rd with -d exec..."
 
 # Run with -d exec, capture output
 set +e
-timeout 15 "$QEMU" -M dadao-m1 -nographic \
+timeout 15 "$QEMU" -M dadao-tiny -nographic \
     -bios "$ROMFILE" -kernel "$KERNFILE" \
     -d exec -D "$LOGFILE" 2>&1
 EXIT_CODE=$?

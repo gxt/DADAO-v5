@@ -10,7 +10,7 @@
     harness/validator 共用同一解析函数（禁止各写一份）。
 
 选择方式（驱动统一）：
-  * 显式 ``--profile {tiny,node}``；
+  * 显式 ``--profile {tiny,vast}``；
   * 环境变量 ``DADAO_TEST_PROFILE``；
   * 缺省 ``tiny``（不改 Makefile）。
 
@@ -59,6 +59,10 @@ REQUIRED_FIELDS = (
     "qemu_ram_base", "qemu_ram_size", "qemu_bootrom_base",
     "qemu_bootrom_size", "qemu_reset_pc",
 )
+# M12（`spec/Machine-v5 §1`）：profile 名 -> QEMU 机器名。两台机器分开后
+# 不再用「单机型 + `profile=`」双入口；驱动一律按本表选机器名。
+PROFILE_MACHINE = {"tiny": "dadao-tiny", "vast": "dadao-vast"}
+
 _INT_FIELDS = (
     "bootrom_base", "bootrom_size", "reset_pc", "ram_base", "ram_size",
     "ram_end", "entry", "sp", "image_window", "kernel_base",
@@ -237,6 +241,17 @@ def load(name=None):
             "unknown machine profile %r (valid: %s)"
             % (name, ", ".join(sorted(profiles))))
     return profiles[name]
+
+
+def machine_name(profile=None):
+    """profile 名（或 Profile）-> QEMU `-M` 机器名；未登记 ⇒ ProfileError。"""
+    prof = profile if isinstance(profile, Profile) else load(profile)
+    try:
+        return PROFILE_MACHINE[prof.name]
+    except KeyError:
+        raise ProfileError(
+            "profile %r has no QEMU machine name (known: %s)"
+            % (prof.name, ", ".join(sorted(PROFILE_MACHINE)))) from None
 
 
 def _parse_int(text):

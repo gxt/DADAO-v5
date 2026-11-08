@@ -11,7 +11,7 @@
  *     address (ABS48) and called indirectly, so the same layout links.
  *
  * The image is link-only: `.far` sits outside the 16 MiB RAM window of the
- * `dadao-m1` machine, so it is never executed.
+ * `dadao-tiny` machine, so it is never executed.
  */
 
 __attribute__((noinline, section(".far"))) long far_fn(long x) { return x + 1; }

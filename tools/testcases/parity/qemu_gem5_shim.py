@@ -8,7 +8,7 @@ QEMU argv it already emits, and this shim maps that argv onto gem5.
 
 Supported QEMU subset (ADR-0048 D1/D2; task book §2):
 
-  -M / -machine  dadao-m1[,profile=tiny|node][,bootrom-image=<path>]
+  -M / -machine  dadao-tiny | dadao-vast[,bootrom-image=<path>]
   -bios <path>                     (Tiny flat BootROM)
   -kernel <path>                   (raw or ET_EXEC DADAO ELF)
   -semihosting-config enable=on,target=native[,chardev=<id>][,arg=<s>...]
@@ -46,7 +46,7 @@ import sys
 import tempfile
 
 USAGE = """usage: qemu_gem5_shim.py [QEMU system argv subset]
-  -M|-machine dadao-m1[,profile=tiny|node][,bootrom-image=PATH]
+  -M|-machine dadao-tiny | dadao-vast[,bootrom-image=PATH]
   -bios PATH | -kernel PATH
   -semihosting-config enable=on,target=native[,chardev=ID][,arg=S]...
   -chardev file,id=ID,path=PATH[,input-path=PATH]
@@ -88,29 +88,38 @@ def _split_kv(value: str, what: str) -> list[tuple[str, str]]:
     return items
 
 
+# M12 (`spec/Machine-v5 §1`): the profile is fixed by the machine name; the
+# two machines are separate `-M` entries (no `profile=` property).
+FIXED_MACHINES = {"dadao-tiny": "tiny", "dadao-vast": "vast"}
+# `node` is the pre-M12 spelling of the Vast profile; accepted as an alias
+# (environment / legacy callers) until m12-integ-001, never returned.
+PROFILE_ALIASES = {"node": "vast"}
+
+
 def parse_machine(value: str) -> tuple[str | None, str | None, str | None]:
     """Return (profile, bootrom, machine) from `-M/-machine`.
 
     `machine` is returned only for callers that need the identity; the shim
-    itself only accepts `dadao-m1`.
+    accepts `dadao-tiny` and `dadao-vast`.  The profile is implied by the
+    machine name, so `profile=` is rejected (the machines are separate types).
     """
     parts = _split_kv(value, "-machine")
     machine = parts[0][0]
-    if machine != "dadao-m1":
-        raise ShimError(f"-machine: unsupported machine {machine!r} "
-                        f"(only dadao-m1)")
-    profile = None
+    if machine not in FIXED_MACHINES:
+        raise ShimError(
+            f"-machine: unsupported machine {machine!r} (dadao-tiny or "
+            f"dadao-vast)")
     bootrom = None
     for key, val in parts[1:]:
-        if key == "profile":
-            if val not in ("tiny", "node"):
-                raise ShimError(f"-machine: unsupported profile {val!r}")
-            profile = val
-        elif key == "bootrom-image":
+        if key == "bootrom-image":
             bootrom = val
+        elif key == "profile":
+            raise ShimError(
+                f"-machine: {machine} has a fixed profile; drop `profile=` "
+                f"(got {val!r})")
         else:
             raise ShimError(f"-machine: unsupported property {key!r}")
-    return profile, bootrom, machine
+    return FIXED_MACHINES[machine], bootrom, machine
 
 
 def parse_semihosting(value: str) -> dict:
@@ -254,11 +263,12 @@ def parse(argv: list[str]) -> dict:
 
 def build_gem5_argv(cfg: dict, outdir: str, gem5: str, config: str) -> list[str]:
     profile = cfg["profile"] or os.environ.get("PARITY_GEM5_PROFILE", "tiny")
-    if profile not in ("tiny", "node"):
+    profile = PROFILE_ALIASES.get(profile, profile)
+    if profile not in ("tiny", "vast"):
         raise ShimError(f"profile {profile!r} unsupported")
     bootrom = cfg["bootrom"] or os.environ.get("PARITY_GEM5_BOOTROM")
-    if bootrom is None and profile == "node":
-        raise ShimError("node profile requires a BootROM (-machine "
+    if bootrom is None and profile == "vast":
+        raise ShimError("vast profile requires a BootROM (-machine "
                         "bootrom-image=... or PARITY_GEM5_BOOTROM)")
     argv = [gem5, "--outdir", outdir, config, "--profile", profile]
     if bootrom:

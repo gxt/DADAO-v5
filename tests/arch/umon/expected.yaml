@@ -14,11 +14,11 @@
 #   * every vector is a hand-written `*.s` assembled by the *own* toolchain
 #     (`llvm-mc --triple=dadao-unknown-elf -filetype=obj` then
 #     `llvm-objcopy -O binary --only-section=.text`) to a flat bin;
-#   * the bin is loaded at the Node profile ENTRY by `-kernel`;
-#   * the reset PC is 0xffff_ffff_0000 (cfx_power_hypv_excp_vector); the Node
+#   * the bin is loaded at the Vast profile ENTRY by `-kernel`;
+#   * the reset PC is 0xffff_ffff_0000 (cfx_power_hypv_excp_vector); the Vast
 #     BootROM (tests/shared/bootrom/step5/) runs power -> hmon, hmon installs
 #     the page table/PTW and hands the test body to *hypv*.
-#   * arch is Node-only (Tiny has no cfx).
+#   * arch is Vast-only (Tiny has no cfx).
 # No multi-TU ELF is used (ELF loading moved to M6, ISS-168).
 #
 # Observation channels (never "expected value from QEMU"):
@@ -34,7 +34,7 @@ schema: m5-vectors-v1
 
 conventions:
   load: "flat bin via llvm-mc -> llvm-objcopy -O binary; -kernel at the profile ENTRY"
-  entry: "Node only: power -> hmon (page tables/PTW) -> test body in hypv (user ruling 2026-11-02)"
+  entry: "Vast only: power -> hmon (page tables/PTW) -> test body in hypv (user ruling 2026-11-02)"
   reset_pc: "0xffff_ffff_0000 (cfx_power_hypv_excp_vector; DADAO-12 §2.1)"
   semihosting: "trap cfx_umon, 0x3FF00 (immu18[17:8]==0x3FF (0x3FF00-0x3FFFF)); rd16=service, rb16=argument block, rd8=return (contract-semihosting.md §1/§2)"
   permission: "cfx-level (ILLI / CFXREG / CFXPERM); NUPERM/NJPERM/NSPERM/NHPERM are the PTBR layer and not in M5 (ADR-0020 D9 / ADR-0045 / contract-see.md §3)"

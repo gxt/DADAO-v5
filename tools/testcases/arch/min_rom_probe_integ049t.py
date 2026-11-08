@@ -7,7 +7,7 @@ Expectations are derived by hand from
     space description; 16 blocks of `rc = 4i+0..3` = desc/start/size/attr;
     `exists = 0` => start/size/attr read 0; all read-only, a write of any rc
     => `CFXREG`), and §4/§5 (cause ids, exception entry flow);
-  - spec/Machine-v5 §1.1 (Node test machine: 4 MiB BootROM, i.e. cfx63
+  - spec/Machine-v5 §1.1 (Vast test machine: 4 MiB BootROM, i.e. cfx63
     start/size = `0x3ff_ffc0_0000` / `0x40_0000`; the upstream DADAO-12 §2.1
     256 KiB window is the pre-v5 baseline and does not apply to this profile);
   - .tao/contracts/contract-see.md §3 (cg7 block-level contract) and §2 (核内
@@ -46,7 +46,7 @@ import os, sys
 
 # TESTCASES-091t: probe geometry from the single profile source
 # (tests/shared/machine-profiles.yaml); runtime execution stays BLOCKED until
-# QEMU-079/080 provide the Tiny/Node machines.
+# QEMU-079/080 provide the Tiny/Vast machines.
 _MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
 if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
@@ -96,7 +96,7 @@ BLOCK0 = {
     2:  (0x3, 0x3FF_0000_0000, 0x1_0000, 0x7),   # smon  SRAM R|W|X
     3:  (0x3, 0x3FF_0000_0000, 0x1_0000, 0x7),   # hmon  SRAM R|W|X
     32: (0x3, 0x3FF_0000_0000, 0x1_0000, 0x3),   # pmem  SRAM R|W (X=0)
-    # spec/Machine-v5 §1.1: Node BootROM 4 MiB at 0xffff_ffc0_0000, i.e.
+    # spec/Machine-v5 §1.1: Vast BootROM 4 MiB at 0xffff_ffc0_0000, i.e.
     # offset 0x3ff_ffc0_0000 with size 0x40_0000 (start+size == 2^42).
     # QEMU's current cg7 table still publishes the old 256 KiB window
     # (0x3ff_fffc_0000/0x4_0000): `space_power` is BLOCKED against this

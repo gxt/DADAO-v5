@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run QEMU-based ISA semantic tests for dadao-m1.
+"""Run QEMU-based ISA semantic tests for the DADAO-v5 machines.
 
 Usage (TESTCASES-072t 迁入本目录；TESTCASES-076t 删除旧薄 wrapper):
   python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/reg-arith.yaml
@@ -50,9 +50,9 @@ DEFAULT_QEMU = str(_paths.host_toolchain_bin() / "qemu-system-dadao")
 # already derives BINARY_BASE/SP from the same table; here we only decide how
 # the ROM/启动链 is supplied:
 #   tiny: a flat `-bios` trampoline (64 KiB reset window)
-#   node: the 4 MiB step5 BootROM via the `bootrom-image` property; its
+#   vast: the 4 MiB step5 BootROM via the `bootrom-image` property; its
 #         power -> hmon -> hypv chain enables the PTW identity map that makes
-#         the Node PA-RAM test body reachable.
+#         the Vast PA-RAM test body reachable.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import machine_profile  # noqa: E402
 
@@ -74,10 +74,11 @@ def case_applies(case, profile_name):
 
 
 def _machine_args(profile_name, bootrom_path):
-    """QEMU machine arguments for the selected profile (QEMU-080t)."""
-    if profile_name == "node":
-        return ["-machine", "dadao-m1,profile=node,bootrom-image=" + bootrom_path]
-    return ["-machine", "dadao-m1", "-bios", bootrom_path]
+    """QEMU machine arguments for the selected profile (M12: split machines)."""
+    if profile_name == "vast":
+        return ["-machine", "dadao-vast,bootrom-image=" + bootrom_path]
+    return ["-machine", machine_profile.machine_name(profile_name),
+            "-bios", bootrom_path]
 
 # Default timeout (seconds) - ADR-0004 D3: 9s harness timeout
 DEFAULT_TIMEOUT = 9

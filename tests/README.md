@@ -78,9 +78,9 @@
 ```sh
 make check            # L1：仓库完整性（不跑被测语义）
 make check-modules    # L2：四 scope smoke（inst/arch/unit + tset×3；不含 FP 探针）
-make check-full       # L3：check-inst + check-arch + check-unit-full + 4 个 FP 探针 + test-m6（慢；tset smoke 仅在 L2、tset full 仅在夜跑）；逐成员报告落 .dadao/tests/l3/<UTC>/
-make night-run        # 夜跑（tset full×3 + 长 arch；独立 night.lock；主会话 setsid nohup 启动；小时级）
-make check-night-report  # 按需诊断：夜跑报告存在性/结构/结果（未跑 ⇒ 明确 FAIL；观测，不阻断收口）
+make check-full       # L3：check-inst + check-arch + check-unit-full + 4 个 FP 探针 + test-m6（慢；tset smoke 仅在 L2、tset full 仅在回归运行）；逐成员报告落 .dadao/tests/l3/<UTC>/
+make night-run        # 回归运行（tset full×3 + 长 arch；独立 night.lock；主会话 setsid nohup 启动；小时级）
+make check-night-report  # 按需诊断：回归运行报告存在性/结构/结果（未跑 ⇒ 明确 FAIL；观测，不阻断收口）
 make check-l3-report  # 里程碑层：L3 报告存在性/结构/四 scope 覆盖/全绿（未跑 ⇒ 明确 FAIL）
 
 make check-unit       # unit 代表集（仅 L2：lit + codegen/elf + ir-lli + picolibc fast）
@@ -89,7 +89,7 @@ make check-inst-smoke # inst 代表集（L2）
 make check-inst       # inst 全量（L3）
 make check-arch-smoke # arch 代表集（L2：SEE/semihosting + cfx 权限 + 25 服务）
 make check-arch       # arch 全 cfx（L3：arch-smoke + cfx min-ROM 探针 044/045/049）
-make check-tset-libc-smoke / check-tset-llvm-smoke / check-tset-embench-smoke   # tset 代表集（仅 L2；全量在夜跑）
+make check-tset-libc-smoke / check-tset-llvm-smoke / check-tset-embench-smoke   # tset 代表集（仅 L2；全量在回归运行）
 ```
 
 生成物管理：
@@ -97,7 +97,7 @@ make check-tset-libc-smoke / check-tset-llvm-smoke / check-tset-embench-smoke   
 ```sh
 make clean-tests SCOPE=inst DRY_RUN=1     # 列出将删的目录（不动盘）
 make clean-tests SCOPE=unit               # 真删（按 Process-09 §4 的 scope→目录映射表）
-make clean-tests SCOPE=l3                 # 删 L3 报告目录（SCOPE=night 删夜跑报告）
+make clean-tests SCOPE=l3                 # 删 L3 报告目录（SCOPE=night 删回归运行报告）
 make test-repro  SCOPE=unit               # 两次生产 + 构建产物逐字节比（运行记录排除）
 ```
 
@@ -107,7 +107,7 @@ make test-repro  SCOPE=unit               # 两次生产 + 构建产物逐字节
 **L3 报告**（`TESTCASES-083t`）：`make check-full` 逐成员执行并写只读报告
 `.dadao/tests/l3/<YYYYMMDDTHHMMSSZ>/`——`manifest.tsv`（`scope<TAB>suite<TAB>rc<TAB>log`，
 逐成员一行）、`meta.json`（command / 起止 UTC / commit / 工具链摘要）、`run.log`
-（汇总 + `[exit marker] rc=N`），与夜跑报告同格式（`tools/testcases/report_io.py`）。
+（汇总 + `[exit marker] rc=N`），与回归运行报告同格式（`tools/testcases/report_io.py`）。
 同戳不覆盖；**里程碑收尾**由 `make check-l3-report` 机检（缺报告 ⇒ 明确 FAIL）。
 
 ### 2.2 单个向量文件 / 单个用例（手工）
@@ -217,5 +217,5 @@ make check-picolibc-tests-full     # 全量（235，最近 1 fail / 3 blocked）
 - `docs/Process-05-里程碑TDD规范.md`：向量三层（编码/结构/执行）、独立 oracle、落点。
 - `docs/Process-07-门控分层规范.md`：L1/L2/L3 成员、触发点、新检查归属。
 - `docs/Process-08-测试运行产物与日志组织规范.md`：运行目录三件套、权威跑、日志命名。
-- `docs/Process-09-测试组织规范.md`：四个 scope、ID、索引 schema、生成物映射表、`clean-tests`/`test-repro`、夜跑、迁移分期（P6 定稿）。
+- `docs/Process-09-测试组织规范.md`：四个 scope、ID、索引 schema、生成物映射表、`clean-tests`/`test-repro`、回归运行、迁移分期（P6 定稿）。
 - `tests/INVENTORY.md`：现状盘点与已知问题清单。

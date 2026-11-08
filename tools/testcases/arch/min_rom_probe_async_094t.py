@@ -16,7 +16,7 @@ Expectations are derived by hand from:
   - .tao/contracts/contract-see.md «统一异步中断仲裁（测试机约定）»
     (pending in the target cfx cg5 rc5, lowest target cfxha first, one source
     per arbitration, mask release re-delivers);
-  - ADR-0045 D3, ADR-0043 (Node monitor layout).
+  - ADR-0045 D3, ADR-0043 (Vast monitor layout).
 Not from the QEMU implementation.
 
 The discriminating case pair is `timer_mask_open` vs `timer_mask_shut`: the

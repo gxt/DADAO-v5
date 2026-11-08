@@ -1,7 +1,7 @@
 # 跨引擎同模式 parity 驱动（`tools/testcases/parity/`）
 
 把 **QEMU system** 与 **gem5 FS** 的同 profile、同 case 结果做成可重跑、可机械判定的矩阵。
-配对**只允许** QEMU system ↔ gem5 FS（同 `tiny`/`node`），见 `ADR-0048 D1/D2`。
+配对**只允许** QEMU system ↔ gem5 FS（同 `tiny`/`vast`），见 `ADR-0048 D1/D2`。
 
 本目录**不是**新的测试向量体系：case 全部来自现有清单/驱动（`tests/inst/*.yaml`、
 `tests/arch/umon/expected.yaml`、`Makefile::ARCH_CFX_PROBES` + `min_rom_probe_046t`、
@@ -18,13 +18,13 @@
 
 ```sh
 python3 tools/testcases/parity/run_parity.py \
-  --profiles tiny,node --scopes inst,arch,embench,picolibc \
+  --profiles tiny,vast --scopes inst,arch,embench,picolibc \
   --qemu .dadao/cross-toolchain/bin/qemu-system-dadao \
   --gem5 .work/source/gem5/build/DADAO/gem5.opt \
   --gem5-config .work/source/gem5/configs/dadao/fs.py \
   --bootrom-tiny tools/testcases/lib/trampoline.bin \
-  --bootrom-node .dadao/tests/bootrom/step5/bootrom_step5.bin \
-  --bootrom-node-inst .dadao/tests/bootrom/step5/bootrom_step5_inst.bin \
+  --bootrom-vast .dadao/tests/bootrom/step5/bootrom_step5.bin \
+  --bootrom-vast-inst .dadao/tests/bootrom/step5/bootrom_step5_inst.bin \
   --jobs 8 --timeout 600 \
   --work-dir /tmp/opencode/qemu-gem5-parity/run \
   --json /tmp/opencode/qemu-gem5-parity/matrix.json \
@@ -53,7 +53,7 @@ python3 tools/testcases/parity/run_parity.py \
 - `embench/<bench>-O{0,2}`。
 - `picolibc/<test>`。
 
-另带 `profile ∈ {tiny,node}`、`scope ∈ {inst,arch,embench,picolibc}`。
+另带 `profile ∈ {tiny,vast}`、`scope ∈ {inst,arch,embench,picolibc}`。
 
 ## 判定
 
@@ -70,16 +70,16 @@ guest exit、`picolibc` 的分类）；**不比较**时序、性能、PC/日志�
 
 ## M11 收口口径（TESTCASES-098t）
 
-- **矩阵范围**：Tiny/Node 的 `inst`/`arch` + Tiny `picolibc`（`math_test` B7 对照）。Embench 不进本矩阵。
-- **M11 Node 验收范围**：只验收 `arch`（cfx/arch/PTW/模式）。`node/inst` 行仅作现场参考，不进入 Node 验收通过数。
-- **历史归类**：`GEM5-016t`/`QEMU-080t` 的 Node `inst`/`embench` 结果 = **历史，不计入 M11 Node 验收**；`node/embench` 不再生成。
-- **Node 不跑 Embench**：M11 起 Node profile 不跑 Embench。
-- **Embench 归属**：Tiny system/bare-metal = `run_embench_e2e.py`（`make test-m6`，guest exit 0）；SE user = `make check-tset-embench-full`（static/dynamic，夜跑成员）。
-- **SE tset（TESTCASES-100t 夜跑）**：报告 `2026-11-05-13` 4/4 成员 rc=0、`check-night-report` rc=0。llvm-ts static `discovered 222 - excluded 8 = total 214`，pass 214 / fail 0 / blocked 0；dynamic 同；blocked 不计入通过。
+- **矩阵范围**：Tiny/Vast 的 `inst`/`arch` + Tiny `picolibc`（`math_test` B7 对照）。Embench 不进本矩阵。
+- **M11 Vast 验收范围**：只验收 `arch`（cfx/arch/PTW/模式）。`vast/inst` 行仅作现场参考，不进入 Vast 验收通过数。
+- **历史归类**：`GEM5-016t`/`QEMU-080t` 的 Vast `inst`/`embench` 结果 = **历史，不计入 M11 Vast 验收**；`vast/embench` 不再生成。
+- **Vast 不跑 Embench**：M11 起 Vast profile 不跑 Embench。
+- **Embench 归属**：Tiny system/bare-metal = `run_embench_e2e.py`（`make test-m6`，guest exit 0）；SE user = `make check-tset-embench-full`（static/dynamic，回归运行成员）。
+- **SE tset（TESTCASES-100t 回归运行）**：报告 `2026-11-05-13` 4/4 成员 rc=0、`check-night-report` rc=0。llvm-ts static `discovered 222 - excluded 8 = total 214`，pass 214 / fail 0 / blocked 0；dynamic 同；blocked 不计入通过。
 - **math_test**：`picolibc/math_test` 仍 `BLOCKED`（B7 数值差异），现测 QEMU `0 errors / 76404 functions`，gem5 `238 errors / 76404 functions`（exit 1）；BLOCKED 不计入 `AGREE_PASS`。
 - **退出码状态**：快照按当前引擎实现生成；`SPEC-187t` 退出码规范已定稿、QEMU/gem5 实现尚未迁移，迁移后须再生成一次。
 - **`TESTCASES-102t` 起 arch 探针去 icount 化**：20 个 timing 用例改为读时设 deadline + 有界轮询（窗口 ≥10× 名义值），QEMU 与 gem5 用同一份探针实际对照；下方 2026-11-05 快照里的 20 个 `BLOCKED` 已过时，等矩阵任务重生成 `tests/parity/matrix-M11.md`。
-- **本快照（2026-11-05 晚，`GEM5-020t` 后）**：`node/arch` 249 `AGREE_PASS` + 20 `BLOCKED`（icount N/A）、`GEM5_ONLY_FAIL=0`、`DIFF=0`。上一版 14 条 `GEM5_ONLY_FAIL`（`QEMU-083t` 后 gem5 未对齐的历史快照）已由本次替换：14 条逐条转 `AGREE_PASS`，含 `arch/umon/m5_perm_badcombo_cfxreg`（自环已消除）。`GEM5-020t` 将 gem5 的 10 处 CFXREG fault 目标由 `cfxha` 改为当前运行模式 monitor，与 `QEMU-083t` 对齐。
+- **本快照（2026-11-05 晚，`GEM5-020t` 后）**：`vast/arch` 249 `AGREE_PASS` + 20 `BLOCKED`（icount N/A）、`GEM5_ONLY_FAIL=0`、`DIFF=0`。上一版 14 条 `GEM5_ONLY_FAIL`（`QEMU-083t` 后 gem5 未对齐的历史快照）已由本次替换：14 条逐条转 `AGREE_PASS`，含 `arch/umon/m5_perm_badcombo_cfxreg`（自环已消除）。`GEM5-020t` 将 gem5 的 10 处 CFXREG fault 目标由 `cfxha` 改为当前运行模式 monitor，与 `QEMU-083t` 对齐。
 - **引擎冻结**：`GEM5-020t` 评审期间共享 gem5 二进制被反复重建（实测中途 md5 变化导致整轮矩阵失效）；本快照用重建后二进制的**冻结副本**（md5 `d64b0f9…`，源 commit `1ad69d2…`，配置用源树 `fs.py`）生成，矩阵身份即该副本；证据目录保留冻结件与前后两轮作废日志。
 
 ## 已知例外（**不**参与硬门的 `AGREE_PASS`）
@@ -96,7 +96,7 @@ guest exit、`picolibc` 的分类）；**不比较**时序、性能、PC/日志�
 
 ## shim 参数子集与限制
 
-支持：`-M`/`-machine dadao-m1[,profile=tiny|node][,bootrom-image=]`、`-bios`、
+支持：`-M`/`-machine {dadao-tiny,dadao-vast}[,bootrom-image=]`、`-bios`、
 `-kernel`、`-semihosting-config enable=on,target=native[,chardev=][,arg=…]`、
 `-chardev file,id=…,path=…`、`-nographic`、`-display none`、`-monitor none`、
 `-serial none`、`-d cpu -D <log>`、`-dfilter <base+size,…>`（对 gem5 trace 做
@@ -109,20 +109,20 @@ gem5 进程 stdin，`SYS_READC` 读到与 QEMU 相同的字节（不再记 BLOCK
 `PARITY_GEM5`、`PARITY_GEM5_CONFIG`、`PARITY_GEM5_PROFILE`、
 `PARITY_GEM5_BOOTROM`、`PARITY_WORK_ROOT`。
 
-## Node embench wrapper（历史）
+## Vast embench wrapper（历史）
 
-> **Node embench 归历史、不计入 M11 Node 验收**（见上「M11 收口口径」）；M11 起 Node 不跑 Embench，当前矩阵不再生成 `node/embench` 行。本节只说明旧快照时期的 wrapper 机制。
+> **Vast embench 归历史、不计入 M11 Vast 验收**（见上「M11 收口口径」）；M11 起 Vast 不跑 Embench，当前矩阵不再生成 `vast/embench` 行。本节只说明旧快照时期的 wrapper 机制。
 
-`run_embench_e2e.py` 固定发 `-M dadao-m1`（Tiny 形状）。Node 矩阵的证据层
-wrapper 把它改写为 `dadao-m1,profile=node,bootrom-image=…`，其余 argv 原样，
+`run_embench_e2e.py` 固定发 `-M dadao-tiny`（Tiny 形状）。Vast 矩阵的证据层
+wrapper 把它改写为 `dadao-vast,bootrom-image=…`，其余 argv 原样，
 并把每次改写后的 argv 落 JSON 日志；矩阵 `qemu.machine` 从日志回填，判据检查
-Node/embench 行必须含 `profile=node` 且有 wrapper 记录。
+Vast/embench 行必须含 `dadao-vast` 且有 wrapper 记录。
 
 ## 证据与快照
 
 - 全量矩阵 JSON/Markdown 与日志落 `--work-dir`/`--json`/`--markdown`（默认
   `/tmp/opencode/qemu-gem5-parity/**`，gem5 `--outdir` 亦只落临时区）。
 - 入库快照 `tests/parity/matrix-M11.md` 由收口任务的证据层从现场 Markdown `cp`，
-  不手改数字；证据脚本同时校验计数自洽、引擎身份、Node 历史归类与反例注入。
+  不手改数字；证据脚本同时校验计数自洽、引擎身份、Vast 历史归类与反例注入。
 - 生成矩阵的标题与尾部 `Evidence script` 行不硬编码任务号/证据路径（改为通用标题
   + 指向本 README「证据与快照」）；快照随 M11 收口重生成自动刷新，不手改。

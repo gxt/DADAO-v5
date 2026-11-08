@@ -146,12 +146,12 @@ endef
 $(foreach t,$(GATE_LOCKED_TARGETS),$(eval $(call gate-locked-rule,$(t))))
 .PHONY: $(GATE_LOCKED_TARGETS) $(addprefix _locked-,$(GATE_LOCKED_TARGETS))
 
-# ── 夜跑独立锁 (INFRA-127t) ───────────────────────────────────────────────────
-# 夜跑是**观测**（只读构建产物、只写自己的报告目录），不是门控 ⇒ 用**独立锁**
+# ── 回归运行独立锁 (INFRA-127t；目标仍名 night-run，历史名) ─────────────────────
+# 回归运行是**观测**（只读构建产物、只写自己的报告目录），不是门控 ⇒ 用**独立锁**
 # `.dadao/night.lock`，**不列入** `GATE_LOCKED_TARGETS`，不占共享 `.dadao/gate.lock`：
-# 夜跑跑一小时期间，L1/L2/L3 与手动构建照常拿 gate.lock，不被夜跑挡住。
-# 外层 gate_lock.py 串行化两次夜跑；子 make 用 `GATE_LOCK=$(NIGHT_LOCK)` 继承，
-# 夜跑成员（`check-tset-*-full` / `check-arch`）经 ancestor 嵌套检测直接放行，
+# 回归运行跑一小时期间，L1/L2/L3 与手动构建照常拿 gate.lock，不被回归运行挡住。
+# 外层 gate_lock.py 串行化两次回归运行；子 make 用 `GATE_LOCK=$(NIGHT_LOCK)` 继承，
+# 回归运行成员（`check-tset-*-full` / `check-arch`）经 ancestor 嵌套检测直接放行，
 # 因此成员也不会去抢共享锁。规范见 docs/Process-07 §2。
 NIGHT_LOCK      ?= $(REPO_ROOT)/.dadao/night.lock
 NIGHT_LOCK_WAIT ?= $(GATE_LOCK_WAIT)
@@ -683,14 +683,14 @@ _locked-install-cfx-aliases:
 #   $(BOOTROM_DIR)/{bootrom.o,bootrom.elf,bootrom.bin,bootrom_app.o,bootrom_app.bin}
 BOOTROM_DIR = $(TEST_ARTIFACTS_DIR)/bootrom
 STEP5_BOOTROM_DIR = $(BOOTROM_DIR)/step5
-# Machine-v5-Node 4 MiB BootROM (QEMU-080t): supplied through the
+# Machine-v5-Vast 4 MiB BootROM (QEMU-080t): supplied through the
 # `bootrom-image` machine property; the flat 64 KiB `-bios` window stays Tiny.
 # TESTCASES-092t: two hmon fault-policy variants from the same hmon.S:
 #   bootrom_step5.bin      HMON_FAULT_POLICY=0 (resume: arch / check-arch*)
 #   bootrom_step5_inst.bin HMON_FAULT_POLICY=1 (exit: inst harness observes
 #                          the machine-fault exit code instead of 0xB7)
-NODE_BOOTROM = $(STEP5_BOOTROM_DIR)/bootrom_step5.bin
-NODE_BOOTROM_INST = $(STEP5_BOOTROM_DIR)/bootrom_step5_inst.bin
+VAST_BOOTROM = $(STEP5_BOOTROM_DIR)/bootrom_step5.bin
+VAST_BOOTROM_INST = $(STEP5_BOOTROM_DIR)/bootrom_step5_inst.bin
 _locked-build-bootrom:
 	@test -x $(LLVM_MC_BIN) || { echo "build-bootrom: ERROR: $(LLVM_MC_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLD_BIN) || { echo "build-bootrom: ERROR: $(LLD_BIN) not found — run 'make install-host' first"; exit 1; }
@@ -762,7 +762,7 @@ _locked-test-picolibc-smoke: build-picolibc
 # representative set — one test per Meson suite, mechanically derived by the
 # harness (no hand-picked list).  The harness configures the picolibc Meson test
 # build (for the authoritative test inventory), then compiles/links/runs each
-# test under qemu-system-dadao -machine dadao-m1 + semihosting.  Fails if any
+# test under qemu-system-dadao -machine dadao-tiny + semihosting.  Fails if any
 # representative reports a genuine test failure (fail=0); backend/library gaps
 # are reported separately as `blocked`, never as silent skips.
 _locked-check-picolibc-tests: build-picolibc
@@ -874,7 +874,7 @@ _locked-check-clmul-probe: install-host build-musl
 # check-testcases-suites (TESTCASES-045t stage 1): drive the two upstream
 # *reference* suites -- libc-test and llvm-test-suite -- through the static musl
 # flow (compile -> ld.lld -T dadao-tiny.lds -> flat image -> qemu-system-dadao
-# -machine dadao-m1, "path B").  Upstream's own harnesses are unusable here
+# -machine dadao-tiny, "path B").  Upstream's own harnesses are unusable here
 # (libc-test's runtest.exe needs fork/waitpid/signals; llvm-test-suite's
 # CMake/lit driver assumes a hosted OS), so tools/testcases/run_suite.py drives
 # the corpora directly and classifies every case live.
@@ -954,9 +954,9 @@ _locked-check-tset-embench-smoke:
 	  if [ $$rc -ne 0 ]; then echo "check-tset-embench-smoke: FAIL (rc=$$rc; log .work/log/testcases/check-tset-embench-smoke.log)"; exit $$rc; fi; \
 	  echo "check-tset-embench-smoke: PASS"
 
-# ── tset full（夜跑成员；TESTCASES-076t，P6）────────────────────────────────────
+# ── tset full（回归运行成员；TESTCASES-076t，P6）────────────────────────────────────
 # 「full」= 该套件的**全部可枚举用例 × 两种链接档**（static / dynamic），**只在**
-# `make night-run` 里跑；不进 L2/L3（否则每次 check-full 变成夜跑）。
+# `make night-run` 里跑；不进 L2/L3（否则每次 check-full 变成回归运行）。
 # 三个驱动的 `--link-mode` 口径：libc-test / embench 只接受 static|dynamic，llvm-ts
 # 另有 both —— 这里**逐档各跑一次**，三套件同一口径（日志、rc 逐档记录）。
 TSET_FULL_MODES ?= static dynamic
@@ -1054,8 +1054,8 @@ _locked-clean-work:
 # L2 `make check-modules`（几十~几百秒）= **四 scope 代表集**（inst/arch/unit + tset×3）
 # L3 `make check-full`（几百~几千秒）   = **全量**（check-inst/check-arch/check-unit-full
 #                                        + 4 个 FP 探针）+ test-m6（全量 lit + ir-lli + Embench E2E）
-# 夜跑 `make night-run`（小时级）     = tset full×3 + 长 arch；报告 `.dadao/tests/night/<date>/`
-# tset（TESTCASES-082t）：smoke 只在 L2（`check-modules`），full 只在夜跑（`night-run`）；
+# 回归运行 `make night-run`（小时级）     = tset full×3 + 长 arch；报告 `.dadao/tests/night/<date>/`
+# tset（TESTCASES-082t）：smoke 只在 L2（`check-modules`），full 只在回归运行（`night-run`）；
 # L3 不直接列 tset smoke ⇒ 「一个检查只在一层」（docs/Process-07 §4）。
 # 说明（TESTCASES-076t）：`check-interface`/`check-code-range` 只做静态/合成 fixture 断言
 # ⇒ 按 docs/Process-07 §3 判据 1 归 L1（原在 L2）。四个 FP 探针（rnd/minmax/fma/clmul）
@@ -1082,13 +1082,13 @@ _locked-check-modules: check-inst-smoke check-arch-smoke check-unit check-tset-l
 #   inst 全量 : check-inst；arch 全量 : check-arch
 #   unit 全量 : check-unit-full（= check-unit + check-lit-full）；`check-unit` 只在 L2 **直接**列出，
 #               此处经**前置依赖**间接跑到 ⇒ 符合 Process-07 §4「被上层前置依赖不算重复」
-#   tset      : **不直接列出**（L2 已有 smoke；tset full 只在夜跑 night-run）；
+#   tset      : **不直接列出**（L2 已有 smoke；tset full 只在回归运行 night-run）；
 #               `test-m6` 的 Embench E2E 是集成步骤，不算 tset smoke 重复
 #   fp 语义   : 4 个 FP 探针（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖；已移出 L2，只在 L3）
 #   整链      : test-m6（Embench E2E + ir-lli + 全量 lit；其 [1/3] 亦跑 check-lit-full）
 #   报告      : 由 l3_run.py **逐成员**跑上面 8 个目标并按 `scope:suite` 记 rc，落
 #               `<TESTS_ROOT>/l3/<YYYYMMDDTHHMMSSZ>/`（manifest.tsv/meta.json/run.log，
-#               与夜跑同格式），由里程碑层 `check-l3-report` 消费（TESTCASES-083t）。
+#               与回归运行同格式），由里程碑层 `check-l3-report` 消费（TESTCASES-083t）。
 _locked-check-full:
 	@$(PYTHON) tools/testcases/l3_run.py --root "$(TESTS_ROOT)"
 
@@ -1197,7 +1197,7 @@ check-temp-dirs:
 # ③ 接 `check_tasks.py --strict`（漏收尾 = 0）。
 # ④ 同步异常不可屏蔽（`check-sync-nonmaskable`，用户 2026-10-26 裁定「同步异常全部不可屏蔽；
 #    仅异步可屏蔽」）——扫 DADAO-12/22/23 异常原因表，异步源（IPI/TIMER/UART*/…）之外出现「可」即红。
-# ⑤ 夜跑**不阻断收口**（用户 2026-11-06 裁定 A）：夜跑 = 观测，成员/期望/known-fail
+# ⑤ 回归运行**不阻断收口**（用户 2026-11-06 裁定 A）：回归运行 = 观测，成员/期望/known-fail
 #    随演进随时调整；`check-night-report` 保留为**按需诊断**（`make check-night-report`，
 #    判据与 `--self-test` 不变），**不列入本目标依赖**。
 # ⑥ L3 报告存在性/结构/四 scope 覆盖/结果（`check-l3-report`，TESTCASES-083t）——没跑
@@ -1441,7 +1441,7 @@ _locked-check-lit-full:
 #   llc -march=dadao <prog.ll> -> .s; cat minimal_crt0.s prog.s -> .s;
 #   llvm-mc --triple=dadao -filetype=obj -> .o;
 #   llvm-objcopy -O binary --only-section=.text -> .bin;
-#   qemu-system-dadao -M dadao-m1 -bios trampoline.bin -kernel .bin ...
+#   qemu-system-dadao -M dadao-tiny -bios trampoline.bin -kernel .bin ...
 # The guest process exit code is compared against tests/unit/llvm/codegen/expected.yaml.
 # Fail-closed: any mismatch / timeout / machine fault => non-zero exit.
 LLC_BIN = $(HOST_TOOLCHAIN_BIN)/llc
@@ -1479,7 +1479,7 @@ _locked-test-codegen: install-host
 #   llvm-mc --triple=dadao -filetype=obj tests/shared/crt0/minimal_crt0.s -> crt0.o;
 #   per TU llc -march=dadao -filetype=obj                            -> <tu>.o;
 #   ld.lld -T tests/shared/linker/dadao-tiny.lds crt0.o <tu>.o ... -o <prog>.elf;
-#   qemu-system-dadao -M dadao-m1 -kernel <prog>.elf ...
+#   qemu-system-dadao -M dadao-tiny -kernel <prog>.elf ...
 # The guest process exit code is compared against the independent M4 manifest
 # tests/unit/llvm/codegen/m4/expected.yaml (TESTCASES-030t/032t).
 # Fail-closed: any mismatch / timeout / build-step non-zero => non-zero exit.
@@ -1581,8 +1581,8 @@ _locked-check-arch-smoke: install-host build-bootrom
 	@test -f $(BOOTROM_DIR)/step5/bootrom_step5.bin || { echo "check-arch-smoke: ERROR: $(BOOTROM_DIR)/step5/bootrom_step5.bin not found (run 'make build-bootrom')"; exit 1; }
 	@mkdir -p .work/log/arch
 	@rm -rf $(ARCH_E2E_WORK) $(ARCH_PROBE_WORK)
-	@echo "check-arch-smoke: [1/2] forward semihosting + cfx-level permission counter-examples (Node)"; \
-	  DADAO_TEST_PROFILE=node $(PYTHON) $(ARCH_M5_RUNNER) \
+	@echo "check-arch-smoke: [1/2] forward semihosting + cfx-level permission counter-examples (Vast)"; \
+	  DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_M5_RUNNER) \
 	    --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
 	    --qemu $(QEMU_BIN) --bootrom $(BOOTROM_DIR)/step5/bootrom_step5.bin \
 	    --vectors-dir $(ARCH_M5_DIR) --expected $(ARCH_M5_DIR)/expected.yaml \
@@ -1590,8 +1590,8 @@ _locked-check-arch-smoke: install-host build-bootrom
 	  rc=$$?; \
 	  tail -n 30 $(ARCH_SMOKE_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (forward/permission rc=$$rc)"; exit $$rc; fi
-	@echo "check-arch-smoke: [2/2] 25-service table coverage (min_rom_probe_046t; Node profile)"; \
-	  DADAO_TEST_PROFILE=node $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_046t.py --qemu $(QEMU_BIN) > $(ARCH_PROBE_LOG) 2>&1; \
+	@echo "check-arch-smoke: [2/2] 25-service table coverage (min_rom_probe_046t; Vast profile)"; \
+	  DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_046t.py --qemu $(QEMU_BIN) > $(ARCH_PROBE_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -n 4 $(ARCH_PROBE_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (service coverage rc=$$rc)"; exit $$rc; fi
@@ -1602,7 +1602,7 @@ _locked-check-arch: check-arch-smoke
 	@mkdir -p .work/log/arch
 	@fail=0; for p in $(ARCH_CFX_PROBES); do \
 	  echo "check-arch: [$$p] cfx min-ROM probe"; \
-	  DADAO_TEST_PROFILE=node $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_$$p.py --qemu $(QEMU_BIN) > .work/log/arch/check-arch-probe-$$p.log 2>&1; \
+	  DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_$$p.py --qemu $(QEMU_BIN) > .work/log/arch/check-arch-probe-$$p.log 2>&1; \
 	  rc=$$?; \
 	  tail -n 3 .work/log/arch/check-arch-probe-$$p.log; \
 	  if [ $$rc -ne 0 ]; then echo "check-arch: FAIL (min_rom_probe_$$p rc=$$rc)"; fail=1; fi; \
@@ -1726,7 +1726,7 @@ check-generator-sync:
 check-decodetree-repro:
 	@$(PYTHON) tools/qemu/check_decodetree_repro.py
 
-# QEMU 形态哨兵 (ISS-225, L1): dadao-m1 的 umon syscall 接管实现符号 0 命中
+# QEMU 形态哨兵 (ISS-225, L1): dadao-v5 的 umon syscall 接管实现符号 0 命中
 # （helper.c.patch 必须存在且被扫描）。无需 qemu 二进制。
 check-qemu-forms:
 	@$(PYTHON) tools/qemu/semantics_gate.py --form-check
@@ -1765,24 +1765,24 @@ INST_SEM_LOG = .work/log/qemu/check-inst.log
 INST_TINY_LOG = .work/log/qemu/check-inst-tiny.log
 INST_TRAMPOLINE = tools/testcases/lib/trampoline.bin
 # TESTCASES-092t §6: two segments, each with its own rc; any non-zero ⇒ red.
-#   [1/2] Node 全量：profile=node + the exit-policy BootROM (observed fault codes)
+#   [1/2] Vast 全量：dadao-vast + the exit-policy BootROM (observed fault codes)
 #   [2/2] Tiny 子集：profile=tiny + the flat 64 KiB trampoline + only the cases
 #         that explicitly name the tiny profile (44)
 _locked-check-inst: build-bootrom
 	@mkdir -p .work/log/qemu || { echo "check-inst: ERROR: cannot create .work/log/qemu"; exit 1; }
-	@test -f $(NODE_BOOTROM) || { echo "check-inst: ERROR: $(NODE_BOOTROM) not found"; exit 1; }
-	@test -f $(NODE_BOOTROM_INST) || { echo "check-inst: ERROR: $(NODE_BOOTROM_INST) not found"; exit 1; }
+	@test -f $(VAST_BOOTROM) || { echo "check-inst: ERROR: $(VAST_BOOTROM) not found"; exit 1; }
+	@test -f $(VAST_BOOTROM_INST) || { echo "check-inst: ERROR: $(VAST_BOOTROM_INST) not found"; exit 1; }
 	@test -f $(INST_TRAMPOLINE) || { echo "check-inst: ERROR: $(INST_TRAMPOLINE) not found"; exit 1; }
-	@echo "check-inst: [1/2] Node full set (profile=node)"
-	@DADAO_TEST_PROFILE=node $(PYTHON) tools/qemu/semantics_gate.py \
+	@echo "check-inst: [1/2] Vast full set (dadao-vast)"
+	@DADAO_TEST_PROFILE=vast $(PYTHON) tools/qemu/semantics_gate.py \
 	    --vectors $(INST_DIR) --gate-dir $(INST_SEM_DIR) \
-	    --qemu $(QEMU_BIN) --trampoline $(NODE_BOOTROM_INST) \
+	    --qemu $(QEMU_BIN) --trampoline $(VAST_BOOTROM_INST) \
 	    --jobs $(JOBS) > $(INST_SEM_LOG) 2>&1; \
 	  rc=$$?; \
 	  grep -E "Results:|skipped_profile" $(INST_SEM_LOG) | tail -2; \
 	  tail -20 $(INST_SEM_LOG); \
 	  if [ $$rc -ne 0 ]; then \
-	    echo "check-inst: FAIL (node segment rc=$$rc)"; \
+	    echo "check-inst: FAIL (vast segment rc=$$rc)"; \
 	    exit $$rc; \
 	  fi
 	@echo "check-inst: [2/2] Tiny subset (profile=tiny, --only-profile-cases)"
@@ -1797,7 +1797,7 @@ _locked-check-inst: build-bootrom
 	    echo "check-inst: FAIL (tiny segment rc=$$rc)"; \
 	    exit $$rc; \
 	  fi
-	@echo "check-inst: PASS (node full + tiny subset)"
+	@echo "check-inst: PASS (vast full + tiny subset)"
 
 # inst 语义**冒烟**门控 (INFRA-058t, L2; TESTCASES-072t 更名+搬家):
 # `check-inst` 的代表子集。代表集按 (class, mnemonic) **机械派生**（每组取第一条，
@@ -1808,16 +1808,16 @@ INST_SMOKE_LOG = .work/log/qemu/check-inst-smoke.log
 _locked-check-inst-smoke: build-bootrom
 	@mkdir -p .work/log/qemu
 	@test -x $(QEMU_BIN) || { echo "check-inst-smoke: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
-	@test -f $(NODE_BOOTROM_INST) || { echo "check-inst-smoke: ERROR: $(NODE_BOOTROM_INST) not found"; exit 1; }
-	@DADAO_TEST_PROFILE=node $(PYTHON) tools/testcases/inst/run_qemu_smoke.py --qemu $(QEMU_BIN) \
-	    --trampoline $(NODE_BOOTROM_INST) --vector-dir tests/inst/base \
+	@test -f $(VAST_BOOTROM_INST) || { echo "check-inst-smoke: ERROR: $(VAST_BOOTROM_INST) not found"; exit 1; }
+	@DADAO_TEST_PROFILE=vast $(PYTHON) tools/testcases/inst/run_qemu_smoke.py --qemu $(QEMU_BIN) \
+	    --trampoline $(VAST_BOOTROM_INST) --vector-dir tests/inst/base \
 	    --work-dir $(INST_SMOKE_WORK) --jobs $(JOBS) > $(INST_SMOKE_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -10 $(INST_SMOKE_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "check-inst-smoke: FAIL (rc=$$rc)"; exit $$rc; fi; \
 	  echo "check-inst-smoke: PASS"
 
-# ── 生成物管理 + 夜跑（TESTCASES-076t，P6）─────────────────────────────────────
+# ── 生成物管理 + 回归运行（TESTCASES-076t，P6）─────────────────────────────────────
 # 生成物根 = `test_artifacts_dir`（`manifests/install-dirs.lock.toml`，禁硬编码）。
 # scope → 目录的**映射表**单一真源 = `tools/testcases/manage_tests.py`（`SCOPE_MAP`）；
 # 顶层出现未归属目录 ⇒ 红（防新产物目录悄悄长出）。
@@ -1842,14 +1842,14 @@ _locked-test-repro:
 # make night-run  —— **由主会话** `setsid nohup make night-run > log 2>&1 &` 启动
 # （本目标不自带 nohup，避免嵌套）；成员 = tset full×3 + 长 arch；报告只读落
 # `<TESTS_ROOT>/night/<YYYY-MM-DD-HH>/`（manifest.tsv / meta.json / run.log）。
-# 独立锁（`NIGHT_LOCK`，不在 `GATE_LOCKED_TARGETS` 内）⇒ 夜跑不阻断 L1/L2/L3。
+# 独立锁（`NIGHT_LOCK`，不在 `GATE_LOCKED_TARGETS` 内）⇒ 回归运行不阻断 L1/L2/L3。
 # `NIGHT_MEMBERS='scope:suite=cmd'` 只跑单个成员（自测/分片）；`NIGHT_MACHINE_ID`
 # 覆盖 meta.machine_id（默认 hostname）。
 _locked-night-run:
 	@GATE_LOCK="$(GATE_LOCK)" $(PYTHON) tools/testcases/night_run.py --root "$(TESTS_ROOT)" $(if $(NIGHT_DATE),--date $(NIGHT_DATE),) $(if $(NIGHT_DRY_RUN),--dry-run,) $(if $(NIGHT_ALLOW_OVERWRITE),--allow-overwrite,) $(if $(NIGHT_MEMBERS),--member "$(NIGHT_MEMBERS)",) $(if $(NIGHT_MACHINE_ID),--machine "$(NIGHT_MACHINE_ID)",)
 
 # make check-night-report —— **按需诊断**（观测口径，**不入**里程碑收口；用户 2026-11-06
-# 裁定 A）：报告**存在性 + 结构 + 结果**（不跑长套件）；未跑夜跑 ⇒ 明确 FAIL（不是 SKIP）。
+# 裁定 A）：报告**存在性 + 结构 + 结果**（不跑长套件）；未跑回归运行 ⇒ 明确 FAIL（不是 SKIP）。
 # `NIGHT_DATE=` 指定日期，默认最新。
 check-night-report:
 	@$(PYTHON) tools/testcases/check_night_report.py --root "$(TESTS_ROOT)" $(if $(NIGHT_DATE),--date $(NIGHT_DATE),)

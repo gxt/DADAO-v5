@@ -21,7 +21,7 @@ DADAO executable:
    first PT_LOAD) and cross-checked against ``file(1)``; the disassembly must
    contain the ``trap cfx0, 0`` syscall entry instruction (the name-aware
    disassembler may spell it ``trap cfx_umon, 0``; both are accepted).  Running the program
-   on the dadao-m1 machine is stage B and is NOT done here.
+   on the dadao-tiny machine is stage B and is NOT done here.
 
 INFRA-085t stage A1 ("shared library and PIC") adds a second, SHARED mode
 (``--shared``, ``make build-musl-shared``):

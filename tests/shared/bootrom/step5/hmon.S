@@ -1,9 +1,9 @@
-@@ hmon.S — Machine-v5-Node hmon stage (TESTCASES-091t; fault policy 092t).
+@@ hmon.S — Machine-v5-Vast hmon stage (TESTCASES-091t; fault policy 092t).
 @@
 @@ Linked at HMON_BASE (0x0fff_0000_0000, 64 KiB) and entered by
-@@ `trap cfx_hmon, <boot_magic>` from the Node power stage.
+@@ `trap cfx_hmon, <boot_magic>` from the Vast power stage.
 @@
-@@ Node (user ruling 2026-11-02): hmon drives cfx_pmem, installs a first-level
+@@ Vast (user ruling 2026-11-02): hmon drives cfx_pmem, installs a first-level
 @@ page table with four 512 MiB superpages covering PA [0, 2 GiB) (SPF=0xFF),
 @@ enables PTW, sets the cfx_umon hypv vector to the profile ENTRY, and traps
 @@ into the test body in hypv.  smon is reserved and not used by this stage.
@@ -32,7 +32,7 @@
 @@       hmon, i.e. hypv (bit5:4 = 11), hence the 0xF0 base.
 @@     * An unmatched cause stays on hmon_exit_b7 (unhandled fault).
 
-	.include "tests/shared/asm/machine-node.inc"
+	.include "tests/shared/asm/machine-vast.inc"
 	.include "tests/shared/asm/machine.inc"
 
 	.ifndef	HMON_FAULT_POLICY

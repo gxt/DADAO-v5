@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Build the Machine-v5-Node 4 MiB BootROM image from the three step5 ELFs.
+"""Build the Machine-v5-Vast 4 MiB BootROM image from the three step5 ELFs.
 
 Spec sources (task file is the interface truth for this artifact):
   * .tao/tasks/integ/INTEG-046t-Step5启动链落地.md §接口规范 1 (image index
     table: 16-byte big-endian header + 32-byte entries) and §接口规范 2
     (ELF image checks, enforced by the *firmware*; this builder only packs).
   * .tao/adr/adr-0043-boot-handoff.md D1/D2 (image index table, ELF images,
-    64 KiB reset window) and the `node` profile in
+    64 KiB reset window) and the `vast` profile in
     tests/shared/machine-profiles.yaml (4 MiB BootROM).
 
 Layout produced (all big-endian):
@@ -45,7 +45,7 @@ MAGIC = 0x44424F54
 VERSION = 1
 COUNT = 2
 DEFAULT_BOOT_MAGIC = 0x30001
-# Machine geometry is filled from the selected profile in main() (Node by
+# Machine geometry is filled from the selected profile in main() (Vast by
 # default); the module values are placeholders so helpers stay importable.
 BOOTROM_SIZE = None
 POWER_OFF = None
@@ -395,7 +395,7 @@ def main():
     ap.add_argument("--boot-magic", default=hex(DEFAULT_BOOT_MAGIC))
     ap.add_argument("--hmon-flags", default=hex(FLAG_REQUIRED | FLAG_LOAD | FLAG_VERIFY))
     ap.add_argument("--smon-flags", default=hex(FLAG_REQUIRED | FLAG_LOAD | FLAG_VERIFY))
-    ap.add_argument("--profile", default="node",
+    ap.add_argument("--profile", default="vast",
                     choices=sorted(machine_profile.all_profiles()))
     ap.add_argument("--max-image-size", type=int, default=DEFAULT_MAX)
     ap.add_argument("--self-test", action="store_true")

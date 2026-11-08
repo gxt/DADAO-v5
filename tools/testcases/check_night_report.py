@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""check_night_report.py -- 夜跑报告**存在性 + 结构**门控（TESTCASES-076t，P6）。
+"""check_night_report.py -- 回归运行报告**存在性 + 结构**门控（TESTCASES-076t，P6）。
 
-判据（`docs/Process-09 §8` 的夜跑观测口径：只消费报告，**不内联跑长套件**；按需诊断，不阻断收口）
+判据（`docs/Process-09 §8` 的回归运行观测口径：只消费报告，**不内联跑长套件**；按需诊断，不阻断收口）
 -------------------------------------------------------------------------------
 报告根：``<test-artifacts>/night/<YYYY-MM-DD>/``
 
@@ -12,8 +12,8 @@
 3. **结构**：``manifest.tsv`` 表头 = ``scope\tsuite\trc\tlog``，数据行 ≥1、四列、
    ``rc`` 为整数（计数现场统计）。
 4. **覆盖**：必须含 ``tset`` 的三套件（``libc-test`` / ``llvm-ts`` / ``embench``）
-   与 ``arch`` 一行 —— 缺 ⇒ FAIL（防"只跑了半个夜跑"也绿）。
-5. **结果**：任一 ``rc != 0`` ⇒ FAIL（报告存在但夜跑红）；夜跑红仅作观测记录，不阻断里程碑收口。
+   与 ``arch`` 一行 —— 缺 ⇒ FAIL（防"只跑了半个回归运行"也绿）。
+5. **结果**：任一 ``rc != 0`` ⇒ FAIL（报告存在但回归运行红）；回归运行红仅作观测记录，不阻断里程碑收口。
 
 退出码：0 PASS / 1 FAIL / 2 用法错误。``--self-test`` 用临时树逐条注入。
 """
@@ -59,14 +59,14 @@ def check(root: Path, date: str | None) -> Report:
     rep = Report()
     night_root = root / "night"
     if not night_root.is_dir():
-        rep.fail(f"夜跑报告目录不存在：{night_root}（先跑 `make night-run`；"
+        rep.fail(f"回归运行报告目录不存在：{night_root}（先跑 `make night-run`；"
                  "它由主会话 setsid nohup 启动）")
         return rep
 
     if date:
         target = night_root / date
         if not target.is_dir():
-            rep.fail(f"指定日期的夜跑报告不存在：{target}")
+            rep.fail(f"指定日期的回归运行报告不存在：{target}")
             return rep
     else:
         target = latest_date_dir(night_root)
@@ -132,7 +132,7 @@ def check(root: Path, date: str | None) -> Report:
         tset = {r["suite"] for r in rep.rows if r["scope"] == "tset"}
         missing = sorted(REQUIRED_TSET - tset)
         if missing:
-            rep.fail(f"manifest 缺 tset 套件行：{', '.join(missing)}（夜跑 = tset full + 长 arch）")
+            rep.fail(f"manifest 缺 tset 套件行：{', '.join(missing)}（回归运行 = tset full + 长 arch）")
         scopes = {r["scope"] for r in rep.rows}
         miss_scopes = sorted(REQUIRED_SCOPES - scopes)
         if miss_scopes:
@@ -232,7 +232,7 @@ def cmd_selftest(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="夜跑报告存在性/结构门控")
+    ap = argparse.ArgumentParser(description="回归运行报告存在性/结构门控")
     ap.add_argument("--root", default=str(REPO_ROOT / ".dadao" / "tests"),
                     help="test-artifacts 根（.dadao/tests）")
     ap.add_argument("--date", default=None, help="指定报告日期 YYYY-MM-DD（默认最新）")

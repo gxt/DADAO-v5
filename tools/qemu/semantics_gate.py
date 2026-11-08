@@ -27,8 +27,8 @@
   - `components/qemu/patches/target/dadao/helper.c.patch` 必须存在且可读
     （「文件被引用」断言；缺文件 ⇒ FAIL，不得静默跳过）；
   - 该补丁与 `components/qemu/patches/**`、`tools/**` 中**不得**出现
-    `dadao-m1` 的 umon syscall 接管实现符号（用户 2026-10-15 已裁定
-    「不在 dadao-m1 上实现另一套 syscall 模拟」⇒ 需要形态哨兵）。
+    `dadao-v5` 的 umon syscall 接管实现符号（用户 2026-10-15 已裁定
+    「不在 dadao-v5 上实现另一套 syscall 模拟」⇒ 需要形态哨兵）。
     符号名在代码中以拼接构造，避免本文件自身命中被扫。
 
 日志自证（`ISS-236`）：默认档打印载体清单 + 载体数 + 用例总数 + 逐册用例数
@@ -95,8 +95,8 @@ KNOWN_DEFERRED = {
 }
 
 
-# ── ISS-225：dadao-m1 服务撤回后的形态哨兵 ──────────────────────────────────
-# 用户 2026-10-15 裁定「我不需要在 dadao-m1 上实现另外一套 syscall 的模拟」。
+# ── ISS-225：dadao-v5 服务撤回后的形态哨兵 ──────────────────────────────────
+# 用户 2026-10-15 裁定「我不需要在 dadao-v5 上实现另外一套 syscall 的模拟」。
 # 符号名以拼接构造：本文件自身不会命中被扫文本（同时保证 grep 静态搜索为 0）。
 _UMON_FORBIDDEN = (
     "umon" + "_serve_syscall",
@@ -113,7 +113,7 @@ _UMON_REQUIRED_FILE = "components/qemu/patches/target/dadao/helper.c.patch"
 
 
 def check_no_umon_takeover(repo_root: str) -> tuple[str, list[str]]:
-    """断言 dadao-m1 的 umon syscall 接管实现不复存在（形态，不跑语义）。
+    """断言 dadao-v5 的 umon syscall 接管实现不复存在（形态，不跑语义）。
 
     返回 (结论串, 错误列表)。缺 `helper.c.patch` ⇒ FAIL（文件被引用断言）。
     """
@@ -405,7 +405,7 @@ def main() -> int:
     ap.add_argument("--form-check", action="store_true",
                     help="只跑形态断言（ISS-225；无需 qemu 二进制，供 L1 门控用）")
     ap.add_argument("--profile", default=None,
-                    choices=("tiny", "node"),
+                    choices=("tiny", "vast"),
                     help="机器 profile（缺省读 DADAO_TEST_PROFILE，再缺省 tiny；"
                          "GEM5-017t 供 parity 显式选择）")
     ap.add_argument("--json-out", default=None,

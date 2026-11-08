@@ -1,7 +1,7 @@
 @@ power.S — DADAO-v5 step5 BootROM power stage + shared boot helpers
 @@ (INTEG-046t; ADR-0043 D1/D2/D3/D8/D14).
 @@
-@@ TESTCASES-091t: this is the Machine-v5-Node power stage.  It is linked at
+@@ TESTCASES-091t: this is the Machine-v5-Vast power stage.  It is linked at
 @@ the reset window RESET_PC (0xffff_ffff_0000), which is the last 64 KiB of the
 @@ 4 MiB BootROM at BOOTROM_BASE (0xffff_ffc0_0000); it is the only code the CPU runs
 @@ at reset (cfx_power / cfxha 63 / hypv).  It contains:
@@ -40,7 +40,7 @@
 	.endif
 	.endm
 
-	.include "tests/shared/asm/machine-node.inc"
+	.include "tests/shared/asm/machine-vast.inc"
 	.include "tests/shared/asm/machine.inc"
 
 	.text

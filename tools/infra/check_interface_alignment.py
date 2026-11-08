@@ -307,23 +307,25 @@ def check_adr_alignment():
         with open(pf, encoding="utf-8") as f:
             patch_content += f.read()
 
-    # --- Machine name = "dadao-m1" ---
-    # Source: ADR-0004 §D2.3
-    if 'MACHINE_TYPE_NAME("dadao-m1")' in patch_content:
-        record(cat, 'machine_name="dadao-m1"', "PASS",
-               'MACHINE_TYPE_NAME("dadao-m1")')
-    else:
-        record(cat, 'machine_name="dadao-m1"', "FAIL",
-               "QEMU patch 未找到 dadao-m1 机器名定义")
+    # --- Machine names = "dadao-tiny" / "dadao-vast" (M12 split) ---
+    # Source: spec/Machine-v5 §1; the pre-M12 single machine was renamed.
+    for machine in ("dadao-tiny", "dadao-vast"):
+        needles = ('MACHINE_TYPE_NAME("%s")' % machine,
+                   'DADAO_MACHINE_TYPE_INFO("%s"' % machine)
+        hit = next((n for n in needles if n in patch_content), None)
+        if hit:
+            record(cat, 'machine_name="%s"' % machine, "PASS", hit)
+        else:
+            record(cat, 'machine_name="%s"' % machine, "FAIL",
+                   "QEMU patch 未找到 %s 机器名定义" % machine)
 
     # --- RAM/ROM geometry = profile table (TESTCASES-091t) ---
     # Expected values come from tests/shared/machine-profiles.yaml.  QEMU's
     # macros are compared only when the profile's qemu_* fields are filled; a
     # profile whose fields are all null prints DEFERRED instead of silently
     # passing.  Macro prefix per profile: `tiny` uses its dedicated
-    # DADAO_TINY_* macros (canonical DADAO_* stay Node/legacy, QEMU-080t);
-    # `node` uses the canonical names once QEMU-080t fills its fields.
-    macro_prefix = {"tiny": "DADAO_TINY_", "node": "DADAO_"}
+    # DADAO_TINY_* macros; `vast` uses the canonical DADAO_* names.
+    macro_prefix = {"tiny": "DADAO_TINY_", "vast": "DADAO_"}
     for prof_name, prof in sorted(machine_profile.all_profiles().items()):
         fields = ("qemu_ram_base", "qemu_ram_size", "qemu_bootrom_base",
                   "qemu_bootrom_size", "qemu_reset_pc")
@@ -535,7 +537,7 @@ def check_adr_alignment():
 
     for name, rel, mem_name in (
             ("tiny", "tests/shared/linker/dadao-tiny.lds", "RAM"),
-            ("node", "tests/shared/linker/dadao-node.lds", "RAM")):
+            ("vast", "tests/shared/linker/dadao-vast.lds", "RAM")):
         text = load_file(rel)
         m = re.search(
             r"RAM\s*\(rwx\)\s*:\s*ORIGIN\s*=\s*(0x[0-9a-fA-F_]+)"

@@ -132,7 +132,7 @@ def run_rom(rom_data, kernel_data=None, timeout=10):
         f.write(kernel_data); kernel_path = f.name
     try:
         result = subprocess.run(
-            [QEMU, '-M', 'dadao-m1', '-nographic',
+            [QEMU, '-M', 'dadao-tiny', '-nographic',
              '-bios', rom_path, '-kernel', kernel_path],
             capture_output=True, timeout=timeout, text=True)
         return result.returncode, result.stderr

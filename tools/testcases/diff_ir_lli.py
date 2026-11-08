@@ -353,7 +353,7 @@ def target_value(tools, ir_abs, work_dir, stem, timeout, verbose=False):
 
     # 5. run under QEMU -> guest exit code
     cmd = [
-        tools["qemu"], "-M", "dadao-m1",
+        tools["qemu"], "-M", "dadao-tiny",
         "-bios", tools["trampoline"], "-kernel", binp,
         "-semihosting-config", "enable=on,target=native",
         "-display", "none", "-nographic",

@@ -2,7 +2,7 @@
 """l3_run.py -- ``make check-full`` 的包装：逐成员执行 + 写机器可读报告
 （TESTCASES-083t）。
 
-报告落 ``<test-artifacts>/l3/<YYYYMMDDTHHMMSSZ>/``，三件套与夜跑同格式
+报告落 ``<test-artifacts>/l3/<YYYYMMDDTHHMMSSZ>/``，三件套与回归运行同格式
 （``tools/testcases/report_io.py``，``docs/Process-09 §4``/``§8``）：
 
     manifest.tsv   scope<TAB>suite<TAB>rc<TAB>log（逐成员一行）

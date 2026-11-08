@@ -14,7 +14,7 @@ independently-derived expected value (it does NOT rely on lit exit codes):
     llvm-objcopy -O binary --only-section=.text.start --only-section=.text
                                                -> <prog>.bin
     prepend profile.kernel_reserved zero bytes (Tiny raw entry = base + 0x100)
-    timeout N qemu-system-dadao -M dadao-m1 -bios trampoline.bin \
+    timeout N qemu-system-dadao -M dadao-tiny -bios trampoline.bin \
             -kernel <prog>.bin -semihosting-config enable=on,target=native \
             -display none -nographic
                                                -> process exit code == guest exit code
@@ -325,7 +325,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     rc, _out, err, timed = _run(
         [
             tools["qemu"],
-            "-M", "dadao-m1",
+            "-M", "dadao-tiny",
             "-bios", tools["trampoline"],
             "-kernel", bin_path,
             "-semihosting-config", "enable=on,target=native",

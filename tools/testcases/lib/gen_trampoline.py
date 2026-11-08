@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate ROM trampoline blob for dadao-m1 test machine.
+"""Generate ROM trampoline blob for dadao-tiny test machine.
 
 The trampoline is loaded at the Tiny BootROM base via QEMU -bios.  It sets up
 the stack pointer (rb1) and jumps to the profile RAM entry where the test

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""run_m5_e2e.py -- arch（cfx_umon）Node / semihosting 端到端驱动（TESTCASES-073t 迁入）。
+"""run_m5_e2e.py -- arch（cfx_umon）Vast / semihosting 端到端驱动（TESTCASES-073t 迁入）。
 
 本文件由 TESTCASES-073t 从集成驱动目录迁入（M5 gate，TESTCASES-033t）——搬家不改
 判据；旧薄 wrapper 已由 TESTCASES-076t 删除。
@@ -9,13 +9,13 @@ flat-bin pipeline and compares the observed result against the manifest:
 
     llvm-mc --triple=dadao-unknown-elf -filetype=obj <prog.s> -> <prog>.o
     llvm-objcopy -O binary --only-section=.text  <prog>.o    -> <prog>.bin
-    qemu-system-dadao -M dadao-m1 -bios <bootrom.bin> -kernel <prog>.bin \
+    qemu-system-dadao -M dadao-tiny -bios <bootrom.bin> -kernel <prog>.bin \
         -semihosting-config enable=on,target=native,chardev=semi \
         -chardev file,id=semi,path=<console> -d cpu -D <log>
                                                              -> host exit code
 
-The bin is loaded at the Node profile ENTRY by `-kernel`; the Node BootROM
-(`-bios .dadao/tests/bootrom/step5/bootrom_step5.bin`) starts at reset
+The bin is loaded at the Vast profile ENTRY by `-kernel`; the Vast BootROM
+(`-machine dadao-vast,bootrom-image=.dadao/tests/bootrom/step5/bootrom_step5.bin`) starts at reset
 0xffff_ffff_0000, runs power -> hmon, hmon installs page tables/PTW and hands
 the app to *hypv*.  Tiny has no cfx and is rejected by this driver.  Every vector carries a hand-derived expectation in the
 manifest; the expected values come from `.tao/contracts/contract-*.md` +
@@ -27,7 +27,7 @@ Judgement (fail-closed), per case:
   * semihosting console == ``expected_console``         (when declared)
   * produced host file == ``expected_file``             (when declared)
   * bootrom effective: first ``-d cpu`` block PC == 0xffff_ffff_0000 and the
-    app is observed running in the profile RAM (Node: hypv, MODE == 3)
+    app is observed running in the profile RAM (Vast: hypv, MODE == 3)
 
 Exit status:
   0  all cases PASS
@@ -90,7 +90,7 @@ DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
 # Bootrom is produced by `make build-bootrom` into the test-artifacts root
 # (QEMU-047t); never hardcode the path.
 DEFAULT_BOOTROM = str(_TEST_ARTIFACTS / "bootrom" / "bootrom.bin")  # tiny
-DEFAULT_BOOTROM_NODE = str(_TEST_ARTIFACTS / "bootrom" / "step5" / "bootrom_step5.bin")
+DEFAULT_BOOTROM_VAST = str(_TEST_ARTIFACTS / "bootrom" / "step5" / "bootrom_step5.bin")
 DEFAULT_VECTORS_DIR = "tests/arch/umon"
 DEFAULT_EXPECTED = "tests/arch/umon/expected.yaml"
 DEFAULT_WORK_DIR = str(_TEST_ARTIFACTS / "arch" / "m5-e2e")
@@ -101,7 +101,7 @@ PROFILE = None
 RESET_PC = None
 RAM_BASE = None
 RAM_SIZE = None
-# Tiny has no cfx/mode; Node runs the body in hypv (mode 3).
+# Tiny has no cfx/mode; Vast runs the body in hypv (mode 3).
 HYPV_MODE = 3
 
 
@@ -289,18 +289,17 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
         return res
 
     # 3. qemu: bootrom + -kernel bin + semihosting (-chardev capture).
-    #    Node (QEMU-080t) supplies the 4 MiB step5 BootROM through the
-    #    `bootrom-image` property; its power -> hmon -> hypv chain enables the
-    #    PTW identity map before the body runs.  Tiny keeps the flat `-bios`
-    #    trampoline path.
+    #    Vast supplies the 4 MiB step5 BootROM through the `bootrom-image`
+    #    property; its power -> hmon -> hypv chain enables the PTW identity map
+    #    before the body runs.  Tiny keeps the flat `-bios` trampoline path.
     for stale in (console_path, cpu_log):
         if os.path.exists(stale):
             os.remove(stale)
-    if PROFILE.name == "node":
+    if PROFILE.name == "vast":
         machine_args = ["-machine",
-                        "dadao-m1,profile=node,bootrom-image=" + tools["bootrom"]]
+                        "dadao-vast,bootrom-image=" + tools["bootrom"]]
     else:
-        machine_args = ["-M", "dadao-m1", "-bios", tools["bootrom"]]
+        machine_args = ["-M", "dadao-tiny", "-bios", tools["bootrom"]]
     cmd = [
         tools["qemu"],
         *machine_args,
@@ -452,9 +451,9 @@ def main():
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     ap.add_argument("--only", default=None, help="run a single case by name")
     ap.add_argument("--profile",
-                    default=os.environ.get("DADAO_TEST_PROFILE") or "node",
+                    default=os.environ.get("DADAO_TEST_PROFILE") or "vast",
                     choices=sorted(machine_profile.all_profiles()),
-                    help="machine profile (arch is Node-only; default node)")
+                    help="machine profile (arch is Vast-only; default vast)")
     ap.add_argument("--build-only", action="store_true",
                     help="assemble/objcopy only; do not start QEMU")
     ap.add_argument("--verbose", "-v", action="store_true")
@@ -474,10 +473,10 @@ def main():
     if not prof.get("arch", False):
         sys.stderr.write(
             "ERROR: profile %r does not support arch tests (Tiny has no cfx; "
-            "arch is Node-only per user ruling 2026-11-02)\n" % prof.name)
+            "arch is Vast-only per user ruling 2026-11-02)\n" % prof.name)
         return 2
     bootrom = args.bootrom or (
-        DEFAULT_BOOTROM if prof.name == "tiny" else DEFAULT_BOOTROM_NODE)
+        DEFAULT_BOOTROM if prof.name == "tiny" else DEFAULT_BOOTROM_VAST)
 
     tools = {
         "llvm_mc": _abspath(args.llvm_mc),

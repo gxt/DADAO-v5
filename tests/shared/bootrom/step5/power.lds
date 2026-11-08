@@ -1,7 +1,7 @@
 /*
  * power.lds — INTEG-046t step5 BootROM power flat segment
  *
- * TESTCASES-091t: Node profile (tests/shared/machine-profiles.yaml).
+ * TESTCASES-091t: Vast profile (tests/shared/machine-profiles.yaml).
  * The power stage is the last 64 KiB of the 4 MiB BootROM; it is linked at the
  * reset vector (RESET_PC = 0xffff_ffff_0000).  The image builder packs the flat
  * bytes at image offset bootrom_size - 64 KiB (0x3f_0000).

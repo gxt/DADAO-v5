@@ -1,7 +1,7 @@
 @@ picolibc_test_crt0.s — stack-setup wrapper for the picolibc self-test harness
 @@ (TESTCASES-042t).
 @@
-@@ QEMU's dadao-m1 "path A" (ELF over -kernel, components/qemu/patches/hw/dadao/
+@@ QEMU's dadao-tiny "path A" (ELF over -kernel, components/qemu/patches/hw/dadao/
 @@ dadao-machine.c.patch) jumps to e_entry with PC = e_entry and leaves the
 @@ register file at its reset values — in particular rb1 (the stack pointer) is
 @@ 0, because on the ELF path the ROM trampoline does not run.  picolibc's own

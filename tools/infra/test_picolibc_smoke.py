@@ -243,7 +243,7 @@ def main() -> int:
             print(f"test-picolibc-smoke: FAIL ({tag}: link rc={res.returncode})\n{res.stderr}", file=sys.stderr)
             return 1
 
-        qemu = [str(TOOLCHAIN_BIN / "qemu-system-dadao"), "-M", "dadao-m1", "-kernel", str(elf),
+        qemu = [str(TOOLCHAIN_BIN / "qemu-system-dadao"), "-M", "dadao-tiny", "-kernel", str(elf),
                 "-semihosting-config", "enable=on,target=native", "-display", "none", "-nographic", "-monitor", "none"]
         try:
             res = run(qemu, timeout=args.qemu_timeout, merge=True)

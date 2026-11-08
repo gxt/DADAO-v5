@@ -1,6 +1,6 @@
 #!/bin/bash
-# Minimal smoke test for DADAO M1 target skeleton.
-# Verifies: qemu-system-dadao exists, -M ? shows dadao-m1,
+# Minimal smoke test for the DADAO Tiny machine.
+# Verifies: qemu-system-dadao exists, -M ? shows dadao-tiny / dadao-vast,
 # and boot triggers UNDI (exit code 0x89) because all-zero ROM
 # is a reserved encoding (op=0x00 is a blank QFC main-table cell; OPC-MISC
 # lives at op=0x47 since SPEC-164t, so 0x00000000 stays reserved → UNDI).
@@ -16,7 +16,7 @@ QEMU_BIN="${SCRIPT_DIR}/../../.work/build/qemu/qemu-system-dadao"
 TMPDIR=$(mktemp -d /tmp/opencode/QEMU-003t-smoke.XXXXXX)
 trap "rm -rf $TMPDIR" EXIT
 
-echo "=== DADAO M1 Smoke Test ==="
+echo "=== DADAO Tiny Smoke Test ==="
 
 # Check binary exists
 if [ ! -x "$QEMU_BIN" ]; then
@@ -26,15 +26,17 @@ if [ ! -x "$QEMU_BIN" ]; then
 fi
 echo "PASS: qemu-system-dadao found"
 
-# Check -M ? shows dadao-m1
+# Check -M ? shows dadao-tiny / dadao-vast
 MACHINE_LIST=$("$QEMU_BIN" -M ? 2>&1)
-if echo "$MACHINE_LIST" | grep -q "dadao-m1"; then
-    echo "PASS: dadao-m1 found in machine list"
-else
-    echo "FAIL: dadao-m1 not in machine list"
-    echo "      Output: $MACHINE_LIST"
-    exit 1
-fi
+for machine in dadao-tiny dadao-vast; do
+    if echo "$MACHINE_LIST" | grep -q "$machine"; then
+        echo "PASS: $machine found in machine list"
+    else
+        echo "FAIL: $machine not in machine list"
+        echo "      Output: $MACHINE_LIST"
+        exit 1
+    fi
+done
 
 # Create minimal ROM and kernel binaries (zeroed, 8 bytes each)
 # ROM: all zeros at 0xffff_ffff_0000 → first instruction is 0x00000000
@@ -46,11 +48,11 @@ dd if=/dev/zero of="$TMPDIR/test.bin" bs=1 count=8 2>/dev/null
 
 echo ""
 echo "=== Boot test: expect UNDI exit code (0x89 = 137) ==="
-echo "Command: $QEMU_BIN -machine dadao-m1 -bios $TMPDIR/rom.bin -kernel $TMPDIR/test.bin -display none -nographic"
+echo "Command: $QEMU_BIN -machine dadao-tiny -bios $TMPDIR/rom.bin -kernel $TMPDIR/test.bin -display none -nographic"
 
 set +e
 "$QEMU_BIN" \
-    -machine dadao-m1 \
+    -machine dadao-tiny \
     -bios "$TMPDIR/rom.bin" \
     -kernel "$TMPDIR/test.bin" \
     -display none \

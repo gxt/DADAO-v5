@@ -45,7 +45,7 @@
 	.endif
 	.endm
 
-	.include "tests/shared/asm/machine-node.inc"
+	.include "tests/shared/asm/machine-vast.inc"
 	.include "tests/shared/asm/machine.inc"
 
 	.text

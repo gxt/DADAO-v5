@@ -8,7 +8,7 @@
 | 用途 | 命令 |
 |---|---|
 | L2 代表集 | `make check-tset-llvm-smoke` |
-| 套件全量（按需/夜跑） | `python3 tools/testcases/tset/llvm-ts/run_llvm_ts_user.py --link-mode static --jobs 4 --json-out /tmp/.../llvm.json` |
+| 套件全量（按需/回归运行） | `python3 tools/testcases/tset/llvm-ts/run_llvm_ts_user.py --link-mode static --jobs 4 --json-out /tmp/.../llvm.json` |
 | 代表集规则（不跑 guest） | `python3 tools/testcases/tset/llvm-ts/run_smoke.py --list` |
 
 - 驱动实现：`tools/testcases/tset/llvm-ts/run_llvm_ts_user.py`

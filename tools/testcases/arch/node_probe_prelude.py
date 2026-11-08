@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Shared Node L3 probe prelude (TESTCASES-093t §2) — one implementation for
+"""Shared Vast L3 probe prelude (TESTCASES-093t §2) — one implementation for
 the 13 `ARCH_CFX_PROBES` and `min_rom_probe_046t`.
 
 Loading model (task book §0/§2, spec/Machine-v5 §1 + DADAO-12 §4.5/§4.9):
 
-  * one 4 MiB `bootrom-image` (`-machine dadao-m1,profile=node,...`), **no
+  * one 4 MiB `bootrom-image` (`-machine dadao-vast,bootrom-image=...`), **no
     `-kernel`**; the CPU resets in power (cfx63/hypv) at RESET_PC, which is
-    image offset `RESET_PC - BOOTROM_BASE` (Node: 0x3f_0000, the last 64 KiB);
+    image offset `RESET_PC - BOOTROM_BASE` (Vast: 0x3f_0000, the last 64 KiB);
   * power segment (reset_pc + 0): installs `cfx_hmon.hypv.excp_vector =
     RESET_PC + H_OFF` and `trap cfx_hmon, 0`;
   * hmon segment (reset_pc + H_OFF, 0x200): clears the cfx_power
@@ -26,7 +26,7 @@ Why the body cannot run in power: ADR-0045 D4 keeps cfx_pmem/cfx_ptw/cfx0
 default-masked; the same sequence succeeds in hmon (rc=0) and is rejected in
 power (monitor CFXMEM) — task book E3/E4.
 
-Exit sequence: the profile `exit_block` (Node 0x7ffd_0000), not the legacy
+Exit sequence: the profile `exit_block` (Vast 0x7ffd_0000), not the legacy
 0x00ff_f000 window (task book §2).
 
 A DMA ERROR / missing DONE at start-up is a harness failure: the hmon segment
@@ -51,10 +51,10 @@ for _sub in (("tools", "testcases", "lib"), ("tools", "infra")):
 import machine_profile as _machine_profile  # noqa: E402
 import paths as _paths  # noqa: E402
 
-PROFILE = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "node")
+PROFILE = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "vast")
 if not PROFILE.get("ptw") or not PROFILE.get("hmon"):
     raise SystemExit(
-        "node_probe_prelude: profile %r has no PTW/hmon; the Node L3 prelude "
+        "node_probe_prelude: profile %r has no PTW/hmon; the Vast L3 prelude "
         "only supports a profile with monitor + page-table walker "
         "(tests/shared/machine-profiles.yaml)" % PROFILE.name)
 
@@ -468,7 +468,7 @@ def run(rom, workdir=None, qemu=None, timeout=TIMEOUT, dump=True):
     with open(rp, "wb") as f:
         f.write(rom)
     cmd = [qemu, "-machine",
-           "dadao-m1,profile=%s,bootrom-image=%s" % (PROFILE.name, rp),
+           "%s,bootrom-image=%s" % (_machine_profile.machine_name(PROFILE), rp),
            "-nographic", "-semihosting-config", "enable=on,target=native"]
     if dump:
         cmd += ["-d", "cpu", "-D", lp]

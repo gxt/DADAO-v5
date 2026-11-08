@@ -8,8 +8,8 @@
 @@      service: Tiny has no cfx but semihosting is allowed).
 @@
 @@ The stub is placed in .text.start: Tiny links it at the ROM base
-@@ (0xffff_ffff_0000), Node at the profile entry.  The linked-ELF pipeline uses
-@@ dadao-tiny.lds / dadao-node.lds; the single-TU CodeGen pipeline supplies
+@@ (0xffff_ffff_0000), Vast at the profile entry.  The linked-ELF pipeline uses
+@@ dadao-tiny.lds / dadao-vast.lds; the single-TU CodeGen pipeline supplies
 @@ __stack_top/__exit_block/__bss_* as assembler symbols and loads the raw blob
 @@ at the Tiny kernel base (first kernel_reserved bytes zero, app entry after).
 @@

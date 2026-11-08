@@ -22,7 +22,7 @@
 * ``repro``：**产物数 == 0 ⇒ FAIL**（producer 没产出等于没比）；两次文件集不一致
   ⇒ FAIL；任一文件 md5 不一致 ⇒ FAIL。
 * ``repro --inject CMD``：在两次生产之间执行 CMD，用于证明比较**可达 FAIL**。
-* ``repro`` 的 `night` scope 显式拒绝（夜跑报告含时间戳，不可逐字节复现）。
+* ``repro`` 的 `night` scope 显式拒绝（回归运行报告含时间戳，不可逐字节复现）。
 
 退出码：0 PASS / 1 FAIL（比较失败、未归属目录、零产物）/ 2 用法或环境错误。
 """
@@ -218,7 +218,7 @@ def cmd_repro(args: argparse.Namespace) -> int:
         return 2
     if scope == "night":
         sys.stderr.write(
-            "ERROR: test-repro 不支持 SCOPE=night —— 夜跑报告含时间戳/宿主信息，"
+            "ERROR: test-repro 不支持 SCOPE=night —— 回归运行报告含时间戳/宿主信息，"
             "按 docs/Process-08 §1.1 本就不要求逐字节复现。\n")
         return 2
     if scope == "l3":

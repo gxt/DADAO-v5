@@ -1,7 +1,7 @@
 # tests/shared/machine-profiles.yaml — 测试侧机器几何唯一真源（TESTCASES-091t）
 #
 # 本文件只描述**测试资产/harness 使用的** bootrom/RAM/入口/装载参数；QEMU 侧的
-# 真实机器常量由 qemu_* 字段回填（QEMU-079t 填 tiny；QEMU-080t 回填 Node）。
+# 真实机器常量由 qemu_* 字段回填（QEMU-079t 填 tiny；QEMU-080t 回填 Vast）。
 # 修改几何只改这里：tests/inst 的 token、tools/testcases
 # 驱动、链接脚本与 bootrom 汇编头均由本表派生或与之交叉核对。
 #
@@ -17,7 +17,7 @@
 # 在 RAM 内、位于 exit_block 之下）。布局（fault 记录 = 16 字节）：
 #   +0  cause（spec cause id，one-hot，DADAO-12 §4）
 #   +8  excp_cause_ip（cfx_hmon cg5 rc3）
-# 只有 Node 的 hmon 写它；Tiny 无 cfx、无 monitor ⇒ null。
+# 只有 Vast 的 hmon 写它；Tiny 无 cfx、无 monitor ⇒ null。
 #
 # 用户裁定（2026-11-02，第二轮）：
 #   Tiny：地址高 6 位恒 0x3F，**无任何 cfx（含 cfx_power）**、不能 user 模式；
@@ -25,7 +25,7 @@
 #         picolibc；不跑 arch。raw -kernel 基址 0xffff_ff01_0000，前 0x100
 #         字节零保留，应用入口 0xffff_ff01_0100；ELF 的 crt 启动 stub 在
 #         0xffff_ffff_0000（e_entry 同址），crt 设 SP 后跳应用入口。
-#   Node：entry=0x100000、sp=0x7fff_0000（初值）；完整 inst + arch + embench；
+#   Vast：entry=0x100000、sp=0x7fff_0000（初值）；完整 inst + arch + embench；
 #         不跑 picolibc；M11 不覆盖 smon。
 
 profiles:
@@ -61,7 +61,7 @@ profiles:
     qemu_bootrom_size: 0x1_0000
     qemu_reset_pc: 0xFFFF_FFFF_0000
 
-  node:
+  vast:
     bootrom_base: 0xFFFF_FFC0_0000
     bootrom_size: 0x40_0000
     reset_pc: 0xFFFF_FFFF_0000

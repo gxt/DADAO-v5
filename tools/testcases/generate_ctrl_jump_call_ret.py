@@ -79,7 +79,7 @@ def _tok(offset):
     return "@ENTRY-0x%X" % (-offset)
 
 # MemRAS test address (inside the RAM window, 8-byte aligned), written as an
-# entry-relative token so Tiny and Node resolve it from the same case
+# entry-relative token so Tiny and Vast resolve it from the same case
 # (TESTCASES-092t §2).  The offset sits 0x00F0_0000 bytes into the RAM segment.
 MRPTR_OFF = 0x00_700000
 MRPTR_BASE = RB0 + MRPTR_OFF     # Tiny value (oracle arithmetic only)

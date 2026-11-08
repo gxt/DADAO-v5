@@ -43,7 +43,7 @@ import os, sys
 
 # TESTCASES-091t: probe geometry from the single profile source
 # (tests/shared/machine-profiles.yaml); runtime execution stays BLOCKED until
-# QEMU-079/080 provide the Tiny/Node machines.
+# QEMU-079/080 provide the Tiny/Vast machines.
 _MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
 if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
@@ -251,7 +251,7 @@ def run_dcpu(rom_data, timeout=10):
     lp = rp + '.cpu.log'
     try:
         r = subprocess.run(
-            [QEMU, '-M', 'dadao-m1', '-nographic', '-bios', rp, '-kernel', kp,
+            [QEMU, '-M', 'dadao-tiny', '-nographic', '-bios', rp, '-kernel', kp,
              '-semihosting-config', 'enable=on,target=native',
              '-d', 'cpu', '-D', lp],
             capture_output=True, timeout=timeout, text=True)
@@ -277,7 +277,7 @@ def run_plain(rom_data, timeout=10):
         kp = f.name
     try:
         r = subprocess.run(
-            [QEMU, '-M', 'dadao-m1', '-nographic', '-bios', rp, '-kernel', kp,
+            [QEMU, '-M', 'dadao-tiny', '-nographic', '-bios', rp, '-kernel', kp,
              '-semihosting-config', 'enable=on,target=native'],
             capture_output=True, timeout=timeout, text=True)
         return r.returncode, r.stderr

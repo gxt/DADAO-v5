@@ -2,7 +2,7 @@
 """Min ROM probe for QEMU-046t: semihosting (decode-layer short-circuit +
 shared-layer reuse + full 25-service set + SYS_EXIT).
 
-TESTCASES-094t §5 (G class): the probe now runs on the shared Node L3 prelude
+TESTCASES-094t §5 (G class): the probe now runs on the shared Vast L3 prelude
 (`node_probe_prelude.py`): one 4 MiB `bootrom-image`, **no `-bios`/`-kernel`**,
 body in hmon/cfx3 with the identity PTW map enabled.  The argument blocks,
 path strings and misc buffers used to be preloaded through `-kernel`; they are
@@ -59,7 +59,7 @@ for _sub in (("tools", "testcases", "lib"), ("tools", "testcases", "arch"),
 import machine_profile as _machine_profile  # noqa: E402
 import node_probe_prelude as _prelude  # noqa: E402
 
-_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "node")
+_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "vast")
 RAM_BASE = _MACH.ram_base
 
 DEFAULT_QEMU = _prelude.default_qemu()
@@ -199,7 +199,7 @@ def run(rom, inb=b"", args="dadao046"):
     if os.path.exists(op):
         os.remove(op)
     cmd = [QEMU, "-machine",
-           "dadao-m1,profile=%s,bootrom-image=%s" % (_MACH.name, rp),
+           "%s,bootrom-image=%s" % (_machine_profile.machine_name(_MACH), rp),
            "-nographic", "-d", "cpu", "-D", lp,
            "-chardev", "file,id=semi,path=%s,input-path=%s" % (op, ip),
            "-semihosting-config",

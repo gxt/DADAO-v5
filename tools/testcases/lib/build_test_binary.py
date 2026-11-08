@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build test binary from ISA vector YAML for dadao-m1 QEMU testing.
+"""Build test binary from ISA vector YAML for dadao-tiny QEMU testing.
 
 Binary layout (loaded at BINARY_BASE = the selected profile's RAM entry):
   [section 1] loader   - Set rd/rb/ra registers from input_state, write memory

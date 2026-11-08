@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """night_run.py -- `make night-run` 的实现（TESTCASES-076t，P6；INFRA-127t 独立锁）。
 
-夜跑 = **tset full（libc-test / llvm-ts / Embench）+ 长 arch**，由调用者
+回归运行（Make 目标仍名 `night-run`、本脚本仍名 `night_run.py`；历史名，
+语义 = 全量回归成员集）= **tset full（libc-test / llvm-ts / Embench）+ 长 arch**，由调用者
 ``setsid nohup make night-run > log 2>&1 &`` 脱离会话（不自带 `nohup`，避免嵌套）。
 每次跑建一个只读报告目录（`docs/Process-09 §8`）：
 
@@ -17,7 +18,7 @@
   ``docs/Process-08 §1.1`` 的「禁两次跑写同一目录」。
 * **顺序执行**（一次只跑一个长任务），逐成员日志落
   ``.work/log/testcases/check-night-<date>-<suite>.log``。
-* 任一成员 rc != 0 ⇒ 整体 rc=1，但**其余成员照跑**（夜跑要一次拿到全景）。
+* 任一成员 rc != 0 ⇒ 整体 rc=1，但**其余成员照跑**（回归运行要一次拿到全景）。
 * 结尾打印 ``[exit marker] rc=N``（`docs/Process-09 §8`）。
 
 ``--self-test`` 用假成员（``true``/``false``）验证：全绿 ⇒ rc=0 且报告门控 PASS；
@@ -222,7 +223,7 @@ def cmd_selftest(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="夜跑编排 + 报告落盘")
+    ap = argparse.ArgumentParser(description="回归运行编排 + 报告落盘")
     ap.add_argument("--root", default=str(REPO_ROOT / ".dadao" / "tests"))
     ap.add_argument("--date", default=None, help="报告日期（默认 UTC 今天）")
     ap.add_argument("--member", action="append", default=None,

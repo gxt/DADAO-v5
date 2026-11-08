@@ -4,11 +4,11 @@
 
 WITHDRAWN (2026-10-15; user ruling "1、删", executed by ``QEMU-060t``)
 --------------------------------------------------------------------
-The ``dadao-m1`` syscall service (``SYS_UMON_SYSCALL``) that this runner drove
+The ``dadao-tiny`` syscall service (``SYS_UMON_SYSCALL``) that this runner drove
 has been withdrawn: in user mode ``trap cfx0, 0`` goes down the generic cfx
-vector again (``dadao-m1`` is semihosting-only, ``Machine-01 §4.3`` /
+vector again (``dadao-tiny`` is semihosting-only, ``Machine-01 §4.3`` /
 ``ADR-0020 D10``) and the musl syscall stubs have no backend left.  The
-``-M dadao-m1`` path B below is therefore *not runnable*, and ``main()``
+``-M dadao-tiny`` path B below is therefore *not runnable*, and ``main()``
 refuses to run (exit 2) instead of reporting every case as a failure.  Running
 verification is now ``P3`` (``qemu-user``).  This file is kept as the record of
 the stage-1 methodology and of the withdrawn path; it is **not** rewritten into
@@ -22,7 +22,7 @@ runs the project's *static* musl flow and reports the case's own verdict:
   compile ``clang --target=dadao-unknown-elf -nostdinc <musl includes> -c``
   link    ``ld.lld -T tests/shared/linker/dadao-tiny.lds crt1.o <obj> [libtest] libc.a``
   image   ``llvm-objcopy -O binary`` (flat ``-kernel`` image, "path B")
-  run     ``qemu-system-dadao -M dadao-m1 -bios bootrom.bin -kernel <flat>``
+  run     ``qemu-system-dadao -M dadao-tiny -bios bootrom.bin -kernel <flat>``
 
 Path B (``-bios`` + flat ``-kernel``) is mandatory: with ``-kernel <ELF>`` the
 reset run mode is ``hypv`` and the user-mode ``umon`` syscall is never reached
@@ -189,7 +189,7 @@ GCC_TORTURE_CFLAGS = ("-Wno-implicit-int", "-Wno-int-conversion",
 # the workload size only, never the program's own verdict.
 #
 # The *fast* stage additionally keeps out the Shootout members whose SMALL
-# problem size still runs for tens of seconds on dadao-m1 (measured 2026-10-15:
+# problem size still runs for tens of seconds on dadao-tiny (measured 2026-10-15:
 # fib2 LENGTH=40 ~48 s, nestedloop/sieve ~32 s): they stay reachable through
 # `--stage full` with a larger `--timeout`, so nothing is silently skipped.
 BENCHMARK_TREES = ("SingleSource/Benchmarks/", "MultiSource/Benchmarks/",
@@ -420,12 +420,12 @@ def build_case(suite: str, case_abs: Path, work: Path, log, common_objs,
 
 def run_guest(qemu: str, bootrom: Path, flat: Path, timeout: int,
               out_file: Path, err_file: Path) -> dict:
-    """Run the flat image on dadao-m1 through the bootrom (path B).
+    """Run the flat image on dadao-tiny through the bootrom (path B).
 
     The guest's stdout/stderr are redirected to *files* rather than pipes: the
     bytes stay on disk as the failure scene, and a timeout still leaves the
     partial output behind instead of discarding it with the pipe."""
-    cmd = [qemu, "-M", "dadao-m1", "-nographic", "-monitor", "none",
+    cmd = [qemu, "-M", "dadao-tiny", "-nographic", "-monitor", "none",
            "-bios", str(bootrom), "-kernel", str(flat), "-d", "guest_errors"]
     timed_out = False
     with open(out_file, "wb") as fo, open(err_file, "wb") as fe:
@@ -572,16 +572,16 @@ def main() -> int:
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args()
 
-    # Hard boundary (QEMU-060t, 2026-10-15).  The dadao-m1 syscall service
+    # Hard boundary (QEMU-060t, 2026-10-15).  The dadao-tiny syscall service
     # (SYS_UMON_SYSCALL) was withdrawn by user ruling, so path B below
-    # (-M dadao-m1) has no backend for the musl syscall stubs any more: user-mode
+    # (-M dadao-tiny) has no backend for the musl syscall stubs any more: user-mode
     # trap cfx0, 0 takes the generic cfx vector again (semihosting-only).  Fail
     # closed with a clear message instead of turning every case into a failure;
     # rc=2 is this tool's "setup error" code.  Running verification is P3
     # (qemu-user).
-    print("run_suite: ERROR: the dadao-m1 syscall service (SYS_UMON_SYSCALL) "
+    print("run_suite: ERROR: the dadao-tiny syscall service (SYS_UMON_SYSCALL) "
           "was withdrawn by the user ruling of 2026-10-15 (QEMU-060t): the "
-          "-M dadao-m1 path B is no longer runnable (no backend for the musl "
+          "-M dadao-tiny path B is no longer runnable (no backend for the musl "
           "syscall stubs; semihosting-only). Running verification is now P3 "
           "(qemu-user). Refusing to run.", file=sys.stderr)
     raise SystemExit(2)

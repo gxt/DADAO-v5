@@ -7,7 +7,7 @@ L1（`make check`）= 仓库完整性 + 组件可用性；本门控只证「工�
 三项（fail-closed，任一失败 ⇒ exit 1）：
   1. `llc`      —— 可执行，且 `--version` 的 Registered Targets 含 `dadao`；
   2. `clang`    —— 可执行，且 `--print-targets` 含 `dadao`；
-  3. `qemu-system-dadao` —— 可执行，且 `-machine help` 含 `dadao-m1`。
+  3. `qemu-system-dadao` —— 可执行，且 `-machine help` 含 `dadao-tiny` / `dadao-vast`。
 
 工具路径取自 install root（ADR-0016 D9），经 `tools/infra/paths.py` 解析（D7），
 不硬编码。
@@ -49,7 +49,8 @@ def main() -> int:
     checks = [
         ("llc", [str(tool_bin / "llc"), "--version"], "dadao"),
         ("clang", [str(tool_bin / "clang"), "--print-targets"], "dadao"),
-        ("qemu-system-dadao", [str(tool_bin / "qemu-system-dadao"), "-machine", "help"], "dadao-m1"),
+        ("qemu-system-dadao", [str(tool_bin / "qemu-system-dadao"), "-machine", "help"], "dadao-tiny"),
+        ("qemu-system-dadao (vast)", [str(tool_bin / "qemu-system-dadao"), "-machine", "help"], "dadao-vast"),
     ]
 
     print("check-components — L1 组件可用性冒烟")

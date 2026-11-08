@@ -2,7 +2,7 @@
 #
 # Compiles tests/unit/llvm/e2e/narrow_int_e2e.c, assembles the ABI probe
 # tests/unit/llvm/e2e/narrow_int_e2e_abi.s, links both against the project crt0 + linker
-# script and runs the result on qemu dadao-m1 with semihosting.  The guest exit
+# script and runs the result on qemu dadao-tiny with semihosting.  The guest exit
 # code is the test result: 0 only when every i8/i16/i32 arithmetic, shift,
 # compare and extension case (including the ISS-310 canonical argument
 # extension) computes the C-defined value.
@@ -10,7 +10,7 @@
 # RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %e2e_dir/narrow_int_e2e_abi.s -o %t.abi.o
 # RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %crt0 -o %t.crt0.o
 # RUN: %ld -T %linker_script %t.crt0.o %t.abi.o %t.o -o %t.elf
-# RUN: timeout 30 %qemu -M dadao-m1 -kernel %t.elf -semihosting-config enable=on,target=native -display none -nographic
+# RUN: timeout 30 %qemu -M dadao-tiny -kernel %t.elf -semihosting-config enable=on,target=native -display none -nographic
 #
 # The emitted instruction shapes (one add.st/mul.st/div.st/..., one ext.uo per
 # zero extension, ...) are pinned *exactly* by the llc tests

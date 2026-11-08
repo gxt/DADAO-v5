@@ -15,10 +15,10 @@
 | profile | inst | arch | embench | picolibc |
 | --- | --- | --- | --- | --- |
 | tiny | 适用全集（universal + explicit tiny） | `N/A`（`machine-profiles.yaml` `tiny.arch=false`） | 全 benchmark × O0/O2 | 旁证（`--stage fast`，不参与硬门） |
-| node | 适用全集（universal + explicit node） | 10 smoke + 13 probes + `046t` | N/A（**历史**；M11 Node 不跑 embench） | 不跑（`node.picolibc=false`） |
+| vast | 适用全集（universal + explicit vast） | 10 smoke + 13 probes + `046t` | N/A（**历史**；M11 Vast 不跑 embench） | 不跑（`vast.picolibc=false`） |
 
-- **Node embench = 历史，不计入 M11 Node 验收**：`GEM5-016t`/`QEMU-080t` 的 Node
-  `inst`/`embench` 结果仅作历史参考；M11 起 `node/embench` 不再生成。
+- **Vast embench = 历史，不计入 M11 Vast 验收**：`GEM5-016t`/`QEMU-080t` 的 Vast
+  `inst`/`embench` 结果仅作历史参考；M11 起 `vast/embench` 不再生成。
 
 - 硬门：`QEMU PASS ⊆ gem5 PASS`，且同 case 的 exit/架构可见结果一致；
   `GEM5_ONLY_FAIL == 0`。
@@ -31,7 +31,7 @@
 ## 重新生成
 
 ```sh
-python3 tools/testcases/parity/run_parity.py --profiles tiny,node \
+python3 tools/testcases/parity/run_parity.py --profiles tiny,vast \
   --scopes inst,arch,embench,picolibc --jobs 8 --timeout 600 \
   --work-dir /tmp/opencode/qemu-gem5-parity/run \
   --json /tmp/opencode/qemu-gem5-parity/matrix.json \

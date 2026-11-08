@@ -2,7 +2,7 @@
 
 4 MiB BootROM (`BOOTROM_BASE` – `0xffff_ffff_ffff`) implementing the
 ADR-0043 chain **power → hmon → test body (hypv)**.  `smon` is reserved and is
-not entered by the Node test path (user ruling 2026-11-02).  The interface truth for the image
+not entered by the Vast test path (user ruling 2026-11-02).  The interface truth for the image
 index table, ELF checks and failure codes is the task file
 `.tao/tasks/integ/INTEG-046t-Step5启动链落地.md` §接口规范 1/2/5.
 

@@ -52,7 +52,7 @@
     §3), so the expected ILLI is observable without installing a vector (the pre-092t cfx3.hypv vector write is itself CFXPERM-denied
     from hypv, and would have masked the real cause).'
   profiles:
-  - node
+  - vast
 - mnemonic: escape
   id: escape_ciii_cfx
   format: ciii
@@ -71,7 +71,7 @@
     (TESTCASES-092t §3), so the expected ILLI is observable without installing a vector (the pre-092t cfx3.hypv vector write
     is itself CFXPERM-denied from hypv, and would have masked the real cause).'
   profiles:
-  - node
+  - vast
 - mnemonic: escape
   id: escape_ciii_cfx
   format: ciii
@@ -90,7 +90,7 @@
     the cause as the host exit code (TESTCASES-092t §3), so the expected ILLI is observable without installing a vector (the
     pre-092t cfx3.hypv vector write is itself CFXPERM-denied from hypv, and would have masked the real cause).'
   profiles:
-  - node
+  - vast
 - mnemonic: escape
   id: escape_ciii_cfx
   format: ciii
@@ -109,4 +109,4 @@
     (TESTCASES-092t §3), so the expected ILLI is observable without installing a vector (the pre-092t cfx3.hypv vector write
     is itself CFXPERM-denied from hypv, and would have masked the real cause).'
   profiles:
-  - node
+  - vast

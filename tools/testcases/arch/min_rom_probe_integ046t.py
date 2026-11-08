@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""INTEG-046t probe: step5 BootROM chain, Machine-v5-Node current layout.
+"""INTEG-046t probe: step5 BootROM chain, Machine-v5-Vast current layout.
 
 Expectations come from the frozen interface sources, not from the firmware
 implementation:
@@ -11,10 +11,10 @@ implementation:
   * spec/DADAO-12 §2.2.3 + ADR-0043 D10 (identity superpage PTE:
     HSJU=0xC (H=1,S=1,U=J=0), PPN[55:29]=i, SPF=0xFF, flags 0xEF); DADAO-13 §1 +
     ADR-0045 D4 (hypv cg3 reset rows / cg_reg_deleg).
-  * tests/shared/machine-profiles.yaml (node) for every address/size.
+  * tests/shared/machine-profiles.yaml (vast) for every address/size.
 
 Layout driven here:
-  * 4 MiB `bootrom-image` (Node) at BOOTROM_BASE; no `-bios`;
+  * 4 MiB `bootrom-image` (Vast) at BOOTROM_BASE; no `-bios`;
   * `-kernel` supplies the **test body** at `kernel_base` (0x10_0000,
     `kernel_reserved=0`): hmon programs `cfx_umon.hypv.excp_vector = ENTRY`
     and traps there, so the body must exist or the chain ends in UNDI
@@ -54,7 +54,7 @@ for _sub in (("tools", "testcases", "lib"), ("tools", "testcases", "arch"),
 import machine_profile as _machine_profile  # noqa: E402
 import node_probe_prelude as _prelude  # noqa: E402
 
-_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "node")
+_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "vast")
 BOOTROM_BASE = _MACH.bootrom_base
 BOOTROM_SIZE = _MACH["bootrom_size"]
 RESET_PC = _MACH.reset_pc
@@ -255,7 +255,7 @@ def run(image, kernel=None, dump=True):
     with open(ip, "wb") as f:
         f.write(image)
     cmd = [QEMU, "-machine",
-           "dadao-m1,profile=%s,bootrom-image=%s" % (_MACH.name, ip),
+           "%s,bootrom-image=%s" % (_machine_profile.machine_name(_MACH), ip),
            "-nographic", "-semihosting-config", "enable=on,target=native"]
     if kernel is not None:
         kp = os.path.join(WORKDIR, "body.bin")

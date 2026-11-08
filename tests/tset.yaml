@@ -5,7 +5,7 @@
 #   file       tests/tset/ 下的相对路径（必须存在）
 #   platforms  非空列表；tset: user（hw 预留）
 #   level      smoke | full（smoke = 由 L2 `check-tset-<suite>-smoke` 覆盖；
-#              full = 全量运行，不在 L2——按需/夜跑）
+#              full = 全量运行，不在 L2——按需/回归运行）
 #   requires   依赖项列表（可为空）
 #
 # tset 的「case」= 一个外部套件在成品系统上的**受控运行配置**（上游用例本体

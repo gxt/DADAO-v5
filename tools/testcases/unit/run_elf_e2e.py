@@ -10,7 +10,7 @@ expected value (it does NOT rely on lit exit codes):
                  tests/shared/crt0/minimal_crt0.s        -> crt0.o
     link:    ld.lld -T tests/shared/linker/dadao-tiny.lds \
                  crt0.o <tu>.o ... -o <prog>.elf          (ET_EXEC)
-    run:     timeout N qemu-system-dadao -M dadao-m1 \
+    run:     timeout N qemu-system-dadao -M dadao-tiny \
                  -kernel <prog>.elf \
                  -semihosting-config enable=on,target=native \
                  -display none -nographic
@@ -228,11 +228,11 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
             f": {err.strip()[:200]}" if err.strip() else "")
         return res
 
-    # 3. timeout N qemu-system-dadao -M dadao-m1 -kernel <elf> -> guest exit code
+    # 3. timeout N qemu-system-dadao -M dadao-tiny -kernel <elf> -> guest exit code
     rc, _out, err, timed = _run(
         [
             tools["qemu"],
-            "-M", "dadao-m1",
+            "-M", "dadao-tiny",
             "-kernel", elf,
             "-semihosting-config", "enable=on,target=native",
             "-display", "none",
