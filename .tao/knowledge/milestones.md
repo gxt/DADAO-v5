@@ -12,6 +12,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-137t | 待开始 | 2026-11-08 10:20（登记） | 补丁工具支持组件内子模块补丁（fetch/apply/check + manifest 结构） |
 | SPEC-195t | 待验收 | 2026-11-08 10:05（登记） | Machine-v5 发布 0.4.0 + 变更记录按重要性重排 |
 | INFRA-135t | 已验证 | 2026-11-08 08:59 | check-knowledge-refs 具体 `.work` 引用一律 FAIL（ISS-352，用户裁定 A） |
 | INFRA-136t | 待开始 | 2026-11-08 08:53（登记） | chipyard 补丁集：SimTSI 首构造 try/catch，修 --help 崩溃 |
