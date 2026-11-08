@@ -27,6 +27,7 @@
 | INTEG-059t | 10–16 h | G3 完整 tset 双向一致性（static+dynamic）+ 矩阵重生成 |
 | TESTCASES-103t | 3–4 h | SE 基线预算 120s→按套件 600s；timeout 单列并重跑 |
 | INFRA-140t | 1 h | 把 `riscv-isa-sim` 纳入子模块镜像集（ISS-354） |
+| INFRA-143t | 2 h | 「进行中」表增派单时间；派单即移入 |
 
 ## 进行中（已提交待验收 / 待返工）
 
