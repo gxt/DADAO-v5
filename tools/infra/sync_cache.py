@@ -21,7 +21,8 @@ This tool fixes that in one command:
    ``git -C <cache>/<name>.git cat-file -e <commit>^{commit}`` on the node;
    any missing commit fails the node with a "cache stale, re-run sync" hint.
    The same check covers the submodule mirrors of a component that declares
-   ``submodule_lock``: for every ``lite = true`` entry the node must hold
+   ``submodule_lock``: for every required entry (``lite = true`` or
+   ``dadao_extra = true``) the node must hold
    ``<cache>/submodules/<sanitized-path>.git`` with the pinned commit, because
    ``fetch.py`` refuses to clone those from GitHub on a build node.
 
@@ -123,7 +124,12 @@ def submodule_mirror_name(path: str) -> str:
 
 
 def load_submodules() -> list[tuple[str, str, str]]:
-    """``(path, mirror-name, commit)`` for every required (lite) submodule."""
+    """``(path, mirror-name, commit)`` for every required submodule.
+
+    Required = ``lite = true`` (upstream minimal build set) or
+    ``dadao_extra = true`` (this repository's extras); the union must match
+    ``fetch.py``'s selection exactly.
+    """
     manifest = REPO_ROOT / "manifests" / "components.lock.toml"
     try:
         data = tomllib.loads(manifest.read_text(encoding="utf-8"))
@@ -140,12 +146,12 @@ def load_submodules() -> list[tuple[str, str, str]]:
         except (OSError, tomllib.TOMLDecodeError) as exc:
             fail(f"cannot read {lock_path}: {exc}")
         for entry in lock_data.get("submodule", []):
-            if not entry.get("lite"):
+            if not (entry.get("lite") or entry.get("dadao_extra")):
                 continue
             path = entry.get("path", "")
             commit = entry.get("commit", "")
             if not path or not commit:
-                fail(f"{lock}: lite submodule {path!r} has no path/commit")
+                fail(f"{lock}: required submodule {path!r} has no path/commit")
             found.append((path, submodule_mirror_name(path), commit))
     return found
 

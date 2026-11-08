@@ -144,8 +144,8 @@
 
 - id: ISS-354
   scope: [infra]
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: INFRA-140t（`toolchains/riscv-tools/riscv-isa-sim` 加 `dadao_extra = true`，纳入子模块镜像集，`lite` 语义不变）
   title: >-
     【P3】chipyard 子模块 `lite` 集（29）不含 `toolchains/riscv-tools/riscv-isa-sim`，而 conda
     `riscv-tools` 不含 fesvr，我们用该源码编了 fesvr ⇒ **全新机器重建 RTL 环境时仍缺这一个源**。

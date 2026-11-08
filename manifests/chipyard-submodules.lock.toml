@@ -7,6 +7,9 @@ format = 1
 # riscv-tools / optional cores / VLSI excluded; firesim itself is included,
 # but its nested submodules (sim/*, platforms/*) are excluded). Others are listed
 # for completeness with lite = false (nested = pinned by their parent).
+# `dadao_extra = true` marks a submodule this repository needs *on top of* the
+# upstream lite set (same mirror/offline treatment; `lite` keeps its upstream
+# meaning). Entries fetched into a checkout are `lite or dadao_extra`.
 
 [[submodule]]
 path = "fpga/fpga-shells"
@@ -366,7 +369,11 @@ lite = false
 path = "toolchains/riscv-tools/riscv-isa-sim"
 url = "https://github.com/riscv-software-src/riscv-isa-sim.git"
 commit = "9c190a07c6838f6392bafa4ad83acea462c7f759"
+# dadao_extra: the conda `riscv-tools` package ships no fesvr, so the RTL
+# environment builds `libfesvr.a` from this source (INFRA-133t) -- a fresh
+# machine needs it offline even though the upstream lite set excludes riscv-tools.
 lite = false
+dadao_extra = true
 
 [[submodule]]
 path = "toolchains/riscv-tools/riscv-openocd"

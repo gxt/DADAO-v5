@@ -19,10 +19,12 @@ Submodule mirrors
 -----------------
 A component may also pin the submodules of its checkout with
 ``submodule_lock = "manifests/<name>.toml"`` (currently only chipyard).  Every
-entry marked ``lite = true`` is a *required* submodule and gets its own bare
-mirror at ``.cache/submodules/<sanitized-path>.git`` (``generators/testchipip``
--> ``generators__testchipip.git`` -- derived from the full path, never the
-basename, so two ``utils`` submodules cannot collide).
+entry marked ``lite = true`` (the upstream minimal build set) or
+``dadao_extra = true`` (needed by this repository on top of that set, e.g. the
+``riscv-isa-sim`` source that provides fesvr) is a *required* submodule and gets
+its own bare mirror at ``.cache/submodules/<sanitized-path>.git``
+(``generators/testchipip`` -> ``generators__testchipip.git`` -- derived from the
+full path, never the basename, so two ``utils`` submodules cannot collide).
 
 Mirrors are created on the master only, by an explicit
 ``fetch.py --populate-submodules`` (needs the network; retried).  Build nodes
@@ -83,7 +85,7 @@ def sanitize_submodule_path(path: str) -> str:
 
 
 def load_submodule_lock(relpath: str, component: str) -> list[dict]:
-    """Read the ``lite = true`` entries of a component's submodule lock."""
+    """Read the required (``lite`` or ``dadao_extra``) entries of a lock."""
     path = ROOT / relpath
     if not path.is_file():
         raise SystemExit(f"fetch: {component}: submodule_lock {relpath} does not exist")
@@ -94,19 +96,21 @@ def load_submodule_lock(relpath: str, component: str) -> list[dict]:
         raise SystemExit(f"fetch: cannot parse {relpath}: {exc}") from exc
     entries: list[dict] = []
     for entry in data.get("submodule", []):
-        if not entry.get("lite"):
+        if not (entry.get("lite") or entry.get("dadao_extra")):
             continue
         spath = entry.get("path", "")
         url = entry.get("url", "")
         commit = entry.get("commit", "")
         if not spath or not url or not SHA1.fullmatch(commit):
             raise SystemExit(
-                f"fetch: {relpath}: lite submodule {spath!r} needs a full "
+                f"fetch: {relpath}: required submodule {spath!r} needs a full "
                 "path/url/commit"
             )
         entries.append({"path": spath, "url": url, "commit": commit})
     if not entries:
-        raise SystemExit(f"fetch: {relpath}: no lite = true submodule")
+        raise SystemExit(
+            f"fetch: {relpath}: no lite = true / dadao_extra = true submodule"
+        )
     return entries
 
 
@@ -155,7 +159,7 @@ def prepare_submodule_mirror(
     populate: bool,
     retries: int,
 ) -> Path:
-    """Make sure the lite submodule's bare mirror holds the pinned commit."""
+    """Make sure the required submodule's bare mirror holds the pinned commit."""
     mirror = submodule_mirror(mirror_root, entry["path"])
     commit = entry["commit"]
     if not mirror.exists():
@@ -227,7 +231,8 @@ def init_component_submodules(
     populate: bool,
     retries: int,
 ) -> None:
-    """Check out every lite submodule from the local mirrors."""
+    """Check out every required (``lite`` / ``dadao_extra``) submodule from the
+    local mirrors."""
     # Refuse before touching anything if a mirror is missing: a partial init
     # would leave the checkout in a state the next run has to repair.
     mirrors = {
