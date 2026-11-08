@@ -31,7 +31,7 @@
 - 建议分配：`server208` 跑 `llvm-ts` + `embench`，主控机跑 `libc-test`（208 当前空闲；207 只用于 chipyard）。
 - **三条前提**（缺一不可）：两机 `git rev-parse HEAD` 一致、组件源树 **tree hash** 一致（不比 commit id）、gem5/QEMU 二进制 md5 或 build-id 一致。
 - **汇总与判据**：主控机收两机 JSON，校验「分片不重叠、不遗漏（并集 = 全集）」「engine_banner/二进制一致」；任一条不满足 ⇒ 结果作废重跑。
-- **禁止**：同一台同时跑「构建」与「基线」（会把 timeout 判成失败，`Quicksort` 120s 临界有先例）。
+- **禁止的是「进程生命周期重叠」**：基线运行时段内，该机器不得有构建/编译/Verilator/sbt/大拷贝等 CPU 或 IO 密集进程；构建结束后再跑基线不受限。原因：用例 runtime 贴预算边界（`Quicksort` 128.9 s 对 120 s），负载会把「通过」推成 `timeout` 并误记为能力缺口。
 - 若驱动需加参数（如 `--suites` 组合已够用则不加；确需 `--shard i/N` 再加），在任务书完成区说明。
 
 ## 验收标准
