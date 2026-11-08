@@ -1261,8 +1261,8 @@ check-builtins-freshness:
 check-install-tools:
 	@$(PYTHON) tools/infra/check_install_tools.py
 
-# 任务流水体例门控 (INFRA-091t, L1): 状态 == 任务书 / 覆盖 / 一句改动 ≤120 字符 /
-# 时间倒序 / 格式。规则 = milestones.md「体例约定（硬约束）」+ docs/Process-07 §1.1。
+# 台账双表门控 (INFRA-091t/139t, L1): 流水表只允许 待验收/待返工/已验证（出现 `待开始` 即红）、
+# 状态 == 任务书 / 两表并集覆盖 / 一句改动 ≤120 字符 / 流水按时间倒序 / 格式；规则见 docs/Process-07 §1.1。
 check-milestones-fresh:
 	@$(PYTHON) tools/infra/check_milestones_fresh.py
 

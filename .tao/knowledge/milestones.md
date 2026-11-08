@@ -8,13 +8,12 @@
 >
 > **M10 归档指针（2026-11-01）**：M10 任务书 **71** 册（含核验册 `INTEG-052m`）与 M10 期关闭 issue **17** 条已冻结到 `.tao/archive/M10/`（`README.md` / `m10-retrospective.md` / `issues-closed.md`）；流水 **70** 行已冻结到 `.tao/archive/M10/README.md §2`，本页仅留 M10 后维护行（`check-milestones-fresh` A1/A2 对归档册同样生效，已归档号豁免回填）。
 
-## 任务流水
+## 任务流水（已开工）
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-139t | 已验证 | 2026-11-08 11:36 | 里程碑台账拆出「待开始」表（无时间列） |
 | INFRA-138t | 已验证 | 2026-11-08 11:26 | chipyard 子模块离线镜像（29 个，266 MiB）+ fetch/sync_cache 集成 |
-| INFRA-139t | 待开始 | 2026-11-08 11:17（登记） | 里程碑台账拆出「待开始」表（无时间列） |
-| QEMU-085t | 待开始 | 2026-11-08 11:12（登记） | mremap 增长的 guest RLIMIT_AS 检查（ISS-351，用户授权） |
 | INFRA-133t | 已验证 | 2026-11-08 10:26 | 节点 chipyard/Verilator/RISC-V 环境；两台 RocketConfig 构建通过、conda 包一致 |
 | SPEC-195t | 已验证 | 2026-11-08 09:44 | Machine-v5 发布 0.4.0；版本与变更记录按重要性重排（8 组带标签） |
 | GEM5-027t | 已验证 | 2026-11-08 09:43 | SE 动态装载器：ET_EXEC+PT_INTERP、auxv（宿主 creds）、--interp-dir/--redirect |
@@ -27,14 +26,9 @@
 | INFRA-129t | 已验证 | 2026-11-07 20:28 | 清理运行期证据引用 23 处；空转判据按 found==0（用户裁定 A） |
 | GEM5-029t | 已验证 | 2026-11-07 17:03 | SE syscall 语义对齐 7 项；436/146、6/0 不变；QEMU SS_AUTODISARM 补丁 |
 | GEM5-026t | 已验证 | 2026-11-07 12:40 | gem5 SE 线程/futex/TLS；pass 435/blocked 147，threads 桶清零 |
-| INTEG-060t | 待开始 | 2026-11-07 08:20（登记） | gem5 SE syscall 参数 bank（三方 argmask 门控）+ 路径解析探针 |
 | GEM5-025t | 已验证 | 2026-11-07 07:50 | gem5 SE IPC/多进程；pass 418/blocked 164，两桶清零；5 例环境缺口 |
 | GEM5-024t | 已验证 | 2026-11-07 03:13 | gem5 SE 信号+资源限制+进程信息；pass 409/blocked 178，三桶清零 |
 | GEM5-023t | 已验证 | 2026-11-06 23:47 | gem5 SE 文件 I/O + 时钟；pass 399/blocked 188，两桶清零 |
-| GEM5-028t | 待开始 | 2026-11-06 21:15（登记） | gem5 SE 文件映射 mmap + ldso 装载；解释器窗口约束 |
-| TESTCASES-104t | 待开始 | 2026-11-06 21:15（登记） | SE 动态档驱动 + QEMU dynamic 基线刷新 + 全量对照 |
-| INTEG-059t | 待开始 | 2026-11-06 20:30（登记） | G3 完整 tset 双向一致性（static+dynamic）+ 矩阵重生成 |
-| TESTCASES-103t | 待开始 | 2026-11-06 20:30（登记） | SE 基线预算 120s→按套件 600s；timeout 单列并重跑 |
 | INTEG-058t | 已验证 | 2026-11-06 20:00 | 转换舍入编码迁移：LLVM/QEMU/gem5/tests；9 math+pi 转绿、parity 269/0 |
 | TESTCASES-102t | 已验证 | 2026-11-06 17:40 | timing 探针去 icount：20 例轮询/窗口断言；node/arch 269/269 blocked 0 |
 | SPEC-194t | 已验证 | 2026-11-06 16:10 | 转换指令舍入编码三分（ADR-0050）：15 六档 / 3 SBZ / 4 计数 |
@@ -114,3 +108,13 @@
 | INFRA-115t | 已验证 | 2026-11-01 13:02 | tests/inst 计数 152→156、生成器 `--check` 措辞列名化、anti_forgery 迁 tests/inst；新 check-generator-sync 挂 L2 |
 | QEMU-077t | 已验证 | 2026-11-01 11:45 | helper.c/cpu.h 注释 reserved cfx 7-14→6-14 与宏一致；补丁重导出，行为不变不重建 |
 
+## 待开始（未开工）
+
+| 编号 | 一句改动 |
+| --- | --- |
+| QEMU-085t | mremap 增长的 guest RLIMIT_AS 检查（ISS-351，用户授权） |
+| INTEG-060t | gem5 SE syscall 参数 bank（三方 argmask 门控）+ 路径解析探针 |
+| GEM5-028t | gem5 SE 文件映射 mmap + ldso 装载；解释器窗口约束 |
+| TESTCASES-104t | SE 动态档驱动 + QEMU dynamic 基线刷新 + 全量对照 |
+| INTEG-059t | G3 完整 tset 双向一致性（static+dynamic）+ 矩阵重生成 |
+| TESTCASES-103t | SE 基线预算 120s→按套件 600s；timeout 单列并重跑 |
