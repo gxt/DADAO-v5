@@ -45,6 +45,6 @@
 
 ## 说明
 
-- **构建与运行在 `server207`**，仓库修改在主控机；两机同步用 `make fetch`/`rsync`（中转文件不放 `/tmp`）。
+- **构建与运行在 `server207`**（机型/组网/就绪判据见 `.tao/knowledge/nodes.md`），仓库修改在主控机；两机同步用 `make fetch`/`rsync`（中转文件不放 `/tmp`）。
 - 参考实现 `.cache/refs/DADAO/SOC-chipyard/`（只读溯源，非执行依赖）：它走 `BaseTile + CoreParams`，本任务按方案 B **只借接线方式，不继承语义壳**。
 - 补丁导出用 `tools/infra/make_patch.py`（或等价流程）；不直接改源树作为真源。
