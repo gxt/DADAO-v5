@@ -25,6 +25,15 @@
 
 **不在范围**：gem5 SE 实现（前序任务）、`mprotect` 真权限、主程序 PIE、测试用例与期望、`tests/parity/matrix-M11.md`（`INTEG-059t` 统一重生成）。
 
+## 执行方式：按套件跨机分片（用户 2026-11-09 同意）
+
+- **分片维度 = 套件**（不按用例切）：三套件互不依赖，天然可并行。
+- 建议分配：`server208` 跑 `llvm-ts` + `embench`，主控机跑 `libc-test`（208 当前空闲；207 只用于 chipyard）。
+- **三条前提**（缺一不可）：两机 `git rev-parse HEAD` 一致、组件源树 **tree hash** 一致（不比 commit id）、gem5/QEMU 二进制 md5 或 build-id 一致。
+- **汇总与判据**：主控机收两机 JSON，校验「分片不重叠、不遗漏（并集 = 全集）」「engine_banner/二进制一致」；任一条不满足 ⇒ 结果作废重跑。
+- **禁止**：同一台同时跑「构建」与「基线」（会把 timeout 判成失败，`Quicksort` 120s 临界有先例）。
+- 若驱动需加参数（如 `--suites` 组合已够用则不加；确需 `--shard i/N` 再加），在任务书完成区说明。
+
 ## 验收标准
 
 1. 三套件 × dynamic 在 gem5 SE 上跑完（预算按 `TESTCASES-103t`）；报告存在且可复算。
