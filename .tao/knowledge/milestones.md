@@ -119,3 +119,4 @@
 | INTEG-059t | G3 完整 tset 双向一致性（static+dynamic）+ 矩阵重生成 |
 | TESTCASES-103t | SE 基线预算 120s→按套件 600s；timeout 单列并重跑 |
 | INFRA-140t | 把 `riscv-isa-sim` 纳入子模块镜像集（ISS-354） |
+| INFRA-141t | 里程碑台账三分表（待开始/进行中/已验证，去状态列） |
