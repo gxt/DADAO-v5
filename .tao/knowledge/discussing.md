@@ -65,6 +65,14 @@
 - 教训：证据断言若只覆盖「存在且正常」的路径，会集体漏掉「前置步骤失败」这一类假绿；**每个前置步骤都要有可达 FAIL 断言**。
 - 处置：立 `INFRA-131t` 修 cd 语义、`~/` 展开与 rc 传播，并要求在真节点上验收。
 
+## 2026-11-08 chipyard `--help` 崩溃：根因复核（结论：上游行为，非环境偏离）
+
+- **现象**：`simulator-… --help`、`+help`、**以及无参数**三种调用都 `terminate called … std::invalid_argument`（`--help` 为 `User queried htif_t help text`，无参数为 `No binary specified`），rc=255。
+- **调用链（gdb `catch throw`）**：`htif_t::parse_arguments`（`riscv-isa-sim/fesvr/htif.cc:337`）→ `htif_t::htif_t` → `tsi_t::tsi_t` → `testchip_tsi_t` → `SimTSI.cc::tsi_tick()`（**首个时钟 tick 才构造**）→ `VTestDriver::eval_step()` → Verilator `--main` 生成的 `main()`（**无 try/catch**）。
+- **排除环境偏离**（逐项核对）：chipyard `0acc1e1` clean；`generators/testchipip` = gitlink `26f821b`（上游 2026-04-20）clean；`riscv-isa-sim` = `9c190a07`；Verilator **5.022**（chipyard `conda-reqs` 指定版本）。全部为上游锁定态。
+- **旁证**：chipyard 仓库内**没有任何脚本/文档**用 `--help` 调用仿真器（`grep` 只命中 build 脚本自身的 help）；正常用法总是带二进制 ⇒ 该路径上游基本无人触发。
+- **含义**：不是我们绕开 `build-setup.sh` 造成的；要修仍得改上游代码（父仓自定义 main 或改子模块 `SimTSI.cc`）。
+
 ## 2026-11-08 `AT_UID/EUID/GID/EGID` 口径（用户裁定 A）
 
 - **问题**：`GEM5-027t` 里 auxv 四项写 0（按任务书原文），但 gem5 的 `getuid` 返回宿主 id（1000），同一引擎两条身份通道自相矛盾；QEMU 与 Linux 内核 `create_elf_tables` 都取发起者凭证。
