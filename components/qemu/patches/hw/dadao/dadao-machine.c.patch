@@ -1,11 +1,11 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..1575364
+index 0000000..619d26e
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,811 @@
+@@ -0,0 +1,898 @@
 +/*
-+ * DADAO M1 bare-metal test machine for QEMU
++ * DADAO Machine-v5 bare-metal test machines for QEMU
 + *
 + * Copyright (c) 2026 DADAO Contributors
 + *
@@ -21,10 +21,12 @@ index 0000000..1575364
 + * You should have received a copy of the GNU General Public License along with
 + * this program.  If not, see <http://www.gnu.org/licenses/>.
 + *
-+ * Machine profiles (QEMU-079t/080t; spec/Machine-v5 §1): `dadao-m1` selects
-+ * its geometry at runtime via `-machine dadao-m1,profile=tiny|node` or the
-+ * DADAO_TEST_PROFILE environment variable (see dadao_machine_select_profile).
-+ * `node` is Machine-v5-Node (default; spec/Machine-v5 §1.1/§6):
++ * Machine types (M12; spec/Machine-v5 §1): `dadao-tiny` and `dadao-vast` each
++ * fix their profile at the machine type; there is no runtime `profile=`
++ * selector.  `dadao-m1[,profile=tiny|node]` and the DADAO_TEST_PROFILE
++ * environment variable remain only as deprecated compatibility aliases
++ * (`dadao-m1` == tiny, `node` == vast) until m12-integ-001 removes them.
++ * `vast` is Machine-v5-Vast (spec/Machine-v5 §1.1/§6):
 + *   Boot ROM:   0xffff_ffc0_0000 .. 0xffff_ffff_ffff (4 MiB, RO+X)
 + *   reset vec:  0xffff_ffff_0000 (ROM base + 0x3f_0000; last 64 KiB)
 + *   PA RAM:     0 .. 2 GiB (RWX; reached through the PTW identity map)
@@ -42,14 +44,14 @@ index 0000000..1575364
 + * contract-elf.md §5/§6 -- two paths coexist, selected by the kernel's ELF
 + * magic (0x7f 'E' 'L' 'F'):
 + *
-+ *   path A (ELF):   qemu-system-dadao -machine dadao-m1 -kernel image.elf
++ *   path A (ELF):   qemu-system-dadao -machine dadao-vast -kernel image.elf
 + *                   before loading, the caller validates the ELF header rules
 + *                   and the PT_LOAD consistency/range rules the upstream
 + *                   loader does not enforce (e_type == ET_EXEC, e_flags
 + *                   version 1 / reserved bits 0, p_filesz <= p_memsz,
 + *                   p_vaddr == p_paddr, segment interval inside the
 + *                   profile's mapped regions; contract-elf.md
-+ *                   §1.3/§5.2/§6.1.2).  Node allows PA RAM only (a boot ROM
++ *                   §1.3/§5.2/§6.1.2).  Vast allows PA RAM only (a boot ROM
 + *                   segment is a load error, user decision D, 2026-10-09);
 + *                   Tiny also allows BootROM segments (crt stub, QEMU-079t).
 + *                   The segment placement (VA=PA, .bss zero-fill) and the
@@ -57,15 +59,15 @@ index 0000000..1575364
 + *                   upstream loader (hw/core/loader.c: load_elf(), the standard
 + *                   API).  No external -bios ROM is used on this path.
 + *
-+ *   path B (raw):   qemu-system-dadao -machine dadao-m1 -bios rom.bin -kernel test.bin
++ *   path B (raw):   qemu-system-dadao -machine dadao-tiny -bios rom.bin -kernel test.bin
 + *                   flat ROM trampoline + flat test binary.  Legacy entry is
 + *                   the RAM base (M1-M3 path); Tiny entry is fixed at
 + *                   kernel_base + kernel_reserved (0x100) and the image's
 + *                   first kernel_reserved bytes must be zero (QEMU-079t).
 + *
 + *   path C (BootROM image, ADR-0043 D1/D2):
-+ *                   qemu-system-dadao -machine dadao-m1,bootrom-image=bootrom.bin
-+ *                   the image must be exactly the profile ROM size (Node
++ *                   qemu-system-dadao -machine dadao-vast,bootrom-image=bootrom.bin
++ *                   the image must be exactly the profile ROM size (Vast
 + *                   4 MiB, Tiny 64 KiB) and is loaded at the profile ROM
 + *                   base; the CPU still resets to the profile reset PC.
 + *                   -kernel is optional (an ELF is preloaded into RAM without
@@ -120,7 +122,7 @@ index 0000000..1575364
 +/*
 + * Regions an ELF PT_LOAD interval may occupy (contract-elf.md §5/§6.1.2).
 + *
-+ * Node: an ELF loaded over -kernel is a PA RAM image (identity VA=PA) --
++ * Vast: an ELF loaded over -kernel is a PA RAM image (identity VA=PA) --
 + * only RAM is allowed.  A segment in the boot ROM window is a load-stage
 + * error (non-zero exit), never a ROM load.  This table is used only to
 + * validate a segment interval before the load; the placement itself is still
@@ -365,9 +367,9 @@ index 0000000..1575364
 +            exit(1);
 +        }
 +        /* An empty PT_LOAD (p_memsz == 0) places nothing: skip the range
-+         * check.  The Node link script always emits a `.rom` PT_LOAD phdr
++         * check.  The Vast link script always emits a `.rom` PT_LOAD phdr
 +         * even when the section is empty (dadao-node.lds), and a rejected
-+         * empty ROM segment would make every Node ELF unloadable. */
++         * empty ROM segment would make every Vast ELF unloadable. */
 +        if (p_memsz == 0) {
 +            continue;
 +        }
@@ -415,77 +417,114 @@ index 0000000..1575364
 +    close(fd);
 +}
 +
-+/* DADAO M1 machine */
++/* DADAO Machine-v5 machine state.  All three registered types share it; only
++ * the deprecated `dadao-m1` alias exposes the `profile` property. */
 +typedef struct DadaoMachineState {
 +    MachineState parent_obj;
 +    /* BootROM image path (ADR-0043 D1/D2); NULL => -bios / ELF paths. */
 +    char *bootrom_image;
-+    /* `-machine dadao-m1,profile=<name>` (QEMU-079t); NULL => env / default. */
++    /* Deprecated `-machine dadao-m1,profile=<name>` compatibility alias (M12).
++     * NULL for `dadao-tiny` / `dadao-vast`: their profile is fixed by type. */
 +    char *profile;
 +} DadaoMachineState;
 +
++/* One registered machine type (M12): the profile is fixed per type. */
++typedef struct DadaoMachineDesc {
++    const char *desc;
++    const DadaoProfile *profile;
++    bool legacy_alias;          /* pre-M12 `dadao-m1` compatibility name */
++} DadaoMachineDesc;
++
 +typedef struct DadaoMachineClass {
 +    MachineClass parent_class;
++    const DadaoProfile *profile;
++    bool legacy_alias;
 +} DadaoMachineClass;
 +
-+#define TYPE_DADAO_M1_MACHINE MACHINE_TYPE_NAME("dadao-m1")
-+OBJECT_DECLARE_SIMPLE_TYPE(DadaoMachineState, DADAO_M1_MACHINE)
-+
-+static char *dadao_m1_get_bootrom_image(Object *obj, Error **errp)
++/* Every registered type uses this instance/class size, so the casts below are
++ * the same first-member offset QOM's container_of macros would use. */
++static inline DadaoMachineState *dadao_machine_state(MachineState *machine)
 +{
-+    DadaoMachineState *ms = DADAO_M1_MACHINE(obj);
++    return (DadaoMachineState *)machine;
++}
++
++static inline DadaoMachineClass *dadao_machine_class(MachineClass *mc)
++{
++    return (DadaoMachineClass *)mc;
++}
++
++static char *dadao_machine_get_bootrom_image(Object *obj, Error **errp)
++{
++    DadaoMachineState *ms = dadao_machine_state(MACHINE(obj));
 +
 +    return g_strdup(ms->bootrom_image);
 +}
 +
-+static void dadao_m1_set_bootrom_image(Object *obj, const char *value,
-+                                       Error **errp)
++static void dadao_machine_set_bootrom_image(Object *obj, const char *value,
++                                            Error **errp)
 +{
-+    DadaoMachineState *ms = DADAO_M1_MACHINE(obj);
++    DadaoMachineState *ms = dadao_machine_state(MACHINE(obj));
 +
 +    g_free(ms->bootrom_image);
 +    ms->bootrom_image = g_strdup(value);
 +}
 +
-+static char *dadao_m1_get_profile(Object *obj, Error **errp)
++static char *dadao_machine_get_profile(Object *obj, Error **errp)
 +{
-+    DadaoMachineState *ms = DADAO_M1_MACHINE(obj);
++    DadaoMachineState *ms = dadao_machine_state(MACHINE(obj));
 +
 +    return g_strdup(ms->profile);
 +}
 +
-+static void dadao_m1_set_profile(Object *obj, const char *value, Error **errp)
++static void dadao_machine_set_profile(Object *obj, const char *value,
++                                      Error **errp)
 +{
-+    DadaoMachineState *ms = DADAO_M1_MACHINE(obj);
++    DadaoMachineState *ms = dadao_machine_state(MACHINE(obj));
 +
 +    g_free(ms->profile);
 +    ms->profile = g_strdup(value);
 +}
 +
-+static const DadaoProfile *dadao_profile_lookup(const char *name)
++/*
++ * Deprecated profile aliases (M12): `tiny` stays Tiny, `node` (the pre-M12
++ * Machine-v5-Node name) maps to Vast.  Only the `dadao-m1` compatibility
++ * machine consults this; the M12 machine types have no profile selector.
++ */
++static const DadaoProfile *dadao_legacy_profile_lookup(const char *name)
 +{
 +    if (g_strcmp0(name, "tiny") == 0) {
 +        return &dadao_profile_tiny;
 +    }
++    if (g_strcmp0(name, "vast") == 0) {
++        return &dadao_profile_vast;
++    }
 +    if (g_strcmp0(name, "node") == 0) {
-+        return &dadao_profile_node;
++        warn_report("dadao-m1: profile 'node' is deprecated since M12 "
++                    "(use 'vast' or -machine dadao-vast)");
++        return &dadao_profile_vast;
 +    }
 +    return NULL;
 +}
 +
 +/*
-+ * Profile selection (QEMU-079t/080t): `-machine dadao-m1,profile=<name>`
-+ * beats the environment variable `DADAO_TEST_PROFILE` (same names as
-+ * tests/shared/machine-profiles.yaml) which beats the default (`tiny`,
-+ * QEMU-080t).  A fallback through the environment is announced on stderr; an
-+ * unknown name is a hard error, never a silent downgrade.
++ * Resolve the active profile (M12).  `dadao-tiny` / `dadao-vast` fix it in
++ * class_init and ignore every selector.  The deprecated `dadao-m1` alias keeps
++ * the pre-M12 order -- `-machine profile=` beats $DADAO_TEST_PROFILE beats
++ * tiny -- so the tests can migrate one commit at a time.  An unknown name is a
++ * hard error, never a silent downgrade.
 + */
-+static const DadaoProfile *dadao_machine_select_profile(DadaoMachineState *ms)
++static const DadaoProfile *dadao_machine_select_profile(DadaoMachineState *ms,
++                                                        DadaoMachineClass *dc)
 +{
-+    const char *name = ms->profile;
++    const char *name;
 +    const char *origin = "-machine profile=";
 +    const DadaoProfile *prof;
 +
++    if (!dc->legacy_alias) {
++        return dc->profile;
++    }
++
++    name = ms->profile;
 +    if (!name || !*name) {
 +        const char *env = getenv("DADAO_TEST_PROFILE");
 +
@@ -495,19 +534,17 @@ index 0000000..1575364
 +        }
 +    }
 +    if (!name || !*name) {
-+        name = "tiny";
-+        origin = NULL;
++        return dc->profile;     /* `dadao-m1` defaults to tiny */
 +    }
-+    prof = dadao_profile_lookup(name);
++    prof = dadao_legacy_profile_lookup(name);
 +    if (!prof) {
 +        error_report("dadao-m1: unknown machine profile '%s' "
-+                     "(valid: tiny, node)", name);
++                     "(valid: tiny, vast; 'node' is a deprecated alias of "
++                     "vast)", name);
 +        exit(1);
 +    }
-+    if (origin) {
-+        info_report("dadao-m1: machine profile '%s' selected from %s",
-+                    prof->name, origin);
-+    }
++    info_report("dadao-m1: machine profile '%s' selected from %s "
++                "(deprecated alias)", prof->name, origin);
 +    return prof;
 +}
 +
@@ -646,10 +683,11 @@ index 0000000..1575364
 +    }
 +}
 +
-+static void dadao_m1_init(MachineState *machine)
++static void dadao_machine_init(MachineState *machine)
 +{
-+    DadaoMachineState *ms = DADAO_M1_MACHINE(machine);
-+    const DadaoProfile *prof = dadao_machine_select_profile(ms);
++    DadaoMachineState *ms = dadao_machine_state(machine);
++    DadaoMachineClass *dc = dadao_machine_class(MACHINE_GET_CLASS(machine));
++    const DadaoProfile *prof = dadao_machine_select_profile(ms, dc);
 +    DadaoCPU *cpu;
 +    MemoryRegion *ram, *rom;
 +    MemoryRegion *system_memory;
@@ -673,7 +711,7 @@ index 0000000..1575364
 +
 +    system_memory = get_system_memory();
 +
-+    /* RAM (profile geometry): Node 2 GiB at PA 0, Tiny 8 MiB at
++    /* RAM (profile geometry): Vast 2 GiB at PA 0, Tiny 8 MiB at
 +     * 0xffff_ff00_0000 (spec/Machine-v5 §1.1). */
 +    ram = g_new(MemoryRegion, 1);
 +    memory_region_init_ram(ram, NULL, "dadao-ram", prof->ram_size,
@@ -681,7 +719,7 @@ index 0000000..1575364
 +    memory_region_add_subregion(system_memory, prof->ram_base, ram);
 +
 +    /* A profile whose RAM is not already at PA 0 would need an alias for the
-+     * first page table (PTBR=0).  Node and Tiny both set this false. */
++     * first page table (PTBR=0).  Vast and Tiny both set this false. */
 +    if (prof->ram_alias) {
 +        MemoryRegion *ram_alias = g_new(MemoryRegion, 1);
 +
@@ -691,14 +729,14 @@ index 0000000..1575364
 +                                    ram_alias);
 +    }
 +
-+    /* BootROM: Node 4 MiB at 0xffff_ffc0_0000, Tiny 64 KiB at
++    /* BootROM: Vast 4 MiB at 0xffff_ffc0_0000, Tiny 64 KiB at
 +     * 0xffff_ffff_0000 (spec/Machine-v5 §1.1/§6). */
 +    rom = g_new(MemoryRegion, 1);
 +    memory_region_init_rom(rom, NULL, "dadao-rom", prof->rom_size,
 +                           &error_fatal);
 +    memory_region_add_subregion(system_memory, prof->rom_base, rom);
 +
-+    /* cfx_pmem SRAM (Node only): 64 KiB at a host address outside the
++    /* cfx_pmem SRAM (Vast only): 64 KiB at a host address outside the
 +     * 56-bit guest PA space, so a guest PA can never alias it. */
 +    if (prof->pmem_sram) {
 +        MemoryRegion *pmem_sram = g_new(MemoryRegion, 1);
@@ -709,7 +747,7 @@ index 0000000..1575364
 +                                    pmem_sram);
 +    }
 +
-+    /* hmon (cfx3) / smon (cfx2) SRAM (Node only), 64 KiB each. */
++    /* hmon (cfx3) / smon (cfx2) SRAM (Vast only), 64 KiB each. */
 +    if (prof->mon_sram) {
 +        MemoryRegion *hmon_sram = g_new(MemoryRegion, 1);
 +        MemoryRegion *smon_sram = g_new(MemoryRegion, 1);
@@ -743,7 +781,7 @@ index 0000000..1575364
 +        /*
 +         * Path A: ELF.  Header and PT_LOAD rules the upstream loader does not
 +         * enforce are checked first (contract-elf.md §1.3/§5.2/§6.1.2); the
-+         * allowed segment regions follow the profile (Node: PA RAM only; Tiny:
++         * allowed segment regions follow the profile (Vast: PA RAM only; Tiny:
 +         * RAM + BootROM, the crt stub lives in ROM).  Placement and .bss
 +         * zero-fill stay with the upstream loader.
 +         */
@@ -769,13 +807,17 @@ index 0000000..1575364
 +    dadao_load_raw_kernel(kernel, prof);
 +}
 +
-+static void dadao_m1_class_init(ObjectClass *oc, const void *data)
++static void dadao_machine_class_init(ObjectClass *oc, const void *data)
 +{
++    const DadaoMachineDesc *desc = data;
 +    MachineClass *mc = MACHINE_CLASS(oc);
++    DadaoMachineClass *dc = dadao_machine_class(mc);
 +
-+    mc->init = dadao_m1_init;
-+    mc->desc = "DADAO M1 bare-metal test machine "
-+               "(profile=tiny|node; DADAO_TEST_PROFILE fallback)";
++    dc->profile = desc->profile;
++    dc->legacy_alias = desc->legacy_alias;
++
++    mc->init = dadao_machine_init;
++    mc->desc = desc->desc;
 +    mc->default_cpus = 1;
 +    mc->min_cpus = 1;
 +    mc->max_cpus = 1;
@@ -785,33 +827,78 @@ index 0000000..1575364
 +
 +    /* BootROM image property (ADR-0043 D1/D2): a machine property rather than
 +     * a new CLI switch so every existing command line stays valid:
-+     * `-machine dadao-m1,bootrom-image=<path>`. */
++     * `-machine dadao-vast,bootrom-image=<path>`. */
 +    object_class_property_add_str(oc, "bootrom-image",
-+                                  dadao_m1_get_bootrom_image,
-+                                  dadao_m1_set_bootrom_image);
++                                  dadao_machine_get_bootrom_image,
++                                  dadao_machine_set_bootrom_image);
 +    object_class_property_set_description(oc, "bootrom-image",
 +        "BootROM image loaded at the profile ROM base (exact ROM size)");
 +
-+    /* Runtime machine profile (QEMU-079t/080t): tiny (default) or node. */
-+    object_class_property_add_str(oc, "profile",
-+                                  dadao_m1_get_profile,
-+                                  dadao_m1_set_profile);
-+    object_class_property_set_description(oc, "profile",
-+        "machine profile: tiny (default) or node; falls back to "
-+        "$DADAO_TEST_PROFILE");
++    if (desc->legacy_alias) {
++        /* Deprecated since M12: the profile selector and the environment
++         * fallback exist only so the pre-M12 command lines keep working until
++         * m12-integ-001 removes them.  The deprecation is surfaced through the
++         * `-M help` description and the profile= warnings rather than
++         * MachineClass::deprecation_reason, which would also print on every
++         * pre-M12 command line and disturb stderr-driven harnesses. */
++        object_class_property_add_str(oc, "profile",
++                                      dadao_machine_get_profile,
++                                      dadao_machine_set_profile);
++        object_class_property_set_description(oc, "profile",
++            "DEPRECATED since M12: tiny (default) or vast; 'node' is a "
++            "deprecated alias of vast; falls back to $DADAO_TEST_PROFILE");
++    }
 +}
 +
-+static const TypeInfo dadao_m1_type = {
-+    .name = TYPE_DADAO_M1_MACHINE,
-+    .parent = TYPE_MACHINE,
-+    .instance_size = sizeof(DadaoMachineState),
-+    .class_size = sizeof(DadaoMachineClass),
-+    .class_init = dadao_m1_class_init,
++/*
++ * Registered machine types (M12; spec/Machine-v5 §1).  `dadao-m1` is kept only
++ * as the deprecated compatibility name until m12-integ-001 drops it.
++ */
++static const DadaoMachineDesc dadao_tiny_machine = {
++    .desc = "DADAO Machine-v5-Tiny bare-metal test machine "
++            "(64 KiB BootROM + 8 MiB SRAM; no cfx/PTW)",
++    .profile = &dadao_profile_tiny,
++    .legacy_alias = false,
 +};
 +
-+static void dadao_m1_machine_init(void)
-+{
-+    type_register_static(&dadao_m1_type);
-+}
++static const DadaoMachineDesc dadao_vast_machine = {
++    .desc = "DADAO Machine-v5-Vast bare-metal test machine "
++            "(4 MiB BootROM + 2 GiB PA RAM; full cfx/PTW)",
++    .profile = &dadao_profile_vast,
++    .legacy_alias = false,
++};
 +
-+type_init(dadao_m1_machine_init);
++static const DadaoMachineDesc dadao_m1_machine = {
++    .desc = "DADAO M1 bare-metal test machine (deprecated: use dadao-tiny "
++            "or dadao-vast)",
++    /* Pre-M12 `dadao-m1` behaved as tiny unless profile= said otherwise. */
++    .profile = &dadao_profile_tiny,
++    .legacy_alias = true,
++};
++
++#define DADAO_MACHINE_TYPE_INFO(_name, _desc)                                \
++    {                                                                        \
++        .name = MACHINE_TYPE_NAME(_name),                                    \
++        .parent = TYPE_MACHINE,                                              \
++        .instance_size = sizeof(DadaoMachineState),                          \
++        .class_size = sizeof(DadaoMachineClass),                             \
++        .class_init = dadao_machine_class_init,                              \
++        .class_data = &(_desc),                                              \
++    }
++
++static const TypeInfo dadao_machine_types[] = {
++    DADAO_MACHINE_TYPE_INFO("dadao-tiny", dadao_tiny_machine),
++    DADAO_MACHINE_TYPE_INFO("dadao-vast", dadao_vast_machine),
++    {
++        /* Written out literally (not through the helper macro) so the
++         * interface gate keeps finding the machine name. */
++        .name = MACHINE_TYPE_NAME("dadao-m1"),
++        .parent = TYPE_MACHINE,
++        .instance_size = sizeof(DadaoMachineState),
++        .class_size = sizeof(DadaoMachineClass),
++        .class_init = dadao_machine_class_init,
++        .class_data = &dadao_m1_machine,
++    },
++};
++
++DEFINE_TYPES(dadao_machine_types)

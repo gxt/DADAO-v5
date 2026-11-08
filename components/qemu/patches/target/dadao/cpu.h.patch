@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..eb8f225
+index 0000000..5f0f596
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,567 @@
+@@ -0,0 +1,568 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -108,12 +108,12 @@ index 0000000..eb8f225
 +_Static_assert(DADAO_EXIT_MONITOR(3, 8) == 0xF8, "monitor: hypv ILLI");
 +_Static_assert(DADAO_EXIT_MONITOR(2, 1) == 0xE1, "monitor: supv CFXMEM");
 +
-+/* Memory map constants (canonical = Machine-v5-Node; spec/Machine-v5 §1.1,
++/* Memory map constants (canonical = Machine-v5-Vast; spec/Machine-v5 §1.1,
 + * ADR-0043 D1/D2; QEMU-080t).  These canonical macros are consumed by
 + * `check-interface` and by the cfx_pmem DMA physical-range check; every other
 + * runtime decision goes through the selected DadaoProfile.
 + *
-+ * Node: PA RAM is the single writable memory, 2 GiB at PA 0.  The CPU reaches
++ * Vast: PA RAM is the single writable memory, 2 GiB at PA 0.  The CPU reaches
 + * it only through the PTW (VA=PA identity in the first page table), so the
 + * canonical base is 0 (= the unmapped-alias constant below).  The single
 + * non-volatile BootROM is 4 MiB at 0xffff_ffc0_0000..0xffff_ffff_ffff; the
@@ -124,7 +124,7 @@ index 0000000..eb8f225
 +#define DADAO_ROM_SIZE      (4 * 1024 * 1024)     /* 4 MiB */
 +#define DADAO_BIOS_LOAD_BASE 0xffffffff0000ULL   /* legacy -bios reset window */
 +#define DADAO_BIOS_WINDOW_SIZE (64 * 1024)       /* legacy -bios limit */
-+/* PA 0 is the start of the Node RAM (the first page table lives at PA 0 /
++/* PA 0 is the start of the Vast RAM (the first page table lives at PA 0 /
 + * PTBR=0); the constant is kept for the DMA range check. */
 +#define DADAO_RAM_ALIAS_BASE 0x000000000000ULL
 +
@@ -145,20 +145,21 @@ index 0000000..eb8f225
 +/* ===================================================================
 + * Runtime machine profiles (spec/Machine-v5 §1, ADR-0043; QEMU-079t/080t)
 + *
-+ * One machine type (`dadao-m1`) selects its geometry / capability set at
-+ * runtime from a DadaoProfile, so the Tiny (64 KiB BootROM + 8 MiB SRAM, no
-+ * cfx) and Node (4 MiB BootROM + 2 GiB PA RAM, full cfx/PTW) geometries never
-+ * share compile-time constants.  The canonical DADAO_RAM_BASE /
-+ * DADAO_RAM_SIZE / DADAO_ROM_BASE / DADAO_ROM_SIZE / DADAO_RESET_PC macros
-+ * above are the Node values (`check-interface`); every runtime decision goes
-+ * through env->prof, never through those macros.
++ * The machine type selects its geometry / capability set from a DadaoProfile,
++ * so the Tiny (64 KiB BootROM + 8 MiB SRAM, no cfx) and Vast (4 MiB BootROM +
++ * 2 GiB PA RAM, full cfx/PTW) geometries never share compile-time constants.
++ * The canonical DADAO_RAM_BASE / DADAO_RAM_SIZE / DADAO_ROM_BASE /
++ * DADAO_ROM_SIZE / DADAO_RESET_PC macros above are the Vast values
++ * (`check-interface`); every runtime decision goes through env->prof, never
++ * through those macros.
 + *
-+ * Selection: `-machine dadao-m1,profile=<name>` beats the environment
-+ * variable `DADAO_TEST_PROFILE` (same names as tests/shared/
-+ * machine-profiles.yaml) which beats the default (`tiny`; QEMU-080t).
++ * Selection: `-machine dadao-tiny` / `-machine dadao-vast` (M12) fixes the
++ * profile; the pre-M12 `-machine dadao-m1[,profile=tiny|node]` spelling and
++ * the DADAO_TEST_PROFILE environment variable survive only as deprecated
++ * compatibility aliases (`dadao-m1` == tiny; `node` == vast).
 + * =================================================================== */
 +typedef struct DadaoProfile {
-+    const char *name;           /* selector value: "tiny" / "node" */
++    const char *name;           /* selector value: "tiny" / "vast" */
 +    uint64_t ram_base;
 +    uint64_t ram_size;
 +    uint64_t rom_base;          /* BootROM (non-volatile) */
@@ -192,20 +193,20 @@ index 0000000..eb8f225
 +#define DADAO_TINY_KERNEL_ENTRY    0xFFFFFF010100ULL
 +#define DADAO_TINY_KERNEL_RESERVED 0x100ULL
 +
-+/* Machine-v5-Node geometry (spec/Machine-v5 §1.1/§6; user ruling 2026-11-03):
++/* Machine-v5-Vast geometry (spec/Machine-v5 §1.1/§6; user ruling 2026-11-03):
 + * 4 MiB BootROM, reset at its last 64 KiB start, 2 GiB PA RAM at PA 0 reached
 + * through the PTW identity map, and the test body entry at RAM + 1 MiB.  The
 + * raw -kernel image has no reserved prefix (kernel_base == entry). */
-+#define DADAO_NODE_RAM_BASE        0x000000000000ULL
-+#define DADAO_NODE_RAM_SIZE        (2048ULL * 1024 * 1024)
-+#define DADAO_NODE_ROM_BASE        0xFFFFFFC00000ULL
-+#define DADAO_NODE_ROM_SIZE        (4 * 1024 * 1024)
-+#define DADAO_NODE_RESET_PC        0xFFFFFFFF0000ULL
-+#define DADAO_NODE_KERNEL_BASE     0x000000100000ULL
-+#define DADAO_NODE_KERNEL_ENTRY    0x000000100000ULL
-+#define DADAO_NODE_KERNEL_RESERVED 0x0ULL
++#define DADAO_VAST_RAM_BASE        0x000000000000ULL
++#define DADAO_VAST_RAM_SIZE        (2048ULL * 1024 * 1024)
++#define DADAO_VAST_ROM_BASE        0xFFFFFFC00000ULL
++#define DADAO_VAST_ROM_SIZE        (4 * 1024 * 1024)
++#define DADAO_VAST_RESET_PC        0xFFFFFFFF0000ULL
++#define DADAO_VAST_KERNEL_BASE     0x000000100000ULL
++#define DADAO_VAST_KERNEL_ENTRY    0x000000100000ULL
++#define DADAO_VAST_KERNEL_RESERVED 0x0ULL
 +
-+extern const DadaoProfile dadao_profile_node;
++extern const DadaoProfile dadao_profile_vast;
 +extern const DadaoProfile dadao_profile_tiny;
 +
 +/*
@@ -226,7 +227,7 @@ index 0000000..eb8f225
 +#define DADAO_VA_MASK       0x000003FFFFFFFFFFULL  /* VA[41:0] */
 +#define DADAO_CFXHA_MEM     0
 +
-+/* Reset values (per ADR-0004 D2).  The canonical value is the Node reset
++/* Reset values (per ADR-0004 D2).  The canonical value is the Vast reset
 + * window: BootROM base + 0x3f_0000 (spec/Machine-v5 §1.1). */
 +#define DADAO_RESET_PC      0xFFFFFFFF0000ULL
 +#define DADAO_RESET_RF0     0x7FF800007FC00000ULL
@@ -451,7 +452,7 @@ index 0000000..eb8f225
 +
 +    /* Runtime machine profile (QEMU-079t; spec/Machine-v5 §1).  Set by the
 +     * machine before qdev_realize() so reset can derive PC/geometry from it;
-+     * NULL means the Node profile (safe default for the linux-user build and
++     * NULL means the Vast profile (safe default for the linux-user build and
 +     * for a CPU created without a machine). */
 +    const DadaoProfile *prof;
 +
@@ -511,10 +512,10 @@ index 0000000..eb8f225
 +    QEMUTimer *hart_timer;
 +} CPUDADAOState;
 +
-+/* Resolve the active profile; an unset pointer means the Node profile (the
++/* Resolve the active profile; an unset pointer means the Vast profile (the
 + * linux-user build never has a machine to set one). */
 +#define DADAO_PROFILE(env) \
-+    ((env)->prof ? (env)->prof : &dadao_profile_node)
++    ((env)->prof ? (env)->prof : &dadao_profile_vast)
 +
 +/**
 + * DadaoCPU:
