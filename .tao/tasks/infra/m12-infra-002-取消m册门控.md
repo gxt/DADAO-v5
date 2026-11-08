@@ -107,7 +107,7 @@
 **F2 真修（抗 master 前进）**
 - `run.sh`：`PIN_SHA=$(git -C "$ROOT" rev-parse HEAD)` → `clone --shared --no-checkout --branch master` → `checkout --detach $PIN_SHA` → 断言 `clone HEAD == 被测 HEAD`（51203f8a）、`本地仅 master`、`cat-file -e $PIN_SHA`；另加第 8 节 `check-knowledge-refs` rc=0 断言。
 - 本树连跑 2 次：**均 rc=0、38 PASS / 0 FAIL，两次输出 `diff` = IDENTICAL**。
-- 漂移模拟（临时树，未碰真实仓库）：shared clone → detach `51203f8a` + 拷交付文件 → 把该树本地 `master` 推进到 `e94a9f22`（含具体 `.work/**` 毒丸）⇒ 复跑 run.sh **仍 rc=0、38/38、pin=51203f8a**；反证按**旧**方式 `checkout master` 同门控 **rc=1**（`zz-reviewer-poison.md:3 .work/evidence/poison/run.sh`）、pin 树 rc=0 ⇒ pin 确实抗 master 前进。
+- 漂移模拟（临时树，未碰真实仓库）：shared clone → detach `51203f8a` + 拷交付文件 → 把该树本地 `master` 推进到 `e94a9f22`（含具体 `.work/**` 毒丸）⇒ 复跑 run.sh **仍 rc=0、38/38、pin=51203f8a**；反证按**旧**方式 `checkout master` 同门控 **rc=1**（`zz-reviewer-poison.md:3`（毒丸内容为具体 `.work/**` 路径））、pin 树 rc=0 ⇒ pin 确实抗 master 前进。
 
 **回归**
 - `--self-test` rc=0 **20/20**；基线 rc=0 且打印跳过分支；`make -o … check-milestone` ⇒ m 册环节 PASS、无「m 册缺失」，rc=2 仅 `check_tasks --strict` 漏收尾=1；`make -k check-milestone` 仍仅 2 个环境前置红。
