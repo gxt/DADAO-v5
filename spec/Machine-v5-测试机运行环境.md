@@ -271,38 +271,54 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 
 ### 0.4.0（2026-11-08）
 
-- **Tiny / Node 两个 profile**：Tiny = BootROM 64 KiB + SRAM 8 MiB、无 cfx / 无 PTW / 无 hmon 与异常路径、`trap` 只作 semihosting 开关；Node = BootROM 4 MiB + PA RAM 2 GiB、hmon / PTW / hypv，smon 路径保留。两者复位地址均为 `0xffff_ffff_0000`。
+**① 平台 profile：Tiny / Node**
+
+- **两个 profile**：`Machine-v5-Tiny` = BootROM 64 KiB + SRAM 8 MiB、无 cfx / 无 PTW / 无 hmon 与异常路径、`trap` 只作 semihosting 开关；`Machine-v5-Node` = BootROM 4 MiB + PA RAM 2 GiB、hmon / PTW / hypv，smon 路径保留。两者复位地址均为 `0xffff_ffff_0000`。
 - **删除旧几何约定**：单一几何、物理地址与核内地址别名、双映射两步过渡全部作废；`power` 不设 SRAM 改为本机约定（不是架构禁令）；`DADAO-12` 只要求 BootROM ≥ 64 KiB，实际尺寸由本册按 profile 规定。
 - **BootROM 尺寸按 profile**：Tiny 64 KiB、Node 4 MiB；复位向量仍在 BootROM 末 64 KiB 起点。
 - **Tiny 装载约定**：raw 镜像基址 `0xffff_ff01_0000`（镜像前 `0x100` 全零）、应用入口 `0xffff_ff01_0100`、`SP 0xffff_ff7e_ff00`；ELF 的 crt / 启动 stub 落 BootROM、应用段落 SRAM，raw 与 ELF 统一入口与 `SP`。
 - **cfx 实现范围按 profile**：Tiny 不实现任何 cfx（含 `cfx_power`），只保留 semihosting；Node 实现 `cfx0/1/2/3/63`、`cfx4`（PTW/TLB）、`cfx32`（SRAM/DMA）与时间类 cfx。
 
+**② 启动链与内存布局**
+
 - **启动链**：power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）；`power → hmon → smon`（supv/cfx2）路径保留——power 从 BootROM 装载 hmon，hmon 移交 smon，smon 建立首张页表并开启 PTW。
 - **hmon / smon SRAM**：各 64 KiB（`0x0fff_0000_0000` / `0x0bff_0000_0000`），H/S-mode 异常向量默认等于各自起始地址。
 - **Node 首张页表**：由 smon 在交接后建立；`PTBR=0`、L1 index `0`–`3` 四个 512 MiB 超页，`VA [0, 2 GiB) → PA [0, 2 GiB)`；每项 `H=1`、`S=1`、`U=J=0`、`R=W=X=1`、`P=1`、`SP=1`、`A=D=1`、`SPF=0xFF`；随后开启 PTW。
 
-- **地址空间 Step 1（无 PTW）**：`addr[47:42] = 0` 且 `ptw_enable=0` 的访存 / 取指 ⇒ `CFXMEM`；保留 cfx（6–14、16–31、35–61）的普通 `ld/st` ⇒ `CFXMEM`。
-- **地址空间 Step 2（页表步进）**：`ptw_enable=1` 时按单 PTBR 走两级页表（64 KiB 页 / 512 MiB 超页），检查 HSJU 与 R/W/X，页表异常进入 `cfx_ptw`。
-- **地址空间 Step 3（TLB 与 A/D）**：TLB 并入 `cfx_ptw`（命中 / 填充 / ASID / G / 失效接口），A/D 回写落地；A/D 回写失败以 `PTWERR`（`1 << 7`）报告；`cfxha 5`（原 `tlb`）不再分配，按未实现 cfx 报 `CFXREG`。
+**③ 地址空间与页表（PTW / TLB）**
+
+- **Step 1（无 PTW）**：`addr[47:42] = 0` 且 `ptw_enable=0` 的访存 / 取指 ⇒ `CFXMEM`；保留 cfx（6–14、16–31、35–61）的普通 `ld/st` ⇒ `CFXMEM`。
+- **Step 2（页表步进）**：`ptw_enable=1` 时按单 PTBR 走两级页表（64 KiB 页 / 512 MiB 超页），检查 HSJU 与 R/W/X，页表异常进入 `cfx_ptw`。
+- **Step 3（TLB 与 A/D）**：TLB 并入 `cfx_ptw`（命中 / 填充 / ASID / G / 失效接口），A/D 回写落地；A/D 回写失败以 `PTWERR`（`1 << 7`）报告；`cfxha 5`（原 `tlb`）不再分配，按未实现 cfx 报 `CFXREG`。
 - **`cfx4` 实现范围**：由 Step 1 的寄存器子集（唯一 `cfx_ptw_ptbr`、`cfx_ptw_enable`）扩展到页表步进与页权限；PTBR 模式权限位图的描述删除。
 - **页表异常路由**：页表步进与 TLB 命中产生的异常先进入当前运行模式 monitor——未映射与 A/D 回写失败 ⇒ `CFXMEM`，HSJU 或 R/W/X 不符 ⇒ `CFXPERM`；`cfx_ptw` 不再是页表异常目标；页表 / PTW 层权限与 cfx 访问权限仍是两个层次，失败原因名统一为 `CFXPERM`。
 - **术语统一**：地址空间分区一律写 `addr[47:42]`（地址高 6 位），不再使用讨论期简写。
 
-- **两轴权限模型**：四类同步来源 mask + `cfx_intr_mask` / `global_cfx_intr_mask`；权限拒绝 ⇒ `CFXPERM`，escape 帧 / 目标错误 ⇒ `CFXESC`。
-- **`escape` 偏移合法集**：0 / +4（`imms18 ∈ {0, 1}`）；`imms18[17:1]` 为 SBZ，非零 ⇒ `ILLI`。
+**④ 异常**
+
+- **`escape` 偏移合法集**：0 / +4（`imms18 ∈ {0, 1}`）；`imms18[17:1]` 为 SBZ，非零 ⇒ `ILLI`（§4.2）。
+
+**⑤ 退出码**
 
 - **三段式退出码**：guest `0x00`–`0x3F` / `0x40`–`0x7F`；其它 cfx `0x80`–`0xBF`（`bit5:0` = cfxHA）；monitor `0xC0`–`0xFF`（`bit5:4` = 运行模式、`bit3:0` = DADAO 异常位索引）。补全 monitor 11 个位索引，删除旧的单公式派生与「未映射」独立码。
 - **退出码表位置**：由 §1.2（越界访问与越界取指异常）迁至 §7.1（退出码（测试机约定））；§1.2 只保留内存 / 越界异常语义，退出码分段、位域、monitor 位索引与落点逐字不变。
 
+**⑥ cfx 体系**
+
+- **两轴权限模型**：四类同步来源 mask + `cfx_intr_mask` / `global_cfx_intr_mask`；权限拒绝 ⇒ `CFXPERM`，escape 帧 / 目标错误 ⇒ `CFXESC`。
 - **cfx 编号**：`cfx5`（`cache`）为已分配未实现；保留 cfx 改为 `6`–`14`、`19`–`61`。
 - **`cg7` 内部空间描述**：`cg0`–`cg7` 为共有寄存器；每 4 个 rc 描述一个内部空间（存在 + 类型 one-hot / 42 位起始偏移 / 字节大小 / R-W-X-cacheable-shareable-volatile 属性），16 块用满 `rc0`–`rc63`；寄存器按数组 `space_{desc,start,size,attr}[i]`（`i = 0..15`）定义，未实现空间以 `exists=0` 表示，全部只读、写触发 `CFXREG`。
 - **`cfx_pmem` 与 `cg15` DMA**：新增 64 KiB SRAM（`0x83ff_0000_0000`，cfxha 32、内部偏移 `0x3ff_0000_0000`）；DMA 可读 RAM / boot ROM、只能写 RAM。
 - **扩展指令清单**：`cfxld` / `cfxst` 已从指令系统删除，只余 `trap` / `escape` / `cfx2rd` / `cfx2rc`（及 `fence`）。
 
-- **semihosting 入口判定**：改为 `immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`），原按 `immu18` 高位两比特的判定作废；§4.1 / §4.3 的一般 trap / semihosting 分界、§5.1 判定与调用示例同步；`HBI_<name>_INIT`（`0x30001`）落在该区之外，按一般 trap 进入目标 cfx 向量。
+**⑦ semihosting**
+
+- **入口判定**：改为 `immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`），原按 `immu18` 高位两比特的判定作废；§4.1 / §4.3 的一般 trap / semihosting 分界、§5.1 判定与调用示例同步；`HBI_<name>_INIT`（`0x30001`）落在该区之外，按一般 trap 进入目标 cfx 向量。
+
+**⑧ 其它**
 
 - **legacy `-bios`**：仍按 64 KiB 复位窗口装载，与镜像装载路径并存。
-- **册名**：`Machine-01` → `Machine-v5`（标题同步为「Machine-v5：测试机运行环境」；正文语义不变）。
+- **册名**：`Machine-01` → `Machine-v5`（标题同步为「`Machine-v5：测试机运行环境`」；正文语义不变）。
 
 ### 0.3.1（2026-10-16）
 

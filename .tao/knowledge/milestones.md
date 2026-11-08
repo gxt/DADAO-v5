@@ -12,9 +12,9 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| INFRA-137t | 待开始 | 2026-11-08 10:20（登记） | 补丁工具支持组件内子模块补丁（fetch/apply/check + manifest 结构） |
-| SPEC-195t | 待验收 | 2026-11-08 10:05（登记） | Machine-v5 发布 0.4.0 + 变更记录按重要性重排 |
+| SPEC-195t | 已验证 | 2026-11-08 09:44 | Machine-v5 发布 0.4.0；版本与变更记录按重要性重排（8 组带标签） |
 | GEM5-027t | 已验证 | 2026-11-08 09:43 | SE 动态装载器：ET_EXEC+PT_INTERP、auxv（宿主 creds）、--interp-dir/--redirect |
+| INFRA-137t | 待开始 | 2026-11-08 09:13（登记） | 补丁工具支持组件内子模块补丁（fetch/apply/check + manifest 结构） |
 | INFRA-135t | 已验证 | 2026-11-08 08:59 | check-knowledge-refs 具体 `.work` 引用一律 FAIL（ISS-352，用户裁定 A） |
 | INFRA-136t | 待开始 | 2026-11-08 08:53（登记） | chipyard 补丁集：SimTSI 首构造 try/catch，修 --help 崩溃 |
 | INFRA-134t | 已验证 | 2026-11-08 04:01 | bootstrap 语义改名 + 隔离用例；remote.py 仓库根校验；L1 断言改 -k 封闭假绿（ISS-347/348） |

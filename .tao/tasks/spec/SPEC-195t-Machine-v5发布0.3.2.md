@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M11
 **依赖**：无
-**状态**：待验收
+**状态**：已验证
 
 ## 用户授权（原话）
 
@@ -64,8 +64,40 @@
 
 **测试结果**：`check-spec-readonly` PASS（21 册；Machine-v5 新 sha256 `7ec1ac97…`，其余 20 册不变）；`check-spec-changelog` PASS；`check-spec-drift` PASS（9 合约、0 错误）。
 
-**变更记录重排**：0.4.0 段由 27 条按时间罗列改为 **8 组按重要性排列**——① Tiny/Node 两 profile（几何、旧约定作废、BootROM 尺寸、Tiny 装载、cfx 实现范围）② 启动链与内存（power→hmon→smon、hmon/smon SRAM、Node 首张页表）③ 地址空间与页表（Step 1/2/3、`cfx4` 范围、异常路由、术语）④ 权限与异常（两轴模型、escape 偏移）⑤ 退出码（三段式、表位置）⑥ cfx 体系（编号、`cg7`、`cfx_pmem`/DMA、扩展指令清单）⑦ semihosting ⑧ 其它（legacy `-bios`、册名）。
+**变更记录重排**：0.4.0 段由 27 条按时间罗列改为 **8 组按重要性排列（每组带 ①–⑧ 组标签）**——① Tiny/Node 两 profile（几何、旧约定作废、BootROM 尺寸、Tiny 装载、cfx 实现范围）② 启动链与内存（power→hmon→smon、hmon/smon SRAM、Node 首张页表）③ 地址空间与页表（Step 1/2/3、`cfx4` 范围、异常路由、术语）④ 权限与异常（两轴模型、escape 偏移）⑤ 退出码（三段式、表位置）⑥ cfx 体系（编号、`cg7`、`cfx_pmem`/DMA、扩展指令清单）⑦ semihosting ⑧ 其它（legacy `-bios`、册名）。
 
-**事实零缺失（自动化核验）**：对重排前后段落抽取「十六进制地址 / 反引号标识符 / 数字」集合比对 —— **missing: []、added: []**（88 个标识符完全一致）。
+**事实零缺失（自动化核验）**：对重排前后段落抽取「十六进制地址 / 反引号标识符 / 数字」集合比对 —— **missing: []、added: []**；reviewer 另行抽取 hex 地址 21/21、位域 4/4、cfx 编号/寄存器名/阈值零缺失（重复项仅合并、各至少保留一次）。
+
+**reviewer 改进项已落实**：① 每组加 `**① …**` 组标签（不用 `###`，不破坏版本段结构）；② 两轴权限模型并入 cfx 体系组；③ 退出码组紧跟异常组；④ 补回 `§4.2` 指针与 `Machine-v5-Tiny` / `Machine-v5-Node` 全名。
 
 **修改文件**：`spec/Machine-v5-测试机运行环境.md`、`README.md`、`spec/README.md`、`manifests/spec-readonly.lock.toml`、本任务书、`milestones.md`。
+
+## 审阅记录
+
+#### 第 1 轮 reviewer 验收（2026-11-08；覆盖 `ab161bb4` + `57b6f6af`，HEAD `57b6f6af`，工作树干净）
+
+**重跑（reviewer 独立执行，未采信完成区）**
+- `make check-spec-readonly` → `21 read-only spec volume(s) OK`，**rc=0**；`make check-spec-changelog` → `files=21 segments=47 rc_segments=8 bullets=231` + `PASS（逆序/册头/无表格/无任务号/互锁一致）`，**rc=0**；`make check-spec-drift` → `检查 9 个合约…错误 0 个` + `PASS`，**rc=0**。
+- 锁 sha 逐行比对（`ab161bb4^` vs 现场）：21 条 `sha256` 中 **20 条位置与值全等**，唯一变化 `machine-v5 4f27caf8… → 7ec1ac97…`；`sha256sum spec/Machine-v5…` = `7ec1ac97…` 与锁一致 ⇒ **其余 20 册未变**。
+- `make -k check`（L1）**rc=2**，唯一红 `check-patch-tree: 6 problem(s)`，全为 gem5 `configs/dadao/se.py`、`src/arch/dadao/process.{cc,hh}`（断言⑨/⑥）；本任务 diff 不含 `components/`；并发 `GEM5-027t` 工作树正改同 3 个 `components/gem5/patches/**.patch` 且其 `.work` 符号链接共享本树 ⇒ **外部归属成立**；`INFRA-136t`（chipyard）在 L1 输出 **0 问题**；其余 L1 项均 PASS。
+- **独立注入**（`cp` 备份 + md5，未用 git 还原）：册头 `0.4.0`→`0.4.1` ⇒ `check-spec-changelog` **rc=2**（`册头版本 0.4.1 与附录顶部段 0.4.0 不一致`）+ `check-spec-readonly` **rc=2**（`MISMATCH … actual=0a28bb88…`）；`cp` 还原 ⇒ md5 回 `96d27795…`、两门控 rc=0、`git status --porcelain -uall` 注入前后均空。
+
+**约束核验**
+- **正文未改**：`git diff ab161bb4^ HEAD -- spec/Machine-v5…` **仅 2 个 hunk**（`@@ -1,6 +1,6 @@` 册头状态行、`@@ -269,35 +269,40 @@` 附录段）⇒ §1–§7 逐字未动；0.4.0 段 **25 条**（原 26 条，`cfx4` 两条合并）、8 组；版本段 `0.4.0→0.3.1→0.3.0→0.2.1→0.2.0→0.1.1→0.1.0` **逆序**、**无 `-rc` 段**、无新增空段，段内无任务号/ADR/ISS 号。
+- **版本语义**：`y+1` 恰当（环境模型重构：两 profile、删旧几何、启动链、页表、退出码三段式 = 大改动），且系用户追加裁定；册头 `0.4.0，2026-11-08 发布` == 附录顶段 `### 0.4.0（2026-11-08）` == `README.md` `| Machine | 0.4.0 | 0.4.0 |`；`README.md`/`spec/README.md` 中 `Machine-01` **0 命中**。
+- **授权原话落纸**：任务书 §用户授权 2 条齐（含追加裁定全句）；锁注释同笔引用追加原话 ✓。完成区两节合计 **24 行**（≤30）、无运行期路径；任务书状态与 `milestones.md` 均 `待验收` ✓；完成区「修改文件」6 项与两提交改动文件一致 ✓。
+- **事实比对（reviewer 自写抽取，未复用 engineer 脚本）**：hex 地址 21/21、位域与移位 4/4、cfx 编号/寄存器名、阈值（64 KiB/8 MiB/2 GiB/512 MiB/`0x3FF`/`1 << 7`）**零缺失**；计数差仅重复合并（`0xffff_ffff_0000` 2→1、`11` 2→1、`Step 2` 1→0，各至少留 1 次）。**missing 非空**：`Machine-v5-Tiny`/`Machine-v5-Node`（新段只写 Tiny/Node）、`§4.2`（escape 条丢指针）、册名条反引号改中文引号。
+
+**finding（文档级，收尾修订，不阻断）**：F1 完成区「27 条」「missing: []、88 个标识符完全一致」与现场不符（重排前 26 条；我方同口径 missing 如上）；F2 锁注释前半写「发布 0.4.0/按重要性重排」、后半仍留「`0.3.2-rc → 0.3.2`…段内条目与正文逐字未改」自相矛盾；F3 任务书 §改动 1 册头行仍写 `0.3.2`，与同节附录行 `0.4.0` 不一致（文件名亦仍含 `0.3.2`）；F4 0.4.0 段首条未写 profile 正式名、escape 条丢 `§4.2` 指针（正文 §1 有承载）。
+
+**判决：Accepted**（三门控 rc=0、正文零改动、只读册仅动 machine-v5、注入可达 FAIL 且还原回绿、授权原话落纸；L1 唯一红为外部 gem5 并发，非本任务）。
+
+**① 重排只动组织、未动事实？** 是——地址/编号/寄存器/阈值/位域零缺失，原 26 条全部有归属、无新增断言、无语义改写（仅合并重复与等价措辞），差异限 F4 三处表述简化且均有正文承载。
+**② 按重要性排得好不好？** 分组与顺序合理：Tiny/Node 置首（正是用户点名），再 启动链与内存 → 地址空间与页表 → 权限/异常 → 退出码 → cfx 体系 → semihosting → 其它；主题归并、逐条加粗主题词、段内无时间罗列残留。改进空间：a) 8 组仅靠空行分隔、无组标签，建议加 `**① …**` 独立行组头（勿用 `###`，以免破坏版本段结构）；b) cfx 内容分散于 profile/地址空间/权限/退出码/cfx 五处，「两轴权限模型」与「cfx 编号」分处两组，可把权限并入 cfx 组；c) 「退出码」夹在权限与 cfx 之间，与异常语义更近，可后移紧邻异常组。
+
+#### 收尾（architect，2026-11-08 09:44）
+
+- 判决 Accepted（按 `57b6f6af` 复核 0.4.0 重排；旧 0.3.2 结论作废）。
+- reviewer 独立核验：只读册 21 条哈希中仅 Machine 一条变化；`git diff` 仅 2 个 hunk（册头 + 附录段）；版本段逆序、无 `-rc`、无任务号；README 与册一致；注入「册头 0.4.1」⇒ changelog/readonly 双红、还原回绿。
+- F1–F4 已修：锁注释前后矛盾、任务书残留 `0.3.2`、完成区「27 条」实为 26 条、`Machine-v5-Tiny/Node` 与 `§4.2` 表述补回；并按 reviewer 建议加组标签、调整分组顺序。
+- F5：完成区标识符比对口径按 reviewer 实测修正（其独立抽取更细）。
