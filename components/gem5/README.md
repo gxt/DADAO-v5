@@ -252,8 +252,11 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `MAP_GROWSDOWN` ⇒ `EINVAL`），QEMU user 对该 target 恒返回 `EINVAL`；
   `MAP_GROWSDOWN` 的运行时向下增长 SE 按 Linux 实现（QEMU user 交给宿主
   `mmap`，不按 guest `RLIMIT_STACK` 记账）；`mremap` 增长处的 `RLIMIT_AS`
-  SE 按 Linux `may_expand_vm` 检查（4 MiB→100 MiB 增长为 `ENOMEM`），
-  QEMU-084t 只覆盖 `target_mmap` 的 `mmap` 路径、`mremap` 增长漏检。
+  **已对齐（QEMU-085t）**：SE 按 Linux `may_expand_vm` 检查（4 MiB→100 MiB
+  增长为 `ENOMEM`），QEMU 自 QEMU-085t 起在 `target_mremap` 的增长（含
+  `MREMAP_FIXED` 目标）上按 guest `RLIMIT_AS` 记账；双引擎探针 43 条断言
+  逐行一致。对齐之前 QEMU-084t 只覆盖 `target_mmap` 的 `mmap` 路径、
+  `mremap` 增长漏检（该历史差异留此备查）。
   这些差异未触达当前静态语料（基线无新增 `gem5_only_fail`）。
 - **IPC 与多进程（GEM5-025t）**：`pipe2`(59)、`socket`(198)/`socketpair`(199)/
   `bind`(200)/`listen`(201)/`accept`(202)/`accept4`(242)/`connect`(203)/

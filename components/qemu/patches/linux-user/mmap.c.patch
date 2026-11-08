@@ -1,5 +1,5 @@
 diff --git a/linux-user/mmap.c b/linux-user/mmap.c
-index cc0c2ee..70c48db 100644
+index cc0c2ee..daf847b 100644
 --- a/linux-user/mmap.c
 +++ b/linux-user/mmap.c
 @@ -18,11 +18,13 @@
@@ -16,7 +16,7 @@ index cc0c2ee..70c48db 100644
  #include "user/page-protection.h"
  #include "user/mmap-min-addr.h"
  #include "user-internals.h"
-@@ -166,6 +168,227 @@ static int target_to_host_prot(int prot)
+@@ -166,6 +168,270 @@ static int target_to_host_prot(int prot)
             (prot & PROT_EXEC ? PROT_READ : 0);
  }
  
@@ -35,6 +35,9 @@ index cc0c2ee..70c48db 100644
 + *    against writable private mappings.  do_brk() grows the heap through
 + *    target_mmap(), so an enlarged brk is covered by the same check, as on a
 + *    native kernel (may_expand_vm()).
++ *  - target_mremap() charges the growth of a remap (new_size > old_size) to
++ *    RLIMIT_AS, as the kernel's may_expand_vm() does from mremap(2).
++ *    Shrinks, same-size remaps and MREMAP_DONTUNMAP keep their old behaviour.
 + *  - MAP_GROWSDOWN mappings are the stack-shaped mmap(), so they are capped by
 + *    RLIMIT_STACK.  The main thread stack is mapped eagerly by the loader with
 + *    a size fixed by -s / the host rlimit; a runtime RLIMIT_STACK does not
@@ -239,12 +242,52 @@ index cc0c2ee..70c48db 100644
 +    }
 +    return 0;
 +}
++
++/*
++ * QEMU-085t (ISS-351): a remap that grows a mapping grows the address space,
++ * and Linux bounds that growth with RLIMIT_AS too.  mremap(2) calls
++ * may_expand_vm() with the *grown* page count from check_prep_vma(), for the
++ * MREMAP_FIXED, the moving and the in-place paths alike; a shrink or a
++ * same-size remap is never charged.  Only the growth is added to the current
++ * total here, matching that argument.
++ *
++ * Scope notes, so the remaining differences are visible rather than implied:
++ *  - The RLIMIT_DATA half of may_expand_vm() is not repeated.  The kernel
++ *    applies it when the remapped range is a private writable mapping, but
++ *    the guest page table records writability only -- unlike target_mmap(),
++ *    which still has the MAP_PRIVATE/PROT_WRITE request at hand -- and doing
++ *    it from page flags would also charge writable shared mappings.  This
++ *    task is the RLIMIT_AS gap GEM5-030t reported.
++ *  - MREMAP_DONTUNMAP keeps its old behaviour: it does not resize the
++ *    mapping (old_size == new_size is required), qemu-user forwards it to the
++ *    host, and the caller of target_mremap() leaves it out of this check.
++ *
++ * Context: mmap lock held.
++ */
++static abi_long guest_rlimit_check_remap_grow(abi_ulong grow)
++{
++    struct guest_vm_usage usage;
++
++    if (!guest_rlim[GUEST_RLIM_AS].set) {
++        return 0;
++    }
++    memset(&usage, 0, sizeof(usage));
++    if (walk_memory_regions(&usage, guest_vm_usage_cb)) {
++        /* The walker never asks us to stop; be explicit about it anyway. */
++        return -TARGET_ENOMEM;
++    }
++    if (guest_rlimit_exceeds(usage.total_pages, grow >> TARGET_PAGE_BITS,
++                             guest_rlim[GUEST_RLIM_AS].cur)) {
++        return -TARGET_ENOMEM;
++    }
++    return 0;
++}
 +#endif /* TARGET_DADAO */
 +
  /* Target bits to be cleared by mprotect if not present in target_prot. */
  #ifdef TARGET_AARCH64
  #define TARGET_PAGE_NOTSTICKY  PAGE_BTI
-@@ -1004,6 +1227,17 @@ abi_long target_mmap(abi_ulong start, abi_ulong len, int target_prot,
+@@ -1004,6 +1270,17 @@ abi_long target_mmap(abi_ulong start, abi_ulong len, int target_prot,
  
      mmap_lock();
  
@@ -262,3 +305,46 @@ index cc0c2ee..70c48db 100644
      ret = target_mmap__locked(start, len, target_prot, flags,
                                page_flags, fd, offset);
  
+@@ -1180,6 +1457,42 @@ abi_long target_mremap(abi_ulong old_addr, abi_ulong old_size,
+ 
+     mmap_lock();
+ 
++#ifdef TARGET_DADAO
++    {
++        /*
++         * QEMU-085t (ISS-351): charge the growth of this remap to the guest
++         * RLIMIT_AS (see guest_rlimit_check_remap_grow()).
++         *
++         * Sizes are page-aligned first, as mremap(2) aligns both lengths
++         * before it looks at them; the charge is the growth, not the whole
++         * new length, which is what the kernel passes to may_expand_vm().
++         *
++         * Two exclusions, both to keep the error the kernel would report:
++         *  - MREMAP_DONTUNMAP never resizes in place and is not modelled by
++         *    the guest accounting; it is left exactly as it was.
++         *  - A MREMAP_FIXED target that overlaps the source is EINVAL, and
++         *    the kernel tests that before may_expand_vm(); the host mremap
++         *    below reports it, so do not preempt it with ENOMEM.
++         *
++         * The check does run before the host call, so an in-range but unmapped
++         * source range reports ENOMEM here where the kernel reports EFAULT
++         * (its vma lookup happens before may_expand_vm()).  Only invalid
++         * calls are affected; documented in the task book.
++         */
++        abi_ulong aligned_old = TARGET_PAGE_ALIGN(old_size);
++        abi_ulong aligned_new = TARGET_PAGE_ALIGN(new_size);
++
++        if (!(flags & MREMAP_DONTUNMAP) && aligned_new > aligned_old &&
++            !(flags & MREMAP_FIXED && new_addr < old_addr + aligned_old &&
++              old_addr < new_addr + aligned_new) &&
++            guest_rlimit_check_remap_grow(aligned_new - aligned_old) < 0) {
++            mmap_unlock();
++            errno = ENOMEM;
++            return -1;
++        }
++    }
++#endif
++
+     if (flags & MREMAP_FIXED) {
+         host_addr = mremap(g2h_untagged(old_addr), old_size, new_size,
+                            flags, g2h_untagged(new_addr));

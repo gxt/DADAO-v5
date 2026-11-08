@@ -116,8 +116,8 @@
 
 - id: ISS-351
   scope: [qemu]
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: QEMU-085t（`target_mremap` 增长按 guest `RLIMIT_AS` 记账，双引擎探针 43 条一致）
   title: >-
     【P3】QEMU linux-user 的 `target_mremap` 未检查 guest `RLIMIT_AS`（`GEM5-030t` 实测 4 MiB→100 MiB
     成功），gem5 SE 按 Linux `may_expand_vm` 拒绝。属 QEMU 侧能力缺口，已在 gem5 README 记为已知差异；

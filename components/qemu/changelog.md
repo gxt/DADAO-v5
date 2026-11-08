@@ -293,3 +293,7 @@
 - **2026-11-07 `GEM5-029t`**
   - 摘要：**`sigaltstack(2)` 的 `SS_AUTODISARM` 支持（用户裁定 2026-11-07：gem5 按 Linux 实现，同时给 QEMU 补 patch）**。`linux-user/signal.c`：`on_sig_stack()` 在 `sas_ss_flags` 带 `SS_AUTODISARM` 时按 Linux 返回 0；`target_save_altstack()` 回写 `sas_ss_flags(sp) | (ss_flags & SS_FLAG_BITS)`；`target_restore_altstack()` 改为按 `ss_flags & ~SS_FLAG_BITS` 判模式（接受 `SS_AUTODISARM`，仅未知位 `EINVAL`）并记录 `ss_flags`。`linux-user/dadao/signal.c`：`setup_ucontext()` 保存 `uc_stack` 后按 `sas_ss_reset` 语义禁用自动拆除的备用栈，由 sigreturn 从帧恢复。此前 QEMU 对 `SS_AUTODISARM` 返回 `EINVAL`，与 Linux 不符，使双引擎探针无法以 QEMU 为 oracle。
   - 执行者：engineer
+
+- **2026-11-08 `QEMU-085t`**
+  - 摘要：**`target_mremap()` 的增长按 guest `RLIMIT_AS` 记账（ISS-351，对齐 Linux `may_expand_vm`）**。`QEMU-084t` 只在 `target_mmap()` 检查限额，`mremap` 增长（GEM5-030t 实测 4 MiB→100 MiB）在 QEMU 上仍成功，而内核在 `check_prep_vma()` 对 `MREMAP_FIXED`、搬移与原地三种路径都调 `may_expand_vm()` 收费。`linux-user/mmap.c` 新增 `guest_rlimit_check_remap_grow()`（复用同一 `guest_rlim[]` 存储与 `walk_memory_regions()` 现读页表总量，不另立状态），`target_mremap()` 在 mmap 锁内对 `new_size > old_size` 只计增长量（两长度按页对齐后相减）并检查 `RLIMIT_AS`，超限 ⇒ `TARGET_ENOMEM`；收缩、等长与 `MREMAP_DONTUNMAP` 语义不变，目标与源重叠的 `MREMAP_FIXED` 仍交宿主回 `EINVAL`（不让限额检查抢错误的优先级）。RLIMIT_DATA 半边未重复：页表只记可写性、`target_mremap` 拿不到私有/共享请求，属既有近似；`old_size==0` 的复制形态内核按整段 `new_len` 收费，但 qemu-user 无从判共享与否，保持原样——两处均写进补丁注释。补丁 **1 份改**，`make_patch.py` 重导出（1 written / 65 unchanged，共 66 份）。双引擎探针（限内增长成功 / 超限 `ENOMEM` / 非增长完好 / `MREMAP_FIXED` 同两态）43 条断言 QEMU 与 gem5 SE 逐行一致；反例去掉新增检查 ⇒ 两组增长断言 4 条 FAIL，`cp`+md5 还原重建回绿。
+  - 执行者：engineer
