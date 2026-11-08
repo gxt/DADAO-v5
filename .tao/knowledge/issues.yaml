@@ -106,8 +106,8 @@
 
 - id: ISS-350
   scope: [infra]
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: 用户 2026-11-08 裁定「多的子模块是其自带的就留着，重点是一致性」；已核实主控机 34 个与节点 30 个的 HEAD 均等于 chipyard gitlink（`+` 计数 0）
   title: >-
     【P3】两台节点的 chipyard 子模块集合与主控机不同（节点 30 / 主控机 34）：
     `riscv-pk`/`riscv-tests`/`libgloss`/`riscv-spike-devices` 未初始化（脚本 blocklist）。
