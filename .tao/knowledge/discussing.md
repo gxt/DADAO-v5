@@ -65,6 +65,12 @@
 - 教训：证据断言若只覆盖「存在且正常」的路径，会集体漏掉「前置步骤失败」这一类假绿；**每个前置步骤都要有可达 FAIL 断言**。
 - 处置：立 `INFRA-131t` 修 cd 语义、`~/` 展开与 rc 传播，并要求在真节点上验收。
 
+## 2026-11-08 chipyard 定位（用户裁定，撤销相关任务）
+
+- **用户原话**：「chipyard --help 的事情：我们没有必要去调试！！！我们不需要去测试chipyard本身，这只是我们要用的平台和工具」
+- **处置**：撤销 `INFRA-136t`（chipyard 补丁）与 `INFRA-137t`（补丁工具支持子模块），两者**零源码改动**、无产物，任务书与里程碑行一并删除；`INFRA-133t` 的冒烟判据改为「产物存在且可执行 + `verilator --version` 符合 + 构建日志含版本行」，**不再验证 `--help`**。
+- **保留的知识**：`--help`/`+help`/无参数都会 `terminate`，根因是 htif 的参数解析被推迟到首个时钟 tick 且 Verilator `--main` 生成的 `main()` 无 catch；这是上游行为，不是我们的环境偏离 —— 结论保留在本文件上一节，供以后排查参考，不再投入修复。
+
 ## 2026-11-08 chipyard `--help` 崩溃：根因复核（结论：上游行为，非环境偏离）
 
 - **现象**：`simulator-… --help`、`+help`、**以及无参数**三种调用都 `terminate called … std::invalid_argument`（`--help` 为 `User queried htif_t help text`，无参数为 `No binary specified`），rc=255。

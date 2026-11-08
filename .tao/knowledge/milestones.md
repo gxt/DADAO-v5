@@ -12,14 +12,12 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-133t | 已验证 | 2026-11-08 10:26 | 节点 chipyard/Verilator/RISC-V 环境；两台 RocketConfig 构建通过、conda 包一致 |
 | SPEC-195t | 已验证 | 2026-11-08 09:44 | Machine-v5 发布 0.4.0；版本与变更记录按重要性重排（8 组带标签） |
 | GEM5-027t | 已验证 | 2026-11-08 09:43 | SE 动态装载器：ET_EXEC+PT_INTERP、auxv（宿主 creds）、--interp-dir/--redirect |
-| INFRA-137t | 待开始 | 2026-11-08 09:13（登记） | 补丁工具支持组件内子模块补丁（fetch/apply/check + manifest 结构） |
 | INFRA-135t | 已验证 | 2026-11-08 08:59 | check-knowledge-refs 具体 `.work` 引用一律 FAIL（ISS-352，用户裁定 A） |
-| INFRA-136t | 待开始 | 2026-11-08 08:53（登记） | chipyard 补丁集：SimTSI 首构造 try/catch，修 --help 崩溃 |
 | INFRA-134t | 已验证 | 2026-11-08 04:01 | bootstrap 语义改名 + 隔离用例；remote.py 仓库根校验；L1 断言改 -k 封闭假绿（ISS-347/348） |
 | GEM5-030t | 已验证 | 2026-11-08 04:00 | SE mprotect 真权限 + RLIMIT_AS/DATA/STACK；GROWSDOWN 四支与内核一致；434/148、6/0 |
-| INFRA-133t | 待验收 | 2026-11-08 02:15（登记） | 节点 chipyard/Verilator/RISC-V 环境；两台 RocketConfig 构建通过、conda 包一致 |
 | INFRA-132t | 已验证 | 2026-11-07 22:23 | 节点 `.cache` 增量同步（rsync，无 --delete）+ 逐 commit 校验；不做挂载 |
 | INFRA-131t | 已验证 | 2026-11-07 21:35 | remote.py 假绿根除（cd 失败即非零）+ `~/` 展开 + git 失败不再报假状态 |
 | INFRA-130t | 已验证 | 2026-11-07 21:11 | 节点引导 bootstrap_node.sh（8 步幂等）+ 远程派单 remote.py（status/preflight/run/collect） |

@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M11
 **依赖**：无（节点已就绪，见 `nodes.md`）
-**状态**：待验收
+**状态**：已验证
 
 ## 背景与目标
 
@@ -41,7 +41,7 @@
 
 1. 两台节点：`verilator --version` = **5.022**；`java -version` = **20**；`sbt` 可运行；`riscv64-unknown-elf-gcc` 与 `riscv64-linux-gnu-gcc` 均 `--version` 成功。
 2. 两台节点：`git -C <repo>/.work/source/chipyard submodule status` 中**最小必需集**无 `-` 前缀（未初始化标志）。
-3. 冒烟：`sims/verilator` 构建产物存在，`<simulator> --help` rc=0；构建日志含 `Verilator` 版本行。
+3. 冒烟：`sims/verilator` 构建产物存在且可执行；`verilator --version` 与 chipyard 要求一致；构建日志含 `Verilator` 版本行。**不要求 `--help`**（chipyard 仿真器的参数错误路径属其自身行为，不在本仓库验证范围）。
 4. 第二台节点复验：版本一致 + 同一模拟器 `--help` rc=0（证明环境可迁移）。
 5. 环境**不污染仓库**：`git status --porcelain -uall` 在 `<repo>` 内干净（环境与子模块都在 gitignore 的 `.work/` 下；子模块初始化须停在 manifest 记录的 commit，不产生 gitlink 变更）。
 6. 磁盘占用记录：`.conda-env` 与子模块各多少，写入 `nodes.md`。
@@ -74,7 +74,7 @@
 
 **遗留问题**：① `htif_nano.specs` 缺失（影响 chipyard 自带裸机测试，不影响 Verilator 仿真本身）；② 子模块集合与主控机不同（节点 30 / 主控机 34，`riscv-pk`/`riscv-tests`/`libgloss`/`riscv-spike-devices` 未初始化）⇒ 若后续用 riscv-tests 作负载需另补，登记 `ISS-350`；③ 节点间未配 SSH 免密（如需 P2P 传输须先经用户同意再分发密钥）。
 
-**待用户追认**：验收标准第 3 条由「`--help` rc=0」改为「输出含 `Usage:`」（依据：上游 fesvr 在 `-h` 分支打印 usage 后抛异常，rc 恒为 255）。未追认前本任务保持 `待验收`，不合并。
+**口径确定（用户 2026-11-08 原话）**：「chipyard --help 的事情：我们没有必要去调试！！！我们不需要去测试chipyard本身，这只是我们要用的平台和工具」⇒ 本任务**不**要求仿真器的 `--help` 行为，验收第 3 条按上句改写；`--help` 的 `terminate`/rc=255 属 chipyard 自身行为，不登记为本仓库缺陷。
 
 ## 审阅记录
 
@@ -94,3 +94,9 @@
 **findings（均不阻断）**：① 完成区「29 个已初始化」实测 **30**（55−25），数字笔误；② 验收3「构建日志含 Verilator 版本行」在 208 日志仅以告警 URL `…?v=5.022` 出现、207 最终日志无（同场次前序日志有），版本另有 `verilator --version` 与编译行指向 `.conda-env/share/verilator` 佐证；③ 构建日志在节点**运行期临时目录**、命名非 `<任务ID>` 且未归档到运行期日志目录 ⇒ 收尾前须归档，否则清理即失证；④ 两台子模块集合不一致（节点 30 vs 主控机 34：`riscv-pk`/`riscv-tests`/`libgloss`/`riscv-spike-devices` 被 blocklist 跳过）⇒ 要 riscv-tests 负载须另行初始化；⑤ 节点遗留未清理的运行期临时目录。
 
 **判决：Accepted** —— 验收 1/2/4/5/6/7 全过；验收 3 的 `rc=0`→「输出含 `Usage:`」系**合理更正**（原判据对该上游程序不可达，非掩盖失败），但按「验收标准变更=停止点」，**须用户追认后由 architect 落盘原话**。
+
+#### 收尾（architect，2026-11-08 10:26）
+
+- 判决 Accepted（第 1 轮 reviewer 全自跑）；冒烟改为「产物存在且可执行 + `verilator --version` 符合 chipyard 要求 + 构建日志含版本行」，**不验证 `--help`**。
+- 用户口径：chipyard 是平台/工具，不调试其自身 ⇒ 撤掉 `INFRA-136t`（chipyard 补丁）与 `INFRA-137t`（子模块补丁工具），均零源码改动、无产物。
+- 已知限制沿用 `nodes.md` §11.4：`htif_nano.specs` 缺失（影响 chipyard 自带裸机用例，不影响 Verilator 仿真）；节点间未配 SSH 免密。
