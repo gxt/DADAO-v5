@@ -2,7 +2,7 @@
 
 > **状态**：**草案（Draft）**——**仅供讨论，不作判据真源**（定稿后再议是否升为正式册、是否纳入只读锁）。
 > **目的**：承载"**这一类问题**"——即 **C 库 / 系统调用接口 / 资源管理（内核行为）/ 平台** 四层之间的分工与落地选择；典型问句如"**syscall 由谁执行**"、"动态链接在哪一层"、"什么时候需要内核或 proxy kernel"。
-> **关系（不重复正文，只放指针）**：`spec/Machine-v5`（qemu 测试机 `dadao-m1` 的具体运行环境与 semihosting **正文**）、`.tao/contracts/contract-semihosting.md`、`spec/DADAO-12/13`（SEE/HEE 语义）、`ADR-0020`（SEE/semihosting 决策）、`ADR-0004`（测试机地址图）、`INTEG-033k §排除项`（M7 排除项）。
+> **关系（不重复正文，只放指针）**：`spec/Machine-v5`（qemu 测试机 `dadao-tiny` / `dadao-vast` 的具体运行环境与 semihosting **正文**）、`.tao/contracts/contract-semihosting.md`、`spec/DADAO-12/13`（SEE/HEE 语义）、`ADR-0020`（SEE/semihosting 决策）、`ADR-0004`（测试机地址图）、`INTEG-033k §排除项`（M7 排除项）。
 
 ## 1. 分层（自上而下）
 
@@ -11,7 +11,7 @@
 | **L1** | **C 库与链接形态** | `picolibc`（**现状**，**静态**）；`musl`（候选）；**动态形态**（`.so`/`-fPIC`/`-shared` = **产物形态**） | 静态优先；**动态链接独立后置**（不与 pk 混）；**本层只记"形态/用它与否"**，**loader 能力归 L3**（裁定 2026-10-12） |
 | **L2** | **系统调用接口** | **semihosting**（`trap <any cfxha>, 0x3FF00`；**现状**）；真 syscall（syscall 号 + 执行者） | **谁执行**：平台/模拟器 responder（现状）↔ 内核 syscall 表 |
 | **L3** | **资源管理 / 内核行为** | **无内核**（**现状**）；`pk`（proxy kernel：加载 ELF + trap/异常/syscall 转发）；Linux kernel | 何时引入；`pk` 与动态链接**分层不混**（用户 2026-10-11 原话） |
-| **L4** | **平台（machine）** | `qemu`（**现状**：`dadao-m1`）；`gem5`；`verilator`；`fpga` | **暂不分类**（用户 2026-10-12 裁定）⇒ 以 **「平台 × 能力」矩阵**表达（维度/真源见 §3 #4） |
+| **L4** | **平台（machine）** | `qemu`（**现状**：`dadao-tiny` / `dadao-vast`）；`gem5`；`verilator`；`fpga` | **暂不分类**（用户 2026-10-12 裁定）⇒ 以 **「平台 × 能力」矩阵**表达（维度/真源见 §3 #4） |
 
 **现状（M7）= L1 `picolibc`（静态）+ L2 semihosting + L3 无内核 + L4 `qemu`。**
 

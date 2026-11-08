@@ -197,7 +197,7 @@ M1 无 MMU、无页表，加载期不做地址重定位。段的虚拟地址（V
 
 VA=PA 规则同时适用于 **raw-bin 路径**（段连续拼接，§6.1.1）与 **M4 ELF 路径**（`PT_LOAD` 段按 `p_vaddr` 装载，§6.1.2）：ELF 段的加载地址即 `p_vaddr`（`VA=PA`），不另做加载期地址重定位。[ADR-0004 §D2.2]
 
-**profile 限定**：`VA=PA` 只适用于**不启用 PTW** 的 `Machine-v5-Tiny`（`p_vaddr` 即核内地址）。`Machine-v5-Node` 的 PTW 开启路径中，ELF 段的 `p_vaddr` 是**经首张页表映射的 VA**（`VA [0, 2 GiB)` → PA `[0, 2 GiB)`，见 `spec/Machine-v5 §6`；首张页表由 `power → hmon → smon` 交接后的 smon 建立），加载期按该映射落到 PA；装载镜像须落在该映射区间内，否则取指/访存按 `cfx_ptw` 报页异常。[Machine-01 §6]
+**profile 限定**：`VA=PA` 只适用于**不启用 PTW** 的 `Machine-v5-Tiny`（`p_vaddr` 即核内地址）。`Machine-v5-Vast` 的 PTW 开启路径中，ELF 段的 `p_vaddr` 是**经首张页表映射的 VA**（`VA [0, 2 GiB)` → PA `[0, 2 GiB)`，见 `spec/Machine-v5 §6`；首张页表由 `power → hmon → smon` 交接后的 smon 建立），加载期按该映射落到 PA；装载镜像须落在该映射区间内，否则取指/访存按 `cfx_ptw` 报页异常。[Machine-01 §6]
 
 ### §5.3 `PT_LOAD` 段对齐（`p_align`）
 
@@ -236,11 +236,11 @@ M4 起，跨 object 链接由 DADAO LLD（`ADR-0019`）完成，产出 **`ET_EXE
 3. QEMU test machine 解析 Elf64_Ehdr/Elf64_Phdr，按 VA=PA 装载 PT_LOAD 段，从 e_entry 进入
 ```
 
-- **装载语义**：按 VA=PA（§5.2）将 **`PT_LOAD`** 段装入其 `p_vaddr` 对应的 **RAM** 区域（**仅 RAM**；落 BootROM 区（Tiny 64 KiB `0xffff_ffff_0000`– / Node 4 MiB `0xffff_ffc0_0000`–，含复位窗口 `0xffff_ffff_0000`/64 KiB）的 `PT_LOAD` ⇒ **加载期错误并非零退出**——`-kernel` ELF 是 RAM 镜像，用户 2026-10-09 裁定 D；**例外**：`Machine-v5-Tiny` 的 crt/启动 stub 段按 picolibc A 方案落在 BootROM（`0xffff_ffff_0000`），属该 profile 的 BootROM 镜像内容，允许装入）；`p_filesz` 字节取自文件、`p_memsz − p_filesz` 的尾部（`.bss`）**零填充**；段的顺序/对齐见 §5.1。[ADR-0004 §D2.2][ADR-0043 D1][Machine-01 §6]
+- **装载语义**：按 VA=PA（§5.2）将 **`PT_LOAD`** 段装入其 `p_vaddr` 对应的 **RAM** 区域（**仅 RAM**；落 BootROM 区（Tiny 64 KiB `0xffff_ffff_0000`– / Vast 4 MiB `0xffff_ffc0_0000`–，含复位窗口 `0xffff_ffff_0000`/64 KiB）的 `PT_LOAD` ⇒ **加载期错误并非零退出**——`-kernel` ELF 是 RAM 镜像，用户 2026-10-09 裁定 D；**例外**：`Machine-v5-Tiny` 的 crt/启动 stub 段按 picolibc A 方案落在 BootROM（`0xffff_ffff_0000`），属该 profile 的 BootROM 镜像内容，允许装入）；`p_filesz` 字节取自文件、`p_memsz − p_filesz` 的尾部（`.bss`）**零填充**；段的顺序/对齐见 §5.1。[ADR-0004 §D2.2][ADR-0043 D1][Machine-01 §6]
 - **入口**：取 ELF **`e_entry`**（不再固定为加载基址）。[ADR-0004 §D2.2]
 - **头校验**：`EI_CLASS=ELFCLASS64`、`EI_DATA=ELFDATA2MSB`、`e_machine=EM_DADAO(0x0DA0)`、`e_flags[7:0]=1`（§1/§1.3）。[ADR-0004 §D2.2]
 - **首段与文件偏移**：M4 裸机路径 `dadao.lds` **不使用 `FILEHDR PHDRS`**——ELF 头/程序头表**只存在于文件中、不进入 guest 内存**（加载器从**文件**解析 `Ehdr`/`Phdr`）；首个 `PT_LOAD` 从 `.text` 起（VA=PA），其 `p_offset` **不做要求**（**不要求为 0、也不禁止为 0**）。[ADR-0003 §修订 rev. 2026-10-06]
-- **over-size / 畸形**：任一 `PT_LOAD` 段装载区间越出**所选 profile 的 RAM 区域（`Machine-v5-Tiny` 8 MiB SRAM / `Machine-v5-Node` 2 GiB PA RAM；含落 BootROM 区者，Tiny 的 ROM stub 段除外）**、含 `.bss` 的 `p_memsz` 超限、或畸形 ELF ⇒ **启动加载阶段报错并非零退出**（工具/加载错误层，与 guest fault 分层）。[ADR-0004 §D2.3]（**只约束「非零退出 + 工具/加载错误层分层」，不约束错误文案**——用户 2026-10-09 裁定）
+- **over-size / 畸形**：任一 `PT_LOAD` 段装载区间越出**所选 profile 的 RAM 区域（`Machine-v5-Tiny` 8 MiB SRAM / `Machine-v5-Vast` 2 GiB PA RAM；含落 BootROM 区者，Tiny 的 ROM stub 段除外）**、含 `.bss` 的 `p_memsz` 超限、或畸形 ELF ⇒ **启动加载阶段报错并非零退出**（工具/加载错误层，与 guest fault 分层）。[ADR-0004 §D2.3]（**只约束「非零退出 + 工具/加载错误层分层」，不约束错误文案**——用户 2026-10-09 裁定）
 
 ### §6.2 与 ADR-0004 的加载模型统一
 
@@ -249,20 +249,20 @@ M4 起，跨 object 链接由 DADAO LLD（`ADR-0019`）完成，产出 **`ET_EXE
 **raw-bin 路径（保留；M1–M3）**——双镜像（ROM trampoline blob 由 `-bios` 加载，测试 flat binary 由 `-kernel` 加载，**两者必须同时提供**）：[ADR-0004 §D2.3]
 
 ```
-qemu-system-dadao -machine dadao-m1 -bios rom.bin -kernel test.bin
+qemu-system-dadao -machine dadao-tiny -bios rom.bin -kernel test.bin
 ```
 
-- 测试 flat binary 由 `-kernel` 加载到所选 profile 的 raw 基址（`Machine-v5-Tiny`：`0xffff_ff01_0000`，镜像前 `0x100` 全零、入口 `0xffff_ff01_0100`；`Machine-v5-Node` 测试走 ELF + 启动链），入口固定为该 profile 的应用入口；此路径下 QEMU 不做 ELF 解析、不读取 `e_entry`。[ADR-0004 §D2.2][ADR-0004 §D2.3][Machine-01 §6]
-- ROM trampoline blob 链接基址 `0xffff_ffff_0000`（所选 profile 的 BootROM 内的复位窗口：Tiny 64 KiB / Node 4 MiB），上限 64 KiB，`-bios` 语义不变。[ADR-0004 §D2.3][ADR-0043 D1][Machine-01 §6]
+- 测试 flat binary 由 `-kernel` 加载到所选 profile 的 raw 基址（`Machine-v5-Tiny`：`0xffff_ff01_0000`，镜像前 `0x100` 全零、入口 `0xffff_ff01_0100`；`Machine-v5-Vast` 测试走 ELF + 启动链），入口固定为该 profile 的应用入口；此路径下 QEMU 不做 ELF 解析、不读取 `e_entry`。[ADR-0004 §D2.2][ADR-0004 §D2.3][Machine-01 §6]
+- ROM trampoline blob 链接基址 `0xffff_ffff_0000`（所选 profile 的 BootROM 内的复位窗口：Tiny 64 KiB / Vast 4 MiB），上限 64 KiB，`-bios` 语义不变。[ADR-0004 §D2.3][ADR-0043 D1][Machine-01 §6]
 
 **ELF 路径（M4 起新增）**——单 ELF（`-kernel image.elf`，入口取 `e_entry`，不使用外部 `-bios` ROM）：[ADR-0004 §D2.2][ADR-0004 §D2.3]
 
 ```
-qemu-system-dadao -machine dadao-m1 -kernel image.elf
+qemu-system-dadao -machine dadao-tiny -kernel image.elf
 ```
 
-- QEMU 解析 `Elf64_Ehdr`/`Elf64_Phdr`，按 VA=PA（§5.2；`Machine-v5-Node` 为经第一张页表映射的 VA→PA，见 §5.2 的 profile 限定）装载 `PT_LOAD` 段（`p_filesz` 数据 + `.bss` 零填充），入口取 `e_entry`。[ADR-0004 §D2.2][Machine-01 §6]
-- 段装载越出**所选 profile 的 RAM 区域（Tiny 8 MiB / Node 2 GiB；含落 BootROM 区者，Tiny 的 ROM stub 段除外）** 或畸形 ELF ⇒ 启动加载阶段报错并非零退出。[ADR-0004 §D2.3][ADR-0043 D1]
+- QEMU 解析 `Elf64_Ehdr`/`Elf64_Phdr`，按 VA=PA（§5.2；`Machine-v5-Vast` 为经第一张页表映射的 VA→PA，见 §5.2 的 profile 限定）装载 `PT_LOAD` 段（`p_filesz` 数据 + `.bss` 零填充），入口取 `e_entry`。[ADR-0004 §D2.2][Machine-01 §6]
+- 段装载越出**所选 profile 的 RAM 区域（Tiny 8 MiB / Vast 2 GiB；含落 BootROM 区者，Tiny 的 ROM stub 段除外）** 或畸形 ELF ⇒ 启动加载阶段报错并非零退出。[ADR-0004 §D2.3][ADR-0043 D1]
 
 ### §6.3 M1 / raw-bin 约束
 

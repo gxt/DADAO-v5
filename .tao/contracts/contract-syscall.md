@@ -87,7 +87,7 @@
 
 - **无内核目标**：M8 不引入内核（VFS / MM / 调度 / 信号）；本合约只覆盖**用户态可见**的 syscall 语义映射。[ADR-0025 D2]
 - **QEMU user-mode 的角色**：`linux-user`（qemu-user）在 M8 中充当**宿主侧 syscall 转发层**（「无内核」下的语义提供方）——把 guest 的 `trap`（syscall）翻译为宿主 syscall，并按 §3 写回返回寄存器。[ADR-0025 D2][ADR-0025 D6]
-- **边界**：`linux-user` 属 **P3**；其转发实现**须遵循本合约**（入口 §2 / 传参·返回 §3 / errno §4），且**不得**充当 §5 的期望值来源。v5 现状仅有 system 模式（`qemu-system-dadao -M dadao-m1`）；`linux-user` 的 DADAO 目标是**新增工作**（非改造既有）。[ADR-0025 D6][ADR-0025 D2]
+- **边界**：`linux-user` 属 **P3**；其转发实现**须遵循本合约**（入口 §2 / 传参·返回 §3 / errno §4），且**不得**充当 §5 的期望值来源。v5 现状仅有 system 模式（`qemu-system-dadao -M dadao-tiny` / `-M dadao-vast`）；`linux-user` 的 DADAO 目标是**新增工作**（非改造既有）。[ADR-0025 D6][ADR-0025 D2]
 - **停机协议不混用**：用户态进程退出由 syscall `exit` / `exit_group` 承载；测试机侧 **exit port**（`ADR-0004 D3`）与 semihosting **`SYS_EXIT`**（`ADR-0020 D8`）是**另外的**停机协议，不得与本 syscall 路径混用。[ADR-0004 D3][ADR-0020 D8]
 - **范围外（指针）**：动态链接 ABI / PIC·GOT·PLT / `PT_INTERP`·`AT_*`（→ `SPEC-139t`）；TLS/线程（`ADR-0025 D5` 先查证再定）；具体号值正文（→ §1.2 锁定来源）；内核语义本体（→ §6 首条）。[ADR-0025 D6][ADR-0025 D5]
 
