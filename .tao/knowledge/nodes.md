@@ -97,7 +97,7 @@
 ## 8. 新增节点流程
 
 1. 装 `tailscale` 并加入同一 tailnet；确认 `tailscaled` 常驻、`gxt` 免密 `sudo` 可用。
-   - **时区必须设为 `Asia/Shanghai`**：`sudo timedatectl set-timezone Asia/Shanghai`，并 `date` 与主控机比对（差异 ≤ 1 s）。节点原厂多为 `Etc/UTC`；不统一会让跨机日志时间戳差 8 h，导致「任务到底在哪台做」判断错误（2026-11-09 实际发生过）。
+   - **时区必须设为 `Asia/Shanghai`**：`bootstrap_node.sh` 的 **step 0** 会自动 `sudo timedatectl set-timezone Asia/Shanghai` 并校验（幂等：已是 CST 则跳过）；手工引导时同样执行该命令，并 `date` 与主控机比对（差异 ≤ 1 s）。节点原厂多为 `Etc/UTC`；不统一会让跨机日志时间戳差 8 h，导致「任务到底在哪台做」判断错误（2026-11-09 实际发生过）。
 2. 装 4.2 的包（或让 `bootstrap_node.sh` step 1 报清单后照单安装）。
 3. 同步仓库（bundle 或内网 rsync）+ 本地 `.cache/*.git`。
 4. `tools/infra/bootstrap_node.sh`：`fetch → apply-series → compiler-rt configure → install-host → make check`。

@@ -8,7 +8,7 @@
 # `.cache/*.git` mirrors by `make fetch`.
 #
 # Step order is deliberate:
-#   1 preflight   2 git identity   3 repository sync   4 make fetch
+#   0 time zone   1 preflight   2 git identity   3 repository sync   4 make fetch
 #   5 make apply-series (must precede install-host)   6 compiler-rt build tree
 #   7 make install-host   8 make check
 #
@@ -136,6 +136,9 @@ run_logged() {
 
 # ---------------------------------------------------------------- dry run
 if [ "$DRY_RUN" -eq 1 ]; then
+  step_header 0 "time zone: set Asia/Shanghai when the node is not on CST (dry-run)"
+  say '[step 0] expected command: sudo timedatectl set-timezone Asia/Shanghai'
+  say '[step 0] rc=0 (dry-run)'
   step_header 1 "preflight: report missing tools/packages (dry-run: not probed)"
   say '[step 1] rc=0 (dry-run)'
   step_header 2 "git identity: configure user.name/user.email when unset (dry-run)"
@@ -175,6 +178,20 @@ fi
 [ -d "$REPO_DIR" ] || die "repository directory not found: $REPO_DIR"
 
 # ---------------------------------------------------------------- step 1: preflight
+step_header 0 "time zone: set Asia/Shanghai when the node is not on CST"
+TZ_WANT="Asia/Shanghai"
+TZ_NOW="$(timedatectl show -p Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null || true)"
+if [ "$TZ_NOW" = "$TZ_WANT" ]; then
+  say "[step 0] timezone already $TZ_NOW"
+elif sudo -n timedatectl set-timezone "$TZ_WANT" 2>/dev/null; then
+  say "[step 0] timezone set from '${TZ_NOW:-unknown}' to $TZ_WANT"
+else
+  say "[step 0] rc=2 (cannot set timezone; need passwordless sudo + timedatectl)"
+  exit 2
+fi
+TZ_AFTER="$(timedatectl show -p Timezone --value 2>/dev/null || true)"
+[ "$TZ_AFTER" = "$TZ_WANT" ] || { say "[step 0] rc=2 (timezone still '${TZ_AFTER:-unknown}')"; exit 2; }
+say "[step 0] rc=0 (timezone=$TZ_AFTER, $(date +'%F %T %Z'))"
 step_header 1 "preflight: report missing tools and -dev packages (nothing is installed)"
 MISSING=()
 TOOLS=(git cmake ninja scons ccache bison flex python3 make ar ranlib nm)
