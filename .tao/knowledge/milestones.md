@@ -22,17 +22,17 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| INTEG-060t | 3–5 h | gem5 SE syscall 参数 bank（三方 argmask 门控）+ 路径解析探针 |
 | TESTCASES-104t | 5–8 h | SE 动态档驱动 + QEMU dynamic 基线刷新 + 全量对照 |
 | INTEG-059t | 10–16 h | G3 完整 tset 双向一致性（static+dynamic）+ 矩阵重生成 |
 | TESTCASES-103t | 3–4 h | SE 基线预算 120s→按套件 600s；timeout 单列并重跑 |
-| INFRA-144t | 0.5 h | 引用门控死代码清理（ISS-353，不改判据） |
 | GEM5-031t | 2–3 h | SE 补 `chmod`/`fchmodat`（ISS-346） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INTEG-060t | 2026-11-08 16:00 | 3–5 h | gem5 SE syscall 参数 bank（三方 argmask 门控）+ 路径解析探针 |
+| INFRA-144t | 2026-11-08 16:11 | 0.5 h | 引用门控死代码清理（ISS-353，不改判据） |
 
 ## 已验证
 
