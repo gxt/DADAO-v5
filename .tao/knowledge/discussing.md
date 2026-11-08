@@ -216,19 +216,11 @@
 
 ## 待用户裁定：ADR
 
-### chipyard 集成与 `ADR-0024 D1` 的冲突（阻断 M12 001）
+### chipyard 集成（已裁定 B，2026-11-08）
 
-- **事实**：`manifests/components.lock.toml` 的 chipyard 条目为 `patchless = true`，注释引 `ADR-0024 D1/D2`；`ADR-0024 D1` 原文「用途定位 = 参考平台优先（1）；**暂不做（2）**——并入 Chipyard 生态需新写 Chisel core…风险高、代价最高」。`check_patch_tree.py` 对 `patchless` 组件**跳过**校验。
-- **冲突**：用户 2026-11-08 已裁定「补丁方式 A（全部进 chipyard 补丁集）」，即要做（2）；这与 `ADR-0024 D1` 的「暂不做（2）」直接冲突。
-- **两个选项**：
-  - **A（建议）**：新立 ADR（编号待定，chipyard 集成与补丁集），声明取代 `ADR-0024 D1`；`ADR-0024` 其余 D2–D5（commit 锁定、子模块快照、lite、工具链隔离）保持不变
-  - **B**：就地修订 `ADR-0024 D1`（需逐条确认 decision）
-- **拟议 decision（A 方案，待逐条确认）**：
-  - D1 用途定位改为「参考平台（1）+ 迁入（2）」，明确 `dadao-wuming`/`wuqing`/`wuxing` 以补丁集方式进 chipyard
-  - D2 补丁集 = `components/chipyard/patches/` + `series`，一文件一补丁，newfiles 用 `new file mode`
-  - D3 移除 lock 的 `patchless`，`check-patch-tree` 覆盖 chipyard
-  - D4 与 `ADR-0024` 的关系：只取代 D1，其余不变
-- **不裁定的后果**：M12 `001` 无法落笔（补丁放哪、门控是否校验都没定）。
+- **用户裁定**：选 **B**（就地修订 `ADR-0024 D1`），并对四处修订文本回「可以」。
+- **已落地**：`ADR-0024` 的 D1、Rationale 被否方案、Consequences 约束、状态说明修订记录同步改为「做（2）+ 补丁集」；`D2`–`D5` 不变。
+- **待随 `m12-001` 落地**：`manifests/components.lock.toml` 去掉 `patchless`、加 `patch_dir`/`patch_series`；建 `components/chipyard/patches/` + `series`（同笔，避免「ADR 说打补丁、锁说 patchless」的过渡态门控红）。
 
 ### `SPEC-180t` 的 ADR
 

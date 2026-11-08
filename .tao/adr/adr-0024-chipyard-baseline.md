@@ -17,11 +17,11 @@
 
 **承载位置**：本 ADR 只记**决策/理由/被否方案**；`components.lock.toml` 条目新增、子模块锁册生成、`enabled` 翻转**由 `INFRA-074t` 执行**。本 ADR **不改** `manifests/`。
 
-## Decision（决策）— 逐条（**用户已逐条确认，2026-10-13**）
+## Decision（决策）— 逐条（**用户已逐条确认，2026-10-13**；D1 修订 2026-11-08）
 
 **D1 — 基线版本与用途定位**
 基线 = Chipyard **`1.14.0`**，commit **`0acc1e1de2d3284bcd4d876956932a013ffe1949`**（annotated tag `1.14.0` = `ff2d01f3da2490e7f7216d5bbbe3c8d96a960a03` 的 peeled commit；两路解引用一致）。
-**用途定位** = **参考平台优先（1）**；**复用评估次之（3）**；**暂不做（2）**——并入 Chipyard 生态需新写 Chisel core 并重写 TileLink/Diplomacy 与软件栈（BootROM/PK/tests）、工具链、中断/CSR 模型（全部假设 RISC-V），**风险高、代价最高**（依据 `INFRA-073t §6/§7`）。
+**用途定位** = **参考平台（1）+ 迁入（2）**；复用评估（3）随迁入自然展开。`dadao-wuming`（单周期）/ `dadao-wuqing`（五周期）/ `dadao-wuxing`（超标量）以**补丁集方式**进入 chipyard，测试配置区分 Tiny / Vast（**修订 2026-11-08**）。
 
 **D2 — 锁定方式（主仓 commit + 子模块快照）**
 (a) **主仓**：在 `manifests/components.lock.toml` 新增 `[[component]] name = "chipyard"`，字段 = `enabled` / `repository = "https://github.com/ucb-bar/chipyard.git"` / `commit = "0acc1e1de2d3284bcd4d876956932a013ffe1949"` / `shallow = true` / `shallow_ref = "1.14.0"` / `role`（RTL SoC 仿真 / Verilator 参考平台）；**并加 `[[component.source]]`**（主 `gitclone.com`、备 `ghfast.top`，遵 `ADR-0005` 多源）。
@@ -49,14 +49,14 @@ M8 以「**参考平台能跑通 `pk`（+ **可选** Linux）并与我们 QEMU �
 - ✗ **只锁 tag `1.14.0`（不锁 commit / 无子模块快照）**：tag 可 force-move + 不含子模块 SHA ⇒ 不可复现（与文件头政策直接冲突）。
 - ✗ **`git submodule update --recursive` 全量**：量级数十 GB、含无关核/工具，成本高且拖慢链路验证。
 - ✗ **混用 Chipyard conda 工具链（替换 v5 的 gcc/llvm/picolibc）**：破坏 v5 组件锁基线，跨模块不可复现。
-- ✗ **立即做 (2)「搬进它家」**：须新写 DADAO Chisel core + 重写 TL/Diplomacy 与 RISC-V 假设的软件栈/工具链/CSR 模型，代价最高（`INFRA-073t §7`）。
+- ✗ **只做 (1)、永久不做 (2)**：M12 要求 qemu / gem5 / chipyard 三平台指令级对齐，缺 RTL 端无法闭合；代价已由 M12 分任务承担（**修订 2026-11-08**）。
 - ✗ **跟随 `main`/分支**：非可复现基线（`ADR-0005`）。
 
 ## Consequences（影响）
 
 - **锁条目（拟落地）**：`manifests/components.lock.toml` 新增 `chipyard`（`INFRA-074t`）；**新增** `manifests/chipyard-submodules.lock.toml`（`INFRA-074t` 首次 lite clone 后生成）。
 - **下载源（用户已裁定，2026-10-13）**：GitHub 主仓 + 全部子模块 = 主 `gitclone.com` / 备 `ghfast.top`；conda = **TUNA**（conda-forge/defaults）、ucb-bar 通道走 `conda.anaconda.org` 直连（`INFRA-073t §4.5`）。**实际下载须用户授权后开始**（`mirrors.md` 流程第 4 步）。
-- **约束**：**不改** `spec/`、`contracts/`、组件补丁；Chipyard **不进入** v5 组件补丁集（`docs/Process-01`）—— 它是**参考平台**，非 v5 交付组件。
+- **约束**：**不改** `spec/`、`contracts/`；Chipyard **进入** v5 组件补丁集（`components/chipyard/patches/` + `series`，一文件一补丁，newfiles 用 `new file mode`，遵 `docs/Process-01`）；子模块仍走独立锁册与本地镜像（**修订 2026-11-08**）。
 - **可复现性**：commit + 子模块快照锁定后，按需 clone；**升级须经新 ADR / 经授权的就地修订**（`docs/Process-03`）。
 - **后续**：`INFRA-074t` 落地（P1 环境 / P2 拉取 / P3 最小构建 / P4 (1) 冒烟）；(3) 复用清单落地**另立任务**（依赖本 ADR 与 `INFRA-074t` 结论）。
 
@@ -68,3 +68,5 @@ M8 以「**参考平台能跑通 `pk`（+ **可选** Linux）并与我们 QEMU �
 
 - **判定来源**：用户已确认的上游裁定 = ① 用途「**1/2/3**」；② 落法「**先预研（推荐）**」；③ **立 ADR**（「立 ADR（推荐）」）；④ 下载源「按建议定源 + 开工」（主 `gitclone.com` / 备 `ghfast.top` / conda TUNA）。**D2–D5 细则已随 D1–D5 于 2026-10-13 逐条确认成立**。
 - **变更流程**：决策变更（如升级 commit / 调整 lite 子集）时**新增 ADR 或标注 `Superseded`**；经授权的就地修订须用户逐条确认。
+
+**修订（2026-11-08，用户裁定「B」）**：`D1` 及其相关的 Rationale / Consequences 就地修订为「做（2）+ 补丁集」；`D2`–`D5` 不变。逐条确认：用户对四处修订文本回「可以」（先选「B」，再确认文本）。
