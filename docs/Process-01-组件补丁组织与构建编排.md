@@ -195,6 +195,16 @@ components/<name>/
 - **净效果为零**：文件在补丁集内「先建后删」或「改了又改回」时，是否产出补丁。
 - **mode 变更**（可执行位）、**二进制文件**。
 
+## 14. 子模块（submodule）的获取与镜像
+
+- **适用范围**：带子模块的组件（当前仅 `chipyard`，共 55 个子模块）。子模块是**平台内部结构**，不是本仓库的补丁对象。
+- **锁定**：`manifests/chipyard-submodules.lock.toml` 逐条记录 `path` / `url` / `commit`，并以 `lite = true` 标出**构建所需的最小集**；`lite = false` 的条目只登记、不初始化。
+- **不参与补丁集**：补丁集只作用于组件自身的工作树，**不为子模块引入补丁能力**。需要修改子模块内容时，先回到「组件选择 / 上游版本」层面决策，不在补丁层绕过（平台内部实现不属于本仓库的改造范围）。
+- **镜像位置**：子模块以 bare 镜像存放于 `.cache/submodules/<由 path 确定性派生的名字>.git`；不得用 `basename` 命名（可能重名）。
+- **获取流程**：`make fetch` 在组件声明 `submodule_lock` 时，对每个 `lite` 子模块执行「`submodule init` → 把 `submodule.<path>.url` 指向本地镜像 → `submodule update --init --checkout`」，并**必须**校验 `HEAD == lock 中的 commit`；镜像缺失时**必须**明确失败并提示从主控机同步，**不得**退回公网直连。
+- **一致性**：`tools/infra/sync_cache.py` 除组件镜像外，**必须**校验各节点子模块镜像含 lock 中全部 `lite` commit；缺任一即判该节点失败。
+- **理由**：构建机访问 GitHub 时通时不通，逐个直连不可复现；最小集镜像体量小（git 数据约 260 MB），与组件镜像同处 `.cache`，可随一次同步分发。
+
 ## 13. 迁移与变更记录
 
 - 本规范于 2026-09-23 生效，同时 M1 补丁集由「16 份编号补丁 + `git am`」重整为「树形补丁集（67 份）+ `git apply`」。
@@ -205,4 +215,5 @@ components/<name>/
 - **rev. 2026-10-12（INFRA-069t）**：§10 增维护规则「模块 = `<name>` 的任务，任务收尾须在同一变更内追加一行」（该规则口径于 2026-10-15 经 `LLVM-092t` 由路径式口径订正，并最终定案为「模块 = `<name>` 的任务 ∪ 落地提交改过 `components/<name>/**` 的任务」，见 §10）；配套把三道机械检查 `check-isa-coverage`（`tools/llvm/gen_isa_coverage.py --check`）/`check-spec-numbering`（`tools/spec/check_numbering.py`）/`check-spec-changelog`（`tools/spec/check_spec_changelog.py`）并入 L1 `make check`。属**新增约定/门控**，**不改**原有各节正文与 `ADR-0002 D4`。
 - **rev. 2026-10-15（INFRA-084t）**：§10 补明组件 changelog **体例 = 列表式（不用表格）+ 按里程碑分节 + 摘要另起缩进行 + 新里程碑文末开新节**（4 个 `components/*/changelog.md` 由表格迁为列表、照旧信息无损；判据内容不变，仅「追加一行」改「追加一条」、判据标签「入表判据/不入本表」统一为「入本文件判据/不入本文件」）；§2 目录树注同步。新增 **L1 形态门控** `check-component-changelog`（`tools/infra/check_component_changelog.py`，并入 `make check`，`docs/Process-07 §1` 登记；**只做形态断言**）。属**新增约定/门控**，**不改**原有各节正文与 `ADR-0002 D4`。
 - **rev. 2026-11-05（INFRA-125t）**：**测试集补丁集**（`embench`、`libc-test`）随套件落 `tests/tset/<suite>/`（manifest `patch_dir`/`patch_series` 指向该目录，上游 commit 不变）；§1/§2/§9/§10 的台账/位置表述同步为 `components/*/changelog.md` + `tests/tset/*/changelog.md`（测试集补丁台账在 tset 目录），`check-component-changelog` 扫描面同步（**5 条断言与门控逻辑不变**）。属位置/文档同步，**不改** `ADR-0002 D4`。
+- **rev. 2026-11-08（INFRA-138t）**：新增 §14「子模块的获取与镜像」——子模块按 `manifests/chipyard-submodules.lock.toml` 锁定（`lite` 标最小集）、**不参与补丁集**、以 `.cache/submodules/` bare 镜像离线分发，`fetch` 校验 commit、`sync_cache` 校验节点镜像。属**新增约定**，不改 `ADR-0002 D4`。
 - 相关决策变更记录见 `.tao/adr/adr-0002-build-orchestration.md` 的 `## 修订`（rev. 2026-09-23）。
