@@ -73,7 +73,7 @@
 
 ## 历史与归档
 
-- 任务流水与历史行：`.tao/knowledge/milestones.md`（当前表；归档指针见页首）。
+- 任务台账：`.tao/knowledge/milestones.md`（三分表：待开始 / 进行中 / 已验证；历史见 `.tao/archive/`）。
 - M10 完成任务书与 issue 快照：`.tao/archive/M10/`。
 - 已归档 issue：`.tao/archive/M*/issues-closed.md`；活 `issues.yaml` 只留未关闭项。
 - 一次性过程与长日志：运行期日志目录（可删、未归档）；临时产物：`/tmp/opencode/<任务ID>/`。
