@@ -85,6 +85,12 @@
 - **用户裁定（2026-11-08，原话）**：「A：改 auxv 为宿主 creds（推荐）」⇒ gem5 SE 的 `AT_UID/EUID/GID/EGID` 取 `::getuid()/geteuid()/getgid()/getegid()`，与 `getuid` 系统调用同源；探针由 `local:` 分侧改为跨引擎逐值相等。
 - **落点**：`GEM5-027t` 任务书验收第 2 条按裁定改写并注明；README/changelog 同步；由 engineer 重跑双引擎探针与门控。
 
+## 2026-11-08 `/tmp` 改回磁盘（推迟，用户自理）
+
+- 现状：主控机 `/tmp` 由 `/etc/fstab` 配成 16G tmpfs；节点 `/tmp` 已在 ext4 磁盘上。
+- 用户决定改回磁盘，但**推迟到明天，由用户自行找时间执行**；`sudo` 由用户操作。
+- **不要再主动提醒重启**；切换前置 = `/tmp/opencode` 下无活动 worktree（当前有任务在跑，届时由主会话在切换前清理/迁移）。
+
 ## 2026-11-08 M12 计划修订（用户裁定）
 
 - **riscv-tests 移出 M12**：M12 只用 `inst`/`tset` 中已被 qemu/gem5 验证过的子集；riscv-tests 的移植与调整放 **M13**（下一波专门讨论）。
