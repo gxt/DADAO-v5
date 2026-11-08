@@ -117,6 +117,14 @@
 - **FP 分组依据（用户建议参考 berkeley-hardfloat）**：按 hardfloat 的原语边界切——转换 / 算术 / 除法开方 / 取整缩放，每组对应一组 `RecFN` 原语，便于复用 IP 与逐组比对（本地 chipyard 子模块 `generators/hardfloat/hardfloat` 即该库）。
 - **DADAO FP 指令集共 47 条**（`spec/SimRISC-07`）：转换、运算（加/乘/FMA/除/余/开方/取整/缩放/最小最大）、符号位、比较、分类。
 
+## chipyard 骨架实测结论（`m12-chipyard-001`，待 reviewer 复核）
+
+- **`BaseTile` 自写端口的抽象成员**：`intInwardNode` / `intOutwardNode` / `masterNode` / `slaveNode` / `module`；`halt`/`cease`/`wfi` 由 `SourcesExternalNotifications` 提供；`HartidKey` / `TileVisibilityNodeKey` / `LookupByHartId` 由 `BaseTile` 构造器自动注入。
+- **`TileParams.core: CoreParams` 是绕不开的 RISC-V 形状** ⇒ 用一层 `private[common] WumingCompatCoreParams` 做**形状兼容适配**，`WumingCoreParams` 本身无 RISC-V 字段（这是「外壳 B」的实际代价，需在 M12 后续保持）。
+- **地址宽度实测**：`xLen=64` + `useVM=false` ⇒ `maxPAddrBits=64`；`paddrBits` 取 TL 协商值，**stock chipyard 地址图实测为 32** ⇒ `m12-002` 要靠改地址图把它推上去，不是改 `PAddrBits`。
+- **`common.mk` 偏离**：chipyard 1.14 全树已无 `BOOTROM_TARGETS`/`BOOTROM_FILES_DIR`（0 命中），BootROM 改走 classpath 资源 ⇒ 用 `WithBootROM(contentFileName=...)` 等价接线。
+- **构建**：`sbt compile` rc=0；Verilator `CONFIG=WumingTinyConfig` rc=0（产物 10 MB，`server207`）；有界运行打印 `PutFull 0x80000000 <= 0xdeadbeefcafebabe`（core 桩跑通，随后有界超时 rc=255 属预期）。
+
 ## chipyard 定位与技术结论
 
 - **用户原话**：「chipyard --help 的事情：我们没有必要去调试！！！我们不需要去测试 chipyard 本身，这只是我们要用的平台和工具」⇒ 撤销 `INFRA-136t/137t`（零源码改动），`INFRA-133t` 不再验证 `--help`。
