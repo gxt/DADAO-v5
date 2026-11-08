@@ -26,7 +26,6 @@
 | --- | --- | --- |
 | m12-infra-002 | 1–2 h | 取消 m 册门控（m 册从必需改为可选，其余校验项保留） |
 | m12-chipyard-001 | 3–4 h | chipyard 补丁集接入 + `dadao-wuming` 最小骨架（外壳 B，core 桩） |
-| m12-gem5-001 | 0.5–1 h | gem5 FS profile `node`→`vast`（保留 node 过渡别名） |
 | m12-testcases-001 | 2–3 h | 测试与 profile 迁移到 `tiny`/`vast`（yaml/inc/env/46 文件） |
 | m12-integ-001 | 0.5–1 h | 移除过渡别名（`dadao-m1`、`profile=node`） |
 
@@ -34,6 +33,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m12-gem5-001 | 2026-11-08 23:20 | 0.5–1 h | gem5 FS profile `node`→`vast`（保留 node 过渡别名） |
 
 ## 已验证
 
