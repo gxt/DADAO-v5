@@ -2,13 +2,13 @@
 
 **模块**：chipyard
 **项目里程碑**：M12
-**依赖**：`m12-chipyard-004`（semihosting 已通，可观测输出）
+**依赖**：`m12-chipyard-005`（semihosting 已通，可观测输出）
 **可并行分片**：否（单核实现，单写者）
 **状态**：待开始
 
 ## 背景
 
-- `m12-chipyard-001`~`004` 已完成：骨架、Tiny 地址图、bootrom+loadmem、harness semihosting。
+- `m12-chipyard-002`~`004` 已完成：骨架、Tiny 地址图、bootrom+loadmem、harness semihosting。
 - 当前 `WumingCoreStub` 只覆盖 **5 类指令**（`set.zw`/`or.w`/`jump` 等），是为跑通闭环的最小执行器；真核从本任务开始。
 - 本任务只做**整数执行的最小可用集**：解码、整数 ALU、寄存器堆；访存/控制流在 `006`，位操作/原子/杂项在 `007`。
 

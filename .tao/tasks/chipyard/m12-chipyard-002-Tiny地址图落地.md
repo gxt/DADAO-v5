@@ -3,12 +3,12 @@
 **模块**：chipyard
 **项目里程碑**：M12
 **状态**：已验证
-**依赖**：`m12-chipyard-001`（骨架 + 补丁集）
+**依赖**：`m12-chipyard-002`（骨架 + 补丁集）
 
 ## 背景与事实
 
 - `spec/Machine-v5 §1.1`：Tiny 的 BootROM `0xffff_ffff_0000`（64 KiB，复位向量 = 起始）、SRAM `0xffff_ff00_0000`（8 MiB）；均为 **48 位核内地址**，Tiny **无 MMU、无 cfx**。
-- `m12-chipyard-001` 实测：`xLen=64` + `useVM=false` ⇒ `BaseTile.maxPAddrBits=64`；但 **stock chipyard 地址图协商出 `paddrBits=32`** ⇒ 必须改地址图，不是改 `PAddrBits`。
+- `m12-chipyard-002` 实测：`xLen=64` + `useVM=false` ⇒ `BaseTile.maxPAddrBits=64`；但 **stock chipyard 地址图协商出 `paddrBits=32`** ⇒ 必须改地址图，不是改 `PAddrBits`。
 - 相关平台已一致：QEMU 的 `dadao-tiny`（`m12-qemu-001`）与 gem5 FS 的 Tiny profile 用的就是这两个基址。
 
 ## 目标
@@ -32,8 +32,8 @@
 
 ## 非范围
 
-- BootROM 镜像内容与 `loadmem` 装载闭环（`m12-chipyard-003`）
-- semihosting 应答者（`m12-chipyard-004`）
+- BootROM 镜像内容与 `loadmem` 装载闭环（`m12-chipyard-004`）
+- semihosting 应答者（`m12-chipyard-005`）
 - 核内部指令实现（`005` 起）
 - 修改 `spec/Machine-v5` 的地址图（**不授权**；以 spec 为准）
 
@@ -67,7 +67,7 @@
 
 **遗留问题**：
 - ⏸ 台账 R1 与基线漂移类红项（`check-milestones-fresh`/`check-components`/`check-temp-dirs`）：禁改台账、禁删他人临时目录、不碰 qemu，由主会话合并 master / 收尾消除；合并 master 后 L2 应回到「本分支直跑」口径（脚本按 probe 自动选择）。
-- ⏸ Tiny bootrom 镜像内容与 `loadmem` 装载闭环归 `m12-chipyard-003`（本任务只落「文本 hex + 解码通路 + 指向该镜像的 `contentFileName`」）。
+- ⏸ Tiny bootrom 镜像内容与 `loadmem` 装载闭环归 `m12-chipyard-004`（本任务只落「文本 hex + 解码通路 + 指向该镜像的 `contentFileName`」）。
 - ⏸ 桩核不校验 `d.bits.opcode`（ROM/SRAM 均可读，`denied` 已断言），随真核替换；Tiny 上无关核外设备（CLINT/PLIC/Debug/L2）仍由 chipyard 基础设施带出，裁剪不在本任务范围，如需另立任务。
 
 ## 审阅记录

@@ -1,34 +1,34 @@
-# m12-chipyard-011: FP 算术（加/乘/FMA/比较/最小最大）
+# m12-chipyard-008: 控制流 + RAS
 
 **模块**：chipyard
 **项目里程碑**：M12
-**依赖**：`m12-chipyard-010`
+**依赖**：`m12-chipyard-007`
 **可并行分片**：否（单核实现，单写者）
 **状态**：待开始
 
 ## 背景
 
-010 已完成 FP 转换。
+006 已完成访存；控制流与返回地址栈未实现。
 
 ## 目标
 
-1. **加法/乘法**：`foadd`/`fomul`（`AddRecFN`/`MulRecFN` 等价）。
-2. **FMA**：`fofma`（`MulAddRecFN` 等价，单次舍入）。
-3. **比较**：`foqcmp`/`foscmp`（`CompareRecFN` 等价，quiet/signaling 语义按 spec）。
-4. **最小/最大**：`fomin`/`fomax`（NaN 传播按 spec）。
+1. **控制流**：`SimRISC-06`（控制流）的条件分支、无条件跳转、`call`/`ret` 全形式；返回地址按 spec（`call` = 当前指令地址 + 4）。
+2. **RAS**：返回地址栈的实现与深度按 spec；溢出/下溢行为按 spec（不得静默）。
+3. **与 bootrom 的交互**：bootrom 的 `jump` 到应用入口路径必须保持（003 的闭环不回归）。
 
 ## 验收标准
 
-1. 对应指令族在 chipyard 上与 QEMU/gem5 逐例一致
-2. FMA 的单次舍入有专门向量（与「先乘后加」区分）
-3. quiet/signaling NaN 的比较语义各至少 2 例
-4. Verilator 构建 rc=0；门控同前
-5. 一键证据脚本（含可达 FAIL 注入）
-6. 完成区 ≤30 行、无运行期路径
+1. `tests/inst` 中控制流指令族在 chipyard 上与 QEMU `dadao-tiny` 逐例一致
+2. `call`/`ret` 的返回地址语义有专门断言（含嵌套调用）
+3. RAS 溢出/下溢行为有至少 2 例（注入式）
+4. bootrom→loadmem→semihosting 闭环不回归
+5. Verilator 构建 rc=0；`apply-series`/`check-source-state`/`check-patch-tree`/L1/L2 rc=0
+6. 一键证据脚本（含可达 FAIL 注入）
+7. 完成区 ≤30 行、无运行期路径
 
 ## 非范围
 
-除/开方/余（`012`）、取整/缩放（`013`）
+位操作/原子/杂项（`008`）、FP（`009`–`013`）
 
 ## 说明
 
@@ -37,7 +37,7 @@
 
 ## 硬约束
 
-1. 临时目录 `/tmp/opencode/m12-chipyard-011/`；禁仓库内临时文件（**此前有任务留过 `scratch/`、`pico-math/`**）。
+1. 临时目录 `/tmp/opencode/m12-chipyard-007/`；禁仓库内临时文件（**此前有任务留过 `scratch/`、`pico-math/`**）。
 2. **不提交 git**；不改共享台账；**收尾用显式 `git add <path>`，禁 `git add -A`**。
 3. 完成区与真实输出逐条对齐；只动任务书范围。
 4. 失败保留现场并继续推进；只在需用户语义裁定时留问。

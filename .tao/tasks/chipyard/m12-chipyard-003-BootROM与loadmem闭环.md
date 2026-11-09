@@ -3,7 +3,7 @@
 **模块**：chipyard
 **项目里程碑**：M12
 **状态**：已验证
-**依赖**：`m12-chipyard-002`（Tiny 地址图已落地）
+**依赖**：`m12-chipyard-003`（Tiny 地址图已落地）
 
 ## 背景与事实
 
@@ -62,7 +62,7 @@
 - **QEMU oracle**：`-d in_asm,cpu` 的 `OBJD-T` 可重建执行地址序列（faulting TB 会重复一次）；`llvm-objdump` 无 tab 分隔。
 
 **遗留问题**：
-- ⏸ 最小执行器仅覆盖 `set.zw/or.w/jump/ld.o/st.o`（其余编码显式 halt 并打印）——真核 `m12-chipyard-005` 替换；semihosting/`trap` 退出属 `004`。
+- ⏸ 最小执行器仅覆盖 `set.zw/or.w/jump/ld.o/st.o`（其余编码显式 halt 并打印）——真核 `m12-chipyard-006` 替换；semihosting/`trap` 退出属 `004`。
 - ⏸ 本任务未改台账；L1 的台账基线/他人 log/他人临时目录三类红项由主会话收尾/合并消除。
 
 ## 审阅记录
