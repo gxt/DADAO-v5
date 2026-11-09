@@ -1,6 +1,6 @@
 # Machine-v5：测试机运行环境（v5 自定）
 
-> **状态**：当前（0.4.1-rc，未发布；0.4.0 发布 2026-11-08，0.3.1 生效于 2026-10-16〔用户裁定：正文术语 `PC` → `IP`〕；完整版本记录见文末「附录：版本与变更记录」）
+> **状态**：当前（0.4.2-rc，未发布；0.4.0 发布 2026-11-08，0.3.1 生效于 2026-10-16〔用户裁定：正文术语 `PC` → `IP`〕；完整版本记录见文末「附录：版本与变更记录」）
 >
 > **版本与变更记录细则**：版本号 `x.y.z`——**`x=0` 表示尚未正式发布；正式发布后 `x≥1`**；**大改动 `y+1`、有影响的小改 `z+1`**；当前版本见上行「状态」。
 >
@@ -18,7 +18,7 @@ CPU 地址固定为 48 位；高 6 位 `addr[47:42]` 为分区键：`0` 为内�
 
 v5 测试机分 **`Machine-v5-Tiny`**（宿主装载的精简 FS 平台）与 **`Machine-v5-Vast`**（完整系统节点；当前单核，可扩展多核/NUMA）两个 **profile**，由机器属性选择。两 profile 的**复位地址相同**，均为 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`（cfxha 63 / `power`，位于各自 BootROM 的末 64 KiB），该地址可由 CPU 直接取指并执行。[DADAO-12 §2.1 核内地址空间]
 
-- **Tiny**：`addr[47:42]` 恒为 `0x3F`（cfxha 63）；**不实现任何 cfx（含 `cfx_power`）**，不设 PTW/页表，无 hmon/smon 与异常向量，**不能进入 `user` 模式**；只承担非 cfx 指令测试、Embench 与 picolibc 测试集，`trap` 只作**陷入宿主**的开关（semihosting），不构成 cfx 类指令或向量路径。
+- **Tiny**：实现 **`cfx_power`（cfx63，启动移交）** 与 **`cfx3 hmon`（同步异常向量）**；`addr[47:42]` 由两个 cfxha 段构成——`0x3F`（cfxha 63：BootROM/SRAM）与 `0x03`（cfxha 3：hmon SRAM）。不设 PTW/页表、不实现 smon，**不能进入 `user`/`jail`/`supv`**，运行期固定在名义 `hypv`；只承担非 cfx 指令测试、Embench 与 picolibc 测试集。semihosting 的 `trap` 判定只依赖 `immu18`（见 `§5.1`），一般 `trap cfx_hmon` 进入 hmon 向量（见 `§4.4`）。
 - **Vast**：内存窗口 `addr[47:42] = 0` 由 PTW 按页表转换到 56 位 PA；核内空间含 hmon/smon/pmem SRAM；启动链 `power → hmon → 测试本体（hypv）`，`power → hmon → smon` 路径保留给内核/smon 测试。
 
 ### 1.1 核内地址空间划分（测试机约定）
@@ -29,11 +29,12 @@ v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位�
 
 | 区域 | 起始 | 大小 | cfxha / cfxname | 说明 |
 |------|------|------|-----------------|------|
-| **BootROM** | `0xffff_ffff_0000` | 64 KiB | 63 / `power`（仅地址分区，**不实现 `cfx_power`**） | 唯一非易失启动源；复位向量 = 起始 = `0xffff_ffff_0000`（镜像偏移 0）；内容全部为复位/启动 stub |
-| **SRAM** | `0xffff_ff00_0000` | 8 MiB | 63 / `power`（同上） | 唯一可写存储器；应用 `.text/.rodata/.data/.bss` 由宿主 loader 装入，**不塞 BootROM** |
+| **BootROM** | `0xffff_ffff_0000` | 64 KiB | 63 / `power` | 唯一非易失启动源；复位向量 = 起始 = `0xffff_ffff_0000`（镜像偏移 0）；内容全部为复位/启动 stub（`power` 移交 `hmon`） |
+| **SRAM** | `0xffff_ff00_0000` | 8 MiB | 63 / `power` | 可写主存；应用 `.text/.rodata/.data/.bss` 由宿主 loader 装入，**不塞 BootROM** |
+| **hmon SRAM** | `0x0fff_0000_0000` | 64 KiB | 3 / `hmon` | hmon **启动时显式写入** `cfx_hmon_hypv_excp_vector = 0x0fff_0000_0000`（不依赖复位默认值，见 `§4.4`）；内部偏移 `0x3ff_0000_0000`，越界 ⇒ `CFXMEM`；与 BootROM/SRAM 分属不同 cfxha 段，互不重叠 |
 
-- Tiny 的 `power` 段只借用地址分区，不提供 cg0–cg7 寄存器、异常向量或权限模型。
-- BootROM 与 SRAM 之间的 `0xffff_ff80_0000`–`0xffff_fffe_ffff` 不映射；段内其余地址的访问/取指 ⇒ `CFXMEM`。
+- Tiny 实现 `cfx_power`（cfx63）的启动移交与 `cfx3 hmon` 的异常向量/寄存器；`smon`（cfx2）与其它 cfx 不实现。
+- BootROM 与 SRAM 之间的 `0xffff_ff80_0000`–`0xffff_fffe_ffff` 不映射；cfxha 63 段内 BootROM/SRAM 之外、cfxha 3 段内 hmon SRAM 之外、以及其它 cfxha 段 ⇒ `CFXMEM`。
 
 **`Machine-v5-Vast`**
 
@@ -46,7 +47,7 @@ v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位�
 | **cfx_pmem SRAM** | `0x83ff_0000_0000` | 64 KiB | 32 / `pmem` | cfx_pmem 内部偏移 `0x3ff_0000_0000`；CPU 用 `ld/st` 访问，越界 ⇒ `CFXMEM` |
 
 - **BootROM 尺寸**：上游 `DADAO-12` 只要求 `cfx_power` BootROM **≥64 KiB**，实际大小由本册按 profile 规定（Tiny 64 KiB、Vast 4 MiB）；复位向量两 profile 均为 `0xffff_ffff_0000`（末 64 KiB 起点，镜像内偏移 = 大小 − 64 KiB）。
-- **不做双映射**：Tiny 的 SRAM 只在 cfxha 63 段的 `0xffff_ff00_0000`；Vast 的 PA RAM 只在 `[0, 2 GiB)` 并仅经页表 VA 映射。两 profile 都不设「同一存储的多地址别名」。
+- **不做双映射**：Tiny 的 SRAM 只在 cfxha 63 段的 `0xffff_ff00_0000`、hmon SRAM 只在 cfxha 3 段的 `0x0fff_0000_0000`；Vast 的 PA RAM 只在 `[0, 2 GiB)` 并仅经页表 VA 映射。两 profile 都不设「同一存储的多地址别名」。
 - **`power` 不设 SRAM**：两 profile 的 `power` 分区都不设 SRAM；这是**本机约定**，不构成对上游 `DADAO-12` 的架构限制。
 - **legacy `-bios` 复位窗口**：`-bios` 路径仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变；Tiny 的 BootROM 恰为该窗口。
 
@@ -56,7 +57,7 @@ v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位�
 
 - **层次与适用**：`CFXMEM` 适用于核内地址空间模型内的非法访问/取指（cfxha 段内的非法子区间、越界访问/取指），按 `§7.1` 的 monitor 段编码归当前 monitor。
 - **精确路由（按 profile）**：
-  - **Tiny**：无 PTW（`ptw_enable` 恒 0）。`addr[47:42] == 0` 的普通访存/取指 ⇒ `CFXMEM`，**不直通物理存储器**；cfxha 63 段内 BootROM/SRAM 之外的地址 ⇒ `CFXMEM`。Tiny 无 hmon/smon 向量，异常**不经向量**，按「机器直接映射 fault → 退出码」口径终止。
+  - **Tiny**：无 PTW（`ptw_enable` 恒 0）。`addr[47:42] == 0` 的普通访存/取指 ⇒ `CFXMEM`，**不直通物理存储器**；cfxha 63 段内 BootROM/SRAM 之外、cfxha 3 段内 `hmon SRAM` 之外、以及其它 cfxha 段 ⇒ `CFXMEM`。同步异常进入当前运行模式 monitor——Tiny 唯一 monitor 为 `cfx3 hmon`（运行模式恒 `hypv`），**经 hmon 向量**处理（见 `§4.4`）。
   - **Vast**：`addr[47:42] == 0` 且 `ptw_enable=1`：按单 PTBR 走页表（PTE 格式/页表步进/页权限/TLB 见 `DADAO-12 §2.2.1–§2.2.6`、`§4.5`）；页表步进与 TLB 命中产生的异常先进入当前运行模式 monitor：未映射与 A/D 回写失败 ⇒ `CFXMEM`，权限拒绝 ⇒ `CFXPERM`（见 `DADAO-12 §2.2.6`、`§5.2`）。`ptw_enable=0`（仅复位后 power/hmon 的早期初始化）时仍按上一条报 `CFXMEM`。
   - 保留 cfx（`6`–`14`、`19`–`61`）的普通 `ld/st` ⇒ 当前运行模式 monitor 的 `CFXMEM`；`trap`/`escape` 到保留 cfx ⇒ 当前运行模式 monitor 的 `ILLI`。
   - 其余未映射地址（Vast 的 `power` 段 BootROM 之外）⇒ 当前运行模式 monitor 的 `CFXMEM`。
@@ -75,9 +76,9 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 异常进入后，硬件把运行模式改为 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 的值（异常进入流程步骤 6）。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3. 共有寄存器设计规范]
 
-- **运行模式范围（按 profile）**：`Machine-v5-Tiny` 不提供模式切换路径——复位后即在特权态（名义 `hypv` / cfxha 63）执行，**不能进入 `user`/`jail`/`supv`**；`Machine-v5-Vast` 启用 `hypv`、`supv` 与 `user`，`jail` 不启用。
-- **异常承载（按 profile）**：`Machine-v5-Vast` 由 `hmon`（cfx3）承载 hypv 异常、`smon`（cfx2）承载 supv 异常；`Machine-v5-Tiny` **无异常向量与异常处理路径**，fault 直接映射为进程退出码。
-- **启动链（按 profile）**：`Machine-v5-Tiny` 复位后在 BootROM 执行启动 stub，设 `SP` 后**普通跳转**至应用入口（不使用 `trap` 移交，无 cfx）。`Machine-v5-Vast` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）；`power → hmon → smon`（supv/cfx2）路径保留：power 从 BootROM 装载 hmon 并 `trap` 移交；hmon 配置 smon 的 S-mode 向量/权限后 `trap` 移交；smon 建立第一张页表、开启 PTW 并接管运行期。M11 测试不覆盖 smon。
+- **运行模式范围（按 profile）**：`Machine-v5-Tiny` 不提供模式切换路径——复位后即在特权态（名义 `hypv`；复位时 cfxha 63 / `power`，移交后 cfxha 3 / `hmon`）执行，运行模式恒 `hypv`，**不能进入 `user`/`jail`/`supv`**，不实现 smon；`Machine-v5-Vast` 启用 `hypv`、`supv` 与 `user`，`jail` 不启用。
+- **异常承载（按 profile）**：`Machine-v5-Vast` 由 `hmon`（cfx3）承载 hypv 异常、`smon`（cfx2）承载 supv 异常；`Machine-v5-Tiny` 由 `hmon`（cfx3）承载唯一的 hypv 同步异常（无 smon），异常经 hmon 向量处理（见 `§4.4`）。
+- **启动链（按 profile）**：`Machine-v5-Tiny` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）：power 在 BootROM 以 `trap cfx_hmon` 按 `DADAO-12 §5.2` 的 `CFXTRAP` 移交 hmon；hmon **显式写入**自身异常向量（`cfx_hmon_hypv_excp_vector = 0x0fff_0000_0000`，不依赖复位默认值）并配置权限后转测试本体。全程运行模式为 `hypv`，不做模式切换。`Machine-v5-Vast` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）；`power → hmon → smon`（supv/cfx2）路径保留：power 从 BootROM 装载 hmon 并 `trap` 移交；hmon 配置 smon 的 S-mode 向量/权限后 `trap` 移交；smon 建立第一张页表、开启 PTW 并接管运行期。M11 测试不覆盖 smon。
 - **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变。
 
 ---
@@ -93,7 +94,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 - **两个权限层次**：页表/PTW 层权限（HSJU 或 R/W/X 不符）与 **cfx 访问权限**（`cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` mask 拒绝，见 `§5` 异常进入流程）是**不同层次**，不可混同；两者失败后均归当前运行模式 monitor 的 `CFXPERM`（原因名收敛，权限来源不同）。[DADAO-12 §4. 专有寄存器设计规范]
 
 - **测试机 cfx 实现范围（按 profile）**：
-  - **`Machine-v5-Tiny`**：**不实现任何 cfx**——cfxha 63 只作地址分区，不提供 `cfx_power` 或其它 cfx 的 cg0–cg7 寄存器/异常向量/权限模型；`trap` 只在 semihosting 区（`immu18[17:8] == 0x3FF`）有效，不进入向量。cfx 寄存器访问与 `cfx2rd`/`cfx2rc` 按未实现 cfx ⇒ `CFXREG`；非 semihosting 的 `trap`/`escape` 按未实现 cfx ⇒ `ILLI`（不进向量、不做模式切换）。**Tiny 不实现 `cfx32`（pmem）/`cfx4`（ptw）/`cfx5`（cache）/`cfx33`（llc）/`cfx34`（time）**。
+  - **`Machine-v5-Tiny`**：实现 **`cfx_power`（cfx63，启动移交）** 与 **`cfx3`（`hmon`，同步异常向量）**，提供其 cg0–cg7 共有寄存器与异常向量；`cfx_power`（cfx63）用于启动移交（`power → hmon`）。**不实现 `cfx2`（smon）/`cfx32`（pmem）/`cfx4`（ptw）/`cfx5`（cache）/`cfx33`（llc）/`cfx34`（time）等其它 cfx**。cfx 寄存器访问与 `cfx2rd`/`cfx2rc` 对未实现 cfx ⇒ `CFXREG`；非 semihosting 的 `trap cfx_hmon`（`cfxha=3`，`immu18 < 0x3FF00`）按 `DADAO-12 §5.2` 进入 hmon 向量（`CFXTRAP`）；`trap`/`escape` 到未实现 cfx ⇒ `ILLI`（进入 hmon 向量，见 `§4.4`）。**semihosting 判定只看 `immu18`（`§5.1`），与 `cfxha` 无关**。
   - **`Machine-v5-Vast`**：实现 **`cfx0`/`cfx1`/`cfx2`/`cfx3`/`cfx63`**（`umon`/`jmon`/`smon`/`hmon`/`power`）以及 **`cfx4`（`ptw`）的 PTW/TLB 寄存器**（`cfx_ptw_ptbr`、`cfx_ptw_enable`、`cfx_ptw_tlb_*`）、**页表步进**、**TLB 命中/填充/失效**与 **A/D 回写**（`DADAO-12 §2.2`、`§4.5`）；并实现 **`cfx32`（`pmem`）的 64 KiB SRAM 与 `cg15` DMA**（`DADAO-12 §2.1`、`§4.9`）。`cfx5`（`cache`）为已分配未实现，测试机按未实现 cfx 处理（访问其寄存器 ⇒ `CFXREG`）。
   - 上述范围为**测试机约定**（控制首版成本），**不构成对上游 `DADAO-12`/`DADAO-13` 架构的 cfx 数量/编号限制**。[DADAO-12 §1. 运行模式与核芯功能扩展]
 - **测试机 `cfx_pmem` DMA 约定（仅 Vast）**：DMA 只在 `cfx_pmem` SRAM 与物理存储器之间搬运，异步完成（软件须轮询 `dma_status.BUSY` 或使能 `IRQ_EN`）；DMA 可读 RAM 与 boot ROM、只可写 RAM，其余 PA 属 `PA_FAULT`；`PMEM_DMA`（`1 << 8`）直接投递本 hart 的 `cfx_pmem` 异常入口（单 hart）。[DADAO-12 §4.9]
@@ -109,7 +110,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 当 `immu18 < 0x3FF00`（即不在 semihosting 区 `0x3FF00–0x3FFFF`）时，为**一般 trap**：先过权限检查，允许后**走 `DADAO-12 §5` 异常进入流程**（步骤 1–10，含步骤 10「跳转至异常向量」`inner_inst_pointer <= cfx_⟨cfxname⟩_<mode>_excp_vector`）——即**进入该 cfx 的异常向量**。[DADAO-12 §5. 异常进入与异常退出]
 
-`Machine-v5-Tiny` 没有任何 cfx 向量，故一般 trap 一律按未实现 cfx ⇒ `ILLI`（见 `§3`），不进入异常进入流程。
+`Machine-v5-Tiny` 的一般 trap：`cfxha = 3` 且 `immu18 < 0x3FF00` 时按本节进入 hmon 向量（`CFXTRAP`，见 `§3`/`§4.4`）；`cfxha` 为未实现 cfx ⇒ `ILLI`（同步异常进 hmon 向量，见 `§4.4`）；`cfx_power`（cfx63）按 `DADAO-12 §5.2` 的通用 trap 规则处理。
 
 ### 4.2 `escape` → 异常退出流程
 
@@ -124,7 +125,25 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 | **一般 trap** | `immu18 < 0x3FF00`（不在 `0x3FF00–0x3FFFF`） | 走 `DADAO-12 §5` 异常进入流程，**进入 cfx 向量** | 由被调方 `escape` 返回 |
 | **semihosting** | `0x3FF00 ≤ immu18 ≤ 0x3FFFF`（`immu18[17:8] == 0x3FF`） | 实现层**译码短路**，**不进入向量**（同构 RISC-V `RISCV_EXCP_SEMIHOST`） | 直接 **IP 步进**返回（见 `§5`） |
 
-一般 trap 与 semihosting 分离，**不得把 semihosting 混入向量路径**（否则实现者会误让 semihosting 进入向量）。
+一般 trap 与 semihosting 分离，**不得把 semihosting 混入向量路径**（否则实现者会误让 semihosting 进入向量）。`Machine-v5-Tiny` 的一般 trap 判定见 `§4.1`；`immu18` 的区间判定与 `cfxha` 无关（`§5.1`）。
+
+### 4.4 同步异常进入 hmon（`Machine-v5-Tiny`）
+
+`Machine-v5-Tiny` 运行模式恒为 `hypv`，故 `DADAO-12 §5.2` 的「当前运行模式 monitor」= `cfx3 hmon`：执行期同步异常不经 `trap` 指令、**直接进入 hmon 向量**，处理流程与现场寄存器（`excp_cause_id`/`excp_cause_ip`/`excp_cause_info`/`excp_prev_run_mode`）按 `DADAO-12 §5.2` 的异常进入流程。[DADAO-12 §5.2 异常进入流程]
+
+- **五类同步异常与 `excp_cause`**（`excp_cause_id` = one-hot，位索引见 `§7.1`）：
+
+| 名称 | `excp_cause_id` | 进入 hmon 的时机 / `excp_cause_info` |
+|------|-----------------|--------------------------------------|
+| `CFXMEM` | `1 << 1` | 核内地址空间非法访问/取指（`§1.2` 路由）时；`info` = 访存地址 |
+| `ILLI` | `1 << 8` | 译码阶段遇到非法指令（含对未实现 cfx 的 `trap`/`escape`）时；`info` = 指令编码 |
+| `UNDI` | `1 << 9` | 译码阶段遇到未定义指令时；`info` = 指令编码 |
+| `MALIGN` | `1 << 12` | 地址计算后、访存前发现非对齐访存时；`info` = 访存地址 |
+| `IALIGN` | `1 << 13` | 取指前检测 `IP[1:0] ≠ 00` 时；`info` = `IP` 值 |
+
+- **IALIGN 的 IP 停留语义**：`IALIGN` 为精确异常——**IP 停留在非法地址**，`excp_cause_ip` 记录该非法 `IP`，硬件**不写回下一条指令地址**；处理方式由 hmon 决定（与 `DADAO-12 §5` 的精确异常定义一致）。[DADAO-12 §5. 异常进入与异常退出]
+- **进入目标**：目标 cfx = `cfx3 hmon`，`inner_inst_pointer <= cfx_hmon_hypv_excp_vector`；该向量由 hmon **启动时显式写入** `0x0fff_0000_0000`（hmon SRAM 起始，`§1.1`），**不依赖复位默认值**——`DADAO-13 §1` 规定该寄存器初值由平台/实现定义；`excp_prev_run_mode` = `hypv`；模式切换取 `cfx_hmon_hypv_switch_run_mode`（初值 `hypv`）。[DADAO-12 §5.2 异常进入流程][DADAO-13 §1. cg3 - hypv mode 寄存器]
+- **返回**：hmon 用 `escape cfx_hmon, [excp_cause_ip, 0]`（重试）或 `escape cfx_hmon, [excp_cause_ip, 4]`（跳过）返回（`§4.2`）；`IALIGN` 时 `excp_cause_ip` 即非法地址，是否重试/跳过由 hmon 软件决定。
 
 ---
 
@@ -132,15 +151,15 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 semihosting 是 v5 测试机提供的「guest 经 `trap` 请求宿主 I/O」机制；本节为其**规范正文**（服务号值语义取自 Arm Semihosting；v5 特有部分标测试机约定）。
 
-- **两 profile 均提供 semihosting**。`Machine-v5-Tiny` 的 `trap` **只作陷入宿主的开关**，不构成 cfx 类指令或 cfx 向量路径——判定与返回完全按本节处理，与 `cfxha` 无关。
-- `Machine-v5-Tiny` 只用 semihosting 完成控制台与退出闭环（控制台/调试输出与 `SYS_EXIT`）；`Machine-v5-Vast` 同样以 semihosting 作宿主 I/O 与停机协议。
+- **两 profile 均提供 semihosting**。semihosting 判定只依赖 `immu18`（`§5.1`），与 `cfxha` 无关：`immu18 ∈ 0x3FF00–0x3FFFF` 时短路到宿主；只有非 semihosting 的 `trap` 才进入 cfx 向量。
+- **`Machine-v5-Tiny`**：semihosting 统一写 `trap cfx_hmon`（`§5.1`；其它 `cfxha` 亦等效）；非 semihosting 的 `trap cfx_hmon` 进入 hmon 向量（`§4.4`），与 semihosting **无冲突**。Tiny 只用 semihosting 完成控制台与退出闭环（控制台/调试输出与 `SYS_EXIT`）；运行期同步异常由 hmon 处理（`§4.4`）。`Machine-v5-Vast` 同样以 semihosting 作宿主 I/O 与停机协议。
 
 ### 5.1 判定（入口 tag）
 
 - **判定**：`trap cfxHA, immu18` 中 **`immu18[17:8] == 0x3FF`**（即 `0x3FF00–0x3FFFF`）⇒ 该 `trap` 为 **semihosting 调用**（**与 `cfxha` 无关**）。
-- **调用形如 `trap <any cfxha>, 0x3FF00`**：semihosting 服务号仍占 `immu18` 低 8 位（`0x3FF00 + op`）；用哪个 `cfxha` 不指定（任意 `cfxha` 等效），判定只依赖 `immu18[17:8]`。
+- **调用形如 `trap cfx_hmon, 0x3FF00`**（两 profile 统一写法）：semihosting 服务号仍占 `immu18` 低 8 位（`0x3FF00 + op`）；判定只依赖 `immu18[17:8]`，与 `cfxha` 无关——任意 `cfxha` 等效（如 Tiny 的 `trap cfx63, 0x3FF00` 同样按 semihosting 处理）。
 - **语义/理由说明（架构自定义）**：该 tag 判定**无上游 spec 依据、属 v5 架构自定义**——`spec/DADAO-22` 只规定 `cfxha` 为服务提供者、`immu18` 为功能编号；`spec/SimRISC-11` 只规定 `immu18` 为功能编号；二者**均无 semihosting 语义**。故本机制在 v5 中由测试机定义，guest/实现共同遵守此 tag。[DADAO-22 §1. 调用约定][SimRISC-11]
-- **两条路**：`immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`）走 semihosting 短路（本节）；`immu18 < 0x3FF00` 走一般 trap 进入向量（见 `§4.1`）。
+- **两条路**：`immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`）走 semihosting 短路（本节）；`immu18 < 0x3FF00` 走一般 trap 进入向量（见 `§4.1`）——`Machine-v5-Tiny` 的启动移交目标为 `cfx_hmon`（`cfxha=3`），`cfxha` 为未实现 cfx ⇒ `ILLI`（见 `§3`/`§4.4`）。
 
 ### 5.2 调用约定（传参/返回寄存器）
 
@@ -216,10 +235,10 @@ semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 
 M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配置**；bootrom 用**自有工具链**编译（LLVM 新指令的首个真实用户）。
 
 - **BootROM（按 profile）**：`Machine-v5-Tiny` 为 64 KiB（`0xffff_ffff_0000`–`0xffff_ffff_ffff`），内容**全部**为复位/启动 stub，**无 image index table**；`Machine-v5-Vast` 为 4 MiB（`0xffff_ffc0_0000`–`0xffff_ffff_ffff`），偏移 0 放 image index table、其后放 ELF 镜像，末 64 KiB（`0xffff_ffff_0000` 起）留给复位/启动代码。复位向量两 profile 均为 `0xffff_ffff_0000`。[DADAO-12 §2.1 核内地址空间]
-- **装载语义 — `Machine-v5-Tiny`**：应用为 ELF 时，crt/启动 stub 段在 BootROM（`0xffff_ffff_0000`）、应用 `.text/.rodata/.data/.bss` 在 SRAM（`.text` 起 `0xffff_ff01_0100`），`e_entry` 在 BootROM；宿主按 `PT_LOAD` 分别装入 BootROM 与 SRAM，`.bss` 由 picolibc `__start` 在 SRAM 清零，`e_entry` 处的 stub 跳应用入口。raw `-kernel` 镜像基址 `0xffff_ff01_0000`，镜像前 `0x100` 字节须全零（保留区），应用入口 `0xffff_ff01_0100`，`SP = 0xffff_ff7e_ff00`；**raw 与 ELF 统一入口 `0xffff_ff01_0100`、统一 `SP`**。Tiny 无 hmon/PTW/异常处理路径，启动 stub 以普通跳转移交。
+- **装载语义 — `Machine-v5-Tiny`**：应用为 ELF 时，crt/启动 stub 段在 BootROM（`0xffff_ffff_0000`）、应用 `.text/.rodata/.data/.bss` 在 SRAM（`.text` 起 `0xffff_ff01_0100`），`e_entry` 在 BootROM；宿主按 `PT_LOAD` 分别装入 BootROM 与 SRAM，`.bss` 由 picolibc `__start` 在 SRAM 清零。raw `-kernel` 镜像基址 `0xffff_ff01_0000`，镜像前 `0x100` 字节须全零（保留区），应用入口 `0xffff_ff01_0100`，`SP = 0xffff_ff7e_ff00`；**raw 与 ELF 统一入口 `0xffff_ff01_0100`、统一 `SP`**。Tiny 无 PTW/页表；BootROM 内的启动 stub（`power`，cfx63）以 `trap cfx_hmon` 按 `DADAO-12 §5.2` 的 `CFXTRAP` 移交 hmon，hmon **显式写入**自身异常向量（`§4.4`）并配好权限后转测试本体（`§2`）。
 - **装载语义 — `Machine-v5-Vast`**：4 MiB BootROM 经 bootrom 镜像装载路径（机器属性 `bootrom-image`）装入；`power` 从 BootROM 把 hmon 装入 hmon SRAM，`power → hmon → smon` 交接后由 smon 建立**首张页表**：把 64 KiB 全零页表页写到 PA 0（`PTBR=0`），在 L1 index `0`–`3` 写 4 个 512 MiB 超页 PTE，映射 `VA [0, 2 GiB) → PA [0, 2 GiB)`（合计 2 GiB）；每项 `H=1`、`S=1`、`U=J=0`、`R=W=X=1`、`P=1`、`SP=1`、`A=D=1`（A/D 硬件维护）、`SPF=0xFF`；随后写 `cfx_ptw_ptbr=0` 并置 `cfx_ptw_enable=1` 开启 PTW。本册只规定该首张页表，不规定测试镜像的段布局、起始执行位置或 SP。
 - **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变。
-- **模式移交**：`Machine-v5-Tiny` 无模式移交（同一特权态内跳转）；`Machine-v5-Vast` 为 power → hmon → 测试本体（hypv），`power → hmon → smon` 路径保留（同 `§2`）。
+- **模式移交**：`Machine-v5-Tiny` 运行模式始终为 `hypv`，但存在 `power → hmon → 测试本体` 的 cfx/启动移交（同 `§2`）；`Machine-v5-Vast` 为 power → hmon → 测试本体（hypv），`power → hmon → smon` 路径保留（同 `§2`）。
 - **并存关系**：`-bios` bootrom 启动路径与 M4 的 ELF 单镜像路径**并存、非替代**——两条启动路径各自可自动化。
 
 ---
@@ -261,6 +280,7 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 - **同步异常落点**：除上述两条外，执行期同步异常均进入**当前运行模式 monitor**，按 monitor 段编码：`CFXMEM`/`CFXREG`/`CFXPERM`/`ILLI`/`UNDI`/`RASOF`/`RASUF`/`MALIGN`/`IALIGN`。[DADAO-12 §5.2 异常进入流程]
 - **未映射与 A/D 回写失败**：无映射的核内地址访问/取指归当前运行模式 monitor 的 `CFXMEM`；A/D 回写失败同样归当前运行模式 monitor 的 `CFXMEM`（`cause_info` = PTE 物理地址）。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §2.2.6 异常检查优先级]
 - **reserved cfx**：reserved cfx（`6`–`14`、`19`–`61`）的普通 `ld/st` 归当前运行模式 monitor 的 `CFXMEM`；其 `trap`/`escape` 归当前运行模式 monitor 的 `ILLI`。[DADAO-12 §5.2 异常进入流程]
+- **`Machine-v5-Tiny`**：运行模式恒 `hypv`，同步异常先进入 `cfx3 hmon`（`§4.4`）；若未被 hmon 处理而作为机器 fault 终止，按 monitor 段的 `hypv` 编码（`0xF0`–`0xFF`）。
 - **编码冻结、不得重排**：退出码分段与 monitor/其它 cfx 位域一经生效**不得重排**；monitor 位索引沿用 DADAO 异常位索引，新增原因不得改变既有索引。[DADAO-12 §5.2 异常进入流程]
 
 ---
@@ -269,7 +289,13 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
 
-### 0.4.1-rc（未发布）
+### 0.4.2-rc（未发布）
+
+- **Tiny 引入 `cfx_power` + `cfx3 hmon`**：Tiny 从「不实现任何 cfx」改为实现 `cfx_power`（cfx63，启动移交）与 `cfx3 hmon`（同步异常向量）；新增 hmon SRAM `0x0fff_0000_0000`（64 KiB，cfxha 3），`addr[47:42]` 不再恒 `0x3F`；仍无 PTW/页表、不实现 smon。
+- **启动链与异常**：Tiny 启动链改为 `power → hmon → 测试本体`；hmon 启动时显式写入 `cfx_hmon_hypv_excp_vector = 0x0fff_0000_0000`（`DADAO-13 §1` 规定其初值由平台/实现定义，不依赖复位默认值）；`CFXMEM`/`ILLI`/`UNDI`/`MALIGN`/`IALIGN` 进 hmon 向量（`excp_cause` 见 `§4.4`），`IALIGN` 时 IP 停留在非法地址；删除「fault 直接映射退出码」口径。
+- **semihosting**：`trap` 判定只依赖 `immu18`（`0x3FF00–0x3FFFF` 为 semihosting）；示例统一写 `trap cfx_hmon`，非 semihosting 的 `trap cfx_hmon` 进 hmon 向量。
+
+### 0.4.1（未发布，被 0.4.2-rc 取代）
 
 - **profile 与机器命名**：profile 概念 `Node` → `Vast`（`Machine-v5-Node` → `Machine-v5-Vast`），机器名 `dadao-m1` → `dadao-tiny` / `dadao-vast`（语义不变）。
 

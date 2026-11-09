@@ -676,4 +676,9 @@ group = "machine-v5"
 #   `Node`→`Vast`（`Machine-v5-Node`→`Machine-v5-Vast`，22 处，含附录；无其它语义）、定位行机器名
 #   `dadao-m1`→`dadao-tiny`/`dadao-vast`；册头状态行与附录新开 `0.4.1-rc（未发布）` 段（1 条，只记命名，
 #   几何/语义/退出码不变）；sha256 同笔重算（其余 20 册不变）。
-sha256 = "f9743cd338a35fd488d26bcbdeac50b13441affc9fd39e24c1b4873667282493"
+# 2026-11-09（m12-spec-002；用户裁定见任务书 §用户裁定：Tiny 实现 `cfx_power`（cfx63）+ `cfx3 hmon`；
+#   hmon SRAM 复用 `0x0fff_0000_0000`（64 KiB）；无 PTW/页表；同步异常直接进 hmon 向量；semihosting
+#   `trap` 统一写 `cfx_hmon`）：§1/§1.1/§1.2/§2/§3/§4.1/§4.3/§4.4/§5/§5.1/§6/§7.1 按 Tiny hmon 修订
+#   （hmon 启动时显式写入 `cfx_hmon_hypv_excp_vector`，对齐 `DADAO-13 §1` 新口径）；附录新开
+#   `0.4.2-rc（未发布）` 段（`0.4.1-rc` 记为 `0.4.1（未发布）`）；sha256 同笔重算（其余 20 册不变）。
+sha256 = "9f3a17811ae3179eeb490d7cb29a82d0c84d206b66527b14f6e1fd4394cf96ff"
