@@ -29,12 +29,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m12-infra-003 | 2026-11-09 14:06 | 3–4 h | 子模块补丁机制（manifest/apply/make_patch/check_patch_tree + testchipip 试点） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m12-infra-003 | 2026-11-09 19:02 | 子模块补丁机制（manifest/apply/make_patch/check_patch_tree + testchipip 试点） |
 | m12-chipyard-004 | 2026-11-09 14:06 | harness 侧 semihosting 应答者（最小 5 服务 + 核内抬边界） |
 | m12-chipyard-003 | 2026-11-09 11:24 | BootROM + `loadmem` 最小闭环（ELF 落 SRAM、复位跳转、可观测结果） |
 | m12-chipyard-002 | 2026-11-09 05:22 | Tiny 地址图落地（BootROM `0xffff_ffff_0000` + SRAM 8 MiB，paddrBits≥48） |

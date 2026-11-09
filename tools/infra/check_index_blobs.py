@@ -37,6 +37,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+import submodule_patches
+
 ROOT = Path(__file__).resolve().parents[2]
 
 # ``index <old>..<new>[ <mode>]`` — the trailing mode field is optional.
@@ -63,6 +65,10 @@ def enabled_patch_dirs() -> list[Path]:
         patch_dir = component.get("patch_dir")
         if patch_dir:
             dirs.append(ROOT / patch_dir)
+        # Submodule patch sets (docs/Process-01 §14) are held to the same
+        # new-file ``index`` hygiene, so their trees are scanned too.
+        for entry in submodule_patches.patch_sets(component):
+            dirs.append(ROOT / entry["patch_dir"])
     return dirs
 
 

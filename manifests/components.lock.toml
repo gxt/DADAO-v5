@@ -95,6 +95,18 @@ patch_series = "components/chipyard/series"
 submodule_lock = "manifests/chipyard-submodules.lock.toml"
 role = "RTL SoC simulation (Verilator) + DADAO core migration target"
 
+# Submodule patch sets (docs/Process-01 §14, rev. 2026-11-09): chipyard's own
+# top-level patch set cannot touch a submodule's files -- the component index
+# only carries a gitlink for those paths -- so the changes live in the
+# submodule's own tree-shaped patch set, declared here one target at a time
+# (only what is actually modified; the 55-submodule snapshot stays in
+# `submodule_lock`).  Base commit = the `commit` of the same `path` in the
+# submodule lock, never repeated here.
+[[component.submodule_patch]]
+path = "generators/testchipip"
+patch_dir = "components/chipyard/submodules/testchipip/patches"
+patch_series = "components/chipyard/submodules/testchipip/series"
+
 [[component.source]]
 name = "gitclone"
 url = "https://gitclone.com/github.com/ucb-bar/chipyard"

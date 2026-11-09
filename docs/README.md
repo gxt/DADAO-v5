@@ -6,7 +6,7 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| `docs/Process-01-组件补丁组织与构建编排.md` | **组件补丁组织与构建编排规范**：树形补丁集 + 一文件一补丁 + `git apply`；`patches/` 为纯镜像、清单在 `components/<name>/series`；五断言由 `make check` 的 `check-patch-tree` 校验 |
+| `docs/Process-01-组件补丁组织与构建编排.md` | **组件补丁组织与构建编排规范**：树形补丁集 + 一文件一补丁 + `git apply`；`patches/` 为纯镜像、清单在 `components/<name>/series`；子模块补丁集（`components/<name>/submodules/<path>/`）另成一套；十条断言由 `make check` 的 `check-patch-tree` 校验 |
 | `docs/Process-02-合约编写规范.md` | 合约（投影）文件组织、写法要点、版本管理 |
 | `docs/Process-03-ADR编写规范.md` | ADR 判据、提醒义务、落点命名与模板、流程 |
 | `docs/Process-04-里程碑归档规范.md` | 里程碑达成后的任务书 / 台账归档（判据、落点、README 模板、原台账处理、验收） |

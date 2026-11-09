@@ -110,6 +110,7 @@ components/<name>/
    - 提交完成后工作树干净且 HEAD = base+1，恢复 E1。
 5. **不得**使用 `git am`（本规范不保留作者与提交信息）；上述本地 commit **永不推送上游**。
 6. 由 `tools/infra/apply_series.py` 实现。
+7. **子模块补丁集**：同一套规则在子模块仓库内执行（base = `submodule_lock` 的 pin），组件随后把子模块新 HEAD 记为 gitlink 并随组件自己的 commit 落地；见 §14。
 
 > **补注（E5 推论）：本地 commit 已存在后再改补丁时的恢复**
 >
@@ -121,9 +122,9 @@ components/<name>/
 >
 > 属 E5 的**直接推论**（如何回到可应用状态），**不改** E5 决策。
 
-## 8. 机器检查（9 条断言）
+## 8. 机器检查（10 条断言）
 
-`tools/infra/check_patch_tree.py` **必须**对每个 enabled 组件断言：
+`tools/infra/check_patch_tree.py` **必须**对每个补丁集断言（顶层集与每个 `submodule_patch` 集各一套，见 §14）：
 
 | # | 断言 | 说明 |
 |---|---|---|
@@ -136,7 +137,9 @@ components/<name>/
 | ⑦ | **worktree 干净（E6）** | `.work/source/<name>` 的 `git status --porcelain` 为空 |
 | ⑧ | **HEAD = base + 恰好 1 个 commit（E6）** | `git rev-list --count <base>..HEAD == 1` |
 | ⑨ | **HEAD 的净 diff == 补丁集（E6）** | `git diff <base> HEAD` 的净 diff（按路径、`index` 行归一化后）与补丁集**逐路径一致** |
+| ⑩ | **组件 HEAD 记录子模块 HEAD（仅子模块补丁集）** | 组件 `HEAD:<子模块 path>` 的 gitlink **必须** == 该子模块 HEAD（组件 commit 钉住了打过补丁的子模块；缺此则组件工作树永远不可能干净） |
 
+- 断言 ①–⑨ 对**每个**补丁集各跑一次（组件顶层集与每个 `submodule_patch` 集，见 §14）；子模块集在**子模块仓库**里判（base = `submodule_lock` 中该 `path` 的 commit），⑩ 是组件侧的补充断言。
 - 断言 ⑥ 与 ⑨ 分工不同：**⑥**＝补丁应用产物 vs **工作树**；**⑨**＝**HEAD commit** vs **补丁集**。
 - 若 `.work/source/<name>` 缺失：沿用既有「跳过 apply 检查」的通知语义，**断言 ⑦⑧⑨ 亦随之明确打印跳过**（不得静默）。
 - 任一断言失败 **必须**以非零退出码终止。
@@ -195,18 +198,25 @@ components/<name>/
 - **净效果为零**：文件在补丁集内「先建后删」或「改了又改回」时，是否产出补丁。
 - **mode 变更**（可执行位）、**二进制文件**。
 
-## 14. 子模块（submodule）的获取与镜像
+## 14. 子模块（submodule）的获取、镜像与补丁集
 
-- **适用范围**：带子模块的组件（当前仅 `chipyard`，共 55 个子模块）。子模块是**平台内部结构**，不是本仓库的补丁对象。
+- **适用范围**：带子模块的组件（当前仅 `chipyard`，共 55 个子模块）。子模块是**平台内部结构**；**只有为 DADAO 必须改动、且改动落在子模块自身源码里的文件**才以「子模块补丁集」登记（不批量纳入，只登记实际要改的），其余子模块既不打补丁也不登记补丁位。
 - **锁定**：`manifests/chipyard-submodules.lock.toml` 逐条记录 `path` / `url` / `commit`，并用两个标记区分「要不要取」：
   - `lite = true` = **chipyard 上游最小构建集**（上游 `scripts/init-submodules-no-riscv-tools.sh` 的默认集），语义不得被本仓库的额外需求改写；
   - `dadao_extra = true` = **本仓库在上游最小集之外额外需要**的子模块（当前仅 `toolchains/riscv-tools/riscv-isa-sim`：conda `riscv-tools` 不含 fesvr，需其源码编 `libfesvr.a`）。
   两者在镜像与离线分发上**同等对待**，取用条件恒为 **`lite or dadao_extra`**；两者皆为 false 的条目只登记、不初始化。
-- **不参与补丁集**：补丁集只作用于组件自身的工作树，**不为子模块引入补丁能力**。需要修改子模块内容时，先回到「组件选择 / 上游版本」层面决策，不在补丁层绕过（平台内部实现不属于本仓库的改造范围）。
+- **为什么必须单列一类补丁集**：组件自己的补丁集只能改**组件工作树里的文件**；组件索引对该子模块路径只有一个 **gitlink**（`160000`），`git apply --cached` 会报 `does not exist in index`，打完 `git status` 也必然非空。因此子模块的改动必须在**子模块仓库**里成集、成 commit，组件只记录结果。
+- **声明**：`manifests/components.lock.toml` 的组件条目用 `[[component.submodule_patch]]` 逐条声明，三个键都**必须**给出、互不推导：`path`（子模块相对路径）、`patch_dir`（镜像树根）、`patch_series`（清单文件）。该子模块补丁集的 **base commit 不在这里重复**，恒为同一 `path` 在组件 `submodule_lock` 中的 `commit`（两处不可能漂移）。
+- **目录形态**：`components/<component>/submodules/<子模块 path>/{series,patches/}`，`patches/` 同样是**纯镜像**（`<子模块内相对路径>.patch`）；§2–§5 的全部规则（一文件一补丁、目标路径唯一、新增文件以其终态表达、清单按字典序）对子模块补丁集**同样适用**。台账（README/changelog）随**组件**的 `components/<component>/{README,changelog}.md`，不另建。
+- **应用（E5 同规则，各判各的 E1）**：`apply_series.py` 对每个声明的子模块补丁集，在 `<源树>/<path>` 内按 §7 应用并生成本地 commit（message `dadao: <component>/<path> patch series`），子模块自身满足 `clean + base+1`；随后**组件的**本地 commit 记录该子模块的新 HEAD 作为 gitlink 更新，使组件工作树同样 `clean + base+1`。顶层与子模块两类补丁集互不干扰（各自仓库、各自 base、各自 commit）。
+- **生成**：`make_patch.py` 同时导出顶层与子模块补丁集，`E1/E3` 对两者分别校验；组件顶层集**不得**把 gitlink 路径导出成补丁（那不是文件改动，其内容就是子模块补丁集本身），实现里按声明路径显式跳过。
+- **门控**：`check_patch_tree.py` 对**每个**补丁集（顶层 + 每个子模块）跑断言 ①–⑨，在**子模块仓库**里跑（那里是普通 tree，断言④才有意义）；另加断言⑩：组件 HEAD 记录的 gitlink **必须**等于子模块 HEAD。`check_index_blobs.py` 的扫描面同样包含子模块补丁集的 `patch_dir`；`manifest_check.py` 校验声明三键齐备、目录/清单存在、`path` 在 `submodule_lock` 里确有 pin。
+- **获取与镜像**：`make fetch` 在组件声明 `submodule_lock` 时，对每个 `lite or dadao_extra` 子模块执行「`submodule init` → 把 `submodule.<path>.url` 指向本地镜像 → `submodule update --init --checkout`」。**已就绪的判据** = `HEAD == lock 中的 commit`，**或** HEAD 是它的后代且工作树干净（= 已应用该子模块补丁集的状态，见 §7 E5）——后者**不得**被 `checkout` 覆盖，否则会静默丢掉本地补丁 commit（与组件级「已打过补丁就放过」同一口径）。镜像缺失时**必须**明确失败并提示从主控机同步，**不得**退回公网直连。
 - **镜像位置**：子模块以 bare 镜像存放于 `.cache/submodules/<由 path 确定性派生的名字>.git`；不得用 `basename` 命名（可能重名）。
-- **获取流程**：`make fetch` 在组件声明 `submodule_lock` 时，对每个 `lite or dadao_extra` 子模块执行「`submodule init` → 把 `submodule.<path>.url` 指向本地镜像 → `submodule update --init --checkout`」，并**必须**校验 `HEAD == lock 中的 commit`；镜像缺失时**必须**明确失败并提示从主控机同步，**不得**退回公网直连。
-- **一致性**：`tools/infra/sync_cache.py` 除组件镜像外，**必须**校验各节点子模块镜像含 lock 中全部 `lite or dadao_extra` commit（与 `fetch.py` 同一并集，不得各写一份）；缺任一即判该节点失败。
-- **理由**：构建机访问 GitHub 时通时不通，逐个直连不可复现；镜像体量小（当前 30 条合计约 275 MiB，`du` 现场统计），与组件镜像同处 `.cache`，可随一次同步分发。
+- **一致性**：`tools/infra/sync_cache.py` 除组件镜像外，**必须**校验各节点子模块镜像含 lock 中全部 `lite or dadao_extra` commit（与 `fetch.py` 同一并集，不得各写一份）；缺任一即判该节点失败。子模块补丁集的本地 commit **不进**镜像（与组件本地 commit 同理，永不推送上游），节点由 `make apply-series` 自行生成。
+- **补丁集变更后的恢复**：子模块补丁集改动后，恢复步骤是 §7「E5 推论」的**父仓**版本——`git -C <源树> reset --hard <组件 base>` → `make apply-series`（子模块已在 `base+1` 时逐补丁幂等跳过，再重新记录 gitlink）。
+- **改动尺度的硬要求**：子模块是**全组共享**的上游代码（RISC-V 配置也在用），补丁**必须**最小、且**不得**改变默认行为——凡会改变其它配置行为的分支，一律加显式开关（如 `+loadmem_be` 这样的 plusarg）并默认关闭。
+- **理由（镜像）**：构建机访问 GitHub 时通时不通，逐个直连不可复现；镜像体量小（当前 30 条合计约 275 MiB，`du` 现场统计），与组件镜像同处 `.cache`，可随一次同步分发。
 
 ## 13. 迁移与变更记录
 
@@ -220,4 +230,5 @@ components/<name>/
 - **rev. 2026-11-05（INFRA-125t）**：**测试集补丁集**（`embench`、`libc-test`）随套件落 `tests/tset/<suite>/`（manifest `patch_dir`/`patch_series` 指向该目录，上游 commit 不变）；§1/§2/§9/§10 的台账/位置表述同步为 `components/*/changelog.md` + `tests/tset/*/changelog.md`（测试集补丁台账在 tset 目录），`check-component-changelog` 扫描面同步（**5 条断言与门控逻辑不变**）。属位置/文档同步，**不改** `ADR-0002 D4`。
 - **rev. 2026-11-08（INFRA-138t）**：新增 §14「子模块的获取与镜像」——子模块按 `manifests/chipyard-submodules.lock.toml` 锁定（`lite` 标最小集）、**不参与补丁集**、以 `.cache/submodules/` bare 镜像离线分发，`fetch` 校验 commit、`sync_cache` 校验节点镜像。属**新增约定**，不改 `ADR-0002 D4`。
 - **rev. 2026-11-08（INFRA-140t）**：§14 拆出两个标记——`lite` 保持 chipyard 上游最小集原义，新增 `dadao_extra` 表示本仓库额外需要的子模块（`riscv-isa-sim` / fesvr）；取用条件统一为 `lite or dadao_extra`，`fetch` 与 `sync_cache` 用同一并集。属**新标记 + 派生实现**，不改 `ADR-0002 D4`。
+- **rev. 2026-11-09（m12-infra-003，用户裁定「我们当然需要给子模块打 patch，现在不做，以后也要做」）**：§14 由「子模块不参与补丁集」改为「子模块补丁集」——新增 manifest 声明 `[[component.submodule_patch]]`（`path`/`patch_dir`/`patch_series`，base 取 `submodule_lock` 的 pin）、目录落 `components/<component>/submodules/<path>/`、应用为「子模块内 base+1 + 组件 commit 记录 gitlink」、断言增至 ⑩（组件 HEAD 钉住子模块 HEAD）、`fetch` 的就绪判据放宽为「pin 或其后代且干净」；§7 增第 7 条、§8 增断言⑩。属**新增能力 + 派生实现**（E1/E5/E6 语义不变，各仓库各判一次），不改 `ADR-0002 D4`。
 - 相关决策变更记录见 `.tao/adr/adr-0002-build-orchestration.md` 的 `## 修订`（rev. 2026-09-23）。

@@ -1,0 +1,13 @@
+diff --git a/src/main/resources/testchipip/vsrc/SimDRAM.v b/src/main/resources/testchipip/vsrc/SimDRAM.v
+index fe80c5c..34b702d 100644
+--- a/src/main/resources/testchipip/vsrc/SimDRAM.v
++++ b/src/main/resources/testchipip/vsrc/SimDRAM.v
+@@ -56,7 +56,7 @@ module SimDRAM #(
+               WORD_SIZE = DATA_BITS/8,
+               CLOCK_HZ = 100000,
+               STRB_BITS = DATA_BITS/8,
+-              MEM_BASE = 0,
++              MEM_BASE = 64'h0,
+               CHIP_ID = 0)(
+   input                  clock,
+   input                  reset,

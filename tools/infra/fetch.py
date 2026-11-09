@@ -31,8 +31,10 @@ Mirrors are created on the master only, by an explicit
 must never reach GitHub: for them a missing mirror is a hard error that points
 at ``sync_cache.py``.  Once the mirror exists the submodule is initialized
 with its ``submodule.<path>.url`` rewritten to the local mirror, then checked
-out at the pinned commit.  A submodule already at the pinned commit is left
-alone, so re-running ``make fetch`` is a no-op.
+out at the pinned commit.  A submodule already at the pinned commit -- or at a
+clean commit **on top of** it, which is what applying a submodule patch set
+leaves behind (docs/Process-01 §14) -- is left alone, so re-running ``make
+fetch`` is a no-op and never discards a local patch commit.
 """
 from __future__ import annotations
 
@@ -206,7 +208,16 @@ def rev_parse(repo: Path) -> str:
 
 
 def submodule_ready(target: Path, sub_path: str, commit: str) -> tuple[bool, str]:
-    """``(is_at_pinned_commit, detail)`` for one checked-out submodule.
+    """``(ready, detail)`` for one checked-out submodule.
+
+    Ready means the submodule must be left alone, namely either
+
+    * ``HEAD == commit`` (the pinned snapshot), or
+    * ``HEAD`` is **ahead of** ``commit`` and clean -- the state
+      ``apply_series.py`` leaves behind after applying that submodule's patch
+      set: its own local ``base+1`` commit (docs/Process-01 §14).  Checking the
+      pinned commit out over it would silently discard that commit, exactly
+      like the top-level rule in ``sync_component``.
 
     An empty/broken module git dir (e.g. an aborted clone leaves only
     ``.git/modules/<path>`` without any object) is reported as not ready
@@ -219,7 +230,21 @@ def submodule_ready(target: Path, sub_path: str, commit: str) -> tuple[bool, str
     if not head:
         return False, "HEAD unreadable (empty or damaged checkout)"
     if head != commit:
-        return False, f"HEAD {head[:12]} != {commit[:12]}"
+        ancestor = subprocess.run(
+            ["git", "-C", str(work), "merge-base", "--is-ancestor", commit, "HEAD"],
+            capture_output=True,
+            text=True,
+        ).returncode == 0
+        if not ancestor:
+            return False, f"HEAD {head[:12]} != {commit[:12]}"
+        dirty = subprocess.run(
+            ["git", "-C", str(work), "status", "--porcelain=v1"],
+            capture_output=True,
+            text=True,
+        )
+        if dirty.returncode != 0 or dirty.stdout.strip():
+            return False, f"HEAD {head[:12]} is ahead of {commit[:12]} but dirty"
+        return True, f"locally patched HEAD {head[:12]} (base {commit[:12]})"
     return True, head
 
 
@@ -248,7 +273,10 @@ def init_component_submodules(
         mirror = mirrors[sub_path].resolve()
         ready, detail = submodule_ready(target, sub_path, commit)
         if ready:
-            print(f"fetch: {component} submodule {sub_path} already initialized at {commit}")
+            print(
+                f"fetch: {component} submodule {sub_path} already initialized "
+                f"({detail})"
+            )
             continue
         work = submodule_worktree(target, sub_path)
         run("git", "-C", str(target), "submodule", "init", "--", sub_path)

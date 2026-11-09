@@ -1,0 +1,33 @@
+diff --git a/src/main/resources/testchipip/csrc/SimDRAM.cc b/src/main/resources/testchipip/csrc/SimDRAM.cc
+index 76f6d5d..5361a87 100644
+--- a/src/main/resources/testchipip/csrc/SimDRAM.cc
++++ b/src/main/resources/testchipip/csrc/SimDRAM.cc
+@@ -9,6 +9,10 @@
+ #include "mm_dramsim2.h"
+ 
+ bool use_dramsim = false;
++// DADAO loads a big-endian ELF through `+loadmem=`, so the loadmem memif has to
++// report the target endianness fesvr's load_elf() checks (dual-endian build).
++// Off by default: stock RISC-V configs are little-endian and must keep working.
++bool loadmem_big_endian = false;
+ std::string ini_dir = "dramsim2_ini";
+ std::string loadmem_file = "";
+ std::vector<std::map<long long int, backing_data_t>> backing_mem_data = {};
+@@ -50,6 +54,8 @@ extern "C" void *memory_init(
+         ini_dir = arg.substr(strlen("+dramsim_ini_dir="));
+       if (arg.find("+loadmem=") == 0)
+         loadmem_file = arg.substr(strlen("+loadmem="));
++      if (arg == "+loadmem_be")
++        loadmem_big_endian = true;
+     }
+ 
+     while (chip_id >= backing_mem_data.size()) {
+@@ -73,7 +79,7 @@ extern "C" void *memory_init(
+           assert(false);
+         }
+         endianness_t get_target_endianness() const override {
+-          return endianness_little;
++          return loadmem_big_endian ? endianness_big : endianness_little;
+         }
+       private:
+         uint8_t* data;

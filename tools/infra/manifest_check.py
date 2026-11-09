@@ -6,6 +6,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+import submodule_patches
+
 ROOT = Path(__file__).resolve().parents[2]
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
 
@@ -52,13 +54,52 @@ def check_components(components: dict, errors: list[str]) -> None:
                     f"component {name}: patchless component must not declare "
                     "patch_dir/patch_series"
                 )
+            if component.get("submodule_patch"):
+                errors.append(
+                    f"component {name}: patchless component must not declare "
+                    "submodule_patch"
+                )
             continue
-        patches_dir = ROOT / component.get("patch_dir", "")
-        if not patches_dir.is_dir():
-            errors.append(f"component {name}: missing patch directory {patches_dir}")
-        series = ROOT / component.get("patch_series", "")
-        if not series.is_file():
-            errors.append(f"component {name}: missing patch series {series}")
+        try:
+            submodule_sets = submodule_patches.patch_sets(component)
+            locked = submodule_patches.lock_commits(component) if submodule_sets else {}
+        except SystemExit as exc:
+            errors.append(str(exc))
+            submodule_sets = []
+            locked = {}
+        if component.get("patch_dir") or component.get("patch_series"):
+            patches_dir = ROOT / component.get("patch_dir", "")
+            if not patches_dir.is_dir():
+                errors.append(f"component {name}: missing patch directory {patches_dir}")
+            series = ROOT / component.get("patch_series", "")
+            if not series.is_file():
+                errors.append(f"component {name}: missing patch series {series}")
+        elif not submodule_sets:
+            # A component may patch only a submodule (docs/Process-01 §14);
+            # anything else must still declare its own patch set.
+            errors.append(
+                f"component {name}: declares neither patch_dir/patch_series nor "
+                "submodule_patch"
+            )
+        for entry in submodule_sets:
+            sub_path = entry["path"]
+            sub_patches = ROOT / entry["patch_dir"]
+            if not sub_patches.is_dir():
+                errors.append(
+                    f"component {name}: submodule {sub_path}: missing patch "
+                    f"directory {entry['patch_dir']}"
+                )
+            sub_series = ROOT / entry["patch_series"]
+            if not sub_series.is_file():
+                errors.append(
+                    f"component {name}: submodule {sub_path}: missing patch "
+                    f"series {entry['patch_series']}"
+                )
+            if not SHA1.fullmatch(locked.get(sub_path, "")):
+                errors.append(
+                    f"component {name}: submodule {sub_path}: no pinned commit in "
+                    f"{component.get('submodule_lock')} (the base of its patch set)"
+                )
 
 
 def check_references(references: dict, errors: list[str]) -> None:

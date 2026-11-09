@@ -19,3 +19,7 @@
 - **2026-11-09 `m12-chipyard-004`**
   - 摘要：**harness 侧 semihosting 应答者（最小 5 服务）**：核内 `WumingCoreStub` 识别 `trap` 的 semihosting tag（`immu18[17:8]==0x3FF`）并把 `(op, rb16, rd8, IP)` 经 **DPI 导出端口**抬到 tile 边界（核内无宿主调用）；新增 `WumingSemi`（LazyModule + TileLink 读引擎）、`wuming/vsrc/WumingSemi.v`（DPI 桥）、`wuming/csrc/WumingSemi.cc`（table-driven 宿主模型：WRITEC/WRITE0/WRITE/CLOCK/EXIT，未实现服务号显式报错，`SYS_EXIT` 以进程退出码实现有界停机）。另新增 `tests/shared/bootrom/semihost_smoke.{S,lds}` + 消息 include 与四个 `--defsym` 变体（三平台 smoke、guest FAIL、未实现服务、`SYS_WRITE`）。
   - 执行者：engineer
+
+- **2026-11-09 `m12-infra-003`**
+  - 摘要：**子模块补丁集试点（testchipip）**：`generators/testchipip` 新增子模块补丁集 `submodules/testchipip/{series,patches/}`——`SimDRAM.cc` 的 `loadmem_memif_t::get_target_endianness()` 改为由 `+loadmem_be` plusarg 显式返回 `endianness_big`（默认 little 不变，stock RISC-V 配置行为不动），`SimDRAM.v` 的 `MEM_BASE` 默认值改为 `64'h0`（原无位宽 32 位推断会截断 48 位基址）；组件补丁集与子模块补丁集的分工/声明/门控见 `docs/Process-01 §14`。
+  - 执行者：engineer

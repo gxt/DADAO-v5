@@ -6,7 +6,14 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），清单见 `series`；规范见 `docs/Process-01-组件补丁组织与构建编排.md`。
 - 内容（M12 起）：`generators/dadao-wuming/**` 新增文件（DADAO「wuming」Tile 外壳 + 最小启动执行器 + 参数/配置片段 + Tiny bootrom 的 hex 资源与解码 + `+loadmem=` 加载器）、两处上游文件修改（根 `build.sbt` 的 `wuming` 项目接线、`generators/chipyard/.../config/fragments/PeripheralFragments.scala` 的 BootROM 资源名参数）。
+- **子模块补丁集**（`m12-infra-003` 起）：子模块自身的源码改动不在本目录，而在 `submodules/<子模块 path>/{series,patches/}`，由 `manifests/components.lock.toml` 的 `[[component.submodule_patch]]` 声明（base = 子模块 lock 的 pin）；`make apply-series` 在子模块内生成自己的 `base+1` commit，本组件 commit 记录该 gitlink。规范见 `docs/Process-01 §14`。当前只有一条：`generators/testchipip`（`SimDRAM.cc` / `SimDRAM.v`，见下）。
 - 构建全部在构建节点执行（`.tao/knowledge/nodes.md §10.1`）：主控机只维护补丁集与台账。
+
+## testchipip 子模块补丁（`m12-infra-003`）
+
+- `src/main/resources/testchipip/csrc/SimDRAM.cc`：`loadmem_memif_t::get_target_endianness()` 原固定返回 `endianness_little`，fesvr 开 `--enable-dual-endian` 后大端 ELF 仍会命中「system uses a little-endian memory system」并 throw。改为 **`+loadmem_be` plusarg 显式打开**才返回 `endianness_big`；**默认保持 little**，stock RISC-V 配置（小端）行为不变。
+- `src/main/resources/testchipip/vsrc/SimDRAM.v`：`MEM_BASE` 参数原为无位宽默认值 `0`（按 32 位有符号推断），48 位基址经 DPI 传 `longint mem_base` 会被截断；改为 `64'h0` 使其为 64 位。
+- 用途：把 `+loadmem=<elf>` 的预装通路接到 DADAO 的大端 ELF；本阶段 Tiny 配置不用 stock `SimDRAM`（主存是 banked scratchpad，见下节），补丁是为后续带 AXI 后备内存的配置准备。
 
 ## 地址图（`Machine-v5-Tiny`，`spec/Machine-v5 §1.1`）
 
@@ -23,7 +30,7 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **启动约定 = 固定入口**：Tiny BootROM 是静态平铺 trampoline（`tests/shared/bootrom/bootrom.S`：装 SP、装应用入口、`jump`），入口取 `machine-tiny.inc` 的 `ENTRY = 0xffff_ff01_0100`。**不用 ELF `e_entry`**：ROM 里没有 ELF 解析器/image index table/DTB，无法在运行时得知 `e_entry`；固定入口与 `QEMU dadao-tiny` 的 raw-kernel 约定（`kernel_base + kernel_reserved`）同源，应用链接脚本（`tests/shared/bootrom/tiny_smoke.lds`）用同一常量。
 - **`+loadmem=<elf>` 窗口**：ELF 的 `PT_LOAD` 必须落在 SRAM 窗口 `0xffff_ff00_0000` + 8 MiB（`WumingTinyAddressMap.sramBase/sramSize`，**无默认值**，未配置即 elaboration 报错）；`p_memsz - p_filesz` 尾部零填（`contract-elf §5/§6`）。
 - **实现方式 = tile 内 TL 主端口上的加载器**（`WumingLoadMem`）：解析 ELF64 大端 `PT_LOAD`，把每个 8 字节字作为 TileLink 请求写到与核相同的端口（不足 8 字节的字用 `PutPartial` 掩码），随后**逐字回读比对**；只有回读全等才拉高 `initDone` 释放核（`WumingCoreStub.bootEnable`）。装载/回读失败打印 `[WumingLoadMem] ERROR:` 并以非零退出（load-stage error 语义）。
-- **为什么不用 stock `SimDRAM`**：① 当前 Tiny 设计**没有 `SimDRAM` 实例**——主存是 `BankedScratchpadKey → ScratchpadBank → TLRAM`（on-chip TL slave，不经 AXI），`ExtMem`/`ExtTLMem = None` 时 `WithBlackBoxSimMem` 无 AXI4 端口可绑；`+loadmem` 的写入目标是 SimDRAM 的 **host mmap backing**（`SimDRAM.cc` 的 `loadmem_memif`），写不到 SRAM。② fesvr 的 `load_elf` 在未开 `RISCV_ENABLE_DUAL_ENDIAN` 的构建里直接拒绝大端 ELF（本工具链 `config.h` 为 `#undef`，DADAO ELF 是 `ELFDATA2MSB`）；即便开启，`SimDRAM.cc` 的 `loadmem_memif_t::get_target_endianness()` 仍返回 little、dual-endian 分支仍 throw。改 testchipip 需**子模块补丁能力**（`m12-infra-003`）。故加载器自带 ELF 解析并用**绝对** `p_paddr`（无 `mem_base` 减法）。
+- **为什么不用 stock `SimDRAM`**：① 当前 Tiny 设计**没有 `SimDRAM` 实例**——主存是 `BankedScratchpadKey → ScratchpadBank → TLRAM`（on-chip TL slave，不经 AXI），`ExtMem`/`ExtTLMem = None` 时 `WithBlackBoxSimMem` 无 AXI4 端口可绑；`+loadmem` 的写入目标是 SimDRAM 的 **host mmap backing**（`SimDRAM.cc` 的 `loadmem_memif`），写不到 SRAM。② fesvr 的 `load_elf` 在未开 `RISCV_ENABLE_DUAL_ENDIAN` 的构建里直接拒绝大端 ELF（本工具链 `config.h` 为 `#undef`，DADAO ELF 是 `ELFDATA2MSB`）；即便开启，`SimDRAM.cc` 的 `loadmem_memif_t::get_target_endianness()` 仍返回 little、dual-endian 分支仍 throw。故加载器自带 ELF 解析并用**绝对** `p_paddr`（无 `mem_base` 减法）。子模块补丁能力已由 `m12-infra-003` 补齐（见上「testchipip 子模块补丁」），该缺口不再挡路——Tiny 不用 stock `SimDRAM` 的**结构性理由仍是①**（无 `SimDRAM` 实例、`+loadmem` 只写 host backing）。
 - **可观测出口**：Tiny 无 cfx/semihosting（属 `m12-chipyard-004`），最小程序 `tests/shared/bootrom/tiny_smoke.S` 以**未定义指令**收尾 ⇒ `WumingCoreStub` halt → `reportCease`。chipyard 默认不把 tile cease 接到 TestDriver，故 `WithWumingCeaseSuccess` 把 `HasTileNotificationSinks.tileCeaseSinkNode` 暴露成 `SuccessPort`，由 `WithTraceGenSuccess` 驱动 `chiptopSuccess` ⇒ TestDriver `$stop`（`$finish`，rc=0）；`+max-cycles` 仅作有界兜底。程序内的 SRAM 写/读回与每条取指/执行都经 `printf` 打印（需 `+verbose`）。
 
 ## semihosting 应答者（`m12-chipyard-004`）

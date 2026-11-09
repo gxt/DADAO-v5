@@ -19,6 +19,16 @@ are committed, ``git diff <base>`` already sees new files; the old
 
 §6.2 (idempotent write): patches are only rewritten when their content actually
 changes, preserving mtimes and avoiding needless index/header refreshes.
+
+Submodule patch sets (§14, rev. 2026-11-09)
+-------------------------------------------
+``make-patch <component>`` also exports every declared
+``[[component.submodule_patch]]`` set from the submodule worktree
+(``<source>/<submodule path>``), with the same E1/E3 rules against the commit
+pinned for that path in the component's ``submodule_lock``.  The submodule
+gitlink path itself is **not** exported as a top-level patch: it is not a
+file change but the recorded submodule commit, and its content is the
+submodule's own patch set.
 """
 from __future__ import annotations
 
@@ -27,6 +37,8 @@ import re
 import subprocess
 import tomllib
 from pathlib import Path
+
+import submodule_patches
 
 ROOT = Path(__file__).resolve().parents[2]
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
@@ -57,12 +69,16 @@ def _normalize_index(text: str) -> str:
     return re.sub(r"^index [0-9a-f]+\.\.[0-9a-f]+.*\n", "", text, flags=re.MULTILINE)
 
 
-def changed_paths(source: Path, commit: str) -> list[str]:
+def changed_paths(source: Path, commit: str, skip_paths: frozenset[str]) -> list[str]:
     # E1 guarantees the worktree is clean and the changes are committed, so a
     # plain `git diff <base>` (against the worktree, which equals HEAD) already
     # includes newly created files.  No `git add -N` is needed (nor allowed).
     out = git("diff", "--name-only", commit, cwd=source)
-    return [line for line in out.splitlines() if line.strip()]
+    return [
+        line
+        for line in out.splitlines()
+        if line.strip() and line not in skip_paths
+    ]
 
 
 def e1_violation(source: Path, commit: str) -> str | None:
@@ -113,6 +129,65 @@ def export(
     return series, skipped
 
 
+def export_set(
+    label: str,
+    source: Path,
+    base: str,
+    patch_dir: str,
+    patch_series: str,
+    skip_paths: frozenset[str] = frozenset(),
+    dry_run: bool = False,
+) -> int:
+    """Export one patch set (top level or one submodule) and return its size."""
+    if not (source / ".git").exists():
+        raise SystemExit(f"make-patch: {label}: missing source {source}; run make fetch")
+
+    if subprocess.run(
+        ["git", "-C", str(source), "merge-base", "--is-ancestor", base, "HEAD"],
+    ).returncode != 0:
+        raise SystemExit(
+            f"make-patch: {label} HEAD does not descend from pinned commit "
+            f"({base[:12]})"
+        )
+
+    # E3: refuse to export unless the E1 invariant holds (clean worktree,
+    # head == base + exactly one commit).  See docs/Process-01 §6.3.
+    violation = e1_violation(source, base)
+    if violation is not None:
+        raise SystemExit(
+            f"make-patch: {label}: {violation}; refusing to export (E1/E3)"
+        )
+
+    series_path = ROOT / patch_series
+    patches_dir = ROOT / patch_dir
+
+    paths = changed_paths(source, base, skip_paths)
+    if not paths:
+        print(f"make-patch: {label} has no changes against {base[:12]}")
+        return 0
+
+    if dry_run:
+        for rel in sorted(paths):
+            print(f"make-patch: {label}: would write {patch_dir}/{rel}.patch")
+        return len(paths)
+
+    # Remove stale patches (paths no longer changed).
+    expected_names = {f"{rel}.patch" for rel in paths}
+    if patches_dir.exists():
+        for entry in sorted(patches_dir.rglob("*.patch")):
+            rel_name = str(entry.relative_to(patches_dir))
+            if rel_name not in expected_names:
+                entry.unlink()
+                print(f"make-patch: removed stale patch {rel_name}")
+
+    patches_dir.mkdir(parents=True, exist_ok=True)
+    series, _skipped = export(source, base, paths, patches_dir)
+    series_path.write_text("\n".join(series) + "\n")
+    print(f"make-patch: {label} wrote {len(series)} patches to {patches_dir}")
+    print(f"make-patch: series {series_path}")
+    return len(series)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Export a component worktree as a tree-shaped patch set."
@@ -140,52 +215,35 @@ def main() -> int:
         )
 
     source = ROOT / manifest.get("work_root", ".work") / "source" / args.component
-    if not (source / ".git").exists():
-        raise SystemExit(f"make-patch: missing source {source}; run make fetch")
+    submodule_sets = submodule_patches.patch_sets(component)
+    gitlinks = frozenset(entry["path"] for entry in submodule_sets)
 
-    if subprocess.run(
-        ["git", "-C", str(source), "merge-base", "--is-ancestor", commit, "HEAD"],
-    ).returncode != 0:
+    if component.get("patch_series"):
+        export_set(
+            args.component,
+            source,
+            commit,
+            component["patch_dir"],
+            component["patch_series"],
+            skip_paths=gitlinks,
+            dry_run=args.dry_run,
+        )
+    elif not submodule_sets:
         raise SystemExit(
-            f"make-patch: {args.component} HEAD does not descend from pinned commit "
-            f"({commit[:12]})"
+            f"make-patch: {args.component} declares neither patch_series nor "
+            "submodule_patch"
         )
 
-    # E3: refuse to export unless the E1 invariant holds (clean worktree,
-    # head == base + exactly one commit).  See docs/Process-01 §6.3.
-    violation = e1_violation(source, commit)
-    if violation is not None:
-        raise SystemExit(
-            f"make-patch: {args.component}: {violation}; refusing to export (E1/E3)"
+    for entry in submodule_sets:
+        sub_path = entry["path"]
+        export_set(
+            f"{args.component}:{sub_path}",
+            submodule_patches.worktree(source, sub_path),
+            submodule_patches.base_commit(component, sub_path),
+            entry["patch_dir"],
+            entry["patch_series"],
+            dry_run=args.dry_run,
         )
-
-    series_path = ROOT / component["patch_series"]
-    patches_dir = ROOT / component["patch_dir"]
-
-    paths = changed_paths(source, commit)
-    if not paths:
-        print(f"make-patch: {args.component} has no changes against {commit[:12]}")
-        return 0
-
-    if args.dry_run:
-        for rel in sorted(paths):
-            print(f"make-patch: would write patches/{rel}.patch")
-        return 0
-
-    # Remove stale patches (paths no longer changed).
-    expected_names = {f"{rel}.patch" for rel in paths}
-    if patches_dir.exists():
-        for entry in sorted(patches_dir.rglob("*.patch")):
-            rel_name = str(entry.relative_to(patches_dir))
-            if rel_name not in expected_names:
-                entry.unlink()
-                print(f"make-patch: removed stale patch {rel_name}")
-
-    patches_dir.mkdir(parents=True, exist_ok=True)
-    series, _skipped = export(source, commit, paths, patches_dir)
-    series_path.write_text("\n".join(series) + "\n")
-    print(f"make-patch: {args.component} wrote {len(series)} patches to {patches_dir}")
-    print(f"make-patch: series {series_path}")
     return 0
 
 
