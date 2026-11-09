@@ -6,9 +6,11 @@
   `Makefile::ARCH_CFX_PROBES` + `min_rom_probe_046t` 的 `--list`、Embench 源树、
   picolibc Meson 清单。
 - 驱动：`tools/testcases/parity/run_parity.py`（用法/case ID/退出码/例外见其
-  `README.md`）。
-- `matrix-M11.md` 是**现场生成的快照**：由重生成该快照的任务证据脚本（当前快照对应
-  `TESTCASES-098t`）从全量矩阵 `cp` 而来，计数与差异逐项来自证据 JSON，**不手改**。
+  `README.md`）；SE user 模式（static + dynamic）的 tset 对账段由
+  `tools/testcases/parity/se_tset_matrix.py` 汇总。
+- `matrix-M11.md` 是**现场生成的快照**：FS 段由 `run_parity.py` 输出、末尾「SE
+  tset matrix」段由 `se_tset_matrix.py` 输出，两段由收口任务的证据脚本
+  `cat` 拼接后 `cp` 入库，计数逐项来自证据 JSON，**不手改**。
 
 ## 矩阵口径
 
@@ -31,11 +33,30 @@
 ## 重新生成
 
 ```sh
+# 1) FS 段：QEMU system ↔ gem5 FS 全量矩阵
 python3 tools/testcases/parity/run_parity.py --profiles tiny,vast \
-  --scopes inst,arch,embench,picolibc --jobs 8 --timeout 600 \
-  --work-dir /tmp/opencode/qemu-gem5-parity/run \
-  --json /tmp/opencode/qemu-gem5-parity/matrix.json \
-  --markdown /tmp/opencode/qemu-gem5-parity/matrix.md
+  --scopes inst,arch,picolibc --jobs 16 --timeout 600 \
+  --work-dir <运行期目录>/run \
+  --json <运行期目录>/matrix.json \
+  --markdown <运行期目录>/matrix.md
+
+# 2) SE 段：gem5 SE ↔ QEMU user 的 tset 双档对账（读已入库基线）
+python3 tools/testcases/parity/se_tset_matrix.py \
+  --json-out <运行期目录>/se-parity.json \
+  --markdown-out <运行期目录>/se-parity.md \
+  --matrix-section-out <运行期目录>/matrix-M11-SE.md
+
+# 3) 拼接入库（FS 段 + picolibc 承接段 + SE 段；承接段不手改，见下）
+python3 tools/testcases/parity/se_tset_matrix.py \
+  --compose-out <运行期目录>/matrix-M11.md \
+  --fs-matrix <运行期目录>/matrix.md \
+  --carry-from tests/parity/matrix-M11.md
+cp <运行期目录>/matrix-M11.md tests/parity/matrix-M11.md
 ```
 
-入库快照只允许 `cp` 现场 Markdown；不要手改数字。
+`--carry-from` 读取上一版快照的 `tiny/picolibc` 行原样承接（`math_test` B7 登记
+不变：现引擎复测为 0 errors，但按任务约束不改写为 PASS，裁定待定）。
+
+`se_tset_matrix.py` 的 per-case 归因与 static/dynamic 对照见
+`.tao/knowledge/refs/INTEG-059t-se-parity-summary.md`。入库快照只允许 `cp`/脚本
+输出；不要手改数字。

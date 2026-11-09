@@ -5,367 +5,297 @@
 
 ## Engine / toolchain identity
 
-- QEMU: `/tmp/opencode/INTEG-055t/.dadao/cross-toolchain/bin/qemu-system-dadao` md5 `6088607e3d4842ad9b49433bc1739fab` version `QEMU emulator version 11.1.1 (v11.1.1-1-gc0aecad)`
-- gem5: `/tmp/opencode/INTEG-055t/.work/source/gem5/build/DADAO/gem5.opt` md5 `20b071c21dc5eaef3d1469187351e7ea`; config `/tmp/opencode/INTEG-055t/.work/source/gem5/configs/dadao/fs.py` md5 `dde8e3e529c8ff7c9f3abe66ab80fe84`; source `5812f78a74a9690d70b501c1a4db8cbdc42d1cfd`
-- BootROM `tiny`: `/tmp/opencode/INTEG-055t/tools/testcases/lib/trampoline.bin` md5 `a97ad7c6e3defc50066e2027f2fd3268` size 36
-- BootROM `node`: `/tmp/opencode/INTEG-055t/.dadao/tests/bootrom/step5/bootrom_step5.bin` md5 `62f87f80b37f342b8d58e013e6560bfa` size 4194304
-- BootROM `node_inst`: `/tmp/opencode/INTEG-055t/.dadao/tests/bootrom/step5/bootrom_step5_inst.bin` md5 `55090638794f6d521ef470a6d7acd21b` size 4194304
-- Toolchain md5: clang=`ba2d2a6c43e7a5799aafea9ced2bfec0`, llc=`0ab44948688fbbcaa92f3d501380502e`, llvm-mc=`3693b3fe118476ace57eb7be29b57a53`, llvm-objcopy=`526cf818ad2d223abd85c01d9525e698`, ld.lld=`ae18827440077fa9fe78d35ff2c46531`
+- QEMU: `/tmp/opencode/INTEG-059t/.dadao/cross-toolchain/bin/qemu-system-dadao` md5 `c406e79733418ea4c276dc78805afd9a` version `QEMU emulator version 11.1.1 (v11.1.1-1-g5c530da)`
+- gem5: `/tmp/opencode/INTEG-059t/.work/source/gem5/build/DADAO/gem5.opt` md5 `d51a360bdd50a52a6bf5d7a7adb3adae`; config `/tmp/opencode/INTEG-059t/.work/source/gem5/configs/dadao/fs.py` md5 `0cc24a6ae6fed73955b36ec36ecb5c37`; source `e01c0107cc70239d9aa3c5ae03bed600588c9a67`
+- BootROM `tiny`: `/tmp/opencode/INTEG-059t/tools/testcases/lib/trampoline.bin` md5 `a97ad7c6e3defc50066e2027f2fd3268` size 36
+- BootROM `vast`: `/tmp/opencode/INTEG-059t/.dadao/tests/bootrom/step5/bootrom_step5.bin` md5 `eb75b865b8855d2f448f9c44fe4a8330` size 4194304
+- BootROM `vast_inst`: `/tmp/opencode/INTEG-059t/.dadao/tests/bootrom/step5/bootrom_step5_inst.bin` md5 `65b77c0f5e14add3142cba520dda5aca` size 4194304
+- Toolchain md5: clang=`edb640253ed55d3c5ceda4762cde3782`, llc=`b940431b3b1a6f7db737c8ffd21da57f`, llvm-mc=`3ffcfd0058b8bc37729f7bce4301a090`, llvm-objcopy=`2b26a62e053a6d9ca47093b34028ad9d`, ld.lld=`cca4ad1ea1a8ff18e2963b7e44946a18`
 
 ## Counts per profile x scope
 
 | profile | scope | total | agree_pass | agree_fail | gem5_only_fail | qemu_only_fail | diff | deferred | skip_profile | blocked | N/A |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| node | arch | 269 | 249 | 0 | 0 | 0 | 0 | 0 | 0 | 20 | 0 |
-| node | inst | 1014 | 965 | 0 | 0 | 0 | 0 | 5 | 44 | 0 | 0 |
 | tiny | arch | 269 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 269 |
-| tiny | inst | 1014 | 1005 | 0 | 0 | 0 | 0 | 5 | 4 | 0 | 0 |
-| tiny | picolibc | 20 | 17 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 2 |
+| tiny | inst | 1029 | 1020 | 0 | 0 | 0 | 0 | 5 | 4 | 0 | 0 |
+| vast | arch | 269 | 269 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| vast | inst | 1029 | 980 | 0 | 0 | 0 | 0 | 5 | 44 | 0 | 0 |
 
-Cells not run by profile design: `tiny/arch` is N/A (`machine-profiles.yaml` `tiny.arch=false`); `node/picolibc` is not run (`node.picolibc=false`).
+Cells not run by profile design: `tiny/arch` is N/A (`machine-profiles.yaml` `tiny.arch=false`); `vast/picolibc` is not run (`vast.picolibc=false`).
 
 ## Non-AGREE_PASS rows
 
 | profile | scope | case_id | QEMU | gem5 | verdict | attribution / note |
 | --- | --- | --- | --- | --- | --- | --- |
-| node | arch | `arch/probe/integ047t/start_busy_returns_busy` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ050t/cycle_insn_monotonic` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ050t/sbi_hart_set_timer` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ050t/sbi_time_monotonic` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ050t/timer_cmp_clears` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ050t/timer_imask_pending` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ050t/timer_interrupt` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ050t/timer_istatus` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ050t/timer_ones_disable` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ050t/timer_retrigger` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ051t/direct_target` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ051t/escape_kick` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ051t/global_mask_block` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ051t/intr_mask_tail_kick` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ051t/low_cfxha_first` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ051t/pending_no_cross_cfx` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ051t/per_cfx_mask_block` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ051t/pmem_pending_in_pmem` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ051t/timer_imask_hold` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | arch | `arch/probe/integ051t/timer_pending_in_hart` | PASS/0 | N/A/None | BLOCKED_SIDE | N/A: icount timing control unsupported on gem5 FS |
-| node | inst | `inst/base/aip-si.yaml#12:aip.si_riii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/ctrl-br.yaml#12:br.z_riii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/ctrl-br.yaml#16:br.nz_riii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/ctrl-br.yaml#20:br.p_riii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/ctrl-br.yaml#24:br.np_riii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/ctrl-br.yaml#28:br.eq_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/ctrl-br.yaml#32:br.ne_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/ctrl-br.yaml#36:br.z_riii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/ctrl-br.yaml#40:br.nz_riii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/ctrl-br.yaml#4:br.n_riii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/ctrl-br.yaml#8:br.nn_riii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/ctrl-call.yaml#11:call_rrii_ra` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/ctrl-jump.yaml#3:jump_iiii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/ctrl-jump.yaml#6:jump_rrii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-ra.yaml#14:ldm.o_rrri_ra` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-ra.yaml#20:stm.o_rrri_ra` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-ra.yaml#3:ld.o_rrii_ra` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-ra.yaml#8:st.o_rrii_ra` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rb.yaml#15:ldm.o_rrri_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rb.yaml#21:stm.o_rrri_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rb.yaml#4:ld.o_rrii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rb.yaml#9:st.o_rrii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#102:stm.w_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#108:stm.t_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#114:ldm.o_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#120:stm.o_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#15:ld.ut_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#20:ld.sb_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#26:ld.sw_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#32:ld.st_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#36:st.b_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#3:ld.ub_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#41:st.w_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#46:st.t_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#52:ld.o_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#57:st.o_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#62:ldm.ub_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#68:ldm.uw_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#74:ldm.ut_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#79:ldm.sb_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#85:ldm.sw_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#91:ldm.st_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#96:stm.b_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/mem-rd.yaml#9:ld.uw_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
-| node | inst | `inst/base/reg-cond-assign.yaml#16:cs.n_rrrr_rd` | DEFERRED/None | DEFERRED/None | N/A |  |
-| node | inst | `inst/base/reg-cond-assign.yaml#17:cs.z_rrrr_rd` | DEFERRED/None | DEFERRED/None | N/A |  |
-| node | inst | `inst/base/reg-cond-assign.yaml#18:cs.p_rrrr_rd` | DEFERRED/None | DEFERRED/None | N/A |  |
-| node | inst | `inst/base/reg-cond-assign.yaml#19:cs.eq_rrrr_rd` | DEFERRED/None | DEFERRED/None | N/A |  |
-| node | inst | `inst/base/reg-cond-assign.yaml#20:cs.ne_rrrr_rd` | DEFERRED/None | DEFERRED/None | N/A |  |
-| tiny | arch | `arch/probe/044t/cfx_rw_share` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/044t/cfxreg_badcombo` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/044t/cfxreg_ro_write` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/044t/cfxreg_unimpl` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/044t/cfxtrap_deny` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/044t/escape_return` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/044t/reserved_illi` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/044t/reset_values` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/044t/run_mode_0` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/044t/run_mode_1` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/044t/run_mode_2` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/044t/run_mode_3` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/044t/trap_counters` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/045t/cfx2_cg3_nonhypv` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/045t/cfx2_full_regface` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/045t/cfxreg_cg7_write` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/045t/cfxreg_cg_oor` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/045t/cfxreg_rc_oor` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/045t/cfxreg_ro_write` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/045t/cfxreg_scratch_oor` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/045t/cfxtrap_deny` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/045t/escape_fwd_offset` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/045t/escape_illegal_offset` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/045t/escape_wrong_target` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/045t/reserved_illi` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/045t/trap_reserved_illi` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/045t/trap_vector_roundtrip` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/049t/legacy_ram_gone` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/049t/old_ram_unmapped` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/049t/oob_data_cfxmem` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/049t/oob_data_unmapped` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/049t/oob_fetch_cfxmem` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/049t/oob_fetch_unmapped` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/049t/ram_exec` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/049t/ram_rw` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/049t/ram_top` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/ad_not_updated` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/ad_preserved` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/fetch_translated` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/gpf_frag0_fault` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/gpf_frag1_ok` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/hsju_h_fail` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/hsju_h_ok` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/hsju_j_fail` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/hsju_j_ok` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/hsju_s_fail` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/hsju_s_ok` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/hsju_u_fail` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/hsju_u_ok` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/l1_index_select` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/l1_p0_dgtrap` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/l1_p0_isptrap` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/l2_index_select` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/l2_p0_dgtrap` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/l2_p0_igtrap` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/l2_page_load` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/l2_page_store` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/nrperm` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/nwperm` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/nxperm` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/page_offset` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/prio_gpf_over_perm` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/prio_hsju_over_rwx` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/prio_l2p_over_perm` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/prio_p0_over_perm` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/prio_spf_over_perm` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/ptw_off_still_cfxmem` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/reserved_bits_ignored` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/spf_frag0_fault` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/spf_frag0_ok` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/spf_frag1_fault` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/superpage_load` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ039t/superpage_ppn_low_cleared` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/ad_clean_keeps_entry` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/ad_fill_no_writeback` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/ad_flush_writes_deletes` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/ad_invalid_no_writeback` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/ad_read_sets_a` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/ad_write_sets_ad` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/ad_writeback_preserves_fields` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/ptwerr_clean_keeps_entry` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/ptwerr_flush_keeps_entry` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/ptwerr_invalid_no_writeback` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_asid_any0_mismatch` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_asid_any1_all` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_asid_isolated` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_asid_reg_roundtrip` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_bypass_ptw_off` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_g_cross_asid` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_g_kept_asid_invalid` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_g_removed_asid_any` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_hit_gpf_fault` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_hit_hsju_perm` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_hit_no_pte_reread` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_hit_nwperm` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_no_fill_on_perm_fault` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_non_g_removed_asid` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_op_none_noop` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_op_none_range_size0` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_op_none_scope_reserved` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_ptbr_write_no_flush` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_range_size0_cfxreg` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_scope_all` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_scope_range_hit` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_scope_range_miss` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_scope_reserved_cfxreg` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ040t/tlb_scope_va` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/cfx5_cache_cfxreg` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/cfx6_reserved_cfxmem` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_busy_start_ignored` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_busy_w1c_ignored` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_cfx_below_offset` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_cfx_range_end_ok` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_cfx_range_overflow` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_cfx_to_pa` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_done_w1c` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_error_w1c` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_high_bits_ignored` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_pa_range_overflow` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_pa_read_rom` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_pa_to_cfx` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_pa_write_rom` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_size_512mib_cfx_range` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_size_64k_ok` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_size_over_512mib` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/dma_size_zero` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/pmem_cg15_reserved_cfxreg` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/pmem_dma_irq_delivered` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/pmem_dma_masked_pending` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/sram_ldst_roundtrip` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/sram_old_offset_cfxmem` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ042t/sram_oob_cfxmem` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ044t/cfxexe_deny` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ044t/cfxmem_allow` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ044t/cfxmem_deny` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ044t/cfxreg_deny` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ044t/init_masks` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ044t/trap_intr_mask_restore` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/bad_elf_header` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/bad_elf_segment` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/bad_table_magic` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/chain_basic` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/deleg_dump` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/flags_sbz` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/flags_verify_off` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/hmon_magic_mismatch` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/image_oversize` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/no_resume_poison` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/power_bootrom_read` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/pte_value` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/ptw_state` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/smon_not_required_bad_elf` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/va_pa_both_ways` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ046t/vectors` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ047t/doc_spec_contract_shape` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ047t/no_sbi_side_validation` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ047t/start_busy_returns_busy` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ047t/start_cfx_to_pa` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ047t/start_pa_to_cfx` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ047t/status_raw_equals_cg15` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ047t/wait_not_supported` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/bit3_forced` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/cg3_bit3_locked` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/cg3_hypv_allowed` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/cg3_supv_perm_rd` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/cg3_supv_perm_wr` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/closed_hmon_cg0` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/closed_hmon_cg8` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/closed_power_bootrom` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/closed_power_cg4` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/hypv_unaffected` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/no_power_full_open` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/open_cg7` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/open_pmem_cg15` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/open_power_bootrom` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/open_ptw_cg8` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/open_ptw_cg9` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/open_smon_cg5_self` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/power_bootrom_store` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/power_cg7_closed` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/power_control_write` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/self_not_exempt` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/user_cg3_cfxreg` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ048t/user_unaffected` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ049t/desc_attr_reserved` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ049t/no_space_ptw` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ049t/no_space_umon` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ049t/read_stable` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ049t/ro_all_rc` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ049t/space1_15_zero` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ049t/space_hmon` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ049t/space_pmem` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ049t/space_power` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ049t/space_smon` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ049t/unimpl_cfx` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ049t/write_cfxreg` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/cycle_insn_monotonic` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/cycle_insn_read` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/doc_shape` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/hart_id_zero` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/hart_reserved_unimpl` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/regress_unimpl_cfx` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/sbi_hart_set_timer` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/sbi_time_monotonic` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/time_freq_value` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/time_ro_cfxreg` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/timer_cmp_clears` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/timer_ctrl_rw` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/timer_imask_pending` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/timer_interrupt` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/timer_istatus` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/timer_ones_disable` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ050t/timer_retrigger` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ051t/dedup_same_source` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ051t/direct_target` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ051t/doc_shape` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ051t/escape_kick` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ051t/global_mask_block` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ051t/intr_mask_tail_kick` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ051t/low_cfxha_first` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ051t/no_async_enable` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ051t/pending_no_cross_cfx` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ051t/per_cfx_mask_block` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ051t/pmem_error_info` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ051t/pmem_pending_in_pmem` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ051t/timer_imask_hold` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/integ051t/timer_pending_in_hart` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/bank_arg_rb16` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/bank_num_rd16` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/general_trap_path` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/iserror_be64` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/ret_rd8` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/semihost_cfxha_agnostic` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/semihost_tag_path` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_clock` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_close` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_elapsed` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_errno` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_exit` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_exit_extended` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_flen` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_get_cmdline` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_heapinfo` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_iserror` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_istty` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_open` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_read` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_readc` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_remove` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_rename` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_seek` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_synccache` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_system` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_tickfreq` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_time` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_tmpnam` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_write` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_write0` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/probe/min_rom_probe_046t/svc_writec` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/umon/m5_perm_badcombo_cfxreg` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/umon/m5_perm_mask_cfxperm` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/umon/m5_perm_reserved_illi` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/umon/m5_perm_unimpl_cfxreg` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/umon/m5_semi_exit` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/umon/m5_semi_exit_extended` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/umon/m5_semi_write` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/umon/m5_semi_write0` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/umon/m5_semi_writec` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
-| tiny | arch | `arch/umon/m5_trap_escape` | N/A/None | N/A/None | N/A | arch is Node-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/044t/cfx_rw_share` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/044t/cfxreg_badcombo` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/044t/cfxreg_ro_write` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/044t/cfxreg_unimpl` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/044t/cfxtrap_deny` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/044t/escape_return` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/044t/reserved_illi` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/044t/reset_values` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/044t/run_mode_0` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/044t/run_mode_1` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/044t/run_mode_2` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/044t/run_mode_3` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/044t/trap_counters` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/045t/cfx2_cg3_nonhypv` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/045t/cfx2_full_regface` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/045t/cfxreg_cg7_write` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/045t/cfxreg_cg_oor` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/045t/cfxreg_rc_oor` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/045t/cfxreg_ro_write` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/045t/cfxreg_scratch_oor` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/045t/cfxtrap_deny` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/045t/escape_fwd_offset` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/045t/escape_illegal_offset` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/045t/escape_wrong_target` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/045t/reserved_illi` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/045t/trap_reserved_illi` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/045t/trap_vector_roundtrip` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/049t/legacy_ram_gone` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/049t/old_ram_unmapped` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/049t/oob_data_cfxmem` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/049t/oob_data_unmapped` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/049t/oob_fetch_cfxmem` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/049t/oob_fetch_unmapped` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/049t/ram_exec` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/049t/ram_rw` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/049t/ram_top` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/ad_not_updated` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/ad_preserved` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/fetch_translated` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/gpf_frag0_fault` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/gpf_frag1_ok` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/hsju_h_fail` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/hsju_h_ok` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/hsju_j_fail` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/hsju_j_ok` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/hsju_s_fail` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/hsju_s_ok` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/hsju_u_fail` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/hsju_u_ok` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/l1_index_select` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/l1_p0_dgtrap` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/l1_p0_isptrap` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/l2_index_select` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/l2_p0_dgtrap` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/l2_p0_igtrap` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/l2_page_load` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/l2_page_store` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/nrperm` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/nwperm` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/nxperm` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/page_offset` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/prio_gpf_over_perm` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/prio_hsju_over_rwx` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/prio_l2p_over_perm` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/prio_p0_over_perm` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/prio_spf_over_perm` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/ptw_off_still_cfxmem` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/reserved_bits_ignored` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/spf_frag0_fault` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/spf_frag0_ok` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/spf_frag1_fault` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/superpage_load` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ039t/superpage_ppn_low_cleared` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/ad_clean_keeps_entry` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/ad_fill_no_writeback` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/ad_flush_writes_deletes` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/ad_invalid_no_writeback` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/ad_read_sets_a` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/ad_write_sets_ad` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/ad_writeback_preserves_fields` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/ptwerr_clean_keeps_entry` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/ptwerr_flush_keeps_entry` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/ptwerr_invalid_no_writeback` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_asid_any0_mismatch` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_asid_any1_all` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_asid_isolated` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_asid_reg_roundtrip` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_bypass_ptw_off` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_g_cross_asid` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_g_kept_asid_invalid` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_g_removed_asid_any` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_hit_gpf_fault` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_hit_hsju_perm` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_hit_no_pte_reread` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_hit_nwperm` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_no_fill_on_perm_fault` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_non_g_removed_asid` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_op_none_noop` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_op_none_range_size0` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_op_none_scope_reserved` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_ptbr_write_no_flush` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_range_size0_cfxreg` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_scope_all` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_scope_range_hit` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_scope_range_miss` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_scope_reserved_cfxreg` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ040t/tlb_scope_va` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/cfx5_cache_cfxreg` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/cfx6_reserved_cfxmem` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_busy_start_ignored` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_busy_w1c_ignored` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_cfx_below_offset` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_cfx_range_end_ok` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_cfx_range_overflow` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_cfx_to_pa` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_done_w1c` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_error_w1c` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_high_bits_ignored` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_pa_range_overflow` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_pa_read_rom` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_pa_to_cfx` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_pa_write_rom` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_size_512mib_cfx_range` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_size_64k_ok` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_size_over_512mib` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/dma_size_zero` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/pmem_cg15_reserved_cfxreg` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/pmem_dma_irq_delivered` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/pmem_dma_masked_pending` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/sram_ldst_roundtrip` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/sram_old_offset_cfxmem` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ042t/sram_oob_cfxmem` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ044t/cfxexe_deny` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ044t/cfxmem_allow` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ044t/cfxmem_deny` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ044t/cfxreg_deny` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ044t/init_masks` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ044t/trap_intr_mask_restore` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/bad_elf_header` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/bad_elf_segment` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/bad_table_magic` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/chain_basic` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/deleg_dump` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/flags_sbz` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/flags_verify_off` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/hmon_magic_mismatch` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/image_oversize` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/no_resume_poison` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/power_bootrom_read` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/pte_value` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/ptw_state` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/smon_not_required_bad_elf` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/va_pa_both_ways` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ046t/vectors` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ047t/doc_spec_contract_shape` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ047t/no_sbi_side_validation` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ047t/start_busy_returns_busy` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ047t/start_cfx_to_pa` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ047t/start_pa_to_cfx` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ047t/status_raw_equals_cg15` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ047t/wait_not_supported` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/bit3_forced` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/cg3_bit3_locked` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/cg3_hypv_allowed` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/cg3_supv_perm_rd` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/cg3_supv_perm_wr` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/closed_hmon_cg0` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/closed_hmon_cg8` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/closed_power_bootrom` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/closed_power_cg4` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/hypv_unaffected` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/no_power_full_open` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/open_cg7` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/open_pmem_cg15` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/open_power_bootrom` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/open_ptw_cg8` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/open_ptw_cg9` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/open_smon_cg5_self` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/power_bootrom_store` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/power_cg7_closed` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/power_control_write` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/self_not_exempt` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/user_cg3_cfxreg` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ048t/user_unaffected` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ049t/desc_attr_reserved` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ049t/no_space_ptw` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ049t/no_space_umon` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ049t/read_stable` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ049t/ro_all_rc` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ049t/space1_15_zero` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ049t/space_hmon` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ049t/space_pmem` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ049t/space_power` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ049t/space_smon` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ049t/unimpl_cfx` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ049t/write_cfxreg` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/cycle_insn_monotonic` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/cycle_insn_read` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/doc_shape` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/hart_id_zero` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/hart_reserved_unimpl` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/regress_unimpl_cfx` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/sbi_hart_set_timer` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/sbi_time_monotonic` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/time_freq_value` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/time_ro_cfxreg` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/timer_cmp_clears` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/timer_ctrl_rw` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/timer_imask_pending` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/timer_interrupt` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/timer_istatus` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/timer_ones_disable` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ050t/timer_retrigger` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ051t/dedup_same_source` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ051t/direct_target` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ051t/doc_shape` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ051t/escape_kick` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ051t/global_mask_block` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ051t/intr_mask_tail_kick` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ051t/low_cfxha_first` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ051t/no_async_enable` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ051t/pending_no_cross_cfx` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ051t/per_cfx_mask_block` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ051t/pmem_error_info` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ051t/pmem_pending_in_pmem` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ051t/timer_imask_hold` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/integ051t/timer_pending_in_hart` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/bank_arg_rb16` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/bank_num_rd16` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/general_trap_path` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/iserror_be64` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/ret_rd8` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/semihost_cfxha_agnostic` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/semihost_tag_path` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_clock` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_close` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_elapsed` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_errno` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_exit` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_exit_extended` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_flen` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_get_cmdline` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_heapinfo` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_iserror` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_istty` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_open` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_read` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_readc` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_remove` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_rename` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_seek` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_synccache` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_system` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_tickfreq` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_time` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_tmpnam` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_write` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_write0` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/probe/min_rom_probe_046t/svc_writec` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/umon/m5_perm_badcombo_cfxreg` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/umon/m5_perm_mask_cfxperm` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/umon/m5_perm_reserved_illi` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/umon/m5_perm_unimpl_cfxreg` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/umon/m5_semi_exit` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/umon/m5_semi_exit_extended` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/umon/m5_semi_write` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/umon/m5_semi_write0` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/umon/m5_semi_writec` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
+| tiny | arch | `arch/umon/m5_trap_escape` | N/A/None | N/A/None | N/A | arch is Vast-only (profile Tiny arch=false) |
 | tiny | inst | `inst/base/misc.yaml#3:escape_ciii_cfx` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
 | tiny | inst | `inst/base/misc.yaml#4:escape_ciii_cfx` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
 | tiny | inst | `inst/base/misc.yaml#5:escape_ciii_cfx` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
@@ -375,19 +305,136 @@ Cells not run by profile design: `tiny/arch` is N/A (`machine-profiles.yaml` `ti
 | tiny | inst | `inst/base/reg-cond-assign.yaml#18:cs.p_rrrr_rd` | DEFERRED/None | DEFERRED/None | N/A |  |
 | tiny | inst | `inst/base/reg-cond-assign.yaml#19:cs.eq_rrrr_rd` | DEFERRED/None | DEFERRED/None | N/A |  |
 | tiny | inst | `inst/base/reg-cond-assign.yaml#20:cs.ne_rrrr_rd` | DEFERRED/None | DEFERRED/None | N/A |  |
-| tiny | picolibc | `picolibc/math_test` | PASS/0 | BLOCKED/1 | BLOCKED_SIDE | gem5 B7 numeric difference (GEM5-015t) |
-| tiny | picolibc | `picolibc/test-access` | N/A/77 | N/A/None | N/A | N/A: not compared |
-| tiny | picolibc | `picolibc/test-strfmon` | N/A/77 | N/A/None | N/A | N/A: not compared |
+| vast | inst | `inst/base/aip-si.yaml#12:aip.si_riii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/ctrl-br.yaml#12:br.z_riii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/ctrl-br.yaml#16:br.nz_riii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/ctrl-br.yaml#20:br.p_riii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/ctrl-br.yaml#24:br.np_riii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/ctrl-br.yaml#28:br.eq_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/ctrl-br.yaml#32:br.ne_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/ctrl-br.yaml#36:br.z_riii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/ctrl-br.yaml#40:br.nz_riii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/ctrl-br.yaml#4:br.n_riii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/ctrl-br.yaml#8:br.nn_riii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/ctrl-call.yaml#11:call_rrii_ra` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/ctrl-jump.yaml#3:jump_iiii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/ctrl-jump.yaml#6:jump_rrii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-ra.yaml#14:ldm.o_rrri_ra` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-ra.yaml#20:stm.o_rrri_ra` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-ra.yaml#3:ld.o_rrii_ra` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-ra.yaml#8:st.o_rrii_ra` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rb.yaml#15:ldm.o_rrri_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rb.yaml#21:stm.o_rrri_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rb.yaml#4:ld.o_rrii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rb.yaml#9:st.o_rrii_rb` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#102:stm.w_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#108:stm.t_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#114:ldm.o_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#120:stm.o_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#15:ld.ut_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#20:ld.sb_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#26:ld.sw_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#32:ld.st_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#36:st.b_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#3:ld.ub_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#41:st.w_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#46:st.t_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#52:ld.o_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#57:st.o_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#62:ldm.ub_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#68:ldm.uw_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#74:ldm.ut_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#79:ldm.sb_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#85:ldm.sw_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#91:ldm.st_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#96:stm.b_rrri_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/mem-rd.yaml#9:ld.uw_rrii_rd` | SKIP_PROFILE/None | SKIP_PROFILE/None | N/A |  |
+| vast | inst | `inst/base/reg-cond-assign.yaml#16:cs.n_rrrr_rd` | DEFERRED/None | DEFERRED/None | N/A |  |
+| vast | inst | `inst/base/reg-cond-assign.yaml#17:cs.z_rrrr_rd` | DEFERRED/None | DEFERRED/None | N/A |  |
+| vast | inst | `inst/base/reg-cond-assign.yaml#18:cs.p_rrrr_rd` | DEFERRED/None | DEFERRED/None | N/A |  |
+| vast | inst | `inst/base/reg-cond-assign.yaml#19:cs.eq_rrrr_rd` | DEFERRED/None | DEFERRED/None | N/A |  |
+| vast | inst | `inst/base/reg-cond-assign.yaml#20:cs.ne_rrrr_rd` | DEFERRED/None | DEFERRED/None | N/A |  |
 
 ## N/A / BLOCKED basis
 
 - `tiny/arch`: `tests/shared/machine-profiles.yaml` `tiny.arch=false` (Tiny has no cfx/monitor).
-- 20 arch probe check(s) are N/A on gem5: QEMU `-icount` has no atomic-model equivalent (task book §2).
-- `picolibc/math_test`: BLOCKED, B7 numeric difference (GEM5-015t leftover 1); never written as PASS and not in the hard subset.
 
 ## Evidence pointers
 
-- JSON: `/tmp/opencode/INTEG-055t-parity-final/matrix.json`
-- Work dir: `/tmp/opencode/INTEG-055t-parity-final`
+- JSON: `/tmp/opencode/INTEG-059t/.work/evidence/INTEG-059t/parity2/matrix.json`
+- Work dir: `/tmp/opencode/INTEG-059t/.work/evidence/INTEG-059t/parity2/run`
 - Evidence script: see `tools/testcases/parity/README.md`「证据与快照」
 
+## picolibc (carried from the previous snapshot; B7 unchanged)
+
+> The current engine build reports `math_test` as 0 errors / exit 0
+> on gem5 (reproduced twice: see the SE parity report).  That
+> contradicts the `B7` registration, so per the task constraint the
+> registration is **not** rewritten to PASS and these rows are the
+> previous accepted snapshot's, not this run's.  Ruling pending.
+
+| profile | scope | total | agree_pass | agree_fail | gem5_only_fail | qemu_only_fail | diff | deferred | skip_profile | blocked | N/A |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| tiny | picolibc | 20 | 17 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 2 |
+
+| profile | scope | case_id | QEMU | gem5 | verdict | attribution / note |
+| --- | --- | --- | --- | --- | --- | --- |
+| tiny | picolibc | `picolibc/math_test` | PASS/0 | BLOCKED/1 | BLOCKED_SIDE | gem5 B7 numeric difference (GEM5-015t) |
+| tiny | picolibc | `picolibc/test-access` | N/A/77 | N/A/None | N/A | N/A: not compared |
+| tiny | picolibc | `picolibc/test-strfmon` | N/A/77 | N/A/None | N/A | N/A: not compared |
+
+`picolibc/math_test` stays `BLOCKED` (`B7` numeric difference, `GEM5-015t` leftover 1) and is never written as PASS in this snapshot.
+
+## SE tset matrix (gem5 SE vs QEMU user; static + dynamic)
+
+> Generated by `tools/testcases/parity/se_tset_matrix.py` from the committed tset baselines; counts recomputed from the per-case rows.
+
+| track | suite | total | qemu_pass | qemu_fail | gem5_pass | gem5_fail | gem5_only_fail | qemu_only_fail | blocked | timeout | skipped |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| static | libc-test | 337 | 335 | 0 | 321 | 4 | 4 | 0 | 6 | 5 | 30 |
+| static | llvm-ts | 214 | 214 | 0 | 115 | 5 | 5 | 0 | 2 | 92 | 8 |
+| static | embench | 38 | 38 | 0 | 38 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dynamic | libc-test | 340 | 338 | 0 | 301 | 0 | 0 | 0 | 34 | 4 | 27 |
+| dynamic | llvm-ts | 214 | 214 | 0 | 112 | 4 | 4 | 0 | 9 | 89 | 8 |
+| dynamic | embench | 38 | 38 | 0 | 38 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+### gem5_only_fail (QEMU passed, gem5 SE did not)
+
+- dynamic:llvm-ts:`MultiSource/Benchmarks/FreeBench/analyzer` — ISS-357 (test asset)
+- dynamic:llvm-ts:`MultiSource/Benchmarks/FreeBench/distray` — ISS-357 (test asset)
+- dynamic:llvm-ts:`MultiSource/Benchmarks/FreeBench/pifft` — ISS-357 (test asset)
+- dynamic:llvm-ts:`MultiSource/Benchmarks/Prolangs-C/bison` — ISS-357 (test asset)
+- static:libc-test:`functional/popen` — environment gap (environment)
+- static:libc-test:`functional/spawn` — environment gap (environment)
+- static:libc-test:`functional/vfork` — environment gap (environment)
+- static:libc-test:`regression/execle-env` — environment gap (environment)
+- static:llvm-ts:`MultiSource/Benchmarks/FreeBench/analyzer` — ISS-357 (test asset)
+- static:llvm-ts:`MultiSource/Benchmarks/FreeBench/distray` — ISS-357 (test asset)
+- static:llvm-ts:`MultiSource/Benchmarks/FreeBench/pifft` — ISS-357 (test asset)
+- static:llvm-ts:`MultiSource/Benchmarks/Prolangs-C/bison` — ISS-357 (test asset)
+- static:llvm-ts:`MultiSource/Benchmarks/Prolangs-C/unix-smail` — environment gap (environment)
+
+### qemu_only_fail (gem5 SE passed, QEMU did not)
+
+(none)
+
+### blocked (real capability gaps; timeout excluded)
+
+- dynamic / SysV IPC (3): `functional/ipc_msg`, `functional/ipc_sem`, `functional/ipc_shm`
+- dynamic / dynamic loader (ldso) (1): `functional/tls_align`
+- dynamic / file I/O (1): `MultiSource/Applications/ClamAV`
+- dynamic / other (25): `functional/pthread_cancel`, `functional/pthread_cancel-points`, `functional/pthread_cond`, `functional/pthread_mutex`, `functional/pthread_mutex_pi`, `functional/pthread_robust`, `functional/pthread_tsd`, `functional/sem_init`, `functional/sem_open`, `functional/tls_align_dlopen`, `functional/tls_init`, `functional/tls_init_dlopen`, `functional/tls_local_exec`, `regression/pthread-robust-detach`, `regression/pthread_cancel-sem_wait`, `regression/pthread_cond-smasher`, `regression/pthread_cond_wait-cancel_ignored`, `regression/pthread_create-oom`, `regression/pthread_exit-cancel`, `regression/pthread_exit-dtor`, `regression/pthread_once-deadlock`, `regression/pthread_rwlock-ebusy`, `regression/raise-race`, `regression/sem_close-unmap`, `regression/tls_get_new-dtv`
+- dynamic / simulator/loader (13): `MultiSource/Applications/Burg`, `MultiSource/Applications/lemon`, `MultiSource/Applications/obsequi`, `MultiSource/Applications/spiff`, `MultiSource/Applications/sqlite3`, `MultiSource/Benchmarks/Prolangs-C/unix-smail`, `MultiSource/Benchmarks/Ptrdist/bc`, `MultiSource/Benchmarks/mafft`, `functional/popen`, `functional/spawn`, `functional/vfork`, `regression/execle-env`, `regression/flockfile-list`
+- static / SysV IPC (3): `functional/ipc_msg`, `functional/ipc_sem`, `functional/ipc_shm`
+- static / file I/O (1): `MultiSource/Applications/ClamAV`
+- static / other (2): `functional/sem_open`, `regression/sem_close-unmap`
+- static / simulator/loader (2): `MultiSource/Applications/lemon`, `regression/flockfile-list`
+
+### timeout (budget expiry, not a verdict)
+
+- static / libc-test (5): `functional/clocale_mbfuncs`, `functional/crypt`, `functional/sscanf_long`, `functional/string_memset`, `regression/raise-race`
+- static / llvm-ts (92): `MultiSource/Applications/JM/lencod`, `MultiSource/Applications/SIBsim4`, `MultiSource/Applications/SPASS`, `MultiSource/Applications/aha`, `MultiSource/Applications/lua`, `MultiSource/Applications/obsequi`, `MultiSource/Applications/oggenc`, `MultiSource/Applications/sqlite3`, `MultiSource/Applications/viterbi`, `MultiSource/Benchmarks/ASCI_Purple/SMG2000`, `MultiSource/Benchmarks/ASC_Sequoia/AMGmk`, `MultiSource/Benchmarks/ASC_Sequoia/CrystalMk`, `MultiSource/Benchmarks/ASC_Sequoia/IRSmk`, `MultiSource/Benchmarks/BitBench/drop3`, `MultiSource/Benchmarks/BitBench/five11`, `MultiSource/Benchmarks/BitBench/uudecode`, `MultiSource/Benchmarks/DOE-ProxyApps-C/CoMD`, `MultiSource/Benchmarks/DOE-ProxyApps-C/Pathfinder`, `MultiSource/Benchmarks/DOE-ProxyApps-C/RSBench`, `MultiSource/Benchmarks/DOE-ProxyApps-C/SimpleMOC`, `MultiSource/Benchmarks/DOE-ProxyApps-C/XSBench`, `MultiSource/Benchmarks/DOE-ProxyApps-C/miniAMR`, `MultiSource/Benchmarks/DOE-ProxyApps-C/miniGMG`, `MultiSource/Benchmarks/Fhourstones`, `MultiSource/Benchmarks/Fhourstones-3.1`, `MultiSource/Benchmarks/FreeBench/fourinarow`, `MultiSource/Benchmarks/FreeBench/mason`, `MultiSource/Benchmarks/FreeBench/neural`, `MultiSource/Benchmarks/FreeBench/pcompress2`, `MultiSource/Benchmarks/MallocBench/cfrac`, `MultiSource/Benchmarks/McCat/01-qbsort`, `MultiSource/Benchmarks/McCat/12-IOtest`, `MultiSource/Benchmarks/MiBench/automotive-basicmath`, `MultiSource/Benchmarks/MiBench/consumer-lame`, `MultiSource/Benchmarks/MiBench/consumer-typeset`, `MultiSource/Benchmarks/MiBench/network-patricia`, `MultiSource/Benchmarks/MiBench/telecomm-CRC32`, `MultiSource/Benchmarks/MiBench/telecomm-adpcm`, `MultiSource/Benchmarks/NPB-serial/is`, `MultiSource/Benchmarks/Olden/bisort`, `MultiSource/Benchmarks/Ptrdist/bc`, `MultiSource/Benchmarks/Ptrdist/ft`, `MultiSource/Benchmarks/Ptrdist/ks`, `MultiSource/Benchmarks/Ptrdist/yacr2`, `MultiSource/Benchmarks/Rodinia/backprop`, `MultiSource/Benchmarks/Rodinia/hotspot`, `MultiSource/Benchmarks/Rodinia/pathfinder`, `MultiSource/Benchmarks/Rodinia/srad`, `MultiSource/Benchmarks/SciMark2-C`, `MultiSource/Benchmarks/Trimaran/enc-3des`, `MultiSource/Benchmarks/Trimaran/enc-md5`, `MultiSource/Benchmarks/Trimaran/netbench-url`, `MultiSource/Benchmarks/VersaBench/beamformer`, `MultiSource/Benchmarks/VersaBench/dbms`, `MultiSource/Benchmarks/llubenchmark`, `MultiSource/Benchmarks/mafft`, `MultiSource/Benchmarks/nbench`, `SingleSource/Benchmarks/BenchmarkGame/Large/fasta`, `SingleSource/Benchmarks/BenchmarkGame/fannkuch`, `SingleSource/Benchmarks/BenchmarkGame/n-body`, `SingleSource/Benchmarks/BenchmarkGame/nsieve-bits`, `SingleSource/Benchmarks/BenchmarkGame/partialsums`, `SingleSource/Benchmarks/BenchmarkGame/puzzle`, `SingleSource/Benchmarks/BenchmarkGame/recursive`, `SingleSource/Benchmarks/BenchmarkGame/spectral-norm`, `SingleSource/Benchmarks/CoyoteBench/huffbench`, `SingleSource/Benchmarks/Linpack/linpack-pc`, `SingleSource/Benchmarks/McGill/chomp`, `SingleSource/Benchmarks/McGill/queens`, `SingleSource/Benchmarks/Misc/ReedSolomon`, `SingleSource/Benchmarks/Misc/dt`, `SingleSource/Benchmarks/Misc/evalloop`, `SingleSource/Benchmarks/Misc/fbench`, `SingleSource/Benchmarks/Misc/ffbench`, `SingleSource/Benchmarks/Misc/fp-convert`, `SingleSource/Benchmarks/Misc/himenobmtxpa`, `SingleSource/Benchmarks/Misc/mandel-2`, `SingleSource/Benchmarks/Misc/oourafft`, `SingleSource/Benchmarks/Misc/perlin`, `SingleSource/Benchmarks/Misc/revertBits`, `SingleSource/Benchmarks/Misc/richards_benchmark`, `SingleSource/Benchmarks/Misc/salsa20`, `SingleSource/Benchmarks/Shootout/ary3`, `SingleSource/Benchmarks/Shootout/fib2`, `SingleSource/Benchmarks/Shootout/hash`, `SingleSource/Benchmarks/Shootout/lists`, `SingleSource/Benchmarks/Shootout/matrix`, `SingleSource/Benchmarks/Shootout/methcall`, `SingleSource/Benchmarks/Shootout/sieve`, `SingleSource/Benchmarks/Shootout/strcat`, `SingleSource/Benchmarks/Stanford/FloatMM`, `SingleSource/Benchmarks/Stanford/Puzzle`
+- dynamic / libc-test (4): `functional/clocale_mbfuncs`, `functional/crypt`, `functional/sscanf_long`, `functional/string_memset`
+- dynamic / llvm-ts (89): `MultiSource/Applications/JM/lencod`, `MultiSource/Applications/SIBsim4`, `MultiSource/Applications/SPASS`, `MultiSource/Applications/aha`, `MultiSource/Applications/lua`, `MultiSource/Applications/oggenc`, `MultiSource/Applications/viterbi`, `MultiSource/Benchmarks/ASCI_Purple/SMG2000`, `MultiSource/Benchmarks/ASC_Sequoia/AMGmk`, `MultiSource/Benchmarks/ASC_Sequoia/CrystalMk`, `MultiSource/Benchmarks/ASC_Sequoia/IRSmk`, `MultiSource/Benchmarks/BitBench/drop3`, `MultiSource/Benchmarks/BitBench/five11`, `MultiSource/Benchmarks/BitBench/uudecode`, `MultiSource/Benchmarks/DOE-ProxyApps-C/CoMD`, `MultiSource/Benchmarks/DOE-ProxyApps-C/Pathfinder`, `MultiSource/Benchmarks/DOE-ProxyApps-C/RSBench`, `MultiSource/Benchmarks/DOE-ProxyApps-C/SimpleMOC`, `MultiSource/Benchmarks/DOE-ProxyApps-C/XSBench`, `MultiSource/Benchmarks/DOE-ProxyApps-C/miniAMR`, `MultiSource/Benchmarks/DOE-ProxyApps-C/miniGMG`, `MultiSource/Benchmarks/Fhourstones`, `MultiSource/Benchmarks/Fhourstones-3.1`, `MultiSource/Benchmarks/FreeBench/fourinarow`, `MultiSource/Benchmarks/FreeBench/mason`, `MultiSource/Benchmarks/FreeBench/neural`, `MultiSource/Benchmarks/FreeBench/pcompress2`, `MultiSource/Benchmarks/MallocBench/cfrac`, `MultiSource/Benchmarks/McCat/01-qbsort`, `MultiSource/Benchmarks/McCat/08-main`, `MultiSource/Benchmarks/McCat/12-IOtest`, `MultiSource/Benchmarks/MiBench/automotive-basicmath`, `MultiSource/Benchmarks/MiBench/consumer-lame`, `MultiSource/Benchmarks/MiBench/consumer-typeset`, `MultiSource/Benchmarks/MiBench/network-patricia`, `MultiSource/Benchmarks/MiBench/telecomm-CRC32`, `MultiSource/Benchmarks/MiBench/telecomm-adpcm`, `MultiSource/Benchmarks/NPB-serial/is`, `MultiSource/Benchmarks/Olden/bisort`, `MultiSource/Benchmarks/Ptrdist/ft`, `MultiSource/Benchmarks/Ptrdist/ks`, `MultiSource/Benchmarks/Ptrdist/yacr2`, `MultiSource/Benchmarks/Rodinia/backprop`, `MultiSource/Benchmarks/Rodinia/hotspot`, `MultiSource/Benchmarks/Rodinia/pathfinder`, `MultiSource/Benchmarks/Rodinia/srad`, `MultiSource/Benchmarks/SciMark2-C`, `MultiSource/Benchmarks/Trimaran/enc-3des`, `MultiSource/Benchmarks/Trimaran/enc-md5`, `MultiSource/Benchmarks/Trimaran/netbench-url`, `MultiSource/Benchmarks/VersaBench/beamformer`, `MultiSource/Benchmarks/VersaBench/dbms`, `MultiSource/Benchmarks/llubenchmark`, `MultiSource/Benchmarks/nbench`, `SingleSource/Benchmarks/BenchmarkGame/Large/fasta`, `SingleSource/Benchmarks/BenchmarkGame/fannkuch`, `SingleSource/Benchmarks/BenchmarkGame/n-body`, `SingleSource/Benchmarks/BenchmarkGame/nsieve-bits`, `SingleSource/Benchmarks/BenchmarkGame/partialsums`, `SingleSource/Benchmarks/BenchmarkGame/puzzle`, `SingleSource/Benchmarks/BenchmarkGame/recursive`, `SingleSource/Benchmarks/BenchmarkGame/spectral-norm`, `SingleSource/Benchmarks/CoyoteBench/huffbench`, `SingleSource/Benchmarks/Linpack/linpack-pc`, `SingleSource/Benchmarks/McGill/chomp`, `SingleSource/Benchmarks/McGill/queens`, `SingleSource/Benchmarks/Misc/ReedSolomon`, `SingleSource/Benchmarks/Misc/dt`, `SingleSource/Benchmarks/Misc/evalloop`, `SingleSource/Benchmarks/Misc/fbench`, `SingleSource/Benchmarks/Misc/ffbench`, `SingleSource/Benchmarks/Misc/fp-convert`, `SingleSource/Benchmarks/Misc/himenobmtxpa`, `SingleSource/Benchmarks/Misc/mandel-2`, `SingleSource/Benchmarks/Misc/oourafft`, `SingleSource/Benchmarks/Misc/perlin`, `SingleSource/Benchmarks/Misc/revertBits`, `SingleSource/Benchmarks/Misc/richards_benchmark`, `SingleSource/Benchmarks/Misc/salsa20`, `SingleSource/Benchmarks/Shootout/ary3`, `SingleSource/Benchmarks/Shootout/fib2`, `SingleSource/Benchmarks/Shootout/hash`, `SingleSource/Benchmarks/Shootout/lists`, `SingleSource/Benchmarks/Shootout/matrix`, `SingleSource/Benchmarks/Shootout/methcall`, `SingleSource/Benchmarks/Shootout/sieve`, `SingleSource/Benchmarks/Shootout/strcat`, `SingleSource/Benchmarks/Stanford/FloatMM`, `SingleSource/Benchmarks/Stanford/Puzzle`
+
+Full per-case attribution and the static/dynamic join: `.tao/knowledge/refs/INTEG-059t-se-parity-summary.md`.

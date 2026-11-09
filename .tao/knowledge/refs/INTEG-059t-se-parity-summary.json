@@ -1,0 +1,2980 @@
+{
+ "task": "INTEG-059t",
+ "generated_utc": "2026-11-09T05:07:29Z",
+ "scope": "libc-test / llvm-ts / embench, static + dynamic, gem5 SE vs QEMU user (ADR-0048 D4/D5)",
+ "sources": {
+  "static": {
+   "path": ".tao/knowledge/refs/GEM5-021t-baseline-summary.json",
+   "sha256": "b08880f7b3a16b89bb5bae2ed917d44abf6a925e7702bd6c0f599cde6192aad7",
+   "generated_utc": "2026-11-09T00:30:55Z",
+   "link_mode": "static"
+  },
+  "dynamic": {
+   "path": ".tao/knowledge/refs/TESTCASES-104t-dynamic-summary.json",
+   "sha256": "a617270d8fc794f67509eb81dbe542ce8b17a716fd00bd2326cabd692b640b60",
+   "generated_utc": "2026-11-09T03:16:31Z",
+   "link_mode": "dynamic"
+  }
+ },
+ "tracks": {
+  "static": {
+   "totals": {
+    "qemu_pass": 587,
+    "gem5_pass": 474,
+    "both_pass": 474,
+    "blocked": 8,
+    "blocked_all": 105,
+    "timeout": 97,
+    "blocked_but_qemu_pass": 104,
+    "blocked_real_but_qemu_pass": 7,
+    "timeout_but_qemu_pass": 97,
+    "gem5_only_fail": 9,
+    "qemu_only_fail": 0
+   },
+   "suites": {
+    "libc-test": {
+     "total": 337,
+     "discovered": 367,
+     "qemu_pass": 335,
+     "qemu_fail": 0,
+     "gem5_pass": 321,
+     "both_pass": 321,
+     "gem5_fail": 4,
+     "gem5_known_fail": 1,
+     "gem5_blocked": 6,
+     "gem5_timeout": 5,
+     "gem5_only_fail": 4,
+     "qemu_only_fail": 0,
+     "skipped": 30
+    },
+    "llvm-ts": {
+     "total": 214,
+     "discovered": 222,
+     "qemu_pass": 214,
+     "qemu_fail": 0,
+     "gem5_pass": 115,
+     "both_pass": 115,
+     "gem5_fail": 5,
+     "gem5_known_fail": 0,
+     "gem5_blocked": 2,
+     "gem5_timeout": 92,
+     "gem5_only_fail": 5,
+     "qemu_only_fail": 0,
+     "skipped": 8
+    },
+    "embench": {
+     "total": 38,
+     "discovered": 19,
+     "qemu_pass": 38,
+     "qemu_fail": 0,
+     "gem5_pass": 38,
+     "both_pass": 38,
+     "gem5_fail": 0,
+     "gem5_known_fail": 0,
+     "gem5_blocked": 0,
+     "gem5_timeout": 0,
+     "gem5_only_fail": 0,
+     "qemu_only_fail": 0,
+     "skipped": 0
+    }
+   },
+   "gap_inventory": [
+    {
+     "capability": "SysV IPC",
+     "blocked_cases": 3,
+     "cases": [
+      "libc-test:functional/ipc_msg",
+      "libc-test:functional/ipc_sem",
+      "libc-test:functional/ipc_shm"
+     ]
+    },
+    {
+     "capability": "file I/O",
+     "blocked_cases": 1,
+     "cases": [
+      "llvm-ts:MultiSource/Applications/ClamAV"
+     ]
+    },
+    {
+     "capability": "other",
+     "blocked_cases": 2,
+     "cases": [
+      "libc-test:functional/sem_open",
+      "libc-test:regression/sem_close-unmap"
+     ]
+    },
+    {
+     "capability": "simulator/loader",
+     "blocked_cases": 2,
+     "cases": [
+      "libc-test:regression/flockfile-list",
+      "llvm-ts:MultiSource/Applications/lemon"
+     ]
+    }
+   ],
+   "timeout_by_suite": {
+    "libc-test": 5,
+    "llvm-ts": 92,
+    "embench": 0
+   }
+  },
+  "dynamic": {
+   "totals": {
+    "qemu_pass": 590,
+    "gem5_pass": 451,
+    "both_pass": 451,
+    "blocked": 43,
+    "blocked_all": 136,
+    "timeout": 93,
+    "blocked_but_qemu_pass": 135,
+    "blocked_real_but_qemu_pass": 42,
+    "timeout_but_qemu_pass": 93,
+    "gem5_only_fail": 4,
+    "qemu_only_fail": 0
+   },
+   "suites": {
+    "libc-test": {
+     "total": 340,
+     "discovered": 367,
+     "qemu_pass": 338,
+     "qemu_fail": 0,
+     "gem5_pass": 301,
+     "both_pass": 301,
+     "gem5_fail": 0,
+     "gem5_known_fail": 1,
+     "gem5_blocked": 34,
+     "gem5_timeout": 4,
+     "gem5_only_fail": 0,
+     "qemu_only_fail": 0,
+     "skipped": 27
+    },
+    "llvm-ts": {
+     "total": 214,
+     "discovered": 222,
+     "qemu_pass": 214,
+     "qemu_fail": 0,
+     "gem5_pass": 112,
+     "both_pass": 112,
+     "gem5_fail": 4,
+     "gem5_known_fail": 0,
+     "gem5_blocked": 9,
+     "gem5_timeout": 89,
+     "gem5_only_fail": 4,
+     "qemu_only_fail": 0,
+     "skipped": 8
+    },
+    "embench": {
+     "total": 38,
+     "discovered": 19,
+     "qemu_pass": 38,
+     "qemu_fail": 0,
+     "gem5_pass": 38,
+     "both_pass": 38,
+     "gem5_fail": 0,
+     "gem5_known_fail": 0,
+     "gem5_blocked": 0,
+     "gem5_timeout": 0,
+     "gem5_only_fail": 0,
+     "qemu_only_fail": 0,
+     "skipped": 0
+    }
+   },
+   "gap_inventory": [
+    {
+     "capability": "SysV IPC",
+     "blocked_cases": 3,
+     "cases": [
+      "libc-test:functional/ipc_msg",
+      "libc-test:functional/ipc_sem",
+      "libc-test:functional/ipc_shm"
+     ]
+    },
+    {
+     "capability": "dynamic loader (ldso)",
+     "blocked_cases": 1,
+     "cases": [
+      "libc-test:functional/tls_align"
+     ]
+    },
+    {
+     "capability": "file I/O",
+     "blocked_cases": 1,
+     "cases": [
+      "llvm-ts:MultiSource/Applications/ClamAV"
+     ]
+    },
+    {
+     "capability": "other",
+     "blocked_cases": 25,
+     "cases": [
+      "libc-test:functional/pthread_cancel",
+      "libc-test:functional/pthread_cancel-points",
+      "libc-test:functional/pthread_cond",
+      "libc-test:functional/pthread_mutex",
+      "libc-test:functional/pthread_mutex_pi",
+      "libc-test:functional/pthread_robust",
+      "libc-test:functional/pthread_tsd",
+      "libc-test:functional/sem_init",
+      "libc-test:functional/sem_open",
+      "libc-test:functional/tls_align_dlopen",
+      "libc-test:functional/tls_init",
+      "libc-test:functional/tls_init_dlopen",
+      "libc-test:functional/tls_local_exec",
+      "libc-test:regression/pthread-robust-detach",
+      "libc-test:regression/pthread_cancel-sem_wait",
+      "libc-test:regression/pthread_cond-smasher",
+      "libc-test:regression/pthread_cond_wait-cancel_ignored",
+      "libc-test:regression/pthread_create-oom",
+      "libc-test:regression/pthread_exit-cancel",
+      "libc-test:regression/pthread_exit-dtor",
+      "libc-test:regression/pthread_once-deadlock",
+      "libc-test:regression/pthread_rwlock-ebusy",
+      "libc-test:regression/raise-race",
+      "libc-test:regression/sem_close-unmap",
+      "libc-test:regression/tls_get_new-dtv"
+     ]
+    },
+    {
+     "capability": "simulator/loader",
+     "blocked_cases": 13,
+     "cases": [
+      "libc-test:functional/popen",
+      "libc-test:functional/spawn",
+      "libc-test:functional/vfork",
+      "libc-test:regression/execle-env",
+      "libc-test:regression/flockfile-list",
+      "llvm-ts:MultiSource/Applications/Burg",
+      "llvm-ts:MultiSource/Applications/lemon",
+      "llvm-ts:MultiSource/Applications/obsequi",
+      "llvm-ts:MultiSource/Applications/spiff",
+      "llvm-ts:MultiSource/Applications/sqlite3",
+      "llvm-ts:MultiSource/Benchmarks/Prolangs-C/unix-smail",
+      "llvm-ts:MultiSource/Benchmarks/Ptrdist/bc",
+      "llvm-ts:MultiSource/Benchmarks/mafft"
+     ]
+    }
+   ],
+   "timeout_by_suite": {
+    "libc-test": 4,
+    "llvm-ts": 89,
+    "embench": 0
+   }
+  }
+ },
+ "cross_mode": {
+  "same": 560,
+  "case_set": 5,
+  "static_pass_dynamic_not": [
+   "libc-test:functional/pthread_cancel (static=pass, dynamic=blocked)",
+   "libc-test:functional/pthread_cancel-points (static=pass, dynamic=blocked)",
+   "libc-test:functional/pthread_cond (static=pass, dynamic=blocked)",
+   "libc-test:functional/pthread_mutex (static=pass, dynamic=blocked)",
+   "libc-test:functional/pthread_mutex_pi (static=pass, dynamic=blocked)",
+   "libc-test:functional/pthread_robust (static=pass, dynamic=blocked)",
+   "libc-test:functional/pthread_tsd (static=pass, dynamic=blocked)",
+   "libc-test:functional/sem_init (static=pass, dynamic=blocked)",
+   "libc-test:functional/tls_align (static=pass, dynamic=blocked)",
+   "libc-test:functional/tls_init (static=pass, dynamic=blocked)",
+   "libc-test:functional/tls_local_exec (static=pass, dynamic=blocked)",
+   "libc-test:regression/pthread-robust-detach (static=pass, dynamic=blocked)",
+   "libc-test:regression/pthread_cancel-sem_wait (static=pass, dynamic=blocked)",
+   "libc-test:regression/pthread_cond-smasher (static=pass, dynamic=blocked)",
+   "libc-test:regression/pthread_cond_wait-cancel_ignored (static=pass, dynamic=blocked)",
+   "libc-test:regression/pthread_create-oom (static=pass, dynamic=blocked)",
+   "libc-test:regression/pthread_exit-cancel (static=pass, dynamic=blocked)",
+   "libc-test:regression/pthread_exit-dtor (static=pass, dynamic=blocked)",
+   "libc-test:regression/pthread_once-deadlock (static=pass, dynamic=blocked)",
+   "libc-test:regression/pthread_rwlock-ebusy (static=pass, dynamic=blocked)",
+   "llvm-ts:MultiSource/Applications/Burg (static=pass, dynamic=blocked)",
+   "llvm-ts:MultiSource/Applications/spiff (static=pass, dynamic=blocked)",
+   "llvm-ts:MultiSource/Benchmarks/McCat/08-main (static=pass, dynamic=blocked)"
+  ],
+  "dynamic_pass_static_not": [],
+  "same_owner_diff": [
+   "libc-test:functional/popen (static=fail, dynamic=blocked)",
+   "libc-test:functional/spawn (static=fail, dynamic=blocked)",
+   "libc-test:functional/vfork (static=fail, dynamic=blocked)",
+   "libc-test:regression/execle-env (static=fail, dynamic=blocked)",
+   "llvm-ts:MultiSource/Benchmarks/Prolangs-C/unix-smail (static=fail, dynamic=blocked)"
+  ],
+  "both_non_pass_diff": []
+ },
+ "attribution": {
+  "gem5_only_fail": [
+   {
+    "issue": "ISS-357",
+    "owner": "test asset",
+    "detail": "stderr+stdout+exit equals the reference byte-for-byte; driver captures fd1/fd2 separately",
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/FreeBench/analyzer",
+    "gem5_status": "fail",
+    "gem5_exit": 0,
+    "evidence": "oracle mismatch (MultiSource/Benchmarks/FreeBench/analyzer/analyzer.reference_output): output differs (462 B vs 462 B, sha256 b4ca213549650bd8); first output: Num_epochs: 576"
+   },
+   {
+    "issue": "ISS-357",
+    "owner": "test asset",
+    "detail": "md5(stderr+stdout+exit 0) == reference md5",
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/FreeBench/distray",
+    "gem5_status": "fail",
+    "gem5_exit": 0,
+    "evidence": "oracle mismatch (MultiSource/Benchmarks/FreeBench/distray/distray.reference_output): md5(output+exit)=6f7dd8639d67c7c26cfd9f2b0c8187a1 expected 78a70b660bcdf47a8dc16ba0db75ba2a, exit 0 (the exit code is inside the hashed document)"
+   },
+   {
+    "issue": "ISS-357",
+    "owner": "test asset",
+    "detail": "stderr+stdout+exit equals the reference byte-for-byte",
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/FreeBench/pifft",
+    "gem5_status": "fail",
+    "gem5_exit": 0,
+    "evidence": "oracle mismatch (MultiSource/Benchmarks/FreeBench/pifft/pifft.reference_output): output differs (82339 B vs 82339 B, sha256 11fd9c6772d49f37); first output: PI calculation to estimate the FFT benchmarks"
+   },
+   {
+    "issue": "ISS-357",
+    "owner": "test asset",
+    "detail": "one stderr line sits mid-stream; any fd1/fd2 concatenation order is wrong",
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Prolangs-C/bison",
+    "gem5_status": "fail",
+    "gem5_exit": 0,
+    "evidence": "oracle mismatch (MultiSource/Benchmarks/Prolangs-C/bison/mybison.reference_output): output differs (85401 B vs 85401 B, sha256 ffbffd589d4ecad5); first output: /* A Bison parser, made from parse.y.in */"
+   },
+   {
+    "issue": null,
+    "owner": "environment",
+    "detail": "guest root has no DADAO /bin/sh|/bin/echo; QEMU user execs the host binary, gem5 SE cannot (ENOEXEC / host interp)",
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "functional/popen",
+    "gem5_status": "fail",
+    "gem5_exit": 1,
+    "evidence": "guest exit 1, expected 0: libc-test/src/functional/popen.c:32: f = popen(\"echo hello\", \"r\") failed (errno = 8)"
+   },
+   {
+    "issue": null,
+    "owner": "environment",
+    "detail": "posix_spawnp('echo') -> no DADAO /bin/echo in the guest root",
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "functional/spawn",
+    "gem5_status": "fail",
+    "gem5_exit": 1,
+    "evidence": "guest exit 1, expected 0: libc-test/src/functional/spawn.c:35: posix_spawnp(&pid, \"echo\", &fa, 0, (char *[]){\"echo\",\"hello\",0}, 0) failed, got 8 want 0"
+   },
+   {
+    "issue": null,
+    "owner": "environment",
+    "detail": "execl('/bin/echo') -> ENOEXEC; host binary cannot run under the DADAO ISA",
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "functional/vfork",
+    "gem5_status": "fail",
+    "gem5_exit": 1,
+    "evidence": "guest exit 1, expected 0: libc-test/src/functional/vfork.c:44: execl failed: Exec format error"
+   },
+   {
+    "issue": null,
+    "owner": "environment",
+    "detail": "execle('echo') -> ENOEXEC; same missing guest-root tool",
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "regression/execle-env",
+    "gem5_status": "fail",
+    "gem5_exit": 1,
+    "evidence": "guest exit 1, expected 0: libc-test/src/regression/execle-env.c:16: execle failed: Exec format error"
+   },
+   {
+    "issue": "ISS-357",
+    "owner": "test asset",
+    "detail": "stderr+stdout+exit equals the reference byte-for-byte; driver captures fd1/fd2 separately",
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/FreeBench/analyzer",
+    "gem5_status": "fail",
+    "gem5_exit": 0,
+    "evidence": "oracle mismatch (MultiSource/Benchmarks/FreeBench/analyzer/analyzer.reference_output): output differs (462 B vs 462 B, sha256 b4ca213549650bd8); first output: Num_epochs: 576"
+   },
+   {
+    "issue": "ISS-357",
+    "owner": "test asset",
+    "detail": "md5(stderr+stdout+exit 0) == reference md5",
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/FreeBench/distray",
+    "gem5_status": "fail",
+    "gem5_exit": 0,
+    "evidence": "oracle mismatch (MultiSource/Benchmarks/FreeBench/distray/distray.reference_output): md5(output+exit)=6f7dd8639d67c7c26cfd9f2b0c8187a1 expected 78a70b660bcdf47a8dc16ba0db75ba2a, exit 0 (the exit code is inside the hashed document)"
+   },
+   {
+    "issue": "ISS-357",
+    "owner": "test asset",
+    "detail": "stderr+stdout+exit equals the reference byte-for-byte",
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/FreeBench/pifft",
+    "gem5_status": "fail",
+    "gem5_exit": 0,
+    "evidence": "oracle mismatch (MultiSource/Benchmarks/FreeBench/pifft/pifft.reference_output): output differs (82339 B vs 82339 B, sha256 11fd9c6772d49f37); first output: PI calculation to estimate the FFT benchmarks"
+   },
+   {
+    "issue": "ISS-357",
+    "owner": "test asset",
+    "detail": "one stderr line sits mid-stream; any fd1/fd2 concatenation order is wrong",
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Prolangs-C/bison",
+    "gem5_status": "fail",
+    "gem5_exit": 0,
+    "evidence": "oracle mismatch (MultiSource/Benchmarks/Prolangs-C/bison/mybison.reference_output): output differs (85401 B vs 85401 B, sha256 ffbffd589d4ecad5); first output: /* A Bison parser, made from parse.y.in */"
+   },
+   {
+    "issue": null,
+    "owner": "environment",
+    "detail": "deliver() execs /bin/lmail + /bin/smail via popen; no DADAO mailer in the guest root, gem5 SE cannot run the host ELF (QEMU user execs it, LOCAL branch resets 0); -d control run: exit 0, full output",
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Prolangs-C/unix-smail",
+    "gem5_status": "fail",
+    "gem5_exit": 69,
+    "evidence": "oracle mismatch (MultiSource/Benchmarks/Prolangs-C/unix-smail/unix-smail.reference_output): output differs (43 B vs 42 B, sha256 590dfe1569b3f892); exit 69 != 0; first output: resolve 'ALL' = 'ALL' @ '' (LOCAL)"
+   }
+  ],
+  "qemu_only_fail": [],
+  "blocked": [
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: msgget (186)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/ipc_msg",
+    "qemu_status": "pass",
+    "capability": "SysV IPC",
+    "change_surface": "syscall: SysV IPC (msg/sem/shm) + guest kernel objects",
+    "evidence": "gem5 fatal: DADAO SE: syscall 186 (msgget) not implemented, pc=0x200078978"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: semget (190)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/ipc_sem",
+    "qemu_status": "pass",
+    "capability": "SysV IPC",
+    "change_surface": "syscall: SysV IPC (msg/sem/shm) + guest kernel objects",
+    "evidence": "gem5 fatal: DADAO SE: syscall 190 (semget) not implemented, pc=0x200078c5c"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: shmget (194)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/ipc_shm",
+    "qemu_status": "pass",
+    "capability": "SysV IPC",
+    "change_surface": "syscall: SysV IPC (msg/sem/shm) + guest kernel objects",
+    "evidence": "gem5 fatal: DADAO SE: syscall 194 (shmget) not implemented, pc=0x200078ee8"
+   },
+   {
+    "owner": "environment",
+    "issue": null,
+    "detail": "guest root has no DADAO /bin/sh; the exec falls back to the host ELF and its PT_INTERP (/lib64/ld-linux-x86-64.so.2)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/popen",
+    "qemu_status": "pass",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "src/base/loader/image_file_data.cc:105: fatal: fatal condition fd < 0 occurred: Failed to open file .work/evidence/TESTCASES-104t/runtime/full/drv-gem5/dynamic/root/lib64/ld-linux-x86-64.so.2."
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/pthread_cancel",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/pthread_cancel-points",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/pthread_cond",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/pthread_mutex",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/pthread_mutex_pi",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/pthread_robust",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/pthread_tsd",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/sem_init",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: linkat (37)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/sem_open",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 37 (linkat) not implemented, pc=0x2000e8b44"
+   },
+   {
+    "owner": "environment",
+    "issue": null,
+    "detail": "guest root has no DADAO /bin/sh; the exec falls back to the host ELF and its PT_INTERP (/lib64/ld-linux-x86-64.so.2)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/spawn",
+    "qemu_status": "pass",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "src/base/loader/image_file_data.cc:105: fatal: fatal condition fd < 0 occurred: Failed to open file .work/evidence/TESTCASES-104t/runtime/full/drv-gem5/dynamic/root/lib64/ld-linux-x86-64.so.2."
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "ldso/search path: the DT_NEEDED object is not found",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/tls_align",
+    "qemu_status": "pass",
+    "capability": "dynamic loader (ldso)",
+    "change_surface": "loader: ldso $ORIGIN needs /proc/self/exe, and the SE ls/search path must reach DT_NEEDED objects",
+    "evidence": "ldso aborted before the program's own verdict: Error loading shared library tls_align_dso.so: No such file or directory (needed by .work/evidence/TESTCASES-104t/runtime/full/drv-gem5/dynamic/functional/tls_align/functional_tls_align.elf)"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/tls_align_dlopen",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007aa14"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/tls_init",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/tls_init_dlopen",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007aa14"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/tls_local_exec",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "environment",
+    "issue": null,
+    "detail": "guest root has no DADAO /bin/sh; the exec falls back to the host ELF and its PT_INTERP (/lib64/ld-linux-x86-64.so.2)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/vfork",
+    "qemu_status": "pass",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "src/base/loader/image_file_data.cc:105: fatal: fatal condition fd < 0 occurred: Failed to open file .work/evidence/TESTCASES-104t/runtime/full/drv-gem5/dynamic/root/lib64/ld-linux-x86-64.so.2."
+   },
+   {
+    "owner": "environment",
+    "issue": null,
+    "detail": "guest root has no DADAO /bin/sh; the exec falls back to the host ELF and its PT_INTERP (/lib64/ld-linux-x86-64.so.2)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "regression/execle-env",
+    "qemu_status": "pass",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "src/base/loader/image_file_data.cc:105: fatal: fatal condition fd < 0 occurred: Failed to open file .work/evidence/TESTCASES-104t/runtime/full/drv-gem5/dynamic/root/lib64/ld-linux-x86-64.so.2."
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE loader/exit modelling: no guest status",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "regression/flockfile-list",
+    "qemu_status": "known-fail",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "non-guest simulation end ((no GEM5_EXIT_CAUSE)), rc=-6: not a guest status"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "regression/pthread-robust-detach",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "regression/pthread_cancel-sem_wait",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "regression/pthread_cond-smasher",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "regression/pthread_cond_wait-cancel_ignored",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "regression/pthread_create-oom",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "regression/pthread_exit-cancel",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "regression/pthread_exit-dtor",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "regression/pthread_once-deadlock",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "regression/pthread_rwlock-ebusy",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "regression/raise-race",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: linkat (37)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "regression/sem_close-unmap",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 37 (linkat) not implemented, pc=0x2000e8b44"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: membarrier (283)",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "regression/tls_get_new-dtv",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 283 (membarrier) not implemented, pc=0x20007abdc"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE loader: the BSS sub-segment base (p_vaddr + p_filesz) must be 4-byte aligned, but lld leaves p_filesz byte-aligned (segment 5); QEMU loads the same ELF -- byte-addressable .bss needs no word alignment",
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/Burg",
+    "qemu_status": "pass",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "src/arch/dadao/process.cc:196: fatal: fatal condition (seg.base & 3) != 0 occurred: DADAO SE: segment '5(uninitialized)' base 0x53de6 is not 4-byte aligned"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: fsync (82)",
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/ClamAV",
+    "qemu_status": "pass",
+    "capability": "file I/O",
+    "change_surface": "syscall: file syscalls + guest fd table",
+    "evidence": "gem5 fatal: DADAO SE: syscall 82 (fsync) not implemented, pc=0x2000d9af4"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE loader: the BSS sub-segment base (p_vaddr + p_filesz) must be 4-byte aligned, but lld leaves p_filesz byte-aligned (segment 5); QEMU loads the same ELF -- byte-addressable .bss needs no word alignment",
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/lemon",
+    "qemu_status": "pass",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "src/arch/dadao/process.cc:196: fatal: fatal condition (seg.base & 3) != 0 occurred: DADAO SE: segment '5(uninitialized)' base 0x51de5 is not 4-byte aligned"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE loader: the BSS sub-segment base (p_vaddr + p_filesz) must be 4-byte aligned, but lld leaves p_filesz byte-aligned (segment 5); QEMU loads the same ELF -- byte-addressable .bss needs no word alignment",
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/obsequi",
+    "qemu_status": "pass",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "src/arch/dadao/process.cc:196: fatal: fatal condition (seg.base & 3) != 0 occurred: DADAO SE: segment '5(uninitialized)' base 0x4d365 is not 4-byte aligned"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE loader: the BSS sub-segment base (p_vaddr + p_filesz) must be 4-byte aligned, but lld leaves p_filesz byte-aligned (segment 5); QEMU loads the same ELF -- byte-addressable .bss needs no word alignment",
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/spiff",
+    "qemu_status": "pass",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "src/arch/dadao/process.cc:196: fatal: fatal condition (seg.base & 3) != 0 occurred: DADAO SE: segment '5(uninitialized)' base 0x48dfa is not 4-byte aligned"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE loader: the BSS sub-segment base (p_vaddr + p_filesz) must be 4-byte aligned, but lld leaves p_filesz byte-aligned (segment 5); QEMU loads the same ELF -- byte-addressable .bss needs no word alignment",
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/sqlite3",
+    "qemu_status": "pass",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "src/arch/dadao/process.cc:196: fatal: fatal condition (seg.base & 3) != 0 occurred: DADAO SE: segment '5(uninitialized)' base 0xe9833 is not 4-byte aligned"
+   },
+   {
+    "owner": "environment",
+    "issue": null,
+    "detail": "guest root has no DADAO /bin/sh; the exec falls back to the host ELF and its PT_INTERP (/lib64/ld-linux-x86-64.so.2)",
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Prolangs-C/unix-smail",
+    "qemu_status": "pass",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "src/base/loader/image_file_data.cc:105: fatal: fatal condition fd < 0 occurred: Failed to open file .work/build/104t-gem5-dyn/rest/drv-llvm-ts-gem5-se/dynamic/root/lib64/ld-linux-x86-64.so.2."
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE loader: the BSS sub-segment base (p_vaddr + p_filesz) must be 4-byte aligned, but lld leaves p_filesz byte-aligned (segment 5); QEMU loads the same ELF -- byte-addressable .bss needs no word alignment",
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Ptrdist/bc",
+    "qemu_status": "pass",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "src/arch/dadao/process.cc:196: fatal: fatal condition (seg.base & 3) != 0 occurred: DADAO SE: segment '5(uninitialized)' base 0x53fe5 is not 4-byte aligned"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE loader: the BSS sub-segment base (p_vaddr + p_filesz) must be 4-byte aligned, but lld leaves p_filesz byte-aligned (segment 5); QEMU loads the same ELF -- byte-addressable .bss needs no word alignment",
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/mafft",
+    "qemu_status": "pass",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "src/arch/dadao/process.cc:196: fatal: fatal condition (seg.base & 3) != 0 occurred: DADAO SE: segment '5(uninitialized)' base 0xadd21 is not 4-byte aligned"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: msgget (186)",
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "functional/ipc_msg",
+    "qemu_status": "pass",
+    "capability": "SysV IPC",
+    "change_surface": "syscall: SysV IPC (msg/sem/shm) + guest kernel objects",
+    "evidence": "gem5 fatal: DADAO SE: syscall 186 (msgget) not implemented, pc=0x24f94"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: semget (190)",
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "functional/ipc_sem",
+    "qemu_status": "pass",
+    "capability": "SysV IPC",
+    "change_surface": "syscall: SysV IPC (msg/sem/shm) + guest kernel objects",
+    "evidence": "gem5 fatal: DADAO SE: syscall 190 (semget) not implemented, pc=0x24eac"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: shmget (194)",
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "functional/ipc_shm",
+    "qemu_status": "pass",
+    "capability": "SysV IPC",
+    "change_surface": "syscall: SysV IPC (msg/sem/shm) + guest kernel objects",
+    "evidence": "gem5 fatal: DADAO SE: syscall 194 (shmget) not implemented, pc=0x24f0c"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: linkat (37)",
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "functional/sem_open",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 37 (linkat) not implemented, pc=0x2b690"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE loader/exit modelling: no guest status",
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "regression/flockfile-list",
+    "qemu_status": "known-fail",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "non-guest simulation end ((no GEM5_EXIT_CAUSE)), rc=-6: not a guest status"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: linkat (37)",
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "regression/sem_close-unmap",
+    "qemu_status": "pass",
+    "capability": "other",
+    "change_surface": "syscall: number not in the capability buckets -- inspect evidence",
+    "evidence": "gem5 fatal: DADAO SE: syscall 37 (linkat) not implemented, pc=0x2a494"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE syscall table: fsync (82)",
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/ClamAV",
+    "qemu_status": "pass",
+    "capability": "file I/O",
+    "change_surface": "syscall: file syscalls + guest fd table",
+    "evidence": "gem5 fatal: DADAO SE: syscall 82 (fsync) not implemented, pc=0x10a918"
+   },
+   {
+    "owner": "implementation",
+    "issue": null,
+    "detail": "SE loader/exit modelling: no guest status",
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/lemon",
+    "qemu_status": "pass",
+    "capability": "simulator/loader",
+    "change_surface": "simulator: SE loader/exit modelling",
+    "evidence": "non-guest simulation end ((no GEM5_EXIT_CAUSE)), rc=-6: not a guest status"
+   }
+  ],
+  "timeout": [
+   {
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/clocale_mbfuncs",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/crypt",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/sscanf_long",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/string_memset",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/JM/lencod",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/SIBsim4",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/SPASS",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/aha",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/lua",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/oggenc",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/viterbi",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/ASCI_Purple/SMG2000",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/ASC_Sequoia/AMGmk",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/ASC_Sequoia/CrystalMk",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/ASC_Sequoia/IRSmk",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/BitBench/drop3",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/BitBench/five11",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/BitBench/uudecode",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/CoMD",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/Pathfinder",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/RSBench",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/SimpleMOC",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/XSBench",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/miniAMR",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/miniGMG",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Fhourstones",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Fhourstones-3.1",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/FreeBench/fourinarow",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/FreeBench/mason",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/FreeBench/neural",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/FreeBench/pcompress2",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/MallocBench/cfrac",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/McCat/01-qbsort",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/McCat/08-main",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/McCat/12-IOtest",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/MiBench/automotive-basicmath",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/MiBench/consumer-lame",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/MiBench/consumer-typeset",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/MiBench/network-patricia",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/MiBench/telecomm-CRC32",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/MiBench/telecomm-adpcm",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/NPB-serial/is",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Olden/bisort",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Ptrdist/ft",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Ptrdist/ks",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Ptrdist/yacr2",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Rodinia/backprop",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Rodinia/hotspot",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Rodinia/pathfinder",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Rodinia/srad",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/SciMark2-C",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Trimaran/enc-3des",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Trimaran/enc-md5",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Trimaran/netbench-url",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/VersaBench/beamformer",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/VersaBench/dbms",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/llubenchmark",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/nbench",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/Large/fasta",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/fannkuch",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/n-body",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/nsieve-bits",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/partialsums",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/puzzle",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/recursive",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/spectral-norm",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/CoyoteBench/huffbench",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Linpack/linpack-pc",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/McGill/chomp",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/McGill/queens",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/ReedSolomon",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/dt",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/evalloop",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/fbench",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/ffbench",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/fp-convert",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/himenobmtxpa",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/mandel-2",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/oourafft",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/perlin",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/revertBits",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/richards_benchmark",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/salsa20",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/ary3",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/fib2",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/hash",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/lists",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/matrix",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/methcall",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/sieve",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/strcat",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Stanford/FloatMM",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "dynamic",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Stanford/Puzzle",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "functional/clocale_mbfuncs",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "functional/crypt",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "functional/sscanf_long",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "functional/string_memset",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "regression/raise-race",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/JM/lencod",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/SIBsim4",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/SPASS",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/aha",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/lua",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/obsequi",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/oggenc",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/sqlite3",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Applications/viterbi",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/ASCI_Purple/SMG2000",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/ASC_Sequoia/AMGmk",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/ASC_Sequoia/CrystalMk",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/ASC_Sequoia/IRSmk",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/BitBench/drop3",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/BitBench/five11",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/BitBench/uudecode",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/CoMD",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/Pathfinder",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/RSBench",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/SimpleMOC",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/XSBench",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/miniAMR",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/miniGMG",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Fhourstones",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Fhourstones-3.1",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/FreeBench/fourinarow",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/FreeBench/mason",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/FreeBench/neural",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/FreeBench/pcompress2",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/MallocBench/cfrac",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/McCat/01-qbsort",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/McCat/12-IOtest",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/MiBench/automotive-basicmath",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/MiBench/consumer-lame",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/MiBench/consumer-typeset",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/MiBench/network-patricia",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/MiBench/telecomm-CRC32",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/MiBench/telecomm-adpcm",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/NPB-serial/is",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Olden/bisort",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Ptrdist/bc",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Ptrdist/ft",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Ptrdist/ks",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Ptrdist/yacr2",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Rodinia/backprop",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Rodinia/hotspot",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Rodinia/pathfinder",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Rodinia/srad",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/SciMark2-C",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Trimaran/enc-3des",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Trimaran/enc-md5",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/Trimaran/netbench-url",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/VersaBench/beamformer",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/VersaBench/dbms",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/llubenchmark",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/mafft",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "MultiSource/Benchmarks/nbench",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/Large/fasta",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/fannkuch",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/n-body",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/nsieve-bits",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/partialsums",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/puzzle",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/recursive",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/BenchmarkGame/spectral-norm",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/CoyoteBench/huffbench",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Linpack/linpack-pc",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/McGill/chomp",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/McGill/queens",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/ReedSolomon",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/dt",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/evalloop",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/fbench",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/ffbench",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/fp-convert",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/himenobmtxpa",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/mandel-2",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/oourafft",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/perlin",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/revertBits",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/richards_benchmark",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Misc/salsa20",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/ary3",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/fib2",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/hash",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/lists",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/matrix",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/methcall",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/sieve",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Shootout/strcat",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Stanford/FloatMM",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   },
+   {
+    "mode": "static",
+    "suite": "llvm-ts",
+    "case": "SingleSource/Benchmarks/Stanford/Puzzle",
+    "qemu_status": "pass",
+    "owner": "budget",
+    "issue": null,
+    "detail": "budget expiry, not a verdict"
+   }
+  ],
+  "both_non_pass": [
+   {
+    "issue": "ISS-251",
+    "owner": "spec",
+    "detail": "musl strptime %s is parse-only; both engines report the same known-fail with the same basis",
+    "mode": "dynamic",
+    "suite": "libc-test",
+    "case": "functional/strptime",
+    "status": "known-fail"
+   },
+   {
+    "issue": "ISS-251",
+    "owner": "spec",
+    "detail": "musl strptime %s is parse-only; both engines report the same known-fail with the same basis",
+    "mode": "static",
+    "suite": "libc-test",
+    "case": "functional/strptime",
+    "status": "known-fail"
+   }
+  ]
+ },
+ "timeout_recheck": {
+  "libc-test": {
+   "timeout_seconds": 1200,
+   "total": 5,
+   "passed": [
+    "functional/crypt",
+    "functional/sscanf_long",
+    "functional/string_memset"
+   ],
+   "still_blocked": [
+    "functional/clocale_mbfuncs",
+    "regression/raise-race"
+   ],
+   "other": []
+  },
+  "llvm-ts": {
+   "timeout_seconds": 1200,
+   "total": 92,
+   "passed": [
+    "MultiSource/Applications/oggenc",
+    "MultiSource/Benchmarks/ASCI_Purple/SMG2000",
+    "MultiSource/Benchmarks/ASC_Sequoia/IRSmk",
+    "MultiSource/Benchmarks/BitBench/five11",
+    "MultiSource/Benchmarks/BitBench/uudecode",
+    "MultiSource/Benchmarks/McCat/01-qbsort",
+    "MultiSource/Benchmarks/MiBench/consumer-typeset",
+    "MultiSource/Benchmarks/MiBench/telecomm-CRC32",
+    "MultiSource/Benchmarks/MiBench/telecomm-adpcm",
+    "MultiSource/Benchmarks/NPB-serial/is",
+    "MultiSource/Benchmarks/Trimaran/enc-3des",
+    "MultiSource/Benchmarks/Trimaran/enc-md5",
+    "SingleSource/Benchmarks/McGill/chomp",
+    "SingleSource/Benchmarks/McGill/queens",
+    "SingleSource/Benchmarks/Misc/oourafft",
+    "SingleSource/Benchmarks/Misc/perlin",
+    "SingleSource/Benchmarks/Misc/richards_benchmark",
+    "SingleSource/Benchmarks/Misc/salsa20",
+    "SingleSource/Benchmarks/Shootout/strcat",
+    "SingleSource/Benchmarks/Stanford/Puzzle"
+   ],
+   "still_blocked": [
+    "MultiSource/Applications/JM/lencod",
+    "MultiSource/Applications/SIBsim4",
+    "MultiSource/Applications/SPASS",
+    "MultiSource/Applications/aha",
+    "MultiSource/Applications/lua",
+    "MultiSource/Applications/obsequi",
+    "MultiSource/Applications/sqlite3",
+    "MultiSource/Applications/viterbi",
+    "MultiSource/Benchmarks/ASC_Sequoia/AMGmk",
+    "MultiSource/Benchmarks/ASC_Sequoia/CrystalMk",
+    "MultiSource/Benchmarks/BitBench/drop3",
+    "MultiSource/Benchmarks/DOE-ProxyApps-C/CoMD",
+    "MultiSource/Benchmarks/DOE-ProxyApps-C/Pathfinder",
+    "MultiSource/Benchmarks/DOE-ProxyApps-C/RSBench",
+    "MultiSource/Benchmarks/DOE-ProxyApps-C/SimpleMOC",
+    "MultiSource/Benchmarks/DOE-ProxyApps-C/XSBench",
+    "MultiSource/Benchmarks/DOE-ProxyApps-C/miniAMR",
+    "MultiSource/Benchmarks/DOE-ProxyApps-C/miniGMG",
+    "MultiSource/Benchmarks/Fhourstones",
+    "MultiSource/Benchmarks/Fhourstones-3.1",
+    "MultiSource/Benchmarks/FreeBench/fourinarow",
+    "MultiSource/Benchmarks/FreeBench/pcompress2",
+    "MultiSource/Benchmarks/MallocBench/cfrac",
+    "MultiSource/Benchmarks/McCat/12-IOtest",
+    "MultiSource/Benchmarks/MiBench/automotive-basicmath",
+    "MultiSource/Benchmarks/MiBench/consumer-lame",
+    "MultiSource/Benchmarks/MiBench/network-patricia",
+    "MultiSource/Benchmarks/Olden/bisort",
+    "MultiSource/Benchmarks/Ptrdist/bc",
+    "MultiSource/Benchmarks/Ptrdist/ft",
+    "MultiSource/Benchmarks/Ptrdist/ks",
+    "MultiSource/Benchmarks/Ptrdist/yacr2",
+    "MultiSource/Benchmarks/Rodinia/backprop",
+    "MultiSource/Benchmarks/Rodinia/hotspot",
+    "MultiSource/Benchmarks/Rodinia/pathfinder",
+    "MultiSource/Benchmarks/Rodinia/srad",
+    "MultiSource/Benchmarks/SciMark2-C",
+    "MultiSource/Benchmarks/Trimaran/netbench-url",
+    "MultiSource/Benchmarks/VersaBench/beamformer",
+    "MultiSource/Benchmarks/VersaBench/dbms",
+    "MultiSource/Benchmarks/llubenchmark",
+    "MultiSource/Benchmarks/mafft",
+    "MultiSource/Benchmarks/nbench",
+    "SingleSource/Benchmarks/BenchmarkGame/Large/fasta",
+    "SingleSource/Benchmarks/BenchmarkGame/fannkuch",
+    "SingleSource/Benchmarks/BenchmarkGame/n-body",
+    "SingleSource/Benchmarks/BenchmarkGame/nsieve-bits",
+    "SingleSource/Benchmarks/BenchmarkGame/partialsums",
+    "SingleSource/Benchmarks/BenchmarkGame/puzzle",
+    "SingleSource/Benchmarks/BenchmarkGame/recursive",
+    "SingleSource/Benchmarks/BenchmarkGame/spectral-norm",
+    "SingleSource/Benchmarks/CoyoteBench/huffbench",
+    "SingleSource/Benchmarks/Linpack/linpack-pc",
+    "SingleSource/Benchmarks/Misc/ReedSolomon",
+    "SingleSource/Benchmarks/Misc/dt",
+    "SingleSource/Benchmarks/Misc/evalloop",
+    "SingleSource/Benchmarks/Misc/fbench",
+    "SingleSource/Benchmarks/Misc/ffbench",
+    "SingleSource/Benchmarks/Misc/fp-convert",
+    "SingleSource/Benchmarks/Misc/himenobmtxpa",
+    "SingleSource/Benchmarks/Misc/mandel-2",
+    "SingleSource/Benchmarks/Misc/revertBits",
+    "SingleSource/Benchmarks/Shootout/ary3",
+    "SingleSource/Benchmarks/Shootout/fib2",
+    "SingleSource/Benchmarks/Shootout/hash",
+    "SingleSource/Benchmarks/Shootout/lists",
+    "SingleSource/Benchmarks/Shootout/matrix",
+    "SingleSource/Benchmarks/Shootout/methcall",
+    "SingleSource/Benchmarks/Shootout/sieve",
+    "SingleSource/Benchmarks/Stanford/FloatMM"
+   ],
+   "other": [
+    "MultiSource/Benchmarks/FreeBench/mason",
+    "MultiSource/Benchmarks/FreeBench/neural"
+   ]
+  }
+ },
+ "new_findings": [
+  {
+   "title": "gem5 SE loader rejects a byte-aligned .bss sub-segment",
+   "owner": "implementation",
+   "scope": "components/gem5 (`src/arch/dadao/process.cc` PT_LOAD walk: `(seg.base & 3) != 0`)",
+   "cases": [
+    "dynamic:llvm-ts:MultiSource/Applications/Burg",
+    "dynamic:llvm-ts:MultiSource/Applications/lemon",
+    "dynamic:llvm-ts:MultiSource/Applications/obsequi",
+    "dynamic:llvm-ts:MultiSource/Applications/spiff",
+    "dynamic:llvm-ts:MultiSource/Applications/sqlite3",
+    "dynamic:llvm-ts:MultiSource/Benchmarks/Ptrdist/bc",
+    "dynamic:llvm-ts:MultiSource/Benchmarks/mafft"
+   ],
+   "note": "lld leaves p_filesz byte-aligned, so the uninitialised sub-segment starts at p_vaddr + p_filesz (e.g. 0x53de6); QEMU user loads the same ELF.  Byte-addressable .bss needs no word alignment, so this is a loader restriction, not a guest defect.  Ledger id not allocated (out of this task file's range)."
+  }
+ ],
+ "known_items": {
+  "ISS_357": {
+   "status": "open",
+   "scope": "gem5/testcases",
+   "cases": [
+    "dynamic:llvm-ts:MultiSource/Benchmarks/FreeBench/analyzer",
+    "dynamic:llvm-ts:MultiSource/Benchmarks/FreeBench/distray",
+    "dynamic:llvm-ts:MultiSource/Benchmarks/FreeBench/pifft",
+    "dynamic:llvm-ts:MultiSource/Benchmarks/Prolangs-C/bison",
+    "static(retest):llvm-ts:MultiSource/Benchmarks/FreeBench/mason",
+    "static(retest):llvm-ts:MultiSource/Benchmarks/FreeBench/neural",
+    "static:llvm-ts:MultiSource/Benchmarks/FreeBench/analyzer",
+    "static:llvm-ts:MultiSource/Benchmarks/FreeBench/distray",
+    "static:llvm-ts:MultiSource/Benchmarks/FreeBench/pifft",
+    "static:llvm-ts:MultiSource/Benchmarks/Prolangs-C/bison"
+   ],
+   "note": "SE output capture loses the fd1/fd2 write order; recorded as fail, never as a capability gap"
+  },
+  "ISS_343": {
+   "status": "closed (QEMU-084t)",
+   "scope": "qemu",
+   "cases": [],
+   "note": "rlimit no-op: no tset case in the non-pass lists is attributed to it; not rewritten as pass"
+  },
+  "environment_gap": {
+   "cases": [
+    "dynamic:libc-test:functional/popen",
+    "dynamic:libc-test:functional/spawn",
+    "dynamic:libc-test:functional/vfork",
+    "dynamic:libc-test:regression/execle-env",
+    "dynamic:llvm-ts:MultiSource/Benchmarks/Prolangs-C/unix-smail",
+    "static:libc-test:functional/popen",
+    "static:libc-test:functional/spawn",
+    "static:libc-test:functional/vfork",
+    "static:libc-test:regression/execle-env",
+    "static:llvm-ts:MultiSource/Benchmarks/Prolangs-C/unix-smail"
+   ],
+   "note": "no DADAO /bin/sh / /bin/echo (/bin/lmail, /bin/smail) in the guest root; QEMU user executes the host binary"
+  },
+  "picolibc_B7": {
+   "status": "blocked",
+   "scope": "parity FS matrix",
+   "note": "math_test stays BLOCKED; not part of the SE tset tracks and never counted as pass"
+  }
+ },
+ "checks": {
+  "errors": [],
+  "ok": true
+ }
+}

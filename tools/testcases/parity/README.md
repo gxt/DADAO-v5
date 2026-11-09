@@ -68,6 +68,32 @@ guest exit、`picolibc` 的分类）；**不比较**时序、性能、PC/日志�
   （资产/spec/gem5/QEMU），未归因 rc=1。
 - `BLOCKED`/`N/A` 逐条带根因；不得静默通过、不得改写成 PASS。
 
+## SE tset 双向一致性（INTEG-059t，G3 收口）
+
+`run_parity.py` 只做 **QEMU system ↔ gem5 FS**；SE user 模式的完整 tset 对账由
+同目录的 `se_tset_matrix.py` 汇总（不跑 guest，只读两份已入库的 per-case 基线）：
+
+```sh
+python3 tools/testcases/parity/se_tset_matrix.py \
+  --json-out <运行期目录>/se-parity.json \
+  --markdown-out <运行期目录>/se-parity.md \
+  --matrix-section-out <运行期目录>/matrix-M11-SE.md
+python3 tools/testcases/parity/se_tset_matrix.py --self-test   # 逐条反例注入
+```
+
+- 输入：static = `refs/GEM5-021t-baseline-summary.json`（`TESTCASES-103t` 预算）、
+  dynamic = `refs/TESTCASES-104t-dynamic-summary.json`（`GEM5-027t` 动态装载）。
+- **不信任已声明计数**：per-suite counts / cross 列表 / totals / gap 桶全部从
+  per-case 行重算并与声明值对账；不一致 rc=1。
+- **每个非 pass 行必须有 owner**：`timeout` ⇒ budget；`blocked` ⇒ 证据文本必须
+  归到 `implementation`/`environment`（`SE syscall table`、`ldso`、`SE loader`、
+  guest root 缺 DADAO 工具）；`gem5_only_fail` ⇒ 显式登记表（`ISS-357` / 环境缺口）；
+  `qemu_only_fail` ⇒ 登记表为空（`ADR-0048 D5`：不得当作 gem5 胜利）；两引擎同
+  verdict 的 `known-fail`（`ISS-251`）才允许进 `both_non_pass`。
+- 输出 `matrix-M11-SE.md` 片段（`--matrix-section-out`）与完整快照
+  （`--compose-out --fs-matrix <run_parity 输出> --carry-from <上一版快照>`；
+  picolibc 段原样承接，B7 登记不手改）；数字一律现场统计，不手改。
+
 ## M11 收口口径（TESTCASES-098t）
 
 - **矩阵范围**：Tiny/Vast 的 `inst`/`arch` + Tiny `picolibc`（`math_test` B7 对照）。Embench 不进本矩阵。
@@ -80,6 +106,8 @@ guest exit、`picolibc` 的分类）；**不比较**时序、性能、PC/日志�
 - **退出码状态**：快照按当前引擎实现生成；`SPEC-187t` 退出码规范已定稿、QEMU/gem5 实现尚未迁移，迁移后须再生成一次。
 - **`TESTCASES-102t` 起 arch 探针去 icount 化**：20 个 timing 用例改为读时设 deadline + 有界轮询（窗口 ≥10× 名义值），QEMU 与 gem5 用同一份探针实际对照；下方 2026-11-05 快照里的 20 个 `BLOCKED` 已过时，等矩阵任务重生成 `tests/parity/matrix-M11.md`。
 - **本快照（2026-11-05 晚，`GEM5-020t` 后）**：`vast/arch` 249 `AGREE_PASS` + 20 `BLOCKED`（icount N/A）、`GEM5_ONLY_FAIL=0`、`DIFF=0`。上一版 14 条 `GEM5_ONLY_FAIL`（`QEMU-083t` 后 gem5 未对齐的历史快照）已由本次替换：14 条逐条转 `AGREE_PASS`，含 `arch/umon/m5_perm_badcombo_cfxreg`（自环已消除）。`GEM5-020t` 将 gem5 的 10 处 CFXREG fault 目标由 `cfxha` 改为当前运行模式 monitor，与 `QEMU-083t` 对齐。
+- **profile 命名**：`m12-testcases-001` 起矩阵 profile 为 `tiny` / `vast`（旧快照里的 `node` = 现 `vast`）；重生成的快照按新名输出，`node` 行不再出现。
+- **SE 段**：`tests/parity/matrix-M11.md` 末尾的「SE tset matrix」段由 `se_tset_matrix.py` 生成（static + dynamic 两档，见上节）。
 - **引擎冻结**：`GEM5-020t` 评审期间共享 gem5 二进制被反复重建（实测中途 md5 变化导致整轮矩阵失效）；本快照用重建后二进制的**冻结副本**（md5 `d64b0f9…`，源 commit `1ad69d2…`，配置用源树 `fs.py`）生成，矩阵身份即该副本；证据目录保留冻结件与前后两轮作废日志。
 
 ## 已知例外（**不**参与硬门的 `AGREE_PASS`）
