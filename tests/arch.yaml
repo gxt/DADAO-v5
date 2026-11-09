@@ -86,3 +86,11 @@
   level: smoke
   requires:
   - bootrom
+- id: arch-hmon-001
+  file: arch/hmon/tiny_hmon.S
+  platforms:
+  - system
+  level: full
+  requires:
+  - gem5-fs
+  - toolchain

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/fs_machine.cc b/src/arch/dadao/fs_machine.cc
 new file mode 100644
-index 0000000..ed70d0b
+index 0000000..63773d0
 --- /dev/null
 +++ b/src/arch/dadao/fs_machine.cc
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,139 @@
 +// DADAO FS machine fault implementation.
 +#include "arch/dadao/fs_machine.hh"
 +
@@ -11,6 +11,7 @@ index 0000000..ed70d0b
 +
 +#include "arch/dadao/fs_workload.hh"
 +#include "arch/dadao/isa.hh"
++#include "arch/dadao/tiny_cfx.hh"
 +#include "base/cprintf.hh"
 +#include "cpu/thread_context.hh"
 +#include "sim/sim_exit.hh"
@@ -96,6 +97,20 @@ index 0000000..ed70d0b
 +void
 +MachineFault::invoke(ThreadContext *tc, const StaticInstPtr &)
 +{
++    // Tiny: the synchronous exception enters the hmon vector with the
++    // architectural frame (spec/Machine-v5 §4.4).  Only when the handler
++    // cannot run (unmapped vector / nesting guard) does the machine stop with
++    // the §7.1 code below.
++    if (tc != nullptr) {
++        auto *isa = dynamic_cast<ISA *>(tc->getIsaPtr());
++        if (isa != nullptr && isa->tinyState().active) {
++            const Addr ip = causeIp ? causeIp : tc->pcState().instAddr();
++            if (tinyCfxRaise(tc, isa->tinyState(), 1ULL << cause,
++                             targetCfxha, ip, causeInfo))
++                return;
++        }
++    }
++
 +    if (faultRaised)
 +        return;
 +    faultRaised = true;
@@ -112,6 +127,12 @@ index 0000000..ed70d0b
 +machineFault(uint8_t cause)
 +{
 +    return std::make_shared<MachineFault>(cause);
++}
++
++Fault
++machineFaultAt(uint8_t cause, Addr causeIp, uint64_t causeInfo)
++{
++    return std::make_shared<MachineFault>(cause, -1, causeIp, causeInfo);
 +}
 +
 +Fault

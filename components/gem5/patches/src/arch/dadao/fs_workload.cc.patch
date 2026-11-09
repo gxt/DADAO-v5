@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/fs_workload.cc b/src/arch/dadao/fs_workload.cc
 new file mode 100644
-index 0000000..ccb97c5
+index 0000000..3f930af
 --- /dev/null
 +++ b/src/arch/dadao/fs_workload.cc
-@@ -0,0 +1,336 @@
+@@ -0,0 +1,340 @@
 +// DADAO FS workload implementation.
 +#include "arch/dadao/fs_workload.hh"
 +
@@ -82,6 +82,7 @@ index 0000000..ccb97c5
 +    Workload(p), profileName(p.profile), isNode(p.profile == "node"),
 +    p_rom_base(p.rom_base), p_rom_size(p.rom_size),
 +    p_sram_base(p.sram_base), p_sram_size(p.sram_size),
++    p_hmon_base(p.hmon_base), p_hmon_size(p.hmon_size),
 +    p_ram_base(p.ram_base), p_ram_size(p.ram_size),
 +    p_pmem_base(p.pmem_base), p_kernel_base(p.kernel_base),
 +    p_kernel_reserved(p.kernel_reserved), p_reset_pc(p.reset_pc),
@@ -91,6 +92,8 @@ index 0000000..ccb97c5
 +             "DADAO FS: unknown profile %s (tiny|node)", profileName);
 +    fatal_if(p_rom_size == 0 || p_sram_size == 0,
 +             "DADAO FS: empty segment geometry");
++    fatal_if(!isNode && p_hmon_size == 0,
++             "DADAO FS: the Tiny profile requires a non-empty hmon SRAM");
 +    fatal_if(isNode && p_ram_size == 0,
 +             "DADAO FS: Node profile requires a PA RAM size");
 +
@@ -159,7 +162,8 @@ index 0000000..ccb97c5
 +        return inRange(p_ram_base, p_ram_size, addr, len) ||
 +               inRange(p_rom_base, p_rom_size, addr, len);
 +    return inRange(p_rom_base, p_rom_size, addr, len) ||
-+           inRange(p_sram_base, p_sram_size, addr, len);
++           inRange(p_sram_base, p_sram_size, addr, len) ||
++           inRange(p_hmon_base, p_hmon_size, addr, len);
 +}
 +
 +void
@@ -251,7 +255,7 @@ index 0000000..ccb97c5
 +        } else {
 +            fatal_if(!inSegment(ppaddr, pmemsz),
 +                     "DADAO FS: ELF %s segment %u [%#llx, %#llx) is outside "
-+                     "BootROM/SRAM", kernelPath, i,
++                     "BootROM/SRAM/hmon SRAM", kernelPath, i,
 +                     static_cast<unsigned long long>(ppaddr),
 +                     static_cast<unsigned long long>(ppaddr + pmemsz));
 +        }
@@ -270,7 +274,7 @@ index 0000000..ccb97c5
 +                 kernelPath, static_cast<unsigned long long>(eentry));
 +    } else {
 +        fatal_if(!inSegment(eentry, 4),
-+                 "DADAO FS: ELF %s e_entry %#llx is outside BootROM/SRAM",
++                 "DADAO FS: ELF %s e_entry %#llx is outside BootROM/SRAM/hmon",
 +                 kernelPath, static_cast<unsigned long long>(eentry));
 +    }
 +}

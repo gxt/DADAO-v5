@@ -1,9 +1,9 @@
 diff --git a/configs/dadao/fs.py b/configs/dadao/fs.py
 new file mode 100644
-index 0000000..9909d00
+index 0000000..ff869fb
 --- /dev/null
 +++ b/configs/dadao/fs.py
-@@ -0,0 +1,271 @@
+@@ -0,0 +1,279 @@
 +#!/usr/bin/env python3
 +# DADAO FS configuration (GEM5-015t Tiny, GEM5-016t Vast).
 +#
@@ -12,7 +12,8 @@ index 0000000..9909d00
 +# workload, the TLB and the memories, and `--dump-geometry` prints the values
 +# actually in force (they must equal tests/shared/machine-profiles.yaml).
 +#
-+#   tiny: 64 KiB BootROM + 8 MiB SRAM, identity segment checks, no cfx/PTW.
++#   tiny: 64 KiB BootROM + 8 MiB SRAM + 64 KiB hmon SRAM, identity segment
++#         checks, cfx63 power + cfx3 hmon, no PTW.
 +#   vast: 4 MiB BootROM + 2 GiB PA RAM + hmon/smon/pmem SRAM, PTW identity
 +#         map, cfx register file/monitor, cfx_pmem DMA, cfx_time/cfx_hart.
 +
@@ -40,7 +41,7 @@ index 0000000..9909d00
 +        "kernel_reserved": 0x100,
 +        "entry": 0xFFFF_FF01_0100,
 +        "sp": 0xFFFF_FF7E_FF00,
-+        "hmon": None,
++        "hmon": (0x0FFF_0000_0000, 0x1_0000),
 +        "smon": None,
 +        "pmem": None,
 +        "exit_block": 0xFFFF_FF7E_0000,
@@ -128,12 +129,14 @@ index 0000000..9909d00
 +            ("pmem_size", g["pmem"][1]),
 +            ("exit_block", g["exit_block"]),
 +        ]
-+    # GEM5-015t compatibility: the Tiny dump keys/order are unchanged.
++    # GEM5-015t tiny keys, plus the M13 hmon SRAM geometry.
 +    return [
 +        ("bootrom_base", g["bootrom_base"]),
 +        ("bootrom_size", g["bootrom_size"]),
 +        ("sram_base", g["ram_base"]),
 +        ("sram_size", g["ram_size"]),
++        ("hmon_base", g["hmon"][0]),
++        ("hmon_size", g["hmon"][1]),
 +        ("reset_pc", g["reset_pc"]),
 +        ("kernel_base", g["kernel_base"]),
 +        ("kernel_reserved", g["kernel_reserved"]),
@@ -169,6 +172,7 @@ index 0000000..9909d00
 +        add_memory("pmem", g["pmem"][0], g["pmem"][1])
 +    else:
 +        add_memory("sram", g["ram_base"], g["ram_size"])
++        add_memory("hmon", g["hmon"][0], g["hmon"][1])
 +    system.mem_ranges = ranges
 +
 +    semihosting = NULL
@@ -189,6 +193,8 @@ index 0000000..9909d00
 +        rom_size=g["bootrom_size"],
 +        sram_base=g["ram_base"],
 +        sram_size=g["ram_size"],
++        hmon_base=g["hmon"][0] if g["hmon"] else 0,
++        hmon_size=g["hmon"][1] if g["hmon"] else 0,
 +        ram_base=g["ram_base"] if args.profile == "vast" else 0,
 +        ram_size=g["ram_size"] if args.profile == "vast" else 0,
 +        pmem_base=g["pmem"][0] if g["pmem"] else 0,
@@ -220,6 +226,8 @@ index 0000000..9909d00
 +            tb.rom_size = g["bootrom_size"]
 +            tb.sram_base = g["ram_base"]
 +            tb.sram_size = g["ram_size"]
++            tb.hmon_base = g["hmon"][0]
++            tb.hmon_size = g["hmon"][1]
 +        system.cpu = DadaoFsAtomicSimpleCPU()
 +
 +    system.cpu.mmu = mmu

@@ -1,0 +1,88 @@
+# expected.yaml — independent oracle for tests/arch/hmon/tiny_hmon.S.
+#
+# Every expected value is derived from spec/Machine-v5 §1.1/§2/§3/§4.4/§5 and
+# spec/DADAO-12 §3/§5, never from a gem5 run:
+#   * cause ids are the DADAO one-hot bit indices (§5.2(二));
+#   * faulting IPs are ELF symbol values (program layout, resolved by the
+#     runner through llvm-nm);
+#   * cause_info follows the spec: CFXMEM/MALIGN = access address,
+#     ILLI/UNDI/CFXREG = instruction encoding, IALIGN = IP,
+#     CFXTRAP/CFXESC/CFXPERM = the instruction word (ciii/crrr layout);
+#   * cg7 start values are `(base - (cfxha << 42))` (§3.8).
+#
+# The runner evaluates `ip` / `info` / `expect` as Python integer expressions
+# in a namespace containing the profile constants below and the ELF symbols.
+profile:
+  bootrom_base: 0xFFFF_FFFF_0000
+  bootrom_size: 0x1_0000
+  sram_base: 0xFFFF_FF00_0000
+  sram_size: 0x80_0000
+  hmon_base: 0x0FFF_0000_0000
+  hmon_size: 0x1_0000
+  entry: 0xFFFF_FF01_0100
+  reset_pc: 0xFFFF_FFFF_0000
+
+records:
+  # 0: power -> hmon handover (CFXTRAP).  The handler starts at the vector.
+  - kind: cause
+    cause: CFXTRAP
+    cause_id: 0x1
+    ip: hmon_handover
+    info: (0x7F << 24) | (3 << 18)
+    handler_pc: hmon_base
+
+  # 1..16: cfx2rd/cfx2rc register checks.
+  - {kind: check, id: 1, expect: 3}                       # hmon cfx_id
+  - {kind: check, id: 2, expect: 63}                      # power cfx_id
+  - {kind: check, id: 3, expect: hmon_base}               # hmon excp_vector
+  - {kind: check, id: 4, expect: 3}                       # hmon switch_run_mode
+  - {kind: check, id: 5, expect: 3}                       # hmon excp_prev_run_mode
+  - {kind: check, id: 6, expect: 1}                       # hmon trap_num
+  - {kind: check, id: 7, expect: 0x1122334455667788}      # scratch round trip
+  - {kind: check, id: 8, expect: 0x0F0F}                  # cfx_intr_mask RW
+  - {kind: check, id: 9, expect: 0x3}                     # hmon cg7 desc: exists|SRAM
+  - {kind: check, id: 10, expect: hmon_base - (3 << 42)}  # hmon cg7 start
+  - {kind: check, id: 11, expect: 0x1_0000}               # hmon cg7 size
+  - {kind: check, id: 12, expect: 0x7}                    # hmon cg7 attr R|W|X
+  - {kind: check, id: 13, expect: 0x5}                    # power cg7 desc: exists|ROM
+  - {kind: check, id: 14, expect: bootrom_base - (63 << 42)}  # power cg7 start
+  - {kind: check, id: 15, expect: 0x1_0000}               # power cg7 size
+  - {kind: check, id: 16, expect: 0x5}                    # power cg7 attr R|X
+
+  # 17..19: CFXMEM (1 << 1).  info = the illegal access address.
+  - {kind: cause, cause: CFXMEM, cause_id: 0x2, ip: f_mem0, info: 0x10_0000_0000, handler_pc: hmon_base}
+  - {kind: cause, cause: CFXMEM, cause_id: 0x2, ip: f_mem1, info: 0xFFFF_FF80_0000, handler_pc: hmon_base}
+  - {kind: cause, cause: CFXMEM, cause_id: 0x2, ip: f_mem2, info: hmon_base + 0x1_0000, handler_pc: hmon_base}
+
+  # 20..22: ILLI (1 << 8).  Reserved cfxha trap / cfx2rd / escape.
+  - {kind: cause, cause: ILLI, cause_id: 0x100, ip: f_illi0, info: (0x7F << 24) | (7 << 18), handler_pc: hmon_base}
+  - {kind: cause, cause: ILLI, cause_id: 0x100, ip: f_illi1, info: (0x7A << 24) | (7 << 18) | 10, handler_pc: hmon_base}
+  - {kind: cause, cause: ILLI, cause_id: 0x100, ip: f_illi2, info: (0x7E << 24) | (7 << 18) | 1, handler_pc: hmon_base}
+
+  # 23..25: UNDI (1 << 9).  info = the reserved instruction word.
+  - {kind: cause, cause: UNDI, cause_id: 0x200, ip: f_undi0, info: 0x08040001, handler_pc: hmon_base}
+  - {kind: cause, cause: UNDI, cause_id: 0x200, ip: f_undi1, info: 0x1B040001, handler_pc: hmon_base}
+  - {kind: cause, cause: UNDI, cause_id: 0x200, ip: f_undi2, info: 0x58040001, handler_pc: hmon_base}
+
+  # 26..28: MALIGN (1 << 12).  info = the misaligned effective address.
+  - {kind: cause, cause: MALIGN, cause_id: 0x1000, ip: f_malign0, info: sram_base + 1, handler_pc: hmon_base}
+  - {kind: cause, cause: MALIGN, cause_id: 0x1000, ip: f_malign1, info: sram_base + 4, handler_pc: hmon_base}
+  - {kind: cause, cause: MALIGN, cause_id: 0x1000, ip: f_malign2, info: sram_base + 2, handler_pc: hmon_base}
+
+  # 29..31: IALIGN (1 << 13).  ip == info == the illegal IP (no next-IP
+  # write-back); the handler resumes at the recorded recovery address.
+  - {kind: cause, cause: IALIGN, cause_id: 0x2000, ip: IALIGN_TARGET0, info: IALIGN_TARGET0, handler_pc: hmon_base}
+  - {kind: cause, cause: IALIGN, cause_id: 0x2000, ip: IALIGN_TARGET1, info: IALIGN_TARGET1, handler_pc: hmon_base}
+  - {kind: cause, cause: IALIGN, cause_id: 0x2000, ip: IALIGN_TARGET2, info: IALIGN_TARGET2, handler_pc: hmon_base}
+
+  # 32: general trap (non-semihosting) into hmon (CFXTRAP).
+  - {kind: cause, cause: CFXTRAP, cause_id: 0x1, ip: f_trap, info: (0x7F << 24) | (3 << 18) | 0x123, handler_pc: hmon_base}
+
+  # 33: escape target error => CFXESC (1 << 3) into the current (hmon) cfx.
+  - {kind: cause, cause: CFXESC, cause_id: 0x8, ip: f_esc, info: (0x7E << 24) | (63 << 18) | 1, handler_pc: hmon_base}
+
+  # 34: cfxtrap mask denial => CFXPERM (1 << 7) into the current monitor.
+  - {kind: cause, cause: CFXPERM, cause_id: 0x80, ip: f_perm, info: (0x7F << 24) | (63 << 18), handler_pc: hmon_base}
+
+  # 35: unimplemented cfx5 register access => CFXREG (1 << 2).
+  - {kind: cause, cause: CFXREG, cause_id: 0x4, ip: f_reg, info: (0x7A << 24) | (5 << 18) | 10, handler_pc: hmon_base}

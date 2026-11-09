@@ -135,3 +135,9 @@
 - **2026-11-09 m12-integ-001**
   - 摘要：**移除 `--profile node` 过渡别名**。`configs/dadao/fs.py` 删除 `PROFILE_ALIASES` 与 `resolve_profile()`，`--profile` 的 `choices` 去掉 `node`；旧名现按 argparse invalid choice（rc=2）拒绝，不再映射到 `vast`。C++ 内部机器 id（`tiny|node`）与 `WORKLOAD_PROFILES` 的 `vast → node` 映射保留，仅用户可见别名移除。`README.md` 同步。
   - 执行者：engineer
+
+## M13
+
+- **2026-11-10 m13-gem5-001**
+  - 摘要：**Tiny 引入 `cfx_power`（cfx63）+ `cfx3 hmon`**。新增 `arch/dadao/tiny_cfx.{hh,cc}`（Tiny 专用 cfx 寄存器组：四类同步 mask/`cfx_intr_mask`/`switch_run_mode`/`excp_vector`/`excp_cause_*`/计数/scratch/cg7 描述，cfx3 与 cfx63 两个 cfx）；`MachineFault::invoke` 在 Tiny 下把同步异常（`CFXMEM`/`ILLI`/`UNDI`/`MALIGN`/`IALIGN`/`CFXREG`/`CFXPERM`/`CFXESC`）按 `DADAO-12 §5.2` 存入 hmon 帧并跳 `cfx_hmon_hypv_excp_vector`（向量不可映射/嵌套超限才回落 §7.1 退出码）；`trap` 按 `immu18` 区间与目标 cfx 路由（semihosting 只看 `immu18`，保留/未实现 cfxha ⇒ ILLI），`escape` 支持 `+0/+4`、帧/目标错误 ⇒ CFXESC，`cfx2rd`/`cfx2rc` 对保留 cfxha ⇒ ILLI、未实现 cfx/寄存器 ⇒ CFXREG；Tiny 地址图增加 hmon SRAM `0x0fff_0000_0000`（64 KiB，`fs_tlb`/`fs_workload`/`fs.py`/`DadaoFsTlb.py`/`DadaoFsWorkload.py`），并加 cfxmem/cfxexe 两轴来源 mask 检查。新增 `tests/arch/hmon/tiny_hmon.{S,lds}` + `expected.yaml`（五类同步异常各 3 例、IALIGN IP 停留、trap 两路、cfx2rd/cfx2rc、CFXTRAP/CFXESC/CFXPERM/CFXREG）与 `tools/gem5/check_tiny_hmon.py`（独立 oracle；PASS 148 checks）。补丁改 14 份 + 新增 2 份（`tiny_cfx.{cc,hh}`），`make_patch.py` 重导出。
+  - 执行者：engineer

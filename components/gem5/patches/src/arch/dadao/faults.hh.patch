@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/faults.hh b/src/arch/dadao/faults.hh
 new file mode 100644
-index 0000000..08cd07d
+index 0000000..2e35779
 --- /dev/null
 +++ b/src/arch/dadao/faults.hh
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,103 @@
 +// DADAO faults (B0 decode + B1 execution).
 +#
 +// ILLI covers illegal/reserved encodings and B1 static legality violations;
@@ -18,6 +18,7 @@ index 0000000..08cd07d
 +#include "arch/dadao/fs_machine.hh"
 +#include "arch/dadao/types.hh"
 +#include "base/logging.hh"
++#include "cpu/thread_context.hh"
 +#include "sim/faults.hh"
 +
 +namespace gem5
@@ -41,7 +42,8 @@ index 0000000..08cd07d
 +        // FS machine: map to the frozen guest exit code.  SE keeps panicking
 +        // (GEM5-014t behaviour, deliberately unchanged).
 +        if (isFsMachine(tc)) {
-+            machineFault(FaultILLI)->invoke(tc, inst);
++            machineFaultAt(FaultILLI, tc->pcState().instAddr(),
++                           machInst)->invoke(tc, inst);
 +            return;
 +        }
 +        panic("DADAO ILLI: illegal/reserved encoding 0x%08x", machInst);
@@ -71,7 +73,8 @@ index 0000000..08cd07d
 +    invoke(ThreadContext *tc, const StaticInstPtr &inst) override
 +    {
 +        if (isFsMachine(tc)) {
-+            machineFault(FaultMALIGN)->invoke(tc, inst);
++            machineFaultAt(FaultMALIGN, tc->pcState().instAddr(), address)
++                ->invoke(tc, inst);
 +            return;
 +        }
 +        panic("DADAO MALIGN: %u-byte access at 0x%llx (0x%08x)", width,

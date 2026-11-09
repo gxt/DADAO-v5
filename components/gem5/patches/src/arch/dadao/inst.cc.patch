@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..e8548e7
+index 0000000..efb28c5
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,679 @@
+@@ -0,0 +1,739 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -273,6 +273,15 @@ index 0000000..e8548e7
 +        if (DadaoISA::ISA *isa = dadaoIsa(); isa != nullptr && nodeActive(isa))
 +            return DadaoISA::nodeCfxRead(tc, isa->nodeState(), cfxha, cg, rc,
 +                                         out, currentWord);
++        if (DadaoISA::ISA *isa = dadaoIsa();
++            isa != nullptr && isa->tinyState().active) {
++            // Tiny cfx2rd is pre-handled in DadaoInst::execute(); this hook
++            // returns true so the generic B6 path never raises a second fault.
++            out = 0;
++            (void)DadaoISA::tinyCfxRead(tc, isa->tinyState(), cfxha, cg, rc,
++                                        out, currentWord);
++            return true;
++        }
 +        return false;
 +    }
 +
@@ -282,6 +291,12 @@ index 0000000..e8548e7
 +        if (DadaoISA::ISA *isa = dadaoIsa(); isa != nullptr && nodeActive(isa))
 +            return DadaoISA::nodeCfxWrite(tc, isa->nodeState(), cfxha, cg, rc,
 +                                          val, currentWord);
++        if (DadaoISA::ISA *isa = dadaoIsa();
++            isa != nullptr && isa->tinyState().active) {
++            (void)DadaoISA::tinyCfxWrite(tc, isa->tinyState(), cfxha, cg, rc,
++                                         val, currentWord);
++            return true;
++        }
 +        return false;
 +    }
 +
@@ -292,10 +307,15 @@ index 0000000..e8548e7
 +            DadaoISA::nodeTrap(tc, isa->nodeState(), cfxha, immu18);
 +            return;
 +        }
++        if (DadaoISA::ISA *isa = dadaoIsa();
++            isa != nullptr && isa->tinyState().active) {
++            // Tiny: general trap (semihosting was short-circuited earlier)
++            // enters the target cfx vector; reserved/unimplemented => ILLI
++            // into hmon (spec/Machine-v5 §3/§4.1/§4.4).
++            DadaoISA::tinyTrap(tc, isa->tinyState(), cfxha, immu18);
++            return;
++        }
 +        if (DadaoISA::isFsMachine(tc)) {
-+            // Tiny has no cfx vectors.  The semihosting tag is served before
-+            // the reserved-cfxha check in DadaoInst::execute(); a trap that
-+            // reaches here is a general trap and is ILLI (spec/Machine-v5 §3).
 +            DadaoISA::machineFault(DadaoISA::FaultILLI)->invoke(tc, nullptr);
 +            return;
 +        }
@@ -324,8 +344,12 @@ index 0000000..e8548e7
 +    bool
 +    escapeFrom(uint8_t cfxha, uint32_t byteOffset) override
 +    {
-+        if (DadaoISA::ISA *isa = dadaoIsa(); nodeActive(isa))
++        if (DadaoISA::ISA *isa = dadaoIsa(); isa != nullptr && nodeActive(isa))
 +            return DadaoISA::nodeEscape(tc, isa->nodeState(), cfxha,
++                                        byteOffset);
++        if (DadaoISA::ISA *isa = dadaoIsa();
++            isa != nullptr && isa->tinyState().active)
++            return DadaoISA::tinyEscape(tc, isa->tinyState(), cfxha,
 +                                        byteOffset);
 +        // No SEE frame to return to: explicit CFXESC, never a silent success.
 +        (void)cfxha;
@@ -418,20 +442,22 @@ index 0000000..e8548e7
 +    const char *id = decoded.entry->id;
 +    ThreadContext *tc = ctx.threadContext();
 +    const bool fs = DadaoISA::isFsMachine(tc);
++    const Addr ip = tc->pcState().instAddr();
 +
 +    switch (fault) {
 +      case exec::Fault::None:
 +        return NoFault;
 +      case exec::Fault::Illegal:
 +        if (fs)
-+            return DadaoISA::machineFault(DadaoISA::FaultILLI);
++            return DadaoISA::machineFaultAt(DadaoISA::FaultILLI, ip, word);
 +        return std::make_shared<DadaoISA::IllegalInstruction>(word);
 +      case exec::Fault::Malign:
 +        switch (batch) {
 +          case 1:
 +          case 6:
 +            if (fs)
-+                return DadaoISA::machineFault(DadaoISA::FaultMALIGN);
++                return DadaoISA::machineFaultAt(
++                    DadaoISA::FaultMALIGN, ip, ctx.malignAddress());
 +            return std::make_shared<DadaoISA::MalignInstruction>(
 +                    word, ctx.malignAddress(), ctx.malignAccessWidth());
 +          case 5:
@@ -463,9 +489,9 @@ index 0000000..e8548e7
 +      case exec::Fault::RasUnderflow:
 +        if (batch == 5) {
 +            if (fs)
-+                return DadaoISA::machineFault(
++                return DadaoISA::machineFaultAt(
 +                        fault == exec::Fault::RasOverflow ?
-+                        DadaoISA::FaultRASOF : DadaoISA::FaultRASUF);
++                        DadaoISA::FaultRASOF : DadaoISA::FaultRASUF, ip, 0);
 +            panic("DADAO B5: %s raised %s (architectural trap model not "
 +                  "implemented)", id,
 +                  fault == exec::Fault::RasOverflow ? "RASOF" : "RASUF");
@@ -478,7 +504,7 @@ index 0000000..e8548e7
 +                  "access", batch, id, batch);
 +        }
 +        if (fs)
-+            return DadaoISA::machineFault(DadaoISA::FaultCFXREG);
++            return DadaoISA::machineFaultAt(DadaoISA::FaultCFXREG, ip, word);
 +        uint64_t cfxha = 0, cg = 0, rc = 0;
 +        exec::fieldValue(decoded, "cfxha", cfxha);
 +        exec::fieldValue(decoded, "cghb", cg);
@@ -493,9 +519,10 @@ index 0000000..e8548e7
 +            panic("DADAO B%u: %s raised a cfx fault but B%u has no cfx "
 +                  "access", batch, id, batch);
 +        }
-+        // Tiny has no SEE frame: `escape` is ILLI (spec/Machine-v5 §3).
++        // Tiny's escape hook raises CFXESC into the current cfx itself; this
++        // branch is only a fallback and still enters the current monitor.
 +        if (fs)
-+            return DadaoISA::machineFault(DadaoISA::FaultILLI);
++            return DadaoISA::machineFaultAt(DadaoISA::FaultCfxEsc, ip, word);
 +        uint64_t cfxha = 0, imms18 = 0;
 +        exec::fieldValue(decoded, "cfxha", cfxha);
 +        exec::fieldValue(decoded, "imms18", imms18);
@@ -576,7 +603,8 @@ index 0000000..e8548e7
 +    if (!decoded.ok()) {
 +        // No opcode-table id: UNDI on the FS machine, ILLI (panic) in SE.
 +        if (fs)
-+            return DadaoISA::machineFault(DadaoISA::FaultUNDI);
++            return DadaoISA::machineFaultAt(
++                DadaoISA::FaultUNDI, tc->pcState().instAddr(), word);
 +        return std::make_shared<DadaoISA::IllegalInstruction>(word);
 +    }
 +
@@ -603,9 +631,41 @@ index 0000000..e8548e7
 +        }
 +    }
 +
-+    // Tiny implements no cfx register file at all: every cfx2rd/cfx2rc is
-+    // CFXREG, whatever the cfxha (spec/Machine-v5 §3).
-+    if (fs && !(isa != nullptr && isa->nodeState().active)) {
++    // Tiny: cfx2rd/cfx2rc are serviced here so a faulting access never writes
++    // the destination register (precise exception).  Reserved/unimplemented
++    // cfxha and missing cg/rc are raised by tinyCfxRead/Write themselves.
++    if (fs && isa != nullptr && isa->tinyState().active) {
++        const std::string_view id(decoded.entry->id);
++        if (id == "cfx2rd_crrr_cfx" || id == "cfx2rc_crrr_cfx") {
++            uint64_t cfxha = 0, cg = 0, rc = 0, rd = 0;
++            exec::fieldValue(decoded, "cfxha", cfxha);
++            exec::fieldValue(decoded, "cghb", cg);
++            exec::fieldValue(decoded, "rchc", rc);
++            exec::fieldValue(decoded, "rdhd", rd);
++            const RegIndex idx = DadaoISA::int_reg::RdBase + unsigned(rd);
++            if (id == "cfx2rd_crrr_cfx") {
++                uint64_t value = 0;
++                if (DadaoISA::tinyCfxRead(tc, isa->tinyState(),
++                                          uint8_t(cfxha), uint8_t(cg),
++                                          uint8_t(rc), value, word)) {
++                    if (rd != 0)
++                        tc->setReg(RegId(DadaoISA::intRegClass, idx), value);
++                }
++            } else {
++                const uint64_t value = (rd == 0)
++                    ? 0 : tc->getReg(RegId(DadaoISA::intRegClass, idx));
++                (void)DadaoISA::tinyCfxWrite(tc, isa->tinyState(),
++                                             uint8_t(cfxha), uint8_t(cg),
++                                             uint8_t(rc), value, word);
++            }
++            return NoFault;
++        }
++    }
++
++    // Neither Tiny nor Node state exists: no cfx register file at all, so
++    // every cfx2rd/cfx2rc is CFXREG.
++    if (fs && !(isa != nullptr && isa->nodeState().active) &&
++        !(isa != nullptr && isa->tinyState().active)) {
 +        const std::string_view id(decoded.entry->id);
 +        if (id == "cfx2rd_crrr_cfx" || id == "cfx2rc_crrr_cfx")
 +            return DadaoISA::machineFault(DadaoISA::FaultCFXREG);

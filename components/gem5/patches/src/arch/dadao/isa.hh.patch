@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
 new file mode 100644
-index 0000000..486fc7f
+index 0000000..5414bbd
 --- /dev/null
 +++ b/src/arch/dadao/isa.hh
-@@ -0,0 +1,114 @@
+@@ -0,0 +1,121 @@
 +// DADAO ISA object (B0 skeleton + B6 LR/SC reservation state).
 +#ifndef __ARCH_DADAO_ISA_HH__
 +#define __ARCH_DADAO_ISA_HH__
@@ -13,6 +13,7 @@ index 0000000..486fc7f
 +#include <string>
 +
 +#include "arch/dadao/node_cfx.hh"
++#include "arch/dadao/tiny_cfx.hh"
 +#include "arch/dadao/pcstate.hh"
 +#include "arch/dadao/regs/misc.hh"
 +#include "arch/generic/isa.hh"
@@ -57,6 +58,11 @@ index 0000000..486fc7f
 +     *  Only meaningful when nodeActive(); the SE and Tiny paths never read it. */
 +    NodeState &nodeState() { return node; }
 +    const NodeState &nodeState() const { return node; }
++
++    /** Tiny architectural state (cfx_power + cfx3 hmon).  Only meaningful
++     *  when tinyActive(); the SE and Vast paths never read it. */
++    TinyState &tinyState() { return tiny; }
++    const TinyState &tinyState() const { return tiny; }
 +
 +    /** QEMU `-d cpu`-compatible trace channel (`--trace-cpu`).  A dump is
 +     *  emitted at QEMU translation-block boundaries: the first instruction,
@@ -104,6 +110,7 @@ index 0000000..486fc7f
 +    bool pendingSignal = false;
 +
 +    NodeState node;
++    TinyState tiny;
 +    std::FILE *traceFile = nullptr;
 +    Addr tracePrevPc = 0;
 +    bool tracePrevControl = false;

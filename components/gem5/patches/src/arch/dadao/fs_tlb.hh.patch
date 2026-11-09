@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/fs_tlb.hh b/src/arch/dadao/fs_tlb.hh
 new file mode 100644
-index 0000000..76c1e9c
+index 0000000..37f91e9
 --- /dev/null
 +++ b/src/arch/dadao/fs_tlb.hh
-@@ -0,0 +1,77 @@
+@@ -0,0 +1,81 @@
 +// DADAO FS TLB (Machine-v5-Tiny): identity translation with segment checks.
 +//
 +// Tiny has no PTW, no page table and no TLB fill: VA == PA, and only two
@@ -32,7 +32,8 @@ index 0000000..76c1e9c
 +
 +    explicit FsTLB(const Params &p) :
 +        BaseTLB(p), romBase(p.rom_base), romSize(p.rom_size),
-+        sramBase(p.sram_base), sramSize(p.sram_size)
++        sramBase(p.sram_base), sramSize(p.sram_size),
++        hmonBase(p.hmon_base), hmonSize(p.hmon_size)
 +    {}
 +
 +    void demapPage(Addr vaddr, uint64_t asn) override;
@@ -58,6 +59,8 @@ index 0000000..76c1e9c
 +    const Addr romSize;
 +    const Addr sramBase;
 +    const Addr sramSize;
++    const Addr hmonBase;
++    const Addr hmonSize;
 +
 +    bool inSegment(Addr base, Addr size, Addr addr, Addr len) const
 +    {
@@ -74,7 +77,8 @@ index 0000000..76c1e9c
 +    }
 +
 +    /** Identity translation plus the Tiny segment rules. */
-+    Fault translate(const RequestPtr &req, BaseMMU::Mode mode) const;
++    Fault translate(const RequestPtr &req, ThreadContext *tc,
++                    BaseMMU::Mode mode) const;
 +};
 +
 +} // namespace DadaoISA

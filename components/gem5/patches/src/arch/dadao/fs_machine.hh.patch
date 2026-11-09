@@ -1,14 +1,16 @@
 diff --git a/src/arch/dadao/fs_machine.hh b/src/arch/dadao/fs_machine.hh
 new file mode 100644
-index 0000000..8d7cf78
+index 0000000..8d8461e
 --- /dev/null
 +++ b/src/arch/dadao/fs_machine.hh
-@@ -0,0 +1,121 @@
+@@ -0,0 +1,132 @@
 +// DADAO FS machine fault model.
 +//
-+// A machine fault has no exception vector: it terminates the simulation with
-+// the spec/Machine-v5 §7.1 exit code.  The exit-code segment is chosen by the
-+// fault destination:
++// Tiny carries cfx3 hmon: a synchronous exception enters the hmon vector with
++// the architectural frame (spec/Machine-v5 §4.4).  The exit code below is the
++// fallback used when the handler cannot run (unmapped vector, nesting guard)
++// and the code reported by the §7.1 segments.  The exit-code segment is chosen
++// by the fault destination:
 +//
 +//   0x80-0xBF  other cfx: bit7=1, bit6=0, bit5:0 = cfxHA
 +//   0xC0-0xFF  monitor:  bit7=1, bit6=1, bit5:4 = run mode,
@@ -94,16 +96,22 @@ index 0000000..8d7cf78
 +bool isFsMachine(ThreadContext *tc);
 +
 +/** Machine fault that stops the simulation with the §7.1 exit code (first
-+ *  fault wins).  `targetCfxha < 0` selects the current run-mode monitor. */
++ *  fault wins).  `targetCfxha < 0` selects the current run-mode monitor.
++ *  `causeIp`/`causeInfo` are the architectural frame fields handed to the
++ *  Tiny hmon vector; 0 for causeIp means "the current instruction address". */
 +class MachineFault : public FaultBase
 +{
 +  private:
 +    uint8_t cause;
 +    int targetCfxha;
++    Addr causeIp;
++    uint64_t causeInfo;
 +
 +  public:
-+    explicit MachineFault(uint8_t cause, int targetCfxha = -1) :
-+        cause(cause), targetCfxha(targetCfxha)
++    explicit MachineFault(uint8_t cause, int targetCfxha = -1,
++                          Addr causeIp = 0, uint64_t causeInfo = 0) :
++        cause(cause), targetCfxha(targetCfxha), causeIp(causeIp),
++        causeInfo(causeInfo)
 +    {}
 +
 +    FaultName name() const override { return machineFaultName(cause); }
@@ -114,6 +122,9 @@ index 0000000..8d7cf78
 +};
 +
 +Fault machineFault(uint8_t cause);
++
++/** Machine fault carrying the architectural cause_ip/cause_info. */
++Fault machineFaultAt(uint8_t cause, Addr causeIp, uint64_t causeInfo);
 +
 +/** Machine fault whose exit code belongs to the other-cfx segment
 + *  (`0x80 | cfxHA`).  Current QEMU/gem5 machines route CFXTRAP/CFXESC into

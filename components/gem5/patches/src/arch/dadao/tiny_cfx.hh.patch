@@ -1,0 +1,158 @@
+diff --git a/src/arch/dadao/tiny_cfx.hh b/src/arch/dadao/tiny_cfx.hh
+new file mode 100644
+index 0000000..cc9eb78
+--- /dev/null
++++ b/src/arch/dadao/tiny_cfx.hh
+@@ -0,0 +1,152 @@
++// DADAO Tiny machine model: cfx_power (cfx63) + cfx3 hmon.
++//
++// Source of truth: spec/Machine-v5 §1.1/§2/§3/§4.1/§4.4/§5/§6/§7.1 and
++// spec/DADAO-12 §3/§5, spec/DADAO-13 §1.  Tiny has no PTW and no smon: the
++// only implemented cfx are cfx63 (power, boot handover) and cfx3 (hmon, the
++// hypv monitor).  Execution is always nominally hypv, so every synchronous
++// exception enters the hmon vector directly.
++//
++// The state is per thread and lives in the ISA object.  The Vast (Node) model
++// is a separate state (node_cfx.hh) and is not touched by this file.
++#ifndef __ARCH_DADAO_TINY_CFX_HH__
++#define __ARCH_DADAO_TINY_CFX_HH__
++
++#include <cstdint>
++
++#include "base/types.hh"
++
++namespace gem5
++{
++
++class ThreadContext;
++
++namespace DadaoISA
++{
++
++/** cfxha values the Tiny machine implements. */
++enum TinyCfxha : uint8_t
++{
++    TinyCfxhaHmon = 3,
++    TinyCfxhaPower = 63,
++};
++
++/** Tiny exception causes (spec/DADAO-12 §5.2(二); one-hot). */
++enum TinyCause : uint64_t
++{
++    TinyCauseCfxTrap = 1ULL << 0,
++    TinyCauseCfxMem  = 1ULL << 1,
++    TinyCauseCfxReg  = 1ULL << 2,
++    TinyCauseCfxEsc  = 1ULL << 3,
++    TinyCauseCfxPerm = 1ULL << 7,
++    TinyCauseIlli    = 1ULL << 8,
++    TinyCauseUndi    = 1ULL << 9,
++    TinyCauseRasOf   = 1ULL << 10,
++    TinyCauseRasUf   = 1ULL << 11,
++    TinyCauseMalign  = 1ULL << 12,
++    TinyCauseIalign  = 1ULL << 13,
++};
++
++/** One cfx mode row (cg0-cg3; spec/DADAO-12 §3, DADAO-13 §1). */
++struct TinyCfxMode
++{
++    uint64_t cfxtrap = 0;
++    uint64_t cfxmem = 0;
++    uint64_t cfxreg = 0;
++    uint64_t cfxexe = 0;
++    uint64_t cfxIntrMask = 0;
++    uint64_t switchRunMode = 0;
++    uint64_t excpVector = 0;
++    uint64_t cgRegDeleg = 0;
++};
++
++/** One implemented Tiny cfx (power or hmon). */
++struct TinyCfxRegs
++{
++    TinyCfxMode mode[4];
++    uint64_t scratch[4] = {0, 0, 0, 0};
++    uint64_t cfxId = 0;
++    uint64_t version = 0;
++    uint64_t trapNum = 0;
++    uint64_t excpSyncNum = 0;
++    uint64_t excpAsyncNum = 0;
++    uint64_t escapeNum = 0;
++    uint64_t scratchRegsNum = 0;
++    uint64_t prevRunMode = 0;
++    uint64_t causeId = 0;
++    uint64_t causeIp = 0;
++    uint64_t causeInfo = 0;
++    uint64_t pending = 0;
++    uint64_t globalCfxIntrMask = 0;
++    uint64_t savedGlobalIntrMask = 0;
++    uint64_t savedIntrMonitor = 0;
++    bool savedIntrValid = false;
++};
++
++/** Per-thread Tiny architectural state. */
++struct TinyState
++{
++    bool active = false;
++    ThreadContext *tc = nullptr;
++
++    Addr romBase = 0;
++    Addr romSize = 0;
++    Addr sramBase = 0;
++    Addr sramSize = 0;
++    Addr hmonBase = 0;
++    Addr hmonSize = 0;
++
++    uint8_t runMode = 3;                // hypv (spec/Machine-v5 §2)
++    uint8_t cfxCode = TinyCfxhaPower;   // reset: cfx63 / power
++
++    /** 0 = power (63), 1 = hmon (3). */
++    TinyCfxRegs cfx[2];
++
++    /** Nesting depth of the single hmon frame (implementation guard). */
++    unsigned depth = 0;
++};
++
++/** cfxha -> index into TinyState::cfx, or -1 when not implemented. */
++int tinyCfxIndex(int cfxha);
++
++/** Reserved cfxha codes (DADAO-12 §5.1): 6-14, 16-31, 35-61. */
++bool tinyCfxReserved(uint64_t cfxha);
++
++/** Apply the Tiny reset values (spec/Machine-v5 §1.1/§2; DADAO-13 §1). */
++void tinyResetState(TinyState &s, ThreadContext *tc, Addr romBase,
++                    Addr romSize, Addr sramBase, Addr sramSize,
++                    Addr hmonBase, Addr hmonSize);
++
++/** Two-axis permission check (ADR-0045 D1/D2): kind 0..3 = trap/mem/reg/exe.
++ *  Self bypasses the cfx axis only. */
++bool tinyPermDenied(const TinyState &s, int target, int kind);
++
++/** Raise one synchronous exception into `target` (-1 = current monitor).
++ *  Returns true when a vector was entered (the PC was redirected); false when
++ *  the implementation must stop the machine (unmapped vector/nesting guard). */
++bool tinyCfxRaise(ThreadContext *tc, TinyState &s, uint64_t cause, int target,
++                  uint64_t causeIp, uint64_t causeInfo);
++
++/** trap / escape / cfx2rd / cfx2rc (spec/DADAO-12 §5).
++ *  The cfx accessors return false only when the access faulted (the PC is
++ *  already redirected); true means `out` / the write is architecturally
++ *  visible. */
++void tinyTrap(ThreadContext *tc, TinyState &s, uint8_t cfxha, uint32_t immu18);
++bool tinyEscape(ThreadContext *tc, TinyState &s, uint8_t cfxha,
++                uint32_t byteOffset);
++bool tinyCfxRead(ThreadContext *tc, TinyState &s, uint8_t cfxha, uint8_t cg,
++                 uint8_t rc, uint64_t &out, uint64_t instWord);
++bool tinyCfxWrite(ThreadContext *tc, TinyState &s, uint8_t cfxha, uint8_t cg,
++                  uint8_t rc, uint64_t val, uint64_t instWord);
++
++/** True when `addr` (with `len` bytes) targets an implemented Tiny segment. */
++bool tinyAddressMapped(const TinyState &s, Addr addr, Addr len);
++
++/** Direct ld/st/fetch cfx-axis check; addr must be inside an implemented
++ *  segment.  `kind` is 1 (cfxmem) or 3 (cfxexe).  Returns true when the
++ *  source cfx is denied (=> CFXPERM). */
++bool tinyAccessDenied(const TinyState &s, Addr addr, int kind);
++
++} // namespace DadaoISA
++} // namespace gem5
++
++#endif // __ARCH_DADAO_TINY_CFX_HH__

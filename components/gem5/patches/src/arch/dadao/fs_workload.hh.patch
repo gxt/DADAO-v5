@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/fs_workload.hh b/src/arch/dadao/fs_workload.hh
 new file mode 100644
-index 0000000..810a90e
+index 0000000..0674ba0
 --- /dev/null
 +++ b/src/arch/dadao/fs_workload.hh
-@@ -0,0 +1,108 @@
+@@ -0,0 +1,112 @@
 +// DADAO FS workload: boot image loading and reset for the two FS machines.
 +//
 +// profile="tiny" (Machine-v5-Tiny): 64 KiB BootROM + 8 MiB SRAM, raw images
@@ -68,6 +68,8 @@ index 0000000..810a90e
 +    Addr romSize() const { return p_rom_size; }
 +    Addr sramBase() const { return p_sram_base; }
 +    Addr sramSize() const { return p_sram_size; }
++    Addr hmonBase() const { return p_hmon_base; }
++    Addr hmonSize() const { return p_hmon_size; }
 +    Addr ramBase() const { return p_ram_base; }
 +    Addr ramSize() const { return p_ram_size; }
 +    Addr pmemBase() const { return p_pmem_base; }
@@ -83,6 +85,8 @@ index 0000000..810a90e
 +    const Addr p_rom_size;
 +    const Addr p_sram_base;
 +    const Addr p_sram_size;
++    const Addr p_hmon_base;
++    const Addr p_hmon_size;
 +    const Addr p_ram_base;
 +    const Addr p_ram_size;
 +    const Addr p_pmem_base;

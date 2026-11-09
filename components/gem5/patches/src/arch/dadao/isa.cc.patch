@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..6aba712
+index 0000000..90f938b
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,309 @@
+@@ -0,0 +1,313 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
@@ -290,8 +290,12 @@ index 0000000..6aba712
 +    if (fs->nodeProfile()) {
 +        nodeResetState(node, tc, fs->romBase(), fs->romSize(), fs->ramBase(),
 +                       fs->ramSize(), fs->pmemBase());
++        tiny = TinyState();
 +    } else {
 +        node.active = false;
++        tinyResetState(tiny, tc, fs->romBase(), fs->romSize(),
++                       fs->sramBase(), fs->sramSize(), fs->hmonBase(),
++                       fs->hmonSize());
 +    }
 +
 +    if (traceFile == nullptr && !fs->traceCpuPath().empty()) {
