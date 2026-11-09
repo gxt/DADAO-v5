@@ -196,6 +196,8 @@
 - 差分矩阵的判据、参与引擎、失败归因口径（启动 M13 时专门讨论）。
 - **3600s 长尾结论（2026-11-10，`m13-testcases-001` 全量）**：72/72 例 gem5 SE 仍超时，qemu 72/72 全 pass；最小例（qemu 0.0 s）也吃满 3600 s ⇒ 疑挂死而非慢（`ISS-361`）。
   待用户定：`m13-testcases-003` 是「加预算到 7200s」还是「改为定位挂死根因」；影响 M13 比值分布（当前 `n=0`）。
+- **3600s 长尾结论（2026-11-10，`m13-testcases-002` 全量 dynamic）**：93 例中 gem5 **78 blocked / 14 pass / 1 fail**，比值 `n=12`（min 172、median 289、max 1942）；
+  qemu 93/93 pass。⇒ dynamic 有一小部分可测、static 全不可测。`neural` 为 gem5 侧 oracle mismatch（`ISS-362`）。
 
 ---
 

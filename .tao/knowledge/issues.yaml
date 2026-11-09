@@ -89,3 +89,13 @@
     实测（2026-11-10，`functional/clocale_mbfuncs`，SIGINT 90 s 后 dump stats）：
     `simInsts=40,847,163`、`numCycles=40,847,163`、退出原因 `user interrupt received`、
     无 guest exit ⇒ 该例在 90 s 内跑了 4085 万条指令仍未结束，符合「死循环」而非「慢」。
+- id: ISS-362
+  scope: [gem5, testcases]
+  status: open
+  resolved_by: null
+  title: >-
+    【P1】gem5 SE（dynamic）`MultiSource/Benchmarks/FreeBench/neural` **oracle mismatch**：
+    输出长度相同（358 B vs 358 B）但内容不同，qemu 侧同例通过（输出 == reference）。
+    首行 `Matrix size is 20x28` 一致 ⇒ 差异在后段，疑浮点舍入/格式化（与 M13 FP 差分同源）。
+    证据：`m13-testcases-002` 全量（93 例）结果，`refs/m13-002-dynamic-3600s-full.json`。
+    建议：M13 FP 差分任务（`m13-integ-002`）把它作为首个定位样本；先 `cmp` 逐字节定位差异列。

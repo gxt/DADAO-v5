@@ -1,0 +1,2665 @@
+{
+  "task": "m13-testcases-001",
+  "generated_utc": "2026-11-09T19:41:41Z",
+  "link_mode": "dynamic",
+  "scope": "dynamic long-tail: the cases that timed out at the TESTCASES-104t dynamic baseline (timeout_inventory.<suite>.cases), re-run with the per-case budget below on gem5 SE and qemu-user; times measured by the tset drivers' own run_seconds",
+  "selection": {
+    "source": "TESTCASES-104t-dynamic-summary.json",
+    "field": "timeout_inventory.<suite>.cases[].case",
+    "total": 93,
+    "by_suite": {
+      "libc-test": 4,
+      "llvm-ts": 89
+    },
+    "subset": false
+  },
+  "engines": {
+    "qemu": "qemu-user (same guest ELF)",
+    "gem5_se": "gem5 syscall emulation (configs/dadao/se.py --binary <elf>)"
+  },
+  "jobs": 48,
+  "repeats": 1,
+  "fingerprint": {
+    "host": "server208",
+    "cpu_model": "Intel(R) Xeon(R) CPU E7- 4820  @ 2.00GHz",
+    "nproc": 64,
+    "jobs": 48,
+    "engines": [
+      "qemu",
+      "gem5-se"
+    ],
+    "link_mode": "dynamic",
+    "selection_field": "timeout-inventory",
+    "gem5_timeout_seconds": 3600,
+    "qemu_timeout_seconds": 3600,
+    "gem5_binary": "gem5.opt",
+    "gem5_md5": "4719101d5cf4aea7b05ac388f490d98c",
+    "gem5_version": "25.1.0.1",
+    "gem5_compiled": "Nov 10 2026 00:19:12",
+    "qemu_binary": "qemu-dadao",
+    "qemu_md5": "8a2f3e6cd44b448f872b14f95d9c3509",
+    "qemu_version": "qemu-dadao version 11.1.1 (v11.1.1-1-g7b71f51)",
+    "musl_head": "f69857074830469865a35ae7f9d2006185789ff0",
+    "musl_dirty": false,
+    "driver_md5": {
+      "libc-test": "37f750a8c0b643a271a36266499c67b3",
+      "llvm-ts": "ad7410b912887d375bb38ec494da2b83",
+      "embench": "d5b3f5161cde0b7c07808ab41137e95c",
+      "gem5_se_engine.py": "cc68cf7e16619e5d85301611fbbee3a0"
+    },
+    "loadavg": [
+      15.11,
+      27.77,
+      33.41
+    ]
+  },
+  "rows": [
+    {
+      "case": "functional/clocale_mbfuncs",
+      "suite": "libc-test",
+      "category": "functional",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 0.0,
+      "ratio": null,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          0.0
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      },
+      "ratio_undefined": "a measured time rounds to 0.00 s; ratio undefined"
+    },
+    {
+      "case": "functional/crypt",
+      "suite": "libc-test",
+      "category": "functional",
+      "gem5_seconds": 2356.85,
+      "qemu_seconds": 0.0,
+      "ratio": null,
+      "gem5_klass": "pass",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          0.0
+        ],
+        "gem5-se": [
+          2356.85
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      },
+      "ratio_undefined": "a measured time rounds to 0.00 s; ratio undefined"
+    },
+    {
+      "case": "functional/sscanf_long",
+      "suite": "libc-test",
+      "category": "functional",
+      "gem5_seconds": 1391.81,
+      "qemu_seconds": 0.0,
+      "ratio": null,
+      "gem5_klass": "pass",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          0.0
+        ],
+        "gem5-se": [
+          1391.81
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      },
+      "ratio_undefined": "a measured time rounds to 0.00 s; ratio undefined"
+    },
+    {
+      "case": "functional/string_memset",
+      "suite": "libc-test",
+      "category": "functional",
+      "gem5_seconds": 928.44,
+      "qemu_seconds": 0.0,
+      "ratio": null,
+      "gem5_klass": "pass",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          0.0
+        ],
+        "gem5-se": [
+          928.44
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      },
+      "ratio_undefined": "a measured time rounds to 0.00 s; ratio undefined"
+    },
+    {
+      "case": "MultiSource/Applications/JM/lencod",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Applications",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 22.36,
+      "ratio": 161.003,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          22.36
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Applications/SIBsim4",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Applications",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 54.94,
+      "ratio": 65.526,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          54.94
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Applications/SPASS",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Applications",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 14.39,
+      "ratio": 250.174,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          14.39
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Applications/aha",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Applications",
+      "gem5_seconds": 3600.03,
+      "qemu_seconds": 118.55,
+      "ratio": 30.367,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          118.55
+        ],
+        "gem5-se": [
+          3600.03
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Applications/lua",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Applications",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 952.68,
+      "ratio": 3.779,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          952.68
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Applications/oggenc",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Applications",
+      "gem5_seconds": 2467.26,
+      "qemu_seconds": 12.49,
+      "ratio": 197.539,
+      "gem5_klass": "pass",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          12.49
+        ],
+        "gem5-se": [
+          2467.26
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Applications/viterbi",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Applications",
+      "gem5_seconds": 3600.03,
+      "qemu_seconds": 12.78,
+      "ratio": 281.692,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          12.78
+        ],
+        "gem5-se": [
+          3600.03
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/ASCI_Purple/SMG2000",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/ASCI_Purple",
+      "gem5_seconds": 1961.98,
+      "qemu_seconds": 5.41,
+      "ratio": 362.658,
+      "gem5_klass": "pass",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          5.41
+        ],
+        "gem5-se": [
+          1961.98
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/ASC_Sequoia/AMGmk",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/ASC_Sequoia",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 36.58,
+      "ratio": 98.415,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          36.58
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/ASC_Sequoia/CrystalMk",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/ASC_Sequoia",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 38.88,
+      "ratio": 92.593,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          38.88
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/ASC_Sequoia/IRSmk",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/ASC_Sequoia",
+      "gem5_seconds": 3600.04,
+      "qemu_seconds": 12.71,
+      "ratio": 283.245,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          12.71
+        ],
+        "gem5-se": [
+          3600.04
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/BitBench/drop3",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/BitBench",
+      "gem5_seconds": 3600.17,
+      "qemu_seconds": 22.63,
+      "ratio": 159.088,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          22.63
+        ],
+        "gem5-se": [
+          3600.17
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/BitBench/five11",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/BitBench",
+      "gem5_seconds": 3600.14,
+      "qemu_seconds": 13.65,
+      "ratio": 263.747,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          13.65
+        ],
+        "gem5-se": [
+          3600.14
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/BitBench/uudecode",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/BitBench",
+      "gem5_seconds": 3600.15,
+      "qemu_seconds": 3.4,
+      "ratio": 1058.868,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          3.4
+        ],
+        "gem5-se": [
+          3600.15
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/CoMD",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/DOE-ProxyApps-C",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 137.83,
+      "ratio": 26.119,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          137.83
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/Pathfinder",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/DOE-ProxyApps-C",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 114.27,
+      "ratio": 31.504,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          114.27
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/RSBench",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/DOE-ProxyApps-C",
+      "gem5_seconds": 3600.16,
+      "qemu_seconds": 47.8,
+      "ratio": 75.317,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          47.8
+        ],
+        "gem5-se": [
+          3600.16
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/SimpleMOC",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/DOE-ProxyApps-C",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 256.07,
+      "ratio": 14.059,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          256.07
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/XSBench",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/DOE-ProxyApps-C",
+      "gem5_seconds": 3600.43,
+      "qemu_seconds": 255.04,
+      "ratio": 14.117,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          255.04
+        ],
+        "gem5-se": [
+          3600.43
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/miniAMR",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/DOE-ProxyApps-C",
+      "gem5_seconds": 3600.06,
+      "qemu_seconds": 48.8,
+      "ratio": 73.772,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          48.8
+        ],
+        "gem5-se": [
+          3600.06
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/DOE-ProxyApps-C/miniGMG",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/DOE-ProxyApps-C",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 116.39,
+      "ratio": 30.931,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          116.39
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/Fhourstones",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/Fhourstones",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 40.54,
+      "ratio": 88.802,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          40.54
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/Fhourstones-3.1",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/Fhourstones-3.1",
+      "gem5_seconds": 3600.04,
+      "qemu_seconds": 29.15,
+      "ratio": 123.501,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          29.15
+        ],
+        "gem5-se": [
+          3600.04
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/FreeBench/fourinarow",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/FreeBench",
+      "gem5_seconds": 3600.58,
+      "qemu_seconds": 37.66,
+      "ratio": 95.608,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          37.66
+        ],
+        "gem5-se": [
+          3600.58
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/FreeBench/mason",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/FreeBench",
+      "gem5_seconds": 3600.05,
+      "qemu_seconds": 7.89,
+      "ratio": 456.28,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          7.89
+        ],
+        "gem5-se": [
+          3600.05
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/FreeBench/neural",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/FreeBench",
+      "gem5_seconds": 2972.56,
+      "qemu_seconds": 12.94,
+      "ratio": 229.719,
+      "gem5_klass": "fail",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          12.94
+        ],
+        "gem5-se": [
+          2972.56
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/FreeBench/pcompress2",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/FreeBench",
+      "gem5_seconds": 3600.47,
+      "qemu_seconds": 18.05,
+      "ratio": 199.472,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          18.05
+        ],
+        "gem5-se": [
+          3600.47
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/MallocBench/cfrac",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/MallocBench",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 90.65,
+      "ratio": 39.713,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          90.65
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/McCat/01-qbsort",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/McCat",
+      "gem5_seconds": 1934.83,
+      "qemu_seconds": 7.79,
+      "ratio": 248.374,
+      "gem5_klass": "pass",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          7.79
+        ],
+        "gem5-se": [
+          1934.83
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/McCat/08-main",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/McCat",
+      "gem5_seconds": 891.6,
+      "qemu_seconds": 5.18,
+      "ratio": 172.124,
+      "gem5_klass": "pass",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          5.18
+        ],
+        "gem5-se": [
+          891.6
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/McCat/12-IOtest",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/McCat",
+      "gem5_seconds": 3600.03,
+      "qemu_seconds": 37.63,
+      "ratio": 95.669,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          37.63
+        ],
+        "gem5-se": [
+          3600.03
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/MiBench/automotive-basicmath",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/MiBench",
+      "gem5_seconds": 3600.85,
+      "qemu_seconds": 32.69,
+      "ratio": 110.151,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          32.69
+        ],
+        "gem5-se": [
+          3600.85
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/MiBench/consumer-lame",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/MiBench",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 18.0,
+      "ratio": 200.001,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          18.0
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/MiBench/consumer-typeset",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/MiBench",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 9.94,
+      "ratio": 362.175,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          9.94
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/MiBench/network-patricia",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/MiBench",
+      "gem5_seconds": 3600.03,
+      "qemu_seconds": 11.33,
+      "ratio": 317.743,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          11.33
+        ],
+        "gem5-se": [
+          3600.03
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/MiBench/telecomm-CRC32",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/MiBench",
+      "gem5_seconds": 3600.04,
+      "qemu_seconds": 9.52,
+      "ratio": 378.155,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          9.52
+        ],
+        "gem5-se": [
+          3600.04
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/MiBench/telecomm-adpcm",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/MiBench",
+      "gem5_seconds": 3600.07,
+      "qemu_seconds": 2.97,
+      "ratio": 1212.145,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          2.97
+        ],
+        "gem5-se": [
+          3600.07
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/NPB-serial/is",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/NPB-serial",
+      "gem5_seconds": 3535.3,
+      "qemu_seconds": 11.08,
+      "ratio": 319.07,
+      "gem5_klass": "pass",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          11.08
+        ],
+        "gem5-se": [
+          3535.3
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/Olden/bisort",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/Olden",
+      "gem5_seconds": 3600.03,
+      "qemu_seconds": 14.5,
+      "ratio": 248.278,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          14.5
+        ],
+        "gem5-se": [
+          3600.03
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/Ptrdist/ft",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/Ptrdist",
+      "gem5_seconds": 3600.51,
+      "qemu_seconds": 21.34,
+      "ratio": 168.721,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          21.34
+        ],
+        "gem5-se": [
+          3600.51
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/Ptrdist/ks",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/Ptrdist",
+      "gem5_seconds": 3600.84,
+      "qemu_seconds": 82.13,
+      "ratio": 43.843,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          82.13
+        ],
+        "gem5-se": [
+          3600.84
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/Ptrdist/yacr2",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/Ptrdist",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 48.43,
+      "ratio": 74.334,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          48.43
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/Rodinia/backprop",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/Rodinia",
+      "gem5_seconds": 3600.03,
+      "qemu_seconds": 41.59,
+      "ratio": 86.56,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          41.59
+        ],
+        "gem5-se": [
+          3600.03
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/Rodinia/hotspot",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/Rodinia",
+      "gem5_seconds": 3600.05,
+      "qemu_seconds": 58.19,
+      "ratio": 61.867,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          58.19
+        ],
+        "gem5-se": [
+          3600.05
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/Rodinia/pathfinder",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/Rodinia",
+      "gem5_seconds": 3600.38,
+      "qemu_seconds": 31.0,
+      "ratio": 116.141,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          31.0
+        ],
+        "gem5-se": [
+          3600.38
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/Rodinia/srad",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/Rodinia",
+      "gem5_seconds": 3600.04,
+      "qemu_seconds": 57.54,
+      "ratio": 62.566,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          57.54
+        ],
+        "gem5-se": [
+          3600.04
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/SciMark2-C",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/SciMark2-C",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 126.15,
+      "ratio": 28.538,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          126.15
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/Trimaran/enc-3des",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/Trimaran",
+      "gem5_seconds": 3600.13,
+      "qemu_seconds": 3.84,
+      "ratio": 937.534,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          3.84
+        ],
+        "gem5-se": [
+          3600.13
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/Trimaran/enc-md5",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/Trimaran",
+      "gem5_seconds": 3437.56,
+      "qemu_seconds": 1.77,
+      "ratio": 1942.124,
+      "gem5_klass": "pass",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          1.77
+        ],
+        "gem5-se": [
+          3437.56
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/Trimaran/netbench-url",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/Trimaran",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 11.04,
+      "ratio": 326.088,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          11.04
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/VersaBench/beamformer",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/VersaBench",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 21.39,
+      "ratio": 168.303,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          21.39
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/VersaBench/dbms",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/VersaBench",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 15.87,
+      "ratio": 226.844,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          15.87
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/llubenchmark",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/llubenchmark",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 33.39,
+      "ratio": 107.817,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          33.39
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "MultiSource/Benchmarks/nbench",
+      "suite": "llvm-ts",
+      "category": "MultiSource/Benchmarks/nbench",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 209.84,
+      "ratio": 17.156,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          209.84
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/BenchmarkGame/Large/fasta",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.07,
+      "qemu_seconds": 16.67,
+      "ratio": 215.961,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          16.67
+        ],
+        "gem5-se": [
+          3600.07
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/BenchmarkGame/fannkuch",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.27,
+      "qemu_seconds": 85.27,
+      "ratio": 42.222,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          85.27
+        ],
+        "gem5-se": [
+          3600.27
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/BenchmarkGame/n-body",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.22,
+      "qemu_seconds": 87.89,
+      "ratio": 40.963,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          87.89
+        ],
+        "gem5-se": [
+          3600.22
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/BenchmarkGame/nsieve-bits",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.26,
+      "qemu_seconds": 52.76,
+      "ratio": 68.238,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          52.76
+        ],
+        "gem5-se": [
+          3600.26
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/BenchmarkGame/partialsums",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.24,
+      "qemu_seconds": 56.26,
+      "ratio": 63.993,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          56.26
+        ],
+        "gem5-se": [
+          3600.24
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/BenchmarkGame/puzzle",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.12,
+      "qemu_seconds": 42.17,
+      "ratio": 85.372,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          42.17
+        ],
+        "gem5-se": [
+          3600.12
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/BenchmarkGame/recursive",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.15,
+      "qemu_seconds": 88.95,
+      "ratio": 40.474,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          88.95
+        ],
+        "gem5-se": [
+          3600.15
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/BenchmarkGame/spectral-norm",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 49.26,
+      "ratio": 73.082,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          49.26
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/CoyoteBench/huffbench",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 34.99,
+      "ratio": 102.887,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          34.99
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Linpack/linpack-pc",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.03,
+      "qemu_seconds": 100.83,
+      "ratio": 35.704,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          100.83
+        ],
+        "gem5-se": [
+          3600.03
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/McGill/chomp",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 2271.38,
+      "qemu_seconds": 6.39,
+      "ratio": 355.459,
+      "gem5_klass": "pass",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          6.39
+        ],
+        "gem5-se": [
+          2271.38
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/McGill/queens",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3279.24,
+      "qemu_seconds": 10.15,
+      "ratio": 323.078,
+      "gem5_klass": "pass",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          10.15
+        ],
+        "gem5-se": [
+          3279.24
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Misc/ReedSolomon",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 26.02,
+      "ratio": 138.356,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          26.02
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Misc/dt",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 42.09,
+      "ratio": 85.531,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          42.09
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Misc/evalloop",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 54.85,
+      "ratio": 65.634,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          54.85
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Misc/fbench",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.03,
+      "qemu_seconds": 119.39,
+      "ratio": 30.154,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          119.39
+        ],
+        "gem5-se": [
+          3600.03
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Misc/ffbench",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.03,
+      "qemu_seconds": 23.9,
+      "ratio": 150.629,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          23.9
+        ],
+        "gem5-se": [
+          3600.03
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Misc/fp-convert",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 63.32,
+      "ratio": 56.854,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          63.32
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Misc/himenobmtxpa",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 47.18,
+      "ratio": 76.304,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          47.18
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Misc/mandel-2",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 92.05,
+      "ratio": 39.109,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          92.05
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Misc/oourafft",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 25.44,
+      "ratio": 141.51,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          25.44
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Misc/perlin",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3214.63,
+      "qemu_seconds": 15.43,
+      "ratio": 208.336,
+      "gem5_klass": "pass",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          15.43
+        ],
+        "gem5-se": [
+          3214.63
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Misc/revertBits",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 9.16,
+      "ratio": 393.014,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          9.16
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Misc/richards_benchmark",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.04,
+      "qemu_seconds": 8.08,
+      "ratio": 445.55,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 1,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          8.08
+        ],
+        "gem5-se": [
+          3600.04
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Misc/salsa20",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 2772.01,
+      "qemu_seconds": 3.83,
+      "ratio": 723.762,
+      "gem5_klass": "pass",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          3.83
+        ],
+        "gem5-se": [
+          2772.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Shootout/ary3",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 12.89,
+      "ratio": 279.288,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          12.89
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Shootout/fib2",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 33.73,
+      "ratio": 106.73,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          33.73
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Shootout/hash",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 13.09,
+      "ratio": 275.021,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          13.09
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Shootout/lists",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 22.66,
+      "ratio": 158.871,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          22.66
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Shootout/matrix",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 6.43,
+      "ratio": 559.877,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          6.43
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Shootout/methcall",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 40.94,
+      "ratio": 87.934,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          40.94
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Shootout/sieve",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 29.47,
+      "ratio": 122.158,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          29.47
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Shootout/strcat",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.02,
+      "qemu_seconds": 7.93,
+      "ratio": 453.975,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          7.93
+        ],
+        "gem5-se": [
+          3600.02
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Stanford/FloatMM",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3600.01,
+      "qemu_seconds": 46.95,
+      "ratio": 76.678,
+      "gem5_klass": "blocked",
+      "gem5_exit": null,
+      "gem5_gap": "time budget",
+      "gem5_timeout": true,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          46.95
+        ],
+        "gem5-se": [
+          3600.01
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    },
+    {
+      "case": "SingleSource/Benchmarks/Stanford/Puzzle",
+      "suite": "llvm-ts",
+      "category": "SingleSource/Benchmarks",
+      "gem5_seconds": 3255.57,
+      "qemu_seconds": 12.54,
+      "ratio": 259.615,
+      "gem5_klass": "pass",
+      "gem5_exit": 0,
+      "gem5_gap": null,
+      "gem5_timeout": false,
+      "qemu_klass": "pass",
+      "qemu_exit": 0,
+      "qemu_timeout": false,
+      "repeats": {
+        "qemu": [
+          12.54
+        ],
+        "gem5-se": [
+          3255.57
+        ]
+      },
+      "variance_pct": {
+        "qemu": null,
+        "gem5-se": null
+      }
+    }
+  ],
+  "summary": {
+    "ratio": {
+      "n": 12,
+      "min": 172.124,
+      "median": 289.3425,
+      "p90": 687.6516,
+      "max": 1942.124
+    },
+    "cases_in_distribution": 12,
+    "excluded_truncated": 77,
+    "outliers": [
+      {
+        "case": "MultiSource/Benchmarks/Trimaran/enc-md5",
+        "suite": "llvm-ts",
+        "ratio": 1942.124
+      }
+    ],
+    "by_category": {
+      "MultiSource/Applications": {
+        "n": 1,
+        "min": 197.539,
+        "median": 197.539,
+        "p90": 197.539,
+        "max": 197.539,
+        "cases": 1
+      },
+      "MultiSource/Benchmarks/ASCI_Purple": {
+        "n": 1,
+        "min": 362.658,
+        "median": 362.658,
+        "p90": 362.658,
+        "max": 362.658,
+        "cases": 1
+      },
+      "MultiSource/Benchmarks/FreeBench": {
+        "n": 1,
+        "min": 229.719,
+        "median": 229.719,
+        "p90": 229.719,
+        "max": 229.719,
+        "cases": 1
+      },
+      "MultiSource/Benchmarks/McCat": {
+        "n": 2,
+        "min": 172.124,
+        "median": 210.249,
+        "p90": 240.749,
+        "max": 248.374,
+        "cases": 2
+      },
+      "MultiSource/Benchmarks/NPB-serial": {
+        "n": 1,
+        "min": 319.07,
+        "median": 319.07,
+        "p90": 319.07,
+        "max": 319.07,
+        "cases": 1
+      },
+      "MultiSource/Benchmarks/Trimaran": {
+        "n": 1,
+        "min": 1942.124,
+        "median": 1942.124,
+        "p90": 1942.124,
+        "max": 1942.124,
+        "cases": 1
+      },
+      "SingleSource/Benchmarks": {
+        "n": 5,
+        "min": 208.336,
+        "median": 323.078,
+        "p90": 576.4408,
+        "max": 723.762,
+        "cases": 5
+      }
+    }
+  },
+  "repeatability": {
+    "limit_pct": 5.0,
+    "samples": 0,
+    "max_variance_pct": null,
+    "comparable": null,
+    "note": "no repeated measurement"
+  },
+  "missing": [],
+  "ok": true,
+  "driver_rc": {
+    "libc-test/qemu/r1": 0,
+    "libc-test/gem5-se/r1": 1,
+    "llvm-ts/qemu/r1": 0,
+    "llvm-ts/gem5-se/r1": 1
+  },
+  "reused_rounds": []
+}
