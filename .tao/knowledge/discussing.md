@@ -137,7 +137,13 @@
 
 ## M12 未决
 
-- **Tiny 的 SRAM 基址与 `loadmem` 目标窗口**需在 `002` 定稿（`load_elf` 目标基址必须与 Tiny 地址图一致）。
+- **Tiny 的 SRAM 基址与 `loadmem` 目标窗口**需在 `002` 定稿（`load_elf` 目标基址必须与 Tiny 地址图一致）。→ 已定（`002` 地址图 hmon SRAM 段），本条可删。
+- **`m12-chipyard-006` 设计定稿（Accepted 2026-11-10）待用户裁定**：R12（`WumingCore` 较大改动 ≈650 行 + 新增 `WumingCfx.scala` + SoC hmon 段）、R13（hmon 镜像来源与装载方式）、R14（handler 生成退出码）。这三条决定 `007` 的实现路径。
+- **`spec-003` 候选范围**（`006` §9 剩余硬阻塞，需用户确认是否立册）：
+  - #9 `cfx2rd`/`cfx2rc` 到**保留** cfxha ⇒ `ILLI`（`Machine-v5` 现只说「不存在 cfx 寄存器 ⇒ `CFXREG`」，与 `DADAO-12 §5.2(一)` 冲突）
+  - #10 reserved 集统一（正文 `19–61` vs 附录 0.4.0 `16–31、35–61`）
+  - #6 退出码由 hmon handler 生成（`§7.1` 只定编码、未定生成方）
+  - #3 Tiny 的 hmon 镜像装载路径（与 R13 绑定）
 
 ---
 
