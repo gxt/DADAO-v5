@@ -1,6 +1,6 @@
 # ADR-0043: 启动、power/hmon 分层与 SEE 交接
 
-**状态**：Accepted（rev. 2026-11-02: `D1`/`D2`/`D3`/`D10`/`D12` 按 Tiny/Node 两 profile 就地修订；rev. 2026-11-05: `D10`/`D11`/`D12` 首张页表改低地址线性映射、cfxha 重编号同步）
+**状态**：Accepted（rev. 2026-11-02: `D1`/`D2`/`D3`/`D10`/`D12` 按 Tiny/Node 两 profile 就地修订；rev. 2026-11-05: `D10`/`D11`/`D12` 首张页表改低地址线性映射、cfxha 重编号同步；rev. 2026-11-10: `D3` 就地修订——Tiny 增加 `power → hmon` 移交链，见 `## 修订`）
 **日期**：2026-10-30
 **接受日期**：2026-10-31
 **关联**：ADR-0039（PTBR/PTW）、ADR-0040（PTE）、ADR-0042（cfx_pmem）、ADR-0045（权限）；`spec/DADAO-12` §1/§2
@@ -13,7 +13,7 @@
 
 - **D1 唯一 BootROM（大小由平台 profile 规定）**：非易失启动源只有 `cfx_power`（cfx63）的 BootROM；hmon 没有独立 ROM。BootROM 自 `2^48` 向下，**大小 ≥64 KiB、由平台规范规定**：`Machine-v5-Tiny` 为 64 KiB（`0xffff_ffff_0000`–`0xffff_ffff_ffff`）、`Machine-v5-Node` 为 4 MiB（`0xffff_ffc0_0000`–`0xffff_ffff_ffff`）；复位向量两 profile 均为末 64 KiB 起点 `0xffff_ffff_0000`。`power` 不设 SRAM 属**本机约定**（非架构禁令）。
 - **D2 BootROM 布局（`Machine-v5-Node`）**：偏移 0 放 image index table；其后放 ELF 镜像；最后 64 KiB（`0xffff_ffff_0000` 起）留给复位/启动代码。表项至少 `offset/size/type/flags`，ELF 提供 `e_entry`/`PT_LOAD`/BSS；表和镜像按 8/16 字节对齐。`Machine-v5-Tiny` 的 64 KiB BootROM **无 image index table**，全部为复位/启动 stub。
-- **D3 镜像加载**：`Machine-v5-Node` 下 power 只把 hmon ELF 复制到 hmon SRAM；hmon 配好权限后把 smon ELF 复制到 smon SRAM；smon 再按需加载设备服务。Power 不设 SRAM 属本机约定，复制循环只用寄存器/无栈。`Machine-v5-Tiny` **无 power→hmon 复制链**：测试镜像由宿主 loader 按 `PT_LOAD` 装入 BootROM/SRAM，BootROM 内的启动 stub 直接跳应用入口。
+- **D3 镜像加载**：`Machine-v5-Node` 下 power 只把 hmon ELF 复制到 hmon SRAM；hmon 配好权限后把 smon ELF 复制到 smon SRAM；smon 再按需加载设备服务。Power 不设 SRAM 属本机约定，复制循环只用寄存器/无栈。`Machine-v5-Tiny` **有 power→hmon 移交链**（**2026-11-10 修订**，用户裁定「ADR0043原地修订」）：复位在 power 段 BootROM（cfx63），`trap cfx3` 移交 hmon（cfx3）；hmon 显式写 `excp_vector` 后 `escape` 回 stub 并跳应用入口。测试镜像仍由宿主 loader 按 `PT_LOAD` 装入 BootROM/SRAM；hmon 代码由 hmon 自身填充 hmon SRAM。
 - **D4 hmon SRAM**：hmon SRAM 固定 64 KiB，起始 `0x0fff_0000_0000`；H-mode 异常向量默认等于该起始地址；hmon 入口自己设置 `rbsp`。
 - **D5 smon SRAM**：smon SRAM 64 KiB，起始 `0x0bff_0000_0000`；S-mode 异常向量默认等于该起始地址；smon 入口自己设置 `rbsp`。
 - **D6 umon/jmon**：umon 无 SRAM，异常向量 `0x03ff_0000_0000`；jmon 当前不配 SRAM/代码，向量 `0x07ff_0000_0000`；当前不启用 U/J 异常处理代码。
@@ -64,3 +64,5 @@
 - `D12`：第一张表为低地址线性映射；内核高半区/用户空间划分后置。
 - **用户原话（经主会话转达）**：「ADR **A 就地修订**：ADR-0043 D10/D11/D12 + ADR-0039/0040 平台口径；每册 rev. 2026-11-05；不新立 ADR。」
 - **流程说明**：经用户授权的**就地修订**（`Process-03` 一般规则为新增 ADR 或标 `Superseded`），不保留与现行 spec 冲突的旧数字；不新立 ADR。
+
+- **2026-11-10（用户裁定「ADR0043原地修订」）**：`D3` 的 `Machine-v5-Tiny` 由「无 power→hmon 复制链、stub 直接跳应用」改为「有 `power → hmon` 移交链（cfx63 → cfx3），hmon 显式写 `excp_vector` 后 `escape` 回 stub」；其余 decision（D1/D2/D4–D12）不变。依据：`spec/Machine-v5 §1.1/§1.2/§2/§5` 的 Tiny hmon 修订（`m12-spec-002`）。
