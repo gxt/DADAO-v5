@@ -103,6 +103,6 @@
 - **时间与异步中断**：`cfx_time`（1 GHz、64 位）+ 单 hart `cfx_hart`（64 位 cycle/insn、`timer_cmp`/`timer_ctrl`、`IMASK`/`ISTATUS`）；`PMEM_DMA` 与 `TIMER` 统一仲裁——pending 只记在目标 cfx，按目标 cfxha 升序、单层投递，mask 保留并在解除后补投，不引入 `async_enable`/跨 cfx 聚合位图。
 - **CFX 汇编与接口**：cfx 别名运行时表；`format=2` 的 `array`/`stride`；cg7 `space_*[i]` 48 条数组；LLVM 汇编器/反汇编器按 stride 往返；`escape` 偏移收窄为 0/+4（`imms18[17:1]` SBZ）。
 - **LLVM 后端**：64 位缺省与 DWARF64；default/large 代码模型与代码跨度门控；窄整数 canonical extension/neg；i64 移位立即数；循环 PHI 的 GPRB；`cmp.u*` 语义；大端 fixup 元数据。
-- **测试与门控**：tests 四 scope 迁移（inst/arch/unit/tset）；生成器 `--check` 与落点守卫；L2/L3 严格分层、L3 报告机检、夜跑观测（独立锁）；runner 孤儿清理；llvm-ts 零 known-fail；libc-test/embench 两档；reserved cfx 向量补齐。
+- **测试与门控**：tests 四 scope 迁移（inst/arch/unit/tset）；生成器 `--check` 与落点守卫；L2/L3 严格分层、L3 报告机检、回归运行观测（含 gem5 SE/FS 成员，独立锁）；runner 孤儿清理；llvm-ts 零 known-fail；libc-test/embench 两档；reserved cfx 向量补齐。
 - **规范收口**：六册 C1–C11 落实（AEE/ABI 0.9.3、SEE/SBI 0.7.2、HEE/HBI 0.1.3）；semihosting 迁 `0x3FF00–0x3FFFF`；删除 SBI 保留值 `0x3FFFF`；`cfx_timer→cfx_time`；`ADR-0017 D10` 数组 stride 修订；open issue 归零。
 - **终局验收**：`night-run` **4/4 PASS**（libc-test / llvm-ts / embench / arch:cfx）；L1/L2/L3 与 `check-milestone` 全绿；`INTEG-052m` 为 M10 里程碑核验册；`INFRA-113t` 为 M10 后清理（不纳入本里程碑）。

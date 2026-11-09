@@ -216,8 +216,8 @@ help:
 	@echo "  make check           Run repository-level structural checks (L1: static + component smoke)"
 	@echo "  make check-modules   Run L2 = the four scopes' smoke sets (inst/arch/unit + tset x3; no FP probes)"
 	@echo "  make check-full      Run L3 = check-inst + check-arch + check-unit-full + 4 FP probes + test-m6; writes .dadao/tests/l3/<UTC>/ (tset smoke is L2-only; tset full is night-only; TESTCASES-082t/083t)"
-	@echo "  make night-run       Run the night set (tset full x3 + long arch) into .dadao/tests/night/<date>/ under its own lock; observation only, does not block gates (setsid nohup; TESTCASES-076t/INFRA-127t)"
-	@echo "  make check-night-report  Observe: night report exists + structurally complete + green (on-demand diagnostics, NOT a milestone gate; TESTCASES-076t)"
+	@echo "  make night-run       Run the regression set (tset full x3 + long arch: QEMU system cfx + gem5 FS inst/arch; gem5 SE static x3) into .dadao/tests/night/<date>/ under its own lock; observation only, does not block gates (setsid nohup; TESTCASES-076t/INFRA-127t/TESTCASES-105t)"
+	@echo "  make check-night-report  Observe: regression report exists + structurally complete (QEMU tset/arch + gem5 SE/FS members) + green (on-demand diagnostics, NOT a milestone gate; TESTCASES-076t/TESTCASES-105t)"
 	@echo "  make check-l3-report  Gate: the latest L3 report exists, covers four scopes, and is fully green (milestone closure; TESTCASES-083t)"
 	@echo "  make clean-tests     Remove one scope's generated artifacts (SCOPE=inst|arch|unit|tset|night|l3|all; DRY_RUN=1 to list; TESTCASES-076t)"
 	@echo "  make test-repro      Prove build products regenerate byte-identically (SCOPE=...; TESTCASES-076t)"
@@ -1076,7 +1076,7 @@ _locked-clean-work:
 # L2 `make check-modules`（几十~几百秒）= **四 scope 代表集**（inst/arch/unit + tset×3）
 # L3 `make check-full`（几百~几千秒）   = **全量**（check-inst/check-arch/check-unit-full
 #                                        + 4 个 FP 探针）+ test-m6（全量 lit + ir-lli + Embench E2E）
-# 回归运行 `make night-run`（小时级）     = tset full×3 + 长 arch；报告 `.dadao/tests/night/<date>/`
+# 回归运行 `make night-run`（小时级）     = tset full×3 + 长 arch + gem5 SE×3 + gem5 FS；报告 `.dadao/tests/night/<date>/`
 # tset（TESTCASES-082t）：smoke 只在 L2（`check-modules`），full 只在回归运行（`night-run`）；
 # L3 不直接列 tset smoke ⇒ 「一个检查只在一层」（docs/Process-07 §4）。
 # 说明（TESTCASES-076t）：`check-interface`/`check-code-range` 只做静态/合成 fixture 断言
@@ -1865,7 +1865,7 @@ _locked-test-repro:
 	@$(PYTHON) tools/testcases/manage_tests.py repro --scope "$(SCOPE)" --root "$(TESTS_ROOT)" $(if $(DRY_RUN),--dry-run,) $(if $(PRODUCER),--producer "$(PRODUCER)",) $(if $(INJECT),--inject "$(INJECT)",)
 
 # make night-run  —— **由主会话** `setsid nohup make night-run > log 2>&1 &` 启动
-# （本目标不自带 nohup，避免嵌套）；成员 = tset full×3 + 长 arch；报告只读落
+# （本目标不自带 nohup，避免嵌套）；成员 = tset full×3 + 长 arch + gem5 SE×3 + gem5 FS；报告只读落
 # `<TESTS_ROOT>/night/<YYYY-MM-DD-HH>/`（manifest.tsv / meta.json / run.log）。
 # 独立锁（`NIGHT_LOCK`，不在 `GATE_LOCKED_TARGETS` 内）⇒ 回归运行不阻断 L1/L2/L3。
 # `NIGHT_MEMBERS='scope:suite=cmd'` 只跑单个成员（自测/分片）；`NIGHT_MACHINE_ID`

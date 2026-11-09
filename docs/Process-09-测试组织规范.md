@@ -186,7 +186,7 @@ tools/testcases/
     embench/    # run_embench_user_suite.py（L2 跑全量 benchmark）
   gen/          # 向量/oracle 生成器（ISA/rev/bitcnt/atomics/...）
   manage_tests.py       # make clean-tests / test-repro 的实现（scope→目录映射单一真源）
-  night_run.py          # make night-run 的实现（tset full×3 + 长 arch → 报告）
+  night_run.py          # make night-run 的实现（tset full×3 + 长 arch + gem5 SE×3 + gem5 FS → 报告）
   check_night_report.py # 回归运行报告存在性/结构/结果检查（按需诊断；不阻断收口）
   l3_run.py             # make check-full 的实现（L3 逐成员执行 → l3/<UTC>/ 报告）
   check_l3_report.py    # L3 报告存在性/结构/覆盖/结果门控（里程碑层）
@@ -236,7 +236,7 @@ tools/testcases/
   - **tset 不在 L3 直接列出**（`TESTCASES-082t`，2026-10-27）：`check-tset-{libc,llvm,embench}-smoke`
     只在 **L2**；tset **full** 只在**回归运行**；`test-m6` 的 Embench E2E 属集成步骤，不构成 tset smoke 重复。
 - **里程碑（Milestone）**：`check-milestone` = 归档结构/内容 sha + 同步不可屏蔽 + knowledge 白名单 + `m` 册/任务号 + **L3 报告存在性/结构/四 scope 覆盖/结果**（`check-l3-report`）；**不内联跑长套件**。L3 报告缺失 ⇒ **明确 FAIL**（不是 SKIP）。**回归运行报告不在其中**（观测，按需 `check-night-report`，`INFRA-126t`）。
-- **回归运行（Night）**：`make night-run` = `tset` full ×3（libc-test / llvm-ts / Embench，各 static+dynamic）+ 长 arch；由**主会话** `setsid nohup` 启动 + `[exit marker] rc=N`；**独立锁 `.dadao/night.lock`**（`NIGHT_LOCK`/`NIGHT_LOCK_WAIT`，不占 `gate.lock`、不阻断门控）；报告落 `.dadao/tests/night/<本地 YYYY-MM-DD-HH>/`（`manifest.tsv`/`meta.json`/`run.log`；目录用本地日期，meta 记 UTC），供**按需诊断**（`make check-night-report`）消费；红项按「真缺陷 / 语料假设过时 / 环境」分诊——**观测结果不阻断收口**（2026-11-06 用户裁定 A，`INFRA-126t`；独立化 `INFRA-127t`）。
+- **回归运行（Night）**：`make night-run` = `tset` full ×3（libc-test / llvm-ts / Embench，各 static+dynamic）+ 长 arch（QEMU system `cfx` + gem5 FS `inst/arch`）+ **gem5 SE static ×3**（libc-test / llvm-ts / Embench；复用 `TESTCASES-103t` 驱动，dynamic 全量证据见 `TESTCASES-104t`，成员不重复跑）；由**主会话** `setsid nohup` 启动 + `[exit marker] rc=N`；**独立锁 `.dadao/night.lock`**（`NIGHT_LOCK`/`NIGHT_LOCK_WAIT`，不占 `gate.lock`、不阻断门控）；报告落 `.dadao/tests/night/<本地 YYYY-MM-DD-HH>/`（`manifest.tsv`/`meta.json`/`run.log`；目录用本地日期，meta 记 UTC），供**按需诊断**（`make check-night-report`）消费；报告门控按 `scope:suite` 逐成员判缺（缺成员/空结果/构建失败/超时均 FAIL，超时单列），红项按「真缺陷 / 语料假设过时 / 环境」分诊——**观测结果不阻断收口**（2026-11-06 用户裁定 A，`INFRA-126t`；独立化 `INFRA-127t`；gem5 成员 `TESTCASES-105t`）。
 
 ---
 
