@@ -99,3 +99,14 @@
     首行 `Matrix size is 20x28` 一致 ⇒ 差异在后段，疑浮点舍入/格式化（与 M13 FP 差分同源）。
     证据：`m13-testcases-002` 全量（93 例）结果，`refs/m13-002-dynamic-3600s-full.json`。
     建议：M13 FP 差分任务（`m13-integ-002`）把它作为首个定位样本；先 `cmp` 逐字节定位差异列。
+- id: ISS-363
+  scope: [gem5]
+  status: open
+  resolved_by: null
+  title: >-
+    【P2】gem5 `tinyEnter` 直接取 `switch_run_mode` 作为新运行模式：guest 先把该寄存器写成 !=3
+    再触发同步异常，就会**离开 hypv**；QEMU 对非 user profile 强制 `HYPV`（引 `Machine-v5 §2`
+    「Tiny 运行模式恒 hypv」）。同时 gem5 未实现 `cg3 仅 hypv 可访问`（`DADAO-13 §1`）。
+    影响：三平台差分时 Tiny 的越权路径会分叉。建议在 M13 差分（`m13-integ-002`/`003`）前修，
+    改动量小（`tinyEnter` 强制 HYPV + cg3 访问检查）。
+    证据：`m13-gem5-001` reviewer 第 1 轮 finding 3。
