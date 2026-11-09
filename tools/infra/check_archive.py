@@ -8,8 +8,8 @@
      存在且非空。
   2. **根文件封闭**：只允许三件套 ``README.md`` / ``m<i>-retrospective.md`` /
      ``issues-closed.md``；所有任务书（含 ``INTEG-*m`` 核验册）一律放模块子目录。
-  3. **子目录封闭**：只允许 6 个模块名（``infra``/``integ``/``llvm``/``qemu``/
-     ``spec``/``testcases``）；``notes/`` 等一律 FAIL。
+  3. **子目录封闭**：只允许 ``MODULES`` 中列出的模块名（``gem5``/``infra``/``integ``/
+     ``llvm``/``qemu``/``spec``/``testcases``）；``notes/`` 等一律 FAIL。
   4. **任务书字段**：模块子目录的每份 ``*.md`` 须有 ``**状态**``
      ∈ {``已验证``,``里程碑``}，``**项目里程碑**`` 的里程碑号 == 所在归档号
      （尾随历史括注按编号判定、不计错；**新归档应写裸 ``M<i>``**）。
@@ -48,14 +48,14 @@ ROOT = Path(__file__).resolve().parents[2]
 ARCHIVE_REL = Path(".tao") / "archive"
 
 # 模块子目录封闭集合（docs/Process-04 §5）。
-MODULES = ("infra", "integ", "llvm", "qemu", "spec", "testcases")
+MODULES = ("gem5", "infra", "integ", "llvm", "qemu", "spec", "testcases")
 # 归档册终态（docs/Process-04 §4.1）：`已验证` / `里程碑`，精确值、不带括注
 # （不做 t/k/m 后缀映射：历史 `INTEG-037m` 记为 `已验证`）。
 TERMINAL_STATUS = ("已验证", "里程碑")
 # 任务流水节的同义标题（M1–M8 历史归档用 changelog / 台账快照）。
 FLOW_ALIASES = ("任务流水", "changelog", "台账快照")
 # 任务册 ID（`-t` / `-k` / `-m` 后缀）。
-_TASK_ID_RE = re.compile(r"^([A-Z]+-\d+[a-z])")
+_TASK_ID_RE = re.compile(r"^([A-Z][A-Z0-9]*-\d+[a-z])")
 
 @dataclass(frozen=True)
 class Violation:
@@ -293,7 +293,7 @@ def _check_readme(mdir: Path, mnum: int, t_ids: set[str],
                 add(Violation((mdir.name, "flow", "§2"), f"流水行格数不足: {row}"))
                 continue
             fid = row[id_i].strip("` *")
-            if not re.fullmatch(r"[A-Z]+-\d+[a-z]", fid):
+            if not re.fullmatch(r"[A-Z][A-Z0-9]*-\d+[a-z]", fid):
                 add(Violation((mdir.name, "flow", "§2"), f"流水编号列格式非法: {fid!r}"))
                 continue
             if fid in seen:
