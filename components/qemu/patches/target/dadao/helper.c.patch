@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..8bf5e4a
+index 0000000..e49341b
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2751 @@
+@@ -0,0 +1,2928 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -48,7 +48,7 @@ index 0000000..8bf5e4a
 +#include "semihosting/common-semi.h"
 +#endif
 +
-+static int cfx_idx(int cfxha);
++static int cfx_idx(CPUDADAOState *env, int cfxha);
 +
 +/* Two-axis permission check (ADR-0045 D1/D2): the target cfx owns four
 + * per-mode source masks.  The mode axis selects `mode[inner_run_mode]`; the
@@ -64,7 +64,7 @@ index 0000000..8bf5e4a
 +{
 +    DADAOCfxModeRegs *m;
 +    uint64_t mask;
-+    int ci = cfx_idx(target);
++    int ci = cfx_idx(env, target);
 +
 +    if (ci < 0) {
 +        return false;
@@ -97,17 +97,6 @@ index 0000000..8bf5e4a
 +}
 +
 +
-+/* Direct machine fault (no cfx vector): used by profiles without any cfx
-+ * (Machine-v5-Tiny).  ADR-0004 D5 maps the cause straight to an exit code in
-+ * dadao_cpu_do_interrupt. */
-+static void dadao_direct_fault(CPUDADAOState *env, int excp)
-+{
-+    CPUState *cs = env_cpu(env);
-+
-+    cs->exception_index = excp;
-+    cpu_loop_exit_restore(cs, GETPC());
-+}
-+
 +#ifndef CONFIG_USER_ONLY
 +/* DADAO-12 §5 exception-entry flow (defined below; used by the page-fault
 + * path in dadao_cpu_do_interrupt / dadao_cpu_tlb_fill). */
@@ -116,12 +105,15 @@ index 0000000..8bf5e4a
 +                          bool sync, bool *entered);
 +static void cfx_raise(CPUDADAOState *env, uint64_t cause, int target,
 +                      uint64_t pc, uint64_t cause_info);
-+static int cfx_idx(int cfxha);
++static int cfx_idx(CPUDADAOState *env, int cfxha);
 +
 +/* Map a direct machine fault to its exit code (spec/Machine-v5 §7.1).
 + *
-+ * Every direct fault here is a synchronous exception that belongs to the
-+ * current run-mode monitor, so the code uses the monitor segment:
++ * Used only as the *machine-fault* fallback: when a synchronous exception
++ * cannot enter the current run-mode monitor because that monitor's vector is
++ * not a mapped, 4-byte-aligned address (entering it would recurse forever),
++ * the process halts with the monitor-segment code (spec/Machine-v5 §7.1:
++ * "若未被 hmon 处理而作为机器 fault 终止，按 monitor 段的 hypv 编码"):
 + *   0xC0 | (run_mode << 4) | cause_bit_index
 + * `UNMAPPED` is reported as CFXMEM (bit index 1), never as a separate code.
 + * CFXTRAP/CFXESC never reach this function: entering the target/current cfx
@@ -145,6 +137,142 @@ index 0000000..8bf5e4a
 +    default:                 index = 8;  break;   /* ILLI (explicit fallback) */
 +    }
 +    return DADAO_EXIT_MONITOR(env->inner_run_mode, index);
++}
++
++/*
++ * cause id / cause info of a synchronous exception that is not a `trap`
++ * (`DADAO-12 §5.2(一)(二)`, `Machine-v5 §4.4`):
++ *
++ *   ILLI / UNDI         1<<8 / 1<<9   info = instruction encoding
++ *   CFXMEM / UNMAPPED   1<<1          info = the faulting address
++ *   CFXREG              1<<2          info = instruction encoding
++ *   CFXPERM             1<<7          info = address or instruction encoding
++ *   MALIGN              1<<12         info = the faulting address
++ *   IALIGN              1<<13         info = the IP value
++ *   RASOF / RASUF       1<<10 / 1<<11 info = return address / 0
++ *
++ * ILLI/UNDI/CFXREG carry the instruction word from raise_exception();
++ * CFXMEM/MALIGN carry the faulting address from tlb_fill /
++ * do_unaligned_access; IALIGN and RASOF/RASUF derive from the IP.
++ */
++static void dadao_sync_cause(CPUDADAOState *env, int excp,
++                             uint64_t *cause, uint64_t *info)
++{
++    switch (excp) {
++    case DADAO_EXCP_UNDI:
++        *cause = DADAO_CAUSE_UNDI;
++        *info = env->sync_fault_info;
++        break;
++    case DADAO_EXCP_RASOF:
++        *cause = DADAO_CAUSE_RASOF;
++        *info = env->sync_fault_info;
++        break;
++    case DADAO_EXCP_RASUF:
++        *cause = DADAO_CAUSE_RASUF;
++        *info = 0;
++        break;
++    case DADAO_EXCP_MALIGN:
++        *cause = DADAO_CAUSE_MALIGN;
++        *info = env->sync_fault_info;
++        break;
++    case DADAO_EXCP_IALIGN:
++        /* IP[1:0] != 00: precise exception, IP stays at the illegal address
++         * (DADAO-12 §5, Machine-v5 §4.4) => cause_ip and cause_info are the
++         * illegal IP itself. */
++        *cause = DADAO_CAUSE_IALIGN;
++        *info = env->pc;
++        break;
++    case DADAO_EXCP_CFXMEM:
++    case DADAO_EXCP_UNMAPPED:
++        *cause = DADAO_CAUSE_CFXMEM;
++        *info = env->sync_fault_info;
++        break;
++    case DADAO_EXCP_CFXREG:
++        *cause = DADAO_CAUSE_CFXREG;
++        *info = env->sync_fault_info;
++        break;
++    case DADAO_EXCP_CFXPERM:
++        *cause = DADAO_CAUSE_CFXPERM;
++        *info = env->cfx_perm_info;
++        break;
++    case DADAO_EXCP_ILLI:
++    default:
++        *cause = DADAO_CAUSE_ILLI;
++        *info = env->sync_fault_info;
++        break;
++    }
++}
++
++/*
++ * Is the monitor vector a location code fetch can reach?  Entering an
++ * unreachable vector turns one exception into an endless CFXMEM recursion, so
++ * such an exception is a machine fault instead (spec/Machine-v5 §7.1 "若未被
++ * hmon 处理而作为机器 fault 终止").
++ *
++ * The vector follows the ordinary address rules (DADAO-12 §5.2 step 7): with
++ * `addr[47:42] != 0` it is a core-internal address whose reachability is
++ * fixable from the profile geometry; with `addr[47:42] == 0` it is a virtual
++ * address, and either PTW is off (=> CFXMEM) or the software guarantees the
++ * page is mapped ("软件须保证异常向量所在页不会发生页缺失").
++ */
++static bool dadao_vector_reachable(CPUDADAOState *env, uint64_t vec)
++{
++    const DadaoProfile *prof = DADAO_PROFILE(env);
++    unsigned cfxha = DADAO_ADDR_CFXHA(vec & DADAO_ADDR_MASK);
++
++    if (vec & 3) {
++        return false;
++    }
++    if (cfxha == DADAO_CFXHA_MEM) {
++        return prof->ptw_supported && (env->ptw_enable & 1);
++    }
++    if (vec >= prof->ram_base && vec - prof->ram_base < prof->ram_size) {
++        return true;
++    }
++    if (vec >= prof->rom_base && vec - prof->rom_base < prof->rom_size) {
++        return true;
++    }
++    if (cfxha == DADAO_CFXHA_HMON && prof->hmon_sram &&
++        (vec & DADAO_VA_MASK) >= DADAO_MON_SRAM_CFX_OFFSET &&
++        (vec & DADAO_VA_MASK) - DADAO_MON_SRAM_CFX_OFFSET < DADAO_MON_SRAM_SIZE) {
++        return true;
++    }
++    if (cfxha == 2 && prof->smon_sram &&
++        (vec & DADAO_VA_MASK) >= DADAO_MON_SRAM_CFX_OFFSET &&
++        (vec & DADAO_VA_MASK) - DADAO_MON_SRAM_CFX_OFFSET < DADAO_MON_SRAM_SIZE) {
++        return true;
++    }
++    if (cfxha == DADAO_CFXHA_PMEM && prof->pmem_sram &&
++        (vec & DADAO_VA_MASK) >= DADAO_PMEM_SRAM_CFX_OFFSET &&
++        (vec & DADAO_VA_MASK) - DADAO_PMEM_SRAM_CFX_OFFSET < DADAO_PMEM_SRAM_SIZE) {
++        return true;
++    }
++    return false;
++}
++
++/* Enter the current run-mode monitor for a synchronous exception, or halt as a
++ * machine fault when the monitor vector cannot be reached (which would recurse
++ * forever).  Machine-v5 §7.1: an unhandled sync exception ends in the monitor
++ * segment code of the current run mode. */
++static void dadao_sync_enter(CPUDADAOState *env, int excp)
++{
++    uint64_t cause, info;
++    int target = env->inner_run_mode;   /* U->0, J->1, S->2, H->3 */
++    bool entered = false;
++    uint64_t vec;
++
++    dadao_sync_cause(env, excp, &cause, &info);
++    vec = cfx_enter(env, cause, target, env->pc, info, true, &entered);
++    if (!entered || !dadao_vector_reachable(env, vec)) {
++        int exit_code = dadao_excp_to_exit_code(env, excp);
++
++        qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
++                                               exit_code);
++        cpu_exit(env_cpu(env));
++        return;
++    }
++    env->pc = vec;
++    env->rb[0] = env->pc;
 +}
 +
 +void dadao_cpu_do_interrupt(CPUState *cs)
@@ -205,38 +333,47 @@ index 0000000..8bf5e4a
 +    }
 +
 +    /*
-+     * Two-axis permission denial (ADR-0045 D6): CFXPERM goes to the monitor of
-+     * the *current* run mode with cause_info recorded by the faulting access.
-+     */
-+    if (cs->exception_index == DADAO_EXCP_CFXPERM) {
-+        if (qemu_shutdown_requested_get() != SHUTDOWN_CAUSE_NONE) {
-+            return;
-+        }
-+        cfx_raise(env, DADAO_CAUSE_CFXPERM, env->inner_run_mode,
-+                  env->pc, env->cfx_perm_info);
-+        return;
-+    }
-+
-+    /*
-+     * M1: no guest exception handler. QEMU directly maps fault → exit code
-+     * and exits. Per ADR-0004 D6.1, this avoids pre-setting future exception
-+     * model. The exit code is propagated to host $? via
-+     * qemu_system_shutdown_request_with_code().
++     * Everything below is an execution-time synchronous exception that belongs
++     * to the current run-mode monitor (`DADAO-12 §5.2(一)`): ILLI / UNDI /
++     * CFXMEM / CFXREG / CFXPERM / MALIGN / IALIGN / RASOF / RASUF.  CFXPERM
++     * (two-axis permission denial, ADR-0045 D6) is one of them: it also goes
++     * to the monitor of the *current* run mode and never enters a cfx vector.
 +     *
-+     * If a clean shutdown (exit port write) is already pending, do not
-+     * override it with a panic exit code. This can happen when gen_update_pc
-+     * in tb_stop advances env->pc past an exit port write, causing the CPU
-+     * to continue into a UNDI terminator.
++     * If a clean shutdown is already pending, do not override it with a
++     * monitor entry or a panic exit code.
 +     */
 +    if (qemu_shutdown_requested_get() != SHUTDOWN_CAUSE_NONE) {
 +        return;
 +    }
 +
-+    int exit_code = dadao_excp_to_exit_code(env, cs->exception_index);
++    if (DADAO_PROFILE(env)->sync_exc_monitor_entry) {
++        /* Machine-v5-Tiny (fixed hypv, monitor = cfx3 hmon): every cause
++         * enters the hmon vector instead of being mapped straight to an exit
++         * code (spec/Machine-v5 §4.4); the shared helper also keeps an
++         * unreachable vector from recursing. */
++        dadao_sync_enter(env, cs->exception_index);
++        return;
++    }
 +
-+    qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
-+                                           exit_code);
-+    cpu_exit(cs);
++    /*
++     * Staged model still used by Machine-v5-Vast, which maps these causes to
++     * the monitor-segment machine-fault exit code rather than entering a
++     * vector (the PTW-fault and CFXPERM paths above do enter the monitor).
++     * The deviation from DADAO-12 §5.2 is registered in the task's spec-gap
++     * list because the Vast probe oracles encode it.
++     */
++    if (cs->exception_index == DADAO_EXCP_CFXPERM) {
++        cfx_raise(env, DADAO_CAUSE_CFXPERM, env->inner_run_mode,
++                  env->pc, env->cfx_perm_info);
++        return;
++    }
++    {
++        int exit_code = dadao_excp_to_exit_code(env, cs->exception_index);
++
++        qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
++                                               exit_code);
++        cpu_exit(cs);
++    }
 +}
 +
 +/*
@@ -658,12 +795,30 @@ index 0000000..8bf5e4a
 +    int prot;
 +    hwaddr paddr;
 +
++    /* IALIGN (DADAO-12 §2.2.6 item 1, checked *before* the fetch; §5:
++     * "IP 停留在非法地址").  The instruction-fetch path reaches this function
++     * for the exact pc, so a misaligned target is reported here before the
++     * segment/legality checks below can turn it into CFXMEM.  The IP is not
++     * written back: cause_ip / cause_info are the illegal address itself. */
++    if (access_type == MMU_INST_FETCH && (addr & 3)) {
++        if (probe) {
++            return false;
++        }
++        env->sync_fault_info = addr;
++        cs->exception_index = DADAO_EXCP_IALIGN;
++        cpu_loop_exit_restore(cs, retaddr);
++        /* not reached */
++        return false;
++    }
++
 +    /* Two-axis cfx permission (ADR-0045 D1/D2/D6): direct ld/st => cfxmem,
 +     * fetch => cfxexe of the target cfx; self bypasses the cfx axis only.
-+     * This check precedes address/range legality (CFXMEM/CFXREG).  A profile
-+     * without any cfx (Tiny) has no masks and skips it entirely. */
-+    if (prof->cfx_enabled &&
-+        cfxha != DADAO_CFXHA_MEM &&
++     * This check precedes address/range legality (CFXMEM/CFXREG).  A cfx the
++     * profile does not implement has no masks at all (no rows), so it is
++     * handled by the segment map below (CFXMEM), never by a mask denial
++     * (spec/Machine-v5 §3). */
++    if (cfxha != DADAO_CFXHA_MEM &&
++        dadao_cfx_implemented(prof, cfxha) &&
 +        cfx_perm_denied(env, cfxha,
 +                        access_type == MMU_INST_FETCH ? DADAO_CFX_PERM_EXE
 +                                                      : DADAO_CFX_PERM_MEM)) {
@@ -691,6 +846,7 @@ index 0000000..8bf5e4a
 +            if (probe) {
 +                return false;
 +            }
++            env->sync_fault_info = addr;   /* cause_info = 访存地址 */
 +            cs->exception_index = DADAO_EXCP_CFXMEM;
 +            cpu_loop_exit_restore(cs, retaddr);
 +            /* not reached */
@@ -795,6 +951,7 @@ index 0000000..8bf5e4a
 +        if (probe) {
 +            return false;
 +        }
++        env->sync_fault_info = addr;
 +        cs->exception_index = DADAO_EXCP_CFXMEM;
 +        cpu_loop_exit_restore(cs, retaddr);
 +        /* not reached */
@@ -804,11 +961,13 @@ index 0000000..8bf5e4a
 +    /* hmon (cfx3) / smon (cfx2) SRAM: 64 KiB at internal offset
 +     * 0x3ff_0000_0000 of the owning cfx (ADR-0043 D4/D5).  The test machine
 +     * backs each with a host RAM region outside the 56-bit PA space.  An
-+     * offset outside the SRAM is an illegal internal-space access => CFXMEM. */
-+    if (prof->mon_sram && (cfxha == 3 || cfxha == 2)) {
++     * offset outside the SRAM is an illegal internal-space access => CFXMEM.
++     * Machine-v5-Tiny implements hmon only (spec/Machine-v5 §1.1). */
++    if ((cfxha == DADAO_CFXHA_HMON && prof->hmon_sram) ||
++        (cfxha == 2 && prof->smon_sram)) {
 +        uint64_t off = addr & DADAO_VA_MASK;
-+        uint64_t host = (cfxha == 3) ? DADAO_HMON_SRAM_HOST_BASE
-+                                     : DADAO_SMON_SRAM_HOST_BASE;
++        uint64_t host = (cfxha == DADAO_CFXHA_HMON) ? DADAO_HMON_SRAM_HOST_BASE
++                                                    : DADAO_SMON_SRAM_HOST_BASE;
 +
 +        if (off >= DADAO_MON_SRAM_CFX_OFFSET &&
 +            off - DADAO_MON_SRAM_CFX_OFFSET < DADAO_MON_SRAM_SIZE) {
@@ -819,6 +978,7 @@ index 0000000..8bf5e4a
 +        if (probe) {
 +            return false;
 +        }
++        env->sync_fault_info = addr;
 +        cs->exception_index = DADAO_EXCP_CFXMEM;
 +        cpu_loop_exit_restore(cs, retaddr);
 +        /* not reached */
@@ -839,6 +999,9 @@ index 0000000..8bf5e4a
 +         * However, TCG fast-path stores may not check write permission.
 +         * Catch stores here in the TLB fill path to raise ILLI. */
 +        if (access_type == MMU_DATA_STORE) {
++            /* cause_info would be the instruction encoding, which this path
++             * cannot see; leave 0 rather than a stale value. */
++            env->sync_fault_info = 0;
 +            cs->exception_index = DADAO_EXCP_ILLI;
 +            cpu_loop_exit_restore(cs, retaddr);
 +            /* not reached */
@@ -868,6 +1031,7 @@ index 0000000..8bf5e4a
 +     * cpu_ldl_code_maybe_mmu (MMU_INST_FETCH), so no `access_type` special
 +     * case is needed and an out-of-range fetch never silently continues.
 +     */
++    env->sync_fault_info = addr;       /* cause_info = 访存地址 */
 +    if (prof->unmapped_is_cfxmem || DADAO_CFX_IS_RESERVED(cfxha)) {
 +        cs->exception_index = DADAO_EXCP_CFXMEM;
 +    } else {
@@ -920,14 +1084,17 @@ index 0000000..8bf5e4a
 +#endif
 +
 +/*
-+ * raise_exception helper: raise a DADAO exception.
++ * raise_exception helper: raise a DADAO synchronous exception.
 + * env is the implicit first argument passed by TCG.
-+ * excp is the DADAO exception index.
++ * excp is the DADAO exception index; info is the cause_info the monitor
++ * records for it (DADAO-12 §5.2(二)): the instruction encoding for
++ * ILLI/UNDI/CFXREG, the faulting address for MALIGN/CFXMEM.
 + */
-+void helper_raise_exception(CPUDADAOState *env, uint32_t excp)
++void helper_raise_exception(CPUDADAOState *env, uint32_t excp, uint64_t info)
 +{
 +    CPUState *cs = env_cpu(env);
 +
++    env->sync_fault_info = info;
 +    cs->exception_index = excp;
 +    cpu_loop_exit_restore(cs, GETPC());
 +}
@@ -997,8 +1164,10 @@ index 0000000..8bf5e4a
 +
 +    /* C3b: RACNT == 63, overflow path */
 +    if (mrptr == 0) {
-+        /* RASOF: precise — no side effects */
++        /* RASOF: precise — no side effects.  cause_info is the return address
++         * that could not be pushed (DADAO-13 §2 / DADAO-12 §5.2(二)). */
 +        CPUState *cs = env_cpu(env);
++        env->sync_fault_info = ret_addr;
 +        cs->exception_index = DADAO_EXCP_RASOF;
 +        cpu_loop_exit_restore(cs, GETPC());
 +        return;
@@ -1547,10 +1716,17 @@ index 0000000..8bf5e4a
 +
 +const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 4, 15, 32, 34, 63 };
 +
-+/* cfxha -> compact index into env->cfx[], or -1 if not implemented here. */
-+static int cfx_idx(int cfxha)
++/* cfxha -> compact index into env->cfx[], or -1 if the active profile does not
++ * implement that cfx (spec/Machine-v5 §3 per-profile list).  A profile that
++ * implements no row has no masks/vector/frame for it, so every caller must
++ * treat -1 as "no such cfx" rather than reaching into env->cfx[]. */
++static int cfx_idx(CPUDADAOState *env, int cfxha)
 +{
 +    int i;
++
++    if (!dadao_cfx_implemented(DADAO_PROFILE(env), cfxha)) {
++        return -1;
++    }
 +    for (i = 0; i < DADAO_NUM_CFX; i++) {
 +        if (dadao_cfxha_map[i] == cfxha) {
 +            return i;
@@ -1734,7 +1910,7 @@ index 0000000..8bf5e4a
 +                          bool sync, bool *entered)
 +{
 +    uint8_t entry_mode = env->inner_run_mode;
-+    int ci = cfx_idx(target);
++    int ci = cfx_idx(env, target);
 +    uint64_t vec;
 +
 +    if (ci < 0) {
@@ -1747,7 +1923,7 @@ index 0000000..8bf5e4a
 +     * global_cfx_intr_mask both mask by source cfxha; either one set =>
 +     * pending, no delivery. */
 +    if (!sync) {
-+        int cur = cfx_idx(env->inner_cfx_code);
++        int cur = cfx_idx(env, env->inner_cfx_code);
 +        uint64_t cur_mask = (cur >= 0)
 +            ? env->cfx[cur].mode[entry_mode].cfx_intr_mask : 0;
 +        uint64_t global_mask =
@@ -1779,6 +1955,11 @@ index 0000000..8bf5e4a
 +    dadao_soft_tlb_flush(env);
 +    vec = env->cfx[ci].mode[entry_mode].excp_vector;
 +    env->inner_run_mode = env->cfx[ci].mode[entry_mode].switch_run_mode & 0x3;
++    if (!DADAO_PROFILE(env)->user_mode) {
++        /* Machine-v5 §2: Tiny provides no mode-switch path -- the run mode is
++         * fixed at hypv, so a software-written switch value cannot leave it. */
++        env->inner_run_mode = DADAO_MODE_HYPV;
++    }
 +    env->inner_cfx_code = (uint8_t)target;
 +    /* step 5 continued: record cause ip / id / info */
 +    env->cfx[ci].cause_ip = cause_ip;
@@ -1815,6 +1996,7 @@ index 0000000..8bf5e4a
 +
 +    env->cfx[ci].saved_global_intr_mask = env->cfx[mon].global_cfx_intr_mask;
 +    env->cfx[ci].saved_intr_monitor = (uint8_t)mon;
++    env->cfx[ci].saved_intr_mask_valid = true;
 +    env->cfx[mon].global_cfx_intr_mask = ~0ULL;
 +}
 +
@@ -1905,7 +2087,7 @@ index 0000000..8bf5e4a
 +    if (env->pmem_dma_irq_en) {
 +        /* The pending record is the target cfx's cg5 rc5 bit8 (INTEG-051t);
 +         * the arbiter turns it into a delivery. */
-+        int ci = cfx_idx(DADAO_CFXHA_PMEM);
++        int ci = cfx_idx(env, DADAO_CFXHA_PMEM);
 +
 +        if (ci >= 0) {
 +            env->cfx[ci].pending |= DADAO_CAUSE_PMEM_DMA;
@@ -1946,7 +2128,7 @@ index 0000000..8bf5e4a
 +        env->pmem_dma_status |= DADAO_PMEM_DMA_ERROR |
 +                                (err << DADAO_PMEM_DMA_ERR_CODE_SHIFT);
 +        if (env->pmem_dma_irq_en) {
-+            int ci = cfx_idx(DADAO_CFXHA_PMEM);
++            int ci = cfx_idx(env, DADAO_CFXHA_PMEM);
 +
 +            if (ci >= 0) {
 +                env->cfx[ci].pending |= DADAO_CAUSE_PMEM_DMA;
@@ -2204,7 +2386,7 @@ index 0000000..8bf5e4a
 +
 +    for (i = 0; i < ARRAY_SIZE(dadao_async_sources); i++) {
 +        int cfxha = dadao_async_sources[i].cfxha;
-+        int ci = cfx_idx(cfxha);
++        int ci = cfx_idx(env, cfxha);
 +
 +        if (ci < 0 || !(env->cfx[ci].pending & dadao_async_sources[i].cause)) {
 +            continue;
@@ -2240,7 +2422,7 @@ index 0000000..8bf5e4a
 +        uint8_t entry_mode = env->inner_run_mode;
 +        uint64_t info;
 +        uint64_t vec;
-+        int ci = cfx_idx(cfxha);
++        int ci = cfx_idx(env, cfxha);
 +        bool entered = false;
 +
 +        if (ci < 0 || !(env->cfx[ci].pending & cause)) {
@@ -2271,7 +2453,7 @@ index 0000000..8bf5e4a
 +static void dadao_hart_timer_expire(CPUState *cs)
 +{
 +    CPUDADAOState *env = cpu_env(cs);
-+    int ci = cfx_idx(DADAO_CFXHA_HART);
++    int ci = cfx_idx(env, DADAO_CFXHA_HART);
 +
 +    if (!(env->hart_timer_ctrl & DADAO_HART_TIMER_ENABLE) ||
 +        env->hart_timer_cmp == ~0ULL) {
@@ -2348,7 +2530,7 @@ index 0000000..8bf5e4a
 +#else
 +        {
 +            CPUState *cs = env_cpu(env);
-+            int ci = cfx_idx(DADAO_CFXHA_HART);
++            int ci = cfx_idx(env, DADAO_CFXHA_HART);
 +
 +            /* A new compare value cancels the old deadline and this match. */
 +            env->hart_timer_cmp = val;
@@ -2366,7 +2548,7 @@ index 0000000..8bf5e4a
 +#else
 +        {
 +            CPUState *cs = env_cpu(env);
-+            int ci = cfx_idx(DADAO_CFXHA_HART);
++            int ci = cfx_idx(env, DADAO_CFXHA_HART);
 +
 +            env->hart_timer_ctrl = (uint8_t)(val & (DADAO_HART_TIMER_ENABLE |
 +                                                    DADAO_HART_TIMER_IMASK));
@@ -2403,13 +2585,6 @@ index 0000000..8bf5e4a
 +    int target;
 +    int ci;
 +
-+    /* Tiny implements no cfx at all (spec/Machine-v5 §3): a general trap is
-+     * an illegal instruction, it has no vector to enter and must not
-+     * switch run mode.  Semihosting never reaches this helper. */
-+    if (!DADAO_PROFILE(env)->cfx_enabled) {
-+        dadao_direct_fault(env, DADAO_EXCP_ILLI);
-+    }
-+
 +    if (immu18 >= 0x3FF00) {
 +        /* Semihosting tag (immu18[17:8] == 0x3FF, ADR-0038 D1): short-circuited
 +         * at the decode layer (trans_trap_ciii_cfx -> DADAO_EXCP_SEMIHOST) and
@@ -2422,10 +2597,15 @@ index 0000000..8bf5e4a
 +        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
 +        return;
 +    }
-+    ci = cfx_idx(cfxha);
++    ci = cfx_idx(env, cfxha);
 +    if (ci < 0) {
-+        /* allocated but not implemented by the test machine => CFXREG */
-+        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++        /* Allocated but not implemented by this profile: Tiny maps a general
++         * trap there to ILLI (spec/Machine-v5 §3 Tiny bullet), Vast keeps the
++         * register-access rule CFXREG.  Either way the target is the current
++         * run-mode monitor. */
++        cfx_raise(env, DADAO_PROFILE(env)->unimpl_cfx_trap_illi
++                       ? DADAO_CAUSE_ILLI : DADAO_CAUSE_CFXREG,
++                  env->inner_run_mode, pc, info);
 +        return;
 +    }
 +    /* cfxtrap permission: target's source mask, self bypasses the cfx axis
@@ -2460,12 +2640,6 @@ index 0000000..8bf5e4a
 +    uint64_t info = ((uint64_t)0x7E << 24) | ((uint64_t)(cfxha & 0x3F) << 18) |
 +                    (uint64_t)(imms18 & 0x3FFFF);
 +
-+    /* Tiny implements no cfx: `escape` is an illegal instruction,
-+     * with no frame and no state to restore (spec/Machine-v5 §3). */
-+    if (!DADAO_PROFILE(env)->cfx_enabled) {
-+        dadao_direct_fault(env, DADAO_EXCP_ILLI);
-+    }
-+
 +    /* imms18[17:1] is SBZ: the legal escape offset set is {0, +4}.  Raise
 +     * before the reserved-cfxha/CFXESC checks and before any state switch,
 +     * on the same pc/info path as reserved-cfxha ILLI. */
@@ -2473,7 +2647,7 @@ index 0000000..8bf5e4a
 +        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
 +        return;
 +    }
-+    int ci = cfx_idx(env->inner_cfx_code);
++    int ci = cfx_idx(env, env->inner_cfx_code);
 +    int32_t imm = (int32_t)(imms18 & 0x3FFFF);
 +
 +    if (imm & (1 << 17)) {
@@ -2490,9 +2664,14 @@ index 0000000..8bf5e4a
 +        return;
 +    }
 +
-+    /* step 1: restore the saved global_cfx_intr_mask (D9). */
-+    env->cfx[env->cfx[ci].saved_intr_monitor & 0x3].global_cfx_intr_mask =
-+        env->cfx[ci].saved_global_intr_mask;
++    /* step 1: restore the global_cfx_intr_mask saved by a `trap` entry (D9).
++     * A synchronous exception (no trap) saved nothing, so a plain
++     * fault -> escape round trip must not clobber the monitor's mask. */
++    if (env->cfx[ci].saved_intr_mask_valid) {
++        env->cfx[env->cfx[ci].saved_intr_monitor & 0x3].global_cfx_intr_mask =
++            env->cfx[ci].saved_global_intr_mask;
++        env->cfx[ci].saved_intr_mask_valid = false;
++    }
 +#ifndef CONFIG_USER_ONLY
 +    /* The live frame blocked every async source; once the mask is back,
 +     * re-kick so the arbiter can deliver what accumulated meanwhile. */
@@ -2523,17 +2702,16 @@ index 0000000..8bf5e4a
 +    uint64_t *p;
 +    int ci;
 +
-+    /* Tiny implements no cfx register file: any cfx2rd is CFXREG. */
-+    if (!DADAO_PROFILE(env)->cfx_enabled) {
-+        dadao_direct_fault(env, DADAO_EXCP_CFXREG);
-+    }
-+
 +    if (DADAO_CFX_IS_RESERVED(cfxha)) {
 +        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
 +        return;
 +    }
-+    ci = cfx_idx(cfxha);
++    ci = cfx_idx(env, cfxha);
 +    if (ci < 0) {
++        /* No register file row for a cfx this profile does not implement
++         * (spec/Machine-v5 §3) => CFXREG in the current run-mode monitor.
++         * A reserved cfxha already took the ILLI path above (DADAO-12
++         * §5.2(一)). */
 +        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
 +        return;
 +    }
@@ -2623,17 +2801,16 @@ index 0000000..8bf5e4a
 +    uint64_t *p;
 +    int ci;
 +
-+    /* Tiny implements no cfx register file: any cfx2rc is CFXREG. */
-+    if (!DADAO_PROFILE(env)->cfx_enabled) {
-+        dadao_direct_fault(env, DADAO_EXCP_CFXREG);
-+    }
-+
 +    if (DADAO_CFX_IS_RESERVED(cfxha)) {
 +        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
 +        return;
 +    }
-+    ci = cfx_idx(cfxha);
++    ci = cfx_idx(env, cfxha);
 +    if (ci < 0) {
++        /* No register file row for a cfx this profile does not implement
++         * (spec/Machine-v5 §3) => CFXREG in the current run-mode monitor.
++         * A reserved cfxha already took the ILLI path above (DADAO-12
++         * §5.2(一)). */
 +        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
 +        return;
 +    }

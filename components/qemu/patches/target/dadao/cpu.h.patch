@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..8cf30c7
+index 0000000..193284a
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,566 @@
+@@ -0,0 +1,599 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -73,11 +73,10 @@ index 0000000..8cf30c7
 +     */
 +    DADAO_EXCP_CFXPERM = 12,
 +    /*
-+     * System mode: a cfx-register access on a machine that implements no cfx
-+     * at all (Machine-v5-Tiny, spec/Machine-v5 §3).  Tiny has no exception
-+     * vectors, so this is a direct machine fault routed to the current
-+     * run-mode monitor segment (spec/Machine-v5 §7.1), never a cfx_raise()
-+     * into a vector.
++     * System mode: an illegal cfx-register access (DADAO-12 §5.2(一)):
++     * a `cfx2rd`/`cfx2rc` to a cfx this profile does not implement, or an
++     * out-of-range (cg, rc).  It is a synchronous exception of the current
++     * run-mode monitor (cfx_hmon on both test machines), not a cfx entry.
 +     */
 +    DADAO_EXCP_CFXREG = 13,
 +};
@@ -140,6 +139,7 @@ index 0000000..8cf30c7
 +#define DADAO_CFXHA_MASK    0x3F
 +#define DADAO_CFXHA_UMON    0
 +#define DADAO_CFXHA_POWER   63
++#define DADAO_CFXHA_HMON    3
 +#define DADAO_ADDR_CFXHA(a) (((uint64_t)(a) >> DADAO_CFXHA_SHIFT) & DADAO_CFXHA_MASK)
 +
 +/* ===================================================================
@@ -169,12 +169,28 @@ index 0000000..8cf30c7
 +    uint64_t kernel_entry;      /* raw application entry (base+reserved) */
 +    uint64_t kernel_reserved;   /* leading zero bytes of a raw image */
 +    bool ram_alias;             /* add a PA-0 alias for the first page table */
-+    bool mon_sram;              /* hmon (cfx3) / smon (cfx2) 64 KiB SRAM */
++    bool hmon_sram;             /* cfx3 hmon 64 KiB SRAM (both profiles) */
++    bool smon_sram;             /* cfx2 smon 64 KiB SRAM (Vast only) */
 +    bool pmem_sram;             /* cfx_pmem (cfx32) 64 KiB SRAM */
-+    bool cfx_enabled;           /* cfx register file / vectors / run modes */
++    /* cfxha values this profile implements: bit N set => cfxN exists
++     * (DADAO-12 §5.2(一); spec/Machine-v5 §3 per-profile list).  Every other
++     * cfxha is reserved (ILLI) or allocated-but-unimplemented (CFXREG for a
++     * register access). */
++    uint64_t cfx_impl_mask;
++    /* `trap` to an allocated-but-unimplemented cfx: Tiny maps it to ILLI
++     * (spec/Machine-v5 §3 Tiny bullet), Vast keeps CFXREG. */
++    bool unimpl_cfx_trap_illi;
++    /* ELF PT_LOAD may target the hmon SRAM (Tiny: the host loader installs the
++     * hmon image directly into hmon SRAM, R13-A). */
++    bool mon_elf_segments;
 +    bool ptw_supported;         /* cfx4 PTW/TLB (memory window can translate) */
 +    bool rom_elf_segments;      /* ELF PT_LOAD may target the BootROM */
 +    bool unmapped_is_cfxmem;    /* every unmapped access => CFXMEM (Tiny) */
++    /* Every execution-time synchronous exception enters the current run-mode
++     * monitor (DADAO-12 §5.2(一), Machine-v5 §4.4).  Tiny needs this; Vast
++     * still uses the staged M1 mapping of those causes to a machine-fault exit
++     * code (see dadao_cpu_do_interrupt), which its probe oracles encode. */
++    bool sync_exc_monitor_entry;
 +    bool user_mode;             /* user/jail/supv reachable via cfx switches */
 +    bool semihosting;
 +} DadaoProfile;
@@ -206,6 +222,16 @@ index 0000000..8cf30c7
 +
 +extern const DadaoProfile dadao_profile_vast;
 +extern const DadaoProfile dadao_profile_tiny;
++
++/* True iff the active profile implements cfx `cfxha` (DADAO-12 §5.2(一)).
++ * A profile that does not implement a cfx has no register file row, no
++ * exception vector and no two-axis masks for it: register access =>
++ * CFXREG, `trap`/`escape` => ILLI, plain ld/st => CFXMEM. */
++static inline bool dadao_cfx_implemented(const DadaoProfile *prof, int cfxha)
++{
++    return cfxha >= 0 && cfxha < 64 &&
++           (prof->cfx_impl_mask & (1ULL << cfxha)) != 0;
++}
 +
 +/*
 + * Address space (ADR-0039 §8.5 Step 1; DADAO-12 §2.2; ADR-0040 Step 2):
@@ -403,6 +429,7 @@ index 0000000..8cf30c7
 +     * escape restores it.  Not software-visible (frame_active is out of scope). */
 +    uint64_t saved_global_intr_mask;
 +    uint8_t  saved_intr_monitor;   /* cfx0-3 whose global mask was saved */
++    bool     saved_intr_mask_valid; /* a live frame saved it (trap entry) */
 +    uint64_t cfx_id;            /* cg4 rc0 (RO) */
 +    uint64_t version;           /* cg4 rc1 (RO) */
 +    uint64_t trap_num;          /* cg4 rc2 */
@@ -470,6 +497,12 @@ index 0000000..8cf30c7
 +    /* Pending two-axis permission denial (DADAO_EXCP_CFXPERM): cause_info is
 +     * the faulting address (ld/st/fetch) or the instruction encoding. */
 +    uint64_t cfx_perm_info;
++    /* cause_info of a pending generic synchronous exception
++     * (DADAO_EXCP_{ILLI,UNDI,CFXMEM,MALIGN,IALIGN,RASOF,RASUF}): the
++     * instruction encoding, the faulting address or the IP value, per
++     * DADAO-12 §5.2(二) / Machine-v5 §4.4.  Set by raise_exception /
++     * tlb_fill / do_unaligned_access before the CPU exits the TB. */
++    uint64_t sync_fault_info;
 +    /* ── TLB (cfx_ptw cg12; DADAO-12 §4.5, ADR-0041 D2/D3) ──
 +     * tlb_asid stores [15:0]; tlb_start/tlb_size are the invalidate window
 +     * operands (reset 0 -> a range operation needs an explicit size). */

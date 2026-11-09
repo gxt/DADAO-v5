@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..1fa5818
+index 0000000..1b6d89a
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,774 @@
+@@ -0,0 +1,809 @@
 +/*
 + * DADAO Machine-v5 bare-metal test machines for QEMU
 + *
@@ -33,10 +33,13 @@ index 0000000..1fa5818
 + * `tiny` is Machine-v5-Tiny (spec/Machine-v5 §1.1/§6):
 + *   Boot ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB, RO+X)
 + *   SRAM:       0xffff_ff00_0000 .. 0xffff_ff7f_ffff (8 MiB, RWX)
++ *   hmon SRAM:  0x0fff_0000_0000 (64 KiB, cfx3); the host loader may place a
++ *               PT_LOAD there (the hmon image, spec/Machine-v5 §4.4)
 + *   reset vec:  0xffff_ffff_0000; raw -kernel at 0xffff_ff01_0000
 + *               (first 0x100 bytes zero, entry 0xffff_ff01_0100);
-+ *               ELF PT_LOAD may target the BootROM (crt stub) or the SRAM.
-+ *   no cfx register file / PTW / monitor or pmem SRAM / PA-0 alias.
++ *               ELF PT_LOAD may target the BootROM (crt stub), the SRAM or
++ *               the hmon SRAM (hmon image).
++ *   cfx_power (cfx63) + cfx3 hmon only; no PTW / smon / pmem / PA-0 alias.
 + *
 + * Loading paths per ADR-0004 D2.2/D2.3 (rev. 2026-10-06, SPEC-107t) and
 + * contract-elf.md §5/§6 -- two paths coexist, selected by the kernel's ELF
@@ -134,8 +137,11 @@ index 0000000..1fa5818
 +    uint64_t size;
 +} DadaoMappedRegion;
 +
-+static unsigned dadao_mapped_regions(const DadaoProfile *prof,
-+                                     DadaoMappedRegion regions[2])
++#define DADAO_MAX_MAPPED_REGIONS 3
++
++static unsigned
++dadao_mapped_regions(const DadaoProfile *prof,
++                     DadaoMappedRegion regions[DADAO_MAX_MAPPED_REGIONS])
 +{
 +    unsigned n = 0;
 +
@@ -143,12 +149,18 @@ index 0000000..1fa5818
 +    if (prof->rom_elf_segments) {
 +        regions[n++] = (DadaoMappedRegion){ prof->rom_base, prof->rom_size };
 +    }
++    if (prof->mon_elf_segments) {
++        /* Tiny: the host loader installs the hmon image straight into hmon
++         * SRAM (design R13-A; spec/Machine-v5 §1.1/§4.4). */
++        regions[n++] = (DadaoMappedRegion){ DADAO_HMON_CFX_BASE,
++                                            DADAO_MON_SRAM_SIZE };
++    }
 +    return n;
 +}
 +
 +static bool dadao_addr_mapped(const DadaoProfile *prof, uint64_t addr)
 +{
-+    DadaoMappedRegion regions[2];
++    DadaoMappedRegion regions[DADAO_MAX_MAPPED_REGIONS];
 +    unsigned n = dadao_mapped_regions(prof, regions);
 +    unsigned r;
 +
@@ -331,7 +343,7 @@ index 0000000..1fa5818
 +    }
 +
 +    {
-+    DadaoMappedRegion regions[2];
++    DadaoMappedRegion regions[DADAO_MAX_MAPPED_REGIONS];
 +    unsigned nregions = dadao_mapped_regions(prof, regions);
 +
 +    for (i = 0; i < phnum; i++) {
@@ -401,12 +413,15 @@ index 0000000..1fa5818
 +        if (!mapped) {
 +            error_report("dadao: ELF kernel '%s': PT_LOAD segment %u "
 +                         "interval [%#" PRIx64 ", %#" PRIx64 ") is outside the "
-+                         "mapped regions (RAM %#" PRIx64 " + %" PRIu64 " bytes%s)",
++                         "mapped regions (RAM %#" PRIx64 " + %" PRIu64 " bytes%s%s)",
 +                         filename, i, p_vaddr, end, (uint64_t)prof->ram_base,
 +                         (uint64_t)prof->ram_size,
 +                         prof->rom_elf_segments
 +                             ? " or the BootROM (Tiny crt stub)"
-+                             : "; the boot ROM window is rejected");
++                             : "; the boot ROM window is rejected",
++                         prof->mon_elf_segments
++                             ? " or the hmon SRAM (Tiny hmon image)"
++                             : "");
 +            close(fd);
 +            exit(1);
 +        }
@@ -660,15 +675,34 @@ index 0000000..1fa5818
 +                                    pmem_sram);
 +    }
 +
-+    /* hmon (cfx3) / smon (cfx2) SRAM (Vast only), 64 KiB each. */
-+    if (prof->mon_sram) {
++    /* hmon (cfx3) / smon (cfx2) SRAM, 64 KiB each (spec/Machine-v5 §1.1:
++     * Tiny implements hmon only, Vast implements both).  Like the cfx_pmem
++     * SRAM they are backed at host addresses outside the 56-bit guest PA
++     * space; the CPU reaches them through tlb_fill and the monitor's own
++     * internal address, never through a guest PA. */
++    if (prof->hmon_sram) {
 +        MemoryRegion *hmon_sram = g_new(MemoryRegion, 1);
-+        MemoryRegion *smon_sram = g_new(MemoryRegion, 1);
 +
 +        memory_region_init_ram(hmon_sram, NULL, "dadao-hmon-sram",
 +                               DADAO_MON_SRAM_SIZE, &error_fatal);
 +        memory_region_add_subregion(system_memory, DADAO_HMON_SRAM_HOST_BASE,
 +                                    hmon_sram);
++        if (prof->mon_elf_segments) {
++            /* Loader-only window: the ELF loader places segments by guest
++             * address, so the hmon image needs an address-space view of the
++             * same RAM at the monitor's internal address (Tiny, R13-A).  This
++             * is the SRAM's own address, not a second alias for it. */
++            MemoryRegion *hmon_load = g_new(MemoryRegion, 1);
++
++            memory_region_init_alias(hmon_load, NULL, "dadao-hmon-load",
++                                     hmon_sram, 0, DADAO_MON_SRAM_SIZE);
++            memory_region_add_subregion(system_memory, DADAO_HMON_CFX_BASE,
++                                        hmon_load);
++        }
++    }
++    if (prof->smon_sram) {
++        MemoryRegion *smon_sram = g_new(MemoryRegion, 1);
++
 +        memory_region_init_ram(smon_sram, NULL, "dadao-smon-sram",
 +                               DADAO_MON_SRAM_SIZE, &error_fatal);
 +        memory_region_add_subregion(system_memory, DADAO_SMON_SRAM_HOST_BASE,
@@ -752,7 +786,8 @@ index 0000000..1fa5818
 + */
 +static const DadaoMachineDesc dadao_tiny_machine = {
 +    .desc = "DADAO Machine-v5-Tiny bare-metal test machine "
-+            "(64 KiB BootROM + 8 MiB SRAM; no cfx/PTW)",
++            "(64 KiB BootROM + 8 MiB SRAM + 64 KiB hmon SRAM; "
++            "cfx_power + cfx3 hmon, no PTW)",
 +    .profile = &dadao_profile_tiny,
 +};
 +

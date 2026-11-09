@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..ad3542f
+index 0000000..afffa62
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,597 @@
+@@ -0,0 +1,619 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -44,10 +44,19 @@ index 0000000..ad3542f
 + * It backs `-machine dadao-vast`; the canonical DADAO_* macros carry the same
 + * geometry.
 + *
-+ * `tiny` is Machine-v5-Tiny: 64 KiB BootROM + 8 MiB SRAM, no cfx (not even
-+ * cfx_power), no PTW, no monitor/pmem SRAM, no PA alias, semihosting only.
++ * `tiny` is Machine-v5-Tiny: 64 KiB BootROM + 8 MiB SRAM, `cfx_power`
++ * (cfx63) + `cfx3 hmon` only (spec/Machine-v5 §1.1/§3, 0.4.2-rc), hmon SRAM
++ * at 0x0fff_0000_0000, no PTW, no smon, no pmem SRAM, no PA alias; the run
++ * mode is fixed at hypv and semihosting is the only host-I/O path.
 + * It backs `-machine dadao-tiny`.
 + * =================================================================== */
++
++/* Implemented cfx masks (spec/Machine-v5 §3).  Bit N => cfxN exists. */
++#define DADAO_CFX_IMPL_VAST  ((1ULL << 0) | (1ULL << 1) | (1ULL << 2) | \
++                              (1ULL << 3) | (1ULL << 4) | (1ULL << 15) | \
++                              (1ULL << 32) | (1ULL << 34) | (1ULL << 63))
++#define DADAO_CFX_IMPL_TINY  ((1ULL << 3) | (1ULL << 63))
++
 +const DadaoProfile dadao_profile_vast = {
 +    .name = "vast",
 +    .ram_base = DADAO_VAST_RAM_BASE,
@@ -61,12 +70,16 @@ index 0000000..ad3542f
 +    .kernel_entry = DADAO_VAST_KERNEL_ENTRY,
 +    .kernel_reserved = DADAO_VAST_KERNEL_RESERVED,
 +    .ram_alias = false,         /* Vast RAM already lives at PA 0 */
-+    .mon_sram = true,
++    .hmon_sram = true,
++    .smon_sram = true,
 +    .pmem_sram = true,
-+    .cfx_enabled = true,
++    .cfx_impl_mask = DADAO_CFX_IMPL_VAST,
++    .unimpl_cfx_trap_illi = false,  /* allocated-but-unimplemented => CFXREG */
++    .mon_elf_segments = false,      /* power loads hmon from the BootROM */
 +    .ptw_supported = true,
 +    .rom_elf_segments = false,  /* Vast test bodies load into PA RAM only */
 +    .unmapped_is_cfxmem = false,
++    .sync_exc_monitor_entry = false,   /* staged direct-fault mapping */
 +    .user_mode = true,
 +    .semihosting = true,
 +};
@@ -84,12 +97,16 @@ index 0000000..ad3542f
 +    .kernel_entry = DADAO_TINY_KERNEL_ENTRY,
 +    .kernel_reserved = DADAO_TINY_KERNEL_RESERVED,
 +    .ram_alias = false,
-+    .mon_sram = false,
++    .hmon_sram = true,          /* cfx3 hmon SRAM (spec/Machine-v5 §1.1) */
++    .smon_sram = false,         /* Tiny implements no smon */
 +    .pmem_sram = false,
-+    .cfx_enabled = false,
++    .cfx_impl_mask = DADAO_CFX_IMPL_TINY,
++    .unimpl_cfx_trap_illi = true,   /* spec/Machine-v5 §3 (Tiny) */
++    .mon_elf_segments = true,       /* host loader installs the hmon image */
 +    .ptw_supported = false,
 +    .rom_elf_segments = true,
 +    .unmapped_is_cfxmem = true,
++    .sync_exc_monitor_entry = true,    /* hmon carries every sync exception */
 +    .user_mode = false,
 +    .semihosting = true,
 +};
@@ -180,6 +197,7 @@ index 0000000..ad3542f
 +    env->ptw_enable = 0;
 +    env->ptw_fault_cause = 0;
 +    env->ptw_fault_info = 0;
++    env->sync_fault_info = 0;
 +    env->tlb_asid = 0;
 +    env->tlb_start = 0;
 +    env->tlb_size = 0;
@@ -475,8 +493,8 @@ index 0000000..ad3542f
 +    }
 +    /* hmon / smon SRAM live outside the 56-bit PA space, but semihosting runs
 +     * in every boot stage and reads its argument block through this hook.
-+     * Tiny has no monitor SRAM. */
-+    if (prof->mon_sram &&
++     * Tiny implements only hmon (spec/Machine-v5 §1.1). */
++    if (prof->hmon_sram &&
 +        addr >= DADAO_HMON_CFX_BASE &&
 +        addr < DADAO_HMON_CFX_BASE + DADAO_MON_SRAM_SIZE) {
 +        result->physaddr = DADAO_HMON_SRAM_HOST_BASE +
@@ -486,7 +504,7 @@ index 0000000..ad3542f
 +        result->lg_page_size = TARGET_PAGE_BITS;
 +        return true;
 +    }
-+    if (prof->mon_sram &&
++    if (prof->smon_sram &&
 +        addr >= DADAO_SMON_CFX_BASE &&
 +        addr < DADAO_SMON_CFX_BASE + DADAO_MON_SRAM_SIZE) {
 +        result->physaddr = DADAO_SMON_SRAM_HOST_BASE +
@@ -511,7 +529,11 @@ index 0000000..ad3542f
 +                                                      int mmu_idx, uintptr_t retaddr)
 +{
 +    /* MALIGN precise exception: faulting PC preserved, no register/memory commit.
-+     * Per spec/Machine-v5 §7.1 this is a MALIGN direct fault. */
++     * cause_info = the faulting address (DADAO-12 §5.2(二)); the exception
++     * enters the current run-mode monitor (hmon on both test machines). */
++    CPUDADAOState *env = cpu_env(cs);
++
++    env->sync_fault_info = addr;
 +    cs->exception_index = DADAO_EXCP_MALIGN;
 +    cpu_loop_exit_restore(cs, retaddr);
 +}

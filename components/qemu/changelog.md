@@ -307,3 +307,9 @@
 - **2026-11-09 `m12-integ-001`**
   - 摘要：**移除过渡别名 `dadao-m1` 与 `profile=node`**。`hw/dadao/dadao-machine.c` 删除 `dadao-m1` 机器类型、`profile` 属性、`profile=node`→vast 映射与 `DADAO_TEST_PROFILE` 回退；`DadaoMachineState`/`DadaoMachineDesc`/`DadaoMachineClass` 去掉 `profile`/`legacy_alias` 字段，`dadao_machine_select_profile()` 删除，profile 直接取 `class_data`；错误信息前缀 `dadao-m1:` 改为 `dadao:`，`-M dadao-m1` 现报 machine not found（不再静默映射）。`cpu.{h,c}` 注释同步。补丁 3 份改（hunk 计数由 `git diff <base>` 产出）。`README.md` 记录别名移除。
   - 执行者：engineer
+
+## M13
+
+- **2026-11-10 `m13-qemu-001`**
+  - 摘要：**Tiny 实现 `cfx_power`（cfx63）+ `cfx3 hmon`（`spec/Machine-v5` 0.4.2-rc §1.1/§2/§4.4/§6）**。`cpu.{h,c}`：profile 由 `cfx_enabled` 改为 `cfx_impl_mask`（Tiny `{3,63}`、Vast 原 9 项）+ `hmon_sram`/`smon_sram` 拆分 + `mon_elf_segments` + `unimpl_cfx_trap_illi` + `sync_exc_monitor_entry`；`cfx_idx()` 按 profile 过滤（未实现的 cfx 无寄存器行/掩码/向量）。`hw/dadao/dadao-machine.c`：Tiny 增 64 KiB hmon SRAM（`0x0fff_0000_0000`，cfxha 3；CPU 仍经 `tlb_fill` 的 host 基址访问）与**装载别名**（ELF PT_LOAD 直装 hmon SRAM，R13-A），`dadao_mapped_regions()` 增第三区。`helper.c`：同步异常统一走 `dadao_sync_enter()`（cause id/info 表：`ILLI`/`UNDI`/`CFXMEM`/`CFXREG`/`CFXPERM`/`MALIGN`/`IALIGN`/`RASOF`/`RASUF`），**向量不可达时回退机器 fault 退出码**（`Machine-v5 §7.1`，防 CFXMEM 递归）；Tiny `cfx2rd`/`cfx2rc`/`trap` 到未实现 cfx ⇒ `ILLI`、寄存器访问 ⇒ `CFXREG`；`escape` 仅在有 `trap` 保存的 `global_cfx_intr_mask` 时恢复；Tiny 运行模式锁 `hypv`。`raise_exception` helper 增 `cause_info` 参数（指令编码/访存地址）。`translate.c`：**IALIGN 在取指前检测**（`IP[1:0] != 00`），IP 停留非法地址、不写回 nextIp；`tlb_fill` 对取指同检（未映射且非对齐时 IALIGN 优先于 CFXMEM）。Vast 的 `ILLI`/`UNDI`/`CFXMEM`/`MALIGN`/`IALIGN`/`RAS*` 仍按 staged 机器 fault 映射（旧探针 oracle 依赖，规格偏差已登记任务书）。补丁 **7 份改**，`make_patch.py` 重导出（7 written / 59 unchanged，共 66 份）。
+  - 执行者：engineer

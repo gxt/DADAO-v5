@@ -1,9 +1,9 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000..9134abc
+index 0000000..1d1d8d1
 --- /dev/null
 +++ b/target/dadao/translate.c
-@@ -0,0 +1,668 @@
+@@ -0,0 +1,696 @@
 +/*
 + * DADAO translation routines for QEMU (decodetree version)
 + *
@@ -82,7 +82,8 @@ index 0000000..9134abc
 +
 +static void gen_exception_illegal(DisasContext *ctx)
 +{
-+    gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_ILLI));
++    gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_ILLI),
++                               tcg_constant_i64(ctx->opcode));
 +    ctx->base.is_jmp = DISAS_NORETURN;
 +}
 +
@@ -90,19 +91,23 @@ index 0000000..9134abc
 + * Use inside runtime conditional branches where the normal path must continue. */
 +static void gen_raise_exception_illi(DisasContext *ctx)
 +{
-+    gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_ILLI));
++    gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_ILLI),
++                               tcg_constant_i64(ctx->opcode));
 +}
 +
 +/* Raise MALIGN at runtime without setting is_jmp (same shape as ILLI above:
-+ * used by the lr/sc alignment check, whose aligned path must keep running). */
-+static void gen_raise_exception_malign(DisasContext *ctx)
++ * used by the lr/sc alignment check, whose aligned path must keep running).
++ * `addr` (big-endian effective address) is the monitor's cause_info. */
++static void gen_raise_exception_malign(DisasContext *ctx, TCGv_i64 addr)
 +{
-+    gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_MALIGN));
++    gen_helper_raise_exception(tcg_env,
++                               tcg_constant_i32(DADAO_EXCP_MALIGN), addr);
 +}
 +
 +static void gen_exception_undi(DisasContext *ctx)
 +{
-+    gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_UNDI));
++    gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_UNDI),
++                               tcg_constant_i64(ctx->opcode));
 +    ctx->base.is_jmp = DISAS_NORETURN;
 +}
 +
@@ -462,7 +467,7 @@ index 0000000..9134abc
 +    rem = tcg_temp_new_i64();
 +    tcg_gen_andi_i64(rem, addr, width - 1);
 +    tcg_gen_brcondi_i64(TCG_COND_EQ, rem, 0, label_ok);
-+    gen_raise_exception_malign(ctx);
++    gen_raise_exception_malign(ctx, addr);
 +    gen_set_label(label_ok);
 +}
 +
@@ -609,8 +614,31 @@ index 0000000..9134abc
 +static void dadao_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
 +{
 +    DisasContext *ctx = container_of(dcbase, DisasContext, base);
-+    uint32_t insn = translator_ldl_end(ctx->env, &ctx->base,
-+                                        ctx->base.pc_next, MO_BE);
++    uint32_t insn;
++
++    /*
++     * IALIGN (DADAO-12 §2.2.6 item 1) is checked before the fetch and is a
++     * precise exception whose IP stays at the illegal address: env->pc is not
++     * advanced by the exception (the insn_start of this very instruction is
++     * the state-restore point), so excp_cause_ip / cause_info are the illegal
++     * IP itself.  The fetch-side tlb_fill check covers the same rule when the
++     * code page has to be mapped first (unmapped misaligned target: IALIGN
++     * has priority over CFXMEM).
++     */
++    if (ctx->base.pc_next & 3) {
++        gen_helper_raise_exception(tcg_env,
++                                   tcg_constant_i32(DADAO_EXCP_IALIGN),
++                                   tcg_constant_i64(ctx->base.pc_next));
++        /* DISAS_NORETURN: the TB ends without writing env->pc, so the IP stays
++         * at the illegal address.  pc_next is still advanced by one word so
++         * the TB has a non-zero size (QEMU bookkeeping only; nothing after
++         * this insn is reachable). */
++        ctx->base.is_jmp = DISAS_NORETURN;
++        ctx->base.pc_next += 4;
++        return;
++    }
++
++    insn = translator_ldl_end(ctx->env, &ctx->base, ctx->base.pc_next, MO_BE);
 +    ctx->opcode = insn;
 +    if (!decode_insn(ctx, insn)) {
 +        gen_exception_undi(ctx);
