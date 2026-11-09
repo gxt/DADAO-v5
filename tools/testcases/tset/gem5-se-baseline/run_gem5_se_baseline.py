@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """gem5 SE tset baseline (GEM5-021t).
 
-Runs the three tset suites (libc-test, llvm-ts, embench) in **static** link
-mode on both engines -- QEMU user mode and gem5 syscall emulation -- and joins
-the two per-case JSONs by case id:
+Runs the three tset suites (libc-test, llvm-ts, embench) in **one** link
+mode (``--link-mode static|dynamic``, default ``static``) on both engines --
+QEMU user mode and gem5 syscall emulation -- and joins the two per-case JSONs
+by case id:
 
     python3 tools/testcases/tset/gem5-se-baseline/run_gem5_se_baseline.py \
         --work-dir <runtime dir> --json-out <runtime dir>/baseline.json
@@ -22,9 +23,10 @@ hand):
                         slower than qemu-user): counted and listed on its own,
                         never merged into ``blocked``;
 * ``blocked``        -- real capability gap: gem5 SE could not run the case to
-                        a verdict (static-ELF gate, unimplemented syscall,
-                        non-guest end), the timeout excluded; reported with
-                        the capability bucket, never as pass/fail;
+                        a verdict (loader/ELF gate, ldso abort before main,
+                        unimplemented syscall, non-guest end), the timeout
+                        excluded; reported with the capability bucket, never as
+                        pass/fail;
 * ``gem5_only_fail`` -- QEMU passed (or admitted a known-fail) and gem5 SE
                         reached a *non-pass* verdict;
 * ``qemu_only_fail`` -- gem5 SE passed and QEMU did not.  ADR-0048 D5: this
@@ -118,7 +120,11 @@ CHANGE_SURFACE = {
     "scheduling": "syscall: sched_*/setpriority (single-thread SE: report values)",
     "random": "syscall: getrandom (+ deterministic SE entropy source)",
     "process startup/TLS": "process: arch_prctl/TLS setup in the SE loader",
-    "loader/ELF modality": "loader: static ET_EXEC only (ET_DYN/PT_INTERP later)",
+    "loader/ELF modality": ("loader: ET_DYN main program only (dynamic = "
+                            "ET_EXEC + PT_INTERP via --interp-dir/--redirect)"),
+    "dynamic loader (ldso)": ("loader: ldso $ORIGIN needs /proc/self/exe, and "
+                              "the SE ls/search path must reach DT_NEEDED "
+                              "objects"),
     "time budget": "simulator: per-case budget / engine speed (not a capability)",
     "simulator/loader": "simulator: SE loader/exit modelling",
     "other": "syscall: number not in the capability buckets -- inspect evidence",
@@ -252,7 +258,7 @@ def resolve_timeouts(args, suites):
 
 def driver_command(suite, engine, args, work_dir, gem5_timeout):
     cmd = [sys.executable, os.path.join(REPO_ROOT, DRIVERS[suite]),
-           "--link-mode", "static", "--engine", engine,
+           "--link-mode", args.link_mode, "--engine", engine,
            "--jobs", str(args.jobs),
            "--work-dir", os.path.join(work_dir, f"drv-{suite}-{engine}"),
            "--json-out", os.path.join(work_dir, f"{suite}-{engine}.json"),
@@ -470,15 +476,23 @@ def build_summary(suites, gap_list, args, stamp, recheck=None, build=None,
         totals["gem5_only_fail"] += data["cross_counts"]["gem5_only_fail"]
         totals["qemu_only_fail"] += data["cross_counts"]["qemu_only_fail"]
     uniform = len(set(timeouts.values())) == 1
+    mode = getattr(args, "link_mode", "static")
     return dict(
         task="GEM5-021t",
         generated_utc=stamp,
-        scope=("static link mode only (ADR-0048 D4 static first); dynamic "
-               "linking/TLS/threads are outside this round"),
+        link_mode=mode,
+        scope=(("dynamic link mode (ET_EXEC + PT_INTERP through the guest "
+                "root; ADR-0048 D4 static first, dynamic fills in the same "
+                "cases)") if mode == "dynamic" else
+               ("static link mode only (ADR-0048 D4 static first); dynamic "
+                "linking/TLS/threads are outside this round")),
         engines=dict(
-            qemu="qemu-user (qemu-dadao, same static ELF)",
-            gem5_se=("gem5 syscall emulation: component build's gem5.opt + "
-                     "configs/dadao/se.py --binary <elf> (GEM5-014t)"),
+            qemu="qemu-user (qemu-dadao, same guest ELF)",
+            gem5_se=(
+                "gem5 syscall emulation: component build's gem5.opt + "
+                "configs/dadao/se.py --binary <elf> (GEM5-014t"
+                + ("; dynamic ET_EXEC+PT_INTERP via --interp-dir/--redirect "
+                   "(GEM5-027t/028t))" if mode == "dynamic" else ")")),
         ),
         jobs=args.jobs,
         # `gem5_timeout_seconds` keeps the old uniform-budget shape (an int)
@@ -514,7 +528,8 @@ def markdown(summary):
     def out(text=""):
         lines.append(text)
 
-    out("# GEM5-021t gem5 SE tset 基线（static）")
+    mode = summary.get("link_mode", "static")
+    out(f"# GEM5-021t gem5 SE tset 基线（{mode}）")
     out()
     out(f"生成：{summary['generated_utc']}（计数全部由本脚本从两份驱动 JSON 现场统计）")
     out()
@@ -656,7 +671,8 @@ def markdown(summary):
     out()
     out("```")
     out("JOBS=32 python3 tools/testcases/tset/gem5-se-baseline/run_gem5_se_baseline.py \\")
-    out("    --work-dir <runtime dir> --json-out <runtime dir>/gem5-se-baseline.json")
+    out(f"    --link-mode {mode} --work-dir <runtime dir> \\")
+    out("    --json-out <runtime dir>/gem5-se-baseline.json")
     out("```")
     out()
     budgets = ", ".join(f"{s} {DEFAULT_GEM5_TIMEOUT[s]}s" for s in SUITES)
@@ -669,7 +685,9 @@ def markdown(summary):
         "套件的驱动，全量运行不要带。")
     out()
     out("驱动层单套件：给三个 tset 驱动加 `--engine qemu|gem5-se`；gem5 SE 走 "
-        "`configs/dadao/se.py --binary <elf>`，只接受静态 `ET_EXEC`。")
+        "`configs/dadao/se.py --binary <elf>`，接受静态 `ET_EXEC` 与动态 "
+        "`ET_EXEC + PT_INTERP`（后者由驱动经 `--interp-dir`/`--redirect` 传入"
+        "guest root）；`ET_DYN` 主程序仍为 BLOCKED。")
     return "\n".join(lines) + "\n"
 
 
@@ -717,12 +735,19 @@ def self_test(work_dir):
     suites = {"libc-test": data}
     gaps = gap_inventory(suites)
     tinv = timeout_inventory(suites)
-    summary = build_summary(suites, gaps, types.SimpleNamespace(jobs=1),
+    summary = build_summary(suites, gaps,
+                            types.SimpleNamespace(jobs=1,
+                                                  link_mode="dynamic"),
                             "self-test", timeouts={"libc-test": 600},
                             timeout_list=tinv)
     md = markdown(summary)
     cr = data["cross"]
     t = summary["totals"]
+    dyn_cmd = driver_command(
+        "embench", "gem5-se",
+        types.SimpleNamespace(link_mode="dynamic", jobs=1, qemu_timeout=300,
+                              driver_arg=None),
+        outdir, 300)
 
     checks = [
         ("both_pass", ["pass-case"], cr["both_pass"]),
@@ -763,6 +788,10 @@ def self_test(work_dir):
          [resolve_timeouts(types.SimpleNamespace(
              gem5_timeout=None,
              gem5_timeout_by_suite="libc-test=450"), list(SUITES))]),
+        ("driver command carries the link mode", ["dynamic"],
+         [dyn_cmd[dyn_cmd.index("--link-mode") + 1]]),
+        ("summary records the link mode", ["dynamic", True],
+         [summary["link_mode"], "（dynamic）" in md]),
     ]
     failed = 0
     for name, want, got in checks:
@@ -784,6 +813,9 @@ def main() -> int:
                     help="where the compact summary JSON+Markdown go")
     ap.add_argument("--suites", default=",".join(SUITES),
                     help="comma-separated subset (default: all three)")
+    ap.add_argument("--link-mode", choices=("static", "dynamic"), default="static",
+                    help="link mode of both rounds (default: static; dynamic "
+                         "is ET_EXEC + PT_INTERP through the guest root)")
     ap.add_argument("--jobs", type=int, default=32)
     default_bits = ", ".join(f"{s}={DEFAULT_GEM5_TIMEOUT[s]}"
                              for s in SUITES)
@@ -876,8 +908,13 @@ def main() -> int:
 
     summary_dir = abspath(args.summary_dir)
     os.makedirs(summary_dir, exist_ok=True)
-    summary_json = os.path.join(summary_dir, "GEM5-021t-baseline-summary.json")
-    summary_md = os.path.join(summary_dir, "GEM5-021t-baseline-summary.md")
+    # The static snapshot keeps its published name; another mode never
+    # overwrites it.
+    suffix = "" if args.link_mode == "static" else f"-{args.link_mode}"
+    summary_json = os.path.join(
+        summary_dir, f"GEM5-021t-baseline{suffix}-summary.json")
+    summary_md = os.path.join(
+        summary_dir, f"GEM5-021t-baseline{suffix}-summary.md")
     with open(summary_json, "w") as fh:
         json.dump(summary, fh, indent=2)
     with open(summary_md, "w") as fh:
@@ -886,6 +923,7 @@ def main() -> int:
     print(f"baseline JSON: {json_out}")
     print(f"summary: {summary_json}")
     print(f"markdown: {summary_md}")
+    print(f"link mode: {args.link_mode}")
     t = summary["totals"]
     print(f"totals: qemu_pass={t['qemu_pass']} gem5_pass={t['gem5_pass']} "
           f"both_pass={t['both_pass']} blocked={t['blocked']} "

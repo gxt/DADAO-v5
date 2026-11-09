@@ -1178,11 +1178,20 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
                        f"{DYNAMIC_LINKER!r}")
         return case
 
+    # Cases with DSO helpers run from their output directory (the helpers --
+    # and, for the source-relative dlopen() paths, the mirrored
+    # `src/functional/` tree -- live there).  Every other case keeps its
+    # previous working directory, so this cannot change another case's verdict.
+    # The SE path uses the same cwd; its loader redirect rewrites only the
+    # guest `/lib` (qemu's -L contract), so relative paths stay on the host
+    # cwd exactly as on the qemu/static paths.
+    run_cwd = outdir if (cfg["mode"] == "dynamic" and helper_paths) else None
+
     # GEM5-021t: the engine is a driver-level choice; the corpus, the build
     # line and the expected exit value are unchanged.  gem5 SE runs the same
     # image through `configs/dadao/se.py --binary`.
     if cfg["engine"] == "gem5-se":
-        return run_gem5_se_case(case, cfg, outdir)
+        return run_gem5_se_case(case, cfg, outdir, run_cwd=run_cwd)
 
     case.engine = "qemu"
     cmd = [cfg["qemu"]]
@@ -1192,11 +1201,6 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
         cmd += ["-R", cfg["reserved_va"]]
     cmd += [elf]
     case.run_cmd = cmd
-    # Cases with DSO helpers run from their output directory (the helpers --
-    # and, for the source-relative dlopen() paths, the mirrored
-    # `src/functional/` tree -- live there).  Every other case keeps its
-    # previous working directory, so this cannot change another case's verdict.
-    run_cwd = outdir if (cfg["mode"] == "dynamic" and helper_paths) else None
     rc, stdout, stderr, timed = run(cmd, timeout=cfg["timeout"], cwd=run_cwd)
     case.stdout = stdout
     if timed:
@@ -1251,19 +1255,23 @@ def attribute_guest_exit(case, rc, stdout, stderr):
     return case
 
 
-def run_gem5_se_case(case, cfg, outdir):
+def run_gem5_se_case(case, cfg, outdir, run_cwd=None):
     """Run one libc-test ELF on gem5 SE and classify it (GEM5-021t).
 
-    A platform gap (static-ELF gate, unimplemented syscall, timeout, non-guest
+    A platform gap (loader/ELF gate, unimplemented syscall, timeout, non-guest
     simulation end) is ``blocked`` with its evidence -- never a ``pass`` and
     never a ``fail`` of the case's own verdict.  A real guest exit is judged by
-    the same ``t_status`` oracle as the QEMU round.
+    the same ``t_status`` oracle as the QEMU round.  A dynamic round hands the
+    loader the guest root (``--interp-dir`` + ``--redirect``; GEM5-027t).
     """
     case.engine = "gem5-se"
+    loader = (gem5_se_engine.loader_args(cfg["guest_root"])
+              if cfg["mode"] == "dynamic" else {})
     res = gem5_se_engine.evaluate(
         case.elf, os.path.join(outdir, "gem5-se"),
         gem5=cfg["gem5"], config=cfg["gem5_config"],
-        timeout=cfg["gem5_timeout"], musl_root=cfg["musl_root"])
+        timeout=cfg["gem5_timeout"], musl_root=cfg["musl_root"],
+        cwd=run_cwd, **loader)
     case.run_cmd = res["cmd"]
     case.gap = res["gap"]
     case.seconds = res["seconds"]
@@ -1328,7 +1336,8 @@ def main() -> int:
                     help="only cases whose id matches this regex (pilots)")
     ap.add_argument("--engine", choices=gem5_se_engine.ENGINES, default="qemu",
                     help="run engine: qemu-user (default) or gem5 syscall "
-                         "emulation (GEM5-021t; static ET_EXEC only).  The "
+                         "emulation (GEM5-021t; static ET_EXEC, or a dynamic "
+                         "ET_EXEC+PT_INTERP run through the guest root).  The "
                          "corpus, build line and expected value do not change")
     ap.add_argument("--gem5", default=None,
                     help="gem5.opt binary (default: $GEM5_SE_BIN or the "
@@ -1497,7 +1506,9 @@ def main() -> int:
          f"cases={len(cases)} (现场统计, 非写死)")
     if cfg["engine"] == "gem5-se":
         emit(f"  engine: gem5 syscall emulation ({cfg['gem5_config']} "
-             f"--binary <elf>; static ET_EXEC only)")
+             f"--binary <elf>; "
+             + ("dynamic ET_EXEC+PT_INTERP via --interp-dir/--redirect"
+                if mode == "dynamic" else "static ET_EXEC"))
         emit(f"  SE timeout: {cfg['gem5_timeout']}s per case "
              f"(timeout/syscall-gap => blocked, never a verdict)")
     emit(f"  corpus: {cfg['src']} (patchless, manifest-locked)")

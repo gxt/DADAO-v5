@@ -91,6 +91,7 @@ import concurrent.futures
 import glob
 import json
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -459,15 +460,19 @@ def run_gem5_se_case(res, cfg, outdir):
     """Run one benchmark ELF on gem5 SE (GEM5-021t).
 
     ``pass`` keeps the benchmark's own oracle: exit 0 **and** the three board
-    markers.  A platform gap (static-ELF gate, unimplemented syscall, timeout,
+    markers.  A platform gap (loader/ELF gate, unimplemented syscall, timeout,
     non-guest simulation end) is ``blocked`` with its evidence; a real non-zero
-    guest exit is the benchmark's own ``fail``.
+    guest exit is the benchmark's own ``fail``.  A dynamic round hands the
+    loader the guest root (``--interp-dir`` + ``--redirect``; GEM5-027t).
     """
     res.engine = "gem5-se"
+    loader = (gem5_se_engine.loader_args(cfg["guest_root"])
+              if cfg["mode"] == "dynamic" else {})
     out = gem5_se_engine.evaluate(
         res.elf, os.path.join(outdir, "gem5-se"),
         gem5=cfg["gem5"], config=cfg["gem5_config"],
-        timeout=cfg["gem5_timeout"], musl_root=cfg["musl_root"])
+        timeout=cfg["gem5_timeout"], musl_root=cfg["musl_root"],
+        **loader)
     res.run_cmd = out["cmd"]
     res.gap = out["gap"]
     res.seconds = out["seconds"]
@@ -518,11 +523,16 @@ def main() -> int:
     ap.add_argument("--work-dir", default=DEFAULT_WORK_DIR)
     ap.add_argument("--opt", default=DEFAULT_OPTS,
                     help="comma-separated optimisation levels (default O0,O2)")
+    ap.add_argument("--filter", default=None,
+                    help="only benchmarks whose name matches this regex "
+                         "(pilots; the executed set is then a declared "
+                         "subset, never a silent exclusion)")
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT,
                     help="per-case timeout in seconds (124/timeout => blocked)")
     ap.add_argument("--engine", choices=gem5_se_engine.ENGINES, default="qemu",
                     help="run engine: qemu-user (default) or gem5 syscall "
-                         "emulation (GEM5-021t; static ET_EXEC only)")
+                         "emulation (GEM5-021t; static ET_EXEC, or a dynamic "
+                         "ET_EXEC+PT_INTERP run through the guest root)")
     ap.add_argument("--gem5", default=None,
                     help="gem5.opt binary (default: $GEM5_SE_BIN or the "
                          "component build tree)")
@@ -614,6 +624,19 @@ def main() -> int:
         opts = [o.strip().lstrip("-") for o in args.opt.split(",") if o.strip()]
         if not opts:
             raise SetupError("no optimisation levels requested")
+        # A pilot declares its subset explicitly; the closure check below then
+        # compares the executed set against *this* set, so a filtered run can
+        # never hide a benchmark that silently did not run.
+        selected = benchmarks
+        if args.filter:
+            try:
+                pattern = re.compile(args.filter)
+            except re.error as exc:
+                raise SetupError(f"bad --filter regex {args.filter!r}: {exc}")
+            selected = [b for b in benchmarks if pattern.search(b)]
+            if not selected:
+                raise SetupError(f"--filter {args.filter!r} matched no "
+                                 f"benchmark (discovered {len(benchmarks)})")
 
         if mode == "dynamic":
             # Guest root: qemu-dadao resolves PT_INTERP relative to -L.
@@ -637,20 +660,25 @@ def main() -> int:
         lines.append(text)
 
     emit(f"run_embench_user_suite: mode={mode} engine={cfg['engine']} "
-         f"{len(benchmarks)} benchmark(s) x {len(opts)} opt level(s) {opts} "
-         f"(现场统计, 非写死)")
+         f"{len(selected)}/{len(benchmarks)} benchmark(s) x {len(opts)} opt "
+         f"level(s) {opts} (现场统计, 非写死)")
+    if args.filter:
+        emit(f"  --filter {args.filter!r}: pilot subset (declared, not a "
+             f"silent exclusion); executed set is checked against it")
     if cfg["engine"] == "gem5-se":
         emit(f"  engine: gem5 syscall emulation ({cfg['gem5_config']} "
-             f"--binary <elf>; static ET_EXEC only)")
+             f"--binary <elf>; "
+             + ("dynamic ET_EXEC+PT_INTERP via --interp-dir/--redirect"
+                if mode == "dynamic" else "static ET_EXEC"))
         emit(f"  SE timeout: {cfg['gem5_timeout']}s per case "
              f"(timeout/syscall-gap => blocked, never a verdict)")
-    emit(f"  benchmarks: {', '.join(benchmarks)}")
+    emit(f"  benchmarks: {', '.join(selected)}")
     emit(f"  oracle: expected guest exit {EXPECTED_GUEST_EXIT} "
          f"(support/main.c returns !correct; verify_benchmark is the case's own check)")
     emit(f"  link base: lld default (no -T / no linker script; ISS-247)")
     emit(f"  work dir: {work_dir}")
 
-    progress = {"n": 0, "total": len(benchmarks) * len(opts)}
+    progress = {"n": 0, "total": len(selected) * len(opts)}
 
     def run_one(pair):
         bench, opt = pair
@@ -661,7 +689,7 @@ def main() -> int:
         sys.stderr.flush()
         return res
 
-    pairs = [(b, o) for o in opts for b in benchmarks]
+    pairs = [(b, o) for o in opts for b in selected]
     if jobs <= 1:
         results = [run_one(p) for p in pairs]
     else:
@@ -674,13 +702,15 @@ def main() -> int:
         emit(f"  {res.klass.upper():10s} {res.bench} (-{res.opt}) exit={act} "
              f"base={base} markers={len(res.markers)}/3  ({res.reason})")
 
-    # Structural closure: executed set == discovered set (per opt level).
+    # Structural closure: executed set == selected set (per opt level); a
+    # filtered pilot therefore cannot hide a benchmark that did not run.
     executed = sorted({(r.bench, r.opt) for r in results})
-    expected_set = sorted((b, o) for o in opts for b in benchmarks)
+    expected_set = sorted((b, o) for o in opts for b in selected)
     closure_ok = executed == expected_set
     if not closure_ok:
-        emit(f"[FAIL] closure: executed {len(executed)} case(s) != discovered "
-             f"{len(expected_set)} (benchmarks={len(benchmarks)} x opts={len(opts)})")
+        emit(f"[FAIL] closure: executed {len(executed)} case(s) != selected "
+             f"{len(expected_set)} (benchmarks={len(selected)} x "
+             f"opts={len(opts)})")
 
     counts = {k: sum(1 for r in results if r.klass == k)
               for k in ("pass", "fail", "known-fail", "excluded", "blocked")}
@@ -691,6 +721,8 @@ def main() -> int:
          f"excluded={counts['excluded']} blocked={counts['blocked']}")
     for name, reason in excluded:
         emit(f"  EXCLUDED {name}: {reason}")
+    if args.filter:
+        emit("  note: --filter run (pilot); counts are a declared subset")
     if counts["known-fail"]:
         for r in results:
             if r.klass == "known-fail":
@@ -703,6 +735,8 @@ def main() -> int:
                                 if cfg["engine"] == "gem5-se" else None),
                   jobs=jobs, expected_exit=EXPECTED_GUEST_EXIT,
                   discovered=len(benchmarks) + len(excluded),
+                  selected=len(selected) * len(opts),
+                  filtered=bool(args.filter),
                   total=total, counts=counts,
                   excluded=[dict(benchmark=n, reason=r)
                             for n, r in excluded],

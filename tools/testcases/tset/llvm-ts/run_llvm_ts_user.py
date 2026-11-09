@@ -2421,13 +2421,20 @@ def _build_and_run(case: Case, cfg, work_dir):
         # guest's fd 1/2 are separate host files there, so the run document is
         # stdout followed by stderr; the qemu round interleaves them (2>&1).
         # The corpus oracle (reference output / md5 / exit) is unchanged.
+        # A dynamic round also hands the loader the guest root (`--interp-dir`
+        # + a `/lib`-only `--redirect`; GEM5-027t): the redirect rewrites the
+        # library directory only, so the cwd and every other absolute path
+        # stay on the host exactly as on the qemu path.
         case.run_timeout = cfg["gem5_timeout"]
+        loader = (gem5_se_engine.loader_args(cfg["guest_root"])
+                  if cfg["mode"] == "dynamic" else {})
         run_started = time.monotonic()
         se = gem5_se_engine.evaluate(
             elf, os.path.join(outdir, "gem5-se"),
             gem5=cfg["gem5"], config=cfg["gem5_config"],
             timeout=case.run_timeout, musl_root=cfg["musl_root"],
-            argv=case.run_argv, stdin_path=stdin_path, cwd=run_dir)
+            argv=case.run_argv, stdin_path=stdin_path, cwd=run_dir,
+            **loader)
         case.run_seconds = time.monotonic() - run_started
         case.run_cmd = se["cmd"]
         case.gap = se["gap"]
@@ -2975,7 +2982,9 @@ def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
          f"cases={len(cases)} (现场枚举, 非写死)")
     if cfg["engine"] == "gem5-se":
         emit(f"  engine: gem5 syscall emulation ({cfg['gem5_config']} "
-             f"--binary <elf>; static ET_EXEC only)")
+             f"--binary <elf>; "
+             + ("dynamic ET_EXEC+PT_INTERP via --interp-dir/--redirect"
+                if mode == "dynamic" else "static ET_EXEC"))
         emit(f"  SE timeout: {cfg['gem5_timeout']}s per case "
              f"(timeout/syscall-gap => blocked, never a verdict)")
     emit(f"  suite: {cfg['src']} (patchless, manifest-locked)")
@@ -3145,7 +3154,8 @@ def main() -> int:
                     help="parallel cases (default 4; never all cores)")
     ap.add_argument("--engine", choices=gem5_se_engine.ENGINES, default="qemu",
                     help="run engine: qemu-user (default) or gem5 syscall "
-                         "emulation (GEM5-021t; static ET_EXEC only).  The "
+                         "emulation (GEM5-021t; static ET_EXEC, or a dynamic "
+                         "ET_EXEC+PT_INTERP run through the guest root).  The "
                          "corpus, build line and reference oracle do not change")
     ap.add_argument("--gem5", default=None,
                     help="gem5.opt binary (default: $GEM5_SE_BIN or the "

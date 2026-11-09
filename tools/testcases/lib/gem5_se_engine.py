@@ -3,7 +3,7 @@
 
 The tset drivers (``tset/libc-test``, ``tset/llvm-ts``, ``tset/embench``) own
 their corpus enumeration, build lines and oracles.  This module only swaps the
-*engine* that runs an already-built static ELF:
+*engine* that runs an already-built ELF:
 
     qemu  : ``qemu-dadao <elf>``                      (QEMU user mode)
     gem5-se: ``gem5.opt --outdir <d> <se.py> --binary <elf> [--args ...]``
@@ -15,10 +15,14 @@ if not, which capability stopped it".
 
 gem5 SE is deliberately narrower than qemu-user (GEM5-014t):
 
-* **static ET_EXEC only**: the SE loader rejects ``ET_DYN`` (static PIE /
-  shared object) and any image carrying ``PT_INTERP`` (ADR-0048 D4, static
-  first).  Such an image is reported ``BLOCKED`` from the ELF facts, without
-  starting gem5;
+* **ET_EXEC only**: the SE loader rejects ``ET_DYN`` (PIE / shared object) as
+  the *main* program.  A dynamically linked ``ET_EXEC`` -- one carrying
+  ``PT_INTERP`` -- is accepted once the caller names the host prefix of the
+  guest root (``--interp-dir``, GEM5-027t) and redirects the guest absolute
+  library paths (``--redirect /lib=<root>/lib``, the same scope qemu's ``-L``
+  covers); other guest paths fall through to the host filesystem.
+  Such an image is reported ``BLOCKED`` from the ELF facts -- without starting
+  gem5 -- when the interpreter cannot be resolved;
 * **the implemented syscall set only**: an unimplemented number is a gem5
   ``fatal`` (``DADAO SE: syscall N not implemented``), i.e. host-side
   evidence that the case never reached its own verdict -> ``BLOCKED``, never
@@ -72,6 +76,12 @@ _SYSCALL_FATAL_RE = re.compile(
     r"DADAO SE: syscall (\d+) not implemented(?: \(pc=([^)]*)\))?")
 _FATAL_RE = re.compile(r"^\s*(?:\S+:\d+: )?fatal: (.*)$", re.MULTILINE)
 _MAX_INSTS_RE = re.compile(r"max_insts", re.IGNORECASE)
+# musl's ldso aborts before the main program when it cannot map/relocate the
+# executable's own dependencies; the case never reaches its verdict, so this is
+# a platform gap.  Only messages that name the *main* ELF qualify: a dlopen()
+# failure is the program's own observable behaviour and stays with the oracle.
+_LDSO_ERROR_RE = re.compile(
+    r"^Error (loading shared library|relocating) (.*)$", re.MULTILINE)
 
 # Capability buckets for the gap inventory.  The key is the *guest* syscall
 # name as defined by the locked musl port
@@ -277,29 +287,67 @@ def elf_header(path: str):
     return dict(e_type=e_type, phdrs=phdrs)
 
 
-def static_gate(path: str):
-    """Return a BLOCKED reason when the image is not a static ``ET_EXEC``.
+def static_gate(path: str, *, interp_dir=None):
+    """Return a BLOCKED reason when the image is not runnable by SE.
 
     This is the driver-level statement of the SE loader's own rule
-    (GEM5-014t §4): ``ET_DYN`` and ``PT_INTERP`` are refused, not silently
-    attempted.  ``None`` means "the SE engine may run it".
+    (GEM5-014t §4 / GEM5-027t):
+    ``ET_DYN`` as the *main* program is refused; a dynamically linked
+    ``ET_EXEC`` is accepted when the caller supplies ``interp_dir`` -- the host
+    prefix gem5 prepends to the ``PT_INTERP`` path (``m5.setInterpDir``) -- and
+    the interpreter really exists there.  ``None`` means "the SE engine may run
+    it".  The check happens before gem5 starts, so a missing guest root is one
+    clear ``BLOCKED`` line instead of a simulator crash.
     """
     try:
         hdr = elf_header(path)
     except (OSError, ValueError) as exc:
         return f"not a loadable DADAO ELF: {exc}"
     if hdr["e_type"] == ET_DYN:
-        return ("ET_DYN (static PIE / shared object): gem5 SE loads only "
-                "ET_EXEC (GEM5-014t §4)")
+        return ("ET_DYN main program (PIE / shared object): gem5 SE loads only "
+                "ET_EXEC; the supported dynamic form is ET_EXEC + PT_INTERP "
+                "(GEM5-014t §4)")
     if hdr["e_type"] != ET_EXEC:
         return (f"e_type={hdr['e_type']}: gem5 SE loads only ET_EXEC "
                 f"(GEM5-014t §4)")
+    interp = None
     for ph in hdr["phdrs"]:
         if ph["type"] == PT_INTERP:
             interp = ph.get("interp", b"").decode("utf-8", "replace").rstrip("\0")
-            return (f"PT_INTERP {interp!r}: dynamic linking is not modelled "
-                    f"by gem5 SE (ADR-0048 D4 static first)")
+            break
+    if interp is not None:
+        if not interp_dir:
+            return (f"PT_INTERP {interp!r}: the interpreter is opened on the "
+                    f"host, so a dynamic run needs the guest root "
+                    f"(--interp-dir, GEM5-027t)")
+        host_interp = os.path.join(interp_dir, interp.lstrip("/"))
+        if not os.path.isfile(host_interp):
+            return (f"PT_INTERP {interp!r}: interpreter missing under the guest "
+                    f"root (--interp-dir {interp_dir!r}) -- qemu's -L root "
+                    f"must contain {interp.lstrip('/')} (GEM5-027t)")
     return None
+
+
+def loader_args(guest_root):
+    """SE loader options for a dynamically linked image (GEM5-027t).
+
+    ``interp_dir`` is the host prefix gem5 prepends to ``PT_INTERP``;
+    ``redirect`` maps **only** the guest library directory.  gem5 normalises
+    every redirect entry with a trailing ``/`` and matches it as a plain
+    prefix, in table order (``Process::checkPathRedirect``): a ``("/", root)``
+    entry would therefore hijack *every* absolute guest path -- ``/dev/null``,
+    ``/dev/zero``, ``/tmp/...`` -- into a root that only holds ``lib/``.
+    QEMU's ``-L`` rewrites the interpreter/library search only and leaves
+    ``/dev``/``/tmp`` on the host, so ``("/lib", <root>/lib)`` is the same
+    contract; every other path falls through to the host filesystem exactly
+    as it did on the static path.
+    """
+    if not guest_root:
+        raise ValueError("a dynamic gem5 SE run needs the guest root "
+                         "(--interp-dir); none was configured")
+    root = os.path.abspath(guest_root)
+    return dict(interp_dir=root,
+                redirect=[("/lib", os.path.join(root, "lib"))])
 
 
 # ---------------------------------------------------------------------------
@@ -314,12 +362,15 @@ def _read_bytes(path: str) -> bytes:
 
 
 def run_gem5_se(elf, outdir, *, gem5, config, timeout, argv=(),
-                stdin_path=None, cwd=None, max_insts=0):
+                stdin_path=None, cwd=None, max_insts=0, interp_dir=None,
+                redirect=()):
     """Run one ELF on gem5 SE; return the raw observation dict.
 
     Guest fd 1/2 are redirected to files inside ``outdir`` (the simulator's
     own banner would otherwise be mixed into guest stdout), so a case that
     writes nothing is distinguishable from a case that never ran.
+    ``interp_dir`` / ``redirect`` are the loader-facing options of a dynamic
+    image (see :func:`loader_args`); they are omitted for a static run.
     """
     os.makedirs(outdir, exist_ok=True)
     m5out = os.path.join(outdir, "m5out")
@@ -341,6 +392,10 @@ def run_gem5_se(elf, outdir, *, gem5, config, timeout, argv=(),
         cmd += ["--args", " ".join(shlex.quote(a) for a in argv)]
     if cwd:
         cmd += ["--cwd", cwd]
+    if interp_dir:
+        cmd += ["--interp-dir", interp_dir]
+    for app, host in redirect:
+        cmd += ["--redirect", f"{app}={host}"]
     if max_insts:
         cmd += ["--max-insts", str(max_insts)]
 
@@ -376,6 +431,29 @@ def run_gem5_se(elf, outdir, *, gem5, config, timeout, argv=(),
                 non_guest=bool(non_guest))
 
 
+def _ldso_main_abort(stderr_text, elf):
+    """The ldso message for a failure on the *main* executable, else ``None``.
+
+    musl writes ``Error loading shared library <lib>: ... (needed by <obj>)``
+    while loading dependencies and ``Error relocating <obj>: <symbol>: ...``
+    while binding; ``<obj>`` is the main ELF only when the program never
+    started.  A ``dlopen()`` failure names the opened object instead, which is
+    the program's own observable behaviour (the corpus oracle decides it).
+    """
+    elf_n = os.path.normpath(elf)
+    script = os.path.basename(elf_n)
+    for m in _LDSO_ERROR_RE.finditer(stderr_text):
+        kind, rest = m.group(1), m.group(2)
+        if kind == "loading shared library":
+            parent = re.search(r"\(needed by (.+)\)\s*$", rest)
+            obj = parent.group(1).strip() if parent else None
+        else:
+            obj = rest.split(":", 1)[0].strip()
+        if obj and os.path.normpath(obj) in (elf_n, script):
+            return m.group(0).strip()
+    return None
+
+
 def gap_evidence(run, musl_root):
     """Root-cause evidence for a run that never reached the guest's verdict.
 
@@ -408,7 +486,8 @@ def gap_evidence(run, musl_root):
 
 
 def evaluate(elf, outdir, *, gem5, config, timeout, musl_root, argv=(),
-             stdin_path=None, cwd=None, max_insts=0):
+             stdin_path=None, cwd=None, max_insts=0, interp_dir=None,
+             redirect=()):
     """Run the SE path and normalise the outcome.
 
     Returned dict:
@@ -424,7 +503,7 @@ def evaluate(elf, outdir, *, gem5, config, timeout, musl_root, argv=(),
                   stdout=b"", stderr=b"", seconds=0.0, cmd=[],
                   sim_log=None, m5out=None, timed_out=False,
                   exit_cause=None)
-    gate = static_gate(elf)
+    gate = static_gate(elf, interp_dir=interp_dir)
     if gate:
         result.update(status="BLOCKED", reason=gate,
                       gap=dict(capability="loader/ELF modality",
@@ -434,7 +513,8 @@ def evaluate(elf, outdir, *, gem5, config, timeout, musl_root, argv=(),
 
     run = run_gem5_se(elf, outdir, gem5=gem5, config=config, timeout=timeout,
                       argv=argv, stdin_path=stdin_path, cwd=cwd,
-                      max_insts=max_insts)
+                      max_insts=max_insts, interp_dir=interp_dir,
+                      redirect=redirect)
     result.update(stdout=run["stdout"], stderr=run["stderr"],
                   seconds=run["seconds"], cmd=run["cmd"],
                   sim_log=run["sim_log"], m5out=run["m5out"],
@@ -468,6 +548,20 @@ def evaluate(elf, outdir, *, gem5, config, timeout, musl_root, argv=(),
             gap=dict(capability="simulator/loader", kind="non-guest-exit",
                      syscall=None, syscall_name=None,
                      evidence=f"EXIT_CAUSE={cause} rc={run['rc']}"))
+        return result
+    ldso = _ldso_main_abort(
+        result["stderr"].decode("utf-8", "replace"), elf)
+    if ldso:
+        # The dynamic loader gave up on the executable's own objects before
+        # main (e.g. a DT_NEEDED object it could not locate): the corpus oracle
+        # was never reached.  Reported as a loader gap, never as the case's own
+        # non-zero exit.
+        result.update(
+            status="BLOCKED",
+            reason=(f"ldso aborted before the program's own verdict: {ldso}"),
+            gap=dict(capability="dynamic loader (ldso)",
+                     kind="ldso-abort", syscall=None, syscall_name=None,
+                     evidence=ldso))
         return result
     result.update(exit=run["rc"])
     return result
