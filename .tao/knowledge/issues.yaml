@@ -181,3 +181,14 @@
     **不可全局交换顺序**：另有 1 例需 `stdout+stderr`，31 例 pass 走非逐字节比对。
     修复方向：SE 驱动层保留 fd1/fd2 写出顺序；修复前不按能力缺口计。详见
     `.tao/knowledge/refs/TESTCASES-103t-timeout-recheck.md`。
+
+- id: ISS-358
+  scope: [gem5]
+  status: open
+  resolved_by: null
+  title: >-
+    【P2】gem5 `BaseSemihosting::callWrite` 句柄越界判断写成 `handle > files.size()`（应为 `>=`）：
+    未 `SYS_OPEN` 时 handle=1 会读 `files[1]` 越界，实测 segfault（`m12-chipyard-004` 探针）。
+    同时 QEMU arm-compat 模式未预置 guest fd 0/1/2 ⇒ 三平台的 `SYS_WRITE` 行为不可直接比对。
+    建议：gem5 修正边界判断；三平台比对的 semihosting 用例改用 `SYS_WRITE0`/`SYS_WRITEC`（不依赖句柄），
+    `SYS_WRITE` 单独按引擎成像。
