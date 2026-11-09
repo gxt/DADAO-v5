@@ -16,7 +16,7 @@
 
 1. **寄存器堆**：`rd`（64 位）、`ra`/`rb` 双 bank。**`rd0` 恒读 0**（作为目的：`rrrr` 双目的允许其一为 `rd0` 并丢弃该半结果，但不能同时为 `rd0`；其余格式目的为 `rd0` ⇒ ILLI）。**`rb0` = 当前正在执行的指令地址（`IP`，非下一条）**，只读；**作为显式目的 ⇒ ILLI**（`spec/SimRISC-00 §2.2`）。
 2. **解码器**：至少覆盖 `orrr`/`orri`/`rrrr` 三种格式与 `SimRISC-04`（64 位数据运算）、`SimRISC-08`（32 位）、`SimRISC-05`（地址运算）中的**算术/逻辑/移位**指令。
-   - **合法性**：保留编码/非法组合按 `contracts/legality_rules.yaml` 抛 ILLI（不得静默当 NOP）。
+   - **合法性**：**保留编码 ⇒ UNDI**、**非法组合 ⇒ ILLI**（按 `contracts/legality_rules.yaml` 的 `excp_undi` / ILLI 规则，不得静默当 NOP）。
 3. **整数 ALU**：加/减/与/或/异或/移位/比较；**溢出与进位语义按 `spec/SimRISC-04`**（不套用 RISC-V）。
 4. **接入**：替换 `WumingCoreStub` 中对应的 5 类指令桩，保持 bootrom→应用→semihosting 闭环不回归。
 
