@@ -168,6 +168,12 @@
 - **只记录不改源码**：这三个任务不做根因分析、不调试；结果由用户分析裁定。
 - **M13 台账**：新建 `.tao/knowledge/milestones-m13.md`（`项目里程碑 = M13`），Makefile 的 `check-milestones-fresh` 扩展为校验 M11 + M12 + M13。
 
+## M13 待梳理：差分产物的归属（用户 2026-11-09）
+
+- **对象**：`tests/parity/matrix-M11.md`（矩阵快照）、`.tao/knowledge/refs/*-parity-summary.*`（逐例报告）、`tools/testcases/parity/{run_parity,se_tset_matrix}.py`（生成器）、各基线 summary JSON。
+- **问题**：矩阵与报告混在 `tests/`、`.tao/knowledge/refs/` 两处；矩阵内含运行期绝对路径（`/tmp/opencode/<任务>/...`），fresh clone 上不可复现；「哪份是快照、哪份是原始数据、哪份是生成物」的边界靠 README 口头约定。
+- **处置**：M13 开始差分对齐时统一梳理（不在当前任务里改），原则先定两条：① 生成器随产物入库；② 快照只含 md5/版本等身份指纹，不写运行期路径。
+
 ## golden / Sail 定位（结论，待落流程）
 
 - **前提**：SimRISC/DADAO 持续变更、不留历史包袱；内核/FPGA 阶段同样如此。工具按「高频变更」取舍，不按「稳定期资产」取舍。
