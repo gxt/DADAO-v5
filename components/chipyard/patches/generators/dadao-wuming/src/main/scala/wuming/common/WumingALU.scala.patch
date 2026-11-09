@@ -1,0 +1,208 @@
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingALU.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingALU.scala
+new file mode 100644
+index 0000000..1443fa1
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingALU.scala
+@@ -0,0 +1,202 @@
++// See LICENSE for license details.
++//
++// DADAO integer ALU (m12-chipyard-005).
++//
++// Combinational, one operation per instruction.  Semantics are taken from
++// spec/SimRISC-04 (64-bit data operations), spec/SimRISC-05 (64-bit address
++// operations) and spec/SimRISC-08 (32-bit data operations); nothing is
++// borrowed from RISC-V:
++//
++//   * arithmetic on the `rrrr` dual-destination forms produces a full 128-bit
++//     result: `hi` is the carry/borrow (unsigned variants) or the high 64 bits
++//     (signed variants); `lo` is the low 64 bits.
++//   * narrow (.t) results are written with the value semantics of the manual:
++//     zero/sign extension of the 32-bit result to all 64 bits.
++//   * div/rem use the spec's fixed values for divide-by-zero and for the
++//     signed INT_MIN / -1 overflow, and truncate toward zero.
++//   * shift/rotate amounts are the low bits of `shamt` (6 bits for octa,
++//     5 bits for tetra); `ext` takes the start bit in `shamt`.
++//
++// `width` is a code, not a byte count: 3 = octa (64), 2 = tetra (32).
++
++package wuming.common
++
++import chisel3._
++import chisel3.util._
++
++object WumingAluOp {
++  val ADD_U   = 0.U(5.W)
++  val ADD_S   = 1.U(5.W)
++  val SUB_U   = 2.U(5.W)
++  val SUB_S   = 3.U(5.W)
++  val ADD128_U = 4.U(5.W)
++  val ADD128_S = 5.U(5.W)
++  val SUB128_U = 6.U(5.W)
++  val SUB128_S = 7.U(5.W)
++  val MUL128_U = 8.U(5.W)
++  val MUL128_S = 9.U(5.W)
++  val MUL_U    = 10.U(5.W)
++  val MUL_S    = 11.U(5.W)
++  val DIV_U    = 12.U(5.W)
++  val DIV_S    = 13.U(5.W)
++  val REM_U    = 14.U(5.W)
++  val REM_S    = 15.U(5.W)
++  val AND      = 16.U(5.W)
++  val OR       = 17.U(5.W)
++  val XOR      = 18.U(5.W)
++  val XNOR     = 19.U(5.W)
++  val SHL      = 20.U(5.W)
++  val SHR_U    = 21.U(5.W)
++  val SHR_S    = 22.U(5.W)
++  val ROL      = 23.U(5.W)
++  val EXT_U    = 24.U(5.W)
++  val EXT_S    = 25.U(5.W)
++  val CMP_U    = 26.U(5.W)
++  val CMP_S    = 27.U(5.W)
++  val SET_ZW   = 28.U(5.W)
++  val SET_OW   = 29.U(5.W)
++  val OR_W     = 30.U(5.W)
++  val ANDN_W   = 31.U(5.W)
++}
++
++class WumingALU extends Module {
++  val io = IO(new Bundle {
++    val op    = Input(UInt(5.W))
++    val opWidth = Input(UInt(2.W)) // 3 = octa, 2 = tetra
++    val a     = Input(UInt(64.W))
++    val b     = Input(UInt(64.W))
++    val shamt = Input(UInt(6.W))
++    val wp    = Input(UInt(2.W))
++    val lo    = Output(UInt(64.W))
++    val hi    = Output(UInt(64.W))
++  })
++
++  val is32  = io.opWidth === 2.U
++
++  // Narrow values: the manual only ever looks at bits[31:0] of a tetra operand.
++  val a32 = io.a(31, 0)
++  val b32 = io.b(31, 0)
++  val aW  = Mux(is32, a32, io.a)
++  val bW  = Mux(is32, b32, io.b)
++
++  def sext32(x: UInt): UInt = Cat(Fill(32, x(31)), x(31, 0))
++  def zext32(x: UInt): UInt = Cat(0.U(32.W), x(31, 0))
++  def extWidth(x: UInt, signed: Bool): UInt =
++    Mux(is32, Mux(signed, sext32(x), zext32(x)), x)
++
++  // ---- 128-bit add/sub (rrrr) ------------------------------------------
++  val a128u = Cat(0.U(64.W), io.a)
++  val b128u = Cat(0.U(64.W), io.b)
++  val a128s = io.a.asSInt.pad(128)
++  val b128s = io.b.asSInt.pad(128)
++  val addU  = (a128u + b128u)(127, 0)
++  val subU  = (a128u - b128u)(127, 0)
++  val addS  = (a128s + b128s)(127, 0).asUInt
++  val subS  = (a128s - b128s)(127, 0).asUInt
++
++  // ---- 128-bit multiply (rrrr) -----------------------------------------
++  val mulU128 = (io.a * io.b)(127, 0)
++  val mulS128 = (io.a.asSInt * io.b.asSInt)(127, 0).asUInt
++
++  // ---- narrow multiply --------------------------------------------------
++  val mulU32 = (a32 * b32)(31, 0)
++  val mulS32 = (a32.asSInt * b32.asSInt)(31, 0)
++  val mulU   = Mux(is32, Mux(io.op === WumingAluOp.MUL_S, sext32(mulS32), zext32(mulU32)),
++                   (io.a * io.b)(63, 0))
++  val mulS   = Mux(is32, sext32(mulS32), (io.a.asSInt * io.b.asSInt)(63, 0).asUInt)
++
++  // ---- divide / remainder ----------------------------------------------
++  // Unsigned tetra divide-by-zero returns a 32-bit all-ones value
++  // (0x0000_0000_FFFF_FFFF, zero-extended); signed variants return all ones.  Signed overflow (INT_MIN / -1) is the fixed
++  // value from the SimRISC-04 table; rem overflow is 0.
++  val sOvf32  = (a32 === "h80000000".U) && (b32 === "hffffffff".U)
++  val sOvf64  = (io.a === "h8000000000000000".U) && (io.b === "hffffffffffffffff".U)
++
++  val divU32 = Mux(b32 === 0.U, "h00000000ffffffff".U, a32 / b32)
++  val divS32 = Mux(b32 === 0.U, "hffffffffffffffff".U,
++                 Mux(sOvf32, "hffffffff80000000".U,
++                   sext32((a32.asSInt / b32.asSInt)(31, 0).asUInt)))
++  val remU32 = Mux(b32 === 0.U, zext32(a32), zext32((a32 % b32)(31, 0)))
++  val remS32 = Mux(b32 === 0.U, sext32(a32),
++                 Mux(sOvf32, 0.U,
++                   sext32((a32.asSInt % b32.asSInt)(31, 0).asUInt)))
++
++  val divU64 = Mux(io.b === 0.U, "hffffffffffffffff".U, io.a / io.b)
++  val divS64 = Mux(io.b === 0.U, "hffffffffffffffff".U,
++                 Mux(sOvf64, "h8000000000000000".U,
++                   (io.a.asSInt / io.b.asSInt)(63, 0).asUInt))
++  val remU64 = Mux(io.b === 0.U, io.a, (io.a % io.b)(63, 0))
++  val remS64 = Mux(io.b === 0.U, io.a,
++                 Mux(sOvf64, 0.U, (io.a.asSInt % io.b.asSInt)(63, 0).asUInt))
++
++  // ---- shifts / rotates -------------------------------------------------
++  val sh = Mux(is32, io.shamt(4, 0), io.shamt)
++  val nBits = Mux(is32, 32.U(7.W), 64.U(7.W))
++  val rotR  = ((nBits - sh)(5, 0))
++
++  // ---- ext --------------------------------------------------------------
++  val hd   = io.shamt
++  val mask = (~0.U(64.W)) >> (63.U - hd)
++
++  // ---- compare ----------------------------------------------------------
++  val ltU = Mux(is32, a32 < b32, io.a < io.b)
++  val ltS = Mux(is32, a32.asSInt < b32.asSInt, io.a.asSInt < b32.asSInt)
++  val eq  = Mux(is32, a32 === b32, io.a === io.b)
++  def cmpRes(lt: Bool): UInt =
++    Mux(lt, "hffffffffffffffff".U, Mux(eq, 0.U, 1.U))
++
++  // ---- 16-bit immediate (rwii) -----------------------------------------
++  val wydeShift = io.wp << 4
++  val immWyde   = (io.b << wydeShift)(63, 0)
++  val wydeMask  = ("hffff".U(64.W) << wydeShift)(63, 0)
++
++  val lo = WireDefault(0.U(64.W))
++  val hi = WireDefault(0.U(64.W))
++
++  switch(io.op) {
++    is(WumingAluOp.ADD_U) { lo := extWidth((aW + bW)(63, 0), false.B) }
++    is(WumingAluOp.ADD_S) { lo := extWidth((aW + bW)(63, 0), true.B) }
++    is(WumingAluOp.SUB_U) { lo := extWidth((aW - bW)(63, 0), false.B) }
++    is(WumingAluOp.SUB_S) { lo := extWidth((aW - bW)(63, 0), true.B) }
++    is(WumingAluOp.ADD128_U) { hi := addU(127, 64); lo := addU(63, 0) }
++    is(WumingAluOp.ADD128_S) { hi := addS(127, 64); lo := addS(63, 0) }
++    // ZX subtract: rdHA is the borrow itself (0 or 1), not the high half of
++    // the 128-bit wrap (spec/SimRISC-04 §1.1).
++    is(WumingAluOp.SUB128_U) { hi := Mux(io.a < io.b, 1.U(64.W), 0.U(64.W)); lo := subU(63, 0) }
++    is(WumingAluOp.SUB128_S) { hi := subS(127, 64); lo := subS(63, 0) }
++    is(WumingAluOp.MUL128_U) { hi := mulU128(127, 64); lo := mulU128(63, 0) }
++    is(WumingAluOp.MUL128_S) { hi := mulS128(127, 64); lo := mulS128(63, 0) }
++    is(WumingAluOp.MUL_U) { lo := mulU }
++    is(WumingAluOp.MUL_S) { lo := mulS }
++    is(WumingAluOp.DIV_U) { lo := Mux(is32, divU32, divU64) }
++    is(WumingAluOp.DIV_S) { lo := Mux(is32, divS32, divS64) }
++    is(WumingAluOp.REM_U) { lo := Mux(is32, remU32, remU64) }
++    is(WumingAluOp.REM_S) { lo := Mux(is32, remS32, remS64) }
++    is(WumingAluOp.AND)   { lo := io.a & io.b }
++    is(WumingAluOp.OR)    { lo := io.a | io.b }
++    is(WumingAluOp.XOR)   { lo := io.a ^ io.b }
++    is(WumingAluOp.XNOR)  { lo := ~(io.a ^ io.b) }
++    is(WumingAluOp.SHL)   { lo := extWidth((aW << sh)(63, 0), false.B) }
++    is(WumingAluOp.SHR_U) { lo := extWidth((aW >> sh)(63, 0), false.B) }
++    is(WumingAluOp.SHR_S) {
++      lo := Mux(is32, sext32((a32.asSInt >> sh)(31, 0).asUInt),
++                     (io.a.asSInt >> sh)(63, 0).asUInt)
++    }
++    is(WumingAluOp.ROL) {
++      val r = (aW << sh) | (aW >> rotR)
++      lo := extWidth(r, false.B)
++    }
++    is(WumingAluOp.EXT_U) { lo := io.a & mask }
++    is(WumingAluOp.EXT_S) {
++      lo := (io.a & mask) | Mux(io.a(hd), ~mask, 0.U(64.W))
++    }
++    is(WumingAluOp.CMP_U) { lo := cmpRes(ltU) }
++    is(WumingAluOp.CMP_S) { lo := cmpRes(ltS) }
++    is(WumingAluOp.SET_ZW)  { lo := immWyde }
++    is(WumingAluOp.SET_OW)  { lo := (~wydeMask) | immWyde }
++    is(WumingAluOp.OR_W)    { lo := io.a | immWyde }
++    is(WumingAluOp.ANDN_W)  { lo := io.a & ~immWyde }
++  }
++  io.lo := lo
++  io.hi := hi
++}

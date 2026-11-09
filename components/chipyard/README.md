@@ -7,7 +7,7 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），清单见 `series`；规范见 `docs/Process-01-组件补丁组织与构建编排.md`。
 - 内容（M12 起）：`generators/dadao-wuming/**` 新增文件（DADAO「wuming」Tile 外壳 + 最小启动执行器 + 参数/配置片段 + Tiny bootrom 的 hex 资源与解码 + `+loadmem=` 加载器）、两处上游文件修改（根 `build.sbt` 的 `wuming` 项目接线、`generators/chipyard/.../config/fragments/PeripheralFragments.scala` 的 BootROM 资源名参数）。
 - **子模块补丁集**（`m12-infra-003` 起）：子模块自身的源码改动不在本目录，而在 `submodules/<子模块 path>/{series,patches/}`，由 `manifests/components.lock.toml` 的 `[[component.submodule_patch]]` 声明（base = 子模块 lock 的 pin）；`make apply-series` 在子模块内生成自己的 `base+1` commit，本组件 commit 记录该 gitlink。规范见 `docs/Process-01 §14`。当前只有一条：`generators/testchipip`（`SimDRAM.cc` / `SimDRAM.v`，见下）。
-- 构建全部在构建节点执行（`.tao/knowledge/nodes.md §10.1`）：主控机只维护补丁集与台账。
+- 构建与调试在主控机执行（用户 2026-11-10 裁定；`.tao/knowledge/nodes.md §10.1`）；长仿真仍归节点。
 
 ## testchipip 子模块补丁（`m12-infra-003`）
 
@@ -44,6 +44,13 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
   - `SYS_EXIT` 读参数块〔原因码, 子码〕：原因码 `0x20026` 时宿主退出码 = 子码（`spec §7.1` guest `0x00–0x3F`=PASS、`0x40–0x7F`=FAIL），否则为 1；以进程退出实现**有界停机**，不依赖 TestDriver 超时。
   - **未实现服务号 ⇒ 明确报错并给出服务号（十六进制）后以非零退出**，不静默返回 0。
 - **三平台**：`tests/shared/bootrom/semihost_smoke.S` 的同一 ELF 在 QEMU `dadao-tiny`、gem5 FS `tiny` 与本 harness 上 stdout 逐字节一致、退出码一致；`semihost_fail.elf` 验证 guest FAIL 段映射，`semihost_unimpl.elf` 验证未实现服务号报错，`semihost_write.elf` 覆盖 `SYS_WRITE`（QEMU/gem5 的 raw stdout 句柄语义不同——gem5 未 `SYS_OPEN` 时 `files[1]` 越界崩溃、QEMU 需先开 `:tt`——故 `SYS_WRITE` 单独成像，不进入三平台比对集）。
+
+## 整数执行（`m12-chipyard-005`）
+
+- **结构**：`WumingCoreStub` 退役，改为 `WumingCore`（取指/执行状态机）+ `WumingRegFile`（`rd`/`rb` 双 bank，各 64×64；`rd0` 读 0、写丢弃，`rb0` 读**当前指令地址**且只读）+ `WumingDecoder`（格式/合法性/操作数选择）+ `WumingALU`（组合逻辑整数运算）。
+- **覆盖**：`orrr`/`orri`/`rrrr`/`riii`/`rrii`/`rwii`；SimRISC-04 的 `and/or/xor/xnor`、`shl/rol/shr.{uo,so}`、`ext.{uo,so}`、`cmp.{uo,so}`、`add.o/sub.o`（bbd/dbb）、`div/rem.{uo,so}`、`rrrr` 的 `add/sub/mul.{uo,so}`（128 位 `{hi,lo}`）；SimRISC-05 的 `add.si`（rd/rb）、`aip.si`、`cmp.uo` dbb；SimRISC-08 的 32 位同族（`.ut`/`.st`）。语义按规范（**不套 RISC-V**）：窄位宽结果按值语义零/符号扩展、**`rrrr` 无符号加减的高半是进位/借位（0 或 1）**、有符号加减的高半是 128 位和/差的高 64 位、乘法的两个变体都是完整 128 位积的高半、除零与 `INT_MIN/−1` 取规范定值。
+- **非实现编码 = 显式异常，不是 NOP**：`contracts/legality_rules.yaml` 的 `dst_rd0`/`dst_rb0`/`dst_dual_same`/`encode_sbz` 触发 **ILLI**；`opcodes.yaml` 已定义但本里程碑未实现的编码（其他 ld/st 宽度、分支/call/ret、16/8 位子表、FP、原子/位操作）触发 **ILLI**；QFC 主表/子表空白单元格触发 **UNDI**。核在 `printf` 中打印 `fault ... ILLI|UNDI` 并 halt（cease）。
+- **闭环不回归**：`ld.o`/`st.o`、`jump rrii`、semihosting `trap` 语义沿用 `m12-003/004`；BootROM→`+loadmem`→应用→`SYS_EXIT` 的路径不变。访存/控制流完整实现与 RAS 归 `m12-chipyard-006/007`。
 
 ## 边界
 

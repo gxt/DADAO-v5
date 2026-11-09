@@ -1,0 +1,71 @@
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala
+new file mode 100644
+index 0000000..7afcf59
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala
+@@ -0,0 +1,65 @@
++// See LICENSE for license details.
++//
++// DADAO register file banks used by the m12-chipyard-005 integer subset
++// (spec/SimRISC-00 §2, spec/DADAO-21 ABI):
++//
++//   rd0  reads 0, writes are dropped (the decoder raises ILLI for the shapes
++//        where a write is not allowed, e.g. single-destination instructions;
++//        `rrrr` dual-destination forms may discard one half into rd0).
++//   rb0  reads the *current instruction address* (IP) -- not PC+4 -- and is
++//        read-only; the decoder raises ILLI for an explicit rb0 destination.
++//
++// The ra bank (return address stack) is not used by the instructions of this
++// milestone; control flow / call / ret land in m12-chipyard-006/007.
++
++package wuming.common
++
++import chisel3._
++import chisel3.util._
++
++class WumingRegFile extends Module {
++  val io = IO(new Bundle {
++    // rb0's architectural value = the address of the instruction being
++    // executed (spec/SimRISC-00: rb0 = IP, not PC+4).
++    val ip = Input(UInt(64.W))
++
++    // Four read ports: two operand sources (A/B) plus a side port used by the
++    // legacy control/memory/semihosting forms retained from m12-003/004.
++    val r0Idx = Input(UInt(6.W)); val r0Rb = Input(Bool())
++    val r1Idx = Input(UInt(6.W)); val r1Rb = Input(Bool())
++    val r2Idx = Input(UInt(6.W)); val r2Rb = Input(Bool())
++    val r0Data = Output(UInt(64.W))
++    val r1Data = Output(UInt(64.W))
++    val r2Data = Output(UInt(64.W))
++
++    // Two write ports (rrrr writes a 128-bit dual result back to two rd's).
++    val w0En   = Input(Bool())
++    val w0Idx  = Input(UInt(6.W))
++    val w0Rb   = Input(Bool())
++    val w0Data = Input(UInt(64.W))
++    val w1En   = Input(Bool())
++    val w1Idx  = Input(UInt(6.W))
++    val w1Rb   = Input(Bool())
++    val w1Data = Input(UInt(64.W))
++  })
++
++  val rd = RegInit(VecInit(Seq.fill(64)(0.U(64.W))))
++  val rb = RegInit(VecInit(Seq.fill(64)(0.U(64.W))))
++
++  def read(idx: UInt, isRb: Bool): UInt =
++    Mux(idx === 0.U, Mux(isRb, io.ip, 0.U(64.W)), Mux(isRb, rb(idx), rd(idx)))
++
++  io.r0Data := read(io.r0Idx, io.r0Rb)
++  io.r1Data := read(io.r1Idx, io.r1Rb)
++  io.r2Data := read(io.r2Idx, io.r2Rb)
++
++  // rd0 / rb0: reads are special-cased above, writes are dropped here.  The
++  // decoder has already turned an illegal rb0 destination into ILLI, so this
++  // is the belt-and-braces form of "rb0 is read-only".
++  when(io.w0En && io.w0Idx =/= 0.U) {
++    when(io.w0Rb) { rb(io.w0Idx) := io.w0Data }.otherwise { rd(io.w0Idx) := io.w0Data }
++  }
++  when(io.w1En && io.w1Idx =/= 0.U) {
++    when(io.w1Rb) { rb(io.w1Idx) := io.w1Data }.otherwise { rd(io.w1Idx) := io.w1Data }
++  }
++}

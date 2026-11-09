@@ -1,0 +1,376 @@
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
+new file mode 100644
+index 0000000..726c3e2
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
+@@ -0,0 +1,370 @@
++// See LICENSE for license details.
++//
++// DADAO decoder for the m12-chipyard-005 integer subset.
++//
++// Formats covered (spec/SimRISC-00 §3.1): `orrr`, `orri`, `rrrr`, `riii`,
++// `rrii` plus the `rwii` forms retained from m12-003, and the legacy `ld.o` /
++// `st.o` / `jump` / semihosting `trap` shapes.  Instruction families:
++//
++//   SimRISC-04 (64-bit)  and/or/xor/xnor, shl/rol/shr, ext, cmp, add.o/sub.o,
++//                        div/rem, and the `rrrr` add/sub/mul (128-bit result)
++//   SimRISC-05 (address) add.si (rd/rb), aip.si, add.o/sub.o, cmp.uo (dbb)
++//   SimRISC-08 (32-bit)  add/sub/cmp/mul/div/rem/shl/rol/shr
++//
++// Everything else is a fault, never a silent NOP:
++//   * an encoding defined by contracts/opcodes.yaml but not implemented in
++//     this milestone  -> ILLI (spec/SimRISC-00 §6.1)
++//   * an unallocated QFC / sub-table cell -> UNDI (spec/SimRISC-00 §6.2,
++//     contracts/legality_rules.yaml `excp_undi`)
++// and the legality rules of contracts/legality_rules.yaml are applied to the
++// implemented families (`dst_rd0`, `dst_rb0`, `dst_dual_same`, `encode_sbz`).
++
++package wuming.common
++
++import chisel3._
++import chisel3.util._
++
++class WumingDecode extends Bundle {
++  val ill  = Bool()
++  val undi = Bool()
++
++  val aluOp = UInt(5.W)
++  val opWidth = UInt(2.W) // 3 = octa, 2 = tetra
++
++  val srcAIdx  = UInt(6.W)
++  val srcARb   = Bool()
++  val srcAIsIp = Bool()
++  val srcBIdx  = UInt(6.W)
++  val srcBRb   = Bool()
++  val srcCIdx  = UInt(6.W)
++  val srcCRb   = Bool()
++
++  val useImmB     = Bool()
++  val shamtFromImm = Bool()
++  val imm         = UInt(64.W)
++  val wp          = UInt(2.W)
++
++  val w0En   = Bool()
++  val w0Idx  = UInt(6.W)
++  val w0Rb   = Bool()
++  val w0Sel  = UInt(1.W) // 0 = ALU lo, 1 = ALU hi
++  val w1En   = Bool()
++  val w1Idx  = UInt(6.W)
++  val w1Rb   = Bool()
++  val w1Sel  = UInt(1.W)
++
++  val isJump  = Bool()
++  val jumpOff = UInt(64.W)
++  val isLd    = Bool()
++  val isSt    = Bool()
++  val memOff  = UInt(64.W)
++  val ldDst   = UInt(6.W)
++  val isSemi  = Bool()
++}
++
++class WumingDecoder extends Module {
++  val io = IO(new Bundle {
++    val inst = Input(UInt(32.W))
++    val dec  = Output(new WumingDecode)
++  })
++
++  val d    = io.dec
++  val inst = io.inst
++
++  val opc  = inst(31, 24)
++  val ha   = inst(23, 18)
++  val hb   = inst(17, 12)
++  val hc   = inst(11, 6)
++  val hd   = inst(5, 0)
++  val imm16 = inst(15, 0)
++  val imm12 = inst(11, 0)
++  val imm18 = inst(17, 0)
++
++  def sext(x: UInt): UInt = x.asSInt.pad(64).asUInt
++  def zext(x: UInt): UInt = x.pad(64)
++
++  val imms18 = sext(imm18)
++  val imms12 = sext(imm12)
++  val immu12 = zext(imm12)
++
++  // ---- defaults ---------------------------------------------------------
++  d.ill := false.B
++  d.undi := false.B
++  d.aluOp := WumingAluOp.ADD_U
++  d.opWidth := 3.U
++  d.srcAIdx := 0.U; d.srcARb := false.B; d.srcAIsIp := false.B
++  d.srcBIdx := 0.U; d.srcBRb := false.B
++  d.srcCIdx := 16.U; d.srcCRb := true.B
++  d.useImmB := false.B; d.shamtFromImm := false.B
++  d.imm := 0.U
++  d.wp := inst(17, 16)
++  d.w0En := false.B; d.w0Idx := 0.U; d.w0Rb := false.B; d.w0Sel := 0.U
++  d.w1En := false.B; d.w1Idx := 0.U; d.w1Rb := false.B; d.w1Sel := 0.U
++  d.isJump := false.B; d.jumpOff := 0.U
++  d.isLd := false.B; d.isSt := false.B; d.memOff := 0.U; d.ldDst := 0.U
++  d.isSemi := false.B
++
++  val recognized = WireDefault(false.B)
++
++  // ---- rwii: set.zw / set.ow / or.w / andn.w (SimRISC-03) ---------------
++  def rwii(isRb: Bool, op: UInt): Unit = {
++    d.aluOp := op
++    d.opWidth := 3.U
++    d.srcAIdx := ha; d.srcARb := isRb
++    d.useImmB := true.B
++    d.imm := zext(imm16)
++    d.w0En := true.B; d.w0Idx := ha; d.w0Rb := isRb; d.w0Sel := 0.U
++    when(ha === 0.U) { d.ill := true.B }
++  }
++
++  // ---- shared operand/result shapes -------------------------------------
++  def orrrLogic(op: UInt): Unit = {
++    d.aluOp := op
++    d.srcAIdx := hc; d.srcAIsIp := false.B
++    d.srcBIdx := hd
++    d.w0En := true.B; d.w0Idx := hb; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }
++  }
++
++  def orrrShift(op: UInt): Unit = {
++    // Register form: rdHB = shift/ext(rdHC, rdHD[5:0]).
++    d.aluOp := op
++    d.srcAIdx := hc
++    d.srcBIdx := hd
++    d.w0En := true.B; d.w0Idx := hb; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }
++  }
++
++  def rriiDst(op: UInt, signedImm: Bool): Unit = {
++    d.aluOp := op
++    d.opWidth := 3.U
++    d.srcAIdx := hb
++    d.useImmB := true.B
++    d.imm := Mux(signedImm, imms12, immu12)
++    d.w0En := true.B; d.w0Idx := ha; d.w0Sel := 0.U
++    when(ha === 0.U) { d.ill := true.B }
++  }
++
++  def quad(op: UInt): Unit = {
++    d.aluOp := op
++    d.opWidth := 3.U
++    d.srcAIdx := hc
++    d.srcBIdx := hd
++    d.w0En := true.B; d.w0Idx := ha; d.w0Sel := 1.U
++    d.w1En := true.B; d.w1Idx := hb; d.w1Sel := 0.U
++    when(ha === 0.U && hb === 0.U) { d.ill := true.B }
++    when(ha === hb && ha =/= 0.U) { d.ill := true.B }
++  }
++
++  def bbd(op: UInt): Unit = {
++    // rbHB = rbHC <op> rdHD
++    d.aluOp := op
++    d.opWidth := 3.U
++    d.srcAIdx := hc; d.srcARb := true.B
++    d.srcBIdx := hd
++    d.w0En := true.B; d.w0Idx := hb; d.w0Rb := true.B; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }
++  }
++
++  def dbb(op: UInt): Unit = {
++    // rdHB = rbHC <op> rbHD
++    d.aluOp := op
++    d.opWidth := 3.U
++    d.srcAIdx := hc; d.srcARb := true.B
++    d.srcBIdx := hd; d.srcBRb := true.B
++    d.w0En := true.B; d.w0Idx := hb; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }
++  }
++
++  def tetraOrrr(op: UInt): Unit = {
++    d.aluOp := op
++    d.opWidth := 2.U
++    d.srcAIdx := hc
++    d.srcBIdx := hd
++    d.w0En := true.B; d.w0Idx := hb; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }
++  }
++
++  def tetraOrri(op: UInt): Unit = {
++    d.aluOp := op
++    d.opWidth := 2.U
++    d.srcAIdx := hc
++    d.shamtFromImm := true.B
++    d.imm := zext(hd)
++    d.w0En := true.B; d.w0Idx := hb; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }
++    // shl.t/rol.t/shr.ut/shr.st take immu6 0..31; 32..63 is encode_sbz.
++    when(hd > 31.U) { d.ill := true.B }
++  }
++
++  def octaOrri(op: UInt): Unit = {
++    d.aluOp := op
++    d.opWidth := 3.U
++    d.srcAIdx := hc
++    d.shamtFromImm := true.B
++    d.imm := zext(hd)
++    d.w0En := true.B; d.w0Idx := hb; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }
++  }
++
++  // ---- main decode ------------------------------------------------------
++  when(opc === 0x20.U || opc === 0x21.U) {
++    // ld.o / st.o (spec/SimRISC-01): kept from m12-003 for the closed loop.
++    recognized := true.B
++    d.srcAIdx := hb; d.srcARb := true.B
++    d.memOff := imms12
++    when(opc === 0x20.U) {
++      d.isLd := true.B; d.ldDst := ha; d.w0Idx := ha
++      when(ha === 0.U) { d.ill := true.B }
++    }.otherwise {
++      d.isSt := true.B
++      d.srcBIdx := ha // store data source: rdHA may be rd0 (reads 0)
++    }
++  }.elsewhen(opc >= 0x40.U && opc <= 0x47.U) {
++    recognized := true.B
++    val octaRows = Seq(0x00, 0x1F, 0x0F, 0x0F, 0x03, 0x7F, 0x7F, 0x6F)
++    val tetraRows = Seq(0x00, 0x10, 0x0F, 0x0F, 0x03, 0x0F, 0x03, 0x0F)
++    val rfRows = Seq(0x4F, 0x4F, 0x7F, 0x7F, 0xC3, 0xC3, 0xFF, 0xFF)
++    val miscRows = Seq(0xFF, 0x0F, 0xFF, 0x0F, 0xE4, 0x00, 0x00, 0x00)
++    def cellDefined(rows: Seq[Int]): Bool =
++      VecInit(rows.map(_.U(8.W)))(ha(5, 3))(ha(2, 0))
++    val subDefined =
++      MuxLookup(opc, false.B)(Seq(
++        0x40.U -> cellDefined(octaRows),
++        0x41.U -> cellDefined(tetraRows),
++        0x42.U -> cellDefined(tetraRows),
++        0x43.U -> cellDefined(tetraRows),
++        0x44.U -> cellDefined(rfRows),
++        0x47.U -> cellDefined(miscRows)))
++
++    val subHandled = WireDefault(false.B)
++
++    when(opc === 0x40.U) {
++      switch(ha) {
++        is(0x08.U) { subHandled := true.B; orrrLogic(WumingAluOp.AND) }
++        is(0x09.U) { subHandled := true.B; orrrLogic(WumingAluOp.OR) }
++        is(0x0A.U) { subHandled := true.B; orrrLogic(WumingAluOp.XOR) }
++        is(0x0B.U) { subHandled := true.B; orrrLogic(WumingAluOp.XNOR) }
++        is(0x10.U) { subHandled := true.B; orrrShift(WumingAluOp.SHL); d.srcBIdx := hd }
++        is(0x11.U) { subHandled := true.B; orrrShift(WumingAluOp.ROL); d.srcBIdx := hd }
++        is(0x12.U) { subHandled := true.B; orrrShift(WumingAluOp.SHR_U); d.srcBIdx := hd }
++        is(0x13.U) { subHandled := true.B; orrrShift(WumingAluOp.SHR_S); d.srcBIdx := hd }
++        is(0x18.U) { subHandled := true.B; octaOrri(WumingAluOp.SHL) }
++        is(0x19.U) { subHandled := true.B; octaOrri(WumingAluOp.ROL) }
++        is(0x1A.U) { subHandled := true.B; octaOrri(WumingAluOp.SHR_U) }
++        is(0x1B.U) { subHandled := true.B; octaOrri(WumingAluOp.SHR_S) }
++        is(0x20.U) { subHandled := true.B; orrrShift(WumingAluOp.EXT_U) }
++        is(0x21.U) { subHandled := true.B; orrrShift(WumingAluOp.EXT_S) }
++        is(0x28.U) { subHandled := true.B; octaOrri(WumingAluOp.EXT_U) }
++        is(0x29.U) { subHandled := true.B; octaOrri(WumingAluOp.EXT_S) }
++        is(0x2A.U) { subHandled := true.B; orrrLogic(WumingAluOp.CMP_U) }
++        is(0x2B.U) { subHandled := true.B; orrrLogic(WumingAluOp.CMP_S) }
++        is(0x30.U) { subHandled := true.B; bbd(WumingAluOp.ADD_U) }
++        is(0x31.U) { subHandled := true.B; bbd(WumingAluOp.SUB_U) }
++        is(0x32.U) { subHandled := true.B; dbb(WumingAluOp.CMP_U) }
++        is(0x33.U) { subHandled := true.B; dbb(WumingAluOp.SUB_U) }
++        is(0x38.U) { subHandled := true.B; orrrLogic(WumingAluOp.DIV_U) }
++        is(0x39.U) { subHandled := true.B; orrrLogic(WumingAluOp.DIV_S) }
++        is(0x3A.U) { subHandled := true.B; orrrLogic(WumingAluOp.REM_U) }
++        is(0x3B.U) { subHandled := true.B; orrrLogic(WumingAluOp.REM_S) }
++      }
++    }.elsewhen(opc === 0x41.U) {
++      switch(ha) {
++        is(0x10.U) { subHandled := true.B; tetraOrrr(WumingAluOp.SHL) }
++        is(0x11.U) { subHandled := true.B; tetraOrrr(WumingAluOp.ROL) }
++        is(0x12.U) { subHandled := true.B; tetraOrrr(WumingAluOp.SHR_U) }
++        is(0x13.U) { subHandled := true.B; tetraOrrr(WumingAluOp.SHR_S) }
++        is(0x18.U) { subHandled := true.B; tetraOrri(WumingAluOp.SHL) }
++        is(0x19.U) { subHandled := true.B; tetraOrri(WumingAluOp.ROL) }
++        is(0x1A.U) { subHandled := true.B; tetraOrri(WumingAluOp.SHR_U) }
++        is(0x1B.U) { subHandled := true.B; tetraOrri(WumingAluOp.SHR_S) }
++        is(0x20.U) { subHandled := true.B; tetraOrrr(WumingAluOp.ADD_U) }
++        is(0x21.U) { subHandled := true.B; tetraOrrr(WumingAluOp.ADD_S) }
++        is(0x28.U) { subHandled := true.B; tetraOrrr(WumingAluOp.SUB_U) }
++        is(0x29.U) { subHandled := true.B; tetraOrrr(WumingAluOp.SUB_S) }
++        is(0x2A.U) { subHandled := true.B; tetraOrrr(WumingAluOp.CMP_U) }
++        is(0x2B.U) { subHandled := true.B; tetraOrrr(WumingAluOp.CMP_S) }
++        is(0x30.U) { subHandled := true.B; tetraOrrr(WumingAluOp.MUL_U) }
++        is(0x31.U) { subHandled := true.B; tetraOrrr(WumingAluOp.MUL_S) }
++        is(0x38.U) { subHandled := true.B; tetraOrrr(WumingAluOp.DIV_U) }
++        is(0x39.U) { subHandled := true.B; tetraOrrr(WumingAluOp.DIV_S) }
++        is(0x3A.U) { subHandled := true.B; tetraOrrr(WumingAluOp.REM_U) }
++        is(0x3B.U) { subHandled := true.B; tetraOrrr(WumingAluOp.REM_S) }
++      }
++    }
++
++    when(!subHandled) {
++      when(subDefined) { d.ill := true.B }.otherwise { d.undi := true.B }
++    }
++  }.elsewhen(opc >= 0x48.U && opc <= 0x4F.U) {
++    recognized := true.B
++    when(opc === 0x48.U) { rwii(false.B, WumingAluOp.OR_W) }
++      .elsewhen(opc === 0x49.U) { rwii(false.B, WumingAluOp.ANDN_W) }
++      .elsewhen(opc === 0x4A.U) { rwii(true.B, WumingAluOp.OR_W) }
++      .elsewhen(opc === 0x4B.U) { rwii(true.B, WumingAluOp.ANDN_W) }
++      .elsewhen(opc === 0x4C.U) { rwii(false.B, WumingAluOp.SET_ZW) }
++      .elsewhen(opc === 0x4D.U) { rwii(false.B, WumingAluOp.SET_OW) }
++      .elsewhen(opc === 0x4E.U) { rwii(true.B, WumingAluOp.SET_ZW) }
++      .otherwise {
++        // set.w rf register file: defined, not implemented here.
++        d.ill := true.B
++      }
++  }.elsewhen(opc >= 0x50.U && opc <= 0x55.U) {
++    recognized := true.B
++    when(opc === 0x50.U) { quad(WumingAluOp.ADD128_U) }
++      .elsewhen(opc === 0x51.U) { quad(WumingAluOp.ADD128_S) }
++      .elsewhen(opc === 0x52.U) { quad(WumingAluOp.SUB128_U) }
++      .elsewhen(opc === 0x53.U) { quad(WumingAluOp.SUB128_S) }
++      .elsewhen(opc === 0x54.U) { quad(WumingAluOp.MUL128_U) }
++      .otherwise { quad(WumingAluOp.MUL128_S) }
++  }.elsewhen(opc === 0x59.U) {
++    recognized := true.B
++    d.aluOp := WumingAluOp.ADD_S; d.opWidth := 3.U
++    d.srcAIdx := ha; d.useImmB := true.B; d.imm := imms18
++    d.w0En := true.B; d.w0Idx := ha; d.w0Sel := 0.U
++    when(ha === 0.U) { d.ill := true.B }
++  }.elsewhen(opc === 0x5A.U) {
++    recognized := true.B
++    d.aluOp := WumingAluOp.ADD_S; d.opWidth := 3.U
++    d.srcAIsIp := true.B; d.useImmB := true.B
++    // aip.si: rbHA = IP + (imms18 << 12); the immediate unit is 4 KiB.
++    d.imm := (imms18 << 12)(63, 0)
++    d.w0En := true.B; d.w0Idx := ha; d.w0Rb := true.B; d.w0Sel := 0.U
++    when(ha === 0.U) { d.ill := true.B }
++  }.elsewhen(opc === 0x5B.U) {
++    recognized := true.B
++    d.aluOp := WumingAluOp.ADD_S; d.opWidth := 3.U
++    d.srcAIdx := ha; d.srcARb := true.B; d.useImmB := true.B; d.imm := imms18
++    d.w0En := true.B; d.w0Idx := ha; d.w0Rb := true.B; d.w0Sel := 0.U
++    when(ha === 0.U) { d.ill := true.B }
++  }.elsewhen(opc === 0x5C.U) {
++    recognized := true.B; rriiDst(WumingAluOp.CMP_U, signedImm = false.B)
++  }.elsewhen(opc === 0x5D.U) {
++    recognized := true.B; rriiDst(WumingAluOp.CMP_S, signedImm = true.B)
++  }.elsewhen(opc === 0x71.U) {
++    recognized := true.B
++    d.isJump := true.B
++    d.srcAIdx := ha; d.srcARb := true.B
++    d.srcBIdx := hb
++    d.jumpOff := (imms12 << 2)(63, 0)
++  }.elsewhen(opc === 0x7F.U && imm18(17, 8) === 0x3FF.U) {
++    recognized := true.B
++    d.isSemi := true.B
++    d.srcCIdx := 16.U; d.srcCRb := true.B
++  }
++
++  // ---- classification of everything not handled above -------------------
++  def opcDefined(o: UInt): Bool =
++    // QFC main table (spec/SimRISC-00 §4): 0x00-0x0F and 0x1B-0x1F are blank
++    // cells (UNDI); 0x33-0x37 and 0x77/0x78/0x7C/0x7D are blank as well.
++    (o >= 0x10.U && o <= 0x1A.U) ||
++    (o >= 0x20.U && o <= 0x32.U) || (o >= 0x38.U && o <= 0x3F.U) ||
++    (o >= 0x40.U && o <= 0x4F.U) ||
++    (o >= 0x50.U && o <= 0x56.U) || (o >= 0x59.U && o <= 0x5F.U) ||
++    (o >= 0x60.U && o <= 0x6F.U) || (o >= 0x70.U && o <= 0x76.U) ||
++    (o >= 0x79.U && o <= 0x7B.U) || o === 0x7E.U || o === 0x7F.U
++
++  when(!recognized) {
++    when(opcDefined(opc)) { d.ill := true.B }.otherwise { d.undi := true.B }
++  }
++}

@@ -1,0 +1,239 @@
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
+new file mode 100644
+index 0000000..0cd8c4e
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
+@@ -0,0 +1,233 @@
++// See LICENSE for license details.
++//
++// DADAO "wuming" core — integer execution (m12-chipyard-005).
++//
++// Replaces the temporary five-class interpreter from m12-003/004 with the real
++// fetch/decode/execute loop for the integer subset: the rd/rb register file
++// (rd0 reads 0, rb0 reads the current instruction address), the m12-005
++// decoder + ALU, and the legacy pieces the closed boot loop already needs
++// (`ld.o`/`st.o`, `jump rrii`, semihosting `trap`).  Memory and control-flow
++// implementation proper (full ld/st widths, branches, call/ret/RAS) land in
++// m12-chipyard-006/007; every encoding outside this subset is a fault:
++//
++//   ILLI  defined by the ISA but not implemented by this milestone
++//   UNDI  reserved (unallocated) QFC / sub-table cell
++//
++// The core performs no host I/O: a semihosting `trap` is lifted to the tile
++// boundary exactly as in m12-004.
++
++package wuming.common
++
++import chisel3._
++import chisel3.util._
++import freechips.rocketchip.tilelink.{TLEdgeOut, TLBundle}
++
++class WumingCore(
++  edge: TLEdgeOut,
++  params: WumingCoreParams,
++  hartidBits: Int,
++  resetVectorBits: Int
++) extends Module {
++  val io = IO(new Bundle {
++    val tl = new TLBundle(edge.bundle)
++    val hartid = Input(UInt((hartidBits max 1).W))
++    val resetVector = Input(UInt(resetVectorBits.W))
++    val bootEnable = Input(Bool())
++    val semi = new Bundle {
++      val req = Output(new WumingSemiReq)
++      val resp = Input(new WumingSemiResp)
++    }
++    val halted = Output(Bool())
++  })
++
++  val tl = io.tl
++  val addrBits = edge.bundle.addressBits
++  val beatBytes = edge.bundle.dataBits / 8
++  require(beatBytes == 8, "WumingCore: expected a 64-bit TileLink beat")
++  require(addrBits >= 48, "WumingCore: the Tiny address map must negotiate >= 48 bits")
++  val lgSize = log2Ceil(beatBytes).U
++
++  // ---- architectural state ----------------------------------------------
++  val ip = RegInit(0.U(64.W)) // address of the instruction being executed
++  val faultKind = RegInit(0.U(2.W)) // 0 = none, 1 = ILLI, 2 = UNDI
++
++  val sIdle :: sFetch :: sFetchReq :: sFetchWait :: sExec :: sMemReq :: sMemWait :: sSemi :: sHalt :: Nil = Enum(9)
++  val state = RegInit(sIdle)
++
++  // Semihosting return register (contract-semihosting: scalar result in rd8).
++  val semiRetReg = 8.U(6.W)
++
++  val rf = Module(new WumingRegFile)
++  rf.io.ip := ip
++
++  // ---- fetch buffer ------------------------------------------------------
++  val beatValid = RegInit(false.B)
++  val beatAddr = RegInit(0.U(64.W))
++  val beatData = RegInit(0.U(64.W)) // 8 bytes in *address order* (byte 0 is MSB)
++  val fetchAddr = Cat(0.U(16.W), ip(47, 3), 0.U(3.W))
++  val fetchHit = beatValid && (beatAddr === fetchAddr)
++
++  // TileLink puts byte k of a beat in bits [8k+7, 8k] (little-endian lanes);
++  // DADAO is big-endian, so re-assemble the beat in address order.
++  def addressOrder(value: UInt): UInt =
++    Cat((0 until beatBytes).map(i => value(8 * i + 7, 8 * i)))
++
++  def laneOrder(value: UInt): UInt =
++    Cat((0 until beatBytes).reverse.map(i => value(63 - 8 * i, 56 - 8 * i)))
++
++  val inst = Mux(ip(2), beatData(31, 0), beatData(63, 32))
++
++  // ---- decode ------------------------------------------------------------
++  val dec = Module(new WumingDecoder)
++  dec.io.inst := inst
++  val d = dec.io.dec
++
++  // ---- operands / ALU ----------------------------------------------------
++  rf.io.r0Idx := d.srcAIdx; rf.io.r0Rb := d.srcARb
++  rf.io.r1Idx := d.srcBIdx; rf.io.r1Rb := d.srcBRb
++  rf.io.r2Idx := d.srcCIdx; rf.io.r2Rb := d.srcCRb
++
++  val srcA = Mux(d.srcAIsIp, ip, rf.io.r0Data)
++  val srcB = rf.io.r1Data
++
++  val alu = Module(new WumingALU)
++  alu.io.op := d.aluOp
++  alu.io.opWidth := d.opWidth
++  alu.io.a := srcA
++  alu.io.b := Mux(d.useImmB, d.imm, srcB)
++  alu.io.shamt := Mux(d.shamtFromImm, d.imm(5, 0), srcB(5, 0))
++  alu.io.wp := d.wp
++
++  val jumpTarget = (srcA + srcB + d.jumpOff)(63, 0)
++  val memAddr = (srcA + d.memOff)(63, 0)
++  val storeValue = srcB
++
++  // ---- write-back --------------------------------------------------------
++  val execFault = d.ill || d.undi
++  val ldData = addressOrder(tl.d.bits.data)
++
++  rf.io.w0En := (state === sExec && d.w0En && !execFault) ||
++    (state === sMemWait && d.isLd) ||
++    (state === sSemi && io.semi.resp.valid)
++  rf.io.w0Idx := Mux(state === sSemi, semiRetReg,
++    Mux(state === sMemWait, d.ldDst, d.w0Idx))
++  rf.io.w0Rb := Mux(state === sSemi, false.B,
++    Mux(state === sMemWait, false.B, d.w0Rb))
++  rf.io.w0Data := Mux(state === sSemi, io.semi.resp.value,
++    Mux(state === sMemWait, ldData,
++      Mux(d.w0Sel === 1.U, alu.io.hi, alu.io.lo)))
++  rf.io.w1En := state === sExec && d.w1En && !execFault
++  rf.io.w1Idx := d.w1Idx
++  rf.io.w1Rb := d.w1Rb
++  rf.io.w1Data := alu.io.lo
++
++  // ---- TileLink requests -------------------------------------------------
++  val (fetchLegal, fetchBits) = edge.Get(0.U, fetchAddr(addrBits - 1, 0), lgSize)
++  val (ldLegal, ldBits) = edge.Get(0.U, memAddr(addrBits - 1, 0), lgSize)
++  val (stLegal, stBits) = edge.Put(0.U, memAddr(addrBits - 1, 0), lgSize, laneOrder(storeValue))
++
++  tl.a.valid := (state === sFetchReq) || (state === sMemReq)
++  tl.a.bits := Mux(state === sFetchReq, fetchBits, Mux(d.isLd, ldBits, stBits))
++  tl.d.ready := (state === sFetchWait) || (state === sMemWait)
++
++  // ---- semihosting request (boundary lift, no host call in the core) -----
++  io.semi.req.valid := state === sSemi
++  io.semi.req.op := inst(7, 0)
++  io.semi.req.arg := rf.io.r2Data
++  io.semi.req.ret := semiRetReg
++  io.semi.req.pc := ip
++
++  // ---- execution ---------------------------------------------------------
++  switch(state) {
++    is(sIdle) {
++      when(io.bootEnable) {
++        ip := io.resetVector.pad(64)
++        state := sFetch
++      }
++    }
++    is(sFetch) {
++      state := Mux(fetchHit, sExec, sFetchReq)
++    }
++    is(sFetchReq) {
++      when(tl.a.ready) { state := sFetchWait }
++    }
++    is(sFetchWait) {
++      when(tl.d.fire) {
++        beatValid := true.B
++        beatAddr := fetchAddr
++        beatData := addressOrder(tl.d.bits.data)
++        state := sExec
++      }
++    }
++    is(sExec) {
++      when(d.ill || d.undi) {
++        faultKind := Mux(d.undi, 2.U, 1.U)
++        state := sHalt
++      }.elsewhen(d.isSemi) {
++        state := sSemi
++      }.elsewhen(d.isLd || d.isSt) {
++        state := sMemReq
++      }.otherwise {
++        when(d.isJump) { ip := jumpTarget }.otherwise { ip := ip + 4.U }
++        state := sFetch
++      }
++    }
++    is(sMemReq) {
++      when(tl.a.ready) { state := sMemWait }
++    }
++    is(sMemWait) {
++      when(tl.d.fire) {
++        ip := ip + 4.U
++        state := sFetch
++      }
++    }
++    is(sSemi) {
++      when(io.semi.resp.valid) {
++        ip := ip + 4.U
++        state := sFetch
++      }
++    }
++    is(sHalt) { }
++  }
++
++  // ---- legality assertions ------------------------------------------------
++  assert(!(tl.d.valid && tl.d.bits.denied), "WumingCore: TileLink denied the access")
++  assert(!(state === sFetchReq) || fetchLegal,
++    "WumingCore: reset vector / fetch address is not backed by a readable manager")
++  assert(!(state === sMemReq) || Mux(d.isLd, ldLegal, stLegal),
++    "WumingCore: load/store address is not backed by a capable manager")
++
++  // ---- observability ------------------------------------------------------
++  when(state === sIdle && io.bootEnable) {
++    printf(p"WumingCore: boot hartid=${io.hartid} reset_vector=0x${Hexadecimal(io.resetVector)}\n")
++  }
++  when(state === sFetchWait && tl.d.fire) {
++    printf(p"WumingCore: fetch 0x${Hexadecimal(fetchAddr)} -> 0x${Hexadecimal(addressOrder(tl.d.bits.data))}\n")
++  }
++  when(state === sExec) {
++    printf(p"WumingCore: exec ip=0x${Hexadecimal(ip(47, 0))} inst=0x${Hexadecimal(inst)}\n")
++  }
++  when(state === sExec && d.isSemi) {
++    printf(p"WumingCore: semihost ip=0x${Hexadecimal(ip(47, 0))} op=0x${Hexadecimal(inst(7, 0))} arg=0x${Hexadecimal(rf.io.r2Data)} ret=rd${semiRetReg}\n")
++  }
++  when(state === sSemi && io.semi.resp.valid) {
++    printf(p"WumingCore: semihost 0x${Hexadecimal(inst(7, 0))} -> rd${semiRetReg}=0x${Hexadecimal(io.semi.resp.value)}\n")
++  }
++  when(state === sMemWait && tl.d.fire && d.isSt) {
++    printf(p"WumingCore: st 0x${Hexadecimal(memAddr(47, 0))} <= 0x${Hexadecimal(storeValue)} ok\n")
++  }
++  when(state === sMemWait && tl.d.fire && d.isLd) {
++    printf(p"WumingCore: ld 0x${Hexadecimal(memAddr(47, 0))} -> 0x${Hexadecimal(ldData)} ok\n")
++  }
++  val haltPrinted = RegInit(false.B)
++  when(state === sHalt && !haltPrinted) {
++    haltPrinted := true.B
++    when(faultKind === 2.U) {
++      printf(p"WumingCore: fault ip=0x${Hexadecimal(ip(47, 0))} inst=0x${Hexadecimal(inst)} UNDI\n")
++    }.otherwise {
++      printf(p"WumingCore: fault ip=0x${Hexadecimal(ip(47, 0))} inst=0x${Hexadecimal(inst)} ILLI\n")
++    }
++  }
++
++  io.halted := state === sHalt
++}

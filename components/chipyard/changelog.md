@@ -20,6 +20,10 @@
   - 摘要：**harness 侧 semihosting 应答者（最小 5 服务）**：核内 `WumingCoreStub` 识别 `trap` 的 semihosting tag（`immu18[17:8]==0x3FF`）并把 `(op, rb16, rd8, IP)` 经 **DPI 导出端口**抬到 tile 边界（核内无宿主调用）；新增 `WumingSemi`（LazyModule + TileLink 读引擎）、`wuming/vsrc/WumingSemi.v`（DPI 桥）、`wuming/csrc/WumingSemi.cc`（table-driven 宿主模型：WRITEC/WRITE0/WRITE/CLOCK/EXIT，未实现服务号显式报错，`SYS_EXIT` 以进程退出码实现有界停机）。另新增 `tests/shared/bootrom/semihost_smoke.{S,lds}` + 消息 include 与四个 `--defsym` 变体（三平台 smoke、guest FAIL、未实现服务、`SYS_WRITE`）。
   - 执行者：engineer
 
+- **2026-11-09 `m12-chipyard-005`**
+  - 摘要：**真核起点：寄存器堆 + 解码器 + 整数 ALU**。`WumingCoreStub` 由 `WumingCore` 替换（`WumingRegFile` / `WumingDecoder` / `WumingALU` 三个子模块）：`rd`/`rb` 双 bank，`rd0` 读 0、`rb0` 读当前 IP（只读），`rrrr` 双目的；解码 `orrr`/`orri`/`rrrr`/`riii`/`rrii`/`rwii` 六种格式，覆盖 SimRISC-04（64 位算术/逻辑/移位/扩展/比较/乘除）、SimRISC-05（`add.o`/`sub.o`/`cmp.uo` dbb、`add.si`/`aip.si`）与 SimRISC-08（32 位同族）；`ld.o`/`st.o`/`jump rrii`/semihosting `trap` 沿用而不回归。非实现编码不再静默：已定义未实现 ⇒ ILLI，QFC/子表空白 ⇒ UNDI（`contracts/legality_rules.yaml`），并实现 `dst_rd0`/`dst_rb0`/`dst_dual_same`/`encode_sbz` 合法性检查。ALU 口径按 `spec/SimRISC-04 §1.1`：`rrrr` 无符号加减的高半是**进位/借位（0 或 1）**、有符号加减的高半是 128 位和/差的高 64 位、乘法的两个变体都是完整 128 位积的高半。
+  - 执行者：engineer
+
 - **2026-11-09 `m12-infra-003`**
   - 摘要：**子模块补丁集试点（testchipip）**：`generators/testchipip` 新增子模块补丁集 `submodules/testchipip/{series,patches/}`——`SimDRAM.cc` 的 `loadmem_memif_t::get_target_endianness()` 改为由 `+loadmem_be` plusarg 显式返回 `endianness_big`（默认 little 不变，stock RISC-V 配置行为不动），`SimDRAM.v` 的 `MEM_BASE` 默认值改为 `64'h0`（原无位宽 32 位推断会截断 48 位基址）；组件补丁集与子模块补丁集的分工/声明/门控见 `docs/Process-01 §14`。
   - 执行者：engineer

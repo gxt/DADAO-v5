@@ -41,12 +41,12 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m12-spec-002 | 2026-11-09 23:39 | 2–3 h | Tiny 引入 cfx_power + cfx3 hmon 规范 + 只读锁 |
-| m12-chipyard-005 | 2026-11-09 19:21 | 3–4 h | 解码器 + 整数 ALU + 寄存器堆（真核第一步） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-005 | 2026-11-10 02:16 | 解码器 + 整数 ALU + 寄存器堆（273 例三方一致，含 ILLI/UNDI） |
 | m12-chipyard-006 | 2026-11-10 00:48 | 多周期状态机设计（12 态 FSM + 转移表 + hmon 异常/ip 语义 + §9 spec 偏差清单） |
 | m12-infra-003 | 2026-11-09 19:02 | 子模块补丁机制（manifest/apply/make_patch/check_patch_tree + testchipip 试点） |
 | m12-chipyard-004 | 2026-11-09 14:06 | harness 侧 semihosting 应答者（最小 5 服务 + 核内抬边界） |
