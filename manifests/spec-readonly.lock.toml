@@ -484,7 +484,7 @@ group = "dadao-1x"
 # 2026-10-26（SPEC-176t）：版本号与 HBI 同步升 0.1.4-rc（互锁组一致；正文不变）；sha256 同笔重算。
 # 2026-10-30（INTEG-044t，授权同 SEE 条目）：cg3 按两轴权限布局重排（rc0–4 + rc8–12），删 hypv_global_version/global_cfx_mask，hmon 增 CFXESC/CFXPERM；附录 0.1.4-rc 补条目；sha256 同笔重算。
 # 2026-11-05（SPEC-188t，授权同上）：cg3 rc9/rc11 标 reserved；附录 0.1.4-rc 补一条；sha256 同笔重算（其余 20 册不变）。
-sha256 = "5da1af108a1d7bc8f711902f38456de1ab38323a43e185b50b072773660bb180"
+sha256 = "1099ebbbba1b7556712187d6a90dd670b2903b74136d27910420909a473ba9b9"
 
 [[spec]]
 path = "spec/DADAO-21-ABI-应用程序二进制接口.md"

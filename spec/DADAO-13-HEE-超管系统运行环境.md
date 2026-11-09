@@ -17,7 +17,7 @@
 | 3 | 4 | hypv cfx intr mask | cfx_⟨cfxname⟩_hypv_cfx_intr_mask | 全1 | RW | 异步中断来源 cfx 掩码，0=允许，1=屏蔽。按当前 cfx 过滤 |
 | 3 | 8 | hypv switch run mode | cfx_⟨cfxname⟩_hypv_switch_run_mode | 3 (hypv) | RW | 从hypv陷入时切换的运行模式 |
 | 3 | 9 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
-| 3 | 10 | hypv excp vector | cfx_⟨cfxname⟩_hypv_excp_vector | cfxha<<42 + 0x3ff_ffff_0000 | RW | 从hypv陷入时的异常向量入口地址 |
+| 3 | 10 | hypv excp vector | cfx_⟨cfxname⟩_hypv_excp_vector | — | RW | 从hypv陷入时的异常向量入口地址；**初值不在此规定**，由平台/实现定义（v5 测试机在启动时显式写入） |
 | 3 | 11 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 | 3 | 12 | hypv cg reg delegation | cfx_⟨cfxname⟩_hypv_cg_reg_deleg | 全1 | RW | cg访问授权，bit=0时允许supv访问。bit3固定为1 |
 
@@ -52,6 +52,8 @@ hmon 为 hypv 下的同步异常处理核芯功能扩展，处理 hypv 下的同
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.1.4-rc（未发布）
+
+- `cfx_⟨cfxname⟩_hypv_excp_vector`（`cg3 rc10`）**不再规定具体初值**（原 `cfxha<<42 + 0x3ff_ffff_0000` 删除），由平台/实现定义；v5 测试机在启动时显式写入。
 
 - 版本号与 HBI 同步（HBI §3 补 `HBI_<name>_INIT` 不落在 semihosting 区 `0x3FF00–0x3FFFF` 的说明）。
 - cg3 按两轴权限模型重排：`rc0`–`rc3` 为 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` 四类同步来源 mask，`rc4` 为 `cfx_intr_mask`；删除 `hypv_global_version` 与 `hypv_global_cfx_mask`；mask 初值与 SEE 一致（hmon 自身 `0x7FFF_FFFF_FFFF_FFF7`，其余 `0xFFFF_FFFF_FFFF_FFF7`）。

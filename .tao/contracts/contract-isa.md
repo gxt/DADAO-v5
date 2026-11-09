@@ -882,7 +882,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 - 通常该寄存器为返回值寄存器，可用一条 `ret` 实现 C 语言的 `return 0` 或 `return -1`。[SimRISC-06 §函数返回]
 - 无需设置返回值寄存器时，采用 `ret rd0, 0` 实现普通 ret（`rdha` 为 rd0 允许）。[SimRISC-06 §函数返回]
-- **硬约束**：`ret rdHA, imms18` 中，当 `rdHA == rd0` 时，`imms18` MUST 为 0；否则该指令**非法**——汇编期须**硬报错**（LLVM，`Error` 级，汇编失败并返回非零退出码，不得降为 warning），运行期执行该非法编码触发 **ILLI** 异常（测试机退出码 `0x88`，QEMU）。[SimRISC-06 §函数返回]
+- **硬约束**：`ret rdHA, imms18` 中，当 `rdHA == rd0` 时，`imms18` MUST 为 0；否则该指令**非法**——汇编期须**硬报错**（LLVM，`Error` 级，汇编失败并返回非零退出码，不得降为 warning），运行期执行该非法编码触发 **ILLI** 异常。[SimRISC-06 §函数返回]
 - 弹栈流程见 §8.6。[SimRISC-00 §弹栈流程（ret 指令）]
 
 ### §8.6 压栈 / 弹栈流程（RegRAS / MemRAS）
