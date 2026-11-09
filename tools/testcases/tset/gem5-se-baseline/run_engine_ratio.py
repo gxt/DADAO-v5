@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
-"""m13-testcases-001: static long-tail engine time ratio (gem5 SE vs qemu-user).
+"""m13-testcases: long-tail engine time ratio (gem5 SE vs qemu-user).
 
-Takes the cases that still timed out at the 1200 s recheck of GEM5-021t
-(``timeout_recheck.<suite>.still_blocked``) and measures, per case, the wall
-clock of the *same* built ELF on both engines:
+Takes the still-blocked cases of a recorded baseline and measures, per case,
+the wall clock of the *same* built ELF on both engines:
+
+* ``--selection recheck`` (default, m13-testcases-001): the 1200 s recheck of
+  GEM5-021t, field ``timeout_recheck.<suite>.still_blocked``;
+* ``--selection timeout-inventory`` (m13-testcases-002): the dynamic baseline
+  timeout list of TESTCASES-104t,
+  field ``timeout_inventory[<suite>].cases[].case``.
+
+Both link modes are first-class: ``--link-mode static`` (default, the N=1
+lineage) or ``--link-mode dynamic`` (ET_EXEC + PT_INTERP through the guest
+root).  The mode is passed unchanged to the tset drivers, so the case is built
+and run the same way in both engines.
 
     qemu_seconds = driver ``run_seconds`` of ``--engine qemu``
     gem5_seconds = driver ``run_seconds`` of ``--engine gem5-se``
@@ -75,6 +85,9 @@ DEFAULT_MUSL = ".work/source/musl"
 DEFAULT_QEMU = ".dadao/cross-toolchain/bin/qemu-dadao"
 
 TASK = "m13-testcases-001"
+
+SELECTION_FIELDS = ("recheck", "timeout-inventory")
+LINK_MODES = ("static", "dynamic")
 
 
 # ---------------------------------------------------------------------------
@@ -169,30 +182,76 @@ def short(text, limit=240):
 
 
 # ---------------------------------------------------------------------------
-# case selection (the 1200 s recheck of GEM5-021t)
+# case selection (recorded baseline selections)
 # ---------------------------------------------------------------------------
-def load_selection(path: str, suites):
-    """``{suite: [case ids]}`` of the still-blocked cases of the 1200 s recheck.
+def load_selection(path: str, suites, field="recheck"):
+    """``{suite: [case ids]}`` of the recorded selection.
 
-    The field is ``timeout_recheck.<suite>.still_blocked`` in the GEM5-021t
-    summary.  A missing/empty field for a requested suite is an error: the
-    selection is never guessed or widened to "all timeout cases".
+    ``field="recheck"`` reads ``timeout_recheck.<suite>.still_blocked`` (the
+    1200 s recheck of GEM5-021t, static lineage).  ``field="timeout-inventory"``
+    reads ``timeout_inventory`` (the TESTCASES-104t dynamic baseline): a list
+    of ``{suite, budget_seconds, timeout_cases, cases: [{case, ...}]}``.
+    A missing/empty field for a requested suite is an error: the selection is
+    never guessed or widened to "all timeout cases".
     """
     with open(path, "r") as fh:
         record = json.load(fh)
-    recheck = record.get("timeout_recheck") or {}
-    if not recheck:
-        raise ValueError(f"{os.path.basename(path)}: no timeout_recheck record")
-    out = {}
-    for suite in suites:
-        data = recheck.get(suite) or {}
-        ids = list(data.get("still_blocked") or [])
-        if not ids:
+    if field == "recheck":
+        recheck = record.get("timeout_recheck") or {}
+        if not recheck:
+            raise ValueError(f"{os.path.basename(path)}: no timeout_recheck record")
+        out = {}
+        for suite in suites:
+            data = recheck.get(suite) or {}
+            ids = list(data.get("still_blocked") or [])
+            if not ids:
+                raise ValueError(
+                    f"{os.path.basename(path)}: timeout_recheck.{suite}."
+                    f"still_blocked is empty/missing")
+            out[suite] = ids
+        return out
+    if field == "timeout-inventory":
+        inventory = record.get("timeout_inventory") or []
+        if not inventory:
             raise ValueError(
-                f"{os.path.basename(path)}: timeout_recheck.{suite}."
-                f"still_blocked is empty/missing")
-        out[suite] = ids
-    return out
+                f"{os.path.basename(path)}: no timeout_inventory record")
+        by_suite = {}
+        for entry in inventory:
+            suite = entry.get("suite")
+            if suite:
+                by_suite.setdefault(suite, []).extend(
+                    case["case"] for case in entry.get("cases") or [])
+        out = {}
+        for suite in suites:
+            ids = by_suite.get(suite) or []
+            if not ids:
+                raise ValueError(
+                    f"{os.path.basename(path)}: timeout_inventory has no case "
+                    f"for suite {suite!r}")
+            out[suite] = ids
+        return out
+    raise ValueError(f"unknown selection field {field!r} "
+                     f"(expected one of {list(SELECTION_FIELDS)})")
+
+
+def record_link_mode(path: str):
+    """``link_mode`` recorded in a baseline summary (``None`` when absent)."""
+    with open(path, "r") as fh:
+        return (json.load(fh) or {}).get("link_mode")
+
+
+def link_mode_conflict(record_mode, requested):
+    """Error text when the case list is a different link mode, else ``None``.
+
+    GEM5-021t (static lineage) carries no ``link_mode``; TESTCASES-104t dynamic
+    carries ``"dynamic"``.  Measuring a record under the wrong link mode would
+    silently join times of two different builds (same case id), so the conflict
+    is fatal before a driver starts.
+    """
+    if record_mode and record_mode != requested:
+        return (f"case list is a {record_mode!r} baseline, but --link-mode "
+                f"{requested!r} was requested")
+    return None
 
 
 def narrow_selection(selection, only):
@@ -232,7 +291,7 @@ def category_of(suite: str, cid: str) -> str:
 # ---------------------------------------------------------------------------
 def driver_command(repo, suite, engine, args, work_dir, rep, cases):
     cmd = [sys.executable, os.path.join(repo, DRIVERS[suite]),
-           "--link-mode", "static", "--engine", engine,
+           "--link-mode", args.link_mode, "--engine", engine,
            "--jobs", str(args.jobs),
            "--work-dir", os.path.join(work_dir, f"drv-{suite}-{engine}-r{rep}"),
            "--json-out", os.path.join(work_dir, f"{suite}-{engine}-r{rep}.json"),
@@ -492,6 +551,8 @@ def fingerprint(repo, args, work_dir=None):
         nproc=os.cpu_count(),
         jobs=args.jobs,
         engines=list(args.engines),
+        link_mode=args.link_mode,
+        selection_field=args.selection,
         gem5_timeout_seconds=args.gem5_timeout,
         qemu_timeout_seconds=args.qemu_timeout,
         gem5_binary=os.path.basename(gem5),
@@ -519,16 +580,27 @@ def build_report(args, selection, rows, missing, summary, repeat, prints):
     ok = not missing and all(
         row["gem5_seconds"] is not None and row["qemu_seconds"] is not None
         for row in rows)
+    if args.selection == "timeout-inventory":
+        scope = (f"{args.link_mode} long-tail: the cases that timed out at the "
+                 f"TESTCASES-104t dynamic baseline "
+                 f"(timeout_inventory.<suite>.cases), re-run with the "
+                 f"per-case budget below on gem5 SE and qemu-user; times "
+                 f"measured by the tset drivers' own run_seconds")
+    else:
+        scope = ("static long-tail: the cases that still timed out at the "
+                 "GEM5-021t 1200 s recheck, re-run with the per-case budget "
+                 "below on gem5 SE and qemu-user; times measured by the tset "
+                 "drivers' own run_seconds")
     return dict(
-        task=TASK,
+        task=args.task_id,
         generated_utc=iso_utc(),
-        scope=("static long-tail: the cases that still timed out at the "
-               "GEM5-021t 1200 s recheck, re-run with the per-case budget "
-               "below on gem5 SE and qemu-user; times measured by the tset "
-               "drivers' own run_seconds"),
+        link_mode=args.link_mode,
+        scope=scope,
         selection=dict(
             source=os.path.basename(args.case_list),
-            field="timeout_recheck.<suite>.still_blocked",
+            field=("timeout_inventory.<suite>.cases[].case"
+                   if args.selection == "timeout-inventory"
+                   else "timeout_recheck.<suite>.still_blocked"),
             total=sum(len(ids) for ids in selection.values()),
             by_suite={suite: len(ids) for suite, ids in selection.items()},
             subset=args.only is not None),
@@ -554,7 +626,10 @@ def markdown(report):
 
     fp = report["fingerprint"]
     sel = report["selection"]
-    out(f"# {report['task']}：static 长尾 {sel['total']} 例 gem5/qemu 运行时间比")
+    mode_label = {"static": "static", "dynamic": "dynamic"}.get(
+        report.get("link_mode"), report.get("link_mode"))
+    out(f"# {report['task']}：{mode_label} 长尾 {sel['total']} 例 "
+        f"gem5/qemu 运行时间比")
     out()
     out(f"生成：{report['generated_utc']}（数值全部由驱动 JSON 现场统计，无估算）")
     out()
@@ -563,7 +638,8 @@ def markdown(report):
     out("## 执行环境指纹")
     out()
     out(f"- 节点：`{fp['host']}`；CPU：{fp['cpu_model']}；nproc={fp['nproc']}")
-    out(f"- 并发：{fp['jobs']}（两引擎同值）；engines={','.join(fp['engines'])}")
+    out(f"- 并发：{fp['jobs']}（两引擎同值）；engines={','.join(fp['engines'])}；"
+        f"link-mode={fp.get('link_mode')}")
     out(f"- 预算：gem5 {fp['gem5_timeout_seconds']}s / qemu "
         f"{fp['qemu_timeout_seconds']}s（每例）")
     out(f"- gem5：`{fp['gem5_binary']}` md5=`{fp['gem5_md5']}` "
@@ -643,7 +719,8 @@ def markdown(report):
         out()
     out("## 方法与口径")
     out()
-    out("- 两引擎跑**同一个**已构建 ELF（驱动各自编译同一源，链接模式 static）；"
+    out(f"- 两引擎跑**同一个**已构建 ELF（驱动各自编译同一源，链接模式 "
+        f"{report.get('link_mode')}）；"
         "`*_seconds` 取驱动的 `run_seconds`（仅 guest 运行墙钟，不含编译）。")
     out("- `ratio = gem5_seconds / qemu_seconds`；仅在两引擎都未截断时纳入分布。")
     out("- 两引擎同 `--jobs`，调度压力一致；比值是 wall-clock 之比，不是指令数之比。")
@@ -756,21 +833,72 @@ def self_test(tmpdir):
     cmd = driver_command("/repo", "libc-test", "gem5-se",
                          argparse.Namespace(jobs=48, gem5_timeout=3600,
                                             qemu_timeout=3600, gem5_bin=None,
-                                            gem5_config=None, qemu_bin=None),
+                                            gem5_config=None, qemu_bin=None,
+                                            link_mode="static"),
                          "/w", 1, ["functional/a", "regression/b"])
     check("libc filter anchored", "^(?:functional/a|regression/b)$",
           cmd[cmd.index("--filter") + 1])
     check("libc gem5 budget", "3600", cmd[cmd.index("--gem5-timeout") + 1])
     check("libc qemu budget", "3600", cmd[cmd.index("--timeout") + 1])
+    check("libc link mode static", "static",
+          cmd[cmd.index("--link-mode") + 1])
+    cmd_dyn = driver_command("/repo", "libc-test", "gem5-se",
+                             argparse.Namespace(jobs=48, gem5_timeout=3600,
+                                                qemu_timeout=3600,
+                                                gem5_bin=None,
+                                                gem5_config=None,
+                                                qemu_bin=None,
+                                                link_mode="dynamic"),
+                             "/w", 1, ["functional/a"])
+    check("libc link mode dynamic", "dynamic",
+          cmd_dyn[cmd_dyn.index("--link-mode") + 1])
     cmd2 = driver_command("/repo", "llvm-ts", "qemu",
                           argparse.Namespace(jobs=48, gem5_timeout=3600,
                                              qemu_timeout=3600, gem5_bin=None,
-                                             gem5_config=None, qemu_bin=None),
+                                             gem5_config=None, qemu_bin=None,
+                                             link_mode="static"),
                           "/w", 1, ["MultiSource/Benchmarks/Foo/bar"])
     check("llvm only anchored", "^MultiSource/Benchmarks/Foo/bar$",
           cmd2[cmd2.index("--only") + 1])
     check("sanitize drops temp dir",
           "in /x: boom", sanitize("/tmp/opencode/t1/in /x: boom"))
+
+    # dynamic selection (TESTCASES-104t timeout_inventory) + link-mode guard.
+    dyn_path = os.path.join(tmpdir, "dynamic-summary.json")
+    with open(dyn_path, "w") as fh:
+        json.dump(dict(link_mode="dynamic", timeout_inventory=[
+            dict(suite="libc-test", budget_seconds=300, timeout_cases=2,
+                 cases=[dict(case="functional/x"), dict(case="functional/y")]),
+            dict(suite="llvm-ts", budget_seconds=600, timeout_cases=1,
+                 cases=[dict(case="MultiSource/Benchmarks/Foo/bar")]),
+            dict(suite="embench", budget_seconds=300, timeout_cases=0,
+                 cases=[])]), fh)
+    dyn_sel = load_selection(dyn_path, ["libc-test", "llvm-ts"],
+                             "timeout-inventory")
+    check("dynamic selection libc", ["functional/x", "functional/y"],
+          dyn_sel["libc-test"])
+    check("dynamic selection llvm", ["MultiSource/Benchmarks/Foo/bar"],
+          dyn_sel["llvm-ts"])
+    check("dynamic selection total", 3,
+          sum(len(v) for v in dyn_sel.values()))
+    try:
+        load_selection(dyn_path, ["embench"], "timeout-inventory")
+        check("dynamic rejects empty suite", "ValueError", "no exception")
+    except ValueError:
+        check("dynamic rejects empty suite", "ValueError", "ValueError")
+    try:
+        load_selection(dyn_path, ["libc-test"], "nope")
+        check("rejects unknown field", "ValueError", "no exception")
+    except ValueError:
+        check("rejects unknown field", "ValueError", "ValueError")
+    check("record link mode dynamic", "dynamic", record_link_mode(dyn_path))
+    check("record link mode absent", None, record_link_mode(summary_path))
+    check("link mode conflict detected", True,
+          bool(link_mode_conflict("dynamic", "static")))
+    check("link mode match allowed", None,
+          link_mode_conflict("dynamic", "dynamic"))
+    check("link mode absent allowed", None,
+          link_mode_conflict(None, "static"))
 
     banner_dir = os.path.join(tmpdir, "banner")
     os.makedirs(os.path.join(banner_dir, "a"), exist_ok=True)
@@ -797,11 +925,14 @@ def self_test(tmpdir):
 
     report = build_report(
         argparse.Namespace(case_list=summary_path, jobs=48, repeats=1,
-                           only=None),
+                           only=None, link_mode="static",
+                           selection="recheck", task_id=TASK),
         selection, rows, missing, ratio_summary(rows),
         repeatability(rows, 5.0),
         dict(host="h", cpu_model="c", nproc=64, jobs=48,
-             engines=["qemu", "gem5-se"], gem5_timeout_seconds=3600,
+             engines=["qemu", "gem5-se"], link_mode="static",
+             selection_field="recheck",
+             gem5_timeout_seconds=3600,
              qemu_timeout_seconds=3600, gem5_binary="gem5.opt",
              gem5_md5="0" * 32, gem5_version="gem5 version t",
              qemu_binary="qemu-dadao", qemu_md5="1" * 32,
@@ -814,7 +945,8 @@ def self_test(tmpdir):
     check("markdown no tmp path", False, "/tmp/opencode/" in md)
     report2 = build_report(
         argparse.Namespace(case_list=summary_path, jobs=48, repeats=1,
-                           only=None),
+                           only=None, link_mode="static",
+                           selection="recheck", task_id=TASK),
         selection, rows2, missing2, ratio_summary(rows2),
         repeatability(rows2, 5.0), report["fingerprint"])
     check("missing makes ok false", False, report2["ok"])
@@ -836,10 +968,28 @@ def self_test(tmpdir):
           bool(rows_zero[0].get("ratio_undefined")))
     report_zero = build_report(
         argparse.Namespace(case_list=summary_path, jobs=48, repeats=1,
-                           only=None),
+                           only=None, link_mode="static",
+                           selection="recheck", task_id=TASK),
         sel_zero, rows_zero, missing_zero, ratio_summary(rows_zero),
         repeatability(rows_zero, 5.0), report["fingerprint"])
     check("zero-qemu still ok", True, report_zero["ok"])
+
+    # dynamic report: task id, link mode, selection field and title.
+    dyn_report = build_report(
+        argparse.Namespace(case_list=dyn_path, jobs=48, repeats=1,
+                           only=None, link_mode="dynamic",
+                           selection="timeout-inventory",
+                           task_id="m13-testcases-002"),
+        dyn_sel, rows, missing, ratio_summary(rows),
+        repeatability(rows, 5.0), report["fingerprint"])
+    check("dynamic report task", "m13-testcases-002", dyn_report["task"])
+    check("dynamic report link mode", "dynamic", dyn_report["link_mode"])
+    check("dynamic scope names baseline", True,
+          "TESTCASES-104t" in dyn_report["scope"])
+    check("dynamic selection field", True,
+          dyn_report["selection"]["field"].startswith("timeout_inventory"))
+    check("dynamic markdown title", True,
+          "dynamic 长尾" in markdown(dyn_report))
 
     failed = 0
     for name, want, got in checks:
@@ -864,13 +1014,25 @@ def main() -> int:
                          "script's repository).  A worktree without a built "
                          "toolchain must pass the repository that has one")
     ap.add_argument("--case-list", default=DEFAULT_CASE_LIST,
-                    help="GEM5-021t summary JSON carrying timeout_recheck")
+                    help="baseline summary JSON carrying the selection "
+                         "(GEM5-021t static recheck or TESTCASES-104t dynamic "
+                         "timeout inventory)")
+    ap.add_argument("--selection", choices=SELECTION_FIELDS,
+                    default="recheck",
+                    help="which selection field of --case-list to read "
+                         "(default: recheck = GEM5-021t 1200 s still_blocked)")
+    ap.add_argument("--link-mode", choices=LINK_MODES, default="static",
+                    help="link mode handed to every tset driver (default: "
+                         "static; dynamic = ET_EXEC + PT_INTERP via the guest "
+                         "root)")
+    ap.add_argument("--task-id", default=TASK,
+                    help="task id recorded in the report (default: %(default)s)")
     ap.add_argument("--suites", default="libc-test,llvm-ts",
                     help="comma-separated suites to measure (default: the two "
                          "that carry still_blocked cases)")
     ap.add_argument("--only", action="append", default=None, metavar="CASE",
                     help="measure only this case id (repeatable; pilot).  The "
-                         "id must be part of the recheck selection")
+                         "id must be part of the selection")
     ap.add_argument("--work-dir", required=True,
                     help="runtime directory for driver JSONs/logs")
     ap.add_argument("--json-out", default=None,
@@ -933,7 +1095,12 @@ def main() -> int:
     args.engines = engines
 
     try:
-        selection = load_selection(abspath(repo, args.case_list), suites)
+        case_list = abspath(repo, args.case_list)
+        record_mode = record_link_mode(case_list)
+        conflict = link_mode_conflict(record_mode, args.link_mode)
+        if conflict:
+            raise ValueError(f"{os.path.basename(args.case_list)}: {conflict}")
+        selection = load_selection(case_list, suites, args.selection)
         selection, _ = narrow_selection(selection, args.only)
     except (OSError, ValueError, KeyError) as exc:
         sys.stderr.write(f"ERROR: {exc}\n")
@@ -941,7 +1108,8 @@ def main() -> int:
 
     print(f"[plan] selection: " + ", ".join(
         f"{suite}={len(ids)}" for suite, ids in selection.items()) +
-        f"; engines={engines}; jobs={args.jobs}; repeats={args.repeats}; "
+        f"; field={args.selection}; link-mode={args.link_mode}; "
+        f"engines={engines}; jobs={args.jobs}; repeats={args.repeats}; "
         f"budgets gem5={args.gem5_timeout}s qemu={args.qemu_timeout}s",
         flush=True)
 
