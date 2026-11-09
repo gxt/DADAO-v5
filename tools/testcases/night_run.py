@@ -11,7 +11,7 @@
   （`TESTCASES-103t` 预算/分类全量，复用 `tset/gem5-se-baseline` 驱动）；
 * gem5 SE dynamic —— `.tao/knowledge/refs/TESTCASES-104t-dynamic-summary.json`
   （`TESTCASES-104t` 动态档全量；成员本身跑 static，不重复 dynamic）；
-* gem5 FS inst/arch —— `tests/parity/matrix-M11.md`（`GEM5-017t/018t` 矩阵）。
+* gem5 FS inst/arch —— `docs/TestReports/M11-三平台一致矩阵.md`（`GEM5-017t/018t` 矩阵）。
 每次跑建一个只读报告目录（`docs/Process-09 §8`）：
 
     <test-artifacts>/night/<local YYYY-MM-DD-HH>/
@@ -96,7 +96,7 @@ DEFAULT_MEMBERS = [
     # gem5 FS（TESTCASES-105t）：复用 `tools/testcases/parity/run_parity.py`
     # 的 inst + arch（裸机 E2E），与 QEMU system 同 case 集比较状态/退出码，
     # 不比时序；该驱动自身对 gem5_only_fail/diff 返回非零。成员可用性证据：
-    # tests/parity/matrix-M11.md。
+    # docs/TestReports/M11-三平台一致矩阵.md。
     "arch:gem5-fs=python3 tools/testcases/parity/run_parity.py"
     " --profiles tiny,vast --scopes inst,arch --jobs 8"
     " --work-dir .work/tests/night-gem5-fs/run"

@@ -38,7 +38,7 @@
 
 **在范围内**：`tools/testcases/arch/{node_probe_prelude.py,min_rom_probe_integ047t.py,min_rom_probe_integ050t.py,min_rom_probe_integ051t.py}`、`tools/testcases/parity/{run_parity.py,qemu_gem5_shim.py,README.md}`、`tools/testcases/arch/README.md`、本任务书、`milestones.md`。
 
-**不在范围**：gem5/QEMU 实现语义（若出现真失败，另立任务）、`tests/**` 向量/期望、`spec/**`、`contracts/**`、`tests/parity/matrix-M11.md`（等结果稳定后由矩阵任务重生成）。
+**不在范围**：gem5/QEMU 实现语义（若出现真失败，另立任务）、`tests/**` 向量/期望、`spec/**`、`contracts/**`、`docs/TestReports/M11-三平台一致矩阵.md`（等结果稳定后由矩阵任务重生成）。
 
 ## 验收标准
 
@@ -59,7 +59,7 @@
 ## 完成区
 
 **测试结果**：20/20 timing 用例在 QEMU 与 gem5 实际执行均 `q=PASS/exit 0`、`g=PASS/exit 0`、`AGREE_PASS`（047t 1：`start_busy_returns_busy`；050t 9：`cycle_insn_monotonic`/`timer_istatus`/`timer_cmp_clears`/`timer_ones_disable`/`timer_interrupt`/`timer_imask_pending`/`timer_retrigger`/`sbi_time_monotonic`/`sbi_hart_set_timer`；051t 10：`pmem_pending_in_pmem`/`timer_pending_in_hart`/`pending_no_cross_cfx`/`global_mask_block`/`per_cfx_mask_block`/`intr_mask_tail_kick`/`timer_imask_hold`/`low_cfxha_first`/`escape_kick`/`direct_target`）。稳定性：证据脚本连跑 **2 轮均 10/10 rc=0**（每轮 100 次探针运行、无翻转）；焦点 `sbi_hart_set_timer` QEMU×15、gem5×10 全绿。`node/arch` 全量（冻结 gem5 副本）**total 269 / AGREE_PASS 269 / blocked 0 / diff 0 / GEM5_ONLY_FAIL 0 / QEMU_ONLY_FAIL 0**（rc=0）。
-**修改文件**：`tools/testcases/arch/{node_probe_prelude.py,min_rom_probe_integ047t.py,min_rom_probe_integ050t.py,min_rom_probe_integ051t.py,min_rom_probe_async_094t.py,README.md}`、`tools/testcases/parity/{run_parity.py,qemu_gem5_shim.py,README.md}`、`tests/parity/README.md`、`TESTCASES-094t` 任务书、本任务书、`milestones.md`。
+**修改文件**：`tools/testcases/arch/{node_probe_prelude.py,min_rom_probe_integ047t.py,min_rom_probe_integ050t.py,min_rom_probe_integ051t.py,min_rom_probe_async_094t.py,README.md}`、`tools/testcases/parity/{run_parity.py,qemu_gem5_shim.py,README.md}`、`docs/TestReports/M11-三平台一致矩阵-凡例.md`、`TESTCASES-094t` 任务书、本任务书、`milestones.md`。
 **验收结果**：
 - F1 返工：`check_quiet` 改为**先计数、后时钟**（时钟 ≥ deadline 判不可判定）；`DELTA_NS` 100 µs→10 ms（`add.uo` 组 64 位 deadline）；`MAX_WAIT` 600k→4M（10 ms 在 gem5 约需 1.4M 迭代）。修前 QEMU 33 次 2 次 `0x62`，修后同例 QEMU 21 次（15 焦点 + 2 轮×3）0 失败。
 - `make check-arch`：PASS（arch-smoke + 13 cfx probes）rc=0。

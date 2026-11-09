@@ -105,10 +105,10 @@ python3 tools/testcases/parity/se_tset_matrix.py --self-test   # 逐条反例注
 - **SE tset（TESTCASES-100t 回归运行）**：报告 `2026-11-05-13` 4/4 成员 rc=0、`check-night-report` rc=0。llvm-ts static `discovered 222 - excluded 8 = total 214`，pass 214 / fail 0 / blocked 0；dynamic 同；blocked 不计入通过。
 - **math_test**：`picolibc/math_test` **PASS**（双引擎 `Tested 76404 functions, 0 errors`；QEMU/gem5 exit 0）。B7 数值差异由 `INTEG-058t`（f2i 舍入方向修正）修复、`GEM5-032t` 定位，`GEM5-033t` 注销 `PICOLIBC_KNOWN_BLOCKED`；picolibc 段由现场 `run_parity --profiles tiny --scopes picolibc` JSON 重生成。
 - **退出码状态**：快照按当前引擎实现生成；`SPEC-187t` 退出码规范已定稿、QEMU/gem5 实现尚未迁移，迁移后须再生成一次。
-- **`TESTCASES-102t` 起 arch 探针去 icount 化**：20 个 timing 用例改为读时设 deadline + 有界轮询（窗口 ≥10× 名义值），QEMU 与 gem5 用同一份探针实际对照；下方 2026-11-05 快照里的 20 个 `BLOCKED` 已过时，等矩阵任务重生成 `tests/parity/matrix-M11.md`。
+- **`TESTCASES-102t` 起 arch 探针去 icount 化**：20 个 timing 用例改为读时设 deadline + 有界轮询（窗口 ≥10× 名义值），QEMU 与 gem5 用同一份探针实际对照；下方 2026-11-05 快照里的 20 个 `BLOCKED` 已过时，等矩阵任务重生成 `docs/TestReports/M11-三平台一致矩阵.md`。
 - **本快照（2026-11-05 晚，`GEM5-020t` 后）**：`vast/arch` 249 `AGREE_PASS` + 20 `BLOCKED`（icount N/A）、`GEM5_ONLY_FAIL=0`、`DIFF=0`。上一版 14 条 `GEM5_ONLY_FAIL`（`QEMU-083t` 后 gem5 未对齐的历史快照）已由本次替换：14 条逐条转 `AGREE_PASS`，含 `arch/umon/m5_perm_badcombo_cfxreg`（自环已消除）。`GEM5-020t` 将 gem5 的 10 处 CFXREG fault 目标由 `cfxha` 改为当前运行模式 monitor，与 `QEMU-083t` 对齐。
 - **profile 命名**：`m12-testcases-001` 起矩阵 profile 为 `tiny` / `vast`（旧快照里的 `node` = 现 `vast`）；重生成的快照按新名输出，`node` 行不再出现。
-- **SE 段**：`tests/parity/matrix-M11.md` 末尾的「SE tset matrix」段由 `se_tset_matrix.py` 生成（static + dynamic 两档，见上节）。
+- **SE 段**：`docs/TestReports/M11-三平台一致矩阵.md` 末尾的「SE tset matrix」段由 `se_tset_matrix.py` 生成（static + dynamic 两档，见上节）。
 - **引擎冻结**：`GEM5-020t` 评审期间共享 gem5 二进制被反复重建（实测中途 md5 变化导致整轮矩阵失效）；本快照用重建后二进制的**冻结副本**（md5 `d64b0f9…`，源 commit `1ad69d2…`，配置用源树 `fs.py`）生成，矩阵身份即该副本；证据目录保留冻结件与前后两轮作废日志。
 
 ## 已知例外（**不**参与硬门的 `AGREE_PASS`）
@@ -153,7 +153,7 @@ Vast/embench 行必须含 `dadao-vast` 且有 wrapper 记录。
 
 - 全量矩阵 JSON/Markdown 与日志落 `--work-dir`/`--json`/`--markdown`（默认
   `/tmp/opencode/qemu-gem5-parity/**`，gem5 `--outdir` 亦只落临时区）。
-- 入库快照 `tests/parity/matrix-M11.md` 由收口任务的证据层从现场 Markdown `cp`，
+- 入库快照 `docs/TestReports/M11-三平台一致矩阵.md` 由收口任务的证据层从现场 Markdown `cp`，
   不手改数字；证据脚本同时校验计数自洽、引擎身份、Vast 历史归类与反例注入。
 - 生成矩阵的标题与尾部 `Evidence script` 行不硬编码任务号/证据路径（改为通用标题
   + 指向本 README「证据与快照」）；快照随 M11 收口重生成自动刷新，不手改。

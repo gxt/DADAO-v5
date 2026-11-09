@@ -33,7 +33,7 @@
 
 **在范围内**：`tools/testcases/lib/**`、`tools/testcases/tset/**` 的驱动层（新增 SE 模式）、`.tao/knowledge/refs/GEM5-021t-*`（摘要）、本任务书、`milestones.md`。
 
-**不在范围**：实现缺失的 SE 能力（syscall/TLS/动态链接/线程等，另立任务）；`tests/tset` 用例与期望；QEMU/gem5 语义实现；`tests/parity/matrix-M11.md`（等完整 tset 对齐后再重生成）。
+**不在范围**：实现缺失的 SE 能力（syscall/TLS/动态链接/线程等，另立任务）；`tests/tset` 用例与期望；QEMU/gem5 语义实现；`docs/TestReports/M11-三平台一致矩阵.md`（等完整 tset 对齐后再重生成）。
 
 ## 验收标准
 
@@ -81,7 +81,7 @@ JOBS=32 python3 tools/testcases/tset/gem5-se-baseline/run_gem5_se_baseline.py \
 ## 完成区
 
 **测试结果**：证据脚本默认轮 **PASS=12 FAIL=0 BLOCKED=0**；`RUN_L1=1 INJECT=1` → **PASS=18 FAIL=0 BLOCKED=1**（BLOCKED = `make -k check` rc=2，归属见下）；两处注入均「注入→FAIL→`cp`+md5 还原→回绿」。回归复跑：embench full（O0,O2）gem5 **38/38**（与快照一致）；libc 子集（argv/strtod/memstream）gem5 **3/3 pass**（memstream 由 `GEM5-022t` 的 `brk` 转绿，属预期差异）。
-**修改文件**：`tools/testcases/lib/gem5_se_engine.py`（新）、`tools/testcases/tset/gem5-se-baseline/run_gem5_se_baseline.py`（新）、三个 tset 驱动（`--engine/--gem5[-config|-timeout]`；libc/embench 另加 `--jobs`）、`.tao/knowledge/refs/GEM5-021t-baseline-{summary.json,summary.md,findings.md}`、本任务书、`milestones.md`。**未改** `tests/tset/**`、QEMU/gem5 语义、`components/gem5/**`、`tests/parity/matrix-M11.md`。
+**修改文件**：`tools/testcases/lib/gem5_se_engine.py`（新）、`tools/testcases/tset/gem5-se-baseline/run_gem5_se_baseline.py`（新）、三个 tset 驱动（`--engine/--gem5[-config|-timeout]`；libc/embench 另加 `--jobs`）、`.tao/knowledge/refs/GEM5-021t-baseline-{summary.json,summary.md,findings.md}`、本任务书、`milestones.md`。**未改** `tests/tset/**`、QEMU/gem5 语义、`components/gem5/**`、`docs/TestReports/M11-三平台一致矩阵.md`。
 **验收结果**：static 全量两引擎逐 case 对照（快照）：QEMU pass=587 / gem5 pass=310 / both_pass=310 / blocked=270（其中 QEMU 通过 268）/ `gem5_only_fail`=9 / **`qemu_only_fail`=0**。分套件 gem5：libc-test 245+83 blocked+9 fail（337）、llvm-ts 27+187 blocked（214）、embench 38/38。超预算重测（600s）另计：7 例转 PASS、`Misc/pi` 转 fail、22 例仍 blocked。摘要已注明「2026-11-06 快照，随 GEM5-022t 落地会变」并记录引擎身份（lock commit `c8222cc6` + series 97 + gem5 25.1.0.1 / 编译于 `Nov 6 2026 01:17:05`；gem5.opt sha256 因共享构建树被并行任务重建而不可复原，已说明）。`ET_DYN`/`PT_INTERP` 反例：驱动判 BLOCKED 且 `cmd=0`，gem5 本体亦 `fatal: only ET_EXEC`。
 **新发现/坑**：① 9 个 `math/*` + `pi` 的根因是 **float→int 舍入口径三方不一致**（SPEC 写 `rf0[33:32]` 控制、工具链不写 `rf0`、QEMU 截断），cast 位点三处：`__rem_pio2_large.c:303/304/311`（sin/cos/tan）、`expm1.c:153`（expm1/sinh/tanh）、`lgamma_r.c:156/255`（lgamma/lgamma_r/tgamma）；**归属待用户裁定**（`discussing.md` A/D/B/C），本轮不实现、不单方定性；② syscall 缺口排序 `brk` > 文件 I/O > 时钟 > `mmap`/信号 > IPC > futex；③ 120s/例偏紧（32 例超时，600s 下 7 例转绿），门控需按套件给预算；④ `--guest-stdout/err` 必须显式给文件，否则 gem5 打不开宿主管道。
 **遗留问题**：① `make -k check` 唯一红 = `check-patch-tree` 的 **gem5** 断言（共享源树与分支补丁集不符）：共享 gem5 源树正被并行 `GEM5-022t` 改写（`brk` 实现），**本任务 `components/gem5` 改动 0**，证据脚本记 BLOCKED 并注明归属，不伪装绿；② 仅 static（dynamic/TLS/线程按 ADR-0048 D4 未测）；③ llvm-ts 只跑 scope A；④ 22 例 600s 仍超时（纯计算量，未判能力结论）。
@@ -89,7 +89,7 @@ JOBS=32 python3 tools/testcases/tset/gem5-se-baseline/run_gem5_se_baseline.py \
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-审查范围：本轮全部改动（新模块 `gem5_se_engine.py`、三个驱动 diff、基线编排、证据脚本）逐行审查，并以证据脚本复验。**判决：无未修缺陷**；发现项全部当场修完（见下表）。边界核对：`tests/tset/**`、QEMU/gem5 语义、`tests/parity/matrix-M11.md` 改动 **0**；工作树仅 5 个预期新增/修改。
+审查范围：本轮全部改动（新模块 `gem5_se_engine.py`、三个驱动 diff、基线编排、证据脚本）逐行审查，并以证据脚本复验。**判决：无未修缺陷**；发现项全部当场修完（见下表）。边界核对：`tests/tset/**`、QEMU/gem5 语义、`docs/TestReports/M11-三平台一致矩阵.md` 改动 **0**；工作树仅 5 个预期新增/修改。
 
 | finding | 处置 | 改了什么 | 复验证据 |
 |---|---|---|---|

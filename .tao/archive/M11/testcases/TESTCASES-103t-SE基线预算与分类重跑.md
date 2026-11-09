@@ -23,7 +23,7 @@
 
 **在范围内**：`tools/testcases/tset/gem5-se-baseline/run_gem5_se_baseline.py`、`tools/testcases/lib/gem5_se_engine.py`（仅预算/分类）、`.tao/knowledge/refs/GEM5-021t-baseline-*`（更新快照）、本任务书、`milestones.md`。
 
-**不在范围**：gem5/QEMU 实现、测试用例与期望、`tests/parity/matrix-M11.md`（G3 统一重生成）。
+**不在范围**：gem5/QEMU 实现、测试用例与期望、`docs/TestReports/M11-三平台一致矩阵.md`（G3 统一重生成）。
 
 ## 验收标准
 

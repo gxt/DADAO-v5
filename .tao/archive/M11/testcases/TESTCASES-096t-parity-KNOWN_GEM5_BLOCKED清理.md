@@ -38,7 +38,7 @@
 ### 3. 不变项
 
 - `run_parity.py` 的 CLI、输出 schema、`--self-test`/`--inject`/`--matrix-only`/`--repro-check` 行为不变；其它 scope/profile 的判据不变。
-- 不重新生成 `tests/parity/matrix-M11.md`（F3 另案）；不改任何矩阵入库快照。
+- 不重新生成 `docs/TestReports/M11-三平台一致矩阵.md`（F3 另案）；不改任何矩阵入库快照。
 
 ## 文件范围
 
@@ -50,7 +50,7 @@
 
 **新增（不入库）**：`运行期证据（已清理，未归档）`（`run.sh`、`REPORT.md`、`matrix.json`、`matrix.md`、日志、注入表）。
 
-**不改**：`tests/**`（含 `tests/parity/matrix-M11.md`）、`components/**`（QEMU/gem5）、`spec/**`、`contracts/**`、`.tao/contracts/**`、`.tao/adr/**`、`Makefile`、`manifests/**`、`docs/**`、`.tao/knowledge/discussing.md`。
+**不改**：`tests/**`（含 `docs/TestReports/M11-三平台一致矩阵.md`）、`components/**`（QEMU/gem5）、`spec/**`、`contracts/**`、`.tao/contracts/**`、`.tao/adr/**`、`Makefile`、`manifests/**`、`docs/**`、`.tao/knowledge/discussing.md`。
 
 ## 验收标准
 
@@ -73,7 +73,7 @@
 
 ## 说明
 
-- **非目标**：不修 `tools/gem5/build_gem5.py` 的 `relative_to` 缺陷（INFRA 另案）；不重新生成/提交 `tests/parity/matrix-M11.md`（F3 另案）；不改 QEMU/gem5 实现；不动 `SYS_ELAPSED`（`GEM5-019t`）；不改 spec/contracts/tests。
+- **非目标**：不修 `tools/gem5/build_gem5.py` 的 `relative_to` 缺陷（INFRA 另案）；不重新生成/提交 `docs/TestReports/M11-三平台一致矩阵.md`（F3 另案）；不改 QEMU/gem5 实现；不动 `SYS_ELAPSED`（`GEM5-019t`）；不改 spec/contracts/tests。
 - **与 GEM5-018t 遗留①的关系**：本任务就是该遗留的承接项；`GEM5-018t` 的引擎证据是输入，但所有数字须现场复核，不直接引用其已清理的 `运行期临时目录` 产物。
 - **参考对照**：本任务为 tools 侧本地清理，无 `DADAO-0628` 依赖（内容溯源，非执行必需）。
 - **BLOCKED**：引擎/工具缺失或共享构建被并发占用，按「缺失项 + 现场日志 + 为何不是本任务缺陷」登记，不得伪造 PASS；长跑与并发门控纪律按 `AGENTS.md` 执行。
@@ -126,5 +126,5 @@
 
 **判决：Accepted**
 
-**findings（不阻断，交 architect 收尾处置）**：F1 `--self-test` 内置注入无 stale 用例（base 亦无、diff 未动），验收 2 括注仅字面未满足，stale 可达性由注入①证明；F2 验收 6「只把本册列入『待开始』附表」与实际不符（本册落「完成区已填+待验收」节，②节为其它 3 册），rc=0；F3 验收 8「逐项 `*_EXIT=<rc>`」实为逐行 `expect rc=/actual rc=` + 外层 `RUN_SH_LIVE_EXIT=0`，无 `tee` 吞码（实质满足）；F4 验收 8「REPORT.md 数字由脚本现场生成」实为人工撰写（`run.sh` 不生成它），我已逐项核对全部与重跑一致；F5 live1 那 1 行 `QEMU_ONLY_FAIL` 属并发偶发（live2 0 差异），如需跟踪另立 QEMU 侧任务；F6 范围外已知遗留 `tests/parity/matrix-M11.md` 仍写 7 条 BLOCKED 与「five SYS_TICKFREQ」（任务书明列 F3 另案、`tests/**` 不改）。
+**findings（不阻断，交 architect 收尾处置）**：F1 `--self-test` 内置注入无 stale 用例（base 亦无、diff 未动），验收 2 括注仅字面未满足，stale 可达性由注入①证明；F2 验收 6「只把本册列入『待开始』附表」与实际不符（本册落「完成区已填+待验收」节，②节为其它 3 册），rc=0；F3 验收 8「逐项 `*_EXIT=<rc>`」实为逐行 `expect rc=/actual rc=` + 外层 `RUN_SH_LIVE_EXIT=0`，无 `tee` 吞码（实质满足）；F4 验收 8「REPORT.md 数字由脚本现场生成」实为人工撰写（`run.sh` 不生成它），我已逐项核对全部与重跑一致；F5 live1 那 1 行 `QEMU_ONLY_FAIL` 属并发偶发（live2 0 差异），如需跟踪另立 QEMU 侧任务；F6 范围外已知遗留 `docs/TestReports/M11-三平台一致矩阵.md` 仍写 7 条 BLOCKED 与「five SYS_TICKFREQ」（任务书明列 F3 另案、`tests/**` 不改）。
 

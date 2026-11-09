@@ -26,7 +26,7 @@
 
 **在范围内**：`components/gem5/patches/src/arch/dadao/{se_workload.cc,se_workload.hh,process.cc,process.hh,...}`（按现场）、`components/gem5/changelog.md`、本任务书、`milestones.md`。
 
-**不在范围**：文件 I/O、时钟、信号、线程/futex（后续任务）、`convert_f2i` 语义（用户待裁定）、QEMU 实现、测试用例与期望、`tests/parity/matrix-M11.md`。
+**不在范围**：文件 I/O、时钟、信号、线程/futex（后续任务）、`convert_f2i` 语义（用户待裁定）、QEMU 实现、测试用例与期望、`docs/TestReports/M11-三平台一致矩阵.md`。
 
 ## 验收标准
 

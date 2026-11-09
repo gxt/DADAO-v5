@@ -43,7 +43,7 @@
 **修改文件**：本轮仅新增证据脚本（`运行期临时目录` 不入库）：`运行期证据（已清理，未归档）`；`tests/`、`tools/` 测试资产沿用前轮且本轮**未再改**（`tests/inst/fp/scaleb.yaml`、`tests/inst/atomics/sc-rd0.yaml`、inventory/tests.yaml/case-ledger 等见前轮记录）；本任务书。
 **验收结果**：引擎身份现场记录：qemu md5 `6b9eb0a7…`、gem5 md5 `e84ebbaa…`、`configs/dadao/fs.py` md5 `952b78c4…`、gem5 源 `12a4716`。tiny/node 的 scaleB 正例 exit=0；sc 12 条负例 exit=136（ILLI）、2 条正例 exit=0；**同 case ID 上 QEMU 与 gem5 的 status/exit/fault 逐一相同**，不比较时序/日志。
 **新发现/坑**：① `build_test_binary._PROFILE` 在 import 期冻结，同进程先 tiny 后 node 会复用 Tiny 二进制（实测 QEMU FAIL/1、gem5 FAIL/125）⇒ 每 `(profile,engine)` 必须子进程隔离（同 `run_parity`→`semantics_gate`）；② 共享 `gem5 组件源树` 被 GEM5-018t 改写（HEAD `12a4716` 含 semihosting 修复），本分支 `components/gem5` 补丁集未含 ⇒ `check-patch-tree` 红（外部阻断）；③ `make check-modules` 会触发 install-host→build-mc 的 LLVM 全量重建（>30 min、磁盘 91%），且与 GEM5-018t 共享安装根 ⇒ 只跑 L2 的 inst 成员 `check-inst-smoke`；④ TESTCASES-091t 后向量用 `@ENTRY+…` token，oracle 须走 `machine_profile.resolve_case`；⑤ 证据脚本须前后核 gem5 二进制 md5，防并发重建造成混跑。
-**遗留问题**：① L1 的 `check-patch-tree`（GEM5-018t 共享源漂移）与 `check-knowledge-refs`（本 worktree 其它任务 `运行期临时目录` 悬空引用）仍红，均本任务外、未改；② 未跑 L3 全量 `check-inst`（本轮 = targeted + 结构断言 + L2 smoke）；③ `tests/parity/matrix-M11.md` 快照属 GEM5-017t 且早于 091t、未含本任务 2 册；是否重生成快照交主会话（避免改他人任务产物）；④ 前轮 LLVM 遗留项不变。
+**遗留问题**：① L1 的 `check-patch-tree`（GEM5-018t 共享源漂移）与 `check-knowledge-refs`（本 worktree 其它任务 `运行期临时目录` 悬空引用）仍红，均本任务外、未改；② 未跑 L3 全量 `check-inst`（本轮 = targeted + 结构断言 + L2 smoke）；③ `docs/TestReports/M11-三平台一致矩阵.md` 快照属 GEM5-017t 且早于 091t、未含本任务 2 册；是否重生成快照交主会话（避免改他人任务产物）；④ 前轮 LLVM 遗留项不变。
 
 ## 审阅记录
 
@@ -119,7 +119,7 @@
 **finding（不阻断，交收尾）**
 - F1 文档级：遗留问题①「均本任务外」不准——162 悬空中有 1 条出自本任务书 line42 `运行期证据（已清理，未归档）`；该证据实际在主工作树 `运行期证据（已清理，未归档）`（run.sh/logs 齐全），属 `运行期临时目录` 不跨 worktree 的系统性悬空、非证据丢失，建议改措辞。
 - F2 条件复跑：本次 gem5 FS 段跑在共享源 `12a4716`（= 本分支补丁 + GEM5-018t semihosting 修复）之上，本分支无法复现（patch-tree 红）；本次引擎 md5 全程稳定、52/52 双引擎一致故不阻断，但**GEM5-018t 落地、patch-tree 转绿后应复跑一次 gem5 FS 段**。
-- F3 交主会话：`tests/parity/matrix-M11.md` 仍是 GEM5-017t 快照（引擎 md5 来自 GEM5-017t worktree，0 处提及 scaleb/sc-rd0），是否重生成由主会话裁定（建议等 GEM5-018t 后一并做）。
+- F3 交主会话：`docs/TestReports/M11-三平台一致矩阵.md` 仍是 GEM5-017t 快照（引擎 md5 来自 GEM5-017t worktree，0 处提及 scaleb/sc-rd0），是否重生成由主会话裁定（建议等 GEM5-018t 后一并做）。
 
 ### 收尾复跑（GEM5-018t 落地后，architect）
 
@@ -128,4 +128,4 @@
 - 现场 L1：`make -k check` rc=2，失败目标仅 `check-knowledge-refs`；`check-patch-tree` 已绿。
 - gem5：`source HEAD=12a4716`，gem5 md5 `d2bf3bad3d91579343ed262ecf89a29f`；52 行 = tiny 26 + node 26，全 `AGREE_PASS`，`GEM5_ONLY/QEMU_ONLY/DIFF=0`。
 - 证据脚本的 L1 断言已改为同时接受「018 前双阻断」与「018 后仅 krefs」；本次走后者。
-- `tests/parity/matrix-M11.md` 仍按 F3 交主会话，不写入本任务 PASS。
+- `docs/TestReports/M11-三平台一致矩阵.md` 仍按 F3 交主会话，不写入本任务 PASS。

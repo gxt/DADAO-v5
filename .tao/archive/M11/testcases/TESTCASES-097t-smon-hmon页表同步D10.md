@@ -44,7 +44,7 @@ M11 不执行 smon（`machine-profiles.yaml` 的 `smon: reserved`），但测试
 
 - 不改 `tests/shared/machine-profiles.yaml`、链接脚本、`tests/shared/asm/machine-node.inc` 的几何宏。
 - 不改 QEMU/gem5、spec、contracts、Makefile、门控脚本。
-- 不改 `tests/parity/matrix-M11.md`（M11 收口时另案重生成）。
+- 不改 `docs/TestReports/M11-三平台一致矩阵.md`（M11 收口时另案重生成）。
 
 ### 4. 连带同步（范围扩展，2026-11-05）
 

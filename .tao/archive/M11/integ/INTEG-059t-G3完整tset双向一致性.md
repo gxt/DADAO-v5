@@ -15,13 +15,13 @@
    - 同 case 的 pass/fail、退出码、架构可见结果一致；
    - `gem5_only_fail` / `qemu_only_fail` / `diff` 逐条列名并归因；
    - `gem5 通过而 QEMU 未通过` 必须定位到 spec/实现/测试资产之一，不得直接接受。
-3. **矩阵重生成**：`tests/parity/matrix-M11.md` 增加 SE 段（或新增 `matrix-M11-SE.md`），计数由脚本现场统计，不手改。
+3. **矩阵重生成**：`docs/TestReports/M11-三平台一致矩阵.md` 增加 SE 段（或新增 `matrix-M11-SE.md`），计数由脚本现场统计，不手改。
 4. **预算口径**：复用 `TESTCASES-103t` 的按套件预算；`timeout` 单列，不计入 PASS/BLOCKED 能力项。
 5. **收口证据**：完整报告（JSON + Markdown）落 `.tao/knowledge/refs/`；L1/L2/L3 + 夜跑观测记录。
 
 ## 范围 / 非范围
 
-**在范围内**：`tools/testcases/tset/gem5-se-baseline/**`（扩展为完整 tset 双档）、`tools/testcases/parity/**`（SE 段）、`tests/parity/**`（矩阵快照）、`.tao/knowledge/refs/**`、本任务书、`milestones.md`。
+**在范围内**：`tools/testcases/tset/gem5-se-baseline/**`（扩展为完整 tset 双档）、`tools/testcases/parity/**`（SE 段）、`docs/TestReports/**`（矩阵快照）、`.tao/knowledge/refs/**`、本任务书、`milestones.md`。
 
 **不在范围**：能力实现（前置任务）、spec/contracts、M11 `m` 册（收口任务另立）、`mprotect` 真权限与主程序 PIE（本轮登记为限制/backlog）。
 
@@ -43,7 +43,7 @@
 ## 完成区
 
 **测试结果**：一键证据 25/26 绿（唯一红 = L1，外因见遗留）；5 个点名门控全绿；L2、L3（8/8 成员）rc=0。
-**修改文件**：`tools/testcases/parity/se_tset_matrix.py`（新）、`tools/testcases/parity/README.md`、`tests/parity/matrix-M11.md`、`tests/parity/README.md`、`.tao/knowledge/refs/INTEG-059t-se-parity-summary.{json,md}`（新）、本任务书；运行期证据/日志未入库。
+**修改文件**：`tools/testcases/parity/se_tset_matrix.py`（新）、`tools/testcases/parity/README.md`、`docs/TestReports/M11-三平台一致矩阵.md`、`docs/TestReports/M11-三平台一致矩阵-凡例.md`、`.tao/knowledge/refs/INTEG-059t-se-parity-summary.{json,md}`（新）、本任务书；运行期证据/日志未入库。
 **验收结果**：
 1. 矩阵重生成：FS 段 `tiny/inst` 1029=1020 pass+5 deferred+4 skip、`vast/inst` 1029=980+5+44、`vast/arch` 269/269 agree_pass（0 diff/0 blocked/0 gem5_only_fail）、`tiny/arch` N/A 269；SE 段 static/dynamic 双档齐全（每档 3 套件 × total/qemu_pass/gem5_pass/both/blocked/timeout/skipped + 差异名单）。
 2. 归因：`gem5_only_fail` static 9（ISS-357 4 + 环境缺口 5：popen/spawn/vfork/execle-env/unix-smail）、dynamic 4（全 ISS-357）；`qemu_only_fail` 0/0；`blocked` 8/43 逐条列名（capability → owner）；`timeout` 97/93 单列；无未归因行（脚本 fail-closed）。

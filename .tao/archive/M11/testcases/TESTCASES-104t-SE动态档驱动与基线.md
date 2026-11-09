@@ -23,7 +23,7 @@
 
 **在范围内**：`tools/testcases/lib/gem5_se_engine.py`、`tools/testcases/tset/{libc-test,llvm-ts,embench}/*.py`（仅 engine/参数）、`.tao/knowledge/refs/TESTCASES-104t-*`（报告）、本任务书、`milestones.md`。
 
-**不在范围**：gem5 SE 实现（前序任务）、`mprotect` 真权限、主程序 PIE、测试用例与期望、`tests/parity/matrix-M11.md`（`INTEG-059t` 统一重生成）。
+**不在范围**：gem5 SE 实现（前序任务）、`mprotect` 真权限、主程序 PIE、测试用例与期望、`docs/TestReports/M11-三平台一致矩阵.md`（`INTEG-059t` 统一重生成）。
 
 ## 执行方式：按套件跨机分片（用户 2026-11-09 同意）
 
@@ -44,7 +44,7 @@
 
 1. 三套件 × dynamic 在 gem5 SE 上跑完（预算按 `TESTCASES-103t`）；报告存在且可复算。
 2. `qemu_only_fail` 逐条列名（须为 0 或给出 QEMU 侧任务）；`gem5_only_fail` 逐条归因；`timeout` 单列不计 PASS。
-3. QEMU dynamic 新基线 JSON 覆盖三套件；`tests/parity/matrix-M11.md` 是 QEMU-system↔gem5-FS 矩阵、**无 dynamic/tset 行**，故本项以「三套件 JSON 计数自洽 + `refs/TESTCASES-104t-dynamic-summary` 为准」判定。
+3. QEMU dynamic 新基线 JSON 覆盖三套件；`docs/TestReports/M11-三平台一致矩阵.md` 是 QEMU-system↔gem5-FS 矩阵、**无 dynamic/tset 行**，故本项以「三套件 JSON 计数自洽 + `refs/TESTCASES-104t-dynamic-summary` 为准」判定。
 4. `make check`（L1）、`make check-modules`（L2）rc=0；驱动 `--self-test`（如有）rc=0。
 5. 反例：把 `ET_EXEC+PT_INTERP` 改回 BLOCKED ⇒ 动态用例回 blocked；`cp`+`md5sum -c` 还原回绿。
 6. 完成区 ≤30 行；状态 `待验收`。
@@ -128,7 +128,7 @@
 - **门控**：`check-knowledge-refs rc=0`（0 具体 `.work/**` 引用）、`check-run-artifacts rc=0`（A3 `0 illegal`）、编排器 `--self-test rc=0`（**22/22**）、`make check-modules rc=0`（`module checks (L2): PASS`）、`make check rc=2` → `make -k check` 共 **3 红且全外部**：`check-patch-tree`（13 项，chipyard 在途）、`check-milestones-fresh`（`m12-chipyard-004` 有 worktree 而台账行仍在「待开始」）、`check-temp-dirs`（5 个他任务陈旧目录）；本任务 `git diff HEAD -- components/chipyard`=0、未改 `milestones*.md`、本任务目录不在违规清单。
 - **快照对账**：验收前后 `git status --porcelain -uall` 逐行相同（9 项），与「修改文件」9 项一一对应；6 个改动文件 md5 前后一致（注入已还原）。
 
-**约束核验**：验收 1 ✅ / 2 ✅ / 3 ⚠（`tests/parity/matrix-M11.md` 是 QEMU-system↔gem5-FS 矩阵，**无 dynamic/tset 行**，该比对无对象）/ 4 ⚠（L1 非 0，但 3 红均外部已核实；L2、`--self-test` ✅）/ 5 ✅ / 6 ✅（完成区 21 行、状态 `待验收`）。不改用例与期望 ✅、不改 gem5/QEMU 实现 ✅、范围外未动 ✅。
+**约束核验**：验收 1 ✅ / 2 ✅ / 3 ⚠（`docs/TestReports/M11-三平台一致矩阵.md` 是 QEMU-system↔gem5-FS 矩阵，**无 dynamic/tset 行**，该比对无对象）/ 4 ⚠（L1 非 0，但 3 红均外部已核实；L2、`--self-test` ✅）/ 5 ✅ / 6 ✅（完成区 21 行、状态 `待验收`）。不改用例与期望 ✅、不改 gem5/QEMU 实现 ✅、范围外未动 ✅。
 
 **findings（文档级，不阻断）**：① 完成区/refs §7「L1 仅两项外部红」在 reviewer 现场为 **3 项**（`check-milestones-fresh` 系 engineer 收工后 m12-chipyard-004 建 worktree 所致，其 09:25 keep-going 日志中该项 PASS）；② `gem5_se_engine.py` 模块 docstring 仍写 `--redirect / <root>`，与实现 `("/lib", <root>/lib)` 相反；③ refs §5 汇总命令漏必需的 `--json-out`（照抄会 usage rc=2）；④ 验收 3 的 matrix-M11 比对无对应行，建议架构师澄清口径。
 

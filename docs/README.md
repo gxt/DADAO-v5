@@ -25,6 +25,15 @@
 | `docs/repository-layout.md` | **仓库布局**：纳入版本控制的目录（含三分界）、一次性工作区 `.work/`、持久对象库 `.cache/` |
 | `docs/fp-oracle-design.md` | **FP 独立 oracle 方案**（被 `contract-fp.md`、`contracts/fp_semantics.yaml` 引用） |
 
+## 测试报告（`TestReports/`）
+
+| 文件 | 内容 |
+| --- | --- |
+| `docs/TestReports/README.md` | 本目录约束：命名、收什么/不收什么、必备四项、禁止项 |
+| `docs/TestReports/M11-三平台一致矩阵.md` | M11 跨引擎一致性矩阵快照（原 `tests/parity/matrix-M11.md`） |
+| `docs/TestReports/M11-三平台一致矩阵-凡例.md` | 该快照的口径、硬门与重生成方式（原 `tests/parity/README.md`） |
+| `docs/TestReports/M13-三平台差分-qemu-gem5.md` | M13 阶段性结论：Tiny hmon 一致性、长尾计时、差异清单 |
+
 ## 历史与设计理念素材（`DDLN/`）
 
 | 文件 | 内容 |

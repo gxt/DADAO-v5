@@ -39,7 +39,7 @@
 3. `QEMU 通过集合 ⊆ gem5 通过集合`，逐 case 比较通过/失败、退出码、架构可见结果；差异逐条归因。
 4. picolibc Tiny 旁证：除 `math_test` blocked 外分类一致、无新增 fail。
 5. 零退化：SE、B0–B7、现有测试驱动的默认输出/退出码不变。
-6. 落一份**入库矩阵快照**（`tests/parity/matrix-M11.md`）+ 可重生成全量矩阵（证据层）。
+6. 落一份**入库矩阵快照**（`docs/TestReports/M11-三平台一致矩阵.md`）+ 可重生成全量矩阵（证据层）。
 
 ## 接口规范
 
@@ -141,8 +141,8 @@ python3 tools/testcases/parity/run_parity.py \
 - `tools/testcases/parity/run_parity.py`（矩阵驱动与硬门）
 - `tools/testcases/parity/qemu_gem5_shim.py`（QEMU→gem5 参数映射，未知参数 rc=2）
 - `tools/testcases/parity/README.md`（用法、case ID、退出码、已知限制）
-- `tests/parity/README.md`（矩阵口径：**不是新用例/向量体系**，case 全部复用现有清单/驱动派生；`ADR-0048 D3`）
-- `tests/parity/matrix-M11.md`（现场生成的入库快照：身份/计数/非 AGREE_PASS 行/证据指针）
+- `docs/TestReports/M11-三平台一致矩阵-凡例.md`（矩阵口径：**不是新用例/向量体系**，case 全部复用现有清单/驱动派生；`ADR-0048 D3`）
+- `docs/TestReports/M11-三平台一致矩阵.md`（现场生成的入库快照：身份/计数/非 AGREE_PASS 行/证据指针）
 
 **修改（均为可选 flag/钩子，默认行为不变）**：
 - `tools/qemu/semantics_gate.py`（`--json-out` per-case 记录）
@@ -165,7 +165,7 @@ python3 tools/testcases/parity/run_parity.py \
 8. **零退化**：三个测试驱动不带新 flag 的默认 stdout/rc 与基线一致、各自 `--inject` 通过；`make check-gem5-decode` rc=0；`check_converge.py` B1–B7 计数不变（`[FAIL] 0`）；SE `hello`/`fail` 与 `GEM5-014t` 基线一致。
 9. **L1/L2**：`make check` rc=0，或「本任务红=0」且既有红逐条基线复现；L2 `make check-modules` rc=0，或 BLOCKED（`install-host`/`build-builtins`/`gate.lock`）+ 现场日志。
 10. **范围与门控**：`git diff --name-only <base>` 只命中 `tests/**`、`tools/**`、本任务书、`milestones.md`；`check-tests-index`/`check-dirs`/`check-no-residue`/`check-milestones-fresh` rc=0；`check-tasks` 无本任务新增漏收尾项（既有 `TESTCASES-090t` 待验收项复现即可）；无 `*_tmp*`/`*.orig`/`*.rej`/`__pycache__` 残留入库。
-11. **证据/注入/快照**：`运行期证据（已清理，未归档）` 一键 `run.sh`（分 phase，逐项 `*_EXIT=<rc>`）+ `REPORT.md`；`run.sh --inject` 覆盖反例（`cp` 备份 + md5 对账还原，先红后绿）；`tests/parity/matrix-M11.md` 的计数/差异与证据 JSON 逐项一致、由脚本生成（不手改）。
+11. **证据/注入/快照**：`运行期证据（已清理，未归档）` 一键 `run.sh`（分 phase，逐项 `*_EXIT=<rc>`）+ `REPORT.md`；`run.sh --inject` 覆盖反例（`cp` 备份 + md5 对账还原，先红后绿）；`docs/TestReports/M11-三平台一致矩阵.md` 的计数/差异与证据 JSON 逐项一致、由脚本生成（不手改）。
 12. **状态/BLOCKED**：完成区 ≤30 行，状态 `待验收`；任何无法成立的 case/能力按「spec 引用 + 根因 + 现场日志 + 为何不是实现缺陷」登记 BLOCKED 并经用户裁定；不得自行跳过、改期望、改测试资产或把 QEMU 红算作 gem5 绿。
 
 ## 必测反例（每类必须有可达 FAIL，不是上限）
@@ -183,7 +183,7 @@ python3 tools/testcases/parity/run_parity.py \
 
 - `运行期证据（已清理，未归档）`：`run.sh`（phase：工具自检 → 引擎身份 → Tiny inst/embench → Node inst/arch（10+13+`046t`）/embench → picolibc 旁证 → 硬门判定 → 零退化 → L1/L2 → 注入），每 phase 落 `*_EXIT=<rc>`；矩阵 `matrix.json`/`matrix.md`；日志落 `运行期日志（已清理，未归档）` 与 `运行期临时目录`（gem5 `--outdir` 只落后者）。
 - `REPORT.md`：所有数字由脚本现场生成（case 数、agree/only-fail/diff/deferred/skip/blocked、引擎 md5、注入表「注入前 md5 / 注入 rc / 还原后 md5 / 回绿 rc」）。
-- `tests/parity/matrix-M11.md`：入库快照（现场生成后 `cp`），含身份、计数、全部非 `AGREE_PASS` 行、`N/A` 依据、证据指针；不手改。
+- `docs/TestReports/M11-三平台一致矩阵.md`：入库快照（现场生成后 `cp`），含身份、计数、全部非 `AGREE_PASS` 行、`N/A` 依据、证据指针；不手改。
 - 工具链/依赖缺失（`qemu-system-dadao`、`gem5.opt`、bootrom、`scons`/工具链）⇒ **rc=2 BLOCKED**，不得伪造 PASS。
 
 ## 说明（风险 / 非目标 / 溯源 / 待确认）
@@ -221,7 +221,7 @@ python3 tools/testcases/parity/run_parity.py \
 ## 完成区
 
 **测试结果**：全量矩阵（`运行期临时目录`，现场生成）**2658 行**：`AGREE_PASS=2301`、`GEM5_ONLY_FAIL=0`、`QEMU_ONLY_FAIL=0`、`DIFF=0`、`AGREE_FAIL=0`、`BLOCKED_SIDE=28`、`N/A=271`（另有 deferred 10 / skip_profile 48）。逐 scope：tiny inst **1003/1012**（5 deferred / 4 skip）、node inst **963/1012**（5 deferred / 44 skip）、tiny/node embench **38/38 ×2**（19 bench×O0/O2 现场派生）、node arch **242/269 pass + 27 blocked**（20 个 QEMU `-icount` 无 atomic 对应 + 5 条 `SYS_TICKFREQ` 与用户裁定 1e9 基线不符 + 2 条 WRITEC/WRITE0 清 rd8，后 7 条入 gem5 修复任务）、tiny arch **269 N/A**（`tiny.arch=false`）、picolibc 旁证 **17 pass / 1 blocked(`math_test` B7) / 2 excluded**；`QEMU PASS ⊆ gem5 PASS`（除上述 27 条显式 BLOCKED；`svc_readc` 经 input-path→stdin 修复后 PASS）。
-**修改文件**：`tools/testcases/parity/{run_parity.py,qemu_gem5_shim.py,README.md}`、`tests/parity/{README.md,matrix-M11.md}`；可选钩子：`tools/qemu/semantics_gate.py`、`tools/testcases/lib/run_qemu_test.py`、`tools/testcases/arch/run_m5_e2e.py`、`tools/testcases/tset/embench/run_embench_e2e.py`；本任务书、`.tao/knowledge/milestones.md`。证据/日志在 `运行期证据（已清理，未归档）`、`运行期日志（已清理，未归档）`、`运行期临时目录`（不入 git）。
+**修改文件**：`tools/testcases/parity/{run_parity.py,qemu_gem5_shim.py,README.md}`、`docs/TestReports/{README.md,matrix-M11.md}`；可选钩子：`tools/qemu/semantics_gate.py`、`tools/testcases/lib/run_qemu_test.py`、`tools/testcases/arch/run_m5_e2e.py`、`tools/testcases/tset/embench/run_embench_e2e.py`；本任务书、`.tao/knowledge/milestones.md`。证据/日志在 `运行期证据（已清理，未归档）`、`运行期日志（已清理，未归档）`、`运行期临时目录`（不入 git）。
 **验收结果**：`运行期证据脚本（已清理，未归档）` 分 phase：self-test `INJECT: PASS`（10 类反例）、`--list` 逐 scope 现场计数、matrix `rc=0`、matrix-only `rc=0`、direct **inst+arch+embench 各 1 例真实直跑**（arch 用 console-bearing `m5_semi_write0`，`run/direct/m5_semi_write0.console`=`OK\n`、`.cpu.log` 13.3 MB；三项 `exit == matrix`）、repro 两次 Markdown 逐字节同、真实矩阵 `--inject` 全类判出 + 文件注入 `rc=1`→`cp`+md5 还原→回绿 `rc=0`、零退化（三驱动默认路径/`--inject`、decode 264/264+388/388+28/28+2/2、converge `[FAIL] 0`、SE hello `hi\n` rc0 / ret7 rc7）、gates（tests-index/dirs/no-residue/milestones/tasks/range 全 0）。L1 `make -k check` rc=2 唯一红 `check-knowledge-refs`（现场 159 条悬空全属其它任务、本任务 0）；L2 `make check-modules` **BLOCKED**（420s 超时于 `install-host→build-builtins` 的 LLVM 重建，已删半成品 build，未伪 PASS）。
 **新发现/坑**：① gem5 semihosting 与用户裁定 1e9 基线/QEMU 不一致共 7 条：5 条 `SYS_TICKFREQ` 返回 `1e12/256`、2 条 `WRITEC/WRITE0` 清 `rd8`（逐条 `KNOWN_GEM5_BLOCKED` + 保留 `raw_status`，另立 gem5 修复任务；`spec/` 不改）；② `-dfilter` 必须按窗口过滤 gem5 trace，直接忽略会改变探针「最后一个 block」观测（曾假绿）；③ `input-path` 必须接到 gem5 stdin，否则 READC 假失败（接上后 `svc_readc` PASS）；④ `build_test_binary` profile 在 import 期固定，parity 直跑须 `set_profile()`；⑤ direct-check 必须显式选 `arch/umon/` console-bearing case，按排序首条 arch 会落到 probe 而被静默跳过（reviewer F1 已修）；⑥ Node inst 用 `bootrom_step5_inst.bin`、arch/embench 用 `bootrom_step5.bin`；⑦ 隔离 worktree 的 picolibc meson 树需软链主仓 `运行期 picolibc 测试构建树`（env，非代码）。
 **遗留问题**：① 7 条 gem5 semihosting 缺陷（5×`SYS_TICKFREQ` 按 1e9 + 2×`WRITEC/WRITE0` rd8）需另立 gem5 修复任务；本任务不改 `components/gem5`，记 BLOCKED 且保留 `raw_status`，逐条现场与验收建议见 `运行期证据（已清理，未归档）`；② L2 BLOCKED = 隔离 worktree 无 `运行期 LLVM 构建树`、install-host 触发全量 LLVM 重建（env，非本任务红）；③ L1 `check-knowledge-refs` 159 条悬空均为其它任务/隔离 worktree 基线，本任务 0 条；④ `GEM5-016t` 文本「embench 22×2」与现场 19×2=38 不一致，本任务以现场派生 38 为准；⑤ `_check_picolibc` 未断言 blocked 集合 = `{math_test}`（reviewer 第 2 轮 finding ①）：非 `math_test` 行伪造 `BLOCKED` 仍 rc=0；仅登记、不改已 Accepted 实现语义，建议后续维护任务补断言。
@@ -300,7 +300,7 @@ python3 tools/testcases/parity/run_parity.py \
 
 **F13 我第 1 轮两类缺口**：icount N/A 伪造双 PASS ⇒ **rc=1** `-icount check must stay N/A on gem5, got PASS`；`tiny/arch` 伪造双 PASS ⇒ **rc=1** `tiny/arch must be N/A`。
 
-**矩阵与快照**：2658 行 = AGREE_PASS **2301** / BLOCKED_SIDE **28** / N/A **329**；GEM5_ONLY **0**、QEMU_ONLY **0**、DIFF **0**；QEMU PASS 而 gem5 非 PASS **28** = 20 icount + 7 registry + 1 picolibc 旁证；`matrix.md` 与 `tests/parity/matrix-M11.md` **md5 相同** `e9ca31b1…`；非 AGREE_PASS **357** 行集合与 JSON 一致；引擎/BootROM/工具链 md5 与 commit `f86efab6` 现场全对；完成区逐项计数（1003/963/38×2/242+27/269 N/A/17+1+2、deferred 10、skip 48、n_a 271）全部与现场一致。
+**矩阵与快照**：2658 行 = AGREE_PASS **2301** / BLOCKED_SIDE **28** / N/A **329**；GEM5_ONLY **0**、QEMU_ONLY **0**、DIFF **0**；QEMU PASS 而 gem5 非 PASS **28** = 20 icount + 7 registry + 1 picolibc 旁证；`matrix.md` 与 `docs/TestReports/M11-三平台一致矩阵.md` **md5 相同** `e9ca31b1…`；非 AGREE_PASS **357** 行集合与 JSON 一致；引擎/BootROM/工具链 md5 与 commit `f86efab6` 现场全对；完成区逐项计数（1003/963/38×2/242+27/269 N/A/17+1+2、deferred 10、skip 48、n_a 271）全部与现场一致。
 **与我第 1 轮 2658 行独立重生成逐行比对**：键集相同；**仅 1 行状态变化**（`svc_readc` BLOCKED→AGREE_PASS）+ **5 行 attribution 文本变化**（TICKFREQ 措辞），其余 **2652 行与我自己跑出的结果完全一致**；且本轮矩阵是 11:42→12:46 的全新全量跑（各 scope JSON 时间戳连续）。
 
 **独立注入（异于 engineer 全部 12 类）**：把 registry 内 `svc_tickfreq` 伪造为 gem5 PASS ⇒ `matrix-only` **rc=1** `KNOWN_GEM5_BLOCKED is stale (gem5 now PASS)` ⇒ `cp` 备份还原 md5 `8e24c42f…` ⇒ **rc=0**（顺带复测第 1 轮两类缺口，均 rc=1）。

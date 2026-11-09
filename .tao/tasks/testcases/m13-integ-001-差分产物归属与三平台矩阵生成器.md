@@ -8,7 +8,7 @@
 
 ## 背景
 
-M13 要做 qemu/gem5/chipyard 三平台差分。当前产物散落：`tests/parity/matrix-M11.md`、`.tao/knowledge/refs/*-parity-summary.*`、`tools/testcases/parity/*.py`、各基线 JSON；矩阵内含运行期绝对路径，fresh clone 不可复现。
+M13 要做 qemu/gem5/chipyard 三平台差分。当前产物散落：`docs/TestReports/M11-三平台一致矩阵.md`、`.tao/knowledge/refs/*-parity-summary.*`、`tools/testcases/parity/*.py`、各基线 JSON；矩阵内含运行期绝对路径，fresh clone 不可复现。
 
 ## 目标
 
@@ -21,7 +21,7 @@ M13 要做 qemu/gem5/chipyard 三平台差分。当前产物散落：`tests/pari
 
 1. 四类产物的边界与位置写入 `docs/Process-09`（或等价文档），并给出「谁生成、是否入库」表
 2. 矩阵 schema 有三平台列；chipyard 未就绪时 `N/A` 有明确依据
-3. `grep -rn '/tmp/opencode' tests/parity/ .tao/knowledge/refs/` 为 0（矩阵与报告无运行期绝对路径）
+3. `grep -rn '/tmp/opencode' docs/TestReports/ .tao/knowledge/refs/` 为 0（矩阵与报告无运行期绝对路径）
 4. 生成器可在 fresh clone 上从已入库 JSON 重建矩阵（不需运行期目录）
 5. `make check` / `check-knowledge-refs` / L2 rc=0
 6. 一键证据脚本（含可达 FAIL 注入）

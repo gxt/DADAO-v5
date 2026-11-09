@@ -23,7 +23,7 @@
 
 - `make check-full`（L3）rc=0；`check-l3-report` rc=0
 - 回归跑（原「夜跑」）**不是收口条件**（用户 2026-11-08）：若已有结果则复核落盘证据；未完成不阻塞，只在报告中记录状态
-- QEMU ↔ gem5 双向一致性矩阵存在且与 059t 结论一致；`tests/parity/matrix-M11.md` 已重生成
+- QEMU ↔ gem5 双向一致性矩阵存在且与 059t 结论一致；`docs/TestReports/M11-三平台一致矩阵.md` 已重生成
 - 已知 BLOCKED 项（picolibc `math_test` B7 浮点）在报告中保留且不计入通过数
 
 ### 3. M11 归档（按 `docs/Process-04`）
@@ -58,7 +58,7 @@
 - 归档：106 册按 7 个模块子目录 `git mv`；README 五节齐备、§1 计数与目录一致、§2 流水 106 行；issues 快照 14 条；`.tao/tasks/` 无其它 M11 已完成册。
 - 残留去向：`GEM5-033t`（B7 注销，`待开始`，留活待用户裁定）；本任务 `INTEG-061t`（验收后由 architect 最后 `git mv` 入 `integ/`）；6 条 M10 之后的任务留活台账、不入本归档（其中 5 条标「M10 后（维护）」、`INFRA-113t` 为「M10 后（清理，不纳入 M10 收尾）」）。
 - 已知 BLOCKED：picolibc `math_test` B7 浮点仍记 BLOCKED（`GEM5-015t`），根因已由 `GEM5-032t` 定位为「可注销」，注销待 `GEM5-033t`；不计入通过数。open issue 6 条（`ISS-345`/`ISS-355`–`ISS-359`）留活台账。
-- 矩阵与回归：`tests/parity/matrix-M11.md` 存在（FS tiny/inst、SE static+dynamic），与 `INTEG-059t` 结论一致；回归运行末次完整报告 2026-11-05-13（4/4 rc=0），2026-11-06-09 无产物，`TESTCASES-105t` 后未跑完整集（用户 2026-11-08 裁定非收口条件）。
+- 矩阵与回归：`docs/TestReports/M11-三平台一致矩阵.md` 存在（FS tiny/inst、SE static+dynamic），与 `INTEG-059t` 结论一致；回归运行末次完整报告 2026-11-05-13（4/4 rc=0），2026-11-06-09 无产物，`TESTCASES-105t` 后未跑完整集（用户 2026-11-08 裁定非收口条件）。
 - 证据：一键证据脚本（运行期证据目录）27/27 PASS，含「删 README 节 ⇒ `check-archive` FAIL ⇒ `cp`+md5 还原 ⇒ 回绿」注入自检。
 **新发现/坑**：① `check_archive` 的模块白名单与任务号正则不含 `gem5`，M11 首次归档 gem5 模块必须机械扩展（已改，不改归档语义）；② 工作树内跑 L3 时 manifest 记逻辑临时路径，工作树清理后 `check-l3-report` 不可复核（上一戳即因此红）⇒ 以持久日志目录重跑并落新戳；③ `check-run-artifacts` 要求运行期日志目录新增文件命名合规（任务号前缀 + `.log/.json/.txt`），数据文件须先改名。
 **遗留问题**：① `milestones*.md` 未改（派单硬约束）：architect 需删除 **106 条 M11 `已验证` 行**（保留 6 条 `M10 后` 行与 `GEM5-033t`/`INTEG-061t` 行）；② 自归档时 README §1 `integ 8→9` 并在 §2 追加 `INTEG-061t` 行；③ `GEM5-033t` 待用户裁定后派工；④ 6 条 open issue 转 M12/M13 处理；⑤ `.tao/README.md` 的「M1–M10」归档列表与 `MEMORY.md` 归档指针需 architect 顺带更新。
