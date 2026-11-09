@@ -8,7 +8,8 @@
 | --- | --- |
 | 项目总览 / 里程碑 / 版本号 | 根 `README.md` |
 | 当前进度 / 任务台账（待开始·进行中·已验证） / 裁定 | `.tao/knowledge/milestones.md`（M11 及以前）+ `.tao/knowledge/milestones-m12.md`（M12 起，按任务书 `**项目里程碑**` 分派） |
-| M10 归档 / 回顾 / 关闭 issue | `.tao/archive/M10/`（`README.md` / `m10-retrospective.md` / `issues-closed.md`） |
+| M11 归档 / 回顾 / 关闭 issue | `.tao/archive/M11/`（`README.md` / `m11-retrospective.md` / `issues-closed.md`） |
+| M10 及以前归档 | `.tao/archive/M10/` … `.tao/archive/M1/` |
 | M1–M9 历史 | `.tao/archive/M1/` … `.tao/archive/M9/` |
 | 决策（ADR：架构 / 契约 / 流程） | `.tao/adr/` |
 | 交互目录（`$TAO_ROOT` / 结构 / 模块表） | `.tao/README.md` |
@@ -22,7 +23,7 @@
 | 构建 / 测试节点（机型 / 组网 / 软件包 / 就绪判据） | `.tao/knowledge/nodes.md` |
 | 参考仓库（只读工作树 / 锁文件） | `.cache/refs/` + `manifests/` |
 | issue / 教训 | `.tao/knowledge/issues.yaml` / `.tao/knowledge/lessons.md` |
-| 历史归档 | `.tao/archive/M*/`（M1–M10） |
+| 历史归档 | `.tao/archive/M*/`（M1–M11） |
 | 临时 / 一次性产物 | `/tmp/opencode/<任务ID>/` |
 
 ## DADAO 反套用清单
