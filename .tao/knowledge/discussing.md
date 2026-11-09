@@ -144,6 +144,11 @@
   - #10 reserved 集统一（正文 `19–61` vs 附录 0.4.0 `16–31、35–61`）
   - #6 退出码由 hmon handler 生成（`§7.1` 只定编码、未定生成方）
   - #3 Tiny 的 hmon 镜像装载路径（与 R13 绑定）
+  - （`m13-qemu-001` 新增）`excp_cause_info` 覆盖：`Machine-v5 §4.4` 5 项 vs `DADAO-13 §2` 11 项
+  - （`m13-gem5-001` 新增）`escape` 返回 cfx 取自「异常帧」，但寄存器表无 `prev_cfx` 保存寄存器（实现镜像 QEMU/Node 保持目标 cfx）
+  - （`m13-gem5-001` 新增）Tiny `cfx_power` 的 cg7（BootROM start/size）与 `cg8 rc1`（power ctrl，WO）无正文
+  - （`m13-gem5-001` 新增）Tiny `switch_run_mode` 写非 hypv 值：寄存器 RW 但无强制路径
+- **`spec-004` 候选**：Vast 的同步异常仍是 staged 机器 fault（`DADAO-12 §5.2(一)` 要求进向量），5 个 arch 探针 oracle 依赖旧口径；统一需同步改 qemu/gem5 + 探针。
 
 ---
 
