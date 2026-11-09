@@ -30,6 +30,10 @@ monitor).  Source: `spec/Machine-v5 §1.1/§2/§3/§4.4/§5`, `spec/DADAO-12 §5
    hmon (records 32–35).
 5. Semihosting is cfxha-agnostic: the case calls `SYS_WRITE0` through
    `trap cfx_power, 0x3FF00` and the rest through `trap cfx_hmon, 0x3FF00`.
+6. The run mode stays `hypv` on Tiny (`Machine-v5 §2`): the body writes
+   `switch_run_mode = user(0)`, takes a `CFXMEM`, the handler reads a cg3
+   (hypv-only, `DADAO-13 §1`) register successfully, and
+   `excp_prev_run_mode` records `3` (records 36–40).
 
 ## Run
 

@@ -14,7 +14,7 @@ per-hart/per-system、TIMER/IPI/UART/power），只跑 **`system`** 平台
 | 目录 | cfx | 内容 |
 |------|-----|------|
 | `umon/` | `cfx_umon`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.s`，10 条）+ `expected.yaml` 清单 |
-| `hmon/` | `cfx3 hmon` + `cfx_power`（Tiny） | `tiny_hmon.S`（gem5 Tiny FS：power→hmon、五类同步异常、IALIGN IP 停留、`trap` 两路、`cfx2rd`/`cfx2rc`）+ `expected.yaml` |
+| `hmon/` | `cfx3 hmon` + `cfx_power`（Tiny） | `tiny_hmon.S`（gem5 Tiny FS：power→hmon、五类同步异常、IALIGN IP 停留、`trap` 两路、`cfx2rd`/`cfx2rc`、Tiny 恒 `hypv` 与 `cg3` 仅 hypv 可读）+ `expected.yaml` |
 
 其余 cfx（`jmon`/`smon`/`ptw`/`cache`/`hart`/`llc`/`pmem`/`time`/`uart`）按需增建；**不建** `arch/isa`、空壳子目录。`hmon/` 的 Tiny 用例由 gem5 运行（`python3 tools/gem5/check_tiny_hmon.py`），不进 QEMU 探针门控。
 

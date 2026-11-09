@@ -86,3 +86,14 @@ records:
 
   # 35: unimplemented cfx5 register access => CFXREG (1 << 2).
   - {kind: cause, cause: CFXREG, cause_id: 0x4, ip: f_reg, info: (0x7A << 24) | (5 << 18) | 10, handler_pc: hmon_base}
+
+  # 36..40: Tiny run mode is fixed at hypv (Machine-v5 §2).  The guest writes
+  # switch_run_mode = user(0), then takes a CFXMEM: entry still lands in hypv,
+  # so the handler's cg3 read (DADAO-13 §1: cg3 is hypv-only) succeeds and
+  # excp_prev_run_mode records the pre-entry mode (3).
+  - {kind: check, id: 36, expect: 3}                      # cg3 switch_run_mode read
+  - {kind: cause, cause: CFXMEM, cause_id: 0x2, ip: f_hypv, info: hmon_base + 0x1_0000, handler_pc: hmon_base}
+  - {kind: check, id: 37, expect: hmon_base}              # cg3 read inside the handler
+  - {kind: check, id: 38, expect: 3}                      # excp_prev_run_mode = hypv
+  - {kind: check, id: 39, expect: hmon_base}              # cg3 read after the fault
+  - {kind: check, id: 40, expect: 0}                      # switch_run_mode value kept

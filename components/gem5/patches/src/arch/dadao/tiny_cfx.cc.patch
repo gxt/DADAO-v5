@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/tiny_cfx.cc b/src/arch/dadao/tiny_cfx.cc
 new file mode 100644
-index 0000000..4f37402
+index 0000000..bdcdd33
 --- /dev/null
 +++ b/src/arch/dadao/tiny_cfx.cc
-@@ -0,0 +1,464 @@
+@@ -0,0 +1,474 @@
 +// DADAO Tiny machine model: cfx_power (cfx63) + cfx3 hmon.
 +#include "arch/dadao/tiny_cfx.hh"
 +
@@ -85,8 +85,14 @@ index 0000000..4f37402
 +
 +    if (cg >= 0 && cg <= 2)
 +        return modeReg(&r.mode[cg], cg, rc);
-+    if (cg == 3)
++    if (cg == 3) {
++        // cg3 is the hypv mode register bank; any other run mode => CFXREG
++        // (spec/DADAO-13 §1).  Tiny stays in hypv, but the check is the same
++        // explicit failure as QEMU's cfx_reg_ptr, never a silent success.
++        if ((s.runMode & 0x3) != 3)
++            return nullptr;
 +        return modeReg(&r.mode[3], cg, rc);
++    }
 +
 +    switch (cg) {
 +      case 4:
@@ -183,9 +189,13 @@ index 0000000..4f37402
 +        }
 +    }
 +
-+    // Step 6: switch mode/cfx; step 7 value = the target vector.
++    // Step 6: the run mode is fixed at hypv on the Tiny profile -- the machine
++    // provides no mode-switch path (spec/Machine-v5 §2), so a guest-written
++    // switch_run_mode value cannot leave hypv.  QEMU applies the same
++    // profile-level override (non-user profile => DADAO_MODE_HYPV).
++    // Step 7 value = the target vector.
 +    const uint64_t vec = s.cfx[ci].mode[entryMode & 0x3].excpVector;
-+    s.runMode = s.cfx[ci].mode[entryMode & 0x3].switchRunMode & 0x3;
++    s.runMode = 3;  // hypv (spec/Machine-v5 §2; DADAO-13 §1)
 +    s.cfxCode = static_cast<uint8_t>(target);
 +    return vec;
 +}

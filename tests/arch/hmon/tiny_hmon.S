@@ -18,6 +18,8 @@
 @@       prev mode, counters, scratch, intr mask, cg7 space descriptors)
 @@     * five synchronous fault classes x 3 cases (CFXMEM/ILLI/UNDI/MALIGN/
 @@       IALIGN), plus CFXTRAP/CFXESC/CFXPERM/CFXREG
+@@     * Tiny hypv invariance: write switch_run_mode = user, take CFXMEM,
+@@       handler reads a cg3 (hypv-only) register, prev_run_mode stays 3
 @@     * exports the result table through SYS_OPEN + SYS_WRITE and stops with
 @@       SYS_EXIT (0x21 pass, 0x71 fail)
 @@
@@ -32,6 +34,7 @@
 	.equ	RECOVERY,  DATA_BASE + 0x08
 	.equ	FAILCNT,   DATA_BASE + 0x10
 	.equ	HANDLE,    DATA_BASE + 0x18
+	.equ	PROBE,     DATA_BASE + 0x20
 	.equ	PARAM,     DATA_BASE + 0x40
 	.equ	FNAME,     DATA_BASE + 0x80
 	.equ	MSG,       DATA_BASE + 0xC0
@@ -52,12 +55,15 @@
 	.section .bootrom, "ax"
 	.globl	_start
 _start:
-	LOAD_ADDR rd22, HMON_BASE
-	cfx2rc	cfx_hmon, cg3, rc10, rd22
-
+	@@ Initialise the result slot before any cfx access: a model defect that
+	@@ starts the machine in a non-hypv mode makes the cg3 write below fault,
+	@@ and the hmon frame must already have a valid slot to record it.
 	LOAD_ADDR rd22, RESULTS
 	LOAD_ADDR rb3, SLOT_PTR
 	st.o	rd22, [rb3, 0]
+
+	LOAD_ADDR rd22, HMON_BASE
+	cfx2rc	cfx_hmon, cg3, rc10, rd22
 
 	.globl	hmon_handover
 hmon_handover:
@@ -90,12 +96,26 @@ hmon_entry:
 	@@ IALIGN (1 << 13): the illegal IP is recorded; resume at RECOVERY.
 	set.zw	rd13, wp0, 0x2000
 	cmp.so	rd14, rd10, rd13
-	br.nz	{rd14}?, [rb0, hmon_escape4]
+	br.nz	{rd14}?, [rb0, hmon_probe]
 
 	LOAD_ADDR rb7, RECOVERY
 	ld.o	rd15, [rb7, 0]
 	cfx2rc	cfx_hmon, cg5, rc3, rd15
 	escape	cfx_hmon, [excp_cause_ip, 0]
+
+hmon_probe:
+	@@ One-shot probe: read a cg3 (hypv-only) register while the handler runs.
+	LOAD_ADDR rb4, PROBE
+	ld.o	rd15, [rb4, 0]
+	cmp.so	rd16, rd15, rd0
+	br.z	{rd16}?, [rb0, hmon_escape4]
+	set.zw	rd14, wp0, 0
+	st.o	rd14, [rb4, 0]			@@ one shot: no recursion
+	cfx2rd	cfx_hmon, cg3, rc10, rd10
+	LOAD_ADDR rd11, HMON_BASE
+	set.zw	rd12, wp0, 37
+	LOAD_ADDR rb20, RECORD_CHECK
+	call	[rb20, rd0, 0]
 
 hmon_escape4:
 	escape	cfx_hmon, [excp_cause_ip, 4]
@@ -300,6 +320,44 @@ f_perm:
 	.globl	f_reg
 f_reg:
 	cfx2rd	cfx5, cg0, rc0, rd10
+
+	@@ ---- Tiny stays in hypv under a guest-written switch mode (36..40) --
+	@@ Machine-v5 §2: Tiny has no mode-switch path; a guest write of
+	@@ switch_run_mode = user(0) must not move the run mode on fault entry.
+	cfx2rd	cfx_hmon, cg3, rc8, rd10	@@ switch_run_mode (cg3 is hypv-only)
+	set.zw	rd11, wp0, 3
+	set.zw	rd12, wp0, 36
+	call	[rb20, rd0, 0]
+
+	set.zw	rd13, wp0, 0			@@ guest asks for user mode
+	cfx2rc	cfx_hmon, cg3, rc8, rd13
+
+	LOAD_ADDR rb4, PROBE
+	set.zw	rd14, wp0, 1			@@ handler probes cg3 once
+	st.o	rd14, [rb4, 0]
+
+	LOAD_ADDR rb3, HMON_BASE + 0x10000	@@ unmapped => CFXMEM
+	.globl	f_hypv
+f_hypv:
+	ld.o	rd10, [rb3, 0]
+
+	cfx2rd	cfx_hmon, cg5, rc0, rd10	@@ excp_prev_run_mode
+	set.zw	rd11, wp0, 3
+	set.zw	rd12, wp0, 38
+	call	[rb20, rd0, 0]
+
+	cfx2rd	cfx_hmon, cg3, rc10, rd10	@@ cg3 still readable after the fault
+	LOAD_ADDR rd11, HMON_BASE
+	set.zw	rd12, wp0, 39
+	call	[rb20, rd0, 0]
+
+	cfx2rd	cfx_hmon, cg3, rc8, rd10	@@ the written value is plain data
+	set.zw	rd11, wp0, 0
+	set.zw	rd12, wp0, 40
+	call	[rb20, rd0, 0]
+
+	set.zw	rd13, wp0, 3			@@ restore the hypv switch value
+	cfx2rc	cfx_hmon, cg3, rc8, rd13
 
 	@@ ---- export the result table and stop ------------------------------
 	LOAD_ADDR rb16, MSG
