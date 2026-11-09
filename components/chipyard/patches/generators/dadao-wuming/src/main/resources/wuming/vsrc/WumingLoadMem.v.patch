@@ -1,0 +1,103 @@
+diff --git a/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingLoadMem.v b/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingLoadMem.v
+new file mode 100644
+index 0000000..266edaf
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingLoadMem.v
+@@ -0,0 +1,97 @@
++// WumingLoadMem.v — host-side `+loadmem=<elf>` initialiser for Machine-v5-Tiny
++// (m12-chipyard-003).
++//
++// Behaviour: on the first clock after reset the DPI model parses `+loadmem=`
++// and validates every PT_LOAD against [MEM_BASE, MEM_BASE+MEM_SIZE), then this
++// module streams the image into the chip's TileLink master port: one 8-byte
++// word per request (writes first, then a byte-exact readback pass).  `done`
++// stays low until every word has been written and read back; the tile holds
++// the core in reset until then.  Without `+loadmem=` the model has zero
++// operations and `done` is raised immediately.
++//
++// Addresses are absolute ELF p_paddr values: the model applies no base
++// subtraction (`MEM_BASE` is only the validation window).  `MEM_BASE` is an
++// explicit, sized 64-bit parameter — see WumingLoadMem.scala for why chipyard's
++// stock SimDRAM path cannot be used on this machine (no SimDRAM instance:
++// `+loadmem` writes its host mmap backing, not the SRAM; plus the fesvr
++// big-endian / testchipip submodule constraints).
++
++module WumingLoadMemBlackBox #(
++    parameter [63:0] MEM_BASE = 64'h0,
++    parameter [63:0] MEM_SIZE = 64'h0
++)(
++    input             clock,
++    input             reset,
++    output reg        valid,
++    output reg        is_read,
++    output reg [63:0] addr,
++    output reg [63:0] data,
++    output reg [7:0]  mask,
++    output reg        done,
++    input             fire,
++    input      [63:0] rdata
++);
++
++    import "DPI-C" function void wuming_loadmem_init(
++        input longint base,
++        input longint size
++    );
++    import "DPI-C" function int wuming_loadmem_nops();
++    import "DPI-C" function int wuming_loadmem_is_read(input int i);
++    import "DPI-C" function longint wuming_loadmem_addr(input int i);
++    import "DPI-C" function longint wuming_loadmem_data(input int i);
++    import "DPI-C" function int wuming_loadmem_mask(input int i);
++    import "DPI-C" function void wuming_loadmem_check(input int i, input longint value);
++    import "DPI-C" function void wuming_loadmem_finish();
++
++    reg        started;
++    reg [31:0] idx;
++    reg [31:0] nops;
++
++    always @(posedge clock) begin
++        if (reset) begin
++            started  <= 1'b0;
++            idx      <= 32'd0;
++            nops     <= 32'd0;
++            valid    <= 1'b0;
++            is_read  <= 1'b0;
++            addr     <= 64'd0;
++            data     <= 64'd0;
++            mask     <= 8'd0;
++            done     <= 1'b0;
++        end else if (!started) begin
++            wuming_loadmem_init(MEM_BASE, MEM_SIZE);
++            nops    <= wuming_loadmem_nops();
++            idx     <= 32'd0;
++            started <= 1'b1;
++            if (wuming_loadmem_nops() == 0) begin
++                valid <= 1'b0;
++                wuming_loadmem_finish();
++                done     <= 1'b1;
++            end else begin
++                valid   <= 1'b1;
++                is_read <= (wuming_loadmem_is_read(32'd0) != 0);
++                addr    <= wuming_loadmem_addr(32'd0);
++                data    <= wuming_loadmem_data(32'd0);
++                mask    <= wuming_loadmem_mask(32'd0);
++            end
++        end else if (!done && fire) begin
++            if (is_read) begin
++                wuming_loadmem_check(idx, rdata);
++            end
++            if (idx + 32'd1 >= nops) begin
++                valid <= 1'b0;
++                wuming_loadmem_finish();
++                done     <= 1'b1;
++            end else begin
++                idx     <= idx + 32'd1;
++                valid   <= 1'b1;
++                is_read <= (wuming_loadmem_is_read(idx + 32'd1) != 0);
++                addr    <= wuming_loadmem_addr(idx + 32'd1);
++                data    <= wuming_loadmem_data(idx + 32'd1);
++                mask    <= wuming_loadmem_mask(idx + 32'd1);
++            end
++        end
++    end
++
++endmodule

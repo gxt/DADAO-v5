@@ -1,26 +1,35 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCoreStub.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCoreStub.scala
 new file mode 100644
-index 0000000..6b11ee4
+index 0000000..1018fdc
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCoreStub.scala
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,222 @@
 +// See LICENSE for license details.
 +//
-+// DADAO "wuming" core placeholder.
++// DADAO "wuming" core placeholder — minimal boot executor (m12-chipyard-003).
 +//
-+// Purpose: exercise the tile<->TileLink wiring and the Machine-v5-Tiny address
-+// map before any DADAO instruction execution exists.  After reset the stub
-+// probes the map in three steps and then halts (and reports cease):
++// m12-001 wired the tile to TileLink and m12-002 landed the Machine-v5-Tiny
++// address map with a non-executing probe.  This module closes the boot loop:
++// after reset it starts fetching at the hardware reset vector (the BootROM),
++// *executes* the tiny subset of DADAO instructions needed by the BootROM
++// trampoline and by the loadmem smoke program, and reports cease when it
++// reaches an instruction outside that subset (the smoke program's terminal
++// undefined instruction).  The real core replaces this module from m12-005 on;
++// nothing here is a general DADAO implementation.
 +//
-+//   1. fetch  -- a Get of one beat at the reset vector, i.e. the address the
-+//                core is supposed to start fetching from.  On Tiny this must
-+//                be the BootROM base 0xffff_ffff_0000 (`spec/Machine-v5 §1.1`).
-+//   2. put    -- a PutFull of one beat at the SRAM base (writable main memory).
-+//   3. read   -- a Get of the same beat back, which shows the SRAM really
-+//                stores what the core wrote.
++// Executed subset (spec/SimRISC-01/03/06, contracts/opcodes.yaml):
 +//
-+// The real core replaces this module later; nothing here is instruction
-+// execution.
++//   set.zw  {rd,rb}HA, wpN, immu16    0x4C / 0x4E  (whole 64-bit write: imm in wyde N, rest 0)
++//   or.w    {rd,rb}HA, wpN, immu16    0x48 / 0x4A  (replace wyde N with wyde N | imm)
++//   jump    [rbHA, rdHB, imms12]      0x71         (rb0 = rbHA + rdHB + imms12<<2; IP = rb0[47:0])
++//   ld.o    rdHA, [rbHB, imms12]      0x20         (rdHA = 8-byte big-endian memory word)
++//   st.o    rdHA, [rbHB, imms12]      0x21         (memory word = rdHA)
++//
++// Register conventions used here: rb0 reads as the current instruction address
++// (spec/SimRISC-00 §rb0: IP = the current instruction, not PC+4); rd0 reads as
++// 0.  Every other encoding halts with a diagnostic (it is either the smoke
++// program's terminal undefined instruction or an instruction this temporary
++// executor does not implement yet).
 +
 +package wuming.common
 +
@@ -39,80 +48,181 @@ index 0000000..6b11ee4
 +    val tl = new TLBundle(edge.bundle)
 +    val hartid = Input(UInt((hartidBits max 1).W))
 +    val resetVector = Input(UInt(resetVectorBits.W))
++    // Raised by the `+loadmem=` loader once the SRAM image is in place and
++    // verified; the core must not fetch from SRAM before that.
++    val bootEnable = Input(Bool())
 +    val halted = Output(Bool())
 +  })
 +
 +  val tl = io.tl
-+  val startDelay = 64
++  val addrBits = edge.bundle.addressBits
 +  val beatBytes = edge.bundle.dataBits / 8
-+  require(beatBytes > 0 && (beatBytes & (beatBytes - 1)) == 0,
-+    "WumingCoreStub: TL data width must be a power-of-two byte count")
-+  // One whole beat: the smallest transfer that every manager on the Tiny map
-+  // serves without fragmenting the response into several d beats.
-+  val lgSize = log2Ceil(beatBytes)
++  require(beatBytes == 8, "WumingCoreStub: expected a 64-bit TileLink beat")
++  require(addrBits >= 48, "WumingCoreStub: the Tiny address map must negotiate >= 48 bits")
++  val lgSize = log2Ceil(beatBytes).U
 +
-+  val cycle = RegInit(0.U(32.W))
-+  val sIdle :: sFetch :: sFetchWait :: sPut :: sPutWait :: sRead :: sReadWait :: sDone :: Nil = Enum(8)
++  // ---- register file -----------------------------------------------------
++  // Only the rd and rb banks are needed by the executed subset (the st/ld
++  // forms used here are the rd ones; rf/ra stay unimplemented).
++  val rd = RegInit(VecInit(Seq.fill(64)(0.U(64.W))))
++  val rb = RegInit(VecInit(Seq.fill(64)(0.U(64.W))))
++  // rb0[63:48] is written by control-flow instructions; the low 48 bits are IP.
++  val rb0Hi = RegInit(0.U(16.W))
++  val ip = RegInit(0.U(64.W)) // address of the instruction being executed
++
++  def readRd(idx: UInt): UInt = Mux(idx === 0.U, 0.U(64.W), rd(idx))
++  def readRb(idx: UInt): UInt = Mux(idx === 0.U, Cat(rb0Hi, ip(47, 0)), rb(idx))
++
++  // ---- fetch buffer ------------------------------------------------------
++  val beatValid = RegInit(false.B)
++  val beatAddr = RegInit(0.U(64.W))
++  val beatData = RegInit(0.U(64.W)) // 8 bytes in *address order* (byte 0 is MSB)
++  val fetchAddr = Cat(ip(47, 3), 0.U(3.W))
++  val fetchHit = beatValid && (beatAddr === fetchAddr)
++
++  // TileLink puts byte k of a beat in bits [8k+7, 8k] (little-endian lanes);
++  // DADAO is big-endian, so re-assemble the beat in address order.
++  def addressOrder(value: UInt): UInt =
++    Cat((0 until beatBytes).map(i => value(8 * i + 7, 8 * i)))
++
++  def laneOrder(value: UInt): UInt =
++    Cat((0 until beatBytes).reverse.map(i => value(63 - 8 * i, 56 - 8 * i)))
++
++  val inst = Mux(ip(2), beatData(31, 0), beatData(63, 32))
++
++  // ---- decoded fields ----------------------------------------------------
++  val opc = inst(31, 24)
++  val ha = inst(23, 18)
++  val hb = inst(17, 12)
++  val wp = inst(17, 16)
++  val imm16 = inst(15, 0)
++  val imm12 = inst(11, 0)
++  val imm12sext = imm12.asSInt.pad(64).asUInt
++  val imm12off = (imm12sext << 2)(63, 0)
++
++  val isSetZw = opc === 0x4C.U || opc === 0x4E.U
++  val isOrW = opc === 0x48.U || opc === 0x4A.U
++  val isJump = opc === 0x71.U
++  val isLdO = opc === 0x20.U
++  val isStO = opc === 0x21.U
++  val supported = isSetZw || isOrW || isJump || isLdO || isStO
++
++  // rwii bank select: 0x4C/0x48 target rd, 0x4E/0x4A target rb.  The rf-bank
++  // variants (0x4D/0x4F) are outside this subset and halt.
++  val rwiiBankRb = (opc === 0x4E.U) || (opc === 0x4A.U)
++  val wydeMask = VecInit(Seq(0, 16, 32, 48).map(s => (BigInt(0xFFFF).U(64.W) << s)(63, 0)))(wp)
++  val shiftedImm = VecInit(Seq(0, 16, 32, 48).map(s => (imm16.pad(64) << s)(63, 0)))(wp)
++  val rwiiCurrent = Mux(rwiiBankRb, readRb(ha), readRd(ha))
++  val orWValue = (rwiiCurrent & ~wydeMask) | shiftedImm
++
++  val jumpTarget = (readRb(ha) + readRd(hb) + imm12off)(63, 0)
++  val memAddr = (readRb(hb) + imm12sext)(63, 0)
++  val storeValue = readRd(ha)
++
++  // ---- TileLink requests -------------------------------------------------
++  val (fetchLegal, fetchBits) = edge.Get(0.U, fetchAddr(addrBits - 1, 0), lgSize)
++  val (ldLegal, ldBits) = edge.Get(0.U, memAddr(addrBits - 1, 0), lgSize)
++  val (stLegal, stBits) = edge.Put(0.U, memAddr(addrBits - 1, 0), lgSize, laneOrder(storeValue))
++
++  // Request and response phases are separate states: once the A channel has
++  // fired, `a.valid` must drop while the response is outstanding (a TileLink
++  // monitor rejects re-using a source ID on a second A beat).
++  val sIdle :: sFetch :: sFetchReq :: sFetchWait :: sExec :: sMem :: sMemReq :: sMemWait :: sHalt :: Nil = Enum(9)
 +  val state = RegInit(sIdle)
 +
-+  // 1. instruction fetch at the reset vector (BootROM on Tiny).
-+  val (fetchLegal, fetchBits) = edge.Get(0.U, io.resetVector, lgSize.U)
-+  // 2. write the SRAM base.
-+  val (putLegal, putBits) = edge.Put(0.U, params.testAddress.U, lgSize.U, params.testData.U)
-+  // 3. read it back.
-+  val (readLegal, readBits) = edge.Get(0.U, params.testAddress.U, lgSize.U)
++  tl.a.valid := (state === sFetchReq) || (state === sMemReq)
++  tl.a.bits := Mux(state === sFetchReq, fetchBits, Mux(isLdO, ldBits, stBits))
++  tl.d.ready := (state === sFetchWait) || (state === sMemWait)
 +
-+  // TileLink puts byte k of a beat in bits [8k+7, 8k] (little-endian lanes).  A
-+  // fetch, however, is about the *instruction word at the address*: DADAO is
-+  // big-endian, so print the beat in address order to make the value directly
-+  // comparable with a disassembly of the same image at the same address.
-+  val fetchWord = Cat((0 until beatBytes).map(i => tl.d.bits.data(8 * i + 7, 8 * i)))
-+
++  // ---- execution ---------------------------------------------------------
 +  switch(state) {
-+    is(sIdle) { when(cycle >= startDelay.U) { state := sFetch } }
-+    is(sFetch) { when(tl.a.ready) { state := sFetchWait } }
-+    is(sFetchWait) { when(tl.d.fire) { state := sPut } }
-+    is(sPut) { when(tl.a.ready) { state := sPutWait } }
-+    is(sPutWait) { when(tl.d.fire) { state := sRead } }
-+    is(sRead) { when(tl.a.ready) { state := sReadWait } }
-+    is(sReadWait) { when(tl.d.fire) { state := sDone } }
-+    is(sDone) { }
++    is(sIdle) {
++      when(io.bootEnable) {
++        ip := Cat(0.U(16.W), io.resetVector)
++        state := sFetch
++      }
++    }
++    is(sFetch) {
++      state := Mux(fetchHit, sExec, sFetchReq)
++    }
++    is(sFetchReq) {
++      when(tl.a.ready) { state := sFetchWait }
++    }
++    is(sFetchWait) {
++      when(tl.d.fire) {
++        beatValid := true.B
++        beatAddr := fetchAddr
++        beatData := addressOrder(tl.d.bits.data)
++        state := sExec
++      }
++    }
++    is(sExec) {
++      when(!supported) {
++        state := sHalt
++      }.elsewhen(isLdO || isStO) {
++        state := sMemReq
++      }.otherwise {
++        when(isSetZw) {
++          when(rwiiBankRb) {
++            when(ha =/= 0.U) { rb(ha) := shiftedImm }
++          }.otherwise {
++            when(ha =/= 0.U) { rd(ha) := shiftedImm }
++          }
++        }.elsewhen(isOrW) {
++          when(rwiiBankRb) {
++            when(ha =/= 0.U) { rb(ha) := orWValue }
++          }.otherwise {
++            when(ha =/= 0.U) { rd(ha) := orWValue }
++          }
++        }.otherwise { // jump rrii
++          rb0Hi := jumpTarget(63, 48)
++          ip := jumpTarget(47, 0)
++        }
++        when(!isJump) { ip := ip + 4.U }
++        state := sFetch
++      }
++    }
++    is(sMemReq) {
++      when(tl.a.ready) { state := sMemWait }
++    }
++    is(sMemWait) {
++      when(tl.d.fire) {
++        when(isLdO) { rd(ha) := addressOrder(tl.d.bits.data) }
++        ip := ip + 4.U
++        state := sFetch
++      }
++    }
++    is(sHalt) { }
 +  }
-+  cycle := cycle + 1.U
 +
-+  tl.a.valid := state === sFetch || state === sPut || state === sRead
-+  tl.a.bits := MuxLookup(state, fetchBits)(Seq(
-+    sPut -> putBits,
-+    sRead -> readBits))
-+  tl.d.ready := true.B
++  // ---- legality checks ---------------------------------------------------
++  assert(!(tl.d.valid && tl.d.bits.denied), "WumingCoreStub: TileLink denied the access")
++  assert(!(state === sFetchReq) || fetchLegal,
++    "WumingCoreStub: reset vector / fetch address is not backed by a readable manager")
++  assert(!(state === sMemReq) || Mux(isLdO, ldLegal, stLegal),
++    "WumingCoreStub: load/store address is not backed by a capable manager")
 +
-+  assert(state =/= sFetch || fetchLegal,
-+    "WumingCoreStub: reset vector is not backed by a readable manager")
-+  assert(state =/= sPut || putLegal,
-+    "WumingCoreStub: SRAM base is not backed by a PutFull-capable manager")
-+  assert(state =/= sRead || readLegal,
-+    "WumingCoreStub: SRAM base is not backed by a readable manager")
-+  assert(!(tl.d.valid && tl.d.bits.denied),
-+    "WumingCoreStub: TileLink denied the stub access")
-+
-+  when(state === sIdle && cycle === (startDelay - 1).U) {
-+    printf(p"WumingCoreStub: hartid=${io.hartid} reset_vector=0x${Hexadecimal(io.resetVector)}\n")
++  // ---- observability -----------------------------------------------------
++  when(state === sIdle && io.bootEnable) {
++    printf(p"WumingCore: boot hartid=${io.hartid} reset_vector=0x${Hexadecimal(io.resetVector)}\n")
 +  }
 +  when(state === sFetchWait && tl.d.fire) {
-+    printf(
-+      p"WumingCoreStub: fetch 0x${Hexadecimal(io.resetVector)} -> " +
-+        p"0x${Hexadecimal(fetchWord)} ok (byte order = address order)\n")
++    printf(p"WumingCore: fetch 0x${Hexadecimal(fetchAddr)} -> 0x${Hexadecimal(addressOrder(tl.d.bits.data))}\n")
 +  }
-+  when(state === sPutWait && tl.d.fire) {
-+    printf(
-+      p"WumingCoreStub: sram put 0x${Hexadecimal(params.testAddress.U)} <= " +
-+        p"0x${Hexadecimal(params.testData.U)} ok (cycle=${cycle})\n")
++  when(state === sExec) {
++    printf(p"WumingCore: exec ip=0x${Hexadecimal(ip(47, 0))} inst=0x${Hexadecimal(inst)}\n")
 +  }
-+  when(state === sReadWait && tl.d.fire) {
-+    printf(
-+      p"WumingCoreStub: sram get 0x${Hexadecimal(params.testAddress.U)} -> " +
-+        p"0x${Hexadecimal(tl.d.bits.data)} ok\n")
++  when(state === sMemWait && tl.d.fire && isStO) {
++    printf(p"WumingCore: st 0x${Hexadecimal(memAddr(47, 0))} <= 0x${Hexadecimal(storeValue)} ok\n")
++  }
++  when(state === sMemWait && tl.d.fire && isLdO) {
++    printf(p"WumingCore: ld 0x${Hexadecimal(memAddr(47, 0))} -> 0x${Hexadecimal(addressOrder(tl.d.bits.data))} ok\n")
++  }
++  val haltPrinted = RegInit(false.B)
++  when(state === sHalt && !haltPrinted) {
++    haltPrinted := true.B
++    printf(p"WumingCore: halt ip=0x${Hexadecimal(ip(47, 0))} unsupported_inst=0x${Hexadecimal(inst)} (undefined instruction)\n")
 +  }
 +
-+  io.halted := state === sDone
++  io.halted := state === sHalt
 +}

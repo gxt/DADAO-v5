@@ -1,0 +1,35 @@
+diff --git a/generators/chipyard/src/main/scala/iobinders/WumingSuccess.scala b/generators/chipyard/src/main/scala/iobinders/WumingSuccess.scala
+new file mode 100644
+index 0000000..f5761c1
+--- /dev/null
++++ b/generators/chipyard/src/main/scala/iobinders/WumingSuccess.scala
+@@ -0,0 +1,29 @@
++// See LICENSE for license details.
++//
++// Wuming success punch-through (m12-chipyard-003).
++//
++// chipyard's TestDriver only stops on `chiptopSuccess`, which the stock
++// harness drives from HTIF/TSI exit, DTM success or TraceGen success — a plain
++// tile `reportCease` is NOT connected to it.  The Machine-v5-Tiny smoke program
++// ends with an undefined instruction (no semihosting yet, that is m12-004), so
++// the wuming tile's cease line is the exit condition:
++//
++//   WumingCoreStub.halted
++//     -> BaseTile.reportCease -> HasTileNotificationSinks.tileCeaseSinkNode
++//     -> DigitalTopModule.wumingSuccess (m12-003 patch, a plain output port)
++//     -> this binder's SuccessPort
++//     -> chipyard.harness.WithTraceGenSuccess -> chiptopSuccess -> $stop.
++
++package chipyard.iobinders
++
++import chisel3._
++import org.chipsalliance.diplomacy.lazymodule._
++import chipyard.DigitalTop
++
++class WithWumingCeaseSuccess extends OverrideLazyIOBinder({
++  (system: DigitalTop) => InModuleBody {
++    val success = IO(Output(Bool())).suggestName("wuming_success")
++    success := system.module.wumingSuccess
++    (Seq(SuccessPort(() => success)), Nil)
++  }
++})

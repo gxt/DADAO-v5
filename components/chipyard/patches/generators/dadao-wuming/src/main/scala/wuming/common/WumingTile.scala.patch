@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
 new file mode 100644
-index 0000000..64c568a
+index 0000000..9199187
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
-@@ -0,0 +1,104 @@
+@@ -0,0 +1,125 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile skeleton (m12-chipyard-001).
@@ -61,9 +61,28 @@ index 0000000..64c568a
 +      sourceId = IdRange(0, 2),
 +      requestFifo = true)))))
 +
++  // ---- the +loadmem= boot loader (m12-003) ------------------------------
++  // It shares the tile's TileLink master port with the core: a tile-local TLXbar
++  // merges the two clients, so the loader's writes and readback run over the
++  // same bus path the core uses.  The core is only released once the loader has
++  // written and byte-verified the SRAM image (`bootEnable`).  Base and size come
++  // from the machine address map (no default) — see `WumingLoadMem`.
++  private val loadMemBase = wumingTileParams.wumingParams.loadMemBase.getOrElse(
++    throw new IllegalArgumentException(
++      "WumingTile: loadMemBase must be configured from the machine address map"))
++  private val loadMemSize = wumingTileParams.wumingParams.loadMemSize.getOrElse(
++    throw new IllegalArgumentException(
++      "WumingTile: loadMemSize must be configured from the machine address map"))
++  val loadMem: WumingLoadMem = LazyModule(new WumingLoadMem(
++    WumingLoadMemParams(loadMemBase, loadMemSize)))
++
++  private val portXbar = TLXbar()
++  portXbar := coreMasterNode
++  portXbar := loadMem.node
++
 +  // Master path copied from rocket-chip's TraceGenTile (the canonical custom
-+  // tile in this tree): client -> visibilityNode -> identity -> tile port.
-+  val masterNode: TLOutwardNode = TLIdentityNode() := visibilityNode := coreMasterNode
++  // tile in this tree): clients -> xbar -> visibilityNode -> identity -> port.
++  val masterNode: TLOutwardNode = TLIdentityNode() := visibilityNode := portXbar
 +
 +  /** Slave port: the tile exposes no memory of its own.  Machine-v5-Tiny main
 +    * memory (the 8 MiB SRAM) is a system-level TL slave on the memory bus, not
@@ -92,6 +111,7 @@ index 0000000..64c568a
 +
 +  val core = Module(new WumingCoreStub(
 +    coreEdge, outer.wumingTileParams.wumingParams, hartidBits, resetVectorBits))
++  val loadMem = outer.loadMem.module
 +
 +  // Client-side handshake: the stub drives a/d, the tile wire is the bus side.
 +  coreTl.a.valid := core.io.tl.a.valid
@@ -103,6 +123,7 @@ index 0000000..64c568a
 +
 +  core.io.hartid := outer.hartIdSinkNode.bundle
 +  core.io.resetVector := outer.resetVectorSinkNode.bundle
++  core.io.bootEnable := loadMem.initDone
 +
 +  outer.reportHalt(None)
 +  outer.reportWFI(None)

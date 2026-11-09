@@ -1,0 +1,305 @@
+diff --git a/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingLoadMem.cc b/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingLoadMem.cc
+new file mode 100644
+index 0000000..06b9c25
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingLoadMem.cc
+@@ -0,0 +1,299 @@
++// WumingLoadMem.cc — host model behind `WumingLoadMem.v` (m12-chipyard-003).
++//
++// The model owns the whole `+loadmem=<elf>` flow for Machine-v5-Tiny:
++//
++//   1. parse the plusargs (the Verilog module calls init() once, after reset);
++//   2. parse and validate the ELF *here*: ELF64 + ELFDATA2MSB + ET_EXEC,
++//      e_flags version 1, every PT_LOAD inside the writable window supplied by
++//      the SoC configuration (no default, no `mem_base` subtraction: the
++//      streamed addresses are the absolute ELF p_paddr values), and
++//      p_memsz - p_filesz zero filled (contract-elf §5/§6);
++//   3. hand the RTL one 8-byte write per TileLink request (masked when a word
++//      is only partially covered), then one read per word and compare every
++//      covered byte with the ELF image.  `done` is only raised after a clean
++//      readback, so the core never starts on an unloaded SRAM.
++//
++// A load-stage error (bad ELF, out-of-window segment, readback mismatch) prints
++// one `[WumingLoadMem] ERROR:` line and exits non-zero — the same "load-stage
++// error is a non-zero process exit" rule the machine profiles use.
++
++#include <vpi_user.h>
++
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <cinttypes>
++#include <map>
++#include <string>
++#include <vector>
++
++namespace {
++
++const char* kTag = "[WumingLoadMem]";
++
++struct Op {
++  uint64_t addr;  // 8-byte aligned word address
++  uint64_t data;  // expected content, byte 0 of the word in bits [63:56]
++  uint8_t mask;   // covered byte lanes (bit k = byte at addr+k)
++  bool is_read;
++};
++
++std::vector<Op> ops;
++std::map<uint64_t, uint8_t> image;  // absolute address -> byte
++uint64_t mem_base = 0;
++uint64_t mem_size = 0;
++uint64_t image_bytes = 0;
++uint64_t verify_words = 0;
++uint64_t verify_mismatch = 0;
++uint64_t verify_bytes = 0;
++uint64_t first_bad_addr = 0;
++uint32_t first_bad_index = 0;
++uint8_t first_bad_want = 0;
++uint8_t first_bad_have = 0;
++uint64_t readback_digest = 1469598103934665603ULL;  // FNV-1a 64 offset basis
++bool initialised = false;
++bool have_loadmem = false;
++std::string loadmem_file;
++
++[[noreturn]] void fail(const std::string& msg) {
++  std::fprintf(stderr, "%s ERROR: %s\n", kTag, msg.c_str());
++  std::fflush(stderr);
++  std::exit(1);
++}
++
++uint16_t be16(const uint8_t* p) {
++  return static_cast<uint16_t>((static_cast<uint16_t>(p[0]) << 8) | p[1]);
++}
++
++uint32_t be32(const uint8_t* p) {
++  return (static_cast<uint32_t>(p[0]) << 24) | (static_cast<uint32_t>(p[1]) << 16) |
++         (static_cast<uint32_t>(p[2]) << 8) | static_cast<uint32_t>(p[3]);
++}
++
++uint64_t be64(const uint8_t* p) {
++  uint64_t v = 0;
++  for (int i = 0; i < 8; i++) v = (v << 8) | p[i];
++  return v;
++}
++
++std::string hex(uint64_t v) {
++  char buf[32];
++  std::snprintf(buf, sizeof(buf), "0x%" PRIx64, v);
++  return buf;
++}
++
++std::vector<uint8_t> read_file(const std::string& path) {
++  FILE* f = std::fopen(path.c_str(), "rb");
++  if (!f) fail("+loadmem file cannot be opened: " + path);
++  std::vector<uint8_t> data;
++  uint8_t buf[65536];
++  size_t n;
++  while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0)
++    data.insert(data.end(), buf, buf + n);
++  bool bad = std::ferror(f) != 0;
++  std::fclose(f);
++  if (bad) fail("+loadmem file cannot be read: " + path);
++  return data;
++}
++
++void parse_elf(const std::string& path) {
++  const std::vector<uint8_t> file = read_file(path);
++  if (file.size() < 64) fail("ELF smaller than Elf64_Ehdr: " + path);
++  const uint8_t* p = file.data();
++  if (!(p[0] == 0x7f && p[1] == 'E' && p[2] == 'L' && p[3] == 'F'))
++    fail("not an ELF image: " + path);
++  if (p[4] != 2) fail("ELF is not ELFCLASS64: " + path);
++  if (p[5] != 2) fail("ELF is not ELFDATA2MSB (DADAO is big-endian): " + path);
++  if (p[6] != 1) fail("unsupported ELF ident version: " + path);
++  if (be16(p + 16) != 2) fail("ELF is not ET_EXEC: " + path);
++  const uint32_t machine = be16(p + 18);
++  if (machine != 0x0DA0) fail("ELF e_machine is not DADAO (0x0DA0): " + path);
++  if (be32(p + 20) != 1) fail("ELF e_version is not 1: " + path);
++  const uint32_t flags = be32(p + 48);
++  if ((flags & 0xFFFFFF00u) != 0 || (flags & 0xFFu) != 1)
++    fail("ELF e_flags is not object/ABI version 1: " + path);
++
++  const uint64_t phoff = be64(p + 32);
++  const uint16_t phentsize = be16(p + 54);
++  const uint16_t phnum = be16(p + 56);
++  if (phentsize != 56) fail("ELF e_phentsize is not 56: " + path);
++  if (phoff > file.size() || uint64_t(phnum) * phentsize > file.size() - phoff)
++    fail("ELF program headers are out of file bounds: " + path);
++
++  const uint64_t entry = be64(p + 24);
++  unsigned segments = 0;
++  uint64_t span_lo = UINT64_MAX, span_hi = 0;
++  for (unsigned i = 0; i < phnum; i++) {
++    const uint8_t* ph = p + phoff + uint64_t(i) * phentsize;
++    const uint32_t type = be32(ph + 0);
++    const uint64_t off = be64(ph + 8);
++    const uint64_t vaddr = be64(ph + 16);
++    const uint64_t paddr = be64(ph + 24);
++    const uint64_t filesz = be64(ph + 32);
++    const uint64_t memsz = be64(ph + 40);
++    if (type != 1 /* PT_LOAD */ || memsz == 0) continue;
++    if (filesz > memsz) fail("PT_LOAD p_filesz > p_memsz: " + path);
++    if (vaddr != paddr) fail("PT_LOAD p_vaddr != p_paddr: " + path);
++    if (off > file.size() || filesz > file.size() - off)
++      fail("PT_LOAD file range is out of bounds: " + path);
++    if (paddr < mem_base || memsz > mem_size || paddr - mem_base > mem_size - memsz)
++      fail("PT_LOAD " + hex(paddr) + "+" + hex(memsz) + " is outside the writable window " +
++           hex(mem_base) + "+" + hex(mem_size) + ": " + path);
++    for (uint64_t b = 0; b < filesz; b++) image[paddr + b] = file[off + b];
++    for (uint64_t b = filesz; b < memsz; b++) image[paddr + b] = 0;
++    segments++;
++    if (paddr < span_lo) span_lo = paddr;
++    if (paddr + memsz > span_hi) span_hi = paddr + memsz;
++  }
++  if (segments == 0) fail("ELF has no PT_LOAD segment: " + path);
++  if (image.empty()) fail("ELF PT_LOAD segments carry no bytes: " + path);
++
++  std::printf("%s +loadmem=%s: %u PT_LOAD segment(s), entry=0x%" PRIx64
++              ", window [0x%" PRIx64 ", 0x%" PRIx64 "), loaded [0x%" PRIx64
++              ", 0x%" PRIx64 ") = %zu byte(s)\n",
++              kTag, path.c_str(), segments, entry, mem_base, mem_base + mem_size,
++              span_lo, span_hi, image.size());
++}
++
++void plan_ops() {
++  std::map<uint64_t, uint8_t> word_mask;
++  for (const auto& kv : image) {
++    const uint64_t word = kv.first & ~uint64_t(7);
++    word_mask[word] |= static_cast<uint8_t>(1u << (kv.first - word));
++  }
++  for (const auto& kv : word_mask) {
++    const uint64_t word = kv.first;
++    uint64_t data = 0;
++    for (int k = 0; k < 8; k++) {
++      if (!(kv.second & (1u << k))) continue;
++      auto it = image.find(word + k);
++      if (it != image.end()) data |= uint64_t(it->second) << (8 * (7 - k));
++    }
++    ops.push_back({word, data, kv.second, false});
++  }
++  // Writes first, then one readback per written word (strictly ordered by the
++  // RTL: it waits for each response before issuing the next request).
++  const size_t writes = ops.size();
++  for (size_t i = 0; i < writes; i++) {
++    Op read = ops[i];
++    read.is_read = true;
++    ops.push_back(read);
++  }
++  verify_words = word_mask.size();
++  verify_bytes = image.size();
++}
++
++}  // namespace
++
++extern "C" void wuming_loadmem_init(long long base, long long size) {
++  if (initialised) return;
++  initialised = true;
++  mem_base = static_cast<uint64_t>(base);
++  mem_size = static_cast<uint64_t>(size);
++
++  s_vpi_vlog_info info;
++  if (!vpi_get_vlog_info(&info)) fail("vpi_get_vlog_info() failed");
++  for (int i = 1; i < info.argc; i++) {
++    std::string arg(info.argv[i]);
++    if (arg.rfind("+loadmem=", 0) == 0) {
++      have_loadmem = true;
++      loadmem_file = arg.substr(std::strlen("+loadmem="));
++    }
++  }
++
++  if (!have_loadmem) {
++    std::printf("%s no +loadmem; SRAM left untouched (core released immediately)\n", kTag);
++    return;
++  }
++  if (mem_base == 0 || mem_size == 0)
++    fail("+loadmem given but MEM_BASE/MEM_SIZE are zero (address map not wired to the tile)");
++
++  parse_elf(loadmem_file);
++  plan_ops();
++  std::printf("%s stream: %zu write + %zu readback request(s)\n",
++              kTag, ops.size() / 2, ops.size() / 2);
++}
++
++extern "C" int wuming_loadmem_nops() {
++  if (ops.size() > 0x7FFFFFFF) fail("loadmem stream is too long");
++  return static_cast<int>(ops.size());
++}
++
++extern "C" int wuming_loadmem_is_read(int i) {
++  if (i < 0 || static_cast<size_t>(i) >= ops.size()) return 0;
++  return ops[i].is_read ? 1 : 0;
++}
++
++extern "C" long long wuming_loadmem_addr(int i) {
++  if (i < 0 || static_cast<size_t>(i) >= ops.size()) return 0;
++  return static_cast<long long>(ops[i].addr);
++}
++
++extern "C" long long wuming_loadmem_data(int i) {
++  if (i < 0 || static_cast<size_t>(i) >= ops.size()) return 0;
++  // `Op::data` is the expected word in address order (byte 0 in bits [63:56]);
++  // TileLink carries byte k of a beat in bits [8k+7, 8k], so hand the RTL the
++  // lane order (byte 0 in bits [7:0]) — same convention as the core's stores.
++  const uint64_t d = ops[i].data;
++  uint64_t lane = 0;
++  for (int k = 0; k < 8; k++)
++    lane |= ((d >> (8 * k)) & 0xFF) << (8 * (7 - k));
++  return static_cast<long long>(lane);
++}
++
++extern "C" int wuming_loadmem_mask(int i) {
++  if (i < 0 || static_cast<size_t>(i) >= ops.size()) return 0;
++  return ops[i].mask;
++}
++
++extern "C" void wuming_loadmem_check(int i, long long value) {
++  if (i < 0 || static_cast<size_t>(i) >= ops.size()) fail("readback index out of range");
++  const Op& op = ops[i];
++  if (!op.is_read) fail("readback check on a write request");
++  const uint64_t got = static_cast<uint64_t>(value);
++  for (int k = 0; k < 8; k++) {
++    if (!(op.mask & (1u << k))) continue;
++    const uint8_t want = static_cast<uint8_t>((op.data >> (8 * (7 - k))) & 0xFF);
++    const uint8_t have = static_cast<uint8_t>((got >> (8 * k)) & 0xFF);
++    // Evidence digest: every covered byte (ascending address order) together
++    // with its address.  The evidence script recomputes the same FNV-1a 64
++    // from the ELF image and compares.
++    const uint64_t a = op.addr + k;
++    for (int b = 7; b >= 0; b--) {
++      readback_digest ^= (a >> (8 * b)) & 0xFF;
++      readback_digest *= 1099511628211ULL;
++    }
++    readback_digest ^= have;
++    readback_digest *= 1099511628211ULL;
++    if (want != have) {
++      if (verify_mismatch == 0) {
++        first_bad_addr = op.addr + k;
++        first_bad_index = static_cast<uint32_t>(i);
++        first_bad_want = want;
++        first_bad_have = have;
++      }
++      verify_mismatch++;
++    }
++  }
++}
++
++extern "C" void wuming_loadmem_finish() {
++  if (!have_loadmem) {
++    std::printf("%s verify: skipped (no +loadmem)\n", kTag);
++    return;
++  }
++  if (verify_mismatch != 0) {
++    std::fprintf(stderr,
++                 "%s ERROR: readback mismatch: %" PRIu64 " byte(s) differ; first at 0x%" PRIx64
++                 " (request %u) expected 0x%02x got 0x%02x\n",
++                 kTag, verify_mismatch, first_bad_addr, first_bad_index,
++                 first_bad_want, first_bad_have);
++    std::fflush(stderr);
++    std::exit(1);
++  }
++  std::printf("%s verify: %" PRIu64 "/%" PRIu64 " word(s) byte-identical (%" PRIu64
++              " byte(s) of ELF image read back through TileLink), "
++              "readback fnv1a64=0x%016" PRIx64 "\n",
++              kTag, verify_words, verify_words, verify_bytes, readback_digest);
++}

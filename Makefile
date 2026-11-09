@@ -685,7 +685,8 @@ _locked-install-cfx-aliases:
 # (ADR-0004 D2.3 path B: raw-bin dual image).  Tools come from the install root
 # (ADR-0016 D9); run `make install-host` first.  Outputs live under the SDK
 # test-artifacts root (ADR-0016 D6, resolved via paths.py):
-#   $(BOOTROM_DIR)/{bootrom.o,bootrom.elf,bootrom.bin,bootrom_app.o,bootrom_app.bin}
+#   $(BOOTROM_DIR)/{bootrom.o,bootrom.elf,bootrom.bin,bootrom_app.o,bootrom_app.bin,
+#                     tiny_smoke.o,tiny_smoke.elf}
 BOOTROM_DIR = $(TEST_ARTIFACTS_DIR)/bootrom
 STEP5_BOOTROM_DIR = $(BOOTROM_DIR)/step5
 # Machine-v5-Vast 4 MiB BootROM (QEMU-080t): supplied through the
@@ -707,6 +708,10 @@ _locked-build-bootrom:
 	$(LLVM_OBJCOPY_BIN) -O binary $(BOOTROM_DIR)/bootrom.elf $(BOOTROM_DIR)/bootrom.bin
 	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/bootrom_app.S -o $(BOOTROM_DIR)/bootrom_app.o
 	$(LLVM_OBJCOPY_BIN) -O binary --only-section=.text $(BOOTROM_DIR)/bootrom_app.o $(BOOTROM_DIR)/bootrom_app.bin
+	@# m12-chipyard-003: ELF smoke application for the chipyard `+loadmem=` closed
+	@# loop (fixed BootROM entry; no syscall/semihosting in the image).
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/tiny_smoke.S -o $(BOOTROM_DIR)/tiny_smoke.o
+	$(LLD_BIN) -T tests/shared/bootrom/tiny_smoke.lds $(BOOTROM_DIR)/tiny_smoke.o -o $(BOOTROM_DIR)/tiny_smoke.elf
 	@# INTEG-046t step5: 256 KiB BootROM (power flat + hmon/smon ELFs) and the
 	@# image index table builder.  -z max-page-size keeps the small images inside
 	@# the 64 KiB per-image limit (the default 64 KiB page padding would not).

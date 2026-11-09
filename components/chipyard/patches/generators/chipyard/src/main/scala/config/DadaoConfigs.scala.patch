@@ -1,9 +1,9 @@
 diff --git a/generators/chipyard/src/main/scala/config/DadaoConfigs.scala b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
 new file mode 100644
-index 0000000..43467e3
+index 0000000..a22790c
 --- /dev/null
 +++ b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
-@@ -0,0 +1,91 @@
+@@ -0,0 +1,101 @@
 +// See LICENSE for license details.
 +//
 +// DADAO SoC configurations.
@@ -92,6 +92,16 @@ index 0000000..43467e3
 +    size = WumingTinyAddressMap.bootROMSize,
 +    hang = WumingTinyAddressMap.bootROMBase,
 +    contentFileName = Some(WumingTinyAddressMap.bootROMImage)) ++
++  // m12-003: the smoke program's exit is the tile cease (terminal undefined
++  // instruction; semihosting is m12-004).  Expose the cease sink as a success
++  // port and drive TestDriver's `$stop` from it.
++  new chipyard.iobinders.WithWumingCeaseSuccess ++
++  new chipyard.harness.WithTraceGenSuccess ++
 +  new WithDadaoTinyAddressMap ++
-+  new wuming.common.WithNWumingTiles(1) ++
++  // m12-003: the `+loadmem=` loader validates ELF PT_LOAD segments against this
++  // writable window and streams them into the SRAM through the tile's TL port.
++  // Both values come from the address map above — there is no default.
++  new wuming.common.WithNWumingTiles(1, wuming.common.WumingCoreParams(
++    loadMemBase = Some(WumingTinyAddressMap.sramBase),
++    loadMemSize = Some(WumingTinyAddressMap.sramSize))) ++
 +  new chipyard.config.AbstractConfig)

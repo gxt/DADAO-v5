@@ -1,0 +1,120 @@
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala
+new file mode 100644
+index 0000000..83f312f
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala
+@@ -0,0 +1,114 @@
++// See LICENSE for license details.
++//
++// DADAO "wuming" loadmem boot loader (m12-chipyard-003).
++//
++// `+loadmem=<elf>` on the Machine-v5-Tiny harness has to land the application
++// in the on-chip SRAM (0xffff_ff00_0000, 8 MiB) before the core starts.
++// chipyard's stock `+loadmem=` path cannot do that here:
++//
++//   * this SoC has **no `SimDRAM` instance**: main memory is the on-chip
++//     `BankedScratchpadKey -> ScratchpadBank -> TLRAM` TileLink slave, and with
++//     `ExtMem`/`ExtTLMem = None` the harness has no AXI4 memory port for
++//     `WithBlackBoxSimMem` to bind; `+loadmem` writes SimDRAM's *host mmap
++//     backing* (`SimDRAM.cc`'s `loadmem_memif`), which is not the SRAM; and
++//   * fesvr's `load_elf` throws on a big-endian ELF unless the fesvr build has
++//     `RISCV_ENABLE_DUAL_ENDIAN` (this toolchain: undefined); even with it,
++//     `SimDRAM.cc`'s `loadmem_memif_t::get_target_endianness()` still returns
++//     little, so the dual-endian branch still throws.  Fixing that needs
++//     testchipip submodule patching support (m12-infra-003).
++//
++// This loader therefore feeds the tile's TileLink master port directly.  It
++// parses the ELF itself (big-endian ELF64, PT_LOAD, p_memsz zero fill),
++// validates every segment against the writable window supplied by the SoC
++// configuration (no default: `WumingCoreParams.loadMemBase/loadMemSize`), and
++// then does a byte-exact readback pass through the same TileLink port before
++// releasing the core.  Addresses are absolute ELF `p_paddr` values; there is
++// no base subtraction to get wrong.
++
++package wuming.common
++
++import chisel3._
++import chisel3.util._
++import chisel3.util.HasBlackBoxResource
++import chisel3.experimental.IntParam
++import org.chipsalliance.cde.config.Parameters
++import freechips.rocketchip.diplomacy._
++import freechips.rocketchip.tilelink._
++
++/** Window the ELF PT_LOAD segments must fit in; supplied by the SoC config. */
++case class WumingLoadMemParams(base: BigInt, size: BigInt) {
++  require(base > 0, "WumingLoadMem: MEM_BASE must come from the machine address map")
++  require(size > 0, "WumingLoadMem: MEM_SIZE must come from the machine address map")
++}
++
++/** Host-side model: `+loadmem=` ELF parsing, write stream and readback check. */
++class WumingLoadMemBlackBox(base: BigInt, size: BigInt) extends BlackBox(Map(
++  "MEM_BASE" -> IntParam(base),
++  "MEM_SIZE" -> IntParam(size)
++)) with HasBlackBoxResource {
++  val io = IO(new Bundle {
++    val clock = Input(Clock())
++    val reset = Input(Reset())
++    val valid = Output(Bool())
++    val is_read = Output(Bool())
++    val addr = Output(UInt(64.W))
++    val data = Output(UInt(64.W))
++    val mask = Output(UInt(8.W))
++    val done = Output(Bool())
++    val fire = Input(Bool())
++    val rdata = Input(UInt(64.W))
++  })
++  addResource("/wuming/vsrc/WumingLoadMem.v")
++  addResource("/wuming/csrc/WumingLoadMem.cc")
++}
++
++class WumingLoadMem(val params: WumingLoadMemParams)(implicit p: Parameters) extends LazyModule {
++  val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1(
++    name = "WumingLoadMem",
++    sourceId = IdRange(0, 1),
++    requestFifo = true)))))
++  lazy val module = new WumingLoadMemImp(this)
++}
++
++class WumingLoadMemImp(outer: WumingLoadMem) extends LazyModuleImp(outer) {
++  val (tl, edge) = outer.node.out(0)
++  val beatBytes = edge.bundle.dataBits / 8
++  require(beatBytes == 8, "WumingLoadMem: expected a 64-bit TileLink beat")
++  require(edge.bundle.addressBits >= 48,
++    "WumingLoadMem: the Tiny address map must negotiate >= 48 bits")
++
++  val lgSize = log2Ceil(beatBytes).U
++  val bb = Module(new WumingLoadMemBlackBox(outer.params.base, outer.params.size))
++  bb.io.clock := clock
++  bb.io.reset := reset
++
++  val addr = bb.io.addr(edge.bundle.addressBits - 1, 0)
++  val (fullLegal, fullBits) = edge.Put(0.U, addr, lgSize, bb.io.data)
++  val (partLegal, partBits) = edge.Put(0.U, addr, lgSize, bb.io.data, bb.io.mask)
++  val (getLegal, getBits) = edge.Get(0.U, addr, lgSize)
++  val allBytes = bb.io.mask.andR
++  val reqBits = Mux(bb.io.is_read, getBits, Mux(allBytes, fullBits, partBits))
++  val reqLegal = Mux(bb.io.is_read, getLegal, Mux(allBytes, fullLegal, partLegal))
++
++  val sIdle :: sReq :: sWait :: Nil = Enum(3)
++  val state = RegInit(sIdle)
++  tl.a.valid := state === sReq
++  tl.a.bits := reqBits
++  tl.d.ready := state === sWait
++  bb.io.fire := (state === sWait) && tl.d.fire
++  bb.io.rdata := tl.d.bits.data
++
++  switch(state) {
++    is(sIdle) { when(bb.io.valid) { state := sReq } }
++    is(sReq) { when(tl.a.ready) { state := sWait } }
++    is(sWait) { when(tl.d.fire) { state := sIdle } }
++  }
++
++  assert(!(tl.d.valid && tl.d.bits.denied), "WumingLoadMem: TileLink denied a loadmem access")
++  assert(!(state === sReq) || reqLegal,
++    "WumingLoadMem: loadmem address is not backed by a capable manager")
++
++  /** True only after the whole image was written and read back byte-exactly. */
++  val initDone = IO(Output(Bool()))
++  initDone := bb.io.done
++}

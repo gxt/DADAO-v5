@@ -1,0 +1,18 @@
+diff --git a/generators/chipyard/src/main/scala/DigitalTop.scala b/generators/chipyard/src/main/scala/DigitalTop.scala
+index 0f1ee68..33b3b99 100644
+--- a/generators/chipyard/src/main/scala/DigitalTop.scala
++++ b/generators/chipyard/src/main/scala/DigitalTop.scala
+@@ -42,5 +42,12 @@ class DigitalTop(implicit p: Parameters) extends ChipyardSystem
+ }
+ 
+ class DigitalTopModule(l: DigitalTop) extends ChipyardSystemModule(l)
+-  with freechips.rocketchip.util.DontTouch
++  with freechips.rocketchip.util.DontTouch {
++  // m12-003: every tile's `reportCease` is aggregated by the subsystem's cease
++  // sink; expose the AND of all tiles so the harness can drive TestDriver's
++  // success (`chipyard.iobinders.WithWumingCeaseSuccess`).  The wuming smoke
++  // program has no semihosting exit yet (m12-004), its halt is the stop.
++  val wumingSuccess = IO(Output(Bool()))
++  wumingSuccess := l.tileCeaseSinkNode.in.head._1.asUInt.andR
++}
+ // DOC include end: DigitalTop
