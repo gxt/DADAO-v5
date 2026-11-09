@@ -168,3 +168,16 @@
     【P3】`check_milestone_tasks.py` 两处基线残留：① 新式核验册名 `mNN-<module>-*` 不被
     `MBOOK_NAME_RE` 命中，会按「无 m 册」跳过；② m 册标题自引自身文件名号可绕 vacuous 检查。
     两者均非本次（m12-infra-002）引入；当前 m 册已可选，影响低，登记待清理。
+
+- id: ISS-357
+  scope: [gem5, testcases]
+  status: open
+  resolved_by: null
+  title: >-
+    【P2】gem5 SE 输出捕获的 stdout/stderr 顺序与参考不一致（`2>&1` 交错 vs
+    fd1/fd2 分开后按 `stdout+stderr` 串接）。已确认**至少 4 例**可由
+    `stderr+stdout+exit` 与参考逐字节相等：FreeBench `analyzer`/`pifft`/`mason`/`neural`
+    （前两例本在第一轮 9 个 fail 内；后两例是 `gem5_only_fail` 9→11 的差值）。
+    **不可全局交换顺序**：另有 1 例需 `stdout+stderr`，31 例 pass 走非逐字节比对。
+    修复方向：SE 驱动层保留 fd1/fd2 写出顺序；修复前不按能力缺口计。详见
+    `.tao/knowledge/refs/TESTCASES-103t-timeout-recheck.md`。

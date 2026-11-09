@@ -17,14 +17,25 @@ Classification used in the report (counted from the JSONs, never written by
 hand):
 
 * ``both_pass``      -- both engines reached the case's own verdict "pass";
-* ``blocked``        -- gem5 SE could not run the case to a verdict (static-ELF
-                        gate, unimplemented syscall, timeout, non-guest end);
-                        reported with the capability gap, never as pass/fail;
+* ``timeout``        -- gem5 SE did not reach a verdict inside the per-suite
+                        time budget.  **Not a capability gap** (the SE clock is
+                        slower than qemu-user): counted and listed on its own,
+                        never merged into ``blocked``;
+* ``blocked``        -- real capability gap: gem5 SE could not run the case to
+                        a verdict (static-ELF gate, unimplemented syscall,
+                        non-guest end), the timeout excluded; reported with
+                        the capability bucket, never as pass/fail;
 * ``gem5_only_fail`` -- QEMU passed (or admitted a known-fail) and gem5 SE
                         reached a *non-pass* verdict;
 * ``qemu_only_fail`` -- gem5 SE passed and QEMU did not.  ADR-0048 D5: this
                         direction is **not** accepted as a gem5 win; it is
                         listed separately for a QEMU/spec investigation.
+
+Per-suite time budgets default to :data:`DEFAULT_GEM5_TIMEOUT` (libc-test
+300 s, llvm-ts 600 s, embench 300 s; qemu-user is fast, so its budget stays
+300 s).  ``--gem5-timeout`` overrides every suite, ``--gem5-timeout-by-suite``
+overrides single suites.  ``--driver-arg`` forwards driver-level selection
+flags for pilot runs (``--filter`` / ``--only``), never for a full baseline.
 
 Outputs: the full per-case baseline JSON under ``--json-out`` (runtime
 directory, not committed) and a compact summary (JSON + Markdown) under
@@ -39,13 +50,31 @@ import datetime
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
+import types
 
 REPO_ROOT = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", ".."))
 
 SUITES = ("libc-test", "llvm-ts", "embench")
+
+# Per-suite gem5 SE budget (seconds).  The SE clock runs far slower than
+# qemu-user, so a single 120 s budget turned pure computation into
+# "blocked" (GEM5-021t); the budget is a measurement setting, not a capability.
+# `--gem5-timeout` (global) / `--gem5-timeout-by-suite` override these.
+DEFAULT_GEM5_TIMEOUT = {
+    "libc-test": 300,
+    "llvm-ts": 600,
+    "embench": 300,
+}
+
+# The engine marks a budget expiry with this gap kind / capability
+# (tools/testcases/lib/gem5_se_engine.py:evaluate).  Timeout rows are kept out
+# of the capability inventory and counted separately.
+TIMEOUT_KIND = "timeout"
+TIMEOUT_CAPABILITY = "time budget"
 
 DRIVERS = {
     "libc-test": os.path.join(
@@ -183,7 +212,45 @@ def short(text, limit=240):
     return text if len(text) <= limit else text[:limit - 1] + "…"
 
 
-def driver_command(suite, engine, args, work_dir):
+def resolve_timeouts(args, suites):
+    """``{suite: seconds}`` for the requested suites.
+
+    ``--gem5-timeout`` (one value) wins over ``--gem5-timeout-by-suite``,
+    which wins over :data:`DEFAULT_GEM5_TIMEOUT`.  A suite missing from every
+    source is an error -- the budget is never guessed.
+    """
+    out = {}
+    per_suite = {}
+    for spec in (args.gem5_timeout_by_suite or "").split(","):
+        if not spec.strip():
+            continue
+        name, _, value = spec.partition("=")
+        name = name.strip()
+        if name not in SUITES or not value.strip():
+            raise ValueError(f"bad --gem5-timeout-by-suite item {spec!r} "
+                             f"(want <suite>=<seconds>)")
+        try:
+            per_suite[name] = int(value)
+        except ValueError:
+            raise ValueError(f"bad seconds in --gem5-timeout-by-suite "
+                             f"item {spec!r}")
+    for suite in suites:
+        if args.gem5_timeout is not None:
+            seconds = args.gem5_timeout
+        elif suite in per_suite:
+            seconds = per_suite[suite]
+        elif suite in DEFAULT_GEM5_TIMEOUT:
+            seconds = DEFAULT_GEM5_TIMEOUT[suite]
+        else:                            # pragma: no cover - SUITES is fixed
+            raise ValueError(f"no default budget for suite {suite!r}")
+        if seconds <= 0:
+            raise ValueError(f"non-positive budget for suite {suite!r}: "
+                             f"{seconds}")
+        out[suite] = seconds
+    return out
+
+
+def driver_command(suite, engine, args, work_dir, gem5_timeout):
     cmd = [sys.executable, os.path.join(REPO_ROOT, DRIVERS[suite]),
            "--link-mode", "static", "--engine", engine,
            "--jobs", str(args.jobs),
@@ -191,14 +258,16 @@ def driver_command(suite, engine, args, work_dir):
            "--json-out", os.path.join(work_dir, f"{suite}-{engine}.json"),
            "--report-out", os.path.join(work_dir, f"{suite}-{engine}.log")]
     if engine == "gem5-se":
-        cmd += ["--gem5-timeout", str(args.gem5_timeout)]
+        cmd += ["--gem5-timeout", str(gem5_timeout)]
     if suite == "llvm-ts":
         cmd += ["--timeout", str(args.qemu_timeout)]
+    for extra in args.driver_arg or []:
+        cmd += shlex.split(extra)
     return cmd
 
 
-def run_driver(suite, engine, args, work_dir):
-    cmd = driver_command(suite, engine, args, work_dir)
+def run_driver(suite, engine, args, work_dir, gem5_timeout):
+    cmd = driver_command(suite, engine, args, work_dir, gem5_timeout)
     log_path = os.path.join(work_dir, f"{suite}-{engine}.driver.log")
     print(f"[run] {suite}/{engine}: {' '.join(cmd)}", flush=True)
     with open(log_path, "wb") as log:
@@ -226,23 +295,44 @@ def gap_of(case):
     return gap.get("capability") or None
 
 
+def gap_kind_of(case):
+    gap = case.get("gap") or {}
+    return gap.get("kind") or None
+
+
+def is_timeout_case(case):
+    """A budget expiry (kind ``timeout`` / capability ``time budget``).
+
+    The engine sets both on a timeout (`gem5_se_engine.evaluate`); the kind is
+    primary, the capability is the fallback for older driver JSONs.
+    """
+    if not case:
+        return False
+    return (gap_kind_of(case) == TIMEOUT_KIND
+            or gap_of(case) == TIMEOUT_CAPABILITY)
+
+
 def compare_suite(suite, qemu_record, qemu_cases, gem5_record, gem5_cases,
                   qemu_rc, gem5_rc):
     """Cross-table for one suite; every count is derived from the two JSONs."""
     keys = sorted(set(qemu_cases) | set(gem5_cases))
     rows = []
     cross = dict(both_pass=[], gem5_only_fail=[], qemu_only_fail=[],
-                 gem5_blocked=[], blocked_but_qemu_pass=[],
+                 gem5_blocked=[], gem5_timeout=[], gem5_blocked_real=[],
+                 blocked_but_qemu_pass=[], timeout_but_qemu_pass=[],
+                 blocked_real_but_qemu_pass=[],
                  qemu_blocked_gem5_pass=[], both_non_pass=[])
     for key in keys:
         q = qemu_cases.get(key)
         g = gem5_cases.get(key)
         q_status = q.get("klass") if q else "absent"
         g_status = g.get("klass") if g else "absent"
+        timeout = is_timeout_case(g)
         row = dict(case=key, qemu_status=q_status, gem5_status=g_status,
                    qemu_exit=None if not q else q.get("exit"),
                    gem5_exit=None if not g else g.get("exit"),
                    gem5_capability=None if not g else gap_of(g),
+                   gem5_is_timeout=timeout,
                    gem5_reason=None if not g else g.get("reason"),
                    qemu_reason=None if not q else q.get("reason"))
         rows.append(row)
@@ -250,8 +340,13 @@ def compare_suite(suite, qemu_record, qemu_cases, gem5_record, gem5_cases,
             cross["both_pass"].append(key)
         elif g_status == "blocked":
             cross["gem5_blocked"].append(key)
+            # A budget expiry is a measurement limit, not a capability gap.
+            cross["gem5_timeout" if timeout
+                  else "gem5_blocked_real"].append(key)
             if q_status in PASS_STATUSES:
                 cross["blocked_but_qemu_pass"].append(key)
+                cross["timeout_but_qemu_pass" if timeout
+                      else "blocked_real_but_qemu_pass"].append(key)
         elif g_status in ("fail", "known-fail", "absent") and \
                 q_status in PASS_STATUSES:
             cross["gem5_only_fail"].append(key)
@@ -277,10 +372,13 @@ def compare_suite(suite, qemu_record, qemu_cases, gem5_record, gem5_cases,
 
 
 def gap_inventory(suites):
+    """Capability buckets of the real ``blocked`` cases (timeouts excluded)."""
     buckets = {}
     for suite, data in suites.items():
         for row in data["cases"]:
             if row["gem5_status"] != "blocked":
+                continue
+            if row.get("gem5_is_timeout"):
                 continue
             cap = row["gem5_capability"] or "unattributed"
             entry = buckets.setdefault(cap, dict(capability=cap, cases=[]))
@@ -298,6 +396,23 @@ def gap_inventory(suites):
             cases=cases,
         ))
     out.sort(key=lambda e: (-e["blocked_cases"], e["capability"]))
+    return out
+
+
+def timeout_inventory(suites):
+    """Cases that merely ran out of budget, per suite (never a gap)."""
+    out = []
+    for suite, data in suites.items():
+        rows = [r for r in data["cases"] if r.get("gem5_is_timeout")]
+        out.append(dict(
+            suite=suite,
+            budget_seconds=data["gem5"]["timeout"],
+            timeout_cases=len(rows),
+            cases=[dict(case=r["case"], reason=short(r["gem5_reason"]),
+                        qemu_status=r["qemu_status"])
+                   for r in sorted(rows, key=lambda r: r["case"])],
+        ))
+    out.sort(key=lambda e: (-e["timeout_cases"], e["suite"]))
     return out
 
 
@@ -326,8 +441,16 @@ def load_recheck(suite, path):
                 cases=rows)
 
 
-def build_summary(suites, gap_list, args, stamp, recheck=None, build=None):
-    totals = dict(qemu_pass=0, gem5_pass=0, blocked=0, blocked_but_qemu_pass=0,
+def build_summary(suites, gap_list, args, stamp, recheck=None, build=None,
+                  timeouts=None, timeout_list=None):
+    """Summary dict.  ``totals.blocked`` counts real capability gaps only;
+    ``totals.blocked_all`` keeps the old "every blocked case" reading, and
+    ``totals.timeout`` is the budget expiry count (neither gap nor verdict)."""
+    timeouts = timeouts or {}
+    timeout_list = timeout_list or []
+    totals = dict(qemu_pass=0, gem5_pass=0, blocked=0, blocked_all=0,
+                  timeout=0, blocked_but_qemu_pass=0,
+                  blocked_real_but_qemu_pass=0, timeout_but_qemu_pass=0,
                   gem5_only_fail=0, qemu_only_fail=0, both_pass=0)
     for data in suites.values():
         q = data["qemu"]["counts"]
@@ -335,11 +458,18 @@ def build_summary(suites, gap_list, args, stamp, recheck=None, build=None):
         totals["qemu_pass"] += q.get("pass", 0)
         totals["gem5_pass"] += g.get("pass", 0)
         totals["both_pass"] += data["cross_counts"]["both_pass"]
-        totals["blocked"] += data["cross_counts"]["gem5_blocked"]
+        totals["blocked"] += data["cross_counts"]["gem5_blocked_real"]
+        totals["blocked_all"] += data["cross_counts"]["gem5_blocked"]
+        totals["timeout"] += data["cross_counts"]["gem5_timeout"]
         totals["blocked_but_qemu_pass"] += \
             data["cross_counts"]["blocked_but_qemu_pass"]
+        totals["blocked_real_but_qemu_pass"] += \
+            data["cross_counts"]["blocked_real_but_qemu_pass"]
+        totals["timeout_but_qemu_pass"] += \
+            data["cross_counts"]["timeout_but_qemu_pass"]
         totals["gem5_only_fail"] += data["cross_counts"]["gem5_only_fail"]
         totals["qemu_only_fail"] += data["cross_counts"]["qemu_only_fail"]
+    uniform = len(set(timeouts.values())) == 1
     return dict(
         task="GEM5-021t",
         generated_utc=stamp,
@@ -351,7 +481,11 @@ def build_summary(suites, gap_list, args, stamp, recheck=None, build=None):
                      "configs/dadao/se.py --binary <elf> (GEM5-014t)"),
         ),
         jobs=args.jobs,
-        gem5_timeout_seconds=args.gem5_timeout,
+        # `gem5_timeout_seconds` keeps the old uniform-budget shape (an int)
+        # when every suite shares one budget; per-suite runs use the map.
+        gem5_timeout_seconds=(next(iter(timeouts.values())) if uniform
+                              and timeouts else timeouts),
+        gem5_timeout_by_suite=dict(timeouts),
         suites={name: dict(
             qemu=data["qemu"], gem5=data["gem5"],
             cross_counts=data["cross_counts"], cross=data["cross"],
@@ -365,10 +499,12 @@ def build_summary(suites, gap_list, args, stamp, recheck=None, build=None):
         ) for name, data in suites.items()},
         totals=totals,
         gap_inventory=gap_list,
+        timeout_inventory=timeout_list,
         timeout_recheck=recheck or {},
         build=build or {},
-        snapshot_note=("数字为 2026-11-06 的快照；随 GEM5-022t（brk/mmap 等 SE "
-                       "能力）与后续任务落地，同一命令会得到不同计数。"),
+        snapshot_note=("数字为运行时刻的快照（见 generated_utc）；随 SE 能力落地，"
+                       "同一命令会得到不同计数。timeout 为预算到期，单列，"
+                       "不计入能力缺口。"),
     )
 
 
@@ -392,7 +528,11 @@ def markdown(summary):
     out(f"- QEMU user 通过：{t['qemu_pass']}")
     out(f"- gem5 SE 通过：{t['gem5_pass']}")
     out(f"- 两侧都通过（both_pass）：{t['both_pass']}")
-    out(f"- gem5 SE blocked：{t['blocked']}（其中 QEMU 通过 = {t['blocked_but_qemu_pass']}）")
+    out(f"- gem5 SE blocked（能力缺口，**不含 timeout**）：{t['blocked']}"
+        f"（其中 QEMU 通过 = {t['blocked_real_but_qemu_pass']}）")
+    out(f"- gem5 SE timeout（预算到期，**非能力缺口**、非判决）：{t['timeout']}"
+        f"（其中 QEMU 通过 = {t['timeout_but_qemu_pass']}；"
+        f"blocked_all 含 timeout = {t['blocked_all']}）")
     out(f"- gem5_only_fail（QEMU 通过、gem5 非通过且未 blocked）：{t['gem5_only_fail']}")
     out(f"- qemu_only_fail（gem5 通过、QEMU 未通过，ADR-0048 D5 需定位）：{t['qemu_only_fail']}")
     recheck = summary.get("timeout_recheck") or {}
@@ -415,8 +555,12 @@ def markdown(summary):
         out(f"- QEMU 计数：{qc}")
         out(f"- gem5 计数：{gc}（SE 超时 {data['gem5']['timeout']}s/例）")
         cc = data["cross_counts"]
-        out(f"- 交叉：both_pass={cc['both_pass']} gem5_blocked={cc['gem5_blocked']} "
-            f"(QEMU 通过 {cc['blocked_but_qemu_pass']}) "
+        out(f"- 交叉：both_pass={cc['both_pass']} gem5_blocked（不含 timeout）"
+            f"={cc['gem5_blocked_real']} "
+            f"(QEMU 通过 {cc['blocked_real_but_qemu_pass']}) "
+            f"gem5_timeout={cc['gem5_timeout']} "
+            f"(QEMU 通过 {cc['timeout_but_qemu_pass']}) "
+            f"gem5_blocked_all={cc['gem5_blocked']} "
             f"gem5_only_fail={cc['gem5_only_fail']} "
             f"qemu_only_fail={cc['qemu_only_fail']} both_non_pass={cc['both_non_pass']}")
         out()
@@ -447,11 +591,11 @@ def markdown(summary):
     if not any_row:
         out("（无）")
     out()
-    out("## gem5 SE 缺口分类")
+    out("## gem5 SE 缺口分类（能力缺口；timeout 不在本表）")
     out()
     gaps = summary["gap_inventory"]
     if not gaps:
-        out("（无 blocked）")
+        out("（无能力缺口 blocked）")
     else:
         out("| 能力 | blocked 案例数 | 代表案例 | 所需改动面 |")
         out("| --- | --- | --- | --- |")
@@ -460,7 +604,25 @@ def markdown(summary):
             out(f"| {gap['capability']} | {gap['blocked_cases']} | {reps} | "
                 f"{gap['required_change']} |")
     out()
-    out("## 超预算重测（120s 超时案例在更长预算下重跑）")
+    out("## 超时（预算到期；非能力缺口）")
+    out()
+    tinv = summary.get("timeout_inventory") or []
+    any_timeout = False
+    for entry in tinv:
+        if not entry["timeout_cases"]:
+            continue
+        any_timeout = True
+        cases = "、".join(c["case"] for c in entry["cases"]) or "-"
+        out(f"- {entry['suite']}：{entry['timeout_cases']} 例，预算 "
+            f"{entry['budget_seconds']}s/例 — {cases}")
+    if not any_timeout:
+        out("（无）")
+    else:
+        out()
+        out("口径：超时说明「预算不足 / SE 引擎慢」，不是能力缺口，也不是判决；"
+            "给更大 `--gem5-timeout` 复测后才能判定（见下节重测与各任务结论）。")
+    out()
+    out("## 超预算重测（原超时案例在更长预算下重跑）")
     out()
     recheck = summary.get("timeout_recheck") or {}
     if not recheck:
@@ -497,9 +659,119 @@ def markdown(summary):
     out("    --work-dir <runtime dir> --json-out <runtime dir>/gem5-se-baseline.json")
     out("```")
     out()
+    budgets = ", ".join(f"{s} {DEFAULT_GEM5_TIMEOUT[s]}s" for s in SUITES)
+    out(f"默认预算：{budgets}（`timeout` 单列，不计能力缺口）。"
+        f"`--gem5-timeout` 全局覆盖，"
+        f"`--gem5-timeout-by-suite libc-test=300,llvm-ts=900` 单套件覆盖。")
+    out()
+    out("试点（少量案例）：`--suites <suite> --driver-arg '<驱动自身的选择参数>'`"
+        "（如 libc-test 的 `--filter`、llvm-ts 的 `--only`）；参数原样转发给所选"
+        "套件的驱动，全量运行不要带。")
+    out()
     out("驱动层单套件：给三个 tset 驱动加 `--engine qemu|gem5-se`；gem5 SE 走 "
         "`configs/dadao/se.py --binary <elf>`，只接受静态 `ET_EXEC`。")
     return "\n".join(lines) + "\n"
+
+
+def _synthetic_record(engine, cases, timeout=None, counts=None):
+    return dict(engine=engine, cases=cases, counts=counts or {},
+                total=len(cases), discovered=len(cases), gem5_timeout=timeout)
+
+
+def self_test(work_dir):
+    """Classify synthetic driver records; no gem5 and no corpus needed.
+
+    Each check has a reachable FAIL branch (flip the timeout/gap split and the
+    corresponding check reports FAIL), and the synthetic records are written
+    under ``<work-dir>/self-test/`` and reloaded through the real loaders.
+    """
+    outdir = os.path.join(work_dir, "self-test")
+    os.makedirs(outdir, exist_ok=True)
+    qemu_cases = [dict(case=cid, klass="pass", exit=0, reason=None, gap=None)
+                  for cid in ("pass-case", "timeout-case", "gap-case",
+                              "fail-case")]
+    gem5_cases = [
+        dict(case="pass-case", klass="pass", exit=0, gap=None),
+        dict(case="timeout-case", klass="blocked", exit=None,
+             reason="timeout after 600s (SE, not a verdict)",
+             gap=dict(capability=TIMEOUT_CAPABILITY, kind=TIMEOUT_KIND)),
+        dict(case="gap-case", klass="blocked", exit=None,
+             reason="gem5 fatal: DADAO SE: syscall 214 (brk) not implemented",
+             gap=dict(capability="heap/VMA (brk)",
+                      kind="syscall-not-implemented")),
+        dict(case="fail-case", klass="fail", exit=1, gap=None),
+    ]
+    qemu_path = os.path.join(outdir, "libc-test-qemu.json")
+    gem5_path = os.path.join(outdir, "libc-test-gem5-se.json")
+    with open(qemu_path, "w") as fh:
+        json.dump(_synthetic_record("qemu", qemu_cases,
+                                    counts={"pass": 4}), fh, indent=2)
+    with open(gem5_path, "w") as fh:
+        json.dump(_synthetic_record("gem5-se", gem5_cases, timeout=600,
+                                    counts={"pass": 1, "fail": 1,
+                                            "blocked": 2}), fh, indent=2)
+
+    qrec, qcases = load_cases("libc-test", qemu_path)
+    grec, gcases = load_cases("libc-test", gem5_path)
+    data = compare_suite("libc-test", qrec, qcases, grec, gcases, 0, 0)
+    suites = {"libc-test": data}
+    gaps = gap_inventory(suites)
+    tinv = timeout_inventory(suites)
+    summary = build_summary(suites, gaps, types.SimpleNamespace(jobs=1),
+                            "self-test", timeouts={"libc-test": 600},
+                            timeout_list=tinv)
+    md = markdown(summary)
+    cr = data["cross"]
+    t = summary["totals"]
+
+    checks = [
+        ("both_pass", ["pass-case"], cr["both_pass"]),
+        ("gem5_timeout", ["timeout-case"], cr["gem5_timeout"]),
+        ("gem5_blocked_real", ["gap-case"], cr["gem5_blocked_real"]),
+        ("gem5_blocked_all", ["gap-case", "timeout-case"],
+         cr["gem5_blocked"]),
+        ("gem5_only_fail", ["fail-case"], cr["gem5_only_fail"]),
+        ("blocked_real_qemu_pass", ["gap-case"],
+         cr["blocked_real_but_qemu_pass"]),
+        ("timeout_qemu_pass", ["timeout-case"],
+         cr["timeout_but_qemu_pass"]),
+        ("gap buckets", ["heap/VMA (brk)"],
+         [g["capability"] for g in gaps]),
+        ("gap blocked_cases", [1], [g["blocked_cases"] for g in gaps]),
+        ("timeout inventory", [(1, 600)],
+         [(e["timeout_cases"], e["budget_seconds"]) for e in tinv]),
+        ("totals blocked", [1], [t["blocked"]]),
+        ("totals timeout", [1], [t["timeout"]]),
+        ("totals blocked_all", [2], [t["blocked_all"]]),
+        ("markdown lists timeout separately", [True],
+         ["## 超时（预算到期；非能力缺口）" in md]),
+        ("markdown gap table has no time budget", [False],
+         ["| time budget |" in md]),
+        ("default budget libc-test", [300],
+         [DEFAULT_GEM5_TIMEOUT["libc-test"]]),
+        ("default budget llvm-ts", [600],
+         [DEFAULT_GEM5_TIMEOUT["llvm-ts"]]),
+        ("default budget embench", [300],
+         [DEFAULT_GEM5_TIMEOUT["embench"]]),
+        ("global override wins", [{"libc-test": 120, "llvm-ts": 120,
+                                   "embench": 120}],
+         [resolve_timeouts(types.SimpleNamespace(
+             gem5_timeout=120, gem5_timeout_by_suite=None),
+             list(SUITES))]),
+        ("per-suite override", [{"libc-test": 450, "llvm-ts": 600,
+                                 "embench": 300}],
+         [resolve_timeouts(types.SimpleNamespace(
+             gem5_timeout=None,
+             gem5_timeout_by_suite="libc-test=450"), list(SUITES))]),
+    ]
+    failed = 0
+    for name, want, got in checks:
+        ok = want == got
+        failed += 0 if ok else 1
+        print(f"self-test {'PASS' if ok else 'FAIL'} {name}: "
+              f"expected={want!r} actual={got!r}")
+    print(f"self-test: {len(checks) - failed}/{len(checks)} checks passed")
+    return 0 if failed == 0 else 1
 
 
 def main() -> int:
@@ -513,8 +785,25 @@ def main() -> int:
     ap.add_argument("--suites", default=",".join(SUITES),
                     help="comma-separated subset (default: all three)")
     ap.add_argument("--jobs", type=int, default=32)
-    ap.add_argument("--gem5-timeout", type=int, default=120)
+    default_bits = ", ".join(f"{s}={DEFAULT_GEM5_TIMEOUT[s]}"
+                             for s in SUITES)
+    ap.add_argument("--gem5-timeout", type=int, default=None,
+                    help="override the per-suite gem5 SE budget for every "
+                         f"suite in seconds (default: {default_bits})")
+    ap.add_argument("--gem5-timeout-by-suite", default=None, metavar="SPEC",
+                    help="per-suite override: comma-separated "
+                         "<suite>=<seconds> (wins over the default, loses to "
+                         "--gem5-timeout)")
     ap.add_argument("--qemu-timeout", type=int, default=300)
+    ap.add_argument("--driver-arg", action="append", default=None,
+                    metavar="ARG",
+                    help="extra argument(s) appended verbatim to every driver "
+                         "command (pilot runs only, e.g. '--filter zzz' or "
+                         "'--only <case>'); never use for a full baseline")
+    ap.add_argument("--self-test", action="store_true",
+                    help="classify synthetic driver records and check the "
+                         "timeout/gap split (no gem5, writes only under "
+                         "--work-dir)")
     ap.add_argument("--aggregate-only", action="store_true",
                     help="reuse the driver JSONs already in --work-dir")
     ap.add_argument("--engine-banner", default=None,
@@ -528,16 +817,23 @@ def main() -> int:
 
     work_dir = abspath(args.work_dir)
     os.makedirs(work_dir, exist_ok=True)
+    if args.self_test:
+        return self_test(work_dir)
     suites_wanted = [s.strip() for s in args.suites.split(",") if s.strip()]
     unknown = [s for s in suites_wanted if s not in SUITES]
     if unknown:
         sys.stderr.write(f"ERROR: unknown suite(s) {unknown}\n")
         return 2
+    try:
+        timeouts = resolve_timeouts(args, suites_wanted)
+    except ValueError as exc:
+        sys.stderr.write(f"ERROR: {exc}\n")
+        return 2
 
     if not args.aggregate_only:
         for suite in suites_wanted:
             for engine in ("qemu", "gem5-se"):
-                run_driver(suite, engine, args, work_dir)
+                run_driver(suite, engine, args, work_dir, timeouts[suite])
 
     suites = {}
     for suite in suites_wanted:
@@ -555,6 +851,7 @@ def main() -> int:
                                       gem5_record, gem5_cases, qemu_rc, gem5_rc)
 
     gap_list = gap_inventory(suites)
+    timeout_list = timeout_inventory(suites)
     recheck = {}
     if args.recheck:
         for spec in args.recheck.split(","):
@@ -569,7 +866,8 @@ def main() -> int:
     build = engine_build(abspath(args.engine_banner)
                          if args.engine_banner else None)
     stamp = iso_utc()
-    summary = build_summary(suites, gap_list, args, stamp, recheck, build)
+    summary = build_summary(suites, gap_list, args, stamp, recheck, build,
+                            timeouts=timeouts, timeout_list=timeout_list)
 
     json_out = abspath(args.json_out)
     os.makedirs(os.path.dirname(json_out) or ".", exist_ok=True)
@@ -591,9 +889,12 @@ def main() -> int:
     t = summary["totals"]
     print(f"totals: qemu_pass={t['qemu_pass']} gem5_pass={t['gem5_pass']} "
           f"both_pass={t['both_pass']} blocked={t['blocked']} "
-          f"(qemu_pass-blocked={t['blocked_but_qemu_pass']}) "
+          f"timeout={t['timeout']} (blocked_all={t['blocked_all']}, "
+          f"qemu_pass-blocked={t['blocked_real_but_qemu_pass']}, "
+          f"qemu_pass-timeout={t['timeout_but_qemu_pass']}) "
           f"gem5_only_fail={t['gem5_only_fail']} "
           f"qemu_only_fail={t['qemu_only_fail']}")
+    print(f"budgets: {timeouts}")
     return 0
 
 
