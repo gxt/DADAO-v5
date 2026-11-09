@@ -105,6 +105,8 @@ if [ -d .work/source/musl/.git ]; then
 else
   printf 'musl_head=MISSING\n'
 fi
+printf 'disk_use_pct=%s\n' "$(df -P . 2>/dev/null | awk 'NR==2{gsub(/%/,"",$5); print $5}')"
+printf 'disk_alert=%s\n' "$(df -P . 2>/dev/null | awk 'NR==2{gsub(/%/,"",$5); if ($5+0>=90) print "ALERT"; else print "ok"}')"
 printf 'loadavg=%s\n' "$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo UNKNOWN)"
 running="$(ps -eo args 2>/dev/null | grep -E '(^|/)(make|gem5\.opt|verilator|verilator_bin|ninja|sbt|java)( |$)|run_[a-z_]+suite\.py|run_gem5_se_baseline\.py' | grep -v grep | head -n 5 | cut -c1-120 | tr '\n' ';')"
 printf 'running=%s\n' "${running:-none}"

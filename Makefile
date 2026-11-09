@@ -1207,6 +1207,12 @@ check-run-artifacts:
 check-temp-dirs:
 	@$(PYTHON) tools/infra/check_temp_dirs.py
 
+# 磁盘水位（用户 2026-11-10）：主控机与节点在**安排评测类任务前**先查磁盘，
+# **> 90% 报警**（`check-disk` 对主控机；节点用 `tools/infra/remote.py status`
+# 的 `disk_use_pct`/`disk_alert` 行）。本目标**不删**任何东西。
+check-disk:
+	@$(PYTHON) tools/infra/check_disk.py --path .
+
 # 里程碑收尾门控 (2026-10-17, A2; 归 **L2 层 / 里程碑收尾专项**，**不入** `check-modules`):
 # ⓪ SimRISC 归档：结构（`check-spec-archive`）+ 内容 sha256（`check-spec-archive-verify`）
 #    ——归档只在发布/里程碑边界变化，故不入 L1（INFRA-109t；用户 2026-10-25 裁定）；
