@@ -39,6 +39,7 @@ KNOWLEDGE_REL = Path(".tao") / "knowledge"
 # ── 顶层允许的**文件**（显式名单；子目录不受限）────────────────────────────────
 _ALLOWED_FILES = frozenset({
     "milestones-m12.md",              # M12 分册台账（用户 2026-11-08）
+    "milestones-m13.md",              # M13 分册台账（用户 2026-11-09）
     "MEMORY.md",                     # 入口指针 + 上游↔v5 偏离台账
     "issues.yaml",                   # issue 台账
     "lessons.md",                    # 教训/判据
