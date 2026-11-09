@@ -86,3 +86,6 @@
     证据：`m13-testcases-001` 全量结果（72 例，gem5 全部 `blocked`/`time budget`）。
     建议：003 改为「定位 72 例挂死根因」而非「加预算」；先挑最小例（qemu 0.0 s）做
     单例诊断（gem5 stats/指令计数/`--debug-flags` 分段）。
+    实测（2026-11-10，`functional/clocale_mbfuncs`，SIGINT 90 s 后 dump stats）：
+    `simInsts=40,847,163`、`numCycles=40,847,163`、退出原因 `user interrupt received`、
+    无 guest exit ⇒ 该例在 90 s 内跑了 4085 万条指令仍未结束，符合「死循环」而非「慢」。
