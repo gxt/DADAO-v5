@@ -1,0 +1,124 @@
+diff --git a/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingSemi.v b/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingSemi.v
+new file mode 100644
+index 0000000..af6bc34
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingSemi.v
+@@ -0,0 +1,118 @@
++// WumingSemi.v — DPI bridge for the harness-side semihosting responder
++// (m12-chipyard-004).
++//
++// The core lifts a semihosting trap as `req_*` (op / argument pointer /
++// return register / IP); this module calls the C++ dispatcher in
++// `WumingSemi.cc` and returns one 64-bit scalar on `resp_*`.  When a service
++// needs guest memory (`SYS_WRITEC`, `SYS_WRITE0`, `SYS_WRITE`, `SYS_EXIT`) the
++// dispatcher asks for one 8-byte word at a time via `mem_valid`/`mem_addr`;
++// the surrounding Scala LazyModule performs the TileLink read and feeds the
++// word back on `mem_rdata` together with `mem_fire`.
++//
++// Nothing here executes a host service itself: all policy (service table,
++// console bytes, clock, exit status, unimplemented-service error) is in C++.
++
++module WumingSemiBlackBox #(
++    parameter [63:0] MEM_BASE = 64'h0,
++    parameter [63:0] MEM_SIZE = 64'h0
++)(
++    input             clock,
++    input             reset,
++    input             req_valid,
++    input      [7:0]  req_op,
++    input      [63:0] req_arg,
++    input      [5:0]  req_ret,
++    input      [63:0] req_pc,
++    output reg        resp_valid,
++    output reg [63:0] resp_value,
++    output reg        mem_valid,
++    output reg [63:0] mem_addr,
++    input             mem_taken,
++    input             mem_fire,
++    input      [63:0] mem_rdata
++);
++
++    import "DPI-C" function void wuming_semi_init(
++        input longint base,
++        input longint size
++    );
++    import "DPI-C" function int wuming_semi_begin(
++        input int op,
++        input longint arg,
++        input longint pc
++    );
++    import "DPI-C" function longint wuming_semi_word_addr();
++    import "DPI-C" function int wuming_semi_word(input longint data);
++    import "DPI-C" function longint wuming_semi_result();
++
++    localparam [1:0] S_IDLE = 2'd0;
++    localparam [1:0] S_REQ  = 2'd1;
++    localparam [1:0] S_WAIT = 2'd2;
++
++    reg        started;
++    reg        busy;
++    reg [1:0]  st;
++    integer    status;
++
++    always @(posedge clock) begin
++        if (reset) begin
++            started    <= 1'b0;
++            busy       <= 1'b0;
++            st         <= S_IDLE;
++            resp_valid <= 1'b0;
++            resp_value <= 64'd0;
++            mem_valid  <= 1'b0;
++            mem_addr   <= 64'd0;
++        end else if (!started) begin
++            wuming_semi_init(MEM_BASE, MEM_SIZE);
++            started <= 1'b1;
++        end else begin
++            // A response is consumed by the core when it leaves its semihosting
++            // state; drop it as soon as the request is gone.
++            if (resp_valid && !req_valid) begin
++                resp_valid <= 1'b0;
++            end
++
++            case (st)
++                S_IDLE: begin
++                    if (req_valid && !busy && !resp_valid) begin
++                        busy <= 1'b1;
++                        status = wuming_semi_begin(req_op, req_arg, req_pc);
++                        if (status == 0) begin
++                            resp_value <= wuming_semi_result();
++                            resp_valid <= 1'b1;
++                            busy       <= 1'b0;
++                        end else begin
++                            mem_addr  <= wuming_semi_word_addr();
++                            mem_valid <= 1'b1;
++                            st        <= S_REQ;
++                        end
++                    end
++                end
++                S_REQ: begin
++                    if (mem_taken) begin
++                        mem_valid <= 1'b0;
++                        st        <= S_WAIT;
++                    end
++                end
++                S_WAIT: begin
++                    if (mem_fire) begin
++                        status = wuming_semi_word(mem_rdata);
++                        if (status == 0) begin
++                            resp_value <= wuming_semi_result();
++                            resp_valid <= 1'b1;
++                            busy       <= 1'b0;
++                            st         <= S_IDLE;
++                        end else begin
++                            mem_addr  <= wuming_semi_word_addr();
++                            mem_valid <= 1'b1;
++                            st        <= S_REQ;
++                        end
++                    end
++                end
++                default: st <= S_IDLE;
++            endcase
++        end
++    end
++
++endmodule

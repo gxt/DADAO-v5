@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
 new file mode 100644
-index 0000000..9199187
+index 0000000..de13c65
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
-@@ -0,0 +1,125 @@
+@@ -0,0 +1,137 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile skeleton (m12-chipyard-001).
@@ -76,9 +76,16 @@ index 0000000..9199187
 +  val loadMem: WumingLoadMem = LazyModule(new WumingLoadMem(
 +    WumingLoadMemParams(loadMemBase, loadMemSize)))
 +
++  // m12-004: the semihosting responder is a host model (DPI) that reads guest
++  // memory over its own TL client port.  It shares the tile's port xbar with
++  // the core and the loader; the core only sees request/response wires.
++  val semi: WumingSemi = LazyModule(new WumingSemi(
++    WumingSemiParams(loadMemBase, loadMemSize)))
++
 +  private val portXbar = TLXbar()
 +  portXbar := coreMasterNode
 +  portXbar := loadMem.node
++  portXbar := semi.node
 +
 +  // Master path copied from rocket-chip's TraceGenTile (the canonical custom
 +  // tile in this tree): clients -> xbar -> visibilityNode -> identity -> port.
@@ -112,6 +119,7 @@ index 0000000..9199187
 +  val core = Module(new WumingCoreStub(
 +    coreEdge, outer.wumingTileParams.wumingParams, hartidBits, resetVectorBits))
 +  val loadMem = outer.loadMem.module
++  val semi = outer.semi.module
 +
 +  // Client-side handshake: the stub drives a/d, the tile wire is the bus side.
 +  coreTl.a.valid := core.io.tl.a.valid
@@ -120,6 +128,10 @@ index 0000000..9199187
 +  core.io.tl.d.valid := coreTl.d.valid
 +  core.io.tl.d.bits := coreTl.d.bits
 +  coreTl.d.ready := core.io.tl.d.ready
++
++  // Semihosting boundary: request out of the core, scalar answer back in.
++  semi.semiReq := core.io.semi.req
++  core.io.semi.resp := semi.semiResp
 +
 +  core.io.hartid := outer.hartIdSinkNode.bundle
 +  core.io.resetVector := outer.resetVectorSinkNode.bundle

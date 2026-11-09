@@ -1,9 +1,9 @@
 diff --git a/generators/chipyard/src/main/scala/config/DadaoConfigs.scala b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
 new file mode 100644
-index 0000000..a22790c
+index 0000000..6c63f8d
 --- /dev/null
 +++ b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,102 @@
 +// See LICENSE for license details.
 +//
 +// DADAO SoC configurations.
@@ -92,9 +92,10 @@ index 0000000..a22790c
 +    size = WumingTinyAddressMap.bootROMSize,
 +    hang = WumingTinyAddressMap.bootROMBase,
 +    contentFileName = Some(WumingTinyAddressMap.bootROMImage)) ++
-+  // m12-003: the smoke program's exit is the tile cease (terminal undefined
-+  // instruction; semihosting is m12-004).  Expose the cease sink as a success
-+  // port and drive TestDriver's `$stop` from it.
++  // m12-003: a program that ends in an undefined instruction is stopped by the
++  // tile cease.  m12-004 adds the semihosting responder (console + SYS_EXIT);
++  // the cease path stays for non-semihosting probes.  Expose the cease sink as
++  // a success port and drive TestDriver's `$stop` from it.
 +  new chipyard.iobinders.WithWumingCeaseSuccess ++
 +  new chipyard.harness.WithTraceGenSuccess ++
 +  new WithDadaoTinyAddressMap ++

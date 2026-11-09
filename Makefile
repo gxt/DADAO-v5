@@ -686,7 +686,8 @@ _locked-install-cfx-aliases:
 # (ADR-0016 D9); run `make install-host` first.  Outputs live under the SDK
 # test-artifacts root (ADR-0016 D6, resolved via paths.py):
 #   $(BOOTROM_DIR)/{bootrom.o,bootrom.elf,bootrom.bin,bootrom_app.o,bootrom_app.bin,
-#                     tiny_smoke.o,tiny_smoke.elf}
+#                     tiny_smoke.o,tiny_smoke.elf,
+#                     semihost_{smoke,fail,unimpl,write}.o/.elf}
 BOOTROM_DIR = $(TEST_ARTIFACTS_DIR)/bootrom
 STEP5_BOOTROM_DIR = $(BOOTROM_DIR)/step5
 # Machine-v5-Vast 4 MiB BootROM (QEMU-080t): supplied through the
@@ -712,6 +713,17 @@ _locked-build-bootrom:
 	@# loop (fixed BootROM entry; no syscall/semihosting in the image).
 	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/tiny_smoke.S -o $(BOOTROM_DIR)/tiny_smoke.o
 	$(LLD_BIN) -T tests/shared/bootrom/tiny_smoke.lds $(BOOTROM_DIR)/tiny_smoke.o -o $(BOOTROM_DIR)/tiny_smoke.elf
+	@# m12-chipyard-004: semihosting responder probes.  One source, four images:
+	@#   3-platform smoke (SYS_WRITE0/WRITEC/CLOCK/EXIT), guest-FAIL status,
+	@#   unimplemented SYS_OPEN (must be a loud harness error), SYS_WRITE.
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=0 --defsym EXIT_CODE=0x00 --defsym SEMIHOST_UNIMPL=0 tests/shared/bootrom/semihost_smoke.S -o $(BOOTROM_DIR)/semihost_smoke.o
+	$(LLD_BIN) -T tests/shared/bootrom/semihost_smoke.lds $(BOOTROM_DIR)/semihost_smoke.o -o $(BOOTROM_DIR)/semihost_smoke.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=0 --defsym EXIT_CODE=0x40 --defsym SEMIHOST_UNIMPL=0 tests/shared/bootrom/semihost_smoke.S -o $(BOOTROM_DIR)/semihost_fail.o
+	$(LLD_BIN) -T tests/shared/bootrom/semihost_smoke.lds $(BOOTROM_DIR)/semihost_fail.o -o $(BOOTROM_DIR)/semihost_fail.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=0 --defsym EXIT_CODE=0x00 --defsym SEMIHOST_UNIMPL=1 tests/shared/bootrom/semihost_smoke.S -o $(BOOTROM_DIR)/semihost_unimpl.o
+	$(LLD_BIN) -T tests/shared/bootrom/semihost_smoke.lds $(BOOTROM_DIR)/semihost_unimpl.o -o $(BOOTROM_DIR)/semihost_unimpl.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=1 --defsym EXIT_CODE=0x00 --defsym SEMIHOST_UNIMPL=0 tests/shared/bootrom/semihost_smoke.S -o $(BOOTROM_DIR)/semihost_write.o
+	$(LLD_BIN) -T tests/shared/bootrom/semihost_smoke.lds $(BOOTROM_DIR)/semihost_write.o -o $(BOOTROM_DIR)/semihost_write.elf
 	@# INTEG-046t step5: 256 KiB BootROM (power flat + hmon/smon ELFs) and the
 	@# image index table builder.  -z max-page-size keeps the small images inside
 	@# the 64 KiB per-image limit (the default 64 KiB page padding would not).

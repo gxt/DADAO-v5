@@ -1,0 +1,149 @@
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingSemi.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingSemi.scala
+new file mode 100644
+index 0000000..2f9017b
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingSemi.scala
+@@ -0,0 +1,143 @@
++// See LICENSE for license details.
++//
++// DADAO "wuming" harness-side semihosting responder (m12-chipyard-004).
++//
++// Boundary ruling (user, 2026-11-08 / task m12-chipyard-004): the *core* only
++// lifts a semihosting `trap` to the tile boundary -- it raises
++// (op, argument/parameter-block pointer, return register, IP) and waits for a
++// 64-bit scalar.  Every host effect (console bytes, clock, process exit) lives
++// in `WumingSemi.cc`, which is compiled into the Verilator harness like the
++// `+loadmem=` model.  The core never calls a host function.
++//
++// Channel choice = DPI export port, not a reserved MMIO register:
++//   * the request/response handshake is synchronous, so no polling loop, no
++//     address-map region and no ordering hazards against the core's own
++//     fetches;
++//   * the responder needs to read guest memory (SYS_WRITEC/SYS_WRITE0/
++//     SYS_WRITE/SYS_EXIT parameter blocks).  A DPI bridge can own a TileLink
++//     client port like `WumingLoadMem` does, so reads go over the same bus the
++//     core uses; an MMIO register would still need such a port and would add a
++//     second protocol on top.
++//
++// The blackbox below is only the DPI bridge and the TileLink read engine; the
++// service dispatch (op -> action -> result) is table-driven in C++.
++
++package wuming.common
++
++import chisel3._
++import chisel3.util._
++import chisel3.util.HasBlackBoxResource
++import chisel3.experimental.IntParam
++import org.chipsalliance.cde.config.Parameters
++import freechips.rocketchip.diplomacy._
++import freechips.rocketchip.tilelink._
++
++/** Request lifted from the core to the harness (no host call in the core). */
++class WumingSemiReq extends Bundle {
++  val valid = Bool()
++  val op = UInt(8.W)      // immu18[7:0] of the semihosting trap
++  val arg = UInt(64.W)    // char pointer (WRITEC/WRITE0) or block pointer (rb16)
++  val ret = UInt(6.W)     // return register number (rd8 in this machine)
++  val pc = UInt(64.W)     // trapping IP (diagnostics only)
++}
++
++/** Scalar answer: written by the core to `ret`. */
++class WumingSemiResp extends Bundle {
++  val valid = Bool()
++  val value = UInt(64.W)
++}
++
++/** Guest-memory window the responder may read; supplied by the SoC config. */
++case class WumingSemiParams(base: BigInt, size: BigInt) {
++  require(base > 0, "WumingSemi: MEM_BASE must come from the machine address map")
++  require(size > 0, "WumingSemi: MEM_SIZE must come from the machine address map")
++}
++
++/** DPI bridge + TileLink read engine; service logic is in `WumingSemi.cc`. */
++class WumingSemiBlackBox(base: BigInt, size: BigInt) extends BlackBox(Map(
++  "MEM_BASE" -> IntParam(base),
++  "MEM_SIZE" -> IntParam(size)
++)) with HasBlackBoxResource {
++  val io = IO(new Bundle {
++    val clock = Input(Clock())
++    val reset = Input(Reset())
++    val req_valid = Input(Bool())
++    val req_op = Input(UInt(8.W))
++    val req_arg = Input(UInt(64.W))
++    val req_ret = Input(UInt(6.W))
++    val req_pc = Input(UInt(64.W))
++    val resp_valid = Output(Bool())
++    val resp_value = Output(UInt(64.W))
++    val mem_valid = Output(Bool())
++    val mem_addr = Output(UInt(64.W))
++    val mem_taken = Input(Bool())
++    val mem_fire = Input(Bool())
++    val mem_rdata = Input(UInt(64.W))
++  })
++  addResource("/wuming/vsrc/WumingSemi.v")
++  addResource("/wuming/csrc/WumingSemi.cc")
++}
++
++class WumingSemi(val params: WumingSemiParams)(implicit p: Parameters) extends LazyModule {
++  val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1(
++    name = "WumingSemi",
++    sourceId = IdRange(0, 1),
++    requestFifo = true)))))
++  lazy val module = new WumingSemiImp(this)
++}
++
++class WumingSemiImp(outer: WumingSemi) extends LazyModuleImp(outer) {
++  val semiReq = IO(Input(new WumingSemiReq))
++  val semiResp = IO(Output(new WumingSemiResp))
++
++  val (tl, edge) = outer.node.out(0)
++  val beatBytes = edge.bundle.dataBits / 8
++  require(beatBytes == 8, "WumingSemi: expected a 64-bit TileLink beat")
++  require(edge.bundle.addressBits >= 48,
++    "WumingSemi: the Tiny address map must negotiate >= 48 bits")
++
++  val lgSize = log2Ceil(beatBytes).U
++  val bb = Module(new WumingSemiBlackBox(outer.params.base, outer.params.size))
++  bb.io.clock := clock
++  bb.io.reset := reset
++  bb.io.req_valid := semiReq.valid
++  bb.io.req_op := semiReq.op
++  bb.io.req_arg := semiReq.arg
++  bb.io.req_ret := semiReq.ret
++  bb.io.req_pc := semiReq.pc
++  semiResp.valid := bb.io.resp_valid
++  semiResp.value := bb.io.resp_value
++
++  // The host model only ever asks for an 8-byte aligned word.
++  val sIdle :: sReq :: sWait :: Nil = Enum(3)
++  val state = RegInit(sIdle)
++  // Latch the address when the request is taken: the model may raise the next
++  // request as soon as `mem_taken` is seen, while `tl.a.bits` must stay stable
++  // until the A-channel handshake completes.
++  val reqAddr = RegEnable(bb.io.mem_addr, state === sIdle && bb.io.mem_valid)
++  val addr = reqAddr(edge.bundle.addressBits - 1, 0)
++  val (getLegal, getBits) = edge.Get(0.U, addr, lgSize)
++
++  // A-channel requests and D-channel responses are separate states so the
++  // same source ID is never re-used while a response is outstanding.
++  tl.a.valid := state === sReq
++  tl.a.bits := getBits
++  tl.d.ready := state === sWait
++  bb.io.mem_taken := (state === sIdle) && bb.io.mem_valid
++  bb.io.mem_fire := (state === sWait) && tl.d.fire
++  // TileLink puts byte k of a beat in bits [8k+7, 8k]; hand the model one
++  // address-order (big-endian) 64-bit word, like the core's fetch path.
++  bb.io.mem_rdata := Cat((0 until beatBytes).map(i => tl.d.bits.data(8 * i + 7, 8 * i)))
++
++  switch(state) {
++    is(sIdle) { when(bb.io.mem_valid) { state := sReq } }
++    is(sReq) { when(tl.a.ready) { state := sWait } }
++    is(sWait) { when(tl.d.fire) { state := sIdle } }
++  }
++
++  assert(!(tl.d.valid && tl.d.bits.denied), "WumingSemi: TileLink denied a guest-memory read")
++  assert(!(state === sReq) || getLegal,
++    "WumingSemi: guest-memory read address is not backed by a capable manager")
++  assert(!(state === sReq) || addr(2, 0) === 0.U,
++    "WumingSemi: the responder requested an unaligned word")
++}

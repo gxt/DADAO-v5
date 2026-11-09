@@ -1,0 +1,405 @@
+diff --git a/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingSemi.cc b/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingSemi.cc
+new file mode 100644
+index 0000000..b31da55
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingSemi.cc
+@@ -0,0 +1,399 @@
++// WumingSemi.cc — harness-side semihosting responder for Machine-v5-Tiny
++// (m12-chipyard-004).
++//
++// The core lifts a semihosting `trap` (op in immu18[7:0], argument/parameter-
++// block pointer in rb16, scalar return in rd8) to this host model; see
++// WumingSemi.scala for why the channel is a DPI port rather than MMIO.  This
++// file owns every host effect and is table-driven:
++//
++//   SYS_WRITEC (0x03)  one byte at the pointer          -> stdout, no return
++//   SYS_WRITE0 (0x04)  NUL-terminated string at pointer -> stdout, no return
++//   SYS_WRITE  (0x05)  block{handle, buffer, length}    -> stdout/stderr, rd8=0
++//   SYS_CLOCK  (0x10)  centiseconds since start, monotonic (never decreasing)
++//   SYS_EXIT   (0x18)  block{reason, subcode}           -> process exit status
++//
++// Semantics follow spec/Machine-v5 §5.3 and the engines QEMU/gem5 use for the
++// same services: SYS_EXIT with ADP_Stopped_ApplicationExit (0x20026) returns
++// the subcode as the host status (0x00-0x3F = PASS, 0x40-0x7F = guest FAIL,
++// §7.1), any other reason returns 1; SYS_CLOCK is host CPU time in hundredths
++// of a second, like QEMU's `clock() / (CLOCKS_PER_SEC / 100)`.
++//
++// Minimal service set: SYS_OPEN is deliberately not implemented, so SYS_WRITE
++// accepts the harness's console handles 1 (stdout) and 2 (stderr) — this is a
++// harness convention for the 5-service stage, not a spec assertion.  Any other
++// service number (or handle) fails loudly with the number; nothing is silently
++// treated as success or as 0.
++//
++// Guest memory is read one 8-byte word at a time by the RTL bridge through a
++// TileLink client port (also used by the core); addresses are big-endian and
++// must lie inside [MEM_BASE, MEM_BASE+MEM_SIZE).
++
++#include <vpi_user.h>
++
++#include <cinttypes>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <ctime>
++#include <string>
++#include <vector>
++
++namespace {
++
++const char* kTag = "[WumingSemi]";
++const uint64_t kNoReturnMark = 0xdeadbeefULL;  // gem5/QEMU no-return convention
++const uint64_t kAdpStoppedApplicationExit = 0x20026ULL;
++
++uint64_t mem_base = 0;
++uint64_t mem_size = 0;
++bool initialised = false;
++uint64_t last_clock = 0;
++FILE* console = nullptr;  // guest console: stdout unless +semiout=<path>
++
++[[noreturn]] void fail(const std::string& msg) {
++  std::fprintf(stderr, "%s ERROR: %s\n", kTag, msg.c_str());
++  std::fflush(stderr);
++  std::fflush(stdout);
++  std::exit(1);
++}
++
++uint64_t be64(const uint8_t* p) {
++  uint64_t v = 0;
++  for (int i = 0; i < 8; i++) v = (v << 8) | p[i];
++  return v;
++}
++
++std::string hex(uint64_t v) {
++  char buf[32];
++  std::snprintf(buf, sizeof(buf), "0x%" PRIx64, v);
++  return buf;
++}
++
++enum class Phase {
++  None,
++  WriteC,
++  Write0,
++  WriteBlock,
++  WriteData,
++  ExitBlock,
++  Clock,
++};
++
++struct State {
++  Phase phase = Phase::None;
++  uint8_t op = 0;
++  uint64_t arg = 0;
++  uint64_t pc = 0;
++
++  // Byte cursor and the one-word cache fed by the RTL bridge.
++  uint64_t need_addr = 0;
++  uint64_t need_end = 0;
++  uint64_t cur_word_addr = 0;
++  uint64_t cur_word = 0;
++  bool have_word = false;
++
++  std::vector<uint8_t> block;
++  uint64_t handle = 0;
++  uint64_t buf = 0;
++  uint64_t len = 0;
++  FILE* out = nullptr;
++  uint64_t written = 0;
++  uint64_t result = 0;
++  bool done = false;
++};
++
++State S;
++
++// ---- guest memory -------------------------------------------------------
++
++bool word_cached() {
++  return S.have_word && S.cur_word_addr == (S.need_addr & ~uint64_t(7));
++}
++
++int request_word() {
++  const uint64_t a = S.need_addr & ~uint64_t(7);
++  if (mem_base == 0 || mem_size < 8) {
++    fail("guest-memory window is not configured (MEM_BASE/MEM_SIZE are zero)");
++  }
++  if (a < mem_base || a - mem_base > mem_size - 8) {
++    fail("guest-memory read at " + hex(a) + " is outside the window " +
++         hex(mem_base) + "+" + hex(mem_size));
++  }
++  S.cur_word_addr = a;
++  S.have_word = false;
++  return 1;
++}
++
++uint8_t take_byte() {
++  const unsigned k = static_cast<unsigned>(S.need_addr & 7);
++  const uint8_t b = static_cast<uint8_t>((S.cur_word >> (8 * (7 - k))) & 0xFF);
++  S.need_addr++;
++  if ((S.need_addr & ~uint64_t(7)) != S.cur_word_addr) S.have_word = false;
++  return b;
++}
++
++// ---- services -----------------------------------------------------------
++
++int do_writec() {
++  if (!word_cached()) return request_word();
++  std::fputc(take_byte(), S.out);
++  std::fflush(S.out);
++  S.written = 1;
++  S.result = kNoReturnMark;
++  S.done = true;
++  return 0;
++}
++
++int do_write0() {
++  for (;;) {
++    if (!word_cached()) return request_word();
++    const uint8_t b = take_byte();
++    if (b == 0) {
++      std::fflush(S.out);
++      S.result = kNoReturnMark;
++      S.done = true;
++      return 0;
++    }
++    std::fputc(b, S.out);
++    S.written++;
++    if ((S.written & 0xFFF) == 0) std::fflush(S.out);
++  }
++}
++
++int do_write_block() {
++  for (;;) {
++    if (!word_cached()) return request_word();
++    S.block.push_back(take_byte());
++    if (S.block.size() != 24) continue;
++
++    S.handle = be64(&S.block[0]);
++    S.buf = be64(&S.block[8]);
++    S.len = be64(&S.block[16]);
++    if (S.handle == 1) {
++      S.out = console;
++    } else if (S.handle == 2) {
++      S.out = stderr;
++    } else {
++      std::fprintf(stderr,
++                   "%s WARNING: SYS_WRITE handle=%" PRIu64
++                   " is neither 1 (stdout) nor 2 (stderr); returning -1\n",
++                   kTag, S.handle);
++      S.result = ~uint64_t(0);
++      S.done = true;
++      return 0;
++    }
++    S.need_addr = S.buf;
++    S.need_end = S.buf + S.len;
++    S.phase = Phase::WriteData;
++    return 0;
++  }
++}
++
++int do_write_data() {
++  for (;;) {
++    if (S.need_addr >= S.need_end) {
++      std::fflush(S.out);
++      S.result = 0;  // bytes not written: none
++      S.done = true;
++      return 0;
++    }
++    if (!word_cached()) return request_word();
++    std::fputc(take_byte(), S.out);
++    S.written++;
++    if ((S.written & 0xFFF) == 0) std::fflush(S.out);
++  }
++}
++
++int do_exit_block() {
++  for (;;) {
++    if (!word_cached()) return request_word();
++    S.block.push_back(take_byte());
++    if (S.block.size() != 16) continue;
++
++    const uint64_t reason = be64(&S.block[0]);
++    const uint64_t code = be64(&S.block[8]);
++    const int status = (reason == kAdpStoppedApplicationExit)
++                           ? static_cast<int>(code & 0xFF)
++                           : 1;
++    std::fprintf(stderr,
++                 "%s SYS_EXIT reason=0x%" PRIx64 " code=0x%" PRIx64
++                 " -> host exit status %d\n",
++                 kTag, reason, code, status);
++    std::fflush(stderr);
++    std::fflush(stdout);
++    if (console != nullptr && console != stdout) std::fflush(console);
++    std::exit(status);  // bounded stop: no TestDriver timeout involved
++  }
++}
++
++int do_clock() {
++  const std::clock_t raw = std::clock();
++  uint64_t centis = 0;
++  if (raw != static_cast<std::clock_t>(-1)) {
++    centis = static_cast<uint64_t>(raw) / (CLOCKS_PER_SEC / 100);
++  } else {
++    centis = ~uint64_t(0);
++  }
++  // Never report a smaller value than an earlier call (monotonic clock).
++  if (centis != ~uint64_t(0) && centis < last_clock) centis = last_clock;
++  last_clock = centis;
++  std::fprintf(stderr,
++               "%s SYS_CLOCK -> %" PRIu64
++               " centisecond(s) (host clock=%" PRIu64 ", CLOCKS_PER_SEC=%ld)\n",
++               kTag, centis, static_cast<uint64_t>(raw),
++               static_cast<long>(CLOCKS_PER_SEC));
++  S.result = centis;
++  S.done = true;
++  return 0;
++}
++
++// Table-driven dispatch: every implemented number maps to a name + body.
++struct Call {
++  uint8_t op;
++  const char* name;
++  int (*fn)();
++};
++
++const Call kCalls[] = {
++    {0x03, "SYS_WRITEC", &do_writec},
++    {0x04, "SYS_WRITE0", &do_write0},
++    {0x05, "SYS_WRITE", &do_write_block},
++    {0x10, "SYS_CLOCK", &do_clock},
++    {0x18, "SYS_EXIT", &do_exit_block},
++};
++
++const Call* lookup(uint8_t op) {
++  for (const Call& c : kCalls) {
++    if (c.op == op) return &c;
++  }
++  return nullptr;
++}
++
++int pump() {
++  for (;;) {
++    switch (S.phase) {
++      case Phase::WriteC:
++        if (do_writec() != 0) return 1;
++        break;
++      case Phase::Write0:
++        if (do_write0() != 0) return 1;
++        break;
++      case Phase::WriteBlock:
++        if (do_write_block() != 0) return 1;
++        break;
++      case Phase::WriteData:
++        if (do_write_data() != 0) return 1;
++        break;
++      case Phase::ExitBlock:
++        if (do_exit_block() != 0) return 1;
++        break;
++      case Phase::Clock:
++        do_clock();
++        break;
++      case Phase::None:
++        S.done = true;
++        break;
++    }
++    if (S.done) {
++      std::fprintf(stderr,
++                   "%s %s -> 0x%" PRIx64 " (%" PRIu64 " byte(s) written)\n",
++                   kTag, lookup(S.op)->name, S.result, S.written);
++      std::fflush(stderr);
++      return 0;
++    }
++  }
++}
++
++}  // namespace
++
++extern "C" void wuming_semi_init(long long base, long long size) {
++  if (initialised) return;
++  initialised = true;
++  mem_base = static_cast<uint64_t>(base);
++  mem_size = static_cast<uint64_t>(size);
++  // Guest console sink.  `+semiout=<file>` isolates guest bytes from the
++  // simulator's own stdout so the three-platform comparison is byte-exact;
++  // without it the console is the process stdout (QEMU/gem5 default shape).
++  console = stdout;
++  s_vpi_vlog_info info;
++  if (vpi_get_vlog_info(&info)) {
++    for (int i = 1; i < info.argc; i++) {
++      const char* arg = info.argv[i];
++      if (std::strncmp(arg, "+semiout=", 9) != 0) continue;
++      const char* path = arg + 9;
++      FILE* f = std::fopen(path, "wb");
++      if (f == nullptr) fail(std::string("cannot open +semiout file: ") + path);
++      console = f;
++    }
++  }
++  std::fprintf(stderr,
++               "%s init: guest-memory window [0x%" PRIx64 ", 0x%" PRIx64
++               "); console=%s; services "
++               "SYS_WRITEC/SYS_WRITE0/SYS_WRITE/SYS_CLOCK/SYS_EXIT\n",
++               kTag, mem_base, mem_base + mem_size,
++               console == stdout ? "stdout" : "+semiout file");
++  std::fflush(stderr);
++}
++
++extern "C" int wuming_semi_begin(int op, long long arg, long long pc) {
++  S = State();
++  S.op = static_cast<uint8_t>(op);
++  S.arg = static_cast<uint64_t>(arg);
++  S.pc = static_cast<uint64_t>(pc);
++
++  const Call* call = lookup(S.op);
++  if (call == nullptr) {
++    std::fprintf(stderr,
++                 "%s ERROR: semihosting op 0x%02x is not implemented "
++                 "(pc=0x%" PRIx64 "); minimal service set is "
++                 "0x03/0x04/0x05/0x10/0x18\n",
++                 kTag, S.op, S.pc);
++    std::fflush(stderr);
++    std::fflush(stdout);
++    std::exit(1);
++  }
++  std::fprintf(stderr, "%s %s op=0x%02x arg=0x%" PRIx64 " pc=0x%" PRIx64 "\n",
++               kTag, call->name, S.op, S.arg, S.pc);
++
++  switch (S.op) {
++    case 0x03:
++      S.out = console;
++      S.need_addr = S.arg;
++      S.phase = Phase::WriteC;
++      break;
++    case 0x04:
++      S.out = console;
++      S.need_addr = S.arg;
++      S.phase = Phase::Write0;
++      break;
++    case 0x05:
++      S.need_addr = S.arg;
++      S.phase = Phase::WriteBlock;
++      break;
++    case 0x18:
++      S.need_addr = S.arg;
++      S.phase = Phase::ExitBlock;
++      break;
++    case 0x10:
++      S.phase = Phase::Clock;
++      break;
++    default:
++      fail("service table/dispatch mismatch");
++  }
++  return pump();
++}
++
++extern "C" long long wuming_semi_word_addr() {
++  return static_cast<long long>(S.cur_word_addr);
++}
++
++extern "C" int wuming_semi_word(long long data) {
++  S.cur_word = static_cast<uint64_t>(data);
++  S.have_word = true;
++  return pump();
++}
++
++extern "C" long long wuming_semi_result() {
++  return static_cast<long long>(S.result);
++}

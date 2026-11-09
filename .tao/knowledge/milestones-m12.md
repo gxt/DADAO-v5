@@ -30,12 +30,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m12-chipyard-004 | 2026-11-09 11:47 | 2–3 h | harness 侧 semihosting 应答者（最小 5 服务 + 核内抬边界） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-004 | 2026-11-09 14:06 | harness 侧 semihosting 应答者（最小 5 服务 + 核内抬边界） |
 | m12-chipyard-003 | 2026-11-09 11:24 | BootROM + `loadmem` 最小闭环（ELF 落 SRAM、复位跳转、可观测结果） |
 | m12-chipyard-002 | 2026-11-09 05:22 | Tiny 地址图落地（BootROM `0xffff_ffff_0000` + SRAM 8 MiB，paddrBits≥48） |
 | m12-integ-001 | 2026-11-09 03:17 | 移除过渡别名（`dadao-m1`、`profile=node`） |

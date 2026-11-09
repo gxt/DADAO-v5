@@ -6,8 +6,11 @@ generators/chipyard/src/main/scala/iobinders/WumingSuccess.scala.patch
 generators/dadao-wuming/build.sbt.patch
 generators/dadao-wuming/src/main/resources/dadao/bootrom/bootrom.tiny.hex.patch
 generators/dadao-wuming/src/main/resources/wuming/csrc/WumingLoadMem.cc.patch
+generators/dadao-wuming/src/main/resources/wuming/csrc/WumingSemi.cc.patch
 generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingLoadMem.v.patch
+generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingSemi.v.patch
 generators/dadao-wuming/src/main/scala/wuming/common/WumingCoreStub.scala.patch
 generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala.patch
 generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala.patch
+generators/dadao-wuming/src/main/scala/wuming/common/WumingSemi.scala.patch
 generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala.patch

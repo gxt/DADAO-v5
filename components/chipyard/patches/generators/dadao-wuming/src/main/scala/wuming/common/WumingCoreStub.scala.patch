@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCoreStub.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCoreStub.scala
 new file mode 100644
-index 0000000..1018fdc
+index 0000000..4876f9b
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCoreStub.scala
-@@ -0,0 +1,222 @@
+@@ -0,0 +1,267 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core placeholder — minimal boot executor (m12-chipyard-003).
@@ -51,6 +51,14 @@ index 0000000..1018fdc
 +    // Raised by the `+loadmem=` loader once the SRAM image is in place and
 +    // verified; the core must not fetch from SRAM before that.
 +    val bootEnable = Input(Bool())
++    // m12-004: a semihosting `trap` is lifted to the tile boundary and served
++    // by the harness-side responder.  The core performs no host call itself:
++    // it only raises (op, argument/parameter-block pointer, return register,
++    // IP) and waits for the scalar result that must land in `ret`.
++    val semi = new Bundle {
++      val req = Output(new WumingSemiReq)
++      val resp = Input(new WumingSemiResp)
++    }
 +    val halted = Output(Bool())
 +  })
 +
@@ -105,7 +113,15 @@ index 0000000..1018fdc
 +  val isJump = opc === 0x71.U
 +  val isLdO = opc === 0x20.U
 +  val isStO = opc === 0x21.U
-+  val supported = isSetZw || isOrW || isJump || isLdO || isStO
++  // `trap cfxHA, immu18` (opcodes.yaml trap_ciii_cfx, opc 0x7F).  The
++  // semihosting tag is immu18[17:8] == 0x3FF and is independent of cfxHA
++  // (spec/Machine-v5 §5.1): the service number is immu18[7:0].  A trap
++  // without the tag is a general cfx trap, which this temporary executor does
++  // not model; it halts exactly like any other unsupported encoding.
++  val imm18 = inst(17, 0)
++  val isTrap = opc === 0x7F.U
++  val isSemihost = isTrap && imm18(17, 8) === 0x3FF.U
++  val supported = isSetZw || isOrW || isJump || isLdO || isStO || isSemihost
 +
 +  // rwii bank select: 0x4C/0x48 target rd, 0x4E/0x4A target rb.  The rf-bank
 +  // variants (0x4D/0x4F) are outside this subset and halt.
@@ -127,12 +143,24 @@ index 0000000..1018fdc
 +  // Request and response phases are separate states: once the A channel has
 +  // fired, `a.valid` must drop while the response is outstanding (a TileLink
 +  // monitor rejects re-using a source ID on a second A beat).
-+  val sIdle :: sFetch :: sFetchReq :: sFetchWait :: sExec :: sMem :: sMemReq :: sMemWait :: sHalt :: Nil = Enum(9)
++  val sIdle :: sFetch :: sFetchReq :: sFetchWait :: sExec :: sMem :: sMemReq :: sMemWait :: sSemi :: sHalt :: Nil = Enum(10)
 +  val state = RegInit(sIdle)
 +
 +  tl.a.valid := (state === sFetchReq) || (state === sMemReq)
 +  tl.a.bits := Mux(state === sFetchReq, fetchBits, Mux(isLdO, ldBits, stBits))
 +  tl.d.ready := (state === sFetchWait) || (state === sMemWait)
++
++  // ---- semihosting request (boundary lift, no host call in the core) -----
++  // The op is immu18[7:0]; the argument (pointer for WRITEC/WRITE0, the
++  // 64-bit parameter-block pointer for the block services) is rb16, the
++  // scalar return register is rd8, and `pc` is the trapping IP.  The
++  // responder answers with a single 64-bit scalar that is written to `ret`.
++  val semiRetReg = 8.U(6.W)
++  io.semi.req.valid := state === sSemi
++  io.semi.req.op := imm18(7, 0)
++  io.semi.req.arg := readRb(16.U)
++  io.semi.req.ret := semiRetReg
++  io.semi.req.pc := ip
 +
 +  // ---- execution ---------------------------------------------------------
 +  switch(state) {
@@ -159,6 +187,8 @@ index 0000000..1018fdc
 +    is(sExec) {
 +      when(!supported) {
 +        state := sHalt
++      }.elsewhen(isSemihost) {
++        state := sSemi
 +      }.elsewhen(isLdO || isStO) {
 +        state := sMemReq
 +      }.otherwise {
@@ -192,6 +222,15 @@ index 0000000..1018fdc
 +        state := sFetch
 +      }
 +    }
++    is(sSemi) {
++      // Semihosting returns by stepping over the trap -- no `escape`
++      // (spec/Machine-v5 §5.4).
++      when(io.semi.resp.valid) {
++        when(semiRetReg =/= 0.U) { rd(semiRetReg) := io.semi.resp.value }
++        ip := ip + 4.U
++        state := sFetch
++      }
++    }
 +    is(sHalt) { }
 +  }
 +
@@ -211,6 +250,12 @@ index 0000000..1018fdc
 +  }
 +  when(state === sExec) {
 +    printf(p"WumingCore: exec ip=0x${Hexadecimal(ip(47, 0))} inst=0x${Hexadecimal(inst)}\n")
++  }
++  when(state === sExec && isSemihost) {
++    printf(p"WumingCore: semihost ip=0x${Hexadecimal(ip(47, 0))} op=0x${Hexadecimal(imm18(7, 0))} arg=0x${Hexadecimal(readRb(16.U))} ret=rd${semiRetReg}\n")
++  }
++  when(state === sSemi && io.semi.resp.valid) {
++    printf(p"WumingCore: semihost 0x${Hexadecimal(imm18(7, 0))} -> rd${semiRetReg}=0x${Hexadecimal(io.semi.resp.value)}\n")
 +  }
 +  when(state === sMemWait && tl.d.fire && isStO) {
 +    printf(p"WumingCore: st 0x${Hexadecimal(memAddr(47, 0))} <= 0x${Hexadecimal(storeValue)} ok\n")
