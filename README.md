@@ -1,6 +1,6 @@
 # DADAO for SimRISC 0.5.6
 
-基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Machine-v5`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**当前进度见 `.tao/knowledge/milestones.md`**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
+基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Machine-v5`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m12.md`（M12）与 `milestones-m13.md`（M13）**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
 
 ## 当前版本号
 
@@ -11,13 +11,13 @@
 | SEE / SBI | 0.7.1 | 0.7.2-rc |
 | HEE / HBI | 0.1.2 | 0.1.3-rc |
 | Toolchain | 0.5.3 | 0.5.3 |
-| Machine | 0.4.0 | 0.4.0 |
+| Machine | 0.4.0 | 0.4.1-rc |
 
 「**已发布版本**」＝ `spec/` 各册**最近一次正式发布版本**（见各册文末「附录：版本与变更记录」，注意**非**册头在研版本），也是合约（`.tao/contracts/contract-*.md`）投影的版本（`check-spec-drift` 以此列比对）；「**在研版本**」＝ 各册文末「附录：版本与变更记录」顶部累积段（自上次发布后**确有内容改动**者为 `<z+1>-rc`，否则与已发布版本相同；口径见 `spec/README.md`「册维护约定」）。同步要求：AEE ↔ ABI、SEE ↔ SBI、HEE ↔ HBI 组内版本必须一致，全部基于同一 SimRISC 版本号。
 
 ## 项目里程碑
 
-> 已完成里程碑（M1–M10）；当前进度见 `.tao/knowledge/milestones.md`。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
+> 已完成里程碑（M1–M11）；**进行中**：M12（chipyard 上跑 Machine-v5-Tiny，见 `milestones-m12.md`）、M13（三平台差分对齐，见 `milestones-m13.md`）。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
 
 | 里程碑 | 达成日 | 主题 |
 | --- | --- | --- |
@@ -31,6 +31,7 @@
 | M8 | 2026-10-19 | 无内核 Linux 用户态栈：musl 静态→动态 + QEMU user-mode（`ADR-0025`） |
 | M9 | 2026-10-24 | FP 完备性 + 线程支持 + ISA 收口（发布 SimRISC 0.5.5） |
 | M10 | 2026-11-01 | CFX 五步（地址空间/PTE/TLB/DMA/启动链）+ 权限/时间/中断 + 工具链与测试收口 |
+| M11 | 2026-11-09 | gem5 SE/FS 收口：完整 tset 双向一致 + SimRISC 0.5.6 发布 |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -106,3 +107,13 @@
 - **测试与门控**：tests 四 scope 迁移（inst/arch/unit/tset）；生成器 `--check` 与落点守卫；L2/L3 严格分层、L3 报告机检、回归运行观测（含 gem5 SE/FS 成员，独立锁）；runner 孤儿清理；llvm-ts 零 known-fail；libc-test/embench 两档；reserved cfx 向量补齐。
 - **规范收口**：六册 C1–C11 落实（AEE/ABI 0.9.3、SEE/SBI 0.7.2、HEE/HBI 0.1.3）；semihosting 迁 `0x3FF00–0x3FFFF`；删除 SBI 保留值 `0x3FFFF`；`cfx_timer→cfx_time`；`ADR-0017 D10` 数组 stride 修订；open issue 归零。
 - **终局验收**：`night-run` **4/4 PASS**（libc-test / llvm-ts / embench / arch:cfx）；L1/L2/L3 与 `check-milestone` 全绿；`INTEG-052m` 为 M10 里程碑核验册；`INFRA-113t` 为 M10 后清理（不纳入本里程碑）。
+### M11（2026-11-09）gem5 SE/FS 收口 + SimRISC 0.5.6 发布
+
+- **SE 基线**：`libc-test` / `llvm-ts` / `embench` static 全量（589 例）在 gem5 SE 与 QEMU user 上逐例对照；预算按套件（300/600/300 s），`timeout` 单列不记能力缺口；1200 s 复测把 23 例转 PASS、72 例仍超时（纯计算量）。
+- **SE 动态**：`ET_EXEC + PT_INTERP` + ldso 装载；三套件 dynamic 全量（590 / 451 / 451），`gem5_only_fail=4` 全属输出捕获顺序问题（`ISS-357`），`qemu_only_fail=0`。
+- **FS 与 semihosting**：Tiny/Vast 双 profile；semihosting 25 服务与 `SYS_EXIT` 闭环；`math_test` 的 B7 浮点缺陷经 `INTEG-058t` 修复（f2i 舍入方向），本里程碑定位并注销登记。
+- **一致性矩阵**：`tests/parity/matrix-M11.md`（`vast/arch` 269/269、`tiny|vast inst` 各 1029）；SE 段 static/dynamic 双档，逐条归因、无未归因项。
+- **回归运行**：QEMU 4 成员 + gem5 SE 3 成员 + gem5 FS 1 成员（8 成员），各成员独立超时与结果 guard。
+- **规范发布**：SimRISC **0.5.6** 发布（13 册去 `-rc`，变更记录按主题归并，含编码不兼容变更）；`Machine-v5` 机器命名定为 `dadao-tiny` / `dadao-vast`（profile `Tiny`/`Vast`）。
+- **归档**：`.tao/archive/M11/`（**114 册**，含 6 个「M10 后」维护任务；回顾 `m11-retrospective.md`；关闭 issue 14 条）。
+

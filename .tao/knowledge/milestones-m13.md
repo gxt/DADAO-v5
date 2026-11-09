@@ -1,8 +1,8 @@
 # 项目里程碑
 
-> **项目里程碑 = M13**（M13 台账的唯一断言；`check-milestones-fresh` 按本断言把任务号路由到本页，`milestones.md` 的断言是 M11、`milestones-m12.md` 是 M12）
+> **项目里程碑 = M13**（M13 台账的唯一断言；`check-milestones-fresh` 按本断言把任务号路由到本页；`milestones-m12.md` 是 M12；M11 台账已随归档删除）
 
-> **本页只维护 M13 任务台账**：M11 及以前的台账见 `milestones.md`；M12 见 `milestones-m12.md`；历史任务见 `.tao/archive/`；当前讨论/规划见 `.tao/knowledge/discussing.md`。
+> **本页只维护 M13 任务台账**：M11 及以前已归档（`.tao/archive/M11/`）；M12 见 `milestones-m12.md`；历史任务见 `.tao/archive/`；当前讨论/规划见 `.tao/knowledge/discussing.md`。
 
 > **M13 定位（用户 2026-11-09）**：三平台（qemu / gem5 / chipyard）的**多方差分对比**，含指令语义，尤其是**浮点**；起点 = gem5 超时与运行时间可比性。
 

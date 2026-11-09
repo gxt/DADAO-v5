@@ -235,7 +235,7 @@ help:
 	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
 	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
-	@echo "  make check-milestones-fresh  milestone ledgers three-table gate: class/coverage/length/order/format + per-milestone ledger routing (milestones.md 必有 / milestones-m12.md、milestones-m13.md 存在则校验) (L1; INFRA-091t/INFRA-141t/m12-infra-001)"
+	@echo "  make check-milestones-fresh  milestone ledgers three-table gate: class/coverage/length/order/format + per-milestone ledger routing (milestones.md / milestones-m12.md / milestones-m13.md 存在则校验) (L1; INFRA-091t/INFRA-141t/m12-infra-001)"
 	@echo "  make check-archive   .tao/archive/M<i>/ structure + task-book fields + README five sections + issues snapshot (L1; INFRA-116t)"
 	@echo "  make check-milestone  Milestone closure: SIMRISC archive + sha + sync-nonmaskable + m-book (optional; validated when present) + L3 report + check-tasks --strict (not L1; night run is observation only)"
 	@echo "  make check-sync-nonmaskable  Sync exception causes must not be maskable (only IPI/TIMER/UART*/… may; SPEC-175t; not L1)"
@@ -1308,17 +1308,17 @@ check-install-tools:
 # ⇒ 该任务号不得在「待开始」，须在「进行中」（册已 `已验证` 则须在「已验证」表），逐条指名。
 # 双台账 (m12-infra-001)：M11 台账 `milestones.md` **必有**；M12 台账 `milestones-m12.md`
 # **存在则校验**（不存在 ⇒ 打印跳过，M11 仍校验 ⇒ 非 vacuous）；`--file` 选台账，任一红即红。
+MILESTONES_M11 := .tao/knowledge/milestones.md
 MILESTONES_M12 := .tao/knowledge/milestones-m12.md
 MILESTONES_M13 := .tao/knowledge/milestones-m13.md
 
 check-milestones-fresh:
-	@$(PYTHON) tools/infra/check_milestones_fresh.py
-	@for f in "$(MILESTONES_M12)" "$(MILESTONES_M13)"; do \
+	@for f in "$(MILESTONES_M11)" "$(MILESTONES_M12)" "$(MILESTONES_M13)"; do \
 	  if [ -f "$$f" ]; then \
 	    $(PYTHON) tools/infra/check_milestones_fresh.py --file "$$f"; rc=$$?; \
 	    [ $$rc -eq 0 ] || exit $$rc; \
 	  else \
-	    echo "check-milestones-fresh: $$f 不存在 ⇒ 跳过（只校验存在的台账；M11 台账已校验）"; \
+	    echo "check-milestones-fresh: $$f 不存在 ⇒ 跳过（只校验存在的台账）"; \
 	  fi; \
 	done
 

@@ -1,8 +1,8 @@
 # 项目里程碑
 
-> **项目里程碑 = M12**（M12 台账的唯一断言；`check-milestones-fresh` 按本断言把任务号路由到本页，`milestones.md` 的断言仍是 M11）
+> **项目里程碑 = M12**（M12 台账的唯一断言；`check-milestones-fresh` 按本断言把任务号路由到本页；M11 台账已随归档删除）
 
-> **本页只维护 M12 任务台账**：M11 及以前的台账见 `milestones.md`；历史任务见 `.tao/archive/`；当前讨论/规划见 `.tao/knowledge/discussing.md`。
+> **本页只维护 M12 任务台账**：M11 及以前已归档（`.tao/archive/M11/`，活台账已删除）；历史任务见 `.tao/archive/`；当前讨论/规划见 `.tao/knowledge/discussing.md`。
 
 > **双台账口径**（用户 2026-11-08）：「从 M12 开始，任务书都带上里程碑……milestones.md 也改为 milestones-m12.md」⇒ 任务号 `m12-<module>-<NNNN>`（无 k/t/m 后缀），台账按任务书 `**项目里程碑**` 字段分派，两文件互不影响；M12 任务的派单/完成只改本页。
 
