@@ -1,44 +1,42 @@
-# m12-chipyard-013: FP 除法/开方/取余
+# m12-chipyard-012: FP 转换
 
 **模块**：chipyard
 **项目里程碑**：M12
-**依赖**：`m12-chipyard-012`
+**依赖**：`m12-chipyard-011`
 **可并行分片**：否（单核实现，单写者）
 **状态**：待开始
 
 ## 背景
 
-011 已完成 FP 算术。
+009 已完成 recFN/舍入/标志/分类基础设施。
 
 ## 目标
 
-1. **除法**：`fodiv`（`DivSqrtRecFN_small` 等价）。
-2. **开方**：`foroot`（同库）。
-3. **取余**：`forem`（IEEE 754 remainder，`rfHC` 为 ±Inf / `rfHD` 为 ±0 / sNaN ⇒ NV + qNaN；不置 NX/OF/UF）。
+1. **浮点→整数**：`ft2it`/`ft2io`/`ft2ut`/`ft2uo`/`fo2it`/`fo2io`/`fo2ut`/`fo2uo`（`INToRecFN`/`RecFNToIN` 等价）。
+2. **格式转换**：`fo2ft`、SBZ 精确转换（`ft2fo`/`it2fo`/`ut2fo`）、复制类（`ft2ft`/`fo2fo`/`rd2rf`/`rf2rd`）。
+3. **舍入与标志**：按 `ADR-0050` 六档；f2i 的 RTZ 语义（C 转换）与 NX/饱和规则按 `SimRISC-07`。
 
 ## 验收标准
 
-1. 对应指令族在 chipyard 上与 QEMU 逐例一致
-2. `forem` 的三个边界（±Inf/±0/sNaN）各有断言
-3. 除法/开方的特殊值（0/0、Inf/Inf、sqrt(-1)）各有断言
+1. `tests/inst/fp/convert.yaml` 全部用例与 QEMU 逐例一致
+2. 六档舍入 × 8 条 f2i 的组合覆盖（`ADR-0050`）
+3. 饱和与 NV/NX 边界各至少 3 例
 4. Verilator 构建 rc=0；门控同前
 5. 一键证据脚本（含可达 FAIL 注入）
 6. 完成区 ≤30 行、无运行期路径
 
 ## 非范围
 
-取整/缩放/符号（`013`）
+算术/除开方/取整（`011`–`013`）
 
 ## 说明
 
-- **允许多周期状态机**（用户 2026-11-09）：wuming 只是「无流水线」，不是「每条指令一个周期」；除法/开方的迭代过程走多周期状态机，不要为了单周期把组合延迟堆到不可仿真。
-- 来源注明同 `009`（berkeley-hardfloat 的 `DivSqrtRecFN_small` 语义）。
 - 参考实现 `.cache/refs/DADAO/SOC-chipyard/` 可作结构参考（**只读溯源，非执行依赖**）。
 - 构建/运行在节点（**单任务单机，不迁移**）；仓库修改在主控机。
 
 ## 硬约束
 
-1. 临时目录 `/tmp/opencode/m12-chipyard-012/`；禁仓库内临时文件（**此前有任务留过 `scratch/`、`pico-math/`**）。
+1. 临时目录 `/tmp/opencode/m12-chipyard-010/`；禁仓库内临时文件（**此前有任务留过 `scratch/`、`pico-math/`**）。
 2. **不提交 git**；不改共享台账；**收尾用显式 `git add <path>`，禁 `git add -A`**。
 3. 完成区与真实输出逐条对齐；只动任务书范围。
 4. 失败保留现场并继续推进；只在需用户语义裁定时留问。

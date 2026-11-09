@@ -1,4 +1,4 @@
-# m12-chipyard-009: 位操作 + 原子 + 杂项（含 fence）
+# m12-chipyard-009: 控制流 + RAS
 
 **模块**：chipyard
 **项目里程碑**：M12
@@ -8,28 +8,27 @@
 
 ## 背景
 
-用户 2026-11-08 确认：`lr`/`sc`/`swym` 与 `fence` 纳入 M12；M12 指令覆盖 = 全部非 cfx 指令。
+006 已完成访存；控制流与返回地址栈未实现。
 
 ## 目标
 
-1. **位操作**：`SimRISC-04/08/09/10` 中的位操作（`ctpop`/`ctlz`/`cttz`/`rol`/`clmul` 等）与整数补齐。
-2. **原子**：`lr`/`sc` 的 24 条形式（`<lr|sc>.<b|w|t|o>.<nn|an|ar|nr>`）、`swym`（`SimRISC-12`）；`sc` 的 `rdHB=rd0 ⇒ ILLI`。
-3. **`fence`**：`SimRISC-11 §5`——`hb!=0` 或保留 `cfxha` ⇒ ILLI；`pred==succ==0` 合法 no-op；非零掩码在单周期核上天然满足（顺序执行）。
-4. **合法性**：全部保留编码 ⇒ ILLI（按 `contracts/legality_rules.yaml`）。
+1. **控制流**：`SimRISC-06`（控制流）的条件分支、无条件跳转、`call`/`ret` 全形式；返回地址按 spec（`call` = 当前指令地址 + 4）。
+2. **RAS**：返回地址栈的实现与深度按 spec；溢出/下溢行为按 spec（不得静默）。
+3. **与 bootrom 的交互**：bootrom 的 `jump` 到应用入口路径必须保持（003 的闭环不回归）。
 
 ## 验收标准
 
-1. `tests/inst` 的 `atomics/` 与位操作用例在 chipyard 上与 QEMU 逐例一致
-2. `fence` 的 ILLI 与 no-op 两条路径各有至少 3 例
-3. `sc` 的 `rd0` 合法性规则有专门断言
-4. `swym` 合法 no-op、保留编码 ILLI
+1. `tests/inst` 中控制流指令族在 chipyard 上与 QEMU `dadao-tiny` 逐例一致
+2. `call`/`ret` 的返回地址语义有专门断言（含嵌套调用）
+3. RAS 溢出/下溢行为有至少 2 例（注入式）
+4. bootrom→loadmem→semihosting 闭环不回归
 5. Verilator 构建 rc=0；`apply-series`/`check-source-state`/`check-patch-tree`/L1/L2 rc=0
 6. 一键证据脚本（含可达 FAIL 注入）
 7. 完成区 ≤30 行、无运行期路径
 
 ## 非范围
 
-FP（`009`–`013`）、cfx 本身（`trap`/`escape`/`cfx2rd`/`cfx2rc` 不实现）
+位操作/原子/杂项（`008`）、FP（`009`–`013`）
 
 ## 说明
 
@@ -38,7 +37,7 @@ FP（`009`–`013`）、cfx 本身（`trap`/`escape`/`cfx2rd`/`cfx2rc` 不实现
 
 ## 硬约束
 
-1. 临时目录 `/tmp/opencode/m12-chipyard-008/`；禁仓库内临时文件（**此前有任务留过 `scratch/`、`pico-math/`**）。
+1. 临时目录 `/tmp/opencode/m12-chipyard-007/`；禁仓库内临时文件（**此前有任务留过 `scratch/`、`pico-math/`**）。
 2. **不提交 git**；不改共享台账；**收尾用显式 `git add <path>`，禁 `git add -A`**。
 3. 完成区与真实输出逐条对齐；只动任务书范围。
 4. 失败保留现场并继续推进；只在需用户语义裁定时留问。

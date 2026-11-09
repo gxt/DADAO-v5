@@ -12,9 +12,22 @@
 
 **补充澄清（同日）**：「1–2 周期」是**举例**，3、5 周期也都可以——**周期数怎么合适怎么来**，不要被「单周期核」的名字绑住。
 
+## 用户裁定（2026-11-09，同日补充）
+
+- **Tiny 上 hmon**：Tiny 实现 `cfx_power`（cfx63）+ `cfx3 hmon`；hmon SRAM 复用 `0x0fff_0000_0000`（64 KiB）；**无 PTW/页表**。
+- **同步异常不经 `trap` 指令**，直接进 hmon 向量；与 semihosting 的 `trap` **无冲突**。
+- **三平台 Tiny 的 semihosting `trap` 统一写 `trap cfx_hmon`**（实现上仍只看 `immu18`，不判断 cfxha）。
+- `trap` 判定：`immu18 ∈ 0x3FF00–0x3FFFF` ⇒ semihosting；`cfxha=3`（hmon）+ 其它 `immu18` ⇒ 进 hmon。
+
 ## 目标
 
 **只做分析与推荐，不实现**。产出「每类指令的周期划分 + 状态机结构」的方案，供用户裁定。
+
+**必须包含 Tiny 的 hmon/power**：
+- `cfx_power`（cfx63）启动移交 → hmon（cfx3）
+- 同步异常（ILLI/UNDI/`CFXMEM`/`MALIGN`/`IALIGN`）进 hmon 向量的状态与时机
+- semihosting `trap`（`immu18 0x3FF00+op`）与 `trap cfx3` 的区分，以及它们在状态机中的路径
+- IALIGN 时 **IP 停留在非法地址**（`DADAO-12 §5`），不得写回 `nextIp`
 
 1. **逐类分析**（按执行特性，不是按指令册）：
    - 纯寄存器运算（算术/逻辑/移位/比较/位操作）：**周期数由分析决定**（用户 2026-11-09：1–2 是举例，3、5 周期也都可以，「怎么合适怎么来」）；权衡可仿真性、面积、时序

@@ -1,33 +1,34 @@
-# m12-chipyard-016: T1 适配集 + M12 验收
+# m12-chipyard-013: FP 算术（加/乘/FMA/比较/最小最大）
 
 **模块**：chipyard
 **项目里程碑**：M12
-**依赖**：`m12-chipyard-015`
+**依赖**：`m12-chipyard-012`
 **可并行分片**：否（单核实现，单写者）
 **状态**：待开始
 
 ## 背景
 
-014 已完成 T0 冒烟；M12 收尾需要 T1 适配集与验收报告。
+010 已完成 FP 转换。
 
 ## 目标
 
-1. **T1 适配集（用户 2026-11-09）**：`tests/inst` 全量（非 cfx）+ tset（embench 全量 + libc-test/llvm-ts 无文件 I/O 子集）；**不含 `tests/arch`**（`tiny.arch=false`，arch 全不适用）。三平台比对。
-2. **M12 验收**：汇总 001–015 的证据，给出「全部非 cfx 指令已实现、三平台一致、semihosting 闭环」的结论与遗留清单。
-3. **不掩盖**：任何 BLOCKED/差异逐条列名并归因。
+1. **加法/乘法**：`foadd`/`fomul`（`AddRecFN`/`MulRecFN` 等价）。
+2. **FMA**：`fofma`（`MulAddRecFN` 等价，单次舍入）。
+3. **比较**：`foqcmp`/`foscmp`（`CompareRecFN` 等价，quiet/signaling 语义按 spec）。
+4. **最小/最大**：`fomin`/`fomax`（NaN 传播按 spec）。
 
 ## 验收标准
 
-1. T1 适配集全量三平台一致（或差异逐条归因）
-2. M12 验收报告落 `.tao/knowledge/refs/m12-015-acceptance.{json,md}`
-3. 遗留清单（能力缺口/差异/待办）逐条可追溯
-4. Verilator 构建 rc=0；L1/L2/L3 rc=0
+1. 对应指令族在 chipyard 上与 QEMU/gem5 逐例一致
+2. FMA 的单次舍入有专门向量（与「先乘后加」区分）
+3. quiet/signaling NaN 的比较语义各至少 2 例
+4. Verilator 构建 rc=0；门控同前
 5. 一键证据脚本（含可达 FAIL 注入）
 6. 完成区 ≤30 行、无运行期路径
 
 ## 非范围
 
-M13 的差分对齐（三平台浮点等）
+除/开方/余（`012`）、取整/缩放（`013`）
 
 ## 说明
 
@@ -36,7 +37,7 @@ M13 的差分对齐（三平台浮点等）
 
 ## 硬约束
 
-1. 临时目录 `/tmp/opencode/m12-chipyard-015/`；禁仓库内临时文件（**此前有任务留过 `scratch/`、`pico-math/`**）。
+1. 临时目录 `/tmp/opencode/m12-chipyard-011/`；禁仓库内临时文件（**此前有任务留过 `scratch/`、`pico-math/`**）。
 2. **不提交 git**；不改共享台账；**收尾用显式 `git add <path>`，禁 `git add -A`**。
 3. 完成区与真实输出逐条对齐；只动任务书范围。
 4. 失败保留现场并继续推进；只在需用户语义裁定时留问。

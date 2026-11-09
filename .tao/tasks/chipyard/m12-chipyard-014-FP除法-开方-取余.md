@@ -1,4 +1,4 @@
-# m12-chipyard-014: FP 取整/缩放/符号
+# m12-chipyard-014: FP 除法/开方/取余
 
 **模块**：chipyard
 **项目里程碑**：M12
@@ -8,36 +8,37 @@
 
 ## 背景
 
-012 已完成除/开方/余；剩余 FP 零碎指令。
+011 已完成 FP 算术。
 
 ## 目标
 
-1. **取整**：`fornd`（roundToIntegral，六档舍入）。
-2. **缩放**：`fosclb`/`ftsclb`（第三操作数为 `rd` 组的有符号 64 位整数指数，`rdHD=rd0` 表示指数 0）。
-3. **符号操作**：`fosgnj`（及同族）。
-4. 至此 **FP 47 条指令**全部落地（`spec/SimRISC-07`）。
+1. **除法**：`fodiv`（`DivSqrtRecFN_small` 等价）。
+2. **开方**：`foroot`（同库）。
+3. **取余**：`forem`（IEEE 754 remainder，`rfHC` 为 ±Inf / `rfHD` 为 ±0 / sNaN ⇒ NV + qNaN；不置 NX/OF/UF）。
 
 ## 验收标准
 
-1. FP 47 条指令在 `tests/inst` 中全部有覆盖且与 QEMU 一致
-2. `fosclb` 的 `rd` 第三操作数（含 `rd0`）有专门断言
-3. `fornd` 六档舍入全覆盖
+1. 对应指令族在 chipyard 上与 QEMU 逐例一致
+2. `forem` 的三个边界（±Inf/±0/sNaN）各有断言
+3. 除法/开方的特殊值（0/0、Inf/Inf、sqrt(-1)）各有断言
 4. Verilator 构建 rc=0；门控同前
 5. 一键证据脚本（含可达 FAIL 注入）
 6. 完成区 ≤30 行、无运行期路径
 
 ## 非范围
 
-T0/T1 冒烟（`014`/`015`）
+取整/缩放/符号（`013`）
 
 ## 说明
 
+- **允许多周期状态机**（用户 2026-11-09）：wuming 只是「无流水线」，不是「每条指令一个周期」；除法/开方的迭代过程走多周期状态机，不要为了单周期把组合延迟堆到不可仿真。
+- 来源注明同 `009`（berkeley-hardfloat 的 `DivSqrtRecFN_small` 语义）。
 - 参考实现 `.cache/refs/DADAO/SOC-chipyard/` 可作结构参考（**只读溯源，非执行依赖**）。
 - 构建/运行在节点（**单任务单机，不迁移**）；仓库修改在主控机。
 
 ## 硬约束
 
-1. 临时目录 `/tmp/opencode/m12-chipyard-013/`；禁仓库内临时文件（**此前有任务留过 `scratch/`、`pico-math/`**）。
+1. 临时目录 `/tmp/opencode/m12-chipyard-012/`；禁仓库内临时文件（**此前有任务留过 `scratch/`、`pico-math/`**）。
 2. **不提交 git**；不改共享台账；**收尾用显式 `git add <path>`，禁 `git add -A`**。
 3. 完成区与真实输出逐条对齐；只动任务书范围。
 4. 失败保留现场并继续推进；只在需用户语义裁定时留问。

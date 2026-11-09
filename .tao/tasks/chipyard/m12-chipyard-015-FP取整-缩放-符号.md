@@ -1,34 +1,34 @@
-# m12-chipyard-008: 控制流 + RAS
+# m12-chipyard-015: FP 取整/缩放/符号
 
 **模块**：chipyard
 **项目里程碑**：M12
-**依赖**：`m12-chipyard-007`
+**依赖**：`m12-chipyard-014`
 **可并行分片**：否（单核实现，单写者）
 **状态**：待开始
 
 ## 背景
 
-006 已完成访存；控制流与返回地址栈未实现。
+012 已完成除/开方/余；剩余 FP 零碎指令。
 
 ## 目标
 
-1. **控制流**：`SimRISC-06`（控制流）的条件分支、无条件跳转、`call`/`ret` 全形式；返回地址按 spec（`call` = 当前指令地址 + 4）。
-2. **RAS**：返回地址栈的实现与深度按 spec；溢出/下溢行为按 spec（不得静默）。
-3. **与 bootrom 的交互**：bootrom 的 `jump` 到应用入口路径必须保持（003 的闭环不回归）。
+1. **取整**：`fornd`（roundToIntegral，六档舍入）。
+2. **缩放**：`fosclb`/`ftsclb`（第三操作数为 `rd` 组的有符号 64 位整数指数，`rdHD=rd0` 表示指数 0）。
+3. **符号操作**：`fosgnj`（及同族）。
+4. 至此 **FP 47 条指令**全部落地（`spec/SimRISC-07`）。
 
 ## 验收标准
 
-1. `tests/inst` 中控制流指令族在 chipyard 上与 QEMU `dadao-tiny` 逐例一致
-2. `call`/`ret` 的返回地址语义有专门断言（含嵌套调用）
-3. RAS 溢出/下溢行为有至少 2 例（注入式）
-4. bootrom→loadmem→semihosting 闭环不回归
-5. Verilator 构建 rc=0；`apply-series`/`check-source-state`/`check-patch-tree`/L1/L2 rc=0
-6. 一键证据脚本（含可达 FAIL 注入）
-7. 完成区 ≤30 行、无运行期路径
+1. FP 47 条指令在 `tests/inst` 中全部有覆盖且与 QEMU 一致
+2. `fosclb` 的 `rd` 第三操作数（含 `rd0`）有专门断言
+3. `fornd` 六档舍入全覆盖
+4. Verilator 构建 rc=0；门控同前
+5. 一键证据脚本（含可达 FAIL 注入）
+6. 完成区 ≤30 行、无运行期路径
 
 ## 非范围
 
-位操作/原子/杂项（`008`）、FP（`009`–`013`）
+T0/T1 冒烟（`014`/`015`）
 
 ## 说明
 
@@ -37,7 +37,7 @@
 
 ## 硬约束
 
-1. 临时目录 `/tmp/opencode/m12-chipyard-007/`；禁仓库内临时文件（**此前有任务留过 `scratch/`、`pico-math/`**）。
+1. 临时目录 `/tmp/opencode/m12-chipyard-013/`；禁仓库内临时文件（**此前有任务留过 `scratch/`、`pico-math/`**）。
 2. **不提交 git**；不改共享台账；**收尾用显式 `git add <path>`，禁 `git add -A`**。
 3. 完成区与真实输出逐条对齐；只动任务书范围。
 4. 失败保留现场并继续推进；只在需用户语义裁定时留问。

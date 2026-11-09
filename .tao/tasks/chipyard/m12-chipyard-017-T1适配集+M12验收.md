@@ -1,33 +1,33 @@
-# m12-chipyard-011: FP 转换
+# m12-chipyard-017: T1 适配集 + M12 验收
 
 **模块**：chipyard
 **项目里程碑**：M12
-**依赖**：`m12-chipyard-010`
+**依赖**：`m12-chipyard-016`
 **可并行分片**：否（单核实现，单写者）
 **状态**：待开始
 
 ## 背景
 
-009 已完成 recFN/舍入/标志/分类基础设施。
+014 已完成 T0 冒烟；M12 收尾需要 T1 适配集与验收报告。
 
 ## 目标
 
-1. **浮点→整数**：`ft2it`/`ft2io`/`ft2ut`/`ft2uo`/`fo2it`/`fo2io`/`fo2ut`/`fo2uo`（`INToRecFN`/`RecFNToIN` 等价）。
-2. **格式转换**：`fo2ft`、SBZ 精确转换（`ft2fo`/`it2fo`/`ut2fo`）、复制类（`ft2ft`/`fo2fo`/`rd2rf`/`rf2rd`）。
-3. **舍入与标志**：按 `ADR-0050` 六档；f2i 的 RTZ 语义（C 转换）与 NX/饱和规则按 `SimRISC-07`。
+1. **T1 适配集（用户 2026-11-09）**：`tests/inst` 全量（非 cfx）+ tset（embench 全量 + libc-test/llvm-ts 无文件 I/O 子集）；**不含 `tests/arch`**（`tiny.arch=false`，arch 全不适用）。三平台比对。
+2. **M12 验收**：汇总 001–015 的证据，给出「全部非 cfx 指令已实现、三平台一致、semihosting 闭环」的结论与遗留清单。
+3. **不掩盖**：任何 BLOCKED/差异逐条列名并归因。
 
 ## 验收标准
 
-1. `tests/inst/fp/convert.yaml` 全部用例与 QEMU 逐例一致
-2. 六档舍入 × 8 条 f2i 的组合覆盖（`ADR-0050`）
-3. 饱和与 NV/NX 边界各至少 3 例
-4. Verilator 构建 rc=0；门控同前
+1. T1 适配集全量三平台一致（或差异逐条归因）
+2. M12 验收报告落 `.tao/knowledge/refs/m12-015-acceptance.{json,md}`
+3. 遗留清单（能力缺口/差异/待办）逐条可追溯
+4. Verilator 构建 rc=0；L1/L2/L3 rc=0
 5. 一键证据脚本（含可达 FAIL 注入）
 6. 完成区 ≤30 行、无运行期路径
 
 ## 非范围
 
-算术/除开方/取整（`011`–`013`）
+M13 的差分对齐（三平台浮点等）
 
 ## 说明
 
@@ -36,7 +36,7 @@
 
 ## 硬约束
 
-1. 临时目录 `/tmp/opencode/m12-chipyard-010/`；禁仓库内临时文件（**此前有任务留过 `scratch/`、`pico-math/`**）。
+1. 临时目录 `/tmp/opencode/m12-chipyard-015/`；禁仓库内临时文件（**此前有任务留过 `scratch/`、`pico-math/`**）。
 2. **不提交 git**；不改共享台账；**收尾用显式 `git add <path>`，禁 `git add -A`**。
 3. 完成区与真实输出逐条对齐；只动任务书范围。
 4. 失败保留现场并继续推进；只在需用户语义裁定时留问。

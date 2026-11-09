@@ -1,8 +1,8 @@
-# m12-chipyard-015: T0 冒烟（inst 全量非 cfx + tset 子集，三平台比对）
+# m12-chipyard-016: T0 冒烟（inst 全量非 cfx + tset 子集，三平台比对）
 
 **模块**：chipyard
 **项目里程碑**：M12
-**依赖**：`m12-chipyard-014`
+**依赖**：`m12-chipyard-015`
 **可并行分片**：否（单核实现，单写者）
 **状态**：待开始
 
