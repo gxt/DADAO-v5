@@ -2,6 +2,7 @@
 
 **模块**：chipyard
 **项目里程碑**：M12
+**可并行分片**：否（单次 Verilator 构建 + 单次运行，不可拆）
 **状态**：待开始
 **依赖**：`m12-chipyard-003`（BootROM + loadmem 闭环）
 

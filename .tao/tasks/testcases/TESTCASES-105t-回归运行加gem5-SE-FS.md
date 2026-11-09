@@ -3,6 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M11
 **依赖**：`INTEG-059t`（gem5 SE 完整 tset 驱动）；gem5 FS 的 inst/arch 驱动已有
+**可并行分片**：按套件（libc-test / llvm-ts / embench / arch）
 **状态**：待开始
 
 ## 背景

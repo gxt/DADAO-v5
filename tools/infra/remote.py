@@ -95,6 +95,9 @@ fi
 printf 'disk_avail_kb=%s\n' "$(df -Pk . 2>/dev/null | awk 'NR==2{print $4}')"
 printf 'mem_avail_mb=%s\n' "$(free -m 2>/dev/null | awk '/^Mem:/{print $7}')"
 printf 'mem_total_mb=%s\n' "$(free -m 2>/dev/null | awk '/^Mem:/{print $2}')"
+printf 'loadavg=%s\n' "$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo UNKNOWN)"
+running="$(ps -eo args 2>/dev/null | grep -E '(^|/)(make|gem5\.opt|verilator|verilator_bin|ninja|sbt|java)( |$)|run_[a-z_]+suite\.py|run_gem5_se_baseline\.py' | grep -v grep | head -n 5 | cut -c1-120 | tr '\n' ';')"
+printf 'running=%s\n' "${running:-none}"
 exit 0
 """
 

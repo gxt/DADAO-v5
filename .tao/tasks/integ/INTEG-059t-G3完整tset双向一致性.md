@@ -3,6 +3,7 @@
 **模块**：integ
 **项目里程碑**：M11
 **依赖**：`GEM5-023t`～`GEM5-028t`（SE 文件 I/O/时钟、信号、IPC/多进程、线程/TLS、动态装载器、文件映射）、`TESTCASES-103t`（预算）、`TESTCASES-104t`（动态驱动与 QEMU 动态基线）
+**可并行分片**：按套件（libc-test / llvm-ts / embench）
 **状态**：待开始
 
 ## 背景与目标
