@@ -117,6 +117,13 @@
 - **FP 分组依据（用户建议参考 berkeley-hardfloat）**：按 hardfloat 的原语边界切——转换 / 算术 / 除法开方 / 取整缩放，每组对应一组 `RecFN` 原语，便于复用 IP 与逐组比对（本地 chipyard 子模块 `generators/hardfloat/hardfloat` 即该库）。
 - **DADAO FP 指令集共 47 条**（`spec/SimRISC-07`）：转换、运算（加/乘/FMA/除/余/开方/取整/缩放/最小最大）、符号位、比较、分类。
 
+## chipyard 子模块补丁与 loadmem 路径（用户 2026-11-09 裁定）
+
+- **子模块必须能打补丁**：用户原话「我们当然需要给子模块打 patch，现在不做，以后也要做」⇒ 撤销 2026-11-08「不调试 chipyard 本身」对 `INFRA-137t` 的撤销，恢复并扩展子模块补丁机制。
+- **`SimDRAM.MEM_BASE` 需要设置**：`generators/testchipip/.../SimDRAM.v` 的 `parameter MEM_BASE = 0` **未声明位宽**（默认 32 位），Tiny 的 48 位基址会被截断；修法 = 声明位宽 + 实例化传参（补丁打到 testchipip 子模块）。
+- **fesvr 支持大端，无需改源码**：`riscv-isa-sim/riscv/riscv.ac` 有 `AC_ARG_ENABLE([dual-endian])`，构建时加 `--enable-dual-endian` 即可开启 `RISCV_ENABLE_DUAL_ENDIAN`。
+- **结论**：chipyard 的 `+loadmem` 路径应回到 **stock `loadmem` + SimDRAM 补丁 + fesvr `--enable-dual-endian`**；`m12-chipyard-003` 的「tile 内 loader」属绕路，待 reviewer 核实后返工或另立任务。
+
 ## chipyard 骨架实测结论（`m12-chipyard-001`，待 reviewer 复核）
 
 - **`BaseTile` 自写端口的抽象成员**：`intInwardNode` / `intOutwardNode` / `masterNode` / `slaveNode` / `module`；`halt`/`cease`/`wfi` 由 `SourcesExternalNotifications` 提供；`HartidKey` / `TileVisibilityNodeKey` / `LookupByHartId` 由 `BaseTile` 构造器自动注入。
