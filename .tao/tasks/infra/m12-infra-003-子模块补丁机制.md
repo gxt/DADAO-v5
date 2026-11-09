@@ -24,7 +24,8 @@
 3. **`make_patch.py`**：支持从子模块工作树导出补丁（一文件一补丁、`new file mode` 齐备）。
 4. **`check_patch_tree.py`**：断言覆盖子模块补丁（HEAD diff、patch↔worktree 一致性、source-state clean）。
 5. **`docs/Process-01`**：登记子模块补丁的组织方式与适用范围（不复制 chipyard 全量子模块，只登记实际要改的）。
-6. **试点**：用 testchipip 的 `SimDRAM.v` 补丁（`MEM_BASE`/`ADDR_BITS` 位宽）验证端到端——补丁导出、`apply-series`、门控、`check-source-state`。
+6. **试点**：用 testchipip 的 `SimDRAM.cc`/`SimDRAM.v` 补丁验证端到端——补丁导出、`apply-series`、门控、`check-source-state`。
+   - 选型理由：`SimDRAM.cc` 的 `get_target_endianness()` 固定返回 `little`，即使 fesvr 开 `--enable-dual-endian` 仍会在 dual-endian 分支 throw；这是**已确认的实际缺口**（不依赖 Tiny 当前是否用 SimDRAM）。
 
 ## 验收标准
 

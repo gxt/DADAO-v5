@@ -117,12 +117,19 @@
 - **FP 分组依据（用户建议参考 berkeley-hardfloat）**：按 hardfloat 的原语边界切——转换 / 算术 / 除法开方 / 取整缩放，每组对应一组 `RecFN` 原语，便于复用 IP 与逐组比对（本地 chipyard 子模块 `generators/hardfloat/hardfloat` 即该库）。
 - **DADAO FP 指令集共 47 条**（`spec/SimRISC-07`）：转换、运算（加/乘/FMA/除/余/开方/取整/缩放/最小最大）、符号位、比较、分类。
 
-## chipyard 子模块补丁与 loadmem 路径（用户 2026-11-09 裁定）
+## chipyard 子模块补丁与 loadmem 路径（2026-11-09 用户质疑 + reviewer 复核）
 
-- **子模块必须能打补丁**：用户原话「我们当然需要给子模块打 patch，现在不做，以后也要做」⇒ 撤销 2026-11-08「不调试 chipyard 本身」对 `INFRA-137t` 的撤销，恢复并扩展子模块补丁机制。
-- **`SimDRAM.MEM_BASE` 需要设置**：`generators/testchipip/.../SimDRAM.v` 的 `parameter MEM_BASE = 0` **未声明位宽**（默认 32 位），Tiny 的 48 位基址会被截断；修法 = 声明位宽 + 实例化传参（补丁打到 testchipip 子模块）。
-- **fesvr 支持大端，无需改源码**：`riscv-isa-sim/riscv/riscv.ac` 有 `AC_ARG_ENABLE([dual-endian])`，构建时加 `--enable-dual-endian` 即可开启 `RISCV_ENABLE_DUAL_ENDIAN`。
-- **结论**：chipyard 的 `+loadmem` 路径应回到 **stock `loadmem` + SimDRAM 补丁 + fesvr `--enable-dual-endian`**；`m12-chipyard-003` 的「tile 内 loader」属绕路，待 reviewer 核实后返工或另立任务。
+- **用户三点质疑的查证结果**：
+  - ① `MEM_BASE` **override 后不截断**（reviewer 用 Verilator 5.020 最小复现：`#(.MEM_BASE(48'hffffff000000))` ⇒ `bits=48`、值正确）；「未声明位宽默认 32」只在不 override 时成立。
+  - ② fesvr 大端**可开**（`riscv.ac` 的 `--enable-dual-endian`），但**开了还不够**：`SimDRAM.cc` 的 `get_target_endianness()` 仍返回 `little`，dual-endian 分支仍 throw ⇒ 须同时改 testchipip 的 `SimDRAM.cc`。
+  - ③ 子模块补丁**应该做**（用户原话「现在不做，以后也要做」），已立 `m12-infra-003`，量级约 0.5–1 天。
+- **关键反转（reviewer 读码 + 实测）**：**stock `+loadmem` 写不到 Tiny 的 SRAM**——
+  - `+loadmem` 的写入目标是 SimDRAM 的 host mmap backing，只在 `WithBlackBoxSimMem` 绑到 AXI4MemPort 时存在；
+  - Tiny 主存是 `BankedScratchpadKey → ScratchpadBank → TLRAM`（on-chip TL slave），**不经 AXI**；
+  - 当前设计**没有 SimDRAM 实例**（elab/构建日志 `SimDRAM` 0 次、链接行 `SimDRAM.o`=0）。
+  - ⇒ **`m12-chipyard-003` 的 tile 内 loader 不是绕路，是当前设计下唯一能写 SRAM 的路径**（写总线 = 写 SRAM），方案保留。
+- **修正我此前的错误判断**：此前记「tile 内 loader 属绕路、应回到 stock loadmem」是**错的**；已按 reviewer 证据撤回。
+- 子模块补丁机制的价值不因此消失（fesvr/SimDRAM.cc、将来 Vast 的反备内存、其它子模块改动）。
 
 ## chipyard 骨架实测结论（`m12-chipyard-001`，待 reviewer 复核）
 
