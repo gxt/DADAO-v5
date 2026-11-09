@@ -33,7 +33,7 @@
 3. **IALIGN 时 IP 停在非法地址**（专门断言）
 4. semihosting 的 `trap cfx_hmon` 与 `trap cfx63` 都能工作（`immu18` 判定不依赖 cfxha）
 5. 005 的 273 例整数测试**零回归**（逐字节一致）
-6. Verilator 构建 rc=0（节点，单任务单机）；`apply-series`/`check-source-state`/`check-patch-tree`/L1/L2 rc=0
+6. Verilator 构建 rc=0（**主控机**）；`apply-series`/`check-source-state`/`check-patch-tree`/L1/L2 rc=0
 7. 一键证据脚本（运行期证据目录下的 `run.sh`，含可达 FAIL 注入）
 8. 完成区 ≤30 行、无运行期路径
 
@@ -46,4 +46,4 @@
 ## 说明
 
 - 与 `006` 的设计定稿保持一致；若实现中发现设计需调整，**停下报告**（不要自行改设计）。
-- 构建/运行在节点（单任务单机）；仓库修改在主控机；节点操作后 `make sync-node-repo`。
+- **构建与调试在主控机**（用户 2026-11-10：chipyard 后续构建/调试一律主控机）；小规模仿真也在主控机。**长仿真才上节点**（且节点须自行构建，Verilator 产物机器相关，不跨机复制）。仓库修改在主控机；节点操作后 `make sync-node-repo`。

@@ -21,7 +21,7 @@
 1. `tests/inst/fp/convert.yaml` 全部用例与 QEMU 逐例一致
 2. 六档舍入 × 8 条 f2i 的组合覆盖（`ADR-0050`）
 3. 饱和与 NV/NX 边界各至少 3 例
-4. Verilator 构建 rc=0；门控同前
+4. Verilator 构建 rc=0（主控机）；门控同前
 5. 一键证据脚本（含可达 FAIL 注入）
 6. 完成区 ≤30 行、无运行期路径
 

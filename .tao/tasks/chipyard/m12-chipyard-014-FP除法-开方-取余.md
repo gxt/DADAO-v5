@@ -21,7 +21,7 @@
 1. 对应指令族在 chipyard 上与 QEMU 逐例一致
 2. `forem` 的三个边界（±Inf/±0/sNaN）各有断言
 3. 除法/开方的特殊值（0/0、Inf/Inf、sqrt(-1)）各有断言
-4. Verilator 构建 rc=0；门控同前
+4. Verilator 构建 rc=0（主控机）；门控同前
 5. 一键证据脚本（含可达 FAIL 注入）
 6. 完成区 ≤30 行、无运行期路径
 

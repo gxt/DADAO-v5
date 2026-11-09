@@ -23,7 +23,7 @@
 2. `fence` 的 ILLI 与 no-op 两条路径各有至少 3 例
 3. `sc` 的 `rd0` 合法性规则有专门断言
 4. `swym` 合法 no-op、保留编码 ILLI
-5. Verilator 构建 rc=0；`apply-series`/`check-source-state`/`check-patch-tree`/L1/L2 rc=0
+5. Verilator 构建 rc=0（主控机）；`apply-series`/`check-source-state`/`check-patch-tree`/L1/L2 rc=0
 6. 一键证据脚本（含可达 FAIL 注入）
 7. 完成区 ≤30 行、无运行期路径
 

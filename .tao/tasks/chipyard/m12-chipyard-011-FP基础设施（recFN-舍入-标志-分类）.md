@@ -22,7 +22,7 @@
 1. 与 hardfloat 的 `RoundAnyRawFNToRecFN` 在六档舍入下逐例一致（可用 `tools` 的 FP 测试向量）
 2. 异常标志五类各有至少 2 例
 3. 分类（NaN/Inf/subnormal/zero）全覆盖
-4. Verilator 构建 rc=0；`apply-series`/`check-source-state`/`check-patch-tree`/L1/L2 rc=0
+4. Verilator 构建 rc=0（主控机）；`apply-series`/`check-source-state`/`check-patch-tree`/L1/L2 rc=0
 5. 一键证据脚本（含可达 FAIL 注入）
 6. 完成区 ≤30 行、无运行期路径
 

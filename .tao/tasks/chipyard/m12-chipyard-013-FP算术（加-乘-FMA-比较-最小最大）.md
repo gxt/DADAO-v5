@@ -22,7 +22,7 @@
 1. 对应指令族在 chipyard 上与 QEMU/gem5 逐例一致
 2. FMA 的单次舍入有专门向量（与「先乘后加」区分）
 3. quiet/signaling NaN 的比较语义各至少 2 例
-4. Verilator 构建 rc=0；门控同前
+4. Verilator 构建 rc=0（主控机）；门控同前
 5. 一键证据脚本（含可达 FAIL 注入）
 6. 完成区 ≤30 行、无运行期路径
 

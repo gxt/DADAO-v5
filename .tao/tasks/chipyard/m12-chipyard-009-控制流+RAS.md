@@ -22,7 +22,7 @@
 2. `call`/`ret` 的返回地址语义有专门断言（含嵌套调用）
 3. RAS 溢出/下溢行为有至少 2 例（注入式）
 4. bootrom→loadmem→semihosting 闭环不回归
-5. Verilator 构建 rc=0；`apply-series`/`check-source-state`/`check-patch-tree`/L1/L2 rc=0
+5. Verilator 构建 rc=0（主控机）；`apply-series`/`check-source-state`/`check-patch-tree`/L1/L2 rc=0
 6. 一键证据脚本（含可达 FAIL 注入）
 7. 完成区 ≤30 行、无运行期路径
 

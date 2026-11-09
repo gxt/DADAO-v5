@@ -22,7 +22,7 @@
 1. FP 47 条指令在 `tests/inst` 中全部有覆盖且与 QEMU 一致
 2. `fosclb` 的 `rd` 第三操作数（含 `rd0`）有专门断言
 3. `fornd` 六档舍入全覆盖
-4. Verilator 构建 rc=0；门控同前
+4. Verilator 构建 rc=0（主控机）；门控同前
 5. 一键证据脚本（含可达 FAIL 注入）
 6. 完成区 ≤30 行、无运行期路径
 
