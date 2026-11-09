@@ -113,10 +113,10 @@
 
 **重跑记录（本人执行；worktree `m12-spec-002` @ `9c6d0c19` + WIP `376ba093`，仓库根相对路径）**
 - 5 spec 门控逐条单跑全 rc=0：`check-spec-readonly`（`21 read-only spec volume(s) OK`）、`check-spec-changelog`（`files=21 segments=49 rc_segments=8`）、`check-spec-drift`、`check-spec-numbering`（`h2=100 h3=143`）、`check-spec-refs`（`0 violations`）；`check-knowledge-refs` rc=0（`0 具体 .work/** 引用`）。
-- 证据脚本（运行期证据目录的 `run.sh`）full：**第 1 次 exit=1**（`RESULT PASS=6 FAIL=1`，`FAIL L1 unrelated failure check-run-artifacts`，现场 `r2-full.log`）——日志原文 2 行：`.work/log/chipyard/m12-chipyard-005-build-master.status` / `-elab-master.status` `illegal name`（**另一任务**产物）；该门控我在 worktree 与 master 主工作树单跑均 rc=0 ⇒ 并发干扰，**有据重试 1 次** ⇒ **第 2 次 exit=0，`RESULT full: PASS=7 FAIL=0 INFO=3`**（与 engineer 声称逐字一致）。
+- 证据脚本（运行期证据目录的 `run.sh`）full：**第 1 次 exit=1**（`RESULT PASS=6 FAIL=1`，`FAIL L1 unrelated failure check-run-artifacts`，现场 `r2-full.log`）——日志原文 2 行：他人任务构建状态的日志文件名 / `-elab-master.status` `illegal name`（**另一任务**产物）；该门控我在 worktree 与 master 主工作树单跑均 rc=0 ⇒ 并发干扰，**有据重试 1 次** ⇒ **第 2 次 exit=0，`RESULT full: PASS=7 FAIL=0 INFO=3`**（与 engineer 声称逐字一致）。
 - `--self-test-inject`：**exit=0，`PASS=10 FAIL=0`**（readonly/changelog/content/**vector**/lock 5 类注入均 FAIL→`cp`+md5 还原→回绿；还原后 `git status --porcelain -uall` 空）。
 - **本人独立注入**（engineer 未用的第 6 类）：`cp` 备份 md5=`fc7e75c2…` ⇒ 把 §4.4「该向量由 hmon **启动时显式写入** `0x0fff_0000_0000`…**不依赖复位默认值**」改回「**默认等于 hmon SRAM 起始**…（按 `DADAO-13 §1` 复位默认值）」⇒ 重跑**同一** `run.sh` **exit=1**（`content+lock rc=1` 3 errors：`§4.4 does not state hmon explicitly writes…`、`body still claims the hmon vector defaults to the SRAM start`、`lock sha256 does not match…`；并 `check-spec-readonly rc=2`、L1 判其 unrelated failure）⇒ `cp` 还原、md5 相等 ⇒ 重跑 **exit=0，PASS=7 FAIL=0 INFO=3**；注入残留 grep=0。
-- `check-knowledge-refs` 真因核（防绕过）：向本任务书追加具体路径 `.work/evidence/m12-spec-002/run.sh` ⇒ **rc=2**（`FAIL (1 具体 .work/** 引用不可复现)`，命中本任务书 L112）⇒ `cp`+md5 还原 ⇒ **rc=0** ⇒ 绿确因第 1 轮记录改措辞，非绕过。
+- `check-knowledge-refs` 真因核（防绕过）：向本任务书追加具体路径 本任务运行期证据目录下的 `run.sh` ⇒ **rc=2**（`FAIL (1 具体 .work/** 引用不可复现)`，命中本任务书 L112）⇒ `cp`+md5 还原 ⇒ **rc=0** ⇒ 绿确因第 1 轮记录改措辞，非绕过。
 - 锁同笔：两侧各 21 条目、同集，**仅** `spec/Machine-v5` sha 变（`f9743cd3…`→`9f3a1781…`）；我逐条实算 21 文件 sha 与锁 **全部 MATCH（0 mismatch）**；`git diff master -- spec/DADAO-13-*.md` 空。
 - L1：`make -k check` rc=2，仅 `check-patch-tree`/`check-temp-dirs` 红；**两项我在 master 主工作树单跑同样 rc=2、消息相同** ⇒ 外部红已复核。
 - 旧表述：正文 **0 处**（我另用 13 模式独立扫；仅 2 处 `不进入向量` 为 §4.3/§5.4 的 semihosting 语义，非旧口径）；附录历史 **7 处**（0.4.2-rc 3 + 0.4.0 4），与完成区一致。
