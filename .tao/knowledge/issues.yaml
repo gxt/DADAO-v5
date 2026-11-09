@@ -64,3 +64,12 @@
     dynamic llvm-ts 有 7 例因此 blocked（QEMU 可正常装载），名单见
     `refs/INTEG-059t-se-parity-summary.json` 的 `new_findings`。
     建议：改为「按对齐要求零填到下一个对齐边界」而不是 fatal；属 gem5 实现缺口，另立任务。
+- id: ISS-360
+  scope: [infra]
+  status: open
+  resolved_by: null
+  title: >-
+    【P3】`m12-chipyard-005` 在第 1 轮验收期间出现**重复 reviewer**（两个 reviewer session 同时验收
+    同一 HEAD）：主会话在其一已在跑时又派了一个，违反「同一任务同一时刻只允许一个 reviewer」。
+    两次判决一致（Needs Revision、F1 `sub.uo` 借位），未造成结论分叉，但浪费一轮。
+    建议：派 reviewer 前先查任务书「第 N 轮 reviewer」记录、worktree 内 `.work/log` 与进程，确认无在跑者。
