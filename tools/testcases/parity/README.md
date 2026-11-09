@@ -91,18 +91,19 @@ python3 tools/testcases/parity/se_tset_matrix.py --self-test   # 逐条反例注
   `qemu_only_fail` ⇒ 登记表为空（`ADR-0048 D5`：不得当作 gem5 胜利）；两引擎同
   verdict 的 `known-fail`（`ISS-251`）才允许进 `both_non_pass`。
 - 输出 `matrix-M11-SE.md` 片段（`--matrix-section-out`）与完整快照
-  （`--compose-out --fs-matrix <run_parity 输出> --carry-from <上一版快照>`；
-  picolibc 段原样承接，B7 登记不手改）；数字一律现场统计，不手改。
+  （`--compose-out --fs-matrix <run_parity 输出> --picolibc-json <tiny/picolibc
+  JSON>`；旧的 `--carry-from` 只在 B7 登记未裁定时期承接上一版行）；数字一律
+  现场统计，不手改。
 
 ## M11 收口口径（TESTCASES-098t）
 
-- **矩阵范围**：Tiny/Vast 的 `inst`/`arch` + Tiny `picolibc`（`math_test` B7 对照）。Embench 不进本矩阵。
+- **矩阵范围**：Tiny/Vast 的 `inst`/`arch` + Tiny `picolibc`（旁证；`math_test` PASS，B7 已关闭）。Embench 不进本矩阵。
 - **M11 Vast 验收范围**：只验收 `arch`（cfx/arch/PTW/模式）。`vast/inst` 行仅作现场参考，不进入 Vast 验收通过数。
 - **历史归类**：`GEM5-016t`/`QEMU-080t` 的 Vast `inst`/`embench` 结果 = **历史，不计入 M11 Vast 验收**；`vast/embench` 不再生成。
 - **Vast 不跑 Embench**：M11 起 Vast profile 不跑 Embench。
 - **Embench 归属**：Tiny system/bare-metal = `run_embench_e2e.py`（`make test-m6`，guest exit 0）；SE user = `make check-tset-embench-full`（static/dynamic，回归运行成员）。
 - **SE tset（TESTCASES-100t 回归运行）**：报告 `2026-11-05-13` 4/4 成员 rc=0、`check-night-report` rc=0。llvm-ts static `discovered 222 - excluded 8 = total 214`，pass 214 / fail 0 / blocked 0；dynamic 同；blocked 不计入通过。
-- **math_test**：`picolibc/math_test` 仍 `BLOCKED`（B7 数值差异），现测 QEMU `0 errors / 76404 functions`，gem5 `238 errors / 76404 functions`（exit 1）；BLOCKED 不计入 `AGREE_PASS`。
+- **math_test**：`picolibc/math_test` **PASS**（双引擎 `Tested 76404 functions, 0 errors`；QEMU/gem5 exit 0）。B7 数值差异由 `INTEG-058t`（f2i 舍入方向修正）修复、`GEM5-032t` 定位，`GEM5-033t` 注销 `PICOLIBC_KNOWN_BLOCKED`；picolibc 段由现场 `run_parity --profiles tiny --scopes picolibc` JSON 重生成。
 - **退出码状态**：快照按当前引擎实现生成；`SPEC-187t` 退出码规范已定稿、QEMU/gem5 实现尚未迁移，迁移后须再生成一次。
 - **`TESTCASES-102t` 起 arch 探针去 icount 化**：20 个 timing 用例改为读时设 deadline + 有界轮询（窗口 ≥10× 名义值），QEMU 与 gem5 用同一份探针实际对照；下方 2026-11-05 快照里的 20 个 `BLOCKED` 已过时，等矩阵任务重生成 `tests/parity/matrix-M11.md`。
 - **本快照（2026-11-05 晚，`GEM5-020t` 后）**：`vast/arch` 249 `AGREE_PASS` + 20 `BLOCKED`（icount N/A）、`GEM5_ONLY_FAIL=0`、`DIFF=0`。上一版 14 条 `GEM5_ONLY_FAIL`（`QEMU-083t` 后 gem5 未对齐的历史快照）已由本次替换：14 条逐条转 `AGREE_PASS`，含 `arch/umon/m5_perm_badcombo_cfxreg`（自环已消除）。`GEM5-020t` 将 gem5 的 10 处 CFXREG fault 目标由 `cfxha` 改为当前运行模式 monitor，与 `QEMU-083t` 对齐。
@@ -112,15 +113,17 @@ python3 tools/testcases/parity/se_tset_matrix.py --self-test   # 逐条反例注
 
 ## 已知例外（**不**参与硬门的 `AGREE_PASS`）
 
-`run_parity.py` 顶部有两张**显式登记表**，每条都有根因，矩阵里保留
+`run_parity.py` 顶部只有一张显式登记表，每条都有根因，矩阵里保留
 `raw_status`（引擎真实状态）供审计：
 
-- `PICOLIBC_KNOWN_BLOCKED`：仅 `math_test`（B7 数值差异，`GEM5-015t` 遗留①），
-  gem5 始终记 `BLOCKED`，不写 PASS、不计入 gem5 通过。
 - `KNOWN_GEM5_BLOCKED`：**gem5 侧缺陷**登记表（QEMU 通过、gem5 不通过；修复属
   `components/gem5`）。现为**空表**（既有 semihosting 缺陷已由 `GEM5-018t` 全数
   修复）；后续若发现 gem5 侧缺陷仍登记于此，逐条记 `BLOCKED` + 「另立 gem5
   任务」，`raw_status` 保留；若某条后来变成 PASS，判据会报 stale（必须删登记）。
+
+`PICOLIBC_KNOWN_BLOCKED`（`math_test` / B7）已删除：根因为 `INTEG-058t` 的
+f2i 舍入方向修正（`GEM5-032t` 定位），现双引擎 `Tested 76404 functions, 0 errors`，
+`math_test` 按普通 case 参与判定（`GEM5-033t`）。
 
 ## shim 参数子集与限制
 

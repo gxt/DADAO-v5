@@ -243,3 +243,12 @@ reviewer 判决 **Accepted**，不另开轮；findings 1–5 全为文档/口径
 **同步**：`git merge master` 实为**有冲突**——`master` 已从 `b3c1f12b` 前进到 `464028f9`（新增 `GEM5-016t` 立册），冲突文件仅 `.tao/knowledge/milestones.md`（新增 GEM5-016t 行 vs 本行改写）；解决 = 两行都保留，按 `check-milestones-fresh` A4「同一时间按编号升序」排为 GEM5-015t → GEM5-016t；merge commit `be430216`（无其它文件冲突）。
 **同步后门控**：`check.py --phases gates,isolation --no-build` ⇒ **12/12 CHECK rc=0、`SUMMARY: all checks passed`、`GATES_EXIT=0`**（L1 红仅 2 项 env 缺口、本任务悬空 0；L2 BLOCKED 于 build-builtins）。日志 `运行期证据（已清理，未归档）`（含首跑红 `check-gates-merged.log`：A4 次序错 1 项，已修）。
 **提交**：`GEM5-015t: FS Machine-v5-Tiny`（`a3809976`）—— 显式 staging 26 文件（21 补丁 + `series` + `README.md` + `changelog.md` + 本册 + `milestones.md`），`git diff --cached --name-only` 与完成区「修改文件」逐项对账**空差**（无漏提/多提/越界）；未 `push`、未合入 `master`（合并由主会话执行）。
+
+## B7 关闭说明（`GEM5-033t`，2026-11-09）
+
+> 本节为**追加**的关闭说明；上文 2026-11-04 的原始记录与当时结论保持原样，不改写。
+
+- 原记录：`math_test` 在 gem5 上 **238/76404 errors**、QEMU 0 errors，按既有 B7 数值差异登记为 blocked（未写 PASS）。
+- 根因（`GEM5-032t` 已验证）：`INTEG-058t`（`3de11cac`）修正 `b7.cc` 的 f2i 舍入方向——`runConvertF2I` 由「count + `rf0` 动态模式」改为 `modeFromCode(immu6)`，C 强制转换发 RTZ，旧实现违反 `contract-fp`/SimRISC-07。同一现 ELF 只翻转 24 条 f2i 的 immu6（`0x04→0x01`）⇒ 235 errors，失败行是 238 的严格子集。
+- 现状：gem5 与 QEMU 均 `Tested 76404 functions, 0 errors`、exit 0。
+- 注销（`GEM5-033t`）：删除 `PICOLIBC_KNOWN_BLOCKED`，picolibc 段现场重生成，`math_test` 记 **PASS**（缺陷关闭式重登记）。

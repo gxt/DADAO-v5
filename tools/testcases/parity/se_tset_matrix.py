@@ -924,13 +924,12 @@ def render_matrix_section(report):
 
 
 # ---------------------------------------------------------------------------
-# snapshot composition (FS matrix + carried picolibc + SE section)
+# snapshot composition (FS matrix + picolibc block + SE section)
 # ---------------------------------------------------------------------------
 
-#: The picolibc rows are carried from the previous accepted snapshot: the
-#: current engine reproduces ``math_test`` as 0 errors (B7 no longer
-#: triggers), but the task constraint forbids rewriting a recorded known
-#: difference as PASS, so the registration stays and the ruling is pending.
+#: Legacy carry path: picolibc rows copied verbatim from the previous accepted
+#: snapshot.  Kept for snapshots whose B7 registration is still pending (the
+#: ruling is ``GEM5-033t``; live regeneration uses ``picolibc_json`` below).
 CARRY_NOTE = (
     "> The current engine build reports `math_test` as 0 errors / exit 0",
     "> on gem5 (reproduced twice: see the SE parity report).  That",
@@ -939,44 +938,157 @@ CARRY_NOTE = (
     "> previous accepted snapshot's, not this run's.  Ruling pending.",
 )
 
+_PICOLIBC_COUNT_KEYS = ("total", "agree_pass", "agree_fail", "gem5_only_fail",
+                        "qemu_only_fail", "diff", "deferred", "skip_profile",
+                        "blocked", "n_a")
 
-def compose_snapshot(fs_md_path, carry_from, section_text):
-    """FS markdown + carried picolibc rows + SE section -> one snapshot."""
+_VERDICT_BUCKET = {"AGREE_PASS": "agree_pass", "AGREE_FAIL": "agree_fail",
+                   "GEM5_ONLY_FAIL": "gem5_only_fail",
+                   "QEMU_ONLY_FAIL": "qemu_only_fail", "DIFF": "diff",
+                   "BLOCKED_SIDE": "blocked", "N/A": "n_a"}
+
+
+def picolibc_block_from_json(path):
+    """Build the snapshot's picolibc block from a live run_parity JSON.
+
+    Counts are recomputed from the per-case rows and compared against the
+    JSON's declared counts (no hand-typed numbers); ``math_test`` must be PASS
+    on both engines with a zero-error guest summary in the gem5 note.
+    """
+    with open(path, "r", encoding="utf-8") as fh:
+        doc = json.load(fh)
+    rows = [r for r in doc.get("cases") or [] if r.get("scope") == "picolibc"]
+    if not rows:
+        raise ReportError(f"picolibc: no rows in {path}")
+    counts = {k: 0 for k in _PICOLIBC_COUNT_KEYS}
+    detail = []
+    for row in rows:
+        if row.get("profile") != "tiny":
+            raise ReportError(f"picolibc: non-tiny row {row.get('case_id')}")
+        counts["total"] += 1
+        verdict = row.get("verdict")
+        key = _VERDICT_BUCKET.get(verdict)
+        if verdict == "N/A":
+            qs = row["qemu"]["status"]
+            if qs in ("DEFERRED", "SKIP_PROFILE"):
+                key = None
+            if qs == "DEFERRED":
+                counts["deferred"] += 1
+            if qs == "SKIP_PROFILE":
+                counts["skip_profile"] += 1
+        if key is None and verdict != "N/A":
+            raise ReportError(f"picolibc: bad verdict {verdict!r} for "
+                              f"{row.get('case_id')}")
+        if key:
+            counts[key] += 1
+        if verdict != "AGREE_PASS":
+            note = (row.get("attribution") or row.get("note") or "")
+            detail.append("| %s | %s | `%s` | %s/%s | %s/%s | %s | %s |" % (
+                row["profile"], row["scope"], row["case_id"],
+                row["qemu"]["status"], row["qemu"].get("exit"),
+                row["gem5"]["status"], row["gem5"].get("exit"),
+                verdict, note.replace("|", "/")))
+    declared = (doc.get("counts") or {}).get("tiny/picolibc")
+    if declared is None:
+        raise ReportError(f"picolibc: no declared tiny/picolibc counts in "
+                          f"{path}")
+    want = {k: declared.get(k) for k in _PICOLIBC_COUNT_KEYS}
+    if want != counts:
+        raise ReportError("picolibc: declared counts differ from the rows: "
+                          f"{want} != {counts}")
+    math = [r for r in rows if r["case_id"].endswith("/math_test")]
+    if len(math) != 1:
+        raise ReportError("picolibc: expected exactly one math_test row")
+    math = math[0]
+    if math["qemu"]["status"] != "PASS" or math["gem5"]["status"] != "PASS":
+        raise ReportError("picolibc/math_test: not PASS on both engines "
+                          f"(QEMU {math['qemu']['status']} / gem5 "
+                          f"{math['gem5']['status']})")
+    m = re.search(r"Tested (\d+) functions, (\d+) errors",
+                  math["gem5"].get("note") or "")
+    if not m or int(m.group(1)) <= 0 or int(m.group(2)) != 0:
+        raise ReportError("picolibc/math_test: gem5 note lacks a zero-error "
+                          f"guest summary ({math['gem5'].get('note')!r})")
+    counts_row = "| tiny | picolibc | " + " | ".join(
+        str(counts[k]) for k in _PICOLIBC_COUNT_KEYS) + " |"
+    block = ["## picolibc (live regeneration; B7 closed)", "",
+             "> Regenerated by `tools/testcases/parity/run_parity.py "
+             "--profiles tiny --scopes picolibc`; counts are derived from the "
+             "run JSON, never typed by hand.",
+             ">",
+             "> `picolibc/math_test` is PASS on both engines (gem5 guest: "
+             f"`{m.group(0)}`). The B7 difference was fixed by `INTEG-058t`, "
+             "located by `GEM5-032t`, and deregistered by `GEM5-033t`.",
+             "",
+             "| profile | scope | total | agree_pass | agree_fail | "
+             "gem5_only_fail | qemu_only_fail | diff | deferred | "
+             "skip_profile | blocked | N/A |",
+             "| --- | --- | " + " | ".join(["---"] * 10) + " |",
+             counts_row,
+             "",
+             "| profile | scope | case_id | QEMU | gem5 | verdict | "
+             "attribution / note |",
+             "| --- | --- | --- | --- | --- | --- | --- |"]
+    block += detail
+    block += ["",
+              "`picolibc/math_test` is PASS on both engines; the B7 "
+              "registration is removed (`GEM5-033t`)."]
+    return block
+
+
+def compose_snapshot(fs_md_path, carry_from, section_text, picolibc_json=None):
+    """FS markdown + picolibc block + SE section -> one snapshot."""
     with open(fs_md_path, "r", encoding="utf-8") as fh:
         fs_lines = fh.read().rstrip("\n").splitlines()
+    if picolibc_json:
+        # Drop any previous picolibc / SE sections from the FS input so the
+        # regenerated blocks below are the only ones in the snapshot.
+        for i, line in enumerate(fs_lines):
+            if line.startswith("## picolibc") \
+                    or line.startswith("## SE tset matrix"):
+                fs_lines = fs_lines[:i]
+                break
+        # A run_parity markdown may carry picolibc rows inline; the block below
+        # is the only place they may appear in the snapshot.
+        fs_lines = [ln for ln in fs_lines
+                    if not ln.startswith("| tiny | picolibc |")]
+        fs_lines = "\n".join(fs_lines).rstrip("\n").splitlines()
     header = [ln for ln in fs_lines if ln.startswith("| profile | scope | "
                                                      "total |")]
     if not header:
         raise ReportError(f"compose: no counts table header in {fs_md_path}")
-    with open(carry_from, "r", encoding="utf-8") as fh:
-        old = fh.read().splitlines()
-    carry = [ln for ln in old if ln.startswith("| tiny | picolibc |")]
-    # Column-count separation, no literal numbers: the counts row has the
-    # 12-column schema, each detail row the 7-column one.
-    counts_rows = [ln for ln in carry if ln.count("|") == 13]
-    detail_rows = [ln for ln in carry if ln.count("|") == 8]
-    if len(counts_rows) != 1 or len(detail_rows) != 3:
-        raise ReportError(
-            f"compose: {carry_from} carries {len(counts_rows)} picolibc "
-            f"counts row(s) and {len(detail_rows)} detail row(s), want 1 + 3")
-    block = ["## picolibc (carried from the previous snapshot; B7 unchanged)",
-             ""]
-    block += list(CARRY_NOTE)
-    block += ["",
-              "| profile | scope | total | agree_pass | agree_fail | "
-              "gem5_only_fail | qemu_only_fail | diff | deferred | "
-              "skip_profile | blocked | N/A |",
-              "| --- | --- | " + " | ".join(["---"] * 10) + " |",
-              counts_rows[0],
-              "",
-              "| profile | scope | case_id | QEMU | gem5 | verdict | "
-              "attribution / note |",
-              "| --- | --- | --- | --- | --- | --- | --- |"]
-    block += detail_rows
-    block += ["",
-              "`picolibc/math_test` stays `BLOCKED` (`B7` numeric difference, "
-              "`GEM5-015t` leftover 1) and is never written as PASS in this "
-              "snapshot."]
+    if picolibc_json:
+        block = picolibc_block_from_json(picolibc_json)
+    else:
+        with open(carry_from, "r", encoding="utf-8") as fh:
+            old = fh.read().splitlines()
+        carry = [ln for ln in old if ln.startswith("| tiny | picolibc |")]
+        # Column-count separation, no literal numbers: the counts row has the
+        # 12-column schema, each detail row the 7-column one.
+        counts_rows = [ln for ln in carry if ln.count("|") == 13]
+        detail_rows = [ln for ln in carry if ln.count("|") == 8]
+        if len(counts_rows) != 1 or len(detail_rows) != 3:
+            raise ReportError(
+                f"compose: {carry_from} carries {len(counts_rows)} picolibc "
+                f"counts row(s) and {len(detail_rows)} detail row(s), want 1 + 3")
+        block = ["## picolibc (carried from the previous snapshot; B7 unchanged)",
+                 ""]
+        block += list(CARRY_NOTE)
+        block += ["",
+                  "| profile | scope | total | agree_pass | agree_fail | "
+                  "gem5_only_fail | qemu_only_fail | diff | deferred | "
+                  "skip_profile | blocked | N/A |",
+                  "| --- | --- | " + " | ".join(["---"] * 10) + " |",
+                  counts_rows[0],
+                  "",
+                  "| profile | scope | case_id | QEMU | gem5 | verdict | "
+                  "attribution / note |",
+                  "| --- | --- | --- | --- | --- | --- | --- |"]
+        block += detail_rows
+        block += ["",
+                  "`picolibc/math_test` stays `BLOCKED` (`B7` numeric difference, "
+                  "`GEM5-015t` leftover 1) and is never written as PASS in this "
+                  "snapshot."]
     return "\n".join(fs_lines) + "\n\n" + "\n".join(block) + "\n\n" \
         + section_text.rstrip("\n") + "\n"
 
@@ -1133,7 +1245,10 @@ def main(argv=None):
                     help="run_parity.py markdown for --compose-out")
     ap.add_argument("--carry-from", default=None,
                     help="previous snapshot whose picolibc rows are carried "
-                         "into --compose-out")
+                         "into --compose-out (legacy B7-pending path)")
+    ap.add_argument("--picolibc-json", default=None,
+                    help="live run_parity.py JSON (--profiles tiny --scopes "
+                         "picolibc); regenerates the picolibc block from it")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args(argv)
 
@@ -1166,11 +1281,12 @@ def main(argv=None):
                 fh.write(section)
             print(f"matrix section: {args.matrix_section_out}")
         if args.compose_out:
-            if not (args.fs_matrix and args.carry_from):
-                raise ReportError("--compose-out needs --fs-matrix and "
-                                  "--carry-from")
+            if not (args.fs_matrix
+                    and (args.carry_from or args.picolibc_json)):
+                raise ReportError("--compose-out needs --fs-matrix and either "
+                                  "--carry-from or --picolibc-json")
             composed = compose_snapshot(args.fs_matrix, args.carry_from,
-                                        section)
+                                        section, args.picolibc_json)
             os.makedirs(os.path.dirname(os.path.abspath(args.compose_out)),
                         exist_ok=True)
             with open(args.compose_out, "w", encoding="utf-8") as fh:

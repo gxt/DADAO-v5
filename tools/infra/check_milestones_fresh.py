@@ -491,9 +491,15 @@ def audit(root: Path, ledger_rel: Path = MILESTONES_REL) -> int:
         errors.append("A5 次序: 三表须按 `待开始 → 进行中 → 已验证` 排列，"
                       f"实得标题行号 {order}")
     if all(not rows for rows in sections.values()):
-        print("  ERROR: 三表皆无数据行 ⇒ vacuous FAIL")
-        print("结果: FAIL (1 项)")
-        return 1
+        # 归档边界（Process-04 §4.1）：里程碑已归档 ⇒ 活台账允许为空。
+        lm = ledger_milestone(root / ledger_rel)
+        archived = lm is not None and (root / ".tao" / "archive" / f"M{lm}" / "README.md").is_file()
+        if archived:
+            print(f"  NOTE: M{lm} 已归档（.tao/archive/M{lm}/）⇒ 活台账三表允许为空")
+        else:
+            print("  ERROR: 三表皆无数据行 ⇒ vacuous FAIL")
+            print("结果: FAIL (1 项)")
+            return 1
     for heading, header, statuses, kind in TABLES:
         print(f"  {heading[3:]} 行（现场统计）: {len(sections[heading])}")
 

@@ -89,13 +89,6 @@ VERDICTS = ("AGREE_PASS", "AGREE_FAIL", "GEM5_ONLY_FAIL", "QEMU_ONLY_FAIL",
 def _is_machine_fault(rc):
     return 0x80 <= rc <= 0xFF
 
-# Known, spec-attributed differences.  Only picolibc math_test is allowed (B7
-# numeric difference carried from GEM5-015t); it must stay BLOCKED, never PASS.
-PICOLIBC_KNOWN_BLOCKED = {
-    "math_test": "B7 numeric difference (GEM5-015t leftover 1): QEMU 0 errors / "
-                 "gem5 non-zero; not a FS path regression",
-}
-
 # gem5-side defects found by parity runs (QEMU passes, gem5 does not).  The fix
 # belongs to components/gem5; register BLOCKED with a root cause and a separate
 # gem5 task, never count as PASS.  `raw_status` keeps the raw gem5 verdict for
@@ -592,9 +585,21 @@ def _picolibc_run(args, log_path):
     return rc, doc, qwork, qjson
 
 
-def _classify_gem5_picolibc(name, rc, mod):
-    if name in PICOLIBC_KNOWN_BLOCKED and rc != 0:
-        return "BLOCKED", PICOLIBC_KNOWN_BLOCKED[name]
+def _log_result_line(path):
+    """Last ``Tested N functions, M errors`` line from a guest log (or None)."""
+    if not os.path.isfile(path):
+        return None
+    last = None
+    pattern = re.compile(r"Tested \d+ functions, \d+ errors[^\r\n]*")
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            hit = pattern.search(line)
+            if hit:
+                last = hit.group(0).strip()
+    return last
+
+
+def _classify_gem5_picolibc(rc):
     if rc == 0:
         return "PASS", "exit 0"
     if rc == 77:
@@ -631,15 +636,13 @@ def _picolibc_gem5(args, qdoc, qwork, log_path):
         timeout = max(timeout, args.timeout)
         rc = _run_logged(cmd, os.path.join(log_path, name + ".log"), env=env,
                          timeout=timeout)
+        summary = _log_result_line(os.path.join(log_path, name + ".log"))
         if rc == 124:
-            if name in PICOLIBC_KNOWN_BLOCKED:
-                status, why = "BLOCKED", (PICOLIBC_KNOWN_BLOCKED[name] +
-                                          " (gem5 did not finish within "
-                                          f"{timeout}s)")
-            else:
-                status, why = "TIMEOUT", "gem5 timeout"
+            status, why = "TIMEOUT", "gem5 timeout"
         else:
-            status, why = _classify_gem5_picolibc(name, rc, mod)
+            status, why = _classify_gem5_picolibc(rc)
+            if status == "PASS" and summary:
+                why = "exit 0; " + summary
         out[name] = {"status": status, "exit": rc,
                      "arch_visible": {"elf": os.path.basename(elf),
                                       "elf_md5": _md5(elf),
@@ -938,7 +941,6 @@ def _verdict(scope, q, g):
 
 
 def _assign_confidence(row):
-    scope = row["scope"]
     q = row["qemu"]
     g = row["gem5"]
     if row.get("attribution"):
@@ -947,8 +949,6 @@ def _assign_confidence(row):
         row["attribution"] = "gem5-capability: " + g["note"]
     elif g.get("status") == "N/A" and g.get("note"):
         row["attribution"] = "N/A: " + g["note"]
-    if scope == "picolibc" and row["case_id"].endswith("/math_test"):
-        row["attribution"] = "gem5 B7 numeric difference (GEM5-015t)"
 
 
 def counts_for(rows):
@@ -1070,15 +1070,7 @@ def _check_coverage(rows, live):
                     continue
                 name = row["case_id"].split("/", 1)[1]
                 q, g = row["qemu"], row["gem5"]
-                if name in PICOLIBC_KNOWN_BLOCKED:
-                    if q["status"] != "PASS":
-                        errs.append(f"picolibc/{name}: QEMU baseline is not "
-                                    f"PASS ({q['status']})")
-                    if g["status"] != "BLOCKED":
-                        errs.append(f"picolibc/{name}: gem5 must stay BLOCKED "
-                                    f"(B7), got {g['status']} (blocked "
-                                    f"masquerade)")
-                elif q["status"] == "PASS" and g["status"] == "N/A":
+                if q["status"] == "PASS" and g["status"] == "N/A":
                     errs.append(f"picolibc/{name}: gem5 not compared")
                 elif q["status"] == "N/A" and g["status"] == "PASS":
                     errs.append(f"picolibc/{name}: gem5 PASS but QEMU "
@@ -1117,14 +1109,7 @@ def _check_picolibc(rows):
             continue
         name = row["case_id"].split("/", 1)[1]
         q, g = row["qemu"], row["gem5"]
-        if name in PICOLIBC_KNOWN_BLOCKED:
-            if q["status"] != "PASS":
-                errs.append(f"picolibc/{name}: QEMU baseline is not PASS "
-                            f"({q['status']})")
-            if g["status"] != "BLOCKED":
-                errs.append(f"picolibc/{name}: gem5 must stay BLOCKED (B7), "
-                            f"got {g['status']} (blocked masquerade)")
-        elif q["status"] == "PASS" and g["status"] == "N/A":
+        if q["status"] == "PASS" and g["status"] == "N/A":
             errs.append(f"picolibc/{name}: gem5 not compared")
         elif q["status"] == "N/A" and g["status"] == "PASS":
             errs.append(f"picolibc/{name}: gem5 PASS but QEMU excluded")
@@ -1291,10 +1276,11 @@ def write_markdown(path, ident, rows, counts):
     if any(r["profile"] == "tiny" and r["scope"] == "arch" for r in rows):
         lines.append("- `tiny/arch`: `tests/shared/machine-profiles.yaml` "
                      "`tiny.arch=false` (Tiny has no cfx/monitor).")
-    if any(r["case_id"].endswith("/math_test") for r in rows):
-        lines.append("- `picolibc/math_test`: BLOCKED, B7 numeric difference "
-                     "(GEM5-015t leftover 1); never written as PASS and not in "
-                     "the hard subset.")
+    if any(r["case_id"].endswith("/math_test") and
+           r["gem5"]["status"] == "PASS" for r in rows):
+        lines.append("- `picolibc/math_test`: PASS (no B7 difference; fixed by "
+                     "`INTEG-058t`, located by `GEM5-032t`, deregistered by "
+                     "`GEM5-033t`).")
     gem5_defects = [r for r in rows
                     if r["case_id"] in KNOWN_GEM5_BLOCKED
                     and r["gem5"]["status"] == "BLOCKED"]
@@ -1361,8 +1347,9 @@ def _synth_rows():
                           "gem5 --profile vast", "")))
     good.append(_row({"case_id": "picolibc/math_test", "profile": "tiny",
                       "scope": "picolibc"},
-                     _rec("PASS", None, {"qemu_class": "pass"}, "", ""),
-                     _rec("BLOCKED", 1, {}, "", "B7 numeric difference (B7)")))
+                     _rec("PASS", 0, {"qemu_class": "pass"}, "", ""),
+                     _rec("PASS", 0, {}, "", "exit 0; Tested 4 functions, "
+                                              "0 errors detected")))
     good.append(_row({"case_id": "inst/base/x.yaml#2:qonly",
                       "profile": "tiny", "scope": "inst"},
                      _rec("FAIL", 1, {"expected_fault": None}, "", ""),
@@ -1454,13 +1441,13 @@ def _mutations(rows):
         out.append(("tiny_profile_leak", tiny_runs_vast))
 
     if pico:
-        def blocked_as_pass(doc):
+        def picolibc_gem5_fail(doc):
             r = next(x for x in doc["cases"]
                      if x["case_id"] == pico["case_id"])
-            r["gem5"]["status"] = "PASS"
-            r["gem5"]["exit"] = 0
+            r["gem5"]["status"] = "FAIL"
+            r["gem5"]["exit"] = 1
             r["verdict"] = ""
-        out.append(("blocked_as_pass", blocked_as_pass))
+        out.append(("picolibc_gem5_fail", picolibc_gem5_fail))
 
     def empty(doc):
         doc["cases"] = []
