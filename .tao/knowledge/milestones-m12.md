@@ -24,12 +24,12 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m12-infra-003 | 3–4 h | 子模块补丁机制（manifest/apply/make_patch/check_patch_tree + testchipip 试点） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m12-infra-003 | 2026-11-09 14:06 | 3–4 h | 子模块补丁机制（manifest/apply/make_patch/check_patch_tree + testchipip 试点） |
 
 ## 已验证
 
