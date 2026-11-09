@@ -12,7 +12,7 @@
 
 ## 目标
 
-1. **T1 适配集**：在 T0 基础上扩展（`tests/inst` 全量 + `tests/arch` 中 Tiny 适用部分），三平台比对。
+1. **T1 适配集（用户 2026-11-09）**：`tests/inst` 全量（非 cfx）+ tset（embench 全量 + libc-test/llvm-ts 无文件 I/O 子集）；**不含 `tests/arch`**（`tiny.arch=false`，arch 全不适用）。三平台比对。
 2. **M12 验收**：汇总 001–015 的证据，给出「全部非 cfx 指令已实现、三平台一致、semihosting 闭环」的结论与遗留清单。
 3. **不掩盖**：任何 BLOCKED/差异逐条列名并归因。
 

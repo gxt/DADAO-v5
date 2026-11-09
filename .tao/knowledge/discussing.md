@@ -96,6 +96,11 @@
 
 - **FP 覆盖范围（用户 2026-11-08）**：**全做 5 组**；原则是「所有非 cfx 指令都应实现」。
 - **M12 指令覆盖（用户 2026-11-08）**：**全部非 cfx 指令**（不再只是 inst 子集），含 `fence`、`lr`/`sc`、`swym`；cfx 本身（`trap`/`escape`/`cfx2rd`/`cfx2rc`）不在 Tiny 实现，`trap` 仅用于 semihosting。
+- **FP 实现方式（用户 2026-11-09）**：**参考** berkeley-hardfloat 的 recFN 语义、**自写**组合逻辑，**不引入 `hardfloat` 子模块依赖**；代码与任务书**逐处注明来源**。
+- **「单周期」= 无流水线，不是「每条指令一个周期」**（用户 2026-11-09）：多寄存器/ldm/stm 本就多周期；**FP 除法/开方允许走多周期状态机**。
+- **M12/M13 边界（用户 2026-11-09）**：M12 = **功能性**（pass/fail/exit/board markers 一致）；M13 第一阶段 = **完整准确的语义定义 + 重新生成边界向量**，做**语义性**差分。
+- **M12 纳入 embench 全量**（38 例；裸机 semihosting 5 服务足够：`WRITE0`/`WRITE` + `EXIT` + 可选 `CLOCK`）。
+- **T1 范围（用户 2026-11-09）**：`tests/inst` 全量（非 cfx）+ tset（embench 全量 + libc-test/llvm-ts 无文件 I/O 子集）；**不含 `tests/arch`**（`tiny.arch=false`）。
 - **`fence` 已确认纳入 M12（用户 2026-11-08）**：`fence` 属核芯功能扩展（`SimRISC-11 §5`，`fence_ciii_cfx`），但 **inst 测试集含 fence 用例**（`tests/inst/atomics/atomics-fence.yaml`，生成自 `contracts/opcodes.yaml` + spec）；qemu（`trans_fence_ciii_cfx`：`hb!=0` 或保留 cfxa ⇒ ILLI、`pred==succ==0` ⇒ no-op）与 gem5（`b6_test.cc` 同判据）均已实现。单周期核无 cache/store buffer/乱序，非零掩码的屏障语义天然满足 ⇒ 实现成本 ≈ 20 行。**建议 M12 实现**（否则 T0 子集缺一条指令，M13 也要补）。
 - **FP 分组依据（用户建议参考 berkeley-hardfloat）**：按 hardfloat 的原语边界切——转换 / 算术 / 除法开方 / 取整缩放，每组对应一组 `RecFN` 原语，便于复用 IP 与逐组比对（本地 chipyard 子模块 `generators/hardfloat/hardfloat` 即该库）。
 - **DADAO FP 指令集共 47 条**（`spec/SimRISC-07`）：转换、运算（加/乘/FMA/除/余/开方/取整/缩放/最小最大）、符号位、比较、分类。
@@ -167,6 +172,12 @@
 - **三条禁忌**：向量里写未记录来源的期望值；模型对未明处选默认值；把「两个实现一致」当正确。
 - **依据（0628 / PR#5）**：0628 四方差分（interp/QEMU/gem5/Sail）AGREE 198 / DIVERGE 0，`check-golden` 故意不进 `make check`；golden 仅整数 87 条，语义取自 `spec.md`（与 ADR-0009「wiki 直派」的要求不一致）。PR#5：标量 + 66 条 FP，回放 730（173/500/0/57），49 单测，`check-golden` 进 L1；无差分运行器，FP 向量只有 `scaleb`。
 - **待落地**：① 「歧义登记 → 用户裁定 → ADR/向量 → 回归」的流程；② 是否把「歧义探测」并入现有 spec 门控；③ chipyard 是否已有 DADAO 核（决定 RTL 对拍是否成为主差分）。
+
+## 第一阶段目标（用户 2026-11-09）
+
+- **先定义每条指令的完整且准确的语义**（尤其浮点：舍入方向、异常标志、NaN 传播、边界值）。
+- **再重新生成 `tests/inst` 的测试程序**，重点是各种边界。
+- 之后才做三平台差分（`m13-integ-002`/`003`）。
 
 ## M13 未决
 

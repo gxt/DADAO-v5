@@ -13,13 +13,14 @@
 ## 目标
 
 1. **T0 冒烟**：`tests/inst` 中**全部非 cfx 指令**用例，在 chipyard 上与 QEMU `dadao-tiny`、gem5 FS Tiny 三平台比对（状态/退出码；不比时序）。
-2. **tset 已验证子集**：`libc-test`/`llvm-ts`/`embench` 中已被 qemu/gem5 验证的子集，在 chipyard 上跑通（Tiny 阶段不涉及 syscall，用 semihosting）。
-3. **差异归因**：任何不一致逐条列名并归因（spec/实现/测试资产）。
+2. **tset 已验证子集**：`embench` 全量（38 例，裸机 semihosting 5 服务足够）+ `libc-test`/`llvm-ts` 中**不依赖文件 I/O** 的子集（5 服务不含 `SYS_OPEN`/`SYS_READ`），在 chipyard 上跑通。
+3. **M12/M13 边界（用户 2026-11-09）**：M12 的比对口径 = **功能性**（pass/fail/exit/board markers 一致）；**逐位数值、舍入方向、异常标志、边界值**的语义差分归 M13（`m13-integ-002`）。
+4. **差异归因**：任何不一致逐条列名并归因（spec/实现/测试资产）。
 
 ## 验收标准
 
 1. inst 全量非 cfx 用例三平台一致；计数按 `--list` 现场统计
-2. tset 子集在 chipyard 上跑通并给出 pass/fail 计数
+2. embench 38/38 跑通；libc-test/llvm-ts 子集给出 pass/fail 计数（依赖文件 I/O 的用例记 BLOCKED 并说明「5 服务不含文件 I/O」）
 3. 差异逐条归因，无未归因项
 4. 报告落 `.tao/knowledge/refs/m12-014-t0-smoke.{json,md}`
 5. Verilator 构建 rc=0；门控同前
