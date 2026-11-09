@@ -95,6 +95,16 @@ fi
 printf 'disk_avail_kb=%s\n' "$(df -Pk . 2>/dev/null | awk 'NR==2{print $4}')"
 printf 'mem_avail_mb=%s\n' "$(free -m 2>/dev/null | awk '/^Mem:/{print $7}')"
 printf 'mem_total_mb=%s\n' "$(free -m 2>/dev/null | awk '/^Mem:/{print $2}')"
+if [ -n "$bin" ] && [ -x "$bin/qemu-system-dadao" ]; then
+  printf 'qemu_md5=%s\n' "$(md5sum "$bin/qemu-system-dadao" 2>/dev/null | awk '{print $1}')"
+else
+  printf 'qemu_md5=MISSING\n'
+fi
+if [ -d .work/source/musl/.git ]; then
+  printf 'musl_head=%s\n' "$(git -C .work/source/musl rev-parse HEAD 2>/dev/null)"
+else
+  printf 'musl_head=MISSING\n'
+fi
 printf 'loadavg=%s\n' "$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo UNKNOWN)"
 running="$(ps -eo args 2>/dev/null | grep -E '(^|/)(make|gem5\.opt|verilator|verilator_bin|ninja|sbt|java)( |$)|run_[a-z_]+suite\.py|run_gem5_se_baseline\.py' | grep -v grep | head -n 5 | cut -c1-120 | tr '\n' ';')"
 printf 'running=%s\n' "${running:-none}"
