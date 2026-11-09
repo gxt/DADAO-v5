@@ -96,7 +96,12 @@
 
 拟 14 个任务（正式编号 `m12-chipyard-001`…`014`），每件 ≤2–3 h：
 
-- `001` 骨架 + `build.sbt` + `WumingTinyConfig`（接线 + 编译）
+- `001` 骨架 + `build.sbt` + `WumingTinyConfig`（接线 + 编译）✅
+- `002` Tiny 地址图落地（48 位核内地址）✅
+- `003` BootROM + `loadmem` 最小闭环 ✅
+- `004` harness 侧 semihosting 应答者 ✅
+- `005` 解码器 + 整数 ALU + 寄存器堆（进行中）
+- `006`–`015` 已全部立册（访存/控制流/位·原子·杂项/FP 五组/T0/T1）
 - `002` BootROM + `loadmem` 最小闭环（Tiny SRAM 基址与 `load_elf` 目标窗口对齐）
 - `003` harness 侧 semihosting 应答者（最小 5 服务 + 核内 `trap` 抬边界）
 - `004` 解码器 + 整数 ALU + 寄存器堆

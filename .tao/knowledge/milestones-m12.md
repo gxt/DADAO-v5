@@ -24,6 +24,16 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-006 | 3–4 h | 访存（load/store 全宽度 + 对齐/越界异常 + 大端字节序） |
+| m12-chipyard-007 | 2–3 h | 控制流 + RAS（分支/跳转/call/ret + 返回地址栈） |
+| m12-chipyard-008 | 3–4 h | 位操作 + 原子（`lr`/`sc`/`swym`）+ 杂项（含 `fence`） |
+| m12-chipyard-009 | 4–5 h | FP 基础设施（recFN 编解码 + 六档舍入 + 异常标志 + 分类） |
+| m12-chipyard-010 | 3–4 h | FP 转换（f2i/i2f/格式转换/SBZ/复制） |
+| m12-chipyard-011 | 3–4 h | FP 算术（加/乘/FMA/比较/最小最大） |
+| m12-chipyard-012 | 3–4 h | FP 除法/开方/取余 |
+| m12-chipyard-013 | 2–3 h | FP 取整/缩放/符号（收齐 47 条 FP 指令） |
+| m12-chipyard-014 | 3–4 h | T0 冒烟（inst 全量非 cfx + tset 子集，三平台比对） |
+| m12-chipyard-015 | 4–6 h | T1 适配集 + M12 验收 |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
