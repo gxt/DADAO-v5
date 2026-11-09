@@ -73,3 +73,16 @@
     同一 HEAD）：主会话在其一已在跑时又派了一个，违反「同一任务同一时刻只允许一个 reviewer」。
     两次判决一致（Needs Revision、F1 `sub.uo` 借位），未造成结论分叉，但浪费一轮。
     建议：派 reviewer 前先查任务书「第 N 轮 reviewer」记录、worktree 内 `.work/log` 与进程，确认无在跑者。
+- id: ISS-361
+  scope: [gem5, testcases]
+  status: open
+  resolved_by: null
+  title: >-
+    【P1】gem5 SE 长尾 **72/72 在 3600s 仍超时**（qemu 侧 72/72 全 pass），且最小时耗例
+    （`functional/clocale_mbfuncs`、`regression/raise-race`，qemu 0.0 s）同样吃满 3600 s ⇒
+    不像「单纯慢」（qemu 中位 44 s、最大 1103 s，按 10–50× 放大也解释不了 0 s 例）。
+    疑为 gem5 SE 挂死（FP 未实现死循环 / syscall 重试 / IO 自旋）。影响：M13 比值分布
+    `n=0`，`m13-testcases-003`（7200s 复核）很可能无效。
+    证据：`m13-testcases-001` 全量结果（72 例，gem5 全部 `blocked`/`time budget`）。
+    建议：003 改为「定位 72 例挂死根因」而非「加预算」；先挑最小例（qemu 0.0 s）做
+    单例诊断（gem5 stats/指令计数/`--debug-flags` 分段）。
