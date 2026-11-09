@@ -33,9 +33,3 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
-| INFRA-113t | 2026-11-01 15:31 | M10 后清理：退役失效 M1 门控判据（check_issues/Process-04）+ 清 ADR-0030/M9 过时 known-fail 基准 |
-| INFRA-118t | 2026-11-01 15:04 | M9/M10 根级 INTEG m 册迁入 integ，归档根仅三件套 + 模块任务书 |
-| INFRA-117t | 2026-11-01 14:33 | M1–M10 归档归一：M9/M10 流水冻结、M6/M2 状态、M7 notes 并入回顾 |
-| INFRA-116t | 2026-11-01 14:06 | Process-04 归档规则修订（m 可选/流水落 README/三文件）+ check-archive 门控 |
-| INFRA-115t | 2026-11-01 13:02 | tests/inst 计数 152→156、生成器 `--check` 措辞列名化、anti_forgery 迁 tests/inst；新 check-generator-sync 挂 L2 |
-| QEMU-077t | 2026-11-01 11:45 | helper.c/cpu.h 注释 reserved cfx 7-14→6-14 与宏一致；补丁重导出，行为不变不重建 |

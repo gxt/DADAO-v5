@@ -1,7 +1,7 @@
 # INFRA-115t: tests/docs 小项收口（M1 计数 / 生成器 `--check` 措辞 / anti_forgery 路径 / `check-generator-sync` 入 L2）
 
 **模块**：infra
-**项目里程碑**：M10 后（维护）
+**项目里程碑**：M11
 **依赖**：无（与 `QEMU-077t` 同改 `milestones.md` ⇒ 两者串行，不得并行）
 **状态**：已验证
 

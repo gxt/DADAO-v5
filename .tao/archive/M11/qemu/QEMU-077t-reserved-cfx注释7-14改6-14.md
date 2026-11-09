@@ -1,7 +1,7 @@
 # QEMU-077t: reserved cfx 注释 `7-14` → `6-14`（与 `DADAO_CFX_IS_RESERVED` 一致）
 
 **模块**：qemu
-**项目里程碑**：M10 后（维护）
+**项目里程碑**：M11
 **依赖**：无（与 `INFRA-115t` 同改 `milestones.md` ⇒ 两者串行，不得并行）
 **状态**：已验证
 
