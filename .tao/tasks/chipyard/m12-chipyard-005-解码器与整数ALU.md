@@ -25,7 +25,7 @@
 1. `tests/inst` 中**本任务覆盖的指令族**在 chipyard 上逐例与 QEMU `dadao-tiny` 一致（状态/退出码；不比时序）
 2. 覆盖的用例数按 `--list` 现场统计并与报告一致（不写死）
 3. `rd0`/`rb0` 的读 0 / 写丢弃有专门断言（含「写 rd0 后再读」）
-4. 保留编码 ⇒ ILLI（至少 3 例注入式验证）
+4. **保留编码 ⇒ UNDI**（`legality_rules.yaml` 的 `excp_undi`）；**非法组合 ⇒ ILLI**（`dst_rd0`/`dst_rb0`/`dst_dual_same`/`encode_sbz`/未实现）；两类各有至少 3 例注入式验证
 5. Verilator 构建 rc=0（`server207`）；有界运行不崩；bootrom→loadmem→semihosting 闭环不回归
 6. `make apply-series` / `check-source-state` / `check-patch-tree` / L1 / L2 rc=0
 7. 一键证据脚本（运行期证据目录下的 `run.sh`，含可达 FAIL 注入）
