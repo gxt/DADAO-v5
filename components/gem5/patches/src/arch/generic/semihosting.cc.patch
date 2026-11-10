@@ -1,0 +1,70 @@
+diff --git a/src/arch/generic/semihosting.cc b/src/arch/generic/semihosting.cc
+index 543fc88..426bf88 100644
+--- a/src/arch/generic/semihosting.cc
++++ b/src/arch/generic/semihosting.cc
+@@ -212,8 +212,13 @@ BaseSemihosting::callOpen(
+ BaseSemihosting::RetErrno
+ BaseSemihosting::callClose(ThreadContext *tc, Handle handle)
+ {
+-    if (handle > files.size()) {
+-        DPRINTF(Semihosting, "Semihosting SYS_CLOSE(%i): Illegal file\n");
++    // Same handle bound as the other file services (ISS-358): the last valid
++    // handle is files.size() - 1, and an unopened or already closed handle
++    // (including the files[0] place-holder, which has no FileBase) is EBADF
++    // rather than a dereference of an empty slot.
++    if (handle >= files.size() || !files[handle]) {
++        DPRINTF(Semihosting, "Semihosting SYS_CLOSE(%i): Illegal file\n",
++                handle);
+         return retError(EBADF);
+     }
+ 
+@@ -261,7 +266,12 @@ BaseSemihosting::RetErrno
+ BaseSemihosting::callWrite(
+         ThreadContext *tc, Handle handle, Addr addr, size_t size)
+ {
+-    if (handle > files.size() || !files[handle])
++    // files[0] is the empty place-holder, so the last valid handle is
++    // files.size() - 1: `handle == files.size()` would index one element past
++    // the table (ISS-358).  An unopened handle is EBADF, reported to the guest
++    // as "all bytes unwritten" (Arm semihosting SYS_WRITE), with the reason
++    // readable through SYS_ERRNO; a handle that was opened keeps working.
++    if (handle >= files.size() || !files[handle])
+         return RetErrno(size, EBADF);
+ 
+     DPRINTF(Semihosting, "Semihosting SYS_WRITE(%x, %d)\n", addr, size);
+@@ -284,7 +294,7 @@ BaseSemihosting::RetErrno
+ BaseSemihosting::callRead(
+         ThreadContext *tc, Handle handle, Addr addr, size_t size)
+ {
+-    if (handle > files.size() || !files[handle])
++    if (handle >= files.size() || !files[handle])
+         return RetErrno(size, EBADF);
+ 
+     std::vector<uint8_t> buffer(size);
+@@ -316,7 +326,7 @@ BaseSemihosting::callIsError(ThreadContext *tc, int64_t status)
+ BaseSemihosting::RetErrno
+ BaseSemihosting::callIsTTY(ThreadContext *tc, Handle handle)
+ {
+-    if (handle > files.size() || !files[handle])
++    if (handle >= files.size() || !files[handle])
+         return retError(EBADF);
+ 
+     int64_t ret = files[handle]->isTTY();
+@@ -330,7 +340,7 @@ BaseSemihosting::callIsTTY(ThreadContext *tc, Handle handle)
+ BaseSemihosting::RetErrno
+ BaseSemihosting::callSeek(ThreadContext *tc, Handle handle, uint64_t pos)
+ {
+-    if (handle > files.size() || !files[handle])
++    if (handle >= files.size() || !files[handle])
+         return retError(EBADF);
+ 
+     int64_t ret = files[handle]->seek(pos);
+@@ -344,7 +354,7 @@ BaseSemihosting::callSeek(ThreadContext *tc, Handle handle, uint64_t pos)
+ BaseSemihosting::RetErrno
+ BaseSemihosting::callFLen(ThreadContext *tc, Handle handle)
+ {
+-    if (handle > files.size() || !files[handle])
++    if (handle >= files.size() || !files[handle])
+         return retError(EBADF);
+ 
+     int64_t ret = files[handle]->flen();

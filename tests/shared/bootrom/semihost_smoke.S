@@ -27,10 +27,12 @@
 @@   SEMIHOST_WRITE=1 EXIT_CODE=0x00 SEMIHOST_UNIMPL=0
 @@                                             semihost_write.elf    (SYS_WRITE)
 @@ The unimpl variant must make a harness responder report the unimplemented
-@@ service number instead of silently returning 0.  SYS_WRITE is split into its
-@@ own image because gem5's generic responder crashes on raw stdout handle 1
-@@ (`files[1]` is out of bounds when no file was SYS_OPENed); the 3-platform
-@@ image therefore exercises only services all three engines serve correctly.
+@@ service number instead of silently returning 0.  SYS_WRITE keeps its own
+@@ image because it is the only service that needs a SYS_OPENed handle: the
+@@ harness responder has no SYS_OPEN, QEMU's arm-compat layer does not pre-open
+@@ guest fds 0/1/2, and gem5 reports a raw handle 1 as EBADF (ISS-358), so the
+@@ three engines cannot be compared on that service.  The 3-platform image
+@@ therefore exercises only services all three engines serve correctly.
 
 	.include "tests/shared/asm/machine-tiny.inc"
 	.include "tests/shared/asm/machine.inc"

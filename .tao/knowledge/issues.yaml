@@ -1,146 +1,83 @@
-# issue 台账（活：仅 open 项）
-#
-# M10 及以前关闭项见 `.tao/archive/M<k>/issues-closed.md`；M11 期关闭项快照见 `.tao/archive/M11/issues-closed.md`（Process-04 §7）。
-
 - id: ISS-345
-  scope: [gem5]
+  scope:
+  - gem5
   status: open
   resolved_by: null
-  title: >-
-    【P3】gem5 SE futex 细节与 Linux/QEMU 不完全一致：`FUTEX_UNLOCK_PI` 未校验调用者是否为 owner
-    （Linux 返回 EPERM）；`FUTEX_REQUEUE` 返回值语义（唤醒+改挂之和）待与内核/QEMU 对齐；
-    `parkOnFutex` 在等待队列 deadline 分支提前返回时漏 `delete FutexWaiter`（宿主内存小泄漏）。
-    语料当前不可达；随下一次 futex 任务修。
-
+  title: 【P3】gem5 SE futex 细节与 Linux/QEMU 不完全一致：`FUTEX_UNLOCK_PI` 未校验调用者是否为 owner （Linux 返回 EPERM）；`FUTEX_REQUEUE` 返回值语义（唤醒+改挂之和）待与内核/QEMU 对齐； `parkOnFutex` 在等待队列 deadline 分支提前返回时漏 `delete FutexWaiter`（宿主内存小泄漏）。 语料当前不可达；随下一次 futex 任务修。
 - id: ISS-355
-  scope: [infra, gem5]
+  scope:
+  - infra
+  - gem5
   status: open
   resolved_by: null
-  title: >-
-    【P2】`tools/gem5/build_gem5.py:191` 在 `.work/build/gem5` 不存在时抛 `ValueError`：
-    首次 `make build-gem5` rc=2，需先跑 `check-gem5-decode` 才能建出构建目录（`m12-gem5-001` 实测）。
-    建议改为按需 `mkdir -p` 或明确报错「先跑 X」；属工具缺陷，不阻塞任务但影响新机器首建。
-
+  title: 【P2】`tools/gem5/build_gem5.py:191` 在 `.work/build/gem5` 不存在时抛 `ValueError`： 首次 `make build-gem5` rc=2，需先跑 `check-gem5-decode` 才能建出构建目录（`m12-gem5-001` 实测）。 建议改为按需 `mkdir -p` 或明确报错「先跑 X」；属工具缺陷，不阻塞任务但影响新机器首建。
 - id: ISS-356
-  scope: [infra]
+  scope:
+  - infra
   status: open
   resolved_by: null
-  title: >-
-    【P3】`check_milestone_tasks.py` 两处基线残留：① 新式核验册名 `mNN-<module>-*` 不被
-    `MBOOK_NAME_RE` 命中，会按「无 m 册」跳过；② m 册标题自引自身文件名号可绕 vacuous 检查。
-    两者均非本次（m12-infra-002）引入；当前 m 册已可选，影响低，登记待清理。
-
+  title: 【P3】`check_milestone_tasks.py` 两处基线残留：① 新式核验册名 `mNN-<module>-*` 不被 `MBOOK_NAME_RE` 命中，会按「无 m 册」跳过；② m 册标题自引自身文件名号可绕 vacuous 检查。 两者均非本次（m12-infra-002）引入；当前 m 册已可选，影响低，登记待清理。
 - id: ISS-357
-  scope: [gem5, testcases]
+  scope:
+  - gem5
+  - testcases
   status: open
   resolved_by: null
-  title: >-
-    【P2】gem5 SE 输出捕获的 stdout/stderr 顺序与参考不一致（`2>&1` 交错 vs
-    fd1/fd2 分开后按 `stdout+stderr` 串接）。已确认**至少 4 例**可由
-    `stderr+stdout+exit` 与参考逐字节相等：FreeBench `analyzer`/`pifft`/`mason`/`neural`
-    （前两例本在第一轮 9 个 fail 内；后两例是 `gem5_only_fail` 9→11 的差值）。
-    **不可全局交换顺序**：另有 1 例需 `stdout+stderr`，31 例 pass 走非逐字节比对。
-    修复方向：SE 驱动层保留 fd1/fd2 写出顺序；修复前不按能力缺口计。详见
-    `.tao/knowledge/refs/TESTCASES-103t-timeout-recheck.md`。
-
+  title: 【P2】gem5 SE 输出捕获的 stdout/stderr 顺序与参考不一致（`2>&1` 交错 vs fd1/fd2 分开后按 `stdout+stderr` 串接）。已确认**至少 4 例**可由 `stderr+stdout+exit` 与参考逐字节相等：FreeBench `analyzer`/`pifft`/`mason`/`neural` （前两例本在第一轮 9 个 fail 内；后两例是 `gem5_only_fail` 9→11 的差值）。 **不可全局交换顺序**：另有 1 例需 `stdout+stderr`，31 例 pass 走非逐字节比对。 修复方向：SE 驱动层保留 fd1/fd2 写出顺序；修复前不按能力缺口计。详见 `.tao/knowledge/refs/TESTCASES-103t-timeout-recheck.md`。
 - id: ISS-358
-  scope: [gem5]
-  status: open
-  resolved_by: null
-  title: >-
-    【P2】gem5 `BaseSemihosting::callWrite` 句柄越界判断写成 `handle > files.size()`（应为 `>=`）：
-    未 `SYS_OPEN` 时 handle=1 会读 `files[1]` 越界，实测 segfault（`m12-chipyard-004` 探针）。
-    同时 QEMU arm-compat 模式未预置 guest fd 0/1/2 ⇒ 三平台的 `SYS_WRITE` 行为不可直接比对。
-    建议：gem5 修正边界判断；三平台比对的 semihosting 用例改用 `SYS_WRITE0`/`SYS_WRITEC`（不依赖句柄），
-    `SYS_WRITE` 单独按引擎成像。
-
-- id: ISS-359
-  scope: [gem5, testcases]
-  status: open
-  resolved_by: null
-  title: >-
-    【P2】gem5 SE loader 拒绝字节对齐的 `.bss` 子段：`src/sim/process.cc:196` 的
-    `fatal_if((seg.base & 3) != 0, ...)` 在 `p_vaddr + p_filesz` 非 4 字节对齐时直接 fatal。
-    dynamic llvm-ts 有 7 例因此 blocked（QEMU 可正常装载），名单见
-    `refs/INTEG-059t-se-parity-summary.json` 的 `new_findings`。
-    建议：改为「按对齐要求零填到下一个对齐边界」而不是 fatal；属 gem5 实现缺口，另立任务。
-- id: ISS-360
-  scope: [infra]
-  status: open
-  resolved_by: null
-  title: >-
-    【P3】`m12-chipyard-005` 在第 1 轮验收期间出现**重复 reviewer**（两个 reviewer session 同时验收
-    同一 HEAD）：主会话在其一已在跑时又派了一个，违反「同一任务同一时刻只允许一个 reviewer」。
-    两次判决一致（Needs Revision、F1 `sub.uo` 借位），未造成结论分叉，但浪费一轮。
-    建议：派 reviewer 前先查任务书「第 N 轮 reviewer」记录、worktree 内 `.work/log` 与进程，确认无在跑者。
-- id: ISS-361
-  scope: [gem5, testcases]
-  status: open
-  resolved_by: null
-  title: >-
-    【P1】gem5 SE 长尾 **72/72 在 3600s 仍超时**（qemu 侧 72/72 全 pass），且最小时耗例
-    （`functional/clocale_mbfuncs`、`regression/raise-race`，qemu 0.0 s）同样吃满 3600 s ⇒
-    不像「单纯慢」（qemu 中位 44 s、最大 1103 s，按 10–50× 放大也解释不了 0 s 例）。
-    疑为 gem5 SE 挂死（FP 未实现死循环 / syscall 重试 / IO 自旋）。影响：M13 比值分布
-    `n=0`，`m13-testcases-003`（7200s 复核）很可能无效。
-    证据：`m13-testcases-001` 全量结果（72 例，gem5 全部 `blocked`/`time budget`）。
-    建议：003 改为「定位 72 例挂死根因」而非「加预算」；先挑最小例（qemu 0.0 s）做
-    单例诊断（gem5 stats/指令计数/`--debug-flags` 分段）。
-    实测（2026-11-10，`functional/clocale_mbfuncs`，SIGINT 90 s 后 dump stats）：
-    `simInsts=40,847,163`、`numCycles=40,847,163`、退出原因 `user interrupt received`、
-    无 guest exit ⇒ 该例在 90 s 内跑了 4085 万条指令仍未结束，符合「死循环」而非「慢」。
-- id: ISS-362
-  scope: [gem5, testcases]
-  status: open
-  resolved_by: null
-  title: >-
-    【P1】gem5 SE（dynamic）`MultiSource/Benchmarks/FreeBench/neural` **oracle mismatch**：
-    输出长度相同（358 B vs 358 B）但内容不同，qemu 侧同例通过（输出 == reference）。
-    首行 `Matrix size is 20x28` 一致 ⇒ 差异在后段，疑浮点舍入/格式化（与 M13 FP 差分同源）。
-    证据：`m13-testcases-002` 全量（93 例）结果，`refs/m13-002-dynamic-3600s-full.json`。
-    建议：M13 FP 差分任务（`m13-integ-002`）把它作为首个定位样本；先 `cmp` 逐字节定位差异列。
-- id: ISS-363
-  scope: [gem5]
-  status: open
-  resolved_by: null
-  title: >-
-    【P2】gem5 `tinyEnter` 直接取 `switch_run_mode` 作为新运行模式：guest 先把该寄存器写成 !=3
-    再触发同步异常，就会**离开 hypv**；QEMU 对非 user profile 强制 `HYPV`（引 `Machine-v5 §2`
-    「Tiny 运行模式恒 hypv」）。同时 gem5 未实现 `cg3 仅 hypv 可访问`（`DADAO-13 §1`）。
-    影响：三平台差分时 Tiny 的越权路径会分叉。建议在 M13 差分（`m13-integ-002`/`003`）前修，
-    改动量小（`tinyEnter` 强制 HYPV + cg3 访问检查）。
-    证据：`m13-gem5-001` reviewer 第 1 轮 finding 3。
-- id: ISS-364
-  scope: [testcases]
-  status: open
-  resolved_by: null
-  title: >-
-    【P3】`check-arch` 的 `integ047t start_busy_returns_busy` 探针**既有 flaky**（约 5%）：
-    `m13-qemu-001` 与本轮 `m13-gem5-002` 的 reviewer 各自在**基线源码**上复现过同样失败
-    （`got=0x62`），重跑即 PASS；QEMU 二进制 md5 与 mtime 未变。判为 pmem DMA 的 BUSY 窗口
-    跨 trap 存续所致，非交付物引入。
-    建议：把该探针的 BUSY 判定改为有界重试或放宽窗口，避免每次验收都要额外解释一轮。
-- id: ISS-365
-  scope: [infra]
+  scope:
+  - gem5
   status: closed
-  resolved_by: "permissions deny(question) in .opencode/agents/{architect,engineer,reviewer}.md + AGENTS 规则"
-  title: >-
-    【P1·根因更正】子代理**可以绕过主会话直接向用户提问**，而子会话问答对父会话不可见 ⇒
-    主会话只能看到任务书里一句「用户裁定（原话）」却无法溯源，误判为伪造并触发返工。
-    实际经过：`m13-infra-001` 的 engineer 三轮追问用户并拿到裁定「不修 ①」（事后用户
-    2026-11-10 又改判「删掉核验册机制」），主会话侧无记录 ⇒ 判为伪造。
-    修复（已落地）：`.opencode/agents/*.md` 增加 `{action: question, resource: "*", effect: deny}`
-    （实测子代理调用返回 `Unknown tool 'question'`）；需要裁定的问题一律写进任务书并返回主会话，
-    由主会话统一问、统一转达、统一落盘。
-    教训：判「伪造」前先问「模型是否具备直接问用户的通道」；把不可见通道先关掉，再谈溯源。
-- id: ISS-366
-  scope: [testcases]
+  resolved_by: m13-gem5-003
+  title: 【P2】gem5 `BaseSemihosting::callWrite` 句柄越界判断写成 `handle > files.size()`（应为 `>=`）： 未 `SYS_OPEN` 时 handle=1 会读 `files[1]` 越界，实测 segfault（`m12-chipyard-004` 探针）。 同时 QEMU arm-compat 模式未预置 guest fd 0/1/2 ⇒ 三平台的 `SYS_WRITE` 行为不可直接比对。 建议：gem5 修正边界判断；三平台比对的 semihosting 用例改用 `SYS_WRITE0`/`SYS_WRITEC`（不依赖句柄）， `SYS_WRITE` 单独按引擎成像。
+- id: ISS-359
+  scope:
+  - gem5
+  - testcases
+  status: closed
+  resolved_by: m13-gem5-003
+  title: 【P2】gem5 SE loader 拒绝字节对齐的 `.bss` 子段：`src/sim/process.cc:196` 的 `fatal_if((seg.base & 3) != 0, ...)` 在 `p_vaddr + p_filesz` 非 4 字节对齐时直接 fatal。 dynamic llvm-ts 有 7 例因此 blocked（QEMU 可正常装载），名单见 `refs/INTEG-059t-se-parity-summary.json` 的 `new_findings`。 建议：改为「按对齐要求零填到下一个对齐边界」而不是 fatal；属 gem5 实现缺口，另立任务。
+- id: ISS-360
+  scope:
+  - infra
   status: open
   resolved_by: null
-  title: >-
-    【P2】`run_engine_ratio.py` **逐套件串行**执行（`for suite in selection: for engine: run_driver`）：
-    当某分片里一个套件只有 1 例时（本仓 dynamic/static 长尾分片各有 1 个 libc-test 例），
-    该例会**独占整个预算窗口**（7200 s），其余 35 例 llvm-ts 才开始跑 ⇒ 「48 并发」实际只有 1 路。
-    实测：`m13-testcases-003` 首轮 long static 在前 36 分钟只有 1 个 `gem5.opt`（load≈1.0）。
-    规避：`run.sh` 已改为**按套件并发**（每套件一个进程、各自 work-dir/json），合并在分析侧。
-    建议：在 `run_engine_ratio` 内部支持跨套件并发（或至少按预计耗时排序，短套件先跑）。
+  title: 【P3】`m12-chipyard-005` 在第 1 轮验收期间出现**重复 reviewer**（两个 reviewer session 同时验收 同一 HEAD）：主会话在其一已在跑时又派了一个，违反「同一任务同一时刻只允许一个 reviewer」。 两次判决一致（Needs Revision、F1 `sub.uo` 借位），未造成结论分叉，但浪费一轮。 建议：派 reviewer 前先查任务书「第 N 轮 reviewer」记录、worktree 内 `.work/log` 与进程，确认无在跑者。
+- id: ISS-361
+  scope:
+  - gem5
+  - testcases
+  status: open
+  resolved_by: null
+  title: 【P1】gem5 SE 长尾 **72/72 在 3600s 仍超时**（qemu 侧 72/72 全 pass），且最小时耗例 （`functional/clocale_mbfuncs`、`regression/raise-race`，qemu 0.0 s）同样吃满 3600 s ⇒ 不像「单纯慢」（qemu 中位 44 s、最大 1103 s，按 10–50× 放大也解释不了 0 s 例）。 疑为 gem5 SE 挂死（FP 未实现死循环 / syscall 重试 / IO 自旋）。影响：M13 比值分布 `n=0`，`m13-testcases-003`（7200s 复核）很可能无效。 证据：`m13-testcases-001` 全量结果（72 例，gem5 全部 `blocked`/`time budget`）。 建议：003 改为「定位 72 例挂死根因」而非「加预算」；先挑最小例（qemu 0.0 s）做 单例诊断（gem5 stats/指令计数/`--debug-flags` 分段）。 实测（2026-11-10，`functional/clocale_mbfuncs`，SIGINT 90 s 后 dump stats）： `simInsts=40,847,163`、`numCycles=40,847,163`、退出原因 `user interrupt received`、 无 guest exit ⇒ 该例在 90 s 内跑了 4085 万条指令仍未结束，符合「死循环」而非「慢」。
+- id: ISS-362
+  scope:
+  - gem5
+  - testcases
+  status: open
+  resolved_by: null
+  title: 【P1】gem5 SE（dynamic）`MultiSource/Benchmarks/FreeBench/neural` **oracle mismatch**： 输出长度相同（358 B vs 358 B）但内容不同，qemu 侧同例通过（输出 == reference）。 首行 `Matrix size is 20x28` 一致 ⇒ 差异在后段，疑浮点舍入/格式化（与 M13 FP 差分同源）。 证据：`m13-testcases-002` 全量（93 例）结果，`refs/m13-002-dynamic-3600s-full.json`。 建议：M13 FP 差分任务（`m13-integ-002`）把它作为首个定位样本；先 `cmp` 逐字节定位差异列。
+- id: ISS-363
+  scope:
+  - gem5
+  status: open
+  resolved_by: null
+  title: 【P2】gem5 `tinyEnter` 直接取 `switch_run_mode` 作为新运行模式：guest 先把该寄存器写成 !=3 再触发同步异常，就会**离开 hypv**；QEMU 对非 user profile 强制 `HYPV`（引 `Machine-v5 §2` 「Tiny 运行模式恒 hypv」）。同时 gem5 未实现 `cg3 仅 hypv 可访问`（`DADAO-13 §1`）。 影响：三平台差分时 Tiny 的越权路径会分叉。建议在 M13 差分（`m13-integ-002`/`003`）前修， 改动量小（`tinyEnter` 强制 HYPV + cg3 访问检查）。 证据：`m13-gem5-001` reviewer 第 1 轮 finding 3。
+- id: ISS-364
+  scope:
+  - testcases
+  status: open
+  resolved_by: null
+  title: 【P3】`check-arch` 的 `integ047t start_busy_returns_busy` 探针**既有 flaky**（约 5%）： `m13-qemu-001` 与本轮 `m13-gem5-002` 的 reviewer 各自在**基线源码**上复现过同样失败 （`got=0x62`），重跑即 PASS；QEMU 二进制 md5 与 mtime 未变。判为 pmem DMA 的 BUSY 窗口 跨 trap 存续所致，非交付物引入。 建议：把该探针的 BUSY 判定改为有界重试或放宽窗口，避免每次验收都要额外解释一轮。
+- id: ISS-365
+  scope:
+  - infra
+  status: closed
+  resolved_by: permissions deny(question) in .opencode/agents/{architect,engineer,reviewer}.md + AGENTS 规则
+  title: '【P1·根因更正】子代理**可以绕过主会话直接向用户提问**，而子会话问答对父会话不可见 ⇒ 主会话只能看到任务书里一句「用户裁定（原话）」却无法溯源，误判为伪造并触发返工。 实际经过：`m13-infra-001` 的 engineer 三轮追问用户并拿到裁定「不修 ①」（事后用户 2026-11-10 又改判「删掉核验册机制」），主会话侧无记录 ⇒ 判为伪造。 修复（已落地）：`.opencode/agents/*.md` 增加 `{action: question, resource: "*", effect: deny}` （实测子代理调用返回 `Unknown tool ''question''`）；需要裁定的问题一律写进任务书并返回主会话， 由主会话统一问、统一转达、统一落盘。 教训：判「伪造」前先问「模型是否具备直接问用户的通道」；把不可见通道先关掉，再谈溯源。'
+- id: ISS-366
+  scope:
+  - testcases
+  status: open
+  resolved_by: null
+  title: '【P2】`run_engine_ratio.py` **逐套件串行**执行（`for suite in selection: for engine: run_driver`）： 当某分片里一个套件只有 1 例时（本仓 dynamic/static 长尾分片各有 1 个 libc-test 例）， 该例会**独占整个预算窗口**（7200 s），其余 35 例 llvm-ts 才开始跑 ⇒ 「48 并发」实际只有 1 路。 实测：`m13-testcases-003` 首轮 long static 在前 36 分钟只有 1 个 `gem5.opt`（load≈1.0）。 规避：`run.sh` 已改为**按套件并发**（每套件一个进程、各自 work-dir/json），合并在分析侧。 建议：在 `run_engine_ratio` 内部支持跨套件并发（或至少按预计耗时排序，短套件先跑）。'

@@ -92,6 +92,7 @@ src/arch/dadao/tlb.cc.patch
 src/arch/dadao/tlb.hh.patch
 src/arch/dadao/types.hh.patch
 src/arch/generic/SConscript.patch
+src/arch/generic/semihosting.cc.patch
 src/base/loader/elf_object.cc.patch
 src/base/loader/elf_object.hh.patch
 src/base/loader/object_file.cc.patch

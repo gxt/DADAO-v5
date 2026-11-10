@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/process.cc b/src/arch/dadao/process.cc
 new file mode 100644
-index 0000000..0e2c013
+index 0000000..51ad90a
 --- /dev/null
 +++ b/src/arch/dadao/process.cc
-@@ -0,0 +1,781 @@
+@@ -0,0 +1,784 @@
 +// DADAO syscall-emulation process -- implementation.
 +#include "arch/dadao/process.hh"
 +
@@ -196,12 +196,15 @@ index 0000000..0e2c013
 +        if (seg.size == 0)
 +            continue;
 +        // lld packs PT_LOAD segments back to back (only p_offset is aligned
-+        // to p_align), so a segment base is 4-byte aligned, not 64 KiB.  The
-+        // architectural requirement is instruction/word alignment; 8-byte
-+        // object alignment is the linker's business inside the section.
-+        fatal_if((seg.base & 3) != 0,
-+                 "DADAO SE: segment '%s' base %#x is not 4-byte aligned",
-+                 seg.name, seg.base);
++        // to p_align), so p_filesz is byte-aligned and the uninitialised tail
++        // of a segment starts at p_vaddr + p_filesz -- an arbitrary byte
++        // offset, not a word boundary (ISS-359, e.g. 0x53de6).  DADAO memory
++        // is byte-addressable and the loader zero-fills the tail byte-wise:
++        // MemoryImage::write() memsets [base, base + size) of every segment
++        // that has no file data, so the unaligned boundary needs no rounding
++        // and no word alignment is required of a segment base.  Only the
++        // entry point below has to be word aligned: that is where instruction
++        // fetch starts.
 +        fatal_if(seg.base + seg.size < seg.base,
 +                 "DADAO SE: segment '%s' at %#x overflows the address space",
 +                 seg.name, seg.base);

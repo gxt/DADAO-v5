@@ -145,3 +145,7 @@
 - **2026-11-10 m13-gem5-002**
   - 摘要：**Tiny 运行模式恒 `hypv` + `cg3` 仅 hypv 可访问（ISS-363）**。`tiny_cfx.cc` 的异常进入（步骤 6）不再取 `cfx_⟨cfxname⟩_hypv_switch_run_mode`，一律置 `runMode = 3`（`Machine-v5 §2`「Tiny 运行模式恒 hypv、不能进入 user/jail/supv」；与 QEMU 非 user profile 强制 `DADAO_MODE_HYPV` 逐条一致），`excp_prev_run_mode` 仍保存进入前模式；`regPtr` 对 `cg3` 增加运行模式判定，非 hypv ⇒ `CFXREG`（`DADAO-13 §1`，与 QEMU `cfx_reg_ptr` 相同）。`tests/arch/hmon/tiny_hmon.S` 增 6 条记录（写 `switch_run_mode=0` 后 `CFXMEM`：handler 内读 cg3 成功、`excp_prev_run_mode=3`、故障后 cg3 仍可读、写入值保留），`expected.yaml` 同步；`check_tiny_hmon` PASS 172 checks（原 148 零回归），同一 ELF 在 QEMU 与 gem5 上的结果表逐字节相同。补丁 1 份改（`tiny_cfx.cc`），`make_patch.py` 重导出。
   - 执行者：engineer
+
+- **2026-11-10 m13-gem5-003**
+  - 摘要：**SE 两处缺陷修复（ISS-358 句柄越界、ISS-359 非对齐 `.bss` 装载）**。`src/arch/generic/semihosting.cc`：文件表索引 0 是占位项，合法句柄上限为 `files.size() - 1`，`callWrite`/`callRead`/`callIsTTY`/`callSeek`/`callFLen`/`callClose` 的 `handle > files.size()` 一并改 `>=`，未打开/已关闭/占位句柄统一 EBADF（`SYS_WRITE`/`SYS_READ` 按 Arm Semihosting 报「全部字节未写/未填」，原因可经 `SYS_ERRNO` 取回），`callClose` 补 `!files[handle]` 判定（原缺，已关闭句柄会解引用空槽）。`src/arch/dadao/process.cc`：删去 `validateElf()` 中「段基址必须 4 字节对齐」的 `fatal_if`——lld 只对齐 `p_offset`，`p_filesz` 字节对齐使未初始化子段起点 `p_vaddr + p_filesz` 可为任意字节（如 `0x53de6`）；零填由 loader 既有语义保证（`MemoryImage::write()` 对无文件数据的子段按字节 `memsetBlob([base, base+size))`，页由分配器零初始化），入口点仍要求 4 字节对齐。新增回归探针 `semihost_handles.S`（14 条断言：未打开句柄上的 5 个文件服务、`handle == files.size()` 精确 off-by-one、`SYS_OPEN(":tt")` 后正常写 64 B）。补丁 2 份改，`make_patch.py` 重导出。
+  - 执行者：engineer
