@@ -385,3 +385,20 @@ cmd: make check-inst-smoke CASE=base/add
 - 现有 `run_engine_ratio.py` 是**套件粒度**、结果在套件结束落盘 ⇒ 仅适合小批量/里程碑门控，**不适合大规模长尾**。
 - 差距由任务补齐：case 级 pool runner（读 `cases.jsonl`、按 16.3 协议、与 `remote.py` 配合）；在此之前，大规模跑批至少要做到「按耗时分组 + 长尾独立节点」。
 
+## 17. 输出判据：分通道比对（stdout / stderr 分离，2026-11-10）
+
+> 缘起：`ISS-357`。上游 `RunSafely.sh` 把 stdout 与 stderr 指向同一文件（`timeit --redirect-output`），参考输出是**单条交错流**；按 `2>&1` 捕获再与参考逐字节比，等于要求引擎复现 libc 的缓冲/交错顺序，与 ISA 语义无关（gem5 SE 的 fd1/fd2 本就落两个宿主文件，不存在"交错"）。
+
+### 17.1 判据（MUST）
+
+1. **分通道**：`stdout` 只对 `stdout`、`stderr` 只对 `stderr`，各自逐字节；退出码单独比。
+2. **禁拼接/交错**：驱动**不得**把两路合并后比较或哈希，**不得**用 `2>&1` 或 shell 重定向把两路并到一个流；捕获必须是两个独立 fd / 两个独立文件。
+3. **参考拆两路（一次性、确定性）**：上游单流参考按**源码里的 stderr 格式串**（`fprintf(stderr, …)`，含 `#define X stderr` 别名与字符串宏）拆成 `*.ref.stdout` / `*.ref.stderr`；内容匹配只作交叉校验。`stdout 行数 + stderr 行数 = 原参考行数`，各自保持原顺序；**拆不出 ⇒ 显式失败**（不猜、不跳过）。
+4. **哈希型参考**（`HASH_PROGRAM_OUTPUT`：参考只有一个 md5）：摘要不含字节，**仅当一路为空**时该哈希才是合法的分通道判据（另一路为空 ⇒ 单流即该通道）；两路都非空 ⇒ `blocked`（需 fd 写序日志才能拆），**不得**当内容差异判 `fail`，也不得静默通过。
+5. **测试向量**：自写 `inst`/`arch` 用例必须用 `write(1, …)` / `write(2, …)`（或 semihosting `SYS_WRITE` 带 fd），**不得**依赖 libc 缓冲或 `printf` 默认落哪一路。
+
+### 17.2 落点
+
+- 拆分器与入库参考：`tools/testcases/tset/llvm-ts/ref_split.py` → `tests/tset/llvm-ts/refs/`（`index.tsv` 钉上游文档 sha256 与两路哈希；`--check` 防漂移，驱动加载时校验索引）。
+- 驱动：`tools/testcases/tset/llvm-ts/run_llvm_ts_user.py`（qemu 两路分文件捕获；gem5 直接用 `guest.stdout` / `guest.stderr`）。
+

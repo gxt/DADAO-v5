@@ -198,18 +198,28 @@ QEMU or anything in this repository:
 * a reference file is upstream's whole output *document*: the program's
   interleaved stdout+stderr plus a bare ``exit N\\n`` tail that
   ``RunSafely.sh:257`` appends (no separator -- a binary program's last byte
-  is glued to ``exit``).  Three forms occur in scope A:
-  - text document (161 units): compared byte-for-byte; the exit status is
-    implicitly checked through the tail;
-  - a single md5 line (52 units, ``HASH_PROGRAM_OUTPUT``): the hash covers
-    that same document (``HashProgramOutput.sh`` runs after RunSafely), so
-    md5(output + ``exit N\\n``) must equal it;
-  - a binary document (3 units, ``oggenc``/``imp``/``cjpeg``): compared
-    byte-for-byte, with the same ``exit N\\n`` tail;
+  is glued to ``exit``).  The comparison is **per channel** (TESTCASES-006):
+  ``ref_split.py`` partitions that one document once, from the program's own
+  ``fprintf(stderr, ...)`` format strings, into ``.ref.stdout`` /
+  ``.ref.stderr`` under ``tests/tset/llvm-ts/refs/`` (indexed with the
+  upstream document's sha256).  The driver compares stdout against
+  ``.ref.stdout`` and stderr against ``.ref.stderr``, each byte-exact, plus the
+  exit code -- the two channels are never merged, so libc buffering order is
+  not part of the verdict.  Three forms occur in scope A:
+  - channel document (156 units): stdout/stderr compared byte-for-byte; the
+    exit status comes from the reference tail;
+  - a single md5 line (52 units, ``HASH_PROGRAM_OUTPUT``): a digest carries no
+    bytes, so it is only a valid per-channel check when exactly one channel is
+    non-empty (upstream's single stream is then that channel); with both
+    channels non-empty the case is ``blocked`` (the interleaving is unknowable
+    from a digest, ISS-357 residual);
+  - a binary document (3 units, ``oggenc``/``imp``/``cjpeg``): the same
+    per-channel comparison (``raw`` only records that the reference is not
+    UTF-8, it does not relax the bytes);
   Upstream's ``RunSafely.sh`` points stdout and stderr at the *same* file
-  (``timeit --redirect-output``, tools/timeit.c:891-894), so a reference
-  covers the interleaved stream -- Polybench dumps its arrays to ``stderr``
-  and its reference hash covers exactly that text;
+  (``timeit --redirect-output``, tools/timeit.c:891-894); Polybench dumps its
+  arrays to ``stderr``, so its stdout channel is empty and its reference hash
+  is a per-channel check;
 * the reference file is named after upstream's ``TEST_NAME`` -- the
   ``llvm_multisource`` target name, which differs from the directory name for
   29 programs (``jpeg-6a`` -> ``cjpeg.reference_output``,
@@ -362,6 +372,7 @@ import paths as _paths  # noqa: E402
 import run_artifacts as _run_artifacts  # noqa: E402
 import proc_reap  # noqa: E402  (TESTCASES-085t: reap qemu on external signals)
 import gem5_se_engine  # noqa: E402  (GEM5-021t: second engine, driver layer)
+import ref_split  # noqa: E402  (per-channel reference split, TESTCASES-006)
 
 TOOLCHAIN_BIN = str(_paths.host_toolchain_bin())
 
@@ -980,26 +991,27 @@ def run_bytes(cmd, timeout=None, cwd=None, stdin_path=None):
     return proc.returncode, out, err, timed
 
 
-def run_stream(cmd, out_path, timeout=None, cwd=None, stdin_path=None):
-    """Run cmd with stdout+stderr on ONE fd, as upstream's RunSafely does.
+def run_channels(cmd, outdir, timeout=None, cwd=None, stdin_path=None):
+    """Run cmd with guest fd1 and fd2 captured to SEPARATE files.
 
-    ``timeit --redirect-output`` points ``stdout`` and ``stderr`` at the same
-    file (tools/timeit.c:891-894), so a reference output is the *interleaved*
-    stream: Polybench dumps its arrays to ``stderr`` (polybench.h
-    ``POLYBENCH_DUMP_TARGET stderr``) and its ``.reference_output`` hash
-    covers that text.  Two separate pipes would silently lose it.
+    The two channels are never merged: ``stdout.out`` and ``stderr.out`` are
+    compared against the matching reference channels byte for byte
+    (TESTCASES-006).  Mixing them with ``2>&1`` would make the verdict depend
+    on libc buffering order, which is not ISA behaviour.
 
-    Returns (rc, combined_bytes, timed_out); rc is None on timeout.
+    Returns (rc, stdout_bytes, stderr_bytes, timed_out); rc is None on
+    timeout.
     """
+    out_path = os.path.join(outdir, "stdout.out")
+    err_path = os.path.join(outdir, "stderr.out")
     stdin = subprocess.DEVNULL
     if stdin_path:
         stdin = open(stdin_path, "rb")
     proc = None
     try:
-        with open(out_path, "wb") as out:
+        with open(out_path, "wb") as out, open(err_path, "wb") as err:
             proc = proc_reap.popen_tracked(cmd, cwd=cwd, stdin=stdin,
-                                           stdout=out,
-                                           stderr=subprocess.STDOUT,
+                                           stdout=out, stderr=err,
                                            start_new_session=True)
             try:
                 proc.wait(timeout=timeout)
@@ -1012,15 +1024,17 @@ def run_stream(cmd, out_path, timeout=None, cwd=None, stdin_path=None):
                 proc.wait()
                 timed = True
     except OSError as exc:
-        return 127, str(exc).encode(), False
+        return 127, str(exc).encode(), b"", False
     finally:
         if proc is not None:
             proc_reap.release(proc)
         if stdin_path:
             stdin.close()
     with open(out_path, "rb") as fh:
-        data = fh.read()
-    return proc.returncode, data, timed
+        out = fh.read()
+    with open(err_path, "rb") as fh:
+        err = fh.read()
+    return proc.returncode, out, err, timed
 
 
 def build_fpcmp(suite_root: str, work_dir: str):
@@ -1499,8 +1513,11 @@ class Case:
                  "expected_doc", "expected_hash", "klass", "exit",
                  "reason", "first_error", "elf", "min_pt_load", "interp",
                  "compile_cmds", "link_cmd", "run_cmd", "outdir", "stdout",
+                 "stderr", "ref_stdout", "ref_stderr",
+                 "ref_stdout_bytes", "ref_stderr_bytes", "split_note",
                  "seconds", "compare", "compare_cmd",
-                 "stdout_sha256", "stdout_size", "tls_hits",
+                 "stdout_sha256", "stdout_size",
+                 "stderr_sha256", "stderr_size", "tls_hits",
                  "known_fail_basis", "known_fail_evidence", "notes",
                  "run_seconds", "run_timeout", "guest_signal",
                  "guest_signal_detail", "engine", "gap", "sim_log")
@@ -1533,11 +1550,21 @@ class Case:
         self.run_cmd = []
         self.outdir = ""
         self.stdout = b""
+        self.stderr = b""
+        # Per-channel reference (upstream's single stream is split once by
+        # ref_split.py; the driver never re-merges the two channels).
+        self.ref_stdout = ""
+        self.ref_stderr = ""
+        self.ref_stdout_bytes = b""
+        self.ref_stderr_bytes = b""
+        self.split_note = ""
         self.seconds = 0.0
         self.compare = "bytes"           # "bytes" | "fpcmp"
         self.compare_cmd = []
         self.stdout_sha256 = ""
         self.stdout_size = 0
+        self.stderr_sha256 = ""
+        self.stderr_size = 0
         self.tls_hits = []
         self.known_fail_basis = ""
         self.known_fail_evidence = ""
@@ -1563,6 +1590,13 @@ class Case:
                     oracle_file=self.oracle_path,
                     stdout_sha256=self.stdout_sha256,
                     stdout_size=self.stdout_size,
+                    stderr_sha256=self.stderr_sha256,
+                    stderr_size=self.stderr_size,
+                    ref_stdout=os.path.relpath(self.ref_stdout, REPO_ROOT)
+                    if self.ref_stdout else None,
+                    ref_stderr=os.path.relpath(self.ref_stderr, REPO_ROOT)
+                    if self.ref_stderr else None,
+                    split_note=self.split_note,
                     seconds=round(self.seconds, 2),
                     compare=self.compare, compare_cmd=self.compare_cmd,
                     elf=self.elf,
@@ -1819,7 +1853,7 @@ def reference_for(case: Case):
     return None
 
 
-def load_oracle(case: Case, suite_root: str):
+def load_oracle(case: Case, suite_root: str, load_channels=True):
     """Fill case.oracle_* from upstream's reference file (or leave exit-only).
 
     Upstream's reference *is* the whole output file produced by RunSafely:
@@ -1857,6 +1891,63 @@ def load_oracle(case: Case, suite_root: str):
         return
     case.expected_doc = data
     case.oracle_kind = "stdout" if text is not None else "raw"
+    if case.cid in ref_split.UNSPLITTABLE:
+        case.oracle_kind = "unsplittable"
+        case.notes.append("oracle: declared unsplittable -- "
+                          + ref_split.UNSPLITTABLE[case.cid])
+    elif load_channels:
+        load_split(case)
+
+
+_SPLIT_INDEX = None
+
+
+def _split_index():
+    global _SPLIT_INDEX
+    if _SPLIT_INDEX is None:
+        _SPLIT_INDEX = ref_split.read_index()
+    return _SPLIT_INDEX
+
+
+def load_split(case: Case):
+    """Attach the committed per-channel reference (TESTCASES-006).
+
+    Upstream ships one interleaved stream; ``ref_split.py`` partitions it once
+    into ``.ref.stdout`` / ``.ref.stderr`` from the program's own stderr
+    format strings.  The index pins the upstream document's sha256 and both
+    channel hashes, so a stale split (corpus lock moved, splitter rule changed)
+    is a setup error, never a silent verdict on the wrong bytes.
+    """
+    row = _split_index().get(case.cid)
+    if row is None:
+        raise SetupError(
+            f"no committed channel split for {case.cid}; run "
+            "tools/testcases/tset/llvm-ts/ref_split.py --write")
+    digest = sha256_bytes(case.expected_doc)
+    if digest != row.get("reference_sha256"):
+        raise SetupError(
+            f"channel split for {case.cid} is stale: upstream reference "
+            f"sha256 {digest[:16]} != index {str(row.get('reference_sha256'))[:16]}"
+            " (re-run ref_split.py --write)")
+    out_path, err_path = ref_split.split_paths(case.cid)
+    try:
+        with open(out_path, "rb") as fh:
+            ref_out = fh.read()
+        with open(err_path, "rb") as fh:
+            ref_err = fh.read()
+    except OSError as exc:
+        raise SetupError(f"channel split file for {case.cid}: {exc}")
+    if (sha256_bytes(ref_out) != row.get("stdout_sha256")
+            or sha256_bytes(ref_err) != row.get("stderr_sha256")):
+        raise SetupError(
+            f"channel split file for {case.cid} does not match the index "
+            "(re-run ref_split.py --write)")
+    case.ref_stdout = out_path
+    case.ref_stderr = err_path
+    case.ref_stdout_bytes = ref_out
+    case.ref_stderr_bytes = ref_err
+    case.split_note = (f"per-channel reference: stdout {len(ref_out)} B / "
+                       f"stderr {len(ref_err)} B ({row.get('lines')} lines)")
 
 
 def parse_run_options(case: Case, cmake: CMakeConfig):
@@ -1963,22 +2054,26 @@ def apply_source_patches(case: Case, run_dir: str):
     return True, "", info
 
 
-def platform_gap_reason(case: Case, actual_doc: bytes):
+def platform_gap_reason(case: Case, docs):
     """Declared run-completion gap whose live signature is present, if any.
 
-    Returns (reason, matched_line) or None.  The matched line becomes the
-    case's ``first_error`` so the record carries the program's own diagnostic.
+    ``docs`` is the ``(stdout, stderr)`` pair; every channel is searched on its
+    own (the channels are never merged).  Returns (reason, matched_line) or
+    None.  The matched line becomes the case's ``first_error`` so the record
+    carries the program's own diagnostic.
     """
     gap = PLATFORM_GAP_SIGNATURES.get(case.cid)
     if not gap:
         return None
     signature, reason = gap
-    if signature not in actual_doc:
-        return None
-    text = actual_doc.decode("utf-8", errors="replace")
-    line = next((ln.strip() for ln in text.splitlines()
-                 if signature.decode() in ln), "")
-    return reason, line
+    for doc in docs:
+        if signature not in doc:
+            continue
+        text = doc.decode("utf-8", errors="replace")
+        line = next((ln.strip() for ln in text.splitlines()
+                     if signature.decode() in ln), "")
+        return reason, line
+    return None
 
 
 # ``-strace`` prints this from print_taken_signal() for a *guest* signal
@@ -2418,9 +2513,9 @@ def _build_and_run(case: Case, cfg, work_dir):
     case.engine = cfg["engine"]
     if cfg["engine"] == "gem5-se":
         # GEM5-021t: same image, same argv/stdin/cwd through the SE path.  The
-        # guest's fd 1/2 are separate host files there, so the run document is
-        # stdout followed by stderr; the qemu round interleaves them (2>&1).
-        # The corpus oracle (reference output / md5 / exit) is unchanged.
+        # guest's fd 1/2 are separate host files there and stay separate
+        # (TESTCASES-006): each one is compared against its own reference
+        # channel, never merged into one document.
         # A dynamic round also hands the loader the guest root (`--interp-dir`
         # + a `/lib`-only `--redirect`; GEM5-027t): the redirect rewrites the
         # library directory only, so the cwd and every other absolute path
@@ -2440,26 +2535,19 @@ def _build_and_run(case: Case, cfg, work_dir):
         case.gap = se["gap"]
         case.sim_log = se["sim_log"] or ""
         rc, timed = se["exit"], False
-        stdout = se["stdout"] + se["stderr"]
-        with open(os.path.join(outdir, "combined.out"), "wb") as fh:
-            fh.write(stdout)
+        stdout, stderr = se["stdout"], se["stderr"]
+        record_channels(case, stdout, stderr)
         if se["status"] == "BLOCKED":
             case.klass = "blocked"
             case.reason = se["reason"]
-            case.first_error = first_output_line(se["stdout"], se["stderr"])
-            case.stdout = se["stdout"] + se["stderr"]
-            case.stdout_sha256 = sha256_bytes(case.stdout)
-            case.stdout_size = len(case.stdout)
+            case.first_error = first_output_line(stdout, stderr)
             return case
         if rc is not None and rc < 0:
             # A host signal is a simulator/host event, never a guest verdict;
             # the qemu -strace probe below does not apply to the SE engine.
             case.klass = "blocked"
             case.reason = f"gem5 killed by host signal {-rc} (not a verdict)"
-            case.first_error = first_output_line(se["stdout"], se["stderr"])
-            case.stdout = se["stdout"] + se["stderr"]
-            case.stdout_sha256 = sha256_bytes(case.stdout)
-            case.stdout_size = len(case.stdout)
+            case.first_error = first_output_line(stdout, stderr)
             return case
     else:
         cmd = [cfg["qemu"]]
@@ -2468,18 +2556,16 @@ def _build_and_run(case: Case, cfg, work_dir):
         cmd += [elf] + list(case.run_argv)
         case.run_cmd = cmd
         run_started = time.monotonic()
-        rc, stdout, timed = run_stream(
-            cmd, os.path.join(outdir, "combined.out"),
-            timeout=case.run_timeout, cwd=run_dir, stdin_path=stdin_path)
+        rc, stdout, stderr, timed = run_channels(
+            cmd, outdir, timeout=case.run_timeout, cwd=run_dir,
+            stdin_path=stdin_path)
         case.run_seconds = time.monotonic() - run_started
-    case.stdout = stdout
-    case.stdout_sha256 = sha256_bytes(stdout)
-    case.stdout_size = len(stdout)
+    record_channels(case, stdout, stderr)
     if timed:
         case.klass = "blocked"
         case.reason = (f"timeout after {case.run_timeout}s (blocked, not "
                        f"pass/fail)")
-        case.first_error = first_output_line(stdout, b"")
+        case.first_error = first_output_line(stdout, stderr)
         return case
     if rc is None:
         case.klass = "blocked"
@@ -2491,7 +2577,7 @@ def _build_and_run(case: Case, cfg, work_dir):
             case.guest_signal = info["name"]
             case.guest_signal_detail = info["detail"]
             case.exit = 128 + info["signo"]
-            case.first_error = first_output_line(stdout, b"")
+            case.first_error = first_output_line(stdout, stderr)
             case.klass = "fail"
             case.reason = (
                 f"guest died of {info['name']} ({info['detail']}); qemu "
@@ -2510,10 +2596,10 @@ def _build_and_run(case: Case, cfg, work_dir):
         if issue:
             case.reason += f" (qemu-user crash; see {issue})"
         case.reason += f"; {why}"
-        case.first_error = first_output_line(stdout, b"")
+        case.first_error = first_output_line(stdout, stderr)
         return case
     case.exit = rc
-    case.first_error = first_output_line(stdout, b"")
+    case.first_error = first_output_line(stdout, stderr)
 
     if case.oracle_kind == "none":
         if rc == case.expected_exit:
@@ -2528,51 +2614,34 @@ def _build_and_run(case: Case, cfg, work_dir):
                            f"{case.first_error[:200]}")
         return case
 
-    # Upstream's comparison unit is the whole output file: the interleaved
-    # stdout+stderr plus the bare ``exit N\n`` tail RunSafely appends.
-    actual_doc = stdout + (b"exit %d\n" % rc)
-
-    if case.oracle_kind == "md5":
-        actual = hashlib.md5(actual_doc).hexdigest()
-        # The upstream hash (HASH_PROGRAM_OUTPUT, HashProgramOutput.sh) covers
-        # the whole output file, *including* RunSafely's bare "exit N" tail.
-        # A matching hash therefore already pins the exit code; requiring a
-        # guest exit of 0 on top of it false-fails baselines that exit non-zero
-        # (gnugo's reference is md5(output+"exit 1\n")).
-        if actual == case.expected_hash:
-            case.klass = "pass"
-            case.reason = (f"md5(output+exit) == {case.expected_hash} "
-                           f"({case.oracle_path}); exit {rc} is part of the "
-                           f"hashed document")
-        else:
-            gap = platform_gap_reason(case, actual_doc)
-            if gap:
-                case.klass = "blocked"
-                case.reason = (f"blocked: the run completed (exit {rc}) "
-                               f"but cannot reach the oracle -- {gap[0]}")
-                case.first_error = gap[1] or case.first_error
-                return case
-            case.klass = "fail"
-            case.reason = (f"oracle mismatch ({case.oracle_path}): "
-                           f"md5(output+exit)={actual} expected "
-                           f"{case.expected_hash}, exit {rc} (the exit code is "
-                           f"inside the hashed document)")
+    if case.oracle_kind == "unsplittable":
+        case.klass = "blocked"
+        case.reason = (
+            "blocked: the upstream reference is one interleaved stream whose "
+            "bytes cannot be attributed to a channel ("
+            + ref_split.UNSPLITTABLE[case.cid] + ")")
         return case
 
-    # Reference form: upstream compares the whole output document.  When the
-    # program's CMake sets FP_TOLERANCE/FP_ABSTOLERANCE/FP_IGNOREWHITESPACE,
-    # upstream compares with fpcmp (its own tool, built here from the locked
-    # corpus' tools/fpcmp.c with the host compiler) -- byte equality would be
-    # stricter than upstream and would turn float formatting differences into
-    # false failures.
+    if case.oracle_kind == "md5":
+        return compare_md5_oracle(case, rc)
+
+    # Per-channel reference (TESTCASES-006).  Upstream ships one interleaved
+    # document; its two channels were partitioned once by ref_split.py and are
+    # compared separately here: stdout against ``.ref.stdout``, stderr against
+    # ``.ref.stderr``, each byte-exact, plus the exit code.  The two channels
+    # are never re-merged, so the verdict does not depend on libc buffering
+    # order.  When the program's CMake sets FP_TOLERANCE/FP_ABSTOLERANCE/
+    # FP_IGNOREWHITESPACE, upstream compares stdout with fpcmp (its own tool,
+    # built here from the locked corpus' tools/fpcmp.c with the host
+    # compiler); stderr stays byte-exact.
     fp = case.cmake
     use_fpcmp = bool(fp and (fp.fp_tolerance or fp.fp_abstolerance
                              or fp.fp_ignorewhitespace)
                      and cfg.get("fpcmp"))
     if use_fpcmp:
-        actual_path = os.path.join(outdir, "actual.out")
+        actual_path = os.path.join(outdir, "actual.stdout")
         with open(actual_path, "wb") as fh:
-            fh.write(actual_doc)
+            fh.write(case.stdout)
         cmd = [cfg["fpcmp"]]
         if fp.fp_tolerance:
             cmd += ["-r", fp.fp_tolerance]
@@ -2580,23 +2649,37 @@ def _build_and_run(case: Case, cfg, work_dir):
             cmd += ["-a", fp.fp_abstolerance]
         if fp.fp_ignorewhitespace:
             cmd += ["-i"]
-        cmd += [actual_path, case.oracle]
+        cmd += [actual_path, case.ref_stdout]
         case.compare = "fpcmp"
         case.compare_cmd = cmd
         _rc, _out, _err, timed = run_bytes(cmd, timeout=60)
-        matched = (not timed and _rc == 0)
+        stdout_ok = (not timed and _rc == 0)
     else:
-        matched = actual_doc == case.expected_doc
+        stdout_ok = case.stdout == case.ref_stdout_bytes
+    stderr_ok = case.stderr == case.ref_stderr_bytes
+    exit_ok = rc == case.expected_exit
 
-    if matched:
+    if not stderr_ok and case.ref_stderr_bytes == b"" and case.stderr:
+        # The committed split has an empty stderr channel, but the guest wrote
+        # some: the source-derived partition is incomplete here, so this is a
+        # gap in the reference split, not a content verdict.
+        case.klass = "blocked"
+        case.reason = (
+            f"blocked: the guest wrote {len(case.stderr)} B to stderr but the "
+            f"per-channel reference for {case.oracle_path} carries an empty "
+            f"stderr channel (source-derived split incomplete; re-run "
+            f"ref_split.py)")
+        return case
+
+    if stdout_ok and stderr_ok and exit_ok:
         case.klass = "pass"
-        label = "raw output+exit" if case.oracle_kind == "raw" \
-            else "output+exit"
-        how = "fpcmp" if use_fpcmp else "byte-exact"
-        case.reason = (f"{label} ({case.oracle_path}): matched ({how}), "
-                       f"exit {rc}")
+        label = "raw channels" if case.oracle_kind == "raw" else "channels"
+        how = "fpcmp+stderr byte-exact" if use_fpcmp else "byte-exact"
+        case.reason = (f"{label} ({case.oracle_path}): stdout and stderr "
+                       f"matched ({how}), exit {rc}")
     else:
-        gap = platform_gap_reason(case, actual_doc)
+        docs = (case.stdout, case.stderr)
+        gap = platform_gap_reason(case, docs)
         if gap:
             case.klass = "blocked"
             case.reason = (f"blocked: the run completed (exit {rc}) but "
@@ -2605,16 +2688,22 @@ def _build_and_run(case: Case, cfg, work_dir):
             return case
         case.klass = "fail"
         detail = []
-        if not use_fpcmp and actual_doc != case.expected_doc:
-            detail.append(f"output differs ({len(actual_doc)} B vs "
-                          f"{len(case.expected_doc)} B, sha256 "
-                          f"{sha256_bytes(actual_doc)[:16]})")
-        if use_fpcmp:
-            detail.append("fpcmp reported a difference "
-                          f"(tolerance={fp.fp_tolerance or '-'} "
-                          f"abstol={fp.fp_abstolerance or '-'} "
-                          f"ignore-ws={fp.fp_ignorewhitespace})")
-        if rc != case.expected_exit:
+        if not stdout_ok:
+            if use_fpcmp:
+                detail.append("stdout differs (fpcmp reported a difference; "
+                              f"tolerance={fp.fp_tolerance or '-'} "
+                              f"abstol={fp.fp_abstolerance or '-'} "
+                              f"ignore-ws={fp.fp_ignorewhitespace})")
+            else:
+                detail.append(
+                    f"stdout differs ({len(case.stdout)} B vs "
+                    f"{len(case.ref_stdout_bytes)} B, sha256 "
+                    f"{case.stdout_sha256[:16]})")
+        if not stderr_ok:
+            detail.append(f"stderr differs ({len(case.stderr)} B vs "
+                          f"{len(case.ref_stderr_bytes)} B, sha256 "
+                          f"{case.stderr_sha256[:16]})")
+        if not exit_ok:
             detail.append(f"exit {rc} != {case.expected_exit}")
         if rc in FAULT_NAMES:
             detail.append(f"machine fault {FAULT_NAMES[rc]} (0x{rc:02X}, "
@@ -2623,6 +2712,63 @@ def _build_and_run(case: Case, cfg, work_dir):
                        + "; ".join(detail)
                        + f"; first output: {case.first_error[:160]}")
     return case
+
+
+def compare_md5_oracle(case: Case, rc):
+    """Hash-form reference (HASH_PROGRAM_OUTPUT): one md5 for one document.
+
+    A digest carries no bytes, so it cannot be split into channels.  The
+    sound case is when exactly one channel is non-empty: the upstream
+    single-stream document is then that channel plus RunSafely's ``exit N``
+    tail, and the hash *is* a per-channel check.  With both channels non-empty
+    the interleaving is unknowable without an fd-write-order log, so the case
+    is reported BLOCKED -- never silently passed and never failed as if the
+    content differed.
+    """
+    if case.stdout and case.stderr:
+        case.klass = "blocked"
+        case.reason = (
+            "blocked: the reference is a hash of upstream's *single stream* "
+            f"({case.oracle_path}), but the guest wrote both channels "
+            f"(stdout {len(case.stdout)} B / stderr {len(case.stderr)} B): "
+            "the interleaving is not recoverable from a digest, so the "
+            "per-channel criterion cannot be applied (ISS-357 residual)")
+        return case
+    channel = case.stdout if case.stdout else case.stderr
+    actual_doc = channel + (b"exit %d\n" % rc)
+    actual = hashlib.md5(actual_doc).hexdigest()
+    if actual == case.expected_hash:
+        case.klass = "pass"
+        name = "stdout" if case.stdout else ("stderr" if case.stderr else
+                                             "empty")
+        case.reason = (f"md5({name}+exit) == {case.expected_hash} "
+                       f"({case.oracle_path}); the other channel is empty, so "
+                       f"upstream's single stream is exactly the {name} "
+                       f"channel; exit {rc} is part of the hashed document")
+        return case
+    gap = platform_gap_reason(case, (case.stdout, case.stderr))
+    if gap:
+        case.klass = "blocked"
+        case.reason = (f"blocked: the run completed (exit {rc}) but cannot "
+                       f"reach the oracle -- {gap[0]}")
+        case.first_error = gap[1] or case.first_error
+        return case
+    case.klass = "fail"
+    case.reason = (f"oracle mismatch ({case.oracle_path}): "
+                   f"md5(channel+exit)={actual} expected {case.expected_hash},"
+                   f" exit {rc} (the exit code is inside the hashed document; "
+                   f"the other channel is empty)")
+    return case
+
+
+def record_channels(case: Case, stdout: bytes, stderr: bytes):
+    """Store the two captured channels (never merged)."""
+    case.stdout = stdout
+    case.stderr = stderr
+    case.stdout_sha256 = sha256_bytes(stdout)
+    case.stdout_size = len(stdout)
+    case.stderr_sha256 = sha256_bytes(stderr)
+    case.stderr_size = len(stderr)
 
 
 def build_and_run(case: Case, cfg, work_dir):
@@ -2661,13 +2807,14 @@ def iss265_evidence(case: Case):
     if case.exit is None:
         return False, "no guest exit code (the run produced no verdict)"
     if case.oracle_kind == "md5":
-        actual_doc = case.stdout + (b"exit %d\n" % case.exit)
+        channel = case.stdout if case.stdout else case.stderr
+        actual_doc = channel + (b"exit %d\n" % case.exit)
         mismatched = hashlib.md5(actual_doc).hexdigest() != case.expected_hash
         exit_ok = case.exit == 0
         exit_why = f"exit {case.exit} (ruled runs exit 0)"
     elif case.oracle_kind in ("stdout", "raw"):
-        actual_doc = case.stdout + (b"exit %d\n" % case.exit)
-        mismatched = actual_doc != case.expected_doc
+        mismatched = (case.stdout != case.ref_stdout_bytes
+                      or case.stderr != case.ref_stderr_bytes)
         exit_ok = case.exit == case.expected_exit
         exit_why = (f"exit {case.exit} == expected {case.expected_exit}"
                     if exit_ok else
@@ -2679,19 +2826,10 @@ def iss265_evidence(case: Case):
         return False, "the oracle matched, so there is no failure to explain"
     if not exit_ok:
         return False, f"exit differs from the ruled runs: {exit_why}"
-    if row["kind"] != "interleave":
+    if row["kind"] != "channel-interleave":
         return False, f"unknown admission kind {row['kind']!r}"
-    if len(actual_doc) != len(case.expected_doc):
-        return False, (f"document sizes differ ({len(actual_doc)} B vs "
-                       f"{len(case.expected_doc)} B): not an "
-                       f"interleaving-only difference")
-    if sorted(actual_doc.splitlines()) != sorted(
-            case.expected_doc.splitlines()):
-        return False, ("line multisets differ: not an interleaving-only "
-                       "difference")
-    return True, (f"same {len(actual_doc)} B / "
-                  f"{len(actual_doc.splitlines())} lines, only the line "
-                  f"order differs; {row['why']}")
+    return True, (f"stdout {len(case.stdout)} B / stderr "
+                  f"{len(case.stderr)} B; {row['why']}")
 
 
 def data_file_on_argv(case: Case):
@@ -2801,7 +2939,7 @@ def iss265_admission_selfcheck():
     unlisted.exit = 0
     unlisted.expected_exit = 0
     unlisted.stdout = b"b\na\n"
-    unlisted.expected_doc = b"a\nb\nexit 0\n"
+    unlisted.ref_stdout_bytes = b"a\nb\n"
     ok, why = iss265_evidence(unlisted)
     if ok:
         problems.append(f"unlisted case admitted: {why}")
@@ -2813,25 +2951,26 @@ def iss265_admission_selfcheck():
     matched.exit = 0
     matched.expected_exit = 0
     matched.stdout = b"a\n"
-    matched.expected_doc = b"a\nexit 0\n"
+    matched.ref_stdout_bytes = b"a\n"
     ok, why = iss265_evidence(matched)
     if ok:
         problems.append(f"admitted case without a mismatch accepted: {why}")
 
-    # TESTCASES-080t: the two removed PRNG rows must not be re-admitted, and a
-    # document whose size differs is not an interleave either (reachable FAIL
-    # path of the interleave size check).
+    # A stderr-channel difference alone is a real mismatch for the per-channel
+    # criterion (reachable FAIL path of the channel check).
     sized = Case("MultiSource/Applications/ClamAV",
                  "MultiSource/Applications", "multi", "", [])
     sized.klass = "fail"
     sized.oracle_kind = "stdout"
     sized.exit = 0
     sized.expected_exit = 0
-    sized.stdout = b"a\nb\n"
-    sized.expected_doc = b"a\nexit 0\n"
+    sized.stdout = b"a\n"
+    sized.ref_stdout_bytes = b"a\n"
+    sized.stderr = b"unexpected\n"
+    sized.ref_stderr_bytes = b""
     ok, why = iss265_evidence(sized)
     if ok:
-        problems.append(f"differently-sized documents accepted as interleave: "
+        problems.append(f"stderr-only difference accepted without a row: "
                         f"{why}")
     return problems
 
@@ -2839,7 +2978,7 @@ def iss265_admission_selfcheck():
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
-def prepare_cases(cases, suite_root: str):
+def prepare_cases(cases, suite_root: str, load_channels=True):
     for case in cases:
         tree_root = os.path.join(suite_root, case.tree)
         case.cmake = derive_cmake_config(suite_root, tree_root, case.unit_dir)
@@ -2865,7 +3004,7 @@ def prepare_cases(cases, suite_root: str):
             case.notes.append(
                 "upstream -l flags not passed (musl keeps libm in libc; the "
                 "lock has no separate " + ", ".join(dropped) + ")")
-        load_oracle(case, suite_root)
+        load_oracle(case, suite_root, load_channels=load_channels)
         if case.cid in CASE_NOTES:
             case.notes.append(CASE_NOTES[case.cid])
     return cases
@@ -2977,7 +3116,8 @@ def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
         lines.append(text)
 
     oracle_counts = {k: sum(1 for c in cases if c.oracle_kind == k)
-                     for k in ("stdout", "md5", "raw", "none")}
+                     for k in ("stdout", "md5", "raw", "none",
+                               "unsplittable")}
     emit(f"run_llvm_ts_user: mode={mode} engine={cfg['engine']} "
          f"cases={len(cases)} (现场枚举, 非写死)")
     if cfg["engine"] == "gem5-se":
@@ -2999,9 +3139,12 @@ def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
          f"unit-dir fallback = {len(cases) - from_cmake} case(s) "
          f"(per-case set + source in the JSON)")
     emit(f"  oracle: upstream reference, precedence "
-         f".small > .big-endian > default; forms: stdout+exit="
-         f"{oracle_counts['stdout']} md5={oracle_counts['md5']} "
-         f"raw={oracle_counts['raw']} none(exit-only)={oracle_counts['none']}")
+         f".small > .big-endian > default; compared per channel "
+         f"(TESTCASES-006).  forms: channels="
+         f"{oracle_counts['stdout']} md5(one-channel hash)="
+         f"{oracle_counts['md5']} raw={oracle_counts['raw']} "
+         f"none(exit-only)={oracle_counts['none']} "
+         f"unsplittable(declared)={oracle_counts['unsplittable']}")
     emit(f"  work dir: {cfg['work_dir']}")
     emit(f"  scope A census: SingleSource/Benchmarks "
          f"{census['a_audit']['a_single_units']}/"
@@ -3100,9 +3243,12 @@ def write_artifacts(cfg, cases, results, counts, audit, census, args,
                   gem5=(cfg["gem5"] if cfg["engine"] == "gem5-se" else None),
                   gem5_timeout=(cfg["gem5_timeout"]
                                 if cfg["engine"] == "gem5-se" else None),
-                  gem5_output_order=("guest stdout then stderr (SE fd1/fd2 are "
-                                    "separate host files)"
+                  gem5_output_order=("guest fd1 and fd2 kept in separate host "
+                                    "files and compared per channel"
                                     if cfg["engine"] == "gem5-se" else None),
+                  criterion=("per-channel: stdout==ref.stdout and "
+                             "stderr==ref.stderr, each byte-exact, plus exit "
+                             "(TESTCASES-006)"),
                   suite=cfg["src"],
                   seed=dict(target=TARGET, base="lld default",
                             musl_headers=list(MUSL_USER_INCLUDE_DIRS),
@@ -3116,7 +3262,8 @@ def write_artifacts(cfg, cases, results, counts, audit, census, args,
                   total=counts["total"], counts=counts,
                   oracle_counts={k: sum(1 for c in cases
                                         if c.oracle_kind == k)
-                                 for k in ("stdout", "md5", "raw", "none")},
+                                 for k in ("stdout", "md5", "raw", "none",
+                                           "unsplittable")},
                   census=census, closure_ok=audit["closure_ok"],
                   classification_ok=audit["classification_ok"],
                   known_fail_bases=KNOWN_FAIL_BASES,
@@ -3290,7 +3437,10 @@ def main() -> int:
                 if case.oracle_kind == "md5":
                     case.expected_hash = "0" * 32
                 elif case.oracle_kind in ("stdout", "raw"):
-                    case.expected_doc = case.expected_doc + b"\x00injected"
+                    # Corrupt the per-channel reference, not the upstream
+                    # document: the comparison must FAIL on the channels.
+                    case.ref_stdout_bytes = case.ref_stdout_bytes + b"\x00injected"
+                    case.ref_stderr_bytes = case.ref_stderr_bytes + b"\x00injected"
                 elif case.oracle_kind == "none":
                     # exit-only expectation: make the expected exit unreachable
                     # (a one-shot program cannot return 77 by accident here).
@@ -3421,6 +3571,10 @@ def main() -> int:
             report_text += "  run: " + " ".join(r.run_cmd) + "\n"
             report_text += (f"  stdout: {r.stdout_size} B sha256="
                             f"{r.stdout_sha256}\n")
+            report_text += (f"  stderr: {r.stderr_size} B sha256="
+                            f"{r.stderr_sha256}\n")
+            if r.split_note:
+                report_text += "  " + r.split_note + "\n"
         meta = _run_artifacts.build_meta(
             sys.argv, "llvm-ts-user", mode, run_dir, round_started,
             _run_artifacts.toolchain_summary(

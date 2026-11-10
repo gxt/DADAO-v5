@@ -21,8 +21,8 @@
   scope:
   - gem5
   - testcases
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: m13-testcases-006（分通道判据）
   title: 【P2】gem5 SE 输出捕获的 stdout/stderr 顺序与参考不一致（`2>&1` 交错 vs fd1/fd2 分开后按 `stdout+stderr` 串接）。已确认**至少 4 例**可由 `stderr+stdout+exit` 与参考逐字节相等：FreeBench `analyzer`/`pifft`/`mason`/`neural` （前两例本在第一轮 9 个 fail 内；后两例是 `gem5_only_fail` 9→11 的差值）。 **不可全局交换顺序**：另有 1 例需 `stdout+stderr`，31 例 pass 走非逐字节比对。 修复方向：SE 驱动层保留 fd1/fd2 写出顺序；修复前不按能力缺口计。详见 `.tao/knowledge/refs/TESTCASES-103t-timeout-recheck.md`。
 - id: ISS-358
   scope:
@@ -100,3 +100,9 @@
   status: open
   resolved_by: null
   title: '【P2】`m12-chipyard-007` 证据脚本两处断言恒真：① `no_stray_stores`（无条件成立）；② `apply-series: no chipyard refusal`（当前环境 make 在 gem5 处先中止，chipyard 根本跑不到 ⇒ 恒真，靠 `check-patch-tree` ⑥/⑨ + `check-source-state` 兜底）。另有 L1 白名单只列 3 个外部目标，新增外部红会让脚本 rc=1。建议：删除恒真断言或改为「可失败」形式；白名单改为「按任务文件归属判定」而非固定名单。'
+- id: ISS-370
+  scope:
+  - testcases
+  status: open
+  resolved_by: null
+  title: 【P3】`m13-testcases-006` 遗留：① `ref_split.py` 两处不可达分支（`unsupported conversion`、行数账不平）；② 证据脚本对「stderr 只比长度」不敏感（C07 靠 stdout 侧捕捉），缺同长度篡改探针；③ 「guest 多写一路而参考该路为空 ⇒ blocked」口径待确认（会把多写回归记为 blocked 而非 fail）。建议：删死分支；补同长度篡改探针；口径写入 `Process-09 §17`。
