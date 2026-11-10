@@ -22,7 +22,13 @@ instruction stream in two different memory layouts:
     the two TileLink ports are independent: the fetch port keeps prefetching
     while the data port is stalled.
 
-Both images are built from the encoders in ``tools/chipyard/inst_sweep.py`` so
+``xbeat``
+    A straight-line ``or.o`` stream spanning many fetch beats (m12-020).  The
+    harness prints one ``exec ... cycle=`` line per instruction, so the evidence
+    script measures the cost of crossing a beat boundary before/after the four
+    prefetch slots and the data-priority arbitration.
+
+All images are built from the encoders in ``tools/chipyard/inst_sweep.py`` so
 there is exactly one source of instruction encoding in this module.
 
 Usage:
@@ -83,6 +89,27 @@ def timing_program():
                    "shl_start": shl_start, "shl_end": len(words) - 1}
 
 
+XBEAT_ALU_COUNT = 400
+
+
+def xbeat_program():
+    """Straight-line ``or.o`` stream: two instructions per beat, no branches.
+
+    The harness prints one ``exec ... cycle=`` line per instruction, so the
+    evidence script can measure the cost of crossing a beat boundary: with the
+    fetch queue draining at every crossing (m12-018) it is the SRAM round trip
+    (7-8 cycles); with enough prefetch slots it is one cycle.
+    """
+    words = []
+    words += S.load_rd(2, 3)                      # second operand of or.o
+    words += S.load_rd(4, 0)                      # accumulator
+    start = len(words)
+    for _ in range(XBEAT_ALU_COUNT):
+        words.append(enc_or_o(4, 4, 2))
+    words.append(0x0000_0000)                     # UNDI: bounded stop
+    return words, {"block_start": start, "block_len": XBEAT_ALU_COUNT}
+
+
 def tb_program():
     """Jump far away, then store (answered slowly) and run from the queue."""
     words = []
@@ -103,6 +130,13 @@ def build_timing(outdir: Path, tb: Path):
     words, marks = timing_program()
     elf, raw = S.assemble(words, outdir, "timing", tb)
     (outdir / "timing.json").write_text(json.dumps(marks, indent=1) + "\n")
+    return elf, raw, words, marks
+
+
+def build_xbeat(outdir: Path, tb: Path):
+    words, marks = xbeat_program()
+    elf, raw = S.assemble(words, outdir, "xbeat", tb)
+    (outdir / "xbeat.json").write_text(json.dumps(marks, indent=1) + "\n")
     return elf, raw, words, marks
 
 
@@ -129,6 +163,9 @@ def main(argv):
     tb = S.toolchain_bin(None)
     elf, raw, words, marks = build_timing(outdir, tb)
     info = build_tb(outdir)
+    xelf, _, xwords, xmarks = build_xbeat(outdir, tb)
+    print(f"xbeat: {len(xwords)} words -> {xelf.name}, "
+          f"block [{xmarks['block_start']},{xmarks['block_start'] + xmarks['block_len']})")
     print(f"timing: {len(words)} words -> {elf.name} ({elf.stat().st_size} B ELF), "
           f"or block [{marks['or_start']},{marks['or_end']}) "
           f"shl block [{marks['shl_start']},{marks['shl_end']})")

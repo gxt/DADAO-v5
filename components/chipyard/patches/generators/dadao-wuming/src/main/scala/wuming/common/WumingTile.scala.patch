@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
 new file mode 100644
-index 0000000..71ab2bb
+index 0000000..a3cab6c
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
-@@ -0,0 +1,177 @@
+@@ -0,0 +1,178 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile skeleton (m12-chipyard-001).
@@ -57,14 +57,15 @@ index 0000000..71ab2bb
 +  // concrete instance of what "borrow the wiring only" means.  Fetch and data
 +  // are separate client nodes (user ruling 2026-11-10: "取指和访存应该用两个
 +  // tilelink，在 m12 中就拆"), so a data access can never block fetch
-+  // progress.  Each node declares `IdRange(0, 3)`; source IDs are client-local
-+  // and the port xbar remaps them, so the two ranges do not collide.  The core
-+  // uses source 0 for the demand fetch and 1/2 for the two prefetch slots on the
-+  // fetch port, and source 0 on the data port (see `WumingCore`).
++  // progress.  Source IDs are client-local and the port xbar remaps them, so the
++  // two ranges do not collide.  The core uses source 0 for the demand fetch and
++  // 1..4 for the four prefetch slots on the fetch port (m12-020 widened the
++  // range from `IdRange(0, 3)`), and source 0 on the data port (see
++  // `WumingCore`).
 +  val fetchMasterNode: TLClientNode = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(
 +    TLMasterParameters.v1(
 +      name = s"WumingCoreFetch ${tileId}",
-+      sourceId = IdRange(0, 3),
++      sourceId = IdRange(0, 5),
 +      requestFifo = true)))))
 +  val dataMasterNode: TLClientNode = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(
 +    TLMasterParameters.v1(

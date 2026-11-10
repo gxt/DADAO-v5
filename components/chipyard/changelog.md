@@ -32,6 +32,10 @@
   - 摘要：**取指/访存拆成两个 TileLink 客户端 + 8-beat 取指队列 + 12 态状态机骨架**。`WumingTile` 新增 `fetchMasterNode`/`dataMasterNode`（各 `IdRange(0, 3)`，都进 tile 内 `portXbar`），`WumingCore` 改为 `imem`/`dmem` 两个 `TLBundle`（A/D 通道与请求状态各自独立）；`WumingCoreParams` 新增 `fetchDepth = 8`，核内改为 8-beat 环形取指队列 + 顺序预取（source 0 需求、1/2 预取槽，命中 1 拍、投机 `denied` 不报错）；状态机按 `m12-006 §5.1` 落 12 态（`IDLE/FREQ/FWAIT/EXEC/TRAP/SEMI/EXC/MREQ/MWAIT/SLOW/FAULT/HALT`），R1 = C（移位/位域走 `SLOW` 2 拍、简单算术 1 拍），`EXC` 暂只记 cause 后进 `FAULT`（cfx 帧/向量归 `m12-019`）；诊断 `printf` 增 `cycle=`。273 例与 `m12-005` 逐字节一致（md5 `2d4d9465…`）。
   - 执行者：engineer
 
+- **2026-11-10 `m12-chipyard-020`**
+  - 摘要：**取指预取优化：4 个预取槽 + 数据优先仲裁 + SRAM 往返延迟计数**。`WumingTile` 取指客户端 `IdRange(0, 3)` → `IdRange(0, 5)`（1 需求 + 4 预取；`fetchDepth` 仍 8，source 回收/flush-stale 语义不变），`WumingCore` 的预取槽由 A/B 两个具名寄存器改为 4 槽 `Vec`（源 ID = 槽号 + 1，回复按源匹配）；**数据优先**：`MREQ`/`MWAIT`（数据端口有未完成请求）期间不发起新预取，已发出的不清空、回复仍入队；发射条件由 `qCount =/= 0 && !waitBeat` 放宽为 `qCount =/= 0 || waitBeat`（FWAIT 等已在途 beat 时继续填充槽位，否则 4 槽无效）；新增需求取指往返延迟计数器（A 握手 → D 回包拍数，`fetchresp`/`prefetch ... lat=` 诊断可见）。实测跨 beat 代价中位 8 → 1 拍（注入回 2 槽：中位 5、102/204 次 > 2 拍），SRAM 往返 4/6 拍 ⇒ 4 槽（需求 3）足够；273 例 md5 不变。
+  - 执行者：engineer
+
 - **2026-11-09 `m12-infra-003`**
   - 摘要：**子模块补丁集试点（testchipip）**：`generators/testchipip` 新增子模块补丁集 `submodules/testchipip/{series,patches/}`——`SimDRAM.cc` 的 `loadmem_memif_t::get_target_endianness()` 改为由 `+loadmem_be` plusarg 显式返回 `endianness_big`（默认 little 不变，stock RISC-V 配置行为不动），`SimDRAM.v` 的 `MEM_BASE` 默认值改为 `64'h0`（原无位宽 32 位推断会截断 48 位基址）；组件补丁集与子模块补丁集的分工/声明/门控见 `docs/Process-01 §14`。
   - 执行者：engineer

@@ -8,12 +8,14 @@
 //
 // The program (`gen_probe.py`, layout `probe.json`) jumps far away and then
 // issues one store, so the fetch queue holds a single beat when the data access
-// starts.  The bench then checks the property the split ports exist for:
+// starts.  The bench then checks the property m12-020 adds:
 //
-//   during the long data access the fetch port keeps prefetching until the
-//   8-beat queue is full (exactly `depth - 1` prefetch requests, the first beat
-//   being the demand fetch), and execution resumes from the queue without
-//   another fetch round trip once the store completes.
+//   * while the data port has a request outstanding the fetch port issues no
+//     new prefetch (data priority); at most the one prefetch admitted in the
+//     same cycle as the store may still be on the bus,
+//   * the data burst completes in exactly the configured latency (fetch
+//     arbitration does not slow it down),
+//   * execution resumes from the queue once the store completes.
 //
 // Everything is printed as `PROBE <name>=<value>` and the bench exits non-zero
 // if any check fails.
@@ -74,6 +76,7 @@ uint64_t imemReqCount = 0;
 uint64_t dmemReqCycle = 0;
 uint64_t dmemRespCycle = 0;
 uint64_t fetchDuringStall = 0;
+uint64_t fetchAfterDataReq = 0;
 uint64_t haltCycle = 0;
 uint64_t targetRespCycle = 0;
 
@@ -137,8 +140,10 @@ void update() {
   if (dut->io_imem_a_valid && dut->io_imem_a_ready) {
     Pending p{dut->io_imem_a_bits_address, dut->io_imem_a_bits_source, cycle + 2, true};
     // Count the prefetches issued between the demand beat arriving and the
-    // data access completing: that is the run that fills the fetch queue.
+    // data access completing, and those issued strictly after the data request
+    // was accepted (m12-020: the latter must be zero).
     if (targetRespCycle != 0 && dmemRespCycle == 0) ++fetchDuringStall;
+    if (dmemReqCycle != 0 && dmemRespCycle == 0) ++fetchAfterDataReq;
     ++imemReqCount;
     imemQ.push_back(p);
   }
@@ -218,14 +223,21 @@ int main(int argc, char **argv) {
   std::printf("PROBE data_response_cycle=%llu\n", static_cast<unsigned long long>(dmemRespCycle));
   std::printf("PROBE fetch_requests_during_data_stall=%llu\n",
               static_cast<unsigned long long>(fetchDuringStall));
+  std::printf("PROBE fetch_requests_after_data_request=%llu\n",
+              static_cast<unsigned long long>(fetchAfterDataReq));
   std::printf("PROBE halted_cycle=%llu\n", static_cast<unsigned long long>(haltCycle));
 
   std::printf("PROBE demand_beat_cycle=%llu\n", static_cast<unsigned long long>(targetRespCycle));
   fails += reportCheck("data access was stalled", dmemRespCycle > dmemReqCycle + 100,
                        ">100 cycles", std::to_string(dmemRespCycle - dmemReqCycle));
-  fails += reportCheck("fetch prefetched to the queue depth while data was stalled",
-                       fetchDuringStall == static_cast<uint64_t>(opt.depth - 1),
-                       std::to_string(opt.depth - 1), duringStall);
+  fails += reportCheck("data burst time == configured latency (no fetch contention)",
+                       dmemRespCycle - dmemReqCycle == static_cast<uint64_t>(opt.latency),
+                       std::to_string(opt.latency),
+                       std::to_string(dmemRespCycle - dmemReqCycle));
+  fails += reportCheck("no prefetch issued after the data request went out",
+                       fetchAfterDataReq == 0, "0", std::to_string(fetchAfterDataReq));
+  fails += reportCheck("at most one prefetch already in flight when the data request went out",
+                       fetchDuringStall <= 1, "<=1", duringStall);
   fails += reportCheck("core halted after the store completed", haltCycle != 0, "halted",
                        std::to_string(haltCycle));
   if (haltCycle != 0 && dmemRespCycle != 0) {

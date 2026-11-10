@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..b3959f2
+index 0000000..93d9ef6
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,667 @@
+@@ -0,0 +1,688 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -17,7 +17,7 @@ index 0000000..b3959f2
 +//     slow data access cannot stall fetch progress.
 +//   * a `fetchDepth` (= 8 beats = 64 B) circular queue of consecutive beats.
 +//     The prefetch walks the queue forward over the client's spare source IDs
-+//     (source 0 = demand fetch, 1/2 = the two prefetch slots); a hit costs no
++//     (source 0 = demand fetch, 1..4 = the four prefetch slots); a hit costs no
 +//     extra cycle (`EXEC` decodes straight out of the queue).
 +//   * the 12-state skeleton of §5.1: IDLE / FREQ / FWAIT / EXEC / TRAP / SEMI
 +//     / EXC / MREQ / MWAIT / SLOW / FAULT / HALT.  Cycle policy R1 = C:
@@ -93,18 +93,18 @@ index 0000000..b3959f2
 +  private val cntBits = log2Ceil(fetchDepth + 1)
 +  private val beatBits = addrBits - 3
 +  // Prefetch slots = the source IDs this port does not use for the demand
-+  // fetch.  `IdRange(0, 3)` therefore allows two prefetches in flight; a
-+  // deeper prefetch pipeline needs a wider range (see the completion notes).
-+  private val pfSlots = 2
++  // fetch.  m12-020 widened `IdRange(0, 3)` to `IdRange(0, 5)`, so four
++  // prefetches can be in flight and the queue no longer drains at every beat
++  // boundary.
++  private val pfSlots = 4
 +
 +  // TileLink source IDs of the fetch port.  The data port is a separate client
 +  // node with its own (client-local) source space, so §5.5's global numbering
 +  // (0 = fetch, 1 = data, 2 = prefetch) collapses to "0 = demand fetch, the
-+  // spare IDs = prefetch slots" on the fetch port.
++  // spare IDs = prefetch slots" on the fetch port.  Prefetch slot i uses
++  // source i + 1.
 +  private val srcBits = fetchEdge.bundle.sourceBits
 +  val FETCH_SRC = 0.U(srcBits.W)
-+  val PF_SRC_A = 1.U(srcBits.W)
-+  val PF_SRC_B = 2.U(srcBits.W)
 +  val DATA_SRC = 0.U(srcBits.W)
 +
 +  // ---- architectural state ----------------------------------------------
@@ -278,26 +278,29 @@ index 0000000..b3959f2
 +  val fetchAddr = Cat(0.U((64 - addrBits).W), ip(addrBits - 1, 3), 0.U(3.W))
 +  val (fetchLegal, fetchBits) = fetchEdge.Get(FETCH_SRC, fetchAddr(addrBits - 1, 0), lgSize)
 +
-+  // Two prefetch slots keep the queue walking forward.  Every live prefetch is
-+  // for a beat after the newest queued one, and replies are matched back to
-+  // their slot by source ID, so no assumption is made about the order in which
-+  // the manager answers.  A demand fetch marks the outstanding prefetches
++  // Four prefetch slots keep the queue walking forward (m12-020).  Every live
++  // prefetch is for a beat after the newest queued one, and replies are matched
++  // back to their slot by source ID, so no assumption is made about the order in
++  // which the manager answers.  A demand fetch marks the outstanding prefetches
 +  // stale: their replies are dropped instead of being queued into a stream that
 +  // no longer exists (speculative fetches never fault,
 +  // `.tao/knowledge/refs/m12-006-cycle-design.md` §5.5 rule 7), which is why the
 +  // D channel is always ready.
-+  val pfValidA = RegInit(false.B)
-+  val pfValidB = RegInit(false.B)
-+  val pfStaleA = RegInit(false.B)
-+  val pfStaleB = RegInit(false.B)
-+  val pfBeatA = RegInit(0.U(beatBits.W))
-+  val pfBeatB = RegInit(0.U(beatBits.W))
-+  val pfLiveA = pfValidA && !pfStaleA
-+  val pfLiveB = pfValidB && !pfStaleB
++  //
++  // Data priority (m12-020): while the data port has a request outstanding the
++  // core starts no new prefetch, so a long load/store burst is not crowded out
++  // of the SRAM.  Prefetches already on the bus are left alone (their slots are
++  // still released by their replies, and still flushed as stale).  Arbitration
++  // resumes as soon as the data port has no outstanding request
++  // (`MREQ`/`MWAIT` are the only states with one).
++  val pfValid = RegInit(VecInit(Seq.fill(pfSlots)(false.B)))
++  val pfStale = RegInit(VecInit(Seq.fill(pfSlots)(false.B)))
++  val pfBeatV = RegInit(VecInit(Seq.fill(pfSlots)(0.U(beatBits.W))))
++  val pfLiveV = VecInit((0 until pfSlots).map(i => pfValid(i) && !pfStale(i)))
 +  // `pfLive` = prefetches that still extend the queue; `pfBusy` = source IDs in
 +  // use (a flushed request keeps its ID until its reply arrives).
-+  val pfLive = pfLiveA.asUInt +& pfLiveB.asUInt
-+  val pfBusy = pfValidA.asUInt +& pfValidB.asUInt
++  val pfLive = PopCount(pfLiveV)
++  val pfBusy = PopCount(pfValid)
 +  val pfBeat = nextBeatReg + pfLive // beat index of the next prefetch
 +
 +  // The launch register: a prefetch is prepared in one cycle and then held on
@@ -306,11 +309,10 @@ index 0000000..b3959f2
 +  // which is exact because the request is guaranteed to be sent.
 +  val pfReqValid = RegInit(false.B)
 +  val pfReqBeat = RegInit(0.U(beatBits.W))
-+  val pfReqSrc = RegInit(PF_SRC_A)
++  val pfReqSlot = RegInit(0.U(log2Ceil(pfSlots).W))
 +  val pfReqAddr = Cat(0.U((64 - addrBits).W), pfReqBeat, 0.U(3.W))
-+  val (_, pfReqBitsA) = fetchEdge.Get(PF_SRC_A, pfReqAddr(addrBits - 1, 0), lgSize)
-+  val (_, pfReqBitsB) = fetchEdge.Get(PF_SRC_B, pfReqAddr(addrBits - 1, 0), lgSize)
-+  val pfReqBits = Mux(pfReqSrc === PF_SRC_B, pfReqBitsB, pfReqBitsA)
++  val pfReqBits = VecInit((0 until pfSlots).map(i =>
++    fetchEdge.Get((i + 1).U(srcBits.W), pfReqAddr(addrBits - 1, 0), lgSize)._2))
 +
 +  val imemFire = io.imem.d.valid && io.imem.d.ready
 +  val imemD = io.imem.d.bits
@@ -318,52 +320,68 @@ index 0000000..b3959f2
 +  val imemFirePrefetch = imemFire && imemD.source =/= FETCH_SRC
 +
 +  val atDemand = state === sFreq
++  val dataBusy = state === sMreq || state === sMwait
++  // The stream is live when the queue holds a beat or when the core is waiting
++  // for one that is already in flight (`waitBeat`).  In the latter case the
++  // queue is empty but `nextBeatReg` still marks the next beat of the live
++  // stream, so the four slots can be filled ahead instead of stop-and-wait
++  // (m12-020: with `qCount =/= 0` alone the core launched at most one prefetch
++  // before entering `FWAIT`, which is why the extra slots had no effect).
++  val pfStreamLive = qCount =/= 0.U || waitBeat
 +  val pfRoom = (qCount +& pfLive) < fetchDepth.U && pfBusy < pfSlots.U
-+  val pfWanted = qCount =/= 0.U && pfRoom && !atDemand && !fifoFlush &&
-+    !waitBeat && !pfReqValid
++  val pfWanted = pfStreamLive && pfRoom && !atDemand && !dataBusy && !fifoFlush &&
++    !pfReqValid
 +  when(pfWanted) {
++    val freeSlot = PriorityEncoder(pfValid.map(!_))
 +    pfReqValid := true.B
 +    pfReqBeat := pfBeat
-+    pfReqSrc := Mux(pfValidA, PF_SRC_B, PF_SRC_A)
-+    when(!pfValidA) { pfValidA := true.B; pfBeatA := pfBeat; pfStaleA := false.B }
-+      .otherwise { pfValidB := true.B; pfBeatB := pfBeat; pfStaleB := false.B }
++    pfReqSlot := freeSlot
++    pfValid(freeSlot) := true.B
++    pfBeatV(freeSlot) := pfBeat
++    pfStale(freeSlot) := false.B
 +  }
 +  when(io.imem.a.fire && !atDemand) { pfReqValid := false.B }
 +
 +  io.imem.a.valid := atDemand || pfReqValid
-+  io.imem.a.bits := Mux(atDemand, fetchBits, pfReqBits)
++  io.imem.a.bits := Mux(atDemand, fetchBits, pfReqBits(pfReqSlot))
 +  io.imem.d.ready := true.B
 +
-+  // Replies are matched by source ID, so the slots do not depend on the order
-+  // in which the manager answers.
-+  val pfRespA = imemFirePrefetch && pfValidA && imemD.source === PF_SRC_A
-+  val pfRespB = imemFirePrefetch && pfValidB && imemD.source === PF_SRC_B
-+  val pfAnswered = pfRespA || pfRespB
-+  val pfOldBeat = Mux(pfRespA, pfBeatA, pfBeatB)
-+  val pfOldStale = Mux(pfRespA, pfStaleA, pfStaleB)
++  // Replies are matched by source ID (slot i owns source i + 1), so the slots do
++  // not depend on the order in which the manager answers.
++  val pfRespSlot = imemD.source - 1.U
++  val pfRespOk = imemFirePrefetch && pfRespSlot < pfSlots.U && pfValid(pfRespSlot)
++  val pfOldBeat = pfBeatV(pfRespSlot)
++  val pfOldStale = pfStale(pfRespSlot)
 +
-+  when(pfRespA) { pfValidA := false.B }
-+  when(pfRespB) { pfValidB := false.B }
++  when(pfRespOk) { pfValid(pfRespSlot) := false.B }
 +  // A flush does *not* release the slots: those requests are already on the bus
 +  // and their source IDs stay in use until the replies arrive (reusing a source
 +  // ID while a reply is outstanding is a TileLink protocol violation).  They
 +  // are marked stale instead, so their replies are dropped rather than queued
 +  // for a stream that no longer exists.
 +  when(fifoFlush) {
-+    when(pfValidA) { pfStaleA := true.B }
-+    when(pfValidB) { pfStaleB := true.B }
++    for (i <- 0 until pfSlots) { when(pfValid(i)) { pfStale(i) := true.B } }
 +  }
 +
 +  // A prefetch may only enter the queue when it is exactly the beat we expect
 +  // next (so a stale or out-of-order reply is dropped, and the demand fetch path
 +  // re-fetches it) and when the demand path is not re-filling the queue.
-+  val pfPushOk = pfAnswered && !pfOldStale && !fifoFlush && !qFull && !imemD.denied &&
++  val pfPushOk = pfRespOk && !pfOldStale && !fifoFlush && !qFull && !imemD.denied &&
 +    state =/= sFreq && (state =/= sFwait || waitBeat)
 +  when(pfPushOk && pfOldBeat === nextBeatReg) {
 +    fifoPush := true.B
 +    pushBeat := pfOldBeat
 +    pushData := addressOrder(imemD.data)
 +  }
++
++  // m12-020: SRAM round-trip latency of the demand fetch, in cycles.  Latched
++  // when the demand request is accepted and sampled when its reply arrives; the
++  // register keeps the last measurement (also printed below) and is used to
++  // calibrate how many prefetch slots the queue actually needs.
++  val demandSentCycle = RegInit(0.U(64.W))
++  val fetchLatency = RegInit(0.U(64.W))
++  when(atDemand && io.imem.a.fire) { demandSentCycle := cycles }
++  when(fetchResp) { fetchLatency := cycles - demandSentCycle }
 +
 +  // ---- data port ---------------------------------------------------------
 +  val (ldLegal, ldBits) = dataEdge.Get(DATA_SRC, memAddr(addrBits - 1, 0), lgSize)
@@ -623,10 +641,13 @@ index 0000000..b3959f2
 +    printf(p"WumingCore: boot hartid=${io.hartid} reset_vector=0x${Hexadecimal(io.resetVector)} cycle=${cycles}\n")
 +  }
 +  when(pfReqValid && io.imem.a.fire) {
-+    printf(p"WumingCore: prefetch 0x${Hexadecimal(pfReqAddr)} count=${qCount} live=${pfLive} busy=${pfBusy} cycle=${cycles}\n")
++    printf(p"WumingCore: prefetch 0x${Hexadecimal(pfReqAddr)} count=${qCount} live=${pfLive} busy=${pfBusy} lat=${fetchLatency} cycle=${cycles}\n")
 +  }
 +  when(state === sFreq && io.imem.a.fire) {
 +    printf(p"WumingCore: fetch 0x${Hexadecimal(fetchAddr)} cycle=${cycles}\n")
++  }
++  when(fetchResp) {
++    printf(p"WumingCore: fetchresp 0x${Hexadecimal(Cat(demandBeat, 0.U(3.W)))} latency=${cycles - demandSentCycle} cycle=${cycles}\n")
 +  }
 +  when(state === sExec && queueHit) {
 +    printf(p"WumingCore: exec ip=0x${Hexadecimal(ip(47, 0))} inst=0x${Hexadecimal(inst)} cycle=${cycles}\n")

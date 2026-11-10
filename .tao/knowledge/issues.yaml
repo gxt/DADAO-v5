@@ -134,3 +134,9 @@
   status: open
   resolved_by: null
   title: 【P3】`m13-gem5-005` 文档级遗留：① 完成区 patch-tree 红数过时；② `--bootrom` 尺寸 fatal 用 `%zu`，gem5 fatal 不支持（显示 `<bad format>u bytes`）；③ checker 用 `-z max-page-size=0x1000` 链 app ELF，`p_align` 与 chipyard 差 2 字节；④ `e_entry == params.entry` 对 Vast 同样生效但报错文案写 "Tiny"、无门控覆盖。建议：fatal 改 `%llu`；checker 与 chipyard 用同一链接参数；报错按 profile 取名。
+- id: ISS-375
+  scope:
+  - chipyard
+  status: open
+  resolved_by: null
+  title: 【P3】`m12-chipyard-020` 证据脚本与观察遗留：① G 段归因用 `git diff --name-only HEAD`（任务改动已进 HEAD ⇒ `OUTSIDE` 恒 0）、且 `same gate red on master` 是固定回显（脚本未真跑 master）；② E 段「data burst 不劣化」对仲裁拖慢不敏感（bench 两 slave 独立），属结构性论证（`ldm`/`stm` 未实现）；③ `018` 既有：`io.imem.a.valid := atDemand || pfReqValid` 在 flush 且 `a.ready=0` 时可能 valid 保持期间换 bits。建议：归因基准改任务基线；burst 判据待 008 后补；imem valid 加锁存。
