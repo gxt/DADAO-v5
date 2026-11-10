@@ -88,3 +88,9 @@
   status: open
   resolved_by: null
   title: 【P1】gem5 SE（static）`MultiSource/Benchmarks/FreeBench/pcompress2` oracle mismatch：gem5 跑完（4408 s，exit=0）但输出与参考不同，qemu 通过；比值 404×。与 `ISS-362`（dynamic `neural`）同类，疑浮点/格式化。证据：`m13-testcases-003` A 组 static 结果（`split/A/static/ratio-static-llvm-ts.json`）。建议：与 `ISS-362` 合并为「gem5 输出差异」样本集，交 `m13-integ-002` 定位。
+- id: ISS-368
+  scope:
+  - infra
+  status: open
+  resolved_by: null
+  title: 【P1】**子代理在主工作树直接实现**（`m12-chipyard-018` 与 `m13-testcases-005` 均发生）：改动落在 `/mnt/tao/DADAO-v5`（master 检出）而非独立 `git worktree`，导致主工作树脏、与并行任务共享文件冲突风险高；本次由 architect 手工搬到 `m12-chipyard-018` 分支 worktree 后复原主树。建议：① 派单提示首行固定「必须在独立 worktree 内作业，禁改主工作树」；② reviewer 首查 `git worktree list` 与主树 `git status`；③ 主会话收尾前先核主树是否干净。
