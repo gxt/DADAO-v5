@@ -22,19 +22,21 @@ hmon handler 是**guest 代码**（BootROM 固件的一部分），三平台共�
 
 ## 目标
 
-1. **重写 `tests/shared/bootrom/tiny/hmon.S`** 为 `§11` 的序列：
-   - `0x00`：`st.o rd63, [rb0, 8]`
-   - `0x04`：`jump [rb0, 0x30]`
-   - `0x30` 起：`cfx2rd cg5 rc2/rc3/rc4` → 存 `0x10/0x18/0x20`；`ld [0x28]` → `cfx2rc cg5 rc3`；`ld [0x08]` 恢复 `rd63`；`escape cfx_hmon, [excp_cause_ip, 0]`
+1. **重写 `tests/shared/bootrom/tiny/hmon.S`**（**代码起点偏移 0，无 jump**）：
+   - `st.o rd63, [rb0, off(0xD8)]`（保存 rd63）
+   - `cfx2rd cg5 rc2/rc3/rc4` → 分别存 `0xE0/0xE8/0xF0`
+   - `ld [0xF8]` → `cfx2rc cg5 rc3`（返回地址写入 `excp_cause_ip`）
+   - `ld [0xD8]`（恢复 rd63）→ `escape cfx_hmon, [excp_cause_ip, 0]`
    - **删除**：magic 校验、IALIGN 特判、`+4` 策略、park 循环
-2. **`power.S`**：`trap cfx_hmon` 之前把默认返回地址写入 `hmon_base + 0x28`（值 = `trap` 的下一条指令地址）；框架可覆盖。
-3. **构建器**（`tools/testcases/arch/build_tiny_bootrom.py`）：强制布局常量 `0x08/0x10/0x18/0x20/0x28/0x30`、8 字节对齐、代码区 ≤8 KiB；镜像仍恰好 64 KiB。
-4. **QEMU 验证**（本任务的核心）：
-   - 框架写 A 地址 ⇒ 异常后跳到 A；写 B ⇒ 跳 B（**hmon 不做任何判断**）
+2. **数据区固定在 `0xD8`–`0xFF`**：`0xD8` rd63 / `0xE0` cause_id / `0xE8` cause_ip / `0xF0` cause_info / `0xF8` 返回地址；**代码区必须 ≤ `0xD8`（216 B）**，构建器断言。
+3. **`power.S`**：`trap cfx_hmon` 之前把默认返回地址写入 `hmon_base + 0xF8`（= `trap` 下一条）；**不改异常向量**（初值已指向 `0x00`）。power **只复制代码区**（表项 `size` = 代码长度），数据区保持 SRAM 初值。
+4. **构建器**（`tools/testcases/arch/build_tiny_bootrom.py`）：强制 `data_base = 0xD8`、8 字节对齐、代码区 ≤0xD8、镜像仍恰好 64 KiB。
+5. **QEMU 验证**（核心）：
+   - 框架写 A 地址 ⇒ 异常后跳到 A；写 B ⇒ 跳 B（hmon 不做判断）
    - 三个现场值与 `cg5 rc2/rc3/rc4` 逐值相等（五类异常各 1 例）
-   - `rd63` 异常前后相同
+   - `rd63` 异常前后相同（有保存/恢复，应用可自由使用）
    - `CFXTRAP` 移交闭环（power 的默认返回地址生效）
-5. **同步断言**：`tests/arch/hmon/expected.yaml` 与 `tools/gem5/check_tiny_hmon.py` 中依赖旧行为（magic park / IALIGN 改写 / +4）的条目，按新算法改写；标为「待 gem5/chipyard 跟随」的部分在完成区列明。
+6. **同步断言**：`tests/arch/hmon/expected.yaml` 与 `tools/gem5/check_tiny_hmon.py` 中依赖旧行为（magic park / IALIGN 改写 / +4）的条目按新算法改写；「待 gem5/chipyard 跟随」的部分在完成区列清单。
 
 ## 非范围
 
@@ -46,7 +48,7 @@ hmon handler 是**guest 代码**（BootROM 固件的一部分），三平台共�
 
 1. **算法逐条**：上述 6 步在 QEMU 上可观测（返回地址可被框架任意指定、三个现场值、`rd63` 恢复）
 2. **删除项清零**：`grep` 无 magic 校验/park/IALIGN 特判/`+4` 策略残留（注释说明可留）
-3. **镜像合规**：恰好 64 KiB；hmon 段代码区 ≤8 KiB、数据区从 `0x08` 起按表排布、代码从 `0x30` 起
+3. **镜像合规**：恰好 64 KiB；hmon 代码区 **≤0xD8（216 B）**、数据区固定在 `0xD8`–`0xFF`；power 只复制代码区（表项 `size` = 代码长度）
 4. **QEMU 回归**：`check-inst` Tiny 44/44、`check-arch`/`check-arch-smoke` rc=0
 5. **跟随清单**：给出 gem5（`check_tiny_hmon` 需要改的条目）与 chipyard（回归命令）的明确清单
 6. 一键证据脚本（含可达 FAIL 注入：例如让 hmon 改成 `+4` 固定跳转 ⇒ 应 FAIL）
