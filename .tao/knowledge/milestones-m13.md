@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m13-gem5-004 | 2–3 h | gem5 SE 页表故障未投递 guest：`lemon` 的 `GenericPageTableFault` 根因与修复 |
 | m13-integ-002 | 5–7 h | FP 语义三平台差分（47 条，含舍入/标志） |
 | m13-integ-003 | 4–6 h | 整数与访存三平台差分（inst 全量非 cfx） |
 | m13-integ-004 | 4–6 h | riscv-tests 移植与差分 |
@@ -34,6 +33,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m13-gem5-004 | 2026-11-10 11:27 | 2–3 h | gem5 SE 页表故障未投递 guest：`lemon` 的 `GenericPageTableFault` 根因与修复 |
 | m13-testcases-003 | 2026-11-10 08:13 | 4–6 h | 3600s 仍超时的 150 例：120s 采样 + 7200s 复核（先 static 后 dynamic） |
 
 ## 已验证
