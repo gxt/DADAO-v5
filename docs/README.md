@@ -24,6 +24,7 @@
 | --- | --- |
 | `docs/repository-layout.md` | **仓库布局**：纳入版本控制的目录（含三分界）、一次性工作区 `.work/`、持久对象库 `.cache/` |
 | `docs/fp-oracle-design.md` | **FP 独立 oracle 方案**（被 `contract-fp.md`、`contracts/fp_semantics.yaml` 引用） |
+| `docs/wuming-cycle-model.md` | **wuming 核的指令周期模型**：分类周期表、逐册逐族、快路径 CPI、实测回填规则（实现口径，非 ISA 规范） |
 
 ## 测试报告（`TestReports/`）
 
