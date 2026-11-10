@@ -77,9 +77,13 @@ guest exit、`picolibc` 的分类）；**不比较**时序、性能、PC/日志�
 python3 tools/testcases/parity/se_tset_matrix.py \
   --json-out <运行期目录>/se-parity.json \
   --markdown-out <运行期目录>/se-parity.md \
-  --matrix-section-out <运行期目录>/matrix-M11-SE.md
+  --matrix-section-out <运行期目录>/matrix-section.md
 python3 tools/testcases/parity/se_tset_matrix.py --self-test   # 逐条反例注入
 ```
+
+- 中间产物（per-case JSON、SE 段）落**运行期目录**；入库的人读快照是
+  `docs/TestReports/M11-三平台一致矩阵.md`（目录规则见
+  `docs/TestReports/README.md`），由证据脚本从运行期 `cp`，不手改。
 
 - 输入：static = `refs/GEM5-021t-baseline-summary.json`（`TESTCASES-103t` 预算）、
   dynamic = `refs/TESTCASES-104t-dynamic-summary.json`（`GEM5-027t` 动态装载）。
@@ -90,7 +94,7 @@ python3 tools/testcases/parity/se_tset_matrix.py --self-test   # 逐条反例注
   guest root 缺 DADAO 工具）；`gem5_only_fail` ⇒ 显式登记表（`ISS-357` / 环境缺口）；
   `qemu_only_fail` ⇒ 登记表为空（`ADR-0048 D5`：不得当作 gem5 胜利）；两引擎同
   verdict 的 `known-fail`（`ISS-251`）才允许进 `both_non_pass`。
-- 输出 `matrix-M11-SE.md` 片段（`--matrix-section-out`）与完整快照
+- 输出 SE 段片段（`--matrix-section-out`）与完整快照
   （`--compose-out --fs-matrix <run_parity 输出> --picolibc-json <tiny/picolibc
   JSON>`；旧的 `--carry-from` 只在 B7 登记未裁定时期承接上一版行）；数字一律
   现场统计，不手改。

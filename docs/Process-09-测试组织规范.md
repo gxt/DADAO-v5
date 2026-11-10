@@ -309,3 +309,23 @@ cmd: make check-inst-smoke CASE=base/add
 - **P6 验收（2026-10-27）**：旧入口零残留（`grep` 无悬空引用，除历史归档/组件 changelog/
   锁定 `spec/README.md`）；`make check` / `check-modules` 绿；`clean-tests` / `test-repro`
   可跑且**可失败**；`check-night-report` 在无报告时**明确 FAIL**。
+
+## 15. 测试报告归属（人读结论 / 里程碑快照）
+
+> 本节只登记**归属与落点**；命名、收纳、必备四项、禁止项的**真源**是
+> `docs/TestReports/README.md`，本节不另立第二套口径。用户 2026-11-10 裁定：
+> 人读结论放 `docs/` 并加子目录，原始数据不入库，矩阵快照随结论同处。
+
+四类产物按「给谁看 / 是否入库」分落点：
+
+| 产物 | 落点 | 入库 |
+|---|---|---|
+| 运行产物（`run.json`/`run.log`/`meta.json`、`m5out/`、guest 日志、逐例 JSON） | 运行期目录 `<test-artifacts>/…`（`Process-08`）或任务运行期目录 | 否 |
+| 被引用的原始数据 / 基线 summary | 原始数据落运行期目录（不入库）；被引用的 **summary** 按 `AGENTS.md`「被引材料不得只放 `.work/`」升格 `.tao/knowledge/refs/` | 原始数据否；被引 summary 是 |
+| 里程碑快照（现场生成的矩阵） | `docs/TestReports/<M>-<主题>.md` | 是（只 `cp`，不手改） |
+| 人读结论（差分归因、阶段结论、口径/凡例） | `docs/TestReports/<M>-<主题>[-<后缀>].md` | 是 |
+
+- **命名**：`<M>-<主题>[-<后缀>].md`（`M` + 数字），不带日期（日期写册头），不建二级主题子目录（规则见 `docs/TestReports/README.md §1`）。
+- **必备四项**：每册头部写 **生成时间 / 数据来源 / 机器指纹 / 复现命令**（`docs/TestReports/README.md §3`）。
+- **禁止项**：运行期绝对路径（`/tmp/**`、`/home/**`、具体 `.work/**`）、手改快照数值、二级主题子目录、把本目录当任务书/知识库（`docs/TestReports/README.md §4`）。
+- **门控**：`make check-test-reports`（**L1**，登记见 `docs/Process-07 §1.1`）机械核 4 条静态断言：无运行期路径 / 快照首行 `<!-- 现场生成，勿手改 -->` / 文件名形态 / 册头四项。

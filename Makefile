@@ -76,6 +76,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-cfx-alias-table check-cfx-alias-install check-cfx-vectors \
         check-lit-full \
         check-run-artifacts \
+        check-test-reports \
         check-temp-dirs \
         test-codegen test-elf test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
@@ -226,6 +227,7 @@ help:
 	@echo "  make check-inst      inst semantic full set (tests/inst; L3; TESTCASES-072t)"
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
+	@echo "  make check-test-reports  docs/TestReports/ naming/layout + no runtime paths + snapshot marker + header four items gate (L1; m13-testcases-004)"
 	@echo "  make check-temp-dirs  Stale task temp dirs (non-active worktree, in-use task exempt, mtime > 2 h) + stale large files (> 100 MiB) + /tmp usage > 70% gate; report only, never delete (L1; INFRA-145t/146t)"
 	@echo "  make check-width-sizes  64-bit width + ELF64/rela/got + DWARF64 addr_size probe (L1; LLVM-130t)"
 	@echo "  make check-code-range  DADAO code-span gate: REL26 edge ≤ 32 MiB + exec_span < 30 MiB (L1; ADR-0036/INFRA-106t)"
@@ -1086,7 +1088,7 @@ _locked-clean-work:
 # 旧名 `check-qemu-semantics`/`check-qemu-smoke`/`test-semihost`/`check-{libc-test,llvm-ts,embench}-smoke`
 # 已于 TESTCASES-076t 删除（P6 收口）；现行名 = check-inst / check-inst-smoke / check-arch-smoke /
 # check-tset-{libc,llvm,embench}-smoke。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-width-sizes check-components check-interface check-code-range check-runner-reap check-temp-dirs
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-temp-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1193,6 +1195,17 @@ check-tasks:
 # 规则真源 = docs/Process-08；可达 FAIL 见 `--self-test`。
 check-run-artifacts:
 	@$(PYTHON) tools/infra/check_run_artifacts.py
+
+# 测试报告目录门控 (m13-testcases-004, L1)：`docs/TestReports/` 下报告须满足
+# R1 无运行期绝对路径（`/tmp/**`、`/home/**`、具体 `.work/**`；规则文本里的
+#    glob 形态不命中）；R2 快照（正文含 `<!-- 现场生成，勿手改 -->`）首行须为
+#    该标记且至少一份快照存在（全删标记 ⇒ vacuous FAIL）；R3 文件名
+#    `<M>-<主题>[-<后缀>].md`（`M` + 数字、无日期/空白）且无二级主题子目录；
+# R4 册头（前 40 行）含 生成时间/数据来源/机器指纹/复现 四项。
+# 规则真源 = docs/TestReports/README.md + docs/Process-09「测试报告归属」；
+# `--self-test` 逐条注入可达 FAIL。`README.md` 为规则册，R1/R2/R4 不检查它。
+check-test-reports:
+	@$(PYTHON) tools/infra/check_test_reports.py
 
 # 陈旧临时目录 / 陈旧大文件 + /tmp 占用门控 (INFRA-145t/146t, L1): 扫 `/tmp/opencode`
 # 与 `$TMPDIR/opencode` 的**直接子目录**，排除 `git worktree list` 的活动 worktree；

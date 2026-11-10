@@ -345,7 +345,10 @@ def cmd_selftest(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="回归运行编排 + 报告落盘")
+    ap = argparse.ArgumentParser(
+        description="回归运行编排 + 报告落盘",
+        epilog="运行期报告落 <test-artifacts>/night/（不入库）；人读结论/里程碑"
+               "快照入库 docs/TestReports/<M>-<主题>.md（规则见该目录 README）。")
     ap.add_argument("--root", default=str(REPO_ROOT / ".dadao" / "tests"))
     ap.add_argument("--date", default=None, help="报告日期（默认 UTC 今天）")
     ap.add_argument("--member", action="append", default=None,

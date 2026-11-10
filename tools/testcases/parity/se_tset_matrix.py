@@ -30,10 +30,15 @@ is reported instead of being copied into the matrix.
 
 Usage::
 
+    # Per-case report + SE section: runtime locations (not committed).
     python3 tools/testcases/parity/se_tset_matrix.py \\
-        --json-out <runtime dir>/se-parity.json \\
-        --markdown-out <runtime dir>/se-parity.md \\
-        --matrix-section-out <runtime dir>/matrix-M11-SE.md
+        --json-out <运行期目录>/se-parity.json \\
+        --markdown-out <运行期目录>/se-parity.md \\
+        --matrix-section-out <运行期目录>/matrix-section.md
+
+    # The committed human-readable snapshot lives in
+    # `docs/TestReports/<M>-<主题>.md` (e.g. `M11-三平台一致矩阵.md`); the
+    # evidence script composes it into a runtime file and `cp`s it into place.
 
     --self-test     inject one counter-example per invariant (on copies) and
                     require each one to be detected; exit 0 only if all are.
@@ -1240,7 +1245,8 @@ def main(argv=None):
     ap.add_argument("--markdown-out", default=None)
     ap.add_argument("--matrix-section-out", default=None)
     ap.add_argument("--compose-out", default=None,
-                    help="write the combined matrix-M11.md snapshot")
+                    help="write the combined snapshot (runtime file); the "
+                         "committed copy is `docs/TestReports/<M>-<主题>.md`")
     ap.add_argument("--fs-matrix", default=None,
                     help="run_parity.py markdown for --compose-out")
     ap.add_argument("--carry-from", default=None,

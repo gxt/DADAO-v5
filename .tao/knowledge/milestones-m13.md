@@ -35,7 +35,6 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m13-testcases-003 | 2026-11-10 08:13 | 4–6 h | 3600s 仍超时的 150 例：120s 采样 + 7200s 复核（先 static 后 dynamic） |
-| m13-testcases-004 | 2026-11-10 07:25 | 2–3 h | 测试报告目录规范（`docs/TestReports/`）+ 工具/门控对齐 |
 | m13-gem5-003 | 2026-11-10 06:34 | 2–3 h | gem5 SE 缺陷：`SYS_WRITE` 句柄越界 + 非对齐 `.bss` 装载（ISS-358/359） |
 | m13-infra-001 | 2026-11-10 05:01 | 1–2 h | 工具缺陷：gem5 首建 `ValueError` + 里程碑核验器基线残留（ISS-355/356） |
 
@@ -43,6 +42,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m13-testcases-004 | 2026-11-10 08:27 | 测试报告目录规范（`docs/TestReports/`）+ `check-test-reports` 门控 |
 | m13-gem5-002 | 2026-11-10 06:34 | gem5 Tiny 恒 `hypv` + `cg3` 访问限制（ISS-363，与 QEMU 逐字节一致） |
 | m13-gem5-001 | 2026-11-10 04:31 | gem5 的 Tiny `cfx_power` + `cfx3 hmon`（36 用例/oracle 148 条，与 QEMU 逐条一致） |
 | m13-qemu-001 | 2026-11-10 03:54 | QEMU 的 Tiny `cfx_power` + `cfx3 hmon`（56 条断言，语义逐条对 spec） |
