@@ -80,6 +80,28 @@ def write_ccache_wrappers(wrapper_dir: Path, ccache: str,
     return wrappers
 
 
+def link_build_dir(source: Path, build_link: Path) -> bool:
+    """Point ``build_link`` at gem5's own ``<source>/build``.
+
+    The link and its target need not share a parent (``.work/build/gem5`` vs
+    ``.work/source/gem5``), so the target is computed with ``os.path.relpath``:
+    ``Path.relative_to`` only handles the descendant case and raises
+    ``ValueError`` otherwise (ISS-355, first build on a fresh tree).
+
+    Returns ``True`` when the link was (re)created; a pre-existing *non*-symlink
+    at ``build_link`` is reported and left untouched (``False``).
+    """
+    if build_link.is_symlink():
+        build_link.unlink()
+    elif build_link.exists():
+        print(f"build-gem5: note: {build_link} exists and is not a "
+              "symlink; leaving it untouched")
+        return False
+    build_link.parent.mkdir(parents=True, exist_ok=True)
+    build_link.symlink_to(os.path.relpath(source / "build", build_link.parent))
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path,
@@ -180,16 +202,7 @@ def main() -> int:
 
     # GEM5_BUILD is the conventional .work/build location; keep a stable link
     # to gem5's own build directory (gem5 insists on <src>/build/<variant>).
-    if build_link.exists() or build_link.is_symlink():
-        if not build_link.is_symlink():
-            print(f"build-gem5: note: {build_link} exists and is not a "
-                  "symlink; leaving it untouched")
-        else:
-            build_link.unlink()
-    if not build_link.exists():
-        build_link.parent.mkdir(parents=True, exist_ok=True)
-        build_link.symlink_to((source / "build").relative_to(
-            build_link.parent))
+    link_build_dir(source, build_link)
     print(f"build-gem5: PASS ({binary.relative_to(ROOT)})")
     return 0
 
