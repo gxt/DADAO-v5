@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..59e289f
+index 0000000..b3138fe
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,132 @@
+@@ -0,0 +1,136 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -36,6 +36,10 @@ index 0000000..59e289f
 +  xLen: Int = 64,
 +  retireWidth: Int = 1,
 +  nLocalInterrupts: Int = 0,
++  // m12-018: fetch queue depth in 8-byte beats (user ruling 2026-11-10:
++  // 8 beats = 64 B).  Kept parameterised so later milestones can trade area
++  // for prefetch reach without touching the core.
++  fetchDepth: Int = 8,
 +  // m12-003: the harness `+loadmem=` loader validates every ELF PT_LOAD
 +  // against the machine's writable memory window and streams it into the
 +  // tile's TL master port.  Both values must be supplied by the SoC

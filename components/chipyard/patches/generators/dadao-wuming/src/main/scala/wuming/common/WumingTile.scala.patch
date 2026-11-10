@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
 new file mode 100644
-index 0000000..b80b577
+index 0000000..2a25d75
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,159 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile skeleton (m12-chipyard-001).
@@ -52,13 +52,24 @@ index 0000000..b80b577
 +  /** No interrupt sources inside the tile (no BEU / no PLIC sources yet). */
 +  val intOutwardNode: Option[IntOutwardNode] = None
 +
-+  // ---- the core's own TileLink master port -----------------------------
++  // ---- the core's two TileLink master ports (m12-018) -------------------
 +  // Declared here instead of inherited from a Rocket core: this is the one
-+  // concrete instance of what "borrow the wiring only" means.
-+  val coreMasterNode: TLClientNode = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(
++  // concrete instance of what "borrow the wiring only" means.  Fetch and data
++  // are separate client nodes (user ruling 2026-11-10: "取指和访存应该用两个
++  // tilelink，在 m12 中就拆"), so a data access can never block fetch
++  // progress.  Each node declares `IdRange(0, 3)`; source IDs are client-local
++  // and the port xbar remaps them, so the two ranges do not collide.  The core
++  // uses source 0 for the demand fetch and 1/2 for the two prefetch slots on the
++  // fetch port, and source 0 on the data port (see `WumingCore`).
++  val fetchMasterNode: TLClientNode = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(
 +    TLMasterParameters.v1(
-+      name = s"WumingCore ${tileId}",
-+      sourceId = IdRange(0, 2),
++      name = s"WumingCoreFetch ${tileId}",
++      sourceId = IdRange(0, 3),
++      requestFifo = true)))))
++  val dataMasterNode: TLClientNode = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(
++    TLMasterParameters.v1(
++      name = s"WumingCoreData ${tileId}",
++      sourceId = IdRange(0, 3),
 +      requestFifo = true)))))
 +
 +  // ---- the +loadmem= boot loader (m12-003) ------------------------------
@@ -83,7 +94,8 @@ index 0000000..b80b577
 +    WumingSemiParams(loadMemBase, loadMemSize)))
 +
 +  private val portXbar = TLXbar()
-+  portXbar := coreMasterNode
++  portXbar := fetchMasterNode
++  portXbar := dataMasterNode
 +  portXbar := loadMem.node
 +  portXbar := semi.node
 +
@@ -100,7 +112,8 @@ index 0000000..b80b577
 +}
 +
 +class WumingTileModuleImp(outer: WumingTile) extends BaseTileModuleImp(outer) {
-+  val (coreTl, coreEdge) = outer.coreMasterNode.out(0)
++  val (fetchTl, fetchEdge) = outer.fetchMasterNode.out(0)
++  val (dataTl, dataEdge) = outer.dataMasterNode.out(0)
 +
 +  val hartidBits = outer.hartIdSinkNode.bundle.getWidth
 +  val resetVectorBits = outer.resetVectorSinkNode.bundle.getWidth
@@ -117,17 +130,26 @@ index 0000000..b80b577
 +      s"hartidBits=$hartidBits resetVectorBits=$resetVectorBits")
 +
 +  val core = Module(new WumingCore(
-+    coreEdge, outer.wumingTileParams.wumingParams, hartidBits, resetVectorBits))
++    fetchEdge, dataEdge, outer.wumingTileParams.wumingParams, hartidBits, resetVectorBits))
 +  val loadMem = outer.loadMem.module
 +  val semi = outer.semi.module
 +
-+  // Client-side handshake: the core drives a/d, the tile wire is the bus side.
-+  coreTl.a.valid := core.io.tl.a.valid
-+  coreTl.a.bits := core.io.tl.a.bits
-+  core.io.tl.a.ready := coreTl.a.ready
-+  core.io.tl.d.valid := coreTl.d.valid
-+  core.io.tl.d.bits := coreTl.d.bits
-+  coreTl.d.ready := core.io.tl.d.ready
++  // Client-side handshake: the core drives a/d on both ports, the tile wires
++  // are the bus side.  The two ports share no state, so a stalled data access
++  // leaves the fetch channel free to run.
++  fetchTl.a.valid := core.io.imem.a.valid
++  fetchTl.a.bits := core.io.imem.a.bits
++  core.io.imem.a.ready := fetchTl.a.ready
++  core.io.imem.d.valid := fetchTl.d.valid
++  core.io.imem.d.bits := fetchTl.d.bits
++  fetchTl.d.ready := core.io.imem.d.ready
++
++  dataTl.a.valid := core.io.dmem.a.valid
++  dataTl.a.bits := core.io.dmem.a.bits
++  core.io.dmem.a.ready := dataTl.a.ready
++  core.io.dmem.d.valid := dataTl.d.valid
++  core.io.dmem.d.bits := dataTl.d.bits
++  dataTl.d.ready := core.io.dmem.d.ready
 +
 +  // Semihosting boundary: request out of the core, scalar answer back in.
 +  semi.semiReq := core.io.semi.req

@@ -52,6 +52,14 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **非实现编码 = 显式异常，不是 NOP**：`contracts/legality_rules.yaml` 的 `dst_rd0`/`dst_rb0`/`dst_dual_same`/`encode_sbz` 触发 **ILLI**；`opcodes.yaml` 已定义但本里程碑未实现的编码（其他 ld/st 宽度、分支/call/ret、16/8 位子表、FP、原子/位操作）触发 **ILLI**；QFC 主表/子表空白单元格触发 **UNDI**。核在 `printf` 中打印 `fault ... ILLI|UNDI` 并 halt（cease）。
 - **闭环不回归**：`ld.o`/`st.o`、`jump rrii`、semihosting `trap` 语义沿用 `m12-003/004`；BootROM→`+loadmem`→应用→`SYS_EXIT` 的路径不变。访存/控制流完整实现与 RAS 归 `m12-chipyard-006/007`。
 
+## 双 TL 端口与 8-beat 取指（`m12-chipyard-018`）
+
+- **两个独立 TileLink 客户端**（用户 2026-11-10 裁定「取指和访存应该用两个 tilelink，在 m12 中就拆」）：`WumingTile` 声明 `fetchMasterNode` 与 `dataMasterNode`（各 `IdRange(0, 3)`），都并入 tile 内 `portXbar`；`WumingCore` 对应两个 `TLBundle`（`imem` / `dmem`），各自独立 A/D 通道与状态。数据访问在 `MREQ`/`MWAIT` 停多久都不影响取指端口推进（独立 bench：数据响应延迟 200 拍期间取指端口照常预取）。
+- **source 编号**：拆端口后按端口本地分配——取指 `0` = 需求取指、`1`/`2` = 两个预取槽；访存 `0`。跨节点由 xbar 重映射，不冲突。TileLink 禁止「响应未回收就复用 source」，所以预取在飞上限 = 空闲 source 数（2）：更深流水需更宽 `IdRange`（M13 评估）。
+- **取指队列**：`fetchDepth = 8`（8 beat = 64 B，用户裁定），环形队列 + 顺序预取；命中 1 拍（`EXEC` 直接从队列译码），未命中才发需求取指。预取是投机的：`denied`/窗口外只丢弃不报异常；需求取指与数据访问的 `denied` 才记 `CFXMEM`。
+- **12 态骨架**（`m12-006` §5.1）：`IDLE/FREQ/FWAIT/EXEC/TRAP/SEMI/EXC/MREQ/MWAIT/SLOW/FAULT/HALT`。周期口径 R1 = C：移位/位域运算走 `SLOW`（`EXEC` 锁操作数、`SLOW` 算并写回，2 拍），简单算术 1 拍；寄存器堆保持 2 写 3 读（R8 = 2R2W）。`EXC` 目前只记录 cause 后进 `FAULT`——cfx 帧/向量由 `m12-chipyard-019` 落地，`ldm/stm` 语义由 `008`。
+- **诊断**：每条 `printf` 末尾带 `cycle=`（仿真时间戳，供周期验收直接量取）；`fault ... ILLI|UNDI|IALIGN|CFXMEM` 格式不变。
+
 ## 边界
 
 - **保留** rocket-chip 库（Diplomacy / TileLink / `BaseTile`）与 chipyard 仿真设施（Verilator harness / BootROM / 内存模型 / `loadmem`）。
