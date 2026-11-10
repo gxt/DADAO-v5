@@ -77,7 +77,7 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 
 - `cfx_power_hypv_excp_vector = 0xffff_ffff_0000` 为硬件复位后的启动地址，位于 BootROM 的**末 64 KiB 起点**（镜像内偏移 = BootROM 大小 − 64 KiB）；BootROM 为自 `2^48` 向下的连续非易失区，大小 **≥64 KiB**、由平台规范规定，可由 CPU 直接取指执行；复位向量不变。`cfx_power` 的 BootROM 空间块 `attr` 必须含 `X=1`（复位向量位于该块内，CPU 直接取指执行）；smon/hmon/pmem 的 SRAM 块按各自异常向量取指需求给出 `X`。
 - `cfx2`（smon）与 `cfx3`（hmon）的 SRAM 各 64 KiB；S-mode 与 H-mode 异常向量默认等于各自的起始地址。`cfx_power` 是否设 SRAM 由平台规范规定（不属本册架构约束）。
-- 各 cfx 的内部空间（起始偏移、字节大小、空间类型）由该 cfx 自身的 cg7（§3.8）描述；本表每行必须与对应 cfx 的 cg7 某个空间块一致（`start = 起始地址 − (cfxha << 42)`、`size` 相等、空间类型对应）。校验示例：smon/hmon/pmem 的 `start` 均为 `0x3ff_0000_0000`；power 的 `start = 2^42 − size`、`size ≥ 0x1_0000`，且 `start + size = 2^42` 边界合法（`size = 64 KiB` ⇒ `start = 0x3_ffff_0000`；`size = 4 MiB` ⇒ `start = 0x3_ffc0_0000`）。
+- 各 cfx 的内部空间（起始偏移、字节大小、空间类型）由该 cfx 自身的 cg7（§3.8）描述；本表每行必须与对应 cfx 的 cg7 某个空间块一致（`start = 起始地址 − (cfxha << 42)`、`size` 相等、空间类型对应）。校验示例：smon/hmon/pmem 的 `start` 均为 `0x3ff_0000_0000`；power 的 `start = 2^42 − size`、`size ≥ 0x1_0000`，且 `start + size = 2^42` 边界合法（`size = 64 KiB` ⇒ `start = 0x3ff_ffff_0000`；`size = 4 MiB` ⇒ `start = 0x3ff_ffc0_0000`）。
 - 对核内地址空间进行非法访问时，会触发对应核芯功能扩展的 CFXMEM 异常。核芯功能扩展由地址高 6 位 `addr[47:42]`（即 cfxha）确定。
 - 保留 cfx（6–14、16–31、35–61）的普通 `ld/st` 触发 CFXMEM；`trap`/`escape` 到保留 cfx 触发 ILLI。
 - cfxha 5 为 `cfx_cache`；未实现的已分配 cfx 由实现约定其未实现行为（测试机按未实现 cfx 处理）。
@@ -966,6 +966,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 - 异常进入流程重写：同步异常统一按「当前运行模式 monitor」路由（`CFXPERM`/`CFXREG`/`CFXMEM`/`ILLI` 等）；`CFXTRAP` 仍进入目标 cfx，`CFXESC` 仍进入当前 cfx；删除同步异常的独立 cfx 屏蔽层；同步异常全部不可屏蔽，不再使用异常原因掩码与不可屏蔽掩码；未映射页归当前 monitor 的 `CFXMEM`，页权限拒绝归 `CFXPERM`；monitor 原因编号沿用 DADAO 位索引，不再使用 `PTWERR` 作为 monitor 原因；异步中断先进入当前运行模式 monitor，屏蔽/pending 由 monitor 管理，处理期间不嵌套；具体调度细节列入后续修订。
 - 删除无效屏蔽寄存器定义：`switch_cfx_mask`（`cg0`–`cg3` `rc9`）、`excp_cause_mask`（`cg0`–`cg3` `rc11`）、`excp_prev_cfx_mask`（`cg5` `rc1`）、`excp_cause_nonmaskable`（`cg5` `rc63`）保留编号并标为 `reserved`（访问 ⇒ `CFXREG`）；删除内部 `inner_cfx_mask`；`escape` 不再恢复 cfx 屏蔽状态，`global_cfx_intr_mask` 的 trap 保存/escape 恢复保留；monitor 的 `cfx_intr_mask`/`excp_pending` 不变。
 - 页表异常原因表同步：页表未映射（L1/L2 `P = 0`、SPF/GPF 对应小页位为 0、fragment 缺失）与 A/D 回写失败归当前运行模式 monitor 的 `CFXMEM`（A/D 的 `cause_info` = PTE 物理地址），HSJU 与 R/W/X 不符归 `CFXPERM`；删除 `cfx_ptw` 的 `PTWERR`/`NUPERM`–`NRPERM`/`IGPTRAP`–`DSPFTRAP` 原因，`§4.5` 只保留 `CFXTRAP`/`CFXESC`，`§3.6` 的 `1 << 7` 在 `cfx_ptw` 标保留；`§2.2` 对应步骤只改原因名与目标，优先级顺序不变。
+- `§2.1` 校验示例笔误修正：`size = 64 KiB` ⇒ `start = 0x3ff_ffff_0000`、`size = 4 MiB` ⇒ `start = 0x3ff_ffc0_0000`（原文各少一组 `FF`）；`start = 2^42 − size` 规则不变。
 
 ### 0.7.2（2026-10-26）
 

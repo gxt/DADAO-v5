@@ -41,12 +41,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m12-spec-003 | 2026-11-10 09:00 | 1–2 h | `Machine-v5` 口径统一（reserved 集 / `cause_info` / `escape` 返回 / power cg7·cg8 / `switch_run_mode`） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m12-spec-003 | 2026-11-10 09:30 | `Machine-v5` 口径统一（reserved 改为引用上游 / `switch_run_mode` 读回 3 / 修 `DADAO-12` 笔误） |
 | m12-chipyard-005 | 2026-11-10 02:16 | 解码器 + 整数 ALU + 寄存器堆（273 例三方一致，含 ILLI/UNDI） |
 | m12-spec-002 | 2026-11-10 02:16 | Tiny 引入 cfx_power + cfx3 hmon 规范 + 只读锁（0.4.2-rc） |
 | m12-chipyard-006 | 2026-11-10 00:48 | 多周期状态机设计（12 态 FSM + 转移表 + hmon 异常/ip 语义 + §9 spec 偏差清单） |

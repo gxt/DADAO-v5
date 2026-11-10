@@ -472,7 +472,11 @@ group = "dadao-1x"
 #   monitor 的 `CFXMEM`（A/D 的 cause_info = PTE 物理地址），HSJU/R/W/X 不符归 `CFXPERM`；删除 I/D 前缀原因名与
 #   「进入 cfx_ptw」；§3.6 `1<<7` 在 cfx_ptw 标保留；§4.5 原因表只留 `CFXTRAP`/`CFXESC`、A/D 回写失败改 `CFXMEM`；
 #   §5 编号示例与精确异常段同步；附录 0.7.3-rc 补一条；版本不变（0.7.3-rc）；sha256 同笔重算（其余 20 册不变）。
-sha256 = "271d20dbee1168fcf62cb78918d68d198cb6358d66998c9788b050c0292cb58a"
+# 2026-11-10（m12-spec-003；用户授权原话：「如果你确定是笔误，就应该改；关键是这部分内容是你写的！！！」）：
+#   §2.1 校验示例笔误修正——`size = 64 KiB` ⇒ `start = 0x3ff_ffff_0000`、`size = 4 MiB` ⇒ `start =
+#   0x3ff_ffc0_0000`（原文各少一组 `FF`）；`start = 2^42 − size` 规则与其它正文不变；附录 0.7.3-rc 补一条；
+#   版本不变（仍 `0.7.3-rc`）；sha256 同笔重算（本册与 `Machine-v5`；其余 19 册不变）。
+sha256 = "d457a3250f34e175b1ff28687f02e7ba37d26ef16024ce8baf55cf60cdf77b38"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -681,4 +685,12 @@ group = "machine-v5"
 #   `trap` 统一写 `cfx_hmon`）：§1/§1.1/§1.2/§2/§3/§4.1/§4.3/§4.4/§5/§5.1/§6/§7.1 按 Tiny hmon 修订
 #   （hmon 启动时显式写入 `cfx_hmon_hypv_excp_vector`，对齐 `DADAO-13 §1` 新口径）；附录新开
 #   `0.4.2-rc（未发布）` 段（`0.4.1-rc` 记为 `0.4.1（未发布）`）；sha256 同笔重算（其余 20 册不变）。
-sha256 = "9f3a17811ae3179eeb490d7cb29a82d0c84d206b66527b14f6e1fd4394cf96ff"
+# 2026-11-10（m12-spec-003；任务书 §用户裁定「选 B」= 拆任务，本笔只做题 1–5 的口径统一；用户对三项
+#   待裁定的答复：「为什么要写reserved cfx号呢？？？我后面还会变啊！！！」「Tiny下，写入3，读回3」）：
+#   reserved cfx 集改为引用上游——保留 cfx 即 `DADAO-12 §1` 编号表中 `cfxname = reserved` 的编号，本册
+#   不再列举编号，其余处只引 `§1.2`；§4.4 补 `excp_cause_info` 规定范围（5 类，其余按 `DADAO-13 §2`）；
+#   §4.2 明确异常帧不保存 `prev_cfx`、`escape` 目标 cfx 恒为当前 cfx（引 `DADAO-12 §5.3` 原文）；§3 补
+#   `cfx_power` 的 `cg7`/`cg8 rc1`（Tiny 访问 power ctrl ⇒ `CFXREG`）；§2/§4.4 明确 Tiny `switch_run_mode`
+#   写入被忽略、读回恒 `3`（异常进入强制 `hypv`）；册头 0.4.2-rc → `0.4.3-rc`，附录新开 `0.4.3-rc（未发布）`
+#   段（原段记为 `0.4.2（未发布，被 0.4.3-rc 取代）`）；sha256 同笔重算（本册与 `DADAO-12`；其余 19 册不变）。
+sha256 = "6ffe45b4070382991e5393eb80e50288d3d501c83ac70c2adeb82d290cd26519"
