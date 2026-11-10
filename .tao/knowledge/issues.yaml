@@ -112,3 +112,10 @@
   status: open
   resolved_by: null
   title: 【P3】`m13-testcases-007` 遗留：① `run.sh` 的 `doc_checks_count` 期望与实现同源于同一公式（保护实际由逐字节 diff 承担）；② `--soak` 的 `soak_run_count` 用 `ls check-arch-*.log` 计数，历史日志未清会假红。建议：期望值改为从基线文件派生；日志按 run-id 隔离。
+- id: ISS-372
+  scope:
+  - testcases
+  - infra
+  status: open
+  resolved_by: null
+  title: 【P2】`run_pool` 与派单流程 4 项缺陷（`m13-testcases-008` 现场发现）：① 队列键只有 `case`，同一 case 的 static/dynamic 两档无法共存，`--resume` 会误跳另一档；② 逐例节点目录硬编码到 005 的 evidence 路径；③ `fingerprint.driver_md5` 取主控机驱动 md5，与节点实际执行的不一致，跨节点不可比；④ 派单预检缺「目标节点实时已开始集」核对（本次 Y=0 前提过期即因此，208 白等 9 小时）。建议：键改 `(case, link_mode)`；目录参数化；指纹取节点侧 md5；分载任务派单前强制读实时 started 集。
