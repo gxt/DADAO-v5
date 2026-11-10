@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..28ddfcb
+index 0000000..b3959f2
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,565 @@
+@@ -0,0 +1,667 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -27,10 +27,19 @@ index 0000000..28ddfcb
 +//
 +// Out of scope here (kept exactly as m12-005 left it): the instruction subset
 +// (`ld.o`/`st.o`, `jump`, semihosting `trap`, the SimRISC-04/05/08 integer
-+// families) and its fault classification.  cfx registers, exception vectors
-+// and `ldm`/`stm` semantics are m12-chipyard-008/019; therefore `EXC` records
-+// the cause and hands off to the terminal `FAULT` state instead of saving an
-+// hmon frame and jumping to a vector.
++// families) and its fault classification.  `ldm`/`stm` are m12-chipyard-008.
++//
++// m12-chipyard-007 adds the *boot handoff* half of cfx_hmon: the CFXTRAP entry
++// produced by `trap cfx_hmon, <magic>`, the cause frame
++// (`excp_cause_id`/`excp_cause_ip`/`excp_cause_info`), `excp_vector` (cg3
++// rc10; reset value = hmon SRAM base, writes drop the low 2 bits) and `escape`
++// with the fixed 0/+4 offsets.  That is what the BootROM firmware needs
++// (spec/Machine-v5 §6.2 steps 4-8, DADAO-12 §5.2/§5.3).  The five synchronous
++// fault classes, the four source masks, cg7 space descriptors, cg3
++// `switch_run_mode` and the 019 `escape` rules stay with m12-chipyard-019;
++// until then a synchronous fault outside the handoff still terminates in
++// `FAULT`.  An unsupported cfx register access raises CFXREG and enters the
++// hmon vector (the monitor decides) — never a silent success.
 +
 +package wuming.common
 +
@@ -104,6 +113,22 @@ index 0000000..28ddfcb
 +  val causeIp = RegInit(0.U(64.W))
 +  val causeInst = RegInit(0.U(32.W))
 +
++  // ---- minimal cfx_hmon register subset (m12-007; m12-019 lands the rest) --
++  // `excp_cause_id` is a one-hot 64-bit value (DADAO-12 §5.2(二)); 0 means "no
++  // valid frame" and is what `escape` checks before switching back.
++  private val hmonBaseValue = params.hmonBase.getOrElse(
++    throw new IllegalArgumentException(
++      "WumingCore: hmonBase must be configured from the machine address map"))
++  val cfxVector    = RegInit(hmonBaseValue.U(64.W)) // cfx_hmon cg3 rc10
++  val cfxCauseId   = RegInit(0.U(64.W))             // cfx_hmon cg5 rc2 (HW)
++  val cfxCauseIp   = RegInit(0.U(64.W))             // cfx_hmon cg5 rc3 (RW)
++  val cfxCauseInfo = RegInit(0.U(64.W))             // cfx_hmon cg5 rc4 (HW)
++  val C_HMON = 3.U(6.W)
++  val CFXTRAP_BIT = 0
++  val CFXREG_BIT = 2
++  val CFXESC_BIT = 3
++  val cfxHasFrame = cfxCauseId =/= 0.U
++
 +  val sIdle :: sFreq :: sFwait :: sExec :: sTrap :: sSemi :: sExc :: sMreq :: sMwait :: sSlow :: sFault :: sHalt :: Nil = Enum(12)
 +  val state = RegInit(sIdle)
 +
@@ -162,6 +187,19 @@ index 0000000..28ddfcb
 +  dec.io.inst := inst
 +  val d = dec.io.dec
 +
++  // ---- minimal cfx_hmon register file access (m12-007) --------------------
++  // Implemented: cg3 rc10 (excp_vector, RW), cg5 rc2/rc3/rc4 (cause frame).
++  // Any other (cg, rc) is an unsupported register access -> CFXREG.
++  val cfxIsVector = d.cfxHa === C_HMON && d.cfxCg === 3.U && d.cfxRc === 10.U
++  val cfxIsCauseId = d.cfxHa === C_HMON && d.cfxCg === 5.U && d.cfxRc === 2.U
++  val cfxIsCauseIp = d.cfxHa === C_HMON && d.cfxCg === 5.U && d.cfxRc === 3.U
++  val cfxIsCauseInfo = d.cfxHa === C_HMON && d.cfxCg === 5.U && d.cfxRc === 4.U
++  val cfxRegOk = Mux(d.cfxWrite, cfxIsVector,
++    cfxIsVector || cfxIsCauseId || cfxIsCauseIp || cfxIsCauseInfo)
++  val cfxRdata = Mux(cfxIsVector, cfxVector,
++    Mux(cfxIsCauseId, cfxCauseId,
++      Mux(cfxIsCauseIp, cfxCauseIp, cfxCauseInfo)))
++
 +  // ---- operands / ALU ----------------------------------------------------
 +  rf.io.r0Idx := d.srcAIdx; rf.io.r0Rb := d.srcARb
 +  rf.io.r1Idx := d.srcBIdx; rf.io.r1Rb := d.srcBRb
@@ -218,9 +256,10 @@ index 0000000..28ddfcb
 +    Mux(ldW0, d.ldDst, Mux(slowW0, slowW0Idx, d.w0Idx)))
 +  rf.io.w0Rb := Mux(semiW0 || ldW0, false.B, Mux(slowW0, slowW0Rb, d.w0Rb))
 +  rf.io.w0Data := Mux(semiW0, io.semi.resp.value,
++    Mux(d.isCfx2, cfxRdata,
 +    Mux(ldW0, ldData,
 +      Mux(slowW0, Mux(slowW0Sel === 1.U, alu.io.hi, alu.io.lo),
-+        Mux(d.w0Sel === 1.U, alu.io.hi, alu.io.lo))))
++        Mux(d.w0Sel === 1.U, alu.io.hi, alu.io.lo)))))
 +
 +  // rrrr: w0 = high half (w0Sel = 1), w1 = low half (m12-005 shape).
 +  rf.io.w1En := (state === sExec && !execFault && !aluIsSlow && d.w1En) ||
@@ -368,6 +407,14 @@ index 0000000..28ddfcb
 +    }
 +  }
 +
++  /** CFXTRAP / CFXREG / CFXESC entry into the hmon vector (DADAO-12 §5.2). */
++  def enterHmon(causeOneHot: UInt, info: UInt): Unit = {
++    cfxCauseId := causeOneHot
++    cfxCauseIp := ip
++    cfxCauseInfo := info
++    finish(cfxVector)
++  }
++
 +  // ---- state machine -----------------------------------------------------
 +  switch(state) {
 +    is(sIdle) {
@@ -422,16 +469,23 @@ index 0000000..28ddfcb
 +        // nothing to decode; re-fetch it instead of executing garbage.
 +        fifoFlush := true.B
 +        state := sFreq
++      }.elsewhen(d.isCfx2 && !cfxRegOk) {
++        // Unsupported cfx register access -> CFXREG to the current monitor
++        // (DADAO-12 §5.2(一)); m12-019 owns the full register group.
++        enterHmon((1.U << CFXREG_BIT).pad(64), inst.pad(64))
 +      }.elsewhen(execFault) {
 +        cause := Mux(d.undi, WumingCause.UNDI, WumingCause.ILLI)
 +        causeIp := ip
 +        causeInst := inst
 +        state := sExc
-+      }.elsewhen(d.isSemi) {
++      }.elsewhen(d.isTrap) {
++        // Every `trap` enters sTrap; the semihosting window (immu18[17:8] ==
++        // 0x3FF) is the one that goes to the host responder, every other
++        // `trap cfx_hmon` is the CFXTRAP handoff (DADAO-12 §5.2).
 +        semiOp := inst(7, 0)
 +        semiArg := rf.io.r2Data
 +        semiPc := ip
-+        semiIsHost := inst(17, 8) === 0x3FF.U
++        semiIsHost := d.isSemi
 +        state := sTrap
 +      }.elsewhen(aluIsSlow) {
 +        slowA := srcA
@@ -448,6 +502,32 @@ index 0000000..28ddfcb
 +        slowW1Idx := d.w1Idx
 +        slowW1Rb := d.w1Rb
 +        state := sSlow
++      }.elsewhen(d.isBr) {
++        // spec/SimRISC-06 §1: target = rb0 + (imms18 << 2), rb0 = current IP.
++        // Codes: 0 = n, 1 = nn, 2 = z, 3 = nz, 4 = p, 5 = np (rd0 reads 0, so
++        // `br.z rd0` is always taken and `br.nz rd0` never).
++        val v = srcA
++        val taken = MuxLookup(d.brCond, false.B)(Seq(
++          0.U -> v(63),
++          1.U -> !v(63),
++          2.U -> (v === 0.U),
++          3.U -> (v =/= 0.U),
++          4.U -> (v =/= 0.U && !v(63)),
++          5.U -> (v === 0.U || v(63))))
++        finish(Mux(taken, (ip + d.brOff)(63, 0), ip + 4.U))
++      }.elsewhen(d.isEscape) {
++        // DADAO-12 §5.3: cfxha must be the current cfx (hmon after the
++        // handoff) and the frame must be valid; otherwise CFXESC enters the
++        // current cfx without switching anything.
++        when(d.cfxHa =/= C_HMON || !cfxHasFrame) {
++          enterHmon((1.U << CFXESC_BIT).pad(64), inst.pad(64))
++        }.otherwise {
++          finish((cfxCauseIp + d.escOff)(63, 0))
++        }
++      }.elsewhen(d.isCfx2) {
++        // cfx2rd writes rd through the normal write-back path (the decoder
++        // sets w0En); cfx2rc is committed by `cfxWriteEn` below.
++        finish(ip + 4.U)
 +      }.elsewhen(d.isLd || d.isSt) {
 +        state := sMreq
 +      }.otherwise {
@@ -455,10 +535,15 @@ index 0000000..28ddfcb
 +      }
 +    }
 +    is(sTrap) {
-+      // §5.3 TRAP row: the semihosting window goes to SEMI; every other target
-+      // needs the cfx trap mask and the hmon vector, which m12-019 adds.
++      // §5.3 TRAP row: the semihosting window goes to SEMI; `trap cfx_hmon`
++      // outside it is the CFXTRAP handoff into the hmon vector (m12-007).
++      // The trap masks (cfx_hmon cg3 rc0) arrive with m12-019; Tiny runs
++      // everything in hypv and the handoff source is cfx_power, which the
++      // reset masks allow.
 +      when(semiIsHost) {
 +        state := sSemi
++      }.elsewhen(d.cfxHa === C_HMON) {
++        enterHmon((1.U << CFXTRAP_BIT).pad(64), inst.pad(64))
 +      }.otherwise {
 +        cause := WumingCause.ILLI
 +        causeIp := ip
@@ -528,6 +613,11 @@ index 0000000..28ddfcb
 +  assert(!(state === sMreq) || Mux(d.isLd, ldLegal, stLegal),
 +    "WumingCore: load/store address is not backed by a capable manager")
 +
++  // ---- cfx_hmon register writes (m12-007 subset) --------------------------
++  // rc10: the low 2 bits are dropped on write (DADAO-13 §1).
++  val cfxWriteEn = state === sExec && d.isCfx2 && d.cfxWrite && cfxRegOk
++  when(cfxWriteEn) { cfxVector := Cat(srcA(63, 2), 0.U(2.W)) }
++
 +  // ---- observability ------------------------------------------------------
 +  when(state === sIdle && io.bootEnable) {
 +    printf(p"WumingCore: boot hartid=${io.hartid} reset_vector=0x${Hexadecimal(io.resetVector)} cycle=${cycles}\n")
@@ -552,6 +642,18 @@ index 0000000..28ddfcb
 +  }
 +  when(state === sMwait && io.dmem.d.fire && d.isLd) {
 +    printf(p"WumingCore: ld 0x${Hexadecimal(memAddr(47, 0))} -> 0x${Hexadecimal(ldData)} ok cycle=${cycles}\n")
++  }
++  when(state === sExec && d.isBr) {
++    printf(p"WumingCore: br ip=0x${Hexadecimal(ip(47, 0))} cond=${d.brCond} off=${d.brOff} cycle=${cycles}\n")
++  }
++  when(state === sTrap && !semiIsHost) {
++    printf(p"WumingCore: cfxtrap ip=0x${Hexadecimal(ip(47, 0))} magic=0x${Hexadecimal(inst(17, 0))} vector=0x${Hexadecimal(cfxVector(47, 0))} cycle=${cycles}\n")
++  }
++  when(state === sExec && d.isEscape) {
++    printf(p"WumingCore: escape ip=0x${Hexadecimal(ip(47, 0))} frame=0x${Hexadecimal(cfxCauseId)} cause_ip=0x${Hexadecimal(cfxCauseIp(47, 0))} target=0x${Hexadecimal((cfxCauseIp + d.escOff)(47, 0))} cycle=${cycles}\n")
++  }
++  when(state === sExec && d.isCfx2) {
++    printf(p"WumingCore: cfx2 ip=0x${Hexadecimal(ip(47, 0))} ha=${d.cfxHa} cg=${d.cfxCg} rc=${d.cfxRc} write=${d.cfxWrite} ok=${cfxRegOk} data=0x${Hexadecimal(cfxRdata)} cycle=${cycles}\n")
 +  }
 +  val faultPrinted = RegInit(false.B)
 +  when(state === sFault && !faultPrinted) {

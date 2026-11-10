@@ -1,9 +1,9 @@
 diff --git a/generators/chipyard/src/main/scala/config/DadaoConfigs.scala b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
 new file mode 100644
-index 0000000..6c63f8d
+index 0000000..1757ed0
 --- /dev/null
 +++ b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,141 @@
 +// See LICENSE for license details.
 +//
 +// DADAO SoC configurations.
@@ -14,13 +14,19 @@ index 0000000..6c63f8d
 +// m12-002: land the `Machine-v5-Tiny` core-internal address map from
 +// `spec/Machine-v5 §1.1`:
 +//
-+//   BootROM 0xffff_ffff_0000, 64 KiB, reset vector = base  (executable)
-+//   SRAM    0xffff_ff00_0000, 8 MiB,  writable main memory  (TL slave port)
++//   BootROM    0xffff_ffff_0000, 64 KiB, reset vector = base (executable)
++//   SRAM       0xffff_ff00_0000, 8 MiB,  writable main memory  (TL slave port)
++//   hmon SRAM  0x0fff_0000_0000, 64 KiB, hmon run segment      (TL slave port)
 +//
-+// Both are 48-bit core-internal addresses.  The tile runs with `useVM=false`
-+// (no MMU/TLB) and there is no cfx / PTW in this machine; the only thing that
-+// changes versus stock chipyard is *where* the two memories sit, so the
++// All three are 48-bit core-internal addresses.  The tile runs with
++// `useVM=false` (no MMU/TLB) and there is no PTW in this machine; the only
++// thing that changes versus stock chipyard is *where* the memories sit, so the
 +// TileLink address map negotiates >= 48 address bits.
++//
++// m12-007: the hmon SRAM is a second, independent TL slave (`spec/Machine-v5`
++// §1.1/§6.2; user ruling 2026-11-10 "power SRAM 与 hmon SRAM 是两个不同
++// SRAM"): the power stub copies the hmon segment there at reset, the core
++// executes it, and the host loader is forbidden from writing it.
 +//
 +// No new upstream `AddressMap`: chipyard builds its map from the
 +// `BootROMLocated` and `BankedScratchpadKey` fields, plus the `ExtMem` /
@@ -44,13 +50,25 @@ index 0000000..6c63f8d
 +  val sramBase: BigInt = BigInt("ffffff000000", 16)
 +  val sramSize: BigInt = 8 << 20
 +
++  /** hmon SRAM: 0x0fff_0000_0000, 64 KiB (`spec/DADAO-12 §2.1`). */
++  val hmonBase: BigInt = BigInt("fff00000000", 16)
++  val hmonSize: BigInt = 0x10000
++
++  /**
++   * Fixed application entry (`spec/Machine-v5 §6`): `.text` starts here, the
++   * ELF `e_entry` must equal it and the power stub jumps here after the
++   * handoff.
++   */
++  val appEntry: BigInt = BigInt("ffffff010100", 16)
++
 +  /**
 +   * Classpath resource of the Tiny bootrom image.
 +   *
 +   * The image source is a *text* hex file (`dadao/bootrom/bootrom.tiny.hex` in
 +   * the `wuming` generator) because a component patch set cannot carry binary
 +   * blobs; the `wuming` project's `resourceGenerators` decodes it into this
-+   * classpath resource at build time.  m12-003 owns the image content.
++   * classpath resource at build time.  m12-007 owns the image content (the
++   * 64 KiB fixed firmware packed by `tools/testcases/arch/build_tiny_bootrom.py`).
 +   */
 +  val bootROMImage: String = "/dadao/bootrom/bootrom.tiny.img"
 +}
@@ -64,8 +82,9 @@ index 0000000..6c63f8d
 +  * (the SRAM *is* main memory on this machine, and Tiny has no DRAM).
 +  */
 +class WithDadaoTinyAddressMap extends Config((site, here, up) => {
-+  // Tiny's BootROM holds only the reset/boot stub: no image index table and
-+  // no appended chipyard DTB (`spec/Machine-v5 §1.1`, §6).
++  // Tiny's BootROM is the *fixed firmware image* (power stub + hmon segment +
++  // reserved + image index table, `spec/Machine-v5 §6.2`), not the stock
++  // chipyard bootrom: no appended chipyard DTB.
 +  case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(appendDTB = false))
 +
 +  // No backing memory behind the buses; the on-chip SRAM below is the main
@@ -75,14 +94,27 @@ index 0000000..6c63f8d
 +
 +  // SRAM as an 8 MiB TL slave port on the memory bus, at the spec address.
 +  // `dtsEnabled` keeps the `memory` node advertised in the generated DTS.
-+  case BankedScratchpadKey => Seq(BankedScratchpadParams(
-+    base = WumingTinyAddressMap.sramBase,
-+    size = WumingTinyAddressMap.sramSize,
-+    busWhere = MBUS,
-+    banks = 1,
-+    subBanks = 1,
-+    name = "dadao-tiny-sram",
-+    dtsEnabled = true))
++  //
++  // m12-007: the hmon SRAM is a separate 64 KiB TL slave at 0x0fff_0000_0000.
++  // The power stub fills it from the BootROM image before the first `trap`
++  // into hmon; the host loader never writes it (`WumingLoadMem` enforces that).
++  case BankedScratchpadKey => Seq(
++    BankedScratchpadParams(
++      base = WumingTinyAddressMap.sramBase,
++      size = WumingTinyAddressMap.sramSize,
++      busWhere = MBUS,
++      banks = 1,
++      subBanks = 1,
++      name = "dadao-tiny-sram",
++      dtsEnabled = true),
++    BankedScratchpadParams(
++      base = WumingTinyAddressMap.hmonBase,
++      size = WumingTinyAddressMap.hmonSize,
++      busWhere = MBUS,
++      banks = 1,
++      subBanks = 1,
++      name = "dadao-tiny-hmon-sram",
++      dtsEnabled = false))
 +})
 +
 +class WumingTinyConfig extends Config(
@@ -104,5 +136,12 @@ index 0000000..6c63f8d
 +  // Both values come from the address map above — there is no default.
 +  new wuming.common.WithNWumingTiles(1, wuming.common.WumingCoreParams(
 +    loadMemBase = Some(WumingTinyAddressMap.sramBase),
-+    loadMemSize = Some(WumingTinyAddressMap.sramSize))) ++
++    loadMemSize = Some(WumingTinyAddressMap.sramSize),
++    // m12-007: application-load contract (`spec/Machine-v5 §6`) and the hmon
++    // handoff geometry (`§6.2`, `DADAO-13 §1`) — all from the address map.
++    loadMemEntry = Some(WumingTinyAddressMap.appEntry),
++    hmonBase = Some(WumingTinyAddressMap.hmonBase),
++    hmonSize = Some(WumingTinyAddressMap.hmonSize),
++    bootromBase = Some(WumingTinyAddressMap.bootROMBase),
++    bootromSize = Some(BigInt(WumingTinyAddressMap.bootROMSize)))) ++
 +  new chipyard.config.AbstractConfig)

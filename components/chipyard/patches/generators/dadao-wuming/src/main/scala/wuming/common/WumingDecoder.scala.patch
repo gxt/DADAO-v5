@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
 new file mode 100644
-index 0000000..726c3e2
+index 0000000..6796edf
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
-@@ -0,0 +1,370 @@
+@@ -0,0 +1,451 @@
 +// See LICENSE for license details.
 +//
 +// DADAO decoder for the m12-chipyard-005 integer subset.
@@ -24,6 +24,22 @@ index 0000000..726c3e2
 +//     contracts/legality_rules.yaml `excp_undi`)
 +// and the legality rules of contracts/legality_rules.yaml are applied to the
 +// implemented families (`dst_rd0`, `dst_rb0`, `dst_dual_same`, `encode_sbz`).
++//
++// m12-chipyard-007 adds exactly what the BootROM firmware needs to make the
++// `power -> hmon -> application` handoff run on this core (fixed firmware,
++// spec/Machine-v5 §6.1/§6.2):
++//
++//   * `br.n`/`br.nn`/`br.z`/`br.nz`/`br.p`/`br.np` (rd) and `br.z`/`br.nz`
++//     (rb) — the table-validation/copy loops of the power stub; relative to
++//     `rb0` = current IP, offset `imms18 << 2` (spec/SimRISC-06 §1);
++//   * `trap cfx_hmon, <immu18>` outside the semihosting tag window (CFXTRAP
++//     handoff); the semihosting window stays `immu18[17:8] == 0x3FF`;
++//   * `escape cfx_hmon, [excp_cause_ip, 0|4]` (DADAO-12 §5.3);
++//   * `cfx2rd`/`cfx2rc` for the minimal `cfx_hmon` register subset the two
++//     stubs use (cg3 rc10 vector, cg5 rc2/rc3/rc4 cause frame).
++//
++// The rest of control flow (`call`/`ret`/relative `jump`/`br.eq`/`br.ne`/RAS)
++// and the full cfx register group stay with m12-chipyard-009/019.
 +
 +package wuming.common
 +
@@ -66,6 +82,21 @@ index 0000000..726c3e2
 +  val memOff  = UInt(64.W)
 +  val ldDst   = UInt(6.W)
 +  val isSemi  = Bool()
++
++  // m12-007: branches, CFXTRAP handoff, escape and the minimal cfx register
++  // subset.  `brCond` codes: 0 = n, 1 = nn, 2 = z, 3 = nz, 4 = p, 5 = np.
++  val isBr     = Bool()
++  val brCond   = UInt(3.W)
++  val brOff    = UInt(64.W)
++  val isTrap   = Bool()
++  val isEscape = Bool()
++  val escOff   = UInt(64.W)
++  val isCfx2   = Bool()
++  val cfxWrite = Bool()
++  val cfxHa    = UInt(6.W)
++  val cfxCg    = UInt(6.W)
++  val cfxRc    = UInt(6.W)
++  val cfxDst   = UInt(6.W)
 +}
 +
 +class WumingDecoder extends Module {
@@ -90,6 +121,10 @@ index 0000000..726c3e2
 +  def zext(x: UInt): UInt = x.pad(64)
 +
 +  val imms18 = sext(imm18)
++  // cfxha of a *defined* core feature extension: 0-5, 15, 32-34, 62-63
++  // (contracts/opcodes.yaml `encode_cfx_reserved`, spec/DADAO-12 §5.1).
++  def cfxAccessible(x: UInt): Bool =
++    (x <= 5.U) || (x === 15.U) || (x >= 32.U && x <= 34.U) || (x >= 62.U)
 +  val imms12 = sext(imm12)
 +  val immu12 = zext(imm12)
 +
@@ -109,6 +144,10 @@ index 0000000..726c3e2
 +  d.isJump := false.B; d.jumpOff := 0.U
 +  d.isLd := false.B; d.isSt := false.B; d.memOff := 0.U; d.ldDst := 0.U
 +  d.isSemi := false.B
++  d.isBr := false.B; d.brCond := 0.U; d.brOff := 0.U
++  d.isTrap := false.B; d.isEscape := false.B; d.escOff := 0.U
++  d.isCfx2 := false.B; d.cfxWrite := false.B
++  d.cfxHa := 0.U; d.cfxCg := 0.U; d.cfxRc := 0.U; d.cfxDst := 0.U
 +
 +  val recognized = WireDefault(false.B)
 +
@@ -353,10 +392,52 @@ index 0000000..726c3e2
 +    d.srcAIdx := ha; d.srcARb := true.B
 +    d.srcBIdx := hb
 +    d.jumpOff := (imms12 << 2)(63, 0)
-+  }.elsewhen(opc === 0x7F.U && imm18(17, 8) === 0x3FF.U) {
++  }.elsewhen(opc >= 0x68.U && opc <= 0x6D.U) {
++    // br.n / br.nn / br.z / br.nz / br.p / br.np (rd): spec/SimRISC-06 §1.
++    // Target = rb0 + (imms18 << 2) with rb0 = current IP; the condition code
++    // follows the opcode order.
 +    recognized := true.B
-+    d.isSemi := true.B
-+    d.srcCIdx := 16.U; d.srcCRb := true.B
++    d.isBr := true.B
++    d.brCond := opc - 0x68.U
++    d.brOff := (imms18 << 2)(63, 0)
++    d.srcAIdx := ha
++  }.elsewhen(opc === 0x72.U || opc === 0x73.U) {
++    // br.z / br.nz (rb): same target arithmetic, operand in the rb bank.
++    recognized := true.B
++    d.isBr := true.B
++    d.brCond := opc - 0x70.U
++    d.brOff := (imms18 << 2)(63, 0)
++    d.srcAIdx := ha; d.srcARb := true.B
++  }.elsewhen(opc === 0x7F.U) {
++    // trap (spec/SimRISC-11).  The semihosting window is judged on immu18 only
++    // (Machine-v5 §5.4, user ruling 2026-11-09), independent of cfxha; every
++    // other `trap cfx_hmon` is the CFXTRAP handoff of DADAO-12 §5.2.
++    recognized := true.B
++    d.isTrap := true.B
++    d.cfxHa := ha
++    d.isSemi := imm18(17, 8) === 0x3FF.U
++    when(d.isSemi) { d.srcCIdx := 16.U; d.srcCRb := true.B }
++    when(!d.isSemi && !cfxAccessible(ha)) { d.ill := true.B }
++  }.elsewhen(opc === 0x7E.U) {
++    // escape (DADAO-12 §5.3): imms18[17:1] is SBZ, the byte offset is 0 or +4.
++    recognized := true.B
++    d.isEscape := true.B
++    d.cfxHa := ha
++    d.escOff := Cat(imm18(0), 0.U(2.W))
++    when(imm18(17, 1) =/= 0.U) { d.ill := true.B }
++    when(!cfxAccessible(ha)) { d.ill := true.B }
++  }.elsewhen(opc === 0x7A.U || opc === 0x7B.U) {
++    // cfx2rd / cfx2rc: cfxha[23:18], cg[17:12], rc[11:6], rd[5:0].
++    recognized := true.B
++    d.isCfx2 := true.B
++    d.cfxWrite := opc === 0x7B.U
++    d.cfxHa := ha
++    d.cfxCg := hb
++    d.cfxRc := hc
++    d.cfxDst := hd
++    d.srcAIdx := hd
++    when(!cfxAccessible(ha)) { d.ill := true.B }
++    when(!d.cfxWrite) { d.w0En := true.B; d.w0Idx := hd; d.w0Sel := 0.U }
 +  }
 +
 +  // ---- classification of everything not handled above -------------------

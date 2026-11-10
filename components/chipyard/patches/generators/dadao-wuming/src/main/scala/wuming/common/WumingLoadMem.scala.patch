@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala
 new file mode 100644
-index 0000000..83f312f
+index 0000000..7bd35b7
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala
-@@ -0,0 +1,114 @@
+@@ -0,0 +1,139 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" loadmem boot loader (m12-chipyard-003).
@@ -41,16 +41,41 @@ index 0000000..83f312f
 +import freechips.rocketchip.diplomacy._
 +import freechips.rocketchip.tilelink._
 +
-+/** Window the ELF PT_LOAD segments must fit in; supplied by the SoC config. */
-+case class WumingLoadMemParams(base: BigInt, size: BigInt) {
++/**
++  * The Tiny application-load contract (`spec/Machine-v5 §6`), supplied by the
++  * SoC configuration from the machine address map:
++  *
++  *   * `base`/`size` — the only window a PT_LOAD may target (main SRAM);
++  *   * `entry`       — the fixed application entry; `e_entry` must equal it;
++  *   * `bootromBase`/`bootromSize`, `hmonBase`/`hmonSize` — the two windows the
++  *     host loader must never write (overwriting the fixed firmware, and
++  *     presetting hmon, are both explicit load-stage errors).
++  */
++case class WumingLoadMemParams(
++  base: BigInt,
++  size: BigInt,
++  entry: BigInt,
++  bootromBase: BigInt,
++  bootromSize: BigInt,
++  hmonBase: BigInt,
++  hmonSize: BigInt
++) {
 +  require(base > 0, "WumingLoadMem: MEM_BASE must come from the machine address map")
 +  require(size > 0, "WumingLoadMem: MEM_SIZE must come from the machine address map")
++  require(entry > 0, "WumingLoadMem: ENTRY must come from the machine address map")
++  require(bootromSize > 0, "WumingLoadMem: BOOTROM_SIZE must come from the machine address map")
++  require(hmonSize > 0, "WumingLoadMem: HMON_SIZE must come from the machine address map")
 +}
 +
 +/** Host-side model: `+loadmem=` ELF parsing, write stream and readback check. */
-+class WumingLoadMemBlackBox(base: BigInt, size: BigInt) extends BlackBox(Map(
-+  "MEM_BASE" -> IntParam(base),
-+  "MEM_SIZE" -> IntParam(size)
++class WumingLoadMemBlackBox(p: WumingLoadMemParams) extends BlackBox(Map(
++  "MEM_BASE" -> IntParam(p.base),
++  "MEM_SIZE" -> IntParam(p.size),
++  "ENTRY" -> IntParam(p.entry),
++  "BOOTROM_BASE" -> IntParam(p.bootromBase),
++  "BOOTROM_SIZE" -> IntParam(p.bootromSize),
++  "HMON_BASE" -> IntParam(p.hmonBase),
++  "HMON_SIZE" -> IntParam(p.hmonSize)
 +)) with HasBlackBoxResource {
 +  val io = IO(new Bundle {
 +    val clock = Input(Clock())
@@ -84,7 +109,7 @@ index 0000000..83f312f
 +    "WumingLoadMem: the Tiny address map must negotiate >= 48 bits")
 +
 +  val lgSize = log2Ceil(beatBytes).U
-+  val bb = Module(new WumingLoadMemBlackBox(outer.params.base, outer.params.size))
++  val bb = Module(new WumingLoadMemBlackBox(outer.params))
 +  bb.io.clock := clock
 +  bb.io.reset := reset
 +

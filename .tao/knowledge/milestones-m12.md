@@ -41,12 +41,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m12-chipyard-007 | 2026-11-10 16:22 | 3–4 h | Tiny BootROM 固定固件 + power 搬运 + 最小 hmon handler（装载与移交） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-007 | 2026-11-10 19:24 | Tiny BootROM 固定固件 + power 搬运 + 最小 hmon handler（56 B） |
 | m12-chipyard-018 | 2026-11-10 16:21 | 核心结构改造：双 TL 端口 + 8-beat 取指 + FSM 骨架 |
 | m12-spec-004 | 2026-11-10 12:14 | hmon 装载契约（BootROM→power 搬运）+ rc10 初值/对齐 + `cfx2*` 口径 + 退出码只定编码 |
 | m12-spec-003 | 2026-11-10 09:30 | `Machine-v5` 口径统一（reserved 改为引用上游 / `switch_run_mode` 读回 3 / 修 `DADAO-12` 笔误） |

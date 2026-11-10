@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..b3138fe
+index 0000000..164175e
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,136 @@
+@@ -0,0 +1,148 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -47,7 +47,19 @@ index 0000000..b3138fe
 +  // is deliberately no default, so a wrong/absent base is an elaboration
 +  // error instead of a silently mis-placed load (`spec/Machine-v5 §1.1`).
 +  loadMemBase: Option[BigInt] = None,
-+  loadMemSize: Option[BigInt] = None
++  loadMemSize: Option[BigInt] = None,
++  // m12-007: the fixed application entry the power stub jumps to and the host
++  // loader requires (`spec/Machine-v5 §6`), the hmon SRAM base that is the
++  // reset value of `cfx_hmon_hypv_excp_vector` (`DADAO-13 §1`) and the power
++  // stub's copy target (`§6.2`), plus the BootROM window the host loader must
++  // never write.  All come from the machine address map; there is no default,
++  // so an absent value is an elaboration error instead of a silently wrong
++  // handoff.
++  loadMemEntry: Option[BigInt] = None,
++  hmonBase: Option[BigInt] = None,
++  hmonSize: Option[BigInt] = None,
++  bootromBase: Option[BigInt] = None,
++  bootromSize: Option[BigInt] = None
 +)
 +
 +/** Wiring-only adapter: `TileParams.core` is typed `CoreParams`. */

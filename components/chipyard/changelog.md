@@ -24,6 +24,10 @@
   - 摘要：**真核起点：寄存器堆 + 解码器 + 整数 ALU**。`WumingCoreStub` 由 `WumingCore` 替换（`WumingRegFile` / `WumingDecoder` / `WumingALU` 三个子模块）：`rd`/`rb` 双 bank，`rd0` 读 0、`rb0` 读当前 IP（只读），`rrrr` 双目的；解码 `orrr`/`orri`/`rrrr`/`riii`/`rrii`/`rwii` 六种格式，覆盖 SimRISC-04（64 位算术/逻辑/移位/扩展/比较/乘除）、SimRISC-05（`add.o`/`sub.o`/`cmp.uo` dbb、`add.si`/`aip.si`）与 SimRISC-08（32 位同族）；`ld.o`/`st.o`/`jump rrii`/semihosting `trap` 沿用而不回归。非实现编码不再静默：已定义未实现 ⇒ ILLI，QFC/子表空白 ⇒ UNDI（`contracts/legality_rules.yaml`），并实现 `dst_rd0`/`dst_rb0`/`dst_dual_same`/`encode_sbz` 合法性检查。ALU 口径按 `spec/SimRISC-04 §1.1`：`rrrr` 无符号加减的高半是**进位/借位（0 或 1）**、有符号加减的高半是 128 位和/差的高 64 位、乘法的两个变体都是完整 128 位积的高半。
   - 执行者：engineer
 
+- **2026-11-10 `m12-chipyard-007`**
+  - 摘要：**Tiny 固定 BootROM 固件 + `power → hmon → 应用` 移交**。新增 `tests/shared/bootrom/tiny/{power.S,hmon.S,*.lds}`（power 校验 image index table → 逐 8 字节复制 hmon 段到 `0x0fff_0000_0000` → 幂等写 `cg3 rc10` → `trap cfx_hmon, 0x30001` → hmon 校验 `CFXTRAP`+magic → `escape ...,+4` → 跳固定入口；hmon handler 共 56 B）与 `tools/testcases/arch/build_tiny_bootrom.py`（64 KiB 镜像：power 8 KiB / hmon 8 KiB / 保留 40 KiB 全零 / 表 8 KiB，链接断言 + 构建期校验，超限即失败），镜像以稀疏文本 hex 入库、`build.sbt` 资源生成器解码；应用侧新增 `tiny_crt.S`（入口设 SP，与测试程序同一 ELF）。SoC：hmon SRAM 为第二个独立 TL 从设备（64 KiB，`ARWXC`），`WumingLoadMem` 增装载契约（`e_entry` 必须 = 固定入口、`PT_LOAD` 命中 BootROM 或 hmon SRAM ⇒ 显式失败）；核内补最小 cfx_hmon 移交面（`br.*`/`trap→CFXTRAP`/`escape`/`cfx2rd`/`cfx2rc`、cause 帧、`excp_vector`），五类同步异常与完整寄存器组仍归 `m12-019`。
+  - 执行者：engineer
+
 - **2026-11-10 `m12-chipyard-018`**
   - 摘要：**取指/访存拆成两个 TileLink 客户端 + 8-beat 取指队列 + 12 态状态机骨架**。`WumingTile` 新增 `fetchMasterNode`/`dataMasterNode`（各 `IdRange(0, 3)`，都进 tile 内 `portXbar`），`WumingCore` 改为 `imem`/`dmem` 两个 `TLBundle`（A/D 通道与请求状态各自独立）；`WumingCoreParams` 新增 `fetchDepth = 8`，核内改为 8-beat 环形取指队列 + 顺序预取（source 0 需求、1/2 预取槽，命中 1 拍、投机 `denied` 不报错）；状态机按 `m12-006 §5.1` 落 12 态（`IDLE/FREQ/FWAIT/EXEC/TRAP/SEMI/EXC/MREQ/MWAIT/SLOW/FAULT/HALT`），R1 = C（移位/位域走 `SLOW` 2 拍、简单算术 1 拍），`EXC` 暂只记 cause 后进 `FAULT`（cfx 帧/向量归 `m12-019`）；诊断 `printf` 增 `cycle=`。273 例与 `m12-005` 逐字节一致（md5 `2d4d9465…`）。
   - 执行者：engineer

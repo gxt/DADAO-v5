@@ -688,10 +688,15 @@ _locked-install-cfx-aliases:
 # (ADR-0016 D9); run `make install-host` first.  Outputs live under the SDK
 # test-artifacts root (ADR-0016 D6, resolved via paths.py):
 #   $(BOOTROM_DIR)/{bootrom.o,bootrom.elf,bootrom.bin,bootrom_app.o,bootrom_app.bin,
-#                     tiny_smoke.o,tiny_smoke.elf,
+#                     tiny_crt.o,tiny_smoke.o,tiny_smoke.elf,
+#                     tiny/{power,hmon}.{o,elf},tiny/bootrom_tiny.bin,
 #                     semihost_{smoke,fail,unimpl,write}.o/.elf}
 BOOTROM_DIR = $(TEST_ARTIFACTS_DIR)/bootrom
 STEP5_BOOTROM_DIR = $(BOOTROM_DIR)/step5
+# m12-chipyard-007: Machine-v5-Tiny fixed BootROM firmware image
+# (power stub + hmon segment + reserved + image index table,
+# spec/Machine-v5 §6.1/§6.2); the chipyard `wuming` resource is the same image.
+TINY_BOOTROM_DIR = $(BOOTROM_DIR)/tiny
 # Machine-v5-Vast 4 MiB BootROM (QEMU-080t): supplied through the
 # `bootrom-image` machine property; the flat 64 KiB `-bios` window stays Tiny.
 # TESTCASES-092t: two hmon fault-policy variants from the same hmon.S:
@@ -711,10 +716,27 @@ _locked-build-bootrom:
 	$(LLVM_OBJCOPY_BIN) -O binary $(BOOTROM_DIR)/bootrom.elf $(BOOTROM_DIR)/bootrom.bin
 	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/bootrom_app.S -o $(BOOTROM_DIR)/bootrom_app.o
 	$(LLVM_OBJCOPY_BIN) -O binary --only-section=.text $(BOOTROM_DIR)/bootrom_app.o $(BOOTROM_DIR)/bootrom_app.bin
-	@# m12-chipyard-003: ELF smoke application for the chipyard `+loadmem=` closed
-	@# loop (fixed BootROM entry; no syscall/semihosting in the image).
+	@# m12-chipyard-003/007: ELF smoke application for the chipyard `+loadmem=`
+	@# closed loop.  The application is `tiny_crt.o` (SP setup at the fixed
+	@# entry, spec/Machine-v5 §6) + the smoke body, linked into one ELF.
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/tiny_crt.S -o $(BOOTROM_DIR)/tiny_crt.o
 	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/tiny_smoke.S -o $(BOOTROM_DIR)/tiny_smoke.o
-	$(LLD_BIN) -T tests/shared/bootrom/tiny_smoke.lds $(BOOTROM_DIR)/tiny_smoke.o -o $(BOOTROM_DIR)/tiny_smoke.elf
+	$(LLD_BIN) -T tests/shared/bootrom/tiny_smoke.lds $(BOOTROM_DIR)/tiny_crt.o $(BOOTROM_DIR)/tiny_smoke.o -o $(BOOTROM_DIR)/tiny_smoke.elf
+	@# m12-chipyard-007: Tiny fixed BootROM — power stub (8 KiB segment at the
+	@# reset vector) + minimal hmon handler (8 KiB segment at hmon SRAM) packed
+	@# into one 64 KiB image with the §6.1 image index table.  Every layout
+	@# limit is a build-time failure (builder + linker asserts).
+	@mkdir -p $(TINY_BOOTROM_DIR)
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/tiny/power.S -o $(TINY_BOOTROM_DIR)/power.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/tiny/power.lds $(TINY_BOOTROM_DIR)/power.o -o $(TINY_BOOTROM_DIR)/power.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/tiny/hmon.S -o $(TINY_BOOTROM_DIR)/hmon.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/tiny/hmon.lds $(TINY_BOOTROM_DIR)/hmon.o -o $(TINY_BOOTROM_DIR)/hmon.elf
+	$(PYTHON) tools/testcases/arch/build_tiny_bootrom.py \
+	  --out-dir $(TINY_BOOTROM_DIR) \
+	  --power-elf $(TINY_BOOTROM_DIR)/power.elf \
+	  --hmon-elf $(TINY_BOOTROM_DIR)/hmon.elf \
+	  --llvm-objcopy $(LLVM_OBJCOPY_BIN) --llvm-nm $(LLVM_NM_BIN) \
+	  --hex-out $(TINY_BOOTROM_DIR)/bootrom.tiny.hex
 	@# m12-chipyard-004: semihosting responder probes.  One source, four images:
 	@#   3-platform smoke (SYS_WRITE0/WRITEC/CLOCK/EXIT), guest-FAIL status,
 	@#   unimplemented SYS_OPEN (must be a loud harness error), SYS_WRITE.

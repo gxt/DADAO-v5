@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingLoadMem.v b/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingLoadMem.v
 new file mode 100644
-index 0000000..266edaf
+index 0000000..3c6b763
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingLoadMem.v
-@@ -0,0 +1,97 @@
+@@ -0,0 +1,109 @@
 +// WumingLoadMem.v — host-side `+loadmem=<elf>` initialiser for Machine-v5-Tiny
 +// (m12-chipyard-003).
 +//
@@ -24,7 +24,13 @@ index 0000000..266edaf
 +
 +module WumingLoadMemBlackBox #(
 +    parameter [63:0] MEM_BASE = 64'h0,
-+    parameter [63:0] MEM_SIZE = 64'h0
++    parameter [63:0] MEM_SIZE = 64'h0,
++    // m12-007: Tiny application-load contract (spec/Machine-v5 §6).
++    parameter [63:0] ENTRY = 64'h0,
++    parameter [63:0] BOOTROM_BASE = 64'h0,
++    parameter [63:0] BOOTROM_SIZE = 64'h0,
++    parameter [63:0] HMON_BASE = 64'h0,
++    parameter [63:0] HMON_SIZE = 64'h0
 +)(
 +    input             clock,
 +    input             reset,
@@ -40,7 +46,12 @@ index 0000000..266edaf
 +
 +    import "DPI-C" function void wuming_loadmem_init(
 +        input longint base,
-+        input longint size
++        input longint size,
++        input longint entry,
++        input longint bootrom_base,
++        input longint bootrom_size,
++        input longint hmon_base,
++        input longint hmon_size
 +    );
 +    import "DPI-C" function int wuming_loadmem_nops();
 +    import "DPI-C" function int wuming_loadmem_is_read(input int i);
@@ -66,7 +77,8 @@ index 0000000..266edaf
 +            mask     <= 8'd0;
 +            done     <= 1'b0;
 +        end else if (!started) begin
-+            wuming_loadmem_init(MEM_BASE, MEM_SIZE);
++            wuming_loadmem_init(MEM_BASE, MEM_SIZE, ENTRY,
++                                BOOTROM_BASE, BOOTROM_SIZE, HMON_BASE, HMON_SIZE);
 +            nops    <= wuming_loadmem_nops();
 +            idx     <= 32'd0;
 +            started <= 1'b1;

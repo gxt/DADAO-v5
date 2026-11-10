@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingLoadMem.cc b/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingLoadMem.cc
 new file mode 100644
-index 0000000..06b9c25
+index 0000000..5a3e96c
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingLoadMem.cc
-@@ -0,0 +1,299 @@
+@@ -0,0 +1,332 @@
 +// WumingLoadMem.cc — host model behind `WumingLoadMem.v` (m12-chipyard-003).
 +//
 +// The model owns the whole `+loadmem=<elf>` flow for Machine-v5-Tiny:
@@ -49,6 +49,12 @@ index 0000000..06b9c25
 +std::map<uint64_t, uint8_t> image;  // absolute address -> byte
 +uint64_t mem_base = 0;
 +uint64_t mem_size = 0;
++// m12-007: Tiny application-load contract (spec/Machine-v5 §6).
++uint64_t load_entry = 0;
++uint64_t bootrom_base = 0;
++uint64_t bootrom_size = 0;
++uint64_t hmon_base = 0;
++uint64_t hmon_size = 0;
 +uint64_t image_bytes = 0;
 +uint64_t verify_words = 0;
 +uint64_t verify_mismatch = 0;
@@ -103,6 +109,11 @@ index 0000000..06b9c25
 +  return data;
 +}
 +
++// [addr, addr+len) overlap test; a zero-size window never matches.
++bool overlaps(uint64_t addr, uint64_t len, uint64_t lo, uint64_t size) {
++  return size != 0 && len != 0 && addr < lo + size && lo < addr + len;
++}
++
 +void parse_elf(const std::string& path) {
 +  const std::vector<uint8_t> file = read_file(path);
 +  if (file.size() < 64) fail("ELF smaller than Elf64_Ehdr: " + path);
@@ -128,6 +139,10 @@ index 0000000..06b9c25
 +    fail("ELF program headers are out of file bounds: " + path);
 +
 +  const uint64_t entry = be64(p + 24);
++  // spec/Machine-v5 §6: `e_entry` must equal the fixed application entry.
++  if (load_entry != 0 && entry != load_entry)
++    fail("ELF e_entry " + hex(entry) + " is not the fixed Tiny entry " + hex(load_entry) +
++         " (spec/Machine-v5 §6): " + path);
 +  unsigned segments = 0;
 +  uint64_t span_lo = UINT64_MAX, span_hi = 0;
 +  for (unsigned i = 0; i < phnum; i++) {
@@ -143,6 +158,17 @@ index 0000000..06b9c25
 +    if (vaddr != paddr) fail("PT_LOAD p_vaddr != p_paddr: " + path);
 +    if (off > file.size() || filesz > file.size() - off)
 +      fail("PT_LOAD file range is out of bounds: " + path);
++    // The host loader must never write the BootROM (it would overwrite the
++    // fixed firmware) nor the hmon SRAM (hmon is copied there by the power
++    // stub).  Both are load-stage errors and must fail loudly.
++    if (overlaps(paddr, memsz, bootrom_base, bootrom_size))
++      fail("PT_LOAD " + hex(paddr) + "+" + hex(memsz) +
++           " targets the BootROM window " + hex(bootrom_base) + "+" + hex(bootrom_size) +
++           " (the host loader must not overwrite the fixed firmware): " + path);
++    if (overlaps(paddr, memsz, hmon_base, hmon_size))
++      fail("PT_LOAD " + hex(paddr) + "+" + hex(memsz) +
++           " targets the hmon SRAM window " + hex(hmon_base) + "+" + hex(hmon_size) +
++           " (hmon is copied from the BootROM by the power stub): " + path);
 +    if (paddr < mem_base || memsz > mem_size || paddr - mem_base > mem_size - memsz)
 +      fail("PT_LOAD " + hex(paddr) + "+" + hex(memsz) + " is outside the writable window " +
 +           hex(mem_base) + "+" + hex(mem_size) + ": " + path);
@@ -192,11 +218,18 @@ index 0000000..06b9c25
 +
 +}  // namespace
 +
-+extern "C" void wuming_loadmem_init(long long base, long long size) {
++extern "C" void wuming_loadmem_init(long long base, long long size, long long entry,
++                                   long long bootrom_lo, long long bootrom_len,
++                                   long long hmon_lo, long long hmon_len) {
 +  if (initialised) return;
 +  initialised = true;
 +  mem_base = static_cast<uint64_t>(base);
 +  mem_size = static_cast<uint64_t>(size);
++  load_entry = static_cast<uint64_t>(entry);
++  bootrom_base = static_cast<uint64_t>(bootrom_lo);
++  bootrom_size = static_cast<uint64_t>(bootrom_len);
++  hmon_base = static_cast<uint64_t>(hmon_lo);
++  hmon_size = static_cast<uint64_t>(hmon_len);
 +
 +  s_vpi_vlog_info info;
 +  if (!vpi_get_vlog_info(&info)) fail("vpi_get_vlog_info() failed");

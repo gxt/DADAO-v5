@@ -1,8 +1,8 @@
 diff --git a/build.sbt b/build.sbt
-index f56621c..56d2c35 100644
+index f56621c..eb8ae27 100644
 --- a/build.sbt
 +++ b/build.sbt
-@@ -163,6 +163,32 @@ lazy val rocketchip = freshProject("rocketchip", rocketChipDir)
+@@ -163,6 +163,54 @@ lazy val rocketchip = freshProject("rocketchip", rocketChipDir)
    )
  lazy val rocketLibDeps = (rocketchip / Keys.libraryDependencies)
  
@@ -19,12 +19,34 @@ index f56621c..56d2c35 100644
 +    // file (a component patch set cannot carry binary blobs).  Decode it into
 +    // the classpath resource that `WithBootROM` names; the resource rides the
 +    // wuming jar into the elaboration classpath.
++    //
++    // m12-007: the image became the 64 KiB fixed firmware (power stub + hmon
++    // segment + reserved + image index table, spec/Machine-v5 §6.2), so the
++    // text form is *sparse*: `@<offset>` lines set the write offset and byte
++    // lines append.  The 40 KiB reserved region stays implicit zeros.
 +    Compile / resourceGenerators += Def.task {
++      val size = 64 * 1024
 +      val hex = IO.read((Compile / resourceDirectory).value / "dadao" / "bootrom" / "bootrom.tiny.hex")
-+      val digits = hex.linesIterator.map(_.takeWhile(_ != '#').filterNot(_.isWhitespace)).mkString
-+      require(digits.nonEmpty && digits.length % 2 == 0,
-+        "wuming: dadao/bootrom/bootrom.tiny.hex must hold an even number of hex digits")
-+      val bytes = digits.grouped(2).map(d => Integer.parseInt(d, 16).toByte).toArray
++      val bytes = Array.fill[Byte](size)(0)
++      var pos = 0
++      hex.linesIterator.zipWithIndex.foreach { case (raw, lineno) =>
++        val line = raw.takeWhile(_ != '#').trim
++        if (line.nonEmpty) {
++          if (line.startsWith("@")) {
++            pos = Integer.parseInt(line.drop(1), 16)
++          } else {
++            val digits = line.filterNot(_.isWhitespace)
++            require(digits.length % 2 == 0,
++              s"wuming: bootrom.tiny.hex:$lineno has an odd number of hex digits")
++            digits.grouped(2).foreach { d =>
++              require(pos >= 0 && pos < size,
++                s"wuming: bootrom.tiny.hex:$lineno runs past $size bytes")
++              bytes(pos) = Integer.parseInt(d, 16).toByte
++              pos += 1
++            }
++          }
++        }
++      }
 +      val out = (Compile / resourceManaged).value / "dadao" / "bootrom" / "bootrom.tiny.img"
 +      IO.createDirectory(out.getParentFile)
 +      IO.write(out, bytes)
@@ -35,7 +57,7 @@ index f56621c..56d2c35 100644
  
  // -- Chipyard-managed External Projects --
  
-@@ -180,6 +206,7 @@ lazy val chipyard = {
+@@ -180,6 +228,7 @@ lazy val chipyard = {
        testchipip, rocketchip, boom, rocketchip_blocks, rocketchip_inclusive_cache,
        icenet, tracegen,
        constellation, barf, shuttle, rerocc,

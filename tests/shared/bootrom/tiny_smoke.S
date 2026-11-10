@@ -1,10 +1,11 @@
 @@ tiny_smoke.S — Machine-v5-Tiny loadmem / boot closed-loop smoke program
-@@ (m12-chipyard-003).
+@@ (m12-chipyard-003; m12-chipyard-007 adds the crt front end).
 @@
-@@ The BootROM is the static trampoline from `bootrom.S`: it loads SP and the
-@@ fixed application entry (`ENTRY`, tests/shared/asm/machine-tiny.inc) and
-@@ jumps there.  This program is that application; it is loaded into SRAM by
-@@ the harness `+loadmem=` loader and executed from ENTRY.
+@@ m12-007: the application is `tiny_crt.o` + this object linked into one ELF;
+@@ crt (``_start``, at the fixed entry ``ENTRY``) sets SP and falls through
+@@ into the code below.  The BootROM fixed firmware (power -> hmon) jumps to
+@@ that entry after the handoff (spec/Machine-v5 §6.2).  The image is loaded
+@@ into SRAM by the harness `+loadmem=` loader.
 @@
 @@ It deliberately contains no syscall and no semihosting (both belong to
 @@ m12-chipyard-004): the visible result is the SRAM store below plus the
@@ -23,8 +24,8 @@
 	.equ	APP_BSS, ENTRY + 0x108
 
 	.text
-	.globl	_start
-_start:
+	.globl	tiny_smoke_main
+tiny_smoke_main:
 	@@ 1. read the preset .rodata octa (proves the read-only data was loaded)
 	LOAD_ADDR rb4, APP_DATA
 	ld.o	rd10, [rb4, 0]

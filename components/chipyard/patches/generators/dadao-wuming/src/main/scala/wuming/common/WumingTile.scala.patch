@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
 new file mode 100644
-index 0000000..2a25d75
+index 0000000..71ab2bb
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
-@@ -0,0 +1,159 @@
+@@ -0,0 +1,177 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile skeleton (m12-chipyard-001).
@@ -84,8 +84,26 @@ index 0000000..2a25d75
 +  private val loadMemSize = wumingTileParams.wumingParams.loadMemSize.getOrElse(
 +    throw new IllegalArgumentException(
 +      "WumingTile: loadMemSize must be configured from the machine address map"))
-+  val loadMem: WumingLoadMem = LazyModule(new WumingLoadMem(
-+    WumingLoadMemParams(loadMemBase, loadMemSize)))
++  // m12-007: the loader also enforces the Tiny application-load contract
++  // (`spec/Machine-v5 §6`): the fixed entry, and "no PT_LOAD into the BootROM
++  // or the hmon SRAM" (the former would overwrite the firmware, the latter
++  // would preset hmon).  Both windows and the entry come from the address map.
++  private def required[A](opt: Option[A], what: String): A = opt.getOrElse(
++    throw new IllegalArgumentException(
++      s"WumingTile: $what must be configured from the machine address map"))
++  private val loadMemEntry = required(wumingTileParams.wumingParams.loadMemEntry, "loadMemEntry")
++  private val hmonBase = required(wumingTileParams.wumingParams.hmonBase, "hmonBase")
++  private val hmonSize = required(wumingTileParams.wumingParams.hmonSize, "hmonSize")
++  private val bootromBase = required(wumingTileParams.wumingParams.bootromBase, "bootromBase")
++  private val bootromSize = required(wumingTileParams.wumingParams.bootromSize, "bootromSize")
++  val loadMem: WumingLoadMem = LazyModule(new WumingLoadMem(WumingLoadMemParams(
++    base = loadMemBase,
++    size = loadMemSize,
++    entry = loadMemEntry,
++    bootromBase = bootromBase,
++    bootromSize = bootromSize,
++    hmonBase = hmonBase,
++    hmonSize = hmonSize)))
 +
 +  // m12-004: the semihosting responder is a host model (DPI) that reads guest
 +  // memory over its own TL client port.  It shares the tile's port xbar with
