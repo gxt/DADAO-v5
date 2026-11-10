@@ -119,3 +119,11 @@
   status: open
   resolved_by: null
   title: 【P2】`run_pool` 与派单流程 4 项缺陷（`m13-testcases-008` 现场发现）：① 队列键只有 `case`，同一 case 的 static/dynamic 两档无法共存，`--resume` 会误跳另一档；② 逐例节点目录硬编码到 005 的 evidence 路径；③ `fingerprint.driver_md5` 取主控机驱动 md5，与节点实际执行的不一致，跨节点不可比；④ 派单预检缺「目标节点实时已开始集」核对（本次 Y=0 前提过期即因此，208 白等 9 小时）。建议：键改 `(case, link_mode)`；目录参数化；指纹取节点侧 md5；分载任务派单前强制读实时 started 集。
+- id: ISS-373
+  scope:
+  - infra
+  - qemu
+  - gem5
+  status: open
+  resolved_by: null
+  title: 【P1】**并行任务共享安装根导致互相打断**：`m13-qemu-002` 重建共享 `.dadao/` 安装根 QEMU 时，`m13-gem5-005` 正在跑的 `check-inst`/lit E2E 立即失败（Tiny 要求 `--bootrom` 的新行为对旧 E2E 不兼容），reviewer 需花时间做归属。根因：`install-host` 写的是**全局**安装根，不是 worktree 私有。建议：① 需要重建 QEMU/gem5 的任务**串行**（install 根加锁或按批调度）；② 或给每个 worktree 独立 install 根（`DADAO_INSTALL_ROOT`）；③ E2E/`check-inst` 的期望与引擎版本绑定，跨任务比对前先核安装根 md5。
