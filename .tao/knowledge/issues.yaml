@@ -146,3 +146,10 @@
   status: open
   resolved_by: null
   title: 【P3】`m13-integ-004` 遗留：① fresh-clone 下证据脚本为 14+SKIP（依赖上游检出，需注明）；② 任务书写「BootROM 设 SP」与 spec §6「crt 设 SP」不符（本镜像无 crt，无行为影响）；③ `dadao_test.inc` 头注释列 6 个 `--defsym` 实只注入 2 个；④ `auipc` 需改理由措辞；⑤ 4 个 log 落 worktree 根未入运行期日志目录。
+- id: ISS-377
+  scope:
+  - infra
+  - gem5
+  status: open
+  resolved_by: null
+  title: 【P1】**任务收尾未做「修改文件 ↔ git 对账」导致交付文件丢失**：`m13-gem5-005` 完成区声明新增 4 个文件（`tests/arch/hmon/tiny_hmon_handler.{S,lds}`、`tiny_hmon_layout.inc`、`tools/gem5/check_tiny_hmon.py` 改动），但从未进入任何 commit、磁盘亦不存在 ⇒ `check_tiny_hmon.py` 现 `exit=2`，gem5 hmon 门控失效。根因：architect 收口时只看工作树 `git status`，未按完成区「修改文件」逐项 `git show --stat` 对账。建议：收口检查固定加一条「完成区修改文件数 == 提交 stat 文件数，逐项列名」；reviewer 也要核此项。
