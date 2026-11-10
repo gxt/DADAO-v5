@@ -13,6 +13,7 @@
 | `min_rom_probe_integ049t.py` | cg7 内部空间描述探针（16×4 静态只读表：smon/hmon/pmem/power 四类空间块、`space[1..15]` 全 0、`desc`/`attr` 位规则、全 rc 可读、写任意 rc ⇒ `CFXREG`、未实现 cfx 仍 `CFXREG`；`--qemu/--only/--list`） |
 | `min_rom_probe_integ050t.py` | `cfx_time`（cfxha 34：`cg10 rc0` 1 GHz、`rc1` 64 位时间、`SBI_TIME_GET`）与单 hart `cfx_hart`（cfxha 15：`cg8 rc0` hart_id、`rc2/rc3` 64 位 cycle/insn、`rc4/rc5` timer_cmp/timer_ctrl、TIMER `1<<10`、IMASK pending、`SBI_HART_GET_ID`/`SBI_HART_SET_TIMER`）探针；内嵌 provider 为**测试专用，非生产实现**；`--doc` 离线表形态 + runtime 用例（寄存器用例走 `-d cpu` 观测；定时器/计数用例自检、无 dump：读当前 `cfx_time` 设相对 deadline 后有界轮询，断言到期前不触发 / 窗口内触发 / ISTATUS / pending / 单次与重触发 / 单调性 / `cmp=~0` 关闭）；`--qemu/--only/--list` |
 | `min_rom_probe_integ051t.py` | 统一异步中断仲裁探针（pending 归目标 cfx：TIMER→`cfx_hart` `cg5 rc5` bit10、PMEM_DMA→`cfx_pmem` bit8；低目标 cfxha 优先、单层投递；`global_cfx_intr_mask`/`cfx_intr_mask`/TIMER `IMASK` 只挡投递、保留 pending 并在解除后补投；`escape` 补投；直接进目标 cfx（monitor poison 断言）；同源去重；`--doc` 契约条目 + 补丁树结构（无 `async_enable`/无聚合位图/单一 async `cfx_enter`）；`--qemu/--only/--list`） |
+| `min_rom_probe_integ007t.py` | Tiny hmon「最小保存-跳转」算法契约（m13-integ-007）：构建 64 KiB 固定 BootROM + SRAM-only 应用，QEMU `dadao-tiny` 上验证框架写 A/B 即跳 A/B、五类异常现场三值、rd63 保存/恢复、power 默认返回地址（CFXTRAP 闭环）；`--qemu/--toolchain-bin/--work-dir/--timeout` |
 | `build_step5_bootrom.py` | step5 256 KiB BootROM 打包器（image index table + 三镜像尺寸/ELF 自检 + trap magic 回填 + `--self-test` + `--max-image-size` 注入） |
 
 - 用例**资产**（`.s` 向量 + `expected.yaml`）在 `tests/arch/<cfx>/`；本目录只放驱动，

@@ -35,6 +35,17 @@ monitor).  Source: `spec/Machine-v5 §1.1/§2/§3/§4.4/§5`, `spec/DADAO-12 §5
    (hypv-only, `DADAO-13 §1`) register successfully, and
    `excp_prev_run_mode` records `3` (records 36–40).
 
+## m13-integ-007 note
+
+The *shared* BootROM hmon handler (`tests/shared/bootrom/tiny/hmon.S`) is now
+the minimal save-and-jump algorithm: code at hmon SRAM 0x00 (no jump), data at
+0xD8 saved rd63 / 0xE0 cause_id / 0xE8 cause_ip / 0xF0 cause_info / 0xF8
+framework return address; no magic, IALIGN or `+4` policy.  The QEMU oracle for
+that contract is `tools/testcases/arch/min_rom_probe_integ007t.py`.  This gem5 case still uses
+its dispatch handler (`tiny_hmon_handler.S`); migrating it to the minimal
+handler and re-deriving the cause records is the pending gem5 follow-up
+(`expected.yaml:pending_followups`).
+
 ## Run
 
 ```sh

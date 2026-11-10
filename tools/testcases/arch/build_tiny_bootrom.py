@@ -70,6 +70,38 @@ TABLE_ENT = 32
 BOOTROM_BASE = 0xFFFF_FFFF_0000
 HMON_BASE = 0x0FFF_0000_0000
 
+# m13-integ-007 -- fixed hmon save-and-jump layout (m12-006 cycle design §11,
+# user ruling 2026-11-11, second revision).  The handler has exactly one
+# scratch register (rd63), so the cause stores use IP-relative offsets; the
+# layout is a build contract, not a comment:
+#
+#   0x00  code start (10 instructions, 44 B; code must stay below 0xD8)
+#   0xD8  saved rd63          0xE8 cause_ip    0xF8 return address
+#   0xE0  cause_id            0xF0 cause_info
+#
+# The data area is outside the image segment: power copies only `size` bytes
+# (the code), so the SRAM data slots keep their initial value.
+HMON_DATA_BASE = 0xD8
+HMON_SLOT_RD63 = 0xD8
+HMON_SLOT_CAUSE_ID = 0xE0
+HMON_SLOT_CAUSE_IP = 0xE8
+HMON_SLOT_CAUSE_INFO = 0xF0
+HMON_SLOT_RETURN = 0xF8
+HMON_CODE_MIN = 0x2C
+# Layout words whose encoding carries a data-slot offset.  They lock the
+# IP-relative offsets to the fixed layout; the cfx2rd/cfx2rc/escape words are
+# not fingerprinted (so a behavioural +4 injection still reaches the probe).
+# st.o rd63,[rb0,0xD8] = (0x21<<24)|(63<<18)|0xD8;
+# ld.o rd63,[rb0,0xDC]/[rb0,0xB4] = (0x20<<24)|(63<<18)|imm.
+HMON_LAYOUT_WORDS = {
+    0x00: 0x21FC00D8,
+    0x08: 0x21FC00D8,
+    0x10: 0x21FC00D8,
+    0x18: 0x21FC00D8,
+    0x1C: 0x20FC00DC,
+    0x24: 0x20FC00B4,
+}
+
 FLAG_REQUIRED, FLAG_LOAD, FLAG_VERIFY = 1, 2, 4
 DEFAULT_HMON_FLAGS = FLAG_REQUIRED | FLAG_LOAD  # flat segment: no ELF verify
 
@@ -194,7 +226,8 @@ def patch_power_magic(power_bin, symbol_off, boot_magic):
     return bytes(out)
 
 
-def build(args, max_segment, boot_magic, hmon_flags, out_name):
+def build(args, max_segment, boot_magic, hmon_flags, out_name,
+          require_layout=True):
     power_elf = Elf(args.power_elf)
     hmon_elf = Elf(args.hmon_elf)
     power_elf.require_origin(BOOTROM_BASE, "power")
@@ -208,11 +241,35 @@ def build(args, max_segment, boot_magic, hmon_flags, out_name):
         raise BuildError("power/hmon flat segment is empty")
     if len(power_bin) % 4 or len(hmon_bin) % 4:
         raise BuildError("power/hmon flat segment is not 4-byte aligned in size")
+
+    # m13-integ-007: enforce the fixed hmon save-and-jump layout.  The only
+    # opt-out is the explicit legacy fixture used by the still-unmigrated gem5
+    # case (check_tiny_hmon.py passes require_layout=False for that image).
+    if require_layout:
+        if HMON_DATA_BASE % 8:
+            raise BuildError("internal: hmon data base %#x is not 8-byte aligned"
+                             % HMON_DATA_BASE)
+        if len(hmon_bin) < HMON_CODE_MIN:
+            raise BuildError("hmon segment is %d bytes: code is shorter than %#x"
+                             % (len(hmon_bin), HMON_CODE_MIN))
+        if len(hmon_bin) > HMON_DATA_BASE:
+            raise BuildError("hmon code is %d bytes > data base %#x"
+                             % (len(hmon_bin), HMON_DATA_BASE))
+        for off, want in HMON_LAYOUT_WORDS.items():
+            if off + 4 > len(hmon_bin):
+                raise BuildError("hmon code is too short for layout word at %#x" % off)
+            got = struct.unpack_from(">I", hmon_bin, off)[0]
+            if got != want:
+                raise BuildError("hmon layout word at %#x is %#010x, expected %#010x"
+                                 % (off, got, want))
     if len(power_bin) > min(max_segment, POWER_SEG_MAX):
         raise BuildError("power segment is %d bytes > %d"
                          % (len(power_bin), min(max_segment, POWER_SEG_MAX)))
     hmon_raw = len(hmon_bin)
     hmon_size = align8(hmon_raw)  # §6.1 entry `size` is 8-byte aligned
+    if require_layout and hmon_size > HMON_DATA_BASE:
+        raise BuildError("hmon aligned code size %#x reaches the data base %#x"
+                         % (hmon_size, HMON_DATA_BASE))
     if hmon_size > min(max_segment, HMON_SEG_MAX):
         raise BuildError("hmon segment is %d bytes > %d"
                          % (hmon_size, min(max_segment, HMON_SEG_MAX)))
@@ -247,7 +304,7 @@ def build(args, max_segment, boot_magic, hmon_flags, out_name):
     return out_path, image, ranges, len(power_bin), hmon_size
 
 
-def verify_image(image, boot_magic, hmon_flags):
+def verify_image(image, boot_magic, hmon_flags, require_layout=True):
     """Independent re-read of the produced bytes against §6.1/§6.2."""
     if len(image) != BOOTROM_SIZE:
         raise BuildError("verify: image is %d bytes, expected %d"
@@ -283,6 +340,20 @@ def verify_image(image, boot_magic, hmon_flags):
         raise BuildError("verify: power segment is empty")
     if not any(image[HMON_SEG_OFF:HMON_SEG_OFF + size]):
         raise BuildError("verify: hmon segment is empty")
+    # m13-integ-007: re-read the fixed hmon layout from the produced image.
+    if require_layout:
+        hmon = image[HMON_SEG_OFF:HMON_SEG_OFF + size]
+        if len(hmon) < HMON_CODE_MIN:
+            raise BuildError("verify: hmon code is shorter than %#x" % HMON_CODE_MIN)
+        if len(hmon) > HMON_DATA_BASE:
+            raise BuildError("verify: hmon code reaches the data base %#x"
+                             % HMON_DATA_BASE)
+        for off, want in HMON_LAYOUT_WORDS.items():
+            if off + 4 > len(hmon):
+                raise BuildError("verify: hmon code is too short for %#x" % off)
+            if be32(hmon, off) != want:
+                raise BuildError("verify: hmon layout word at %#x is %#010x, expected %#010x"
+                                 % (off, be32(hmon, off), want))
 
 
 def to_hex(image, comment_lines, ranges, width=32):
@@ -436,6 +507,9 @@ def main():
     ap.add_argument("--boot-magic", default=hex(DEFAULT_BOOT_MAGIC))
     ap.add_argument("--hmon-flags", default=hex(DEFAULT_HMON_FLAGS))
     ap.add_argument("--max-segment-size", type=int, default=0x2000)
+    ap.add_argument("--allow-legacy-hmon", action="store_true",
+                    help="explicit opt-out for the still-unmigrated gem5 hmon "
+                         "fixture (disables the 0xD8 data-base contract)")
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--out-name", default="bootrom_tiny.bin")
     ap.add_argument("--hex-out", default=None,
@@ -471,9 +545,15 @@ def main():
     try:
         if args.self_test:
             return self_test(args)
+        require_layout = not args.allow_legacy_hmon
+        if not require_layout:
+            print("tiny-bootrom: WARNING: hmon layout contract disabled "
+                  "(--allow-legacy-hmon, pending gem5 fixture migration)")
         path, image, ranges, power_len, hmon_len = build(
-            args, args.max_segment_size, boot_magic, hmon_flags, args.out_name)
-        verify_image(image, boot_magic, hmon_flags)
+            args, args.max_segment_size, boot_magic, hmon_flags, args.out_name,
+            require_layout=require_layout)
+        verify_image(image, boot_magic, hmon_flags,
+                     require_layout=require_layout)
         if args.hex_out:
             with open(args.hex_out, "w") as f:
                 f.write(to_hex(image, [

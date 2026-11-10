@@ -27,4 +27,9 @@ SECTIONS
   }
 
   ASSERT(SIZEOF(.text) <= LENGTH(HMON), "tiny hmon segment exceeds its 8 KiB budget")
+  /* m13-integ-007: code starts at 0x00 and the data area starts at 0xD8;
+   * power copies only the code region (table size), so the code must not
+   * reach into the data slots. */
+  ASSERT(SIZEOF(.text) <= 0xD8,
+         "tiny hmon: code must fit below the 0xD8 data area")
 }

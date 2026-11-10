@@ -159,3 +159,16 @@
   status: open
   resolved_by: null
   title: 【P3】`m13-gem5-006` 文档级遗留：① 完成区写「hmon SRAM 全 8192 B」，实为段 248 B + 尾零 65288 B（dump 65536 B）；② 验收 3 的 `grep` 仍余 1 处活值（`expected.yaml:31`，019 合入后由该行接管）；③ 完成区把 chipyard 脏归属写成「并行 019」，实为并行的 `m12-chipyard-008`（019 已于 04:18 合入、脏文件 mtime 04:38）。
+- id: ISS-379
+  scope:
+  - infra
+  status: open
+  resolved_by: null
+  title: '【P2】`make check-arch` / `check-arch-smoke` 在本机 `EXIT=2`：`CMake Error: The source directory ".../.work/source/llvm-project/llvm" does not exist`（`m13-integ-007` reviewer 重试 3 次同错：默认、`-o install-host`、`-o` 全链）。检查体本身可用（m5 e2e 10/10、25 服务、14 探针全 rc=0），说明是 `install-host → build-mc` 的 llvm 源路径问题。建议：核 `.work/source/llvm-project` 的目录形态（monorepo 根 vs `llvm/` 子目录）与 `build-mc` 传入的 CMake 源路径是否一致。'
+- id: ISS-380
+  scope:
+  - testcases
+  - gem5
+  status: open
+  resolved_by: null
+  title: 【P3】`m13-integ-007` 文档级遗留：① `hmon.S` 注释写「10 条」实为 11 条；② chipyard 跟随清单缺「改源树 hex → `tools/infra/make_patch.py` 重导出 → `make check-patch-tree`」一步；③ 清单里的 md5 `5143…` 是解码镜像 md5，hex 文本 md5 实为 `c499803a…`，需注明；④ chipyard 回归「构建/Verilator/TestDriver」是描述非命令；⑤ 「预置数据区哨兵」构造未做，以结构性证据替代。

@@ -6,17 +6,20 @@
 @@
 @@ 顺序（§6.2「power 的装载与移交顺序」1–8）：
 @@   1. 校验表头与 hmon 表项（失败 ⇒ park：不进入 hmon、不静默继续）；
-@@   2. 逐 8 字节把 hmon 段从 BootROM 复制到 hmon SRAM 起始；
+@@   2. 逐 8 字节把 hmon 代码区（表项 size = 代码长度）复制到 hmon SRAM 起始；
+@@      数据区（0xD8–0xFF）不在镜像段内，保持 SRAM 初值；
 @@   3. （Tiny 无 cache，该批写入对同一 hart 的后续取指自然可见）
-@@   4. 写 cfx_hmon_hypv_excp_vector（幂等，初值已是 hmon SRAM 起始）；
+@@   4. 写 hmon SRAM + 0xF8 的默认返回地址（= 本 trap 的下一条指令）；
+@@      **不改异常向量**：初值已是 hmon SRAM 起始（DADAO-13 §1）。
 @@   5. （Tiny 的 switch_run_mode 写入被忽略、保存值保持 3，§2）
 @@   6. trap cfx_hmon, <boot_magic> 按 CFXTRAP 移交 hmon；
-@@   7. hmon 校验后 escape 回本 stub；
+@@   7. hmon 按本 stub 写入的默认返回地址 escape 回本 stub；
 @@   8. 跳固定应用入口 0xffff_ff01_0100，不返回。
 @@
 @@ 寄存器约定：rb0 = 当前 IP（只读）；rd0 = 0。本 stub 不建栈、不做宿主调用。
 @@ 只使用 m12-005 已实现的整数子集（ld.o/st.o/set.zw/or.w/and.o/shr.uo/
-@@ add.o/sub.o/cmp.uo/add.si/jump）+ 本任务新增的 br.* 与 cfx2rc/trap。
+@@ add.o/sub.o/cmp.uo/add.si/jump）+ 本任务新增的 br.*/cfx2rc/trap，以及
+@@ rb2rd（读当前 IP；chipyard 核若未实现须在跟随清单中补）。
 
 	.include "tests/shared/asm/machine-tiny.inc"
 	.include "tests/shared/asm/machine.inc"
@@ -97,9 +100,15 @@ power_copy:
 	add.si	rd5, -1
 	br.nz	{rd5}?, [rb0, power_copy]
 
-	@@ ---- 向量幂等写入（初值已是 hmon SRAM 起始，DADAO-13 §1）
-	LOAD_ADDR rd4, HMON_BASE
-	cfx2rc	cfx_hmon, cg3, rc10, rd4
+	@@ ---- hmon 默认返回地址（m13-integ-007）：hmon SRAM + 0xF8 = 本 trap 的
+	@@ 下一条指令。异常向量初值已指向 hmon SRAM 起始，power 不改向量；框架
+	@@ （应用）可覆盖该槽；hmon 只读该槽写 excp_cause_ip。
+	@@ rb2rd 读当前 IP（= 本指令地址 X）；布局 rb2rd(X)/add.si(X+4)/
+	@@ st.o(X+8)/trap(X+12) ⇒ trap + 4 = X + 16。
+	LOAD_ADDR rb7, HMON_BASE
+	rb2rd	rd4, rb0, 1
+	add.si	rd4, 16
+	st.o	rd4, [rb7, 0xF8]
 
 	@@ ---- power -> hmon 移交（CFXTRAP；boot_magic 与表头一致）
 	@@ 构建器按镜像表的 boot_magic 字段改写下面这条指令的 immu18。

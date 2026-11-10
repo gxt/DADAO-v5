@@ -26,9 +26,30 @@ profile:
   boot_magic: 0x30001
 
 # The BootROM image is built from the same sources with the same builder as
-# m12-chipyard-007 (the value chipyard's image had); gem5 and chipyard boot the
-# identical 64 KiB firmware, so the hmon bytes in SRAM are identical.
-shared_bootrom_md5: 33bfe14af0e47d9e6f9c2d4a34fc5ae0
+# m12-chipyard-007; gem5 and chipyard boot the identical 64 KiB firmware, so
+# the hmon bytes in SRAM are identical.
+#
+# m13-integ-007 (2026-11-11): the *shared* hmon handler is now the minimal
+# save-and-jump algorithm (m12-006 cycle design §11, second revision): code
+# at hmon SRAM 0x00 with no jump, data at 0xD8--0xFF, no magic check, no IALIGN
+# rewrite, no +4 policy, no park.  The digest below is the new shared
+# firmware.  The records in this file describe the gem5 *test* dispatch handler
+# (`tests/arch/hmon/tiny_hmon_handler.S`), which still records the frame and
+# rewrites IALIGN/+4; migrating that fixture to the minimal handler (and
+# re-deriving records 0/17-31 from the hmon SRAM slots) is the pending gem5
+# follow-up listed in `pending_followups`.
+shared_bootrom_md5: 514300876ea66ec108396334f3ef2b0f
+
+# Not yet executable in this task (m13-integ-007 lists them, gem5/chipyard
+# follow the QEMU-first contract):
+#   * chipyard: regenerate resources/dadao/bootrom/bootrom.tiny.hex from the
+#     new builder output (the checked-in hex still has the old handler);
+#   * gem5: migrate tests/arch/hmon/{tiny_hmon.S,tiny_hmon_handler.S} to the
+#     minimal handler and re-derive the cause records from hmon SRAM
+#     0xE0/0xE8/0xF0/0xF8 (code@0x00, data@0xD8).
+pending_followups:
+  - chipyard: bootrom.tiny.hex == new shared_bootrom_md5
+  - gem5: tiny_hmon_handler.S -> minimal save-and-jump handler
 
 records:
   # 0: power -> hmon handover (CFXTRAP + table boot_magic).  The application
