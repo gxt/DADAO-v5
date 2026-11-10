@@ -394,7 +394,7 @@ def _vectors():
         "cfx_hmon M3 VEC": (o.get("vec:03:3"), hmon),
         "cfx_umon M3 VEC": (o.get("vec:00:3"), ENTRY),
         "cfx_umon M3 SWMODE": (o.get("swmode:00:3"), 3),
-        "cfx_smon VEC != smon e_entry": (o.get("vec:02:3") != smon, True),
+        "cfx_smon VEC == smon e_entry": (o.get("vec:02:3"), smon),
         "cfx_smon M3 SWMODE": (o.get("swmode:02:3"), 3),
         "smon never executed": (len(smon_blocks), 0),
     })

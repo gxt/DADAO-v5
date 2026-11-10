@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..e49341b
+index 0000000..9dbc48f
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2928 @@
+@@ -0,0 +1,2938 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -2916,6 +2916,16 @@ index 0000000..e49341b
 +        /* bit3 is hardware-fixed 1 (DADAO-13 §1): a software 0 is ignored and
 +         * the register reads back with bit3 set. */
 +        *p = ((rd == 0) ? 0 : env->rd[rd]) | (1ULL << 3);
++    } else if (rc == 10) {
++        /* DADAO-13 §1 (cg3 rc10; the same field exists in cg0-cg2): a write
++         * ignores the low 2 bits (value[1:0] <- 0, 4-byte aligned), no
++         * exception; reads return the stored value. */
++        *p = ((rd == 0) ? 0 : env->rd[rd]) & ~0x3ULL;
++        dadao_soft_tlb_flush(env);
++    } else if (rc == 8 && DADAO_PROFILE(env)->switch_run_mode_write_ignored) {
++        /* Machine-v5-Tiny §2: the write is ignored; the register keeps its
++         * saved value (3 = hypv) and a read returns that saved value.  The
++         * exception-entry path forces hypv independently. */
 +    } else {
 +        *p = (rd == 0) ? 0 : env->rd[rd];
 +        /* Any cfx2rc write may change a two-axis permission mask (cfxtrap/

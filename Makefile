@@ -697,6 +697,7 @@ STEP5_BOOTROM_DIR = $(BOOTROM_DIR)/step5
 # (power stub + hmon segment + reserved + image index table,
 # spec/Machine-v5 §6.1/§6.2); the chipyard `wuming` resource is the same image.
 TINY_BOOTROM_DIR = $(BOOTROM_DIR)/tiny
+TINY_BOOTROM = $(TINY_BOOTROM_DIR)/bootrom_tiny.bin
 # Machine-v5-Vast 4 MiB BootROM (QEMU-080t): supplied through the
 # `bootrom-image` machine property; the flat 64 KiB `-bios` window stays Tiny.
 # TESTCASES-092t: two hmon fault-policy variants from the same hmon.S:
@@ -811,12 +812,12 @@ _locked-test-picolibc-smoke: build-picolibc
 # test under qemu-system-dadao -machine dadao-tiny + semihosting.  Fails if any
 # representative reports a genuine test failure (fail=0); backend/library gaps
 # are reported separately as `blocked`, never as silent skips.
-_locked-check-picolibc-tests: build-picolibc
+_locked-check-picolibc-tests: build-picolibc build-bootrom
 	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/picolibc_tests.py --stage fast --jobs $(JOBS)
 
 # check-picolibc-tests-full (TESTCASES-042t): the full picolibc self-test set
 # (opt-in; L3-like — hundreds of compile/link/QEMU runs, several minutes).
-_locked-check-picolibc-tests-full: build-picolibc
+_locked-check-picolibc-tests-full: build-picolibc build-bootrom
 	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/picolibc_tests.py --stage full --jobs $(JOBS)
 
 # check-rnd-probe (TESTCASES-060t): ftrnd/fornd roundToIntegral integration --
@@ -1486,7 +1487,7 @@ check-spec-codeblocks:
 # INFRA-047t (ADR-0016 D9): tools are taken from the install root, not .work/build.
 # INFRA-058t: L2 成员（功能代表集，受控子集）——已从 L1 `make check` 移出。
 LIT_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-lit
-_locked-check-lit:
+_locked-check-lit: build-bootrom
 	@test -x $(LIT_BIN) || { echo "check-lit: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
 	$(LIT_BIN) tests/unit/llvm/lit/MC/DADAO tests/unit/llvm/lit/CodeGen/DADAO tests/unit/llvm/e2e/lit -v
 
@@ -1556,7 +1557,7 @@ LLD_BIN = $(HOST_TOOLCHAIN_BIN)/ld.lld
 # paths.py (D7); coexists with test-codegen's dir.
 CODEGEN_ELF_WORK = $(TEST_ARTIFACTS_DIR)/elf-e2e
 CODEGEN_ELF_LOG = .work/log/integ/test-elf.log
-_locked-test-elf: install-host
+_locked-test-elf: install-host build-bootrom
 	@test -x $(LLC_BIN) || { echo "test-elf: ERROR: $(LLC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_MC_BIN) || { echo "test-elf: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
 	@test -x $(LLD_BIN) || { echo "test-elf: ERROR: $(LLD_BIN) not found"; exit 1; }
@@ -1566,7 +1567,8 @@ _locked-test-elf: install-host
 	  DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/unit/run_elf_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --ldlld $(LLD_BIN) \
 	    --qemu $(QEMU_BIN) --crt0 tests/shared/crt0/minimal_crt0.s \
-	    --lds tests/shared/linker/dadao-tiny.lds \
+	    --lds tests/shared/linker/dadao-tiny-app.lds \
+	    --bootrom $(TINY_BOOTROM) \
 	    --vectors-dir tests/unit/llvm/codegen/m4 \
 	    --expected tests/unit/llvm/codegen/m4/expected.yaml \
 	    --work-dir $(CODEGEN_ELF_WORK) \
@@ -1698,7 +1700,7 @@ EMBENCH_E2E_WORK = $(TEST_ARTIFACTS_DIR)/m6-embench
 IR_LLI_LOG = .work/log/integ/test-m6-ir-lli.log
 EMBENCH_E2E_LOG = .work/log/integ/test-m6-embench.log
 LIT_FULL_LOG = .work/log/integ/test-m6-lit-full.log
-_locked-test-m6: install-host
+_locked-test-m6: install-host build-bootrom
 	@test -x $(HOST_TOOLS_BIN)/lli || { echo "test-m6: ERROR: $(HOST_TOOLS_BIN)/lli not found — run 'make install-host'"; exit 1; }
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "test-m6: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
 	@test -d $(EMBENCH_SRC) || { echo "test-m6: ERROR: $(EMBENCH_SRC) not found — run 'make fetch'"; exit 1; }

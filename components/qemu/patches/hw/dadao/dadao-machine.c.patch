@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..1b6d89a
+index 0000000..4d0158a
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,809 @@
+@@ -0,0 +1,914 @@
 +/*
 + * DADAO Machine-v5 bare-metal test machines for QEMU
 + *
@@ -33,12 +33,11 @@ index 0000000..1b6d89a
 + * `tiny` is Machine-v5-Tiny (spec/Machine-v5 §1.1/§6):
 + *   Boot ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB, RO+X)
 + *   SRAM:       0xffff_ff00_0000 .. 0xffff_ff7f_ffff (8 MiB, RWX)
-+ *   hmon SRAM:  0x0fff_0000_0000 (64 KiB, cfx3); the host loader may place a
-+ *               PT_LOAD there (the hmon image, spec/Machine-v5 §4.4)
++ *   hmon SRAM:  0x0fff_0000_0000 (64 KiB, cfx3); written only by the power
++ *               stub inside the fixed BootROM firmware (spec/Machine-v5 §6.2)
 + *   reset vec:  0xffff_ffff_0000; raw -kernel at 0xffff_ff01_0000
 + *               (first 0x100 bytes zero, entry 0xffff_ff01_0100);
-+ *               ELF PT_LOAD may target the BootROM (crt stub), the SRAM or
-+ *               the hmon SRAM (hmon image).
++ *               ELF PT_LOAD is SRAM-only (e_entry must be 0xffff_ff01_0100).
 + *   cfx_power (cfx63) + cfx3 hmon only; no PTW / smon / pmem / PA-0 alias.
 + *
 + * Loading paths per ADR-0004 D2.2/D2.3 (rev. 2026-10-06, SPEC-107t) and
@@ -53,18 +52,19 @@ index 0000000..1b6d89a
 + *                   p_vaddr == p_paddr, segment interval inside the
 + *                   profile's mapped regions; contract-elf.md
 + *                   §1.3/§5.2/§6.1.2).  Vast allows PA RAM only (a boot ROM
-+ *                   segment is a load error, user decision D, 2026-10-09);
-+ *                   Tiny also allows BootROM segments (crt stub, QEMU-079t).
++ *                   segment is a load error, user decision D, 2026-10-09).
++ *                   Tiny does not use this path: it requires the fixed
++ *                   BootROM firmware and loads the application into SRAM.
 + *                   The segment placement (VA=PA, .bss zero-fill) and the
 + *                   entry point (e_entry -> PC) are then delegated to the
 + *                   upstream loader (hw/core/loader.c: load_elf(), the standard
 + *                   API).  No external -bios ROM is used on this path.
 + *
-+ *   path B (raw):   qemu-system-dadao -machine dadao-tiny -bios rom.bin -kernel test.bin
-+ *                   flat ROM trampoline + flat test binary.  Legacy entry is
-+ *                   the RAM base (M1-M3 path); Tiny entry is fixed at
-+ *                   kernel_base + kernel_reserved (0x100) and the image's
-+ *                   first kernel_reserved bytes must be zero (QEMU-079t).
++ *   path B (raw):   qemu-system-dadao -machine dadao-tiny -bios trampoline.bin -kernel test.bin
++ *                   legacy flat ROM window + flat test binary (pre-contract
++ *                   harness; the ROM trampoline sets SP and jumps to
++ *                   kernel_base + kernel_reserved = 0xffff_ff01_0100).  The
++ *                   contract boot path is path C with the fixed firmware.
 + *
 + *   path C (BootROM image, ADR-0043 D1/D2):
 + *                   qemu-system-dadao -machine dadao-vast,bootrom-image=bootrom.bin
@@ -73,6 +73,8 @@ index 0000000..1b6d89a
 + *                   base; the CPU still resets to the profile reset PC.
 + *                   -kernel is optional (an ELF is preloaded into RAM without
 + *                   overriding the reset PC); -bios must not be given.
++ *                   On Tiny this is the fixed-firmware + application contract
++ *                   path (power copies hmon and jumps to the fixed entry).
 + *
 + * Load-stage errors (malformed/oversize images) are reported and cause a
 + * non-zero process exit; they are a different layer from guest faults
@@ -129,8 +131,10 @@ index 0000000..1b6d89a
 + * validate a segment interval before the load; the placement itself is still
 + * done by the upstream loader.
 + *
-+ * Machine-v5-Tiny (QEMU-079t): the crt/startup stub lives in the BootROM, so
-+ * a PT_LOAD may target the BootROM as well as the SRAM (spec/Machine-v5 §6).
++ * Machine-v5-Tiny: the host loader loads only the application's SRAM segments
++ * (spec/Machine-v5 §6/§6.2).  A PT_LOAD in the BootROM or in hmon SRAM is a
++ * load-stage error -- the power stub inside the fixed firmware is the only
++ * writer of hmon SRAM and the firmware image itself is supplied separately.
 + */
 +typedef struct DadaoMappedRegion {
 +    uint64_t base;
@@ -150,8 +154,8 @@ index 0000000..1b6d89a
 +        regions[n++] = (DadaoMappedRegion){ prof->rom_base, prof->rom_size };
 +    }
 +    if (prof->mon_elf_segments) {
-+        /* Tiny: the host loader installs the hmon image straight into hmon
-+         * SRAM (design R13-A; spec/Machine-v5 §1.1/§4.4). */
++        /* Opt-in profile hook only (no current profile sets it): the host
++         * loader would install the hmon image straight into hmon SRAM. */
 +        regions[n++] = (DadaoMappedRegion){ DADAO_HMON_CFX_BASE,
 +                                            DADAO_MON_SRAM_SIZE };
 +    }
@@ -411,16 +415,41 @@ index 0000000..1b6d89a
 +            }
 +        }
 +        if (!mapped) {
++            /* Name the forbidden window when it is the Tiny contract that
++             * rejected the segment (spec/Machine-v5 §6/§6.2). */
++            if (prof->bootrom_required &&
++                p_vaddr < prof->rom_base + prof->rom_size &&
++                end > prof->rom_base) {
++                error_report("dadao: ELF kernel '%s': PT_LOAD segment %u "
++                             "interval [%#" PRIx64 ", %#" PRIx64 ") targets "
++                             "the BootROM; the Machine-v5-Tiny load contract "
++                             "loads only SRAM (the fixed firmware is supplied "
++                             "by bootrom-image/-bios)",
++                             filename, i, p_vaddr, end);
++                close(fd);
++                exit(1);
++            }
++            if (prof->bootrom_required &&
++                p_vaddr < DADAO_HMON_CFX_BASE + DADAO_MON_SRAM_SIZE &&
++                end > DADAO_HMON_CFX_BASE) {
++                error_report("dadao: ELF kernel '%s': PT_LOAD segment %u "
++                             "interval [%#" PRIx64 ", %#" PRIx64 ") targets "
++                             "the hmon SRAM; the host must not preload hmon "
++                             "(the power stub copies it from the firmware)",
++                             filename, i, p_vaddr, end);
++                close(fd);
++                exit(1);
++            }
 +            error_report("dadao: ELF kernel '%s': PT_LOAD segment %u "
 +                         "interval [%#" PRIx64 ", %#" PRIx64 ") is outside the "
 +                         "mapped regions (RAM %#" PRIx64 " + %" PRIu64 " bytes%s%s)",
 +                         filename, i, p_vaddr, end, (uint64_t)prof->ram_base,
 +                         (uint64_t)prof->ram_size,
 +                         prof->rom_elf_segments
-+                             ? " or the BootROM (Tiny crt stub)"
++                             ? " or the BootROM"
 +                             : "; the boot ROM window is rejected",
 +                         prof->mon_elf_segments
-+                             ? " or the hmon SRAM (Tiny hmon image)"
++                             ? " or the hmon SRAM"
 +                             : "");
 +            close(fd);
 +            exit(1);
@@ -568,6 +597,15 @@ index 0000000..1b6d89a
 +                     filename, load_elf_strerror(elf_size));
 +        exit(1);
 +    }
++    /* Machine-v5-Tiny: the fixed application entry is part of the load
++     * contract (spec/Machine-v5 §6).  A different e_entry is a load-stage
++     * error, never silently overridden. */
++    if (prof->fixed_kernel_entry && entry != prof->kernel_entry) {
++        error_report("dadao: ELF kernel '%s': e_entry %#" PRIx64
++                     " is not the fixed application entry %#" PRIx64,
++                     filename, entry, prof->kernel_entry);
++        exit(1);
++    }
 +    if (!dadao_addr_mapped(prof, entry)) {
 +        error_report("dadao: ELF kernel '%s': e_entry %#" PRIx64 " is "
 +                     "outside the mapped regions", filename, entry);
@@ -607,6 +645,19 @@ index 0000000..1b6d89a
 +    if (bios_size < 0) {
 +        error_report("dadao: could not load ROM image '%s': %s",
 +                     filename, err ? error_get_pretty(err) : "unknown error");
++        exit(1);
++    }
++    /* Machine-v5-Tiny: `-bios` is either the fixed 64 KiB firmware (the same
++     * image as `bootrom-image`) or the legacy flat trampoline window used by
++     * the pre-contract raw harness.  Anything in between is neither: reject it
++     * by name so a truncated firmware cannot look like a trampoline. */
++    if (prof->bootrom_required && bios_size != (ssize_t)prof->rom_size &&
++        bios_size > 0x1000) {
++        error_report("dadao: -bios image '%s' is %" PRId64 " bytes; the "
++                     "Machine-v5-Tiny fixed BootROM firmware must be exactly %"
++                     PRIu64 " bytes (or use bootrom-image=...); -bios also "
++                     "accepts the legacy <=4096-byte trampoline window",
++                     filename, (int64_t)bios_size, prof->rom_size);
 +        exit(1);
 +    }
 +}
@@ -709,6 +760,59 @@ index 0000000..1b6d89a
 +                                    smon_sram);
 +    }
 +
++    /* Machine-v5-Tiny load contract (spec/Machine-v5 §6/§6.2).  The contract
++     * path is the fixed 64 KiB BootROM firmware supplied through the
++     * `bootrom-image` machine property plus the application: the firmware is
++     * loaded verbatim (exactly 64 KiB), only the application's SRAM segments
++     * are loaded (never a PT_LOAD in the BootROM or hmon SRAM), the ELF entry
++     * must be the fixed 0xffff_ff01_0100, and QEMU executes the real power ->
++     * hmon -> escape -> entry chain.
++     *
++     * The legacy `-bios` flat ROM window is kept for the pre-contract test
++     * harness (raw trampoline + raw -kernel, no ELF PT_LOAD involved); it is
++     * not the fixed firmware path and does not install hmon.  An ELF
++     * application requires `bootrom-image`. */
++    if (prof->bootrom_required) {
++        if (bootrom) {
++            if (!kernel) {
++                error_report("dadao: Machine-v5-Tiny requires an application "
++                             "-kernel image (fixed firmware + application)");
++                exit(1);
++            }
++            dadao_load_bootrom_image(bootrom, prof);
++            if (dadao_kernel_is_elf(kernel)) {
++                (void)dadao_load_elf_kernel(kernel, prof);
++            } else {
++                dadao_load_raw_kernel(kernel, prof);
++            }
++            return;
++        }
++        /* The legacy `-bios` window may also carry the fixed 64 KiB firmware
++         * (spec/Machine-v5 §6); only the small flat trampoline is raw-only. */
++        if (machine->firmware &&
++            get_image_size(machine->firmware, NULL) == (int64_t)prof->rom_size) {
++            if (!kernel) {
++                error_report("dadao: Machine-v5-Tiny requires an application "
++                             "-kernel image (fixed firmware + application)");
++                exit(1);
++            }
++            dadao_load_bios(machine->firmware, prof);
++            if (dadao_kernel_is_elf(kernel)) {
++                (void)dadao_load_elf_kernel(kernel, prof);
++            } else {
++                dadao_load_raw_kernel(kernel, prof);
++            }
++            return;
++        }
++        if (kernel && dadao_kernel_is_elf(kernel)) {
++            error_report("dadao: Machine-v5-Tiny ELF application '%s' requires "
++                         "the fixed BootROM firmware (bootrom-image=... or a "
++                         "64 KiB -bios); the legacy -bios path is "
++                         "raw-trampoline only", kernel);
++            exit(1);
++        }
++    }
++
 +    /* Path C: BootROM image (ADR-0043 D1/D2).  -kernel is optional; a given
 +     * ELF is preloaded but does not override the reset PC. */
 +    if (bootrom) {
@@ -728,9 +832,10 @@ index 0000000..1b6d89a
 +        /*
 +         * Path A: ELF.  Header and PT_LOAD rules the upstream loader does not
 +         * enforce are checked first (contract-elf.md §1.3/§5.2/§6.1.2); the
-+         * allowed segment regions follow the profile (Vast: PA RAM only; Tiny:
-+         * RAM + BootROM, the crt stub lives in ROM).  Placement and .bss
-+         * zero-fill stay with the upstream loader.
++         * allowed segment regions follow the profile.  Vast allows PA RAM
++         * only (Tiny never reaches this path: it requires the fixed BootROM
++         * firmware above and rejects BootROM/hmon PT_LOAD).  Placement and
++         * .bss zero-fill stay with the upstream loader.
 +         */
 +        uint64_t entry = dadao_load_elf_kernel(kernel, prof);
 +

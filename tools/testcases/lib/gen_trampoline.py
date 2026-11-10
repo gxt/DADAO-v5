@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
-"""Generate ROM trampoline blob for dadao-tiny test machine.
+"""Generate ROM trampoline blob for the legacy dadao-tiny test harness.
 
-The trampoline is loaded at the Tiny BootROM base via QEMU -bios.  It sets up
-the stack pointer (rb1) and jumps to the profile RAM entry where the test
-binary is loaded via -kernel.  Geometry is read from
-tests/shared/machine-profiles.yaml (TESTCASES-091t); no address is hardcoded.
+The trampoline is loaded at the Tiny BootROM base via `-bios` and is kept for
+the pre-contract harness (raw `-kernel` + flat ROM trampoline; the contract
+boot path uses the fixed 64 KiB firmware through `bootrom-image`).  It:
+  0. parks the hmon hypv vector on an unreachable cfx3 address, so a
+     synchronous fault still surfaces as the machine-fault exit code the
+     pre-contract oracles expect (the fixed firmware installs a real handler);
+  1. sets up the stack pointer (rb1) to the profile SP;
+  2. loads the profile RAM entry into rb2 and jumps there.
 
-Trampoline instructions (adapted from ADR-0004 D6.4 for the RAM base):
-  1. set.zw/or.w rb1 -> profile SP (48-bit, near RAM top)
-  2. set.zw/or.w rb2 -> profile RAM entry
-  3. jump rb2, rd0, 0 -> PC = rb2 + rd0 + 0 = RAM entry
+Geometry is read from tests/shared/machine-profiles.yaml (TESTCASES-091t); no
+address is hardcoded.
 
 Encoding references (contracts/opcodes.yaml):
   set.zw-rb: op=0x4E, rwii, (0x4E<<24)|(rbha<<18)|(wpN<<16)|immu16
   or.w-rb:   op=0x4A, rwii, (0x4A<<24)|(rbha<<18)|(wpN<<16)|immu16
+  cfx2rc:    op=0x7B, crrr, (0x7B<<24)|(cfxha<<18)|(cg<<12)|(rc<<6)|rd
   jump-rrii: op=0x71, rrii, (0x71<<24)|(rbha<<18)|(rdhb<<12)|(imms12&0xFFF)
 
 Wyde position (contract-isa §2.4):
@@ -60,6 +63,15 @@ def encode_jump_rrii(rbha, rdhb, imms12):
     return (0x71 << 24) | (rbha << 18) | (rdhb << 12) | (imms12 & 0xFFF)
 
 
+def encode_cfx2rc(cfxha, cg, rc, rd):
+    """Encode cfx2rc cfxha, cg, rc, rd (crrr format, op=0x7B)."""
+    assert 0 <= cfxha <= 0x3F
+    assert 0 <= cg <= 0x3F
+    assert 0 <= rc <= 0x3F
+    assert 0 <= rd <= 0x3F
+    return (0x7B << 24) | (cfxha << 18) | (cg << 12) | (rc << 6) | rd
+
+
 def generate_trampoline():
     """Generate trampoline instruction words."""
     instructions = []
@@ -69,6 +81,13 @@ def generate_trampoline():
         for wp in (1, 2, 3):
             words.append(encode_or_w_rb(rb, wp, (value >> (16 * wp)) & 0xFFFF))
         return words
+
+    # 0. Legacy Tiny trampoline only: park the hmon hypv vector on an
+    #    unreachable cfx3 address so a synchronous fault keeps surfacing as
+    #    the machine-fault exit code the pre-contract harness oracles expect.
+    #    (The fixed-firmware contract path uses the real handler instead.)
+    instructions.extend(load_addr(3, 0x0FFF00010000))
+    instructions.append(encode_cfx2rc(3, 3, 10, 3))
 
     # 1. rb1 = profile SP (48-bit, near the RAM top)
     instructions.extend(load_addr(1, SP))

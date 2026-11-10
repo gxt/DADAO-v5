@@ -93,10 +93,19 @@ config.substitutions.append(("%ld", os.path.abspath(os.path.join(tools_dir, "ld.
 trampoline = os.path.join(root, 'tools', 'testcases', 'lib', 'trampoline.bin')
 config.substitutions.append(("%trampoline", trampoline))
 
+# Locate the fixed 64 KiB Machine-v5-Tiny BootROM firmware produced by
+# `make build-bootrom` (m13-qemu-002): the contract ELF tests boot through the
+# real power -> hmon -> entry chain.
+bootrom = str(dadao_paths.test_artifacts_dir() / "bootrom" / "tiny"
+              / "bootrom_tiny.bin")
+config.substitutions.append(("%bootrom", bootrom))
+
 # Locate the freestanding crt0 + linker script used by the linked-ELF E2E
-# pipeline: <repo>/tests/shared/{crt0/minimal_crt0.s,linker/dadao-tiny.lds}.
+# pipeline.  The Tiny script is the contract layout (crt + program in SRAM,
+# e_entry = 0xffff_ff01_0100, spec/Machine-v5 §6); `dadao-tiny.lds` remains the
+# pre-contract crt-in-ROM layout for legacy harnesses.
 config.substitutions.append(("%crt0", os.path.join(shared_dir, "crt0", "minimal_crt0.s")))
-config.substitutions.append(("%linker_script", os.path.join(shared_dir, "linker", "dadao-tiny.lds")))
+config.substitutions.append(("%linker_script", os.path.join(shared_dir, "linker", "dadao-tiny-app.lds")))
 
 # Locate e2e source directory: <repo>/tests/unit/llvm/e2e/ (this config lives
 # in its lit/ subdirectory, so the source dir is its parent).

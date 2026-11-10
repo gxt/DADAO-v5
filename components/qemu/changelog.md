@@ -310,6 +310,10 @@
 
 ## M13
 
+- **2026-11-10 `m13-qemu-002`**
+  - 摘要：**Tiny 对齐 hmon 装载契约（`spec/Machine-v5` 0.4.4-rc §6/§6.1/§6.2、`DADAO-13` rc10、`Machine-v5 §2` switch_run_mode）**。`hw/dadao/dadao-machine.c`：Tiny 的契约路径改为 `bootrom-image` 固定 64 KiB 固件 + 应用（真实执行 power → hmon → escape → `0xffff_ff01_0100`）；ELF PT_LOAD 只允许 SRAM（BootROM/hmon SRAM 下发即具名报错）、Tiny `e_entry` 必须等于固定入口；`-bios` 的 64 KiB 文件按同一固定固件走契约路径，≤4096 B 保留为 pre-contract 的平坦 trampoline 窗口（raw `-kernel`），中间尺寸具名报错。`cpu.{h,c}`：Tiny 关闭 `rom_elf_segments`/`mon_elf_segments`、增 `bootrom_required`/`fixed_kernel_entry`/`switch_run_mode_write_ignored`；`cg3 rc10` 初值改为该 cfx 内部 SRAM 起始（hmon `0x0fff_0000_0000`）。`helper.c`：`rc10` 写入掩掉低 2 位；Tiny `switch_run_mode` 写入忽略、保存值保持 3。测试侧：`tools/testcases/lib/gen_trampoline.py` 的 legacy trampoline 先把 hmon 向量指到不可达地址，保持 44/44 的机器 fault 退出码口径；lit/test-elf/picolibc/embench 的 Tiny ELF 应用改用 SRAM 应用链接脚本 + `bootrom-image`。
+  - 执行者：engineer
+
 - **2026-11-10 `m13-qemu-001`**
   - 摘要：**Tiny 实现 `cfx_power`（cfx63）+ `cfx3 hmon`（`spec/Machine-v5` 0.4.2-rc §1.1/§2/§4.4/§6）**。`cpu.{h,c}`：profile 由 `cfx_enabled` 改为 `cfx_impl_mask`（Tiny `{3,63}`、Vast 原 9 项）+ `hmon_sram`/`smon_sram` 拆分 + `mon_elf_segments` + `unimpl_cfx_trap_illi` + `sync_exc_monitor_entry`；`cfx_idx()` 按 profile 过滤（未实现的 cfx 无寄存器行/掩码/向量）。`hw/dadao/dadao-machine.c`：Tiny 增 64 KiB hmon SRAM（`0x0fff_0000_0000`，cfxha 3；CPU 仍经 `tlb_fill` 的 host 基址访问）与**装载别名**（ELF PT_LOAD 直装 hmon SRAM，R13-A），`dadao_mapped_regions()` 增第三区。`helper.c`：同步异常统一走 `dadao_sync_enter()`（cause id/info 表：`ILLI`/`UNDI`/`CFXMEM`/`CFXREG`/`CFXPERM`/`MALIGN`/`IALIGN`/`RASOF`/`RASUF`），**向量不可达时回退机器 fault 退出码**（`Machine-v5 §7.1`，防 CFXMEM 递归）；Tiny `cfx2rd`/`cfx2rc`/`trap` 到未实现 cfx ⇒ `ILLI`、寄存器访问 ⇒ `CFXREG`；`escape` 仅在有 `trap` 保存的 `global_cfx_intr_mask` 时恢复；Tiny 运行模式锁 `hypv`。`raise_exception` helper 增 `cause_info` 参数（指令编码/访存地址）。`translate.c`：**IALIGN 在取指前检测**（`IP[1:0] != 00`），IP 停留非法地址、不写回 nextIp；`tlb_fill` 对取指同检（未映射且非对齐时 IALIGN 优先于 CFXMEM）。Vast 的 `ILLI`/`UNDI`/`CFXMEM`/`MALIGN`/`IALIGN`/`RAS*` 仍按 staged 机器 fault 映射（旧探针 oracle 依赖，规格偏差已登记任务书）。补丁 **7 份改**，`make_patch.py` 重导出（7 written / 59 unchanged，共 66 份）。
   - 执行者：engineer

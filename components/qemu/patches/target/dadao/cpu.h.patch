@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..193284a
+index 0000000..856ef4e
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,599 @@
+@@ -0,0 +1,610 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -168,6 +168,15 @@ index 0000000..193284a
 +    uint64_t kernel_base;       /* raw `-kernel` load base */
 +    uint64_t kernel_entry;      /* raw application entry (base+reserved) */
 +    uint64_t kernel_reserved;   /* leading zero bytes of a raw image */
++    /* Tiny: the fixed 64 KiB BootROM firmware is mandatory (spec/Machine-v5
++     * §6 "image = fixed firmware + application"); an ELF e_entry must also be
++     * the fixed application entry (0xffff_ff01_0100). */
++    bool bootrom_required;
++    bool fixed_kernel_entry;
++    /* Tiny test-machine convention (spec/Machine-v5 §2): switch_run_mode
++     * writes are ignored; the register keeps its saved value (3 = hypv) and
++     * reads it back. */
++    bool switch_run_mode_write_ignored;
 +    bool ram_alias;             /* add a PA-0 alias for the first page table */
 +    bool hmon_sram;             /* cfx3 hmon 64 KiB SRAM (both profiles) */
 +    bool smon_sram;             /* cfx2 smon 64 KiB SRAM (Vast only) */
@@ -180,8 +189,10 @@ index 0000000..193284a
 +    /* `trap` to an allocated-but-unimplemented cfx: Tiny maps it to ILLI
 +     * (spec/Machine-v5 §3 Tiny bullet), Vast keeps CFXREG. */
 +    bool unimpl_cfx_trap_illi;
-+    /* ELF PT_LOAD may target the hmon SRAM (Tiny: the host loader installs the
-+     * hmon image directly into hmon SRAM, R13-A). */
++    /* ELF PT_LOAD may target the hmon SRAM.  No profile allows it under the
++     * Tiny hmon load contract (spec/Machine-v5 §6.2): the power stub is the
++     * only writer of hmon SRAM.  The field is kept for the loader's region
++     * table so a future profile can opt in explicitly. */
 +    bool mon_elf_segments;
 +    bool ptw_supported;         /* cfx4 PTW/TLB (memory window can translate) */
 +    bool rom_elf_segments;      /* ELF PT_LOAD may target the BootROM */

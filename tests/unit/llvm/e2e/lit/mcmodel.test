@@ -39,11 +39,11 @@
 # RUN: %clang -target dadao-unknown-elf -mcmodel=large -O2 -c %e2e_dir/mcmodel_e2e.c -o %t.large.o
 # RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %crt0 -o %t.crt0.o
 # RUN: %ld -T %linker_script %t.crt0.o %t.large.o -o %t.large.elf
-# RUN: timeout 30 %qemu -M dadao-tiny -kernel %t.large.elf -semihosting-config enable=on,target=native -display none -nographic -monitor none
+# RUN: timeout 30 %qemu -machine dadao-tiny,bootrom-image=%bootrom -kernel %t.large.elf -semihosting-config enable=on,target=native -display none -nographic -monitor none
 # RUN: %llvm_objdump -d %t.large.elf | %FileCheck %s --check-prefix=LINKED
 # RUN: %clang -target dadao-unknown-elf -O2 -c %e2e_dir/mcmodel_e2e.c -o %t.default.o
 # RUN: %ld -T %linker_script %t.crt0.o %t.default.o -o %t.default.elf
-# RUN: timeout 30 %qemu -M dadao-tiny -kernel %t.default.elf -semihosting-config enable=on,target=native -display none -nographic -monitor none
+# RUN: timeout 30 %qemu -machine dadao-tiny,bootrom-image=%bootrom -kernel %t.default.elf -semihosting-config enable=on,target=native -display none -nographic -monitor none
 #
 # 4) >32 MiB layout: the far function is emitted into `.far`, which
 #    mcmodel_far.lds places 64 MiB above `.text`.

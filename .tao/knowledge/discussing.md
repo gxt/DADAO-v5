@@ -387,3 +387,13 @@ testcases-003（207 原计划）+ 008（208 差集）→ 长尾计时；结果�
 规则：每一步**先合并再进下一步**；并行只允许「不同组件」或「节点上的用例执行」，不允许同组件两写者。
 
 - **`m12-testcases-002` 已取消（2026-11-10）**：原打算单独做「E2E 适配固定固件契约」；`m13-qemu-002` 的实现已覆盖（11 个 lit 用例 + `lit.cfg.py` + `picolibc-tiny.ld` + `Makefile` + `tools/testcases/**` 的 trampoline/E2E 驱动），且其 L2 `check-modules` rc=0 ⇒ 判重复，不另立册（任务书已删，仅此记录）。
+
+## 待裁定：`-bios` 的 legacy trampoline 窗口（2026-11-11）
+
+`m13-qemu-002` 的 reviewer 发现：`Machine-v5 §6` 字面要求 `-bios` 装**同一固定固件**、不再带 trampoline；但实现保留了 **≤4096 B 的 legacy 窗口**（44 例 `tests/inst` Tiny 中 43 例的 `expected_fault` 退出码口径依赖它）。
+
+两条路：
+- **① 绑 `m12-chipyard-019`**：故障分派进 hmon 后，把那 44 例 oracle 迁到新口径，再删 legacy 窗口（口径收敛、无历史包袱）。
+- **② 修 `Machine-v5 §6`**：承认该窗口为测试机约定（改动小，但 spec 多一条历史例外）。
+
+reviewer 建议 ①（随 `019` 做）。**待用户裁定。**

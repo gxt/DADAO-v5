@@ -15,4 +15,4 @@
 # RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %crt0 -o %t.crt0.o
 # RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %e2e_dir/p2align_e2e.s -o %t.main.o
 # RUN: %ld -T %linker_script %t.crt0.o %t.main.o -o %t.elf
-# RUN: timeout 30 %qemu -M dadao-tiny -kernel %t.elf -semihosting-config enable=on,target=native -display none -nographic
+# RUN: timeout 30 %qemu -machine dadao-tiny,bootrom-image=%bootrom -kernel %t.elf -semihosting-config enable=on,target=native -display none -nographic

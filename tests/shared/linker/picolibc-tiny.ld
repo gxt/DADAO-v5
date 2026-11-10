@@ -40,9 +40,11 @@ ENTRY(_start)
  * some phony values here to make things link for testing
  */
 
-/* TESTCASES-091t: Tiny specialization of picolibc_noflash.ld.
- * flash (ROM) holds the crt stub (.text.start) at 0xffff_ffff_0000; the
- * picolibc application/sections live in SRAM at 0xffff_ff01_0100.
+/* TESTCASES-091t / m13-qemu-002: Tiny specialization of picolibc_noflash.ld.
+ * The crt stub (.text.start) and the picolibc application live together in
+ * SRAM at 0xffff_ff01_0100 (spec/Machine-v5 §6: crt links with the app, the
+ * fixed BootROM firmware performs power -> hmon -> entry).  The flash region
+ * is kept only for address-map compatibility; nothing is placed in it.
  * SP = 0xffff_ff7e_ff00 (profile tiny). */
 MEMORY
 {
@@ -70,7 +72,7 @@ SECTIONS
 {
 	.text.start : {
 		KEEP (*(.text.start .text.start.*))
-	} >flash AT>flash :text
+	} >ram AT>ram :ram
 
 	PROVIDE(__stack = ORIGIN(ram) + LENGTH(ram));
 
@@ -78,7 +80,7 @@ SECTIONS
 		KEEP (*(.text.init.enter))
 		KEEP (*(.data.init.enter))
 		KEEP (*(SORT_BY_NAME(.init) SORT_BY_NAME(.init.*)))
-	} >flash AT>flash :text
+	} >ram AT>ram :ram
 
 	.text : {
 

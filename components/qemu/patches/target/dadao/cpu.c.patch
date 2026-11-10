@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..afffa62
+index 0000000..c09e448
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,619 @@
+@@ -0,0 +1,635 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -69,6 +69,9 @@ index 0000000..afffa62
 +    .kernel_base = DADAO_VAST_KERNEL_BASE,
 +    .kernel_entry = DADAO_VAST_KERNEL_ENTRY,
 +    .kernel_reserved = DADAO_VAST_KERNEL_RESERVED,
++    .bootrom_required = false,      /* legacy ELF path (M4) has no firmware */
++    .fixed_kernel_entry = false,
++    .switch_run_mode_write_ignored = false,
 +    .ram_alias = false,         /* Vast RAM already lives at PA 0 */
 +    .hmon_sram = true,
 +    .smon_sram = true,
@@ -96,15 +99,18 @@ index 0000000..afffa62
 +    .kernel_base = DADAO_TINY_KERNEL_BASE,
 +    .kernel_entry = DADAO_TINY_KERNEL_ENTRY,
 +    .kernel_reserved = DADAO_TINY_KERNEL_RESERVED,
++    .bootrom_required = true,       /* spec/Machine-v5 §6: fixed firmware + app */
++    .fixed_kernel_entry = true,     /* e_entry must be 0xffff_ff01_0100 */
++    .switch_run_mode_write_ignored = true,
 +    .ram_alias = false,
 +    .hmon_sram = true,          /* cfx3 hmon SRAM (spec/Machine-v5 §1.1) */
 +    .smon_sram = false,         /* Tiny implements no smon */
 +    .pmem_sram = false,
 +    .cfx_impl_mask = DADAO_CFX_IMPL_TINY,
 +    .unimpl_cfx_trap_illi = true,   /* spec/Machine-v5 §3 (Tiny) */
-+    .mon_elf_segments = true,       /* host loader installs the hmon image */
++    .mon_elf_segments = false,      /* power copies hmon; host never loads it */
 +    .ptw_supported = false,
-+    .rom_elf_segments = true,
++    .rom_elf_segments = false,      /* crt links with the app into SRAM */
 +    .unmapped_is_cfxmem = true,
 +    .sync_exc_monitor_entry = true,    /* hmon carries every sync exception */
 +    .user_mode = false,
@@ -290,10 +296,20 @@ index 0000000..afffa62
 +            mr->cfxexe = mask_init;           /* rc3 */
 +            mr->cfx_intr_mask = ~0ULL;        /* rc4 */
 +            if (m == DADAO_MODE_HYPV) {
-+                /* DADAO-13 §1 (cg3): switch_run_mode=3,
-+                 * excp_vector = cfxha<<42 | 0x3ff_ffff_0000. */
++                /* DADAO-13 §1 (cg3): switch_run_mode=3; excp_vector initial
++                 * value = the cfx's internal SRAM start.  hmon/smon (cfx2,
++                 * cfx3) and cfx_pmem own a 64 KiB SRAM at internal offset
++                 * 0x3ff_0000_0000; a cfx without internal SRAM (e.g. power)
++                 * is platform-defined and keeps its last-64-KiB window
++                 * (2^42 - 64 KiB, the Tiny BootROM start for cfx63). */
++                uint64_t vec_off = 0x3FFFFFF0000ULL;   /* 2^42 - 64 KiB */
++
++                if (cfxha == DADAO_CFXHA_HMON || cfxha == 2 /* smon */ ||
++                    cfxha == DADAO_CFXHA_PMEM) {
++                    vec_off = DADAO_MON_SRAM_CFX_OFFSET;
++                }
 +                mr->switch_run_mode = DADAO_MODE_HYPV;
-+                mr->excp_vector = (cfxha << 42) + 0x3FFFFFF0000ULL;
++                mr->excp_vector = (cfxha << 42) + vec_off;
 +                mr->cg_reg_deleg = ~0ULL;
 +            } else {
 +                /* DADAO-12 §3 (cg0-cg2): switch_run_mode=2 (supv),

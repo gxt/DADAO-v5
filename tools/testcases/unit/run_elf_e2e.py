@@ -8,13 +8,19 @@ expected value (it does NOT rely on lit exit codes):
     per TU:  llc -march=dadao -filetype=obj  <tu>.ll     -> <tu>.o
     once:    llvm-mc --triple=dadao -filetype=obj \
                  tests/shared/crt0/minimal_crt0.s        -> crt0.o
-    link:    ld.lld -T tests/shared/linker/dadao-tiny.lds \
-                 crt0.o <tu>.o ... -o <prog>.elf          (ET_EXEC)
-    run:     timeout N qemu-system-dadao -M dadao-tiny \
+    link:    ld.lld -T tests/shared/linker/dadao-tiny-app.lds \
+                 crt0.o <tu>.o ... -o <prog>.elf          (ET_EXEC, SRAM-only)
+    run:     timeout N qemu-system-dadao \
+                 -machine dadao-tiny,bootrom-image=<fixed 64 KiB firmware> \
                  -kernel <prog>.elf \
                  -semihosting-config enable=on,target=native \
                  -display none -nographic
                                                           -> guest exit code
+
+The application ELF follows the Machine-v5-Tiny load contract
+(spec/Machine-v5 §6): crt + program are linked into SRAM and e_entry is the
+fixed 0xffff_ff01_0100; the fixed BootROM firmware is supplied separately and
+performs the real power -> hmon -> entry handover.
 
 The crt0 `_start` calls `@main` (via an R_DADAO_REL26 relocation resolved by
 ld.lld) and reports the returned value through the semihosting `SYS_EXIT`
@@ -90,7 +96,10 @@ DEFAULT_LLVM_MC = os.path.join(_TOOLCHAIN_BIN, "llvm-mc")
 DEFAULT_LDLLD = os.path.join(_TOOLCHAIN_BIN, "ld.lld")
 DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
 DEFAULT_CRT0 = "tests/shared/crt0/minimal_crt0.s"
-DEFAULT_LDS = "tests/shared/linker/dadao-tiny.lds"
+DEFAULT_LDS = "tests/shared/linker/dadao-tiny-app.lds"
+# Fixed Machine-v5-Tiny BootROM firmware (make build-bootrom).
+DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir()
+                      / "bootrom" / "tiny" / "bootrom_tiny.bin")
 DEFAULT_VECTORS_DIR = "tests/unit/llvm/codegen/m4"
 DEFAULT_EXPECTED = "tests/unit/llvm/codegen/m4/expected.yaml"
 # Work dir under the SDK test-artifacts root (ADR-0016 D6), resolved through
@@ -232,7 +241,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     rc, _out, err, timed = _run(
         [
             tools["qemu"],
-            "-M", "dadao-tiny",
+            "-machine", "dadao-tiny,bootrom-image=" + tools["bootrom"],
             "-kernel", elf,
             "-semihosting-config", "enable=on,target=native",
             "-display", "none",
@@ -289,6 +298,7 @@ def main():
     ap.add_argument("--qemu", default=os.environ.get("QEMU_SYSTEM_DADAO", DEFAULT_QEMU))
     ap.add_argument("--crt0", default=DEFAULT_CRT0)
     ap.add_argument("--lds", default=DEFAULT_LDS)
+    ap.add_argument("--bootrom", default=DEFAULT_BOOTROM)
     ap.add_argument("--vectors-dir", default=DEFAULT_VECTORS_DIR)
     ap.add_argument("--expected", default=DEFAULT_EXPECTED)
     ap.add_argument("--work-dir", default=DEFAULT_WORK_DIR)
@@ -307,6 +317,7 @@ def main():
         "qemu": _abspath(args.qemu),
         "crt0": _abspath(args.crt0),
         "lds": _abspath(args.lds),
+        "bootrom": _abspath(args.bootrom),
         "vectors_dir": _abspath(args.vectors_dir),
     }
     expected_path = _abspath(args.expected)
@@ -315,6 +326,9 @@ def main():
     _require_exec(tools["llc"], "llc")
     _require_exec(tools["llvm_mc"], "llvm-mc")
     _require_exec(tools["ldlld"], "ld.lld")
+    if not os.path.isfile(tools["bootrom"]):
+        sys.exit(f"run_elf_e2e: ERROR: Tiny BootROM firmware not found: "
+                 f"{tools['bootrom']} (run 'make build-bootrom')")
     _require_exec(tools["qemu"], "qemu-system-dadao")
     if not os.path.isfile(tools["crt0"]):
         sys.stderr.write(f"ERROR: crt0 stub not found: {tools['crt0']}\n")

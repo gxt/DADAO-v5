@@ -24,14 +24,17 @@ Design
   ``should_fail`` set, iff it exits non-zero) — i.e. the verdict comes from the
   test's own assertions, never from any DADAO-side expectation.
 
-* **Run path.**  QEMU loads the test ELF with ``-machine dadao-tiny`` ("path A":
-  PC := e_entry, registers at reset — rb1 == 0).  picolibc's own
+* **Run path.**  QEMU boots the fixed 64 KiB Machine-v5-Tiny BootROM firmware
+  (``-machine dadao-tiny,bootrom-image=...``) and loads the test ELF into SRAM
+  (spec/Machine-v5 §6: power -> hmon -> fixed entry 0xffff_ff01_0100).
+  picolibc's own
   ``crt0-semihost.o`` assumes the architecture start-up code already set the
   stack, so the harness links it with ``--redefine-sym _start=_picolibc_start``
   behind ``tools/testcases/picolibc_test_crt0.s`` (the stack-setup stub).  The
   image uses ``tests/shared/linker/picolibc-tiny.ld`` (a wrapper over the
-  installed ``picolibc_noflash.ld`` with Tiny __flash/__ram/__stack values;
-  ISS-191 heap PROVIDEs still apply), so ``malloc``/``sbrk`` link.  picolibc is
+  installed ``picolibc_noflash.ld`` with Tiny __flash/__ram/__stack values and
+  crt + program together in SRAM; ISS-191 heap PROVIDEs still apply), so
+  ``malloc``/``sbrk`` link.  picolibc is
   Tiny-only: selecting a non-picolibc profile is an explicit error.  The test's own link arguments (``--defsym`` for the
   printf/scanf float/int/long variants) and semihosting command line
   (``COMMAND_LINE`` for the argv tests) are honoured.
@@ -93,6 +96,8 @@ LLVM_MC = TOOLCHAIN_BIN / "llvm-mc"
 LLVM_OBJCOPY = TOOLCHAIN_BIN / "llvm-objcopy"
 LLD = TOOLCHAIN_BIN / "ld.lld"
 QEMU = TOOLCHAIN_BIN / "qemu-system-dadao"
+# Fixed Machine-v5-Tiny BootROM firmware (make build-bootrom).
+TINY_BOOTROM = paths.test_artifacts_dir() / "bootrom" / "tiny" / "bootrom_tiny.bin"
 
 DEFAULT_TIMEOUT = 60
 DEFAULT_JOBS = int(os.environ.get("JOBS", "8"))
@@ -302,7 +307,11 @@ def run_qemu(elf, argv=None, timeout=DEFAULT_TIMEOUT):
     cfg = "enable=on,target=native"
     if argv:
         cfg = ",".join([cfg, *[f"arg={a}" for a in argv]])
-    cmd = [str(QEMU), "-M", "dadao-tiny", "-kernel", str(elf),
+    if not TINY_BOOTROM.is_file():
+        raise SystemExit(f"picolibc-tests: ERROR: Tiny BootROM firmware not found: "
+                         f"{TINY_BOOTROM} (run 'make build-bootrom')")
+    cmd = [str(QEMU), "-machine", "dadao-tiny,bootrom-image=" + str(TINY_BOOTROM),
+           "-kernel", str(elf),
            "-semihosting-config", cfg, "-display", "none", "-nographic", "-monitor", "none"]
     try:
         res = run(cmd, timeout=timeout)

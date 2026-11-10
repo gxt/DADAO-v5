@@ -20,9 +20,10 @@ Pipeline per (benchmark, optimisation level):
     clang ... -c tests/tset/embench/embench_runtime.c                    -> *.o
     llc  -march=dadao -O0 -filetype=obj dadao_mem_runtime.ll        -> *.o
     llvm-mc --triple=dadao -filetype=obj minimal_crt0.s             -> crt0.o
-    ld.lld -T dadao-tiny.lds *.o                                         -> <b>.elf
-    timeout N qemu-system-dadao -M dadao-tiny -kernel <b>.elf \
-            -semihosting-config enable=on,target=native             -> guest exit
+    ld.lld -T dadao-tiny-app.lds *.o                                     -> <b>.elf
+    timeout N qemu-system-dadao \
+            -machine dadao-tiny,bootrom-image=<fixed 64 KiB firmware> \
+            -kernel <b>.elf -semihosting-config enable=on,target=native -> guest exit
 
 Judgement (fail-closed):
   * every (benchmark, level) must build and exit 0  -> PASS
@@ -80,7 +81,9 @@ DEFAULT_INCLUDE = "tests/tset/embench/embench_include"
 DEFAULT_RUNTIME = "tests/tset/embench/embench_runtime.c"
 DEFAULT_MEM_RUNTIME = "tests/shared/runtime/dadao_mem_runtime.ll"
 DEFAULT_CRT0 = "tests/shared/crt0/minimal_crt0.s"
-DEFAULT_LDS = "tests/shared/linker/dadao-tiny.lds"
+DEFAULT_LDS = "tests/shared/linker/dadao-tiny-app.lds"
+DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir()
+                      / "bootrom" / "tiny" / "bootrom_tiny.bin")
 DEFAULT_BOARDSUPPORT = "examples/dadao/boardsupport.c"
 # Work dir under the SDK test-artifacts root (ADR-0016 D6 / Process-05 §6),
 # resolved through paths.py (D7); never hardcoded.
@@ -249,7 +252,8 @@ def build_and_run(bench, opt, tools, work_dir, timeout, verbose=False):
 
     # 6. run under QEMU; guest exit code == process exit code.
     rc, _o, err, timed = _run(
-        [tools["qemu"], "-M", "dadao-tiny", "-kernel", elf,
+        [tools["qemu"], "-machine",
+         "dadao-tiny,bootrom-image=" + tools["bootrom"], "-kernel", elf,
          "-semihosting-config", "enable=on,target=native",
          "-display", "none", "-nographic"],
         timeout=timeout,
@@ -329,6 +333,7 @@ def main():
     ap.add_argument("--mem-runtime", dest="mem_runtime", default=DEFAULT_MEM_RUNTIME)
     ap.add_argument("--crt0", default=DEFAULT_CRT0)
     ap.add_argument("--lds", default=DEFAULT_LDS)
+    ap.add_argument("--bootrom", default=DEFAULT_BOOTROM)
     ap.add_argument("--profile",
                     default=os.environ.get("DADAO_TEST_PROFILE") or "tiny",
                     choices=sorted(machine_profile.all_profiles()),
@@ -350,7 +355,9 @@ def main():
         sys.stderr.write("ERROR: profile %r does not run embench\n" % prof.name)
         return 2
     if args.lds == DEFAULT_LDS:
-        args.lds = "tests/shared/linker/dadao-%s.lds" % prof.name
+        args.lds = ("tests/shared/linker/dadao-tiny-app.lds"
+                    if prof.name == "tiny"
+                    else "tests/shared/linker/dadao-%s.lds" % prof.name)
 
     tools = {
         "clang": _abspath(args.clang),
@@ -364,6 +371,7 @@ def main():
         "mem_runtime": _abspath(args.mem_runtime),
         "crt0": _abspath(args.crt0),
         "lds": _abspath(args.lds),
+        "bootrom": _abspath(args.bootrom),
         "profile": prof.name,
     }
     work_dir = _abspath(args.work_dir)

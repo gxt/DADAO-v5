@@ -10,7 +10,7 @@
 # RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %e2e_dir/narrow_int_e2e_abi.s -o %t.abi.o
 # RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %crt0 -o %t.crt0.o
 # RUN: %ld -T %linker_script %t.crt0.o %t.abi.o %t.o -o %t.elf
-# RUN: timeout 30 %qemu -M dadao-tiny -kernel %t.elf -semihosting-config enable=on,target=native -display none -nographic
+# RUN: timeout 30 %qemu -machine dadao-tiny,bootrom-image=%bootrom -kernel %t.elf -semihosting-config enable=on,target=native -display none -nographic
 #
 # The emitted instruction shapes (one add.st/mul.st/div.st/..., one ext.uo per
 # zero extension, ...) are pinned *exactly* by the llc tests
