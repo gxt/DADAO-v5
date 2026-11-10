@@ -133,3 +133,14 @@
     （实测子代理调用返回 `Unknown tool 'question'`）；需要裁定的问题一律写进任务书并返回主会话，
     由主会话统一问、统一转达、统一落盘。
     教训：判「伪造」前先问「模型是否具备直接问用户的通道」；把不可见通道先关掉，再谈溯源。
+- id: ISS-366
+  scope: [testcases]
+  status: open
+  resolved_by: null
+  title: >-
+    【P2】`run_engine_ratio.py` **逐套件串行**执行（`for suite in selection: for engine: run_driver`）：
+    当某分片里一个套件只有 1 例时（本仓 dynamic/static 长尾分片各有 1 个 libc-test 例），
+    该例会**独占整个预算窗口**（7200 s），其余 35 例 llvm-ts 才开始跑 ⇒ 「48 并发」实际只有 1 路。
+    实测：`m13-testcases-003` 首轮 long static 在前 36 分钟只有 1 个 `gem5.opt`（load≈1.0）。
+    规避：`run.sh` 已改为**按套件并发**（每套件一个进程、各自 work-dir/json），合并在分析侧。
+    建议：在 `run_engine_ratio` 内部支持跨套件并发（或至少按预计耗时排序，短套件先跑）。
