@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m12-chipyard-007 | 5–7 h | Tiny 的 `cfx_power` + `cfx3 hmon`（异常进向量、trap 区分、IALIGN 停留） |
 | m12-chipyard-008 | 4–5 h | 访存（ld/st 全宽度 + 对齐/越界 + 大端 + `ldm`/`stm`） |
 | m12-chipyard-009 | 2–3 h | 控制流 + RAS（分支/跳转/call/ret + 返回地址栈） |
 | m12-chipyard-010 | 3–4 h | 位操作 + 原子（`lr`/`sc`/`swym`）+ 杂项（含 `fence`） |
@@ -40,6 +39,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m12-chipyard-007 | 2026-11-10 13:04 | 8–12 h | Tiny `cfx_power`+`cfx3 hmon`：BootROM 固件/搬运 + 双 TL 端口 + 异常进向量 |
 
 ## 已验证
 
