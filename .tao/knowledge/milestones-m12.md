@@ -24,6 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-021 | 3–4 h | hmon 按「保存-跳转」重做 + power 写默认返回地址（删 magic/IALIGN/+4 策略） |
 | m12-chipyard-009 | 2–3 h | 控制流 + RAS（分支/跳转/call/ret + 返回地址栈） |
 | m12-chipyard-010 | 3–4 h | 位操作 + 原子（`lr`/`sc`/`swym`）+ 杂项（含 `fence`） |
 | m12-chipyard-011 | 4–5 h | FP 基础设施（recFN 编解码 + 六档舍入 + 异常标志 + 分类） |
