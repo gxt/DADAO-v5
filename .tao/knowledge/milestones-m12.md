@@ -24,6 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m12-testcases-002 | 1–2 h | E2E 测试适配 Tiny 固定固件装载契约（8 个 DADAO-E2E 红） |
 | m12-chipyard-019 | 3–4 h | `cfx_power`/`cfx3` 寄存器组 + 五类同步异常进 hmon + IALIGN/cg3/rc10 |
 | m12-chipyard-008 | 4–5 h | 访存（ld/st 全宽度 + 对齐/越界 + 大端 + `ldm`/`stm`） |
 | m12-chipyard-009 | 2–3 h | 控制流 + RAS（分支/跳转/call/ret + 返回地址栈） |
